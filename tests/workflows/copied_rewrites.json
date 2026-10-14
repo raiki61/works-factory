@@ -1459,6 +1459,16 @@
    "why": "1 系統が走って赤で、ほかの系統が走らなかった時の status を決める（走った赤が勝つ。lib/declared_checks.py の ran_reds と同じ決め。#402）",
    "original": "1 系統でも赤なら found（count は赤の件数の合計、detail に赤の内容と、ほかの系統が緑か走らせられなかったか）。赤が無く、",
    "copied": "1 系統でも走って赤なら found（count は走った赤の件数の合計、detail に赤の内容と、ほかの系統が緑か走らせられなかったか）。ほかの系統が走らなかった（上の「走っていない」段に当たる系統を含む）時も found のままにし、走らせられなかった時の status にするな——走った赤は、走らなかった系統より勝つ。走らなかった系統は、何に阻まれたかを detail に添えよ。走った赤が無く、"
+  },
+  {
+   "why": "一部の系統だけ走らせた final の素材で、冒頭の句が走らせた系統と走らせられなかった系統を名指せるよう、役に系統の名を systems に分けて書かせる（#514）",
+   "original": "走った赤が無く、走らせられなかった系統が 1 つでも在れば、上の走らせられなかった時の status（base なら awaiting_human、final なら not_run。reason にどの系統が何に阻まれ、どの系統が緑だったか）。",
+   "copied": "走った赤が無く、走らせられなかった系統が 1 つでも在れば、上の走らせられなかった時の status（base なら awaiting_human、final なら not_run。reason にどの系統が何に阻まれ、どの系統が緑だったか）。final の not_run では、systems に系統の名を分けて書け——走らせた系統を ran、走らせられなかった系統を unran に（全部が走らせられなければ ran は空。systems の無い not_run は受け付けが拒む）。報告と最後の関所は、ran が空でなければ走らせた系統と走らせられなかった系統を名指し、空なら「試験が走っていない」と言う。"
+  },
+  {
+   "why": "一部の系統だけ走らせた final の素材で、冒頭の句が走らせた系統と走らせられなかった系統を名指せるよう、役に系統の名を systems に分けて書かせる（#514）",
+   "original": "括弧の中はその status で要る欄で、checked と reason はどの status でも足して書ける。",
+   "copied": "括弧の中はその status で要る欄で、checked と reason はどの status でも足して書ける。systems（走らせた系統 ran・走らせられなかった系統 unran の名の並び）は final の not_run で要る。"
   }
  ],
  "workflows/plan/commands/structure-eye.md": [

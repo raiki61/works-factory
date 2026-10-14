@@ -788,6 +788,21 @@ class CiRoleCase(ScriptCase):
                 self.assertTrue(self.ok("ci_accept", mode="base", reply=self.GOOD)["done"])
                 self.assertTrue(kept.exists())
 
+    def test_final_not_run_without_systems_is_rejected(self):
+        """#514: final の not_run は、走らせた系統と走らせられなかった系統の名の分け（systems）が無ければ受けない（冒頭の句が一部の
+        系統だけ走らせた run を「走っていない」と言わない）。在れば受ける"""
+        out = self.ok("ci_prep", mode="final", start=self.start)
+        top = pathlib.Path(out["copy_dir"]).parent
+        self.addCleanup(lambda: top.exists() and __import__("shutil").rmtree(top, ignore_errors=True))
+        bare = {"status": "not_run", "reason": "e2e は実機が要る"}
+        got = self.ok("ci_accept", mode="final", reply=json.dumps({"material": bare}))
+        self.assertFalse(got["ok"])
+        self.assertIn("systems", got["reason"])
+        reply = {"material": {**bare, "systems": {"ran": ["unit"], "unran": ["e2e"]}}}
+        self.assertTrue(self.ok("ci_accept", mode="final", reply=json.dumps(reply))["ok"])
+        saved = json.loads((self.artifacts / "test-gate" / "final" / "ci-material.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved, reply)
+
     def test_rejected_reply_leaves_no_material_the_role_wrote(self):
         """拒んだ回は、役が run の置き場に自分で置いた ci-material.json を消す（返す節が受け付けていない素材を読まない）"""
         self.prep()
@@ -1002,6 +1017,24 @@ class ResultScriptCase(ScriptCase):
                                                encoding="utf-8")
         out = self.result("final")
         self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
+
+    def test_role_partly_run_systems_are_named_not_not_ran(self):
+        """#514: 任せ先の CI の役が一部の系統だけ走らせた final の not_run は、判定はそのまま（incomplete・認証しない）で、冒頭の句は
+        素材の systems の走らせた系統と走らせられなかった系統を名指し、「走っていない」と言わない。全部の系統を走らせられなければ
+        今どおり「走っていない」"""
+        self.assertEqual(self.ok("run", mode="final", start=self.start)["by"], declared_checks.ROLE_NEEDED)
+        gate = self.artifacts / "test-gate" / "final"
+        for systems, phrase in (({"ran": ["unit"], "unran": ["e2e"]}, green_cert.PARTLY_RAN),
+                                ({"ran": [], "unran": ["unit", "e2e"]}, green_cert.NOT_RAN)):
+            with self.subTest(systems=systems):
+                material = {"status": "not_run", "reason": "unit 系統は緑。e2e 系統は実機が要り走らせられない", "systems": systems}
+                (gate / "ci-material.json").write_text(json.dumps({"material": material}), encoding="utf-8")
+                out = self.result("final")
+                self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INCOMPLETE))
+                self.assertEqual(out["ran_steps"], systems)
+                note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"], steps=out["ran_steps"])
+                self.assertTrue(note.startswith(phrase), note)
+                self.assertEqual(green_cert.NOT_RAN in note, phrase == green_cert.NOT_RAN)
 
     def test_command_that_fails_before_its_tests_is_named_not_ran(self):
         """#492: JUnit の報告を宣言した段が試験に入る前に落ちた（利用者の設定が無い）final は incomplete で、冒頭の句は「走っていない」"""

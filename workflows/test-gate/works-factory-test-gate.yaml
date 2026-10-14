@@ -44,6 +44,13 @@ nodes:
             detail: {type: string}
             checked: {type: string}
             reason: {type: string}
+            systems: &systems   # 系統の名の分け（走らせた ran・走らせられなかった unran）。任せ先の役が final の not_run で書き、冒頭の句が読む
+              type: object
+              additionalProperties: false
+              required: [ran, unran]
+              properties:
+                ran: {type: array, items: {type: string}}
+                unran: {type: array, items: {type: string}}
         runs:
           type: array
           items:
@@ -162,6 +169,7 @@ nodes:
                   detail: {type: string}
                   checked: {type: string}
                   reason: {type: string}
+                  systems: *systems
         - id: ci-accept
           script: ci_accept
           runtime: uv
@@ -205,13 +213,9 @@ nodes:
         ok: {type: boolean}
         green: {type: boolean}
         red_cause: {type: string, enum: [introduced, inherited, environment, interaction, incomplete, ""]}
-        ran_steps:   # 起こした段と、起こせない・試験を走らせなかった段の名（green_cert.ran_steps。報告と最後の関所の冒頭の句が読む）
-          type: object
-          additionalProperties: false
-          required: [ran, unran]
-          properties:
-            ran: {type: array, items: {type: string}}
-            unran: {type: array, items: {type: string}}
+        # 起こした段と、起こせない・試験を走らせなかった段の名（green_cert.ran_steps。任せ先の役の run は素材の systems）。
+        # 報告と最後の関所の冒頭の句が読む
+        ran_steps: *systems
         baseline:
           anyOf:
             - type: "null"

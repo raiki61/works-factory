@@ -293,7 +293,7 @@ flowchart TB
   - `ok`（boolean）: base は直す前の結末を控えられた（走らせられない系統が在る base も。CI の役が回せなかった系統だけでなく、test_cmd か宣言の段（`.review-checks.json`）を起こせない時も、判定の前の素材は `awaiting_human` になる（`lib/declared_checks.py` の `checks_reply`）。素材 `awaiting_human` の `reason` が系統か起こせなかった訳を名指し、judge の台帳の awaiting の問いと report の人が確かめる物に載る。今の works と同じく一部でも全部でも止めない。素材が無い・`not_run`・`carried_over` は偽）。final は緑を認証した（`green` で、指紋が今の作業ツリーと合う）→ メイングラフ 4（base）・メイングラフ 9（final）・merge
   - `green`（boolean）: テスト一式（final は CI も）が緑。base で赤でも `ok` は true になりうる → report
   - `red_cause`（string）: 赤の原因 `introduced`・`inherited`・`environment`・`interaction`・`incomplete`・`""`（ASF の enum。緑なら `""`）→ report
-  - `ran_steps`（object）: `{ran, unran}`。起こした段の名と、起こせない・JUnit の報告を宣言して試験を走らせなかった段の名（`green_cert.ran_steps`。任せ先の役の run と誤りは両方空）。冒頭の句が「走っていない」の時、両方在れば 2 つを名指した「試験の段の一部しか走らせられていない」にする（#514）→ report・メイングラフ 11
+  - `ran_steps`（object）: `{ran, unran}`。起こした段の名と、起こせない・JUnit の報告を宣言して試験を走らせなかった段の名（`green_cert.ran_steps`）。任せ先の CI の役の run は、役が素材の `systems` に書いた系統の名（final の `not_run` で要る。受け付けが拒む）。誤りは両方空。。冒頭の句が「走っていない」の時、両方在れば 2 つを名指した「試験の段の一部しか走らせられていない」にする（#514）→ report・メイングラフ 11
   - `baseline`（ポインタ・null 可）: 直す前の結末（テストの走らせ方と元から赤のテスト）。base だけ → judge・fix・test-gate（final）
   - `fingerprint`（object・null 可）: 作業ツリーの指紋 `{head, diff_hash}`。final だけ → merge（seal が照らす）
   - `test_outcomes`（object・null 可）: テストごとの base と最後の結末 `{rows: [{key, base, final, fail_message}], unmeasured}`（赤→緑・緑→緑・緑→赤・赤→赤を全部。`base`・`final` は片側に居なければ `""`、`fail_message` は最後が赤なら最後の、でなければ base の物）。赤の原因の照らし（`green_cert.classify`）と同じ決めで base と最後の 1 件ごとの結末を比べ、比べない時は `rows` が空で `unmeasured` に訳。final だけ → eyes
