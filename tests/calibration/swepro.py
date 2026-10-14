@@ -89,7 +89,7 @@ INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
 # 工場そのものが壊れて終わった結末（記録が読めない・節が落ちて線が進まなかった）。人を待っていないので stopped に入れない
 BROKE = ("record_invalid", "interrupted")
-REPO_TAR, REPO_STEP, STAMP = "repo.tar", "repo", "stamp"
+REPO_TAR, STAMP = "repo.tar", "stamp"
 UV_VERSION, BUN_VERSION = "0.11.29", "1.4.3"
 DERIVED = "works-bench-swepro"
 PLATFORM = "linux/amd64"   # 課題のイメージは linux/amd64 だけ
@@ -153,8 +153,8 @@ def tool_env(place: str) -> str:
 
 
 def build_steps(claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:
-    """(名, 命令)。派生のイメージの build の段で順に root で打つ（網が要る）。名 REPO_STEP の前に、Dockerfile の COPY が
-    工場の写し <place>/repo.tar を置く"""
+    """(名, 命令)。派生のイメージの build の段で順に root で打つ（網が要る）。名 archon の前に、Dockerfile の ADD が
+    工場の写しを <place>/repo に展開して置く"""
     p, env = _paths(place), tool_env(place)
     packages = "ca-certificates curl git bubblewrap socat procps unzip"
     archive = ("sed -i -e 's|deb.debian.org/debian-security|archive.debian.org/debian-security|g' "
@@ -178,7 +178,6 @@ def build_steps(claude_version: str, place: str = PLACE) -> list[tuple[str, str]
                 f"&& {p['bun']}/bin/bun --version"),
         ("claude", f"curl -fsSL https://downloads.claude.ai/claude-code-releases/bootstrap.sh | bash -s {shlex.quote(claude_version)} "
                    f"&& ln -sf /root/.local/bin/claude {p['bin']}/claude && {p['bin']}/claude --version"),
-        (REPO_STEP, f"mkdir -p {place}/repo && tar -xf {place}/{REPO_TAR} -C {place}/repo && rm -f {place}/{REPO_TAR}"),
         # 殻は命令に依らず先に Archon の源を取り置く（止めた commit の clone と bun install）。網の開いた build の段で済ませる
         ("archon", f"cd {p['home']} && env {env} WORKS_FACTORY_NO_AUTH=1 {p['bin']}/python3.12 {place}/repo/bin/works-factory version"),
         # bin/_lib/toolset.py の install は借りるプラグインが利用者の installed_plugins.json に無いと止まる
@@ -209,12 +208,13 @@ def derived_image(instance_id: str) -> str:
 
 def dockerfile(base_image: str, claude_version: str, factory_commit: str, place: str = PLACE) -> str:
     """課題のイメージの上に道具と工場の写しを焼く。ENV・WORKDIR・USER・ENTRYPOINT・CMD を書かない（課題の実行時の形と
-    検証役が見る PATH を変えない）。RUN は Harbor の docker の exec と同じ sh -c を exec 形で書き、字の引用を崩さない"""
+    検証役が見る PATH を変えない）。RUN は Harbor の docker の exec と同じ sh -c を exec 形で書き、字の引用を崩さない。
+    工場の写しは commit ごとに変わるので、道具の層の cache を切らないよう道具の後に置く"""
     lines = [f"FROM {base_image}"]
     for name, command in build_steps(claude_version, place):
+        if name == "archon":
+            lines.append(f"ADD {REPO_TAR} {place}/repo/")
         lines.append(f"RUN {json.dumps(['/bin/sh', '-c', command], ensure_ascii=False)}")
-        if name == "place":
-            lines.append(f"COPY {REPO_TAR} {place}/{REPO_TAR}")
     marked = f"printf '%s\\n' {shlex.quote(stamp(factory_commit, claude_version))} > {place}/{STAMP}"
     lines.append(f"RUN {json.dumps(['/bin/sh', '-c', marked], ensure_ascii=False)}")
     return "\n".join(lines) + "\n"
