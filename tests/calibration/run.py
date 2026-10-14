@@ -298,7 +298,8 @@ class OldWorks:
     input_pairs = WorksFactory.input_pairs
 
     def start_command(self, attempt: Path, base: str) -> list[str]:
-        return ["sh", str(self.dev / "use.sh"), "start", "--base", base, "--", str(attempt / "target"), str(attempt / "request.json")]
+        pairs = self.input_pairs(attempt, base)
+        return ["sh", str(self.dev / "use.sh"), "start", "--base", pairs["base"], "--", str(attempt / "target"), pairs["request"]]
 
     def continue_command(self, verb: str, run_id: str, *rest: str) -> list[str]:
         return ["sh", str(self.dev / "continue.sh"), str(self.dev / "archon.sh"), "workflow", verb, run_id, *rest]

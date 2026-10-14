@@ -339,6 +339,9 @@ class RunTest(RunnerCase):
         [record] = self.records("works")
         self.assertEqual(record["provenance"]["run_inputs"], {"request": "request.json", "base": self.base_sha,
                                                               "unattended": "true", "final_gate": "when_needed"})
+        [start] = [c["args"] for c in self.calls("use.sh") if c["args"][0] == "start"]
+        self.assertEqual(relative({"base": start[start.index("--base") + 1], "request": start[-1]}, record["attempt"]),
+                         {k: record["provenance"]["run_inputs"][k] for k in ("base", "request")})
         self.assertRan(self.run_tasks("claude", self.one))
         [record] = self.records("claude")
         given = {"RB_BASE": self.base_sha, "RB_HEAD": self.head_sha, "RB_DIFF": "pr/diff.patch", "RB_PR_JSON": "pr/pr.json"}
