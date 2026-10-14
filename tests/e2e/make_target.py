@@ -26,6 +26,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))   # 命令として走る時は tests/e2e/ が頭に来るだけなので
+from bin._lib import launcher  # noqa: E402
+
 SEED = Path(__file__).resolve().parent / "target-seed"
 SHELL = ROOT / "bin" / "works-factory"
 REQUEST = "request_ok.json"
@@ -120,7 +124,7 @@ def stop_runs(home: Path, target: Path) -> bool:
 def launch(home: Path, target: Path, *args: str) -> subprocess.CompletedProcess:
     """殻で home の家の Archon を起こす。Archon は git のリポジトリの中でしか命令を受けないので、対象を --cwd で渡す。
     止める命令は工程を回さないので、認証を要らなくする"""
-    env = {**os.environ, "WORKS_FACTORY_HOME": str(home), "WORKS_FACTORY_NO_AUTH": "1"}
+    env = {**os.environ, launcher.HOME_ENV: str(home), launcher.NO_AUTH_ENV: "1"}
     return subprocess.run([sys.executable, str(SHELL), "workflow", *args, "--cwd", str(target)], cwd=home, env=env,
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8")
 
