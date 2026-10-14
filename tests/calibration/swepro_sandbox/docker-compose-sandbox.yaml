@@ -1,0 +1,8 @@
+# works-bench: only the task's main container may build the Claude Code sandbox (bwrap): a user namespace and mounts
+# inside it. Docker's default seccomp profile plus those syscalls, and no AppArmor profile. Never --privileged or
+# CAP_SYS_ADMIN; the egress sidecar keeps Docker's defaults.
+services:
+  main:
+    security_opt:
+      - seccomp=${WORKS_BENCH_SECCOMP:?works-bench passes the seccomp profile path}
+      - apparmor=unconfined
