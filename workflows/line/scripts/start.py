@@ -31,6 +31,7 @@ with boundary.guarded_imports():
     import policy
     import startrec
     import stopby
+    import tddloop
     import versions
 
     DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
@@ -146,17 +147,21 @@ def depth_words(raw: dict, record: dict) -> str:
     return f"段: {record['thickness'] or AUTO}" + ("" if raw["thickness"].strip() else "（既定）")
 
 
-def test_note(raw: dict, repo: Path) -> str:
-    """修正前のテストの任せ先の注（元 entry.py 1218-1219 行）。test_cmd も対象の宣言も無ければ、任せ先の役が走らせ方を探す"""
-    if raw["test_cmd"].strip() or "fallback" not in declared_checks.checks_plan(repo):
-        return ""
-    return "修正前のテスト: 宣言も test_cmd も無い——任せ先の役がリポジトリから走らせ方を探す"
+def test_notes(raw: dict, record: dict, repo: Path) -> list:
+    """テストの注: 修正前のテストの任せ先（元 entry.py 1218-1219 行。test_cmd も対象の宣言も無ければ、任せ先の役が走らせ方を探す）と、
+    TDD の輪の実行器をどうしたか（元 use.sh 1066-1089 行。tdd_suite を名指した時は言わない）"""
+    notes = []
+    if not raw["test_cmd"].strip() and "fallback" in declared_checks.checks_plan(repo):
+        notes.append("修正前のテスト: 宣言も test_cmd も無い——任せ先の役がリポジトリから走らせ方を探す")
+    if not raw["tdd_suite"].strip() and raw["test_cmd"].strip():
+        notes.append(f"{tddloop.SUITE_WRITTEN}（{record['tdd_suite']}）" if record["tdd_suite"] else tddloop.SUITE_SKIPPED)
+    return notes
 
 
-def gate_text(shape: dict, record: dict, run_id: str, note: str = "") -> str:
+def gate_text(shape: dict, record: dict, run_id: str, notes: list) -> str:
     happened = f"run を始める前で止まった。入口: {startrec.words(shape)}"
     rest = [depth_words(record["inputs"], record), entry.features_part(record["features_off"], record["features_on"]),
-            gatepolicy.head_words(record), note]
+            gatepolicy.head_words(record), *notes]
     lines = gatemarks.head3(happened, "この入力で run を始めるか、止めるか（打つ行は末尾の答え方）", gatemarks.NO_PUSH)
     lines += ["", *[f"- {x}" for x in rest if x], "", "答え方:",
               f"- 始める: {answer.line(run_id, 'continue', '<一言>')}",
@@ -196,7 +201,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
-        "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
+        "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"].strip() or tddloop.pytest_suite(raw["test_cmd"], artifacts),
         gatepolicy.FINAL_KEY: checked[gatepolicy.FINAL_KEY], gatepolicy.UNATTENDED_KEY: checked[gatepolicy.UNATTENDED_KEY],
         "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
         "policy_md": checked["policy_md"], "policy": policy.freeze(artifacts, repo, checked["policy_md"]), "lang": raw["lang"],
@@ -212,7 +217,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         prior = boundary.pointer(carry.PRIOR_IN_FILE)
     unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
     return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record),
-            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_note(raw, repo)),
+            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, record, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
             "final_gate": record[gatepolicy.FINAL_KEY]}
 

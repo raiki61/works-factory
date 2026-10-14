@@ -355,6 +355,19 @@ class StartCase(Artifacts):
         self.assertEqual(self.record(got)["answers"], rows)
         self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
 
+    def test_pytest_test_cmd_gets_a_tdd_runner(self):
+        """#505: tdd_suite を省き test_cmd が pytest の 1 コマンドなら、始めの記録の tdd_suite は run の置き場に書いた実行器（元 works の
+        dev/use.sh 1069-1081 行）。名指した tdd_suite はそのまま。どちらでもなければ空で、承認ノードの文が輪を飛ばす訳を言う"""
+        import tddloop
+        got = self.start(base="base", test_cmd="uv run pytest -q")
+        suite = self.record(got)["tdd_suite"]
+        self.assertEqual(suite, str((self.artifacts / tddloop.SUITE_FILE).resolve()))
+        self.assertIn(tddloop.SUITE_WRITTEN, got["gate_text"])
+        self.assertEqual(self.record(self.start(base="base", test_cmd="pytest", tdd_suite="run-tests.sh"))["tdd_suite"], "run-tests.sh")
+        got = self.start(base="base", test_cmd="npm test")
+        self.assertEqual(self.record(got)["tdd_suite"], "")
+        self.assertIn(tddloop.SUITE_SKIPPED, got["gate_text"])
+
     def test_request_answers_reach_the_record(self):
         """L-E03: 依頼の answers は始めの記録の answers（元 works/tests/test_entry.py の test_request_answers_reach_start_doc）"""
         rows = [{"question": "q1", "text": "a を選ぶ"}]

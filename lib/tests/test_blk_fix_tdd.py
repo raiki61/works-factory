@@ -132,6 +132,27 @@ class TestNoSuite(unittest.TestCase):
         self.assertEqual(tddloop.frozen_problems("", pathlib.Path(".")), [])
 
 
+class TestPytestSuite(unittest.TestCase):
+    """#505: tdd_suite を省いた run で test_cmd が pytest の 1 コマンドなら、入口がそれに JUnit XML の書き先を足す実行器を書く
+    （元 works の dev/use.sh 1069-1081 行。既定の run でも TDD の輪が回る）"""
+
+    def test_single_pytest_command_gets_a_runner(self):
+        for cmd in ("pytest -q", "uv run pytest -q tests", "python3 -m pytest", "  poetry run pytest"):
+            with self.subTest(cmd=cmd), tempfile.TemporaryDirectory() as tmp:
+                got = pathlib.Path(tddloop.pytest_suite(cmd, tmp))
+                self.assertEqual(got, pathlib.Path(tmp).resolve() / tddloop.SUITE_FILE)
+                self.assertTrue(os.access(got, os.X_OK))
+                body = got.read_text(encoding="utf-8")
+                self.assertIn(f'exec {cmd.strip()} -p no:cacheprovider --continue-on-collection-errors --junitxml="$1"\n', body)
+                self.assertIn("PYTHONDONTWRITEBYTECODE=1", body)
+
+    def test_other_commands_get_none(self):
+        for cmd in ("", "npm test", "pytestx", "pytest -q; rm -rf x", "pytest | tee log", "pytest $ARGS", "cd sub && pytest"):
+            with self.subTest(cmd=cmd), tempfile.TemporaryDirectory() as tmp:
+                self.assertEqual(tddloop.pytest_suite(cmd, tmp), "")
+                self.assertEqual(list(pathlib.Path(tmp).iterdir()), [], "当たらなければ何も書かない")
+
+
 DECLARED = {"declared": True, "why": "分母の式を名前の付いた変数に分けたい"}   # fix の段の整えの申告（理由は MIN_WHY 字以上）
 PLAN_REFACTOR = {"item": 1, "why": "分母の計算を補助の関数に寄せる"}   # 約束の refactor の 1 行（修正案の項目の申告）
 
