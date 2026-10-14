@@ -275,8 +275,8 @@ class InsideTest(unittest.TestCase):
         self.assertEqual(self.calls(), [])
 
     def add_submodule(self, with_history=True) -> str:
-        """workdir に submodule vendor/sub を足す。.gitmodules の URL は網の先、/app の config に URL は無い（実走のイメージと同じ形）。
-        指す commit を返す"""
+        """workdir に submodule vendor/sub を名 lib-sub で足す。git は URL を名で引くので名と path を違えておく。.gitmodules の
+        URL は網の先で、値の無い key（shallow）も持つ。/app の config に URL は無い（実走のイメージと同じ形）。指す commit を返す"""
         sub = self.tmp / "sub"
         sub.mkdir()
         git(sub, "init", "-q", "-b", "main")
@@ -286,11 +286,13 @@ class InsideTest(unittest.TestCase):
         (sub / "s.py").write_text("s = 1\n", encoding="utf-8")
         git(sub, "add", "-A")
         git(sub, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "two")
-        git(self.workdir, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub), "vendor/sub")
-        git(self.workdir, "config", "-f", ".gitmodules", "submodule.vendor/sub.url", "https://example.invalid/sub.git")
+        git(self.workdir, "-c", "protocol.file.allow=always", "submodule", "add", "-q", "--name", "lib-sub", str(sub), "vendor/sub")
+        git(self.workdir, "config", "-f", ".gitmodules", "submodule.lib-sub.url", "https://example.invalid/sub.git")
+        with (self.workdir / ".gitmodules").open("a", encoding="utf-8") as f:
+            f.write("\tshallow\n")
         git(self.workdir, "add", ".gitmodules")
         git(self.workdir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "submodule")
-        git(self.workdir, "config", "--remove-section", "submodule.vendor/sub")
+        git(self.workdir, "config", "--remove-section", "submodule.lib-sub")
         if not with_history:
             shutil.rmtree(self.workdir / ".git" / "modules")
             (self.workdir / "vendor" / "sub" / ".git").unlink()
@@ -302,7 +304,7 @@ class InsideTest(unittest.TestCase):
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         copy = self.place / "attempt" / swepro.SUBMODULE_COPIES / "0.git"
-        self.assertEqual(self.calls()[0]["submodules"], f"submodule.vendor/sub.url {copy}")
+        self.assertEqual(self.calls()[0]["submodules"], f"submodule.lib-sub.url {copy}")
         self.assertEqual(git(copy, "rev-parse", "HEAD"), pointed)
         self.assertEqual(git(copy, "ls-tree", "-r", "--name-only", "HEAD"),
                          git(self.workdir / "vendor" / "sub", "ls-tree", "-r", "--name-only", "HEAD"))
@@ -321,7 +323,7 @@ class InsideTest(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(git(tree / "vendor" / "sub", "rev-parse", "HEAD"), pointed)
         self.assertTrue((tree / "vendor" / "sub" / "s.py").is_file())
-        unset = subprocess.run(["git", "-C", str(self.workdir), "config", "--get", "submodule.vendor/sub.url"])
+        unset = subprocess.run(["git", "-C", str(self.workdir), "config", "--get", "submodule.lib-sub.url"])
         self.assertEqual(unset.returncode, 1)
 
     def test_submodule_url_and_copies_stay_out_of_the_patch(self):

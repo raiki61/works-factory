@@ -555,9 +555,10 @@ def give_submodules(attempt: Path, workdir: Path) -> dict:
         if not make_target.git("-C", w, "ls-tree", "--name-only", "HEAD", "--", ".gitmodules"):
             return {}
         listed = make_target.git("-C", w, "config", "--blob", "HEAD:.gitmodules", "-z", "--list")
-        paths = [entry.split("\n", 1) for entry in listed.split("\0") if entry]
+        entries = (entry.partition("\n") for entry in listed.split("\0") if entry)
+        paths = [(k, v) for k, _, v in entries if k.startswith("submodule.") and k.endswith(".path")]
         urls = []
-        for i, (key, path) in enumerate((k, v) for k, v in paths if k.startswith("submodule.") and k.endswith(".path")):
+        for i, (key, path) in enumerate(paths):
             name = key.removeprefix("submodule.").removesuffix(".path")
             entry = make_target.git("-C", w, "ls-tree", "-z", "HEAD", "--", path).partition("\t")[0].split()
             if len(entry) != 3 or entry[0] != "160000":
