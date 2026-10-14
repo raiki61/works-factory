@@ -2,7 +2,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""返す節: 判定か再審の結果を、線との約束（docs/design.md の「judge の出力」）の欄で返す（lib/judge_accept.verdict）。
+"""返す節: 判定か再審の結果を、線との約束（docs/design.md の「judge の出力」）の欄で返す（lib/judge_accept.verdict）。run の頭の深さの
+欄 depth・depth_why は控え judge/depth-head.json から読む（lib/headdepth。再審と控えの無い run は標準）。
 決して落ちない: 境の口と lib を読む所から中の誤りを全部捕まえて標準エラーに書き、判定と目的の指し札の先を空の形で置いて
 ready: false と止めの理由を返す（線は落ちた返す節の先へ進めない）"""
 import json
@@ -28,7 +29,8 @@ def fallen(objection: str) -> dict:
     ptr = lambda name: {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": f"{here}/{name}"}  # noqa: E731
     return {"ready": False, "stop_reason": "works:rejudge" if objection.strip() else "works:judge", "units": [],
             "judgment": ptr("judgment.json"), "purpose": ptr("purpose.json"),
-            "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None}
+            "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None,
+            "depth": "標準", "depth_why": "判定の返す節が lib を読めない"}
 
 
 objection = os.environ.get("INPUTS_OBJECTION", "")
@@ -48,6 +50,7 @@ try:
     except Exception as e:  # noqa: BLE001  返す節は落ちない
         print(f"verdict: {type(e).__name__}: {e}", file=sys.stderr)
         out = ja.verdict_fallback(jdir, rdir, objection, boundary.pointer)
+    out.update(ja.head_depth(jdir, objection))
 except Exception as e:  # noqa: BLE001  境の口か lib を読めない
     print(f"verdict: {type(e).__name__}: {e}", file=sys.stderr)
     out = fallen(objection)
