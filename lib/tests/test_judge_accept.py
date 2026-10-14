@@ -293,6 +293,14 @@ class JudgeTakeCase(_JudgeBase):
         self.assertNotIn("x", [r["where"] for r in rows], "P0 の素材は材料の行に入らない（元は p1.* の節だけ）")
         self.assertEqual([r["where"] for r in rows if r["from"].startswith("依頼")], ["stats.py", "stats.py"])
 
+    def test_material_rows_follow_material_roles(self):
+        """材料の行の出どころの節は MATERIAL_ROLES が決める: p1.* の役は全部読まれ、p0.* の役は読まれない"""
+        for role in ja.MATERIAL_ROLES:
+            ja.write_json(self.jdir / ja.material_file(role), {
+                "role": role, "materials": {}, "reply": {"findings": [{"where": role, "text": "所見"}]}})
+        got = {r["where"]: r["from"] for r in ja.material_rows(self.jdir) if not r["from"].startswith("依頼")}
+        self.assertEqual(got, {role: nid for role, nid in ja.MATERIAL_ROLES.items() if nid.startswith("p1.")})
+
     FIXED = {ja.MATERIAL_VIEW_FILE: "hygiene", ja.MATERIAL_ROUTE_FILE: "provenance", ja.MATERIAL_TREE_FILE: "gate-efficacy"}
 
     def plant_fixed_files_shaped_like_roles(self):
