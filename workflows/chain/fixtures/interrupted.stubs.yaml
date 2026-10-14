@@ -1,0 +1,9 @@
+# round-1 の子が落ちずに interrupted を返す。round-1-decide は act: aborted で、round-2 は飛ぶ（resume はその子の run で続ける）。
+fixture:
+  expect: "completed"
+  inputs: {"rounds": "3", "request": "request.json"}
+  reached: ["chain-start", "round-1", "round-1-commit", "round-1-facts", "round-1-decide", "result"]
+exec-code: true
+round-1: {"fixed": false, "ok": true, "outcome": "interrupted", "stop_reason": "", "report": null, "report_ai": null, "next_request": {"type": "archon_artifact", "run_id": "child-1", "path": "report/next-request.json"}, "prior_failures": null, "apply": null, "sealed": null, "r2_status": null, "final_answer": null, "children": null}
+round-1-commit: {"ok": true, "changed": true, "head": "1111111111111111111111111111111111111111", "reason": ""}
+round-1-facts: {"ok": true, "error": "", "run": "child-1", "keys": ["k1"], "held_rows": [], "request": "/tmp/chain-fixture/r1/next-request.json", "source": "/tmp/chain-fixture/runs/child-1/report/next-request.json", "cost": 1.5, "cost_read": true}

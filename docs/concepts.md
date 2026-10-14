@@ -72,7 +72,7 @@
 - 状態: 住処あり
 - 住処: 入口の変換 `lib/entryshape.py`（差分の根の名指しの解き `change_base`・差分も依頼の行も無い入力の拒み `refuse_empty`・入口の入力の形を作る `build`・依頼の文 `request_text`・名指した PR と issue の読み `github_reads`・PR の添え物の置き `write_pr_file`）
 - 約束: 入口の入力の形（`build` が返す `{base, head_rev, diff, requests, request_file, pr, spec}`）。後ろのノードはこの中身——差分が空か・依頼の行の数・PR の添え物・仕様の段を挟むか——だけを読み、入口の種類を見ない
-- 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_BASE`・`INPUTS_PR` を住処へ渡す）。入口の種類で分かれる形と消した種の名は住処だけ
+- 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_BASE`・`INPUTS_PR` を住処へ渡す）と、周の鎖の始めのノードの script `workflows/chain/scripts/chain_start.py`（鎖の入力 `INPUTS_BASE`・`INPUTS_PR` を 1 周目の子へ写し、1 周目に名指した PR の番号を次の依頼で運ぶ）。入口の種類で分かれる形と消した種の名は住処だけ
 - 今: 柵は、差分の根の名指しを読む・渡す形と、入口の種類で分かれる形・消した種の名の 2 本。試験 `lib/tests/test_concept_fences.py` の `FenceCase` が表のこの行を読み、柵が本当に当たることも見る
 
 ### `web-get` 機械の web の取得と run をまたぐ控え
@@ -216,7 +216,7 @@
 - 状態: 住処あり
 - 住処: `lib/gatepolicy.py`（標準ライブラリと始めの記録だけ。メイングラフの入力と始めの記録の欄の名 `FINAL_KEY`・`UNATTENDED_KEY`、最後の承認ノードの開き方の語 `FINAL_GATES`（既定 `ALWAYS`）と無人の語 `UNATTENDED`、入口の語の確かめ `check`（仕様の段と無人の組みも拒む）、始めの記録からの読み `final_mode`・`unattended`、最後の承認ノードを開くかの決め `opens`、報告の頭の行の句 `head_words`）
 - 約束: 始めの記録（`lib/startrec.py` の start.json の形）の 2 つの欄。書き手はメイングラフの始めのノードの 1 か所
-- 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）。読み手（`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口で始めの記録を読む
+- 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）と、周の鎖の親のグラフ `workflows/chain/works-factory-chain.yaml`（メイングラフと同じ名の入力を宣言し、周の子へ写して渡すだけ）。読み手（`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口で始めの記録を読む
 - 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形の 2 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
 
 ### `gate-evidence` 試験の関門の証拠の文の行の頭
