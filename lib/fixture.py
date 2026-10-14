@@ -1,5 +1,5 @@
 """固定材料（元 works/.shared/core/fixture.py）: 修正の前の run の置き場を写し、次の run が同じ所（判定・承認済みの修正案が済み、
-修正を待つ所）から始める。同じ依頼を同じ起点から回し直し、修正の段だけを比べるのに使う。startrec だけを import する。
+修正を待つ所）から始める。同じ依頼を同じ起点から回し直し、修正の段だけを比べるのに使う。lib からは startrec・oneline だけを import する。
 
 語:
 - 固定材料: <run の置き場>/DIR/ のフォルダ。中身は次の 2 つ。
@@ -36,6 +36,7 @@ import re
 import shutil
 import subprocess
 
+import oneline
 import startrec
 
 DIR = "fix-fixture"              # run の置き場の下
@@ -61,7 +62,7 @@ class FixtureRefused(Exception):
     """固定材料を取り込まない。文は何が違うかを名指す 1 行"""
 
     def __init__(self, msg):
-        super().__init__(" ".join(str(msg).split()))
+        super().__init__(oneline.one_line(msg))
 
 
 def _sha(data: bytes) -> str:
@@ -152,7 +153,7 @@ def noted_capture(place, repo, *, run_id: str, carried) -> None:
         capture(place, repo, run_id=run_id, carried=carried)
         note = {"dir": str(pathlib.Path(place) / DIR), "error": ""}
     except (OSError, ValueError) as e:
-        note = {"dir": "", "error": " ".join(f"{type(e).__name__}: {e}".split())}
+        note = {"dir": "", "error": oneline.one_line(f"{type(e).__name__}: {e}")}
     if not startrec.path(place).is_file():
         return
     doc = startrec.read(place)
