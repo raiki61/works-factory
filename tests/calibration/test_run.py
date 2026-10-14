@@ -728,7 +728,17 @@ class RunTest(RunnerCase):
         refused = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out),
                               "--only", self.two)
         self.assertEqual(refused.returncode, 2, refused.stderr)
-        self.assertIn(self.two, refused.stderr)
+        self.assertIn(runner.LEDGER, refused.stderr)
+        self.assertFalse(self.attempts.exists())
+
+    def test_convert_command_refuses_tasks_not_done(self):
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        for producer, only in (("works-factory", self.two), ("claude", None)):
+            with self.subTest(producer=producer):
+                refused = self.runner("convert", producer, "--attempts", str(self.attempts), "--out", str(self.out),
+                                      *(("--only", only) if only else ()))
+                self.assertEqual(refused.returncode, 2, refused.stderr)
+                self.assertIn(only or producer, refused.stderr)
 
     def test_nodes_command_writes_json_and_md(self):
         self.assertRan(self.run_tasks("works-factory", self.one))

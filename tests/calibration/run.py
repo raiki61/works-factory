@@ -573,9 +573,11 @@ class Ledger:
             return []
         return [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line]
 
+    def current(self, producer: str) -> dict[str, dict]:
+        return {r["id"]: r for r in self.rows() if r["producer"] == producer}
+
     def last(self, task: str, producer: str) -> dict | None:
-        mine = [r for r in self.rows() if r["id"] == task and r["producer"] == producer]
-        return mine[-1] if mine else None
+        return self.current(producer).get(task)
 
     def add(self, **row):
         with self.path.open("a", encoding="utf-8") as f:
@@ -720,11 +722,14 @@ def dry_run(found: list[dict], producer, attempts: Path) -> int:
 def reconvert(args) -> int:
     producer = PRODUCERS[args.producer]()
     attempts, out = _outside(args.attempts), _outside(args.out)
+    ledger = Ledger(attempts)
+    if not ledger.path.exists():
+        raise Stop(REFUSED, f"台帳 {ledger.path} が無い。run で回した置き場を --attempts に渡す")
     lock = _lock(attempts)
     try:
-        ledger = Ledger(attempts)
-        done = {r["id"]: r for r in ledger.rows() if r["producer"] == producer.name}
-        done = {task: row for task, row in done.items() if row["state"] == DONE}
+        done = {task: row for task, row in ledger.current(producer.name).items() if row["state"] == DONE}
+        if not done:
+            raise Stop(REFUSED, f"台帳 {ledger.path} に作り手 {producer.name} の済んだ課題が無い")
         wanted = [x for x in args.only.split(",") if x] if args.only else sorted(done)
         unknown = [x for x in wanted if x not in done]
         if unknown:
