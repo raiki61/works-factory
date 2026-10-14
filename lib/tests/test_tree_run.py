@@ -581,6 +581,15 @@ class OutsideEnvCase(unittest.TestCase):
                 tree_run.run([os.path.join(top, "no-such-tool")], env=env)
             self.assertTrue(userenv.ran(top))
 
+    def test_user_env_marker_is_dropped_whatever_the_launch_error(self):
+        """#538: 起こせなかったのが OSError でなくても（引数の中の NUL による ValueError）、この呼び出しが置いた印を残さない"""
+        record = json.dumps({"HOME": "/u"})
+        with tempfile.TemporaryDirectory() as top:
+            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            with self.assertRaises(ValueError):
+                tree_run.run([sys.executable, "-c", "pass\0"], env=env)
+            self.assertFalse(userenv.ran(top))
+
     def test_user_env_marker_that_cannot_be_written_starts_nothing(self):
         """#514: 印を置けなければ、利用者の HOME・XDG でコマンドを起こさず、MARK_FAILED を名指した OSError（起こせなかった）にする。
         起こしてから置けないと、利用者の環境で走らせたのを報告の冒頭が言い漏らす"""
