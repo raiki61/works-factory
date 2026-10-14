@@ -826,6 +826,12 @@ class GateAnswerCase(Artifacts):
         self.assertEqual(got, {"go": True, "answer": {"decision": "approve", "text": "", "asked": []}, "stop_reason": ""})
 
 
+def pushed_row(word: str, note: str) -> str:
+    """推しの尾つきの狭めの行（gatemarks._push の形）"""
+    rec = {"answer": word, "note": f"{note} で通す", "why": "呼び手が 0 を前提に書かれている"}
+    return gatemarks._item(f"修正案 1 が狭める能力: {note}", {gatemarks.RECOMMEND: rec}, ("決め手の欄が揃わない",))
+
+
 def planned(**kw) -> dict:
     got = {"ready": True, "pass": True, "stalled": False, "round": 1, "ask_human": False,
            "gate_axes": {key: {"ok": True, "note": ""} for key in ask_before_fix.AXES}, "questions": []}
@@ -839,10 +845,11 @@ class AskBeforeFixCase(unittest.TestCase):
 
     def test_no_plan_goes_nowhere(self):
         self.assertEqual(self.ask(planned(ready=False)), {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": [],
-                                                           "asked": []})
+                                                           "asked": [], "pushed": None})
 
     def test_clean_plan_goes_to_fix_without_the_gate(self):
-        self.assertEqual(self.ask(planned()), {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": [], "asked": []})
+        self.assertEqual(self.ask(planned()), {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": [], "asked": [],
+                                               "pushed": None})
 
     def test_reasons_that_open_the_gate(self):
         failing = {**planned()["gate_axes"], "clean": {"ok": False, "note": "名前が合わない"}}
@@ -866,7 +873,8 @@ class AskBeforeFixCase(unittest.TestCase):
 
     def test_unattended_moves_questions_to_the_report(self):
         got = self.ask(planned(questions=[gatemarks.question_row("fork", "0 を返すか")], ask_human=True), unattended=True)
-        self.assertEqual(got, {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": ["0 を返すか"], "asked": []})
+        self.assertEqual(got, {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": ["0 を返すか"], "asked": [],
+                               "pushed": None})
 
     def test_unattended_stops_where_the_gate_would_open(self):
         got = self.ask(planned(**{"pass": False, "stalled": True}), unattended=True)
@@ -875,7 +883,47 @@ class AskBeforeFixCase(unittest.TestCase):
     def test_unattended_design_only_stops(self):
         """L-G27: 無人で設計だけの run は、関所で止まって報告へ進む（開かず・修正へ進まず・needs-human）"""
         got = self.ask(planned(), unattended=True, design_only=True)
-        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, stopby.NEEDS_HUMAN))
+        self.assertEqual((got["open"], got["go"], got["stop_reason"], got["pushed"]), (False, False, stopby.NEEDS_HUMAN, None))
+
+    def test_unattended_takes_the_push_when_every_item_pushes_continue(self):
+        """#552: 無人の run は、関所に載る項目の全部が通す推しを持てば推しで修正へ進み（開かない）、採った推しを pushed で返す。
+        台帳の問いは今どおり deferred に回り、推しの判定に入らない"""
+        rows = [pushed_row("continue", "a"), pushed_row("continue", "b")]
+        fork = gatemarks.question_row("fork", "0 を返すか")
+        got = self.ask(planned(questions=[fork, *[gatemarks.question_row("regression", r) for r in rows]], ask_human=True),
+                       unattended=True)
+        self.assertEqual((got["open"], got["go"], got["stop_reason"], got["deferred"], got["asked"]),
+                         (False, True, "", ["0 を返すか"], rows))
+        self.assertEqual(got["pushed"], gatemarks.pushed_answer(rows))
+        self.assertEqual(got["pushed"]["text"], "a で通す；b で通す")
+
+    def test_unattended_stops_when_a_push_stops_or_is_missing(self):
+        """#552: 推しが止める・推しの無い項目が 1 つでも混じれば、今どおり止める（needs-human・pushed は null）"""
+        for rows in ([pushed_row("continue", "a"), pushed_row("stop", "b")],
+                     [pushed_row("continue", "a"), "修正案 2 が狭める能力: y（人に聞く訳: 決め手の欄が揃わない）"]):
+            with self.subTest(rows=rows):
+                got = self.ask(planned(questions=[gatemarks.question_row("regression", r) for r in rows]), unattended=True)
+                self.assertEqual((got["open"], got["go"], got["stop_reason"], got["pushed"]), (False, False, stopby.NEEDS_HUMAN, None))
+
+    def test_attended_run_opens_the_gate_even_with_pushes(self):
+        """#552: 人のいる run は推しが揃っていても今どおり関所を開いて人を待つ"""
+        got = self.ask(planned(questions=[gatemarks.question_row("regression", pushed_row("continue", "a"))]))
+        self.assertEqual((got["open"], got["pushed"]), (True, None))
+
+    def test_pushed_answer_is_recorded_as_the_gate_answer(self):
+        """#552: answer-before-fix は推しで進んだ答えを関所の答えとして gates/gate-before-fix.json に残し、欄 pushed で人の答えと
+        読み分ける（線の with: が ask-before-fix の pushed を渡す）"""
+        rows = [pushed_row("continue", "a")]
+        shown = self.ask(planned(questions=[gatemarks.question_row("regression", r) for r in rows]), unattended=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            got = before_fix_answer.take("null", "true", "", "gate-before-fix", json.dumps(shown["asked"], ensure_ascii=False), "null",
+                                         pathlib.Path(tmp), json.dumps(shown["pushed"], ensure_ascii=False))
+            kept = json.loads((pathlib.Path(tmp) / answer.ANSWERS / "gate-before-fix.json").read_text(encoding="utf-8"))
+        self.assertEqual((got["go"], got["stop_reason"]), (True, ""))
+        self.assertEqual(got["answer"], {"decision": "continue", "text": "a で通す", "asked": rows,
+                                         answer.PUSHED: shown["pushed"][answer.PUSHED]})
+        self.assertEqual(kept, got["answer"])
+        self.assertEqual(line_nodes()["answer-before-fix"]["with"]["pushed"], "$ask-before-fix.output.pushed")
 
     def test_unattended_stops_on_policy_change_rows(self):
         """L-G40・L-G38・P236: 無人の run は台帳の問い（fork・escalate）だけなら関所を開かず報告へ回して修正へ進み、聞くはずだった
@@ -1011,7 +1059,24 @@ class AskReplanCase(Artifacts):
 
     def test_unattended_stops_on_a_contract_change(self):
         got = self.ask({**self.ITEM, "out_of_scope": ["cli.py"]}, unattended=True)
-        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, stopby.NEEDS_HUMAN))
+        self.assertEqual((got["open"], got["go"], got["stop_reason"], got["pushed"]), (False, False, stopby.NEEDS_HUMAN, None))
+
+    def test_unattended_takes_the_push_of_the_review_questions(self):
+        """#552: 無人の run は、聞く行が事前審査の問いだけで全部が通す推しを持てば推しで 2 度目の修正へ進み、answer-replan が答えとして
+        残す。約束の欄が変わった項目の行は推しを持たないので、混じれば今どおり止まる"""
+        q = gatemarks.question_row("regression", pushed_row("continue", "a"))
+        got = ask_replan.ask(self.plan("old.json", self.ITEM), self.plan("new.json", self.ITEM), ["1"], ask_human=True, questions=[q],
+                             unattended=True, run_id=RUN)
+        self.assertEqual((got["open"], got["go"], got["stop_reason"], got["asked"]), (False, True, "", [f"事前審査の問い: {q['text']}"]))
+        self.assertEqual(got["pushed"]["text"], "a で通す")
+        answered = replan_answer.take("null", "true", "", "null", "gate-replan", self.artifacts,
+                                      json.dumps(got["asked"], ensure_ascii=False), pushed_raw=json.dumps(got["pushed"], ensure_ascii=False))
+        self.assertEqual((answered["go"], answered["answer"]["text"], answered["answer"][answer.PUSHED]),
+                         (True, "a で通す", got["pushed"][answer.PUSHED]))
+        self.assertEqual(line_nodes()["answer-replan"]["with"]["pushed"], "$ask-replan.output.pushed")
+        changed = ask_replan.ask(self.plan("old.json", self.ITEM), self.plan("new.json", {**self.ITEM, "out_of_scope": ["cli.py"]}), ["1"],
+                                 ask_human=True, questions=[q], unattended=True, run_id=RUN)
+        self.assertEqual((changed["go"], changed["stop_reason"], changed["pushed"]), (False, stopby.NEEDS_HUMAN, None))
 
     def test_review_asking_human_asks(self):
         self.assertTrue(self.ask(self.ITEM, ask_human=True)["open"])

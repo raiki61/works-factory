@@ -12,7 +12,8 @@
 変わる）で書き直す。fix・eyes・judge の再審は始めの記録の写し（policy.frozen_copy）を読むので、ブロックの入力を足さずに人が通した版が
 届く。止めた答え・関所が開かなかった run は書き直さない。
 
-入力（with:）: gate_answer の入力と asked（関所に載せた項目の行。$ask-before-fix.output.asked）と start（始めの記録の指し札）
+入力（with:）: gate_answer の入力と asked（関所に載せた項目の行。$ask-before-fix.output.asked）と start（始めの記録の指し札）と
+pushed（無人の run が推しで進んだ答え。$ask-before-fix.output.pushed。answer.taken が関所の答えとして記録する）
 """
 import json
 import os
@@ -28,9 +29,9 @@ with boundary.guarded_imports():
     import policy
 
 
-def take(gate_raw, go_raw, stop_raw, place: str, asked_raw, start_raw, artifacts: Path) -> dict:
+def take(gate_raw, go_raw, stop_raw, place: str, asked_raw, start_raw, artifacts: Path, pushed_raw=None) -> dict:
     got = answer.taken(boundary.value(gate_raw), go=boundary.flag(go_raw), stop_reason=boundary.text(stop_raw), place=place,
-                       folder=artifacts, asked=boundary.items(asked_raw))
+                       folder=artifacts, asked=boundary.items(asked_raw), pushed=boundary.value(pushed_raw))
     if got["go"] and got["answer"] is not None:
         carry_policy(start_raw, got["answer"], artifacts)
     return got
@@ -40,7 +41,8 @@ def from_env() -> dict:
     """take の引数のうち with: の欄（全部を読む）"""
     return {"gate_raw": os.environ.get("INPUTS_GATE"), "go_raw": os.environ.get("INPUTS_GO"),
             "stop_raw": os.environ.get("INPUTS_STOP_REASON"), "place": os.environ.get("INPUTS_PLACE"),
-            "asked_raw": os.environ.get("INPUTS_ASKED"), "start_raw": os.environ.get("INPUTS_START")}
+            "asked_raw": os.environ.get("INPUTS_ASKED"), "start_raw": os.environ.get("INPUTS_START"),
+            "pushed_raw": os.environ.get("INPUTS_PUSHED")}
 
 
 def carry_policy(start_raw, passed: dict, artifacts: Path) -> None:

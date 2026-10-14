@@ -4,8 +4,9 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
 
 - r2_compare_due(design, purpose_text)・r2_premise_invalid(design): 比較役と前提の検算を起こすか
 - scalars(diff_text, x_scalars, not_taken)・scalars_text(s): 規模の数値と、その 1 文
-- _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed)・gate_passes(r4, passed): 修正前の関所で
-  人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え。R4 の方針とのぶつかりは人が通していない行を全部問いにする
+- _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed)・gate_passes(r4, passed, by)・passed_by(answer):
+  修正前の関所で通した行（無人の run が推しで通した行も）と、R4 の問いからそれを外す照らしと、外した行の控えとその印。R4 の方針との
+  ぶつかりは通していない行を全部問いにする
 - r4_accept(eyes_dir, raw, passed): R4 の返答の受け付け（輪の中）。方針とのぶつかりのうち記録された方針（policy.recorded）の行を
   名指さない行を拒んで出し直させ、GIVE_UP_AFTER 回とも通らなければ抜ける（その時は名指さない行も問いになり、collect が R4 の行の
   理由に諦めた訳を足す）。r4_rejects(eyes_dir) は出し直す役に渡す拒否の全部
@@ -33,7 +34,7 @@ import types
 import accept
 import boardview
 import changemap
-from answer import GO_WORDS
+from answer import GO_WORDS, PUSHED
 import design
 import gatemarks
 import jsonfile
@@ -204,10 +205,15 @@ def r4_rejects(eyes_dir) -> str:
     return rolekit.rejects_text(rolekit.rejected(pathlib.Path(eyes_dir), R4_NODE))
 
 
-def gate_passes(r4: dict | None, passed: dict) -> list[dict]:
-    """元 .shared/core/gatemarks.py:1276-1281。r4_gate_items が外した行を、修正前の関所で人が通した印つきで控える
-    （gatemarks._keep の行の形。最後の関所と報告が「人が通した」行として並べる）"""
-    return [{"node": gatemarks.R4_GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY_HUMAN, "item": head + x,
+def passed_by(answer) -> str:
+    """修正前の関所の答えが通した行の控えの印: 無人の run が推しで通した答え（欄 answer.PUSHED）は PASSED_BY_PUSH、ほかは人"""
+    return gatemarks.PASSED_BY_PUSH if isinstance(answer, dict) and PUSHED in answer else gatemarks.PASSED_BY_HUMAN
+
+
+def gate_passes(r4: dict | None, passed: dict, by: str = gatemarks.PASSED_BY_HUMAN) -> list[dict]:
+    """元 .shared/core/gatemarks.py:1276-1281。r4_gate_items が外した行を、修正前の関所で通した印 by つきで控える
+    （gatemarks._keep の行の形。最後の関所と報告が「人が通した」か「推しを採って通した」行として並べる）"""
+    return [{"node": gatemarks.R4_GATE_NODE, "round": 1, "by": by, "item": head + x,
              "passed_at": {"node": gatemarks.GATE_NODE, "round": passed[(kind, x)]}}
             for kind, head, x in _r4_rows(r4) if (kind, x) in passed]
 
@@ -544,7 +550,7 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
     return out
 
 
-def write_notes(eyes_dir, *, design_ledger, passed: dict) -> None:
+def write_notes(eyes_dir, *, design_ledger, passed: dict, by: str = gatemarks.PASSED_BY_HUMAN) -> None:
     """元 blk-eyes/lib/eyes.py:525-534 の premise_inputs と gatemarks.r4_gate_items の gate_passes。返りの欄の外で最後の関所に
     出す材料を eyes_dir に書く: PREMISE_INPUTS に R2 の 2 つの役へ渡した前提の控え（design は独立設計の控え design_ledger、
     compare は prep が書いた R2_PREMISES）と、比較役の返りの『渡されていない』の文（claims）と、そのうち compare の given に
@@ -555,7 +561,7 @@ def write_notes(eyes_dir, *, design_ledger, passed: dict) -> None:
     if isinstance(compare, dict):
         compare["claims_given"] = design.claims_given(claims, compare.get("given"))
     notes = {PREMISE_INPUTS: {"design": design_ledger, "compare": compare, "claims": claims},
-             GATE_PASSES: gate_passes(_read_eye(eyes_dir, "r4")[0], passed)}
+             GATE_PASSES: gate_passes(_read_eye(eyes_dir, "r4")[0], passed, by)}
     for name, doc in notes.items():
         (eyes_dir / name).write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 

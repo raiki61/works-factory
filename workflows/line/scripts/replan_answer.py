@@ -20,7 +20,8 @@ error を持つ）時だけ 1 回目の案の一覧（first_ripple）。元 work
 
 入力（with:）: gate_answer の入力と before_fix（修正前の関所の答え）・asked（関所に見せた項目の行）・review（replan-review の review。
 `{from, if_skipped: null}`）・plan（案の直しの修正案の指し札。項目の単位を隣の修正案の役の返答から引く）・items（直した項目の id）・
-ripple（案の直しの波及の一覧の指し札）・first_ripple（計画の往復の波及の一覧の指し札）
+ripple（案の直しの波及の一覧の指し札）・first_ripple（計画の往復の波及の一覧の指し札）・pushed（無人の run が推しで進んだ答え。
+$ask-replan.output.pushed）
 """
 import json
 import os
@@ -82,9 +83,9 @@ def fix_ripple(ripple_raw, first_raw):
 
 
 def take(gate_raw, go_raw, stop_raw, before_fix_raw, place: str, artifacts: Path, asked_raw=None, review_raw=None, plan_raw=None,
-         items_raw=None, ripple_raw=None, first_ripple_raw=None) -> dict:
+         items_raw=None, ripple_raw=None, first_ripple_raw=None, pushed_raw=None) -> dict:
     got = answer.taken(boundary.value(gate_raw), go=boundary.flag(go_raw), stop_reason=boundary.text(stop_raw), place=place,
-                       folder=artifacts, asked=boundary.items(asked_raw))
+                       folder=artifacts, asked=boundary.items(asked_raw), pushed=boundary.value(pushed_raw))
     return {**got, "fix_answers": fix_answers(boundary.value(before_fix_raw), got["answer"]),
             "fix_notes": fix_notes(review_raw, plan_raw, items_raw) if got["go"] else "",
             "fix_ripple": fix_ripple(ripple_raw, first_ripple_raw) if got["go"] else None}
@@ -97,7 +98,7 @@ def from_env() -> dict:
             "place": os.environ.get("INPUTS_PLACE"), "asked_raw": os.environ.get("INPUTS_ASKED"),
             "review_raw": os.environ.get("INPUTS_REVIEW"), "plan_raw": os.environ.get("INPUTS_PLAN"),
             "items_raw": os.environ.get("INPUTS_ITEMS"), "ripple_raw": os.environ.get("INPUTS_RIPPLE"),
-            "first_ripple_raw": os.environ.get("INPUTS_FIRST_RIPPLE")}
+            "first_ripple_raw": os.environ.get("INPUTS_FIRST_RIPPLE"), "pushed_raw": os.environ.get("INPUTS_PUSHED")}
 
 
 def fallback(reason: str) -> dict:

@@ -824,6 +824,24 @@ class WriteNotesCase(unittest.TestCase):
             self.assertEqual(json.loads((eyes / eyeverdict.GATE_PASSES).read_text(encoding="utf-8")), [])
 
 
+class PassedByCase(unittest.TestCase):
+    """#552: 無人の run が推しで通した修正前の関所の答えは、R4 が聞き直さなかった行の控えに推しの印で残る（人が通したと言わない）"""
+
+    def test_mark_follows_the_answer(self):
+        self.assertEqual(eyeverdict.passed_by({"decision": "continue", "text": "", "asked": [], "pushed": []}), gatemarks.PASSED_BY_PUSH)
+        for got in ({"decision": "continue", "text": ""}, None):
+            with self.subTest(got=got):
+                self.assertEqual(eyeverdict.passed_by(got), gatemarks.PASSED_BY_HUMAN)
+
+    def test_pushed_pass_lines_do_not_say_a_human_passed(self):
+        r4 = {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}
+        rows = eyeverdict.gate_passes(r4, PASSED, gatemarks.PASSED_BY_PUSH)
+        self.assertEqual([r["by"] for r in rows], [gatemarks.PASSED_BY_PUSH])
+        line, = gatemarks.pass_lines(rows)
+        self.assertIn("推しを採って通した", line)
+        self.assertNotIn("人が通した", line)
+
+
 class StatusOwnerCase(unittest.TestCase):
     """目の状態の語の持ち主は seal だけ。目の判定（eyeverdict）・結末の分け（outcome）・関所の文の語（gatemarks）は語を写さず持ち主から読む"""
 

@@ -29,6 +29,7 @@ _HERE = pathlib.Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+import answer  # noqa: E402
 import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import changemap  # noqa: E402
@@ -1366,13 +1367,40 @@ def _stopped_why(returns: dict, line: dict | None) -> list:
     return [*_stop_words(line), *(["開けた理由: " + "・".join(reasons)] if reasons else []), *blocked]
 
 
+def _pushed(gates: dict) -> list:
+    """無人の run が推しで通した承認ノードと採った推し [(承認ノード, 推し {item, answer, note, why})]（承認ノードの順）"""
+    return [(gid, rec) for gid in oc.GATES for rec in (as_dict(gates.get(gid)).get(answer.PUSHED) or []) if isinstance(rec, dict)]
+
+
+def _pushed_lines(gates: dict) -> list:
+    """「人が決めること」の頭に、無人の run が採った推しを 1 件 1 行（人の答えと読み分ける。違えば次の run の依頼で直す）"""
+    return [f"無人の run で推しを採って通した（承認ノード {gid}）: {oneline.one_line(r.get('item') or '')}——"
+            f"{gatemarks.RECOMMEND_WORDS.get(r.get('answer'), '')}（{r.get('answer')}）: {r.get('note')}（推す理由: {r.get('why')}）。"
+            "違えば次の run の依頼で直す" for gid, r in _pushed(gates)]
+
+
+def _pushed_said(gates: dict) -> str:
+    """冒頭 1 行目の句: 推しで通した承認ノードと件数（無ければ空）"""
+    got = _pushed(gates)
+    if not got:
+        return ""
+    return (f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(gid for gid, _ in got))}（推し {len(got)} 件。"
+            f"中身は「{report.DECISIONS_HEADING.lstrip('# ')}」のセクション）")
+
+
+def _gate_line(g) -> str:
+    if not isinstance(g, dict):
+        return "開かなかった"
+    said = oneline.one_line(g.get("text") or "")
+    return f"{g.get('decision')}（推しで通した: {said}）" if answer.PUSHED in g else f"{g.get('decision')}（{said}）"
+
+
 def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,
                 line: dict | None = None) -> list:
     out = [f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", f"止めた段と理由の語: {stop_reason or '止めていない'}"]
     out += [f"メイングラフのノードの止め: {x}" for x in _stop_words(line)]
     for gid in oc.GATES:
-        g = gates.get(gid)
-        out.append(f"承認ノード {gid}: " + (f"{g.get('decision')}（{oneline.one_line(g.get('text') or '')}）" if isinstance(g, dict) else "開かなかった"))
+        out.append(f"承認ノード {gid}: {_gate_line(gates.get(gid))}")
     for rid in ("merge-seal", "merge-apply"):
         m = returns.get(rid)
         if isinstance(m, dict) and m.get("ok") is not True:
@@ -1493,10 +1521,11 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     next_file = carry.NEXT_REQUEST_FILE if findings or drafts or constraints else ""
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
-    split = split_line(returns)
+    split, pushed = split_line(returns), _pushed_said(gates)
     apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—")
     stopped = outcome in STOP_OUTCOMES
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
+                          *([pushed] if pushed else []),
                           *(_stopped_why(returns, line) if stopped else []), *_ran_notes(returns),
                           *([userenv.NOTE] if user_env else [])])
     if stopped:
@@ -1505,7 +1534,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                    *oc.eye_questions(returns)]
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*unrestored_lines(returns), *backed_out_lines(returns), *decisions,
+        (report.DECISIONS_HEADING, [*_pushed_lines(gates), *unrestored_lines(returns), *backed_out_lines(returns), *decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],

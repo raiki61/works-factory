@@ -156,6 +156,22 @@ class BuildCase(Base):
         self.assertTrue(first.startswith(gatemarks.HAPPENED), first)
         return first
 
+    def test_pushed_gate_is_named_apart_from_a_human_answer(self):
+        """#552: 無人の run が推しで通した承認ノードは、冒頭 1 行目・「人が決めること」・止めた段の行が推しで通したと名指す。
+        人の答えでは言わない"""
+        rec = {"item": "修正案 1 が狭める能力: 空の列で例外", "answer": "continue", "note": "0 を返す形で通す", "why": "呼び手が前提"}
+        pushed = {"decision": "continue", "text": "0 を返す形で通す", "asked": [], "pushed": [rec]}
+        _, text, _ = self.build(gates={"gate-before-fix": pushed})
+        first = text.split("\n\n", 2)[1].splitlines()[0]
+        self.assertIn("無人の run で推しを採って通した承認ノード: gate-before-fix（推し 1 件", first)
+        self.assertIn("無人の run で推しを採って通した（承認ノード gate-before-fix）: 修正案 1 が狭める能力: 空の列で例外——通す（continue）: "
+                      "0 を返す形で通す（推す理由: 呼び手が前提）", self.section(text, report.DECISIONS_HEADING))
+        self.assertIn("承認ノード gate-before-fix: continue（推しで通した: 0 を返す形で通す）", self.section(text, report.STOP_HEADING))
+        human = {k: v for k, v in pushed.items() if k != "pushed"}
+        _, text, _ = self.build(gates={"gate-before-fix": human})
+        self.assertNotIn("推しを採って通した", text)
+        self.assertIn("承認ノード gate-before-fix: continue（0 を返す形で通す）", self.section(text, report.STOP_HEADING))
+
     def test_final_tests_that_did_not_run_are_named_in_the_head(self):
         """#492: 最後のテストが incomplete の run は、冒頭の 1 行目（起きたこと）が試験は走っていないと言い、利用者の環境で回す道を
         添える。返す節の中の誤り（by が空）は走っていないと言わずに工場の不具合と言う。緑なら言わない"""
