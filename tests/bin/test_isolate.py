@@ -63,6 +63,14 @@ class IsolateCase(unittest.TestCase):
         self.assertEqual(record["HOME"], "/u")
         self.assertEqual(set(userenv.NAMES), set(isolate.DIRS) - {"ARCHON_HOME", "CLAUDE_CONFIG_DIR"})
 
+    def test_every_inherited_control_name_is_dropped(self):
+        """#532: userenv が持つ制御の変数の組（userenv.CONTROL）の、継いだ値は子に残さない（立てた時の控えは新しく作った物だけ）"""
+        env = {"HOME": "/u", **{name: "stale" for name in userenv.CONTROL}}
+        self.assertEqual(set(userenv.CONTROL) & set(isolate.isolate(env, self.run_home)), set())
+        child = isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home)
+        self.assertEqual(set(userenv.CONTROL) & set(child), {userenv.RECORD})
+        self.assertNotEqual(child[userenv.RECORD], "stale")
+
     def test_relative_run_home_is_refused(self):
         """相対の置き場は cd した子で別の所を指すので、何も作らずに止める"""
         with self.assertRaises(ValueError):

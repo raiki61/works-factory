@@ -590,6 +590,17 @@ class RunScriptCase(ScriptCase):
         self.assertEqual((rc, out), (1, None))
         self.assertIn(".works-checks.json", err)
 
+    def test_declared_step_with_the_factory_step_name_stops(self):
+        """#531: 宣言の段の名が工場の段の名（declared_checks.TEST_CMD_STEP）なら、判定の AI より前の修正前のテストで、何も走らせずに
+        1 行の訳で 1 で止める"""
+        ran = self.tmp / "ran"
+        self.decl([{"name": declared_checks.TEST_CMD_STEP, "argv": [PY, "-c", f"open({str(ran)!r}, 'w')"]}])
+        rc, out, err = self.script("run", mode="base", start=self.start)
+        self.assertEqual((rc, out), (1, None))
+        self.assertEqual(err.count("\n"), 1, err)
+        self.assertIn(declared_checks.TEST_CMD_STEP, err)
+        self.assertFalse(ran.exists())
+
 
 class CiRoleCase(ScriptCase):
     """任せ先の CI の役の支度と受け付け（元 test_blk_ci.py の ScriptCase）"""
@@ -1017,6 +1028,19 @@ class ResultScriptCase(ScriptCase):
                                                encoding="utf-8")
         out = self.result("final")
         self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
+
+    def test_given_up_role_is_named_unverified_not_not_ran(self):
+        """#538: 任せ先の CI の役が素材を渡さずに諦めた final は、判定はそのまま（incomplete・認証しない）で、冒頭の句は「走ったと
+        確かめられていない」。一部の系統を回してから諦めた役もここに入るので「走っていない」と言わない"""
+        self.assertEqual(self.ok("run", mode="final", start=self.start)["by"], declared_checks.ROLE_NEEDED)
+        for k in (1, 2, 3):
+            rolekit.with_done(self.artifacts / "test-gate" / "final", declared_checks.CI_ROLE,
+                              {"ok": False, "reason": f"unit 系統は回したが素材の欄が足りない {k}"})
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, green_cert.INCOMPLETE))
+        note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"], steps=out["ran_steps"])
+        self.assertTrue(note.startswith(green_cert.UNVERIFIED_RUN), note)
+        self.assertNotIn(green_cert.NOT_RAN, note)
 
     def test_role_partly_run_systems_are_named_not_not_ran(self):
         """#514: 任せ先の CI の役が一部の系統だけ走らせた final の not_run は、判定はそのまま（incomplete・認証しない）で、冒頭の句は

@@ -524,6 +524,14 @@ class ScopedStepsCase(RepoCase):
         self.assertIn(checkscope.SCOPE_DECL, str(cm.exception))
         self.assertIn(dc.DECL_NAME, str(cm.exception))
 
+    def test_declared_step_named_like_the_factory_step_stops_before_running(self):
+        """#531: 宣言の段の名が TEST_CMD_STEP なら、何も走らせずに 1 行の訳で CiRefused（名で段を引く所が取り違えない）"""
+        self.decl([{"name": dc.TEST_CMD_STEP, "argv": [PY, "-c", "pass"]}])
+        with mock.patch.object(dc, "tree_runner", never), self.assertRaises(dc.CiRefused) as cm:
+            self.run_ci("true")
+        self.assertIn(dc.TEST_CMD_STEP, str(cm.exception))
+        self.assertNotIn("\n", str(cm.exception))
+
     def test_scope_naming_an_undeclared_step_stops_before_running(self):
         """元 test_scope_naming_an_undeclared_step_stops_before_running"""
         self.decl(SCOPED)
@@ -835,6 +843,10 @@ class MaterialProblemsCase(unittest.TestCase):
                                                                         mode="final")))
         self.assertEqual(dc.role_material_problems({**bare, "systems": {"ran": ["unit"], "unran": ["e2e"]}}, mode="final"), [])
         self.assertEqual(dc.role_material_problems({"status": "awaiting_human", "reason": "r"}, mode="base"), [])
+        for mode, status in (("final", "not_run"), ("base", "awaiting_human")):   # #538: 同じ名を両側に書いた系統の分けは拒む
+            with self.subTest(mode=mode):
+                both = {"status": status, "reason": "r", "systems": {"ran": ["unit"], "unran": ["unit", "e2e"]}}
+                self.assertIn("ran と unran の両方に同じ系統の名が在る: unit", " ".join(dc.role_material_problems(both, mode=mode)))
 
 
 class BaselineLineCase(unittest.TestCase):

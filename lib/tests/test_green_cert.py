@@ -20,6 +20,7 @@ SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
 import userenv  # noqa: E402
@@ -280,6 +281,7 @@ class RanNoteCase(unittest.TestCase):
                 got = self.note(green, cause)
                 self.assertEqual(got, f"{want}。{green_cert.RAN_GUIDE}" if want else "")
         self.assertEqual(set(green_cert.RED_CAUSES), {"introduced", "inherited", "environment", "interaction", "incomplete", ""})
+        self.assertLessEqual(set(green_cert.RAN_BY_CAUSE.values()) - {""}, set(green_cert.RAN_NOTES))
 
     def test_guide_names_the_switch_and_the_local_run(self):
         self.assertIn(f"{userenv.OPT_IN}=1", green_cert.RAN_GUIDE)
@@ -320,6 +322,20 @@ class RanNoteCase(unittest.TestCase):
             with self.subTest(steps=steps):
                 got = green_cert.ran_note(green=False, red_cause="incomplete", by="engine", steps=steps)
                 self.assertTrue(got.startswith(green_cert.NOT_RAN), got)
+
+    def test_not_ran_needs_evidence_that_nothing_started(self):
+        """#538: 起こした段だけが在る時と、任せ先の CI の役が走らせられなかった系統を名指さない時（素材を渡さずに諦めた役を含む）は、
+        「走っていない」と言わずに「確かめられていない」。役が全部の系統を走らせられなかったと名指した時だけ「走っていない」"""
+        role = declared_checks.ROLE_NEEDED
+        for by, steps, want in (("engine", {"ran": ["a"], "unran": []}, green_cert.UNVERIFIED_RUN),
+                                (role, {"ran": [], "unran": []}, green_cert.UNVERIFIED_RUN),
+                                (role, {"ran": ["a"], "unran": []}, green_cert.UNVERIFIED_RUN),
+                                (role, None, green_cert.UNVERIFIED_RUN),
+                                (role, {"ran": [], "unran": ["a"]}, green_cert.NOT_RAN),
+                                ("engine", {"ran": [], "unran": []}, green_cert.NOT_RAN)):
+            with self.subTest(by=by, steps=steps):
+                got = green_cert.ran_note(green=False, red_cause=green_cert.INCOMPLETE, by=by, steps=steps)
+                self.assertEqual(got, f"{want}。{green_cert.RAN_GUIDE}")
 
     def test_steps_do_not_change_other_sentences(self):
         steps = {"ran": ["a"], "unran": ["b"]}
