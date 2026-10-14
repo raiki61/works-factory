@@ -118,7 +118,7 @@ RECOMMEND_SHAPE = ("{" + f"{RECOMMEND_KEYS[0]}: " + " か ".join(f"{a}（{RECOMM
                    + "}")
 # 決め手が在っても人に聞く行の印（外への書き込み・取り消せない操作・方針の文書の変更・守り（資格・sandbox）を広げる・web の結果が
 # 新しい疑いを出した）
-FENCES = ("external_write", "irreversible", "policy_doc", "widen_protection", "web_doubt")
+FENCES = ("external_write", "irreversible", policy.POLICY_DOC_FENCE, "widen_protection", "web_doubt")
 MARK_SCHEMA = {
     "decided_by": {"type": "string",
                    "note": "決め手の出どころ（依頼の引用・URL とセクション・対象の同じ場面＝同じ問題をコードがどう解いているか・記録された方針の行の"
