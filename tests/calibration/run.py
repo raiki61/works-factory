@@ -4,6 +4,7 @@
     python3 tests/calibration/run.py run <works|works-factory|claude> --bench <ReviewBench の写し> --attempts <置き場> --out <置き場>
         [--language Python] [--only <課題の鍵,…>] [--resume] [--dry-run] [--mirror <取り先の型>]
     python3 tests/calibration/run.py judge <作り手> --bench <ReviewBench の写し> --out <置き場> [--model claude-sonnet-5]
+    python3 tests/calibration/run.py convert <作り手> --attempts <置き場> --out <置き場> [--only <課題の鍵,…>]
     python3 tests/calibration/run.py nodes <作り手> --out <置き場>
 
 作り手: works-factory（殻 bin/works-factory で works-factory-line を前で回す）・works（今の works の dev/use.sh。版は pack.json の
@@ -16,6 +17,8 @@ bare、request.json は PR の題と本文の 1 行、pr/ は diff.patch と pr.
 <out>/<作り手>/convert/<鍵>.json（変換の控え。捨てた指摘・ノード・最後の差分に入ったか）に書き、置き場の台帳
 <置き場>/ledger.jsonl に 1 行足す。judge は ReviewBench の写しの中で npm run judge を打ち、<out>/<作り手>/scoring/ に書く（判定役は
 環境変数 ANTHROPIC_API_KEY を読む）。
+convert は台帳で済んだ課題の試みの evidence/ と target/（head の版で番地を照らす）から変換だけをやり直して findings/ と convert/ を
+書き直す（run を起こさない。来歴と web_calls は前の控えから引き継ぐ。target/ で head を読めなければ書き換えずに止まる）。
 nodes は控えと出来事から <out>/<作り手>/nodes.json・nodes.md を書く。
 
 - 終了の値: 0 済んだ・1 止まった（後ろの課題を起こさない。--resume で続ける）・2 何も起こさずに断った。
@@ -266,6 +269,7 @@ class OldWorks:
     def __init__(self):
         self.dir = Path(os.environ[OLD_WORKS_ENV]) if os.environ.get(OLD_WORKS_ENV) else None
         self.dev = self.dir / "dev" if self.dir else Path(f"${OLD_WORKS_ENV}") / "dev"
+        self.inputs = dict(BENCH_INPUTS)
 
     def check(self):
         if self.dir is None:
@@ -291,14 +295,17 @@ class OldWorks:
         return {**bench_env(attempt), "WORKS_USE_HOME": str(attempt / "home"),
                 **{self.passes[k]: self.values.get(k, {}).get(v, v) for k, v in inputs.items()}}
 
+    input_pairs = WorksFactory.input_pairs
+
     def start_command(self, attempt: Path, base: str) -> list[str]:
-        return ["sh", str(self.dev / "use.sh"), "start", "--base", base, "--", str(attempt / "target"), str(attempt / "request.json")]
+        pairs = self.input_pairs(attempt, base)
+        return ["sh", str(self.dev / "use.sh"), "start", "--base", pairs["base"], "--", str(attempt / "target"), pairs["request"]]
 
     def continue_command(self, verb: str, run_id: str, *rest: str) -> list[str]:
         return ["sh", str(self.dev / "continue.sh"), str(self.dev / "archon.sh"), "workflow", verb, run_id, *rest]
 
     def start(self, attempt: Path, base: str) -> str | None:
-        subprocess.run(self.start_command(attempt, base), cwd=attempt / "target", env=self._env(attempt, BENCH_INPUTS),
+        subprocess.run(self.start_command(attempt, base), cwd=attempt / "target", env=self._env(attempt, self.inputs),
                        stdin=subprocess.DEVNULL)
         run_id = self.find_run(attempt)
         if run_id:
@@ -435,14 +442,17 @@ class PlainClaude:
                 "--user-home", user.get("HOME", ""), "--user-config", user.get("CLAUDE_CONFIG_DIR", ""), "--",
                 *self.claude_args(PLAIN_PROMPT)]
 
-    def start(self, attempt: Path, base: str) -> str | None:
+    def input_pairs(self, attempt: Path, base: str) -> dict[str, str]:
         pr = json.loads((attempt / "pr" / "pr.json").read_text(encoding="utf-8"))
+        return {"RB_BASE": base, "RB_HEAD": pr["head"], "RB_DIFF": str(attempt / "pr" / "diff.patch"),
+                "RB_PR_JSON": str(attempt / "pr" / "pr.json")}
+
+    def start(self, attempt: Path, base: str) -> str | None:
         env = self.isolated_env(attempt)
         out = attempt / "out"
         out.mkdir(exist_ok=True)
         (out / self.FINDINGS).unlink(missing_ok=True)
-        env.update(RB_BASE=base, RB_HEAD=pr["head"], RB_DIFF=str(attempt / "pr" / "diff.patch"),
-                   RB_PR_JSON=str(attempt / "pr" / "pr.json"), RB_OUT=str(out / self.FINDINGS), RB_AGENT=self.name)
+        env.update(**self.input_pairs(attempt, base), RB_OUT=str(out / self.FINDINGS), RB_AGENT=self.name)
         with (out / self.RESULT).open("wb") as result:
             subprocess.run(self.start_command(attempt, base), cwd=attempt / "target", env=env, stdin=subprocess.DEVNULL,
                            stdout=result)
@@ -570,9 +580,11 @@ class Ledger:
             return []
         return [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line]
 
+    def current(self, producer: str) -> dict[str, dict]:
+        return {r["id"]: r for r in self.rows() if r["producer"] == producer}
+
     def last(self, task: str, producer: str) -> dict | None:
-        mine = [r for r in self.rows() if r["id"] == task and r["producer"] == producer]
-        return mine[-1] if mine else None
+        return self.current(producer).get(task)
 
     def add(self, **row):
         with self.path.open("a", encoding="utf-8") as f:
@@ -690,7 +702,8 @@ def run_one(entry: dict, producer, attempts: Path, out: Path, ledger: Ledger, ar
     ended = producer.finish(attempt, run_id)
     doc, record = reviewbench.convert(producer, entry, attempt, run_id, base, head, ended)
     record["provenance"] = {**producer.provenance(), "claude_code": _claude_version(launcher.real_claude(os.environ)),
-                            "run_inputs": {"request": "request.json", "base": base, **BENCH_INPUTS}, "date": _now()}
+                            "run_inputs": {k: v.removeprefix(f"{attempt}{os.sep}")
+                                           for k, v in producer.input_pairs(attempt, base).items()}, "date": _now()}
     reviewbench.write(out, producer.name, task, doc, record)
     ledger.add(**row, run_id=run_id, child_run_ids=ended["children"], state=DONE)
     print(json.dumps(record, ensure_ascii=False, allow_nan=False))
@@ -712,6 +725,44 @@ def dry_run(found: list[dict], producer, attempts: Path) -> int:
                           "command": producer.start_command(attempts / f"{task}--N", entry["base"]),
                           "env": producer.env_names(), "account_env": producer.account}, ensure_ascii=False))
     return OK
+
+
+def reconvert(args) -> int:
+    producer = PRODUCERS[args.producer]()
+    attempts, out = _outside(args.attempts), _outside(args.out)
+    ledger = Ledger(attempts)
+    if not ledger.path.exists():
+        raise Stop(REFUSED, f"台帳 {ledger.path} が無い。run で回した置き場を --attempts に渡す")
+    lock = _lock(attempts)
+    try:
+        done = {task: row for task, row in ledger.current(producer.name).items() if row["state"] == DONE}
+        if not done:
+            raise Stop(REFUSED, f"台帳 {ledger.path} に作り手 {producer.name} の済んだ課題が無い")
+        wanted = [x for x in args.only.split(",") if x] if args.only else sorted(done)
+        unknown = [x for x in wanted if x not in done]
+        if unknown:
+            raise Stop(REFUSED, f"{unknown} は台帳 {ledger.path} で作り手 {producer.name} の済んだ課題でない")
+        for task in wanted:
+            reconvert_one(producer, done[task], out)
+    finally:
+        os.close(lock)
+    return OK
+
+
+def reconvert_one(producer, row: dict, out: Path):
+    task, attempt = row["id"], Path(row["attempt"])
+    try:
+        entry = json.loads((attempt / "pr" / "pr.json").read_text(encoding="utf-8"))
+        before = json.loads((out / producer.name / "convert" / f"{task}.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise Stop(STOPPED, f"課題 {task} の pr/pr.json か前の変換の控えを読めない: {type(e).__name__}") from None
+    if not reviewbench.has(attempt / "target", row["head"]):
+        raise Stop(STOPPED, f"課題 {task} の試みの target/ で head {row['head']} を読めない（{attempt / 'target'}）。控えは書き換えない")
+    ended = {**producer.ended(attempt / evidence.EVIDENCE), "web_calls": before.get("web_calls")}
+    doc, record = reviewbench.convert(producer, entry, attempt, row["run_id"], row["base"], row["head"], ended)
+    record["provenance"] = before.get("provenance")
+    reviewbench.write(out, producer.name, task, doc, record)
+    print(json.dumps(record, ensure_ascii=False, allow_nan=False))
 
 
 # ---------------------------------------------------------------- judge・nodes
@@ -767,12 +818,17 @@ def main(argv=None) -> int:
     judged.add_argument("--bench", required=True, type=Path)
     judged.add_argument("--out", required=True, type=Path)
     judged.add_argument("--model", default=JUDGE_MODEL)
+    again = sub.add_parser("convert")
+    again.add_argument("producer", choices=sorted(PRODUCERS))
+    again.add_argument("--attempts", required=True, type=Path)
+    again.add_argument("--out", required=True, type=Path)
+    again.add_argument("--only")
     counted = sub.add_parser("nodes")
     counted.add_argument("producer", choices=sorted(PRODUCERS))
     counted.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
-        return {"run": run_tasks, "judge": judge, "nodes": table}[args.command](args)
+        return {"run": run_tasks, "judge": judge, "convert": reconvert, "nodes": table}[args.command](args)
     except Stop as e:
         print(f"run.py: {e}", file=sys.stderr)
         return e.code

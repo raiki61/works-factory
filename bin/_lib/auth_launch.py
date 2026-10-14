@@ -107,7 +107,7 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
     menv = dict(env, HOME=user_home, CLAUDE_CONFIG_DIR=user_config or str(pathlib.Path(user_home) / ".claude"))
     out, note = claude_auth.auth_env(menv, platform=platform, runner=runner)
     if claude_auth.added(note):
-        got = {k: out[k] for k in claude_auth.INHERITED if out.get(k)}
+        got = {k: out[k] for k in claude_auth.INHERITED if claude_auth.active(k, out.get(k))}
         name = claude_auth.inherited(env)
         if name:
             return got, name, None

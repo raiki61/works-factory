@@ -12,6 +12,7 @@ import json
 import math
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,7 @@ IMAGE = "ghcr.io/scaleapi/swe-bench_pro-v2:{}"
 TOKEN = "sk-ant-oat01-test-zq7-not-a-real-token"
 RUN_ID = "a1b2c3d4-0000-run"
 DIFF = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+WARNING = 'WARN[0000] The "X" variable is not set. Defaulting to a blank string.\n'
 POINTER = {"type": swepro.apply.POINTER_TYPE, "run_id": RUN_ID, "path": swepro.apply.APPLY_DIFF}
 
 FAKE_CLAUDE = """#!PYTHON
@@ -108,6 +110,22 @@ class TaskInputsTest(unittest.TestCase):
         self.assertIn("test_cmd", graph["inputs"])
 
 
+class UnboundedTest(unittest.TestCase):
+    def test_agent_multiplier_or_else_the_general_one_must_be_infinite(self):
+        flag = "--agent-timeout-multiplier"
+        for argv, want in ((["harbor", "run", flag, "inf"], True), (["harbor", "run", f"{flag}=inf"], True),
+                           (["harbor", "run"], False), (["harbor", "run", flag, "2"], False),
+                           (["harbor", "run", flag, "inf", flag, "2"], False), (["harbor", "run", flag], False),
+                           (["harbor", "run", flag, "many"], False),
+                           (["harbor", "run", "--timeout-multiplier", "inf"], True),
+                           (["harbor", "run", "--timeout-multiplier=inf"], True),
+                           (["harbor", "run", "--timeout-multiplier", "2"], False),
+                           (["harbor", "run", "--timeout-multiplier", "inf", flag, "2"], False),
+                           (["harbor", "run", "--timeout-multiplier", "2", flag, "inf"], True)):
+            with self.subTest(argv=argv):
+                self.assertEqual(swepro.unbounded(argv), want)
+
+
 class StoppedTest(unittest.TestCase):
     def test_paused_and_human_kinds_are_stopped(self):
         self.assertTrue(swepro.stopped("paused", ""))
@@ -133,7 +151,7 @@ class InsideTest(unittest.TestCase):
         (self.place / "secret").mkdir(parents=True)
         (self.place / "task").mkdir()
         (self.place / swepro.TASK).write_text(json.dumps(fixture_inputs()), encoding="utf-8")
-        (self.place / swepro.SECRET).write_text(TOKEN, encoding="utf-8")
+        self.secret()
         self.shell = self.tmp / "fake-shell.py"
         self.shell.write_text(test_run.FAKE_SHELL.replace("WATCHED", repr(test_run.WATCHED)).replace("UNITS", repr(test_run.UNITS))
                               .replace("JUDGMENT", repr(test_run.JUDGMENT)), encoding="utf-8")
@@ -145,6 +163,9 @@ class InsideTest(unittest.TestCase):
 
     def set_plan(self, **plan):
         self.plan.write_text(json.dumps(plan), encoding="utf-8")
+
+    def secret(self, name=swepro.ACCEPTED_AUTH[0], value=TOKEN):
+        (self.place / swepro.SECRET).write_text(json.dumps({name: value}), encoding="utf-8")
 
     def sealed_plan(self, diff=DIFF, **value):
         files = {test_run.JUDGMENT: test_run.UNITS, swepro.apply.APPLY_DIFF: diff}
@@ -216,6 +237,19 @@ class InsideTest(unittest.TestCase):
         predicted = self.predicted(result)
         self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
 
+    def test_broken_factory_outcome_is_a_failed_producer(self):
+        self.assertLessEqual(set(swepro.BROKE), set(swepro.report.OUTCOMES))
+        for word in swepro.BROKE:
+            with self.subTest(outcome=word):
+                shutil.rmtree(self.place / "attempt", ignore_errors=True)
+                self.secret()
+                self.set_plan(outcome=word)
+                done, result = self.inside()
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertIn(word, result["error"])
+                predicted = self.predicted(result)
+                self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
+
     def test_needs_human_before_seal_gives_empty_patch(self):
         self.set_plan(outcome="needs_human")
         done, result = self.inside()
@@ -255,21 +289,31 @@ class InsideTest(unittest.TestCase):
                          (swepro.TEST_COMMANDS["internetarchive/openlibrary"], "true", ""))
         self.assertEqual(pathlib.Path(args[args.index("--cwd") + 1]).resolve(), self.workdir.resolve())
 
-    def test_token_reaches_the_child_and_is_written_nowhere(self):
-        for producer in swepro.PRODUCERS:
-            with self.subTest(producer=producer):
-                (self.place / swepro.SECRET).write_text(TOKEN, encoding="utf-8")
-                done, result = self.inside(producer)
-                self.assertEqual(done.returncode, 0, done.stderr)
-                self.assertFalse((self.place / swepro.SECRET).exists())
-                self.assertNotIn(TOKEN, done.stdout + done.stderr)
-                self.assertIn(swepro.TOKEN_ENV, result["env_names"])
-                for path in [*self.out.rglob("*"), self.log]:
-                    if path.is_file():
-                        self.assertNotIn(TOKEN, path.read_text(encoding="utf-8", errors="replace"), path)
-        for who in ("works-factory", "claude"):
-            [call, *_] = self.calls(who)
-            self.assertIn(swepro.TOKEN_ENV, call["names"])
+    def test_auth_reaches_the_child_and_is_written_nowhere(self):
+        for name in swepro.ACCEPTED_AUTH:
+            for producer in swepro.PRODUCERS:
+                with self.subTest(name=name, producer=producer):
+                    shutil.rmtree(self.place / "attempt", ignore_errors=True)
+                    self.log.unlink(missing_ok=True)
+                    self.secret(name)
+                    done, result = self.inside(producer)
+                    self.assertEqual(done.returncode, 0, done.stderr)
+                    self.assertFalse((self.place / swepro.SECRET).exists())
+                    self.assertNotIn(TOKEN, done.stdout + done.stderr)
+                    self.assertIn(name, result["env_names"])
+                    for path in [*self.out.rglob("*"), self.log]:
+                        if path.is_file():
+                            self.assertNotIn(TOKEN, path.read_text(encoding="utf-8", errors="replace"), path)
+                    [call, *_] = self.calls("works-factory" if producer == "works-factory" else "claude")
+                    self.assertIn(name, call["names"])
+
+    def test_secret_with_an_unaccepted_name_refuses(self):
+        self.secret("ANTHROPIC_AUTH_TOKEN")
+        done, result = self.inside()
+        self.assertEqual(done.returncode, runner.REFUSED, done.stderr)
+        self.assertIsNone(result)
+        self.assertFalse((self.place / swepro.SECRET).exists())
+        self.assertEqual(self.calls(), [])
 
     def test_missing_token_refuses(self):
         (self.place / swepro.SECRET).unlink()
@@ -389,7 +433,8 @@ class Done:
 
 
 class FakeEnvironment:
-    """exec と upload_file を呼ばれた順に控える。upload は呼ばれた時に中身を読む"""
+    """exec・upload_file・download_file を呼ばれた順に控える。upload は呼ばれた時に中身を読む。exec の標準出力の頭には
+    Harbor の docker の環境と同じく docker compose の警告（標準エラー）が混ざる"""
 
     def __init__(self, image, result, inside_code=0, capture_code=0):
         """result が None なら起こし役の結果のファイルが無い"""
@@ -398,15 +443,22 @@ class FakeEnvironment:
 
     async def exec(self, command, cwd=None, env=None, timeout_sec=None, user=None):
         self.calls.append({"kind": "exec", "command": command, "env": env, "user": user, "timeout_sec": timeout_sec})
-        if command.startswith("cat ") and command.endswith(swepro.RESULT):
-            return Done(1) if self.result is None else Done(0, json.dumps(self.result))
-        if command.startswith("cat "):
-            return Done(0, DIFF)
         if "swepro.py inside" in command:
-            return Done(self.inside_code, "工場の出力")
+            return Done(self.inside_code, f"{WARNING}工場の出力")
         if command == swepro.capture_command(swepro.WORKDIR, swepro.OUT):
-            return Done(self.capture_code)
-        return Done(0)
+            return Done(self.capture_code, WARNING)
+        return Done(0, WARNING)
+
+    async def download_file(self, source_path, target_path):
+        self.calls.append({"kind": "download", "source": source_path})
+        if source_path == f"{swepro.OUT}/{swepro.RESULT}":
+            if self.result is None:
+                raise RuntimeError("Engine cp failed")
+            pathlib.Path(target_path).write_text(json.dumps(self.result), encoding="utf-8")
+        elif source_path == f"{swepro.OUT}/{swepro.PATCH}":
+            pathlib.Path(target_path).write_text(DIFF, encoding="utf-8")
+        else:
+            raise RuntimeError("Engine cp failed")
 
     async def upload_file(self, source_path, target_path):
         data = pathlib.Path(source_path).read_bytes()
@@ -437,7 +489,10 @@ class AgentTest(unittest.TestCase):
         sys.modules.pop("tests.calibration.swepro_agent", None)
         self.addCleanup(sys.modules.pop, "tests.calibration.swepro_agent", None)
         self.agent_module = importlib.import_module("tests.calibration.swepro_agent")
-        self.environ(**{swepro.TOKEN_ENV: TOKEN})
+        argv = mock.patch.object(sys, "argv", ["harbor", "run", "--agent-timeout-multiplier", "inf"])
+        argv.start()
+        self.addCleanup(argv.stop)
+        self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN})
         self.tempdir = self.tmp / "host-tmp"
         self.tempdir.mkdir()
         temp = mock.patch.object(tempfile, "tempdir", str(self.tempdir))
@@ -523,9 +578,14 @@ class AgentTest(unittest.TestCase):
                          {"state": swepro.DRIVER_FAILED, "failed": True, "stopped": False, "outcome": ""})
         self.assertEqual(self.context.metadata["pro_limit"]["seconds"], swepro.PRO_SECONDS)
 
+    def test_result_and_patch_are_read_despite_warnings_on_stdout(self):
+        self.go()
+        got = self.predicted()
+        self.assertEqual((got["state"], got["failed"], got["model_patch"]), ("done", False, DIFF))
+
     def test_driver_output_is_kept(self):
         self.go()
-        self.assertEqual((self.tmp / "logs" / swepro.INSIDE_STDOUT).read_text(encoding="utf-8"), "工場の出力")
+        self.assertEqual((self.tmp / "logs" / swepro.INSIDE_STDOUT).read_text(encoding="utf-8"), f"{WARNING}工場の出力")
         self.assertTrue((self.tmp / "logs" / swepro.INSIDE_STDERR).is_file())
 
     def test_failed_capture_is_stopped_without_a_patch(self):
@@ -533,8 +593,14 @@ class AgentTest(unittest.TestCase):
         got = self.predicted()
         self.assertIsNone(got["model_patch"])
         self.assertTrue(got["stopped"])
-        run = [c.get("command") for c in self.environment.calls[self.environment.calls_after_setup:]]
-        self.assertNotIn(f"cat {swepro.OUT}/{swepro.PATCH}", run)
+        run = [c.get("source") for c in self.environment.calls[self.environment.calls_after_setup:]]
+        self.assertNotIn(f"{swepro.OUT}/{swepro.PATCH}", run)
+
+    def test_launch_without_unbounded_multiplier_is_refused(self):
+        with mock.patch.object(sys, "argv", ["harbor", "run", "-a", "x"]):
+            with self.assertRaises(ValueError) as caught:
+                self.agent()
+        self.assertIn("--agent-timeout-multiplier inf", str(caught.exception))
 
     def test_old_works_and_unknown_producers_are_refused(self):
         with self.assertRaises(ValueError) as caught:
@@ -543,13 +609,55 @@ class AgentTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.agent("codex")
 
-    def test_api_key_only_is_refused_before_upload(self):
-        self.environ(ANTHROPIC_API_KEY="sk-ant-api03-zq7")
-        environment = FakeEnvironment(IMAGE.format(OPENLIBRARY), {})
-        with self.assertRaises(ValueError) as caught:
-            asyncio.run(self.agent().run("x", environment, types.SimpleNamespace()))
-        self.assertIn("ANTHROPIC_API_KEY", str(caught.exception))
-        self.assertEqual(environment.calls, [])
+    def test_api_key_goes_only_into_the_secret_upload(self):
+        key = "sk-ant-api03-zq7-not-a-real-key"
+        self.environ(ANTHROPIC_API_KEY=key)
+        self.go()
+        calls = self.environment.calls
+        self.assertFalse([c for c in calls if c["kind"] == "exec" and key in c["command"]])
+        [holding] = [c for c in calls if c["kind"] == "upload" and key in c["text"]]
+        self.assertEqual(holding["target"], f"{swepro.PLACE}/{swepro.SECRET}")
+        self.assertEqual(json.loads(holding["text"]), {"ANTHROPIC_API_KEY": key})
+        self.assertFalse(self.predicted()["failed"])
+
+    def test_flag_set_to_off_does_not_refuse(self):
+        self.environ(ANTHROPIC_API_KEY="sk-ant-api03-zq7", CLAUDE_CODE_USE_BEDROCK="0")
+        self.go()
+        [holding] = [c for c in self.environment.calls if c["kind"] == "upload" and c["target"].endswith(swepro.SECRET)]
+        self.assertEqual(json.loads(holding["text"]), {"ANTHROPIC_API_KEY": "sk-ant-api03-zq7"})
+        self.assertFalse(self.predicted()["failed"])
+
+    def test_unaccepted_auth_is_refused_before_upload_with_the_reason_predicted(self):
+        for named, env in (("CLAUDE_CODE_USE_BEDROCK", {"CLAUDE_CODE_USE_BEDROCK": "1"}),
+                           ("ANTHROPIC_BASE_URL", {"ANTHROPIC_API_KEY": "sk-ant-api03-zq7",
+                                                   "ANTHROPIC_BASE_URL": "https://gateway.example"})):
+            with self.subTest(named=named):
+                self.environ(**env)
+                with self.assertRaises(ValueError) as caught:
+                    self.go()
+                self.assertIn(named, str(caught.exception))
+                run = self.environment.calls[self.environment.calls_after_setup:]
+                self.assertFalse([c for c in run if c["kind"] == "upload"])
+                got = self.predicted()
+                self.assertEqual((got["state"], got["failed"], got["stopped"], got["model_patch"]),
+                                 (swepro.AUTH_REFUSED, True, False, ""))
+                self.assertIn(named, got["error"])
+                self.assertEqual(self.context.metadata["state"], swepro.AUTH_REFUSED)
+
+    def test_missing_auth_is_refused_before_upload_with_the_reason_predicted(self):
+        why = "no credential found anywhere"
+        self.environ()
+        # 認証の無い env では macOS の resolve がホストの keychain を読むので、resolve の答えを差す
+        with mock.patch.object(self.agent_module.auth_launch, "resolve", return_value=(None, None, why)):
+            with self.assertRaises(ValueError) as caught:
+                self.go()
+        self.assertIn(why, str(caught.exception))
+        run = self.environment.calls[self.environment.calls_after_setup:]
+        self.assertFalse([c for c in run if c["kind"] == "upload"])
+        got = self.predicted()
+        self.assertEqual((got["state"], got["failed"], got["stopped"], got["model_patch"]),
+                         (swepro.AUTH_REFUSED, True, False, ""))
+        self.assertIn(why, got["error"])
 
     def test_other_repository_is_refused_before_upload(self):
         environment = FakeEnvironment(IMAGE.format(FLIPT), {})

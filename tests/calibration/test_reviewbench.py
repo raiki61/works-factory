@@ -166,6 +166,78 @@ class ConvertCase(unittest.TestCase):
         _, record = self.convert(runner.WorksFactory, attempt, head)
         self.assertIn({"source": judgment, "refs": [], "why": reviewbench.NO_REF}, record["dropped"])
 
+    def bare_name_attempt(self, files: dict, units: list, surfaced: list) -> tuple[pathlib.Path, str]:
+        """工場の所見の番地がファイル名だけの試み。head に files を足し、判定の単位と目の所見を替える"""
+        attempt, _ = attempt_from(hermetic.tmpdir(self), "works-factory")
+        head = commit(attempt / "target", files, "nested")
+        ev = attempt / "evidence"
+        (ev / runner.WorksFactory.sources[0].file).write_text(json.dumps({"units": units}), encoding="utf-8")
+        (ev / "parent" / "eyes" / "r4.json").write_text(json.dumps({"surfaced": surfaced}), encoding="utf-8")
+        return attempt, head
+
+    def test_bare_file_names_resolve_to_repo_paths(self):
+        lines = "x\n" * 420
+        attempt, head = self.bare_name_attempt(
+            {"app/static/dashboard.js": lines, "pkg/chat/interface.py": lines, ".devcontainer/devcontainer.json": lines},
+            [{"key": "app/static/dashboard.js 版の上げ", "label": "suggest", "reason": "dashboard.js:392-399 で版を手で上げる"},
+             {"key": "devcontainer.json workspaceFolder", "label": "suggest", "reason": "devcontainer.json:9 が名を固定する"}],
+            [{"where": "pkg/chat/interface.py", "text": "interface.py:77-94 で audio_response が未定義になる"}])
+        doc, record = self.convert(runner.WorksFactory, attempt, head)
+        got = [(f["file"], f["start_line"], f["end_line"], f["ref_as_written"]) for f in record["findings"]]
+        self.assertEqual(got, [("app/static/dashboard.js", 392, 399, "dashboard.js:392-399"),
+                               (".devcontainer/devcontainer.json", 9, 9, "devcontainer.json:9-9"),
+                               ("pkg/chat/interface.py", 77, 94, "interface.py:77-94")])
+        self.assertEqual(record["resolved_count"], 3)
+        self.assertEqual([f["file"] for f in doc["findings"]], [f[0] for f in got])
+        self.assertTrue(all("ref_as_written" not in f for f in doc["findings"]))
+
+    def test_same_name_twice_is_dropped_unless_the_key_names_one(self):
+        lines = "x\n" * 20
+        attempt, head = self.bare_name_attempt(
+            {"a/util.py": lines, "b/util.py": lines},
+            [{"key": "util の割り算", "label": "block", "reason": "util.py:3 が 0 で割る"},
+             {"key": "b/util.py の割り算", "label": "block", "reason": "util.py:4 が 0 で割る"}], [])
+        _, record = self.convert(runner.WorksFactory, attempt, head)
+        judgment = runner.WorksFactory.sources[0].file
+        self.assertIn({"source": judgment, "refs": ["util.py:3-3"], "why": reviewbench.AMBIGUOUS}, record["dropped"])
+        self.assertNotEqual(reviewbench.AMBIGUOUS, reviewbench.NOT_AT_HEAD)
+        [kept] = [f for f in record["findings"] if f["source"] == judgment]
+        self.assertEqual((kept["file"], kept["start_line"], kept["ref_as_written"]), ("b/util.py", 4, "util.py:4-4"))
+
+    def test_path_at_head_with_lines_out_of_range_is_not_moved(self):
+        attempt, head = self.bare_name_attempt(
+            {"setup.py": "x\n" * 30, "pkg/setup.py": "x\n" * 200},
+            [{"key": "setup の版", "label": "block", "reason": "setup.py:150 が版を固定する"}], [])
+        _, record = self.convert(runner.WorksFactory, attempt, head)
+        judgment = runner.WorksFactory.sources[0].file
+        self.assertIn({"source": judgment, "refs": ["setup.py:150-150"], "why": reviewbench.NOT_AT_HEAD}, record["dropped"])
+        self.assertEqual([f for f in record["findings"] if f["source"] == judgment], [])
+        self.assertEqual(record["resolved_count"], 0)
+
+    def test_key_path_not_at_head_falls_back_to_the_head_files(self):
+        attempt, head = self.bare_name_attempt(
+            {"app/static/dashboard.js": "x\n" * 5},
+            [{"key": "old/dashboard.js 版", "label": "suggest", "reason": "dashboard.js:3 で版を手で上げる"}], [])
+        _, record = self.convert(runner.WorksFactory, attempt, head)
+        judgment = runner.WorksFactory.sources[0].file
+        self.assertEqual([(f["file"], f["start_line"], f["ref_as_written"]) for f in record["findings"] if f["source"] == judgment],
+                         [("app/static/dashboard.js", 3, "dashboard.js:3-3")])
+
+    def test_structured_locations_are_not_resolved(self):
+        """素の Claude Code は file・start_line を構造で持つので、パスを推して解かない"""
+        tmp = hermetic.tmpdir(self)
+        attempt, head = attempt_from(tmp, "works-factory")
+        head = commit(attempt / "target", {"app/only.py": "x\n" * 5}, "nested")
+        shutil.rmtree(attempt / "evidence")
+        (attempt / "evidence").mkdir()
+        (attempt / "evidence" / "findings.json").write_text(json.dumps({"findings": [
+            {"file": "only.py", "start_line": 2, "end_line": 2, "message": "m"},
+            {"file": "app/only.py", "start_line": 3, "end_line": 3, "message": "n"}]}), encoding="utf-8")
+        _, record = self.convert(runner.PlainClaude, attempt, head)
+        self.assertEqual([(f["file"], f["ref_as_written"]) for f in record["findings"]], [("app/only.py", None)])
+        self.assertEqual([d["why"] for d in record["dropped"]], [reviewbench.NOT_AT_HEAD])
+        self.assertEqual(record["resolved_count"], 0)
+
     def test_write_keeps_record_out_of_the_judge_input(self):
         tmp = hermetic.tmpdir(self)
         attempt, head = attempt_from(tmp, "works-factory")

@@ -22,11 +22,11 @@ class NodesCase(unittest.TestCase):
         reviewbench.write(self.out, "works-factory", KEY, doc, record)
         self.findings = doc["findings"]
 
-    def judged(self):
+    def judged(self, second="novel_fp"):
         details = self.out / "works-factory" / "scoring" / "results.details.json"
-        details.parent.mkdir(parents=True)
+        details.parent.mkdir(parents=True, exist_ok=True)
         details.write_text(json.dumps([{"pr_key": KEY, "candidate_findings": [
-            {**self.findings[0], "status": "matched_tp"}, {**self.findings[1], "status": "novel_fp"}]}]), encoding="utf-8")
+            {**self.findings[0], "status": "matched_tp"}, {**self.findings[1], "status": second}]}]), encoding="utf-8")
 
     def rows(self, got) -> dict:
         return {r["node"]: r for r in got["nodes"]}
@@ -53,15 +53,36 @@ class NodesCase(unittest.TestCase):
         self.assertEqual((judge["invocations"], judge["findings"], judge["usd"]), (2, 1, 0.584333))
         self.assertEqual(judge["usd_why"], "一部の起動の費用が無い: not_applicable")
         md = nodes.markdown(got)
-        self.assertIn("| ノード | サブグラフ | 課題 | 起動 | 秒 | USD | 所見 | 差分に入った | 当たり | 本物 | 誤り |", md)
+        self.assertIn("| ノード | サブグラフ | 課題 | 起動 | 秒 | USD | 所見 | 番地を解いた | 差分に入った | 当たり | 本物 | 誤り |", md)
         self.assertIn("- judge__intake: 秒 timing が無い", md)
         self.assertIn("- start: 費用 not_applicable", md)
+
+    def test_resolved_references_are_counted(self):
+        path = self.out / "works-factory" / "convert" / f"{KEY}.json"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(sum(f["ref_as_written"] is not None for f in record["findings"]), 0)
+        record["findings"][0]["ref_as_written"] = "stats.py:9-9"
+        path.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+        got = nodes.table(self.out, runner.WorksFactory())
+        rows = self.rows(got)
+        self.assertEqual((rows["judge__diagnose-loop.diagnose"]["resolved"], rows["eyes__r4-scope"]["resolved"]), (1, 0))
+        self.assertEqual({r["subgraph"]: r["resolved"] for r in got["subgraphs"]}["judge"], 1)
+        self.assertIn("| judge__diagnose-loop.diagnose | judge | 1 | 1 | 86.143 | 0.584333 | 1 | 1 |", nodes.markdown(got))
 
     def test_without_details_everything_is_unjudged(self):
         got = nodes.table(self.out, runner.WorksFactory())
         self.assertFalse(got["judged"])
         self.assertEqual(sum(r["verdicts"]["unjudged"] for r in got["nodes"]), 2)
         self.assertEqual(sum(r["verdicts"]["hit"] + r["verdicts"]["real"] + r["verdicts"]["wrong"] for r in got["nodes"]), 0)
+
+    def test_unknown_verdict_word_stops_with_its_name(self):
+        for word in ("matched_tp_v2", None):
+            with self.subTest(word=word):
+                self.judged(second=word)
+                with self.assertRaises(reviewbench.BenchError) as caught:
+                    nodes.table(self.out, runner.WorksFactory())
+                self.assertIn(repr(word), str(caught.exception))
+                self.assertIn(KEY, str(caught.exception))
 
     def test_plain_claude_is_one_row_per_task(self):
         record = {"key": KEY, "attempt": str(self.tmp / "nowhere"), "seconds": 60.0, "usd": None,
