@@ -4,8 +4,7 @@
 # ///
 """返す節 result: run.json と（在れば）任せ先の役の ci-material.json を読み、赤の原因と証拠を出し（green_cert.classify）、今の指紋を
 取って認証する（green_cert.certify。final で素材を任せ先の役が書いた緑は自己申告として認証しない）。base は直す前の結末のファイル
-test-gate/base/baseline.json を書く（baseline_red.write_baseline。test_cmd だけを走らせた run（tdd_suite も無い）はそのログの green_cert.log_digest も。
-final が green_cert.failed_alike で、直す前と同じに試験の前で落ちたかを比べる）。final は入力 baseline の指し札の先を baseline_red.read_baseline で読み、
+test-gate/base/baseline.json を書く（baseline_red.write_baseline）。final は入力 baseline の指し札の先を baseline_red.read_baseline で読み、
 修正前のテストの行（declared_checks.baseline_line）を証拠に足し、テストごとの修正前と今の結末（test_outcomes。独立の目の
 比較役が読む）を返りに載せる。走らせ方（by・suites_line）・ログ（log）・修正前のテスト（baseline_line）・
 認証しなかった訳（reason）は 1 行に畳んで返りに載せ、証拠の文 test-gate/<mode>/evidence.md の行も同じ値から組む（報告と最後の関所は
@@ -131,16 +130,13 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     if mode == "final" and (base_file := boundary.pointed(baseline_raw)) is not None:
         base = baseline_red.read_baseline(base_file)
     cases, rows = test_outcomes(base, run) if mode == "final" else (None, None)
-    digest = green_cert.log_digest(run["log"]) if run["by"] == declared_checks.ROLE and not run.get("suite") else ""
     if material is None:   # 3 回とも拒まれて諦めた時は最後の拒否の文を人に見える証拠に出す（T45。元 ci_role.collect :349-356）
         red_cause = green_cert.INCOMPLETE
         summary = (rolekit.given_up_reason(artifacts / rel(mode, ""), declared_checks.CI_ROLE)
                    or "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・ループが回らなかった）")
     else:
-        alike = green_cert.failed_alike(base, by=run["by"], runs=run["runs"], test_cmd=start.get("test_cmd") or "", status=status,
-                                        digest=digest)
         red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
-                                                 junit_steps=run["junit_steps"], junit_unran=run["junit_unran"], alike=alike)
+                                                 junit_steps=run["junit_steps"], junit_unran=run["junit_unran"])
     ok, why = green_cert.certify(mode=mode, material_status=status, green=green, before=run["fingerprint_before"],
                                  after=run["fingerprint_after"], now=now, self_reported=role)
     out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause, "baseline": None, "fingerprint": None, "test_outcomes": rows}
@@ -149,7 +145,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
                                     test_cmd=start.get("test_cmd") or "", rev=now["head"], exit=suite_exit(run),
                                     cases=run["cases"], by=run["by"], material=material, runs=run["runs"],
                                     skipped_steps=run["skipped_steps"], exit_codes={r["name"]: r["exit"] for r in run["runs"]},
-                                    junit_steps=run["junit_steps"], fingerprint=now, log_digest=digest)
+                                    junit_steps=run["junit_steps"], fingerprint=now)
         out["baseline"] = boundary.pointer(rel(mode, "baseline.json"))
     else:
         out["fingerprint"] = now

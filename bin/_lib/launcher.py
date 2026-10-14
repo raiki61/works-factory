@@ -124,8 +124,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             raise Stop(code=check.returncode)
         print(f"{NAME}: 認証は {check.stdout.strip()} から拾う（値は出さない）", file=sys.stderr)
     if executing and userenv.opted(child):
-        print(f"{NAME}: {userenv.OPT_IN}=1 なので、対象の試験・受け入れのコマンドを利用者の HOME・XDG で走らせる"
-              "——AI が書いた試験のコードが、利用者の資格（keychain・gh のログイン）に届く", file=sys.stderr)
+        print(f"{NAME}: {userenv.OPT_IN}=1 を明示した——この run が対象の試験・受け入れのコマンドを機械で走らせる時は、利用者の"
+              "HOME・XDG に戻して走らせ、AI が書いた試験のコードが利用者の資格（keychain・gh のログイン）に届きうる。走らせたかは"
+              "報告の冒頭が言う", file=sys.stderr)
     real = None
     if executing:
         real = real_claude(user)
