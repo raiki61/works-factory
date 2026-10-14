@@ -7,13 +7,15 @@
 入力の周の数 rounds と費用の上限 budget_usd を lib/chain.limits で確かめ、範囲の外なら act: refused で返して AI の前で止める。
 受けた時は 0 周目の決めと同じ形（act: launch・1 周目の子の入力 request・base・pr・spec・前までの周の行 rows: []）を返すので、
 5 組の周のノードは番号と前の決めのほかは同じ形になる。後ろの決めが読む rounds・budget と、2 周目から運ぶ 1 周目の依頼の絶対パス
-first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）も返す。
+first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）と、
+最後の差分の元の基 origin（run の作業ツリーの今の HEAD。1 周目の子の始めの記録の base_rev と同じ版。commit の無い木なら空）も返す。
 出力ノード result が結ぶので落ちない: 境の口を読めない時も標準ライブラリだけで act: refused を返す。
 
 入力: rounds・budget_usd・request・base・pr・spec（鎖の入力）
 """
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -32,7 +34,12 @@ if boundary is not None:
 
 def refused(reason: str) -> dict:
     return {"ok": False, "reason": reason, "act": "refused", "word": "", "text": reason, "request": "", "base": "", "pr": "",
-            "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0}
+            "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0, "origin": ""}
+
+
+def head() -> str:
+    done = subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"], capture_output=True, text=True, encoding="utf-8")
+    return done.stdout.strip() if done.returncode == 0 else ""
 
 
 def start() -> dict:
@@ -47,7 +54,7 @@ def start() -> dict:
     return {"ok": True, "reason": "", "act": "launch", "word": "", "text": "1 周目を起こす", "request": request,
             "base": boundary.text(os.environ.get("INPUTS_BASE")), "pr": pr, "spec": boundary.text(os.environ.get("INPUTS_SPEC")),
             "rows": [], "rounds": rounds, "budget": budget, "first_request": first,
-            "first_pr": entryshape.named_pr({"pr": pr}) or 0}
+            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": head()}
 
 
 def main() -> None:

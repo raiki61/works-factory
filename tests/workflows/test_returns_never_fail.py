@@ -47,6 +47,7 @@ NEVER_FAIL = {
     ("line", "collect"): ALONE_BOUND,
     ("line", "sweep-children"): ALONE_BOUND,
     ("chain", "chain-start"): ALONE_BOUND,
+    ("chain", "final-diff"): ALONE_BOUND,
     **{("chain", f"round-{k}-decide"): ALONE_BOUND for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 
@@ -73,6 +74,7 @@ LIBLESS_EXITS = {
     "workflows/chain/scripts/result.py": "周の鎖の返す節",
     "workflows/chain/scripts/chain_start.py": "周の鎖の返す節が $chain-start.output で結ぶ",
     "workflows/chain/scripts/decide.py": "周の鎖の返す節が $round-k-decide.output で結ぶ",
+    "workflows/chain/scripts/final_diff.py": "周の鎖の返す節が $final-diff.output で結ぶ",
 }
 
 BOUND = re.compile(r"\$([A-Za-z][\w-]*)\.output\b")

@@ -1,7 +1,8 @@
 """封じた差分を対象に当てる口 bin/apply の中身: bin/apply <run-id> [--cwd <対象>] [--allow-delete] [--allow-stopped]。
 
 約束は docs/plans/2026-10-13-stage1-walking-skeleton.md の「bin/apply（土台の計画 Task 7）」の 1〜9。run は殻 bin/works-factory の
-workflow get で読み（家・隔離・Archon の起こし方は殻の物）、メイングラフの出力ノード result の値（terminal_record.returns.value）から当てる差分を選ぶ。
+workflow get で読み（家・隔離・Archon の起こし方は殻の物）、メイングラフか周の鎖の出力ノード result の値（terminal_record.returns.value。
+どちらも同じ欄 apply・sealed を持ち、鎖の物は元の基から採る周までの最後の差分）から当てる差分を選ぶ。
 hash の正本は Archon の DB の run の記録で、置き場のファイルではない。今の works の確かめ（works/dev/use.sh の apply_checked:
 消す行の許し・止まった run の許し・git apply --check）に、封じた hash とポインタの照らし・読み戻しを足す。commit はしない。
 封じた hash で確かめられない差分（メイングラフの出力が読めない run・封じる前に止まった run）は当てず、拒む 1 行に素の git apply で当てる道を書く
