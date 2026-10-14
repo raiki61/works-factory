@@ -98,3 +98,10 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - なぜその形か: 役（AI）を起こさずに、グラフの道筋と自分の script の決めを確かめる。stub は出力ノードの形を守らされる（`dry-run.ts` の `assertAuthoredStubSatisfiesSchema`）。
 - 採った先: メイングラフの筋書き `workflows/line/fixtures/*.stubs.yaml`（19 本）。
 - 違い: メイングラフと本物の 8 つのサブグラフを置いて回し（`tests/e2e/test_line_scenarios.py`）、サブグラフのノードには、そのノードの `output_format` に合う stub を置く。dry-run の制約と、それに合わせた stub の置き方は `docs/design.md` の U3。
+
+### A12 頭の振り分けの AI が根拠つきで道を決め、後ろの段を when で飛ばす
+
+- ASF: d97d00ef の `W/ship/archon-ship.yaml`（頭の `triage` が `route` を返し、`deliver` の道では計画のノード `planned` を `when: "$triage.output.route == 'plan'"` で飛ばす）と `W/triage/archon-triage.yaml`（triage ノードの注: 根拠の無い道は出さない）。
+- なぜその形か: 易しい依頼に重い段を通さない。飛ばすのは Archon の `when` で、飛ばしたノードは run の記録に skipped で残る。
+- 採った先: judge の `head-depth-*`（run の頭の深さを決める役と受け付け）と、メイングラフの往復の中の `plan-review-due`（事前審査のループ `review-loop` を飛ばすかを決める）。
+- 違い: 飛ばすのは `docs/design.md` の「深さで飛ばすノードの表」に載せたノードだけ（E20）。頭の決めは役の引用を機械が照らし、通らなければ標準。走っている間の信号（計画の単位ごとの深さに標準が在る）で飛ばさずに戻す。
