@@ -248,7 +248,7 @@ def question_lines(got: dict) -> list:
     答え・読めなかった保留。どれも無い時だけ「盤面の問い: 無い」"""
     lines = []
     if got["spec_changed"]:
-        lines.append(f"- 承認し直すかの問い（{gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]}・{len(got['spec_changed'])} 件）:")
+        lines.append(f"- {gatemarks.SPEC_CHANGED_HEAD}: {len(got['spec_changed'])} 件")
         lines += [f"  - {q}" for q in got["spec_changed"]]
         lines.append("  - この承認ノードの答えはこの問いに答えない（continue でも仕様は承認し直さない）。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
     if got["questions"]:

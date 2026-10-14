@@ -820,7 +820,7 @@ class DraftsCase(Base):
         self.assertEqual(decided, ("needs_human", f"spec-check:{stopby.SPEC_CHANGED}"))
         head = "\n".join(text.splitlines()[2:5])
         self.assertIn(stopby.REASONS["spec-changed"], head)
-        self.assertIn(f"{runreport.SPEC_CHANGED_HEAD} 1 件", head)
+        self.assertIn(f"{gatemarks.SPEC_CHANGED_HEAD} 1 件", head)
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
         self.assertEqual([(a["question"], a["text"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, "", True)])

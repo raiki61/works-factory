@@ -7,7 +7,7 @@ fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["start", "gate-start", "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "fix__fix", "after-fix", "judged", "fixed", "spec-check", "redepth", "test-gate-final__run", "eyes__verdict", "merge-seal__merge", "ask-final", "gate-final", "answer-final", "collect", "report__report", "result"]
-  resolved-text-contains: {"gate-final": "承認し直すかの問い（承認の後に受け入れ条件のテストが変わった・1 件）"}
+  resolved-text-contains: {"gate-final": "承認し直すかの問い（承認の後に受け入れ条件のテストが変わった）: 1 件"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "test_outcomes": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}, "by": "engine", "suites_line": "走らせた: suite（exit 0・direct）／走らせなかった: 無い", "log": "test-gate-base/logs/checks.log", "baseline_line": "", "reason": ""}

@@ -260,6 +260,8 @@ KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", pol
               DESIGN_KIND: "構造の目が決めきれなかった設計の問い", WORLD_KIND: "世界の解（定石）から外れる修正案の項目",
               "spec_approval": "仕様（要件と受け入れ条件）の承認", SPEC_CHANGED_KIND: "承認の後に受け入れ条件のテストが変わった",
               GIVEN_UP_KIND: "事前審査が案を審査できなかった"}
+SPEC_CHANGED_LABEL = f"{KIND_WORDS[SPEC_CHANGED_KIND]}（{SPEC_CHANGED_KIND}）"   # 承認し直すかの問いの文と下書きの source の頭
+SPEC_CHANGED_HEAD = f"承認し直すかの問い（{KIND_WORDS[SPEC_CHANGED_KIND]}）"   # 最後の承認ノードと報告の人が決めることの節の頭
 
 
 def question_row(kind: str, text: str) -> dict:

@@ -3211,7 +3211,6 @@ def spec_check(spec: dict, root) -> list:
 
 def spec_questions(spec_path, root) -> list:
     """修正の後の承認し直すかの問い（1 ファイル 1 行）。仕様が無い・読めない・形が違えば、黙って 0 件にせず「読めない」の問いを 1 行返す"""
-    head = f"{gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]}（{gatemarks.SPEC_CHANGED_KIND}）"
     try:
         spec = read_json(spec_path)
         if spec is None:
@@ -3220,7 +3219,7 @@ def spec_questions(spec_path, root) -> list:
     except (OSError, ValueError, KeyError, TypeError) as e:
         return [f"承認済みの仕様 {spec_path} を読めない——受け入れ条件のテストが変わったかを確かめられない"
                 f"（{oneline.one_line(f'{type(e).__name__}: {e}')}）"]
-    return [f"{head}: {r['file']}（sha256 {str(r['from'])[:12]} → {'消えた' if r['to'] is None else r['to'][:12]}）——承認し直すか。"
+    return [f"{gatemarks.SPEC_CHANGED_LABEL}: {r['file']}（sha256 {str(r['from'])[:12]} → {'消えた' if r['to'] is None else r['to'][:12]}）——承認し直すか。"
             "この run の中では答えられない: 変更を確かめて次の run の仕様の段で承認し直すか、テストを承認の版に戻して直す依頼にする"
             for r in rows]
 

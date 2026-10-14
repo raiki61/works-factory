@@ -421,8 +421,6 @@ def _ask_draft(q: dict, key: str) -> dict:
     return gatemarks._draft(key, "", f"{gatemarks.ASK_HEAD} {key} の選択肢", f"推しを判定の役が書いていない。選択肢から人が答えを text に書く: {opts}")
 
 
-SPEC_CHANGED_HEAD = "承認し直すかの問い（承認の後に受け入れ条件のテストが変わった）"   # 人が決めることの行の頭
-SPEC_CHANGED_SOURCE = f"{gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]}（{gatemarks.SPEC_CHANGED_KIND}）"
 SPEC_CHANGED_NOTE = ("機械は承認し直さない。変更を確かめ、承認し直すなら次の run で仕様の段（spec=on）を回して承認し、戻すならテストを承認の版に"
                      "戻して直す依頼にする。採らないなら行を消す")
 
@@ -445,7 +443,7 @@ def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=()) -> l
     asked = oc.eye_questions(returns)
     if _unattended(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
         asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
-    out = [gatemarks._draft(q, "", SPEC_CHANGED_SOURCE, SPEC_CHANGED_NOTE) for q in spec_changed if isinstance(q, str) and q.strip()]
+    out = [gatemarks._draft(q, "", gatemarks.SPEC_CHANGED_LABEL, SPEC_CHANGED_NOTE) for q in spec_changed if isinstance(q, str) and q.strip()]
     out += [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
     out += [_ask_draft(q, key) for q, key in ledger_state(returns, gates, start)["drafts"]]
@@ -987,7 +985,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     handoffs = [x for x in _list(as_dict(returns.get("fix")).get("handoffs")) if isinstance(x, str)]
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
-    parts = [(SPEC_CHANGED_HEAD, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
+    parts = [(gatemarks.SPEC_CHANGED_HEAD, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
              ("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs),
              ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate), (report.CHECKS_LEFT, checks),
