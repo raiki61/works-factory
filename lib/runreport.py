@@ -66,6 +66,7 @@ import seal as seallib  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
 import structmark  # noqa: E402
+import userenv  # noqa: E402
 import worldmark  # noqa: E402
 
 as_dict = oc.as_dict
@@ -103,6 +104,8 @@ NOTES_HEADING = promptsection.Section("## 注意（読めなかった物）", hu
 # AI の報告に機械の事実を付ける時の、機械の「人が決めること」の見出しの言い換え（判断は書き手の頭の 1 か所に集める）
 MACHINE_DECISIONS = promptsection.Section("## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）", human=report.FOR_READERS)
 RED_KEPT = ("inherited", "environment")       # 認証が通した赤（元から赤・環境の赤）
+# 機械の報告の冒頭に在れば、書き手の頭にもそのまま要る句（accept が照らす）
+HEAD_NOTES = (*green_cert.RAN_NOTES, userenv.NOTE)
 GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "最後のテスト"))
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
@@ -1432,13 +1435,14 @@ def _shown(path: str, repo) -> str:
 
 def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: str, stop_reason: str, *, out_dir,
           start: dict | None = None, problems=(), run_id: str = "", transcript_why: str = "", repo=None,
-          report_name: str = report.REPORT_FILE, line: dict | None = None) -> dict:
+          report_name: str = report.REPORT_FILE, line: dict | None = None, user_env: bool = False) -> dict:
     """機械の報告（report_name）・次の依頼（next-request.json。空なら書かない）・前の失敗（prior-failures.json。空なら書かない）を
     out_dir に書き、{report, next_request, prior_failures, ai_go} のパスを返す（元 report.py:2000。元は盤面を読み、
     検証器の関所を踏んだ）。書き手に渡す事実のファイルは機械の報告そのもの（元の facts_text が線 A の機械の報告を字のまま使った形）。
     transcript は transcript_facts の返り、typed は型つきの成果物の読み {by_type, warnings}、repo は直しの内側の語を直す前の版と
     比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, prior_failures（開けた
-    ファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）"""
+    ファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）、user_env は対象のコマンドを利用者の
+    HOME・XDG で走らせた run か（userenv.opted。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}
@@ -1465,7 +1469,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—")
     stopped = outcome in STOP_OUTCOMES
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
-                          *(_stopped_why(returns, line) if stopped else [])])
+                          *(_stopped_why(returns, line) if stopped else []), *_ran_notes(returns),
+                          *([userenv.NOTE] if user_env else [])])
     if stopped:
         decide = "。".join(x for x in (decide, apply[-1]) if x)
     asked_texts = [*_plan_questions(returns, gates, start)[0],
@@ -1514,6 +1519,14 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     return {**paths, "ai_go": outcome != "record_invalid"}
 
 
+def _ran_notes(returns: dict) -> list:
+    """最後のテストが走っていない・走ったと確かめられていない時の冒頭の句（green_cert.ran_note。#492）。最後のテストまで来なかった
+    run は結末がそう言い、直す前のテストは本文の行が言う"""
+    fin = _ret(returns, "test-gate-final")
+    note = green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "") if fin else ""
+    return [note] if note else []
+
+
 def fallback_report(out_dir, why: str, name: str) -> pathlib.Path:
     """思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行）を name に書く（呼び手は facts の report.md と別の名を渡す）。
     組めなければ誤りが上がり、呼び手が lib/ に頼らない訳だけのファイルに落ちる"""
@@ -1560,9 +1573,19 @@ def cold_body(raw) -> str:
     return f"{head.rstrip()}\n\n{sec}" if sec else head
 
 
+def _machine_head_notes(out_dir: pathlib.Path) -> list:
+    """機械の報告（out_dir の report.REPORT_FILE）の冒頭に在る、HEAD_NOTES の句。読めなければ求めない（事実の節に別の落ち方が在る）"""
+    try:
+        text = (out_dir / report.REPORT_FILE).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    head = text.split("\n## ", 1)[0]
+    return [note for note in HEAD_NOTES if note in head]
+
+
 def accept(reply, cold, *, out_dir) -> dict:
     """書き手の返答を受け付ける（元 report_roles.accept を、盤面の代わりに out_dir の控えで書き直した物）。{done, ok, reason, kind,
-    reason_file}。順: 読む → terms の型 → 表のセルの書式 → 初見の読み手の判定。通らなければ拒否の行を REJECTS_FILE に積み、訳を
+    reason_file}。順: 読む → terms の型 → 表のセルの書式 → 機械の報告の冒頭の HEAD_NOTES の句が頭に在るか → 初見の読み手の判定。通らなければ拒否の行を REJECTS_FILE に積み、訳を
     REJECT_TEXT に書いて書き手に返す（reason_file はその絶対パス）。拒否が GIVE_UP_AFTER 回に達したら諦め（done、AI_FILE に
     受け取れなかった訳）。初見の読み手だけが通さない時は GIVE_UP_AFTER 回目に受け取り、NOT_PASSED の印を AI_FILE に残す。
     作業ツリーを変えた返答を拒む確かめ（元の entry.take の写しの比べ）は、実行基盤が読むだけの節（mutates_checkout: false）を
@@ -1597,6 +1620,10 @@ def accept(reply, cold, *, out_dir) -> dict:
     bad = report_roles.format_problems(got["text"])
     if bad:
         return reject(report_roles.CELL_REASON + "\n".join(f"- {x}" for x in bad), "format")
+    head = report_roles.head_of(got["text"])
+    for note in _machine_head_notes(out_dir):
+        if note not in head:
+            return reject(f"機械の事実の冒頭が「{note}」と言うのに、報告の頭に無い。冒頭 3 行の 1 行目にこの句をそのまま入れる", "answer")
     not_passed = ""
     if c["verdict"] != "pass":
         if len(rows) < report_roles.GIVE_UP_AFTER - 1:
