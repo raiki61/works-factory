@@ -31,7 +31,7 @@ except Exception as error:   # 出力ノードは落ちない（上の docstring
 
 CLOSED = "closed"
 FINAL = ("apply", "sealed", "report", "r2_status")
-DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ
+DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ。final_diff.py も同じ読み（試験が縛る）
 
 
 def from_final(final) -> dict:

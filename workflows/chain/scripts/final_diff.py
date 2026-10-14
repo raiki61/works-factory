@@ -36,7 +36,7 @@ if boundary is not None:
         import green_cert
         import seal
 
-DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ
+DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ。result.py も同じ読み（試験が縛る）
 
 
 def as_dict(value) -> dict:

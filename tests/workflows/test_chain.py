@@ -365,6 +365,20 @@ class FinalDiffCase(Tree):
         self.assertFalse((self.artifacts / "chain" / chain.FINAL).exists(), "前の最後の差分が残った")
         self.assertIn("採れる周が無かった", (self.artifacts / chain.REPORT).read_text(encoding="utf-8"))
 
+    def test_result_and_the_report_read_the_same_rounds_and_stop(self):
+        """result は lib を読まないので、周の決め d<k> の読み（行・最後の決めが launch なら止めていない）を final-diff と別に持つ。
+        同じ決めから、chain.md の表と result の rounds が同じ周を並べ、止めた訳の有無が result の act と合うことをここで縛る"""
+        start, made = three_rounds(self.repo)
+        for decisions, act in ((made, "stop"), (made[:2], "wait")):
+            with self.subTest(rounds=len(decisions)):
+                self.final(start, *decisions)
+                report = (self.artifacts / chain.REPORT).read_text(encoding="utf-8")
+                got = run_result(start, None, *decisions, artifacts=self.artifacts)
+                table = [int(n) for n in re.findall(r"^\| (\d+) \|", report, re.M)]
+                self.assertEqual([r["n"] for r in got["rounds"]], table)
+                self.assertEqual(got["act"], act)
+                self.assertEqual("止めていない" in report, act == "wait", report)
+
     def test_refused_start_returns_nothing(self):
         got = self.final({"ok": False, "reason": "rounds は 1〜5"})
         self.assertEqual((got["ok"], got["reason"], got["sealed"], got["report"]), (False, "rounds は 1〜5", None, None))
