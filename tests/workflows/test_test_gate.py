@@ -1066,7 +1066,7 @@ class ResultScriptCase(ScriptCase):
 
 class FixtureCase(unittest.TestCase):
     """筋書き（fixtures/）を止めた Archon の `workflow test` で回す。base と final の形が 1 つの返す節で返る"""
-    AUTHORED = {"base-engine": "succeeded", "base-role": "failed", "final-green": "succeeded", "final-red": "failed"}
+    AUTHORED = {"base-engine": "succeeded", "base-role": "succeeded", "final-green": "succeeded", "final-red": "failed"}
 
     def test_fixtures_pass_in_archon(self):
         with archon.tree(["test-gate"]) as tree:

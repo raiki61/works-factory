@@ -874,6 +874,16 @@ class CollectCase(Base):
         self.assertTrue(line.startswith(f"{report_roles.COLD_REJECTS_LINE} 2 回。{report_roles.NOT_PASSED}"), line)
         self.assertIn("止まった所: 冒頭の 2 行目", line)
 
+    def test_words_only_on_the_not_passed_line_are_defined(self):
+        """通らなかった事実の行にだけ在る語（NOT_PASSED の「ノード」、判定を読めなかった事実の「初見の読み手」）も、語の定義に載る"""
+        for _ in range(report_roles.GIVE_UP_AFTER):
+            runreport.accept(AcceptCase.REPLY, "壊れた", out_dir=self.out)
+        text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        self.assertIn(report_roles.GLOSSARY_HEADING, text)
+        glossary = text.split(report_roles.GLOSSARY_HEADING)[1].split(report_roles.MACHINE_HEADING)[0]
+        self.assertIn("- ノード:", glossary)
+        self.assertIn("- 初見の読み手:", glossary)
+
     def test_not_passed_line_keeps_guesses_and_unreadable_verdict(self):
         """通らなかった事実の行は、止まった所だけでなく推測で埋めた所と、判定を読めなかった事実も落とさない"""
         guessed = json.dumps({"verdict": "redesign-needed", "stops": [], "guessed": ["語 X を推測"]}, ensure_ascii=False)

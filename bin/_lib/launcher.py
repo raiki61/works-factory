@@ -15,7 +15,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place, startpoint
+from bin._lib import hostgh, isolate, pack, place, startpoint, testcmd_check
 from lib import answer, reads, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -189,7 +189,7 @@ def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
 
 def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], run=subprocess.run) -> None:
     """test_cmd の形を Archon を起こす前に確かめる（bin/_lib/testcmd_check.py。決まりはそちら）。対象の手元を走らせる形（終了の値 3）と、
-    確かめそのものが落ちた時（0・3 の外。手元を走らせる形を除けない）は止める。ALLOW_TESTCMD_ENV が 1 なら知らせて起こす。
+    確かめそのものが落ちた時（0 と STOP_EXIT の外。手元を走らせる形を除けない）は止める。ALLOW_TESTCMD_ENV が 1 なら知らせて起こす。
     注意の形（作業ツリーで走らない。走れば落ちて分かる）は行を出すだけ"""
     allowed = user.get(ALLOW_TESTCMD_ENV) == "1"
     for cmd in filter(str.strip, commands):
@@ -199,7 +199,7 @@ def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], run=
             print(done.stdout.rstrip("\n"), file=sys.stderr)
         if done.returncode == 0:
             continue
-        if done.returncode == 3:
+        if done.returncode == testcmd_check.STOP_EXIT:
             if not allowed:
                 raise Stop(f"test_cmd が対象の手元（{target}）を走らせる形なので、Archon を起こさずに止めた（run の試験が直しでなく手元の"
                            "コードを試し、直しの正誤に関わらず緑になりうる）。作業ツリーの中で環境を作る形にして打ち直す。形を知った上で"
