@@ -35,8 +35,9 @@ class WorksBench(BaseAgent):
         super().__init__(*args, **kwargs)
         # Harbor は倍率を agent に渡さず、trial を同じプロセスで回すので、起動の字そのものを見る
         if not swepro.unbounded(sys.argv):
-            raise ValueError("harbor run に --agent-timeout-multiplier inf が無い。付けないと Harbor が作業の段を "
-                             f"{swepro.PRO_SECONDS} 秒で切る（harbor job resume・-c の設定のファイルからの起動も旗が字に無いので断る）")
+            raise ValueError("harbor run に --agent-timeout-multiplier inf（または --timeout-multiplier inf）が無い。"
+                             f"無いと Harbor が作業の段を {swepro.PRO_SECONDS} 秒×倍率で切る"
+                             "（harbor job resume・-c の設定のファイルからの起動も旗が字に無いので断る）")
         self.producer = swepro.chosen(producer)
         version = run._claude_version(launcher.real_claude(os.environ))
         if not version:

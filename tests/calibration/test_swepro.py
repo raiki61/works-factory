@@ -111,12 +111,17 @@ class TaskInputsTest(unittest.TestCase):
 
 
 class UnboundedTest(unittest.TestCase):
-    def test_only_an_infinite_multiplier_counts(self):
+    def test_agent_multiplier_or_else_the_general_one_must_be_infinite(self):
         flag = "--agent-timeout-multiplier"
         for argv, want in ((["harbor", "run", flag, "inf"], True), (["harbor", "run", f"{flag}=inf"], True),
                            (["harbor", "run"], False), (["harbor", "run", flag, "2"], False),
                            (["harbor", "run", flag, "inf", flag, "2"], False), (["harbor", "run", flag], False),
-                           (["harbor", "run", flag, "many"], False)):
+                           (["harbor", "run", flag, "many"], False),
+                           (["harbor", "run", "--timeout-multiplier", "inf"], True),
+                           (["harbor", "run", "--timeout-multiplier=inf"], True),
+                           (["harbor", "run", "--timeout-multiplier", "2"], False),
+                           (["harbor", "run", "--timeout-multiplier", "inf", flag, "2"], False),
+                           (["harbor", "run", "--timeout-multiplier", "2", flag, "inf"], True)):
             with self.subTest(argv=argv):
                 self.assertEqual(swepro.unbounded(argv), want)
 
