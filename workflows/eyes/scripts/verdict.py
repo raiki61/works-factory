@@ -27,12 +27,11 @@ try:
 
     sys.path.append(str(boundary.lib_root()))
     import eyeverdict
-    import policy
     import structmark
 
     eyes = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
     protected = eyeverdict.read_json(eyes / "protected.json")
-    prep = eyeverdict.read_json(eyes / "prep.json")
+    prep = eyeverdict.read_json(eyes / eyeverdict.PREP_FILE)
     if prep is None:
         out = eyeverdict.unverified("支度のノード（prep か、その前の直しの後の実測）が落ちた", protected)
     else:
@@ -43,7 +42,7 @@ try:
             eyes_dir=eyes, run_eyes=prep["run_eyes"], compare_due=prep["compare_due"], premise_due=prep["premise_due"],
             design=eyeverdict.read_design(design_file),
             after_ptr=boundary.pointer(f"eyes/{structmark.AFTER_FILE}") if (eyes / structmark.AFTER_FILE).is_file() else None,
-            protected=protected, passed=passed, recorded=prep[policy.RECORDED_KEY])
+            protected=protected, passed=passed)
         eyeverdict.write_notes(eyes, passed=passed, design_ledger=eyeverdict.read_json(
             design_file.with_name(eyeverdict.DESIGN_PREMISES)) if design_file else None)
         out["notes"] = boundary.pointer(f"eyes/{eyeverdict.PREMISE_INPUTS}")

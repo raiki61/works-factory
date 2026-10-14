@@ -265,7 +265,7 @@ class SourceShapeCase(unittest.TestCase):
 
     def test_sources_follow_their_owners(self):
         graph = yaml.safe_load((ROOT / "workflows" / "eyes" / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
-        by = {n["id"]: n for n in graph["nodes"]}
+        by = {n["id"]: n for n in [*graph["nodes"], *(b for n in graph["nodes"] for b in (n.get("loop_group") or {}).get("nodes", []))]}
         for source in runner.WorksFactory.sources:
             with self.subTest(source=source.file):
                 if source.kind == "units":

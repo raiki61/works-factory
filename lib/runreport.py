@@ -111,7 +111,6 @@ REPLAN_GAVE_UP_WHERE = "案の直しを終えられなかった項目 {item}"
 STOPPED_WHERE = "止めた段"                     # 前の失敗の、止めの語で止めた段の行（元 accept-last.json の ok でない行の代わり）
 FIX_PLAN = "p2.fix_plan.json"                 # 計画の隣の修正案の役の返答（関所の決め手の欄つき）
 HYPOTHESIS = "仮説"                           # 前提の役が実測でなく仮説で書いた制約の kind
-HUMAN_FACE_KINDS = ("regression", "policy")   # 事前審査の穴のうち人に回す種類（元の写しの規則 review-loop.py:4084）
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
 UNSEEN = "取れない（U6）: Bash で読み書きしたファイル（道具への入力が command の字だけで、フックも Read・Edit・Write の外）"
@@ -373,7 +372,7 @@ def _face_rows(returns: dict) -> list:
     except (OSError, ValueError):
         return []
     return [(f"事前審査の穴 [{f.get('kind')}] {f.get('key')}: {f.get('why')}", f, "p2.plan_review")
-            for f in _list(as_dict(doc).get("faces")) if isinstance(f, dict) and f.get("kind") in HUMAN_FACE_KINDS]
+            for f in _list(as_dict(doc).get("faces")) if isinstance(f, dict) and f.get("kind") in fixboard.HUMAN_FACE_KINDS]
 
 
 def _world_rows(returns: dict) -> list:

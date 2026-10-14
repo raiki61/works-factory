@@ -51,8 +51,9 @@ class ScenarioCase(unittest.TestCase):
 
     def test_every_block_ran_names_the_nodes_the_workflows_have(self):
         includes = {n["id"] for n in stepnames.walk(stepnames.nodes("works-factory-line")) if "include" in n}
-        roles = {f"eyes__{n['id']}" for n in stepnames.nodes("works-factory-eyes")
-                 if "command" in n and re.match(r"r\d-", n["id"])}
+        eyes = {n["id"]: n for n in stepnames.walk(stepnames.nodes("works-factory-eyes"))}
+        roles = {f"eyes__{step}" for step in stepnames.step_names("works-factory-eyes")
+                 if "command" in eyes[step.rsplit(".", 1)[-1]] and re.match(r"r\d-", step.rsplit(".", 1)[-1])}
         child = stepnames.step_names("works-factory-fix")
         scenario = {a["id"]: a["description"] for a in json.loads(SCENARIO.read_text(encoding="utf-8"))["assertions"]}
         plan = next(line for line in PLAN.read_text(encoding="utf-8").splitlines() if line.startswith("  2. `every-block-ran`"))
