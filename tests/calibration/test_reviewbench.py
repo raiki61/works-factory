@@ -204,6 +204,25 @@ class ConvertCase(unittest.TestCase):
         [kept] = [f for f in record["findings"] if f["source"] == judgment]
         self.assertEqual((kept["file"], kept["start_line"], kept["ref_as_written"]), ("b/util.py", 4, "util.py:4-4"))
 
+    def test_path_at_head_with_lines_out_of_range_is_not_moved(self):
+        attempt, head = self.bare_name_attempt(
+            {"setup.py": "x\n" * 30, "pkg/setup.py": "x\n" * 200},
+            [{"key": "setup の版", "label": "block", "reason": "setup.py:150 が版を固定する"}], [])
+        _, record = self.convert(runner.WorksFactory, attempt, head)
+        judgment = runner.WorksFactory.sources[0].file
+        self.assertIn({"source": judgment, "refs": ["setup.py:150-150"], "why": reviewbench.NOT_AT_HEAD}, record["dropped"])
+        self.assertEqual([f for f in record["findings"] if f["source"] == judgment], [])
+        self.assertEqual(record["resolved_count"], 0)
+
+    def test_key_path_not_at_head_falls_back_to_the_head_files(self):
+        attempt, head = self.bare_name_attempt(
+            {"app/static/dashboard.js": "x\n" * 5},
+            [{"key": "old/dashboard.js 版", "label": "suggest", "reason": "dashboard.js:3 で版を手で上げる"}], [])
+        _, record = self.convert(runner.WorksFactory, attempt, head)
+        judgment = runner.WorksFactory.sources[0].file
+        self.assertEqual([(f["file"], f["start_line"], f["ref_as_written"]) for f in record["findings"] if f["source"] == judgment],
+                         [("app/static/dashboard.js", 3, "dashboard.js:3-3")])
+
     def test_structured_locations_are_not_resolved(self):
         """素の Claude Code は file・start_line を構造で持つので、パスを推して解かない"""
         tmp = hermetic.tmpdir(self)

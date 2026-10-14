@@ -71,7 +71,7 @@ def git(*args: str) -> str:
     return done.stdout
 
 
-def _has(repo: Path, *shas: str) -> bool:
+def has(repo: Path, *shas: str) -> bool:
     return all(subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True,
                               env={**os.environ, **GIT_ENV, "GIT_NO_LAZY_FETCH": "1"}).returncode == 0 for sha in shas)
 
@@ -83,7 +83,7 @@ def prepare(entry: dict, attempt: Path, cache: Path, mirror: str = MIRROR) -> di
     repo = Path(cache) / name(entry)
     if not repo.is_dir():
         git("init", "-q", "--bare", str(repo))
-    if not _has(repo, base, head):
+    if not has(repo, base, head):
         git("-C", str(repo), "fetch", "-q", mirror.format(name=name(entry)), f"{base}:refs/bench/{base}",
             f"{head}:refs/bench/{head}")
     made = make_target.layout(attempt)
@@ -150,12 +150,12 @@ class HeadTree:
 
     def place(self, found: list[tuple[str, int, int]], hints: list[str] | None = None) -> tuple[str, int, int, str | None] | str:
         """最初に head で照らせた番地 (パス, 始め, 終わり, 解く前の番地か None)、照らせなければ捨てる訳。hints が None なら
-        パスを解かない"""
+        パスを解かない。head に在るパスは行が外れても解かない"""
         ambiguous = False
         for path, start, end in found:
             if self.fits(path, start, end):
                 return path, start, end, None
-            if hints is None:
+            if hints is None or self.lines(path) is not None:
                 continue
             read = self.resolve(path, hints)
             if len(read) == 1 and self.fits(read[0], start, end):

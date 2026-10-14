@@ -708,7 +708,9 @@ class RunTest(RunnerCase):
         for producer in ("works-factory", "claude"):
             with self.subTest(producer=producer):
                 self.assertRan(self.run_tasks(producer, self.one))
-                [before] = self.records(producer)
+                kept = self.out / producer / "convert" / f"{self.one}.json"
+                before = {**json.loads(kept.read_text(encoding="utf-8")), "web_calls": 3}
+                kept.write_text(json.dumps(before), encoding="utf-8")
                 ledger = (self.attempts / runner.LEDGER).read_text(encoding="utf-8")
                 (self.attempt(self.one) / "evidence" / evidence_file[producer]).write_text(json.dumps(again[producer]),
                                                                                            encoding="utf-8")
@@ -730,6 +732,28 @@ class RunTest(RunnerCase):
         self.assertEqual(refused.returncode, 2, refused.stderr)
         self.assertIn(runner.LEDGER, refused.stderr)
         self.assertFalse(self.attempts.exists())
+
+    def test_convert_command_keeps_records_when_head_is_unreadable(self):
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        written = [self.out / "works-factory" / d / f"{self.one}.json" for d in ("findings", "convert")]
+        before = [p.read_bytes() for p in written]
+        shutil.rmtree(self.attempt(self.one) / "target")
+        done = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out))
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn("target", done.stderr)
+        self.assertEqual([p.read_bytes() for p in written], before)
+
+    def test_convert_command_waits_for_no_runner(self):
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        kept = self.out / "works-factory" / "convert" / f"{self.one}.json"
+        before = kept.read_bytes()
+        fd = os.open(self.attempts / ".lock", os.O_CREAT | os.O_RDWR)
+        self.addCleanup(os.close, fd)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        done = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out))
+        self.assertEqual(done.returncode, 2, done.stderr)
+        self.assertIn("別のランナー", done.stderr)
+        self.assertEqual(kept.read_bytes(), before)
 
     def test_convert_command_refuses_tasks_not_done(self):
         self.assertRan(self.run_tasks("works-factory", self.one))

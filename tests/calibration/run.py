@@ -17,8 +17,8 @@ bare、request.json は PR の題と本文の 1 行、pr/ は diff.patch と pr.
 <out>/<作り手>/convert/<鍵>.json（変換の控え。捨てた指摘・ノード・最後の差分に入ったか）に書き、置き場の台帳
 <置き場>/ledger.jsonl に 1 行足す。judge は ReviewBench の写しの中で npm run judge を打ち、<out>/<作り手>/scoring/ に書く（判定役は
 環境変数 ANTHROPIC_API_KEY を読む）。
-convert は台帳で済んだ課題の試みの evidence/ から変換だけをやり直して findings/ と convert/ を書き直す（run を起こさない。来歴と
-web_calls は前の控えから引き継ぐ）。
+convert は台帳で済んだ課題の試みの evidence/ と target/（head の版で番地を照らす）から変換だけをやり直して findings/ と convert/ を
+書き直す（run を起こさない。来歴と web_calls は前の控えから引き継ぐ。target/ で head を読めなければ書き換えずに止まる）。
 nodes は控えと出来事から <out>/<作り手>/nodes.json・nodes.md を書く。
 
 - 終了の値: 0 済んだ・1 止まった（後ろの課題を起こさない。--resume で続ける）・2 何も起こさずに断った。
@@ -748,6 +748,8 @@ def reconvert_one(producer, row: dict, out: Path):
         before = json.loads((out / producer.name / "convert" / f"{task}.json").read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
         raise Stop(STOPPED, f"課題 {task} の pr/pr.json か前の変換の控えを読めない: {type(e).__name__}") from None
+    if not reviewbench.has(attempt / "target", row["head"]):
+        raise Stop(STOPPED, f"課題 {task} の試みの target/ で head {row['head']} を読めない（{attempt / 'target'}）。控えは書き換えない")
     ended = {**producer.ended(attempt / evidence.EVIDENCE), "web_calls": before.get("web_calls")}
     doc, record = reviewbench.convert(producer, entry, attempt, row["run_id"], row["base"], row["head"], ended)
     record["provenance"] = before.get("provenance")
