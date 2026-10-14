@@ -23,7 +23,9 @@ docker_image をそれに替える。Harbor は docker_image の在る課題を 
 （工場の commit と Claude Code の版がホストと同じか）と bwrap を確かめるだけで網を使わず（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら remote の無い /app に試みの
-フォルダの中の写しを origin として持たせてから起こし（give_origin。Archon は remote の無い対象を拒む）、終わった run の封じた差分を
+フォルダの中の写しを origin として持たせてから起こし（give_origin。Archon は remote の無い対象を拒む）、
+submodule の在る対象では /app に Archon の設定を置いて、作業ツリーで submodule を初期化させずに /app の中の中身を写させてから
+起こし（give_submodules。初期化は網へ取りに行き、網は閉じている）、終わった run の封じた差分を
 bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json に書く。殻は /app の差分を model.patch に取り
 （capture_command）、起こし役の標準出力と予測を <試み>/agent/ に書く（prediction）。tally は job の予測と、試行の result.json の
 例外を数え、測れた試行（予測が在り例外の無い試行）が 1 つも無い（全部が例外・予測も例外も無い・試行が 1 つも無い）なら
@@ -131,6 +133,8 @@ INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
 # give_origin が試みの置き場に置く origin の写しと、その既定の枝
 ORIGIN_COPY, ORIGIN_BRANCH = "origin.git", "main"
+# give_submodules が対象の根に置く Archon の設定（Archon は run の作業ツリーを切る時に対象の根のこれを読む）
+ARCHON_CONFIG = ".archon/config.yaml"
 SAID_CHARS = 500   # run が起きなかった時に error へ写す殻の最後の行の長さの上限
 # 工場そのものが壊れて終わった結末（記録が読めない・節が落ちて線が進まなかった）。人を待っていないので stopped に入れない
 BROKE = ("record_invalid", "interrupted")
@@ -530,12 +534,51 @@ def give_origin(attempt: Path, workdir: Path):
         raise run.Stop(run.STOPPED, f"remote の無い対象 {workdir} に origin の写しを置けない: {e}") from None
 
 
+def submodule_paths(workdir: Path) -> list[str]:
+    """HEAD の .gitmodules が名指し、HEAD の木で gitlink の submodule のパス（上の段だけ）。git の失敗は make_target.Stop"""
+    w = str(workdir)
+    if not make_target.git("-C", w, "ls-tree", "--name-only", "HEAD", "--", ".gitmodules"):
+        return []
+    listed = make_target.git("-C", w, "config", "--blob", "HEAD:.gitmodules", "-z", "--list")
+    entries = (entry.partition("\n") for entry in listed.split("\0") if entry)
+    paths = [v for k, _, v in entries if k.startswith("submodule.") and k.endswith(".path")]
+    return [path for path in paths
+            if make_target.git("-C", w, "ls-tree", "-z", "HEAD", "--", path).partition(" ")[0] == "160000"]
+
+
+def give_submodules(workdir: Path):
+    """submodule の在る対象の根に Archon の設定 ARCHON_CONFIG を置く。worktree.initSubmodules: false で run の作業ツリーの
+    submodule を初期化させず（初期化は .gitmodules の URL を網へ取りに行き、エージェントの段は網が閉じている）、
+    worktree.copyFiles で対象の中の submodule の中身を作業ツリーの同じパスへ写させる。写すのは各 submodule の直下の .git の外
+    ——.git は対象の .git/modules を相対で指し、作業ツリーでは指す先が無く git を壊す。.git の無い gitlink のパスの中は git から
+    見えないので、写した中身もその変化も merge-seal と capture_command の差分に入らない。設定のファイルは .git/info/exclude で
+    無視させ、capture_command の差分に入れない。submodule の無い対象は触らない"""
+    try:
+        paths = submodule_paths(workdir)
+        if not paths:
+            return
+        config = workdir / ARCHON_CONFIG
+        if config.exists():
+            raise run.Stop(run.STOPPED, f"submodule の在る対象 {workdir} に Archon の設定 {ARCHON_CONFIG} が既に在る（書き換えると差分に入る）")
+        copied = [f"{path}/{entry.name}" for path in paths if (workdir / path).is_dir()
+                  for entry in sorted((workdir / path).iterdir()) if entry.name != ".git"]
+        exclude = workdir / make_target.git("-C", str(workdir), "rev-parse", "--git-path", "info/exclude")
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        with exclude.open("a", encoding="utf-8") as f:
+            f.write(f"\n/{ARCHON_CONFIG}\n")
+        config.parent.mkdir(exist_ok=True)
+        config.write_text(json.dumps({"worktree": {"initSubmodules": False, "copyFiles": copied}}) + "\n", encoding="utf-8")
+    except make_target.Stop as e:
+        raise run.Stop(run.STOPPED, f"submodule の在る対象 {workdir} に Archon の設定を置けない: {e}") from None
+
+
 def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
     """工場を前で回し、終わった run の封じた差分を当てる。止まった run は答えず resume もしない"""
     producer = run.WorksFactory({"test_cmd": task["test_cmd"]})
     got.update(inputs=list(producer.input_pairs(attempt, "")), test_cmd=task["test_cmd"], env_names=producer.env_names(),
                provenance={"archon": pack.load(ROOT)["archon"]["commit"]})
     give_origin(attempt, workdir)
+    give_submodules(workdir)
     before = status(workdir)
     run_id = producer.start(attempt, "")
     state = producer.state(attempt, run_id) if run_id else "failed"
