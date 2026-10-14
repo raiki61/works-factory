@@ -523,9 +523,15 @@ class JudgeTakeCase(_JudgeBase):
             reply["precedents"].append({"key": "空の列を試すか", "problem": "空の列の試験", "source": "対象のテストの頭",
                                         "verdict": "adopt", "reason": "当たった", "undecided_because": because})
             return reply
-        got = self.take(asked("③ 方針とぶつかる: test_stats.py:1 の『わざと試験しない』"))
-        self.assertIs(got["ok"], False)
-        self.assertIn("対象の文は方針でない", got["reason"])
+        for because in ("③ 方針とぶつかる: test_stats.py:1 の『わざと試験しない』", "①・③ 先例が割れ、test_stats.py:1 ともぶつかる"):
+            with self.subTest(because):
+                got = self.take(asked(because))
+                self.assertIs(got["ok"], False)
+                self.assertIn("対象の文で、そのぶつかりは ③ に当たらない", got["reason"])
+        for because in ("② 優先の付け方で変わる（③ のぶつかりは無い）", "3 つ目の場合（記録された方針とぶつかる）: test_stats.py:1"):
+            with self.subTest("頭の印に ③ が無い問いは ③ を名乗らない", because=because):
+                got = self.take(asked(because))
+                self.assertIs(got["ok"], True, got["reason"])
         pmd = self.jdir.parent / "policy.md"
         pmd.write_text("# 方針\n- 空の列は試験しない\n", encoding="utf-8")
         frozen = ja.policy.freeze(self.jdir.parent / "run", self.repo, str(pmd))

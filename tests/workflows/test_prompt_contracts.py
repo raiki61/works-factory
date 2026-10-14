@@ -24,6 +24,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
+import judge_accept  # noqa: E402
 import planblk  # noqa: E402
 import policy  # noqa: E402
 import rulebook  # noqa: E402
@@ -146,6 +147,13 @@ class PromptContractsTest(unittest.TestCase):
                 self.assertIn(policy.RECORDED_REF, (ROOT / rel).read_text(encoding="utf-8"))
         self.assertIn(policy.RECORDED_REF, planblk.HANDOFF_REVIEW)
         self.assertNotIn(policy.RECORDED_TERM, (ROOT / "workflows/plan-review/commands/r2-design.md").read_text(encoding="utf-8"))
+
+    def test_diagnose_names_the_premise_three_mark_the_acceptance_reads(self):
+        """#427: 受け付けが ③ の名乗りと読むのは undecided_because の頭の印だけ。指示書はその印とその置き場を書く"""
+        text = (ROOT / "workflows/judge/commands/diagnose.md").read_text(encoding="utf-8")
+        self.assertIn("`undecided_because` の頭に印", text)
+        self.assertIn(f"頭の印に {judge_accept.PREMISE_THREE} を書くなら", text)
+        self.assertTrue(judge_accept.claims_premise_three(f"{judge_accept.PREMISE_THREE} 記録された方針の行とぶつかる"))
 
     def test_quote_must_be_in_the_text(self):
         contract = {"forbidden": [{"what": "道具を呼ばない", "quote": "道具を呼ぶな"}], "steps": [], "stops": []}
