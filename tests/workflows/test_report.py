@@ -264,6 +264,14 @@ class CopiedTextsCase(unittest.TestCase):
             with self.subTest(name, original=original):
                 assert_is_original(self, BLOCK / "commands" / name, sha, edits)
 
+    def test_writer_names_factory_things_in_graph_and_user_words(self):
+        """#495: 書き手の書式の決まりが、工場の中の物をグラフの語（サブグラフ・ノード）で名指し、ほかを利用者の語に言い換えさせる"""
+        text = (BLOCK / "commands" / "report.md").read_text(encoding="utf-8")
+        rule = [line for line in text.splitlines() if line.startswith("- 工場の中の物はグラフの語で名指す")]
+        self.assertEqual(len(rule), 1)
+        for word in ("サブグラフ", "ノード", "承認ノード", "利用者の語", "terms"):
+            self.assertIn(word, rule[0])
+
 
 class TypedCase(unittest.TestCase):
     def setUp(self):
