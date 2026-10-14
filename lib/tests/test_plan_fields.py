@@ -186,7 +186,8 @@ class TestSplitAndBoard(PlanFieldsCase):
 
     def test_removes_tests_only_from_code_use(self):
         """removes の語が文字列（題・辞書の値・parametrize の値）や注釈の中にしか無いテストは removes_tests に並ばない。コードの
-        名前・点の付いたパスの文字列（mock.patch の的）・引数の名で使うテストだけが並ぶ（ありふれた語で許しを広げない。#549）"""
+        名前・属性・点の付いたパスの文字列（mock.patch の的。デコレータでも）・属性の名の文字列（setattr・getattr・patch.object）・
+        引数の名で使うテストだけが並ぶ（ありふれた語で許しを広げない。#549）"""
         src = ("import pytest\n"
                "from unittest import mock\n"
                "\n"
@@ -208,11 +209,33 @@ class TestSplitAndBoard(PlanFieldsCase):
                "        assert run()\n"
                "\n"
                "def test_fixture(Book):\n"
-               "    assert Book\n")
+               "    assert Book\n"
+               "\n"
+               "def test_attr():\n"
+               "    assert models.Book(title=\"x\")\n"
+               "\n"
+               "@mock.patch(\"pkg.validator.Book\")\n"
+               "def test_decorated(m):\n"
+               "    assert run()\n"
+               "\n"
+               "def test_setattr(monkeypatch):\n"
+               "    monkeypatch.setattr(mod, \"Book\", None)\n"
+               "\n"
+               "def test_patch_object():\n"
+               "    with mock.patch.object(mod, \"Book\"):\n"
+               "        assert run()\n"
+               "\n"
+               "def test_getattr():\n"
+               "    assert getattr(mod, \"Book\")\n"
+               "\n"
+               "def test_other_call_string():\n"
+               "    assert find(mod, \"Book\")\n")
         _, fields = planmarks.split({"plan": [item(removes=["Book"])]}, self.repo, base_tests={"tests/test_books.py": src})
         self.assertEqual([r["id"] for r in fields[0]["removes_tests"]],
                          ["tests/test_books.py::test_builds", "tests/test_books.py::test_patched",
-                          "tests/test_books.py::test_fixture"])
+                          "tests/test_books.py::test_fixture", "tests/test_books.py::test_attr",
+                          "tests/test_books.py::test_decorated", "tests/test_books.py::test_setattr",
+                          "tests/test_books.py::test_patch_object", "tests/test_books.py::test_getattr"])
 
     def test_save_read_by_round(self):
         b = types.SimpleNamespace(dir=self.tmp, round=1)

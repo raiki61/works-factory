@@ -12,11 +12,11 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   別の版の木へ移す口
   （範囲の相談の合意の行は修正前の版の行で、凍結の検査が読む木へはこの 2 つで移す）
 - split(reply, repo, base_tests=)・save(board, rnd, fields)・read(b)・rewrites(b)・removes_permits(b): 欄を外す口・盤面の控え・書き換えてよい既存のテストの並び・
-  removes をコードの識別子（と点の付いたパスの文字列）として使う既存のテストの並び（base_tests は修正前の版のテストの中身。split が欄
+  removes をコードの識別子（と点の付いたパス・属性の名の文字列）として使う既存のテストの並び（base_tests は修正前の版のテストの中身。split が欄
   removes_tests に置く許しの行）
-- IDENT・search_word(name)・module_name(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path): adds・removes の名を
+- IDENT・search_word(name)・module_name(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path)・code_idents(node): adds・removes の名を
   差分や本体で探す語の決まり（1 行の読み方）・テストの関数の源の引き（blk-fix の planscope・tddloop・blk-plan の ripple が同じ物を呼ぶ）・
-  テストの関数がコードで使う名の引き（split が removes_tests を引く）
+  テストの関数がコードで使う名の引き（split が removes_tests を引く）・コードの識別子の名の集め（tddloop も文字列の決まりを足して使う）
 - unit_contract(fields, key): 1 つの単位の約束（その単位を名指す項目の道・受け入れのテスト・書き換えの id・整えの申告を合わせた物。TDD の輪が読む）
 - append_trace(folder, op, **row): 開いた盤面の書き口の無い時に trace.jsonl（TRACE_FILE）へ足す行 {t, op, …}（save と planfile が書く）
 - 凍結（SAVED_OP・frozen(b)・FieldsBroken）: save は控えを置いた後、盤面の trace に印 {round, sha256（控えのバイトの sha256）} を
@@ -184,7 +184,8 @@ HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を�
 REVIEW_HEAD = promptsection.Section("## 修正案の項目の works の欄（機械が貼った）", source="fn:planmarks.review_section")
 FIELDS_ITEM_HEAD = promptsection.Section("### 修正案の項目 {n}", source="fn:planmarks.review_section")
 DEVIATION_HEAD = promptsection.Section("## 構造の目の避け方・判定の処方・世界の解から外れた訳（修正案の欄 structure から機械が並べた。訳が成り立つかを見よ）", source="fn:planmarks.review_section")
-MACHINE_KEY = "removes_tests"   # 欄の行のうち split が足し、修正案の役が書かない・直せない欄
+MACHINE_KEY = "removes_tests"   # 欄の行のうち split が足し、修正案の役が書かない・直せない欄。rewrite_tests の limit も split が
+# 足すが、役の書く id から決まり、その行への block は役が id を直して答えられるので、わざと入れない
 REVIEW_ASK = ("下は修正案の役が項目ごとに書いた works の欄（route・受け入れのテスト tests・書き換える既存のテスト rewrite_tests・"
               "整えの申告 refactor・書いてよいパス allowed_paths・触らない物 out_of_scope）。承認されると項目ごとの brief になり、"
               "修正役・TDD の役の要求の正本になる。受け入れのテストが"
@@ -401,12 +402,9 @@ def test_functions(src: str, path: str) -> dict[str, str]:
     return out
 
 
-_DOTTED = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+")
-
-
-def _code_names(node) -> set[str]:
-    """節 node（デコレータも含む）の下でコードの識別子として使う名（名前・属性・引数・キーワード・import の各段・定義の名）と、
-    点の付いたパスの形の文字列の最後の段（mock.patch("pkg.mod.Name") の Name）。ほかの文字列と注釈の中の語は入れない"""
+def code_idents(node) -> set[str]:
+    """節 node の下でコードの識別子として使う名（名前・属性・引数・キーワード・import の各段と別名・定義の名）。文字列と注釈の
+    中の語は入れない（文字列のどれを名と読むかは呼び手が足す。planmarks._code_names・tddloop._old_names）"""
     out = set()
     for n in ast.walk(node):
         if isinstance(n, ast.Name):
@@ -420,9 +418,38 @@ def _code_names(node) -> set[str]:
             out.add(n.asname or "")
         elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             out.add(n.name)
-        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and _DOTTED.fullmatch(n.value):
-            out.add(n.value.rsplit(".", 1)[-1])
     out.discard("")
+    return out
+
+
+_DOTTED_PATH = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+")
+_ATTR_CALLS = frozenset({"setattr", "getattr", "hasattr", "delattr"})
+
+
+def _attr_name_arg(call):
+    """呼び call が属性の名を文字列で渡す形（setattr・getattr・hasattr・delattr（monkeypatch.setattr も）と *.patch.object の
+    2 つ目の引数）なら、その文字列の節。ほかは None"""
+    f = call.func
+    name = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else None
+    patch_object = name == "object" and isinstance(f, ast.Attribute) and (
+        getattr(f.value, "id", None) == "patch" or getattr(f.value, "attr", None) == "patch")
+    if (name in _ATTR_CALLS or patch_object) and len(call.args) >= 2:
+        return call.args[1]
+    return None
+
+
+def _code_names(node) -> set[str]:
+    """節 node（デコレータも含む）の下でコードの識別子として使う名（code_idents）と、点の付いたパスの形の文字列の最後の段
+    （mock.patch("pkg.mod.Name") の Name）と、属性の名として渡す識別子の文字列（setattr(mod, "Name", …) の Name）。
+    ほかの文字列と注釈の中の語は入れない"""
+    out = code_idents(node)
+    for n in ast.walk(node):
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and _DOTTED_PATH.fullmatch(n.value):
+            out.add(n.value.rsplit(".", 1)[-1])
+        elif isinstance(n, ast.Call):
+            arg = _attr_name_arg(n)
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and arg.value.isidentifier():
+                out.add(arg.value)
     return out
 
 
@@ -435,7 +462,7 @@ def test_names(src: str, path: str) -> dict[str, set[str]]:
 
 def _naming_removes(item: dict, base_tests: dict) -> list[dict]:
     """項目 item の removes（消す名）の探す語（search_word）を、base_tests（パス → 修正前の版のテストのファイルの中身）の
-    テストの関数がコードの識別子（と点の付いたパスの文字列）として使う所（test_names）から探し、当たった関数の行
+    テストの関数がコードの識別子（と点の付いたパス・属性の名の文字列）として使う所（test_names）から探し、当たった関数の行
     {id, limit: "<パス>:<定義の行>"} を並びの順で返す。文字列・注釈の中の同じ語は当たりにしない（ありふれた語で関わらないテストへ
     許しを広げない）。定義の行が引けない関数（入れ子のクラスの中など）は並べない（許しを広げない）"""
     words = {w for w in map(search_word, item.get("removes") or []) if w}
@@ -1146,13 +1173,17 @@ def _item_block(f: dict) -> str:
     return block + (f"\n\n{MACHINE_LABEL}\n\n{_json_block({MACHINE_KEY: machine})}" if machine else "")
 
 
+# 境は ASCII の識別子の字だけで見る（\w は仮名・漢字も語の字に数え、「項目1のremoves_testsが」を見逃す）
+_MACHINE_KEY_IN = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(MACHINE_KEY)}(?![A-Za-z0-9_])")
+
+
 def machine_face_gaps(faces: list) -> list[str]:
     """事前審査の穴 faces のうち、where が機械の足した欄（MACHINE_KEY）を名指す block の誤りの行（受け付けが拒む。修正案の役が
     直せない穴で案の往復を回さない）。suggest は往復を回さないので拒まない"""
     return [f"faces[{j}]（{str(f.get('key'))[:40]}）: where が機械の足した欄 {MACHINE_KEY} を名指す block（修正案の役は直せない。"
             f"許しが広すぎるなら removes を名指せ。そうでなければ suggest にせよ）"
             for j, f in enumerate(faces)
-            if f.get("severity") == "block" and word_re(MACHINE_KEY).search(str(f.get("where") or ""))]
+            if f.get("severity") == "block" and _MACHINE_KEY_IN.search(str(f.get("where") or ""))]
 
 
 def review_section(b, notes=None) -> str:

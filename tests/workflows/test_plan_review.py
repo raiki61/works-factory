@@ -951,9 +951,13 @@ class ReviewAcceptCase(RunCase):
 
     def test_block_on_machine_field_rejected(self):
         """#549: where で機械の足した欄 removes_tests を名指す block は、修正案の役が直せないので受け付けが拒み、往復を控えない
-        （plan-converge で止まらない）。同じ穴の suggest は受ける"""
+        （plan-converge で止まらない）。仮名・漢字に詰めて書いた名も見逃さない。同じ穴の suggest は受ける"""
         r = self.run_
         self.prepped()
+        for flush in ("項目1のremoves_testsが広い", "removes_testsの13件"):
+            with self.subTest(where=flush):
+                got = r.accept(review(face("removes-tests-unrelated", kind="regression", where=flush)))
+                self.assertFalse(got["ok"])
         where = "修正案の項目 1 の works の removes_tests（13 件）"
         got = r.accept(review(face("removes-tests-unrelated", kind="regression", where=where)))
         self.assertFalse(got["ok"])
