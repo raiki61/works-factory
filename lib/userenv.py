@@ -1,7 +1,7 @@
 """対象のコマンドに渡す、利用者の隔離の前の HOME・XDG の控え（#492）。層 L1（works の物を何も知らない）。標準ライブラリだけ。
 
 起動の殻（bin/_lib/isolate.py）は HOME・XDG を run の置き場へ向ける。利用者が起こす env に OPT_IN=1 を置いた時だけ、殻は隔離の前の
-値を RECORD に控え、tree_run.outside_env が対象のコマンド（試験・受け入れ・TDD の輪のコマンド）の env にだけ戻す。既定は控えず、
+値を RECORD に控え、tree_run.outside_env が対象のコマンド（試験・受け入れ・TDD の試験のコマンド）の env にだけ戻す。既定は控えず、
 対象のコマンドも隔離した HOME・XDG で走る: AI が書いた試験のコードを、人が差分を見る前に利用者の keychain・gh のログインに届く
 環境で走らせない（運び役の決め。持ち主の決め auth-middleware・others-may-use から導いた。PR #496 のコメント）。役の Bash は
 どちらの時も隔離のまま。
