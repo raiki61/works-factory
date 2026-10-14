@@ -35,46 +35,64 @@ NARROWING = re.compile(r"^  - 狭め[:：（(\s].*(?:\n    .*)*", re.M)
 OPEN = re.compile(r"→(?!.*→).*開いている", re.S)
 
 
-def rows() -> dict[str, tuple[str, str]]:
-    """棚卸しの行 ID → (ファイル:行, 行の字（頭の行と、字下げした続きの行）)"""
-    found = {}
+def rows() -> list[tuple[str, str, str]]:
+    """(ファイル:行, 行 ID, 行の字（頭の行と、字下げした続きの行）)。同じ ID の行が 2 つのファイルに在れば（gaps-plan.md と
+    plan.md など）両方"""
+    found = []
     for md in sorted(INVENTORY.glob("*.md")):
-        row = None
+        current = None
         for no, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1):
             if head := ROW.match(line):
-                row = head.group(1)
-                found[row] = (f"{md.name}:{no}", line)
-            elif row and line.startswith("  "):
-                found[row] = (found[row][0], found[row][1] + "\n" + line)
+                current = [f"{md.name}:{no}", head.group(1), line]
+                found.append(current)
+            elif current and line.startswith("  "):
+                current[2] += "\n" + line
             else:
-                row = None
-    return found
+                current = None
+    return [(where, row, text) for where, row, text in found]
 
 
-def state_texts(texts: dict[str, tuple[str, str]]) -> dict[str, str]:
-    """行 ID → 戻したか開いているかを書く字。「狭め」の欄（4 字下げの続きの行を含む）が在る行はその欄、無い行（線への
-    申し送りの S の行）は行の字"""
-    return {row: (field.group(0) if (field := NARROWING.search(text)) else text) for row, (_, text) in texts.items()}
+def state_text(text: str) -> str:
+    """戻したか開いているかを書く字。「狭め」の欄（4 字下げの続きの行を含む）が在る行はその欄、無い行（線への申し送りの
+    S の行）は行の字"""
+    return field.group(0) if (field := NARROWING.search(text)) else text
 
 
-def restored_ids(texts: dict[str, tuple[str, str]]) -> set[str]:
-    """棚卸しの行のうち、state_texts の字に「→ … 戻した」が在り、PARTIAL に無い行の ID"""
-    return {row for row, text in state_texts(texts).items() if RESTORED.search(text)} - PARTIAL.keys()
+def says_restored(row: str, text: str) -> bool:
+    return bool(RESTORED.search(state_text(text))) and row not in PARTIAL
 
 
-def disagreements(texts: dict[str, tuple[str, str]]) -> list[str]:
-    """ほかの行の ID を名指す行と名指された行で、一方が戻した、一方が開いている（最後の「→」の後に「開いている」）と書く所。
+def says_open(row: str, text: str) -> bool:
+    """最後の「→」の後に「開いている」"""
+    return not says_restored(row, text) and bool(OPEN.search(state_text(text)))
+
+
+def restored_ids(texts: list[tuple[str, str, str]]) -> set[str]:
+    """棚卸しの行のうち、state_text の字に「→ … 戻した」が在り、PARTIAL に無い行の ID（同じ ID の行のどれか 1 つでも）"""
+    return {row for _, row, text in texts if says_restored(row, text)}
+
+
+def disagreements(texts: list[tuple[str, str, str]]) -> list[str]:
+    """ほかの行の ID を名指す行と名指された行、と同じ ID の行どうしで、一方が戻した、一方が開いていると書く所。
     同じ能力を 2 つの区分の行が書く時（S07 と T16 など）、片方だけを直して食い違ったままにしない（#536）"""
     restored = restored_ids(texts)
-    opened = {row for row, text in state_texts(texts).items() if row not in restored and OPEN.search(text)}
+    opened = {row for _, row, text in texts if says_open(row, text)}
     found = []
-    for row, (where, text) in texts.items():
+    for where, row, text in texts:
+        is_open, is_restored = says_open(row, text), says_restored(row, text)
+        if is_open and row in restored:
+            found.append(f"{where} {row} は開いている、同じ ID の別の行は戻した")
         for named in sorted(set(MENTION.findall(text)) - {row}):
-            if row in opened and named in restored:
+            if is_open and named in restored:
                 found.append(f"{where} {row} は開いている、名指す {named} は戻した")
-            elif row in restored and named in opened:
+            elif is_restored and named in opened:
                 found.append(f"{where} {row} は戻した、名指す {named} は開いている")
     return found
+
+
+def rewritten(texts: list[tuple[str, str, str]], row: str, edit) -> list[tuple[str, str, str]]:
+    """ID が row の行の字を edit で書き換えた写し"""
+    return [(where, r, edit(text) if r == row else text) for where, r, text in texts]
 
 
 def off_form() -> list[str]:
@@ -130,23 +148,34 @@ class RestoredNotGapsCase(unittest.TestCase):
     def test_rows_naming_each_other_agree(self):
         self.assertEqual(disagreements(self.rows), [])
 
+    def where(self, row: str) -> str:
+        return next(where for where, r, _ in self.rows if r == row)
+
     def test_a_naming_row_written_back_to_open_is_red(self):
-        rows = dict(self.rows)
-        where, text = rows["S07"]
-        rows["S07"] = (where, text.split(" → #122 で戻した")[0])
-        self.assertEqual(disagreements(rows), [f"{where} S07 は開いている、名指す T16 は戻した"])
+        rows = rewritten(self.rows, "S07", lambda text: text.split(" → #122 で戻した")[0])
+        self.assertEqual(disagreements(rows), [f"{self.where('S07')} S07 は開いている、名指す T16 は戻した"])
 
     def test_a_named_row_written_back_to_open_is_red(self):
-        rows = dict(self.rows)
-        where, text = rows["T16"]
-        rows["T16"] = (where, text.replace("→ #122 で戻した", "→ **開いている**"))
-        self.assertEqual(disagreements(rows), [f"{rows['S07'][0]} S07 は戻した、名指す T16 は開いている"])
+        rows = rewritten(self.rows, "T16", lambda text: text.replace("→ #122 で戻した", "→ **開いている**"))
+        self.assertEqual(disagreements(rows), [f"{self.where('S07')} S07 は戻した、名指す T16 は開いている"])
 
     def test_only_the_last_step_says_open(self):
         """「→ 開いている → 部分 D1 で閉じた」は閉じた行"""
-        rows = {"S1": ("a", "- S1 x → **開いている** → 部分 D1 で閉じた（T1）"), "S2": ("b", "- S2 x → **開いている**（T1）"),
-                "T1": ("c", "- T1 y\n  - 狭め: 狭めた → #1 で戻した")}
+        rows = [("a", "S1", "- S1 x → **開いている** → 部分 D1 で閉じた（T1）"), ("b", "S2", "- S2 x → **開いている**（T1）"),
+                ("c", "T1", "- T1 y\n  - 狭め: 狭めた → #1 で戻した")]
         self.assertEqual(disagreements(rows), ["b S2 は開いている、名指す T1 は戻した"])
+
+    def test_every_copy_of_a_row_is_read(self):
+        """同じ ID の行が 2 つのファイルに在る時（gaps-plan.md と plan.md）、片方の行だけの「戻した」も落とさない"""
+        first = [where for where, row, _ in self.rows if row == "P057"][0]
+        rows = [(where, row, text + " → #999 で戻した" if where == first else text) for where, row, text in self.rows]
+        self.assertNotIn("P057", self.restored)
+        self.assertIn("P057", restored_ids(rows))
+
+    def test_copies_of_one_row_that_disagree_are_red(self):
+        rows = self.rows + [("x.md:1", "T16", "- T16 y\n  - 狭め: 狭めた → **開いている**")]
+        self.assertEqual(disagreements(rows), [f"{self.where('S07')} S07 は戻した、名指す T16 は開いている",
+                                               "x.md:1 T16 は開いている、同じ ID の別の行は戻した"])
 
     def test_partial_rows_still_say_restored_and_are_not_read(self):
         self.assertTrue(PARTIAL.keys() <= {row for _, row, text in row_fields(("狭め",)) if SAYS_RESTORED.search(text)})
