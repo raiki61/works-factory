@@ -39,9 +39,10 @@ class RecordCase(unittest.TestCase):
         userenv.restore(env)
         self.assertEqual(env, {"HOME": "/u", userenv.MARK: str(self.top / userenv.RAN_FILE)})
         self.assertFalse(userenv.opted(env))
-        self.assertFalse(userenv.ran(self.top))   # 印は子が起きた後に起こす側が置く
-        userenv.mark(env[userenv.MARK])
+        self.assertFalse(userenv.ran(self.top))   # 印は起こす側が子を起こす直前に置く
+        self.assertTrue(userenv.mark(env[userenv.MARK]))
         self.assertTrue(userenv.ran(self.top))
+        self.assertFalse(userenv.mark(env[userenv.MARK]))   # 前から在った印（起こせなかった時に消さない）
 
     def test_restore_without_the_marker_place_gives_nothing_back(self):
         """#504: 戻した印を置けない時は戻さない（利用者の HOME・XDG で走ったのを報告が言い漏らさない）"""
