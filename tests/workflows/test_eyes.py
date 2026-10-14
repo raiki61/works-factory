@@ -727,7 +727,7 @@ class ScriptCase(unittest.TestCase):
         self.inputs["start"] = self.pointer("start/start.json", {"run_id": RUN_ID, "base_rev": self.base, **more})
 
     def prep_file(self, **more) -> None:
-        self.eye_file("prep", {"run_eyes": True, "compare_due": True, "premise_due": False, **more})
+        self.eye_file("prep", {"run_eyes": True, "compare_due": True, "premise_due": False, policy.RECORDED_KEY: [], **more})
 
     def design(self, doc) -> None:
         self.inputs["design"] = self.pointer("plan-review/design.json", doc)
@@ -758,6 +758,10 @@ class ScriptCase(unittest.TestCase):
         self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
         self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
                                                    ensure_ascii=False)
+        got = self.run_script("verdict")
+        self.assertEqual(got["questions"], ["R4 が BASE から消えたと見た能力: 別の能力"])
+        self.assertIn("方針の第 1 項", got["r4"]["reason"])
+        self.prep_file(**{policy.RECORDED_KEY: [{"source": "answer", "name": "方針の第 1 項", "text": "決めた"}]})
         got = self.run_script("verdict")
         self.assertEqual(got["questions"], ["R4 が BASE から消えたと見た能力: 別の能力", "R4 が見た人の方針とのぶつかり: 方針の第 1 項"])
 
@@ -1007,7 +1011,7 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((got["run_eyes"], got["compare_due"], got["premise_due"]), (True, True, False))
         self.assertIn("-a\n+b\n", pathlib.Path(got["diff_file"]).read_text(encoding="utf-8"))
         self.assertEqual((got["base_rev"], got["changed_files"]), (self.base, "a.txt"))
-        self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
+        self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), {**got, policy.RECORDED_KEY: []})
 
     def test_prep_pastes_the_measured_test_outcomes_and_the_tdd_proof(self):
         """issue #384: 試験の関門が比べたテストごとの base と最後の結末（入力 test_outcomes）と、修正の段の diff の隣の TDD の記録が
@@ -1091,6 +1095,16 @@ class ScriptCase(unittest.TestCase):
         got = self.run_script("prep")["recorded_policy"]
         self.assertTrue(got.startswith(policy.RECORDED_HEAD), got)
         self.assertIn(policy.RECORDED_NONE, got)
+
+    def test_prep_keeps_the_recorded_rows_for_the_verdict(self):
+        """返す節が R4 の方針とのぶつかりを照らす一覧は、目に貼ったセクションと同じ行（承認ノードの人の答えを含む）"""
+        self.prep_inputs()
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": "古い入口は消してよい"}, ensure_ascii=False)
+        got = self.run_script("prep")
+        rows = json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8"))[policy.RECORDED_KEY]
+        self.assertEqual([r["source"] for r in rows], ["gate"])
+        self.assertEqual(got["recorded_policy"], policy.recorded_section(rows))
+        self.assertEqual(policy.hits(rows, f"ぶつかる: {rows[0]['name']}"), [rows[0]["name"]])
 
     def test_prep_pastes_the_premises_and_names_the_target_review_md(self):
         self.prep_inputs()

@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む）。比較役に貼った前提の控えは
+"""目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む。R4 の方針とのぶつかりを照らす記録された方針の行 policy.RECORDED_KEY も足す）。比較役に貼った前提の控えは
 eyes/r2-premises.json に書く。目が読む累積差分は、入口の base（startrec.diff_base。差分の run では PR の根）から今の作業ツリーまで
 （未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
 （直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
@@ -60,6 +60,7 @@ depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
 after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
 human_items = eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer)
+recorded = policy.recorded(start, judgment_file.parent if judgment_file else None, human_items=human_items)
 premises_text, r2_ledger = eyeverdict.premise_section(
     human_items=human_items,
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),
@@ -84,7 +85,7 @@ out = {
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
     "repo_review_md": str(repo_review) if repo_review.is_file() else "（対象のリポジトリの根に REVIEW.md は無い）",
     "policy_path": policy.frozen_copy(start),
-    "recorded_policy": policy.recorded_text(start, judgment_file.parent if judgment_file else None, human_items),
+    "recorded_policy": policy.recorded_section(recorded),
     "lang_line": rolekit.lang_line(start),
     "r1_head": concepthome.R1_HEAD.format(section=after),
     "r3_head": concepthome.R3_HEAD.format(section=after),
@@ -108,5 +109,5 @@ out = {
 }
 EYES.mkdir(parents=True, exist_ok=True)
 (EYES / eyeverdict.R2_PREMISES).write_text(json.dumps(r2_ledger, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-(EYES / "prep.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+(EYES / "prep.json").write_text(json.dumps({**out, policy.RECORDED_KEY: recorded}, ensure_ascii=False), encoding="utf-8")
 boundary.returns(out)
