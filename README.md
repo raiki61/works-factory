@@ -30,7 +30,7 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 入口は殻 1 本 `bin/works-factory` で、人は Archon の命令をそのまま打つ（`bin/works-factory <Archon の CLI の引数>`。旗は命令の後ろに置く）。殻は認証と置き場の隔離を整え、ASF の止め（`factory/pack.json`）の版の Archon の源を取り、そこから `bun` で起こす。グラフは Archon の家に置かない。メイングラフ `works-factory-line`（`workflows/line/`）が 8 つのサブグラフ（`workflows/<名>/`）を順に include する（作りの順は `docs/design.md`）。
 
 1. 入れる: Python 3.12 以上と git の在る機械で、このリポジトリを clone して `bun` を入れ、借りるプラグイン（`bin/_lib/borrow/borrow.json` の物）を Claude Code に入れる。足りなければ、殻が入れる命令を 1 行ずつ出して止まる。
-2. 始める: `bin/works-factory workflow run works-factory-line --cwd <対象> --input request=<依頼>`。
+2. 始める: `bin/works-factory workflow run works-factory-line --cwd <対象> --input request=<依頼のファイル> [--input test_cmd='<1 行>']`。依頼のファイルの形は下の「依頼のファイル」、`test_cmd` は「test_cmd と作業ツリー」、run の作業ツリーがどこから切られるかは「作業ツリーの起点」。
 3. 答える: `bin/works-factory workflow respond <run> approve|stop [一言] --cwd <対象>`。家（Archon の DB）は対象ごとなので、対象の外から打つ時は `--cwd` が要る。`WORKS_FACTORY_HOME` で始めた run は、答える時も同じ値を付ける（承認ノードの文の答えの行がその形で出る）。
 4. 見る: `bin/works-factory workflow status --cwd <対象>`・`workflow get <run> --cwd <対象>`。
 5. 当てる: `bin/apply <run> --cwd <対象>`（中身は `bin/_lib/apply.py`）。封じた hash を照らしてから対象へ当てる。
@@ -40,9 +40,53 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 - 止める: 承認ノードで `workflow respond <run> stop <一言>` と打つと、メイングラフが後ろを飛ばして報告を出す（`workflow reject <run>` も同じ）。承認ノードの間で走っている run は `workflow cancel <run>` で止まるが、報告は出ない。
 - 自分のグラフ（`workflows/`）を Archon に渡すのは `workflow run` の時だけ。`trigger`・`chat` には渡らない。
 - run は始めに `workflows/` だけを写し取るので、走っている間にこのリポジトリの `lib/` を変えると、その run に効く。
-- 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス。家・対象・Archon の源の取り置き（`XDG_CACHE_HOME`）が実パスで `/tmp/claude-*` の下なら、役の sandbox が書ける置き場なので拒む。家がこの checkout の下でも、読むだけの役の書き込みの柵が checkout を丸ごと禁じて役が家に書けないので拒む。checkout の外を選ぶ）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`WORKS_FACTORY_TARGET_USER_ENV=1`（対象の試験・受け入れのコマンドを、隔離した置き場でなく利用者の HOME・XDG で走らせる。道具が全体の設定を読めずに試験の前で落ちる対象のための道で、AI が書いた試験のコードが利用者の keychain・gh のログインに届く。既定は隔離のまま）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れ、役を起こす本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す。殻は役との間に書き込みの柵の包みを置く。殻を起こす env に置く。起こす場所・`--cwd`・対象の根の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env` が名指すと、包みが外れるので殻は止まる。同じファイルが包みの記録 `WORKS_FACTORY_FENCE_RECORDS` を名指しても止まる）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）。
+- 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス。家・対象・Archon の源の取り置き（`XDG_CACHE_HOME`）が実パスで `/tmp/claude-*` の下なら、役の sandbox が書ける置き場なので拒む。家がこの checkout の下でも、読むだけの役の書き込みの柵が checkout を丸ごと禁じて役が家に書けないので拒む。checkout の外を選ぶ）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`WORKS_FACTORY_TARGET_USER_ENV=1`（対象の試験・受け入れのコマンドを、隔離した置き場でなく利用者の HOME・XDG で走らせる。道具が全体の設定を読めずに試験の前で落ちる対象のための道で、AI が書いた試験のコードが利用者の keychain・gh のログインに届く。既定は隔離のまま）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れ、役を起こす本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す。殻は役との間に書き込みの柵の包みを置く。殻を起こす env に置く。起こす場所・`--cwd`・対象の根の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env` が名指すと、包みが外れるので殻は止まる。同じファイルが包みの記録 `WORKS_FACTORY_FENCE_RECORDS` を名指しても止まる）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）・`WORKS_FACTORY_ALLOW_TESTCMD=1`（対象の手元を走らせる形の `test_cmd` でも止めずに起こす。下の「test_cmd と作業ツリー」）。
 
 Claude Code からは `/works`（raiki61/claude-plugins の works プラグイン）で同じ事ができるようになる。
+
+### 依頼のファイル
+
+`--input request=<パス>` は、直してほしい事を書いた JSON のファイルのパス。相対のパスは run の作業ツリーの根から読む（並びは対象の根と同じ）。対象の中に置いた commit していないファイルも、下の「作業ツリーの起点」の包みで run の作業ツリーに入るが、run の起点の commit に依頼が混ざらないよう、対象の外に置いて絶対パスで渡すとよい。
+
+形は 2 つのどちらか。
+
+- 所見（findings）の配列だけ
+- `findings`・`pr`・`issue`・`answers`・`prior_failures`・`constraints` を鍵に持つ object（どの鍵も省ける。知らない鍵は拒む）
+
+所見の行は `where`（どこか）と `text`（何が起きているか）が要り、`mechanism`（なぜ起きるか）・`measured`（どう測ったか）・`false_positive_if`（どうなら誤報か）を足せる。`pr`・`issue` は番号の配列。`answers` は前の run が聞いた問い（問いの key か、測れていない確かめの名。例: CI の `local_checks`）への答えで、行は `question`・`text`（命令と出力で答える時は `command` と `output` を両方）。`prior_failures`・`constraints` は前の run の報告が書いた次の依頼の下書き（`next-request.json`）が運ぶ物で、手で書く事は少ない。
+
+```json
+{
+  "findings": [
+    {"where": "stats.py", "text": "mean([1, 2, 3]) が 2 でなく 3 を返す", "measured": "手元で mean([1, 2, 3]) を呼んで 3 を見た"},
+    {"where": "stats.py", "text": "clamp(15, 0, 10) が 10 でなく 0 を返す"}
+  ],
+  "answers": [
+    {"question": "local_checks", "text": "手元で CI の一式を走らせ、全部通った", "command": "make ci", "output": "ok"}
+  ]
+}
+```
+
+### test_cmd と作業ツリー
+
+`--input test_cmd='<1 行>'` は、対象のテストを走らせる 1 行。run の作業ツリーの根で走る。run の作業ツリー（と、修正の段が並べて直す単位の作業ツリー）は commit から切るので、git が無視する物（依存の置き場・仮想環境・ビルドの出力・`.env` など）が無い。作業ツリーの中で環境を作ってから試験を走らせる 1 行にし、元の clone を絶対パスで指さない。`WORKS_FACTORY_TARGET_USER_ENV=1` で利用者の HOME で走らせる run では、`~`・`$HOME` で元の clone を指す形も同じ（run の中でも元の clone を指す）。
+
+殻は Archon を起こす前に `test_cmd` の形を確かめる（`bin/_lib/testcmd_check.py`）。
+
+- 止める形（行の頭「止める（test_cmd）」）: 対象の手元（元の clone）を絶対パスで指す（`WORKS_FACTORY_TARGET_USER_ENV=1` の時は `~`・`$HOME`・`${HOME}` を利用者の HOME に展開してから見る）・対象を editable で入れた外の仮想環境を指すか立てたまま起こす。run の試験が直しでなく手元のコードを走らせ、直しの正誤に関わらず緑になりうる。形を知った上で回すなら `WORKS_FACTORY_ALLOW_TESTCMD=1` を前に付ける（行の頭が「注意（test_cmd）」になり、止めずに起こす）。確かめそのものが落ちた時も同じに止める。
+- 注意の形（行の頭「注意（test_cmd）」）: git が無視する物を相対のパスで指す。作業ツリーに無いので走らず、落ちて分かる。止めない。
+
+`test_cmd` を省けば、対象の宣言 `.review-checks.json` で走らせ、それも無ければ CI の任せ先の役が対象の CI の定義から走らせ方を探す（役の緑は自己申告なので、緑の認証には数えない）。
+
+### 作業ツリーの起点
+
+自分のグラフの新しい run では、殻が対象の今の姿を Archon に `--from <commit>` で渡し、Archon がそこから run の作業ツリーを切る（`bin/_lib/startpoint.py`）。
+
+- 汚れていない対象は `HEAD`。PR の枝を checkout して頼めば、その枝から始まる。
+- commit していない変更か未追跡のファイル（git が無視する物は除く）が在れば、それを包んだ commit（親は `HEAD`）。包みは一時の index で作り、対象の作業ツリー・index・枝は動かさず、ref も付けない。殻は包んだファイルを 1 行で出す。
+- `--from <版>`・`--from-branch <枝>` を名指せば、それが勝つ。`--base <枝>`（作業ツリーの切り元と PR の基）か `--branch <枝>`（`-b`。run の枝の名）を名指した時も足さず、切り元は Archon が決める（既に在る枝の名は、その枝を Archon の切り元へ戻すか、在る作業ツリーをそのまま使う）。名指した枝を対象の今の姿から切るなら `--from` も一緒に名指す。`--no-worktree`・`--folder`・`--container`・`--adopt`・`--dry-run` を付けた時と、git の木でない・commit の無い対象にも足さない。
+- remote の無い対象は Archon が直し方の 1 行を出して拒む。
+- 依頼が `pr` を名指す時は、その PR の head を checkout し、汚さずに頼む（包んだ commit は PR の head と違うので、run の始めで拒まれる）。
 
 ## 作り
 

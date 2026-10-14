@@ -23,7 +23,8 @@ MEASURED = ("clean", "found")
 # 素材の語の持ち主は gatemarks.MATERIAL_WORDS。測った結果でない語は全部未了で、落ちた先の分けで黙って認証しない
 NOT_DONE = tuple(w for w in gatemarks.MATERIAL_WORDS if w not in MEASURED)
 NOT_APPLICABLE = "not_applicable"
-BASE_OK = MEASURED + (NOT_APPLICABLE,)
+AWAITING_HUMAN = "awaiting_human"
+BASE_OK = MEASURED + (NOT_APPLICABLE, AWAITING_HUMAN)
 INCOMPLETE = "incomplete"   # 赤の原因: 測り切れていない（classify の 3.）
 ENVIRONMENT = "environment"   # 赤の原因: 赤の段が全部起こせない（classify の 2.）
 NOT_RAN = "工場の中では試験が走っていない"
@@ -157,7 +158,9 @@ SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない
 
 def certify(*, mode, material_status, green, before, after, now, self_reported=False) -> tuple:
     """認証してよいか ——（ok, reason）。
-    - base: material_status が clean・found・not_applicable なら (True, "")。not_run・awaiting_human・素材が無いなら偽（緑を仮定しない）
+    - base: material_status が clean・found・not_applicable・awaiting_human なら (True, "")。awaiting_human は走らせられない系統が在る
+      base で、系統は素材の reason が名指し、判定の台帳の awaiting の問いと報告の人が確かめる物に載る（今の works と同じく、一部でも
+      全部でも鎖を止めない）。not_run・carried_over・素材が無いなら偽（緑を仮定しない）
     - final: before・after・now の指紋が揃わなければ偽（どれが違ったかを reason に）→ green が True（bool）でなければ (False, "緑でない")
       （原因は呼び手が red_cause と証拠で別に返す）→ self_reported（素材を機械でなく任せ先の役が書いた）なら (False, SELF_REPORTED)
       → ほかは (True, "")。赤は原因が何でも認証しない。任せ先の緑は走り切る前に読んだ緑と見分けられない（今の works の

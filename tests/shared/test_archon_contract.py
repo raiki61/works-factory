@@ -1,6 +1,6 @@
 """Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
-bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・tests/layers/scan.py の
-役の節の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
+bin/_lib/startpoint.py・bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・
+tests/layers/scan.py の役の節の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -21,7 +21,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 from unittest import mock
 
-from bin._lib import childsweep, launcher, pack, place
+from bin._lib import childsweep, launcher, pack, place, startpoint
 from lib import answer
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
@@ -163,6 +163,16 @@ def _string_options(block: str) -> set[str]:
     return set(re.findall(r"^\s*'?([\w-]+)'?: \{ type: 'string'", block, re.M))
 
 
+def _skip_names() -> list[str]:
+    return sorted(flag.removeprefix("--") for flag in startpoint.SKIP_FLAGS)
+
+
+def _skip_short() -> list[str]:
+    """殻が --from を足さない短い名の字（大小の英字のうち、-<字> が SKIP_SHORT に当たる物）"""
+    letters = "abcdefghijklmnopqrstuvwxyz"
+    return [c for c in letters + letters.upper() if startpoint.SKIP_SHORT.fullmatch(f"-{c}")]
+
+
 SEPARATOR_CANDIDATES = "/\\:"
 
 # consumer にあって写し（place.workflow_run は bun を固定し、いつも --workflow-source を付ける）に無い分かれ道。
@@ -279,6 +289,11 @@ ARCHON_ROWS = (
     Row("答えの行の旗は上の段の値を取る旗", _answer_options, "packages/cli/src/args.ts",
         r"export const cliArgOptions: CliArgOptions = \{\n(.*?)\n\};",
         lambda m: [name for name in _answer_options() if name in _string_options(m[1])]),
+    Row("殻が --from を足さない旗は Archon の旗", _skip_names, "packages/cli/src/args.ts",
+        r"export const cliArgOptions: CliArgOptions = \{\n(.*?)\n\};",
+        lambda m: sorted(set(_skip_names()) & set(re.findall(r"^\s*'?([\w-]+)'?: \{ type:", m[1], re.M)))),
+    Row("殻が --from を足さない短い名は枝の旗の短い名", _skip_short, "packages/cli/src/args.ts",
+        r"^\s*branch: \{ type: 'string', short: '(\w)' \},$", lambda m: [m[1]]),
     Row("子の枝の頭", lambda: childsweep.BRANCH_HEAD, "packages/isolation/src/providers/worktree.ts",
         r"return `(archon/task-)\$\{this\.slugify\(request\.identifier\)\}`;"),
     Row("子の枝の名の親の run の id の長さ", lambda: childsweep.RUN_HEAD,
@@ -335,6 +350,20 @@ class ConsumerContractTest(ContractTest):
 class ArchonContractTest(ContractTest):
     def test_copies_match_pinned_archon_source(self):
         self.check(archon.source(), ARCHON_ROWS)
+
+
+class BoundCopyTest(unittest.TestCase):
+    """考えの柵の表（docs/concepts.json）がこの試験に縛らせた写しの行（bound）は、上の行が Archon に照らす写しのちょうど 1 行"""
+
+    def test_bound_lines_are_the_copies_checked_against_archon(self):
+        bounds = [(path, b["lines"]) for v in json.loads((ROOT / "docs/concepts.json").read_text(encoding="utf-8"))["concepts"].values()
+                  for f in v["fences"] for b in f.get("bound") or [] if b["by"] == "tests/shared/test_archon_contract.py"
+                  for path in b["paths"]]
+        self.assertEqual(bounds, [("bin/_lib/startpoint.py", r"^SKIP_FLAGS = \(")])
+        for path, lines in bounds:
+            found = [line for line in (ROOT / path).read_text(encoding="utf-8").splitlines() if re.search(lines, line)]
+            self.assertEqual(len(found), 1, found)
+            self.assertEqual(ast.literal_eval(found[0].split("=", 1)[1].strip()), startpoint.SKIP_FLAGS)
 
 
 class PinnedSourceTest(unittest.TestCase):

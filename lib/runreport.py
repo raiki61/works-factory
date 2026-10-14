@@ -1302,25 +1302,29 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
 def _base_word(base: dict) -> str:
     """直す前のテストの語。red_cause が incomplete で認証されなかった（ok 偽）base は、素材が測った結果でないか、素材が無いか、
     返す節の中の誤り（workflows/test-gate/scripts/result.py）なので「走らせられなかった」。認証された incomplete の base は、
-    素材が not_applicable（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの素材の語で言う"""
+    素材が not_applicable か awaiting_human（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの
+    素材の語で言い、awaiting_human は走らせられなかった系統を名指す素材の reason を添える"""
     if base.get("green"):
         return "緑"
     if base.get("red_cause") == green_cert.INCOMPLETE:
         if base.get("ok") is not True:
             return f"走らせられなかった（{green_cert.INCOMPLETE}）——{gatemarks.BASELINE_NOT_RUN}"
-        if _base_status(base) == green_cert.NOT_APPLICABLE:
-            return f"{gatemarks.MATERIAL_WORDS[green_cert.NOT_APPLICABLE]}（{green_cert.NOT_APPLICABLE}）"
+        material = _base_material(base)
+        status = material.get("status")
+        if status in (green_cert.NOT_APPLICABLE, green_cert.AWAITING_HUMAN):
+            why = oneline.one_line(material.get("reason") or "") if status == green_cert.AWAITING_HUMAN else ""
+            return f"{gatemarks.MATERIAL_WORDS[status]}（{status}）" + (f"——{why}" if why else "")
     return "赤" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else "")
 
 
-def _base_status(base: dict) -> str | None:
-    """base の返りの baseline の指し札の先（元の結末のファイル）の素材の status。読めなければ None"""
+def _base_material(base: dict) -> dict:
+    """base の返りの baseline の指し札の先（元の結末のファイル）の素材。読めなければ空"""
     pointed = oc.paths(base.get("baseline"))
     try:
         material = baseline_red.read_baseline(pointed[0]).get("material") if pointed else None
     except ValueError:
-        return None
-    return material.get("status") if isinstance(material, dict) else None
+        return {}
+    return as_dict(material)
 
 
 def _stop_words(line: dict | None) -> list:
@@ -1554,12 +1558,28 @@ def _cold_of(cold) -> dict:
             "guessed": [str(g) for g in _list(got.get("guessed"))], "decidable": got.get("decidable") is True}
 
 
-def _cold_reason(c: dict) -> str:
+COLD_UNREADABLE = "初見の読み手の返答を読めない（判定の語が無い）"
+COLD_EMPTY = "（止まった所・推測の欄が空）"
+
+
+def _cold_lines(c: dict) -> list[str]:
+    """初見の読み手が通さなかった所（止まった所・推測で埋めた所）。判定を読めなければその事実の 1 つ"""
     if not c["verdict"]:
-        return "初見の読み手の返答を読めない（判定の語が無い）"
-    lines = [f"- 止まった所: {s}" for s in c["stops"]] + [f"- 推測で埋めた所: {g}" for g in c["guessed"]]
+        return [COLD_UNREADABLE]
+    return [f"止まった所: {s}" for s in c["stops"]] + [f"推測で埋めた所: {g}" for g in c["guessed"]]
+
+
+def _cold_facts(c: dict) -> str:
+    """通らなかった所の 1 行（AI_FILE の not_passed。報告の拒みの数の行の尾に出す）"""
+    return oneline.one_line("；".join(_cold_lines(c)) or COLD_EMPTY)
+
+
+def _cold_reason(c: dict) -> str:
+    """書き手に返す拒みの文"""
+    if not c["verdict"]:
+        return COLD_UNREADABLE
     return ("初見の読み手（道具なし・報告の頭だけを読む）が redesign-needed を返した。次の所を、頭だけで意味が取れるように"
-            "直した本文を丸ごと出し直せ:\n" + ("\n".join(lines) or "- （止まった所・推測の欄が空）"))
+            "直した本文を丸ごと出し直せ:\n" + "\n".join(f"- {x}" for x in _cold_lines(c) or [COLD_EMPTY]))
 
 
 def cold_body(raw) -> str:
@@ -1630,10 +1650,10 @@ def accept(reply, cold, *, out_dir) -> dict:
     if c["verdict"] != "pass":
         if len(rows) < report_roles.GIVE_UP_AFTER - 1:
             return reject(_cold_reason(c), "cold")
-        not_passed = _cold_reason(c)
+        not_passed = _cold_facts(c)
     carry.write(out_dir / AI_FILE, {"accepted": True, "text": got["text"], "terms": _list(got.get("terms")), "cold": c,
                                     "not_passed": not_passed, "rejects": report_roles.count_rejects(rows)})
-    reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（報告の冒頭に出す）" if not_passed else ""
+    reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
     return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}
 
 
@@ -1666,9 +1686,18 @@ def embedded(machine_text: str) -> str:
     return "\n".join(out) + ("\n" if machine_text.endswith("\n") else "")
 
 
+def _not_passed_note(ai: dict) -> str:
+    """初見の読み手が通さないまま受け取った時の、拒みの数の行の尾（通っていれば空）"""
+    if ai.get("accepted") is not True or not ai.get("not_passed"):
+        return ""
+    return f"。{report_roles.NOT_PASSED}（上限の {report_roles.GIVE_UP_AFTER} 回目で受け取った。{oneline.one_line(ai['not_passed'])}）"
+
+
 def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     """AI の報告（元 report_roles.collect）。AI_FILE が無ければ None（書き手の輪が落ちた・飛ばされた）。受け取っていれば 来歴の 1 行＋
-    （通っていなければ NOT_PASSED の 1 行）＋本文＋語の定義の節＋機械の事実（embedded）、受け取れなかった時は訳と機械の事実を書く"""
+    本文＋語の定義の節＋機械の事実（embedded）、受け取れなかった時は訳と機械の事実を書く。初見の読み手が通さないまま受け取った時は、
+    拒みの文を本文の頭に置かず、機械の事実の拒みの数の行（COLD_REJECTS_LINE）の尾に NOT_PASSED と通らなかった所（AI_FILE の
+    not_passed）を 1 行で足す"""
     out_dir = pathlib.Path(out_dir)
     try:
         ai = oc.read_json(out_dir / AI_FILE)
@@ -1679,12 +1708,11 @@ def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     ai = as_dict(ai)
     if ai.get("accepted") is True:
         body = str(ai.get("text") or "").strip()
-        if ai.get("not_passed"):
-            body = f"{report_roles.NOT_PASSED}: {oneline.one_line(ai['not_passed'])}\n\n{body}"
     else:
         body = f"{report_roles.FAILED_TITLE}\n\n{ai.get('reason') or '書き手の返答を受け取れなかった'}"
-    sec = glossary_section(f"{body}\n{machine_text}", ai.get("terms") or [])
+    note = _not_passed_note(ai)
+    sec = glossary_section(f"{body}\n{note}\n{machine_text}", ai.get("terms") or [])
     colds = sum(c.get("cold", 0) for c in as_dict(ai.get("rejects")).values() if isinstance(c, dict))
     text = (f"{stamp}\n\n{body}\n\n" + (f"{sec}\n" if sec else "")
-            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回\n\n{embedded(machine_text)}")
+            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回{note}\n\n{embedded(machine_text)}")
     return _write_text(out_dir / AI_REPORT_FILE, text)
