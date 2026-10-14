@@ -5736,7 +5736,7 @@
       "nodes": [
         "workflows/test-gate/works-factory-test-gate.yaml#ci"
       ],
-      "output_format_sha256": "9038a93a8941ae724a71073ebc37a29ae822168fa5289a5ef173e84093288fcb",
+      "output_format_sha256": "8b16ca94953191c0430b052d41be0757464b134dcb4f2b68623b38142cd43c38",
       "json_keys": [
         "material"
       ]
@@ -5833,6 +5833,62 @@
       {
         "what": "作業ツリーが変われば受け付けが拒む",
         "quote": "変わっていれば返答を拒む"
+      }
+    ]
+  },
+  "workflows/judge/commands/head-depth.md": {
+    "inserts": [
+      "$head-depth-prep.output.brief_file",
+      "$head-depth-reject.output.lang_line",
+      "$head-depth-reject.output.reason"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/judge/works-factory-judge.yaml#head-depth"
+      ],
+      "output_format_sha256": "63f149c68ca301a54d9b21e22b5e5fd1fb0264aab69b7f3bc92ccd28a8b53280",
+      "json_keys": [
+        "cause_quote",
+        "code_quote",
+        "depth",
+        "item",
+        "items",
+        "where",
+        "why"
+      ]
+    },
+    "forbidden": [
+      {
+        "what": "作業ツリーを1文字も変えない",
+        "quote": "作業ツリーを 1 文字も変えてはいけない"
+      },
+      {
+        "what": "拒まれたら直した所だけを返さない",
+        "quote": "直した所だけを返すな"
+      }
+    ],
+    "steps": [
+      {
+        "what": "材料をまず読む",
+        "quote": "まず Read せよ"
+      },
+      {
+        "what": "依頼の全部の行の原因と直す所を引用で示せるかを問う",
+        "quote": "依頼のどの行も、原因と直す所を名指していて、その両方を依頼の字とリポジトリの行の引用で示せるか"
+      },
+      {
+        "what": "軽量なら全部の行をちょうど1度ずつ引用する",
+        "quote": "依頼の全部の行をちょうど 1 度ずつ書け"
+      }
+    ],
+    "stops": [
+      {
+        "what": "曖昧・設計の選び・原因が見えない・公開の約束を変えるなら標準",
+        "quote": "次のどれか 1 つでも当たれば標準"
+      },
+      {
+        "what": "迷えば標準",
+        "quote": "迷ったら標準にせよ"
       }
     ]
   }

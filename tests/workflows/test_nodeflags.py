@@ -14,6 +14,8 @@ import unittest
 
 import yaml
 
+from tests.layers import scan
+
 WORKFLOWS = pathlib.Path(__file__).resolve().parents[2] / "workflows"
 DOCS = {p.parent.name: yaml.safe_load(p.read_text(encoding="utf-8")) for p in sorted(WORKFLOWS.glob("*/works-factory-*.yaml"))}
 # tests/e2e の工程も本物の役に output_format を渡す（tests/e2e/test_loop_prev_real.py は WORKS_FACTORY_REAL_RUN=1 の時だけ回り、CI は回さない）
@@ -87,7 +89,7 @@ def guarded_mismatches(doc, block: str) -> list:
         if n.get("script") not in tree_accepts:
             continue
         flag = (n.get("with") or {}).get("status_guarded")
-        roles = [nodes[d] for d in n.get("depends_on") or [] if d in nodes and ("prompt" in nodes[d] or "command" in nodes[d])]
+        roles = [nodes[d] for d in n.get("depends_on") or [] if d in nodes and any(k in nodes[d] for k in scan.ROLE_KINDS)]
         if not roles:
             if flag not in (None, False):
                 out.append(f"{n['id']}: 役を受けない節の status_guarded が {flag!r}")

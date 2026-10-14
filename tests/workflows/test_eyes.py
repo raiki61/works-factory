@@ -1194,6 +1194,12 @@ class ScriptCase(unittest.TestCase):
         self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])
         self.assertIs(self.run_script("prep")["run_eyes"], False)
 
+    def test_prep_runs_the_eyes_when_the_pre_review_was_skipped(self):
+        """run の頭の深さで事前審査を飛ばした run は、全部の単位が軽量でも R1〜R4 を回す（目が事前審査の代わり。issue #441）"""
+        self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])
+        self.inputs["review_skipped"] = "true"
+        self.assertIs(self.run_script("prep")["run_eyes"], True)
+
     def test_structure_after_never_fails_the_line(self):
         self.inputs["plan"] = self.pointer("plan/plan-fields.json", {"round": 1, "fields": []})
         got = self.run_script("structure_after")

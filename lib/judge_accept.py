@@ -38,6 +38,7 @@ import engine.util as _util  # noqa: E402
 import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import ghreads  # noqa: E402
+import headdepth  # noqa: E402
 import jsonfile  # noqa: E402
 import judgeverify as jv  # noqa: E402
 import marks  # noqa: E402
@@ -3995,6 +3996,14 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
         "out_of_purpose": rel(outside),
         "rejudge_verdict": rejudge_verdict(rdir) if rejudging and stop is None else None,
     }
+
+
+def head_depth(jdir, objection: str) -> dict:
+    """返す節の欄 depth・depth_why（run の頭の深さの控え。再審は 1 回目の判定が決めたので控えを読まない）"""
+    if objection.strip():
+        return {"depth": headdepth.STANDARD, "depth_why": headdepth.REJUDGE_WHY}
+    doc = headdepth.read(jdir)
+    return {"depth": doc["depth"], "depth_why": str(doc.get("why") or "")}
 
 
 def verdict_fallback(jdir, rdir, objection: str, ptr) -> dict:

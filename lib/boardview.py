@@ -445,7 +445,7 @@ def _request(start: dict | None) -> tuple:
 # ---------------------------------------------------------------- 差し込みの頭
 def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=None, start=None, answers=None,
               ruling=(), conflicts=None, gate_answers=None, round_limit: int | None = None, review_schema: dict,
-              design_schema: dict) -> dict:
+              design_schema: dict, depth_skip: bool = False, depth_why: str = "") -> dict:
     """入力の指し札の先を置き場に写し、見え方の材料 OPEN_FILE を置く。judgment・purpose・plan・structure・ripple・world・start・
     conflicts は指し札の先のパス（world・start・conflicts は null 可）、answers は始めの人の関所の答え・gate_answers は修正前の
     関所の答え（JSON の値。take_gate_answers）、round_limit は線の往復の輪の安全の上限（max_iterations と同じ数。輪の外で
@@ -453,7 +453,8 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     案の外の番号は訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
     （ブロックの YAML の役の節の output_format。下請けの答えのファイルの faces・shrink と design.json の読み直しが照らす）。形 replan
     では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
-    返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go}"""
+    depth_skip は run の頭の深さで事前審査の往復を飛ばす周か（形 review の時だけ効く。depth_why はその訳。返す節が _collect_unreviewed に進む）。
+    返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go, depth_skip}"""
     d = pathlib.Path(folder)
     d.mkdir(parents=True, exist_ok=True)
     out = place(d)
@@ -512,20 +513,22 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
         "review_schema": review_schema, "design_schema": design_schema,
         "defaults": defaults,
         "plan_rejects": rolekit.reject_rows(pathlib.Path(plan).parent, planfile.ROLE),
+        "depth_skip": form == "review" and depth_skip is True, "depth_why": depth_why,
     }
     b = view(d, inputs)
     if form == "replan":
         inputs["replan_items"] = replan_items(b, approved, marked.get("plan") or [], ruled,
                                               (_read_json(conflicts).get("items") or []) if conflicts else [])
-    inputs["tree"] = form == "review" and _tree_on(b, inputs["tree_word"])
+    inputs["tree"] = form == "review" and not inputs["depth_skip"] and _tree_on(b, inputs["tree_word"])
     _write_json(d / OPEN_FILE, inputs)
-    return {"k": k, "form": form, "tree": inputs["tree"], "r2_go": r2_due(b)}
+    return {"k": k, "form": form, "tree": inputs["tree"], "r2_go": r2_due(b), "depth_skip": inputs["depth_skip"]}
 
 
 DESIGN_FORM = "design"   # 直す物が無い周の差し込みの形（修正案を読まずに独立設計だけを作る。元 line_edge.plan_edge 1107-1119）
 FORMS = ("review", "replan", DESIGN_FORM)   # open_pass と open_design が材料に書く形
 DESIGN_ONLY_DIR = "design-only"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
 DESIGN_ONLY_WHY = "直す物が無い周（判定が直す単位を出さなかったか、計画の直す義務が 0 件だった）——修正案も事前審査も無く、最後の R2 が要る独立設計だけを作った"
+DEPTH_SKIP_WHY = "run の頭の深さが軽量なので事前審査の往復を飛ばした（docs/design.md の深さで飛ばすノードの表）: "
 
 
 def open_design(folder, *, cwd, judgment, purpose, world=None, start=None, answers=None, design_schema: dict) -> dict:
@@ -1027,6 +1030,9 @@ def collect_reads(folder, log, *, role: str, quiet: tuple, repo) -> dict:
     d = pathlib.Path(folder)
     p, again, inputs = open_place(d)
     p.mkdir(parents=True, exist_ok=True)
+    if inputs.get("depth_skip"):   # 事前審査の役が走っていない周は探す相手が無い
+        index = {reads.role_key(r, again): None for r in (*quiet, role)}
+        return {"ok": True, "missing": [], "index_file": str(_write_json(p / reads.index_name(role, again), index))}
     opened = (d / OPEN_FILE).stat().st_mtime
     since = reads.stamp(opened)
     prompt = str(p / PROMPT_FILE)
@@ -1127,20 +1133,18 @@ def collect(folder) -> dict:
     文書の変化を足す。聞かずに通した行は pass-<k>/gate-passes.json、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
     GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 replan で受け付けが諦めた時は、裁かれた項目
     ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置く。返り design に設計の控えを渡したか・無いまま進んだかを
-    trace に design.HANDED_OP・MISSING_OP で残す（元 works/.shared/core/design.py の hand）。形 design（直す物が無い周）は _collect_design"""
+    trace に design.HANDED_OP・MISSING_OP で残す（元 works/.shared/core/design.py の hand）。形 design（直す物が無い周）は _collect_design、
+    run の頭の深さで事前審査を飛ばした周は _collect_unreviewed"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     if inputs.get("form") == DESIGN_FORM:
         return _collect_design(d, inputs)
+    if inputs.get("depth_skip"):
+        return _collect_unreviewed(d, inputs)
     v = verdict(d, inputs)
     p, review, gave, b = v.pass_dir, v.review, v.gave, v.board
-    out = place(d)
     items = gatemarks.plan_gate_items(b) if inputs["form"] == "review" else replan_asks(d, p, inputs, review)
-    changed = policy_change(d, inputs["cwd"])
-    if changed:
-        items.append((POLICY_CHANGED, change_row(changed)))
-    _note_asked(d, items, changed)
-    questions = [gatemarks.question_row(kind, text) for kind, text in items]
+    questions = _asked(d, inputs, items)
     if gave:
         questions.append(gatemarks.question_row(gatemarks.GIVEN_UP_KIND, GIVEN_UP_FACES + gave))
         if inputs["form"] == "replan":
@@ -1148,18 +1152,44 @@ def collect(folder) -> dict:
             _write_json(p / planblk.REPLAN_GAVE_UP_FILE,
                         [{"item": r["item"], "why": why, "ruling": planfile.ruling_text(r.get("rows") or [])}
                          for r in inputs.get("replan_items") or []])
+    return {"pass": v.ok, "stalled": v.stalled, "review": p / REVIEW_FILE, "design": _settled(d, p, b, items),
+            "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions}
+
+
+def _collect_unreviewed(d: pathlib.Path, inputs: dict) -> dict:
+    """run の頭の深さで事前審査の往復を飛ばした周の返す節の中身: 審査なしで通した形。事前審査の返答の代わりに faces の無い控え（訳つき）を
+    置き、修正前の関所の項目（修正案の狭め・構造の目の問い・世界の解の外れ・判定の問い）と方針の文書の変化は今どおり人に回す"""
+    p = pass_dir(d, inputs["k"])
+    b = view(d, inputs, None)
+    review = _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": DEPTH_SKIP_WHY + str(inputs.get("depth_why") or "")})
+    items = gatemarks.plan_gate_items(b)
+    questions = _asked(d, inputs, items)
+    return {"pass": True, "stalled": False, "review": review, "design": _settled(d, p, b, items),
+            "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions}
+
+
+def _asked(d: pathlib.Path, inputs: dict, items: list) -> list:
+    """関所の項目 items に方針の文書の変化を足し（items を書き換える）、返した項目を GATE_ASKED_FILE に積んで、問いの行を返す"""
+    changed = policy_change(d, inputs["cwd"])
+    if changed:
+        items.append((POLICY_CHANGED, change_row(changed)))
+    _note_asked(d, items, changed)
+    return [gatemarks.question_row(kind, text) for kind, text in items]
+
+
+def _settled(d: pathlib.Path, p: pathlib.Path, b, items: list) -> pathlib.Path:
+    """往復の pass-<k>/ に聞かずに通した行と関所の控えを置き、返す設計の控えのパス（無ければ訳の控え）を返す"""
+    out = place(d)
     _write_json(p / PASSES_FILE, gatemarks.passes(b))
     _write_json(p / gatemarks.PLAN_GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
     got, _ = design.made(d, b.design_schema)
     if got is not None:
         design_file = d / design.DESIGN_FILE
         out.trace(design.HANDED_OP, file=str(design_file))
-    else:
-        why = design.missing(b)
-        design_file = _write_json(p / design.DESIGN_FILE, {"missing": why})
-        out.trace(design.MISSING_OP, reason=why)
-    return {"pass": v.ok, "stalled": v.stalled, "review": p / REVIEW_FILE, "design": design_file,
-            "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions}
+        return design_file
+    why = design.missing(b)
+    out.trace(design.MISSING_OP, reason=why)
+    return _write_json(p / design.DESIGN_FILE, {"missing": why})
 
 
 PLAN_ROUND_OTHER = "最後に開いた往復（pass-{k}）は修正案の周 {round} の往復でない（別の案を審査した往復）"

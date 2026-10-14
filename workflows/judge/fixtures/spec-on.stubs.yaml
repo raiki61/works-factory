@@ -4,6 +4,7 @@ fixture:
   expect: completed
   reached: [spec-accept, spec-review-accept, spec-revise-accept, spec-ask, spec-gate, spec-freeze, pr-scan, diagnose-accept, verdict]
 intake: {go: true, mode: judge, spec: true, world: false, verify: false, reason: ''}
+head-depth-prep: {go: false, brief_file: '', reason: 仕様の段を挟む run}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:
   constraints: []
@@ -57,6 +58,8 @@ diagnose-accept: *id001
 verify-prep: {go: false, prompt_file: '', reason: 開いた単位が 2 つ未満, "lang_line": ""}
 verify-merge: {ok: true, reason: ''}
 verdict:
+  depth: 標準
+  depth_why: 筋書きの stub
   ready: true
   stop_reason: ''
   units:

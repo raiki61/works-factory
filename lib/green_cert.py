@@ -6,7 +6,8 @@
 - matches(cert_fingerprint, repo) -> bool: 認証の指紋が今の作業ツリーと同じか
 - classify(...) -> (red_cause, summary): 事実だけで赤の原因を分ける
 - certify(...) -> (ok, reason): 認証してよいか
-- ran_note(*, green, red_cause, by) -> str: 試験が走ったかの、報告と関所の冒頭に出す句（RAN_NOTES のどれかと案内か ""）
+- ran_steps(runs, junit_unran) -> {"ran", "unran"}: 起こした段と、起こせない・試験を走らせなかった段の名（ran_note の steps）
+- ran_note(*, green, red_cause, by, steps=None) -> str: 試験が走ったかの、報告と関所の冒頭に出す句（RAN_NOTES のどれかと案内か ""）
 
 ASF の `W/.shared/validation-evidence.ts`:1-23（HEAD と追跡ファイルの binary の差分）と `W/deliver/scripts/gate-green.ts` に倣う。
 """
@@ -28,13 +29,14 @@ BASE_OK = MEASURED + (NOT_APPLICABLE, AWAITING_HUMAN)
 INCOMPLETE = "incomplete"   # 赤の原因: 測り切れていない（classify の 3.）
 ENVIRONMENT = "environment"   # 赤の原因: 赤の段が全部起こせない（classify の 2.）
 NOT_RAN = "工場の中では試験が走っていない"
+PARTLY_RAN = "工場の中では試験の段の一部しか走らせられていない"
 UNVERIFIED_RUN = "工場の中では試験が走ったと確かめられていない"
 GATE_BROKE = "工場の中で試験の関門の script が落ちたか返さなかった（試験が走ったかは分からない。工場の不具合）"
 # 赤の原因の語（試験の関門の返りの red_cause の enum。tests/workflows/test_test_gate.py が照らす）ごとの、試験が走ったかの句。
 # 1 件ごとの事実で分けた赤（introduced・inherited・interaction）は走った赤なので句を出さない
 RAN_BY_CAUSE = {"introduced": "", "inherited": "", ENVIRONMENT: NOT_RAN, "interaction": "", INCOMPLETE: NOT_RAN, "": UNVERIFIED_RUN}
 RED_CAUSES = tuple(RAN_BY_CAUSE)
-RAN_NOTES = (NOT_RAN, UNVERIFIED_RUN, GATE_BROKE)
+RAN_NOTES = (NOT_RAN, PARTLY_RAN, UNVERIFIED_RUN, GATE_BROKE)
 GATE_BROKE_BY = ""   # 返す節の中の誤り（workflows/test-gate/scripts/result.py の failed）か、関門が返さなかった時の返りの by
 RAN_GUIDE = (f"利用者の HOME・XDG で走らせるなら、起こす env に {userenv.OPT_IN}=1 を置く（AI が書いた試験のコードが利用者の資格に"
              "届く）か、工場の外の手元で試験を回す")
@@ -141,16 +143,42 @@ def _red_cause(reds, broken, cases, baseline_cases, read_steps) -> tuple:
     return "", f"赤の段 {names}: 元の結末と比べる 1 件ごとの事実が無い（{gatemarks.BASELINE_UNVERIFIED}）"
 
 
-def ran_note(*, green, red_cause, by) -> str:
+def ran_steps(runs, junit_unran) -> dict:
+    """段の行 runs を、起こした段 ran と、起こせない（tree_run.launch_kind が broken）か JUnit の報告を宣言して試験を走らせなかった
+    （junit_unran に在る）段 unran の名に分ける（runs の順）。起こした段も、試験に入った証拠ではない（UNVERIFIED_RUN）"""
+    unran = set(junit_unran or [])
+    split = {"ran": [], "unran": []}
+    for r in runs or []:
+        name = str(r.get("name"))
+        side = "unran" if tree_run.launch_kind(r.get("exit")) == "broken" or name in unran else "ran"
+        split[side].append(name)
+    return split
+
+
+def ran_note(*, green, red_cause, by, steps=None) -> str:
     """試験が走ったかを、道具の名に依らず test-gate の返りだけで言う句（#492）。緑は ""。by が GATE_BROKE_BY なら GATE_BROKE
     （試験の前か後かを問わず工場の不具合で、走らなかったとは言わない）。ほかは RAN_BY_CAUSE で、知らない赤の原因は走ったと読まずに
-    UNVERIFIED_RUN。走っていない・確かめられていない句には、利用者の環境で回す 2 つの道（RAN_GUIDE）を添える"""
+    UNVERIFIED_RUN。NOT_RAN の時、steps（ran_steps の形）の起こした段と起こせなかった段が両方在れば、両方を名指した PARTLY_RAN に
+    する（#514。全部が起こせない時だけ走っていないと言う）。走っていない・確かめられていない句には、利用者の環境で回す 2 つの道
+    （RAN_GUIDE）を添える"""
     if green is True:
         return ""
     if by == GATE_BROKE_BY:
         return GATE_BROKE
     note = RAN_BY_CAUSE.get(red_cause, UNVERIFIED_RUN)
+    if note == NOT_RAN and (split := _partly(steps)):
+        note = f"{PARTLY_RAN}（走らせた段: {'・'.join(split[0])}。走らせられなかった段: {'・'.join(split[1])}）"
     return f"{note}。{RAN_GUIDE}" if note else ""
+
+
+def _partly(steps):
+    """steps の (ran, unran)。どちらかが空か形が違えば None"""
+    if not isinstance(steps, dict):
+        return None
+    ran, unran = steps.get("ran"), steps.get("unran")
+    if not (isinstance(ran, list) and isinstance(unran, list) and ran and unran):
+        return None
+    return [str(n) for n in ran], [str(n) for n in unran]
 
 
 SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない）"

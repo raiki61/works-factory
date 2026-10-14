@@ -11,6 +11,8 @@
 - wiring(path): 配線のファイルか（線とブロックの YAML＝<名>/<名>.yaml・.yml と manifest.json。schemas/ の下は除く）
 - decide_doc(items, open_units, *, forced, checked): 直す義務の単位の全部の深さ（控えの形）。forced は入力 thickness の語
   （空・自動は機械が決める。軽量・標準は全部をその深さに固定）
+- has_checks(start): 始めの記録 start に機械の確かめ（tdd_suite か test_cmd）が在るか（unit_depth の checked に渡す。訳は UNCHECKED）
+- named(thickness): 入力 thickness が名指す深さ（軽量・標準。ほかの語・空は空）。訳は named_why(深さ)
 - raise_doc(doc, *, units, run): 信号で標準へ上げた控え。units は {単位: 理由}（その単位だけ）、run は理由の並び（全部の単位）。下げない
 - run_wide(items, keys, touched=()): 控えの単位 keys を合わせた run 全体の広さ（触るファイルの和集合と、受け入れと書き換えの
   テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並びと、触るファイルの数。触るファイルは計画の allowed_paths に、修正の実際の差分
@@ -18,7 +20,8 @@
   標準へ上げる（raise_doc の run）
 - run_depth(doc): 切った後の run 全体の段の深さ（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
 - skip_reason(doc): run が軽量なら省く理由の文、標準なら空（ブロックの平の入力 skip・skip_optional に渡す）
-- lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物）
+- lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物。doc の eyes_kept が真なら、
+  事前審査の代わりに回した独立の目を省いた物に数えない）
 """
 import json
 import pathlib
@@ -44,12 +47,14 @@ WIRING_FILES = ("manifest.json",)   # 配線のファイルの名（部品の co
 WIRING_SUFFIXES = (".yaml", ".yml")  # <名>/<名>.yaml の形の物が線とブロックの配線（nodes・include・with）
 # 軽量の run で省く物（報告の冒頭 2 に 1 行ずつ名指す）。どれも 2026-10-05 の自分食いの小さい run で何も見つけなかった
 # 決め 6 は 2026-10-05 の測り、決め 9 は持ち主の決定 2026-10-06（写しの graph の ! 行で optional にした節）。AI の報告は省かない（決め 10）
-SKIPPED = ("差分の審査（p3.delta_review）と、それに続くレンズ・手直し（修正の後の局所レビューの全部を含む）",
-           "独立の目の r1.comment_candidates（コメントの削除候補）",
-           "独立の目 R1（r1.minimality。冗長と最小性）",
-           "独立の目 R2（r2.compare。独立設計との突き合わせ。独立設計そのものは修正の前に作る）",
-           "独立の目 R3（r3.coherence。全体の整合）",
-           "独立の目 R4（r4.hidden_scope。見えていない範囲）")
+DELTA_SKIPPED = "差分の審査（p3.delta_review）と、それに続くレンズ・手直し（修正の後の局所レビューの全部を含む）"
+EYES_SKIPPED = ("独立の目の r1.comment_candidates（コメントの削除候補）",
+                "独立の目 R1（r1.minimality。冗長と最小性）",
+                "独立の目 R2（r2.compare。独立設計との突き合わせ。独立設計そのものは修正の前に作る）",
+                "独立の目 R3（r3.coherence。全体の整合）",
+                "独立の目 R4（r4.hidden_scope。見えていない範囲）")
+SKIPPED = (DELTA_SKIPPED, *EYES_SKIPPED)
+UNCHECKED = "機械の確かめが無い（tdd_suite も test_cmd も空）"
 
 
 def _items_of(items, key: str) -> list:
@@ -117,19 +122,33 @@ def unit_depth(items, key: str, *, checked: bool) -> tuple:
     if contracts:
         out.append(f"約束の形のファイルを触る（{', '.join(contracts)}）")
     if not checked:
-        out.append("機械の確かめが無い（tdd_suite も test_cmd も空）")
+        out.append(UNCHECKED)
     if out:
         return STANDARD, out
     shape = "配線だけ（メイングラフとサブグラフの YAML と manifest.json）" if wired else "約束の形のファイルなし"
     return LIGHT, [f"触るファイル {len(paths)} 個・テスト {tests} 本・{shape}・機械の確かめあり"]
 
 
+def has_checks(start) -> bool:
+    start = start if isinstance(start, dict) else {}
+    return bool(start.get("test_cmd") or start.get("tdd_suite"))
+
+
+def named(thickness) -> str:
+    word = str(thickness or "").strip()
+    return word if word in (LIGHT, STANDARD) else ""
+
+
+def named_why(word: str) -> str:
+    return f"入力 thickness の名指し（{word}）"
+
+
 def decide_doc(items, open_units, *, forced: str, checked: bool) -> dict:
     forced = (forced or "").strip()
     units = {}
     for key in open_units or []:
-        if forced in (LIGHT, STANDARD):
-            units[key] = {"depth": forced, "why": [f"入力 thickness の名指し（{forced}）"]}
+        if named(forced):
+            units[key] = {"depth": forced, "why": [named_why(forced)]}
         else:
             d, why = unit_depth(items, key, checked=checked)
             units[key] = {"depth": d, "why": why}
@@ -174,14 +193,15 @@ def lines(doc) -> list:
         return [f"深さ: {STANDARD}（直す義務の単位が無い）"]
     light = sum(1 for r in rows.values() if r.get("depth") == LIGHT)
     head = f"深さ: {run_depth(doc)}（単位ごと: {LIGHT} {light} 個・{STANDARD} {len(rows) - light} 個"
-    head += f"。入力 thickness の名指し {doc['forced']}）" if doc.get("forced") in (LIGHT, STANDARD) else "。機械が決めた）"
+    head += f"。入力 thickness の名指し {doc['forced']}）" if named(doc.get("forced")) else "。機械が決めた）"
     out = [head]
     out += [f"  - {k[:80]}: {r.get('depth')}（{' / '.join(r.get('why') or [])}）" for k, r in rows.items()]
     out += [f"  - 標準へ上げた信号: {why}" for why in doc.get("raised") or []]
     if doc.get("counted"):
         out.append(f"run の広さの数え: {doc['counted']}")
-    if run_depth(doc) == LIGHT:
-        out.append("軽量で省いた: " + "／".join(SKIPPED))   # 1 行にまとめる（項目の中に「・」が在るので区切りは「／」）
+    if run_depth(doc) == LIGHT:   # 事前審査を run の頭の深さで飛ばした run（eyes_kept）は、代わりの独立の目を省かない
+        skipped = (DELTA_SKIPPED,) if doc.get("eyes_kept") else SKIPPED
+        out.append("軽量で省いた: " + "／".join(skipped))   # 1 行にまとめる（項目の中に「・」が在るので区切りは「／」）
     return out
 
 

@@ -5,6 +5,7 @@
 - resolved(path, repo) -> Path: 名指しのパスの実体（problem と、世界の解の外れの依頼のファイルの照らしが同じ規則で解く）
 - problem(cite, repo, roots=()) -> str: 1 つの名指しの確かめ（通れば空）。相対のパスは作業ツリーの根から（外と .git は拒む）、
   絶対のパスは作業ツリーの中か roots（呼び手が渡す作業ツリーの外の根。conflict.cite_roots）の中だけ。ファイルが在り、行がその中に在る
+- file_problem(path, repo, roots=(), label=None) -> str: 行の無いパス 1 つの確かめ（problem のパスとファイルの規則。通れば空）
 - RUN_FILES: 決め手の出どころの書き方のうち run の置き場のファイルの引き方（関所の決め手の欄と修正案の欄 structure の頼みに貼る 1 文）
 - flat(s) -> str: 空白の並び（改行・タブ・連続する空白）を 1 つの空白に寄せ、色の制御文字（ESC[…m）を除いた文
 - quoted_in(quote, text, norm=flat) -> bool: 引いた文 quote が text の中に、両側を norm で寄せた後の部分一致で在るか（寄せて空に
@@ -59,6 +60,19 @@ def resolved(path, repo) -> pathlib.Path:
     return (raw if raw.is_absolute() else pathlib.Path(repo) / raw).resolve()
 
 
+def file_problem(path, repo, roots=(), *, label=None) -> str:
+    """行の無いパス 1 つの確かめ（通れば空。problem のパスの規則）。label は誤りの文に出す名指し（既定は path）"""
+    label = path if label is None else label
+    repo = pathlib.Path(repo).resolve()
+    p = resolved(path, repo)
+    allowed = [repo] + [pathlib.Path(r).resolve() for r in roots if r]
+    if not any(p == r or inside(p, r) for r in allowed) or inside(p, repo / ".git"):
+        return f"名指し {label!r} のパスが作業ツリー・依頼のファイル・共有ボードの外"
+    if not p.is_file():
+        return f"名指し {label!r} のファイルが無い"
+    return ""
+
+
 def problem(cite, repo, roots=()) -> str:
     """名指し `<パス>:<行>` か `<パス>:<行>-<行>` の確かめ（通れば空）"""
     if not isinstance(cite, str):
@@ -69,13 +83,10 @@ def problem(cite, repo, roots=()) -> str:
     a, b = int(m["a"]), int(m["b"] or m["a"])
     if b < a:
         return f"名指し {cite!r} の行の範囲が逆"
-    repo = pathlib.Path(repo).resolve()
+    bad = file_problem(m["path"], repo, roots, label=cite)
+    if bad:
+        return bad
     p = resolved(m["path"], repo)
-    allowed = [repo] + [pathlib.Path(r).resolve() for r in roots if r]
-    if not any(p == r or inside(p, r) for r in allowed) or inside(p, repo / ".git"):
-        return f"名指し {cite!r} のパスが作業ツリー・依頼のファイル・共有ボードの外"
-    if not p.is_file():
-        return f"名指し {cite!r} のファイルが無い"
     try:
         n = len(p.read_text(encoding="utf-8", errors="replace").splitlines())
     except OSError as e:
