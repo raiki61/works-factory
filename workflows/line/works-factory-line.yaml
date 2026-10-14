@@ -29,7 +29,7 @@ inputs:
     description: テストのコマンド（対象の根で走らせる 1 行）。test-gate が読む
   tdd_suite:
     default: ""
-    description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら、test_cmd が pytest の 1 コマンドの時は start がそれから実行器を書き、そうでなければ修正の段の TDD のループを飛ばす
+    description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら、test_cmd から実行器を書ける 1 コマンドの時は start がそれを書き（lib/tddloop.py の pytest_suite）、そうでなければ修正の段の TDD のループを飛ばす
   final_gate:
     default: ""
     description: 最後の承認ノードの開き方。always（空の既定）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
