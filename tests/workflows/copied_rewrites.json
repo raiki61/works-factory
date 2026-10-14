@@ -1469,6 +1469,11 @@
    "why": "一部の系統だけ走らせた final の素材で、冒頭の句が走らせた系統と走らせられなかった系統を名指せるよう、役に系統の名を systems に分けて書かせる（#514）",
    "original": "括弧の中はその status で要る欄で、checked と reason はどの status でも足して書ける。",
    "copied": "括弧の中はその status で要る欄で、checked と reason はどの status でも足して書ける。systems（走らせた系統 ran・走らせられなかった系統 unran の名の並び）は final の not_run で要る。"
+  },
+  {
+   "why": "同じ系統の名が冒頭の句の走らせた側と走らせられなかった側の両方に出ないよう、両方に書いた systems を受け付けが拒むと役に伝える（#538）",
+   "original": "走った赤が無く、走らせられなかった系統が 1 つでも在れば、上の走らせられなかった時の status（base なら awaiting_human、final なら not_run。reason にどの系統が何に阻まれ、どの系統が緑だったか）。final の not_run では、systems に系統の名を分けて書け——走らせた系統を ran、走らせられなかった系統を unran に（全部が走らせられなければ ran は空。systems の無い not_run は受け付けが拒む）。報告と最後の承認ノードは、ran が空でなければ走らせた系統と走らせられなかった系統を名指し、空なら「試験が走っていない」と言う。",
+   "copied": "走った赤が無く、走らせられなかった系統が 1 つでも在れば、上の走らせられなかった時の status（base なら awaiting_human、final なら not_run。reason にどの系統が何に阻まれ、どの系統が緑だったか）。final の not_run では、systems に系統の名を分けて書け——走らせた系統を ran、走らせられなかった系統を unran に（全部が走らせられなければ ran は空。systems の無い not_run と、同じ名を ran と unran の両方に書いた systems は受け付けが拒む。一部だけ走らせた系統は、走らせた部分と走らせられなかった部分を別の名で書け）。報告と最後の承認ノードは、ran が空でなければ走らせた系統と走らせられなかった系統を名指し、空なら「試験が走っていない」と言う。"
   }
  ],
  "workflows/plan/commands/structure-eye.md": [

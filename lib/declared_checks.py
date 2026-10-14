@@ -441,7 +441,8 @@ def _cant_status(material: dict, after_judge: bool) -> dict:
 def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_dir=None, reuse: dict | None = None) -> dict:
     """CI の節を走らせる。返り {by, material, runs, skipped_steps, same_as, test_cmd_how, log, cases, junit_steps, junit_unran, fell_back?}。
     - 範囲の宣言（checkscope.SCOPE_DECL）が在るのに対象の宣言（DECL_NAME）が無い・範囲の宣言の誤り・宣言に無い段の名は、
-      走らせる前に CiRefused（範囲の宣言が黙って効かない形にしない）
+      走らせる前に CiRefused（範囲の宣言が黙って効かない形にしない）。宣言の段の名が TEST_CMD_STEP（工場の段の名）でも、走らせる前に
+      CiRefused（名で段を引く所が 2 つの段を取り違えない）
     - 宣言が在れば by engine: 範囲の宣言の paths_ignore を changed（変更のパスを返す口。範囲を持つ段が在る時だけ呼ぶ）と照らし、
       変更が全部その下に在る段は回さず skipped_steps に名と範囲で残す。宣言の段の後に test_cmd の段を足し（宣言の段と同じ
       コマンドなら足さず same_as にその段の名）、素材は全部の段から組む——宣言の一式と test_cmd の両方が緑の時だけ clean。
@@ -494,6 +495,9 @@ def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, chang
         material = _cant_status(local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"], after_judge)
         return {**out, "by": ROLE, "material": material, "log": str(log), "test_cmd_how": launched.get("how")}, [], ""
     steps = plan.get("steps") or []
+    if any(s["name"] == TEST_CMD_STEP for s in steps):
+        raise CiRefused(f"宣言 {DECL_NAME} の段の名 {TEST_CMD_STEP} は工場が test_cmd を走らせる段の名で、宣言の段には使えない"
+                        "（段の名を変える）")
     launch = {"steps": steps, "sha": plan.get("sha"), "blocked": plan.get("blocked")}
     runs, skipped, note, todo = [], [], {}, []
     if not launch["blocked"]:
@@ -602,11 +606,16 @@ def material_problems(material, *, mode: str) -> list:
 def role_material_problems(material, *, mode: str) -> list:
     """任せ先の CI の役の素材の material_problems に、final の not_run の系統の名の分け（SYSTEMS。走らせられなかった系統が 1 つ
     以上）が要る決まりを足した物（#514）。役の run は段の行を持たないので、一部の系統だけ走らせた時に冒頭の句が「走っていない」と
-    言わずに系統を名指すには、役が名を分けて書くほかない。engine の素材は段の行から分けるので要らない"""
+    言わずに系統を名指すには、役が名を分けて書くほかない。engine の素材は段の行から分けるので要らない。どの形でも、同じ系統の名を
+    ran と unran の両方に書いた素材は拒む（冒頭の句が同じ名を走らせた側と走らせられなかった側の両方に出す。#538）"""
     probs = material_problems(material, mode=mode)
+    systems = material.get(SYSTEMS) if isinstance(material, dict) else None
+    if isinstance(systems, dict) and isinstance(systems.get("ran"), list) and isinstance(systems.get("unran"), list):
+        if both := sorted(set(map(str, systems["ran"])) & set(map(str, systems["unran"]))):
+            probs.append(f"'{SYSTEMS}' の ran と unran の両方に同じ系統の名が在る: {'・'.join(both)}（一部だけ走らせた系統は、"
+                         "走らせた部分と走らせられなかった部分を別の名で書け）")
     if mode != "final" or not isinstance(material, dict) or material.get("status") != CANT[True]:
         return probs
-    systems = material.get(SYSTEMS)
     if systems is None:
         probs.append(f"素材は not_run なので '{SYSTEMS}' に走らせた系統（ran）と走らせられなかった系統（unran）の名を分けて書け")
     elif isinstance(systems, dict) and systems.get("unran") == []:

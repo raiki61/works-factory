@@ -28,13 +28,16 @@ AWAITING_HUMAN = "awaiting_human"
 BASE_OK = MEASURED + (NOT_APPLICABLE, AWAITING_HUMAN)
 INCOMPLETE = "incomplete"   # 赤の原因: 測り切れていない（classify の 3.）
 ENVIRONMENT = "environment"   # 赤の原因: 赤の段が全部起こせない（classify の 2.）
+INTRODUCED = "introduced"   # 赤の原因: 直しが起こした赤（classify の 4.）
+INHERITED = "inherited"   # 赤の原因: 元から落ちていた赤（classify の 5.）
+INTERACTION = "interaction"   # 赤の原因: 修正どうしの絡みの赤（classify は返さない。test-gate の返りの enum が持つ）
 NOT_RAN = "工場の中では試験が走っていない"
 PARTLY_RAN = "工場の中では試験の段の一部しか走らせられていない"
 UNVERIFIED_RUN = "工場の中では試験が走ったと確かめられていない"
 GATE_BROKE = "工場の中で試験の関門の script が落ちたか返さなかった（試験が走ったかは分からない。工場の不具合）"
 # 赤の原因の語（試験の関門の返りの red_cause の enum。tests/workflows/test_test_gate.py が照らす）ごとの、試験が走ったかの句。
 # 1 件ごとの事実で分けた赤（introduced・inherited・interaction）は走った赤なので句を出さない
-RAN_BY_CAUSE = {"introduced": "", "inherited": "", ENVIRONMENT: NOT_RAN, "interaction": "", INCOMPLETE: NOT_RAN, "": UNVERIFIED_RUN}
+RAN_BY_CAUSE = {INTRODUCED: "", INHERITED: "", ENVIRONMENT: NOT_RAN, INTERACTION: "", INCOMPLETE: NOT_RAN, "": UNVERIFIED_RUN}
 RED_CAUSES = tuple(RAN_BY_CAUSE)
 RAN_NOTES = (NOT_RAN, PARTLY_RAN, UNVERIFIED_RUN, GATE_BROKE)
 GATE_BROKE_BY = ""   # 返す節の中の誤り（workflows/test-gate/scripts/result.py の failed）か、関門が返さなかった時の返りの by
@@ -134,11 +137,11 @@ def _red_cause(reds, broken, cases, baseline_cases, read_steps) -> tuple:
         base = baseline_red.outcomes(baseline_cases)
         introduced = [c for c in failed if baseline_red._must_pass(c, base)]
         if introduced:
-            return "introduced", (f"今回落ちて元で通っていたか元に無かった {len(introduced)} 件: {_keys(introduced)}"
+            return INTRODUCED, (f"今回落ちて元で通っていたか元に無かった {len(introduced)} 件: {_keys(introduced)}"
                                   f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
         inherited = failed and all(base.get(baseline_red._key(c)) in baseline_red.FAILED for c in failed)
         if inherited and all(r.get("name") in read_steps for r in reds if r not in broken):
-            return "inherited", (f"落ちた {len(failed)} 件は全部元でも落ちていた: {_keys(failed)}"
+            return INHERITED, (f"落ちた {len(failed)} 件は全部元でも落ちていた: {_keys(failed)}"
                                  f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
     return "", f"赤の段 {names}: 元の結末と比べる 1 件ごとの事実が無い（{gatemarks.BASELINE_UNVERIFIED}）"
 
@@ -158,27 +161,28 @@ def ran_steps(runs, junit_unran) -> dict:
 def ran_note(*, green, red_cause, by, steps=None) -> str:
     """試験が走ったかを、道具の名に依らず test-gate の返りだけで言う句（#492）。緑は ""。by が GATE_BROKE_BY なら GATE_BROKE
     （試験の前か後かを問わず工場の不具合で、走らなかったとは言わない）。ほかは RAN_BY_CAUSE で、知らない赤の原因は走ったと読まずに
-    UNVERIFIED_RUN。NOT_RAN の時、steps（ran_steps の形）の起こした段と起こせなかった段が両方在れば、両方を名指した PARTLY_RAN に
-    する（#514。全部が起こせない時だけ走っていないと言う）。走っていない・確かめられていない句には、利用者の環境で回す 2 つの道
-    （RAN_GUIDE）を添える"""
+    UNVERIFIED_RUN。NOT_RAN の時は steps（ran_steps の形）で言い直す（_not_ran）。走っていない・確かめられていない句には、
+    利用者の環境で回す 2 つの道（RAN_GUIDE）を添える"""
     if green is True:
         return ""
     if by == GATE_BROKE_BY:
         return GATE_BROKE
     note = RAN_BY_CAUSE.get(red_cause, UNVERIFIED_RUN)
-    if note == NOT_RAN and (split := _partly(steps)):
-        note = f"{PARTLY_RAN}（走らせた段: {'・'.join(split[0])}。走らせられなかった段: {'・'.join(split[1])}）"
+    if note == NOT_RAN:
+        note = _not_ran(steps, by)
     return f"{note}。{RAN_GUIDE}" if note else ""
 
 
-def _partly(steps):
-    """steps の (ran, unran)。どちらかが空か形が違えば None"""
-    if not isinstance(steps, dict):
-        return None
-    ran, unran = steps.get("ran"), steps.get("unran")
-    if not (isinstance(ran, list) and isinstance(unran, list) and ran and unran):
-        return None
-    return [str(n) for n in ran], [str(n) for n in unran]
+def _not_ran(steps, by) -> str:
+    """走っていないと言える時だけ NOT_RAN。起こした段と起こせなかった段が両方在れば両方を名指した PARTLY_RAN（#514）。起こした段だけ
+    なら UNVERIFIED_RUN。任せ先の CI の役の run（by が declared_checks.ROLE_NEEDED）は、走らせられなかった系統を名指さなければ
+    UNVERIFIED_RUN（素材を渡さずに諦めた役も、一部の系統を回してから諦めたかもしれない）。ほか（engine が段を起こさなかった）は NOT_RAN"""
+    ran, unran = (steps.get("ran"), steps.get("unran")) if isinstance(steps, dict) else (None, None)
+    if isinstance(ran, list) and isinstance(unran, list) and ran and unran:
+        return f"{PARTLY_RAN}（走らせた段: {'・'.join(map(str, ran))}。走らせられなかった段: {'・'.join(map(str, unran))}）"
+    if ran or (by == declared_checks.ROLE_NEEDED and not unran):
+        return UNVERIFIED_RUN
+    return NOT_RAN
 
 
 SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない）"
