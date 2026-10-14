@@ -1,4 +1,4 @@
-"""`workflows/` の YAML の AI ノード（`prompt:`・`command:`。輪の中も）が `retry` を持つか、真上に外す理由の行を持つ（workflows/AGENTS.md の E19 の機械の行）。"""
+"""`workflows/` の YAML の AI ノード（`prompt:`・`command:`。輪の中も）が `retry` を形 `scan.ROLE_RETRY` で持つか、真上に外す理由の行を持つ（workflows/AGENTS.md の E19 の機械の行）。"""
 import pathlib
 import unittest
 
@@ -63,6 +63,13 @@ class RoleRetryTest(unittest.TestCase):
     def test_retry_with_reason_line_is_red(self):
         got = self.problems(f"  {scan.NO_RETRY} 外に書く\n  - id: ask\n    prompt: hi\n    {RETRY}\n")
         self.assertEqual(got, [f"{BLOCK}:4: 役 ask は retry を持つのに、外す理由の行が在る"])
+
+    def test_retry_of_another_form_is_red(self):
+        for retry in ("retry: {max_attempts: 2}", "retry: {max_attempts: 1, on_error: all}",
+                      "retry: {max_attempts: 2, on_error: transient}", "retry: {max_attempts: '2', on_error: all}", "retry: ~"):
+            with self.subTest(retry):
+                got = self.problems(f"  - id: ask\n    prompt: hi\n    {retry}\n")
+                self.assertEqual(got, [f"{BLOCK}:5: 役 ask の retry が {scan.ROLE_RETRY} でない"])
 
     def test_retry_from_merge_key_counts(self):
         nodes = f"  - id: a\n    <<: &launch\n      prompt: hi\n      {RETRY}\n  - id: b\n    <<: *launch\n"
