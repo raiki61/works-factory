@@ -9,7 +9,7 @@
 when: で飛び、collect・report・result だけが走る（AI を起こす前に止める）。
 
 固定材料（fix_fixture。lib/fixture.py）を名指した run は、前の run の修正の前の置き場の写しを取り込み（照らしと拒みは
-fixture.adopt。拒みは AI の前）、始めの記録は写しの物を今の run の id・入力・版の控え・機能の切り替えにして書く。GitHub の読み・
+fixture.adopt。拒みは AI の前）、始めの記録は写しの物を今の run の id・入力・版の控え・機能の切り替え・依頼のファイルの道にして書く。GitHub の読み・
 差分の測り・入口の形・方針の固め・PR のファイルは写しの物を使うので回さない。返りの from_fixture が真で、fixture が置き場の根の
 fixture.CARRIED（修正の段へ運ぶ値）のポインタ。後ろは直す前のテスト・判定・計画を飛ばし、fix-in がそれを受けて修正から始める。
 
@@ -208,7 +208,9 @@ def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: P
                                request_text=asked["request_text"])
     except fixture.FixtureRefused as error:
         raise Refused(f"固定材料を取り込まない: {error}") from None
-    doc.update({"versions": versions_doc, **features(checked)})
+    named = asked["request_file"]
+    doc.update({"versions": versions_doc, **features(checked), "request_file": named,
+                "input": {**startrec.shape(doc), "request_file": named}})
     prior = boundary.pointer(carry.PRIOR_IN_FILE) if (artifacts / carry.PRIOR_IN_FILE).is_file() else None
     return begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id, boundary.pointer(fixture.CARRIED))
 

@@ -357,6 +357,20 @@ class StartCase(Artifacts):
                          (["tdd_lanes"], entry.features_cut(["tdd_lanes"], doc[entry.FEATURES_ON_KEY])),
                          "機能の切り替えは写しの物でなく今の run の物（修正の段だけを替えて比べる）")
 
+    def test_fixture_run_points_at_its_own_request_file(self):
+        """依頼は今の値にする欄なので、同じ中身の別のファイルで起こした固定材料の run の始めの記録は、写した run の依頼のファイルでなく
+        今の依頼のファイルを指す（修正役の指示に出る道も今の物）"""
+        self.start(request="request_ok.json")
+        fixture.capture(self.artifacts, self.repo, run_id=RUN, carried={})
+        again = self.tmp / "request-again.json"
+        shutil.copyfile(self.repo / "request_ok.json", again)
+        place = self.tmp / "artifacts-2"
+        with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(place), "WORKFLOW_ID": "run-2"}):
+            got = start.start(raw(request=str(again), fix_fixture=str(self.artifacts / fixture.DIR)), self.repo, place, "run-2")
+        self.assertTrue(got["ok"], got)
+        doc = json.loads((place / got["record"]["path"]).read_text(encoding="utf-8"))
+        self.assertEqual((doc["request_file"], doc["input"]["request_file"]), (str(again.resolve()), str(again.resolve())))
+
     def test_fixture_that_does_not_match_is_refused_before_any_role(self):
         self.start(request="request_ok.json")
         fixture.capture(self.artifacts, self.repo, run_id=RUN, carried={})
