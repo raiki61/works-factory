@@ -57,6 +57,7 @@ LINE = {   # 線の値（線の collect が渡す。docs/design.md の report �
     "widened": os.environ.get("INPUTS_WIDENED", ""),
     "final-reasons": os.environ.get("INPUTS_FINAL_REASONS", ""),
     "spec-changed": os.environ.get("INPUTS_SPEC_CHANGED", ""),
+    "spec-unchecked": os.environ.get("INPUTS_SPEC_UNCHECKED", ""),
     "redepth": os.environ.get("INPUTS_REDEPTH", ""),
     "optional": os.environ.get("INPUTS_OPTIONAL", ""),
 }
@@ -206,8 +207,9 @@ def opened(value, unopened: list, rid: str, field: str = ""):
 
 
 def line_values(unread: list, unopened: list) -> dict:
-    """線の値を {stops, prior_failures, deferred, widened, final_reasons, spec_changed, redepth, optional} に（欄の名は - を _ に）。並びの入力は
-    配列でなければ空にし、JSON でない入力は訳を unread に積む（黙って空にしない）。依頼の前の失敗の指し札は開けたパスの字にする"""
+    """線の値を {stops, prior_failures, deferred, widened, final_reasons, spec_changed, spec_unchecked, redepth, optional} に（欄の名は
+    - を _ に）。並びの入力は配列でなければ空にし、JSON でない入力は訳を unread に積む（黙って空にしない）。依頼の前の失敗の指し札は
+    開けたパスの字にする"""
     out = {}
     for name, raw in LINE.items():
         key = name.replace("-", "_")

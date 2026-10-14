@@ -9,12 +9,13 @@ report の返りを受けて返し、結末の語が fixed・fixed_needs_check �
 差分を当てる殻 bin/apply と通しの試験が読む欄を、collect が集めた返りから足す（merge の返りを直に読むと、merge の返す節が落ちた時に
 メイングラフの返りまで落ちる）: apply（merge-apply の {ok, hash, diff, reason}。飛ばされたら null）・sealed（merge-seal の
 {ok, hash, diff}。飛ばされたら null）・r2_status（独立の目の R2 の status。省いた・飛ばされたら null）・final_answer（最後の関所の
-答え {decision, text, asked}。関所が開かなかったら null）。
+答え {decision, text, asked}。関所が開かなかったら null）・spec_questions（spec-check が残した承認し直すかの問いの数。照らせなかった
+時の問いも数える。止めの語は別の待ちが先に立つことが在るので、bin/apply は止めの語でなくこの数を読む）。
 後始末の節 sweep-children の返り {cleaned, left, error} を欄 children に載せる（節が飛ばされたら null）。
 返す節は落ちない: 境の口を読めない時も、標準ライブラリだけで fallback の返りを書く（止めの理由は LINE_SCRIPT。境の口の
 LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。
 
-入力（with:）: report の返りの欄と、collect の merge_apply・merge_seal・eyes・gate_final と、sweep-children の返り children
+入力（with:）: report の返りの欄と、collect の merge_apply・merge_seal・eyes・gate_final・spec_changed と、sweep-children の返り children
 （どれも `{from, if_skipped: null}`）
 """
 import json
@@ -33,7 +34,7 @@ FIXED = ("fixed", "fixed_needs_check")
 LINE_SCRIPT = "works:line-script"
 APPLY = ("ok", "hash", "diff", "reason")
 SEALED = ("ok", "hash", "diff")
-COLLECTED = ("merge_apply", "merge_seal", "eyes", "gate_final")
+COLLECTED = ("merge_apply", "merge_seal", "eyes", "gate_final", "spec_changed")
 
 
 def pick(got, keys) -> dict | None:
@@ -46,6 +47,7 @@ def result(got: dict, line: dict, children) -> dict:
     return {**got, "fixed": got["outcome"] in FIXED, "apply": pick(line.get("merge_apply"), APPLY),
             "sealed": pick(line.get("merge_seal"), SEALED), "r2_status": r2.get("status") if isinstance(r2, dict) else None,
             "final_answer": answer if isinstance(answer, dict) else None,
+            "spec_questions": len(line["spec_changed"]) if isinstance(line.get("spec_changed"), list) else 0,
             "children": children if isinstance(children, dict) else None}
 
 
@@ -68,7 +70,7 @@ def line_of_env() -> dict:
 def fallback(reason: str) -> dict:
     return {"fixed": False, "ok": False, "outcome": "", "stop_reason": LINE_SCRIPT, "report": None, "report_ai": None,
             "next_request": None, "prior_failures": None, "apply": None, "sealed": None, "r2_status": None, "final_answer": None,
-            "children": None}
+            "spec_questions": 0, "children": None}
 
 
 def main() -> None:

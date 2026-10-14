@@ -221,7 +221,8 @@ def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Pa
     return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record), "prior_failures": prior,
             "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
-            "final_gate": record[gatepolicy.FINAL_KEY], "from_fixture": carried is not None, "fixture": carried}
+            "final_gate": record[gatepolicy.FINAL_KEY], "spec": bool(record["spec"]),
+            "from_fixture": carried is not None, "fixture": carried}
 
 
 def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
@@ -248,7 +249,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         record["refused"] = str(error)
         return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
-                "unattended": False, "design_only": False, "final_gate": "", "from_fixture": False, "fixture": None}
+                "unattended": False, "design_only": False, "final_gate": "", "spec": False, "from_fixture": False, "fixture": None}
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
@@ -269,7 +270,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
 
 def fallback(reason: str) -> dict:
     return {"ok": False, "stop_reason": boundary.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
-            "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": "", "from_fixture": False,
+            "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": "", "spec": False, "from_fixture": False,
             "fixture": None}
 
 

@@ -853,6 +853,21 @@ class DraftsCase(Base):
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
         self.assertEqual([(a["question"], a["text"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, "", True)])
+        self.assertTrue(doc[carry.ANSWERS][0]["source"].startswith(gatemarks.SPEC_CHANGED_LABEL))
+
+    def test_spec_unchecked_says_could_not_check(self):
+        """#550: 照らせなかった時は、結末と止めは変わった時と同じで、冒頭の見出しと下書きの source が「照らせなかった」と言う"""
+        q = "照らしが落ちた——承認済みの受け入れ条件のテストが変わったかを確かめられない（ValueError: x）"
+        got, text, decided = self.build(line={"spec_changed": [q], "spec_unchecked": True,
+                                              "stops": {"spec-check": stopby.SPEC_CHANGED}})
+        self.assertEqual(decided, ("needs_human", f"spec-check:{stopby.SPEC_CHANGED}"))
+        head = "\n".join(text.splitlines()[2:5])
+        self.assertIn(f"{gatemarks.SPEC_UNCHECKED_HEAD} 1 件", head)
+        self.assertNotIn(gatemarks.SPEC_CHANGED_HEAD, text)
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
+        self.assertEqual([(a["question"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, True)])
+        self.assertTrue(doc[carry.ANSWERS][0]["source"].startswith(gatemarks.SPEC_UNCHECKED))
 
 
 class GlossaryCase(unittest.TestCase):
