@@ -252,7 +252,7 @@ NO_PUSH = "判定の役が書いていない"
 PUSH_IN = re.compile(r"推し\s*[:：]\s*([^／\n]+)")
 PUSH_TAIL = re.compile(r"／推し: [^／\n]*$")   # 関所の項目の末尾の推しの尾（_push が付ける形）
 # 関所の項目の種類（写しの RL の human_gate と gatemarks の問いの kinds）→ 平易な言い方
-KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", "policy": "人の方針とぶつかる変更",
+KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", policy.POLICY_KIND: "人の方針とぶつかる変更",
               "policy_changed": "人の方針の文書が変わった", ASK_KINDS[0]: "判定の役が人に聞くと保留にした問い",
               ASK_KINDS[1]: "人でないと決められない問い", DESIGN_ONLY_KIND: "修正に進まない行",
               DESIGN_KIND: "構造の目が決めきれなかった設計の問い", WORLD_KIND: "世界の解（定石）から外れる修正案の項目",

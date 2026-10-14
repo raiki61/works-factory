@@ -111,6 +111,7 @@ class NameOwnerCase(unittest.TestCase):
     def test_policy_kind_is_a_human_face_kind(self):
         self.assertIn(policy.POLICY_KIND, fixboard.HUMAN_FACE_KINDS)
         self.assertIs(boardview.HUMAN_FACE_KINDS, fixboard.HUMAN_FACE_KINDS)
+        self.assertIn(policy.POLICY_KIND, gatemarks.KIND_WORDS)
 
     def test_prior_decisions_file_is_the_material_file_of_its_role(self):
         self.assertEqual(judge_accept.material_file(judge_accept.PRIOR_DECISIONS_ROLE), policy.PRIOR_DECISIONS_FILE)
