@@ -696,6 +696,12 @@ class HeadDepthTest(unittest.TestCase):
         out = r.returned("verdict", objection="分母は正しい")
         self.assertEqual((out["depth"], out["depth_why"]), ("標準", headdepth.REJUDGE_WHY))
 
+    def test_prompt_states_the_lib_limits(self):
+        """役の指示書が受け付けの引用の字数の下限と where の行の範囲の上限を lib の値のまま書く（指示書は lib を引けない）"""
+        text = (ROOT / "workflows" / "judge" / "commands" / "head-depth.md").read_text(encoding="utf-8")
+        self.assertIn(f"{headdepth.cite.QUOTE_MIN} 字以上", text)
+        self.assertIn(f"{headdepth.WHERE_SPAN} 行まで", text)
+
     def test_depth_words_are_the_lib_words(self):
         """役の返答と判定の出力の深さの enum、lib を読めない時の判定の返り、計画の単位ごとの深さの enum は lib/depth.py の語
         （YAML と lib を読めない script は lib を引けないので、試験が結ぶ）"""

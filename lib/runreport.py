@@ -104,7 +104,7 @@ EYES_HEADING = promptsection.Section("## 独立の目", human=report.FOR_READERS
 NOTES_HEADING = promptsection.Section("## 注意（読めなかった物）", human=report.FOR_READERS)
 # AI の報告に機械の事実を付ける時の、機械の「人が決めること」の見出しの言い換え（判断は書き手の頭の 1 か所に集める）
 MACHINE_DECISIONS = promptsection.Section("## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）", human=report.FOR_READERS)
-RED_KEPT = ("inherited", "environment")       # 認証が通した赤（元から赤・環境の赤）
+RED_KEPT = (green_cert.INHERITED, green_cert.ENVIRONMENT)   # 認証が通した赤（元から赤・環境の赤）
 # 機械の報告の冒頭に在れば、書き手の頭にもそのまま要る句（accept が照らす）
 HEAD_NOTES = (*green_cert.RAN_NOTES, userenv.NOTE)
 GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "最後のテスト"))
