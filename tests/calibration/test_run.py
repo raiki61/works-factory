@@ -756,6 +756,17 @@ class RunTest(RunnerCase):
         self.assertIn(runner.LEDGER, refused.stderr)
         self.assertFalse(self.attempts.exists())
 
+    def test_convert_command_on_unchanged_evidence_rewrites_the_same_records(self):
+        """run と convert は同じ所で変換の入力を組むので、evidence/ が同じなら控えも判定役の入力も字まで同じ"""
+        for producer in ("works-factory", "claude"):
+            with self.subTest(producer=producer):
+                self.assertRan(self.run_tasks(producer, self.one))
+                written = [self.out / producer / d / f"{self.one}.json" for d in ("findings", "convert")]
+                before = [p.read_bytes() for p in written]
+                self.assertRan(self.runner("convert", producer, "--attempts", str(self.attempts), "--out", str(self.out)))
+                self.assertEqual([p.read_bytes() for p in written], before)
+                shutil.rmtree(self.attempts)
+
     def test_convert_command_keeps_records_when_head_is_unreadable(self):
         self.assertRan(self.run_tasks("works-factory", self.one))
         written = [self.out / "works-factory" / d / f"{self.one}.json" for d in ("findings", "convert")]

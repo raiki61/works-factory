@@ -706,12 +706,21 @@ def run_one(entry: dict, producer, attempts: Path, out: Path, ledger: Ledger, ar
         ledger.add(**row, run_id=run_id, state="stopped")
         raise Stop(STOPPED, f"課題 {task}: run {run_id} が終わりの状態にならずに止まった（{state}）。続ける: {_resume_line(args)}")
     ended = producer.finish(attempt, run_id)
-    doc, record = reviewbench.convert(producer, entry, attempt, run_id, base, head, ended)
-    record["provenance"] = {**producer.provenance(), "claude_code": _claude_version(launcher.real_claude(os.environ)),
-                            "run_inputs": {k: v.removeprefix(f"{attempt}{os.sep}")
-                                           for k, v in producer.input_pairs(attempt, base).items()}, "date": _now()}
-    reviewbench.write(out, producer.name, task, doc, record)
+    provenance = {**producer.provenance(), "claude_code": _claude_version(launcher.real_claude(os.environ)),
+                  "run_inputs": {k: v.removeprefix(f"{attempt}{os.sep}") for k, v in producer.input_pairs(attempt, base).items()},
+                  "date": _now()}
+    convert_one(producer, entry, {**row, "run_id": run_id}, out, web_calls=ended["web_calls"], provenance=provenance)
     ledger.add(**row, run_id=run_id, child_run_ids=ended["children"], state=DONE)
+
+
+def convert_one(producer, entry: dict, row: dict, out: Path, *, web_calls: int | None, provenance: dict | None):
+    """試みの evidence/ から変換して findings/ と convert/ に書く。run と convert（やり直し）が共にここで組む。web_calls と
+    provenance は run の時にだけ測れて evidence/ から読み直せないので、やり直しは前の控えから引き継いで渡す"""
+    attempt = Path(row["attempt"])
+    ended = {**producer.ended(attempt / evidence.EVIDENCE), "web_calls": web_calls}
+    doc, record = reviewbench.convert(producer, entry, attempt, row["run_id"], row["base"], row["head"], ended)
+    record["provenance"] = provenance
+    reviewbench.write(out, producer.name, row["id"], doc, record)
     print(json.dumps(record, ensure_ascii=False, allow_nan=False))
 
 
@@ -764,11 +773,7 @@ def reconvert_one(producer, row: dict, out: Path):
         raise Stop(STOPPED, f"課題 {task} の pr/pr.json か前の変換の控えを読めない: {type(e).__name__}") from None
     if not reviewbench.has(attempt / "target", row["head"]):
         raise Stop(STOPPED, f"課題 {task} の試みの target/ で head {row['head']} を読めない（{attempt / 'target'}）。控えは書き換えない")
-    ended = {**producer.ended(attempt / evidence.EVIDENCE), "web_calls": before.get("web_calls")}
-    doc, record = reviewbench.convert(producer, entry, attempt, row["run_id"], row["base"], row["head"], ended)
-    record["provenance"] = before.get("provenance")
-    reviewbench.write(out, producer.name, task, doc, record)
-    print(json.dumps(record, ensure_ascii=False, allow_nan=False))
+    convert_one(producer, entry, row, out, web_calls=before.get("web_calls"), provenance=before.get("provenance"))
 
 
 # ---------------------------------------------------------------- judge・nodes
