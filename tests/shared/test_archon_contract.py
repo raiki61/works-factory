@@ -1,6 +1,6 @@
 """Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
 bin/_lib/startpoint.py・bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・
-tests/layers/scan.py の役の節の鍵と節の種類の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
+tests/layers/scan.py の役の節の鍵・機械の節の鍵・節の種類の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -244,6 +244,8 @@ ARCHON_ROWS = (
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
     Row("AI の節（agent）の形を決める節の鍵（scan の役の節）", lambda: sorted(scan.ROLE_KINDS),
         "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1], "agent")),
+    Row("走らせる節（exec）の形を決める節の鍵（scan の機械の節）", lambda: sorted(scan.CODE_KINDS),
+        "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1], "exec")),
     Row("節の種類を決める節の鍵（scan の節の種類）", lambda: sorted(scan.NODE_KINDS),
         "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1])),
     Row("output_format で宣言した欄の null は空の解決（境の口は空の字を null と読む）", lambda: boundary.value("") is None,
@@ -352,6 +354,30 @@ class ConsumerContractTest(ContractTest):
 class ArchonContractTest(ContractTest):
     def test_copies_match_pinned_archon_source(self):
         self.check(archon.source(), ARCHON_ROWS)
+
+
+class GuardsTest(unittest.TestCase):
+    """止めた源の分かれは全部 data.<欄> の形なので、形の合わない分かれを赤にする道は作った transform で確かめる"""
+
+    TRANSFORM = """\
+    if (data.command !== undefined) {
+      return { ...base, kind: 'agent', command: data.command };
+    }
+    if (data.bash !== undefined) {
+      return { ...base, kind: 'exec', bash: data.bash };
+    }
+    if (isSleep(data)) {
+      return { ...base, kind: 'exec', sleep: data.sleep };
+    }
+    if (!data.loop) throw new Error('unknown node');
+"""
+
+    def test_every_branch_is_a_field_or_its_unmatched_line(self):
+        self.assertEqual(_guards(self.TRANSFORM), ["bash", "command", "isSleep(data)) {", "loop"])
+
+    def test_kind_keeps_only_its_branches_with_the_unmatched_line(self):
+        self.assertEqual(_guards(self.TRANSFORM, "exec"), ["bash", "isSleep(data)) {"])
+        self.assertEqual(_guards(self.TRANSFORM, "agent"), ["command"])
 
 
 class BoundCopyTest(unittest.TestCase):

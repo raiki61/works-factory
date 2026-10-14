@@ -647,7 +647,7 @@ def node_scripts(folder: Path, node) -> list[Path]:
 
 def _node_code(folder: Path, node) -> str | None:
     """節の走らせる字（直に書いた script・bash か、名前の script のファイルの中身）。script・bash の節でなければ None"""
-    for key in ("script", "bash"):
+    for key in CODE_KINDS:
         value = _top(node, key)
         if isinstance(value, yaml.ScalarNode):
             if key == "script" and NAMED_SCRIPT.fullmatch(value.value):
