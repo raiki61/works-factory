@@ -878,7 +878,7 @@
 {"id": "E5", "kind": "scenario-only", "why": "筋書きでのみ（PR #67 も「モデルを本当に走らせた回ではまだ見ていない」と書く。seed の run で eyes__r2-compare の返りが git の状態に触れていないかを見る）"},
 {"id": "E6", "kind": "scenario-only", "why": "筋書きでのみ（節 eyes__r2-compare に送った本文）"},
 {"id": "E7", "kind": "backlog", "why": "ブロックの中だけの穴（区分の issue）"},
-{"id": "E8", "kind": "scenario-only", "why": "筋書きでのみ（前の筋が落ちても R4 が飛ばない道は種で通らず、節の順は nodes[] で照らせない。在れば節 eyes__r4-scope の始まりが eyes__r1-minimality と eyes__r2-compare の終わりより後）"},
+{"id": "E8", "kind": "scenario-only", "why": "筋書きでのみ（前の筋が落ちても R4 が飛ばない道は種で通らず、節の順は nodes[] で照らせない。在れば節 eyes__r4-loop.r4-scope の始まりが eyes__r1-minimality と eyes__r2-compare の終わりより後）"},
 {"id": "E9", "kind": "backlog", "why": "ブロックの中だけの穴（区分の issue）"},
 {"id": "E10", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
 {"id": "E11", "kind": "scenario-only", "why": "筋書きでのみ"},

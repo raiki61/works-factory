@@ -575,7 +575,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-eyes/blk-eyes.yaml:133-143 `r1-comments`（ほかの目も同じ形。輪の 1 回目は新しい会話）・works/blk-eyes/lib/eyes.py:474 `accept`
   - 今: workflows/eyes/works-factory-eyes.yaml::r1-comments ほか役の節 6 つ（`mutates_checkout: false`・`context: fresh`）
   - 証: tests/workflows/test_eyes.py::ShapeCase.test_every_role_node_is_read_only
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 eyes__r1-minimality・eyes__r2-compare・eyes__r3-coherence・eyes__r4-scope が completed（Archon の checkout の照らしに当たっていない））
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 eyes__r1-minimality・eyes__r2-compare・eyes__r3-coherence・eyes__r4-loop.r4-scope が completed（Archon の checkout の照らしに当たっていない））
   - 狭め: 無し
 
 - E2 役ごとの道具は元の表のとおり: 最小性と前提の検算（judge）と削除候補（comment-analyzer）は Read・Grep・Glob・WebSearch・WebFetch、R3・R4（inspector）は Read・Grep・Glob、比較役は Read だけ。書く道具と shell は持たない。
@@ -622,9 +622,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - E8 R4 は R1・R2 の筋（最小性・比較・前提の検算）の後に起き、前の筋が落ちても飛ばない。
   - 元: works/blk-eyes/lib/eyes.py:72-74 `LANE_AFTER`、works/blk-eyes/blk-eyes.yaml:815-826 `r4-scope-route`（all_done）
-  - 今: workflows/eyes/works-factory-eyes.yaml::r4-scope
+  - 今: workflows/eyes/works-factory-eyes.yaml::r4-loop
   - 証: tests/workflows/test_eyes.py::ShapeCase.test_r4_waits_for_r1_and_r2_lanes、lib/tests/test_eyeverdict.py::CollectCase.test_fallen_r2_lane_still_runs_r4_and_is_named
-  - 本物の run: 筋書きでのみ（前の筋が落ちても R4 が飛ばない道は種で通らず、節の順は nodes[] で照らせない。在れば節 eyes__r4-scope の始まりが eyes__r1-minimality と eyes__r2-compare の終わりより後）
+  - 本物の run: 筋書きでのみ（前の筋が落ちても R4 が飛ばない道は種で通らず、節の順は nodes[] で照らせない。在れば節 eyes__r4-loop.r4-scope の始まりが eyes__r1-minimality と eyes__r2-compare の終わりより後）
   - 狭め: 無し
 
 - E9 R1 の前段・比較役・前提の検算・R3 は互いを待たず、支度の後に並んで走る。
