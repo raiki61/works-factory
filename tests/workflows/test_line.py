@@ -487,6 +487,21 @@ class StartCase(Artifacts):
         """L-E29: spec=on なのに依頼の文（依頼も PR の題と本文も）が無ければ止める（元 SpecInputCase の同名）"""
         self.assertIn("依頼の文", self.refused(base="base", spec="on"))
 
+    def test_spec_refused_without_findings_or_pr_text(self):
+        """#526: findings を省いた依頼（answers だけ・名指す PR の並びだけ）は #505 から受けるが、spec=on では仕様の書き手が読む
+        物が無いので AI を起こす前に止める。名指した PR の題と本文が在れば足りる"""
+        answers_only = self.outside("answers_only.json", json.dumps({"answers": [{"question": "q1", "text": "a"}]}))
+        got = self.start(request=str(answers_only), base="base", spec="on")
+        self.assertEqual((got["ok"], got["stop_reason"], got["ask"]), (False, stopby.START_REFUSED, False), got)
+        self.assertIn("依頼の文", got["reason"])
+        self.assertIn("refused", self.record(got))
+        pr_only = self.outside("pr_only.json", json.dumps({"pr": [7]}))
+        got, _ = self.start_with_gh(self.pr_reads(), request=str(pr_only), base="base", spec="on")
+        self.assertEqual((got["ok"], got["stop_reason"]), (False, stopby.START_REFUSED), got)
+        self.assertIn("依頼の文", got["reason"])
+        got, _ = self.start_with_gh(self.pr_reads(), pr="7", spec="on")
+        self.assertTrue(got["ok"], got)
+
     def test_features_cut_is_recorded(self):
         """L-E33: 機能の切り替えは始めの記録の features_cut に載り、ブロックはそこを読む"""
         self.assertIn("world", self.record(self.start(request="request_ok.json", features_off="world"))["features_cut"])

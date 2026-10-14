@@ -1,0 +1,113 @@
+"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）が戻したとした行の ID が、節の表 docs/nodes.json の gaps と照らしの表
+tests/e2e/evidence.json の why にまだ在れば赤にする（#527・#528・#530）。
+
+戻した行は棚卸しの README.md の「穴の数え方」と同じく、「狭め」の欄に「→ … 戻した」（か「→ … 戻っていた」）が在る行。欄が
+戻したと書くのにこの形でない行と、この形でも一部だけを戻した行は PARTIAL に名を挙げる。照らしは ID の在る無しだけで、
+gaps と why の言い回しは読まない（棚卸しの戻した行を名指したければ、ID を書かずに今の住処を書く）。tracker は読まない。
+"""
+import copy
+import json
+import pathlib
+import re
+import unittest
+
+from tests.layers.test_capability_pointers import ROW_ID, row_fields
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+NODES = ROOT / "docs" / "nodes.json"
+EVIDENCE = ROOT / "tests" / "e2e" / "evidence.json"
+RESTORED = re.compile(r"→[^→]*戻(?:した|っていた)")
+SAYS_RESTORED = re.compile(r"戻(?:した|っていた)")
+# 狭めの欄が戻したと書くが、能力が戻り切っていない行。照らす ID に入れない
+PARTIAL = {
+    "F026": "試験の枠は持ち主の決めで戻さない",
+    "F410": "「戻した」は戻した枝の単位の事で、直し直す道は無いまま",
+    "F411": "(3) は持ち主の答え待ち",
+    "F429": "最後の関所の文に並べるのは持ち主の手に渡した",
+    "R38": "仕組みの異常は U6 で取れない",
+}
+# 日本語の字は \w に入るので、ID の前後は ASCII の字で区切る
+MENTION = re.compile(rf"(?<![A-Za-z0-9-])({ROW_ID})(?![A-Za-z0-9])")
+
+
+def restored_ids() -> set[str]:
+    """棚卸しの行のうち、「狭め」の欄（4 字下げの続きの行を含む）に「→ … 戻した」が在り、PARTIAL に無い行の ID"""
+    return {row for _, row, text in row_fields(("狭め",)) if row and RESTORED.search(text)} - PARTIAL.keys()
+
+
+def off_form() -> list[str]:
+    """狭めの欄が戻したと書くのに「→ … 戻した」の形でなく、PARTIAL にも無い所"""
+    return [f"{where} {row}" for where, row, text in row_fields(("狭め",))
+            if SAYS_RESTORED.search(text) and not RESTORED.search(text) and row not in PARTIAL]
+
+
+def gaps(node, where: str = ""):
+    """(どこ, gaps の値)。表のどの深さの gaps も読む（graph の節も keep の行も）"""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "gaps" and isinstance(value, list):
+                yield from ((f"{where}.gaps", gap) for gap in value)
+            else:
+                yield from gaps(value, f"{where}.{key}" if where else key)
+    elif isinstance(node, list):
+        for i, value in enumerate(node):
+            yield from gaps(value, f"{where}[{i}]")
+
+
+def still_holes(nodes: dict, evidence: list, restored: set[str]) -> list[str]:
+    """戻した ID を穴として名指す所"""
+    places = [(f"docs/nodes.json {where}", text) for where, text in gaps(nodes)]
+    places += [(f"tests/e2e/evidence.json {row['id']}.why", row["why"]) for row in evidence if "why" in row]
+    return [f"{where}: {i} は棚卸しが戻したとした行" for where, text in places
+            for i in sorted(set(MENTION.findall(text)) & restored)]
+
+
+def load(path: pathlib.Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+class RestoredNotGapsCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.restored = restored_ids()
+        cls.nodes = load(NODES)
+        cls.evidence = load(EVIDENCE)
+
+    def test_reads_the_restored_rows(self):
+        """読み落とし（欄の頭の形の変わり）で照らす ID が減っても緑のままにしない"""
+        self.assertLessEqual({"T8", "T9", "T16", "T62", "T63", "F102", "F216", "F302", "F310", "J40", "J41",
+                              "L-W07", "R5b"},
+                             self.restored)
+        self.assertGreater(len(self.restored), 100)
+
+    def test_every_restored_row_is_in_the_form(self):
+        """戻したと書く欄が形から外れると、その行の ID は照らされないまま緑になる"""
+        self.assertEqual(off_form(), [])
+
+    def test_partial_rows_still_say_restored_and_are_not_read(self):
+        self.assertTrue(PARTIAL.keys() <= {row for _, row, text in row_fields(("狭め",)) if SAYS_RESTORED.search(text)})
+        self.assertFalse(PARTIAL.keys() & self.restored)
+
+    def test_no_restored_row_is_still_named_as_a_hole(self):
+        self.assertEqual(still_holes(self.nodes, self.evidence, self.restored), [])
+
+    def test_a_restored_id_written_back_into_a_gap_is_red(self):
+        nodes = copy.deepcopy(self.nodes)
+        nodes["keep"]["5"]["gaps"] = ["#122 T8: 宣言の sha の照合を照らさない"]
+        self.assertEqual(still_holes(nodes, self.evidence, self.restored),
+                         ["docs/nodes.json keep.5.gaps: T8 は棚卸しが戻したとした行"])
+
+    def test_a_restored_id_written_back_into_a_why_is_red(self):
+        evidence = copy.deepcopy(self.evidence)
+        row = next(r for r in evidence if r["id"] == "F310")
+        row["why"] += "（F102 と同じ）"
+        self.assertEqual(still_holes(self.nodes, evidence, self.restored),
+                         ["tests/e2e/evidence.json F310.why: F102 は棚卸しが戻したとした行"])
+
+    def test_ids_are_read_whole(self):
+        """L-E02 の E02・T80 の T8 を別の ID と読まない"""
+        self.assertEqual(MENTION.findall("L-E02・T80・T8：R5b と"), ["L-E02", "T80", "T8", "R5b"])
+
+
+if __name__ == "__main__":
+    unittest.main()
