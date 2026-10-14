@@ -8,9 +8,10 @@
 （chain-start の origin）から採る周の head までの差分を親の置き場の chain/final.diff に lib/seal.py で封じて書く。止まった周は採らず、
 その周の差分（前の周の head からその周の head まで）を chain/round-<周>.diff に残して名指す。周ごとの表と合計を親の置き場の
 chain.md（lib/chain.render）に書く。
-返す apply・sealed は、メイングラフの出力と同じ形（bin/apply が読む {ok, hash, diff}）。apply.ok は採る周の子の run が自分の差分を
-置いた時だけ真で、置かなかった周を採った時は sealed だけを当てられる（bin/apply の --allow-stopped）。採る周の結末の語 outcome と
-r2_status も返す（bin/apply が拒む訳と、R2 の作り直しを拒むのに読む）。
+返す apply・sealed は、メイングラフの出力と同じ形（bin/apply が読む {ok, hash, diff}）。最後の差分は元の基からなので、前の周の変更も
+入る。apply.ok は最後の差分に入る（自分の差分のファイルが在る）どの周の子の run も自分の差分を置いた時だけ真で、どれかが置かなかった時は
+sealed だけを当てられる（bin/apply の --allow-stopped）。採る周の結末の語 outcome と、r2_status（最後の差分に入る周のどれかで R2 が
+作り直しと言えばそれ、ほかは採る周の物）も返す（bin/apply が拒む訳と、R2 の作り直しを拒むのに読む）。
 書くのは親の置き場だけで、作業ツリーと枝は動かさない（git は commit の間の差分を読むだけ）。始めに前の chain/final.diff を消し、
 封じた時だけ書く（resume で走り直して採る周が無くなっても古い物が残らない）。
 出力ノード result が結ぶので落ちない: どの誤りも ok: false と訳を返す。境の口か lib を読めない時も、標準ライブラリだけで返す。
@@ -68,6 +69,27 @@ def with_diffs(repo: Path, origin: str, rows: list) -> list:
     return out
 
 
+def carried(rows: list, kept: dict) -> list:
+    """最後の差分に入る周: 採る周までの、自分の差分のファイルが在る周（数えられなかった周も入れる）"""
+    return [r for r in rows if r["n"] <= kept["n"] and r.get("files") != 0]
+
+
+def placed(rows: list, kept: dict) -> dict:
+    """apply の ok と訳。最後の差分に入るどの周の子の run も自分の差分を置いた時だけ真"""
+    unplaced = [r for r in carried(rows, kept) if r.get("placed") is not True]
+    if not unplaced:
+        return {"ok": True, "reason": ""}
+    return {"ok": False, "reason": "最後の差分に入る周の子の run が差分を置かなかった: "
+            + "・".join(f"周 {r['n']}（結末 {r.get('outcome') or '読めない'}）" for r in unplaced)}
+
+
+def r2_of(rows: list, kept: dict):
+    """最後の差分に入る周のどれかで R2 が作り直しと言えばそれ、ほかは採る周の r2_status"""
+    if any(r.get("r2_status") == seal.REDESIGN for r in carried(rows, kept)):
+        return seal.REDESIGN
+    return kept.get("r2_status")
+
+
 def final() -> dict:
     final_rel = f"chain/{chain.FINAL}"
     boundary.resolve(boundary.pointer(final_rel)).unlink(missing_ok=True)
@@ -86,21 +108,20 @@ def final() -> dict:
         got["reason"] = "元の基が無い（鎖を起こした時の作業ツリーに commit が無い）"
     else:
         data = green_cert.diff_between(repo, origin, kept["head"], skip=boundary.SKIP)
-        got.update(kept=kept["n"], outcome=kept.get("outcome") or "", r2_status=kept.get("r2_status"))
+        got.update(kept=kept["n"], outcome=kept.get("outcome") or "")
         if not data:
             got["reason"] = f"差分が空（元の基から周 {kept['n']} の結果まで変わった物が無い）"
         else:
             got["sealed"] = sealed_at(final_rel, data)
-            placed = kept.get("placed") is True
-            got["apply"] = {**got["sealed"], "ok": placed,
-                            "reason": "" if placed else f"採った周 {kept['n']} の子の run が差分を置かなかった（結末 {got['outcome']}）"}
+            got["apply"] = {**got["sealed"], **placed(rows, kept)}
+            got["r2_status"] = r2_of(rows, kept)
             got["ok"] = True
     run = os.environ["WORKFLOW_ID"]
     report = boundary.pointer(chain.REPORT)
     final_path = str(boundary.resolve(got["sealed"]["diff"])) if got["sealed"] else ""
     text = chain.render({"run": run, "rounds_max": start.get("rounds"), "rounds": rows, "original_base": origin,
                          "stop": None if last.get("act") == "launch" else {"word": last.get("word"), "text": last.get("text")},
-                         "final": final_path, "apply": f"bin/apply {run}"})
+                         "final": final_path, "apply": f"bin/apply {run}", "worktree": str(repo)})
     boundary.resolve(report).write_text(text, encoding="utf-8")
     return {**got, "report": report}
 

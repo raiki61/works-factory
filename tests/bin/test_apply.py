@@ -23,7 +23,7 @@ from bin._lib import apply
 from graphloops.engine.schema import validate_schema  # lib/ は bin._lib.apply が sys.path に置く
 from tests.bin import fakelaunch, hermetic
 from tests.bin.gitkit import git
-from tests.workflows.test_chain import ROUND_FILES, run_final, run_result, three_rounds
+from tests.workflows.test_chain import ROUND_FILES, chain, run_final, run_result, three_rounds
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
@@ -358,7 +358,9 @@ class ChainApplyTest(unittest.TestCase):
         self.root.mkdir()
 
     def parent_run(self, **rounds) -> dict:
-        start, made = three_rounds(self.work, **rounds)
+        return self.record(*three_rounds(self.work, **rounds))
+
+    def record(self, start, made) -> dict:
         final = run_final(self.work, self.root, RUN, start, *made)
         value = run_result(start, final, *made, artifacts=self.root, run_id=RUN)
         return {"id": RUN, "status": "completed", "working_path": str(self.work),
@@ -384,12 +386,30 @@ class ChainApplyTest(unittest.TestCase):
         self.assertIn("one.txt two.txt", out)
 
     def test_round_whose_child_did_not_place_needs_allow_stopped(self):
-        record = self.parent_run(halted_last=False, placed=False)
+        record = self.parent_run(halted_last=False, placed=())
         code, _, err = self.run_apply(record)
         self.assertEqual((code, self.present()), (1, []), err)
         self.assertIn("--allow-stopped", err)
         code, out, err = self.run_apply(record, "--allow-stopped")
         self.assertEqual((code, self.present()), (0, list(ROUND_FILES)), out + err)
+
+    def test_earlier_round_that_did_not_place_needs_allow_stopped(self):
+        code, _, err = self.run_apply(self.parent_run(placed=(2,)))
+        self.assertEqual((code, self.present()), (1, []), err)
+        self.assertIn("--allow-stopped", err)
+        self.assertIn("周 1", err)
+
+    def test_redesign_is_refused_even_with_allow_stopped(self):
+        code, _, err = self.run_apply(self.parent_run(placed=(2,), r2={1: "redesign-needed"}), "--allow-stopped")
+        self.assertEqual((code, self.present()), (1, []), err)
+        self.assertIn("redesign-needed", err)
+
+    def test_nothing_to_take_names_why(self):
+        start, made = three_rounds(self.work)
+        halted = [{**d, "rows": [{**r, "kind": chain.KIND_HALTED} for r in d["rows"]]} for d in made]
+        code, _, err = self.run_apply(self.record(start, halted))
+        self.assertEqual((code, self.present()), (1, []), err)
+        self.assertIn("採れる周が無い", err)
 
 
 KEY = "sk-ant-api03-fake-for-apply"

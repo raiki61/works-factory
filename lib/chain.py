@@ -172,14 +172,21 @@ def limits(rounds_raw, budget_raw) -> tuple:
 
 def pick(rounds: list):
     """最後の周から戻り、止まりと言われていない（結末の種が halted でなく、周の結果の commit の head が在る）最初の周を採る。
-    (採る周か None, 採らずに飛ばした止まった周の並び)。止まった周は捨てずに名指す（chain.md が差分のパスを添える）"""
+    (採る周か None, 採らずに飛ばした周の並び)。飛ばした周（止まった周と commit できなかった周）は捨てずに名指す（chain.md が
+    差分のパスか、作業の残る作業ツリーを添える）"""
     skipped = []
     for r in reversed(rounds):
-        if r.get("kind") == KIND_HALTED:
-            skipped.append(r)
-        elif r.get("head"):
+        if r.get("kind") != KIND_HALTED and r.get("head"):
             return r, skipped
+        skipped.append(r)
     return None, skipped
+
+
+def _left(r: dict, worktree: str) -> str:
+    """飛ばした周の作業の在りか: 残した差分のパス・差分が空・commit できず作業ツリーに残る（片付けで消える）"""
+    if not r.get("head"):
+        return f"commit できなかった。作業は作業ツリー {worktree or '（親の run の作業ツリー）'} に残り、片付けで消える"
+    return f"差分 {r.get('diff') or '無し'}"
 
 
 def _cell(v, fmt="{}", none="読めない"):
@@ -190,16 +197,16 @@ def render(doc: dict) -> str:
     """chain.md の本文: 頭の 3 行（何が起きたか・止めた訳・人が見る物）、周ごとの表（周・run・結末・分・$・残り・ファイル）、合計、
     最後の差分と取り込み、人が要る時の手順。読めない費用は 0 と書かず「読めない」と名指す。
     doc は {run（親の run）, rounds_max, rounds（周の行。files・diff は最後の差分のノードが足す）, stop（{word, text} か None）,
-    original_base, final（最後の差分のパス。書けなければ空）, apply（取り込む命令）}"""
+    original_base, final（最後の差分のパス。書けなければ空）, apply（取り込む命令）, worktree（周の commit を積む親の run の作業ツリー）}"""
     rows = doc.get("rounds") or []
     kept, skipped = pick(rows)
     stop = doc.get("stop") or {}
-    final, apply = doc.get("final") or "", doc.get("apply") or ""
+    final, apply, worktree = doc.get("final") or "", doc.get("apply") or "", doc.get("worktree") or ""
     held = sum(int(r.get("held") or 0) for r in rows)
     notes = []
     if skipped:
-        notes.append("止まった周 " + "・".join(f"周 {r['n']}（run {r.get('run') or '—'}。差分 {r.get('diff') or '無し'}）"
-                                          for r in skipped) + " は最後の差分に採らず、差分を残した")
+        notes.append("止まった周 " + "・".join(f"周 {r['n']}（run {r.get('run') or '—'}。{_left(r, worktree)}）"
+                                          for r in skipped) + " は最後の差分に採らなかった")
     if held:
         notes.append(f"運ばなかった下書きの行 {held} 件（見直して新しい依頼に入れる）")
     done = f"{len(rows)} 周のうち{('周 ' + str(kept['n']) + ' の結果までを最後の差分にした') if kept else '採れる周が無かった'}"
@@ -230,5 +237,5 @@ def render(doc: dict) -> str:
         lines += ["", "続けずに、下書きを見直して新しい鎖を起こす（保留して続ける口は作らない）:",
                   *(f"{i}. {step}" for i, step in enumerate(steps, 1))]
     for r in skipped:
-        lines.append(f"止まった周 {r['n']} の差分: {r.get('diff') or '無し'}（結末 {r.get('outcome') or '読めない'}）")
+        lines.append(f"止まった周 {r['n']}: {_left(r, worktree)}（結末 {r.get('outcome') or '読めない'}）")
     return "\n".join(lines) + "\n"

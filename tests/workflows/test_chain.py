@@ -51,9 +51,9 @@ def run_script(name: str, env: dict, cwd: pathlib.Path) -> dict:
 ROUND_FILES = ("one.txt", "two.txt", "three.txt")
 
 
-def three_rounds(repo: pathlib.Path, halted_last: bool = True, placed: bool = True) -> tuple:
+def three_rounds(repo: pathlib.Path, halted_last: bool = True, placed=(1, 2, 3), r2=None) -> tuple:
     """repo の HEAD を元の基に、周ごとに 1 ファイルを足す commit を 3 つ積む。(chain-start の出力, 周 1〜3 の決めの出力)。
-    3 周目の結末の種は halted_last なら halted。周の子が差分を置いたかは placed"""
+    3 周目の結末の種は halted_last なら halted。子が差分を置いた周の番号は placed、周ごとの R2 の状態は r2（{周: 状態}）"""
     origin = git(repo, "rev-parse", "HEAD")
     rows, made = [], []
     for n, name in enumerate(ROUND_FILES, 1):
@@ -63,7 +63,7 @@ def three_rounds(repo: pathlib.Path, halted_last: bool = True, placed: bool = Tr
         kind = chain.KIND_HALTED if halted_last and n == 3 else chain.KIND_OPEN
         rows.append({"n": n, "run": f"child-{n}", "outcome": "stopped_by_human" if kind == chain.KIND_HALTED else "round_limit",
                      "kind": kind, "keys": [f"k{n}"], "held": 0, "same_tree": False, "cost": 1.0 * n, "cost_read": True,
-                     "minutes": 10.0, "head": git(repo, "rev-parse", "HEAD"), "placed": placed, "r2_status": None,
+                     "minutes": 10.0, "head": git(repo, "rev-parse", "HEAD"), "placed": n in placed, "r2_status": (r2 or {}).get(n),
                      "request": "", "source": ""})
         act = "launch" if n < 3 else "stop"
         made.append({"act": act, "word": "" if act == "launch" else "halted", "text": "t", "request": "", "base": "", "pr": "",
@@ -343,7 +343,7 @@ class FinalDiffCase(Tree):
         self.assertEqual(self.names(left.read_bytes()), ["three.txt"])
         report = (self.artifacts / chain.REPORT).read_text(encoding="utf-8")
         self.assertEqual(got["report"], {"type": "archon_artifact", "run_id": "parent", "path": chain.REPORT})
-        self.assertIn(f"止まった周 3 の差分: {left}", report)
+        self.assertIn(f"止まった周 3: 差分 {left}", report)
         self.assertIn(f"最後の差分: {final}", report)
         self.assertIn("取り込む: bin/apply parent", report)
         self.assertIn("| 3 | child-3 | stopped_by_human | 10 | 3.00 | 1 | 1 |", report)
@@ -351,10 +351,28 @@ class FinalDiffCase(Tree):
         self.assertEqual(git(self.repo, "status", "--porcelain"), "", "作業ツリーを変えない")
 
     def test_round_without_a_placed_diff_is_sealed_but_not_placed(self):
-        start, made = three_rounds(self.repo, halted_last=False, placed=False)
+        start, made = three_rounds(self.repo, halted_last=False, placed=())
         got = self.final(start, *made)
         self.assertEqual((got["kept"], got["sealed"]["ok"], got["apply"]["ok"]), (3, True, False), got)
         self.assertIn("差分を置かなかった", got["apply"]["reason"])
+
+    def test_earlier_round_without_a_placed_diff_is_not_placed(self):
+        """最後の差分は元の基からなので、採る周が置いても、前の周の置かなかった変更が入る"""
+        start, made = three_rounds(self.repo, halted_last=False, placed=(2, 3))
+        got = self.final(start, *made)
+        self.assertEqual((got["kept"], got["apply"]["ok"]), (3, False), got)
+        self.assertIn("周 1（結末 round_limit）", got["apply"]["reason"])
+        self.assertNotIn("周 3", got["apply"]["reason"])
+
+    def test_r2_status_is_the_kept_round_unless_a_carried_round_said_redesign(self):
+        for r2, want in (({2: "pass"}, "pass"), ({1: "redesign-needed", 2: "pass"}, "redesign-needed"),
+                         ({3: "redesign-needed"}, None)):
+            with self.subTest(r2=r2):
+                tree = self.tmp / f"repo-{len(r2)}-{want}"
+                git(self.tmp, "clone", "-q", str(self.repo), str(tree))
+                start, made = three_rounds(tree, r2=r2)
+                got = run_final(tree, self.artifacts, "parent", start, *made)
+                self.assertEqual((got["kept"], got["r2_status"]), (2, want), got)
 
     def test_nothing_to_take_leaves_no_final_diff(self):
         start, made = three_rounds(self.repo)
@@ -398,8 +416,20 @@ class ResultCase(Tree):
         self.assertEqual({k: got[k] for k in ("apply", "sealed", "report", "outcome", "r2_status")},
                          {"apply": final["apply"], "sealed": sealed, "report": {"path": "chain.md"}, "outcome": "fixed",
                           "r2_status": "pass"})
+        self.assertEqual(got["stop_reason"], "")
         got = self.result(start, decided)
         self.assertEqual((got["apply"], got["sealed"], got["report"], got["outcome"], got["r2_status"]), (None, None, None, "", None))
+        self.assertIn("final-diff の出力が無い", got["stop_reason"])
+
+    def test_why_nothing_was_placed_is_the_stop_reason(self):
+        start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}
+        decided = {"act": "stop", "word": "halted", "text": "t", "request": "", "rows": [{"n": 1}]}
+        final = {"ok": False, "reason": "採れる周が無い", "apply": None, "sealed": None, "report": None, "kept": 0, "skipped": [1],
+                 "outcome": "", "r2_status": None}
+        self.assertEqual(self.result(start, decided, final=final)["stop_reason"], "採れる周が無い")
+        sealed = {"ok": True, "hash": "h", "diff": None}
+        final = {**final, "ok": True, "reason": "", "sealed": sealed, "apply": {**sealed, "ok": False, "reason": "周 1 が置かなかった"}}
+        self.assertEqual(self.result(start, decided, final=final)["stop_reason"], "周 1 が置かなかった")
 
     def test_launch_without_the_next_decision_is_wait(self):
         start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}

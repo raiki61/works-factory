@@ -593,7 +593,8 @@ nodes:
         report: { type: [object, "null"] }
         outcome: { type: string }
         r2_status: { type: [string, "null"] }
-      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status]
+        stop_reason: { type: string }
+      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, stop_reason]
     mutates_checkout: false
     depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide, final-diff]
     trigger_rule: all_done

@@ -218,9 +218,9 @@ class Pick(unittest.TestCase):
         kept, skipped = chain.pick(rows)
         self.assertEqual((kept["n"], [r["n"] for r in skipped]), (2, [3]))
 
-    def test_rounds_without_a_commit_are_passed_over_without_naming(self):
+    def test_round_without_a_commit_is_skipped_and_named(self):
         kept, skipped = chain.pick([row(1, head="h1"), row(2, chain.KIND_HUMAN, head="")])
-        self.assertEqual((kept["n"], skipped), (1, []))
+        self.assertEqual((kept["n"], [r["n"] for r in skipped]), (1, [2]))
 
     def test_no_round_to_take(self):
         kept, skipped = chain.pick([row(1, chain.KIND_HALTED, head="h1")])
@@ -255,8 +255,16 @@ class Render(unittest.TestCase):
         rows = [row(1, head="h1"), row(2, head="h2"), row(3, chain.KIND_HALTED, head="h3", diff="/runs/parent/chain/round-3.diff")]
         text = chain.render(self.doc(rows))
         self.assertIn("周 2 の結果までを最後の差分にした", text)
-        self.assertIn("止まった周 周 3（run run-3。差分 /runs/parent/chain/round-3.diff） は最後の差分に採らず", text)
-        self.assertIn("止まった周 3 の差分: /runs/parent/chain/round-3.diff", text)
+        self.assertIn("止まった周 周 3（run run-3。差分 /runs/parent/chain/round-3.diff） は最後の差分に採らなかった", text)
+        self.assertIn("止まった周 3: 差分 /runs/parent/chain/round-3.diff", text)
+
+    def test_round_whose_commit_failed_names_the_worktree_not_a_kept_diff(self):
+        rows = [row(1, head="h1"), row(2, chain.KIND_HUMAN, head="")]
+        text = chain.render(self.doc(rows, worktree="/wt/parent"))
+        self.assertIn("周 1 の結果までを最後の差分にした", text)
+        self.assertIn("止まった周 周 2（run run-2。commit できなかった。作業は作業ツリー /wt/parent に残り、片付けで消える）", text)
+        self.assertIn("止まった周 2: commit できなかった", text)
+        self.assertNotIn("差分 無し", text)
 
     def test_human_stop_names_the_draft_and_the_steps(self):
         rows = [row(1, head="h1", held=2, source="/runs/c1/report/next-request.json")]

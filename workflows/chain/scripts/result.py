@@ -9,7 +9,8 @@ request・決めの act・word・text）を返す。closed は止めの語が cl
 鎖の後に続ける人が依頼に使う。
 最後の差分のノード final-diff の返りから、bin/apply が読む欄（メイングラフの出力と同じ名と形）を載せる: apply・sealed（元の基から
 採る周までの封じた差分。無ければ null）・outcome・r2_status（採る周の子の run の物）。report は周ごとの表 chain.md のポインタ。
-final-diff が落ちた・飛ばされた時は、どれも null（outcome は空）。
+final-diff が落ちた・飛ばされた時は、どれも null（outcome は空）。stop_reason は最後の差分を置いていない訳（final-diff の
+reason か apply の reason。落ちた・飛ばされた時はそう書く）で、bin/apply が拒む時に名指す。
 最後の決めが launch なのに次の決めが無い時は、次の周の子の run が落ちた（親の周のノードが落ち、後ろが飛んだ）ので act: wait と
 続け方を返す。
 lib を読まない。落ちない: 境の口を読めない時も、標準ライブラリだけで返す。
@@ -36,7 +37,13 @@ DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>�
 
 def from_final(final) -> dict:
     got = final if isinstance(final, dict) else {}
-    return {"outcome": got.get("outcome") or "", **{key: got.get(key) for key in FINAL}}
+    if not got:
+        why = "final-diff の出力が無い（落ちたか飛ばされた）"
+    elif not isinstance(got.get("sealed"), dict):
+        why = got.get("reason") or ""
+    else:
+        why = (got.get("apply") or {}).get("reason") or ""
+    return {"outcome": got.get("outcome") or "", "stop_reason": why, **{key: got.get(key) for key in FINAL}}
 
 
 def result(start, final, decisions: list) -> dict:
