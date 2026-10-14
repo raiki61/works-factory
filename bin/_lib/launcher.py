@@ -146,7 +146,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         except RuntimeError as error:
             raise Stop(str(error)) from None
         check_test_cmd(user, target, [v.removeprefix("test_cmd=") for v in flag_values(flags, "--input")
-                                     if v.startswith("test_cmd=")])
+                                     if v.startswith("test_cmd=")], home=user.get("HOME") if userenv.opted(child) else None)
         try:
             start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
         except RuntimeError as error:
@@ -190,13 +190,16 @@ def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
     return argv[2]
 
 
-def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], run=subprocess.run) -> None:
+def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], home: str | None = None,
+                   run=subprocess.run) -> None:
     """test_cmd の形を Archon を起こす前に確かめる（bin/_lib/testcmd_check.py。決まりはそちら）。対象の手元を走らせる形（終了の値 3）と、
     確かめそのものが落ちた時（0 と STOP_EXIT の外。手元を走らせる形を除けない）は止める。ALLOW_TESTCMD_ENV が 1 なら知らせて起こす。
-    注意の形（作業ツリーで走らない。走れば落ちて分かる）は行を出すだけ"""
+    注意の形（作業ツリーで走らない。走れば落ちて分かる）は行を出すだけ。home は対象のコマンドが run の中で見る利用者の HOME
+    （userenv の OPT_IN の run だけ。~・$HOME で手元を指す形もそこへ展開して確かめる）"""
     allowed = user.get(ALLOW_TESTCMD_ENV) == "1"
+    flags = [*(["--allow-checkout"] if allowed else []), *(["--home", home] if home else [])]
     for cmd in filter(str.strip, commands):
-        done = run([sys.executable, "-I", str(LIB / "testcmd_check.py"), *(["--allow-checkout"] if allowed else []), str(target), cmd],
+        done = run([sys.executable, "-I", str(LIB / "testcmd_check.py"), *flags, str(target), cmd],
                    env=user, stdout=subprocess.PIPE, text=True, encoding="utf-8")
         if done.stdout.strip():
             print(done.stdout.rstrip("\n"), file=sys.stderr)

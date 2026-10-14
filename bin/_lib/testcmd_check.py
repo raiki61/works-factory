@@ -1,6 +1,6 @@
 """起動の殻（bin/_lib/launcher.py）が test_cmd を Archon に渡す前に、run の worktree と単位の worktree で効かない形を分けて知らせる。
 
-python3 -I bin/_lib/testcmd_check.py [--allow-checkout] <対象の根> <test_cmd>
+python3 -I bin/_lib/testcmd_check.py [--allow-checkout] [--home <利用者の HOME>] <対象の根> <test_cmd>
 
 run の worktree（Archon が --from の commit から切る）と単位の worktree（修正の段が run の worktree の今の姿の commit から切る）には、
 対象の git が無視する物（.venv・node_modules・ビルドの出力・.env など）が無い。形は 2 つに分け、1 行ずつ標準出力へ出す:
@@ -42,7 +42,9 @@ git が無視するかは見ない（止める形の手元を絶対パスで指�
 漏れ（知っていて塞がない物。止める形の漏れは run を止めずに偽の緑を通し、注意の形の漏れは知らせが多すぎるか少なすぎる）:
 - 書き先を空白で分けた値に取る旗のうち OUTPUT_FLAGS に無い物（-o build/x・道具ごとの旗）は、その値が手元に前の出力として在り
   git が無視すれば名指す（旗が値を取るかは道具ごとに違い、一般には決まらない）。値が手元を指す絶対パスなら止める
-- 変数・~・$(…)・` は展開しない（cd の先がこれらなら後ろの相対の語は見ない）。run の中では HOME が利用の家へ隔離されるので、
+- 変数・~・$(…)・` は展開しない（cd の先がこれらなら後ろの相対の語は見ない）。ただし --home を渡した時は、~（語の頭か = と : の
+  後ろ）・$HOME・${HOME} をその値に展開してから読む（引用符の中の ~ も展開するので、殻より多めに止める）。殻は、対象のコマンドを
+  利用者の HOME で走らせる run（lib/userenv.py の OPT_IN）でだけ渡す。渡さない run では HOME が run の置き場へ隔離されるので、
   ~・$HOME で手元を指す形は run の中で別の所を指して落ちる（偽の緑にはならない）
 - 中のコマンドを隠す形は読まない: make（-C の無い）・npm test・tox・nox・just などの台本・試験の殻のファイルの中身・
   sh <ファイル>・eval・xargs・find -exec。その中で手元を絶対パスで指しても見えない
@@ -70,7 +72,7 @@ import subprocess
 import sys
 from urllib.parse import unquote, urlparse
 
-USAGE = "usage: testcmd_check.py [--allow-checkout] <対象の根> <test_cmd>"
+USAGE = "usage: testcmd_check.py [--allow-checkout] [--home <利用者の HOME>] <対象の根> <test_cmd>"
 STOP_EXIT = 3   # 止める形が在る時の終了コード（--allow-checkout でも同じ。行の頭だけが「注意」になる）
 HOW = "worktree の中で環境を作るコマンド（例: 依存を入れてから試験を走らせる 1 行）にする（README.md の「test_cmd と作業ツリー」）"
 SEPARATORS = ("&&", "||", ";", "|", "&")
@@ -534,16 +536,27 @@ def venv_notes(root, cmd, environ):
     return notes
 
 
+def expand_home(cmd, home):
+    """~（語の頭か = と : の後ろで、/ か語の終わりが続く物）・$HOME・${HOME} を home にした cmd"""
+    cmd = re.sub(r"\$\{HOME\}|\$HOME(?![A-Za-z0-9_])", lambda _: home, cmd)
+    return re.sub(r"(?<![^\s=:;&|(])~(?=/|$|[\s;&|)])", lambda _: home, cmd)
+
+
 def main(argv):
-    allow = bool(argv) and argv[0] == "--allow-checkout"
-    if allow:
-        argv = argv[1:]
-    if len(argv) != 2:
+    allow, home = False, None
+    while argv[:1] == ["--allow-checkout"] or (argv[:1] == ["--home"] and len(argv) > 1):
+        if argv[0] == "--home":
+            home, argv = argv[1], argv[2:]
+        else:
+            allow, argv = True, argv[1:]
+    if len(argv) != 2 or home == "":
         print(USAGE, file=sys.stderr)
         return 2
     root, cmd = os.path.realpath(argv[0]), argv[1].strip()
     if not cmd:
         return 0
+    if home is not None:
+        cmd = expand_home(cmd, home)
     notes = path_notes(root, cmd) + venv_notes(root, cmd, os.environ)
     for stop, line in notes:
         print(f"{'止める' if stop and not allow else '注意'}（test_cmd）: {line}")

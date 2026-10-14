@@ -200,6 +200,22 @@ class LauncherTest(unittest.TestCase):
         self.reached(done)
         self.assertIn("注意（test_cmd）", done.stderr)
 
+    def test_test_cmd_through_home_stops_only_when_target_commands_get_the_users_home(self):
+        """PR #503 の見直し: 対象のコマンドを利用者の HOME で走らせる run（userenv.OPT_IN）では、~・$HOME で手元を指す test_cmd も
+        run の中で手元を指すので止める。隔離した HOME で走らせる run では別の所を指して落ちるので止めない"""
+        self.commit_target()
+        (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
+        runner = self.target / ".venv" / "bin" / "run-tests"
+        runner.parent.mkdir(parents=True)
+        runner.write_text("#!/bin/sh\n", encoding="utf-8")
+        git(self.target, "add", ".gitignore")
+        git(self.target, "commit", "-q", "-m", "ignore")
+        run = ("workflow", "run", "works-factory-line", "--input", "request=x")
+        via_home = f"~/{os.path.relpath(runner, self.home)} -q"
+        err = self.stopped(self.launch(*run, "--input", f"test_cmd={via_home}", **{userenv.OPT_IN: "1"}))
+        self.assertIn("止める（test_cmd）", err)
+        self.reached(self.launch(*run, "--input", f"test_cmd={via_home}"))
+
     def test_test_cmd_check_that_fails_stops_unless_allowed(self):
         def failing(*_, **__):
             return subprocess.CompletedProcess([], 1, stdout="")

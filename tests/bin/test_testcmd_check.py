@@ -35,11 +35,12 @@ class TestCmdCheck(unittest.TestCase):
         (self.repo / "node_modules" / ".bin").mkdir(parents=True)
         (self.repo / "node_modules" / ".bin" / "jest").write_text("#!/bin/sh\n")
 
-    def check(self, cmd, rc=0, allow=False, **env_kw):
+    def check(self, cmd, rc=0, allow=False, home=None, **env_kw):
         """知らせの行（注意・止める の頭を除かずに）。rc は待つ終了コード（0 = 止める形が無い・3 = 止める形が在る）"""
         env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV",)}
         env.update(env_kw)
-        r = subprocess.run([sys.executable, "-I", str(TOOL), *(("--allow-checkout",) if allow else ()), str(self.repo), cmd],
+        flags = (*(("--allow-checkout",) if allow else ()), *(("--home", home) if home else ()))
+        r = subprocess.run([sys.executable, "-I", str(TOOL), *flags, str(self.repo), cmd],
                            capture_output=True, text=True, encoding="utf-8", env=env)
         self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
         self.assertEqual(r.stderr, "")
@@ -412,8 +413,22 @@ class TestCmdCheck(unittest.TestCase):
             with self.subTest(cmd):
                 self.assertEqual(len(self.stops(cmd, **env)), 1)
 
+    def test_home_forms_stop_only_when_the_users_home_is_given(self):
+        """--home（対象のコマンドが利用者の HOME で走る run）なら ~・$HOME・${HOME} を展開し、手元を指す形を止める。渡さなければ
+        展開しない（隔離した HOME では別の所を指して落ちる）"""
+        home = str(self.repo.parent)
+        for cmd in ("~/repo/.venv/bin/pytest -q", "$HOME/repo/.venv/bin/pytest -q", "${HOME}/repo/.venv/bin/pytest",
+                    "cd ~/repo && .venv/bin/pytest", "PYTHONPATH=~/repo:/x pytest", "sh -c 'cd ~/repo && .venv/bin/pytest'"):
+            with self.subTest(cmd):
+                lines = self.check(cmd, rc=3, home=home)
+                self.assertTrue(any(ln.startswith("止める（test_cmd）: ") for ln in lines), lines)
+                self.assertEqual(self.check(cmd, rc=0), [])
+        for cmd in ("$HOMEDIR/repo/.venv/bin/pytest", "a~/repo/.venv/bin/pytest"):
+            with self.subTest(cmd):
+                self.check(cmd, rc=0, home=home)
+
     def test_usage_errors(self):
-        for args in ((), ("--allow-checkout",), ("x",), ("--nope", "x", "y")):
+        for args in ((), ("--allow-checkout",), ("x",), ("--nope", "x", "y"), ("--home", "h", "x"), ("--home", "", "x", "y")):
             with self.subTest(args):
                 r = subprocess.run([sys.executable, "-I", str(TOOL), *args], capture_output=True, text=True, encoding="utf-8")
                 self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
