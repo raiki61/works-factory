@@ -517,6 +517,17 @@ def plain_fix(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
         got["error"] = f"claude -p が誤りで終わった: {apply.one_line(str(said or '結果の JSON が無い'))}"
 
 
+def bare_copy(repo: Path, rev: str, copy: Path) -> Path:
+    """repo の rev とその祖先だけを持つ bare の写しを copy に置く。写しの HEAD は ORIGIN_BRANCH を指し、そこに rev を載せる
+    ——既定の枝を clone して rev に届く形で、Archon の origin の取りに行きも submodule update もこの形に頼る。
+    git の失敗は make_target.Stop"""
+    copy.parent.mkdir(parents=True, exist_ok=True)
+    make_target.git("init", "-q", "--bare", str(copy))
+    make_target.git("-C", str(repo), "push", "-q", str(copy), f"{rev}:refs/heads/{ORIGIN_BRANCH}")
+    make_target.git("-C", str(copy), "symbolic-ref", "HEAD", f"refs/heads/{ORIGIN_BRANCH}")
+    return copy
+
+
 def give_origin(attempt: Path, workdir: Path):
     """remote の無い対象に、試みの置き場の中の bare の写し（ORIGIN_COPY）を origin として持たせる。Archon は remote の無い対象に
     run の作業ツリーを切らず、切る前に origin の既定の枝（写しの HEAD が指す枝）を取りに行く。写しは対象の HEAD だけなので、
@@ -525,10 +536,7 @@ def give_origin(attempt: Path, workdir: Path):
     try:
         if make_target.git("-C", str(workdir), "remote"):
             return
-        copy = attempt / ORIGIN_COPY
-        make_target.git("init", "-q", "--bare", str(copy))
-        make_target.git("-C", str(workdir), "push", "-q", str(copy), f"HEAD:refs/heads/{ORIGIN_BRANCH}")
-        make_target.git("-C", str(copy), "symbolic-ref", "HEAD", f"refs/heads/{ORIGIN_BRANCH}")
+        copy = bare_copy(workdir, "HEAD", attempt / ORIGIN_COPY)
         make_target.git("-C", str(workdir), "remote", "add", "origin", str(copy))
     except make_target.Stop as e:
         raise run.Stop(run.STOPPED, f"remote の無い対象 {workdir} に origin の写しを置けない: {e}") from None
@@ -568,11 +576,7 @@ def give_submodules(attempt: Path, workdir: Path) -> dict:
             except make_target.Stop:
                 raise run.Stop(run.STOPPED, f"submodule {name}（{path}）の歴史が {workdir} の中に在るが、指す commit {pointed} を"
                                             f"持たない（網に出ずに渡せる中身が無い）") from None
-            copy = attempt / SUBMODULE_COPIES / f"{i}.git"
-            copy.parent.mkdir(parents=True, exist_ok=True)
-            make_target.git("init", "-q", "--bare", str(copy))
-            make_target.git("-C", str(sub), "push", "-q", str(copy), f"{pointed}:refs/heads/{ORIGIN_BRANCH}")
-            make_target.git("-C", str(copy), "symbolic-ref", "HEAD", f"refs/heads/{ORIGIN_BRANCH}")
+            copy = bare_copy(sub, pointed, attempt / SUBMODULE_COPIES / f"{i}.git")
             urls.append((f"submodule.{name}.url", str(copy)))
     except make_target.Stop as e:
         raise run.Stop(run.STOPPED, f"submodule の在る対象 {workdir} に submodule の写しを置けない: {e}") from None
