@@ -31,6 +31,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 | E16 | `workflows/AGENTS.md` |
 | E17 | `workflows/AGENTS.md` |
 | E18 | `AGENTS.md` |
+| E19 | `workflows/AGENTS.md` |
 
 ## リポジトリの形
 
