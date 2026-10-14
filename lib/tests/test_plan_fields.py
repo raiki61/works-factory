@@ -184,6 +184,36 @@ class TestSplitAndBoard(PlanFieldsCase):
                                ("test_stats.py::TestStats::test_clamp_within_range", "test_stats.py:11")])
         self.assertNotIn("test_stats.py::TestStats::test_mean_of_three", [r["id"] for r in fields[0]["removes_tests"]])
 
+    def test_removes_tests_only_from_code_use(self):
+        """removes の語が文字列（題・辞書の値・parametrize の値）や注釈の中にしか無いテストは removes_tests に並ばない。コードの
+        名前・点の付いたパスの文字列（mock.patch の的）・引数の名で使うテストだけが並ぶ（ありふれた語で許しを広げない。#549）"""
+        src = ("import pytest\n"
+               "from unittest import mock\n"
+               "\n"
+               "def test_title():\n"
+               "    assert make(title=\"The Test Book\").title\n"
+               "\n"
+               "def test_group():\n"
+               "    assert lookup({\"product_group\": \"Book\"})\n"
+               "\n"
+               "@pytest.mark.parametrize(\"name\", ['(Book 1)'])\n"
+               "def test_series(name):\n"
+               "    assert parse(name)  # Book\n"
+               "\n"
+               "def test_builds():\n"
+               "    assert Book(title=\"x\")\n"
+               "\n"
+               "def test_patched():\n"
+               "    with mock.patch(\"pkg.validator.Book\"):\n"
+               "        assert run()\n"
+               "\n"
+               "def test_fixture(Book):\n"
+               "    assert Book\n")
+        _, fields = planmarks.split({"plan": [item(removes=["Book"])]}, self.repo, base_tests={"tests/test_books.py": src})
+        self.assertEqual([r["id"] for r in fields[0]["removes_tests"]],
+                         ["tests/test_books.py::test_builds", "tests/test_books.py::test_patched",
+                          "tests/test_books.py::test_fixture"])
+
     def test_save_read_by_round(self):
         b = types.SimpleNamespace(dir=self.tmp, round=1)
         planmarks.save(self.tmp, 1, [{"route": "tdd"}])

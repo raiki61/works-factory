@@ -12,9 +12,11 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   別の版の木へ移す口
   （範囲の相談の合意の行は修正前の版の行で、凍結の検査が読む木へはこの 2 つで移す）
 - split(reply, repo, base_tests=)・save(board, rnd, fields)・read(b)・rewrites(b)・removes_permits(b): 欄を外す口・盤面の控え・書き換えてよい既存のテストの並び・
-  removes を本体で名指す既存のテストの並び（base_tests は修正前の版のテストの中身。split が欄 removes_tests に置く許しの行）
-- IDENT・search_word(name)・module_name(name)・declared_name(d)・word_re(name)・test_functions(src, path): adds・removes の名を差分や本体で探す語の決まり
-  （1 行の読み方）・テストの関数の源の引き（blk-fix の planscope・tddloop・blk-plan の ripple と split が同じ物を呼ぶ）
+  removes をコードの識別子（と点の付いたパスの文字列）として使う既存のテストの並び（base_tests は修正前の版のテストの中身。split が欄
+  removes_tests に置く許しの行）
+- IDENT・search_word(name)・module_name(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path): adds・removes の名を
+  差分や本体で探す語の決まり（1 行の読み方）・テストの関数の源の引き（blk-fix の planscope・tddloop・blk-plan の ripple が同じ物を呼ぶ）・
+  テストの関数がコードで使う名の引き（split が removes_tests を引く）
 - unit_contract(fields, key): 1 つの単位の約束（その単位を名指す項目の道・受け入れのテスト・書き換えの id・整えの申告を合わせた物。TDD の輪が読む）
 - append_trace(folder, op, **row): 開いた盤面の書き口の無い時に trace.jsonl（TRACE_FILE）へ足す行 {t, op, …}（save と planfile が書く）
 - 凍結（SAVED_OP・frozen(b)・FieldsBroken）: save は控えを置いた後、盤面の trace に印 {round, sha256（控えのバイトの sha256）} を
@@ -28,6 +30,9 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   prescriptions(b) は判定の返答（盤面の節 JUDGE_NODE の最新の出力）の単位ごとの処方（写しの盤面の記録は単位の処方を写さない
   ので、修正案の頭と修正役の brief はここから引く。利用者の声 D2）
 - HEAD・REVIEW_HEAD・REVIEW_ASK・review_section(b): 修正案の役と事前審査の役の指示書の頭に足す文
+- MACHINE_KEYS・MACHINE_LABEL・machine_face_gaps(faces): 欄の行のうち機械が足し修正案の役が直せない欄（removes_tests）。事前審査の
+  頭では役の書いた欄と分けて MACHINE_LABEL で名乗り、where でそれを名指す block の穴は事前審査の受け付けが拒む（役が直せない穴で
+  案の往復を回さない）
 - climbs(norm): 整えたパスが根の外へ上るか（`..` は段で見る。conflict.parse_limit も同じ物を使う）
 - glob_problem(glob): 範囲の欄（allowed_paths・out_of_scope の glob）の誤りの文（\\ の区切り・根の外・`**`・`**/?*` のような字の無い丸ごとの許し）
 - glob_match(path, glob): 根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。守りのファイルの
@@ -185,7 +190,12 @@ REVIEW_ASK = ("下は修正案の役が項目ごとに書いた works の欄（r
               "本物の経路を通るか・mock の戻り値を断言していないか・文言の比べに寄っていないか、red_kind の赤が今のコードで本当に"
               "起きるか、rewrite_tests が依頼で変わる振る舞いだけを書き換え、期待値を実装に合わせる書き換えでないかを見よ。"
               "allowed_paths が項目の直しに足りて広すぎないか、out_of_scope が依頼の触らない物を覆うかも見よ。"
+              "項目の後の機械が足した許しの行 removes_tests は、項目の removes（消す名）をコードの識別子として使う修正前のテストを"
+              "機械が並べた物で、修正案の役は書いていない・直せない。where でこれを名指す block は受け付けが拒む。許しが広すぎる・"
+              "狭すぎると見るなら、その項目の removes を名指せ。"
               "穴は faces に挙げよ")
+MACHINE_KEYS = ("removes_tests",)   # 欄の行のうち split が足し、修正案の役が書かない・直せない欄
+MACHINE_LABEL = "機械が足した許しの行 removes_tests（修正案の役は書いていない・直せない。書き換え・消しを許すだけで、消す指示でも義務でもない）:"
 
 
 # ---------------------------------------------------------------- 役の型
@@ -355,44 +365,84 @@ def word_re(name: str):
     return re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
 
 
+def _test_defs(tree, path: str):
+    """木 tree の、名前が test で始まる関数（モジュールの直下と、クラスの直下のメソッド。入れ子のクラスも辿る）の
+    (id, 定義の節) を並びの順に出す（id は test_functions の形）"""
+    def walk(body, head):
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
+                yield f"{head}::{node.name}", node
+            if isinstance(node, ast.ClassDef):
+                yield from walk(node.body, f"{head}::{node.name}")
+
+    return walk(tree.body, path)
+
+
+def _parse_py(src: str, path: str):
+    if not path.endswith(".py"):
+        return None
+    try:
+        return ast.parse(src)
+    except (SyntaxError, ValueError):
+        return None
+
+
 def test_functions(src: str, path: str) -> dict[str, str]:
     """.py の中身 src から、名前が test で始まる関数（モジュールの直下と、クラスの直下のメソッド。入れ子のクラスも辿る）の
     id（実行器の node id の形 `<path>::<クラス>[::<内のクラス>…]::<名前>` か `<path>::<名前>`）→ その関数の源
     （ast.get_source_segment。デコレータの行から）。構文が読めない・path が .py でなければ {}。純粋"""
-    if not path.endswith(".py"):
-        return {}
-    try:
-        tree = ast.parse(src)
-    except (SyntaxError, ValueError):
-        return {}
+    tree = _parse_py(src, path)
     out = {}
-
-    def take(node, head):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
-            top = min([node.lineno] + [d.lineno for d in node.decorator_list])
-            span = ast.Constant(value=None, lineno=top, col_offset=node.col_offset, end_lineno=node.end_lineno,
-                                end_col_offset=node.end_col_offset)   # デコレータの行から本体の終わりまで
-            out[f"{head}::{node.name}"] = ast.get_source_segment(src, span) or ""
-
-    def walk(body, head):
-        for node in body:
-            take(node, head)
-            if isinstance(node, ast.ClassDef):
-                walk(node.body, f"{head}::{node.name}")
-
-    walk(tree.body, path)
+    for tid, node in _test_defs(tree, path) if tree else ():
+        top = min([node.lineno] + [d.lineno for d in node.decorator_list])
+        span = ast.Constant(value=None, lineno=top, col_offset=node.col_offset, end_lineno=node.end_lineno,
+                            end_col_offset=node.end_col_offset)   # デコレータの行から本体の終わりまで
+        out[tid] = ast.get_source_segment(src, span) or ""
     return out
+
+
+_DOTTED = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+")
+
+
+def _code_names(node) -> set[str]:
+    """節 node（デコレータも含む）の下でコードの識別子として使う名（名前・属性・引数・キーワード・import の各段・定義の名）と、
+    点の付いたパスの形の文字列の最後の段（mock.patch("pkg.mod.Name") の Name）。ほかの文字列と注釈の中の語は入れない"""
+    out = set()
+    for n in ast.walk(node):
+        if isinstance(n, ast.Name):
+            out.add(n.id)
+        elif isinstance(n, ast.Attribute):
+            out.add(n.attr)
+        elif isinstance(n, (ast.arg, ast.keyword)):
+            out.add(n.arg or "")
+        elif isinstance(n, ast.alias):
+            out.update(n.name.split("."))
+            out.add(n.asname or "")
+        elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            out.add(n.name)
+        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and _DOTTED.fullmatch(n.value):
+            out.add(n.value.rsplit(".", 1)[-1])
+    out.discard("")
+    return out
+
+
+def test_names(src: str, path: str) -> dict[str, set[str]]:
+    """test_functions と同じ id → その関数（デコレータから本体の終わりまで）がコードで使う名（_code_names）。構文が読めない・
+    path が .py でなければ {}。純粋"""
+    tree = _parse_py(src, path)
+    return {tid: _code_names(node) for tid, node in _test_defs(tree, path)} if tree else {}
 
 
 def _naming_removes(item: dict, base_tests: dict) -> list[dict]:
     """項目 item の removes（消す名）の探す語（search_word）を、base_tests（パス → 修正前の版のテストのファイルの中身）の
-    テストの関数の本体から語の境で探し、当たった関数の行 {id, limit: "<パス>:<定義の行>"} を並びの順で返す。定義の行が引けない
-    関数（入れ子のクラスの中など）は並べない（許しを広げない）"""
-    words = [word_re(w) for w in map(search_word, item.get("removes") or []) if w]
+    テストの関数がコードの識別子（と点の付いたパスの文字列）として使う所（test_names）から探し、当たった関数の行
+    {id, limit: "<パス>:<定義の行>"} を並びの順で返す。文字列・注釈の中の同じ語は当たりにしない（ありふれた語で関わらないテストへ
+    許しを広げない）。定義の行が引けない関数（入れ子のクラスの中など）は並べない（許しを広げない）"""
+    words = {w for w in map(search_word, item.get("removes") or []) if w}
     out = []
     for path, text in (base_tests if words else {}).items():
-        for tid, body in test_functions(text, path).items():
-            line = line_in(text, tid) if any(w.search(body) for w in words) else None
+        for tid, names in test_names(text, path).items():
+            line = line_in(text, tid) if words & names else None
             if line:
                 out.append({"id": tid, "limit": f"{posixpath.normpath(path)}:{line}"})
     return out
@@ -729,7 +779,7 @@ def split(reply: dict, repo: pathlib.Path, *, base_tests: dict | None = None) ->
     （_declared: adds の name と、canonical が新設の無いモジュールを名指す行のパス）と、項目の removes の写し（波及の一覧が消す名を
     引く）と、rewrite_tests の各行の書き換えてよい範囲
     limit（"<パス>:<定義の行>"。引けない行には付けない）を足した物。gaps を通った返答に使う。
-    base_tests（パス → 修正前の版のテストのファイルの中身）を渡せば、項目の removes を本体で名指すテストの行 removes_tests
+    base_tests（パス → 修正前の版のテストのファイルの中身）を渡せば、項目の removes をコードの識別子として使うテストの行 removes_tests
     [{id, limit}] も足す（書き換え・消しを許すだけの行で、義務でない。作業ツリーでは消えたテストも修正前の版で探す）"""
     out, rows = marks.split("plan", NODE, reply, KEYS)
     items = out.get("plan") if isinstance(out, dict) else None
@@ -1039,7 +1089,7 @@ def rewrites(b) -> list[dict]:
 
 
 def removes_permits(b) -> list[dict]:
-    """今の周の承認済みの修正案の項目の removes（消す名）を本体で名指す既存のテストの並び {item, id, limit}（split が凍結した欄の
+    """今の周の承認済みの修正案の項目の removes（消す名）をコードで使う既存のテストの並び {item, id, limit}（split が凍結した欄の
     removes_tests。書き換え・消しを許すだけの行で、義務ではない）。rewrites と同じく frozen で読み（印と食い違えば FieldsBroken）、
     範囲 limit の無い行は並べない（許しを広げない）"""
     out = []
@@ -1086,14 +1136,34 @@ def unit_contract(fields: list | None, key: str) -> dict | None:
             "rewrites": list(rws), "refactor": refactor, "names": list(names)}
 
 
+def _json_block(v) -> str:
+    return f"```json\n{json.dumps(v, ensure_ascii=False, indent=1)}\n```"
+
+
+def _item_block(f: dict) -> str:
+    machine = {k: f[k] for k in MACHINE_KEYS if f.get(k)}
+    block = _json_block({k: v for k, v in f.items() if k not in MACHINE_KEYS})
+    return block + (f"\n\n{MACHINE_LABEL}\n\n{_json_block(machine)}" if machine else "")
+
+
+def machine_face_gaps(faces: list) -> list[str]:
+    """事前審査の穴 faces のうち、where が機械の足した欄（MACHINE_KEYS）を名指す block の誤りの行（受け付けが拒む。修正案の役が
+    直せない穴で案の往復を回さない）。suggest は往復を回さないので拒まない"""
+    return [f"faces[{j}]（{str(f.get('key'))[:40]}）: where が機械の足した欄 {k} を名指す block（修正案の役は直せない。"
+            f"許しが広すぎるなら removes を名指せ。そうでなければ suggest にせよ）"
+            for j, f in enumerate(faces) if f.get("severity") == "block"
+            for k in MACHINE_KEYS if word_re(k).search(str(f.get("where") or ""))]
+
+
 def review_section(b, notes=None) -> str:
-    """事前審査の役の指示書の頭に貼る節（"\\n\\n" で始まる）: 見る点の頼みと、項目ごとの欄の JSON。控えが無ければ空。
+    """事前審査の役の指示書の頭に貼る節（"\\n\\n" で始まる）: 見る点の頼みと、項目ごとの欄の JSON（機械の足した欄 MACHINE_KEYS は
+    役の書いた欄から外し、空でなければ MACHINE_LABEL の後に別の JSON で貼る）。控えが無ければ空。
     控えは frozen で読む（凍結の印と食い違えば FieldsBroken。読む側が盤面を止める）。notes は {世界の解の類の id: 依頼の解き方との
     比べの文}（呼び手が世界の解の行の住処から渡す）で、その類の外れの訳の尾に添える"""
     fields = frozen(b)
     if fields is None:
         return ""
-    rows = [f"{FIELDS_ITEM_HEAD.format(n=n)}\n\n```json\n{json.dumps(f, ensure_ascii=False, indent=1)}\n```" for n, f in enumerate(fields, 1)]
+    rows = [f"{FIELDS_ITEM_HEAD.format(n=n)}\n\n{_item_block(f)}" for n, f in enumerate(fields, 1)]
     devs = deviations(fields)
     head = ""
     if devs:

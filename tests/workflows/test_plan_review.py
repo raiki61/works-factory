@@ -949,6 +949,20 @@ class ReviewAcceptCase(RunCase):
                 self.assertFalse(got["ok"])
                 self.assertIn(word, got["reason"])
 
+    def test_block_on_machine_field_rejected(self):
+        """#549: where で機械の足した欄 removes_tests を名指す block は、修正案の役が直せないので受け付けが拒み、往復を控えない
+        （plan-converge で止まらない）。同じ穴の suggest は受ける"""
+        r = self.run_
+        self.prepped()
+        where = "修正案の項目 1 の works の removes_tests（13 件）"
+        got = r.accept(review(face("removes-tests-unrelated", kind="regression", where=where)))
+        self.assertFalse(got["ok"])
+        self.assertIn("removes_tests", got["reason"])
+        self.assertEqual(converge.read(r.view())["passes"], [])
+        got = r.accept(review(face("removes-tests-unrelated", kind="regression", severity="suggest", where=where)))
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(converge.read(r.view())["passes"][-1]["blocks"], [])
+
     def test_reply_by_number_is_named(self):
         """元 ScriptCase.test_plan_review_reply_by_number: unit_keys を no の整数で指してよく、受けた返答では単位の名に戻る"""
         self.prepped()
@@ -1053,6 +1067,19 @@ class ReviewAcceptCase(RunCase):
         for want in (planmarks.REVIEW_HEAD, planmarks.REVIEW_ASK, planmarks.FIELDS_ITEM_HEAD.format(n=1), '"route": "tdd"',
                      test["id"], "本物の経路: stats.mean を本物のまま呼ぶ", '"allowed_paths"'):
             self.assertIn(want, text)
+
+    def test_material_names_machine_permits(self):
+        """#549: 機械が足した許しの行 removes_tests は、役の書いた欄の JSON から外し、MACHINE_LABEL で名乗った別の JSON で貼る"""
+        r = self.run_
+        permit = {"id": "test_stats.py::TestStats::test_mean_of_three", "limit": "test_stats.py:8"}
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[{**fields(UNIT_MEAN), "removes_tests": [permit]}, fields(UNIT_CLAMP)])
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn("removes_tests", planmarks.REVIEW_ASK)
+        self.assertEqual(text.count(planmarks.MACHINE_LABEL), 1)
+        self.assertLess(text.index(planmarks.MACHINE_LABEL), text.index(permit["id"]))
+        self.assertLess(text.index(permit["id"]), text.index(planmarks.FIELDS_ITEM_HEAD.format(n=2)))
 
     def test_material_lists_deviations(self):
         """元 tests/test_blk_plan.py の test_plan_review_sees_deviations・test_world_deviation_listed_for_review: 欄 structure の外れの
