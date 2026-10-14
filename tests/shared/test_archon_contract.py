@@ -1,6 +1,6 @@
 """Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
-bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・test-gate の run.py が
-対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
+bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・tests/layers/scan.py の
+役の節の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -26,6 +26,7 @@ from lib import answer
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
 from tests.bin.gitkit import git
+from tests.layers import scan
 from tests.shared.test_boundary import boundary
 from tests.shared.test_fence import fence
 from tests.workflows import test_uv_scripts
@@ -147,6 +148,17 @@ def _exec_node_names(body: str) -> list[str]:
     return sorted(k for k in re.findall(r"^    (\w+):", body, re.M) if not k.startswith(_runner_vars()["RUNNER_PREFIXES"]))
 
 
+def _agent_guards(transform: str) -> list[str]:
+    """節の形を組む transform の if の分かれのうち kind: 'agent' を返す物の、照らす data の欄。
+    data.<欄> で始まらない分かれは、その if の行を値にして赤にする（新しい AI の節の形を黙って見落とさない）"""
+    guards = []
+    for branch in re.split(r"^    if \(", transform, flags=re.M):
+        if "kind: 'agent'" in branch:
+            field = re.match(r"data\.(\w+) !== undefined", branch)
+            guards.append(field[1] if field else branch.split("\n", 1)[0])
+    return sorted(guards)
+
+
 def _string_options(block: str) -> set[str]:
     return set(re.findall(r"^\s*'?([\w-]+)'?: \{ type: 'string'", block, re.M))
 
@@ -219,6 +231,9 @@ ARCHON_ROWS = (
     Row("入力の環境変数の鍵", lambda: re.search(r"入力は環境変数 (\w+)<UPPER_SNAKE>", boundary.__doc__)[1],
         "packages/workflows/src/schemas/dag-node.ts",
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
+    Row("AI の節（agent）の形を決める節の鍵（scan の役の節）", lambda: sorted(scan.ROLE_KINDS),
+        "packages/workflows/src/schemas/dag-node.ts",
+        r"^  \.transform\(\(data\): DagNode \| IncludeDirective => \{\n(.*?)^  \}\)", lambda m: _agent_guards(m[1])),
     Row("output_format で宣言した欄の null は空の解決（境の口は空の字を null と読む）", lambda: boundary.value("") is None,
         "packages/workflows/src/output-ref.ts",
         r"if \(paths !== undefined && \(value === undefined \|\| value === null\)\) return \{ kind: 'empty' \};",
