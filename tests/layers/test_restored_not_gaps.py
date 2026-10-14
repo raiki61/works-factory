@@ -10,33 +10,19 @@ import pathlib
 import re
 import unittest
 
+from tests.layers.test_capability_pointers import ROW_ID, row_fields
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-INVENTORY = ROOT / "docs" / "plans" / "2026-10-13-capabilities"
 NODES = ROOT / "docs" / "nodes.json"
 EVIDENCE = ROOT / "tests" / "e2e" / "evidence.json"
-ROW_ID = r"(?:L-[EGWD]|[A-Z])\d+[a-z]?"
-ROW = re.compile(rf"^- ({ROW_ID})[ 〔]")
-FIELD = re.compile(r"^  - ([^:：（(\s]+)")
 RESTORED = re.compile(r"→[^→]*で戻した")
 # 日本語の字は \w に入るので、ID の前後は ASCII の字で区切る
 MENTION = re.compile(rf"(?<![A-Za-z0-9-])({ROW_ID})(?![A-Za-z0-9])")
 
 
-def restored_ids(folder: pathlib.Path = INVENTORY) -> set[str]:
+def restored_ids() -> set[str]:
     """棚卸しの行のうち、「狭め」の欄（4 字下げの続きの行を含む）に「→ … で戻した」が在る行の ID"""
-    found = set()
-    for md in sorted(folder.glob("*.md")):
-        row = field = None
-        for line in md.read_text(encoding="utf-8").splitlines():
-            if head := FIELD.match(line):
-                field = head.group(1)
-            elif not line.startswith("    "):
-                field = None
-                if line.strip():
-                    row = head.group(1) if (head := ROW.match(line)) else None
-            if row and field == "狭め" and RESTORED.search(line):
-                found.add(row)
-    return found
+    return {row for _, row, text in row_fields(("狭め",)) if row and RESTORED.search(text)}
 
 
 def gaps(node, where: str = ""):
