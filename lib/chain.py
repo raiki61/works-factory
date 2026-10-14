@@ -53,7 +53,7 @@ STOPS = {
     "budget": "次の周で費用の上限を越えうる",
     "cost_unread": "費用が読めない周が在り、上限を守れると言えない",
 }
-REPORT, FINAL = "chain.md", "final.diff"
+REPORT, FINAL = "chain.md", "chain/final.diff"   # 親の run の置き場からの相対（bin/apply も引く）
 REPORT_HEAD = promptsection.Section("# 周の鎖の報告（run {run}）", human="人が読む鎖の報告 chain.md の見出し。役の指示書には貼らない")
 ROUNDS = re.compile(r"[1-9][0-9]*")
 BUDGET = re.compile(r"[0-9]+(\.[0-9]+)?|\.[0-9]+")
