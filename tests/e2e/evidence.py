@@ -101,7 +101,8 @@ def collect(attempt: Path, run_id: str, shell: Path = SHELL) -> dict:
     out = fresh(attempt)
     kids = children(runs(attempt, shell), run_id)
     limits = []
-    for name, rid in [("parent", run_id), *((f"child-{n}", kid) for n, kid in enumerate(kids, 1))]:
+    named = [("parent", run_id), *((f"child-{n}", kid) for n, kid in enumerate(kids, 1))]
+    for name, rid in named:
         record = read_json(attempt, "get", rid, "--json", "--verbose", shell=shell)
         (out / "record" / f"{name}.json").write_text(json.dumps(record, ensure_ascii=False, indent=1) + "\n",
                                                      encoding="utf-8")
@@ -110,7 +111,7 @@ def collect(attempt: Path, run_id: str, shell: Path = SHELL) -> dict:
             shutil.copytree(root, out / name, symlinks=True)
         else:
             limits.append(f"run {rid} の置き場（{root}）が無い")
-    return {"run": run_id, "children": kids, "limits": limits}
+    return {"run": run_id, "children": kids, "named": named, "limits": limits}
 
 
 def judge(evidence: Path, rule: dict) -> tuple[str, str]:

@@ -1,0 +1,29 @@
+{
+ "findings": [
+  {
+   "skill": "a",
+   "items": [
+    {
+     "where": "stats.py:9",
+     "text": "mean() が sum(xs) / (len(xs) - 1) を返し、算術平均ではない。mean([1,2,3]) は 2.0 でなく 3.0 になり、test_stats.py の test_mean_of_three が 3.0 != 2.0 で失敗する(fork が実行して確認)。README の `python3 stats.py 1 2 3` の出力例 2.0 とも合わない。",
+     "mechanism": "n-1 はベッセル補正で、分散・標準偏差の分母に使う。平均の分母は n で、n-1 にすると結果が n/(n-1) 倍になる。"
+    },
+    {
+     "where": "README.md:16",
+     "text": "README の使用例 `python3 stats.py 1 2 3` の出力 2.0 が、変更後は 3.0 になり食い違う。test_stats.py:1 は主経路を試験しないと明記しており、試験では捕まらない利用者向けの症状。",
+     "mechanism": "stats.py:46 の主経路が変更後の mean を呼ぶ。"
+    }
+   ]
+  },
+  {
+   "skill": "b",
+   "items": [
+    {
+     "where": "stats.py:500",
+     "text": "mean([x]) の試験が無く、新しい分母を固定する試験も足されていない。差分は試験を変えず、既存の 1 件が赤になるだけで、n=1 の退行は見逃される。",
+     "mechanism": "試験が [1,2,3] の 1 件だけで、n=1 の経路を通る試験が無い。"
+    }
+   ]
+  }
+ ]
+}

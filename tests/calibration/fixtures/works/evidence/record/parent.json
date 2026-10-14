@@ -1,0 +1,58 @@
+{
+ "run": {
+  "workflow_name": "darkfactory",
+  "completed_at": "2026-10-12 08:55:17"
+ },
+ "events": [
+  {
+   "event_type": "workflow_started",
+   "step_name": "",
+   "data": {},
+   "created_at": "2026-10-12 08:33:39"
+  },
+  {
+   "event_type": "node_completed",
+   "step_name": "judging__judge-loop.judge",
+   "data": {
+    "timing": {
+     "startedAt": "2026-10-12T08:36:45.010Z",
+     "durationMs": 118466
+    },
+    "spend": {
+     "costUsd": {
+      "source": "provider",
+      "value": 0.6619757
+     }
+    },
+    "node_output": "{\"units\": [{\"key\": \"stats.py mean: 分母が len(xs) - 1 で算術平均を返さず要素 1 個で ZeroDivisionError\"}]}"
+   },
+   "created_at": "2026-10-12 08:38:43"
+  },
+  {
+   "event_type": "node_completed",
+   "step_name": "gathering__local-review-loop.local-review",
+   "data": {
+    "timing": {
+     "startedAt": "2026-10-12T08:34:44.212Z",
+     "durationMs": 118571
+    },
+    "spend": {
+     "costUsd": {
+      "source": "provider",
+      "value": 1.2119235
+     }
+    },
+    "node_output": "{\"items\": [{\"text\": \"mean() が sum(xs) / (len(xs) - 1) を返し、算術平均ではない。mean([1,2,3]) は 2.0 でなく 3.0 になり、test_stats.py の test_mean_of_three が 3.0 != 2.0 で失敗する(fork が実行して確認)。README の `python3 stats.py 1 2 3` の出力例 2.0 とも合わない。\"}, {\"text\": \"README の使用例 `python3 stats.py 1 2 3` の出力 2.0 が、変更後は 3.0 になり食い違う。test_stats.py:1 は主経路を試験しないと明記しており、試験では捕まらない利用者向けの症状。\"}]}"
+   },
+   "created_at": "2026-10-12 08:36:42"
+  },
+  {
+   "event_type": "workflow_completed",
+   "step_name": "",
+   "data": {
+    "cost_usd": 12.5
+   },
+   "created_at": "2026-10-12 08:55:17"
+  }
+ ]
+}

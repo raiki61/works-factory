@@ -1,0 +1,15 @@
+{
+ "repo": "https://github.com/AA-Factory/aafactory-prototype",
+ "pr_number": 17,
+ "pr_url": "https://github.com/AA-Factory/aafactory-prototype/pull/17",
+ "base": "e7f558c7360abac335af2df22f4ed376992b30ab",
+ "head": "a1978cb75950a879df8805e4a5f373eb6678f6f9",
+ "title": "Mock test single avatar interaction with elevenlabs and zonos",
+ "body": "I'm addressing the issue: https://github.com/Reekomer/aafactory/issues/7\r\nIn this PR im adressing only the first point, which is to mock the chat interaction.\r\n\r\nSo I've created a test for single avatar interaction using pytest-mock.\r\nIt is running two tests, one for elevenLabs and one for zonos.\r\nMore over i make sure to clear chat history before every test.\r\nI added \"print\" statements for better debugging too.\r\nLocally the test is passing.\r\n\r\nNote: I meant to create a PR within the [branch of the original issue. ](https://github.com/Reekomer/aafactory/tree/7-the-chat-history-doesnt-reset-when-loading-new-avatar) but messed up somewhere. Let me know if this is ok, or i should delete this and create a new PR.",
+ "nwo": "AA-Factory/aafactory-prototype",
+ "language": "Python",
+ "repo_size_kb": 2162,
+ "lines_added": 45,
+ "lines_removed": 0,
+ "files_changed": 1
+}

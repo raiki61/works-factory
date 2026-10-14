@@ -1,8 +1,7 @@
-"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「今」と「証」と、較正の旗の表（tests/calibration/flags.json）の
-works-factory の節の why・never が、行番号でなく名で指し、その名が main に在る（#220・#315）。
+"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「今」と「証」が、行番号でなく名で指し、その名が main に在る（#220・#315）。
 
 指しの形は棚卸しの README.md の「指しの形」: 今は `path::名`（関数・クラス・定数・`クラス.名`。YAML は節の id）、証は
-`path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行までずれるので書かない。「元」と旗の表の works の節は
+`path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行までずれるので書かない。「元」は
 版を止めた今の works の `file:line` でずれないので照らさない。「要追加」から文の終わり（「。」か行の終わり）までの名は、まだ無い名
 なので照らさない。
 
@@ -17,7 +16,6 @@ import pathlib
 import re
 import unittest
 
-from tests.calibration import run as calibration
 from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -39,8 +37,6 @@ FIELD_FLOOR = {
           "tail.md": 470},
     "今の機械": {"pitfalls.md": 70},
 }
-FLAG_FIELDS = ("why", "never")
-FLAG_FLOOR = 70
 TAIL = INVENTORY / "tail.md"
 ROW = re.compile(r"^- ([TERM]\d+b?) ")
 AREA_HOLES = re.compile(r"^### ([TERM]) の穴")
@@ -80,20 +76,14 @@ def pointing_fields() -> list[tuple[str, str]]:
     return [(where, text) for where, _, text in row_fields()]
 
 
-def flag_fields() -> list[tuple[str, str]]:
-    """(flags.json:旗, 欄の字)。旗の表の works-factory の節の why・never"""
-    table = calibration.load_flags()[calibration.WorksFactory.name]
-    return [(f"{calibration.FLAGS.name}:{gate}", entry[f]) for gate, entry in table.items() for f in FLAG_FIELDS if f in entry]
-
-
 def present(text: str) -> str:
     """「要追加」の文（まだ無い名）を外した字"""
     return NOT_YET.sub("", text)
 
 
 def present_tense() -> list[tuple[str, str]]:
-    """(どこ, 字)。棚卸しの欄は「要追加」の文を外し、旗の欄はそのまま"""
-    return [(where, present(text)) for where, text in pointing_fields()] + flag_fields()
+    """(どこ, 字)。棚卸しの欄から「要追加」の文を外した物"""
+    return [(where, present(text)) for where, text in pointing_fields()]
 
 
 def pointers() -> list[tuple[str, str, str]]:
@@ -195,11 +185,8 @@ class PointerCase(unittest.TestCase):
         text = "  - 証: a/b.py::Now。後は要追加: a/c.py::Later — まだ無い。今の形: a/d.py::Kept\n    a/e.py::Next"
         self.assertEqual(POINTER.findall(present(text)), [("a/b.py", "Now"), ("a/d.py", "Kept"), ("a/e.py", "Next")])
 
-    def test_reads_the_flags(self):
-        self.assertGreaterEqual(len([where for where, _, _ in pointers() if where.startswith(f"{calibration.FLAGS.name}:")]), FLAG_FLOOR)
-
     def test_current_and_evidence_carry_no_line_numbers(self):
-        found = [f"{where}: {line.strip()}" for where, text in pointing_fields() + flag_fields()
+        found = [f"{where}: {line.strip()}" for where, text in pointing_fields()
                  for line in text.splitlines() if LINE_NUMBER.search(line)]
         self.assertEqual(found, [])
 
