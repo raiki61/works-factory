@@ -599,14 +599,13 @@ class FixInCase(Artifacts):
 
     def test_live_run_flattens_the_receivers_and_captures_once_it_goes(self):
         got = self.run_in(before_fix_go="true")
-        self.assertEqual((got["go"], got["from_fixture"], got["received"]), (True, False, None))
+        self.assertEqual((got["go"], got["received"]), (True, None))
         self.assertEqual((got["baseline"], got["units"], got["plan"], got["review"], got["answer"], got["deferred"]),
                          (self.BASE["baseline"], self.JUDGE["units"], self.PLAN["plan"], self.REVIEW["review"], self.ANSWER,
                           [{"key": "q9"}]))
         man = json.loads((self.artifacts / fixture.DIR / fixture.MANIFEST).read_text(encoding="utf-8"))
         self.assertEqual(man["carried"], {"test_gate_base": self.BASE, "judge": self.JUDGE, "plan": self.PLAN,
                                           "plan_review": self.REVIEW, "gate_before_fix": self.ANSWER, "deferred": [{"key": "q9"}]})
-        self.assertEqual(set(man["carried"]), set(fix_in.RECEIVED))
 
     def test_live_run_that_does_not_go_does_not_capture(self):
         got = self.run_in(before_fix_go="false")
@@ -619,7 +618,7 @@ class FixInCase(Artifacts):
         (self.artifacts / fixture.CARRIED).write_text(json.dumps(received), encoding="utf-8")
         pointer = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": fixture.CARRIED})
         got = self.run_in(fixture=pointer, start_go="true", before_fix_go="null", test_gate_base="null", judge="null")
-        self.assertEqual((got["go"], got["from_fixture"], got["received"]), (True, True, received))
+        self.assertEqual((got["go"], got["received"]), (True, received))
         self.assertEqual((got["units"], got["judgment"], got["answer"]), (self.JUDGE["units"], self.JUDGE["judgment"], self.ANSWER))
         self.assertFalse((self.artifacts / fixture.DIR).exists(), "固定材料から始めた run は写さない")
         self.assertIs(self.run_in(fixture=pointer, start_go="false")["go"], False)
@@ -632,8 +631,7 @@ class FixInCase(Artifacts):
 
     def test_received_names_are_the_collect_fields(self):
         """運ぶ値の欄は collect の欄の名と同じ（固定材料の形を変える PR は lib/fixture.py の FORMAT を上げる）"""
-        self.assertEqual(fix_in.RECEIVED, collect.CARRIED)
-        self.assertLessEqual(set(fix_in.RECEIVED), set(line_nodes()["collect"]["output_format"]["required"]))
+        self.assertLessEqual(set(fix_in.received_live({})), set(line_nodes()["collect"]["output_format"]["required"]))
         self.assertEqual(fixture.FORMAT, 1)
 
 
@@ -2140,11 +2138,11 @@ class CollectAndResultCase(unittest.TestCase):
         （報告の結末の決めは判定と計画の出力が無いと途中で終わった run と読む）。ほかの run の値は替えない"""
         received = {"test_gate_base": {"ok": True}, "judge": {"ready": True}, "plan": {"ready": True}, "plan_review": {"pass": True},
                     "gate_before_fix": {"decision": "continue"}, "deferred": [{"key": "q9"}]}
-        relay = json.dumps({"from_fixture": True, "received": received})
+        relay = json.dumps({"received": received})
         got = collect.collect({"judge": "null", "plan": "null"}, self.line(fix_in=relay))
-        self.assertEqual({name: got[name] for name in collect.CARRIED}, received)
+        self.assertEqual({name: got[name] for name in received}, received)
         live = json.dumps({"got": {"ready": False}, "stop_reason": ""})
-        got = collect.collect({"judge": live}, self.line(fix_in=json.dumps({"from_fixture": False, "received": None})))
+        got = collect.collect({"judge": live}, self.line(fix_in=json.dumps({"received": None})))
         self.assertEqual((got["judge"], got["plan"], got["deferred"]), ({"ready": False}, None, []))
 
     def test_no_fix_design_is_the_plan_review(self):

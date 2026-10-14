@@ -78,11 +78,6 @@ class CaptureCase(Fixture):
         self.assertEqual(fixture.capture(self.place, self.repo, run_id="other", carried={}), man, "2 度目は書き直さずに返す")
         self.assertEqual((dest / fixture.MANIFEST).read_bytes(), before)
 
-    def test_adopted_place_is_not_captured(self):
-        startrec.write(self.place, {**startrec.read(self.place), fixture.KEY: {"source_run": "x"}})
-        self.assertIsNone(fixture.capture(self.place, self.repo, run_id=OLD, carried={}))
-        self.assertFalse((self.place / fixture.DIR).exists())
-
     def test_noted_capture_records_the_folder_or_why_not(self):
         fixture.noted_capture(self.place, self.repo, run_id=OLD, carried=self.carried)
         self.assertEqual(startrec.read(self.place)[fixture.CAPTURED_KEY], {"dir": str(self.place / fixture.DIR), "error": ""})
@@ -104,7 +99,7 @@ class AdoptCase(Fixture):
         self.assertEqual((doc["run_id"], doc["base_rev"], doc["inputs"]["fix_fixture"]), (NEW, new_head, str(src)))
         self.assertEqual(doc["policy"]["copy"], str(place / "policy" / "copy.md"))
         self.assertEqual(doc[fixture.KEY]["source_run"], OLD)
-        self.assertEqual(fixture.adopted(place), None, "始めの記録を書くのは呼び手")
+        self.assertNotIn(fixture.KEY, startrec.read(place), "始めの記録を書くのは呼び手")
         judgment = json.loads((place / "judge" / "judgment.json").read_text(encoding="utf-8"))
         self.assertEqual(judgment, {"self": ptr(NEW, "judge/judgment.json"), "repo": str(other / "a.txt"), "head": new_head})
         self.assertEqual((place / "judge" / "blob.bin").read_bytes(), b"\xff\xfe", "UTF-8 で読めないファイルはそのまま")

@@ -420,7 +420,6 @@ nodes:
       type: object
       properties:
         go: { type: boolean }
-        from_fixture: { type: boolean }
         baseline: {}
         units: {}
         judgment: {}
@@ -439,7 +438,7 @@ nodes:
         deferred: { type: array }
         received: { type: [object, "null"] }
         stop_reason: { type: string }
-      required: [go, from_fixture, baseline, units, judgment, purpose, world, spec, rejudge_verdict, plan, ripple, depth, structure,
+      required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, plan, ripple, depth, structure,
                  review, design, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,

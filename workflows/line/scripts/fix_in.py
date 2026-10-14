@@ -26,8 +26,6 @@ import boundary  # noqa: E402
 with boundary.guarded_imports():
     import fixture
 
-# 運ぶ値の欄。collect の欄の名と同じ（tests/workflows/test_line.py が縛る）。欄を変える時は lib/fixture.py の FORMAT を上げる
-RECEIVED = ("test_gate_base", "judge", "plan", "plan_review", "gate_before_fix", "deferred")
 # 平らな欄 ← (運ぶ値の欄, 受け皿の got の欄)
 FLAT = {"baseline": ("test_gate_base", "baseline"),
         **{name: ("judge", name) for name in ("units", "judgment", "purpose", "world", "spec", "rejudge_verdict")},
@@ -42,6 +40,7 @@ def got(raw) -> dict | None:
 
 
 def received_live(env) -> dict:
+    """運ぶ値。鍵は collect の欄の名（collect はこの鍵で埋める）。欄を変える時は lib/fixture.py の FORMAT を上げる"""
     return {"test_gate_base": got(env.get("INPUTS_TEST_GATE_BASE")), "judge": got(env.get("INPUTS_JUDGE")),
             "plan": got(env.get("INPUTS_PLAN")), "plan_review": got(env.get("INPUTS_PLAN_REVIEW")),
             "gate_before_fix": boundary.value(env.get("INPUTS_BEFORE_FIX_ANSWER")),
@@ -59,15 +58,15 @@ def fix_in(env, place: Path, repo: Path, run_id: str) -> dict:
                                      boundary.flag(env.get("INPUTS_BEFORE_FIX_GO")))
     if carried is not None:
         received = json.loads(carried.read_text(encoding="utf-8"))
-        return {**flat(received), "go": start_go, "from_fixture": True, "received": received, "stop_reason": ""}
+        return {**flat(received), "go": start_go, "received": received, "stop_reason": ""}
     received, go = live, before_fix_go
     if go:
         fixture.noted_capture(place, repo, run_id=run_id, carried=received)
-    return {**flat(received), "go": go, "from_fixture": False, "received": None, "stop_reason": ""}
+    return {**flat(received), "go": go, "received": None, "stop_reason": ""}
 
 
 def fallback(reason: str) -> dict:
-    return {**{name: None for name in FLAT}, "answer": None, "deferred": [], "go": False, "from_fixture": False, "received": None,
+    return {**{name: None for name in FLAT}, "answer": None, "deferred": [], "go": False, "received": None,
             "stop_reason": boundary.LINE_SCRIPT}
 
 

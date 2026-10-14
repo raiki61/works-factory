@@ -20,11 +20,9 @@
 
 口:
 - capture(place, repo, *, run_id, carried): 固定材料を作って控えを返す。控えが既に在れば何も書かずにそれを返す。
-  固定材料から始めた置き場（adopted が在る）は写さずに None
 - noted_capture(place, repo, *, run_id, carried): capture の結果を始めの記録の CAPTURED_KEY {dir, error} に書く。落ちない
 - adopt(place, src, repo, *, run_id, inputs, request_text): 固定材料 src を place へ取り込み、(書き換えた始めの記録, 書き換えた
   carried) を返す。carried は place の CARRIED にも置く。合わなければ FixtureRefused（何が違うかを名指す 1 行）。拒む時は何も書かない
-- adopted(place): 固定材料から始めた置き場なら始めの記録の KEY の欄 {source_run, manifest_sha256, at}、でなければ None
 - lines(doc): 始めの記録 doc の固定材料の行（取り込んだ run・写した run。起動の承認ノードの文と報告の入口が同じ字を出す）
 """
 from __future__ import annotations
@@ -118,25 +116,17 @@ def _write_json(path: pathlib.Path, doc) -> None:
     os.replace(tmp, path)
 
 
-def adopted(place) -> dict | None:
-    """固定材料から始めた置き場なら始めの記録の KEY の欄（object の時だけ）、でなければ None"""
-    mark = startrec.read(place).get(KEY)
-    return mark if isinstance(mark, dict) else None
-
-
 def _request_sha(place: pathlib.Path) -> str:
     """始めの記録の依頼のファイルの文の sha256（取り込む側は start が読んだ依頼の文で同じ式を引く）。依頼が無ければ空の文の sha256"""
     named = startrec.request_file(startrec.read(place))
     return _sha((pathlib.Path(named).read_text(encoding="utf-8") if named else "").encode("utf-8"))
 
 
-def capture(place, repo, *, run_id: str, carried) -> dict | None:
+def capture(place, repo, *, run_id: str, carried) -> dict:
     """run の置き場 place を place/DIR/COPY へ写し（DIR を除く）、MANIFEST を書いて返す。MANIFEST が既に在れば書き直さずに返す。
-    固定材料から始めた置き場は写さずに None。写しの途中で落ちた残り（MANIFEST の無い DIR）は消して写し直す。控えは最後に置く
+    写しの途中で落ちた残り（MANIFEST の無い DIR）は消して写し直す。控えは最後に置く
     （控えが在れば写しは揃っている）"""
     given = pathlib.Path(place)
-    if adopted(given) is not None:
-        return None
     dest = given / DIR
     man_path = dest / MANIFEST
     if man_path.is_file():
@@ -157,11 +147,9 @@ def capture(place, repo, *, run_id: str, carried) -> dict | None:
 
 def noted_capture(place, repo, *, run_id: str, carried) -> None:
     """capture を呼び、写したフォルダか写せなかった訳を始めの記録の CAPTURED_KEY {dir, error} に書く。写せなくても落ちない
-    （固定材料は比べるための道具で、run を止める訳にしない）。固定材料から始めた置き場と始めの記録の無い置き場は何も書かない"""
+    （固定材料は比べるための道具で、run を止める訳にしない）。始めの記録の無い置き場は何も書かない"""
     try:
-        man = capture(place, repo, run_id=run_id, carried=carried)
-        if man is None:
-            return
+        capture(place, repo, run_id=run_id, carried=carried)
         note = {"dir": str(pathlib.Path(place) / DIR), "error": ""}
     except (OSError, ValueError) as e:
         note = {"dir": "", "error": " ".join(f"{type(e).__name__}: {e}".split())}

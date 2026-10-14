@@ -13,7 +13,7 @@ null の方（plan-review が飛ばされた周で抜けた往復）は null。�
 fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（申し出は段ごとのポインタの配列。report の約束の fix の形）。fixed が
 飛ばされた（2 度目の修正の中が落ちた）時は 1 回目の出力。2 度目の修正の段の行（refixed・2 度目の異議をつないだ objection・1 回目の行を
 写した 2 度目の申し出）も fixed の出力が運ぶ。
-固定材料から始めた run（fix-in の from_fixture が真）は直す前のテスト・判定・計画の往復・修正前の承認が飛ぶので、その受け皿と
+固定材料から始めた run（fix-in の received が在る）は直す前のテスト・判定・計画の往復・修正前の承認が飛ぶので、その受け皿と
 承認の答え・載せなかった問いの空の所を、fix-in が運んだ写しの値（received）で埋める（報告の結末の決めは判定と計画の出力が無いと
 途中で終わった run と読む）。
 
@@ -52,8 +52,6 @@ STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in
 LISTS = ("deferred", "widened", "final_reasons", "optional")
 VALUES = ("prior_failures", "redepth")
 LINE_SCRIPT = "works:line-script"
-# 固定材料の run で写しの値で埋める欄（fix-in の received の欄の名と同じ）
-CARRIED = ("test_gate_base", "judge", "plan", "plan_review", "gate_before_fix", "deferred")
 
 
 def filled(got: dict | None) -> dict | None:
@@ -63,8 +61,8 @@ def filled(got: dict | None) -> dict | None:
 def carried(fix_in) -> dict:
     """固定材料の run の写しの値（fix-in の received）。ほかの run と飛んだ fix-in は空"""
     got = boundary.value(fix_in)
-    received = got.get("received") if isinstance(got, dict) and got.get("from_fixture") is True else None
-    return {name: received.get(name) for name in CARRIED} if isinstance(received, dict) else {}
+    received = got.get("received") if isinstance(got, dict) else None
+    return received if isinstance(received, dict) else {}
 
 
 def collect(received: dict, line: dict) -> dict:
@@ -83,7 +81,7 @@ def collect(received: dict, line: dict) -> dict:
         **{name: boundary.items(line.get(name)) for name in LISTS},
         **{name: boundary.value(line.get(name)) for name in VALUES},
     }
-    return {**out, **{name: value for name, value in carried(line.get("fix_in")).items() if not out[name]}}
+    return {**out, **{name: value for name, value in carried(line.get("fix_in")).items() if name in out and not out[name]}}
 
 
 def received_of_env() -> dict:
