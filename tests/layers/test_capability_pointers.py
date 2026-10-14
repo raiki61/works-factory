@@ -8,7 +8,7 @@ docs/works-parity.md の 1 か所だけを直す（その名は tests/layers/tes
 
 tail.md の各領域の穴の「数」と末尾の「穴の要約」は、README.md の「穴の数え方」のとおり行の欄から数えた今の値で、要約は各領域の
 数の足し算（#336・#339）。狭めの並びは欄を読んで人が選ぶので、数と並びの長さ・並びの ID がその領域の行に在ること・
-要約の足し算だけを照らす。
+要約の足し算だけを照らす。並びに戻した行が残る事は tests/layers/test_restored_not_gaps.py が照らす（#349）。
 """
 import ast
 import collections
@@ -204,6 +204,11 @@ def hole_counts() -> tuple[dict[str, dict[str, tuple[int, str]]], dict[str, tupl
     return areas, summary
 
 
+def listed_ids(listed: str) -> list[str]:
+    """領域の数の括弧の中を行の ID に分けたもの"""
+    return listed.split("・") if listed else []
+
+
 class PointerCase(unittest.TestCase):
     def test_reads_every_pointing_field(self):
         read = collections.Counter((field, where.split(":")[0]) for where, text in pointing_fields()
@@ -267,7 +272,7 @@ class PointerCase(unittest.TestCase):
                 for name, (number, listed) in counts.items():
                     if name == TOTAL:
                         continue
-                    ids = listed.split("・") if listed else []
+                    ids = listed_ids(listed)
                     self.assertEqual(number, len(ids), name)
                     self.assertLessEqual(set(ids), {key for key in rows if key[0] == area}, name)
                     if name in COUNTED:
