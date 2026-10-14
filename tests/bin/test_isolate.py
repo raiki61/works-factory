@@ -15,7 +15,7 @@ if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
 import isolate  # noqa: E402
-import tree_run  # noqa: E402
+import userenv  # noqa: E402
 
 ISOLATED = {"HOME", "ARCHON_HOME", "CLAUDE_CONFIG_DIR", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"}
 
@@ -49,13 +49,14 @@ class IsolateCase(unittest.TestCase):
         self.assertEqual((child["PATH"], child["LANG"]), ("/usr/bin", "ja_JP.UTF-8"))
         self.assertEqual(env, {"HOME": "/u", "PATH": "/usr/bin", "LANG": "ja_JP.UTF-8"})
 
-    def test_users_home_and_xdg_are_recorded_for_target_commands(self):
-        """隔離の前の HOME・XDG_* を USER_ENV に控える（無い名は null）。Archon と Claude Code の置き場は控えない"""
-        env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c", "ARCHON_HOME": "/u/.a"}
-        record = json.loads(isolate.isolate(env, self.run_home)[isolate.USER_ENV])
-        self.assertEqual(record, {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "XDG_DATA_HOME": None,
-                                  "XDG_CACHE_HOME": None, "XDG_STATE_HOME": None})
-        self.assertEqual(isolate.USER_ENV, tree_run.USER_ENV)
+    def test_users_home_and_xdg_are_recorded_only_when_asked(self):
+        """#492: 既定は控えず（利用者の env から継いだ古い控えも落とす）、userenv.OPT_IN=1 の時だけ隔離の前の HOME・XDG_* を控える。
+        控える名は、隔離する名から Archon と Claude Code の置き場を除いた物"""
+        env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c", userenv.RECORD: "stale"}
+        self.assertNotIn(userenv.RECORD, isolate.isolate(env, self.run_home))
+        record = json.loads(isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home)[userenv.RECORD])
+        self.assertEqual(record["HOME"], "/u")
+        self.assertEqual(set(userenv.NAMES), set(isolate.DIRS) - {"ARCHON_HOME", "CLAUDE_CONFIG_DIR"})
 
     def test_relative_run_home_is_refused(self):
         """相対の置き場は cd した子で別の所を指すので、何も作らずに止める"""
