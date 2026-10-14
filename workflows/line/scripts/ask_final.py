@@ -71,7 +71,7 @@ def tests_word(got: dict) -> str:
     if ok and green:
         return "緑"
     cause = f"（{red_cause}）" if red_cause else ""
-    note = green_cert.ran_note(green=green, red_cause=red_cause, by=got["tests"]["by"])
+    note = green_cert.ran_note(green=green, red_cause=red_cause, by=got["tests"]["by"], steps=got["ran_steps"])
     return ("赤" if ok else "認証できなかった") + cause + (f"——{note}" if note else "")
 
 
@@ -531,6 +531,7 @@ def got_of_env() -> dict:
         "tests_ok": boundary.flag(os.environ.get("INPUTS_TESTS_OK")),
         "green": boundary.flag(os.environ.get("INPUTS_GREEN")),
         "red_cause": boundary.text(os.environ.get("INPUTS_RED_CAUSE")),
+        "ran_steps": env("RAN_STEPS"),
         "tests": final_tests(),
         "worktree": str(Path.cwd().resolve()),
         "base_rev": str((start or {}).get("base_rev") or ""),

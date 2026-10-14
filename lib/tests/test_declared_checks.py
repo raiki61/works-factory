@@ -824,6 +824,18 @@ class MaterialProblemsCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.problems({"status": "clean", "checked": "x"}, "middle")
 
+    def test_role_final_not_run_names_its_systems(self):
+        """#514: 任せ先の役の final の not_run は、走らせた系統と走らせられなかった系統の名の分け（systems）が要る。engine の素材と
+        base の awaiting_human には要らない"""
+        bare = {"status": "not_run", "reason": "e2e は実機が要る"}
+        self.assertIn("systems", " ".join(dc.role_material_problems(bare, mode="final")))
+        self.assertEqual(self.problems(bare, "final"), [])
+        self.assertIn("unran", " ".join(dc.role_material_problems({**bare, "systems": {"ran": ["unit"], "unran": []}}, mode="final")))
+        self.assertIn("systems.ran", " ".join(dc.role_material_problems({**bare, "systems": {"ran": "unit", "unran": ["e2e"]}},
+                                                                        mode="final")))
+        self.assertEqual(dc.role_material_problems({**bare, "systems": {"ran": ["unit"], "unran": ["e2e"]}}, mode="final"), [])
+        self.assertEqual(dc.role_material_problems({"status": "awaiting_human", "reason": "r"}, mode="base"), [])
+
 
 class BaselineLineCase(unittest.TestCase):
     """修正前のテストの行（元 entry.baseline_line。元 test_report_head.py の HeadBaselineCase・test_baseline_*、test_ci_test_cmd.py の

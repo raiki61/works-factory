@@ -5736,7 +5736,7 @@
       "nodes": [
         "workflows/test-gate/works-factory-test-gate.yaml#ci"
       ],
-      "output_format_sha256": "9038a93a8941ae724a71073ebc37a29ae822168fa5289a5ef173e84093288fcb",
+      "output_format_sha256": "8b16ca94953191c0430b052d41be0757464b134dcb4f2b68623b38142cd43c38",
       "json_keys": [
         "material"
       ]
