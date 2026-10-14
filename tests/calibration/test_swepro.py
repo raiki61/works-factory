@@ -483,7 +483,8 @@ class TallyTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(done.stdout), {"producers": ["works-factory"], "tasks": 4, "stopped": 2, "failed": 1,
                                                    "over_pro_limit": 1, "empty_patch": 2, "unmeasured_seconds": 1, "usd": 3.0,
-                                                   "usd_missing": 2, "trials": 4, "exceptions": []})
+                                                   "usd_missing": 2, "trials": 4, "exceptions": [],
+                                                   "unaccounted": []})
         (job / "t4" / "agent").mkdir(parents=True)
         (job / "t4" / "agent" / swepro.PREDICTION).write_text("{", encoding="utf-8")
         done = subprocess.run([sys.executable, str(HERE / "swepro.py"), "tally", str(job)], capture_output=True, text=True,
@@ -505,6 +506,29 @@ class TallyTest(unittest.TestCase):
         self.assertIn("全 2 試行が例外", done.stderr)
         for name in ("a__1", "b__2"):
             self.assertIn(f"{name}: RuntimeError: setup の apt が落ちた: {name} E: 無い", done.stderr)
+
+    def test_all_trials_raised_after_predicting_still_fails(self):
+        job = hermetic.tmpdir(self)
+        for name in ("a__1", "b__2"):
+            self.trial(job, name, {"exception_type": "RuntimeError", "exception_message": "起こし役が落ちた"})
+            self.predict(job, name, failed=True)
+        done = self.tally(job)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual((got["tasks"], got["trials"], got["failed"]), (2, 2, 2))
+        self.assertIn("全 2 試行が例外", done.stderr)
+
+    def test_trials_with_neither_prediction_nor_exception_fail(self):
+        job = hermetic.tmpdir(self)
+        for name in ("a__1", "b__2"):
+            self.trial(job, name)
+        done = self.tally(job)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual((got["tasks"], got["trials"], got["failed"], got["unaccounted"]), (0, 2, 2, ["a__1", "b__2"]))
+        self.assertIn("全 2 試行が測れていない", done.stderr)
+        for name in ("a__1", "b__2"):
+            self.assertIn(f"{name}: 予測も exception_info も無い", done.stderr)
 
     def test_a_predicted_failure_is_counted_once_and_a_measured_job_passes(self):
         job = hermetic.tmpdir(self)

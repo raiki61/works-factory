@@ -24,7 +24,8 @@ docker_image をそれに替える。Harbor は docker_image の在る課題を 
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら終わった run の封じた差分を
 bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json に書く。殻は /app の差分を model.patch に取り
 （capture_command）、起こし役の標準出力と予測を <試み>/agent/ に書く（prediction）。tally は job の予測と、試行の result.json の
-例外を数え、全部の試行が例外（または試行が 1 つも無い）なら落ちを名指して 0 でない値で終わる。
+例外を数え、測れた試行（予測が在り例外の無い試行）が 1 つも無い（全部が例外・予測も例外も無い・試行が 1 つも無い）なら
+落ちを名指して 0 でない値で終わる。
 
 Apple silicon の上の docker: 課題のイメージは linux/amd64 だけなので、prepare は docker pull と docker build に
 --platform linux/amd64 を付ける。DOCKER_DEFAULT_PLATFORM は付けない（Harbor の egress の付き添いは daemon の素の型で build され、
@@ -511,38 +512,47 @@ def _read_object(path: Path, what: str) -> dict:
     return row
 
 
-def trial_exceptions(job: Path) -> tuple[int, list[dict]]:
-    """(試行の数, 例外で終わった試行)。Harbor の試行の result.json の exception_info が object なら例外"""
-    trials, raised = 0, []
+def trial_outcomes(job: Path) -> tuple[int, list[dict], list[str]]:
+    """(試行の数, 例外で終わった試行, 予測も例外も無い試行)。Harbor の試行の result.json の exception_info が object なら例外。
+    Harbor 0.24.0 では投げた試行は exception_info を持ち、投げない殻は必ず予測を書くので、どちらも無い試行は result.json の形が
+    変わった印として作り手の落ちに数える"""
+    trials, raised, unaccounted = 0, [], []
     for path in sorted(job.glob("*/result.json")):
         trials += 1
         info = _read_object(path, "試行の結果").get("exception_info")
+        predicted = (path.parent / "agent" / PREDICTION).is_file()
         if isinstance(info, dict):
             raised.append({"trial": path.parent.name,
                            "exception": f"{info.get('exception_type')}: {apply.one_line(str(info.get('exception_message') or ''))}",
-                           "predicted": (path.parent / "agent" / PREDICTION).is_file()})
-    return trials, raised
+                           "predicted": predicted})
+        elif not predicted:
+            unaccounted.append(path.parent.name)
+    return trials, raised, unaccounted
 
 
 def tally(job: Path) -> dict:
     rows = [_read_object(path, "予測") for path in sorted(job.glob(f"*/agent/{PREDICTION}"))]
-    trials, raised = trial_exceptions(job)
+    trials, raised, unaccounted = trial_outcomes(job)
     usd = [r["usd"] for r in rows if run._number(r.get("usd")) is not None]
     # 予測の在る例外の試行は、殻が作り手の落ちを予測に書いてから投げた物で、failed に既に入っている
     return {"producers": sorted({str(r.get("producer")) for r in rows}), "tasks": len(rows),
             "stopped": sum(bool(r.get("stopped")) for r in rows),
-            "failed": sum(bool(r.get("failed")) for r in rows) + sum(not r["predicted"] for r in raised),
+            "failed": sum(bool(r.get("failed")) for r in rows) + sum(not r["predicted"] for r in raised) + len(unaccounted),
             "over_pro_limit": sum((r.get("pro_limit") or {}).get("over") is True for r in rows),
             "empty_patch": sum(isinstance(r.get("model_patch"), str) and not r["model_patch"].strip() for r in rows),
             "unmeasured_seconds": sum(r.get("seconds") is None for r in rows),
-            "usd": round(sum(usd), 6), "usd_missing": len(rows) - len(usd), "trials": trials, "exceptions": raised}
+            "usd": round(sum(usd), 6), "usd_missing": len(rows) - len(usd), "trials": trials, "exceptions": raised,
+            "unaccounted": unaccounted}
 
 
 def silent_failure(job: Path, counted: dict) -> str:
     """数えた job が 1 件も測れていない訳。測れていれば空の字"""
-    if counted["trials"] and len(counted["exceptions"]) == counted["trials"]:
-        return f"全 {counted['trials']} 試行が例外で終わった"
-    if not counted["trials"] and not counted["tasks"]:
+    trials, raised = counted["trials"], len(counted["exceptions"])
+    if trials and raised == trials:
+        return f"全 {trials} 試行が例外で終わった"
+    if trials and raised + len(counted["unaccounted"]) == trials:
+        return f"全 {trials} 試行が測れていない（例外 {raised}、予測も例外も無い {len(counted['unaccounted'])}）"
+    if not trials and not counted["tasks"]:
         return f"job {job} に試行も予測も無い"
     return ""
 
@@ -578,6 +588,8 @@ def main(argv=None) -> int:
         print(f"swepro.py: {why}", file=sys.stderr)
         for raised in got["exceptions"]:
             print(f"  {raised['trial']}: {raised['exception']}", file=sys.stderr)
+        for trial in got["unaccounted"]:
+            print(f"  {trial}: 予測も exception_info も無い", file=sys.stderr)
         return run.STOPPED
     return run.OK
 
