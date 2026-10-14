@@ -254,8 +254,11 @@ def measured_materials(returns: dict, answers) -> set:
     return gatemarks.measured_materials(answers_ledger(returns, answers))
 
 
-def _material_row(name: str, status: str) -> dict:
-    return {"where": f"{MATERIAL_WHERE} {name}", "text": f"素材 '{name}' が {status}（run の中で測れていない確かめ。人が手元で確かめる）"}
+def _material_row(name: str, status: str, why=None) -> dict:
+    """why は素材の reason（走らせられなかった系統の名指しなど）。在れば 1 行に畳んで添える"""
+    said = f": {oneline.one_line(why)}" if why else ""
+    return {"where": f"{MATERIAL_WHERE} {name}",
+            "text": f"素材 '{name}' が {status}{said}（run の中で測れていない確かめ。人が手元で確かめる）"}
 
 
 def _is_material_row(row: dict) -> bool:
@@ -335,7 +338,9 @@ def residue(returns: dict, facts: dict | None = None) -> list:
             rows.append({"where": "差分の審査", "text": "差分の審査が通っていない（delta_review.pass が false）"})
     rows += _after_rows(returns)
     checked = measured_materials(returns, facts.get("answers"))
-    rows += [_material_row(n, s) for n, s in unmeasured(returns).items() if n not in checked]
+    doc, _ = materials(returns)
+    rows += [_material_row(n, s, as_dict(doc.get(n)).get("reason")) for n, s in gatemarks.unmeasured_of(doc).items()
+             if n not in checked]
     rows += absorbed_rows(returns, facts.get("absorbed"))
     return rows
 

@@ -88,7 +88,9 @@ def fallen(error: BaseException) -> dict:
         return {**out, **got}
     try:
         import runreport
-        out["report"] = rel(runreport.fallback_report(out_dir(), why, runreport.UNWRITTEN))
+        import userenv
+        out["report"] = rel(runreport.fallback_report(out_dir(), why, runreport.UNWRITTEN,
+                                                      user_env=userenv.ran(boundary.line_place())))
     except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る
         out["report"] = unwritten(why)
     return out

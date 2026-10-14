@@ -52,8 +52,10 @@ class IsolateCase(unittest.TestCase):
     def test_users_home_and_xdg_are_recorded_only_when_asked(self):
         """#492: 既定は控えず（利用者の env から継いだ古い控えも落とす）、userenv.OPT_IN=1 の時だけ隔離の前の HOME・XDG_* を控える。
         控える名は、隔離する名から Archon と Claude Code の置き場を除いた物"""
-        env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c", userenv.RECORD: "stale"}
+        env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c", userenv.RECORD: "stale",
+               userenv.RAN_DIR_ENV: "/stale"}
         self.assertNotIn(userenv.RECORD, isolate.isolate(env, self.run_home))
+        self.assertNotIn(userenv.RAN_DIR_ENV, isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home))
         record = json.loads(isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home)[userenv.RECORD])
         self.assertEqual(record["HOME"], "/u")
         self.assertEqual(set(userenv.NAMES), set(isolate.DIRS) - {"ARCHON_HOME", "CLAUDE_CONFIG_DIR"})

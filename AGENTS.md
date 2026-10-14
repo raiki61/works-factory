@@ -40,7 +40,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 ```text
 works-factory/
 ├── bin/                         入口（AGENTS.md が E15）。起動の殻 works-factory（人は Archon の命令をそのまま打つ）と、差分を当てる apply
-│   └── _lib/                    入口の中身。Archon の源の取り寄せと起こし方・起動の認証と隔離・プラグインの選び（E15）
+│   └── _lib/                    入口の中身。Archon の源の取り寄せと起こし方・起動の認証と隔離・プラグインの選び・run の作業ツリーの起点・test_cmd の形の確かめ（E15）
 ├── workflows/                   グラフ（エッセンス。AGENTS.md がグラフの決まり）。置かずに --workflow-source で Archon に読ませる（E1）
 │   ├── line/
 │   │   ├── works-factory-line.yaml   メイングラフ。サブグラフを並べ、承認ノードを置く
