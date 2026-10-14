@@ -15,7 +15,7 @@ import pathlib
 import re
 import unittest
 
-from tests.layers.test_capability_pointers import BARE_PATH, HOLE_MARK, LINE_NUMBER, MALFORMED, POINTER, ROOT, ROW_ID, exists, moved_rows, row_fields
+from tests.layers.test_capability_pointers import BARE_PATH, HOLE_MARK, LINE_NUMBER, MALFORMED, POINTER, ROOT, INVENTORY_ROW_ID, exists, moved_rows, row_fields
 
 TABLE = ROOT / "docs" / "works-parity.md"
 ROW = re.compile(r"^- ([SUK]\d+[a-z]?) ")
@@ -29,7 +29,7 @@ DISPOSITION = re.compile(r"^(#\d+|戻した: \S.*|要らない: \S.*)$")
 README_SECTION = re.compile(r"README\.md「[^」]+」")
 MISSING_ROWS = "無い行"
 MOVED_HEAD = "## 前の棚卸しの今"
-MOVED = re.compile(rf"^- (\S+\.md {ROW_ID}): (.+)$")
+MOVED = re.compile(rf"^- (\S+\.md {INVENTORY_ROW_ID}): (.+)$")
 # 移す前に前の棚卸しの柵が「今」に持っていた、ファイルごとの指しの数の下限
 MOVED_FLOOR = {"fix.md": 300, "gaps-fix.md": 70, "gaps-plan.md": 100, "judge.md": 170, "line.md": 330, "plan.md": 430,
                "tail.md": 430}
