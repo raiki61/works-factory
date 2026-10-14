@@ -2,5 +2,5 @@
 fixture:
   expect: "completed"
   inputs: {"rounds": "6", "request": "request.json"}
-  reached: ["chain-start", "result"]
+  reached: ["chain-start", "final-diff", "result"]
 exec-code: true

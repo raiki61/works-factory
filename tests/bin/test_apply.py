@@ -23,6 +23,7 @@ from bin._lib import apply
 from graphloops.engine.schema import validate_schema  # lib/ は bin._lib.apply が sys.path に置く
 from tests.bin import fakelaunch, hermetic
 from tests.bin.gitkit import git
+from tests.workflows.test_chain import ROUND_FILES, run_final, run_result, three_rounds
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
@@ -338,6 +339,57 @@ class ApplyTest(unittest.TestCase):
         """当てる物は置き場の封じた差分だけで、run の作業ツリーを読まない（作業ツリーが片付いた後でも当たる）"""
         self.assertFalse(self.worktree.exists())
         self.assert_applied(self.run_apply(self.record()))
+
+
+class ChainApplyTest(unittest.TestCase):
+    """周の鎖の親の run の出力（final-diff と result を本当に走らせた物）から、bin/apply が最後の差分を選んで当てる"""
+
+    def setUp(self):
+        self.tmp = hermetic.tmpdir(self)
+        self.target = self.tmp / "target"
+        self.target.mkdir()
+        (self.target / "seed.txt").write_text("seed\n", encoding="utf-8")
+        git(self.target, "init", "-q")
+        git(self.target, "add", "-A")
+        git(self.target, "commit", "-q", "-m", "seed")
+        self.work = self.tmp / "run-worktree"
+        git(self.tmp, "clone", "-q", str(self.target), str(self.work))
+        self.root = self.tmp / "artifacts"
+        self.root.mkdir()
+
+    def parent_run(self, **rounds) -> dict:
+        start, made = three_rounds(self.work, **rounds)
+        final = run_final(self.work, self.root, RUN, start, *made)
+        value = run_result(start, final, *made, artifacts=self.root, run_id=RUN)
+        return {"id": RUN, "status": "completed", "working_path": str(self.work),
+                "checkout_baseline": {"kind": "git", "commit": start["origin"]},
+                "terminal_record": {"run_id": RUN, "status": "completed", "outcome": "success",
+                                    "returns": {"availability": "available", "node_id": "result", "value": value},
+                                    "artifacts": {"root": str(self.root), "files": [], "limitations": []}}}
+
+    def run_apply(self, record, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = apply.main([RUN, "--cwd", str(self.target), *args], here=self.tmp,
+                              get=lambda run_id, target: subprocess.CompletedProcess([], 0, json.dumps(record), ""))
+        return code, out.getvalue(), err.getvalue()
+
+    def present(self) -> list:
+        return [name for name in ROUND_FILES if (self.target / name).exists()]
+
+    def test_last_diff_is_applied_without_the_halted_round(self):
+        code, out, err = self.run_apply(self.parent_run())
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(self.present(), ["one.txt", "two.txt"])
+        self.assertIn("one.txt two.txt", out)
+
+    def test_round_whose_child_did_not_place_needs_allow_stopped(self):
+        record = self.parent_run(halted_last=False, placed=False)
+        code, _, err = self.run_apply(record)
+        self.assertEqual((code, self.present()), (1, []), err)
+        self.assertIn("--allow-stopped", err)
+        code, out, err = self.run_apply(record, "--allow-stopped")
+        self.assertEqual((code, self.present()), (0, list(ROUND_FILES)), out + err)
 
 
 KEY = "sk-ant-api03-fake-for-apply"

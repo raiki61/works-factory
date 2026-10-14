@@ -6,12 +6,15 @@
 
 最後に走った周の決めの act・word・text と、周ごとの行 rounds（周の番号・子の run・結末の語・種・残りの鍵・費用・運んだ次の依頼
 request・決めの act・word・text）を返す。closed は止めの語が closed の時だけ真。request は最後の周が運んだ次の依頼の絶対パスで、
-鎖の後に続ける人が依頼に使う。各周の差分は、その周の頭（前の周の commit）からの物なので、周の順に当てる。
+鎖の後に続ける人が依頼に使う。
+最後の差分のノード final-diff の返りから、bin/apply が読む欄（メイングラフの出力と同じ名と形）を載せる: apply・sealed（元の基から
+採る周までの封じた差分。無ければ null）・outcome・r2_status（採る周の子の run の物）。report は周ごとの表 chain.md のポインタ。
+final-diff が落ちた・飛ばされた時は、どれも null（outcome は空）。
 最後の決めが launch なのに次の決めが無い時は、次の周の子の run が落ちた（親の周のノードが落ち、後ろが飛んだ）ので act: wait と
 続け方を返す。
 lib を読まない。落ちない: 境の口を読めない時も、標準ライブラリだけで返す。
 
-入力（with:）: start（chain-start の出力）・d1〜d<周の数の上限>（round-k-decide の出力。番号の順に読む。どれも `{from, if_skipped: null}`）
+入力（with:）: start（chain-start の出力）・final（final-diff の出力）・d1〜d<周の数の上限>（round-k-decide の出力。番号の順に読む。どれも `{from, if_skipped: null}`）
 """
 import json
 import os
@@ -27,10 +30,16 @@ except Exception as error:   # 出力ノードは落ちない（上の docstring
     boundary, unread = None, error
 
 CLOSED = "closed"
+FINAL = ("apply", "sealed", "report", "r2_status")
 DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ
 
 
-def result(start, decisions: list) -> dict:
+def from_final(final) -> dict:
+    got = final if isinstance(final, dict) else {}
+    return {"outcome": got.get("outcome") or "", **{key: got.get(key) for key in FINAL}}
+
+
+def result(start, final, decisions: list) -> dict:
     if not isinstance(start, dict) or start.get("ok") is not True:
         reason = start.get("reason") if isinstance(start, dict) else "chain-start の出力が無い"
         return fallback(reason or "chain-start が鎖を受けなかった")
@@ -43,12 +52,12 @@ def result(start, decisions: list) -> dict:
         text = (f"{len(made) + 1} 周目の子の run か、その周のノードが落ちた。親の run を resume すると Archon が落ちた子を 1 度"
                 "起こし直す")
     return {"closed": word == CLOSED, "ok": True, "reason": "", "act": act, "word": word, "text": text,
-            "request": rows[-1].get("request") or "" if rows else "", "rounds": rows}
+            "request": rows[-1].get("request") or "" if rows else "", "rounds": rows, **from_final(final)}
 
 
 def fallback(reason: str) -> dict:
     return {"closed": False, "ok": False, "reason": reason, "act": "refused", "word": "", "text": reason, "request": "",
-            "rounds": []}
+            "rounds": [], **from_final(None)}
 
 
 def main() -> None:
@@ -59,8 +68,8 @@ def main() -> None:
     else:
         names = sorted(filter(DECISION.fullmatch, os.environ), key=lambda name: int(name[len("INPUTS_D"):]))
         decisions = [os.environ[name] for name in names]
-        boundary.run(lambda: result(boundary.value(os.environ.get("INPUTS_START")), [boundary.value(d) for d in decisions]),
-                     fallback)
+        boundary.run(lambda: result(boundary.value(os.environ.get("INPUTS_START")), boundary.value(os.environ.get("INPUTS_FINAL")),
+                                    [boundary.value(d) for d in decisions]), fallback)
 
 
 if __name__ == "__main__":

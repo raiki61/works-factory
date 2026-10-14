@@ -9,7 +9,8 @@
 2. 運ぶ次の依頼（lib/chain.next_request。1 周目の依頼と、1 周目に名指した PR を chain.first_of で足す）に所見が在れば、親の置き場の
    chain/<子のノードの id>/ に書き、その絶対パスを request に返す（次の周の子の入力 request になる）
 3. 残りの行の鍵 keys・運ばなかった下書きの行 held_rows・読んだ子のファイル source（人が下書きを見直す先）を返す
-4. 周の費用を親の run の記録の子のノードの行から読む。読めなければ cost_read: false（0 と読まない）
+4. 周の費用と分を親の run の記録の子のノードの行から読む。費用が読めなければ cost_read: false（0 と読まない）、分が読めなければ
+   minutes: null
 読めなかった物は error に訳を書き、決めが halted で止める。
 
 入力（with:）: next_request（子の出力の欄）・child（費用を引く子のノードの id）・first_request・first_pr（chain-start の出力の欄）
@@ -29,12 +30,12 @@ with boundary.guarded_imports():
     import runreport
 
 
-def cost_of(child: str) -> tuple:
-    """子のノードの費用 (USD か None, 読めたか)。記録が無い・費用の欄の無い行が在る時は読めない"""
+def spent_by(child: str) -> tuple:
+    """子のノードの (費用 USD か None, 費用を読めたか, 分か None)。記録が無い・費用の欄の無い行が在る時は費用を読めない"""
     rows, _ = boundary.transcript()
     facts = runreport.transcript_facts(rows)
     cost = facts["cost"].get(child)
-    return cost, cost is not None and child not in facts["uncosted"]
+    return cost, cost is not None and child not in facts["uncosted"], facts["minutes"].get(child)
 
 
 def first_doc(path: str):
@@ -43,9 +44,9 @@ def first_doc(path: str):
 
 def facts() -> dict:
     child = boundary.text(os.environ.get("INPUTS_CHILD"))
-    cost, cost_read = cost_of(child)
+    cost, cost_read, minutes = spent_by(child)
     out = {"ok": True, "error": "", "run": "", "keys": [], "held_rows": [], "request": "", "source": "", "cost": cost,
-           "cost_read": cost_read}
+           "cost_read": cost_read, "minutes": minutes}
     ptr = boundary.parsed(os.environ.get("INPUTS_NEXT_REQUEST"))
     if ptr is None:
         return out
@@ -69,7 +70,7 @@ def facts() -> dict:
 
 def fallback(reason: str) -> dict:
     return {"ok": False, "error": reason, "run": "", "keys": [], "held_rows": [], "request": "", "source": "", "cost": None,
-            "cost_read": False}
+            "cost_read": False, "minutes": None}
 
 
 if __name__ == "__main__":
