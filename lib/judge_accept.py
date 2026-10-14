@@ -2914,9 +2914,14 @@ SPEC_GATE_REQUEST = specblk.FLAG_BY_PREFIX + SPEC_GATE
 def sha_file(p):
     """元 works/.shared/core/graphloops/rules/review-loop.py:3901。役が指したファイルの sha256（読めない・通常のファイルでない・
     上限を超えるなら None）——役が指したパスを開く所は read_capped を通す"""
+    return sha_and_why(p)[0]
+
+
+def sha_and_why(p):
+    """ファイルの（sha256, ""）か、測れなければ（None, 訳）"""
     import hashlib
-    data, _why = read_capped(str(p), READ_CAP)
-    return None if data is None else hashlib.sha256(data).hexdigest()
+    data, why = read_capped(str(p), READ_CAP)
+    return (None, why) if data is None else (hashlib.sha256(data).hexdigest(), "")
 
 
 def _file_sha(root, rel):
@@ -3192,6 +3197,39 @@ def spec_answer(jdir, root, answer) -> dict:
         return {"go": False, "reason": why}
     snap_tree(jdir, TREE_FILE, root)   # 仕様の役が書いた受け入れテストを、後ろの読むだけの役が変えた物と数えない
     return {"go": True, "reason": ""}
+
+
+def spec_check(spec: dict, root) -> list:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:4044。承認済みの仕様（J/spec.json）の受け入れ条件のファイルごとに（同じ
+    ファイルは 1 度、初めに出た順）、今の作業ツリーの sha256 を承認の時の sha256 と照らす。返り 変わったファイルの [{file, from, to, why}]
+    （to は今の sha256。測れなければ None で、why にその訳——無いファイルは「消えた」、在るが読めない・通常のファイルでない・
+    上限を超える物は read_capped の訳）。仕様の形が違えば KeyError・TypeError（呼び手が「読めない」の問いにする）"""
+    seen, changed = set(), []
+    for a in spec["acceptance"]:
+        f = a["file"]
+        if f in seen:
+            continue
+        seen.add(f)
+        p = pathlib.Path(root) / f
+        now, why = sha_and_why(p) if os.path.lexists(p) else (None, "消えた")
+        if now != a["sha256"]:
+            changed.append({"file": f, "from": a["sha256"], "to": now, "why": why})
+    return changed
+
+
+def spec_questions(spec_path, root) -> list:
+    """修正の後の承認し直すかの問い（1 ファイル 1 行）。仕様が無い・読めない・形が違えば、黙って 0 件にせず「読めない」の問いを 1 行返す"""
+    try:
+        spec = read_json(spec_path)
+        if spec is None:
+            raise FileNotFoundError("ファイルが無い")
+        rows = spec_check(spec, root)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        return [f"承認済みの仕様 {spec_path} を読めない——受け入れ条件のテストが変わったかを確かめられない"
+                f"（{oneline.one_line(f'{type(e).__name__}: {e}')}）"]
+    return [f"{gatemarks.SPEC_CHANGED_LABEL}: {r['file']}（sha256 {str(r['from'])[:12]} → {r['why'] if r['to'] is None else r['to'][:12]}）——承認し直すか。"
+            "この run の中では答えられない: 変更を確かめて次の run の仕様の段で承認し直すか、テストを承認の版に戻して直す依頼にする"
+            for r in rows]
 
 
 # ---------------------------------------------------------------- 再審（元 works/.shared/core/rejudge.py と写しの rules の rejudge_output）

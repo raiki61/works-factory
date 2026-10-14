@@ -125,7 +125,7 @@ def final_got(**kw) -> dict:
     eye = {"status": "pass", "reason": ""}
     got = {"tests_ok": True, "green": True, "red_cause": "", "ran_steps": None, "tests": {**declared_checks.gate_values({"by": declared_checks.ENGINE}), "unread": ""},
            "worktree": "/tmp/tree", "base_rev": "0123456789abcdef", "protected_hits": [], "asked": [], "conflicts_unread": [],
-           "allowed_tests": [], "beside_unread": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [],
+           "allowed_tests": [], "beside_unread": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [], "spec_changed": [],
            "objection": "", "rejudge_verdict": "", "rejudge": [], "split": "", "unproven": [], "amend": [],
            "delta_review": None, "branch_rows": [], "handoffs": [], "mismatched": [], "stuck": [], "closure": [], "tests_left": [],
            "gates": [], "always": [], "structure_missing": "", "r2_inputs": [], "premise_facts": [], "sealed": True, "seal_reason": "", "hash": "a" * 64, "deleted": [], "fenced": [],

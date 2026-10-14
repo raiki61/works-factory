@@ -29,7 +29,7 @@ SCENARIOS = (
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
     "unattended-questions", "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
-    "nothing-owed", "depth-light", "depth-raised", "depth-no-evidence",
+    "nothing-owed", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence",
 )
 
 
@@ -435,7 +435,8 @@ class ReportOutcomeTest(unittest.TestCase):
 
     WANT = {"start-refused": ("stopped_by_line", "start:works:start-refused"),
             "unattended-needs-human": ("needs_human", "ask-final:works:needs-human"),
-            "final-stop": ("stopped_by_human", "gate-final:stop")}
+            "final-stop": ("stopped_by_human", "gate-final:stop"),
+            "spec-changed": ("needs_human", "spec-check:works:spec-changed")}
 
     @classmethod
     def setUpClass(cls):

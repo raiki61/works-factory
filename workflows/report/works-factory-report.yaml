@@ -29,6 +29,7 @@ inputs:
   deferred: {default: ""}
   widened: {default: ""}
   final-reasons: {default: ""}
+  spec-changed: {default: ""}
   redepth: {default: ""}
   optional: {default: ""}
 

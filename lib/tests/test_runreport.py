@@ -822,6 +822,19 @@ class DraftsCase(Base):
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
         self.assertEqual([a["question"] for a in doc[carry.ANSWERS]], ["どうするか"])
 
+    def test_spec_changed_reaches_head_and_next_request(self):
+        """#510: 承認の後に受け入れ条件のテストが変わった問いは、結末を人待ちにし、冒頭（止めの語の意味と人が決めることの件数）と
+        次の依頼の下書き（答えの空の行）に載る"""
+        q = "承認の後に受け入れ条件のテストが変わった（spec_changed）: t.txt（sha256 aaaaaaaaaaaa → 消えた）——承認し直すか"
+        got, text, decided = self.build(line={"spec_changed": [q], "stops": {"spec-check": stopby.SPEC_CHANGED}})
+        self.assertEqual(decided, ("needs_human", f"spec-check:{stopby.SPEC_CHANGED}"))
+        head = "\n".join(text.splitlines()[2:5])
+        self.assertIn(stopby.REASONS["spec-changed"], head)
+        self.assertIn(f"{gatemarks.SPEC_CHANGED_HEAD} 1 件", head)
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
+        self.assertEqual([(a["question"], a["text"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, "", True)])
+
 
 class GlossaryCase(unittest.TestCase):
     def test_only_terms_in_text(self):
