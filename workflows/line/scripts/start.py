@@ -31,6 +31,7 @@ with boundary.guarded_imports():
     import policy
     import startrec
     import stopby
+    import tddloop
     import versions
 
     DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
@@ -126,10 +127,10 @@ def request(raw: dict, repo: Path) -> dict:
         parts = carry.parts(doc)
     except ValueError as error:
         raise Refused(f"依頼のファイル {rel} の形: {error}") from None
-    problems = entry.request_problems(parts[carry.FINDINGS])
+    problems = entry.request_problems(parts[carry.FINDINGS]) if parts[carry.FINDINGS] else []   # 空は refuse_empty が見る
     if problems:
         raise Refused(f"依頼のファイル {rel} の形: findings の配列か {{findings, pr, issue, answers}} の形で、findings は "
-                      "[{where, text, mechanism?, measured?, false_positive_if?}] の配列（空でない）: " + "; ".join(problems))
+                      "[{where, text, mechanism?, measured?, false_positive_if?}] の配列: " + "; ".join(problems))
     return {"items": parts[carry.FINDINGS], "request_file": str(path.resolve()), "request_text": body, "parts": parts}
 
 
@@ -146,17 +147,21 @@ def depth_words(raw: dict, record: dict) -> str:
     return f"段: {record['thickness'] or AUTO}" + ("" if raw["thickness"].strip() else "（既定）")
 
 
-def test_note(raw: dict, repo: Path) -> str:
-    """修正前のテストの任せ先の注（元 entry.py 1218-1219 行）。test_cmd も対象の宣言も無ければ、任せ先の役が走らせ方を探す"""
-    if raw["test_cmd"].strip() or "fallback" not in declared_checks.checks_plan(repo):
-        return ""
-    return "修正前のテスト: 宣言も test_cmd も無い——任せ先の役がリポジトリから走らせ方を探す"
+def test_notes(raw: dict, repo: Path) -> list:
+    """テストの注: 修正前のテストの任せ先（元 entry.py 1218-1219 行。test_cmd も対象の宣言も無ければ、任せ先の役が走らせ方を探す）と、
+    tdd_suite を省いた run が TDD の輪を飛ばす事（元 use.sh 1086-1089 行）"""
+    notes = []
+    if not raw["test_cmd"].strip() and "fallback" in declared_checks.checks_plan(repo):
+        notes.append("修正前のテスト: 宣言も test_cmd も無い——任せ先の役がリポジトリから走らせ方を探す")
+    if not raw["tdd_suite"].strip():
+        notes.append(tddloop.SUITE_SKIPPED)
+    return notes
 
 
-def gate_text(shape: dict, record: dict, run_id: str, note: str = "") -> str:
+def gate_text(shape: dict, record: dict, run_id: str, notes: list) -> str:
     happened = f"run を始める前で止まった。入口: {startrec.words(shape)}"
     rest = [depth_words(record["inputs"], record), entry.features_part(record["features_off"], record["features_on"]),
-            gatepolicy.head_words(record), note]
+            gatepolicy.head_words(record), *notes]
     lines = gatemarks.head3(happened, "この入力で run を始めるか、止めるか（打つ行は末尾の答え方）", gatemarks.NO_PUSH)
     lines += ["", *[f"- {x}" for x in rest if x], "", "答え方:",
               f"- 始める: {answer.line(run_id, 'continue', '<一言>')}",
@@ -212,7 +217,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         prior = boundary.pointer(carry.PRIOR_IN_FILE)
     unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
     return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record),
-            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_note(raw, repo)),
+            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
             "final_gate": record[gatepolicy.FINAL_KEY]}
 

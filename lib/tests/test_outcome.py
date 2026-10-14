@@ -65,6 +65,14 @@ class TableCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(fix={**fixed_run()["fix"], "stop_reason": stopby.REPLAN}))[0], "needs_human")
         eyes = {**fixed_run()["eyes"], "premise_check": {"verdict": "escalate", "reason": "前提が崩れた"}}
         self.assertEqual(decide(fixed_run(eyes=eyes))[0], "needs_human")
+        eyes = {**fixed_run()["eyes"], "questions": ["[消えた能力] 旧い口を消してよいか"]}
+        self.assertEqual(decide(fixed_run(eyes=eyes)), ("needs_human", "eyes:r4-ask"),
+                         "R4 が人に回した問いは人待ち（元 report.decide_outcome の pending_human）")
+        self.assertEqual(decide(fixed_run(eyes=eyes), gates={"gate-final": {"decision": "continue", "text": ""}}),
+                         ("needs_human", "eyes:r4-ask"), "最後の承認ノードを通しても問いには答えていない（元 SKILL.md:119）")
+        eyes = {**fixed_run()["eyes"], "questions": ["  ", 3]}
+        self.assertNotEqual(decide(fixed_run(eyes=eyes))[1], "eyes:r4-ask", "空白だけ・文でない行は問いに数えない")
+        self.assertEqual(outcome.eye_questions({"eyes": {"questions": ["  ", 3, "旧い口を消してよいか"]}}), ["旧い口を消してよいか"])
         review = {"pass": True, "ask_human": True, "questions": ["どちらに寄せるか"]}
         self.assertEqual(decide(fixed_run(**{"plan-review": review}, fix=None, **{"test-gate-final": None})),
                          ("needs_human", "plan-review:ask-human"))

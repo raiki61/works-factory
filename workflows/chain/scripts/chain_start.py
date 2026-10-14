@@ -5,13 +5,14 @@
 """周の鎖の始めのノード chain-start。
 
 入力の周の数 rounds と費用の上限 budget_usd を lib/chain.limits で確かめ、範囲の外なら act: refused で返して AI の前で止める。
+設計だけの run（design_only）は差分を作らず次の周の基が無いので、design_only を名指した鎖も同じく拒む。
 受けた時は 0 周目の決めと同じ形（act: launch・1 周目の子の入力 request・base・pr・spec・前までの周の行 rows: []）を返すので、
 5 組の周のノードは番号と前の決めのほかは同じ形になる。後ろの決めが読む rounds・budget と、2 周目から運ぶ 1 周目の依頼の絶対パス
 first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）と、
 最後の差分の元の基 origin（run の作業ツリーの今の HEAD。1 周目の子の始めの記録の base_rev と同じ版。commit の無い木なら空）も返す。
 出力ノード result が結ぶので落ちない: 境の口を読めない時も標準ライブラリだけで act: refused を返す。
 
-入力: rounds・budget_usd・request・base・pr・spec（鎖の入力）
+入力: rounds・budget_usd・request・base・pr・spec・design_only（鎖の入力）
 """
 import json
 import os
@@ -32,6 +33,9 @@ if boundary is not None:
         import entryshape
 
 
+DESIGN_ONLY_REFUSED = "周の鎖は design_only と組めない（設計だけの run は差分を作らず、次の周の基が無い）"
+
+
 def refused(reason: str) -> dict:
     return {"ok": False, "reason": reason, "act": "refused", "word": "", "text": reason, "request": "", "base": "", "pr": "",
             "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0, "origin": ""}
@@ -43,6 +47,8 @@ def head() -> str:
 
 
 def start() -> dict:
+    if boundary.text(os.environ.get("INPUTS_DESIGN_ONLY")):
+        return refused(DESIGN_ONLY_REFUSED)
     request = boundary.text(os.environ.get("INPUTS_REQUEST"))
     pr = boundary.text(os.environ.get("INPUTS_PR"))
     try:

@@ -41,6 +41,7 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 - 自分のグラフ（`workflows/`）を Archon に渡すのは `workflow run` の時だけ。`trigger`・`chat` には渡らない。
 - run は始めに `workflows/` だけを写し取るので、走っている間にこのリポジトリの `lib/` を変えると、その run に効く。
 - 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス。家・対象・Archon の源の取り置き（`XDG_CACHE_HOME`）が実パスで `/tmp/claude-*` の下なら、役の sandbox が書ける置き場なので拒む。家がこの checkout の下でも、読むだけの役の書き込みの柵が checkout を丸ごと禁じて役が家に書けないので拒む。checkout の外を選ぶ）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`WORKS_FACTORY_TARGET_USER_ENV=1`（対象の試験・受け入れのコマンドを、隔離した置き場でなく利用者の HOME・XDG で走らせる。道具が全体の設定を読めずに試験の前で落ちる対象のための道で、AI が書いた試験のコードが利用者の keychain・gh のログインに届く。既定は隔離のまま）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れ、役を起こす本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す。殻は役との間に書き込みの柵の包みを置く。殻を起こす env に置く。起こす場所・`--cwd`・対象の根の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env` が名指すと、包みが外れるので殻は止まる。同じファイルが包みの記録 `WORKS_FACTORY_FENCE_RECORDS` を名指しても止まる）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）・`WORKS_FACTORY_ALLOW_TESTCMD=1`（対象の手元を走らせる形の `test_cmd` でも止めずに起こす。下の「test_cmd と作業ツリー」）。
+- ログインの資格は数時間で切れるので、長い run は `claude setup-token` で作ったトークンを `CLAUDE_CODE_OAUTH_TOKEN` に置いて殻を起こす。
 
 Claude Code からは `/works`（raiki61/claude-plugins の works プラグイン）で同じ事ができるようになる。
 

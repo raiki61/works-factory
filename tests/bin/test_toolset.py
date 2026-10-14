@@ -672,7 +672,8 @@ class InstallCase(Base):
                          {"extraKnownMarketplaces": {MP: {"source": {"source": "directory",
                                                                      "path": str(self.cfg / "works-marketplace")}}},
                           "enabledPlugins": {f"{n}@{MP}": True for n in PLUGINS},
-                          "hooks": {"PostToolUse": toolset.recorder_rows(self.cfg), **COLDWRITE_HOOKS}})
+                          "hooks": {"PostToolUse": toolset.recorder_rows(self.cfg), **COLDWRITE_HOOKS},
+                          "permissions": toolset.permissions(deny_web=False)})
         self.assertEqual(self.calls(), [["plugin", "marketplace", "add", str(self.cfg / "works-marketplace")]]
                          + [["plugin", "install", f"{n}@{MP}"] for n in PLUGINS])
         # 記録: 版は installed_plugins.json の行の物、source は利用者が入れた置き場（versions.json の borrowed に載る）。
@@ -1021,9 +1022,9 @@ class HooksCase(Base):
                          ["settings.json の hooks の行 PostToolUse:Edit|Write|NotebookEdit"], "相対パスの記録器は通さない")
 
 
-class DenyWebCase(Base):
-    """公開ベンチの run（WORKS_FACTORY_DENY_WEB=1）は、隔離した設定の settings.json の permissions で WebFetch・WebSearch を拒む。
-    柵は permissions を DENY_WEB とちょうど同じ時だけ受ける（#435）"""
+class DenyCase(Base):
+    """隔離した設定の settings.json の permissions は、いつも役の git push を拒み（#505。今の works の adapter.NO_POST_DENY）、
+    公開ベンチの run（WORKS_FACTORY_DENY_WEB=1）では WebFetch・WebSearch も拒む（#435）。柵は install が置く形の時だけ受ける"""
 
     def settings(self):
         return json.loads((self.cfg / "settings.json").read_text())
@@ -1031,14 +1032,20 @@ class DenyWebCase(Base):
     def test_deny_web_install_writes_exact_permissions(self):
         found, vers = self.sources()
         toolset.install(self.cfg, found, self.borrow, claude_bin=str(self.claude), versions=vers, deny_web=True)
-        self.assertEqual(self.settings()["permissions"], {"deny": ["WebFetch", "WebSearch"]})
+        self.assertEqual(self.settings()["permissions"], {"deny": ["Bash(git push:*)", "WebFetch", "WebSearch"]})
         self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
         self.install()
-        self.assertNotIn("permissions", self.settings(), "同じ家を普段の run に使い回しても拒みを残さない")
+        self.assertEqual(self.settings()["permissions"], {"deny": ["Bash(git push:*)"]}, "同じ家を普段の run に使い回しても web の拒みを残さない")
 
-    def test_plain_install_writes_no_permissions(self):
+    def test_plain_install_denies_push_only(self):
         self.install()
-        self.assertNotIn("permissions", self.settings())
+        self.assertEqual(self.settings()["permissions"], {"deny": ["Bash(git push:*)"]})
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
+
+    def test_web_only_permissions_of_the_former_install_are_known(self):
+        self.install()
+        _put(self.cfg / "settings.json", json.dumps({**self.settings(), "permissions": {"deny": ["WebFetch", "WebSearch"]}}))
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
 
     def test_other_permissions_are_outside(self):
         self.install()
@@ -1048,7 +1055,7 @@ class DenyWebCase(Base):
     def test_cli_install_denies_web_by_env(self):
         r = self.cli("install", "--no-plugins", str(self.cfg), **{toolset.DENY_WEB_ENV: "1"})
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.settings()["permissions"], toolset.DENY_WEB)
+        self.assertEqual(self.settings()["permissions"], toolset.permissions(deny_web=True))
         self.assertEqual(self.cli("guard", str(self.cfg)).returncode, 0)
 
 
@@ -1142,8 +1149,9 @@ class CliCase(Base):
         self.assertEqual(self.calls(), [])
         self.assertEqual(sorted(p.name for p in (self.cfg / "skills").iterdir()), sorted(BORROW_SKILLS))
         self.assertEqual(json.loads((self.cfg / "settings.json").read_text()),
-                         {"hooks": {"PostToolUse": toolset.recorder_rows(self.cfg), **COLDWRITE_HOOKS}},
-                         "フックの行はプラグインでないので、CLI を呼ばない道でも置く")
+                         {"hooks": {"PostToolUse": toolset.recorder_rows(self.cfg), **COLDWRITE_HOOKS},
+                          "permissions": toolset.permissions(deny_web=False)},
+                         "フックの行と拒みはプラグインでないので、CLI を呼ばない道でも置く")
         self.assertFalse((self.cfg / "works-marketplace").exists())
 
     def test_cli_missing_tools_stop_before_writing(self):

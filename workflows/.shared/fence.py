@@ -13,6 +13,8 @@ packages/providers/src/claude/provider.ts:801-803）ので、YAML の固定の�
 足し、書けなければ起こさない。記録は --own の下に置かれ、柵の中の役は書き換えられない。受け付け（test-gate の ci-accept）は
 fenced_since で、役を起こす前の時刻より後にその作業ツリーで柵の掛かった起動が在ったかを見る（今の works の ci_role.take の
 「包みの起動の記録を見て止める」と同じ所。棚卸しの T49）。
+起こす claude には ENGINE_CHILD_ENV=1 を立てる。対象の重い一式（e2e など）がこの名で AI の役からの起動を見分けて拒む、今の works の
+約束の名（skills/works/SKILL.md）。最後のテストは script のノードが走らせて包みを通らないので立たない（今の works と同じ）。
 標準ライブラリだけを使う（起動の殻が `python -I -B` で起こす）。
 """
 import argparse
@@ -27,6 +29,7 @@ SETTINGS = "--settings"
 DENY_WRITE = ("sandbox", "filesystem", "denyWrite")
 REFUSED_EXIT = 3
 RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"   # 起動の記録のパス。在れば run は包みを通ると宣言した
+ENGINE_CHILD_ENV = "GRAPHLOOPS_ENGINE_CHILD"
 
 
 class Refused(Exception):
@@ -183,6 +186,7 @@ def main(argv: list[str]) -> int:
     except Refused as refused:
         print(f"works-factory fence: {refused}", file=sys.stderr)
         return REFUSED_EXIT
+    os.environ[ENGINE_CHILD_ENV] = "1"
     os.execv(opts.real, [opts.real, *rest])
 
 

@@ -794,13 +794,16 @@ class DraftsCase(Base):
         self.assertIn("狭めない案: 上限を変えずに足す", drafts[1]["note"])
         self.assertIn("決め手の欄が無い", drafts[2]["source"], "人に回さない種類の穴は事前審査の行に結ばない")
 
-    def test_final_gate_r4_questions_are_drafted_unless_passed(self):
-        """最後の関所が通さなかった無人の run は、独立の目 R4 の問いごとに下書き。関所が通した run は作らない"""
+    def test_final_gate_r4_questions_are_drafted_even_when_passed(self):
+        """独立の目 R4 の問いごとに下書き。関所の continue は問いに答えないので、人の居る run でも関所が通した run でも作る（元
+        skills/works/SKILL.md 119 行「問いは報告の冒頭と次の run の依頼の下書きに載り、結末は needs_human」。#505）"""
         eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか／推し: 通す（continue）——触らない（理由: 守りは別の PR）"]}
         returns = fixed_run(eyes=eyes)
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
         self.assertEqual([(d["question"], d["text"]) for d in drafts], [("守りを触ってよいか", "通す（continue）——触らない（理由: 守りは別の PR）")])
-        self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "approve", "text": ""}}, UNATTENDED), [])
+        for start in (UNATTENDED, {"run_id": RUN}):
+            with self.subTest(start=start):
+                self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "continue", "text": ""}}, start), drafts)
 
     def test_drafts_reach_next_request(self):
         returns = fixed_run(**{"plan-review": {"questions": [gatemarks.question_row("regression", "どうするか")]}})
@@ -1230,6 +1233,13 @@ class LedgerCase(Base):
         self.assertEqual([line for _, line in state["held"]],
                          [gatemarks._ledger_line(FORK, skip=[FORK_UNIT]) + f'／{gatemarks.ANSWER_KEY_HEAD}: "{FORK["key"]}"'])
         self.assertIn(f"／答えが無いと直さない単位: {FORK_UNIT}", state["held"][0][1])
+
+    def test_held_lines_warn_to_read_the_measuring_command_first(self):
+        """#505: 保留の行の下の答え方は、測り方の命令が対象を読んだ役の書いた物なので、打つ前に読み読み取りだけの時だけ打てと言う
+        （元 works の skills/works/SKILL.md 117 行）"""
+        _, text, _ = self.build(self.returns(FORK))
+        self.assertIn(gatemarks.ANSWER_HOW, text)
+        self.assertIn("打つ前に読み、読み取りだけの時だけ打つ", gatemarks.ANSWER_HOW)
 
     def test_answer_key_is_the_material_name_when_it_binds_only_this(self):
         q = {**FORK, "origin": "", "key": "parallel_pr: 重なりを確かめる"}

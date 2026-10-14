@@ -299,7 +299,7 @@
   - 狭め: 無し
 - L-E49 頭の行に段（thickness と（既定））・gates・機能・このラインに無い節の数・downgrades・修正前のテストの任せ先の注を並べる
   - 元: works/.shared/core/entry.py:1213-1219 `start`（head_line）
-  - 今: workflows/line/scripts/start.py::depth_words・workflows/line/scripts/start.py::test_note・workflows/line/scripts/start.py::gate_text（部分 A で閉じた）
+  - 今: workflows/line/scripts/start.py::depth_words・workflows/line/scripts/start.py::test_notes・workflows/line/scripts/start.py::gate_text（部分 A で閉じた）
   - 証: tests/workflows/test_line.py::StartCase.test_gate_text_has_the_depth_word
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gate-start の message）
   - 狭め: #74 で落ちた（宣言なし。不可でない → 戻すか持ち主へ） → 部分 A で戻した
