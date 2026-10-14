@@ -45,6 +45,7 @@ import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import green_cert  # noqa: E402
+import headdepth  # noqa: E402
 import judgeverify  # noqa: E402
 import marks  # noqa: E402
 import oneline  # noqa: E402
@@ -1237,6 +1238,17 @@ def _depth_lines(start: dict, returns: dict, line: dict) -> list:
     return [*depthlib.lines(doc), *([] if redepth else [NO_REDEPTH])]
 
 
+def _head_depth_line(returns: dict) -> list:
+    """run の頭の深さの 1 行（報告の冒頭 2。headdepth.report_line）: 1 回目の判定が決めた深さと根拠と、計画の往復が飛ばしたノード・
+    標準へ上げた訳。判定の返りが無ければ出さない"""
+    judged = returns.get("judge")
+    if not isinstance(judged, dict) or not judged.get("depth"):
+        return []
+    planned = as_dict(returns.get("plan"))
+    return [headdepth.report_line(judged["depth"], judged.get("depth_why") or "", _list(planned.get("depth_skipped")),
+                                  _list(planned.get("depth_raised")))]
+
+
 def _prior_in_lines(line: dict) -> list:
     """依頼が運んだ前の run の失敗の行（始めの節が置いた prior-failures-in.json。指し札が無ければ何も出さない）"""
     p = as_dict(line).get("prior_failures")
@@ -1290,6 +1302,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     out.append(f"走った段: {'・'.join(ran) or '無い'}")
     out.append(f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}")
     out += _downgrade_lines()
+    out += _head_depth_line(returns)
     out += _depth_lines(start, returns, line)
     out += _prior_in_lines(line)
     out += _policy_lines(returns, repo)

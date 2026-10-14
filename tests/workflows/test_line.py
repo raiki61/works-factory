@@ -33,6 +33,7 @@ ask_before_fix = load("ask_before_fix")
 ask_replan = load("ask_replan")
 ask_final = load("ask_final")
 plan_out = load("plan_out")
+plan_review_due = load("plan_review_due")
 after_fix = load("after_fix")
 judged = load("judged")
 fixed = load("fixed")
@@ -1544,7 +1545,7 @@ class FinalGateCase(Artifacts):
 
 class PlanOutCase(unittest.TestCase):
     def got(self, **kw):
-        base = {key: None for key in plan_out.PLAN + plan_out.REVIEW}
+        base = {key: None for key in plan_out.PLAN + plan_out.REVIEW + plan_out.DEPTH}
         base.update({"ready": True, "round": 1, "pass": False, "stalled": False})
         base.update(kw)
         return plan_out.plan_out(base, ROUND_LIMIT)
@@ -1557,7 +1558,44 @@ class PlanOutCase(unittest.TestCase):
         self.assertFalse(self.got(round=3)["done"], "往復は数でなく開いた block の減り方で止まる（converge.decide）")
 
     def test_every_field_is_returned(self):
-        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"nothing_owed", "done", "stop_reason"})
+        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW + plan_out.DEPTH) | {"nothing_owed", "done", "stop_reason"})
+
+    def test_depth_fields_pass_through(self):
+        got = self.got(depth_skip=True, depth_skipped=[plan_review_due.ROW], depth_raised=[])
+        self.assertEqual((got["depth_skip"], got["depth_skipped"], got["depth_raised"]), (True, [plan_review_due.ROW], []))
+
+
+class PlanReviewDueCase(unittest.TestCase):
+    """往復の 1 周で事前審査の輪を飛ばすか（issue #441。中身は lib/headdepth.due）: 飛ばす時だけ表の行の id を名指す"""
+
+    LIGHT = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
+
+    def test_light_head_and_light_units_skip_the_review_loop(self):
+        got = plan_review_due.plan_review_due("軽量", True, self.LIGHT)
+        self.assertEqual((got["skip"], got["skipped"], got["raised"]), (True, ["plan-review-run__review-loop"], []))
+
+    def test_a_standard_unit_raises_and_runs_the_loop(self):
+        got = plan_review_due.plan_review_due("軽量", True, [*self.LIGHT, {"unit_id": "u2", "depth": "標準", "why": "w"}])
+        self.assertEqual((got["skip"], got["skipped"]), (False, []))
+        self.assertTrue(got["raised"])
+
+    def test_standard_head_never_skips(self):
+        got = plan_review_due.plan_review_due("標準", True, self.LIGHT)
+        self.assertEqual((got["skip"], got["skipped"], got["raised"]), (False, [], []))
+
+    def test_wiring(self):
+        """頭の深さ・計画ができたか・単位ごとの深さを受け、事前審査の差し込みに飛ばすかと訳を渡し、往復の返しの節が報告と目に運ぶ"""
+        nodes = line_nodes()
+        self.assertEqual(nodes["plan-review-due"]["with"], {"head_depth": "$judge.output.depth", "ready": "$plan.output.ready",
+                                                            "plan_depth": "$plan.output.depth"})
+        run = nodes["plan-review-run"]
+        self.assertIn("plan-review-due", run["depends_on"])
+        self.assertEqual((run["with"]["depth_skip"], run["with"]["depth_why"]),
+                         ("$plan-review-due.output.skip", "$plan-review-due.output.why"))
+        self.assertEqual(nodes["fixed"]["with"]["review_skipped"], {"from": "$plan-rounds.output.depth_skip", "if_skipped": None})
+        self.assertEqual(nodes["eyes"]["with"]["review_skipped"], "$fixed.output.review_skipped")
+        self.assertEqual((nodes["judge-out"]["with"]["got_depth"], nodes["judge-out"]["with"]["got_depth_why"]),
+                         ("$judge.output.depth", "$judge.output.depth_why"))
 
 
 class PlanOutNothingOwedCase(Artifacts):
@@ -1706,6 +1744,13 @@ class FixedCase(unittest.TestCase):
                                     "answer": {"decision": "continue"}})
         self.assertEqual((normal["no_fix"], normal["design"], normal["plan_questions"], normal["answer"]),
                          (False, {"path": "pr/design.json"}, [{"kind": "fork", "text": "q"}], {"decision": "continue"}))
+
+    def test_review_skipped_reaches_the_eyes_only_when_true(self):
+        """issue #441: 計画の往復が事前審査を run の頭の深さで飛ばした印（plan-rounds の depth_skip）を、独立の目へ渡す"""
+        self.assertIs(fixed.fixed(self.fix(), None, replan=False, stops=("",), review_skipped=True)["review_skipped"], True)
+        self.assertIs(fixed.fixed(self.fix(), None, replan=False, stops=("",))["review_skipped"], False)
+        with mock.patch.dict(os.environ, {"INPUTS_REVIEW_SKIPPED": "null"}):
+            self.assertIs(fixed.from_env()["review_skipped"], False)
 
     def test_diffs_name_both_passes(self):
         """部分 D2: fixed は段ごとの diff の指し札の並び diffs（1 回目・2 度目の順。どちらの隣にも段の約束のファイル）を返し、最後の
@@ -2312,9 +2357,9 @@ class LineWiringCase(unittest.TestCase):
 
     def test_receivers_take_every_field_of_what_they_receive(self):
         """受け皿の got_<欄> は受ける節の同じ欄を指し、欄の組はブロックの返す節の output_format（計画の往復は plan_out の
-        PLAN・REVIEW）と同じ（受け皿の鍵を消すか向け違えると、その欄が黙って報告から落ちる）"""
+        PLAN・DEPTH と REVIEW）と同じ（受け皿の鍵を消すか向け違えると、その欄が黙って報告から落ちる）"""
         nodes = line_nodes()
-        rounds = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
+        rounds = {"plan-rounds-out": plan_out.PLAN + plan_out.DEPTH, "plan-rounds-review-out": plan_out.REVIEW}
         for key, node in nodes.items():
             if node.get("script") != "returned":
                 continue
@@ -2392,6 +2437,10 @@ class LineWiringCase(unittest.TestCase):
         ("plan-review-run", "mode"): "計画の往復の事前審査は形が空（既定）",
         ("replan-review", "round_limit"): "案の直しの事前審査は往復のループの外で、ループの上限が無い",
         ("replan-review", "mode"): "案の直しの事前審査は形が空（既定）。形 design は直す物が無い周の design-only だけ",
+        ("replan-review", "depth_skip"): "run の頭の深さで飛ばすのは計画の往復の事前審査だけ（docs/design.md の深さで飛ばすノードの表）",
+        ("replan-review", "depth_why"): "run の頭の深さで飛ばすのは計画の往復の事前審査だけ（docs/design.md の深さで飛ばすノードの表）",
+        ("design-only", "depth_skip"): "形 design は事前審査の輪を回さない",
+        ("design-only", "depth_why"): "形 design は事前審査の輪を回さない",
         ("design-only", "ruling"): "直す物が無い周は修正案を読まない形 design（裁定が無い）",
         ("design-only", "conflicts"): "直す物が無い周は修正の段が無いので申し出が無い",
         ("design-only", "gate_answers"): "直す物が無い周は修正前の承認ノードが無い",
@@ -2704,7 +2753,8 @@ class LineWiringCase(unittest.TestCase):
         self.assertLessEqual({"conflicts", "gate_answers"}, set(nodes["replan-review"]["with"]))
         self.assertFalse({"conflicts", "gate_answers"} & set(nodes["plan-review-run"]["with"]))
         self.assertEqual({name for key, name in self.UNPASSED if key == "plan-review-run"}, {"conflicts", "gate_answers", "mode"})
-        self.assertEqual({name for key, name in self.UNPASSED if key == "replan-review"}, {"mode", "round_limit"},
+        self.assertEqual({name for key, name in self.UNPASSED if key == "replan-review"},
+                         {"mode", "round_limit", "depth_skip", "depth_why"},
                          "申し出と関所の答えは渡す（mode は直す物が無い周の design-only だけ）")
 
     def test_include_ids_are_not_loop_body_ids(self):

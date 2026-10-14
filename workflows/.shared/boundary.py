@@ -47,7 +47,7 @@ LINE_SCRIPT = "works:line-script"
 # line/scripts/ask_final.py の最後の関所の字が変わる）。output_format と揃えるものは無く、字の欄を足して此処に足し忘れると、その欄の
 # "" は None に、"1" は数に読まれる
 TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread", "by", "suites_line", "log",
-               "baseline_line")
+               "baseline_line", "depth_why")
 
 _import_error = None
 
