@@ -1021,6 +1021,37 @@ class HooksCase(Base):
                          ["settings.json の hooks の行 PostToolUse:Edit|Write|NotebookEdit"], "相対パスの記録器は通さない")
 
 
+class DenyWebCase(Base):
+    """公開ベンチの run（WORKS_FACTORY_DENY_WEB=1）は、隔離した設定の settings.json の permissions で WebFetch・WebSearch を拒む。
+    柵は permissions を DENY_WEB とちょうど同じ時だけ受ける（#435）"""
+
+    def settings(self):
+        return json.loads((self.cfg / "settings.json").read_text())
+
+    def test_deny_web_install_writes_exact_permissions(self):
+        found, vers = self.sources()
+        toolset.install(self.cfg, found, self.borrow, claude_bin=str(self.claude), versions=vers, deny_web=True)
+        self.assertEqual(self.settings()["permissions"], {"deny": ["WebFetch", "WebSearch"]})
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
+        self.install()
+        self.assertNotIn("permissions", self.settings(), "同じ家を普段の run に使い回しても拒みを残さない")
+
+    def test_plain_install_writes_no_permissions(self):
+        self.install()
+        self.assertNotIn("permissions", self.settings())
+
+    def test_other_permissions_are_outside(self):
+        self.install()
+        _put(self.cfg / "settings.json", json.dumps({**self.settings(), "permissions": {"allow": ["Bash"]}}))
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), ["settings.json の鍵 permissions"])
+
+    def test_cli_install_denies_web_by_env(self):
+        r = self.cli("install", "--no-plugins", str(self.cfg), **{toolset.DENY_WEB_ENV: "1"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.settings()["permissions"], toolset.DENY_WEB)
+        self.assertEqual(self.cli("guard", str(self.cfg)).returncode, 0)
+
+
 class GuardCase(Base):
     def put(self, rel, body="x\n"):
         p = self.cfg / rel

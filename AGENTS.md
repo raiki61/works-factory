@@ -71,6 +71,7 @@ works-factory/
 │   ├── polyfills.md      埋めの名簿
 │   ├── concepts.md              考えの住処の地図
 │   ├── concepts.json            考えの住処の柵の表（tests/layers/test_concept_fences.py が照らす）
+│   ├── calibration-214.md       #214 の自作の較正の束の比べの記録（束は消した）
 │   └── plans/                   実装の計画
 ├── .github/workflows/tests.yml  CI。check の名は tests（4 つの分けを集める。分けは tests/shard.py）
 ├── pack.json                    版の止め（Archon の版は factory/pack.json）

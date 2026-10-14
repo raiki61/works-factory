@@ -49,7 +49,8 @@ AI ノードは全部 settingSources: [user] で、bin/ の起動が隔離した
   strictMcpConfig——ので、役は MCP を持たない）。前の版が置き場に書いた works-mcp.json は誰も読まないので、柵も数えず消しもしない。
 - 柵（guard）: 一覧の外を名前で並べる。CLAUDE.md・rules/・agents/・commands/・output-styles/・settings.json 以外の
   settings*.json・一覧の外のスキル・works-parts/ の下の部品の外のファイル・settings.json の鍵が {enabledPlugins,
-  extraKnownMarketplaces, hooks} の外・hooks の行のうち記録のフックの行と記録（hooks）に載せた借りる物の行の外・フォルダでない
+  extraKnownMarketplaces, hooks} の外（permissions は DENY_WEB とちょうど同じ時だけ受ける。公開ベンチの run が
+  WORKS_FACTORY_DENY_WEB=1 で起こし、install が置く）・hooks の行のうち記録のフックの行と記録（hooks）に載せた借りる物の行の外・フォルダでない
   works-writes・works-reads・一覧の外の有効な
   プラグイン・入れたプラグイン（plugins/installed_plugins.json）・marketplace（settings.json と plugins/known_marketplaces.json）。
   Claude Code が自分で書く状態（projects/・.claude.json・backups/・remote-settings.json・plugins/cache/ など）は見ない。
@@ -113,6 +114,9 @@ def _official(name, entry) -> bool:
             and src.get("repo") == OFFICIAL_MARKETPLACE[1])
 RECORD = ".works-toolset.json"
 SETTINGS_KEYS = frozenset({"enabledPlugins", "extraKnownMarketplaces", "hooks"})
+# 公開ベンチの run で役が網から正解の議論を引かないように拒む道具（tests/calibration/run.py が env で頼む）
+DENY_WEB = {"deny": ["WebFetch", "WebSearch"]}
+DENY_WEB_ENV = "WORKS_FACTORY_DENY_WEB"
 RECORDER = pathlib.Path(__file__).resolve().parent / "record-write.py"
 WRITE_MATCHER = "Edit|Write|NotebookEdit"   # 書き込みの記録のフックが掛かる道具（今の works の adapter.WRITE_MATCHER と同じ）
 READ_RECORDER = pathlib.Path(__file__).resolve().parent / "record-read.py"
@@ -522,7 +526,8 @@ def guard(config_dir: pathlib.Path, borrow: dict, record=None) -> list:
     if st is _BAD:
         out.append("settings.json（JSON の表として読めない）")
     elif st is not None:
-        out += [f"settings.json の鍵 {k}" for k in sorted(set(st) - SETTINGS_KEYS)]
+        allowed = SETTINGS_KEYS | ({"permissions"} if st.get("permissions") == DENY_WEB else set())
+        out += [f"settings.json の鍵 {k}" for k in sorted(set(st) - allowed)]
         out += _foreign_hooks(cfg, st["hooks"], record) if "hooks" in st else []
         out += [f"有効なプラグイン {k}" for k in sorted(_keys(st.get("enabledPlugins")) - plugins)]
         out += [f"marketplace {k}（settings.json）" for k in sorted(_keys(st.get("extraKnownMarketplaces")) - {MARKETPLACE})]
@@ -649,11 +654,12 @@ def _install_plugins(cfg: pathlib.Path, srcs: dict, claude_bin: str, retired=())
 
 
 def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin, plugins: bool = True,
-            versions: "dict | None" = None, enabled: "dict | None" = None) -> dict:
+            versions: "dict | None" = None, enabled: "dict | None" = None, deny_web: bool = False) -> dict:
     """隔離した設定を組む。chosen・versions は installed_sources の出力（versions に無い名は置き場の名・plugin.json の version）。
     chosen は installed_sources を通った物だけを渡す（superpowers の写しを pin と照らし直さずに写す）。
     enabled は 名 → source_enabled の値（渡された kind "plugin" の名だけ記録に source_enabled として載せる）。
     hooked の物はフックの行を、記録のフックの行と一緒に settings.json の hooks に置く（_place_hooks）。
+    settings.json の permissions は deny_web なら DENY_WEB にし、そうでなければ外す（同じ家を普段の run に使い回しても残さない）。
     出力と <置き場>/.works-toolset.json は {名: {version, source, sha256, loaded[, commit][, source_enabled][, hooks]}}"""
     versions = versions or {}
     enabled_src = enabled or {}
@@ -699,7 +705,7 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
         if not claude_bin:
             raise ToolsetError("プラグインを入れる claude の実行ファイルが渡されていない（--claude）")
         _install_plugins(cfg, srcs, claude_bin, retired=sorted(placed))
-    _place_hooks(cfg, hooks)
+    _place_hooks(cfg, hooks, deny_web)
     st = _read_json(cfg / "settings.json") or {}
     enabled, on = st.get("enabledPlugins") or {}, st.get("hooks") or {}
     for name in sorted([*srcs, *placed]):
@@ -730,13 +736,15 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
     return rec
 
 
-def _place_hooks(cfg: pathlib.Path, hooks: dict) -> None:
-    """settings.json の hooks を hooks にし（ほかの鍵は残す）、記録の根を作る"""
+def _place_hooks(cfg: pathlib.Path, hooks: dict, deny_web: bool) -> None:
+    """settings.json の hooks を hooks に、permissions を deny_web なら DENY_WEB にしてそうでなければ外し（ほかの鍵は残す）、
+    記録の根を作る"""
     for _, _, root in _recorders(cfg):
         root.mkdir(exist_ok=True)
     st = _read_json(cfg / "settings.json")
-    st = st if isinstance(st, dict) else {}
-    _write_if_changed(cfg / "settings.json", json.dumps({**st, "hooks": hooks}, ensure_ascii=False, indent=2) + "\n")
+    st = {k: v for k, v in st.items() if k != "permissions"} if isinstance(st, dict) else {}
+    st = {**st, "hooks": hooks, **({"permissions": DENY_WEB} if deny_web else {})}
+    _write_if_changed(cfg / "settings.json", json.dumps(st, ensure_ascii=False, indent=2) + "\n")
 
 
 def _licence_notice(src: pathlib.Path, item: dict) -> str:
@@ -1167,7 +1175,8 @@ def main(argv: list) -> int:
             chosen, versions = installed_sources(user_cfg, borrow, cwd=here)
             enabled = {n: source_enabled(user_cfg, f"{n}@{i['marketplace']}", here)
                        for n, i in borrow.items() if i["kind"] == "plugin"}
-            install(cfg, chosen, borrow, claude_bin=claude_bin, plugins=not no_plugins, versions=versions, enabled=enabled)
+            install(cfg, chosen, borrow, claude_bin=claude_bin, plugins=not no_plugins, versions=versions, enabled=enabled,
+                    deny_web=os.environ.get(DENY_WEB_ENV) == "1")
     except ToolsetError as e:
         print(f"toolset.py: {e}", file=sys.stderr)
         return 2

@@ -1,0 +1,84 @@
+{
+ "events": [
+  {
+   "event_type": "workflow_started",
+   "step_name": null,
+   "data": {},
+   "created_at": "2026-10-13T18:34:10.000Z"
+  },
+  {
+   "event_type": "node_completed",
+   "step_name": "start",
+   "data": {
+    "timing": {
+     "startedAt": "2026-10-13T18:34:10.160Z",
+     "durationMs": 524
+    },
+    "spend": {
+     "costUsd": {
+      "source": "unavailable",
+      "reason": "not_applicable"
+     }
+    },
+    "node_output": "{\"ok\":true}"
+   },
+   "created_at": "2026-10-13T18:34:10.000Z"
+  },
+  {
+   "event_type": "node_completed",
+   "step_name": "judge__intake",
+   "data": {
+    "spend": {
+     "costUsd": {
+      "source": "unavailable",
+      "reason": "not_applicable"
+     }
+    },
+    "node_output": "{\"ok\":true}"
+   },
+   "created_at": "2026-10-13T18:34:13.000Z"
+  },
+  {
+   "event_type": "node_completed",
+   "step_name": "judge__diagnose-loop.diagnose",
+   "data": {
+    "timing": {
+     "startedAt": "2026-10-13T18:36:37.701Z",
+     "durationMs": 86143
+    },
+    "spend": {
+     "costUsd": {
+      "source": "provider",
+      "value": 0.5843329
+     }
+    },
+    "node_output": "{\"units\": [{\"key\": \"stats.py mean: 分母が len(xs) - 1 で算術平均にならず、要素 1 個でゼロ除算になる\", \"label\": \"block\"}]}"
+   },
+   "created_at": "2026-10-13T18:38:03.000Z"
+  },
+  {
+   "event_type": "node_completed",
+   "step_name": "eyes__r4-scope",
+   "data": {
+    "timing": {
+     "startedAt": "2026-10-13T18:44:22.724Z",
+     "durationMs": 14333
+    },
+    "spend": {
+     "costUsd": {
+      "source": "provider",
+      "value": 0.10897219999999999
+     }
+    },
+    "node_output": "{\"surfaced\": [{\"text\": \"[suggest] 差分が空で、mean は未変更です。仮に将来 n-1 に変えると、要素 1 個のとき ZeroDivisionError になります。README の「空は ValueError」だけでは、この境界が利用者に伝わりません。CLI（stats.py:46）も 1 個の引数で落ちます。\"}]}"
+   },
+   "created_at": "2026-10-13T18:44:37.000Z"
+  },
+  {
+   "event_type": "workflow_completed",
+   "step_name": null,
+   "data": {},
+   "created_at": "2026-10-13T18:49:02.000Z"
+  }
+ ]
+}

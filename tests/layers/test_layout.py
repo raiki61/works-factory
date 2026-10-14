@@ -14,7 +14,7 @@ from tests.layers import scan
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TREE = re.compile(r"^## リポジトリの形\n.*?^```text\n(.*?)^```", re.M | re.S)
 BRANCH = re.compile(r"^((?:│   |    )*)(?:├── |└── )(.*)$")
-SEEDS = ("tests/e2e/target-seed", "tests/calibration/seed")
+SEEDS = ("tests/e2e/target-seed",)
 
 
 def root_names(agents_md):
@@ -124,9 +124,6 @@ class LayoutTest(unittest.TestCase):
 
     def test_target_seed_with_init(self):
         self.check("tests/e2e/target-seed/__init__.py", "tests/e2e/target-seed")
-
-    def test_calibration_seed_with_init(self):
-        self.check("tests/calibration/seed/__init__.py", "tests/calibration/seed")
 
     def test_root_name_listed_twice(self):
         tree = agents_md()

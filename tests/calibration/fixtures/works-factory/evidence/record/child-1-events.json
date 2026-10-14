@@ -1,0 +1,22 @@
+{
+ "events": [
+  {
+   "event_type": "node_completed",
+   "step_name": "tdd-unit",
+   "data": {
+    "timing": {
+     "startedAt": "2026-10-13T18:42:50.959Z",
+     "durationMs": 212
+    },
+    "spend": {
+     "costUsd": {
+      "source": "unavailable",
+      "reason": "not_applicable"
+     }
+    },
+    "node_output": "{\"ok\":true}"
+   },
+   "created_at": "2026-10-13T18:42:51.000Z"
+  }
+ ]
+}
