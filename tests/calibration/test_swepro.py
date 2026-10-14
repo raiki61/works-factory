@@ -12,6 +12,7 @@ import json
 import math
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -215,6 +216,19 @@ class InsideTest(unittest.TestCase):
         self.assertIn(RUN_ID, result["error"])
         predicted = self.predicted(result)
         self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
+
+    def test_broken_factory_outcome_is_a_failed_producer(self):
+        self.assertLessEqual(set(swepro.BROKE), set(swepro.report.OUTCOMES))
+        for word in swepro.BROKE:
+            with self.subTest(outcome=word):
+                shutil.rmtree(self.place / "attempt", ignore_errors=True)
+                (self.place / swepro.SECRET).write_text(TOKEN, encoding="utf-8")
+                self.set_plan(outcome=word)
+                done, result = self.inside()
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertIn(word, result["error"])
+                predicted = self.predicted(result)
+                self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
 
     def test_needs_human_before_seal_gives_empty_patch(self):
         self.set_plan(outcome="needs_human")

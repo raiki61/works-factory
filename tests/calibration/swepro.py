@@ -24,8 +24,9 @@ bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json �
 - 無人の run が人に聞いて止まった（承認ノードで待った・結末の種が chain.KIND_HUMAN）時は stopped を立てる。封じた差分が在れば
   --allow-stopped で当て、封じる前に止まった run は当てずに空の patch（未解決）として数える。run を resume しない。
   /app の変更を取れなかった時も stopped を立て、model_patch を null にする（変更は /app に残っていて、空の patch ではない）。
-- 作り手が落ちた（認証の拒否・工場の run が起きない・封じた差分が当たらない）時と起こし役が落ちた時は error に訳を書き、
-  予測の failed を立てる。ふつうの未解決（直せなかった）と分けて数える。
+- 作り手が落ちた（認証の拒否・工場の run が起きない・封じた差分が当たらない・結末が BROKE）時と起こし役が落ちた時は error に
+  訳を書き、予測の failed を立てる。ふつうの未解決（直せなかった）と分けて数える。BROKE（record_invalid・interrupted）は
+  工場そのものが壊れて終わった結末で、人の判断を待っていないので stopped（人待ち）に入れない。
 - 期限を置かない（持ち主の決め no-timeouts）。Pro の 1 件の上限 PRO_SECONDS は、超えた事実を予測の pro_limit に残すだけ。
 - 漏れの塞ぎ: トークンはファイルで 1 回だけ上げ、inside が読んで消して自分の env に置く（docker の exec の env はホストの ps に出る）。
   結果と予測には env の名だけを書く。gh の認証は渡さず、WebFetch・WebSearch は run.bench_env と toolset.DENY_WEB で拒む。
@@ -66,6 +67,8 @@ TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/oauth-token", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
 INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
+# 工場そのものが壊れて終わった結末（記録が読めない・節が落ちて線が進まなかった）。人を待っていないので stopped に入れない
+BROKE = ("record_invalid", "interrupted")
 REPO_TAR, REPO_STEP = "repo.tar", "repo"
 UV_VERSION, BUN_VERSION = "0.11.29", "1.4.3"
 INSTANCE = re.compile(r"^instance_(.+?)__(.+?)-[0-9a-f]{40}")
@@ -241,6 +244,8 @@ def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict
     got["apply"] = {"code": code, "line": lines[0] if lines else ""}
     if code != 0 and meant_to_deliver(attempt / evidence.EVIDENCE):
         got["error"] = f"封じた差分が当たらない: {got['apply']['line']}"
+    if not got.get("error") and ended["outcome"] in BROKE:
+        got["error"] = f"工場の run {run_id} が結末 {ended['outcome']} で終わった（工場が壊れた）"
 
 
 def meant_to_deliver(ev: Path) -> bool:
