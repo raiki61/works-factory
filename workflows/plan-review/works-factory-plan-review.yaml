@@ -56,7 +56,7 @@ inputs:
   depth_skip:
     default: "false"
     description: >-
-      メイングラフの計画の往復の差し込みだけが渡す。真なら事前審査の輪 review-loop を飛ばし、審査なしで通した形を返す
+      メイングラフの計画の往復の include だけが渡す。真なら事前審査のループ review-loop を飛ばし、審査なしで通した形を返す
       （docs/design.md の深さで飛ばすノードの表）。形 review の時だけ効く
   depth_why:
     default: ""

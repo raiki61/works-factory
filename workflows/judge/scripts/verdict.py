@@ -30,7 +30,7 @@ def fallen(objection: str) -> dict:
     return {"ready": False, "stop_reason": "works:rejudge" if objection.strip() else "works:judge", "units": [],
             "judgment": ptr("judgment.json"), "purpose": ptr("purpose.json"),
             "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None,
-            "depth": "標準", "depth_why": "判定の返す節が lib を読めない"}
+            "depth": "標準", "depth_why": "判定の出力ノードが lib を読めない"}
 
 
 objection = os.environ.get("INPUTS_OBJECTION", "")
