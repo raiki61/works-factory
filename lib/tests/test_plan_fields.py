@@ -186,8 +186,8 @@ class TestSplitAndBoard(PlanFieldsCase):
 
     def test_removes_tests_only_from_code_use(self):
         """removes の語が文字列（題・辞書の値・parametrize の値）や注釈の中にしか無いテストは removes_tests に並ばない。コードの
-        名前・属性・点の付いたパスの文字列（mock.patch の的。デコレータでも）・属性の名の文字列（setattr・getattr・patch.object）・
-        引数の名で使うテストだけが並ぶ（ありふれた語で許しを広げない。#549）"""
+        名前・属性・点の付いたパスの文字列（mock.patch の的のどの段でも。デコレータでも）・属性の名の文字列（setattr・getattr・
+        patch.object）・引数の名・from-import の元のモジュールの段で使うテストだけが並ぶ（ありふれた語で許しを広げない。#549）"""
         src = ("import pytest\n"
                "from unittest import mock\n"
                "\n"
@@ -229,13 +229,34 @@ class TestSplitAndBoard(PlanFieldsCase):
                "    assert getattr(mod, \"Book\")\n"
                "\n"
                "def test_other_call_string():\n"
-               "    assert find(mod, \"Book\")\n")
+               "    assert find(mod, \"Book\")\n"
+               "\n"
+               "def test_patched_method():\n"
+               "    with mock.patch(\"pkg.models.Book.save\"):\n"
+               "        assert run()\n")
         _, fields = planmarks.split({"plan": [item(removes=["Book"])]}, self.repo, base_tests={"tests/test_books.py": src})
         self.assertEqual([r["id"] for r in fields[0]["removes_tests"]],
                          ["tests/test_books.py::test_builds", "tests/test_books.py::test_patched",
                           "tests/test_books.py::test_fixture", "tests/test_books.py::test_attr",
                           "tests/test_books.py::test_decorated", "tests/test_books.py::test_setattr",
-                          "tests/test_books.py::test_patch_object", "tests/test_books.py::test_getattr"])
+                          "tests/test_books.py::test_patch_object", "tests/test_books.py::test_getattr",
+                          "tests/test_books.py::test_patched_method"])
+        src = ("from unittest import mock\n"
+               "\n"
+               "def test_patched_inside():\n"
+               "    with mock.patch(\"pkg.vendors.get_meta\"):\n"
+               "        assert run()\n"
+               "\n"
+               "def test_local_import():\n"
+               "    from pkg.vendors import AmazonAPI\n"
+               "    assert AmazonAPI\n"
+               "\n"
+               "def test_unrelated():\n"
+               "    assert run(\"vendors\")\n")
+        _, fields = planmarks.split({"plan": [item(removes=["pkg.vendors"])]}, self.repo,
+                                    base_tests={"tests/test_vendors.py": src})
+        self.assertEqual([r["id"] for r in fields[0]["removes_tests"]],
+                         ["tests/test_vendors.py::test_patched_inside", "tests/test_vendors.py::test_local_import"])
 
     def test_save_read_by_round(self):
         b = types.SimpleNamespace(dir=self.tmp, round=1)

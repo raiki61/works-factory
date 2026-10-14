@@ -403,7 +403,7 @@ def test_functions(src: str, path: str) -> dict[str, str]:
 
 
 def code_idents(node) -> set[str]:
-    """節 node の下でコードの識別子として使う名（名前・属性・引数・キーワード・import の各段と別名・定義の名）。文字列と注釈の
+    """節 node の下でコードの識別子として使う名（名前・属性・引数・キーワード・import（from の元のモジュールも）の各段と別名・定義の名）。文字列と注釈の
     中の語は入れない（文字列のどれを名と読むかは呼び手が足す。planmarks._code_names・tddloop._old_names）"""
     out = set()
     for n in ast.walk(node):
@@ -416,6 +416,8 @@ def code_idents(node) -> set[str]:
         elif isinstance(n, ast.alias):
             out.update(n.name.split("."))
             out.add(n.asname or "")
+        elif isinstance(n, ast.ImportFrom):
+            out.update((n.module or "").split("."))
         elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             out.add(n.name)
     out.discard("")
@@ -439,13 +441,13 @@ def _attr_name_arg(call):
 
 
 def _code_names(node) -> set[str]:
-    """節 node（デコレータも含む）の下でコードの識別子として使う名（code_idents）と、点の付いたパスの形の文字列の最後の段
-    （mock.patch("pkg.mod.Name") の Name）と、属性の名として渡す識別子の文字列（setattr(mod, "Name", …) の Name）。
+    """節 node（デコレータも含む）の下でコードの識別子として使う名（code_idents）と、点の付いたパスの形の文字列の各段
+    （mock.patch("pkg.mod.Name") の pkg・mod・Name）と、属性の名として渡す識別子の文字列（setattr(mod, "Name", …) の Name）。
     ほかの文字列と注釈の中の語は入れない"""
     out = code_idents(node)
     for n in ast.walk(node):
         if isinstance(n, ast.Constant) and isinstance(n.value, str) and _DOTTED_PATH.fullmatch(n.value):
-            out.add(n.value.rsplit(".", 1)[-1])
+            out.update(n.value.split("."))
         elif isinstance(n, ast.Call):
             arg = _attr_name_arg(n)
             if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and arg.value.isidentifier():
