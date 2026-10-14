@@ -16,7 +16,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from bin._lib import hostgh, isolate, pack, place, startpoint, testcmd_check
-from lib import answer, reads, writelog
+from lib import answer, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
@@ -123,6 +123,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         if check.returncode != 0:
             raise Stop(code=check.returncode)
         print(f"{NAME}: 認証は {check.stdout.strip()} から拾う（値は出さない）", file=sys.stderr)
+    if executing and userenv.opted(child):
+        print(f"{NAME}: {userenv.OPT_IN}=1 なので、対象の試験・受け入れのコマンドを利用者の HOME・XDG で走らせる"
+              "——AI が書いた試験のコードが、利用者の資格（keychain・gh のログイン）に届く", file=sys.stderr)
     real = None
     if executing:
         real = real_claude(user)

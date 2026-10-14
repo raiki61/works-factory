@@ -22,6 +22,7 @@ if str(LIB) not in sys.path:
 
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
+import userenv  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 
 
@@ -265,6 +266,65 @@ class ClassifyCase(unittest.TestCase):
 
 
 FP = {"head": "h1", "diff_hash": "d1"}
+
+
+class RanNoteCase(unittest.TestCase):
+    def note(self, green=False, cause="", by="role"):
+        return green_cert.ran_note(green=green, red_cause=cause, by=by)
+
+    def test_every_red_cause_has_a_sentence_or_none(self):
+        for green, cause, want in ((True, "", ""), (False, "environment", green_cert.NOT_RAN),
+                                   (False, "incomplete", green_cert.NOT_RAN), (False, "", green_cert.UNVERIFIED_RUN),
+                                   (False, "introduced", ""), (False, "inherited", ""), (False, "interaction", "")):
+            with self.subTest(green=green, cause=cause):
+                got = self.note(green, cause)
+                self.assertEqual(got, f"{want}。{green_cert.RAN_GUIDE}" if want else "")
+        self.assertEqual(set(green_cert.RED_CAUSES), {"introduced", "inherited", "environment", "interaction", "incomplete", ""})
+
+    def test_guide_names_the_switch_and_the_local_run(self):
+        self.assertIn(f"{userenv.OPT_IN}=1", green_cert.RAN_GUIDE)
+        self.assertIn("工場の外の手元", green_cert.RAN_GUIDE)
+
+    def test_unknown_cause_is_not_read_as_ran(self):
+        self.assertTrue(self.note(cause="someday").startswith(green_cert.UNVERIFIED_RUN))
+
+    def test_gate_script_failure_is_its_own_sentence(self):
+        """#492 R1: 返す節の中の誤り（by が空）は incomplete でも「走っていない」と言わない"""
+        self.assertEqual(self.note(cause="incomplete", by=green_cert.GATE_BROKE_BY), green_cert.GATE_BROKE)
+        self.assertEqual(self.note(green=True, by=green_cert.GATE_BROKE_BY), "")
+
+
+class FailedAlikeCase(unittest.TestCase):
+    """#492 R2: test_cmd だけの赤が直す前と同じログで落ちたかの見分け（道具の名に依らない）"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.log = pathlib.Path(tmp.name) / "test_cmd.log"
+        self.log.write_text("config error\n", encoding="utf-8")
+        self.digest = green_cert.log_digest(self.log)
+        self.base = {"by": "role", "runs": [], "test_cmd": "t", "material": {"status": "found"}, "log_digest": self.digest}
+
+    def alike(self, base=None, **kw):
+        args = {"by": "role", "runs": [], "test_cmd": "t", "status": "found", "digest": self.digest, **kw}
+        return green_cert.failed_alike(self.base if base is None else base, **args)
+
+    def test_same_log_before_and_after_is_alike(self):
+        self.assertTrue(self.alike())
+
+    def test_any_difference_is_not_alike(self):
+        for name, kw, base in (("ログ", {"digest": "other"}, None), ("コマンド", {"test_cmd": "u"}, None),
+                               ("緑", {"status": "clean"}, None), ("段", {"runs": [{"name": "s", "exit": 1}]}, None),
+                               ("by", {"by": "engine"}, None), ("元が無い", {}, {}),
+                               ("元のログが無い", {}, {**self.base, "log_digest": ""}),
+                               ("今のログが無い", {"digest": green_cert.log_digest(self.log.parent / "none")}, None)):
+            with self.subTest(name):
+                self.assertFalse(self.alike(base, **kw))
+
+    def test_alike_red_is_incomplete(self):
+        got = green_cert.classify(material={"status": "found"}, runs=[], cases=[], baseline_cases=None, junit_steps=[],
+                                  junit_unran=[], alike=True)
+        self.assertEqual(got, (green_cert.INCOMPLETE, green_cert.FAILED_ALIKE))
 
 
 class CertifyCase(unittest.TestCase):

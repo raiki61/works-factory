@@ -30,6 +30,7 @@ import planfile  # noqa: E402
 import querytest  # noqa: E402
 import reads  # noqa: E402
 import report  # noqa: E402
+import userenv  # noqa: E402
 import report_roles  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
@@ -81,7 +82,7 @@ class Base(unittest.TestCase):
         path.write_text(doc if isinstance(doc, str) else json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return str(path)
 
-    def build(self, returns=None, gates=None, typed=None, transcript=None, start=None, problems=(), line=None):
+    def build(self, returns=None, gates=None, typed=None, transcript=None, start=None, problems=(), line=None, user_env=False):
         returns = fixed_run() if returns is None else returns
         gates = gates or {}
         decided = outcome.decide_outcome(returns, gates, {"start_ok": True, "record_problems": list(problems),
@@ -89,7 +90,7 @@ class Base(unittest.TestCase):
                                                           "stops": list(((line or {}).get("stops") or {}).items()),
                                                           "eyes_skip": ((line or {}).get("redepth") or {}).get("skip_optional")})
         got = runreport.build(returns, gates, typed or {}, transcript, *decided, out_dir=self.out, start=start or {"run_id": RUN},
-                              problems=problems, run_id=RUN, line=line)
+                              problems=problems, run_id=RUN, line=line, user_env=user_env)
         return got, pathlib.Path(got["report"]).read_text(encoding="utf-8"), decided
 
     def fix_place(self, name="fix", accept_trace=(), **result) -> str:
@@ -146,6 +147,32 @@ class BuildCase(Base):
         self.assertEqual([r["where"] for r in prior if r["where"] == carry.REDESIGN_WHERE], [carry.REDESIGN_WHERE])
         self.assertFalse(any(report._r2_redesign(r) for r in doc["findings"]), "R2 の作り直しの行は前の失敗にだけ載せる")
         self.assertTrue(any("受け付けが 3 回拒んだ" in r["text"] for r in prior))
+
+    def first_line(self, final=None, **kw) -> str:
+        returns = fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], **final}}) if final else None
+        _, text, _ = self.build(returns, **kw)
+        first = text.split("\n\n", 2)[1].splitlines()[0]
+        self.assertTrue(first.startswith(gatemarks.HAPPENED), first)
+        return first
+
+    def test_final_tests_that_did_not_run_are_named_in_the_head(self):
+        """#492: 最後のテストが incomplete の run は、冒頭の 1 行目（起きたこと）が試験は走っていないと言い、利用者の環境で回す道を
+        添える。返す節の中の誤り（by が空）は走っていないと言わずに工場の不具合と言う。緑なら言わない"""
+        red = {"ok": False, "green": False, "red_cause": "incomplete", "by": "role"}
+        first = self.first_line(red)
+        self.assertIn(green_cert.NOT_RAN, first)
+        self.assertIn(green_cert.RAN_GUIDE, first)
+        broke = self.first_line({**red, "by": ""})
+        self.assertIn(green_cert.GATE_BROKE, broke)
+        self.assertNotIn(green_cert.NOT_RAN, broke)
+        green = self.first_line()
+        for note in runreport.HEAD_NOTES:
+            self.assertNotIn(note, green)
+
+    def test_users_environment_for_target_commands_is_named_in_the_head(self):
+        """#492: 対象のコマンドを利用者の HOME・XDG で走らせた run だけ、冒頭の 1 行目が AI の試験のコードが資格に届いたと言う"""
+        self.assertIn(userenv.NOTE, self.first_line(user_env=True))
+        self.assertNotIn(userenv.NOTE, self.first_line())
 
     def test_prior_section_names_only_the_files_written(self):
         """#383 の 10: 前の失敗だけが在る run は next-request.json を書かないので、節はそれを名指さず prior-failures.json を名指す"""
@@ -822,6 +849,20 @@ class AcceptCase(Base):
         self.assertIn(report_roles.NOT_PASSED, third["reason"])
         self.assertTrue(self.ai()["not_passed"])
         self.assertEqual(self.ai()["rejects"]["report"]["cold"], 2)
+
+    def test_head_must_carry_the_head_notes_of_the_machine_report(self):
+        """#492: 機械の報告の冒頭が試験は走っていない・利用者の資格に届く環境で走らせたと言う時、その句が頭に無い返答は answer で
+        拒み、在れば受け取る"""
+        self.out.mkdir(parents=True)
+        for note in (green_cert.NOT_RAN, userenv.NOTE):
+            with self.subTest(note=note):
+                (self.out / report.REPORT_FILE).write_text(f"# 報告\n\n起きたこと: 赤。{note}\n\n## 1. 人が決めること\n\n- 無い\n",
+                                                           encoding="utf-8")
+                got = runreport.accept(self.REPLY, self.PASS, out_dir=self.out)
+                self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
+                self.assertIn(note, got["reason"])
+                named = json.dumps({"text": f"{note}。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
+                self.assertTrue(runreport.accept(named, self.PASS, out_dir=self.out)["ok"])
 
     def test_format_and_terms_rejected_first(self):
         bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)

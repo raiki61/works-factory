@@ -1,15 +1,16 @@
 """SWE-Bench Pro V2 の Harbor の agent WorksBench（--ak producer=<works-factory|claude>）。命令の形と 1 件の流れは
 tests/calibration/swepro.py の頭。harbor を import するのはこのファイルだけで、harbor は pyproject.toml の extra bench に在る。
 
-ホストで動く薄い殻: setup で道具と工場の写しを課題のコンテナの /opt/works-bench に載せ、run で課題の入力と認証のファイルを
-上げて起こし役（swepro.py inside）を 1 回 exec し、/app の差分を model.patch に取り、起こし役の標準出力と予測を <試み>/agent/ に書く。
+ホストで動く薄い殻: setup で swepro.py prepare が課題のイメージに焼いた焼き印と bwrap を確かめ（網を使わない）、run で
+課題の入力と認証のファイルを上げて起こし役（swepro.py inside）を 1 回 exec し、/app の差分を model.patch に取り、
+起こし役の標準出力と予測を <試み>/agent/ に書く。
 命令の字は swepro.py が組む。期限を足さない（setup・exec とも上限なし。作業の段の上限は --agent-timeout-multiplier inf で外し、
-付け忘れた起動は殻を作る時に断る）。
+付け忘れた起動は殻を作る時に断る）。https のプロキシが api.anthropic.com を向く環境も、殻を作る時（環境を起こす前）に
+断る（訳は swepro.py の頭の「プロキシの要る網」）。
 """
 import json
 import math
 import os
-import subprocess
 import sys
 import tempfile
 import time
@@ -22,8 +23,8 @@ from harbor.agents.base import BaseAgent  # noqa: E402
 from harbor.environments.base import BaseEnvironment  # noqa: E402
 from harbor.models.agent.context import AgentContext  # noqa: E402
 
-from bin._lib import auth_launch, launcher  # noqa: E402
-from tests.calibration import run, swepro  # noqa: E402
+from bin._lib import auth_launch  # noqa: E402
+from tests.calibration import swepro  # noqa: E402
 
 TAIL = 5
 
@@ -38,35 +39,28 @@ class WorksBench(BaseAgent):
             raise ValueError("harbor run に --agent-timeout-multiplier inf（または --timeout-multiplier inf）が無い。"
                              f"無いと Harbor が作業の段を {swepro.PRO_SECONDS} 秒×倍率で切る"
                              "（harbor job resume・-c の設定のファイルからの起動も旗が字に無いので断る）")
+        refused = swepro.proxy_refused(os.environ)
+        if refused:
+            raise ValueError(refused)
         self.producer = swepro.chosen(producer)
-        version = run._claude_version(launcher.real_claude(os.environ))
+        version = swepro.host_claude_version(os.environ)
         if not version:
             raise ValueError("ホストの claude --version が読めない（コンテナにはホストと同じ版の Claude Code を入れる）")
-        self.claude_version = version.split()[0]
+        self.claude_version = version
 
     @staticmethod
     def name() -> str:
         return "works-bench"
 
     def version(self) -> str:
-        return subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True,
-                              encoding="utf-8", check=True).stdout.strip()
+        return swepro.head_commit()
 
     async def setup(self, environment: BaseEnvironment) -> None:
-        for name, command in swepro.setup_commands(self.claude_version):
-            if name == swepro.REPO_STEP:
-                await self._upload_repo(environment)
+        for name, command in swepro.setup_commands(self.version(), self.claude_version):
             done = await environment.exec(command, user="root", timeout_sec=None)
             if done.return_code != 0:
                 tail = "\n".join((done.stderr or done.stdout or "").strip().splitlines()[-TAIL:])
                 raise RuntimeError(f"setup の {name} が終了の値 {done.return_code} で落ちた:\n{tail}")
-
-    async def _upload_repo(self, environment: BaseEnvironment):
-        """HEAD の写し。commit していない変更は入らないので、測る物と来歴の factory_commit は必ず一致する"""
-        with tempfile.TemporaryDirectory(prefix="works-bench-") as tmp:
-            tar = Path(tmp) / swepro.REPO_TAR
-            subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", "-o", str(tar), "HEAD"], check=True)
-            await environment.upload_file(tar, f"{swepro.PLACE}/{swepro.REPO_TAR}")
 
     def _auth(self) -> tuple[dict, str]:
         """(コンテナへ運ぶ認証の変数, 断った訳)。断らなければ訳は空"""

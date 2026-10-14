@@ -6,16 +6,21 @@
 - matches(cert_fingerprint, repo) -> bool: 認証の指紋が今の作業ツリーと同じか
 - classify(...) -> (red_cause, summary): 事実だけで赤の原因を分ける
 - certify(...) -> (ok, reason): 認証してよいか
+- log_digest(path) -> str: test_cmd のログのバイトの sha256（読めなければ ""）。元の結末に控え、final の failed_alike が比べる
+- failed_alike(base, *, by, runs, test_cmd, status, digest) -> bool: test_cmd だけの赤が、直す前と同じログで落ちたか
+- ran_note(*, green, red_cause, by) -> str: 試験が走ったかの、報告と関所の冒頭に出す句（RAN_NOTES のどれかと案内か ""）
 
 ASF の `W/.shared/validation-evidence.ts`:1-23（HEAD と追跡ファイルの binary の差分）と `W/deliver/scripts/gate-green.ts` に倣う。
 """
 import hashlib
+import pathlib
 
 import baseline_red
 import declared_checks
 import gatemarks
 import tree_run
 import unittrees
+import userenv
 
 MEASURED = ("clean", "found")
 # 素材の語の持ち主は gatemarks.MATERIAL_WORDS。測った結果でない語は全部未了で、落ちた先の分けで黙って認証しない
@@ -24,6 +29,19 @@ NOT_APPLICABLE = "not_applicable"
 AWAITING_HUMAN = "awaiting_human"
 BASE_OK = MEASURED + (NOT_APPLICABLE, AWAITING_HUMAN)
 INCOMPLETE = "incomplete"   # 赤の原因: 測り切れていない（classify の 3.）
+ENVIRONMENT = "environment"   # 赤の原因: 赤の段が全部起こせない（classify の 2.）
+NOT_RAN = "工場の中では試験が走っていない"
+UNVERIFIED_RUN = "工場の中では試験が走ったと確かめられていない"
+GATE_BROKE = "工場の中で試験の関門の script が落ちたか返さなかった（試験が走ったかは分からない。工場の不具合）"
+# 赤の原因の語（試験の関門の返りの red_cause の enum。tests/workflows/test_test_gate.py が照らす）ごとの、試験が走ったかの句。
+# 1 件ごとの事実で分けた赤（introduced・inherited・interaction）は走った赤なので句を出さない
+RAN_BY_CAUSE = {"introduced": "", "inherited": "", ENVIRONMENT: NOT_RAN, "interaction": "", INCOMPLETE: NOT_RAN, "": UNVERIFIED_RUN}
+RED_CAUSES = tuple(RAN_BY_CAUSE)
+RAN_NOTES = (NOT_RAN, UNVERIFIED_RUN, GATE_BROKE)
+GATE_BROKE_BY = ""   # 返す節の中の誤り（workflows/test-gate/scripts/result.py の failed）か、関門が返さなかった時の返りの by
+RAN_GUIDE = (f"利用者の HOME・XDG で走らせるなら、起こす env に {userenv.OPT_IN}=1 を置く（AI が書いた試験のコードが利用者の資格に"
+             "届く）か、工場の外の手元で試験を回す")
+FAILED_ALIKE = "test_cmd が直す前と同じログで落ちた（試験に入る前に落ちたと読む。1 件ごとの事実は無い）"
 HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 
@@ -83,7 +101,7 @@ def _keys(cases) -> str:
     return "・".join(keys[:HEAD_LIMIT]) + more
 
 
-def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran) -> tuple:
+def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran, alike=False) -> tuple:
     """赤の原因を事実だけで分ける ——（red_cause, summary）。red_cause は ""・environment・incomplete・introduced・inherited。順:
     1. 素材の status が clean → ("", "")
     2. 赤の段（exit が 0 でない段）が 1 つ以上在り、全部が起こせない段（tree_run.launch_kind が broken）→ environment
@@ -93,7 +111,8 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
        走った赤の段が在れば 4.〜6. で分け、走らなかった段は summary に添える
     4. baseline_cases が在り、今の落ちた物（failure・error）に、元で通っていたか元に無かった物（baseline_red._must_pass）が在る → introduced
     5. baseline_cases が在り、落ちた物が 1 つ以上在って全部が元でも落ちていて、broken を除く赤の段が全部 junit_steps に在って junit_unran に無い → inherited
-    6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None）→ ""（原因の無い赤）
+    6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None）→ ""（原因の無い赤）。ただし alike（呼び手の
+       failed_alike。test_cmd が直す前と同じログで落ちた）なら incomplete（FAILED_ALIKE）
     baseline_cases は元の結末の cases。呼び手は、元の結末の exit が None の時と、1 件ごとの結末の出どころが無い時に None を渡す"""
     status = (material or {}).get("status")
     if status == "clean":
@@ -101,11 +120,13 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     reds = [r for r in runs or [] if r.get("exit") != 0]
     broken = [r for r in reds if tree_run.launch_kind(r.get("exit")) == "broken"]
     if reds and len(broken) == len(reds):
-        return "environment", f"赤の段は全部起こせない段: {'・'.join(str(r.get('name')) for r in broken)}"
+        return ENVIRONMENT, f"赤の段は全部起こせない段: {'・'.join(str(r.get('name')) for r in broken)}"
     unran = f"JUnit の報告を宣言した段が走らなかった: {'・'.join(map(str, junit_unran))}" if junit_unran else ""
     if status in NOT_DONE or (unran and not declared_checks.ran_reds(runs, junit_unran)):
         return INCOMPLETE, "；".join([*([f"素材が {status}"] if status in NOT_DONE else []), *([unran] if unran else [])])
     cause, summary = _red_cause(reds, broken, cases, baseline_cases, set(junit_steps or []) - set(junit_unran or []))
+    if cause == "" and alike:
+        return INCOMPLETE, FAILED_ALIKE
     return cause, f"{summary}（{unran}）" if unran else summary
 
 
@@ -124,6 +145,34 @@ def _red_cause(reds, broken, cases, baseline_cases, read_steps) -> tuple:
             return "inherited", (f"落ちた {len(failed)} 件は全部元でも落ちていた: {_keys(failed)}"
                                  f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
     return "", f"赤の段 {names}: 元の結末と比べる 1 件ごとの事実が無い（{gatemarks.BASELINE_UNVERIFIED}）"
+
+
+def log_digest(path) -> str:
+    try:
+        return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest() if path else ""
+    except OSError:
+        return ""
+
+
+def failed_alike(base, *, by, runs, test_cmd, status, digest) -> bool:
+    """今の素材が test_cmd だけを走らせた赤（by role・段が無い・found。呼び手は tdd_suite も走らせた run の digest を "" で渡す）で、元の結末 base（baseline_red.read_baseline の返りか None）も
+    同じ test_cmd の同じ形の赤で、ログのバイトが同じ（log_digest。base の欄 log_digest）か。直した後も 1 字違わず同じに落ちるのは、
+    道具の設定の誤りのように試験に入る前に落ちた形で、道具の名に依らずに見分けられる。直しが試験の出力を変えない赤も同じに見える"""
+    return (bool(base) and bool(digest) and by == declared_checks.ROLE and not runs and status == "found"
+            and base.get("by") == by and not base.get("runs") and base.get("test_cmd") == test_cmd
+            and (base.get("material") or {}).get("status") == "found" and base.get("log_digest") == digest)
+
+
+def ran_note(*, green, red_cause, by) -> str:
+    """試験が走ったかを、道具の名に依らず test-gate の返りだけで言う句（#492）。緑は ""。by が GATE_BROKE_BY なら GATE_BROKE
+    （試験の前か後かを問わず工場の不具合で、走らなかったとは言わない）。ほかは RAN_BY_CAUSE で、知らない赤の原因は走ったと読まずに
+    UNVERIFIED_RUN。走っていない・確かめられていない句には、利用者の環境で回す 2 つの道（RAN_GUIDE）を添える"""
+    if green is True:
+        return ""
+    if by == GATE_BROKE_BY:
+        return GATE_BROKE
+    note = RAN_BY_CAUSE.get(red_cause, UNVERIFIED_RUN)
+    return f"{note}。{RAN_GUIDE}" if note else ""
 
 
 SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない）"
