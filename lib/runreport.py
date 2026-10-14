@@ -13,7 +13,7 @@
 - glossary_section(text, terms, pack)・pack_terms(): 本文と機械の事実に現れる語だけの定義の節（元 report_roles.py の glossary_section）
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name, line) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000。line は線の値）
-- fallback_report(out_dir, why, name): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
+- fallback_report(out_dir, why, name, *, user_env): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
 - cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start): 書き手の
   返答の受け付けと AI の報告（元 report_roles.py の write_cold_prep・accept・collect・stamp）
 """
@@ -1527,10 +1527,12 @@ def _ran_notes(returns: dict) -> list:
     return [note] if note else []
 
 
-def fallback_report(out_dir, why: str, name: str) -> pathlib.Path:
+def fallback_report(out_dir, why: str, name: str, *, user_env: bool) -> pathlib.Path:
     """思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行）を name に書く（呼び手は facts の report.md と別の名を渡す）。
+    user_env は build と同じ（落ちた run でも、利用者の HOME・XDG で走らせたことは冒頭が言う）。
     組めなければ誤りが上がり、呼び手が lib/ に頼らない訳だけのファイルに落ちる"""
-    return build({}, {}, {}, None, "record_invalid", f"report:{why}", out_dir=out_dir, problems=[why], report_name=name)["report"]
+    return build({}, {}, {}, None, "record_invalid", f"report:{why}", out_dir=out_dir, problems=[why], report_name=name,
+                 user_env=user_env)["report"]
 
 
 # ---------------------------------------------------------------- 書き手の返答の受け付けと AI の報告

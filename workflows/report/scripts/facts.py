@@ -290,7 +290,9 @@ def fallen(error: BaseException) -> dict:
         import rolekit
         out["lang_line"] = rolekit.lang_line({})
         import runreport
-        out["report"] = rel(runreport.fallback_report(out_dir(), why, runreport.UNWRITTEN))
+        import userenv
+        out["report"] = rel(runreport.fallback_report(out_dir(), why, runreport.UNWRITTEN,
+                                                      user_env=userenv.ran(boundary.line_place())))
     except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る
         out["report"] = unwritten(why)
     out["facts_file"] = out["report"]["path"]
