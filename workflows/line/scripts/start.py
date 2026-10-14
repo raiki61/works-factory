@@ -126,10 +126,10 @@ def request(raw: dict, repo: Path) -> dict:
         parts = carry.parts(doc)
     except ValueError as error:
         raise Refused(f"依頼のファイル {rel} の形: {error}") from None
-    problems = entry.request_problems(parts[carry.FINDINGS])
+    problems = entry.request_problems(parts[carry.FINDINGS]) if parts[carry.FINDINGS] else []   # 空は refuse_empty が見る
     if problems:
         raise Refused(f"依頼のファイル {rel} の形: findings の配列か {{findings, pr, issue, answers}} の形で、findings は "
-                      "[{where, text, mechanism?, measured?, false_positive_if?}] の配列（空でない）: " + "; ".join(problems))
+                      "[{where, text, mechanism?, measured?, false_positive_if?}] の配列: " + "; ".join(problems))
     return {"items": parts[carry.FINDINGS], "request_file": str(path.resolve()), "request_text": body, "parts": parts}
 
 

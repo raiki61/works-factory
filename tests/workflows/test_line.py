@@ -47,6 +47,7 @@ import boardview  # noqa: E402
 import boundary  # noqa: E402
 import conflict  # noqa: E402
 import converge  # noqa: E402
+import entryshape  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
@@ -343,6 +344,16 @@ class StartCase(Artifacts):
         reason = self.refused(request=str(self.outside("bad_answers.json", bad)))
         self.assertIn("の形", reason)
         self.assertNotIn("読めない", reason)
+
+    def test_request_without_findings_is_taken(self):
+        """#505: findings を省いた依頼（answers・pr だけ）は空の findings として受け、差分の在る base で始まる（元 works の
+        skills/works/SKILL.md 57 行「findings を省くと空の配列」）。差分も依頼の行も無ければ今までどおり空の入力として拒む"""
+        rows = [{"question": "q1", "text": "a を選ぶ"}]
+        path = self.outside("answers_only.json", json.dumps({"answers": rows}))
+        got = self.start(request=str(path), base="base")
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.record(got)["answers"], rows)
+        self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
 
     def test_request_answers_reach_the_record(self):
         """L-E03: 依頼の answers は始めの記録の answers（元 works/tests/test_entry.py の test_request_answers_reach_start_doc）"""
