@@ -265,6 +265,15 @@ class InsideTest(unittest.TestCase):
         self.assertEqual(self.calls()[0]["origin"], "https://example.invalid/app.git")
         self.assertFalse((self.place / "attempt" / swepro.ORIGIN_COPY).exists())
 
+    def test_origin_copy_that_cannot_be_made_stops_before_the_factory(self):
+        (self.place / "attempt").mkdir(parents=True, exist_ok=True)
+        (self.place / "attempt" / swepro.ORIGIN_COPY).write_text("not a repository\n", encoding="utf-8")
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, result = self.inside()
+        self.assertEqual(done.returncode, swepro.run.STOPPED, done.stderr)
+        self.assertIn("origin の写しを置けない", result["error"])
+        self.assertEqual(self.calls(), [])
+
     def test_factory_that_leaves_no_run_names_the_shells_last_line(self):
         said = "Error: Could not create isolated workspace (Cannot determine git remote for /app)."
         self.set_plan(refuse=said)
@@ -273,6 +282,8 @@ class InsideTest(unittest.TestCase):
         self.assertIn("工場の run が起きなかった", result["error"])
         self.assertIn(said, result["error"])
         self.assertTrue(self.predicted(result)["failed"])
+        self.assertIn("starting", done.stdout)
+        self.assertIn(said, done.stdout)
 
     def test_sealed_diff_that_deletes_a_file_is_applied(self):
         (self.workdir / "b.py").write_text("y = 1\n", encoding="utf-8")
