@@ -26,6 +26,7 @@ Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.m
 - shared_cache(): run をまたぐ控えの根
 - RUNNER_PREFIXES・RUNNER_NAMES・drop_runner_env(): Archon が script の節に立てる変数
 - prev_reason(): 輪の頭の節の返り（前の周の受け付けの理由）
+- transcript(): この run の記録の行（Archon の logger が LOG_DIR に書く JSONL。節ごとの費用と落ちを読む）
 """
 import contextlib
 import json
@@ -79,11 +80,31 @@ def pointer(rel: str) -> dict:
 
 def resolve(ptr: dict) -> Path:
     """この run の指し札を、置き場の中のパスに戻す"""
-    if not isinstance(ptr, dict) or ptr.get("type") != POINTER_TYPE:
-        raise ValueError(f"{POINTER_TYPE} のポインタでない: {ptr!r}")
+    require_pointer(ptr)
     if ptr.get("run_id") != _run_id():
         raise ValueError(f"ほかの run のポインタ: {ptr.get('run_id')}（この run は {_run_id()}）")
-    return _inside_artifacts(ptr.get("path", ""))
+    return inside_artifacts(ptr.get("path", ""))
+
+
+def require_pointer(ptr) -> None:
+    """ptr が指し札 {type: POINTER_TYPE, ...} の形でなければ ValueError"""
+    if not isinstance(ptr, dict) or ptr.get("type") != POINTER_TYPE:
+        raise ValueError(f"{POINTER_TYPE} のポインタでない: {ptr!r}")
+
+
+def inside_artifacts(rel, root=None) -> Path:
+    """run の置き場 root（無ければこの run の ARTIFACTS_DIR）からの相対パス rel を、Archon が通す形に限って置き場の中のパスにする"""
+    # Archon は / と \ の両方で区切って .. を拒む。末尾の / は pathlib が落とすが、Archon の stat は ENOTDIR で拒む
+    if (
+        not isinstance(rel, str)
+        or not rel
+        or "\0" in rel
+        or rel.startswith(("/", "\\"))
+        or rel.endswith("/")
+        or ".." in re.split(r"[\\/]", rel)
+    ):
+        raise ValueError(f"ポインタのパスは run の置き場からの相対で、.. を持たず、/ で終わらない: {rel!r}")
+    return Path(root if root is not None else os.environ["ARTIFACTS_DIR"]) / rel
 
 
 def rel_of(path) -> str:
@@ -212,18 +233,24 @@ def prev_reason() -> dict:
     return {"reason": os.environ["INPUTS_REASON"]}
 
 
+def transcript() -> tuple:
+    """この run の記録（LOG_DIR/<WORKFLOW_ID>.jsonl）の行と、読めなかった訳。読めなければ (None, 訳)。JSON でない行は飛ばす"""
+    log_dir, run_id = os.environ.get("LOG_DIR", ""), os.environ.get("WORKFLOW_ID", "")
+    if not log_dir or not run_id:
+        return None, "run の記録の置き場（LOG_DIR）か run の id（WORKFLOW_ID）が届いていない"
+    path = Path(log_dir) / f"{run_id}.jsonl"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        return None, f"run の記録 {path} が読めない（{e.strerror or e}。dry-run は記録を書かない）"
+    rows = []
+    for record in lines:
+        try:
+            rows.append(json.loads(record))
+        except ValueError:
+            continue
+    return rows, ""
+
+
 def _run_id() -> str:
     return os.environ["WORKFLOW_ID"]
-
-
-def _inside_artifacts(rel: str) -> Path:
-    # Archon は / と \ の両方で区切って .. を拒む。末尾の / は pathlib が落とすが、Archon の stat は ENOTDIR で拒む
-    if (
-        not rel
-        or "\0" in rel
-        or rel.startswith(("/", "\\"))
-        or rel.endswith("/")
-        or ".." in re.split(r"[\\/]", rel)
-    ):
-        raise ValueError(f"ポインタのパスは run の置き場からの相対で、.. を持たず、/ で終わらない: {rel}")
-    return Path(os.environ["ARTIFACTS_DIR"]) / rel

@@ -36,6 +36,7 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 5. 当てる: `bin/apply <run> --cwd <対象>`（中身は `bin/_lib/apply.py`）。封じた hash を照らしてから対象へ当てる。
 6. CI の赤を次の依頼へ運ぶ: run の外の CI が赤と言った試験の id（1 行に 1 つ。`-` なら標準入力）を、前の run の報告が書いた次の依頼の下書きの `prior_failures` に足す: `python3 -I lib/carry.py carry-ci --request <next-request.json> --failed <試験の id のファイル> --out <next-request.json>`（同じ行は 2 度足さず、依頼の形が違えば何も書かずに終了の値 2）。
 
+- 周をつなぐ（周の鎖 `works-factory-chain`、`workflows/chain/`）: `bin/works-factory workflow run works-factory-chain --cwd <対象> --input rounds=<1〜5> [--input budget_usd=<USD>] --input request=<依頼>`。1 周がメイングラフの子の run 1 本で、残りが在れば次の依頼にして次の周を起こし、止めの語（`lib/chain.py` の `STOPS`）で止まる。`budget_usd` を付けると、次の周で上限を越えうる時と費用が読めない周が在る時に止まる。周の中の承認ノードは子の run で止まるので、答える `<run>` は子の run の id（`workflow status` で見る）で、答えると親が続く。`--no-worktree` では起こせない（周の結果を run の作業ツリーの枝へ commit するため）。当てる時は、鎖の run でなく各周の子の run を周の順に `bin/apply <子の run>` で当てる（各周の差分はその周の頭からの物）。
 - 止める: 承認ノードで `workflow respond <run> stop <一言>` と打つと、メイングラフが後ろを飛ばして報告を出す（`workflow reject <run>` も同じ）。承認ノードの間で走っている run は `workflow cancel <run>` で止まるが、報告は出ない。
 - 自分のグラフ（`workflows/`）を Archon に渡すのは `workflow run` の時だけ。`trigger`・`chat` には渡らない。
 - run は始めに `workflows/` だけを写し取るので、走っている間にこのリポジトリの `lib/` を変えると、その run に効く。
@@ -88,4 +89,4 @@ AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、�
 
 ## 今の状態
 
-作っている途中。入口の殻 `bin/works-factory`・メイングラフ `workflows/line/`・8 つのサブグラフ・`lib/`・層の試験が在り、メイングラフは本物のサブグラフと組んだ筋書き（Archon の `workflow test`。役は起こさない）で確かめている。小さな対象のリポジトリに 1 つの依頼を本物の役で通す段 1 の歩く骨組みはまだ。土台は ASF に作らせている。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。
+作っている途中。入口の殻 `bin/works-factory`・メイングラフ `workflows/line/`・8 つのサブグラフ・周の鎖 `workflows/chain/`・`lib/`・層の試験が在り、メイングラフは本物のサブグラフと組んだ筋書き（Archon の `workflow test`。役は起こさない）で確かめている。小さな対象のリポジトリに 1 つの依頼を本物の役で通す段 1 の歩く骨組みはまだ。土台は ASF に作らせている。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。
