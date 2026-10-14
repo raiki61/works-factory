@@ -142,7 +142,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
-        check_test_cmd(user, target, input_values(flags, "test_cmd"))
+        check_test_cmd(user, target, [v.removeprefix("test_cmd=") for v in flag_values(flags, "--input")
+                                     if v.startswith("test_cmd=")])
         try:
             start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
         except RuntimeError as error:
@@ -186,13 +187,6 @@ def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
     return argv[2]
 
 
-def input_values(flags: list[str], key: str) -> list[str]:
-    """--input key=値 と --input=key=値 の値の全部"""
-    pairs = [b for a, b in zip(flags, flags[1:]) if a == "--input"] + \
-        [a.removeprefix("--input=") for a in flags if a.startswith("--input=")]
-    return [pair[len(key) + 1:] for pair in pairs if pair.startswith(key + "=")]
-
-
 def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], run=subprocess.run) -> None:
     """test_cmd の形を Archon を起こす前に確かめる（bin/_lib/testcmd_check.py。決まりはそちら）。対象の手元を走らせる形（終了の値 3）と、
     確かめそのものが落ちた時（0・3 の外。手元を走らせる形を除けない）は止める。ALLOW_TESTCMD_ENV が 1 なら知らせて起こす。
@@ -229,13 +223,22 @@ def before_double_dash(argv: list[str]) -> list[str]:
     return argv[:argv.index("--")] if "--" in argv else argv
 
 
-def flag_value(flags: list[str], name: str) -> str | None:
-    for i, a in enumerate(flags):
+def flag_values(flags: list[str], name: str) -> list[str]:
+    """name の旗の値の全部（name 値 と name=値。前から順に読み、値に取った字は旗として読まない）"""
+    out, i = [], 0
+    while i < len(flags):
+        a = flags[i]
         if a == name and i + 1 < len(flags):
-            return flags[i + 1]
-        if a.startswith(name + "="):
-            return a[len(name) + 1:]
-    return None
+            out.append(flags[i + 1])
+            i += 1
+        elif a.startswith(name + "="):
+            out.append(a[len(name) + 1:])
+        i += 1
+    return out
+
+
+def flag_value(flags: list[str], name: str) -> str | None:
+    return (flag_values(flags, name) or [None])[0]
 
 
 def without_flag(args: list[str], name: str) -> list[str]:

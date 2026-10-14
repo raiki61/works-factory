@@ -208,9 +208,10 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("終了の値 1", said.getvalue())
         launcher.check_test_cmd({}, self.target, ["", "  "], run=failing)
 
-    def test_input_values_reads_both_forms(self):
-        self.assertEqual(launcher.input_values(["--input", "test_cmd=a b", "--input=test_cmd=c", "--input", "request=x",
-                                                "--input", "test_cmd_x=d"], "test_cmd"), ["a b", "c"])
+    def test_flag_values_reads_both_forms_in_order(self):
+        self.assertEqual(launcher.flag_values(["--input", "test_cmd=a b", "--input=test_cmd=c", "--input", "request=x"], "--input"),
+                         ["test_cmd=a b", "test_cmd=c", "request=x"])
+        self.assertEqual(launcher.flag_values(["--input", "--input", "x"], "--input"), ["--input"], "値に取った字は旗として読まない")
 
     def test_user_workflow_source_is_refused(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--workflow-source", str(self.tmp)))
