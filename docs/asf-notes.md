@@ -96,7 +96,7 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 
 - ASF: d97d00ef の `W/ship/fixtures/planned-delivered.stubs.yaml`（`deliver__impl__implement` のように include を展開した id に stub を置き、`exec-code: true` で stub の無い `outcome` の script を本当に走らせる）。
 - なぜその形か: 役（AI）を起こさずに、グラフの道筋と自分の script の決めを確かめる。stub は出力ノードの形を守らされる（`dry-run.ts` の `assertAuthoredStubSatisfiesSchema`）。
-- 採った先: メイングラフの筋書き `workflows/line/fixtures/*.stubs.yaml`（19 本）。
+- 採った先: メイングラフの筋書き `workflows/line/fixtures/*.stubs.yaml`。
 - 違い: メイングラフと本物の 8 つのサブグラフを置いて回し（`tests/e2e/test_line_scenarios.py`）、サブグラフのノードには、そのノードの `output_format` に合う stub を置く。dry-run の制約と、それに合わせた stub の置き方は `docs/design.md` の U3。
 
 ### A12 頭の振り分けの AI が根拠つきで道を決め、後ろの段を when で飛ばす

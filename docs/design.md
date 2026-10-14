@@ -420,7 +420,7 @@ judge の中のノードを表に足す時は、その句を出す script のノ
 - 目的: 依頼を根本の単位にまとめる。前提の実測・目的の固定・定石（世界の解）・並行 PR とのぶつかり・素材集め・根本の診断・判定の裏取り・再審・目的の外の所見の持ち越し。`--spec` の時は仕様（要件と受け入れテスト）と仕様の承認ノード。
 - ASF で読む物: `W/triage/archon-triage.yaml`（今の木と突き合わせてから道を決める・`returns: verdict`・`outcome_field: ready`）と `W/investigate/`（根の問い）。
 - 入力: 始めの記録・直す前の結末。再審の時は修正役の異議。
-- 役（`commands/`）: `premises`・`purpose`・`world-classes`・`world-judge`・`material-*`（11 本）・`diagnose`・`pr-check`・`spec`・`head-depth`。
+- 役（`commands/`）: `head-depth`・`spec`・`spec-review`・`spec-revise`・`pr-check`・`premises`・`purpose`・`world-classes`・`world-judge`・`material-*`・`diagnose`・`judge-verify`・`rejudge`。
 - lib: `judge_accept`・`premises`・`purpose`・`world`（定石の行の形も持つ）・`webget`・`parallel_pr`・`class_query`・`out_of_purpose`・`cite`・`reads`・`headdepth`。
 - 埋め: 無し。
 
@@ -448,7 +448,7 @@ judge の中のノードを表に足す時は、その句を出す script のノ
 - 差分の審査と手直しを fix に置く訳: review-graph で同じ P3 の段（`p3.fix_delta`・`p3.delta_review`・`p3.delta_fix`）にあり、サブグラフの中でループが閉じる。サブグラフの間の戻りを作らない。
 - ASF で読む物: `W/implement/archon-implement.yaml`（`loop:` と `until_field: done`・`assert-changed` が `checkoutStart` と比べて本当に変わったかを見る・`outcome_field: green`）と `W/deliver/archon-deliver.yaml`（review → correct のループ）。
 - 入力: 判定・計画・直す前の結末。型つきの成果物 `tdd-unit` も出す。
-- 役（`commands/`）: `tdd`・`fix`（修正の決まりを含む）・`ruler`・`clash`（合わせ役。並べた組を親の木で合わせて試験が赤になった組を、その組の変えたファイルの中だけで直す。直せなければ組を外して組どうしの合わせの申し出を裁定役へ回し、裁定役は直し方の指示・テストの範囲・案の直し・判定のやり直しのどれかで解き、どれでも解けない時だけ人に回す。持ち主の決め `clash-goes-to-ruling`）・`delta-review`・`lens`・`refix`。
+- 役（`commands/`）: `delta-review`・`lens-silent-failure-hunter`・`review2`・`fix-rules/`。`fix-rules/` は script が組んで渡す指示書の置き場で、役 `tdd`・`fix`（修正の決まり）・`ruler`・`clash`（合わせ役。並べた組を親の木で合わせて試験が赤になった組を、その組の変えたファイルの中だけで直す。直せなければ組を外して組どうしの合わせの申し出を裁定役へ回し、裁定役は直し方の指示・テストの範囲・案の直し・判定のやり直しのどれかで解き、どれでも解けない時だけ人に回す。持ち主の決め `clash-goes-to-ruling`）・`refix` の決まりを持つ。
 - lib: `red_check`・`baseline_red`・`test_freeze`・`plan_scope`・`write_provenance`・`impact`・`test_files`・`give_up`・`groups`（組の作り）・`cite`・`conflict`（申し出の形）・`clash`（組の合わせの直し）。
 - 埋め: 無し。組ごとの作業ツリーは未決 U8。
 
@@ -466,7 +466,7 @@ judge の中のノードを表に足す時は、その句を出す script のノ
 - 目的: 直しを作った役と別の新しい会話で、読むだけで確かめる。R1 最小性（コメントの削除候補 → 問いの台帳の監査 → 累積差分が最小か）・R2 独立設計との比較（道具は累積差分を読むだけ。前提が崩れたと言えば前提の検算）・R3 全体の整合（命名・規約・界面・文書の追従）・R4 見えていない範囲（運用・セキュリティ・データの横断の危うさと消えた能力。人への問い）。R1・R2・R3 を並べ、R4 は R1・R2 の後。直した後の構造の実測と、守りのパスの当たりも出す。
 - ASF で読む物: `W/review/archon-review.yaml`（並べたレンズ・`coverage`・`synthesize` が include の頭と `loopGroupPath` で自分の分だけを数える）。
 - 入力: 判定・計画・修正・緑の認証・base と最後のテストの実測。型つきの成果物 `eye-verdict` も出す。目が読む累積差分は修正の出力から受けず、`prep` が入口の差分の根（`startrec.diff_base`。差分の run では PR の根）から今の作業ツリーまでを取って `eyes/run.diff` に書く（直す物が無い run も頼まれた変更を見る。差分が空・取れない時は訳を書いた `eyes/run-diff-none.txt` を指す。取れない時は規模の数と変更ファイルを 0 にせず、取れない訳を書く。今の works の `review-loop.py` の `_take_diff` と同じ起点）。直した後の構造の実測と守りのパスの当たりの起点は修正前の HEAD（始めの記録の `base_rev`）のまま（今の works の `measuring-after` と `line_edge._protected` と同じ。PR にもとからある変更を修正の変更に数えない）。
-- 役（`commands/`）: `r1-comments`・`r1-minimality`・`r2-compare`・`r3-coherence`・`r4-scope`・`premise-check`・`structure-after`。
+- 役（`commands/`）: `r1-comments`・`r1-minimality`・`r2-compare`・`r3-coherence`・`r4-scope`・`premise-check`。
 - lib: `protected`。
 - 埋め: 無し。全部の AI ノードに `mutates_checkout: false`（E7）。
 
@@ -518,7 +518,7 @@ judge の中のノードを表に足す時は、その句を出す script のノ
 - 前提の実測: `blk-premises`・`premises.py` → `commands/premises`・`lib/premises`
 - 目的の固定と解き方の分け: `blk-purpose`・`purpose.py` → `commands/purpose`・`lib/purpose`
 - 定石（世界の解）と web の取得: `blk-world`・`worldmark.py`・`webget.py` → `commands/world-classes`・`commands/world-judge`・`lib/world`・`lib/webget`
-- 素材集め 11 本: `blk-material` → `commands/material-*`
+- 素材集め: `blk-material` → `commands/material-*`
 - 仕様の段: `blk-spec` → judge（`--spec` の時）・`commands/spec`
 - 根本の診断と受け付け: `blk-judge`・`.shared/core/accept.py` → `commands/diagnose`・`lib/judge_accept`
 - 判定の裏取り: `blk-judge/lib/judgeverify.py` → judge
@@ -642,7 +642,7 @@ judge の中のノードを表に足す時は、その句を出す script のノ
 
 - U1（決めた）`workflow resume <run>` は同じ run を続け、id は変わらない。`workflow run --adopt <run>` は新しい id の run を起こす（`reference/cli.md` の `workflow resume`・`--adopt`）。だから同じ run の中だけで効くポインタは、resume をまたいで使え、adopt をまたいでは使えない（adopt の run は前の run の置き場を `$ADOPTED_RUN_DIR` で読む）。実測（段 1b、2026-10-12。止めた Archon に AI の無い使い捨てのグラフ。run `c7d2bc61-c4a2-43d7-8b32-e74d6dd12160`）: 承認ノードで `workflow approve <run> --json`（答えを記録するだけ。run は `paused` のまま）の後に `workflow resume <run> --detach --json` を打つと、確認の `runId` も、承認ノードの後のノードの `execution.runId` も同じ id で、run の一覧の行は 1 つ。resume は同じ run に 2 つ目の `workflow_started` の出来事を足し、終わったノードを `node_skipped_prior_success` で飛ばす。run の記録は使い捨ての Archon の家と一緒に消え、id から読み戻せない。同じ確かめ（前で起こし承認ノードで止め、approve・resume して run が 1 つのまま終わる）は `tests/e2e/test_resume_probe.py` がグラフ `tests/e2e/resume-probe/` で CI で回す。
 - U2（決めた）同じサブグラフを 2 度 include した出力は include の id ごとに分かれる（子のノードの id が `<include の id>__<子の id>` になり、`$<include の id>.output` はその include の出力ノード。`include-expander.ts` 1-19 行）。型つきの成果物も include の id ごとに別の鍵で載る。実測（段 1a、run `a1b08bc8-cbbf-4f70-9605-a32996153189`。同じ test-gate を 2 度 include するメイングラフ）: 置き場の `.archon/typed-artifacts` の `green-cert` が 2 件で、`nodeId` と `path` が別（`test-gate-base__result`・`nodes/test-gate-base__result.md` と `test-gate-final__result`・`nodes/test-gate-final__result.md`）。一覧のファイルはノードの記録ごとに 1 つ増え、この run で 219 個。
-- U3（分かった）`archon workflow test` の筋書きは使える（メイングラフの 29 本を `tests/e2e/test_line_scenarios.py` が回す。dry-run は置き場にファイルを書けず run の id も `dry-run` なので、stub のポインタの先は筋書きの中では読めない〔`dry-run.ts` 614・791・798 行〕: 中身で決まる所は、筋書きが結んだ値のままメイングラフの script を走らせ直して照らす〔`ConflictGateTest`〕）。制約（メイングラフの筋書きの説明はここを正本にし、ほかは指すだけ）: 承認ノードはいつも `approved` の字で通り stub も答えも置けない（`dry-run.ts` 1179-1204 行。承認ノードの答えは返しのノードの stub で差す）。`loop_group` は 1 周で終わったものとされ `until_bash` は走らない（`dry-run.ts` 849-890 行）。include の入力は名前の script には渡らない（`dry-run.ts` 757-766 行の `executeCodeNode`）ので、筋書きが通るサブグラフの script ノードは全部 stub にし、メイングラフがサブグラフに渡す値は `tests/workflows/test_line.py` がメイングラフの `with:` で照らす。`workflow:` の `fan_out:` は模擬できず落ちるので、fix は組の子の形（`fix__route` に `group: true`）を通す。ループの中のノードの id は include されても頭が付かず、1 つの stub（`fix-prep`・`fix-accept`）が fix と refix-run の両方に効く。この 3 つの制約のため、fix の本番の形（`mode` が空・`fan_out:`・2 度の include）は筋書きでは照らせない。
+- U3（分かった）`archon workflow test` の筋書きは使える（メイングラフの筋書き `workflows/line/fixtures/*.stubs.yaml` の全部を `tests/e2e/test_line_scenarios.py` が回す。dry-run は置き場にファイルを書けず run の id も `dry-run` なので、stub のポインタの先は筋書きの中では読めない〔`dry-run.ts` 614・791・798 行〕: 中身で決まる所は、筋書きが結んだ値のままメイングラフの script を走らせ直して照らす〔`ConflictGateTest`〕）。制約（メイングラフの筋書きの説明はここを正本にし、ほかは指すだけ）: 承認ノードはいつも `approved` の字で通り stub も答えも置けない（`dry-run.ts` 1179-1204 行。承認ノードの答えは返しのノードの stub で差す）。`loop_group` は 1 周で終わったものとされ `until_bash` は走らない（`dry-run.ts` 849-890 行）。include の入力は名前の script には渡らない（`dry-run.ts` 757-766 行の `executeCodeNode`）ので、筋書きが通るサブグラフの script ノードは全部 stub にし、メイングラフがサブグラフに渡す値は `tests/workflows/test_line.py` がメイングラフの `with:` で照らす。`workflow:` の `fan_out:` は模擬できず落ちるので、fix は組の子の形（`fix__route` に `group: true`）を通す。ループの中のノードの id は include されても頭が付かず、1 つの stub（`fix-prep`・`fix-accept`）が fix と refix-run の両方に効く。この 3 つの制約のため、fix の本番の形（`mode` が空・`fan_out:`・2 度の include）は筋書きでは照らせない。
 - U4（分かった）`loop_group` の中に `include:` は書ける（`schemas/dag-node.ts` 513-529 行・文書 `guides/loop-nodes.md`「`include:` is valid in a `loop_group` body」）が、中のノードは外から見えない（外から見えるのは `$<loop_group>.output` だけ）ので、本体の終わりに返しのノードを置く（メイングラフの `plan-out`）。`include:` の id を `$LOOP_PREV` に書いても出力ノードに書き換わらない（`include-expander.ts` 1244-1247 行）ので、前の周の値も返しのノードから読む。
 - U5（決めた）サブグラフの script が `lib/` をどのパスで見つけるか。Archon は run の始めに `workflows/` を写し取り、script はその写しから走るので、リポジトリからの相対では届かない。決め: 入口の殻 `bin/works-factory`（`bin/_lib/launcher.py`）が Archon の子の環境変数 `WORKS_FACTORY_ROOT` にリポジトリの根を渡し、境の口の `boundary.lib_root()` がその `lib/` を返す（無ければ自分の置き場から辿った `lib/`）。Archon は host で走る script ノードに起こした時の環境変数を渡す（`dag-executor.ts` の `process.env` の重ね）。止めた Archon で script ノードを回して確かめる試験は `tests/shared/test_boundary.py` の `test_script_run_by_archon_finds_repository_lib`。Archon の `runtime: uv` のノードの `deps:` の引き方（`lib/AGENTS.md` の E3）は、下の「層の E3 の `deps:`」で決めた。
 - U6（決めた）今の works の包みが取っていた読んだ証拠と書き込みの記録は、Archon の出来事の記録からは一部しか取れない。役の道具の呼び出しは 1 回ごとに `provider_event` の行になり、run の transcript（`<ARCHON_HOME>/workspaces/<持ち主>/<リポジトリ>/logs/<run>.jsonl`。`workflow get <run> --json` の `transcript_path`。メイングラフは `interactive: true` で前で起こすので、`--detach --json` の確認の `transcriptPath` は出ない）と、`workflow get <run> --json --verbose --events` の `events`（`event_type: provider_event`）の両方に載る（`logger.ts` の `logProviderEvent`・`cli/src/commands/workflow.ts` の `listRunEvents`。`--events` が無いと省かれる）。形は `{type: tool_call, toolCallId, name, rawInput}` で、`rawInput` は道具への入力のまま（Read・Write は `file_path`、Bash は `command`）。後に同じ `toolCallId` の `tool_call_update`（`status`・`output`）が続く。実物の例（止めた Archon で回った ASF の run `f943e0ec-eda1-4aa3-879a-09bfe5121142` のノード `triage__triage`）: `{"type":"tool_call","name":"Read","rawInput":{"file_path":"…/tool-results/b1kd3v4fd.txt"}}`。
@@ -704,7 +704,7 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 
 個別:
 
-- `judge`: 前提・目的・定石・素材 11 本・診断・裏取り・再審・仕様の段が動く。受け付けが拒めば 3 回まで出し直す。定石の抜き書きが出どころに在ることを機械が照らす。目的の外の所見が持ち越しの行になる。
+- `judge`: 前提・目的・定石・素材集め（`commands/material-*`）・診断・裏取り・再審・仕様の段が動く。受け付けが拒めば 3 回まで出し直す。定石の抜き書きが出どころに在ることを機械が照らす。目的の外の所見が持ち越しの行になる。
 - `plan`: 構造の目と修正案と波及の一覧。項目ごとに書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳が無ければ受け付けが拒む。案の直しの入力で 2 度目を include できる。
 - `plan-review`: R2 の独立設計は道具なしで目的の文だけを受ける（禁じた入力が届かないことを試験で縛る）。4 つの軸と人への問いを返す。往復の止め（同じ block が続く・開いた block が前の往復より減らない。往復の数では止めず、安全の上限 20 周の周は仕組みの異常として止める）が働く。
 - `fix`: 赤緑の機械の判定・元から赤の区別・凍結・範囲の照らしと相談・書き込みの出どころ・3 回で諦める・申し出と裁定・差分の審査と手直し 2 往復。組は `fan_out:` で並べ、幅は計画（組の数）から決まり、組は分けない。並べの数の上限は持つが、固定の枝の数・待ちの列・錠は持たない。
