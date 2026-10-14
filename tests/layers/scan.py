@@ -51,7 +51,8 @@ CALL_KEYS = ("include", "workflow")
 
 NO_DEADLINE = "1728000000"
 # 止めた Archon（docs/design.md の「語」）の節の種類の鍵の全部と、その種類の節に Archon が既定の期限を当てる鍵（workflows/AGENTS.md の E12）。
-# ここに無い種類の節は赤にする。Archon が種類を足したら、期限を持つかを確かめてからここに足す。
+# ここに無い種類の節は赤にする。鍵は tests/shared/test_archon_contract.py が Archon の源に照らす（種類が足されたら赤になる）。
+# 足す時は期限を持つかを確かめてから足す。
 NODE_KINDS = {
     "script": ("timeout",),
     "bash": ("timeout",),
@@ -646,7 +647,7 @@ def node_scripts(folder: Path, node) -> list[Path]:
 
 def _node_code(folder: Path, node) -> str | None:
     """節の走らせる字（直に書いた script・bash か、名前の script のファイルの中身）。script・bash の節でなければ None"""
-    for key in ("script", "bash"):
+    for key in CODE_KINDS:
         value = _top(node, key)
         if isinstance(value, yaml.ScalarNode):
             if key == "script" and NAMED_SCRIPT.fullmatch(value.value):

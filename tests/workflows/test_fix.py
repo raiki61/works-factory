@@ -19,6 +19,7 @@ import yaml
 from tests import archon
 from tests.bin import hermetic, trimmed
 from tests.bin.gitkit import git
+from tests.layers import scan
 from tests.workflows.copied import REWRITES, assert_text_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -347,7 +348,7 @@ class RolesCase(unittest.TestCase):
         loop = self.nodes["tdd-loop"]["loop_group"]
         self.assertIs(loop["fresh_context"], False)
         body = {n["id"]: n for n in loop["nodes"]}
-        roles = sorted(nid for nid, n in body.items() if "prompt" in n or "command" in n)
+        roles = sorted(nid for nid, n in body.items() if any(k in n for k in scan.ROLE_KINDS))
         self.assertEqual(roles, ["tdd", "tdd-new"])
         same, new = body["tdd"], body["tdd-new"]
         self.assertNotIn("context", same, "同じ単位の続きの役は前の周の会話を継ぐ")
