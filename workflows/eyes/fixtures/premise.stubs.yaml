@@ -18,7 +18,9 @@ fixture:
   reached:
   - premise-check
   - premise-check-verdict
+  - r4-reject
   - r4-scope
+  - r4-accept
   - verdict
 structure-after:
   after: &id001
@@ -88,6 +90,8 @@ r3-coherence-verdict:
   eye: r3
   status: pass
   reason: 整合
+r4-reject:
+  reason: ''
 r4-scope:
   status: pass
   reason: 横断の危うさなし
@@ -98,6 +102,21 @@ r4-scope:
   seen:
   - a.py
   unseen: []
+r4-accept:
+  ok: true
+  done: true
+  give_up: false
+  reason: ''
+  reply:
+    status: pass
+    reason: 横断の危うさなし
+    capability_inventory:
+      fired: false
+    policy_conflicts: []
+    surfaced: []
+    seen:
+    - a.py
+    unseen: []
 r4-scope-verdict:
   eye: r4
   status: pass

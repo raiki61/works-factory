@@ -24,7 +24,8 @@ from tests.workflows.copied import assert_is_original, rewritten, role_definitio
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "eyes"
 DOC = yaml.safe_load((BLOCK / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
-NODES = {n["id"]: n for n in DOC["nodes"]}
+LOOP_OF = {b["id"]: n["id"] for n in DOC["nodes"] for b in (n.get("loop_group") or {}).get("nodes", [])}   # 輪の本体の節 → 囲む輪
+NODES = {n["id"]: n for n in [*DOC["nodes"], *(b for n in DOC["nodes"] for b in (n.get("loop_group") or {}).get("nodes", []))]}
 ROLES = {i: n for i, n in NODES.items() if "command" in n}
 EYE_NODES = ("r1-minimality", "r2-compare", "premise-check", "r3-coherence", "r4-scope")
 VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "premise-check", "r3", "r4"))}
@@ -35,6 +36,7 @@ import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import policy  # noqa: E402
+import rolekit  # noqa: E402
 import seal  # noqa: E402
 import structmark  # noqa: E402
 
@@ -235,6 +237,8 @@ CHANGED_FILES = ("変更ファイル: {{loop.changed_files}}", "変更ファイ�
 PURPOSE = ("{{out.p0.purpose.purpose_text}}", "$prep.output.purpose_text")
 REVIEW_MD = ("{{inputs.review_md}}", "`$prep.output.review_md`")
 GREEN_LINE = "$prep.output.green_line\n"   # 最後のテストが認証されていない時だけ 1 行（元 review-loop.json の p4.ci の green_line）
+R4_REJECTS = ("## 前の回の受け付けが拒んだ理由\n\n前の回までの返答は受け付けで拒まれた。下の理由の全部を直した返答を丸ごと出し直せ"
+              "（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、直す所は無い。\n\n```text\n$r4-reject.output.reason\n```\n\n---\n\n")
 # 人の方針の段（元 gl-prompts/prompts/policy-path.md と policy.md を 1 行あけて続けた字。review-loop.json:4672,4973,5036 の
 # prompt_append）。写しは POLICY_EDITS を当てた: 「engine」を「機械」に、置き場を始めの記録が固めた写し（prep の policy_path）に
 # 替え、空の時の読み方を足し、「先に全部読め」を Read で読む形に直した
@@ -317,6 +321,7 @@ COPIED_TEXTS = {
     "r4-scope.md": (WORKS_GL + "r4.hidden_scope.md", "a8b038965a694909ca4ac3046965d072a5b3e4efb51d4b4430a6ace62da5b800", [
         ("", head_of("R4 見えてないスコープ", "inspector")),
         ("", "$prep.output.carried\n\n---\n\n"),   # 直す前の関所で人が通した狭まり（元 eyes.prep の gatemarks.carried_section）
+        ("", R4_REJECTS),   # 名指さない方針の行を拒んだ受け付けの理由の全部（#455）
         ("累積差分: " + DIFF_SLOT[0], "累積差分: " + DIFF_FIELD[0]), DIFF_EDITS[1], CHANGED_FILES, REPO_SLOT,
         ("元の目的: " + PURPOSE[0], "元の目的: " + PURPOSE[1]),
         ("観点の正本: " + REVIEW_MD[0], "観点の正本: " + REVIEW_MD[1]),
@@ -337,6 +342,11 @@ COPIED_TEXTS = {
 
 def depends(node) -> set:
     return set(node.get("depends_on") or [])
+
+
+def placed(nid: str) -> dict:
+    """節 nid が輪の外の節と並ぶ所: 輪の本体の節なら囲む輪の節（depends_on・trigger_rule・when は輪が持つ）"""
+    return NODES[LOOP_OF.get(nid, nid)]
 
 
 def prep_reads(text: str) -> set:
@@ -383,6 +393,8 @@ def conforms(value, schema, where="$") -> list:
 class ShapeCase(unittest.TestCase):
     def test_every_role_node_is_read_only(self):
         for nid, node in NODES.items():
+            if "loop_group" in node:
+                continue
             with self.subTest(nid):
                 self.assertIs(node.get("mutates_checkout"), False)
                 if "command" in node:
@@ -520,9 +532,20 @@ class ShapeCase(unittest.TestCase):
                       (BLOCK / "commands" / "r3-coherence.md").read_text(encoding="utf-8"))
 
     def test_r4_waits_for_r1_and_r2_lanes(self):
-        node = NODES["r4-scope"]
+        node = placed("r4-scope")
         self.assertLessEqual({"r1-minimality", "r2-compare", "premise-check"}, depends(node))
         self.assertEqual(node.get("trigger_rule"), "all_done")
+
+    def test_r4_runs_in_an_accept_loop(self):
+        """#455: R4 は受け付けの輪の中で、拒否の理由の全部を頭の節から読んで新しい会話で出し直す。受け付けの返答を輪の外の節が書く"""
+        loop = NODES["r4-loop"]["loop_group"]
+        self.assertEqual(loop["max_iterations"], rolekit.GIVE_UP_AFTER)
+        self.assertIs(loop["fresh_context"], True)
+        self.assertIn("$r4-accept.output.done", loop["until_bash"])
+        self.assertEqual([n["id"] for n in loop["nodes"]], ["r4-reject", "r4-scope", "r4-accept"])
+        self.assertEqual(depends(NODES["r4-scope"]), {"r4-reject"})
+        self.assertEqual(NODES["r4-accept"]["with"], {"reply": "$r4-scope.output"})
+        self.assertIn("$r4-reject.output.reason", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
 
     def test_r1_minimality_runs_without_the_comment_candidates(self):
         node = NODES["r1-minimality"]
@@ -534,7 +557,7 @@ class ShapeCase(unittest.TestCase):
         barrier = NODES["eyes-complete"]
         self.assertEqual(barrier.get("bash"), "true")
         self.assertEqual(barrier.get("trigger_rule"), "all_done")
-        self.assertEqual(depends(barrier), {*ROLES, "r1-comments-save", *VERDICT_NODES})
+        self.assertEqual(depends(barrier), {*(LOOP_OF.get(r, r) for r in ROLES), "r1-comments-save", *VERDICT_NODES})
         verdict = NODES["verdict"]
         self.assertEqual(depends(verdict), {"eyes-complete", "prep", "structure-after", "protected"})
         self.assertEqual(verdict.get("trigger_rule"), "all_done")
@@ -551,8 +574,9 @@ class ShapeCase(unittest.TestCase):
                 self.assertEqual(set(fmt["required"]), {"eye", "status", "reason"})
                 self.assertEqual(node["with"]["eye"], VERDICT_NODES[nid])
                 eye_node = nid.removesuffix("-verdict")
-                self.assertEqual(depends(node), {eye_node})
-                self.assertEqual(node["with"]["out"], f"${eye_node}.output")
+                loop = LOOP_OF.get(eye_node)
+                self.assertEqual(depends(node), {loop or eye_node})
+                self.assertEqual(node["with"]["out"], f"${loop}.output.reply" if loop else f"${eye_node}.output")
         self.assertFalse(any("output_type" in n for n in ROLES.values()))
 
     def test_frozen_read_in_commands(self):
@@ -593,7 +617,7 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(nid):
                 text = (BLOCK / "commands" / f"{node['command']}.md").read_text(encoding="utf-8")
                 self.assertLessEqual(prep_reads(text), declared)
-                self.assertIn("prep", depends(node))
+                self.assertIn("prep", depends(placed(nid)))
 
     def test_role_schemas_match_graph(self):
         for nid, graph in GRAPH_SCHEMAS.items():
@@ -719,7 +743,8 @@ class ScriptCase(unittest.TestCase):
                               capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(done.returncode, 0, done.stderr)
         got = json.loads(done.stdout.strip().splitlines()[-1])
-        self.assertEqual(conforms(got, NODES[{"save_reply": "r1-comments-save", "eye_verdict": "r1-minimality-verdict"}
+        self.assertEqual(conforms(got, NODES[{"save_reply": "r1-comments-save", "eye_verdict": "r1-minimality-verdict",
+                                               "r4_rejects": "r4-reject"}
                                               .get(name, name.replace("_", "-"))]["output_format"]), [])
         return got
 
@@ -759,11 +784,24 @@ class ScriptCase(unittest.TestCase):
         self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
                                                    ensure_ascii=False)
         got = self.run_script("verdict")
-        self.assertEqual(got["questions"], ["R4 が BASE から消えたと見た能力: 別の能力"])
-        self.assertIn("方針の第 1 項", got["r4"]["reason"])
-        self.prep_file(**{policy.RECORDED_KEY: [{"source": "answer", "name": "方針の第 1 項", "text": "決めた"}]})
-        got = self.run_script("verdict")
         self.assertEqual(got["questions"], ["R4 が BASE から消えたと見た能力: 別の能力", "R4 が見た人の方針とのぶつかり: 方針の第 1 項"])
+
+    def test_r4_accept_rejects_an_unnamed_policy_line(self):
+        """#455: 記録された方針の行を名指さない R4 の方針の行は、受け付けが拒んで出し直させる（拒否は次の周の頭の節が渡す）"""
+        line = "方針の文書の 2 行目の『空の列は試験しない』に反する"
+        self.prep_file(**{policy.RECORDED_KEY: [{"source": "doc", "name": "/run/policy/abc.md", "text": "", "lines": 3, "alias": ""}]})
+        self.assertEqual(self.run_script("r4_rejects")["reason"], "")
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "policy_conflicts": [line],
+                 "surfaced": [], "seen": [], "unseen": []}
+        got = self.run_script("r4_accept", with_={"reply": json.dumps(reply, ensure_ascii=False)})
+        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, False, False))
+        self.assertTrue(got["reason"].startswith(eyeverdict.R4_REJECT), got["reason"])
+        self.assertIn(line, got["reason"])
+        self.assertEqual(got["reply"], reply)
+        self.assertIn(line, self.run_script("r4_rejects")["reason"])
+        named = {**reply, "policy_conflicts": ["/run/policy/abc.md:2 の『空の列は試験しない』に反する"]}
+        got = self.run_script("r4_accept", with_={"reply": json.dumps(named, ensure_ascii=False)})
+        self.assertEqual((got["ok"], got["done"]), (True, True))
 
     def test_verdict_carries_protected_hits(self):
         self.prep_file()

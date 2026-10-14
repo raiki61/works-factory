@@ -732,7 +732,8 @@
       "$prep.output.purpose_text",
       "$prep.output.r4_context",
       "$prep.output.recorded_policy",
-      "$prep.output.review_md"
+      "$prep.output.review_md",
+      "$r4-reject.output.reason"
     ],
     "returns": {
       "nodes": [
@@ -784,6 +785,10 @@
       }
     ],
     "steps": [
+      {
+        "what": "拒まれた理由の全部を直した返答を丸ごと出す",
+        "quote": "下の理由の全部を直した返答を丸ごと出し直せ"
+      },
       {
         "what": "累積差分を読む",
         "quote": "diff_file`（Read せよ"

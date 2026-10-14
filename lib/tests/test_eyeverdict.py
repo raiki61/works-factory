@@ -154,7 +154,7 @@ class R4PushTailCase(unittest.TestCase):
         passed = eyeverdict._human_passed([gatemarks.question_row("regression", asked)], {"decision": "continue", "text": ""})
         self.assertNotIn("推し", eyeverdict.carried_section(passed))
         r4 = {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}
-        self.assertEqual(eyeverdict.r4_gate_items(r4, passed, []), [])
+        self.assertEqual(eyeverdict.r4_gate_items(r4, passed), [])
 
 
 class R4GateCase(unittest.TestCase):
@@ -164,8 +164,7 @@ class R4GateCase(unittest.TestCase):
     def r4_gate(self, answer="continue", lost=(), policy=()):
         passed = eyeverdict._human_passed([gatemarks.question_row("regression", NARROW)], {"decision": answer, "text": ""})
         r4 = {"capability_inventory": {"fired": True, "lost": list(lost)}, "policy_conflicts": list(policy)}
-        recorded = [{"source": "answer", "name": BODY, "text": "決めた"}]
-        return eyeverdict.r4_gate_items(r4, passed, recorded), eyeverdict.gate_passes(r4, passed)
+        return eyeverdict.r4_gate_items(r4, passed), eyeverdict.gate_passes(r4, passed)
 
     def test_r4_does_not_reask_narrow_the_human_passed(self):
         for word in ("continue", "approve"):
@@ -187,11 +186,11 @@ class R4GateCase(unittest.TestCase):
 
     def test_rows_carry_the_r4_heads(self):
         r4 = {"capability_inventory": {"fired": True, "lost": ["a"]}, "policy_conflicts": ["b"]}
-        self.assertEqual(eyeverdict.r4_gate_items(r4, {}, [{"source": "answer", "name": "b", "text": ""}]),
+        self.assertEqual(eyeverdict.r4_gate_items(r4, {}),
                          ["R4 が BASE から消えたと見た能力: a", "R4 が見た人の方針とのぶつかり: b"])
 
     def test_no_r4_asks_nothing(self):
-        self.assertEqual(eyeverdict.r4_gate_items(None, PASSED, []), [])
+        self.assertEqual(eyeverdict.r4_gate_items(None, PASSED), [])
 
     def test_carried_section_lists_passed_rows_under_the_gatemarks_head(self):
         text = eyeverdict.carried_section(PASSED)
@@ -199,6 +198,70 @@ class R4GateCase(unittest.TestCase):
         self.assertIn(gatemarks.CARRIED_ASK, text)
         self.assertIn(f"- [regression] {BODY}", text)
         self.assertEqual(eyeverdict.carried_section({}), "")
+
+
+DOC_ROW = {"source": "doc", "name": "/run/policy/abc.md", "text": "", "lines": 3, "alias": ""}
+UNNAMED = "方針の文書の 2 行目の『空の列は試験しない』に反する"
+NAMED = "/run/policy/abc.md:2 の『空の列は試験しない』に反する"
+
+
+class R4AcceptCase(unittest.TestCase):
+    """#455: R4 の方針とのぶつかりの受け付け。記録された方針の行を名指さない行を拒んで出し直させ、GIVE_UP_AFTER 回目で諦める"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(tmp.name)
+        self.prep([DOC_ROW])
+
+    def prep(self, rows):
+        (self.dir / eyeverdict.PREP_FILE).write_text(json.dumps({policy.RECORDED_KEY: rows}), encoding="utf-8")
+
+    def accept(self, *lines, passed=None):
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "policy_conflicts": list(lines),
+                 "surfaced": [], "seen": [], "unseen": []}
+        return reply, eyeverdict.r4_accept(self.dir, json.dumps(reply, ensure_ascii=False), passed or {})
+
+    def test_unnamed_line_is_rejected_until_the_accept_gives_up(self):
+        for k in range(1, rolekit.GIVE_UP_AFTER):
+            with self.subTest(attempt=k):
+                _, got = self.accept(UNNAMED, NAMED)
+                self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, False, False))
+                self.assertTrue(got["reason"].startswith(eyeverdict.R4_REJECT), got["reason"])
+                self.assertIn(UNNAMED, got["reason"])
+                self.assertNotIn(NAMED, got["reason"])
+        reply, got = self.accept(UNNAMED, NAMED)
+        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
+        self.assertEqual(got["reply"], reply)
+        self.assertEqual(eyeverdict.r4_rejects(self.dir).count(UNNAMED), rolekit.GIVE_UP_AFTER)
+
+    def test_named_lines_pass_at_once(self):
+        reply, got = self.accept(NAMED)
+        self.assertEqual((got["ok"], got["done"], got["give_up"], got["reason"]), (True, True, False, ""))
+        self.assertEqual(got["reply"], reply)
+        self.assertEqual(eyeverdict.r4_rejects(self.dir), "")
+
+    def test_line_the_human_passed_is_not_rejected(self):
+        _, got = self.accept(UNNAMED, passed={(policy.POLICY_KIND, UNNAMED): 1})
+        self.assertTrue(got["ok"])
+
+    def test_lost_capabilities_are_not_checked_against_the_recorded_rows(self):
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": True, "lost": ["古い入口"]},
+                 "policy_conflicts": [], "surfaced": [], "seen": [], "unseen": []}
+        self.assertTrue(eyeverdict.r4_accept(self.dir, json.dumps(reply, ensure_ascii=False), {})["ok"])
+
+    def test_without_the_recorded_rows_it_gives_up_at_once(self):
+        """一覧を読めなければ照らせない物を通さない: 出し直させずに諦め、名指さない行も人に行く"""
+        (self.dir / eyeverdict.PREP_FILE).unlink()
+        reply, got = self.accept(NAMED)
+        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
+        self.assertEqual(got["reply"], reply)
+        self.assertTrue(rolekit.given_up_reason(self.dir, eyeverdict.R4_NODE))
+
+    def test_unreadable_reply_is_rejected(self):
+        got = eyeverdict.r4_accept(self.dir, "{", {})
+        self.assertEqual((got["ok"], got["done"], got["reply"]), (False, False, None))
+        self.assertIn("JSON", got["reason"])
 
 
 class FellTextCase(unittest.TestCase):
@@ -233,7 +296,7 @@ class CollectCase(unittest.TestCase):
 
     def collect(self, **kw):
         args = {"eyes_dir": self.dir, "run_eyes": True, "compare_due": True, "premise_due": False, "design": STANDS,
-                "after_ptr": None, "protected": OK_PROTECTED, "passed": {}, "recorded": [], **kw}
+                "after_ptr": None, "protected": OK_PROTECTED, "passed": {}, **kw}
         return eyeverdict.collect(**args)
 
     def test_all_pass_is_ok(self):
@@ -243,20 +306,30 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(got["r2"], {"status": "pass", "reason": "構造は同じ"})
         self.assertEqual((got["questions"], got["premise_check"], got["protected_hits"]), ([], None, []))
 
-    def test_r4_policy_conflict_is_asked_only_when_it_names_a_recorded_row(self):
-        """#427: R4 の方針とのぶつかりは、記録された方針の行を名指す物だけが人への問い。対象のテストの docstring を名指す物は問いに
-        せず、R4 の行の理由に並べて残す（目は出し直させない）"""
+    def test_r4_policy_conflict_naming_a_recorded_row_is_asked(self):
+        """#455: 受け付けを通った R4 の方針とのぶつかり（記録された方針の行を名指す）は、今どおり最後の承認ノードの問いに載る"""
         self.all_pass()
-        copy = "/run/policy/abc.md"
-        docstring, named = "tests/calibration/seed/test_stats.py:1 の『わざと試験しない』に反する", f"{copy}:2 の『空の列は試験しない』に反する"
         r4 = json.loads((self.dir / "r4.json").read_text(encoding="utf-8"))
-        self.put("r4", {**r4, "policy_conflicts": [docstring, named]})
-        got = self.collect(recorded=[{"source": "doc", "name": copy, "text": "", "lines": 3, "alias": ""}])
-        self.assertEqual(got["questions"], ["R4 が見た人の方針とのぶつかり: " + named])
+        self.put("r4", {**r4, "policy_conflicts": [NAMED]})
+        got = self.collect()
+        self.assertEqual(got["questions"], [eyeverdict.R4_ROWS[1][2] + NAMED])
+        self.assertEqual(got["r4"], {"status": "pass", "reason": "横断の危うさなし"})
+
+    def test_r4_policy_conflict_is_asked_when_the_accept_gave_up(self):
+        """#455: 名指しが GIVE_UP_AFTER 回とも受け付けを通らなかった時は、名指さない行も人に聞き、R4 の行の理由に諦めた訳を足す
+        （黙って報告にだけ残さない）"""
+        self.all_pass()
+        r4 = json.loads((self.dir / "r4.json").read_text(encoding="utf-8"))
+        reply = {**r4, "policy_conflicts": [UNNAMED]}
+        self.put("prep", {policy.RECORDED_KEY: [DOC_ROW]})
+        for _ in range(rolekit.GIVE_UP_AFTER):
+            got = eyeverdict.r4_accept(self.dir, json.dumps(reply, ensure_ascii=False), {})
+        self.assertTrue(got["give_up"])
+        self.put("r4", got["reply"])
+        got = self.collect()
+        self.assertEqual(got["questions"], [eyeverdict.R4_ROWS[1][2] + UNNAMED])
         self.assertEqual(got["r4"]["status"], "pass")
-        self.assertIn(docstring, got["r4"]["reason"])
-        self.assertIn(policy.RECORDED_TERM + "のどの行も名指さない", got["r4"]["reason"])
-        self.assertNotIn(named, got["r4"]["reason"])
+        self.assertIn(eyeverdict.R4_GAVE_UP.split("{")[0], got["r4"]["reason"])
 
     def test_r2_redesign_is_not_ok(self):
         self.all_pass()
