@@ -1,4 +1,4 @@
-"""メイングラフの後始末（issue #113）: fix の並べ（groups-par）の子の run が残した作業ツリーと枝を、止めた Archon の complete --force で消す。
+"""埋め P7（docs/polyfills.md）。メイングラフの後始末（issue #113）: fix の並べ（groups-par）の子の run が残した作業ツリーと枝を、止めた Archon の complete --force で消す。
 
 Archon は fan_out の子の作業ツリーを子が終わっても消さない（Archon の authoring-workflows.md の「It is not removed when the child
 finishes」）。この部品はメイングラフの最後のノードから呼ばれ、この run の子だけを選んで消し、出力 {cleaned, left, error} に消した物と残した物を

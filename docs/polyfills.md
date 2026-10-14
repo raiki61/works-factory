@@ -2,9 +2,9 @@
 # Archon の埋め（polyfill）の名簿
 
 - 埋め（polyfill）: Archon（止めた Archon（`docs/design.md` の「語」））に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
-- `workflows/.shared/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、この名簿の行のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。
+- `workflows/.shared/` と `bin/_lib/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の行のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。`- 埋め:` の行が名指す `workflows/`・`bin/`・`lib/`・`tests/` の下のパスが木に無い時も赤（YAML の型の埋めの script・グラフのファイルもこれで古びが分かる）。
 - 埋めの一部は入口 `bin/` に置く物もある。置き場の欄に書く。
-- Archon の新しい版で穴が塞がったら、外す条件を確かめて埋めを消し、行を「外した」のセクションへ移す。
+- Archon の新しい版で穴が塞がったら、外す条件を確かめて埋めを消し、行を「外した」のセクションへ移して `- 埋め:` の頭を `- 外した埋め:` に書き換える（`- 埋め:` の行に消したファイルの名が残ると、名簿の古びとして赤になる）。
 
 ## 書き方
 
@@ -31,7 +31,7 @@
 - 穴: Archon を動かしていた process が落ちると、run は `running` のまま残り、`resume` できない。
 - 証拠: `packages/core/src/operations/workflow-operations.ts` 948 行の文「Cannot resume run with status 'running'. Only failed or paused runs can be resumed.」（再開できるのは `failed`・`paused` だけ。`schemas/workflow-run.ts` 164-167 行）。cancel は、走らせている process が答えない時（`no_owner_answered`）に「If its process is gone, abandon the run to release it.」と abandon を案内する（同じファイル 1250-1251 行）。
 - 範囲: 長い待ち（CI・人の答え）は Archon の `wait:` のノードと承認ノードで書く。Archon 0.10.0 から待ちは持ちこたえる（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」。server が期限の来た run を再開する）。だからこの穴に当たるのは、ノードを走らせている途中で process が落ちた run だけ。
-- 埋め: `bin/apply`（#101。続けられない run の差分を取り出して対象に当てる。今の works の apply と同じ能力）。Archon の命令だけでは足りない: 下の実測のとおり `abandon` は書きかけごと作業ツリーを消し、`--adopt` は最初のノードからやり直すので、持ち主の決め `carry`（止まった run の差分も捨てない。`docs/owner-decisions.md`）を満たさない。手放しと続きの起こしは止めた Archon の命令をそのまま打つ（入口に別名を作らない。持ち主の決め `one-launcher`）。
+- 埋め: `bin/apply`（中身は `bin/_lib/apply.py`。#101。続けられない run の差分を取り出して対象に当てる。今の works の apply と同じ能力）。Archon の命令だけでは足りない: 下の実測のとおり `abandon` は書きかけごと作業ツリーを消し、`--adopt` は最初のノードからやり直すので、持ち主の決め `carry`（止まった run の差分も捨てない。`docs/owner-decisions.md`）を満たさない。手放しと続きの起こしは止めた Archon の命令をそのまま打つ（入口に別名を作らない。持ち主の決め `one-launcher`）。
   - 足りない残り: ノードの途中で持ち主が落ちた run の、commit していない書きかけ。`bin/apply` は終わっていない run（`terminal_record` が null。手放す前の `running`）を拒み、手放した後は作業ツリーが消えている（commit 済みの物は残った枝に在る）。だから今は、手放す前に人が `workflow get <run> --json` の `working_path` で作業ツリーの変更（新しいファイルを含む）を取り出しておく。
   - 持ち主に聞く項にしない: 持ち主の決め `carry` と既にある `bin/apply` で答えが 1 つに決まる（運び役の決め。PR #182 の 1 回目の修理）。
 - 実測（段 1b、2026-10-12。止めた Archon に AI の無い使い捨てのグラフ。ノード `write` が書きかけのファイルを書いて眠り、後ろに `trigger_rule: all_done` のノード `tail`。run `4300fc39121ab1838cc25c38fcf83e98`）: `write` が走っている間に `--detach` の子のプロセスを pid で止めた（`kill -9`）。run の記録は使い捨ての Archon の家と一緒に消え、id から読み戻せない（下の「再現」で回し直す）。
@@ -69,11 +69,11 @@
 - 使うサブグラフ: メイングラフ（入口）
 - 外す条件: `--workflow-source` に任意のフォルダを渡して、その中のグラフを読める版が出たら
 
-### P4 読んだ証拠のフックをノードに付けられない
+### P4 読んだ・書いた証拠のフックをノードに付けられない
 
-- 穴: ノードの hooks: は固定の返事だけで、役が読んだファイルの記録を残せない。
+- 穴: ノードの hooks: は固定の返事だけで、役が読んだ・書いたファイルの記録を残せない。
 - 証拠: 止めた Archon の packages/docs-web/src/content/docs/guides/hooks.md 59-77 行「YAML hooks: are deliberately static」と 64-70 行の表（中身を見るフックは Claude の設定に置く）。
-- 埋め: bin/_lib/record-read.py（Read と、Agent・WebFetch・WebSearch を path の無い行で）。bin/_lib/toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
+- 埋め: bin/_lib/record-read.py（Read と、Agent・WebFetch・WebSearch を path の無い行で）と bin/_lib/record-write.py（Edit・Write・NotebookEdit の書いた記録）。bin/_lib/toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
 - 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）
 - 外す条件: ノードの hooks: が command の種類を受け、入力を見て書ける版が出たら
 
@@ -97,6 +97,30 @@
 - 埋め: `workflows/.shared/child_pointer.py`。自分の置き場（`ARTIFACTS_DIR`）の隣の `<run_id>` を子の置き場とし、札の形・run の id の形（空・`..`・`/` を拒む）・相対のパスを照らして、symlink を辿った先が子の置き場の中に在ることを確かめてから返す。試験は `tests/shared/test_child_pointer.py`。
 - 使うサブグラフ: 周の鎖（`workflows/chain/works-factory-chain.yaml` の `round-k-facts`）
 - 外す条件: Archon の run の中から、ほかの run のポインタを読む口が入ったら
+
+### P7 fan_out の子の作業ツリーが子の終わりで消えない
+
+- 穴: `fan_out:` の子の run が作った作業ツリーと枝は、子が終わっても残る。
+- 証拠: 止めた Archon の `packages/docs-web/src/content/docs/guides/authoring-workflows.md` 2087 行「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）。
+- 埋め: `bin/_lib/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。
+- 使うサブグラフ: メイングラフ（入口）
+- 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
+
+### P8 落ちたノードの出力を受け直せない
+
+- 穴: 落ちたノードの出力は `{from, if_skipped}` でも読めず、読んだノードも落ちる。
+- 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` の `resolveBindingDirective`（落ちた producer を `assertProducerNotFailed` で止め、「A binding never falls back to 'if_skipped' for a failed producer」）。
+- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。
+- 使うサブグラフ: メイングラフ
+- 外す条件: 落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
+
+### P9 鍵を書かないノードにも既定の期限が当たる
+
+- 穴: `timeout` を書かない `script:`・`bash:` のノードにも、Archon が既定の期限で打ち切りを当てる。
+- 証拠: 止めた Archon の `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Default: `120000` (2 min)」。
+- 埋め: 期限を持つノードの鍵に置く、実質無しの値 `1728000000`（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。
+- 使うサブグラフ: 全部
+- 外す条件: グラフの既定で期限を無しにできる版が出たら
 
 ## 外した
 

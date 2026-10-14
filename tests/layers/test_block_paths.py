@@ -1,4 +1,5 @@
-"""ブロックの script と YAML の字に、ほかのブロックを指すパスと、`lib/`・`workflows/.shared/` の外への相対パスが無い（workflows/AGENTS.md の E4 の機械の行）。"""
+"""ブロックの script と YAML の字に、ほかのブロックを指すパスと、`lib/`・`workflows/.shared/` の外への相対パスが無く、
+inputs: の description がほかのブロック・メイングラフ・周の鎖のノードなど作り手を名指さない（workflows/AGENTS.md の E4 の機械の行）。"""
 import pathlib
 import re
 import unittest
@@ -80,6 +81,88 @@ class BlockPathsTest(unittest.TestCase):
             got = scan.problems("E4", root)
         self.assertTrue(any("a.py:1" in line and "newblock" in line for line in got), got)
 
+    def test_input_description_naming_an_output_is_red(self):
+        """入力の description が `$<id>.output` でほかのノードを指せば赤。同じ YAML の兄弟ノードの参照は数えない"""
+        yaml = ("name: works-factory-judge\nnodes: [{id: own-node, script: x}]\ninputs:\n"
+                "  start: {default: 'null', description: 始めの記録のポインタ（$start.output.record）}\n"
+                "  mine: {default: '', description: 兄弟の値（$own-node.output.x）}\n")
+        with tree({"workflows/judge/works-factory-judge.yaml": yaml}) as root:
+            got = scan.problems("E4", root)
+        self.assertTrue(any("works-factory-judge.yaml:4" in line and "入力 start" in line and "$start.output" in line
+                            for line in got), got)
+        self.assertFalse(any("own-node" in line for line in got), got)
+
+    def test_input_description_naming_another_block_is_red(self):
+        """入力の description がほかのブロックの名を語として書けば赤。`plan-fields.json`・`plan_review` は語の一部で数えない"""
+        yaml = ("name: works-factory-merge\ninputs:\n"
+                "  eyes_ok: {default: '', description: eyes の ok}\n"
+                "  x: {default: '', description: plan-fields.json と plan_review}\n")
+        with tree({"workflows/merge/works-factory-merge.yaml": yaml}) as root:
+            got = scan.problems("E4", root)
+        self.assertTrue(any("works-factory-merge.yaml:3" in line and "入力 eyes_ok" in line and "eyes" in line for line in got), got)
+        self.assertFalse(any("入力 x " in line for line in got), got)
+
+    def test_input_description_naming_a_prefixed_block_is_red(self):
+        yaml = "name: works-factory-eyes\ninputs:\n  plan: {default: 'null', description: works-factory-plan の出力}\n"
+        with tree({"workflows/eyes/works-factory-eyes.yaml": yaml}) as root:
+            got = scan.problems("E4", root)
+        self.assertTrue(any("works-factory-eyes.yaml:3" in line and "入力 plan" in line and "works-factory-plan" in line
+                            for line in got), got)
+
+    def test_input_description_naming_a_line_or_chain_node_is_red(self):
+        """メイングラフと周の鎖のノードの id のうち - を含む物は、説明が語として名指せば赤。- の無い id（start）は数えない"""
+        files = {
+            "workflows/line/works-factory-line.yaml": "name: works-factory-line\nnodes:\n  - id: gate-before-fix\n    script: x\n  - id: start\n    script: x\n",
+            "workflows/chain/works-factory-chain.yaml": "name: works-factory-chain\nnodes:\n  - id: round-1-facts\n    script: x\n",
+            "workflows/fix/works-factory-fix.yaml": ("name: works-factory-fix\ninputs:\n"
+                                                     "  answers: {default: '', description: gate-before-fix の答え}\n"
+                                                     "  notes: {default: '', description: round-1-facts の文}\n"
+                                                     "  begin: {default: '', description: start を読む}\n"),
+        }
+        with tree(files) as root:
+            got = scan.problems("E4", root)
+        self.assertTrue(any("入力 answers" in line and "gate-before-fix" in line for line in got), got)
+        self.assertTrue(any("入力 notes" in line and "round-1-facts" in line for line in got), got)
+        self.assertFalse(any("入力 begin" in line for line in got), got)
+
+    def test_input_description_naming_the_main_graph_is_red(self):
+        """説明に語「メイングラフ」があれば赤。一番上のグラフ（line・chain）の入力の説明は見ない"""
+        files = {
+            "workflows/fix/works-factory-fix.yaml": ("name: works-factory-fix\ninputs:\n"
+                                                     "  mode: {default: '', description: 空はサブグラフの形（メイングラフの include の中だけ）}\n"),
+            "workflows/chain/works-factory-chain.yaml": ("name: works-factory-chain\ninputs:\n"
+                                                         "  request: {default: '', description: メイングラフの同じ名の入力}\n"),
+        }
+        with tree(files) as root:
+            got = scan.problems("E4", root)
+        self.assertTrue(any("works-factory-fix.yaml:3" in line and "入力 mode" in line and "メイングラフ" in line for line in got), got)
+        self.assertFalse(any("works-factory-chain.yaml" in line for line in got), got)
+
+    def test_input_without_a_scalar_description_is_red(self):
+        """説明が無い入力と、字でない（mapping の）説明は、見られないので赤。報告の工程だけは説明を持たない入力で、ALLOWED の行で外す"""
+        files = {
+            "workflows/fix/works-factory-fix.yaml": ("name: works-factory-fix\ninputs:\n  bare: {default: ''}\n"
+                                                     "  nested: {default: '', description: {text: 始めの記録}}\n"),
+            "workflows/report/works-factory-report.yaml": "name: works-factory-report\ninputs:\n  fix: {default: ''}\n",
+        }
+        with tree(files) as root:
+            got = scan.problems("E4", root)
+        self.assertTrue(any("works-factory-fix.yaml:3" in line and "入力 bare" in line for line in got), got)
+        self.assertTrue(any("works-factory-fix.yaml:4" in line and "入力 nested" in line for line in got), got)
+        self.assertFalse(any("works-factory-report.yaml" in line for line in got), got)
+
+    def test_top_graph_hyphen_ids_are_read_from_the_real_tree(self):
+        """実際の木で一番上のグラフの `-` を含む id が取れている（空だと節の id の型が黙って外れる）"""
+        got = scan._top_hyphen_ids(ROOT)
+        self.assertTrue({"gate-before-fix", "round-1-facts"} <= got, got)
+
+    def test_folded_input_description_naming_a_producer_is_red(self):
+        """`>-` の複数行の description の 2 行目以降の名指しも、YAML として読んで赤にする"""
+        yaml = ("name: works-factory-plan-review\ninputs:\n  depth_why:\n    default: ''\n    description: >-\n"
+                "      depth_skip の訳\n      （メイングラフの plan-review-due の why）\n")
+        with tree({"workflows/plan-review/works-factory-plan-review.yaml": yaml}) as root:
+            got = scan.problems("E4", root)
+        self.assertTrue(any("works-factory-plan-review.yaml:5" in line and "入力 depth_why" in line for line in got), got)
 
     def test_script_importing_a_sibling_script_is_red(self):
         """script は同じ scripts/ の別の script を import しない（K8）。lib のモジュールと境の口は読んでよい"""
