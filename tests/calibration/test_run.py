@@ -52,8 +52,10 @@ plan = json.loads(pathlib.Path(os.environ["FAKE_PLAN"]).read_text(encoding="utf-
 verb = args[1]
 cwd = args[args.index("--cwd") + 1] if "--cwd" in args else None
 origin = subprocess.run(["git", "-C", cwd, "remote", "get-url", "origin"], capture_output=True, text=True).stdout.strip() if cwd else ""
+archon_config = pathlib.Path(cwd, ".archon", "config.yaml") if cwd else None
 with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps({"who": "works-factory", "args": args, "home": str(home), "origin": origin,
+                        "archon_config": archon_config.read_text(encoding="utf-8") if archon_config and archon_config.is_file() else None,
                         "env": {k: os.environ.get(k) for k in WATCHED}, "names": sorted(os.environ)}) + "\\n")
 state_file = home / "fake-state.json"
 state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.exists() else {"runs": []}

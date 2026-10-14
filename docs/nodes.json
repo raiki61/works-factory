@@ -60,7 +60,7 @@
   "spec.revise": {"by": "role", "where": ["judge/spec-revise-loop", "judge/spec-revise-reject", "judge/spec-revise", "judge/spec-revise-accept"], "proof": ["lib/tests/test_judge_accept.py::SpecTakeCase.test_revise_replaces_the_spec"]},
   "spec.approve": {"by": "archon", "where": ["judge/spec-ask", "judge/spec-gate"], "proof": ["tests/workflows/test_judge.py::GateTest.test_spec_gate_is_an_approval_with_the_four_words", "lib/tests/test_judge_accept.py::SpecGateCase.test_ask_message"]},
   "spec.freeze": {"by": "machine", "where": ["judge/spec-freeze"], "proof": ["tests/workflows/test_judge.py::SpecFreezeTest.test_approval_freezes_hashes_and_exit_codes"], "reason": "今の works の builtin"},
-  "spec.check": {"by": "absent", "reason": "承認の時点で固めた受け入れ条件のテストの hash を、修正の後に照らして変わっていれば人に諮るノード。judge/spec-freeze は hash を固めるが、後で照らすノードは works-factory に無い（承認ノードの軸の語 spec_changed が lib/gatemarks.py に在るだけ）"}
+  "spec.check": {"by": "machine", "where": ["line/spec-check"], "proof": ["lib/tests/test_judge_accept.py::SpecCheckCase.test_changed_acceptance_file_is_a_question", "workflows/line/fixtures/spec-changed.stubs.yaml"], "reason": "修正の後（fixed の後）に J/spec.json の sha256 と作業ツリーを照らし、変わっていれば最後の承認ノードを必ず開いて問いを載せ、結末を人待ちにする。今の works と違い、差分の審査・最後のテスト・独立の目は回す（止めたのは元の engine の制約）"}
  },
  "keep": {
   "1": {"name": "赤緑の機械の判定", "where": ["fix/tdd-step"], "proof": ["lib/tests/test_blk_fix_tdd.py::TestRedCheck.test_error_and_missing_are_not_red_and_carry_facts_only", "lib/tests/test_blk_fix_tdd.py::TestRedCheck.test_quote_absent_from_failure_is_rejected"]},
@@ -121,6 +121,7 @@
   "line/plan-out": "計画の往復の 1 往復の出力をメイングラフの形に直すノード",
   "line/plan-rounds-out": "計画の往復の計画の出力をメイングラフの形に直すノード",
   "line/plan-rounds-review-out": "計画の往復の事前審査の出力をメイングラフの形に直すノード",
+  "line/fix-in": "修正の段へ運ぶ値（直す前のテスト・判定・計画・修正前の承認の答え）を中継し、修正に入る run で 1 度だけ固定材料を写すノード（#509。元 line_edge._capture_fixture）。固定材料の run は写しの値を運ぶ",
   "line/fix": "修正のサブグラフを include するノード",
   "line/fix-out": "修正の出力をメイングラフの形に直すノード",
   "line/after-fix": "修正の後の道（再審・案の直し・止め）を決めるノード",

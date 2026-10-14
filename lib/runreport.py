@@ -9,7 +9,7 @@
 - cost_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行と、費用の節の行（元 report.py:1769・1806）
 - next_request(returns, left, closed, *, beside, exit_doc)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
 - ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
-- answer_drafts(returns, gates, start): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts）
+- answer_drafts(returns, gates, start, spec_changed): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts。承認し直すかの問いも）
 - glossary_section(text, terms, pack)・pack_terms(): 本文と機械の事実に現れる語だけの定義の節（元 report_roles.py の glossary_section）
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name, line) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000。line は線の値）
@@ -39,6 +39,7 @@ import design  # noqa: E402
 import diverted  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
+import fixture  # noqa: E402
 import entry as entrylib  # noqa: E402
 import eyeverdict  # noqa: E402
 import forge  # noqa: E402
@@ -422,8 +423,18 @@ def _ask_draft(q: dict, key: str) -> dict:
     return gatemarks._draft(key, "", f"{gatemarks.ASK_HEAD} {key} の選択肢", f"推しを判定の役が書いていない。選択肢から人が答えを text に書く: {opts}")
 
 
-def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
+SPEC_CHANGED_NOTE = ("機械は承認し直さない。変更を確かめ、承認し直すなら次の run で仕様の段（spec=on）を回して承認し、戻すならテストを承認の版に"
+                     "戻して直す依頼にする。採らないなら行を消す")
+
+
+def spec_changed_of(line: dict | None) -> list:
+    """線の値の承認し直すかの問い（線の spec-check の questions。字の行だけ）"""
+    return [q for q in _list(as_dict(line).get("spec_changed")) if isinstance(q, str) and q.strip()]
+
+
+def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=()) -> list:
     """人の判断を待つ項目への答えの下書き [{question, text, draft, source, note?}]（元 gatemarks.answer_drafts）:
+    ⓪承認の後に受け入れ条件のテストが変わった問い（線の spec-check の questions）ごとに 1 行。機械は承認し直さない
     ①無人の run で修正前の関所が通さなかった事前審査の問いと、人の居る run でも無人の run でも R4 が人に回した問い（元
     report.next_items の pending_human）ごとに 1 行。項目の文が修正案の狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手
     （推し recommend・狭めない案 no_narrow・世界の解 world）を使う
@@ -434,7 +445,8 @@ def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
     asked = oc.eye_questions(returns)
     if _unattended(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
         asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
-    out = [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
+    out = [gatemarks._draft(q, "", gatemarks.SPEC_CHANGED_LABEL, SPEC_CHANGED_NOTE) for q in spec_changed if isinstance(q, str) and q.strip()]
+    out += [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
     out += [_ask_draft(q, key) for q, key in ledger_state(returns, gates, start)["drafts"]]
     mats, _ = oc.materials(returns)
@@ -962,6 +974,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs, plan_done = _plan_questions(returns, gates, start)
     eye_qs = oc.eye_questions(returns)
+    spec_qs = spec_changed_of(line)
     ledger = ledger_state(returns, gates, start)
     held_ = [line for q, line in ledger["held"] if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
     done = ledger["answered"] + [oneline.one_line(x) for x in plan_done]
@@ -974,7 +987,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     handoffs = [x for x in _list(as_dict(returns.get("fix")).get("handoffs")) if isinstance(x, str)]
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
-    parts = [("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
+    parts = [(gatemarks.SPEC_CHANGED_HEAD, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
              ("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs),
              ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate), (report.CHECKS_LEFT, checks),
@@ -1280,7 +1293,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
                  repo=None) -> list:
     s = as_dict(start)
     out = [f"始めの記録: run {s.get('run_id') or '—'}・元の版 {s.get('base_rev') or '—'}・テストの命令 {s.get('test_cmd') or '—'}・"
-           f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}"]
+           f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}", *fixture.lines(s)]
     shape = startrec.shape(s)
     if shape is not None:
         try:
@@ -1397,7 +1410,7 @@ SHOWN_FILES = 3   # 1 ノードの行に名を出すファイルの数
 
 def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, transcript_why: str, repo) -> list:
     """「4. 読んだ証拠と包み」の行: run の記録の道具の呼び（tfacts の calls）と、読んだ証拠の節が run の置き場 artifacts に書いた
-    reads-*.json（報告自身の置き場 out_dir の物を外す。索引は訳 why だけを出す）と、どちらでも取れない物"""
+    reads-*.json（報告自身の置き場 out_dir と、置き場を丸ごと写した固定材料の物を外す。索引は訳 why だけを出す）と、どちらでも取れない物"""
     calls = as_dict(tfacts.get("calls"))
     out = [CALLS_HEAD]
     if not tfacts.get("ok"):
@@ -1409,7 +1422,8 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
         shown = "・".join(_shown(p, repo) for p in files[:SHOWN_FILES]) + (f" ほか {len(files) - SHOWN_FILES} 件" if len(files) > SHOWN_FILES else "")
         out.append(f"  - {step}: " + "・".join(f"{tool} {len(mine[tool])} 件" for tool in PATH_TOOLS) + (f"（ファイル: {shown}）" if files else ""))
     out.append(HOOK_HEAD)
-    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if out_dir not in p.parents)
+    skipped = (out_dir, artifacts / fixture.DIR)
+    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if not any(d in p.parents for d in skipped))
     out += [f"  - {x}" for p in found
             for x in (_index_lines(p, p.relative_to(artifacts).as_posix()) if reads.is_index(p.name)
                       else [_evidence_line(p, p.relative_to(artifacts).as_posix(), repo)])] \
@@ -1456,7 +1470,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     out_dir に書き、{report, next_request, prior_failures, ai_go} のパスを返す（元 report.py:2000。元は盤面を読み、
     検証器の関所を踏んだ）。書き手に渡す事実のファイルは機械の報告そのもの（元の facts_text が線 A の機械の報告を字のまま使った形）。
     transcript は transcript_facts の返り、typed は型つきの成果物の読み {by_type, warnings}、repo は直しの内側の語を直す前の版と
-    比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, prior_failures（開けた
+    比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, spec_changed, prior_failures（開けた
     ファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）、user_env は対象のコマンドを利用者の
     HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
     out_dir = pathlib.Path(out_dir)
@@ -1469,7 +1483,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     left = oc.residue(returns, facts)
     findings = next_request(returns, left, closed, beside=beside, exit_doc=exit_[0])
     prior = prior_failures(returns, left, facts)
-    drafts = answer_drafts(returns, gates, start)
+    drafts = answer_drafts(returns, gates, start, spec_changed_of(line))
     notes_at = eye_notes_dir(returns)   # E37: 前提の検算が偽と示した仮定の実測を次の run の制約に運ぶ
     constraints = carry.carried_constraints(eyeverdict.premise_facts(notes_at)["facts"] if notes_at is not None else [], run_id)
     decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, beside=beside, exit_=exit_,
@@ -1489,7 +1503,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                           *([userenv.NOTE] if user_env else [])])
     if stopped:
         decide = "。".join(x for x in (decide, apply[-1]) if x)
-    asked_texts = [*_plan_questions(returns, gates, start)[0],
+    asked_texts = [*spec_changed_of(line), *_plan_questions(returns, gates, start)[0],
                    *oc.eye_questions(returns)]
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [

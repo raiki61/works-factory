@@ -6,6 +6,7 @@ DraftsCase のうち報告の側の物を、盤面と関所の節の代わりに
 import hashlib
 import json
 import pathlib
+import shutil
 import sys
 import tempfile
 import unittest
@@ -25,6 +26,7 @@ import conflict  # noqa: E402
 import depth  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
+import fixture  # noqa: E402
 import outcome  # noqa: E402
 import outpurpose  # noqa: E402
 import planfile  # noqa: E402
@@ -37,6 +39,7 @@ import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
+from tests.bin.gitkit import git  # noqa: E402
 from lib.tests.test_plan_gate import DECIDED, FACE, FORK, FORK_UNIT, NARROW, WORLD_ROW  # noqa: E402
 
 UNATTENDED = {"run_id": "run-1", "unattended": "true"}
@@ -263,6 +266,22 @@ class BuildCase(Base):
         _, text, _ = self.build(transcript=None)
         got = self.section(text, report.READS_HEADING)
         self.assertIn("  - run の記録が読めない（", got)
+
+    def test_reads_in_the_fixture_copy_are_not_listed_twice(self):
+        """固定材料は run の置き場を丸ごと写すので、写しの下の reads-*.json を「4. 読んだ証拠と包み」に元の物と並べて出さない"""
+        repo = pathlib.Path(tempfile.mkdtemp(dir=self.dir.parent))
+        self.addCleanup(shutil.rmtree, repo)
+        git(repo, "init", "-q")
+        git(repo, "commit", "-q", "--allow-empty", "-m", "seed")
+        (self.dir / "judge" / "judge").mkdir(parents=True)
+        reads.collect(self.dir / "judge" / "judge", "judge", ["/p.md"], self.dir / "none" / "x" / reads.LOG, own=[], since="",
+                      repo=self.dir)
+        fixture.capture(self.dir, repo, run_id="run-1", carried={})
+        self.assertTrue((self.dir / fixture.DIR / fixture.COPY / "judge" / "judge" / "reads-judge.json").is_file())
+        _, text, _ = self.build(transcript=runreport.transcript_facts(rows_of(), exclude_prefix="report__"))
+        got = self.section(text, report.READS_HEADING)
+        self.assertEqual(got.count("reads-judge.json"), 1, got)
+        self.assertNotIn(fixture.DIR, got)
 
     def test_unrun_base_is_not_called_red(self):
         """走らせられなかった直す前のテスト（ok false・green false・red_cause incomplete）を「赤」と書かない（棚卸し T68）"""
@@ -821,6 +840,19 @@ class DraftsCase(Base):
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
         self.assertEqual([a["question"] for a in doc[carry.ANSWERS]], ["どうするか"])
+
+    def test_spec_changed_reaches_head_and_next_request(self):
+        """#510: 承認の後に受け入れ条件のテストが変わった問いは、結末を人待ちにし、冒頭（止めの語の意味と人が決めることの件数）と
+        次の依頼の下書き（答えの空の行）に載る"""
+        q = "承認の後に受け入れ条件のテストが変わった（spec_changed）: t.txt（sha256 aaaaaaaaaaaa → 消えた）——承認し直すか"
+        got, text, decided = self.build(line={"spec_changed": [q], "stops": {"spec-check": stopby.SPEC_CHANGED}})
+        self.assertEqual(decided, ("needs_human", f"spec-check:{stopby.SPEC_CHANGED}"))
+        head = "\n".join(text.splitlines()[2:5])
+        self.assertIn(stopby.REASONS["spec-changed"], head)
+        self.assertIn(f"{gatemarks.SPEC_CHANGED_HEAD} 1 件", head)
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
+        self.assertEqual([(a["question"], a["text"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, "", True)])
 
 
 class GlossaryCase(unittest.TestCase):
@@ -1560,6 +1592,16 @@ class LinesCase(Base):
     def test_entry_gate_words(self):
         _, text, _ = self.build(start={"run_id": RUN, "final_gate": "when_needed"})
         self.assertIn("- 最後の承認ノード: when_needed", self.section(text, report.ENTRY_HEADING))
+
+    def test_entry_fixture_lines(self):
+        """#509: 固定材料から始めた run は写しの元の run を、写した run は次の run に渡すフォルダか写せなかった訳を入口の節に並べる"""
+        _, text, _ = self.build(start={"run_id": RUN, "fixture": {"source_run": "run-0"},
+                                       "fixture_captured": {"dir": "/x/fix-fixture", "error": ""}})
+        body = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 固定材料から: run run-0 の修正の前の写し（", body)
+        self.assertIn("- 固定材料: /x/fix-fixture（次の run の入力 fix_fixture に渡すと、", body)
+        _, text, _ = self.build(start={"run_id": RUN, "fixture_captured": {"dir": "", "error": "OSError: 書けない"}})
+        self.assertIn("- 固定材料を写せなかった: OSError: 書けない", self.section(text, report.ENTRY_HEADING))
 
     def test_entry_lists_ran_and_skipped_stages_and_baseline(self):
         """入口の節に走った段・飛ばされた段・直す前のテストの色と赤の原因（元 report.py の入口の行）"""
