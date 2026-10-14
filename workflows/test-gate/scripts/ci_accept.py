@@ -5,7 +5,7 @@
 """節 ci-accept: 任せ先の CI の役の返答を受け付ける。run が包みを通ると宣言した（env の fence.RECORDS_ENV）なら、先に包みの起動の記録で
 ci-prep の時刻（ci-snapshot.json の prepared_at）より後にこの作業ツリーで柵の掛かった起動が在ったかを見て、無ければ返答を受けず回数を待たずに
 諦める（今の works の ci_role.take と同じ所。棚卸しの T49）。役の前後の作業ツリーの姿（ci-prep の ci-snapshot.json と今。accept.tree_moved。
-HEAD・枝・git が無視するパスも見る。with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない）を比べ、素材の欄の決まり（declared_checks.material_problems）を照らす。通れば素材を
+HEAD・枝・git が無視するパスも見る。with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない）を比べ、素材の欄の決まり（declared_checks.role_material_problems）を照らす。通れば素材を
 test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit の控えに積む）、役が自分で置きうる ci-material.json を消し、
 rolekit.GIVE_UP_AFTER 回目の拒否で done・give_up（輪を max_iterations で落とさない）。終わる時（通った・諦めた）に写しを消す"""
 import json
@@ -37,7 +37,7 @@ def judge(gate: Path, root: Path, snap: dict, raw: str, mode: str, keys=accept.T
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         return {"ok": False, "reason": why}
-    problems = declared_checks.material_problems(reply.get("material"), mode=mode)
+    problems = declared_checks.role_material_problems(reply.get("material"), mode=mode)
     if problems:
         return {"ok": False, "reason": "素材の欄を直した返答を丸ごと出し直せ: " + "；".join(problems)}
     (gate / "ci-material.json").write_text(json.dumps({"material": reply["material"]}, ensure_ascii=False, indent=1) + "\n",

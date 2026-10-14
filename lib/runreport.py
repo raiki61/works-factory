@@ -1539,7 +1539,8 @@ def _ran_notes(returns: dict) -> list:
     """最後のテストが走っていない・走ったと確かめられていない時の冒頭の句（green_cert.ran_note。#492）。最後のテストまで来なかった
     run は結末がそう言い、直す前のテストは本文の行が言う"""
     fin = _ret(returns, "test-gate-final")
-    note = green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "") if fin else ""
+    note = (green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "",
+                                steps=fin.get("ran_steps")) if fin else "")
     return [note] if note else []
 
 
@@ -1608,13 +1609,22 @@ def cold_body(raw) -> str:
 
 
 def _machine_head_notes(out_dir: pathlib.Path) -> list:
-    """機械の報告（out_dir の report.REPORT_FILE）の冒頭に在る、HEAD_NOTES の句。読めなければ求めない（事実の節に別の落ち方が在る）"""
+    """機械の報告（out_dir の report.REPORT_FILE）の冒頭に在る、HEAD_NOTES の句。green_cert.PARTLY_RAN は段を名指す括弧まで
+    （名を落とした頭を通さない）。読めなければ求めない（事実の節に別の落ち方が在る）"""
     try:
         text = (out_dir / report.REPORT_FILE).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
     head = text.split("\n## ", 1)[0]
-    return [note for note in HEAD_NOTES if note in head]
+    return [_named_note(head, note) for note in HEAD_NOTES if note in head]
+
+
+def _named_note(head: str, note: str) -> str:
+    if note != green_cert.PARTLY_RAN:
+        return note
+    start = head.index(note)
+    end = head.find("）", start)
+    return head[start:end + 1] if end >= 0 else note
 
 
 def accept(reply, cold, *, out_dir) -> dict:
