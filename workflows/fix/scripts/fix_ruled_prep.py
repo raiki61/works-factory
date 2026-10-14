@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """節 fix-ruled-prep（形 "" の裁定の後の修正の輪の頭）: 直す裁定（fix_test_scope・fix_code_as・replace_query。conflict.ruled_fix）が
-無ければ go: false（役を起こさない）。在れば段の頭の木を 1 回目に置き場の fix-ruled-head.json に、除くパスの頭 boundary.SKIP の下の姿を
+無ければ go: false（役を起こさない。組どうしの合わせの申し出 conflict.JOIN_SOURCE への裁定は数えない——その組は戻していないので
+直す義務に無く、裁定の後の合わせのループが直す）。在れば段の頭の木を 1 回目に置き場の fix-ruled-head.json に、除くパスの頭 boundary.SKIP の下の姿を
 skip-before.json に控え（fixboard.record_skipped。受け付けがその下を変えた返答を拒む）、組の修正役が受け付けた返答を
 1 つにまとめた控え（fixboard.group_fix_reply。fix-reply.json）と裁定の文のファイルを読む新しい会話の指示書を組む（fixrules.prep の
 ruled。題の次に保存した返答を名指す行を足す。fixboard.ruled_reply_line。docs/plans/2026-10-12-blocks/fix.md の「Archon で書けない所」
@@ -40,7 +41,8 @@ def main() -> dict:
     place, repo = boundary.place("fix"), boundary.work_tree()
     prompt = place / (fixrules.PROMPT_NAME[:-len(".md")] + fixrules.RULED_TAIL)
     n = fixrules.iteration_next(prompt)
-    if not [r for r in conflict.ruled_fix(place) if not r.get(conflict.PRIOR)]:   # 1 回目の段の裁定（2 回目の段が写した行）は直し直さない
+    if not [r for r in conflict.ruled_fix(place)   # 1 回目の段の裁定（2 回目の段が写した行）は直し直さない。組どうしの合わせの申し出は合わせ役が直す
+            if not r.get(conflict.PRIOR) and r.get("source") != conflict.JOIN_SOURCE]:
         return {"prompt_file": "", "go": False, "iteration": n}
     head = place / fixrules.head_file("ruled")
     if not head.is_file():

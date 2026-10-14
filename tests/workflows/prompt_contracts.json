@@ -1095,6 +1095,66 @@
       }
     ]
   },
+  "workflows/fix/commands/fix-rules/clash.md": {
+    "inserts": [
+      "<<brief_file>>",
+      "<<patch_file>>"
+    ],
+    "returns": {
+      "nodes": [],
+      "output_format_sha256": null,
+      "json_keys": [
+        "bash_writes",
+        "files",
+        "handled",
+        "how",
+        "path",
+        "why"
+      ]
+    },
+    "forbidden": [
+      {
+        "what": "触ってよいファイルの外は変えない",
+        "quote": "変えてよいのは `files` に並べたファイルだけ"
+      },
+      {
+        "what": "前の組の直しを消して緑にしない",
+        "quote": "前の組の直しを消す・戻す・弱めることで緑にするな"
+      },
+      {
+        "what": "テストを緩めない",
+        "quote": "テストを緩めるな"
+      },
+      {
+        "what": "期待値を実装に合わせない",
+        "quote": "期待値を実装に合わせるな"
+      },
+      {
+        "what": "組自身のテストでも許しにならない",
+        "quote": "組自身のテストのファイルであることは許しにならない"
+      }
+    ],
+    "steps": [
+      {
+        "what": "材料の JSON を読む",
+        "quote": "Read せよ。JSON"
+      },
+      {
+        "what": "前の組の直しが崩した前提を確かめる",
+        "quote": "前の組の直しが何を変えて、この組の直しのどこが当てにしていた前提を崩したのかを確かめよ"
+      },
+      {
+        "what": "名指しのテストを走らせ緑を確かめてから返す",
+        "quote": "緑を確かめてから返せ"
+      }
+    ],
+    "stops": [
+      {
+        "what": "直せないなら変更を戻して cannot と答える",
+        "quote": "何も変えずに（変えた物は元に戻して）`cannot` と答え"
+      }
+    ]
+  },
   "workflows/fix/commands/fix-rules/common.md": {
     "inserts": [],
     "returns": {
@@ -1990,6 +2050,54 @@
       }
     ]
   },
+  "workflows/fix/works-factory-fix.yaml#clash-fix.prompt": {
+    "inserts": [
+      "$clash-prep.output.prompt_file"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/fix/works-factory-fix.yaml#clash-fix"
+      ],
+      "output_format_sha256": "ec78fc8f8b7fd0fa9de59ee6e65b3152333a837ca90dd0ede9858a5f55af9664",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の「返答」の形の JSON だけを返す",
+        "quote": "返すのは指示書の「返答」の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
+  "workflows/fix/works-factory-fix.yaml#clash-ruled.prompt": {
+    "inserts": [
+      "$clash-ruled-prep.output.prompt_file"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/fix/works-factory-fix.yaml#clash-ruled"
+      ],
+      "output_format_sha256": "ec78fc8f8b7fd0fa9de59ee6e65b3152333a837ca90dd0ede9858a5f55af9664",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の「返答」の形の JSON だけを返す",
+        "quote": "返すのは指示書の「返答」の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
   "workflows/fix/works-factory-fix.yaml#consult-answer.prompt": {
     "inserts": [
       "$consult-check.output.prompt_file"
@@ -2142,7 +2250,7 @@
       "nodes": [
         "workflows/fix/works-factory-fix.yaml#ruler"
       ],
-      "output_format_sha256": "047f453cf81ee8446ce05b671fdf6a8cef14baa28e9a0432d3008eb9fe408b6a",
+      "output_format_sha256": "1a49d6835e5641dc81bbd78972d10c8f85bc6c4ebe3a3e5dbd9c2ba45829fb55",
       "json_keys": []
     },
     "forbidden": [],

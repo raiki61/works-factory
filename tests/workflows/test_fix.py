@@ -97,7 +97,7 @@ FIX_REPLY_ORIGINAL = {
     "changes.properties": {"breaks", "bypass_tried", "closure", "coverage", "files", "precedent", "root_or_symptom", "unit_key",
                            "what"},
 }
-FIX_RULES = ("common", "brief", "direct", "principles", "ruler", "tdd", "refix")
+FIX_RULES = ("common", "brief", "direct", "principles", "ruler", "tdd", "refix", "clash")
 COMMANDS = ("delta-review", "review2", "lens-silent-failure-hunter")
 NO_QUEUE = re.compile(r"\b(queue|lock)\b|\btake\(")
 # 網に出ようとした子をすぐ落とす宛先（控えを読めなかった時に本物の網へ出ない）
@@ -387,6 +387,28 @@ class RolesCase(unittest.TestCase):
         self.assertEqual(self.nodes["rule-loop"]["loop_group"]["max_iterations"], ruling.GIVE_UP_AFTER)
         for nid in ("delta-loop", "refix-loop", "review2-loop", "refix2-loop"):
             self.assertEqual(self.nodes[nid]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
+
+    def test_clash_loops_sit_between_join_and_the_ruled_fix(self):
+        """#382: 合わせのループは join の後・申し出の照らしの前、裁定の後の合わせのループは裁定の輪の後・裁定の後の修正の輪の前（作業ツリーを
+        変える 2 つの輪を順に）。上限の周は with: limit が持ち、輪の max_iterations と同じ（ずれれば片付けの前に輪の上限で節が落ちる）。
+        支度・受け付けは 2 つの段で同じ script を pass で使い分ける。周ごとに組が替わりうるので、2 つの輪は毎周新しい会話
+        （fresh_context: true。false だと合わせ役が前の組の会話を持ったまま次の組を直す）。確かめ直しの赤は並べた run だけが控えるので、
+        合わせのループは並べた run だけで回り、申し出の照らしは飛ばしたループを待たずに回る"""
+        self.assertEqual(self.nodes["clash-loop"]["depends_on"], ["join"])
+        self.assertEqual(self.nodes["clash-loop"]["when"], "$prep.output.par == true")
+        self.assertIn("clash-loop", self.nodes["conflict-check"]["depends_on"])
+        self.assertEqual(self.nodes["conflict-check"]["trigger_rule"], "none_failed_min_one_success")
+        self.assertEqual(self.nodes["clash-ruled-loop"]["depends_on"], ["conflict-check", "rule-loop"])
+        self.assertIn("clash-ruled-loop", self.nodes["fix-ruled-loop"]["depends_on"])
+        for loop, prep, accept, pass_ in (("clash-loop", "clash-prep", "clash-accept", "first"),
+                                          ("clash-ruled-loop", "clash-ruled-prep", "clash-ruled-accept", "ruled")):
+            self.assertEqual(self.nodes[accept]["with"]["limit"], self.nodes[loop]["loop_group"]["max_iterations"], loop)
+            self.assertIs(self.nodes[loop]["loop_group"]["fresh_context"], True, loop)
+            self.assertEqual(refs(self.nodes[loop]["loop_group"]["until_bash"]), {accept})
+            self.assertEqual((self.nodes[prep]["script"], self.nodes[prep]["with"]["pass"]), ("clash_prep", pass_))
+            self.assertEqual((self.nodes[accept]["script"], self.nodes[accept]["with"]["pass"]), ("clash_accept", pass_))
+        for nid in ("clean", "fix"):
+            self.assertTrue({"clash-loop", "clash-ruled-loop"} <= set(self.nodes[nid]["depends_on"]), nid)
 
     def test_answer_nodes_are_keyed_by_passes_and_name_nodes_here(self):
         """#385: 段 → 範囲の相談に答える役の節は fixrules.PASSES を鍵にした表 1 つ。値はどれもこの YAML の節で、
@@ -1552,6 +1574,30 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertIn("E1 = 10\n", e, "前の組は残す")
         self.assertIn("E8 = 8\n", e, "後の組の直しは戻す")
         self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3 + 1\n")
+        import clash
+        [row] = clash.load(self.place)
+        self.assertEqual((row["group_id"], row["unit_ids"], row["state"]), ("g2", ["B"], clash.PENDING),
+                         "#382: 赤で戻した組は合わせのループの直し待ちに控える")
+        self.assertEqual((sorted(row["names"]), row["shared"], row["why"]), (["b.py", "e.py"], ["e.py"], g2["reason"]))
+        self.assertEqual(pathlib.Path(row["patch"]), self.place / "join" / "g2.diff")
+
+    def test_join_does_not_record_a_group_whose_recheck_raised(self):
+        """#382: 確かめ直しそのものが落ちた組（fixboard.CHECK_RAISED）は戻すが、合わせのループの直し待ちには控えない（組を当てて赤では
+        ない）"""
+        filler = "".join(f"# {i}\n" for i in range(10))
+        start = self.rerun_seed({"e.py": f"E1 = 1\n{filler}E8 = 8\n"})
+        t1 = self.tree_with({"e.py": f"E1 = 10\n{filler}E8 = 8\n"})
+        t2 = self.tree_with({"e.py": f"E1 = 1\n{filler}E8 = 80\n"})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, tdd={
+            "ran": True, "units": [{"tests": 5, "test_files": ["e.py"]}]}))   # 名指しの並びが壊れていて照らしが落ちる
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        g2 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"][1]
+        self.assertIn("当てた後の確かめ直しが落ちた", g2["reason"])
+        self.assertFalse((self.place / "clash.json").exists())
 
     @unittest.skipIf(os.geteuid() == 0, "root は書けないフォルダの中も書ける")
     def test_join_keeps_a_group_it_could_not_restore_and_stops_applying(self):
@@ -2331,6 +2377,201 @@ class BlockScriptsCase(unittest.TestCase):
             out = self.assert_case(["stats.py"], [])
             self.assertFalse(out["ok"])
             self.assertIn("stats.py", out["reason"])
+
+
+class ClashScenarioCase(unittest.TestCase):
+    """#382（持ち主の決め clash-goes-to-ruling）の筋書き: 2 つの組を並べて直し、親の木で合わせると後の組 g2 の名指しが赤になる
+    （g1 が e.py の E1 を変え、g2 の b.py が前の E1 を当てにする。BlockScriptsCase の test_join_backs_out_the_later_group_on_a_semantic_clash
+    の種）。join・合わせのループ・申し出の照らし・裁定の輪・裁定の後の合わせのループの script を順に起こし、役の手は試験がファイルを書いて模す"""
+
+    setUpClass = BlockScriptsCase.__dict__["setUpClass"]
+    setUp = BlockScriptsCase.setUp
+    restore = BlockScriptsCase.restore
+    tree_with = BlockScriptsCase.tree_with
+    groups_file = BlockScriptsCase.groups_file
+    rerun_seed = BlockScriptsCase.rerun_seed
+    FILLER = "".join(f"# {i}\n" for i in range(10))
+    FIXED_B = "from e import E1\n\n\ndef triple(x):\n    return x * 3 + E1 - 10\n"
+
+    TEST_B = ("import unittest\n\nfrom b import triple\n\n\nclass TestB(unittest.TestCase):\n"
+              "    def test_triple(self):\n        self.assertEqual(triple(2), 6)\n")
+
+    def joined_with_clash(self, g2_extra=None):
+        """種を組んで join を回し、g2 を赤で戻して直し待ちに控えた所まで進める。g2_extra は g2 が足して変えるファイル"""
+        start = self.rerun_seed({
+            "e.py": f"E1 = 1\n{self.FILLER}E8 = 8\n",
+            "b.py": "def triple(x):\n    return x * 3 + 1\n",
+            "test_b.py": self.TEST_B})
+        _blk_write(self.place / "judgment.json", {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"}],
+                                                  "questions": []})
+        t1 = self.tree_with({"e.py": f"E1 = 10\n{self.FILLER}E8 = 8\n"})
+        t2 = self.tree_with({"e.py": f"E1 = 1\n{self.FILLER}E8 = 80\n",
+                             "b.py": "from e import E1\n\n\ndef triple(x):\n    return x * 3 + E1 - 1\n", **(g2_extra or {})})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, verified=["test_b.py::TestB::test_triple"]))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 2, "returned": 1}), err)
+        self.green_tree = self.snapshot(self.repo)
+
+    def prep(self, pass_="first"):
+        code, out, err = _blk_run("clash_prep", self.repo, self.art, {"pass": pass_})
+        self.assertEqual(code, 0, err)
+        return out
+
+    def accept(self, reply, iteration, pass_="first"):
+        raw = "null" if reply is None else json.dumps(reply, ensure_ascii=False)
+        code, out, err = _blk_run("clash_accept", self.repo, self.art,
+                                  {"reply": raw, "iteration": str(iteration), "pass": pass_, "limit": "9"})
+        self.assertEqual(code, 0, err)
+        return out
+
+    def fixed_reply(self, files=("b.py",)):
+        return {"handled": "fixed", "how": "b.py の triple が前の組の E1 = 10 でも 6 を返すように直し、test_triple を回して緑", "files": list(files)}
+
+    def group_row(self, gid="g2"):
+        return next(g for g in json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"] if g["group_id"] == gid)
+
+    def to_ruling(self, decision="fix_code_as"):
+        """1 回目の合わせ役が直せないと答え、申し出が裁定役に届いて decision で裁かれるまで進める。申し出の id を返す"""
+        self.joined_with_clash()
+        out = self.prep()
+        self.assertTrue(out["go"], out)
+        got = self.accept({"handled": "cannot", "how": "b.py だけでは前の組の E1 と両立させる直し方が決められない", "files": []},
+                          out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, True), got)
+        self.assertEqual(self.snapshot(self.repo), self.green_tree, "直せなかった組は当て直す前の緑の木へ戻す")
+        rows = [r for r in conflict.items(self.place) if r["source"] == conflict.JOIN_SOURCE]
+        self.assertEqual([r["unit_key"] for r in rows], ["B"], rows)
+        self.assertEqual(self.group_row()["clash"]["outcome"], "parked")
+        code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+        self.assertEqual((code, out), (0, {"go": True, "count": 1}), err)
+        code, out, err = _blk_run("rule_prep", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertIn(rows[0]["id"], pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8"))
+        ruled = {"rulings": [{"id": rows[0]["id"], "decision": decision, "limits": [],
+                              "text": "b.py の triple を、前の組が変えた E1 = 10 の上でも triple(2) が 6 になるように直せ"}]}
+        code, out, err = _blk_run("rule_accept", self.repo, self.art, {"reply": json.dumps(ruled, ensure_ascii=False), "iteration": "1"})
+        self.assertEqual((code, out["ok"]), (0, True), (err, out))
+        return rows[0]["id"]
+
+    def test_join_clash_repaired_inside_the_groups_files(self):
+        """閉じる条件 1: 組を当てて赤になった run で、合わせ役が影響したファイルだけを直し、緑で進む"""
+        self.joined_with_clash()
+        out = self.prep()
+        self.assertTrue(out["go"], out)
+        self.assertIn("E8 = 80", (self.repo / "e.py").read_text(encoding="utf-8"), "控えの差分を当て直した")
+        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
+        self.assertEqual((brief["files"], brief["named_tests"]), (["b.py", "e.py"], ["test_b.py::TestB::test_triple"]))
+        (self.repo / "b.py").write_text(self.FIXED_B, encoding="utf-8")
+        got = self.accept(self.fixed_reply(), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        g2 = self.group_row()
+        self.assertEqual((g2["returned"], g2["reason"], g2["clash"]["outcome"]), (True, "", "repaired"), g2)
+        units = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["units"]
+        self.assertEqual({u["unit_id"]: u["status"] for u in units}, {"A": "fixed", "B": "fixed"})
+        e = (self.repo / "e.py").read_text(encoding="utf-8")
+        self.assertIn("E1 = 10\n", e, "前の組の直しは残る")
+        self.assertIn("E8 = 80\n", e, "後の組の直しも残る")
+        code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+        self.assertEqual((code, out), (0, {"go": False, "count": 0}), err)
+
+    def test_join_clash_rejects_writes_outside_the_group_and_test_rewrites(self):
+        """受け付けは修正役と同じ軸: 組が変えたファイルの外の変更と、許しの無いテストのファイルの書き換えを拒む（作業ツリーは
+        合わせ役の手の中のまま、次の周に同じ組を続ける）"""
+        self.joined_with_clash()
+        out = self.prep()
+        (self.repo / "x.py").write_text("X = 1\n", encoding="utf-8")
+        got = self.accept(self.fixed_reply(("x.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn("組が変えたファイルの外", got["reason"])
+        (self.repo / "x.py").unlink()
+        test_b = self.repo / "test_b.py"
+        test_b.write_text(test_b.read_text(encoding="utf-8").replace("6)", "15)"), encoding="utf-8")
+        out = self.prep()
+        self.assertEqual(out["iteration"], 2)
+        self.assertIn("前の回までの返答は受け付けで拒まれた", pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8"))
+        got = self.accept(self.fixed_reply(("test_b.py",)), out["iteration"])
+        self.assertFalse(got["ok"], got)
+        self.assertIn("許しの無いテストのファイル", got["reason"])
+        self.assertIn("test_b.py", got["reason"])
+
+    def test_join_clash_rejects_rewriting_the_groups_own_test(self):
+        """組が自分で変えたテストのファイルも、許しが無ければ合わせ役は書き換えられない（組の変えたファイルの内でも拒む。
+        組の外の拒否とは別の照らし）"""
+        self.joined_with_clash({"test_b.py": self.TEST_B + "\n    def test_triple_zero(self):\n        triple(0)\n"})
+        out = self.prep()
+        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
+        self.assertIn("test_b.py", brief["files"])
+        test_b = self.repo / "test_b.py"
+        test_b.write_text(test_b.read_text(encoding="utf-8").replace("6)", "15)"), encoding="utf-8")
+        got = self.accept(self.fixed_reply(("test_b.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn("許しの無いテストのファイル", got["reason"])
+        self.assertIn("test_b.py", got["reason"])
+        self.assertNotIn("組が変えたファイルの外", got["reason"])
+
+    def test_join_clash_goes_to_ruling_and_the_ruling_fixes_it(self):
+        """閉じる条件 2: 直せない形では、申し出が裁定役に届き、裁定の答えで解ける"""
+        rid = self.to_ruling()
+        out = self.prep("ruled")
+        self.assertTrue(out["go"], out)
+        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
+        self.assertEqual([r["id"] for r in brief["rulings"]], [rid])
+        self.assertIn(conflict.CLASH_PROMISE, (self.place / conflict.RULINGS_FILE).read_text(encoding="utf-8"))
+        (self.repo / "b.py").write_text(self.FIXED_B, encoding="utf-8")
+        got = self.accept(self.fixed_reply(), out["iteration"], "ruled")
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        g2 = self.group_row()
+        self.assertEqual((g2["returned"], g2["clash"]["outcome"], g2["clash"]["requests"]), (True, "repaired", [rid]), g2)
+        code, out, err = _fx_run("fix_ruled_prep", self.repo, self.art)
+        self.assertEqual((code, out["go"]), (0, False), "合わせの申し出への直す裁定は裁定の後の修正役を起こさない")
+        self.assertEqual(conflict.human_lines(self.place), [])
+
+    def test_join_clash_reaches_a_human_only_when_the_ruling_cannot_fix_it(self):
+        """閉じる条件 3: 裁定でも解けない形だけ、人に回る（裁定の後の合わせ役が 3 回拒まれる）"""
+        rid = self.to_ruling()
+        for n in (1, 2, 3):
+            out = self.prep("ruled")
+            self.assertTrue(out["go"], out)
+            got = self.accept(self.fixed_reply(), out["iteration"], "ruled")
+            self.assertEqual((got["ok"], got["done"]), (False, n == 3), got)
+        self.assertEqual(self.snapshot(self.repo), self.green_tree, "人に回す組は当て直す前の緑の木へ戻す")
+        g2 = self.group_row()
+        self.assertEqual((g2["returned"], g2["clash"]["outcome"]), (False, "parked"), g2)
+        self.assertIn("人に回した", g2["reason"])
+        lines = conflict.human_lines(self.place)
+        self.assertEqual(len(lines), 1, lines)
+        self.assertTrue(lines[0].startswith("B: 裁定 " + rid), lines)
+        self.assertIn("戻した直しの控え", lines[0])
+        asked = [r for r in conflict.asked(self.place)]
+        self.assertEqual([r["ruling"]["by"] for r in asked], [clash_by()])
+        self.assertEqual(self.prep("ruled")["go"], False, "人に回した組はもう当て直さない")
+
+    def test_join_clash_ruled_ask_human_goes_to_a_human_without_reapplying(self):
+        """裁定役が ask_human と裁いた合わせの申し出は、裁定の後の合わせのループが当て直さずに人の行になる"""
+        self.to_ruling("ask_human")
+        self.assertEqual(self.prep("ruled")["go"], False)
+        self.assertEqual(self.snapshot(self.repo), self.green_tree)
+        lines = conflict.human_lines(self.place)
+        self.assertEqual(len(lines), 1, lines)
+        self.assertTrue(lines[0].startswith("B: "), lines)
+
+    def test_join_clash_rejudge_ruling_becomes_the_fix_objection(self):
+        """裁定 rejudge は単位を直す義務から外し、裁定の文を修正の出力の異議にする（メイングラフが再審を回す）"""
+        self.to_ruling("rejudge")
+        self.assertEqual(self.prep("ruled")["go"], False)
+        self.assertEqual(conflict.human_lines(self.place), [], "rejudge は人の行にしない")
+        self.assertIn("B", conflict.held_by_rulings(self.place))
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertIn("triple(2) が 6 になるように直せ", out["objection"])
+
+
+def clash_by():
+    import clash
+    return clash.BY_RULED_GIVE_UP
 
 
 _GRP_RUN = "wf-grp"
@@ -3619,6 +3860,14 @@ COPIED_TEXTS = {
 }
 
 
+# 元の works に無い新しい指示書と prompt:（写しでないので元と許した直しを持たない）。{台帳の鍵: 足した訳}
+NEW_TEXTS = {
+    "commands/fix-rules/clash.md": "合わせ役の決まり（持ち主の決め clash-goes-to-ruling。#382。元は組を戻すだけで直す役が無かった）",
+    "works-factory-fix.yaml#clash-fix": "合わせ役のノード（#382）",
+    "works-factory-fix.yaml#clash-ruled": "裁定の後の合わせ役のノード（#382）",
+}
+
+
 def copied_texts() -> dict:
     """台帳の鍵 → 今の字: commands/ の下の指示書の全部（commands/<相対パス>）と、YAML の役の節の prompt: の全部（<YAML の名>#<id>）"""
     out = {f"commands/{p.relative_to(BLOCK / 'commands').as_posix()}": p.read_text(encoding="utf-8")
@@ -3632,12 +3881,13 @@ class CopiedTextsCase(unittest.TestCase):
     （copied.REWRITES。PR #221 の語と初見の読み手の書き直し）だけを当てた物"""
 
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
-        """許した直しと書き直しを逆に当てると元のバイト（元の sha256）に戻る。台帳に無い指示書・prompt・書き直しと、写しの無い
-        台帳の行は赤"""
+        """許した直しと書き直しを逆に当てると元のバイト（元の sha256）に戻る。台帳にも新しい物の表 NEW_TEXTS にも無い指示書・
+        prompt・書き直しと、写しの無い台帳の行は赤"""
         texts = copied_texts()
         here = BLOCK.relative_to(ROOT).as_posix()
         with self.subTest(ledger="台帳と指示書・prompt の一覧"):
-            self.assertEqual(sorted(COPIED_TEXTS), sorted(texts))
+            self.assertEqual(set(COPIED_TEXTS) & set(NEW_TEXTS), set())
+            self.assertEqual(sorted([*COPIED_TEXTS, *NEW_TEXTS]), sorted(texts))
             self.assertLessEqual({k for k in REWRITES if k.startswith(f"{here}/")}, {f"{here}/{k}" for k in COPIED_TEXTS},
                                  "台帳に無い指示書・prompt の書き直し")
         for key in sorted(set(texts) & set(COPIED_TEXTS)):

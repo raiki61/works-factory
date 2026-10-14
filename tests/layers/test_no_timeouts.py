@@ -37,6 +37,16 @@ class NoTimeoutsTest(unittest.TestCase):
         )
         self.assertEqual(self.problems(nodes), [])
 
+    def test_merge_key_supplies_kind_and_deadline(self):
+        nodes = (
+            "  - id: a\n    <<: &launch\n      prompt: hi\n      idle_timeout: 1728000000\n"
+            "  - id: b\n    <<: *launch\n"
+            "  - id: c\n    <<: *launch\n    idle_timeout: 600\n"
+        )
+        got = self.problems(nodes)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn(f"{BLOCK}:11: idle_timeout", got[0])
+
     def test_missing_timeout_is_red(self):
         got = self.problems("  - id: run\n    script: stub\n")
         self.assertTrue(any(BLOCK in line and "timeout" in line for line in got), got)
