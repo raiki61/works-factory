@@ -5,8 +5,9 @@ tests/calibration/swepro.py の頭。harbor を import するのはこのファ�
 課題の入力と認証のファイルを上げて起こし役（swepro.py inside）を 1 回 exec し、/app の差分を model.patch に取り、
 起こし役の標準出力と予測を <試み>/agent/ に書く。
 命令の字は swepro.py が組む。期限を足さない（setup・exec とも上限なし。作業の段の上限は --agent-timeout-multiplier inf で外し、
-付け忘れた起動は殻を作る時に断る）。https のプロキシが api.anthropic.com を向く環境も、殻を作る時（環境を起こす前）に
-断る（訳は swepro.py の頭の「プロキシの要る網」）。
+付け忘れた起動は殻を作る時に断る）。
+環境は WorksBenchDocker（-e tests.calibration.swepro_agent:WorksBenchDocker）。上流のプロキシの在る環境で他の環境を渡した
+起動は、殻が setup で exec の前に断る（訳は swepro.py の頭の「プロキシの要る網」）。
 """
 import json
 import math
@@ -21,12 +22,41 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from harbor.agents.base import BaseAgent  # noqa: E402
 from harbor.environments.base import BaseEnvironment  # noqa: E402
+from harbor.environments.docker.docker import DockerEnvironment  # noqa: E402
 from harbor.models.agent.context import AgentContext  # noqa: E402
 
 from bin._lib import auth_launch  # noqa: E402
 from tests.calibration import swepro  # noqa: E402
 
 TAIL = 5
+
+
+class WorksBenchDocker(DockerEnvironment):
+    """Harbor の docker の環境。上流のプロキシ（swepro.upstream）が無ければ DockerEnvironment のまま。在れば egress の付き添いを
+    swepro.EGRESS の写しで立て、gost の設定（swepro.gost_config）を compose の子の環境の swepro.GOST_CONFIG_ENV で渡す。
+    設定はイメージ・harbor run の字・Harbor の記録に入らない"""
+
+    def __init__(self, *args, **kwargs):
+        self._gost_config = swepro.gost_config(os.environ)
+        super().__init__(*args, **kwargs)
+        if self._gost_config is not None:
+            self._DOCKER_COMPOSE_EGRESS_CONTROL_PATH = swepro.EGRESS / "docker-compose-egress-control.yaml"
+            self._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH = swepro.EGRESS / "harbor-docker-egress-control-sidecar"
+
+    @classmethod
+    def preflight(cls) -> None:
+        super().preflight()
+        swepro.gost_config(os.environ)
+
+    def _egress_control_sidecar_dockerfile_path(self) -> Path:
+        # 基は classmethod でクラス属性を読むので、__init__ で替えたインスタンスの属性を読ませる
+        return self._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH / "Dockerfile"
+
+    def _compose_infra_env_vars(self) -> dict[str, str]:
+        env_vars = super()._compose_infra_env_vars()
+        if self._gost_config is not None:
+            env_vars[swepro.GOST_CONFIG_ENV] = self._gost_config
+        return env_vars
 
 
 class WorksBench(BaseAgent):
@@ -39,9 +69,6 @@ class WorksBench(BaseAgent):
             raise ValueError("harbor run に --agent-timeout-multiplier inf（または --timeout-multiplier inf）が無い。"
                              f"無いと Harbor が作業の段を {swepro.PRO_SECONDS} 秒×倍率で切る"
                              "（harbor job resume・-c の設定のファイルからの起動も旗が字に無いので断る）")
-        refused = swepro.proxy_refused(os.environ)
-        if refused:
-            raise ValueError(refused)
         self.producer = swepro.chosen(producer)
         version = swepro.host_claude_version(os.environ)
         if not version:
@@ -56,6 +83,9 @@ class WorksBench(BaseAgent):
         return swepro.head_commit()
 
     async def setup(self, environment: BaseEnvironment) -> None:
+        if swepro.upstream(os.environ) and not isinstance(environment, WorksBenchDocker):
+            raise ValueError(f"上流のプロキシの在る環境では harbor run に -e {swepro.ENVIRONMENT} を渡す"
+                             "（他の環境の egress の付き添いは上流のプロキシを通さず、試行が api.anthropic.com に届かない）")
         for name, command in swepro.setup_commands(self.version(), self.claude_version):
             done = await environment.exec(command, user="root", timeout_sec=None)
             if done.return_code != 0:

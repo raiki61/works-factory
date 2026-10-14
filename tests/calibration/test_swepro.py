@@ -8,6 +8,8 @@ github.com/scaleapi/SWE-bench_Pro-os の commit 66f92766bba642462d4bbe5479e83f91
 import ast
 import asyncio
 import importlib
+import importlib.metadata
+import importlib.util
 import json
 import math
 import os
@@ -697,6 +699,194 @@ class PrepareTest(unittest.TestCase):
                 self.assertEqual(self.docker_calls(), [])
 
 
+# ---------------------------------------------------------------- プロキシの要る網の付き添い
+SIDECAR = swepro.EGRESS / "harbor-docker-egress-control-sidecar"
+SECRET_WORD = "secret-value-zq7"
+# 写しが Harbor 0.24.0 の物から直した所（Harbor の字, 写しの字）。他のファイルは一字も変えない
+EGRESS_EDITS = {
+    "harbor-docker-egress-control-sidecar/entrypoint.sh": [(
+        'trap cleanup INT TERM EXIT\n\n/bin/gost -C "$GOST_CONFIG" &\n',
+        'trap cleanup INT TERM EXIT\n\n'
+        '# works-bench: the gost config (with the upstream proxy chain) arrives at start-up, never baked into the image.\n'
+        'if [ -z "${WORKS_BENCH_GOST_CONFIG:-}" ]; then\n'
+        '  echo "WORKS_BENCH_GOST_CONFIG is empty: works-bench starts this sidecar only with a gost config" >&2\n'
+        '  exit 2\n'
+        'fi\n'
+        'printf \'%s\\n\' "$WORKS_BENCH_GOST_CONFIG" > "$GOST_CONFIG"\n\n'
+        '/bin/gost -C "$GOST_CONFIG" &\n')],
+    "harbor-docker-egress-control-sidecar/bin/network-policy": [(
+        '  allow-all)\n    remove_nftables\n    : > "$ALLOWLIST"\n    echo "ok: allow all egress"\n',
+        '  allow-all)\n'
+        '    # works-bench: public egress also goes through gost, so it reaches the upstream proxy.\n'
+        '    printf \'%s\\n\' \'*\' > "$ALLOWLIST"\n    wait_reload\n    setup_nftables\n'
+        '    echo "ok: allow all egress through the transparent proxy"\n')],
+    "docker-compose-egress-control.yaml": [(
+        '      EGRESS_CONTROL_INITIAL_ALLOWED_HOSTS: ${EGRESS_CONTROL_INITIAL_ALLOWED_HOSTS:-}\n',
+        '      EGRESS_CONTROL_INITIAL_ALLOWED_HOSTS: ${EGRESS_CONTROL_INITIAL_ALLOWED_HOSTS:-}\n'
+        '      WORKS_BENCH_GOST_CONFIG: ${WORKS_BENCH_GOST_CONFIG:?works-bench starts this sidecar only with a gost config}\n'
+        '    extra_hosts:\n      - "host.docker.internal:host-gateway"\n')],
+}
+EGRESS_SAME = ("harbor-docker-egress-control-sidecar/Dockerfile", "harbor-docker-egress-control-sidecar/gost.yaml",
+               "harbor-docker-egress-control-sidecar/allowlist.txt")
+
+
+def gost(env) -> dict:
+    return json.loads(swepro.gost_config(env))
+
+
+class GostConfigTest(unittest.TestCase):
+    PROXY = f"http://user:p%40ss{SECRET_WORD}@proxy.invalid:3128"
+
+    def test_without_a_proxy_harbor_keeps_its_own_sidecar(self):
+        for env in ({}, {"NO_PROXY": "localhost"}, {"HTTPS_PROXY": "", "https_proxy": ""}):
+            with self.subTest(env=env):
+                self.assertIsNone(swepro.gost_config(env))
+
+    def test_proxy_becomes_the_chain_of_the_harbor_service(self):
+        got = gost({"HTTPS_PROXY": self.PROXY})
+        [service] = got["services"]
+        [chain_] = got["chains"]
+        self.assertEqual(service["handler"]["chain"], chain_["name"])
+        [hop] = chain_["hops"]
+        [node] = hop["nodes"]
+        self.assertEqual(node["addr"], "proxy.invalid:3128")
+        self.assertEqual(node["connector"], {"type": "http", "auth": {"username": "user", "password": f"p@ss{SECRET_WORD}"}})
+        self.assertEqual(node["metadata"]["so_mark"], swepro.GOST_MARK)
+        self.assertNotIn("bypass", hop)
+        self.assertEqual([b["name"] for b in got["bypasses"]], ["allowlist"])
+
+    def test_allowlist_check_is_harbors_before_the_chain(self):
+        harbor = yaml.safe_load((SIDECAR / "gost.yaml").read_text(encoding="utf-8"))
+        got = gost({"HTTPS_PROXY": self.PROXY, "NO_PROXY": "localhost"})
+        [service] = got["services"]
+        del service["handler"]["chain"]
+        self.assertEqual(got["services"], harbor["services"])
+        allowlist = next(b for b in got["bypasses"] if b["name"] == service["bypass"])
+        self.assertEqual(allowlist, next(b for b in harbor["bypasses"] if b["name"] == service["bypass"]))
+        self.assertEqual((allowlist["file"]["path"], allowlist["whitelist"]), (swepro.GOST_ALLOWLIST, True))
+
+    def test_which_proxy_is_chained(self):
+        for env, addr in (({"HTTPS_PROXY": "http://a.invalid:1", "https_proxy": "http://b.invalid:2"}, "b.invalid:2"),
+                          ({"HTTP_PROXY": "http://c.invalid:3"}, "c.invalid:3"),
+                          ({"HTTP_PROXY": "http://c.invalid:3", "HTTPS_PROXY": "d.invalid:4"}, "d.invalid:4"),
+                          ({"HTTPS_PROXY": "http://a.invalid:1", "https_proxy": ""}, "a.invalid:1")):
+            with self.subTest(env=env):
+                [node] = gost(env)["chains"][0]["hops"][0]["nodes"]
+                self.assertEqual(node["addr"], addr)
+                self.assertEqual(node["connector"], {"type": "http"})
+
+    def test_host_loopback_is_reached_through_the_docker_host(self):
+        for url in ("http://localhost:3128", "http://127.0.0.1:3128", "http://[::1]:3128"):
+            with self.subTest(url=url):
+                [node] = gost({"HTTP_PROXY": url})["chains"][0]["hops"][0]["nodes"]
+                self.assertEqual(node["addr"], f"{swepro.HOST_GATEWAY}:3128")
+        [node] = gost({"HTTP_PROXY": "http://[fd00::1]:3128"})["chains"][0]["hops"][0]["nodes"]
+        self.assertEqual(node["addr"], "[fd00::1]:3128")
+
+    def test_no_proxy_destinations_skip_the_chain(self):
+        got = gost({"HTTPS_PROXY": self.PROXY,
+                    "no_proxy": "localhost, .a.com,b.org,*.corp,10.0.0.0/8,192.168.1.1,c.net:8080,"})
+        hop = got["chains"][0]["hops"][0]
+        [bypass] = [b for b in got["bypasses"] if b["name"] == hop["bypass"]]
+        self.assertEqual(bypass, {"name": hop["bypass"],
+                                  "matchers": [".localhost", ".a.com", ".b.org", "*.corp", "10.0.0.0/8", "192.168.1.1",
+                                               "c.net:8080"]})
+
+    def test_unaccepted_proxies_are_refused_without_the_value(self):
+        for url in (f"socks5://user:{SECRET_WORD}@proxy.invalid:1080", f"https://user:{SECRET_WORD}@proxy.invalid:3128",
+                    f"http://user:{SECRET_WORD}@proxy.invalid", f"http://user:{SECRET_WORD}@proxy.invalid:port"):
+            with self.subTest(url=url.split(":")[0]):
+                with self.assertRaises(swepro.BenchError) as caught:
+                    swepro.gost_config({"HTTPS_PROXY": url})
+                said = str(caught.exception)
+                self.assertNotIn(SECRET_WORD, said)
+                self.assertNotIn("proxy.invalid", said)
+
+
+FAKE_NFT = """#!/bin/sh
+printf 'nft %s\\n' "$*" >> "$NFT_LOG"
+if [ "$1" = "--file" ]; then cat >> "$NFT_LOG"; fi
+"""
+
+
+class EgressPolicyTest(unittest.TestCase):
+    """写しの bin/network-policy を、偽の nft・sleep・nl（macOS の nl は GNU の旗を読まない）で打つ。どの段も nftables を張って
+    全部の TCP を gost に通す"""
+
+    def setUp(self):
+        self.tmp = hermetic.tmpdir(self)
+        self.allowlist = self.tmp / "allowlist.txt"
+        self.script = self.tmp / "network-policy"
+        text = (SIDECAR / "bin" / "network-policy").read_text(encoding="utf-8")
+        line = f"ALLOWLIST={swepro.GOST_ALLOWLIST}\n"
+        self.assertEqual(text.count(line), 1)
+        self.script.write_text(text.replace(line, f"ALLOWLIST={self.allowlist}\n"), encoding="utf-8")
+        fakes = self.tmp / "bin"
+        fakes.mkdir()
+        for name, body in (("nft", FAKE_NFT), ("sleep", "#!/bin/sh\n"), ("nl", "#!/bin/sh\n")):
+            (fakes / name).write_text(body, encoding="utf-8")
+            (fakes / name).chmod(0o755)
+        self.env = {**os.environ, "PATH": f"{fakes}{os.pathsep}{os.environ['PATH']}", "NFT_LOG": str(self.tmp / "nft.log")}
+
+    def policy(self, *args) -> tuple[list[str], str]:
+        log = pathlib.Path(self.env["NFT_LOG"])
+        log.unlink(missing_ok=True)
+        done = subprocess.run(["sh", str(self.script), *args], env=self.env, capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return self.allowlist.read_text(encoding="utf-8").splitlines(), log.read_text(encoding="utf-8")
+
+    def test_every_phase_goes_through_gost(self):
+        for args, allowed in ((["allow", "api.anthropic.com"], ["api.anthropic.com"]), (["allow-all"], ["*"]),
+                              (["deny-all"], [])):
+            with self.subTest(args=args):
+                got, nft = self.policy(*args)
+                self.assertEqual(got, allowed)
+                self.assertIn(f"redirect to :{swepro.GOST_PORT}", nft)
+                self.assertIn(f"meta mark {swepro.GOST_MARK} accept", nft)
+
+    def test_constants_match_the_gost_config(self):
+        text = (SIDECAR / "bin" / "network-policy").read_text(encoding="utf-8")
+        for line in (f"ALLOWLIST={swepro.GOST_ALLOWLIST}", f"GOST_PORT={swepro.GOST_PORT}", f"GOST_MARK={swepro.GOST_MARK}"):
+            self.assertIn(f"\n{line}\n", text)
+
+
+class EgressCopyTest(unittest.TestCase):
+    """写しが入っている Harbor の物に EGRESS_EDITS を当てた物と一致するか。Harbor は CI に入れないので、
+    uv run --isolated --extra bench で入れた環境でだけ照らす"""
+
+    def test_copy_is_harbors_with_the_listed_edits(self):
+        spec = importlib.util.find_spec("harbor")
+        if spec is None:
+            self.skipTest("Harbor が入っていない（uv run --isolated --extra bench で入る）")
+        self.assertEqual(importlib.metadata.version("harbor"), swepro.EGRESS_FROM, "Harbor の版が写しの元と違う。写し直す")
+        harbor = pathlib.Path(spec.origin).parent / "environments" / "docker"
+        for name in EGRESS_SAME:
+            with self.subTest(name=name):
+                self.assertEqual((swepro.EGRESS / name).read_bytes(), (harbor / name).read_bytes())
+        for name, edits in EGRESS_EDITS.items():
+            with self.subTest(name=name):
+                text = (harbor / name).read_text(encoding="utf-8")
+                for before, after in edits:
+                    self.assertEqual(text.count(before), 1)
+                    text = text.replace(before, after)
+                self.assertEqual((swepro.EGRESS / name).read_text(encoding="utf-8"), text)
+                self.assertEqual(os.access(swepro.EGRESS / name, os.X_OK), os.access(harbor / name, os.X_OK))
+        files = {str(f.relative_to(swepro.EGRESS)) for f in swepro.EGRESS.rglob("*") if f.is_file()}
+        self.assertEqual(files, {*EGRESS_SAME, *EGRESS_EDITS, "LICENSE", "COPIED_FROM"})
+        [license_] = [f for f in importlib.metadata.distribution("harbor").files if f.name == "LICENSE"]
+        self.assertEqual((swepro.EGRESS / "LICENSE").read_bytes(), license_.locate().read_bytes())
+
+    def test_harbor_docker_has_the_seams_the_bench_environment_replaces(self):
+        if importlib.util.find_spec("harbor") is None:
+            self.skipTest("Harbor が入っていない（uv run --isolated --extra bench で入る）")
+        from harbor.environments.docker.docker import DockerEnvironment
+        for name in ("_DOCKER_COMPOSE_EGRESS_CONTROL_PATH", "_EGRESS_CONTROL_SIDECAR_CONTEXT_PATH",
+                     "_egress_control_sidecar_dockerfile_path", "_compose_infra_env_vars", "preflight"):
+            with self.subTest(name=name):
+                self.assertTrue(hasattr(DockerEnvironment, name))
+        self.assertEqual(DockerEnvironment._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH.name, SIDECAR.name)
+
+
 class UsageTest(unittest.TestCase):
     def test_usage_opens_no_extra_network(self):
         usage = swepro.__doc__
@@ -707,6 +897,9 @@ class UsageTest(unittest.TestCase):
         self.assertNotIn("export DOCKER_DEFAULT_PLATFORM", usage)
         self.assertIn("swepro.py prepare ", usage)
         self.assertIn("harbor run -p <写しの置き場>", usage)
+        self.assertIn(f"-e {swepro.ENVIRONMENT} ", usage)
+        self.assertNotIn("-e docker ", usage)
+        self.assertNotIn("proxy_refused", usage)
 
 
 # ---------------------------------------------------------------- Harbor の殻
@@ -757,9 +950,29 @@ def stub_harbor():
         def __init__(self, logs_dir, model_name=None, logger=None, **kw):
             self.logs_dir, self.logger = pathlib.Path(logs_dir), logger or mock.Mock()
 
+    class DockerEnvironment:
+        _DOCKER_COMPOSE_EGRESS_CONTROL_PATH = pathlib.Path("harbor-compose.yaml")
+        _EGRESS_CONTROL_SIDECAR_CONTEXT_PATH = pathlib.Path("harbor-sidecar")
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        @classmethod
+        def preflight(cls):
+            pass
+
+        @classmethod
+        def _egress_control_sidecar_dockerfile_path(cls):
+            return cls._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH / "Dockerfile"
+
+        def _compose_infra_env_vars(self):
+            return {"BASE": "1"}
+
     names = ("harbor", "harbor.agents", "harbor.agents.base", "harbor.environments", "harbor.environments.base",
+             "harbor.environments.docker", "harbor.environments.docker.docker",
              "harbor.models", "harbor.models.agent", "harbor.models.agent.context")
     modules = {name: types.ModuleType(name) for name in names}
+    modules["harbor.environments.docker.docker"].DockerEnvironment = DockerEnvironment
     modules["harbor.agents.base"].BaseAgent = BaseAgent
     modules["harbor.environments.base"].BaseEnvironment = object
     modules["harbor.models.agent.context"].AgentContext = object
@@ -890,26 +1103,61 @@ class AgentTest(unittest.TestCase):
                 self.agent()
         self.assertIn("--agent-timeout-multiplier inf", str(caught.exception))
 
-    def test_proxied_network_is_refused_before_the_environment(self):
-        secret = "secret-value-zq7"
-        proxy = f"http://user:{secret}@proxy.invalid:3128"
-        for env, refused in (({"HTTPS_PROXY": proxy}, True),
-                             ({"https_proxy": proxy}, True),
-                             ({"HTTPS_PROXY": proxy, "https_proxy": ""}, True),
-                             ({"HTTPS_PROXY": proxy, "NO_PROXY": ".anthropic.com"}, False),
-                             ({"HTTP_PROXY": proxy}, False)):
-            with self.subTest(env=sorted(env)):
-                self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN}, **env)
-                if not refused:
-                    self.agent()
-                    continue
+    def test_proxied_environment_takes_the_copied_sidecar_and_the_gost_config(self):
+        proxy = f"http://user:{SECRET_WORD}@proxy.invalid:3128"
+        self.environ(HTTPS_PROXY=proxy)
+        docker = self.agent_module.WorksBenchDocker()
+        self.assertEqual(docker._DOCKER_COMPOSE_EGRESS_CONTROL_PATH, swepro.EGRESS / "docker-compose-egress-control.yaml")
+        self.assertEqual(docker._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH, SIDECAR)
+        self.assertEqual(docker._egress_control_sidecar_dockerfile_path(), SIDECAR / "Dockerfile")
+        for path in (docker._DOCKER_COMPOSE_EGRESS_CONTROL_PATH, docker._egress_control_sidecar_dockerfile_path()):
+            self.assertTrue(path.is_file(), path)
+        infra = docker._compose_infra_env_vars()
+        self.assertEqual(infra["BASE"], "1")
+        self.assertEqual(json.loads(infra[swepro.GOST_CONFIG_ENV]), gost({"HTTPS_PROXY": proxy}))
+
+    def test_environment_without_a_proxy_is_harbors_docker(self):
+        base = sys.modules["harbor.environments.docker.docker"].DockerEnvironment
+        self.environ(NO_PROXY="localhost")
+        docker = self.agent_module.WorksBenchDocker()
+        self.assertEqual(docker._DOCKER_COMPOSE_EGRESS_CONTROL_PATH, base._DOCKER_COMPOSE_EGRESS_CONTROL_PATH)
+        self.assertEqual(docker._egress_control_sidecar_dockerfile_path(), base._egress_control_sidecar_dockerfile_path())
+        self.assertEqual(docker._compose_infra_env_vars(), {"BASE": "1"})
+
+    def test_preflight_refuses_an_unaccepted_proxy(self):
+        self.environ(HTTPS_PROXY=f"socks5://user:{SECRET_WORD}@proxy.invalid:1080")
+        with self.assertRaises(swepro.BenchError) as caught:
+            self.agent_module.WorksBenchDocker.preflight()
+        self.assertNotIn(SECRET_WORD, str(caught.exception))
+
+    def test_proxied_launch_with_another_environment_is_refused_before_exec(self):
+        for name in ("HTTPS_PROXY", "http_proxy"):
+            with self.subTest(name=name):
+                self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN, name: f"http://user:{SECRET_WORD}@proxy.invalid:3128"})
+                agent = self.agent()
+                environment = FakeEnvironment(swepro.derived_image(OPENLIBRARY), self.RESULT)
                 with self.assertRaises(ValueError) as caught:
-                    self.agent()
+                    asyncio.run(agent.setup(environment))
                 said = str(caught.exception)
-                for word in ("NO_PROXY", "api.anthropic.com"):
-                    self.assertIn(word, said)
-                self.assertNotIn(secret, said)
-                self.assertNotIn("\n", said)
+                self.assertIn(f"-e {swepro.ENVIRONMENT}", said)
+                self.assertNotIn(SECRET_WORD, said)
+                self.assertEqual(environment.calls, [])
+
+    def test_proxied_launch_with_the_bench_environment_sets_up(self):
+        self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN, "HTTPS_PROXY": "http://proxy.invalid:3128"})
+
+        class Proxied(self.agent_module.WorksBenchDocker, FakeEnvironment):
+            def __init__(self):
+                FakeEnvironment.__init__(self, swepro.derived_image(OPENLIBRARY), None)
+
+        environment = Proxied()
+        asyncio.run(self.agent().setup(environment))
+        self.assertTrue(environment.calls)
+
+    def test_environment_named_in_the_usage_is_the_bench_environment(self):
+        module, name = swepro.ENVIRONMENT.split(":")
+        self.assertEqual(module, self.agent_module.__name__)
+        self.assertIs(getattr(self.agent_module, name), self.agent_module.WorksBenchDocker)
 
     def test_old_works_and_unknown_producers_are_refused(self):
         with self.assertRaises(ValueError) as caught:

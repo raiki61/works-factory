@@ -5,8 +5,9 @@ Harbor を import しない。Harbor の agent の殻は tests/calibration/swepr
 
     python3 tests/calibration/swepro.py prepare <SWE-Bench Pro の v2/tasks> <リポジトリの外の写しの置き場> <instance_id>…
     PYTHONPATH=<リポジトリの根> uv run --isolated --extra bench harbor run -p <写しの置き場> -i <instance_id> … \\
-        -e docker -a tests.calibration.swepro_agent:WorksBench --ak producer=<works-factory|claude> \\
-        --allow-agent-host api.anthropic.com --agent-timeout-multiplier inf -o <リポジトリの外の置き場> --job-name <名>
+        -e tests.calibration.swepro_agent:WorksBenchDocker -a tests.calibration.swepro_agent:WorksBench \\
+        --ak producer=<works-factory|claude> --allow-agent-host api.anthropic.com --agent-timeout-multiplier inf \\
+        -o <リポジトリの外の置き場> --job-name <名>
     python3 tests/calibration/swepro.py tally <置き場>/<名>
     python3 tests/calibration/swepro.py inside <works-factory|claude>   （殻が課題のコンテナの中で打つ）
 
@@ -34,9 +35,16 @@ amd64 を強いると立たない）。docker の CLI に compose の差し込�
 プロキシの要る網: prepare は環境に空でない値で在る PROXY_ENV の名を、値を付けずに docker build --build-arg <名> で渡す。
 値は docker の CLI が自分の環境から読み、Dockerfile に ARG を書かないので docker history に残らない。値は build のコンテナから
 届く宛先にする（ホストの localhost は build のコンテナの中では別物）。docker pull は daemon のプロキシの設定を使う。
-試行の段は回らない: Harbor 0.24.0 の egress の付き添いは許した宛先へ直に繋ぎ、上流のプロキシを通さない。https のプロキシが
-api.anthropic.com を向く環境では、殻が環境を起こす前に 1 行で断る（proxy_refused）。直にも届く網なら NO_PROXY に
-api.anthropic.com を足して起動する。
+試行の段: Harbor 0.24.0 の egress の付き添い（gost の透過転送）は許した宛先へ直に繋ぎ、public の段では付き添いを外して直に出る。
+環境に上流のプロキシ（upstream。HTTPS_PROXY、無ければ HTTP_PROXY）が在ると、環境 WorksBenchDocker は付き添いを写し EGRESS
+（元は harbor EGRESS_FROM。直した所は写しの COPIED_FROM）で立て、gost の設定（gost_config）を起動の時に環境から渡す（イメージに
+焼かない）。gost は許す一覧の照らし（SNI）を今どおり chain の手前で効かせてから上流へ CONNECT で繋ぐので、エージェントの段の
+宛先はプロキシの有無で変わらない。public の段（環境と検証）も許す一覧 * で付き添いを通り、プロキシへ出る。NO_PROXY に当たる
+宛先は chain を通さず直に繋ぐ。受ける上流は http://<host>:<port>（スキームの無い <host>:<port> も）だけで、他は試行の前に
+断る（WorksBenchDocker.preflight）。host が localhost か loopback なら host.docker.internal に替える（Docker Desktop はそのまま
+届く。Linux の docker engine ではプロキシが docker の bridge 側でも待ち受けている要がある）。宛先の名は課題のコンテナが自分で
+引くので、網の DNS が外の名を引ける要がある。プロキシが無ければ付き添いは Harbor 同梱の物のまま。上流のプロキシが在るのに他の
+環境（-e docker）を渡した起動は、殻が setup で exec の前に断る。
 
 - 無人の run が人に聞いて止まった（承認ノードで待った・結末の種が chain.KIND_HUMAN）時は stopped を立てる。封じた差分が在れば
   --allow-stopped で当て、封じる前に止まった run は当てずに空の patch（未解決）として数える。run を resume しない。
@@ -57,6 +65,7 @@ api.anthropic.com を足して起動する。
 import argparse
 import contextlib
 import io
+import ipaddress
 import json
 import math
 import os
@@ -67,7 +76,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-import urllib.request
+import urllib.parse
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -95,6 +104,13 @@ ACCEPTED_AUTH = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY")
 AUTH_REFUSED = "auth_refused"
 # docker の決まりのプロキシの build 引数。Dockerfile に ARG で書かなければ docker history に残らない
 PROXY_ENV = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy")
+# Harbor 0.24.0 の egress の付き添いの写し（直した所は写しの COPIED_FROM）。上流のプロキシが在る時だけ WorksBenchDocker が使う
+EGRESS, EGRESS_FROM = HERE / "swepro_egress", "0.24.0"
+ENVIRONMENT = "tests.calibration.swepro_agent:WorksBenchDocker"
+GOST_CONFIG_ENV = "WORKS_BENCH_GOST_CONFIG"
+# 写しの bin/network-policy の GOST_PORT・GOST_MARK・ALLOWLIST と同じ字
+GOST_PORT, GOST_MARK, GOST_ALLOWLIST = 12345, 114514, "/opt/egress-sidecar/allowlist.txt"
+HOST_GATEWAY = "host.docker.internal"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
 INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
@@ -340,15 +356,81 @@ def prepare(tasks: Path, out: Path, instances: list[str]) -> list[str]:
     return made
 
 
-def proxy_refused(env) -> str:
-    """試行の網が api.anthropic.com へ届くか。届くなら空の字、https のプロキシがそこを向くなら断る訳（値は書かない）。
-    proxy_args と同じく空でない PROXY_ENV だけを見る（urllib の getproxies_environment は空の小文字の名を大文字より優先する）"""
-    proxies = {name.lower().removesuffix("_proxy"): env[name] for name in PROXY_ENV if env.get(name)}
-    if "https" in proxies and not urllib.request.proxy_bypass_environment("api.anthropic.com", proxies):
-        return ("HTTPS_PROXY か https_proxy が api.anthropic.com をプロキシへ向けている: Harbor 0.24.0 の egress の付き添いは"
-                "上流のプロキシを通さず直に繋ぐので、試行は api.anthropic.com に届かない。直に届く網なら NO_PROXY に"
-                "api.anthropic.com を足して起動する")
-    return ""
+def proxies(env) -> dict:
+    """空でない PROXY_ENV を {"http"|"https"|"no": 値} に。proxy_args と同じく空の値は無いものとし、小文字の名が大文字に勝つ
+    （urllib の getproxies_environment は空の小文字の名を大文字より優先する）"""
+    return {name.lower().removesuffix("_proxy"): env[name] for name in PROXY_ENV if env.get(name)}
+
+
+def upstream(env) -> str | None:
+    """試行の付き添いが chain する上流のプロキシの URL。https のプロキシ、無ければ http のプロキシ"""
+    found = proxies(env)
+    return found.get("https") or found.get("http")
+
+
+def _as_written(item: str) -> bool:
+    if item.startswith(".") or "*" in item or ":" in item:
+        return True
+    try:
+        ipaddress.ip_network(item, strict=False)
+        return True
+    except ValueError:
+        return False
+
+
+def no_proxy_patterns(value: str) -> list[str]:
+    """NO_PROXY を gost の bypass の matchers に。名は curl・Python と同じく本体と下の名に当てるため頭に . を付ける（gost の
+    .example.com は本体にも当たる）。* を含む名・. で始まる名・IP・CIDR・host:port はそのまま"""
+    items = [part.strip() for part in value.split(",") if part.strip()]
+    return [item if _as_written(item) else f".{item}" for item in items]
+
+
+def _upstream_host(host: str) -> str:
+    """付き添いのコンテナから見た上流のプロキシの host。ホストの loopback は host.docker.internal（写しの compose が足す）"""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return HOST_GATEWAY if host == "localhost" else host
+    if address.is_loopback:
+        return HOST_GATEWAY
+    return f"[{host}]" if address.version == 6 else host
+
+
+def gost_config(env) -> str | None:
+    """試行の付き添いの gost の設定（JSON の字。YAML として読める）。上流のプロキシが無ければ None（Harbor 同梱の付き添いで走る）。
+    service と許す一覧の bypass は写しの gost.yaml のまま、handler が上流への chain を通る。許す一覧の照らし（SNI）は chain の
+    手前なので、エージェントの段の宛先はプロキシの有無で変わらない。NO_PROXY に当たる宛先は hop を飛ばして直に繋ぐ。
+    断る訳に URL・host・認証を書かない"""
+    url = upstream(env)
+    if url is None:
+        return None
+    parts = urllib.parse.urlsplit(url if "://" in url else f"http://{url}")
+    if parts.scheme != "http":
+        raise BenchError(f"上流のプロキシの型 {parts.scheme} は chain しない（http://<host>:<port> のプロキシだけを受ける）")
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    if not parts.hostname or port is None:
+        raise BenchError("上流のプロキシの URL に host か port が無い（http://<host>:<port> のプロキシだけを受ける）")
+    connector = {"type": "http"}
+    if parts.username is not None:
+        connector["auth"] = {"username": urllib.parse.unquote(parts.username),
+                             "password": urllib.parse.unquote(parts.password or "")}
+    hop = {"name": "upstream", "nodes": [{"name": "upstream", "addr": f"{_upstream_host(parts.hostname)}:{port}",
+                                          "connector": connector, "dialer": {"type": "tcp"},
+                                          "metadata": {"so_mark": GOST_MARK}}]}
+    bypasses = [{"name": "allowlist", "whitelist": True, "reload": "1s", "file": {"path": GOST_ALLOWLIST}}]
+    patterns = no_proxy_patterns(proxies(env).get("no", ""))
+    if patterns:
+        hop["bypass"] = "no-proxy"
+        bypasses.append({"name": "no-proxy", "matchers": patterns})
+    service = {"name": "transparent-egress", "addr": f":{GOST_PORT}", "bypass": "allowlist",
+               "metadata": {"so_mark": GOST_MARK},
+               "handler": {"type": "red", "chain": "upstream",
+                           "metadata": {"sniffing": True, "sniffing.timeout": "5s", "sniffing.fallback": True}},
+               "listener": {"type": "red"}}
+    return json.dumps({"services": [service], "chains": [{"name": "upstream", "hops": [hop]}], "bypasses": bypasses})
 
 
 # ---------------------------------------------------------------- コンテナの中の起こし役
