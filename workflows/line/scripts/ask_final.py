@@ -42,6 +42,7 @@ with boundary.guarded_imports():
     import fixboard
     import gatemarks
     import gatepolicy
+    import green_cert
     import judge_accept
     import oneline
     import protect
@@ -68,9 +69,9 @@ NO_AFTER = "直した後の構造の実測: 無い（独立の目の structure_a
 def tests_word(ok: bool, green: bool, red_cause: str) -> str:
     if ok and green:
         return "緑"
-    if not ok:
-        return "認証できなかった" + (f"（{red_cause}）" if red_cause else "")
-    return "赤" + (f"（{red_cause}）" if red_cause else "")
+    cause = f"（{red_cause}）" if red_cause else ""
+    note = green_cert.ran_note(green=green, red_cause=red_cause)
+    return ("赤" if ok else "認証できなかった") + cause + (f"——{note}" if note else "")
 
 
 def protected(got: dict) -> tuple:

@@ -267,6 +267,15 @@ class ClassifyCase(unittest.TestCase):
 FP = {"head": "h1", "diff_hash": "d1"}
 
 
+class RanNoteCase(unittest.TestCase):
+    def test_only_red_without_per_case_facts_gets_a_sentence(self):
+        for green, cause, want in ((True, "", ""), (False, "environment", green_cert.NOT_RAN),
+                                   (False, "incomplete", green_cert.NOT_RAN), (False, "", green_cert.UNVERIFIED_RUN),
+                                   (False, "introduced", ""), (False, "inherited", "")):
+            with self.subTest(green=green, cause=cause):
+                self.assertEqual(green_cert.ran_note(green=green, red_cause=cause), want)
+
+
 class CertifyCase(unittest.TestCase):
     def final(self, **kw):
         args = {"mode": "final", "material_status": "found", "green": True, "before": FP, "after": dict(FP), "now": dict(FP)}

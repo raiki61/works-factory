@@ -22,7 +22,7 @@ import unittest
 
 import yaml
 
-from bin._lib import launcher
+from bin._lib import isolate, launcher
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
 from tests.layers import scan
@@ -39,6 +39,7 @@ import baseline_red  # noqa: E402
 import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
 import rolekit  # noqa: E402
+import tree_run  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
 
 
@@ -382,6 +383,8 @@ class ScriptCase(unittest.TestCase):
         self.head = committed_copy(self.repo, SEED)
         self.artifacts = self.tmp / "artifacts"
         self.declared = {}   # 包みの宣言（launcher.FENCE_RECORDS_ENV）。空なら起動の殻を通らない run
+        self.user_home = None   # 在れば起動の殻の隔離を通った run（as_user）
+        self.keep_record = True
         self.write_start()
 
     def write_start(self, **over):
@@ -392,9 +395,27 @@ class ScriptCase(unittest.TestCase):
         self.start = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "start/record.json"})
 
     def env(self, inputs: dict) -> dict:
-        inherited = {k: v for k, v in os.environ.items() if k != launcher.FENCE_RECORDS_ENV}
-        return {**inherited, **self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(ROOT),
-                "PYTHONDONTWRITEBYTECODE": "1", **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
+        inherited = {k: v for k, v in os.environ.items() if k not in (launcher.FENCE_RECORDS_ENV, tree_run.USER_ENV)}
+        env = {**inherited, **self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(ROOT),
+               "PYTHONDONTWRITEBYTECODE": "1", **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
+        if self.user_home is None:
+            return env
+        user = {k: v for k, v in env.items() if k not in isolate.RESTORED}
+        child = isolate.isolate({**user, "HOME": str(self.user_home)}, self.tmp / "run-home")
+        if not self.keep_record:
+            del child[tree_run.USER_ENV]
+        return child
+
+    def as_user(self) -> pathlib.Path:
+        """起動の殻の隔離を通った run にし、HOME の下の全体の設定（.config/homecfg/ok）が在る時だけ通る小さな道具を返す。
+        利用者の HOME は self.tmp/user（XDG_* は無し）。道具は設定が無ければ config missing と出して 3 で抜ける"""
+        self.user_home = self.tmp / "user"
+        tool = self.tmp / "bin" / "homecfg"
+        tool.parent.mkdir()
+        tool.write_text('#!/bin/sh\n[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/homecfg/ok" ] && exit 0\n'
+                        'echo config missing >&2\nexit 3\n', encoding="utf-8")
+        tool.chmod(0o755)
+        return tool
 
     def script(self, name: str, **inputs) -> tuple:
         """(終了コード, 返りの dict か None, 標準エラー)。返りは JSON 1 行だけ"""
@@ -470,6 +491,19 @@ class RunScriptCase(ScriptCase):
         self.assertEqual(green_cert.fingerprint(self.repo), before)
         self.assertEqual((out["by"], out["material"]["status"], out["junit_steps"]), ("engine", "clean", ["suite"]))
         self.assertEqual(sorted(out), sorted(node("run")["output_format"]["required"]))
+
+    def test_target_command_reads_the_users_global_config(self):
+        """#492: 起動の殻が HOME・XDG を隔離した run でも、試験のコマンドは利用者の HOME の下の全体の設定を読める。
+        控えを外した env（直す前の形）では同じ道具が設定を見失う"""
+        tool = self.as_user()
+        (self.user_home / ".config" / "homecfg").mkdir(parents=True)
+        (self.user_home / ".config" / "homecfg" / "ok").write_text("", encoding="utf-8")
+        self.decl([{"name": "suite", "argv": [str(tool)]}])
+        for keep, code in ((False, 3), (True, 0)):
+            with self.subTest(keep_record=keep):
+                self.keep_record = keep
+                out = self.ok("run", mode="final", start=self.start)
+                self.assertEqual([r["exit"] for r in out["runs"]], [code])
 
     def scoped(self):
         """種に far・near の宣言と、far が works/ を見ない範囲の宣言を commit する"""
@@ -947,6 +981,15 @@ class ResultScriptCase(ScriptCase):
                                                encoding="utf-8")
         out = self.result("final")
         self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
+
+    def test_command_that_fails_before_its_tests_is_named_not_ran(self):
+        """#492: JUnit の報告を宣言した段が試験に入る前に落ちた（利用者の設定が無い）final は incomplete で、冒頭の句は「走っていない」"""
+        tool = self.as_user()
+        self.decl([{"name": "suite", "argv": [str(tool)], "junit": "out/r.xml"}])
+        self.ok("run", mode="final", start=self.start)
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
+        self.assertEqual(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"]), green_cert.NOT_RAN)
 
     def test_suite_without_cases_leaves_no_baseline_exit(self):
         """tdd_suite が JUnit を書かずに落ちた base は元の結末の exit を残さない。final はそれを「元の結末が無い」と読み、今の赤を

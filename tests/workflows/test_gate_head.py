@@ -27,6 +27,7 @@ import answer  # noqa: E402  （線の script が lib/ を sys.path に足した
 import conflict  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
+import green_cert  # noqa: E402
 import protect  # noqa: E402
 import querytest  # noqa: E402
 import replan  # noqa: E402
@@ -146,6 +147,15 @@ class FinalHeadCase(unittest.TestCase):
             self.assertIn(want, got[0])
         self.assertEqual(got[2], gatemarks.PUSH + gatemarks.NO_PUSH)
         self.assertEqual(internal_subjects("\n".join(got)), [])
+
+    def test_tests_that_did_not_run_are_named_in_the_first_line(self):
+        """#492: 最後のテストが走っていない（incomplete）・走ったと確かめられていない（原因の無い赤）は 1 行目に句で出る"""
+        for cause, want in (("incomplete", green_cert.NOT_RAN), ("", green_cert.UNVERIFIED_RUN)):
+            with self.subTest(cause=cause):
+                self.assertIn(want, self.head(final_got(tests_ok=False, green=False, red_cause=cause))[0])
+        green = self.head(final_got())[0]
+        self.assertNotIn(green_cert.NOT_RAN, green)
+        self.assertNotIn(green_cert.UNVERIFIED_RUN, green)
 
     def test_protected_named_in_the_first_line(self):
         got = self.head(final_got(protected_hits=["tests/test_stats.py"]))

@@ -147,6 +147,16 @@ class BuildCase(Base):
         self.assertFalse(any(report._r2_redesign(r) for r in doc["findings"]), "R2 の作り直しの行は前の失敗にだけ載せる")
         self.assertTrue(any("受け付けが 3 回拒んだ" in r["text"] for r in prior))
 
+    def test_final_tests_that_did_not_run_are_named_in_the_head(self):
+        """#492: 最後のテストが incomplete の run は、冒頭の 1 行目（起きたこと）が試験は走っていないと言う。緑なら言わない"""
+        red = {**fixed_run()["test-gate-final"], "ok": False, "green": False, "red_cause": "incomplete"}
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": red}))
+        first = text.split("\n\n", 2)[1].splitlines()[0]
+        self.assertTrue(first.startswith(gatemarks.HAPPENED), first)
+        self.assertIn(green_cert.NOT_RAN, first)
+        _, text, _ = self.build()
+        self.assertNotIn(green_cert.NOT_RAN, text)
+
     def test_prior_section_names_only_the_files_written(self):
         """#383 の 10: 前の失敗だけが在る run は next-request.json を書かないので、節はそれを名指さず prior-failures.json を名指す"""
         got, text, _ = self.build(line={"stops": {"ask-final": stopby.LINE_SCRIPT}})
@@ -809,6 +819,17 @@ class AcceptCase(Base):
         self.assertIn(report_roles.NOT_PASSED, third["reason"])
         self.assertTrue(self.ai()["not_passed"])
         self.assertEqual(self.ai()["rejects"]["report"]["cold"], 2)
+
+    def test_head_must_carry_the_not_ran_sentence_of_the_machine_report(self):
+        """#492: 機械の報告の冒頭が試験は走っていないと言う時、その句が頭に無い返答は answer で拒み、在れば受け取る"""
+        self.out.mkdir(parents=True)
+        (self.out / report.REPORT_FILE).write_text(f"# 報告\n\n起きたこと: 赤。{green_cert.NOT_RAN}\n\n## 1. 人が決めること\n\n- 無い\n",
+                                                   encoding="utf-8")
+        got = runreport.accept(self.REPLY, self.PASS, out_dir=self.out)
+        self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
+        self.assertIn(green_cert.NOT_RAN, got["reason"])
+        named = json.dumps({"text": f"{green_cert.NOT_RAN}。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
+        self.assertTrue(runreport.accept(named, self.PASS, out_dir=self.out)["ok"])
 
     def test_format_and_terms_rejected_first(self):
         bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)

@@ -6,6 +6,7 @@
 - matches(cert_fingerprint, repo) -> bool: 認証の指紋が今の作業ツリーと同じか
 - classify(...) -> (red_cause, summary): 事実だけで赤の原因を分ける
 - certify(...) -> (ok, reason): 認証してよいか
+- ran_note(*, green, red_cause) -> str: 試験が走ったかの、報告と関所の冒頭に出す句（NOT_RAN・UNVERIFIED_RUN か ""）
 
 ASF の `W/.shared/validation-evidence.ts`:1-23（HEAD と追跡ファイルの binary の差分）と `W/deliver/scripts/gate-green.ts` に倣う。
 """
@@ -23,6 +24,9 @@ NOT_DONE = tuple(w for w in gatemarks.MATERIAL_WORDS if w not in MEASURED)
 NOT_APPLICABLE = "not_applicable"
 BASE_OK = MEASURED + (NOT_APPLICABLE,)
 INCOMPLETE = "incomplete"   # 赤の原因: 測り切れていない（classify の 3.）
+ENVIRONMENT = "environment"   # 赤の原因: 赤の段が全部起こせない（classify の 2.）
+NOT_RAN = "工場の中では試験が走っていない"
+UNVERIFIED_RUN = "工場の中では試験が走ったと確かめられていない"
 HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 
@@ -100,7 +104,7 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     reds = [r for r in runs or [] if r.get("exit") != 0]
     broken = [r for r in reds if tree_run.launch_kind(r.get("exit")) == "broken"]
     if reds and len(broken) == len(reds):
-        return "environment", f"赤の段は全部起こせない段: {'・'.join(str(r.get('name')) for r in broken)}"
+        return ENVIRONMENT, f"赤の段は全部起こせない段: {'・'.join(str(r.get('name')) for r in broken)}"
     unran = f"JUnit の報告を宣言した段が走らなかった: {'・'.join(map(str, junit_unran))}" if junit_unran else ""
     if status in NOT_DONE or (unran and not declared_checks.ran_reds(runs, junit_unran)):
         return INCOMPLETE, "；".join([*([f"素材が {status}"] if status in NOT_DONE else []), *([unran] if unran else [])])
@@ -123,6 +127,17 @@ def _red_cause(reds, broken, cases, baseline_cases, read_steps) -> tuple:
             return "inherited", (f"落ちた {len(failed)} 件は全部元でも落ちていた: {_keys(failed)}"
                                  f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
     return "", f"赤の段 {names}: 元の結末と比べる 1 件ごとの事実が無い（{gatemarks.BASELINE_UNVERIFIED}）"
+
+
+def ran_note(*, green, red_cause) -> str:
+    """試験が走ったかを、道具の名に依らず test-gate の返りだけで言う句（#492）。緑・1 件ごとの事実で分けた赤（introduced・inherited）は ""。
+    environment・incomplete（赤の段が全部起こせない・宣言した報告が無い・素材を測れていない）は NOT_RAN。原因の無い赤（""。1 件ごとの
+    事実が無い shell の test_cmd など）は、試験に入る前に落ちたかを見分けられないので UNVERIFIED_RUN"""
+    if green is True:
+        return ""
+    if red_cause in (ENVIRONMENT, INCOMPLETE):
+        return NOT_RAN
+    return UNVERIFIED_RUN if red_cause == "" else ""
 
 
 SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない）"
