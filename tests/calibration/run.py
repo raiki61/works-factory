@@ -61,6 +61,7 @@ if str(ROOT) not in sys.path:
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))   # 頭に入れると lib/tests が根の tests を隠す（tests/AGENTS.md）
 from bin._lib import hostgh, isolate, launcher, pack, toolset  # noqa: E402
+import judge_accept  # noqa: E402
 import reads  # noqa: E402
 from report import OUTCOMES  # noqa: E402
 from tests.calibration import nodes, reviewbench  # noqa: E402
@@ -123,7 +124,8 @@ class WorksFactory:
     account = "WORKS_FACTORY_KEYCHAIN_ITEM"
     archon = True
     # 再審が走った run は rejudge/judgment.json が 1 回目の units を置き換える（lib/judge_accept.py の rejudge_take）
-    sources = (Source("parent/judge/judgment.json", ("units",), "units", prefer="parent/rejudge/judgment.json"),
+    sources = (Source(f"parent/{judge_accept.JUDGE_DIR}/{judge_accept.JUDGMENT_FILE}", ("units",), "units",
+                      prefer=f"parent/{judge_accept.REJUDGE_DIR}/{judge_accept.JUDGMENT_FILE}"),
                Source("parent/eyes/r1.json", ("deletions",), "items", "why"),
                Source("parent/eyes/r4.json", ("surfaced",), "items", "text"))
     leak_guard = WITHHELD

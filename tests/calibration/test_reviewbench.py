@@ -112,7 +112,7 @@ class ConvertCase(unittest.TestCase):
         self.assertEqual([f["in_final_diff"] for f in record["findings"]], [True, True])
         [gone] = record["dropped"]
         self.assertEqual((gone["source"], gone["why"], record["dropped_count"]),
-                         ("parent/judge/judgment.json", reviewbench.NOT_AT_HEAD, 1))
+                         (runner.WorksFactory.sources[0].file, reviewbench.NOT_AT_HEAD, 1))
         self.assertIn("stats.py:999-999", gone["refs"])
         self.assertEqual((record["final_diff"], record["leak_guard"]["web"]), ("parent/merge/sealed.diff", "denied"))
         self.assertEqual(record["unread"], {})
@@ -145,24 +145,26 @@ class ConvertCase(unittest.TestCase):
     def test_rejudge_replaces_first_judgment(self):
         """再審が走った run は rejudge/judgment.json の units が工場の最後の判定"""
         attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
-        rejudged = attempt / "evidence" / "parent" / "rejudge" / "judgment.json"
+        first, rejudge = runner.WorksFactory.sources[0].file, runner.WorksFactory.sources[0].prefer
+        rejudged = attempt / "evidence" / rejudge
         rejudged.parent.mkdir()
         rejudged.write_text(json.dumps({"units": [{"key": "stats.py:3 の分母", "label": "block", "reason": "置き換えた単位"}]}),
                             encoding="utf-8")
         _, record = self.convert(runner.WorksFactory, attempt, head)
         units = [f for f in record["findings"] if f["source"].endswith("judgment.json")]
         self.assertEqual([(f["source"], f["file"], f["start_line"]) for f in units],
-                         [("parent/rejudge/judgment.json", "stats.py", 3)])
+                         [(rejudge, "stats.py", 3)])
         self.assertEqual(record["dropped"], [])
-        self.assertIn("parent/rejudge/judgment.json", record["sources"])
-        self.assertNotIn("parent/judge/judgment.json", record["sources"])
+        self.assertIn(rejudge, record["sources"])
+        self.assertNotIn(first, record["sources"])
 
     def test_unit_without_any_reference_is_dropped_as_such(self):
         attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
-        (attempt / "evidence" / "parent" / "judge" / "judgment.json").write_text(
+        judgment = runner.WorksFactory.sources[0].file
+        (attempt / "evidence" / judgment).write_text(
             json.dumps({"units": [{"key": "どこでもない", "label": "nit", "reason": "番地を持たない"}]}), encoding="utf-8")
         _, record = self.convert(runner.WorksFactory, attempt, head)
-        self.assertIn({"source": "parent/judge/judgment.json", "refs": [], "why": reviewbench.NO_REF}, record["dropped"])
+        self.assertIn({"source": judgment, "refs": [], "why": reviewbench.NO_REF}, record["dropped"])
 
     def test_write_keeps_record_out_of_the_judge_input(self):
         tmp = hermetic.tmpdir(self)

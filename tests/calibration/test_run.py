@@ -39,6 +39,7 @@ WATCHED = [*ITEMS, *GH, "WORKS_FACTORY_HOME", "WORKS_USE_HOME", "WORKS_USE_UNATT
 NWO = "owner/repo"
 ONE, TWO = 11, 12   # 偽の manifest の Python の 2 つの課題の PR の番号
 UNITS = json.dumps({"units": [{"key": "app.py x の値", "label": "block", "reason": "app.py:2 が y を 3 にした"}]})
+JUDGMENT = runner.WorksFactory.sources[0].file.removeprefix("parent/")   # 工場が run の置き場に書く判定
 
 FAKE_SHELL = """#!/usr/bin/env python3
 import json, os, pathlib, sys
@@ -64,7 +65,7 @@ if verb == "run":
     rid = plan.get("run_id", "a1b2c3d4-0000-run")
     state["runs"].append({"id": rid, "status": plan.get("status", "completed"), "parent_run_id": None,
                           "started_at": "2026-10-12T00:00:00Z"})
-    put(home / "art" / rid, plan.get("artifacts", {"judge/judgment.json": UNITS}))
+    put(home / "art" / rid, plan.get("artifacts", {JUDGMENT: UNITS}))
     for n in range(plan.get("children", 0)):
         kid = f"{rid}-child-{n}"
         state["runs"].append({"id": kid, "status": "completed", "parent_run_id": rid, "started_at": f"2026-10-12T00:0{n + 1}:00Z"})
@@ -198,7 +199,7 @@ class RunnerCase(unittest.TestCase):
         shutil.copytree(ROOT / "lib", cls.repo / "lib", ignore=ignore)
         shutil.copytree(ROOT / "bin" / "_lib", cls.repo / "bin" / "_lib", ignore=ignore)
         cls.shell = base / "fake-shell.py"
-        cls.shell.write_text(FAKE_SHELL.replace("WATCHED", repr(WATCHED)).replace("UNITS", repr(UNITS)), encoding="utf-8")
+        cls.shell.write_text(FAKE_SHELL.replace("WATCHED", repr(WATCHED)).replace("UNITS", repr(UNITS)).replace("JUDGMENT", repr(JUDGMENT)), encoding="utf-8")
         cls.old = base / "claude-plugins"
         dev = cls.old / "works" / "dev"
         dev.mkdir(parents=True)
