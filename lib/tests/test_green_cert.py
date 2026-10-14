@@ -293,12 +293,16 @@ class RanNoteCase(unittest.TestCase):
         self.assertEqual(self.note(cause="incomplete", by=green_cert.GATE_BROKE_BY), green_cert.GATE_BROKE)
         self.assertEqual(self.note(green=True, by=green_cert.GATE_BROKE_BY), "")
 
-
     def test_steps_split_into_started_and_unstarted(self):
         """#514: 起こせない段（exit None）と JUnit の報告を宣言して試験を走らせなかった段が unran、ほかの起こした段が ran"""
         runs = [{"name": "a", "exit": 0}, {"name": "b", "exit": 1}, {"name": "c", "exit": None}, {"name": "d", "exit": 0}]
         self.assertEqual(green_cert.ran_steps(runs, ["d"]), {"ran": ["a", "b"], "unran": ["c", "d"]})
         self.assertEqual(green_cert.ran_steps([], []), {"ran": [], "unran": []})
+
+    def test_same_name_started_row_is_not_dropped(self):
+        """#514 R4: 同じ名の段が起こせない行と起こした行の両方に在っても、起こした行を走らせなかった側に倒さない"""
+        runs = [{"name": "test_cmd", "exit": None}, {"name": "test_cmd", "exit": 0}]
+        self.assertEqual(green_cert.ran_steps(runs, []), {"ran": ["test_cmd"], "unran": ["test_cmd"]})
 
     def test_partly_started_steps_are_named_instead_of_not_ran(self):
         """#514: 一部の段だけ起こせた時は、起こした段と起こせなかった段を名指し、走っていないと言わない"""
@@ -323,6 +327,7 @@ class RanNoteCase(unittest.TestCase):
         self.assertEqual(green_cert.ran_note(green=False, red_cause="incomplete", by=green_cert.GATE_BROKE_BY, steps=steps),
                          green_cert.GATE_BROKE)
         self.assertEqual(green_cert.ran_note(green=False, red_cause="introduced", by="engine", steps=steps), "")
+
 
 class CertifyCase(unittest.TestCase):
     def final(self, **kw):

@@ -145,14 +145,13 @@ def _red_cause(reds, broken, cases, baseline_cases, read_steps) -> tuple:
 
 def ran_steps(runs, junit_unran) -> dict:
     """段の行 runs を、起こした段 ran と、起こせない（tree_run.launch_kind が broken）か JUnit の報告を宣言して試験を走らせなかった
-    （junit_unran に在る）段 unran の名に分ける（runs の順。名は 1 度だけ）。起こした段も、試験に入った証拠ではない（UNVERIFIED_RUN）"""
+    （junit_unran に在る）段 unran の名に分ける（runs の順）。起こした段も、試験に入った証拠ではない（UNVERIFIED_RUN）"""
     unran = set(junit_unran or [])
     split = {"ran": [], "unran": []}
     for r in runs or []:
         name = str(r.get("name"))
         side = "unran" if tree_run.launch_kind(r.get("exit")) == "broken" or name in unran else "ran"
-        if name not in split["ran"] and name not in split["unran"]:
-            split[side].append(name)
+        split[side].append(name)
     return split
 
 
