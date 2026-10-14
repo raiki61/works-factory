@@ -1240,13 +1240,14 @@ def _depth_lines(start: dict, returns: dict, line: dict) -> list:
 
 def _head_depth_line(returns: dict) -> list:
     """run の頭の深さの 1 行（報告の冒頭 2。headdepth.report_line）: 1 回目の判定が決めた深さと根拠と、計画の往復が飛ばしたノード・
-    標準へ上げた訳。判定の返りが無ければ出さない"""
+    標準へ上げた訳（計画の往復の depth_why。飛ばした周では飛ばした訳なので上げた訳に数えない）。判定の返りが無ければ出さない"""
     judged = returns.get("judge")
     if not isinstance(judged, dict) or not judged.get("depth"):
         return []
     planned = as_dict(returns.get("plan"))
-    return [headdepth.report_line(judged["depth"], judged.get("depth_why") or "", _list(planned.get("depth_skipped")),
-                                  _list(planned.get("depth_raised")))]
+    skipped = planned.get("depth_skip") is True
+    return [headdepth.report_line(judged["depth"], judged.get("depth_why") or "", skipped,
+                                  "" if skipped else str(planned.get("depth_why") or ""))]
 
 
 def _prior_in_lines(line: dict) -> list:

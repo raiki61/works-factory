@@ -1561,27 +1561,27 @@ class PlanOutCase(unittest.TestCase):
         self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW + plan_out.DEPTH) | {"nothing_owed", "done", "stop_reason"})
 
     def test_depth_fields_pass_through(self):
-        got = self.got(depth_skip=True, depth_skipped=[plan_review_due.ROW], depth_raised=[])
-        self.assertEqual((got["depth_skip"], got["depth_skipped"], got["depth_raised"]), (True, [plan_review_due.ROW], []))
+        got = self.got(depth_skip=True, depth_why="w")
+        self.assertEqual((got["depth_skip"], got["depth_why"]), (True, "w"))
 
 
 class PlanReviewDueCase(unittest.TestCase):
-    """往復の 1 周で事前審査の輪を飛ばすか（issue #441。中身は lib/headdepth.due）: 飛ばす時だけ表の行の id を名指す"""
+    """往復の 1 周で事前審査の輪を飛ばすか（issue #441。中身は lib/headdepth.due）: 頭も単位も軽量の時だけ飛ばし、単位に標準が在れば上げた訳を返す"""
 
     LIGHT = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
 
     def test_light_head_and_light_units_skip_the_review_loop(self):
         got = plan_review_due.plan_review_due("軽量", True, self.LIGHT)
-        self.assertEqual((got["skip"], got["skipped"], got["raised"]), (True, ["plan-review-run__review-loop"], []))
+        self.assertIs(got["skip"], True)
+        self.assertTrue(got["why"])
 
     def test_a_standard_unit_raises_and_runs_the_loop(self):
         got = plan_review_due.plan_review_due("軽量", True, [*self.LIGHT, {"unit_id": "u2", "depth": "標準", "why": "w"}])
-        self.assertEqual((got["skip"], got["skipped"]), (False, []))
-        self.assertTrue(got["raised"])
+        self.assertEqual((got["skip"], got["why"]), (False, "計画の単位がすべて軽量ではない"))
 
     def test_standard_head_never_skips(self):
         got = plan_review_due.plan_review_due("標準", True, self.LIGHT)
-        self.assertEqual((got["skip"], got["skipped"], got["raised"]), (False, [], []))
+        self.assertEqual((got["skip"], got["why"]), (False, ""))
 
     def test_wiring(self):
         """頭の深さ・計画ができたか・単位ごとの深さを受け、事前審査の差し込みに飛ばすかと訳を渡し、往復の返しの節が報告と目に運ぶ"""

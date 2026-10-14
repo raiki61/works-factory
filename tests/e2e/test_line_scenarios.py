@@ -203,20 +203,19 @@ class HeadDepthTest(unittest.TestCase):
     def test_light_run_skips_the_listed_node_and_reports(self):
         trace = self.traces["depth-light"]
         due = self.due("depth-light")
-        self.assertEqual((due["skip"], due["skipped"]), (True, [self.LOOP]), due)
+        self.assertIs(due["skip"], True, due)
         self.assertEqual(trace[self.LOOP]["state"], "skipped")
         self.assertIs(json.loads(trace["fixed"]["output"])["review_skipped"], True)
         self.assertTrue(UnattendedGateTest.ran(trace, "report__report"))
 
     def test_raised_run_runs_the_loop(self):
         due = self.due("depth-raised")
-        self.assertFalse(due["skip"], due)
-        self.assertTrue(due["raised"], due)
+        self.assertEqual((due["skip"], due["why"]), (False, "計画の単位がすべて軽量ではない"), due)
         self.assertEqual(self.traces["depth-raised"][self.LOOP]["state"], "completed")
 
     def test_unproven_request_is_standard_and_runs_the_loop(self):
         due = self.due("depth-no-evidence")
-        self.assertEqual((due["skip"], due["raised"]), (False, []), due)
+        self.assertEqual((due["skip"], due["why"]), (False, ""), due)
         self.assertEqual(self.traces["depth-no-evidence"][self.LOOP]["state"], "completed")
         self.assertIs(json.loads(self.traces["depth-no-evidence"]["fixed"]["output"])["review_skipped"], False)
 

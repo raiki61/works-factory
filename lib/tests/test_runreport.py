@@ -1574,13 +1574,14 @@ class LinesCase(Base):
     def test_head_depth_line_names_the_depth_and_the_skipped_nodes(self):
         """issue #441: 入口の節に run の頭の深さと根拠・飛ばしたノード・標準へ上げた訳を 1 行で出す。判定の返りが無い run は出さない"""
         judge = {**fixed_run()["judge"], "depth": "軽量", "depth_why": "原因と直す行が名指されている"}
-        plan = {**fixed_run()["plan"], "depth_skipped": ["plan-review-run__review-loop"], "depth_raised": []}
+        plan = {**fixed_run()["plan"], "depth_skip": True, "depth_why": "計画の単位 1 個がすべて軽量"}
         _, text, _ = self.build(fixed_run(judge=judge, plan=plan))
         self.assertIn("- run の頭の深さ: 軽量（根拠: 原因と直す行が名指されている）／飛ばしたノード: plan-review-run__review-loop\n",
                       self.section(text, report.ENTRY_HEADING))
-        plan = {**plan, "depth_skipped": [], "depth_raised": ["u2 が標準"]}
+        plan = {**plan, "depth_skip": False, "depth_why": "計画の単位がすべて軽量ではない"}
         _, text, _ = self.build(fixed_run(judge=judge, plan=plan))
-        self.assertIn("- run の頭の深さ: 軽量 → 標準へ上げた（u2 が標準）／飛ばしたノード: 無い\n", self.section(text, report.ENTRY_HEADING))
+        self.assertIn("- run の頭の深さ: 軽量 → 標準へ上げた（計画の単位がすべて軽量ではない）／飛ばしたノード: 無い\n",
+                      self.section(text, report.ENTRY_HEADING))
         _, text, _ = self.build(fixed_run(judge={**judge, "depth": "標準", "depth_why": "試験のコマンドが無い"}))
         self.assertIn("- run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い\n", self.section(text, report.ENTRY_HEADING))
         _, text, _ = self.build(fixed_run(judge=None))

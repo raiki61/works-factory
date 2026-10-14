@@ -97,20 +97,21 @@ class DueTest(unittest.TestCase):
     LIGHT_UNITS = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
 
     def test_standard_head_never_skips(self):
-        self.assertEqual(headdepth.due("標準", True, self.LIGHT_UNITS), {"skip": False, "why": "", "raised": []})
+        self.assertEqual(headdepth.due("標準", True, self.LIGHT_UNITS), {"skip": False, "why": ""})
 
     def test_no_plan_never_skips(self):
         self.assertFalse(headdepth.due("軽量", False, self.LIGHT_UNITS)["skip"])
 
     def test_a_standard_unit_raises(self):
         got = headdepth.due("軽量", True, [*self.LIGHT_UNITS, {"unit_id": "u2", "depth": "標準", "why": "触るファイルが 5 個"}])
-        self.assertFalse(got["skip"])
-        self.assertEqual(got["raised"], ["計画の単位ごとの深さに標準が在る（u2: 触るファイルが 5 個）"])
+        self.assertEqual(got, {"skip": False, "why": headdepth.RAISED})
+
+    def test_no_units_raises(self):
+        self.assertEqual(headdepth.due("軽量", True, []), {"skip": False, "why": headdepth.RAISED})
 
     def test_all_light_skips(self):
         got = headdepth.due("軽量", True, self.LIGHT_UNITS)
-        self.assertEqual((got["skip"], got["raised"]), (True, []))
-        self.assertTrue(got["why"])
+        self.assertEqual(got, {"skip": True, "why": "run の頭の深さが軽量で、計画の単位 1 個がすべて軽量"})
 
 
 class RecordTest(unittest.TestCase):
@@ -125,11 +126,11 @@ class RecordTest(unittest.TestCase):
 
 class ReportLineTest(unittest.TestCase):
     def test_three_shapes(self):
-        self.assertEqual(headdepth.report_line("軽量", "根拠", ["plan-review-run__review-loop"], []),
+        self.assertEqual(headdepth.report_line("軽量", "根拠", True, ""),
                          "run の頭の深さ: 軽量（根拠: 根拠）／飛ばしたノード: plan-review-run__review-loop")
-        self.assertEqual(headdepth.report_line("軽量", "根拠", [], ["u2 が標準"]),
-                         "run の頭の深さ: 軽量 → 標準へ上げた（u2 が標準）／飛ばしたノード: 無い")
-        self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い", [], []),
+        self.assertEqual(headdepth.report_line("軽量", "根拠", False, headdepth.RAISED),
+                         "run の頭の深さ: 軽量 → 標準へ上げた（計画の単位がすべて軽量ではない）／飛ばしたノード: 無い")
+        self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い", False, ""),
                          "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い")
 
 

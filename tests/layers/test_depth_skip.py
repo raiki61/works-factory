@@ -2,6 +2,7 @@
 import pathlib
 import unittest
 
+from lib import headdepth
 from tests.layers import scan
 from tests.layers.trees import tree
 
@@ -31,6 +32,12 @@ def design(node="pr__loop", depth="軽量", why="目的: 叩く。代わり: `tg
 class DepthSkipTest(unittest.TestCase):
     def test_real_tree_clean(self):
         self.assertEqual(scan.problems("E20", ROOT), [])
+
+    def test_reported_skipped_node_is_a_table_row(self):
+        """報告が飛ばしたと名指すノード（lib/headdepth.SKIPPED_NODE）は表の行に在る"""
+        rows, broken = scan._depth_rows(ROOT)
+        self.assertEqual(broken, [])
+        self.assertIn(headdepth.SKIPPED_NODE, {node for _, node, _, _ in rows})
 
     def problems(self, line_text=None, block_text=None, design_text=None):
         with tree({LINE: line_text or line(), BLOCK: block_text or block(), scan.DEPTH_TABLE: design_text or design()}) as root:

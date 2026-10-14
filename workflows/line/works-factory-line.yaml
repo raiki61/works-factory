@@ -258,10 +258,8 @@ nodes:
             properties:
               skip: { type: boolean }
               why: { type: string }
-              raised: { type: array }
-              skipped: { type: array }
               stop_reason: { type: string }
-            required: [skip, why, raised, skipped, stop_reason]
+            required: [skip, why, stop_reason]
           mutates_checkout: false
           depends_on: [plan]
           with:
@@ -309,13 +307,12 @@ nodes:
               ask_human: {}
               questions: {}
               depth_skip: {}
-              depth_skipped: {}
-              depth_raised: {}
+              depth_why: {}
               nothing_owed: { type: boolean }
               done: { type: boolean }
               stop_reason: { type: string }
             required: [ready, plan, structure, ripple, depth, round, pass, stalled, review, design, gate_axes, ask_human, questions,
-                       depth_skip, depth_skipped, depth_raised, nothing_owed, done, stop_reason]
+                       depth_skip, depth_why, nothing_owed, done, stop_reason]
           mutates_checkout: false
           depends_on: [plan, plan-review-due, plan-review-run]
           trigger_rule: none_failed_min_one_success
@@ -335,8 +332,7 @@ nodes:
             ask_human: { from: "$plan-review-run.output.ask_human", if_skipped: null }
             questions: { from: "$plan-review-run.output.questions", if_skipped: null }
             depth_skip: { from: "$plan-review-due.output.skip", if_skipped: null }
-            depth_skipped: { from: "$plan-review-due.output.skipped", if_skipped: null }
-            depth_raised: { from: "$plan-review-due.output.raised", if_skipped: null }
+            depth_why: { from: "$plan-review-due.output.why", if_skipped: null }
 
   - id: plan-rounds-out
     script: returned
@@ -358,8 +354,7 @@ nodes:
       got_depth: "$plan-rounds.output.depth"
       got_round: "$plan-rounds.output.round"
       got_depth_skip: "$plan-rounds.output.depth_skip"
-      got_depth_skipped: "$plan-rounds.output.depth_skipped"
-      got_depth_raised: "$plan-rounds.output.depth_raised"
+      got_depth_why: "$plan-rounds.output.depth_why"
 
   - id: plan-rounds-review-out
     script: returned

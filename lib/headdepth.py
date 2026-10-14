@@ -2,7 +2,8 @@
 
 単位ごとの深さ（depth.py）の上に、run 全体の深さ（軽量・標準）を run の頭で 1 度決める。易しいかは意味の問いなので役が決め、ここは
 事実を測って役に渡し、役の引用が依頼の字とリポジトリの行に実在するかを照らす。照らしが通らない・根拠が引けない時は標準。
-軽量の run は、表に載せたノードだけを線の when が飛ばす（ここは飛ばす先の名を持たない）。
+軽量の run は、表に載せたノードだけを線の when が飛ばす。ここが持つ飛ばす先の名は報告に出す SKIPPED_NODE だけ（表の行と同じ字。
+tests/layers/test_depth_skip.py が突き合わせる）。
 
 - parse_where(where): `<パス>`・`<パス>:<行>`・`<パス>:<行>-<行>` の (パス, 始めの行, 終わりの行)。行が無ければ (パス, None, None)、読めなければ None
 - facts(rows, start, repo): 依頼の行ごとの字と番地の実在・試験のコマンドの有無・仕様の段・設計だけ・入力 thickness の名指し
@@ -11,7 +12,8 @@
 - check(reply, rows, repo): 役の返答の照らし。拒む訳の並び（空なら受ける）
 - write(jdir, doc)・read(jdir): 控え RECORD の読み書き。read は無い・読めない時に標準の控え
 - record(depth, why, *, items, facts): 控えの形
-- due(head_depth, ready, plan_rows): 計画の往復の 1 周で事前審査を飛ばすか {skip, why, raised}。頭が軽量でも計画の単位に標準が在れば上げる
+- due(head_depth, ready, plan_rows): 計画の往復の 1 周で事前審査を飛ばすか {skip, why}。頭が軽量でも計画の単位が全部軽量でなければ
+  上げ、why は RAISED（単位ごとの訳は報告の次の行の depth.lines が出す）
 - report_line(depth, why, skipped, raised): 報告の冒頭 2 の 1 行
 """
 import json
@@ -36,6 +38,8 @@ NO_RECORD = "run の頭の深さの控えが無い"
 NO_REPLY = "役の返答が受け付けに届いていない（役が走らなかったか落ちた）"
 REJUDGE_WHY = "再審の判定（run の頭の深さは 1 回目の判定が決めた）"
 NOT_ACCEPTED = "役の返答が受け付けを通らない（{why}）"
+RAISED = "計画の単位がすべて軽量ではない"
+SKIPPED_NODE = "plan-review-run__review-loop"   # due が飛ばすノードの run の記録の id
 DESIGN_ONLY = "true"   # 始めの記録の design_only の語（gatemarks.DESIGN_ONLY と同じ）
 
 
@@ -149,8 +153,7 @@ def check(reply, rows, repo) -> list:
 
 
 def record(depth_word: str, why: str, *, items=(), facts_doc=None) -> dict:
-    return {"depth": depth_word, "why": why, "items": list(items), "facts": facts_doc or {},
-            "forced": (facts_doc or {}).get("forced", "")}
+    return {"depth": depth_word, "why": why, "items": list(items), "facts": facts_doc or {}}
 
 
 def write(jdir, doc: dict) -> pathlib.Path:
@@ -169,21 +172,17 @@ def read(jdir) -> dict:
 
 def due(head_depth, ready, plan_rows) -> dict:
     if head_depth != LIGHT or ready is not True:
-        return {"skip": False, "why": "", "raised": []}
+        return {"skip": False, "why": ""}
     rows = [r for r in plan_rows or [] if isinstance(r, dict)]
-    if not rows:
-        return {"skip": False, "why": "", "raised": ["計画の単位ごとの深さが無い（形が分からない）"]}
-    heavy = [r for r in rows if r.get("depth") != LIGHT]
-    if heavy:
-        return {"skip": False, "why": "",
-                "raised": [f"計画の単位ごとの深さに標準が在る（{r.get('unit_id')}: {r.get('why') or '訳なし'}）" for r in heavy]}
-    return {"skip": True, "why": f"run の頭の深さが{LIGHT}で、計画の単位 {len(rows)} 個がすべて{LIGHT}", "raised": []}
+    if depth.run_depth({"units": dict(enumerate(rows))}) != LIGHT:
+        return {"skip": False, "why": RAISED}
+    return {"skip": True, "why": f"run の頭の深さが{LIGHT}で、計画の単位 {len(rows)} 個がすべて{LIGHT}"}
 
 
-def report_line(depth_word, why, skipped, raised) -> str:
+def report_line(depth_word, why, skipped: bool, raised: str) -> str:
     head = f"run の頭の深さ: {depth_word or STANDARD}"
     if raised:
-        head += f" → {STANDARD}へ上げた（{'／'.join(raised)}）"
+        head += f" → {STANDARD}へ上げた（{raised}）"
     elif why:
         head += f"（根拠: {why}）"
-    return f"{head}／飛ばしたノード: {'・'.join(skipped) if skipped else '無い'}"
+    return f"{head}／飛ばしたノード: {SKIPPED_NODE if skipped else '無い'}"

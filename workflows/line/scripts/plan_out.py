@@ -16,7 +16,7 @@ plan_nothing_owed と同じファイルを読む）。真なら design-only が�
 例外の時は計画ができなかった形（ready: false・done: true・nothing_owed: false）と止めの理由 works:line-script を返す。
 
 入力（with:）: plan の 6 つの欄と plan-review の 7 つの欄（docs/design.md の「plan の出力」「plan-review の出力」）と plan-review-due の
-3 つの欄（DEPTH。そのまま返す）と round_limit
+2 つの欄（DEPTH。そのまま返す）と round_limit
 """
 import os
 import sys
@@ -30,7 +30,7 @@ with boundary.guarded_imports():
 
 PLAN = ("ready", "plan", "structure", "ripple", "depth", "round")
 REVIEW = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
-DEPTH = ("depth_skip", "depth_skipped", "depth_raised")   # plan-review-due の skip・skipped・raised（報告と eyes の review_skipped が読む）
+DEPTH = ("depth_skip", "depth_why")   # plan-review-due の skip・why（報告と eyes の review_skipped が読む）
 
 
 def round_owes_nothing(plan) -> bool:
