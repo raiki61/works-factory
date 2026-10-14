@@ -1022,12 +1022,20 @@ class ResultScriptCase(ScriptCase):
         self.assertNotIn(green_cert.NOT_RAN, note)
 
     def test_shell_command_that_cannot_start_is_named_not_ran(self):
-        """#504: test_cmd のコマンドが起きない（試験に入れなかった証拠）final は incomplete で、冒頭の句は「走っていない」"""
+        """#504: test_cmd のコマンドが起きない（試験に入れなかった証拠）final は incomplete で、冒頭の句は「走っていない」。
+        利用者が明示した run でも、起きなかったコマンドは利用者の HOME・XDG で走らせた印（userenv.RAN_FILE）を残さない"""
         self.write_start(test_cmd=str(self.tmp / "no-such-tool"))
-        self.ok("run", mode="final", start=self.start)
-        out = self.result("final")
-        self.assertEqual((out["green"], out["red_cause"]), (False, green_cert.INCOMPLETE))
-        self.assertTrue(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]).startswith(green_cert.NOT_RAN))
+        for opted in (False, True):
+            with self.subTest(opted=opted):
+                if opted:
+                    self.as_user()
+                    self.opted = True
+                self.ok("run", mode="final", start=self.start)
+                out = self.result("final")
+                self.assertEqual((out["green"], out["red_cause"]), (False, green_cert.INCOMPLETE))
+                note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"])
+                self.assertTrue(note.startswith(green_cert.NOT_RAN), note)
+                self.assertFalse(userenv.ran(self.artifacts))
 
     def test_gate_script_failure_is_not_named_not_ran(self):
         """#492 R1: 返す節の中の誤りの返り（failed）は、試験の関門の句（GATE_BROKE）で、「走っていない」と言わない"""

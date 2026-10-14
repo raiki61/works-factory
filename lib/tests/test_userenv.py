@@ -37,8 +37,10 @@ class RecordCase(unittest.TestCase):
         self.assertTrue(userenv.opted(env))
         self.assertFalse(userenv.ran(self.top))
         userenv.restore(env)
-        self.assertEqual(env, {"HOME": "/u"})
+        self.assertEqual(env, {"HOME": "/u", userenv.MARK: str(self.top / userenv.RAN_FILE)})
         self.assertFalse(userenv.opted(env))
+        self.assertFalse(userenv.ran(self.top))   # 印は子が起きた後に起こす側が置く
+        userenv.mark(env[userenv.MARK])
         self.assertTrue(userenv.ran(self.top))
 
     def test_restore_without_the_marker_place_gives_nothing_back(self):
