@@ -22,7 +22,7 @@ import unittest
 
 import yaml
 
-from bin._lib import launcher
+from bin._lib import isolate, launcher
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
 from tests.layers import scan
@@ -39,6 +39,7 @@ import baseline_red  # noqa: E402
 import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
 import rolekit  # noqa: E402
+import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
 
 
@@ -58,7 +59,6 @@ result = _load_result()
 DEADLINE = 1728000000
 RUN_ID = "run-1"
 PY = sys.executable
-RED_CAUSES = ["introduced", "inherited", "environment", "interaction", "incomplete", ""]
 WAIT = 30   # 子のプロセスを待つ上限（秒）。試験の枠で、script の中には期限を置かない
 # 任せ先の CI の役の指示書の元: 今の works（pack.json の works.commit）の works/blk-ci/commands/ci.md・prompts/p0.local_checks.md・
 # prompts/p4.ci.md を、この順に "\n" でつないだバイトの sha256
@@ -250,7 +250,7 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(sorted(fmt["required"]), sorted(fmt["properties"]))
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
-        self.assertEqual(fmt["properties"]["red_cause"]["enum"], RED_CAUSES)
+        self.assertEqual(fmt["properties"]["red_cause"]["enum"], list(green_cert.RED_CAUSES))
         compared = next(b for b in fmt["properties"]["test_outcomes"]["anyOf"] if b["type"] == "object")
         for side in ("base", "final"):
             self.assertEqual(compared["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
@@ -382,6 +382,8 @@ class ScriptCase(unittest.TestCase):
         self.head = committed_copy(self.repo, SEED)
         self.artifacts = self.tmp / "artifacts"
         self.declared = {}   # 包みの宣言（launcher.FENCE_RECORDS_ENV）。空なら起動の殻を通らない run
+        self.user_home = None   # 在れば起動の殻の隔離を通った run（as_user）
+        self.opted = False   # 起動の殻を通った run で、利用者が userenv.OPT_IN=1 を置いたか
         self.write_start()
 
     def write_start(self, **over):
@@ -392,9 +394,25 @@ class ScriptCase(unittest.TestCase):
         self.start = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "start/record.json"})
 
     def env(self, inputs: dict) -> dict:
-        inherited = {k: v for k, v in os.environ.items() if k != launcher.FENCE_RECORDS_ENV}
-        return {**inherited, **self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(ROOT),
-                "PYTHONDONTWRITEBYTECODE": "1", **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
+        inherited = {k: v for k, v in os.environ.items() if k not in (launcher.FENCE_RECORDS_ENV, userenv.RECORD, userenv.OPT_IN)}
+        env = {**inherited, **self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(ROOT),
+               "PYTHONDONTWRITEBYTECODE": "1", **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
+        if self.user_home is None:
+            return env
+        user = {k: v for k, v in env.items() if k not in userenv.NAMES}
+        return isolate.isolate({**user, "HOME": str(self.user_home), **({userenv.OPT_IN: "1"} if self.opted else {})},
+                               self.tmp / "run-home")
+
+    def as_user(self) -> pathlib.Path:
+        """起動の殻の隔離を通った run にし、HOME の下の全体の設定（.config/homecfg/ok）が在る時だけ通る小さな道具を返す。
+        利用者の HOME は self.tmp/user（XDG_* は無し）。道具は設定が無ければ config missing と出して 3 で抜ける"""
+        self.user_home = self.tmp / "user"
+        tool = self.tmp / "bin" / "homecfg"
+        tool.parent.mkdir()
+        tool.write_text('#!/bin/sh\n[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/homecfg/ok" ] && exit 0\n'
+                        'echo config missing >&2\nexit 3\n', encoding="utf-8")
+        tool.chmod(0o755)
+        return tool
 
     def script(self, name: str, **inputs) -> tuple:
         """(終了コード, 返りの dict か None, 標準エラー)。返りは JSON 1 行だけ"""
@@ -470,6 +488,19 @@ class RunScriptCase(ScriptCase):
         self.assertEqual(green_cert.fingerprint(self.repo), before)
         self.assertEqual((out["by"], out["material"]["status"], out["junit_steps"]), ("engine", "clean", ["suite"]))
         self.assertEqual(sorted(out), sorted(node("run")["output_format"]["required"]))
+
+    def test_target_command_reads_the_users_global_config_only_when_asked(self):
+        """#492: 起動の殻が HOME・XDG を隔離した run で、試験のコマンドは既定では利用者の HOME の下の全体の設定を見失い、
+        利用者が userenv.OPT_IN=1 で明示した時だけ読める"""
+        tool = self.as_user()
+        (self.user_home / ".config" / "homecfg").mkdir(parents=True)
+        (self.user_home / ".config" / "homecfg" / "ok").write_text("", encoding="utf-8")
+        self.decl([{"name": "suite", "argv": [str(tool)]}])
+        for opted, code in ((False, 3), (True, 0)):
+            with self.subTest(opted=opted):
+                self.opted = opted
+                out = self.ok("run", mode="final", start=self.start)
+                self.assertEqual([r["exit"] for r in out["runs"]], [code])
 
     def scoped(self):
         """種に far・near の宣言と、far が works/ を見ない範囲の宣言を commit する"""
@@ -947,6 +978,40 @@ class ResultScriptCase(ScriptCase):
                                                encoding="utf-8")
         out = self.result("final")
         self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
+
+    def test_command_that_fails_before_its_tests_is_named_not_ran(self):
+        """#492: JUnit の報告を宣言した段が試験に入る前に落ちた（利用者の設定が無い）final は incomplete で、冒頭の句は「走っていない」"""
+        tool = self.as_user()
+        self.decl([{"name": "suite", "argv": [str(tool)], "junit": "out/r.xml"}])
+        self.ok("run", mode="final", start=self.start)
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
+        self.assertTrue(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]).startswith(green_cert.NOT_RAN))
+
+    def test_shell_command_failing_alike_before_and_after_is_named_not_ran(self):
+        """#492 R2: 実地の形。shell の test_cmd だけの対象で、道具が利用者の設定を見失って試験の前に落ちる。直す前と後で同じログなら
+        final は incomplete で冒頭の句は「走っていない」。直す前の結末が無い・ログが違えば、原因の無い赤（確かめられていない）のまま"""
+        tool = self.as_user()
+        self.write_start(test_cmd=f"{tool} && echo tests")
+        self.ok("run", mode="base", start=self.start)
+        base = self.result("base")
+        self.assertEqual((base["by"], base["red_cause"]), (declared_checks.ROLE, ""))
+        self.ok("run", mode="final", start=self.start)
+        out = self.result("final", baseline=json.dumps(base["baseline"]))
+        self.assertEqual((out["green"], out["red_cause"]), (False, green_cert.INCOMPLETE))
+        self.assertIn(green_cert.FAILED_ALIKE, self.pointed(out["evidence"]).read_text(encoding="utf-8"))
+        self.assertTrue(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]).startswith(green_cert.NOT_RAN))
+        self.assertEqual(self.result("final")["red_cause"], "")
+        self.write_start(test_cmd=f"{tool} || {PY} -c 'import time; print(time.time_ns()); raise SystemExit(1)'")
+        self.ok("run", mode="base", start=self.start)
+        base = self.result("base")
+        self.ok("run", mode="final", start=self.start)
+        self.assertEqual(self.result("final", baseline=json.dumps(base["baseline"]))["red_cause"], "")
+
+    def test_gate_script_failure_is_not_named_not_ran(self):
+        """#492 R1: 返す節の中の誤りの返り（failed）は、試験の関門の句（GATE_BROKE）で、「走っていない」と言わない"""
+        out = result.failed("final", ValueError("壊れた元の結末"))
+        self.assertEqual(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]), green_cert.GATE_BROKE)
 
     def test_suite_without_cases_leaves_no_baseline_exit(self):
         """tdd_suite が JUnit を書かずに落ちた base は元の結末の exit を残さない。final はそれを「元の結末が無い」と読み、今の赤を

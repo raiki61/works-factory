@@ -3,14 +3,19 @@
 今の works の dev/archon.sh の、HOME・ARCHON_HOME・CLAUDE_CONFIG_DIR・XDG_* を run の置き場へ向ける所を Python に移した物。
 向け先は全部 run の置き場の下で、認証の起こし役（auth_launch.py）が読む利用者の HOME と CLAUDE_CONFIG_DIR は、変わらずに残る隔離の前の env から取る。
 """
+import json
 import pathlib
 import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "bin" / "_lib"))
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "bin" / "_lib"))
+if str(ROOT / "lib") not in sys.path:
+    sys.path.append(str(ROOT / "lib"))
 
 import isolate  # noqa: E402
+import userenv  # noqa: E402
 
 ISOLATED = {"HOME", "ARCHON_HOME", "CLAUDE_CONFIG_DIR", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"}
 
@@ -43,6 +48,15 @@ class IsolateCase(unittest.TestCase):
         child = isolate.isolate(env, self.run_home)
         self.assertEqual((child["PATH"], child["LANG"]), ("/usr/bin", "ja_JP.UTF-8"))
         self.assertEqual(env, {"HOME": "/u", "PATH": "/usr/bin", "LANG": "ja_JP.UTF-8"})
+
+    def test_users_home_and_xdg_are_recorded_only_when_asked(self):
+        """#492: 既定は控えず（利用者の env から継いだ古い控えも落とす）、userenv.OPT_IN=1 の時だけ隔離の前の HOME・XDG_* を控える。
+        控える名は、隔離する名から Archon と Claude Code の置き場を除いた物"""
+        env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c", userenv.RECORD: "stale"}
+        self.assertNotIn(userenv.RECORD, isolate.isolate(env, self.run_home))
+        record = json.loads(isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home)[userenv.RECORD])
+        self.assertEqual(record["HOME"], "/u")
+        self.assertEqual(set(userenv.NAMES), set(isolate.DIRS) - {"ARCHON_HOME", "CLAUDE_CONFIG_DIR"})
 
     def test_relative_run_home_is_refused(self):
         """相対の置き場は cd した子で別の所を指すので、何も作らずに止める"""

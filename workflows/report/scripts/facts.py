@@ -246,6 +246,7 @@ def main() -> dict:
     import outcome
     import rolekit
     import runreport
+    import userenv
 
     unread, unopened, returns, gates = [], [], {}, {}
     for rid, raw in RETURNS.items():
@@ -267,7 +268,8 @@ def main() -> dict:
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
                                                       "failed": facts["failed"], **runreport.outcome_facts(start, facts, line)})
     built = runreport.build(returns, gates, typed_listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
-                            run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd(), line=line)
+                            run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd(), line=line,
+                            user_env=userenv.opted(os.environ))
     report = rel(built["report"])
     run_id = os.environ.get("WORKFLOW_ID", "")
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],
