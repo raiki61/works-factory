@@ -1456,9 +1456,9 @@
   - 元 (a) 修正役の `plan_faces` を機械が照らす: `works/.shared/core/graphloops/rules/review-loop.py:3115-3128` `_plan_face_errors`（事前審査に無い key、答えの無い key を拒む）。呼び出しは `:2803`（`delta_fix_output` の中）。宣言して残した穴を次の周へ運ぶのは `:229` `_declared_faces`
   - 元 (b) 差分の審査役の材料 `out.p2.plan_review`: `works/.shared/core/graphloops/graphs/review-loop.json:4163`（`p3.delta_review` の `inputs` の行）、指示書 `works/blk-delta/commands/delta-review.md:8`。TDD の役も読んでいた: `works/.shared/core/graphloops/prompts/review-loop/tdd/p3.tdd_tests.md:6`
   - 今: `workflows/fix/scripts/delta_cut.py::main`・`workflows/fix/scripts/refix_prep.py::main`・`refix2_prep.py`（今は無い）が `plan_review=None` を渡す。`lib/fixboard.py::NODE_READS` は `out.p2.plan_review` の欄を組むが、値はいつも null。修正役の指示書 `workflows/fix/commands/fix-rules/direct.md` は「今は空配列」と書く。fix の入力（`FX` の inputs:）にも、線の `fix`・`refix` の `with:`（`LY` の fix・refix）にも事前審査の返りが無い → **開いている**（fix に入力を足し、線が `$plan-rounds.output.review`（2 度目は `$replan-review.output.review`）を渡す必要がある） → 部分 D1 で閉じた（fix の入力 `plan_review`・受け付けの `plan_face_errors`・差分の審査の材料。TDD の役の指示書への貼りは戻していない: 部分 D1 の閉じる行に無い。L-W19・F130・F302）
-- S03 #94「約束を変える頼み」1・「能力の狭め」5: 修正役が書く `breaks.accepted`（壊れると分かっていて受け入れた面）を人に届ける道が無い。 → 部分 D2 で閉じた（fix の diff の隣の handoffs.json。lib/fixbeside.py。最後の関所の開ける理由と節・報告の冒頭。筋書き refix-handoff）
+- S03 #94「約束を変える頼み」1・「能力の狭め」5: 修正役が書く `breaks.accepted`（壊れると分かっていて受け入れた面）を人に届ける道が無い。
   - 元: `works/.shared/core/report.py:304-314` `handoff_lines`（`changes[].breaks.accepted` を 1 件 1 行にする）を、`works/darkfactory/lib/line_edge.py:868` で呼ぶ。`:814-815`（`_final_needs`）が「修正役が人に回した物が在る（N 件）」を最後の関所を開ける理由に足し、`:719-723` `_handoff_text` が関所の文の節にする。報告の冒頭（`works/.shared/core/report.py:906`・`:991`）にも出していた
-  - 今: fix の返り（`FX` の返す節の required）に欄が無い。`lib/report.py` の docstring には `handoff_lines` の行だけが残り、関数は無い。`LS/ask_final.py` は読まない。一方で修正役の指示書 `workflows/fix/commands/fix-rules/common.md` は今も「機械が人に見せる一覧に載せる」と書いている（指示書の約束が嘘になっている）→ **開いている**
+  - 今: fix の返り（`FX` の返す節の required）に欄が無い。`lib/report.py` の docstring には `handoff_lines` の行だけが残り、関数は無い。`LS/ask_final.py` は読まない。一方で修正役の指示書 `workflows/fix/commands/fix-rules/common.md` は今も「機械が人に見せる一覧に載せる」と書いている（指示書の約束が嘘になっている）→ **開いている** → 部分 D2 で閉じた（fix の diff の隣の handoffs.json。lib/fixbeside.py。最後の関所の開ける理由と節・報告の冒頭。筋書き refix-handoff）
 
 ### #66 merge
 
@@ -1468,7 +1468,7 @@
 ### #69 test-gate
 
 - S06 #69「線（#60）への申し送り」: 範囲の宣言が誤っていて節 `run` が 1 を返して終わる時や、任せ先の役の節が落ちた時は、Archon が線の run 全体を failed で終える。→ **済み**（部分 0）: 受け皿 `test-gate-base-out`・`test-gate-final-out` と `collect` の `trigger_rule: all_done` で報告は出る。筋書き `workflows/line/fixtures/test-gate-failed.stubs.yaml` が `test-gate-final` の `run` を落とし、`test-gate-final-out`・`collect`・`report__report`・`result` まで届くことを縛る（`tests/e2e/test_line_scenarios.py`）。返す節 `result` は `trigger_rule: all_done` で落ちない（K1）ので、届く返りは null でなく認証できなかった形
-- S07 #69「能力の狭め」2: `entry.scope_changed`（`works/.shared/core/entry.py:907-925`）が、変更に依頼の `where` を足していた分を落とした（`lib/declared_checks.py:374` の docstring）。判定から入る run の base で、依頼の where に当たる段を回さなくなる。→ **開いている**（test-gate 側の狭め。線は `start` を渡しているので、test-gate が `start` の依頼の where を読めば戻せる。持ち主の確かめ待ち） 決め: 戻すと決めた（superset）。区分 T の issue（T16）（線の配線の文書の「この文書の外」の「決めた物」）
+- S07 #69「能力の狭め」2: `entry.scope_changed`（`works/.shared/core/entry.py:907-925`）が、変更に依頼の `where` を足していた分を落とした（`lib/declared_checks.py:374` の docstring）。判定から入る run の base で、依頼の where に当たる段を回さなくなる。→ **開いている**（test-gate 側の狭め。線は `start` を渡しているので、test-gate が `start` の依頼の where を読めば戻せる。持ち主の確かめ待ち） 決め: 戻すと決めた（superset）。区分 T の issue（T16）（線の配線の文書の「この文書の外」の「決めた物」） → #122 で戻した（T16。判定から入る run の base で `workflows/test-gate/scripts/run.py::request_wheres` が始めの記録の依頼の where を変更に足す）
 - S08 #69「約束を変える頼み」: 無し
 
 ### #67 eyes（「約束を変える頼み（線と report を書く人へ）」1〜7 と「持ってこなかった物」）
