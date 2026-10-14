@@ -59,6 +59,7 @@ prep:
   review_md: /tmp/REVIEW.md
   repo_review_md: （対象のリポジトリの根に REVIEW.md は無い）
   policy_path: ''
+  recorded_policy: "## 記録された方針\n\n記録された方針: 無い"
   lang_line: 人が読む文の欄は依頼文の言語で書け。
   r1_head: '## 最小の意味'
   r3_head: '## 考えの住処'

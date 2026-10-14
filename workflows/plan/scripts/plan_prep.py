@@ -44,7 +44,8 @@ def main() -> None:
         review_md=str(boundary.lib_root() / "REVIEW.md"),
         lang_line=rolekit.lang_line(start), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,
                                                                      shared=boundary.shared_cache()),
-        conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread)
+        conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread,
+        recorded=policy.recorded_text(start, Path(judgment_file).parent if judgment_file else None))
     planfile.snap_tree(round_dir / planfile.TREE_FILE, repo)
     boundary.returns({"brief": str(path), "attempt": n})
 

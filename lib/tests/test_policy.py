@@ -1,7 +1,9 @@
 """人の方針を役に届ける形（policy）。盤面の写しから組む brief と、盤面の無いブロックが貼る節 section が同じ上限で本文を切ること
 （元 works/.shared/core/gl-prompts/prompts/policy-paste.md・policy.md）"""
 import hashlib
+import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -94,3 +96,88 @@ class FreezeCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RecordedCase(unittest.TestCase):
+    """記録された方針の一覧（issue #427）: 4 つの出どころの行・名指しの照らし・事前審査の受け付けが拒む穴・役に貼るセクション"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        pol = self.tmp / "policy.md"
+        pol.write_text("# 方針\n- 公開の口を減らさない\n", encoding="utf-8")
+        self.frozen = policy.freeze(self.tmp / "run", self.tmp, str(pol))
+        self.start = {"policy": self.frozen, "answers": [{"question": "q-mean-empty", "text": "空の列は例外"}, {"question": ""}]}
+        self.jdir = self.tmp / "judge"
+        self.jdir.mkdir()
+        settled = [{"topic": "公開の口", "decision": "減らさない", "where": "docs/adr/0002.md"},
+                   {"topic": "where の無い論点", "decision": "決めた"}, "壊れた行"]
+        (self.jdir / policy.PRIOR_DECISIONS_FILE).write_text(
+            json.dumps({"role": "prior-decisions", "reply": {"settled": settled}}, ensure_ascii=False), encoding="utf-8")
+        self.human = [{"note": "通す"}, {"note": ""}, {"note": "名前を残す"}]
+        self.rows = policy.recorded(self.start, self.jdir, human_items=self.human)
+        self.gates = [r["name"] for r in self.rows if r["source"] == "gate"]
+
+    def test_rows_of_the_four_sources(self):
+        """note の無い承認ノードの答えは数えない。where の無い論点と question の空の答えは名指しにならない。決定記録の突合の返答の
+        dict でない行は読まない"""
+        self.assertEqual([(r["source"], r["name"]) for r in self.rows], [
+            ("doc", self.frozen["copy"]), ("answer", "q-mean-empty"), ("gate", self.gates[0]),
+            ("gate", self.gates[1]), ("settled", "docs/adr/0002.md"), ("settled", "")])
+        self.assertEqual((self.rows[0]["lines"], self.rows[0]["alias"]), (2, self.frozen["path"]))
+        self.assertEqual([r["source"] for r in policy.recorded(self.start)], ["doc", "answer"])
+
+    def test_gate_name_follows_the_answer_not_its_place_in_the_list(self):
+        """#427: plan-review は修正前の承認ノードの答えを積み、eyes は最後の答えだけを持つ。同じ答えはどちらの並びでも同じ名指し"""
+        latest = [h["name"] for h in policy.recorded({}, human_items=[{"note": "名前を残す"}])]
+        self.assertEqual(latest, [self.gates[1]])
+        self.assertTrue(self.gates[0].startswith("承認ノードの答え ") and self.gates[0] != self.gates[1], self.gates)
+
+    def test_hits_name_rows_literally(self):
+        copy, path = self.frozen["copy"], self.frozen["path"]
+        for text, want in ((f"{copy}:2", [copy]), (f"{path}:1", [copy]), (f"{copy}:3", []), (f"{copy}:0", []),
+                           ("q-mean-empty の答え", ["q-mean-empty"]), ("docs/adr/0002.md の節", ["docs/adr/0002.md"]),
+                           (self.gates[0], [self.gates[0]]), (self.gates[0] + "0", []),
+                           ("tests/calibration/seed/test_stats.py:1", [])):
+            with self.subTest(text=text):
+                self.assertEqual(policy.hits(self.rows, text), want)
+
+    def test_face_gaps_refuse_unrecorded_policy_and_policy_doc_without_doc(self):
+        docstring = {"key": "seed", "kind": "policy", "where": "tests/calibration/seed/test_stats.py:1", "decided_by": "test_stats.py:1"}
+        fenced = {"key": "fenced", "kind": "regression", "where": "stats.py", "fences": ["policy_doc"]}
+        named = {"key": "named", "kind": "policy", "where": "stats.py", "decided_by": "q-mean-empty"}
+        no_doc = policy.recorded({"answers": self.start["answers"]})
+        got = policy.face_gaps([docstring, fenced, named], no_doc)
+        self.assertEqual(len(got), 2, got)
+        self.assertTrue(got[0].startswith("faces[0]（seed）") and policy.RECORDED_TERM + "に無い" in got[0], got)
+        self.assertTrue(got[1].startswith("faces[1]（fenced）") and "policy_doc" in got[1], got)
+        self.assertEqual(policy.face_gaps([fenced, named], self.rows), [])
+
+    def test_section_says_none_when_nothing_can_be_named(self):
+        got = policy.recorded_text({})
+        self.assertTrue(got.startswith(policy.RECORDED_HEAD), got)
+        self.assertIn(policy.RECORDED_NONE, got)
+        self.assertIn("承認ノードの人の答え: この役には渡っていない", got)
+        got = policy.recorded_section(self.rows)
+        self.assertNotIn(policy.RECORDED_NONE, got)
+        for want in (f"`{self.frozen['copy']}:<行>`（1〜2 行", '`q-mean-empty`', f"`{self.gates[1]}`", '`docs/adr/0002.md`',
+                     "（where が無いので名指せない）where の無い論点"):
+            self.assertIn(want, got)
+
+    def test_names_copied_from_the_section_hit_their_rows(self):
+        """役はセクションの名指しを字のまま写す。引用符・バックスラッシュ・Windows のパスを持つ名も、写した字が一覧に当たる"""
+        rows = policy.recorded({"answers": [{"question": 'Use "foo" API?', "text": "使う"}]})
+        rows.append({"source": "settled", "name": "C:\\repo\\docs\\adr.md", "text": "決めた"})
+        copied = re.findall(r"名指し `([^`]+)`", policy.recorded_section(rows))
+        self.assertEqual(copied, [r["name"] for r in rows])
+        for name in copied:
+            with self.subTest(name):
+                self.assertEqual(policy.hits(rows, f"ぶつかる: {name}"), [name])
+
+    def test_text_tells_a_role_without_gate_answers_so(self):
+        """承認ノードの答えを入力に持たない役（human_items が None）には「渡っていない」、持つ役には行か「無い」"""
+        self.assertIn("承認ノードの人の答え: この役には渡っていない", policy.recorded_text(self.start, self.jdir))
+        self.assertIn("承認ノードの人の答え: 無い", policy.recorded_text(self.start, self.jdir, []))
+        self.assertIn(f"`{self.gates[0]}`", policy.recorded_text(self.start, self.jdir, self.human))
+        self.assertNotIn("docs/adr/0002.md", policy.recorded_text(self.start))
