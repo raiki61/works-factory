@@ -204,6 +204,11 @@ def hole_counts() -> tuple[dict[str, dict[str, tuple[int, str]]], dict[str, tupl
     return areas, summary
 
 
+def listed_ids(listed: str) -> list[str]:
+    """領域の数の括弧の中を行の ID に分けたもの"""
+    return listed.split("・") if listed else []
+
+
 class PointerCase(unittest.TestCase):
     def test_reads_every_pointing_field(self):
         read = collections.Counter((field, where.split(":")[0]) for where, text in pointing_fields()
@@ -267,7 +272,7 @@ class PointerCase(unittest.TestCase):
                 for name, (number, listed) in counts.items():
                     if name == TOTAL:
                         continue
-                    ids = listed.split("・") if listed else []
+                    ids = listed_ids(listed)
                     self.assertEqual(number, len(ids), name)
                     self.assertLessEqual(set(ids), {key for key in rows if key[0] == area}, name)
                     if name in COUNTED:

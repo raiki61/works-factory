@@ -17,7 +17,7 @@ import pathlib
 import re
 import unittest
 
-from tests.layers.test_capability_pointers import INVENTORY, INVENTORY_ROW_ID, NARROWED, ROW, hole_counts, mention
+from tests.layers.test_capability_pointers import INVENTORY, INVENTORY_ROW_ID, NARROWED, ROW, hole_counts, listed_ids, mention
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 NODES = ROOT / "docs" / "nodes.json"
@@ -115,7 +115,7 @@ def off_form(texts: list[tuple[str, str, str]]) -> list[str]:
 def narrowed_but_restored(areas: dict[str, dict[str, tuple[int, str]]], restored: set[str]) -> list[str]:
     """tail.md の狭めの並びに残る、戻した行"""
     return [f"{area} の {NARROWED}: {row} は戻した行" for area, counts in sorted(areas.items())
-            for row in counts[NARROWED][1].split("・") if row in restored]
+            for row in listed_ids(counts[NARROWED][1]) if row in restored]
 
 
 def gaps(node, where: str = ""):
