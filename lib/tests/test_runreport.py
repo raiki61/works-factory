@@ -874,6 +874,18 @@ class CollectCase(Base):
         self.assertTrue(line.startswith(f"{report_roles.COLD_REJECTS_LINE} 2 回。{report_roles.NOT_PASSED}"), line)
         self.assertIn("止まった所: 冒頭の 2 行目", line)
 
+    def test_not_passed_line_keeps_guesses_and_unreadable_verdict(self):
+        """通らなかった事実の行は、止まった所だけでなく推測で埋めた所と、判定を読めなかった事実も落とさない"""
+        guessed = json.dumps({"verdict": "redesign-needed", "stops": [], "guessed": ["語 X を推測"]}, ensure_ascii=False)
+        for cold, want in ((guessed, "推測で埋めた所: 語 X を推測"), ("壊れた", runreport.COLD_UNREADABLE)):
+            with self.subTest(want=want):
+                out = self.out / want
+                for _ in range(report_roles.GIVE_UP_AFTER):
+                    runreport.accept(AcceptCase.REPLY, cold, out_dir=out)
+                text = runreport.collect("事実", out_dir=out, stamp="run x").read_text(encoding="utf-8")
+                [line] = [ln for ln in text.splitlines() if report_roles.NOT_PASSED in ln]
+                self.assertIn(want, line)
+
     def test_given_up_reply_still_reports(self):
         for _ in range(report_roles.GIVE_UP_AFTER):
             runreport.accept("壊れた", AcceptCase.PASS, out_dir=self.out)

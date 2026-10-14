@@ -1543,12 +1543,28 @@ def _cold_of(cold) -> dict:
             "guessed": [str(g) for g in _list(got.get("guessed"))], "decidable": got.get("decidable") is True}
 
 
-def _cold_reason(c: dict) -> str:
+COLD_UNREADABLE = "初見の読み手の返答を読めない（判定の語が無い）"
+COLD_EMPTY = "（止まった所・推測の欄が空）"
+
+
+def _cold_lines(c: dict) -> list[str]:
+    """初見の読み手が通さなかった所（止まった所・推測で埋めた所）。判定を読めなければその事実の 1 つ"""
     if not c["verdict"]:
-        return "初見の読み手の返答を読めない（判定の語が無い）"
-    lines = [f"- 止まった所: {s}" for s in c["stops"]] + [f"- 推測で埋めた所: {g}" for g in c["guessed"]]
+        return [COLD_UNREADABLE]
+    return [f"止まった所: {s}" for s in c["stops"]] + [f"推測で埋めた所: {g}" for g in c["guessed"]]
+
+
+def _cold_facts(c: dict) -> str:
+    """通らなかった所の 1 行（AI_FILE の not_passed。報告の拒みの数の行の尾に出す）"""
+    return oneline.one_line("；".join(_cold_lines(c)) or COLD_EMPTY)
+
+
+def _cold_reason(c: dict) -> str:
+    """書き手に返す拒みの文"""
+    if not c["verdict"]:
+        return COLD_UNREADABLE
     return ("初見の読み手（道具なし・報告の頭だけを読む）が redesign-needed を返した。次の所を、頭だけで意味が取れるように"
-            "直した本文を丸ごと出し直せ:\n" + ("\n".join(lines) or "- （止まった所・推測の欄が空）"))
+            "直した本文を丸ごと出し直せ:\n" + "\n".join(f"- {x}" for x in _cold_lines(c) or [COLD_EMPTY]))
 
 
 def cold_body(raw) -> str:
@@ -1605,7 +1621,7 @@ def accept(reply, cold, *, out_dir) -> dict:
     if c["verdict"] != "pass":
         if len(rows) < report_roles.GIVE_UP_AFTER - 1:
             return reject(_cold_reason(c), "cold")
-        not_passed = _cold_reason(c)
+        not_passed = _cold_facts(c)
     carry.write(out_dir / AI_FILE, {"accepted": True, "text": got["text"], "terms": _list(got.get("terms")), "cold": c,
                                     "not_passed": not_passed, "rejects": report_roles.count_rejects(rows)})
     reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
@@ -1645,14 +1661,14 @@ def _not_passed_note(ai: dict) -> str:
     """初見の読み手が通さないまま受け取った時の、拒みの数の行の尾（通っていれば空）"""
     if ai.get("accepted") is not True or not ai.get("not_passed"):
         return ""
-    stops = "；".join(oneline.one_line(s) for s in _list(as_dict(ai.get("cold")).get("stops"))) or "書かれていない"
-    return f"。{report_roles.NOT_PASSED}（上限の {report_roles.GIVE_UP_AFTER} 回目で受け取った。止まった所: {stops}）"
+    return f"。{report_roles.NOT_PASSED}（上限の {report_roles.GIVE_UP_AFTER} 回目で受け取った。{oneline.one_line(ai['not_passed'])}）"
 
 
 def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     """AI の報告（元 report_roles.collect）。AI_FILE が無ければ None（書き手の輪が落ちた・飛ばされた）。受け取っていれば 来歴の 1 行＋
     本文＋語の定義の節＋機械の事実（embedded）、受け取れなかった時は訳と機械の事実を書く。初見の読み手が通さないまま受け取った時は、
-    拒みの文を本文の頭に置かず、機械の事実の拒みの数の行（COLD_REJECTS_LINE）の尾に NOT_PASSED と止まった所を 1 行で足す"""
+    拒みの文を本文の頭に置かず、機械の事実の拒みの数の行（COLD_REJECTS_LINE）の尾に NOT_PASSED と通らなかった所（AI_FILE の
+    not_passed）を 1 行で足す"""
     out_dir = pathlib.Path(out_dir)
     try:
         ai = oc.read_json(out_dir / AI_FILE)
