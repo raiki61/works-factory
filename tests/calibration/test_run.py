@@ -12,11 +12,13 @@ import fcntl
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -67,6 +69,7 @@ if verb == "run":
     state["runs"].append({"id": rid, "status": plan.get("status", "completed"), "parent_run_id": None,
                           "started_at": "2026-10-12T00:00:00Z"})
     put(home / "art" / rid, plan.get("artifacts", {JUDGMENT: UNITS}))
+    put(pathlib.Path("/"), plan.get("files", {}))
     for n in range(plan.get("children", 0)):
         kid = f"{rid}-child-{n}"
         state["runs"].append({"id": kid, "status": "completed", "parent_run_id": rid, "started_at": f"2026-10-12T00:0{n + 1}:00Z"})
@@ -755,6 +758,26 @@ class RunTest(RunnerCase):
         self.assertIn(runner.LEDGER, refused.stderr)
         self.assertFalse(self.attempts.exists())
 
+    def test_convert_command_on_unchanged_evidence_rewrites_the_same_records(self):
+        """run と convert は同じ所で変換の入力を組むので、evidence/ が同じなら控えも判定役の入力も字まで同じ"""
+        for producer in ("works-factory", "claude"):
+            with self.subTest(producer=producer):
+                self.assertRan(self.run_tasks(producer, self.one))
+                written = [self.out / producer / d / f"{self.one}.json" for d in ("findings", "convert")]
+                before = [p.read_bytes() for p in written]
+                self.assertRan(self.runner("convert", producer, "--attempts", str(self.attempts), "--out", str(self.out)))
+                self.assertEqual([p.read_bytes() for p in written], before)
+                shutil.rmtree(self.attempts)
+
+    def test_run_records_web_calls_measured_in_the_attempt(self):
+        config = self.attempt(self.one) / "home" / runner.isolate.DIRS["CLAUDE_CONFIG_DIR"]
+        log = runner.reads.reads_path(runner.reads.root(config), "/w/one")
+        row = {"ts": "2026-10-14T08:00:00", "tool_name": runner.toolset.DENY_WEB["deny"][0], "input": "https://example.com"}
+        self.set_plan(files={str(log): json.dumps(row) + "\n"})
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        [record] = self.records("works-factory")
+        self.assertEqual(record["web_calls"], 1)
+
     def test_convert_command_keeps_records_when_head_is_unreadable(self):
         self.assertRan(self.run_tasks("works-factory", self.one))
         written = [self.out / "works-factory" / d / f"{self.one}.json" for d in ("findings", "convert")]
@@ -792,6 +815,29 @@ class RunTest(RunnerCase):
         got = json.loads((self.out / "works-factory" / "nodes.json").read_text(encoding="utf-8"))
         self.assertEqual((got["producer"], got["tasks"], got["judged"]), ("works-factory", 1, False))
         self.assertTrue((self.out / "works-factory" / "nodes.md").read_text(encoding="utf-8").startswith("# ノードごとの表"))
+
+
+class PlainClaudeEnvTest(unittest.TestCase):
+    """素の Claude Code の start が隔離の上に置く env の名は、dry run が言う env_names の隔離の外の名とちょうど同じ"""
+
+    def test_start_sets_exactly_the_names_the_dry_run_reports(self):
+        attempt = hermetic.tmpdir(self)
+        (attempt / "pr").mkdir()
+        (attempt / "pr" / "pr.json").write_text(json.dumps({"head": "h" * 40}), encoding="utf-8")
+        (attempt / "target").mkdir()
+        producer = runner.PlainClaude()
+        with mock.patch.object(runner.PlainClaude, "isolated_env", return_value={}), \
+                mock.patch.object(runner.subprocess, "run") as launched:
+            producer.start(attempt, "b" * 40)
+        env = launched.call_args.kwargs["env"]
+        self.assertEqual(set(env), set(producer.env_names()) - set(runner.PlainClaude.ISOLATED_ENV))
+        self.assertEqual((env["RB_AGENT"], env["RB_OUT"]), (producer.name, str(attempt / "out" / runner.PlainClaude.FINDINGS)))
+        self.assertEqual(producer.input_pairs(attempt, "b" * 40), {k: env[k] for k in runner.PlainClaude.INPUTS})
+
+    def test_prompt_reads_only_names_start_sets(self):
+        read = set(re.findall(r"\$(RB_[A-Z_]+)", runner.PLAIN_PROMPT))
+        self.assertTrue(read)
+        self.assertLessEqual(read, set(runner.PlainClaude.RUN_ENV))
 
 
 class WebCallsTest(unittest.TestCase):

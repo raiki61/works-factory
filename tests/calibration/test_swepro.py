@@ -126,6 +126,35 @@ class UnboundedTest(unittest.TestCase):
                 self.assertEqual(swepro.unbounded(argv), want)
 
 
+# 入っている Harbor の harbor run の旗（名 → click の型の名）を JSON で出す。Harbor が無ければ空の object。
+# 入っているのに CLI を読めない時（Harbor の上げで模塊が動いた等）は落ちて、試験を赤にする
+HARBOR_RUN_FLAGS = """
+import importlib.util, json, sys
+if importlib.util.find_spec("harbor") is None:
+    print("{}")
+    sys.exit(0)
+import typer
+from harbor.cli import main
+command = typer.main.get_command(main.app).commands["run"]
+print(json.dumps({o: p.type.name for p in command.params for o in p.opts}))
+"""
+
+
+class HarborFlagsTest(unittest.TestCase):
+    """unbounded が読む旗が、入っている Harbor の harbor run に在り、inf を読める浮動小数の旗か。Harbor は CI に入れないので、
+    uv run --isolated --extra bench で入れた環境でだけ照らす"""
+
+    def test_unbounded_reads_flags_harbor_run_defines(self):
+        done = subprocess.run([sys.executable, "-c", HARBOR_RUN_FLAGS], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, f"入っている Harbor の harbor run の旗を読めない:\n{done.stderr}")
+        flags = json.loads(done.stdout)
+        if not flags:
+            self.skipTest("Harbor が入っていない（uv run --isolated --extra bench で入る）")
+        for flag in (swepro.AGENT_MULTIPLIER, swepro.MULTIPLIER):
+            with self.subTest(flag=flag):
+                self.assertEqual(flags.get(flag), "float", f"harbor run に浮動小数の旗 {flag} が無い")
+
+
 class StoppedTest(unittest.TestCase):
     def test_paused_and_human_kinds_are_stopped(self):
         self.assertTrue(swepro.stopped("paused", ""))
@@ -249,6 +278,26 @@ class InsideTest(unittest.TestCase):
                 self.assertIn(word, result["error"])
                 predicted = self.predicted(result)
                 self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
+
+    def test_empty_or_unknown_factory_outcome_is_a_failed_producer(self):
+        for word in ("", "made_up"):
+            with self.subTest(outcome=word):
+                self.assertNotIn(word, swepro.report.OUTCOME_KINDS)
+                shutil.rmtree(self.place / "attempt", ignore_errors=True)
+                self.secret()
+                self.set_plan(outcome=word)
+                done, result = self.inside()
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertEqual(result["state"], runner.DONE)
+                self.assertIn("OUTCOME_KINDS", result["error"])
+                self.assertIn(word or "（空）", result["error"])
+                predicted = self.predicted(result)
+                self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
+
+    def test_every_known_outcome_but_broke_is_no_failure(self):
+        for word in swepro.report.OUTCOME_KINDS:
+            with self.subTest(outcome=word):
+                self.assertEqual(swepro.broken_outcome(RUN_ID, word) is not None, word in swepro.BROKE)
 
     def test_needs_human_before_seal_gives_empty_patch(self):
         self.set_plan(outcome="needs_human")
