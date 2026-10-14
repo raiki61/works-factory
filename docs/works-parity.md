@@ -878,8 +878,8 @@
 - S114 無人の run は起動の承認ノードを越え、人が決める承認ノードに着いたら開かずに止めて報告へ進む（狭める・方針とぶつかる修正は通さない）
   - 元: SKILL.md:94
   - 印: `policy-gate`
-  - 今: `workflows/line/scripts/start.py::start`（ask: not unattended）・`workflows/line/scripts/ask_before_fix.py::ask`・`lib/gatepolicy.py::unattended`
-  - 状態: 在る
+  - 今: `workflows/line/scripts/start.py::start`（ask: not unattended）・`workflows/line/scripts/ask_before_fix.py::ask`・`lib/gatepolicy.py::unattended`・`lib/gatemarks.py::pushed_answer`
+  - 状態: 形を変えて在る（承認ノードに載る項目の全部が通す推しを持てば、止まらずに推しで進む。持ち主の決め `unattended` の 2026-10-15）
   - 旧棚卸し: L-G10・L-G39・L-G40・L-W39
 
 - S115 無人の run は判定の保留の問いだけでは承認ノードを開かず、問いの出どころだけを飛ばして直し、問いを報告の冒頭に並べる
@@ -1041,7 +1041,7 @@
   - 印: `answer`
   - 今: `lib/answer.py::taken`（一言は字のまま run の置き場の gates/<承認ノード>.json に残る）。答えた者を付ける所と answers.jsonl は無し
   - 状態: 形を変えて在る（一言は残るが、誰が答えたかの記録が無い）
-  - 処置: #511
+  - 処置: 要らない: 持ち主の決め `answerer-unnamed`（答えた者の名は残さない。一言は Archon の run の記録が持つ）
   - 旧棚卸し: L-E50・L-G04・L-G08
 
 - S136 答えた者が無いか空白だけなら殻が答えを拒む
@@ -1049,7 +1049,7 @@
   - 印: `answer`
   - 今: 無し（Archon の `workflow respond` は一言の中身を見ない）
   - 状態: 無い
-  - 処置: #511
+  - 処置: 要らない: 持ち主の決め `answerer-unnamed`（答えた者の名は残さない。一言は Archon の run の記録が持つ）
   - 旧棚卸し: L-E50
 
 - S137 起動の承認ノード `launch` は「進める」の行で始まる（止めるなら stop）
@@ -1826,7 +1826,7 @@
   - 元: use.sh:1226-1233
   - 印: `WORKS_USE_UNATTENDED`
   - 今: `workflows/line/scripts/ask_before_fix.py::ask`・`workflows/line/scripts/ask_replan.py::ask`・`workflows/line/scripts/ask_final.py::ask`（works:needs-human の印で止める）
-  - 状態: 形を変えて在る（殻の respond stop でなく、メイングラフが承認ノードを開かずに止める）
+  - 状態: 形を変えて在る（殻の respond stop でなく、メイングラフが承認ノードを開かずに止める。修正の前と案の直しは、項目の全部が通す推しを持てば推しで進む。持ち主の決め `unattended` の 2026-10-15）
   - 旧棚卸し: L-G39
 
 - U027 無人の run の後に、承認ノードの項目と保留の問いへの答えの下書きが、次の依頼の下書き（next-request.json）の answers に在ると案内する
@@ -2078,7 +2078,7 @@
   - 印: `WORKS_ANSWER_WHO`
   - 今: 無し（`lib/answer.py::line` は答えた者を付けない）
   - 状態: 無い
-  - 処置: #511
+  - 処置: 要らない: 持ち主の決め `answerer-unnamed`（答えた者の名は残さない。一言は Archon の run の記録が持つ）
   - 旧棚卸し: L-E50・L-G08
 
 - U061 対象が /private/tmp の下なら拒む
@@ -2562,7 +2562,7 @@
   - 印: `answer`・`use.sh:913`
   - 今: 無し（Archon の `workflow respond` は答えた者を持たない）
   - 状態: 無い
-  - 処置: #511
+  - 処置: 要らない: 持ち主の決め `answerer-unnamed`（答えた者の名は残さない。一言は Archon の run の記録が持つ）
   - 旧棚卸し: L-E50
 
 - U126 答え（時刻・run・対象・語・一言・答えた者）を家の answers.jsonl に 1 行ずつ残す
@@ -2570,7 +2570,7 @@
   - 印: `answer`
   - 今: `lib/answer.py::taken`（run の置き場の承認ノードごとのファイルに語・一言・問いを残す）・Archon の run の出来事の記録
   - 状態: 形を変えて在る（run ごとの置き場に残る。答えた者と、家をまたぐ 1 本の記録が無い）
-  - 処置: #511
+  - 処置: 要らない: 持ち主の決め `answerer-unnamed`（答えた者の名は残さない。一言は Archon の run の記録が持つ）
   - 旧棚卸し: L-G04
 
 - U127 answer・approve は残りの処理を切り離して回し、wait の行を出して終わる
@@ -3030,14 +3030,13 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 183
-- 状態 形を変えて在る: 173
+- 状態 在る: 182
+- 状態 形を変えて在る: 174
 - 状態 無い: 49
 - 処置 #509: 5
-- 処置 #511: 5
 - 処置 #516: 4
 - 処置 戻した: 10
-- 処置 要らない: 102
+- 処置 要らない: 107
 - 無い行: S001・S008・S023・S080・S100・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U033・U034・U040・U046・U056・U057・U058・U060・U064・U074・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
 
 ## 前の棚卸しの今
@@ -3556,7 +3555,7 @@
 - line.md L-G37: 報告は lib/runreport.py::_decisions。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.answered_lines・unmatched_answer_lines）→ question_lines
 - line.md L-G38: workflows/line/scripts/ask_before_fix.py::ask（無人の run は種類 fork・escalate の行だけを deferred にする）
 - line.md L-G39: workflows/line/scripts/ask_before_fix.py::ask・workflows/line/scripts/ask_replan.py::ask・workflows/line/scripts/ask_final.py::ask の `works:needs-human`
-- line.md L-G40: workflows/line/scripts/ask_before_fix.py::ask: 事前審査の出力 questions の行 {kind, text}（plan-review が種類を残す。lib/boardview.py::collect）のうち fork・escalate でない行（方針の文書の変化・事前審査の諦め given_up・狭め・穴・世界の解の外れ・設計）は無人の run で止める
+- line.md L-G40: workflows/line/scripts/ask_before_fix.py::ask: 事前審査の出力 questions の行 {kind, text}（plan-review が種類を残す。lib/boardview.py::collect）のうち fork・escalate でない行（方針の文書の変化・事前審査の諦め given_up・狭め・穴・世界の解の外れ・設計）は無人の run で止める（全部が通す推しを持てば lib/gatemarks.py::pushed_answer で推しで進む）
 - line.md L-G41: lib/runreport.py::answer_drafts・lib/runreport.py::build
 - line.md L-G42: lib/gatemarks.py::recommend_gaps
 - line.md L-G43: workflows/line/scripts/ask_replan.py::ask
