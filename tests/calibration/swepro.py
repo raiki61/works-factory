@@ -1,9 +1,10 @@
 """公開ベンチ SWE-Bench Pro V2 の Python の課題（ansible・openlibrary・qutebrowser）で、依頼から直す力を課題のコンテナの中で測る
 （運び役が命令として打つ道具。試験のモジュールではない）。持ち主の決め public-bench-at-major（docs/owner-decisions.md）。
 Harbor を import しない。Harbor の agent の殻は tests/calibration/swepro_agent.py の WorksBench で、ホストと課題のコンテナの両方で
-このファイルが走る（コンテナへはリポジトリの git archive HEAD の写しとして届く）。
+このファイルが走る（コンテナへはリポジトリの git archive HEAD の写しとして、prepare が派生のイメージに焼いて届ける）。
 
-    PYTHONPATH=<リポジトリの根> uv run --isolated --extra bench harbor run -p <SWE-Bench Pro の v2/tasks> -i <instance_id> … \\
+    python3 tests/calibration/swepro.py prepare <SWE-Bench Pro の v2/tasks> <リポジトリの外の写しの置き場> <instance_id>…
+    PYTHONPATH=<リポジトリの根> uv run --isolated --extra bench harbor run -p <写しの置き場> -i <instance_id> … \\
         -e docker -a tests.calibration.swepro_agent:WorksBench --ak producer=<works-factory|claude> \\
         --allow-agent-host api.anthropic.com --agent-timeout-multiplier inf -o <リポジトリの外の置き場> --job-name <名>
     python3 tests/calibration/swepro.py tally <置き場>/<名>
@@ -15,11 +16,19 @@ Harbor を import しない。Harbor の agent の殻は tests/calibration/swepr
 claude（素の Claude Code を run.PLAIN_MODEL・run.PLAIN_EFFORT で claude -p 1 回。Pro の公開の手順と同じく instruction だけを渡す）。
 今の works は回さない（#437 の運び役の決め。訳は OLD_WORKS）。
 
-1 件の流れ: 殻が setup で課題のイメージの上の /opt/works-bench に道具と工場を載せ（setup_commands）、run で課題の入力
+1 件の流れ: prepare がホストの docker build で、課題のイメージの上の /opt/works-bench に道具と HEAD の工場の写しを焼いた
+派生のイメージ works-bench-swepro:<instance_id> を作り（dockerfile・build_steps。網が要る段は全部ここ）、課題のフォルダの写しの
+docker_image をそれに替える。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
+（工場の commit と Claude Code の版がホストと同じか）と bwrap を確かめるだけで網を使わず（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら終わった run の封じた差分を
 bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json に書く。殻は /app の差分を model.patch に取り
-（capture_command）、起こし役の標準出力と予測を <試み>/agent/ に書く（prediction）。tally は job の予測を数える。
+（capture_command）、起こし役の標準出力と予測を <試み>/agent/ に書く（prediction）。tally は job の予測と、試行の result.json の
+例外を数え、全部の試行が例外（または試行が 1 つも無い）なら落ちを名指して 0 でない値で終わる。
+
+Apple silicon の上の docker: 課題のイメージは linux/amd64 だけなので、prepare は docker pull と docker build に
+--platform linux/amd64 を付ける。DOCKER_DEFAULT_PLATFORM は付けない（Harbor の egress の付き添いは daemon の素の型で build され、
+amd64 を強いると立たない）。docker の CLI に compose の差し込み（docker compose）が要る。
 
 - 無人の run が人に聞いて止まった（承認ノードで待った・結末の種が chain.KIND_HUMAN）時は stopped を立てる。封じた差分が在れば
   --allow-stopped で当て、封じる前に止まった run は当てずに空の patch（未解決）として数える。run を resume しない。
@@ -48,6 +57,8 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
+import tomllib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -78,8 +89,10 @@ INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
 # 工場そのものが壊れて終わった結末（記録が読めない・節が落ちて線が進まなかった）。人を待っていないので stopped に入れない
 BROKE = ("record_invalid", "interrupted")
-REPO_TAR, REPO_STEP = "repo.tar", "repo"
+REPO_TAR, REPO_STEP, STAMP = "repo.tar", "repo", "stamp"
 UV_VERSION, BUN_VERSION = "0.11.29", "1.4.3"
+DERIVED = "works-bench-swepro"
+PLATFORM = "linux/amd64"   # 課題のイメージは linux/amd64 だけ
 INSTANCE = re.compile(r"^instance_(.+?)__(.+?)-[0-9a-f]{40}")
 # 各リポジトリの課題の tests/run_script.sh の run_all_tests で一番多い形。課題ごとの隠した試験の名は含めない。工場は test_cmd を
 # Archon の作業ツリーの根で走らせるので、パスは相対にする
@@ -113,12 +126,17 @@ def repo_of(instance_id: str) -> str:
     return f"{found[1]}/{found[2]}"
 
 
-def task_inputs(instruction: str, image: str) -> dict:
-    """依頼の行は 1 つ。where にパスを書かない（変わるファイルは正解の patch にしか無く、書けば答えを漏らす）"""
-    instance_id = instance_of(image)
+def bench_repo(instance_id: str) -> str:
     repo = repo_of(instance_id)
     if repo not in TEST_COMMANDS:
         raise BenchError(f"{repo} の課題は回さない。SWE-Bench Pro V2 は Python の 3 リポジトリ（{' '.join(TEST_COMMANDS)}）だけを回す")
+    return repo
+
+
+def task_inputs(instruction: str, image: str) -> dict:
+    """依頼の行は 1 つ。where にパスを書かない（変わるファイルは正解の patch にしか無く、書けば答えを漏らす）"""
+    instance_id = instance_of(image)
+    repo = bench_repo(instance_id)
     return {"instance_id": instance_id, "repo": repo, "request": [{"where": f"SWE-Bench Pro V2 {instance_id}", "text": instruction}],
             "test_cmd": TEST_COMMANDS[repo]}
 
@@ -129,13 +147,14 @@ def _paths(place: str) -> dict:
 
 
 def tool_env(place: str) -> str:
-    """setup の命令の頭の env の字。課題の道具を PATH の先に置き、工場の道具を後ろに足す"""
+    """build の段の命令の頭の env の字。課題の道具を PATH の先に置き、工場の道具を後ろに足す"""
     p = _paths(place)
     return f'HOME={p["home"]} PATH="$PATH:{p["bin"]}:{p["bun"]}/bin" UV_PYTHON_INSTALL_DIR={p["python"]}'
 
 
-def setup_commands(claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:
-    """(名, 命令)。殻が順に root で打つ。名 REPO_STEP の前に、殻が工場の写し <place>/repo.tar を上げる"""
+def build_steps(claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:
+    """(名, 命令)。派生のイメージの build の段で順に root で打つ（網が要る）。名 REPO_STEP の前に、Dockerfile の COPY が
+    工場の写し <place>/repo.tar を置く"""
     p, env = _paths(place), tool_env(place)
     packages = "ca-certificates curl git bubblewrap socat procps unzip"
     archive = ("sed -i -e 's|deb.debian.org/debian-security|archive.debian.org/debian-security|g' "
@@ -160,11 +179,55 @@ def setup_commands(claude_version: str, place: str = PLACE) -> list[tuple[str, s
         ("claude", f"curl -fsSL https://downloads.claude.ai/claude-code-releases/bootstrap.sh | bash -s {shlex.quote(claude_version)} "
                    f"&& ln -sf /root/.local/bin/claude {p['bin']}/claude && {p['bin']}/claude --version"),
         (REPO_STEP, f"mkdir -p {place}/repo && tar -xf {place}/{REPO_TAR} -C {place}/repo && rm -f {place}/{REPO_TAR}"),
-        # 殻は命令に依らず先に Archon の源を取り置く（止めた commit の clone と bun install）。網の開いた setup で済ませる
+        # 殻は命令に依らず先に Archon の源を取り置く（止めた commit の clone と bun install）。網の開いた build の段で済ませる
         ("archon", f"cd {p['home']} && env {env} WORKS_FACTORY_NO_AUTH=1 {p['bin']}/python3.12 {place}/repo/bin/works-factory version"),
         # bin/_lib/toolset.py の install は借りるプラグインが利用者の installed_plugins.json に無いと止まる
         ("plugin", " && ".join(f"cd {p['home']} && env {env} claude plugin marketplace add {repo} "
                                f"&& env {env} claude plugin install {name}@{market}" for name, market, repo in plugins)),
+    ]
+
+
+def head_commit() -> str:
+    return subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True,
+                          encoding="utf-8", check=True).stdout.strip()
+
+
+def host_claude_version(env) -> str | None:
+    """ホストの claude --version の版の語。コンテナにはホストと同じ版の Claude Code を焼く"""
+    version = run._claude_version(launcher.real_claude(env))
+    return version.split()[0] if version else None
+
+
+def stamp(factory_commit: str, claude_version: str) -> str:
+    return f"{factory_commit} {claude_version}"
+
+
+def derived_image(instance_id: str) -> str:
+    """tag を instance_id のまま保つので、殻の task_inputs は派生のイメージからも同じ instance_id を読む"""
+    return f"{DERIVED}:{instance_id}"
+
+
+def dockerfile(base_image: str, claude_version: str, factory_commit: str, place: str = PLACE) -> str:
+    """課題のイメージの上に道具と工場の写しを焼く。ENV・WORKDIR・USER・ENTRYPOINT・CMD を書かない（課題の実行時の形と
+    検証役が見る PATH を変えない）。RUN は Harbor の docker の exec と同じ sh -c を exec 形で書き、字の引用を崩さない"""
+    lines = [f"FROM {base_image}"]
+    for name, command in build_steps(claude_version, place):
+        lines.append(f"RUN {json.dumps(['/bin/sh', '-c', command], ensure_ascii=False)}")
+        if name == "place":
+            lines.append(f"COPY {REPO_TAR} {place}/{REPO_TAR}")
+    marked = f"printf '%s\\n' {shlex.quote(stamp(factory_commit, claude_version))} > {place}/{STAMP}"
+    lines.append(f"RUN {json.dumps(['/bin/sh', '-c', marked], ensure_ascii=False)}")
+    return "\n".join(lines) + "\n"
+
+
+def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:
+    """(名, 命令)。殻が setup で順に root で打つ。どれも網を使わない（道具と工場は prepare が build の段で焼いた）"""
+    missing = (f"課題のイメージに工場 {factory_commit} と Claude Code {claude_version} の焼き印が無い。"
+               "swepro.py prepare で派生のイメージを作り直し、harbor run -p にその写しを渡す")
+    return [
+        # 測る物と来歴の factory_commit、コンテナとホストの Claude Code の版を一致させる
+        ("stamp", f"test \"$(cat {place}/{STAMP} 2>/dev/null)\" = {shlex.quote(stamp(factory_commit, claude_version))} "
+                  f"|| {{ echo {shlex.quote(missing)} >&2; exit 1; }}"),
         # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす
         ("sandbox", "bwrap --ro-bind / / --unshare-user --unshare-net true "
                     "|| { echo 'Claude Code の sandbox（bwrap）がコンテナで立たない' >&2; exit 1; }"),
@@ -205,6 +268,58 @@ def capture_command(workdir: str, out: str) -> str:
     w, o = shlex.quote(workdir), shlex.quote(out)
     return (f"mkdir -p {o} && cd {w} && git add -A && git diff --cached > {o}/{PATCH} || {{ rm -f {o}/{PATCH}; failed=1; }}; "
             f"git -C {w} reset -q; exit ${{failed:-0}}")
+
+
+# ---------------------------------------------------------------- 運び役が打つ派生のイメージの build
+def rewrite_image(text: str, old: str, new: str) -> str:
+    """task.toml の字の docker_image の行を替える（tomllib は書けない）。行がちょうど 1 つでなければ断る"""
+    line = re.compile(rf'^docker_image = "{re.escape(old)}"$', re.MULTILINE)
+    found = len(line.findall(text))
+    if found != 1:
+        raise BenchError(f'task.toml に行 docker_image = "{old}" が {found} 個ある（1 個だけを替える）')
+    return line.sub(f'docker_image = "{new}"', text)
+
+
+def _task_image(task: Path, instance_id: str) -> str:
+    try:
+        image = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))["environment"]["docker_image"]
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, KeyError, TypeError) as e:
+        raise BenchError(f"課題 {task} の task.toml の [environment] docker_image を読めない: {e}") from None
+    if not isinstance(image, str) or instance_of(image) != instance_id:
+        raise BenchError(f"課題のフォルダ {task.name} と task.toml の docker_image {image} の instance_id が違う")
+    bench_repo(instance_id)
+    return image
+
+
+def _docker(instance_id: str, *args: str):
+    if subprocess.run(["docker", *args]).returncode:
+        raise BenchError(f"{instance_id} の docker {args[0]} が落ちた")
+
+
+def prepare(tasks: Path, out: Path, instances: list[str]) -> list[str]:
+    """課題ごとに、課題のイメージの上に道具と HEAD の工場の写しを焼いた派生のイメージを build し、課題のフォルダを out に写して
+    写しの docker_image を派生のイメージに替える。作った派生のイメージの名を返す。docker を打つ前に全部の課題を確かめる"""
+    images = {instance_id: _task_image(tasks / instance_id, instance_id) for instance_id in instances}
+    claude_version = host_claude_version(os.environ)
+    if not claude_version:
+        raise BenchError("ホストの claude --version が読めない（コンテナにはホストと同じ版の Claude Code を焼く）")
+    factory_commit = head_commit()
+    made = []
+    with tempfile.TemporaryDirectory(prefix="works-bench-") as tmp:
+        context = Path(tmp)
+        subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", "-o", str(context / REPO_TAR), factory_commit],
+                       check=True)
+        for instance_id, image in images.items():
+            derived = derived_image(instance_id)
+            _docker(instance_id, "pull", "--platform", PLATFORM, image)
+            (context / "Dockerfile").write_text(dockerfile(image, claude_version, factory_commit), encoding="utf-8")
+            _docker(instance_id, "build", "--platform", PLATFORM, "-t", derived, str(context))
+            copy = out / instance_id
+            shutil.copytree(tasks / instance_id, copy, dirs_exist_ok=True)
+            toml = copy / "task.toml"
+            toml.write_text(rewrite_image(toml.read_text(encoding="utf-8"), image, derived), encoding="utf-8")
+            made.append(derived)
+    return made
 
 
 # ---------------------------------------------------------------- コンテナの中の起こし役
@@ -386,28 +501,59 @@ def prediction(instance_id: str, producer: str, patch: str | None, result: dict 
             "provenance": {**(got.get("provenance") or {}), "factory_commit": factory_commit}}
 
 
+def _read_object(path: Path, what: str) -> dict:
+    try:
+        row = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise BenchError(f"{what} {path} を読めない: {e}") from None
+    if not isinstance(row, dict):
+        raise BenchError(f"{what} {path} が object でない")
+    return row
+
+
+def trial_exceptions(job: Path) -> tuple[int, list[dict]]:
+    """(試行の数, 例外で終わった試行)。Harbor の試行の result.json の exception_info が object なら例外"""
+    trials, raised = 0, []
+    for path in sorted(job.glob("*/result.json")):
+        trials += 1
+        info = _read_object(path, "試行の結果").get("exception_info")
+        if isinstance(info, dict):
+            raised.append({"trial": path.parent.name,
+                           "exception": f"{info.get('exception_type')}: {apply.one_line(str(info.get('exception_message') or ''))}",
+                           "predicted": (path.parent / "agent" / PREDICTION).is_file()})
+    return trials, raised
+
+
 def tally(job: Path) -> dict:
-    rows = []
-    for path in sorted(job.glob(f"*/agent/{PREDICTION}")):
-        try:
-            row = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
-            raise BenchError(f"予測 {path} を読めない: {e}") from None
-        if not isinstance(row, dict):
-            raise BenchError(f"予測 {path} が object でない")
-        rows.append(row)
+    rows = [_read_object(path, "予測") for path in sorted(job.glob(f"*/agent/{PREDICTION}"))]
+    trials, raised = trial_exceptions(job)
     usd = [r["usd"] for r in rows if run._number(r.get("usd")) is not None]
+    # 予測の在る例外の試行は、殻が作り手の落ちを予測に書いてから投げた物で、failed に既に入っている
     return {"producers": sorted({str(r.get("producer")) for r in rows}), "tasks": len(rows),
-            "stopped": sum(bool(r.get("stopped")) for r in rows), "failed": sum(bool(r.get("failed")) for r in rows),
+            "stopped": sum(bool(r.get("stopped")) for r in rows),
+            "failed": sum(bool(r.get("failed")) for r in rows) + sum(not r["predicted"] for r in raised),
             "over_pro_limit": sum((r.get("pro_limit") or {}).get("over") is True for r in rows),
             "empty_patch": sum(isinstance(r.get("model_patch"), str) and not r["model_patch"].strip() for r in rows),
             "unmeasured_seconds": sum(r.get("seconds") is None for r in rows),
-            "usd": round(sum(usd), 6), "usd_missing": len(rows) - len(usd)}
+            "usd": round(sum(usd), 6), "usd_missing": len(rows) - len(usd), "trials": trials, "exceptions": raised}
+
+
+def silent_failure(job: Path, counted: dict) -> str:
+    """数えた job が 1 件も測れていない訳。測れていれば空の字"""
+    if counted["trials"] and len(counted["exceptions"]) == counted["trials"]:
+        return f"全 {counted['trials']} 試行が例外で終わった"
+    if not counted["trials"] and not counted["tasks"]:
+        return f"job {job} に試行も予測も無い"
+    return ""
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="SWE-Bench Pro V2 の Python の課題を課題のコンテナの中で回す")
     sub = parser.add_subparsers(dest="command", required=True)
+    built = sub.add_parser("prepare")
+    built.add_argument("tasks", type=Path)
+    built.add_argument("out", type=Path)
+    built.add_argument("instances", nargs="+")
     driven = sub.add_parser("inside")
     driven.add_argument("producer", choices=sorted(PRODUCERS))
     driven.add_argument("--workdir", default=WORKDIR)
@@ -419,9 +565,19 @@ def main(argv=None) -> int:
     if args.command == "inside":
         return inside(args)
     try:
-        print(json.dumps(tally(args.job), ensure_ascii=False))
+        if args.command == "prepare":
+            print("\n".join(prepare(args.tasks, args.out, args.instances)))
+            return run.OK
+        got = tally(args.job)
     except BenchError as e:
         print(f"swepro.py: {e}", file=sys.stderr)
+        return run.STOPPED
+    print(json.dumps(got, ensure_ascii=False))
+    why = silent_failure(args.job, got)
+    if why:
+        print(f"swepro.py: {why}", file=sys.stderr)
+        for raised in got["exceptions"]:
+            print(f"  {raised['trial']}: {raised['exception']}", file=sys.stderr)
         return run.STOPPED
     return run.OK
 
