@@ -2499,6 +2499,15 @@ class DepthSkipCase(RunCase):
         self.assertTrue(got["ask_human"])
         self.assertEqual([q["kind"] for q in got["questions"]], ["regression"], got["questions"])
 
+    def test_eyes_head_says_the_skipped_round_was_not_reviewed(self):
+        """独立の目の頭の事前審査の行は、飛ばした周を通したと言わず、審査していないと言う（飛ばした事前審査の代わりの目が読む）"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)])
+        r.out("pass_open", INPUTS_DEPTH_SKIP="true", INPUTS_DEPTH_WHY="全部の単位が軽量")
+        r.out("result")
+        self.assertEqual(eyeverdict.plan_review_line(r.folder, r.art / "plan/r1/plan-fields.json"),
+                         eyeverdict.REVIEW_UNREAD.format(why=eyeverdict.REVIEW_DEPTH_SKIPPED))
+
     def test_reads_do_not_look_for_the_role(self):
         r = self.run_
         r.out("pass_open", INPUTS_DEPTH_SKIP="true")

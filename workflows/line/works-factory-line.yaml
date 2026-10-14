@@ -248,7 +248,8 @@ nodes:
             conflicts: null
             prior_failures: "$start.output.prior_failures"
 
-        # run の頭の深さが軽量で、計画の単位が全部軽量なら、事前審査の輪を飛ばす（docs/design.md の「深さで飛ばすノードの表」）
+        # run の頭の深さが軽量で、計画の単位が全部軽量で、前の周の事前審査が無いなら、事前審査の輪を飛ばす
+        # （docs/design.md の「深さで飛ばすノードの表」）
         - id: plan-review-due
           script: plan_review_due
           runtime: uv
@@ -266,6 +267,7 @@ nodes:
             head_depth: "$judge.output.depth"
             ready: "$plan.output.ready"
             plan_depth: "$plan.output.depth"
+            prior_review: "$LOOP_PREV.plan-out.output.review"
 
         - id: plan-review-run
           include: works-factory-plan-review

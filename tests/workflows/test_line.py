@@ -51,11 +51,13 @@ import converge  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import headdepth  # noqa: E402
 import judge_accept  # noqa: E402
 import planfile  # noqa: E402
 import policy  # noqa: E402
 import querytest  # noqa: E402
 import replan  # noqa: E402
+import runreport  # noqa: E402
 import seal  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
@@ -1566,28 +1568,51 @@ class PlanOutCase(unittest.TestCase):
 
 
 class PlanReviewDueCase(unittest.TestCase):
-    """往復の 1 周で事前審査の輪を飛ばすか（issue #441。中身は lib/headdepth.due）: 頭も単位も軽量の時だけ飛ばし、単位に標準が在れば上げた訳を返す"""
+    """往復の 1 周で事前審査の輪を飛ばすか（issue #441。中身は lib/headdepth.due）: 頭も単位も軽量で前の周の事前審査が無い時だけ
+    飛ばし、単位に標準が在るか前の周の事前審査が案を止めていれば上げた訳を返す"""
 
     LIGHT = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
+    REVIEW = {"type": "archon_artifact", "run_id": "r", "path": "plan-review/review.json"}
 
     def test_light_head_and_light_units_skip_the_review_loop(self):
-        got = plan_review_due.plan_review_due("軽量", True, self.LIGHT)
+        got = plan_review_due.plan_review_due("軽量", True, self.LIGHT, None)
         self.assertIs(got["skip"], True)
         self.assertTrue(got["why"])
 
     def test_a_standard_unit_raises_and_runs_the_loop(self):
-        got = plan_review_due.plan_review_due("軽量", True, [*self.LIGHT, {"unit_id": "u2", "depth": "標準", "why": "w"}])
+        got = plan_review_due.plan_review_due("軽量", True, [*self.LIGHT, {"unit_id": "u2", "depth": "標準", "why": "w"}], None)
         self.assertEqual((got["skip"], got["why"]), (False, "計画の単位がすべて軽量ではない"))
 
+    def test_raised_round_stays_raised_when_the_next_plan_is_all_light(self):
+        """1 周目は単位に標準が在って事前審査が走り案を止めた。2 周目の案の単位が全部軽量でも、止めた穴を事前審査が見直す"""
+        first = plan_review_due.plan_review_due("軽量", True, [*self.LIGHT, {"unit_id": "u2", "depth": "標準", "why": "w"}], None)
+        self.assertIs(first["skip"], False)
+        prior = plan_out.plan_out({**{k: None for k in (*plan_out.PLAN, *plan_out.REVIEW)}, "ready": True, "pass": False,
+                                   "stalled": False, "round": 1, "review": self.REVIEW,
+                                   "depth_skip": first["skip"], "depth_why": first["why"]}, 20)
+        self.assertIs(prior["done"], False)
+        second = plan_review_due.plan_review_due("軽量", True, self.LIGHT, prior["review"])
+        self.assertEqual((second["skip"], second["why"]), (False, headdepth.PRIOR_REVIEWED))
+
     def test_standard_head_never_skips(self):
-        got = plan_review_due.plan_review_due("標準", True, self.LIGHT)
+        got = plan_review_due.plan_review_due("標準", True, self.LIGHT, None)
         self.assertEqual((got["skip"], got["why"]), (False, ""))
 
+    def test_a_fall_runs_the_loop_and_says_why_in_the_report(self):
+        """落ちた時は飛ばさず、訳が報告の 1 行に上げた訳として出る（飛ばす物が無かった run と見分ける）"""
+        got = plan_review_due.fallback("ImportError: no headdepth")
+        self.assertEqual((got["skip"], got["stop_reason"]), (False, "works:line-script"))
+        self.assertEqual(headdepth.report_line("軽量", "根拠", got["skip"], got["why"]),
+                         "run の頭の深さ: 軽量 → 標準へ上げた（事前審査を飛ばすかの判断が落ちた（ImportError: no headdepth））"
+                         "／飛ばしたノード: 無い")
+
     def test_wiring(self):
-        """頭の深さ・計画ができたか・単位ごとの深さを受け、事前審査の差し込みに飛ばすかと訳を渡し、往復の返しの節が報告と目に運ぶ"""
+        """頭の深さ・計画ができたか・単位ごとの深さ・前の周の事前審査を受け、事前審査の差し込みに飛ばすかと訳を渡し、往復の返しの節が
+        報告と目に運ぶ"""
         nodes = line_nodes()
         self.assertEqual(nodes["plan-review-due"]["with"], {"head_depth": "$judge.output.depth", "ready": "$plan.output.ready",
-                                                            "plan_depth": "$plan.output.depth"})
+                                                            "plan_depth": "$plan.output.depth",
+                                                            "prior_review": "$LOOP_PREV.plan-out.output.review"})
         run = nodes["plan-review-run"]
         self.assertIn("plan-review-due", run["depends_on"])
         self.assertEqual((run["with"]["depth_skip"], run["with"]["depth_why"]),
@@ -2100,10 +2125,19 @@ class CollectAndResultCase(unittest.TestCase):
         （works/darkfactory/darkfactory.yaml 347・445・946・1124・1196 行）"""
         declared = json.loads(line_nodes()["collect"]["with"]["optional"])
         self.assertEqual(collect.collect({}, self.line(optional=json.dumps(declared)))["optional"], declared)
-        for stage in ("judge__world", "plan__structure", "fix__lens", "eyes__"):
+        for stage in ("judge__world", "plan__structure", "fix__lens", "eyes__", "judge__head-depth", "head-depth"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
+
+    def test_head_depth_fall_is_absorbed(self):
+        """頭の深さの役が落ちても判定は標準で進む（judge_accept.head_depth）ので、報告は run を途中で終わった物と数えない"""
+        rows = [{"step": "judge__head-depth-loop", "type": "node_start", "ts": "2026-10-14T00:00:00Z"},
+                {"step": "judge__head-depth-loop", "type": "node_error", "ts": "2026-10-14T00:01:00Z", "error": "役が落ちた"},
+                {"step": "judge__verdict", "type": "node_start", "ts": "2026-10-14T00:02:00Z"},
+                {"step": "judge__verdict", "type": "node_complete", "ts": "2026-10-14T00:03:00Z"}]
+        facts = runreport.transcript_facts(rows, optional=json.loads(line_nodes()["collect"]["with"]["optional"]))
+        self.assertEqual((facts["failed"], facts["absorbed"]), ([], [{"node": "judge__head-depth-loop", "error": "役が落ちた"}]))
 
     def test_result_carries_what_apply_reads(self):
         """線の返りの欄 apply・sealed・r2_status・final_answer（bin/apply と段 1 が読む）は collect が集めた返りから組み、飛ばされた段は

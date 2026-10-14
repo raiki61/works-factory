@@ -2,8 +2,8 @@
 
 見る物:
 - 役を起こす前の機械の止め 5 つ（thickness の名指し・仕様の段・設計だけ・依頼の行が無い・試験のコマンドが無い）
-- 引用の照らし（行の抜け・2 度指し・依頼に無い引用・無いファイル・範囲の外・コードに無い引用・why が空）
-- 計画の往復の 1 周で事前審査を飛ばすか（頭が標準なら飛ばさない・単位に標準が在れば上げる・全部軽量で飛ばす）
+- 引用の照らし（行の抜け・2 度指し・依頼に無い引用・無いファイル・範囲の外・.git の中・コードに無い引用・why が空）
+- 計画の往復の 1 周で事前審査を飛ばすか（頭が標準なら飛ばさない・単位に標準が在れば上げる・前の周の事前審査が在れば上げる・全部軽量で飛ばす）
 - 控えが無い・壊れた時は標準
 - 報告の 1 行の 3 つの形
 """
@@ -32,6 +32,7 @@ class Repo(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.repo = pathlib.Path(tmp.name)
         (self.repo / "stats.py").write_text("def mean(xs):\n    return sum(xs) / len(xs)\n", encoding="utf-8")
+        (self.repo / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
 
 
 class GateTest(Repo):
@@ -59,8 +60,10 @@ class GateTest(Repo):
                 self.assertTrue(why)
 
     def test_facts_measure_the_place(self):
-        f = headdepth.facts([*ROWS, {"where": "stats.py:9", "text": "x"}, {"where": "nope.py", "text": "y"}], START, self.repo)
-        self.assertEqual([(it["path_ok"], it["lines_ok"]) for it in f["items"]], [(True, True), (True, False), (False, False)])
+        f = headdepth.facts([*ROWS, {"where": "stats.py:9", "text": "x"}, {"where": "nope.py", "text": "y"},
+                             {"where": ".git", "text": "z"}], START, self.repo)
+        self.assertEqual([(it["path_ok"], it["lines_ok"]) for it in f["items"]],
+                         [(True, True), (True, False), (False, False), (False, False)])
         self.assertIn("行 3: y", headdepth.brief(f))
 
 
@@ -87,6 +90,7 @@ class CheckTest(Repo):
                                   ("outside the file", self.item(where="stats.py:2-9"), ROWS),
                                   ("no line", self.item(where="stats.py"), ROWS),
                                   ("escapes the root", self.item(where="../stats.py:1"), ROWS),
+                                  ("inside .git", self.item(where=".git:1", code_quote="gitdir:"), ROWS),
                                   ("code not in lines", self.item(code_quote="return 0"), ROWS),
                                   ("unknown depth", {**LIGHT_REPLY, "depth": "重厚"}, ROWS)):
             with self.subTest(name):
@@ -97,21 +101,26 @@ class DueTest(unittest.TestCase):
     LIGHT_UNITS = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
 
     def test_standard_head_never_skips(self):
-        self.assertEqual(headdepth.due("標準", True, self.LIGHT_UNITS), {"skip": False, "why": ""})
+        self.assertEqual(headdepth.due("標準", True, self.LIGHT_UNITS, None), {"skip": False, "why": ""})
 
     def test_no_plan_never_skips(self):
-        self.assertFalse(headdepth.due("軽量", False, self.LIGHT_UNITS)["skip"])
+        self.assertFalse(headdepth.due("軽量", False, self.LIGHT_UNITS, None)["skip"])
 
     def test_a_standard_unit_raises(self):
-        got = headdepth.due("軽量", True, [*self.LIGHT_UNITS, {"unit_id": "u2", "depth": "標準", "why": "触るファイルが 5 個"}])
+        got = headdepth.due("軽量", True, [*self.LIGHT_UNITS, {"unit_id": "u2", "depth": "標準", "why": "触るファイルが 5 個"}], None)
         self.assertEqual(got, {"skip": False, "why": headdepth.RAISED})
 
     def test_no_units_raises(self):
-        self.assertEqual(headdepth.due("軽量", True, []), {"skip": False, "why": headdepth.RAISED})
+        self.assertEqual(headdepth.due("軽量", True, [], None), {"skip": False, "why": headdepth.RAISED})
 
     def test_all_light_skips(self):
-        got = headdepth.due("軽量", True, self.LIGHT_UNITS)
+        got = headdepth.due("軽量", True, self.LIGHT_UNITS, None)
         self.assertEqual(got, {"skip": True, "why": "run の頭の深さが軽量で、計画の単位 1 個がすべて軽量"})
+
+    def test_a_round_after_a_review_stays_raised(self):
+        """前の周の事前審査が案を止めた往復は、次の周の単位が全部軽量でも飛ばさない（上げる向きは周をまたいで残る）"""
+        got = headdepth.due("軽量", True, self.LIGHT_UNITS, {"path": "plan-review/review.json"})
+        self.assertEqual(got, {"skip": False, "why": headdepth.PRIOR_REVIEWED})
 
 
 class RecordTest(unittest.TestCase):

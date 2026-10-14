@@ -37,6 +37,7 @@ LIB = Path(__file__).resolve().parents[2] / "lib"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import chain  # noqa: E402  （周の鎖の周の数の上限 MAX_ROUNDS）
+import depth  # noqa: E402  （深さで飛ばすノードの表の飛ばしてよい深さ LIGHT）
 # INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
 BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
@@ -886,7 +887,6 @@ def _gate_words(root: Path) -> list[str]:
 
 DEPTH_TABLE = "docs/design.md"
 DEPTH_HEAD = "### 深さで飛ばすノードの表"
-DEPTH_LIGHT = "軽量"
 DEPTH_FIELD = "depth_skip"
 DEPTH_CLAUSE = re.compile(r"^\$[\w-]+\.output\.depth_skip != true$")
 DEPTH_NAMED = re.compile(r"`([^`]+)`")
@@ -980,8 +980,8 @@ def _depth_skip(root: Path) -> list[str]:
         at = f"{DEPTH_TABLE}:{n}"
         if node not in clauses:
             out.append(f"{at}: 表の行 {node} に当たる {DEPTH_FIELD} の句がグラフに無い")
-        if depth_word != DEPTH_LIGHT:
-            out.append(f"{at}: 表の行 {node} の飛ばしてよい深さが {DEPTH_LIGHT} でない（{depth_word}）")
+        if depth_word != depth.LIGHT:
+            out.append(f"{at}: 表の行 {node} の飛ばしてよい深さが {depth.LIGHT} でない（{depth_word}）")
         if "代わり:" not in why or "材料:" not in why:
             out.append(f"{at}: 表の行 {node} の理由に「代わり:」と「材料:」が無い")
         named = DEPTH_NAMED.findall(why)

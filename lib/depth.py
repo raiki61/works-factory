@@ -11,6 +11,8 @@
 - wiring(path): 配線のファイルか（線とブロックの YAML＝<名>/<名>.yaml・.yml と manifest.json。schemas/ の下は除く）
 - decide_doc(items, open_units, *, forced, checked): 直す義務の単位の全部の深さ（控えの形）。forced は入力 thickness の語
   （空・自動は機械が決める。軽量・標準は全部をその深さに固定）
+- has_checks(start): 始めの記録 start に機械の確かめ（tdd_suite か test_cmd）が在るか（unit_depth の checked に渡す。訳は UNCHECKED）
+- named(thickness): 入力 thickness が名指す深さ（軽量・標準。ほかの語・空は空）。訳は named_why(深さ)
 - raise_doc(doc, *, units, run): 信号で標準へ上げた控え。units は {単位: 理由}（その単位だけ）、run は理由の並び（全部の単位）。下げない
 - run_wide(items, keys, touched=()): 控えの単位 keys を合わせた run 全体の広さ（触るファイルの和集合と、受け入れと書き換えの
   テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並びと、触るファイルの数。触るファイルは計画の allowed_paths に、修正の実際の差分
@@ -52,6 +54,7 @@ EYES_SKIPPED = ("独立の目の r1.comment_candidates（コメントの削除�
                 "独立の目 R3（r3.coherence。全体の整合）",
                 "独立の目 R4（r4.hidden_scope。見えていない範囲）")
 SKIPPED = (DELTA_SKIPPED, *EYES_SKIPPED)
+UNCHECKED = "機械の確かめが無い（tdd_suite も test_cmd も空）"
 
 
 def _items_of(items, key: str) -> list:
@@ -119,19 +122,33 @@ def unit_depth(items, key: str, *, checked: bool) -> tuple:
     if contracts:
         out.append(f"約束の形のファイルを触る（{', '.join(contracts)}）")
     if not checked:
-        out.append("機械の確かめが無い（tdd_suite も test_cmd も空）")
+        out.append(UNCHECKED)
     if out:
         return STANDARD, out
     shape = "配線だけ（メイングラフとサブグラフの YAML と manifest.json）" if wired else "約束の形のファイルなし"
     return LIGHT, [f"触るファイル {len(paths)} 個・テスト {tests} 本・{shape}・機械の確かめあり"]
 
 
+def has_checks(start) -> bool:
+    start = start if isinstance(start, dict) else {}
+    return bool(start.get("test_cmd") or start.get("tdd_suite"))
+
+
+def named(thickness) -> str:
+    word = str(thickness or "").strip()
+    return word if word in (LIGHT, STANDARD) else ""
+
+
+def named_why(word: str) -> str:
+    return f"入力 thickness の名指し（{word}）"
+
+
 def decide_doc(items, open_units, *, forced: str, checked: bool) -> dict:
     forced = (forced or "").strip()
     units = {}
     for key in open_units or []:
-        if forced in (LIGHT, STANDARD):
-            units[key] = {"depth": forced, "why": [f"入力 thickness の名指し（{forced}）"]}
+        if named(forced):
+            units[key] = {"depth": forced, "why": [named_why(forced)]}
         else:
             d, why = unit_depth(items, key, checked=checked)
             units[key] = {"depth": d, "why": why}
@@ -176,7 +193,7 @@ def lines(doc) -> list:
         return [f"深さ: {STANDARD}（直す義務の単位が無い）"]
     light = sum(1 for r in rows.values() if r.get("depth") == LIGHT)
     head = f"深さ: {run_depth(doc)}（単位ごと: {LIGHT} {light} 個・{STANDARD} {len(rows) - light} 個"
-    head += f"。入力 thickness の名指し {doc['forced']}）" if doc.get("forced") in (LIGHT, STANDARD) else "。機械が決めた）"
+    head += f"。入力 thickness の名指し {doc['forced']}）" if named(doc.get("forced")) else "。機械が決めた）"
     out = [head]
     out += [f"  - {k[:80]}: {r.get('depth')}（{' / '.join(r.get('why') or [])}）" for k, r in rows.items()]
     out += [f"  - 標準へ上げた信号: {why}" for why in doc.get("raised") or []]

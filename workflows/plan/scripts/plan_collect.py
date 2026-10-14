@@ -29,6 +29,7 @@ def collected() -> dict:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
     sys.path.append(str(boundary.lib_root()))
+    import depth
     import planfile
 
     art = Path(os.environ["ARTIFACTS_DIR"])
@@ -38,7 +39,7 @@ def collected() -> dict:
     start = start if isinstance(start, dict) else {}
     judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
     got = planfile.collect(round_dir, unit_ids=planfile.owed_order(judgment) if isinstance(judgment, dict) else [],
-                           thickness=start.get("thickness") or "", checked=bool(start.get("test_cmd") or start.get("tdd_suite")))
+                           thickness=start.get("thickness") or "", checked=depth.has_checks(start))
     if not got["ready"]:
         conflicts, _ = planfile.read_pointed(os.environ["INPUTS_CONFLICTS"], boundary.pointed)
         planfile.note_gave_up(round_dir, art / planfile.PLAN_DIR, conflicts)

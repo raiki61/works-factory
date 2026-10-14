@@ -5,16 +5,17 @@
 軽量の run は、表に載せたノードだけを線の when が飛ばす。ここが持つ飛ばす先の名は報告に出す SKIPPED_NODE だけ（表の行と同じ字。
 tests/layers/test_depth_skip.py が突き合わせる）。
 
-- parse_where(where): `<パス>`・`<パス>:<行>`・`<パス>:<行>-<行>` の (パス, 始めの行, 終わりの行)。行が無ければ (パス, None, None)、読めなければ None
 - facts(rows, start, repo): 依頼の行ごとの字と番地の実在・試験のコマンドの有無・仕様の段・設計だけ・入力 thickness の名指し
 - gate(facts): 役を起こす前の機械の止め (go, 深さ, 訳)。go が偽なら決めた深さと訳で控えを書き、役を起こさない
 - brief(facts): 役に貼る材料の本文
-- check(reply, rows, repo): 役の返答の照らし。拒む訳の並び（空なら受ける）
+- check(reply, rows, repo): 役の返答の照らし。拒む訳の並び（空なら受ける）。番地の規則と引用の照らしは cite（problem・quoted_in）
 - write(jdir, doc)・read(jdir): 控え RECORD の読み書き。read は無い・読めない時に標準の控え
 - record(depth, why, *, items, facts): 控えの形
-- due(head_depth, ready, plan_rows): 計画の往復の 1 周で事前審査を飛ばすか {skip, why}。頭が軽量でも計画の単位が全部軽量でなければ
-  上げ、why は RAISED（単位ごとの訳は報告の次の行の depth.lines が出す）
-- report_line(depth, why, skipped, raised): 報告の冒頭 2 の 1 行
+- due(head_depth, ready, plan_rows, prior_review): 計画の往復の 1 周で事前審査を飛ばすか {skip, why}。頭が軽量でも、前の周の
+  事前審査の返りの指し札 prior_review（dict）が在れば上げ（why は PRIOR_REVIEWED。一度上げた往復は下げない）、計画の単位が
+  全部軽量でなければ上げる（why は RAISED。単位ごとの訳は報告の次の行の depth.lines が出す）
+- report_line(depth, why, skipped, raised): 報告の冒頭 2 の 1 行。raised（往復の why）を上げた訳として出すのは頭が軽量の時だけ
+  （標準の頭は上げる先が無い）
 """
 import json
 import pathlib
@@ -26,7 +27,9 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
+import cite  # noqa: E402
 import depth  # noqa: E402
+import gatemarks  # noqa: E402
 import jsonfile  # noqa: E402
 import startrec  # noqa: E402
 
@@ -39,48 +42,22 @@ NO_REPLY = "役の返答が受け付けに届いていない（役が走らな�
 REJUDGE_WHY = "再審の判定（run の頭の深さは 1 回目の判定が決めた）"
 NOT_ACCEPTED = "役の返答が受け付けを通らない（{why}）"
 RAISED = "計画の単位がすべて軽量ではない"
+PRIOR_REVIEWED = "前の周の事前審査が案を止めた（止めた穴を事前審査が見直す）"
 SKIPPED_NODE = "plan-review-run__review-loop"   # due が飛ばすノードの run の記録の id
-DESIGN_ONLY = "true"   # 始めの記録の design_only の語（gatemarks.DESIGN_ONLY と同じ）
 
 
 def _squash(text) -> str:
     return "".join(str(text or "").split())
 
 
-def parse_where(where):
-    text = str(where or "").strip()
-    if not text:
-        return None
-    path, sep, lines = text.rpartition(":")
-    if not sep:
-        return text, None, None
-    first, dash, last = lines.partition("-")
-    if not first.isdigit() or (dash and not last.isdigit()):
-        return text, None, None
-    first = int(first)
-    last = int(last) if dash else first
-    if not path or first < 1 or last < first:
-        return None
-    return path, first, last
-
-
-def _file_lines(repo, path: str):
-    """リポジトリ repo の中の通常のファイル path の行の並び（根の外・無い・読めなければ None）"""
-    root = pathlib.Path(repo).resolve()
-    target = (root / path).resolve()
-    if pathlib.PurePosixPath(path).is_absolute() or not target.is_relative_to(root) or not target.is_file():
-        return None
-    try:
-        return target.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError):
-        return None
-
-
 def _place(repo, where) -> dict:
-    parsed = parse_where(where)
-    lines = _file_lines(repo, parsed[0]) if parsed else None
-    in_range = lines is not None and (parsed[1] is None or parsed[2] <= len(lines))
-    return {"path_ok": lines is not None, "lines_ok": in_range}
+    """番地 where（`<パス>` か cite の名指し）のファイルが根の中に在るか・行の範囲がその中か（規則は cite.problem）"""
+    where = str(where or "").strip()
+    root = pathlib.Path(repo).resolve()
+    m = cite.CITE.match(where)
+    p = cite.resolved(m["path"] if m else where, root) if where else None
+    path_ok = p is not None and cite.inside(p, root) and not cite.inside(p, root / ".git") and p.is_file()
+    return {"path_ok": path_ok, "lines_ok": path_ok and not (m and cite.problem(where, root))}
 
 
 def facts(rows, start, repo) -> dict:
@@ -88,19 +65,19 @@ def facts(rows, start, repo) -> dict:
     items = [{"item": n, "text": str(r.get("text") or ""), "where": str(r.get("where") or ""), **_place(repo, r.get("where"))}
              for n, r in enumerate((r for r in rows or [] if isinstance(r, dict)), start=1)]
     return {"items": items,
-            "test_cmd": bool(start.get("test_cmd") or start.get("tdd_suite")),
+            "test_cmd": depth.has_checks(start),
             "spec": (startrec.shape(start) or {}).get("spec") is True,
-            "design_only": start.get("design_only") == DESIGN_ONLY,
-            "forced": str(start.get("thickness") or "").strip()}
+            "design_only": start.get("design_only") == gatemarks.DESIGN_ONLY,
+            "forced": depth.named(start.get("thickness"))}
 
 
 def gate(f: dict) -> tuple:
-    if f["forced"] in (LIGHT, STANDARD):
-        return False, f["forced"], f"入力 thickness の名指し（{f['forced']}）"
+    if f["forced"]:
+        return False, f["forced"], depth.named_why(f["forced"])
     for stop, why in ((f["spec"], "仕様の段を挟む run"),
                       (f["design_only"], "設計だけの run"),
                       (not f["items"], "依頼の行が無い（差分だけの run）"),
-                      (not f["test_cmd"], "機械の確かめが無い（tdd_suite も test_cmd も空。代わりの最後のテストが測れない）")):
+                      (not f["test_cmd"], f"{depth.UNCHECKED}——代わりの最後のテストが測れない")):
         if stop:
             return False, STANDARD, why
     return True, "", ""
@@ -118,19 +95,17 @@ def _check_item(it: dict, rows: list, repo) -> list:
     n = it.get("item")
     head = f"行 {n}: "
     out = []
-    if not _squash(it.get("cause_quote")) or _squash(it.get("cause_quote")) not in _squash(rows[n - 1].get("text")):
+    if not cite.quoted_in(it.get("cause_quote"), rows[n - 1].get("text"), norm=_squash):
         out.append(head + "cause_quote が依頼のその行の字の部分でない")
-    parsed = parse_where(it.get("where"))
-    if parsed is None or parsed[1] is None:
-        return out + [head + f"where が <パス>:<行> か <パス>:<行>-<行> の形でない（{it.get('where')!r}）"]
-    path, first, last = parsed
-    lines = _file_lines(repo, path)
-    if lines is None:
-        return out + [head + f"where のファイル {path} が対象のリポジトリの中に無い"]
-    if last > len(lines):
-        return out + [head + f"where の行 {first}-{last} が {path} の {len(lines)} 行の外"]
-    if not _squash(it.get("code_quote")) or _squash(it.get("code_quote")) not in _squash("\n".join(lines[first - 1:last])):
-        out.append(head + f"code_quote が {path}:{first}-{last} の字に無い")
+    where = str(it.get("where") or "").strip()
+    bad = cite.problem(where, repo)
+    if bad:
+        return out + [head + f"where が通らない（{bad}）"]
+    m = cite.CITE.match(where)
+    first, last = int(m["a"]), int(m["b"] or m["a"])
+    lines = cite.resolved(m["path"], pathlib.Path(repo).resolve()).read_text(encoding="utf-8", errors="replace").splitlines()
+    if not cite.quoted_in(it.get("code_quote"), "\n".join(lines[first - 1:last]), norm=_squash):
+        out.append(head + f"code_quote が {where} の字に無い")
     return out
 
 
@@ -170,9 +145,11 @@ def read(jdir) -> dict:
     return doc
 
 
-def due(head_depth, ready, plan_rows) -> dict:
+def due(head_depth, ready, plan_rows, prior_review) -> dict:
     if head_depth != LIGHT or ready is not True:
         return {"skip": False, "why": ""}
+    if isinstance(prior_review, dict):   # 飛ばした周は通ったと返して往復を抜けるので、次の周が在るのは事前審査が案を止めた後だけ
+        return {"skip": False, "why": PRIOR_REVIEWED}
     rows = [r for r in plan_rows or [] if isinstance(r, dict)]
     if not depth.skip_reason({"units": dict(enumerate(rows))}):   # 単位が全部軽量の時だけ訳を返す（eyes の支度と同じ判断）
         return {"skip": False, "why": RAISED}
@@ -181,7 +158,7 @@ def due(head_depth, ready, plan_rows) -> dict:
 
 def report_line(depth_word, why, skipped: bool, raised: str) -> str:
     head = f"run の頭の深さ: {depth_word or STANDARD}"
-    if raised:
+    if raised and depth_word == LIGHT:
         head += f" → {STANDARD}へ上げた（{raised}）"
     elif why:
         head += f"（根拠: {why}）"

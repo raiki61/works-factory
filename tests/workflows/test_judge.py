@@ -26,6 +26,7 @@ from tests.workflows.copied import agent_body, assert_is_original, rewritten, ro
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import answer  # noqa: E402
+import depth  # noqa: E402
 import headdepth  # noqa: E402
 import judge_accept as ja  # noqa: E402
 import prcheck  # noqa: E402
@@ -692,6 +693,19 @@ class HeadDepthTest(unittest.TestCase):
         self.assertEqual((out["depth"], out["depth_why"]), ("標準", headdepth.NO_RECORD))
         out = r.returned("verdict", objection="分母は正しい")
         self.assertEqual((out["depth"], out["depth_why"]), ("標準", headdepth.REJUDGE_WHY))
+
+    def test_depth_words_are_the_lib_words(self):
+        """役の返答と判定の出力の深さの enum、lib を読めない時の判定の返り、計画の単位ごとの深さの enum は lib/depth.py の語
+        （YAML と lib を読めない script は lib を引けないので、試験が結ぶ）"""
+        words = [depth.LIGHT, depth.STANDARD]
+        got = nodes()
+        for node in ("head-depth", "verdict"):
+            with self.subTest(node=node):
+                self.assertEqual(got[node]["output_format"]["properties"]["depth"]["enum"], words)
+        self.assertIn(f'"depth": "{depth.STANDARD}"', (SCRIPTS / "verdict.py").read_text(encoding="utf-8"))
+        plan = {n["id"]: n for n in walk(yaml.safe_load((ROOT / "workflows" / "plan" / "works-factory-plan.yaml")
+                                                         .read_text(encoding="utf-8"))["nodes"])}
+        self.assertEqual(plan["plan"]["output_format"]["properties"]["depth"]["items"]["properties"]["depth"]["enum"], words)
 
 
 class UvLaunchTest(unittest.TestCase):
