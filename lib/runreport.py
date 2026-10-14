@@ -1665,9 +1665,9 @@ def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
         body = str(ai.get("text") or "").strip()
     else:
         body = f"{report_roles.FAILED_TITLE}\n\n{ai.get('reason') or '書き手の返答を受け取れなかった'}"
-    sec = glossary_section(f"{body}\n{machine_text}", ai.get("terms") or [])
+    note = _not_passed_note(ai)
+    sec = glossary_section(f"{body}\n{note}\n{machine_text}", ai.get("terms") or [])
     colds = sum(c.get("cold", 0) for c in as_dict(ai.get("rejects")).values() if isinstance(c, dict))
     text = (f"{stamp}\n\n{body}\n\n" + (f"{sec}\n" if sec else "")
-            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回{_not_passed_note(ai)}\n\n"
-            + embedded(machine_text))
+            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回{note}\n\n{embedded(machine_text)}")
     return _write_text(out_dir / AI_REPORT_FILE, text)
