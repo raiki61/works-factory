@@ -7,6 +7,7 @@ github.com/scaleapi/SWE-bench_Pro-os の commit 66f92766bba642462d4bbe5479e83f91
 """
 import ast
 import asyncio
+import hashlib
 import importlib
 import importlib.metadata
 import importlib.util
@@ -615,6 +616,22 @@ class BuildTest(unittest.TestCase):
                 if code:
                     self.assertIn("prepare", done.stderr)
 
+    def test_failed_sandbox_check_names_the_layers_in_one_line(self):
+        fake = hermetic.tmpdir(self)
+        (fake / "bwrap").write_text("#!/bin/sh\necho 'bwrap: No permissions to create new namespace' >&2\nexit 1\n")
+        (fake / "bwrap").chmod(0o755)
+        check = dict(swepro.setup_commands("f", "9.9.9"))["sandbox"]
+        done = subprocess.run(["bash", "-c", check], capture_output=True, text=True, encoding="utf-8",
+                              env={**os.environ, "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"})
+        self.assertEqual(done.returncode, 1)
+        bwrap, said = done.stderr.splitlines()
+        self.assertIn("No permissions", bwrap)
+        self.assertTrue(said.startswith(swepro.SANDBOX_REFUSED), said)
+        self.assertTrue(said.removeprefix(swepro.SANDBOX_REFUSED))
+        for word in ("台の VM の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", "seccomp", "apparmor",
+                     f"-e {swepro.ENVIRONMENT}"):
+            self.assertIn(word, said)
+
     def test_rewrite_image_needs_exactly_one_line(self):
         self.assertEqual(swepro.rewrite_image('a = 1\ndocker_image = "x:1"\n', "x:1", "y:1"), 'a = 1\ndocker_image = "y:1"\n')
         for text in ('a = 1\n', 'docker_image = "x:1"\ndocker_image = "x:1"\n'):
@@ -895,10 +912,41 @@ class EgressCopyTest(unittest.TestCase):
             self.skipTest("Harbor が入っていない（uv run --isolated --extra bench で入る）")
         from harbor.environments.docker.docker import DockerEnvironment
         for name in ("_DOCKER_COMPOSE_EGRESS_CONTROL_PATH", "_EGRESS_CONTROL_SIDECAR_CONTEXT_PATH",
-                     "_egress_control_sidecar_dockerfile_path", "_compose_infra_env_vars", "preflight"):
+                     "_egress_control_sidecar_dockerfile_path", "_compose_infra_env_vars", "preflight",
+                     "_docker_compose_paths"):
             with self.subTest(name=name):
                 self.assertTrue(hasattr(DockerEnvironment, name))
+        self.assertIsInstance(DockerEnvironment._docker_compose_paths, property)
+        from harbor.constants import MAIN_SERVICE_NAME
+        overlay = yaml.safe_load((swepro.SANDBOX / "docker-compose-sandbox.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(list(overlay["services"]), [MAIN_SERVICE_NAME])
         self.assertEqual(DockerEnvironment._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH.name, SIDECAR.name)
+
+
+# ---------------------------------------------------------------- Claude Code の sandbox の緩め
+# 写しの seccomp.json が Docker の既定に足した規則と、足す前の字の sha256（写しの COPIED_FROM の元）
+SANDBOX_RULE = {"names": ["clone", "mount", "pivot_root", "umount2", "unshare"], "action": "SCMP_ACT_ALLOW"}
+SANDBOX_RULE_TEXT = (',\n\t\t{\n\t\t\t"names": [\n\t\t\t\t"clone",\n\t\t\t\t"mount",\n\t\t\t\t"pivot_root",\n'
+                     '\t\t\t\t"umount2",\n\t\t\t\t"unshare"\n\t\t\t],\n\t\t\t"action": "SCMP_ACT_ALLOW"\n\t\t}')
+DOCKER_SECCOMP_SHA256 = "536529b665dd0972c37bfb569f5d4ac8a53592e7b00752bc39ff063ca9864c74"
+
+
+class SandboxTest(unittest.TestCase):
+    def test_seccomp_copy_is_dockers_default_with_one_rule(self):
+        text = (swepro.SANDBOX / "seccomp.json").read_text(encoding="utf-8")
+        profile = json.loads(text)
+        self.assertEqual(profile["defaultAction"], "SCMP_ACT_ERRNO")
+        self.assertEqual(profile["syscalls"][-1], SANDBOX_RULE)
+        self.assertEqual(text.count(SANDBOX_RULE_TEXT), 1)
+        original = text.replace(SANDBOX_RULE_TEXT, "").removesuffix("\n")
+        self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(), DOCKER_SECCOMP_SHA256)
+        files = {f.name for f in swepro.SANDBOX.iterdir()}
+        self.assertEqual(files, {"seccomp.json", "docker-compose-sandbox.yaml", "LICENSE", "COPIED_FROM"})
+
+    def test_overlay_loosens_only_the_main_container(self):
+        overlay = yaml.safe_load((swepro.SANDBOX / "docker-compose-sandbox.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(overlay, {"services": {"main": {"security_opt": [
+            f"seccomp=${{{swepro.SECCOMP_ENV}:?works-bench passes the seccomp profile path}}", "apparmor=unconfined"]}}})
 
 
 class UsageTest(unittest.TestCase):
@@ -914,6 +962,8 @@ class UsageTest(unittest.TestCase):
         self.assertIn(f"-e {swepro.ENVIRONMENT} ", usage)
         self.assertNotIn("-e docker ", usage)
         self.assertNotIn("proxy_refused", usage)
+        self.assertIn("Rosetta", usage)
+        self.assertIn("kernel.apparmor_restrict_unprivileged_userns=1 を\n  0 に", usage)
 
 
 # ---------------------------------------------------------------- Harbor の殻
@@ -979,6 +1029,10 @@ def stub_harbor():
         def _egress_control_sidecar_dockerfile_path(cls):
             return cls._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH / "Dockerfile"
 
+        @property
+        def _docker_compose_paths(self):
+            return [pathlib.Path("harbor-main.yaml")]
+
         def _compose_infra_env_vars(self):
             return {"BASE": "1"}
 
@@ -1024,8 +1078,17 @@ class AgentTest(unittest.TestCase):
 
     RESULT = {"state": "done", "outcome": "fixed", "error": None, "usd": 2.0, "provenance": {"archon": "c"}}
 
+    def bench_environment(self, image, result, **kw):
+        """殻が setup で受ける環境（WorksBenchDocker）の形をした FakeEnvironment"""
+        class Bench(self.agent_module.WorksBenchDocker, FakeEnvironment):
+            def __init__(self):
+                FakeEnvironment.__init__(self, image, result, **kw)
+
+        return Bench()
+
     def go(self, image=IMAGE.format(OPENLIBRARY), inside_code=0, result=RESULT, capture_code=0):
-        environment = FakeEnvironment(swepro.derived_image(swepro.instance_of(image)), result, inside_code, capture_code)
+        environment = self.bench_environment(swepro.derived_image(swepro.instance_of(image)), result,
+                                             inside_code=inside_code, capture_code=capture_code)
         context = types.SimpleNamespace(cost_usd=None, metadata=None)
         agent = self.agent()
         asyncio.run(agent.setup(environment))
@@ -1066,7 +1129,7 @@ class AgentTest(unittest.TestCase):
             self.assertNotIn("/logs", command)
 
     def test_stamp_mismatch_fails_setup_naming_prepare(self):
-        environment = FakeEnvironment(swepro.derived_image(OPENLIBRARY), self.RESULT, stamp_code=1)
+        environment = self.bench_environment(swepro.derived_image(OPENLIBRARY), self.RESULT, stamp_code=1)
         with self.assertRaises(RuntimeError) as caught:
             asyncio.run(self.agent().setup(environment))
         self.assertIn("stamp", str(caught.exception))
@@ -1129,14 +1192,25 @@ class AgentTest(unittest.TestCase):
         infra = docker._compose_infra_env_vars()
         self.assertEqual(infra["BASE"], "1")
         self.assertEqual(json.loads(infra[swepro.GOST_CONFIG_ENV]), gost({"HTTPS_PROXY": proxy}))
+        self.assertEqual(infra[swepro.SECCOMP_ENV], str(swepro.SANDBOX / "seccomp.json"))
 
-    def test_environment_without_a_proxy_is_harbors_docker(self):
+    def test_environment_without_a_proxy_keeps_harbors_sidecar(self):
         base = sys.modules["harbor.environments.docker.docker"].DockerEnvironment
         self.environ(NO_PROXY="localhost")
         docker = self.agent_module.WorksBenchDocker()
         self.assertEqual(docker._DOCKER_COMPOSE_EGRESS_CONTROL_PATH, base._DOCKER_COMPOSE_EGRESS_CONTROL_PATH)
         self.assertEqual(docker._egress_control_sidecar_dockerfile_path(), base._egress_control_sidecar_dockerfile_path())
-        self.assertEqual(docker._compose_infra_env_vars(), {"BASE": "1"})
+        self.assertEqual(docker._compose_infra_env_vars(), {"BASE": "1", swepro.SECCOMP_ENV: str(swepro.SANDBOX / "seccomp.json")})
+
+    def test_environment_layers_the_sandbox_overlay_last_with_or_without_a_proxy(self):
+        for env in ({}, {"HTTPS_PROXY": "http://proxy.invalid:3128"}):
+            with self.subTest(env=env):
+                self.environ(**env)
+                docker = self.agent_module.WorksBenchDocker()
+                overlay = swepro.SANDBOX / "docker-compose-sandbox.yaml"
+                self.assertEqual(docker._docker_compose_paths, [pathlib.Path("harbor-main.yaml"), overlay])
+                self.assertTrue(overlay.is_file())
+                self.assertTrue(pathlib.Path(docker._compose_infra_env_vars()[swepro.SECCOMP_ENV]).is_file())
 
     def test_preflight_refuses_an_unaccepted_proxy(self):
         self.environ(HTTPS_PROXY=f"socks5://user:{SECRET_WORD}@proxy.invalid:1080")
@@ -1144,10 +1218,11 @@ class AgentTest(unittest.TestCase):
             self.agent_module.WorksBenchDocker.preflight()
         self.assertNotIn(SECRET_WORD, str(caught.exception))
 
-    def test_proxied_launch_with_another_environment_is_refused_before_exec(self):
-        for name in ("HTTPS_PROXY", "http_proxy"):
+    def test_launch_with_another_environment_is_refused_before_exec(self):
+        for name in ("HTTPS_PROXY", "http_proxy", None):
             with self.subTest(name=name):
-                self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN, name: f"http://user:{SECRET_WORD}@proxy.invalid:3128"})
+                proxy = {name: f"http://user:{SECRET_WORD}@proxy.invalid:3128"} if name else {}
+                self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN, **proxy})
                 agent = self.agent()
                 environment = FakeEnvironment(swepro.derived_image(OPENLIBRARY), self.RESULT)
                 with self.assertRaises(ValueError) as caught:

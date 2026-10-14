@@ -6,8 +6,8 @@ tests/calibration/swepro.py の頭。harbor を import するのはこのファ�
 起こし役の標準出力と予測を <試み>/agent/ に書く。
 命令の字は swepro.py が組む。期限を足さない（setup・exec とも上限なし。作業の段の上限は --agent-timeout-multiplier inf で外し、
 付け忘れた起動は殻を作る時に断る）。
-環境は WorksBenchDocker（-e tests.calibration.swepro_agent:WorksBenchDocker）。上流のプロキシの在る環境で他の環境を渡した
-起動は、殻が setup で exec の前に断る（訳は swepro.py の頭の「プロキシの要る網」）。
+環境は WorksBenchDocker（-e tests.calibration.swepro_agent:WorksBenchDocker）。他の環境を渡した起動は、殻が setup で exec の
+前に断る（訳は swepro.py の頭の「台に要る物」と「プロキシの要る網」）。
 """
 import json
 import math
@@ -32,9 +32,10 @@ TAIL = 5
 
 
 class WorksBenchDocker(DockerEnvironment):
-    """Harbor の docker の環境。上流のプロキシ（swepro.upstream）が無ければ DockerEnvironment のまま。在れば egress の付き添いを
-    swepro.EGRESS の写しで立て、gost の設定（swepro.gost_config）を compose の子の環境の swepro.GOST_CONFIG_ENV で渡す。
-    設定はイメージ・harbor run の字・Harbor の記録に入らない"""
+    """Harbor の docker の環境。課題の主のコンテナに Claude Code の sandbox の要る緩め（swepro.SANDBOX の compose の重ねと
+    seccomp の写し）を渡す。上流のプロキシ（swepro.upstream）が在れば egress の付き添いを swepro.EGRESS の写しで立て、gost の
+    設定（swepro.gost_config）を compose の子の環境の swepro.GOST_CONFIG_ENV で渡す。設定はイメージ・harbor run の字・Harbor の
+    記録に入らない。無ければ付き添いは Harbor 同梱のまま"""
 
     def __init__(self, *args, **kwargs):
         self._gost_config = swepro.gost_config(os.environ)
@@ -52,8 +53,13 @@ class WorksBenchDocker(DockerEnvironment):
         # 基は classmethod でクラス属性を読むので、__init__ で替えたインスタンスの属性を読ませる
         return self._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH / "Dockerfile"
 
+    @property
+    def _docker_compose_paths(self) -> list[Path]:
+        return [*super()._docker_compose_paths, swepro.SANDBOX / "docker-compose-sandbox.yaml"]
+
     def _compose_infra_env_vars(self) -> dict[str, str]:
         env_vars = super()._compose_infra_env_vars()
+        env_vars[swepro.SECCOMP_ENV] = str(swepro.SANDBOX / "seccomp.json")
         if self._gost_config is not None:
             env_vars[swepro.GOST_CONFIG_ENV] = self._gost_config
         return env_vars
@@ -83,9 +89,9 @@ class WorksBench(BaseAgent):
         return swepro.head_commit()
 
     async def setup(self, environment: BaseEnvironment) -> None:
-        if swepro.upstream(os.environ) and not isinstance(environment, WorksBenchDocker):
-            raise ValueError(f"上流のプロキシの在る環境では harbor run に -e {swepro.ENVIRONMENT} を渡す"
-                             "（他の環境の egress の付き添いは上流のプロキシを通さず、試行が api.anthropic.com に届かない）")
+        if not isinstance(environment, WorksBenchDocker):
+            raise ValueError(f"harbor run に -e {swepro.ENVIRONMENT} を渡す（他の環境は課題のコンテナに Claude Code の sandbox の"
+                             "要る緩めを渡さず、上流のプロキシも通さない）")
         for name, command in swepro.setup_commands(self.version(), self.claude_version):
             done = await environment.exec(command, user="root", timeout_sec=None)
             if done.return_code != 0:

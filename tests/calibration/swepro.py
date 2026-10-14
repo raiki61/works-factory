@@ -32,6 +32,16 @@ Apple silicon の上の docker: 課題のイメージは linux/amd64 だけな�
 --platform linux/amd64 を付ける。DOCKER_DEFAULT_PLATFORM は付けない（Harbor の egress の付き添いは daemon の素の型で build され、
 amd64 を強いると立たない）。docker の CLI に compose の差し込み（docker compose）が要る。
 
+台に要る物（試行の段で Claude Code の sandbox の bwrap が課題のコンテナの中で立つため。setup が bwrap を確かめ、立たなければ
+止めた層を見分ける道を 1 行で出す）:
+- Apple silicon では、docker の VM の amd64 の真似を Rosetta にする（colima なら --vm-type vz --vz-rosetta。qemu の真似では
+  Claude Code の実行ファイルが Segmentation fault で落ちる）。
+- docker の VM の kernel の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の kernel.apparmor_restrict_unprivileged_userns=1 を
+  0 に。起こし直しても効くよう VM の起動の設定に入れる）。コンテナの側からは外せない。
+- 環境 WorksBenchDocker が課題の主のコンテナにだけ、docker の既定の seccomp に名前空間を作る呼び出しと mount を足した写し
+  （SANDBOX）を渡し、apparmor を外す。--privileged・CAP_SYS_ADMIN は使わず、egress の付き添いは docker の既定のまま。
+  他の環境（-e docker）の起動は、殻が setup で exec の前に断る。
+
 プロキシの要る網: prepare は環境に空でない値で在る PROXY_ENV の名を、値を付けずに docker build --build-arg <名> で渡す。
 値は docker の CLI が自分の環境から読み、Dockerfile に ARG を書かないので docker history に残らない。値は build のコンテナから
 届く宛先にする（ホストの localhost は build のコンテナの中では別物）。docker pull は daemon のプロキシの設定を使う。
@@ -43,8 +53,7 @@ amd64 を強いると立たない）。docker の CLI に compose の差し込�
 宛先は chain を通さず直に繋ぐ。受ける上流は http://<host>:<port>（スキームの無い <host>:<port> も）だけで、他は試行の前に
 断る（WorksBenchDocker.preflight）。host が localhost か loopback なら host.docker.internal に替える（Docker Desktop はそのまま
 届く。Linux の docker engine ではプロキシが docker の bridge 側でも待ち受けている要がある）。宛先の名は課題のコンテナが自分で
-引くので、網の DNS が外の名を引ける要がある。プロキシが無ければ付き添いは Harbor 同梱の物のまま。上流のプロキシが在るのに他の
-環境（-e docker）を渡した起動は、殻が setup で exec の前に断る。
+引くので、網の DNS が外の名を引ける要がある。プロキシが無ければ付き添いは Harbor 同梱の物のまま。
 
 - 無人の run が人に聞いて止まった（承認ノードで待った・結末の種が chain.KIND_HUMAN）時は stopped を立てる。封じた差分が在れば
   --allow-stopped で当て、封じる前に止まった run は当てずに空の patch（未解決）として数える。run を resume しない。
@@ -108,6 +117,11 @@ PROXY_ENV = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy
 EGRESS, EGRESS_FROM = HERE / "swepro_egress", "0.24.0"
 ENVIRONMENT = "tests.calibration.swepro_agent:WorksBenchDocker"
 GOST_CONFIG_ENV = "WORKS_BENCH_GOST_CONFIG"
+# 課題の主のコンテナにだけ Claude Code の sandbox（bwrap）の要る緩めを渡す compose の重ねと seccomp の写し（直した所は写しの
+# COPIED_FROM）。WorksBenchDocker がプロキシの有無に依らず使う
+SANDBOX = HERE / "swepro_sandbox"
+SECCOMP_ENV = "WORKS_BENCH_SECCOMP"
+USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
 HOST_GATEWAY = "host.docker.internal"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
 INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
@@ -246,6 +260,14 @@ def dockerfile(base_image: str, claude_version: str, factory_commit: str, place:
     return "\n".join(lines) + "\n"
 
 
+# bwrap を止める層は 3 つ。bwrap の文と台の VM の kernel の制限の値で見分ける
+SANDBOX_REFUSED = (
+    "Claude Code の sandbox（bwrap）がコンテナで立たない。上の bwrap の文で止めた層を見分ける: VM の kernel の制限が 1 なら"
+    " kernel（台の VM の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0 にし、起こし直しても効くよう VM の起動の設定に"
+    " 入れる）。0 か無いなら、No permissions to create new namespace は seccomp、Failed to make / slave など mount の落ちは"
+    f" apparmor（どちらも harbor run に -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。VM の kernel の制限: ")
+
+
 def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:
     """(名, 命令)。殻が setup で順に root で打つ。どれも網を使わない（道具と工場は prepare が build の段で焼いた）"""
     missing = (f"課題のイメージに工場 {factory_commit} と Claude Code {claude_version} の焼き印が無い。"
@@ -256,7 +278,7 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
                   f"|| {{ echo {shlex.quote(missing)} >&2; exit 1; }}"),
         # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす
         ("sandbox", "bwrap --ro-bind / / --unshare-user --unshare-net true "
-                    "|| { echo 'Claude Code の sandbox（bwrap）がコンテナで立たない' >&2; exit 1; }"),
+                    f"|| {{ echo {shlex.quote(SANDBOX_REFUSED)}\"$(cat {USERNS_LIMIT} 2>/dev/null || echo 無い)\" >&2; exit 1; }}"),
     ]
 
 
