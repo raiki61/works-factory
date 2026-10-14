@@ -2807,10 +2807,7 @@ def _diagnose_ctx(jdir, repo, start, doc, mats, review_md, repo_review_md) -> di
         "constraints": (read_json(j / _premises.PREMISES_FILE, {}) or {}).get("constraints") or [],
     }
     out = {"p0.purpose": _purpose_or_missing(j),
-           "p1.test_double_fidelity": _reply_of(acc, "test-double-fidelity"),
-           "p1.main_path_observation": _reply_of(acc, "main-path-observation"),
-           "p1.provenance": _reply_of(acc, "provenance"),
-           "p0.prior_decisions": _reply_of(acc, "prior-decisions")}
+           **{nid: _reply_of(acc, r) for r, nid in MATERIAL_ROLES.items()}}
     inputs = {"cwd": str(pathlib.Path(repo).resolve()), "review_md": review_md, "review_rev": doc["review_rev"]}
     if repo_review_md:
         inputs["repo_review_md"] = repo_review_md
