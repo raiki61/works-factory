@@ -2,7 +2,8 @@
 
 見る物:
 - 役を起こす前の機械の止め 5 つ（thickness の名指し・仕様の段・設計だけ・依頼の行が無い・試験のコマンドが無い）
-- 引用の照らし（行の抜け・2 度指し・依頼に無い引用・無いファイル・範囲の外・.git の中・コードに無い引用・why が空）
+- 引用の照らし（行の抜け・2 度指し・依頼に無い引用・無いファイル・範囲の外・.git の中・コードに無い引用・why が空・cite の下限より
+  短い引用・WHERE_SPAN より広い行の範囲・依頼の行が無い軽量）
 - 計画の往復の 1 周で事前審査を飛ばすか（頭が標準なら飛ばさない・単位に標準が在れば上げる・前の周の事前審査が在れば上げる・全部軽量で飛ばす）
 - 控えが無い・壊れた時は標準
 - 報告の 1 行の 3 つの形
@@ -32,6 +33,7 @@ class Repo(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.repo = pathlib.Path(tmp.name)
         (self.repo / "stats.py").write_text("def mean(xs):\n    return sum(xs) / len(xs)\n", encoding="utf-8")
+        (self.repo / "long.py").write_text("value = 1\n" * (headdepth.WHERE_SPAN + 1), encoding="utf-8")
         (self.repo / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
 
 
@@ -92,9 +94,26 @@ class CheckTest(Repo):
                                   ("escapes the root", self.item(where="../stats.py:1"), ROWS),
                                   ("inside .git", self.item(where=".git:1", code_quote="gitdir:"), ROWS),
                                   ("code not in lines", self.item(code_quote="return 0"), ROWS),
-                                  ("unknown depth", {**LIGHT_REPLY, "depth": "重厚"}, ROWS)):
+                                  ("unknown depth", {**LIGHT_REPLY, "depth": "重厚"}, ROWS),
+                                  ("one-char cause", self.item(cause_quote="空"), ROWS),
+                                  ("one-char code", self.item(code_quote="/"), ROWS),
+                                  ("whole-file range", self.item(where=f"long.py:1-{headdepth.WHERE_SPAN + 1}",
+                                                                 code_quote="value = 1"), ROWS)):
             with self.subTest(name):
                 self.assertTrue(self.check(reply, rows))
+
+
+    def test_short_quotes_name_the_cite_floor(self):
+        got = self.check(self.item(cause_quote="空", code_quote="/"))
+        self.assertIn(f"行 1: cause_quote が {headdepth.cite.QUOTE_MIN} 字より短い", got)
+        self.assertIn(f"行 1: code_quote が {headdepth.cite.QUOTE_MIN} 字より短い", got)
+
+    def test_range_up_to_the_span_passes(self):
+        reply = self.item(where=f"long.py:1-{headdepth.WHERE_SPAN}", code_quote="value = 1")
+        self.assertEqual(self.check(reply), [])
+
+    def test_light_without_request_rows_is_refused(self):
+        self.assertEqual(self.check({**LIGHT_REPLY, "items": []}, rows=[]), [headdepth.NO_ROWS])
 
 
 class DueTest(unittest.TestCase):

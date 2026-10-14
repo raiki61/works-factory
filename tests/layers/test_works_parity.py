@@ -7,7 +7,8 @@
   のどれか
 - 「今」と「戻した:」の指しは、前の棚卸しと同じ規則（tests/layers/test_capability_pointers.py）で行番号を持たず、名が main に在る
 - 「## 数」が行から数えた値と合う
-- 「## 前の棚卸しの今」（前の棚卸しの「今」の住処。#521）の行が 1 つずつ前の棚卸しの「今」の印の行と合い、上の「今」と同じ規則で照らされ、
+- 「## 前の棚卸しの今」（前の棚卸しの「今」の住処。#521）が前置きの後に 1 行 1 つの `- ` の行だけを持ち（続きの行の指しは
+  照らされないので赤）、行が 1 つずつ前の棚卸しの「今」の印の行と合い、上の「今」と同じ規則で照らされ、
   ファイルごとの指しの数が移す前の下限を保つ
 """
 import collections
@@ -63,10 +64,12 @@ def section(text: str, head: str) -> list[str]:
 
 
 def moved(text: str) -> dict[str, str]:
-    """「## 前の棚卸しの今」の `<ファイル> <行 ID>` → 今の字。形の外れた行と 2 度在る鍵は読み飛ばさず落とす"""
-    found = {}
+    """「## 前の棚卸しの今」の `<ファイル> <行 ID>` → 今の字。前置きの段落（最初の `- ` の行より前）の後は、空でない行が全部
+    1 行 1 つの `- ` の行。続きの行（字下げなど）・形の外れた行・2 度在る鍵は読み飛ばさず落とす（続きの行の指しは照らされない）"""
+    found, lead = {}, True
     for line in section(text, MOVED_HEAD):
-        if not line.startswith("- "):
+        lead = lead and not line.startswith("- ")
+        if lead or not line.strip():
             continue
         if not (m := MOVED.match(line)):
             raise ValueError(f"前の棚卸しの今の行の形が `- <ファイル> <行 ID>: <今>` でない: {line}")
@@ -225,3 +228,6 @@ class NegativeCase(unittest.TestCase):
             moved(sample + "- line.md: lib/a.py::b\n")
         with self.assertRaises(ValueError):
             moved(sample + "- line.md L-E01: lib/a.py::c\n")
+        for tail in ("  - 続き: lib/a.py::c\n", "    lib/a.py::c\n", "続き lib/a.py::c\n"):
+            with self.subTest(tail=tail), self.assertRaises(ValueError):
+                moved(sample + tail)
