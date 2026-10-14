@@ -38,7 +38,8 @@ FIELD_FLOOR = {
     "今の機械": {"pitfalls.md": 70},
 }
 TAIL = INVENTORY / "tail.md"
-ROW = re.compile(r"^- ([TERM]\d+b?) ")
+ROW_ID = r"(?:L-[EGWD]|[A-Z])\d+[a-z]?"
+ROW = re.compile(rf"^- ({ROW_ID})[ 〔]")
 AREA_HOLES = re.compile(r"^### ([TERM]) の穴")
 SUMMARY = "## 穴の要約"
 TOTAL = "行の総数"
@@ -50,20 +51,21 @@ COUNTED = {
 HOLE = re.compile(rf"^- ({TOTAL}|{'|'.join(COUNTED)}|{NARROWED}): (\d+)(?:（([^）]*)）)?")
 
 
-def row_fields() -> list[tuple[str, str | None, str]]:
-    """(ファイル:行, 行 ID, 欄の字)。欄は `  - <名>:` の行と、それより深く字下げした続きの行。行 ID は欄の属す `- <ID> ` の行
-    （ROW の形。無ければ None）"""
+def row_fields(fields=FIELD_FLOOR) -> list[tuple[str, str | None, str]]:
+    """(ファイル:行, 行 ID, 欄の字)。欄は名が fields に在る `  - <名>:` の行と、それより深く字下げした続きの行。行 ID は欄の
+    属す `- <ID> ` の行（ROW の形。無ければ None）"""
     found = []
     for md in sorted(INVENTORY.glob("*.md")):
         current, row = None, None
         for no, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1):
             head = FIELD.match(line)
             if head:
-                current = [f"{md.name}:{no}", row, line] if head.group(1) in FIELD_FLOOR else None
+                current = [f"{md.name}:{no}", row, line] if head.group(1) in fields else None
                 if current:
                     found.append(current)
-            elif current and line.startswith("    "):
-                current[2] += "\n" + line
+            elif line.startswith("    "):
+                if current:
+                    current[2] += "\n" + line
             else:
                 current = None
                 if line.strip():
