@@ -364,6 +364,19 @@ class LoopTest(unittest.TestCase):
                 roles = [n["with"]["role"] for n in by.values() if n.get("script") == script]
                 self.assertEqual(sorted(roles), sorted(table))
 
+    def test_stub_brief_files_are_the_libs(self):
+        """stub の fixture が手で書く素材の役の材料のファイルの名（<役>-prep の brief_file）が持ち主 material_brief_file と同じ字"""
+        seen = []
+        for path in sorted((BLOCK / "fixtures").glob("*.stubs.yaml")):
+            stubs = yaml.safe_load(path.read_text(encoding="utf-8"))
+            for role in ja.MATERIAL_ROLES:
+                if f"{role}-prep" in stubs:
+                    seen.append(role)
+                    with self.subTest(fixture=path.name, role=role):
+                        self.assertEqual(pathlib.PurePath(stubs[f"{role}-prep"]["brief_file"]).name,
+                                         ja.material_brief_file(role))
+        self.assertTrue(seen, "照らす stub が 1 つも無い")
+
 
 class RoleSettingsTest(unittest.TestCase):
     def test_roles_keep_the_old_settings(self):
@@ -839,7 +852,7 @@ class JudgedVerdictTest(StopPathFilesMixin, unittest.TestCase):
         r = Run(self)
         r.returned("intake")
         premises_and_purpose(r)
-        (r.judge / "material-hygiene.json").write_text(json.dumps(HYGIENE, ensure_ascii=False), encoding="utf-8")
+        (r.judge / ja.material_file(HYGIENE["role"])).write_text(json.dumps(HYGIENE, ensure_ascii=False), encoding="utf-8")
         out = r.returned("diagnose_accept", reply=open_reply(out_of_purpose=OUTSIDE))
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         return r
