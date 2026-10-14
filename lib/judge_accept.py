@@ -325,7 +325,38 @@ PR_EXCLUDED_FILE = prcheck.EXCLUDED
 SPEC_FILE = specblk.SPEC_FILE
 WORLD_FILE = worldmark.WORLD_FILE
 MEANS_FILE = marks.KINDS[worldmark.MEANS].file
-MATERIAL_GLOB = "material-*.json"            # 素材の役が書く {role, reply, materials}
+MATERIAL_PREFIX = "material-"   # 素材の役の置き場のファイルの名の頭
+
+
+def material_file(role: str) -> str:
+    """素材の役が受けた返答を置くファイルの名（material-<役>.json）。material_role の逆"""
+    return f"{MATERIAL_PREFIX}{role}.json"
+
+
+def material_role(name) -> str:
+    """material_file の名（パスも可）から役の名"""
+    return pathlib.PurePath(name).stem.removeprefix(MATERIAL_PREFIX)
+
+
+def material_brief_file(role: str) -> str:
+    """素材の役の材料を描くファイルの名（material-<役>-brief.md）"""
+    return f"{MATERIAL_PREFIX}{role}-brief.md"
+
+
+MATERIAL_GLOB = material_file("*")           # 素材の役が書く {role, reply, materials}。固定の控え（view・route・tree）にも当たる
+
+
+def is_role_material(name) -> bool:
+    """name（パスも可）が素材の役の返答の置き場（material_file の名）か。同じ頭の固定の控えは役の素材でない"""
+    p = pathlib.PurePath(name)
+    return p.match(MATERIAL_GLOB) and p.name not in (MATERIAL_VIEW_FILE, MATERIAL_ROUTE_FILE, MATERIAL_TREE_FILE)
+
+
+def role_material_files(jdir) -> list:
+    """置き場の素材の役の返答の置き場の全部（名の順）"""
+    return sorted(p for p in pathlib.Path(jdir).glob(MATERIAL_GLOB) if is_role_material(p))
+
+
 VERIFY_ANSWERS_DIR = f"{jv.BRIEF_DIR}/answers"   # 裏取りの下請けの答えの置き場（元 judgeverify.answers_dir の run ごとの置き場の代わり）
 VERIFY_TREE_FILE = f"{jv.BRIEF_DIR}/{jv.TREE_FILE}"   # 束ね役を起こす前の作業ツリーの姿
 GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER        # 元 judgetake.py:42（輪 diagnose-loop の max_iterations と同じ）
@@ -678,8 +709,8 @@ def material_rows(jdir) -> list:
     任意の mechanism・measured・false_positive_if, from（出どころの節と目の名、依頼はバッチの出どころ）}。
     出どころの節の名は元の写しの graph の名（p1.<役の名の - を _ に>）"""
     out = []
-    replies = {}   # MATERIAL_GLOB は素材の役の返答の外の控え（material-view.json など。role が無い）にも当たる
-    for p in pathlib.Path(jdir).glob(MATERIAL_GLOB):
+    replies = {}
+    for p in role_material_files(jdir):
         d = read_json(p, None)
         if isinstance(d, dict) and isinstance(d.get("role"), str):
             replies[f"p1.{d['role'].replace('-', '_')}"] = d.get("reply")
@@ -2094,7 +2125,7 @@ def material_prep(jdir, role: str, repo, review_md: str, repo_review_md: str = "
         parts.append(f"## 材料: {hole.lstrip('?')}\n\n{r.render('{{' + hole + '}}')}")
     parts.append(_na_note(view, nid, doc["diff_file"]))
     text = "\n\n".join(parts) + "\n"
-    p = j / f"material-{role}-brief.md"
+    p = j / material_brief_file(role)
     p.write_text(text, encoding="utf-8")
     return {"brief_file": str(p), "brief": text, "review_md": review_md, "repo_review_md": repo_review_md}
 
@@ -2581,7 +2612,7 @@ def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_K
         errs = check_record(view, nid, mats, doc["diff_file"])
         if errs:
             raise Reject("素材の欄が記録の決まりに合わない: " + "; ".join(errs))
-        write_json(j / f"material-{role}.json", {"role": role, "reply": got, "materials": mats})
+        write_json(j / material_file(role), {"role": role, "reply": got, "materials": mats})
         if lens_note is not None:   # 受け付けが通った返答の分だけ
             write_json(j / diverted.LENS_FILE, lens_note)
         return {"ok": True, "reason": ""}
@@ -2592,15 +2623,13 @@ def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_K
 def _accepted(jdir) -> dict:
     """置き場の material-<役>.json（受けた返答と素材。並行 PR の material-pr-check.json も）を 役 → 中身 で"""
     out = {}
-    for p in sorted(pathlib.Path(jdir).glob("material-*.json")):
-        if p.name in (MATERIAL_VIEW_FILE, MATERIAL_ROUTE_FILE):
-            continue
+    for p in role_material_files(jdir):
         try:
             doc = read_json(p)
         except ValueError:
             continue
         if isinstance(doc, dict) and isinstance(doc.get("materials"), dict):
-            out[str(doc.get("role") or p.stem.removeprefix("material-"))] = doc
+            out[str(doc.get("role") or material_role(p))] = doc
     return out
 
 
@@ -3365,7 +3394,7 @@ def rejudge_verdict(rdir):
 
 
 PR_DOWNGRADES_FILE = prcheck.DRAFTS              # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
-MATERIAL_PR_FILE = f"material-{prcheck.ROLE}.json"   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
+MATERIAL_PR_FILE = material_file(prcheck.ROLE)   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
 PR_LIMIT = 100   # 元 works/.shared/core/graphloops/scripts/parallel-pr.py:16 の LIMIT（gh pr list の --limit）
 # 元 works/.shared/core/graphloops/rules/review-loop.py:2278
 # 元 works/blk-pr/scripts/accept.py:21

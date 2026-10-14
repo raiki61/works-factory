@@ -79,8 +79,8 @@ elif verb == "get":
     run = next(r for r in state["runs"] if r["id"] == args[2])
     parent = run["parent_run_id"] is None
     if "--events" in args:
-        if plan.get("events_unreadable"):
-            print("not json")
+        if "events_unreadable" in plan:
+            print(plan["events_unreadable"])
             sys.exit(0)
         print(json.dumps({"id": run["id"], "events": [
             {"event_type": "workflow_started", "created_at": "2026-10-12T00:00:00.000Z"},
@@ -579,23 +579,40 @@ class RunTest(RunnerCase):
         self.assertEqual([r["key"] for r in self.records("works")], [self.one])
 
     def test_unreadable_events_stop_the_row(self):
-        self.set_plan(events_unreadable=True)
+        self.set_plan(events_unreadable="not json")
         done = self.run_tasks("works-factory", self.one)
         self.assertEqual(done.returncode, 1, done.stderr)
         self.assertIn("run a1b2c3d4-0000-run の出来事の列を evidence/ に写せない", done.stderr)
         self.assertFalse(self.out.exists())
 
-    SPANS = {"works-factory": lambda row, events: {"record/parent.json": {**row, "terminal_record": {}},
-                                                   "record/parent-events.json": {"events": events}},
-             "works": lambda row, events: {"record/parent.json": {"run": row, "events": events}}}
+    def test_non_object_events_stop_the_row(self):
+        """出来事の列が dict でない返り（JSON の配列など）も、時間を null にして黙って進まず行を止める（#425）"""
+        self.set_plan(events_unreadable="[]")
+        done = self.run_tasks("works-factory", self.one)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn("run a1b2c3d4-0000-run の出来事の列を evidence/ に写せない", done.stderr)
+        self.assertFalse(self.out.exists())
+
+    @staticmethod
+    def resumed(stamp):
+        """再開を 1 度またぐ run の行と出来事の列。stamp は各工場の記録の時刻の書き方"""
+        row = {"started_at": stamp("01:59:50"), "completed_at": stamp("02:00:00")}
+        events = [{"event_type": "workflow_started", "created_at": stamp("01:50:00")},
+                  {"event_type": "workflow_started", "created_at": stamp("01:59:50")},
+                  {"event_type": "workflow_completed", "created_at": stamp("02:00:00"), "data": {"cost_usd": 1.0}}]
+        return row, events
+
+    # works-factory は Archon の get --events（events[].created_at は ISO の Z）、今の works は SQLite の行の書き方
+    SPANS = {"works-factory": (lambda t: f"2026-10-12T{t}.000Z",
+                               lambda row, events: {"record/parent.json": {**row, "terminal_record": {}},
+                                                    "record/parent-events.json": {"events": events}}),
+             "works": (lambda t: f"2026-10-12 {t}",
+                       lambda row, events: {"record/parent.json": {"run": row, "events": events}})}
 
     def test_seconds_span_from_the_first_event_across_resumes(self):
         """Archon は再開のたびに行の started_at を書き直すので、両工場とも時間は最初の出来事から completed_at までで測る"""
-        row = {"started_at": "2026-10-12 01:59:50", "completed_at": "2026-10-12 02:00:00"}
-        events = [{"event_type": "workflow_started", "created_at": "2026-10-12 01:50:00"},
-                  {"event_type": "workflow_started", "created_at": "2026-10-12 01:59:50"},
-                  {"event_type": "workflow_completed", "created_at": "2026-10-12 02:00:00", "data": {"cost_usd": 1.0}}]
-        for producer, files in self.SPANS.items():
+        for producer, (stamp, files) in self.SPANS.items():
+            row, events = self.resumed(stamp)
             for given, seconds in ((events, 600.0), ([], None)):
                 with self.subTest(producer=producer, events=len(given)), tempfile.TemporaryDirectory() as tmp:
                     ev = pathlib.Path(tmp)

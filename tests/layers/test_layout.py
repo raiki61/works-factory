@@ -1,5 +1,5 @@
-"""根の直下のファイルとフォルダが根の AGENTS.md の「リポジトリの形」の木に在る物だけ。`workflows/` の直下が `line/`・8 つのブロック・
-`.shared/` だけ。各ブロックが `works-factory-<ブロック>.yaml` を持つ。試験のフォルダに `__init__.py` が在る（根の AGENTS.md の機械の行）。
+"""根の直下のファイルとフォルダが根の AGENTS.md の「リポジトリの形」の木に在る物だけ。`workflows/` の直下が `line/`・`chain/`・
+8 つのブロック・`.shared/` だけ。各ブロックが `works-factory-<ブロック>.yaml` を持つ。試験のフォルダに `__init__.py` が在る（根の AGENTS.md の機械の行）。
 
 木の名は AGENTS.md から読み、ここに写さない。ブロックの名は tests/layers/scan.py の BLOCKS。
 見るファイルは git が知る物と、まだ add していないが無視されない物（.venv・__pycache__ など無視の物は見ない）。
@@ -57,7 +57,7 @@ def problems(paths, agents_md):
     have = set(paths)
     for name in folders:
         if name not in blocks:
-            out.append(f"workflows/{name}/ は line・ブロック・.shared のどれでもない")
+            out.append(f"workflows/{name}/ は line・chain・ブロック・.shared のどれでもない")
         elif name != ".shared" and f"workflows/{name}/works-factory-{name}.yaml" not in have:
             out.append(f"workflows/{name}/ に works-factory-{name}.yaml が無い")
     homes = {p.rpartition("/")[0] for p in paths if re.fullmatch(r"test_.*\.py", p.rpartition("/")[2])}

@@ -10,6 +10,7 @@ import functools
 import json
 import posixpath
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -29,10 +30,13 @@ ARCHON_WORDS = re.compile(
 LAYER_IMPORT = re.compile(r"^\s*(from|import)\s+(workflows|bin)\b")
 
 # まだ木に無いブロックを指す字も捕まえるための名の表。根の AGENTS.md の「リポジトリの形」の木との一致は test_block_paths が縛る。木に在るブロックは木から読む。
-BLOCKS = ("line", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
+BLOCKS = ("line", "chain", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
 RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
 LIB = Path(__file__).resolve().parents[2] / "lib"
+if str(LIB) not in sys.path:
+    sys.path.append(str(LIB))
+import chain  # noqa: E402  （周の鎖の周の数の上限 MAX_ROUNDS）
 # INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
 BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
@@ -40,6 +44,9 @@ OURS_PREFIX = OURS["name_prefix"]
 OURS_PACK = OURS["pack"]
 LINE_FOLDER = OURS["line"].removeprefix(OURS_PREFIX)
 LINE_YAML = f"workflows/{LINE_FOLDER}/{OURS['line']}.yaml"
+# 周の鎖。メイングラフを workflow: のノードで子の run として起こす一番上の親のグラフ（人が Archon の命令で名指して起こす）
+CHAIN_FOLDER = "chain"
+TOP_FOLDERS = (LINE_FOLDER, CHAIN_FOLDER)
 CALL_KEYS = ("include", "workflow")
 
 NO_DEADLINE = "1728000000"
@@ -530,6 +537,8 @@ def _block_returns(root: Path) -> list[str]:
         required = [item.value for item in getattr(_top(schema, "required"), "value", []) if isinstance(item, yaml.ScalarNode)]
         if isinstance(outcome, yaml.ScalarNode) and outcome.value not in required:
             out.append(f"{rel}:{_line(outcome)}: outcome_field の欄 {outcome.value} が返す節の required に無い")
+        if folder.name == CHAIN_FOLDER:   # 鎖の出力を読むのは人（workflow get）で、グラフの読み手は無い
+            continue
         read = reads.get(f"{OURS_PREFIX}{folder.name}", set())
         for key, value in _pairs(_top(schema, "properties")):
             if key not in read:
@@ -575,7 +584,7 @@ def _inputs_read(root: Path) -> list[str]:
     （宣言の無い名は Archon が渡さず、script は空の字を黙って読む）"""
     out = []
     for folder in _blocks(root):
-        if folder.name == LINE_FOLDER:
+        if folder.name in TOP_FOLDERS:   # 一番上のグラフの入力は起動が渡し、鎖はメイングラフへ写すだけ（tests/workflows/test_chain.py が縛る）
             continue
         path, document = _workflow_doc(folder)
         if document is None:
@@ -677,6 +686,7 @@ CHANGE_CHECKOUT = {
     ("fix", "refix-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("fix", "refix2-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("test-gate", "run"): "対象のテストを作業ツリーで走らせる（declared_checks.run_ci）",
+    **{("chain", f"round-{k}-commit"): "周の結果を親の run の枝へ commit する（index と HEAD を変える）" for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 # 役の節に要る鍵（K18。元 works/tests/test_yaml_rules.py の決まり）: settingSources: [user]・閉じた sandbox・道具の表の中の allowed_tools
 ROLE_TOOLS = frozenset({"Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebSearch", "WebFetch", "Agent", "Skill"})
@@ -784,9 +794,10 @@ def _gates(root: Path) -> list[str]:
             for n in _nodes(docs[name][1]) if isinstance(value := _top(n, "include"), yaml.ScalarNode)
         )
 
+    tops = {f"{OURS_PREFIX}{folder}" for folder in TOP_FOLDERS}
     for name, (path, document) in docs.items():
         rel = _rel(root, path)
-        if name != OURS["line"]:
+        if name not in tops:
             for key, value in _pairs(document):
                 if key in BLOCK_HEAD_KEYS and not (key == "interactive" and _is_bool(value, "true") and own_gate(name)):
                     out.append(f"{rel}:{_line(value)}: 差し込まれるブロックが工程の頭に {key} を書く")

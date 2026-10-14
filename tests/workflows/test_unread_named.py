@@ -32,7 +32,7 @@ SEED = ROOT / "tests" / "e2e" / "target-seed"
 RUN_ID = "run-unread"
 GONE = "gone/x9.json"
 BROKEN = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": GONE})
-SKIP = ("line", "report")
+SKIP = ("line", "chain", "report")   # chain の入力にポインタは無い
 POINTER = re.compile(r"ポインタ(?!の先)")
 
 

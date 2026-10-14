@@ -10,6 +10,7 @@ lib/tests/test_concept_fences.py と tests/layers/test_concept_fences.py）。
 計画 docs/plans/2026-10-09-one-entry-shape.md の 2 節。
 
 - Refused: 入口の入力を受けない（呼び手 entry が InputRefused にする。1 行）
+- named_pr(raw): 入力 pr が名指した PR の番号（無ければ None）。線の入口と周の鎖の始めが同じ読みを使う
 - change_base(raw, repo, reads): 差分の根を名指す生の入力（base・pr）を {base_rev, base: {rev, from, name, label}, pr} に解く
 - refuse_empty(items, change, repo): 依頼の行が空で差分も空なら拒む（EMPTY_REFUSED）
 - build(inp, repo): 入口の入力の形 {base, head_rev, diff, requests, request_file, pr, spec}
@@ -50,6 +51,12 @@ def _word(raw: dict, key: str) -> str:
     return "" if v is None else str(v).strip()
 
 
+def named_pr(raw: dict):
+    """入力 pr が名指した PR の番号（前後の空白は除く）。空か番号でなければ None"""
+    pr = _word(raw, "pr")
+    return int(pr) if pr.isdigit() else None
+
+
 def _git(repo: pathlib.Path, *args) -> str:
     """repo で git を読むだけ呼ぶ。引けなければ Refused（1 行）"""
     got = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8")
@@ -80,7 +87,7 @@ def change_base(raw: dict, repo: pathlib.Path, reads=None):
         return {"base_rev": rev, "base": {"rev": rev, "from": "base", "name": base, "label": f"base {base}"}, "pr": None}
     if not pr:
         return None
-    if not pr.isdigit():
+    if named_pr(raw) is None:
         raise Refused(f"pr={pr!r} は PR の番号でない")
     doc = ((reads or {}).get("pr") or {}).get(pr)
     if not isinstance(doc, dict) or not doc.get("baseRefOid") or not doc.get("headRefOid"):
@@ -160,8 +167,8 @@ def request_text(inp: dict) -> str:
 def named(raw: dict, repo: pathlib.Path):
     """入力 pr と依頼の欄 pr・issue が名指した (PR の番号の並び, issue の番号の並び)。依頼が読めない・形の外なら依頼の分は
     無しにする（形の誤りは入口の節（start）が拒む）"""
-    pr = _word(raw, "pr")
-    prs, issues = ([int(pr)] if pr.isdigit() else []), []
+    pr = named_pr(raw)
+    prs, issues = ([] if pr is None else [pr]), []
     rel = _word(raw, "request")
     if rel:
         path = pathlib.Path(rel) if pathlib.Path(rel).is_absolute() else repo / rel

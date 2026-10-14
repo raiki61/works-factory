@@ -271,7 +271,7 @@ class JudgeTakeCase(_JudgeBase):
         got = self.take(reply)
         self.assertIs(got["ok"], False)
         self.assertIn("out_of_purpose", got["reason"])
-        ja.write_json(self.jdir / "material-hygiene.json", {
+        ja.write_json(self.jdir / ja.material_file("hygiene"), {
             "role": "hygiene", "materials": {"hygiene": {"status": "found", "count": 1, "detail": "1 件"}},
             "reply": {"findings": [{"where": "test_stats.py", "text": "使わない import が残る"}]}})
         reply["out_of_purpose"] = [{"source": "衛生", "where": "test_stats.py", "why_outside": "凍結した目的の外の衛生の所見"}]
@@ -283,15 +283,33 @@ class JudgeTakeCase(_JudgeBase):
 
     def test_material_rows_read_material_files_and_request(self):
         """元 outpurpose.material_rows（P1 の節の出力の where・text の行と今の周の依頼の行）の書き直し"""
-        ja.write_json(self.jdir / "material-local-review.json", {
+        ja.write_json(self.jdir / ja.material_file("local-review"), {
             "role": "local-review", "materials": {}, "reply": {"lenses": [{"skill": "code-review", "findings": [
                 {"where": "stats.py:9", "text": "分母", "mechanism": "m"}]}]}})
-        ja.write_json(self.jdir / "material-prior-decisions.json", {
+        ja.write_json(self.jdir / ja.material_file("prior-decisions"), {
             "role": "prior-decisions", "materials": {}, "reply": {"decisions": [{"where": "x", "text": "y"}]}})
         rows = ja.material_rows(self.jdir)
         self.assertIn({"where": "stats.py:9", "text": "分母", "mechanism": "m", "from": "p1.local_review / code-review"}, rows)
         self.assertNotIn("x", [r["where"] for r in rows], "P0 の素材は材料の行に入らない（元は p1.* の節だけ）")
         self.assertEqual([r["where"] for r in rows if r["from"].startswith("依頼")], ["stats.py", "stats.py"])
+
+    FIXED = {ja.MATERIAL_VIEW_FILE: "hygiene", ja.MATERIAL_ROUTE_FILE: "provenance", ja.MATERIAL_TREE_FILE: "gate-efficacy"}
+
+    def plant_fixed_files_shaped_like_roles(self):
+        """同じ頭の固定の控えに役の返答の形を置く（中身の形では弾けず、名だけが役の素材でないと決める）"""
+        for name, role in self.FIXED.items():
+            ja.write_json(self.jdir / name, {"role": role, "materials": {role: {"status": "clean", "checked": name}},
+                                             "reply": {"findings": [{"where": name, "text": "控え"}]}})
+
+    def test_material_rows_skip_the_fixed_files(self):
+        self.plant_fixed_files_shaped_like_roles()
+        self.assertEqual([r for r in ja.material_rows(self.jdir) if not r["from"].startswith("依頼")], [])
+
+    def test_accepted_materials_skip_the_fixed_files(self):
+        self.plant_fixed_files_shaped_like_roles()
+        ja.write_json(self.jdir / ja.material_file("hygiene"), {"role": "hygiene", "reply": {}, "materials": {}})
+        self.assertEqual(list(ja._accepted(self.jdir)), ["hygiene"])
+        self.assertEqual(ja._accepted(self.jdir)["hygiene"]["materials"], {})
 
     def test_unbound_answer_without_tie_is_rejected(self):
         """元 test_blk_judge.AnswerTiesTakeCase.test_unbound_answer_without_tie_is_rejected_by_question"""
@@ -1089,6 +1107,12 @@ class MaterialCase(_RepoCase):
         ja.write_json(self.jdir / ja.START_FILE, start)
         return ja.material_route(self.jdir, self.repo)
 
+    def test_material_file_names_round_trip(self):
+        """素材の役の置き場の名は今の run の記録と同じ字で、役の名へ戻せる"""
+        self.assertEqual((ja.material_file("pr-check"), ja.material_brief_file("hygiene")),
+                         ("material-pr-check.json", "material-hygiene-brief.md"))
+        self.assertEqual(ja.material_role(self.jdir / ja.material_file("local-review")), "local-review")
+
     def test_route_writes_view_and_decisions(self):
         """元 test_blk_material の test_normal_run_routes_every_due_lens（差分の在る run）"""
         (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
@@ -1156,7 +1180,7 @@ class MaterialCase(_RepoCase):
         reply = {"material": {"status": "clean", "checked": "README を見た"}, "observed": [{"path": "p", "value": "v"}]}
         got = ja.material_take(self.jdir, "main-path-observation", reply, self.repo)
         self.assertTrue(got["ok"], got)
-        doc = ja.read_json(self.jdir / "material-main-path-observation.json")
+        doc = ja.read_json(self.jdir / ja.material_file("main-path-observation"))
         self.assertEqual(doc["role"], "main-path-observation")
         self.assertEqual(doc["materials"], {"main_path_observation": {"status": "clean", "checked": "README を見た"}})
 
@@ -1178,7 +1202,7 @@ class MaterialCase(_RepoCase):
             with self.subTest(role):
                 got = ja.material_take(self.jdir, role, reply, self.repo)
                 self.assertFalse(got["ok"], got)
-                self.assertFalse((self.jdir / f"material-{role}.json").exists())
+                self.assertFalse((self.jdir / ja.material_file(role)).exists())
 
     def test_gate_role_may_judge_a_gate_free_diff_not_applicable(self):
         """元 test_gate_na.PolicyCase（entry.role_judged_na_works。canary の run e91112dd）: 機械は touches_gates を真へ倒すが、
@@ -1314,7 +1338,7 @@ class MaterialCase(_RepoCase):
                 self.assertEqual(got["ok"], not why, got)
                 if why:
                     self.assertIn(why, got["reason"])
-        self.assertEqual(ja.read_json(self.jdir / "material-purpose-review.json")["reply"], cases[0][0])
+        self.assertEqual(ja.read_json(self.jdir / ja.material_file("purpose-review"))["reply"], cases[0][0])
 
     def test_local_review_rows_cover_the_declared_lenses(self):
         """元 rules:3214 の local_review_covers_lenses: 宣言のレンズ 1 本に findings の行 1 本。行の欠け・宣言の外の名・同じレンズの
@@ -1347,7 +1371,7 @@ class MaterialCase(_RepoCase):
         def hygiene(*wheres):
             return {"findings": [{"where": w, "text": "所見の見本"} for w in wheres], "seen": "差分の全部"}
         self.assertTrue(self.take_round("hygiene", hygiene("app.txt:1", f"{outside}:50", "infra/main.tf:184"))["ok"])
-        (self.jdir / "material-hygiene.json").unlink()
+        (self.jdir / ja.material_file("hygiene")).unlink()
         bad = hygiene("app.txt:1", "app.txt:99")
         for n in range(1, ja.GIVE_UP_AFTER):
             with self.subTest(round=n):
@@ -1357,7 +1381,7 @@ class MaterialCase(_RepoCase):
                 self.assertIn("app.txt:99", got["reason"])
         got = self.take_round("hygiene", bad)
         self.assertEqual((got["ok"], got["done"]), (True, True), got)
-        wheres = [f["where"] for f in ja.read_json(self.jdir / "material-hygiene.json")["reply"]["findings"]]
+        wheres = [f["where"] for f in ja.read_json(self.jdir / ja.material_file("hygiene"))["reply"]["findings"]]
         self.assertEqual(wheres, ["app.txt:1", "app.txt:99" + ja.LOCATION_MARK])
 
     def test_prior_decisions_reply_is_taken_or_refused(self):
@@ -1367,7 +1391,7 @@ class MaterialCase(_RepoCase):
                 "settled": []}
         self.assertFalse(self.take_round("prior-decisions", {**good, "material": {"status": "not_applicable", "reason": "無い"}})["ok"])
         self.assertTrue(self.take_round("prior-decisions", good)["ok"])
-        self.assertEqual(ja.read_json(self.jdir / "material-prior-decisions.json")["materials"],
+        self.assertEqual(ja.read_json(self.jdir / ja.material_file("prior-decisions"))["materials"],
                          {"prior_decisions": good["material"]})
 
     def test_consistency_bypass_reply_is_taken_or_refused(self):
@@ -1379,7 +1403,7 @@ class MaterialCase(_RepoCase):
         self.assertFalse(got["ok"])
         self.assertIn("素材 'bypass' が返答に無い", got["reason"])
         self.assertTrue(self.take_round("consistency-bypass", good)["ok"])
-        self.assertEqual(ja.read_json(self.jdir / "material-consistency-bypass.json")["materials"],
+        self.assertEqual(ja.read_json(self.jdir / ja.material_file("consistency-bypass"))["materials"],
                          {"consistency": good["consistency"], "bypass": good["bypass"]})
 
     def test_hygiene_reply_is_taken_or_refused(self):
@@ -1389,7 +1413,7 @@ class MaterialCase(_RepoCase):
         self.assertFalse(got["ok"])
         self.assertIn("素材 'hygiene'（clean）に 'checked' が要る", got["reason"])
         self.assertTrue(self.take_round("hygiene", {"findings": [{"where": "app.txt:2", "text": "名が短い"}], "seen": "差分"})["ok"])
-        self.assertEqual(ja.read_json(self.jdir / "material-hygiene.json")["materials"],
+        self.assertEqual(ja.read_json(self.jdir / ja.material_file("hygiene"))["materials"],
                          {"hygiene": {"status": "found", "checked": "差分", "count": 1, "detail": "app.txt:2: 名が短い"}})
 
     def test_procedure_trace_reply_is_taken_or_refused(self):
@@ -1401,7 +1425,7 @@ class MaterialCase(_RepoCase):
                 self.changed(*files)
                 got = self.take_round("procedure-trace", na)
                 self.assertEqual(got["ok"], ok, got)
-                self.assertEqual((self.jdir / "material-procedure-trace.json").exists(), ok)
+                self.assertEqual((self.jdir / ja.material_file("procedure-trace")).exists(), ok)
 
     def test_test_double_fidelity_reply_is_taken_or_refused(self):
         """素材の役の受け付け（代役の忠実性）: 見た返答は受け、走った節の流用（carried_over）は拒む"""
@@ -1412,7 +1436,7 @@ class MaterialCase(_RepoCase):
         self.assertIn("素材 'test_double_fidelity'（ノード p1.test_double_fidelity）は今の周に走ったのに carried_over", got["reason"])
         good = {"material": {"status": "clean", "checked": "代役と本物の口を比べた"}}
         self.assertTrue(self.take_round("test-double-fidelity", good)["ok"])
-        self.assertEqual(ja.read_json(self.jdir / "material-test-double-fidelity.json")["materials"],
+        self.assertEqual(ja.read_json(self.jdir / ja.material_file("test-double-fidelity"))["materials"],
                          {"test_double_fidelity": good["material"]})
 
     def test_tree_change_names_the_peer_roles(self):
@@ -1509,7 +1533,7 @@ class MaterialCase(_RepoCase):
         reply = {"material": {"status": "clean", "checked": "差分を見た"}, "simplify_carried": False, "findings": rows}
         got = ja.material_take(self.jdir, "local-review", reply, self.repo)
         self.assertTrue(got["ok"], got)
-        doc = ja.read_json(self.jdir / "material-local-review.json")
+        doc = ja.read_json(self.jdir / ja.material_file("local-review"))
         self.assertTrue(doc["reply"]["findings"][0]["failed"].startswith(diverted.UNSEEN_TAG))
         self.assertEqual(ja.read_json(self.jdir / diverted.LENS_FILE)["unseen"], ["/code-review"])
 
@@ -1517,9 +1541,9 @@ class MaterialCase(_RepoCase):
         """元 test_blk_material.test_collect_names_every_waiting_node と写しの rules の fill_materials"""
         got = self.view()
         self.assertTrue(got["provenance"])
-        ja.write_json(self.jdir / "material-hygiene.json",
+        ja.write_json(self.jdir / ja.material_file("hygiene"),
                       {"role": "hygiene", "reply": {}, "materials": {"hygiene": {"status": "clean", "checked": "差分"}}})
-        ja.write_json(self.jdir / "material-pr-check.json",
+        ja.write_json(self.jdir / ja.material_file("pr-check"),
                       {"role": "pr-check", "reply": {}, "materials": {"parallel_pr": {"status": "clean", "checked": "PR"}}})
         for _ in range(3):
             ja.rolekit.with_done(self.jdir, "provenance", {"ok": False, "reason": "出典が違う"})
@@ -2623,7 +2647,7 @@ class VerdictPublicCase(unittest.TestCase):
             root = pathlib.Path(tmp)
             jdir, rdir = root / "judge", root / "rejudge"
             jdir.mkdir()
-            ja.write_json(jdir / "material-purpose-review.json",
+            ja.write_json(jdir / ja.material_file("purpose-review"),
                           {"role": "purpose-review", "materials": {}, "reply": self.REPLY})
             ja.verdict(jdir, rdir, root, "", lambda rel: rel)
             self.assertEqual(ja.read_json(jdir / "purpose-review.json"), self.REPLY)

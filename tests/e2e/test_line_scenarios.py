@@ -73,17 +73,23 @@ class LineScenariosTest(unittest.TestCase):
 
 
 def line_traces(names) -> dict:
-    """筋書きの名 → その筋書きの stub で線を dry-run（exec-code）した trace（節の id → trace の行）。workflow test は節の出力を返さない
-    ので、筋書きの stub と入力をそのまま `workflow run --dry-run` に渡す（tests/workflows/test_report.py と同じ形）"""
+    """筋書きの名 → その筋書きの stub で線を dry-run（exec-code）した trace（節の id → trace の行）"""
+    return dry_run_traces("line", archon.PACK["ours"]["line"], ["line", *blocks()], names)
+
+
+def dry_run_traces(folder: str, workflow: str, placed, names) -> dict:
+    """筋書きの名 → workflows/<folder>/fixtures/ のその筋書きの stub でグラフ workflow を dry-run（exec-code）した trace（ノードの id →
+    trace の行）。木には placed のフォルダを置く。workflow test はノードの出力を返さないので、筋書きの stub と入力をそのまま
+    `workflow run --dry-run` に渡す（tests/workflows/test_report.py と同じ形）"""
     out = {}
-    with archon.tree(["line", *blocks()]) as tree:
+    with archon.tree(placed) as tree:
         for name in names:
-            fixture = yaml.safe_load((archon.WORKFLOWS / "line" / "fixtures" / f"{name}.stubs.yaml").read_text(encoding="utf-8"))
+            fixture = yaml.safe_load((archon.WORKFLOWS / folder / "fixtures" / f"{name}.stubs.yaml").read_text(encoding="utf-8"))
             stubs = tree.parent / f"{name}.stubs.yaml"
             stubs.write_text(yaml.safe_dump({k: v for k, v in fixture.items() if k not in ("fixture", "exec-code")},
                                             allow_unicode=True), encoding="utf-8")
             args = [arg for k, v in (fixture["fixture"].get("inputs") or {}).items() for arg in ("--input", f"{k}={v}")]
-            done = archon.archon(tree, "workflow", "run", archon.PACK["ours"]["line"], "--dry-run", "--exec-code", "--stubs", str(stubs),
+            done = archon.archon(tree, "workflow", "run", workflow, "--dry-run", "--exec-code", "--stubs", str(stubs),
                                  "--json", *args, "--cwd", str(tree))
             try:
                 # 落ちた dry-run は trace の後ろに {ok: false, error} を足して出すので、頭の 1 つの JSON だけを読む

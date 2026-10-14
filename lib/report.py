@@ -3,6 +3,7 @@
 元は works/.shared/core/report.py。盤面（b）を読んだ関数は、ブロックの返りを引数で受ける形で lib/outcome（結末の語の決め方）と
 lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移した。ここに残るのは両方と報告のブロックが読む語と小さな組み立て:
 - OUTCOMES・OUTCOME_WORDS: 結末の語（報告のブロックの返す節の enum と同じ 10 語）と、冒頭 3 行の 1 行目の平易な言い方
+- OUTCOME_KINDS: 結末の語 → 周の鎖（lib/chain.py）が見る種
 - 報告の見出し（TITLE_HEADING・HEADINGS の冒頭 1〜5・PRIOR_HEADING・OUTSIDE_HEADING・WORLD_HEADING・TDD_HEADING・
   MODEL_HEADING・COST_HEADING・STRUCTURE_HEADING。人が読む本文の物で役の指示書には貼らない FOR_READERS）と行の where・頭の語
 - prior_lines(rows, next_file): 次の run に運んだ落ちた理由の節の行
@@ -27,12 +28,18 @@ if str(CORE) not in sys.path:
 
 import answer  # noqa: E402
 import carry  # noqa: E402  （L1。次の run への持ち越しの形の住処: ファイルの名・欄の名・約束の Schema）
+import chain  # noqa: E402
 import oneline  # noqa: E402
 import promptsection  # noqa: E402
 import stopby  # noqa: E402
 
 OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed", "round_limit", "stopped_by_request", "stopped_by_human", "stopped_by_line",
             "needs_human", "record_invalid", "interrupted")
+# 結末の語 → 周の鎖が見る種（chain.KIND_*）。鎖は結末の語を字で持たず、ここを引く
+OUTCOME_KINDS = {"fixed": chain.KIND_CLOSED, "no_fix_needed": chain.KIND_CLOSED, "round_limit": chain.KIND_OPEN,
+                 "stopped_by_request": chain.KIND_HALTED, "stopped_by_human": chain.KIND_HALTED, "stopped_by_line": chain.KIND_HALTED,
+                 "record_invalid": chain.KIND_HALTED, "needs_human": chain.KIND_HUMAN, "fixed_needs_check": chain.KIND_HUMAN,
+                 "interrupted": chain.KIND_WAIT}
 
 
 EYES = ("R1", "R2", "R3", "R4")
