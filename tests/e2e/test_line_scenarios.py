@@ -29,7 +29,7 @@ SCENARIOS = (
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
     "unattended-questions", "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
-    "nothing-owed", "depth-light", "depth-raised", "depth-no-evidence", "fix-fixture",
+    "nothing-owed", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence", "fix-fixture",
 )
 
 
@@ -408,6 +408,11 @@ class FixFixtureTest(unittest.TestCase):
         self.assertIs(json.loads(self.trace["fix-in"]["output"])["received"]["plan"]["depth_skip"], True)
         self.assertIs(json.loads(self.trace["fixed"]["output"])["review_skipped"], True)
 
+    def test_spec_check_passes_without_a_spec_stage(self):
+        """固定材料の run は仕様の段と組めないので、承認し直すかの照らし（#510）は fix-in の運ぶ spec（null）を読み、問いも止めも無い"""
+        self.assertIsNone(json.loads(self.trace["fix-in"]["output"])["spec"])
+        self.assertEqual(json.loads(self.trace["spec-check"]["output"]), {"questions": [], "stop_reason": ""})
+
 
 class RefixInputsTest(unittest.TestCase):
     """部分 D1 の受け入れ: 筋書き replan で 2 度目の修正（refix-run）に 1 回目の申し出と裁定（prior_conflicts）・案の直しの事前審査の
@@ -464,7 +469,8 @@ class ReportOutcomeTest(unittest.TestCase):
 
     WANT = {"start-refused": ("stopped_by_line", "start:works:start-refused"),
             "unattended-needs-human": ("needs_human", "ask-final:works:needs-human"),
-            "final-stop": ("stopped_by_human", "gate-final:stop")}
+            "final-stop": ("stopped_by_human", "gate-final:stop"),
+            "spec-changed": ("needs_human", "spec-check:works:spec-changed")}
 
     @classmethod
     def setUpClass(cls):

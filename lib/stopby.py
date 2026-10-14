@@ -9,7 +9,7 @@ process.human_items の行の node（conflict・replan・守りのファイル�
 - HEAD: 機械の語の頭。is_line(by): 機械が止めた語か（頭で見る）
 - REASONS: 決まりが core（.shared/core）に在る段の語と、2 つ以上の持ち主が共に書く語の表（名 → 意味）。止めを書くのが
   ブロックだけでも、段の決まりが core に在れば表に置く（lens・pr・plan-converge）。線が足す語（start-refused・needs-human・
-  line-script）は、線の script が書き report が読むのでここに置く。定数（ADAPTER など）はこの表の名に HEAD を
+  line-script・spec-changed）は、線の script が書き report が読むのでここに置く。定数（ADAPTER など）はこの表の名に HEAD を
   付けた語で、呼び手はその定数を引く（自分の定数に写さない）
 - HUMAN: 人が関所で止めた時の止めの理由の頭（後ろは関所の所）。機械の語ではない（is_line は偽）
 - WAITING: 線の止めでなく、人の答えを待つ語
@@ -44,6 +44,7 @@ REASONS = {
     "rejudge-session": "判定役の会話が見つからず、再審せずに止めた",
     "replan": "同じ run の中の案の直しで止めた（その答えの行の node も同じ語）",
     "scope-check": "窓の照らし（部品の置き場と宣言）が誤りを見て止めた",
+    "spec-changed": "修正の後に、承認済みの受け入れ条件のテストのファイルが承認の版から変わった（承認し直すかを人に諮る）",
     "start-refused": "入口が入力を受けなかった（AI を起こす前に止めた）",
     "tdd-repeat": "同じ単位がまた TDD の確認の上限まで落ちたので、機械が裁定に回さず人に回した（裁定の by）",
     "unrestored": "組を当ててから戻そうとして戻せず、差分が親の作業ツリーに当たったまま止めた（作業ツリーを人が確かめるまで、後の組を当てず先へ進めない）",
@@ -100,7 +101,8 @@ REJUDGE = word("rejudge")
 REJUDGE_SESSION = word("rejudge-session")
 REPLAN = word("replan")
 SCOPE_CHECK = word("scope-check")
+SPEC_CHANGED = word("spec-changed")
 START_REFUSED = word("start-refused")
 TDD_REPEAT = word("tdd-repeat")
 UNRESTORED = word("unrestored")
-WAITING = frozenset({CONFLICT, NEEDS_HUMAN, REPLAN, TDD_REPEAT, UNRESTORED})
+WAITING = frozenset({CONFLICT, NEEDS_HUMAN, REPLAN, SPEC_CHANGED, TDD_REPEAT, UNRESTORED})

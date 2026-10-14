@@ -780,6 +780,22 @@ nodes:
       no_fix_design: { from: "$design-only.output.design", if_skipped: null }
       review_skipped: { from: "$fix-in.output.depth_skip", if_skipped: null }
 
+  # 7b 承認済みの受け入れ条件のテストの照らし（spec=on の run だけ中身が在る）
+  - id: spec-check
+    script: spec_check
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        questions: { type: array }
+        stop_reason: { type: string }
+      required: [questions, stop_reason]
+    mutates_checkout: false
+    depends_on: [fixed]
+    with:
+      spec: { from: "$fix-in.output.spec", if_skipped: null }
+
   # 再審は 2 度目の修正の後（元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。1 回目と 2 度目の修正役の異議を 1 度だけ再審する
   - id: rejudge-run
     include: works-factory-judge
@@ -885,7 +901,7 @@ nodes:
   # 8 試験の関門（final）
   - id: test-gate-final
     include: works-factory-test-gate
-    depends_on: [redepth]
+    depends_on: [redepth, spec-check]
     when: "$fixed.output.go == true && $judged.output.stop_reason == '' && $redepth.output.stop_reason == ''"
     with:
       mode: final
@@ -1066,6 +1082,7 @@ nodes:
       replan_review: { from: "$replan-review.output.review", if_skipped: null }
       start: "$start.output.record"
       before_fix_answer: { from: "$fix-in.output.answer", if_skipped: null }
+      spec_changed: { from: "$spec-check.output.questions", if_skipped: [] }
 
   - id: gate-final
     approval:
@@ -1163,12 +1180,13 @@ nodes:
         optional: { type: array }
         prior_failures: {}
         redepth: {}
+        spec_changed: { type: array }
       required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
-                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth]
+                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed]
     mutates_checkout: false
     depends_on: [start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
-                 fixed, redepth, test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
+                 fixed, spec-check, redepth, test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
     always_run: true
     with:
@@ -1203,11 +1221,13 @@ nodes:
       stop_answer_replan: { from: "$answer-replan.output.stop_reason", if_skipped: null }
       stop_fixed: { from: "$fixed.output.stop_reason", if_skipped: null }
       stop_redepth: { from: "$redepth.output.stop_reason", if_skipped: null }
+      stop_spec_check: { from: "$spec-check.output.stop_reason", if_skipped: null }
       stop_ask_final: { from: "$ask-final.output.stop_reason", if_skipped: null }
       stop_answer_final: { from: "$answer-final.output.stop_reason", if_skipped: null }
       deferred: { from: "$ask-before-fix.output.deferred", if_skipped: null }
       widened: { from: "$ask-replan.output.widened", if_skipped: null }
       final_reasons: { from: "$ask-final.output.reasons", if_skipped: null }
+      spec_changed: { from: "$spec-check.output.questions", if_skipped: null }
       prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
       redepth: { from: "$redepth.output", if_skipped: null }
       # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の節の id の頭。宣言の外の落ちは途中で終わった run に数える。
@@ -1242,6 +1262,7 @@ nodes:
       deferred: "$collect.output.deferred"
       widened: "$collect.output.widened"
       final-reasons: "$collect.output.final_reasons"
+      spec-changed: "$collect.output.spec_changed"
       redepth: "$collect.output.redepth"
       optional: "$collect.output.optional"
 

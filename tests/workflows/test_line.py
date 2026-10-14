@@ -38,6 +38,7 @@ after_fix = load("after_fix")
 judged = load("judged")
 fixed = load("fixed")
 redepth = load("redepth")
+spec_check = load("spec_check")
 returned = load("returned")
 collect = load("collect")
 result = load("result")
@@ -748,17 +749,22 @@ class FixInWiringCase(unittest.TestCase):
     """#509: 修正から後ろのノードは直す前のテスト・判定・計画・修正前の承認の答えを fix-in からだけ読み（固定材料の run で飛んだ
     ノードを直に結ぶと落ちる）、固定材料の run は直す前のテストから飛ぶ"""
 
-    AFTER = ("fix", "after-fix", "replan", "replan-out", "replan-review", "replan-review-out", "ask-replan", "gate-replan",
-             "answer-replan", "refix-run", "fixed", "rejudge-run", "rejudge-run-out", "judged", "redepth", "test-gate-final",
-             "test-gate-final-out", "eyes", "eyes-out", "merge-seal", "merge-seal-out", "ask-final", "gate-final", "answer-final",
-             "merge-apply", "merge-apply-out")
     SKIPPED = ("$judge.output", "$plan-rounds.output", "$test-gate-base.output", "$answer-before-fix.output",
                "$ask-before-fix.output", "$test-gate-base-out.output", "$judge-out.output", "$plan-rounds-out.output",
                "$plan-rounds-review-out.output")
 
+    @staticmethod
+    def after(nodes: dict) -> list:
+        """fix-in の後ろのノード（depends_on をたどる）。飛んだノードも待つ all_done のノード（collect から後ろ）は写しの値で埋めるので除く"""
+        down = {"fix-in"}
+        while grown := {i for i, n in nodes.items() if i not in down and down & set(n.get("depends_on") or [])}:
+            down |= grown
+        return sorted(i for i in down - {"fix-in"} if nodes[i].get("trigger_rule") != "all_done")
+
     def test_nodes_after_fix_read_only_the_relay(self):
         nodes = line_nodes()
-        for node in self.AFTER:
+        self.assertIn("spec-check", self.after(nodes))
+        for node in self.after(nodes):
             text = json.dumps({k: nodes[node].get(k) for k in ("with", "when")}, ensure_ascii=False)
             for source in self.SKIPPED:
                 with self.subTest(node=node, source=source):
@@ -1258,6 +1264,17 @@ class AskFinalCase(unittest.TestCase):
 
     def test_protected_only_ignores_other_reasons(self):
         self.assertFalse(self.ask(self.got(green=False), "protected_only")["open"])
+
+    def test_spec_changed_opens_in_every_mode(self):
+        """#510: 承認の後に受け入れ条件のテストが変わった問いは開き方に依らず開き、1 行目に名指し、この関所の答えが問いに答えないと言う"""
+        q = "承認の後に受け入れ条件のテストが変わった（spec_changed）: test_spec_accept.txt（sha256 aaaaaaaaaaaa → bbbbbbbbbbbb）——承認し直すか"
+        for mode in ("", "when_needed", "protected_only"):
+            with self.subTest(mode=mode):
+                got = self.ask(self.got(spec_changed=[q]), mode)
+                self.assertIs(got["open"], True)
+                self.assertIn(gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND], got["text"].splitlines()[0])
+                self.assertIn(q, got["text"])
+                self.assertIn("この承認ノードの答えはこの問いに答えない", got["text"])
 
     def test_unattended_stops_instead_of_opening(self):
         got = self.ask(self.got(), unattended=True)
@@ -1933,6 +1950,43 @@ class PlanOutNothingOwedCase(Artifacts):
         self.assertFalse(self.read_from_env(self.round_pointer(""))["nothing_owed"])
 
 
+class SpecCheckNodeCase(Artifacts):
+    def test_no_spec_no_question(self):
+        self.assertEqual(spec_check.check("null"), {"questions": [], "stop_reason": ""})
+
+    def test_changed_spec_waits(self):
+        (self.tmp / "test_accept.txt").write_text("変えた\n", encoding="utf-8")
+        (self.artifacts / "judge").mkdir()
+        spec = {"acceptance": [{"key": "A1", "file": "test_accept.txt", "sha256": "a" * 64}]}
+        (self.artifacts / "judge" / "spec.json").write_text(json.dumps(spec), encoding="utf-8")
+        ptr = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "judge/spec.json"})
+        with contextlib.chdir(self.tmp):
+            got = spec_check.check(ptr)
+        self.assertEqual(got["stop_reason"], stopby.SPEC_CHANGED)
+        self.assertEqual(len(got["questions"]), 1, got)
+        self.assertIn("test_accept.txt", got["questions"][0])
+
+    def test_crash_is_a_question_not_silence(self):
+        """照らしが落ちた返りの 0 件は、最後の承認ノードに「変わっていない」と読まれて問わずに通る。落ちたら問いを 1 行返す"""
+        ptr = json.dumps({"type": "archon_artifact", "run_id": "another-run", "path": "judge/spec.json"})
+        env = {**os.environ, "INPUTS_SPEC": ptr}
+        done = subprocess.run([sys.executable, str(SCRIPTS / "spec_check.py")], cwd=self.tmp, env=env, capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual(got["stop_reason"], stopby.LINE_SCRIPT)
+        self.assertEqual(len(got["questions"]), 1, got)
+        self.assertIn("確かめられない", got["questions"][0])
+
+    def test_check_reads_the_judge_spec(self):
+        """仕様の段の J/spec.json の指し札が fix-in を通って照らしに届き、照らしの問いが最後の承認ノードと collect に届く"""
+        nodes = line_nodes()
+        self.assertEqual(nodes["spec-check"]["with"]["spec"], {"from": "$fix-in.output.spec", "if_skipped": None})
+        self.assertEqual(nodes["spec-check"]["depends_on"], ["fixed"])
+        for key, skipped in (("ask-final", []), ("collect", None)):
+            with self.subTest(node=key):
+                self.assertEqual(nodes[key]["with"]["spec_changed"], {"from": "$spec-check.output.questions", "if_skipped": skipped})
+
+
 class AfterFixAndJudgedCase(Artifacts):
     def test_after_fix_counts(self):
         self.assertEqual(after_fix.decide([]), {"replan": False, "stop_reason": ""})
@@ -2309,6 +2363,14 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual(set(got), {name.replace("-", "_") for name in declared})
         self.assertEqual(collect.fallback("x").keys(), got.keys())
 
+    def test_lists_are_the_lists_report_reads(self):
+        """collect が並びに倒す入力（LISTS）は、report の facts が並びと読む入力（無ければ黙って [] になる）と、collect の節が
+        配列と申告する欄と同じ"""
+        from tests.workflows.test_report import facts_script
+        self.assertEqual(set(collect.LISTS), {name.replace("-", "_") for name in facts_script.LISTS})
+        shape = line_nodes()["collect"]["output_format"]["properties"]
+        self.assertEqual({key for key, rule in shape.items() if rule.get("type") == "array"}, set(collect.LISTS))
+
     def test_skipped_receiver_is_null(self):
         seal = {"got": {"mode": "seal", "ok": True, "hash": "123"}, "stop_reason": ""}
         got = collect.collect({"judge": "null", "merge_seal": json.dumps(seal), "plan": "null", "plan_review": "null"}, self.line())
@@ -2372,6 +2434,7 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertLessEqual({"start", "ask-before-fix", "ask-replan", "ask-final", "judged", "fixed", "redepth", "after-fix"}, stopping)
         with_ = nodes["collect"]["with"]
         self.assertEqual({k for k in with_ if k.startswith("stop_")}, {f"stop_{k.replace('-', '_')}" for k in stopping})
+        self.assertEqual(set(collect.STOPS), stopping)
         for key in sorted(stopping):
             with self.subTest(node=key):
                 self.assertEqual(with_[f"stop_{key.replace('-', '_')}"], {"from": f"${key}.output.stop_reason", "if_skipped": None})
