@@ -803,6 +803,19 @@ class ScriptCase(unittest.TestCase):
         got = self.run_script("r4_accept", with_={"reply": json.dumps(named, ensure_ascii=False)})
         self.assertEqual((got["ok"], got["done"]), (True, True))
 
+    def test_r4_accept_keeps_an_unnamed_policy_line_the_human_passed(self):
+        """修正前の承認ノードで人が通した方針の行は、名指さなくても拒まない（script が入力の問いと答えから組む passed）"""
+        line = "方針の文書の 2 行目の『空の列は試験しない』に反する"
+        self.prep_file(**{policy.RECORDED_KEY: [{"source": "doc", "name": "/run/policy/abc.md", "text": "", "lines": 3, "alias": ""}]})
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
+        self.inputs["plan_questions"] = json.dumps(
+            [gatemarks.question_row(policy.POLICY_KIND, f"事前審査の穴 [{policy.POLICY_KIND}] k: {line}")], ensure_ascii=False)
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "policy_conflicts": [line],
+                 "surfaced": [], "seen": [], "unseen": []}
+        got = self.run_script("r4_accept", with_={"reply": json.dumps(reply, ensure_ascii=False)})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
+        self.assertEqual(self.run_script("r4_rejects")["reason"], "")
+
     def test_verdict_carries_protected_hits(self):
         self.prep_file()
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
