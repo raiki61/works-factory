@@ -172,6 +172,20 @@ class BuildCase(Base):
         self.assertNotIn("推しを採って通した", text)
         self.assertIn("承認ノード gate-before-fix: continue（0 を返す形で通す）", self.section(text, report.STOP_HEADING))
 
+    def test_pushed_run_stopped_at_the_final_gate_quotes_no_push_as_a_human_word(self):
+        """#552: 修正の前を推しで通し、最後の承認ノードで無人ゆえに止まった run は、止まりの行に推しの一言を人の一言として引かず、
+        決めた人の数に推しを数えない"""
+        rec = {"item": "修正案 1 が狭める能力: 空の列で例外", "answer": "continue", "note": "0 を返す形で通す", "why": "呼び手が前提"}
+        gates = {"gate-before-fix": {"decision": "continue", "text": "0 を返す形で通す", "asked": [], "pushed": [rec]}}
+        seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
+        _, text, decided = self.build(fixed_run(**{"merge-seal": seal_ok, "merge-apply": None}), gates=gates,
+                                      line={"stops": {"ask-final": stopby.HEAD + "needs-human"}})
+        stopped = [x for x in self.section(text, report.DECISIONS_HEADING).splitlines() if x.startswith("- 止まった run: ")]
+        self.assertEqual(len(stopped), 1, decided)
+        self.assertTrue(stopped[0].endswith("「一言なし」"), stopped)
+        self.assertIn("- 決めた人: 承認ノードの答え 0 件（ほかに無人の run が推しで通した承認ノード 1 件）\n",
+                      self.section(text, report.ENTRY_HEADING))
+
     def test_final_tests_that_did_not_run_are_named_in_the_head(self):
         """#492: 最後のテストが incomplete の run は、冒頭の 1 行目（起きたこと）が試験は走っていないと言い、利用者の環境で回す道を
         添える。返す節の中の誤り（by が空）は走っていないと言わずに工場の不具合と言う。緑なら言わない"""

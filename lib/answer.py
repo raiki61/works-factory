@@ -17,6 +17,8 @@
   最後の承認ノード FINAL は FINAL_STOP_NOTE。元 works/darkfactory/lib/line_edge.py 98・104 行）を一言にする（報告の止めの理由が空にならない）
 - PUSHED: 推しで進んだ答えの欄。人の答えは持たず、欄が在ることが答えの出どころが推しである印（答えた者の名ではない。
   持ち主の決め answerer-unnamed）
+- by_push(row) -> bool: 答えか、答えを写した行が欄 PUSHED を持つ（推しで進んだ）
+- origin(row) -> dict: 答えを別の形の行に写す時に足す欄（推しなら {PUSHED: …}、人の答えなら {}）。写しが印を落とさない
 """
 import json
 import os
@@ -77,3 +79,11 @@ def taken(got, *, go: bool, stop_reason: str, place: str, folder: pathlib.Path, 
     kept.mkdir(parents=True, exist_ok=True)
     (kept / f"{place}.json").write_text(json.dumps(answer, ensure_ascii=False) + "\n", encoding="utf-8")
     return {"go": passed, "answer": answer, "stop_reason": "" if passed else stopby.HUMAN + place}
+
+
+def by_push(row) -> bool:
+    return isinstance(row, dict) and PUSHED in row
+
+
+def origin(row) -> dict:
+    return {PUSHED: row[PUSHED]} if by_push(row) else {}

@@ -119,7 +119,8 @@ HYPOTHESIS = "仮説"                           # 前提の役が実測でなく
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
 UNSEEN = "取れない（U6）: Bash で読み書きしたファイル（道具への入力が command の字だけで、フックも Read・Edit・Write の外）"
-EYE_PASSES_HEAD = "人が通した行（修正前の承認ノードで人が通したので、独立の目 R4 の問いから外して聞き直さなかった行）"
+EYE_PASSES_HEAD = ("修正前の承認ノードで通した行（人が通したか、無人の run が推しで通したので、独立の目 R4 の問いから外して聞き直さ"
+                   "なかった行。どちらかは行ごとに書く）")
 # 線の値（線の collect が report の入力で渡す物。docs/design.md の report の返り）の行の頭
 DEFERRED_HEAD = "無人の run で修正前の承認ノードに載せずに報告へ回した問い（承認ノードを開かずに修正へ進めた）"
 FINAL_REASONS_HEAD = "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）"
@@ -1074,14 +1075,15 @@ def _tests_head_lines(returns: dict) -> list:
 
 def _apply_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run_id: str) -> list:
     """差分を対象に当てる 1 行（M37。bin/apply <run-id>。元 works/dev/lib.sh:633-644）。止まった run には止まりの 1 行（結末の語・止めた
-    所・人の一言）と --allow-stopped の要ることを出す。生の git apply の行は出さない（止まった run の拒みを素通りさせない）"""
+    所・人の一言。無人の run が推しで通した承認ノードの一言は人の一言でないので引かない）と --allow-stopped の要ることを出す。
+    生の git apply の行は出さない（止まった run の拒みを素通りさせない）"""
     sealed = as_dict(returns.get("merge-seal"))
     if not (sealed.get("ok") is True and sealed.get("diff")):
         return [f"{APPLY_HEAD}: 無い（差分を封じていない）"]
     if as_dict(returns.get("merge-apply")).get("ok") is True:
         return [f"{APPLY_HEAD}: bin/apply {run_id}（置いた差分の hash を封じた hash と照らしてから当てる）"]
-    said = next((g.get("text") for g in (gates.get(k) for k in ("gate-final", *oc.GATES)) if isinstance(g, dict) and g.get("text")),
-                "") or "一言なし"
+    said = next((g.get("text") for g in (gates.get(k) for k in ("gate-final", *oc.GATES))
+                 if isinstance(g, dict) and g.get("text") and not answer.by_push(g)), "") or "一言なし"
     out = []
     if outcome in STOP_OUTCOMES:
         out.append(f"止まった run: {report.OUTCOME_WORDS.get(outcome, outcome)}（{stop_reason or outcome}）で止まった: 「{oneline.one_line(said)}」")
@@ -1305,7 +1307,10 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
         out.append(gate_words)
     feats = f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s))}" if entrylib.FEATURES_KEY in s else ""
     out.append(f"段: {s.get('thickness') or '自動（機械が単位ごとに決めた）'}{feats}")
-    out.append(f"決めた人: 承認ノードの答え {sum(1 for g in as_dict(gates).values() if isinstance(g, dict))} 件")
+    answered = [g for g in as_dict(gates).values() if isinstance(g, dict)]
+    pushed = sum(1 for g in answered if answer.by_push(g))
+    out.append(f"決めた人: 承認ノードの答え {len(answered) - pushed} 件" + (f"（ほかに無人の run が推しで通した承認ノード {pushed} 件）"
+                                                                          if pushed else ""))
     why = forge.reason(forge.detect(repo)) if repo else ""
     if why:
         out.append(f"{FORGE_HEAD}: 無い——並行 PR の確かめは条件外（not_applicable。{why}）")
@@ -1392,7 +1397,7 @@ def _gate_line(g) -> str:
     if not isinstance(g, dict):
         return "開かなかった"
     said = oneline.one_line(g.get("text") or "")
-    return f"{g.get('decision')}（推しで通した: {said}）" if answer.PUSHED in g else f"{g.get('decision')}（{said}）"
+    return f"{g.get('decision')}（推しで通した: {said}）" if answer.by_push(g) else f"{g.get('decision')}（{said}）"
 
 
 def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,

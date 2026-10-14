@@ -31,6 +31,7 @@ ROLES = {i: n for i, n in NODES.items() if "command" in n}
 EYE_NODES = ("r1-minimality", "r2-compare", "premise-check", "r3-coherence", "r4-scope")
 VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "premise-check", "r3", "r4"))}
 sys.path.append(str(ROOT / "lib"))
+import answer  # noqa: E402
 import boardview  # noqa: E402
 import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
@@ -931,6 +932,20 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual([c["kind"] for c in notes["compare"]["claims_given"]], ["human_answer"])
         passes = json.loads((self.artifacts / "eyes" / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
         self.assertEqual([p["by"] for p in passes], ["human"])
+
+    def test_verdict_marks_the_lines_an_unattended_run_passed_by_push(self):
+        """修正前の関所を無人の run が推しで通した答え（欄 answer.PUSHED）なら、R4 から外した行の控えは「人が通した」でなく推しの印"""
+        self.prep_file()
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        self.passing_eyes(r4_lost=("古い入口——使う人がいない",))
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": "x", "asked": [],
+                                             answer.PUSHED: [{"item": "修正案 1 が狭める能力: 古い入口——使う人がいない",
+                                                              "answer": "continue", "note": "x", "why": "y"}]}, ensure_ascii=False)
+        self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
+                                                   ensure_ascii=False)
+        self.run_script("verdict")
+        passes = json.loads((self.artifacts / "eyes" / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
+        self.assertEqual([p["by"] for p in passes], [gatemarks.PASSED_BY_PUSH])
 
     def test_premise_facts_reach_the_report(self):
         """E37: 前提の検算が仮定を偽（resolved）と示したら、返り notes の隣の premise-check.json の問いの key と実測 facts_to_add を、

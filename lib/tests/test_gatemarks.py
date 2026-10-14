@@ -129,6 +129,12 @@ class PushRecCase(unittest.TestCase):
                 row = next(line.split('"text": "', 1)[1].split('"', 1)[0] for line in text.splitlines() if "／推し: " in line)
                 self.assertEqual(gatemarks.push_rec(row)["answer"], word)
 
+    def test_gate_items_keep_the_push_origin(self):
+        """推しで通した答えを human_items の行にしても欄 answer.PUSHED を落とさない（人の答えの行は持たない）"""
+        pushed = gatemarks.pushed_answer([self.row()])
+        self.assertEqual(gatemarks.gate_items(pushed)[0][gatemarks.answer.PUSHED], pushed[gatemarks.answer.PUSHED])
+        self.assertNotIn(gatemarks.answer.PUSHED, gatemarks.gate_items({"decision": "continue", "text": "人"})[0])
+
     def test_pass_line_tells_a_push_from_a_human(self):
         row = {"node": gatemarks.R4_GATE_NODE, "round": 1, "item": "x", "passed_at": {"node": gatemarks.GATE_NODE, "round": 1}}
         pushed, human = gatemarks.pass_lines([{**row, "by": gatemarks.PASSED_BY_PUSH}, {**row, "by": gatemarks.PASSED_BY_HUMAN}])

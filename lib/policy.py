@@ -42,6 +42,7 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine import util  # noqa: E402
+import answer  # noqa: E402
 from engine.render import FILE_CAP, MATERIAL_NOTE  # noqa: E402
 import oneline  # noqa: E402
 import promptsection  # noqa: E402
@@ -176,7 +177,7 @@ def _settled_rows(folder) -> list:
 def recorded(start, judgment_dir=None, *, human_items=None) -> list:
     """記録された方針の行 [{source, name, text}]。doc（方針の文書の写し。行数 lines と元の置き場 alias も持つ）・answer（依頼の
     answers の question）・gate（承認ノードの人の答えのうち note の在る物を、一言の sha256 の頭で。どの段がどの並びを持っても同じ
-    答えは同じ名指し。human_items が None の段は作らない）・settled（判定の置き場 judgment_dir の決定記録の突合が挙げた決着済みの
+    答えは同じ名指し。無人の run が推しで通した答え（欄 answer.PUSHED）は人の方針でないので作らない。human_items が None の段は作らない）・settled（判定の置き場 judgment_dir の決定記録の突合が挙げた決着済みの
     論点の where。where の無い論点は name が空で、名指せない。judgment_dir が None なら作らない）"""
     rows = []
     copy = frozen_copy(start)
@@ -186,7 +187,7 @@ def recorded(start, judgment_dir=None, *, human_items=None) -> list:
     answers = start.get("answers") if isinstance(start, dict) else None
     rows += [{"source": "answer", "name": a["question"], "text": str(a.get("text") or "")}
              for a in answers or [] if isinstance(a, dict) and isinstance(a.get("question"), str) and a["question"].strip()]
-    notes = [h for h in human_items or [] if isinstance(h, dict) and str(h.get("note") or "").strip()]
+    notes = [h for h in human_items or [] if isinstance(h, dict) and str(h.get("note") or "").strip() and not answer.by_push(h)]
     rows += [{"source": "gate", "name": GATE_NAME.format(id=_gate_id(h["note"])), "text": str(h["note"])} for h in notes]
     rows += [{"source": "settled", "name": str(r.get("where") or "").strip(),
               "text": f"{r.get('topic') or ''}——{r.get('decision') or ''}"}

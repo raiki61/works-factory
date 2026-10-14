@@ -614,6 +614,18 @@ class ReplanAnswerCase(Artifacts):
         self.assertEqual(replan_answer.fix_answers(None, {"decision": "continue", "text": "x"})["text"], f"{replan_answer.NOTE_HEAD}\n\nx\n")
         self.assertIsNone(replan_answer.fix_answers(None, None))
 
+    def test_refix_answers_keep_the_push_origin(self):
+        """推しで通した関所の答え（欄 answer.PUSHED）は推しの見出しの下に並び、2 度目の修正の answers も採った推しを持つ"""
+        rec = {"item": "x", "answer": "continue", "note": "n", "why": "y"}
+        before = {"decision": "continue", "text": "n", "asked": ["x"], answer.PUSHED: [rec]}
+        got = replan_answer.fix_answers(before, {"decision": "continue", "text": "人の一言"})
+        self.assertEqual(got["text"], f"{replan_answer.FIX_NOTES_PUSHED_HEAD}\n\nn\n\n{replan_answer.NOTE_HEAD}\n\n人の一言\n")
+        self.assertEqual(got[answer.PUSHED], [rec])
+        got = replan_answer.fix_answers({"decision": "continue", "text": "人"}, {"decision": "continue", "text": "n", answer.PUSHED: [rec]})
+        self.assertEqual(got["text"], f"{replan_answer.FIX_NOTES_HEAD}\n\n人\n\n{replan_answer.NOTE_PUSHED_HEAD}\n\nn\n")
+        self.assertEqual(gatemarks.gate_items(got)[0][answer.PUSHED], [rec])
+        self.assertNotIn(answer.PUSHED, replan_answer.fix_answers({"decision": "continue", "text": "人"}, None))
+
     def test_answer_is_the_gate_answer_with_the_fix_answers(self):
         got = replan_answer.take(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
         notes = got.pop("fix_notes")

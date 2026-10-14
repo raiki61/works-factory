@@ -50,6 +50,7 @@ import sys
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように（必ず import より前）
 
+import answer  # noqa: E402
 import conflict  # noqa: E402   範囲の相談の trace の行（ASKED_OP）と頼みの欄（CONSULT_FIELD）
 import fixboard  # noqa: E402   置き場の trace.jsonl への 1 行
 import gatemarks  # noqa: E402   直す前の人の関所の節の名（GATE_NODE。関所の条件の相談の一言を引く）
@@ -115,7 +116,7 @@ QUESTION = promptsection.Section("""\
 答えは次の JSON だけ（`answers` に相談の番号ごとに 1 件。番号は上の「相談 <番号>」）:
 - ask: 相談の番号
 - decision: allow（範囲に足してよい）・deny（足さない。範囲の中で直せ）・defer（今の run では直さない。次の run の仕事）
-- paths: 足してよいパス（頼まれた物の中から。allow の時だけ。頼まれていない物は機械が捨てる。「人が承認ノードで出した条件」の相談には
+- paths: 足してよいパス（頼まれた物の中から。allow の時だけ。頼まれていない物は機械が捨てる。「承認ノードで出した条件」の相談には
   頼まれた物の一覧が無い。条件が求める物を自分で挙げてよい。機械はリポジトリの根の外のパスだけ捨てる）
 - tests: 書き換えてよいテストの範囲（頼まれた物の中から。allow の時だけ。期待を実装に合わせるための書き換えは許すな）
 - new_tests: 足してよい新しいテスト（頼まれた物の中から。allow の時だけ。無ければ省く）。{{id, red_kind}} の並び。red_kind は
@@ -143,7 +144,8 @@ ASK_GATE_TEXT = promptsection.Section("""\
 
 - 項目の今の範囲（allowed_paths）: {allowed}
 - 触らない物（out_of_scope）: {oos}
-- 人が承認ノードで出した条件（字のまま。直す前に人が答えた物で、通す範囲と条件を超えて削れない）:
+- 承認ノードで出した条件（字のまま。直す前に人が答えた物か、無人の run が採った推し（頭に「無人の run が採った推し」と
+  書いた行）で、通す範囲と条件を超えて削れない）:
 {why}
 {oos_hits}- 答え方: この条件を満たすのにこの項目で要る、足すパス・書き換える既存のテストの範囲・足す新しいテスト（id と赤の種類）を決めよ。
   この項目に関わらない条件なら deny。
@@ -162,7 +164,7 @@ ANSWER_HEAD_ACCEPT = promptsection.Section("""\
 ANSWER_HEAD_GATE = promptsection.Section("""\
 # 範囲の相談の答え（相談の周 {turn}）
 
-人が承認ノードで出した条件を、修正案を書いた役に聞いた（機械が確かめて共有ボードに残した）。相談ごとの答え:
+承認ノードで出した条件を、修正案を書いた役に聞いた（機械が確かめて共有ボードに残した）。相談ごとの答え:
 """, source="fn:consult.answer_text")
 ANSWER_ROW_HEAD = promptsection.Section("## 相談（項目 {item}・パス {paths}・テスト {tests}{new_tests}）", source="fn:consult.answer_text")
 
@@ -170,6 +172,7 @@ ANSWER_ROW_HEAD = promptsection.Section("## 相談（項目 {item}・パス {pat
 ORIGIN_ACCEPT = "accept"   # 頼みと確かめの行の origin: 受け付けが見つけて積んだ頼み（無い＝修正役が返答の consult に書いた頼み）
 ORIGIN_GATE = "gate"       # 同じ欄: 人の関所の continue の条件を機械が相談にした頼み（頼む物は無く、役が条件で要る物を決める）
 CONTINUE = "continue"
+PUSHED_NOTE = "無人の run が採った推し（人の答えではない）: "
 KINDS = planmarks.AGREED_KINDS   # 合意の新しいテストの赤の種類（赤か守りか）
 
 
@@ -407,10 +410,12 @@ def left(b, pass_: str) -> int:
 
 def gate_notes(b, human_items=(), round_: int = 1) -> str:
     """今の周（round_）の直す前の人の関所（gatemarks.GATE_NODE）の continue の一言（human_items の行 {round, node, answer, note}
-    の note）を改行で並べた文（字のまま。無ければ空。最後の関所などほかの節の一言は入れない）。b は置き場（読まない。名を揃える）。
+    の note）を改行で並べた文（字のまま。無人の run が推しで通した行（欄 answer.PUSHED）は頭に PUSHED_NOTE。無ければ空。最後の
+    関所などほかの節の一言は入れない）。b は置き場（読まない。名を揃える）。
     元 works/blk-fix/lib/consult.py:486（盤面の record.process.human_items と b.round を読んだ所を引数に）"""
     items = human_items or []
-    return "\n".join(h["note"] for h in items if isinstance(h, dict) and h.get("round") == round_ and h.get("answer") == CONTINUE
+    return "\n".join((PUSHED_NOTE if answer.by_push(h) else "") + h["note"] for h in items
+                     if isinstance(h, dict) and h.get("round") == round_ and h.get("answer") == CONTINUE
                      and h.get("node") == gatemarks.GATE_NODE and isinstance(h.get("note"), str) and h["note"].strip())
 
 

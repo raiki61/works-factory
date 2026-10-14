@@ -34,7 +34,7 @@ import types
 import accept
 import boardview
 import changemap
-from answer import GO_WORDS, PUSHED
+from answer import GO_WORDS, by_push, origin
 import design
 import gatemarks
 import jsonfile
@@ -162,7 +162,7 @@ def _human_passed(questions: list, answer: dict | None) -> dict:
 
 
 def carried_section(passed: dict) -> str:
-    """元 .shared/core/gatemarks.py:1259。R4 の指示書の頭に貼る、人が通した行と、同じ物なら本文をそのまま写せという頼み"""
+    """元 .shared/core/gatemarks.py:1259。R4 の指示書の頭に貼る、修正前の関所で通した行と、同じ物なら本文をそのまま写せという頼み"""
     rows = [f"- [{kind}] {body}" for kind, body in passed]
     return f"{gatemarks.CARRIED_HEAD}\n\n{gatemarks.CARRIED_ASK}\n\n" + "\n".join(rows) if rows else ""
 
@@ -207,7 +207,7 @@ def r4_rejects(eyes_dir) -> str:
 
 def passed_by(answer) -> str:
     """修正前の関所の答えが通した行の控えの印: 無人の run が推しで通した答え（欄 answer.PUSHED）は PASSED_BY_PUSH、ほかは人"""
-    return gatemarks.PASSED_BY_PUSH if isinstance(answer, dict) and PUSHED in answer else gatemarks.PASSED_BY_HUMAN
+    return gatemarks.PASSED_BY_PUSH if by_push(answer) else gatemarks.PASSED_BY_HUMAN
 
 
 def gate_passes(r4: dict | None, passed: dict, by: str = gatemarks.PASSED_BY_HUMAN) -> list[dict]:
@@ -258,8 +258,9 @@ _MD_RULES = types.SimpleNamespace(
 
 def human_items(start_answer, answer) -> list:
     """関所の答え（{decision, text}。答えの無い関所は None）を record.process.human_items の行の形にし、答えた順に並べる。
-    独立設計の控えの seen.count は、plan-review が始めの関所の答えから design.human_answers で数えた数なので、この並びの頭を数える"""
-    return [{"round": 1, "node": node, "answer": a.get("decision"), "note": (a.get("text") or "").strip() or None}
+    独立設計の控えの seen.count は、plan-review が始めの関所の答えから design.human_answers で数えた数なので、この並びの頭を数える。
+    無人の run が推しで通した答えは欄 answer.PUSHED を行にも写す（design.human_answers・policy.recorded が人の答えから外す）"""
+    return [{"round": 1, "node": node, "answer": a.get("decision"), "note": (a.get("text") or "").strip() or None, **origin(a)}
             for node, a in ((START_GATE_NODE, start_answer), (gatemarks.GATE_NODE, answer)) if isinstance(a, dict)]
 
 

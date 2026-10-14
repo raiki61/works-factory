@@ -184,10 +184,10 @@ R4_GATE_NODE = "r4.human_gate"
 # 修正前の関所の行の頭（plan_gate_items と写しの _plan_gate_items が組む形）。r4_gate_items が種類と本文に分ける
 NARROW_HEAD = re.compile(r"修正案 \d+ が狭める能力: ")
 FACE_HEAD = re.compile(r"事前審査の穴 \[([^\]]+)\] [^\n]*?: ")
-CARRIED_HEAD = promptsection.Section("## 直す前の承認ノードで人が通した狭まり（機械が貼った）", source="fn:gatemarks.carried_section")
-CARRIED_ASK = ("下の行は、直す前の承認ノードで人が通すと答えた（continue）。同じ能力の消えを capability_inventory.lost に、同じ方針との"
-               "ぶつかりを policy_conflicts に書くなら、[ ] の種類（regression は lost・policy は policy_conflicts）に合わせ、本文を"
-               "一字も変えずに写せ。通した条件を超える消え・別の能力は自分の言葉で書け")
+CARRIED_HEAD = promptsection.Section("## 直す前の承認ノードで通した狭まり（機械が貼った）", source="fn:gatemarks.carried_section")
+CARRIED_ASK = ("下の行は、直す前の承認ノードで通すと答えた（continue。人の答えか、無人の run が採った推し）。同じ能力の消えを "
+               "capability_inventory.lost に、同じ方針とのぶつかりを policy_conflicts に書くなら、[ ] の種類（regression は lost・"
+               "policy は policy_conflicts）に合わせ、本文を一字も変えずに写せ。通した条件を超える消え・別の能力は自分の言葉で書け")
 ASK_HEAD = "問いの台帳の問い"          # 関所の項目の頭。答えの突き合わせもこの頭と key で引く
 ASK_KINDS = ("fork", "escalate")       # 関所の項目の kinds（fork の問いと、status が escalate の問い）
 HOLD = re.compile(r"保留\s*[:：]\s*([^。；;\n]+)")   # 一言の「保留: <key>」（文の終わりまで。key を並べてよい。key は hold_keys が台帳から拾う）
@@ -1223,13 +1223,14 @@ def converge_of(folder) -> list:
     return [x for x in (doc.get("converge") if isinstance(doc, dict) else None) or [] if isinstance(x, str)]
 
 
-def gate_items(answer) -> list:
-    """修正前の関所の答え answer（{decision, text, asked}。飛ばされた時は None）を、人の関所の行 human_items
-    [{round, node, answer, note, asked}] にする。通す語の時だけ 1 行（answer は continue。asked は人が見た関所の行）"""
-    if not isinstance(answer, dict) or answer.get("decision") not in GO_WORDS:
+def gate_items(got) -> list:
+    """修正前の関所の答え got（{decision, text, asked}。飛ばされた時は None）を、人の関所の行 human_items
+    [{round, node, answer, note, asked}] にする。通す語の時だけ 1 行（answer は continue。asked は関所に載った行）。無人の run が
+    推しで通した答えは欄 answer.PUSHED を行にも写す（読み手が人の答えと読み分ける）"""
+    if not isinstance(got, dict) or got.get("decision") not in GO_WORDS:
         return []
-    return [{"round": 1, "node": GATE_NODE, "answer": "continue", "note": str(answer.get("text") or ""),
-             "asked": [a for a in answer.get("asked") or [] if isinstance(a, str)]}]
+    return [{"round": 1, "node": GATE_NODE, "answer": "continue", "note": str(got.get("text") or ""),
+             "asked": [a for a in got.get("asked") or [] if isinstance(a, str)], **answer.origin(got)}]
 
 
 def returned_lines(b) -> list:
@@ -1316,7 +1317,7 @@ def _record(b, passed) -> None:
 
 
 def _human_passed(b) -> dict:
-    """修正前の関所で人が continue で通した行 {(種類, 頭を除いた本文): 答えた周}（台帳の問いの行は数えない）"""
+    """修正前の関所で continue で通した行（人の答えか、無人の run の推し）{(種類, 頭を除いた本文): 答えた周}（台帳の問いの行は数えない）"""
     out = {}
     for h in (b.record.get("process") or {}).get("human_items") or []:
         if not (isinstance(h, dict) and h.get("node") == GATE_NODE and h.get("answer") == "continue"):
@@ -1331,7 +1332,7 @@ def _human_passed(b) -> dict:
 
 
 def carried_section(b) -> str:
-    """R4（r4.hidden_scope）の指示書の頭に貼る節: 修正前の関所で人が continue で通した行（種類と頭を除いた本文）と、同じ物を書く
+    """R4（r4.hidden_scope）の指示書の頭に貼る節: 修正前の関所で continue で通した行（種類と頭を除いた本文）と、同じ物を書く
     なら本文をそのまま写せという頼み。r4_gate_items は本文の完全一致で照らすので、別の役の自由文を揃える口。無ければ空"""
     rows = [f"- [{kind}] {body}" for kind, body in _human_passed(b)]
     return f"{CARRIED_HEAD}\n\n{CARRIED_ASK}\n\n" + "\n".join(rows) if rows else ""
