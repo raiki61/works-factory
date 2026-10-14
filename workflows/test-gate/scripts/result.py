@@ -6,7 +6,7 @@
 取って認証する（green_cert.certify。final で素材を任せ先の役が書いた緑は自己申告として認証しない）。base は直す前の結末のファイル
 test-gate/base/baseline.json を書く（baseline_red.write_baseline）。final は入力 baseline の指し札の先を baseline_red.read_baseline で読み、
 修正前のテストの行（declared_checks.baseline_line）を証拠に足し、テストごとの修正前と今の結末（test_outcomes。独立の目の
-比較役が読む）を返りに載せる。走らせ方（by・suites_line）・ログ（log）・修正前のテスト（baseline_line）・
+比較役が読む）を返りに載せる。起こした段と起こせなかった段の名（ran_steps。任せ先の役の run は素材の systems の系統の名。冒頭の句が読む）も返りに載せる。走らせ方（by・suites_line）・ログ（log）・修正前のテスト（baseline_line）・
 認証しなかった訳（reason）は 1 行に畳んで返りに載せ、証拠の文 test-gate/<mode>/evidence.md の行も同じ値から組む（報告と最後の関所は
 返りの欄を読む）。任せ先の役で走らせた run が包みを宣言していなければ（env の fence.RECORDS_ENV が無い）、証拠に
 declared_checks.NO_ADAPTER_NOTE を足す。任せ先の役の節が落ちて残った作業ツリーの写し（ci-snapshot.json の top）を消す。
@@ -95,6 +95,11 @@ def evidence(mode: str, out: dict, run: dict, material, summary: str, note: str 
     return "\n".join(lines) + "\n"
 
 
+def role_systems(material) -> dict:
+    """任せ先の役の素材が書いた系統の名の分け（無ければ両方空。役の run は段の行を持たない）"""
+    return (material or {}).get("systems") or {"ran": [], "unran": []}
+
+
 def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     """（境の口, 返り）"""
     sys.dont_write_bytecode = True
@@ -139,7 +144,8 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
                                                  junit_steps=run["junit_steps"], junit_unran=run["junit_unran"])
     ok, why = green_cert.certify(mode=mode, material_status=status, green=green, before=run["fingerprint_before"],
                                  after=run["fingerprint_after"], now=now, self_reported=role)
-    out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause, "baseline": None, "fingerprint": None, "test_outcomes": rows}
+    out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause,
+           "ran_steps": role_systems(material) if role else green_cert.ran_steps(run["runs"], run["junit_unran"]), "baseline": None, "fingerprint": None, "test_outcomes": rows}
     if mode == "base":
         baseline_red.write_baseline(artifacts / rel(mode, "baseline.json"), suite=start.get("tdd_suite") or "",
                                     test_cmd=start.get("test_cmd") or "", rev=now["head"], exit=suite_exit(run),
@@ -173,7 +179,7 @@ def failed(mode: str, error: BaseException) -> dict:
             write(rel(mode, name), line + "\n")
         except Exception:
             pass
-    return {"mode": mode, "ok": False, "green": False, "red_cause": "incomplete", "baseline": None, "fingerprint": None,
+    return {"mode": mode, "ok": False, "green": False, "red_cause": "incomplete", "ran_steps": {"ran": [], "unran": []}, "baseline": None, "fingerprint": None,
             "test_outcomes": {"rows": [], "unmeasured": INNER_ERROR} if mode == "final" else None,
             "evidence": {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel(mode, name)},
             "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": INNER_ERROR}

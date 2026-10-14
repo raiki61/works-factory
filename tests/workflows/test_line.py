@@ -51,6 +51,7 @@ import entryshape  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import green_cert  # noqa: E402
 import judge_accept  # noqa: E402
 import planfile  # noqa: E402
 import policy  # noqa: E402
@@ -1289,6 +1290,20 @@ class AskFinalReadsCase(Artifacts):
             out = ask_final.ask(**ask_final.from_env())
         self.assertTrue(out["open"], out)
         self.assertIn("- 構造のサブグラフ: 構造の目の行なしで計画した（理由: 構造の目の役が落ちた）", out["text"])
+
+    def test_partly_started_steps_reach_the_gate_text_from_the_with_keys(self):
+        """#514: 最後の関所は with: の ran_steps（$test-gate-final.output.ran_steps）を JSON の形で読み、起こした段と起こせなかった段を
+        名指し、走っていないと言わない（with: の鍵を読むかだけでなく、文まで）"""
+        env = {f"INPUTS_{name.upper()}": "null" for name in line_nodes()["ask-final"]["with"]}
+        env.update({"INPUTS_RAN_STEPS": json.dumps({"ran": ["unit"], "unran": ["lint"]}), "INPUTS_RED_CAUSE": "incomplete",
+                    "INPUTS_BY": "engine", "INPUTS_FINAL_GATE": "always", "INPUTS_UNATTENDED": "false",
+                    "INPUTS_TESTS_OK": "false", "INPUTS_GREEN": "false", "INPUTS_SEALED": "true"})
+        with mock.patch.dict(os.environ, env):
+            out = ask_final.ask(**ask_final.from_env())
+        self.assertIn(green_cert.PARTLY_RAN, out["text"])
+        self.assertIn("unit", out["text"])
+        self.assertIn("lint", out["text"])
+        self.assertNotIn(green_cert.NOT_RAN, out["text"])
 
     def test_fix_beside_files_reach_the_final_gate(self):
         """F013・F041・F312・F329・L-W20・L-W21（S03・S28・S29）: 最後の関所は修正の段ごとの diff の隣の控え（fixed の diffs。
