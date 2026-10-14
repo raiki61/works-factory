@@ -95,7 +95,7 @@ def outside_env(environ):
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
     - USER_ENV（起動の殻が隔離の前に控えた HOME・XDG_*）はいつも外し、在れば中の値に戻す（null の名は外す）。対象の道具は
       HOME・XDG の下の全体の設定を読むので、隔離した置き場のままだと利用者のシェルと違って動く（#492）。戻すのはこの写しだけで、
-      Archon・役・script 自身の git は隔離のまま。形が JSON の文字列か null を値に持つ object でなければ ValueError
+      実行基盤・役・script 自身の git は隔離のまま。形が JSON の文字列か null を値に持つ object でなければ ValueError
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
     限界: 節に deps: を足すと uv は --with の層の bin も足し、それは外れない（今の節は deps を持たない）"""
