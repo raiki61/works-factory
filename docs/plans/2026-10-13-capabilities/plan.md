@@ -1237,7 +1237,7 @@
 
 - P171 拒んだ理由は（役が道具を持たないので）次の本文の頭に文で貼り、3 回目の拒否で done・give_up して輪を抜ける。事前審査は設計なしで進み「独立設計は無い（独立設計が取れなかった: …）」を読む。返りの design は `{"missing": <訳>}` を指す
   - 元: works/.shared/core/design.py:528 `prep`（rolekit.with_reject）・:613 `missing`・works/tests/test_blk_plan.py:1170 `test_design_gave_up_does_not_stop_plan_review`
-  - 今: lib/boardview.py::r2_prompt・lib/boardview.py::_done・lib/boardview.py::collect（design の控えが無ければ pass-<k>/design.json に missing）
+  - 今: lib/boardview.py::r2_prompt・lib/boardview.py::counted・lib/boardview.py::collect（design の控えが無ければ pass-<k>/design.json に missing）
   - 証: tests/workflows/test_plan_review.py::DesignCase.test_give_up_on_the_third_reject_still_done
   - 本物の run: `plan-review/rejects-r2.design.json`（拒みが在れば）・返り `design.path`
   - 狭め: 無し

@@ -799,10 +799,11 @@ def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
         ledger["claims"] = design.claims_given(design.claims_unpassed(reply), ledger.get("given") or [])
         _write_json(d / PREMISES_FILE, ledger)
         return {"ok": True, "reason": ""}
-    return _done(d, design.NODE, accept.guard(run))
+    return counted(d, design.NODE, accept.guard(run))
 
 
-def _done(d: pathlib.Path, name: str, got: dict) -> dict:
+def counted(d: pathlib.Path, name: str, got: dict) -> dict:
+    """受け付けの結果 got（accept.guard の {ok, reason}）を役 name の拒否の控えに数え、{ok, done, give_up, reason} にする"""
     out = rolekit.with_done(d, name, {"ok": got["ok"], "reason": got.get("reason", "")})
     return {"ok": out["ok"], "done": out["done"], "give_up": bool(out["done"] and not out["ok"]), "reason": out["reason"]}
 
@@ -951,7 +952,7 @@ def take_review(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
     p.mkdir(parents=True, exist_ok=True)
-    got = _done(p, REVIEW_NODE, accept.guard(lambda: _take(d, p, inputs, raw, repo, keys)))
+    got = counted(p, REVIEW_NODE, accept.guard(lambda: _take(d, p, inputs, raw, repo, keys)))
     if got["give_up"]:
         _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": GIVEN_UP_FACES + got["reason"]})
     return got

@@ -195,9 +195,7 @@ def r4_accept(eyes_dir, raw, passed: dict) -> dict:
             raise Reject(R4_REJECT + "\n" + _lines(off))
         return {"ok": True}
 
-    got = rolekit.with_done(eyes_dir, R4_NODE, accept.guard(check))
-    return {"ok": got["ok"], "done": got["done"], "give_up": bool(got["done"] and not got["ok"]), "reason": got.get("reason", ""),
-            "reply": reply}
+    return {**boardview.counted(eyes_dir, R4_NODE, accept.guard(check)), "reply": reply}
 
 
 def r4_rejects(eyes_dir) -> str:
