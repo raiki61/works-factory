@@ -126,6 +126,35 @@ class UnboundedTest(unittest.TestCase):
                 self.assertEqual(swepro.unbounded(argv), want)
 
 
+# 入っている Harbor の harbor run の旗（名 → click の型の名）を JSON で出す。Harbor が無ければ空の object。
+# 入っているのに CLI を読めない時（Harbor の上げで模塊が動いた等）は落ちて、試験を赤にする
+HARBOR_RUN_FLAGS = """
+import importlib.util, json, sys
+if importlib.util.find_spec("harbor") is None:
+    print("{}")
+    sys.exit(0)
+import typer
+from harbor.cli import main
+command = typer.main.get_command(main.app).commands["run"]
+print(json.dumps({o: p.type.name for p in command.params for o in p.opts}))
+"""
+
+
+class HarborFlagsTest(unittest.TestCase):
+    """unbounded が読む旗が、入っている Harbor の harbor run に在り、inf を読める浮動小数の旗か。Harbor は CI に入れないので、
+    uv run --isolated --extra bench で入れた環境でだけ照らす"""
+
+    def test_unbounded_reads_flags_harbor_run_defines(self):
+        done = subprocess.run([sys.executable, "-c", HARBOR_RUN_FLAGS], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, f"入っている Harbor の harbor run の旗を読めない:\n{done.stderr}")
+        flags = json.loads(done.stdout)
+        if not flags:
+            self.skipTest("Harbor が入っていない（uv run --isolated --extra bench で入る）")
+        for flag in (swepro.AGENT_MULTIPLIER, swepro.MULTIPLIER):
+            with self.subTest(flag=flag):
+                self.assertEqual(flags.get(flag), "float", f"harbor run に浮動小数の旗 {flag} が無い")
+
+
 class StoppedTest(unittest.TestCase):
     def test_paused_and_human_kinds_are_stopped(self):
         self.assertTrue(swepro.stopped("paused", ""))
@@ -249,6 +278,26 @@ class InsideTest(unittest.TestCase):
                 self.assertIn(word, result["error"])
                 predicted = self.predicted(result)
                 self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
+
+    def test_empty_or_unknown_factory_outcome_is_a_failed_producer(self):
+        for word in ("", "made_up"):
+            with self.subTest(outcome=word):
+                self.assertNotIn(word, swepro.report.OUTCOME_KINDS)
+                shutil.rmtree(self.place / "attempt", ignore_errors=True)
+                self.secret()
+                self.set_plan(outcome=word)
+                done, result = self.inside()
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertEqual(result["state"], runner.DONE)
+                self.assertIn("OUTCOME_KINDS", result["error"])
+                self.assertIn(word or "（空）", result["error"])
+                predicted = self.predicted(result)
+                self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
+
+    def test_every_known_outcome_but_broke_is_no_failure(self):
+        for word in swepro.report.OUTCOME_KINDS:
+            with self.subTest(outcome=word):
+                self.assertEqual(swepro.broken_outcome(RUN_ID, word) is not None, word in swepro.BROKE)
 
     def test_needs_human_before_seal_gives_empty_patch(self):
         self.set_plan(outcome="needs_human")
@@ -402,6 +451,22 @@ class PredictionTest(unittest.TestCase):
 
 
 class TallyTest(unittest.TestCase):
+    def tally(self, job):
+        return subprocess.run([sys.executable, str(HERE / "swepro.py"), "tally", str(job)], capture_output=True, text=True,
+                              encoding="utf-8", env=hermetic.child_env())
+
+    @staticmethod
+    def trial(job, name, exception=None):
+        (job / name).mkdir(parents=True, exist_ok=True)
+        (job / name / "result.json").write_text(json.dumps({"trial_name": name, "task_name": name, "exception_info": exception}),
+                                                encoding="utf-8")
+
+    @staticmethod
+    def predict(job, name, failed):
+        (job / name / "agent").mkdir(parents=True)
+        predicted = swepro.prediction(name, "claude", "", {"state": "done", "error": "落ちた" if failed else None}, 1, "f")
+        (job / name / "agent" / swepro.PREDICTION).write_text(json.dumps(predicted), encoding="utf-8")
+
     def test_counts_and_unreadable_file(self):
         job = hermetic.tmpdir(self)
         rows = [("t1", {"outcome": "needs_human", "model_patch": "", "seconds": 10, "usd": 1.0}),
@@ -409,6 +474,7 @@ class TallyTest(unittest.TestCase):
                 ("t3", {"outcome": "fixed", "model_patch": "", "seconds": None, "usd": None, "error": "落ちた"}),
                 ("t5", {"outcome": "fixed", "model_patch": None, "seconds": 5, "usd": None})]
         for name, row in rows:
+            self.trial(job, name)
             (job / name / "agent").mkdir(parents=True)
             predicted = swepro.prediction(name, "works-factory", row["model_patch"], {**row, "state": "done"}, row["seconds"], "f")
             (job / name / "agent" / swepro.PREDICTION).write_text(json.dumps(predicted), encoding="utf-8")
@@ -417,13 +483,211 @@ class TallyTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(done.stdout), {"producers": ["works-factory"], "tasks": 4, "stopped": 2, "failed": 1,
                                                    "over_pro_limit": 1, "empty_patch": 2, "unmeasured_seconds": 1, "usd": 3.0,
-                                                   "usd_missing": 2})
+                                                   "usd_missing": 2, "trials": 4, "exceptions": [],
+                                                   "unaccounted": []})
         (job / "t4" / "agent").mkdir(parents=True)
         (job / "t4" / "agent" / swepro.PREDICTION).write_text("{", encoding="utf-8")
         done = subprocess.run([sys.executable, str(HERE / "swepro.py"), "tally", str(job)], capture_output=True, text=True,
                               encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(done.returncode, 1, done.stderr)
         self.assertIn("t4", done.stderr)
+
+    def test_all_trials_raised_names_them_and_fails(self):
+        job = hermetic.tmpdir(self)
+        for name in ("a__1", "b__2"):
+            self.trial(job, name, {"exception_type": "RuntimeError", "exception_message": f"setup の apt が落ちた:\n{name} E: 無い",
+                                   "exception_traceback": "tb", "occurred_at": "2026-10-14T00:00:00"})
+        done = self.tally(job)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual((got["tasks"], got["trials"], got["failed"]), (0, 2, 2))
+        self.assertEqual(got["exceptions"], [{"trial": n, "exception": f"RuntimeError: setup の apt が落ちた: {n} E: 無い",
+                                              "predicted": False} for n in ("a__1", "b__2")])
+        self.assertIn("全 2 試行が例外", done.stderr)
+        for name in ("a__1", "b__2"):
+            self.assertIn(f"{name}: RuntimeError: setup の apt が落ちた: {name} E: 無い", done.stderr)
+
+    def test_all_trials_raised_after_predicting_still_fails(self):
+        job = hermetic.tmpdir(self)
+        for name in ("a__1", "b__2"):
+            self.trial(job, name, {"exception_type": "RuntimeError", "exception_message": "起こし役が落ちた"})
+            self.predict(job, name, failed=True)
+        done = self.tally(job)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual((got["tasks"], got["trials"], got["failed"]), (2, 2, 2))
+        self.assertIn("全 2 試行が例外", done.stderr)
+
+    def test_trials_with_neither_prediction_nor_exception_fail(self):
+        job = hermetic.tmpdir(self)
+        for name in ("a__1", "b__2"):
+            self.trial(job, name)
+        done = self.tally(job)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual((got["tasks"], got["trials"], got["failed"], got["unaccounted"]), (0, 2, 2, ["a__1", "b__2"]))
+        self.assertIn("全 2 試行が測れていない", done.stderr)
+        for name in ("a__1", "b__2"):
+            self.assertIn(f"{name}: 予測も exception_info も無い", done.stderr)
+
+    def test_a_predicted_failure_is_counted_once_and_a_measured_job_passes(self):
+        job = hermetic.tmpdir(self)
+        self.trial(job, "raised", {"exception_type": "RuntimeError", "exception_message": "起こし役が落ちた"})
+        self.predict(job, "raised", failed=True)
+        self.trial(job, "fine")
+        self.predict(job, "fine", failed=False)
+        done = self.tally(job)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual((got["tasks"], got["trials"], got["failed"], len(got["exceptions"])), (2, 2, 1, 1))
+        self.assertTrue(got["exceptions"][0]["predicted"])
+
+    def test_empty_job_fails(self):
+        done = self.tally(hermetic.tmpdir(self))
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn("試行も予測も無い", done.stderr)
+
+
+# ---------------------------------------------------------------- 派生のイメージ
+FAKE_DOCKER = """#!PYTHON
+import json, os, sys
+args = sys.argv[1:]
+entry = {"args": args}
+if args[0] == "build":
+    context = args[-1]
+    entry["files"] = sorted(os.listdir(context))
+    entry["dockerfile"] = open(os.path.join(context, "Dockerfile"), encoding="utf-8").read()
+with open(os.environ["FAKE_DOCKER_LOG"], "a", encoding="utf-8") as f:
+    f.write(json.dumps(entry) + "\\n")
+sys.exit(int(os.environ.get("FAKE_DOCKER_CODE", "0")))
+"""
+NETWORK = ("curl", "apt-get", "http", "git clone", "plugin marketplace", "works-factory version", "uv python install", "bun.sh")
+
+
+class BuildTest(unittest.TestCase):
+    def test_dockerfile_layers_the_tools_on_the_task_image(self):
+        base = IMAGE.format(OPENLIBRARY)
+        lines = swepro.dockerfile(base, "9.9.9", "f").splitlines()
+        self.assertEqual(lines[0], f"FROM {base}")
+        runs = [json.loads(line[len("RUN "):]) for line in lines if line.startswith("RUN ")]
+        steps = swepro.build_steps("9.9.9")
+        self.assertEqual(runs[:-1], [["/bin/sh", "-c", command] for _, command in steps])
+        self.assertEqual([name for name, _ in steps],
+                         ["place", "apt", "uv", "python", "bun", "claude", "archon", "plugin"])
+        commands = dict(steps)
+        self.assertIn("bash -s 9.9.9", commands["claude"])
+        self.assertIn("works-factory version", commands["archon"])
+        self.assertIn("pr-review-toolkit@claude-plugins-official", commands["plugin"])
+        run_of = {name: lines.index(f"RUN {json.dumps(['/bin/sh', '-c', command], ensure_ascii=False)}") for name, command in steps}
+        added = lines.index(f"ADD {swepro.REPO_TAR} {swepro.PLACE}/repo/")
+        self.assertLess(run_of["claude"], added)
+        self.assertLess(added, run_of["archon"])
+        self.assertEqual([line.split(" ", 1)[0] for line in lines].count("ADD"), 1)
+        self.assertNotIn("COPY", [line.split(" ", 1)[0] for line in lines])
+        place = hermetic.tmpdir(self)
+        self.assertEqual(runs[-1][:2], ["/bin/sh", "-c"])
+        stamped = subprocess.run(["/bin/sh", "-c", runs[-1][2].replace(swepro.PLACE, str(place))])
+        self.assertEqual(stamped.returncode, 0)
+        self.assertEqual((place / swepro.STAMP).read_text(encoding="utf-8"), "f 9.9.9\n")
+        for line in lines:
+            self.assertNotIn(line.split(" ", 1)[0], ("ENV", "WORKDIR", "USER", "ENTRYPOINT", "CMD"), line)
+
+    def test_setup_does_not_touch_the_network(self):
+        place = hermetic.tmpdir(self)
+        planned = swepro.setup_commands("f", "9.9.9", str(place))
+        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox"])
+        for name, command in planned:
+            for word in NETWORK:
+                self.assertNotIn(word, command, name)
+        check = dict(planned)["stamp"]
+        for written, code in ((None, 1), ("f 9.9.9\n", 0), ("f 9.9.8\n", 1), ("g 9.9.9\n", 1)):
+            with self.subTest(written=written):
+                (place / swepro.STAMP).unlink(missing_ok=True)
+                if written is not None:
+                    (place / swepro.STAMP).write_text(written, encoding="utf-8")
+                done = subprocess.run(["bash", "-c", check], capture_output=True, text=True, encoding="utf-8")
+                self.assertEqual(done.returncode, code)
+                if code:
+                    self.assertIn("prepare", done.stderr)
+
+    def test_rewrite_image_needs_exactly_one_line(self):
+        self.assertEqual(swepro.rewrite_image('a = 1\ndocker_image = "x:1"\n', "x:1", "y:1"), 'a = 1\ndocker_image = "y:1"\n')
+        for text in ('a = 1\n', 'docker_image = "x:1"\ndocker_image = "x:1"\n'):
+            with self.subTest(text=text), self.assertRaises(swepro.BenchError):
+                swepro.rewrite_image(text, "x:1", "y:1")
+
+
+class PrepareTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = hermetic.tmpdir(self)
+        bin_dir = fake_claude(self.tmp / "fake-bin")
+        (bin_dir / "docker").write_text(FAKE_DOCKER.replace("PYTHON", sys.executable), encoding="utf-8")
+        (bin_dir / "docker").chmod(0o755)
+        self.log = self.tmp / "docker.log"
+        self.tasks, self.out = self.tmp / "tasks", self.tmp / "out"
+        shutil.copytree(FIXTURE, self.tasks / OPENLIBRARY)
+        self.env = {k: v for k, v in hermetic.child_env(FAKE_DOCKER_LOG=str(self.log)).items() if k != "CLAUDE_BIN_PATH"}
+        self.env["PATH"] = os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])
+
+    def prepare(self, *instances, **env):
+        return subprocess.run([sys.executable, str(HERE / "swepro.py"), "prepare", str(self.tasks), str(self.out), *instances],
+                              capture_output=True, text=True, encoding="utf-8", env={**self.env, **env})
+
+    def docker_calls(self) -> list[dict]:
+        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()] if self.log.exists() else []
+
+    def test_builds_derived_image_and_rewrites_the_copy(self):
+        original = (self.tasks / OPENLIBRARY / "task.toml").read_text(encoding="utf-8")
+        done = self.prepare(OPENLIBRARY)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        derived = swepro.derived_image(OPENLIBRARY)
+        self.assertEqual(done.stdout.split(), [derived])
+        image = IMAGE.format(OPENLIBRARY)
+        pull, build = self.docker_calls()
+        self.assertEqual(pull["args"], ["pull", "--platform", "linux/amd64", image])
+        self.assertEqual(build["args"][:-1], ["build", "--platform", "linux/amd64", "-t", derived])
+        self.assertEqual(build["files"], ["Dockerfile", swepro.REPO_TAR])
+        self.assertEqual(build["dockerfile"], swepro.dockerfile(image, "9.9.9", swepro.head_commit()))
+        copied = tomllib.loads((self.out / OPENLIBRARY / "task.toml").read_text(encoding="utf-8"))
+        before = tomllib.loads(original)
+        self.assertEqual(copied["environment"].pop("docker_image"), derived)
+        before["environment"].pop("docker_image")
+        self.assertEqual(copied, before)
+        self.assertEqual(swepro.instance_of(derived), OPENLIBRARY)
+        self.assertEqual((self.out / OPENLIBRARY / "instruction.md").read_bytes(), (FIXTURE / "instruction.md").read_bytes())
+        self.assertEqual((self.tasks / OPENLIBRARY / "task.toml").read_text(encoding="utf-8"), original)
+
+    def test_failed_docker_names_the_instance(self):
+        done = self.prepare(OPENLIBRARY, FAKE_DOCKER_CODE="1")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"{OPENLIBRARY} の docker pull が落ちた", done.stderr)
+        self.assertFalse((self.out / OPENLIBRARY).exists())
+
+    def test_other_repository_or_mismatched_folder_is_refused_before_docker(self):
+        flipt = self.tasks / FLIPT
+        flipt.mkdir()
+        (flipt / "task.toml").write_text(f'[environment]\ndocker_image = "{IMAGE.format(FLIPT)}"\n', encoding="utf-8")
+        mismatched = self.tasks / ANSIBLE
+        mismatched.mkdir()
+        (mismatched / "task.toml").write_text(f'[environment]\ndocker_image = "{IMAGE.format(QUTEBROWSER)}"\n', encoding="utf-8")
+        for instance, said in ((FLIPT, "flipt-io/flipt"), (ANSIBLE, ANSIBLE), ("instance_missing__x-" + "0" * 40, "task.toml")):
+            with self.subTest(instance=instance):
+                done = self.prepare(OPENLIBRARY, instance)
+                self.assertEqual(done.returncode, 1)
+                self.assertIn(said, done.stderr)
+                self.assertEqual(self.docker_calls(), [])
+
+
+class UsageTest(unittest.TestCase):
+    def test_usage_opens_no_extra_network(self):
+        usage = swepro.__doc__
+        self.assertEqual(usage.count("--allow-agent-host"), 1)
+        self.assertIn("--allow-agent-host api.anthropic.com ", usage)
+        self.assertNotIn("--allow-environment-host", usage)
+        self.assertNotIn("DOCKER_DEFAULT_PLATFORM=", usage)
+        self.assertNotIn("export DOCKER_DEFAULT_PLATFORM", usage)
+        self.assertIn("swepro.py prepare ", usage)
+        self.assertIn("harbor run -p <写しの置き場>", usage)
 
 
 # ---------------------------------------------------------------- Harbor の殻
@@ -436,13 +700,16 @@ class FakeEnvironment:
     """exec・upload_file・download_file を呼ばれた順に控える。upload は呼ばれた時に中身を読む。exec の標準出力の頭には
     Harbor の docker の環境と同じく docker compose の警告（標準エラー）が混ざる"""
 
-    def __init__(self, image, result, inside_code=0, capture_code=0):
-        """result が None なら起こし役の結果のファイルが無い"""
+    def __init__(self, image, result, inside_code=0, capture_code=0, stamp_code=0):
+        """result が None なら起こし役の結果のファイルが無い。stamp_code は焼き印の照らしの終了の値"""
         self.task_env_config = types.SimpleNamespace(docker_image=image)
         self.calls, self.result, self.inside_code, self.capture_code = [], result, inside_code, capture_code
+        self.stamp_code = stamp_code
 
     async def exec(self, command, cwd=None, env=None, timeout_sec=None, user=None):
         self.calls.append({"kind": "exec", "command": command, "env": env, "user": user, "timeout_sec": timeout_sec})
+        if f"{swepro.PLACE}/{swepro.STAMP}" in command:
+            return Done(self.stamp_code, WARNING)
         if "swepro.py inside" in command:
             return Done(self.inside_code, f"{WARNING}工場の出力")
         if command == swepro.capture_command(swepro.WORKDIR, swepro.OUT):
@@ -512,7 +779,7 @@ class AgentTest(unittest.TestCase):
     RESULT = {"state": "done", "outcome": "fixed", "error": None, "usd": 2.0, "provenance": {"archon": "c"}}
 
     def go(self, image=IMAGE.format(OPENLIBRARY), inside_code=0, result=RESULT, capture_code=0):
-        environment = FakeEnvironment(image, result, inside_code, capture_code)
+        environment = FakeEnvironment(swepro.derived_image(swepro.instance_of(image)), result, inside_code, capture_code)
         context = types.SimpleNamespace(cost_usd=None, metadata=None)
         agent = self.agent()
         asyncio.run(agent.setup(environment))
@@ -539,24 +806,26 @@ class AgentTest(unittest.TestCase):
         self.assertNotIn(TOKEN, (self.tmp / "logs" / swepro.PREDICTION).read_text(encoding="utf-8"))
         self.assertEqual(list(self.tempdir.iterdir()), [])
 
-    def test_setup_order_and_place(self):
+    def test_setup_checks_the_stamp_and_the_sandbox_and_uploads_nothing(self):
         self.go()
         setup = self.environment.calls[:self.environment.calls_after_setup]
-        names = [name for name, _ in swepro.setup_commands("9.9.9")]
-        self.assertEqual(names, ["place", "apt", "uv", "python", "bun", "claude", swepro.REPO_STEP, "archon", "plugin", "sandbox"])
-        commands = [c["command"] for c in setup if c["kind"] == "exec"]
-        self.assertEqual(commands, [command for _, command in swepro.setup_commands("9.9.9")])
-        self.assertIn("bash -s 9.9.9", commands[names.index("claude")])
-        uploads = [i for i, c in enumerate(setup) if c["kind"] == "upload"]
-        self.assertEqual([setup[i]["target"] for i in uploads], [f"{swepro.PLACE}/{swepro.REPO_TAR}"])
-        self.assertEqual(setup[uploads[0] + 1]["command"], commands[names.index(swepro.REPO_STEP)])
-        self.assertIn("works-factory version", commands[names.index("archon")])
-        self.assertIn("pr-review-toolkit@claude-plugins-official", commands[names.index("plugin")])
-        self.assertTrue(commands[-1].startswith("bwrap --ro-bind / / --unshare-user --unshare-net true"))
-        self.assertEqual({c["user"] for c in setup if c["kind"] == "exec"}, {"root"})
-        for command in commands:
+        planned = swepro.setup_commands(swepro.head_commit(), "9.9.9")
+        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox"])
+        self.assertEqual([c["command"] for c in setup], [command for _, command in planned])
+        self.assertEqual({c["kind"] for c in setup}, {"exec"})
+        self.assertEqual({c["user"] for c in setup}, {"root"})
+        self.assertTrue(planned[-1][1].startswith("bwrap --ro-bind / / --unshare-user --unshare-net true"))
+        for _, command in planned:
             self.assertNotIn(" /app", command)
             self.assertNotIn("/logs", command)
+
+    def test_stamp_mismatch_fails_setup_naming_prepare(self):
+        environment = FakeEnvironment(swepro.derived_image(OPENLIBRARY), self.RESULT, stamp_code=1)
+        with self.assertRaises(RuntimeError) as caught:
+            asyncio.run(self.agent().setup(environment))
+        self.assertIn("stamp", str(caught.exception))
+        [stamp] = environment.calls
+        self.assertIn("prepare", stamp["command"])
 
     def test_failed_driver_still_captures_and_writes_prediction(self):
         with self.assertRaises(RuntimeError):

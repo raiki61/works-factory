@@ -8,6 +8,7 @@
 - python3 -I で起こした check は起こし役のフォルダ（試験の持つ写し）に __pycache__ を作らない（-I は PYTHONDONTWRITEBYTECODE を
   見ず、__pycache__ は .gitignore に隠れて git status に出ない）。共有の bin/_lib/ はどの試験も見ない（別の実行の残り物で揺れる）。
   試験自身の import の分は各試験の頭の sys.dont_write_bytecode に任せ、試験では縛らない
+- 認証が無い時の案内は、名を settings.json の env に置く道と、値を出さずに項目の在りかを確かめる命令を言う
 security は偽の runner に差し替え、本物の keychain には触らない。
 """
 import os
@@ -53,6 +54,19 @@ def keychain(items):
         return types.SimpleNamespace(stdout=items.get(service, ""), returncode=0 if service in items else 44)
     run.calls = calls
     return run
+
+
+class Howto(unittest.TestCase):
+    """案内は名を毎回付けずに済ます道（Claude Code の settings.json の env）と、値を出さずに項目の在りかを確かめる命令を言う。
+    持ち主の項目の名は書かず、置き場の字で言う"""
+
+    def test_names_the_settings_env_route(self):
+        self.assertIn('settings.json の env に "%s": "<項目の名>"' % auth_launch.ITEM_ENV, auth_launch.HOWTO)
+
+    def test_check_command_does_not_print_the_value(self):
+        self.assertIn("security find-generic-password -s <項目の名> で", auth_launch.HOWTO)
+        command = auth_launch.HOWTO.split("security find-generic-password", 1)[1].split(" で", 1)[0]
+        self.assertNotIn("-w", command.split())
 
 
 class ResolveOrder(unittest.TestCase):
