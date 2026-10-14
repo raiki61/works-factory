@@ -174,7 +174,7 @@ def due(head_depth, ready, plan_rows) -> dict:
     if head_depth != LIGHT or ready is not True:
         return {"skip": False, "why": ""}
     rows = [r for r in plan_rows or [] if isinstance(r, dict)]
-    if depth.run_depth({"units": dict(enumerate(rows))}) != LIGHT:
+    if not depth.skip_reason({"units": dict(enumerate(rows))}):   # 単位が全部軽量の時だけ訳を返す（eyes の支度と同じ判断）
         return {"skip": False, "why": RAISED}
     return {"skip": True, "why": f"run の頭の深さが{LIGHT}で、計画の単位 {len(rows)} 個がすべて{LIGHT}"}
 
