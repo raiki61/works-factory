@@ -414,7 +414,7 @@ class PlainClaude:
     RESULT, FINDINGS = "claude-result.json", "findings.json"
     ISOLATED_ENV = ("HOME", "CLAUDE_CONFIG_DIR", "GH_CONFIG_DIR")
     INPUTS = ("RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON")   # 対象の入力。来歴の run_inputs はこれだけ
-    RUN_ENV = (*INPUTS, "RB_OUT", "RB_AGENT")   # start が子に置く RB_* の全部。PLAIN_PROMPT がこの名で読む
+    RUN_ENV = (*INPUTS, "RB_OUT", "RB_AGENT")   # start が子に置く RB_* の全部。PLAIN_PROMPT が読む $RB_* はこの内
 
     def __init__(self):
         self.claude = launcher.real_claude(os.environ)

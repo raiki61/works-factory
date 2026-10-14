@@ -12,6 +12,7 @@ import fcntl
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -68,6 +69,7 @@ if verb == "run":
     state["runs"].append({"id": rid, "status": plan.get("status", "completed"), "parent_run_id": None,
                           "started_at": "2026-10-12T00:00:00Z"})
     put(home / "art" / rid, plan.get("artifacts", {JUDGMENT: UNITS}))
+    put(pathlib.Path("/"), plan.get("files", {}))
     for n in range(plan.get("children", 0)):
         kid = f"{rid}-child-{n}"
         state["runs"].append({"id": kid, "status": "completed", "parent_run_id": rid, "started_at": f"2026-10-12T00:0{n + 1}:00Z"})
@@ -767,6 +769,15 @@ class RunTest(RunnerCase):
                 self.assertEqual([p.read_bytes() for p in written], before)
                 shutil.rmtree(self.attempts)
 
+    def test_run_records_web_calls_measured_in_the_attempt(self):
+        config = self.attempt(self.one) / "home" / runner.isolate.DIRS["CLAUDE_CONFIG_DIR"]
+        log = runner.reads.reads_path(runner.reads.root(config), "/w/one")
+        row = {"ts": "2026-10-14T08:00:00", "tool_name": runner.toolset.DENY_WEB["deny"][0], "input": "https://example.com"}
+        self.set_plan(files={str(log): json.dumps(row) + "\n"})
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        [record] = self.records("works-factory")
+        self.assertEqual(record["web_calls"], 1)
+
     def test_convert_command_keeps_records_when_head_is_unreadable(self):
         self.assertRan(self.run_tasks("works-factory", self.one))
         written = [self.out / "works-factory" / d / f"{self.one}.json" for d in ("findings", "convert")]
@@ -822,6 +833,11 @@ class PlainClaudeEnvTest(unittest.TestCase):
         self.assertEqual(set(env), set(producer.env_names()) - set(runner.PlainClaude.ISOLATED_ENV))
         self.assertEqual((env["RB_AGENT"], env["RB_OUT"]), (producer.name, str(attempt / "out" / runner.PlainClaude.FINDINGS)))
         self.assertEqual(producer.input_pairs(attempt, "b" * 40), {k: env[k] for k in runner.PlainClaude.INPUTS})
+
+    def test_prompt_reads_only_names_start_sets(self):
+        read = set(re.findall(r"\$(RB_[A-Z_]+)", runner.PLAIN_PROMPT))
+        self.assertTrue(read)
+        self.assertLessEqual(read, set(runner.PlainClaude.RUN_ENV))
 
 
 class WebCallsTest(unittest.TestCase):
