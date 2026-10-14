@@ -31,6 +31,13 @@ Apple silicon の上の docker: 課題のイメージは linux/amd64 だけな�
 --platform linux/amd64 を付ける。DOCKER_DEFAULT_PLATFORM は付けない（Harbor の egress の付き添いは daemon の素の型で build され、
 amd64 を強いると立たない）。docker の CLI に compose の差し込み（docker compose）が要る。
 
+プロキシの要る網: prepare は環境に空でない値で在る PROXY_ENV の名を、値を付けずに docker build --build-arg <名> で渡す。
+値は docker の CLI が自分の環境から読み、Dockerfile に ARG を書かないので docker history に残らない。値は build のコンテナから
+届く宛先にする（ホストの localhost は build のコンテナの中では別物）。docker pull は daemon のプロキシの設定を使う。
+試行の段は回らない: Harbor 0.24.0 の egress の付き添いは許した宛先へ直に繋ぎ、上流のプロキシを通さない。https のプロキシが
+api.anthropic.com を向く環境では、殻が環境を起こす前に 1 行で断る（proxy_refused）。直にも届く網なら NO_PROXY に
+api.anthropic.com を足して起動する。
+
 - 無人の run が人に聞いて止まった（承認ノードで待った・結末の種が chain.KIND_HUMAN）時は stopped を立てる。封じた差分が在れば
   --allow-stopped で当て、封じる前に止まった run は当てずに空の patch（未解決）として数える。run を resume しない。
   /app の変更を取れなかった時も stopped を立て、model_patch を null にする（変更は /app に残っていて、空の patch ではない）。
@@ -60,6 +67,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -85,6 +93,8 @@ OLD_WORKS = ("今の works は SWE-Bench Pro で回さない（#437 の運び役
 # 作業の段の網は api.anthropic.com だけが開く。この 2 つはそこへそのまま届き、中の工場の殻も素の claude -p も env から読む
 ACCEPTED_AUTH = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY")
 AUTH_REFUSED = "auth_refused"
+# docker の決まりのプロキシの build 引数。Dockerfile に ARG で書かなければ docker history に残らない
+PROXY_ENV = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy")
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
 INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
@@ -210,7 +220,8 @@ def derived_image(instance_id: str) -> str:
 def dockerfile(base_image: str, claude_version: str, factory_commit: str, place: str = PLACE) -> str:
     """課題のイメージの上に道具と工場の写しを焼く。ENV・WORKDIR・USER・ENTRYPOINT・CMD を書かない（課題の実行時の形と
     検証役が見る PATH を変えない）。RUN は Harbor の docker の exec と同じ sh -c を exec 形で書き、字の引用を崩さない。
-    工場の写しは commit ごとに変わるので、道具の層の cache を切らないよう道具の後に置く"""
+    工場の写しは commit ごとに変わるので、道具の層の cache を切らないよう道具の後に置く。ARG を書かない（書けば決まりの
+    プロキシの build 引数 PROXY_ENV が履歴に残る）"""
     lines = [f"FROM {base_image}"]
     for name, command in build_steps(claude_version, place):
         if name == "archon":
@@ -292,6 +303,12 @@ def _task_image(task: Path, instance_id: str) -> str:
     return image
 
 
+def proxy_args(env) -> list[str]:
+    """環境に空でない値で在る PROXY_ENV の名を、値なしの --build-arg で並べる（docker の CLI が自分の環境から値を読むので、
+    値はコマンドの字にもログにも出ない）"""
+    return [arg for name in PROXY_ENV if env.get(name) for arg in ("--build-arg", name)]
+
+
 def _docker(instance_id: str, *args: str):
     if subprocess.run(["docker", *args]).returncode:
         raise BenchError(f"{instance_id} の docker {args[0]} が落ちた")
@@ -314,13 +331,23 @@ def prepare(tasks: Path, out: Path, instances: list[str]) -> list[str]:
             derived = derived_image(instance_id)
             _docker(instance_id, "pull", "--platform", PLATFORM, image)
             (context / "Dockerfile").write_text(dockerfile(image, claude_version, factory_commit), encoding="utf-8")
-            _docker(instance_id, "build", "--platform", PLATFORM, "-t", derived, str(context))
+            _docker(instance_id, "build", "--platform", PLATFORM, *proxy_args(os.environ), "-t", derived, str(context))
             copy = out / instance_id
             shutil.copytree(tasks / instance_id, copy, dirs_exist_ok=True)
             toml = copy / "task.toml"
             toml.write_text(rewrite_image(toml.read_text(encoding="utf-8"), image, derived), encoding="utf-8")
             made.append(derived)
     return made
+
+
+def proxy_refused() -> str:
+    """試行の網が api.anthropic.com へ届くか。届くなら空の字、https のプロキシがそこを向くなら断る訳（値は書かない）"""
+    proxies = urllib.request.getproxies_environment()
+    if "https" in proxies and not urllib.request.proxy_bypass_environment("api.anthropic.com", proxies):
+        return ("HTTPS_PROXY か https_proxy が api.anthropic.com をプロキシへ向けている: Harbor 0.24.0 の egress の付き添いは"
+                "上流のプロキシを通さず直に繋ぐので、試行は api.anthropic.com に届かない。直に届く網なら NO_PROXY に"
+                "api.anthropic.com を足して起動する")
+    return ""
 
 
 # ---------------------------------------------------------------- コンテナの中の起こし役

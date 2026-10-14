@@ -584,6 +584,7 @@ class BuildTest(unittest.TestCase):
         self.assertLess(added, run_of["archon"])
         self.assertEqual([line.split(" ", 1)[0] for line in lines].count("ADD"), 1)
         self.assertNotIn("COPY", [line.split(" ", 1)[0] for line in lines])
+        self.assertNotIn("ARG", [line.split(" ", 1)[0] for line in lines])   # 決まりのプロキシの build 引数を履歴に残さない
         place = hermetic.tmpdir(self)
         self.assertEqual(runs[-1][:2], ["/bin/sh", "-c"])
         stamped = subprocess.run(["/bin/sh", "-c", runs[-1][2].replace(swepro.PLACE, str(place))])
@@ -626,7 +627,8 @@ class PrepareTest(unittest.TestCase):
         self.log = self.tmp / "docker.log"
         self.tasks, self.out = self.tmp / "tasks", self.tmp / "out"
         shutil.copytree(FIXTURE, self.tasks / OPENLIBRARY)
-        self.env = {k: v for k, v in hermetic.child_env(FAKE_DOCKER_LOG=str(self.log)).items() if k != "CLAUDE_BIN_PATH"}
+        self.env = {k: v for k, v in hermetic.child_env(FAKE_DOCKER_LOG=str(self.log)).items()
+                    if k != "CLAUDE_BIN_PATH" and k not in swepro.PROXY_ENV}
         self.env["PATH"] = os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])
 
     def prepare(self, *instances, **env):
@@ -656,6 +658,19 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(swepro.instance_of(derived), OPENLIBRARY)
         self.assertEqual((self.out / OPENLIBRARY / "instruction.md").read_bytes(), (FIXTURE / "instruction.md").read_bytes())
         self.assertEqual((self.tasks / OPENLIBRARY / "task.toml").read_text(encoding="utf-8"), original)
+
+    def test_proxy_names_reach_build_without_values(self):
+        secret = "secret-value-zq7"
+        done = self.prepare(OPENLIBRARY, HTTPS_PROXY=f"http://user:{secret}@proxy.invalid:3128", no_proxy="localhost",
+                            HTTP_PROXY="")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        pull, build = self.docker_calls()
+        self.assertEqual(pull["args"], ["pull", "--platform", "linux/amd64", IMAGE.format(OPENLIBRARY)])
+        self.assertEqual(build["args"][:-1], ["build", "--platform", "linux/amd64", "--build-arg", "HTTPS_PROXY",
+                                              "--build-arg", "no_proxy", "-t", swepro.derived_image(OPENLIBRARY)])
+        self.assertNotIn("ARG", [line.split(" ", 1)[0] for line in build["dockerfile"].splitlines()])
+        for text in (self.log.read_text(encoding="utf-8"), done.stdout, done.stderr):
+            self.assertNotIn(secret, text)
 
     def test_failed_docker_names_the_instance(self):
         done = self.prepare(OPENLIBRARY, FAKE_DOCKER_CODE="1")
@@ -870,6 +885,26 @@ class AgentTest(unittest.TestCase):
             with self.assertRaises(ValueError) as caught:
                 self.agent()
         self.assertIn("--agent-timeout-multiplier inf", str(caught.exception))
+
+    def test_proxied_network_is_refused_before_the_environment(self):
+        secret = "secret-value-zq7"
+        proxy = f"http://user:{secret}@proxy.invalid:3128"
+        for env, refused in (({"HTTPS_PROXY": proxy}, True),
+                             ({"https_proxy": proxy}, True),
+                             ({"HTTPS_PROXY": proxy, "NO_PROXY": ".anthropic.com"}, False),
+                             ({"HTTP_PROXY": proxy}, False)):
+            with self.subTest(env=sorted(env)):
+                self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN}, **env)
+                if not refused:
+                    self.agent()
+                    continue
+                with self.assertRaises(ValueError) as caught:
+                    self.agent()
+                said = str(caught.exception)
+                for word in ("NO_PROXY", "api.anthropic.com"):
+                    self.assertIn(word, said)
+                self.assertNotIn(secret, said)
+                self.assertNotIn("\n", said)
 
     def test_old_works_and_unknown_producers_are_refused(self):
         with self.assertRaises(ValueError) as caught:
