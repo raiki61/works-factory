@@ -3498,8 +3498,8 @@
 - line.md L-E36: 各サブグラフが record.policy_md から組む（main lib/judge_accept.py::policy_text、workflows/fix/scripts/delta_cut.py::main、workflows/eyes/scripts/prep.py::out）
 - line.md L-E37: lib/rolekit.py::LANG_RULE・lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（住処を 1 つにし、fixboard・planfile・eyeverdict の写しはそれを引く）。judge はループの頭の拒否のノード workflows/judge/scripts/reject.py・rejects.py と判定の裏取りの支度 verify.py が `lang_line` を返し、全部の役の指示書の頭が `$<節>.output.lang_line`。report は facts が返し commands/report.md の頭（部分 A で閉じた）
 - line.md L-E38: workflows/line/scripts/start.py::start（部分 A で閉じた）
-- line.md L-E42: workflows/line/scripts/start.py::from_fixture・workflows/line/scripts/start.py::fixture_dir・lib/fixture.py::adopt（置き場と作業ツリーのパス・run の id・HEAD の置き換え、前の版の拒みは形の版 FORMAT。trace の 1 行の代わりに起動の関所の文と報告の入口の節の「固定材料から」の行 lib/fixture.py::lines）（#509 で戻した）
-- line.md L-E43: lib/fixture.py::capture・lib/fixture.py::noted_capture・workflows/line/scripts/fix_in.py::fix_in（盤面の代わりに run の置き場と修正の段へ運ぶ値を写す）（#509 で戻した）
+- line.md L-E42: workflows/line/scripts/start.py::from_fixture・workflows/line/scripts/start.py::fixture_dir・lib/fixture.py::adopt（置き場と作業ツリーのパス・run の id・HEAD の置き換え、前の版の拒みは形の版 FORMAT。trace の 1 行の代わりに起動の承認ノードの文と報告の入口のセクションの「固定材料から」の行 lib/fixture.py::lines）（#509 で戻した）
+- line.md L-E43: lib/fixture.py::capture・lib/fixture.py::noted_capture・workflows/line/scripts/fix_in.py::fix_in（今の works が写した作業の状態と名指しのファイルの代わりに、run の置き場と修正の段へ運ぶ値を写す）（#509 で戻した）
 - line.md L-E44: workflows/line/scripts/start.py::version_record（lib/versions.py::snapshot を呼ぶ。書いた時の `versions` は {archon, claude_code} だけだった）。lib/startrec.py::cli_version
 - line.md L-E45: lib/versions.py::snapshot（元 versions.py の名。分からない値は null と unknown の訳）（部分 A で閉じた）
 - line.md L-E46: workflows/line/scripts/start.py::start（確かめの前に inputs と versions を置く）（部分 A で閉じた）
@@ -3633,7 +3633,7 @@
 - line.md L-W62: workflows/line/scripts/result.py::result・workflows/line/scripts/result.py::FIXED
 - line.md L-W63: workflows/.shared/boundary.py::run・workflows/.shared/boundary.py::guarded_imports
 - line.md L-W64: 無し（#74 の head docs/design.md の「順と承認ノード」の止めの行と「能力の棚卸し」の止め札の行が持ち主の答え待ち）
-- line.md L-W65: workflows/line/works-factory-line.yaml::fix-in・workflows/line/works-factory-line.yaml::test-gate-base（固定材料の run は直す前のテスト・判定・計画の往復・修正前の関所を飛ばし、fix から後ろは fix-in の値を読む）（#509 で戻した）
+- line.md L-W65: workflows/line/works-factory-line.yaml::fix-in・workflows/line/works-factory-line.yaml::test-gate-base（固定材料の run は直す前のテスト・判定・計画の往復・修正前の承認ノードを飛ばし、fix から後ろは fix-in の値を読む）（#509 で戻した）
 - line.md L-W66: tests/workflows/test_line.py::LineWiringCase、tests/e2e/test_line_scenarios.py
 - line.md L-W67: tests/workflows/test_line.py の表 UNPASSED（渡さない入力と訳）
 - line.md L-D01: lib/depth.py::unit_depth。呼び手 lib/planfile.py::collect
