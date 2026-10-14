@@ -240,6 +240,13 @@ class MainTest(unittest.TestCase):
         self.assertFalse(self.log.exists(), "止まるはずが claude が起きた")
 
 
+
+class ReadmeTest(unittest.TestCase):
+    def test_readme_names_the_engine_child_marker(self):
+        """#526: 対象のリポジトリの書き手が頼れるよう、README.md が役の子に立つ印を名指す"""
+        self.assertIn(f"`{fence.ENGINE_CHILD_ENV}=1`", (ROOT / "README.md").read_text(encoding="utf-8"))
+
+
 class FencedSinceTest(unittest.TestCase):
     """受け付けが読む側（fence.fenced_since）: since より後に root の中を cwd にした印の在る起動が 1 行でも在れば空、無ければ訳"""
 
