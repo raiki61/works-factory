@@ -3577,9 +3577,9 @@
 - line.md L-W06: judge の出力ノードが ready:false と stop_reason を返し、judge-out（workflows/line/works-factory-line.yaml::judge-out）が受けて collect に届く
 - line.md L-W07: メイングラフの design-only（plan-review の形 design。lib/boardview.py::open_design・lib/boardview.py::_collect_design）→ workflows/line/scripts/fixed.py::no_fix（独立設計・go・差分無し）→ judged・redepth・test-gate-final・eyes（設計は $fixed.output.design）→ ask-final（封じのノードが飛んでも開く）。merge-seal・merge-apply は no_fix で飛ぶ。結末は lib/outcome.py（残りが無ければ no_fix_needed、封じの出力が無いのを切れ目と読まない）。計画の直す義務 0 件の周も workflows/line/scripts/plan_out.py::round_owes_nothing が真なら plan-out の nothing_owed で design-only に入る（#291。結末は round_limit）
 - line.md L-W08: lib/judge_accept.py::structure_units（record に {units, paths} を書く）・`verdict` が判定の置き場の `structure-units-dropped.json`（`STRUCTURE_DROPPED_FILE`）に書く
-- line.md L-W09: workflows/line/scripts/ask_final.py::structure_missing（計画の出力 `structure` の先の structure-state.json を `structmark.note` で読む。メイングラフの `ask-final` の `structure` ← `$plan-rounds.output.structure`）
+- line.md L-W09: workflows/line/scripts/ask_final.py::structure_missing（計画の出力 `structure` の先の structure-state.json を `structmark.note` で読む。メイングラフの `ask-final` の `structure` ← `$fix-in.output.structure`）
 - line.md L-W10: lib/planfile.py::write_brief（`planblk.verify_part` が判定の隣の judge-verify.json を貼る）
-- line.md L-W11: workflows/line/works-factory-line.yaml::fix（fix の plan・ripple・depth は `$plan-rounds.output.*`）
+- line.md L-W11: workflows/line/works-factory-line.yaml::fix（fix の plan・ripple・depth は `$fix-in.output.*`）
 - line.md L-W12: workflows/line/works-factory-line.yaml::plan-rounds（loop_group。`review: $LOOP_PREV.plan-out.output.review` は workflows/line/works-factory-line.yaml::plan）、workflows/line/scripts/plan_out.py::plan_out
 - line.md L-W13: workflows/line/works-factory-line.yaml::plan-out・workflows/line/works-factory-line.yaml::plan-rounds-out
 - line.md L-W14: メイングラフの fix の with: の answers: $answer-before-fix.output.answer（{decision, text, asked}。asked は $ask-before-fix.output.asked）。一言と戻った単位の行は fix の prep が write_notes（gatemarks.returned_lines）で human-notes.md に置く
@@ -3639,7 +3639,7 @@
 - line.md L-D01: lib/depth.py::unit_depth。呼び手 lib/planfile.py::collect
 - line.md L-D02: lib/depth.py::wiring
 - line.md L-D03: lib/depth.py::decide_doc・lib/depth.py::run_depth
-- line.md L-D04: yaml の fix.depth（$plan-rounds.output.depth）・refix-run.depth（$replan.output.depth）
+- line.md L-D04: yaml の fix.depth（$fix-in.output.depth）・refix-run.depth（$replan.output.depth）
 - line.md L-D05: lib/depth.py::raise_doc、workflows/line/scripts/redepth.py::redepth
 - line.md L-D06: workflows/line/scripts/redepth.py::redepth
 - line.md L-D07: workflows/line/scripts/redepth.py::redepth

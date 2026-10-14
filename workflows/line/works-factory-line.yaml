@@ -463,6 +463,7 @@ nodes:
         ripple: {}
         depth: {}
         structure: {}
+        depth_skip: {}
         review: {}
         design: {}
         questions: {}
@@ -471,7 +472,7 @@ nodes:
         received: { type: [object, "null"] }
         stop_reason: { type: string }
       required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, plan, ripple, depth, structure,
-                 review, design, questions, answer, deferred, received, stop_reason]
+                 depth_skip, review, design, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix]
@@ -777,7 +778,7 @@ nodes:
       plan_questions: { from: "$fix-in.output.questions", if_skipped: null }
       answer: { from: "$fix-in.output.answer", if_skipped: null }
       no_fix_design: { from: "$design-only.output.design", if_skipped: null }
-      review_skipped: { from: "$plan-rounds.output.depth_skip", if_skipped: null }
+      review_skipped: { from: "$fix-in.output.depth_skip", if_skipped: null }
 
   # 再審は 2 度目の修正の後（元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。1 回目と 2 度目の修正役の異議を 1 度だけ再審する
   - id: rejudge-run

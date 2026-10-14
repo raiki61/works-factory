@@ -403,6 +403,11 @@ class FixFixtureTest(unittest.TestCase):
         for name in ("test_gate_base", "judge", "plan", "plan_review"):
             self.assertEqual(collected[name], carried[name], name)
 
+    def test_copied_review_skip_reaches_the_eyes(self):
+        """写した run が事前審査を深さで飛ばしていれば（#517）、計画の往復が飛ぶこの run でも fixed が review_skipped を立てる"""
+        self.assertIs(json.loads(self.trace["fix-in"]["output"])["received"]["plan"]["depth_skip"], True)
+        self.assertIs(json.loads(self.trace["fixed"]["output"])["review_skipped"], True)
+
 
 class RefixInputsTest(unittest.TestCase):
     """部分 D1 の受け入れ: 筋書き replan で 2 度目の修正（refix-run）に 1 回目の申し出と裁定（prior_conflicts）・案の直しの事前審査の

@@ -600,7 +600,8 @@ class FixInCase(Artifacts):
     BASE = {"baseline": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate-base/baseline.json"}, "ok": True}
     JUDGE = {"units": [{"id": "u1"}], "judgment": {"path": "judge/judgment.json"}, "purpose": None, "world": None, "spec": None,
              "rejudge_verdict": ""}
-    PLAN = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "depth": [], "structure": None}
+    PLAN = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "depth": [], "structure": None,
+            "depth_skip": False}
     REVIEW = {"review": {"path": "plan-review/review.json"}, "design": {"path": "plan-review/design.json"}, "questions": []}
     ANSWER = {"decision": "continue", "text": "q1 は a", "asked": []}
 
@@ -648,6 +649,16 @@ class FixInCase(Artifacts):
         self.assertEqual((got["units"], got["judgment"], got["answer"]), (self.JUDGE["units"], self.JUDGE["judgment"], self.ANSWER))
         self.assertFalse((self.artifacts / fixture.DIR).exists(), "固定材料から始めた run は写さない")
         self.assertIs(self.run_in(fixture=pointer, start_go="false")["go"], False)
+
+    def test_fixture_run_keeps_the_copied_review_skip(self):
+        """写した run が事前審査を run の頭の深さで飛ばしていれば、固定材料の run の fixed も review_skipped を立てる（計画の往復は
+        飛ぶので、fixed は fix-in からだけ読む）。立たないと独立の目が単位の深さで R1〜R4 を省く"""
+        received = {"test_gate_base": self.BASE, "judge": self.JUDGE, "plan": {**self.PLAN, "depth_skip": True},
+                    "plan_review": self.REVIEW, "gate_before_fix": None, "deferred": []}
+        (self.artifacts / fixture.CARRIED).write_text(json.dumps(received), encoding="utf-8")
+        pointer = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": fixture.CARRIED})
+        self.assertIs(self.run_in(fixture=pointer, start_go="true")["depth_skip"], True)
+        self.assertEqual(line_nodes()["fixed"]["with"]["review_skipped"], {"from": "$fix-in.output.depth_skip", "if_skipped": None})
 
     def test_returns_and_fallback_are_the_output_format(self):
         required = line_nodes()["fix-in"]["output_format"]["required"]
@@ -1856,7 +1867,7 @@ class PlanReviewDueCase(unittest.TestCase):
 
     def test_wiring(self):
         """頭の深さ・計画ができたか・単位ごとの深さ・前の周の事前審査を受け、事前審査の差し込みに飛ばすかと訳を渡し、往復の返しの節が
-        報告と目に運ぶ"""
+        報告と目に運ぶ（目へは受け皿 plan-rounds-out から fix-in を通る）"""
         nodes = line_nodes()
         self.assertEqual(nodes["plan-review-due"]["with"], {"head_depth": "$judge.output.depth", "ready": "$plan.output.ready",
                                                             "plan_depth": "$plan.output.depth",
@@ -1865,7 +1876,9 @@ class PlanReviewDueCase(unittest.TestCase):
         self.assertIn("plan-review-due", run["depends_on"])
         self.assertEqual((run["with"]["depth_skip"], run["with"]["depth_why"]),
                          ("$plan-review-due.output.skip", "$plan-review-due.output.why"))
-        self.assertEqual(nodes["fixed"]["with"]["review_skipped"], {"from": "$plan-rounds.output.depth_skip", "if_skipped": None})
+        self.assertEqual(nodes["plan-rounds-out"]["with"]["got_depth_skip"], "$plan-rounds.output.depth_skip")
+        self.assertEqual(fix_in.FLAT["depth_skip"], ("plan", "depth_skip"))
+        self.assertEqual(nodes["fixed"]["with"]["review_skipped"], {"from": "$fix-in.output.depth_skip", "if_skipped": None})
         self.assertEqual(nodes["eyes"]["with"]["review_skipped"], "$fixed.output.review_skipped")
         self.assertEqual((nodes["judge-out"]["with"]["got_depth"], nodes["judge-out"]["with"]["got_depth_why"]),
                          ("$judge.output.depth", "$judge.output.depth_why"))
