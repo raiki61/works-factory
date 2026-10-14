@@ -9,7 +9,8 @@
 spec_questions）。TDD の凍結（lib/tddloop.py の frozen_problems）とは別に置く: 基準が人の承認の時で、許しを持たず、結末を人待ちにする。
 変わっていれば問いを返し、止めの理由 works:spec-changed（人待ち）を返す。差分の審査・最後のテスト・独立の目は飛ばさない——最後の
 承認ノードが問いを載せて必ず開き、その答えは問いに答えない（承認し直すのは次の run の仕様の段）。仕様の段が無い run（spec が null）は
-問いも止めも無い。例外は止めの理由 works:line-script（黙って 0 件にしない）。
+問いも止めも無い。例外は「照らしが落ちた」の問いを 1 行と止めの理由 works:line-script を返す（黙って 0 件にしない——0 件は
+最後の承認ノードに「変わっていない」と読まれ、問わずに通る）。
 
 入力（with:）: spec（judge の返りの J/spec.json の指し札。仕様の段が固めていなければ null）
 """
@@ -34,7 +35,8 @@ def check(spec_raw) -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {"questions": [], "stop_reason": boundary.LINE_SCRIPT}
+    question = f"照らしが落ちた——承認済みの受け入れ条件のテストが変わったかを確かめられない（{reason}）"
+    return {"questions": [question], "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":

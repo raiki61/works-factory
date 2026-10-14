@@ -2043,6 +2043,15 @@ class SpecCheckCase(_SpecRepoCase):
         self.assertEqual(len(got), 1, got)
         self.assertIn("消えた", got[0])
 
+    def test_unmeasurable_file_says_why_not_gone(self):
+        path = self.frozen()
+        (self.repo / "test_spec_accept.txt").unlink()
+        (self.repo / "test_spec_accept.txt").mkdir()
+        got = ja.spec_questions(path, self.repo)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("通常のファイルでない", got[0])
+        self.assertNotIn("消えた", got[0])
+
     def test_same_file_counted_once(self):
         path = self.frozen()
         spec = ja.read_json(path)

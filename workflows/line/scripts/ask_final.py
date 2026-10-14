@@ -244,7 +244,7 @@ def eye_lines(got: dict) -> list:
 
 
 def question_lines(got: dict) -> list:
-    """人に聞いている問い（記録のまま引く。元 _final_text の pending_human）・保留の問いと答え方・答えた問い・当たらなかった依頼の
+    """承認し直すかの問い（spec-check の questions）・人に聞いている問い（記録のまま引く。元 _final_text の pending_human）・保留の問いと答え方・答えた問い・当たらなかった依頼の
     答え・読めなかった保留。どれも無い時だけ「盤面の問い: 無い」"""
     lines = []
     if got["spec_changed"]:

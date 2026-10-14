@@ -1645,6 +1645,26 @@ class SpecCheckNodeCase(Artifacts):
         self.assertEqual(len(got["questions"]), 1, got)
         self.assertIn("test_accept.txt", got["questions"][0])
 
+    def test_crash_is_a_question_not_silence(self):
+        """照らしが落ちた返りの 0 件は、最後の承認ノードに「変わっていない」と読まれて問わずに通る。落ちたら問いを 1 行返す"""
+        ptr = json.dumps({"type": "archon_artifact", "run_id": "another-run", "path": "judge/spec.json"})
+        env = {**os.environ, "INPUTS_SPEC": ptr}
+        done = subprocess.run([sys.executable, str(SCRIPTS / "spec_check.py")], cwd=self.tmp, env=env, capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual(got["stop_reason"], stopby.LINE_SCRIPT)
+        self.assertEqual(len(got["questions"]), 1, got)
+        self.assertIn("確かめられない", got["questions"][0])
+
+    def test_check_reads_the_judge_spec(self):
+        """仕様の段の J/spec.json の指し札が照らしに届き、照らしの問いが最後の承認ノードと collect に届く"""
+        nodes = line_nodes()
+        self.assertEqual(nodes["spec-check"]["with"]["spec"], {"from": "$judge.output.spec", "if_skipped": None})
+        self.assertEqual(nodes["spec-check"]["depends_on"], ["fixed"])
+        for key, skipped in (("ask-final", []), ("collect", None)):
+            with self.subTest(node=key):
+                self.assertEqual(nodes[key]["with"]["spec_changed"], {"from": "$spec-check.output.questions", "if_skipped": skipped})
+
 
 class AfterFixAndJudgedCase(Artifacts):
     def test_after_fix_counts(self):
@@ -2015,6 +2035,14 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual(set(got), {name.replace("-", "_") for name in declared})
         self.assertEqual(collect.fallback("x").keys(), got.keys())
 
+    def test_lists_are_the_lists_report_reads(self):
+        """collect が並びに倒す入力（LISTS）は、report の facts が並びと読む入力（無ければ黙って [] になる）と、collect の節が
+        配列と申告する欄と同じ"""
+        from tests.workflows.test_report import facts_script
+        self.assertEqual(set(collect.LISTS), {name.replace("-", "_") for name in facts_script.LISTS})
+        shape = line_nodes()["collect"]["output_format"]["properties"]
+        self.assertEqual({key for key, rule in shape.items() if rule.get("type") == "array"}, set(collect.LISTS))
+
     def test_skipped_receiver_is_null(self):
         seal = {"got": {"mode": "seal", "ok": True, "hash": "123"}, "stop_reason": ""}
         got = collect.collect({"judge": "null", "merge_seal": json.dumps(seal), "plan": "null", "plan_review": "null"}, self.line())
@@ -2066,6 +2094,7 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertLessEqual({"start", "ask-before-fix", "ask-replan", "ask-final", "judged", "fixed", "redepth", "after-fix"}, stopping)
         with_ = nodes["collect"]["with"]
         self.assertEqual({k for k in with_ if k.startswith("stop_")}, {f"stop_{k.replace('-', '_')}" for k in stopping})
+        self.assertEqual(set(collect.STOPS), stopping)
         for key in sorted(stopping):
             with self.subTest(node=key):
                 self.assertEqual(with_[f"stop_{key.replace('-', '_')}"], {"from": f"${key}.output.stop_reason", "if_skipped": None})
