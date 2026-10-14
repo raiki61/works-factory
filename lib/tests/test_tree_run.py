@@ -15,6 +15,8 @@
 - pack の中に __pycache__ を作らない（試験が持つ写しの pack で見る）
 孫の生死はプロセスグループ（コマンドの sh の pid と同じ番号）が空かで見る。グループの外へ出た孫は、孫が書いた pid で見る。
 """
+import contextlib
+import io
 import itertools
 import json
 import os
@@ -576,6 +578,29 @@ class OutsideEnvCase(unittest.TestCase):
                               env=env)
             self.assertEqual((rc, seen.read_text()), (0, ""))
             self.assertTrue(userenv.ran(top))
+
+    def test_user_env_marker_that_cannot_be_written_keeps_the_run(self):
+        """#514: 印を置けなくても、起きた子は止めずに終わりまで待ち、その終了コードを返す。置けなかった事は標準エラーに 1 行出す"""
+        record = json.dumps({"HOME": "/u"})
+        with tempfile.TemporaryDirectory() as top:
+            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            missing = pathlib.Path(top) / "missing" / userenv.RAN_FILE
+            env[userenv.MARK] = str(missing)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = tree_run.run([sys.executable, "-c", "raise SystemExit(3)"], env=env)
+            self.assertEqual(rc, 3)
+            self.assertIn(tree_run.MARK_FAILED, err.getvalue())
+            self.assertFalse(missing.exists())
+
+    def test_inherited_user_env_marker_is_not_written_without_record(self):
+        """#514: 起こした殻から継いだ userenv.MARK は、道を付けていない（RECORD の無い）run では外れ、印を書かない"""
+        with tempfile.TemporaryDirectory() as top:
+            mark = pathlib.Path(top) / userenv.RAN_FILE
+            env = tree_run.outside_env({**os.environ, userenv.MARK: str(mark)})
+            self.assertNotIn(userenv.MARK, env)
+            self.assertEqual(tree_run.run([sys.executable, "-c", "pass"], env=env), 0)
+            self.assertFalse(mark.exists())
 
     def test_without_user_record_home_stays(self):
         self.assertEqual(tree_run.outside_env({"HOME": "/run/home"}), {"HOME": "/run/home", "PYTHONDONTWRITEBYTECODE": "1"})

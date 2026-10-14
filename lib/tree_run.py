@@ -66,6 +66,8 @@ KILL_GRACE = 2    # SIGTERM から SIGKILL までの猶予（秒）。実行基�
                   # 同じ 5 秒だと、SIGTERM を無視する孫へ SIGKILL を送る前に殻が実行基盤に殺され、孫が残った（試し P11）
 POLL = 0.2        # 信号と親の替わりを見る間隔（秒）
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+# 印を置けなかった時の 1 行。コマンドは起きたので走らせ続け、報告の冒頭はこの run を利用者の環境で走らせたと言えない
+MARK_FAILED = "利用者の HOME・XDG で走らせた印を置けない（コマンドは起きたので走らせ続ける）"
 LINGER = 1.0      # 止める信号で木を止めた後、抜ける前に待つ秒数（試し P17 の Ctrl-C の穴。モジュールの説明に上限の勘定）
 # 全プロセスの表を読む ps。期限を置かず（E12）、止まらない形を命令の選びで持つ: 絶対パスで名指して PATH の替え玉（対象の道具・
 # 試験の偽物）を拾わず、欄はカーネルのプロセスの表から引ける物だけにする（args・command・env のように他のプロセスの記憶を読む欄は、
@@ -395,7 +397,8 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
 def run(argv, **popen_kw):
     """argv を新しいプロセスグループで起こして終わりを待ち、終了コード（信号で死んだら 128+信号）を返す。bash -c の argv は起こす前に
     prove_launchable で中の先頭の語を引き、引けなければ起こさずに OSError。env に userenv.MARK（outside_env が利用者の HOME・XDG に
-    戻した印）が在れば、子に渡さず、子が起きた後にだけ印を置く（起こせなかったコマンドで報告が言い過ぎない）。
+    戻した印）が在れば、子に渡さず、子が起きた後にだけ印を置く（起こせなかったコマンドで報告が言い過ぎない）。印を置けなければ
+    子は止めずに待ち、標準エラーに MARK_FAILED の 1 行を出す（起きた試験を起こせなかった事にしない）。
     待つ間（後始末の間も）に STOP_SIGNALS を受けたか直下の親が替わったら、木ごと止め、LINGER 秒待ってから Stopped を投げる。
     起きた時に既に孤児（親が 1）なら起こさずに Stopped(SIGHUP)。どの道で抜けても木を止めに行き、止め切れなければ
     標準エラーに名指しする（抜け道はモジュールの説明）"""
@@ -436,7 +439,10 @@ def run(argv, **popen_kw):
         born = time.time()   # 長の番号の再利用の目印（_tree_members の born）
         p = subprocess.Popen(argv, start_new_session=True, **popen_kw)
         if mark is not None:
-            userenv.mark(mark)
+            try:
+                userenv.mark(mark)
+            except OSError as e:
+                print(f"tree_run: {MARK_FAILED}: {mark}: {e}", file=sys.stderr)
         while True:
             if (signum := stop_signal()) is not None:
                 stop(signum)
