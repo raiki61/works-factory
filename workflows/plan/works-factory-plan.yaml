@@ -117,6 +117,7 @@ nodes:
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           mutates_checkout: false
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           # 行の形は lib/design-row.schema.json から route_reason（受け付けが足す）と precedents を除き、route を任意にした物
           # （今の works の structure-eye の型。持ち主との一致は試験が見る）
           output_format:
@@ -241,6 +242,7 @@ nodes:
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           mutates_checkout: false
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           # 今の works の blk-plan.yaml の修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の関所の決め手の欄）。
           # 2 往復目からの block への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。欄の型は planmarks.FIELD_SCHEMA・
           # gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る

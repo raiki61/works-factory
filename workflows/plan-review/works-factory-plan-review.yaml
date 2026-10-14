@@ -113,6 +113,7 @@ nodes:
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           mutates_checkout: false
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           # 既定の system prompt（claude_code）は作業ツリーの git の様子（枝・最近の commit）を入れるので、役の前付けだけに替える
           # （r2.design の禁: リポジトリ・履歴。今の works の包みは道具ゼロの役を Git の外の置き場で起こしていた）
           systemPrompt: |-
@@ -187,6 +188,7 @@ nodes:
           context: fresh
           mutates_checkout: false
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
           # resolved・items・design_map・origins は converge の壁打ちと束ね役と出自の欄
           output_format: {

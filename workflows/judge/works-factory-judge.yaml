@@ -56,6 +56,7 @@ nodes:
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -133,6 +134,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -198,6 +200,7 @@ nodes:
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -360,6 +363,7 @@ nodes:
             filesystem:
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, repo, listed, truncated, conflicts, excluded]
@@ -476,6 +480,7 @@ nodes:
             filesystem:
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [constraints]
@@ -553,6 +558,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [purpose_text, source, known_weaknesses, source_files]
@@ -631,6 +637,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [classes]
@@ -711,6 +718,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [rows, excerpts]
@@ -855,6 +863,7 @@ nodes:
             filesystem:
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, checked, searched, settled]
@@ -949,6 +958,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [verdict, reason, findings]
@@ -1038,6 +1048,7 @@ nodes:
             filesystem:
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, findings, simplify_carried]
@@ -1139,6 +1150,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [consistency, bypass, findings, bypass_findings, seen, unseen]
@@ -1256,6 +1268,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [findings, seen]
@@ -1342,6 +1355,7 @@ nodes:
             filesystem:
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, findings, seen, unseen, web_refetched, rankings]
@@ -1459,6 +1473,7 @@ nodes:
             filesystem:
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, findings, unmeasured]
@@ -1562,6 +1577,7 @@ nodes:
               allowWrite: [/]
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, arms]
@@ -1663,6 +1679,7 @@ nodes:
               allowWrite: [/]
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, mismatches]
@@ -1763,6 +1780,7 @@ nodes:
               allowWrite: [/]
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, observed]
@@ -1860,6 +1878,7 @@ nodes:
               allowWrite: [/]
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [material, claims]
@@ -1952,6 +1971,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [units, questions, framing, one_shot, materials_missing, carried_r1, one_shot_closes, precedents]
@@ -2169,6 +2189,7 @@ nodes:
     mutates_checkout: false
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
     idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
     output_format:
       type: object
       additionalProperties: false
@@ -2236,6 +2257,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [verdict, new_facts, units]
