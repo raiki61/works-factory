@@ -109,5 +109,5 @@ out = {
 }
 EYES.mkdir(parents=True, exist_ok=True)
 (EYES / eyeverdict.R2_PREMISES).write_text(json.dumps(r2_ledger, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-(EYES / "prep.json").write_text(json.dumps({**out, policy.RECORDED_KEY: recorded}, ensure_ascii=False), encoding="utf-8")
+(EYES / eyeverdict.PREP_FILE).write_text(json.dumps({**out, policy.RECORDED_KEY: recorded}, ensure_ascii=False), encoding="utf-8")
 boundary.returns(out)

@@ -34,7 +34,9 @@ eyes__r1-minimality: {"status": "pass", "reason": "累積差分は最小", "dele
 eyes__r1-minimality-verdict: {"eye": "r1", "status": "pass", "reason": "累積差分は最小"}
 eyes__r3-coherence: {"status": "pass", "reason": "整合", "seen": ["a.py"], "unseen": []}
 eyes__r3-coherence-verdict: {"eye": "r3", "status": "pass", "reason": "整合"}
-eyes__r4-scope: {"status": "pass", "reason": "横断の危うさなし", "capability_inventory": {"fired": false}, "policy_conflicts": [], "surfaced": [], "seen": ["a.py"], "unseen": []}
+r4-reject: {"reason": ""}
+r4-scope: {"status": "pass", "reason": "横断の危うさなし", "capability_inventory": {"fired": false}, "policy_conflicts": [], "surfaced": [], "seen": ["a.py"], "unseen": []}
+r4-accept: {"ok": true, "done": true, "give_up": false, "reason": "", "reply": {"status": "pass", "reason": "横断の危うさなし", "capability_inventory": {"fired": false}, "policy_conflicts": [], "surfaced": [], "seen": ["a.py"], "unseen": []}}
 eyes__r4-scope-verdict: {"eye": "r4", "status": "pass", "reason": "横断の危うさなし"}
 eyes__r2-compare: {"status": "redesign-needed", "reason": "独立設計は直す物が在ると言う", "differences": []}
 eyes__r2-compare-verdict: {"eye": "r2", "status": "redesign-needed", "reason": "独立設計は直す物が在ると言う"}

@@ -343,6 +343,7 @@ def material_brief_file(role: str) -> str:
     return f"{MATERIAL_PREFIX}{role}-brief.md"
 
 
+PRIOR_DECISIONS_ROLE = material_role(policy.PRIOR_DECISIONS_FILE)   # 決定記録の突合の役の名（ファイル名の持ち主は policy）
 MATERIAL_GLOB = material_file("*")           # 素材の役が書く {role, reply, materials}。固定の控え（view・route・tree）にも当たる
 
 
@@ -1732,7 +1733,7 @@ LOCAL_REVIEW_SKILLS = [{'skill': '/code-review',
  {'skill': 'pr-review-toolkit:pr-test-analyzer', 'required': True, 'note': '振る舞い網羅のレンズ。他のどのノードも見ていない。'}]
 # 役の名（YAML の節 id・with: の role）→ 写しの graph の節。元 works/blk-material/lib/material.py:62 の ROLES（並びは graph の順）
 MATERIAL_ROLES = {
-    "prior-decisions": "p0.prior_decisions",
+    PRIOR_DECISIONS_ROLE: "p0.prior_decisions",
     "purpose-review": "p0.purpose_review",
     "local-review": "p1.local_review",
     "consistency-bypass": "p1.consistency_bypass",
@@ -1746,7 +1747,7 @@ MATERIAL_ROLES = {
 }
 # 役の指示書（commands/material-<役>.md。元の p0.*・p1.* の指示書）の穴。prep が値を描いて材料のファイルに置く
 MATERIAL_HOLES = {
-    "prior-decisions": ("inputs.cwd", "record.base", "loop.changed_files", "loop.request_wheres"),
+    PRIOR_DECISIONS_ROLE: ("inputs.cwd", "record.base", "loop.changed_files", "loop.request_wheres"),
     "purpose-review": ("out.p0.purpose.purpose_text", "inputs.review_rev", "inputs.cwd"),
     "local-review": ("loop.diff_file", "record.base", "loop.changed_files_file", "inputs.review_md", "?inputs.repo_review_md",
                      "node.skills"),

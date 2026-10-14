@@ -272,53 +272,90 @@ nodes:
         seen: {type: array, items: {type: string}}
         unseen: {type: array, items: {type: string}}
 
-  # R1・R2 の筋が落ちても R4 を飛ばさない。if/then は今の works の post_check r4_inventory（棚卸しが発火したら lost を明示する）
-  - id: r4-scope
-    command: r4-scope
+  # R1・R2 の筋が落ちても R4 を飛ばさない。方針とのぶつかりが記録された方針の行を名指さなければ受け付けが拒んで出し直させ、
+  # 3 回目は通らなくても抜ける（その時は名指さない行も最後の承認ノードで人に聞く。#455）。if/then は今の works の post_check
+  # r4_inventory（棚卸しが発火したら lost を明示する）
+  - id: r4-loop
     depends_on: [prep, r1-minimality, r2-compare, premise-check]
     trigger_rule: all_done
     when: "$prep.output.run_eyes == true"
-    model: sonnet
-    effort: medium
-    context: fresh
-    settingSources: [user]
-    sandbox: {enabled: true, allowUnsandboxedCommands: false}
-    allowed_tools: [Read, Grep, Glob]
-    mutates_checkout: false
-    idle_timeout: 1728000000
-    retry: {max_attempts: 2, on_error: all}
-    output_format:
-      type: object
-      required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen]
-      additionalProperties: false
-      properties:
-        status: {type: string, enum: [pass, redesign-needed, unverifiable]}
-        reason: {type: string, minLength: 1}
-        capability_inventory:
-          type: object
-          required: [fired]
-          additionalProperties: false
-          properties:
-            fired: {type: boolean}
-            lost: {type: array, items: {type: string}}
-            note: {type: string}
-        policy_conflicts: {type: array, items: {type: string, minLength: 1}}
-        surfaced:
-          type: array
-          items:
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: true
+      until_bash: done=$r4-accept.output.done; test "$done" = true
+      nodes:
+        - id: r4-reject
+          script: r4_rejects
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          output_format:
             type: object
-            required: [where, text]
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
+        - id: r4-scope
+          command: r4-scope
+          depends_on: [r4-reject]
+          model: sonnet
+          effort: medium
+          context: fresh
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          allowed_tools: [Read, Grep, Glob]
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen]
             additionalProperties: false
             properties:
-              where: {type: string}
-              text: {type: string}
-              mechanism: {type: string}
-              measured: {type: string}
-              false_positive_if: {type: string}
-        seen: {type: array, items: {type: string}}
-        unseen: {type: array, items: {type: string}}
-      if: {properties: {capability_inventory: {properties: {fired: {const: true}}}}}
-      then: {properties: {capability_inventory: {required: [fired, lost]}}}
+              status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+              reason: {type: string, minLength: 1}
+              capability_inventory:
+                type: object
+                required: [fired]
+                additionalProperties: false
+                properties:
+                  fired: {type: boolean}
+                  lost: {type: array, items: {type: string}}
+                  note: {type: string}
+              policy_conflicts: {type: array, items: {type: string, minLength: 1}}
+              surfaced:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              seen: {type: array, items: {type: string}}
+              unseen: {type: array, items: {type: string}}
+            if: {properties: {capability_inventory: {properties: {fired: {const: true}}}}}
+            then: {properties: {capability_inventory: {required: [fired, lost]}}}
+        - id: r4-accept
+          script: r4_accept
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          depends_on: [r4-scope]
+          with: {reply: $r4-scope.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason, reply]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+              reply: {type: [object, "null"]}
 
   # 目ごとの型つきの成果物。目が返った時だけ走り、返りの全体を置き場の <eye>.json に書く
   - id: r1-minimality-verdict
@@ -381,11 +418,11 @@ nodes:
     runtime: uv
     timeout: 1728000000
     mutates_checkout: false
-    depends_on: [r4-scope]
+    depends_on: [r4-loop]
     output_type: eye-verdict
     with:
       eye: r4
-      out: $r4-scope.output
+      out: $r4-loop.output.reply
     output_format: *eye_verdict
 
   # 一覧か git が読めない時も落ちず、確かめられなかった印の行を当たりとして返す
@@ -408,7 +445,7 @@ nodes:
     bash: "true"
     timeout: 1728000000
     mutates_checkout: false
-    depends_on: [r1-comments, r1-comments-save, r1-minimality, r2-compare, premise-check, r3-coherence, r4-scope,
+    depends_on: [r1-comments, r1-comments-save, r1-minimality, r2-compare, premise-check, r3-coherence, r4-loop,
                  r1-minimality-verdict, r2-compare-verdict, premise-check-verdict, r3-coherence-verdict, r4-scope-verdict]
     trigger_rule: all_done
 

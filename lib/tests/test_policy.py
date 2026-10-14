@@ -13,6 +13,10 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
+import boardview  # noqa: E402
+import fixboard  # noqa: E402
+import gatemarks  # noqa: E402
+import judge_accept  # noqa: E402
 import policy  # noqa: E402
 from engine.render import MATERIAL_NOTE  # noqa: E402
 
@@ -92,6 +96,26 @@ class FreezeCase(unittest.TestCase):
             with self.subTest(start=start):
                 self.assertEqual(policy.frozen_copy(start), "/p.md")
         self.assertEqual(policy.frozen_copy(None), "")
+
+
+class NameOwnerCase(unittest.TestCase):
+    """#454: 方針の 3 つの名（決定記録の突合の返答のファイル名・方針の文書の柵の語・方針の穴の kind）は policy が持ち、使う部品は
+    ここから引く。どちらか片方だけを替えると赤（policy の PRIOR_DECISIONS_FILE だけを替えると役の名が変わり、
+    tests/workflows/test_judge.py の YAML の節 id との突き合わせが赤）"""
+
+    def test_fence_word_is_a_gatemarks_fence(self):
+        self.assertIn(policy.POLICY_DOC_FENCE, gatemarks.FENCES)
+        face = {"key": "f", "kind": "regression", "where": "a.py", "fences": [policy.POLICY_DOC_FENCE]}
+        self.assertEqual(len(policy.face_gaps([face], [])), 1)
+
+    def test_policy_kind_is_a_human_face_kind(self):
+        self.assertIn(policy.POLICY_KIND, fixboard.HUMAN_FACE_KINDS)
+        self.assertIs(boardview.HUMAN_FACE_KINDS, fixboard.HUMAN_FACE_KINDS)
+        self.assertIn(policy.POLICY_KIND, gatemarks.KIND_WORDS)
+
+    def test_prior_decisions_file_is_the_material_file_of_its_role(self):
+        self.assertEqual(judge_accept.material_file(judge_accept.PRIOR_DECISIONS_ROLE), policy.PRIOR_DECISIONS_FILE)
+        self.assertIn(judge_accept.PRIOR_DECISIONS_ROLE, judge_accept.MATERIAL_ROLES)
 
 
 if __name__ == "__main__":
