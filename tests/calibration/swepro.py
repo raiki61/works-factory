@@ -340,9 +340,10 @@ def prepare(tasks: Path, out: Path, instances: list[str]) -> list[str]:
     return made
 
 
-def proxy_refused() -> str:
-    """試行の網が api.anthropic.com へ届くか。届くなら空の字、https のプロキシがそこを向くなら断る訳（値は書かない）"""
-    proxies = urllib.request.getproxies_environment()
+def proxy_refused(env) -> str:
+    """試行の網が api.anthropic.com へ届くか。届くなら空の字、https のプロキシがそこを向くなら断る訳（値は書かない）。
+    proxy_args と同じく空でない PROXY_ENV だけを見る（urllib の getproxies_environment は空の小文字の名を大文字より優先する）"""
+    proxies = {name.lower().removesuffix("_proxy"): env[name] for name in PROXY_ENV if env.get(name)}
     if "https" in proxies and not urllib.request.proxy_bypass_environment("api.anthropic.com", proxies):
         return ("HTTPS_PROXY か https_proxy が api.anthropic.com をプロキシへ向けている: Harbor 0.24.0 の egress の付き添いは"
                 "上流のプロキシを通さず直に繋ぐので、試行は api.anthropic.com に届かない。直に届く網なら NO_PROXY に"

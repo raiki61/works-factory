@@ -551,12 +551,14 @@ class TallyTest(unittest.TestCase):
 # ---------------------------------------------------------------- 派生のイメージ
 FAKE_DOCKER = """#!PYTHON
 import json, os, sys
+PROXY_ENV = PROXY_NAMES
 args = sys.argv[1:]
 entry = {"args": args}
 if args[0] == "build":
     context = args[-1]
     entry["files"] = sorted(os.listdir(context))
     entry["dockerfile"] = open(os.path.join(context, "Dockerfile"), encoding="utf-8").read()
+    entry["proxy_env"] = [name for name in PROXY_ENV if os.environ.get(name)]
 with open(os.environ["FAKE_DOCKER_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps(entry) + "\\n")
 sys.exit(int(os.environ.get("FAKE_DOCKER_CODE", "0")))
@@ -622,7 +624,8 @@ class PrepareTest(unittest.TestCase):
     def setUp(self):
         self.tmp = hermetic.tmpdir(self)
         bin_dir = fake_claude(self.tmp / "fake-bin")
-        (bin_dir / "docker").write_text(FAKE_DOCKER.replace("PYTHON", sys.executable), encoding="utf-8")
+        docker = FAKE_DOCKER.replace("PYTHON", sys.executable).replace("PROXY_NAMES", repr(swepro.PROXY_ENV))
+        (bin_dir / "docker").write_text(docker, encoding="utf-8")
         (bin_dir / "docker").chmod(0o755)
         self.log = self.tmp / "docker.log"
         self.tasks, self.out = self.tmp / "tasks", self.tmp / "out"
@@ -668,6 +671,7 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(pull["args"], ["pull", "--platform", "linux/amd64", IMAGE.format(OPENLIBRARY)])
         self.assertEqual(build["args"][:-1], ["build", "--platform", "linux/amd64", "--build-arg", "HTTPS_PROXY",
                                               "--build-arg", "no_proxy", "-t", swepro.derived_image(OPENLIBRARY)])
+        self.assertEqual(build["proxy_env"], ["HTTPS_PROXY", "no_proxy"])
         self.assertNotIn("ARG", [line.split(" ", 1)[0] for line in build["dockerfile"].splitlines()])
         for text in (self.log.read_text(encoding="utf-8"), done.stdout, done.stderr):
             self.assertNotIn(secret, text)
@@ -891,6 +895,7 @@ class AgentTest(unittest.TestCase):
         proxy = f"http://user:{secret}@proxy.invalid:3128"
         for env, refused in (({"HTTPS_PROXY": proxy}, True),
                              ({"https_proxy": proxy}, True),
+                             ({"HTTPS_PROXY": proxy, "https_proxy": ""}, True),
                              ({"HTTPS_PROXY": proxy, "NO_PROXY": ".anthropic.com"}, False),
                              ({"HTTP_PROXY": proxy}, False)):
             with self.subTest(env=sorted(env)):

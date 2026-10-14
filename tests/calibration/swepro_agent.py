@@ -39,7 +39,7 @@ class WorksBench(BaseAgent):
             raise ValueError("harbor run に --agent-timeout-multiplier inf（または --timeout-multiplier inf）が無い。"
                              f"無いと Harbor が作業の段を {swepro.PRO_SECONDS} 秒×倍率で切る"
                              "（harbor job resume・-c の設定のファイルからの起動も旗が字に無いので断る）")
-        refused = swepro.proxy_refused()
+        refused = swepro.proxy_refused(os.environ)
         if refused:
             raise ValueError(refused)
         self.producer = swepro.chosen(producer)
