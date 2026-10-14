@@ -32,6 +32,8 @@ from tests.bin.gitkit import git
 from tests.calibration import run as runner
 from tests.calibration import swepro, test_run
 
+import green_cert  # noqa: E402  swepro が lib/ を sys.path に足す
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 OPENLIBRARY = "instance_internetarchive__openlibrary-00bec1e7c8f3272c469a58e1377df03f955ed478-v13642507b4fc1f8d234172bf8129942da2c2ca26"
@@ -273,6 +275,113 @@ class InsideTest(unittest.TestCase):
         self.assertEqual(done.returncode, swepro.run.STOPPED, done.stderr)
         self.assertIn("origin の写しを置けない", result["error"])
         self.assertEqual(self.calls(), [])
+
+    def add_submodule(self, with_history=True):
+        """workdir に submodule vendor/sub（中身は r.py と s.py）を名 lib-sub で足す。名と path を違えておく。.gitmodules の
+        URL は網の先で、値の無い key（shallow）も持つ。/app の config に URL は無い（実走のイメージと同じ形）。with_history が
+        偽なら submodule の git の歴史を消して中身のファイルだけを残す（openlibrary の課題のイメージと同じ形）"""
+        sub = self.tmp / "sub"
+        sub.mkdir()
+        git(sub, "init", "-q", "-b", "main")
+        (sub / "r.py").write_text("r = 1\n", encoding="utf-8")
+        git(sub, "add", "-A")
+        git(sub, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "one")
+        (sub / "s.py").write_text("s = 1\n", encoding="utf-8")
+        git(sub, "add", "-A")
+        git(sub, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "two")
+        git(self.workdir, "-c", "protocol.file.allow=always", "submodule", "add", "-q", "--name", "lib-sub", str(sub), "vendor/sub")
+        git(self.workdir, "config", "-f", ".gitmodules", "submodule.lib-sub.url", "https://example.invalid/sub.git")
+        with (self.workdir / ".gitmodules").open("a", encoding="utf-8") as f:
+            f.write("\tshallow\n")
+        git(self.workdir, "add", ".gitmodules")
+        git(self.workdir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "submodule")
+        git(self.workdir, "config", "--remove-section", "submodule.lib-sub")
+        if not with_history:
+            shutil.rmtree(self.workdir / ".git" / "modules")
+            (self.workdir / "vendor" / "sub" / ".git").unlink()
+
+    def archon_config(self) -> dict:
+        return yaml.safe_load((self.workdir / swepro.ARCHON_CONFIG).read_text(encoding="utf-8"))
+
+    def factory_starts_with_archon_config_that_copies_submodule_contents(self, with_history):
+        self.add_submodule(with_history=with_history)
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, result = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        expected = {"worktree": {"initSubmodules": False, "copyFiles": ["vendor/sub/r.py", "vendor/sub/s.py"]}}
+        self.assertEqual(yaml.safe_load(self.calls()[0]["archon_config"]), expected)
+        self.assertEqual(result["error"], None)
+
+    def test_factory_starts_with_archon_config_that_copies_submodule_contents_but_not_its_git(self):
+        self.factory_starts_with_archon_config_that_copies_submodule_contents(with_history=True)
+
+    def test_factory_starts_with_archon_config_that_copies_submodule_contents_without_history(self):
+        self.factory_starts_with_archon_config_that_copies_submodule_contents(with_history=False)
+
+    def archon_worktree(self) -> pathlib.Path:
+        """Archon と同じ形で /app から run の作業ツリーを切る: worktree add の後、initSubmodules が false なら submodule を
+        初期化せず、copyFiles の各パスを /app から同じパスへ写す（Archon の packages/isolation/src/worktree-copy.ts の
+        copyWorktreeFile。フォルダは中へ重ねて写す）。網は使わない"""
+        config = self.archon_config()["worktree"]
+        self.assertIs(config["initSubmodules"], False)
+        tree = self.tmp / "wt"
+        git(self.workdir, "worktree", "add", "-q", str(tree), "-b", "t")
+        for rel in config["copyFiles"]:
+            source, dest = self.workdir / rel, tree / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if source.is_dir():
+                shutil.copytree(source, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(source, dest)
+        return tree
+
+    def copied_submodule_contents_stay_out_of_the_seal_and_capture_diffs(self, with_history):
+        self.add_submodule(with_history=with_history)
+        swepro.give_submodules(self.workdir)
+        tree = self.archon_worktree()
+        self.assertEqual((tree / "vendor" / "sub" / "s.py").read_text(encoding="utf-8"), "s = 1\n")
+        (tree / "a.py").write_text("x = 2\n", encoding="utf-8")
+        (tree / "vendor" / "sub" / "r.py").write_text("r = 2\n", encoding="utf-8")
+        (tree / "vendor" / "sub" / "n.py").write_text("n = 1\n", encoding="utf-8")
+        sealed = green_cert.diff_bytes(tree, "HEAD").decode("utf-8")   # merge-seal が封じる差分の組み方
+        self.assertEqual(re.findall(r"^diff --git .*$", sealed, re.MULTILINE), ["diff --git a/a.py b/a.py"])
+        subprocess.run(["bash", "-c", swepro.capture_command(str(tree), str(self.out))], check=True)
+        captured = (self.out / swepro.PATCH).read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"^diff --git .*$", captured, re.MULTILINE), ["diff --git a/a.py b/a.py"])
+
+    def test_copied_submodule_contents_stay_out_of_the_seal_and_capture_diffs(self):
+        self.copied_submodule_contents_stay_out_of_the_seal_and_capture_diffs(with_history=True)
+
+    def test_copied_submodule_contents_without_history_stay_out_of_the_seal_and_capture_diffs(self):
+        self.copied_submodule_contents_stay_out_of_the_seal_and_capture_diffs(with_history=False)
+
+    def test_archon_config_stays_out_of_the_patch(self):
+        self.add_submodule()
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, _ = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertTrue((self.workdir / swepro.ARCHON_CONFIG).is_file())
+        patch = self.patch()
+        self.assertEqual(re.findall(r"^diff --git .*$", patch, re.MULTILINE), ["diff --git a/a.py b/a.py"])
+        self.assertNotIn(".archon", patch)
+
+    def test_target_with_its_own_archon_config_stops_before_the_factory(self):
+        self.add_submodule()
+        (self.workdir / ".archon").mkdir()
+        (self.workdir / swepro.ARCHON_CONFIG).write_text("worktree: {}\n", encoding="utf-8")
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, result = self.inside()
+        self.assertEqual(done.returncode, swepro.run.STOPPED, done.stderr)
+        self.assertIn(swepro.ARCHON_CONFIG, result["error"])
+        self.assertEqual((self.workdir / swepro.ARCHON_CONFIG).read_text(encoding="utf-8"), "worktree: {}\n")
+        self.assertEqual(self.calls(), [])
+
+    def test_target_without_submodules_gets_no_archon_config(self):
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, _ = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIsNone(self.calls()[0]["archon_config"])
+        self.assertFalse((self.workdir / ".archon").exists())
 
     def test_factory_that_leaves_no_run_names_the_shells_last_line(self):
         said = "Error: Could not create isolated workspace (Cannot determine git remote for /app)."

@@ -405,7 +405,7 @@ def run(argv, **popen_kw):
     """argv を新しいプロセスグループで起こして終わりを待ち、終了コード（信号で死んだら 128+信号）を返す。bash -c の argv は起こす前に
     prove_launchable で中の先頭の語を引き、引けなければ起こさずに OSError。env に userenv.MARK（outside_env が利用者の HOME・XDG に
     戻した印）が在れば、子に渡さず、起こす直前に印を置く。置けなければ起こさずに MARK_FAILED を頭にした OSError（利用者の環境で
-    走らせて報告が言い漏らす事が無い。起きた子は印のために止めない）。起こせなければ新しく置いた印を消す（報告が言い過ぎない）。
+    走らせて報告が言い漏らす事が無い。起きた子は印のために止めない）。起こせなければ、誤りの型に依らず新しく置いた印を消す（報告が言い過ぎない）。
     待つ間（後始末の間も）に STOP_SIGNALS を受けたか直下の親が替わったら、木ごと止め、LINGER 秒待ってから Stopped を投げる。
     起きた時に既に孤児（親が 1）なら起こさずに Stopped(SIGHUP)。どの道で抜けても木を止めに行き、止め切れなければ
     標準エラーに名指しする（抜け道はモジュールの説明）"""
@@ -447,7 +447,7 @@ def run(argv, **popen_kw):
         born = time.time()   # 長の番号の再利用の目印（_tree_members の born）
         try:
             p = subprocess.Popen(argv, start_new_session=True, **popen_kw)
-        except OSError:
+        except BaseException:
             if placed:
                 pathlib.Path(mark).unlink(missing_ok=True)
             raise

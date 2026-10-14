@@ -57,6 +57,12 @@ class RecordCase(unittest.TestCase):
         self.assertEqual(env, {"HOME": "/run/home"})
         self.assertFalse(userenv.ran(self.top))
 
+    def test_restore_drops_every_inherited_control_name(self):
+        """#532: 起動の殻と同じ制御の変数の組（CONTROL）を外す。控えが無ければ印のパスも置かない"""
+        env = {"HOME": "/run/home", **{name: "stale" for name in userenv.CONTROL if name != userenv.RECORD}}
+        userenv.restore(env)
+        self.assertEqual(env, {"HOME": "/run/home"})
+
     def test_ran_reads_only_the_marker(self):
         self.assertFalse(userenv.ran(None))
         self.top.mkdir()

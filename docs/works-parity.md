@@ -3037,7 +3037,7 @@
 
 ## 前の棚卸しの今
 
-前の棚卸し `docs/plans/2026-10-13-capabilities/` の各行の「今」（works-factory の住処）を、#521 でここへ移した物。「今」の名の持ち主はこの表の 1 か所で、名を変える PR はこの表だけを直す。1 行 1 つで `- <ファイル> <行 ID>: <今>` と書き、前の棚卸しの行は「今」の欄に「表」（住処が無い行は「無し（表）」）の印だけを書き、ファイルと行 ID でここの行に当たる。語は前の棚卸しの字をグラフの語へ直した物。`tests/layers/test_works_parity.py` が、表の「今」と同じ規則で行番号を持たず名が main に在ることと、前の棚卸しの印の行とここの行が 1 つずつ合い、印が「無し（表）」の行はここの字が「無し」で始まる行だけであることを照らす。
+前の棚卸し `docs/plans/2026-10-13-capabilities/` の各行の「今」（works-factory の住処）を、#521 でここへ移した物。「今」の名の持ち主はこの表の 1 か所で、名を変える PR はこの表だけを直す。1 行 1 つで `- <ファイル> <行 ID>: <今>` と書き、前の棚卸しの行は「今」の欄に「表」（住処が無い行は「無し（表）」）の印だけを書き、ファイルと行 ID でここの行に当たる。語は前の棚卸しの字をグラフの語へ直した物で、源（コード・計画・前の版の文書）の字を引いた所だけは `…` で囲んで原文のまま書く。`tests/layers/test_works_parity.py` が、表の「今」と同じ規則で行番号を持たず名が main に在ることと、前の棚卸しの印の行とここの行が 1 つずつ合い、前置きの後に `- ` で始まらない行（続きの行）が無く、印が「無し（表）」の行はここの字が「無し」で始まる行だけであることを照らす。
 
 - fix.md F001: lib/tddloop.py::red_check → lib/baseline_red.py::red_problems・lib/baseline_red.py::parse_junit
 - fix.md F002: lib/tddloop.py::_quote_problem・lib/tddloop.py::MIN_QUOTE・lib/tddloop.py::red_check
@@ -3218,7 +3218,7 @@
 - fix.md F418: lib/leftovers.py::remove_new_ignored（skip）、workflows/fix/scripts/clean.py
 - fix.md F419: workflows/fix/scripts/assert_changed.py、lib/fixboard.py::touched_since・lib/fixboard.py::declared_files・lib/fixboard.py::changed_problem
 - fix.md F420: workflows/fix/works-factory-fix.yaml::fix（ノード fix）・YAML の頭の `returns: fix`・`outcome_field: done`
-- fix.md F421: workflows/fix/scripts/collect.py（頭の説明の「このノードは落ちない」と `if __name__ == "__main__":` の BaseException の捕まえ）・workflows/fix/scripts/collect.py::fallback・workflows/fix/scripts/collect.py::main、YAML ノード fix の `trigger_rule: all_done`
+- fix.md F421: workflows/fix/scripts/collect.py（頭の説明の `この節は落ちない` と `if __name__ == "__main__":` の BaseException の捕まえ）・workflows/fix/scripts/collect.py::fallback・workflows/fix/scripts/collect.py::main、YAML ノード fix の `trigger_rule: all_done`
 - fix.md F422: lib/fixboard.py::join_rows・lib/fixboard.py::with_ruled、workflows/fix/scripts/collect.py
 - fix.md F423: workflows/fix/scripts/collect.py、lib/fixboard.py::delta_review
 - fix.md F424: lib/fixboard.py::run_diff、workflows/fix/scripts/collect.py の diff_pointer
@@ -3411,7 +3411,7 @@
 - judge.md J62: lib/judge_accept.py::materials_given_up・lib/judge_accept.py::diagnose_prep
 - judge.md J63: lib/judge_accept.py::brief・lib/judge_accept.py::policy_text
 - judge.md J64: lib/judge_accept.py::_take_diff
-- judge.md J65: workflows/judge/commands/diagnose.md（字は在る。元の「共有ボードの材料が無い時」の 1 句だけ無い——共有ボードの無い道が無くなったので要らない）
+- judge.md J65: workflows/judge/commands/diagnose.md（字は在る。元の `盤面の材料が無い時` の 1 句だけ無い——共有ボードの無い道が無くなったので要らない）
 - judge.md J66: lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（workflows/judge/scripts/reject.py・rejects.py と判定の裏取りの支度が lang_line で返し、各役の指示書の頭が `$<節>.output.lang_line` で読む）
 - judge.md J67: lib/judge_accept.py::_judge_tree_unchanged・lib/judge_accept.py::snap_tree（lib/judge_accept.py::diagnose_prep で判定役の前に置く）
 - judge.md J68: workflows/judge/works-factory-judge.yaml::diagnose の `output_format`（lib の写し `DIAGNOSE_SCHEMA` は #232 で消した）、改行を落とすのは lib/judge_accept.py::ONE_LINE_FIELDS・lib/judge_accept.py::judge_output
@@ -3567,7 +3567,7 @@
 - line.md L-G52: workflows/.shared/boundary.py::run・workflows/.shared/boundary.py::guarded_imports
 - line.md L-G53: lib/stopby.py（メイングラフの語 start-refused・needs-human・line-script も表 REASONS に在る）
 - line.md L-G54: lib/stopby.py（メイングラフの語と人の止めの頭 HUMAN と人待ちの印 WAITING も）、承認ノードの語は lib/answer.py。メイングラフの script は定数を引く。lib を読めない時の出力の写しは workflows/.shared/boundary.py::LINE_SCRIPT・workflows/line/scripts/result.py::LINE_SCRIPT だけ
-- line.md L-G55: 無し（#74 の head docs/design.md の「順と承認ノード」の止めの行と「能力の棚卸し」の止め札の行。今は `workflow cancel` で止まり報告は出ない。report は「request:」で始まる一言だけを止め札と読む＝lib/outcome.py::_human_stop）
+- line.md L-G55: 無し（#74 の head docs/design.md の `順と関所` の止めの行と「能力の棚卸し」の止め札の行。今は `workflow cancel` で止まり報告は出ない。report は「request:」で始まる一言だけを止め札と読む＝lib/outcome.py::_human_stop）
 - line.md L-G56: workflows/line/works-factory-line.yaml の頭の `interactive: true`
 - line.md L-W01: workflows/line/works-factory-line.yaml の nodes（workflows/line/works-factory-line.yaml::start から workflows/line/works-factory-line.yaml::result まで）
 - line.md L-W02: yaml の when:（workflows/line/works-factory-line.yaml::plan-rounds `judge.ready`・workflows/line/works-factory-line.yaml::fix `answer-before-fix.go`・workflows/line/works-factory-line.yaml::test-gate-final `fixed.done && redepth.stop_reason==''`・workflows/line/works-factory-line.yaml::merge-apply）
@@ -3632,7 +3632,7 @@
 - line.md L-W61: 型つきの成果物 tdd-unit を report が読む（main lib/runreport.py::_tdd_stages）
 - line.md L-W62: workflows/line/scripts/result.py::result・workflows/line/scripts/result.py::FIXED
 - line.md L-W63: workflows/.shared/boundary.py::run・workflows/.shared/boundary.py::guarded_imports
-- line.md L-W64: 無し（#74 の head docs/design.md の「順と承認ノード」の止めの行と「能力の棚卸し」の止め札の行が持ち主の答え待ち）
+- line.md L-W64: 無し（#74 の head docs/design.md の `順と関所` の止めの行と「能力の棚卸し」の止め札の行が持ち主の答え待ち）
 - line.md L-W65: workflows/line/works-factory-line.yaml::fix-in・workflows/line/works-factory-line.yaml::test-gate-base（固定材料の run は直す前のテスト・判定・計画の往復・修正前の承認ノードを飛ばし、fix から後ろは fix-in の値を読む）（#509 で戻した）
 - line.md L-W66: tests/workflows/test_line.py::LineWiringCase、tests/e2e/test_line_scenarios.py
 - line.md L-W67: tests/workflows/test_line.py の表 UNPASSED（渡さない入力と訳）
@@ -4241,6 +4241,6 @@
 - tail.md M58: lib/protected.json
 - tail.md M59: lib/protect.py::_problems・lib/protect.py::load
 - tail.md M60: lib/protect.py::touched・workflows/eyes/works-factory-eyes.yaml::protected（ノードの script workflows/eyes/scripts/protected.py が protect.touched を呼ぶ。script に最上位の名は無い）
-- tail.md M61: 無し。main に今在るのに一覧に無い物: `workflows/*/scripts/*_accept.py`・`workflows/*/works-factory-*.yaml`・`lib/tddloop.py`・`lib/tests/test_blk_fix_tdd.py`・`workflows/fix/scripts/assert_changed.py`・`lib/tree_run.py`・`bin/_lib/isolate.py`・`tests/bin/test_isolate.py`・`lib/judge_accept.py`。メイングラフの `workflows/line/**` も無い（prereq の計画 docs/plans/2026-10-12-blocks/prereq.md:22 は「メイングラフの PR が足す」と書いたが、#74 の lib/protected.json は main と同じだった）
+- tail.md M61: 無し。main に今在るのに一覧に無い物: `workflows/*/scripts/*_accept.py`・`workflows/*/works-factory-*.yaml`・`lib/tddloop.py`・`lib/tests/test_blk_fix_tdd.py`・`workflows/fix/scripts/assert_changed.py`・`lib/tree_run.py`・`bin/_lib/isolate.py`・`tests/bin/test_isolate.py`・`lib/judge_accept.py`。メイングラフの `workflows/line/**` も無い（prereq の計画 docs/plans/2026-10-12-blocks/prereq.md:22 は `線の PR が足す` と書いたが、#74 の lib/protected.json は main と同じだった）
 - tail.md M62: 無し（lib/protected.json の copies は空）。bin/_lib/place.py::workflow_source は pack を run の作業ツリーに写さず、別の置き場から `--workflow-source` で読ませる
 - tail.md M63: workflows/eyes/works-factory-eyes.yaml::protected（ノードの script workflows/eyes/scripts/protected.py）は `protect.touched`（本物の index を通すので assume-unchanged・skip-worktree の変更を見落とす）、merge は `seal.diff_files`（M8）。報告は目の当たりも数える（lib/runreport.py）ので、2 つが食い違う道が在る
