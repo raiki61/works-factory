@@ -136,6 +136,7 @@ class WorksFactory:
     def __init__(self, inputs: dict | None = None):
         self.shell = Path(os.environ.get(SHELL_ENV) or ROOT / "bin" / "works-factory")
         self.inputs = {**BENCH_INPUTS, **(inputs or {})}
+        self.last_said = ""   # 最後の start の出力の最後の行。run が起きなかった時の Archon の断りはここにだけ在る
 
     def check(self):
         pass
@@ -153,12 +154,20 @@ class WorksFactory:
     def resume_command(self, attempt: Path, run_id: str) -> list[str]:
         return [sys.executable, str(self.shell), "workflow", "resume", run_id, "--cwd", str(attempt / "target")]
 
-    def _launch(self, attempt: Path, command: list[str]):
-        subprocess.run(command, cwd=attempt / "home", env={**bench_env(attempt), launcher.HOME_ENV: str(attempt / "home")},
-                       stdin=subprocess.DEVNULL)
+    def _launch(self, attempt: Path, command: list[str]) -> str:
+        """殻を起こし、標準出力と標準エラーを混ぜて自分の標準出力へそのまま流す。返すのは出力の最後の空でない行"""
+        last = ""
+        with subprocess.Popen(command, cwd=attempt / "home", env={**bench_env(attempt), launcher.HOME_ENV: str(attempt / "home")},
+                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                              encoding="utf-8", errors="replace") as shell:
+            for line in shell.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                last = line if line.strip() else last
+        return last.strip()
 
     def start(self, attempt: Path, base: str) -> str | None:
-        self._launch(attempt, self.start_command(attempt, base))
+        self.last_said = self._launch(attempt, self.start_command(attempt, base))
         return self.find_run(attempt)
 
     def find_run(self, attempt: Path) -> str | None:

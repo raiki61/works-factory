@@ -15,6 +15,7 @@ import json
 import math
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -235,6 +236,43 @@ class InsideTest(unittest.TestCase):
         self.assertEqual((predicted["stopped"], predicted["failed"]), (False, False))
         self.assertFalse(result["target_changed_during_run"])
         self.assertTrue((self.out / "evidence" / "record" / "parent.json").is_file())
+
+    def test_factory_starts_with_origin_at_a_copy_of_head_in_the_attempt_place(self):
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        head = git(self.workdir, "rev-parse", "HEAD")
+        done, result = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        copy = self.place / "attempt" / swepro.ORIGIN_COPY
+        self.assertEqual(self.calls()[0]["origin"], str(copy))
+        self.assertEqual(git(copy, "rev-parse", "HEAD"), head)
+        self.assertEqual(git(copy, "symbolic-ref", "HEAD"), f"refs/heads/{swepro.ORIGIN_BRANCH}")
+        self.assertEqual(result["error"], None)
+
+    def test_origin_and_its_copy_stay_out_of_the_patch(self):
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, _ = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        patch = self.patch()
+        self.assertEqual(re.findall(r"^diff --git .*$", patch, re.MULTILINE), ["diff --git a/a.py b/a.py"])
+        self.assertNotIn(swepro.ORIGIN_COPY, patch)
+        self.assertNotIn("[remote", patch)
+
+    def test_target_with_a_remote_keeps_it(self):
+        git(self.workdir, "remote", "add", "origin", "https://example.invalid/app.git")
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, _ = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.calls()[0]["origin"], "https://example.invalid/app.git")
+        self.assertFalse((self.place / "attempt" / swepro.ORIGIN_COPY).exists())
+
+    def test_factory_that_leaves_no_run_names_the_shells_last_line(self):
+        said = "Error: Could not create isolated workspace (Cannot determine git remote for /app)."
+        self.set_plan(refuse=said)
+        done, result = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("工場の run が起きなかった", result["error"])
+        self.assertIn(said, result["error"])
+        self.assertTrue(self.predicted(result)["failed"])
 
     def test_sealed_diff_that_deletes_a_file_is_applied(self):
         (self.workdir / "b.py").write_text("y = 1\n", encoding="utf-8")

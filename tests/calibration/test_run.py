@@ -45,16 +45,22 @@ UNITS = json.dumps({"units": [{"key": "app.py x の値", "label": "block", "reas
 JUDGMENT = runner.WorksFactory.sources[0].file.removeprefix("parent/")   # 工場が run の置き場に書く判定
 
 FAKE_SHELL = """#!/usr/bin/env python3
-import json, os, pathlib, sys
+import json, os, pathlib, subprocess, sys
 args = sys.argv[1:]
 home = pathlib.Path(os.environ["WORKS_FACTORY_HOME"])
 plan = json.loads(pathlib.Path(os.environ["FAKE_PLAN"]).read_text(encoding="utf-8"))
+verb = args[1]
+cwd = args[args.index("--cwd") + 1] if "--cwd" in args else None
+origin = subprocess.run(["git", "-C", cwd, "remote", "get-url", "origin"], capture_output=True, text=True).stdout.strip() if cwd else ""
 with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
-    f.write(json.dumps({"who": "works-factory", "args": args, "home": str(home),
+    f.write(json.dumps({"who": "works-factory", "args": args, "home": str(home), "origin": origin,
                         "env": {k: os.environ.get(k) for k in WATCHED}, "names": sorted(os.environ)}) + "\\n")
 state_file = home / "fake-state.json"
 state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.exists() else {"runs": []}
-verb = args[1]
+if verb == "run" and "refuse" in plan:
+    print("starting", flush=True)
+    print(plan["refuse"], file=sys.stderr)
+    sys.exit(1)
 
 def save():
     state_file.write_text(json.dumps(state), encoding="utf-8")
