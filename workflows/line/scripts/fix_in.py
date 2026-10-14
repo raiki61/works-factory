@@ -40,7 +40,8 @@ def got(raw) -> dict | None:
 
 
 def received_live(env) -> dict:
-    """運ぶ値。鍵は collect の欄の名（collect はこの鍵で埋める）。欄を変える時は lib/fixture.py の FORMAT を上げる"""
+    """運ぶ値。鍵は collect の欄の名（collect はこの鍵で埋める）。欄か受け皿の got の欄を変える時は lib/fixture.py の FORMAT を
+    上げる（tests/workflows/test_line.py の CarriedShapeCase が main との分かれ目と比べる）"""
     return {"test_gate_base": got(env.get("INPUTS_TEST_GATE_BASE")), "judge": got(env.get("INPUTS_JUDGE")),
             "plan": got(env.get("INPUTS_PLAN")), "plan_review": got(env.get("INPUTS_PLAN_REVIEW")),
             "gate_before_fix": boundary.value(env.get("INPUTS_BEFORE_FIX_ANSWER")),
@@ -48,7 +49,7 @@ def received_live(env) -> dict:
 
 
 def flat(received: dict) -> dict:
-    out = {name: (received.get(part) or {}).get(key) for name, (part, key) in FLAT.items()}
+    out = {name: None if received.get(part) is None else received[part][key] for name, (part, key) in FLAT.items()}
     return {**out, "answer": received.get("gate_before_fix"), "deferred": received.get("deferred") or []}
 
 

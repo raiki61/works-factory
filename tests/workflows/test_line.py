@@ -46,6 +46,7 @@ fix_in = load("fix_in")
 import answer  # noqa: E402  （線の script が lib/ と境の口の置き場を sys.path に足した後に読む）
 import boardview  # noqa: E402
 import boundary  # noqa: E402
+import conceptfence  # noqa: E402
 import conflict  # noqa: E402
 import converge  # noqa: E402
 import entry  # noqa: E402
@@ -636,9 +637,67 @@ class FixInCase(Artifacts):
         self.assertEqual(fix_in.fallback("x")["stop_reason"], boundary.LINE_SCRIPT)
 
     def test_received_names_are_the_collect_fields(self):
-        """運ぶ値の欄は collect の欄の名と同じ（固定材料の形を変える PR は lib/fixture.py の FORMAT を上げる）"""
         self.assertLessEqual(set(fix_in.received_live({})), set(line_nodes()["collect"]["output_format"]["required"]))
-        self.assertEqual(fixture.FORMAT, 1)
+
+    def test_flat_reads_fields_the_receivers_give(self):
+        """fix-in の平らな欄は受け皿の got に在る欄を読む（名がずれた欄は落ちる。黙って null にしない）"""
+        got = carried_shape(LINE_TEXT, FIX_IN_TEXT)["got"]
+        for name, (part, key) in fix_in.FLAT.items():
+            with self.subTest(name=name):
+                self.assertIn(key, got[part])
+        with self.assertRaises(KeyError):
+            fix_in.flat({"judge": {"units": []}})
+
+
+LINE_REL = "workflows/line/works-factory-line.yaml"
+FIX_IN_REL = "workflows/line/scripts/fix_in.py"
+FIXTURE_REL = "lib/fixture.py"
+LINE_TEXT = (ROOT / LINE_REL).read_text(encoding="utf-8")
+FIX_IN_TEXT = (ROOT / FIX_IN_REL).read_text(encoding="utf-8")
+
+
+def carried_shape(line_text: str, fix_in_text: str) -> dict:
+    """固定材料の運ぶ値の形: fix_in.received_live の鍵と、fix-in が受け皿（script returned）から受ける入力ごとの got の欄"""
+    nodes = line_nodes(yaml.safe_load(line_text)["nodes"])
+    live = next(n for n in ast.walk(ast.parse(fix_in_text)) if isinstance(n, ast.FunctionDef) and n.name == "received_live")
+    got = {}
+    for name, source in nodes["fix-in"]["with"].items():
+        node = nodes.get((source.get("from") if isinstance(source, dict) else source).removeprefix("$").removesuffix(".output"))
+        if node is not None and node.get("script") == "returned":
+            got[name] = sorted(key.removeprefix("got_") for key in node["with"] if key.startswith("got_"))
+    return {"received": sorted(k.value for r in ast.walk(live) if isinstance(r, ast.Return) for k in r.value.keys), "got": got}
+
+
+def fixture_format(fixture_text: str):
+    return next(n.value.value for n in ast.parse(fixture_text).body
+                if isinstance(n, ast.Assign) and [t.id for t in n.targets if isinstance(t, ast.Name)] == ["FORMAT"])
+
+
+def text_at(rev: str, rel: str) -> str | None:
+    """版 rev のファイル rel の字（無ければ None）"""
+    got = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, text=True, encoding="utf-8")
+    return got.stdout if got.returncode == 0 else None
+
+
+class CarriedShapeCase(unittest.TestCase):
+    """運ぶ値の形を変える差分は lib/fixture.py の FORMAT も変える（前の形の固定材料を取り込まない）。比べる相手は HEAD と
+    origin/main の分かれ目（main にまだ固定材料が無ければ比べない）。分かれ目を引けなければ見送らずに赤（CI は全履歴を取る）"""
+
+    def test_format_moves_with_the_carried_shape(self):
+        fork = conceptfence.fork_ref(ROOT)
+        if fork is None:
+            self.fail(f"HEAD と {conceptfence.MAIN_REF} の分かれ目を引けない（手元では git fetch origin main）")
+        old = {rel: text_at(fork, rel) for rel in (LINE_REL, FIX_IN_REL, FIXTURE_REL)}
+        if None in old.values():
+            return
+        if carried_shape(old[LINE_REL], old[FIX_IN_REL]) != carried_shape(LINE_TEXT, FIX_IN_TEXT):
+            self.assertNotEqual(fixture.FORMAT, fixture_format(old[FIXTURE_REL]),
+                                f"運ぶ値の形が分かれ目 {fork[:12]} と違うのに lib/fixture.py の FORMAT が同じ")
+
+    def test_shape_and_format_read_the_texts(self):
+        renamed = LINE_TEXT.replace("got_purpose: ", "got_purposex: ", 1)
+        self.assertNotEqual(carried_shape(renamed, FIX_IN_TEXT), carried_shape(LINE_TEXT, FIX_IN_TEXT))
+        self.assertEqual(fixture_format((ROOT / FIXTURE_REL).read_text(encoding="utf-8")), fixture.FORMAT)
 
 
 class FixInWiringCase(unittest.TestCase):
