@@ -16,7 +16,7 @@ claude（素の Claude Code を run.PLAIN_MODEL・run.PLAIN_EFFORT で claude -p
 今の works は回さない（#437 の運び役の決め。訳は OLD_WORKS）。
 
 1 件の流れ: 殻が setup で課題のイメージの上の /opt/works-bench に道具と工場を載せ（setup_commands）、run で課題の入力
-（task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）とトークンのファイルを上げ、inside を 1 回打つ。inside は
+（task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら終わった run の封じた差分を
 bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json に書く。殻は /app の差分を model.patch に取り
 （capture_command）、起こし役の標準出力と予測を <試み>/agent/ に書く（prediction）。tally は job の予測を数える。
@@ -28,8 +28,11 @@ bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json �
   訳を書き、予測の failed を立てる。ふつうの未解決（直せなかった）と分けて数える。BROKE（record_invalid・interrupted）は
   工場そのものが壊れて終わった結末で、人の判断を待っていないので stopped（人待ち）に入れない。
 - 期限を置かない（持ち主の決め no-timeouts）。Pro の 1 件の上限 PRO_SECONDS は、超えた事実を予測の pro_limit に残すだけ。
-- 漏れの塞ぎ: トークンはファイルで 1 回だけ上げ、inside が読んで消して自分の env に置く（docker の exec の env はホストの ps に出る）。
-  結果と予測には env の名だけを書く。gh の認証は渡さず、WebFetch・WebSearch は run.bench_env と toolset.DENY_WEB で拒む。
+- 認証は ACCEPTED_AUTH だけを運ぶ。他（ゲートウェイ・Bedrock・Vertex）は殻が upload の前に断り、断った訳を予測の error に書く
+  （state は AUTH_REFUSED、failed を立てる）。
+- 漏れの塞ぎ: 認証の変数（ACCEPTED_AUTH）はファイルで 1 回だけ上げ、inside が読んで消して自分の env に置く（docker の exec の
+  env はホストの ps に出る）。結果と予測には env の名だけを書く。
+  gh の認証は渡さず、WebFetch・WebSearch は run.bench_env と toolset.DENY_WEB で拒む。
 """
 import argparse
 import contextlib
@@ -49,7 +52,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))   # 頭に入れると lib/tests が根の tests を隠す（tests/AGENTS.md）
-from bin._lib import apply, launcher, pack  # noqa: E402
+from bin._lib import apply, claude_auth, launcher, pack  # noqa: E402
 import chain  # noqa: E402
 import report  # noqa: E402
 from tests.calibration import run  # noqa: E402
@@ -63,8 +66,10 @@ OLD_WORKS = ("今の works は SWE-Bench Pro で回さない（#437 の運び役
              "素の Claude Code と前の版の工場で、今の works は段 4 で退ける（coexist-before-switch）。版を止めた works/dev/archon.sh が"
              "Archon を macOS arm64 の実行ファイル（archon-darwin-arm64）に止めていて、課題のコンテナ（linux/amd64）で回すには"
              "今の works を変えるしかない")
-TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
-SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/oauth-token", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
+# 作業の段の網は api.anthropic.com だけが開く。この 2 つはそこへそのまま届き、中の工場の殻も素の claude -p も env から読む
+ACCEPTED_AUTH = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY")
+AUTH_REFUSED = "auth_refused"
+SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
 INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
 # 工場そのものが壊れて終わった結末（記録が読めない・節が落ちて線が進まなかった）。人を待っていないので stopped に入れない
@@ -175,13 +180,27 @@ def capture_command(workdir: str, out: str) -> str:
 
 
 # ---------------------------------------------------------------- コンテナの中の起こし役
-def child_env(place: str, token: str, base: dict) -> dict:
+def auth_refused(got: dict | None, why: str | None, env) -> str:
+    """auth_launch.resolve の結果をコンテナへ運べるか。運べるなら空の字、断るなら訳（値は書かない）"""
+    if got is None:
+        return f"認証が無い: {why}"
+    other = sorted(k for k in got if k not in ACCEPTED_AUTH and not (k in claude_auth.FLAGS and got[k] in claude_auth.OFF))
+    if other:
+        return (f"{' '.join(other)} は受けない（受けるのは {' か '.join(ACCEPTED_AUTH)}）: 届け先が api.anthropic.com でないか"
+                "別の資格が要り、課題のコンテナの網（--allow-agent-host api.anthropic.com）では届かない")
+    if env.get("ANTHROPIC_BASE_URL"):
+        return ("ANTHROPIC_BASE_URL が在る: ゲートウェイに向けた資格は api.anthropic.com に通らず、課題のコンテナの網も"
+                "ゲートウェイへは開いていない")
+    return ""
+
+
+def child_env(place: str, auth: dict, base: dict) -> dict:
     p = _paths(place)
     return {**base, "HOME": p["home"], "PATH": os.pathsep.join(filter(None, [base.get("PATH"), p["bin"], f"{p['bun']}/bin"])),
             "UV_PYTHON_INSTALL_DIR": p["python"],
             "IS_SANDBOX": "1",   # root で bypassPermissions を許す（Harbor の upstream の claude_code.py と同じ）
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",   # 作業の段の網は api.anthropic.com だけが開く
-            TOKEN_ENV: token}
+            **auth}
 
 
 def stopped(state: str, outcome: str) -> bool:
@@ -271,14 +290,17 @@ def inside(args) -> int:
     place, workdir, out = Path(args.place), Path(args.workdir), Path(args.out)
     secret = place / SECRET
     try:
-        token = secret.read_text(encoding="utf-8").strip()
-    except OSError:
-        print(f"swepro.py: トークンのファイル {secret} が無い（殻が上げる）", file=sys.stderr)
+        auth = json.loads(secret.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        print(f"swepro.py: 認証のファイル {secret} を読めない（殻が上げる）: {type(e).__name__}", file=sys.stderr)
         return run.REFUSED
     finally:
         secret.unlink(missing_ok=True)
+    if not (isinstance(auth, dict) and auth and set(auth) <= set(ACCEPTED_AUTH) and all(isinstance(v, str) for v in auth.values())):
+        print(f"swepro.py: 認証のファイル {secret} が {' か '.join(ACCEPTED_AUTH)} の名と字の値の object でない", file=sys.stderr)
+        return run.REFUSED
     task = json.loads((place / TASK).read_text(encoding="utf-8"))
-    added = child_env(str(place), token, {"PATH": os.environ.get("PATH", "")})
+    added = child_env(str(place), auth, {"PATH": os.environ.get("PATH", "")})
     os.environ.update(added)
     attempt = place / "attempt"
     (attempt / "home").mkdir(parents=True, exist_ok=True)

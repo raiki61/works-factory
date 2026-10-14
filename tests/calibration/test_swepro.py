@@ -134,7 +134,7 @@ class InsideTest(unittest.TestCase):
         (self.place / "secret").mkdir(parents=True)
         (self.place / "task").mkdir()
         (self.place / swepro.TASK).write_text(json.dumps(fixture_inputs()), encoding="utf-8")
-        (self.place / swepro.SECRET).write_text(TOKEN, encoding="utf-8")
+        self.secret()
         self.shell = self.tmp / "fake-shell.py"
         self.shell.write_text(test_run.FAKE_SHELL.replace("WATCHED", repr(test_run.WATCHED)).replace("UNITS", repr(test_run.UNITS))
                               .replace("JUDGMENT", repr(test_run.JUDGMENT)), encoding="utf-8")
@@ -146,6 +146,9 @@ class InsideTest(unittest.TestCase):
 
     def set_plan(self, **plan):
         self.plan.write_text(json.dumps(plan), encoding="utf-8")
+
+    def secret(self, name=swepro.ACCEPTED_AUTH[0], value=TOKEN):
+        (self.place / swepro.SECRET).write_text(json.dumps({name: value}), encoding="utf-8")
 
     def sealed_plan(self, diff=DIFF, **value):
         files = {test_run.JUDGMENT: test_run.UNITS, swepro.apply.APPLY_DIFF: diff}
@@ -222,7 +225,7 @@ class InsideTest(unittest.TestCase):
         for word in swepro.BROKE:
             with self.subTest(outcome=word):
                 shutil.rmtree(self.place / "attempt", ignore_errors=True)
-                (self.place / swepro.SECRET).write_text(TOKEN, encoding="utf-8")
+                self.secret()
                 self.set_plan(outcome=word)
                 done, result = self.inside()
                 self.assertEqual(done.returncode, 0, done.stderr)
@@ -269,21 +272,31 @@ class InsideTest(unittest.TestCase):
                          (swepro.TEST_COMMANDS["internetarchive/openlibrary"], "true", ""))
         self.assertEqual(pathlib.Path(args[args.index("--cwd") + 1]).resolve(), self.workdir.resolve())
 
-    def test_token_reaches_the_child_and_is_written_nowhere(self):
-        for producer in swepro.PRODUCERS:
-            with self.subTest(producer=producer):
-                (self.place / swepro.SECRET).write_text(TOKEN, encoding="utf-8")
-                done, result = self.inside(producer)
-                self.assertEqual(done.returncode, 0, done.stderr)
-                self.assertFalse((self.place / swepro.SECRET).exists())
-                self.assertNotIn(TOKEN, done.stdout + done.stderr)
-                self.assertIn(swepro.TOKEN_ENV, result["env_names"])
-                for path in [*self.out.rglob("*"), self.log]:
-                    if path.is_file():
-                        self.assertNotIn(TOKEN, path.read_text(encoding="utf-8", errors="replace"), path)
-        for who in ("works-factory", "claude"):
-            [call, *_] = self.calls(who)
-            self.assertIn(swepro.TOKEN_ENV, call["names"])
+    def test_auth_reaches_the_child_and_is_written_nowhere(self):
+        for name in swepro.ACCEPTED_AUTH:
+            for producer in swepro.PRODUCERS:
+                with self.subTest(name=name, producer=producer):
+                    shutil.rmtree(self.place / "attempt", ignore_errors=True)
+                    self.log.unlink(missing_ok=True)
+                    self.secret(name)
+                    done, result = self.inside(producer)
+                    self.assertEqual(done.returncode, 0, done.stderr)
+                    self.assertFalse((self.place / swepro.SECRET).exists())
+                    self.assertNotIn(TOKEN, done.stdout + done.stderr)
+                    self.assertIn(name, result["env_names"])
+                    for path in [*self.out.rglob("*"), self.log]:
+                        if path.is_file():
+                            self.assertNotIn(TOKEN, path.read_text(encoding="utf-8", errors="replace"), path)
+                    [call, *_] = self.calls("works-factory" if producer == "works-factory" else "claude")
+                    self.assertIn(name, call["names"])
+
+    def test_secret_with_an_unaccepted_name_refuses(self):
+        self.secret("ANTHROPIC_AUTH_TOKEN")
+        done, result = self.inside()
+        self.assertEqual(done.returncode, runner.REFUSED, done.stderr)
+        self.assertIsNone(result)
+        self.assertFalse((self.place / swepro.SECRET).exists())
+        self.assertEqual(self.calls(), [])
 
     def test_missing_token_refuses(self):
         (self.place / swepro.SECRET).unlink()
@@ -451,7 +464,7 @@ class AgentTest(unittest.TestCase):
         sys.modules.pop("tests.calibration.swepro_agent", None)
         self.addCleanup(sys.modules.pop, "tests.calibration.swepro_agent", None)
         self.agent_module = importlib.import_module("tests.calibration.swepro_agent")
-        self.environ(**{swepro.TOKEN_ENV: TOKEN})
+        self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN})
         self.tempdir = self.tmp / "host-tmp"
         self.tempdir.mkdir()
         temp = mock.patch.object(tempfile, "tempdir", str(self.tempdir))
@@ -557,13 +570,33 @@ class AgentTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.agent("codex")
 
-    def test_api_key_only_is_refused_before_upload(self):
-        self.environ(ANTHROPIC_API_KEY="sk-ant-api03-zq7")
-        environment = FakeEnvironment(IMAGE.format(OPENLIBRARY), {})
-        with self.assertRaises(ValueError) as caught:
-            asyncio.run(self.agent().run("x", environment, types.SimpleNamespace()))
-        self.assertIn("ANTHROPIC_API_KEY", str(caught.exception))
-        self.assertEqual(environment.calls, [])
+    def test_api_key_goes_only_into_the_secret_upload(self):
+        key = "sk-ant-api03-zq7-not-a-real-key"
+        self.environ(ANTHROPIC_API_KEY=key)
+        self.go()
+        calls = self.environment.calls
+        self.assertFalse([c for c in calls if c["kind"] == "exec" and key in c["command"]])
+        [holding] = [c for c in calls if c["kind"] == "upload" and key in c["text"]]
+        self.assertEqual(holding["target"], f"{swepro.PLACE}/{swepro.SECRET}")
+        self.assertEqual(json.loads(holding["text"]), {"ANTHROPIC_API_KEY": key})
+        self.assertFalse(self.predicted()["failed"])
+
+    def test_unaccepted_auth_is_refused_before_upload_with_the_reason_predicted(self):
+        for named, env in (("CLAUDE_CODE_USE_BEDROCK", {"CLAUDE_CODE_USE_BEDROCK": "1"}),
+                           ("ANTHROPIC_BASE_URL", {"ANTHROPIC_API_KEY": "sk-ant-api03-zq7",
+                                                   "ANTHROPIC_BASE_URL": "https://gateway.example"})):
+            with self.subTest(named=named):
+                self.environ(**env)
+                with self.assertRaises(ValueError) as caught:
+                    self.go()
+                self.assertIn(named, str(caught.exception))
+                run = self.environment.calls[self.environment.calls_after_setup:]
+                self.assertFalse([c for c in run if c["kind"] == "upload"])
+                got = self.predicted()
+                self.assertEqual((got["state"], got["failed"], got["stopped"], got["model_patch"]),
+                                 (swepro.AUTH_REFUSED, True, False, ""))
+                self.assertIn(named, got["error"])
+                self.assertEqual(self.context.metadata["state"], swepro.AUTH_REFUSED)
 
     def test_other_repository_is_refused_before_upload(self):
         environment = FakeEnvironment(IMAGE.format(FLIPT), {})
