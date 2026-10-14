@@ -123,7 +123,7 @@ class AskGateCase(unittest.TestCase):
 def final_got(**kw) -> dict:
     """最後の関所の材料（ask_final.got_of_env の形）。既定は緑で、目は全部通り、申し出も守りのパスの当たりも無い"""
     eye = {"status": "pass", "reason": ""}
-    got = {"tests_ok": True, "green": True, "red_cause": "", "tests": {**declared_checks.gate_values({}), "unread": ""},
+    got = {"tests_ok": True, "green": True, "red_cause": "", "tests": {**declared_checks.gate_values({"by": declared_checks.ENGINE}), "unread": ""},
            "worktree": "/tmp/tree", "base_rev": "0123456789abcdef", "protected_hits": [], "asked": [], "conflicts_unread": [],
            "allowed_tests": [], "beside_unread": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [],
            "objection": "", "rejudge_verdict": "", "rejudge": [], "split": "", "unproven": [], "amend": [],
@@ -152,10 +152,19 @@ class FinalHeadCase(unittest.TestCase):
         """#492: 最後のテストが走っていない（incomplete）・走ったと確かめられていない（原因の無い赤）は 1 行目に句で出る"""
         for cause, want in (("incomplete", green_cert.NOT_RAN), ("", green_cert.UNVERIFIED_RUN)):
             with self.subTest(cause=cause):
-                self.assertIn(want, self.head(final_got(tests_ok=False, green=False, red_cause=cause))[0])
+                first = self.head(final_got(tests_ok=False, green=False, red_cause=cause))[0]
+                self.assertIn(want, first)
+                self.assertIn(green_cert.RAN_GUIDE, first)
         green = self.head(final_got())[0]
-        self.assertNotIn(green_cert.NOT_RAN, green)
-        self.assertNotIn(green_cert.UNVERIFIED_RUN, green)
+        for note in green_cert.RAN_NOTES:
+            self.assertNotIn(note, green)
+
+    def test_gate_script_failure_is_not_named_not_ran(self):
+        """#492 R1: 返す節の中の誤り（by が空・incomplete）は「走っていない」と言わず、工場の不具合の句を出す"""
+        broke = {**declared_checks.gate_values({}), "unread": ""}
+        first = self.head(final_got(tests_ok=False, green=False, red_cause="incomplete", tests=broke))[0]
+        self.assertIn(green_cert.GATE_BROKE, first)
+        self.assertNotIn(green_cert.NOT_RAN, first)
 
     def test_protected_named_in_the_first_line(self):
         got = self.head(final_got(protected_hits=["tests/test_stats.py"]))

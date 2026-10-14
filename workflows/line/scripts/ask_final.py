@@ -66,11 +66,12 @@ MISMATCH_REASON = "直したという申告と機械の数え直しが合わな�
 NO_AFTER = "直した後の構造の実測: 無い（独立の目の structure_after が null——実測のノードが落ちたか走らなかった。メイングラフは止めずに進めた）"
 
 
-def tests_word(ok: bool, green: bool, red_cause: str) -> str:
+def tests_word(got: dict) -> str:
+    ok, green, red_cause = got["tests_ok"], got["green"], got["red_cause"]
     if ok and green:
         return "緑"
     cause = f"（{red_cause}）" if red_cause else ""
-    note = green_cert.ran_note(green=green, red_cause=red_cause)
+    note = green_cert.ran_note(green=green, red_cause=red_cause, by=got["tests"]["by"])
     return ("赤" if ok else "認証できなかった") + cause + (f"——{note}" if note else "")
 
 
@@ -95,7 +96,7 @@ def needs(got: dict) -> list:
         why.append((f"{PROTECTED_HEAD}（{len(hits)} 件。人の確かめが要る）", True))
     if got["allowed_tests"]:
         why.append((f"{ALLOWED_TESTS_HEAD}（{len(got['allowed_tests'])} 件。人の確かめが要る）", True))
-    word = tests_word(got["tests_ok"], got["green"], got["red_cause"])
+    word = tests_word(got)
     if word != "緑":
         why.append((f"最後のテストが{word}", False))
     if got["conflicts_unread"]:
@@ -139,7 +140,7 @@ def left_objection(got: dict) -> str:
 def final_head(got: dict, why: list) -> list:
     guarded = bool(got["protected_hits"]) or bool(got["allowed_tests"])
     held = got["held"]
-    happened = (f"最後のテストと独立の目が済み、報告の前で止まった。テストは{tests_word(got['tests_ok'], got['green'], got['red_cause'])}。"
+    happened = (f"最後のテストと独立の目が済み、報告の前で止まった。テストは{tests_word(got)}。"
                 + ("開けた理由: " + "・".join(why) if why else
                    f"承認ノードはいつも開く設定（{gatepolicy.head_words({gatepolicy.FINAL_KEY: gatepolicy.ALWAYS})}）で、ほかに開けた理由は無い")
                 + (f"。判定の役が人に聞くと保留にしたままの問いも在る（{len(held)} 件。承認ノードを開ける理由には数えない）" if held else "")
@@ -234,7 +235,7 @@ def eye_lines(got: dict) -> list:
     blocked = blocked_eyes(got)
     lines.append(f"- 残り（最後の承認ノードで数えられる分）: 独立の目の阻害 {len(blocked)} 件（{'・'.join(blocked) or '無し'}）・"
                  f"結果が無い目 {len(missing)} 件（{'・'.join(missing) or '無し'}）・最後のテストが緑でない "
-                 f"{0 if tests_word(got['tests_ok'], got['green'], got['red_cause']) == '緑' else 1} 件・柵の増え {len(got['fenced'])} 件")
+                 f"{0 if tests_word(got) == '緑' else 1} 件・柵の増え {len(got['fenced'])} 件")
     lines += [x if x[:1].isspace() else f"- {x}" for x in got["always"]]
     return lines
 
@@ -272,7 +273,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines += rows_section(querytest.UNPROVEN_HEAD, got["unproven"])
     lines += rows_section(querytest.CLOSURE_HEAD, got["closure"])
     lines += rows_section(replan.AMEND_HEAD, got["amend"])
-    lines += [f"最後の承認ノード（最後のテストと独立の目の後・報告の前）: テストは{tests_word(got['tests_ok'], got['green'], got['red_cause'])}", ""]
+    lines += [f"最後の承認ノード（最後のテストと独立の目の後・報告の前）: テストは{tests_word(got)}", ""]
     lines += tests_lines(got)
     lines += delta_lines(got)
     lines.append(f"- 止めずに残った異議: {left_objection(got) or '無い'}")
