@@ -51,13 +51,11 @@ def _squash(text) -> str:
 
 
 def _place(repo, where) -> dict:
-    """番地 where（`<パス>` か cite の名指し）のファイルが根の中に在るか・行の範囲がその中か（規則は cite.problem）"""
+    """番地 where（`<パス>` か cite の名指し）のファイルが根の中に在るか・行の範囲がその中か（規則は cite.file_problem・cite.problem）"""
     where = str(where or "").strip()
-    root = pathlib.Path(repo).resolve()
     m = cite.CITE.match(where)
-    p = cite.resolved(m["path"] if m else where, root) if where else None
-    path_ok = p is not None and cite.inside(p, root) and not cite.inside(p, root / ".git") and p.is_file()
-    return {"path_ok": path_ok, "lines_ok": path_ok and not (m and cite.problem(where, root))}
+    path_ok = bool(where) and not cite.file_problem(m["path"] if m else where, repo)
+    return {"path_ok": path_ok, "lines_ok": path_ok and not (m and cite.problem(where, repo))}
 
 
 def facts(rows, start, repo) -> dict:

@@ -141,6 +141,8 @@ class ReportLineTest(unittest.TestCase):
                          "run の頭の深さ: 軽量 → 標準へ上げた（計画の単位がすべて軽量ではない）／飛ばしたノード: 無い")
         self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い", False, ""),
                          "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い")
+        self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い", False, "事前審査を飛ばすかの判断が落ちた（x）"),
+                         "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い")
 
 
 if __name__ == "__main__":
