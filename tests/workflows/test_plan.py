@@ -456,7 +456,7 @@ class ShapeCase(unittest.TestCase):
             for n in body:
                 yield n
                 yield from every(n.get("loop_group", {}).get("nodes", []))
-        roles = [n for n in every(load()["nodes"]) if "command" in n or "prompt" in n]
+        roles = [n for n in every(load()["nodes"]) if any(k in n for k in scan.ROLE_KINDS)]
         self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")}, {mod.ROLE})
         self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, set(mod.QUIET))
 
