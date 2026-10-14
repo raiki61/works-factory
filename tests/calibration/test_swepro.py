@@ -39,6 +39,7 @@ IMAGE = "ghcr.io/scaleapi/swe-bench_pro-v2:{}"
 TOKEN = "sk-ant-oat01-test-zq7-not-a-real-token"
 RUN_ID = "a1b2c3d4-0000-run"
 DIFF = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+WARNING = 'WARN[0000] The "X" variable is not set. Defaulting to a blank string.\n'
 POINTER = {"type": swepro.apply.POINTER_TYPE, "run_id": RUN_ID, "path": swepro.apply.APPLY_DIFF}
 
 FAKE_CLAUDE = """#!PYTHON
@@ -427,7 +428,8 @@ class Done:
 
 
 class FakeEnvironment:
-    """exec と upload_file を呼ばれた順に控える。upload は呼ばれた時に中身を読む"""
+    """exec・upload_file・download_file を呼ばれた順に控える。upload は呼ばれた時に中身を読む。exec の標準出力の頭には
+    Harbor の docker の環境と同じく docker compose の警告（標準エラー）が混ざる"""
 
     def __init__(self, image, result, inside_code=0, capture_code=0):
         """result が None なら起こし役の結果のファイルが無い"""
@@ -436,15 +438,22 @@ class FakeEnvironment:
 
     async def exec(self, command, cwd=None, env=None, timeout_sec=None, user=None):
         self.calls.append({"kind": "exec", "command": command, "env": env, "user": user, "timeout_sec": timeout_sec})
-        if command.startswith("cat ") and command.endswith(swepro.RESULT):
-            return Done(1) if self.result is None else Done(0, json.dumps(self.result))
-        if command.startswith("cat "):
-            return Done(0, DIFF)
         if "swepro.py inside" in command:
-            return Done(self.inside_code, "工場の出力")
+            return Done(self.inside_code, f"{WARNING}工場の出力")
         if command == swepro.capture_command(swepro.WORKDIR, swepro.OUT):
-            return Done(self.capture_code)
-        return Done(0)
+            return Done(self.capture_code, WARNING)
+        return Done(0, WARNING)
+
+    async def download_file(self, source_path, target_path):
+        self.calls.append({"kind": "download", "source": source_path})
+        if source_path == f"{swepro.OUT}/{swepro.RESULT}":
+            if self.result is None:
+                raise RuntimeError("Engine cp failed")
+            pathlib.Path(target_path).write_text(json.dumps(self.result), encoding="utf-8")
+        elif source_path == f"{swepro.OUT}/{swepro.PATCH}":
+            pathlib.Path(target_path).write_text(DIFF, encoding="utf-8")
+        else:
+            raise RuntimeError("Engine cp failed")
 
     async def upload_file(self, source_path, target_path):
         data = pathlib.Path(source_path).read_bytes()
@@ -564,9 +573,14 @@ class AgentTest(unittest.TestCase):
                          {"state": swepro.DRIVER_FAILED, "failed": True, "stopped": False, "outcome": ""})
         self.assertEqual(self.context.metadata["pro_limit"]["seconds"], swepro.PRO_SECONDS)
 
+    def test_result_and_patch_are_read_despite_warnings_on_stdout(self):
+        self.go()
+        got = self.predicted()
+        self.assertEqual((got["state"], got["failed"], got["model_patch"]), ("done", False, DIFF))
+
     def test_driver_output_is_kept(self):
         self.go()
-        self.assertEqual((self.tmp / "logs" / swepro.INSIDE_STDOUT).read_text(encoding="utf-8"), "工場の出力")
+        self.assertEqual((self.tmp / "logs" / swepro.INSIDE_STDOUT).read_text(encoding="utf-8"), f"{WARNING}工場の出力")
         self.assertTrue((self.tmp / "logs" / swepro.INSIDE_STDERR).is_file())
 
     def test_failed_capture_is_stopped_without_a_patch(self):
@@ -574,8 +588,8 @@ class AgentTest(unittest.TestCase):
         got = self.predicted()
         self.assertIsNone(got["model_patch"])
         self.assertTrue(got["stopped"])
-        run = [c.get("command") for c in self.environment.calls[self.environment.calls_after_setup:]]
-        self.assertNotIn(f"cat {swepro.OUT}/{swepro.PATCH}", run)
+        run = [c.get("source") for c in self.environment.calls[self.environment.calls_after_setup:]]
+        self.assertNotIn(f"{swepro.OUT}/{swepro.PATCH}", run)
 
     def test_launch_without_unbounded_multiplier_is_refused(self):
         with mock.patch.object(sys, "argv", ["harbor", "run", "-a", "x"]):

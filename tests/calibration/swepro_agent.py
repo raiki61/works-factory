@@ -122,18 +122,30 @@ class WorksBench(BaseAgent):
             (self.logs_dir / name).write_text(text or "", encoding="utf-8")
 
     @staticmethod
-    async def _patch(environment: BaseEnvironment) -> str | None:
+    async def _download(environment: BaseEnvironment, path: str) -> bytes | None:
+        """コンテナのファイルの中身。exec の標準出力で読まない（Harbor の docker の環境は標準エラーを混ぜる）。
+        取れなければ None。投げる型は環境ごとに違う（docker は RuntimeError）ので Exception で受ける"""
+        with tempfile.TemporaryDirectory(prefix="works-bench-") as tmp:
+            target = Path(tmp) / Path(path).name
+            try:
+                await environment.download_file(path, target)
+                return target.read_bytes()
+            except Exception:
+                return None
+
+    @classmethod
+    async def _patch(cls, environment: BaseEnvironment) -> str | None:
         """/app の変更。取れなければ None"""
         captured = await environment.exec(swepro.capture_command(swepro.WORKDIR, swepro.OUT), user="root", timeout_sec=None)
         if captured.return_code != 0:
             return None
-        patch = await environment.exec(f"cat {swepro.OUT}/{swepro.PATCH}", user="root", timeout_sec=None)
-        return (patch.stdout or "") if patch.return_code == 0 else None
+        patch = await cls._download(environment, f"{swepro.OUT}/{swepro.PATCH}")
+        return None if patch is None else patch.decode("utf-8", errors="replace")
 
-    @staticmethod
-    async def _result(environment: BaseEnvironment) -> dict | None:
-        got = await environment.exec(f"cat {swepro.OUT}/{swepro.RESULT}", user="root", timeout_sec=None)
+    @classmethod
+    async def _result(cls, environment: BaseEnvironment) -> dict | None:
+        got = await cls._download(environment, f"{swepro.OUT}/{swepro.RESULT}")
         try:
-            return json.loads(got.stdout or "") if got.return_code == 0 else None
-        except json.JSONDecodeError:
+            return json.loads(got) if got is not None else None
+        except (UnicodeDecodeError, json.JSONDecodeError):
             return None
