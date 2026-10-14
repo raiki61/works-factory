@@ -415,7 +415,7 @@ class FixFixtureTest(unittest.TestCase):
     def test_spec_check_passes_without_a_spec_stage(self):
         """固定材料の run は仕様の段と組めないので、承認し直すかの照らし（#510）は fix-in の運ぶ spec（null）を読み、問いも止めも無い"""
         self.assertIsNone(json.loads(self.trace["fix-in"]["output"])["spec"])
-        self.assertEqual(json.loads(self.trace["spec-check"]["output"]), {"questions": [], "stop_reason": ""})
+        self.assertEqual(json.loads(self.trace["spec-check"]["output"]), {"questions": [], "stop_reason": "", "unchecked": False})
 
 
 class RefixInputsTest(unittest.TestCase):
