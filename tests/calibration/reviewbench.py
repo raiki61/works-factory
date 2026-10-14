@@ -300,5 +300,16 @@ def verdicts(details: Path) -> dict[tuple, str] | None:
         return None
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
         raise BenchError(f"判定役の結果（{details}）を読めない: {type(e).__name__}") from None
-    return {(row.get("pr_key"), f.get("file"), f.get("start_line"), f.get("end_line"), f.get("message")): f.get("status")
-            for row in rows if isinstance(row, dict) for f in row.get("candidate_findings") or [] if isinstance(f, dict)}
+    got = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for f in row.get("candidate_findings") or []:
+            if not isinstance(f, dict):
+                continue
+            status = f.get("status")
+            if status not in VERDICTS:
+                raise BenchError(f"判定役の結果（{details}）に知らない判定の語 {status!r}（課題 {row.get('pr_key')}）。"
+                                 "reviewbench.VERDICTS を ReviewBench の版に合わせる")
+            got[(row.get("pr_key"), f.get("file"), f.get("start_line"), f.get("end_line"), f.get("message"))] = status
+    return got
