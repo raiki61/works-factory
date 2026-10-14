@@ -745,5 +745,38 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("bun が無い", err)
 
 
+class ReadmeUsageTest(unittest.TestCase):
+    """#495: README の「使い方」が、依頼のファイルの形（例が入口の照らしを通る）・test_cmd・作業ツリーの起点を書き、殻の案内が
+    指すセクションの名が見出しに在る"""
+    README = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+
+    def section(self, name: str) -> str:
+        head = f"### {name}\n"
+        self.assertIn(head, self.README)
+        return self.README.split(head, 1)[1].split("\n#", 1)[0]
+
+    def test_request_example_passes_the_entry_check(self):
+        lib = str(pathlib.Path(__file__).resolve().parents[2] / "lib")
+        if lib not in sys.path:
+            sys.path.append(lib)
+        import carry
+        import entry
+        [example] = [block.split("\n", 1)[1] for block in self.section("依頼のファイル").split("```")[1::2]
+                     if block.startswith("json\n")]
+        parts = carry.parts(json.loads(example))
+        self.assertTrue(parts[carry.FINDINGS])
+        self.assertEqual(entry.request_problems(parts[carry.FINDINGS]), [])
+
+    def test_test_cmd_and_start_point_are_documented(self):
+        from bin._lib import testcmd_check
+        self.assertIn("「test_cmd と作業ツリー」", testcmd_check.HOW)
+        test_cmd = self.section("test_cmd と作業ツリー")
+        for word in ("--input test_cmd=", launcher.ALLOW_TESTCMD_ENV, "止める（test_cmd）", "注意（test_cmd）"):
+            self.assertIn(word, test_cmd)
+        start = self.section("作業ツリーの起点")
+        for flag in ("--from", "--from-branch", "--no-worktree", "--adopt"):
+            self.assertIn(f"`{flag}", start)
+
+
 if __name__ == "__main__":
     unittest.main()
