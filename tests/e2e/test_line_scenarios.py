@@ -111,11 +111,11 @@ def line_returns(names) -> dict:
 
 
 class LineReturnsTest(unittest.TestCase):
-    """線の返り（result）の欄 apply・sealed・r2_status・final_answer（bin/apply と段 1 が読む）を、筋書きの道で照らす"""
+    """線の返り（result）の欄 apply・sealed・r2_status・final_answer・spec_questions（bin/apply と段 1 が読む）を、筋書きの道で照らす"""
 
     @classmethod
     def setUpClass(cls):
-        cls.returns = line_returns(("standard", "final-stop", "rejudge-stop"))
+        cls.returns = line_returns(("standard", "final-stop", "rejudge-stop", "spec-changed"))
 
     def test_standard_applies_the_sealed_diff(self):
         got = self.returns["standard"]
@@ -123,6 +123,10 @@ class LineReturnsTest(unittest.TestCase):
         self.assertEqual(got["apply"]["hash"], got["sealed"]["hash"])
         self.assertEqual(got["r2_status"], "pass")
         self.assertEqual(got["final_answer"], {"decision": "approve", "text": "", "asked": []})
+        self.assertEqual(got["spec_questions"], 0)
+
+    def test_spec_changed_counts_the_reapproval_questions(self):
+        self.assertEqual(self.returns["spec-changed"]["spec_questions"], 1, self.returns["spec-changed"])
 
     def test_sweep_without_children_reaches_the_return(self):
         """後始末の節は写した工程のフォルダから部品 childsweep まで届き、落ちずに返りが線の返りの欄 children に載る。試験の Archon は
@@ -411,7 +415,7 @@ class FixFixtureTest(unittest.TestCase):
     def test_spec_check_passes_without_a_spec_stage(self):
         """固定材料の run は仕様の段と組めないので、承認し直すかの照らし（#510）は fix-in の運ぶ spec（null）を読み、問いも止めも無い"""
         self.assertIsNone(json.loads(self.trace["fix-in"]["output"])["spec"])
-        self.assertEqual(json.loads(self.trace["spec-check"]["output"]), {"questions": [], "stop_reason": ""})
+        self.assertEqual(json.loads(self.trace["spec-check"]["output"]), {"questions": [], "stop_reason": "", "unchecked": False})
 
 
 class RefixInputsTest(unittest.TestCase):

@@ -556,8 +556,8 @@
 - S070 修正が受け入れ条件のテストのファイルを変えると、承認し直すかの問いを最後の承認ノード・報告の冒頭・次の run の依頼に載せ、差分の審査・最後のテスト・独立の目を回さずに終わる
   - 元: SKILL.md:81
   - 印: 無し
-  - 今: `workflows/line/scripts/spec_check.py::check`・`lib/judge_accept.py::spec_questions`
-  - 状態: 形を変えて在る（差分の審査・最後のテスト・独立の目は回したまま、問いを最後の承認ノード・報告の冒頭・次の依頼の下書きに載せて人待ちで終わる）
+  - 今: `workflows/line/scripts/spec_check.py::check`・`lib/judge_accept.py::spec_questions`・`bin/_lib/apply.py::respec_note`
+  - 状態: 形を変えて在る（差分の審査・最後のテスト・独立の目は回したまま、問いを最後の承認ノード・報告の冒頭・次の依頼の下書きに載せて人待ちで終わる。照らせなかった時はそう言い、bin/apply は承認し直すかの問いを残した run を 1 行で知らせて当てる（今の works は黙って当てた））
   - 処置: 戻した: `workflows/line/scripts/spec_check.py::check`
   - 旧棚卸し: J97
 

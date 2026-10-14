@@ -82,10 +82,11 @@ nodes:
         unattended: { type: boolean }
         design_only: { type: boolean }
         final_gate: { type: string }
+        spec: { type: boolean }
         from_fixture: { type: boolean }
         fixture: { type: [object, "null"] }
-      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate, from_fixture,
-                 fixture]
+      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate, spec,
+                 from_fixture, fixture]
 
   # 2 起動の関所
   - id: gate-start
@@ -780,7 +781,7 @@ nodes:
       no_fix_design: { from: "$design-only.output.design", if_skipped: null }
       review_skipped: { from: "$fix-in.output.depth_skip", if_skipped: null }
 
-  # 7b 承認済みの受け入れ条件のテストの照らし（spec=on の run だけ中身が在る）
+  # 7b 承認済みの受け入れ条件のテストの照らし（spec=on の run だけ中身が在る。spec=on なのに判定の指しが無ければ問う）
   - id: spec-check
     script: spec_check
     runtime: uv
@@ -790,11 +791,13 @@ nodes:
       properties:
         questions: { type: array }
         stop_reason: { type: string }
-      required: [questions, stop_reason]
+        unchecked: { type: boolean }
+      required: [questions, stop_reason, unchecked]
     mutates_checkout: false
     depends_on: [fixed]
     with:
       spec: { from: "$fix-in.output.spec", if_skipped: null }
+      spec_on: "$start.output.spec"
 
   # 再審は 2 度目の修正の後（元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。1 回目と 2 度目の修正役の異議を 1 度だけ再審する
   - id: rejudge-run
@@ -1083,6 +1086,7 @@ nodes:
       start: "$start.output.record"
       before_fix_answer: { from: "$fix-in.output.answer", if_skipped: null }
       spec_changed: { from: "$spec-check.output.questions", if_skipped: [] }
+      spec_unchecked: { from: "$spec-check.output.unchecked", if_skipped: false }
 
   - id: gate-final
     approval:
@@ -1181,8 +1185,9 @@ nodes:
         prior_failures: {}
         redepth: {}
         spec_changed: { type: array }
+        spec_unchecked: {}
       required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
-                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed]
+                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked]
     mutates_checkout: false
     depends_on: [start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
@@ -1228,6 +1233,7 @@ nodes:
       widened: { from: "$ask-replan.output.widened", if_skipped: null }
       final_reasons: { from: "$ask-final.output.reasons", if_skipped: null }
       spec_changed: { from: "$spec-check.output.questions", if_skipped: null }
+      spec_unchecked: { from: "$spec-check.output.unchecked", if_skipped: null }
       prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
       redepth: { from: "$redepth.output", if_skipped: null }
       # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の節の id の頭。宣言の外の落ちは途中で終わった run に数える。
@@ -1263,6 +1269,7 @@ nodes:
       widened: "$collect.output.widened"
       final-reasons: "$collect.output.final_reasons"
       spec-changed: "$collect.output.spec_changed"
+      spec-unchecked: "$collect.output.spec_unchecked"
       redepth: "$collect.output.redepth"
       optional: "$collect.output.optional"
 
@@ -1303,9 +1310,10 @@ nodes:
         sealed: { type: [object, "null"] }
         r2_status: { type: [string, "null"] }
         final_answer: { type: [object, "null"] }
+        spec_questions: { type: integer }
         children: { type: [object, "null"] }
       required: [fixed, ok, outcome, stop_reason, report, report_ai, next_request, prior_failures, apply, sealed, r2_status,
-                 final_answer, children]
+                 final_answer, spec_questions, children]
     mutates_checkout: false
     depends_on: [collect, report, sweep-children]
     trigger_rule: all_done
@@ -1322,4 +1330,5 @@ nodes:
       merge_seal: { from: "$collect.output.merge_seal", if_skipped: null }
       eyes: { from: "$collect.output.eyes", if_skipped: null }
       gate_final: { from: "$collect.output.gate_final", if_skipped: null }
+      spec_changed: { from: "$collect.output.spec_changed", if_skipped: null }
       children: { from: "$sweep-children.output", if_skipped: null }

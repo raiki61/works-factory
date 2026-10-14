@@ -2028,18 +2028,20 @@ class SpecCheckCase(_SpecRepoCase):
         path = self.frozen()
         was = ja.read_json(path)["acceptance"][0]["sha256"]
         self.write_tests(_ACCEPT_TEST + "\n# 弱めた\n")
-        got = ja.spec_questions(path, self.repo)
+        whole = ja.spec_questions(path, self.repo)
+        self.assertIs(whole["unchecked"], False)
+        got = whole["questions"]
         self.assertEqual(len(got), 1, got)
         for part in ("test_spec_accept.txt", was[:12], "spec_changed", "承認し直すか"):
             self.assertIn(part, got[0])
 
     def test_unchanged_is_no_question(self):
-        self.assertEqual(ja.spec_questions(self.frozen(), self.repo), [])
+        self.assertEqual(ja.spec_questions(self.frozen(), self.repo), {"questions": [], "unchecked": False})
 
     def test_deleted_file_says_gone(self):
         path = self.frozen()
         (self.repo / "test_spec_accept.txt").unlink()
-        got = ja.spec_questions(path, self.repo)
+        got = ja.spec_questions(path, self.repo)["questions"]
         self.assertEqual(len(got), 1, got)
         self.assertIn("消えた", got[0])
 
@@ -2047,7 +2049,7 @@ class SpecCheckCase(_SpecRepoCase):
         path = self.frozen()
         (self.repo / "test_spec_accept.txt").unlink()
         (self.repo / "test_spec_accept.txt").mkdir()
-        got = ja.spec_questions(path, self.repo)
+        got = ja.spec_questions(path, self.repo)["questions"]
         self.assertEqual(len(got), 1, got)
         self.assertIn("通常のファイルでない", got[0])
         self.assertNotIn("消えた", got[0])
@@ -2058,18 +2060,20 @@ class SpecCheckCase(_SpecRepoCase):
         spec["acceptance"].append({**spec["acceptance"][0], "key": "A2", "name": "test_other"})
         ja.write_json(path, spec)
         self.write_tests(_ACCEPT_TEST + "\n# 弱めた\n")
-        self.assertEqual(len(ja.spec_questions(path, self.repo)), 1)
+        self.assertEqual(len(ja.spec_questions(path, self.repo)["questions"]), 1)
 
     def test_unreadable_spec_is_a_question_not_silence(self):
         path = self.jdir / specblk.SPEC_FILE
         for text in ("{壊れた", json.dumps({"requirements": []}), json.dumps([1])):
             with self.subTest(text=text):
                 path.write_text(text, encoding="utf-8")
-                got = ja.spec_questions(path, self.repo)
+                whole = ja.spec_questions(path, self.repo)
+                self.assertIs(whole["unchecked"], True)
+                got = whole["questions"]
                 self.assertEqual(len(got), 1, got)
                 self.assertIn("読めない", got[0])
         path.unlink()
-        self.assertIn("読めない", ja.spec_questions(path, self.repo)[0])
+        self.assertIn("読めない", ja.spec_questions(path, self.repo)["questions"][0])
 
 _UNIT_A = "src/a.py:f — 上限を超えた入力を黙って切る"
 _UNIT_B = "src/b.py:g — 名前の誤り"
