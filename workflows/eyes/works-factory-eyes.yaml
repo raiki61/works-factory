@@ -23,6 +23,7 @@ inputs:
   plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の承認ノードの項目 {kind, text}）"}
   answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の承認ノードの答え）"}
   start_answers: {default: "null", description: "{ from: $gate-start.output, if_skipped: null }（始めの承認ノードの答え。plan-review が独立設計に貼った人の答えと同じ源）"}
+  review_skipped: {default: "false", description: "$fixed.output.review_skipped（メイングラフの往復が事前審査を run の頭の深さで飛ばしたか。真なら単位の深さに依らず R1〜R4 を回す。事前審査の代わり）"}
   x_scalars: {default: "null", description: "$fix.output.x_scalars（修正役が足した x_ の規模の数値。JSON の object）"}
 
 returns: verdict

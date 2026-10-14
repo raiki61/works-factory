@@ -1,0 +1,26 @@
+# run の頭の深さが軽量の周: 頭が depth_skip: true を返し、事前審査の輪（review-loop）は飛ぶ。独立設計は今どおり作り、返す節は審査なしで通した形
+open: { ok: true, r2_go: true, tree: false, k: 1, form: review, depth_skip: true, reason: "" }
+r2-prep: { prompt: "stub: 元の目的と実測した制約" }
+r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解" }
+r2-accept: { ok: true, done: true, give_up: false, reason: "" }
+review-reads: { ok: true, missing: [], index_file: plan-review/pass-1/reads-plan-review-block.json, reason: "" }
+review:
+  pass: true
+  stalled: false
+  review: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/review.json" }
+  design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
+  gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
+  ask_human: false
+  questions: []
+fixture:
+  inputs:
+    units: "[]"
+    judgment: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/judgment.json\"}"
+    purpose: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/purpose.json\"}"
+    world: "null"
+    plan: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/r1/plan-fields.json\"}"
+    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/structure/structure-state.json\"}"
+    ripple: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/ripple.json\"}"
+    depth_skip: "true"
+  expect: completed
+  reached: [r2-design, review]

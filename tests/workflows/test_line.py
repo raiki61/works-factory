@@ -33,6 +33,7 @@ ask_before_fix = load("ask_before_fix")
 ask_replan = load("ask_replan")
 ask_final = load("ask_final")
 plan_out = load("plan_out")
+plan_review_due = load("plan_review_due")
 after_fix = load("after_fix")
 judged = load("judged")
 fixed = load("fixed")
@@ -52,11 +53,13 @@ import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
+import headdepth  # noqa: E402
 import judge_accept  # noqa: E402
 import planfile  # noqa: E402
 import policy  # noqa: E402
 import querytest  # noqa: E402
 import replan  # noqa: E402
+import runreport  # noqa: E402
 import seal  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
@@ -483,6 +486,21 @@ class StartCase(Artifacts):
     def test_spec_refused_without_request_text(self):
         """L-E29: spec=on なのに依頼の文（依頼も PR の題と本文も）が無ければ止める（元 SpecInputCase の同名）"""
         self.assertIn("依頼の文", self.refused(base="base", spec="on"))
+
+    def test_spec_refused_without_findings_or_pr_text(self):
+        """#526: findings を省いた依頼（answers だけ・名指す PR の並びだけ）は #505 から受けるが、spec=on では仕様の書き手が読む
+        物が無いので AI を起こす前に止める。名指した PR の題と本文が在れば足りる"""
+        answers_only = self.outside("answers_only.json", json.dumps({"answers": [{"question": "q1", "text": "a"}]}))
+        got = self.start(request=str(answers_only), base="base", spec="on")
+        self.assertEqual((got["ok"], got["stop_reason"], got["ask"]), (False, stopby.START_REFUSED, False), got)
+        self.assertIn("依頼の文", got["reason"])
+        self.assertIn("refused", self.record(got))
+        pr_only = self.outside("pr_only.json", json.dumps({"pr": [7]}))
+        got, _ = self.start_with_gh(self.pr_reads(), request=str(pr_only), base="base", spec="on")
+        self.assertEqual((got["ok"], got["stop_reason"]), (False, stopby.START_REFUSED), got)
+        self.assertIn("依頼の文", got["reason"])
+        got, _ = self.start_with_gh(self.pr_reads(), pr="7", spec="on")
+        self.assertTrue(got["ok"], got)
 
     def test_features_cut_is_recorded(self):
         """L-E33: 機能の切り替えは始めの記録の features_cut に載り、ブロックはそこを読む"""
@@ -1581,7 +1599,7 @@ class FinalGateCase(Artifacts):
 
 class PlanOutCase(unittest.TestCase):
     def got(self, **kw):
-        base = {key: None for key in plan_out.PLAN + plan_out.REVIEW}
+        base = {key: None for key in plan_out.PLAN + plan_out.REVIEW + plan_out.DEPTH}
         base.update({"ready": True, "round": 1, "pass": False, "stalled": False})
         base.update(kw)
         return plan_out.plan_out(base, ROUND_LIMIT)
@@ -1594,7 +1612,67 @@ class PlanOutCase(unittest.TestCase):
         self.assertFalse(self.got(round=3)["done"], "往復は数でなく開いた block の減り方で止まる（converge.decide）")
 
     def test_every_field_is_returned(self):
-        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"nothing_owed", "done", "stop_reason"})
+        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW + plan_out.DEPTH) | {"nothing_owed", "done", "stop_reason"})
+
+    def test_depth_fields_pass_through(self):
+        got = self.got(depth_skip=True, depth_why="w")
+        self.assertEqual((got["depth_skip"], got["depth_why"]), (True, "w"))
+
+
+class PlanReviewDueCase(unittest.TestCase):
+    """往復の 1 周で事前審査の輪を飛ばすか（issue #441。中身は lib/headdepth.due）: 頭も単位も軽量で前の周の事前審査が無い時だけ
+    飛ばし、単位に標準が在るか前の周の事前審査が案を止めていれば上げた訳を返す"""
+
+    LIGHT = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
+    REVIEW = {"type": "archon_artifact", "run_id": "r", "path": "plan-review/review.json"}
+
+    def test_light_head_and_light_units_skip_the_review_loop(self):
+        got = plan_review_due.plan_review_due("軽量", True, self.LIGHT, None)
+        self.assertIs(got["skip"], True)
+        self.assertTrue(got["why"])
+
+    def test_a_standard_unit_raises_and_runs_the_loop(self):
+        got = plan_review_due.plan_review_due("軽量", True, [*self.LIGHT, {"unit_id": "u2", "depth": "標準", "why": "w"}], None)
+        self.assertEqual((got["skip"], got["why"]), (False, "計画の単位がすべて軽量ではない"))
+
+    def test_raised_round_stays_raised_when_the_next_plan_is_all_light(self):
+        """1 周目は単位に標準が在って事前審査が走り案を止めた。2 周目の案の単位が全部軽量でも、止めた穴を事前審査が見直す"""
+        first = plan_review_due.plan_review_due("軽量", True, [*self.LIGHT, {"unit_id": "u2", "depth": "標準", "why": "w"}], None)
+        self.assertIs(first["skip"], False)
+        prior = plan_out.plan_out({**{k: None for k in (*plan_out.PLAN, *plan_out.REVIEW)}, "ready": True, "pass": False,
+                                   "stalled": False, "round": 1, "review": self.REVIEW,
+                                   "depth_skip": first["skip"], "depth_why": first["why"]}, 20)
+        self.assertIs(prior["done"], False)
+        second = plan_review_due.plan_review_due("軽量", True, self.LIGHT, prior["review"])
+        self.assertEqual((second["skip"], second["why"]), (False, headdepth.PRIOR_REVIEWED))
+
+    def test_standard_head_never_skips(self):
+        got = plan_review_due.plan_review_due("標準", True, self.LIGHT, None)
+        self.assertEqual((got["skip"], got["why"]), (False, ""))
+
+    def test_a_fall_runs_the_loop_and_says_why_in_the_report(self):
+        """落ちた時は飛ばさず、訳が報告の 1 行に上げた訳として出る（飛ばす物が無かった run と見分ける）"""
+        got = plan_review_due.fallback("ImportError: no headdepth")
+        self.assertEqual((got["skip"], got["stop_reason"]), (False, "works:line-script"))
+        self.assertEqual(headdepth.report_line("軽量", "根拠", got["skip"], got["why"]),
+                         "run の頭の深さ: 軽量 → 標準へ上げた（事前審査を飛ばすかの判断が落ちた（ImportError: no headdepth））"
+                         "／飛ばしたノード: 無い")
+
+    def test_wiring(self):
+        """頭の深さ・計画ができたか・単位ごとの深さ・前の周の事前審査を受け、事前審査の差し込みに飛ばすかと訳を渡し、往復の返しの節が
+        報告と目に運ぶ"""
+        nodes = line_nodes()
+        self.assertEqual(nodes["plan-review-due"]["with"], {"head_depth": "$judge.output.depth", "ready": "$plan.output.ready",
+                                                            "plan_depth": "$plan.output.depth",
+                                                            "prior_review": "$LOOP_PREV.plan-out.output.review"})
+        run = nodes["plan-review-run"]
+        self.assertIn("plan-review-due", run["depends_on"])
+        self.assertEqual((run["with"]["depth_skip"], run["with"]["depth_why"]),
+                         ("$plan-review-due.output.skip", "$plan-review-due.output.why"))
+        self.assertEqual(nodes["fixed"]["with"]["review_skipped"], {"from": "$plan-rounds.output.depth_skip", "if_skipped": None})
+        self.assertEqual(nodes["eyes"]["with"]["review_skipped"], "$fixed.output.review_skipped")
+        self.assertEqual((nodes["judge-out"]["with"]["got_depth"], nodes["judge-out"]["with"]["got_depth_why"]),
+                         ("$judge.output.depth", "$judge.output.depth_why"))
 
 
 class PlanOutNothingOwedCase(Artifacts):
@@ -1743,6 +1821,13 @@ class FixedCase(unittest.TestCase):
                                     "answer": {"decision": "continue"}})
         self.assertEqual((normal["no_fix"], normal["design"], normal["plan_questions"], normal["answer"]),
                          (False, {"path": "pr/design.json"}, [{"kind": "fork", "text": "q"}], {"decision": "continue"}))
+
+    def test_review_skipped_reaches_the_eyes_only_when_true(self):
+        """issue #441: 計画の往復が事前審査を run の頭の深さで飛ばした印（plan-rounds の depth_skip）を、独立の目へ渡す"""
+        self.assertIs(fixed.fixed(self.fix(), None, replan=False, stops=("",), review_skipped=True)["review_skipped"], True)
+        self.assertIs(fixed.fixed(self.fix(), None, replan=False, stops=("",))["review_skipped"], False)
+        with mock.patch.dict(os.environ, {"INPUTS_REVIEW_SKIPPED": "null"}):
+            self.assertIs(fixed.from_env()["review_skipped"], False)
 
     def test_diffs_name_both_passes(self):
         """部分 D2: fixed は段ごとの diff の指し札の並び diffs（1 回目・2 度目の順。どちらの隣にも段の約束のファイル）を返し、最後の
@@ -2092,10 +2177,19 @@ class CollectAndResultCase(unittest.TestCase):
         （works/darkfactory/darkfactory.yaml 347・445・946・1124・1196 行）"""
         declared = json.loads(line_nodes()["collect"]["with"]["optional"])
         self.assertEqual(collect.collect({}, self.line(optional=json.dumps(declared)))["optional"], declared)
-        for stage in ("judge__world", "plan__structure", "fix__lens", "eyes__"):
+        for stage in ("judge__world", "plan__structure", "fix__lens", "eyes__", "judge__head-depth", "head-depth"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
+
+    def test_head_depth_fall_is_absorbed(self):
+        """頭の深さの役が落ちても判定は標準で進む（judge_accept.head_depth）ので、報告は run を途中で終わった物と数えない"""
+        rows = [{"step": "judge__head-depth-loop", "type": "node_start", "ts": "2026-10-14T00:00:00Z"},
+                {"step": "judge__head-depth-loop", "type": "node_error", "ts": "2026-10-14T00:01:00Z", "error": "役が落ちた"},
+                {"step": "judge__verdict", "type": "node_start", "ts": "2026-10-14T00:02:00Z"},
+                {"step": "judge__verdict", "type": "node_complete", "ts": "2026-10-14T00:03:00Z"}]
+        facts = runreport.transcript_facts(rows, optional=json.loads(line_nodes()["collect"]["with"]["optional"]))
+        self.assertEqual((facts["failed"], facts["absorbed"]), ([], [{"node": "judge__head-depth-loop", "error": "役が落ちた"}]))
 
     def test_result_carries_what_apply_reads(self):
         """線の返りの欄 apply・sealed・r2_status・final_answer（bin/apply と段 1 が読む）は collect が集めた返りから組み、飛ばされた段は
@@ -2349,9 +2443,9 @@ class LineWiringCase(unittest.TestCase):
 
     def test_receivers_take_every_field_of_what_they_receive(self):
         """受け皿の got_<欄> は受ける節の同じ欄を指し、欄の組はブロックの返す節の output_format（計画の往復は plan_out の
-        PLAN・REVIEW）と同じ（受け皿の鍵を消すか向け違えると、その欄が黙って報告から落ちる）"""
+        PLAN・DEPTH と REVIEW）と同じ（受け皿の鍵を消すか向け違えると、その欄が黙って報告から落ちる）"""
         nodes = line_nodes()
-        rounds = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
+        rounds = {"plan-rounds-out": plan_out.PLAN + plan_out.DEPTH, "plan-rounds-review-out": plan_out.REVIEW}
         for key, node in nodes.items():
             if node.get("script") != "returned":
                 continue
@@ -2429,6 +2523,10 @@ class LineWiringCase(unittest.TestCase):
         ("plan-review-run", "mode"): "計画の往復の事前審査は形が空（既定）",
         ("replan-review", "round_limit"): "案の直しの事前審査は往復のループの外で、ループの上限が無い",
         ("replan-review", "mode"): "案の直しの事前審査は形が空（既定）。形 design は直す物が無い周の design-only だけ",
+        ("replan-review", "depth_skip"): "run の頭の深さで飛ばすのは計画の往復の事前審査だけ（docs/design.md の深さで飛ばすノードの表）",
+        ("replan-review", "depth_why"): "run の頭の深さで飛ばすのは計画の往復の事前審査だけ（docs/design.md の深さで飛ばすノードの表）",
+        ("design-only", "depth_skip"): "形 design は事前審査の輪を回さない",
+        ("design-only", "depth_why"): "形 design は事前審査の輪を回さない",
         ("design-only", "ruling"): "直す物が無い周は修正案を読まない形 design（裁定が無い）",
         ("design-only", "conflicts"): "直す物が無い周は修正の段が無いので申し出が無い",
         ("design-only", "gate_answers"): "直す物が無い周は修正前の承認ノードが無い",
@@ -2741,7 +2839,8 @@ class LineWiringCase(unittest.TestCase):
         self.assertLessEqual({"conflicts", "gate_answers"}, set(nodes["replan-review"]["with"]))
         self.assertFalse({"conflicts", "gate_answers"} & set(nodes["plan-review-run"]["with"]))
         self.assertEqual({name for key, name in self.UNPASSED if key == "plan-review-run"}, {"conflicts", "gate_answers", "mode"})
-        self.assertEqual({name for key, name in self.UNPASSED if key == "replan-review"}, {"mode", "round_limit"},
+        self.assertEqual({name for key, name in self.UNPASSED if key == "replan-review"},
+                         {"mode", "round_limit", "depth_skip", "depth_why"},
                          "申し出と関所の答えは渡す（mode は直す物が無い周の design-only だけ）")
 
     def test_include_ids_are_not_loop_body_ids(self):

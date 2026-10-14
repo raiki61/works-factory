@@ -22,6 +22,7 @@ import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
 import worldmark  # noqa: E402
 import conflict  # noqa: E402
+import depth  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import outcome  # noqa: E402
@@ -1642,6 +1643,32 @@ class LinesCase(Base):
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn("- 深さ: 軽量（単位ごと: 軽量 1 個・標準 0 個。機械が決めた）", entry)
         self.assertIn(runreport.NO_REDEPTH, entry)
+
+    def test_head_depth_line_names_the_depth_and_the_skipped_nodes(self):
+        """issue #441: 入口の節に run の頭の深さと根拠・飛ばしたノード・標準へ上げた訳を 1 行で出す。判定の返りが無い run は出さない"""
+        judge = {**fixed_run()["judge"], "depth": "軽量", "depth_why": "原因と直す行が名指されている"}
+        plan = {**fixed_run()["plan"], "depth_skip": True, "depth_why": "計画の単位 1 個がすべて軽量"}
+        _, text, _ = self.build(fixed_run(judge=judge, plan=plan))
+        self.assertIn("- run の頭の深さ: 軽量（根拠: 原因と直す行が名指されている）／飛ばしたノード: plan-review-run__review-loop\n",
+                      self.section(text, report.ENTRY_HEADING))
+        plan = {**plan, "depth_skip": False, "depth_why": "計画の単位がすべて軽量ではない"}
+        _, text, _ = self.build(fixed_run(judge=judge, plan=plan))
+        self.assertIn("- run の頭の深さ: 軽量 → 標準へ上げた（計画の単位がすべて軽量ではない）／飛ばしたノード: 無い\n",
+                      self.section(text, report.ENTRY_HEADING))
+        _, text, _ = self.build(fixed_run(judge={**judge, "depth": "標準", "depth_why": "試験のコマンドが無い"}))
+        self.assertIn("- run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い\n", self.section(text, report.ENTRY_HEADING))
+        _, text, _ = self.build(fixed_run(judge=None))
+        self.assertNotIn("run の頭の深さ", text)
+
+    def test_light_run_that_skipped_the_pre_review_does_not_say_the_eyes_were_skipped(self):
+        """issue #441: 事前審査を run の頭の深さで飛ばした run は独立の目 R1〜R4 を回すので、軽量で省いた物は差分の審査だけ"""
+        light = {"depth": [{"unit_id": "u1", "depth": "軽量", "why": "触るファイル 1 個"}], "skip_optional": "軽量で省いた",
+                 "raised": [], "counted": "", "stop_reason": ""}
+        plan = {**fixed_run()["plan"], "depth_skip": True}
+        _, text, _ = self.build(fixed_run(plan=plan), line={"redepth": light})
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"- 軽量で省いた: {depth.DELTA_SKIPPED}\n", entry)
+        self.assertNotIn("独立の目 R1", entry)
 
     def test_converge_lines_reach_the_report(self):
         """L-D22・P119・R35: 事前審査の壁打ちの往復の行（何往復・抜け方・続いた block と、往復ごとの block・fixed・disputed・suggest に
