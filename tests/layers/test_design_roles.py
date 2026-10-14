@@ -1,6 +1,7 @@
 """docs/design.md の「## サブグラフ」の各節の役の一覧（`- 役（`commands/`）: …`）が、そのサブグラフの `workflows/<名>/commands/` の
 直下と合う（#533）。一覧は 1 文目（最初の「。」まで）の `…` で囲んだ字で、`*` を含む字は名の型、`/` で終わる字はフォルダ。
 直下の .md とフォルダの全部が一覧のどれかに当たり、一覧の字の全部が直下のどれかに当たる。`commands/` の無いサブグラフの節は一覧を持たない。
+`commands/` の在るサブグラフは節と一覧を持つ。
 """
 import fnmatch
 import pathlib
@@ -36,8 +37,10 @@ def present(commands: pathlib.Path) -> list[str]:
 
 
 def problems(text: str, workflows: pathlib.Path) -> list[str]:
-    out = []
-    for name, lines in listed(text).items():
+    sections = listed(text)
+    out = [f"{d.parent.name}: commands/ が在るのに節が無い" for d in sorted(workflows.glob("*/commands"))
+           if d.is_dir() and d.parent.name not in sections]
+    for name, lines in sections.items():
         commands = workflows / name / "commands"
         if not commands.is_dir():
             out += [f"{name}: commands/ が無いのに役の一覧が在る"] if lines else []
@@ -64,8 +67,9 @@ class DesignRoles(unittest.TestCase):
             for stem in ("spec", "material-a", "material-b", "rejudge"):
                 (commands / f"{stem}.md").write_text("", encoding="utf-8")
             (pathlib.Path(tmp) / "line").mkdir()
+            (pathlib.Path(tmp) / "plan" / "commands").mkdir(parents=True)
             doc = "\n".join([SUBGRAPHS_HEAD, "### judge（判定）", ROLES + "`spec`・`material-*`・`rules/`・`gone`。`rejudge` は後で書く。",
                              "### line（メイングラフ）", ROLES + "`x`。", "## 次"])
             self.assertEqual(problems(doc, pathlib.Path(tmp)), [
-                "judge: 一覧の gone が commands/ に無い", "judge: commands/ の rejudge が一覧に無い",
+                "plan: commands/ が在るのに節が無い", "judge: 一覧の gone が commands/ に無い", "judge: commands/ の rejudge が一覧に無い",
                 "line: commands/ が無いのに役の一覧が在る"])
