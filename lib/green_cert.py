@@ -177,22 +177,12 @@ def _not_ran(steps, by) -> str:
     """走っていないと言える時だけ NOT_RAN。起こした段と起こせなかった段が両方在れば両方を名指した PARTLY_RAN（#514）。起こした段だけ
     なら UNVERIFIED_RUN。任せ先の CI の役の run（by が declared_checks.ROLE_NEEDED）は、走らせられなかった系統を名指さなければ
     UNVERIFIED_RUN（素材を渡さずに諦めた役も、一部の系統を回してから諦めたかもしれない）。ほか（engine が段を起こさなかった）は NOT_RAN"""
-    if split := _partly(steps):
-        return f"{PARTLY_RAN}（走らせた段: {'・'.join(split[0])}。走らせられなかった段: {'・'.join(split[1])}）"
     ran, unran = (steps.get("ran"), steps.get("unran")) if isinstance(steps, dict) else (None, None)
+    if isinstance(ran, list) and isinstance(unran, list) and ran and unran:
+        return f"{PARTLY_RAN}（走らせた段: {'・'.join(map(str, ran))}。走らせられなかった段: {'・'.join(map(str, unran))}）"
     if ran or (by == declared_checks.ROLE_NEEDED and not unran):
         return UNVERIFIED_RUN
     return NOT_RAN
-
-
-def _partly(steps):
-    """steps の (ran, unran)。どちらかが空か形が違えば None"""
-    if not isinstance(steps, dict):
-        return None
-    ran, unran = steps.get("ran"), steps.get("unran")
-    if not (isinstance(ran, list) and isinstance(unran, list) and ran and unran):
-        return None
-    return [str(n) for n in ran], [str(n) for n in unran]
 
 
 SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない）"
