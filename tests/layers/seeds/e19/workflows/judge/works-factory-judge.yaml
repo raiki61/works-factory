@@ -1,0 +1,5 @@
+name: works-factory-judge
+nodes:
+  - id: spec
+    prompt: hi
+    idle_timeout: 1728000000

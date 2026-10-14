@@ -209,6 +209,7 @@ nodes:
             allowed_tools: [Read, Grep, Glob, Edit, Write, Bash]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
             idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           prompt: 指示書 `$clash-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返答」の形の JSON だけ。
           depends_on: [clash-prep]
           when: "$clash-prep.output.go == true"
@@ -314,6 +315,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -454,6 +456,7 @@ nodes:
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format: &fix_reply
             type: object
             required: [changes, fix_closure, gates_changed, interactions, mechanism_changed, not_done, path_changed, plan_faces, premise_drift, seams_changed, security_surface_changed, wrote_refs]
@@ -743,6 +746,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format: &consult_answer
             type: object
             additionalProperties: false
@@ -892,6 +896,7 @@ nodes:
     mutates_checkout: false
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
     idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
     output_format:
       type: object
       additionalProperties: false
@@ -948,6 +953,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1059,6 +1065,7 @@ nodes:
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1138,6 +1145,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1211,6 +1219,7 @@ nodes:
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1313,6 +1322,7 @@ nodes:
             allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
             idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           depends_on: [tdd-prep]
           when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == false"
           output_format: &tdd_reply
@@ -1454,6 +1464,7 @@ nodes:
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format: *fix_reply
 
         - id: consult-check
@@ -1479,6 +1490,7 @@ nodes:
           mutates_checkout: false
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format: *consult_answer
 
         - id: consult-accept

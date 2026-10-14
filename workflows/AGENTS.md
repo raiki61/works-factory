@@ -72,3 +72,10 @@
 - merge サブグラフの既定は、封じた差分を run の置き場に置くだけ。対象のリポジトリに当てるのは人で、`bin/apply` が封じた hash を照らしてから当てる。PR を作る・merge する動きは、使う人が選んだ時だけ働く道にする。対象のリポジトリごとにレビューと merge の決まりと権限が違うため（持ち主の決め `diff-only-to-target`・`others-may-use`）。
 - ASF が PR を merge するのは、ASF がこのリポジトリ（works-factory）を作る時だけ。
 - 人が見る。
+
+## E19 AI ノードの出し直しは Archon の retry で持つ
+
+- AI ノード（`prompt:`・`command:`。`loop_group` の本体の中も）は `retry: {max_attempts: 2, on_error: all}` を持つ（eyes と同じ形）。構造化出力の一過性の失敗 1 つで run 全体が落ちないため。工場の側に自前の出し直しを作らない。回数と、どの失敗で出し直すか（`on_error`）は Archon の機能で、工場はどのノードに付けるかと外す理由だけを持つ。
+- 止めた Archon は、`retry` を書かない AI ノードにも既定の出し直しを当てるが、`on_error: transient` なので、種類が `unknown` の失敗は出し直さない（`packages/workflows/src/dag-executor.ts` の `getEffectiveNodeRetryConfig`・`retryableFailureClass`）。だから `on_error: all` を書く。`loop_group` のノードそのものには書かない（`packages/workflows/src/schemas/dag-node.ts` 1687-1693 行が誤りにする）。本体の AI ノードに書けば、本体の中でも出し直す。
+- 2 回走ると困るノード（外への書き込みを持つ物など）だけ外し、ノードの頭の行の真上に `# retry なし: <理由>` を 1 行で書く。
+- 機械: `tests/layers/test_role_retry.py`（全部のグラフの AI ノードが `retry` をこの形（`scan.py` の `ROLE_RETRY`）で持つか、真上に理由の在る外しの行を持つ。両方在るのも赤。照らしは `tests/layers/scan.py` の `_role_retry`）。

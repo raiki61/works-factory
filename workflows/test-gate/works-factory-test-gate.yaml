@@ -146,6 +146,7 @@ nodes:
             network: {allowedDomains: ['*'], allowLocalBinding: true}
             filesystem: {allowWrite: ['/'], denyWrite: ['~/../archon-home']}
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false

@@ -88,6 +88,7 @@ nodes:
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           mutates_checkout: false
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [text]
@@ -130,6 +131,7 @@ nodes:
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           mutates_checkout: false
           idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [verdict, stops, guessed, decidable]
