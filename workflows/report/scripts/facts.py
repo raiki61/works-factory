@@ -269,7 +269,7 @@ def main() -> dict:
                                                       "failed": facts["failed"], **runreport.outcome_facts(start, facts, line)})
     built = runreport.build(returns, gates, typed_listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
                             run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd(), line=line,
-                            user_env=userenv.opted(os.environ))
+                            user_env=userenv.ran(boundary.line_place()))
     report = rel(built["report"])
     run_id = os.environ.get("WORKFLOW_ID", "")
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],

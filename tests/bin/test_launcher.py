@@ -276,14 +276,15 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
 
     def test_users_home_reaches_target_commands_only_when_asked(self):
-        """#492: OPT_IN=1 の起動だけが、対象のコマンドに戻す利用者の HOME を控え、AI の試験のコードが資格に届くと起動の 1 行で言う。
+        """#492: OPT_IN=1 の起動だけが、対象のコマンドに戻す利用者の HOME を控え、明示したことと AI の試験のコードが資格に届きうることを起動の 1 行で言う。
         役と Archon の HOME は隔離のまま"""
         done = self.launch("workflow", "run", "works-factory-line", **{userenv.OPT_IN: "1"})
         env = self.reached(done)["env"]
         self.assertEqual(json.loads(env[userenv.RECORD])["HOME"], str(self.home))
         self.assertTrue(pathlib.Path(env["HOME"]).is_relative_to(self.default_home(self.target)), env["HOME"])
         self.assertIn(f"{userenv.OPT_IN}=1", done.stderr)
-        self.assertIn("AI が書いた試験のコードが、利用者の資格", done.stderr)
+        self.assertIn(f"{userenv.OPT_IN}=1 を明示した", done.stderr)
+        self.assertIn("AI が書いた試験のコードが利用者の資格", done.stderr)
         self.assertNotIn(userenv.OPT_IN, self.launch("workflow", "run", "works-factory-line").stderr)
 
     def test_child_env_carries_answer_head(self):

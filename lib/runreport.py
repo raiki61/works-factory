@@ -1442,7 +1442,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     transcript は transcript_facts の返り、typed は型つきの成果物の読み {by_type, warnings}、repo は直しの内側の語を直す前の版と
     比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, prior_failures（開けた
     ファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）、user_env は対象のコマンドを利用者の
-    HOME・XDG で走らせた run か（userenv.opted。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
+    HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}

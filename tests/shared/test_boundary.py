@@ -85,6 +85,21 @@ class ArchonFactsCase(unittest.TestCase):
             self.assertEqual([n for n in runner if n in os.environ], [])
             self.assertEqual({n: os.environ.get(n) for n in user}, user)
 
+    def test_drop_runner_env_aims_the_user_env_marker_at_the_line_place(self):
+        """#504: 印の置き場はメイングラフの run の置き場。fix の組の子の run は入力 out_dir から辿り、辿れなければ古い値も外す"""
+        stale = {boundary.USER_ENV_RAN_DIR: "/stale"}
+        for name, env, want in (("メイングラフの run", {"ARTIFACTS_DIR": "/line"}, "/line"),
+                                ("組の子の run", {"ARTIFACTS_DIR": "/child", "INPUTS_OUT_DIR": "/line/fix/fix/groups"}, "/line"),
+                                ("形の違う out_dir", {"ARTIFACTS_DIR": "/child", "INPUTS_OUT_DIR": "/elsewhere/out"}, None)):
+            with self.subTest(name), mock.patch.dict(os.environ, {**stale, **env}):
+                boundary.drop_runner_env()
+                self.assertEqual(os.environ.get(boundary.USER_ENV_RAN_DIR), want)
+
+    def test_user_env_marker_name_is_lib_userenvs(self):
+        sys.path.append(str(boundary.lib_root()))
+        import userenv
+        self.assertEqual(boundary.USER_ENV_RAN_DIR, userenv.RAN_DIR_ENV)
+
     def test_prev_reason_returns_the_inputs_reason(self):
         for reason in ("前の周の拒みの理由", ""):
             with mock.patch.dict(os.environ, {"INPUTS_REASON": reason}):

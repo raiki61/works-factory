@@ -93,8 +93,9 @@ def outside_env(environ):
     uv run の外で起こされた（UV_RUN_RECURSION_DEPTH が無い）ときは、下の UV_NO_CONFIG のほかは外さない。
     - UV_NO_CONFIG はいつも外す。利用者が実行基盤の環境に立てていても、テストのコマンド（`uv run <試験の実行器>` など）には対象の
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
-    - userenv.RECORD（利用者が明示した時だけ起動の殻が控えた、隔離の前の HOME・XDG_*）はいつも外し、在れば中の値に戻す
-      （userenv.restore。形が違えば ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身の git は隔離のまま
+    - userenv.RECORD（利用者が明示した時だけ起動の殻が控えた、隔離の前の HOME・XDG_*）と userenv.RAN_DIR_ENV はいつも外し、
+      RECORD が在れば RAN_DIR_ENV の置き場に戻した印を置いてから中の値に戻す（userenv.restore。RECORD の形が違う・RAN_DIR_ENV が
+      無ければ ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身の git は隔離のまま
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
     限界: 節に deps: を足すと uv は --with の層の bin も足し、それは外れない（今の節は deps を持たない）"""

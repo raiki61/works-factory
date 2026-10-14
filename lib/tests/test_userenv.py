@@ -2,6 +2,7 @@
 import json
 import pathlib
 import sys
+import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -25,13 +26,40 @@ class RecordCase(unittest.TestCase):
         self.assertEqual(got, {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "XDG_DATA_HOME": None, "XDG_CACHE_HOME": None,
                                "XDG_STATE_HOME": None})
 
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.top = pathlib.Path(tmp.name) / "line"
+
     def test_record_round_trips_through_restore(self):
-        env = {"HOME": "/run/home", "XDG_DATA_HOME": "/run/data",
+        env = {"HOME": "/run/home", "XDG_DATA_HOME": "/run/data", userenv.RAN_DIR_ENV: str(self.top),
                userenv.RECORD: userenv.record({"HOME": "/u", userenv.OPT_IN: "1"})}
         self.assertTrue(userenv.opted(env))
+        self.assertFalse(userenv.ran(self.top))
         userenv.restore(env)
         self.assertEqual(env, {"HOME": "/u"})
         self.assertFalse(userenv.opted(env))
+        self.assertTrue(userenv.ran(self.top))
+
+    def test_restore_without_the_marker_place_gives_nothing_back(self):
+        """#504: 戻した印を置けない時は戻さない（利用者の HOME・XDG で走ったのを報告が言い漏らさない）"""
+        env = {"HOME": "/run/home", userenv.RECORD: userenv.record({"HOME": "/u", userenv.OPT_IN: "1"})}
+        with self.assertRaises(ValueError):
+            userenv.restore(env)
+        self.assertEqual(env["HOME"], "/run/home")
+
+    def test_restore_without_record_leaves_no_marker(self):
+        env = {"HOME": "/run/home", userenv.RAN_DIR_ENV: str(self.top)}
+        userenv.restore(env)
+        self.assertEqual(env, {"HOME": "/run/home"})
+        self.assertFalse(userenv.ran(self.top))
+
+    def test_ran_reads_only_the_marker(self):
+        self.assertFalse(userenv.ran(None))
+        self.top.mkdir()
+        self.assertFalse(userenv.ran(self.top))
+        (self.top / userenv.RAN_FILE).touch()
+        self.assertTrue(userenv.ran(self.top))
 
 
 if __name__ == "__main__":

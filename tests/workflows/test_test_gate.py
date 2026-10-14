@@ -394,7 +394,8 @@ class ScriptCase(unittest.TestCase):
         self.start = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "start/record.json"})
 
     def env(self, inputs: dict) -> dict:
-        inherited = {k: v for k, v in os.environ.items() if k not in (launcher.FENCE_RECORDS_ENV, userenv.RECORD, userenv.OPT_IN)}
+        inherited = {k: v for k, v in os.environ.items() if k not in (launcher.FENCE_RECORDS_ENV, userenv.RECORD, userenv.OPT_IN,
+                                                                       userenv.RAN_DIR_ENV)}
         env = {**inherited, **self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(ROOT),
                "PYTHONDONTWRITEBYTECODE": "1", **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
         if self.user_home is None:
@@ -501,6 +502,23 @@ class RunScriptCase(ScriptCase):
                 self.opted = opted
                 out = self.ok("run", mode="final", start=self.start)
                 self.assertEqual([r["exit"] for r in out["runs"]], [code])
+
+    def test_users_env_marker_only_when_a_target_command_ran(self):
+        """#504: 利用者が明示した run で対象のコマンドを起こした時だけ、メイングラフの run の置き場に印（userenv.RAN_FILE）が残る。
+        CI の役だけに任せた run（走らせる物が無い）と、明示しない run には残らない"""
+        tool = self.as_user()
+        self.opted = True
+        self.write_start(test_cmd=str(tool))
+        self.ok("run", mode="final", start=self.start)
+        self.assertTrue(userenv.ran(self.artifacts))
+        (self.artifacts / userenv.RAN_FILE).unlink()
+        self.write_start()
+        self.assertEqual(self.ok("run", mode="final", start=self.start)["by"], declared_checks.ROLE_NEEDED)
+        self.assertFalse(userenv.ran(self.artifacts))
+        self.opted = False
+        self.write_start(test_cmd=str(tool))
+        self.ok("run", mode="final", start=self.start)
+        self.assertFalse(userenv.ran(self.artifacts))
 
     def scoped(self):
         """種に far・near の宣言と、far が works/ を見ない範囲の宣言を commit する"""
@@ -998,15 +1016,18 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((base["by"], base["red_cause"]), (declared_checks.ROLE, ""))
         self.ok("run", mode="final", start=self.start)
         out = self.result("final", baseline=json.dumps(base["baseline"]))
-        self.assertEqual((out["green"], out["red_cause"]), (False, green_cert.INCOMPLETE))
-        self.assertIn(green_cert.FAILED_ALIKE, self.pointed(out["evidence"]).read_text(encoding="utf-8"))
-        self.assertTrue(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]).startswith(green_cert.NOT_RAN))
-        self.assertEqual(self.result("final")["red_cause"], "")
-        self.write_start(test_cmd=f"{tool} || {PY} -c 'import time; print(time.time_ns()); raise SystemExit(1)'")
-        self.ok("run", mode="base", start=self.start)
-        base = self.result("base")
+        self.assertEqual((out["green"], out["red_cause"]), (False, ""))
+        note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"])
+        self.assertTrue(note.startswith(green_cert.UNVERIFIED_RUN), note)
+        self.assertNotIn(green_cert.NOT_RAN, note)
+
+    def test_shell_command_that_cannot_start_is_named_not_ran(self):
+        """#504: test_cmd のコマンドが起きない（試験に入れなかった証拠）final は incomplete で、冒頭の句は「走っていない」"""
+        self.write_start(test_cmd=str(self.tmp / "no-such-tool"))
         self.ok("run", mode="final", start=self.start)
-        self.assertEqual(self.result("final", baseline=json.dumps(base["baseline"]))["red_cause"], "")
+        out = self.result("final")
+        self.assertEqual((out["green"], out["red_cause"]), (False, green_cert.INCOMPLETE))
+        self.assertTrue(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]).startswith(green_cert.NOT_RAN))
 
     def test_gate_script_failure_is_not_named_not_ran(self):
         """#492 R1: 返す節の中の誤りの返り（failed）は、試験の関門の句（GATE_BROKE）で、「走っていない」と言わない"""

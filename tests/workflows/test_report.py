@@ -40,6 +40,7 @@ import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import runreport  # noqa: E402
+import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
 
@@ -378,6 +379,16 @@ class FactsCase(Run):
         self.assertTrue(out["stamp"].endswith(" / メイングラフの版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn("TYPED_ARTIFACTS_FILE が空", text)
         self.assertIn("LOG_DIR", text)
+
+    def test_users_env_sentence_only_with_the_marker(self):
+        """#504: 利用者が明示した run でも、対象のコマンドを利用者の HOME・XDG に戻して起こした印（メイングラフの run の置き場の
+        userenv.RAN_FILE）が無ければ、報告の冒頭は利用者の環境で走らせたと言わない（対象のコマンドの前に止まった run）"""
+        opted = {userenv.RECORD: userenv.record({"HOME": "/u", userenv.OPT_IN: "1"})}
+        text = (self.artifacts / self.run_script("facts", **opted)[1]["facts_file"]).read_text(encoding="utf-8")
+        self.assertNotIn(userenv.NOTE, text)
+        (self.artifacts / userenv.RAN_FILE).touch()
+        text = (self.artifacts / self.run_script("facts", **opted)[1]["facts_file"]).read_text(encoding="utf-8")
+        self.assertIn(userenv.NOTE, text)
 
     def test_broken_inputs_and_missing_pointer_do_not_fall(self):
         code, out = self.run_script("facts", INPUTS_START=json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "start/none.json"}),
