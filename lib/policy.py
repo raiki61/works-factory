@@ -22,7 +22,7 @@
 - hits(rows, *texts)・unrecorded(face, mark, rows)・face_gaps(faces, rows): 名指しの照らし、一覧の行を名指さない kind policy の穴、
   事前審査の受け付けが拒む穴の行
 - PRIOR_DECISIONS_FILE・POLICY_KIND・POLICY_DOC_FENCE: 決定記録の突合の返答のファイル名・方針の穴の kind・方針の文書の柵の語の
-  持ち主（issue #454。judge_accept・boardview・gatemarks がここから引く）
+  持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
 - recorded_section(rows): 役に貼る「記録された方針」のセクション（名指せる行が無ければ RECORDED_NONE）
 - recorded_text(start, judgment_dir, human_items): 一覧を組んでセクションにした物（human_items が None の役には承認ノードの答えが
   渡っていないと書く）
@@ -146,7 +146,7 @@ def _capped(data: bytes, where) -> str:
 RECORDED_KEY = "recorded_policy"   # 事前審査の材料 open.json と見え方の record.process の欄（一覧の行）
 # 判定の置き場の決定記録の突合の返答（judge_accept.material_take が書く。役の名 judge_accept.PRIOR_DECISIONS_ROLE はこの名から引く）
 PRIOR_DECISIONS_FILE = "material-prior-decisions.json"
-POLICY_KIND = "policy"            # 方針とのぶつかりの穴の kind（boardview.HUMAN_FACE_KINDS が引く）
+POLICY_KIND = "policy"            # 方針とのぶつかりの穴の kind（fixboard.HUMAN_FACE_KINDS が引く）
 POLICY_DOC_FENCE = "policy_doc"   # 方針の文書の行を書き換える穴の柵の語（gatemarks.FENCES が引く）
 RECORDED_TERM = "記録された方針"
 RECORDED_REF = f"「{RECORDED_TERM}」のセクション"

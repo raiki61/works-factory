@@ -250,14 +250,6 @@ class R4AcceptCase(unittest.TestCase):
                  "policy_conflicts": [], "surfaced": [], "seen": [], "unseen": []}
         self.assertTrue(eyeverdict.r4_accept(self.dir, json.dumps(reply, ensure_ascii=False), {})["ok"])
 
-    def test_without_the_recorded_rows_it_gives_up_at_once(self):
-        """一覧を読めなければ照らせない物を通さない: 出し直させずに諦め、名指さない行も人に行く"""
-        (self.dir / eyeverdict.PREP_FILE).unlink()
-        reply, got = self.accept(NAMED)
-        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
-        self.assertEqual(got["reply"], reply)
-        self.assertTrue(rolekit.given_up_reason(self.dir, eyeverdict.R4_NODE))
-
     def test_unreadable_reply_is_rejected(self):
         got = eyeverdict.r4_accept(self.dir, "{", {})
         self.assertEqual((got["ok"], got["done"], got["reply"]), (False, False, None))

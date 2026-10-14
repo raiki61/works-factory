@@ -14,6 +14,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import boardview  # noqa: E402
+import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
 import policy  # noqa: E402
@@ -108,7 +109,8 @@ class NameOwnerCase(unittest.TestCase):
         self.assertEqual(len(policy.face_gaps([face], [])), 1)
 
     def test_policy_kind_is_a_human_face_kind(self):
-        self.assertIn(policy.POLICY_KIND, boardview.HUMAN_FACE_KINDS)
+        self.assertIn(policy.POLICY_KIND, fixboard.HUMAN_FACE_KINDS)
+        self.assertIs(boardview.HUMAN_FACE_KINDS, fixboard.HUMAN_FACE_KINDS)
 
     def test_prior_decisions_file_is_the_material_file_of_its_role(self):
         self.assertEqual(judge_accept.material_file(judge_accept.PRIOR_DECISIONS_ROLE), policy.PRIOR_DECISIONS_FILE)

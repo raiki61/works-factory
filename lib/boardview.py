@@ -149,7 +149,7 @@ MD_LINK = re.compile(r"(?<!!)\[[^\]\n]*\]\((?:<([^>\n]+)>|([^()\s<]+))(?:\s+\"[^
 MD_FENCE = re.compile(r"^\s{0,3}(```|~~~)")                                                      # :2823
 EMPTY = ("なし", "無し", "ない", "無い", "特になし", "n/a", "none", "-", "未確認", "不明",
          "todo", "未実施", "未測定", "後で")                                                       # :467
-HUMAN_FACE_KINDS = ("regression", policy.POLICY_KIND)                                          # :4084
+HUMAN_FACE_KINDS = fixboard.HUMAN_FACE_KINDS                                                   # :4084
 
 
 def _md_lines(text):

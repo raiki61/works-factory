@@ -37,6 +37,7 @@ import types
 import gatemarks
 import jsonfile
 import oneline
+import policy
 import rolekit
 import startrec
 
@@ -1113,7 +1114,7 @@ LENSES_FILE = "lenses.json"            # レンズの集め役の事実 {collect
 LENS_NOT_DONE = "レンズの集め役が終わらなかった: {why}"   # 集め役が落ちた・ok でない時の理由の頭（元 works/blk-lens/lib/lenses.py:130 の exit_）
 LENS_NOT_DUE = "差分の審査を回さないのでレンズは起こさない（{why}）"   # delta-cut が go: false の時の理由
 # 差分の審査の受け付けが拒む穴の語（元 works/.shared/core/graphloops/rules/review-loop.py:4084-4087）
-HUMAN_FACE_KINDS = ("regression", "policy")
+HUMAN_FACE_KINDS = ("regression", policy.POLICY_KIND)
 PLAN_ONLY_FACE_KINDS = HUMAN_FACE_KINDS + ("precedent",)
 NONE_MIN = 20   # faces_none の字の下限（元 review-loop.py の blank(…, 20)。表の語はどれもこれより短い）
 

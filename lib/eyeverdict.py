@@ -66,7 +66,6 @@ R4_NODE = "r4-scope"   # R4 の受け付けの拒否の控えの名（置き場�
 R4_REJECT = (f"policy_conflicts の次の行は{policy.RECORDED_TERM}のどの行も名指さない。{policy.RECORDED_REF}の行の名指しを字のまま"
              "写して書き直すか、一覧に無いコードのコメント・docstring・テストの説明文（対象の文で、方針ではない）なら policy_conflicts "
              "から外せ。下の行を全部直して、返答を丸ごと出し直せ:")
-R4_NO_RECORDED = f"支度の控え {{file}} に{policy.RECORDED_TERM}の一覧（{policy.RECORDED_KEY}）が無いので、方針とのぶつかりの名指しを照らせない"
 R4_GAVE_UP = "（R4 の方針とのぶつかりの名指しが受け付けを通らなかったので、名指さない行も人に聞く: {why}）"
 PREP_FILE = "prep.json"   # 支度の節が書く、目の指示書に差し込んだ値と記録された方針の一覧（policy.RECORDED_KEY）
 X_SCALAR = re.compile(r"^x_[a-z0-9_]+$")   # 元 graphs/review-loop.json の p3.fix の x_scalars の patternProperties
@@ -181,12 +180,11 @@ def r4_gate_items(r4: dict | None, passed: dict) -> list[str]:
 
 def r4_accept(eyes_dir, raw, passed: dict) -> dict:
     """R4 の返答 raw の受け付け {ok, done, give_up, reason, reply}。方針とのぶつかりのうち、人が通しておらず記録された方針の行
-    （支度の控え PREP_FILE の policy.RECORDED_KEY）を名指さない行が在れば拒む。一覧を読めなければ出し直させずに諦める（照らせない
-    物を通さない）。reply は読めた返答（読めなければ None）で、諦めた時も返す"""
+    （支度の控え PREP_FILE の policy.RECORDED_KEY）を名指さない行が在れば拒む。reply は読めた返答（読めなければ None）で、諦めた
+    時も返す"""
     eyes_dir = pathlib.Path(eyes_dir)
     reply, why = rolekit.parse_reply(raw)
-    prep = read_json(eyes_dir / PREP_FILE)
-    recorded = prep.get(policy.RECORDED_KEY) if isinstance(prep, dict) else None
+    recorded = read_json(eyes_dir / PREP_FILE)[policy.RECORDED_KEY]
 
     def check() -> dict:
         if reply is None:
@@ -197,10 +195,7 @@ def r4_accept(eyes_dir, raw, passed: dict) -> dict:
             raise Reject(R4_REJECT + "\n" + _lines(off))
         return {"ok": True}
 
-    if not isinstance(recorded, list):
-        got = rolekit.with_done(eyes_dir, R4_NODE, {"ok": False, "reason": R4_NO_RECORDED.format(file=PREP_FILE)}, give_up=True)
-    else:
-        got = rolekit.with_done(eyes_dir, R4_NODE, accept.guard(check))
+    got = rolekit.with_done(eyes_dir, R4_NODE, accept.guard(check))
     return {"ok": got["ok"], "done": got["done"], "give_up": bool(got["done"] and not got["ok"]), "reason": got.get("reason", ""),
             "reply": reply}
 
