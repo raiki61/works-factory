@@ -293,6 +293,24 @@ class JudgeTakeCase(_JudgeBase):
         self.assertNotIn("x", [r["where"] for r in rows], "P0 の素材は材料の行に入らない（元は p1.* の節だけ）")
         self.assertEqual([r["where"] for r in rows if r["from"].startswith("依頼")], ["stats.py", "stats.py"])
 
+    FIXED = {ja.MATERIAL_VIEW_FILE: "hygiene", ja.MATERIAL_ROUTE_FILE: "provenance", ja.MATERIAL_TREE_FILE: "gate-efficacy"}
+
+    def plant_fixed_files_shaped_like_roles(self):
+        """同じ頭の固定の控えに役の返答の形を置く（中身の形では弾けず、名だけが役の素材でないと決める）"""
+        for name, role in self.FIXED.items():
+            ja.write_json(self.jdir / name, {"role": role, "materials": {role: {"status": "clean", "checked": name}},
+                                             "reply": {"findings": [{"where": name, "text": "控え"}]}})
+
+    def test_material_rows_skip_the_fixed_files(self):
+        self.plant_fixed_files_shaped_like_roles()
+        self.assertEqual([r for r in ja.material_rows(self.jdir) if not r["from"].startswith("依頼")], [])
+
+    def test_accepted_materials_skip_the_fixed_files(self):
+        self.plant_fixed_files_shaped_like_roles()
+        ja.write_json(self.jdir / ja.material_file("hygiene"), {"role": "hygiene", "reply": {}, "materials": {}})
+        self.assertEqual(list(ja._accepted(self.jdir)), ["hygiene"])
+        self.assertEqual(ja._accepted(self.jdir)["hygiene"]["materials"], {})
+
     def test_unbound_answer_without_tie_is_rejected(self):
         """元 test_blk_judge.AnswerTiesTakeCase.test_unbound_answer_without_tie_is_rejected_by_question"""
         ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"answers": [{"question": "どれを採るか", "text": "A を採る"}]}))
