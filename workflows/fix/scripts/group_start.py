@@ -16,7 +16,7 @@
   start_tree, out_dir}）
 - TDD の輪（tddloop.start）: 実行器は始めの記録の tdd_suite（空は実行器の無い run）。輪の頭で一式を 1 回走らせて元の結末を取る
   （今の works のまま。親の baseline.json は写して受け付けと join の確かめ直しが読む）。返りを置き場の tdd-start.json に控える。
-  輪の頭の test_cmd は、線の run の置き場（line_top）の控えから同じ run の中の緑を使い回す（run の名は始めの記録の run_id。
+  輪の頭の test_cmd は、線の run の置き場（boundary.line_place）の控えから同じ run の中の緑を使い回す（run の名は始めの記録の run_id。
   旗 tree_run.RERUN_ENV が立てば引かない）
 置き場に書く物: 上の写し・fix-ignored-before.json・groups.json・tdd-start.json・tdd-<k>/（輪の状態）。組の置き場
 （fixboard.group_dir）に group-start.json（{group, from_tree, out_dir, start_tree}。group-end と drop_unreturned が読む）。
@@ -43,17 +43,6 @@ import tree_run  # noqa: E402
 import writelog  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
-
-
-def line_top(out_dir: str) -> Path | None:
-    """同じ run の中の試験の結果の控えを置く run の置き場（線の run の成果物の置き場）。組の子の run は入力 out_dir（親の置き場の
-    <run の置き場>/fix/<include の名>/groups）から 3 つ上、単独の run（out_dir が空）は自分の ARTIFACTS_DIR。形が違えば None（使い回さない）"""
-    if not out_dir:
-        return Path(os.environ["ARTIFACTS_DIR"])
-    path = Path(out_dir)
-    if path.name != "groups" or len(path.parents) < 3 or path.parents[1].name != "fix":
-        return None
-    return path.parents[2]
 
 
 def read_group() -> dict:
@@ -95,7 +84,7 @@ def main() -> dict:
     if not keys:
         out = {"go": False, "reason": NO_UNITS, "suite": suite, "state_file": "", "summary_file": ""}
     else:
-        reuse = tree_run.reuse_place(line_top(out_dir), str(start.get("run_id") or ""),
+        reuse = tree_run.reuse_place(boundary.line_place(), str(start.get("run_id") or ""),
                                      rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
         boundary.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
         out = tddloop.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),

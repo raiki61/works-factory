@@ -7,14 +7,21 @@
 どちらの時も隔離のまま。
 
 - record(env) -> str | None: env の OPT_IN が "1" なら NAMES の値（無い名は null）の JSON、ほかは None
-- restore(env) -> None: env の RECORD を外し、在れば中の値に戻す（null の名は外す）。形が違えば ValueError
-- opted(env) -> bool: env が RECORD を持つか（対象のコマンドが利用者の HOME・XDG で走る run か）
+- restore(env) -> None: env の RAN_DIR_ENV と RECORD を外し、RECORD が在れば中の値に戻し（null の名は外す）、印 RAN_FILE の
+  パスを MARK に置く（RAN_DIR_ENV の指す置き場。無ければ作る）。RECORD の形が違う・RAN_DIR_ENV が無ければ ValueError で、戻さない
+- mark(path) -> None: 印を置く。起こす側（tree_run.run）が MARK を env から外して子を起こし、起きた後にだけ呼ぶ
+- opted(env) -> bool: env が RECORD を持つか（利用者が明示した run か。起動の 1 行が言う）
+- ran(top) -> bool: 置き場 top に印 RAN_FILE が在るか（対象のコマンドを利用者の HOME・XDG に戻して起こした run か。報告の冒頭が言う）
 """
 import json
+import pathlib
 
 OPT_IN = "WORKS_FACTORY_TARGET_USER_ENV"
 RECORD = "WORKS_FACTORY_USER_ENV"
 NAMES = ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME")
+RAN_DIR_ENV = "WORKS_FACTORY_USER_ENV_RAN_DIR"
+RAN_FILE = "user-env-ran"
+MARK = "WORKS_FACTORY_USER_ENV_MARK"   # 戻した env にだけ在る、印のパス。子には渡さない
 NOTE = "AI が書いた試験のコードを、利用者の資格に届く環境（利用者の HOME・XDG）で走らせた"
 
 
@@ -23,6 +30,7 @@ def record(env) -> str | None:
 
 
 def restore(env) -> None:
+    ran_dir = env.pop(RAN_DIR_ENV, None)
     raw = env.pop(RECORD, None)
     if raw is None:
         return
@@ -32,12 +40,25 @@ def restore(env) -> None:
         saved = None
     if not isinstance(saved, dict) or not all(isinstance(v, (str, type(None))) for v in saved.values()):
         raise ValueError(f"{RECORD} が名から文字列か null への JSON の object でない: {raw[:200]!r}")
+    if not ran_dir:
+        raise ValueError(f"{RECORD} が在るのに {RAN_DIR_ENV}（印を置く run の置き場）が無い——戻せば報告が言い漏らす")
+    top = pathlib.Path(ran_dir)
+    top.mkdir(parents=True, exist_ok=True)
     for name, value in saved.items():
         if value is None:
             env.pop(name, None)
         else:
             env[name] = value
+    env[MARK] = str(top / RAN_FILE)
+
+
+def mark(path) -> None:
+    pathlib.Path(path).touch()
 
 
 def opted(env) -> bool:
     return RECORD in env
+
+
+def ran(top) -> bool:
+    return top is not None and (pathlib.Path(top) / RAN_FILE).is_file()

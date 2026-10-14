@@ -1296,6 +1296,21 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertTrue((self.art / "fix" / "refix" / "groups.json").is_file())
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), {"mark": "first"})
 
+    def test_group_children_find_the_line_place_from_preps_out_dir(self):
+        """#504: 組の子の run は prep が返す out_dir から、メイングラフの run の置き場（boundary.line_place。利用者の HOME・XDG の印と
+        試験の使い回しの置き場）を辿る。prep の書く形と辿る形が離れれば、ここで落ちる"""
+        import importlib.util
+        with mock.patch.object(sys, "path", [str(ROOT / "workflows" / ".shared"), *sys.path]):
+            spec = importlib.util.spec_from_file_location("boundary", ROOT / "workflows" / ".shared" / "boundary.py")
+            boundary = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(boundary)
+        for execution in ("fix__prep", "refix__prep"):
+            with self.subTest(execution):
+                code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(only='["1"]'), execution)
+                self.assertEqual(code, 0, err)
+                with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.tmp / "child-run"), "INPUTS_OUT_DIR": out["out_dir"]}):
+                    self.assertEqual(boundary.line_place(), self.art)
+
     def test_refix_place_reads_the_first_pass_rulings(self):
         """F216・L-W18・L-W48: 2 度目の修正（include refix-run）の prep は入力 prior_conflicts の先（1 回目の置き場）の申し出と裁定を
         写し、直す項目の待つ行を案を直した行にする（conflict.second_pass が真。裁定 fix_test_scope の範囲と直した項目の単位の許しが
@@ -2805,7 +2820,7 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
         """test-gate の base が線の run の置き場に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が引く（同じ run の中で
-        2 度走らせない）。置き場（group_start.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
+        2 度走らせない）。置き場（boundary.line_place）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
         count = self.tmp / "test-cmd-count"
         test_cmd = f"{sys.executable} -c \"open({str(count)!r}, 'a').write('1\\n')\""
         line = self.tmp / "parent-art"
