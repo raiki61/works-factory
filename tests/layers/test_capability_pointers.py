@@ -41,8 +41,10 @@ FIELD_FLOOR = {
 TAIL = INVENTORY / "tail.md"
 ROW_ID = r"(?:L-[EGWD]|[JPFTERMS])\d+[a-z]?"
 ROW = re.compile(rf"^- ({ROW_ID})[ 〔]")
-# 「今」の欄に書ける字。表 と 無し（表） は字を docs/works-parity.md の「前の棚卸しの今」へ移した印（無し は tail.md の穴に数える）
-CURRENT = ("", "無し", "表", "無し（表）")
+# 「今」の字を docs/works-parity.md の「前の棚卸しの今」へ移した印。移した字が「無し」で始まる行は HOLE_MARK（tail.md の穴に数える）
+MOVED_MARK, HOLE_MARK = "表", "無し（表）"
+# 「今」の欄に書ける字
+CURRENT = ("", "無し", MOVED_MARK, HOLE_MARK)
 AREA_HOLES = re.compile(r"^### ([TERM]) の穴")
 SUMMARY = "## 穴の要約"
 TOTAL = "行の総数"
@@ -80,10 +82,10 @@ def current_value(text: str) -> str | None:
     return text.split(":", 1)[1].strip() if FIELD.match(text).group(1) == "今" else None
 
 
-def moved_rows() -> list[str]:
-    """「今」の字を docs/works-parity.md へ移した行の鍵 `<ファイル> <行 ID>`"""
-    return [f"{where.split(':')[0]} {row}" for where, row, text in row_fields()
-            if current_value(text) in ("表", "無し（表）")]
+def moved_rows() -> dict[str, str]:
+    """「今」の字を docs/works-parity.md へ移した行の鍵 `<ファイル> <行 ID>` → 印（MOVED_MARK か HOLE_MARK）"""
+    return {f"{where.split(':')[0]} {row}": value for where, row, text in row_fields()
+            if (value := current_value(text)) in (MOVED_MARK, HOLE_MARK)}
 
 
 def pointing_fields() -> list[tuple[str, str]]:

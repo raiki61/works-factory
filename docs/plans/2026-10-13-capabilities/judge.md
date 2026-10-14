@@ -2,7 +2,7 @@
 
 範囲: 今の works（raiki61/claude-plugins @ 2aa7c66 の `works/`）の blk-judge・blk-premises・blk-purpose・blk-world・blk-material（11 本）・blk-spec・blk-pr・blk-rejudge と、局所レビューが使うレンズ、`.shared/core` の accept・cite・reads/record-read・querytest・recount（判定の側）・outpurpose・prcheck・forge・ghreads・premises・purpose・worldmark・webget・diverted・rejudge（判定の側）、写しの rules（`review-loop.py`）の p0.*・p1.*・p2.diagnose・p2.rejudge の受け付けの規則。
 
-置き場の略: 「今」「証」は main の名で指す（README.md の「指しの形」）。試験の略は使わず、ファイルのパスを毎回書く。「本物の run」は種 `tests/e2e/target-seed/`（stats.py に欠陥 2 つ・依頼 2 行・差分は空・remote 無し）を線で回した時の `$ARTIFACTS_DIR` の下のパス。この種は「差分が空で依頼が在る run（判定から入る run）」なので、P1 の素材 9 本は回らず、並行 PR は remote が無いので not_applicable、判定の裏取りは既定で切（`lib/entry.py` の `FEATURE_DEFAULTS` の judge_verify は off）、仕様の段は無い。
+置き場の略: 「証」は main の名で指す（README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。試験の略は使わず、ファイルのパスを毎回書く。「本物の run」は種 `tests/e2e/target-seed/`（stats.py に欠陥 2 つ・依頼 2 行・差分は空・remote 無し）を線で回した時の `$ARTIFACTS_DIR` の下のパス。この種は「差分が空で依頼が在る run（判定から入る run）」なので、P1 の素材 9 本は回らず、並行 PR は remote が無いので not_applicable、判定の裏取りは既定で切（`lib/entry.py` の `FEATURE_DEFAULTS` の judge_verify は off）、仕様の段は無い。
 
 PR #76 の「能力と受け入れの、証の試験」の名は全部 main に在ることを確かめた。1 つだけ名が変わっている: `test_roles_receive_the_reject_reason_through_with` は PR #100 で `tests/workflows/test_judge.py::LoopTest.test_roles_receive_the_reject_reason_through_the_reject_node` になった。
 

@@ -1,6 +1,6 @@
 # 修正のブロック（fix）の能力の棚卸し（ID の頭 F）
 
-- 元 = raiki61/claude-plugins @ 2aa7c66c の works/（行の番号はその版）。今・証 = works-factory の main の名（指しの形は README.md の「指しの形」）。
+- 元 = raiki61/claude-plugins @ 2aa7c66c の works/（行の番号はその版）。証 = works-factory の main の名（指しの形は README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。
 - 節: A（F001〜）TDD の輪と事後の関門、B（F100〜）修正役と修正の受け付け、C（F200〜）食い違いの申し出・裁定・範囲の相談・人の関所の答え、D（F300〜）差分の審査・レンズ・手直し、E（F400〜）組の並べ・後始末・変更の確かめ・返りの約束と人に届く物。
 - 「本物の run」の置き場: 親の run の成果物の置き場の `fix/fix/`（2 回目の修正の include は `fix/refix-run/`）、組の子の run は子の run の成果物の置き場の `fix/fix/` と、親の置き場の `<out_dir>/<group_id>/result.json`。種 tests/e2e/target-seed は実行器（tdd_suite）を持たないので、TDD の輪の行（A）は実行器を種に足して渡さない限り本物の run では見えない（A の頭の注）。
 - 持ち主に要る判断は末尾の「穴の要約」の「持ち主へ」にまとめた。

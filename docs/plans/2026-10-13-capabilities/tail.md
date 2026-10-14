@@ -4,7 +4,7 @@
 持ち主に要るのは、末尾の「穴の要約」の「持ち主に聞く物」。bin/apply の行は M39〜M53（M39〜M52 は #114 で入った bin/_lib/apply.py と tests/bin/test_apply.py。M53 は周の鎖と一緒に段 3 で作る）。
 
 読み方（4 つの領域で共通）:
-- 元: works/ の下のパスと行（@2aa7c66c）。今: main の名（README.md の「指しの形」）。証: 能力を消すと赤になる試験の名。要追加は試験の案。
+- 元: works/ の下のパスと行（@2aa7c66c）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。証: 能力を消すと赤になる試験の名。要追加は試験の案。
 - 本物の run: 種（tests/e2e/target-seed/。stats.py に欠陥 2 つ、厚さ 標準、最後の関所はいつも開く）を Archon で回した時に、どの置き場・節・欄で見えるか。健やかな種で起きない道は「筋書きでのみ」。
 - 狭め: どの PR が狭めたか。Archon の源（archon/d97d00ef…/packages/workflows/src/ の下）で不可と示せる物だけが「Archon で不可」。それ以外は「戻す」か、決まらない物は「持ち主」。
 - 各領域の頭に、その領域だけの前置き（観察先の名の付け方など）を残した。各領域の終わりに、その領域の穴を残した。
@@ -12,7 +12,7 @@
 
 ## T: 試験の関門（test-gate）の能力の棚卸し
 
-読み方: 「元」は今の works（raiki61/claude-plugins @ 2aa7c66）のパス。「今」「証」は works-factory の main の名（README.md の「指しの形」）。
+読み方: 「元」は今の works（raiki61/claude-plugins @ 2aa7c66）のパス。「証」は works-factory の main の名（README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。
 本物の run は、種 tests/e2e/target-seed/（stats.py・test_stats.py。.review-checks.json は無い）を前提に書いた。種には宣言が無いので、
 engine の段・JUnit・範囲の宣言は種のままでは本物の run に出ない。test_cmd を渡すかで道が分かれる（渡す run は by role、渡さない run は
 任せ先の CI の役）。run の置き場の物は `<ARTIFACTS_DIR>/test-gate/<base|final>/…`、節は include の名つきの `test-gate-base__<節>`・`test-gate-final__<節>`。
@@ -565,7 +565,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 範囲: 元の works/blk-eyes・blk-structure の直した後の実測（元の段 B）と構造の目の行の形・前提の検算と前提の入力・review-loop.py の目の機械の照らし。今は main の workflows/eyes/・lib/eyeverdict.py・lib/stage_b.py・lib/structmark.py・lib/eye.py と、線（PR #74 の頭）の受け手。
 
-読み方: 「元」は works/ の下（2aa7c66c）、「今」「証」は main の名（README.md の「指しの形」）。PR #67 の「行ごとの証」に挙がった試験は全部 main に在ることを確かめた。挙がっていない能力と、形だけで赤にならない試験は「要追加」にした。
+読み方: 「元」は works/ の下（2aa7c66c）、「証」は main の名（README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。PR #67 の「行ごとの証」に挙がった試験は全部 main に在ることを確かめた。挙がっていない能力と、形だけで赤にならない試験は「要追加」にした。
 
 本物の run の欄は、seed（tests/e2e/target-seed: stats.py に 2 つの欠陥、厚さ 標準、最後の関所はいつも開く）を Archon で回した時に見える所。置き場は run の artifacts の下、節の id は include の頭付き（線の筋書き workflows/line/fixtures/standard.stubs.yaml の `eyes__verdict` などと同じ形）。
 
@@ -1157,7 +1157,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 この文書の語（棚卸しの決まり.md の語と同じ）:
 
 - 元: 前の修正工場 works（raiki61/claude-plugins の commit `2aa7c66c` の `works/`）。パスは `works/...`
-- 今: 作り直し works-factory の main。名で指す（README.md の「指しの形」）。パスは `lib/...`・`workflows/...`・`tests/...`
+- 今: 印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ
 - 線: 8 つのブロックを並べる工程 works-factory-line。まだ main に無く、PR #74 の先頭の写し（#74 の head）を読む
 - 関所: 人が答える節（Archon の approval）。答えの語は通す approve・continue と止める stop・reject
 - 本物の run: 種の対象（tests/e2e/target-seed/。stats.py に欠陥 2 つ）を標準の厚さで回し、最後の関所は開いて通す run。報告の置き場は `$ARTIFACTS_DIR/report/`（`workflows/report/scripts/facts.py` の `OUT = "report"`）、返す節は `report__report`

@@ -1,7 +1,7 @@
 <!-- issue #120 の最初のコメントの全文。閉じた行の「今」「証」はこの PR の段ごとの commit で書き換える -->
 # 能力の棚卸し: 計画と事前審査の中だけの穴（区分 P の閉じる行 70 行の全文）
 
-読み方: 1 行 = 1 つの能力。欄は 元（今の works の file:line と関数。raiki61/claude-plugins @ 2aa7c66c の `works/`）・今（works-factory の住処か「無し」。名で指す。README.md の「指しの形」）・証（外すと赤になる試験。無ければ「要追加: <試験の名> — <何を照らすか>」）・本物の run（本物の run の記録のどこで見えるか、か「筋書きでのみ」）・狭め。行の頭の印は 〔無〕今の住処が無い・〔戻〕狭めたが Archon で不可でない・〔試〕証の試験が無いか弱い。「元」の 8 本は確かめてずれを直してある（issue の本文の「元の file:line の確かめ」）。行の「決め:」は線の配線の文書 `docs/plans/2026-10-13-line-wiring.md` の「この文書の外」の「決めた物」の写し。
+読み方: 1 行 = 1 つの能力。欄は 元（今の works の file:line と関数。raiki61/claude-plugins @ 2aa7c66c の `works/`）・今（印だけ。住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ）・証（外すと赤になる試験。無ければ「要追加: <試験の名> — <何を照らすか>」）・本物の run（本物の run の記録のどこで見えるか、か「筋書きでのみ」）・狭め。行の頭の印は 〔無〕今の住処が無い・〔戻〕狭めたが Archon で不可でない・〔試〕証の試験が無いか弱い。「元」の 8 本は確かめてずれを直してある（issue の本文の「元の file:line の確かめ」）。行の「決め:」は線の配線の文書 `docs/plans/2026-10-13-line-wiring.md` の「この文書の外」の「決めた物」の写し。
 
 - P005〔試〕1 つの単位を 2 つの項目に入れた案を拒む（1 単位は 1 案）。
   - 元: rules/review-loop.py:3077 `fix_plan_covers_units`（dup）、試験 works/tests/test_blk_plan.py:758 test_plan_dup_unit_rejected

@@ -20,7 +20,7 @@
   - `#<issue>`: 別の issue で直す（ほかの issue で扱う物はその issue を指し、二度直さない）
   - 戻した: <`path::名` か README.md「…」>: #505 の PR で戻した
   - 要らない: <訳>: keep-essence・持ち主の決め（`docs/owner-decisions.md`）・AGENTS.md の決まり・Archon が持つ、のどれかに照らした訳
-- 旧棚卸し: 前の棚卸しの行 ID。無ければ「無し」。前の棚卸しの各行の「今」の字は、末尾の「前の棚卸しの今」に移した（#521）。前の棚卸しの行の「今」の欄は「表」か「無し（表）」の印だけを持つ
+- 旧棚卸し: 前の棚卸しの行 ID。無ければ「無し」。前の棚卸しの各行の「今」の字は、末尾の「前の棚卸しの今」に移した（#521）。前の棚卸しの行の「今」の欄は印だけを持つ: 字を移した行は「表」、移した字が「無し」で始まる行は「無し（表）」、住処を書かなかった行は「無し」か空
 
 ### 指しの形
 
@@ -3043,7 +3043,7 @@
 
 ## 前の棚卸しの今
 
-前の棚卸し `docs/plans/2026-10-13-capabilities/` の各行の「今」（works-factory の住処）を、#521 でここへ移した物。「今」の名の持ち主はこの表の 1 か所で、名を変える PR はこの表だけを直す。1 行 1 つで `- <ファイル> <行 ID>: <今>` と書き、前の棚卸しの行は「今」の欄に「表」（住処が無い行は「無し（表）」）の印だけを書き、ファイルと行 ID でここの行に当たる。語は前の棚卸しの字をグラフの語へ直した物。`tests/layers/test_works_parity.py` が、表の「今」と同じ規則で行番号を持たず名が main に在ることと、前の棚卸しの印の行とここの行が 1 つずつ合うことを照らす。
+前の棚卸し `docs/plans/2026-10-13-capabilities/` の各行の「今」（works-factory の住処）を、#521 でここへ移した物。「今」の名の持ち主はこの表の 1 か所で、名を変える PR はこの表だけを直す。1 行 1 つで `- <ファイル> <行 ID>: <今>` と書き、前の棚卸しの行は「今」の欄に「表」（住処が無い行は「無し（表）」）の印だけを書き、ファイルと行 ID でここの行に当たる。語は前の棚卸しの字をグラフの語へ直した物。`tests/layers/test_works_parity.py` が、表の「今」と同じ規則で行番号を持たず名が main に在ることと、前の棚卸しの印の行とここの行が 1 つずつ合い、印が「無し（表）」の行はここの字が「無し」で始まる行だけであることを照らす。
 
 - fix.md F001: lib/tddloop.py::red_check → lib/baseline_red.py::red_problems・lib/baseline_red.py::parse_junit
 - fix.md F002: lib/tddloop.py::_quote_problem・lib/tddloop.py::MIN_QUOTE・lib/tddloop.py::red_check
@@ -3078,7 +3078,7 @@
 - fix.md F031: lib/tddloop.py::handoff_lines・lib/tddloop.py::current_lines（新しい）
 - fix.md F032: workflows/fix/works-factory-fix.yaml::tdd-loop（`fresh_context: false`、役 `tdd`（続き）と `tdd-new`（`context: fresh`）を tdd-prep の `new_unit` で `when:` で振り分ける）、lib/tddloop.py::prep（new_unit）、workflows/fix/scripts/tdd_step.py::read_reply（#121）
 - fix.md F033: workflows/fix/works-factory-fix.yaml::tdd（`skills: [test-driven-development]`）、lib/tddloop.py::prep（`seat.section("tdd")`・`raise Broken("TDD の輪の座を組めない…")`）
-- fix.md F034: lib/tddloop.py::step（`writes.check(..., tdd-<k>/writes-log.jsonl)`）。PR #178 の前は本物の run に記録を書く物が無く `writes.NO_RECORD` で通った（段 1b の U6 の決めで、記録は Archon の出来事だけでは足りずフックが要ると分かった。書き込みの記録のフックは PR #178 で `bin/_lib/record-write.py` に戻った）。修正役の側の代わりの縛り（lib/fixboard.py::undeclared_writes）は TDD のループが書いた物を求めない（#94 本文の U6 のノード）
+- fix.md F034: lib/tddloop.py::step（`writes.check(..., tdd-<k>/writes-log.jsonl)`）。PR #178 の前は本物の run に記録を書く物が無く `writes.NO_RECORD` で通った（段 1b の U6 の決めで、記録は Archon の出来事だけでは足りずフックが要ると分かった。書き込みの記録のフックは PR #178 で `bin/_lib/record-write.py` に戻った）。修正役の側の代わりの縛り（lib/fixboard.py::undeclared_writes）は TDD のループが書いた物を求めない（#94 本文の U6 のセクション）
 - fix.md F035: lib/tddloop.py::prep・lib/tddloop.py::step、workflows/fix/scripts/tdd_step.py::main
 - fix.md F036: lib/tddloop.py::flush_unsent、workflows/fix/scripts/tdd_step.py::main
 - fix.md F037: lib/fixgates.py::problems・lib/fixgates.py::_red_green、lib/fixboard.py::accept_reply（`note("gates", …)`）
@@ -3344,7 +3344,7 @@
 - gaps-plan.md P173: workflows/plan-review/commands/r2-design.md（台帳 tests/workflows/test_plan_review.py の COPIED）・lib/boardview.py::r2_prompt の DRIFT_LINE・STALE_LINE（#120）
 - gaps-plan.md P180: lib/boardview.py::collect（trace に design.HANDED_OP・MISSING_OP）（#120）
 - gaps-plan.md P184: lib/planmarks.py::review_section・lib/planblk.py::design_section
-- gaps-plan.md P185: lib/planmarks.py::review_section（DEVIATION_HEAD のノード）・lib/planblk.py::design_section（worldmark.challenges を渡す）
+- gaps-plan.md P185: lib/planmarks.py::review_section（DEVIATION_HEAD のセクション）・lib/planblk.py::design_section（worldmark.challenges を渡す）
 - gaps-plan.md P187: lib/boardview.py::review_material（pass-<k>/prep-error.txt）・lib/boardview.py::collect（review.json が無い時にその訳）（#120）
 - gaps-plan.md P194: workflows/plan-review/commands/plan-review.md
 - gaps-plan.md P211: lib/reads.py::collect・lib/boardview.py::collect_reads・workflows/plan-review/scripts/review_reads.py（ノード review-reads）・bin/_lib/record-read.py・bin/_lib/toolset.py（隔離した設定にフックを置く）（#120）
@@ -3841,7 +3841,7 @@
 - plan.md P141: lib/boardview.py::replan_asks、workflows/line/scripts/ask_replan.py::ask（メイングラフでもう一度 contract_diff・widened を当てる）
 - plan.md P142: lib/planfile.py::note_gave_up・lib/boardview.py::collect（出力のポインタの隣の replan-gave-up.json に項目ごとの {item, why, ruling}。訳は planblk.PLAN_GAVE_UP_WHY・REVIEW_GAVE_UP_WHY）・lib/runreport.py::replan_gave_up（前の失敗の行）（#120）
 - plan.md P143: workflows/line/works-factory-line.yaml::gate-replan・workflows/line/works-factory-line.yaml::answer-replan（gate_answer.answer）
-- plan.md P144: workflows/line/scripts/replan_answer.py::fix_answers（頭の 2 つ）と workflows/line/scripts/replan_answer.py::fix_notes（FACES_HEAD のノード。lib/replan.py::fix_notes）→ refix-run の answers・notes
+- plan.md P144: workflows/line/scripts/replan_answer.py::fix_answers（頭の 2 つ）と workflows/line/scripts/replan_answer.py::fix_notes（FACES_HEAD のセクション。lib/replan.py::fix_notes）→ refix-run の answers・notes
 - plan.md P145: lib/replan.py::WIDEN_OP・lib/replan.py::WIDEN_LINE・lib/replan.py::WIDEN_PARTS・lib/replan.py::widen_text（ask-replan が引く）→ collect → report の入力 widened → lib/runreport.py::_line_lines
 - plan.md P146: lib/replan.py::amend_lines（人が承認した・聞かずに通した（手段の欄だけ）・WIDEN_LINE・直さずに諦めた: 訳・未完了）→ 報告（lib/runreport.py::_amend_lines）と最後の承認ノード（ask_final の amend）
 - plan.md P147: lib/outcome.py::CLOSE_WHY・lib/outcome.py::PENDING_WHY・lib/outcome.py::waiting_conflicts・lib/outcome.py::asked_conflicts（報告の組み立てで締めた形に読む）、lib/runreport.py::_asked_rows

@@ -1,13 +1,13 @@
 # 能力の棚卸し — 区分 P（計画 plan と事前審査 plan-review）
 
-- 「元」は raiki61/claude-plugins @2aa7c66c の `works/`。「今」「証」は works-factory の main の名（README.md の「指しの形」）。
+- 「元」は raiki61/claude-plugins @2aa7c66c の `works/`。「証」は works-factory の main の名（README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。
 - 本物の run の置き場は run の artifacts の下。計画のブロックは `plan/r<k>/`（周ごと）と `plan/structure/<鍵>/`（使い回す構造の実測）、事前審査のブロックは `plan-review/`（差し込みごとに `plan-review/pass-<k>/`）。
 - 種（tests/e2e/target-seed）は stats.py の 2 つの欠陥（mean・clamp）、厚さ 標準、方針の文書も docs/concepts も無い。往復の 2 周目・案の直し・関所の答えの道は、健全な種の run ではほぼ「筋書きでのみ」。
 - 行の番号 P001〜P258 は区分の中の通し番号（P258 は #207 で足し、P208 の隣に置いた）。節は 5 つ（修正案を書く側・構造の実測と目・往復と案の直し・事前審査・修正前の関所の材料）。
 
 ## 修正案を書く側（計画のブロック: 直す義務・受け付け・材料・波及・返り）
 
-読み方: 「元」は raiki61/claude-plugins @2aa7c66c の `works/`、「今」「証」は main の名（README.md の「指しの形」）。
+読み方: 「元」は raiki61/claude-plugins @2aa7c66c の `works/`、「証」は main の名（README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。
 本物の run の置き場は run の artifacts の下の `plan/r<k>/`（k は往復と案の直しを通した周の番号。標準の種の run では r1、往復が回れば r2…）。
 種（tests/e2e/target-seed）は stats.py の 2 つの欠陥（mean の分母・clamp の上限の枝）で、方針の文書も docs/concepts も無い。
 
