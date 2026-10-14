@@ -204,6 +204,10 @@ class ApplyTest(unittest.TestCase):
             place = self.root / "merge" / "sealed.diff"
             self.assert_refused(self.run_apply(cases["unavailable"][0]), 2, f"git -C {self.target} apply {place}")
         (self.root / "merge" / "sealed.diff").unlink()
+        with self.subTest("周の鎖の親の run なら最後の差分を名指す"):
+            place = self.place(chain.FINAL, self.diff)
+            self.assert_refused(self.run_apply(cases["unavailable"][0]), 2, f"git -C {self.target} apply {place}")
+        place.unlink()
         with self.subTest("置き場に差分が無ければ道を言わない"):
             err = self.assert_refused(self.run_apply(cases["unavailable"][0]), 2)
             self.assertNotIn("git -C", err)
