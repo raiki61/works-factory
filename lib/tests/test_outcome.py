@@ -349,12 +349,12 @@ class ReadingCase(unittest.TestCase):
         fixed_needs_check で、残りの行が走らせられなかった系統（素材の reason）を名指す"""
         judgment = self.put("judge/judgment.json", {})
         self.put("judge/materials.json", {"local_checks": {"status": "awaiting_human",
-                                                           "reason": "DB の系統が実 PostgreSQL を要る\nlint は緑"}})
+                                                           "reason": "実機の要る系統は回せない\nlint は緑"}})
         returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
         self.assertEqual(decide(returns), ("fixed_needs_check", ""))
         [row] = outcome.residue(returns)
         self.assertEqual(row["where"], f"{outcome.MATERIAL_WHERE} local_checks")
-        self.assertIn("awaiting_human: DB の系統が実 PostgreSQL を要る lint は緑", row["text"])
+        self.assertIn("awaiting_human: 実機の要る系統は回せない lint は緑", row["text"])
 
     def test_material_answered_with_command_and_output_is_not_left(self):
         """依頼が命令と出力つきで答えた素材は次の run の残りに数えない（元 report.residue の gatemarks.measured_materials）。

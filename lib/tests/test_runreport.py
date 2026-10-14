@@ -278,12 +278,12 @@ class BuildCase(Base):
         「走らせられなかった」とも書かず、素材の語と、走らせられなかった系統を名指す reason で言う"""
         pointed = str(self.dir / "test-gate" / "base" / "baseline.json")
         baseline_red.write_baseline(pointed, suite="", test_cmd="", rev="r", exit=None, cases=[],
-                                    material={"status": "awaiting_human", "reason": "DB の系統が実 PostgreSQL を要る。\nlint は緑"})
+                                    material={"status": "awaiting_human", "reason": "実機の要る系統は回せない。\nlint は緑"})
         base = {"mode": "base", "ok": True, "green": False, "red_cause": green_cert.INCOMPLETE, "baseline": pointed}
         _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['awaiting_human']}（awaiting_human）——"
-                      "DB の系統が実 PostgreSQL を要る。 lint は緑", entry)
+                      "実機の要る系統は回せない。 lint は緑", entry)
         self.assertNotIn("直す前のテスト: 赤", entry)
 
 
