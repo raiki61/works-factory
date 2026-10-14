@@ -35,7 +35,8 @@ class WorksBenchDocker(DockerEnvironment):
     """Harbor の docker の環境。課題の主のコンテナに Claude Code の sandbox の要る緩め（swepro.SANDBOX の compose の重ねと
     seccomp の写し）を渡す。上流のプロキシ（swepro.upstream）が在れば egress の付き添いを swepro.EGRESS の写しで立て、gost の
     設定（swepro.gost_config）を compose の子の環境の swepro.GOST_CONFIG_ENV で渡す。設定はイメージ・harbor run の字・Harbor の
-    記録に入らない。無ければ付き添いは Harbor 同梱のまま"""
+    記録に入らない。ただし付き添いのコンテナが在る間は、設定がその env（docker inspect で見える）と、書き込める層の
+    /opt/egress-sidecar/gost.yaml に残る（keep_containers なら試行の後も長く残る）。無ければ付き添いは Harbor 同梱のまま"""
 
     def __init__(self, *args, **kwargs):
         self._gost_config = swepro.gost_config(os.environ)

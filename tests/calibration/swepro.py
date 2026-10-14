@@ -34,8 +34,8 @@ amd64 を強いると立たない）。docker の CLI に compose の差し込�
 
 台に要る物（試行の段で Claude Code の sandbox の bwrap が課題のコンテナの中で立つため。setup が bwrap を確かめ、立たなければ
 止めた層を見分ける道を 1 行で出す）:
-- Apple silicon では、docker の VM の amd64 の真似を Rosetta にする（colima なら --vm-type vz --vz-rosetta。qemu の真似では
-  Claude Code の実行ファイルが Segmentation fault で落ちる）。
+- Apple silicon では、amd64 の真似を Rosetta で行う VM（Apple の Virtualization の上）で docker を回す（qemu の利用者モードの
+  真似では、Claude Code の実行ファイルが Segmentation fault で落ちる）。
 - docker の VM の kernel の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の kernel.apparmor_restrict_unprivileged_userns=1 を
   0 に。起こし直しても効くよう VM の起動の設定に入れる）。コンテナの側からは外せない。
 - 環境 WorksBenchDocker が課題の主のコンテナにだけ、docker の既定の seccomp に名前空間を作る呼び出しと mount を足した写し
@@ -50,7 +50,9 @@ amd64 を強いると立たない）。docker の CLI に compose の差し込�
 （元は harbor EGRESS_FROM。直した所は写しの COPIED_FROM）で立て、gost の設定（gost_config）を起動の時に環境から渡す（イメージに
 焼かない）。gost は許す一覧の照らし（SNI）を今どおり chain の手前で効かせてから上流へ CONNECT で繋ぐので、エージェントの段の
 宛先はプロキシの有無で変わらない。public の段（環境と検証）も許す一覧 * で付き添いを通り、プロキシへ出る。NO_PROXY に当たる
-宛先は chain を通さず直に繋ぐ。受ける上流は http://<host>:<port>（スキームの無い <host>:<port> も）だけで、他は試行の前に
+宛先は chain を通さず直に繋ぐ。写しの allow-all は Harbor の物と違い nftables を外さないので、public の段でも DNS でない UDP は
+拒まれ、HTTP・TLS でない TCP は CONNECT <ip>:<port> でプロキシへ行く。443 の外への CONNECT を拒むプロキシ（よくある既定）の
+内側では、環境と検証の段の素の HTTP（80）・git・ssh が落ちうる。受ける上流は http://<host>:<port>（スキームの無い <host>:<port> も）だけで、他は試行の前に
 断る（WorksBenchDocker.preflight）。host が localhost か loopback なら host.docker.internal に替える（Docker Desktop はそのまま
 届く。Linux の docker engine ではプロキシが docker の bridge 側でも待ち受けている要がある）。宛先の名は課題のコンテナが自分で
 引くので、網の DNS が外の名を引ける要がある。プロキシが無ければ付き添いは Harbor 同梱の物のまま。
