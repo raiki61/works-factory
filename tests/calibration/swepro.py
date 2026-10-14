@@ -13,17 +13,19 @@ Harbor を import しない。Harbor の agent の殻は tests/calibration/swepr
 
 作り手: works-factory（run.WorksFactory。殻 bin/works-factory で works-factory-line を前で回し、試験のコマンドを test_cmd に渡す）・
 claude（素の Claude Code を run.PLAIN_MODEL・run.PLAIN_EFFORT で claude -p 1 回。Pro の公開の手順と同じく instruction だけを渡す）。
-今の works は回さない: 版を止めた works/dev/archon.sh が Archon を macOS arm64 の実行ファイルに止めていて、課題のコンテナ
-（linux/amd64）では起きない。中を書き換えると持ち主の決めの「今の works は変えない」に反する（#437）。
+今の works は回さない（#437 の運び役の決め。訳は OLD_WORKS）。
 
 1 件の流れ: 殻が setup で課題のイメージの上の /opt/works-bench に道具と工場を載せ（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）とトークンのファイルを上げ、inside を 1 回打つ。inside は
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら終わった run の封じた差分を
 bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json に書く。殻は /app の差分を model.patch に取り
-（capture_command）、予測を <試み>/agent/prediction.json に書く（prediction）。tally は job の予測を数える。
+（capture_command）、起こし役の標準出力と予測を <試み>/agent/ に書く（prediction）。tally は job の予測を数える。
 
 - 無人の run が人に聞いて止まった（承認ノードで待った・結末の種が chain.KIND_HUMAN）時は stopped を立てる。封じた差分が在れば
   --allow-stopped で当て、封じる前に止まった run は当てずに空の patch（未解決）として数える。run を resume しない。
+  /app の変更を取れなかった時も stopped を立て、model_patch を null にする（変更は /app に残っていて、空の patch ではない）。
+- 作り手が落ちた（認証の拒否・工場の run が起きない・封じた差分が当たらない）時と起こし役が落ちた時は error に訳を書き、
+  予測の failed を立てる。ふつうの未解決（直せなかった）と分けて数える。
 - 期限を置かない（持ち主の決め no-timeouts）。Pro の 1 件の上限 PRO_SECONDS は、超えた事実を予測の pro_limit に残すだけ。
 - 漏れの塞ぎ: トークンはファイルで 1 回だけ上げ、inside が読んで消して自分の env に置く（docker の exec の env はホストの ps に出る）。
   結果と予測には env の名だけを書く。gh の認証は渡さず、WebFetch・WebSearch は run.bench_env と toolset.DENY_WEB で拒む。
@@ -56,11 +58,14 @@ PLACE = "/opt/works-bench"
 WORKDIR = "/app"
 OUT = "/logs/agent"   # Harbor が <試み>/agent に写す置き場
 PRO_SECONDS = 3000    # 課題の task.toml の [agent] timeout_sec（Pro の README の 50-minute budget）
-PRODUCERS = ("works-factory", "claude")
-OLD_WORKS = ("今の works はコンテナで回さない: 版を止めた works/dev/archon.sh が Archon を macOS arm64 の実行ファイル"
-             "（archon-darwin-arm64）に止めていて、課題のコンテナ（linux/amd64）では起きない（#437）")
+OLD_WORKS = ("今の works は SWE-Bench Pro で回さない（#437 の運び役の決め）: 比べの相手（持ち主の決め public-bench-at-major）は"
+             "素の Claude Code と前の版の工場で、今の works は段 4 で退ける（coexist-before-switch）。版を止めた works/dev/archon.sh が"
+             "Archon を macOS arm64 の実行ファイル（archon-darwin-arm64）に止めていて、課題のコンテナ（linux/amd64）で回すには"
+             "今の works を変えるしかない")
 TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/oauth-token", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
+INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
+DRIVER_FAILED = "driver_failed"
 REPO_TAR, REPO_STEP = "repo.tar", "repo"
 UV_VERSION, BUN_VERSION = "0.11.29", "1.4.3"
 INSTANCE = re.compile(r"^instance_(.+?)__(.+?)-[0-9a-f]{40}")
@@ -78,14 +83,6 @@ TEST_COMMANDS = {
 
 class BenchError(Exception):
     pass
-
-
-def chosen(producer: str) -> str:
-    if producer == run.OldWorks.name:
-        raise ValueError(OLD_WORKS)
-    if producer not in PRODUCERS:
-        raise ValueError(f"作り手 {producer} を知らない（{' か '.join(PRODUCERS)}）")
-    return producer
 
 
 # ---------------------------------------------------------------- 課題の入力
@@ -167,9 +164,11 @@ def inside_command(producer: str, place: str = PLACE) -> str:
 
 
 def capture_command(workdir: str, out: str) -> str:
-    """作り手に依らず同じ口で /app の変更を予測に取る（Pro の locked_claude_code.py の _CAPTURE と同じ意味）"""
+    """作り手に依らず同じ口で /app の変更を予測に取る（Pro の locked_claude_code.py の _CAPTURE と同じ意味）。
+    取れなければ model.patch を残さず終了の値 1（途中まで書いた空の patch を未解決と読ませない）"""
     w, o = shlex.quote(workdir), shlex.quote(out)
-    return f"mkdir -p {o} && cd {w} && git add -A && git diff --cached > {o}/{PATCH}; git -C {w} reset -q"
+    return (f"mkdir -p {o} && cd {w} && git add -A && git diff --cached > {o}/{PATCH} || {{ rm -f {o}/{PATCH}; failed=1; }}; "
+            f"git -C {w} reset -q; exit ${{failed:-0}}")
 
 
 # ---------------------------------------------------------------- コンテナの中の起こし役
@@ -187,41 +186,49 @@ def stopped(state: str, outcome: str) -> bool:
     return state == "paused" or report.OUTCOME_KINDS.get(outcome) == chain.KIND_HUMAN
 
 
-class PlainFix:
-    """素の Claude Code（ハーネスの基準）。/app で claude -p を 1 回、instruction そのものを渡して直させる"""
-    def __init__(self):
-        self.plain = run.PlainClaude()
-
-    def start(self, attempt: Path, workdir: Path, out: Path, instruction: str) -> dict:
-        env = self.plain.isolated_env(attempt)
-        mine = attempt / "out"   # run.PlainClaude が結果を読む置き場
-        mine.mkdir(exist_ok=True)
-        with (mine / run.PlainClaude.RESULT).open("wb") as result:
-            subprocess.run(self.plain.claude_args(instruction), cwd=workdir, env=env, stdin=subprocess.DEVNULL, stdout=result)
-        shutil.copy2(mine / run.PlainClaude.RESULT, out / run.PlainClaude.RESULT)
-        session = self.plain.find_run(attempt)
-        ended = self.plain.ended(mine)
-        return {"run_id": session, "state": self.plain.state(attempt, session or ""), "outcome": ended["outcome"],
-                "factory_seconds": ended["seconds"], "usd": ended["usd"], "usd_from": ended["usd_from"],
-                "provenance": self.plain.provenance()}
-
-
 def status(workdir: Path) -> str:
     return subprocess.run(["git", "-C", str(workdir), "status", "--porcelain=v1", "--untracked-files=all"],
                           capture_output=True, text=True, encoding="utf-8").stdout
 
 
-def drive_factory(attempt: Path, workdir: Path, out: Path, test_cmd: str) -> dict:
+# 作り手の起こし方。どれも got（起こし役の結果）を埋め、落ちた作り手は got["error"] に訳を書く。起動の前に分かる欄（inputs・
+# env_names）を先に置くので、run.Stop で抜けても結果に残る
+def plain_fix(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
+    """素の Claude Code（ハーネスの基準）。/app で claude -p を 1 回、instruction そのものを渡して直させる"""
+    plain = run.PlainClaude()
+    got.update(inputs=["instruction"], env_names=list(run.PlainClaude.ISOLATED_ENV), provenance=plain.provenance())
+    env = plain.isolated_env(attempt)
+    mine = attempt / "out"   # run.PlainClaude が結果を読む置き場
+    mine.mkdir(exist_ok=True)
+    with (mine / run.PlainClaude.RESULT).open("wb") as result:
+        subprocess.run(plain.claude_args(task["request"][0]["text"]), cwd=workdir, env=env, stdin=subprocess.DEVNULL,
+                       stdout=result)
+    shutil.copy2(mine / run.PlainClaude.RESULT, out / run.PlainClaude.RESULT)
+    session = plain.find_run(attempt)
+    ended = plain.ended(mine)
+    got.update(run_id=session, state=plain.state(attempt, session or ""), outcome=ended["outcome"],
+               factory_seconds=ended["seconds"], usd=ended["usd"], usd_from=ended["usd_from"])
+    if got["state"] != run.DONE:
+        said = run._object(run._read_json(mine, run.PlainClaude.RESULT)).get("result")
+        got["error"] = f"claude -p が誤りで終わった: {apply.one_line(str(said or '結果の JSON が無い'))}"
+
+
+def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
     """工場を前で回し、終わった run の封じた差分を当てる。止まった run は答えず resume もしない"""
-    producer = run.WorksFactory({"test_cmd": test_cmd})
+    producer = run.WorksFactory({"test_cmd": task["test_cmd"]})
+    got.update(inputs=list(producer.input_pairs(attempt, "")), test_cmd=task["test_cmd"], env_names=producer.env_names(),
+               provenance={"archon": pack.load(ROOT)["archon"]["commit"]})
     before = status(workdir)
     run_id = producer.start(attempt, "")
     state = producer.state(attempt, run_id) if run_id else "failed"
-    got = {"run_id": run_id, "state": state, "outcome": "", "gate": producer.gate(attempt, run_id) if state == "paused" else "",
-           "apply": None, "factory_seconds": None, "usd": None, "usd_from": None,
-           "provenance": {"archon": pack.load(ROOT)["archon"]["commit"]}}
+    got.update(run_id=run_id, state=state)
+    if state == "paused":
+        got["gate"] = producer.gate(attempt, run_id)
+        return
     if state != run.DONE:
-        return got
+        got["error"] = (f"工場の run {run_id} が {state} で終わった" if run_id
+                        else f"工場の run が起きなかった（家 {attempt / 'home'} に run が無い）")
+        return
     ended = producer.finish(attempt, run_id)
     shutil.copytree(attempt / evidence.EVIDENCE, out / evidence.EVIDENCE, symlinks=True, dirs_exist_ok=True)
     got.update(outcome=ended["outcome"], factory_seconds=ended["seconds"], usd=ended["usd"], usd_from=ended["usd_from"],
@@ -232,7 +239,27 @@ def drive_factory(attempt: Path, workdir: Path, out: Path, test_cmd: str) -> dic
                           get=lambda rid, _target: evidence.launch(attempt, "get", rid, "--json", shell=producer.shell))
     lines = [line for line in (said_err.getvalue() + said_out.getvalue()).splitlines() if line.strip()]
     got["apply"] = {"code": code, "line": lines[0] if lines else ""}
-    return got
+    if code != 0 and meant_to_deliver(attempt / evidence.EVIDENCE):
+        got["error"] = f"封じた差分が当たらない: {got['apply']['line']}"
+
+
+def meant_to_deliver(ev: Path) -> bool:
+    """run が封じた差分を渡すつもりで終わった（封じた・R2 が作り直しを言っていない）。apply がそれを拒めば作り手の落ち"""
+    record = run._object(run._read_json(ev, "record/parent.json"))
+    value = run._object(run._object(record.get("terminal_record")).get("returns")).get("value")
+    value = value if isinstance(value, dict) else {}
+    return run._object(value.get("sealed")).get("ok") is True and value.get("r2_status") != apply.seal.REDESIGN
+
+
+PRODUCERS = {run.WorksFactory.name: drive_factory, run.PlainClaude.name: plain_fix}
+
+
+def chosen(producer: str) -> str:
+    if producer == run.OldWorks.name:
+        raise ValueError(OLD_WORKS)
+    if producer not in PRODUCERS:
+        raise ValueError(f"作り手 {producer} を知らない（{' か '.join(PRODUCERS)}）")
+    return producer
 
 
 def inside(args) -> int:
@@ -255,25 +282,14 @@ def inside(args) -> int:
     (attempt / "request.json").write_text(json.dumps(task["request"], ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     out.mkdir(parents=True, exist_ok=True)
     result = {"instance_id": task["instance_id"], "producer": args.producer, "error": None}
-    factory = args.producer == run.WorksFactory.name
-    env_names = run.WorksFactory().env_names() if factory else run.PlainClaude.ISOLATED_ENV
     code = run.OK
     try:
-        if factory:
-            result.update(inputs=["request", "base", *run.BENCH_INPUTS, "test_cmd"], test_cmd=task["test_cmd"],
-                          **drive_factory(attempt, workdir, out, task["test_cmd"]))
-        else:
-            result.update(inputs=["instruction"], test_cmd=None, gate="", apply=None, target_changed_during_run=None,
-                          **PlainFix().start(attempt, workdir, out, task["request"][0]["text"]))
+        PRODUCERS[args.producer](attempt, workdir, out, task, result)
     except run.Stop as e:
         result.setdefault("state", "failed")
         result["error"] = str(e)
         code = run.STOPPED
-    state, outcome = result.get("state", "failed"), result.get("outcome") or ""
-    result["stopped"] = stopped(state, outcome)
-    result["stop_why"] = (f"承認ノード {result.get('gate')} で待った" if state == "paused"
-                          else f"結末 {outcome}" if result["stopped"] else "")
-    result["env_names"] = sorted({*added, *env_names})
+    result["env_names"] = sorted({*added, *result.get("env_names", [])})
     result["provenance"] = {**result.get("provenance", {}), "claude_code": run._claude_version(launcher.real_claude(os.environ))}
     (out / RESULT).write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     if result["error"]:
@@ -282,13 +298,26 @@ def inside(args) -> int:
 
 
 # ---------------------------------------------------------------- 予測と数え
-def prediction(instance_id: str, producer: str, patch: str, result: dict | None, seconds: float | None,
+def stop_why(state: str, outcome: str, gate: str | None, captured: bool) -> str:
+    """止まった訳（止まっていなければ空）"""
+    if not captured:
+        return f"{WORKDIR} の変更を {PATCH} に取れなかった（変更は {WORKDIR} に残る）"
+    if state == "paused":
+        return f"承認ノード {gate} で待った"
+    return f"結末 {outcome}" if stopped(state, outcome) else ""
+
+
+def prediction(instance_id: str, producer: str, patch: str | None, result: dict | None, seconds: float | None,
                factory_commit: str | None) -> dict:
-    """result が None なら起こし役が結果を書けずに落ちた。seconds は殻が exec の前後で測った秒（作り手に依らず同じ物差し）"""
-    got = result if isinstance(result, dict) else {}
-    return {**got, "instance_id": instance_id, "producer": producer, "model_patch": patch,
-            "stopped": bool(got.get("stopped")), "stop_why": got.get("stop_why") or "",
-            "state": got.get("state") if result is not None else "driver_failed",
+    """result が None なら起こし役が結果を書けずに落ちた。patch が None なら /app の変更を取れなかった。
+    seconds は殻が exec の前後で測った秒（作り手に依らず同じ物差し）"""
+    wrote = isinstance(result, dict)
+    got = result if wrote else {}
+    state, outcome = got.get("state") if wrote else DRIVER_FAILED, got.get("outcome") or ""
+    error = got.get("error") if wrote else "起こし役 swepro.py inside が結果を書かずに終わった"
+    why = stop_why(state, outcome, got.get("gate"), patch is not None)
+    return {**got, "instance_id": instance_id, "producer": producer, "model_patch": patch, "state": state, "outcome": outcome,
+            "usd": got.get("usd"), "error": error, "failed": bool(error), "stopped": bool(why), "stop_why": why,
             "seconds": seconds, "pro_limit": {"seconds": PRO_SECONDS, "over": None if seconds is None else seconds > PRO_SECONDS},
             "provenance": {**(got.get("provenance") or {}), "factory_commit": factory_commit}}
 
@@ -305,9 +334,9 @@ def tally(job: Path) -> dict:
         rows.append(row)
     usd = [r["usd"] for r in rows if run._number(r.get("usd")) is not None]
     return {"producers": sorted({str(r.get("producer")) for r in rows}), "tasks": len(rows),
-            "stopped": sum(bool(r.get("stopped")) for r in rows),
+            "stopped": sum(bool(r.get("stopped")) for r in rows), "failed": sum(bool(r.get("failed")) for r in rows),
             "over_pro_limit": sum((r.get("pro_limit") or {}).get("over") is True for r in rows),
-            "empty_patch": sum(not (r.get("model_patch") or "").strip() for r in rows),
+            "empty_patch": sum(isinstance(r.get("model_patch"), str) and not r["model_patch"].strip() for r in rows),
             "unmeasured_seconds": sum(r.get("seconds") is None for r in rows),
             "usd": round(sum(usd), 6), "usd_missing": len(rows) - len(usd)}
 
@@ -316,7 +345,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="SWE-Bench Pro V2 の Python の課題を課題のコンテナの中で回す")
     sub = parser.add_subparsers(dest="command", required=True)
     driven = sub.add_parser("inside")
-    driven.add_argument("producer", choices=PRODUCERS)
+    driven.add_argument("producer", choices=sorted(PRODUCERS))
     driven.add_argument("--workdir", default=WORKDIR)
     driven.add_argument("--place", default=PLACE)
     driven.add_argument("--out", default=OUT)

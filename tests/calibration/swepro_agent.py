@@ -2,7 +2,7 @@
 tests/calibration/swepro.py の頭。harbor を import するのはこのファイルだけで、harbor は pyproject.toml の extra bench に在る。
 
 ホストで動く薄い殻: setup で道具と工場の写しを課題のコンテナの /opt/works-bench に載せ、run で課題の入力とトークンのファイルを
-上げて起こし役（swepro.py inside）を 1 回 exec し、/app の差分を model.patch に取り、予測を <試み>/agent/prediction.json に書く。
+上げて起こし役（swepro.py inside）を 1 回 exec し、/app の差分を model.patch に取り、起こし役の標準出力と予測を <試み>/agent/ に書く。
 命令の字は swepro.py が組む。期限を足さない（setup・exec とも上限なし。作業の段の上限は運び役の --agent-timeout-multiplier inf）。
 """
 import json
@@ -88,26 +88,42 @@ class WorksBench(BaseAgent):
         await self._upload_text(environment, json.dumps(inputs, ensure_ascii=False), f"{swepro.PLACE}/{swepro.TASK}")
         secret = f"{swepro.PLACE}/{swepro.SECRET}"
         await self._upload_text(environment, token, secret)
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
         started = time.monotonic()
         code = None
         try:
             done = await environment.exec(swepro.inside_command(self.producer), user="root", timeout_sec=None)
             code = done.return_code
+            self._keep_driver_output(done)
         finally:
             seconds = round(time.monotonic() - started, 3)
             await environment.exec(f"rm -f {secret}", user="root", timeout_sec=None)
-            await environment.exec(swepro.capture_command(swepro.WORKDIR, swepro.OUT), user="root", timeout_sec=None)
-            patch = await environment.exec(f"cat {swepro.OUT}/{swepro.PATCH}", user="root", timeout_sec=None)
-            got = await environment.exec(f"cat {swepro.OUT}/{swepro.RESULT}", user="root", timeout_sec=None)
-            try:
-                result = json.loads(got.stdout or "") if got.return_code == 0 else None
-            except json.JSONDecodeError:
-                result = None
-            predicted = swepro.prediction(inputs["instance_id"], self.producer, patch.stdout or "", result, seconds, self.version())
-            self.logs_dir.mkdir(parents=True, exist_ok=True)
+            predicted = swepro.prediction(inputs["instance_id"], self.producer, await self._patch(environment),
+                                          await self._result(environment), seconds, self.version())
             (self.logs_dir / swepro.PREDICTION).write_text(json.dumps(predicted, ensure_ascii=False, indent=1) + "\n",
                                                             encoding="utf-8")
-            context.cost_usd = predicted["usd"]
-            context.metadata = {k: predicted[k] for k in ("stopped", "state", "outcome", "pro_limit")}
+            context.cost_usd = predicted.get("usd")
+            context.metadata = {k: predicted.get(k) for k in ("stopped", "failed", "state", "outcome", "pro_limit")}
         if code != 0:
             raise RuntimeError(f"起こし役 swepro.py inside が終了の値 {code} で終わった（予測は {swepro.PREDICTION} に書いた）")
+
+    def _keep_driver_output(self, done):
+        for name, text in ((swepro.INSIDE_STDOUT, done.stdout), (swepro.INSIDE_STDERR, done.stderr)):
+            (self.logs_dir / name).write_text(text or "", encoding="utf-8")
+
+    @staticmethod
+    async def _patch(environment: BaseEnvironment) -> str | None:
+        """/app の変更。取れなければ None"""
+        captured = await environment.exec(swepro.capture_command(swepro.WORKDIR, swepro.OUT), user="root", timeout_sec=None)
+        if captured.return_code != 0:
+            return None
+        patch = await environment.exec(f"cat {swepro.OUT}/{swepro.PATCH}", user="root", timeout_sec=None)
+        return (patch.stdout or "") if patch.return_code == 0 else None
+
+    @staticmethod
+    async def _result(environment: BaseEnvironment) -> dict | None:
+        got = await environment.exec(f"cat {swepro.OUT}/{swepro.RESULT}", user="root", timeout_sec=None)
+        try:
+            return json.loads(got.stdout or "") if got.return_code == 0 else None
+        except json.JSONDecodeError:
+            return None

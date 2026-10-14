@@ -140,10 +140,12 @@ class WorksFactory:
     def env_names(self) -> list[str]:
         return [launcher.HOME_ENV, "GH_CONFIG_DIR", toolset.DENY_WEB_ENV]
 
+    def input_pairs(self, attempt: Path, base: str) -> dict[str, str]:
+        return {"request": str(attempt / "request.json"), "base": base, **self.inputs}
+
     def start_command(self, attempt: Path, base: str) -> list[str]:
-        pairs = {"request": str(attempt / "request.json"), "base": base, **self.inputs}
         return [sys.executable, str(self.shell), "workflow", "run", LINE, "--cwd", str(attempt / "target"),
-                *[part for k, v in pairs.items() for part in ("--input", f"{k}={v}")]]
+                *[part for k, v in self.input_pairs(attempt, base).items() for part in ("--input", f"{k}={v}")]]
 
     def resume_command(self, attempt: Path, run_id: str) -> list[str]:
         return [sys.executable, str(self.shell), "workflow", "resume", run_id, "--cwd", str(attempt / "target")]

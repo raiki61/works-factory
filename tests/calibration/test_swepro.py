@@ -49,6 +49,9 @@ if args == ["--version"]:
 with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps({"who": "claude", "args": args, "cwd": os.getcwd(), "names": sorted(os.environ),
                         "env": {k: os.environ.get(k) for k in ("HOME", "CLAUDE_CONFIG_DIR")}}) + "\\n")
+if os.environ.get("FAKE_CLAUDE_ERROR"):
+    print(json.dumps({"is_error": True, "result": os.environ["FAKE_CLAUDE_ERROR"], "session_id": "s"}))
+    sys.exit(1)
 with open("a.py", "w", encoding="utf-8") as f:
     f.write("x = 3\\n")
 print(json.dumps({"is_error": False, "total_cost_usd": 1.5, "duration_ms": 1000, "session_id": "s"}))
@@ -91,6 +94,14 @@ class TaskInputsTest(unittest.TestCase):
     def test_commands_run_in_the_worktree(self):
         for command in swepro.TEST_COMMANDS.values():
             self.assertNotIn("/app", command)
+
+    def test_pro_limit_is_the_task_agent_timeout(self):
+        task = tomllib.loads((FIXTURE / "task.toml").read_text(encoding="utf-8"))
+        self.assertEqual(swepro.PRO_SECONDS, task["agent"]["timeout_sec"])
+
+    def test_producers_are_the_runner_producers_but_old_works(self):
+        self.assertEqual(set(runner.PRODUCERS) - set(swepro.PRODUCERS), {runner.OldWorks.name})
+        self.assertLessEqual(set(swepro.PRODUCERS), set(runner.PRODUCERS))
 
     def test_test_cmd_is_a_main_graph_input(self):
         graph = yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))
@@ -135,8 +146,8 @@ class InsideTest(unittest.TestCase):
     def set_plan(self, **plan):
         self.plan.write_text(json.dumps(plan), encoding="utf-8")
 
-    def sealed_plan(self, **value):
-        files = {test_run.JUDGMENT: test_run.UNITS, swepro.apply.APPLY_DIFF: DIFF}
+    def sealed_plan(self, diff=DIFF, **value):
+        files = {test_run.JUDGMENT: test_run.UNITS, swepro.apply.APPLY_DIFF: diff}
         self.set_plan(value=value, artifacts=files)
 
     def inside(self, producer="works-factory"):
@@ -154,8 +165,11 @@ class InsideTest(unittest.TestCase):
         rows = [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()] if self.log.exists() else []
         return [r for r in rows if r["who"] == who]
 
-    def seal(self) -> dict:
-        return {"ok": True, "hash": swepro.apply.seal.digest(DIFF.encode()), "diff": POINTER}
+    def seal(self, diff=DIFF) -> dict:
+        return {"ok": True, "hash": swepro.apply.seal.digest(diff.encode()), "diff": POINTER}
+
+    def predicted(self, result, patch="") -> dict:
+        return swepro.prediction(OPENLIBRARY, result["producer"], patch, result, 1.0, "f")
 
     def test_sealed_diff_is_applied_and_captured(self):
         self.sealed_plan(apply=self.seal(), sealed=self.seal())
@@ -163,9 +177,44 @@ class InsideTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual((self.workdir / "a.py").read_text(encoding="utf-8"), "x = 2\n")
         self.assertIn("+x = 2", self.patch())
-        self.assertEqual((result["apply"]["code"], result["stopped"], result["state"]), (0, False, "done"))
+        self.assertEqual((result["apply"]["code"], result["state"], result["error"]), (0, "done", None))
+        predicted = self.predicted(result)
+        self.assertEqual((predicted["stopped"], predicted["failed"]), (False, False))
         self.assertFalse(result["target_changed_during_run"])
         self.assertTrue((self.out / "evidence" / "record" / "parent.json").is_file())
+
+    def test_sealed_diff_that_deletes_a_file_is_applied(self):
+        (self.workdir / "b.py").write_text("y = 1\n", encoding="utf-8")
+        git(self.workdir, "add", "b.py")
+        git(self.workdir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "b")
+        git(self.workdir, "rm", "-q", "b.py")
+        gone = subprocess.run(["git", "-C", str(self.workdir), "diff", "--cached"], capture_output=True, text=True,
+                              check=True).stdout
+        git(self.workdir, "reset", "-q", "--hard")
+        self.sealed_plan(gone, apply=self.seal(gone), sealed=self.seal(gone))
+        done, result = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(result["apply"]["code"], 0, result["apply"])
+        self.assertFalse((self.workdir / "b.py").exists())
+        self.assertIn("deleted file mode", self.patch())
+
+    def test_sealed_diff_that_does_not_apply_is_a_failed_producer(self):
+        stale = DIFF.replace("-x = 1", "-x = 5")
+        self.sealed_plan(stale, apply=self.seal(stale), sealed=self.seal(stale))
+        done, result = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(result["apply"]["code"], swepro.apply.REFUSED)
+        self.assertIn("封じた差分が当たらない", result["error"])
+        self.assertTrue(self.predicted(result)["failed"])
+
+    def test_failed_factory_run_is_a_failed_producer(self):
+        self.set_plan(status="failed")
+        done, result = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(result["state"], "failed")
+        self.assertIn(RUN_ID, result["error"])
+        predicted = self.predicted(result)
+        self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
 
     def test_needs_human_before_seal_gives_empty_patch(self):
         self.set_plan(outcome="needs_human")
@@ -173,31 +222,35 @@ class InsideTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual((self.workdir / "a.py").read_text(encoding="utf-8"), "x = 1\n")
         self.assertEqual(self.patch(), "")
-        self.assertEqual((result["stopped"], result["apply"]["code"]), (True, 1))
-        self.assertIn("needs_human", result["stop_why"])
+        predicted = self.predicted(result)
+        self.assertEqual((predicted["stopped"], predicted["failed"], result["apply"]["code"]), (True, False, 1))
+        self.assertIn("needs_human", predicted["stop_why"])
 
     def test_needs_human_with_seal_applies_with_allow_stopped(self):
         self.sealed_plan(outcome="needs_human", sealed=self.seal())
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIn("+x = 2", self.patch())
-        self.assertEqual((result["stopped"], result["apply"]["code"]), (True, 0))
+        self.assertEqual((self.predicted(result)["stopped"], result["apply"]["code"]), (True, 0))
 
     def test_paused_run_is_stopped_with_the_gate(self):
         self.set_plan(status="paused")
         done, result = self.inside()
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual((result["stopped"], result["gate"], result["apply"]), (True, "gate-final", None))
-        self.assertIn("gate-final", result["stop_why"])
+        predicted = self.predicted(result)
+        self.assertEqual((predicted["stopped"], predicted["failed"], result["gate"], result.get("apply")),
+                         (True, False, "gate-final", None))
+        self.assertIn("gate-final", predicted["stop_why"])
         self.assertEqual(self.patch(), "")
         every = [a for c in self.calls() for a in c["args"]]
         self.assertFalse({"respond", "resume", "approve", "reject"} & set(every))
 
     def test_factory_gets_test_cmd_and_unattended_inputs(self):
-        self.inside()
+        _, result = self.inside()
         [call] = [c for c in self.calls() if c["args"][1] == "run"]
         args = call["args"]
         inputs = dict(args[i + 1].split("=", 1) for i, a in enumerate(args) if a == "--input")
+        self.assertEqual(result["inputs"], list(inputs))
         self.assertEqual((inputs["test_cmd"], inputs["unattended"], inputs["base"]),
                          (swepro.TEST_COMMANDS["internetarchive/openlibrary"], "true", ""))
         self.assertEqual(pathlib.Path(args[args.index("--cwd") + 1]).resolve(), self.workdir.resolve())
@@ -241,12 +294,29 @@ class InsideTest(unittest.TestCase):
         self.assertEqual(json.loads(settings.read_text(encoding="utf-8"))["permissions"], runner.toolset.DENY_WEB)
         self.assertIn("+x = 3", self.patch())
         self.assertNotIn("test_cmd", result["inputs"])
-        self.assertEqual((result["state"], result["usd"], result["factory_seconds"]), ("done", 1.5, 1.0))
+        self.assertEqual((result["state"], result["usd"], result["factory_seconds"], result["error"]), ("done", 1.5, 1.0, None))
+
+    def test_plain_claude_error_is_a_failed_producer(self):
+        self.env["FAKE_CLAUDE_ERROR"] = "Invalid bearer token"
+        done, result = self.inside("claude")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(result["state"], "failed")
+        self.assertIn("Invalid bearer token", result["error"])
+        self.assertEqual(self.patch(), "")
+        self.assertTrue(self.predicted(result)["failed"])
+
+    def test_capture_outside_git_leaves_no_patch(self):
+        (self.out / swepro.PATCH).parent.mkdir(parents=True, exist_ok=True)
+        (self.out / swepro.PATCH).write_text("old", encoding="utf-8")
+        done = subprocess.run(["bash", "-c", swepro.capture_command(str(self.tmp / "not-a-repo"), str(self.out))],
+                              capture_output=True)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertFalse((self.out / swepro.PATCH).exists())
 
 
 class PredictionTest(unittest.TestCase):
-    RESULT = {"producer": "works-factory", "run_id": RUN_ID, "state": "done", "outcome": "needs_human", "stopped": True,
-              "stop_why": "結末 needs_human", "apply": {"code": 0, "line": "当てた"}, "factory_seconds": 10.0, "usd": 2.5,
+    RESULT = {"producer": "works-factory", "run_id": RUN_ID, "state": "done", "outcome": "needs_human", "error": None,
+              "apply": {"code": 0, "line": "当てた"}, "factory_seconds": 10.0, "usd": 2.5,
               "usd_from": "x", "inputs": ["request"], "test_cmd": "t", "env_names": ["HOME"], "target_changed_during_run": False,
               "provenance": {"archon": "c"}}
 
@@ -271,15 +341,29 @@ class PredictionTest(unittest.TestCase):
 
     def test_missing_result_is_driver_failed(self):
         got = swepro.prediction(OPENLIBRARY, "claude", DIFF, None, 5.0, "f")
-        self.assertEqual((got["state"], got["stopped"], got["model_patch"]), ("driver_failed", False, DIFF))
+        self.assertEqual((got["state"], got["stopped"], got["failed"], got["model_patch"], got["usd"], got["outcome"]),
+                         (swepro.DRIVER_FAILED, False, True, DIFF, None, ""))
+
+    def test_stop_why_comes_from_the_result_fields(self):
+        got = swepro.prediction(OPENLIBRARY, "works-factory", DIFF, self.RESULT, 12.0, "f")
+        self.assertEqual((got["stopped"], got["stop_why"]), (True, "結末 needs_human"))
+        fixed = swepro.prediction(OPENLIBRARY, "works-factory", DIFF, {**self.RESULT, "outcome": "fixed"}, 12.0, "f")
+        self.assertEqual((fixed["stopped"], fixed["stop_why"], fixed["failed"]), (False, "", False))
+
+    def test_uncaptured_patch_is_stopped_not_empty(self):
+        got = swepro.prediction(OPENLIBRARY, "works-factory", None, {**self.RESULT, "outcome": "fixed"}, 12.0, "f")
+        self.assertIsNone(got["model_patch"])
+        self.assertTrue(got["stopped"])
+        self.assertIn(swepro.WORKDIR, got["stop_why"])
 
 
 class TallyTest(unittest.TestCase):
     def test_counts_and_unreadable_file(self):
         job = hermetic.tmpdir(self)
-        rows = [("t1", {"stopped": True, "model_patch": "", "seconds": 10, "usd": 1.0}),
-                ("t2", {"stopped": False, "model_patch": DIFF, "seconds": 4000, "usd": 2.0}),
-                ("t3", {"stopped": False, "model_patch": "", "seconds": None, "usd": None})]
+        rows = [("t1", {"outcome": "needs_human", "model_patch": "", "seconds": 10, "usd": 1.0}),
+                ("t2", {"outcome": "fixed", "model_patch": DIFF, "seconds": 4000, "usd": 2.0}),
+                ("t3", {"outcome": "fixed", "model_patch": "", "seconds": None, "usd": None, "error": "落ちた"}),
+                ("t5", {"outcome": "fixed", "model_patch": None, "seconds": 5, "usd": None})]
         for name, row in rows:
             (job / name / "agent").mkdir(parents=True)
             predicted = swepro.prediction(name, "works-factory", row["model_patch"], {**row, "state": "done"}, row["seconds"], "f")
@@ -287,8 +371,9 @@ class TallyTest(unittest.TestCase):
         done = subprocess.run([sys.executable, str(HERE / "swepro.py"), "tally", str(job)], capture_output=True, text=True,
                               encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(json.loads(done.stdout), {"producers": ["works-factory"], "tasks": 3, "stopped": 1, "over_pro_limit": 1,
-                                                   "empty_patch": 2, "unmeasured_seconds": 1, "usd": 3.0, "usd_missing": 1})
+        self.assertEqual(json.loads(done.stdout), {"producers": ["works-factory"], "tasks": 4, "stopped": 2, "failed": 1,
+                                                   "over_pro_limit": 1, "empty_patch": 2, "unmeasured_seconds": 1, "usd": 3.0,
+                                                   "usd_missing": 2})
         (job / "t4" / "agent").mkdir(parents=True)
         (job / "t4" / "agent" / swepro.PREDICTION).write_text("{", encoding="utf-8")
         done = subprocess.run([sys.executable, str(HERE / "swepro.py"), "tally", str(job)], capture_output=True, text=True,
@@ -306,18 +391,21 @@ class Done:
 class FakeEnvironment:
     """exec と upload_file を呼ばれた順に控える。upload は呼ばれた時に中身を読む"""
 
-    def __init__(self, image, result, inside_code=0):
+    def __init__(self, image, result, inside_code=0, capture_code=0):
+        """result が None なら起こし役の結果のファイルが無い"""
         self.task_env_config = types.SimpleNamespace(docker_image=image)
-        self.calls, self.result, self.inside_code = [], result, inside_code
+        self.calls, self.result, self.inside_code, self.capture_code = [], result, inside_code, capture_code
 
     async def exec(self, command, cwd=None, env=None, timeout_sec=None, user=None):
         self.calls.append({"kind": "exec", "command": command, "env": env, "user": user, "timeout_sec": timeout_sec})
         if command.startswith("cat ") and command.endswith(swepro.RESULT):
-            return Done(0, json.dumps(self.result))
+            return Done(1) if self.result is None else Done(0, json.dumps(self.result))
         if command.startswith("cat "):
             return Done(0, DIFF)
         if "swepro.py inside" in command:
-            return Done(self.inside_code)
+            return Done(self.inside_code, "工場の出力")
+        if command == swepro.capture_command(swepro.WORKDIR, swepro.OUT):
+            return Done(self.capture_code)
         return Done(0)
 
     async def upload_file(self, source_path, target_path):
@@ -366,9 +454,10 @@ class AgentTest(unittest.TestCase):
     def agent(self, producer="works-factory"):
         return self.agent_module.WorksBench(logs_dir=self.tmp / "logs", producer=producer)
 
-    def go(self, image=IMAGE.format(OPENLIBRARY), inside_code=0):
-        result = {"state": "done", "outcome": "fixed", "stopped": False, "usd": 2.0, "provenance": {"archon": "c"}}
-        environment = FakeEnvironment(image, result, inside_code)
+    RESULT = {"state": "done", "outcome": "fixed", "error": None, "usd": 2.0, "provenance": {"archon": "c"}}
+
+    def go(self, image=IMAGE.format(OPENLIBRARY), inside_code=0, result=RESULT, capture_code=0):
+        environment = FakeEnvironment(image, result, inside_code, capture_code)
         context = types.SimpleNamespace(cost_usd=None, metadata=None)
         agent = self.agent()
         asyncio.run(agent.setup(environment))
@@ -424,6 +513,28 @@ class AgentTest(unittest.TestCase):
         self.assertIsNotNone(got["seconds"])
         self.assertEqual(self.context.cost_usd, 2.0)
         self.assertEqual(self.context.metadata["pro_limit"], {"seconds": 3000, "over": False})
+
+    def test_driver_without_result_reaches_harbor_with_metadata(self):
+        with self.assertRaises(RuntimeError) as caught:
+            self.go(inside_code=1, result=None)
+        self.assertIn("終了の値 1", str(caught.exception))
+        self.assertIsNone(self.context.cost_usd)
+        self.assertEqual({k: self.context.metadata[k] for k in ("state", "failed", "stopped", "outcome")},
+                         {"state": swepro.DRIVER_FAILED, "failed": True, "stopped": False, "outcome": ""})
+        self.assertEqual(self.context.metadata["pro_limit"]["seconds"], swepro.PRO_SECONDS)
+
+    def test_driver_output_is_kept(self):
+        self.go()
+        self.assertEqual((self.tmp / "logs" / swepro.INSIDE_STDOUT).read_text(encoding="utf-8"), "工場の出力")
+        self.assertTrue((self.tmp / "logs" / swepro.INSIDE_STDERR).is_file())
+
+    def test_failed_capture_is_stopped_without_a_patch(self):
+        self.go(capture_code=1)
+        got = self.predicted()
+        self.assertIsNone(got["model_patch"])
+        self.assertTrue(got["stopped"])
+        run = [c.get("command") for c in self.environment.calls[self.environment.calls_after_setup:]]
+        self.assertNotIn(f"cat {swepro.OUT}/{swepro.PATCH}", run)
 
     def test_old_works_and_unknown_producers_are_refused(self):
         with self.assertRaises(ValueError) as caught:
