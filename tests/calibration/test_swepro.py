@@ -644,6 +644,21 @@ class AgentTest(unittest.TestCase):
                 self.assertIn(named, got["error"])
                 self.assertEqual(self.context.metadata["state"], swepro.AUTH_REFUSED)
 
+    def test_missing_auth_is_refused_before_upload_with_the_reason_predicted(self):
+        why = "no credential found anywhere"
+        self.environ()
+        # 認証の無い env では macOS の resolve がホストの keychain を読むので、resolve の答えを差す
+        with mock.patch.object(self.agent_module.auth_launch, "resolve", return_value=(None, None, why)):
+            with self.assertRaises(ValueError) as caught:
+                self.go()
+        self.assertIn(why, str(caught.exception))
+        run = self.environment.calls[self.environment.calls_after_setup:]
+        self.assertFalse([c for c in run if c["kind"] == "upload"])
+        got = self.predicted()
+        self.assertEqual((got["state"], got["failed"], got["stopped"], got["model_patch"]),
+                         (swepro.AUTH_REFUSED, True, False, ""))
+        self.assertIn(why, got["error"])
+
     def test_other_repository_is_refused_before_upload(self):
         environment = FakeEnvironment(IMAGE.format(FLIPT), {})
         with self.assertRaises(swepro.BenchError):
