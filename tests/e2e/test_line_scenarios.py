@@ -29,7 +29,7 @@ SCENARIOS = (
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
     "unattended-questions", "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
-    "nothing-owed", "fix-fixture",
+    "nothing-owed", "depth-light", "depth-raised", "depth-no-evidence", "fix-fixture",
 )
 
 
@@ -184,6 +184,40 @@ class ProtectedNotAppliedTest(unittest.TestCase):
             self.assertFalse(ran(trace, node), node)
         self.assertTrue(ran(trace, "report__report"))
         self.assertIsNone(json.loads(trace["result"]["output"])["apply"])
+
+
+class HeadDepthTest(unittest.TestCase):
+    """run の頭の深さ（issue #441）: 軽量の run は表のノード（事前審査の輪）が skipped になり報告まで届く。走っている間に上げる信号
+    （計画の単位に標準）が出た run と、根拠が引けず判定が標準を返した run は、輪が走る。筋書きの宣言は節が走らなかったことを照らせない
+    ので、dry-run の trace で照らす"""
+
+    LOOP = "plan-review-run__review-loop"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = line_traces(("depth-light", "depth-raised", "depth-no-evidence"))
+
+    def due(self, name) -> dict:
+        return json.loads(self.traces[name]["plan-review-due"]["output"])
+
+    def test_light_run_skips_the_listed_node_and_reports(self):
+        trace = self.traces["depth-light"]
+        due = self.due("depth-light")
+        self.assertIs(due["skip"], True, due)
+        self.assertEqual(trace[self.LOOP]["state"], "skipped")
+        self.assertIs(json.loads(trace["fixed"]["output"])["review_skipped"], True)
+        self.assertTrue(UnattendedGateTest.ran(trace, "report__report"))
+
+    def test_raised_run_runs_the_loop(self):
+        due = self.due("depth-raised")
+        self.assertEqual((due["skip"], due["why"]), (False, "計画の単位がすべて軽量ではない"), due)
+        self.assertEqual(self.traces["depth-raised"][self.LOOP]["state"], "completed")
+
+    def test_unproven_request_is_standard_and_runs_the_loop(self):
+        due = self.due("depth-no-evidence")
+        self.assertEqual((due["skip"], due["why"]), (False, ""), due)
+        self.assertEqual(self.traces["depth-no-evidence"][self.LOOP]["state"], "completed")
+        self.assertIs(json.loads(self.traces["depth-no-evidence"]["fixed"]["output"])["review_skipped"], False)
 
 
 def bound(trace: dict, value):

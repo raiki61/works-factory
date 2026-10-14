@@ -5,6 +5,8 @@ fixture:
 intake: {go: false, mode: judge, spec: false, world: false, verify: false, reason: 依頼の行 0 に text が無い}
 verify-merge: {ok: true, reason: ''}
 verdict:
+  depth: 標準
+  depth_why: 筋書きの stub
   ready: false
   stop_reason: works:request
   units: []

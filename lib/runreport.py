@@ -46,6 +46,7 @@ import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import green_cert  # noqa: E402
+import headdepth  # noqa: E402
 import judgeverify  # noqa: E402
 import marks  # noqa: E402
 import oneline  # noqa: E402
@@ -1232,8 +1233,20 @@ def _depth_lines(start: dict, returns: dict, line: dict) -> list:
     doc = {"units": {str(d.get("unit_id")): {"depth": d.get("depth"), "why": [str(d["why"])] if d.get("why") else []}
                      for d in rows if isinstance(d, dict)},
            "forced": as_dict(start).get("thickness") or "", "raised": _list(redepth.get("raised")),
-           "counted": redepth.get("counted") or ""}
+           "counted": redepth.get("counted") or "", "eyes_kept": as_dict(returns.get("plan")).get("depth_skip") is True}
     return [*depthlib.lines(doc), *([] if redepth else [NO_REDEPTH])]
+
+
+def _head_depth_line(returns: dict) -> list:
+    """run の頭の深さの 1 行（報告の冒頭 2。headdepth.report_line）: 1 回目の判定が決めた深さと根拠と、計画の往復が飛ばしたノード・
+    標準へ上げた訳（計画の往復の depth_why。飛ばした周では飛ばした訳なので上げた訳に数えない）。判定の返りが無ければ出さない"""
+    judged = returns.get("judge")
+    if not isinstance(judged, dict) or not judged.get("depth"):
+        return []
+    planned = as_dict(returns.get("plan"))
+    skipped = planned.get("depth_skip") is True
+    return [headdepth.report_line(judged["depth"], judged.get("depth_why") or "", skipped,
+                                  "" if skipped else str(planned.get("depth_why") or ""))]
 
 
 def _prior_in_lines(line: dict) -> list:
@@ -1289,6 +1302,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     out.append(f"走った段: {'・'.join(ran) or '無い'}")
     out.append(f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}")
     out += _downgrade_lines()
+    out += _head_depth_line(returns)
     out += _depth_lines(start, returns, line)
     out += _prior_in_lines(line)
     out += _policy_lines(returns, repo)
@@ -1526,7 +1540,8 @@ def _ran_notes(returns: dict) -> list:
     """最後のテストが走っていない・走ったと確かめられていない時の冒頭の句（green_cert.ran_note。#492）。最後のテストまで来なかった
     run は結末がそう言い、直す前のテストは本文の行が言う"""
     fin = _ret(returns, "test-gate-final")
-    note = green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "") if fin else ""
+    note = (green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "",
+                                steps=fin.get("ran_steps")) if fin else "")
     return [note] if note else []
 
 
@@ -1595,13 +1610,22 @@ def cold_body(raw) -> str:
 
 
 def _machine_head_notes(out_dir: pathlib.Path) -> list:
-    """機械の報告（out_dir の report.REPORT_FILE）の冒頭に在る、HEAD_NOTES の句。読めなければ求めない（事実の節に別の落ち方が在る）"""
+    """機械の報告（out_dir の report.REPORT_FILE）の冒頭に在る、HEAD_NOTES の句。green_cert.PARTLY_RAN は段を名指す括弧まで
+    （名を落とした頭を通さない）。読めなければ求めない（事実の節に別の落ち方が在る）"""
     try:
         text = (out_dir / report.REPORT_FILE).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
     head = text.split("\n## ", 1)[0]
-    return [note for note in HEAD_NOTES if note in head]
+    return [_named_note(head, note) for note in HEAD_NOTES if note in head]
+
+
+def _named_note(head: str, note: str) -> str:
+    if note != green_cert.PARTLY_RAN:
+        return note
+    start = head.index(note)
+    end = head.find("）", start)
+    return head[start:end + 1] if end >= 0 else note
 
 
 def accept(reply, cold, *, out_dir) -> dict:

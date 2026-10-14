@@ -8,7 +8,8 @@ Claude Code 自身の keychain の項目の名と、macOS 以外の保存済み�
 変数だけを足すので、どの認証の道でも子の CLAUDE_CONFIG_DIR は隔離した置き場のまま。
 利用者が lib/userenv.py の OPT_IN を立てた時だけ、隔離の前の HOME・XDG_* を子の userenv.RECORD に控える（対象のコマンドにだけ
 戻す。決めと訳は userenv）。立てなければ、利用者の env から継いだ控えも子に残さない。戻した印の置き場（userenv.RAN_DIR_ENV）も、利用者の env から継いだ値は
-子に残さない（印はメイングラフの run の置き場にだけ置く）。
+子に残さない（印はメイングラフの run の置き場にだけ置く）。印のパス（userenv.MARK）も同じく、継いだ値は子に残さない（道を付けていない
+run が印を書かない）。
 """
 from collections.abc import Mapping
 from pathlib import Path
@@ -33,6 +34,7 @@ def isolate(env: Mapping[str, str], run_home: Path) -> dict[str, str]:
     child = dict(env)
     child.pop(userenv.RECORD, None)
     child.pop(userenv.RAN_DIR_ENV, None)
+    child.pop(userenv.MARK, None)
     if (record := userenv.record(env)) is not None:
         child[userenv.RECORD] = record
     for name, sub in DIRS.items():

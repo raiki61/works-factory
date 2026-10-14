@@ -143,6 +143,7 @@ nodes:
       got_ok: "$test-gate-base.output.ok"
       got_green: "$test-gate-base.output.green"
       got_red_cause: "$test-gate-base.output.red_cause"
+      got_ran_steps: "$test-gate-base.output.ran_steps"
       got_baseline: "$test-gate-base.output.baseline"
       got_fingerprint: "$test-gate-base.output.fingerprint"
       got_test_outcomes: "$test-gate-base.output.test_outcomes"
@@ -186,6 +187,8 @@ nodes:
       got_spec: "$judge.output.spec"
       got_out_of_purpose: "$judge.output.out_of_purpose"
       got_rejudge_verdict: "$judge.output.rejudge_verdict"
+      got_depth: "$judge.output.depth"
+      got_depth_why: "$judge.output.depth_why"
 
   # 5' 直す物が無い周（判定が直す単位を出さず、止めてもいない）は修正案を作らず、最後の R2 が要る独立設計だけを作る（元
   # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める。
@@ -251,9 +254,30 @@ nodes:
             conflicts: null
             prior_failures: "$start.output.prior_failures"
 
+        # run の頭の深さが軽量で、計画の単位が全部軽量で、前の周の事前審査が無いなら、事前審査の輪を飛ばす
+        # （docs/design.md の「深さで飛ばすノードの表」）
+        - id: plan-review-due
+          script: plan_review_due
+          runtime: uv
+          timeout: 1728000000
+          output_format:
+            type: object
+            properties:
+              skip: { type: boolean }
+              why: { type: string }
+              stop_reason: { type: string }
+            required: [skip, why, stop_reason]
+          mutates_checkout: false
+          depends_on: [plan]
+          with:
+            head_depth: "$judge.output.depth"
+            ready: "$plan.output.ready"
+            plan_depth: "$plan.output.depth"
+            prior_review: "$LOOP_PREV.plan-out.output.review"
+
         - id: plan-review-run
           include: works-factory-plan-review
-          depends_on: [plan]
+          depends_on: [plan, plan-review-due]
           when: "$plan.output.ready == true"
           with:
             start: "$start.output.record"
@@ -267,6 +291,8 @@ nodes:
             answers: "$answer-start.output.answer"
             ruling: []
             round_limit: 20
+            depth_skip: "$plan-review-due.output.skip"
+            depth_why: "$plan-review-due.output.why"
 
         - id: plan-out
           script: plan_out
@@ -288,13 +314,15 @@ nodes:
               gate_axes: {}
               ask_human: {}
               questions: {}
+              depth_skip: {}
+              depth_why: {}
               nothing_owed: { type: boolean }
               done: { type: boolean }
               stop_reason: { type: string }
             required: [ready, plan, structure, ripple, depth, round, pass, stalled, review, design, gate_axes, ask_human, questions,
-                       nothing_owed, done, stop_reason]
+                       depth_skip, depth_why, nothing_owed, done, stop_reason]
           mutates_checkout: false
-          depends_on: [plan, plan-review-run]
+          depends_on: [plan, plan-review-due, plan-review-run]
           trigger_rule: none_failed_min_one_success
           with:
             round_limit: 20
@@ -311,6 +339,8 @@ nodes:
             gate_axes: { from: "$plan-review-run.output.gate_axes", if_skipped: null }
             ask_human: { from: "$plan-review-run.output.ask_human", if_skipped: null }
             questions: { from: "$plan-review-run.output.questions", if_skipped: null }
+            depth_skip: { from: "$plan-review-due.output.skip", if_skipped: null }
+            depth_why: { from: "$plan-review-due.output.why", if_skipped: null }
 
   - id: plan-rounds-out
     script: returned
@@ -331,6 +361,8 @@ nodes:
       got_ripple: "$plan-rounds.output.ripple"
       got_depth: "$plan-rounds.output.depth"
       got_round: "$plan-rounds.output.round"
+      got_depth_skip: "$plan-rounds.output.depth_skip"
+      got_depth_why: "$plan-rounds.output.depth_why"
 
   - id: plan-rounds-review-out
     script: returned
@@ -699,10 +731,11 @@ nodes:
         plan_questions: {}
         answer: {}
         no_fix: { type: boolean }
+        review_skipped: { type: boolean }
         stop_reason: { type: string }
       required: [units, groups, conflicts, replan_items, objection, diff, diffs, allowed_test_changes, changed, x_scalars, delta_review,
                  handoffs, mismatched,
-                 done, go, rejudge, refixed, plan, ripple, design, plan_questions, answer, no_fix, stop_reason]
+                 done, go, rejudge, refixed, plan, ripple, design, plan_questions, answer, no_fix, review_skipped, stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, refix-run, replan-out, design-only]
     trigger_rule: none_failed_min_one_success
@@ -744,6 +777,7 @@ nodes:
       plan_questions: { from: "$fix-in.output.questions", if_skipped: null }
       answer: { from: "$fix-in.output.answer", if_skipped: null }
       no_fix_design: { from: "$design-only.output.design", if_skipped: null }
+      review_skipped: { from: "$plan-rounds.output.depth_skip", if_skipped: null }
 
   # 再審は 2 度目の修正の後（元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。1 回目と 2 度目の修正役の異議を 1 度だけ再審する
   - id: rejudge-run
@@ -778,6 +812,8 @@ nodes:
       got_spec: "$rejudge-run.output.spec"
       got_out_of_purpose: "$rejudge-run.output.out_of_purpose"
       got_rejudge_verdict: "$rejudge-run.output.rejudge_verdict"
+      got_depth: "$rejudge-run.output.depth"
+      got_depth_why: "$rejudge-run.output.depth_why"
 
   - id: judged
     script: judged
@@ -872,6 +908,7 @@ nodes:
       got_ok: "$test-gate-final.output.ok"
       got_green: "$test-gate-final.output.green"
       got_red_cause: "$test-gate-final.output.red_cause"
+      got_ran_steps: "$test-gate-final.output.ran_steps"
       got_baseline: "$test-gate-final.output.baseline"
       got_fingerprint: "$test-gate-final.output.fingerprint"
       got_test_outcomes: "$test-gate-final.output.test_outcomes"
@@ -905,6 +942,7 @@ nodes:
       plan_questions: "$fixed.output.plan_questions"
       answers: "$fixed.output.answer"
       start_answers: "$answer-start.output.answer"
+      review_skipped: "$fixed.output.review_skipped"
 
   - id: eyes-out
     script: returned
@@ -985,6 +1023,7 @@ nodes:
       tests_ok: "$test-gate-final.output.ok"
       green: "$test-gate-final.output.green"
       red_cause: "$test-gate-final.output.red_cause"
+      ran_steps: "$test-gate-final.output.ran_steps"
       by: "$test-gate-final.output.by"
       suites_line: "$test-gate-final.output.suites_line"
       log: "$test-gate-final.output.log"
@@ -1171,8 +1210,9 @@ nodes:
       prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
       redepth: { from: "$redepth.output", if_skipped: null }
       # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の節の id の頭。宣言の外の落ちは途中で終わった run に数える。
-      # 元は線の YAML の節の description の [optional]: 世界の解・構造の実測・レンズ・直した後の構造・独立の目）
-      optional: '["judge__world", "rejudge-run__world", "world-classes", "world-judge", "plan__structure", "replan__structure", "structure-eye", "fix__lens", "refix-run__lens", "eyes__"]'
+      # 元は線の YAML の節の description の [optional]: 世界の解・構造の実測・レンズ・直した後の構造・独立の目。run の頭の深さの段は
+      # 落ちても判定が標準で進む）
+      optional: '["judge__world", "rejudge-run__world", "world-classes", "world-judge", "plan__structure", "replan__structure", "structure-eye", "fix__lens", "refix-run__lens", "eyes__", "judge__head-depth", "head-depth"]'
 
   - id: report
     include: works-factory-report

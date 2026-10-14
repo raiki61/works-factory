@@ -3,6 +3,7 @@ fixture:
   expect: completed
   reached: [world-intake, world-classes-accept, world-plan, world-judge-accept, world-finish, diagnose-accept, verdict]
 intake: {go: true, mode: judge, spec: false, world: true, verify: false, reason: ''}
+head-depth-prep: {go: false, brief_file: '', reason: 機械の止め（筋書きの stub）}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:
   constraints: []
@@ -58,6 +59,8 @@ diagnose-accept: *id001
 verify-prep: {go: false, prompt_file: '', reason: 開いた単位が 2 つ未満, "lang_line": ""}
 verify-merge: {ok: true, reason: ''}
 verdict:
+  depth: 標準
+  depth_why: 筋書きの stub
   ready: true
   stop_reason: ''
   units:

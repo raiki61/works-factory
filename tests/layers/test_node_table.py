@@ -50,8 +50,8 @@ KEEP_NAME_REWRITES = {"10": ("最後の関所を開く", "最後の承認ノー�
 KEEP_NAMES = {k: v.replace(*KEEP_NAME_REWRITES[k]) if k in KEEP_NAME_REWRITES else v for k, v in KEEP_SOURCE_NAMES.items()}
 
 BY_KINDS = {
-    "role": {"command", "prompt"},
-    "machine": {"script", "bash"},
+    "role": set(scan.ROLE_KINDS),
+    "machine": set(scan.CODE_KINDS),
     "archon": {"approval", "loop_group", "loop", "workflow", "include"},
 }
 BY = (*BY_KINDS, "absent")

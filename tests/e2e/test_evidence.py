@@ -18,14 +18,15 @@ from collections.abc import Callable
 from tests.bin import hermetic, stepnames
 from tests.e2e import evidence, make_target
 from tests.layers import scan
-from tests.layers.test_capability_pointers import POINTER, python_definitions, yaml_definitions
+from tests.layers.test_capability_pointers import EVIDENCE_ROW_ID, POINTER, ROW, mention, python_definitions, yaml_definitions
 
 E2E = pathlib.Path(__file__).resolve().parent
 ROOT = E2E.parents[1]
 INVENTORY = ROOT / "docs" / "plans" / "2026-10-13-capabilities"
 INVENTORY_FILES = ("line.md", "judge.md", "plan.md", "fix.md", "tail.md")
 WIRING = ROOT / "docs" / "plans" / "2026-10-13-line-wiring.md"
-ROW_ID = r"(?:L-[EGWD]|[JPFTERM])\d+[a-z]?"
+PART_CLOSES = re.compile(rf"- ({EVIDENCE_ROW_ID})〔")
+ROW_MENTION = mention(EVIDENCE_ROW_ID)
 SCENARIO_ONLY = "筋書きでのみ"
 # 基準で seen から移した scenario-only の行の why の頭（棚卸しの字でなく移した訳を持つ）
 OUT_OF_REAL_RUN = "本物の通しの照らしの外（#261 の決め直し）: "
@@ -252,8 +253,8 @@ def inventory() -> dict[str, str]:
         for line in (INVENTORY / name).read_text(encoding="utf-8").splitlines():
             if line.startswith("#"):
                 current = None
-            elif head := re.match(rf"- ({ROW_ID})[ 〔]", line):
-                current = head.group(1)
+            elif head := ROW.match(line):
+                current = head.group(1) if re.fullmatch(EVIDENCE_ROW_ID, head.group(1)) else None
             elif current and (real := re.match(r"\s+- 本物の run: (.*)", line)):
                 rows.setdefault(current, real.group(1))
     return rows
@@ -278,10 +279,10 @@ def wiring() -> tuple[dict[str, set[str]], dict[str, str]]:
             section = OUTSIDE if line.startswith(f"## {OUTSIDE}") else None
         elif section and line.startswith("### "):
             section = line[4:].strip()
-        elif part and (closing := re.match(rf"- ({ROW_ID})〔", line)):
+        elif part and (closing := PART_CLOSES.match(line)):
             parts.setdefault(part, set()).add(closing.group(1))
         elif section and section != OUTSIDE:
-            for named in re.findall(rf"(?<![\w-])({ROW_ID})(?!\d)", line):
+            for named in ROW_MENTION.findall(line):
                 outside.setdefault(named, section)
     return parts, outside
 

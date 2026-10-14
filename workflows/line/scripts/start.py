@@ -238,9 +238,9 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
                "base": change["base"] if change else None, "pr": change["pr"] if change else None,
                "spec": bool(checked["spec"])}
         pr = inp["pr"] or {}
-        if checked["spec"] and not asked["request_text"].strip() and not (pr.get("title") or pr.get("body")):
-            raise Refused("spec=on なのに依頼の文が無い（依頼のファイルも PR の題と本文も無い）——仕様の書き手が読む物が無い。"
-                          "依頼を名指すか、仕様の段を外す")
+        if checked["spec"] and not asked["items"] and not (pr.get("title") or pr.get("body")):
+            raise Refused("spec=on なのに依頼の文が無い（依頼の findings も PR の題と本文も無い）——仕様の書き手が読む物が無い。"
+                          "findings を書いた依頼か PR を名指すか、仕様の段を外す")
         shape = entryshape.build(inp, repo)
     except (Refused, entryshape.Refused) as error:
         record["refused"] = str(error)

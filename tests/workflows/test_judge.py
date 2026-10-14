@@ -27,6 +27,8 @@ from tests.workflows.copied import agent_body, assert_is_original, rewritten, ro
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import answer  # noqa: E402
+import depth  # noqa: E402
+import headdepth  # noqa: E402
 import judge_accept as ja  # noqa: E402
 import prcheck  # noqa: E402
 import reads  # noqa: E402
@@ -47,7 +49,8 @@ NO_DEADLINE = 1728000000
 RUN_ID = "run-judge"
 
 # 返す節の欄（docs/design.md の「サブグラフの出力の約束」の judge の返り）
-RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict")
+RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict", "depth",
+           "depth_why")
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
 MATERIALS = tuple(ja.MATERIAL_ROLES)
@@ -70,6 +73,7 @@ LOCAL_REVIEW_SKILLS = ["code-review", "simplify", "security-review"]
 LOCAL_REVIEW_PLUGINS = ["pr-review-toolkit@works-local"]
 # 節の id → (model, effort, allowed_tools, sandbox, mutates_checkout が false か, context, skills, plugins)
 ROLES = {
+    "head-depth": ("sonnet", "medium", READ, BASE, True, None, None, None),   # 今の works に元の無い役（issue #441）
     "spec": ("opus", "medium", WRITE_TESTS, BASE, False, None, None, None),
     "spec-review": ("opus", "high", [*READ, *WEB], BASE, True, None, None, None),
     "spec-revise": ("opus", "medium", WRITE_TESTS, BASE, False, None, None, None),
@@ -383,7 +387,7 @@ class LoopTest(unittest.TestCase):
 class RoleSettingsTest(unittest.TestCase):
     def test_roles_keep_the_old_settings(self):
         by = nodes()
-        roles = {nid for nid, n in by.items() if "command" in n or "prompt" in n}
+        roles = {nid for nid, n in by.items() if any(k in n for k in scan.ROLE_KINDS)}
         self.assertEqual(sorted(roles), sorted(ROLES))
         for nid, (model, effort, tools, sandbox, read_only, context, skills, plugins) in ROLES.items():
             n = by[nid]
@@ -626,6 +630,84 @@ class ScriptReturnsTest(unittest.TestCase):
                     if kinds is not None:
                         kinds = [kinds] if isinstance(kinds, str) else kinds
                         self.assertIsInstance(value, tuple(JSON_TYPES[k] for k in kinds), key)
+
+
+class HeadDepthTest(unittest.TestCase):
+    """run の頭の深さ（issue #441）: 支度の機械の止め・受け付けの引用の照らし・返す節の欄。根拠が引けない依頼は標準"""
+
+    LIGHT = {"depth": "軽量", "why": "原因と直す行が名指されている",
+             "items": [{"item": 1, "cause_quote": "2 でなく 3 を返す", "where": "stats.py:4-5",
+                        "code_quote": "return sum(xs) / (len(xs) - 1)"}]}
+
+    def opened(self, **start) -> Run:
+        r = Run(self, **{"test_cmd": "./junit-suite.sh", **start})
+        self.assertTrue(r.returned("intake")["go"])
+        return r
+
+    def record(self, r: Run) -> dict:
+        return json.loads((r.judge / headdepth.RECORD).read_text(encoding="utf-8"))
+
+    def test_prep_stops_without_waking_the_role(self):
+        for name, start in (("no test command", {"test_cmd": ""}), ("thickness", {"thickness": "標準"}),
+                            ("design only", {"design_only": "true"})):
+            with self.subTest(name):
+                r = self.opened(**start)
+                out = r.returned("head_depth_prep")
+                self.assertEqual((out["go"], out["brief_file"]), (False, ""), out)
+                self.assertEqual(self.record(r)["depth"], "標準")
+
+    def test_prep_writes_the_brief_and_a_standard_record(self):
+        r = self.opened()
+        out = r.returned("head_depth_prep")
+        self.assertTrue(out["go"], out)
+        self.assertIn("stats.py", pathlib.Path(out["brief_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(self.record(r)["depth"], "標準")
+
+    def test_accept_takes_a_quoted_light_reply(self):
+        r = self.opened()
+        r.returned("head_depth_prep")
+        out = r.returned("head_depth_accept", reply=self.LIGHT)
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+        self.assertEqual(self.record(r)["depth"], "軽量")
+
+    def test_accept_refuses_a_quote_the_code_lacks_and_keeps_standard(self):
+        r = self.opened()
+        r.returned("head_depth_prep")
+        bad = {**self.LIGHT, "items": [{**self.LIGHT["items"][0], "code_quote": "return 0"}]}
+        out = r.returned("head_depth_accept", reply=bad)
+        self.assertEqual((out["ok"], out["done"]), (False, False), out)
+        self.assertIn("code_quote", out["reason"])
+        doc = self.record(r)
+        self.assertEqual(doc["depth"], "標準")
+        self.assertIn("code_quote", doc["why"])
+
+    def test_verdict_returns_the_recorded_depth(self):
+        r = self.opened()
+        r.returned("head_depth_prep")
+        r.returned("head_depth_accept", reply=self.LIGHT)
+        out = r.returned("verdict")
+        verdict_shape(self, out)
+        self.assertEqual((out["depth"], out["depth_why"]), ("軽量", self.LIGHT["why"]))
+
+    def test_verdict_without_record_is_standard(self):
+        r = self.opened()
+        out = r.returned("verdict")
+        self.assertEqual((out["depth"], out["depth_why"]), ("標準", headdepth.NO_RECORD))
+        out = r.returned("verdict", objection="分母は正しい")
+        self.assertEqual((out["depth"], out["depth_why"]), ("標準", headdepth.REJUDGE_WHY))
+
+    def test_depth_words_are_the_lib_words(self):
+        """役の返答と判定の出力の深さの enum、lib を読めない時の判定の返り、計画の単位ごとの深さの enum は lib/depth.py の語
+        （YAML と lib を読めない script は lib を引けないので、試験が結ぶ）"""
+        words = [depth.LIGHT, depth.STANDARD]
+        got = nodes()
+        for node in ("head-depth", "verdict"):
+            with self.subTest(node=node):
+                self.assertEqual(got[node]["output_format"]["properties"]["depth"]["enum"], words)
+        self.assertIn(f'"depth": "{depth.STANDARD}"', (SCRIPTS / "verdict.py").read_text(encoding="utf-8"))
+        plan = {n["id"]: n for n in walk(yaml.safe_load((ROOT / "workflows" / "plan" / "works-factory-plan.yaml")
+                                                         .read_text(encoding="utf-8"))["nodes"])}
+        self.assertEqual(plan["plan"]["output_format"]["properties"]["depth"]["items"]["properties"]["depth"]["enum"], words)
 
 
 class UvLaunchTest(unittest.TestCase):
@@ -1218,6 +1300,8 @@ MATERIAL_HEADS = {
     "test-double-fidelity": material_head("test-double-fidelity", "代役の忠実性の役（任せ先）", "p1.test_double_fidelity", TOOLS_TMP, review=False),
 }
 
+# 今の works に元の無い役の指示書（写しの台帳を持たない）→ 出どころ
+OWN_TEXTS = {"head-depth.md": "issue #441 の run の頭の深さの役"}
 # 指示書の名 → (元のパス, 元の sha256, 許した直し)。本線の指示書の写しの置き場:
 WORKS_GL = "works/.shared/core/gl-prompts/prompts/review-loop/"
 COPIED_TEXTS = {
@@ -1653,7 +1737,8 @@ class CopiedTextsCase(unittest.TestCase):
         """許した直しを逆に当てると元のバイト（元の sha256）に戻る。台帳に無い指示書・指示書の無い台帳の行は赤"""
         on_disk = {p.name for p in COMMANDS.glob("*.md")}
         with self.subTest(ledger="台帳と指示書の一覧"):
-            self.assertEqual(sorted(COPIED_TEXTS), sorted(on_disk))
+            self.assertEqual(sorted([*COPIED_TEXTS, *OWN_TEXTS]), sorted(on_disk))
+            self.assertFalse(set(COPIED_TEXTS) & set(OWN_TEXTS))
             self.assertLessEqual(rewritten(COMMANDS), set(COPIED_TEXTS))
         for name in sorted(on_disk & set(COPIED_TEXTS)):
             source, sha256, edits = COPIED_TEXTS[name]
