@@ -691,7 +691,7 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 
 1. メイングラフに全部の本物のサブグラフを並べ、`tests/e2e/` を通す。
 2. 受け入れの一覧の全部の行に証を書く。graph のノードの表（`by` と `absent` の理由）をこのリポジトリにも置き、試験で縛る。
-3. 公開ベンチの比べ（`tests/calibration/run.py`。`docs/owner-decisions.md` の `public-bench-at-major`）: 大きい版上げの時だけ、ReviewBench の Python の部分集合を works-factory・今の works・素の Claude Code（同じ模型・effort）で回す。判定役で採点し、ノードとサブグラフの働きを Archon の記録から表にする。段 4 はこれを待たない。
+3. 公開ベンチの比べ（`tests/calibration/run.py`。`docs/owner-decisions.md` の `public-bench-at-major`）: 大きい版上げの時だけ、ReviewBench の Python の部分集合を works-factory・今の works・素の Claude Code（同じ模型・effort）で回す。判定役で採点し、ノードとサブグラフの働きを Archon の記録から表にする。段 4 はこれを待たない。依頼から直す力は SWE-Bench Pro V2 の Python（`tests/calibration/swepro.py` と Harbor の agent `swepro_agent.py`）で、works-factory と素の Claude Code を課題のコンテナの中で回す。今の works は Archon が macOS の実行ファイルに止まっているので、コンテナでは回さない（#437）。
 4. 自作の較正の束（#214）での 2 つの工場の比べは 2026-10-14 に終えた。結果は `docs/calibration-214.md` に残し、束は消した。
 5. 変異の検算（`p3.delta_gates`・`p4.final_gates`）と周の記録（`p2.history`）を戻すかを持ち主に聞く。変異の検算は戻さない（`docs/owner-decisions.md` の `no-mutation-in-graph`。2026-10-13）。周の記録も今は戻さない（`no-history-for-now`。2026-10-13）。
 
