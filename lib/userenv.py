@@ -7,7 +7,7 @@
 どちらの時も隔離のまま。
 
 - record(env) -> str | None: env の OPT_IN が "1" なら NAMES の値（無い名は null）の JSON、ほかは None
-- restore(env) -> None: env の RAN_DIR_ENV と RECORD を外し、RECORD が在れば中の値に戻し（null の名は外す）、印 RAN_FILE の
+- restore(env) -> None: env の RAN_DIR_ENV・RECORD・MARK（継いだ物）を外し、RECORD が在れば中の値に戻し（null の名は外す）、印 RAN_FILE の
   パスを MARK に置く（RAN_DIR_ENV の指す置き場。無ければ作る）。RECORD の形が違う・RAN_DIR_ENV が無ければ ValueError で、戻さない
 - mark(path) -> None: 印を置く。起こす側（tree_run.run）が MARK を env から外して子を起こし、起きた後にだけ呼ぶ
 - opted(env) -> bool: env が RECORD を持つか（利用者が明示した run か。起動の 1 行が言う）
@@ -30,6 +30,7 @@ def record(env) -> str | None:
 
 
 def restore(env) -> None:
+    env.pop(MARK, None)
     ran_dir = env.pop(RAN_DIR_ENV, None)
     raw = env.pop(RECORD, None)
     if raw is None:
