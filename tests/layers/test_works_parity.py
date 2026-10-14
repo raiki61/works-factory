@@ -7,13 +7,15 @@
   のどれか
 - 「今」と「戻した:」の指しは、前の棚卸しと同じ規則（tests/layers/test_capability_pointers.py）で行番号を持たず、名が main に在る
 - 「## 数」が行から数えた値と合う
+- 「## 前の棚卸しの今」（前の棚卸しの「今」の住処。#521）の行が 1 つずつ前の棚卸しの「今」の印の行と合い、上の「今」と同じ規則で照らされ、
+  ファイルごとの指しの数が移す前の下限を保つ
 """
 import collections
 import pathlib
 import re
 import unittest
 
-from tests.layers.test_capability_pointers import BARE_PATH, LINE_NUMBER, MALFORMED, POINTER, ROOT, exists
+from tests.layers.test_capability_pointers import BARE_PATH, HOLE_MARK, LINE_NUMBER, MALFORMED, POINTER, ROOT, ROW_ID, exists, moved_rows, row_fields
 
 TABLE = ROOT / "docs" / "works-parity.md"
 ROW = re.compile(r"^- ([SUK]\d+[a-z]?) ")
@@ -26,6 +28,11 @@ STATE = re.compile(r"^(在る|無い)$|^形を変えて在る（.+）$")
 DISPOSITION = re.compile(r"^(#\d+|戻した: \S.*|要らない: \S.*)$")
 README_SECTION = re.compile(r"README\.md「[^」]+」")
 MISSING_ROWS = "無い行"
+MOVED_HEAD = "## 前の棚卸しの今"
+MOVED = re.compile(rf"^- (\S+\.md {ROW_ID}): (.+)$")
+# 移す前に前の棚卸しの柵が「今」に持っていた、ファイルごとの指しの数の下限
+MOVED_FLOOR = {"fix.md": 300, "gaps-fix.md": 70, "gaps-plan.md": 100, "judge.md": 170, "line.md": 330, "plan.md": 430,
+               "tail.md": 430}
 
 
 def rows(text: str) -> dict[str, dict[str, str]]:
@@ -53,6 +60,20 @@ def section(text: str, head: str) -> list[str]:
     start = lines.index(head) + 1
     end = next((i for i in range(start, len(lines)) if lines[i].startswith("## ")), len(lines))
     return lines[start:end]
+
+
+def moved(text: str) -> dict[str, str]:
+    """「## 前の棚卸しの今」の `<ファイル> <行 ID>` → 今の字。形の外れた行と 2 度在る鍵は読み飛ばさず落とす"""
+    found = {}
+    for line in section(text, MOVED_HEAD):
+        if not line.startswith("- "):
+            continue
+        if not (m := MOVED.match(line)):
+            raise ValueError(f"前の棚卸しの今の行の形が `- <ファイル> <行 ID>: <今>` でない: {line}")
+        if m.group(1) in found:
+            raise ValueError(f"前の棚卸しの今の {m.group(1)} が 2 度在る")
+        found[m.group(1)] = m.group(2)
+    return found
 
 
 def catalog(text: str) -> list[tuple[str, int, list[str]]]:
@@ -90,8 +111,9 @@ def field_problems(text: str) -> list[str]:
 
 
 def pointing(text: str) -> list[tuple[str, str]]:
-    """(行 ID, 指しを照らす欄の字)。「今」と「処置」（戻した: の先）"""
-    return [(rid, row[name]) for rid, row in rows(text).items() for name in ("今", "処置") if name in row]
+    """(行 ID か前の棚卸しの鍵, 指しを照らす欄の字)。「今」と「処置」（戻した: の先）と前の棚卸しの今"""
+    return [(rid, row[name]) for rid, row in rows(text).items() for name in ("今", "処置") if name in row] + \
+        list(moved(text).items())
 
 
 def counts(text: str) -> dict[str, int]:
@@ -152,6 +174,16 @@ class WorksParityCase(unittest.TestCase):
         self.assertEqual([f"{rid}: {path}" for rid, text in pointing(TEXT) for path in BARE_PATH.findall(text)
                           if not (ROOT / path).exists()], [])
 
+    def test_moved_current_matches_the_inventory_marks(self):
+        self.assertGreaterEqual(len(moved(TEXT)), 1100, "前の棚卸しの今の読み落とし")
+        # 前の棚卸しの印が穴（HOLE_MARK）なのは、移した字が「無し」で始まる行だけ。tail.md の穴の数は印から数える
+        self.assertEqual({key: mark == HOLE_MARK for key, mark in moved_rows(row_fields()).items()},
+                         {key: text.startswith("無し") for key, text in moved(TEXT).items()})
+
+    def test_moved_current_keeps_the_inventory_floors(self):
+        read = collections.Counter(key.split(" ")[0] for key, text in moved(TEXT).items() for _ in POINTER.findall(text))
+        self.assertEqual({md: read[md] >= least for md, least in MOVED_FLOOR.items()}, dict.fromkeys(MOVED_FLOOR, True), read)
+
     def test_count_section_matches_rows(self):
         nums, missing = written_counts(TEXT)
         self.assertEqual(nums, counts(TEXT))
@@ -183,3 +215,13 @@ class NegativeCase(unittest.TestCase):
         self.assertEqual(field_problems(SAMPLE), [])
         self.assertEqual(field_problems(SAMPLE.replace("  - 処置: 要らない: 訳\n", "")), ["S001: 無い行に処置が無い"])
         self.assertEqual(len(field_problems(SAMPLE.replace("要らない: 訳", "戻した: 何か"))), 1)
+
+    def test_moved_lines_are_read_and_malformed_ones_raise(self):
+        sample = SAMPLE + f"\n{MOVED_HEAD}\n\n前置き\n\n- line.md L-E01: lib/a.py::b\n"
+        self.assertEqual(moved(sample), {"line.md L-E01": "lib/a.py::b"})
+        self.assertIn(("line.md L-E01", "lib/a.py::b"), pointing(sample))
+        self.assertEqual(rows(sample), rows(SAMPLE))
+        with self.assertRaises(ValueError):
+            moved(sample + "- line.md: lib/a.py::b\n")
+        with self.assertRaises(ValueError):
+            moved(sample + "- line.md L-E01: lib/a.py::c\n")
