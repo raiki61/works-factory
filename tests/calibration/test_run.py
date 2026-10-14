@@ -93,7 +93,7 @@ elif verb == "get":
                       "terminal_record": {"run_id": run["id"], "status": run["status"],
                                           "nodes": plan.get("nodes", []) if parent else [],
                                           "returns": {"availability": "available", "node_id": "result",
-                                                      "value": {"outcome": plan.get("outcome", "fixed")}},
+                                                      "value": {"outcome": plan.get("outcome", "fixed"), **plan.get("value", {})}},
                                           "artifacts": {"root": str(home / "art" / run["id"]), "files": [], "limitations": []}}}))
 elif verb == "resume":
     for r in state["runs"]:
@@ -326,6 +326,12 @@ class RunTest(RunnerCase):
         self.assertEqual({k: start["env"][k] for k in ("WORKS_USE_HOME", "WORKS_USE_UNATTENDED", "WORKS_USE_FINAL_GATE")},
                          {"WORKS_USE_HOME": str(attempt / "home"), "WORKS_USE_UNATTENDED": "1",
                           "WORKS_USE_FINAL_GATE": "when_needed"})
+
+    def test_works_factory_takes_extra_inputs(self):
+        attempt = self.tmp / "attempt"
+        extra = runner.WorksFactory({"test_cmd": "make check"}).start_command(attempt, "b")
+        self.assertIn("test_cmd=make check", extra)
+        self.assertNotIn("test_cmd=make check", runner.WorksFactory().start_command(attempt, "b"))
 
     def test_works_factory_runs_in_foreground_without_detach(self):
         self.assertRan(self.run_tasks("works-factory", self.one))

@@ -3,6 +3,7 @@
 - 指紋: 同じ木で 2 度同じ。追跡のファイルの書き換え・未追跡のファイルの追加・HEAD の移動で変わる。.gitignore に当たる
   ファイルでは変わらない。git の木でなければ ValueError
 - diff_bytes: 未追跡のファイルが入り、.gitignore に当たるファイルは入らず、本物の index を動かさない。rev の側と比べ、引けない rev は ValueError
+- diff_between: 2 つの commit の間だけを載せ（作業ツリーの変更は入らない）、diff_bytes と同じ形。除くパスの頭を外す。引けない rev は ValueError
 - matches: 今の指紋と同じ時だけ真。None・形の違いは偽
 - classify: 6 つの道と、その間の順
 - certify: base と final の順。final は before と違う指紋（after・now のどちらでも）を認証しない
@@ -107,6 +108,23 @@ class DiffBytesCase(RepoCase):
         self.assertNotIn(b"run/deep/copy.yaml", skipped)
         self.assertIn(b"x = 3", skipped)
         self.assertEqual(green_cert.diff_bytes(self.repo, "HEAD", skip=()), whole)
+
+    def test_diff_between_is_the_commits_only(self):
+        base = git(self.repo, "rev-parse", "HEAD")
+        (self.repo / "stats.py").write_text("COMMITTED = 1\n", encoding="utf-8")
+        (self.repo / "run").mkdir()
+        (self.repo / "run" / "copy.yaml").write_text("RUNTIME = 1\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "edit")
+        same = green_cert.diff_bytes(self.repo, base, skip=("run/",))
+        (self.repo / "stats.py").write_text("UNCOMMITTED = 1\n", encoding="utf-8")
+        got = green_cert.diff_between(self.repo, base, "HEAD", skip=("run/",))
+        self.assertEqual(got, same)
+        self.assertNotIn(b"UNCOMMITTED", got)
+        self.assertNotIn(b"run/copy.yaml", got)
+        self.assertEqual(green_cert.diff_between(self.repo, "HEAD", "HEAD"), b"")
+        with self.assertRaises(ValueError):
+            green_cert.diff_between(self.repo, base, "no-such-rev")
 
     def test_fingerprint_hash_is_of_diff_bytes(self):
         (self.repo / "stats.py").write_text("x = 2\n", encoding="utf-8")

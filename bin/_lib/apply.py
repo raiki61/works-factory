@@ -1,7 +1,8 @@
 """封じた差分を対象に当てる口 bin/apply の中身: bin/apply <run-id> [--cwd <対象>] [--allow-delete] [--allow-stopped]。
 
 約束は docs/plans/2026-10-13-stage1-walking-skeleton.md の「bin/apply（土台の計画 Task 7）」の 1〜9。run は殻 bin/works-factory の
-workflow get で読み（家・隔離・Archon の起こし方は殻の物）、メイングラフの出力ノード result の値（terminal_record.returns.value）から当てる差分を選ぶ。
+workflow get で読み（家・隔離・Archon の起こし方は殻の物）、メイングラフか周の鎖の出力ノード result の値（terminal_record.returns.value。
+どちらも同じ欄 apply・sealed を持ち、鎖の物は元の基から採る周までの最後の差分）から当てる差分を選ぶ。
 hash の正本は Archon の DB の run の記録で、置き場のファイルではない。今の works の確かめ（works/dev/use.sh の apply_checked:
 消す行の許し・止まった run の許し・git apply --check）に、封じた hash とポインタの照らし・読み戻しを足す。commit はしない。
 封じた hash で確かめられない差分（メイングラフの出力が読めない run・封じる前に止まった run）は当てず、拒む 1 行に素の git apply で当てる道を書く
@@ -22,6 +23,7 @@ LIB = Path(__file__).resolve().parents[2] / "lib"
 if str(LIB) not in sys.path:   # lib/ の部品は互いを名だけで import する（merge の script と同じく lib/ を sys.path に置く）
     sys.path.append(str(LIB))
 
+import chain  # noqa: E402  周の鎖の最後の差分の置き場（final-diff と同じ名を 2 か所に持たない）
 import seal  # noqa: E402  差分の封印と R2 の語の持ち主（merge の apply と同じ決まりを 2 か所に持たない）
 
 NAME = "apply"
@@ -98,11 +100,11 @@ def read_run(done: subprocess.CompletedProcess[str], run_id: str, target: Path) 
 
 
 def unchecked(record: dict, target: Path) -> str:
-    """メイングラフの出力が読めない run の、置き場に在る差分を確かめずに当てる道（置き場に差分が無ければ空）"""
+    """メイングラフの出力が読めない run の、置き場に在る差分（周の鎖の親の run なら最後の差分）を確かめずに当てる道（置き場に差分が無ければ空）"""
     root = (record.get("artifacts") or {}).get("root")
     if not isinstance(root, str) or not root:
         return ""
-    for rel in (APPLY_DIFF, SEALED_DIFF):
+    for rel in (APPLY_DIFF, SEALED_DIFF, chain.FINAL):
         path = Path(root, rel)
         if path.is_file():
             return f"。置き場の差分 {path} を確かめずに当てるなら {shlex.join(['git', '-C', str(target), 'apply', str(path)])}"

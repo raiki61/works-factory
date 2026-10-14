@@ -782,6 +782,43 @@ def _tree_write_denied(at: str, ident: str, node) -> list[str]:
     return out
 
 
+# 役の節が持つ retry の形（E19）。on_error を書かないと Archon の既定の transient になり、種類が unknown の失敗を出し直さない
+ROLE_RETRY = {"max_attempts": 2, "on_error": "all"}
+# 役の節が retry を持たない時に、節の頭の行の真上に書く 1 行の頭（E19）。この後ろに外す理由を書く
+NO_RETRY = "# retry なし:"
+
+
+def _retry_value(retry) -> dict | None:
+    if not isinstance(retry, yaml.MappingNode):
+        return None
+    construct = yaml.constructor.SafeConstructor().construct_object
+    return {key: construct(value) if isinstance(value, yaml.ScalarNode) else None for key, value in _pairs(retry)}
+
+
+def _role_retry(root: Path) -> list[str]:
+    out = []
+    for path in _workflow_yamls(root):
+        rel = _rel(root, path)
+        documents, broken = _documents(root, path)
+        lines, unreadable = _lines(root, path)
+        out += broken or unreadable
+        for document in documents:
+            for node in _nodes(document):
+                if not any(_top(node, kind) is not None for kind in ROLE_KINDS):
+                    continue
+                ident = getattr(_top(node, "id"), "value", "?")
+                above = lines[_line(node) - 2].strip() if _line(node) >= 2 else ""
+                reason = above.removeprefix(NO_RETRY).strip() if above.startswith(NO_RETRY) else None
+                retry = _top(node, "retry")
+                if retry is not None and reason is not None:
+                    out.append(f"{rel}:{_line(node)}: 役 {ident} は retry を持つのに、外す理由の行が在る")
+                elif retry is None and not reason:
+                    out.append(f"{rel}:{_line(node)}: 役 {ident} に retry も、真上の「{NO_RETRY} <理由>」の行も無い")
+                elif retry is not None and _retry_value(retry) != ROLE_RETRY:
+                    out.append(f"{rel}:{_line(retry)}: 役 {ident} の retry が {ROLE_RETRY} でない")
+    return out
+
+
 # 差し込まれるブロックが工程の頭に書かない鍵（E16）。run の形は差し込む一番上の工程が決める。ただし自分の節に approval: を持つ
 # ブロックの interactive: true だけは許す: 外すと止めた Archon の単独の validate が警告を出す（workflows/AGENTS.md の E16）
 BLOCK_HEAD_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
@@ -861,4 +898,5 @@ RULES = {
     "E14": _no_owner_env,
     "E16": _gates,
     "E18": _origin_names,
+    "E19": _role_retry,
 }

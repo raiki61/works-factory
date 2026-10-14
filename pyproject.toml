@@ -6,3 +6,8 @@ requires-python = ">=3.12"
 dependencies = [
     "PyYAML==6.0.3",  # tests/layers/scan.py が workflows/ の YAML を読む
 ]
+
+[project.optional-dependencies]
+bench = [
+    "harbor==0.24.0",  # tests/calibration/swepro_agent.py。運び役が uv run --isolated --extra bench で入れる
+]

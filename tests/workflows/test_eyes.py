@@ -18,6 +18,7 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import git
+from tests.layers import scan
 from tests.workflows import copied
 from tests.workflows.copied import assert_is_original, rewritten, role_definition
 
@@ -653,7 +654,7 @@ class ShapeCase(unittest.TestCase):
     def test_retry_gives_three_tries(self):
         for nid, node in ROLES.items():
             with self.subTest(nid):
-                self.assertEqual(node.get("retry"), {"max_attempts": 2, "on_error": "all"})
+                self.assertEqual(node.get("retry"), scan.ROLE_RETRY)
 
     def test_role_settings_copied(self):
         for nid, node in ROLES.items():
