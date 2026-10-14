@@ -210,12 +210,16 @@ def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: P
         raise Refused(f"固定材料を取り込まない: {error}") from None
     doc.update({"versions": versions_doc, **features(checked)})
     prior = boundary.pointer(carry.PRIOR_IN_FILE) if (artifacts / carry.PRIOR_IN_FILE).is_file() else None
-    unattended = doc.get(gatepolicy.UNATTENDED_KEY) == gatepolicy.UNATTENDED
-    return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, doc), "prior_failures": prior,
-            "ask": not unattended, "gate_text": gate_text(startrec.shape(doc), doc, run_id, test_notes(raw, repo)),
-            "unattended": unattended, "design_only": doc.get("design_only") == gatemarks.DESIGN_ONLY,
-            "final_gate": doc.get(gatepolicy.FINAL_KEY) or "", "from_fixture": True,
-            "fixture": boundary.pointer(fixture.CARRIED)}
+    return begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id, boundary.pointer(fixture.CARRIED))
+
+
+def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Path, run_id: str, carried=None) -> dict:
+    """始めの記録 record を書き、start の通った返りを組む。carried は固定材料の run の運ぶ値のポインタ（ほかの run は None）"""
+    unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
+    return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record), "prior_failures": prior,
+            "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
+            "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
+            "final_gate": record[gatepolicy.FINAL_KEY], "from_fixture": carried is not None, "fixture": carried}
 
 
 def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
@@ -258,11 +262,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     if parts[carry.PRIOR]:
         carry.place_prior(artifacts, parts[carry.PRIOR])
         prior = boundary.pointer(carry.PRIOR_IN_FILE)
-    unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
-    return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record),
-            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
-            "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
-            "final_gate": record[gatepolicy.FINAL_KEY], "from_fixture": False, "fixture": None}
+    return begun(record, shape, prior, raw, repo, artifacts, run_id)
 
 
 def fallback(reason: str) -> dict:

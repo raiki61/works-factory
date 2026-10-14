@@ -48,6 +48,7 @@ import boardview  # noqa: E402
 import boundary  # noqa: E402
 import conflict  # noqa: E402
 import converge  # noqa: E402
+import entry  # noqa: E402
 import entryshape  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
@@ -335,7 +336,8 @@ class StartCase(Artifacts):
         fixture.capture(self.artifacts, self.repo, run_id=RUN, carried=carried)
         place = self.tmp / "artifacts-2"
         with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(place), "WORKFLOW_ID": "run-2"}):
-            kw = {"request": "request_ok.json", "final_gate": "when_needed", "fix_fixture": str(self.artifacts / fixture.DIR)}
+            kw = {"request": "request_ok.json", "final_gate": "when_needed", "fix_fixture": str(self.artifacts / fixture.DIR),
+                  "features_off": "tdd_lanes"}
             got = start.start(raw(**kw), self.repo, place, "run-2")
         self.assertEqual((got["ok"], got["from_fixture"], got["ask"], got["final_gate"]), (True, True, True, "when_needed"), got)
         self.assertEqual(got["fixture"], {"type": "archon_artifact", "run_id": "run-2", "path": fixture.CARRIED})
@@ -345,6 +347,10 @@ class StartCase(Artifacts):
         self.assertEqual(doc["input"], self.record(first)["input"])
         self.assertIn("archon", doc["versions"])
         self.assertIn(f"- 固定材料から: run {RUN} の修正の前の写し", got["gate_text"])
+        self.assertNotIn("tdd_lanes", self.record(first)[entry.FEATURES_CUT_KEY])
+        self.assertEqual((doc[entry.FEATURES_KEY], doc[entry.FEATURES_CUT_KEY]),
+                         (["tdd_lanes"], entry.features_cut(["tdd_lanes"], doc[entry.FEATURES_ON_KEY])),
+                         "機能の切り替えは写しの物でなく今の run の物（修正の段だけを替えて比べる）")
 
     def test_fixture_that_does_not_match_is_refused_before_any_role(self):
         self.start(request="request_ok.json")
