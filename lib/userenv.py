@@ -7,7 +7,7 @@
 どちらの時も隔離のまま。
 
 - record(env) -> str | None: env の OPT_IN が "1" なら NAMES の値（無い名は null）の JSON、ほかは None
-- restore(env) -> None: env の RAN_DIR_ENV・RECORD・MARK（継いだ物）を外し、RECORD が在れば中の値に戻し（null の名は外す）、印 RAN_FILE の
+- restore(env) -> None: env の CONTROL（RECORD・RAN_DIR_ENV・MARK。継いだ物）を外し、RECORD が在れば中の値に戻し（null の名は外す）、印 RAN_FILE の
   パスを MARK に置く（RAN_DIR_ENV の指す置き場。無ければ作る）。RECORD の形が違う・RAN_DIR_ENV が無ければ ValueError で、戻さない
 - mark(path) -> bool: 印を置き、新しく置いたかを返す（置けなければ OSError）。起こす側（tree_run.run）が MARK を env から外し、子を
   起こす直前に呼ぶ（置けなければ起こさない。起こせなければ新しく置いた印を消す）
@@ -23,6 +23,7 @@ NAMES = ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STAT
 RAN_DIR_ENV = "WORKS_FACTORY_USER_ENV_RAN_DIR"
 RAN_FILE = "user-env-ran"
 MARK = "WORKS_FACTORY_USER_ENV_MARK"   # 戻した env にだけ在る、印のパス。子には渡さない
+CONTROL = (RECORD, RAN_DIR_ENV, MARK)   # 工場が置く制御の変数。継いだ値は起動の殻（bin/_lib/isolate.py）と restore が外す
 NOTE = "AI が書いた試験のコードを、利用者の資格に届く環境（利用者の HOME・XDG）で走らせた"
 
 
@@ -31,9 +32,8 @@ def record(env) -> str | None:
 
 
 def restore(env) -> None:
-    env.pop(MARK, None)
-    ran_dir = env.pop(RAN_DIR_ENV, None)
-    raw = env.pop(RECORD, None)
+    given = {name: env.pop(name, None) for name in CONTROL}
+    ran_dir, raw = given[RAN_DIR_ENV], given[RECORD]
     if raw is None:
         return
     try:
