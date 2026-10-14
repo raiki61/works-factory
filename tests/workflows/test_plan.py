@@ -25,6 +25,7 @@ import yaml
 from tests import archon
 from tests.bin import hermetic, trimmed
 from tests.bin.gitkit import committed_copy, git
+from tests.layers import scan
 from tests.workflows import copied
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -59,7 +60,6 @@ NO_DEADLINE = 1728000000
 INPUTS = {"start": "", "units": "[]", "judgment": "", "world": "null", "spec": "null", "review": "", "ruling": "[]",
           "conflicts": "null", "prior_failures": "null"}
 RETURNED = ["ready", "plan", "structure", "ripple", "depth", "round"]
-AI_KEYS = ("command", "prompt")
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 NIT = "stats.py mean: 変数名が短い"
@@ -352,7 +352,7 @@ class ShapeCase(unittest.TestCase):
 
     def test_role_nodes_are_read_only_and_isolated(self):
         doc = load()
-        roles = [n for n in nodes(doc) if any(k in n for k in AI_KEYS)]
+        roles = [n for n in nodes(doc) if any(k in n for k in scan.ROLE_KINDS)]
         self.assertEqual([n["id"] for n in roles], ["structure-eye", "plan-writer"])
         for n in roles:
             self.assertIs(n["mutates_checkout"], False, n["id"])
