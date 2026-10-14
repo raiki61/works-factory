@@ -2324,6 +2324,26 @@ class GateFromPlanCase(RunCase):
         self.assertEqual((got["pass"], got["ask_human"], got["questions"]), (False, False, []), got)
 
 
+    def test_policy_faces_naming_the_frozen_doc_or_a_gate_answer_are_asked(self):
+        """#427: 差し込みの頭が方針の文書の写しと修正前の関所の答えを記録された方針の一覧に入れるので、その行を名指す kind policy の
+        穴は今どおり関所の行になる"""
+        r = self.run_
+        pol = r.tmp / "policy.md"
+        pol.write_text("# 方針\n- 公開の口を減らさない\n", encoding="utf-8")
+        frozen = policy.freeze(r.art, r.repo, str(pol))
+        r.start(features_off=["review_tree"], policy_md=str(pol), policy=frozen)
+        note = "GATE-MARK-7171 clamp の上限の枝は残す"
+        r.inputs["gate_answers"] = json.dumps({"decision": "approve", "text": note, "asked": ["問いの行"]}, ensure_ascii=False)
+        gate = policy.recorded({}, human_items=[{"note": note}])[0]["name"]
+        doc_face = face("policy-doc-public", kind="policy", decided_by=f"{frozen['copy']}:2", fences=["policy_doc"])
+        gate_face = face("policy-gate-clamp", UNIT_CLAMP, kind="policy", decided_by=gate,
+                         undecided_because=f"{gate} の答えと、上限を外す案がぶつかる")
+        got = r.pass_(review(doc_face, gate_face))
+        self.assertTrue(got["ask_human"], got)
+        asked = [q["text"] for q in got["questions"] if q["kind"] == "policy"]
+        for key in ("policy-doc-public", "policy-gate-clamp"):
+            self.assertEqual(sum(f"[policy] {key}:" in q for q in asked), 1, asked)
+
     def test_target_text_as_contract_drift_is_not_asked(self):
         """#427: 対象の文（テストの docstring）を contract_drift で挙げた返答は人に聞かない。方針の文書の無い run の材料にも
         記録された方針のセクションが「無い」と載る"""
