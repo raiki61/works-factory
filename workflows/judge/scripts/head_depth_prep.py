@@ -27,7 +27,7 @@ try:
         start = startrec.load(start_file) if start_file else {}
         facts = headdepth.facts(ja.read_json(jdir / ja.REQUEST_FILE, []) or [], start, Path.cwd())
         go, depth, why = (False, headdepth.STANDARD, f"止まっている（{stop['stop_reason']}）") if stop else headdepth.gate(facts)
-        headdepth.write(jdir, headdepth.record(depth or headdepth.STANDARD, why or "役の返答を待つ", facts_doc=facts))
+        headdepth.write(jdir, headdepth.record(depth or headdepth.STANDARD, why or headdepth.NO_REPLY, facts_doc=facts))
         brief = jdir / headdepth.BRIEF
         brief.write_text(headdepth.brief(facts), encoding="utf-8")
         out = {"go": go, "brief_file": str(brief) if go else "", "reason": why}

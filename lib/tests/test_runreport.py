@@ -22,6 +22,7 @@ import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
 import worldmark  # noqa: E402
 import conflict  # noqa: E402
+import depth  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import outcome  # noqa: E402
@@ -1584,6 +1585,16 @@ class LinesCase(Base):
         self.assertIn("- run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い\n", self.section(text, report.ENTRY_HEADING))
         _, text, _ = self.build(fixed_run(judge=None))
         self.assertNotIn("run の頭の深さ", text)
+
+    def test_light_run_that_skipped_the_pre_review_does_not_say_the_eyes_were_skipped(self):
+        """issue #441: 事前審査を run の頭の深さで飛ばした run は独立の目 R1〜R4 を回すので、軽量で省いた物は差分の審査だけ"""
+        light = {"depth": [{"unit_id": "u1", "depth": "軽量", "why": "触るファイル 1 個"}], "skip_optional": "軽量で省いた",
+                 "raised": [], "counted": "", "stop_reason": ""}
+        plan = {**fixed_run()["plan"], "depth_skip": True}
+        _, text, _ = self.build(fixed_run(plan=plan), line={"redepth": light})
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"- 軽量で省いた: {depth.DELTA_SKIPPED}\n", entry)
+        self.assertNotIn("独立の目 R1", entry)
 
     def test_converge_lines_reach_the_report(self):
         """L-D22・P119・R35: 事前審査の壁打ちの往復の行（何往復・抜け方・続いた block と、往復ごとの block・fixed・disputed・suggest に

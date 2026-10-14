@@ -18,7 +18,8 @@
   標準へ上げる（raise_doc の run）
 - run_depth(doc): 切った後の run 全体の段の深さ（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
 - skip_reason(doc): run が軽量なら省く理由の文、標準なら空（ブロックの平の入力 skip・skip_optional に渡す）
-- lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物）
+- lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物。doc の eyes_kept が真なら、
+  事前審査の代わりに回した独立の目を省いた物に数えない）
 """
 import json
 import pathlib
@@ -44,12 +45,13 @@ WIRING_FILES = ("manifest.json",)   # 配線のファイルの名（部品の co
 WIRING_SUFFIXES = (".yaml", ".yml")  # <名>/<名>.yaml の形の物が線とブロックの配線（nodes・include・with）
 # 軽量の run で省く物（報告の冒頭 2 に 1 行ずつ名指す）。どれも 2026-10-05 の自分食いの小さい run で何も見つけなかった
 # 決め 6 は 2026-10-05 の測り、決め 9 は持ち主の決定 2026-10-06（写しの graph の ! 行で optional にした節）。AI の報告は省かない（決め 10）
-SKIPPED = ("差分の審査（p3.delta_review）と、それに続くレンズ・手直し（修正の後の局所レビューの全部を含む）",
-           "独立の目の r1.comment_candidates（コメントの削除候補）",
-           "独立の目 R1（r1.minimality。冗長と最小性）",
-           "独立の目 R2（r2.compare。独立設計との突き合わせ。独立設計そのものは修正の前に作る）",
-           "独立の目 R3（r3.coherence。全体の整合）",
-           "独立の目 R4（r4.hidden_scope。見えていない範囲）")
+DELTA_SKIPPED = "差分の審査（p3.delta_review）と、それに続くレンズ・手直し（修正の後の局所レビューの全部を含む）"
+EYES_SKIPPED = ("独立の目の r1.comment_candidates（コメントの削除候補）",
+                "独立の目 R1（r1.minimality。冗長と最小性）",
+                "独立の目 R2（r2.compare。独立設計との突き合わせ。独立設計そのものは修正の前に作る）",
+                "独立の目 R3（r3.coherence。全体の整合）",
+                "独立の目 R4（r4.hidden_scope。見えていない範囲）")
+SKIPPED = (DELTA_SKIPPED, *EYES_SKIPPED)
 
 
 def _items_of(items, key: str) -> list:
@@ -180,8 +182,9 @@ def lines(doc) -> list:
     out += [f"  - 標準へ上げた信号: {why}" for why in doc.get("raised") or []]
     if doc.get("counted"):
         out.append(f"run の広さの数え: {doc['counted']}")
-    if run_depth(doc) == LIGHT:
-        out.append("軽量で省いた: " + "／".join(SKIPPED))   # 1 行にまとめる（項目の中に「・」が在るので区切りは「／」）
+    if run_depth(doc) == LIGHT:   # 事前審査を run の頭の深さで飛ばした run（eyes_kept）は、代わりの独立の目を省かない
+        skipped = (DELTA_SKIPPED,) if doc.get("eyes_kept") else SKIPPED
+        out.append("軽量で省いた: " + "／".join(skipped))   # 1 行にまとめる（項目の中に「・」が在るので区切りは「／」）
     return out
 
 

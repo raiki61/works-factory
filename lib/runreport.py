@@ -1234,7 +1234,7 @@ def _depth_lines(start: dict, returns: dict, line: dict) -> list:
     doc = {"units": {str(d.get("unit_id")): {"depth": d.get("depth"), "why": [str(d["why"])] if d.get("why") else []}
                      for d in rows if isinstance(d, dict)},
            "forced": as_dict(start).get("thickness") or "", "raised": _list(redepth.get("raised")),
-           "counted": redepth.get("counted") or ""}
+           "counted": redepth.get("counted") or "", "eyes_kept": as_dict(returns.get("plan")).get("depth_skip") is True}
     return [*depthlib.lines(doc), *([] if redepth else [NO_REDEPTH])]
 
 

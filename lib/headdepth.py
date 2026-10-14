@@ -33,6 +33,7 @@ STANDARD = depth.STANDARD
 RECORD = "depth-head.json"
 BRIEF = "depth-head-brief.md"
 NO_RECORD = "run の頭の深さの控えが無い"
+NO_REPLY = "役の返答が受け付けに届いていない（役が走らなかったか落ちた）"
 REJUDGE_WHY = "再審の判定（run の頭の深さは 1 回目の判定が決めた）"
 NOT_ACCEPTED = "役の返答が受け付けを通らない（{why}）"
 DESIGN_ONLY = "true"   # 始めの記録の design_only の語（gatemarks.DESIGN_ONLY と同じ）
