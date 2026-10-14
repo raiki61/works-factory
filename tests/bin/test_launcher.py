@@ -190,10 +190,12 @@ class LauncherTest(unittest.TestCase):
         run = ("workflow", "run", "works-factory-line", "--input", "request=x")
         err = self.stopped(self.launch(*run, "--input", f"test_cmd={runner} -q"))
         self.assertIn("止める（test_cmd）", err)
+        self.assertIn(f"test_cmd が対象の手元（{self.target}）を走らせる形", err)
         self.assertIn(launcher.ALLOW_TESTCMD_ENV, err)
         done = self.launch(*run, f"--input=test_cmd={runner} -q", **{launcher.ALLOW_TESTCMD_ENV: "1"})
         self.reached(done)
         self.assertIn("注意（test_cmd）", done.stderr)
+        self.assertIn("=1 なので止めずに起こす", done.stderr)
         done = self.launch(*run, "--input", "test_cmd=.venv/bin/run-tests -q")
         self.reached(done)
         self.assertIn("注意（test_cmd）", done.stderr)
@@ -775,7 +777,7 @@ class ReadmeUsageTest(unittest.TestCase):
         for word in ("--input test_cmd=", launcher.ALLOW_TESTCMD_ENV, "止める（test_cmd）", "注意（test_cmd）"):
             self.assertIn(word, test_cmd)
         start = self.section("作業ツリーの起点")
-        for flag in ("--from", "--from-branch", "--no-worktree", "--adopt"):
+        for flag in ("--from", "--from-branch", "--base", "--branch", "--no-worktree", "--adopt"):
             self.assertIn(f"`{flag}", start)
 
 

@@ -52,11 +52,20 @@ class StartpointTest(unittest.TestCase):
         self.assertIn("3 件", said)
         self.assertIn("A untracked.txt", said)
 
-    def test_named_start_and_flags_archon_refuses_with_from_add_nothing(self):
+    def test_named_start_or_branch_and_flags_archon_refuses_with_from_add_nothing(self):
         (self.target / "untracked.txt").write_text("untracked\n", encoding="utf-8")
-        for flags in (["--from", "x"], ["--from=x"], ["--from-branch", "x"], *([f] for f in startpoint.SKIP_FLAGS)):
+        valued = ("--from", "--from-branch", "--branch", "--base", "--adopt")
+        cases = [*([f, "x"] for f in valued), *([f"{f}=x"] for f in valued),
+                 *([f] for f in ("--no-worktree", "--folder", "--container", "--dry-run")),
+                 ["-b", "x"], ["-bx"], ["-b=x"], ["-vb", "x"], ["--input", "request=x", "-qb", "x"]]
+        for flags in cases:
             with self.subTest(flags=flags):
                 self.assertEqual(startpoint.choose(flags, LINE, self.target, PREFIX), ([], ""))
+
+    def test_other_flags_still_start_from_the_current_state(self):
+        for flags in (["--input", "request=x"], ["-v"], ["--quiet"], ["--base-branch", "main"], ["--json"]):
+            with self.subTest(flags=flags):
+                self.assertEqual(startpoint.choose(flags, LINE, self.target, PREFIX)[0], ["--from", self.head])
 
     def test_graph_not_ours_adds_nothing(self):
         self.assertEqual(startpoint.choose([], "archon-fix-github-issue", self.target, PREFIX), ([], ""))

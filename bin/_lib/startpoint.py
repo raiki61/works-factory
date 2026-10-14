@@ -7,12 +7,16 @@
 求めは Archon が持つ。
 """
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
 
-# 名指しが勝つ旗と、Archon が --from と組むのを拒むか作業ツリーを作らない旗
-SKIP_FLAGS = ("--from", "--from-branch", "--no-worktree", "--folder", "--container", "--adopt", "--dry-run")
+# 利用者が起点か枝を名指した旗（名指しが勝つ。枝の名指しは Archon が既に在る枝を --from と組むのを拒み、在る作業ツリーを使う時は
+# --from を捨てる）と、Archon が --from と組むのを拒むか作業ツリーを作らない旗。tests/shared/test_archon_contract.py が Archon の旗に照らす
+SKIP_FLAGS = ("--from", "--from-branch", "--branch", "--base", "--no-worktree", "--folder", "--container", "--adopt", "--dry-run")
+# 枝の短い名 -b（-b 値・-b値・-b=値と、真偽の短い名と組んだ -vb 値。Archon の parseArgs が受ける形）
+SKIP_SHORT = re.compile(r"-[A-Za-z]*b")
 WRAP_MESSAGE = "works-factory: 起動の殻が包んだ対象の手元の姿（run の作業ツリーの起点）"
 # 包んだ commit の作者と commit した者。利用者の git の名の設定に頼らない
 WRAP_IDENTITY = {"GIT_AUTHOR_NAME": "works-factory", "GIT_AUTHOR_EMAIL": "works-factory@localhost",
@@ -22,7 +26,7 @@ WRAP_IDENTITY = {"GIT_AUTHOR_NAME": "works-factory", "GIT_AUTHOR_EMAIL": "works-
 def choose(flags: list[str], workflow: str, target: Path, prefix: str) -> tuple[list[str], str]:
     """足す引数（["--from", <commit>] か []）と、人に出す 1 行（足さない時は ""）。flags は -- の前の利用者の引数。
     自分のグラフ（名が prefix で始まる）の時だけ足す。git の木でない・commit の無い木も足さない"""
-    if not workflow.startswith(prefix) or any(a == f or a.startswith(f + "=") for a in flags for f in SKIP_FLAGS):
+    if not workflow.startswith(prefix) or any(_skips(a) for a in flags):
         return [], ""
     head = subprocess.run(["git", "-C", str(target), "rev-parse", "--verify", "-q", "HEAD^{commit}"], capture_output=True,
                           text=True, encoding="utf-8")
@@ -34,6 +38,10 @@ def choose(flags: list[str], workflow: str, target: Path, prefix: str) -> tuple[
     wrapped, changes = wrap(target)
     return ["--from", wrapped], (f"commit していない変更・未追跡のファイル {len(changes)} 件を commit {wrapped[:12]} に包み、"
                                  f"run の作業ツリーはそこから切る（対象の作業ツリー・index・枝は動かさない）: {' '.join(changes)}")
+
+
+def _skips(arg: str) -> bool:
+    return any(arg == f or arg.startswith(f + "=") for f in SKIP_FLAGS) or SKIP_SHORT.match(arg) is not None
 
 
 def wrap(target: Path) -> tuple[str, list[str]]:
