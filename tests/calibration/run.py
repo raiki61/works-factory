@@ -269,6 +269,7 @@ class OldWorks:
     def __init__(self):
         self.dir = Path(os.environ[OLD_WORKS_ENV]) if os.environ.get(OLD_WORKS_ENV) else None
         self.dev = self.dir / "dev" if self.dir else Path(f"${OLD_WORKS_ENV}") / "dev"
+        self.inputs = dict(BENCH_INPUTS)
 
     def check(self):
         if self.dir is None:
@@ -294,6 +295,9 @@ class OldWorks:
         return {**bench_env(attempt), "WORKS_USE_HOME": str(attempt / "home"),
                 **{self.passes[k]: self.values.get(k, {}).get(v, v) for k, v in inputs.items()}}
 
+    def input_pairs(self, attempt: Path, base: str) -> dict[str, str]:
+        return {"request": str(attempt / "request.json"), "base": base, **self.inputs}
+
     def start_command(self, attempt: Path, base: str) -> list[str]:
         return ["sh", str(self.dev / "use.sh"), "start", "--base", base, "--", str(attempt / "target"), str(attempt / "request.json")]
 
@@ -301,7 +305,7 @@ class OldWorks:
         return ["sh", str(self.dev / "continue.sh"), str(self.dev / "archon.sh"), "workflow", verb, run_id, *rest]
 
     def start(self, attempt: Path, base: str) -> str | None:
-        subprocess.run(self.start_command(attempt, base), cwd=attempt / "target", env=self._env(attempt, BENCH_INPUTS),
+        subprocess.run(self.start_command(attempt, base), cwd=attempt / "target", env=self._env(attempt, self.inputs),
                        stdin=subprocess.DEVNULL)
         run_id = self.find_run(attempt)
         if run_id:
@@ -438,14 +442,17 @@ class PlainClaude:
                 "--user-home", user.get("HOME", ""), "--user-config", user.get("CLAUDE_CONFIG_DIR", ""), "--",
                 *self.claude_args(PLAIN_PROMPT)]
 
-    def start(self, attempt: Path, base: str) -> str | None:
+    def input_pairs(self, attempt: Path, base: str) -> dict[str, str]:
         pr = json.loads((attempt / "pr" / "pr.json").read_text(encoding="utf-8"))
+        return {"RB_BASE": base, "RB_HEAD": pr["head"], "RB_DIFF": str(attempt / "pr" / "diff.patch"),
+                "RB_PR_JSON": str(attempt / "pr" / "pr.json")}
+
+    def start(self, attempt: Path, base: str) -> str | None:
         env = self.isolated_env(attempt)
         out = attempt / "out"
         out.mkdir(exist_ok=True)
         (out / self.FINDINGS).unlink(missing_ok=True)
-        env.update(RB_BASE=base, RB_HEAD=pr["head"], RB_DIFF=str(attempt / "pr" / "diff.patch"),
-                   RB_PR_JSON=str(attempt / "pr" / "pr.json"), RB_OUT=str(out / self.FINDINGS), RB_AGENT=self.name)
+        env.update(**self.input_pairs(attempt, base), RB_OUT=str(out / self.FINDINGS), RB_AGENT=self.name)
         with (out / self.RESULT).open("wb") as result:
             subprocess.run(self.start_command(attempt, base), cwd=attempt / "target", env=env, stdin=subprocess.DEVNULL,
                            stdout=result)
@@ -695,7 +702,8 @@ def run_one(entry: dict, producer, attempts: Path, out: Path, ledger: Ledger, ar
     ended = producer.finish(attempt, run_id)
     doc, record = reviewbench.convert(producer, entry, attempt, run_id, base, head, ended)
     record["provenance"] = {**producer.provenance(), "claude_code": _claude_version(launcher.real_claude(os.environ)),
-                            "run_inputs": {"request": "request.json", "base": base, **BENCH_INPUTS}, "date": _now()}
+                            "run_inputs": {k: v.removeprefix(f"{attempt}{os.sep}")
+                                           for k, v in producer.input_pairs(attempt, base).items()}, "date": _now()}
     reviewbench.write(out, producer.name, task, doc, record)
     ledger.add(**row, run_id=run_id, child_run_ids=ended["children"], state=DONE)
     print(json.dumps(record, ensure_ascii=False, allow_nan=False))

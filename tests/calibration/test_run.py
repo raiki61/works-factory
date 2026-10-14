@@ -34,7 +34,8 @@ COPIED = ["pack.json", "factory/pack.json", "tests/__init__.py", "tests/calibrat
 ITEMS = {"WORKS_FACTORY_KEYCHAIN_ITEM": "item-of-works-factory-zq7", "WORKS_KEYCHAIN_ITEM": "item-of-old-works-zq7"}
 GH = {"GH_TOKEN": "gh-token-zq7"}
 WATCHED = [*ITEMS, *GH, "WORKS_FACTORY_HOME", "WORKS_USE_HOME", "WORKS_USE_UNATTENDED", "WORKS_USE_FINAL_GATE",
-           "WORKS_DEV_HOME", "GH_CONFIG_DIR", "WORKS_FACTORY_DENY_WEB", "RB_BASE", "RB_HEAD", "RB_OUT", "CLAUDE_CONFIG_DIR",
+           "WORKS_DEV_HOME", "GH_CONFIG_DIR", "WORKS_FACTORY_DENY_WEB", "RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON", "RB_OUT",
+           "CLAUDE_CONFIG_DIR",
            "PI_CODING_AGENT_DIR"]
 NWO = "owner/repo"
 ONE, TWO = 11, 12   # 偽の manifest の Python の 2 つの課題の PR の番号
@@ -326,6 +327,24 @@ class RunTest(RunnerCase):
         self.assertEqual({k: start["env"][k] for k in ("WORKS_USE_HOME", "WORKS_USE_UNATTENDED", "WORKS_USE_FINAL_GATE")},
                          {"WORKS_USE_HOME": str(attempt / "home"), "WORKS_USE_UNATTENDED": "1",
                           "WORKS_USE_FINAL_GATE": "when_needed"})
+
+    def test_record_keeps_the_inputs_each_producer_was_given(self):
+        def relative(pairs, attempt):
+            return {k: v.removeprefix(f"{attempt}{os.sep}") for k, v in pairs.items()}
+
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        [record] = self.records("works-factory")
+        self.assertEqual(record["provenance"]["run_inputs"], relative(self.inputs(), record["attempt"]))
+        self.assertRan(self.run_tasks("works", self.one))
+        [record] = self.records("works")
+        self.assertEqual(record["provenance"]["run_inputs"], {"request": "request.json", "base": self.base_sha,
+                                                              "unattended": "true", "final_gate": "when_needed"})
+        self.assertRan(self.run_tasks("claude", self.one))
+        [record] = self.records("claude")
+        given = {"RB_BASE": self.base_sha, "RB_HEAD": self.head_sha, "RB_DIFF": "pr/diff.patch", "RB_PR_JSON": "pr/pr.json"}
+        self.assertEqual(record["provenance"]["run_inputs"], given)
+        [call] = self.calls("claude")
+        self.assertEqual(relative({k: call["env"][k] for k in given}, record["attempt"]), given)
 
     def test_works_factory_takes_extra_inputs(self):
         attempt = self.tmp / "attempt"
