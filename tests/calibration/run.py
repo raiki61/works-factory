@@ -130,8 +130,9 @@ class WorksFactory:
                Source("parent/eyes/r4.json", ("surfaced",), "items", "text"))
     leak_guard = WITHHELD
 
-    def __init__(self):
+    def __init__(self, inputs: dict | None = None):
         self.shell = Path(os.environ.get(SHELL_ENV) or ROOT / "bin" / "works-factory")
+        self.inputs = {**BENCH_INPUTS, **(inputs or {})}
 
     def check(self):
         pass
@@ -140,7 +141,7 @@ class WorksFactory:
         return [launcher.HOME_ENV, "GH_CONFIG_DIR", toolset.DENY_WEB_ENV]
 
     def start_command(self, attempt: Path, base: str) -> list[str]:
-        pairs = {"request": str(attempt / "request.json"), "base": base, **BENCH_INPUTS}
+        pairs = {"request": str(attempt / "request.json"), "base": base, **self.inputs}
         return [sys.executable, str(self.shell), "workflow", "run", LINE, "--cwd", str(attempt / "target"),
                 *[part for k, v in pairs.items() for part in ("--input", f"{k}={v}")]]
 
