@@ -61,7 +61,7 @@ class Howto(unittest.TestCase):
     持ち主の項目の名は書かず、置き場の字で言う"""
 
     def test_names_the_settings_env_route(self):
-        self.assertIn('settings.json の env に "WORKS_FACTORY_KEYCHAIN_ITEM": "<項目の名>"', auth_launch.HOWTO)
+        self.assertIn('settings.json の env に "%s": "<項目の名>"' % auth_launch.ITEM_ENV, auth_launch.HOWTO)
 
     def test_check_command_does_not_print_the_value(self):
         self.assertIn("security find-generic-password -s <項目の名> で", auth_launch.HOWTO)

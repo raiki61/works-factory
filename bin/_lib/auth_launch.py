@@ -34,12 +34,13 @@ import unicodedata  # noqa: E402
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))   # -I はスクリプトのフォルダを sys.path に入れない
 import claude_auth  # noqa: E402
 
-HOWTO = ("認証が無い。keychain にトークンの項目が既に在るなら、その項目名を WORKS_FACTORY_KEYCHAIN_ITEM か CLAUDE_KEYCHAIN_SERVICE に"
+ITEM_ENV = "WORKS_FACTORY_KEYCHAIN_ITEM"   # 前の段で名指す keychain の項目名の置き場
+HOWTO = ("認証が無い。keychain にトークンの項目が既に在るなら、その項目名を %s か CLAUDE_KEYCHAIN_SERVICE に"
          "設定する（毎回付けずに済ますなら、Claude Code の設定の置き場の settings.json の env に"
-         " \"WORKS_FACTORY_KEYCHAIN_ITEM\": \"<項目の名>\" の組を書く）。項目の名は推して試さず、"
+         " \"%s\": \"<項目の名>\" の組を書く）。項目の名は推して試さず、"
          "macOS なら security find-generic-password -s <項目の名> で在るかを確かめる（値を出す -w は付けない）。"
          "無ければ claude にログインするか、"
-         "claude setup-token で作ったトークンを CLAUDE_CODE_OAUTH_TOKEN に置く")
+         "claude setup-token で作ったトークンを CLAUDE_CODE_OAUTH_TOKEN に置く") % (ITEM_ENV, ITEM_ENV)
 
 # 名指しで決めた時に子から外す名。Claude Code は CLAUDE_CODE_OAUTH_TOKEN より上の資格を先に使う
 # （code.claude.com/docs/en/authentication の Authentication precedence）。claude_auth の INHERITED に無い FOUNDRY の旗もここで外す
@@ -101,12 +102,12 @@ def read_credentials(path):
 def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
     """(子に足す認証の変数, 出どころの名, 止まる理由)。取れた時は止まる理由が None、取れない時は変数が None"""
     runner = runner or user_runner(user_home)
-    named = env.get("WORKS_FACTORY_KEYCHAIN_ITEM")
+    named = env.get(ITEM_ENV)
     if named:
         tok, note = claude_auth.read_keychain(named, runner)
         if not tok:
             return None, "keychain の項目 " + named, "keychain の項目 %s を読めない: %s" % (named, note)
-        return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "keychain の項目 %s（WORKS_FACTORY_KEYCHAIN_ITEM）" % named, None
+        return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "keychain の項目 %s（%s）" % (named, ITEM_ENV), None
     menv = dict(env, HOME=user_home, CLAUDE_CONFIG_DIR=user_config or str(pathlib.Path(user_home) / ".claude"))
     out, note = claude_auth.auth_env(menv, platform=platform, runner=runner)
     if claude_auth.added(note):
@@ -164,7 +165,7 @@ def main(argv):
     if a.cmd == "check":
         print(name)
         return 0
-    os.execve(target[0], target, child_env(os.environ, got, bool(os.environ.get("WORKS_FACTORY_KEYCHAIN_ITEM"))))
+    os.execve(target[0], target, child_env(os.environ, got, bool(os.environ.get(ITEM_ENV))))
 
 
 if __name__ == "__main__":
