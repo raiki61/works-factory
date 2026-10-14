@@ -207,11 +207,23 @@ def _documents(root: Path, path: Path):
         return [], [f"{_rel(root, path)}:{line}: YAML が読めない: {reason}"]
 
 
+YAML_MERGE = "tag:yaml.org,2002:merge"
+
+
 def _pairs(node):
-    if isinstance(node, yaml.MappingNode):
-        for key, value in node.value:
-            if isinstance(key, yaml.ScalarNode):
-                yield key.value, value
+    """mapping の (鍵, 値)。merge key `<<:` は Archon（Bun.YAML）の読み方と同じく解き、字で書いた鍵が勝つ"""
+    if not isinstance(node, yaml.MappingNode):
+        return
+    own = [(key.value, value) for key, value in node.value if isinstance(key, yaml.ScalarNode) and key.tag != YAML_MERGE]
+    merged = [value for key, value in node.value if key.tag == YAML_MERGE]
+    sources = [m for value in merged for m in (value.value if isinstance(value, yaml.SequenceNode) else [value])]
+    seen = {key for key, _ in own}
+    for source in sources:
+        for key, value in _pairs(source):
+            if key not in seen:
+                seen.add(key)
+                yield key, value
+    yield from own
 
 
 def _nodes(document):
@@ -234,11 +246,7 @@ def _blocks(root: Path) -> list[Path]:
 
 
 def _top(node, key: str):
-    if isinstance(node, yaml.MappingNode):
-        for k, value in node.value:
-            if isinstance(k, yaml.ScalarNode) and k.value == key:
-                return value
-    return None
+    return dict(_pairs(node)).get(key)
 
 
 def _line(node) -> int:

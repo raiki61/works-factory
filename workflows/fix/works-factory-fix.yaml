@@ -199,15 +199,16 @@ nodes:
 
         - id: clash-fix
           description: '合わせ役: 組を合わせて赤になった所を、その組の変えたファイルの中だけで直す'
-          model: sonnet
-          effort: high
+          <<: &clash_launch
+            model: sonnet
+            effort: high
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
           prompt: 指示書 `$clash-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返答」の形の JSON だけ。
           depends_on: [clash-prep]
           when: "$clash-prep.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           output_format: &clash_reply
             type: object
             additionalProperties: false
@@ -394,15 +395,10 @@ nodes:
 
         - id: clash-ruled
           description: '裁定の後の合わせ役: 裁定の文のとおりに組の合わせを直す'
-          model: sonnet
-          effort: high
+          <<: *clash_launch
           prompt: 指示書 `$clash-ruled-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返答」の形の JSON だけ。
           depends_on: [clash-ruled-prep]
           when: "$clash-ruled-prep.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           output_format: *clash_reply
 
         - id: clash-ruled-accept
@@ -1301,19 +1297,20 @@ nodes:
               go: {type: boolean}
               new_unit: {type: boolean}   # 前の周と単位（振り分けの段は route）が替わった周（tdd-new が新しい会話で起きる）
 
-        # 同じ単位の続き（前の周の会話を継ぐ）。字・道具・skills は tdd-new と同じ（anchor）
+        # 同じ単位の続き（前の周の会話を継ぐ）。字・道具・skills は tdd-new と同じ（merge key の錨 tdd_launch）
         - id: tdd
           description: 'TDD の役（今の単位を直す。同じ単位の続き）'
-          model: &tdd_model sonnet
-          effort: &tdd_effort high
-          prompt: &tdd_prompt 指示書 `$tdd-prep.output.prompt_file` を Read で毎回全部読み（回ごとに中身が替わる）、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
+          <<: &tdd_launch
+            model: sonnet
+            effort: high
+            prompt: 指示書 `$tdd-prep.output.prompt_file` を Read で毎回全部読み（回ごとに中身が替わる）、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
+            settingSources: [user]
+            skills: [test-driven-development]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
           depends_on: [tdd-prep]
           when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == false"
-          settingSources: &tdd_sources [user]
-          skills: &tdd_skills [test-driven-development]
-          allowed_tools: &tdd_tools [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: &tdd_sandbox {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           output_format: &tdd_reply
             type: object
             additionalProperties: false
@@ -1390,18 +1387,11 @@ nodes:
         # 新しい単位（1 周目と単位が替わる周。新しい会話）。tdd の後ろの層（同じ層に置くと Archon は並んだ層として会話を切る）
         - id: tdd-new
           description: 'TDD の役（今の単位を直す。新しい単位）'
-          model: *tdd_model
-          effort: *tdd_effort
-          prompt: *tdd_prompt
+          <<: *tdd_launch
           depends_on: [tdd-prep, tdd]
           trigger_rule: none_failed_min_one_success
           when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == true"
           context: fresh
-          settingSources: *tdd_sources
-          skills: *tdd_skills
-          allowed_tools: *tdd_tools
-          sandbox: *tdd_sandbox
-          idle_timeout: 1728000000
           output_format: *tdd_reply
 
         - id: tdd-step
