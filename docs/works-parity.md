@@ -3494,7 +3494,7 @@
 - line.md L-E26: workflows/line/scripts/start.py::words・workflows/line/scripts/start.py::start
 - line.md L-E27: workflows/line/scripts/start.py::words・workflows/line/scripts/start.py::start（部分 A で閉じた）
 - line.md L-E28: lib/gatepolicy.py::check、workflows/line/scripts/start.py::words
-- line.md L-E29: workflows/line/scripts/start.py::start（依頼の文と PR の題・本文を見る。既定の「変更（label）の審査」で空を隠さない）（部分 A で閉じた）
+- line.md L-E29: workflows/line/scripts/start.py::start（依頼の findings と PR の題・本文を見る。既定の「変更（label）の審査」で空を隠さない）（部分 A で閉じた）
 - line.md L-E30: lib/gatepolicy.py::check、workflows/line/scripts/start.py::words・workflows/line/scripts/start.py::start
 - line.md L-E31: lib/entry.py::_feature_list、workflows/line/scripts/start.py::words
 - line.md L-E32: lib/entry.py::FEATURE_DEFAULTS・lib/entry.py::feature_words・lib/entry.py::features_cut、workflows/line/scripts/start.py::start

@@ -180,7 +180,7 @@
 - L-E29 spec=on なのに依頼の文（依頼も PR の題と本文も）が無ければ止める
   - 元: works/.shared/core/entry.py:589-592
   - 今: 表の line.md L-E29
-  - 証: tests/workflows/test_line.py::StartCase.test_spec_refused_without_request_text
+  - 証: tests/workflows/test_line.py::StartCase.test_spec_refused_without_request_text、tests/workflows/test_line.py::StartCase.test_spec_refused_without_findings_or_pr_text
   - 本物の run: 筋書きでのみ
   - 狭め: #74 で壊れた（宣言なし。不可でない → 戻す） → 部分 A で戻した
 - L-E30 final_gate（既定 always・when_needed・protected_only）と unattended（空か true）を確かめて記録に置く
