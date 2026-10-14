@@ -295,8 +295,7 @@ class OldWorks:
         return {**bench_env(attempt), "WORKS_USE_HOME": str(attempt / "home"),
                 **{self.passes[k]: self.values.get(k, {}).get(v, v) for k, v in inputs.items()}}
 
-    def input_pairs(self, attempt: Path, base: str) -> dict[str, str]:
-        return {"request": str(attempt / "request.json"), "base": base, **self.inputs}
+    input_pairs = WorksFactory.input_pairs
 
     def start_command(self, attempt: Path, base: str) -> list[str]:
         return ["sh", str(self.dev / "use.sh"), "start", "--base", base, "--", str(attempt / "target"), str(attempt / "request.json")]
