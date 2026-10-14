@@ -1299,25 +1299,29 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
 def _base_word(base: dict) -> str:
     """直す前のテストの語。red_cause が incomplete で認証されなかった（ok 偽）base は、素材が測った結果でないか、素材が無いか、
     返す節の中の誤り（workflows/test-gate/scripts/result.py）なので「走らせられなかった」。認証された incomplete の base は、
-    素材が not_applicable（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの素材の語で言う"""
+    素材が not_applicable か awaiting_human（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの
+    素材の語で言い、awaiting_human は走らせられなかった系統を名指す素材の reason を添える"""
     if base.get("green"):
         return "緑"
     if base.get("red_cause") == green_cert.INCOMPLETE:
         if base.get("ok") is not True:
             return f"走らせられなかった（{green_cert.INCOMPLETE}）——{gatemarks.BASELINE_NOT_RUN}"
-        if _base_status(base) == green_cert.NOT_APPLICABLE:
-            return f"{gatemarks.MATERIAL_WORDS[green_cert.NOT_APPLICABLE]}（{green_cert.NOT_APPLICABLE}）"
+        material = _base_material(base)
+        status = material.get("status")
+        if status in (green_cert.NOT_APPLICABLE, green_cert.AWAITING_HUMAN):
+            why = oneline.one_line(material.get("reason") or "") if status == green_cert.AWAITING_HUMAN else ""
+            return f"{gatemarks.MATERIAL_WORDS[status]}（{status}）" + (f"——{why}" if why else "")
     return "赤" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else "")
 
 
-def _base_status(base: dict) -> str | None:
-    """base の返りの baseline の指し札の先（元の結末のファイル）の素材の status。読めなければ None"""
+def _base_material(base: dict) -> dict:
+    """base の返りの baseline の指し札の先（元の結末のファイル）の素材。読めなければ空"""
     pointed = oc.paths(base.get("baseline"))
     try:
         material = baseline_red.read_baseline(pointed[0]).get("material") if pointed else None
     except ValueError:
-        return None
-    return material.get("status") if isinstance(material, dict) else None
+        return {}
+    return as_dict(material)
 
 
 def _stop_words(line: dict | None) -> list:

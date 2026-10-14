@@ -290,7 +290,7 @@ flowchart TB
   - `baseline` ← `$test-gate-base.output.baseline`（final だけ。base は null）
 - 出力:
   - `mode`（string）: `base`・`final` → report
-  - `ok`（boolean）: base は直す前の結末を控えられた。final は緑を認証した（`green` で、指紋が今の作業ツリーと合う）→ メイングラフ 4（base）・メイングラフ 9（final）・merge
+  - `ok`（boolean）: base は直す前の結末を控えられた（走らせられない系統が在る base も。素材 `awaiting_human` の `reason` が系統を名指し、judge の台帳の awaiting の問いと report の人が確かめる物に載る。今の works と同じく一部でも全部でも止めない。素材が無い・`not_run`・`carried_over` は偽）。final は緑を認証した（`green` で、指紋が今の作業ツリーと合う）→ メイングラフ 4（base）・メイングラフ 9（final）・merge
   - `green`（boolean）: テスト一式（final は CI も）が緑。base で赤でも `ok` は true になりうる → report
   - `red_cause`（string）: 赤の原因 `introduced`・`inherited`・`environment`・`interaction`・`incomplete`・`""`（ASF の enum。緑なら `""`）→ report
   - `baseline`（ポインタ・null 可）: 直す前の結末（テストの走らせ方と元から赤のテスト）。base だけ → judge・fix・test-gate（final）

@@ -306,7 +306,7 @@ class CertifyCase(unittest.TestCase):
 
     def test_base(self):
         for status, want in (("clean", True), ("found", True), ("not_applicable", True),
-                             ("not_run", False), ("awaiting_human", False), ("carried_over", False), (None, False)):
+                             ("awaiting_human", True), ("not_run", False), ("carried_over", False), (None, False)):
             with self.subTest(status):
                 ok, reason = green_cert.certify(mode="base", material_status=status, green=False, before=None, after=None, now=None)
                 self.assertEqual(ok, want)

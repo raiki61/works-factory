@@ -906,16 +906,22 @@ class ResultScriptCase(ScriptCase):
                 self.assertEqual(run["suite"], {"exe": suite.name, "exit": 0, "problems": []})
                 self.assertEqual(baseline_red.outcomes(run["cases"]), {"s::x": "passed"})
 
-    def test_base_that_cannot_run_is_not_ok(self):
-        """宣言も test_cmd も無い base: 任せ先の役が走らせられず awaiting_human を返した・素材を渡さなかった、どちらも緑を仮定しない"""
+    def test_base_without_material_is_not_ok(self):
+        """宣言も test_cmd も無い base で任せ先の役が素材を渡さなかった: 緑を仮定せず、控えもしない"""
         self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], "role_needed")
         out = self.result("base")
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
+
+    def test_base_that_cannot_run_is_kept_and_names_why(self):
+        """#495: 任せ先の役が一部（か全部）の系統を走らせられず awaiting_human を返した base は、緑を仮定しない（incomplete）が直す前の
+        結末を控え（ok 真）、鎖を judge へ進める。走らせられなかった系統は控えの素材の reason が名指す"""
+        self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], "role_needed")
         gate = self.artifacts / "test-gate" / "base"
         (gate / "ci-material.json").write_text(json.dumps({"material": {"status": "awaiting_human", "reason": "実機が要る"}}),
                                                encoding="utf-8")
         out = self.result("base")
-        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (True, False, "incomplete"))
+        self.assertEqual(baseline_red.read_baseline(self.pointed(out["baseline"]))["material"]["reason"], "実機が要る")
 
     def test_given_up_role_names_last_reject(self):
         """T45（元 ci_role.collect :349-356 の「<節> の返答が 3 回とも受け付けで拒まれた（最後の拒否: …）」）: 任せ先の CI の役が 3 回とも

@@ -344,6 +344,18 @@ class ReadingCase(unittest.TestCase):
         red = {"ok": False, "green": False, "red_cause": "introduced"}
         self.assertEqual(decide(fixed_run(judge=judge, **{"test-gate-final": red}))[0], "round_limit")
 
+    def test_base_with_unrunnable_ci_reaches_fixed_needs_check_naming_the_reason(self):
+        """#495: 直す前のテストで一部の系統を走らせられなかった（local_checks が awaiting_human）run も、最後のテストと封じが通れば
+        fixed_needs_check で、残りの行が走らせられなかった系統（素材の reason）を名指す"""
+        judgment = self.put("judge/judgment.json", {})
+        self.put("judge/materials.json", {"local_checks": {"status": "awaiting_human",
+                                                           "reason": "DB の系統が実 PostgreSQL を要る\nlint は緑"}})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
+        self.assertEqual(decide(returns), ("fixed_needs_check", ""))
+        [row] = outcome.residue(returns)
+        self.assertEqual(row["where"], f"{outcome.MATERIAL_WHERE} local_checks")
+        self.assertIn("awaiting_human: DB の系統が実 PostgreSQL を要る lint は緑", row["text"])
+
     def test_material_answered_with_command_and_output_is_not_left(self):
         """依頼が命令と出力つきで答えた素材は次の run の残りに数えない（元 report.residue の gatemarks.measured_materials）。
         命令か出力の欠けた答え・2 つの問いに当たる答えは測りの代わりにしない"""

@@ -246,6 +246,19 @@ class BuildCase(Base):
         self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['not_applicable']}（not_applicable）", entry)
         self.assertNotIn("走らせられなかった", entry)
 
+    def test_awaiting_human_base_names_what_could_not_run(self):
+        """#495: 一部の系統を走らせられず awaiting_human の直す前のテストは認証され（ok 真）incomplete に畳まれる。「赤」とも
+        「走らせられなかった」とも書かず、素材の語と、走らせられなかった系統を名指す reason で言う"""
+        pointed = str(self.dir / "test-gate" / "base" / "baseline.json")
+        baseline_red.write_baseline(pointed, suite="", test_cmd="", rev="r", exit=None, cases=[],
+                                    material={"status": "awaiting_human", "reason": "DB の系統が実 PostgreSQL を要る。\nlint は緑"})
+        base = {"mode": "base", "ok": True, "green": False, "red_cause": green_cert.INCOMPLETE, "baseline": pointed}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['awaiting_human']}（awaiting_human）——"
+                      "DB の系統が実 PostgreSQL を要る。 lint は緑", entry)
+        self.assertNotIn("直す前のテスト: 赤", entry)
+
 
 class TddCase(Base):
     GROUP_RAN = {"group_id": "g1", "ran": True, "reason": "", "suite": "run-tests", "reused": None,
