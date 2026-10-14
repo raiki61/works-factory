@@ -66,8 +66,8 @@ KILL_GRACE = 2    # SIGTERM から SIGKILL までの猶予（秒）。実行基�
                   # 同じ 5 秒だと、SIGTERM を無視する孫へ SIGKILL を送る前に殻が実行基盤に殺され、孫が残った（試し P11）
 POLL = 0.2        # 信号と親の替わりを見る間隔（秒）
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
-# 印を置けなかった時の 1 行。コマンドは起きたので走らせ続け、報告の冒頭はこの run を利用者の環境で走らせたと言えない
-MARK_FAILED = "利用者の HOME・XDG で走らせた印を置けない（コマンドは起きたので走らせ続ける）"
+# 印を置けなかった時の OSError の頭。起こせば報告の冒頭がこの run を利用者の環境で走らせたと言えないので、起こさない
+MARK_FAILED = "利用者の HOME・XDG で走らせる印を置けない（コマンドは起こさない）"
 LINGER = 1.0      # 止める信号で木を止めた後、抜ける前に待つ秒数（試し P17 の Ctrl-C の穴。モジュールの説明に上限の勘定）
 # 全プロセスの表を読む ps。期限を置かず（E12）、止まらない形を命令の選びで持つ: 絶対パスで名指して PATH の替え玉（対象の道具・
 # 試験の偽物）を拾わず、欄はカーネルのプロセスの表から引ける物だけにする（args・command・env のように他のプロセスの記憶を読む欄は、
@@ -95,8 +95,8 @@ def outside_env(environ):
     uv run の外で起こされた（UV_RUN_RECURSION_DEPTH が無い）ときは、下の UV_NO_CONFIG のほかは外さない。
     - UV_NO_CONFIG はいつも外す。利用者が実行基盤の環境に立てていても、テストのコマンド（`uv run <試験の実行器>` など）には対象の
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
-    - userenv.RECORD（利用者が明示した時だけ起動の殻が控えた、隔離の前の HOME・XDG_*）と userenv.RAN_DIR_ENV はいつも外し、
-      RECORD が在れば中の値に戻して、印のパスを userenv.MARK に置く（userenv.restore。印を置くのは run が子を起こした後。RECORD の
+    - userenv.RECORD（利用者が明示した時だけ起動の殻が控えた、隔離の前の HOME・XDG_*）・userenv.RAN_DIR_ENV・継いだ userenv.MARK は
+      いつも外し、RECORD が在れば中の値に戻して、印のパスを MARK に置く（userenv.restore。印を置くのは run が子を起こす直前。RECORD の
       形が違う・RAN_DIR_ENV が無ければ ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身の git は隔離のまま
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
@@ -394,11 +394,18 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
     return None   # 届かない（最後の回は必ず返す）
 
 
+def _place_mark(mark) -> bool:
+    try:
+        return userenv.mark(mark)
+    except OSError as e:
+        raise OSError(f"{MARK_FAILED}: {mark}: {e}") from e
+
+
 def run(argv, **popen_kw):
     """argv を新しいプロセスグループで起こして終わりを待ち、終了コード（信号で死んだら 128+信号）を返す。bash -c の argv は起こす前に
     prove_launchable で中の先頭の語を引き、引けなければ起こさずに OSError。env に userenv.MARK（outside_env が利用者の HOME・XDG に
-    戻した印）が在れば、子に渡さず、子が起きた後にだけ印を置く（起こせなかったコマンドで報告が言い過ぎない）。印を置けなければ
-    子は止めずに待ち、標準エラーに MARK_FAILED の 1 行を出す（起きた試験を起こせなかった事にしない）。
+    戻した印）が在れば、子に渡さず、起こす直前に印を置く。置けなければ起こさずに MARK_FAILED を頭にした OSError（利用者の環境で
+    走らせて報告が言い漏らす事が無い。起きた子は印のために止めない）。起こせなければ新しく置いた印を消す（報告が言い過ぎない）。
     待つ間（後始末の間も）に STOP_SIGNALS を受けたか直下の親が替わったら、木ごと止め、LINGER 秒待ってから Stopped を投げる。
     起きた時に既に孤児（親が 1）なら起こさずに Stopped(SIGHUP)。どの道で抜けても木を止めに行き、止め切れなければ
     標準エラーに名指しする（抜け道はモジュールの説明）"""
@@ -436,13 +443,14 @@ def run(argv, **popen_kw):
         prove_launchable(argv, popen_kw.get("cwd"), popen_kw.get("env"), lambda: stop_signal() is not None)
         if (signum := stop_signal()) is not None:   # 証明の間に止められたら起こさない
             raise stopped_by(signum)
+        placed = _place_mark(mark) if mark is not None else False
         born = time.time()   # 長の番号の再利用の目印（_tree_members の born）
-        p = subprocess.Popen(argv, start_new_session=True, **popen_kw)
-        if mark is not None:
-            try:
-                userenv.mark(mark)
-            except OSError as e:
-                print(f"tree_run: {MARK_FAILED}: {mark}: {e}", file=sys.stderr)
+        try:
+            p = subprocess.Popen(argv, start_new_session=True, **popen_kw)
+        except OSError:
+            if placed:
+                pathlib.Path(mark).unlink(missing_ok=True)
+            raise
         while True:
             if (signum := stop_signal()) is not None:
                 stop(signum)

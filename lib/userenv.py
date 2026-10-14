@@ -9,7 +9,8 @@
 - record(env) -> str | None: env の OPT_IN が "1" なら NAMES の値（無い名は null）の JSON、ほかは None
 - restore(env) -> None: env の RAN_DIR_ENV・RECORD・MARK（継いだ物）を外し、RECORD が在れば中の値に戻し（null の名は外す）、印 RAN_FILE の
   パスを MARK に置く（RAN_DIR_ENV の指す置き場。無ければ作る）。RECORD の形が違う・RAN_DIR_ENV が無ければ ValueError で、戻さない
-- mark(path) -> None: 印を置く。起こす側（tree_run.run）が MARK を env から外して子を起こし、起きた後にだけ呼ぶ
+- mark(path) -> bool: 印を置き、新しく置いたかを返す（置けなければ OSError）。起こす側（tree_run.run）が MARK を env から外し、子を
+  起こす直前に呼ぶ（置けなければ起こさない。起こせなければ新しく置いた印を消す）
 - opted(env) -> bool: env が RECORD を持つか（利用者が明示した run か。起動の 1 行が言う）
 - ran(top) -> bool: 置き場 top に印 RAN_FILE が在るか（対象のコマンドを利用者の HOME・XDG に戻して起こした run か。報告の冒頭が言う）
 """
@@ -53,8 +54,12 @@ def restore(env) -> None:
     env[MARK] = str(top / RAN_FILE)
 
 
-def mark(path) -> None:
-    pathlib.Path(path).touch()
+def mark(path) -> bool:
+    try:
+        pathlib.Path(path).touch(exist_ok=False)
+    except FileExistsError:
+        return False
+    return True
 
 
 def opted(env) -> bool:
