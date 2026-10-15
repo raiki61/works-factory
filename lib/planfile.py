@@ -1035,11 +1035,15 @@ def nothing_owed(round_dir) -> bool:
 
 
 def why_not_ready(round_dir) -> str:
-    """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・輪が回らなかった）"""
+    """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・拒否の控えが読めない・輪が回らなかった）。控えが読めない周は
+    plan_accept が返答を照らさずに抜けた周で、その訳を返す（落ちない）"""
     why = read_round(round_dir)["why"]
     if why:
         return str(why)
-    return rolekit.given_up_reason(pathlib.Path(round_dir), ROLE) or NO_PLAN
+    try:
+        return rolekit.given_up_reason(pathlib.Path(round_dir), ROLE) or NO_PLAN
+    except rolekit.BoardGap as e:
+        return f"拒否の控えが扱えない（{e}）"
 
 
 def accepted_fields(round_dir):
