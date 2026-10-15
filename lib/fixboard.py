@@ -925,7 +925,7 @@ def child_allowed_rows(result) -> list:
 
 def allowed_test_rows(place, results=()) -> list:
     """許したテストの変更の訳 [{path, permit, source}]（返りの diff の隣の allowed-tests.json の中身。パスと許しの id の順・重ねない）:
-    置き場 place のテストの変更の許し（conflict.test_permits の範囲の在る行。承認済みの修正案の rewrite_tests・files の消す名（change=remove の symbol と op=delete の行）・範囲の相談の
+    置き場 place のテストの変更の許し（conflict.test_permits の範囲の在る行。承認済みの修正案の rewrite_tests・files の消す名（change=remove の symbol と op=delete・op=rename の元の .py）・範囲の相談の
     合意・裁定 fix_test_scope）と、範囲の相談の合意の新しいテストのファイル（granted_new_tests）と、組の子の結果の allowed_tests の行。
     permit は許しの id、source は ALLOWED_SOURCES の語。元 works/.shared/core/conflict.py:983 ruled_test_doc（許しの id と理由を
     最後の関所の守りのファイルの行にした）を、パスごとの許しの行で受ける形にした物"""

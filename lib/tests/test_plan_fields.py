@@ -279,6 +279,15 @@ class TestSplitAndBoard(PlanFieldsCase):
         _, fields = planmarks.split({"plan": [item(files=added_only)]}, self.repo, base_tests=base)
         self.assertEqual(fields[0]["removes_tests"], [])
 
+    def test_split_permits_tests_naming_the_old_module_of_a_rename(self):
+        """op=rename の行の元のパス from（.py）のモジュールの名を使う修正前のテストに、removes_tests の許しが並ぶ（移すモジュールの
+        旧名を import するテストを書き換えられる）。移した先のパス path の名は許しの元にならない"""
+        src = ("def test_old():\n    import old_tool\n    assert old_tool.run()\n\n\n"
+               "def test_new():\n    import new_tool\n    assert new_tool.run()\n")
+        files = [frow("tools/new_tool.py", op="rename", why="tools の下に寄せる", **{"from": "old_tool.py"})]
+        _, fields = planmarks.split({"plan": [item(files=files)]}, self.repo, base_tests={"test_tools.py": src})
+        self.assertEqual([r["id"] for r in fields[0]["removes_tests"]], ["test_tools.py::test_old"])
+
     def test_removes_tests_only_from_code_use(self):
         """消す名（files の change=remove の symbol）の語が文字列（題・辞書の値・parametrize の値・文字列で書いた注釈）やコメントの中にしか無いテストは removes_tests に
         並ばない。コードの名前（注釈の中の名も）・属性・点の付いたパスの文字列（mock.patch の的のどの段でも。デコレータでも）・属性の名の文字列（setattr・getattr・

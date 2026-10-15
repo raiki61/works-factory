@@ -584,11 +584,12 @@ def removed_paths(item) -> list[str]:
 def _naming_removes(item: dict, base_tests: dict) -> list[dict]:
     """項目 item の files の change=remove の symbol の名（消す名）の探す語（search_word）を、base_tests（パス → 修正前の版のテストの
     ファイルの中身）のテストの関数がコードの識別子（と点の付いたパス・属性の名の文字列）として使う所（test_names）から探し、当たった
-    関数の行 {id, limit: "<パス>:<定義の行>"} を並びの順で返す。op=delete の行の path も消す名の語に数える（消えるモジュールの名を
-    使う修正前のテストにも許しを並べる）。ほかの文字列（文字列で書いた注釈も）の中の同じ語は当たりにしない
+    関数の行 {id, limit: "<パス>:<定義の行>"} を並びの順で返す。この直しの後に無くなる .py（removed_paths: op=delete の path と
+    op=rename の元のパス from）のモジュールの名も消す名の語に数える（消える・移るモジュールの旧名を使う修正前のテストにも許しを
+    並べる）。ほかの文字列（文字列で書いた注釈も）の中の同じ語は当たりにしない
     （ありふれた語で関わらないテストへ許しを広げない）。定義の行が引けない関数（入れ子のクラスの中など）は並べない（許しを広げない）"""
     words = {w for w in map(search_word, (name for _, name in file_symbols(item, "remove"))) if w}
-    words |= {declared_name(p) for p in file_paths(item, ("delete",)) if p.endswith(".py")} - {""}
+    words |= {declared_name(p) for p in removed_paths(item) if p.endswith(".py")} - {""}
     out = []
     for path, text in (base_tests if words else {}).items():
         for tid, names in test_names(text, path).items():

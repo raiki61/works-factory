@@ -886,7 +886,7 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
                  round_: int = 1) -> list[dict]:
     """既存のテストの変更の許しの唯一の元（keep-essence の 3。許す元を読むのはここだけで、凍結の検査・事後の関門・範囲の照らし・
     最後の関所はこの行を読む）。許す元は 5 つ: 承認済みの修正案の rewrite_tests（いつも。planmarks.rewrites の順）・範囲の相談の
-    合意（agreed_permits）・承認済みの修正案の項目の files の change=remove の symbol（消す名）と op=delete の .py の行のモジュールの名をコードで使う既存テスト（planmarks.removes_permits。書き換えも関数の
+    合意（agreed_permits）・承認済みの修正案の項目の files の change=remove の symbol（消す名）と op=delete の path・op=rename の元のパス from の .py のモジュールの名をコードで使う既存テスト（planmarks.removes_permits。書き換えも関数の
     丸ごとの消しも許す）・rulings が真なら裁定 fix_test_scope の範囲（ruled_fix の順）・案の直しで直した項目の単位（amended_keys。
     前の輪の受け入れのテストの関数を、直した案で書き直してよい）。
     行は {limit: 範囲の文字列, id: 守りのファイルの行の id の頭, why: 許した理由, source: 許しの出どころの語（fixboard.ALLOWED_SOURCES。
