@@ -3,9 +3,10 @@
 # dependencies = []
 # ///
 """節 rule-accept（形 "" の裁定の輪の終わり）: 裁定役の返答を照らし（ruling.accept_rule: 読むだけの見張り・名指しの現物・裁定の形）、
-通れば裁定を置き場の conflicts.json に積む。拒めば理由を置き場の reject-rule-accept-<iteration>.md に書き（次の rule-prep がこの輪の全部を 1 つのファイルにまとめて名指す）、
-3 回目の拒否では裁かれていない申し出を人へ回して done。返り {ok, done, reason, reason_file}。
-回す側の誤り（返答・回の番号が読めない・rule-prep の控えが無い）は標準エラーに 1 行で非 0。
+通れば裁定を置き場の conflicts.json に積む。拒めば理由を rolekit の控え rejects-rule.json に積み（ruling.accept_rule。reason_file は
+この輪の全部のファイル rejects-rule.md。次の rule-prep が同じファイルを名指す）、3 回目の拒否では裁かれていない申し出を人へ回して done。
+拒否の控え rejects-rule.json が読めない・書けない時は、落ちずに done の拒否（裁かれていない申し出は人に回さない）。返り {ok, done, reason, reason_file}。
+回す側の誤り（返答が読めない・rule-prep の控えが無い・rejects-rule.md が書けない）は標準エラーに 1 行で非 0。
 """
 import os
 import sys
@@ -29,14 +30,13 @@ def main() -> dict:
     reply, why = rolekit.parse_reply(os.environ["INPUTS_REPLY"])
     if reply is None:
         raise ValueError(why)
-    iteration = int(os.environ["INPUTS_ITERATION"])
     place, repo = boundary.place("fix"), boundary.work_tree()
     got = ruling.accept_rule(reply, place, fixboard.base_rev_of(place), repo,
                              keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")))
     if got["ok"]:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
-    path = fixboard.write_reject(place, NAME, iteration, str(got["reason"]))
-    return {"ok": False, "done": bool(got["done"]), "reason": str(got["reason"]), "reason_file": path}
+    return {"ok": False, "done": bool(got["done"]), "reason": str(got["reason"]),
+            "reason_file": rolekit.reject_file_or_blank(place, ruling.ROLE)}
 
 
 if __name__ == "__main__":

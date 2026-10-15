@@ -964,7 +964,7 @@ class RulingSeamCase(TempCase):
         r = self.ruling
         r.prep(self.place, self.repo, self.VALUES)
         bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
-        for _ in range(r.GIVE_UP_AFTER - 1):
+        for _ in range(rolekit.GIVE_UP_AFTER - 1):
             got = r.accept_rule(bad, self.place, self.rev, self.repo)
             self.assertEqual((got["ok"], got["done"]), (False, False))
             self.assertIn("c9-9", got["reason"])
@@ -975,6 +975,23 @@ class RulingSeamCase(TempCase):
         self.assertEqual((got["ok"], got["done"]), (False, True))
         row, = self.conflict.items(self.place)
         self.assertEqual((row["ruling"]["decision"], row["ruling"]["text"]), (self.conflict.ASK, r.GIVE_UP_TEXT))
+
+    def test_unusable_ledger_does_not_hand_the_give_up_ruling(self):
+        """裁定の控え rejects-rule.json が読めない時、accept_rule は例外を上げず done 真の拒否を返し、裁かれていない申し出に
+        GIVE_UP_TEXT（役が 3 回通らなかった）の ask_human を積まない"""
+        r = self.ruling
+        r.prep(self.place, self.repo, self.VALUES)
+        (self.place / "rejects-rule.json").mkdir()
+        bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
+        try:
+            got = r.accept_rule(bad, self.place, self.rev, self.repo)
+        except rolekit.BoardGap as e:
+            self.fail(f"控えの誤りで落ちた: {e}")
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        self.assertIn("拒否の控えが扱えない", got["reason"])
+        self.assertEqual(len(self.conflict.unruled(self.place)), 1, "裁かれていない申し出を人に回さない")
+        row, = self.conflict.items(self.place)
+        self.assertIsNone(row["ruling"])
 
     def test_wiring_errors_are_value_errors(self):
         r = self.ruling
@@ -1478,16 +1495,30 @@ class DeltaSeamCase(TempCase):
     def test_accept_out_writes_reasons_and_gives_up_on_the_third(self):
         self.assertEqual(fixboard.accept_out(self.place, "x-accept", {"ok": True}),
                          {"ok": True, "done": True, "reason": "", "reason_file": ""})
-        self.assertEqual(fixboard.rejects_file(self.place, "x-accept", 0), "")
+        self.assertEqual(rolekit.reject_file(self.place, "x-accept"), "")
         for k in (1, 2, 3):
             out = fixboard.accept_out(self.place, "x-accept", {"ok": False, "reason": f"理由 {k}"})
             self.assertEqual((out["ok"], out["done"]), (False, k == 3))
-            self.assertEqual((self.place / f"reject-x-accept-{k}.md").read_text(encoding="utf-8"), f"理由 {k}\n")
+            self.assertEqual(list(self.place.glob("reject-x-accept-*.md")), [], "拒否の控えは rolekit の 1 つだけ")
+            self.assertEqual(out["reason_file"], str(rolekit.rejects_text_path(self.place, "x-accept")))
             self.assertEqual(pathlib.Path(out["reason_file"]).read_text(encoding="utf-8"),
                              rolekit.rejects_text([f"理由 {i}" for i in range(1, k + 1)]) + "\n", "reason_file は輪の拒否の全部")
-            self.assertEqual(fixboard.rejects_file(self.place, "x-accept", k), out["reason_file"])
-        self.assertNotIn("理由 3", pathlib.Path(fixboard.rejects_file(self.place, "x-accept", 2)).read_text(encoding="utf-8"),
-                         "次の回の支度は前の回までの拒否だけを書く")
+            self.assertEqual(rolekit.reject_file(self.place, "x-accept"), out["reason_file"])
+        self.assertEqual(rolekit.rejected(self.place, "x-accept"), ["理由 1", "理由 2", "理由 3"])
+        self.uncounted_and_unusable_rounds()
+
+    def uncounted_and_unusable_rounds(self):
+        """count: false の回は控えに数えない。控えが読めない回は落ちずに done 真の拒否（reason_file は空）"""
+        queued = fixboard.accept_out(self.place, "y-accept", {"ok": False, "reason": "相談に積んだ", "count": False})
+        self.assertEqual((queued["ok"], queued["done"]), (False, False))
+        self.assertEqual(rolekit.attempt(self.place, "y-accept"), 1, "積んだ回は控えに数えない")
+        (self.place / "rejects-z-accept.json").mkdir()
+        out = fixboard.accept_out(self.place, "z-accept", {"ok": False, "reason": "欠け"})
+        self.assertEqual((out["ok"], out["done"], out["reason_file"]), (False, True, ""))
+        self.assertIn("拒否の控えが扱えない", out["reason"])
+        n, stopped = fixboard.round_number(self.place, "z-accept")
+        self.assertEqual((n, stopped["done"]), (0, True))
+        self.assertEqual(fixboard.round_number(self.place, "y-accept"), (1, None))
 
     def _reviewed(self):
         fixboard.write_json(fixboard.out_file(self.place, "p3.delta_review"), {"faces": [
@@ -2364,7 +2395,7 @@ class FixAcceptSeamCase(TempCase):
                  "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
                  "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
         reply = {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_MEAN, 1)], "not_done": [], "conflicts": [claim]}
-        got = fixboard.accept_reply(reply, self.place, self.repo, pass_="ruled", iteration=fixboard.GIVE_UP_AFTER,
+        got = fixboard.accept_reply(reply, self.place, self.repo, pass_="ruled", iteration=rolekit.GIVE_UP_AFTER,
                                     owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
         self.assertEqual(got["units"][R_MEAN]["status"], "given_up", got)
         self.assertNotIn("return hi", path.read_text(encoding="utf-8"), "clamp の直しが作業ツリーに残った（場面が崩れた）")
@@ -2389,7 +2420,7 @@ class FixAcceptSeamCase(TempCase):
         old, new = list(R_FIXED.items())[0]
         path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
         reply = {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_MEAN, 1)], "not_done": [], "conflicts": []}
-        got = fixboard.accept_reply(reply, self.place, self.repo, pass_="ruled", iteration=fixboard.GIVE_UP_AFTER,
+        got = fixboard.accept_reply(reply, self.place, self.repo, pass_="ruled", iteration=rolekit.GIVE_UP_AFTER,
                                     owed=[R_MEAN], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
         self.assertEqual(got["units"][R_MEAN]["status"], "given_up", got)
         self.assertIn("return hi", path.read_text(encoding="utf-8"), "段の頭より前の clamp の直しが戻った（場面が崩れた）")
@@ -2457,7 +2488,7 @@ class FixAcceptSeamCase(TempCase):
     def test_unclosed_defects_count_on_the_last_round_stops_the_unit(self):
         """最後の回まで申し出が無ければ、その単位を止めて人に回す（閉じない数えのまま受けて round_limit で終えない）"""
         import conflict
-        got = self._accept_clamp(iteration=fixboard.GIVE_UP_AFTER)
+        got = self._accept_clamp(iteration=rolekit.GIVE_UP_AFTER)
         self.assertEqual(got["units"][self.D_CLAMP]["status"], "given_up", got)
         self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], [self.D_CLAMP])
 

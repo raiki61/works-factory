@@ -1004,6 +1004,21 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(self.reasons(run), [])
         self.assertIs(out["ready"], False)
 
+    def test_unusable_ledger_is_a_done_give_up_reject(self):
+        """拒否の控えが読めない周（控えの名がディレクトリ）でも、plan_accept の script は非 0 で落ちず、done・give_up 真の拒否で輪を止める。
+        回を先に読むので、返答を照らさず案のファイルも書かない"""
+        run = Run(self)
+
+        def writer(n, brief):
+            (run.art / "plan" / "r1" / "rejects-plan.json").mkdir(exist_ok=True)
+            return {"plan": [item(1, 2)]}
+
+        run.include(writer=writer)
+        got = run.out["plan-accept"]
+        self.assertEqual({k: got[k] for k in ("ok", "done", "give_up")}, {"ok": False, "done": True, "give_up": True})
+        self.assertIn("拒否の控えが扱えない", got["reason"])
+        self.assertFalse((run.art / "plan" / "r1" / planfile.FIX_PLAN_FILE).exists())
+
     def test_accepted_plan_has_item_ripple(self):
         """種の 1 回目の受け付けの後の ripple.json: 項目ごとに、変える名の呼び出し元と試験の覆っていない当たり"""
         run = Run(self)

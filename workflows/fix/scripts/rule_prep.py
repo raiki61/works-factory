@@ -3,8 +3,8 @@
 # dependencies = []
 # ///
 """節 rule-prep（形 "" の裁定の輪の頭）: 裁定役の指示書を組んで置き場に書く（ruling.prep。作業ツリーの姿を控え、申し出の控え・
-判定・依頼・持ち主の決まりを名指す）。2 回目からはこの輪の拒否の理由の全部のファイル（rule-accept が書いた reject-rule-accept-<k>.md を
-fixboard.rejects_file が 1 つにまとめた物）を 1 行目で名指す。返り {prompt_file, iteration}。裁く申し出が無い・判定の写しが無い: 標準エラーに 1 行で非 0。
+判定・依頼・持ち主の決まりを名指す）。2 回目からはこの輪の拒否の理由の全部のファイル（rule-accept が積んだ拒否の控え rejects-rule.json を
+rolekit.reject_file が 1 つにまとめた rejects-rule.md）を 1 行目で名指す。返り {prompt_file, iteration}。裁く申し出が無い・判定の写しが無い: 標準エラーに 1 行で非 0。
 """
 import sys
 from pathlib import Path
@@ -27,7 +27,6 @@ RULES = Path(__file__).resolve().parents[1] / "commands" / "fix-rules"
 rulebook.CANON = RULES / "common.md"
 fixrules.SHARED = rulebook.CANON
 fixrules.RULES_DIR = RULES
-ACCEPT = "rule-accept"
 
 
 def main() -> dict:
@@ -35,10 +34,9 @@ def main() -> dict:
     judgment = place / fixboard.JUDGMENT_FILE
     if not judgment.is_file():
         raise ValueError(f"置き場に判定の写し {judgment.name} が無い")
-    done = rolekit.attempt(place, ruling.ROLE) - 1
     start = startrec.read(place)
     got = ruling.prep(place, repo, {"judgment_file": str(judgment), "policy_path": policy.frozen_copy(start)},
-                      reject_file=fixboard.rejects_file(place, ACCEPT, done), lang=rolekit.lang_line(start))
+                      reject_file=rolekit.reject_file(place, ruling.ROLE), lang=rolekit.lang_line(start))
     return {"prompt_file": got["prompt_file"], "iteration": int(got["iteration"])}
 
 

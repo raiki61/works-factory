@@ -18,7 +18,7 @@ import stopby  # noqa: E402
 
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 jdir.mkdir(parents=True, exist_ok=True)
-out = ja.accept_round(
+out = rolekit.accept_round(
     jdir, ja.PREMISES_ROLE, os.environ.get("INPUTS_REPLY", ""),
     lambda reply: ja.check_premises(reply, jdir, Path.cwd(), ja.read_json(jdir / ja.REQUEST_FILE, []) or []),
     on_give_up=lambda: ja.write_stop(jdir, stopby.PREMISES, rolekit.given_up_reason(jdir, ja.PREMISES_ROLE)))

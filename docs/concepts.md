@@ -57,6 +57,7 @@
 | `start-record` | 始めの記録（r1/start.json） | 住処あり |
 | `human-gates` | 人の承認ノードと無人の方針 | 住処あり |
 | `gate-evidence` | 試験の関門の証拠の文の行の頭 | 住処あり |
+| `accept-round` | 受け付けの回（返答を読む・拒否を控えに積む・上限で諦める・最後の回か） | 住処あり |
 | `ledger` | 費用と時間の帳簿 | 散らばり |
 | `ai-launch` | AI の起こし方（模型・effort・道具・隔離） | 散らばり |
 | `prompt-assembly` | 指示書の組み立て | 散らばり |
@@ -225,6 +226,14 @@
 - 約束: 行の値は出力の欄 `suites_line`・`log` と同じ字。報告と最後の承認ノードは証拠の文を開かずに出力の欄を `lib/declared_checks.py` の `gate_values` で読む
 - 知ってよい所: 住処だけ。柵の外の試験と通しの照らし（`tests/e2e/evidence.json`）は `tests/workflows/test_test_gate.py` の `EvidenceRowsCase` が住処の定数から引くことを縛る
 - 今: 既知の漏れは、最後の承認ノードの文のログの行（`workflows/line/scripts/ask_final.py` の `tests_lines`）が同じ字の頭を持つ 1 行。証拠の文の行ではない別の文
+
+### `accept-round` 受け付けの回（返答を読む・拒否を控えに積む・上限で諦める・最後の回か）
+
+- 状態: 住処あり
+- 住処: `lib/rolekit.py`（受け付けの回の口 `accept_round` と、読んだ返答を受けるその本体 `accept_parsed`、その返り値の 4 つの欄 `round_outcome`、控えの誤りで落ちずに今の回を読む `current_round`、拒否の控えの唯一の書き手 `with_done`、拒否の控え `rejects-<名>.json` の読み `reject_rows`・`rejected`・`attempt`・`given_up_reason`、諦める回の数 `GIVE_UP_AFTER` と最後の回かの問い `is_last_attempt`、拒否の全部のファイル `reject_file`、前の版の控えの読み替え `_legacy_rows`）
+- 約束: 呼び手は `rolekit.accept_round(board, name, raw, take, reject=, on_give_up=)` に返答の字と `take` を渡す。`take` の返り値の欄 `ok`・`reason`・`give_up`（1 回目から諦める）・`count`（false なら控えに積まない）・`kind`（控えの行に残す）を口が読み、1 回の拒否の定義は口の中にだけ在る。返り値は `take` の返り値に `done` を足した物。拒否の控え `rejects-<名>.json` が読めない・書けない時は、落ちずに `done` 真の拒否（理由「拒否の控えが扱えない」）。口の外の `rolekit.reject_file` が書く `rejects-<名>.md` が書けない時は `OSError` が呼び手まで上がる。拒まれた後の出し直しを前の答えと合わせる受け付けは、`take` の前段の `rolekit.resubmitted` で合わせた答えを `rolekit.accept_parsed` に渡す（数え・諦め・控えは口の中のまま）。take の前に今の回が要る呼び手は `current_round` で読み、控えが読めなければ口を回さずにその拒否を返す
+- 知ってよい所: 住処だけ。呼び手（`lib/judge_accept.py`・`lib/boardview.py`・`lib/eye.py`・`lib/ruling.py`・`lib/runreport.py`・`lib/fixboard.py` の `accept_out`、`workflows/` の受け付けの script）は口を引き、控えの名も諦める回の数も字で書かない
+- 今: 柵は、`rolekit.with_done(` の直の呼びと受け付けの回の口の定義と `round_outcome` の `give_up` の欄の写し、`GIVE_UP_AFTER` との大小の比べ、拒否の控えと拒否の文の置き場の名の字、`GIVE_UP_AFTER = <数>` の定義と見出し「前の回の受け付けが拒んだ理由」の別の宣言の 4 本。既知の漏れは無い。TDD の段の自前の数え `lib/tddloop.py` の `tries` と拒否の文のファイル `tdd-step-reject-{}.md` は別のサブシステムで、柵の語の形に当たらない
 
 ---
 
