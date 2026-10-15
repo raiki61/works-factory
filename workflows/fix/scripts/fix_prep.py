@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
+import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import groups  # noqa: E402

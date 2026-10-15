@@ -22,6 +22,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import conflict  # noqa: E402
+import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import groups  # noqa: E402
