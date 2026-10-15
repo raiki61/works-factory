@@ -1548,7 +1548,6 @@ class BriefCase(unittest.TestCase):
         self.assertEqual(rolekit.rejected(run.art / "plan" / "r1", "plan"), [], "構造の行への答えを求めない")
 
     def test_clean_only_structure_rows_need_no_answer(self):
-        """汚れない行だけの周: 『structure を書け』の見出しは貼らず、答えの要らない旨の 1 行と、汚れない行の小見出しの下の行だけ"""
         run = Run(self)
         self.assertIs(run.include(eye=eye_clean)["ready"], True)
         brief = self.brief(run)
@@ -1560,7 +1559,6 @@ class BriefCase(unittest.TestCase):
         self.assertEqual(rolekit.rejected(run.art / "plan" / "r1", "plan"), [], "structure を書かない案は通る")
 
     def test_clean_structure_rows_sit_outside_the_ask(self):
-        """汚れる行と汚れない行が混じる周: 汚れる行だけが PLAN_ASK の下、汚れない行は小見出しの後にだけ現れる"""
         run = Run(self)
         run.include(eye=eye_dirty, writer=writer_of({"plan": [item(1, 2, structure=[{"row": MEAN, "follows": True}])]}))
         brief = self.brief(run)
