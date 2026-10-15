@@ -24,7 +24,7 @@ clash-goes-to-ruling。確かめ直しが落ちた組・字で当たらない組
 親の作業ツリーで解き直して写す（fixboard.adopt_tdd_states。裁定の後の修正の受け付けが読む）。返り {groups: 組の数, returned: 戻せた組の数}。
 置き場の groups.json が無い・読めない・git が効かない: 標準エラーに 1 行で 1。結果のファイルが無いか読めない組が在れば、作業ツリーを
 変えずに同じく 1（子が落ちた run は組の節が落ちてこの節が走らず、諦めた子も group-end が結果を書くので、結果の無い組は壊れた結果。
-持ち越しにして済んだ子の変更を失わず、柵 groups-ok で run を止める。issue #576）。
+持ち越しにして済んだ子の変更を失わず、この節が落ちて run を止める。issue #576）。
 """
 import sys
 from pathlib import Path
@@ -110,7 +110,6 @@ def main() -> dict:
             if not got.why and r.get("worktree") and log is not None:
                 applied.append((r["worktree"], writelog.log_here(r["worktree"]), got.names))
     else:
-        repo = boundary.work_tree()
         outcomes = {gid: (r, True, "") for gid, r in results.items()}
     if plan["par"]:
         clash.record(place, clashes)

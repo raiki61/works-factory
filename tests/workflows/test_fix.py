@@ -241,7 +241,7 @@ class GroupsCase(unittest.TestCase):
 
     def test_a_failed_child_halts_the_block_for_resume(self):
         """#576: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
-        走らず、ブロックの sink の柵 groups-ok が飛んでメイングラフを止める。join の後に作り直す all_done の節は join を結ぶ"""
+        走らず、ブロックの sink の柵 groups-ok が飛ぶ。join の後に作り直す all_done の節は join を結ぶ"""
         for nid in ("groups-par", "groups-seq"):
             self.assertEqual(self.nodes[nid]["fan_out"]["join"], "all_success", nid)
         self.assertEqual(self.nodes["join"]["trigger_rule"], "none_failed_min_one_success")
@@ -249,7 +249,7 @@ class GroupsCase(unittest.TestCase):
         self.assertEqual(guard["bash"], "true")
         self.assertEqual(set(guard["depends_on"]), {"route", "groups-par", "groups-seq", "join"})
         self.assertEqual(guard["trigger_rule"], "none_failed_min_one_success")
-        self.assertNotIn("when", guard, "飛んだ sink はメイングラフの depends_on: [fix] を止める（形 group の run も）")
+        self.assertNotIn("when", guard, "柵が飛ぶのは組か join が落ちた時だけ（形 group の run は済む）")
         self.assertEqual([nid for nid, n in self.nodes.items() if "groups-ok" in (n.get("depends_on") or [])], [])
         for nid in ("clean", "assert-changed", "delta-cut"):
             self.assertIn("join", self.nodes[nid]["depends_on"], nid)

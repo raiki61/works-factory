@@ -175,10 +175,9 @@ nodes:
         groups: {type: integer, minimum: 0}
         returned: {type: integer, minimum: 0}
 
-  # 組の子か join が落ちた run を止める柵。どの節もこれに依存しないブロックの sink なので、落ちればメイングラフの
-  # depends_on: [fix] の節（返す節 fix は all_done で必ず済む）が飛び、途中の差分のまま関所や目へ進まない。resume で組の節が
-  # 落ちた子を続きから回し、join とこの節が走れば先へ進む。when を書かない（メイングラフの depends_on: [fix] は sink が
-  # 1 つでも飛べば進まないので、形 group の run でも route だけで済ませる）
+  # 組の節か join が落ちた run で飛ぶ柵。どの節もこれに依存しないブロックの sink で、返す節 fix（all_done で必ず済み、
+  # この時は done: false）と別に、組が落ちたことをブロックの出口に出す。resume で組の節が落ちた子を続きから回し、join が済めば
+  # この節も済む。when を書かない（形 group の run でも route だけで済ませ、飛ぶのは組か join が落ちた時に限る）
   - id: groups-ok
     bash: "true"
     depends_on: [route, groups-par, groups-seq, join]
