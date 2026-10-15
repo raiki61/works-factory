@@ -338,7 +338,7 @@ def readback(target, branch: str, commit: str, base: str, number: int) -> dict:
 
 
 def refused(word, why: str):
-    """語が空（Archon の飛んだ値 null も空）なら None。ほかは、知らない語も頼まれた扱いで {ok: false, reason}"""
+    """語が空（飛んだ節の値 null も空）なら None。ほかは、知らない語も頼まれた扱いで {ok: false, reason}"""
     return None if str(word or "").strip() in ("", "null") else _doc(False, reason=f"差分を置かなかったので提出しない: {why}")
 
 
