@@ -14,7 +14,7 @@
   塊・base の無い（両方が新しく作った）ファイルは今どおり当てない。marked（list）を渡すと、合わせられない食い違いも当てる:
   食い違いの塊を印（MARK_LABELS の名の `<<<<<<<`・`|||||||`・`=======`・`>>>>>>>`。git merge-file --diff3）つきで書き、印を
   書いたパスを marked に積む（片方が消した・バイナリなど印を書けないファイルが在れば今どおり当てない）
-- markers_left(repo, paths): paths のうち食い違いの印の行が残るファイルの並び
+- markers_left(repo, paths): paths のうち名つきの印（<<<<<<<・|||||||・>>>>>>>）の行が残るファイルの並び（区切りの ======= だけの行は数えない）
 - tests_unique(path, text): 合わせた中身の照らし（apply の check に渡す。同じ名のテストの定義が 2 つ在れば偽）
 - patch_names(patch): 差分の行先のパスの並び
 
@@ -148,11 +148,12 @@ def tests_unique(path: str, text: bytes) -> bool:
 
 def _is_marker(line: bytes) -> bool:
     s = line.rstrip(b"\r")
-    return any(s == m or s.startswith(m + b" ") for m in MARKERS)
+    return any(s == m or s.startswith(m + b" ") for m in MARKERS if m != b"=======")
 
 
 def markers_left(repo, paths) -> list:
-    """paths（根からの相対）のうち、食い違いの印（MARKERS のどれか。名つきでも名なしでも）の行が残るファイル（無いファイルは外す）"""
+    """paths（根からの相対）のうち、名つきの印の頭（<<<<<<<・|||||||・>>>>>>>）の行が残るファイル（無いファイルは外す）。
+    区切りの ======= だけの行は、中身の setext 見出しの下線と見分けられないので数えない"""
     out = []
     for p in paths:
         f = pathlib.Path(repo) / p
