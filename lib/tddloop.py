@@ -1816,31 +1816,16 @@ _MODULE_HOOKS = frozenset({"setUpModule", "tearDownModule", "setup_module", "tea
                            "collect_ignore", "collect_ignore_glob"})
 _CLASS_HOOKS = frozenset({*dir(unittest.TestCase), "setup_method", "teardown_method", "setup_class",
                           "teardown_class", "setup", "teardown", "pytestmark"})
-_DOTTED = re.compile(r"^[A-Za-z_][\w.]*$")
 
 
 def _old_names(tree) -> set:
-    """木の中の名の全部（変数・属性・引数・キーワード・定義・import の名と、識別子か点つきの名の形の文字列の各部。
+    """木の中の名の全部（planmarks.code_idents に global・nonlocal の名と、識別子か点つきの名の形の文字列の各部を足す。
     fixture の名・getattr・mock.patch の的も含める）"""
-    out = set()
+    out = planmarks.code_idents(tree)
     for n in ast.walk(tree):
-        if isinstance(n, ast.Name):
-            out.add(n.id)
-        elif isinstance(n, ast.Attribute):
-            out.add(n.attr)
-        elif isinstance(n, ast.arg):
-            out.add(n.arg)
-        elif isinstance(n, ast.keyword) and n.arg:
-            out.add(n.arg)
-        elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            out.add(n.name)
-        elif isinstance(n, ast.alias):
-            out.update(n.name.split("."))
-            if n.asname:
-                out.add(n.asname)
-        elif isinstance(n, (ast.Global, ast.Nonlocal)):
+        if isinstance(n, (ast.Global, ast.Nonlocal)):
             out.update(n.names)
-        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and _DOTTED.match(n.value):
+        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and planmarks.DOTTED_NAME.fullmatch(n.value):
             out.update(n.value.split("."))
     return out
 
