@@ -71,7 +71,7 @@ class DepthSkipTest(unittest.TestCase):
     def test_depth_clause_inside_a_block_loop_is_red(self):
         self.red("ノード pr__loop", block_text=block(clause=CLAUSE))
 
-    def test_standard_depth_is_red(self):
+    def test_heavy_adds_drifting_from_tiers_is_red(self):
         self.red(f"段 {depth.HEAVY} の省く物・足す物が depth.TIERS と違う", design_text=design(heavy=("judge_verify",)))
 
 
