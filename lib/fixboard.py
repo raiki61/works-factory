@@ -586,21 +586,23 @@ def _in_order(judgment, keys) -> list:
 
 def fix_groups(owed, items, only_items=()) -> list:
     """直す義務の単位 owed（順）を、承認済みの修正案の項目 items（planmarks.approved_items の形 [{item, unit_keys, …}] か None）を
-    共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の中と組の並びは owed の順）。範囲（allowed_paths）が交わり
-    得る項目（planmarks.globs_meet）もつなぐ: 別の組の子が同じファイルを変えると、締めの節で後の組の差分が字で当たらない。範囲の
-    無い項目は項目の番号だけでつなぐ。only_items（項目の番号かその字の並び）が空でなければ、その項目に載る単位だけを残し、残した
-    単位の項目の範囲だけを照らす。返り [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
+    共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の中と組の並びは owed の順）。範囲（allowed_paths の glob と
+    tests・rewrite_tests のファイル。planrange の「項目の範囲」）が交わり得る項目（planmarks.globs_meet）もつなぐ: 別の組の子が同じ
+    ファイルを変えると、締めの節で後の組の差分が字で当たらない。範囲の無い項目は項目の番号だけでつなぐ。only_items（項目の番号か
+    その字の並び）が空でなければ、その項目に載る単位だけを残し、残した単位の項目の範囲だけを照らす。返り [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
     元 works/blk-fix/lib/tddlanes.py:126・131 の items_of・groups（項目の番号を盤面の brief の行から引いた所を items の値で受ける）"""
     import lanekit
     import planmarks
+    import planrange
     by: dict = {}
     ranges: dict = {}
     for it in items or []:
         if isinstance(it, dict) and isinstance(it.get("item"), int):
             for k in it.get("unit_keys") or []:
                 by.setdefault(k, []).append(it["item"])
-            if isinstance(it.get("allowed_paths"), list):
-                ranges[it["item"]] = it["allowed_paths"]
+            got = planrange.globs(it) + planmarks.test_paths(it)
+            if got:
+                ranges[it["item"]] = got
     keys = list(owed)
     only = {str(x) for x in only_items or ()}
     if only:

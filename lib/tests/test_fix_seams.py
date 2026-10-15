@@ -1733,6 +1733,14 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C", "D", "E"], items, ["1", "3"])],
                          [["A"], ["C"]])
 
+    def test_fix_groups_join_items_whose_test_files_meet(self):
+        items = [{"item": 1, "unit_keys": ["A"], "allowed_paths": ["lib/a.py", ""],
+                  "tests": [{"id": "tests/test_s.py::Case::test_a"}]},
+                 {"item": 2, "unit_keys": ["B"], "allowed_paths": ["lib/b.py"],
+                  "rewrite_tests": [{"id": "tests/test_s.py::Case::test_b"}]},
+                 {"item": 3, "unit_keys": ["C"], "allowed_paths": ["", "lib/c.py"]}]
+        self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C"], items)], [["A", "B"], ["C"]])
+
     def test_parallel_needs_two_groups_no_lane_switch_and_a_remote(self):
         two = [{"group_id": "g1"}, {"group_id": "g2"}]
         with tempfile.TemporaryDirectory() as tmp:
