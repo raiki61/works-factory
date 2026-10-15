@@ -1,5 +1,5 @@
 # 前の往復と同じ block が残った → pass: false・stalled: true・ask_human: true（関所に止まりの行）
-open: { ok: true, r2_go: false, tree: false, k: 1, form: review, depth_skip: false, reason: "" }
+open: { ok: true, r2_go: false, tree: false, k: 1, form: review, reason: "" }
 review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md", resubmit: false }
 plan-review:
   faces:

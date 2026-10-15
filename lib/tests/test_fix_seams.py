@@ -1490,6 +1490,11 @@ class DeltaSeamCase(TempCase):
         import depth
         self.assertEqual(fixboard.redepth(self.place, self.repo), "")
         fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}])
+        self.assertEqual(fixboard.redepth(self.place, self.repo), "", "頭の深さの控えが無ければ標準で、省かない")
+        for head in (depth.STANDARD, depth.HEAVY):
+            fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, head)
+            self.assertEqual(fixboard.redepth(self.place, self.repo), "", head)
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         self.assertTrue(fixboard.redepth(self.place, self.repo).startswith("軽量で省いた"))
         raised = fixboard.read_json(self.place / fixboard.DEPTH_RAISED_FILE)
         self.assertEqual(raised["units"]["a"]["depth"], depth.LIGHT)
@@ -1509,6 +1514,7 @@ class DeltaSeamCase(TempCase):
         import conflict
         import depth
         light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}]
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
                                                                 "start_tree": leftovers.snapshot(self.repo)})
 
@@ -1664,6 +1670,7 @@ class DeltaSeamCase(TempCase):
         import conflict
         import depth
         light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}, {"unit_id": "b", "depth": depth.LIGHT, "why": "y"}]
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
                                                                 "start_tree": leftovers.snapshot(self.repo)})
 
@@ -2024,8 +2031,14 @@ class GroupScriptsSeamCase(TempCase):
                                  f"関門が読めない子の結果（{tdd!r}）は on と見て走らせ直す")
             fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "A", "depth": "軽量", "why": "x"},
                                                                    {"unit_id": "B", "depth": "軽量", "why": "x"}])
-            self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "", "全部の単位が軽量")
+            for head in ("標準", "重厚", ""):
+                fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, head)
+                self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "make test",
+                                 f"頭の深さが {head or '空'} の run は単位が軽量でも走らせ直す（issue #561）")
+            fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, "軽量")
+            self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "", "頭が軽量で全部の単位が軽量")
             (self.place / fixboard.DEPTH_FILE).unlink()
+            (self.place / fixboard.HEAD_DEPTH_FILE).unlink()
         with self.subTest("test_cmd が渡れば緑の後に 1 回走らせ、赤なら戻す理由（F411 の 2）"):
             red = f"{sys.executable} -c \"import sys; sys.exit(3)\""
             got = fixboard.rerun_problem(self.place, self.repo, str(suite), cases, named, name="cmd-red", test_cmd=red)
@@ -2105,6 +2118,13 @@ class GroupChildSeamCase(TempCase):
         self.assertEqual(fixboard.unit_depths(self.place), "")
         (self.place / "depth.json").write_text(json.dumps([{"unit_id": "a", "depth": "軽量", "why": "1 個"}]),
                                                encoding="utf-8")
+        for head in ("標準", "重厚", ""):
+            fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, head)
+            self.assertEqual(fixboard.unit_depths(self.place), "",
+                             f"頭の深さが {head or '空'} の run は単位の軽量で test_cmd を省かない（issue #561）")
+        (self.place / fixboard.HEAD_DEPTH_FILE).unlink()
+        self.assertEqual(fixboard.unit_depths(self.place), "", "頭の深さの控えが無い run は標準")
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, "軽量")
         self.assertEqual(json.loads(fixboard.unit_depths(self.place)), {"a": "軽量"})
         tdd = {"ran": True, "units": [{"unit_key": "a", "route": "tdd", "green": "ok", "tests": ["t.py::x", "t.py::y"]},
                                       {"unit_key": "b", "route": "tdd", "green": "", "tests": ["t.py::z"]},

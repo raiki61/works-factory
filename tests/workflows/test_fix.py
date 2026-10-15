@@ -41,7 +41,7 @@ import runreport  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason"}
-CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "plan", "ripple", "depth", "answers", "prior_conflicts",
+CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "plan", "ripple", "depth", "head_depth", "answers", "prior_conflicts",
                    "plan_review", "notes"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
 CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
@@ -636,15 +636,24 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual(ties2[0]["branches"], ties[0]["branches"])
 
     def test_delta_cut_skips_an_all_light_run(self):
-        """全部の単位が軽量の run は delta/skipped.json に理由を書いて go: false（持ち主の決め dynamic-depth）"""
+        """頭の深さが軽量で全部の単位が軽量の run は delta/skipped.json に理由を書いて go: false（持ち主の決め dynamic-depth）"""
         import depth
         self._json("depth.json", [{"unit_id": _RV_KEY, "depth": depth.LIGHT, "why": "触るファイル 1 個"}])
+        self._json("head-depth.json", depth.LIGHT)
         out = self._run("delta_cut", "delta-cut")
         self.assertEqual(out, {"go": False, "files": [], "diff_file": "", "brief_file": ""})
         got = json.loads((self.place / "delta" / "skipped.json").read_text(encoding="utf-8"))
         self.assertEqual(list(got), ["reason"])
         self.assertTrue(got["reason"].startswith("軽量で省いた"), got)
         self.assertFalse((self.place / "loop-fix_delta.json").exists())
+
+    def test_delta_cut_reviews_an_all_light_run_under_a_standard_head(self):
+        """issue #561: 全部の単位が軽量でも、頭の深さが標準の run は審査を回す（省きの印 skipped.json を書かない）"""
+        import depth
+        self._json("depth.json", [{"unit_id": _RV_KEY, "depth": depth.LIGHT, "why": "触るファイル 1 個"}])
+        self._json("head-depth.json", depth.STANDARD)
+        self.assertTrue(self._cut()["go"])
+        self.assertFalse((self.place / "delta" / "skipped.json").exists())
 
     def test_delta_cut_raises_the_depth_before_skipping(self):
         """全部が軽量の run でも、修正の後の信号（修正役の異議）で標準へ上げてから決め、審査を回す（fixboard.redepth。元の h-redepth）"""
@@ -1333,7 +1342,7 @@ class BlockScriptsCase(unittest.TestCase):
         _blk_write(judgment_dir / gatemarks.BESIDE[0], {"rounds": {"1": []}})   # 判定の隣の結びと素材の状態
         _blk_write(judgment_dir / gatemarks.BESIDE[1], {"ci": {"status": "not_run"}})
         inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "baseline": _blk_ptr("in/baseline.json"),
-                  "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
+                  "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]', "head_depth": "軽量",
                   "answers": '{"decision": "approve", "text": "stats.py の外は触らない"}', "units": '["A"]',
                   "only_items": '["1"]', "plan_review": _blk_ptr("in/review.json"), "notes": "## 直した項目 1 の事前審査の穴"}
         _blk_write(self.art / "in" / "review.json", {"faces": [], "shrink": []})
@@ -1343,6 +1352,7 @@ class BlockScriptsCase(unittest.TestCase):
         own = {fixboard.GROUPS_FILE, "fix-ignored-before.json", fixboard.marks_path(self.place).name,
                fixboard.TRACE_FILE, planmarks.FIELDS_FILE}
         self.assertEqual(written - own, set(fixboard.ADOPTED))
+        self.assertEqual(fixboard.read_json(self.place / fixboard.HEAD_DEPTH_FILE), "軽量")
 
     def test_prep_takes_the_gate_answers_into_the_duty(self):
         """修正前の関所で答えた問いの単位は直す義務に戻り、答えていない問いの単位は外れる（gatemarks.returned・withheld_by）。

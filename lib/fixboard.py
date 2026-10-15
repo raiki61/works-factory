@@ -43,8 +43,8 @@ import promptsection
 import rolekit
 import startrec
 
-PREP_INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "answers", "units", "only_items", "baseline",
-               "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
+PREP_INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "head_depth", "answers", "units", "only_items",
+               "baseline", "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
@@ -140,8 +140,8 @@ def plan_view(place, plan=None, judgment=None, round_: int = 1):
 def owed_units_but_asked(place, owed, *, withheld=(), returned=()) -> set:
     """直す義務の単位: owed（開いた単位から、人に諮っている fork の出どころ・depends を除いた物。元は盤面の写しの規則の
     _owed_units）から、関所に載せる問いのうち答えていない物の出どころ・depends（withheld。元は gatemarks.withheld）を除き、
-    修正前の関所で人が答えた問いの出どころ・depends（returned。元は gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位
-    （conflict.held_by_rulings。ask_human・fix_plan_item）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
+    修正前の関所か依頼の answers で答えた問いと、無人の run が判定の推しを採った問いの出どころ・depends（returned。元は
+    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（conflict.held_by_rulings。ask_human・fix_plan_item）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
     元 works/.shared/core/conflict.py:676（盤面の b.state["graph"] の規則と b.record の問いを読んだ）"""
     import conflict
     got = (set(owed) - set(withheld)) | set(returned)
@@ -467,7 +467,7 @@ LANE_SWITCHES = ("fix_lanes", "tdd_lanes")   # 機能の切り替えの語。ど
 NO_RESULT = "組の子の run が結果のファイルを書かなかった（子が落ちたか、結果が読めない）"
 DELTA_DIR = "delta"                       # 差分の審査の控えの置き場（置き場の下）
 DELTA_REVIEW = "review-{}.json"           # n 回目の審査の控え {pass: bool}（delta-accept・review2-accept が書く）
-DELTA_SKIPPED = "skipped.json"            # 審査を飛ばした印 {reason}（全部の単位が軽量・差分が空で塞いだ穴も無い。delta-cut が書く）
+DELTA_SKIPPED = "skipped.json"            # 審査を飛ばした印 {reason}（頭も全部の単位も軽量・差分が空で塞いだ穴も無い。delta-cut が書く）
 CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
                  "path_changed")
 DRIFT_NOTE = "premise_drift_note"   # 修正役の返答と返りの changed の欄: 前提のずれの申告の文（premise_drift が真の時の測り直した制約）
@@ -537,6 +537,7 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     ripple = read_pointed("ripple")
     if ripple is not None:
         write_json(folder / RIPPLE_FILE, ripple)
+    write_json(folder / HEAD_DEPTH_FILE, str(raw.get("head_depth") or "").strip())
     for name, file in (("depth", DEPTH_FILE), ("answers", ANSWERS_FILE), ("units", UNITS_FILE)):
         got = value(name)
         if got not in (None, "", [], {}) or name == "units":
@@ -669,7 +670,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
 
 def rerun_cmd(place, result, test_cmd: str) -> str:
     """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
-    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
+    組に軽量でない単位（置き場の深さの控え。頭の深さが軽量でない run では全部の単位が軽量でない。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
     tdd か tdd.test_cmd が在って dict でない結果は関門を読めないので on と見る（走らせ直しを飛ばして戻さない）"""
     import tddloop
     tdd = (result or {}).get("tdd") or {}
@@ -1012,7 +1013,7 @@ def final_lines(results, field: str, more=()) -> list:
 
 def delta_review(place) -> tuple:
     """({rounds, pass}, 飛ばしたか)。置き場の delta/ の下の審査の控え review-1.json・review-2.json（{pass}）の数と最後の pass。
-    審査を飛ばした印 skipped.json（全部の単位が軽量・差分が空で塞いだ穴も無い）が在れば ({rounds: 0, pass: True}, True)。どちらも無ければ審査は走らなかった
+    審査を飛ばした印 skipped.json（頭も全部の単位も軽量・差分が空で塞いだ穴も無い）が在れば ({rounds: 0, pass: True}, True)。どちらも無ければ審査は走らなかった
     （{rounds: 0, pass: False}）。控えが読めなければ ValueError"""
     d = pathlib.Path(place) / DELTA_DIR
     if (d / DELTA_SKIPPED).is_file():
@@ -1095,6 +1096,7 @@ TDD_UNIT_FILE = "tdd-unit.json"        # 組ごとの TDD の記録（tdd_units 
 ASSERT_FILE = "assert-changed.json"    # 変更の確かめの結果 {ok, reason}（assert-changed が書き、delta-cut・collect が読む）
 RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>/result.json（reply_file に受け付けた修正役の返答の写し）
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）
+HEAD_DEPTH_FILE = "head-depth.json"    # run の頭の深さの段の語（入力 head_depth の写し。空は標準）
 DEPTH_RAISED_FILE = "depth-raised.json"   # 修正の後の信号で上げた深さの控え（depth.raise_doc の形。redepth が書く）
 PLAN_REPLY_FILE = "p2.fix_plan.json"   # 修正案の役の返答の写し（{"plan": [...]}。承認済みの項目の unit_keys の出どころ）
 PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（faces・shrink。修正役の plan_faces と差分の審査の材料 out.p2.plan_review が読む。
@@ -1202,7 +1204,8 @@ def depth_signals(place) -> tuple:
 
 def redepth(place, repo, skip=()) -> str:
     """修正の後の信号で深さを標準へ上げ（depth.raise_doc）、上げた控えを置き場の DEPTH_RAISED_FILE に書き、全部の単位が軽量のまま
-    なら差分の審査を省く理由の文（depth.skip_reason）を返す。控えが無い・標準の単位が在る・単位が無ければ空。信号は
+    で run の頭の深さの段（置き場の HEAD_DEPTH_FILE）が省く物を持てば、差分の審査を省く理由の文（depth.skip_reason）を返す。
+    控えが無い・標準の単位が在る・単位が無い・頭の深さが省かない段なら空。信号は
     depth_signals、run 全体の広さ（depth.run_wide）は修正の実際の差分（run の始めの木 start_tree から今の作業ツリーへの変更。
     除くパスの頭 skip の下は数えない）と承認済みの修正案の欄で数え直し、数えたファイルの数と起点を控えの counted に 1 行残す。
     控えが読めない・形が違えば ValueError。元 works/darkfactory/lib/depth.py:302 の raise_（線の h-redepth）"""
@@ -1222,7 +1225,7 @@ def redepth(place, repo, skip=()) -> str:
     doc["counted"] = f"触るファイル {paths} 個（起点: {origin}）"
     doc = depth.raise_doc(doc, units=units, run=run)
     write_json(pathlib.Path(place) / DEPTH_RAISED_FILE, doc)
-    return depth.skip_reason(doc)
+    return depth.skip_reason(doc, read_json(pathlib.Path(place) / HEAD_DEPTH_FILE))
 
 
 def delta_review_due(place, repo, skip=(), fix_reply=None) -> tuple:
@@ -1619,8 +1622,8 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
-           ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
+ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, HEAD_DEPTH_FILE,
+           ANSWERS_FILE, UNITS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
 ALLOWED_SOURCES = ("plan", "consult", "ruling")   # allowed-tests.json の source の語: 承認済みの修正案・範囲の相談の合意・裁定
@@ -1691,9 +1694,11 @@ def marks_path(place) -> pathlib.Path:
 
 def unit_depths(place) -> str:
     """置き場の深さの控え depth.json（[{unit_id, depth, why}]）を tddloop.start の unit_depths の形（{"<単位の key>": 深さの語} の
-    JSON の字）に。無ければ ""。形が違えば ValueError"""
+    JSON の字）に。控えが無い・run の頭の深さの段（置き場の HEAD_DEPTH_FILE）が省く物を持たなければ ""（単位の軽量が test_cmd を
+    省くのは軽量の頭の run だけ。depth.omits）。形が違えば ValueError"""
+    import depth
     doc = read_json(pathlib.Path(place) / DEPTH_FILE)
-    if doc is None:
+    if doc is None or not depth.omits(read_json(pathlib.Path(place) / HEAD_DEPTH_FILE)):
         return ""
     if not isinstance(doc, list) or not all(isinstance(r, dict) for r in doc):
         raise ValueError(f"深さの控え {DEPTH_FILE} が行の配列でない")
@@ -2472,12 +2477,16 @@ def gate_view(place):
     """gatemarks の問いの口（asks・answered・pending・withheld_by・returned・duty・returned_lines）に渡す値の見え方（gatemarks.ledger）:
     置き場の判定の写しの questions・units、始めの記録の写しの依頼の answers、関所の答え answers.json（{decision, text, asked}。asked は
     人が見た関所の行）、判定の結びと素材の状態の写し（answer-ties.json・materials.json。prep が判定の隣から写す。無ければ字の一致だけ）。
+    始めの記録の写しが無人の run なら、判定の推しつきの fork・held を答えとして数える（gatemarks.run_push）。
     元は盤面の b.record と写しの検証器を読んだ"""
     import gatemarks
+    import gatepolicy
     p = pathlib.Path(place)
     judgment = read_json(p / JUDGMENT_FILE)
+    start = startrec.read(p)
     return gatemarks.ledger_beside(p, judgment if isinstance(judgment, dict) else {},
-                                   answers=startrec.read(p).get("answers") or [], gate=read_json(p / ANSWERS_FILE))
+                                   answers=start.get("answers") or [], gate=read_json(p / ANSWERS_FILE),
+                                   takes_push=gatepolicy.unattended_of(start))
 
 
 def gate_asks(place) -> tuple:

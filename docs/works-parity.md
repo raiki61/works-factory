@@ -835,8 +835,8 @@
 - S108 厚みを空（自動）・`標準`・`軽量` から選べる
   - 元: SKILL.md:92
   - 印: `WORKS_USE_THICKNESS`
-  - 今: `workflows/line/scripts/start.py::words`（THICKNESS・HEAVY）
-  - 状態: 形を変えて在る（`--input thickness=<語>`。`自動` も受け、`重厚` は拒む）
+  - 今: `workflows/line/scripts/start.py::words`（THICKNESS ← `lib/depth.py` の HEADS）
+  - 状態: 形を変えて在る（`--input thickness=<語>`。`自動` も受け、`重厚` も受ける。名指した重厚が足す機能を `features_off` で切る組は入口が止める。段の定義は docs/design.md の深さの段の表）
   - 旧棚卸し: L-E25
 
 - S109 機能の語 judge_verify・review_tree・tdd_lanes・fix_lanes・graph_map をカンマで区切って切る・入れる
@@ -3543,7 +3543,7 @@
 - line.md L-G30: lib/gatemarks.py::answered・lib/gatemarks.py::hold_keys、workflows/line/scripts/ask_final.py::ledger、lib/runreport.py::ledger_state
 - line.md L-G31: lib/gatemarks.py::unread_hold_lines。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows → final_text、報告は lib/runreport.py::ledger_state の unread_holds → _decisions
 - line.md L-G32: lib/gatemarks.py::returned・lib/gatemarks.py::returned_lines・lib/gatemarks.py::duty（値の見え方 ledger）。fix は lib/fixboard.py::gate_view・lib/fixboard.py::group_owed・lib/fixboard.py::write_notes が置き場の answers.json（{decision, text, asked}。asked は $ask-before-fix.output.asked）から引く
-- line.md L-G33: lib/gatemarks.py::pending・lib/gatemarks.py::withheld_by・lib/gatemarks.py::withheld・lib/gatemarks.py::duty。無人の run は ask-before-fix が台帳の問いだけを deferred にして修正へ進み、fix・plan の直す義務（gatemarks.duty）が出どころを外す
+- line.md L-G33: lib/gatemarks.py::pending・lib/gatemarks.py::withheld_by・lib/gatemarks.py::withheld・lib/gatemarks.py::duty。無人の run は ask-before-fix が台帳の問いだけを deferred にして修正へ進み、fix・plan の直す義務（gatemarks.duty）が出どころを外す。ただし判定の推しが選択肢を名指し、出どころ・depends が開いた単位の fork・held は、無人の run が推しを答えに採って出どころを直す義務に戻す（lib/gatemarks.py::run_push。issue #593）
 - line.md L-G34: lib/gatemarks.py::binds・lib/gatemarks.py::origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger が gatemarks.ledger_at（ledger_beside をファイルから。判定の隣の materials.json と、ties_judgment: $fix-in.output.judgment の隣の answer-ties.json）で引く。報告は lib/runreport.py::ledger
 - line.md L-G35: workflows/line/scripts/ask_final.py::ledger・workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.held_lines）、lib/runreport.py::ledger_state
 - line.md L-G36: workflows/line/scripts/ask_final.py::final_head・workflows/line/scripts/ask_final.py::question_lines

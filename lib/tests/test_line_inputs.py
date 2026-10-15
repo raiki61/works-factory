@@ -22,6 +22,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import depth  # noqa: E402
 import entry  # noqa: E402
 
 
@@ -42,6 +43,28 @@ class FeaturesOffCase(unittest.TestCase):
                          {**self.DEFAULTS, "judge_verify": "on", "tdd_lanes": "off"})
         self.assertEqual(entry.features_part(["tdd_lanes"], ["judge_verify"]), "機能: review_tree auto・tdd_lanes off")
         self.assertEqual(entry.feature_words([], ["fix_lanes"]), self.DEFAULTS)   # 既定で on の語を入れても同じ
+
+    def test_heavy_adds_features_unless_named_off(self):
+        """重厚の深さの足し（depth.tier_adds）は judge_verify と review_tree を on にし、features_off で名指して切った機能は off のまま
+        （名指し > 足し > 既定）。足しが空なら今の既定"""
+        heavy = depth.tier_adds(depth.HEAVY)
+        self.assertEqual(heavy, ("judge_verify", "review_tree"))
+        self.assertEqual(entry.feature_words([], [], heavy), {**self.DEFAULTS, "judge_verify": "on", "review_tree": "on"})
+        self.assertEqual(entry.feature_words(["judge_verify"], [], heavy), {**self.DEFAULTS, "review_tree": "on"})
+        self.assertEqual(entry.feature_words([], [], ()), self.DEFAULTS)
+        self.assertEqual(entry.features_cut(["judge_verify"], [], heavy), ["judge_verify"])
+        self.assertEqual(entry.features_cut([], [], heavy), [])
+        self.assertEqual(entry.features_part([], [], heavy), "機能: 全部 on")
+        self.assertEqual(entry.features_part(["judge_verify"], [], heavy), "機能: judge_verify off")
+        for adds, off, want in ((heavy, [], ("on", "on")), (heavy, ["judge_verify"], ("off", "on")),
+                                (heavy, ["review_tree"], ("on", "off")), ((), [], ("off", "auto"))):
+            doc = {"features_off": off, "features_on": []}
+            with self.subTest(adds=adds, off=off):
+                self.assertEqual((entry.switch(doc, "judge_verify", adds), entry.switch(doc, "review_tree", adds)), want)
+        self.assertEqual(entry.switch(None, "review_tree"), "auto")
+        self.assertEqual(entry.switch({"features_on": ["review_tree"]}, "review_tree"), "on")
+        self.assertEqual(depth.tier_adds(depth.STANDARD), ())
+        self.assertEqual((depth.tier_adds(""), depth.tier_adds("極厚"), depth.tier_adds(None)), ((), (), ()))
 
     def test_features_on_of_reads_any_board(self):
         """features_on_of（canary_check がどの版の盤面も読む口）: features_on の欄の無い前の版の控えは、その版の既定（全部 on）で

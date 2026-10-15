@@ -41,10 +41,9 @@ with boundary.guarded_imports():
     import versions
 
     DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
-    THICKNESS = ("", "自動", depth.LIGHT, depth.STANDARD)
+    THICKNESS = ("", "自動", *depth.HEADS)
 SPEC_ON = "on"
 SPEC_WORDS = ("", SPEC_ON)
-HEAVY = "重厚"
 AUTO = "自動"   # thickness の既定（元 works/.shared/core/entry.py 412 行の THICKNESS_DEFAULT）
 PIN = ("factory/pack.json", "integration_revision_required")   # 止めた Archon の commit（ASF の止め。Archon の版の正本）
 MODEL_UNKNOWN = ("run 全体の模型の 1 つの値は無い——Archon が役のノードごとに model・provider から決める"
@@ -93,10 +92,11 @@ def words(raw: dict, repo: Path) -> dict:
     if design_only not in DESIGN_ONLY_WORDS:
         raise Refused(f"design_only={raw['design_only']!r} は知らない値（空か {gatemarks.DESIGN_ONLY}）")
     thickness = raw["thickness"].strip()
-    if thickness == HEAVY:
-        raise Refused(f"thickness={HEAVY} で足すノードがまだ無い（{' / '.join(t for t in THICKNESS if t)}）")
     if thickness not in THICKNESS:
         raise Refused(f"thickness={raw['thickness']!r} は知らない値（{' / '.join(t for t in THICKNESS if t)}）")
+    clash = sorted(set(off) & set(depth.tier_adds(depth.named(thickness))))
+    if clash:
+        raise Refused(f"thickness={thickness} が足す機能 {', '.join(clash)} を features_off で切った（段を変えるか、切りを外す）")
     fix_fixture = fixture_dir(raw["fix_fixture"], repo)
     if fix_fixture and spec:
         raise Refused("仕様の段（spec=on）は固定材料（fix_fixture）と組めない（固定材料は判定と修正案が済んだ所の写しで、仕様の段は"
@@ -180,7 +180,7 @@ def test_notes(raw: dict, repo: Path) -> list:
 def gate_text(shape: dict, record: dict, run_id: str, notes: list) -> str:
     happened = f"run を始める前で止まった。入口: {startrec.words(shape)}"
     rest = [*fixture.lines(record), depth_words(record["inputs"], record),
-            entry.features_part(record["features_off"], record["features_on"]), gatepolicy.head_words(record), *notes]
+            entry.features_part(record["features_off"], record["features_on"], adds(record)), gatepolicy.head_words(record), *notes]
     lines = gatemarks.head3(happened, "この入力で run を始めるか、止めるか（打つ行は末尾の答え方）", gatemarks.NO_PUSH)
     lines += ["", *[f"- {x}" for x in rest if x], "", "答え方:",
               f"- 始める: {answer.line(run_id, 'continue', '<一言>')}",
@@ -194,11 +194,15 @@ def write(artifacts: Path, doc) -> dict:
     return boundary.pointer(startrec.REL)
 
 
+def adds(checked: dict) -> tuple:
+    return depth.tier_adds(depth.named(checked.get("thickness")))
+
+
 def features(checked: dict) -> dict:
-    """始めの記録の機能の切り替えの 4 つの欄"""
-    off, on = checked["features_off"], checked["features_on"]
-    return {entry.FEATURES_KEY: off, entry.FEATURES_ON_KEY: on, entry.FEATURES_CUT_KEY: entry.features_cut(off, on),
-            "features": entry.feature_words(off, on)}
+    """始めの記録の機能の切り替えの 4 つの欄（名指した段の足しを入れる。名指した段の足しと features_off のぶつかりは words が拒む）"""
+    off, on, more = checked["features_off"], checked["features_on"], adds(checked)
+    return {entry.FEATURES_KEY: off, entry.FEATURES_ON_KEY: on, entry.FEATURES_CUT_KEY: entry.features_cut(off, on, more),
+            "features": entry.feature_words(off, on, more)}
 
 
 def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: Path, run_id: str, versions_doc: dict) -> dict:
