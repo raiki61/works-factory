@@ -102,5 +102,44 @@ class RejectLedgerCase(Base):
         self.assertIn("拒否 1", pasted, "道具ゼロの役に貼る文も全部")
 
 
+class ResubmitCase(Base):
+    """#571: 拒まれた後の出し直しは拒まれた欄だけを返し、受け付けが前の答えの控えと合わせる"""
+
+    def test_merge_fields_replaces_given_fields_and_keeps_the_rest(self):
+        prev, part = {"a": [1], "b": "x"}, {"b": "y", "c": 2}
+        self.assertEqual(rolekit.merge_fields(prev, part), {"a": [1], "b": "y", "c": 2})
+        self.assertEqual((prev, part), ({"a": [1], "b": "x"}, {"b": "y", "c": 2}), "前の答えも出し直しも書き換えない")
+
+    def test_merge_fields_uses_the_named_merge_only_when_both_have_the_field(self):
+        both = rolekit.merge_fields({"a": [1]}, {"a": [2], "b": [3]}, {"a": lambda old, new: old + new, "b": lambda old, new: []})
+        self.assertEqual(both, {"a": [1, 2], "b": [3]})
+
+    def test_first_reply_is_written_to_the_candidate(self):
+        got, why = rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
+        self.assertEqual((got, why), ({"a": 1}, ""))
+        self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), {"a": 1})
+
+    def test_resubmit_is_merged_with_the_candidate(self):
+        rolekit.resubmitted(self.tmp, "r", {"a": 1, "b": 2}, None, rolekit.merge_fields)
+        got, why = rolekit.resubmitted(self.tmp, "r", None, {"b": 3}, rolekit.merge_fields)
+        self.assertEqual((got, why), ({"a": 1, "b": 3}, ""))
+        self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), got)
+
+    def test_bad_replies_are_refused_without_touching_the_candidate(self):
+        rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
+        for reply, part, word in ((None, {}, rolekit.EMPTY_RESUBMIT), (None, [1], "出し直しの返答が JSON のオブジェクトでない"),
+                                  ("{x", None, "返答が JSON として読めない"), (None, None, "返答が JSON のオブジェクトでない")):
+            with self.subTest(reply=reply, part=part):
+                got, why = rolekit.resubmitted(self.tmp, "r", reply, part, rolekit.merge_fields)
+                self.assertIsNone(got)
+                self.assertIn(word, why)
+        self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), {"a": 1})
+
+    def test_resubmit_without_a_candidate_is_refused(self):
+        got, why = rolekit.resubmitted(self.tmp, "r", None, {"a": 1}, rolekit.merge_fields)
+        self.assertIsNone(got)
+        self.assertIn("出し直しを合わせられない", why)
+
+
 if __name__ == "__main__":
     unittest.main()

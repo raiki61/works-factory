@@ -662,5 +662,46 @@ class ReplanModuleCase(unittest.TestCase):
         self.assertFalse(replan._malformed({"plan": [{"narrows": []}]}))
 
 
+class ResubmitMergeCase(unittest.TestCase):
+    """#571: 修正案の出し直し（拒まれた項目だけ）を前の答えと合わせる決まり（merge_plan_items・merge_resubmit）"""
+
+    @staticmethod
+    def it(*keys, tag=""):
+        return {"unit_keys": list(keys), "approach": tag or f"項目 {keys}"}
+
+    def test_overlapping_item_replaces_in_place(self):
+        old = [self.it(1), self.it(2), self.it(3)]
+        self.assertEqual(planfile.merge_plan_items(old, [self.it(2, tag="新")]), [self.it(1), self.it(2, tag="新"), self.it(3)])
+
+    def test_joined_item_takes_the_first_place(self):
+        old = [self.it(1), self.it(2), self.it(3)]
+        self.assertEqual(planfile.merge_plan_items(old, [self.it(3, 1)]), [self.it(3, 1), self.it(2)])
+
+    def test_moved_unit_replaces_both_items(self):
+        old = [self.it(1, 2), self.it(3)]
+        new = [self.it(1), self.it(2, 3)]
+        self.assertEqual(planfile.merge_plan_items(old, new), [self.it(1), self.it(2, 3)])
+
+    def test_new_item_without_overlap_is_appended(self):
+        old = [self.it(1), self.it(2)]
+        self.assertEqual(planfile.merge_plan_items(old, [self.it(3)]), [self.it(1), self.it(2), self.it(3)])
+
+    def test_units_compare_as_text(self):
+        """番号の 1 と字の "1" は同じ単位（converge.planned_units と同じ）"""
+        self.assertEqual(planfile.merge_plan_items([self.it(1)], [self.it("1", tag="新")]), [self.it("1", tag="新")])
+
+    def test_merge_resubmit_merges_items_and_replaces_other_fields(self):
+        prev = {"plan": [self.it(1), self.it(2)], "block_answers": [{"key": "a"}]}
+        got = planfile.merge_resubmit(prev, {"plan": [self.it(2, tag="新")], "block_answers": [{"key": "b"}]})
+        self.assertEqual(got, {"plan": [self.it(1), self.it(2, tag="新")], "block_answers": [{"key": "b"}]})
+        self.assertEqual(planfile.merge_resubmit(prev, {"block_answers": []})["plan"], prev["plan"])
+
+    def test_whole_plan_replaces_the_plan_and_is_dropped(self):
+        prev = {"plan": [self.it(1), self.it(2)]}
+        got = planfile.merge_resubmit(prev, {planfile.WHOLE_PLAN: True, "plan": [self.it(1)]})
+        self.assertEqual(got, {"plan": [self.it(1)]})
+        self.assertNotIn(planfile.WHOLE_PLAN, planfile.merge_resubmit(prev, {planfile.WHOLE_PLAN: False, "plan": [self.it(1)]}))
+
+
 if __name__ == "__main__":
     unittest.main()

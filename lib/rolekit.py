@@ -19,6 +19,9 @@
 - attempt:        盤面の節でない受け付けの輪の今の回（控えの拒否の数 + 1）
 - last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
 - parse_reply:    役の返答（$<役>.output の JSON の文字列）を dict に
+- candidate_path: 受け付けが前の答えと出し直しを合わせた答えの控え（置き場の candidate-<名>.json。次の出し直しを合わせる元）
+- merge_fields:   前の答えに出し直しの欄を合わせる（出し直しに在る欄が前の欄を置き換え、無い欄は前のまま）
+- resubmitted:    受け付けが照らす答えの全体（1 回目の役の返答か、控えの前の答えと出し直しを合わせた物）を控えに書いて返す
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
                   lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
 - record_lang_line(path): 始めの記録のファイル path から lang_line（読めなければ既定の言語の 1 行に読めない訳を添える）
@@ -27,6 +30,7 @@
 
 層は L3（盤面と受け付け）。ライン・include の id・ブロックの名前を書かない（tests/test_layers.py）。
 """
+import copy
 import datetime
 import json
 import pathlib
@@ -250,3 +254,55 @@ def parse_reply(raw):
     if not isinstance(reply, dict):
         return None, f"返答が JSON のオブジェクトでない（{type(reply).__name__}）"
     return reply, ""
+
+
+def candidate_path(board, name: str) -> pathlib.Path:
+    """受け付け name が合わせた答えの控え（置き場 board の candidate-<name>.json）。拒まれた後の出し直しは拒まれた欄だけを返し、
+    受け付けがこの控えと合わせてから答えの全体を照らす"""
+    return pathlib.Path(board) / f"candidate-{safe_name(name)}.json"
+
+
+def merge_fields(prev: dict, part: dict, merges: dict | None = None) -> dict:
+    """前の答え prev に出し直し part を合わせた写し: part に在る欄が prev の欄を置き換え、無い欄は prev のまま。merges の鍵の欄だけは
+    prev にも在る時に merges[鍵](前の値, 出し直しの値) で合わせる。prev・part は書き換えない"""
+    merges = merges or {}
+    out = copy.deepcopy(prev)
+    for key, got in part.items():
+        out[key] = merges[key](copy.deepcopy(prev[key]), copy.deepcopy(got)) if key in merges and key in prev else copy.deepcopy(got)
+    return out
+
+
+EMPTY_RESUBMIT = "出し直しに直した欄が無い（拒まれた所を直した欄だけを、前と同じ型で返せ）"
+
+
+def _reply_object(got, what: str) -> tuple:
+    if isinstance(got, dict):
+        return got, ""
+    if isinstance(got, str):
+        return None, f"{what}が JSON として読めない（頭: {got[:200]!r}）"
+    return None, f"{what}が JSON のオブジェクトでない（{type(got).__name__}）"
+
+
+def resubmitted(board, name: str, reply, part, merge) -> tuple:
+    """(受け付け name が照らす答えの全体, 拒否の文)。reply は 1 回目の役の返答、part は拒まれた後の出し直しの役の返答で、どちらも
+    JSON に戻した値（起きなかった役は None）。part が在れば控え candidate_path の前の答えと merge(前の答え, part) で合わせ、無ければ
+    reply。合わせた答えは控えに書く（次の出し直しを合わせる元）。返答が object でない・出し直しが空・控えが読めなければ (None, 訳)"""
+    path = candidate_path(board, name)
+    if part is None:
+        got, why = _reply_object(reply, "返答")
+    else:
+        part, why = _reply_object(part, "出し直しの返答")
+        if part is not None and not part:
+            why = EMPTY_RESUBMIT
+        if why:
+            return None, why
+        try:
+            prev = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            return None, f"前の答えの控え {path} が読めない（{type(e).__name__}）ので、出し直しを合わせられない"
+        got = merge(prev, part) if isinstance(prev, dict) else None
+        why = "" if got is not None else f"前の答えの控え {path} が JSON のオブジェクトでない"
+    if got is None:
+        return None, why
+    jsonfile.write(path, got, indent=2)
+    return got, ""

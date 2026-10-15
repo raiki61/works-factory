@@ -5,7 +5,8 @@
 実測の structure/<鍵>/。周のフォルダの中:
 - round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）, structure（周の節が読む構造の置き場。plan/ からの相対のパス）,
   at（周を開いた時刻。読んだ証拠の記録を切る。reads.TS_FORMAT）}
-- slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料）・rejects-plan.json（拒否の控え。rolekit）・
+- slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料。拒まれた後の回は出し直しの
+  役の短い指示書 write_resubmit）・rejects-plan.json（拒否の控え。rolekit）・candidate-plan.json（受け付けが合わせた答えの控え）・
   tree.json（役を起こす前の作業ツリーの姿）・item-brief-<no>.md（形 replan で直す項目の brief）・
   reads-<役>.json と索引 reads-plan-block.json（形 replan は reads-replan-<役>.json と reads-replan-block.json。読んだ証拠）
 - review/p2.plan_review.json（この周に受けた事前審査の返答の写し）
@@ -25,6 +26,8 @@
   この控えを converge の answer_gaps・splice・revise_section・filled_units に渡す
 - 材料と受け付け: write_brief・prior_section・take_plan・take_replan（元 planblk の prep・prior_part・take・with_plan_fields・revise_take と
   replan の prep・_take）
+- 拒まれた後の出し直し（#571）: write_resubmit（出し直しの役の指示書）・merge_plan_items・merge_resubmit・resubmitted（拒まれた所だけの
+  出し直しを前の答えと合わせる）
 - 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）・
   keep_state（書けない周の控え）
 - 周と出口: next_round・latest・structure_key・open_round・ripple_units・ripple_items・owed_order・collect・placeholders
@@ -110,6 +113,18 @@ POLICY_PART = ("## 人の方針\n\n人が決めた、run をまたいで効く�
 UNREAD_INPUTS_HEAD = promptsection.Section("## 読めなかった入力（機械が書いた。そのセクションは材料に無い）", source="fn:planfile.write_brief")
 FILLED_DUTY = "機械が差し込む（閉じた・保留の項目。書かなくてよい）"
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
+WHOLE_PLAN = "whole_plan"          # 出し直しの役の型だけが持つ欄。真なら plan が前の案を丸ごと置き換える（合わせた後に外す）
+RESUBMIT_ASK = ("前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。材料とリポジトリは、この会話で"
+                "既に読んだ物のまま（読み直すな。拒否の理由を確かめるのに要る所だけ読め）。\n\n"
+                "受け付けが拒んだ理由（字のまま）:\n\n```text\n{reason}\n```\n\n"
+                "機械が合わせた前の回の答えの全体: {candidate}（Read で読める。返さない欄と項目はこの形のまま残る）\n\n"
+                "返し方:\n"
+                "- 返すのは前と同じ型の JSON で、直す欄だけを書く。直す所の無い欄は書くな\n"
+                "- plan には、拒否に挙がった項目だけを、前と同じ型の丸ごとの項目で返せ。unit_keys が 1 つでも重なる前の項目は、返した項目に"
+                "置き換わる（2 つの項目をまとめる・単位を隣の項目へ移す時は、関わる項目を全部返す）。どの前の項目とも重ならない項目は後ろに足される\n"
+                "- block_answers を直す時は、全部の行を返せ（欄ごと置き換わる）\n"
+                "- 項目を消す時だけは whole_plan に true を書き、plan に案の全部を返せ（plan が丸ごと置き換わる）\n"
+                "- 受け付けは、合わせた後の答えの全体をもう 1 度照らす")
 
 
 # ---------------------------------------------------------------- 読み書きの小道具
@@ -696,7 +711,8 @@ def _neighbor(judgment_dir, name: str) -> str:
 def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, units, structure_dir_, world_rows, spec,
                 repo, review_rev: str, base: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
                 prior_failures=None, unread=(), recorded: str = "") -> tuple:
-    """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す。前の回の拒否が在れば、この周の拒否の理由の全部を
+    """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す（拒まれた後の回の brief-<n>.md は、ふつうは
+    出し直しの役の短い指示書 write_resubmit）。前の回の拒否が在れば（resume で輪が 1 周目から回り直した時）、この周の拒否の理由の全部を
     rolekit.reject_file で書いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
     元の planblk.prior_part）・記録された方針のセクション recorded（policy.recorded_text）・考えの住処の地図（元は包みが旗
     concept-map で足した concepthome.section）。形 plan はほかに単位と no・
@@ -745,6 +761,19 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
     notes = "\n".join([UNREAD_INPUTS_HEAD, "", *(f"- {u}" for u in unread)]) if unread else ""
     path = round_dir / BRIEF_FILE.format(n=n)
     path.write_text(rolekit.compose([*parts, notes, lang_line], reject_file=reject_file), encoding="utf-8")
+    return path, n
+
+
+def write_resubmit(round_dir) -> tuple:
+    """拒まれた後の出し直しの役の指示書 brief-<n>.md（RESUBMIT_ASK。今の周の最後の拒否の文と、合わせた前の答えの控えのパスを
+    差し込む）を書き、(パス, 回の番号 n) を返す。役は 1 回目の役の会話の続きで起き、材料は会話に在るので貼らない（言語の 1 行も）。
+    名を周の材料と同じ brief-<n>.md にするのは、読んだ証拠 collect_reads がこの周の役の会話として拾うため"""
+    round_dir = pathlib.Path(round_dir)
+    n = rolekit.attempt(round_dir, ROLE)
+    reasons = rolekit.rejected(round_dir, ROLE)
+    path = round_dir / BRIEF_FILE.format(n=n)
+    path.write_text(RESUBMIT_ASK.format(reason=reasons[-1] if reasons else "", candidate=rolekit.candidate_path(round_dir, ROLE)),
+                    encoding="utf-8")
     return path, n
 
 
@@ -908,6 +937,35 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     planmarks.append_trace(round_dir, planmarks.AMEND_OP, round=k, items=sorted(row["item"] for row in rows))
     _write_json(round_dir / replan.TRIP_FILE, {"round": k, "items": rows})
     return saved
+
+
+def merge_plan_items(old: list, new: list) -> list:
+    """前の案の項目 old に出し直しの項目 new を合わせた並び: unit_keys が 1 つでも重なる前の項目は消え、出し直しの項目がその前の
+    項目の最初の位置に入る（同じ位置に入る出し直しの項目は出し直しの順）。どれとも重ならない出し直しの項目は後ろに足し、重ならない
+    前の項目は残す。単位は converge.planned_units と同じく字にして比べる"""
+    units = [converge.planned_units([it]) for it in new]
+    hit = [[i for i, it in enumerate(old) if converge.planned_units([it]) & mine] for mine in units]
+    gone = {i for rows in hit for i in rows}
+    out = []
+    for i, it in enumerate(old):
+        out += [new[j] for j, rows in enumerate(hit) if rows and rows[0] == i]
+        if i not in gone:
+            out.append(it)
+    return out + [new[j] for j, rows in enumerate(hit) if not rows]
+
+
+def merge_resubmit(prev: dict, part: dict) -> dict:
+    """前の回の答え prev に修正案の出し直し part を合わせた答え（1 回で書いた答えと同じ形。WHOLE_PLAN は外す）。part の WHOLE_PLAN が
+    真なら plan は丸ごと置き換え、偽なら merge_plan_items。ほかの欄は rolekit.merge_fields"""
+    part = dict(part)
+    whole = part.pop(WHOLE_PLAN, False) is True
+    items = (lambda old, new: merge_plan_items(old, new) if isinstance(old, list) and isinstance(new, list) else new)
+    return rolekit.merge_fields(prev, part, None if whole else {"plan": items})
+
+
+def resubmitted(round_dir, reply, part) -> tuple:
+    """(受け付けが照らす修正案の答えの全体, 拒否の文)。rolekit.resubmitted を merge_resubmit で（控えは周のフォルダ）"""
+    return rolekit.resubmitted(round_dir, ROLE, reply, part, merge_resubmit)
 
 
 # ---------------------------------------------------------------- 読んだ証拠

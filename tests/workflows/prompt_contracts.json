@@ -5487,6 +5487,30 @@
       }
     ]
   },
+  "workflows/plan/works-factory-plan.yaml#plan-writer-fix.prompt": {
+    "inserts": [
+      "$plan-prep.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/plan/works-factory-plan.yaml#plan-writer-fix"
+      ],
+      "output_format_sha256": "bd829fe65f298493ed0e45cbecd3071f34c44ff01765e53a0c34025a0cdee1b9",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
   "workflows/report/commands/cold-check.md": {
     "inserts": [
       "$cold-prep.output.body"

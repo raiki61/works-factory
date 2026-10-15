@@ -204,9 +204,14 @@ class Run:
         return json.loads(p.stdout)
 
     def value(self, ref):
-        """with: の値（$<節>.output[.<欄>] か {from, if_skipped} か字でない定数）を Archon と同じ字にする（字はそのまま・ほかは JSON）"""
+        """with: の値（$<節>.output[.<欄>] か $LOOP_PREV.<節>.output.<欄> か {from, if_skipped} か字でない定数）を Archon と同じ字に
+        する（字はそのまま・ほかは JSON。$LOOP_PREV は輪の 1 周目は空の字）"""
         if not isinstance(ref, (str, dict)):
             return json.dumps(ref)
+        prev = re.fullmatch(r"\$LOOP_PREV\.([\w-]+)\.output\.(\w+)", ref) if isinstance(ref, str) else None
+        if prev:
+            got = self.loop_prev.get(prev.group(1), {}).get(prev.group(2), "")
+            return got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
         if isinstance(ref, dict):
             nid = ref["from"].split(".")[0][1:]
             if self.status.get(nid) != "ok":
@@ -238,7 +243,7 @@ class Run:
         """計画のブロックを 1 度差し込み、返す節の出力を返す。eye(structure_file) と writer(回の番号, 材料の字) は役の返答。
         typed なら役の返答を節の output_format で照らす（Archon と同じく受け付けの前に）"""
         self.inputs.update(inputs)
-        self.out, self.status, self.typed = {}, {}, typed
+        self.out, self.status, self.typed, self.loop_prev = {}, {}, typed, {}
         self.walk(self.doc["nodes"], eye or eye_clean, writer or writer_ok)
         return self.out[self.doc["returns"]]
 
@@ -263,15 +268,17 @@ class Run:
                 continue
             if "loop_group" in n:
                 lg = n["loop_group"]
+                self.loop_prev = {}
                 for i in range(1, lg["max_iterations"] + 1):
                     self.walk(lg["nodes"], eye_reply, writer)
+                    self.loop_prev = {b["id"]: self.out[b["id"]] for b in lg["nodes"] if self.status.get(b["id"]) == "ok"}
                     if self.until(lg["until_bash"]):
                         break
                 else:
                     self.case.fail(f"輪 {n['id']} が max_iterations に当たった（until_bash で抜けない）")
                 self.out[n["id"]], self.status[n["id"]] = json.dumps(self.out[lg["nodes"][-1]["id"]]), "ok"
                 continue
-            if "command" in n:
+            if "command" in n or "prompt" in n:
                 got = (eye_reply(self.out["structure-measure"]["structure_file"]) if n["id"] == "structure-eye"
                        else writer(self.out["plan-prep"]["attempt"],
                                    pathlib.Path(self.out["plan-prep"]["brief"]).read_text(encoding="utf-8")))
@@ -353,16 +360,46 @@ class ShapeCase(unittest.TestCase):
     def test_role_nodes_are_read_only_and_isolated(self):
         doc = load()
         roles = [n for n in nodes(doc) if any(k in n for k in scan.ROLE_KINDS)]
-        self.assertEqual([n["id"] for n in roles], ["structure-eye", "plan-writer"])
+        self.assertEqual([n["id"] for n in roles], ["structure-eye", "plan-writer", "plan-writer-fix"])
         for n in roles:
             self.assertIs(n["mutates_checkout"], False, n["id"])
             self.assertEqual(n["settingSources"], ["user"], n["id"])
             self.assertEqual(n["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False}, n["id"])
             self.assertNotIn("context", n, n["id"])
             self.assertEqual(n["model"], "opus", n["id"])
-        eye_node, writer = roles
+        eye_node, writer, fix = roles
         self.assertEqual((eye_node["allowed_tools"], eye_node["effort"]), ([], "high"))
         self.assertEqual((writer["allowed_tools"], writer["effort"]), (["Read", "Grep", "Glob", "WebSearch", "WebFetch"], "medium"))
+        launch = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
+        self.assertEqual({k: fix[k] for k in launch}, {k: writer[k] for k in launch}, "出し直しの役は修正案の役と同じ起こし方")
+
+    def test_resubmit_role_continues_the_writer_conversation(self):
+        """#571: 拒まれた後の出し直しは plan-writer-fix が plan-writer の会話の続きで起きる。輪は会話を続け（fresh_context: false）、
+        振り分けは plan-prep の resubmit（拒まれた周の値 $LOOP_PREV.plan-accept.output.ok を受ける）。plan-writer-fix は plan-writer の
+        後ろの層に置き（並んだ層は会話を切る）、context を書かない。受け付けは両方の返答を if_skipped: null で受ける"""
+        doc = load()
+        body = {n["id"]: n for n in node(doc, "plan-loop")["loop_group"]["nodes"]}
+        self.assertEqual(list(body), ["plan-prep", "plan-writer", "plan-writer-fix", "plan-accept"])
+        self.assertEqual(body["plan-prep"]["with"]["prev"], "$LOOP_PREV.plan-accept.output.ok")
+        self.assertIn("resubmit", body["plan-prep"]["output_format"]["required"])
+        self.assertEqual(body["plan-writer"]["when"], "$plan-prep.output.resubmit == false")
+        fix = body["plan-writer-fix"]
+        self.assertEqual(fix["when"], "$plan-prep.output.resubmit == true")
+        self.assertEqual((fix["depends_on"], fix["trigger_rule"]), (["plan-prep", "plan-writer"], "none_failed_min_one_success"))
+        self.assertNotIn("context", fix)
+        self.assertIn("$plan-prep.output.brief", fix["prompt"])
+        accept = body["plan-accept"]
+        self.assertEqual((accept["depends_on"], accept["trigger_rule"]),
+                         (["plan-writer", "plan-writer-fix"], "none_failed_min_one_success"))
+        self.assertEqual((accept["with"]["reply"], accept["with"]["fix_reply"]),
+                         ({"from": "$plan-writer.output", "if_skipped": None}, {"from": "$plan-writer-fix.output", "if_skipped": None}))
+
+    def test_resubmit_schema_is_the_writer_schema_without_required_plus_whole_plan(self):
+        doc = load()
+        first, fix = node(doc, "plan-writer")["output_format"], node(doc, "plan-writer-fix")["output_format"]
+        self.assertEqual(fix["required"], [])
+        self.assertEqual(fix["properties"].pop(planfile.WHOLE_PLAN), {"type": "boolean"})
+        self.assertEqual({**fix, "required": first["required"]}, first)
 
     def test_eye_command_reads_only_its_prep(self):
         """構造の目は道具なしの独立の会話: 指示書が読むのは支度の節の出力だけ"""
@@ -387,12 +424,12 @@ class ShapeCase(unittest.TestCase):
                     self.assertEqual(n[key], NO_DEADLINE, f"{n['id']}.{key}")
             if "script" in n or "loop_group" in n:
                 self.assertEqual(n.get("timeout"), NO_DEADLINE, n["id"])
-            if "command" in n:
+            if "command" in n or "prompt" in n:
                 self.assertEqual(n.get("idle_timeout"), NO_DEADLINE, n["id"])
 
     def test_loops_give_up_in_the_body_before_max_iterations(self):
         doc = load()
-        for nid, accept, fresh in (("structure-eye-loop", "structure-eye-accept", False), ("plan-loop", "plan-accept", True)):
+        for nid, accept, fresh in (("structure-eye-loop", "structure-eye-accept", False), ("plan-loop", "plan-accept", False)):
             lg = node(doc, nid)["loop_group"]
             self.assertEqual(lg["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
             self.assertIs(lg["fresh_context"], fresh, nid)
@@ -457,7 +494,8 @@ class ShapeCase(unittest.TestCase):
                 yield n
                 yield from every(n.get("loop_group", {}).get("nodes", []))
         roles = [n for n in every(load()["nodes"]) if any(k in n for k in scan.ROLE_KINDS)]
-        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")}, {mod.ROLE})
+        # 出し直しの役は修正案の役の会話の続きなので、読んだ証拠は同じ役に数える
+        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")} - {"plan-writer-fix"}, {mod.ROLE})
         self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, set(mod.QUIET))
 
     def test_fallback_names_match_lib(self):
@@ -764,15 +802,11 @@ class AcceptCase(unittest.TestCase):
         self.assertIs(out["ready"], True)
         why = self.reasons(run)[0]
         self.assertIn("narrows の行に狭めない案を探した結果", why)
-        brief = (run.art / "plan" / "r1" / "brief-2.md").read_text(encoding="utf-8")
-        rejects = run.art / "plan" / "r1" / "rejects-plan.md"
-        self.assertTrue(brief.startswith(rolekit.REJECT_LINE.format(path=rejects)), brief[:200])
-        self.assertNotIn(why.splitlines()[0], brief, "理由の本文は材料に貼らない")
-        self.assertEqual(rejects.read_text(encoding="utf-8"), rolekit.rejects_text([why]) + "\n")
+        self.assertEqual((run.status["plan-writer"], run.status["plan-writer-fix"]), ("skipped", "ok"))
 
-    def test_third_brief_names_every_reject_of_the_round(self):
-        """役は回ごとに新しい会話で起きる（会話を継がない）。2 回続けて拒まれた周の 3 回目の材料が名指すファイルに、
-        1 回目の拒否の理由も届く（最後の拒否だけだと、3 回目は 1 回目の誤りを繰り返して諦める。#345）"""
+    def test_resubmit_brief_carries_the_last_reject_and_the_merged_answer(self):
+        """#571: 拒まれた後の回の材料は出し直しの役の短い指示書: 今の周の最後の拒否の文を字のまま貼り、受け付けが合わせた前の答えの
+        控えを名指す（材料は会話に在るので貼らない）。前の回の拒否は会話に在るので最後の 1 件だけ"""
         run = Run(self)
         briefs = {}
 
@@ -783,12 +817,61 @@ class AcceptCase(unittest.TestCase):
         self.assertIs(run.include(writer=writer)["ready"], True)
         first, second = self.reasons(run)
         rnd = run.art / "plan" / "r1"
-        named = re.findall(re.escape(str(rnd)) + r"/\S+?\.\w+", briefs[3].splitlines()[0])
-        self.assertEqual(len(named), 1, briefs[3][:300])
-        text = pathlib.Path(named[0]).read_text(encoding="utf-8")
-        self.assertIn(first, text)
-        self.assertIn(second, text)
-        self.assertLess(text.index(first), text.index(second), "古い順")
+        self.assertTrue(briefs[3].startswith(planfile.RESUBMIT_ASK.partition("\n")[0]), briefs[3][:200])
+        self.assertIn(second, briefs[3])
+        self.assertNotIn(first, briefs[3])
+        self.assertIn(str(rolekit.candidate_path(rnd, planfile.ROLE)), briefs[3])
+        self.assertNotIn(planfile.UNITS_HEAD, briefs[3])
+        self.assertFalse(rolekit.rejects_text_path(rnd, planfile.ROLE).exists(), "拒否の全部のファイルは resume の時だけ書く")
+
+    def test_resume_brief_names_every_reject_of_the_round(self):
+        """resume で輪が 1 周目から回り直すと、前の周の値（prev）が空で、1 回目の役が新しい会話で全部の材料から起きる。その材料の
+        頭の 1 行が名指すファイルに、この周の拒否の全部が古い順に届く（#345）"""
+        run = Run(self)
+        bad = {"plan": [item(1)]}
+        self.assertIs(run.include(writer=writer_of(bad))["ready"], False)
+        rnd = run.art / "plan" / "r1"
+        reasons = rolekit.rejected(rnd, planfile.ROLE)
+        got = run.script("plan_prep", {"dir": "plan/r1", "prev": ""})
+        self.assertEqual((got["resubmit"], got["attempt"]), (False, 4))
+        brief = pathlib.Path(got["brief"]).read_text(encoding="utf-8")
+        rejects = rolekit.rejects_text_path(rnd, planfile.ROLE)
+        self.assertTrue(brief.startswith(rolekit.REJECT_LINE.format(path=rejects)), brief[:200])
+        self.assertIn(planfile.UNITS_HEAD, brief)
+        self.assertEqual(rejects.read_text(encoding="utf-8"), rolekit.rejects_text(reasons) + "\n")
+
+    def test_partial_resubmit_is_merged_into_the_one_shot_shape(self):
+        """#571: 出し直しの役は拒まれた項目だけを返し、受け付けが前の答えの控えと合わせてから照らす。合わせた答え（reply.json・
+        p2.fix_plan.json）は 1 回で書いた答えと同じ形"""
+        once = Run(self)
+        whole = {"plan": [item(1), item(2)]}
+        self.assertIs(once.include(writer=writer_of(whole))["ready"], True)
+        run = Run(self)
+        bad = {"plan": [item(1), item(2, tests=[])]}
+        out = run.include(writer=writer_of(bad, {"plan": [item(2)]}))
+        self.assertIs(out["ready"], True, out)
+        self.assertEqual(len(self.reasons(run)), 1)
+        rnd, ref = run.art / "plan" / "r1", once.art / "plan" / "r1"
+        for name in (planfile.REPLY_FILE, planfile.FIX_PLAN_FILE):
+            with self.subTest(name):
+                self.assertEqual(json.loads((rnd / name).read_text(encoding="utf-8")),
+                                 json.loads((ref / name).read_text(encoding="utf-8")))
+        self.assertEqual(json.loads(rolekit.candidate_path(rnd, planfile.ROLE).read_text(encoding="utf-8")), whole)
+
+    def test_empty_resubmit_is_rejected(self):
+        run = Run(self)
+        out = run.include(writer=writer_of({"plan": [item(1)]}, {}, {"plan": [item(1, 2)]}))
+        self.assertIs(out["ready"], True, out)
+        self.assertEqual(self.reasons(run)[1], rolekit.EMPTY_RESUBMIT)
+
+    def test_whole_plan_resubmit_drops_items(self):
+        """項目を消す出し直しは whole_plan: true と案の全部（plan が丸ごと置き換わり、whole_plan は控えに残らない）"""
+        run = Run(self)
+        out = run.include(writer=writer_of({"plan": [item(1, 2), item(2)]}, {"whole_plan": True, "plan": [item(1, 2)]}))
+        self.assertIs(out["ready"], True, out)
+        rnd = run.art / "plan" / "r1"
+        self.assertEqual(json.loads(rolekit.candidate_path(rnd, planfile.ROLE).read_text(encoding="utf-8")),
+                         {"plan": [item(1, 2)]})
 
     def test_unit_in_two_items_rejected(self):
         why = self.reject_once(Run(self), {"plan": [item(1, 2), item(2)]})
@@ -962,7 +1045,8 @@ class ReplanCase(unittest.TestCase):
     def test_replan_rejects_extra_items_and_changed_keys_then_amends(self):
         run = self.run_
         out = run.include(ruling='["1"]', conflicts=self.conflicts, writer=writer_of(
-            {"plan": [self.fixed(), self.fixed()]}, {"plan": [item(1, 2)]}, {"plan": [self.fixed()]}))
+            {"plan": [self.fixed(), self.fixed()]}, {"whole_plan": True, "plan": [item(1, 2)]},
+            {"whole_plan": True, "plan": [self.fixed()]}))
         self.assertIs(out["ready"], True, out)
         self.assertEqual((out["round"], run.out["round"]["mode"]), (2, "replan"))
         self.assertEqual(run.status["ripple-units"], "skipped")
@@ -1112,13 +1196,14 @@ class ReadsCase(unittest.TestCase):
         self.assertEqual(doc["rows"], [{"path": str(run.art / "plan" / "r1" / "brief-1.md"), "hook": "read"}])
 
     def test_unread_brief_and_reject_file_are_missing(self):
-        """拒まれた後の材料と前の拒否の理由のファイルも渡したパスに数え、読んでいなければ missing（受け付けは拒まない）"""
+        """拒まれた後の出し直しの指示書も渡したパスに数え、読んでいなければ missing（受け付けは拒まない）。拒否の理由は出し直しの
+        指示書に貼るので、拒否の全部のファイルは無い（resume で 1 回目の役が起き直した時だけ書く）"""
         run = self.run_with_root()
         self.hook(run, "Read", file_path=str(run.repo / "stats.py"))
         out = run.include(writer=writer_of({"plan": [item(1)]}, {"plan": [item(1, 2)]}))
         self.assertIs(out["ready"], True)
         rnd = run.art / "plan" / "r1"
-        self.assertEqual(run.out["plan-reads"]["missing"], [str(rnd / "brief-1.md"), str(rnd / "brief-2.md"), str(rnd / "rejects-plan.md")])
+        self.assertEqual(run.out["plan-reads"]["missing"], [str(rnd / "brief-1.md"), str(rnd / "brief-2.md")])
 
     def test_reads_before_the_round_opened_are_not_counted(self):
         """K14: 記録は周を開いた時刻（round.json の at）から後の行で切る。前の周・前の差し込みの読みを今の周の物に数えない"""
@@ -1279,7 +1364,7 @@ class CollectCase(unittest.TestCase):
         changed = item(2, approach="閉じた項目 2 の手順を書き換えた形をここに書いた")
         out = run.include(review=review, writer=writer_of(
             {"plan": [item(1, approach="空の列も直す形にした案の手順をここに書いた"), changed], "block_answers": answers},
-            {"plan": [item(1, approach="空の列も直す形にした案の手順をここに書いた")], "block_answers": answers}))
+            {"whole_plan": True, "plan": [item(1, approach="空の列も直す形にした案の手順をここに書いた")]}))
         self.assertIs(out["ready"], True, out)
         why = rolekit.rejected(run.art / "plan" / "r2", "plan")[0]
         self.assertTrue(why.startswith(planblk.CLOSED_REJECT), why)
@@ -1648,7 +1733,7 @@ class FixtureCase(unittest.TestCase):
 
     def test_fixtures_pass(self):
         names = sorted(p.name.removesuffix(".stubs.yaml") for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
-        self.assertEqual(names, ["eye-skipped", "give-up", "ready", "replan"])
+        self.assertEqual(names, ["eye-skipped", "give-up", "ready", "replan", "resubmit"])
         with archon.tree(["plan"]) as tree:
             done = archon.archon(tree, "workflow", "test", "works-factory-plan", "--json", "--cwd", str(tree))
         try:
@@ -1656,7 +1741,7 @@ class FixtureCase(unittest.TestCase):
         except json.JSONDecodeError:
             self.fail(f"workflow test の返りが読めない: {done.stdout}{done.stderr}")
         self.assertEqual(report.get("errors"), [], report)
-        self.assertEqual((report["failed"], report["passed"]), (0, 4), json.dumps(report, ensure_ascii=False)[:4000])
+        self.assertEqual((report["failed"], report["passed"]), (0, len(names)), json.dumps(report, ensure_ascii=False)[:4000])
 
 
 
