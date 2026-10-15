@@ -62,7 +62,7 @@ import startrec
 import structmark
 import unittrees
 import worldmark
-from answer import GO_WORDS
+from answer import GO_WORDS, origin
 from engine.util import Reject
 
 PLAN_NODE = planmarks.NODE
@@ -386,7 +386,8 @@ def _answer_rows(answers) -> list:
 
 def take_gate_answers(folder, gate_answers) -> list:
     """入力 gate_answers（修正前の関所の答え {decision, text, asked: [通した行の文…]} か、その並び。null は無い）を、gatemarks が
-    聞き直さない行と読む process.human_items の行 {round, node: gatemarks.GATE_NODE, kinds, asked, answer, note} にして
+    聞き直さない行と読む process.human_items の行 {round, node: gatemarks.GATE_NODE, kinds, asked, answer, note}（無人の run が推しで
+    通した答えは欄 answer.PUSHED も）にして
     GATE_ANSWERS_FILE に積み（同じ行は積み増さない）、積んだ全部を返す。行の種類は前の差し込みが返した関所の項目の控え
     GATE_ASKED_FILE から引く。通した行に方針の変化の行が在れば、その版を固め直す（元 graphloops/rules/review-loop.py:4137-4142）"""
     d = pathlib.Path(folder)
@@ -397,7 +398,7 @@ def take_gate_answers(folder, gate_answers) -> list:
         answer = "continue" if a["decision"] in GO_WORDS else a["decision"]
         row = {"round": 1, "node": gatemarks.GATE_NODE,
                "kinds": sorted({(asked_of.get(x) or {}).get("kind") or "" for x in texts} - {""}),
-               "asked": texts, "answer": answer, "note": a.get("text") or ""}
+               "asked": texts, "answer": answer, "note": a.get("text") or "", **origin(a)}
         if row in have:
             continue
         have.append(row)
