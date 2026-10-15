@@ -744,6 +744,36 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertIn(fields["policy"]["copy"], text)
         self.assertNotIn(raw_doc, text)
 
+    def test_refix_prompts_paste_the_item_scope(self):
+        """#570: 1 回目と 2 回目の手直しの指示書に、項目の変えてよいパスと out_of_scope が字のまま在り、受け付けは貼った glob の字で拒む"""
+        import planrange
+        self._cut()
+        self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))
+        text = pathlib.Path(self._run("refix_prep", "refix-prep", n="1")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(planrange.SCOPE_HEAD, text)
+        for path in ("stats.py", "vendored/**"):
+            self.assertIn(f"`{path}`", text)
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("def mean(xs):\n", 'def mean(xs):\n    """算術平均"""\n'),
+                     encoding="utf-8")
+        stray = self.repo / "vendored" / "x.py"
+        stray.parent.mkdir()
+        stray.write_text("X = 1\n", encoding="utf-8")
+        declared = {"handled": [{**_RV_HANDLED["handled"][0], "files": ["stats.py", "vendored/x.py"]}]}
+        bad = self._run("refix_accept", "refix-accept", n="1", reply=json.dumps(declared, ensure_ascii=False), iteration="1")
+        self.assertFalse(bad["ok"], bad)
+        self.assertIn("vendored/x.py は項目 1 の out_of_scope（vendored/**）に当たる", bad["reason"])
+        stray.unlink()
+        self._run("refix_prep", "refix-prep", n="1")
+        self.assertTrue(self._run("refix_accept", "refix-accept", n="1", reply=json.dumps(_RV_HANDLED, ensure_ascii=False),
+                                  iteration="2")["ok"])
+        self.assertTrue(self._run("cut2", "cut2")["go"])
+        review2 = {**_RV_REVIEW, "checks": [{"key": _RV_FACE, "closed": False, "why": "docstring は足したが平均の定義を書いていない"}]}
+        self.assertTrue(self._run("review2_accept", "review2-accept", reply=json.dumps(review2, ensure_ascii=False))["ok"])
+        text = pathlib.Path(self._run("refix_prep", "refix2-prep", n="2")["prompt_file"]).read_text(encoding="utf-8")
+        for path in ("stats.py", "vendored/**"):
+            self.assertIn(f"`{path}`", text, "2 回目の brief に plan_items が無くても指示書に貼る")
+
     def test_refix_undeclared_write_is_rejected(self):
         """記録の無い run の書き込みの出どころ（U6 の狭め）: 手直しの段の頭の木からの変更が handled[].files にも bash_writes にも無ければ拒む"""
         self._cut()
@@ -3786,6 +3816,21 @@ class FixAcceptCase(FixLoopPlace):
                 "plan_faces": [answer, {"key": "別案-len を直に使う", "handled": "declared", "how": "len は空の列で 0 割りになるので採らない"}]}
         out = self._fx_accept("fix_accept", good, 2, group=self._fx_group([_FX_MEAN]))
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
+
+    def test_fix_prompt_pastes_every_key_the_accept_asks(self):
+        """#570: 組の子の修正役の指示書が貼る事前審査の key は、同じ組の受け付けが「応答が無い」と拒む key と同じ集合"""
+        import fixboard
+        self._fx_json("p2.plan_review.json", self.REVIEW)
+        code, out, err = _fx_run("fix_prep", self.repo, self.art, group=self._fx_group([_FX_MEAN]))
+        self.assertEqual(code, 0, err)
+        section = pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8").split(fixboard.FACES_HEAD, 1)[1]
+        pasted = set(re.findall(r"^- `([^`]+)`（(?:穴|別案)", section, re.M))
+        self.assertEqual(pasted, {"穴-平均の分母が空の列で割れる", "別案-len を直に使う"})
+        self._fx_fix_mean()
+        out = self._fx_accept("fix_accept", {"changes": [_fx_change(_FX_MEAN, ["stats.py"])]}, 1,
+                              group=self._fx_group([_FX_MEAN]))
+        self.assertFalse(out["ok"], out)
+        self.assertEqual(set(re.findall(r"事前審査の '(.+?)' に応答が無い", out["reason"])), pasted)
 
 
 class HandoffCase(unittest.TestCase):
