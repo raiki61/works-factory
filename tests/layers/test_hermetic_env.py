@@ -49,6 +49,19 @@ class HermeticEnvTest(unittest.TestCase):
                 got = scan.problems("E21", root)
             self.assertTrue(any(line.startswith("lib/tests/test_a.py:2:") for line in got), (call, got))
 
+    def test_an_env_parameter_that_defaults_to_none_passed_straight_through_is_caught(self):
+        for sig in ("env=None", "*, env=None", "env: dict | None = None"):
+            text = f"def run(cmd, {sig}):\n    return subprocess.run(cmd, env=env)\n"
+            with self.subTest(sig=sig), tree({"tests/x/test_a.py": text}) as root:
+                got = scan.problems("E21", root)
+            self.assertTrue(any(line.startswith("tests/x/test_a.py:2:") for line in got), (sig, got))
+
+    def test_an_env_parameter_resolved_before_the_child_is_not_caught(self):
+        text = ("def run(cmd, env=None):\n    env = hermetic.child_env(**(env or {}))\n"
+                "    return subprocess.run(cmd, env=env)\n\n\ndef go(cmd, env):\n    return subprocess.run(cmd, env=env)\n")
+        with tree({"tests/x/test_a.py": text}) as root:
+            self.assertEqual(scan.problems("E21", root), [])
+
     def test_a_child_given_an_env_is_not_caught(self):
         text = "done = subprocess.run(cmd, env=hermetic.child_env(A=\"1\"))\nasyncio.run(main())\n"
         with tree({"tests/x/test_a.py": text}) as root:

@@ -68,9 +68,9 @@ class ChangedTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
-    def run_changed(self, env=None):
+    def run_changed(self, **overrides):
         done = subprocess.run([sys.executable, "tests/changed.py"], cwd=self.repo, capture_output=True, text=True,
-                              encoding="utf-8", env=env)
+                              encoding="utf-8", env=hermetic.child_env(**overrides))
         return done.returncode, done.stdout, done.stdout + done.stderr
 
     def ran(self, out):
@@ -142,7 +142,7 @@ class ChangedTest(unittest.TestCase):
         self.assertIn("origin/main", stdout)
 
     def test_no_git_runs_only_the_fence_and_defers_to_ci(self):
-        rc, stdout, out = self.run_changed(env=hermetic.child_env(PATH=""))
+        rc, stdout, out = self.run_changed(PATH="")
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.ran(out), 1, out)
         self.assertIn(IN_CI, stdout)

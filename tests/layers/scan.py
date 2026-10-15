@@ -576,6 +576,9 @@ def _envless_spawns(root: Path, path: Path) -> list[str]:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except (SyntaxError, UnicodeDecodeError):
         return []   # 読めない字は _grep が UTF-8 の行で出す。構文の誤りは試験そのものが落ちる
+    # 既定が None の引数を差し替えずに env へ渡す形も、呼び手が渡さなければ env の無い子になる
+    unset = {id(call): _none_default_params(fn) for fn in ast.walk(tree)
+             if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) for call in ast.walk(fn)}
     out = []
     for node in ast.walk(tree):
         func = getattr(node, "func", None)
@@ -583,10 +586,18 @@ def _envless_spawns(root: Path, path: Path) -> list[str]:
                 and func.attr in SPAWNS.get(func.value.id, ())):
             continue
         env = next((k.value for k in node.keywords if k.arg == "env"), None)
-        if env is None or (isinstance(env, ast.Constant) and env.value is None):
+        if (env is None or (isinstance(env, ast.Constant) and env.value is None)
+                or (isinstance(env, ast.Name) and env.id in unset.get(id(node), ()))):
             out.append(f"{_rel(root, path)}:{node.lineno}: 子の環境は hermetic.child_env で作る。env の無い子の起こし "
                        f"{func.value.id}.{func.attr}")
     return out
+
+
+def _none_default_params(fn) -> frozenset:
+    args = fn.args
+    pairs = [*zip(reversed(args.posonlyargs + args.args), reversed(args.defaults)), *zip(args.kwonlyargs, args.kw_defaults)]
+    rebound = {n.id for n in ast.walk(fn) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+    return frozenset(a.arg for a, d in pairs if isinstance(d, ast.Constant) and d.value is None and a.arg not in rebound)
 
 
 def _hermetic_env(root: Path) -> list[str]:
