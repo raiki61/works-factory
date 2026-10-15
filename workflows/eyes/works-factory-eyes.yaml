@@ -275,7 +275,9 @@ nodes:
 
   # R1・R2 の筋が落ちても R4 を飛ばさない。方針とのぶつかりが記録された方針の行を名指さなければ受け付けが拒んで出し直させ、
   # 3 回目は通らなくても抜ける（その時は名指さない行も最後の承認ノードで人に聞く。#455）。if/then は今の works の post_check
-  # r4_inventory（棚卸しが発火したら lost を明示する）
+  # r4_inventory（棚卸しが発火したら lost を明示する）。目は 1 回目は新しい会話で起き、拒まれた後は出し直しの役 r4-scope-fix が
+  # 同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと合わせる（振り分けは r4-reject の resubmit。並んだ層は会話を切るので
+  # r4-scope-fix は r4-scope の後ろの層に置く。#571）
   - id: r4-loop
     depends_on: [prep, r1-minimality, r2-compare, premise-check]
     trigger_rule: all_done
@@ -283,7 +285,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$r4-accept.output.done; test "$done" = true
       nodes:
         - id: r4-reject
@@ -291,24 +293,26 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          with: {prev: "$LOOP_PREV.r4-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason]
-            properties: {reason: {type: string}}
+            properties: {reason: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: r4-scope
           command: r4-scope
           depends_on: [r4-reject]
-          model: sonnet
-          effort: medium
-          context: fresh
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          allowed_tools: [Read, Grep, Glob]
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
+          when: "$r4-reject.output.resubmit != true"
+          <<: &r4_launch
+            model: sonnet
+            effort: medium
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            allowed_tools: [Read, Grep, Glob]
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &r4_reply
             type: object
             required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen]
             additionalProperties: false
@@ -340,13 +344,25 @@ nodes:
               unseen: {type: array, items: {type: string}}
             if: {properties: {capability_inventory: {properties: {fired: {const: true}}}}}
             then: {properties: {capability_inventory: {required: [fired, lost]}}}
+        - id: r4-scope-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$r4-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [r4-reject, r4-scope]
+          trigger_rule: none_failed_min_one_success
+          when: "$r4-reject.output.resubmit == true"
+          <<: *r4_launch
+          output_format:
+            <<: *r4_reply
+            required: []
         - id: r4-accept
           script: r4_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [r4-scope]
-          with: {reply: $r4-scope.output}
+          depends_on: [r4-scope, r4-scope-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            reply: {from: "$r4-scope.output", if_skipped: null}
+            fix_reply: {from: "$r4-scope-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false

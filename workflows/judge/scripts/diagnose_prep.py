@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """判定役の材料を組む（lib/judge_accept.diagnose_prep）。対象差分 judge/diff.patch・素材の 15 欄 judge/materials.json・
-材料 judge/diagnose-brief.md を書く。素材 local_checks は入力 baseline（直す前の結末）から写す。再審の道・止めの控えが在れば
+材料 judge/diagnose-brief.md を書く。素材 local_checks は入力 baseline（直す前の結末）から写す。止めの控えが在れば
 組まない。素材の役が諦めていれば、残りで組んだ上で止める。
 {go, brief_file, review_md, repo_review_md, reason}"""
 import os
@@ -23,9 +23,8 @@ review_md, repo_review_md = ja.review_md_paths(boundary.lib_root(), Path.cwd())
 out = {"go": False, "brief_file": "", "review_md": review_md, "repo_review_md": repo_review_md, "reason": ""}
 try:
     start = ja.read_json(jdir / ja.START_FILE) or ja.start_view({})
-    objection = os.environ.get("INPUTS_OBJECTION", "")
     baseline = boundary.pointed(os.environ.get("INPUTS_BASELINE"))
-    out = ja.diagnose_prep(jdir, Path.cwd(), start, objection, review_md, repo_review_md, baseline)
+    out = ja.diagnose_prep(jdir, Path.cwd(), start, review_md, repo_review_md, baseline)
 except Exception as e:  # noqa: BLE001  落ちずに go 偽と理由を返す
     out = {**out, "go": False, "reason": f"判定役の材料を組めない（{type(e).__name__}: {e}）"}
 boundary.returns({"go": bool(out["go"]), **{k: str(out[k]) for k in ("brief_file", "review_md", "repo_review_md", "reason")}})

@@ -858,13 +858,18 @@ def take(jdir, reply, repo, base_rev: str = "", *, prev_deletions=None, prev_que
 
 
 def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None) -> dict:
-    """受け付けの輪の 1 回（元 rolekit.main_accept）。役の返答の字 raw を読み（rolekit.parse_reply）、take(reply) に通す。読めない
-    返答と take の中の例外は reject(理由) で拒否にする（既定は {ok: False, reason}。受け付けは落ちない）。拒否は
-    board/rejects-<name>.json に積み（rolekit.with_done）、3 回目で done。諦めた時は on_give_up() を呼ぶ。
-    take の返りの give_up が真なら 1 回目でも done（出し直しても直らない拒み）。
+    """受け付けの輪の 1 回（元 rolekit.main_accept）。役の返答の字 raw を読み（rolekit.parse_reply）、accept_reply に通す"""
+    return accept_reply(board, name, rolekit.parse_reply(raw), take, reject=reject, on_give_up=on_give_up)
+
+
+def accept_reply(board, name: str, got: tuple, take, *, reject=None, on_give_up=None) -> dict:
+    """受け付けの輪の 1 回の本体。got は (読めた返答, 読めない訳)（rolekit.parse_reply か、拒まれた後の出し直しを前の答えと
+    合わせる rolekit.resubmitted の返り）で、返答を take(reply) に通す。読めない返答と take の中の例外は reject(理由) で拒否にする
+    （既定は {ok: False, reason}。受け付けは落ちない）。拒否は board/rejects-<name>.json に積み（rolekit.with_done）、3 回目で
+    done。諦めた時は on_give_up() を呼ぶ。take の返りの give_up が真なら 1 回目でも done（出し直しても直らない拒み）。
     返り take の返りに done を足した物。拒否の控えが扱えなければ done 真の拒否"""
     reject = reject or (lambda why: {"ok": False, "reason": why})
-    reply, why = rolekit.parse_reply(raw)
+    reply, why = got
     try:
         got = take(reply) if reply is not None else reject(why)
     except Exception as e:  # noqa: BLE001
@@ -2863,17 +2868,15 @@ def prior_of(doc) -> list:
     return list(doc) if isinstance(doc, list) else carry.parts(doc)[carry.PRIOR]
 
 
-def diagnose_prep(jdir, repo, start: dict, objection: str, review_md: str, repo_review_md: str = "", baseline=None) -> dict:
+def diagnose_prep(jdir, repo, start: dict, review_md: str, repo_review_md: str = "", baseline=None) -> dict:
     """判定役を起こす前の支度（元 judgebrief.brief の入口と、元 blk-material の collect の止め）。返り
-    {go, brief_file, review_md, repo_review_md, reason}。入力 objection が空でない（再審の道）・止めの控えが在れば組まずに go 偽。
+    {go, brief_file, review_md, repo_review_md, reason}。止めの控えが在れば組まずに go 偽。
     対象差分を取り直して diff.patch に、素材の 15 欄を materials.json に書き（baseline は入力 baseline の先のパス。在れば素材
     local_checks をそこから写す。baseline_local_checks）、材料を組み、役を起こす前の作業ツリーの姿を
     diagnose-tree.json に置く。素材の役が 1 本でも諦めていれば、
     残りの素材で材料を組んだ上で止めの控え（MATERIAL_STOP）を置いて go 偽（今の works の素材集めの諦めが判定の前で線を止めたのと同じ）"""
     j = pathlib.Path(jdir)
     out = {"go": False, "brief_file": "", "review_md": review_md, "repo_review_md": repo_review_md, "reason": ""}
-    if (objection or "").strip():
-        return {**out, "reason": "再審の道（入力 objection が在る）——判定の材料は組まない"}
     stop = read_stop(j)
     if stop:
         return {**out, "reason": f"止まっている（{stop['stop_reason']}: {stop.get('reason', '')}）——判定役を起こさない"}

@@ -221,7 +221,7 @@ class R4AcceptCase(unittest.TestCase):
     def accept(self, *lines, passed=None):
         reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "policy_conflicts": list(lines),
                  "surfaced": [], "seen": [], "unseen": []}
-        return reply, eyeverdict.r4_accept(self.dir, json.dumps(reply, ensure_ascii=False), passed or {})
+        return reply, eyeverdict.r4_accept(self.dir, rolekit.parse_reply(json.dumps(reply, ensure_ascii=False)), passed or {})
 
     def test_unnamed_line_is_rejected_until_the_accept_gives_up(self):
         for k in range(1, rolekit.GIVE_UP_AFTER):
@@ -249,10 +249,10 @@ class R4AcceptCase(unittest.TestCase):
     def test_lost_capabilities_are_not_checked_against_the_recorded_rows(self):
         reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": True, "lost": ["古い入口"]},
                  "policy_conflicts": [], "surfaced": [], "seen": [], "unseen": []}
-        self.assertTrue(eyeverdict.r4_accept(self.dir, json.dumps(reply, ensure_ascii=False), {})["ok"])
+        self.assertTrue(eyeverdict.r4_accept(self.dir, rolekit.parse_reply(json.dumps(reply, ensure_ascii=False)), {})["ok"])
 
     def test_unreadable_reply_is_rejected(self):
-        got = eyeverdict.r4_accept(self.dir, "{", {})
+        got = eyeverdict.r4_accept(self.dir, rolekit.parse_reply("{"), {})
         self.assertEqual((got["ok"], got["done"], got["reply"]), (False, False, None))
         self.assertIn("JSON", got["reason"])
 
@@ -316,7 +316,7 @@ class CollectCase(unittest.TestCase):
         reply = {**r4, "policy_conflicts": [UNNAMED]}
         self.put("prep", {policy.RECORDED_KEY: [DOC_ROW]})
         for _ in range(rolekit.GIVE_UP_AFTER):
-            got = eyeverdict.r4_accept(self.dir, json.dumps(reply, ensure_ascii=False), {})
+            got = eyeverdict.r4_accept(self.dir, rolekit.parse_reply(json.dumps(reply, ensure_ascii=False)), {})
         self.assertTrue(got["give_up"])
         self.put("r4", got["reply"])
         got = self.collect()

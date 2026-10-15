@@ -96,12 +96,13 @@ ROLES = {
     "provenance": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None, None, None),
     "diagnose": ("opus", "high", [*READ, *WEB], BASE, True, None, None, None),
     "judge-verify": ("opus", "high", [*READ, *WEB, "Agent", "Write"], BASE, True, "fresh", None, None),
-    "rejudge": ("opus", "high", [*READ, *WEB], BASE, True, "fresh", None, None),
+    "rejudge": ("opus", "high", [*READ, *WEB], BASE, True, None, None, None),
 }
-# 輪の id → 受け付けの節と fresh_context（旧 YAML: 仕様の 3 つの輪と再審の輪は true、ほかは false）
-FRESH = {"spec-loop", "spec-review-loop", "spec-revise-loop", "rejudge-loop"}
-# 新しい会話の輪の reject の節が結ぶ拒否の控え（受け付けの置き場と控えの名。lib/judge_accept の spec_accept・rejudge_accept と同じ）
-FRESH_LEDGERS = {"spec-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["write"]},
+# 頭の節（script rejects）が受け付けの拒否の控えの全部を渡す輪（旧 YAML で役が周ごとに新しい会話で起きた仕様の 3 つの輪と再審の輪。
+# #571 から全部の輪が会話を続けるが、控えの全部を渡す形は残す）と、結ぶ控え（受け付けの置き場と控えの名。lib/judge_accept の
+# spec_accept・rejudge_accept と同じ）
+RESUBMIT_ROLES = ("spec", "spec-review", "spec-revise", "rejudge")   # 拒まれた後に <役>-fix が同じ会話の続きで出し直す役（#571）
+LEDGER_REJECTS = {"spec-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["write"]},
                  "spec-review-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["review"]},
                  "spec-revise-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["revise"]},
                  "rejudge-loop": {"board": ja.REJUDGE_DIR, "accept": ja.REJUDGE_ROLE}}
@@ -296,12 +297,13 @@ class LoopTest(unittest.TestCase):
                 self.assertEqual(body["max_iterations"], 3)
                 self.assertEqual(body["until_bash"], f'done=${accept}.output.done; test "$done" = true')
                 self.assertEqual(loop["timeout"], NO_DEADLINE)
-                self.assertIs(body["fresh_context"], lid in FRESH)
+                self.assertIs(body["fresh_context"], False)
 
-    def test_roles_receive_the_reject_reason_through_the_reject_node(self):
-        """拒否の理由は、輪の中の節 <役>-reject（script reject）の with: に $LOOP_PREV で結び、役の指示書は今の周のその節の返り
-        $<役>-reject.output.reason で受け、rolekit.with_reject の見出しと文で出す（1 周目の $LOOP_PREV は空の字）。
-        役が周ごとに新しい会話で起きる輪（FRESH）は script rejects の節で、$LOOP_PREV でなく受け付けの拒否の控え（FRESH_LEDGERS）を結ぶ（#345）。
+    def test_roles_receive_the_reject_reason_through_the_loop_head(self):
+        """拒否の理由は、輪の頭の節（<役>-reject＝script reject。素材の輪では <役>-prep＝script material_prep）の with: に $LOOP_PREV で結び、
+        役の指示書は今の周のその節の返り $<役>-reject.output.reason（素材の輪では $<役>-prep.output.reason）で受け、rolekit.with_reject の
+        見出しと文で出す（1 周目の $LOOP_PREV は空の字）。素材の輪には <役>-reject の節が無く、<役>-prep の返りが reason・lang_line を持つ。
+        控えの全部を渡す輪（LEDGER_REJECTS）は script rejects の節で、$LOOP_PREV でなく受け付けの拒否の控えと前の周の受け付けの ok を結ぶ（#345・#571）。
         役の節には with: を書かず、指示書には $INPUTS も $LOOP_PREV も書かない: 線が include すると、止めた Archon は輪の中の節が
         自分の with: で結んだ名を楯にせず「入力が無い」で止める（packages/workflows/src/include-expander.ts:566・627。楯は輪の節の
         束縛だけを見る）。ブロックの入力に宣言すると読み込みの時に既定の値で字が埋まり、周ごとの理由が消える。指示書の $LOOP_PREV は
@@ -312,12 +314,26 @@ class LoopTest(unittest.TestCase):
             accept = loop["loop_group"]["nodes"][-1]["id"]
             for role in (n for n in body.values() if "command" in n):
                 with self.subTest(role=role["id"]):
-                    reject = f"{role['id']}-reject"
-                    node = body[reject]
-                    self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
-                                     ("rejects" if lid in FRESH else "reject", "uv", NO_DEADLINE, False))
-                    self.assertEqual(node["with"], FRESH_LEDGERS.get(lid, {"reason": f"$LOOP_PREV.{accept}.output.reason"}))
-                    self.assertEqual(node["output_format"]["required"], ["reason", "lang_line"])   # 言語の 1 行は BriefCase
+                    material = role["id"] in MATERIALS
+                    reject = f"{role['id']}-{'prep' if material else 'reject'}"
+                    if material:
+                        self.assertNotIn(f"{role['id']}-reject", body)
+                        node = body[reject]
+                        self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
+                                         ("material_prep", "uv", NO_DEADLINE, False))
+                        self.assertEqual(node["with"], {"role": role["id"], "reason": f"$LOOP_PREV.{accept}.output.reason"})
+                        self.assertEqual(node["output_format"]["required"],
+                                         ["brief_file", "brief", "review_md", "repo_review_md", "reason", "lang_line"])
+                        self.assertEqual(role["depends_on"], [reject])
+                    else:
+                        node = body[reject]
+                        self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
+                                         ("rejects" if lid in LEDGER_REJECTS else "reject", "uv", NO_DEADLINE, False))
+                        want = ({**LEDGER_REJECTS[lid], "prev": f"$LOOP_PREV.{accept}.output.ok"} if lid in LEDGER_REJECTS
+                                else {"reason": f"$LOOP_PREV.{accept}.output.reason"})
+                        self.assertEqual(node["with"], want)
+                        self.assertEqual(node["output_format"]["required"], ["reason", "lang_line"])   # 言語の 1 行は BriefCase
+                    self.assertIn("reason", node["output_format"]["properties"])
                     self.assertNotIn("with", role)
                     self.assertIn(reject, role["depends_on"])
                     text = (COMMANDS / f"{role['command']}.md").read_text(encoding="utf-8")
@@ -335,17 +351,51 @@ class LoopTest(unittest.TestCase):
                 self.assertEqual(r.returned("reject", reason=reason), {"reason": reason, "lang_line": rolekit.lang_line({})})
 
     def test_third_fresh_spec_role_reads_every_reject_of_the_loop(self):
-        """新しい会話で起きる仕様の役が 2 回拒まれた後の 3 回目: rejects の返りの reason に 1 回目と 2 回目の拒否が古い順に在る（#345）。
+        """仕様の役が 2 回拒まれた後の 3 回目: rejects の返りの reason に 1 回目と 2 回目の拒否が古い順に在る（#345）。
         1 周目は空の字。言語の 1 行も reject と同じに返す"""
         r = Run(self)
         r.returned("intake")
-        self.assertEqual(r.returned("rejects", **FRESH_LEDGERS["spec-loop"]), {"reason": "", "lang_line": rolekit.lang_line({})})
+        self.assertEqual(r.returned("rejects", **LEDGER_REJECTS["spec-loop"]),
+                         {"reason": "", "lang_line": rolekit.lang_line({}), "resubmit": False, "brief": ""})
         reasons = [r.returned("spec_accept", role="write", reply=reply)["reason"]
                    for reply in ({"requirements": []}, {"acceptance": []})]
         self.assertTrue(all(reasons) and reasons[0] != reasons[1], reasons)
-        got = r.returned("rejects", **FRESH_LEDGERS["spec-loop"])["reason"]
+        got = r.returned("rejects", **LEDGER_REJECTS["spec-loop"])["reason"]
         self.assertEqual(got, rolekit.rejects_text(reasons))
         self.assertLess(got.index(reasons[0]), got.index(reasons[1]))
+
+    def test_spec_resubmit_returns_only_the_rejected_fields(self):
+        """#571: 拒まれた周の次（prev が前の周の受け付けの ok の false）は、rejects が出し直しの役の短い指示書（最後の拒否の文・
+        受け付けが合わせた前の答えの控え）を書いて resubmit: true を返す。受け付けは出し直しの返答（直す欄だけ）を前の答えの控えと
+        欄ごとに合わせてから照らし、通った答えは 1 回で書いた答えと同じ。resume で輪が 1 周目から回り直した時（prev が空）は
+        1 回目の役（resubmit: false）"""
+        r = Run(self)
+        r.returned("intake")
+        (r.repo / "test_spec_mean.txt").write_text(SPEC_TEST_FILE, encoding="utf-8")
+        first = r.returned("spec_accept", role="write", reply={**SPEC, "acceptance": [{**SPEC["acceptance"][0], "name": "無い名"}]})
+        self.assertFalse(first["ok"])
+        head = r.returned("rejects", **LEDGER_REJECTS["spec-loop"], prev="false")
+        self.assertIs(head["resubmit"], True)
+        brief = pathlib.Path(head["brief"]).read_text(encoding="utf-8")
+        self.assertIn(first["reason"], brief)
+        self.assertIn(str(rolekit.candidate_path(r.judge, ja.SPEC_ROLES["write"])), brief)
+        self.assertIs(r.returned("rejects", **LEDGER_REJECTS["spec-loop"], prev="")["resubmit"], False)
+        got = r.returned("spec_accept", role="write", reply="null", fix_reply={"acceptance": SPEC["acceptance"]})
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual(json.loads((r.judge / f"{ja.SPEC_ROLES['write']}.json").read_text(encoding="utf-8")), SPEC)
+
+    def test_spec_resubmit_after_fixing_only_the_file_returns_nothing(self):
+        """受け入れテストのファイルが読めない拒否は、役がファイルを書けば直る。欄を直さない出し直しの {} は前の答えのまま全体を
+        照らし直して通る（出し直しの回を空で使わない）"""
+        r = Run(self)
+        r.returned("intake")
+        first = r.returned("spec_accept", role="write", reply=SPEC)
+        self.assertFalse(first["ok"])
+        self.assertIn("読めない", first["reason"])
+        (r.repo / "test_spec_mean.txt").write_text(SPEC_TEST_FILE, encoding="utf-8")
+        got = r.returned("spec_accept", role="write", reply="null", fix_reply={})
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual(json.loads((r.judge / f"{ja.SPEC_ROLES['write']}.json").read_text(encoding="utf-8")), SPEC)
 
     def test_materials_are_eleven_loops_one_per_command(self):
         material_loops = sorted(lid.removesuffix("-loop") for lid in loops() if lid.removesuffix("-loop") in MATERIALS)
@@ -357,6 +407,23 @@ class LoopTest(unittest.TestCase):
             with self.subTest(material=name):
                 self.assertEqual(by[name]["command"], f"material-{name}")
                 self.assertEqual(by[f"{name}-loop"]["when"], f"$material-route.output.{ja.route_key(name)} == true")
+
+    def test_material_role_continues_its_previous_round(self):
+        """素材の役の出し直し（J81「同じ会話で 3 回まで」）: fresh_context: false の loop_group は前の周の会話を次の周の体の AI の節へ
+        渡すが（dag-executor.ts の lastSequentialSession）、並んだ層（2 つ以上の節の層）では渡さない。だから体の最初の層は
+        支度の script 1 本で、役はその後の層に 1 本で置き、context: fresh を持たない。周をまたぐ会話は筋書きで渡らない（K6）ので、
+        ここは形だけを縛る（修正の tdd-loop の試験と同じ）"""
+        by = loops()
+        for name in MATERIALS:
+            with self.subTest(material=name):
+                loop = by[f"{name}-loop"]["loop_group"]
+                self.assertIs(loop["fresh_context"], False)
+                body = {n["id"]: n for n in loop["nodes"]}
+                first = [nid for nid, n in body.items() if not set(n.get("depends_on", ())) & set(body)]
+                self.assertEqual(first, [f"{name}-prep"], "最初の層に 2 本以上を置くと Archon は会話を切る")
+                role = body[name]
+                self.assertEqual(role["depends_on"], [f"{name}-prep"])
+                self.assertNotIn("context", role, "2 周目の役は前の周の自分の会話を継ぐ")
 
     def test_role_names_are_the_libs(self):
         """役の名の持ち主は lib（MATERIAL_ROLES・SPEC_ROLES）。YAML の route の欄と with: の role がそれに合う"""
@@ -388,7 +455,7 @@ class RoleSettingsTest(unittest.TestCase):
     def test_roles_keep_the_old_settings(self):
         by = nodes()
         roles = {nid for nid, n in by.items() if any(k in n for k in scan.ROLE_KINDS)}
-        self.assertEqual(sorted(roles), sorted(ROLES))
+        self.assertEqual(sorted(roles), sorted([*ROLES, *(f"{r}-fix" for r in RESUBMIT_ROLES)]))   # 出し直しの役の形は test_loop_sessions
         for nid, (model, effort, tools, sandbox, read_only, context, skills, plugins) in ROLES.items():
             n = by[nid]
             with self.subTest(role=nid):
@@ -940,6 +1007,20 @@ class RejudgeTest(unittest.TestCase):
         self.assertEqual(pathlib.Path(prep["brief_file"]), r.artifacts / "rejudge" / "brief.md")
         self.assertIn(self.OBJECTION, (r.artifacts / "rejudge" / "brief.md").read_text(encoding="utf-8"))
 
+    def test_verify_merge_waits_on_the_judge_mode(self):
+        """判定の裏取りのまとめは判定の道（intake の mode が judge）の時だけ走る。再審の道で 1 回目の判定の置き場に触らない守りは
+        script の枝でなく YAML の when が持つ。go は見ない（go 偽でも judge の道なら all_done でまとめが走る）"""
+        node = nodes()["verify-merge"]
+        self.assertEqual(node.get("when"), "$intake.output.mode == 'judge'")
+        self.assertEqual(node["trigger_rule"], "all_done")
+
+    def test_diagnose_prep_waits_on_the_judge_mode(self):
+        """判定の材料を組む段は判定の道（intake の mode が judge）の時だけ走る。diagnose_prep は入力 objection を読まないので、
+        再審の道で判定の材料を組まない守りはこの when だけが持つ"""
+        node = nodes()["diagnose-prep"]
+        self.assertEqual(node.get("when"), "$intake.output.go == true && $intake.output.mode == 'judge'")
+        self.assertEqual(node["trigger_rule"], "all_done")
+
 
 def premises_and_purpose(r: Run) -> None:
     """前提と目的の段が受け付けた控えを置く（判定の前の段が通った姿）"""
@@ -1165,7 +1246,7 @@ JUDGE_BODY, INVESTIGATOR_BODY, INSPECTOR_BODY, COLD_READER_BODY = (
 
 
 # 拒否の理由の節。元は rolekit.with_reject（works/.shared/core/rolekit.py:219-223）と material.prep（works/blk-material/lib/material.py:388-391）が
-# 指示書の頭に置いた段で、写しは線の <役>-reject の節の出力を結ぶ（PR #100）。見出しの後ろの 1 文（下の 4 つ）だけが役ごとに違う
+# 指示書の頭に置いた段で、写しは輪の頭の拒否の節か、素材の輪では <役>-prep の出力を結ぶ（PR #100）。見出しの後ろの 1 文（下の 4 つ）だけが役ごとに違う
 REJECT_LEAD = ("## 前の回の受け付けが拒んだ理由\n\n前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ"
                "（直した所だけを返すな）。")
 FIRST_IS = "下の理由が空なら、これは 1 回目の返答である。"
@@ -1174,8 +1255,8 @@ FIRST_SKIP = "下の理由が空なら、これは 1 回目の返答で、この
 FIRST_NOFIX = "下の理由が空なら、これは 1 回目の返答で、直す所は無い。"
 
 
-def reject_section(node: str, first: str) -> str:
-    return f"{REJECT_LEAD}{first}\n\n```text\n${node}-reject.output.reason\n```\n\n---\n\n"
+def reject_section(node: str, first: str, src: str = "reject") -> str:
+    return f"{REJECT_LEAD}{first}\n\n```text\n${node}-{src}.output.reason\n```\n\n---\n\n"
 
 
 # 素材集めの役の頭: 元の works/blk-material/commands/<役>.md の指示を、材料のファイル（brief_file）を読む形に直した物
@@ -1428,7 +1509,7 @@ COPIED_TEXTS = {
     # 本線の指示書（gl-prompts の p0・p1）から描いた。その本線の指示書を元とし、prep が足した段と元の短い指示を直しとして持つ
     "material-consistency-bypass.md": (WORKS_GL + "p1.consistency_bypass.md", "464aa8023cab8a9c65511ccbac2557d51f96ad07bc669bf7706cca547f102f57", [
         ("", role_definition("inspector", INSPECTOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
-        ("", reject_section("consistency-bypass", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("consistency-bypass", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["consistency-bypass"]),   # 元の commands/consistency-bypass.md の指示を材料を読む形に
         # 差し込みの印を材料の節の名に
         *slots("loop.diff_file", "record.base", "loop.changed_files", "inputs.cwd", "inputs.review_rev", "inputs.review_md",
@@ -1437,7 +1518,7 @@ COPIED_TEXTS = {
     ]),
     "material-external-standards.md": (WORKS_GL + "p1.external_standards.md", "cb1c148f374e16868188d9688fc303669ee84352fcb64ac048bebff778f75d1d", [
         ("", role_definition("investigator", INVESTIGATOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
-        ("", reject_section("external-standards", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("external-standards", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["external-standards"]),   # 元の commands/external-standards.md の指示を材料を読む形に
         # 差し込みの印を材料の節の名に
         *slots("loop.diff_file", "loop.changed_files", "inputs.cwd", "out.p0.purpose.purpose_text", "out.p0.purpose.known_weaknesses",
@@ -1446,14 +1527,14 @@ COPIED_TEXTS = {
     ]),
     "material-gate-efficacy.md": (WORKS_GL + "p1.gate_efficacy.md", "025cd10531b664e19c2d38b7217cbbac3541b7b05402d842ed063b9935720ad0", [
         ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
-        ("", reject_section("gate-efficacy", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("gate-efficacy", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["gate-efficacy"]),   # 元の commands/gate-efficacy.md の指示を材料を読む形に
         *slots("loop.diff_file", "loop.changed_files_file", "record.base", "inputs.cwd", "loop.mutation_decl.text"),   # 差し込みの印を材料の節の名に
         material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
     ]),
     "material-hygiene.md": (WORKS_GL + "p1.hygiene.md", "e8847b1b1d66c5a1962f6d2898e7dd521d14d1436e7851f441ac462e60f91327", [
         ("", role_definition("cold-reader", COLD_READER_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
-        ("", reject_section("hygiene", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("hygiene", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["hygiene"]),   # 元の commands/hygiene.md の指示を材料を読む形に
         *slots("section:inputs.review_md#コード衛生観点", "file:loop.diff_file"),   # 差し込みの印を材料の節の名に
         material_tail("欠陥ではない）。\n",   # 末尾に prep が足した段（所見の場所）と、材料を貼る囲いと返答の形（道具の無い役）
@@ -1461,7 +1542,7 @@ COPIED_TEXTS = {
     ]),
     "material-local-review.md": (WORKS_GL + "p1.local_review.md", "963bdd993d7c3f849b5884af3488aba5422105f1002539d54dda3968db50a2c3", [
         ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
-        ("", reject_section("local-review", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("local-review", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["local-review"]),   # 元の commands/local-review.md の指示を材料を読む形に
         *slots("record.base", "loop.changed_files_file", "inputs.review_md", "?inputs.repo_review_md",
                "node.skills"),   # 差し込みの印を材料の節の名に
@@ -1472,42 +1553,42 @@ COPIED_TEXTS = {
     ]),
     "material-main-path-observation.md": (WORKS_GL + "p1.main_path_observation.md", "e5a0c6fc7d907610f59a970aaf6b85440365ec166d89011b5831e88fb99e8123", [
         ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
-        ("", reject_section("main-path-observation", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("main-path-observation", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["main-path-observation"]),   # 元の commands/main-path-observation.md の指示を材料を読む形に
         *slots("loop.diff_file", "loop.changed_files_file", "inputs.cwd"),   # 差し込みの印を材料の節の名に
         material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
     ]),
     "material-prior-decisions.md": (WORKS_GL + "p0.prior_decisions.md", "8a2ee67bd45607d808337299f604a6c9d16ce9b03b81256d04aa91dbee7bddf8", [
         ("", role_definition("investigator", INVESTIGATOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
-        ("", reject_section("prior-decisions", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("prior-decisions", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["prior-decisions"]),   # 元の commands/prior-decisions.md の指示を材料を読む形に
         *slots("inputs.cwd", "record.base", "loop.changed_files", "loop.request_wheres"),   # 差し込みの印を材料の節の名に
         material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
     ]),
     "material-procedure-trace.md": (WORKS_GL + "p1.procedure_trace.md", "1eed8dc4ab7bdebcffbbe895c097f84478f956b523a792fba9031d28ee38a04d", [
         ("", role_definition("investigator", INVESTIGATOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
-        ("", reject_section("procedure-trace", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("procedure-trace", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["procedure-trace"]),   # 元の commands/procedure-trace.md の指示を材料を読む形に
         *slots("loop.diff_file", "loop.changed_files", "inputs.cwd", "inputs.review_md"),   # 差し込みの印を材料の節の名に
         material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
     ]),
     "material-provenance.md": (WORKS_GL + "p1.provenance.md", "a973ef69ef00eb0d918f67e2a1762d0431484001fb75929c049efb596afe0a06", [
         ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
-        ("", reject_section("provenance", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("provenance", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["provenance"]),   # 元の commands/provenance.md の指示を材料を読む形に
         *slots("loop.diff_file", "record.base", "inputs.cwd"),   # 差し込みの印を材料の節の名に
         material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
     ]),
     "material-purpose-review.md": (WORKS_GL + "p0.purpose_review.md", "bf736d08a0e647a8bb1e2c81379fbec4291ceeb66127bc8b40a4f823e555f317", [
         ("", role_definition("inspector", INSPECTOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
-        ("", reject_section("purpose-review", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("purpose-review", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["purpose-review"]),   # 元の commands/purpose-review.md の指示を材料を読む形に
         *slots("out.p0.purpose.purpose_text", "inputs.cwd", "inputs.review_rev"),   # 差し込みの印を材料の節の名に
         material_tail("同じ版を数える。\n"),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
     ]),
     "material-test-double-fidelity.md": (WORKS_GL + "p1.test_double_fidelity.md", "1a7c246902fcba7f1ffc21a9173b7a32091e191a34d9f7a5bb2058ba181a3cc9", [
         ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
-        ("", reject_section("test-double-fidelity", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", reject_section("test-double-fidelity", FIRST_NOT, src="prep")),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
         ("", MATERIAL_HEADS["test-double-fidelity"]),   # 元の commands/test-double-fidelity.md の指示を材料を読む形に
         *slots("loop.diff_file", "loop.changed_files_file", "inputs.cwd"),   # 差し込みの印を材料の節の名に
         material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
@@ -1771,11 +1852,11 @@ if __name__ == "__main__":
 
 class BriefCase(unittest.TestCase):
     def lang_source(self, node_id: str) -> str:
-        """役の節が言語の 1 行を読む節: 輪の中の役は同じ輪の頭の拒否の節、輪の外の判定の裏取りは支度の節"""
+        """役の節が言語の 1 行を読む節: 輪の中の役は同じ輪の頭の拒否の節（素材の輪では <役>-prep）、輪の外の判定の裏取りは支度の節"""
         for loop in loops().values():
             ids = [n["id"] for n in loop["loop_group"]["nodes"]]
             if node_id in ids:
-                return next(i for i in ids if i.endswith("-reject"))
+                return next((i for i in ids if i.endswith("-reject")), f"{node_id}-prep")
         return "verify-prep"
 
     def test_lang_line_reaches_judge_roles(self):
@@ -1794,20 +1875,34 @@ class BriefCase(unittest.TestCase):
         self.assertIn("English", want)
         self.assertEqual(r.returned("reject", reason="")["lang_line"], want)
         self.assertEqual(r.returned("verify", stage="prep")["lang_line"], want)
-        self.assertEqual(r.returned("verify", stage="prep", objection="異議")["lang_line"], want)
         self.assertEqual(Run(self).returned("reject", reason="x"), {"reason": "x", "lang_line": rolekit.lang_line({})})
         broken = r.returned("reject", reason="", start=json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "no.json"}))
         self.assertIn("ポインタの先が無い", broken["lang_line"])
 
+    def test_material_prep_returns_the_reject_reason_and_lang_line(self):
+        """素材の輪の頭の script material_prep は、with: の reason（前の周の拒否の理由）をそのまま、言語の 1 行を始めの記録の lang から
+        返す。材料を描けない役（except の枝）でも同じ reason・lang_line を返す"""
+        r = Run(self, lang="English")
+        want = rolekit.lang_line({"lang": "English"})
+        self.assertIn("English", want)
+        reason = '前の周の理由 "引用" `x`\n二行目'
+        for role in ("hygiene", "no-such-role"):
+            got = r.returned("material_prep", role=role, reason=reason)
+            with self.subTest(role=role):
+                self.assertEqual({k: got.get(k) for k in ("reason", "lang_line")}, {"reason": reason, "lang_line": want})
+        self.assertEqual(sorted(r.returned("material_prep", role="hygiene", reason="")),
+                         ["brief", "brief_file", "lang_line", "reason", "repo_review_md", "review_md"])
+        self.assertEqual(r.returned("material_prep", role="hygiene", reason="")["reason"], "")
 
     def test_unreadable_start_pointer_degrades_in_every_lang_line_script(self):
-        """#367: 始めの記録の指し札が読めない（ほかの run の札・札の形でない）時、言語の 1 行を返す 3 つの script はどれも落ちずに、
+        """#367: 始めの記録の指し札が読めない（ほかの run の札・札の形でない）時、言語の 1 行を返す 4 つの script はどれも落ちずに、
         rolekit.pointed_lang_line の同じ 1 行を返す"""
         r = Run(self)
         for start in (json.dumps({"type": "archon_artifact", "run_id": "other-run", "path": "start.json"}), '"札でない"'):
             got = [r.returned("reject", reason="", start=start)["lang_line"],
                    r.returned("rejects", board="judge", accept="purpose", start=start)["lang_line"],
-                   r.returned("verify", stage="prep", start=start)["lang_line"]]
+                   r.returned("verify", stage="prep", start=start)["lang_line"],
+                   r.returned("material_prep", role="hygiene", reason="", start=start)["lang_line"]]
             with self.subTest(start):
                 self.assertEqual(len(set(got)), 1, got)
                 self.assertTrue(got[0].startswith(rolekit.lang_line({})), got[0])
