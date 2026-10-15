@@ -62,7 +62,7 @@ def moved_policy(tmp: pathlib.Path) -> tuple:
 READ_ONLY_SCRIPTS = ("route", "prep", "tdd-unit", "conflict-check", "rule-prep", "rule-accept", "fix-ruled-prep",
                      "ruled-consult-check", "ruled-consult-accept", "assert-changed", "delta-cut", "lens-prep",
                      "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
-                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix", "groups-ok")
+                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix", "nodes-ok")
 
 # 今の works（2aa7c66c）の同じ役の節の値: (model, effort, context, settingSources, sandbox)。
 # 元 works/blk-fix/blk-fix.yaml の tdd・fix・fix-ruled・rule・plan-answer、blk-delta.yaml の review、blk-lens.yaml の
@@ -239,20 +239,24 @@ class GroupsCase(unittest.TestCase):
         self.assertNotIn("isolation", launchers["groups-seq"])
         self.assertEqual(launchers["groups-seq"]["fan_out"]["max_parallel"], 1)
 
-    def test_a_failed_child_halts_the_block_for_resume(self):
-        """#576: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
-        走らず、ブロックの sink の柵 groups-ok が飛ぶ。join の後に作り直す all_done の節は join を結ぶ"""
+    def test_a_failed_node_halts_the_block_for_resume(self):
+        """#576・#594: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
+        走らない。サブグラフのどの節が落ちても、返す節 fix のほかの全部の節に結ぶブロックの sink の柵 nodes-ok が飛ぶ"""
         for nid in ("groups-par", "groups-seq"):
             self.assertEqual(self.nodes[nid]["fan_out"]["join"], "all_success", nid)
         self.assertEqual(self.nodes["join"]["trigger_rule"], "none_failed_min_one_success")
-        guard = self.nodes["groups-ok"]
+        top = [n["id"] for n in self.doc["nodes"]]
+        guard = self.nodes["nodes-ok"]
         self.assertEqual(guard["bash"], "true")
-        self.assertEqual(set(guard["depends_on"]), {"route", "groups-par", "groups-seq", "join"})
+        self.assertEqual(set(guard["depends_on"]), set(top) - {"fix", "nodes-ok"})
         self.assertEqual(guard["trigger_rule"], "none_failed_min_one_success")
-        self.assertNotIn("when", guard, "柵が飛ぶのは組か join が落ちた時だけ（形 group の run は済む）")
-        self.assertEqual([nid for nid, n in self.nodes.items() if "groups-ok" in (n.get("depends_on") or [])], [])
-        for nid in ("clean", "assert-changed", "delta-cut"):
-            self.assertIn("join", self.nodes[nid]["depends_on"], nid)
+        self.assertNotIn("when", guard, "柵が飛ぶのはどれかの節が落ちた時だけ（when で飛ぶ節は落ちと数えない）")
+        self.assertEqual([nid for nid, n in self.nodes.items() if "nodes-ok" in (n.get("depends_on") or [])], [])
+
+    def test_only_the_returning_node_and_reads_run_after_a_failure(self):
+        """#594: 落ちた節の後ろの節は飛ぶ（済んだ控えを残さず、resume で作り直される）。all_done で走るのは返す節と、
+        フックの記録を読むだけの fix-reads だけ"""
+        self.assertEqual({n["id"] for n in self.doc["nodes"] if n.get("trigger_rule") == "all_done"}, {"fix", "fix-reads"})
 
     def test_fanouts_hang_off_block_mode_only(self):
         prep = self.nodes["prep"]
@@ -1484,7 +1488,6 @@ class BlockScriptsCase(unittest.TestCase):
                 self.assertNotIn("g1", err)
                 self.assertEqual(self.snapshot(self.repo), t1)
                 self.assertFalse((self.place / "join.json").exists())
-                self.assertFalse((out_dir / "g2" / "dropped.json").exists())
 
     def rerun_seed(self, files, *, test_cmd=""):
         """走らせ直しの種: files を commit し、実行器（lib/tests/test_blk_fix_tdd.py の SUITE）を指す始めの記録と、その実行器で
@@ -2784,8 +2787,8 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertNotIn(raw_doc, text)
 
     def test_group_start_in_order_stops_while_an_earlier_child_is_halted(self):
-        """#576: 親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに止まっていれば、その変更を戻さず何も書かずに 1 で
-        止まる（親の resume が前の子を続きから回す）。前の組が結果を書いていれば今どおり始める"""
+        """#576: 親の作業ツリーで 1 つずつ回る子は、前の組の子が使える結果を残さずに止まっていれば（結果が無いか壊れている）、
+        その変更を戻さず何も書かずに 1 で止まる（親の resume が前の子を続きから回す）。前の組が結果を書いていれば今どおり始める"""
         import leftovers
         before = leftovers.snapshot(self.repo)
         (self.out_dir / "g0").mkdir()
@@ -2797,7 +2800,10 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in self.out_dir.iterdir()), ["g0"])
         self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
         self.assertFalse(self.place.exists())
-        (self.out_dir / "g0" / "result.json").write_text("{}", encoding="utf-8")
+        (self.out_dir / "g0" / "result.json").write_text("{", encoding="utf-8")
+        self.assertIn("g0", self._grp_run("group_start", "group-start", ok=False))
+        self.assertEqual((self.repo / "half.py").read_text(encoding="utf-8"), "Y = 1\n")
+        (self.out_dir / "g0" / "result.json").write_text(json.dumps({"end_tree": before}), encoding="utf-8")
         self._grp_run("group_start", "group-start")
         self.assertTrue((self.repo / "half.py").is_file(), "前の組の結果の在る変更は残す")
 
@@ -2811,18 +2817,22 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
 
     def test_group_start_in_order_drops_its_own_earlier_attempt(self):
-        """自分の組の始めの記録が前の試みから残っていれば、その木に戻してから始める"""
+        """自分の組の始めの記録が前の試みから残っていれば、前の試みの結果が無くても壊れていても、その木に戻してから始める
+        （戻した控えは書かない）"""
         import leftovers
         before = leftovers.snapshot(self.repo)
-        (self.out_dir / "g1").mkdir()
-        (self.out_dir / "g1" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
-        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
-        self._grp_run("group_start", "group-start")
-        self.assertFalse((self.repo / "half.py").exists())
-        self.assertEqual(json.loads((self.out_dir / "g1" / "dropped.json").read_text(encoding="utf-8"))["paths"],
-                         ["half.py"])
-        began = json.loads((self.out_dir / "g1" / "group-start.json").read_text(encoding="utf-8"))
-        self.assertEqual(began["start_tree"], before)
+        for left in (None, "{"):
+            with self.subTest(result=left):
+                (self.out_dir / "g1").mkdir(exist_ok=True)
+                (self.out_dir / "g1" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
+                if left is not None:
+                    (self.out_dir / "g1" / "result.json").write_text(left, encoding="utf-8")
+                (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
+                self._grp_run("group_start", "group-start")
+                self.assertFalse((self.repo / "half.py").exists())
+                self.assertFalse((self.out_dir / "g1" / "dropped.json").exists())
+                began = json.loads((self.out_dir / "g1" / "group-start.json").read_text(encoding="utf-8"))
+                self.assertEqual(began["start_tree"], before)
 
     def test_tdd_step_reads_the_recorder_log(self):
         """記録の根が在る run の TDD の輪の受け付けは、group-start が作った作業ツリーの記録を読み、記録の無い変更を拒む"""

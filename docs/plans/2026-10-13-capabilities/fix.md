@@ -1240,15 +1240,15 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
 - F413 子の結果のファイルが無い（子が落ちた）組は当てず、単位を not_done・組を returned: false と理由にする（issue #576 から、子が落ちると組の節が落ちて join は走らず、それでも結果の無いか読めない組が在れば join は作業ツリーを変えずに落ちて run を止める。返す節の行の既定 NO_RESULT は残る）
   - 元: works/blk-fix/lib/tddlanes.py（TestSettle.test_unfinished_lane_goes_back_to_serial）、fixlanes.py（TestJoin.test_unfinished_lane_goes_back）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_stops_on_a_group_without_a_readable_result、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_join_rows_keep_child_status_only_for_returned_groups
-  - 本物の run: 筋書きでのみ（子の run が落ちた時は組の節が落ちて groups-ok が飛び、join.json は書かれない）
+  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_stops_on_a_group_without_a_readable_result、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_usable_result_is_the_one_group_rule、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_join_rows_keep_child_status_only_for_returned_groups
+  - 本物の run: 筋書きでのみ（子の run が落ちた時は組の節が落ちて nodes-ok が飛び、join.json は書かれない）
   - 狭め: F410 と同じく、元は順の輪で直し直した。今は not_done で返すだけ
 
-- F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（issue #576 まで join が戻した。今は組の子が落ちると組の節が落ちて join は走らず、次の組の group-start は前の組の分を戻さずに止まり、自分の組の前の試みの分だけを戻して dropped.json に控える）
+- F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（issue #576 まで join が戻した。今は組の子が落ちると組の節が落ちて join は走らず、次の組の group-start は前の組の分を戻さずに止まり、自分の組の前の試みの分だけを戻す）
   - 元: 無し（元の枝は単位の worktree で直し、run の作業ツリーへの迷い書きは機械が戻した: works/blk-fix/lib/lanekit.py `revert_strays`、tests/test_tdd_lanes.py:483 test_stray_write_of_run_tree_is_reverted）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_drops_its_own_earlier_attempt、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_stops_while_an_earlier_child_is_halted
-  - 本物の run: 筋書きでのみ（落ちた子の組の置き場の `dropped.json`）
+  - 証: tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_drops_its_own_earlier_attempt、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_stops_while_an_earlier_child_is_halted、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_halted_groups_and_drop_unreturned_follow_the_rule
+  - 本物の run: 筋書きでのみ（自分の組の前の試みの変更は親の作業ツリーで戻すだけで、置き場に控えを書かない）
   - 狭め: 無し
 
 - F415 戻せた組の子の TDD の輪の状態を親の置き場の tdd-<k>/ に写し、実行器のパス exe を親の作業ツリーで解き直す（裁定の後の修正の受け付けが凍結と変更に当たる試験に使う）
