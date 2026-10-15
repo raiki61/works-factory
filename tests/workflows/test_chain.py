@@ -28,6 +28,8 @@ SCRIPTS = FOLDER / "scripts"
 CHAIN = yaml.safe_load((FOLDER / "works-factory-chain.yaml").read_text(encoding="utf-8"))
 LINE = yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))
 NAME = CHAIN["name"]
+# 鎖のノード deliver が include する merge のブロックも木に置く
+PLACED = ["chain", "merge"]
 SCENARIOS = ("limit-then-fixed", "rounds-reached", "needs-human", "same-items", "interrupted", "child-failed", "refused")
 
 if str(ROOT / "lib") not in sys.path:
@@ -611,9 +613,9 @@ class ChainScenariosTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        with archon.tree(["chain"]) as tree:
+        with archon.tree(PLACED) as tree:
             cls.results = scenarios(archon.archon(tree, "workflow", "test", NAME, "--cwd", str(tree), "--json"))
-        cls.traces = dry_run_traces("chain", NAME, ["chain"], SCENARIOS)
+        cls.traces = dry_run_traces("chain", NAME, PLACED, SCENARIOS)
 
     def out(self, scenario: str, node: str) -> dict:
         return json.loads(self.traces[scenario][node]["output"])
