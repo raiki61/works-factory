@@ -5453,7 +5453,7 @@
   },
   "workflows/plan-review/works-factory-plan-review.yaml#plan-review-fix.prompt": {
     "inserts": [
-      "$review-prep.output.prompt_file"
+      "$review-prep.output.brief"
     ],
     "returns": {
       "nodes": [
@@ -5469,8 +5469,8 @@
         "quote": "を Read で全部読み"
       },
       {
-        "what": "直した欄だけの同じ型の JSON だけを返す",
-        "quote": "返すのは直した欄だけの、前と同じ型の JSON だけ"
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
       }
     ],
     "stops": []

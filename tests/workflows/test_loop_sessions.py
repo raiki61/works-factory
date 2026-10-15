@@ -10,7 +10,8 @@ fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1
   毎回新しい会話で起きる）
 - 周をまたぐ時の新しい会話は、輪の 1 周目がいつも新しい会話であること（上の契約の行）で決まり、この試験では縛らない
 - 拒まれた所だけを出し直す輪（RESUBMIT）は、頭の節の resubmit で 1 回目の役と出し直しの役（<役>-fix）を振り分け、出し直しの役は
-  1 回目の役の後ろの層で同じ起こし方・同じ型（required を外しただけ）で起き、受け付けは両方の返答を if_skipped: null で受ける
+  1 回目の役の後ろの層で同じ起こし方・同じ型（required を外しただけ）・同じ prompt（FIX_PROMPT）で起き、受け付けは両方の返答を
+  if_skipped: null で受ける
 """
 import pathlib
 import unittest
@@ -39,6 +40,9 @@ RESUBMIT = {
     ("eyes", "r4-loop"): ("r4-reject", "r4-scope", "r4-scope-fix", "r4-accept"),
     ("test-gate", "ci-loop"): ("ci-prep", "ci", "ci-fix", "ci-accept"),
 }
+# 出し直しの役の prompt（YAML はブロックをまたいで文を共にできないので、8 つの節の字をこの 1 つに縛る）。brief は頭の節の指示書のパスの欄
+FIX_PROMPT = ("前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `{brief}` を Read で全部読み、その指示に従え。"
+              "返すのは指示書の返し方の形の JSON だけ。")
 LAUNCH = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
 
 
@@ -121,6 +125,7 @@ class LoopSessionsTest(unittest.TestCase):
                                  (f"${head}.output.resubmit != true", f"${head}.output.resubmit == true"))
                 self.assertEqual((again["depends_on"], again["trigger_rule"]), ([head, role], "none_failed_min_one_success"))
                 self.assertNotIn("context", again)
+                self.assertEqual(again["prompt"], FIX_PROMPT.format(brief=f"${head}.output.brief"))
                 self.assertEqual({k: again.get(k) for k in LAUNCH}, {k: first.get(k) for k in LAUNCH})
                 shape, fixed = first["output_format"], dict(again["output_format"])
                 self.assertEqual(fixed.pop("required"), [])

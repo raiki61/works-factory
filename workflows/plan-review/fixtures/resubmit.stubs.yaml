@@ -4,7 +4,7 @@ open: { ok: true, r2_go: true, tree: false, k: 1, form: review, depth_skip: fals
 r2-prep: { prompt: "stub: 元の目的と実測した制約" }
 r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解" }
 r2-accept: { ok: true, done: true, give_up: false, reason: "" }
-review-prep: { prompt_file: "/fixture/plan-review/pass-1/resubmit-2.md", resubmit: true }
+review-prep: { prompt_file: "", brief: "/fixture/plan-review/pass-1/resubmit-2.md", resubmit: true }
 plan-review-fix: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }
 review-accept: { ok: true, done: true, give_up: false, reason: "" }
 review-reads: { ok: true, missing: [], index_file: plan-review/pass-1/reads-plan-review-block.json, reason: "" }

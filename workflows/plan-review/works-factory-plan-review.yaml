@@ -186,13 +186,14 @@ nodes:
           mutates_checkout: false
           with:
             prev: "$LOOP_PREV.review-accept.output.ok"
-          # resubmit は任意の欄（無ければ 1 回目の役が起きる。メイングラフの筋書きの stub がこの節を resubmit 無しで差し替える）
+          # resubmit・brief は任意の欄（無ければ 1 回目の役が起きる。メイングラフの筋書きの stub がこの節を resubmit 無しで差し替える）
           output_format:
             type: object
             additionalProperties: false
             required: [prompt_file]
             properties:
               prompt_file: {type: string}
+              brief: {type: string}
               resubmit: {type: boolean}
         # 模型・道具・設定は出し直しの役 plan-review-fix と同じ（merge key の錨 review_launch）
         - id: plan-review
@@ -317,7 +318,7 @@ nodes:
               }
         # 拒まれた後の出し直しの役（plan-review の会話の続き）。型は plan-review の型から required を外した物
         - id: plan-review-fix
-          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$review-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは直した欄だけの、前と同じ型の JSON だけ。
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$review-prep.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
           depends_on: [review-prep, plan-review]
           trigger_rule: none_failed_min_one_success
           when: "$review-prep.output.resubmit == true"

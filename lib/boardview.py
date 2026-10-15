@@ -865,16 +865,12 @@ def _replan_section(row: dict) -> str:
     return "\n".join(lines)
 
 
-REVIEW_RESUBMIT_RULES = ("返した欄は前の欄を丸ごと置き換え（faces・design_map などの配列も、直さない行を含めて全部の行を返す）、"
-                         "返さない欄は前のまま")
-
-
 def review_resubmit(folder, repo) -> pathlib.Path:
-    """拒まれた後の出し直しの役の指示書 pass-<k>/resubmit-<n>.md（rolekit.write_resubmit に REVIEW_RESUBMIT_RULES）を書き、役を
+    """拒まれた後の出し直しの役の指示書 pass-<k>/resubmit-<n>.md（rolekit.write_resubmit に rolekit.FIELD_RULES）を書き、役を
     起こす前の作業ツリーの姿を pass-<k>/tree.json に置き直して（review_material と同じ）、指示書のパスを返す"""
     d = pathlib.Path(folder)
     p = pass_dir(d, read_open(d)["k"])
-    path, _ = rolekit.write_resubmit(p, REVIEW_NODE, RESUBMIT_FILE, REVIEW_RESUBMIT_RULES)
+    path, _ = rolekit.write_resubmit(p, REVIEW_NODE, RESUBMIT_FILE, rolekit.FIELD_RULES)
     planfile.snap_tree(p / TREE_FILE, repo)
     return path
 
