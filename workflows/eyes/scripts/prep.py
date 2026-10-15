@@ -2,13 +2,13 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む。R4 の方針とのぶつかりを照らす記録された方針の行 policy.RECORDED_KEY も足す）。比較役に貼った前提の控えは
+"""目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む。R4 の方針とのぶつかりを照らす記録された方針の行 policy.RECORDED_KEY も足す。無人の run が判定の保留の問いに採った推しも
+問いの台帳（gatemarks.taken_pushes）から読んでその行に足し、独立設計の比較役に貼る人の答えには混ぜない）。比較役に貼った前提の控えは
 eyes/r2-premises.json に書く。目が読む累積差分は、入口の base（startrec.diff_base。差分の run では PR の根）から今の作業ツリーまで
 （未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
 （直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
 （試験の関門が比べた入力 test_outcomes）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
-carry.CARRIED_HOW_HEAD で始まる行）が在る run と、run の頭の深さで事前審査を飛ばした run（入力 review_skipped）は、深さで目を
-省かない（run_eyes を真に）"""
+carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に）"""
 import json
 import os
 import sys
@@ -24,6 +24,7 @@ import concepthome  # noqa: E402
 import depth  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
+import gatemarks  # noqa: E402
 import policy  # noqa: E402
 import premises as _premises  # noqa: E402
 import rolekit  # noqa: E402
@@ -36,6 +37,21 @@ def entry_base() -> str:
     if not base_rev:
         raise ValueError("始めの記録に入口の base が無く、累積差分の起点が分からない")
     return base_rev
+
+
+def taken_pushes() -> tuple:
+    """(無人の run が判定の保留の問いに採った推しの文, 添える行)。問いの台帳を最後の関所と同じ判定・結び・修正前の関所の答えで読み、
+    読めなければ最後の関所（ask_final.ledger）と同じく止めずに推しを無しにして、添える行に訳"""
+    if judgment_file is None:
+        return [], []
+    try:
+        ties = boundary.pointed(os.environ["INPUTS_TIES_JUDGMENT"])
+        if ties is not None and not ties.is_file():
+            raise ValueError(f"入力 ties_judgment の先 {ties} が無い")
+        b = gatemarks.ledger_at(judgment_file, start, answer, ties)
+    except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
+        return [], [f"- 判定の問いの控えか始めの記録を読めない（無人の run が保留の問いに採った推しを並べていない。{type(error).__name__}: {error}）"]
+    return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(b)], []
 
 
 def read(raw):
@@ -61,7 +77,8 @@ depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
 after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
 human_items = eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer)
-recorded = policy.recorded(start, judgment_file.parent if judgment_file else None, human_items=human_items)
+pushes, pushes_unread = taken_pushes()
+recorded = policy.recorded(start, judgment_file.parent if judgment_file else None, human_items=human_items, pushes=pushes)
 premises_text, r2_ledger = eyeverdict.premise_section(
     human_items=human_items,
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),
@@ -69,11 +86,10 @@ premises_text, r2_ledger = eyeverdict.premise_section(
     design_seen=(eyeverdict.read_json(design_file.with_name(eyeverdict.DESIGN_PREMISES)) or {}).get("seen") if design_file else None)
 
 out = {
-    # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）。
-    # run の頭の深さで事前審査を飛ばした run も省かない（目が事前審査の代わり。docs/design.md の深さで飛ばすノードの表）
-    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}}) == ""
-    or any(isinstance(c, dict) and str(c.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD) for c in constraints or [])
-    or boundary.parsed(os.environ.get("INPUTS_REVIEW_SKIPPED")) is True,
+    # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）
+    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}},
+                                  os.environ.get("INPUTS_HEAD_DEPTH", "")) == ""
+    or any(isinstance(c, dict) and str(c.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD) for c in constraints or []),
     "compare_due": eyeverdict.r2_compare_due(design, purpose_text),
     "premise_due": eyeverdict.r2_premise_invalid(design),
     "purpose_text": purpose_text,
@@ -88,7 +104,7 @@ out = {
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
     "repo_review_md": str(repo_review) if repo_review.is_file() else "（対象のリポジトリの根に REVIEW.md は無い）",
     "policy_path": policy.frozen_copy(start),
-    "recorded_policy": policy.recorded_section(recorded),
+    "recorded_policy": "\n".join([policy.recorded_section(recorded), *pushes_unread]),
     "lang_line": rolekit.lang_line(start),
     "r1_head": concepthome.R1_HEAD.format(section=after),
     "r3_head": concepthome.R3_HEAD.format(section=after),

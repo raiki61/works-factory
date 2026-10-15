@@ -14,12 +14,14 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import answer  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import planfile  # noqa: E402
 import startrec  # noqa: E402
 
 FORK = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "depends": ["B"], "options": ["x", "y"], "reason": "割れる"}
+PUSHED_FORK = {**FORK, "reason": "割れる。推し: x——呼び手が既に x を前提にしている"}
 ESC = {"key": "q-c", "kind": "awaiting", "status": "escalate", "origin": "C", "reason": "人でないと決められない"}
 ANSWERED = {"key": "q-d", "kind": "fork", "status": "held", "origin": "D", "options": ["x", "y"], "reason": "割れる"}
 TIED = {"key": "q-e", "kind": "fork", "status": "held", "origin": "E", "options": ["x", "y"], "reason": "割れる"}
@@ -89,6 +91,63 @@ class DutyCase(unittest.TestCase):
         self.assertEqual(gatemarks.binds(ANSWERS[1], [FORK], ties=b.ties), [])
         self.assertEqual(gatemarks.lost_ties(b.ties, [FORK], ["A"]),
                          ["判定の結びの宛て先 q-e が今の問いにも単位にも無い（字の一致で当てた）: 依頼の答え どちらでもよい"])
+
+    def judge(self, *questions) -> None:
+        doc = {**JUDGMENT, "questions": [*questions, ANSWERED, TIED, FIELD]}
+        (self.jdir / "judgment.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+
+    def test_unattended_run_takes_the_held_fork_push(self):
+        """#593: 無人の run は判定が保留にした fork・held の理由の推しを答えに採り、出どころ・depends を直す義務に戻す（計画と修正が
+        同じ口で数える）。人のいる run・推しの無い問い・escalate は今どおり外す"""
+        want = {"D", "E", "F", "G"}
+        escalated = {**FORK, "key": "q-x", "status": "escalate", "origin": "C", "depends": [], "reason": "人でないと決められない。推し: x"}
+        self.judge(PUSHED_FORK, escalated, {**ESC, "reason": "人でないと決められない。推し: z"})
+        self.assertEqual((self.plan_duty(), self.fix_duty()), (want, want), "人のいる run は推しを採らない")
+        self.start = {**self.start, "unattended": "true"}
+        self.assertEqual((self.plan_duty(), self.fix_duty()), (want | {"A", "B"}, want | {"A", "B"}), "fork・escalate の推しは採らない")
+        self.assertEqual([q["key"] for q, _, _ in gatemarks.taken_pushes(fixboard.gate_view(self.tmp / "fix"))], ["q-a"])
+        line = next(x for x in gatemarks.returned_lines(fixboard.gate_view(self.tmp / "fix")) if "q-a" in x)
+        self.assertTrue(line.startswith(f"{answer.PUSHED_NOTE}\n無人の run が採った推しで答えた{gatemarks.ASK_HEAD} q-a"), line)
+        self.assertIn("——推し: x——呼び手が既に x を前提にしている。", line)
+        self.assertEqual(line.count(answer.PUSHED_NOTE), 1)
+        self.judge(FORK, ESC)
+        self.assertEqual((self.plan_duty(), self.fix_duty()), (want, want), "推しの無い問いは止まる")
+
+    def test_unattended_run_takes_only_a_push_that_names_an_option_of_open_units(self):
+        """#593: 推しの最後の「推し:」の頭が選択肢のどれかを名指し、出どころ・depends が開いた単位の時だけ採る。ほかは保留のまま
+        （推しの無い問いと同じく止め、報告の冒頭で名指す）"""
+        def take(reason, origin="A", options=("x", "y")):
+            q = {**FORK, "reason": reason, "origin": origin, "depends": [], "options": list(options)}
+            b = gatemarks.ledger({"units": [{"key": "A", "label": "block"}, {"key": "C", "label": "suggest", "disposition": "defer"}],
+                                  "questions": [q]}, takes_push=True)
+            return gatemarks.run_push(b, q), gatemarks.duty(b), [x for x in gatemarks.held_lines(b) if "q-a" in x]
+        push, duty, held = take("割れる。推し: x——理由")
+        self.assertEqual((push, duty, held), ("x——理由", {"A"}, []))
+        self.assertEqual(take("前の周の推し: y は捨てた。推し: x——理由")[0], "x——理由")
+        long_option = ("例外を投げる。帰結: 呼び手が捕まえる", "0 を返す")
+        self.assertEqual(take("割れる。推し: 例外を投げる——理由", options=long_option)[0], "例外を投げる——理由")
+        self.assertEqual(take("割れる。推し: x。呼び手が x を前提にする")[0], "x。呼び手が x を前提にする")
+        for reason, origin, options in (("割れる。推し: なし——人が決める", "A", ("x", "y")),
+                                        ("割れる。推し: x——理由", "C", ("x", "y")),
+                                        ("割れる。推し: x——理由", "gone", ("x", "y")),
+                                        ("割れる。推し: xyz を足す——理由", "A", ("x", "y")),
+                                        ("割れる。推し: 例外——理由", "A", long_option)):
+            with self.subTest(reason=reason, origin=origin):
+                push, duty, held = take(reason, origin, options)
+                self.assertEqual((push, duty), ("", {"A"} - {origin}))
+                self.assertTrue(held, "採らない問いは保留のまま名指す")
+
+    def test_request_answer_comes_before_the_push(self):
+        """#593: 依頼の answers が答えた問いは推しで上書きしない。推しだけで答えた問いは PUSH_TAKEN の印で答えた行に並ぶ"""
+        judgment = {**JUDGMENT, "questions": [PUSHED_FORK, ESC]}
+        b = gatemarks.ledger(judgment, answers=[{"question": "q-a", "text": "y を選ぶ"}], takes_push=True)
+        self.assertNotIn(gatemarks.PUSH_TAKEN, gatemarks.answered_ledger_lines(b)[0])
+        self.assertEqual(gatemarks.taken_pushes(b), [])
+        b = gatemarks.ledger(judgment, takes_push=True)
+        self.assertIn(gatemarks.PUSH_TAKEN, gatemarks.answered_ledger_lines(b)[0])
+        self.assertNotIn("q-a", "".join(gatemarks.held_lines(b)))
+        self.assertEqual(gatemarks.taken_pushes(b), [(PUSHED_FORK, "x——呼び手が既に x を前提にしている", ["A", "B"])])
+        self.assertEqual(gatemarks.taken_pushes(gatemarks.ledger(judgment)), [])
 
 
 class PushRecCase(unittest.TestCase):

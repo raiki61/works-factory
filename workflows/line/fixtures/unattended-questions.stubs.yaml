@@ -1,5 +1,6 @@
-# 無人の run で事前審査の返りが台帳の問い（fork）だけ。修正前の関所は開かず（問いは報告へ回し）、修正へ進む。問いの出どころの単位が
-# 直す義務に入らないことは、修正のブロックの中の数え（gatemarks.duty。lib/tests/test_gatemarks.py の DutyCase と
+# 無人の run で事前審査の返りが推しの無い台帳の問い（fork）だけ（推しつきの fork・held は台帳の読みが無人の run の答えとして採るので、
+# この行には来ない。lib/tests/test_gatemarks.py の DutyCase が照らす）。修正前の関所は開かず（問いは報告へ回し）、修正へ進む。問いの
+# 出どころの単位が直す義務に入らないことは、修正のブロックの中の数え（gatemarks.duty。lib/tests/test_gatemarks.py の DutyCase と
 # tests/workflows/test_line.py の FixWiringCase）が照らす（筋書きは fix を stub で差す）。関所を開かずに進んだことは
 # tests/e2e/test_line_scenarios.py の LineReturnsTest が dry-run の trace で照らす。最後の関所は無人なので開かずに止まる。
 fixture:
@@ -9,15 +10,15 @@ fixture:
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "ran_steps": {"ran": ["suite"], "unran": []}, "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "test_outcomes": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}, "by": "engine", "suites_line": "走らせた: suite（exit 0・direct）／走らせなかった: 無い", "log": "test-gate-base/logs/checks.log", "baseline_line": "", "reason": ""}
-judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "verify": false, "reason": ""}
+judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "reason": ""}
 judge__verify-merge: {"ok": true, "reason": ""}
 judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null, "depth": "標準", "depth_why": "筋書きの stub"}
 plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
 plan__structure-state: {"state_file": "plan/r1/structure-state.json"}
 plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
 plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 1}
-plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "depth_skip": false, "reason": ""}
-plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": true, "questions": [{"kind": "fork", "text": "問いの台帳の問い q1（fork・held）: 空の列で例外を投げるか 0 を返すか／推し: 例外／選択肢: 例外・0／答えが無いと直さない単位: u1"}]}
+plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "reason": ""}
+plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": true, "questions": [{"kind": "fork", "text": "問いの台帳の問い q1（fork・held）: 空の列で例外を投げるか 0 を返すか／推し: 判定の役が書いていない／選択肢: 例外・0／答えが無いと直さない単位: u1"}]}
 fix__route: {"group": true}
 fix__group-start: {"tdd": false, "units": 1, "reason": ""}
 fix-prep: {"prompt_file": "", "go": false, "iteration": 1}

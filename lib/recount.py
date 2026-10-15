@@ -14,6 +14,8 @@
 - recount_problems の照らし: 直す義務の覆い・返答の自己申告の形（閉鎖の状態・interactions・bypass_tried・breaks.result・先行例・
   root_or_symptom）・coverage の数え直し・赤を見ない clean・修正が書いた指し（wrote_refs）・差分が足した Markdown のリンク
   （md_link_errors）。元の写しの fix_covers_open_units の照らしの全部
+- ref_problems(reply, place, base_rev, repo): 修正が書いた指し（wrote_refs）と差分が足した Markdown のリンクの照らし（受け付けと
+  修正役の事前の確かめ factchecks.precheck が同じ口で回す）
 - 修正の返答を読む口（fix_reply・_fix_output）は、盤面を読んだ所を置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
 """
 import json
@@ -156,14 +158,22 @@ def _after_problems(reply: dict, place, base_rev: str, repo) -> list:
     """数え直しの後の照らし: 赤を一度も見ずに名乗った clean・修正が新しく書いた指し（wrote_refs。judge_accept._cite_errors で
     作業ツリーの指し先を数え直す。申告が空でも通す）・差分が足した Markdown のリンク（md_link_errors。申告に依らず差分から拾う）。
     元 review-loop.py:2776-2812"""
-    import accept
-    import judge_accept
     errs = []
     changes = [c for c in reply.get("changes") or [] if isinstance(c, dict)]
     if changes and (reply.get("fix_closure") or {}).get("status") == "clean":
         if not any(s.get("red_seen") for c in changes for s in (c.get("closure") or {}).get("sites") or []):
             errs.append("閉鎖の実証で赤を一度も見ていないのに fix_closure=clean——found にして赤を見ていない site を書くか、"
                         "退行を注入して赤を見てから出せ")
+    return errs + ref_problems(reply, place, base_rev, repo)
+
+
+def ref_problems(reply: dict, place, base_rev: str, repo) -> list:
+    """修正が新しく書いた指し（wrote_refs。judge_accept._cite_errors で作業ツリーの指し先を数え直す。申告が空でも通す）と、差分が
+    足した Markdown のリンク（md_link_errors。申告に依らず差分から拾う）の照らしの文。受け付け（_after_problems）と修正役の事前の
+    確かめ（factchecks.precheck）が同じ口で回す。置き場は読むだけ"""
+    import accept
+    import judge_accept
+    errs = []
     with accept.in_repo(repo):
         try:
             cites, _ = judge_accept._cite_errors(place, ROLE, reply.get("wrote_refs") or [], None, "wrote_refs")

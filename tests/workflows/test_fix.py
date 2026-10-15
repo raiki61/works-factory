@@ -41,7 +41,7 @@ import runreport  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason"}
-CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "plan", "ripple", "depth", "answers", "prior_conflicts",
+CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "plan", "ripple", "depth", "head_depth", "answers", "prior_conflicts",
                    "plan_review", "notes"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
 CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
@@ -636,15 +636,24 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual(ties2[0]["branches"], ties[0]["branches"])
 
     def test_delta_cut_skips_an_all_light_run(self):
-        """全部の単位が軽量の run は delta/skipped.json に理由を書いて go: false（持ち主の決め dynamic-depth）"""
+        """頭の深さが軽量で全部の単位が軽量の run は delta/skipped.json に理由を書いて go: false（持ち主の決め dynamic-depth）"""
         import depth
         self._json("depth.json", [{"unit_id": _RV_KEY, "depth": depth.LIGHT, "why": "触るファイル 1 個"}])
+        self._json("head-depth.json", depth.LIGHT)
         out = self._run("delta_cut", "delta-cut")
         self.assertEqual(out, {"go": False, "files": [], "diff_file": "", "brief_file": ""})
         got = json.loads((self.place / "delta" / "skipped.json").read_text(encoding="utf-8"))
         self.assertEqual(list(got), ["reason"])
         self.assertTrue(got["reason"].startswith("軽量で省いた"), got)
         self.assertFalse((self.place / "loop-fix_delta.json").exists())
+
+    def test_delta_cut_reviews_an_all_light_run_under_a_standard_head(self):
+        """issue #561: 全部の単位が軽量でも、頭の深さが標準の run は審査を回す（省きの印 skipped.json を書かない）"""
+        import depth
+        self._json("depth.json", [{"unit_id": _RV_KEY, "depth": depth.LIGHT, "why": "触るファイル 1 個"}])
+        self._json("head-depth.json", depth.STANDARD)
+        self.assertTrue(self._cut()["go"])
+        self.assertFalse((self.place / "delta" / "skipped.json").exists())
 
     def test_delta_cut_raises_the_depth_before_skipping(self):
         """全部が軽量の run でも、修正の後の信号（修正役の異議）で標準へ上げてから決め、審査を回す（fixboard.redepth。元の h-redepth）"""
@@ -1333,7 +1342,7 @@ class BlockScriptsCase(unittest.TestCase):
         _blk_write(judgment_dir / gatemarks.BESIDE[0], {"rounds": {"1": []}})   # 判定の隣の結びと素材の状態
         _blk_write(judgment_dir / gatemarks.BESIDE[1], {"ci": {"status": "not_run"}})
         inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "baseline": _blk_ptr("in/baseline.json"),
-                  "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
+                  "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]', "head_depth": "軽量",
                   "answers": '{"decision": "approve", "text": "stats.py の外は触らない"}', "units": '["A"]',
                   "only_items": '["1"]', "plan_review": _blk_ptr("in/review.json"), "notes": "## 直した項目 1 の事前審査の穴"}
         _blk_write(self.art / "in" / "review.json", {"faces": [], "shrink": []})
@@ -1343,6 +1352,7 @@ class BlockScriptsCase(unittest.TestCase):
         own = {fixboard.GROUPS_FILE, "fix-ignored-before.json", fixboard.marks_path(self.place).name,
                fixboard.TRACE_FILE, planmarks.FIELDS_FILE}
         self.assertEqual(written - own, set(fixboard.ADOPTED))
+        self.assertEqual(fixboard.read_json(self.place / fixboard.HEAD_DEPTH_FILE), "軽量")
 
     def test_prep_takes_the_gate_answers_into_the_duty(self):
         """修正前の関所で答えた問いの単位は直す義務に戻り、答えていない問いの単位は外れる（gatemarks.returned・withheld_by）。
@@ -1541,6 +1551,9 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertFalse(g2["returned"])
         self.assertIn("当たらない", g2["reason"])
         self.assertEqual(joined["units"][1], {"unit_id": "B", "group_id": "g2", "status": "not_done", "reason": g2["reason"]})
+        row, = json.loads((self.place / "clash.json").read_text(encoding="utf-8"))["clashes"]
+        self.assertEqual((row["group_id"], row["kind"], row["state"], row["names"]), ("g2", "text", "pending", ["stats.py"]),
+                         "字で当たらない組も合わせのループの直し待ちに控える")
 
     def test_join_stops_on_a_group_without_a_readable_result(self):
         """#576: 結果のファイルが無いか読めない組が在れば、並べない run でも並べた run でも作業ツリーを変えず join.json も書かずに
@@ -2583,6 +2596,79 @@ class ClashScenarioCase(unittest.TestCase):
         code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
         self.assertEqual((code, out), (0, {"go": False, "count": 0}), err)
 
+    def joined_with_text_clash(self, seed=None, g1=None, g2=None):
+        """種を組んで join を回し、g1 と同じ行（e.py の E1）を別の値に変えた g2 を字で当たらない組として控えた所まで進める。
+        seed・g1・g2 は種・各組が足して変えるファイル"""
+        start = self.rerun_seed({
+            "e.py": f"E1 = 1\n{self.FILLER}E8 = 8\n",
+            "b.py": "def triple(x):\n    return x * 3 + 1\n",
+            "test_b.py": self.TEST_B, **(seed or {})})
+        _blk_write(self.place / "judgment.json", {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"}],
+                                                  "questions": []})
+        t1 = self.tree_with({"e.py": f"E1 = 10\n{self.FILLER}E8 = 8\n", **(g1 or {})})
+        t2 = self.tree_with({"e.py": f"E1 = 1  # B が読む\n{self.FILLER}E8 = 8\n",
+                             "b.py": "def triple(x):\n    return x * 3\n", **(g2 or {})})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, verified=["test_b.py::TestB::test_triple"]))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 2, "returned": 1}), err)
+        self.green_tree = self.snapshot(self.repo)
+
+    def test_join_text_clash_is_redone_on_the_current_tree(self):
+        """#598: 2 つの組が同じ行を別の値に変えて後の組が字で当たらなくても、単位を落とさない。合わせのループが後の組を親の今の
+        木へ食い違いの印つきで当て直し、印を残した返答は拒み、印を解いた返答で両方の組の直しが残る"""
+        self.joined_with_text_clash()
+        out = self.prep()
+        self.assertTrue(out["go"], out)
+        e = self.repo / "e.py"
+        self.assertIn("<<<<<<< ", e.read_text(encoding="utf-8"))
+        self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3\n")
+        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
+        self.assertEqual((brief["kind"], brief["conflicted"]), ("text", ["e.py"]))
+        got = self.accept(self.fixed_reply(("e.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn("食い違いの印", got["reason"])
+        out = self.prep()
+        e.write_text(f"E1 = 10  # B が読む\n{self.FILLER}E8 = 8\n", encoding="utf-8")
+        got = self.accept(self.fixed_reply(("e.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        g2 = self.group_row()
+        self.assertEqual((g2["returned"], g2["clash"]["outcome"]), (True, "repaired"), g2)
+        units = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["units"]
+        self.assertEqual({u["unit_id"]: u["status"] for u in units}, {"A": "fixed", "B": "fixed"})
+        self.assertIn("E1 = 10  # B が読む\n", e.read_text(encoding="utf-8"))
+        self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3\n")
+
+    def test_join_text_clash_the_role_cannot_fix_reaches_ruling_as_a_text_clash(self):
+        """字で当たらない組を合わせ役が直せないと答えると、申し出は字の食い違いとして裁定役に届く（赤の文の申し出と言わない）"""
+        self.joined_with_text_clash()
+        out = self.prep()
+        got = self.accept({"handled": "cannot", "how": "E1 をどちらの値にするか決められない", "files": []}, out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, True), got)
+        self.assertEqual(self.snapshot(self.repo), self.green_tree, "直せなかった組は印つきで当て直す前の木へ戻す")
+        rows = [r for r in conflict.items(self.place) if r["source"] == conflict.JOIN_SOURCE]
+        self.assertEqual([r["unit_key"] for r in rows], ["B"], rows)
+        said = rows[0][conflict.WHY_FIELD]
+        self.assertIn("前の組の直しと同じ所を変え、字で当たらない", said)
+        self.assertNotIn("試験が赤", said)
+
+    def test_join_text_clash_marking_a_locked_test_file_goes_to_ruling_at_once(self):
+        """字で当たらない所が許しの無いテストのファイルに在れば、合わせ役は印を残しても消しても通れない。合わせ役を起こさずに、
+        そのファイルを名指して裁定役へ回す（裁定 fix_test_scope で許せる）"""
+        test_e = "import unittest\n\n\nclass TestE(unittest.TestCase):\n    def test_e(self):\n        pass  # E\n"
+        self.joined_with_text_clash(seed={"test_e.py": test_e}, g1={"test_e.py": test_e.replace("# E", "# g1")},
+                                    g2={"test_e.py": test_e.replace("# E", "# g2")})
+        out = self.prep()
+        self.assertFalse(out["go"], out)
+        self.assertEqual(self.snapshot(self.repo), self.green_tree)
+        rows = [r for r in conflict.items(self.place) if r["source"] == conflict.JOIN_SOURCE]
+        self.assertEqual([r["unit_key"] for r in rows], ["B"], rows)
+        self.assertIn("許しの無いテストのファイルに在り", rows[0][conflict.WHY_FIELD])
+        self.assertIn("test_e.py", rows[0][conflict.WHY_FIELD])
+        self.assertEqual(self.group_row()["clash"]["outcome"], "parked")
+
     def test_join_clash_rejects_writes_outside_the_group_and_test_rewrites(self):
         """受け付けは修正役と同じ軸: 組が変えたファイルの外の変更と、許しの無いテストのファイルの書き換えを拒む（作業ツリーは
         合わせ役の手の中のまま、次の周に同じ組を続ける）"""
@@ -3079,6 +3165,53 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertIn(head, out["reason"])
         frozen = out["reason"].split(head, 1)[1].split("\n## ", 1)[0]
         self.assertIn("test_stats.py", frozen)
+
+    def test_fix_prompt_pastes_the_frozen_files_the_accept_checks(self):
+        """#603: fix-prep が修正役の指示書に貼る凍ったテストのファイルは、fix-accept の凍ったテストの確かめが拒むファイルと同じ
+        （貼る側は factchecks.frozen_tests が全部の輪の frozen の和を、拒む側は tddloop.frozen_problems が輪ごとの frozen を読む）"""
+        import fixboard
+        import fixrules
+        import planrange
+        test_file = self._grp_green_loop()
+        section = fixrules.prompt_path(self.place).read_text(encoding="utf-8").split(planrange.TESTS_HEAD, 1)[1]
+        (line,) = [ln for ln in section.splitlines() if ln.startswith("- 凍ったテストのファイル（")]
+        pasted = set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
+        self.assertEqual(pasted, {"test_stats.py"})
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
+                             encoding="utf-8")
+        out = self._grp_accept({"changes": [_fx_change(_GRP_MEAN, ["stats.py", "test_stats.py"])]})
+        head = fixboard.FIX_CHECK_HEAD.format(head=fixboard.FIX_CHECKS["frozen"], cid="frozen", count=1)
+        self.assertIn(head, out["reason"])
+        frozen = out["reason"].split(head, 1)[1].split("\n## ", 1)[0]
+        self.assertTrue(all(p in frozen for p in pasted), frozen)
+
+    def test_fix_ruled_prompt_pastes_the_frozen_files_the_ruled_accept_checks(self):
+        """#603: fix-ruled-prep が裁定の後の修正役の指示書に貼る凍ったテストのファイルは、fix-ruled-accept の凍ったテストの確かめが
+        拒むファイルと同じ（どちらも輪の状態を fixboard.ruled_states から引く）"""
+        import conflict
+        import fixboard
+        import planrange
+        test_file = self._grp_green_loop()
+        conflict.park(self.place, [{"unit_key": _GRP_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_code_as", "text": "分母を len(xs) にせよ", "limits": []})
+        code, out, err = _fx_run("fix_ruled_prep", self.repo, self.art)
+        self.assertEqual((code, out["go"]), (0, True), err)
+        section = pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8").split(planrange.TESTS_HEAD, 1)[1]
+        (line,) = [ln for ln in section.splitlines() if ln.startswith("- 凍ったテストのファイル（")]
+        pasted = set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
+        self.assertEqual(pasted, {"test_stats.py"})
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
+                             encoding="utf-8")
+        code, out, err = _fx_run("fix_ruled_accept", self.repo, self.art, consulted="false", iteration="1",
+                                 reply=json.dumps({"changes": [_fx_change(_GRP_MEAN, ["stats.py", "test_stats.py"])]},
+                                                  ensure_ascii=False))
+        self.assertEqual(code, 0, err)
+        head = fixboard.FIX_CHECK_HEAD.format(head=fixboard.FIX_CHECKS["frozen"], cid="frozen", count=1)
+        self.assertIn(head, out["reason"])
+        frozen = out["reason"].split(head, 1)[1].split("\n## ", 1)[0]
+        self.assertTrue(all(p in frozen for p in pasted), frozen)
 
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
         """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は boundary.SKIP）、fix-accept が

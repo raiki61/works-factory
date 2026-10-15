@@ -765,6 +765,35 @@ class HeadDepthTest(unittest.TestCase):
         out = r.returned("verdict", objection="分母は正しい")
         self.assertEqual((out["depth"], out["depth_why"]), ("標準", headdepth.REJUDGE_WHY))
 
+    def test_heavy_record_does_not_cut_the_verify(self):
+        cut = "機能の切り替えで切"
+        r = self.opened()
+        self.assertIn(cut, r.returned("verify", stage="prep")["reason"])
+        r.returned("head_depth_prep")
+        out = r.returned("head_depth_accept", reply={**self.LIGHT, "depth": "重厚", "why": "公開の約束を変える"})
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+        self.assertEqual(r.returned("verdict")["depth"], "重厚")
+        self.assertNotIn(cut, r.returned("verify", stage="prep")["reason"])
+        named = self.opened(features_off=["judge_verify"], features_cut=["judge_verify"])
+        headdepth.write(named.judge, headdepth.record("重厚", "設計の選びが要る"))
+        self.assertIn(cut, named.returned("verify", stage="prep")["reason"])
+        light = self.opened()
+        headdepth.write(light.judge, headdepth.record("軽量", "x"))
+        self.assertIn(cut, light.returned("verify", stage="prep")["reason"])
+
+    def test_verify_waits_on_the_head_depth(self):
+        """裏取りの支度は頭の深さの役の終わりを待つ（控えを読む前に走らない）。head-depth-loop が verify-prep の祖先に在る"""
+        got = nodes()
+        seen, todo = set(), ["verify-prep"]
+        while todo:
+            for dep in got[todo.pop()].get("depends_on") or []:
+                if dep not in seen:
+                    seen.add(dep)
+                    todo.append(dep)
+        self.assertIn("head-depth-loop", seen)
+        self.assertIn("head-depth-loop", got["diagnose-prep"]["depends_on"])
+        self.assertEqual(got["diagnose-prep"]["trigger_rule"], "all_done")
+
     def test_prompt_states_the_lib_limits(self):
         """役の指示書が受け付けの引用の字数の下限と where の行の範囲の上限を lib の値のまま書く（指示書は lib を引けない）"""
         text = (ROOT / "workflows" / "judge" / "commands" / "head-depth.md").read_text(encoding="utf-8")
@@ -778,7 +807,8 @@ class HeadDepthTest(unittest.TestCase):
         got = nodes()
         for node in ("head-depth", "verdict"):
             with self.subTest(node=node):
-                self.assertEqual(got[node]["output_format"]["properties"]["depth"]["enum"], words)
+                self.assertEqual(got[node]["output_format"]["properties"]["depth"]["enum"], list(depth.HEADS))
+        self.assertEqual(list(depth.HEADS), [depth.LIGHT, depth.STANDARD, depth.HEAVY])
         self.assertIn(f'"depth": "{depth.STANDARD}"', (SCRIPTS / "verdict.py").read_text(encoding="utf-8"))
         plan = {n["id"]: n for n in walk(yaml.safe_load((ROOT / "workflows" / "plan" / "works-factory-plan.yaml")
                                                          .read_text(encoding="utf-8"))["nodes"])}
