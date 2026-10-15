@@ -3030,6 +3030,34 @@ class GroupChildScriptsCase(unittest.TestCase):
         frozen = out["reason"].split(head, 1)[1].split("\n## ", 1)[0]
         self.assertTrue(all(p in frozen for p in pasted), frozen)
 
+    def test_fix_ruled_prompt_pastes_the_frozen_files_the_ruled_accept_checks(self):
+        """#603: fix-ruled-prep が裁定の後の修正役の指示書に貼る凍ったテストのファイルは、fix-ruled-accept の凍ったテストの確かめが
+        拒むファイルと同じ（どちらも輪の状態を fixboard.ruled_states から引く）"""
+        import conflict
+        import fixboard
+        import planrange
+        test_file = self._grp_green_loop()
+        conflict.park(self.place, [{"unit_key": _GRP_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_code_as", "text": "分母を len(xs) にせよ", "limits": []})
+        code, out, err = _fx_run("fix_ruled_prep", self.repo, self.art)
+        self.assertEqual((code, out["go"]), (0, True), err)
+        section = pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8").split(planrange.TESTS_HEAD, 1)[1]
+        (line,) = [ln for ln in section.splitlines() if ln.startswith("- 凍ったテストのファイル（")]
+        pasted = set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
+        self.assertEqual(pasted, {"test_stats.py"})
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
+                             encoding="utf-8")
+        code, out, err = _fx_run("fix_ruled_accept", self.repo, self.art, consulted="false", iteration="1",
+                                 reply=json.dumps({"changes": [_fx_change(_GRP_MEAN, ["stats.py", "test_stats.py"])]},
+                                                  ensure_ascii=False))
+        self.assertEqual(code, 0, err)
+        head = fixboard.FIX_CHECK_HEAD.format(head=fixboard.FIX_CHECKS["frozen"], cid="frozen", count=1)
+        self.assertIn(head, out["reason"])
+        frozen = out["reason"].split(head, 1)[1].split("\n## ", 1)[0]
+        self.assertTrue(all(p in frozen for p in pasted), frozen)
+
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
         """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は boundary.SKIP）、fix-accept が
         その下を変えた返答を拒む（元 works/blk-fix/scripts/accept.py:234 check_pack_copy・:663）"""

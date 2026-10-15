@@ -59,7 +59,7 @@ def main() -> dict:
                                                          answer_node=fixrules.answer_node("first")),
                         "first", owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
                         reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
-                        green=tddloop.green_units(summary), frozen=factchecks.frozen_tests(place, state),
+                        green=tddloop.green_units(summary), frozen=factchecks.frozen_tests(place, state, "first"),
                         shared=boundary.shared_cache())
     fixboard.consult_skip(place, boundary.SKIP, writelog.log_here())
     return {"prompt_file": got["prompt_file"], "go": True, "iteration": got["iteration"]}

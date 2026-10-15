@@ -57,7 +57,7 @@ def main() -> dict:
     got = fixrules.prep(place, repo, values, "ruled",
                         owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
                         reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
-                        frozen=factchecks.frozen_tests(place, state), shared=boundary.shared_cache())
+                        frozen=factchecks.frozen_tests(place, state, "ruled"), shared=boundary.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:
         fixboard.ruled_reply_line(prompt, str(saved))
     fixboard.consult_skip(place, boundary.SKIP, writelog.log_here())

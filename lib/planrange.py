@@ -240,8 +240,8 @@ def scope_text(got) -> str:
 def tests_text(got, edits: dict, frozen=None) -> str:
     """修正役の指示書に貼る節（TESTS_HEAD）: 修正の段の受け付けがテストを照らす名を字のまま。got は fix_scope の値（項目ごとの
     足してよい新しいテスト test_ids。照らさない項目なら None で、その行を出さない）、edits は conflict.edit_permits の値（本体を変えて
-    よい既存のテストの名指しと範囲）、frozen は factchecks.frozen_tests の値（凍ったテストのファイルと、輪が確かめた書き換えの名指し。
-    ループの無い run は None）。純粋な関数"""
+    よい既存のテストの名指しと範囲）、frozen は factchecks.frozen_tests の値（凍ったテストのファイルと、輪が確かめた書き換えの名指しと、
+    裁定の範囲で凍結が解けない今の輪のファイル。ループの無い run は None）。純粋な関数"""
     verified = list((frozen or {}).get("verified") or [])
     lines = [TESTS_HEAD, "", "受け付けは、足したテスト・本体を変えた既存のテスト・凍ったテストのファイルをこの名で照らし、外れを拒む。"
              "外れが要るなら、変える前に範囲の相談で頼め。"]
@@ -262,6 +262,10 @@ def tests_text(got, edits: dict, frozen=None) -> str:
                      f"新しいテストの関数は凍結に数えず、上の「足してよい新しいテスト」で照らす）: {_paths_line(files)}")
         if verified:
             lines.append(f"  - ループが書き換えて凍らせた名指し（上の名指しに在っても、もう変えるな）: {_paths_line(verified)}")
+        unruled = frozen.get("unruled") or []
+        if unruled:
+            lines.append("  - 今の段の TDD のループが凍らせたファイル（裁定 fix_test_scope の範囲はこの周では凍結を解かない。上の名指しと"
+                         f"範囲の相談の範囲の外で書き換えると拒む）: {_paths_line(unruled)}")
     return "\n".join(lines)
 
 
