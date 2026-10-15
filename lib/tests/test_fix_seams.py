@@ -1721,6 +1721,18 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C"], items, ["3"])], [["B"]])
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B"], None)], [["A"], ["B"]])
 
+    def test_fix_groups_join_items_whose_ranges_meet(self):
+        items = [{"item": 1, "unit_keys": ["A"], "allowed_paths": ["lib/a.py"]},
+                 {"item": 2, "unit_keys": ["B"], "allowed_paths": ["lib/*.py"]},
+                 {"item": 3, "unit_keys": ["C"], "allowed_paths": ["docs/x.md"]},
+                 {"item": 4, "unit_keys": ["D"]},
+                 {"item": 5, "unit_keys": ["E"], "allowed_paths": ["lib/a.py"]}]
+        got = fixboard.fix_groups(["A", "B", "C", "D", "E"], items)
+        self.assertEqual([(g["unit_ids"], g["items"]) for g in got],
+                         [(["A", "B", "E"], [1, 2, 5]), (["C"], [3]), (["D"], [4])])
+        self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C", "D", "E"], items, ["1", "3"])],
+                         [["A"], ["C"]])
+
     def test_parallel_needs_two_groups_no_lane_switch_and_a_remote(self):
         two = [{"group_id": "g1"}, {"group_id": "g2"}]
         with tempfile.TemporaryDirectory() as tmp:

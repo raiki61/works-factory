@@ -586,21 +586,38 @@ def _in_order(judgment, keys) -> list:
 
 def fix_groups(owed, items, only_items=()) -> list:
     """直す義務の単位 owed（順）を、承認済みの修正案の項目 items（planmarks.approved_items の形 [{item, unit_keys, …}] か None）を
-    共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の中と組の並びは owed の順）。only_items（項目の番号か
-    その字の並び）が空でなければ、その項目に載る単位だけを残す。返り [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
+    共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の中と組の並びは owed の順）。範囲（allowed_paths）が交わり
+    得る項目（planmarks.globs_meet）もつなぐ: 別の組の子が同じファイルを変えると、締めの節で後の組の差分が字で当たらない。範囲の
+    無い項目は項目の番号だけでつなぐ。only_items（項目の番号かその字の並び）が空でなければ、その項目に載る単位だけを残し、残した
+    単位の項目の範囲だけを照らす。返り [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
     元 works/blk-fix/lib/tddlanes.py:126・131 の items_of・groups（項目の番号を盤面の brief の行から引いた所を items の値で受ける）"""
     import lanekit
     by: dict = {}
+    ranges: dict = {}
     for it in items or []:
         if isinstance(it, dict) and isinstance(it.get("item"), int):
             for k in it.get("unit_keys") or []:
                 by.setdefault(k, []).append(it["item"])
+            if isinstance(it.get("allowed_paths"), list):
+                ranges[it["item"]] = it["allowed_paths"]
     keys = list(owed)
     only = {str(x) for x in only_items or ()}
     if only:
         keys = [k for k in keys if any(str(n) in only for n in by.get(k, []))]
+    anchor = _range_anchors({n: ranges[n] for k in keys for n in by.get(k, []) if n in ranges})
     return [{"group_id": f"g{i}", "unit_ids": list(g), "items": sorted({n for k in g for n in by.get(k, [])})}
-            for i, g in enumerate(lanekit.groups([(k, by.get(k)) for k in keys]), 1)]
+            for i, g in enumerate(lanekit.groups([(k, [anchor.get(n, n) for n in by.get(k, [])]) for k in keys]), 1)]
+
+
+def _range_anchors(ranges: dict) -> dict:
+    """{項目の番号: 範囲の glob の並び} を範囲の交わる物どうしの塊にし、{番号: 塊の先頭の番号}（つながりは推移的）"""
+    import lanekit
+    import planmarks
+    nums = list(ranges)
+    meets = [(a, b) for i, a in enumerate(nums) for b in nums[i + 1:]
+             if any(planmarks.globs_meet(x, y) for x in ranges[a] for y in ranges[b])]
+    rows = [(n, [pair for pair in meets if n in pair]) for n in nums]
+    return {n: g[0] for g in lanekit.groups(rows) for n in g}
 
 
 def parallel(groups, features_cut, repo) -> bool:
