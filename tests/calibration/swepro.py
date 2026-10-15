@@ -42,8 +42,8 @@ amd64 を強いると立たない）。docker の CLI に compose の差し込�
 - docker の VM の kernel の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の kernel.apparmor_restrict_unprivileged_userns=1 を
   0 に。起こし直しても効くよう VM の起動の設定に入れる）。コンテナの側からは外せない。
 - 環境 WorksBenchDocker が課題の主のコンテナにだけ、docker の既定の seccomp に名前空間を作る呼び出しと mount を足した写し
-  （SANDBOX）を渡し、apparmor と docker が伏せる /proc の道（systempaths）を外す。--privileged・CAP_SYS_ADMIN は使わず、egress の付き添いは docker の既定のまま。
-  他の環境（-e docker）の起動は、殻が setup で exec の前に断る。
+  （SANDBOX）を渡し、apparmor と docker が伏せる /proc の道（systempaths）を外す。--privileged・CAP_SYS_ADMIN は使わず、
+  egress の付き添いは docker の既定のまま。他の環境（-e docker）の起動は、殻が setup で exec の前に断る。
 
 プロキシの要る網: prepare は環境に空でない値で在る PROXY_ENV の名を、値を付けずに docker build --build-arg <名> で渡す。
 値は docker の CLI が自分の環境から読み、Dockerfile に ARG を書かないので docker history に残らない。値は build のコンテナから
