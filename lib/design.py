@@ -46,6 +46,7 @@ if str(_CORE / "graphloops") not in sys.path:
 from engine.render import FILE_CAP, cap_bytes  # noqa: E402
 from engine.util import Reject  # noqa: E402
 import accept  # noqa: E402
+import answer  # noqa: E402
 import cite  # noqa: E402
 import impact  # noqa: E402
 import promptsection  # noqa: E402
@@ -120,14 +121,15 @@ MAP_ASK = ("対象のリポジトリの根に在る地図の文書（依頼を�
 def human_answers(b) -> tuple:
     """(R2 の 2 つの役に貼る人の関所の答え（record.process.human_items）の節 か 空, 貼った行, 機械の行, 見た印 {count, last_round})。
     聞いた項目の本文（asked）は判定の一覧・決着済み論点に当たるので写さず、round・node・kinds・answer・note だけを取る。
-    answer の無い行（守りのファイル・食い違い・無人の停止で機械が積んだ行）は人の答えでないので貼らず、控えの withheld に回す"""
+    answer の無い行（守りのファイル・食い違い・無人の停止で機械が積んだ行）と、無人の run が推しで通した行（欄 answer.PUSHED）は
+    人の答えでないので貼らず、控えの withheld に回す"""
     rows, machine, last = [], [], None
     for h in (b.record.get("process") or {}).get("human_items") or []:
         if not isinstance(h, dict):
             continue
         at = f"周 {h.get('round')}" + (f"・{h['node']}" if h.get("node") else "")
         kinds = "・".join(str(k) for k in h.get("kinds") or []) or "種類なし"
-        if h.get("answer") is None:
+        if h.get("answer") is None or answer.by_push(h):
             machine.append(f"{at}（{kinds}）")
             continue
         note = h.get("note") or "（一言なし）"

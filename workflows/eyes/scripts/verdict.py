@@ -43,7 +43,7 @@ try:
             design=eyeverdict.read_design(design_file),
             after_ptr=boundary.pointer(f"eyes/{structmark.AFTER_FILE}") if (eyes / structmark.AFTER_FILE).is_file() else None,
             protected=protected, passed=passed)
-        eyeverdict.write_notes(eyes, passed=passed, design_ledger=eyeverdict.read_json(
+        eyeverdict.write_notes(eyes, passed=passed, by=eyeverdict.passed_by(answer), design_ledger=eyeverdict.read_json(
             design_file.with_name(eyeverdict.DESIGN_PREMISES)) if design_file else None)
         out["notes"] = boundary.pointer(f"eyes/{eyeverdict.PREMISE_INPUTS}")
 except Exception as e:  # noqa: BLE001  返す節は落ちない（落ちると線が先へ進めない）

@@ -1,8 +1,10 @@
 """関所の答えの行（lib/answer.py）。起動の殻が置く頭で打てる行になる事と、殻の外の穴の字（FAST）"""
 import ast
+import json
 import pathlib
 import shlex
 import sys
+import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -94,6 +96,35 @@ def word_lists(source: str, name: str, words: set) -> list[str]:
 def lib_word_lists(words: set) -> list[str]:
     return [hit for f in sorted(LIB.rglob("*.py")) if "tests" not in f.relative_to(LIB).parts
             for hit in word_lists(f.read_text(encoding="utf-8"), str(f.relative_to(LIB)), words)]
+
+
+class PushedCase(unittest.TestCase):
+    """#552: 無人の run が推しで進んだ答えは、関所が開かなくても答えとして記録し、欄 PUSHED で人の答えと読み分ける"""
+    PUSHED = {"decision": "continue", "text": "0 を返す形で通す",
+              answer.PUSHED: [{"item": "修正案 1 が狭める能力: x", "answer": "continue", "note": "0 を返す形で通す", "why": "呼び手が前提"}]}
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.folder = pathlib.Path(tmp.name)
+
+    def test_skipped_gate_with_a_push_records_the_push_as_the_answer(self):
+        got = answer.taken(None, go=True, stop_reason="", place="gate-before-fix", folder=self.folder, asked=["修正案 1 …"],
+                           pushed=self.PUSHED)
+        want = {"decision": "continue", "text": "0 を返す形で通す", "asked": ["修正案 1 …"], answer.PUSHED: self.PUSHED[answer.PUSHED]}
+        self.assertEqual(got, {"go": True, "answer": want, "stop_reason": ""})
+        self.assertEqual(json.loads((self.folder / answer.ANSWERS / "gate-before-fix.json").read_text(encoding="utf-8")), want)
+
+    def test_human_answer_wins_and_carries_no_push(self):
+        got = answer.taken({"decision": "stop", "text": "やめる"}, go=True, stop_reason="", place="gate-before-fix", folder=self.folder,
+                           pushed=self.PUSHED)
+        self.assertNotIn(answer.PUSHED, got["answer"])
+        self.assertEqual(got["stop_reason"], "human:gate-before-fix")
+
+    def test_no_push_keeps_the_skipped_answer(self):
+        self.assertEqual(answer.taken(None, go=False, stop_reason="works:needs-human", place="gate-before-fix", folder=self.folder),
+                         {"go": False, "answer": None, "stop_reason": "works:needs-human"})
+        self.assertFalse((self.folder / answer.ANSWERS).exists())
 
 
 class GoWordsOwner(unittest.TestCase):
