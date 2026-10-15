@@ -26,5 +26,4 @@ fix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status":
 report__facts: {"outcome": "stopped_by_line", "ok": false, "stop_reason": "works:rejudge", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": false, "outcome": "stopped_by_line", "stop_reason": "works:rejudge", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
 rejudge-run__intake: {"go": false, "mode": "rejudge", "spec": false, "world": false, "verify": false, "reason": ""}
-rejudge-run__verify-merge: {"ok": true, "reason": ""}
 rejudge-run__verdict: {"ready": false, "stop_reason": "works:rejudge", "units": [], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null, "depth": "標準", "depth_why": "筋書きの stub"}

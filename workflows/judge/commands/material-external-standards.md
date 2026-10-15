@@ -1,4 +1,4 @@
-$external-standards-reject.output.lang_line
+$external-standards-prep.output.lang_line
 
 ## 役の定義（investigator）
 
@@ -24,7 +24,7 @@ $external-standards-reject.output.lang_line
 前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、拒まれていない。
 
 ```text
-$external-standards-reject.output.reason
+$external-standards-prep.output.reason
 ```
 
 ---

@@ -21,17 +21,15 @@ purpose:
 purpose-reject: {reason: '', "lang_line": ""}
 purpose-accept: *id001
 material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: true, test_double_fidelity: false, main_path_observation: false, provenance: true, reason: 差分の在る run}
-gate-efficacy-prep: {brief_file: /tmp/judge/material-gate-efficacy-brief.md, brief: '', review_md: '', repo_review_md: ''}
+gate-efficacy-prep: {brief_file: /tmp/judge/material-gate-efficacy-brief.md, brief: '', review_md: '', repo_review_md: '', reason: '', "lang_line": ""}
 gate-efficacy:
   material: {status: not_applicable, reason: 新設のゲートが無い}
   arms: []
-gate-efficacy-reject: {reason: '', "lang_line": ""}
 gate-efficacy-accept: *id001
-provenance-prep: {brief_file: /tmp/judge/material-provenance-brief.md, brief: '', review_md: '', repo_review_md: ''}
+provenance-prep: {brief_file: /tmp/judge/material-provenance-brief.md, brief: '', review_md: '', repo_review_md: '', reason: '', "lang_line": ""}
 provenance:
   material: {status: clean, checked: 差分に『正本は X』の主張は無い}
   claims: []
-provenance-reject: {reason: '', "lang_line": ""}
 provenance-accept: {ok: false, done: true, reason: claims の主張に根拠の出所が無い}
 diagnose-prep: {go: false, brief_file: /tmp/judge/diagnose-brief.md, review_md: '', repo_review_md: '', reason: 素材 provenance の受け付けが 3 回とも拒んだ}
 verify-merge: {ok: true, reason: ''}

@@ -135,12 +135,13 @@ nodes:
         - id: spec
           command: spec
           depends_on: [spec-reject]
-          model: opus
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
+          <<: &spec_launch
+            model: opus
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -212,13 +213,14 @@ nodes:
         - id: spec-review
           command: spec-review
           depends_on: [spec-review-reject]
-          model: opus
-          effort: high
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          <<: &review_launch
+            model: opus
+            effort: high
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -279,12 +281,7 @@ nodes:
         - id: spec-revise
           command: spec-revise
           depends_on: [spec-revise-reject]
-          model: opus
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
+          <<: *spec_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -431,23 +428,24 @@ nodes:
         - id: pr-check
           command: pr-check
           depends_on: [pr-check-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
-            # '.' は cwd でなく設定の一時ファイルのフォルダに解かれる。実測 2026-10-13。issue #293）
-            # 起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          <<: &net_closed_launch
+            model: sonnet
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+            sandbox:
+              enabled: true
+              allowUnsandboxedCommands: false
+              failIfUnavailable: true
+              excludedCommands: ['works-gh:*']
+              network:
+                allowedDomains: []
+              # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
+              # '.' は cwd でなく設定の一時ファイルのフォルダに解かれる。実測 2026-10-13。issue #293）
+              # 起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）
+              filesystem:
+                denyWrite: ['~/../archon-home']
+            idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -909,45 +907,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: prior-decisions}
+          with: {role: prior-decisions, reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: prior-decisions-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: prior-decisions
           command: material-prior-decisions
-          depends_on: [prior-decisions-prep, prior-decisions-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [prior-decisions-prep]
+          <<: *net_closed_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1012,30 +987,21 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: purpose-review}
+          with: {role: purpose-review, reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: purpose-review-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: purpose-review
           command: material-purpose-review
-          depends_on: [purpose-review-prep, purpose-review-reject]
+          depends_on: [purpose-review-prep]
           <<: *read_launch
           mutates_checkout: false
           retry: {max_attempts: 2, on_error: all}
@@ -1087,47 +1053,25 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: local-review}
+          with: {role: local-review, reason: "$LOOP_PREV.local-review-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: local-review-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.local-review-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: local-review
           command: material-local-review
-          depends_on: [local-review-prep, local-review-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
+          depends_on: [local-review-prep]
+          <<: *net_closed_launch
           allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill, Agent]
           skills: [code-review, simplify, security-review]
           plugins: [pr-review-toolkit@works-local]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1199,37 +1143,23 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: consistency-bypass}
+          with: {role: consistency-bypass, reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: consistency-bypass-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: consistency-bypass
           command: material-consistency-bypass
-          depends_on: [consistency-bypass-prep, consistency-bypass-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob]
+          depends_on: [consistency-bypass-prep]
+          <<: *read_launch
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1317,30 +1247,21 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: hygiene}
+          with: {role: hygiene, reason: "$LOOP_PREV.hygiene-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: hygiene-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.hygiene-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: hygiene
           command: material-hygiene
-          depends_on: [hygiene-prep, hygiene-reject]
+          depends_on: [hygiene-prep]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1396,45 +1317,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: external-standards}
+          with: {role: external-standards, reason: "$LOOP_PREV.external-standards-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: external-standards-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.external-standards-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: external-standards
           command: material-external-standards
-          depends_on: [external-standards-prep, external-standards-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [external-standards-prep]
+          <<: *net_closed_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1514,45 +1412,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: procedure-trace}
+          with: {role: procedure-trace, reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: procedure-trace-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: procedure-trace
           command: material-procedure-trace
-          depends_on: [procedure-trace-prep, procedure-trace-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [procedure-trace-prep]
+          <<: *net_closed_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1616,47 +1491,39 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: gate-efficacy}
+          with: {role: gate-efficacy, reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: gate-efficacy-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: gate-efficacy
           command: material-gate-efficacy
-          depends_on: [gate-efficacy-prep, gate-efficacy-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network:
-              allowedDomains: ['*']
-              allowLocalBinding: true
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              allowWrite: [/]
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [gate-efficacy-prep]
+          <<: &test_run_launch
+            model: sonnet
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+            sandbox:
+              enabled: true
+              allowUnsandboxedCommands: false
+              failIfUnavailable: true
+              enableWeakerNetworkIsolation: true
+              network:
+                allowedDomains: ['*']
+                allowLocalBinding: true
+              # denyWrite は pr-check の注釈と同じ
+              filesystem:
+                allowWrite: [/]
+                denyWrite: ['~/../archon-home']
+            idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1718,47 +1585,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: test-double-fidelity}
+          with: {role: test-double-fidelity, reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: test-double-fidelity-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: test-double-fidelity
           command: material-test-double-fidelity
-          depends_on: [test-double-fidelity-prep, test-double-fidelity-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network:
-              allowedDomains: ['*']
-              allowLocalBinding: true
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              allowWrite: [/]
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [test-double-fidelity-prep]
+          <<: *test_run_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1819,47 +1661,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: main-path-observation}
+          with: {role: main-path-observation, reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: main-path-observation-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: main-path-observation
           command: material-main-path-observation
-          depends_on: [main-path-observation-prep, main-path-observation-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network:
-              allowedDomains: ['*']
-              allowLocalBinding: true
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              allowWrite: [/]
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [main-path-observation-prep]
+          <<: *test_run_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1917,47 +1734,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: provenance}
+          with: {role: provenance, reason: "$LOOP_PREV.provenance-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: provenance-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.provenance-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: provenance
           command: material-provenance
-          depends_on: [provenance-prep, provenance-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network:
-              allowedDomains: ['*']
-              allowLocalBinding: true
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              allowWrite: [/]
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [provenance-prep]
+          <<: *test_run_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -2044,13 +1836,8 @@ nodes:
         - id: diagnose
           command: diagnose
           depends_on: [diagnose-reject]
-          model: opus
-          effort: high
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          <<: *review_launch
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -2282,6 +2069,7 @@ nodes:
     timeout: 1728000000
     depends_on: [verify-prep, judge-verify]
     trigger_rule: all_done
+    when: $intake.output.mode == 'judge'
     mutates_checkout: false
     with: {status_guarded: true, stage: merge}
     output_format:
@@ -2329,14 +2117,9 @@ nodes:
         - id: rejudge
           command: rejudge
           depends_on: [rejudge-reject]
-          model: opus
-          effort: high
+          <<: *review_launch
           context: fresh
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object

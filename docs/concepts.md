@@ -239,7 +239,7 @@
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
 
 - 状態: 散らばり
-- 今: 模型と effort の正本は役の定義の前付け（`lib/agents/`）と、グラフの YAML の AI のノードの `model:`・`effort:`・`allowed_tools:` の行。YAML の行は役の定義と結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で値を縛るだけ。数の歯止めは表の `known` の 13 ファイル 152 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 141 行・役の定義の前付けの 5 ファイル 10 行・道具を字で述べる指示書 1 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
+- 今: 模型と effort の正本は役の定義の前付け（`lib/agents/`）と、グラフの YAML の AI のノードの `model:`・`effort:`・`allowed_tools:` の行。YAML の行は役の定義と結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で値を縛るだけ。数の歯止めは表の `known` の 13 ファイル 105 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 94 行・役の定義の前付けの 5 ファイル 10 行・道具を字で述べる指示書 1 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
 - 計画: まだ無い
 
 ### `prompt-assembly` 指示書の組み立て
