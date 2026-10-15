@@ -11,7 +11,6 @@ import copy
 import hashlib
 import importlib.util
 import json
-import os
 import pathlib
 import re
 import shutil
@@ -189,12 +188,11 @@ class Run:
         return json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": rel})
 
     def env(self, bound, root):
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
-        env.update({f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **bound}.items()})
-        env.update(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(root),
-                   PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off", CLAUDE_CONFIG_DIR=str(self.config))
-        env.update(self.env_extra)
-        return env
+        named = {f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **bound}.items()}
+        named.update(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(root),
+                     PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off", CLAUDE_CONFIG_DIR=str(self.config))
+        named.update(self.env_extra)
+        return hermetic.child_env(**named)
 
     def script(self, name, bound=None, *, root=ROOT):
         """script を子で回す。終了の値 0 と、標準出力の JSON 1 つを確かめて返す。root は lib/ を探す根（WORKS_FACTORY_ROOT）"""
@@ -1085,10 +1083,9 @@ class ReadsCase(unittest.TestCase):
     def hook(self, run, tool, session="s-1", **tool_input):
         event = {"session_id": session, "tool_name": tool, "tool_input": tool_input, "tool_use_id": f"toolu_{tool}",
                  "cwd": str(run.repo), "hook_event_name": "PostToolUse"}
-        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
         done = subprocess.run([sys.executable, str(RECORDER), str(run.config / reads.ROOT)], input=json.dumps(event),
                               text=True, encoding="utf-8", capture_output=True, cwd=str(run.repo),
-                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+                              env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1"))
         self.assertEqual(done.returncode, 0, done.stderr)
 
     def reader(self, run, reply):

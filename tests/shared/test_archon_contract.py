@@ -25,6 +25,7 @@ from bin._lib import childsweep, launcher, pack, place, startpoint
 from lib import answer
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.layers import scan
 from tests.shared.test_boundary import boundary
@@ -135,17 +136,9 @@ def _answer_positions() -> list[int]:
     return [positionals.index(arg) for arg in ("RUN", "continue", "TEXT")]
 
 
-def _runner_vars() -> dict:
-    """境 boundary.py の RUNNER_PREFIXES・RUNNER_NAMES（字から読む）"""
-    tree = ast.parse((ROOT / "workflows/.shared/boundary.py").read_text(encoding="utf-8"))
-    return {t.id: ast.literal_eval(n.value.args[0] if isinstance(n.value, ast.Call) else n.value)
-            for n in tree.body if isinstance(n, ast.Assign) for t in n.targets
-            if isinstance(t, ast.Name) and t.id in ("RUNNER_PREFIXES", "RUNNER_NAMES")}
-
-
 def _exec_node_names(body: str) -> list[str]:
     """buildExecNodeEnvironment が返す物の鍵のうち、頭の一致（RUNNER_PREFIXES）で落ちない物"""
-    return sorted(k for k in re.findall(r"^    (\w+):", body, re.M) if not k.startswith(_runner_vars()["RUNNER_PREFIXES"]))
+    return sorted(k for k in re.findall(r"^    (\w+):", body, re.M) if not k.startswith(hermetic.runner_vars()["RUNNER_PREFIXES"]))
 
 
 def _guards(transform: str, kind: str | None = None) -> list[str]:
@@ -235,7 +228,7 @@ ARCHON_ROWS = (
         lambda: _env_read_by(lambda: boundary.resolve({"type": boundary.POINTER_TYPE, "run_id": "r", "path": "p"}),
                              {"WORKFLOW_ID": "r"}),
         "packages/workflows/src/exec-environment.ts", r"^\s*(\w+): context\.artifactsDir,$"),
-    Row("script の節に立つ変数の名（test-gate・fix が対象のテストの前に落とす）", lambda: sorted(_runner_vars()["RUNNER_NAMES"]),
+    Row("script の節に立つ変数の名（test-gate・fix が対象のテストの前に落とす）", lambda: sorted(hermetic.runner_vars()["RUNNER_NAMES"]),
         "packages/workflows/src/exec-environment.ts",
         r"export function buildExecNodeEnvironment\(context: ExecNodeEnvironmentContext\): NodeJS\.ProcessEnv \{\n.*?"
         r"  return \{\n(.*?)\n  \};\n\}", lambda m: _exec_node_names(m[1])),

@@ -11,7 +11,6 @@ unittest の最後の数え（Ran N tests）で何が回ったかを見る。木
 - 出力の最後は unittest の数えで、harness の unit_count_pattern が最初に当たるのもその行
 """
 import json
-import os
 import pathlib
 import re
 import shutil
@@ -20,6 +19,7 @@ import sys
 import tempfile
 import unittest
 
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -139,7 +139,7 @@ class ChangedTest(unittest.TestCase):
         self.assertIn("origin/main", stdout)
 
     def test_no_git_runs_only_the_fence_and_defers_to_ci(self):
-        rc, stdout, out = self.run_changed(env={**os.environ, "PATH": ""})
+        rc, stdout, out = self.run_changed(env=hermetic.child_env(PATH=""))
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.ran(out), 1, out)
         self.assertIn(IN_CI, stdout)
@@ -182,7 +182,7 @@ class ChangedTest(unittest.TestCase):
         self.assertIn("lib.tests.check_alpha", stdout)
         self.assertNotIn("tests.layers.test_fence", stdout)
         done = subprocess.run([sys.executable, "-m", "tests.shard", "--shard", "1/1"], cwd=self.repo, capture_output=True,
-                              text=True, encoding="utf-8")
+                              text=True, encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertEqual(self.ran(done.stderr), 1, done.stderr)
 

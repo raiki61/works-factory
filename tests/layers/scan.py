@@ -119,6 +119,24 @@ ALLOWED = {
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
         "workflows/plan-review/works-factory-plan-review.yaml#units",  # 区分 P #120
     ),
+    "E21": (
+        # 試験の子の環境の唯一の作り手
+        "tests/bin/hermetic.py",
+        # 本物の run・較正の命令の道具。利用者の環境（認証・PATH）を継ぐのが用途
+        "tests/calibration/run.py",
+        "tests/calibration/reviewbench.py",
+        "tests/e2e/evidence.py",
+        "tests/e2e/make_target.py",
+        # 受けた環境を控えるだけの偽の起動
+        "tests/bin/fakelaunch.py",
+        # 偽の script の字の中の os.environ で、子の環境を組む口ではない
+        "tests/shared/test_fence.py#os.environ.items()",
+        # この表の上の行の字そのもの（許しの行が名指す字は、走査器自身の字として当たる）
+        "tests/layers/scan.py#os.environ.items()",
+        "tests/layers/scan.py#outside_env(os.environ)",
+        # 本物の uv run を起こす試験で、利用者の uv の置き場・PATH を継ぐのが用途
+        "tests/workflows/test_uv_scripts.py#outside_env(os.environ)",
+    ),
     "E13": (
         "lib/AGENTS.md",
         "lib/tests/",
@@ -535,6 +553,21 @@ def _no_owner_env(root: Path) -> list[str]:
     pattern = re.compile("|".join(re.escape(s) for s in OWNER_ENV))
     paths = [p for layer in ("bin", "workflows", "lib") for p in _files(root, layer)]
     return _grep(root, paths, (pattern, lambda m: f"持ち主の環境の字 {m[0]}"))
+
+
+# 環境をその場で差し替える patch.dict は親の環境を写さない（dict( の前に . が付く形は当てない）。dict に足し書きを付けた形・辞書の
+# 合併・env の引数へ丸ごと渡す形・名に env を含む関数（outside_env など）の位置引数へ渡す形も、親を丸ごと子へ渡す
+COPIED_ENVIRON = re.compile(
+    r"os\.environ\.items\(\)|\*\*os\.environ\b|(?<!\.)dict\(os\.environ\b|os\.environ\.copy\(\)|os\.environ\s*\||\benv\s*=\s*os\.environ\b"
+    r"|\b\w*env\w*\(\s*os\.environ\s*[,)]"
+)
+
+
+def _hermetic_env(root: Path) -> list[str]:
+    """E21: tests/ と lib/tests/ の試験の子の環境は hermetic.child_env で作る。os.environ を写す形
+    （開発者のシェルや親の run が立てた名が子へ漏れて、同じ試験が場で違う結果を返す）を赤にする"""
+    paths = [p for folder in (("tests",), ("lib", "tests")) for p in _files(root, *folder) if p.suffix == ".py"]
+    return _grep(root, paths, (COPIED_ENVIRON, lambda m: f"子の環境は hermetic.child_env で作る。os.environ を写す {m[0]}"))
 
 
 ORIGIN_NAME = re.compile(r"^(factory|FACTORY|harness|\.factory|archon-)")
@@ -1088,4 +1121,5 @@ RULES = {
     "E18": _origin_names,
     "E19": _role_retry,
     "E20": _depth_skip,
+    "E21": _hermetic_env,
 }

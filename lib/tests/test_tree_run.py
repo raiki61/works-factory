@@ -38,7 +38,7 @@ if str(LIB) not in sys.path:
 
 import tree_run  # noqa: E402
 import userenv  # noqa: E402
-from tests.bin import gitkit  # noqa: E402
+from tests.bin import gitkit, hermetic  # noqa: E402
 
 
 def group_gone(pgid, within):
@@ -96,7 +96,7 @@ class TreeRunCase(unittest.TestCase):
         self.tmp = pathlib.Path(self._tmp.name)
         self.pidf = self.tmp / "pgid"
         self.marker = self.tmp / "late"
-        self.env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+        self.env = {k: v for k, v in hermetic.child_env().items() if k != "PYTHONDONTWRITEBYTECODE"}
         # このテストが起こした物（後片付けで止める Popen・pgid・pid）。pgid・pid は消えたと確かめた時点で外す——
         # 確かめた後に同じ番号が別のプロセスに再利用されても、後片付けで送らない。Popen は回収済みなら送らない
         self.started = []
@@ -568,7 +568,7 @@ class OutsideEnvCase(unittest.TestCase):
         コマンドの印は消さない"""
         record = json.dumps({"HOME": "/u"})
         with tempfile.TemporaryDirectory() as top:
-            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            env = tree_run.outside_env(hermetic.child_env(**{userenv.RECORD: record, userenv.RAN_DIR_ENV: top}))
             with self.assertRaises(OSError):
                 tree_run.run([os.path.join(top, "no-such-tool")], env=env)
             self.assertFalse(userenv.ran(top))
@@ -585,7 +585,7 @@ class OutsideEnvCase(unittest.TestCase):
         """#538: 起こせなかったのが OSError でなくても（引数の中の NUL による ValueError）、この呼び出しが置いた印を残さない"""
         record = json.dumps({"HOME": "/u"})
         with tempfile.TemporaryDirectory() as top:
-            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            env = tree_run.outside_env(hermetic.child_env(**{userenv.RECORD: record, userenv.RAN_DIR_ENV: top}))
             with self.assertRaises(ValueError):
                 tree_run.run([sys.executable, "-c", "pass\0"], env=env)
             self.assertFalse(userenv.ran(top))
@@ -595,7 +595,7 @@ class OutsideEnvCase(unittest.TestCase):
         起こしてから置けないと、利用者の環境で走らせたのを報告の冒頭が言い漏らす"""
         record = json.dumps({"HOME": "/u"})
         with tempfile.TemporaryDirectory() as top:
-            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            env = tree_run.outside_env(hermetic.child_env(**{userenv.RECORD: record, userenv.RAN_DIR_ENV: top}))
             missing = pathlib.Path(top) / "missing" / userenv.RAN_FILE
             env[userenv.MARK] = str(missing)
             seen = pathlib.Path(top) / "seen"
@@ -609,7 +609,7 @@ class OutsideEnvCase(unittest.TestCase):
         """#514: 起こした殻から継いだ userenv.MARK は、道を付けていない（RECORD の無い）run では外れ、印を書かない"""
         with tempfile.TemporaryDirectory() as top:
             mark = pathlib.Path(top) / userenv.RAN_FILE
-            env = tree_run.outside_env({**os.environ, userenv.MARK: str(mark)})
+            env = tree_run.outside_env(hermetic.child_env(**{userenv.MARK: str(mark)}))
             self.assertNotIn(userenv.MARK, env)
             self.assertEqual(tree_run.run([sys.executable, "-c", "pass"], env=env), 0)
             self.assertFalse(mark.exists())
@@ -641,7 +641,7 @@ class LaunchProofShapeCase(unittest.TestCase):
             release = pathlib.Path(tmp) / "release"
             slow = pathlib.Path(tmp) / "slow-env.sh"
             slow.write_text(f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.01; done\n")
-            env = {**os.environ, "BASH_ENV": str(slow)}
+            env = hermetic.child_env(BASH_ENV=str(slow))
             calls = itertools.count(1)
 
             def halted():

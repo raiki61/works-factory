@@ -151,7 +151,8 @@ class HarborFlagsTest(unittest.TestCase):
     uv run --isolated --extra bench で入れた環境でだけ照らす"""
 
     def test_unbounded_reads_flags_harbor_run_defines(self):
-        done = subprocess.run([sys.executable, "-c", HARBOR_RUN_FLAGS], capture_output=True, text=True, encoding="utf-8")
+        done = subprocess.run([sys.executable, "-c", HARBOR_RUN_FLAGS], capture_output=True, text=True, encoding="utf-8",
+                              env=hermetic.child_env())
         self.assertEqual(done.returncode, 0, f"入っている Harbor の harbor run の旗を読めない:\n{done.stderr}")
         flags = json.loads(done.stdout)
         if not flags:
@@ -780,7 +781,7 @@ class BuildTest(unittest.TestCase):
         (fake / "bwrap").chmod(0o755)
         check = dict(swepro.setup_commands("f", "9.9.9"))["sandbox"]
         done = subprocess.run(["bash", "-c", check], capture_output=True, text=True, encoding="utf-8",
-                              env={**os.environ, "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"})
+                              env=hermetic.child_env(PATH=f"{fake}{os.pathsep}{os.environ['PATH']}"))
         self.assertEqual(done.returncode, 1)
         bwrap, said = done.stderr.splitlines()
         self.assertIn("No permissions", bwrap)
@@ -1005,7 +1006,7 @@ class EgressPolicyTest(unittest.TestCase):
         for name, body in (("nft", FAKE_NFT), ("sleep", "#!/bin/sh\n"), ("nl", "#!/bin/sh\n")):
             (fakes / name).write_text(body, encoding="utf-8")
             (fakes / name).chmod(0o755)
-        self.env = {**os.environ, "PATH": f"{fakes}{os.pathsep}{os.environ['PATH']}", "NFT_LOG": str(self.tmp / "nft.log")}
+        self.env = hermetic.child_env(PATH=f"{fakes}{os.pathsep}{os.environ['PATH']}", NFT_LOG=str(self.tmp / "nft.log"))
 
     def policy(self, *args) -> tuple[list[str], str]:
         log = pathlib.Path(self.env["NFT_LOG"])

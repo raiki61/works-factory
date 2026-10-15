@@ -24,7 +24,8 @@ import tempfile
 import unittest
 from collections.abc import Iterable, Iterator
 
-from bin._lib import launcher, pack, place
+from bin._lib import pack, place
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -84,14 +85,13 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS) -> Iterator[
         yield root
 
 
-def archon(cwd: pathlib.Path, *args: str) -> subprocess.CompletedProcess:
-    """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。入口の殻を通さないので殻が渡す
-    源のパス（place.SOURCE_ENV）は継がない（試験が殻の中で走っても、線の後始末の節が外の Archon を起こさない）。包みの宣言
-    （launcher.FENCE_RECORDS_ENV）も継がない（包みを通らない起動を、外の run の記録で受け付けさせない）"""
+def archon(cwd: pathlib.Path, *args: str, **env: str) -> subprocess.CompletedProcess:
+    """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。子の環境は hermetic.child_env で
+    作る（入口の殻が渡す源のパス・包みの宣言・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
+    起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しする"""
     entry = source() / place.ENTRY
     bun = shutil.which("bun")
     if bun is None:
         raise absent("bun が無い")
-    env = {k: v for k, v in os.environ.items() if k not in (place.SOURCE_ENV, launcher.FENCE_RECORDS_ENV)}
-    env.update({"ARCHON_HOME": str(cwd.parent / "archon-home"), "WORKS_FACTORY_ROOT": str(ROOT)})
-    return subprocess.run([bun, str(entry), *args], cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8")
+    child = hermetic.child_env(**{**env, "ARCHON_HOME": str(cwd.parent / "archon-home"), "WORKS_FACTORY_ROOT": str(ROOT)})
+    return subprocess.run([bun, str(entry), *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")
