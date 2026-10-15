@@ -28,6 +28,7 @@ import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import fixgates  # noqa: E402
 import planmarks  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 MEAN, CLAMP = tbt.MEAN, tbt.CLAMP
 MEAN_ID = "test_stats.py::TestStats::test_mean_of_two"
@@ -106,7 +107,8 @@ class FixGatesCase(unittest.TestCase):
         self.add_test(f"\n    def {name}(self):\n        self.assertEqual(clamp(5, 0, 10), 5)\n")
 
     def git(self, *args):
-        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True).stdout.strip()
+        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
+                              env=hermetic.child_env()).stdout.strip()
 
     def fields_for(self, test_id):
         """受け入れのテスト test_id を 1 本持つ tdd の項目（単位は mean）"""
@@ -120,7 +122,8 @@ class FixGatesCase(unittest.TestCase):
         return json.loads((self.board / fixgates.LEDGER).read_text(encoding="utf-8"))
 
     def worktrees(self):
-        out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
+                             env=hermetic.child_env()).stdout
         return out.strip().splitlines()
 
 

@@ -98,7 +98,7 @@ class ProtectedPathsCopiedTest(unittest.TestCase):
         board.mkdir()
         for args in (["init", "-q", str(repo)], ["-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
                                                       "--allow-empty", "-m", "x"], ["-C", str(repo), "worktree", "add", "-q", str(other)]):
-            subprocess.run(["git", *args], capture_output=True, check=True)
+            subprocess.run(["git", *args], capture_output=True, check=True, env=hermetic.child_env())
         real = os.path.realpath
         want_deny = sorted({real(repo), real(repo / ".git"), real(other), real(board)})
         self.assertEqual(fence.protected_paths(repo, board), want_deny,
@@ -307,7 +307,7 @@ def sandbox_available() -> bool:
         return False
     try:
         probe = subprocess.run(["bwrap", "--ro-bind", "/", "/", "--unshare-user", "--unshare-net", "true"],
-                               capture_output=True, timeout=30)
+                               capture_output=True, timeout=30, env=hermetic.child_env())
     except (OSError, subprocess.TimeoutExpired):
         return False
     return probe.returncode == 0

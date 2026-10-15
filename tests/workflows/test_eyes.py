@@ -6,7 +6,6 @@
   目の返りのファイルを読む verdict の振る舞い（落ちた目・問いの外し）は、筋書きの dry-run では script が空の置き場で走るので、ここで見る
 """
 import json
-import os
 import pathlib
 import re
 import subprocess
@@ -17,6 +16,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.layers import scan
 from tests.workflows import copied
@@ -738,9 +738,8 @@ class ScriptCase(unittest.TestCase):
         path.write_text(doc if isinstance(doc, str) else json.dumps(doc, ensure_ascii=False), encoding="utf-8")
 
     def run_script(self, name: str, *, with_=None, artifacts=None, cwd=None) -> dict:
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-        env.update({"ARTIFACTS_DIR": str(artifacts or self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(ROOT)})
-        env.update({f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **(with_ or {})}.items()})
+        env = hermetic.child_env(ARTIFACTS_DIR=str(artifacts or self.artifacts), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(ROOT),
+                                 **{f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **(with_ or {})}.items()})
         done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{name}.py")], cwd=cwd or self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -957,8 +956,7 @@ class ScriptCase(unittest.TestCase):
 
     def test_verdict_never_fails_when_lib_cannot_be_read(self):
         env_root = self.tmp / "no-root"
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-        env.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(env_root)})
+        env = hermetic.child_env(ARTIFACTS_DIR=str(self.artifacts), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(env_root))
         done = subprocess.run([sys.executable, str(BLOCK / "scripts" / "verdict.py")], cwd=self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(done.returncode, 0, done.stderr)

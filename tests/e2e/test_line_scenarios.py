@@ -6,7 +6,6 @@
 Archon の源か bun が無ければ名前つきで見送る。
 """
 import json
-import os
 import pathlib
 import subprocess
 import sys
@@ -17,6 +16,7 @@ import yaml
 
 from bin._lib import place
 from tests import archon
+from tests.bin import hermetic
 from tests.layers import scan
 
 if str(archon.ROOT / "lib") not in sys.path:
@@ -326,7 +326,7 @@ def rerun(trace: dict, node: str, artifacts: pathlib.Path, run_id: str) -> dict:
     """線の script の節 node を、dry-run が結んだのと同じ with: の値で、置き場 artifacts と run の id を替えて走らせ直した返り（dry-run は
     置き場にファイルを置けないので、stub の指し札の先を試験が置いて読ませる）"""
     with_ = {n["id"]: n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]}[node]
-    env = {**os.environ, "ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": run_id}
+    env = hermetic.child_env(ARTIFACTS_DIR=str(artifacts), WORKFLOW_ID=run_id)
     for key, value in with_["with"].items():
         got = bound(trace, value)
         env[f"INPUTS_{key.upper()}"] = got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
@@ -557,9 +557,8 @@ def report_facts(trace: dict, *, record=None, files=None) -> dict:
         for rel, doc in (files or {}).items():
             (artifacts / rel).parent.mkdir(parents=True, exist_ok=True)
             (artifacts / rel).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-        env.update({"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": run_id, "TYPED_ARTIFACTS_FILE": "", "LOG_DIR": "",
-                    "WORKS_FACTORY_ROOT": str(archon.WORKFLOWS.parent)})
+        env = hermetic.child_env(ARTIFACTS_DIR=str(artifacts), WORKFLOW_ID=run_id, TYPED_ARTIFACTS_FILE="", LOG_DIR="",
+                                 WORKS_FACTORY_ROOT=str(archon.WORKFLOWS.parent))
         for key, value in with_.items():
             got = bound(trace, value)
             env[f"INPUTS_{key.upper().replace('-', '_')}"] = got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)

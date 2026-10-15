@@ -18,6 +18,8 @@ import shutil
 import subprocess
 import tempfile
 
+from tests.bin import hermetic
+
 # commit の後の自動の保守（gc --auto・maintenance --auto）も切る。git 2.55 の CI では、裏で走る保守が散らばった objects を
 # pack にまとめて消し、型を写している copytree が「No such file」で落ちた
 GIT_ID = ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", "-c", "tag.gpgSign=false",
@@ -29,7 +31,7 @@ _made = {}   # (src, sub, ignore) → (型の根, HEAD の版)
 def git(repo, *args):
     """repo で git を起こし、標準出力（前後の空白を落とす）を返す。失敗は CalledProcessError。hook・署名・利用者の名前に左右されない"""
     return subprocess.run(["git", *GIT_ID, "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
-                          check=True).stdout.strip()
+                          check=True, env=hermetic.child_env()).stdout.strip()
 
 
 def git_url_redirect(url, to):

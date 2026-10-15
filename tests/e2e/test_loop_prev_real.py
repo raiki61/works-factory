@@ -8,13 +8,13 @@ tests/e2e/loop-prev/ の使い捨ての工程を、止めた Archon を bun で�
   名前つきで見送る。CI は立てないので見送る。認証は利用者の環境のまま（Claude Code のログインか ANTHROPIC_API_KEY）。
 """
 import json
-import os
 import pathlib
 import unittest
 
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.layers.test_archon_validate import validate
 
@@ -57,12 +57,17 @@ class RoundsCase(unittest.TestCase):
     """工程を 1 度回し、周ごとの返りを印字してから、$LOOP_PREV が 1 周目の受け付けの理由を 2 周目の頭へ運んだかを照らす。
     印字を照らしより先に置くのは、赤の時に周ごとの返りを見るため"""
 
+    def passed(self) -> dict:
+        """Archon へ名指しで渡す名（親の環境は継がない）。AI も認証も要らない回しは何も渡さない"""
+        return {}
+
     def assert_reason_changes_by_round(self, root: pathlib.Path):
-        run = archon.archon(root, "workflow", "run", WORKFLOW, "--no-worktree")
-        listed = archon.archon(root, "workflow", "runs", "--json")
+        passed = self.passed()
+        run = archon.archon(root, "workflow", "run", WORKFLOW, "--no-worktree", **passed)
+        listed = archon.archon(root, "workflow", "runs", "--json", **passed)
         runs = json.loads(listed.stdout)["runs"]
         self.assertEqual(len(runs), 1, listed.stdout + run.stdout + run.stderr)
-        got = archon.archon(root, "workflow", "get", runs[0]["id"], "--json", "--verbose", "--events")
+        got = archon.archon(root, "workflow", "get", runs[0]["id"], "--json", "--verbose", "--events", **passed)
         detail = json.loads(got.stdout)
         outputs = {node: body_outputs(detail["events"], node) for node in NODES}
         print(json.dumps({"run": runs[0]["id"], "status": detail["status"], **outputs}, ensure_ascii=False, indent=1))
@@ -86,8 +91,13 @@ class LoopPrevScriptedCase(RoundsCase):
 
 class LoopPrevRealCase(RoundsCase):
     def setUp(self):
-        if os.environ.get(REAL_RUN_ENV) != "1":
+        if hermetic.inherited(REAL_RUN_ENV).get(REAL_RUN_ENV) != "1":
             self.skipTest(f"本物の役を起こす試験: {REAL_RUN_ENV}=1 の時だけ走る")
+
+    def passed(self) -> dict:
+        """本物の役は利用者の認証で動く（Claude Code のログイン・ANTHROPIC_API_KEY・CLAUDE_CONFIG_DIR・ANTHROPIC_BASE_URL）ので、
+        試験を回し始めた時の ANTHROPIC_・CLAUDE_ の頭の名を名指しで返す（試験を回す口が過程の環境から外した後も引ける）"""
+        return hermetic.inherited("ANTHROPIC_", "CLAUDE_")
 
     def test_reason_changes_by_round(self):
         with archon.tree([FOLDER], workflows=E2E) as root:

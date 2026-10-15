@@ -1241,10 +1241,12 @@ nodes:
       spec_unchecked: { from: "$spec-check.output.unchecked", if_skipped: null }
       prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
       redepth: { from: "$redepth.output", if_skipped: null }
-      # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の節の id の頭。宣言の外の落ちは途中で終わった run に数える。
-      # 元は線の YAML の節の description の [optional]: 世界の解・構造の実測・レンズ・直した後の構造・独立の目。run の頭の深さの段は
-      # 落ちても判定が標準で進む）
-      optional: '["judge__world", "rejudge-run__world", "world-classes", "world-judge", "plan__structure", "replan__structure", "structure-eye", "fix__lens", "refix-run__lens", "eyes__", "judge__head-depth", "head-depth"]'
+      # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の、区切り（__・-）で終わる節の id の頭か、節の id そのもの。
+      # 宣言の外の落ちは途中で終わった run に数える。元は線の YAML の節の description の [optional]: 世界の解・構造の実測・レンズ・
+      # 直した後の構造・独立の目。レンズはレンズの節とその返りの中継だけで、支度と集め役は止める段。run の頭の深さの段は
+      # 落ちても判定が標準で進む。ループの中の節は run の記録の step に include の前付けの無い素の id で載るので、ループの中の節の
+      # 頭（world-judge- など）も宣言する）
+      optional: '["judge__world-", "rejudge-run__world-", "world-classes", "world-classes-", "world-judge", "world-judge-", "plan__structure-", "replan__structure-", "structure-eye", "structure-eye-", "fix__lens", "fix__lens-reply", "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-"]'
 
   - id: report
     include: works-factory-report

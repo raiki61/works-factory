@@ -37,6 +37,7 @@ import rolekit  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
 import writes  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 SKIP = ("vendored/",)
@@ -1177,7 +1178,7 @@ class FactchecksSeamCase(TempCase):
         draft = self.tmp / "draft.json"
         draft.write_text(json.dumps(self.reply, ensure_ascii=False), encoding="utf-8")
         r = subprocess.run([sys.executable, str(LIB / "factchecks.py"), str(cfg), "--reply", str(draft)], cwd=str(self.repo),
-                           capture_output=True, text=True, encoding="utf-8")
+                           capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
         return r.returncode, r.stdout, r.stderr
 
     def test_main_reads_the_plan_in_the_place(self):
@@ -1195,7 +1196,7 @@ class FactchecksSeamCase(TempCase):
     def test_main_wiring_error_is_two(self):
         import subprocess
         r = subprocess.run([sys.executable, str(LIB / "factchecks.py"), str(self.place / "none.json")],
-                           capture_output=True, text=True, encoding="utf-8")
+                           capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
 
 
@@ -1659,6 +1660,38 @@ class DeltaSeamCase(TempCase):
 class GroupScriptsSeamCase(TempCase):
     """fixboard の組の分けと戻し・返す節の欄（fix の prep・join・tdd-unit・conflict-check・assert-changed・collect が呼ぶ口）"""
 
+    def test_usable_result_is_the_one_group_rule(self):
+        """#594: 組の子が使える結果を残したかは 1 つの決まり。JSON の dict で end_tree が文字列の時だけその dict、ほかは None"""
+        gdir = self.tmp / "out" / "g1"
+        self.assertIsNone(fixboard.usable_result(gdir))
+        gdir.mkdir(parents=True)
+        for text in ("{", "[]", "{}", '{"end_tree": 1}'):
+            with self.subTest(result=text):
+                (gdir / fixboard.RESULT_FILE).write_text(text, encoding="utf-8")
+                self.assertIsNone(fixboard.usable_result(gdir))
+        (gdir / fixboard.RESULT_FILE).write_text('{"end_tree": "t"}', encoding="utf-8")
+        self.assertEqual(fixboard.usable_result(gdir), {"end_tree": "t"})
+
+    def test_halted_groups_and_drop_unreturned_follow_the_rule(self):
+        """#594: 始めの記録が在り使える結果の無い組（結果が壊れていても）は止まった組で、戻す。始めの記録より前に落ちた組は
+        止まった組でなく、木に触らない。使える結果の在る組は止まった組でなく、戻さない"""
+        out = self.tmp / "out"
+        start = leftovers.snapshot(self.repo)
+        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
+        broken, unstarted, returned = out / "g1", out / "g2", out / "g3"
+        for g in (broken, unstarted, returned):
+            g.mkdir(parents=True)
+        for g in (broken, returned):
+            (g / fixboard.GROUP_START_FILE).write_text(json.dumps({"start_tree": start}), encoding="utf-8")
+        (broken / fixboard.RESULT_FILE).write_text("{", encoding="utf-8")
+        (returned / fixboard.RESULT_FILE).write_text(json.dumps({"end_tree": start}), encoding="utf-8")
+        self.assertEqual(fixboard.halted_groups(out, "g9"), ["g1"])
+        self.assertEqual(fixboard.drop_unreturned(self.repo, unstarted), [])
+        self.assertEqual(fixboard.drop_unreturned(self.repo, returned), [])
+        self.assertTrue((self.repo / "half.py").is_file())
+        self.assertEqual(fixboard.drop_unreturned(self.repo, broken), ["half.py"])
+        self.assertFalse((self.repo / "half.py").exists())
+
     def test_owed_keys_are_open_units_without_forks(self):
         judgment = {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "suggest", "disposition": "do-now"},
                               {"key": "C", "label": "suggest"}, {"key": "D", "label": "block"}, {"key": "E", "label": "block"}],
@@ -1692,9 +1725,9 @@ class GroupScriptsSeamCase(TempCase):
         two = [{"group_id": "g1"}, {"group_id": "g2"}]
         with tempfile.TemporaryDirectory() as tmp:
             repo = pathlib.Path(tmp)
-            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True, env=hermetic.child_env())
             self.assertFalse(fixboard.parallel(two, [], repo))
-            subprocess.run(["git", "remote", "add", "origin", str(repo / "origin.git")], cwd=repo, check=True)
+            subprocess.run(["git", "remote", "add", "origin", str(repo / "origin.git")], cwd=repo, check=True, env=hermetic.child_env())
             self.assertTrue(fixboard.parallel(two, [], repo))
             self.assertFalse(fixboard.parallel(two, ["tdd_lanes"], repo))
             self.assertFalse(fixboard.parallel(two[:1], None, repo))

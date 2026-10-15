@@ -13,6 +13,7 @@ import unittest
 from unittest import mock
 
 from tests import archon
+from tests.bin import hermetic
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEEDS = ROOT / "tests" / "layers" / "seeds"
@@ -76,6 +77,13 @@ class ArchonFactsCase(unittest.TestCase):
                 if not absent:
                     os.environ.pop("STATE_DIR", None)
                 self.assertIsNone(boundary.shared_cache())
+
+    def test_test_children_never_get_a_runner_name(self):
+        """Archon の変数の名は境の 1 か所から引く: RUNNER_NAMES の全部と、RUNNER_PREFIXES の各頭に X を付けた名は、親の環境に
+        在っても hermetic.child_env の子に届かない（試験の子が run の中と手元で違う結果を返さない）"""
+        runner = {*boundary.RUNNER_NAMES, *(prefix + "X" for prefix in boundary.RUNNER_PREFIXES)}
+        with mock.patch.dict(os.environ, dict.fromkeys(runner, "parent")):
+            self.assertEqual(sorted(runner & hermetic.child_env().keys()), [])
 
     def test_drop_runner_env_drops_named_and_prefixed_only(self):
         runner = {"ARCHON_NODE_EXECUTION": "{}", "INPUTS_REASON": "r", "CONTEXT": "c", "WORKFLOW_ID": "run-1", "STATE_DIR": "/s"}
@@ -145,7 +153,7 @@ class BlockPlaceTest(FakeRunTest):
     def test_work_tree_is_the_git_top(self):
         repo = self.artifacts / "repo"
         (repo / "sub").mkdir(parents=True)
-        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, env=hermetic.child_env())
         cwd = os.getcwd()
         os.chdir(repo / "sub")
         try:

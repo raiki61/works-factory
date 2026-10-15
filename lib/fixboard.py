@@ -1465,8 +1465,8 @@ def lens_route(place, lang: str = "") -> dict:
 
 
 def lens_collector(place, ok: bool, reason: str = "") -> pathlib.Path:
-    """レンズの集め役の事実を置き場の LENSES_FILE に {collector: {ok, reason}} で書く（止めずに知らせる。集め役が落ちた・ok でない
-    時は ok: false と理由。元 works/blk-lens/lib/lenses.py:126 の exit_ は盤面を止めた）"""
+    """レンズの集め役の事実を置き場の LENSES_FILE に {collector: {ok, reason}} で書く（集め役が落ちた・ok でない時は ok: false と
+    理由。集め役は書いてから落ち、run は止まる。元 works/blk-lens/lib/lenses.py:126 の exit_ は盤面を止めた）"""
     return write_json(pathlib.Path(place) / LENSES_FILE, {"collector": {"ok": bool(ok), "reason": str(reason or "")}})
 
 
@@ -1632,7 +1632,6 @@ FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
 ALLOWED_SOURCES = ("plan", "consult", "ruling")   # allowed-tests.json の source の語: 承認済みの修正案・範囲の相談の合意・裁定
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
-DROPPED_FILE = "dropped.json"           # 落ちた子の変更を戻した控え {start_tree, paths}（drop_unreturned が組の置き場に書く）
 ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
 PRIOR_LOOP = "prior_pass"               # 2 回目の修正の段の置き場に写した 1 回目の段の輪の状態の印（adopt_prior_pass。新しい）
 UNIT_STATUSES = (FIXED, GIVEN_UP, NOT_DONE) = ("fixed", "given_up", "not_done")
@@ -1814,21 +1813,29 @@ def group_dir(place, out_dir: str, gid: str) -> pathlib.Path:
     return pathlib.Path(out_dir or pathlib.Path(place) / "groups") / str(gid)
 
 
+def usable_result(gdir):
+    """組の子が使える結果を残したかの 1 つの決まり。gdir の RESULT_FILE が JSON の dict で end_tree が文字列なら（group_result が
+    書く形）その dict、無い・読めない・形が違えば None。壊れた結果は結果の無いのと同じに扱う。結果が None で始めの記録
+    （GROUP_START_FILE）が在る組は止まった組、始めの記録も無い組は始まっていない組（始めの記録より前に親の木を変えないので、
+    戻す物が無い）"""
+    doc = jsonfile.read_or(pathlib.Path(gdir) / RESULT_FILE)
+    return doc if isinstance(doc, dict) and isinstance(doc.get("end_tree"), str) else None
+
+
 def halted_groups(out_dir, own: str) -> list:
-    """並べない run で、out_dir の下の own 以外の組のうち、子が始めた（GROUP_START_FILE が在る）のに結果（RESULT_FILE）を書かずに
-    止まった組の名を並べる"""
+    """並べない run で、out_dir の下の own 以外の組のうち、子が始めた（GROUP_START_FILE が在る）のに使える結果（usable_result）を
+    残さずに止まった組の名を並べる"""
     return [g.name for g in sorted(pathlib.Path(out_dir).glob("*"))
-            if g.is_dir() and g.name != own and (g / GROUP_START_FILE).is_file() and not (g / RESULT_FILE).is_file()]
+            if g.is_dir() and g.name != own and (g / GROUP_START_FILE).is_file() and usable_result(g) is None]
 
 
 def drop_unreturned(repo, gdir, skip=()) -> list:
-    """並べない run（組の子が親の作業ツリーで直す）で、子が結果（RESULT_FILE）を書かずに落ちた組の変更を、子の始めの木
-    （gdir の GROUP_START_FILE の start_tree）に戻す。戻したパス（除くパスの頭 skip の下は数えない）を返し、gdir の DROPPED_FILE
-    に控える。結果の在る組・始めの記録の無い組は何もしない（[]）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは
-    親の木に届かなかった）"""
+    """並べない run（組の子が親の作業ツリーで直す）で、子が使える結果（usable_result）を残さずに落ちた組の変更を、子の始めの木
+    （gdir の GROUP_START_FILE の start_tree）に戻し、戻したパス（除くパスの頭 skip の下は数えない）を返す。使える結果の在る組・
+    始めの記録の無い組は何もしない（[]）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは親の木に届かなかった）"""
     import tddloop
     gdir = pathlib.Path(gdir)
-    if (gdir / RESULT_FILE).is_file():
+    if usable_result(gdir) is not None:
         return []
     began = read_json(gdir / GROUP_START_FILE)
     tree = began.get("start_tree") if isinstance(began, dict) else None
@@ -1836,7 +1843,6 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
         return []
     paths = touched_since(repo, tree, skip)
     tddloop.restore_paths(repo, tree, paths)
-    write_json(gdir / DROPPED_FILE, {"start_tree": tree, "paths": paths})
     return paths
 
 

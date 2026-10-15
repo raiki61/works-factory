@@ -19,7 +19,7 @@ from unittest import mock
 import yaml
 
 from tests import archon
-from tests.bin import trimmed
+from tests.bin import hermetic, trimmed
 from tests.bin.gitkit import committed_copy, git
 from tests.layers import scan
 from tests.workflows.copied import agent_body, assert_is_original, rewritten, role_definition
@@ -620,12 +620,14 @@ class Run:
     def judge(self) -> pathlib.Path:
         return self.artifacts / "judge"
 
-    def run(self, script: str, *, objection: str = "", start=None, launcher=(sys.executable,), root=ROOT, **inputs) -> subprocess.CompletedProcess:
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-        env.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(root),
-                    "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_START": self.start if start is None else start,
-                    "INPUTS_BASELINE": "", "INPUTS_OBJECTION": objection, "INPUTS_PRIOR_FAILURES": ""})
-        env.update({f"INPUTS_{k.upper()}": v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in inputs.items()})
+    def run(self, script: str, *, objection: str = "", start=None, launcher=(sys.executable,), root=ROOT, env=None,
+            **inputs) -> subprocess.CompletedProcess:
+        """env は試験が意図して子へ渡す名（hermetic.child_env の overrides へ回す。親の環境は継がない）"""
+        named = {"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(root),
+                 "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_START": self.start if start is None else start,
+                 "INPUTS_BASELINE": "", "INPUTS_OBJECTION": objection, "INPUTS_PRIOR_FAILURES": ""}
+        named.update({f"INPUTS_{k.upper()}": v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in inputs.items()})
+        env = hermetic.child_env(**{**named, **(env or {})})
         return subprocess.run([*launcher, str(SCRIPTS / f"{script}.py")], cwd=self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
 
@@ -834,7 +836,7 @@ class AcceptLoopTest(unittest.TestCase):
             self.assertEqual((out["ok"], out["done"]), (False, n == 3), out)
             self.assertTrue(out["reason"])
             script = until.replace("$diagnose-accept.output.done", shlex.quote(json.dumps(out["done"])))
-            exits.append(subprocess.run(["sh", "-c", script]).returncode)
+            exits.append(subprocess.run(["sh", "-c", script], env=hermetic.child_env()).returncode)
         self.assertEqual([e == 0 for e in exits], [False, False, True])
         self.assertEqual(len(json.loads((r.judge / "rejects-diagnose.json").read_text(encoding="utf-8"))), 3)
 
@@ -939,9 +941,8 @@ class SpecFreezeTest(unittest.TestCase):
         r = self.spec_run()
         home = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, home, True)
-        with mock.patch.dict(os.environ, {userenv.RECORD: userenv.record({"HOME": str(home), userenv.OPT_IN: "1"})}):
-            os.environ.pop(userenv.RAN_DIR_ENV, None)
-            out = r.returned("spec_freeze", answer={"decision": "approve", "text": ""})
+        out = r.returned("spec_freeze", answer={"decision": "approve", "text": ""},
+                         env={userenv.RECORD: userenv.record({"HOME": str(home), userenv.OPT_IN: "1"})})
         self.assertTrue(out["go"], out)
         spec = json.loads((r.judge / "spec.json").read_text(encoding="utf-8"))
         self.assertEqual(spec["acceptance"][0]["exit_at_approval"], 0)
@@ -1761,9 +1762,7 @@ class ReadsTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.config = pathlib.Path(tmp.name) / "claude"
-        env = mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(self.config)})
-        env.start()
-        self.addCleanup(env.stop)
+        self.config_env = {"CLAUDE_CONFIG_DIR": str(self.config)}
 
     def brief(self) -> pathlib.Path:
         self.r.judge.mkdir(parents=True, exist_ok=True)
@@ -1776,10 +1775,9 @@ class ReadsTest(unittest.TestCase):
     def hook(self, path):
         event = {"session_id": "s-1", "tool_name": "Read", "tool_input": {"file_path": str(path)}, "tool_use_id": "toolu_Read",
                  "cwd": str(self.r.repo), "hook_event_name": "PostToolUse"}
-        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
         done = subprocess.run([sys.executable, str(RECORDER), str(self.config / reads.ROOT)], input=json.dumps(event),
                               text=True, encoding="utf-8", capture_output=True, cwd=str(self.r.repo),
-                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+                              env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1"))
         self.assertEqual(done.returncode, 0, done.stderr)
 
     def index(self) -> dict:
@@ -1790,16 +1788,31 @@ class ReadsTest(unittest.TestCase):
         (self.config / reads.ROOT).mkdir(parents=True)
         brief = self.brief()
         self.hook(self.r.repo / "stats.py")
-        out = self.r.returned("pr_reads")
+        out = self.r.returned("pr_reads", env=self.config_env)
         self.assertIs(out["ok"], True, out)
         self.assertEqual(out["missing"], [str(brief)])
         self.hook(brief)
-        out = self.r.returned("pr_reads")
+        out = self.r.returned("pr_reads", env=self.config_env)
         self.assertEqual(out["missing"], [], out)
         self.assertEqual(out["index_file"], str(self.r.judge / reads.index_name(prcheck.ROLE)))
         doc = json.loads(pathlib.Path(self.index()[prcheck.ROLE]).read_text(encoding="utf-8"))
         self.assertEqual([row["path"] for row in doc["rows"]], [str(brief)])
         self.assertIn(doc["rows"][0]["hook"], reads.HOOK_SEEN)
+
+    def test_pr_reads_returns_the_same_with_or_without_the_parents_config_dir(self):
+        """親の CLAUDE_CONFIG_DIR は子へ漏れない: 記録の根の入った置き場を親に向けた時と、親に置き場が無い時で、子の返りは同じ。
+        親の HOME は 2 回とも空の一時フォルダに向ける（$HOME/.claude への戻りでも場に左右されない）"""
+        (self.config / reads.ROOT).mkdir(parents=True)
+        self.brief()
+        self.hook(self.r.repo / "stats.py")
+        home = tempfile.TemporaryDirectory()
+        self.addCleanup(home.cleanup)
+        with mock.patch.dict(os.environ, {"HOME": home.name, "CLAUDE_CONFIG_DIR": str(self.config)}):
+            with_config = self.r.returned("pr_reads")
+        with mock.patch.dict(os.environ, {"HOME": home.name}):
+            os.environ.pop("CLAUDE_CONFIG_DIR", None)
+            without_config = self.r.returned("pr_reads")
+        self.assertEqual(with_config, without_config)
 
     def test_pr_check_reads_runs_after_the_role_on_the_roles_rounds(self):
         """役の輪の後に走り（先に走ると読む前の記録で欠けと言う）、輪が落ちた回も走り、役を起こした回だけ走る"""
@@ -1811,7 +1824,7 @@ class ReadsTest(unittest.TestCase):
     def test_pr_check_reads_without_record_does_not_fail(self):
         """記録の根が無い（フックを置いていない起動）時も落ちず、読んでいないとも言わない"""
         self.brief()
-        out = self.r.returned("pr_reads")
+        out = self.r.returned("pr_reads", env=self.config_env)
         self.assertEqual((out["ok"], out["missing"]), (True, []), out)
         doc = json.loads(pathlib.Path(self.index()[prcheck.ROLE]).read_text(encoding="utf-8"))
         self.assertEqual(doc["sources"], {"hook": "none", "why": reads.NO_ROOT})
