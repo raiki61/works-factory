@@ -30,12 +30,13 @@ import startrec  # noqa: E402
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
     plan_dir, round_dir, repo = art / planfile.PLAN_DIR, art / os.environ["INPUTS_DIR"], Path.cwd()
+    rnd = planfile.read_round(round_dir)
     if rolekit.resubmitting(round_dir, planfile.ROLE, boundary.value(os.environ.get("INPUTS_PREV"))):
-        path, n = rolekit.write_resubmit(round_dir, planfile.ROLE, planfile.BRIEF_FILE, planfile.RESUBMIT_RULES)
+        rules = planfile.REPLAN_RESUBMIT_RULES if rnd["mode"] == "replan" else planfile.RESUBMIT_RULES
+        path, n = rolekit.write_resubmit(round_dir, planfile.ROLE, planfile.BRIEF_FILE, rules)
         planfile.snap_tree(round_dir / planfile.TREE_FILE, repo)
         boundary.returns({"brief": str(path), "attempt": n, "resubmit": True})
         return
-    rnd = planfile.read_round(round_dir)
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
     start = start if isinstance(start, dict) else {}
     judgment_file, _ = planfile.pointed(os.environ["INPUTS_JUDGMENT"], boundary.pointed)

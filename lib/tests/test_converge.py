@@ -487,6 +487,12 @@ class ItemsCase(BoardCase):
         self.assertEqual(rejects, [])
         self.assertEqual(whole, [row("u1"), row("u2")])
 
+    def test_splice_whole_reply_fills_only_closed_items(self):
+        """R2: 返答が閉じた項目を除く案の全部（fill 偽）なら、返答に無い開いた項目は差し込まず、閉じた項目だけを差し込む"""
+        self.review([face("key-a1", units=["u1"])])
+        whole, rejects, _ = converge.splice(converge.read(self.b), [], fill=False)
+        self.assertEqual((whole, rejects), ([row("u2")], []))
+
     def test_fixed_answer_on_unchanged_item_is_named(self):
         """fixed と答えた block の項目を変えていない答えは名指す。変えた・組み替えた・disputed・どの項目とも重ならない block は見ない"""
         self.review([face("key-a1", units=["u1"]), face("key-x1", units=["somewhere"])])

@@ -857,7 +857,9 @@ class AcceptCase(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(json.loads((rnd / name).read_text(encoding="utf-8")),
                                  json.loads((ref / name).read_text(encoding="utf-8")))
-        self.assertEqual(json.loads(rolekit.candidate_path(rnd, planfile.ROLE).read_text(encoding="utf-8")), whole)
+        slot_list = json.loads((rnd / planfile.SLOTS_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(json.loads(rolekit.candidate_path(rnd, planfile.ROLE).read_text(encoding="utf-8")),
+                         planfile.named(whole, slot_list), "控えは受け付けと同じく単位の名に戻した形")
 
     def test_empty_resubmit_is_rejected(self):
         run = Run(self)
@@ -866,13 +868,15 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(self.reasons(run)[1], rolekit.EMPTY_RESUBMIT)
 
     def test_whole_plan_resubmit_drops_items(self):
-        """項目を消す出し直しは whole_plan: true と案の全部（plan が丸ごと置き換わり、whole_plan は控えに残らない）"""
+        """項目を消す出し直しは whole_plan: true と案の全部（plan が丸ごと置き換わる。whole_plan は控えに残り、受けた案には残らない）"""
         run = Run(self)
         out = run.include(writer=writer_of({"plan": [item(1, 2), item(2)]}, {"whole_plan": True, "plan": [item(1, 2)]}))
         self.assertIs(out["ready"], True, out)
         rnd = run.art / "plan" / "r1"
+        slot_list = json.loads((rnd / planfile.SLOTS_FILE).read_text(encoding="utf-8"))
         self.assertEqual(json.loads(rolekit.candidate_path(rnd, planfile.ROLE).read_text(encoding="utf-8")),
-                         {"plan": [item(1, 2)]})
+                         {**planfile.named({"plan": [item(1, 2)]}, slot_list), planfile.WHOLE_PLAN: True})
+        self.assertNotIn(planfile.WHOLE_PLAN, json.loads((rnd / planfile.REPLY_FILE).read_text(encoding="utf-8")))
 
     def test_unit_in_two_items_rejected(self):
         why = self.reject_once(Run(self), {"plan": [item(1, 2), item(2)]})

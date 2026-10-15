@@ -26,8 +26,9 @@
   この控えを converge の answer_gaps・splice・revise_section・filled_units に渡す
 - 材料と受け付け: write_brief・prior_section・take_plan・take_replan（元 planblk の prep・prior_part・take・with_plan_fields・revise_take と
   replan の prep・_take）
-- 拒まれた後の出し直し（#571）: RESUBMIT_RULES（出し直しの役の指示書 rolekit.write_resubmit に差し込む返し方）・merge_plan_items・
-  merge_resubmit（拒まれた所だけの出し直しを前の答えと合わせる。rolekit.resubmitted に渡す）
+- 拒まれた後の出し直し（#571）: RESUBMIT_RULES・REPLAN_RESUBMIT_RULES（出し直しの役の指示書 rolekit.write_resubmit に差し込む
+  返し方）・merge_plan_items・merge_resubmit・merge_replan_resubmit（拒まれた所だけの出し直しを前の答えと合わせる。
+  rolekit.resubmitted に渡す）・round_slots（形 plan の周の単位の名の並び）
 - 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）・
   keep_state（書けない周の控え）
 - 周と出口: next_round・latest・structure_key・open_round・ripple_units・ripple_items・owed_order・collect・placeholders
@@ -63,6 +64,7 @@ import jsonfile  # noqa: E402
 import impact  # noqa: E402
 import judgeverify  # noqa: E402
 import libdocs  # noqa: E402
+import marks  # noqa: E402
 import planblk  # noqa: E402
 import planbrief  # noqa: E402
 import planmarks  # noqa: E402
@@ -114,13 +116,17 @@ UNREAD_INPUTS_HEAD = promptsection.Section("## 読めなかった入力（機械
 FILLED_DUTY = "機械が前の往復の行を差し込む（変えない項目は書かなくてよい。閉じた項目は書くな）"
 FILLED_LINE = "- 機械が差し込む no（前の往復の案の項目。変えない項目は書かなくてよい。閉じた項目は書くな）: {nos}"
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
-WHOLE_PLAN = "whole_plan"          # 出し直しの役の型だけが持つ欄。真なら plan が前の案を丸ごと置き換える（合わせた後に外す）
+WHOLE_PLAN = "whole_plan"          # 出し直しの役の型だけが持つ欄。真なら plan が前の案を丸ごと置き換える（合わせた後も控えに残す）
 RESUBMIT_RULES = ("直す所の無い欄は書くな\n"
                   "- plan には、拒否に挙がった項目だけを、前と同じ型の丸ごとの項目で返せ。unit_keys が 1 つでも重なる前の項目は、返した項目に"
-                  "置き換わる（2 つの項目をまとめる・単位を隣の項目へ移す時は、関わる項目を全部返す）。どの前の項目とも重ならない項目は後ろに足される\n"
+                  "置き換わる（no と単位の名のどちらで書いても同じ単位に数える。2 つの項目をまとめる・単位を隣の項目へ移す時は、関わる項目を"
+                  "全部返す）。どの前の項目とも重ならない項目は後ろに足される。今の周に直す単位を 1 つも持たない前の項目（知らない key・"
+                  "外す単位だけの項目）は、plan を返すと消える\n"
                   "- block_answers を直す時は、全部の行を返せ（欄ごと置き換わる）\n"
-                  "- 項目を消す時（拒否が書くなと言った項目を外す時も）だけは whole_plan に true を書き、plan に案の全部を返せ（plan が"
-                  "丸ごと置き換わる）")
+                  f"- 項目を消す時（拒否が書くなと言った項目を外す時も）だけは {WHOLE_PLAN} に true を書き、plan に閉じた項目を除く案の全部を"
+                  "返せ（plan が丸ごと置き換わり、機械は閉じた項目の行だけを差し込む。この後の出し直しも、この全部の案に合わせる）")
+REPLAN_RESUBMIT_RULES = ("直す所の無い欄は書くな\n"
+                         "- plan を直す時は、貼った項目の全部を貼った順に返せ（plan は丸ごと置き換わる）")
 
 
 # ---------------------------------------------------------------- 読み書きの小道具
@@ -824,23 +830,31 @@ def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=No
     return {"ok": True, "reason": ""}
 
 
+def round_slots(round_dir, judgment) -> list:
+    """形 plan の周の、案に入れてよい単位の名の並び（no は 1 始まりの位置）。周の slots.json が読めなければ判定から組む（slots）"""
+    got = jsonfile.read_or(pathlib.Path(round_dir) / SLOTS_FILE)
+    return got if isinstance(got, list) else slots(judgment)
+
+
 def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: str, keys=accept.TREE_KEYS) -> dict:
     """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（moved。keys の欄で比べる）。拒否は理由を全部 1 回で
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
-    _save の halt）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす。
+    _save の halt）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
+    （出し直しが WHOLE_PLAN を立てた答えは、案の全部なので閉じた項目の行だけを差し込む）。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
     round_dir = pathlib.Path(round_dir)
     why = moved(round_dir / TREE_FILE, repo, keys)
     if why:
         return {"ok": False, "reason": why}
+    reply, mark = marks.split("resubmit", "plan-revise", reply, (WHOLE_PLAN,))
+    whole_plan = (mark or {}).get(WHOLE_PLAN) is True
     if replan._malformed(reply):
         return {"ok": False, "reason": MALFORMED_REJECT}
     record = converge_record(plan_dir)
     bare, answers = converge.split("plan-revise", reply)
-    slot_list = jsonfile.read_or(round_dir / SLOTS_FILE)
-    got = named(bare, slot_list if isinstance(slot_list, list) else slots(judgment))
-    whole, closed, dropped = converge.splice(record, got["plan"])
+    got = named(bare, round_slots(round_dir, judgment))
+    whole, closed, dropped = converge.splice(record, got["plan"], fill=not whole_plan)
     plan = {**got, "plan": whole}
     owed, opened, _ = plan_slots(judgment)
     shut = set(_shut(judgment, plan))
@@ -922,13 +936,15 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     return saved
 
 
-def merge_plan_items(old: list, new: list) -> list:
-    """前の案の項目 old に出し直しの項目 new を合わせた並び: unit_keys が 1 つでも重なる前の項目は消え、出し直しの項目がその前の
-    項目の最初の位置に入る（同じ位置に入る出し直しの項目は出し直しの順）。どれとも重ならない出し直しの項目は後ろに足し、重ならない
-    前の項目は残す。単位は converge.planned_units と同じく字にして比べる"""
+def merge_plan_items(old: list, new: list, slot_list: list) -> list:
+    """前の案の項目 old に出し直しの項目 new（どちらも named で単位の名に戻した物）を合わせた並び: unit_keys が 1 つでも重なる前の
+    項目は消え、出し直しの項目がその前の項目の最初の位置に入る（同じ位置に入る出し直しの項目は出し直しの順）。どれとも重ならない
+    出し直しの項目は後ろに足す。今の周に直す単位 slot_list を 1 つも持たない前の項目は、受け付けが必ず拒む物なので消し、ほかの
+    重ならない前の項目は残す。単位は converge.planned_units と同じく字にして比べる"""
     units = [converge.planned_units([it]) for it in new]
     hit = [[i for i, it in enumerate(old) if converge.planned_units([it]) & mine] for mine in units]
-    gone = {i for rows in hit for i in rows}
+    known = {str(k) for k in slot_list}
+    gone = {i for rows in hit for i in rows} | {i for i, it in enumerate(old) if not converge.planned_units([it]) & known}
     out = []
     for i, it in enumerate(old):
         out += [new[j] for j, rows in enumerate(hit) if rows and rows[0] == i]
@@ -937,15 +953,24 @@ def merge_plan_items(old: list, new: list) -> list:
     return out + [new[j] for j, rows in enumerate(hit) if not rows]
 
 
-def merge_resubmit(prev: dict, part: dict) -> dict:
-    """前の回の答え prev に修正案の出し直し part を合わせた答え（1 回で書いた答えと同じ形。WHOLE_PLAN は外す）。欄は
-    rolekit.merge_fields で置き換え、plan だけは part の WHOLE_PLAN が偽で両方が list なら merge_plan_items で合わせる"""
-    part = dict(part)
-    whole = part.pop(WHOLE_PLAN, False) is True
+def merge_resubmit(prev: dict, part: dict, slot_list: list) -> dict:
+    """前の回の答え prev に修正案（形 plan）の出し直し part を合わせた答え。両方の unit_keys を、受け付けと同じく named で今の周の
+    単位 slot_list の名に戻してから合わせる。欄は rolekit.merge_fields で置き換え、plan だけは WHOLE_PLAN が偽で両方が list なら
+    merge_plan_items で合わせる。WHOLE_PLAN は一度真になれば控えに残り（この後の出し直しも全部の案に合わせる）、take_plan が
+    外して読む"""
+    prev, part = named(prev, slot_list), named(part, slot_list)
+    whole = part.get(WHOLE_PLAN) is True
     out = rolekit.merge_fields(prev, part)
+    out.pop(WHOLE_PLAN, None)
     if not whole and isinstance(prev.get("plan"), list) and isinstance(part.get("plan"), list):
-        out["plan"] = merge_plan_items(copy.deepcopy(prev["plan"]), copy.deepcopy(part["plan"]))
-    return out
+        out["plan"] = merge_plan_items(prev["plan"], part["plan"], slot_list)
+    return {**out, WHOLE_PLAN: True} if whole or prev.get(WHOLE_PLAN) is True else out
+
+
+def merge_replan_resubmit(prev: dict, part: dict) -> dict:
+    """前の回の答え prev に修正案（形 replan）の出し直し part を合わせた答え。形 replan の受け付けは項目を貼った位置で照らすので、
+    plan は項目で合わせずに丸ごと置き換える（rolekit.merge_fields。WHOLE_PLAN は読まずに外す）"""
+    return rolekit.merge_fields(prev, {k: v for k, v in part.items() if k != WHOLE_PLAN})
 
 
 # ---------------------------------------------------------------- 読んだ証拠

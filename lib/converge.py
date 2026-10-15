@@ -36,7 +36,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   （planfile。周ごとのファイルから控えを組み直す）も使う
 - note_plan(b, rows)・open_items(b)・filled_units(doc)・splice(doc, rows)・item_id・item_hash: 項目の控え・次に審査する項目の番号・
   返答に無ければ機械が差し込む項目の単位・直しの役が返した変えた項目の行に前の往復の行を差し込んで案の全体を組む口
-  （閉じた項目を変えた行は拒み、前と同じ行は捨てる）
+  （閉じた項目を変えた行は拒み、前と同じ行は捨てる。返答が案の全部なら閉じた項目だけを差し込む）
 - planned_units(plan): 今の案に在る単位の key の集合を組む唯一の口（控えの plan の行からも修正案の役の出力の plan の行からも。
   carried_notes・受け付けの plan_review_output・修正前の関所の照らしが同じ集合を引く）。その下の plan_keys(plan) は案の順・
   重複のまま字の key を並べる読み口（planfile の受け付けの照らしも引く）。item_units(plan, n) はその上で項目 n の単位の集合
@@ -445,13 +445,13 @@ def filled_units(doc: dict) -> list[str]:
     return plan_keys([it for it in doc.get("plan") or [] if "row" in it])
 
 
-def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:
+def splice(doc: dict, rows: list, *, fill: bool = True) -> tuple[list, list[str], list[str]]:
     """直しの役が返した行（名前に戻した行の並び）に前の往復の行を差し込んだ案の全体, 拒む行, 捨てた id を返す。
     控えの案の順に、閉じた項目は控えの行、開いた項目と保留の項目は返答の同じ id の行を並べる。控えに当たらない返答の行（単位を
-    組み替えた行・新しい項目の行）は返答の順で後ろに足す（捨てない）。開いた項目と保留の項目の行が返答に無く、その単位がどの
-    返答の行にも無ければ控えの行を差し込む（役は変えた項目だけを返す。#571。fixed と答えて変えていない項目は fixed_unchanged が
-    名指す）。閉じた項目の行が返答に在って控えと同じ hash なら捨て（捨てた id）、違えば拒む。閉じた項目の単位を別の行に入れた
-    返答も拒む"""
+    組み替えた行・新しい項目の行）は返答の順で後ろに足す（捨てない）。fill が真なら、開いた項目と保留の項目の行が返答に無く、
+    その単位がどの返答の行にも無ければ控えの行を差し込む（役は変えた項目だけを返す。#571。fixed と答えて変えていない項目は
+    fixed_unchanged が名指す）。fill が偽（返答が閉じた項目を除く案の全部）なら差し込まず、返答に無い項目は消える。閉じた項目の
+    行が返答に在って控えと同じ hash なら捨て（捨てた id）、違えば拒む。閉じた項目の単位を別の行に入れた返答も拒む"""
     given = [r for r in rows if isinstance(r, dict)]
     by_id = {}
     for r in given:
@@ -476,7 +476,7 @@ def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:
         elif mine is not None:
             used.add(id(mine))
             whole.append(mine)
-        elif homeless and "row" in it:
+        elif fill and homeless and "row" in it:
             whole.append(copy.deepcopy(it["row"]))
     whole += [r for r in given if id(r) not in used]
     return whole, rejects, dropped
