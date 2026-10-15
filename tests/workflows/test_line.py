@@ -1596,7 +1596,8 @@ class AskFinalReadsCase(Artifacts):
         field = {**self.FORK, "key": "parallel_pr: 重なり", "kind": "field", "status": "escalate", "origin": ""}
         self.assertEqual(self.held([field], answers=[{"question": "parallel_pr", "text": "a"}],
                                    materials={"parallel_pr": {"status": "not_run"}}), [])
-        self.assertEqual(line_nodes()["ask-final"]["with"]["ties_judgment"], "$fix-in.output.judgment")
+        for node in ("ask-final", "eyes"):   # 目は無人の run が採った推しを同じ台帳の読みで R4 の記録された方針に足す
+            self.assertEqual(line_nodes()[node]["with"]["ties_judgment"], "$fix-in.output.judgment", node)
 
     def test_answered_unit_missing_from_the_judgment_is_said(self):
         got = self.held([self.FORK], answers=[{"question": "q1", "text": "a"}], units=())

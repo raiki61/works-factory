@@ -2,7 +2,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む。R4 の方針とのぶつかりを照らす記録された方針の行 policy.RECORDED_KEY も足す）。比較役に貼った前提の控えは
+"""目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む。R4 の方針とのぶつかりを照らす記録された方針の行 policy.RECORDED_KEY も足す。無人の run が判定の保留の問いに採った推しも
+問いの台帳（gatemarks.taken_pushes）から読んでその行に足し、独立設計の比較役に貼る人の答えには混ぜない）。比較役に貼った前提の控えは
 eyes/r2-premises.json に書く。目が読む累積差分は、入口の base（startrec.diff_base。差分の run では PR の根）から今の作業ツリーまで
 （未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
 （直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
@@ -24,6 +25,7 @@ import concepthome  # noqa: E402
 import depth  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
+import gatemarks  # noqa: E402
 import policy  # noqa: E402
 import premises as _premises  # noqa: E402
 import rolekit  # noqa: E402
@@ -36,6 +38,14 @@ def entry_base() -> str:
     if not base_rev:
         raise ValueError("始めの記録に入口の base が無く、累積差分の起点が分からない")
     return base_rev
+
+
+def taken_pushes() -> list:
+    """無人の run が判定の保留の問いに採った推しの文（問いの台帳を最後の関所と同じ判定・結び・修正前の関所の答えで読む）"""
+    if judgment_file is None:
+        return []
+    ties = boundary.pointed(os.environ["INPUTS_TIES_JUDGMENT"])
+    return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(gatemarks.ledger_at(judgment_file, start, answer, ties))]
 
 
 def read(raw):
@@ -61,7 +71,7 @@ depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
 after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
 human_items = eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer)
-recorded = policy.recorded(start, judgment_file.parent if judgment_file else None, human_items=human_items)
+recorded = policy.recorded(start, judgment_file.parent if judgment_file else None, human_items=human_items, pushes=taken_pushes())
 premises_text, r2_ledger = eyeverdict.premise_section(
     human_items=human_items,
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),

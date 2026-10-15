@@ -966,6 +966,7 @@ nodes:
       plan_questions: "$fixed.output.plan_questions"
       answers: "$fixed.output.answer"
       start_answers: "$answer-start.output.answer"
+      ties_judgment: "$fix-in.output.judgment"
       review_skipped: "$fixed.output.review_skipped"
 
   - id: eyes-out
