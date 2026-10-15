@@ -9,7 +9,7 @@
 - union の中のファイルで両方が同じ所（末尾）に行を足しただけの食い違いは、作業ツリーの側の行の後に patch の側の行を置いて
   当たる（unioned に積む）。行を変えた塊・union の外のファイルは今どおり当たらず、作業ツリーは前のまま
 - marked を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスを marked に積む）、union の中の挿しだけの食い違いは
-  合わせて印を書かない。markers_left は印の 4 つの頭のどれかの行が残るファイルを引く
+  合わせて印を書かない。markers_left は名つきの 3 つの印の頭のどれかの行（区切りの ======= だけの行は数えない）が残るファイルを引く
 - 合わせ役の指示書（fix-rules/clash.md）は印の両側を MARK_LABELS の名のまま名指す
 - tests_unique: 合わせた中身に同じ名のテストの定義が 2 つ在れば合わせない。patch_names: 差分の行先のパス
 """
@@ -122,10 +122,17 @@ class UnitTrees(unittest.TestCase):
         self.assertEqual(unittrees.markers_left(self.repo, ["a.txt", "b.txt"]), ["a.txt"])
 
     def test_markers_left_sees_every_marker_line(self):
+        """名つきの印の頭（<<<<<<<・|||||||・>>>>>>>）の行が 1 行でも残るファイルを数える。区切りの ======= だけの行は除く"""
         (self.repo / "mid.txt").write_text("a\n||||||| 元\nold\n=======\nY\nb\n", encoding="utf-8")
         (self.repo / "sep.txt").write_text("a\n=======\nb\n", encoding="utf-8")
         (self.repo / "plain.txt").write_text("a\n========\n<<<<<<<<b\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, ["mid.txt", "sep.txt", "plain.txt"]), ["mid.txt", "sep.txt"])
+        (self.repo / "half.txt").write_text("a\n<<<<<<< 今の作業ツリー\nb\n", encoding="utf-8")
+        self.assertEqual(unittrees.markers_left(self.repo, ["mid.txt", "sep.txt", "plain.txt", "half.txt"]),
+                         ["mid.txt", "half.txt"])
+
+    def test_markers_left_skips_a_lone_separator_line(self):
+        (self.repo / "r.md").write_text("Heading\n=======\ntext\n", encoding="utf-8")
+        self.assertEqual(unittrees.markers_left(self.repo, ["r.md"]), [])
 
     def test_insert_only_conflict_in_a_union_file_is_merged_in_order(self):
         state = self.real_state()
