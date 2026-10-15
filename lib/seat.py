@@ -64,7 +64,7 @@ NOTE_ROWS = (("材料の plan_items が空", "`compliance.verdict`: `not_applica
 # 申し出の種類の手引き: 語ごとの場面（conflict.DIV_KINDS と同じ語・同じ順。試験が照らす）。欄と語の決まりの正本は指示書の
 # 『食い違いの申し出』の節（writerules/common.md）で、ここは状態の語から kind を引き当てる 1 行ずつ
 DIVERGENCE_SCENES = {
-    conflict.BRIEF_VS_JUDGMENT: "brief と、判定・依頼・修正の前に人が答えた条件が食い違う（`between` にその単位の brief の行）",
+    conflict.BRIEF_VS_JUDGMENT: "brief と、判定・依頼・修正の前に承認ノードで答えた条件が食い違う（`between` にその単位の brief の行）",
     conflict.UNNAMED_TEST_BROKE: "修正案にも裁定にも名指されていない既存のテストが、直すと落ちる・外すしかない",
     conflict.NOT_RED: "受け入れのテスト・名指しの書き換えが、案どおりに書いても赤にならない・赤の種類が案と違う",
     conflict.SCOPE_NEEDED: ("brief や案の範囲の外を触らないと緑にならない・判定者の問いの数え直しが閉じない（範囲の相談のセクションが"

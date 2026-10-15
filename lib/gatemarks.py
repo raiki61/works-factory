@@ -62,6 +62,8 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - gate_text(asking, *, run_id, node, record_name): 答えを受ける関所の文（修正前の関所と仕様の関所が呼ぶ 1 つの組み立て）
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
   形の誤り（受け付けが拒む）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしの _human_passed はこの尾を外す）
+- push_rec(text)・pushed_answer(texts): 項目の推しの尾の読み戻しと、無人の run が関所を推しで通る答え（項目の全部が通す推しを持つ
+  時だけ。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
 - draft_line(drafts, next_file): 答えの下書き（draft: true・source つき。報告が next-request.json の answers に置き、依頼の入口
   carry.parts が拒む）の報告の冒頭 1 の行
@@ -133,7 +135,8 @@ MARK_SCHEMA = {
                 "properties": {RECOMMEND_KEYS[0]: {"type": "string", "enum": list(RECOMMEND_ANSWERS)},
                                **{k: {"type": "string", "minLength": RECOMMEND_MIN} for k in RECOMMEND_KEYS[1:]}},
                 "note": "人に回す行の推し: answer＝continue（通す）か stop（止める）・note＝承認ノードの一言に写せる通す範囲と条件か止める理由・"
-                        "why＝推す理由。人が答えるまでの下書きで、機械は承認ノードに答えない"},
+                        "why＝推す理由。無人の run では、承認ノードの項目の全部の推しが通すならこの推しで承認ノードを通り、note が修正役への"
+                        "一言になる。どれかの推しが無い・止めるなら止まり、推しは次の run の依頼の答えの下書きになる（人が見直すまで使われない）"},
 }
 # 狭めない案を探した結果（持ち主の方針 ADR 0002「今ある能力と使い方を減らさない」）。決め手の欄と同じく役の型にだけ足して受け付けが外すが、
 # 関所を通す条件（decided）には使わない。修正案の narrows の行では欠け・短いを受け付けが拒み、事前審査の穴では示せる時だけ書く
@@ -159,8 +162,9 @@ _RULE = ("に、決め手の欄を書け。decided_by＝決め手の出どころ
          "依頼が示した解き方は決め手にならない（定石と比べて疑う案）。定石で 1 つに決まるなら、その出どころを decided_by に書いて"
          "自分で決めよ。どの行にも "
          "world＝当たった結果の 1 文（出どころと割れ方、当たらなかったならその理由。人の前の決定で決まる行はそう書く）を書け。人に回す行では承認ノードの項目にそのまま載る。"
-         f"人に回す行には {RECOMMEND}＝推す答え 1 つ {RECOMMEND_SHAPE} も書け。承認ノードの項目の推しとして載り、無人の run が承認ノードで止まった時は次の run の"
-         "依頼の下書きの答えの下書きになる（人が見直すまで使われない。機械は承認ノードに答えない）")
+         f"人に回す行には {RECOMMEND}＝推す答え 1 つ {RECOMMEND_SHAPE} も書け。承認ノードの項目の推しとして載る。無人の run では、承認ノードの"
+         "項目の全部の推しが通すならその推しで承認ノードを通り、note が修正役への一言になる。どれかの推しが無い・止めるなら止まり、推しは次の run の"
+         "依頼の下書きの答えの下書きになる（人が見直すまで使われない）")
 _NO_NARROW_PLAN = ("\n\n狭めない案を先に探せ: narrows を書く前に、その狭めを避ける形——直したい場合だけに新しい動きを当て、当てられない"
                    "場合（記録の欄が無い・数えられない・道具が違う等）は BASE の動きを残し、黙らずに報告か標準エラーで名指す形——を"
                    "当たれ。在ればそれを案に採り、その行を narrows に書かない。無い時だけ narrows に書き、各行に "
@@ -174,15 +178,16 @@ HEAD = {"p2.fix_plan": "承認ノードの項目の決め手: plan[].narrows の
         "p2.plan_review": "承認ノードの項目の決め手: faces のうち kind が regression・policy の各行" + _RULE + _NO_NARROW_REVIEW}
 PASSED_BY = "decided"
 PASSED_BY_HUMAN = "human"               # 修正の後の関所で、修正前の関所で人が通した行と同じなので聞き直さなかった
+PASSED_BY_PUSH = "push"                 # 同じく、修正前の関所を無人の run が推しで通した行と同じなので聞き直さなかった
 GATE_NODE = "p2.human_gate"
 R4_GATE_NODE = "r4.human_gate"
 # 修正前の関所の行の頭（plan_gate_items と写しの _plan_gate_items が組む形）。r4_gate_items が種類と本文に分ける
 NARROW_HEAD = re.compile(r"修正案 \d+ が狭める能力: ")
 FACE_HEAD = re.compile(r"事前審査の穴 \[([^\]]+)\] [^\n]*?: ")
-CARRIED_HEAD = promptsection.Section("## 直す前の承認ノードで人が通した狭まり（機械が貼った）", source="fn:gatemarks.carried_section")
-CARRIED_ASK = ("下の行は、直す前の承認ノードで人が通すと答えた（continue）。同じ能力の消えを capability_inventory.lost に、同じ方針との"
-               "ぶつかりを policy_conflicts に書くなら、[ ] の種類（regression は lost・policy は policy_conflicts）に合わせ、本文を"
-               "一字も変えずに写せ。通した条件を超える消え・別の能力は自分の言葉で書け")
+CARRIED_HEAD = promptsection.Section("## 直す前の承認ノードで通した狭まり（機械が貼った）", source="fn:gatemarks.carried_section")
+CARRIED_ASK = ("下の行は、直す前の承認ノードで通すと答えた（continue。人の答えか、無人の run が採った推し）。同じ能力の消えを "
+               "capability_inventory.lost に、同じ方針とのぶつかりを policy_conflicts に書くなら、[ ] の種類（regression は lost・"
+               "policy は policy_conflicts）に合わせ、本文を一字も変えずに写せ。通した条件を超える消え・別の能力は自分の言葉で書け")
 ASK_HEAD = "問いの台帳の問い"          # 関所の項目の頭。答えの突き合わせもこの頭と key で引く
 ASK_KINDS = ("fork", "escalate")       # 関所の項目の kinds（fork の問いと、status が escalate の問い）
 HOLD = re.compile(r"保留\s*[:：]\s*([^。；;\n]+)")   # 一言の「保留: <key>」（文の終わりまで。key を並べてよい。key は hold_keys が台帳から拾う）
@@ -469,6 +474,29 @@ def _push(mark: dict) -> str:
     answer = rec[RECOMMEND_KEYS[0]]
     note, why = (_squeeze(rec[k]).replace("／", "・") for k in RECOMMEND_KEYS[1:])
     return f"／{PUSH}{RECOMMEND_WORDS[answer]}（{answer}）——{note}（理由: {why}）"
+
+
+_PUSH_REC = re.compile("／" + re.escape(PUSH) + "(" + "|".join(RECOMMEND_WORDS.values()) + ")（(" + "|".join(RECOMMEND_ANSWERS)
+                       + ")）——([^／\n]*)（理由: ([^／\n]*)）$")
+
+
+def push_rec(text) -> dict | None:
+    """関所の項目の文の末尾の推しの尾（_push の形）を {item（尾を外した文）, answer, note, why} に読み戻す。形でなければ None"""
+    got = _PUSH_REC.search(str(text or ""))
+    if got is None or RECOMMEND_WORDS[got.group(2)] != got.group(1):
+        return None
+    return {"item": str(text)[:got.start()], RECOMMEND_KEYS[0]: got.group(2), RECOMMEND_KEYS[1]: got.group(3),
+            RECOMMEND_KEYS[2]: got.group(4)}
+
+
+def pushed_answer(texts) -> dict | None:
+    """無人の run が関所を推しで通る答え {decision, text, answer.PUSHED}。関所に載る項目の全部が推しの尾を持ち、全部が通す時だけ。
+    一言 text は推しの note を「；」で繋いだ物（修正役に人の一言と同じ道で届く）。ほかは None（機械は推しを作らない）"""
+    recs = [push_rec(t) for t in texts or []]
+    if not recs or any(r is None or r[RECOMMEND_KEYS[0]] != RECOMMEND_ANSWERS[0] for r in recs):
+        return None
+    note = "；".join(dict.fromkeys(r[RECOMMEND_KEYS[1]] for r in recs))
+    return {"decision": RECOMMEND_ANSWERS[0], "text": note, answer.PUSHED: recs}
 
 
 def _gate_rows(b) -> list:
@@ -1197,13 +1225,14 @@ def converge_of(folder) -> list:
     return [x for x in (doc.get("converge") if isinstance(doc, dict) else None) or [] if isinstance(x, str)]
 
 
-def gate_items(answer) -> list:
-    """修正前の関所の答え answer（{decision, text, asked}。飛ばされた時は None）を、人の関所の行 human_items
-    [{round, node, answer, note, asked}] にする。通す語の時だけ 1 行（answer は continue。asked は人が見た関所の行）"""
-    if not isinstance(answer, dict) or answer.get("decision") not in GO_WORDS:
+def gate_items(got) -> list:
+    """修正前の関所の答え got（{decision, text, asked}。飛ばされた時は None）を、人の関所の行 human_items
+    [{round, node, answer, note, asked}] にする。通す語の時だけ 1 行（answer は continue。asked は関所に載った行）。無人の run が
+    推しで通した答えは欄 answer.PUSHED を行にも写す（読み手が人の答えと読み分ける）"""
+    if not isinstance(got, dict) or got.get("decision") not in GO_WORDS:
         return []
-    return [{"round": 1, "node": GATE_NODE, "answer": "continue", "note": str(answer.get("text") or ""),
-             "asked": [a for a in answer.get("asked") or [] if isinstance(a, str)]}]
+    return [{"round": 1, "node": GATE_NODE, "answer": "continue", "note": str(got.get("text") or ""),
+             "asked": [a for a in got.get("asked") or [] if isinstance(a, str)], **answer.origin(got)}]
 
 
 def returned_lines(b) -> list:
@@ -1290,7 +1319,7 @@ def _record(b, passed) -> None:
 
 
 def _human_passed(b) -> dict:
-    """修正前の関所で人が continue で通した行 {(種類, 頭を除いた本文): 答えた周}（台帳の問いの行は数えない）"""
+    """修正前の関所で continue で通した行（人の答えか、無人の run の推し）{(種類, 頭を除いた本文): 答えた周}（台帳の問いの行は数えない）"""
     out = {}
     for h in (b.record.get("process") or {}).get("human_items") or []:
         if not (isinstance(h, dict) and h.get("node") == GATE_NODE and h.get("answer") == "continue"):
@@ -1305,7 +1334,7 @@ def _human_passed(b) -> dict:
 
 
 def carried_section(b) -> str:
-    """R4（r4.hidden_scope）の指示書の頭に貼る節: 修正前の関所で人が continue で通した行（種類と頭を除いた本文）と、同じ物を書く
+    """R4（r4.hidden_scope）の指示書の頭に貼る節: 修正前の関所で continue で通した行（種類と頭を除いた本文）と、同じ物を書く
     なら本文をそのまま写せという頼み。r4_gate_items は本文の完全一致で照らすので、別の役の自由文を揃える口。無ければ空"""
     rows = [f"- [{kind}] {body}" for kind, body in _human_passed(b)]
     return f"{CARRIED_HEAD}\n\n{CARRIED_ASK}\n\n" + "\n".join(rows) if rows else ""
@@ -1316,9 +1345,10 @@ def passes(b) -> list:
 
 
 def _pass_line(p) -> str:
-    if p.get("by") == PASSED_BY_HUMAN:
+    if p.get("by") in (PASSED_BY_HUMAN, PASSED_BY_PUSH):
         at = p.get("passed_at") or {}
-        return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——人が通した（周 {at.get('round')}・"
+        who = "人が通した" if p.get("by") == PASSED_BY_HUMAN else "無人の run で推しを採って通した"
+        return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——{who}（周 {at.get('round')}・"
                 f"{PLAIN.get(str(at.get('node')), at.get('node'))}）狭まりと同じ: {p['item']}")
     return f"{named(p['node'])}（周 {p['round']}）で決め手が在るので聞かずに通した: {p['item']}（決め手: {p.get('decided_by')}）"
 
