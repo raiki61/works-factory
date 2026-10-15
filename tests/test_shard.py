@@ -9,11 +9,14 @@
 import contextlib
 import io
 import json
+import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 from tests import shard
+from tests.bin import hermetic
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 N = 4
@@ -166,8 +169,21 @@ class RunExitTest(unittest.TestCase):
             self.assertEqual(run_quietly({}), 5)
 
     def test_paths_that_pick_nothing_are_red_not_everything(self):
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), mock.patch.dict(os.environ):
             self.assertEqual(shard.main(["--paths", "no/such/dir"]), 5)
+
+
+class ScrubTest(unittest.TestCase):
+    def test_the_run_drops_the_parents_names_before_the_tests_read_them(self):
+        """工場の中の run が立てる名は、試験の過程の既定の環境にも残らない。Archon の源の置き場と見送りを赤にする旗は残る"""
+        parent = {"WORKS_ANSWER_CMD": "sh respond", "CLAUDE_CONFIG_DIR": "/parent/config", "INPUTS_REPLY": "{}",
+                  hermetic.ARCHON_CACHE_ENV: "/cache", hermetic.ARCHON_REQUIRED_ENV: "1"}
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                mock.patch.dict(os.environ, parent):
+            shard.main(["--paths", "no/such/dir"])
+            left = {k: os.environ.get(k) for k in parent}
+        self.assertEqual(left, {"WORKS_ANSWER_CMD": None, "CLAUDE_CONFIG_DIR": None, "INPUTS_REPLY": None,
+                                hermetic.ARCHON_CACHE_ENV: "/cache", hermetic.ARCHON_REQUIRED_ENV: "1"})
 
 
 if __name__ == "__main__":

@@ -729,7 +729,7 @@ def fixture_format(fixture_text: str):
 
 def text_at(rev: str, rel: str) -> str | None:
     """版 rev のファイル rel の字（無ければ None）"""
-    got = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, text=True, encoding="utf-8")
+    got = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
     return got.stdout if got.returncode == 0 else None
 
 

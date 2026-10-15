@@ -137,7 +137,7 @@ class ScriptCase(unittest.TestCase):
 
     @staticmethod
     def status(cwd):
-        done = subprocess.run(["git", "status", "--porcelain"], cwd=cwd, capture_output=True, text=True)
+        done = subprocess.run(["git", "status", "--porcelain"], cwd=cwd, capture_output=True, text=True, env=hermetic.child_env())
         return done.stdout if done.returncode == 0 else None
 
     def seal(self, **over) -> dict:

@@ -1056,7 +1056,7 @@ _BLK_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_chan
 
 def _blk_run(script, repo, art, inputs=None, node_path="fix__x", env_extra=None):
     """scripts/<script>.py を一時の対象のリポジトリ repo で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
-    env_extra は子の環境に足す（子の環境は hermetic.child_env で作るので、親の名は継がない）"""
+    env_extra は子の環境に足す"""
     env = hermetic.child_env()
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _BLK_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": node_path}), "PYTHONDONTWRITEBYTECODE": "1"})
@@ -1226,7 +1226,7 @@ class BlockScriptsCase(unittest.TestCase):
 
     # ---- prep.py
     def test_prep_two_groups_run_side_by_side(self):
-        subprocess.run(["git", "remote", "add", "origin", str(self.tmp / "origin.git")], cwd=self.repo, check=True)
+        subprocess.run(["git", "remote", "add", "origin", str(self.tmp / "origin.git")], cwd=self.repo, check=True, env=hermetic.child_env())
         code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(), "fix__prep")
         self.assertEqual(code, 0, err)
         self.assertEqual([(g["unit_ids"], g["items"]) for g in out["groups"]], [(["A", "B"], [1]), (["C"], [2])])
@@ -2632,7 +2632,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         (self.parent / "baseline.json").write_text(json.dumps({"cases": [], "exit": 1}), encoding="utf-8")
 
     def _grp_run(self, script, nid, ok=True, cwd=None, **inputs):
-        """self.grp_env は子の環境に足す（子の環境は hermetic.child_env で作るので、親の名は継がない。記録の根を試す試験はここに自分の根を置く）"""
+        """self.grp_env は子の環境に足す（記録の根を試す試験はここに自分の根を置く）"""
         env = hermetic.child_env()
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _GRP_RUN,
                     "ARCHON_NODE_EXECUTION": json.dumps({"path": nid}), "WORKS_FACTORY_ROOT": str(ROOT),
@@ -3174,7 +3174,7 @@ _FX_JUDGMENT = {"units": [
 
 def _fx_run(script, repo, art, *, env_extra=None, **inputs):
     """scripts/<script>.py を一時の対象のリポジトリ repo・一時の置き場 art で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
-    env_extra は子の環境に足す（子の環境は hermetic.child_env で作るので、親の名は継がない）"""
+    env_extra は子の環境に足す"""
     env = hermetic.child_env()
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _FX_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": "x"}), "PYTHONDONTWRITEBYTECODE": "1"})

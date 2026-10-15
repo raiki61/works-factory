@@ -35,6 +35,7 @@ import worldblk  # noqa: E402
 import worldmark  # noqa: E402
 from engine.util import Reject  # noqa: E402
 from tests.bin import gitkit  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 
 class TablesCase(unittest.TestCase):
@@ -638,7 +639,7 @@ class VerifyPrepCase(_VerifyBase):
     def test_judgeverify_loads_before_judge_accept(self):
         """judgeverify を先に読んでも judge_accept が読み込める（読み込みの順で落ちる循環が無い）"""
         done = subprocess.run([sys.executable, "-c", "import judgeverify, judge_accept"], cwd=LIB,
-                              capture_output=True, text=True, encoding="utf-8")
+                              capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_one_open_unit_or_off_does_not_go_and_writes_not_run(self):
@@ -1935,8 +1936,8 @@ class SpecGateCase(_SpecRepoCase):
         """元 test_blk_spec の test_pass_path の関所の文（run の字面・審査の穴と答え・答えの行）と test_blk_spec_gate"""
         got = self.asked()
         for part in (_ACCEPT_RUN, "spec.approve", "F1", "declared", "process.spec.approval",
-                     specblk.gatemarks.answer.line("run-spec", "continue", "<通す範囲と条件>", env={}),
-                     specblk.gatemarks.answer.line("run-spec", "stop", "<理由>", env={})):
+                     specblk.gatemarks.answer.line("run-spec", "continue", "<通す範囲と条件>"),
+                     specblk.gatemarks.answer.line("run-spec", "stop", "<理由>")):
             self.assertIn(part, got["message"])
         self.assertFalse((self.jdir / specblk.SPEC_FILE).exists(), "承認の前に仕様を固めない")
 
@@ -2793,7 +2794,7 @@ class PublicFileReadersCase(unittest.TestCase):
         for mod in self.READERS:
             with self.subTest(mod=mod):
                 got = subprocess.run([sys.executable, "-c", f"import sys, {mod}; print('judge_accept' in sys.modules)"],
-                                     cwd=LIB, capture_output=True, text=True, check=True)
+                                     cwd=LIB, capture_output=True, text=True, check=True, env=hermetic.child_env())
                 self.assertEqual(got.stdout.strip(), "False")
         prep = LIB.parent / "workflows" / "eyes" / "scripts" / "prep.py"
         self.assertNotIn("judge_accept", prep.read_text(encoding="utf-8"))

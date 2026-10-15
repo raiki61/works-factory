@@ -1,4 +1,4 @@
-"""`tests/`・`lib/tests/` の試験の子の環境は hermetic.child_env で作る（根の AGENTS.md の E21 の機械の行）。"""
+"""`tests/`・`lib/tests/` の試験の子の環境は hermetic.child_env で作る（tests/AGENTS.md の E21 の機械の行）。"""
 import pathlib
 import unittest
 
@@ -40,6 +40,19 @@ class HermeticEnvTest(unittest.TestCase):
             with self.subTest(form=form), tree({"tests/x/test_a.py": f"env = {form}\n"}) as root:
                 got = scan.problems("E21", root)
             self.assertTrue(any(line.startswith("tests/x/test_a.py:1:") for line in got), (form, got))
+
+    def test_every_child_started_without_an_env_is_caught(self):
+        for call in ("subprocess.run(cmd)", "subprocess.Popen(cmd, cwd=d)", "subprocess.check_output(cmd, env=None)",
+                     "subprocess.call(cmd)", "subprocess.check_call(cmd)", "asyncio.create_subprocess_exec(*cmd)",
+                     "os.system(cmd)", "os.popen(cmd)"):
+            with self.subTest(call=call), tree({"lib/tests/test_a.py": f"x = 1\ndone = {call}\n"}) as root:
+                got = scan.problems("E21", root)
+            self.assertTrue(any(line.startswith("lib/tests/test_a.py:2:") for line in got), (call, got))
+
+    def test_a_child_given_an_env_is_not_caught(self):
+        text = "done = subprocess.run(cmd, env=hermetic.child_env(A=\"1\"))\nasyncio.run(main())\n"
+        with tree({"tests/x/test_a.py": text}) as root:
+            self.assertEqual(scan.problems("E21", root), [])
 
     def test_patching_the_environment_in_place_is_not_a_copy(self):
         text = f'with mock.patch.dict({ENVIRON}, {{"A": "1"}}):\n    pass\n'

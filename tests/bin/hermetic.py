@@ -2,7 +2,8 @@
 
 試験の子へ親の環境を丸ごと渡すと、run の中（Archon・Claude Code の子）で親が立てた名が漏れて、その場でだけ赤くなる。
 tox の pass_env と同じ向きで、外す名はここの 1 か所に置き、試験が意図して渡す名は child_env の overrides で名指しする。
-試験が起こす子の環境を作るのはここだけ（os.environ を手で写す口は層の柵 E21 が赤にする）。
+試験が起こす子の環境を作るのはここだけ（os.environ を手で写す口と env を渡さない子の起こしは層の柵 E21 が赤にする）。
+試験を回す口 tests/shard.py は、試験を集める前に scrub で自分の過程からも同じ名を外す（過程の中で読む既定の環境も場に依らない）。
 Archon が script の節に立てる変数の名は境 workflows/.shared/boundary.py が持ち、ここは引くだけ（runner_vars）。
 macOS の一時フォルダは /var→/private/var の symlink の下にあり、pathlib の relative_to は字面で比べるので、比べる試験は
 tmpdir の実体のパスを使う。
@@ -19,9 +20,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 # run が立てる名（bin/ の起動・Claude Code・graphloops の engine の子の目印）。Archon が script の節に立てる名は境が持つので
 # ここに写さない（dropped が runner_vars を引く）。
 # ANTHROPIC_ は起こし役（bin/_lib/auth_launch.py）が受け継いだ認証として先に拾い、keychain の段の試験を素通りさせる。
-# HERDR_ は herdr の枠の中で試験を回すと、殻が控えに本物の枠とサーバを残して本物の herdr へ送る（枠の試験は名指しで渡す）
+# HERDR_ は herdr の枠の中で試験を回すと、殻が控えに本物の枠とサーバを残して本物の herdr へ送る（枠の試験は名指しで渡す）。
+# WORKS_ANSWER_CMD は起動の殻が run に置く答えの行の頭（lib/answer.ENV）で、関所の文が既定で読む
 DROPPED_PREFIXES = ("WORKS_FACTORY_", "CLAUDE_", "ARCHON_", "ANTHROPIC_", "HERDR_")
-DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD"})
+DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD", "WORKS_ANSWER_CMD"})
+# 試験の用意が過程の中で読む名（Archon の源の置き場と、見送りを赤にする旗。読むのは tests/archon.py）。scrub はこれを残す
+ARCHON_CACHE_ENV = "WORKS_FACTORY_ARCHON_CACHE"
+ARCHON_REQUIRED_ENV = "WORKS_FACTORY_ARCHON_REQUIRED"
 
 
 @functools.cache
@@ -44,6 +49,13 @@ def child_env(**overrides) -> dict:
     env = {k: v for k, v in os.environ.items() if not dropped(k)}
     env.update(overrides)
     return env
+
+
+def scrub() -> None:
+    """この過程の os.environ から dropped の名を外す（試験の用意の名 ARCHON_CACHE_ENV・ARCHON_REQUIRED_ENV は残す）。
+    試験が過程の中で読む既定の環境も走らせた場に依らなくなる"""
+    for name in [k for k in os.environ if dropped(k) and k not in (ARCHON_CACHE_ENV, ARCHON_REQUIRED_ENV)]:
+        del os.environ[name]
 
 
 def alias(case, path) -> str:

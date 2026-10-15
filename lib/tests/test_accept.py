@@ -18,6 +18,7 @@ if str(LIB) not in sys.path:
 import accept  # noqa: E402
 from accept import _ignored_entries, snapshot_tree, touched_files, tree_change, tree_state  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 class AcceptCase(unittest.TestCase):
     def setUp(self):
@@ -201,7 +202,8 @@ class TestTreeState(AcceptCase):
         git(self.repo, "commit", "-q", "-m", "old")
         (self.repo / "!! old.txt").rename(self.repo / "new.txt")
         git(self.repo, "add", "-N", "new.txt")
-        z = subprocess.run(["git", "-C", str(self.repo), "status", "--porcelain", "-z"], capture_output=True, check=True).stdout
+        z = subprocess.run(["git", "-C", str(self.repo), "status", "--porcelain", "-z"], capture_output=True, check=True,
+                           env=hermetic.child_env()).stdout
         self.assertTrue(z.startswith(b" R new.txt\0!! old.txt\0"), z)
         self.assertEqual(_ignored_entries(self.repo), [])
 

@@ -125,17 +125,17 @@ ALLOWED = {
         # 本物の run・較正の命令の道具。利用者の環境（認証・PATH）を継ぐのが用途
         "tests/calibration/run.py",
         "tests/calibration/reviewbench.py",
+        "tests/calibration/swepro.py",
         "tests/e2e/evidence.py",
         "tests/e2e/make_target.py",
+        # 試験を回す口。子の tests.shard は自分の過程の環境を hermetic.scrub で外し、Archon の源の置き場の名を継ぐのが要る
+        "tests/changed.py",
         # 受けた環境を控えるだけの偽の起動
         "tests/bin/fakelaunch.py",
         # 偽の script の字の中の os.environ で、子の環境を組む口ではない
         "tests/shared/test_fence.py#os.environ.items()",
         # この表の上の行の字そのもの（許しの行が名指す字は、走査器自身の字として当たる）
         "tests/layers/scan.py#os.environ.items()",
-        "tests/layers/scan.py#outside_env(os.environ)",
-        # 本物の uv run を起こす試験で、利用者の uv の置き場・PATH を継ぐのが用途
-        "tests/workflows/test_uv_scripts.py#outside_env(os.environ)",
     ),
     "E13": (
         "lib/AGENTS.md",
@@ -563,11 +563,38 @@ COPIED_ENVIRON = re.compile(
 )
 
 
+# 子を起こす呼び出し（モジュールの名 → 関数の名）。env を渡さないと親の環境を丸ごと受け継ぐ。os.system・os.popen は env を受けない
+SPAWNS = {
+    "subprocess": frozenset({"run", "Popen", "call", "check_call", "check_output"}),
+    "asyncio": frozenset({"create_subprocess_exec", "create_subprocess_shell"}),
+    "os": frozenset({"system", "popen"}),
+}
+
+
+def _envless_spawns(root: Path, path: Path) -> list[str]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError):
+        return []   # 読めない字は _grep が UTF-8 の行で出す。構文の誤りは試験そのものが落ちる
+    out = []
+    for node in ast.walk(tree):
+        func = getattr(node, "func", None)
+        if not (isinstance(node, ast.Call) and isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+                and func.attr in SPAWNS.get(func.value.id, ())):
+            continue
+        env = next((k.value for k in node.keywords if k.arg == "env"), None)
+        if env is None or (isinstance(env, ast.Constant) and env.value is None):
+            out.append(f"{_rel(root, path)}:{node.lineno}: 子の環境は hermetic.child_env で作る。env の無い子の起こし "
+                       f"{func.value.id}.{func.attr}")
+    return out
+
+
 def _hermetic_env(root: Path) -> list[str]:
-    """E21: tests/ と lib/tests/ の試験の子の環境は hermetic.child_env で作る。os.environ を写す形
+    """E21: tests/ と lib/tests/ の試験の子の環境は hermetic.child_env で作る。os.environ を写す形と、env を渡さない子の起こし
     （開発者のシェルや親の run が立てた名が子へ漏れて、同じ試験が場で違う結果を返す）を赤にする"""
     paths = [p for folder in (("tests",), ("lib", "tests")) for p in _files(root, *folder) if p.suffix == ".py"]
-    return _grep(root, paths, (COPIED_ENVIRON, lambda m: f"子の環境は hermetic.child_env で作る。os.environ を写す {m[0]}"))
+    copies = _grep(root, paths, (COPIED_ENVIRON, lambda m: f"子の環境は hermetic.child_env で作る。os.environ を写す {m[0]}"))
+    return copies + [line for path in paths for line in _envless_spawns(root, path)]
 
 
 ORIGIN_NAME = re.compile(r"^(factory|FACTORY|harness|\.factory|archon-)")

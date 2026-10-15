@@ -783,7 +783,7 @@ class DesignCase(RunCase):
                          [(False, False, False)] * 2 + [(False, True, True)])
         self.assertTrue(rounds[1][0].startswith(boardview.rolekit.REJECT_HEADING))
         until = nodes()["r2-design-loop"]["loop_group"]["until_bash"].replace("$r2-accept.output.done", "true")
-        self.assertEqual(subprocess.run(["sh", "-c", until]).returncode, 0)
+        self.assertEqual(subprocess.run(["sh", "-c", until], env=hermetic.child_env()).returncode, 0)
         self.assertFalse(r.open()["r2_go"], "諦めた設計は起こし直さない")
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn(f"独立設計は無い（{design.MISSING}: ", text)

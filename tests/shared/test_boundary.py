@@ -153,7 +153,7 @@ class BlockPlaceTest(FakeRunTest):
     def test_work_tree_is_the_git_top(self):
         repo = self.artifacts / "repo"
         (repo / "sub").mkdir(parents=True)
-        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, env=hermetic.child_env())
         cwd = os.getcwd()
         os.chdir(repo / "sub")
         try:

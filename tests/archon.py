@@ -29,8 +29,8 @@ from tests.bin import hermetic
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-CACHE_ENV = "WORKS_FACTORY_ARCHON_CACHE"
-REQUIRED_ENV = "WORKS_FACTORY_ARCHON_REQUIRED"
+CACHE_ENV = hermetic.ARCHON_CACHE_ENV
+REQUIRED_ENV = hermetic.ARCHON_REQUIRED_ENV
 PACK = pack.load(ROOT)
 BUILTIN_SKILLS = frozenset({"code-review", "simplify", "security-review"})
 BORROWED_SKILLS = frozenset(json.loads((ROOT / "bin" / "_lib" / "borrow" / "borrow.json").read_text(encoding="utf-8"))

@@ -769,7 +769,7 @@ class AcceptLoopTest(unittest.TestCase):
             self.assertEqual((out["ok"], out["done"]), (False, n == 3), out)
             self.assertTrue(out["reason"])
             script = until.replace("$diagnose-accept.output.done", shlex.quote(json.dumps(out["done"])))
-            exits.append(subprocess.run(["sh", "-c", script]).returncode)
+            exits.append(subprocess.run(["sh", "-c", script], env=hermetic.child_env()).returncode)
         self.assertEqual([e == 0 for e in exits], [False, False, True])
         self.assertEqual(len(json.loads((r.judge / "rejects-diagnose.json").read_text(encoding="utf-8"))), 3)
 

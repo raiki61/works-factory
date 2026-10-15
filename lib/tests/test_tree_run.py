@@ -431,7 +431,7 @@ class TreeRunCase(unittest.TestCase):
             fake.chmod(0o755)
             child = self.tmp / "child"
             p = subprocess.Popen(["/bin/sh", "-c", f"(trap '' TERM; echo $$ > {child}; sleep 300) & wait"],
-                                 start_new_session=True, stdin=subprocess.DEVNULL)
+                                 start_new_session=True, stdin=subprocess.DEVNULL, env=hermetic.child_env())
             self.started.extend([("popen", p), ("pg", p.pid)])
             read_int(child)
             t0 = time.monotonic()
@@ -451,7 +451,7 @@ class TreeRunCase(unittest.TestCase):
         fake.chmod(0o755)
         child = self.tmp / "child"
         p = subprocess.Popen(["/bin/sh", "-c", f"sleep 300 & echo $! > {child}; wait"], start_new_session=True,
-                             stdin=subprocess.DEVNULL)
+                             stdin=subprocess.DEVNULL, env=hermetic.child_env())
         self.started.extend([("popen", p), ("pg", p.pid)])
         cpid = read_int(child)
         with mock.patch.object(tree_run, "PS", str(fake)):
@@ -461,7 +461,7 @@ class TreeRunCase(unittest.TestCase):
             try:
                 ps_pid = read_int(ps_pidf)
                 state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(cpid)], capture_output=True, text=True,
-                                       timeout=30).stdout.strip()
+                                       timeout=30, env=hermetic.child_env()).stdout.strip()
                 self.assertTrue(state.startswith("T"), f"ps が固まる間、グループの子が止まっていない（stat {state!r}）")
             finally:
                 if ps_pid is not None:
@@ -477,7 +477,7 @@ class TreeRunCase(unittest.TestCase):
         ready, handled = self.tmp / "ready", self.tmp / "handled"
         p = subprocess.Popen(["/bin/sh", "-c", f"(trap 'echo 1 > {handled}; exit 0' TERM; echo 1 > {ready}; "
                                                "while :; do sleep 0.05; done) & wait"],
-                             start_new_session=True, stdin=subprocess.DEVNULL)
+                             start_new_session=True, stdin=subprocess.DEVNULL, env=hermetic.child_env())
         self.started.extend([("popen", p), ("pg", p.pid)])
         read_int(ready)
         self.assertIsNone(tree_run.stop_group(p))
@@ -493,7 +493,7 @@ class TreeRunCase(unittest.TestCase):
         fake.chmod(0o755)
         child = self.tmp / "child"
         p = subprocess.Popen(["/bin/sh", "-c", f"sleep 300 & echo $! > {child}; exit 0"], start_new_session=True,
-                             stdin=subprocess.DEVNULL)
+                             stdin=subprocess.DEVNULL, env=hermetic.child_env())
         self.started.extend([("popen", p), ("pg", p.pid)])
         cpid = read_int(child)
         self.started.append(("pid", cpid))
@@ -505,7 +505,7 @@ class TreeRunCase(unittest.TestCase):
             try:
                 ps_pid = read_int(ps_pidf)
                 state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(cpid)], capture_output=True, text=True,
-                                       timeout=30).stdout.strip()
+                                       timeout=30, env=hermetic.child_env()).stdout.strip()
                 self.assertFalse(state.startswith("T"), f"回収した長のグループを ps より前に凍らせた（stat {state!r}）")
             finally:
                 if ps_pid is not None:
@@ -630,7 +630,7 @@ class LaunchProofShapeCase(unittest.TestCase):
         for cmd in ("true; echo done", "true|cat", "true&&true", "# note\ntrue", "FOO=1 true", "2>/dev/null true",
                     "2>&1 true", "10<&0 true", ">/dev/null true", "time true"):
             with self.subTest(cmd=cmd):
-                self.assertEqual(subprocess.run(["bash", "-c", cmd], stdout=subprocess.DEVNULL).returncode, 0)
+                self.assertEqual(subprocess.run(["bash", "-c", cmd], stdout=subprocess.DEVNULL, env=hermetic.child_env()).returncode, 0)
                 tree_run.prove_launchable(["bash", "-c", cmd])
 
     def test_slow_proof_is_waited_out_without_deadline(self):
@@ -683,7 +683,7 @@ class CommandArgvCase(unittest.TestCase):
             argv, how = tree_run.command_argv(cmd)
             self.assertEqual(how, "direct")
             words = subprocess.run(["bash", "-c", f'set -- {cmd}; printf "%s\\n" "$@"'],
-                                   capture_output=True, text=True, encoding="utf-8").stdout.splitlines()
+                                   capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env()).stdout.splitlines()
             self.assertEqual(argv, words)
 
     def test_launch_kind_reads_126_127_as_red(self):

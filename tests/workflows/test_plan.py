@@ -230,7 +230,7 @@ class Run:
     def until(self, expr):
         """until_bash を sh で評価する（$<節>.output.<欄> を字に替えて）"""
         text = re.sub(r"\$([\w-]+)\.output\.(\w+)", lambda m: str(self.out[m.group(1)][m.group(2)]).lower(), expr)
-        return subprocess.run(["sh", "-c", text]).returncode == 0
+        return subprocess.run(["sh", "-c", text], env=hermetic.child_env()).returncode == 0
 
     def include(self, *, eye=None, writer=None, typed=True, **inputs):
         """計画のブロックを 1 度差し込み、返す節の出力を返す。eye(structure_file) と writer(回の番号, 材料の字) は役の返答。
