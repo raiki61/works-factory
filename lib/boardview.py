@@ -223,7 +223,8 @@ def _keys_once(rows, label):
 
 def plan_review_output(b, nid, out, item):
     """事前審査の穴は案の単位を指し、key は一意。穴も別案も無いなら faces_none を書く。入口の穴は no_add を併記する
-    （元 review-loop.py:3096。out の unit_keys は単位の名に戻した物）"""
+    （元 review-loop.py:3096。out の unit_keys は単位の名に戻した物）。where で機械の足した欄を名指す block は拒む
+    （planmarks.machine_face_gaps。元に無い）"""
     planned = converge.planned_units((b.output_of_round(PLAN_NODE, b.round) or {}).get("plan"))
     rows = (out.get("faces") or []) + (out.get("shrink") or [])
     errs = _keys_once(rows, "faces・shrink")
@@ -235,6 +236,7 @@ def plan_review_output(b, nid, out, item):
         errs.append("穴も別案も挙げないなら faces_none に何を確かめて無いと言えるかを書け")
     errs += [f"faces の '{f['key'][:40]}'（entrance）に no_add（柵や入口を足さずに閉じる形。無理なら無理な理由）が無い"
              for f in out.get("faces") or [] if f["kind"] == "entrance" and blank(f.get("no_add"), 20)]
+    errs += planmarks.machine_face_gaps(out.get("faces") or [])
     if errs:
         raise Reject(f"{nid}: " + "; ".join(errs))
 

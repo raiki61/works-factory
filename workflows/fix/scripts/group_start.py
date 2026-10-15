@@ -9,8 +9,9 @@
 - 入力の写し: 入力 out_dir が在る（親が起こした子）なら、親の置き場（out_dir の 1 つ上）の写しを自分の置き場に写す
   （fixboard.adopt_inputs。親のポインタは親の run の物で、この run では引けない。2 回目の修正の段なら 1 回目の段の申し出と裁定と
   ループの状態も）。out_dir が空の単独の run は、ポインタを自分で引いて節 prep と同じ写しを置く（fixboard.prep）
-- 親の作業ツリーで 1 つずつ回る子（out_dir が在り from_tree が空）は、前の組の子が結果を書かずに落ちて残した変更を、その子の
-  始めの木に戻してから始める（fixboard.drop_unreturned。最後の組の分は join が戻す）
+- 親の作業ツリーで 1 つずつ回る子（out_dir が在り from_tree が空）は、前の組の子が結果を書かずに落ちていれば、何も書かずに
+  1 で止まる（その変更は親の作業ツリーに残り、親の resume が前の子を続きから回す。issue #576）。自分の組の分（前の試みの
+  group-start が書いた始めの記録）は始めの木に戻してから始める（fixboard.drop_unreturned）
 - 記録の根が在れば、自分の作業ツリーの書き込みの記録を空で作る（writelog.open_here。並べた子は自分の作業ツリーを持つ）
 - 控え（leftovers.record_ignored）と始めの木（groups.end_tree）。自分の組だけの groups.json（{groups: [組], count: 1, par: false,
   start_tree, out_dir}）
@@ -20,8 +21,8 @@
   旗 tree_run.RERUN_ENV が立てば引かない）
 置き場に書く物: 上の写し・fix-ignored-before.json・groups.json・tdd-start.json・tdd-<k>/（輪の状態）。組の置き場
 （fixboard.group_dir）に group-start.json（{group, from_tree, out_dir, start_tree}。group-end と drop_unreturned が読む）。
-返り {tdd: 輪を回すか, units: 組の単位の数, reason: 回さない理由}。入力が読めない・git が効かない・輪の頭が壊れた: 標準エラーに
-1 行で 1。
+返り {tdd: 輪を回すか, units: 組の単位の数, reason: 回さない理由}。入力が読めない・前の組が止まっている・git が効かない・
+輪の頭が壊れた: 標準エラーに 1 行で 1。
 """
 import json
 import os
@@ -43,6 +44,7 @@ import tree_run  # noqa: E402
 import writelog  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
+HALTED = "前の組 {groups} の子の run が結果を書かずに止まっている——親を resume すればその子が続きから回る"
 
 
 def read_group() -> dict:
@@ -57,6 +59,11 @@ def main() -> dict:
     group = read_group()
     from_tree = os.environ.get("INPUTS_FROM_TREE", "").strip()
     out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()
+    in_order = bool(out_dir) and not from_tree
+    if in_order:
+        halted = fixboard.halted_groups(out_dir, group["group_id"])
+        if halted:
+            raise RuntimeError(HALTED.format(groups="・".join(halted)))
     place = boundary.place("fix")
     repo = boundary.work_tree()
     writelog.open_here()
@@ -64,9 +71,8 @@ def main() -> dict:
         groups.adopt_tree(repo, from_tree)
     if out_dir:
         fixboard.adopt_inputs(Path(out_dir).parent, place, repo)
-        if not from_tree:
-            for gdir in sorted(p for p in Path(out_dir).glob("*") if p.is_dir()):
-                fixboard.drop_unreturned(repo, gdir, boundary.SKIP)
+        if in_order:
+            fixboard.drop_unreturned(repo, Path(out_dir) / group["group_id"], boundary.SKIP)
     else:
         raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in fixboard.PREP_INPUTS}
         fixboard.prep(place, repo, raw, boundary.parsed, boundary.pointed)
@@ -96,7 +102,7 @@ def main() -> dict:
 if __name__ == "__main__":
     try:
         result = main()
-    except Exception as e:   # 回す側の誤り（入力が読めない・置き場が無い・git が効かない・輪の頭が壊れた）
+    except Exception as e:   # 回す側の誤り（入力が読めない・前の組が止まっている・置き場が無い・git が効かない・輪の頭が壊れた）
         print(f"group-start: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(result)
