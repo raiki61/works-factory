@@ -8,7 +8,6 @@ pyproject.toml を拾い、作業ツリーに .venv と uv.lock を作る（作�
   executor-shared.ts 851 行の isInlineScript）
 - pyproject.toml を置いた種の写しを cwd に `uv run` で起こしても、`git status --porcelain --ignored` が前後で同じ
 """
-import os
 import pathlib
 import re
 import shutil
@@ -19,6 +18,7 @@ import unittest
 
 import yaml
 
+from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -155,7 +155,7 @@ class UvRunTest(unittest.TestCase):
         return git(self.repo, "status", "--porcelain", "--ignored")
 
     def test_uv_run_leaves_the_tree_alone(self):
-        env = {k: v for k, v in tree_run.outside_env(os.environ).items() if not k.startswith("INPUTS_")}
+        env = tree_run.outside_env(hermetic.child_env())
         env.pop("VIRTUAL_ENV", None)
         for script in SCRIPTS:
             with self.subTest(script=str(script.relative_to(ROOT))):

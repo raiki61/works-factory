@@ -25,6 +25,7 @@ import leftovers  # noqa: E402
 import refix  # noqa: E402
 import writelog  # noqa: E402
 import writes  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"   # 元は test_blk_fix_tdd の SEED（ROOT / "dev" / "target-seed"）
 WHY = "整形の道具で 40 ファイルを一度に書き換えた"
@@ -69,7 +70,7 @@ class TestChangedFrom(RepoCase):
         (self.repo / "GONE.md").unlink()
         self.assertEqual(writes.changed_from(self.repo, head), ["GONE.md", "NEW.md", "test_stats.py"])
         tracked = subprocess.run(["git", "ls-files"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8",
-                                 check=True).stdout.split()
+                                 check=True, env=hermetic.child_env()).stdout.split()
         self.assertNotIn("NOTES.md", tracked, "本物の index は触らない")
 
     def test_changed_from_frozen_revision_ignores_untracked_files_written_before(self):

@@ -3,7 +3,6 @@
 TestTestsModes）とブロックの YAML の試験は盤面と blk-* を使うので持ってこない。
 """
 import json
-import os
 import pathlib
 import subprocess
 import sys
@@ -15,6 +14,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+from tests.bin import hermetic  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 from lib.tests import test_blk_refix as RF  # noqa: E402
 import accept  # noqa: E402
@@ -256,7 +256,7 @@ class TestDeltaPlace(RF.DeltaPlaceCase):
             (repo / "日本.py").write_text("def 日付():\n    return 1\n", encoding="utf-8")
             git(repo, "add", "日本.py")
             (repo / "未追跡.py").write_text("x = 1\n", encoding="utf-8")
-            env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+            env = {k: v for k, v in hermetic.child_env().items() if k != "PYTHONDONTWRITEBYTECODE"}
             subprocess.run([sys.executable, "-m", "unittest", "-q", "test_stats"], cwd=str(repo), env=env,
                            capture_output=True, stdin=subprocess.DEVNULL)
             self.assertTrue(list(repo.rglob("*.pyc")))

@@ -37,6 +37,7 @@ import rolekit  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
 import writes  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 SKIP = ("vendored/",)
@@ -1177,7 +1178,7 @@ class FactchecksSeamCase(TempCase):
         draft = self.tmp / "draft.json"
         draft.write_text(json.dumps(self.reply, ensure_ascii=False), encoding="utf-8")
         r = subprocess.run([sys.executable, str(LIB / "factchecks.py"), str(cfg), "--reply", str(draft)], cwd=str(self.repo),
-                           capture_output=True, text=True, encoding="utf-8")
+                           capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
         return r.returncode, r.stdout, r.stderr
 
     def test_main_reads_the_plan_in_the_place(self):
@@ -1195,7 +1196,7 @@ class FactchecksSeamCase(TempCase):
     def test_main_wiring_error_is_two(self):
         import subprocess
         r = subprocess.run([sys.executable, str(LIB / "factchecks.py"), str(self.place / "none.json")],
-                           capture_output=True, text=True, encoding="utf-8")
+                           capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
 
 
@@ -1724,9 +1725,9 @@ class GroupScriptsSeamCase(TempCase):
         two = [{"group_id": "g1"}, {"group_id": "g2"}]
         with tempfile.TemporaryDirectory() as tmp:
             repo = pathlib.Path(tmp)
-            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True, env=hermetic.child_env())
             self.assertFalse(fixboard.parallel(two, [], repo))
-            subprocess.run(["git", "remote", "add", "origin", str(repo / "origin.git")], cwd=repo, check=True)
+            subprocess.run(["git", "remote", "add", "origin", str(repo / "origin.git")], cwd=repo, check=True, env=hermetic.child_env())
             self.assertTrue(fixboard.parallel(two, [], repo))
             self.assertFalse(fixboard.parallel(two, ["tdd_lanes"], repo))
             self.assertFalse(fixboard.parallel(two[:1], None, repo))

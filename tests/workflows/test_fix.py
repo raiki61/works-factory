@@ -572,7 +572,7 @@ class DeltaScriptsCase(unittest.TestCase):
         path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
 
     def _run(self, script, nid, **inputs):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT")) and not hermetic.dropped(k)}
+        env = {k: v for k, v in hermetic.child_env().items() if not k.startswith("PR_REVIEW_TOOLKIT")}
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": "run-delta",
                     "ARCHON_NODE_EXECUTION": json.dumps({"path": f"fix__{nid}"}), "WORKS_FACTORY_ROOT": str(ROOT),
                     "CLAUDE_CONFIG_DIR": str(self.cfg), "PYTHONDONTWRITEBYTECODE": "1"})
@@ -975,7 +975,7 @@ class DeltaScriptsCase(unittest.TestCase):
                 self.assertEqual(out["reason"], f"手直しの役を起こさなかった（{n} 回目の審査が直す義務を出していない・審査を受けていない）")
                 self._json(f"rejects-{accept}.json", [{"at": "2026-10-12T00:00:00+00:00", "reason": "前の拒否"}])
                 self.assertEqual(self._run("refix_prep", prep, n=str(n))["iteration"], 2)
-                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and k != "ARTIFACTS_DIR" and not hermetic.dropped(k)}
+                env = hermetic.child_env()
                 for script, name, extra in (("refix_prep", prep, {}), ("refix_accept", accept, {"INPUTS_REPLY": "{}",
                                                                                                 "INPUTS_ITERATION": "1"})):
                     done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=self.repo,
@@ -1043,7 +1043,7 @@ class DeltaScriptsCase(unittest.TestCase):
             return json.loads(lenses.read_text(encoding="utf-8"))["collector"]
 
         def raw(script, nid, cwd_script=None, **inputs):
-            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT")) and not hermetic.dropped(k)}
+            env = {k: v for k, v in hermetic.child_env().items() if not k.startswith("PR_REVIEW_TOOLKIT")}
             env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": "run-delta", "PYTHONDONTWRITEBYTECODE": "1",
                         "ARCHON_NODE_EXECUTION": json.dumps({"path": f"fix__{nid}"}), "WORKS_FACTORY_ROOT": str(ROOT),
                         "CLAUDE_CONFIG_DIR": str(self.cfg)})
@@ -1137,8 +1137,8 @@ _BLK_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_chan
 
 def _blk_run(script, repo, art, inputs=None, node_path="fix__x", env_extra=None):
     """scripts/<script>.py を一時の対象のリポジトリ repo で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
-    env_extra は子の環境に足す（hermetic.dropped の名は継がない）"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
+    env_extra は子の環境に足す"""
+    env = hermetic.child_env()
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _BLK_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": node_path}), "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(env_extra or {})
@@ -1307,7 +1307,7 @@ class BlockScriptsCase(unittest.TestCase):
 
     # ---- prep.py
     def test_prep_two_groups_run_side_by_side(self):
-        subprocess.run(["git", "remote", "add", "origin", str(self.tmp / "origin.git")], cwd=self.repo, check=True)
+        subprocess.run(["git", "remote", "add", "origin", str(self.tmp / "origin.git")], cwd=self.repo, check=True, env=hermetic.child_env())
         code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(), "fix__prep")
         self.assertEqual(code, 0, err)
         self.assertEqual([(g["unit_ids"], g["items"]) for g in out["groups"]], [(["A", "B"], [1]), (["C"], [2])])
@@ -1957,8 +1957,7 @@ class BlockScriptsCase(unittest.TestCase):
         lone = self.tmp / "lone" / "fix" / "scripts"
         lone.mkdir(parents=True)
         (lone / "collect.py").write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
-        env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _BLK_RUN, "PYTHONDONTWRITEBYTECODE": "1"})
+        env = hermetic.child_env(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=_BLK_RUN, PYTHONDONTWRITEBYTECODE="1")
         done = subprocess.run([sys.executable, str(lone / "collect.py")], cwd=self.repo, env=env, capture_output=True,
                               text=True, encoding="utf-8")
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -2281,8 +2280,7 @@ class BlockScriptsCase(unittest.TestCase):
             lone = self.tmp / "lone" / "fix" / "scripts"
             lone.mkdir(parents=True)
             (lone / "collect.py").write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
-            env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
-            env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _BLK_RUN, "PYTHONDONTWRITEBYTECODE": "1"})
+            env = hermetic.child_env(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=_BLK_RUN, PYTHONDONTWRITEBYTECODE="1")
             done = subprocess.run([sys.executable, str(lone / "collect.py")], cwd=self.repo, env=env, capture_output=True,
                                   text=True, encoding="utf-8")
             self.assertEqual(done.returncode, 0, done.stderr)
@@ -2729,8 +2727,8 @@ class GroupChildScriptsCase(unittest.TestCase):
         (self.parent / "baseline.json").write_text(json.dumps({"cases": [], "exit": 1}), encoding="utf-8")
 
     def _grp_run(self, script, nid, ok=True, cwd=None, **inputs):
-        """self.grp_env は子の環境に足す（hermetic.dropped の名は継がない。記録の根を試す試験はここに自分の根を置く）"""
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
+        """self.grp_env は子の環境に足す（記録の根を試す試験はここに自分の根を置く）"""
+        env = hermetic.child_env()
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _GRP_RUN,
                     "ARCHON_NODE_EXECUTION": json.dumps({"path": nid}), "WORKS_FACTORY_ROOT": str(ROOT),
                     "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_GROUP": json.dumps(_GRP_GROUP, ensure_ascii=False),
@@ -2956,7 +2954,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         line = self.tmp / "parent-art"
         self._grp_parent_inputs(str(self.suite), test_cmd=test_cmd, run_id="line-run")
         _blk_write(line / "start" / "record.json", {"run_id": "line-run", "test_cmd": test_cmd, "base_rev": "", "tdd_suite": ""})
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
+        env = hermetic.child_env()
         env.update({"ARTIFACTS_DIR": str(line), "WORKFLOW_ID": "line-run", "ARCHON_NODE_EXECUTION": json.dumps({"path": "test-gate"}),
                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_MODE": "base",
                     "INPUTS_START": json.dumps({"type": "archon_artifact", "run_id": "line-run", "path": "start/record.json"})})
@@ -3278,8 +3276,8 @@ _FX_JUDGMENT = {"units": [
 
 def _fx_run(script, repo, art, *, env_extra=None, **inputs):
     """scripts/<script>.py を一時の対象のリポジトリ repo・一時の置き場 art で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
-    env_extra は子の環境に足す（hermetic.dropped の名は継がない）"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
+    env_extra は子の環境に足す"""
+    env = hermetic.child_env()
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _FX_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": "x"}), "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(env_extra or {})
