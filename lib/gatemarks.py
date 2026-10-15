@@ -301,10 +301,14 @@ def eye_named(name: str, status) -> str:
     return f"{EYES.get(name, '独立の目')}（{name}）: {REVIEW_WORDS.get(str(status), '')}（{status}）"
 
 
+def _text_pushes(t) -> list:
+    """1 つの文に判定の役が書いた推し（PUSH_IN の当たり。NO_PUSH と空は推しでない。機械は推しを作らない）"""
+    return [m.strip() for m in PUSH_IN.findall(str(t or "")) if m.strip() and m.strip() != NO_PUSH]
+
+
 def pushes(texts) -> str:
-    """文の列（問いの理由・関所の項目）に判定の役が書いた推しを「；」で繋ぐ。1 つも無ければ NO_PUSH（機械は推しを作らない）"""
-    got = [m.strip() for t in texts for m in PUSH_IN.findall(str(t or "")) if m.strip() and m.strip() != NO_PUSH]
-    return "；".join(dict.fromkeys(got)) or NO_PUSH
+    """文の列（問いの理由・関所の項目）に判定の役が書いた推しを「；」で繋ぐ。1 つも無ければ NO_PUSH"""
+    return "；".join(dict.fromkeys(m for t in texts for m in _text_pushes(t))) or NO_PUSH
 
 
 def head3(happened: str, decide: str, push: str, *, other: str = "") -> list:
@@ -758,8 +762,8 @@ def ask_text(q) -> str:
 
 
 def reason_push(q) -> str:
-    """問いの理由に判定の役が書いた推し（PUSH_IN の最初の当たり。NO_PUSH と空は推しでない。無ければ空）"""
-    got = [m.strip() for m in PUSH_IN.findall(str(q.get("reason") or "")) if m.strip() and m.strip() != NO_PUSH]
+    """問いの理由に判定の役が書いた最初の推し。無ければ空"""
+    got = _text_pushes(q.get("reason"))
     return got[0] if got else ""
 
 

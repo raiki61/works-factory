@@ -333,7 +333,7 @@ def ledger(returns: dict, gates: dict, start: dict):
     ties = gatemarks.ties_of(marks.load(pathlib.Path(first).with_name(gatemarks.BESIDE[0]))) if isinstance(first, str) and first else []
     mats, _ = oc.materials(returns)
     return gatemarks.ledger(oc.judgment_doc(returns), answers=_request_answers(start), gate=gates.get("gate-before-fix"), ties=ties,
-                            materials=mats, takes_push=_unattended(start))
+                            materials=mats, takes_push=gatepolicy.unattended_of(start))
 
 
 def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
@@ -360,10 +360,6 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
 
 
 # ---------------------------------------------------------------- 答えの下書き
-def _unattended(start: dict) -> bool:
-    return gatepolicy.unattended_of(start)
-
-
 def _fix_plan_rows(returns: dict) -> list:
     """修正案の狭める行 [(文, 決め手の欄の形, 節)]（計画の隣の p2.fix_plan.json の plan[].narrows）"""
     doc, _ = _read_beside(returns, "plan", "plan", FIX_PLAN)
@@ -452,7 +448,7 @@ def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=(), spec
     同じ question の行は 1 度だけ。機械は関所にも問いにも答えない——下書きは依頼の入口が拒むので、人が見直してから使う"""
     rows = [*_fix_plan_rows(returns), *_face_rows(returns), *_world_rows(returns)]
     asked = oc.eye_questions(returns)
-    if _unattended(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
+    if gatepolicy.unattended_of(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
         asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
     source = gatemarks.SPEC_UNCHECKED if spec_unchecked else gatemarks.SPEC_CHANGED_LABEL
     out = [gatemarks._draft(q, "", source, SPEC_CHANGED_NOTE) for q in spec_changed if isinstance(q, str) and q.strip()]
