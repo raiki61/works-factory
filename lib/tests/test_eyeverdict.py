@@ -20,6 +20,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import answer  # noqa: E402
 import design  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
@@ -152,7 +153,7 @@ class R4PushTailCase(unittest.TestCase):
         asked = NARROW + gatemarks._push({gatemarks.RECOMMEND: self.REC})   # 関所の項目の尾と同じ作り
         self.assertIn("／推し", asked)
         passed = eyeverdict._human_passed([gatemarks.question_row("regression", asked)], {"decision": "continue", "text": ""})
-        self.assertNotIn("推し", eyeverdict.carried_section(passed))
+        self.assertNotIn("／推し", eyeverdict.carried_section(passed))
         r4 = {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}
         self.assertEqual(eyeverdict.r4_gate_items(r4, passed), [])
 
@@ -721,6 +722,17 @@ class PremiseSectionCase(unittest.TestCase):
         self.assertEqual(seen["count"], 2)
         self.assertEqual([i["node"] for i in items], [eyeverdict.START_GATE_NODE, gatemarks.GATE_NODE])
 
+    def test_pushed_gate_answer_is_not_pasted_as_a_human_answer(self):
+        """無人の run が推しで通した修正前の関所の答え（欄 answer.PUSHED）は行に印を写し、R2 に人の答えとして貼らず控えの withheld に回し、
+        記録された方針でも人の答えの行（gate）にしない"""
+        pushed = {**self.BEFORE_FIX, answer.PUSHED: [{"item": "x", "answer": "continue", "note": "n", "why": "y"}]}
+        items = eyeverdict.human_items(None, pushed)
+        self.assertEqual(items[0][answer.PUSHED], pushed[answer.PUSHED])
+        text, rows, machine, seen = design.human_answers(types.SimpleNamespace(record={"process": {"human_items": items}}))
+        self.assertEqual((text, rows, seen["count"]), ("", [], 0))
+        self.assertEqual(len(machine), 1)
+        self.assertEqual([r for r in policy.recorded({}, human_items=items) if r["source"] == "gate"], [])
+
     def test_ledger_lists_what_was_given_and_withheld(self):
         _, ledger = self.section()
         self.assertEqual(ledger["node"], "r2.compare")
@@ -822,6 +834,24 @@ class WriteNotesCase(unittest.TestCase):
             notes = json.loads((eyes / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))
             self.assertEqual(notes, {"design": None, "compare": None, "claims": []})
             self.assertEqual(json.loads((eyes / eyeverdict.GATE_PASSES).read_text(encoding="utf-8")), [])
+
+
+class PassedByCase(unittest.TestCase):
+    """#552: 無人の run が推しで通した修正前の関所の答えは、R4 が聞き直さなかった行の控えに推しの印で残る（人が通したと言わない）"""
+
+    def test_mark_follows_the_answer(self):
+        self.assertEqual(eyeverdict.passed_by({"decision": "continue", "text": "", "asked": [], "pushed": []}), gatemarks.PASSED_BY_PUSH)
+        for got in ({"decision": "continue", "text": ""}, None):
+            with self.subTest(got=got):
+                self.assertEqual(eyeverdict.passed_by(got), gatemarks.PASSED_BY_HUMAN)
+
+    def test_pushed_pass_lines_do_not_say_a_human_passed(self):
+        r4 = {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}
+        rows = eyeverdict.gate_passes(r4, PASSED, gatemarks.PASSED_BY_PUSH)
+        self.assertEqual([r["by"] for r in rows], [gatemarks.PASSED_BY_PUSH])
+        line, = gatemarks.pass_lines(rows)
+        self.assertIn("推しを採って通した", line)
+        self.assertNotIn("人が通した", line)
 
 
 class StatusOwnerCase(unittest.TestCase):
