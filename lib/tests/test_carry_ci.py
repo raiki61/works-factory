@@ -17,6 +17,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import carry  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 TID = "tests/test_report.py::HeadCase::test_rows"
 TID2 = "works.tests.test_edge.EdgeCase.test_fix"
@@ -80,7 +81,7 @@ class CliCase(unittest.TestCase):
 
     def run_cli(self, *args, stdin=""):
         return subprocess.run([sys.executable, "-I", str(LIB / "carry.py"), "carry-ci", *args],
-                              input=stdin, capture_output=True, text=True, encoding="utf-8")
+                              input=stdin, capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
 
     def test_reads_ids_file_and_writes_out(self):
         req = self.tmp / "next-request.json"
@@ -117,7 +118,7 @@ class CliCase(unittest.TestCase):
             req.write_text(json.dumps({"findings": [{"where": "a.py:1", "text": "穴"}]}), encoding="utf-8")
             ids.write_text(f"{TID}\n", encoding="utf-8")
             argv = found[0].replace("<next-request.json>", str(req)).replace("<試験の id のファイル>", str(ids)).split()
-            done = subprocess.run([sys.executable, *argv[1:]], cwd=LIB.parent, capture_output=True, text=True)
+            done = subprocess.run([sys.executable, *argv[1:]], cwd=LIB.parent, capture_output=True, text=True, env=hermetic.child_env())
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertIn(TID, json.loads(req.read_text(encoding="utf-8"))["prior_failures"][0]["text"])
 
@@ -125,7 +126,7 @@ class OldEntryCase(unittest.TestCase):
     def test_old_ghreads_entry_points_to_carry(self):
         """前の打ち方 ghreads.py carry-ci は通さず、移った先 carry.py を 1 行で言って 2 で終わる"""
         got = subprocess.run([sys.executable, "-I", str(LIB / "ghreads.py"), "carry-ci", "--request", "x"],
-                             capture_output=True, text=True, encoding="utf-8")
+                             capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(got.returncode, 2)
         self.assertEqual(len(got.stderr.strip().splitlines()), 1)
         self.assertIn("carry.py", got.stderr)

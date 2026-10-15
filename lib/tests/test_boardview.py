@@ -31,6 +31,7 @@ import startrec  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
 from engine.util import Reject  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 UNIT = "stats.py mean: 分母が len(xs) - 1 になっている"
 FACES = {"type": "array", "items": {"type": "object"}}
@@ -297,7 +298,7 @@ class PolicyCase(Base):
     （元 works/.shared/core/graphloops/rules/policy_input.py）"""
 
     def default_doc(self) -> pathlib.Path:
-        subprocess.run(["git", "init", "-q", str(self.tmp)], check=True)
+        subprocess.run(["git", "init", "-q", str(self.tmp)], check=True, env=hermetic.child_env())
         doc = self.tmp / ".git" / "graphloops" / "policy.md"
         doc.parent.mkdir(parents=True)
         doc.write_text("- 既定の置き場の方針\n", encoding="utf-8")
@@ -312,7 +313,7 @@ class PolicyCase(Base):
 
     def test_document_placed_later_at_the_default_is_a_change(self):
         """固めた時に文書が無くても、後で既定の置き場に置いた文書は変化に数える（元 policy_input.change が locate を引き直す）"""
-        subprocess.run(["git", "init", "-q", str(self.tmp)], check=True)
+        subprocess.run(["git", "init", "-q", str(self.tmp)], check=True, env=hermetic.child_env())
         self.open()
         self.assertIsNone(boardview.policy_change(self.folder, self.tmp))
         doc = self.tmp / ".git" / "graphloops" / "policy.md"

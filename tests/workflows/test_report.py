@@ -22,6 +22,7 @@ from unittest import mock
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.workflows import test_plan_review as plan_review
 from tests.workflows.copied import assert_is_original, rewritten
 
@@ -367,10 +368,8 @@ class Run(unittest.TestCase):
         self.artifacts.mkdir()
 
     def run_script(self, name: str, **env) -> tuple[int, dict]:
-        base = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-        base.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "TYPED_ARTIFACTS_FILE": "", "LOG_DIR": "",
-                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"})
-        base.update(env)
+        base = hermetic.child_env(**{"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "TYPED_ARTIFACTS_FILE": "", "LOG_DIR": "",
+                                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1", **env})
         done = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], env=base, capture_output=True, text=True,
                               encoding="utf-8")
         lines = [line for line in done.stdout.splitlines() if line.strip()]

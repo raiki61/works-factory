@@ -10,3 +10,11 @@
 - 置き場: 層の決まりの試験は `tests/layers/`（各決まりの「機械」の行）、入口は `tests/bin/`、境は `tests/shared/`、サブグラフの YAML の形と筋書きの試験は `tests/workflows/`、通しの試験と小さな対象のリポジトリの種は `tests/e2e/`。`lib/` の試験は `lib/tests/`。
 - `lib/tests/` の試験は、`lib/` を `sys.path` の後ろに足す（`append`。頭に入れると `lib/tests` が根の `tests` を隠す）。試験の助け（`gitkit`・`hermetic` など）の置き場は `tests/bin/` の 1 か所で、`from tests.bin.<名> import ...` で読む。Archon の要る試験の助け（止めた Archon の源と bun を見つけ、使い捨ての木を組む）だけは `tests/archon.py`。
 - Archon の源（`bin/_lib/place.archon_source` で取る物）か bun が要る試験は、`tests/archon.py` の助けで源を見つけ、Archon を起こし、使い捨ての木を組む。無ければ名前つきで見送る（`skipTest("Archon の源が無い: ...")`）。源の置き場は環境変数 `WORKS_FACTORY_ARCHON_CACHE`（`archon_source` に渡す `cache`）で渡す。試験の中では取りに行かない。CI は源と bun を取り、環境変数 `WORKS_FACTORY_ARCHON_REQUIRED` を立てるので、見送る所が赤になる（CI の用意が崩れても黙って見送らない）。
+
+## E21 試験の子の環境は hermetic.child_env で作る
+
+- `tests/` と `lib/tests/` の試験が起こす子（`subprocess` の `env=`）の環境は、`tests/bin/hermetic.child_env(**overrides)` で作る。子を起こす時はいつも `env=` を渡し、`os.environ` を写して渡さない（写す形の一覧は `tests/layers/scan.py` の `COPIED_ENVIRON`、子を起こす呼び出しの一覧は同じく `SPAWNS`）。`env=` の無い子は親の環境を丸ごと受け継ぐ。親（開発者のシェルや run の中の Claude Code・Archon）が立てた名と、Archon が script のノードに立てる変数（境 `workflows/.shared/boundary.py` の `RUNNER_PREFIXES`・`RUNNER_NAMES`）が子へ漏れ、同じ試験が場で違う結果を返す。
+- 外す名は `child_env` の 1 か所が決める（`tests/bin/hermetic.py` の `DROPPED_PREFIXES`・`DROPPED` と、境から `hermetic.runner_vars()` が字で引く Archon の変数の名）。試験が意図して子へ渡す名は `child_env` の overrides で名指しする。口が自分の意図で外す名は `child_env` が作った環境から外す。
+- 試験の過程そのものが読む既定の環境（`lib/` の関数が `os.environ` から引く既定）も場に依らない: 試験を回す口 `tests/shard.py` は、試験を集める前に `hermetic.scrub` で同じ名を自分の過程から外す（残すのは試験の用意の名 `hermetic.ARCHON_CACHE_ENV`・`ARCHON_REQUIRED_ENV`）。利用者の環境を継ぐのが用途の試験（本物の役で回す試験の旗 `WORKS_FACTORY_REAL_RUN` と認証）は、外す前の値を `hermetic.inherited(*prefixes)` で名指しして引き、Archon へは overrides で渡す。
+- 外し: 子の環境を作る道具でなく利用者の環境を継ぐのが用途の物（本物の run・較正の命令の道具・試験を回す口 `tests/changed.py`）や、子の環境を組む口でない物（偽の script の字）は `tests/layers/scan.py` の `ALLOWED["E21"]` に訳つきで置く。
+- 機械: `tests/layers/test_hermetic_env.py`（`tests/` と `lib/tests/` の `*.py` に、`os.environ` を写す形と `env=` の無い子の起こしが無い。既定が `None` の引数を差し替えずに `env=` へ渡す形も当てる。照らしは `tests/layers/scan.py` の `_hermetic_env`）・`tests/test_shard.py` の `ScrubTest`（試験を回す口が過程の環境から名を外し、外した値は `inherited` で引ける）。

@@ -19,6 +19,7 @@ import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
 import policy  # noqa: E402
 from engine.render import MATERIAL_NOTE  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 
 class SectionCase(unittest.TestCase):
@@ -59,7 +60,7 @@ class FreezeCase(unittest.TestCase):
         self.tmp = pathlib.Path(tmp.name)
         self.repo, self.run = self.tmp / "repo", self.tmp / "run"
         self.repo.mkdir()
-        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True, env=hermetic.child_env())
 
     def assert_copied(self, got, named, path, body: bytes):
         sha = hashlib.sha256(body).hexdigest()
