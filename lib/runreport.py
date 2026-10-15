@@ -41,6 +41,7 @@ import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import entry as entrylib  # noqa: E402
 import eyeverdict  # noqa: E402
+import deliver  # noqa: E402
 import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
@@ -1071,7 +1072,15 @@ def _tests_head_lines(returns: dict) -> list:
     return out
 
 
-def _apply_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run_id: str) -> list:
+def _apply_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run_id: str, start: dict) -> list:
+    """差分を対象に当てる行。bin/apply の行（_apply_command_lines）の後ろに、出口（入力 deliver が pr の run だけ）の結果の行を並べる。
+    作った PR（url・枝・読み戻した commit）か、作らなかった訳を名指す。空の語の run は何も足さない。行の組みは lib/deliver.py の
+    report_lines（ここは欄の名も訳の語も持たない）。止まった run の決めの文に使う bin/apply の行は _apply_command_lines の最後の行"""
+    return [*_apply_command_lines(returns, gates, outcome, stop_reason, run_id),
+            *deliver.report_lines(start, returns.get("merge-apply"))]
+
+
+def _apply_command_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run_id: str) -> list:
     """差分を対象に当てる 1 行（M37。bin/apply <run-id>。元 works/dev/lib.sh:633-644）。止まった run には止まりの 1 行（結末の語・止めた
     所・人の一言）と --allow-stopped の要ることを出す。生の git apply の行は出さない（止まった run の拒みを素通りさせない）"""
     sealed = as_dict(returns.get("merge-seal"))
@@ -1494,13 +1503,14 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
-    apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—")
+    apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—", start)
     stopped = outcome in STOP_OUTCOMES
+    delivery = deliver.head_words(start, returns.get("merge-apply"))
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
                           *(_stopped_why(returns, line) if stopped else []), *_ran_notes(returns),
-                          *([userenv.NOTE] if user_env else [])])
+                          *([delivery] if delivery else []), *([userenv.NOTE] if user_env else [])])
     if stopped:
-        decide = "。".join(x for x in (decide, apply[-1]) if x)
+        decide = "。".join(x for x in (decide, _apply_command_lines(returns, gates, outcome, stop_reason, run_id or "—")[-1]) if x)
     asked_texts = [*spec_changed_of(line), *_plan_questions(returns, gates, start)[0],
                    *oc.eye_questions(returns)]
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")

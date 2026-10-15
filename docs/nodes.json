@@ -170,6 +170,7 @@
   "chain/round-5-facts": "周の鎖の 5 周目の子の次の依頼を読み、運ぶ次の依頼を書き、周の費用と分を読む",
   "chain/round-5-decide": "周の鎖の 5 周目の後の止めの決め（lib/chain.step）",
   "chain/final-diff": "周の鎖の最後の差分。止まった周を採らずに元の基から採る周（lib/chain.pick）までの差分を封じ、周ごとの表 chain.md（lib/chain.render）を書く",
+  "chain/deliver": "周の鎖の出口。入力 deliver が pr の時だけ、final-diff の最後の差分を merge の handoff の形で渡し、親の run が run 専用の枝と PR へ 1 度書いて読み戻す（周の子は PR を作らない。works-factory の新しい能力）",
   "chain/result": "周の鎖の出力ノード"
  },
  "downgrades": [

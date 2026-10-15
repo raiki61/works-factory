@@ -6,6 +6,7 @@ merge:
   diff: null
   protected_hits: null
   reason: 差分が空
+  delivered: null
 fixture:
   expect: completed
   reached: [merge]

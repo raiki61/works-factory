@@ -1,12 +1,12 @@
 name: works-factory-merge
-description: 取り込み。seal は run の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして run の置き場に置く（対象のリポジトリへ当てるのは人）
+description: 取り込み。seal は run の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして run の置き場に置き、handoff は周の鎖の最後の差分を hash と R2 を照らして置く（対象のリポジトリへ当てるのは人。ただし deliver が pr の時だけ、置いた差分を run 専用の枝へ push して既定の枝向けの PR を作り、読み戻した結果を delivered に返す。merge はしない）
 inputs:
   mode:
     required: true
-    description: seal（merge-seal）か apply（merge-apply）
+    description: seal（merge-seal）・apply（merge-apply）・handoff（周の鎖の最後の差分）
   start:
-    required: true
-    description: 始めの記録のポインタ（base_rev を読む）
+    default: ""
+    description: 始めの記録のポインタ（base_rev を読む。seal と apply だけ）
   fingerprint:
     default: ""
     description: test-gate final の緑の認証の指紋 {head, diff_hash}
@@ -24,7 +24,16 @@ inputs:
     description: 最後の承認ノードの答え {decision, text}。承認ノードが開かなければ null（apply だけ）
   r2:
     default: ""
-    description: eyes の R2 の {status, reason}。省いた・走らなければ null（apply だけ）
+    description: apply は eyes の R2 の {status, reason}（省いた・走らなければ null）。handoff は final-diff の r2_status の字（pass・redesign-needed・null）
+  deliver:
+    default: ""
+    description: 出口の語。空は差分を置くだけ、pr は置いた差分を run 専用の枝（works-factory/run-<run id>）へ push して既定の枝向けの PR を作る（apply と handoff だけ。seal は読まない）
+  placed:
+    default: ""
+    description: 鎖の final-diff の apply {ok, hash, diff, reason}（handoff だけ）
+  base_rev:
+    default: ""
+    description: 元の基の commit（handoff だけ。deliver が pr の時に PR の元になる版。既定の枝から届く版でなければ提出しない）
 returns: merge
 outcome_field: ok
 nodes:
@@ -42,12 +51,15 @@ nodes:
       sealed_hash: $INPUTS.sealed_hash
       answer: $INPUTS.answer
       r2: $INPUTS.r2
+      deliver: $INPUTS.deliver
+      placed: $INPUTS.placed
+      base_rev: $INPUTS.base_rev
     output_format:
       type: object
       properties:
         mode:
           type: string
-          enum: [seal, apply]
+          enum: [seal, apply, handoff]
         ok:
           type: boolean
         hash:
@@ -65,5 +77,14 @@ nodes:
             type: string
         reason:
           type: string
-      required: [mode, ok, hash, diff, protected_hits, reason]
+        delivered:
+          type: [object, "null"]
+          properties:
+            ok: { type: boolean }
+            branch: { type: string }
+            commit: { type: string }
+            url: { type: string }
+            reason: { type: string }
+          required: [ok, branch, commit, url, reason]
+      required: [mode, ok, hash, diff, protected_hits, reason, delivered]
       additionalProperties: false

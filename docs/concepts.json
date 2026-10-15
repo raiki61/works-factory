@@ -565,6 +565,34 @@
     }
    ]
   },
+  "deliver": {
+   "status": "住処あり",
+   "fences": [
+    {
+     "what": "出口の語 deliver（入力・始めの記録の入力・出力の欄 deliver と delivered）を読む・渡す形。住処の口を引く deliver.<名> は数えない",
+     "pattern": "(?<!deliver\\.)(\\bINPUTS_DELIVER(ED)?\\b|\\$INPUTS\\.deliver\\b|\\.output\\.deliver(ed)?\\b|\\bdeliver:\\s|[\"']deliver[\"'])",
+     "allowed": [
+      "lib/deliver.py",
+      "workflows/merge/works-factory-merge.yaml",
+      "workflows/merge/scripts/merge.py",
+      "workflows/line/works-factory-line.yaml",
+      "workflows/line/scripts/start.py",
+      "workflows/chain/works-factory-chain.yaml",
+      "workflows/chain/scripts/chain_start.py",
+      "workflows/chain/scripts/result.py"
+     ],
+     "known": {}
+    },
+    {
+     "what": "住処の定数を別の名に写す",
+     "pattern": "^\\s*[A-Za-z_]\\w*\\s*=\\s*deliver\\.[A-Z][A-Z0-9_]*\\s*(#|$)|^\\s*from deliver import|^\\s*import deliver as",
+     "allowed": [
+      "lib/deliver.py"
+     ],
+     "known": {}
+    }
+   ]
+  },
   "gate-evidence": {
    "status": "住処あり",
    "fences": [

@@ -12,6 +12,8 @@
 - unknown_row(reason) -> str: 守りのパスを確かめられない時に、当たりとして数える 1 行
 - deleted_paths(text) -> list: 封じた差分の字が消すファイル（取り込む前に 1 本ずつ名指す。DELETED_HEAD）
 - apply_refusal(*, ...) -> str: 置いてよいかの理由（空なら置く）。決まりは関数の doc
+- handoff_refusal(placed, current_hash, r2_status) -> str: 周の鎖の最後の差分を置いてよいかの理由（空なら置く）。apply_refusal の隣の、
+  人の答えを持たない形。決まりは関数の doc
 """
 import hashlib
 import os
@@ -104,6 +106,24 @@ def deleted_paths(text: str) -> list:
             path = got[2:] if got.startswith("a/") else got
     close()
     return out
+
+
+def handoff_refusal(placed, current_hash, r2_status) -> str:
+    """周の鎖の最後の差分（鎖の final-diff が返す apply {ok, hash, diff, reason}）を置いてよいかの理由（空なら置く）。人の答えを持たない
+    ので apply_refusal の人の答えの道は無く、機械で拒む 3 つだけを上から順に見て最初の理由を返す:
+    1. placed が object でない・ok が真でない（final-diff が差分を置いていない。その reason を名指す）
+    2. placed.hash が空か、current_hash（placed のポインタの先のバイトの digest）と違う
+    3. r2_status（final-diff の r2_status の字。無ければ None か空）が REDESIGN（R2 が作り直しと言った差分は部分を取り込まない）
+    受け入れの決めはここだけが持つ（鎖の側は apply と r2_status をそのまま渡す）"""
+    if not isinstance(placed, dict):
+        return "placed が無い（最後の差分を置いていない）"
+    if placed.get("ok") is not True:
+        return f"最後の差分を置けていない: {placed.get('reason') or '理由なし'}"
+    if not placed.get("hash") or placed.get("hash") != current_hash:
+        return f"placed の hash と差分のバイトの hash が食い違う（placed {placed.get('hash') or '空'}・差分 {current_hash or '読めない'}）"
+    if r2_status == REDESIGN:
+        return "R2 が作り直しと言った（部分を取り込まない）"
+    return ""
 
 
 def _answer_refusal(answer: dict) -> str:

@@ -57,6 +57,9 @@ inputs:
   lang:
     default: ""
     description: 報告と、承認ノード・報告に載る役の文の言語。空は依頼文の言語
+  deliver:
+    default: ""
+    description: 出口の語（lib/deliver.py）。空は差分を run の置き場に置くだけ。pr は最後の承認ノードを通って差分を置いた後に、run 専用の枝（works-factory/run-<run id>）へ push して既定の枝向けの PR を作り、読み戻す（merge はしない）。知らない語・GitHub でない remote・host の gh が無い・push の権限が無いは start が AI の前で止める
 
 returns: result
 outcome_field: fixed
@@ -80,7 +83,8 @@ nodes:
         unattended: { type: boolean }
         design_only: { type: boolean }
         final_gate: { type: string }
-      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate]
+        deliver: { type: string }
+      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate, deliver]
 
   # 2 起動の関所
   - id: gate-start
@@ -965,6 +969,7 @@ nodes:
       got_diff: "$merge-seal.output.diff"
       got_protected_hits: "$merge-seal.output.protected_hits"
       got_reason: "$merge-seal.output.reason"
+      got_delivered: "$merge-seal.output.delivered"
 
   # 11 最後の関所
   - id: ask-final
@@ -1061,7 +1066,8 @@ nodes:
       stop_reason: "$ask-final.output.stop_reason"
       place: gate-final
 
-  # 12 外へ 1 度だけ書く（既定は差分を run の置き場に置くだけ。E17）
+  # 12 外へ 1 度だけ書く（既定は差分を run の置き場に置くだけ。E17）。入力 deliver が pr の時だけ、merge の中で置いた差分を
+  # run 専用の枝と PR として対象の remote へ書く（merge はしない）。出口の語は封じる段 merge-seal にも承認ノードにも渡さない
   - id: merge-apply
     include: works-factory-merge
     depends_on: [answer-final]
@@ -1075,6 +1081,7 @@ nodes:
       sealed_hash: "$merge-seal.output.hash"
       answer: "$answer-final.output.answer"
       r2: "$eyes.output.r2"
+      deliver: "$start.output.deliver"
 
   - id: merge-apply-out
     script: returned
@@ -1095,6 +1102,7 @@ nodes:
       got_diff: "$merge-apply.output.diff"
       got_protected_hits: "$merge-apply.output.protected_hits"
       got_reason: "$merge-apply.output.reason"
+      got_delivered: "$merge-apply.output.delivered"
 
   # 13 報告。前の段が落ちても飛ばされても走る。resume でも collect と result は回し直す（always_run。report は include で、Archon は
   # include の always_run を捨てるので、回し直した collect の返りが変われば Archon が report の中の控えを捨てて回し直す）

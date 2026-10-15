@@ -5,8 +5,12 @@ description: |
   起こす・待つ・承認・再開・費用の合算は Archon の workflow: のノードが持ち、works-factory が書くのは周の commit（round_commit）・
   次の依頼（round_facts）・止めの決め（decide）の script だけ。鎖は名指して起こした時だけで、メイングラフを直に起こせば今の 1 周の run のまま。
   鎖の最後のノード final-diff が、止まった周を採らずに元の基から採る周までの差分を封じ、周ごとの表 chain.md を親の置き場に書く。
+  入力 deliver が pr の時だけ、final-diff の後ろのノード deliver（include: works-factory-merge の handoff の形）が、その最後の差分を
+  置いてよいか（hash・R2・置けたか）を merge の中で照らし、親の run が 1 度だけ run 専用の枝（works-factory/run-<親の run の id>）へ push して
+  既定の枝向けの PR を作り、読み戻す（merge はしない）。周の子には deliver を渡さず、子は PR を作らない。空の deliver は何も書かない。
   出力はノード result（最後の決めの act・止めの語 word・周ごとの行 rounds と、止めの語が closed の時に真の closed と、bin/apply が
-  読む最後の差分 apply・sealed と chain.md のポインタ report）。bin/apply <親の run> が最後の差分を当てる。
+  読む最後の差分 apply・sealed と chain.md のポインタ report と、出口の結果 delivered（deliver が pr の時の PR・枝・commit、拒んだ訳。
+  deliver が空・ノード deliver が飛んだ時は null））。bin/apply <親の run> が最後の差分を当てる。
 
 inputs:
   rounds:
@@ -60,6 +64,9 @@ inputs:
   lang:
     default: ""
     description: どの周の子にも渡すメイングラフの同じ名の入力
+  deliver:
+    default: ""
+    description: 出口の語（lib/deliver.py。空か pr）。メイングラフの同じ名の入力だが周の子には渡さない（子は PR を作らない）。pr は最後の差分を親の鎖が 1 度だけ PR にする。知らない語・GitHub でない remote・host の gh が無い・push の権限が無いは chain-start が AI の前で止める
 
 # 周の commit（round-k-commit）は run の作業ツリーの枝へ積む。--no-worktree で利用者の作業ツリーに走らせない
 worktree:
@@ -92,7 +99,8 @@ nodes:
         first_request: { type: string }
         first_pr: { type: integer }
         origin: { type: string }
-      required: [ok, reason, act, word, text, request, base, pr, spec, rows, rounds, budget, first_request, first_pr, origin]
+        deliver: { type: string }
+      required: [ok, reason, act, word, text, request, base, pr, spec, rows, rounds, budget, first_request, first_pr, origin, deliver]
     mutates_checkout: false
 
   # 周ごとの 4 つのノード。5 組は番号と前の決め（1 周目は chain-start、ほかは前の周の round-<k-1>-decide）のほかは同じ形。
@@ -572,6 +580,19 @@ nodes:
       d4: { from: "$round-4-decide.output", if_skipped: null }
       d5: { from: "$round-5-decide.output", if_skipped: null }
 
+  # 出口。入力 deliver が pr の時だけ、final-diff の最後の差分（apply と r2_status）を merge の handoff の形で渡す。置いてよいか（apply.ok・
+  # hash・R2 の作り直し）は merge の中が照らすので、when は語の句だけ。ほかの呼び手の handoff でも R2 の作り直しは push されない
+  - id: deliver
+    include: works-factory-merge
+    depends_on: [chain-start, final-diff]
+    when: "$chain-start.output.deliver == 'pr'"
+    with:
+      mode: handoff
+      placed: "$final-diff.output.apply"
+      r2: "$final-diff.output.r2_status"
+      base_rev: "$chain-start.output.origin"
+      deliver: "$chain-start.output.deliver"
+
   # 鎖の出力。周の子かその周のノードか final-diff が落ちて後ろが飛んでも走る（resume のたびに走り直す）
   - id: result
     script: result
@@ -594,14 +615,16 @@ nodes:
         outcome: { type: string }
         r2_status: { type: [string, "null"] }
         stop_reason: { type: string }
-      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, stop_reason]
+        delivered: { type: [object, "null"] }
+      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, stop_reason, delivered]
     mutates_checkout: false
-    depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide, final-diff]
+    depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide, final-diff, deliver]
     trigger_rule: all_done
     always_run: true
     with:
       start: { from: "$chain-start.output", if_skipped: null }
       final: { from: "$final-diff.output", if_skipped: null }
+      delivered: { from: "$deliver.output.delivered", if_skipped: null }
       d1: { from: "$round-1-decide.output", if_skipped: null }
       d2: { from: "$round-2-decide.output", if_skipped: null }
       d3: { from: "$round-3-decide.output", if_skipped: null }

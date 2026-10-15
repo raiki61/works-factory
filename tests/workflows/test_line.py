@@ -202,7 +202,7 @@ class Artifacts(unittest.TestCase):
 
 def raw(**kw) -> dict:
     got = {key: "" for key in ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_only",
-                               "thickness", "features_off", "features_on", "policy_md", "fix_fixture", "lang")}
+                               "thickness", "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver")}
     got.update(kw)
     return got
 
@@ -306,6 +306,46 @@ class StartCase(Artifacts):
         self.assertEqual(pathlib.Path(frozen["copy"]).read_text(encoding="utf-8"), "方針\n")
         self.assertEqual(self.record(self.start(request="request_ok.json"))["policy"],
                          {"named": "", "path": "", "sha256": None, "copy": None})
+
+    def test_unknown_deliver_word_stops_before_the_ai(self):
+        """入力 deliver は空と pr だけ。知らない語は AI の前で start-refused にし、訳が語を名指す。空は欄 deliver が空のまま通る"""
+        got = self.start(request="request_ok.json", deliver="push")
+        self.assertEqual((got["ok"], got["stop_reason"], got["ask"], got["deliver"]), (False, stopby.START_REFUSED, False, ""), got)
+        self.assertIn("push", got["reason"])
+        self.assertIn("pr", got["reason"])
+        ok = self.start(request="request_ok.json")
+        self.assertEqual((ok["ok"], ok["deliver"]), (True, ""), ok)
+
+    def test_deliver_pr_without_a_github_remote_stops_before_the_ai(self):
+        """deliver=pr の始めの確かめ: remote が GitHub でなければ forge.reason の訳で止める（夜通しの run が最後に初めて拒まない）。
+        対象の origin がローカルのパスの木と、remote が無い木の両方。GitHub の remote でも、host の gh が無い・リポジトリが読めない・
+        push の権限が無い時は deliver.preflight の訳で止め、通れば欄 deliver は pr（偽の gh を PATH に置いて、本物の確かめを通す）"""
+        git(self.repo, "remote", "add", "origin", str(self.tmp / "elsewhere.git"))
+        got = self.start(request="request_ok.json", deliver="pr")
+        self.assertEqual((got["ok"], got["stop_reason"], got["deliver"]), (False, stopby.START_REFUSED, ""), got)
+        self.assertIn("no_forge: local_path", got["reason"])
+        git(self.repo, "remote", "remove", "origin")
+        self.assertIn("no_forge: no_remote", self.refused(request="request_ok.json", deliver="pr"))
+        # GitHub の remote でも、host の gh が無い・リポジトリが読めない・push の権限が無い時は止める。通れば欄 deliver は pr
+        git(self.repo, "remote", "add", "origin", "https://github.com/acme/widgets.git")
+        gh_reply = 'if [ -n "$GH_FAIL" ]; then echo "$GH_FAIL" >&2; exit 1; fi; echo "$GH_REPLY"'
+        places = {}
+        for name, files in (("shim", ("gh", "works-gh")), ("real", ("gh",)), ("git-only", ())):
+            (self.tmp / name).mkdir()
+            places[name] = str(self.tmp / name)
+            for file in files:
+                (self.tmp / name / file).write_text(f"#!/bin/sh\n{'exit 2' if name == 'shim' else gh_reply}\n", encoding="utf-8")
+                (self.tmp / name / file).chmod(0o755)
+        (self.tmp / "git-only" / "git").symlink_to(shutil.which("git"))
+        with_gh = os.pathsep.join([places["shim"], places["real"], places["git-only"]])
+        for env, words in (({"PATH": os.pathsep.join([places["shim"], places["git-only"]])}, "gh が PATH に無い"),
+                           ({"GH_FAIL": "gh: Not Found (HTTP 404)"}, "HTTP 404"),
+                           ({"GH_REPLY": '{"permissions": {"push": false}}'}, "push の権限が無い")):
+            with self.subTest(preflight=words), mock.patch.dict(os.environ, {"GH_FAIL": "", "GH_REPLY": "", "PATH": with_gh, **env}):
+                self.assertIn(words, self.refused(request="request_ok.json", deliver="pr"))
+        with mock.patch.dict(os.environ, {"GH_FAIL": "", "GH_REPLY": '{"permissions": {"push": true}}', "PATH": with_gh}):
+            got = self.start(request="request_ok.json", deliver=" pr ")
+        self.assertEqual((got["ok"], got["deliver"]), (True, "pr"), got)
 
     def test_refusals_stop_before_any_role(self):
         for kw, words in (({}, "直す物も審査する物も無い"),
@@ -2559,12 +2599,18 @@ class LineWiringCase(unittest.TestCase):
                 with self.subTest(node=key, input=name):
                     self.assertEqual(node["with"].get(name), from_the_start[name])
 
-    APPLY_ONLY = "apply だけの入力（merge は seal と apply の 2 つの形で、seal には渡さない）"
+    APPLY_ONLY = "apply だけの入力（merge は seal・apply・handoff の 3 つの形で、seal には渡さない）"
+    HANDOFF_ONLY = "handoff だけの入力（周の鎖の最後の差分を渡す形。メイングラフは seal と apply だけを呼ぶ）"
     GROUP_ONLY = "組の子の run だけの入力（fix が組ごとの並べのために自分を子の run として起こす時に渡す）"
     UNPASSED = {
         ("merge-seal", "answer"): APPLY_ONLY,
         ("merge-seal", "r2"): APPLY_ONLY,
         ("merge-seal", "sealed_hash"): APPLY_ONLY,
+        ("merge-seal", "deliver"): "seal は外へ書かない（出口の語 deliver は apply の後ろの書く段だけが読む）",
+        ("merge-seal", "placed"): HANDOFF_ONLY,
+        ("merge-seal", "base_rev"): HANDOFF_ONLY,
+        ("merge-apply", "placed"): HANDOFF_ONLY,
+        ("merge-apply", "base_rev"): HANDOFF_ONLY,
         ("fix", "mode"): GROUP_ONLY,
         ("fix", "group"): GROUP_ONLY,
         ("fix", "from_tree"): GROUP_ONLY,
@@ -2590,6 +2636,22 @@ class LineWiringCase(unittest.TestCase):
         ("design-only", "gate_answers"): "直す物が無い周は修正前の承認ノードが無い",
         ("design-only", "round_limit"): "形 design は往復のループの外で、ループの上限が無い",
     }
+
+    def test_deliver_reaches_merge_apply_only(self):
+        """線の入力 deliver（既定の空）は merge-apply の with: だけに $start.output.deliver で届く。merge-seal と承認ノードの script には
+        渡らない（封じる段と承認の段は外へ書かない）"""
+        nodes = line_nodes()
+        self.assertEqual(LINE["inputs"]["deliver"]["default"], "")
+        self.assertEqual(nodes["merge-apply"]["with"]["deliver"], "$start.output.deliver")
+        self.assertIn("deliver", nodes["start"]["output_format"]["required"])
+        self.assertEqual(nodes["start"]["output_format"]["properties"]["deliver"], {"type": "string"})
+        for key, node in nodes.items():
+            if key != "merge-apply":
+                with self.subTest(node=key):
+                    self.assertNotIn("deliver", node.get("with") or {})
+        for key in ("merge-seal-out", "merge-apply-out"):
+            self.assertEqual(nodes[key]["with"]["got_delivered"], f"${key.removesuffix('-out')}.output.delivered")
+        self.assertEqual(nodes["merge-apply"]["when"], "$answer-final.output.go == true && $fixed.output.no_fix == false")
 
     def test_every_declared_block_input_is_wired_or_listed(self):
         """行 L-W67: 線が差し込む各ブロックの inputs: の全部が、線の with: に在るか、渡さない訳を名指した表 UNPASSED に在る

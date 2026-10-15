@@ -48,6 +48,7 @@ NEVER_FAIL = {
     ("line", "sweep-children"): ALONE_BOUND,
     ("chain", "chain-start"): ALONE_BOUND,
     ("chain", "final-diff"): ALONE_BOUND,
+    ("chain", "deliver"): ALONE_RETURN,
     **{("chain", f"round-{k}-decide"): ALONE_BOUND for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 

@@ -167,8 +167,8 @@
 - S015 git の資格を run に渡さない
   - 元: SKILL.md:15
   - 印: 無し
-  - 今: `bin/_lib/isolate.py::isolate`・`bin/_lib/launcher.py::launch`（`hostgh.TOKENS` を子の環境から外す）
-  - 状態: 在る
+  - 今: `bin/_lib/isolate.py::isolate`・`bin/_lib/launcher.py::launch`（`hostgh.TOKENS` を子の環境から外す）・`lib/deliver.py::submit`・`lib/deliver.py::host_gh`
+  - 状態: 形を変えて在る（AI の役には今までどおり渡さない。入力 `deliver` が `pr` の時だけ、merge の script が push の時にだけ host の gh を git の資格の口にして使い、run 専用の枝（`works-factory/run-<run の id>`）と PR に書く）
   - 旧棚卸し: 無し
 
 - S016 利用者の gh がログインしていなければ、並行 PR の確かめは人に回る
@@ -3030,8 +3030,8 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 183
-- 状態 形を変えて在る: 173
+- 状態 在る: 182
+- 状態 形を変えて在る: 174
 - 状態 無い: 49
 - 処置 #509: 5
 - 処置 #511: 5

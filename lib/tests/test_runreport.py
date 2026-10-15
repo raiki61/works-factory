@@ -1810,6 +1810,59 @@ class LinesCase(Base):
         _, text, _ = self.build(fixed_run(**{"merge-seal": None, "merge-apply": None, "eyes": None}))
         self.assertIn(f"- {runreport.APPLY_HEAD}: 無い（差分を封じていない）", self.section(text, report.DECISIONS_HEADING))
 
+    DELIVER_PR = {"run_id": RUN, "inputs": {"deliver": "pr"}}
+    PR_URL = "https://github.com/acme/widgets/pull/9"
+
+    def delivery_run(self, delivered, **over):
+        seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
+        apply_ = {"mode": "apply", "ok": True, "hash": "h", "diff": self.put("merge/apply.diff", ""), "protected_hits": None,
+                  "reason": "", "delivered": delivered}
+        return fixed_run(**{"merge-seal": seal_ok, "merge-apply": apply_, **over})
+
+    def head_of(self, text: str) -> str:
+        return text.split(report.DECISIONS_HEADING)[0]
+
+    def test_apply_line_names_the_delivered_pr(self):
+        """deliver: pr の run で merge-apply の delivered.ok が真なら、人が決めることの節に bin/apply の行と並べて PR の url・押した枝・
+        読み戻した commit の行を出す。報告の冒頭にも PR を名指す"""
+        delivered = {"ok": True, "branch": "works-factory/run-run-1", "commit": "a1" * 20, "url": self.PR_URL, "reason": ""}
+        _, text, decided = self.build(self.delivery_run(delivered), start=self.DELIVER_PR)
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(self.PR_URL, body)
+        lines = body.splitlines()
+        apply_at = next(i for i, line in enumerate(lines) if line.startswith(f"- {runreport.APPLY_HEAD}: bin/apply {RUN}"))
+        self.assertIn(self.PR_URL, lines[apply_at + 1])
+        self.assertIn("works-factory/run-run-1", lines[apply_at + 1])
+        self.assertIn("a1" * 20, lines[apply_at + 1])
+        self.assertIn("読み戻", lines[apply_at + 1])
+        self.assertIn(self.PR_URL, self.head_of(text))
+        _, plain, plain_decided = self.build(self.delivery_run(None))
+        self.assertEqual(decided, plain_decided, "結末の語は変えない")
+        # 出口の語が空の run（今までの run）の報告は、delivered が在っても PR を名指さず、行も句も足さない
+        for empty in ({"run_id": RUN}, {"run_id": RUN, "inputs": {"deliver": ""}}):
+            _, text, _ = self.build(self.delivery_run(delivered), start=empty)
+            self.assertEqual(text, plain)
+            self.assertNotIn(self.PR_URL, text)
+
+    def test_refused_delivery_is_named_in_the_head(self):
+        """deliver: pr の run で delivered.ok が偽か null（merge-apply が走らなかった時も）なら、報告の冒頭の happened の句と節の行に、
+        PR を作らなかった訳を名指す。結末の語は変えない"""
+        _, plain, plain_decided = self.build(self.delivery_run(None))
+        refused = {"ok": False, "branch": "", "commit": "", "url": "", "reason": "押す先の枝 works-factory/run-run-1 は守られている"}
+        cases = (("delivered が偽", self.delivery_run(refused), "守られている"),
+                 ("delivered が null", self.delivery_run(None), "delivered"),
+                 ("merge-apply が走らなかった", self.delivery_run(None, **{"merge-apply": None}), "merge-apply が走らなかった"))
+        for name, returns, words in cases:
+            with self.subTest(case=name):
+                _, text, decided = self.build(returns, start=self.DELIVER_PR)
+                self.assertIn("PR を作らなかった", self.head_of(text))
+                self.assertIn(words, self.head_of(text))
+                body = self.section(text, report.DECISIONS_HEADING)
+                self.assertTrue(any("PR を作らなかった" in line and words in line for line in body.splitlines()), body)
+                self.assertNotIn(self.PR_URL, text)
+                if "merge-apply" in returns and returns["merge-apply"] is not None:
+                    self.assertEqual(decided, plain_decided, "結末の語は変えない")
+
     def test_tests_head_lines_and_deleted_files(self):
         """T35・T41・M38（部分 B2 の申し送り。最後の関所と同じ行を報告の冒頭に）: 人が決めることの節に最後のテストの一式の行と修正前のテストの
         行（test-gate の返りの欄のまま）、任せ先の申告の緑なら走らせる語の宣言の仕方、封じた差分が消すファイルを 1 本ずつ出す"""

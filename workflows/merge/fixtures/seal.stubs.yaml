@@ -6,6 +6,7 @@ merge:
   diff: { type: archon_artifact, run_id: fixture-run, path: merge/sealed.diff }
   protected_hits: []
   reason: ""
+  delivered: null
 fixture:
   expect: completed
   reached: [merge]

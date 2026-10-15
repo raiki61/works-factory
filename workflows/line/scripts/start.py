@@ -22,6 +22,7 @@ with boundary.guarded_imports():
     import answer
     import carry
     import declared_checks
+    import deliver
     import depth
     import entry
     import entryshape
@@ -67,6 +68,7 @@ def raw_inputs() -> dict:
         "policy_md": os.environ.get("INPUTS_POLICY_MD", ""),
         "fix_fixture": os.environ.get("INPUTS_FIX_FIXTURE", ""),
         "lang": os.environ.get("INPUTS_LANG", ""),
+        "deliver": os.environ.get("INPUTS_DELIVER", ""),
     }
 
 
@@ -95,7 +97,20 @@ def words(raw: dict, repo: Path) -> dict:
         raise Refused("固定材料（fix_fixture）から修正を始める道はまだ無い（判定と修正案を作り直さずに修正から始めるには、"
                       "fix のサブグラフが固定材料を受ける形が要る）。fix_fixture を空にして回す")
     return {**gate, "spec": spec, "design_only": design_only, "thickness": thickness, "features_off": off, "features_on": on,
-            "policy_md": policy_md(raw["policy_md"], repo)}
+            "policy_md": policy_md(raw["policy_md"], repo), deliver.KEY: delivery(raw["deliver"], repo)}
+
+
+def delivery(word: str, repo: Path) -> str:
+    """出口の語（lib/deliver.py）を確かめる。pr なら始めに、remote が GitHub か・host の gh が在るか・push の権限が在るかも照らす
+    （夜通しの run が最後に初めて拒まない）。通らなければ Refused。通った語は出力の欄 deliver になり、merge-apply だけが読む"""
+    try:
+        got = deliver.check(word)
+    except deliver.Refused as error:
+        raise Refused(str(error)) from None
+    why = deliver.preflight(repo) if got == deliver.PR else ""
+    if why:
+        raise Refused(f"{deliver.KEY}={deliver.PR} を始められない: {why}")
+    return got
 
 
 def policy_md(rel: str, repo: Path) -> str:
@@ -197,7 +212,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         record["refused"] = str(error)
         return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
-                "unattended": False, "design_only": False, "final_gate": ""}
+                "unattended": False, "design_only": False, "final_gate": "", deliver.KEY: ""}
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
@@ -219,12 +234,12 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record),
             "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
-            "final_gate": record[gatepolicy.FINAL_KEY]}
+            "final_gate": record[gatepolicy.FINAL_KEY], deliver.KEY: checked[deliver.KEY]}
 
 
 def fallback(reason: str) -> dict:
     return {"ok": False, "stop_reason": boundary.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
-            "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": ""}
+            "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": "", "deliver": ""}
 
 
 if __name__ == "__main__":

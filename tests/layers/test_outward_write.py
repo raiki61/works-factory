@@ -46,6 +46,20 @@ class OutwardWriteTest(unittest.TestCase):
         self.assertEqual(len(got), 1, got)
         self.assertIn("a・b", got[0])
 
+    def test_lib_write_call_counts_as_a_writing_node(self):
+        """lib の書く口（deliver.submit）を呼ぶ節も外へ書く節に数える。同じブロックに別の書く節が在れば 2 つで赤"""
+        yaml = (
+            "name: works-factory-merge\nnodes:\n  - id: merge\n    script: merge\n    runtime: uv\n    timeout: 1728000000\n"
+            "  - id: other\n    script: other\n    runtime: uv\n    timeout: 1728000000\n"
+        )
+        files = {BLOCK: yaml, "workflows/merge/scripts/merge.py": "delivered = deliver.submit(repo, base_rev, data, run_id, scratch)\n",
+                 "workflows/merge/scripts/other.py": 'run(["gh", "pr", "create"])\n'}
+        got = self.problems(files)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("merge・other", got[0])
+        files["workflows/merge/scripts/other.py"] = "print('read only')\n"
+        self.assertEqual(self.problems(files), [], "書く節が 1 つなら緑")
+
     def test_nodes_inside_a_loop_group_count(self):
         yaml = (
             "name: works-factory-merge\nnodes:\n  - id: g\n    loop_group:\n      nodes:\n"

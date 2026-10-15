@@ -35,8 +35,8 @@
 
 ## E6 外への書き込みは 1 つの script のノードで、書いた後に読み戻す
 
-- GitHub・対象のリポジトリの main・人に見える所への書き込みは、サブグラフごとに 1 つの `script:` のノードだけが行う。書いた後に読み戻し、読めた値で返る。終了の値 0 は書けた証拠にしない。
-- 機械: `tests/layers/test_outward_write.py`（`gh`・`git push`・`git merge` を呼ぶノードがサブグラフに 1 つ以下。名簿は試験の中の表）。読み戻しの有無は人が見る。
+- GitHub・対象のリポジトリの main・人に見える所への書き込みは、サブグラフごとに 1 つの `script:` のノードだけが行う。書いた後に読み戻し、読めた値で返る。終了の値 0 は書けた証拠にしない。書く口が `lib/` の関数（`lib/deliver.py` の `submit`）の中に在ってノードの字に `gh`・`git push` が現れなくても、その口を呼ぶノードは書くノードに数える。
+- 機械: `tests/layers/test_outward_write.py`（`gh`・`git push`・`git merge` を呼ぶか、lib の書く口 `deliver.submit` を呼ぶノードがサブグラフに 1 つ以下。名簿は `tests/layers/scan.py` の `OUTWARD`）。読み戻しの有無は人が見る。
 
 ## E7 読むだけのノードは mutates_checkout: false を書く
 
@@ -70,6 +70,7 @@
 ## E17 対象のリポジトリには差分を置くだけ
 
 - merge サブグラフの既定は、封じた差分を run の置き場に置くだけ。対象のリポジトリに当てるのは人で、`bin/apply` が封じた hash を照らしてから当てる。PR を作る・merge する動きは、使う人が選んだ時だけ働く道にする。対象のリポジトリごとにレビューと merge の決まりと権限が違うため（持ち主の決め `diff-only-to-target`・`others-may-use`）。
+- 選べる道は入力 `deliver: pr`（メイングラフと周の鎖。`lib/deliver.py`）だけで、その時だけ merge の script が run 専用の枝（`works-factory/run-<run の id>`）へ `--force` なしで push し、既定の枝向けの PR を作って読み戻す。merge はしない（`gh pr merge`・`git merge` を呼ばない）。既定の枝にも、守られた枝にも、run 専用でない枝にも書かない（柵に当たれば何も書かずに、訳を出力の欄 `delivered` に載せる）。AI の役には資格を渡さない（書くのは script の段で、gh は読むだけの口の置き場を飛ばした host の gh）。
 - ASF が PR を merge するのは、ASF がこのリポジトリ（works-factory）を作る時だけ。
 - 人が見る。
 

@@ -633,8 +633,9 @@ def _loop_roles(root: Path) -> list[str]:
     return out
 
 
-# 外への書き込み（E6）: GitHub への gh と、対象のリポジトリの main への git push・git merge。
-OUTWARD = re.compile(r"(?<![\w./-])gh(?![\w./-])|\bgit[\"'\s,]+(?:push|merge)\b")
+# 外への書き込み（E6）: GitHub への gh と、対象のリポジトリの main への git push・git merge と、lib の書く口 deliver.submit
+# （専用の枝への push と PR。口の中の gh・git push は lib の中にあり、節の字には現れないので、口の呼びを語に数える）。
+OUTWARD = re.compile(r"(?<![\w./-])gh(?![\w./-])|\bgit[\"'\s,]+(?:push|merge)\b|\bdeliver\.submit\b")
 NAMED_SCRIPT = re.compile(r"[\w.-]+")
 
 

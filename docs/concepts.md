@@ -56,6 +56,7 @@
 | `stop-reasons` | 止めの理由 | 住処あり |
 | `start-record` | 始めの記録（r1/start.json） | 住処あり |
 | `human-gates` | 人の承認ノードと無人の方針 | 住処あり |
+| `deliver` | 出口（差分を専用の枝と PR にして提出する道） | 住処あり |
 | `gate-evidence` | 試験の関門の証拠の文の行の頭 | 住処あり |
 | `ledger` | 費用と時間の帳簿 | 散らばり |
 | `ai-launch` | AI の起こし方（模型・effort・道具・隔離） | 散らばり |
@@ -217,6 +218,14 @@
 - 約束: 始めの記録（`lib/startrec.py` の start.json の形）の 2 つの欄。書き手はメイングラフの始めのノードの 1 か所
 - 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）と、周の鎖の親のグラフ `workflows/chain/works-factory-chain.yaml`（メイングラフと同じ名の入力を宣言し、周の子へ写して渡すだけ）。読み手（`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口で始めの記録を読む
 - 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形の 2 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
+
+### `deliver` 出口（差分を専用の枝と PR にして提出する道）
+
+- 状態: 住処あり
+- 住処: `lib/deliver.py`（標準ライブラリと `lib/forge.py`・`lib/oneline.py` だけ。入力の語 `WORDS`・`PR` と確かめ `check`、始めの確かめ `preflight`、押す先の枝 `BRANCH_PREFIX`・`branch_of`、提出 `submit`（柵・一時の物の置き場での commit・push・PR）、読み戻し `readback`、host の gh の探し方 `host_gh`、gh を呼ぶ唯一の口 `_gh` と通す動詞の固定の並び `VERBS`、報告の行 `report_lines` と冒頭の句 `head_words`）
+- 約束: 入力 `deliver`（空か `pr`。周の鎖が最後の差分を渡す形 `handoff` は、これに加えて `placed`・`base_rev` を受ける）と出力の欄 `delivered`（`{ok, branch, commit, url, reason}` か null）。欄の正本は `workflows/merge/works-factory-merge.yaml` の入力と出力の型で、メイングラフと鎖はそれを受けて通すだけ
+- 知ってよい所: 住処と、約束の 3 つの YAML（`workflows/merge/works-factory-merge.yaml`・`workflows/line/works-factory-line.yaml`・`workflows/chain/works-factory-chain.yaml`）と、語を読む・渡す script（`workflows/merge/scripts/merge.py`・`workflows/line/scripts/start.py`・`workflows/chain/scripts/chain_start.py`・`workflows/chain/scripts/result.py`）。報告 `lib/runreport.py` は住処の口 `deliver.report_lines`・`deliver.head_words` を引くだけ
+- 今: 柵は、出口の語を読む・渡す形（住処の口 `deliver.<名>` は数えない）と、住処の定数を別の名に写す形の 2 本。外の当たりは 0 件。gh の探し方は `bin/_lib/hostgh.py` の `find_gh`・`bin/_lib/no-post-bin/works-gh` の `real_gh` と同じ事を持つ写しの 3 つ目（lib は bin を import できない。E3）。外へ書くノードは merge の 1 つで、`tests/layers/scan.py` の E6 の語に口の呼び `deliver.submit` を数える
 
 ### `gate-evidence` 試験の関門の証拠の文の行の頭
 

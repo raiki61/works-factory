@@ -9,10 +9,12 @@
 受けた時は 0 周目の決めと同じ形（act: launch・1 周目の子の入力 request・base・pr・spec・前までの周の行 rows: []）を返すので、
 5 組の周のノードは番号と前の決めのほかは同じ形になる。後ろの決めが読む rounds・budget と、2 周目から運ぶ 1 周目の依頼の絶対パス
 first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）と、
-最後の差分の元の基 origin（run の作業ツリーの今の HEAD。1 周目の子の始めの記録の base_rev と同じ版。commit の無い木なら空）も返す。
+最後の差分の元の基 origin（run の作業ツリーの今の HEAD。1 周目の子の始めの記録の base_rev と同じ版。commit の無い木なら空）と、
+出口の語 deliver（lib/deliver.py。空か pr。知らない語と、pr で remote が GitHub でない・host の gh が無い・push の権限が無いは、周を起こす前に
+act: refused で止める。周の子へは渡さず、渡す先は final-diff の後ろのノード deliver だけ）も返す。
 出力ノード result が結ぶので落ちない: 境の口を読めない時も標準ライブラリだけで act: refused を返す。
 
-入力: rounds・budget_usd・request・base・pr・spec・design_only（鎖の入力）
+入力: rounds・budget_usd・request・base・pr・spec・design_only・deliver（鎖の入力）
 """
 import json
 import os
@@ -30,6 +32,7 @@ except Exception as error:   # 出力ノードが結ぶので落ちない（上�
 if boundary is not None:
     with boundary.guarded_imports():
         import chain
+        import deliver
         import entryshape
 
 
@@ -38,7 +41,7 @@ DESIGN_ONLY_REFUSED = "周の鎖は design_only と組めない（設計だけ�
 
 def refused(reason: str) -> dict:
     return {"ok": False, "reason": reason, "act": "refused", "word": "", "text": reason, "request": "", "base": "", "pr": "",
-            "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0, "origin": ""}
+            "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0, "origin": "", "deliver": ""}
 
 
 def head() -> str:
@@ -52,6 +55,13 @@ def start() -> dict:
     request = boundary.text(os.environ.get("INPUTS_REQUEST"))
     pr = boundary.text(os.environ.get("INPUTS_PR"))
     try:
+        word = deliver.check(boundary.text(os.environ.get("INPUTS_DELIVER")))
+    except deliver.Refused as error:
+        return refused(str(error))
+    why = deliver.preflight(Path.cwd()) if word == deliver.PR else ""
+    if why:
+        return refused(f"{deliver.KEY}={deliver.PR} を始められない: {why}")
+    try:
         rounds, budget = chain.limits(boundary.text(os.environ.get("INPUTS_ROUNDS")),
                                       boundary.text(os.environ.get("INPUTS_BUDGET_USD")))
     except ValueError as error:
@@ -60,7 +70,7 @@ def start() -> dict:
     return {"ok": True, "reason": "", "act": "launch", "word": "", "text": "1 周目を起こす", "request": request,
             "base": boundary.text(os.environ.get("INPUTS_BASE")), "pr": pr, "spec": boundary.text(os.environ.get("INPUTS_SPEC")),
             "rows": [], "rounds": rounds, "budget": budget, "first_request": first,
-            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": head()}
+            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": head(), deliver.KEY: word}
 
 
 def main() -> None:
