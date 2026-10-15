@@ -162,9 +162,7 @@ flowchart TB
 
 ### 深さの段の表
 
-旧名「深さで飛ばすノードの表」。`docs/owner-decisions.md` の `depth-by-reason` の当て方が指す表。
-
-run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つの表（issue #441。持ち主の決め `depth-by-reason`）。表は `lib/depth.py` の `TIERS` の写しで、深さの語（`HEADS`）・重厚が足す機能（`depth.tier_adds`）・報告の深さの行（`headdepth.report_line`）はどれも `TIERS` から引き、表との一致は `workflows/AGENTS.md` の E20 の試験が縛る。省く物は段の頭の run で、直した後も単位がどれも軽量の時だけ省く確かめ（`depth.OMITS` の名）、足す物は段が足す機能（`lib/entry.py` の `FEATURE_DEFAULTS` の名。名指しの `features_off` が足しに勝つ）。ノードを深さの `when` で飛ばす道は作らない（どのノードの `when` も、出力の深さの欄を読む句を持てない）。
+run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つの表（issue #441・#561。持ち主の決め `depth-by-reason`・`three-tiers`）。表は `lib/depth.py` の `TIERS` の写しで、深さの語（`HEADS`）・重厚が足す機能（`depth.tier_adds`）・報告の深さの行（`headdepth.report_line`）はどれも `TIERS` から引き、表との一致は `workflows/AGENTS.md` の E20 の試験が縛る。省く物は段の頭の run で、直した後も単位がどれも軽量の時だけ省く確かめ（`depth.OMITS` の名。同じ段の頭の run では、軽量の単位ごとに緑の後と親に当てた後の `test_cmd` の走らせ直しも省く。`depth.UNIT_OMIT`）、足す物は段が足す機能（`lib/entry.py` の `FEATURE_DEFAULTS` の名）。ノードを深さの `when` で飛ばす道は作らない（どのノードの `when` も、出力の深さの欄を読む句を持てない）。
 
 | 段 | 省く物 | 足す物 | 理由 |
 | --- | --- | --- | --- |
@@ -175,7 +173,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 注:
 
 - gate の機械の止めの run は役を起こさず標準になり、自動では重厚を選ばない。重厚が要るなら入力 `thickness=重厚` で名指す（名指しは役を起こさずに固定し、単位の深さは標準に固定する）。
-- 重厚と `features_off` の組は拒まない。名指しで切った機能は重厚でも入れず、報告の深さの行が「名指しで切った」と言う。
+- 名指した重厚（`thickness=重厚`）が足す機能を `features_off` で切る組は、入口（`workflows/line/scripts/start.py` の `words`）がぶつかった機能を名指して止める。自動で選んだ重厚は入口の後に決まるので止められず、名指しで切った機能は入れずに、報告の深さの行が「名指しで切った」と言う。
 - 重厚の足しは、判定の裏取りの支度（judge の `verify-prep` が始めの記録と頭の深さの控えから決める）と、事前審査の木（`plan-review` の入力 `head_depth`）が読む。裏取りは開いた単位が 2 つ未満なら重厚でも回さない（報告の裏取りの行が訳を出す）。
 
 載せなかった候補（代わりが無い）:
