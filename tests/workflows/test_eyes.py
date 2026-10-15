@@ -883,6 +883,16 @@ class ScriptCase(unittest.TestCase):
         unnamed = {**reply, "policy_conflicts": ["『0 を返す』に反し、空の列で例外を投げる"]}
         self.assertFalse(self.run_script("r4_accept", with_={"reply": json.dumps(unnamed, ensure_ascii=False)})["ok"])
 
+    def test_prep_notes_an_unreadable_ledger_instead_of_failing(self):
+        """#600: 問いの台帳が読めない時も目の準備は止めない。推しの行は無しにして、読めない訳を「記録された方針」に添える（最後の
+        承認ノード ask_final.ledger と同じ受け）"""
+        self.no_fix_inputs()
+        self.inputs["judgment"] = self.pointer("judge/judgment.json", "{")
+        self.start(unattended="true")
+        got = self.run_script("prep")
+        self.assertEqual(json.loads((self.artifacts / "eyes" / eyeverdict.PREP_FILE).read_text(encoding="utf-8"))[policy.RECORDED_KEY], [])
+        self.assertIn("判定の問いの控えか始めの記録を読めない（無人の run が保留の問いに採った推しを並べていない。JSONDecodeError", got["recorded_policy"])
+
     def test_verdict_carries_protected_hits(self):
         self.prep_file()
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})

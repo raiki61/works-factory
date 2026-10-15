@@ -40,12 +40,16 @@ def entry_base() -> str:
     return base_rev
 
 
-def taken_pushes() -> list:
-    """無人の run が判定の保留の問いに採った推しの文（問いの台帳を最後の関所と同じ判定・結び・修正前の関所の答えで読む）"""
+def taken_pushes() -> tuple:
+    """(無人の run が判定の保留の問いに採った推しの文, 添える行)。問いの台帳を最後の関所と同じ判定・結び・修正前の関所の答えで読み、
+    読めなければ最後の関所（ask_final.ledger）と同じく止めずに推しを無しにして、添える行に訳"""
     if judgment_file is None:
-        return []
-    ties = boundary.pointed(os.environ["INPUTS_TIES_JUDGMENT"])
-    return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(gatemarks.ledger_at(judgment_file, start, answer, ties))]
+        return [], []
+    try:
+        b = gatemarks.ledger_at(judgment_file, start, answer, boundary.pointed(os.environ["INPUTS_TIES_JUDGMENT"]))
+    except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
+        return [], [f"- 判定の問いの控えか始めの記録を読めない（無人の run が保留の問いに採った推しを並べていない。{type(error).__name__}: {error}）"]
+    return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(b)], []
 
 
 def read(raw):
@@ -71,7 +75,8 @@ depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
 after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
 human_items = eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer)
-recorded = policy.recorded(start, judgment_file.parent if judgment_file else None, human_items=human_items, pushes=taken_pushes())
+pushes, pushes_unread = taken_pushes()
+recorded = policy.recorded(start, judgment_file.parent if judgment_file else None, human_items=human_items, pushes=pushes)
 premises_text, r2_ledger = eyeverdict.premise_section(
     human_items=human_items,
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),
@@ -98,7 +103,7 @@ out = {
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
     "repo_review_md": str(repo_review) if repo_review.is_file() else "（対象のリポジトリの根に REVIEW.md は無い）",
     "policy_path": policy.frozen_copy(start),
-    "recorded_policy": policy.recorded_section(recorded),
+    "recorded_policy": "\n".join([policy.recorded_section(recorded), *pushes_unread]),
     "lang_line": rolekit.lang_line(start),
     "r1_head": concepthome.R1_HEAD.format(section=after),
     "r3_head": concepthome.R3_HEAD.format(section=after),
