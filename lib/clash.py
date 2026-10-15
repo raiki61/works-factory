@@ -130,10 +130,10 @@ def ruled_paths(place, row) -> list:
 
 # ---------------------------------------------------------------- 組の結果
 def result(place, gid) -> dict:
-    """組の子の結果（置き場の groups.json の out_dir/<group_id>/result.json）。読めなければ ValueError"""
+    """組の子の結果（置き場の groups.json の out_dir/<group_id>/result.json。fixboard.usable_result）。使えなければ ValueError"""
     plan = fixboard.read_json(pathlib.Path(place) / fixboard.GROUPS_FILE, {}) or {}
-    got = fixboard.read_json(pathlib.Path(plan.get("out_dir") or "") / gid / fixboard.RESULT_FILE)
-    if not isinstance(got, dict) or not isinstance(got.get("end_tree"), str):
+    got = fixboard.usable_result(pathlib.Path(plan.get("out_dir") or "") / gid)
+    if got is None:
         raise ValueError(f"組 {gid} の子の結果が読めない")
     return got
 

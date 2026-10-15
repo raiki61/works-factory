@@ -110,8 +110,8 @@
 
 - 穴: 落ちたノードの出力は `{from, if_skipped}` でも読めず、読んだノードも落ちる。
 - 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` の `resolveBindingDirective`（落ちた producer を `assertProducerNotFailed` で止め、「A binding never falls back to 'if_skipped' for a failed producer」）。
-- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。
-- 使うサブグラフ: メイングラフ
+- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。
+- 使うサブグラフ: メイングラフ・fix
 - 外す条件: 落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
 
 ### P9 鍵を書かないノードにも既定の期限が当たる
