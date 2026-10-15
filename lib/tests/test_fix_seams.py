@@ -461,6 +461,51 @@ class PlanrangeSeamCase(unittest.TestCase):
         self.assertEqual(pr.permit_paths(self.place, ruled=True), ["conf.ini"])
 
 
+class ScopeTextSeamCase(TempCase):
+    """#570: 役の指示書に貼る範囲の節（planrange.scope_text）は、受け付けが照らす値（planrange.scope）と同じ関数から引く。貼った
+    具体のパスは照らしが通し、貼っていないパスと out_of_scope は拒む。引数を変えれば節と照らしが揃って動く"""
+
+    ITEMS = PlanrangeSeamCase.ITEMS
+
+    def setUp(self):
+        super().setUp()
+        import conflict
+        fixboard.trace(self.place, conflict.ASKED_OP, id="a1", item=1, status="answered", decision="allow",
+                       granted_paths=["docs/x.md"])
+        conflict.park(self.place, [CLAIM], source=conflict.FIX_SOURCE)
+        conflict.apply_rulings(self.place, {"c1-1": {"decision": "fix_code_as", "text": "設定のファイルも直してよい",
+                                                     "limits": ["conf.ini"]}}, by="t")
+
+    def test_refix_scope_text_lists_what_check_paths_lets_through(self):
+        import planrange as pr
+        text = pr.scope_text(pr.scope(self.place, items=self.ITEMS, ruled=True)[0])
+        for path in ("stats.py", "docs/x.md", "conf.ini", "vendored/**"):
+            self.assertIn(f"`{path}`", text)
+        self.assertIn("外の写し", text)
+        for path in ("stats.py", "docs/x.md", "conf.ini"):
+            self.assertEqual(pr.check_paths(self.place, [path], items=self.ITEMS, ruled=True)[0], [], path)
+        for path in ("vendored/x.py", "other.py"):
+            self.assertTrue(pr.check_paths(self.place, [path], items=self.ITEMS, ruled=True)[0], path)
+        self.assertNotIn("other.py", text)
+        loose = pr.scope_text(pr.scope(self.place, items=self.ITEMS, ruled=False)[0])
+        self.assertNotIn("conf.ini", loose, "裁定の前は直す裁定のパスを貼らない")
+        self.assertTrue(pr.check_paths(self.place, ["conf.ini"], items=self.ITEMS, ruled=False)[0], "照らしも通さない")
+        self.assertEqual(pr.scope_text(pr.scope(self.place, items=None, ruled=True)[0]), "", "照らさない run は節を置かない")
+
+    def test_fix_scope_text_lists_what_planscope_lets_through(self):
+        import planrange as pr
+        import planscope
+        text = pr.scope_text(pr.fix_scope(self.place, "first", items=self.ITEMS)[0])
+        self.assertIn("`docs/x.md`", text)
+        self.assertNotIn("conf.ini", text, "段 first は直す裁定のパスを許さない")
+        lines, rec = planscope.check([], self.place, self.repo, self.rev, ["docs/x.md"], pass_="first", items=self.ITEMS)
+        self.assertEqual((lines, rec.get("checked", True)), ([], True))
+        lines, _ = planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="first", items=self.ITEMS)
+        self.assertTrue(any("conf.ini" in x for x in lines), lines)
+        self.assertIn("`conf.ini`", pr.scope_text(pr.fix_scope(self.place, "ruled", items=self.ITEMS)[0]))
+        self.assertEqual(planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="ruled", items=self.ITEMS)[0], [])
+
+
 R_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 R_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 # 判定の units（元 works/tests/replies/judge_ok.json の class_query）

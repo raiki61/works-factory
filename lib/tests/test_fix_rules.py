@@ -685,6 +685,40 @@ class PrepCase(unittest.TestCase):
         text = pathlib.Path(got["prompt_file"]).read_text(encoding="utf-8")
         self.assertEqual(text.split("\n")[1], fixrules.RULINGS_LINE.format(path=rulings), "裁定の後の 1 回目は拒否でなく裁定の文")
 
+    REVIEW = {"faces": [{"key": "穴-分母の空の列", "unit_keys": ["a: 分母"], "kind": "regression", "severity": "block",
+                         "where": "stats.py", "why": "空の列で 0 で割る"},
+                        {"key": "穴-別の組の単位", "unit_keys": ["c: 別"], "kind": "copy", "severity": "suggest",
+                         "where": "x.py", "why": "別の組の穴"}],
+              "shrink": [{"key": "別案-len を直に使う", "unit_keys": [], "alternative": "len(xs) を直に使う",
+                          "why": "足さずに閉じる"}]}
+
+    def test_prompt_pastes_the_plan_faces_the_accept_asks(self):
+        """#570: 修正役の指示書の事前審査の節の key は、受け付け（plan_face_errors）が答えを求める key と同じ集合"""
+        self.assertNotIn(fixboard.FACES_HEAD, pathlib.Path(self.prep()["prompt_file"]).read_text(encoding="utf-8"),
+                         "事前審査の写しの無い置き場では節を置かない")
+        (self.place / fixboard.PLAN_REVIEW_FILE).write_text(json.dumps(self.REVIEW, ensure_ascii=False), encoding="utf-8")
+        text = pathlib.Path(self.prep()["prompt_file"]).read_text(encoding="utf-8")
+        pasted = set(re.findall(r"^- `([^`]+)`（(?:穴|別案)", text.split(fixboard.FACES_HEAD, 1)[1], re.M))
+        self.assertEqual(pasted, {"穴-分母の空の列", "別案-len を直に使う"})
+        duty = fixboard.fix_duty(self.place, {"a: 分母", "b: 上限"})[0]
+        errs = fixboard.plan_face_errors(self.place, {"plan_faces": []}, fixboard.face_units("first", duty))
+        self.assertEqual({re.search(r"'(.+?)' に応答が無い", e)[1] for e in errs}, pasted)
+        (self.place / fixrules.conflict.RULINGS_FILE).write_text("# 裁定\n", encoding="utf-8")
+        ruled = pathlib.Path(self.prep("ruled")["prompt_file"]).read_text(encoding="utf-8")
+        for key in ("穴-分母の空の列", "穴-別の組の単位", "別案-len を直に使う"):
+            self.assertIn(f"`{key}`", ruled)
+
+    def test_prompt_pastes_the_scope_the_accept_checks(self):
+        """#570: 修正役の指示書に、受け付けが照らす項目の変えてよいパス・テストのファイル・out_of_scope が字のまま在る"""
+        import planrange
+        items = [{"item": 1, "unit_keys": ["a: 分母"], "allowed_paths": ["stats.py"],
+                  "tests": [{"id": "test_stats.py::test_mean", "red_kind": "assert"}], "rewrite_tests": [],
+                  "out_of_scope": [{"glob": "vendored/**", "why": "外の写し"}]}]
+        text = pathlib.Path(self.prep(items=items)["prompt_file"]).read_text(encoding="utf-8")
+        for path in ("stats.py", "test_stats.py", "vendored/**"):
+            self.assertIn(f"`{path}`", text)
+        self.assertNotIn(planrange.SCOPE_HEAD, pathlib.Path(self.prep()["prompt_file"]).read_text(encoding="utf-8"))
+
     def test_unknown_pass_and_broken_briefs(self):
         with self.assertRaises(fixrules.Unfilled):
             self.prep("third")

@@ -15,6 +15,10 @@
 - outside(items, paths, permits, *, hint): 単位に結べない変わったパスの外れの行（全項目の範囲の和か許しに入らない・どれかの項目の
   out_of_scope に当たる）。hint なら、ほかの項目の out_of_scope に当たるがある項目の範囲には入るパスに OWNER_HINT を足す
 - approved(items, *, by): 承認済みの修正案の項目の値 items（planmarks.approved_items の形。呼び手が渡す）を照らせるか
+- scope(b, *, items, ruled, by, agreed, round_): 受け付けが照らす値 ({items: 合意を足した項目, permits: 許しのパス}, "")。照らさない
+  項目なら (None, 理由)。照らし（check_paths・planscope.check）と役の指示書（scope_text）が同じ値を引く 1 か所
+- fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く
+- scope_text(got): 役の指示書に貼る節（SCOPE_HEAD）。scope の値の項目の範囲・out_of_scope・許しのパスを字のまま並べる
 - check_paths(b, paths, *, items, ruled, by, round_): 承認済みの修正案の項目 items で paths を outside で照らす (行, 記録)。
   合意と裁定は置き場 b から読む。照らさない項目（修正案の無い・範囲の欄の無い控え）は ([], {"checked": False, "why": 理由})。
   欄の控えが凍結の印と食い違えば conflict.fields_broken の道（ValueError）
@@ -25,6 +29,7 @@ import posixpath
 
 import conflict
 import planmarks
+import promptsection
 import stopby   # L1。止めの理由の住処
 
 # 単位に結べない変わったパスがほかの項目の out_of_scope に当たり、ある項目の範囲には入る時に足す文（申告すればその項目で照らす）
@@ -32,15 +37,19 @@ OWNER_HINT = "（項目 {nums} の範囲には入る。その項目の単位の 
 LIFTED = "out_of_scope_lifted"   # with_agreed が項目の写しに足す欄: 合意でその項目の out_of_scope から外したパス（字のまま）
 NO_PLAN = "承認済みの修正案か works の欄の控えが無い"
 NO_SCOPE = "範囲の欄の無い控え（217 番の形の共有ボード）"
+SCOPE_HEAD = promptsection.Section("## 変えてよいパスと触らない物（受け付けがこの値で照らす）", source="fn:planrange.scope_text")
 
 
 def globs(it: dict) -> list[str]:
     return [g for g in it.get("allowed_paths") or [] if isinstance(g, str) and g]
 
 
+def _oos_rows(it: dict) -> list[dict]:
+    return [r for r in it.get("out_of_scope") or [] if isinstance(r, dict) and isinstance(r.get("glob"), str) and r["glob"]]
+
+
 def _oos(it: dict) -> list[str]:
-    return [r["glob"] for r in it.get("out_of_scope") or [] if isinstance(r, dict) and isinstance(r.get("glob"), str)
-            and r["glob"]]
+    return [r["glob"] for r in _oos_rows(it)]
 
 
 def inside(path: str, it: dict) -> bool:
@@ -160,14 +169,52 @@ def approved(items, *, by: str = stopby.FIX):
     return items, ""
 
 
-def check_paths(b, paths, *, items, ruled: bool = True, by: str = stopby.FIX, round_: int = 1) -> tuple[list[str], dict]:
-    """承認済みの修正案の項目 items（approved に渡す値か口。範囲の相談の合意を足した物）で、単位に結べない変わったパス paths を
-    outside で照らす（hint なし: 結ぶ単位を申告する欄の無い役）。合意・許し・裁定は置き場 b（conflict の置き場）から読む。
-    返り (外れの行, 記録 {checked, items | why})"""
+def scope(b, *, items, ruled: bool, by: str = stopby.FIX, agreed=None, round_: int = 1) -> tuple[dict | None, str]:
+    """受け付けが照らす値: ({items: 承認済みの修正案の項目 items（approved に渡す値か口）に範囲の相談の合意（agreed。None なら
+    置き場 b の conflict.agreed）を足した物, permits: permit_paths}, "")。照らさない項目なら (None, 理由)"""
     items, why = approved(items, by=by)
     if items is None:
+        return None, why
+    agreed = conflict.agreed(b) if agreed is None else agreed
+    return {"items": with_agreed(items, agreed), "permits": permit_paths(b, ruled=ruled, agreed=agreed, round_=round_)}, ""
+
+
+def fix_scope(b, pass_: str, *, items, agreed=None, round_: int = 1) -> tuple[dict | None, str]:
+    """修正の段（pass_ first・ruled）の受け付けが照らす値（scope。裁定の後は直す裁定のパスも許しに入る）"""
+    return scope(b, items=items, ruled=pass_ == "ruled", agreed=agreed, round_=round_)
+
+
+def _paths_line(paths) -> str:
+    return "、".join(f"`{p}`" for p in paths) or "無し"
+
+
+def scope_text(got) -> str:
+    """役の指示書に貼る節（SCOPE_HEAD）: scope の値 got の項目ごとの範囲（allowed_paths の glob・tests と rewrite_tests の id の
+    ファイル）・out_of_scope・合意で外したパス（LIFTED）と、全部の項目に効く許しのパスを字のまま。got が None なら空"""
+    if got is None:
+        return ""
+    lines = [SCOPE_HEAD, "", "受け付けは、変えたパスをこの値で照らし、外れを拒む。`out_of_scope` は範囲より強く、許しのパスにも勝つ"
+             "（範囲の相談で外したパスだけは、その項目で当たらない）。範囲の相談で許されたパスとテストの許しも、ここに入っている。", ""]
+    for it in got["items"]:
+        units = "、".join(str(k) for k in it.get("unit_keys") or []) or "無し"
+        oos = [f"`{r['glob']}`" + (f"（{r['why']}）" if r.get("why") else "") for r in _oos_rows(it)]
+        lines += [f"- 項目 {it.get('item')}（単位: {units}）",
+                  f"  - allowed_paths: {_paths_line(globs(it))}",
+                  f"  - テストのファイル（tests・rewrite_tests の id）: {_paths_line(planmarks.test_paths(it))}",
+                  f"  - out_of_scope: {'、'.join(oos) or '無し'}"]
+        if it.get(LIFTED):
+            lines.append(f"  - 相談で out_of_scope から外したパス: {_paths_line(it[LIFTED])}")
+    lines.append(f"- 全部の項目に効く許し（テストの変更の許し・直す裁定が足したパス。out_of_scope には勝たない）: "
+                 f"{_paths_line(got['permits'])}")
+    return "\n".join(lines)
+
+
+def check_paths(b, paths, *, items, ruled: bool = True, by: str = stopby.FIX, round_: int = 1) -> tuple[list[str], dict]:
+    """承認済みの修正案の項目 items（approved に渡す値か口）で、単位に結べない変わったパス paths を、scope の値の outside で照らす
+    （hint なし: 結ぶ単位を申告する欄の無い役）。合意・許し・裁定は置き場 b（conflict の置き場）から読む。
+    返り (外れの行, 記録 {checked, items | why})"""
+    got, why = scope(b, items=items, ruled=ruled, by=by, round_=round_)
+    if got is None:
         return [], {"checked": False, "why": why}
-    agreed = conflict.agreed(b)
-    items = with_agreed(items, agreed)
-    lines = outside(items, sorted(paths), permit_paths(b, ruled=ruled, agreed=agreed, round_=round_), hint=False)
-    return lines, {"checked": True, "items": [it.get("item") for it in items]}
+    lines = outside(got["items"], sorted(paths), got["permits"], hint=False)
+    return lines, {"checked": True, "items": [it.get("item") for it in got["items"]]}
