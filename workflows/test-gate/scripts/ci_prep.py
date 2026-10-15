@@ -9,7 +9,9 @@
 run が包みを通ると宣言した（env の fence.RECORDS_ENV）のに宣言が読めなければ、出し直さずに諦めた拒否を控えに積んで落ち、役を起こさない
 （今の works の ci_role.take と同じ所。棚卸しの T49。返すノードが控えの拒否を証拠に出す）。
 reject は ci-accept が積んだ拒否の控え（rolekit.rejected）の全部を rolekit.rejects_text で 1 つの文にした物。$LOOP_PREV で with: に貼ると、Archon が貼った値の中の
-$<節>.output.<欄> の字をもう 1 度置き換え、拒否の文が節の参照を含むと輪が落ちる（元の裁定 R44）"""
+$<節>.output.<欄> の字をもう 1 度置き換え、拒否の文が節の参照を含むと輪が落ちる（元の裁定 R44）。
+この輪の実行の中で前の周が拒まれ（with: の prev が前の周の受け付けの ok の false）、受け付けが合わせた答えの控えが在れば、出し直しの
+役（1 回目の役の会話の続き）の短い指示書を書き（rolekit.resubmit_brief）、resubmit: true とそのパス brief も返す"""
 import datetime
 import json
 import os
@@ -50,9 +52,10 @@ def main() -> int:
     snap["prepared_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     snap_path.write_text(json.dumps(snap, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     rejects = rolekit.rejected(gate, declared_checks.CI_ROLE)
+    brief = rolekit.resubmit_brief(gate, declared_checks.CI_ROLE, boundary.value(os.environ.get("INPUTS_PREV")))
     boundary.returns({"copy_dir": snap["copy_dir"], "tmp_dir": snap["tmp_dir"], "root": str(root),
                       "base_rev": start.get("base_rev") or "", "mode": mode, "reject": rolekit.rejects_text(rejects),
-                      "attempt": len(rejects) + 1})
+                      "attempt": len(rejects) + 1, "resubmit": bool(brief), "brief": brief})
     return 0
 
 

@@ -152,7 +152,7 @@
 - 状態: 住処あり
 - 住処: `lib/marks.py`（標準ライブラリだけ。種の表 `KINDS`＝ノードか役 → 行の在り処・共有ボードの控えの名・置き場、と手順の口 `add`（役の型に足す）・`rows`・`split`（受け付けが共有ボードへ渡す前に外す）・`path_of`・`write`・`load`（控えに置く・読み戻す））
 - 約束: 種の表 `KINDS` の控えの名（欄を持つモジュールは `marks.KINDS[種].file` で引く）と、控えのパスを組む `path_of`
-- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`）が持ち、手順は住処を呼ぶ
+- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` の `lib/planfile.py`）が持ち、手順は住処を呼ぶ
 - 今: 控えの名を字で持ち直す所（`lib/judge_accept.py`・`workflows/plan/scripts/plan_collect.py`）、控えのパスを `path_of` を通さずに組む所（`lib/judge_accept.py`・`lib/planfile.py`・`lib/refix.py`）、欄を手で外す所（修正役の欄 `lib/fixboard.py`・並行 PR の `lib/judge_accept.py`・手直しの `bash_writes` の `lib/writes.py`）が残る（柵の表の既知の漏れ）。`lib/judgeverify.py` は自分で組む裏取りの型で、同じ字の形の別の物
 
 ### `plan-scope` 修正案の項目の範囲の照らし
@@ -230,8 +230,8 @@
 ### `accept-round` 受け付けの回（返答を読む・拒否を控えに積む・上限で諦める・最後の回か）
 
 - 状態: 住処あり
-- 住処: `lib/rolekit.py`（受け付けの回の口 `accept_round` とその返り値の 4 つの欄 `round_outcome`、控えの誤りで落ちずに今の回を読む `current_round`、拒否の控えの唯一の書き手 `with_done`、拒否の控え `rejects-<名>.json` の読み `reject_rows`・`rejected`・`attempt`・`given_up_reason`、諦める回の数 `GIVE_UP_AFTER` と最後の回かの問い `is_last_attempt`、拒否の全部のファイル `reject_file`、前の版の控えの読み替え `_legacy_rows`）
-- 約束: 呼び手は `rolekit.accept_round(board, name, raw, take, reject=, on_give_up=)` に返答の字と `take` を渡す。`take` の返り値の欄 `ok`・`reason`・`give_up`（1 回目から諦める）・`count`（false なら控えに積まない）・`kind`（控えの行に残す）を口が読み、1 回の拒否の定義は口の中にだけ在る。返り値は `take` の返り値に `done` を足した物。拒否の控え `rejects-<名>.json` が読めない・書けない時は、落ちずに `done` 真の拒否（理由「拒否の控えが扱えない」）。口の外の `rolekit.reject_file` が書く `rejects-<名>.md` が書けない時は `OSError` が呼び手まで上がる。take の前に今の回が要る呼び手は `current_round` で読み、控えが読めなければ口を回さずにその拒否を返す
+- 住処: `lib/rolekit.py`（受け付けの回の口 `accept_round` と、読んだ返答を受けるその本体 `accept_parsed`、その返り値の 4 つの欄 `round_outcome`、控えの誤りで落ちずに今の回を読む `current_round`、拒否の控えの唯一の書き手 `with_done`、拒否の控え `rejects-<名>.json` の読み `reject_rows`・`rejected`・`attempt`・`given_up_reason`、諦める回の数 `GIVE_UP_AFTER` と最後の回かの問い `is_last_attempt`、拒否の全部のファイル `reject_file`、前の版の控えの読み替え `_legacy_rows`）
+- 約束: 呼び手は `rolekit.accept_round(board, name, raw, take, reject=, on_give_up=)` に返答の字と `take` を渡す。`take` の返り値の欄 `ok`・`reason`・`give_up`（1 回目から諦める）・`count`（false なら控えに積まない）・`kind`（控えの行に残す）を口が読み、1 回の拒否の定義は口の中にだけ在る。返り値は `take` の返り値に `done` を足した物。拒否の控え `rejects-<名>.json` が読めない・書けない時は、落ちずに `done` 真の拒否（理由「拒否の控えが扱えない」）。口の外の `rolekit.reject_file` が書く `rejects-<名>.md` が書けない時は `OSError` が呼び手まで上がる。拒まれた後の出し直しを前の答えと合わせる受け付けは、`take` の前段の `rolekit.resubmitted` で合わせた答えを `rolekit.accept_parsed` に渡す（数え・諦め・控えは口の中のまま）。take の前に今の回が要る呼び手は `current_round` で読み、控えが読めなければ口を回さずにその拒否を返す
 - 知ってよい所: 住処だけ。呼び手（`lib/judge_accept.py`・`lib/boardview.py`・`lib/eye.py`・`lib/ruling.py`・`lib/runreport.py`・`lib/fixboard.py` の `accept_out`、`workflows/` の受け付けの script）は口を引き、控えの名も諦める回の数も字で書かない
 - 今: 柵は、`rolekit.with_done(` の直の呼びと受け付けの回の口の定義と `round_outcome` の `give_up` の欄の写し、`GIVE_UP_AFTER` との大小の比べ、拒否の控えと拒否の文の置き場の名の字、`GIVE_UP_AFTER = <数>` の定義と見出し「前の回の受け付けが拒んだ理由」の別の宣言の 4 本。既知の漏れは無い。TDD の段の自前の数え `lib/tddloop.py` の `tries` と拒否の文のファイル `tdd-step-reject-{}.md` は別のサブシステムで、柵の語の形に当たらない
 
@@ -248,7 +248,7 @@
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
 
 - 状態: 散らばり
-- 今: 模型と effort の正本は役の定義の前付け（`lib/agents/`）と、グラフの YAML の AI のノードの `model:`・`effort:`・`allowed_tools:` の行。YAML の行は役の定義と結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で値を縛るだけ。数の歯止めは表の `known` の 13 ファイル 152 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 141 行・役の定義の前付けの 5 ファイル 10 行・道具を字で述べる指示書 1 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
+- 今: 模型と effort の正本は役の定義の前付け（`lib/agents/`）と、グラフの YAML の AI のノードの `model:`・`effort:`・`allowed_tools:` の行。YAML の行は役の定義と結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で値を縛るだけ。数の歯止めは表の `known` の 13 ファイル 105 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 94 行・役の定義の前付けの 5 ファイル 10 行・道具を字で述べる指示書 1 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
 - 計画: まだ無い
 
 ### `prompt-assembly` 指示書の組み立て

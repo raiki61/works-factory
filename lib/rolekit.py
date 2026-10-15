@@ -4,7 +4,8 @@
 - rejects_text:   その輪の拒否の文の全部（古い順）を、次の回の役に読ませる 1 つの文に。最後の拒否だけでは、前の回の拒否が会話に
                   残らない役は前の回の誤りを繰り返す（#345。会話を継ぐ仕組みは作らない。docs/owner-decisions.md）。役に拒否を渡す所は
                   これを読むのが決まり。外れは、会話を継ぐ輪（fresh_context: false）の頭の節が前の周の受け付けの返りから拒否の 1 件
-                  だけを渡す所（前の回の拒否は会話に残る）
+                  だけを渡す所（前の回の拒否は会話に残る）。会話を継ぐ輪でも全部を渡してよい（judge の仕様と再審の輪・eyes の R4。
+                  resume で輪が 1 周目から回り直すと役は新しい会話で起きる）
 - write_rejects・reject_file・reject_file_or_blank・rejects_text_path・REJECT_LINE: rejects_text を置き場の rejects-<名>.md に書いて名指す（道具を持つ役。
                   名指す 1 行が REJECT_LINE）
 - compose:        役に読ませる材料の組み立て: 空でない部分を空行 1 つで繋ぎ、拒否の理由のファイルが在れば 1 行目で REJECT_LINE で名指す
@@ -13,6 +14,8 @@
                   口を引き、控えの名も回数も自分で持たない。take の返りの欄 ok・reason・give_up（1 回目から諦める）・count（false なら
                   積まない）・kind（控えの行に残す）を口が読む。控え rejects-<名>.json が読めない・書けなければ、落ちずに done 真の拒否
                   （口の外の reject_file が書く rejects-<名>.md が書けない時は OSError が呼び手まで上がる）
+- accept_parsed:  accept_round の本体。読んだ返答の (返答, 読めない訳)（parse_reply か resubmitted の返り）を受ける。拒まれた後の
+                  出し直しを合わせる受け付けは、resubmitted で合わせた答えをここに渡す（合わせは take の前段、数えは口の 1 か所）
 - with_done:      拒否の控え rejects-<名>.json の唯一の書き手（accept_round が呼ぶ 1 段）。通れば done。拒否は盤面の根の控えに積み、
                   GIVE_UP_AFTER 回目の拒否で done（出し直しても直らない拒みは 1 回目で）。控えは run の間消さず resume を跨いで数える。
                   消すのは構造の目の段 A が測り直す周の eye.reset だけ
@@ -28,6 +31,11 @@
                   次に積む時に rejects-<名>.json に合わせて書く。消す期限はこの関数の docstring
 - last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
 - parse_reply:    役の返答（$<役>.output の JSON の文字列）を dict に
+- candidate_path: 受け付けが前の答えと出し直しを合わせた答えの控え（置き場の candidate-<名>.json。次の出し直しを合わせる元）
+- merge_fields:   前の答えに出し直しの欄を合わせる（出し直しに在る欄が前の欄を置き換え、無い欄は前のまま）
+- resubmitting・write_resubmit・RESUBMIT_ASK: 輪の前の周が拒まれた時に、出し直しの役の短い指示書（拒否の文・控えのパス・役ごとの
+                  返し方）を書く。resubmit_brief・FIELD_RULES は、欄ごとに置き換える（merge_fields の）輪の頭の節がそれを 1 行で呼ぶ口
+- resubmitted:    受け付けが照らす答えの全体（1 回目の役の返答か、控えの前の答えと出し直しを合わせた物）を控えに書いて返す
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
                   lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
 - record_lang_line(path): 始めの記録のファイル path から lang_line（読めなければ既定の言語の 1 行に読めない訳を添える）
@@ -36,6 +44,7 @@
 
 層は L3（盤面と受け付け）。ライン・include の id・ブロックの名前を書かない（tests/test_layers.py）。
 """
+import copy
 import datetime
 import json
 import pathlib
@@ -252,8 +261,14 @@ def is_last_attempt(attempt: int) -> bool:
 
 
 def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None) -> dict:
-    """受け付けの輪の 1 回（受け付けの回の住処。元 rolekit.main_accept）。役の返答の字 raw を読み（parse_reply）、take(reply) に通す。
-    raw が None なら読まずに take(None) を呼ぶ（返答の無い回と、受けるかを呼び手が先に決めた回）。読めない返答と take の中の例外は
+    """受け付けの輪の 1 回（受け付けの回の住処。元 rolekit.main_accept）。役の返答の字 raw を読み（parse_reply）、accept_parsed に通す。
+    raw が None なら読まずに take(None) を呼ぶ（返答の無い回と、受けるかを呼び手が先に決めた回）"""
+    return accept_parsed(board, name, None if raw is None else parse_reply(raw), take, reject=reject, on_give_up=on_give_up)
+
+
+def accept_parsed(board, name: str, got, take, *, reject=None, on_give_up=None) -> dict:
+    """受け付けの輪の 1 回の本体。got は (読めた返答, 読めない訳)（parse_reply か、拒まれた後の出し直しを前の答えと合わせる
+    resubmitted の返り）で、返答を take(reply) に通す。got が None なら take(None)。読めない返答と take の中の例外は
     reject(理由) で拒否にする（既定は {ok: False, reason}。受け付けは落ちない）。
     1 回の拒否の定義はここにだけ在り、take の返りの欄を読む: ok でなければ board/rejects-<name>.json に積み（with_done）、
     GIVE_UP_AFTER 回目で done。give_up が真なら 1 回目でも done。count が false なら控えに積まず（done は give_up が真の時だけ真）、
@@ -263,10 +278,10 @@ def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None) -
     OSError を呼び手まで上げる。控えは積んだ後なので、呼び手が受けずに落ちた回の出し直しは同じ拒否をもう 1 行積む）。on_give_up が落ちた時は、控えの誤りとは別の理由（『諦めた後の処理が落ちた』）の done 真の拒否"""
     reject = reject or (lambda why: {"ok": False, "reason": why})
     try:
-        if raw is None:
+        if got is None:
             got = take(None)
         else:
-            reply, why = parse_reply(raw)
+            reply, why = got
             got = take(reply) if reply is not None else reject(why)
     except Exception as e:  # noqa: BLE001
         got = reject(f"受け付けの中で例外（{type(e).__name__}: {e}）")
@@ -365,6 +380,95 @@ def parse_reply(raw):
         reply = json.loads(raw)
     except (TypeError, json.JSONDecodeError) as e:
         return None, f"返答が JSON として読めない: {e}（頭: {str(raw)[:200]!r}）"
-    if not isinstance(reply, dict):
-        return None, f"返答が JSON のオブジェクトでない（{type(reply).__name__}）"
-    return reply, ""
+    why = _not_object(reply, "返答")
+    return (None, why) if why else (reply, "")
+
+
+def _not_object(got, what: str) -> str:
+    """値 got が JSON のオブジェクトでなければ、何の値か what を頭にした拒否の文（オブジェクトなら空）"""
+    return "" if isinstance(got, dict) else f"{what}が JSON のオブジェクトでない（{type(got).__name__}）"
+
+
+def candidate_path(board, name: str) -> pathlib.Path:
+    """受け付け name が合わせた答えの控え（置き場 board の candidate-<name>.json）。拒まれた後の出し直しは拒まれた欄だけを返し、
+    受け付けがこの控えと合わせてから答えの全体を照らす"""
+    return pathlib.Path(board) / f"candidate-{safe_name(name)}.json"
+
+
+def merge_fields(prev: dict, part: dict) -> dict:
+    """前の答え prev に出し直し part を合わせた写し: part に在る欄が prev の欄を置き換え、無い欄は prev のまま。prev・part は書き換えない"""
+    return {**copy.deepcopy(prev), **copy.deepcopy(part)}
+
+
+RESUBMIT_ASK = ("前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。材料とリポジトリは、この会話で"
+                "既に読んだ物のまま（読み直すな。拒否の理由を確かめるのに要る所だけ読め）。\n\n"
+                "受け付けが拒んだ理由（字のまま）:\n\n```text\n{reason}\n```\n\n"
+                "機械が合わせた前の回の答えの全体: {candidate}（Read で読める。返さない所はこの形のまま残る）\n\n"
+                "返し方:\n"
+                "- 返すのは前と同じ型の JSON で、直す欄だけを書く（欄を直さずにリポジトリのファイルだけを直したなら {{}}）。{rules}\n"
+                "- 受け付けは、合わせた後の答えの全体をもう 1 度照らす")
+
+
+def resubmitting(board, name: str, prev) -> bool:
+    """輪の前の周の受け付け name が拒み（prev は with: に結んだ前の周の ok を値に戻した物）、合わせた答えの控えが在るか。真なら
+    頭の節は材料の代わりに write_resubmit の指示書を書き、出し直しの役（1 回目の役の会話の続き）を起こさせる。resume で輪が 1 周目
+    から回り直した時は prev が空なので偽"""
+    return prev is False and candidate_path(board, name).is_file()
+
+
+FIELD_RULES = "返した欄は前の欄を丸ごと置き換え（配列も、直さない行を含めて全部の行を返す）、返さない欄は前のまま"   # merge_fields の決まり
+
+
+def resubmit_brief(board, name: str, prev, *, rules: str = FIELD_RULES) -> str:
+    """resubmitting なら出し直しの役の指示書を board/resubmit-<name>-<n>.md に write_resubmit で書いてそのパスを、でなければ空の字を
+    返す（頭の節が返す brief。空なら 1 回目の役を起こす）。合わせは merge_fields の輪（rules の既定 FIELD_RULES）が使う"""
+    if not resubmitting(board, name, prev):
+        return ""
+    path, _ = write_resubmit(board, name, f"resubmit-{safe_name(name)}-{{n}}.md", rules)
+    return str(path)
+
+
+def write_resubmit(board, name: str, file: str, rules: str) -> tuple:
+    """拒まれた後の出し直しの役の指示書 board/file（file は回の番号 n の雛形。RESUBMIT_ASK に最後の拒否の文・控え candidate_path・
+    役ごとの返し方 rules を差し込む）を書き、(パス, 回の番号 n) を返す。役は 1 回目の役の会話の続きで起き、材料は会話に在るので貼らない"""
+    board = pathlib.Path(board)
+    n = attempt(board, name)
+    reasons = rejected(board, name)
+    path = board / file.format(n=n)
+    path.write_text(RESUBMIT_ASK.format(reason=reasons[-1] if reasons else "", candidate=candidate_path(board, name), rules=rules),
+                    encoding="utf-8")
+    return path, n
+
+
+def _reply_object(got, what: str) -> tuple:
+    if isinstance(got, str):
+        return None, f"{what}が JSON として読めない（頭: {got[:200]!r}）"
+    why = _not_object(got, what)
+    return (None, why) if why else (got, "")
+
+
+def resubmitted(board, name: str, reply, part, merge) -> tuple:
+    """(受け付け name が照らす答えの全体, 拒否の文)。reply は 1 回目の役の返答、part は拒まれた後の出し直しの役の返答で、どちらも
+    JSON に戻した値（起きなかった役は None）。part が在れば控え candidate_path の前の答えと merge(前の答え, part) で合わせ、無ければ
+    reply。空の出し直しは前の答えのまま（拒否が作業ツリーのファイルだけを名指せば、役はファイルを直して欄を返さない）。合わせた答えは
+    控えに書く（次の出し直しを合わせる元）。返答が object でない・控えが読めない・書けなければ (None, 訳)"""
+    path = candidate_path(board, name)
+    if part is None:
+        got, why = _reply_object(reply, "返答")
+    else:
+        part, why = _reply_object(part, "出し直しの返答")
+        if why:
+            return None, why
+        try:
+            prev = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            return None, f"前の答えの控え {path} が読めない（{type(e).__name__}）ので、出し直しを合わせられない"
+        got = merge(prev, part) if isinstance(prev, dict) else None
+        why = "" if got is not None else f"前の答えの控え {path} が JSON のオブジェクトでない"
+    if got is None:
+        return None, why
+    try:
+        jsonfile.write(path, got, indent=2)
+    except OSError as e:
+        return None, f"合わせた答えを控え {path} に書けない（{type(e).__name__}: {e}）"
+    return got, ""

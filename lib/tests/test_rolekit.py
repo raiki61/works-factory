@@ -256,5 +256,84 @@ class AcceptRoundCase(Base):
         self.assertEqual(rolekit.attempt(self.tmp, "report"), 4)
 
 
+class ResubmitCase(Base):
+    """#571: 拒まれた後の出し直しは拒まれた欄だけを返し、受け付けが前の答えの控えと合わせる"""
+
+    def test_merge_fields_replaces_given_fields_and_keeps_the_rest(self):
+        prev, part = {"a": [1], "b": "x"}, {"b": "y", "c": 2}
+        self.assertEqual(rolekit.merge_fields(prev, part), {"a": [1], "b": "y", "c": 2})
+        self.assertEqual((prev, part), ({"a": [1], "b": "x"}, {"b": "y", "c": 2}), "前の答えも出し直しも書き換えない")
+
+    def test_first_reply_is_written_to_the_candidate(self):
+        got, why = rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
+        self.assertEqual((got, why), ({"a": 1}, ""))
+        self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), {"a": 1})
+
+    def test_resubmit_is_merged_with_the_candidate(self):
+        rolekit.resubmitted(self.tmp, "r", {"a": 1, "b": 2}, None, rolekit.merge_fields)
+        got, why = rolekit.resubmitted(self.tmp, "r", None, {"b": 3}, rolekit.merge_fields)
+        self.assertEqual((got, why), ({"a": 1, "b": 3}, ""))
+        self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), got)
+
+    def test_bad_replies_are_refused_without_touching_the_candidate(self):
+        rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
+        for reply, part, word in ((None, [1], "出し直しの返答が JSON のオブジェクトでない"),
+                                  ("{x", None, "返答が JSON として読めない"), (None, None, "返答が JSON のオブジェクトでない")):
+            with self.subTest(reply=reply, part=part):
+                got, why = rolekit.resubmitted(self.tmp, "r", reply, part, rolekit.merge_fields)
+                self.assertIsNone(got)
+                self.assertIn(word, why)
+        self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), {"a": 1})
+
+    def test_empty_resubmit_keeps_the_previous_answer(self):
+        """拒否が作業ツリーのファイルだけを名指した時、役はファイルを直して {} を返す。受け付けは前の答えのまま全体を照らし直す"""
+        rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
+        self.assertEqual(rolekit.resubmitted(self.tmp, "r", None, {}, rolekit.merge_fields), ({"a": 1}, ""))
+
+    def test_resubmit_brief_only_after_a_rejected_round_with_a_candidate(self):
+        """前の周が拒まれ（prev が False）、合わせた答えの控えが在る時だけ指示書を書いてパスを返す（resume の 1 周目は prev が空）"""
+        self.assertEqual(rolekit.resubmit_brief(self.tmp, "r", False), "", "控えが無い")
+        rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
+        rolekit.with_done(self.tmp, "r", {"ok": False, "reason": "a が違う"})
+        for prev in (None, True, ""):
+            self.assertEqual(rolekit.resubmit_brief(self.tmp, "r", prev), "", prev)
+        path = pathlib.Path(rolekit.resubmit_brief(self.tmp, "r", False))
+        self.assertEqual(path.name, "resubmit-r-2.md")
+        text = path.read_text(encoding="utf-8")
+        for part in ("a が違う", str(rolekit.candidate_path(self.tmp, "r")), rolekit.FIELD_RULES):
+            self.assertIn(part, text)
+
+    def test_parse_reply_and_merge_share_the_object_rule(self):
+        """R5: 返答が JSON のオブジェクトでない時の文は parse_reply と出し直しの合わせで同じ"""
+        self.assertEqual(rolekit.parse_reply("[1]")[1], rolekit.resubmitted(self.tmp, "r", [1], None, rolekit.merge_fields)[1])
+
+    def test_resubmit_without_a_candidate_is_refused(self):
+        got, why = rolekit.resubmitted(self.tmp, "r", None, {"a": 1}, rolekit.merge_fields)
+        self.assertIsNone(got)
+        self.assertIn("出し直しを合わせられない", why)
+
+    def test_unwritable_candidate_is_refused(self):
+        rolekit.candidate_path(self.tmp, "r").mkdir()
+        got, why = rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
+        self.assertIsNone(got)
+        self.assertIn("書けない", why)
+
+    def test_merged_answer_goes_through_the_one_accept_round(self):
+        """#557: 合わせは take の前段。合わせた答えも合わせられない出し直しも、拒否は accept_parsed が同じ控えに数える"""
+        seen = []
+
+        def take(reply):
+            seen.append(reply)
+            return {"ok": reply.get("b") == 3, "reason": "b が違う"}
+
+        first = rolekit.accept_parsed(self.tmp, "r", rolekit.resubmitted(self.tmp, "r", {"a": 1, "b": 2}, None, rolekit.merge_fields), take)
+        bad = rolekit.accept_parsed(self.tmp, "r", rolekit.resubmitted(self.tmp, "r", None, [1], rolekit.merge_fields), take)
+        self.assertEqual((first["ok"], first["done"], bad["ok"], bad["done"]), (False, False, False, False))
+        self.assertEqual(rolekit.attempt(self.tmp, "r"), 3)
+        last = rolekit.accept_parsed(self.tmp, "r", rolekit.resubmitted(self.tmp, "r", None, {"b": 3}, rolekit.merge_fields), take)
+        self.assertEqual((last["ok"], last["done"]), (True, True))
+        self.assertEqual(seen, [{"a": 1, "b": 2}, {"a": 1, "b": 3}], "合わせられない出し直しは take に渡らない")
+
+
 if __name__ == "__main__":
     unittest.main()

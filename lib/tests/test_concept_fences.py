@@ -275,6 +275,7 @@ class FenceCase(unittest.TestCase):
         self.assertEqual([f["known"] for f in arms], [{}, {}, {}, {}])
         injected = [
             (0, "out = rolekit.with_done(d, name, got)"), (0, "def counted(d, name, got):"), (0, "def accept_round(board, name, raw, take):"),
+            (0, "def accept_parsed(board, name, got, take):"),
             (0, "def current_round(board, name):"),
             (0, 'return {"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]}'),
             (1, "if iteration >= GIVE_UP_AFTER:"), (1, "if len(rows) < rolekit.GIVE_UP_AFTER - 1:"), (1, "return n >= GIVE_UP_AFTER"),

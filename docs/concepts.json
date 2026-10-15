@@ -587,8 +587,8 @@
    "status": "住処あり",
    "fences": [
     {
-     "what": "拒否の控えを積む口 rolekit.with_done の直の呼びと、受け付けの回の口（accept_round・current_round・round_outcome・counted）の定義と、round_outcome の give_up の欄の写し",
-     "pattern": "rolekit\\.with_done\\(|^\\s*def (accept_round|current_round|round_outcome|counted)\\(|[\"']give_up[\"']\\s*:\\s*\\w+\\[[\"']done[\"']\\]\\s+and\\s+not\\b",
+     "what": "拒否の控えを積む口 rolekit.with_done の直の呼びと、受け付けの回の口（accept_round・accept_parsed・current_round・round_outcome・counted）の定義と、round_outcome の give_up の欄の写し",
+     "pattern": "rolekit\\.with_done\\(|^\\s*def (accept_round|accept_parsed|current_round|round_outcome|counted)\\(|[\"']give_up[\"']\\s*:\\s*\\w+\\[[\"']done[\"']\\]\\s+and\\s+not\\b",
      "allowed": [
       "lib/rolekit.py"
      ],
@@ -689,16 +689,16 @@
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
       ],
       "workflows/fix/works-factory-fix.yaml": [
-       36,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       21,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
       ],
       "workflows/judge/commands/material-local-review.md": [
        1,
        "散らばり（まとめる計画はまだ無い）: 素材集めの局所の審査の指示書が、審査役の道具 allowed_tools を字で述べる"
       ],
       "workflows/judge/works-factory-judge.yaml": [
-       66,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       34,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
       ],
       "workflows/plan-review/works-factory-plan-review.yaml": [
        6,

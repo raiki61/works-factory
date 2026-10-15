@@ -5,7 +5,8 @@
 """節 ci-accept: 任せ先の CI の役の返答を受け付ける。run が包みを通ると宣言した（env の fence.RECORDS_ENV）なら、先に包みの起動の記録で
 ci-prep の時刻（ci-snapshot.json の prepared_at）より後にこの作業ツリーで柵の掛かった起動が在ったかを見て、無ければ返答を受けず回数を待たずに
 諦める（今の works の ci_role.take と同じ所。棚卸しの T49）。役の前後の作業ツリーの姿（ci-prep の ci-snapshot.json と今。accept.tree_moved。
-HEAD・枝・git が無視するパスも見る。with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない）を比べ、素材の欄の決まり（declared_checks.role_material_problems）を照らす。通れば素材を
+HEAD・枝・git が無視するパスも見る。with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない）を比べ、素材の欄の決まり（declared_checks.role_material_problems）を照らす。
+拒まれた後の出し直しの役の返答 fix_reply（直す欄だけ）は、前の答えの控えと欄ごとに合わせてから照らす（rolekit.resubmitted に rolekit.merge_fields）。通れば素材を
 test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit.accept_round が控えに積む。控えが読めない・書けない時も落ちずに done・give_up）、役が自分で置きうる ci-material.json を消し、
 rolekit.GIVE_UP_AFTER 回目の拒否で done・give_up（輪を max_iterations で落とさない）。終わる時（通った・諦めた）に写しを消す"""
 import json
@@ -25,7 +26,8 @@ import rolekit  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
 
-def judge(gate: Path, root: Path, snap: dict, raw: str, mode: str, keys=accept.TREE_KEYS, records: str = "") -> dict:
+def judge(gate: Path, root: Path, snap: dict, got: tuple, mode: str, keys=accept.TREE_KEYS, records: str = "") -> dict:
+    """got は (読めた返答, 読めない訳)（rolekit.resubmitted の返り）"""
     if records and (why := fence.fenced_since(Path(records), root, snap.get("prepared_at"))):
         return {"ok": False, "give_up": True,
                 "reason": f"包みの柵が CI の任せ先の役の起動に掛かっていない: {why}——返答を受けず止める"}
@@ -34,12 +36,12 @@ def judge(gate: Path, root: Path, snap: dict, raw: str, mode: str, keys=accept.T
         return {"ok": False, "reason": f"読むだけの役が作業ツリーを変えた: CI の任せ先はテストを写し {snap.get('copy_dir')} の上で走らせ、"
                                        "対象の作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない（変えた物を元に戻し、"
                                        "写しの上で走らせ直せ）（" + "・".join(moved) + "）"}
-    reply, why = rolekit.parse_reply(raw)
+    reply, why = got
     if reply is None:
         return {"ok": False, "reason": why}
     problems = declared_checks.role_material_problems(reply.get("material"), mode=mode)
     if problems:
-        return {"ok": False, "reason": "素材の欄を直した返答を丸ごと出し直せ: " + "；".join(problems)}
+        return {"ok": False, "reason": "素材の欄 material を丸ごと直して出し直せ: " + "；".join(problems)}
     (gate / "ci-material.json").write_text(json.dumps({"material": reply["material"]}, ensure_ascii=False, indent=1) + "\n",
                                            encoding="utf-8")
     return {"ok": True, "reason": ""}
@@ -51,7 +53,9 @@ def main() -> int:
     gate = Path(os.environ["ARTIFACTS_DIR"]) / "test-gate" / mode
     snap = json.loads((gate / "ci-snapshot.json").read_text(encoding="utf-8"))
     keys = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
-    judged = judge(gate, root, snap, os.environ["INPUTS_REPLY"], mode, keys, records=os.environ.get(fence.RECORDS_ENV, ""))
+    got = rolekit.resubmitted(gate, declared_checks.CI_ROLE, boundary.value(os.environ.get("INPUTS_REPLY")),
+                              boundary.value(os.environ.get("INPUTS_FIX_REPLY")), rolekit.merge_fields)
+    judged = judge(gate, root, snap, got, mode, keys, records=os.environ.get(fence.RECORDS_ENV, ""))
     out = rolekit.accept_round(gate, declared_checks.CI_ROLE, None, lambda _: judged)   # give_up は judged の欄で渡す
     if not out["ok"]:
         (gate / "ci-material.json").unlink(missing_ok=True)
