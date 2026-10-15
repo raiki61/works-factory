@@ -538,7 +538,7 @@ class DeltaScriptsCase(unittest.TestCase):
         path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
 
     def _run(self, script, nid, **inputs):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT")) and not hermetic.dropped(k)}
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": "run-delta",
                     "ARCHON_NODE_EXECUTION": json.dumps({"path": f"fix__{nid}"}), "WORKS_FACTORY_ROOT": str(ROOT),
                     "CLAUDE_CONFIG_DIR": str(self.cfg), "PYTHONDONTWRITEBYTECODE": "1"})
@@ -911,7 +911,7 @@ class DeltaScriptsCase(unittest.TestCase):
                 self.assertEqual(out["reason"], f"手直しの役を起こさなかった（{n} 回目の審査が直す義務を出していない・審査を受けていない）")
                 self._json(f"rejects-{accept}.json", [{"at": "2026-10-12T00:00:00+00:00", "reason": "前の拒否"}])
                 self.assertEqual(self._run("refix_prep", prep, n=str(n))["iteration"], 2)
-                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and k != "ARTIFACTS_DIR"}
+                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and k != "ARTIFACTS_DIR" and not hermetic.dropped(k)}
                 for script, name, extra in (("refix_prep", prep, {}), ("refix_accept", accept, {"INPUTS_REPLY": "{}",
                                                                                                 "INPUTS_ITERATION": "1"})):
                     done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=self.repo,
@@ -920,7 +920,7 @@ class DeltaScriptsCase(unittest.TestCase):
                     self.assertNotEqual(done.returncode, 0)
                     self.assertTrue(done.stderr.startswith(f"{name}: KeyError: "), done.stderr)
         bad = subprocess.run([sys.executable, str(BLOCK / "scripts" / "refix_prep.py")], cwd=self.repo,
-                             env={**os.environ, "INPUTS_N": "3"}, capture_output=True, text=True, encoding="utf-8")
+                             env=hermetic.child_env(INPUTS_N="3"), capture_output=True, text=True, encoding="utf-8")
         self.assertEqual((bad.returncode, bad.stderr), (1, "refix_prep: 入力 n は 1 か 2: '3'\n"))
 
     def test_lens_prep_without_the_role_definition_is_go_false(self):
@@ -962,7 +962,7 @@ class DeltaScriptsCase(unittest.TestCase):
             return json.loads(lenses.read_text(encoding="utf-8"))["collector"]
 
         def raw(script, nid, cwd_script=None, **inputs):
-            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT"))}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT")) and not hermetic.dropped(k)}
             env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": "run-delta", "PYTHONDONTWRITEBYTECODE": "1",
                         "ARCHON_NODE_EXECUTION": json.dumps({"path": f"fix__{nid}"}), "WORKS_FACTORY_ROOT": str(ROOT),
                         "CLAUDE_CONFIG_DIR": str(self.cfg)})
@@ -1057,7 +1057,7 @@ _BLK_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_chan
 def _blk_run(script, repo, art, inputs=None, node_path="fix__x", env_extra=None):
     """scripts/<script>.py を一時の対象のリポジトリ repo で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
     env_extra は子の環境に足す（hermetic.dropped の名は継がない）"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_")) and not hermetic.dropped(k)}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _BLK_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": node_path}), "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(env_extra or {})
@@ -1170,10 +1170,9 @@ class BlockScriptsCase(unittest.TestCase):
         import reads
         event = {"session_id": session, "tool_name": "Read", "tool_input": {"file_path": str(path)}, "tool_use_id": "toolu_read",
                  "cwd": str(self.repo), "hook_event_name": "PostToolUse"}
-        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
         done = subprocess.run([sys.executable, str(ROOT / "bin" / "_lib" / "record-read.py"), str(cfg / reads.ROOT)],
                               input=json.dumps(event), text=True, encoding="utf-8", capture_output=True, cwd=str(self.repo),
-                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+                              env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1"))
         self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_fix_reads_names_what_the_fixer_did_not_read(self):
@@ -1878,7 +1877,7 @@ class BlockScriptsCase(unittest.TestCase):
         lone = self.tmp / "lone" / "fix" / "scripts"
         lone.mkdir(parents=True)
         (lone / "collect.py").write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_", "WORKS_FACTORY_ROOT"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _BLK_RUN, "PYTHONDONTWRITEBYTECODE": "1"})
         done = subprocess.run([sys.executable, str(lone / "collect.py")], cwd=self.repo, env=env, capture_output=True,
                               text=True, encoding="utf-8")
@@ -2187,7 +2186,7 @@ class BlockScriptsCase(unittest.TestCase):
             lone = self.tmp / "lone" / "fix" / "scripts"
             lone.mkdir(parents=True)
             (lone / "collect.py").write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
-            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_", "WORKS_FACTORY_ROOT"))}
+            env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
             env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _BLK_RUN, "PYTHONDONTWRITEBYTECODE": "1"})
             done = subprocess.run([sys.executable, str(lone / "collect.py")], cwd=self.repo, env=env, capture_output=True,
                                   text=True, encoding="utf-8")
@@ -2622,6 +2621,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.out_dir.mkdir(parents=True)
         self.art = self.tmp / "child-art"
         self.place = self.art / "fix" / "fix"
+        self.grp_env = {}
         self._grp_parent_inputs("")
 
     def _grp_parent_inputs(self, suite, **start):
@@ -2634,11 +2634,12 @@ class GroupChildScriptsCase(unittest.TestCase):
         (self.parent / "baseline.json").write_text(json.dumps({"cases": [], "exit": 1}), encoding="utf-8")
 
     def _grp_run(self, script, nid, ok=True, cwd=None, **inputs):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_"))}
+        """self.grp_env は子の環境に足す（hermetic.dropped の名は継がない。記録の根を試す試験はここに自分の根を置く）"""
+        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _GRP_RUN,
                     "ARCHON_NODE_EXECUTION": json.dumps({"path": nid}), "WORKS_FACTORY_ROOT": str(ROOT),
                     "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_GROUP": json.dumps(_GRP_GROUP, ensure_ascii=False),
-                    "INPUTS_OUT_DIR": str(self.out_dir), "INPUTS_FROM_TREE": "", "INPUTS_MODE": "group"})
+                    "INPUTS_OUT_DIR": str(self.out_dir), "INPUTS_FROM_TREE": "", "INPUTS_MODE": "group", **self.grp_env})
         env.update({f"INPUTS_{k.upper()}": v for k, v in inputs.items()})
         done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=cwd or self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
@@ -2829,21 +2830,21 @@ class GroupChildScriptsCase(unittest.TestCase):
         import writes
         env, root = _recorder_root(self.tmp)
         self._grp_parent_inputs(str(self.suite))
-        with mock.patch.dict(os.environ, env):
-            self._grp_run("group_start", "group-start")
-            got = self._grp_step({"phase": "route", "units": [{"unit_key": _GRP_MEAN, "route": "tdd"}]})
-            self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
-            test_file = self.repo / "test_stats.py"
-            test_file.write_text(test_file.read_text(encoding="utf-8").replace(
-                "\n\nif __name__", _GRP_NEW_TEST + "\n\nif __name__"), encoding="utf-8")
-            reply = {"phase": "test", "unit_key": _GRP_MEAN, "test_files": ["test_stats.py"],
-                     "tests": ["test_stats.py::TestStats::test_mean_of_two"]}
-            got = self._grp_step(reply)
-            self.assertEqual((got["ok"], got["done"]), (False, False), got)
-            self.assertIn(writes.REJECT + "test_stats.py", got["reason"])
-            _record(writelog.log_path(root, self.repo), test_file)
-            got = self._grp_step(reply)
-            self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
+        self.grp_env = env
+        self._grp_run("group_start", "group-start")
+        got = self._grp_step({"phase": "route", "units": [{"unit_key": _GRP_MEAN, "route": "tdd"}]})
+        self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
+        test_file = self.repo / "test_stats.py"
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace(
+            "\n\nif __name__", _GRP_NEW_TEST + "\n\nif __name__"), encoding="utf-8")
+        reply = {"phase": "test", "unit_key": _GRP_MEAN, "test_files": ["test_stats.py"],
+                 "tests": ["test_stats.py::TestStats::test_mean_of_two"]}
+        got = self._grp_step(reply)
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn(writes.REJECT + "test_stats.py", got["reason"])
+        _record(writelog.log_path(root, self.repo), test_file)
+        got = self._grp_step(reply)
+        self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
 
     def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
         """test-gate の base が線の run の置き場に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が引く（同じ run の中で
@@ -2853,7 +2854,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         line = self.tmp / "parent-art"
         self._grp_parent_inputs(str(self.suite), test_cmd=test_cmd, run_id="line-run")
         _blk_write(line / "start" / "record.json", {"run_id": "line-run", "test_cmd": test_cmd, "base_rev": "", "tdd_suite": ""})
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
         env.update({"ARTIFACTS_DIR": str(line), "WORKFLOW_ID": "line-run", "ARCHON_NODE_EXECUTION": json.dumps({"path": "test-gate"}),
                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_MODE": "base",
                     "INPUTS_START": json.dumps({"type": "archon_artifact", "run_id": "line-run", "path": "start/record.json"})})
@@ -3128,12 +3129,12 @@ class GroupChildScriptsCase(unittest.TestCase):
         """並べた子は自分の作業ツリーの記録を group-start で空で作り、group-end の結果の worktree から join が同じ記録を引く"""
         import writelog
         env, root = _recorder_root(self.tmp)
-        with mock.patch.dict(os.environ, env):
-            self._grp_run("group_start", "group-start")
-            log = writelog.log_path(root, self.repo)
-            self.assertEqual(log.read_text(encoding="utf-8"), "")
-            result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end")["result_file"]).read_text(
-                encoding="utf-8"))
+        self.grp_env = env
+        self._grp_run("group_start", "group-start")
+        log = writelog.log_path(root, self.repo)
+        self.assertEqual(log.read_text(encoding="utf-8"), "")
+        result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end")["result_file"]).read_text(
+            encoding="utf-8"))
         self.assertEqual(writelog.log_path(root, result["worktree"]), log)
 
     def test_group_end_alone_writes_into_its_own_place(self):
@@ -3176,7 +3177,7 @@ _FX_JUDGMENT = {"units": [
 def _fx_run(script, repo, art, *, env_extra=None, **inputs):
     """scripts/<script>.py を一時の対象のリポジトリ repo・一時の置き場 art で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
     env_extra は子の環境に足す（hermetic.dropped の名は継がない）"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_")) and not hermetic.dropped(k)}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _FX_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": "x"}), "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(env_extra or {})
