@@ -3013,7 +3013,7 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def test_fix_prompt_pastes_the_frozen_files_the_accept_checks(self):
         """#603: fix-prep が修正役の指示書に貼る凍ったテストのファイルは、fix-accept の凍ったテストの確かめが拒むファイルと同じ
-        （どちらも factchecks.frozen_tests の輪の状態から引く）"""
+        （貼る側は factchecks.frozen_tests が全部の輪の frozen の和を、拒む側は tddloop.frozen_problems が輪ごとの frozen を読む）"""
         import fixboard
         import fixrules
         import planrange

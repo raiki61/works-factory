@@ -99,7 +99,7 @@ def check_frozen(board: Path, state: str, repo: Path, pass_: str, agreed=None, a
     if not loops:
         return []
     b = board
-    skip = frozen_tests(board, state)["verified"]
+    skip = _verified(loops)
     rev = fixboard.base_rev(None, base_rev)
     before = tddloop.rev_source(repo, rev)
 
@@ -137,11 +137,17 @@ def _loop_freeze(board, state) -> tuple:
     return tree, sorted(files)
 
 
+def _verified(loops) -> list:
+    """輪が赤→緑を確かめた書き換えの名指し（tddloop.verified_rewrites）。凍結の許しから外す"""
+    return [i for p in loops for i in tddloop.verified_rewrites(p)]
+
+
 def frozen_tests(board, state) -> dict:
-    """凍ったテスト {files: run の全部の輪が凍らせたテストのファイル（_loop_freeze）, verified: 輪が赤→緑を確かめた書き換えの
-    名指し（tddloop.verified_rewrites。凍結の許しから外す）}。check_frozen と修正役の指示書（planrange.tests_text）が同じ値を引く"""
-    return {"files": _loop_freeze(board, state)[1],
-            "verified": [i for p in _loop_states(board, state) for i in tddloop.verified_rewrites(p)]}
+    """修正役の指示書（planrange.tests_text）に貼る凍ったテスト {files: run の全部の輪が凍らせたテストのファイル（_loop_freeze。
+    check_plan_scope と同じ和で、凍結の照らし tddloop.frozen_problems が輪ごとに読む frozen の和と一致する）, verified: check_frozen
+    が許しから外すのと同じ名指し（_verified）}"""
+    loops = _loop_states(board, state)
+    return {"files": _loop_freeze(board, state)[1], "verified": _verified(loops)}
 
 
 def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, state: str, pass_: str,
