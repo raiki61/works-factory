@@ -101,6 +101,7 @@ ROLES = {
 # 頭の節（script rejects）が受け付けの拒否の控えの全部を渡す輪（旧 YAML で役が周ごとに新しい会話で起きた仕様の 3 つの輪と再審の輪。
 # #571 から全部の輪が会話を続けるが、控えの全部を渡す形は残す）と、結ぶ控え（受け付けの置き場と控えの名。lib/judge_accept の
 # spec_accept・rejudge_accept と同じ）
+RESUBMIT_ROLES = ("spec", "spec-review", "spec-revise", "rejudge")   # 拒まれた後に <役>-fix が同じ会話の続きで出し直す役（#571）
 LEDGER_REJECTS = {"spec-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["write"]},
                  "spec-review-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["review"]},
                  "spec-revise-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["revise"]},
@@ -316,7 +317,9 @@ class LoopTest(unittest.TestCase):
                     node = body[reject]
                     self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
                                      ("rejects" if lid in LEDGER_REJECTS else "reject", "uv", NO_DEADLINE, False))
-                    self.assertEqual(node["with"], LEDGER_REJECTS.get(lid, {"reason": f"$LOOP_PREV.{accept}.output.reason"}))
+                    want = ({**LEDGER_REJECTS[lid], "prev": f"$LOOP_PREV.{accept}.output.ok"} if lid in LEDGER_REJECTS
+                            else {"reason": f"$LOOP_PREV.{accept}.output.reason"})
+                    self.assertEqual(node["with"], want)
                     self.assertEqual(node["output_format"]["required"], ["reason", "lang_line"])   # 言語の 1 行は BriefCase
                     self.assertNotIn("with", role)
                     self.assertIn(reject, role["depends_on"])
@@ -339,13 +342,34 @@ class LoopTest(unittest.TestCase):
         1 周目は空の字。言語の 1 行も reject と同じに返す"""
         r = Run(self)
         r.returned("intake")
-        self.assertEqual(r.returned("rejects", **LEDGER_REJECTS["spec-loop"]), {"reason": "", "lang_line": rolekit.lang_line({})})
+        self.assertEqual(r.returned("rejects", **LEDGER_REJECTS["spec-loop"]),
+                         {"reason": "", "lang_line": rolekit.lang_line({}), "resubmit": False, "brief": ""})
         reasons = [r.returned("spec_accept", role="write", reply=reply)["reason"]
                    for reply in ({"requirements": []}, {"acceptance": []})]
         self.assertTrue(all(reasons) and reasons[0] != reasons[1], reasons)
         got = r.returned("rejects", **LEDGER_REJECTS["spec-loop"])["reason"]
         self.assertEqual(got, rolekit.rejects_text(reasons))
         self.assertLess(got.index(reasons[0]), got.index(reasons[1]))
+
+    def test_spec_resubmit_returns_only_the_rejected_fields(self):
+        """#571: 拒まれた周の次（prev が前の周の受け付けの ok の false）は、rejects が出し直しの役の短い指示書（最後の拒否の文・
+        受け付けが合わせた前の答えの控え）を書いて resubmit: true を返す。受け付けは出し直しの返答（直す欄だけ）を前の答えの控えと
+        欄ごとに合わせてから照らし、通った答えは 1 回で書いた答えと同じ。resume で輪が 1 周目から回り直した時（prev が空）は
+        1 回目の役（resubmit: false）"""
+        r = Run(self)
+        r.returned("intake")
+        (r.repo / "test_spec_mean.txt").write_text(SPEC_TEST_FILE, encoding="utf-8")
+        first = r.returned("spec_accept", role="write", reply={**SPEC, "acceptance": [{**SPEC["acceptance"][0], "name": "無い名"}]})
+        self.assertFalse(first["ok"])
+        head = r.returned("rejects", **LEDGER_REJECTS["spec-loop"], prev="false")
+        self.assertIs(head["resubmit"], True)
+        brief = pathlib.Path(head["brief"]).read_text(encoding="utf-8")
+        self.assertIn(first["reason"], brief)
+        self.assertIn(str(rolekit.candidate_path(r.judge, ja.SPEC_ROLES["write"])), brief)
+        self.assertIs(r.returned("rejects", **LEDGER_REJECTS["spec-loop"], prev="")["resubmit"], False)
+        got = r.returned("spec_accept", role="write", reply="null", fix_reply={"acceptance": SPEC["acceptance"]})
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual(json.loads((r.judge / f"{ja.SPEC_ROLES['write']}.json").read_text(encoding="utf-8")), SPEC)
 
     def test_materials_are_eleven_loops_one_per_command(self):
         material_loops = sorted(lid.removesuffix("-loop") for lid in loops() if lid.removesuffix("-loop") in MATERIALS)
@@ -388,7 +412,7 @@ class RoleSettingsTest(unittest.TestCase):
     def test_roles_keep_the_old_settings(self):
         by = nodes()
         roles = {nid for nid, n in by.items() if any(k in n for k in scan.ROLE_KINDS)}
-        self.assertEqual(sorted(roles), sorted(ROLES))
+        self.assertEqual(sorted(roles), sorted([*ROLES, *(f"{r}-fix" for r in RESUBMIT_ROLES)]))   # 出し直しの役の形は test_loop_sessions
         for nid, (model, effort, tools, sandbox, read_only, context, skills, plugins) in ROLES.items():
             n = by[nid]
             with self.subTest(role=nid):

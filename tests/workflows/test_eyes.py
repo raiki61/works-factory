@@ -538,15 +538,14 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(node.get("trigger_rule"), "all_done")
 
     def test_r4_runs_in_an_accept_loop(self):
-        """#455: R4 は受け付けの輪の中で、拒否の理由の全部を頭の節から読んで出し直す。1 回目は新しい会話で、出し直しは同じ会話の
-        続き（#571）。受け付けの返答を輪の外の節が書く"""
+        """#455: R4 は受け付けの輪の中で、拒否の理由の全部を頭の節から読んで出し直す。1 回目は新しい会話で、拒まれた後は出し直しの役
+        r4-scope-fix が同じ会話の続きで拒まれた欄だけを返す（#571。形は test_loop_sessions）。受け付けの返答を輪の外の節が書く"""
         loop = NODES["r4-loop"]["loop_group"]
         self.assertEqual(loop["max_iterations"], rolekit.GIVE_UP_AFTER)
         self.assertIs(loop["fresh_context"], False)
         self.assertIn("$r4-accept.output.done", loop["until_bash"])
-        self.assertEqual([n["id"] for n in loop["nodes"]], ["r4-reject", "r4-scope", "r4-accept"])
+        self.assertEqual([n["id"] for n in loop["nodes"]], ["r4-reject", "r4-scope", "r4-scope-fix", "r4-accept"])
         self.assertEqual(depends(NODES["r4-scope"]), {"r4-reject"})
-        self.assertEqual(NODES["r4-accept"]["with"], {"reply": "$r4-scope.output"})
         self.assertIn("$r4-reject.output.reason", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
 
     def test_r1_minimality_runs_without_the_comment_candidates(self):
@@ -804,6 +803,24 @@ class ScriptCase(unittest.TestCase):
         named = {**reply, "policy_conflicts": ["/run/policy/abc.md:2 の『空の列は試験しない』に反する"]}
         got = self.run_script("r4_accept", with_={"reply": json.dumps(named, ensure_ascii=False)})
         self.assertEqual((got["ok"], got["done"]), (True, True))
+
+    def test_r4_resubmit_returns_only_the_rejected_fields(self):
+        """#571: 拒まれた周の次（prev が false）は、r4-reject が出し直しの役の短い指示書を書いて resubmit: true を返し、受け付けは
+        出し直しの返答（直す欄だけ）を前の答えの控えと欄ごとに合わせてから照らす。返りの reply は合わせた答え"""
+        line = "方針の文書の 2 行目の『空の列は試験しない』に反する"
+        self.prep_file(**{policy.RECORDED_KEY: [{"source": "doc", "name": "/run/policy/abc.md", "text": "", "lines": 3, "alias": ""}]})
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "policy_conflicts": [line],
+                 "surfaced": [], "seen": [], "unseen": []}
+        first = self.run_script("r4_accept", with_={"reply": json.dumps(reply, ensure_ascii=False)})
+        self.assertFalse(first["ok"])
+        head = self.run_script("r4_rejects", with_={"prev": "false"})
+        self.assertIs(head["resubmit"], True)
+        self.assertIn(first["reason"], pathlib.Path(head["brief"]).read_text(encoding="utf-8"))
+        self.assertIs(self.run_script("r4_rejects", with_={"prev": ""})["resubmit"], False)
+        fixed = ["/run/policy/abc.md:2 の『空の列は試験しない』に反する"]
+        got = self.run_script("r4_accept", with_={"reply": "null", "fix_reply": json.dumps({"policy_conflicts": fixed}, ensure_ascii=False)})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
+        self.assertEqual(got["reply"], {**reply, "policy_conflicts": fixed})
 
     def test_r4_accept_keeps_an_unnamed_policy_line_the_human_passed(self):
         """修正前の承認ノードで人が通した方針の行は、名指さなくても拒まない（script が入力の問いと答えから組む passed）"""

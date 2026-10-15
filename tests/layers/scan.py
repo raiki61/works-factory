@@ -685,6 +685,7 @@ KEEP_CHECKOUT = {
                                         "書く。作業ツリーは書かない（元の keep_checkout）",
     ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。sandbox の denyWrite が書き込みを止め、false と ci-accept の"
                          "作業ツリーの比べが重ねて守る（#69・#293）",
+    ("test-gate", "ci-fix"): "ci の会話の続きの出し直しの役。Bash でテストを走らせるが作業ツリーは書かない（ci と同じ起こし方・同じ守り）",
 }
 CHANGE_CHECKOUT = {
     ("line", "start"): "始めの記録を run の置き場に書くだけだが、今の線は印を持たない。足すと Archon の照らしが増えて振る舞いが変わるので部分 0 では足さない",

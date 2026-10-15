@@ -131,6 +131,23 @@ class ResubmitCase(Base):
                 self.assertIn(word, why)
         self.assertEqual(json.loads(rolekit.candidate_path(self.tmp, "r").read_text(encoding="utf-8")), {"a": 1})
 
+    def test_resubmit_brief_only_after_a_rejected_round_with_a_candidate(self):
+        """前の周が拒まれ（prev が False）、合わせた答えの控えが在る時だけ指示書を書いてパスを返す（resume の 1 周目は prev が空）"""
+        self.assertEqual(rolekit.resubmit_brief(self.tmp, "r", False), "", "控えが無い")
+        rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
+        rolekit.with_done(self.tmp, "r", {"ok": False, "reason": "a が違う"})
+        for prev in (None, True, ""):
+            self.assertEqual(rolekit.resubmit_brief(self.tmp, "r", prev), "", prev)
+        path = pathlib.Path(rolekit.resubmit_brief(self.tmp, "r", False))
+        self.assertEqual(path.name, "resubmit-r-2.md")
+        text = path.read_text(encoding="utf-8")
+        for part in ("a が違う", str(rolekit.candidate_path(self.tmp, "r")), rolekit.FIELD_RULES):
+            self.assertIn(part, text)
+
+    def test_parse_reply_and_merge_share_the_object_rule(self):
+        """R5: 返答が JSON のオブジェクトでない時の文は parse_reply と出し直しの合わせで同じ"""
+        self.assertEqual(rolekit.parse_reply("[1]")[1], rolekit.resubmitted(self.tmp, "r", [1], None, rolekit.merge_fields)[1])
+
     def test_resubmit_without_a_candidate_is_refused(self):
         got, why = rolekit.resubmitted(self.tmp, "r", None, {"a": 1}, rolekit.merge_fields)
         self.assertIsNone(got)

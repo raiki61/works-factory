@@ -6,7 +6,7 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
 - scalars(diff_text, x_scalars, not_taken)・scalars_text(s): 規模の数値と、その 1 文
 - _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed)・gate_passes(r4, passed): 修正前の関所で
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え。R4 の方針とのぶつかりは人が通していない行を全部問いにする
-- r4_accept(eyes_dir, raw, passed): R4 の返答の受け付け（輪の中）。方針とのぶつかりのうち記録された方針（policy.recorded）の行を
+- r4_accept(eyes_dir, got, passed): R4 の返答の受け付け（輪の中。got は読めた返答と読めない訳の組）。方針とのぶつかりのうち記録された方針（policy.recorded）の行を
   名指さない行を拒んで出し直させ、GIVE_UP_AFTER 回とも通らなければ抜ける（その時は名指さない行も問いになり、collect が R4 の行の
   理由に諦めた訳を足す）。r4_rejects(eyes_dir) は出し直す役に渡す拒否の全部
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
@@ -179,12 +179,13 @@ def r4_gate_items(r4: dict | None, passed: dict) -> list[str]:
     return [head + x for kind, head, x in _r4_rows(r4) if (kind, x) not in passed]
 
 
-def r4_accept(eyes_dir, raw, passed: dict) -> dict:
-    """R4 の返答 raw の受け付け {ok, done, give_up, reason, reply}。方針とのぶつかりのうち、人が通しておらず記録された方針の行
+def r4_accept(eyes_dir, got: tuple, passed: dict) -> dict:
+    """R4 の返答の受け付け {ok, done, give_up, reason, reply}。got は (読めた返答, 読めない訳)（rolekit.parse_reply か、拒まれた後の
+    出し直しを前の答えと合わせる rolekit.resubmitted の返り）。方針とのぶつかりのうち、人が通しておらず記録された方針の行
     （支度の控え PREP_FILE の policy.RECORDED_KEY）を名指さない行が在れば拒む。reply は読めた返答（読めなければ None）で、諦めた
     時も返す"""
     eyes_dir = pathlib.Path(eyes_dir)
-    reply, why = rolekit.parse_reply(raw)
+    reply, why = got
     recorded = read_json(eyes_dir / PREP_FILE)[policy.RECORDED_KEY]
 
     def check() -> dict:

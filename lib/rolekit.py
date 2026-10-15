@@ -22,7 +22,7 @@
 - candidate_path: 受け付けが前の答えと出し直しを合わせた答えの控え（置き場の candidate-<名>.json。次の出し直しを合わせる元）
 - merge_fields:   前の答えに出し直しの欄を合わせる（出し直しに在る欄が前の欄を置き換え、無い欄は前のまま）
 - resubmitting・write_resubmit・RESUBMIT_ASK: 輪の前の周が拒まれた時に、出し直しの役の短い指示書（拒否の文・控えのパス・役ごとの
-                  返し方）を書く
+                  返し方）を書く。resubmit_brief・FIELD_RULES は、欄ごとに置き換える（merge_fields の）輪の頭の節がそれを 1 行で呼ぶ口
 - resubmitted:    受け付けが照らす答えの全体（1 回目の役の返答か、控えの前の答えと出し直しを合わせた物）を控えに書いて返す
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
                   lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
@@ -287,6 +287,18 @@ def resubmitting(board, name: str, prev) -> bool:
     頭の節は材料の代わりに write_resubmit の指示書を書き、出し直しの役（1 回目の役の会話の続き）を起こさせる。resume で輪が 1 周目
     から回り直した時は prev が空なので偽"""
     return prev is False and candidate_path(board, name).is_file()
+
+
+FIELD_RULES = "返した欄は前の欄を丸ごと置き換え（配列も、直さない行を含めて全部の行を返す）、返さない欄は前のまま"   # merge_fields の決まり
+
+
+def resubmit_brief(board, name: str, prev, *, rules: str = FIELD_RULES) -> str:
+    """resubmitting なら出し直しの役の指示書を board/resubmit-<name>-<n>.md に write_resubmit で書いてそのパスを、でなければ空の字を
+    返す（頭の節が返す brief。空なら 1 回目の役を起こす）。合わせは merge_fields の輪（rules の既定 FIELD_RULES）が使う"""
+    if not resubmitting(board, name, prev):
+        return ""
+    path, _ = write_resubmit(board, name, f"resubmit-{safe_name(name)}-{{n}}.md", rules)
+    return str(path)
 
 
 def write_resubmit(board, name: str, file: str, rules: str) -> tuple:

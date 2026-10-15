@@ -112,6 +112,9 @@ nodes:
               ok: {type: boolean}
               done: {type: boolean}
               reason: {type: string}
+  # 仕様の 3 つの輪と再審の輪（rejudge-loop）は、拒まれた後は出し直しの役 <役>-fix が同じ会話の続きで拒まれた欄だけを返し、
+  # 受け付けが前の答えと欄ごとに合わせる（振り分けは頭の節 rejects の resubmit。並んだ層は会話を切るので <役>-fix は役の後ろの
+  # 層に置く。#571）
   - id: spec-loop
     depends_on: [intake]
     when: $intake.output.spec == true
@@ -126,23 +129,25 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {board: judge, accept: spec-write}
+          with: {board: judge, accept: spec-write, prev: "$LOOP_PREV.spec-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: spec
           command: spec
           depends_on: [spec-reject]
-          model: opus
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
+          when: "$spec-reject.output.resubmit != true"
+          <<: &spec_launch
+            model: opus
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &spec_reply
             type: object
             additionalProperties: false
             required: [requirements, acceptance, out_of_scope]
@@ -173,13 +178,27 @@ nodes:
               out_of_scope:
                 type: array
                 items: {type: string}
+        - id: spec-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [spec-reject, spec]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-reject.output.resubmit == true"
+          <<: *spec_launch
+          output_format:
+            <<: *spec_reply
+            required: []
         - id: spec-accept
           script: spec_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [spec]
-          with: {status_guarded: false, role: write, reply: $spec.output}
+          depends_on: [spec, spec-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            status_guarded: false
+            role: write
+            reply: {from: "$spec.output", if_skipped: null}
+            fix_reply: {from: "$spec-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
@@ -203,24 +222,26 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {board: judge, accept: spec-review}
+          with: {board: judge, accept: spec-review, prev: "$LOOP_PREV.spec-review-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: spec-review
           command: spec-review
           depends_on: [spec-review-reject]
-          model: opus
-          effort: high
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-          mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
+          when: "$spec-review-reject.output.resubmit != true"
+          <<: &spec_review_launch
+            model: opus
+            effort: high
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            mutates_checkout: false
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &spec_review_reply
             type: object
             additionalProperties: false
             required: [faces, reason]
@@ -240,13 +261,27 @@ nodes:
                     why: {type: string, minLength: 20}
               faces_none: {type: string}
               reason: {type: string, minLength: 20}
+        - id: spec-review-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-review-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [spec-review-reject, spec-review]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-review-reject.output.resubmit == true"
+          <<: *spec_review_launch
+          output_format:
+            <<: *spec_review_reply
+            required: []
         - id: spec-review-accept
           script: spec_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [spec-review]
-          with: {status_guarded: true, role: review, reply: $spec-review.output}
+          depends_on: [spec-review, spec-review-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            status_guarded: true
+            role: review
+            reply: {from: "$spec-review.output", if_skipped: null}
+            fix_reply: {from: "$spec-review-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
@@ -270,23 +305,25 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {board: judge, accept: spec-revise}
+          with: {board: judge, accept: spec-revise, prev: "$LOOP_PREV.spec-revise-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: spec-revise
           command: spec-revise
           depends_on: [spec-revise-reject]
-          model: opus
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
+          when: "$spec-revise-reject.output.resubmit != true"
+          <<: &spec_revise_launch
+            model: opus
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &spec_revise_reply
             type: object
             additionalProperties: false
             required: [spec, handled]
@@ -334,13 +371,27 @@ nodes:
                       type: string
                       enum: [absorbed, declared]
                     how: {type: string, minLength: 20}
+        - id: spec-revise-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-revise-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [spec-revise-reject, spec-revise]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-revise-reject.output.resubmit == true"
+          <<: *spec_revise_launch
+          output_format:
+            <<: *spec_revise_reply
+            required: []
         - id: spec-revise-accept
           script: spec_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [spec-revise]
-          with: {status_guarded: false, role: revise, reply: $spec-revise.output}
+          depends_on: [spec-revise, spec-revise-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            status_guarded: false
+            role: revise
+            reply: {from: "$spec-revise.output", if_skipped: null}
+            fix_reply: {from: "$spec-revise-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
@@ -2331,24 +2382,26 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {board: rejudge, accept: rejudge}
+          with: {board: rejudge, accept: rejudge, prev: "$LOOP_PREV.rejudge-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: rejudge
           command: rejudge
           depends_on: [rejudge-reject]
-          model: opus
-          effort: high
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-          mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
+          when: "$rejudge-reject.output.resubmit != true"
+          <<: &rejudge_launch
+            model: opus
+            effort: high
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            mutates_checkout: false
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &rejudge_reply
             type: object
             required: [verdict, new_facts, units]
             additionalProperties: false
@@ -2424,13 +2477,26 @@ nodes:
                           items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
                         examples_unavailable: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
                         misses_omitted_why: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+        - id: rejudge-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$rejudge-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [rejudge-reject, rejudge]
+          trigger_rule: none_failed_min_one_success
+          when: "$rejudge-reject.output.resubmit == true"
+          <<: *rejudge_launch
+          output_format:
+            <<: *rejudge_reply
+            required: []
         - id: rejudge-accept
           script: rejudge_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [rejudge]
-          with: {status_guarded: true, reply: $rejudge.output}
+          depends_on: [rejudge, rejudge-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            status_guarded: true
+            reply: {from: "$rejudge.output", if_skipped: null}
+            fix_reply: {from: "$rejudge-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false

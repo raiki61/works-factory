@@ -9,6 +9,8 @@ fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1
 - fresh_context: false の輪の役（context: fresh でない AI の節）より前の層は全部 1 つの節だけ（並んだ層が在ると、宣言に反して役は
   毎回新しい会話で起きる）
 - 周をまたぐ時の新しい会話は、輪の 1 周目がいつも新しい会話であること（上の契約の行）で決まり、この試験では縛らない
+- 拒まれた所だけを出し直す輪（RESUBMIT）は、頭の節の resubmit で 1 回目の役と出し直しの役（<役>-fix）を振り分け、出し直しの役は
+  1 回目の役の後ろの層で同じ起こし方・同じ型（required を外しただけ）で起き、受け付けは両方の返答を if_skipped: null で受ける
 """
 import pathlib
 import unittest
@@ -24,6 +26,20 @@ FRESH_BY_DESIGN = {
     ("fix", "clash-loop"): "周ごとに扱う組が替わるので、前の周の組の会話を持ち込まない",
     ("fix", "clash-ruled-loop"): "周ごとに扱う組が替わるので、前の周の組の会話を持ち込まない",
 }
+
+
+# (ブロック, 輪) → (頭の節, 1 回目の役, 出し直しの役, 受け付け)
+RESUBMIT = {
+    ("plan", "plan-loop"): ("plan-prep", "plan-writer", "plan-writer-fix", "plan-accept"),
+    ("plan-review", "review-loop"): ("review-prep", "plan-review", "plan-review-fix", "review-accept"),
+    ("judge", "spec-loop"): ("spec-reject", "spec", "spec-fix", "spec-accept"),
+    ("judge", "spec-review-loop"): ("spec-review-reject", "spec-review", "spec-review-fix", "spec-review-accept"),
+    ("judge", "spec-revise-loop"): ("spec-revise-reject", "spec-revise", "spec-revise-fix", "spec-revise-accept"),
+    ("judge", "rejudge-loop"): ("rejudge-reject", "rejudge", "rejudge-fix", "rejudge-accept"),
+    ("eyes", "r4-loop"): ("r4-reject", "r4-scope", "r4-scope-fix", "r4-accept"),
+    ("test-gate", "ci-loop"): ("ci-prep", "ci", "ci-fix", "ci-accept"),
+}
+LAUNCH = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
 
 
 def loops() -> list[tuple[str, dict]]:
@@ -89,6 +105,32 @@ class LoopSessionsTest(unittest.TestCase):
             with self.subTest(block=block, loop=n["id"]):
                 self.assertEqual(parallel_before_role(n), [],
                                  f"{block} の {n['id']}: 役の前に並んだ層が在り、会話を続ける宣言に反して役が新しい会話で起きる")
+
+    def test_resubmit_loops_route_to_a_fix_role(self):
+        """#571: 拒まれた周の次は、頭の節の resubmit が真なら 1 回目の役を飛ばし、出し直しの役が 1 回目の役の会話の続きで拒まれた所
+        だけを返す。受け付けはどちらの返答も受ける（起きなかった役は null）"""
+        found = {(block, n["id"]): n for block, n in loops()}
+        for (block, lid), (head, role, fix, accept) in RESUBMIT.items():
+            with self.subTest(block=block, loop=lid):
+                body = {n["id"]: n for n in found[(block, lid)]["loop_group"]["nodes"]}
+                self.assertEqual(found[(block, lid)]["loop_group"]["fresh_context"], False)
+                self.assertEqual(body[head]["with"]["prev"], f"$LOOP_PREV.{accept}.output.ok")
+                self.assertEqual(body[head]["output_format"]["properties"]["resubmit"], {"type": "boolean"})
+                first, again = body[role], body[fix]
+                self.assertEqual((first["when"], again["when"]),
+                                 (f"${head}.output.resubmit != true", f"${head}.output.resubmit == true"))
+                self.assertEqual((again["depends_on"], again["trigger_rule"]), ([head, role], "none_failed_min_one_success"))
+                self.assertNotIn("context", again)
+                self.assertEqual({k: again.get(k) for k in LAUNCH}, {k: first.get(k) for k in LAUNCH})
+                shape, fixed = first["output_format"], dict(again["output_format"])
+                self.assertEqual(fixed.pop("required"), [])
+                extra = set(fixed["properties"]) - set(shape["properties"])
+                self.assertEqual({**fixed, "properties": {k: v for k, v in fixed["properties"].items() if k not in extra}},
+                                 {k: v for k, v in shape.items() if k != "required"})
+                self.assertEqual((body[accept]["depends_on"], body[accept]["trigger_rule"]),
+                                 ([role, fix], "none_failed_min_one_success"))
+                self.assertEqual((body[accept]["with"]["reply"], body[accept]["with"]["fix_reply"]),
+                                 ({"from": f"${role}.output", "if_skipped": None}, {"from": f"${fix}.output", "if_skipped": None}))
 
     def test_parallel_head_is_caught(self):
         """見本: 頭に依存の無い節が 2 つ在る輪は赤"""
