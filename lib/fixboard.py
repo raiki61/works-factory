@@ -669,7 +669,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
 
 def rerun_cmd(place, result, test_cmd: str) -> str:
     """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
-    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
+    組に軽量でない単位（置き場の深さの控え。頭の深さが軽量でない run では全部の単位が軽量でない。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
     tdd か tdd.test_cmd が在って dict でない結果は関門を読めないので on と見る（走らせ直しを飛ばして戻さない）"""
     import tddloop
     tdd = (result or {}).get("tdd") or {}
@@ -1665,9 +1665,11 @@ def marks_path(place) -> pathlib.Path:
 
 def unit_depths(place) -> str:
     """置き場の深さの控え depth.json（[{unit_id, depth, why}]）を tddloop.start の unit_depths の形（{"<単位の key>": 深さの語} の
-    JSON の字）に。無ければ ""。形が違えば ValueError"""
+    JSON の字）に。控えが無い・run の頭の深さの段（置き場の HEAD_DEPTH_FILE）が省く物を持たなければ ""（単位の軽量が test_cmd を
+    省くのは軽量の頭の run だけ。depth.omits）。形が違えば ValueError"""
+    import depth
     doc = read_json(pathlib.Path(place) / DEPTH_FILE)
-    if doc is None:
+    if doc is None or not depth.omits(read_json(pathlib.Path(place) / HEAD_DEPTH_FILE)):
         return ""
     if not isinstance(doc, list) or not all(isinstance(r, dict) for r in doc):
         raise ValueError(f"深さの控え {DEPTH_FILE} が行の配列でない")

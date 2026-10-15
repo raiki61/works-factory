@@ -143,7 +143,7 @@ class LinesCase(unittest.TestCase):
         text = "\n".join(depth.lines(doc, depth.LIGHT))
         skipped = [x for x in depth.lines(doc, depth.LIGHT) if x.startswith("軽量で省いた: ")]
         self.assertEqual(len(skipped), 1, "省いた物は 1 行にまとめる（2026-10-09 の片付け）")
-        for word in ("差分の審査", "レンズ", "r1.comment_candidates", "R1", "R2", "R3", "R4"):
+        for word in ("差分の審査", "レンズ", "r1.comment_candidates", "R1", "R2", "R3", "R4", "test_cmd"):
             self.assertIn(word, skipped[0])
         self.assertNotIn("AI の報告", text, "AI の報告は省かない（計画の決め 10）")
 
@@ -167,6 +167,17 @@ class LinesCase(unittest.TestCase):
                 self.assertIn("なので省かない", text)
         self.assertEqual(depth.TIERS[depth.LIGHT]["omits"], tuple(depth.OMITS))
         self.assertEqual((depth.TIERS[depth.STANDARD]["omits"], depth.TIERS[depth.HEAVY]["omits"]), ((), ()))
+
+
+    def test_light_head_names_test_cmd_skip_of_light_units(self):
+        """issue #561: 頭が軽量で軽量と標準の単位が混ざる run は、差分の審査と目は省かず、軽量の単位の test_cmd の省きだけを名指す。
+        頭が標準・重厚なら test_cmd も省かない（fixboard.unit_depths が空）ので何も言わない"""
+        doc = depth.decide_doc([item([U1]), item([U2], tests=4)], [U1, U2], forced="", checked=True)
+        self.assertEqual(depth.skip_reason(doc, depth.LIGHT), "")
+        self.assertIn(f"軽量の単位 1 個で省いた: {depth.UNIT_OMIT}", depth.lines(doc, depth.LIGHT))
+        for head in (depth.STANDARD, depth.HEAVY, ""):
+            with self.subTest(head=head):
+                self.assertNotIn("省いた", "\n".join(depth.lines(doc, head)))
 
 
 class WordsCase(unittest.TestCase):
