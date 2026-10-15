@@ -186,26 +186,29 @@ nodes:
           mutates_checkout: false
           with:
             prev: "$LOOP_PREV.review-accept.output.ok"
+          # resubmit は任意の欄（無ければ 1 回目の役が起きる。メイングラフの筋書きの stub がこの節を resubmit 無しで差し替える）
           output_format:
             type: object
             additionalProperties: false
-            required: [prompt_file, resubmit]
+            required: [prompt_file]
             properties:
               prompt_file: {type: string}
               resubmit: {type: boolean}
+        # 模型・道具・設定は出し直しの役 plan-review-fix と同じ（merge key の錨 review_launch）
         - id: plan-review
           command: plan-review
           depends_on: [review-prep]
-          when: "$review-prep.output.resubmit == false"
-          model: opus
-          effort: high
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          when: "$review-prep.output.resubmit != true"
           context: fresh
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: &review_launch
+            model: opus
+            effort: high
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
           # resolved・items・design_map・origins は converge の壁打ちと束ね役と出自の欄
           output_format: &review_reply {
@@ -318,14 +321,7 @@ nodes:
           depends_on: [review-prep, plan-review]
           trigger_rule: none_failed_min_one_success
           when: "$review-prep.output.resubmit == true"
-          model: opus
-          effort: high
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: *review_launch
           output_format:
             <<: *review_reply
             required: []

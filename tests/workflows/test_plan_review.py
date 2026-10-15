@@ -433,8 +433,8 @@ class YamlCase(unittest.TestCase):
         body = [n["id"] for n in got["review-loop"]["loop_group"]["nodes"]]
         self.assertEqual(body, ["review-prep", "plan-review", "plan-review-fix", "review-accept"])
         self.assertEqual(got["review-prep"]["with"], {"prev": "$LOOP_PREV.review-accept.output.ok"})
-        self.assertIn("resubmit", got["review-prep"]["output_format"]["required"])
-        self.assertEqual(got["plan-review"]["when"], "$review-prep.output.resubmit == false")
+        self.assertEqual(got["review-prep"]["output_format"]["properties"]["resubmit"], {"type": "boolean"})
+        self.assertEqual(got["plan-review"]["when"], "$review-prep.output.resubmit != true")
         fix, first = got["plan-review-fix"], got["plan-review"]
         self.assertEqual(fix["when"], "$review-prep.output.resubmit == true")
         self.assertEqual((fix["depends_on"], fix["trigger_rule"]), (["review-prep", "plan-review"], "none_failed_min_one_success"))

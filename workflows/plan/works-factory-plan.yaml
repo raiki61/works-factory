@@ -237,18 +237,20 @@ nodes:
               brief: {type: string}
               attempt: {type: integer}
               resubmit: {type: boolean}
+        # 模型・道具・設定は出し直しの役 plan-writer-fix と同じ（merge key の錨 writer_launch）
         - id: plan-writer
           command: fix-plan
           depends_on: [plan-prep]
-          when: "$plan-prep.output.resubmit == false"
-          model: opus
-          effort: medium
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          when: "$plan-prep.output.resubmit != true"
+          <<: &writer_launch
+            model: opus
+            effort: medium
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           # 今の works の blk-plan.yaml の修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の関所の決め手の欄）。
           # 2 往復目からの block への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。欄の型は planmarks.FIELD_SCHEMA・
           # gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
@@ -506,14 +508,7 @@ nodes:
           depends_on: [plan-prep, plan-writer]
           trigger_rule: none_failed_min_one_success
           when: "$plan-prep.output.resubmit == true"
-          model: opus
-          effort: medium
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: *writer_launch
           output_format:
             <<: *plan_reply
             required: []

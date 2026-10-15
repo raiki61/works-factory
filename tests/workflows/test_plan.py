@@ -223,15 +223,16 @@ class Run:
         return got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
 
     def when(self, expr):
-        """when: の式（== と && だけ）を前の節の出力で評価する"""
+        """when: の式（==・!= と && だけ）を前の節の出力で評価する"""
         ok = True
         for part in expr.split("&&"):
-            m = re.fullmatch(r"\s*\$([\w-]+)\.output\.(\w+)\s*==\s*'?([\w]+)'?\s*", part)
-            nid, field, want = m.groups()
+            m = re.fullmatch(r"\s*\$([\w-]+)\.output\.(\w+)\s*(==|!=)\s*'?([\w]+)'?\s*", part)
+            nid, field, op, want = m.groups()
             if self.status.get(nid) != "ok":
                 return False
             got = self.out[nid][field]
-            ok = ok and (str(got).lower() if isinstance(got, bool) else str(got)) == want
+            same = (str(got).lower() if isinstance(got, bool) else str(got)) == want
+            ok = ok and same == (op == "==")
         return ok
 
     def until(self, expr):
@@ -382,7 +383,7 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(list(body), ["plan-prep", "plan-writer", "plan-writer-fix", "plan-accept"])
         self.assertEqual(body["plan-prep"]["with"]["prev"], "$LOOP_PREV.plan-accept.output.ok")
         self.assertIn("resubmit", body["plan-prep"]["output_format"]["required"])
-        self.assertEqual(body["plan-writer"]["when"], "$plan-prep.output.resubmit == false")
+        self.assertEqual(body["plan-writer"]["when"], "$plan-prep.output.resubmit != true")
         fix = body["plan-writer-fix"]
         self.assertEqual(fix["when"], "$plan-prep.output.resubmit == true")
         self.assertEqual((fix["depends_on"], fix["trigger_rule"]), (["plan-prep", "plan-writer"], "none_failed_min_one_success"))
