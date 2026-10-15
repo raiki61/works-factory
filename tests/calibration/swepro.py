@@ -287,8 +287,8 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
         # 測る物と来歴の factory_commit、コンテナとホストの Claude Code の版を一致させる
         ("stamp", f"test \"$(cat {place}/{STAMP} 2>/dev/null)\" = {shlex.quote(stamp(factory_commit, claude_version))} "
                   f"|| {{ echo {shlex.quote(missing)} >&2; exit 1; }}"),
-        # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす。Claude Code の bwrap と
-        # 同じく /dev と pid の名前空間の /proc を立てる（伏せた /proc の上では proc の mount だけが落ちる）
+        # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす。引数は Claude Code
+        # 2.1.300 の bwrap の引数のうち、/proc と名前空間に関わる部分の写し（伏せた /proc の上では proc の mount だけが落ちる）
         ("sandbox", "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc true "
                     f"|| {{ echo {shlex.quote(SANDBOX_REFUSED)}\"$(cat {USERNS_LIMIT} 2>/dev/null || echo 無い)\" >&2; exit 1; }}"),
     ]
