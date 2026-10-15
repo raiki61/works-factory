@@ -13,6 +13,7 @@
                              記録と申告（欄 bash_writes）に突き合わせ、どちらにも無い変更を拒む）。1 回目の審査は準拠と品質の 2 判定の欄
                              （deltamarks）を承認済みの修正案の項目（fixboard._plan_items）と照らし、欠けと誤りは受けずに拒み、
                              通れば欄を外して受け、受けた時だけ欄を置き場の delta-verdicts.json に控える
+- scope_text(board, items):   手直しの役の指示書に貼る範囲の節（accept_fix が照らす値と同じ planrange.scope から）
 - brief_ties(ties):          手直しの役の brief の穴ごとの枝の名札の欄（名札は fixboard.hole_ties。線の木の段 4a）
 
 作業ファイル（置き場 b のフォルダ）: review<n>-snapshot.json（計画の予約の名）・review<n>-brief.json（役に見せる材料: その節に
@@ -68,6 +69,7 @@ FIX_ROLE = {1: "refix", 2: "refix2"}        # 手直しの役の名
 SCOPE_REJECT = ("手直しが承認済みの修正案の項目の範囲から外れた（項目の範囲の外で変えてよいのは、材料の ruled_paths と、範囲の相談で"
                 "合意したパス・テストの変更の許しのパスだけ。外れた変更を戻して返答を丸ごと出し直せ。試験を回して出来たファイル"
                 "（キャッシュ・結果の XML）も消せ。範囲の外が要る穴は直さずに declared で残し、how に理由を書け）: ")
+SCOPE = {"ruled": True, "by": stopby.REFIX}   # 手直しの範囲の照らし（accept_fix）と指示書の節（scope_text）が planrange.scope に渡す引数
 PLAN_REVIEW = "p2.plan_review"   # 事前審査の節（穴の unit_keys。塞がっていない検算を枝に結ぶ）
 
 
@@ -241,6 +243,11 @@ def _owed(out: dict, board, n: int) -> dict:
     return {**out, "owed": len(fixboard._owed_rows(board, n))} if out.get("ok") is True else out
 
 
+def scope_text(board, items) -> str:
+    """手直しの役の指示書に貼る範囲の節（planrange.scope_text）: accept_fix が照らす値（SCOPE の引数の planrange.scope）"""
+    return planrange.scope_text(planrange.scope(board, items=items, **SCOPE)[0])
+
+
 def accept_fix(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib.Path, *, n: int, items=None, log=None,
                skip: tuple = ()) -> dict:
     """n 回目の手直しの役の返答（書く役）。fixboard.take の返り。先に、版 base_rev（run の始めの版。空なら HEAD）からの変更の
@@ -253,7 +260,7 @@ def accept_fix(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib.Pa
     rev = fixboard.base_rev(None, base_rev)
     paths = writes.changed(repo, rev)
     fixed = set((fix_delta(board) or {}).get("files") or [])
-    bad, _note = planrange.check_paths(board, [p for p in paths if p not in fixed], items=items, ruled=True, by=stopby.REFIX)
+    bad, _note = planrange.check_paths(board, [p for p in paths if p not in fixed], items=items, **SCOPE)
     if bad:
         return {"ok": False, "reason": SCOPE_REJECT + "\n" + "\n".join(f"  - {x}" for x in bad)}
     got = writes.check(reply, repo, paths, pathlib.Path(log) if log else pathlib.Path(board) / writelog.LOG, skip=tuple(skip))

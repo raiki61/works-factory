@@ -4,7 +4,8 @@
 # ///
 """n 回目の手直しの役の支度（節 refix-prep・refix2-prep。入力 n は 1 か 2）: n 回目の審査（置き場の delta/review-<n>.json）が直す
 義務を出した時だけ、義務と差分の材料を置き場の refix<n>-brief.json に書き（fixboard.prep_fix）、指示書を組んで置き場に書く
-（fixboard.refix_prompt。決まりは commands/fix-rules/ の refix.md と common.md。前の回の拒否が在れば、この輪の拒否の理由の全部のファイルを 1 行目で名指す）。
+（fixboard.refix_prompt。決まりは commands/fix-rules/ の refix.md と common.md。前の回の拒否が在れば、この輪の拒否の理由の全部のファイルを 1 行目で名指す。
+受け付けが照らす範囲の値 refix.scope_text を n によらず貼る）。
 審査を受けていない・義務が無い（pass）・審査を諦めた時は go: false（手直しの役を起こさない）。返り {prompt_file, go, iteration}
 （iteration は受け付けの拒否の数 + 1）。回す側の誤り（控えと義務が食い違う・修正案の欄の控えが壊れた）は標準エラーに 1 行で非 0。
 """
@@ -45,14 +46,15 @@ def main(n: int) -> None:
         fixboard.write_json(head, {"tree": groups.end_tree(boundary.work_tree())})
     start = startrec.read(place)
     fix_reply = place / fixboard.FIX_REPLY_FILE
-    got = fixboard.prep_fix(place, n, items=functools.partial(fixboard.place_items, place), plan_review=fixboard.plan_review_file(place),
+    items = functools.partial(fixboard.place_items, place)
+    got = fixboard.prep_fix(place, n, items=items, plan_review=fixboard.plan_review_file(place),
                             fix_reply=fix_reply if fix_reply.is_file() else None, policy=fixboard.policy_brief(start))
     if not got["ok"]:
         raise ValueError(got["reason"])
     text = fixboard.refix_prompt(n, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": policy.frozen_copy(start),
                                      "request_file": startrec.request_file(start)},
                                  reject_file=rolekit.reject_file(place, accept), iteration=iteration,
-                                 lang=rolekit.lang_line(start))
+                                 lang=rolekit.lang_line(start), scope=refix.scope_text(place, items))
     prompt = fixboard.write_text(place / fixboard.REFIX_PROMPT.format(refix.passes()[n]["fix"]), text)
     boundary.returns({"prompt_file": str(prompt), "go": True, "iteration": iteration})
 
