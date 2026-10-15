@@ -24,19 +24,20 @@ if str(LIB) not in sys.path:
 
 import protect  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 
 
 def tracked() -> list:
     out = subprocess.run(["git", "-C", str(REPO), "-c", "core.quotePath=false", "ls-files", "-z"], capture_output=True,
-                         check=True).stdout.decode("utf-8")
+                         check=True, env=hermetic.child_env()).stdout.decode("utf-8")
     return [x for x in out.split("\0") if x]
 
 
 def git_glob(pattern: str) -> set:
     out = subprocess.run(["git", "-C", str(REPO), "-c", "core.quotePath=false", "ls-files", "-z", "--", f":(top,glob){pattern}"],
-                         capture_output=True, check=True).stdout.decode("utf-8")
+                         capture_output=True, check=True, env=hermetic.child_env()).stdout.decode("utf-8")
     return {x for x in out.split("\0") if x}
 
 

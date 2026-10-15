@@ -24,6 +24,7 @@ import unittest
 
 import yaml
 
+from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.layers import scan
 from tests.layers.scan import script_reads as reads
@@ -283,10 +284,9 @@ class Observed:
             outputs, strings, fell = {}, [], []
             for node in self.order:
                 bound = {key: self.bound(value, inputs, outputs) for key, value in (node.get("with") or {}).items()}
-                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-                env.update({f"INPUTS_{k.upper()}": v for k, v in {**inputs, **bound}.items()})
-                env.update(ARTIFACTS_DIR=str(place.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(ROOT),
-                           PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off")
+                env = hermetic.child_env(**{f"INPUTS_{k.upper()}": v for k, v in {**inputs, **bound}.items()},
+                                         ARTIFACTS_DIR=str(place.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(ROOT),
+                                         PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off")
                 done = subprocess.run([sys.executable, str(self.folder / "scripts" / f"{node['script']}.py")],
                                       cwd=place.repo, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                                       encoding="utf-8")

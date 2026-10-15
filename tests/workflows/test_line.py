@@ -21,6 +21,7 @@ from unittest import mock
 
 import yaml
 
+from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.bin.linescripts import SCRIPTS, load
 from tests.workflows.test_gate_head import final_got
@@ -744,7 +745,7 @@ def fixture_format(fixture_text: str):
 
 def text_at(rev: str, rel: str) -> str | None:
     """版 rev のファイル rel の字（無ければ None）"""
-    got = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, text=True, encoding="utf-8")
+    got = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
     return got.stdout if got.returncode == 0 else None
 
 
@@ -2061,7 +2062,7 @@ class SpecCheckNodeCase(Artifacts):
     def test_crash_is_a_question_not_silence(self):
         """照らしが落ちた返りの 0 件は、最後の承認ノードに「変わっていない」と読まれて問わずに通る。落ちたら問いを 1 行返す"""
         ptr = json.dumps({"type": "archon_artifact", "run_id": "another-run", "path": "judge/spec.json"})
-        env = {**os.environ, "INPUTS_SPEC": ptr}
+        env = hermetic.child_env(ARTIFACTS_DIR=str(self.artifacts), WORKFLOW_ID=RUN, INPUTS_SPEC=ptr)
         done = subprocess.run([sys.executable, str(SCRIPTS / "spec_check.py")], cwd=self.tmp, env=env, capture_output=True, text=True)
         self.assertEqual(done.returncode, 0, done.stderr)
         got = json.loads(done.stdout)
@@ -2655,10 +2656,9 @@ class SweepChildrenCase(unittest.TestCase):
             listing = json.dumps({"runs": [{"id": RUN, "status": "running", "parent_run_id": None, "metadata": {}}]})
             bun.write_text(f"#!/bin/sh\ncat <<'EOF'\n{listing}\nEOF\n", encoding="utf-8")
             bun.chmod(0o755)
-            env = {k: v for k, v in os.environ.items() if k != "WORKS_FACTORY_ARCHON_SOURCE"}
-            env.update({"PATH": f"{tmp / 'bin'}{os.pathsep}{env.get('PATH', '')}", "WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(tmp),
-                        "WORKS_FACTORY_ROOT": str(ROOT)})
-            env.update({k: v.replace("<tmp>", str(tmp)) for k, v in extra.items()})
+            env = hermetic.child_env(
+                PATH=f"{tmp / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}", WORKFLOW_ID=RUN, ARTIFACTS_DIR=str(tmp),
+                WORKS_FACTORY_ROOT=str(ROOT), **{k: v.replace("<tmp>", str(tmp)) for k, v in extra.items()})
             done = subprocess.run([sys.executable, str(copied / "line/scripts/sweep_children.py")], cwd=tmp, env=env,
                                   capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -2729,7 +2729,7 @@ class BrokenLibCase(unittest.TestCase):
         self.assertGreaterEqual(len(guarded), 5)
         with tempfile.TemporaryDirectory() as tmp:
             (pathlib.Path(tmp) / "lib").mkdir()
-            env = {**os.environ, "WORKS_FACTORY_ROOT": tmp, "WORKFLOW_ID": RUN, "ARTIFACTS_DIR": tmp, "INPUTS_PLACE": "gate"}
+            env = hermetic.child_env(WORKS_FACTORY_ROOT=tmp, WORKFLOW_ID=RUN, ARTIFACTS_DIR=tmp, INPUTS_PLACE="gate")
             for node in guarded:
                 with self.subTest(script=node["script"]):
                     done = subprocess.run([sys.executable, str(SCRIPTS / f"{node['script']}.py")], cwd=tmp, env=env,
@@ -3050,7 +3050,7 @@ class LineWiringCase(unittest.TestCase):
                 alone = tmp / "alone" / "scripts"
                 alone.mkdir(parents=True)
                 path = pathlib.Path(shutil.copy(path, alone))
-            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "WORKS_FACTORY_ROOT", "PYTHONPATH"))}
+            env = {k: v for k, v in hermetic.child_env().items() if k != "PYTHONPATH"}
             env.update({"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN, "PYTHONDONTWRITEBYTECODE": "1", **self.RETURN_INPUTS[block]})
             done = subprocess.run([sys.executable, str(path)], cwd=tmp, env=env, capture_output=True, text=True)
             self.assertEqual(done.returncode, 0, done.stderr)
@@ -3161,11 +3161,11 @@ class LineWiringCase(unittest.TestCase):
             (repo / "a.txt").write_text("two\n", encoding="utf-8")
             got, sealed = [], "null"
             for mode in modes:
-                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-                env.update({"WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(artifacts), "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"})
+                env = {"WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(artifacts), "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"}
                 env.update({f"INPUTS_{name.upper()}": "null" for name in block_doc("works-factory-merge")["inputs"]})
                 env.update({"INPUTS_MODE": mode, "INPUTS_START": json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "start.json"}),
                             "INPUTS_SEALED_HASH": sealed})
+                env = hermetic.child_env(**env)
                 done = subprocess.run([sys.executable, str(SCRIPTS.parents[1] / "merge" / "scripts" / "merge.py")], cwd=repo, env=env,
                                       capture_output=True, text=True)
                 out = json.loads(done.stdout)

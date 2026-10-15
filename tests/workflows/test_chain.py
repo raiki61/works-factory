@@ -8,7 +8,6 @@ script は子のプロセスとして使い捨ての置き場（runs/<親>・run
 import hashlib
 import importlib.util
 import json
-import os
 import pathlib
 import re
 import subprocess
@@ -19,6 +18,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.e2e.test_line_scenarios import bound, dry_run_traces, scenarios
 
@@ -40,8 +40,7 @@ NODES = {n["id"]: n for n in CHAIN["nodes"]}
 
 def run_script(name: str, env: dict, cwd: pathlib.Path) -> dict:
     """鎖の script を Archon と同じく子のプロセスで走らせ、標準出力の JSON を返す"""
-    keep = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and k not in ("ARTIFACTS_DIR", "WORKFLOW_ID", "LOG_DIR")}
-    done = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], cwd=cwd, env={**keep, "PYTHONDONTWRITEBYTECODE": "1", **env},
+    done = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], cwd=cwd, env=hermetic.child_env(**{"PYTHONDONTWRITEBYTECODE": "1", **env}),
                           capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0:
         raise AssertionError(f"{name} が終了の値 {done.returncode}: {done.stderr}")

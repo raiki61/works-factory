@@ -24,6 +24,7 @@ import yaml
 
 from bin._lib import isolate, launcher
 from tests import archon
+from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.layers import scan
 from tests.workflows.copied import assert_is_original, rewritten
@@ -398,10 +399,9 @@ class ScriptCase(unittest.TestCase):
         self.start = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "start/record.json"})
 
     def env(self, inputs: dict) -> dict:
-        inherited = {k: v for k, v in os.environ.items() if k not in (launcher.FENCE_RECORDS_ENV, userenv.RECORD, userenv.OPT_IN,
-                                                                       userenv.RAN_DIR_ENV)}
-        env = {**inherited, **self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(ROOT),
-               "PYTHONDONTWRITEBYTECODE": "1", **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
+        env = hermetic.child_env(**{**self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts),
+                                    "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1",
+                                    **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}})
         if self.user_home is None:
             return env
         user = {k: v for k, v in env.items() if k not in userenv.NAMES}

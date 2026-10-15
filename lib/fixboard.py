@@ -39,6 +39,7 @@ import gatemarks
 import jsonfile
 import oneline
 import policy
+import promptsection
 import rolekit
 import startrec
 
@@ -1311,18 +1312,53 @@ def plan_review_file(place):
     return p if p.is_file() else None
 
 
-def plan_face_errors(place, reply, units) -> list:
-    """修正役は事前審査の穴（faces）と別案（shrink）に key ごとに 1 度だけ答える（absorbed＝取り込んだ／declared＝残す理由）。置き場の
-    事前審査の返答の写し PLAN_REVIEW_FILE の行のうち、unit_keys が units（組の子の受け付けの直す義務の単位）に当たる行と unit_keys の
-    無い行が問う key（units が None なら全部の行。裁定の後の受け付けの返答は周の全体の欄を書く）。返答の plan_faces の重複・問いに無い key・答えの無い key を 1 行ずつ。写しが無ければ空（事前審査の無い run）。
-    元 works/.shared/core/graphloops/rules/review-loop.py:3115 の _plan_face_errors（1 つの p3.fix が全部に答えた。組に分けた修正役は
-    自分の単位の穴に答える）"""
+FACES_HEAD = promptsection.Section("## 事前審査に答える key（受け付けが plan_faces で答えを求める全部）",
+                                   source="fn:fixboard.plan_faces_text")
+
+
+def face_units(pass_: str, duty):
+    """事前審査の key を問う単位（plan_face_rows の units）: 組の子の受け付け（pass_ first）は直す義務の単位 duty、裁定の後は
+    None（周の全体の欄を書く）。受け付けと修正役の指示書が同じ単位で引く"""
+    return set(duty) if pass_ == "first" else None
+
+
+def plan_face_rows(place, units) -> list[tuple[str, dict]] | None:
+    """修正役が答える事前審査の行 [("faces" | "shrink", 行)]（ファイルの順、faces が先）: 置き場の事前審査の返答の写し
+    PLAN_REVIEW_FILE の行のうち、unit_keys が units（face_units）に当たる行と unit_keys の無い行（units が None なら全部の行）。
+    写しが無ければ None（事前審査の無い run）。受け付け（plan_face_errors）と指示書（plan_faces_text）の 1 か所"""
     rv = read_json(pathlib.Path(place) / PLAN_REVIEW_FILE)
     if not isinstance(rv, dict):
+        return None
+    return [(kind, r) for kind in ("faces", "shrink") for r in rv.get(kind) or [] if isinstance(r, dict)
+            and (units is None or not r.get("unit_keys") or set(units) & set(r.get("unit_keys") or []))]
+
+
+def plan_faces_text(place, units) -> str:
+    """修正役の指示書に貼る節（FACES_HEAD）: plan_face_rows の key の全部を字のまま、要旨 1 行と並べる。行が無ければ空"""
+    lines = []
+    for kind, r in plan_face_rows(place, units) or []:
+        if kind == "faces":
+            tag = "・".join(str(x) for x in ("穴", r.get("severity"), r.get("kind")) if x)
+            gist = r.get("why")
+        else:
+            tag, gist = "別案", r.get("alternative")
+        lines.append(f"- `{r.get('key')}`（{tag}）: {oneline.one_line(gist or '')}")
+    if not lines:
+        return ""
+    return "\n".join([FACES_HEAD, "", "下の key の全部に、返答の `plan_faces` で 1 つにつき 1 行ずつ答えろ（key は一字も変えずに写す。"
+                      "この一覧に無い key は書くな）。", "", *lines])
+
+
+def plan_face_errors(place, reply, units) -> list:
+    """修正役は事前審査の穴（faces）と別案（shrink）に key ごとに 1 度だけ答える（absorbed＝取り込んだ／declared＝残す理由）。
+    問う key は plan_face_rows(place, units) の行の key。返答の plan_faces の重複・問いに無い key・答えの無い key を 1 行ずつ。写しが
+    無ければ空（事前審査の無い run）。
+    元 works/.shared/core/graphloops/rules/review-loop.py:3115 の _plan_face_errors（1 つの p3.fix が全部に答えた。組に分けた修正役は
+    自分の単位の穴に答える）"""
+    rows = plan_face_rows(place, units)
+    if rows is None:
         return []
-    rows = [r for r in (rv.get("faces") or []) + (rv.get("shrink") or []) if isinstance(r, dict)]
-    asked = {r.get("key") for r in rows
-             if units is None or not r.get("unit_keys") or set(units) & set(r.get("unit_keys") or [])}
+    asked = {r.get("key") for _, r in rows}
     answered = [r for r in (reply or {}).get("plan_faces") or [] if isinstance(r, dict)]
     errs = _keys_once(answered, "plan_faces")
     errs += [f"plan_faces の key '{str(r.get('key'))[:40]}' は事前審査に無い" for r in answered if r.get("key") not in asked]
@@ -1486,13 +1522,14 @@ def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, pol
     return {"ok": True, "owed": len(rows), "diff_file": doc["diff_file"], "brief_file": str(brief)}
 
 
-def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int = 1, lang: str = "") -> str:
+def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int = 1, lang: str = "", scope: str = "") -> str:
     """n 回目の手直しの役の指示書（純粋）: 始めの記録の 2 行（fixrules.start_lines。values の policy_path と request_file。修正役と
     TDD の役の指示書と同じ）→ 役の頭（refix-head-<n>。values の brief_file・diff_file・policy_path で穴を埋める）→
     書く役の決まりの正本（rulebook.CANON の NOT_HERE の外）→ 読み替え → 手直しだけの決まり → 返答 → 返答の後に当たる物
     （refix-tail-<n>）を rulebook.render で繋ぐ。手直しだけの決まりの後に借りたスキルの座（seat.section。receiving-code-review と
     読み替え）を置く。reject_file（この輪の拒否の理由の全部のファイル。rejects_file）が在れば 1 行目で名指す。決まりのファイルの置き場は refixrules.RULES と
-    rulebook.CANON（呼び手が置き替える）。写しが固定と違えば seat の ValueError。
+    rulebook.CANON（呼び手が置き替える）。scope（受け付けが照らす範囲の節。refix.scope_text）が在れば始めの記録の 2 行の後に貼る。
+    写しが固定と違えば seat の ValueError。
     元 works/blk-refix/lib/refixrules.py:36・52 の parts・build"""
     import fixrules
     import refixrules
@@ -1511,8 +1548,8 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
              ("seat", seat.section(refixrules.ROLES[n]), always + "（座）"),
              ("refix-reply", r["refix-reply"], always + "（返答の欄）"),
              ("refix-tail", r[f"refix-tail-{n}"], always + "（返答の後に当たる物）")]
-    return rulebook.render(refixrules.ROLES[n], iteration, parts, before=fixrules.start_lines(values), reject_file=reject_file,
-                           lang=lang)["text"]
+    return rulebook.render(refixrules.ROLES[n], iteration, parts, before=[*fixrules.start_lines(values), *([scope] if scope else [])],
+                           reject_file=reject_file, lang=lang)["text"]
 
 
 def rejects_file(place, name: str, upto: int) -> str:
@@ -2268,7 +2305,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     red, tests_note = tddloop.selected_problems(state or tests_state, repo, rev)
     note("tests", red)
     tests_trace(place, state or tests_state, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
-    note("plan_faces", plan_face_errors(place, reply, duty if pass_ == "first" else None))
+    note("plan_faces", plan_face_errors(place, reply, face_units(pass_, duty)))
     gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
     note("gates", fixgates.reject_lines(gates) if gates else [])
     precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []

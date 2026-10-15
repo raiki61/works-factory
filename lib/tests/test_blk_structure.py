@@ -200,7 +200,7 @@ class MeasureCase(unittest.TestCase):
         clone = pathlib.Path(self._tmp.name) / "shallow"
         if not clone.exists():
             subprocess.run(["git", *GIT_ID, "clone", "-q", "--depth", "1", "file://" + str(self.repo), str(clone)],
-                           check=True, capture_output=True)
+                           check=True, capture_output=True, env=child_env())
         out = self.measure("--paths", "new.txt", "a.txt", cwd=clone)
         self.assertIs(out["shallow"], True)
         e = self.entry(out, "new.txt")
