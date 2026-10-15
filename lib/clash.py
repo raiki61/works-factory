@@ -2,7 +2,7 @@
 合わせ役がその組の変えたファイルの中だけで直し、直せなければ「組どうしの合わせの食い違い」の申し出（conflict.JOIN_SOURCE）を
 裁定役に回す。
 
-組を当てるノード（join）は赤の組を戻して後の組を当て続け、戻した組をこの控えに「直し待ち」で積む（record）。合わせのループは組を 1 つずつ
+組を当てるノード（join）は赤の組を戻して後の組を当て続け、戻した組と字で当たらなかった組をこの控えに「直し待ち」で積む（record）。合わせのループは組を 1 つずつ
 控えの差分から当て直し（stage）、合わせ役の返答を修正役と同じ 3 つの軸で受け付ける（problems: 触ってよいのは組が変えたファイル
 だけ・赤だった試験が緑に戻る・許しの無い試験の書き換えは拒む。と書き込みの出どころ）。通れば組を戻せた組にし（settle_repaired）、
 直せなければ当て直す前の木へ戻して申し出を積む（settle_parked）。裁定の後のループ（段 RULED）は、直す裁定（conflict.FIX_DECISIONS）を
@@ -10,11 +10,12 @@
 作業ツリーは緑か合わせ役の手の中に在る。
 
 このモジュールが持つ物（place は fix の run の置き場、repo は親の作業ツリー、skip は除くパスの頭）:
-- FILE（置き場の控え {clashes: [{group_id, unit_ids, patch, names, shared, why, state, pass?, before?, staged?, requests?}]}。
-  state は PENDING・STAGED・REPAIRED・PARKED、pass は最後に扱った段）と record(place, rows)・load(place)
+- FILE（置き場の控え {clashes: [{group_id, unit_ids, patch, names, shared, why, kind?, state, pass?, before?, staged?, marked?,
+  requests?}]}。kind は KINDS（RED は確かめ直しが赤で戻した組、TEXT は字で当たらなかった組。無い行は RED）、state は PENDING・
+  STAGED・REPAIRED・PARKED、pass は最後に扱った段、marked は当て直しで食い違いの印を書いたパス）と record(place, rows)・load(place)
 - todo(place, pass_): その段で扱う組の id（控えの順。FIRST は直し待ちと当て直し中、RULED は FIRST で回した組のうち、その組の
   申し出が全部直す裁定を受けた物と当て直し中）
-- stage(place, repo, gid, pass_, skip): 控えの差分を 3 方向で当て直す（当てる前と後の木を控える）
+- stage(place, repo, gid, pass_, skip): 控えの差分を 3 方向で当て直す（解けない食い違いは印つきで当てる。当てる前と後の木を控える）
 - problems(place, repo, gid, reply, *, start, cases, skip, name, k): 受け付けの照らし（文の並び。空なら通る）
 - settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位・書き込みの記録・TDD のループの状態）
 - settle_parked(place, repo, gid, *, pass_, why, skip): 当て直す前の木へ戻し、申し出を積み、join.json の行に訳を置く
@@ -48,6 +49,7 @@ BRIEF = "clash-brief-{gid}.json"
 PROMPT = "prompt-clash-{gid}.md"
 STATES = (PENDING, STAGED, REPAIRED, PARKED) = ("pending", "staged", "repaired", "parked")
 PASSES = (FIRST, RULED) = ("first", "ruled")
+KINDS = (RED, TEXT) = ("red", "text")
 ROLES = {FIRST: "clash", RULED: "clash-ruled"}
 CANNOT = "cannot"                   # 合わせ役の返答の handled の語: 直せない（回数を待たずに申し出へ）
 BY_RULED_GIVE_UP = stopby.declare("clash-ruled-give-up",
@@ -59,6 +61,8 @@ LIMIT = "合わせのループの上限の周（{limit}）に届いたので、�
 GAVE_UP = "合わせ役の返答が {n} 回とも受け付けを通らなかった（拒否の理由の全部 {file}）"
 SAID_CANNOT = "合わせ役が直せないと答えた: {how}"
 CLAIM = "組 {gid} の直しを親の作業ツリーで前の組と合わせると試験が赤（{red}）。{why}。控えの差分: {patch}"
+TEXT_CLAIM = "組 {gid} の直しが親の作業ツリーで前の組の直しと同じ所を変え、字で当たらない（{red}）。{why}。控えの差分: {patch}"
+UNRESOLVED = "食い違いの印が残っている（印を解いて両方の組の直しを両立させよ）: {paths}"
 RULED_CLAIM = "裁定 {ids} の直しも通らなかった: "
 OUTSIDE = "組が変えたファイルの外を変えた（触ってよいのは {allowed} だけ）: {paths}"
 TESTS = "許しの無いテストのファイルを変えた（テストを緩めて緑にしない。直すべきテストなら直せないと答えて裁定に回せ）: {paths}"
@@ -81,7 +85,8 @@ def _save(place, rows) -> None:
 
 
 def record(place, rows) -> None:
-    """組を当てるノードが、確かめ直しが赤で戻した組 rows（{group_id, unit_ids, patch, names, shared, why}。当てた順）を直し待ちで控える。
+    """組を当てるノードが、確かめ直しが赤で戻した組と字で当たらなかった組 rows（{group_id, unit_ids, patch, names, shared, why, kind}。
+    当てた順）を直し待ちで控える。
     rows が空なら何も書かない"""
     if rows:
         _save(place, [{**r, "state": PENDING} for r in rows])
@@ -162,7 +167,8 @@ def _back_to(repo, before: str, skip) -> None:
 
 
 def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
-    """組 gid の控えの差分を作業ツリーへ 3 方向で当て直す（組を当てるノードと同じ当て方と試験のファイルの挿しの合わせ）。(当たったか, 訳)。
+    """組 gid の控えの差分を作業ツリーへ 3 方向で当て直す（組を当てるノードと同じ当て方と試験のファイルの挿しの合わせ。それでも解けない
+    食い違いは印つきで当て、印を書いたパスを marked に控える。unittrees.apply の marked）。(当たったか, 訳)。
     当てる前の木 before を先に控え、当てた後の木 staged を控える。もう当て直した組（STAGED）は何もしない。前の起動が当てる途中で
     落ちた組は before へ戻してから当て直す"""
     rows = load(place)
@@ -178,17 +184,19 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     row["pass"] = pass_
     _save(place, rows)
     patch = pathlib.Path(row["patch"]).read_text(encoding="utf-8", errors="surrogateescape")
-    ok, why = unittrees.apply(repo, patch, union=union, check=unittrees.tests_unique)
+    marked: list = []
+    ok, why = unittrees.apply(repo, patch, union=union, check=unittrees.tests_unique, marked=marked)
     if not ok:
         return False, NOT_APPLIED.format(why=oneline.one_line(why)[:300])
-    row.update(state=STAGED, staged=tddloop.snapshot(repo))
+    row.update(state=STAGED, staged=tddloop.snapshot(repo), marked=marked)
     _save(place, rows)
     return True, ""
 
 
 # ---------------------------------------------------------------- 受け付け
 def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(), name: str = "", k: int = 1) -> list:
-    """合わせ役の返答の受け付けの照らし（文の並び。空なら通る）。当て直した後の木から今の作業ツリーで変わったパスが:
+    """合わせ役の返答の受け付けの照らし（文の並び。空なら通る）。当て直しで印を書いたファイル（marked）に印が残れば UNRESOLVED。
+    当て直した後の木から今の作業ツリーで変わったパスが:
     1. 組が変えたファイル（控えの names）と、段 RULED なら直す裁定の範囲のパス（ruled_paths）の和に収まる
     2. テストのファイル（impact.is_test_file。宣言は組の TDD のループの単位のテストのファイル）なら、許しの訳（fixboard.allowed_tests。
        承認済みの修正案・範囲の相談の合意・裁定 fix_test_scope・子の結果の許し）に在る（組自身のテストであることは許しにならない）
@@ -201,6 +209,9 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
     touched = fixboard.touched_since(repo, staged, skip)
     allowed = set(row["names"]) | (set(ruled_paths(place, row)) if row.get("pass") == RULED else set())
     out = []
+    left = unittrees.markers_left(repo, row.get("marked") or [])
+    if left:
+        out.append(UNRESOLVED.format(paths="・".join(left)))
     outside = sorted(p for p in touched if p not in allowed)
     if outside:
         out.append(OUTSIDE.format(allowed="・".join(sorted(allowed)), paths="・".join(outside)))
@@ -252,7 +263,7 @@ def settle_repaired(place, repo, gid: str, *, log=None) -> None:
     if log is not None and pathlib.Path(log).is_file() and r.get("worktree"):
         writes.carry_children(log, repo, [(r["worktree"], writelog.log_here(r["worktree"]), row["names"])])
     fixboard.adopt_tdd_states(place, [r], repo)
-    row.update(state=REPAIRED, staged="", before="")
+    row.update(state=REPAIRED, staged="", before="", marked=[])
     _save(place, rows)
 
 
@@ -284,7 +295,7 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
             why += "。" + fixboard.UNRESTORED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}", why=row["why"])
     patch = pathlib.Path(row["patch"])
     text = patch.read_text(encoding="utf-8", errors="surrogateescape") if patch.is_file() else ""
-    said = CLAIM.format(gid=gid, red=oneline.one_line(row["why"])[:300], why=why, patch=patch)
+    said = (TEXT_CLAIM if row.get("kind") == TEXT else CLAIM).format(gid=gid, red=oneline.one_line(row["why"])[:300], why=why, patch=patch)
     prior = [x["id"] for x in requests(place, row)]
     ruling = None
     if pass_ == RULED:
@@ -300,7 +311,7 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
     _settle_join(place, gid, returned=False, reason=row["why"] + tail,
                  mark={"outcome": PARKED, "requests": every, "patch": _rel(place, str(patch))},
                  extra={gid: stuck} if stuck else None)
-    row.update(state=PARKED, requests=every, staged="", before="")
+    row.update(state=PARKED, requests=every, staged="", before="", marked=[])
     row["pass"] = pass_
     _save(place, rows)
     return ids
@@ -309,12 +320,14 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
 # ---------------------------------------------------------------- 合わせ役の材料と指示書
 def brief(place, gid: str) -> pathlib.Path:
     """合わせ役の材料のファイル（置き場の clash-brief-<group_id>.json）: 組・単位・控えの差分・触ってよいファイル・前の組とも
-    重なったファイル・確かめ直しの赤の文・走らせる名指し・戻せている組と、段 RULED なら裁定の文のファイルと組の申し出の裁定"""
+    重なったファイル・食い違いの種（kind）・確かめ直しの赤の文か字で当たらなかった訳・食い違いの印を書いたファイル・走らせる名指し・
+    戻せている組と、段 RULED なら裁定の文のファイルと組の申し出の裁定"""
     row = _row(load(place), gid)
     ruled = row.get("pass") == RULED
     doc = {"group_id": gid, "unit_ids": row["unit_ids"], "patch_file": row["patch"],
            "files": sorted(set(row["names"]) | (set(ruled_paths(place, row)) if ruled else set())),
-           "shared": row.get("shared") or [], "red": row["why"], "named_tests": named_tests(place, gid),
+           "shared": row.get("shared") or [], "kind": row.get("kind") or RED, "red": row["why"],
+           "conflicted": row.get("marked") or [], "named_tests": named_tests(place, gid),
            "returned_groups": [g["group_id"] for g in _joined(place)["groups"] if g.get("returned")]}
     if ruled:
         doc["rulings_file"] = str(pathlib.Path(place) / conflict.RULINGS_FILE)

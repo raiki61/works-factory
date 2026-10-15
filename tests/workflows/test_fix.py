@@ -1542,6 +1542,9 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertFalse(g2["returned"])
         self.assertIn("当たらない", g2["reason"])
         self.assertEqual(joined["units"][1], {"unit_id": "B", "group_id": "g2", "status": "not_done", "reason": g2["reason"]})
+        row, = json.loads((self.place / "clash.json").read_text(encoding="utf-8"))["clashes"]
+        self.assertEqual((row["group_id"], row["kind"], row["state"], row["names"]), ("g2", "text", "pending", ["stats.py"]),
+                         "字で当たらない組も合わせのループの直し待ちに控える")
 
     def test_join_stops_on_a_group_without_a_readable_result(self):
         """#576: 結果のファイルが無いか読めない組が在れば、並べない run でも並べた run でも作業ツリーを変えず join.json も書かずに
@@ -2583,6 +2586,45 @@ class ClashScenarioCase(unittest.TestCase):
         self.assertIn("E8 = 80\n", e, "後の組の直しも残る")
         code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
         self.assertEqual((code, out), (0, {"go": False, "count": 0}), err)
+
+    def test_join_text_clash_is_redone_on_the_current_tree(self):
+        """#598: 2 つの組が同じ行を別の値に変えて後の組が字で当たらなくても、単位を落とさない。合わせのループが後の組を親の今の
+        木へ食い違いの印つきで当て直し、印を残した返答は拒み、印を解いた返答で両方の組の直しが残る"""
+        start = self.rerun_seed({
+            "e.py": f"E1 = 1\n{self.FILLER}E8 = 8\n",
+            "b.py": "def triple(x):\n    return x * 3 + 1\n",
+            "test_b.py": self.TEST_B})
+        _blk_write(self.place / "judgment.json", {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"}],
+                                                  "questions": []})
+        t1 = self.tree_with({"e.py": f"E1 = 10\n{self.FILLER}E8 = 8\n"})
+        t2 = self.tree_with({"e.py": f"E1 = 1  # B が読む\n{self.FILLER}E8 = 8\n",
+                             "b.py": "def triple(x):\n    return x * 3\n"})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, verified=["test_b.py::TestB::test_triple"]))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 2, "returned": 1}), err)
+        out = self.prep()
+        self.assertTrue(out["go"], out)
+        e = self.repo / "e.py"
+        self.assertIn("<<<<<<< ", e.read_text(encoding="utf-8"))
+        self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3\n")
+        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
+        self.assertEqual((brief["kind"], brief["conflicted"]), ("text", ["e.py"]))
+        got = self.accept(self.fixed_reply(("e.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn("食い違いの印", got["reason"])
+        out = self.prep()
+        e.write_text(f"E1 = 10  # B が読む\n{self.FILLER}E8 = 8\n", encoding="utf-8")
+        got = self.accept(self.fixed_reply(("e.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        g2 = self.group_row()
+        self.assertEqual((g2["returned"], g2["clash"]["outcome"]), (True, "repaired"), g2)
+        units = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["units"]
+        self.assertEqual({u["unit_id"]: u["status"] for u in units}, {"A": "fixed", "B": "fixed"})
+        self.assertIn("E1 = 10  # B が読む\n", e.read_text(encoding="utf-8"))
+        self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3\n")
 
     def test_join_clash_rejects_writes_outside_the_group_and_test_rewrites(self):
         """受け付けは修正役と同じ軸: 組が変えたファイルの外の変更と、許しの無いテストのファイルの書き換えを拒む（作業ツリーは

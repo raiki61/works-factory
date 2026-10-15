@@ -8,6 +8,7 @@
 - どの口も本物の index・HEAD・枝を動かさない
 - union の中のファイルで両方が同じ所（末尾）に行を足しただけの食い違いは、作業ツリーの側の行の後に patch の側の行を置いて
   当たる（unioned に積む）。行を変えた塊・union の外のファイルは今どおり当たらず、作業ツリーは前のまま
+- marked を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスを marked に積む）、markers_left が印の残るファイルを引く
 - tests_unique: 合わせた中身に同じ名のテストの定義が 2 つ在れば合わせない。patch_names: 差分の行先のパス
 """
 import pathlib
@@ -88,6 +89,22 @@ class UnitTrees(unittest.TestCase):
         self.assertEqual((self.repo / "a.txt").read_text(), "a1\nX\na3\n")
         self.assertEqual((self.repo / "b.txt").read_text(), "b1\nb2\nb3\n")   # 全部か無し
         self.assertNotIn("<<<<<<<", (self.repo / "a.txt").read_text())
+        self.assertEqual(self.real_state(), state)
+
+    def test_same_line_with_marked_leaves_markers_in_the_conflicted_file(self):
+        state = self.real_state()
+        base = groups.end_tree(self.repo)
+        _, p1 = self.unit(base, "u1", {"a.txt": "a1\nX\na3\n"})
+        _, p2 = self.unit(base, "u2", {"a.txt": "a1\nY\na3\n", "b.txt": "b1\nb2\nB3\n"})
+        self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
+        marked = []
+        self.assertEqual(unittrees.apply(self.repo, p2, marked=marked), (True, ""))
+        a = (self.repo / "a.txt").read_text(encoding="utf-8").splitlines()
+        for line in ("<<<<<<< 今の作業ツリー", "X", "Y", ">>>>>>> 当てる差分"):
+            self.assertIn(line, a)
+        self.assertEqual((self.repo / "b.txt").read_text(), "b1\nb2\nB3\n")
+        self.assertEqual(marked, ["a.txt"])
+        self.assertEqual(unittrees.markers_left(self.repo, ["a.txt", "b.txt", "gone.txt"]), ["a.txt"])
         self.assertEqual(self.real_state(), state)
 
     def test_insert_only_conflict_in_a_union_file_is_merged_in_order(self):
