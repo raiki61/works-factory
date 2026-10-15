@@ -1507,7 +1507,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     split = split_line(returns)
     apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—")
     stopped = outcome in STOP_OUTCOMES
-    delivery = deliver.head_words(start, returns.get("merge-apply"))
+    delivery, delivery_lines = deliver.report_parts(start, returns.get("merge-apply"))
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
                           *(_stopped_why(returns, line) if stopped else []), *_ran_notes(returns),
                           *([delivery] if delivery else []), *([userenv.NOTE] if user_env else [])])
@@ -1522,7 +1522,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
                                     *([draft] if draft else []), *apply,
-                                    *deliver.report_lines(start, returns.get("merge-apply"))]),
+                                    *delivery_lines]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems), line)),
         (report.READS_HEADING, _reads_lines(tfacts, out_dir.parent, out_dir, transcript_why, repo)),

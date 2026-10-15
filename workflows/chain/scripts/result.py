@@ -8,8 +8,9 @@
 request・決めの act・word・text）を返す。closed は止めの語が closed の時だけ真。request は最後の周が運んだ次の依頼の絶対パスで、
 鎖の後に続ける人が依頼に使う。
 出口のノード deliver（入力 deliver が pr の時だけ走る）の返りの欄 delivered {ok, branch, commit, url, reason}（run 専用の枝と PR を読み戻した
-結果、または作らなかった訳）をそのまま返す（置いてよいかは merge の中が照らす。ここは受け入れの決めを持たない）。ノード deliver が飛んだ
-（deliver が空）・鎖を受けなかった時は null。
+結果、または作らなかった訳）をそのまま返す（置いてよいかは merge の中が照らす。ここは受け入れの決めを持たない）。deliver が空・鎖を
+受けなかった時は null（何も頼まれていない印）。pr を頼んだのにノード deliver が返らなかった（final-diff が落ちて飛んだ）時は、null に
+せず同じ形で ok: false と訳を返す。
 最後の差分のノード final-diff の返りから、bin/apply が読む欄（メイングラフの出力と同じ名と形）を載せる: apply・sealed（元の基から
 採る周までの封じた差分。無ければ null）・outcome・r2_status（最後の差分に入る周のどれかで R2 が作り直しと言えばそれ、ほかは
 採る周の物）。report は周ごとの表 chain.md のポインタ。
@@ -62,9 +63,19 @@ def result(start, final, decisions: list, delivered=None) -> dict:
         act, word = "wait", ""
         text = (f"{len(made) + 1} 周目の子の run か、その周のノードが落ちた。親の run を resume すると Archon が落ちた子を 1 度"
                 "起こし直す")
+    last_diff = from_final(final)
     return {"closed": word == CLOSED, "ok": True, "reason": "", "act": act, "word": word, "text": text,
-            "request": rows[-1].get("request") or "" if rows else "", "rounds": rows, **from_final(final),
-            "delivered": delivered if isinstance(delivered, dict) else None}
+            "request": rows[-1].get("request") or "" if rows else "", "rounds": rows, **last_diff,
+            "delivered": delivered_of(start, delivered, last_diff["stop_reason"])}
+
+
+def delivered_of(start: dict, delivered, stop_reason: str):
+    if isinstance(delivered, dict):
+        return delivered
+    if start.get("deliver") != "pr":
+        return None
+    return {"ok": False, "branch": "", "commit": "", "url": "",
+            "reason": f"出口のノード deliver が返らなかったので PR を作らなかった（{stop_reason or '訳の記録なし'}）"}
 
 
 def fallback(reason: str) -> dict:

@@ -1,6 +1,6 @@
 """ブロック merge（workflows/merge/）の YAML の形・script の通し・筋書きの試験。
 
-- YAML の形は PyYAML で読み、Archon を起こさない（返りの約束の 7 欄・入力の 11 個・節 1 つ・作業ツリーを変えない）
+- YAML の形は PyYAML で読み、Archon を起こさない（返りの約束の 7 欄・入力の 12 個・節 1 つ・作業ツリーを変えない）
 - script は subprocess で、一時の git の木を cwd に、Archon が script の節に渡す環境（WORKFLOW_ID・ARTIFACTS_DIR・INPUTS_*）を偽の run で作って走らせる。
   どの走りでも作業ツリーの `git status --porcelain` が前後で同じ（E6・E7）
 - DeliverTest は出口 deliver: pr（lib/deliver.py）を、偽の gh（PATH の頭の読むだけの口の後ろ）と裸の git の remote で縛る
@@ -37,7 +37,8 @@ YAML = BLOCK / "works-factory-merge.yaml"
 SCRIPT = BLOCK / "scripts" / "merge.py"
 NAME = "works-factory-merge"
 RUN = "run-merge"
-INPUTS = ("mode", "start", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "placed", "base_rev")
+INPUTS = ("mode", "start", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "placed", "base_rev",
+          "request")
 RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "reason", "delivered")
 NO_DEADLINE = 1728000000
 PASS = json.dumps({"decision": "continue", "text": ""})
@@ -383,6 +384,19 @@ class NeverFailsTest(ScriptCase):
         self.assertBroken(got, "apply")
         self.assertIsNone(got["delivered"])
 
+    def test_failure_after_placing_says_the_diff_was_placed(self):
+        """apply.diff を置いた後に想定外の例外で落ちたら、delivered の訳は「置かなかった」でなく「置いたが提出の前に落ちた」"""
+        root = self.tmp / "root"
+        shutil.copytree(LIB, root / "lib", ignore=shutil.ignore_patterns("__pycache__"))
+        with (root / "lib" / "deliver.py").open("a", encoding="utf-8") as f:
+            f.write('\n\ndef submit(*args, **kwargs):\n    raise RuntimeError("提出の途中の想定外")\n')
+        got = self.apply(self.seal()["hash"], deliver="pr", root=root)
+        self.assertBroken(got, "apply")
+        self.assertTrue(self.artifact("merge/apply.diff").exists())
+        self.assertIs(got["delivered"]["ok"], False)
+        self.assertIn("差分は置いたが", got["delivered"]["reason"])
+        self.assertIn("提出の途中の想定外", got["delivered"]["reason"])
+
     def test_checkout_not_git(self):
         plain = self.tmp / "plain"
         plain.mkdir()
@@ -620,8 +634,39 @@ class DeliverTest(ScriptCase):
         self.assertEqual(create[create.index("--title") + 1], f"works-factory: run {RUN}")
         body = create[create.index("--body") + 1]
         self.assertIn(RUN, body)
+        self.assertIn(self.sealed, body, "封じた hash を本文に書く")
+        self.assertNotIn("issue", body, "依頼に issue が無ければ名指さない")
+        self.assertIn("報告の冒頭と報告の在りかは載せていない", body)
         self.assertIn("pre-push", body, "対象のフックを走らせない訳を本文に書く")
+        self.assertNotIn(str(self.tmp), body, "手元の絶対パスを本文に出した")
+        message = git(self.bare, "log", "-1", "--format=%B", commit)
+        self.assertTrue(message.startswith(f"works-factory: run {RUN}\n\n"), message)
+        self.assertIn(self.sealed, message, "封じた hash を commit の本文に書く")
+        self.assertNotIn(str(self.tmp), message)
         self.assertEqual([c[:2] for c in self.calls() if c[:2] in (["pr", "merge"], ["pr", "close"])], [])
+
+    def test_request_issues_are_named_in_the_commit_and_the_pr(self):
+        """依頼の欄 issue（apply は始めの記録の request_file、handoff は入力 request の先）を、commit と PR の本文で名指す"""
+        request = self.tmp / "request.json"
+        request.write_text(json.dumps({"findings": [{"text": "x"}], "issue": [555, 7]}), encoding="utf-8")
+        start = self.place("start.json", json.dumps({"base_rev": self.base, "request_file": str(request)}))
+        for name, run in (("apply", lambda: self.apply_pr(start=start)), ("handoff", lambda: self.run_chain_handoff(request=str(request)))):
+            with self.subTest(name):
+                shutil.rmtree(self.artifact("merge/objects"), ignore_errors=True)
+                git(self.bare, "update-ref", "-d", f"refs/heads/{self.BRANCH}")
+                pathlib.Path(self.state["prs"]).unlink(missing_ok=True)
+                got = run()
+                self.assertIs(got["delivered"]["ok"], True, got["delivered"])
+                body = self.made("pr", "create")[-1]
+                body = body[body.index("--body") + 1]
+                self.assertIn("依頼の issue: #555・#7", body)
+                self.assertIn("依頼の issue: #555・#7", git(self.bare, "log", "-1", "--format=%B", got["delivered"]["commit"]))
+
+    def test_unreadable_request_stops_before_placing(self):
+        got = self.apply_pr(start=self.place("start.json", json.dumps({"base_rev": self.base, "request_file": str(self.tmp / "none")})))
+        self.assertFalse(got["ok"])
+        self.assertFalse(self.artifact("merge/apply.diff").exists())
+        self.assertNothingWritten(got["delivered"], "差分を置かなかった")
 
     def test_handoff_with_a_wrong_hash_writes_nothing(self):
         got = self.run_chain_handoff(self.final_diff(hash="0" * 64))

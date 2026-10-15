@@ -552,13 +552,14 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(node["when"], "$chain-start.output.deliver == 'pr'")
         self.assertEqual(set(node["depends_on"]), {"chain-start", "final-diff"})
         self.assertEqual(node["with"], {"mode": "handoff", "placed": "$final-diff.output.apply", "r2": "$final-diff.output.r2_status",
-                                        "base_rev": "$chain-start.output.origin", "deliver": "$chain-start.output.deliver"})
+                                        "base_rev": "$chain-start.output.origin", "deliver": "$chain-start.output.deliver",
+                                        "request": "$chain-start.output.first_request"})
         self.assertEqual(NODES["result"]["with"]["delivered"], {"from": "$deliver.output.delivered", "if_skipped": None})
         self.assertIn("delivered", NODES["result"]["output_format"]["required"])
         self.assertEqual(NODES["final-diff"]["output_format"]["required"],
                          ["ok", "reason", "apply", "sealed", "report", "kept", "skipped", "outcome", "r2_status"],
                          "final-diff に出口の欄を足さない（受け入れの決めは merge の中）")
-        # result の script は欄 delivered を出口のノードの返りのまま返す（無ければ null。鎖を受けなかった時は出口の結果を載せない）
+        # result の script は欄 delivered を出口のノードの返りのまま返す（頼まれていなければ null。鎖を受けなかった時は出口の結果を載せない）
         start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}
         decided = {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": 1}]}
         want = {"ok": True, "branch": "works-factory/run-x", "commit": "c" * 40, "url": "https://github.com/o/r/pull/1", "reason": ""}
@@ -568,6 +569,15 @@ class ShapeCase(unittest.TestCase):
             self.assertIsNone(run_result(start, None, decided, artifacts=artifacts)["delivered"])
             refused = run_result({"ok": False, "reason": "rounds は 1〜5"}, None, artifacts=artifacts, delivered=want)
             self.assertIsNone(refused["delivered"])
+
+    def test_skipped_deliver_node_is_not_the_unasked_null(self):
+        """pr を頼んだのに final-diff が落ちてノード deliver が飛んだ時、delivered は null（頼まれていない印）でなく ok: false と訳"""
+        start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": [], "deliver": "pr"}
+        decided = {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": 1}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            got = run_result(start, None, decided, artifacts=pathlib.Path(tmp))["delivered"]
+        self.assertEqual({k: got[k] for k in ("ok", "branch", "commit", "url")}, {"ok": False, "branch": "", "commit": "", "url": ""})
+        self.assertIn("final-diff の出力が無い", got["reason"])
 
     def test_inputs_are_the_main_graph_inputs_and_the_chain_limits(self):
         self.assertEqual(set(CHAIN["inputs"]), set(LINE["inputs"]) | {"rounds", "budget_usd"})

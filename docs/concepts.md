@@ -222,9 +222,9 @@
 ### `deliver` 出口（差分を専用の枝と PR にして提出する道）
 
 - 状態: 住処あり
-- 住処: `lib/deliver.py`（標準ライブラリと `lib/forge.py`・`lib/oneline.py` だけ。入力の語 `WORDS`・`PR` と確かめ `check`、始めの確かめ `preflight`、押す先の枝 `BRANCH_PREFIX`・`branch_of`、提出 `submit`（柵・一時の物の置き場での commit・push・PR）、読み戻し `readback`、host の gh の探し方 `host_gh`、gh を呼ぶ唯一の口 `_gh` と通す動詞の固定の並び `VERBS`、報告の行 `report_lines` と冒頭の句 `head_words`）
+- 住処: `lib/deliver.py`（標準ライブラリと `lib/forge.py`・`lib/oneline.py` だけ。入力の語 `WORDS`・`PR` と確かめ `check`、始めの確かめ `preflight`、押す先の枝 `BRANCH_PREFIX`・`branch_of`、提出 `submit`（柵・一時の物の置き場での commit・push・PR）、読み戻し `readback`、host の gh の探し方 `host_gh`、gh を呼ぶ唯一の口 `_gh` と通す動詞の固定の並び `VERBS`、報告の冒頭の句と行 `report_parts`）
 - 約束: 入力 `deliver`（空か `pr`。周の鎖が最後の差分を渡す形 `handoff` は、これに加えて `placed`・`base_rev` を受ける）と出力の欄 `delivered`（`{ok, branch, commit, url, reason}` か null）。欄の正本は `workflows/merge/works-factory-merge.yaml` の入力と出力の型で、メイングラフと鎖はそれを受けて通すだけ
-- 知ってよい所: 住処と、約束の 3 つの YAML（`workflows/merge/works-factory-merge.yaml`・`workflows/line/works-factory-line.yaml`・`workflows/chain/works-factory-chain.yaml`）と、語を読む・渡す script（`workflows/merge/scripts/merge.py`・`workflows/line/scripts/start.py`・`workflows/chain/scripts/chain_start.py`・`workflows/chain/scripts/result.py`）。報告 `lib/runreport.py` は住処の口 `deliver.report_lines`・`deliver.head_words` を引くだけ
+- 知ってよい所: 住処と、約束の 3 つの YAML（`workflows/merge/works-factory-merge.yaml`・`workflows/line/works-factory-line.yaml`・`workflows/chain/works-factory-chain.yaml`）と、語を読む・渡す script（`workflows/merge/scripts/merge.py`・`workflows/line/scripts/start.py`・`workflows/chain/scripts/chain_start.py`・`workflows/chain/scripts/result.py`）。報告 `lib/runreport.py` は住処の口 `deliver.report_parts` を引くだけ
 - 今: 柵は、出口の語を読む・渡す形（住処の口 `deliver.<名>` は数えない）と、住処の定数を別の名に写す形の 2 本。外の当たりは 0 件。gh の探し方は `bin/_lib/hostgh.py` の `find_gh`・`bin/_lib/no-post-bin/works-gh` の `real_gh` と同じ事を持つ写しの 3 つ目（lib は bin を import できない。E3）。外へ書くノードは merge の 1 つで、`tests/layers/scan.py` の E6 の語に口の呼び `deliver.submit` を数える
 
 ### `gate-evidence` 試験の関門の証拠の文の行の頭

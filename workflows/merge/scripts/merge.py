@@ -14,12 +14,17 @@ merge/apply.diff を消し、置くと決めた時だけ書く（やり直しが
 出口の語 deliver（apply と handoff だけ読む。seal は読まない）が pr の時だけ、置いた差分を lib/deliver.py の口 submit が専用の枝と PR として
 対象の remote へ書き、結果を delivered に返す。置かなかった時は書かず、置かなかった訳を delivered に返す。空の語は何も書かず delivered は null。
 落ちない: どの誤りも終了の値 0 で ok: false と理由を返す（線は落ちた返す節の先へ進めない）。apply と handoff で出口の語が空でなければ、
-例外で落ちた時も delivered に {ok: false, reason} を載せる（null は何も頼まれていない印。lib を読めずに落ちた時だけは null）。
+例外で落ちた時も delivered に {ok: false, reason} を載せ、訳の頭はこの run で merge/apply.diff を置いたかで分ける（null は何も頼まれて
+いない印。lib を読めずに落ちた時だけは null）。
+提出する commit と PR の本文が名指す依頼の issue は、依頼のファイル（apply は始めの記録の request_file、handoff は入力 request）の
+欄 issue から読む。依頼のファイルを読めなければ、置く前に落ちる。
 """
 import json
 import os
 
 MODES = ("seal", "apply", "handoff")
+APPLY_DIFF = "merge/apply.diff"
+PLACED = []   # この run で置いた APPLY_DIFF のポインタ（落ちた時の delivered の訳を、置いた事実で分ける）
 
 
 def broken(mode: str, reason: str) -> dict:
@@ -42,30 +47,41 @@ def main() -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
     sys.path.append(str(boundary.lib_root()))
+    import carry
     import deliver
     import green_cert
     import protect
     import seal
+    import startrec
 
     mode = os.environ["INPUTS_MODE"]
     if mode not in MODES:
         raise ValueError(f"mode は {'・'.join(MODES)} のどれか: {mode!r}")
     word = "" if mode == "seal" else deliver.check(boundary.text(os.environ.get("INPUTS_DELIVER")))
     if mode != "seal":
-        boundary.resolve(boundary.pointer("merge/apply.diff")).unlink(missing_ok=True)
+        boundary.resolve(boundary.pointer(APPLY_DIFF)).unlink(missing_ok=True)
 
     def place(rel: str, data: bytes) -> tuple:
         ptr = boundary.pointer(rel)
-        return ptr, seal.write_readback(boundary.resolve(ptr), data)
+        digest = seal.write_readback(boundary.resolve(ptr), data)
+        if rel == APPLY_DIFF:
+            PLACED.append(ptr)
+        return ptr, digest
 
-    def delivered_of(placed: bool, why: str, repo, base_rev: str, data: bytes):
+    def issues_of(request_file) -> list:
+        """依頼のファイルの欄 issue（提出する時だけ読む。名指しが無ければ空）"""
+        if word != deliver.PR or not request_file:
+            return []
+        return carry.parts(json.loads(Path(request_file).read_text(encoding="utf-8")))[carry.ISSUE]
+
+    def delivered_of(placed: bool, why: str, repo, base_rev: str, data: bytes, digest: str = "", issues=()):
         """出口の結果。空の語は null、置かなかった時は書かずにその訳、置いた時だけ提出する"""
         if not placed:
             return deliver.refused(word, why)
         if word != deliver.PR:
             return None
         scratch = boundary.resolve(boundary.pointer("merge/objects"))
-        return deliver.submit(repo, base_rev, data, os.environ["WORKFLOW_ID"], scratch)
+        return deliver.submit(repo, base_rev, data, os.environ["WORKFLOW_ID"], scratch, digest, issues)
 
     def handoff() -> None:
         """周の鎖の最後の差分を置く。placed は final-diff の apply {ok, hash, diff, reason}、r2 は final-diff の r2_status の字（pass・
@@ -87,15 +103,17 @@ def main() -> None:
         if reason:
             boundary.returns({**broken("handoff", reason), "delivered": delivered_of(False, reason, None, "", b"")})
             return
-        ptr, digest = place("merge/apply.diff", data)
+        issues = issues_of(boundary.text(os.environ.get("INPUTS_REQUEST")))
+        ptr, digest = place(APPLY_DIFF, data)
         boundary.returns({"mode": "handoff", "ok": True, "hash": digest, "diff": ptr, "protected_hits": None, "reason": "",
-                          "delivered": delivered_of(True, "", Path.cwd(), base_rev, data)})
+                          "delivered": delivered_of(True, "", Path.cwd(), base_rev, data, digest, issues)})
 
     if mode == "handoff":
         handoff()
         return
 
-    base_rev = json.loads(boundary.needed(os.environ["INPUTS_START"], "start").read_text(encoding="utf-8")).get("base_rev")
+    record = json.loads(boundary.needed(os.environ["INPUTS_START"], "start").read_text(encoding="utf-8"))
+    base_rev = record.get("base_rev")
     if not isinstance(base_rev, str) or not base_rev:
         raise ValueError(f"始めの記録に base_rev が無い: {base_rev!r}")
     fingerprint = boundary.parsed(os.environ["INPUTS_FINGERPRINT"])
@@ -131,9 +149,10 @@ def main() -> None:
         fingerprint_ok=green_cert.matches(fingerprint, repo),
         protected=protected,
     )
-    ptr, digest = place("merge/refused.diff" if reason else "merge/apply.diff", data)
+    issues = [] if reason else issues_of(startrec.request_file(record))
+    ptr, digest = place("merge/refused.diff" if reason else APPLY_DIFF, data)
     boundary.returns({"mode": mode, "ok": not reason, "hash": digest, "diff": ptr, "protected_hits": None, "reason": reason,
-                      "delivered": delivered_of(not reason, reason, repo, base_rev, data)})
+                      "delivered": delivered_of(not reason, reason, repo, base_rev, data, digest, issues)})
 
 
 def broken_with_delivery(mode: str, reason: str) -> dict:
@@ -145,7 +164,7 @@ def broken_with_delivery(mode: str, reason: str) -> dict:
             import deliver
         except ImportError:
             return got
-        got["delivered"] = deliver.refused(os.environ.get("INPUTS_DELIVER"), reason)
+        got["delivered"] = deliver.refused(os.environ.get("INPUTS_DELIVER"), reason, placed=bool(PLACED))
     return got
 
 

@@ -11,14 +11,16 @@ works-factory/run-<id> へ push し、既定の枝向けの PR を作り、書�
 - preflight(repo) -> str: pr の始めの確かめ。通れば ""、通らなければ訳。remote が GitHub か（違えば forge.reason）・host の gh が在るか・
   リポジトリが読めて push の権限が真か。夜通しの実行が最後に初めて拒むのを避けるため、始めに呼ぶ
 - BRANCH_PREFIX・branch_of(id) -> str: 押す先の枝の名 works-factory/run-<id>（ほかに枝の名を組む所は無い。HEAD の枝の名は使わない）
-- submit(repo, base_rev, data, run_id, scratch) -> dict: 提出する。柵は push の前に全部照らし、当たれば何も書かずに訳を返す。返りは
+- submit(repo, base_rev, data, run_id, scratch, sealed, issues) -> dict: 提出する。柵は push の前に全部照らし、当たれば何も書かずに訳を
+  返す。commit と PR の本文は、封じた hash sealed と依頼の issue の番号の並び issues（在る時だけ）を名指す。返りは
   delivered {ok, branch, commit, url, reason}。ok は読み戻した値が push した commit と合った時だけ真
-- refused(word, why) -> dict|None: 差分を置かなかったので提出しなかった時の delivered。語が空なら null（何も頼まれていない印）
+- refused(word, why, placed=False) -> dict|None: 提出しなかった時の delivered。placed は差分を置いたか（訳の頭を分ける）。語が空なら
+  null（何も頼まれていない印）
 - readback(target, branch, commit, base, number) -> dict: push と PR の読み戻し（1 つの関数）。remote の枝の先と PR の head が push
   した commit と同じか、PR が開いていて base が既定の枝か。書いた側の返り値でなく読み直した値で組む
 - host_gh(path) -> str|None: PATH の上の gh のうち、読むだけの口（works-gh と同じ置き場の gh）を飛ばした最初の物
 - VERBS・_gh(args): gh を呼ぶ唯一の口。通す動詞は VERBS の固定の並び（api の GET・pr list・pr create・pr view）だけ
-- report_lines(start, merge_apply) -> list・head_words(start, merge_apply) -> str: 報告の行と冒頭の句（欄の名と訳の語は呼び手が持たない）
+- report_parts(start, merge_apply) -> (str, list): 報告の冒頭の句と行（欄の名と訳の語は呼び手が持たない）。頼まれていなければ ("", [])
 
 host_gh は、bin 側の探し方（bin/_lib/hostgh.py の find_gh と、読むだけの口 bin/_lib/no-post-bin/works-gh の real_gh）の 3 つ目の写し。
 lib は bin を import できない（lib/AGENTS.md の E3）ので、置き場の見分けだけを持ち直した: 読むだけの口は gh と works-gh を同じ
@@ -55,6 +57,7 @@ REPO_FLAG = re.compile(r"[a-z0-9.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 IDENTITY = ("works-factory", "works-factory@localhost")
 PUSH_NOTE = ("対象の pre-push フックは走らせずに push した（push は対象のコードを走らせない。フックの外の確かめは対象の CI が持つ）。"
              "枝は専用で、既定の枝には触れず、merge もしない。")
+REPORT_NOTE = "報告の冒頭と報告の在りかは載せていない（報告はこの PR を作った後に作るので、作る時にはまだ無い）。"
 
 
 class Refused(ValueError):
@@ -258,7 +261,13 @@ def _objects(repo) -> Path:
     return (common if common.is_absolute() else Path(repo) / common) / "objects"
 
 
-def _commit(repo, base_rev: str, data: bytes, run_id: str, scratch: Path) -> str:
+def _facts(run_id: str, sealed: str, issues) -> list:
+    """commit と PR の本文に載せる事実の行。差分の在りかは手元の絶対パスでなく run の id で言う（PR は利用者の手元の外に出る）"""
+    return [f"封じた差分の hash: {sealed}", *([f"依頼の issue: {'・'.join(f'#{n}' for n in issues)}"] if issues else []),
+            f"差分: run {run_id} の置き場（bin/apply {run_id} が当てる物と同じ）"]
+
+
+def _commit(repo, base_rev: str, data: bytes, run_id: str, scratch: Path, facts: list) -> str:
     """基の版の上に差分を当てた commit を、物の置き場 scratch に作る（対象の objects は読むだけ）。作者と commit した者は works-factory、
     日時は基の commit の日時（同じ入力から同じ commit になる。やり直しの push が通る）。作業ツリー・index・HEAD は読まない"""
     scratch.mkdir(parents=True, exist_ok=True)
@@ -273,7 +282,8 @@ def _commit(repo, base_rev: str, data: bytes, run_id: str, scratch: Path) -> str
         tree = _git(repo, "write-tree", env=env)
         if tree == _git(repo, "rev-parse", f"{base_rev}^{{tree}}", env=env):
             raise Failure("差分を当てても基の版の木と同じ（提出する物が無い）")
-        return _git(repo, "commit-tree", "--no-gpg-sign", tree, "-p", base_rev, "-m", f"works-factory: run {run_id}", env=env)
+        return _git(repo, "commit-tree", "--no-gpg-sign", tree, "-p", base_rev, "-m", f"works-factory: run {run_id}",
+                    "-m", "\n".join(facts), env=env)
 
 
 def _push(repo, target, branch: str, commit: str, scratch: Path) -> None:
@@ -293,7 +303,7 @@ def _push(repo, target, branch: str, commit: str, scratch: Path) -> None:
         raise Failure(f"push が拒まれた・落ちた（--force は付けない）: {error}") from None
 
 
-def _pr(target, branch: str, default: str, run_id: str, scratch: Path) -> int:
+def _pr(target, branch: str, default: str, run_id: str, facts: list) -> int:
     """同じ枝の開いた PR が在れば作り直さず、その番号。無ければ既定の枝向けに作る"""
     flag = ["-R", _slug(target)]
     opened, why, _ = _read(["pr", "list", *flag, "--head", branch, "--state", "open", "--json", "number,url"], "gh pr list")
@@ -301,7 +311,7 @@ def _pr(target, branch: str, default: str, run_id: str, scratch: Path) -> int:
         raise Failure(why)
     if isinstance(opened, list) and opened:
         return int(opened[0]["number"])
-    body = (f"works-factory の実行 {run_id} が作った。\n\n差分の置き場: {scratch.parent}\n\n{PUSH_NOTE}")
+    body = "\n\n".join([f"works-factory の実行 {run_id} が作った。", "\n".join(f"- {line}" for line in facts), REPORT_NOTE, PUSH_NOTE])
     # 既定の枝は短い旗 -B で渡す（長い旗の字は、入口の入力 base の読みを見張る柵の語と同じ形で、別の考えを指すため）
     done = _gh(["pr", "create", *flag, "-B", default, "--head", branch, "--title", f"works-factory: run {run_id}", "--body", body])
     found = re.search(r"/pull/(\d+)", done.stdout)
@@ -337,12 +347,15 @@ def readback(target, branch: str, commit: str, base: str, number: int) -> dict:
     return _doc(True, str(pr["headRefName"]), sha, str(pr["url"]))
 
 
-def refused(word, why: str):
+def refused(word, why: str, placed: bool = False):
     """語が空（飛んだ節の値 null も空）なら None。ほかは、知らない語も頼まれた扱いで {ok: false, reason}"""
-    return None if str(word or "").strip() in ("", "null") else _doc(False, reason=f"差分を置かなかったので提出しない: {why}")
+    if str(word or "").strip() in ("", "null"):
+        return None
+    head = "差分は置いたが、提出の前に落ちたので提出しない" if placed else "差分を置かなかったので提出しない"
+    return _doc(False, reason=f"{head}: {why}")
 
 
-def submit(repo, base_rev: str, data: bytes, run_id: str, scratch) -> dict:
+def submit(repo, base_rev: str, data: bytes, run_id: str, scratch, sealed: str, issues=()) -> dict:
     """data（git の差分のバイト。基の版 base_rev から）を、専用の枝へ push し既定の枝向けの PR にして、delivered を返す。落ちない
     （どの失敗も ok: false と訳）。柵に当たれば何も書かない"""
     branch = commit = ""
@@ -357,9 +370,10 @@ def submit(repo, base_rev: str, data: bytes, run_id: str, scratch) -> dict:
             raise Failure("提出する差分が空")
         scratch = Path(scratch)
         default = _fences(target, branch, base_rev)
-        commit = _commit(repo, base_rev, data, run_id, scratch)
+        facts = _facts(run_id, sealed, issues)
+        commit = _commit(repo, base_rev, data, run_id, scratch, facts)
         _push(repo, target, branch, commit, scratch)
-        number = _pr(target, branch, default, run_id, scratch)
+        number = _pr(target, branch, default, run_id, facts)
         return readback(target, branch, commit, default, number)
     except (Failure, GhRefused, ValueError, OSError) as error:
         return _doc(False, branch, commit, reason=str(error))
@@ -388,19 +402,11 @@ def _result(merge_apply) -> dict:
     return _doc(False, reason="出口の結果 delivered が返っていない")
 
 
-def report_lines(start, merge_apply) -> list:
+def report_parts(start, merge_apply) -> tuple:
     if not _asked(start):
-        return []
+        return "", []
     got = _result(merge_apply)
     if got["ok"]:
-        return [f"PR: {got['url']}（専用の枝 {got['branch']} の {got['commit']} を読み戻した。既定の枝へは merge していない）"]
-    return [f"PR を作らなかった（{KEY}: {PR}）: {got['reason']}"]
-
-
-def head_words(start, merge_apply) -> str:
-    if not _asked(start):
-        return ""
-    got = _result(merge_apply)
-    if got["ok"]:
-        return f"PR を作った: {got['url']}"
-    return f"PR を作らなかった: {got['reason']}"
+        return (f"PR を作った: {got['url']}",
+                [f"PR: {got['url']}（専用の枝 {got['branch']} の {got['commit']} を読み戻した。既定の枝へは merge していない）"])
+    return f"PR を作らなかった: {got['reason']}", [f"PR を作らなかった（{KEY}: {PR}）: {got['reason']}"]

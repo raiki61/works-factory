@@ -2894,6 +2894,8 @@ class LineWiringCase(unittest.TestCase):
         ("merge-seal", "base_rev"): HANDOFF_ONLY,
         ("merge-apply", "placed"): HANDOFF_ONLY,
         ("merge-apply", "base_rev"): HANDOFF_ONLY,
+        ("merge-seal", "request"): HANDOFF_ONLY,
+        ("merge-apply", "request"): HANDOFF_ONLY,
         ("fix", "mode"): GROUP_ONLY,
         ("fix", "group"): GROUP_ONLY,
         ("fix", "from_tree"): GROUP_ONLY,

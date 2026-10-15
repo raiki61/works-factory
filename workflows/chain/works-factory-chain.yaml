@@ -10,7 +10,7 @@ description: |
   既定の枝向けの PR を作り、読み戻す（merge はしない）。周の子には deliver を渡さず、子は PR を作らない。空の deliver は何も書かない。
   出力はノード result（最後の決めの act・止めの語 word・周ごとの行 rounds と、止めの語が closed の時に真の closed と、bin/apply が
   読む最後の差分 apply・sealed と chain.md のポインタ report と、出口の結果 delivered（deliver が pr の時の PR・枝・commit、拒んだ訳。
-  deliver が空・ノード deliver が飛んだ時は null））。bin/apply <親の run> が最後の差分を当てる。
+  deliver が空の時は null。pr なのにノード deliver が飛んだ時は ok が偽で訳））。bin/apply <親の run> が最後の差分を当てる。
 
 inputs:
   rounds:
@@ -592,6 +592,7 @@ nodes:
       r2: "$final-diff.output.r2_status"
       base_rev: "$chain-start.output.origin"
       deliver: "$chain-start.output.deliver"
+      request: "$chain-start.output.first_request"
 
   # 鎖の出力。周の子かその周のノードか final-diff が落ちて後ろが飛んでも走る（resume のたびに走り直す）
   - id: result
