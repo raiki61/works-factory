@@ -14,8 +14,9 @@ unattended・design_only。questions の行は関所の項目の種類と文 {ki
   gatemarks.design_item の 1 行。L-D19・P249）
 - 開く: 4 つの軸のどれかが ok でない・事前審査が人に聞くと言った（ask_human）・関所の項目が在る。軸の訳は事前審査の項目の尾に在る
   （元 gatemarks._item の「人に聞く訳」）ので、軸の行は項目が 1 つも無い時だけ足す
-- 無人の run: 台帳の問い（種類 fork・escalate。gatemarks.ASK_KINDS）だけは関所に載せず deferred で返し（問いの出どころは直す義務から
-  外れたまま修正へ進む。元 works/.shared/core/gatemarks.py:637-638）、ほかの種類（狭め・事前審査の穴・方針の文書の変化・事前審査の
+- 無人の run: 判定の推しが選択肢を名指し出どころ・depends が開いた単位の fork・held は台帳の読み（gatemarks.answered の run_push）が無人の run の答えとして採り、出どころを
+  直す義務に戻すので、ここに来る台帳の問い（種類 fork・escalate。gatemarks.ASK_KINDS）は採れる推しの無い物と escalate だけで、それは関所に
+  載せず deferred で返す（問いの出どころは直す義務から外れたまま修正へ進む。元 works/.shared/core/gatemarks.py:637-638）。ほかの種類（狭め・事前審査の穴・方針の文書の変化・事前審査の
   諦め・設計の問い・世界の解の外れ・設計だけ）が在れば、その項目の全部が通す推しの尾を持つ時だけ推しで進み（返り pushed。
   gatemarks.pushed_answer。持ち主 2026-10-15「人がいないときは推しの答え。」）、ほかは開かずに止める（needs-human。今の works で
   無人の殻が関所に stop を返したのと同じ結末）

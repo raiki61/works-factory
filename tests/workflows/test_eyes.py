@@ -857,6 +857,42 @@ class ScriptCase(unittest.TestCase):
         unnamed = {**reply, "policy_conflicts": [f"『{note}』に反し、空の列で None を返す"]}
         self.assertFalse(self.run_script("r4_accept", with_={"reply": json.dumps(unnamed, ensure_ascii=False)})["ok"])
 
+    def test_r4_can_name_the_push_an_unattended_run_took_for_a_held_question(self):
+        """#600: 無人の run が判定の保留の問い（fork・held）に採った推しも、承認ノードの推しと同じ名 PUSH_NAME の行で R4 の
+        「記録された方針」に並び、その推しからずれた差分を R4 が名指して挙げれば受け付けが通す。独立設計の比較役には渡さない。
+        人のいる run は推しを採らないので行も無い"""
+        push = "0 を返す——呼び手が既に 0 を前提にしている"
+        question = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "options": ["例外を投げる", "0 を返す"],
+                    "reason": f"割れる。推し: {push}"}
+        self.no_fix_inputs()
+        self.inputs["judgment"] = self.pointer("judge/judgment.json", {"units": [{"key": "A", "label": "block"}], "questions": [question]})
+        self.start()
+        self.run_script("prep")
+        self.assertEqual(json.loads((self.artifacts / "eyes" / eyeverdict.PREP_FILE).read_text(encoding="utf-8"))[policy.RECORDED_KEY], [])
+        self.start(unattended="true")
+        got = self.run_script("prep")
+        row, = json.loads((self.artifacts / "eyes" / eyeverdict.PREP_FILE).read_text(encoding="utf-8"))[policy.RECORDED_KEY]
+        self.assertEqual((row["source"], row["text"]), ("push", f"問い q-a: {push}"))
+        self.assertTrue(row["name"].startswith(policy.PUSH_NAME.format(id="")), row["name"])
+        self.assertIn(f"`{row['name']}`: 問い q-a: {push}", got["recorded_policy"])
+        self.assertNotIn(push, got["premises_text"])
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "surfaced": [], "seen": [], "unseen": [],
+                 "policy_conflicts": [f"{row['name']} の『0 を返す』に反し、空の列で例外を投げる"]}
+        got = self.run_script("r4_accept", with_={"reply": json.dumps(reply, ensure_ascii=False)})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
+        unnamed = {**reply, "policy_conflicts": ["『0 を返す』に反し、空の列で例外を投げる"]}
+        self.assertFalse(self.run_script("r4_accept", with_={"reply": json.dumps(unnamed, ensure_ascii=False)})["ok"])
+
+    def test_prep_notes_an_unreadable_ledger_instead_of_failing(self):
+        """#600: 問いの台帳が読めない時も目の準備は止めない。推しの行は無しにして、読めない訳を「記録された方針」に添える（最後の
+        承認ノード ask_final.ledger と同じ受け）"""
+        self.no_fix_inputs()
+        self.inputs["judgment"] = self.pointer("judge/judgment.json", "{")
+        self.start(unattended="true")
+        got = self.run_script("prep")
+        self.assertEqual(json.loads((self.artifacts / "eyes" / eyeverdict.PREP_FILE).read_text(encoding="utf-8"))[policy.RECORDED_KEY], [])
+        self.assertIn("判定の問いの控えか始めの記録を読めない（無人の run が保留の問いに採った推しを並べていない。JSONDecodeError", got["recorded_policy"])
+
     def test_verdict_carries_protected_hits(self):
         self.prep_file()
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
@@ -1074,7 +1110,8 @@ class ScriptCase(unittest.TestCase):
                             "purpose": self.pointer("judge/purpose.json", {"purpose_text": "目的"}),
                             "answers": "null", "start_answers": "null",
                             "changed": json.dumps({}), "x_scalars": "{}", "units": "[]", "fix_units": "[]",
-                            "depth": json.dumps([{"unit_id": "u1", "depth": depth.LIGHT, "why": ""}], ensure_ascii=False)})
+                            "depth": json.dumps([{"unit_id": "u1", "depth": depth.LIGHT, "why": ""}], ensure_ascii=False),
+                            "head_depth": depth.LIGHT})
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
         got = self.run_script("prep")
         self.assertFalse(got["run_eyes"], "軽量の単位だけなら目を省く")
@@ -1245,13 +1282,16 @@ class ScriptCase(unittest.TestCase):
 
     def test_prep_all_light_turns_eyes_off(self):
         self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])
+        self.inputs["head_depth"] = "軽量"
         self.assertIs(self.run_script("prep")["run_eyes"], False)
 
-    def test_prep_runs_the_eyes_when_the_pre_review_was_skipped(self):
-        """run の頭の深さで事前審査を飛ばした run は、全部の単位が軽量でも R1〜R4 を回す（目が事前審査の代わり。issue #441）"""
+    def test_prep_keeps_the_eyes_unless_the_head_is_light(self):
+        """issue #561: 単位がどれも軽量でも、run の頭の深さが標準・重厚・空なら R1〜R4 を省かない"""
         self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])
-        self.inputs["review_skipped"] = "true"
-        self.assertIs(self.run_script("prep")["run_eyes"], True)
+        for head in ("標準", "重厚", ""):
+            with self.subTest(head=head):
+                self.inputs["head_depth"] = head
+                self.assertIs(self.run_script("prep")["run_eyes"], True)
 
     def test_structure_after_never_fails_the_line(self):
         self.inputs["plan"] = self.pointer("plan/plan-fields.json", {"round": 1, "fields": []})

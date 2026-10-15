@@ -47,6 +47,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - glob_problem(glob): 範囲の欄（allowed_paths・out_of_scope の glob）の誤りの文（\\ の区切り・根の外・`**`・`**/?*` のような字の無い丸ごとの許し）
 - glob_match(path, glob): 根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。守りのファイルの
   protect.match もこれを呼ぶ）。gaps は out_of_scope の glob が tests・rewrite_tests の id のファイルに当たる案を拒む
+- globs_meet(a, b): 2 つの glob が同じパスに当たり得るか（言い切れない時は真。fix の組分けが範囲の交わる項目をつなぐ）
 - approved_items(b): 今の周の承認済みの修正案の項目と凍結した欄を同じ番号で合わせた並び（修正の受け付けが差分と照らす）
 - joined(it, f): 案の項目の行に同じ番号の欄の行の KEYS を重ねた行（approved_items と事前審査の往復の控えの行が使う）
 - handed(ruling, items): 裁かれた項目の番号の字（fix の replan_items）を案の項目の番号に読み、番号でない行と案の外の番号は訳を返す
@@ -347,6 +348,40 @@ def glob_match(path: str, glob: str) -> bool:
     """根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ）。範囲の欄と守りのファイルの当て方の正本
     （protect.match はこれを呼ぶ。planmarks は protect を import しない: protect → accept → planmarks の輪になる）"""
     return _glob_regex(glob).match(path) is not None
+
+
+_WILD = re.compile(r"[*?\[]")
+
+
+def globs_meet(a: str, b: str) -> bool:
+    """2 つの glob（glob_match の読み）が同じパスに当たり得るか。言い切れない時は真（交わらないと言える時だけ偽）"""
+    if not isinstance(a, str) or not isinstance(b, str):
+        return False
+    return _parts_meet(tuple(a.rstrip("/").split("/")), tuple(b.rstrip("/").split("/")))
+
+
+def _parts_meet(a: tuple, b: tuple) -> bool:
+    if not a or not b:
+        return all(s == "**" for s in a + b)
+    if a[0] == "**":
+        return _parts_meet(a[1:], b) or _parts_meet(a, b[1:])
+    if b[0] == "**":
+        return _parts_meet(a, b[1:]) or _parts_meet(a[1:], b)
+    return _segments_meet(a[0], b[0]) and _parts_meet(a[1:], b[1:])
+
+
+def _segments_meet(x: str, y: str) -> bool:
+    """glob の 1 区切りどうし。両方が wildcard を持つ時は頭と尻の字だけで見る（言い切れない所は真）"""
+    wx, wy = _WILD.search(x), _WILD.search(y)
+    if not wx and not wy:
+        return x == y
+    if not wx:
+        return re.fullmatch(_segment(y), x) is not None
+    if not wy:
+        return re.fullmatch(_segment(x), y) is not None
+    hx, hy = x[:wx.start()], y[:wy.start()]
+    tx, ty = (re.split(r"[*?\[\]]", s)[-1] for s in (x, y))
+    return (hx.startswith(hy) or hy.startswith(hx)) and (tx.endswith(ty) or ty.endswith(tx))
 
 
 def _resolve(repo: pathlib.Path, path: str):

@@ -1,6 +1,6 @@
 # review-prep が出し直し（resubmit: true）を返した周。1 回目の役 plan-review は when で飛び、出し直しの役 plan-review-fix と受け付けと
 # 返す節に届く（配線だけを見る。出し直しを合わせる中身は tests/workflows/test_plan_review.py が script を子のプロセスで回して見る）
-open: { ok: true, r2_go: true, tree: false, k: 1, form: review, depth_skip: false, reason: "" }
+open: { ok: true, r2_go: true, tree: false, k: 1, form: review, reason: "" }
 r2-prep: { prompt: "stub: 元の目的と実測した制約" }
 r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解", elements: [{ id: D1, adds: ["stub: 入口の 1 本化"], removes: [] }] }
 r2-accept: { ok: true, done: true, give_up: false, reason: "" }

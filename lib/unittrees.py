@@ -6,12 +6,15 @@
 
 - fresh_tree(repo) -> sha: 作業ツリーの今の姿の木の sha（HEAD を空の一時の index に読んで add -A。commit も参照も作らない。
   同じ中身なら同じ sha。試験の結果の使い回しの鍵が使う）
-- apply(repo, patch, union=(), unioned=None, check=None) -> (ok, why): 作業ツリーへ当てる。一時の index で
+- apply(repo, patch, union=(), unioned=None, check=None, marked=None) -> (ok, why): 作業ツリーへ当てる。一時の index で
   `git apply --cached --3way` を試し、食い違いが無い時だけ、その結果と今の姿の差分を作業ツリーへ当てる（index を汚さない）。
   当たらなければ作業ツリーを変えずに (False, 理由)。union（根からの相対のパスの並び）の中のファイルの食い違いが「挿しだけ」
   （3 方向の食い違いの塊がどれも base の側に行を持たない＝両方が同じ所に行を足しただけ）なら、作業ツリーの側の行の後に patch の
   側の行を置いて合わせる（合わせたパスを unioned に積む。check が偽を返す中身は合わせない）。並びの外のファイル・行を変えた
-  塊・base の無い（両方が新しく作った）ファイルは今どおり当てない
+  塊・base の無い（両方が新しく作った）ファイルは今どおり当てない。marked（list）を渡すと、合わせられない食い違いも当てる:
+  食い違いの塊を印（MARK_LABELS の名の `<<<<<<<`・`|||||||`・`=======`・`>>>>>>>`。git merge-file --diff3）つきで書き、印を
+  書いたパスを marked に積む（片方が消した・バイナリなど印を書けないファイルが在れば今どおり当てない）
+- markers_left(repo, paths): paths のうち名つきの印（<<<<<<<・|||||||・>>>>>>>）の行が残るファイルの並び（区切りの ======= だけの行は数えない）
 - tests_unique(path, text): 合わせた中身の照らし（apply の check に渡す。同じ名のテストの定義が 2 つ在れば偽）
 - patch_names(patch): 差分の行先のパスの並び
 
@@ -89,11 +92,13 @@ def fresh_tree(repo) -> str:
         return _out(repo, "write-tree", index=index)
 
 
-def apply(repo, patch: str, union=(), unioned: list | None = None, check=None) -> tuple[bool, str]:
+def apply(repo, patch: str, union=(), unioned: list | None = None, check=None,
+          marked: list | None = None) -> tuple[bool, str]:
     """patch を run の作業ツリー repo へ 3 方向で当てる。(True, "") か、作業ツリーを変えずに (False, 理由)。
     一時の index（作業ツリーの今の姿）で `git apply --cached --3way` を試し、食い違い（未解決の段）が残れば当てない。
     ただし未解決のファイルが全部 union の中で、どれも挿しだけの食い違いなら合わせて通す（頭の注記。合わせたパスを unioned に積む）。
     check（任意。(パス, 合わせた中身のバイト) → 真偽）が偽を返すファイルは合わせない（呼び手の言語ごとの照らし）。
+    marked（list）を渡すと、合わせられない未解決のファイルに食い違いの印を書いて当て、そのパスを marked に積む（頭の注記）。
     通れば、今の姿とその結果の木の差分を作業ツリーへそのまま当てる（git apply は全部か無しか。本物の index は読まない）"""
     if not patch.strip():
         return True, ""
@@ -104,12 +109,15 @@ def apply(repo, patch: str, union=(), unioned: list | None = None, check=None) -
         r = _git(repo, "apply", "--cached", "--3way", "--whitespace=nowarn", index=index, data=data, check=False)
         left = _unmerged(repo, index)
         err = r.stderr.decode("utf-8", "replace").strip()
-        merged = _union(repo, index, left, set(union), tmp, check) if left and union else None
+        settled = _settle(repo, index, left, set(union), tmp, check, marked is not None) if left else ([], [])
         broke = any(ln.startswith(("error:", "fatal:")) for ln in err.splitlines())
-        if broke or (r.returncode != 0 and not left) or (left and merged is None):
+        if broke or (r.returncode != 0 and not left) or settled is None:
             return False, (err or "3 方向で当てると食い違いが残る")
+        merged, put = settled
         if merged and unioned is not None:
             unioned.extend(merged)
+        if put:
+            marked.extend(put)
         after = _out(repo, "write-tree", index=index)
         if after == before:
             return True, ""
@@ -136,6 +144,22 @@ def tests_unique(path: str, text: bytes) -> bool:
         if len(names) != len(set(names)):
             return False
     return True
+
+
+def _is_marker(line: bytes) -> bool:
+    s = line.rstrip(b"\r")
+    return any(s == m or s.startswith(m + b" ") for m in MARKERS if m != b"=======")
+
+
+def markers_left(repo, paths) -> list:
+    """paths（根からの相対）のうち、名つきの印の頭（<<<<<<<・|||||||・>>>>>>>）の行が残るファイル（無いファイルは外す）。
+    区切りの ======= だけの行は、中身の setext 見出しの下線と見分けられないので数えない"""
+    out = []
+    for p in paths:
+        f = pathlib.Path(repo) / p
+        if f.is_file() and any(_is_marker(ln) for ln in f.read_bytes().splitlines()):
+            out.append(p)
+    return out
 
 
 def patch_names(patch: str) -> list:
@@ -197,20 +221,57 @@ def _union(repo, index: str, left: dict, allowed: set, tmp: str, check=None) -> 
     for path, stages in sorted(left.items()):
         if path not in allowed or set(stages) != {1, 2, 3}:
             return None
-        files = []
-        for n in (2, 1, 3):
-            f = os.path.join(tmp, f"union-{n}")
-            pathlib.Path(f).write_bytes(_git(repo, "cat-file", "blob", stages[n][1]).stdout)
-            files.append(f)
-        r = _git(repo, "merge-file", "-p", "--diff3", "-L", "ours", "-L", "base", "-L", "theirs", *files, check=False)
-        if r.returncode > 127:   # 落ちた（食い違いの数は 127 まで）
-            return None
-        text = _insert_only(r.stdout)
+        merged = _merged(repo, stages, tmp, ("ours", "base", "theirs"))
+        text = None if merged is None else _insert_only(merged)
         if text is None or (check is not None and not check(path, text)):
             return None
         plan.append((path, stages[2][0], text))
+    return _put(repo, index, plan)
+
+
+def _merged(repo, stages: dict, tmp: str, labels) -> bytes | None:
+    """パスの stage 2・1・3 の中身（stage 1 が無ければ空の base）を git merge-file --diff3 で合わせた中身（印の名は labels の
+    順）。merge-file が落ちれば None"""
+    files = []
+    for n in (2, 1, 3):
+        f = os.path.join(tmp, f"merge-{n}")
+        pathlib.Path(f).write_bytes(_git(repo, "cat-file", "blob", stages[n][1]).stdout if n in stages else b"")
+        files.append(f)
+    r = _git(repo, "merge-file", "-p", "--diff3", *(a for name in labels for a in ("-L", name)), *files, check=False)
+    return r.stdout if 0 <= r.returncode <= 127 else None   # 食い違いの数は 127 まで。その外と負（シグナル）は落ちた
+
+
+def _put(repo, index: str, plan: list) -> list:
+    """[(パス, mode, 中身)] を一時の index に置く。置いたパスの並び"""
     for path, mode, text in plan:
         sha = _out(repo, "hash-object", "-w", "--stdin", data=text)
         _git(repo, "update-index", "--cacheinfo", f"{mode},{sha},{path}", index=index)
     return [p for p, _, _ in plan]
 
+
+MARK_LABELS = ("今の作業ツリー", "元", "当てる差分")
+MARKERS = (b"<<<<<<<", b"|||||||", b"=======", b">>>>>>>")   # git merge-file --diff3 が書く印の頭（この順に並ぶ）
+
+
+def _settle(repo, index: str, left: dict, allowed: set, tmp: str, check, marking: bool) -> tuple[list, list] | None:
+    """未解決のパス left を一時の index で解く: (合わせたパス, 印を書いたパス) か、解けなければ None。marking が偽なら全部を
+    挿しだけの食い違いとして合わせ（_union。1 つでも残れば None）、真なら合わせられる物を合わせて残りに印を書く（_mark）"""
+    merged = [p for p in sorted(left) if _union(repo, index, {p: left[p]}, allowed, tmp, check)]
+    rest = {p: st for p, st in left.items() if p not in merged}
+    put = _mark(repo, index, rest, tmp) if marking else ([] if not rest else None)
+    return None if put is None else (merged, put)
+
+
+def _mark(repo, index: str, left: dict, tmp: str) -> list | None:
+    """未解決のパス left に食い違いの印を書いた中身（git merge-file --diff3。印の名は MARK_LABELS。両方が新しく作ったファイルは空の
+    base で）を一時の index に置く。置いたパスの並びか、印を書けない物（片方が消した・普通のファイルでない・バイナリで落ちた）が
+    1 つでも在れば None（index はそのまま）"""
+    plan = []
+    for path, stages in sorted(left.items()):
+        if set(stages) not in ({1, 2, 3}, {2, 3}) or not all(stages[n][0].startswith("100") for n in (2, 3)):
+            return None
+        text = _merged(repo, stages, tmp, MARK_LABELS)
+        if text is None:
+            return None
+        plan.append((path, stages[2][0], text))
+    return _put(repo, index, plan)

@@ -526,6 +526,34 @@ class ScopeTextSeamCase(TempCase):
         self.assertIn(pr.OOS_ANY, refix)
         self.assertNotIn(pr.OOS_MINE, refix)
 
+    def test_tests_text_lists_the_new_tests_planscope_lets_through(self):
+        """#603: 修正役の指示書に貼る足してよい新しいテスト（planrange.tests_text）は、受け付けが照らす項目の tests（planrange.test_ids）
+        と同じ値。範囲の相談で許した新しいテストは、節にも照らしにも揃って入る"""
+        import conflict
+        import planrange as pr
+        import planscope
+        items = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["stats.py"], "rewrite_tests": [], "out_of_scope": [],
+                  "tests": [{"id": "test_stats.py::test_mean", "red_kind": "assertion"}]}]
+        changes = {"test_stats.py": ("import stats\n",
+                                     "import stats\n\ndef test_mean():\n    pass\n\ndef test_other():\n    pass\n")}
+        rows = [{"unit_key": KEY_A, "files": ["test_stats.py"]}]
+
+        def pasted_and_rejected():
+            got = pr.fix_scope(self.place, "first", items=items)[0]
+            text = pr.tests_text(got, conflict.edit_permits(self.place, "first"), None)
+            lines, _ = planscope.problems(got["items"], rows, changes)
+            return text, [x for x in lines if "どの項目の tests にも無い" in x]
+
+        text, rejected = pasted_and_rejected()
+        self.assertIn("`test_stats.py::test_mean`", text)
+        self.assertNotIn("test_stats.py::test_other", text)
+        self.assertEqual(rejected, ["test_stats.py::test_other は修正案のどの項目の tests にも無いテストを足した"])
+        fixboard.trace(self.place, conflict.ASKED_OP, id="a2", item=1, status="answered", decision="allow",
+                       granted_new_tests=[{"id": "test_stats.py::test_other", "red_kind": "assertion"}])
+        text, rejected = pasted_and_rejected()
+        self.assertIn("`test_stats.py::test_other`", text)
+        self.assertEqual(rejected, [])
+
 
 R_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 R_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
@@ -1101,6 +1129,20 @@ class FactchecksSeamCase(TempCase):
         self.assertTrue(scope[0].startswith(planscope.REJECT_ASK), "事前の確かめは相談の節の道具なので、拒否の頭は相談を先の道に言う")
         self.assertEqual(self.shas(), before, "置き場を書かない")
 
+    def test_precheck_rejects_the_wrote_refs_the_acceptance_rejects(self):
+        """#603: 事前の確かめは、受け付けと同じ口（recount.ref_problems）で書いた指しを照らす。置き場は書かない"""
+        import recount
+        (self.repo / "NOTES.md").write_text("# 覚え\n\n平均は stats.py の mean\n", encoding="utf-8")
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py", "NOTES.md"]}],
+                 "wrote_refs": [{"kind": "text", "cite": "def median", "target": "stats.py", "where": "NOTES.md"}]}
+        before = self.shas()
+        refs = [r["text"] for r in self.fc.precheck(self.cfg, reply)["rejects"] if r["check"] == "refs"]
+        self.assertEqual(refs, recount.ref_problems(reply, self.place, self.rev, self.repo))
+        self.assertTrue(any("'def median' は指し先 'stats.py' の中に無い" in t for t in refs), refs)
+        reply["wrote_refs"][0]["cite"] = "def mean"
+        self.assertEqual([r for r in self.fc.precheck(self.cfg, reply)["rejects"] if r["check"] == "refs"], [])
+        self.assertEqual(self.shas(), before, "置き場を書かない")
+
     def test_place_agreement_counts(self):
         self.agree(["stats.py"])
         self.assertEqual(self.fc.precheck(self.cfg, self.reply, items=[self.ITEM]), {"ok": True, "rejects": []})
@@ -1450,6 +1492,11 @@ class DeltaSeamCase(TempCase):
         import depth
         self.assertEqual(fixboard.redepth(self.place, self.repo), "")
         fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}])
+        self.assertEqual(fixboard.redepth(self.place, self.repo), "", "頭の深さの控えが無ければ標準で、省かない")
+        for head in (depth.STANDARD, depth.HEAVY):
+            fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, head)
+            self.assertEqual(fixboard.redepth(self.place, self.repo), "", head)
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         self.assertTrue(fixboard.redepth(self.place, self.repo).startswith("軽量で省いた"))
         raised = fixboard.read_json(self.place / fixboard.DEPTH_RAISED_FILE)
         self.assertEqual(raised["units"]["a"]["depth"], depth.LIGHT)
@@ -1469,6 +1516,7 @@ class DeltaSeamCase(TempCase):
         import conflict
         import depth
         light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}]
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
                                                                 "start_tree": leftovers.snapshot(self.repo)})
 
@@ -1624,6 +1672,7 @@ class DeltaSeamCase(TempCase):
         import conflict
         import depth
         light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}, {"unit_id": "b", "depth": depth.LIGHT, "why": "y"}]
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
                                                                 "start_tree": leftovers.snapshot(self.repo)})
 
@@ -1771,6 +1820,26 @@ class GroupScriptsSeamCase(TempCase):
         got = fixboard.fix_groups(["C", "B", "A"], items, ["1", "3"])
         self.assertEqual([g["unit_ids"] for g in got], [["A", "C"]])
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["C", "B", "A"], items)], [["A", "B", "C"]])
+
+    def test_fix_groups_join_items_whose_ranges_meet(self):
+        items = [{"item": 1, "unit_keys": ["A"], "allowed_paths": ["lib/a.py"]},
+                 {"item": 2, "unit_keys": ["B"], "allowed_paths": ["lib/*.py"]},
+                 {"item": 3, "unit_keys": ["C"], "allowed_paths": ["docs/x.md"]},
+                 {"item": 4, "unit_keys": ["D"]},
+                 {"item": 5, "unit_keys": ["E"], "allowed_paths": ["lib/a.py"]}]
+        got = fixboard.fix_groups(["A", "B", "C", "D", "E"], items)
+        self.assertEqual([(g["unit_ids"], g["items"]) for g in got],
+                         [(["A", "B", "E"], [1, 2, 5]), (["C"], [3]), (["D"], [4])])
+        self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C", "D", "E"], items, ["1", "3"])],
+                         [["A"], ["C"]])
+
+    def test_fix_groups_join_items_whose_test_files_meet(self):
+        items = [{"item": 1, "unit_keys": ["A"], "allowed_paths": ["lib/a.py", ""],
+                  "tests": [{"id": "tests/test_s.py::Case::test_a"}]},
+                 {"item": 2, "unit_keys": ["B"], "allowed_paths": ["lib/b.py"],
+                  "rewrite_tests": [{"id": "tests/test_s.py::Case::test_b"}]},
+                 {"item": 3, "unit_keys": ["C"], "allowed_paths": ["", "lib/c.py"]}]
+        self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C"], items)], [["A", "B"], ["C"]])
 
     def test_parallel_needs_two_groups_no_lane_switch_and_a_remote(self):
         two = [{"group_id": "g1"}, {"group_id": "g2"}]
@@ -2002,8 +2071,14 @@ class GroupScriptsSeamCase(TempCase):
                                  f"関門が読めない子の結果（{tdd!r}）は on と見て走らせ直す")
             fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "A", "depth": "軽量", "why": "x"},
                                                                    {"unit_id": "B", "depth": "軽量", "why": "x"}])
-            self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "", "全部の単位が軽量")
+            for head in ("標準", "重厚", ""):
+                fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, head)
+                self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "make test",
+                                 f"頭の深さが {head or '空'} の run は単位が軽量でも走らせ直す（issue #561）")
+            fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, "軽量")
+            self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "", "頭が軽量で全部の単位が軽量")
             (self.place / fixboard.DEPTH_FILE).unlink()
+            (self.place / fixboard.HEAD_DEPTH_FILE).unlink()
         with self.subTest("test_cmd が渡れば緑の後に 1 回走らせ、赤なら戻す理由（F411 の 2）"):
             red = f"{sys.executable} -c \"import sys; sys.exit(3)\""
             got = fixboard.rerun_problem(self.place, self.repo, str(suite), cases, named, name="cmd-red", test_cmd=red)
@@ -2083,6 +2158,13 @@ class GroupChildSeamCase(TempCase):
         self.assertEqual(fixboard.unit_depths(self.place), "")
         (self.place / "depth.json").write_text(json.dumps([{"unit_id": "a", "depth": "軽量", "why": "1 個"}]),
                                                encoding="utf-8")
+        for head in ("標準", "重厚", ""):
+            fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, head)
+            self.assertEqual(fixboard.unit_depths(self.place), "",
+                             f"頭の深さが {head or '空'} の run は単位の軽量で test_cmd を省かない（issue #561）")
+        (self.place / fixboard.HEAD_DEPTH_FILE).unlink()
+        self.assertEqual(fixboard.unit_depths(self.place), "", "頭の深さの控えが無い run は標準")
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, "軽量")
         self.assertEqual(json.loads(fixboard.unit_depths(self.place)), {"a": "軽量"})
         tdd = {"ran": True, "units": [{"unit_key": "a", "route": "tdd", "green": "ok", "tests": ["t.py::x", "t.py::y"]},
                                       {"unit_key": "b", "route": "tdd", "green": "", "tests": ["t.py::z"]},

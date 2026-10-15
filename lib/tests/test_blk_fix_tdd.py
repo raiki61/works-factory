@@ -12,6 +12,7 @@ _failure_attrs・run_suite の場合は lib/tests/test_baseline_red.py が持つ
 import json
 import os
 import pathlib
+import re
 import sys
 import tempfile
 import unittest
@@ -1236,6 +1237,81 @@ class TestRewriteSharedAcrossUnits(ContractCase):
         got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [MEAN_ID]})
         self.assertFalse(got["ok"])
         self.assertIn(REWRITE, got["reason"])
+
+
+def pasted_line(text: str, head: str) -> set:
+    """修正役の指示書の節（planrange.tests_text）の head で始まる行のバッククオートの名"""
+    (line,) = [ln for ln in text.splitlines() if ln.lstrip().startswith(head)]
+    return set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
+
+
+class TestPastedVerifiedRewrite(ContractCase):
+    """#603: 輪が赤→緑を確かめた書き換えは、指示書の「本体を変えてよい名指し」から外れ「もう変えるな」の行に在り、凍ったテストの確かめ
+    （factchecks.check_frozen）がその変更を拒む。貼る値と拒む値は factchecks.frozen_tests の verified（check_frozen と同じ _verified）"""
+    CONTRACT = TestPlanRewrites.CONTRACT
+
+    def test_verified_rewrite_is_pasted_as_frozen_and_rejected(self):
+        import factchecks
+        import planmarks
+        import planrange
+        self.route(mean="direct", clamp="tdd")
+        self.edit("test_stats.py", "self.assertEqual(clamp(15, 0, 10), 10)",
+                  "self.assertEqual(clamp(15, 0, 10), 10)\n        self.assertEqual(clamp(99, 0, 10), 10)")
+        self.assertTrue(self.step({"phase": "test", "unit_key": CLAMP, "test_files": ["test_stats.py"], "tests": [REWRITE]})["ok"])
+        self.edit("stats.py", "    if x > hi:\n        return lo", "    if x > hi:\n        return hi")
+        self.assertTrue(self.step({"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限の枝で hi を返す"})["ok"])
+        if self.st()["phase"] == "refactor":
+            self.step({"phase": "refactor", "unit_key": CLAMP, "what": "整える物は無い"})
+        self.assertTrue(self.st()["done"])
+        planmarks.save(self.board, 1, [{"unit_keys": [CLAMP], "route": "tdd", "route_why": "", "tests": [],
+                                        "rewrite_tests": [{"id": REWRITE, "behavior": "上限を超えた値", "old": "10 だけ",
+                                                           "new": "99 も 10 に", "limit": "test_stats.py:14"}],
+                                        "refactor": {"declared": False, "why": ""}}])
+        edits = conflict.edit_permits(self.board, "first")
+        self.assertIn(REWRITE, edits["tests"], "事後の関門は id で許す")
+        text = planrange.tests_text(None, edits, factchecks.frozen_tests(self.board, self.state, "first"))
+        self.assertNotIn(REWRITE, pasted_line(text, "- 本体を変えてよい既存のテストの名指し"))
+        self.assertEqual(pasted_line(text, "- ループが書き換えて凍らせた名指し"), {REWRITE})
+        self.assertEqual(factchecks.check_frozen(self.board, self.state, self.repo, "first"), [])
+        self.edit("test_stats.py", "clamp(99, 0, 10), 10)", "clamp(98, 0, 10), 10)")
+        got = factchecks.check_frozen(self.board, self.state, self.repo, "first")
+        self.assertTrue(got and "test_stats.py" in got[0], got)
+
+
+class TestPastedUnruledFrozen(LoopCase):
+    """#603: 2 回目の修正の段（conflict.second_pass）の first では、事後の関門は裁定 fix_test_scope の範囲を許す（conflict.edit_rulings）が、
+    凍ったテストの確かめは今の輪の凍ったファイルを裁定の範囲で解かない。指示書はそのファイルを字のまま貼り、段 ruled では貼らない。
+    貼る側（factchecks.frozen_tests の unruled）と拒む側（check_frozen）の片方だけ変えれば赤"""
+
+    def test_unruled_files_are_what_check_frozen_keeps_frozen_under_rulings(self):
+        import factchecks
+        import planrange
+        self.route()
+        self.red()
+        self.assertTrue(self.fix_mean()["done"])
+        rows = [{"id": "c1-1", "unit_key": MEAN, "between": ["stats.py:9", "test_stats.py:9"],
+                 "why_both_cannot_hold": "期待の型が依頼と食い違う", "which_is_right": "test", "status": "ruled",
+                 "ruling": {"decision": "fix_test_scope", "text": "期待を書き直してよい", "limits": ["test_stats.py"]}},
+                {"id": "c1-2", "unit_key": CLAMP, "between": ["stats.py:12", "test_stats.py:12"],
+                 "why_both_cannot_hold": "案の項目が誤り", "which_is_right": "request", "status": "ruled",
+                 "ruling": {"decision": conflict.REPLAN, "text": "項目を直せ", "limits": []}, conflict.REPLAN_STATE: conflict.AMENDED}]
+        (self.board / conflict.FILE).write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
+        self.assertTrue(conflict.second_pass(self.board))
+        self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 裁定の範囲の中で、輪が凍らせたテストを変えた
+        for pass_, frozen in (("first", True), ("ruled", False)):
+            with self.subTest(pass_=pass_):
+                edits = conflict.edit_permits(self.board, pass_)
+                self.assertIn("test_stats.py", edits["limits"], "事後の関門は裁定の範囲を許す")
+                got = factchecks.frozen_tests(self.board, self.state, pass_)
+                self.assertEqual(got["unruled"], ["test_stats.py"] if frozen else [])
+                text = planrange.tests_text(None, edits, got)
+                head = "- 今の段の TDD のループが凍らせたファイル"
+                if frozen:
+                    self.assertEqual(pasted_line(text, head), {"test_stats.py"})
+                else:
+                    self.assertNotIn(head, text)
+                problems = factchecks.check_frozen(self.board, self.state, self.repo, pass_)
+                self.assertEqual(bool(problems), frozen, problems)
 
 
 SAME_ITEM_TESTS = [{"id": MEAN_ID, "red_kind": "assertion"}, {"id": "test_stats.py::TestStats::test_clamp_far_above",

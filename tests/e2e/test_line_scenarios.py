@@ -21,15 +21,17 @@ from tests.layers import scan
 
 if str(archon.ROOT / "lib") not in sys.path:
     sys.path.append(str(archon.ROOT / "lib"))
+import depth  # noqa: E402
 import fixbeside  # noqa: E402  （diff の隣の控えの名の持ち主）
 import fixboard  # noqa: E402
+import planfile  # noqa: E402
 
 SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
     "unattended-questions", "unattended-policy-change", "unattended-push", "unattended-push-stop", "eyes-failed-protected", "refix-handoff",
-    "nothing-owed", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence", "fix-fixture",
+    "nothing-owed", "unattended-held-push", "unattended-held-no-push", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence", "depth-heavy", "fix-fixture",
 )
 
 
@@ -199,6 +201,61 @@ class UnattendedGateTest(unittest.TestCase):
         self.assertTrue(self.ran(trace, "report__report"))
 
 
+class HeldPushTest(unittest.TestCase):
+    """#593 の受け入れ: 唯一の単位の出どころが推しつきの保留の問い（fork・held）の無人の run は修正の段まで進み、報告に推しで採った行が
+    出る。推しの無い問いでは修正へ進まずに止まり、報告の冒頭で名指す。dry-run は計画のブロックの script を走らせず置き場にファイルを
+    書けない（docs/design.md の U3）ので、筋書き unattended-held-push・unattended-held-no-push の線の道を trace で照らし、判定の中身と
+    道が合うことは、判定を計画と同じ口（planfile.read_judgment・plan_slots）で数えて plan-out の nothing_owed と突き合わせる。報告は
+    筋書きの collect の値のまま、判定の指し札の先に判定を置いて本物の facts を走らせ直す"""
+
+    UNIT = {"key": "u1", "label": "block", "reason": "空の列の mean が 0 割りで落ちる"}
+    QUESTION = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["例外", "0"],
+                "reason": "空の列で例外を投げるか 0 を返すかが割れる"}
+    PUSHED = {**QUESTION, "reason": QUESTION["reason"] + "。推し: 例外——呼び手が既に例外を捕まえている"}
+    RECORD = {"unattended": "true"}
+
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = line_traces(("unattended-held-push", "unattended-held-no-push"))
+
+    def judgment(self, question) -> dict:
+        return {"units": [self.UNIT], "questions": [question]}
+
+    def owed(self, question) -> set:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "judgment.json"
+            path.write_text(json.dumps(self.judgment(question), ensure_ascii=False), encoding="utf-8")
+            judgment, why = planfile.read_judgment("x", self.RECORD, lambda _: path)
+            self.assertEqual(why, "")
+            return planfile.plan_slots(judgment)[0]
+
+    def report(self, name, question) -> str:
+        trace = self.traces[name]
+        ptr = bound(trace, "$judge.output.judgment")
+        return report_facts(trace, record=self.RECORD, files={ptr["path"]: self.judgment(question)})["text"]
+
+    def test_pushed_question_goes_to_fix_and_names_the_take(self):
+        trace = self.traces["unattended-held-push"]
+        self.assertEqual(self.owed(self.PUSHED), {"u1"})
+        self.assertIs(json.loads(trace["plan-out"]["output"])["nothing_owed"], False)
+        self.assertTrue(UnattendedGateTest.ran(trace, "fix__fix"))
+        self.assertFalse(UnattendedGateTest.ran(trace, "design-only__review"))
+        text = self.report("unattended-held-push", self.PUSHED)
+        self.assertIn("無人の run で推しを採って答えた台帳の問い: q1", text.split("\n\n", 2)[1].splitlines()[0])
+        self.assertIn("無人の run で推しを採って答えた（問いの台帳の問い q1）: 推し: 例外", text)
+        self.assertNotIn("保留にしたままの問い", text)
+
+    def test_question_without_a_push_stops_before_fix_and_heads_the_report(self):
+        trace = self.traces["unattended-held-no-push"]
+        self.assertEqual(self.owed(self.QUESTION), set())
+        self.assertIs(json.loads(trace["plan-out"]["output"])["nothing_owed"], True)
+        self.assertFalse(UnattendedGateTest.ran(trace, "fix__fix"))
+        self.assertTrue(UnattendedGateTest.ran(trace, "design-only__review"))
+        head = self.report("unattended-held-no-push", self.QUESTION).split("\n\n", 2)[1]
+        self.assertIn("保留にしたままの問い 1 件", head)
+        self.assertNotIn("推しを採って", head)
+
+
 class ProtectedNotAppliedTest(unittest.TestCase):
     """L-G50: 独立の目のブロックが落ち、目の守りのパスの照らしが当たりを返した run は、最後の関所が開かない（封じる段から先が飛ぶ）
     まま差分を当てない（merge-apply に届かない）。報告と線の返りは出る"""
@@ -214,37 +271,39 @@ class ProtectedNotAppliedTest(unittest.TestCase):
 
 
 class HeadDepthTest(unittest.TestCase):
-    """run の頭の深さ（issue #441）: 軽量の run は表のノード（事前審査の輪）が skipped になり報告まで届く。走っている間に上げる信号
-    （計画の単位に標準）が出た run と、根拠が引けず判定が標準を返した run は、輪が走る。筋書きの宣言は節が走らなかったことを照らせない
-    ので、dry-run の trace で照らす"""
+    """run の頭の深さ（issue #441）: 計画の壁打ち（plan と plan-review の往復）はどの深さでも省かない。頭が軽量・重厚・標準のどの筋書きでも
+    事前審査の輪が走って報告まで届き、事前審査の輪を飛ばす節（plan-review-due）は線に無い。筋書きの宣言は節が走らなかったことを
+    照らせないので、dry-run の trace で照らす"""
 
     LOOP = "plan-review-run__review-loop"
+    NAMES = ("depth-light", "depth-raised", "depth-heavy", "depth-no-evidence")
 
     @classmethod
     def setUpClass(cls):
-        cls.traces = line_traces(("depth-light", "depth-raised", "depth-no-evidence"))
+        cls.traces = line_traces(cls.NAMES)
 
-    def due(self, name) -> dict:
-        return json.loads(self.traces[name]["plan-review-due"]["output"])
+    def test_light_head_runs_the_review_loop(self):
+        for name in self.NAMES:
+            with self.subTest(name=name):
+                trace = self.traces[name]
+                self.assertEqual(trace[self.LOOP]["state"], "completed")
+                self.assertNotIn("plan-review-due", trace)
+                self.assertTrue(UnattendedGateTest.ran(trace, "report__report"))
 
-    def test_light_run_skips_the_listed_node_and_reports(self):
-        trace = self.traces["depth-light"]
-        due = self.due("depth-light")
-        self.assertIs(due["skip"], True, due)
-        self.assertEqual(trace[self.LOOP]["state"], "skipped")
-        self.assertIs(json.loads(trace["fixed"]["output"])["review_skipped"], True)
-        self.assertTrue(UnattendedGateTest.ran(trace, "report__report"))
-
-    def test_raised_run_runs_the_loop(self):
-        due = self.due("depth-raised")
-        self.assertEqual((due["skip"], due["why"]), (False, "計画の単位がすべて軽量ではない"), due)
-        self.assertEqual(self.traces["depth-raised"][self.LOOP]["state"], "completed")
-
-    def test_unproven_request_is_standard_and_runs_the_loop(self):
-        due = self.due("depth-no-evidence")
-        self.assertEqual((due["skip"], due["why"]), (False, ""), due)
-        self.assertEqual(self.traces["depth-no-evidence"][self.LOOP]["state"], "completed")
-        self.assertIs(json.loads(self.traces["depth-no-evidence"]["fixed"]["output"])["review_skipped"], False)
+    def test_the_head_reaches_what_it_omits_and_adds(self):
+        """issue #561: 判定の頭の深さの語は、段の省く物を効かせる所（fix・redepth・eyes）と足す物を効かせる所（plan-review-run）に
+        そのまま届き、本物の報告の頭の深さの行が段ごとに違う物を名指す（軽量は単位がどれも軽量の時の省く物、重厚は足した物）"""
+        top = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
+        nodes = {n["id"]: n for n in [*top, *(m for n in top for m in (n.get("loop_group") or {}).get("nodes") or [])]}
+        omits = "・".join(depth.TIERS[depth.LIGHT]["omits"])
+        for name, head, said in (("depth-light", depth.LIGHT, f"／省く物（単位がどれも軽量の時）: {omits}／足した物: 無い"),
+                                 ("depth-heavy", depth.HEAVY, f"／省く物: 無い／足した物: {'・'.join(depth.tier_adds(depth.HEAVY))}")):
+            with self.subTest(name=name):
+                trace = self.traces[name]
+                for node in ("fix", "redepth", "eyes", "plan-review-run"):
+                    self.assertEqual(bound(trace, nodes[node]["with"]["head_depth"]), head, node)
+                line = next(x for x in report_facts(trace)["text"].splitlines() if x.startswith("- run の頭の深さ: "))
+                self.assertTrue(line.startswith(f"- run の頭の深さ: {head}（") and line.endswith(said), line)
 
 
 def bound(trace: dict, value):
@@ -430,11 +489,6 @@ class FixFixtureTest(unittest.TestCase):
         for name in ("test_gate_base", "judge", "plan", "plan_review"):
             self.assertEqual(collected[name], carried[name], name)
 
-    def test_copied_review_skip_reaches_the_eyes(self):
-        """写した run が事前審査を深さで飛ばしていれば（#517）、計画の往復が飛ぶこの run でも fixed が review_skipped を立てる"""
-        self.assertIs(json.loads(self.trace["fix-in"]["output"])["received"]["plan"]["depth_skip"], True)
-        self.assertIs(json.loads(self.trace["fixed"]["output"])["review_skipped"], True)
-
     def test_spec_check_passes_without_a_spec_stage(self):
         """固定材料の run は仕様の段と組めないので、承認し直すかの照らし（#510）は fix-in の運ぶ spec（null）を読み、問いも止めも無い"""
         self.assertIsNone(json.loads(self.trace["fix-in"]["output"])["spec"])
@@ -488,16 +542,19 @@ class RefixInputsTest(unittest.TestCase):
         self.assertEqual(bound(trace, self.nodes["eyes"]["with"]["x_scalars"]), {"x_moved_lines": 3})
 
 
-def report_facts(trace: dict) -> dict:
-    """筋書きの trace の collect の値のまま本物の report の facts を走らせた返りと、事実のファイルの本文 text（ReportOutcomeTest の訳）"""
+def report_facts(trace: dict, *, record=None, files=None) -> dict:
+    """筋書きの trace の collect の値のまま本物の report の facts を走らせた返りと、事実のファイルの本文 text（ReportOutcomeTest の訳）。
+    record は始めの記録に足す欄、files は置き場に置く控え {置き場からのパス: 中身}（dry-run が置けない指し札の先）"""
     with_ = {n["id"]: n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]}["report"]["with"]
     start = bound(trace, with_["start"])
     with tempfile.TemporaryDirectory() as tmp:
         artifacts = pathlib.Path(tmp)
         run_id = (start or {}).get("run_id") or "dry-run"
         if start:
-            (artifacts / start["path"]).parent.mkdir(parents=True, exist_ok=True)
-            (artifacts / start["path"]).write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
+            files = {**(files or {}), start["path"]: {"run_id": run_id, **(record or {})}}
+        for rel, doc in (files or {}).items():
+            (artifacts / rel).parent.mkdir(parents=True, exist_ok=True)
+            (artifacts / rel).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         env = hermetic.child_env(ARTIFACTS_DIR=str(artifacts), WORKFLOW_ID=run_id, TYPED_ARTIFACTS_FILE="", LOG_DIR="",
                                  WORKS_FACTORY_ROOT=str(archon.WORKFLOWS.parent))
         for key, value in with_.items():
