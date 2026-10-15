@@ -24,7 +24,7 @@ fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（
   最後の承認ノードを開ける理由・承認の後に受け入れ条件のテストが変わった問い（spec-check の questions）（飛ばされたノードは []）
 - prior_failures: 依頼の前の失敗のポインタ（start の出力）・redepth: 直した後の深さの上げ直しの出力・spec_unchecked: 受け入れ条件の
   テストを照らせなかったか（spec-check の unchecked）（飛ばされたノードは null）
-- optional: 受け止める段の宣言（メイングラフの YAML の collect の with: の 1 か所。落ちても先へ進めてよい段のノードの id の頭の並び）
+- optional: 受け止める段の宣言（メイングラフの YAML の collect の with: の 1 か所。落ちても先へ進めてよい段の、区切りで終わるノードの id の頭かノードの id の並び。runreport._declared）
 
 result が $collect.output を読むので、このノードは落ちない: 境の口を読めない時も、標準ライブラリだけで fallback の出力を書く（止めの
 理由は LINE_SCRIPT。境の口の LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。

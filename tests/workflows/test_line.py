@@ -2617,10 +2617,25 @@ class CollectAndResultCase(unittest.TestCase):
         （works/darkfactory/darkfactory.yaml 347・445・946・1124・1196 行）"""
         declared = json.loads(line_nodes()["collect"]["with"]["optional"])
         self.assertEqual(collect.collect({}, self.line(optional=json.dumps(declared)))["optional"], declared)
-        for stage in ("judge__world", "plan__structure", "fix__lens", "eyes__", "judge__head-depth", "head-depth"):
+        for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
+
+    def test_stopping_stages_beside_an_absorbed_one_are_not_absorbed(self):
+        """#599: 宣言はレンズの節とその中継だけを受け止め、名の頭が同じ止める段（支度 lens-prep・集め役 lens-collect）の落ちは
+        途中で終わった落ちに数える（止まった run の報告がレンズを受け止めた落ちに載せ、止めたかの節を誤らない）。世界の解の段は
+        ループの中の節まで受け止める"""
+        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
+        fell = ["fix__lens", "fix__lens-reply", "refix-run__lens", "fix__lens-prep", "fix__lens-collect", "refix-run__lens-collect",
+                "judge__world-judge-loop.world-judge", "eyes__r1"]
+        rows = [r for i, s in enumerate(fell) for r in (
+            {"step": s, "type": "node_start", "ts": f"2026-10-14T00:{i:02d}:00Z"},
+            {"step": s, "type": "node_error", "ts": f"2026-10-14T00:{i:02d}:30Z", "error": "落ちた"})]
+        facts = runreport.transcript_facts(rows, optional=declared)
+        self.assertEqual(facts["failed"], ["fix__lens-prep", "fix__lens-collect", "refix-run__lens-collect"])
+        self.assertEqual([a["node"] for a in facts["absorbed"]],
+                         ["fix__lens", "fix__lens-reply", "refix-run__lens", "judge__world-judge-loop.world-judge", "eyes__r1"])
 
     def test_head_depth_fall_is_absorbed(self):
         """頭の深さの役が落ちても判定は標準で進む（judge_accept.head_depth）ので、報告は run を途中で終わった物と数えない"""
