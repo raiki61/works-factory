@@ -165,7 +165,10 @@ nodes:
               reason: {type: string}
 
   # 事前審査（役 1 つか、項目ごとの下請けを並べる束ね役）。輪の中の節は輪の前の節の出力に結ばず、plan-review/ のファイルを読む。
-  # run の頭の深さが軽量の周は飛ばす（docs/design.md の深さで飛ばすノードの表。workflows/AGENTS.md の E20）
+  # run の頭の深さが軽量の周は飛ばす（docs/design.md の深さで飛ばすノードの表。workflows/AGENTS.md の E20）。
+  # 事前審査の役は周ごとに新しい会話（輪の 1 周目と plan-review の context: fresh）で、合わせた後の案の全体を見る。受け付けに拒まれた
+  # 後は、出し直しの役 plan-review-fix が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと合わせる（振り分けは review-prep の
+  # resubmit。並んだ層は会話を切るので plan-review-fix は plan-review の後ろの層に置く。#571）
   - id: review-loop
     depends_on: [open, r2-design-loop]
     trigger_rule: all_done
@@ -173,7 +176,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$review-accept.output.done; test "$done" = true
       nodes:
         - id: review-prep
@@ -181,27 +184,35 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          with:
+            prev: "$LOOP_PREV.review-accept.output.ok"
+          # resubmit・brief は任意の欄（無ければ 1 回目の役が起きる。メイングラフの筋書きの stub がこの節を resubmit 無しで差し替える）
           output_format:
             type: object
             additionalProperties: false
             required: [prompt_file]
             properties:
               prompt_file: {type: string}
+              brief: {type: string}
+              resubmit: {type: boolean}
+        # 模型・道具・設定は出し直しの役 plan-review-fix と同じ（merge key の錨 review_launch）
         - id: plan-review
           command: plan-review
           depends_on: [review-prep]
-          model: opus
-          effort: high
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          when: "$review-prep.output.resubmit != true"
           context: fresh
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: &review_launch
+            model: opus
+            effort: high
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
           # resolved・items・design_map・origins は converge の壁打ちと束ね役と出自の欄
-          output_format: {
+          output_format: &review_reply {
                 "type": "object",
                 "additionalProperties": false,
                 "required": ["faces", "shrink", "reason"],
@@ -305,15 +316,27 @@ nodes:
                   }
                 }
               }
+        # 拒まれた後の出し直しの役（plan-review の会話の続き）。型は plan-review の型から required を外した物
+        - id: plan-review-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$review-prep.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [review-prep, plan-review]
+          trigger_rule: none_failed_min_one_success
+          when: "$review-prep.output.resubmit == true"
+          <<: *review_launch
+          output_format:
+            <<: *review_reply
+            required: []
         - id: review-accept
           script: review_accept
           runtime: uv
           timeout: 1728000000
-          depends_on: [plan-review]
+          depends_on: [plan-review, plan-review-fix]
+          trigger_rule: none_failed_min_one_success
           mutates_checkout: false
           with:
             status_guarded: true
-            reply: $plan-review.output
+            reply: {from: "$plan-review.output", if_skipped: null}
+            fix_reply: {from: "$plan-review-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false

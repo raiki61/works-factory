@@ -397,10 +397,10 @@ class ConvergeCase(TmpCase):
         self.assertEqual(len(rejects), 1, rejects)
         self.assertIn("閉じた項目 2 を変えた", rejects[0])
 
-    def test_splice_refuses_missing_open_item(self):
-        _, rejects, _ = converge.splice(self.blocked_first(), [])
-        self.assertEqual(len(rejects), 1, rejects)
-        self.assertIn("開いた項目 1 の行が無い", rejects[0])
+    def test_splice_fills_missing_open_item(self):
+        """#571: 返答に無い開いた項目は前の往復の行を差し込む（役は変えた項目だけを返す）"""
+        whole, rejects, _ = converge.splice(self.blocked_first(), [])
+        self.assertEqual((whole, rejects), ([item("u1"), item("u2")], []))
 
     def test_splice_without_passes_takes_reply(self):
         self.plan_round(1, [item("u1")])
@@ -417,8 +417,8 @@ class ConvergeCase(TmpCase):
 
 
 class UnitsSectionCase(TmpCase):
-    """材料の単位の節: 閉じた・保留の項目の単位は『必ず案に入れる』でなく、機械が差し込む行に分ける（元 planblk.plan_slots_section の
-    filled）"""
+    """材料の単位の節: 前の往復の案の項目の単位は、開いた項目も『必ず案に入れる』でなく、機械が差し込む行に分ける（splice が返答に無い
+    項目を全部差し込むので、REVISE_ASK の「変えない項目は書かなくてよい」と食い違わない。#571）"""
 
     def test_filled_units_are_not_owed_in_the_brief(self):
         self.write("r1/round.json", {"round": 1, "mode": "plan"})
@@ -426,11 +426,12 @@ class UnitsSectionCase(TmpCase):
         self.write("r2/round.json", {"round": 2, "mode": "plan"})
         self.write(f"r2/{planfile.REVIEW_FILE}", {"faces": [face("key-a1", [MEAN])]})
         filled = converge.filled_units(planfile.converge_record(self.tmp))
-        self.assertEqual(filled, [CLAMP])
+        self.assertEqual(filled, [MEAN, CLAMP])
         text = planfile.units_section(judgment(), [], [], filled)
-        self.assertIn(f"- no 1 `{MEAN}`: label=block・disposition=do-now・必ず案に入れる", text)
+        self.assertIn(f"- no 1 `{MEAN}`: label=block・disposition=do-now・{planfile.FILLED_DUTY}", text)
         self.assertIn(f"- no 2 `{CLAMP}`: label=block・disposition=do-now・{planfile.FILLED_DUTY}", text)
-        self.assertIn("- 機械が差し込む no（閉じた・保留の項目。書かなくてよい）: [2]", text)
+        self.assertNotIn("必ず案に入れる", text)
+        self.assertIn(planfile.FILLED_LINE.format(nos=[1, 2]), text)
         self.assertNotIn("機械が差し込む no", planfile.units_section(judgment(), [], []))
 
 
@@ -613,6 +614,45 @@ class TakePlanCase(TmpCase):
         self.assertIn("書けない", why)
 
 
+
+class WholePlanTakeCase(TmpCase):
+    """R2: 2 往復目からの出し直しが WHOLE_PLAN で開いた項目を消したら、受け付けは消した項目を前の往復の行で戻さない"""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = self.tmp / "repo"
+        committed_copy(self.repo, SEED)
+        self.plan_dir = self.tmp / "plan"
+        self.write("plan/r1/round.json", {"round": 1, "mode": "plan"})
+        self.write("plan/r1/reply.json", {"plan": [item(MEAN, CLAMP), item(ASKED)]})
+        self.round = self.plan_dir / "r2"
+        self.write("plan/r2/round.json", {"round": 2, "mode": "plan", "go": True, "why": "", "items": [], "structure": "structure/k"})
+        self.write(f"plan/r2/{planfile.REVIEW_FILE}", {"faces": [face("key-a1", [MEAN]), face("key-b1", [ASKED])], "resolved": []})
+        self.write("plan/r2/slots.json", planfile.slots(judgment()))
+        planfile.snap_tree(self.round / planfile.TREE_FILE, self.repo)
+
+    def take(self, reply):
+        return planfile.take_plan(self.round, self.plan_dir, judgment=judgment(), reply=reply, repo=self.repo, tables=[],
+                                  base_rev=git(self.repo, "rev-parse", "HEAD"))
+
+    def reply(self, **more):
+        return {"plan": [item(MEAN, CLAMP, approach="mean の分母と clamp の上限の枝を直し、空の列は扱わない")],
+                "block_answers": [answer("key-a1"), answer("key-b1", how="空の列の項目は要らないので案から外した")], **more}
+
+    def test_whole_plan_drops_open_item(self):
+        self.assertEqual(self.take(self.reply(**{planfile.WHOLE_PLAN: True})), {"ok": True, "reason": ""})
+        got = json.loads((self.round / planfile.REPLY_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([it["unit_keys"] for it in got["plan"]], [[MEAN, CLAMP]])
+        self.assertNotIn(planfile.WHOLE_PLAN, got)
+
+    def test_changed_items_only_keep_the_rest(self):
+        reply = {**self.reply(), "block_answers": [answer("key-a1"), answer("key-b1", handled="disputed", how="空の列の扱いも要る項目なので残す")]}
+        self.assertEqual(self.take(reply), {"ok": True, "reason": ""})
+        got = json.loads((self.round / planfile.REPLY_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([it["unit_keys"] for it in got["plan"]], [[MEAN, CLAMP], [ASKED]])
+        kept = json.loads(rolekit.candidate_path(self.round, planfile.ROLE).read_text(encoding="utf-8"))
+        self.assertEqual(kept, {**reply, "plan": got["plan"]}, "控えは機械が前の往復の行を差し込んだ案の全体")
+
 class StateCase(TmpCase):
     """構造の目の控え structure-state.json（元 tests/test_structure_eye.py の CollectCase。元 blk-structure/scripts/collect.py）"""
 
@@ -660,6 +700,81 @@ class ReplanModuleCase(unittest.TestCase):
         for reply in (None, {"plan": "x"}, {"plan": ["x"]}, {"plan": [{"narrows": 5}]}):
             self.assertTrue(replan._malformed(reply), reply)
         self.assertFalse(replan._malformed({"plan": [{"narrows": []}]}))
+
+
+class ResubmitMergeCase(unittest.TestCase):
+    """#571: 修正案の出し直し（拒まれた項目だけ）を前の答えと合わせる決まり（merge_plan_items・merge_resubmit・merge_replan_resubmit）"""
+
+    SLOTS = ["u1", "u2", "u3"]
+
+    @staticmethod
+    def it(*keys, tag=""):
+        return {"unit_keys": list(keys), "approach": tag or f"項目 {keys}"}
+
+    def merged(self, old, new):
+        return planfile.merge_plan_items(old, new, self.SLOTS)
+
+    def test_overlapping_item_replaces_in_place(self):
+        old = [self.it("u1"), self.it("u2"), self.it("u3")]
+        self.assertEqual(self.merged(old, [self.it("u2", tag="新")]), [self.it("u1"), self.it("u2", tag="新"), self.it("u3")])
+
+    def test_joined_item_takes_the_first_place(self):
+        old = [self.it("u1"), self.it("u2"), self.it("u3")]
+        self.assertEqual(self.merged(old, [self.it("u3", "u1")]), [self.it("u3", "u1"), self.it("u2")])
+
+    def test_moved_unit_replaces_both_items(self):
+        old = [self.it("u1", "u2"), self.it("u3")]
+        new = [self.it("u1"), self.it("u2", "u3")]
+        self.assertEqual(self.merged(old, new), [self.it("u1"), self.it("u2", "u3")])
+
+    def test_new_item_without_overlap_is_appended(self):
+        old = [self.it("u1"), self.it("u2")]
+        self.assertEqual(self.merged(old, [self.it("u3")]), [self.it("u1"), self.it("u2"), self.it("u3")])
+
+    def test_units_compare_as_text(self):
+        """番号の 1 と字の "1" は同じ単位（converge.planned_units と同じ）"""
+        self.assertEqual(planfile.merge_plan_items([self.it(1)], [self.it("1", tag="新")], ["1"]), [self.it("1", tag="新")])
+
+    def test_no_and_name_are_the_same_unit(self):
+        """R1: 前の答えが単位の名で、出し直しが no で同じ単位を指しても、受け付けと同じく名に戻してから合わせる（重なりを見落として
+        同じ単位が 2 つの項目に入らない）"""
+        prev = {"plan": [self.it("u1"), self.it(2, tag="2")]}
+        got = planfile.merge_resubmit(prev, {"plan": [self.it(1, tag="新")]}, self.SLOTS)
+        self.assertEqual(got["plan"], [self.it("u1", tag="新"), self.it("u2", tag="2")])
+
+    def test_item_with_unknown_keys_only_is_dropped(self):
+        """R1: 前の答えの、今の周の単位を 1 つも持たない項目（key の書き誤り）は、直した項目を返した出し直しで消える"""
+        prev = {"plan": [self.it("u1"), self.it("u-typo")]}
+        got = planfile.merge_resubmit(prev, {"plan": [self.it(2, tag="直した")]}, self.SLOTS)
+        self.assertEqual(got["plan"], [self.it("u1"), self.it("u2", tag="直した")])
+
+    def test_merge_resubmit_merges_items_and_replaces_other_fields(self):
+        prev = {"plan": [self.it("u1"), self.it("u2")], "block_answers": [{"key": "a"}]}
+        got = planfile.merge_resubmit(prev, {"plan": [self.it("u2", tag="新")], "block_answers": [{"key": "b"}]}, self.SLOTS)
+        self.assertEqual(got, {"plan": [self.it("u1"), self.it("u2", tag="新")], "block_answers": [{"key": "b"}]})
+        self.assertEqual(planfile.merge_resubmit(prev, {"block_answers": []}, self.SLOTS)["plan"], prev["plan"])
+
+    def test_whole_plan_replaces_the_plan_and_stays(self):
+        """WHOLE_PLAN の出し直しは plan を丸ごと置き換え、印は控えに残って、この後の項目だけの出し直しも全部の案に合わさる"""
+        prev = {"plan": [self.it("u1"), self.it("u2")]}
+        got = planfile.merge_resubmit(prev, {planfile.WHOLE_PLAN: True, "plan": [self.it("u1")]}, self.SLOTS)
+        self.assertEqual(got, {"plan": [self.it("u1")], planfile.WHOLE_PLAN: True})
+        after = planfile.merge_resubmit(got, {"plan": [self.it("u1", tag="新")]}, self.SLOTS)
+        self.assertEqual(after, {"plan": [self.it("u1", tag="新")], planfile.WHOLE_PLAN: True})
+        self.assertNotIn(planfile.WHOLE_PLAN,
+                         planfile.merge_resubmit(prev, {planfile.WHOLE_PLAN: False, "plan": [self.it("u1")]}, self.SLOTS))
+
+    def test_replan_replaces_the_plan_in_pasted_order(self):
+        """R1: 形 replan は貼った位置で照らすので、出し直しの plan は項目で合わせずに丸ごと置き換わる（重ならない項目を後ろに
+        足して位置をずらさない）"""
+        prev = {"plan": [self.it("c")]}
+        part = {"plan": [self.it("a", "b"), self.it("c")], planfile.WHOLE_PLAN: False}
+        self.assertEqual(planfile.merge_replan_resubmit(prev, part), {"plan": [self.it("a", "b"), self.it("c")]})
+        self.assertEqual(planfile.merge_replan_resubmit({"plan": [self.it("c")], "x": 1}, {"x": 2}), {"plan": [self.it("c")], "x": 2})
+
+    def test_rules_name_the_whole_plan_field(self):
+        """R4: 役に読ませる返し方の欄の名は定数から作る（型の欄の名と食い違わない）"""
+        self.assertIn(f"{planfile.WHOLE_PLAN} に true", planfile.RESUBMIT_RULES)
 
 
 if __name__ == "__main__":

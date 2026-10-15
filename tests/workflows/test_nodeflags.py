@@ -2,8 +2,8 @@
 
 - coldwrite を節の plugins: に名指さない。coldwrite は隔離した設定の settings.json の hooks で全部の役に効かせる
   （bin/_lib/toolset.py）。節に名指すと、入れていない普通の利用者（E14）の run でその節が落ちる
-- 作業ツリーの姿を比べる受け付けの節の with: の status_guarded が真 ⇔ 受ける役の節（depends_on のただ 1 つの prompt・command の
-  節）が mutates_checkout: false。真の節の script は INPUTS_STATUS_GUARDED を読む。同じ script を回すほかの節は偽を書く
+- 作業ツリーの姿を比べる受け付けの節の with: の status_guarded が真 ⇔ 受ける役の節（depends_on の prompt・command の節。
+  1 回目の役と出し直しの役のように 2 つ以上を受ける時は、全部の mutates_checkout が同じ）が mutates_checkout: false。真の節の script は INPUTS_STATUS_GUARDED を読む。同じ script を回すほかの節は偽を書く
   （Archon の validate は、script が読む INPUTS_* を全部の節が結ぶことを求める。だからブロックの中で印を持つ節の script が、
   そのブロックの作業ツリーを比べる受け付けの script の全部になる）
 - 役の output_format は JSON Schema の決まった鍵だけで書く（tests/e2e の工程も同じ）。Claude Code は役を起こす時に output_format を strict で照らし、
@@ -94,8 +94,8 @@ def guarded_mismatches(doc, block: str) -> list:
             if flag not in (None, False):
                 out.append(f"{n['id']}: 役を受けない節の status_guarded が {flag!r}")
             continue
-        if len(roles) != 1:
-            out.append(f"{n['id']}: 受ける役が 1 つでない（{[r['id'] for r in roles]}）")
+        if len({r.get("mutates_checkout") is False for r in roles}) != 1:
+            out.append(f"{n['id']}: 受ける役の mutates_checkout が揃わない（{[r['id'] for r in roles]}）")
             continue
         want = roles[0].get("mutates_checkout") is False
         if (flag is True) != want or flag not in (None, True, False):

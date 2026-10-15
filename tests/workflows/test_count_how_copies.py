@@ -67,7 +67,7 @@ def copies():
 class CountHowCopyCase(unittest.TestCase):
     def test_every_how_copy_is_the_owner(self):
         found = list(copies())
-        self.assertEqual(sorted(name.split("/")[1] for name, _ in found), ["diagnose", "fix-ruled", "fixer", "rejudge"])
+        self.assertEqual(sorted(name.split("/")[1] for name, _ in found), ["diagnose", "fix-ruled", "fixer", "rejudge", "rejudge-fix"])
         want = _owner_form(engine_util.COUNT_HOW_SCHEMA)
         for name, props in found:
             with self.subTest(name):
