@@ -8,13 +8,13 @@ tests/e2e/loop-prev/ の使い捨ての工程を、止めた Archon を bun で�
   名前つきで見送る。CI は立てないので見送る。認証は利用者の環境のまま（Claude Code のログインか ANTHROPIC_API_KEY）。
 """
 import json
-import os
 import pathlib
 import unittest
 
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.layers.test_archon_validate import validate
 
@@ -91,13 +91,13 @@ class LoopPrevScriptedCase(RoundsCase):
 
 class LoopPrevRealCase(RoundsCase):
     def setUp(self):
-        if os.environ.get(REAL_RUN_ENV) != "1":
+        if hermetic.inherited(REAL_RUN_ENV).get(REAL_RUN_ENV) != "1":
             self.skipTest(f"本物の役を起こす試験: {REAL_RUN_ENV}=1 の時だけ走る")
 
     def passed(self) -> dict:
         """本物の役は利用者の認証で動く（Claude Code のログイン・ANTHROPIC_API_KEY・CLAUDE_CONFIG_DIR・ANTHROPIC_BASE_URL）ので、
-        親の ANTHROPIC_・CLAUDE_ の頭の名を名指しで返す"""
-        return {k: os.environ[k] for k in os.environ if k.startswith(("ANTHROPIC_", "CLAUDE_"))}
+        試験を回し始めた時の ANTHROPIC_・CLAUDE_ の頭の名を名指しで返す（試験を回す口が過程の環境から外した後も引ける）"""
+        return hermetic.inherited("ANTHROPIC_", "CLAUDE_")
 
     def test_reason_changes_by_round(self):
         with archon.tree([FOLDER], workflows=E2E) as root:

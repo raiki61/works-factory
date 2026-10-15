@@ -4,6 +4,7 @@
 tox の pass_env と同じ向きで、外す名はここの 1 か所に置き、試験が意図して渡す名は child_env の overrides で名指しする。
 試験が起こす子の環境を作るのはここだけ（os.environ を手で写す口と env を渡さない子の起こしは層の柵 E21 が赤にする）。
 試験を回す口 tests/shard.py は、試験を集める前に scrub で自分の過程からも同じ名を外す（過程の中で読む既定の環境も場に依らない）。
+利用者の環境を継ぐのが用途の試験（本物の役で回す試験）は、外す前の値を inherited で名指しして引く。
 Archon が script の節に立てる変数の名は境 workflows/.shared/boundary.py が持ち、ここは引くだけ（runner_vars）。
 macOS の一時フォルダは /var→/private/var の symlink の下にあり、pathlib の relative_to は字面で比べるので、比べる試験は
 tmpdir の実体のパスを使う。
@@ -27,6 +28,7 @@ DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD", "WORKS_ANSWER_CMD"
 # 試験の用意が過程の中で読む名（Archon の源の置き場と、見送りを赤にする旗。読むのは tests/archon.py）。scrub はこれを残す
 ARCHON_CACHE_ENV = "WORKS_FACTORY_ARCHON_CACHE"
 ARCHON_REQUIRED_ENV = "WORKS_FACTORY_ARCHON_REQUIRED"
+_SCRUBBED: dict = {}
 
 
 @functools.cache
@@ -53,9 +55,15 @@ def child_env(**overrides) -> dict:
 
 def scrub() -> None:
     """この過程の os.environ から dropped の名を外す（試験の用意の名 ARCHON_CACHE_ENV・ARCHON_REQUIRED_ENV は残す）。
-    試験が過程の中で読む既定の環境も走らせた場に依らなくなる"""
+    試験が過程の中で読む既定の環境も走らせた場に依らなくなる。外した名と値は inherited が引く"""
     for name in [k for k in os.environ if dropped(k) and k not in (ARCHON_CACHE_ENV, ARCHON_REQUIRED_ENV)]:
-        del os.environ[name]
+        _SCRUBBED[name] = os.environ.pop(name)
+
+
+def inherited(*prefixes: str) -> dict:
+    """試験を回し始めた時の環境（scrub の前）のうち、名が prefixes のどれかで始まる名と値。利用者の環境を継ぐのが用途の試験
+    （本物の役で回す試験の旗と認証）だけが、要る名をここで名指しして引く"""
+    return {k: v for k, v in {**_SCRUBBED, **os.environ}.items() if k.startswith(prefixes)}
 
 
 def alias(case, path) -> str:

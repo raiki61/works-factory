@@ -179,11 +179,23 @@ class ScrubTest(unittest.TestCase):
         parent = {"WORKS_ANSWER_CMD": "sh respond", "CLAUDE_CONFIG_DIR": "/parent/config", "INPUTS_REPLY": "{}",
                   hermetic.ARCHON_CACHE_ENV: "/cache", hermetic.ARCHON_REQUIRED_ENV: "1"}
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
-                mock.patch.dict(os.environ, parent):
+                mock.patch.dict(os.environ, parent), mock.patch.dict(hermetic._SCRUBBED):
             shard.main(["--paths", "no/such/dir"])
             left = {k: os.environ.get(k) for k in parent}
+            named = hermetic.inherited("CLAUDE_CONFIG_DIR", "WORKS_ANSWER_CMD", hermetic.ARCHON_CACHE_ENV)
         self.assertEqual(left, {"WORKS_ANSWER_CMD": None, "CLAUDE_CONFIG_DIR": None, "INPUTS_REPLY": None,
                                 hermetic.ARCHON_CACHE_ENV: "/cache", hermetic.ARCHON_REQUIRED_ENV: "1"})
+        self.assertEqual(named, {"CLAUDE_CONFIG_DIR": "/parent/config", "WORKS_ANSWER_CMD": "sh respond",
+                                 hermetic.ARCHON_CACHE_ENV: "/cache"})
+
+    def test_a_real_run_still_sees_its_flag_and_auth_by_name(self):
+        """本物の役で回す試験の旗と認証は、過程の環境から外れても、その試験が名指しで引ける（子の環境には入らない）"""
+        parent = {"WORKS_FACTORY_REAL_RUN": "1", "ANTHROPIC_API_KEY": "key"}
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                mock.patch.dict(os.environ, parent), mock.patch.dict(hermetic._SCRUBBED):
+            shard.main(["--paths", "no/such/dir"])
+            self.assertEqual(hermetic.inherited("WORKS_FACTORY_REAL_RUN", "ANTHROPIC_"), parent)
+            self.assertFalse(set(parent) & set(hermetic.child_env()))
 
 
 if __name__ == "__main__":
