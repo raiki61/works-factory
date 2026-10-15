@@ -11,7 +11,8 @@
 親の木で走らせ直し、test_cmd の関門が on なら test_cmd も 1 回走らせる（fixboard.rerun_problem・rerun_cmd。元
 works/blk-fix/lib/tddlanes.py:688 _green_after。その前に Archon の変数を環境から落とす）。赤なら今の組だけを戻して後の組を当て続け、
 戻した組を置き場の clash.json に直し待ちで控える（clash.record。後ろの合わせのループが当て直して直すか、裁定へ回す。持ち主の決め
-clash-goes-to-ruling。確かめ直しが落ちた組・字で当たらない組は控えない）。戻せた組の子の
+clash-goes-to-ruling）。字で当たらない組も控える（合わせのループが食い違いの印つきで当て直し、合わせ役が印を解く。確かめ直しが
+落ちた組は控えない）。戻せた組の子の
 書き込みの記録は、親の作業ツリーの記録へ写す（writes.carry_children。親の手直しの受け付けが、子の書いた変更を記録の無い変更と見ない）。
 当たらない・確かめ直しが赤・確かめ直しが落ちた組は当てたパスを戻して、returned: false と理由。
 当てたパスを戻せなかった組は当てていないと言わず、当たったままのパスを欄 unrestored に名指し（fixboard.UNRESTORED）、作業ツリーが
@@ -39,6 +40,7 @@ import fixboard  # noqa: E402
 import lanekit  # noqa: E402
 import oneline  # noqa: E402
 import startrec  # noqa: E402
+import unittrees  # noqa: E402
 import writes  # noqa: E402
 import writelog  # noqa: E402
 
@@ -62,7 +64,7 @@ def main() -> dict:
         cases = (fixboard.read_json(place / fixboard.BASELINE_FILE, {}) or {}).get("cases") or []
         boundary.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
         verified = []   # 戻せた組が赤 → 緑を確かめた名指し（後の組の確かめ直しで一緒に走らせる）
-        red, clashes = {}, []   # 組ごとの確かめ直しの赤の文と、赤で戻した組（合わせのループが直す。clash.record）
+        red, clashes = {}, []   # 組ごとの確かめ直しの赤の文と、赤で戻した組・字で当たらない組（合わせのループが直す。clash.record）
 
         def merge_one(g, earlier):
             if unrestored:   # 戻せず当たったままの組が在れば後の組は当てない
@@ -90,8 +92,10 @@ def main() -> dict:
             if got.unrestored:
                 unrestored[g["group_id"]] = got.unrestored
             elif got.backed_out and got.why == red.get(g["group_id"]):
-                clashes.append({"group_id": g["group_id"], "unit_ids": list(g["unit_ids"]), "patch": got.patch,
-                                "names": list(got.backed_out), "shared": sorted(set(got.backed_out) & earlier), "why": got.why})
+                clashes.append(clash.new_row(g["group_id"], g["unit_ids"], got.patch, got.backed_out, earlier, got.why, clash.RED))
+            elif got.clash:
+                names = unittrees.patch_names(Path(got.patch).read_text(encoding="utf-8", errors="surrogateescape"))
+                clashes.append(clash.new_row(g["group_id"], g["unit_ids"], got.patch, names, earlier, got.why, clash.TEXT))
             return got
         for g, got in lanekit.merge_in_order(plan["groups"], merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
