@@ -24,7 +24,7 @@ from lib import answer
 def word(pattern: str) -> re.Pattern:
     """pattern（正規表現の断片）を語として当てる式。前後が `[\\w\\-/.]` の時は語の一部（plan-fields.json・fix_plan・plan/r1）で数えない。
     `\\w` は ASCII だけ（日本語の字に続く名 `eyesの` も語として当てる）"""
-    return re.compile(rf"(?a)(?<![\w\-/.])(?:{pattern})(?![\w\-/.])")
+    return re.compile(rf"(?<!(?a:[\w\-/.]))(?:{pattern})(?!(?a:[\w\-/.]))")
 
 
 BOUNDARY = "boundary.py"
