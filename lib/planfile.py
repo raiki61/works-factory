@@ -6,7 +6,7 @@
 - round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）, structure（周の節が読む構造の置き場。plan/ からの相対のパス）,
   at（周を開いた時刻。読んだ証拠の記録を切る。reads.TS_FORMAT）}
 - slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料。拒まれた後の回は出し直しの
-  役の短い指示書 rolekit.write_resubmit）・rejects-plan.json（拒否の控え。rolekit）・candidate-plan.json（受け付けが合わせた答えの控え）・
+  役の短い指示書 rolekit.write_resubmit）・rejects-plan.json（拒否の控え。rolekit）・candidate-plan.json（受け付けが合わせた答えの控え。2 往復目からは前の往復の行を差し込んだ案の全体）・
   tree.json（役を起こす前の作業ツリーの姿）・item-brief-<no>.md（形 replan で直す項目の brief）・
   reads-<役>.json と索引 reads-plan-block.json（形 replan は reads-replan-<役>.json と reads-replan-block.json。読んだ証拠）
 - review/p2.plan_review.json（この周に受けた事前審査の返答の写し）
@@ -841,12 +841,14 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
     _save の halt）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
-    （出し直しが WHOLE_PLAN を立てた答えは、案の全部なので閉じた項目の行だけを差し込む）。
+    （出し直しが WHOLE_PLAN を立てた答えは、案の全部なので閉じた項目の行だけを差し込む）。差し込んだ案の全体は、出し直しの役が
+    読み、次の出し直しを合わせる元の控え rolekit.candidate_path にも書く。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
     round_dir = pathlib.Path(round_dir)
     why = moved(round_dir / TREE_FILE, repo, keys)
     if why:
         return {"ok": False, "reason": why}
+    given = reply
     reply, mark = marks.split("resubmit", "plan-revise", reply, (WHOLE_PLAN,))
     whole_plan = (mark or {}).get(WHOLE_PLAN) is True
     if replan._malformed(reply):
@@ -855,6 +857,8 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     bare, answers = converge.split("plan-revise", reply)
     got = named(bare, round_slots(round_dir, judgment))
     whole, closed, dropped = converge.splice(record, got["plan"], fill=not whole_plan)
+    if record["passes"]:
+        jsonfile.write(rolekit.candidate_path(round_dir, ROLE), {**given, "plan": whole}, indent=2)
     plan = {**got, "plan": whole}
     owed, opened, _ = plan_slots(judgment)
     shut = set(_shut(judgment, plan))

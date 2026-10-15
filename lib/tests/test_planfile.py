@@ -650,6 +650,8 @@ class WholePlanTakeCase(TmpCase):
         self.assertEqual(self.take(reply), {"ok": True, "reason": ""})
         got = json.loads((self.round / planfile.REPLY_FILE).read_text(encoding="utf-8"))
         self.assertEqual([it["unit_keys"] for it in got["plan"]], [[MEAN, CLAMP], [ASKED]])
+        kept = json.loads(rolekit.candidate_path(self.round, planfile.ROLE).read_text(encoding="utf-8"))
+        self.assertEqual(kept, {**reply, "plan": got["plan"]}, "控えは機械が前の往復の行を差し込んだ案の全体")
 
 class StateCase(TmpCase):
     """構造の目の控え structure-state.json（元 tests/test_structure_eye.py の CollectCase。元 blk-structure/scripts/collect.py）"""
