@@ -7,9 +7,10 @@ TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す
 - fix_unit_keys(reply, board, owed, ...): 返答の changes の単位の名前と直す義務（fixboard.fix_duty）（手順 0）
 - check_writes: 書き込みの出どころ（-2）。log は書き込みの記録（既定は置き場の writelog.LOG）、skip は除くパスの頭
 - check_frozen: TDD の輪で凍ったテストのファイル（1b）。agreed は範囲の相談の合意の行（None は置き場の trace。conflict.agreed）
+- frozen_tests(board, state): 凍ったテストのファイルと、輪が確かめた書き換えの名指し（check_frozen と修正役の指示書が同じ値を引く）
 - check_plan_scope: 承認済みの修正案の範囲（1d）。agreed は同じ。items は承認済みの修正案の項目（planmarks.approved_items の
   形の値か口。None は照らさない）。ask は拒否の頭で相談を先の道に言うか（None は consult_place の相談の控えで決める）
-- precheck(cfg, reply, items=, skip=): 修正役が sandbox の中の Bash で返答の前に回す事前の確かめ。上の 3 つ（凍結・書き込み・範囲）だけを、
+- precheck(cfg, reply, items=, skip=): 修正役が sandbox の中の Bash で返答の前に回す事前の確かめ。上の 3 つ（凍結・書き込み・範囲）と書いた指し（recount.ref_problems）だけを、
   試験を回さずに当てる（変更に当たる試験と事後の関門の束は受け付けだけ）。修正役が変え始めた木 since は受け付けと同じ口
   （fixboard.fixer_head。置き場の段の頭の控え）から読む。置き場は読むだけ。
   範囲の相談の合意は、修正の輪の確かめの節が置き場の trace に書いた物（conflict.agreed）を受け付けと同じに読む。
@@ -37,6 +38,7 @@ import conflict  # noqa: E402
 import fixboard  # noqa: E402  （直す義務・突き合わせの起点の版）
 import planmarks  # noqa: E402  （承認済みの修正案の項目の読み口）
 import planscope  # noqa: E402
+import recount  # noqa: E402  （書いた指しの照らし。受け付けと同じ口）
 import tddloop  # noqa: E402
 import writelog  # noqa: E402
 import writes  # noqa: E402
@@ -97,7 +99,7 @@ def check_frozen(board: Path, state: str, repo: Path, pass_: str, agreed=None, a
     if not loops:
         return []
     b = board
-    skip = [i for p in loops for i in tddloop.verified_rewrites(p)]
+    skip = frozen_tests(board, state)["verified"]
     rev = fixboard.base_rev(None, base_rev)
     before = tddloop.rev_source(repo, rev)
 
@@ -133,6 +135,13 @@ def _loop_freeze(board, state) -> tuple:
         files |= set(st.get("frozen") or {})
         tree = st.get("frozen_tree") or tree
     return tree, sorted(files)
+
+
+def frozen_tests(board, state) -> dict:
+    """凍ったテスト {files: run の全部の輪が凍らせたテストのファイル（_loop_freeze）, verified: 輪が赤→緑を確かめた書き換えの
+    名指し（tddloop.verified_rewrites。凍結の許しから外す）}。check_frozen と修正役の指示書（planrange.tests_text）が同じ値を引く"""
+    return {"files": _loop_freeze(board, state)[1],
+            "verified": [i for p in _loop_states(board, state) for i in tddloop.verified_rewrites(p)]}
 
 
 def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, state: str, pass_: str,
@@ -219,11 +228,12 @@ def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
                                 pass_, agreed=agreed, ask=True, since=since,
                                 items=items)
     found += [("scope", t) for t in scope]
+    found += [("refs", t) for t in recount.ref_problems(wrote["reply"], board, fixboard.base_rev_of(board, base_rev), repo)]
     return {"ok": not found, "rejects": [{"check": c, "text": t} for c, t in found]}
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="factchecks.py", description="受け付けの事実の確かめ（凍結・書き込み・範囲）を試験なしで回す")
+    ap = argparse.ArgumentParser(prog="factchecks.py", description="受け付けの事実の確かめ（凍結・書き込み・範囲・書いた指し）を試験なしで回す")
     ap.add_argument("config", help="相談の控え（指示書に書かれたパス）")
     ap.add_argument("--reply", default="", help="下書きの返答の JSON のファイル（無ければ changes の無い返答として見る）")
     a = ap.parse_args(argv)

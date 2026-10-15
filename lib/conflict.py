@@ -56,6 +56,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
   テストのファイルを、守りのファイルの一覧（protect）の形にした物（最後の関所に出す）
 - ruled_limits(b, decisions=): 直す裁定の範囲 limits を (申し出の行, 範囲) で並べる唯一の読み口（test_permits と blk-fix の
   planscope が読む）
+- edit_permits(b, pass_, round_=): 修正の段の事後の関門が既存のテストの本体の変更を許す名指しの id と範囲（test_permits から引く。修正役の指示書も貼る）
 - ruled_test_limits(b, rulings=, source=, skip_ids=, base=)・parse_limit(lim): テストの変更の許し（承認済みの修正案の rewrite_tests と裁定
   fix_test_scope の範囲。test_permits）の範囲の文字列と、その 1 つの読み（TDD の輪の凍結が範囲の中の直しを通す）
 - human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。末尾に案の直しの理由と、単位の直しの
@@ -952,6 +953,16 @@ def ruled_test_limits(b, *, rulings: bool = True, source=None, skip_ids=(), agre
     return [p["limit"] for p in test_permits(b, rulings=rulings, source=source, skip_ids=skip_ids, agreed_rows=agreed_rows, base=base,
                                              round_=round_)
             if "limit" in p]
+
+
+def edit_permits(b, pass_: str, *, round_: int = 1) -> dict:
+    """修正の段の受け付けの事後の関門（fixgates の test_edits）が、既存のテストの関数の本体の変更・消しを許す物
+    {tests: 名指しの id（承認済みの修正案の rewrite_tests と、消す名を名指すテスト。test_permits の行の test）,
+     limits: 範囲の文字列（範囲の相談の合意と、裁定 fix_test_scope の範囲。test を持たない行の limit）}。
+    裁定の範囲は、段 ruled か 2 回目の修正の段（second_pass）で入る。修正役の指示書（planrange.tests_text）も同じ値を貼る"""
+    permits = test_permits(b, rulings=pass_ == "ruled" or second_pass(b), round_=round_)
+    return {"tests": [p["test"] for p in permits if isinstance(p.get("test"), str)],
+            "limits": [p["limit"] for p in permits if "limit" in p and "test" not in p]}
 
 
 def ruled_test_doc(b) -> dict | None:

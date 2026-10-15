@@ -20,6 +20,9 @@
 - fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く（rule は OOS_MINE）
 - scope_text(got): 役の指示書に貼る節（SCOPE_HEAD）。scope の値の out_of_scope の決まりの文（rule）と、項目の範囲・out_of_scope・
   許しのパスを字のまま並べる
+- test_ids(it): 項目の足してよい新しいテストの id（修正の段の受け付けの planscope.problems と指示書が同じ値を引く）
+- tests_text(got, edits, frozen): 修正役の指示書に貼る節（TESTS_HEAD）。足してよい新しいテスト（test_ids）・本体を変えてよい既存の
+  テスト（conflict.edit_permits）・凍ったテスト（factchecks.frozen_tests）を字のまま並べる
 - check_paths(b, paths, *, items, ruled, by, round_): 承認済みの修正案の項目 items で paths を outside で照らす (行, 記録)。
   合意と裁定は置き場 b から読む。照らさない項目（修正案の無い・範囲の欄の無い控え）は ([], {"checked": False, "why": 理由})。
   欄の控えが凍結の印と食い違えば conflict.fields_broken の道（ValueError）
@@ -39,10 +42,18 @@ LIFTED = "out_of_scope_lifted"   # with_agreed が項目の写しに足す欄: �
 NO_PLAN = "承認済みの修正案か works の欄の控えが無い"
 NO_SCOPE = "範囲の欄の無い控え（217 番の形の共有ボード）"
 SCOPE_HEAD = promptsection.Section("## 変えてよいパスと触らない物（受け付けがこの値で照らす）", source="fn:planrange.scope_text")
+TESTS_HEAD = promptsection.Section("## 変えてよいテストと凍ったテスト（受け付けがこの名で照らす）", source="fn:planrange.tests_text")
 
 
 def globs(it: dict) -> list[str]:
     return [g for g in it.get("allowed_paths") or [] if isinstance(g, str) and g]
+
+
+def test_ids(it: dict) -> list[str]:
+    """項目の tests の id（範囲の相談の合意で足した印 agreed の行も。現れた順・重なりは 1 つ）。修正の段の受け付けは、ここに無い
+    新しいテストを拒む（planscope.problems の 6）。修正役の指示書（tests_text）も同じ値を貼る"""
+    return list(dict.fromkeys(row["id"] for row in it.get("tests") or []
+                              if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"].strip()))
 
 
 def _oos_rows(it: dict) -> list[dict]:
@@ -223,6 +234,34 @@ def scope_text(got) -> str:
             lines.append(f"  - 相談で out_of_scope から外したパス: {_paths_line(it[LIFTED])}")
     lines.append(f"- 全部の項目に効く許し（テストの変更の許し・直す裁定が足したパス。out_of_scope には勝たない）: "
                  f"{_paths_line(got['permits'])}")
+    return "\n".join(lines)
+
+
+def tests_text(got, edits: dict, frozen=None) -> str:
+    """修正役の指示書に貼る節（TESTS_HEAD）: 修正の段の受け付けがテストを照らす名を字のまま。got は fix_scope の値（項目ごとの
+    足してよい新しいテスト test_ids。照らさない項目なら None で、その行を出さない）、edits は conflict.edit_permits の値（本体を変えて
+    よい既存のテストの名指しと範囲）、frozen は factchecks.frozen_tests の値（凍ったテストのファイルと、輪が確かめた書き換えの名指し。
+    ループの無い run は None）。純粋な関数"""
+    verified = list((frozen or {}).get("verified") or [])
+    lines = [TESTS_HEAD, "", "受け付けは、足したテスト・本体を変えた既存のテスト・凍ったテストのファイルをこの名で照らし、外れを拒む。"
+             "外れが要るなら、変える前に範囲の相談で頼め。"]
+    if got is not None:
+        lines.append("- 足してよい新しいテスト（修正案の項目の tests。範囲の相談で許された物も入っている。これに無いテストを足すと拒む）:")
+        for it in got["items"]:
+            units = "、".join(str(k) for k in it.get("unit_keys") or []) or "無し"
+            lines.append(f"  - 項目 {it.get('item')}（単位: {units}）: {_paths_line(test_ids(it))}")
+    # 凍結の照らしは輪が確かめた書き換えを許しから外すので、事後の関門が id で許しても全体では拒まれる
+    lines += [f"- 本体を変えてよい既存のテストの名指し（修正案の rewrite_tests と、修正案が消す名を名指すテスト）: "
+              f"{_paths_line([t for t in edits['tests'] if t not in verified])}",
+              "- 本体を変えてよい既存のテストの範囲（範囲の相談で許された範囲と、裁定 fix_test_scope の範囲。`<パス>` はそのファイルの全部、"
+              f"`<パス>:<行>` はその行を含む関数の全体、`<パス>:<行>-<行>` は書いたとおりの行）: {_paths_line(edits['limits'])}",
+              "- これ以外の既存のテストの関数の本体を変える・消すと拒む。"]
+    files = (frozen or {}).get("files") or []
+    if files:
+        lines.append("- 凍ったテストのファイル（TDD のループが緑にした単位のテスト。上の名指しと範囲の外で書き換えると拒む。足しただけの"
+                     f"新しいテストの関数は凍結に数えず、上の「足してよい新しいテスト」で照らす）: {_paths_line(files)}")
+        if verified:
+            lines.append(f"  - ループが書き換えて凍らせた名指し（上の名指しに在っても、もう変えるな）: {_paths_line(verified)}")
     return "\n".join(lines)
 
 

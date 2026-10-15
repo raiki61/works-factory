@@ -10,7 +10,7 @@ reject-fix-accept-<k>.md を fixboard.rejects_file が 1 つにまとめた物�
 （受け付けの書き込みの出どころと、諦めた単位の戻し先。TDD の輪が書いた物を修正役の物に数えない）。範囲の相談の答えがまだ渡っていない周は、答えのファイルを名指す続きの指示書だけを
 書く（fixrules.prep の中の consult の引き）。TDD の輪が緑にした単位（tddloop.green_units）の外の単位には、修正役が項目ごとに
 Agent の新しい会話で下請け（実装役・審査役）を起こす節と下請けのファイルを置く（fixrules.g1_values・seat.g1_section）。輪が全部を
-緑にした周は借りたスキルの座（seat.section）。相談の控え（consult.json）には除くパスの頭 boundary.SKIP を足す。段の頭の木と
+緑にした周は借りたスキルの座（seat.section）。凍ったテスト（factchecks.frozen_tests）を受け付けと同じ口で引いて指示書に貼る。相談の控え（consult.json）には除くパスの頭 boundary.SKIP を足す。段の頭の木と
 同じ時に、除くパスの頭 boundary.SKIP の下の姿を skip-before.json に控える（fixboard.record_skipped。受け付けがその下を変えた返答を拒む）。
 返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・brief の控えが壊れた）は標準エラーに 1 行で非 0。
 """
@@ -59,7 +59,8 @@ def main() -> dict:
                                                          answer_node=fixrules.answer_node("first")),
                         "first", owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
                         reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
-                        green=tddloop.green_units(summary), shared=boundary.shared_cache())
+                        green=tddloop.green_units(summary), frozen=factchecks.frozen_tests(place, state),
+                        shared=boundary.shared_cache())
     fixboard.consult_skip(place, boundary.SKIP, writelog.log_here())
     return {"prompt_file": got["prompt_file"], "go": True, "iteration": got["iteration"]}
 

@@ -525,6 +525,34 @@ class ScopeTextSeamCase(TempCase):
         self.assertIn(pr.OOS_ANY, refix)
         self.assertNotIn(pr.OOS_MINE, refix)
 
+    def test_tests_text_lists_the_new_tests_planscope_lets_through(self):
+        """#603: 修正役の指示書に貼る足してよい新しいテスト（planrange.tests_text）は、受け付けが照らす項目の tests（planrange.test_ids）
+        と同じ値。範囲の相談で許した新しいテストは、節にも照らしにも揃って入る"""
+        import conflict
+        import planrange as pr
+        import planscope
+        items = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["stats.py"], "rewrite_tests": [], "out_of_scope": [],
+                  "tests": [{"id": "test_stats.py::test_mean", "red_kind": "assertion"}]}]
+        changes = {"test_stats.py": ("import stats\n",
+                                     "import stats\n\ndef test_mean():\n    pass\n\ndef test_other():\n    pass\n")}
+        rows = [{"unit_key": KEY_A, "files": ["test_stats.py"]}]
+
+        def pasted_and_rejected():
+            got = pr.fix_scope(self.place, "first", items=items)[0]
+            text = pr.tests_text(got, conflict.edit_permits(self.place, "first"), None)
+            lines, _ = planscope.problems(got["items"], rows, changes)
+            return text, [x for x in lines if "どの項目の tests にも無い" in x]
+
+        text, rejected = pasted_and_rejected()
+        self.assertIn("`test_stats.py::test_mean`", text)
+        self.assertNotIn("test_stats.py::test_other", text)
+        self.assertEqual(rejected, ["test_stats.py::test_other は修正案のどの項目の tests にも無いテストを足した"])
+        fixboard.trace(self.place, conflict.ASKED_OP, id="a2", item=1, status="answered", decision="allow",
+                       granted_new_tests=[{"id": "test_stats.py::test_other", "red_kind": "assertion"}])
+        text, rejected = pasted_and_rejected()
+        self.assertIn("`test_stats.py::test_other`", text)
+        self.assertEqual(rejected, [])
+
 
 R_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 R_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
@@ -1081,6 +1109,20 @@ class FactchecksSeamCase(TempCase):
         scope = [r["text"] for r in got["rejects"] if r["check"] == "scope"]
         self.assertTrue(any("stats.py" in t for t in scope), got)
         self.assertTrue(scope[0].startswith(planscope.REJECT_ASK), "事前の確かめは相談の節の道具なので、拒否の頭は相談を先の道に言う")
+        self.assertEqual(self.shas(), before, "置き場を書かない")
+
+    def test_precheck_rejects_the_wrote_refs_the_acceptance_rejects(self):
+        """#603: 事前の確かめは、受け付けと同じ口（recount.ref_problems）で書いた指しを照らす。置き場は書かない"""
+        import recount
+        (self.repo / "NOTES.md").write_text("# 覚え\n\n平均は stats.py の mean\n", encoding="utf-8")
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py", "NOTES.md"]}],
+                 "wrote_refs": [{"kind": "text", "cite": "def median", "target": "stats.py", "where": "NOTES.md"}]}
+        before = self.shas()
+        refs = [r["text"] for r in self.fc.precheck(self.cfg, reply)["rejects"] if r["check"] == "refs"]
+        self.assertEqual(refs, recount.ref_problems(reply, self.place, self.rev, self.repo))
+        self.assertTrue(any("'def median' は指し先 'stats.py' の中に無い" in t for t in refs), refs)
+        reply["wrote_refs"][0]["cite"] = "def mean"
+        self.assertEqual([r for r in self.fc.precheck(self.cfg, reply)["rejects"] if r["check"] == "refs"], [])
         self.assertEqual(self.shas(), before, "置き場を書かない")
 
     def test_place_agreement_counts(self):

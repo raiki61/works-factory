@@ -3011,6 +3011,25 @@ class GroupChildScriptsCase(unittest.TestCase):
         frozen = out["reason"].split(head, 1)[1].split("\n## ", 1)[0]
         self.assertIn("test_stats.py", frozen)
 
+    def test_fix_prompt_pastes_the_frozen_files_the_accept_checks(self):
+        """#603: fix-prep が修正役の指示書に貼る凍ったテストのファイルは、fix-accept の凍ったテストの確かめが拒むファイルと同じ
+        （どちらも factchecks.frozen_tests の輪の状態から引く）"""
+        import fixboard
+        import fixrules
+        import planrange
+        test_file = self._grp_green_loop()
+        section = fixrules.prompt_path(self.place).read_text(encoding="utf-8").split(planrange.TESTS_HEAD, 1)[1]
+        (line,) = [ln for ln in section.splitlines() if ln.startswith("- 凍ったテストのファイル（")]
+        pasted = set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
+        self.assertEqual(pasted, {"test_stats.py"})
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
+                             encoding="utf-8")
+        out = self._grp_accept({"changes": [_fx_change(_GRP_MEAN, ["stats.py", "test_stats.py"])]})
+        head = fixboard.FIX_CHECK_HEAD.format(head=fixboard.FIX_CHECKS["frozen"], cid="frozen", count=1)
+        self.assertIn(head, out["reason"])
+        frozen = out["reason"].split(head, 1)[1].split("\n## ", 1)[0]
+        self.assertTrue(all(p in frozen for p in pasted), frozen)
+
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
         """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は boundary.SKIP）、fix-accept が
         その下を変えた返答を拒む（元 works/blk-fix/scripts/accept.py:234 check_pack_copy・:663）"""

@@ -10,6 +10,7 @@ planmarks.save、範囲の相談の合意は fixboard.trace、裁定は置き場
 """
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,7 @@ import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import fixgates  # noqa: E402
 import planmarks  # noqa: E402
+import planrange  # noqa: E402
 
 MEAN, CLAMP = tbt.MEAN, tbt.CLAMP
 MEAN_ID = "test_stats.py::TestStats::test_mean_of_two"
@@ -680,6 +682,32 @@ class TestTestEdits(FixGatesCase):
                          "ruling": {"decision": conflict.REPLAN, "text": "項目を直せ", "limits": []},
                          conflict.REPLAN_STATE: conflict.AMENDED})
         (self.board / conflict.FILE).write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
+
+    def pasted(self, pass_: str, label: str) -> set:
+        """修正役の指示書の節（planrange.tests_text）の label で始まる行のバッククオートの名"""
+        text = planrange.tests_text(None, conflict.edit_permits(self.board, pass_), None)
+        (line,) = [ln for ln in text.splitlines() if ln.startswith(f"- {label}")]
+        return set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
+
+    def test_pasted_edit_permits_are_what_test_edits_lets_through(self):
+        """指示書に貼る名指しと範囲は、事後の関門が通す物と同じ値（conflict.edit_permits）。片方だけ変えれば赤になる"""
+        named, limits = "本体を変えてよい既存のテストの名指し", "本体を変えてよい既存のテストの範囲"
+        self.edit_tests(*THREE_EDIT)
+        with self.subTest("修正案の rewrite_tests の名指しは貼られ、通る"):
+            b = self.ready_with_fields(direct_fields(rewrite_tests=[REWRITE]))
+            self.assertEqual(self.pasted("first", named), set(conflict.edit_permits(b, "first")["tests"]))
+            self.assertIn(THREE_ID, self.pasted("first", named))
+            self.assertEqual(self.problems(), [])
+        with self.subTest("名指しが無ければ貼られず、拒む"):
+            self.ready_with_fields(direct_fields())
+            self.assertNotIn(THREE_ID, self.pasted("first", named))
+            self.assertEqual([(r["gate"], r["id"]) for r in self.problems()], [("test_edits", THREE_ID)])
+        with self.subTest("裁定の範囲は段 ruled にだけ貼られ、そこでだけ通る"):
+            self.rule(["test_stats.py:9"])
+            self.assertNotIn("test_stats.py:9", self.pasted("first", limits))
+            self.assertIn("test_stats.py:9", self.pasted("ruled", limits))
+            self.assertEqual(self.problems(pass_="ruled"), [])
+            self.assertEqual([(r["gate"], r["id"]) for r in self.problems(pass_="first")], [("test_edits", THREE_ID)])
 
     def test_ruled_scope_reads_like_the_frozen_check(self):
         """範囲の読みは輪の凍結の検査と同じ: ファイルだけは全部・1 行の指しは関数の全体・`<行>-<行>` は書いたとおり"""
