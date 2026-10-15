@@ -463,7 +463,6 @@ def hole_ties(place, n: int, *, items=None, plan_review=None, fix_reply=None) ->
 MODES = {"": False, "group": True}       # 入力 mode の語 → 組の子の run か（route が振り分け、collect が出力の形を選ぶ）
 LANE_SWITCHES = ("fix_lanes", "tdd_lanes")   # 機能の切り替えの語。どちらかが off なら組を並べない（元 works/.shared/core/entry.py:421-440）
 NO_RESULT = "組の子の run が結果のファイルを書かなかった（子が落ちたか、結果が読めない）"
-DROPPED = "。子が親の作業ツリーに残した変更を子の始めの木に戻した: {paths}"
 DELTA_DIR = "delta"                       # 差分の審査の控えの置き場（置き場の下）
 DELTA_REVIEW = "review-{}.json"           # n 回目の審査の控え {pass: bool}（delta-accept・review2-accept が書く）
 DELTA_SKIPPED = "skipped.json"            # 審査を飛ばした印 {reason}（全部の単位が軽量・差分が空で塞いだ穴も無い。delta-cut が書く）
@@ -1266,7 +1265,7 @@ def start_tree(place) -> str:
 def group_fix_reply(place):
     """組の子が受け付けた修正役の返答（groups.json の out_dir/<group_id>/result.json の reply_file）を組の順に 1 つにまとめた
     {changes, not_done, plan_faces}（差分の審査の材料 fix_report と out.p3.fix.plan_faces）を置き場の fix-reply.json に書き、
-    そのパスを返す。どの組にも返答が無ければ None。結果・返答が無い・読めない組は飛ばす（落ちた子の組は join が not_done にする）。
+    そのパスを返す。どの組にも返答が無ければ None。結果・返答が無い・読めない組は飛ばす（子が落ちた run は組の節が落ちて join まで来ない）。
     元 works/.shared/core/refix.py:362 の _fix_report が盤面の 1 つの p3.fix を読んだ所を、組ごとの返答の和で受ける"""
     p = pathlib.Path(place)
     doc = read_json(p / GROUPS_FILE)
@@ -1777,18 +1776,22 @@ def group_dir(place, out_dir: str, gid: str) -> pathlib.Path:
     return pathlib.Path(out_dir or pathlib.Path(place) / "groups") / str(gid)
 
 
+def halted_groups(out_dir, own: str) -> list:
+    """並べない run で、out_dir の下の own 以外の組のうち、子が始めた（GROUP_START_FILE が在る）のに結果（RESULT_FILE）を書かずに
+    止まった組の名を並べる"""
+    return [g.name for g in sorted(pathlib.Path(out_dir).glob("*"))
+            if g.is_dir() and g.name != own and (g / GROUP_START_FILE).is_file() and not (g / RESULT_FILE).is_file()]
+
+
 def drop_unreturned(repo, gdir, skip=()) -> list:
     """並べない run（組の子が親の作業ツリーで直す）で、子が結果（RESULT_FILE）を書かずに落ちた組の変更を、子の始めの木
     （gdir の GROUP_START_FILE の start_tree）に戻す。戻したパス（除くパスの頭 skip の下は数えない）を返し、gdir の DROPPED_FILE
-    に控える。結果の在る組・始めの記録の無い組は何もしない（[]）。もう戻した組は控えのパスを返す（次の組の頭と join が同じ組を
-    見ても 2 度戻さない）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは親の木に届かなかった）"""
+    に控える。結果の在る組・始めの記録の無い組は何もしない（[]）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは
+    親の木に届かなかった）"""
     import tddloop
     gdir = pathlib.Path(gdir)
     if (gdir / RESULT_FILE).is_file():
         return []
-    done = read_json(gdir / DROPPED_FILE)
-    if isinstance(done, dict):
-        return list(done.get("paths") or [])
     began = read_json(gdir / GROUP_START_FILE)
     tree = began.get("start_tree") if isinstance(began, dict) else None
     if not isinstance(tree, str) or not tree:

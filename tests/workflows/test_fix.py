@@ -62,7 +62,7 @@ def moved_policy(tmp: pathlib.Path) -> tuple:
 READ_ONLY_SCRIPTS = ("route", "prep", "tdd-unit", "conflict-check", "rule-prep", "rule-accept", "fix-ruled-prep",
                      "ruled-consult-check", "ruled-consult-accept", "assert-changed", "delta-cut", "lens-prep",
                      "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
-                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix")
+                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix", "groups-ok")
 
 # 今の works（2aa7c66c）の同じ役の節の値: (model, effort, context, settingSources, sandbox)。
 # 元 works/blk-fix/blk-fix.yaml の tdd・fix・fix-ruled・rule・plan-answer、blk-delta.yaml の review、blk-lens.yaml の
@@ -238,6 +238,21 @@ class GroupsCase(unittest.TestCase):
         self.assertEqual(launchers["groups-par"]["isolation"], "worktree")
         self.assertNotIn("isolation", launchers["groups-seq"])
         self.assertEqual(launchers["groups-seq"]["fan_out"]["max_parallel"], 1)
+
+    def test_a_failed_child_halts_the_block_for_resume(self):
+        """#576: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
+        走らず、ブロックの sink の柵 groups-ok が飛ぶ。join の後に作り直す all_done の節は join を結ぶ"""
+        for nid in ("groups-par", "groups-seq"):
+            self.assertEqual(self.nodes[nid]["fan_out"]["join"], "all_success", nid)
+        self.assertEqual(self.nodes["join"]["trigger_rule"], "none_failed_min_one_success")
+        guard = self.nodes["groups-ok"]
+        self.assertEqual(guard["bash"], "true")
+        self.assertEqual(set(guard["depends_on"]), {"route", "groups-par", "groups-seq", "join"})
+        self.assertEqual(guard["trigger_rule"], "none_failed_min_one_success")
+        self.assertNotIn("when", guard, "柵が飛ぶのは組か join が落ちた時だけ（形 group の run は済む）")
+        self.assertEqual([nid for nid, n in self.nodes.items() if "groups-ok" in (n.get("depends_on") or [])], [])
+        for nid in ("clean", "assert-changed", "delta-cut"):
+            self.assertIn("join", self.nodes[nid]["depends_on"], nid)
 
     def test_fanouts_hang_off_block_mode_only(self):
         prep = self.nodes["prep"]
@@ -1447,45 +1462,29 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertIn("当たらない", g2["reason"])
         self.assertEqual(joined["units"][1], {"unit_id": "B", "group_id": "g2", "status": "not_done", "reason": g2["reason"]})
 
-    def test_join_marks_missing_result_not_done(self):
-        start = self.snapshot(self.repo)
-        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
-                                    {"group_id": "g2", "unit_ids": ["B", "C"], "items": []}], start, par=False)
-        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start))
-        code, out, err = _blk_run("join", self.repo, self.art)
-        self.assertEqual(code, 0, err)
-        self.assertEqual(out, {"groups": 2, "returned": 1})
-        joined = json.loads((self.place / "join.json").read_text(encoding="utf-8"))
-        self.assertEqual([(u["unit_id"], u["status"]) for u in joined["units"]],
-                         [("A", "fixed"), ("B", "not_done"), ("C", "not_done")])
-        self.assertFalse(joined["groups"][1]["returned"])
-        self.assertTrue(joined["groups"][1]["reason"])
-        group_items = self.fmt["properties"]["groups"]
-        unit_items = self.fmt["properties"]["units"]
-        self.assertEqual(validate_schema(joined["groups"], group_items), [])
-        self.assertEqual(validate_schema(joined["units"], unit_items), [])
-
-    def test_join_in_order_drops_what_a_failed_child_left(self):
-        """並べない run で結果を書かずに落ちた子の変更は、その子の始めの木に戻す（前の組の直しは残す）"""
+    def test_join_stops_on_a_group_without_a_readable_result(self):
+        """#576: 結果のファイルが無いか読めない組が在れば、並べない run でも並べた run でも作業ツリーを変えず join.json も書かずに
+        1 で止まる（済んだ子の変更を戻して持ち越しにしない）"""
         start = self.snapshot(self.repo)
         src = (self.repo / "stats.py").read_text(encoding="utf-8")
-        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
-                                    {"group_id": "g2", "unit_ids": ["B"], "items": []}], start, par=False)
         (self.repo / "stats.py").write_text(src.replace("len(xs) - 1", "len(xs)"), encoding="utf-8")
         t1 = self.snapshot(self.repo)
-        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
-        _blk_write(out_dir / "g2" / "group-start.json", {"start_tree": t1})
-        (self.repo / "stats.py").write_text(src.replace("len(xs) - 1", "0"), encoding="utf-8")
-        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
-        code, out, err = _blk_run("join", self.repo, self.art)
-        self.assertEqual(code, 0, err)
-        self.assertEqual(out, {"groups": 2, "returned": 1})
-        self.assertEqual(self.snapshot(self.repo), t1)
-        g2 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"][1]
-        self.assertFalse(g2["returned"])
-        self.assertIn("half.py", g2["reason"])
-        self.assertEqual(json.loads((out_dir / "g2" / "dropped.json").read_text(encoding="utf-8"))["paths"],
-                         ["half.py", "stats.py"])
+        for par, broken in ((False, None), (False, {"group_id": "g2"}), (True, None)):
+            with self.subTest(par=par, broken=broken):
+                out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
+                                            {"group_id": "g2", "unit_ids": ["B"], "items": []}], start, par=par)
+                _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+                _blk_write(out_dir / "g2" / "group-start.json", {"start_tree": t1})
+                (out_dir / "g2" / "result.json").unlink(missing_ok=True)
+                if broken is not None:
+                    _blk_write(out_dir / "g2" / "result.json", broken)
+                code, out, err = _blk_run("join", self.repo, self.art)
+                self.assertEqual(code, 1, err)
+                self.assertIn("g2", err)
+                self.assertNotIn("g1", err)
+                self.assertEqual(self.snapshot(self.repo), t1)
+                self.assertFalse((self.place / "join.json").exists())
+                self.assertFalse((out_dir / "g2" / "dropped.json").exists())
 
     def rerun_seed(self, files, *, test_cmd=""):
         """走らせ直しの種: files を commit し、実行器（lib/tests/test_blk_fix_tdd.py の SUITE）を指す始めの記録と、その実行器で
@@ -2784,16 +2783,43 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertIn(fields["policy"]["copy"], text)
         self.assertNotIn(raw_doc, text)
 
-    def test_group_start_in_order_drops_what_the_failed_child_before_left(self):
-        """親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに落ちて残した変更を戻してから始める"""
+    def test_group_start_in_order_stops_while_an_earlier_child_is_halted(self):
+        """#576: 親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに止まっていれば、その変更を戻さず何も書かずに 1 で
+        止まる（親の resume が前の子を続きから回す）。前の組が結果を書いていれば今どおり始める"""
         import leftovers
         before = leftovers.snapshot(self.repo)
         (self.out_dir / "g0").mkdir()
         (self.out_dir / "g0" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
         (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
+        err = self._grp_run("group_start", "group-start", ok=False)
+        self.assertIn("g0", err)
+        self.assertEqual((self.repo / "half.py").read_text(encoding="utf-8"), "Y = 1\n")
+        self.assertEqual(sorted(p.name for p in self.out_dir.iterdir()), ["g0"])
+        self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
+        self.assertFalse(self.place.exists())
+        (self.out_dir / "g0" / "result.json").write_text("{}", encoding="utf-8")
+        self._grp_run("group_start", "group-start")
+        self.assertTrue((self.repo / "half.py").is_file(), "前の組の結果の在る変更は残す")
+
+    def test_group_start_side_by_side_ignores_a_sibling_still_running(self):
+        """並べた子は兄弟の組がまだ結果を書いていなくても止まらず、兄弟のフォルダに触らない（兄弟は同時に回っている）"""
+        import leftovers
+        tree = leftovers.snapshot(self.repo)
+        (self.out_dir / "g0").mkdir()
+        (self.out_dir / "g0" / "group-start.json").write_text(json.dumps({"start_tree": tree}), encoding="utf-8")
+        self._grp_run("group_start", "group-start", from_tree=tree)
+        self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
+
+    def test_group_start_in_order_drops_its_own_earlier_attempt(self):
+        """自分の組の始めの記録が前の試みから残っていれば、その木に戻してから始める"""
+        import leftovers
+        before = leftovers.snapshot(self.repo)
+        (self.out_dir / "g1").mkdir()
+        (self.out_dir / "g1" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
+        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
         self._grp_run("group_start", "group-start")
         self.assertFalse((self.repo / "half.py").exists())
-        self.assertEqual(json.loads((self.out_dir / "g0" / "dropped.json").read_text(encoding="utf-8"))["paths"],
+        self.assertEqual(json.loads((self.out_dir / "g1" / "dropped.json").read_text(encoding="utf-8"))["paths"],
                          ["half.py"])
         began = json.loads((self.out_dir / "g1" / "group-start.json").read_text(encoding="utf-8"))
         self.assertEqual(began["start_tree"], before)

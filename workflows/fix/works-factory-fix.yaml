@@ -105,7 +105,10 @@ nodes:
         out_dir: {type: string, minLength: 1}
 
   # 組ごとに子の run を起こし、子ごとに Archon が作業ツリーを切る。親の姿は木の sha で渡して子が写す（docs/design.md の U8）。
-  # max_parallel は Archon の既定の 5 を見えるように書く（並べの数の上限。列ではない）
+  # max_parallel は Archon の既定の 5 を見えるように書く（並べの数の上限。列ではない）。
+  # join: all_success は、子が 1 つでも落ちればこの節を落として run を止める（諦めた子は result.json を書いて completed で終わる
+  # ので、落ちた子は諦めていない）。親の resume は済んだ子を飛ばし、落ちた子だけを同じ run・同じ作業ツリーで続きから回す。
+  # all_done にすると節が済んで resume が子に届かず、落ちた子の組が持ち越しになる（issue #576）
   - id: groups-par
     workflow: works-factory-fix
     depends_on: [prep]
@@ -115,7 +118,7 @@ nodes:
       items: $prep.output.groups
       as: group
       max_parallel: 5
-      join: all_done
+      join: all_success
     with:
       start: $INPUTS.start
       baseline: $INPUTS.baseline
@@ -139,7 +142,7 @@ nodes:
       items: $prep.output.groups
       as: group
       max_parallel: 1
-      join: all_done
+      join: all_success
     with:
       start: $INPUTS.start
       baseline: $INPUTS.baseline
@@ -154,13 +157,14 @@ nodes:
       from_tree: ""
       out_dir: $prep.output.out_dir
 
-  # 子の返りを with: で受けない（落ちた子への束ねは投げる）。子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、
-  # 並べた run は子の差分を決めた順に親の作業ツリーへ当てて確かめ直す（p3.lane_merge）
+  # 子の返りを with: で受けない。子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、並べた run は子の差分を決めた順に
+  # 親の作業ツリーへ当てて確かめ直す（p3.lane_merge）。組の節が落ちた run では走らない（順の組の子が親の作業ツリーに残した変更を
+  # 戻さず、resume で続きから回す）
   - id: join
     script: join
     runtime: uv
     depends_on: [route, groups-par, groups-seq]
-    trigger_rule: all_done
+    trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
     timeout: 1728000000
     output_format:
@@ -170,6 +174,16 @@ nodes:
       properties:
         groups: {type: integer, minimum: 0}
         returned: {type: integer, minimum: 0}
+
+  # 組の節か join が落ちた run で飛ぶ柵。どの節もこれに依存しないブロックの sink で、返す節 fix（all_done で必ず済み、
+  # この時は done: false）と別に、組が落ちたことをブロックの出口に出す。resume で組の節が落ちた子を続きから回し、join が済めば
+  # この節も済む。when を書かない（形 group の run でも route だけで済ませ、飛ぶのは組か join が落ちた時に限る）
+  - id: groups-ok
+    bash: "true"
+    depends_on: [route, groups-par, groups-seq, join]
+    trigger_rule: none_failed_min_one_success
+    mutates_checkout: false
+    timeout: 1728000000
 
   # 合わせのループ（持ち主の決め clash-goes-to-ruling）。join が確かめ直しの赤で戻した組を 1 つずつ当て直し、合わせ役がその組の変えた
   # ファイルの中だけで直す。受け付けは修正役と同じ軸。直せなければ当て直す前の木へ戻し、組どうしの合わせの申し出を裁定役へ回す。
@@ -814,11 +828,13 @@ nodes:
             iteration: $fix-ruled-prep.output.iteration
           output_format: *accept_out
 
-  # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）
+  # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）。join を結ぶのは、組の節が落ちた
+  # run でもこの節は join 無しで走って済むので、resume で join が済んだ時に作り直させるため（依存の出力の字が前と同じ節は
+  # Archon が作り直さない）。assert-changed・delta-cut も同じ
   - id: clean
     script: clean
     runtime: uv
-    depends_on: [route, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
+    depends_on: [route, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
     trigger_rule: all_done
     when: "$route.output.group == false"
     timeout: 1728000000
@@ -834,7 +850,7 @@ nodes:
   - id: assert-changed
     script: assert_changed
     runtime: uv
-    depends_on: [route, clean]
+    depends_on: [route, join, clean]
     trigger_rule: all_done
     when: "$route.output.group == false"
     mutates_checkout: false
@@ -852,7 +868,7 @@ nodes:
   - id: delta-cut
     script: delta_cut
     runtime: uv
-    depends_on: [route, assert-changed]
+    depends_on: [route, join, assert-changed]
     trigger_rule: all_done
     when: "$route.output.group == false"
     mutates_checkout: false
