@@ -109,16 +109,16 @@
 ### `depth` 単位ごとの深さ
 
 - 状態: 住処あり
-- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`・報告の行 `lines`）
-- 約束: 計画の出力 `depth`（`[{unit_id, depth, why}]`。depth は `軽量`・`標準`）と、目のサブグラフへ渡す省く理由の文（平の入力）
+- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）
+- 約束: 計画の出力 `depth`（`[{unit_id, depth, why}]`。depth は `軽量`・`標準`）と、目のサブグラフへ渡す省く理由の文（平の入力）。run の頭の深さの語（`軽量`・`標準`・`重厚`）は判定の出力 `depth` で、表 `TIERS` が定義する
 - 知ってよい所: 住処と、メイングラフ `workflows/line/`（始めのノードの入力 `thickness` の確かめと、直した後の上げ直しのノード `redepth`）
 - 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所
 
 ### `features` 機能の切り替え
 
 - 状態: 住処あり
-- 住処: `lib/entry.py` の `FEATURES`（語 → 説明）・既定 `FEATURE_DEFAULTS` と読み `features_off`・`features_on`・`features_cut`・`cut_of`
-- 約束: メイングラフ `workflows/line/works-factory-line.yaml` の入力 `features_off`・`features_on` と、始めのノードの出口の同じ名の欄（サブグラフへは on・off・auto の平の入力）
+- 住処: `lib/entry.py` の `FEATURES`（語 → 説明）・既定 `FEATURE_DEFAULTS` と読み `features_off`・`features_on`・`features_cut`・`cut_of`・`switch`（始めの記録から機能 1 つの語を引く。名指し > 頭の深さの段の足し `adds` > 既定）
+- 約束: メイングラフ `workflows/line/works-factory-line.yaml` の入力 `features_off`・`features_on` と、始めのノードの出口の同じ名の欄（サブグラフへは on・off・auto の平の入力。頭の深さの段の足しが効く機能は、メイングラフが式を持てないので、plan-review が深さの語を平の入力 `head_depth` で受けて自分で on を引き、judge の `workflows/judge/scripts/verify.py` が始めの記録と頭の深さの控えから引く）
 - 知ってよい所: 住処・約束と、入力の語を確かめて始めの記録に置く始めのノードの script `workflows/line/scripts/start.py`
 - 今: 既知の漏れは、サブグラフが自分の機能の語を字で持つ所（事前審査の `lib/boardview.py` の `TREE_FEATURE`・修正の `lib/fixboard.py` の `LANE_SWITCHES`・判定の `lib/judge_accept.py` の `DEFAULT_FEATURES_CUT`・`VERIFY_FEATURE`）の 3 ファイル 5 行
 

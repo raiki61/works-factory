@@ -1,5 +1,5 @@
 # 事前審査の受け付けが 3 回とも拒んだ後の姿 → pass: false・stalled: true・諦めた訳が questions に載る
-open: { ok: true, r2_go: false, tree: false, k: 1, form: review, depth_skip: false, reason: "" }
+open: { ok: true, r2_go: false, tree: false, k: 1, form: review, reason: "" }
 review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md" }
 plan-review: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }
 review-accept: { ok: false, done: true, give_up: true, reason: "stub: 前の往復の block の行き先が無い" }

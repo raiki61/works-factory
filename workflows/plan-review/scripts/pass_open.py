@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """差し込みの頭（boardview.open_pass）: 入力の指し札の先を run の置き場の plan-review/ に写し、見え方の材料を置き、独立設計を
-回すかと事前審査を木にするかと、run の頭の深さで事前審査の輪を飛ばすか（入力 depth_skip。形 review の時だけ真）を返す。役の節の型（output_format）はブロックの YAML から読んで渡す。入力 mode が design（直す物が
+回すかと事前審査を木にするか（始めの記録の review_tree の名指し、無ければ入力 head_depth の頭の深さの段の足し。形 review の時だけ
+段の足しを引く）を返す。役の節の型（output_format）はブロックの YAML から読んで渡す。入力 mode が design（直す物が
 無い周）は修正案を読まず、独立設計の材料だけを置いて形 design を返す（boardview.open_design。事前審査の輪は飛ぶ）。
 落ちない: 始めに前の差し込みの材料 open.json を消し（後の節が前の差し込みの結末を今回の物として読まない）、境の口と lib の import
 から先の誤りは全部捕まえて、落ちた訳 open-error.txt を置き ok: false と訳を返す（後の節は返す節の偽の結末に進む）"""
@@ -55,15 +56,14 @@ def opened() -> tuple:
               "answers": boundary.parsed(os.environ["INPUTS_ANSWERS"]), "design_schema": node_schema(text, "r2-design")}
     if os.environ.get("INPUTS_MODE", "") == boardview.DESIGN_FORM:   # 直す物が無い周: 修正案を読まずに独立設計だけ
         got = boardview.open_design(folder, cwd=Path.cwd(), **shared)
-        return boundary, {"ok": True, **got, "depth_skip": False, "reason": ""}
+        return boundary, {"ok": True, **got, "reason": ""}
     got = boardview.open_pass(
         folder, cwd=Path.cwd(), **shared, plan=boundary.needed(os.environ["INPUTS_PLAN"], "plan"),
         structure=boundary.needed(os.environ["INPUTS_STRUCTURE"], "structure"),
         ripple=boundary.needed(os.environ["INPUTS_RIPPLE"], "ripple"),
         ruling=boundary.parsed(os.environ["INPUTS_RULING"]) or [], conflicts=boundary.pointed(os.environ["INPUTS_CONFLICTS"]),
         gate_answers=boundary.parsed(os.environ["INPUTS_GATE_ANSWERS"]), round_limit=boundary.parsed(os.environ["INPUTS_ROUND_LIMIT"]),
-        review_schema=node_schema(text, "plan-review"), depth_skip=boundary.parsed(os.environ.get("INPUTS_DEPTH_SKIP")) is True,
-        depth_why=os.environ.get("INPUTS_DEPTH_WHY", ""))
+        review_schema=node_schema(text, "plan-review"), head_depth=os.environ.get("INPUTS_HEAD_DEPTH", "").strip())
     return boundary, {"ok": True, **got, "reason": ""}
 
 
@@ -81,7 +81,7 @@ def main() -> int:
             (folder / OPEN_ERROR).write_text(why, encoding="utf-8")
         except OSError:
             pass
-        print(json.dumps({"ok": False, "r2_go": False, "tree": False, "k": 0, "form": "", "depth_skip": False, "reason": why}, ensure_ascii=False,
+        print(json.dumps({"ok": False, "r2_go": False, "tree": False, "k": 0, "form": "", "reason": why}, ensure_ascii=False,
                          allow_nan=False), flush=True)
     return 0
 

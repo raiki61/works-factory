@@ -43,7 +43,7 @@ inputs:
     description: 設計だけの run か（空か true）。true は修正前の承認ノードを必ず開く
   thickness:
     default: ""
-    description: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は受けない
+    description: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は単位を標準に固定し、run に判定の裏取り（judge_verify）と事前審査の木（review_tree）を足す（features_off で名指しで切った機能は足さない）
   features_off:
     default: ""
     description: 切る機能（語をカンマか空白で区切った 1 行。語と既定は lib/entry.py の FEATURES・FEATURE_DEFAULTS）。知らない語は start が止める
@@ -255,30 +255,9 @@ nodes:
             conflicts: null
             prior_failures: "$start.output.prior_failures"
 
-        # run の頭の深さが軽量で、計画の単位が全部軽量で、前の周の事前審査が無いなら、事前審査の輪を飛ばす
-        # （docs/design.md の「深さで飛ばすノードの表」）
-        - id: plan-review-due
-          script: plan_review_due
-          runtime: uv
-          timeout: 1728000000
-          output_format:
-            type: object
-            properties:
-              skip: { type: boolean }
-              why: { type: string }
-              stop_reason: { type: string }
-            required: [skip, why, stop_reason]
-          mutates_checkout: false
-          depends_on: [plan]
-          with:
-            head_depth: "$judge.output.depth"
-            ready: "$plan.output.ready"
-            plan_depth: "$plan.output.depth"
-            prior_review: "$LOOP_PREV.plan-out.output.review"
-
         - id: plan-review-run
           include: works-factory-plan-review
-          depends_on: [plan, plan-review-due]
+          depends_on: [plan]
           when: "$plan.output.ready == true"
           with:
             start: "$start.output.record"
@@ -292,8 +271,7 @@ nodes:
             answers: "$answer-start.output.answer"
             ruling: []
             round_limit: 20
-            depth_skip: "$plan-review-due.output.skip"
-            depth_why: "$plan-review-due.output.why"
+            head_depth: "$judge.output.depth"
 
         - id: plan-out
           script: plan_out
@@ -315,15 +293,13 @@ nodes:
               gate_axes: {}
               ask_human: {}
               questions: {}
-              depth_skip: {}
-              depth_why: {}
               nothing_owed: { type: boolean }
               done: { type: boolean }
               stop_reason: { type: string }
             required: [ready, plan, structure, ripple, depth, round, pass, stalled, review, design, gate_axes, ask_human, questions,
-                       depth_skip, depth_why, nothing_owed, done, stop_reason]
+                       nothing_owed, done, stop_reason]
           mutates_checkout: false
-          depends_on: [plan, plan-review-due, plan-review-run]
+          depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success
           with:
             round_limit: 20
@@ -340,8 +316,6 @@ nodes:
             gate_axes: { from: "$plan-review-run.output.gate_axes", if_skipped: null }
             ask_human: { from: "$plan-review-run.output.ask_human", if_skipped: null }
             questions: { from: "$plan-review-run.output.questions", if_skipped: null }
-            depth_skip: { from: "$plan-review-due.output.skip", if_skipped: null }
-            depth_why: { from: "$plan-review-due.output.why", if_skipped: null }
 
   - id: plan-rounds-out
     script: returned
@@ -362,8 +336,6 @@ nodes:
       got_ripple: "$plan-rounds.output.ripple"
       got_depth: "$plan-rounds.output.depth"
       got_round: "$plan-rounds.output.round"
-      got_depth_skip: "$plan-rounds.output.depth_skip"
-      got_depth_why: "$plan-rounds.output.depth_why"
 
   - id: plan-rounds-review-out
     script: returned
@@ -464,7 +436,6 @@ nodes:
         ripple: {}
         depth: {}
         structure: {}
-        depth_skip: {}
         review: {}
         design: {}
         questions: {}
@@ -473,7 +444,7 @@ nodes:
         received: { type: [object, "null"] }
         stop_reason: { type: string }
       required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, plan, ripple, depth, structure,
-                 depth_skip, review, design, questions, answer, deferred, received, stop_reason]
+                 review, design, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix]
@@ -733,11 +704,10 @@ nodes:
         plan_questions: {}
         answer: {}
         no_fix: { type: boolean }
-        review_skipped: { type: boolean }
         stop_reason: { type: string }
       required: [units, groups, conflicts, replan_items, objection, diff, diffs, allowed_test_changes, changed, x_scalars, delta_review,
                  handoffs, mismatched,
-                 done, go, rejudge, refixed, plan, ripple, design, plan_questions, answer, no_fix, review_skipped, stop_reason]
+                 done, go, rejudge, refixed, plan, ripple, design, plan_questions, answer, no_fix, stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, refix-run, replan-out, design-only]
     trigger_rule: none_failed_min_one_success
@@ -779,7 +749,6 @@ nodes:
       plan_questions: { from: "$fix-in.output.questions", if_skipped: null }
       answer: { from: "$fix-in.output.answer", if_skipped: null }
       no_fix_design: { from: "$design-only.output.design", if_skipped: null }
-      review_skipped: { from: "$fix-in.output.depth_skip", if_skipped: null }
 
   # 7b 承認済みの受け入れ条件のテストの照らし（spec=on の run だけ中身が在る。spec=on なのに判定の指しが無ければ問う）
   - id: spec-check
@@ -962,7 +931,6 @@ nodes:
       plan_questions: "$fixed.output.plan_questions"
       answers: "$fixed.output.answer"
       start_answers: "$answer-start.output.answer"
-      review_skipped: "$fixed.output.review_skipped"
 
   - id: eyes-out
     script: returned

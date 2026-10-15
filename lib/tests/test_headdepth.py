@@ -3,10 +3,9 @@
 見る物:
 - 役を起こす前の機械の止め 5 つ（thickness の名指し・仕様の段・設計だけ・依頼の行が無い・試験のコマンドが無い）
 - 引用の照らし（行の抜け・2 度指し・依頼に無い引用・無いファイル・範囲の外・.git の中・コードに無い引用・why が空・cite の下限より
-  短い引用・WHERE_SPAN より広い行の範囲・依頼の行が無い軽量）
-- 計画の往復の 1 周で事前審査を飛ばすか（頭が標準なら飛ばさない・単位に標準が在れば上げる・前の周の事前審査が在れば上げる・全部軽量で飛ばす）
+  短い引用・WHERE_SPAN より広い行の範囲・依頼の行が無い軽量。重厚は軽量と同じ照らしで、行の範囲の幅は問わない）
 - 控えが無い・壊れた時は標準
-- 報告の 1 行の 3 つの形
+- 報告の 1 行の 3 つの形（段の名・根拠と、段の省く物・足す物。切った足しは名指しで切ったと添える）
 """
 import pathlib
 import sys
@@ -51,6 +50,12 @@ class GateTest(Repo):
                 self.assertEqual((go, got), (False, word))
                 self.assertIn("thickness", why)
 
+    def test_heavy_thickness_names_the_depth_without_the_role(self):
+        go, got, why = self.gate({**START, "thickness": "重厚"})
+        self.assertEqual((go, got), (False, "重厚"))
+        self.assertIn("thickness", why)
+        self.assertEqual(headdepth.facts(ROWS, {**START, "thickness": "重厚"}, self.repo)["forced"], "重厚")
+
     def test_stops_fall_to_standard(self):
         for name, start, rows in (("spec", {**START, "input": {"spec": True}}, ROWS),
                                   ("design_only", {**START, "design_only": "true"}, ROWS),
@@ -79,6 +84,16 @@ class CheckTest(Repo):
     def test_quoted_light_passes(self):
         self.assertEqual(self.check(LIGHT_REPLY), [])
 
+    def test_quoted_heavy_passes(self):
+        """重厚は軽量と同じ引用の照らしを通り、where の行の範囲が WHERE_SPAN より広くても受ける"""
+        self.assertEqual(self.check({**LIGHT_REPLY, "depth": "重厚"}), [])
+        wide = self.item(where=f"long.py:1-{headdepth.WHERE_SPAN + 1}", code_quote="value = 1")
+        self.assertEqual(self.check({**wide, "depth": "重厚"}), [])
+        self.assertTrue(self.check(wide))   # 軽量には範囲の幅の上限を当てる
+        self.assertTrue(self.check({**self.item(cause_quote="書いていない字"), "depth": "重厚"}))
+        self.assertTrue(self.check({**LIGHT_REPLY, "depth": "重厚", "items": []}))
+        self.assertEqual(self.check({"depth": "重厚", "why": "設計の選び", "items": []}, rows=[]), [headdepth.NO_ROWS])
+
     def test_standard_needs_only_a_reason(self):
         self.assertEqual(self.check({"depth": "標準", "why": "設計の選びが要る"}), [])
         self.assertTrue(self.check({"depth": "標準", "why": " "}))
@@ -94,7 +109,7 @@ class CheckTest(Repo):
                                   ("escapes the root", self.item(where="../stats.py:1"), ROWS),
                                   ("inside .git", self.item(where=".git:1", code_quote="gitdir:"), ROWS),
                                   ("code not in lines", self.item(code_quote="return 0"), ROWS),
-                                  ("unknown depth", {**LIGHT_REPLY, "depth": "重厚"}, ROWS),
+                                  ("unknown depth", {**LIGHT_REPLY, "depth": "極厚"}, ROWS),
                                   ("one-char cause", self.item(cause_quote="空"), ROWS),
                                   ("one-char code", self.item(code_quote="/"), ROWS),
                                   ("whole-file range", self.item(where=f"long.py:1-{headdepth.WHERE_SPAN + 1}",
@@ -116,32 +131,6 @@ class CheckTest(Repo):
         self.assertEqual(self.check({**LIGHT_REPLY, "items": []}, rows=[]), [headdepth.NO_ROWS])
 
 
-class DueTest(unittest.TestCase):
-    LIGHT_UNITS = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
-
-    def test_standard_head_never_skips(self):
-        self.assertEqual(headdepth.due("標準", True, self.LIGHT_UNITS, None), {"skip": False, "why": ""})
-
-    def test_no_plan_never_skips(self):
-        self.assertFalse(headdepth.due("軽量", False, self.LIGHT_UNITS, None)["skip"])
-
-    def test_a_standard_unit_raises(self):
-        got = headdepth.due("軽量", True, [*self.LIGHT_UNITS, {"unit_id": "u2", "depth": "標準", "why": "触るファイルが 5 個"}], None)
-        self.assertEqual(got, {"skip": False, "why": headdepth.RAISED})
-
-    def test_no_units_raises(self):
-        self.assertEqual(headdepth.due("軽量", True, [], None), {"skip": False, "why": headdepth.RAISED})
-
-    def test_all_light_skips(self):
-        got = headdepth.due("軽量", True, self.LIGHT_UNITS, None)
-        self.assertEqual(got, {"skip": True, "why": "run の頭の深さが軽量で、計画の単位 1 個がすべて軽量"})
-
-    def test_a_round_after_a_review_stays_raised(self):
-        """前の周の事前審査が案を止めた往復は、次の周の単位が全部軽量でも飛ばさない（上げる向きは周をまたいで残る）"""
-        got = headdepth.due("軽量", True, self.LIGHT_UNITS, {"path": "plan-review/review.json"})
-        self.assertEqual(got, {"skip": False, "why": headdepth.PRIOR_REVIEWED})
-
-
 class RecordTest(unittest.TestCase):
     def test_missing_or_broken_record_reads_standard(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -154,14 +143,16 @@ class RecordTest(unittest.TestCase):
 
 class ReportLineTest(unittest.TestCase):
     def test_three_shapes(self):
-        self.assertEqual(headdepth.report_line("軽量", "根拠", True, ""),
-                         "run の頭の深さ: 軽量（根拠: 根拠）／飛ばしたノード: plan-review-run__review-loop")
-        self.assertEqual(headdepth.report_line("軽量", "根拠", False, headdepth.RAISED),
-                         "run の頭の深さ: 軽量 → 標準へ上げた（計画の単位がすべて軽量ではない）／飛ばしたノード: 無い")
-        self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い", False, ""),
-                         "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い")
-        self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い", False, "事前審査を飛ばすかの判断が落ちた（x）"),
-                         "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い")
+        self.assertEqual(headdepth.report_line("軽量", "根拠"), "run の頭の深さ: 軽量（根拠: 根拠）／省いた物: 無い／足した物: 無い")
+        self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い"),
+                         "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／省いた物: 無い／足した物: 無い")
+        self.assertEqual(headdepth.report_line("重厚", "設計の選びが要る"),
+                         "run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省いた物: 無い／足した物: judge_verify・review_tree")
+        self.assertEqual(headdepth.report_line("重厚", "設計の選びが要る", cut=("judge_verify",)),
+                         "run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省いた物: 無い／"
+                         "足した物: judge_verify（名指しで切った）・review_tree")
+        self.assertEqual(headdepth.report_line("", ""), "run の頭の深さ: 標準／省いた物: 無い／足した物: 無い")
+        self.assertEqual(headdepth.report_line("極厚", "x"), "run の頭の深さ: 標準（根拠: x）／省いた物: 無い／足した物: 無い")
 
 
 if __name__ == "__main__":

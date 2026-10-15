@@ -4,7 +4,7 @@
 fixture:
   expect: completed
   reached: [gate-efficacy-accept, provenance-accept, diagnose-prep, verdict]
-intake: {go: true, mode: judge, spec: false, world: false, verify: false, reason: ''}
+intake: {go: true, mode: judge, spec: false, world: false, reason: ''}
 head-depth-prep: {go: false, brief_file: '', reason: 機械の止め（筋書きの stub）}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:

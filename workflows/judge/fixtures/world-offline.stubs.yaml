@@ -2,7 +2,7 @@
 fixture:
   expect: completed
   reached: [world-intake, world-classes-accept, world-plan, world-judge-accept, world-finish, diagnose-accept, verdict]
-intake: {go: true, mode: judge, spec: false, world: true, verify: false, reason: ''}
+intake: {go: true, mode: judge, spec: false, world: true, reason: ''}
 head-depth-prep: {go: false, brief_file: '', reason: 機械の止め（筋書きの stub）}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:

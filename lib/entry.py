@@ -73,18 +73,25 @@ def features_on(word: str) -> list:
     return _feature_list(word, FEATURES_ON_KEY)
 
 
-def feature_words(off, on=()) -> dict:
-    """start の出口の機能ごとの欄 {<機能>: on | off | auto}（線がブロックの切り替えの入力へ写す）。名指した語が既定に勝つ:
-    features_on の語は on・features_off の語は off・どちらにも無ければ FEATURE_DEFAULTS（無ければ on）。両方に在る語は
-    入口の節（start）が拒むので届かない"""
-    off, on = set(off or ()), set(on or ())
-    return {name: SWITCH_ON if name in on else SWITCH_OFF if name in off
+def feature_words(off, on=(), adds=()) -> dict:
+    """start の出口の機能ごとの欄 {<機能>: on | off | auto}（線がブロックの切り替えの入力へ写す）。名指した語が足しに、足しが既定に勝つ:
+    features_on の語は on・features_off の語は off・adds（run の頭の深さの段が足す機能。depth.tier_adds）の語は on・どれにも無ければ
+    FEATURE_DEFAULTS（無ければ on）。features_on と features_off の両方に在る語は入口の節（start）が拒むので届かない"""
+    off, on, adds = set(off or ()), set(on or ()), set(adds or ())
+    return {name: SWITCH_ON if name in on else SWITCH_OFF if name in off else SWITCH_ON if name in adds
             else FEATURE_DEFAULTS.get(name, SWITCH_ON) for name in FEATURES}
 
 
-def features_cut(off, on=()) -> list:
+def switch(doc, name: str, adds=()) -> str:
+    """始めの記録 doc の機能 name の語（on・off・auto）を feature_words と同じ式で返す。doc の欄 features_off・features_on の名指しと
+    adds だけを読み、記録が無い・欄が無ければ名指し無しとして FEATURE_DEFAULTS を返す"""
+    doc = doc if isinstance(doc, dict) else {}
+    return feature_words(doc.get(FEATURES_KEY) or [], doc.get(FEATURES_ON_KEY) or [], adds)[name]
+
+
+def features_cut(off, on=(), adds=()) -> list:
     """実効で off の機能の語（語の順。start の控えの FEATURES_CUT_KEY）"""
-    return [k for k, v in feature_words(off, on).items() if v == SWITCH_OFF]
+    return [k for k, v in feature_words(off, on, adds).items() if v == SWITCH_OFF]
 
 
 def cut_of(doc: dict) -> set:
@@ -103,9 +110,9 @@ def features_on_of(doc: dict) -> list:
     return sorted(k for k in FEATURE_DEFAULTS if k not in off)
 
 
-def features_part(off, on=()) -> str:
+def features_part(off, on=(), adds=()) -> str:
     """頭の行と報告の冒頭 2 の機能の語: on でない機能を語の順に「<機能> <off|auto>」で並べる（全部 on なら「機能: 全部 on」）"""
-    rest = [f"{k} {v}" for k, v in feature_words(off, on).items() if v != SWITCH_ON]
+    rest = [f"{k} {v}" for k, v in feature_words(off, on, adds).items() if v != SWITCH_ON]
     return f"機能: {'・'.join(rest)}" if rest else "機能: 全部 on"
 
 

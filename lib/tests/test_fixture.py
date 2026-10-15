@@ -131,6 +131,16 @@ class AdoptCase(Fixture):
         self.assertIn(words, str(caught.exception))
         self.assertEqual(sorted(p.relative_to(place) for p in place.rglob("*")) if place.exists() else [], before, "拒む時は何も書かない")
 
+    def test_format_one_names_the_review_skip(self):
+        """形の版 1 の控えの固定材料は取り込まず、その写しは深さで事前審査を飛ばしたかもしれないと拒みの文が言う"""
+        src = self.captured()
+        older = self.tmp / "format-one"
+        shutil.copytree(src, older)
+        man = json.loads((older / fixture.MANIFEST).read_text(encoding="utf-8"))
+        (older / fixture.MANIFEST).write_text(json.dumps({**man, "format": 1}), encoding="utf-8")
+        self.refused("形の版 1 の写しは深さで事前審査を飛ばしたかもしれない", src=older)
+        self.assertEqual(fixture.FORMAT, 2)
+
     def test_refusals_name_what_differs(self):
         src = self.captured()
         self.refused("無いか読めない", src=self.tmp)

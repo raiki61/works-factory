@@ -1,6 +1,7 @@
 """単位ごとの深さ（計画 docs/plans/2026-10-06-variable-depth.md。ライン darkfactory のモジュール・層 L6）。使うのはブロックの script。
 
 判定が切った単位ごとに、修正案の項目の欄（plan-fields.json）の形から深さ（軽量か標準）を機械が決め、修正の後の信号で標準へ上げる。
+run 全体の深さの段（軽量・標準・重厚）の定義は表 TIERS 1 か所（docs/design.md の「深さの段の表」の正本）。単位の深さの語は軽量・標準の 2 つ。
 標準は今の振る舞いのすべて。軽量は、測りで何も見つけなかった確かめ（SKIPPED: 差分の審査とレンズ・手直し、独立の目の R1〜R4 と
 コメントの削除候補）を省く。省くのは graph の外の物と graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持ち主の決定
 2026-10-06 で写しの graph の ! 行で optional にした）。ブロックはこの控えを読まない——線が省く理由の文（skip_reason）を平の入力
@@ -10,9 +11,11 @@
   配線だけの単位（触るファイルが全部 wiring の物）は条件 4（約束の形のファイル）に数えない（決め 3 の補い）
 - wiring(path): 配線のファイルか（線とブロックの YAML＝<名>/<名>.yaml・.yml と manifest.json。schemas/ の下は除く）
 - decide_doc(items, open_units, *, forced, checked): 直す義務の単位の全部の深さ（控えの形）。forced は入力 thickness の語
-  （空・自動は機械が決める。軽量・標準は全部をその深さに固定）
+  （空・自動は機械が決める。軽量・標準は全部をその深さに固定。重厚は単位では標準に固定する——重厚は単位でなく run に足す物）
 - has_checks(start): 始めの記録 start に機械の確かめ（tdd_suite か test_cmd）が在るか（unit_depth の checked に渡す。訳は UNCHECKED）
-- named(thickness): 入力 thickness が名指す深さ（軽量・標準。ほかの語・空は空）。訳は named_why(深さ)
+- named(thickness): 入力 thickness が名指す深さの段（HEADS の語。ほかの語・空は空）。訳は named_why(深さ)
+- tier_adds(head): 段 head が足す機能の語の並び（TIERS の足す物。知らない語・空は空）。機能の名と切り替えの式は entry
+  （entry.feature_words・entry.switch の adds に渡す）
 - raise_doc(doc, *, units, run): 信号で標準へ上げた控え。units は {単位: 理由}（その単位だけ）、run は理由の並び（全部の単位）。下げない
 - run_wide(items, keys, touched=()): 控えの単位 keys を合わせた run 全体の広さ（触るファイルの和集合と、受け入れと書き換えの
   テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並びと、触るファイルの数。触るファイルは計画の allowed_paths に、修正の実際の差分
@@ -20,8 +23,7 @@
   標準へ上げる（raise_doc の run）
 - run_depth(doc): 切った後の run 全体の段の深さ（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
 - skip_reason(doc): run が軽量なら省く理由の文、標準なら空（ブロックの平の入力 skip・skip_optional に渡す）
-- lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物。doc の eyes_kept が真なら、
-  事前審査の代わりに回した独立の目を省いた物に数えない）
+- lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物）
 """
 import json
 import pathlib
@@ -33,11 +35,13 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
+import entry  # noqa: E402
 import impact  # noqa: E402
 import planmarks  # noqa: E402
 
 LIGHT = "軽量"
 STANDARD = "標準"
+HEAVY = "重厚"
 MAX_PATHS = 3         # 測り: 何も見つけなかった単位は allowed_paths 1〜3 個、見つけた単位は 4 個（MAX_PATHS を超える）
 MAX_TESTS = 2         # 測り: 同じく受け入れのテストと書き換える既存のテストが合わせて 1 本、見つけた単位は 4 本（MAX_TESTS を超える）
 CONTRACT_SUFFIXES = (".json", ".yaml", ".yml", ".toml")
@@ -55,6 +59,19 @@ EYES_SKIPPED = ("独立の目の r1.comment_candidates（コメントの削除�
                 "独立の目 R4（r4.hidden_scope。見えていない範囲）")
 SKIPPED = (DELTA_SKIPPED, *EYES_SKIPPED)
 UNCHECKED = "機械の確かめが無い（tdd_suite も test_cmd も空）"
+
+# run 全体の深さの段の定義（ただ 1 つの表。docs/design.md の「深さの段の表」はこの写しで、tests/layers の E20 が一致を縛る）。
+# omits は段が省く物、adds は段が足す機能の語（字を持たず entry.FEATURE_DEFAULTS の名で引く）。
+# 軽量の omits が空なのは、頭の深さで単位の深さの省きを縛る直しが別に入るから。今の版では単位の深さの省き SKIPPED が
+# 頭の深さに依らず、全部の単位が軽量の run で効く（記録された方針 dynamic-depth）。
+# gate の機械の止め（仕様の段・設計だけ・依頼の行が無い・機械の確かめが無い）の run は役を起こさず標準になり、自動では重厚を
+# 選ばない。重厚が要るなら入力 thickness=重厚 で名指す（名指しは gate が役を起こさずに固定する）。
+TIERS = {
+    LIGHT: {"omits": (), "adds": ()},
+    STANDARD: {"omits": (), "adds": ()},
+    HEAVY: {"omits": (), "adds": tuple(entry.FEATURE_DEFAULTS)},
+}
+HEADS = tuple(TIERS)   # run の頭の深さの語（headdepth.check・入力 thickness・役の出力の enum がここから引く）
 
 
 def _items_of(items, key: str) -> list:
@@ -136,7 +153,12 @@ def has_checks(start) -> bool:
 
 def named(thickness) -> str:
     word = str(thickness or "").strip()
-    return word if word in (LIGHT, STANDARD) else ""
+    return word if word in HEADS else ""
+
+
+def tier_adds(head) -> tuple:
+    """段 head が足す機能の語の並び（知らない語・空は空）"""
+    return tuple((TIERS.get(head) or {}).get("adds") or ())
 
 
 def named_why(word: str) -> str:
@@ -148,7 +170,8 @@ def decide_doc(items, open_units, *, forced: str, checked: bool) -> dict:
     units = {}
     for key in open_units or []:
         if named(forced):
-            units[key] = {"depth": forced, "why": [named_why(forced)]}
+            unit = forced if forced in (LIGHT, STANDARD) else STANDARD   # 重厚は単位を軽量にしない（標準に固定する）
+            units[key] = {"depth": unit, "why": [named_why(forced)]}
         else:
             d, why = unit_depth(items, key, checked=checked)
             units[key] = {"depth": d, "why": why}
@@ -199,9 +222,8 @@ def lines(doc) -> list:
     out += [f"  - 標準へ上げた信号: {why}" for why in doc.get("raised") or []]
     if doc.get("counted"):
         out.append(f"run の広さの数え: {doc['counted']}")
-    if run_depth(doc) == LIGHT:   # 事前審査を run の頭の深さで飛ばした run（eyes_kept）は、代わりの独立の目を省かない
-        skipped = (DELTA_SKIPPED,) if doc.get("eyes_kept") else SKIPPED
-        out.append("軽量で省いた: " + "／".join(skipped))   # 1 行にまとめる（項目の中に「・」が在るので区切りは「／」）
+    if run_depth(doc) == LIGHT:
+        out.append("軽量で省いた: " + "／".join(SKIPPED))   # 1 行にまとめる（項目の中に「・」が在るので区切りは「／」）
     return out
 
 

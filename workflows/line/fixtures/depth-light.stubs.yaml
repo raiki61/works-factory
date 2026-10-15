@@ -1,20 +1,20 @@
-# run の頭の深さが軽量で、計画の単位も全部軽量（issue #441）。plan-review-due が skip を返し、事前審査の輪
-# plan-review-run__review-loop が skipped になり、報告まで届く。目への印 review_skipped は fixed の出力で照らす（tests/e2e/test_line_scenarios.py）
+# run の頭の深さが軽量で、計画の単位も全部軽量（issue #441）。深さで事前審査の輪を飛ばす道は無く、plan-review-run__review-loop が
+# 走って報告まで届く（計画の壁打ちはどの深さでも省かない。tests/e2e/test_line_scenarios.py）
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
-  reached: ["plan-review-due", "plan-review-run__review", "fixed", "report__report"]
+  reached: ["review-accept", "report__report"]
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "ran_steps": {"ran": ["suite"], "unran": []}, "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "test_outcomes": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}, "by": "engine", "suites_line": "走らせた: suite（exit 0・direct）／走らせなかった: 無い", "log": "test-gate-base/logs/checks.log", "baseline_line": "", "reason": ""}
-judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "verify": false, "reason": ""}
+judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "reason": ""}
 judge__verify-merge: {"ok": true, "reason": ""}
 judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null, "depth": "軽量", "depth_why": "原因と直す行が名指されている（筋書きの stub）"}
 plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
 plan__structure-state: {"state_file": "plan/r1/structure-state.json"}
 plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
 plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}], "round": 1}
-plan-review-run__open: {"ok": true, "r2_go": false, "tree": false, "k": 1, "form": "review", "depth_skip": true, "reason": ""}
+plan-review-run__open: {"ok": true, "r2_go": false, "tree": false, "k": 1, "form": "review", "reason": ""}
 plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": []}
 fix__route: {"group": true}
 fix__group-start: {"tdd": false, "units": 1, "reason": ""}
@@ -33,3 +33,6 @@ merge-apply__merge: {"mode": "apply", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaa
 report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": true, "outcome": "fixed", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
 plan-review-run__review-reads: {"ok": true, "missing": [], "index_file": "plan-review/pass-1/reads-plan-review-block.json", "reason": ""}
+review-prep: {"prompt_file": "/fixture/plan-review/pass-1/prompt.md"}
+plan-review: {"faces": [], "shrink": [], "reason": "stub: 写し・入口・契約のずれを確かめた", "faces_none": "stub: 穴が無いことを全部の見ることで確かめた"}
+review-accept: {"ok": true, "done": true, "give_up": false, "reason": ""}

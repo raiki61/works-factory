@@ -53,14 +53,11 @@ inputs:
     description: >-
       修正前の承認ノードの答え {decision, text, asked: [通した行の文…]} か、その並びか null（通した行を聞き直さず、方針の変化を通したら
       その版を固め直す）
-  depth_skip:
-    default: "false"
-    description: >-
-      メイングラフの計画の往復の include だけが渡す。真なら事前審査のループ review-loop を飛ばし、審査なしで通した形を返す
-      （docs/design.md の深さで飛ばすノードの表）。形 review の時だけ効く
-  depth_why:
+  head_depth:
     default: ""
-    description: depth_skip の訳（メイングラフの plan-review-due の why。審査の返答の代わりの控えに載る）
+    description: >-
+      run の頭の深さの段の語（メイングラフの計画の往復の include だけが渡す。判定の出力 depth）。事前審査の木を決める時に、始めの記録に
+      review_tree の名指しが無ければ、段の足し（docs/design.md の深さの段の表。重厚は木にする）を引く。空は足し無し。形 review の時だけ効く
   round_limit:
     default: "null"
     description: >-
@@ -72,7 +69,8 @@ outcome_field: pass
 
 nodes:
   # 入力の指し札の先を置き場に写し、見え方の材料を置く。独立設計を回すか（同じ run に設計の控えが無く、目的が使える時だけ）と、
-  # 事前審査を木にするか（始めの記録の review_tree。auto は開いた項目が 2 つ以上）を決める。落ちずに ok で答える
+  # 事前審査を木にするか（始めの記録の review_tree の名指し、無ければ入力 head_depth の段の足し、それも無ければ auto は開いた項目が
+  # 2 つ以上）を決める。落ちずに ok で答える
   - id: open
     script: pass_open
     runtime: uv
@@ -81,14 +79,13 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, r2_go, tree, k, form, depth_skip, reason]
+      required: [ok, r2_go, tree, k, form, reason]
       properties:
         ok: {type: boolean}
         r2_go: {type: boolean}
         tree: {type: boolean}
         k: {type: integer}
         form: {type: string, enum: [review, replan, design, ""]}
-        depth_skip: {type: boolean}
         reason: {type: string}
 
   # 独立設計（道具ゼロの役。目的の文と実測した制約と人が決めた前提だけを受ける）。3 回とも拒まれても止めない
@@ -165,11 +162,10 @@ nodes:
               reason: {type: string}
 
   # 事前審査（役 1 つか、項目ごとの下請けを並べる束ね役）。輪の中の節は輪の前の節の出力に結ばず、plan-review/ のファイルを読む。
-  # run の頭の深さが軽量の周は飛ばす（docs/design.md の深さで飛ばすノードの表。workflows/AGENTS.md の E20）
   - id: review-loop
     depends_on: [open, r2-design-loop]
     trigger_rule: all_done
-    when: "$open.output.ok == true && $open.output.form != 'design' && $open.output.depth_skip != true"
+    when: "$open.output.ok == true && $open.output.form != 'design'"
     timeout: 1728000000
     loop_group:
       max_iterations: 3

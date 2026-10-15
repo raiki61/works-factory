@@ -1,5 +1,5 @@
 # 同じ run に設計の控えが在る・目的が使えない → r2-design-loop は飛び、事前審査は走る
-open: { ok: true, r2_go: false, tree: false, k: 1, form: review, depth_skip: false, reason: "" }
+open: { ok: true, r2_go: false, tree: false, k: 1, form: review, reason: "" }
 review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md" }
 plan-review: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }
 review-accept: { ok: true, done: true, give_up: false, reason: "" }

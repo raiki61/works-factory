@@ -7,8 +7,7 @@ eyes/r2-premises.json に書く。目が読む累積差分は、入口の base�
 （未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
 （直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
 （試験の関門が比べた入力 test_outcomes）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
-carry.CARRIED_HOW_HEAD で始まる行）が在る run と、run の頭の深さで事前審査を飛ばした run（入力 review_skipped）は、深さで目を
-省かない（run_eyes を真に）"""
+carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に）"""
 import json
 import os
 import sys
@@ -69,11 +68,9 @@ premises_text, r2_ledger = eyeverdict.premise_section(
     design_seen=(eyeverdict.read_json(design_file.with_name(eyeverdict.DESIGN_PREMISES)) or {}).get("seen") if design_file else None)
 
 out = {
-    # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）。
-    # run の頭の深さで事前審査を飛ばした run も省かない（目が事前審査の代わり。docs/design.md の深さで飛ばすノードの表）
+    # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）
     "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}}) == ""
-    or any(isinstance(c, dict) and str(c.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD) for c in constraints or [])
-    or boundary.parsed(os.environ.get("INPUTS_REVIEW_SKIPPED")) is True,
+    or any(isinstance(c, dict) and str(c.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD) for c in constraints or []),
     "compare_due": eyeverdict.r2_compare_due(design, purpose_text),
     "premise_due": eyeverdict.r2_premise_invalid(design),
     "purpose_text": purpose_text,

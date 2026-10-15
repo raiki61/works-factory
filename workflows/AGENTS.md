@@ -80,10 +80,8 @@
 - 2 回走ると困るノード（外への書き込みを持つ物など）だけ外し、ノードの頭の行の真上に `# retry なし: <理由>` を 1 行で書く。
 - 機械: `tests/layers/test_role_retry.py`（全部のグラフの AI ノードが `retry` をこの形（`scan.py` の `ROLE_RETRY`）で持つか、真上に理由の在る外しの行を持つ。両方在るのも赤。照らしは `tests/layers/scan.py` の `_role_retry`）。
 
-## E20 深さで飛ばすノードは表に載せ、when の句で結ぶ
+## E20 深さの段は表 1 か所に置き、when の句で飛ばさない
 
-- run の頭の深さ（judge の `depth`）が軽量の時に飛ばしてよいノードは、`docs/design.md` の「深さで飛ばすノードの表」（ノード・飛ばしてよい深さ・理由の 3 欄）に載せた物だけ。表に無いノードを深さで飛ばさない。持ち主の決め `depth-by-reason`。
-- 結び方: 表の行のノードの `when` に句 `$<頭の script>.output.depth_skip != true` を 1 つ足し、Archon が skipped にする（飛ばしの仕組みを自前で作らない。表を読んで YAML を作らない。E1）。include の中の `when` は `$INPUTS` を左に置けないので、サブグラフでは頭の script が入力 `depth_skip`（既定 `"false"`）を読んで出力の欄 `depth_skip` に返し、句はそれを読む。入力を真にしうるのはメイングラフの include の `with:` だけで、どの周に真にするかはメイングラフの `plan-review-due`（`lib/headdepth.py` の `due`）が決める。
-- 表の行の名は run の記録の id（メイングラフのノードはその id、サブグラフの頭の段のノードは `<include の id>__<ノード>`、ループの中のノードは素の id）。理由の欄には、代わりに担うノードの id（バッククォート）を書いた `代わり:` と、判断の材料の数の `材料:` を書く。飛ばしてよい深さは軽量だけ。
-- judge の中のノードを表に足す時は、その句を出す script のノードを judge の `head-depth-loop` の後ろに `depends_on` でつなぐ（深さが決まる前に読まない）。
-- 機械: `tests/layers/test_depth_skip.py`（`depth_skip` の句を持つノードの run の記録の id の集まりが表の行と等しい・句の形が `!= true` だけ・サブグラフの句を効かせる include が `depth_skip` を渡す・深さが軽量・理由に `代わり:` と `材料:` と実在するノードの id が在る。照らしは `tests/layers/scan.py` の `_depth_skip`）。
+- run の頭の深さ（judge の `depth`）の段（軽量・標準・重厚）の定義は `lib/depth.py` の `TIERS` 1 か所。`docs/design.md` の「深さの段の表」（段・省く物・足す物・理由の 4 欄）はその写しで、行は `TIERS` と等しくなければならない。深さの語・重厚が足す機能・報告の行はどれも `TIERS` から引き、字を写さない。持ち主の決め `depth-by-reason`。
+- ノードを深さの値で飛ばさない: どのノードの `when` も、出力の深さの欄を読む句（`$<ノード>.output.<名に depth を含む欄>`）を持たない。計画の壁打ち（plan と plan-review の往復）はどの段でも省かない。段の足しは、機能の切り替えの式（`lib/entry.py` の `feature_words`・`switch` の `adds`）を通して効かせる。
+- 機械: `tests/layers/test_depth_skip.py`（どのノード〔メイングラフ・サブグラフの頭の段・ループの中〕の `when` も深さの欄を読む句を持たない・表の行が `depth.TIERS` と等しい。照らしは `tests/layers/scan.py` の `_depth_when`）。

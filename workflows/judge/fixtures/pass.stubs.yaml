@@ -3,7 +3,7 @@
 fixture:
   expect: completed
   reached: [intake, head-depth-accept, pr-scan, premises-accept, purpose-accept, material-route, prior-decisions-accept, diagnose-prep, diagnose-accept, verify-prep, verify-merge, verdict]
-intake: {go: true, mode: judge, spec: false, world: false, verify: false, reason: ''}
+intake: {go: true, mode: judge, spec: false, world: false, reason: ''}
 head-depth-prep: {go: true, brief_file: /tmp/judge/depth-head-brief.md, reason: ''}
 head-depth-reject: {reason: '', "lang_line": ""}
 head-depth:

@@ -43,7 +43,9 @@ DIR = "fix-fixture"              # run の置き場の下
 MANIFEST = "fixture.json"        # DIR の下の控え
 COPY = "place"                   # DIR の下の run の置き場の写し
 CARRIED = "fixture-carried.json"  # 取り込んだ run の置き場の根の、書き換えた carried
-FORMAT = 1
+FORMAT = 2
+# 前の形の版の番号 → 取り込まない訳に添える注（FORMAT を上げた時に、前の版の写しの何が今と違うかを言う）
+FORMAT_NOTES = {1: "形の版 1 の写しは深さで事前審査を飛ばしたかもしれない"}
 KEY = "fixture"                  # 始めの記録の鍵 {source_run, manifest_sha256, at}（取り込んだ run の印）
 CAPTURED_KEY = "fixture_captured"  # 始めの記録の鍵 {dir, error}（写した run の印）
 # 取り込みで今の値にする入力の欄（ほかの入力の欄は写した始めの記録と今の入力が同じでなければ拒む）。request は名指しの字が違っても
@@ -172,8 +174,9 @@ def _manifest(src: pathlib.Path) -> tuple:
     if not isinstance(man, dict):
         raise FixtureRefused(f"固定材料の控え {path} が JSON の object でない")
     if man.get("format") != FORMAT:
+        note = FORMAT_NOTES.get(man.get("format"))
         raise FixtureRefused(f"固定材料 {src} は前の版の固定材料（形の版 {man.get('format')!r}。今の版は {FORMAT}）"
-                             "——この版の works で写し直す")
+                             + (f"——{note}" if note else "") + "——この版の works で写し直す")
     ok = all(isinstance(man.get(k), str) for k in _STR_KEYS) and all(
         isinstance(man.get(k), dict) and all(isinstance(a, str) and isinstance(b, str) for a, b in man[k].items())
         for k in _MAP_KEYS) and "carried" in man

@@ -1253,20 +1253,17 @@ def _depth_lines(start: dict, returns: dict, line: dict) -> list:
     doc = {"units": {str(d.get("unit_id")): {"depth": d.get("depth"), "why": [str(d["why"])] if d.get("why") else []}
                      for d in rows if isinstance(d, dict)},
            "forced": as_dict(start).get("thickness") or "", "raised": _list(redepth.get("raised")),
-           "counted": redepth.get("counted") or "", "eyes_kept": as_dict(returns.get("plan")).get("depth_skip") is True}
+           "counted": redepth.get("counted") or ""}
     return [*depthlib.lines(doc), *([] if redepth else [NO_REDEPTH])]
 
 
-def _head_depth_line(returns: dict) -> list:
-    """run の頭の深さの 1 行（報告の冒頭 2。headdepth.report_line）: 1 回目の判定が決めた深さと根拠と、計画の往復が飛ばしたノード・
-    標準へ上げた訳（計画の往復の depth_why。飛ばした周では飛ばした訳なので上げた訳に数えない）。判定の返りが無ければ出さない"""
+def _head_depth_line(start: dict, returns: dict) -> list:
+    """run の頭の深さの 1 行（報告の冒頭 2。headdepth.report_line）: 1 回目の判定が決めた段と根拠と、段の省く物・足す物（始めの記録の
+    features_off で名指しで切った足しにはそう添える）。判定の返りが無ければ出さない"""
     judged = returns.get("judge")
     if not isinstance(judged, dict) or not judged.get("depth"):
         return []
-    planned = as_dict(returns.get("plan"))
-    skipped = planned.get("depth_skip") is True
-    return [headdepth.report_line(judged["depth"], judged.get("depth_why") or "", skipped,
-                                  "" if skipped else str(planned.get("depth_why") or ""))]
+    return [headdepth.report_line(judged["depth"], judged.get("depth_why") or "", as_dict(start).get(entrylib.FEATURES_KEY) or [])]
 
 
 def _prior_in_lines(line: dict) -> list:
@@ -1311,7 +1308,9 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     gate_words = gatepolicy.head_words(s)
     if gate_words:
         out.append(gate_words)
-    feats = f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s))}" if entrylib.FEATURES_KEY in s else ""
+    adds = depthlib.tier_adds(as_dict(returns.get("judge")).get("depth"))   # 判定の頭の深さの段が足した機能は、名指しの無い限り on
+    feats = (f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s), adds)}"
+             if entrylib.FEATURES_KEY in s else "")
     out.append(f"段: {s.get('thickness') or '自動（機械が単位ごとに決めた）'}{feats}")
     out.append(f"決めた人: 承認ノードの答え {sum(1 for g in as_dict(gates).values() if isinstance(g, dict))} 件")
     why = forge.reason(forge.detect(repo)) if repo else ""
@@ -1322,7 +1321,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     out.append(f"走った段: {'・'.join(ran) or '無い'}")
     out.append(f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}")
     out += _downgrade_lines()
-    out += _head_depth_line(returns)
+    out += _head_depth_line(start, returns)
     out += _depth_lines(start, returns, line)
     out += _prior_in_lines(line)
     out += _policy_lines(returns, repo)
