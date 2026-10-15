@@ -185,19 +185,17 @@ def r4_accept(eyes_dir, got: tuple, passed: dict) -> dict:
     （支度の控え PREP_FILE の policy.RECORDED_KEY）を名指さない行が在れば拒む。reply は読めた返答（読めなければ None）で、諦めた
     時も返す"""
     eyes_dir = pathlib.Path(eyes_dir)
-    reply, why = got
+    reply, _ = got
     recorded = read_json(eyes_dir / PREP_FILE)[policy.RECORDED_KEY]
 
     def check() -> dict:
-        if reply is None:
-            raise Reject(why)
         off = [x for kind, _, x in _r4_rows(reply) if kind == policy.POLICY_KIND and (kind, x) not in passed
                and not policy.hits(recorded, x)]
         if off:
             raise Reject(R4_REJECT + "\n" + _lines(off))
         return {"ok": True}
 
-    return {**boardview.counted(eyes_dir, R4_NODE, accept.guard(check)), "reply": reply}
+    return {**rolekit.round_outcome(rolekit.accept_parsed(eyes_dir, R4_NODE, got, lambda _: accept.guard(check))), "reply": reply}
 
 
 def r4_rejects(eyes_dir) -> str:

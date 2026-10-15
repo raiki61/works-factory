@@ -785,13 +785,10 @@ def added_marks(constraints: list, repo, start_doc) -> list:
 def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
     """独立設計の受け付け: 作業ツリーが役の前と同じ（keys の欄で比べる）→ 問いが立たない時は根拠の名指し（パス:行）が固めた版に在る。通れば
     design.json と、返答が『渡されていない』と書いた文と控えの given の対（PREMISES_FILE の claims）。拒みは控えに積み、
-    GIVE_UP_AFTER 回目で done・give_up。返り {ok, done, give_up, reason}"""
+    rolekit.GIVE_UP_AFTER 回目で done・give_up。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
 
-    def run():
-        reply, why = rolekit.parse_reply(raw)
-        if reply is None:
-            raise Reject(why)
+    def run(reply):
         moved = planfile.moved(d / R2_TREE, repo, keys)
         if moved:
             raise Reject(moved)
@@ -804,13 +801,7 @@ def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
         ledger["claims"] = design.claims_given(design.claims_unpassed(reply), ledger.get("given") or [])
         _write_json(d / PREMISES_FILE, ledger)
         return {"ok": True, "reason": ""}
-    return counted(d, design.NODE, accept.guard(run))
-
-
-def counted(d: pathlib.Path, name: str, got: dict) -> dict:
-    """受け付けの結果 got（accept.guard の {ok, reason}）を役 name の拒否の控えに数え、{ok, done, give_up, reason} にする"""
-    out = rolekit.with_done(d, name, {"ok": got["ok"], "reason": got.get("reason", "")})
-    return {"ok": out["ok"], "done": out["done"], "give_up": bool(out["done"] and not out["ok"]), "reason": out["reason"]}
+    return rolekit.round_outcome(rolekit.accept_round(d, design.NODE, raw, lambda reply: accept.guard(lambda: run(reply))))
 
 
 # ---------------------------------------------------------------- 事前審査
@@ -963,22 +954,20 @@ def take_review(folder, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None) -
     （planblk.design_gaps）→ 前の往復の block の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
     往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める）、
-    返答を pass-<k>/review.json に書く。拒みは pass-<k>/ の控えに積み、GIVE_UP_AFTER 回目で
+    返答を pass-<k>/review.json に書く。拒みは pass-<k>/ の控えに積み、rolekit.GIVE_UP_AFTER 回目で
     done・give_up（その時は最後の拒みの訳を reason に置いた空の返答を review.json に書く）。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
     p.mkdir(parents=True, exist_ok=True)
-    got = counted(p, REVIEW_NODE, accept.guard(lambda: _take(d, p, inputs, reply, fix_reply, repo, keys)))
+    got = rolekit.round_outcome(rolekit.accept_parsed(p, REVIEW_NODE, rolekit.resubmitted(p, REVIEW_NODE, reply, fix_reply, rolekit.merge_fields),
+                                                     lambda merged: accept.guard(lambda: _take(d, p, inputs, merged, repo, keys))))
     if got["give_up"]:
         _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": GIVEN_UP_FACES + got["reason"]})
     return got
 
 
-def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, first, fix, repo, keys) -> dict:
-    reply, why = rolekit.resubmitted(p, REVIEW_NODE, first, fix, rolekit.merge_fields)
-    if reply is None:
-        raise Reject(why)
+def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, keys) -> dict:
     moved = planfile.moved(p / TREE_FILE, repo, keys)
     if moved:
         raise Reject(moved)

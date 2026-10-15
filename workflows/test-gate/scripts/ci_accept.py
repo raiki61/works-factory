@@ -7,7 +7,7 @@ ci-prep の時刻（ci-snapshot.json の prepared_at）より後にこの作業�
 諦める（今の works の ci_role.take と同じ所。棚卸しの T49）。役の前後の作業ツリーの姿（ci-prep の ci-snapshot.json と今。accept.tree_moved。
 HEAD・枝・git が無視するパスも見る。with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない）を比べ、素材の欄の決まり（declared_checks.role_material_problems）を照らす。
 拒まれた後の出し直しの役の返答 fix_reply（直す欄だけ）は、前の答えの控えと欄ごとに合わせてから照らす（rolekit.resubmitted に rolekit.merge_fields）。通れば素材を
-test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit の控えに積む）、役が自分で置きうる ci-material.json を消し、
+test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit.accept_round が控えに積む。控えが読めない・書けない時も落ちずに done・give_up）、役が自分で置きうる ci-material.json を消し、
 rolekit.GIVE_UP_AFTER 回目の拒否で done・give_up（輪を max_iterations で落とさない）。終わる時（通った・諦めた）に写しを消す"""
 import json
 import os
@@ -56,13 +56,12 @@ def main() -> int:
     got = rolekit.resubmitted(gate, declared_checks.CI_ROLE, boundary.value(os.environ.get("INPUTS_REPLY")),
                               boundary.value(os.environ.get("INPUTS_FIX_REPLY")), rolekit.merge_fields)
     judged = judge(gate, root, snap, got, mode, keys, records=os.environ.get(fence.RECORDS_ENV, ""))
-    give_up = judged.pop("give_up", False)
-    out = rolekit.with_done(gate, declared_checks.CI_ROLE, judged, give_up=give_up)
+    out = rolekit.accept_round(gate, declared_checks.CI_ROLE, None, lambda _: judged)   # give_up は judged の欄で渡す
     if not out["ok"]:
         (gate / "ci-material.json").unlink(missing_ok=True)
     if out["done"]:
         declared_checks.drop_copy(snap.get("top"))
-    boundary.returns({"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]})
+    boundary.returns(rolekit.round_outcome(out))
     return 0
 
 

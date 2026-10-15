@@ -37,6 +37,7 @@ import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import ruling  # noqa: E402
+import runreport  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason"}
@@ -61,8 +62,8 @@ def moved_policy(tmp: pathlib.Path) -> tuple:
 # 作業ツリーを変えない script の節（E7）。置き場（run の成果物の置き場）にだけ書く
 READ_ONLY_SCRIPTS = ("route", "prep", "tdd-unit", "conflict-check", "rule-prep", "rule-accept", "fix-ruled-prep",
                      "ruled-consult-check", "ruled-consult-accept", "assert-changed", "delta-cut", "lens-prep",
-                     "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
-                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix", "groups-ok")
+                     "lens-reply", "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
+                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix", "nodes-ok")
 
 # 今の works（2aa7c66c）の同じ役の節の値: (model, effort, context, settingSources, sandbox)。
 # 元 works/blk-fix/blk-fix.yaml の tdd・fix・fix-ruled・rule・plan-answer、blk-delta.yaml の review、blk-lens.yaml の
@@ -239,20 +240,32 @@ class GroupsCase(unittest.TestCase):
         self.assertNotIn("isolation", launchers["groups-seq"])
         self.assertEqual(launchers["groups-seq"]["fan_out"]["max_parallel"], 1)
 
-    def test_a_failed_child_halts_the_block_for_resume(self):
-        """#576: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
-        走らず、ブロックの sink の柵 groups-ok が飛ぶ。join の後に作り直す all_done の節は join を結ぶ"""
+    def test_a_failed_node_halts_the_block_for_resume(self):
+        """#576・#594: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
+        走らない。サブグラフのどの節が落ちても、返す節 fix と落ちても止めない段のほかの全部の節に結ぶブロックの sink の柵
+        nodes-ok が飛ぶ。止めない段は線が報告で受け止めると宣言した節（レンズとその中継）とちょうど同じ"""
         for nid in ("groups-par", "groups-seq"):
             self.assertEqual(self.nodes[nid]["fan_out"]["join"], "all_success", nid)
         self.assertEqual(self.nodes["join"]["trigger_rule"], "none_failed_min_one_success")
-        guard = self.nodes["groups-ok"]
+        top = [n["id"] for n in self.doc["nodes"]]
+        guard = self.nodes["nodes-ok"]
         self.assertEqual(guard["bash"], "true")
-        self.assertEqual(set(guard["depends_on"]), {"route", "groups-par", "groups-seq", "join"})
+        line = {n["id"]: n for n in yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(
+            encoding="utf-8"))["nodes"]}
+        declared = json.loads(line["collect"]["with"]["optional"])
+        for include in ("fix", "refix-run"):
+            with self.subTest(include=include):
+                absorbed = {nid for nid in top if runreport._declared(f"{include}__{nid}", declared)}
+                self.assertEqual(absorbed, {"lens", "lens-reply"})
+                self.assertEqual(set(guard["depends_on"]), set(top) - {"fix", "nodes-ok"} - absorbed)
         self.assertEqual(guard["trigger_rule"], "none_failed_min_one_success")
-        self.assertNotIn("when", guard, "柵が飛ぶのは組か join が落ちた時だけ（形 group の run は済む）")
-        self.assertEqual([nid for nid, n in self.nodes.items() if "groups-ok" in (n.get("depends_on") or [])], [])
-        for nid in ("clean", "assert-changed", "delta-cut"):
-            self.assertIn("join", self.nodes[nid]["depends_on"], nid)
+        self.assertNotIn("when", guard, "柵が飛ぶのはどれかの節が落ちた時だけ（when で飛ぶ節は落ちと数えない）")
+        self.assertEqual([nid for nid, n in self.nodes.items() if "nodes-ok" in (n.get("depends_on") or [])], [])
+
+    def test_only_the_returning_node_and_reads_run_after_a_failure(self):
+        """#594: 落ちた節の後ろの節は飛ぶ（済んだ控えを残さず、resume で作り直される）。all_done で走るのは返す節と、
+        フックの記録を読むだけの fix-reads だけ"""
+        self.assertEqual({n["id"] for n in self.doc["nodes"] if n.get("trigger_rule") == "all_done"}, {"fix", "fix-reads"})
 
     def test_fanouts_hang_off_block_mode_only(self):
         prep = self.nodes["prep"]
@@ -307,6 +320,27 @@ class RolesCase(unittest.TestCase):
         """E7: 読むだけの script の節は mutates_checkout: false。作業ツリーを変える節（戻し・後始末・当て直し）は書かない"""
         marked = {nid for nid, n in self.nodes.items() if n.get("mutates_checkout") is False}
         self.assertEqual(marked, set(READ_ONLY_ROLES) | set(READ_ONLY_SCRIPTS))
+
+    def test_lens_nodes_match_the_lens_table(self):
+        """レンズの表の行と工程のレンズの節は 1 対 1 で、中継の節がその節の出口を受け、集め役は中継の出口を受ける。ずれると
+        起こしたレンズの行が毎回「落ちた」になる（lens_prep・lens_collect の名は表から引く）"""
+        import lenses
+        by_lens = {n["command"].removeprefix("lens-"): nid for nid, n in self.nodes.items()
+                   if str(n.get("command", "")).startswith("lens-")}
+        self.assertEqual(set(by_lens), {row["lens"] for row in lenses.LENSES})
+        self.assertEqual(refs(self.nodes["lens-reply"]["with"]["reply"]), set(by_lens.values()))
+        self.assertEqual(refs(self.nodes["lens-collect"]["with"]["reply"]["from"]), {"lens-reply"})
+
+    def test_a_failed_lens_is_recorded_and_the_block_goes_on(self):
+        """F327（元 works/darkfactory/darkfactory.yaml:946 の [optional]）: レンズが落ちても集め役は走り（支度が済んでいれば
+        one_success）、レンズの行を理由つきの failed で残し、差分の審査へ進む。Archon は落ちた節の出口を if_skipped の結びでも
+        読ませないので、集め役は飛ぶ中継の節の出口を if_skipped: null で受ける。支度が落ちた・飛んだ run では集め役も飛ぶ（F328）"""
+        reply, collector = self.nodes["lens-reply"], self.nodes["lens-collect"]
+        self.assertEqual((reply["depends_on"], reply.get("trigger_rule", "all_success")), (["lens"], "all_success"))
+        self.assertEqual(reply["output_format"], self.nodes["lens"]["output_format"])
+        self.assertEqual((collector["depends_on"], collector["trigger_rule"]), (["lens-prep", "lens-reply"], "one_success"))
+        self.assertEqual(collector["with"]["reply"], {"from": "$lens-reply.output", "if_skipped": None})
+        self.assertIn("lens-collect", self.nodes["delta-loop"]["depends_on"])
 
     def test_roles_keep_the_original_model_and_session_settings(self):
         for nid, (model, effort, context, sources, sandbox) in ORIGINAL_ROLES.items():
@@ -400,8 +434,7 @@ class RolesCase(unittest.TestCase):
 
     def test_give_up_counts_match_the_loop_bounds(self):
         """受け付けが諦める拒否の回は、輪の max_iterations と同じ（ずれれば諦めの前に輪の上限で節が落ちる）"""
-        self.assertEqual(self.nodes["rule-loop"]["loop_group"]["max_iterations"], ruling.GIVE_UP_AFTER)
-        for nid in ("delta-loop", "refix-loop", "review2-loop", "refix2-loop"):
+        for nid in ("rule-loop", "delta-loop", "refix-loop", "review2-loop", "refix2-loop"):
             self.assertEqual(self.nodes[nid]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
 
     def test_clash_loops_sit_between_join_and_the_ruled_fix(self):
@@ -990,11 +1023,28 @@ class DeltaScriptsCase(unittest.TestCase):
         brief = json.loads((self.place / "review1-brief.json").read_text(encoding="utf-8"))
         self.assertEqual(brief["lens"][0]["findings"][0]["where"], "stats.py")
 
+    def test_a_failed_lens_leaves_a_failed_row_and_the_collector_goes_on(self):
+        """F327: 中継の節はレンズの返りをそのまま返す。レンズが落ちて中継が飛んだ run（返り null）でも、集め役は起こしたレンズを
+        理由つきの failed の行に残し、審査役の材料に載せ、集め役の事実は ok: true で済む"""
+        out = self._cut()
+        agents = self.tmp / "toolkit" / "agents"
+        agents.mkdir(parents=True)
+        (agents / "silent-failure-hunter.md").write_text("---\nname: x\n---\n黙って失敗する所を探す役。\n", encoding="utf-8")
+        self.assertTrue(self._run("lens_prep", "lens-prep", env={"PR_REVIEW_TOOLKIT_ROOT": str(self.tmp / "toolkit")})["go"])
+        reply = {"findings": [], "findings_none": "差分を読んだ"}
+        self.assertEqual(self._run("lens_reply", "lens-reply", reply=json.dumps(reply, ensure_ascii=False)), reply)
+        self.assertEqual(self._run("lens_collect", "lens-collect", reply="null"), {"state": "failed", "count": 0})
+        row = json.loads((self.place / "lens.json").read_text(encoding="utf-8"))["rows"][0]
+        self.assertIn("出口が無い", row["reason"])
+        brief = json.loads(pathlib.Path(out["brief_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(brief["lens"][0]["state"], "failed")
+        self.assertEqual(json.loads((self.place / "lenses.json").read_text(encoding="utf-8"))["collector"], {"ok": True, "reason": ""})
+
     def test_lens_collect_failure_is_reported_not_silent(self):
-        """レンズの集め役（lens-collect）が落ちた・ok でない事実を止めずに知らせる: diff の隣の lenses.json に
+        """レンズの集め役（lens-collect）が落ちた・ok でない事実を、止まった run の報告に知らせる: diff の隣の lenses.json に
         {collector: {ok: false, reason}} で載せる。集め役が自分の誤りで落ちれば集め役が書き、何も書かずに落ちた・走らなかった時は
         返す節が書く（lib が読めない道でも）。集めが済めば ok: true、審査を回さない run も ok: true と訳。書けなければ名指す
-        （元 works/blk-lens/scripts/exit.py の lenses.exit_ は盤面を止めた。fix は落ちないを約束にしたので知らせる形）"""
+        （集め役は非 0 で落ち、run を止める。元 works/blk-lens/scripts/exit.py の lenses.exit_ も盤面を止めた）"""
         lenses = self.place / "lenses.json"
 
         def collector():
@@ -1524,7 +1574,6 @@ class BlockScriptsCase(unittest.TestCase):
                 self.assertNotIn("g1", err)
                 self.assertEqual(self.snapshot(self.repo), t1)
                 self.assertFalse((self.place / "join.json").exists())
-                self.assertFalse((out_dir / "g2" / "dropped.json").exists())
 
     def rerun_seed(self, files, *, test_cmd=""):
         """走らせ直しの種: files を commit し、実行器（lib/tests/test_blk_fix_tdd.py の SUITE）を指す始めの記録と、その実行器で
@@ -2100,6 +2149,21 @@ class BlockScriptsCase(unittest.TestCase):
         self.assert_contract(out)
         self.assertEqual(out["units"], [{"unit_id": "B", "group_id": "g2", "status": "fixed", "reason": ""}])
         self.assertTrue(out["done"])
+
+    def test_collect_group_mode_takes_only_a_usable_result(self):
+        """組の子の自分の結果も 1 つの決まり（fixboard.usable_result）で読む: end_tree の無い結果は返っていない組で、done: false"""
+        start = self.snapshot(self.repo)
+        out_dir = self.tmp / "parent" / "groups"
+        broken = _blk_result("g2", ["B"], start, start)
+        del broken["end_tree"]
+        _blk_write(out_dir / "g2" / "result.json", broken)
+        group = json.dumps({"group_id": "g2", "unit_ids": ["B"], "items": []})
+        code, out, err = _blk_run("collect", self.repo, self.art,
+                                  {"mode": "group", "group": group, "out_dir": str(out_dir)}, "collect")
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual([g["returned"] for g in out["groups"]], [False])
+        self.assertFalse(out["done"])
 
     def test_collect_group_mode_returns_no_review(self):
         """組の子の run は差分の審査を回さず、返りの delta_review は {rounds: 0, pass: false}。子の置き場に審査を省いた印や審査の
@@ -2822,8 +2886,8 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertNotIn(raw_doc, text)
 
     def test_group_start_in_order_stops_while_an_earlier_child_is_halted(self):
-        """#576: 親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに止まっていれば、その変更を戻さず何も書かずに 1 で
-        止まる（親の resume が前の子を続きから回す）。前の組が結果を書いていれば今どおり始める"""
+        """#576: 親の作業ツリーで 1 つずつ回る子は、前の組の子が使える結果を残さずに止まっていれば（結果が無いか壊れている）、
+        その変更を戻さず何も書かずに 1 で止まる（親の resume が前の子を続きから回す）。前の組が結果を書いていれば今どおり始める"""
         import leftovers
         before = leftovers.snapshot(self.repo)
         (self.out_dir / "g0").mkdir()
@@ -2835,7 +2899,10 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in self.out_dir.iterdir()), ["g0"])
         self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
         self.assertFalse(self.place.exists())
-        (self.out_dir / "g0" / "result.json").write_text("{}", encoding="utf-8")
+        (self.out_dir / "g0" / "result.json").write_text("{", encoding="utf-8")
+        self.assertIn("g0", self._grp_run("group_start", "group-start", ok=False))
+        self.assertEqual((self.repo / "half.py").read_text(encoding="utf-8"), "Y = 1\n")
+        (self.out_dir / "g0" / "result.json").write_text(json.dumps({"end_tree": before}), encoding="utf-8")
         self._grp_run("group_start", "group-start")
         self.assertTrue((self.repo / "half.py").is_file(), "前の組の結果の在る変更は残す")
 
@@ -2849,18 +2916,22 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
 
     def test_group_start_in_order_drops_its_own_earlier_attempt(self):
-        """自分の組の始めの記録が前の試みから残っていれば、その木に戻してから始める"""
+        """自分の組の始めの記録が前の試みから残っていれば、前の試みの結果が無くても壊れていても、その木に戻してから始める
+        （戻した控えは書かない）"""
         import leftovers
         before = leftovers.snapshot(self.repo)
-        (self.out_dir / "g1").mkdir()
-        (self.out_dir / "g1" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
-        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
-        self._grp_run("group_start", "group-start")
-        self.assertFalse((self.repo / "half.py").exists())
-        self.assertEqual(json.loads((self.out_dir / "g1" / "dropped.json").read_text(encoding="utf-8"))["paths"],
-                         ["half.py"])
-        began = json.loads((self.out_dir / "g1" / "group-start.json").read_text(encoding="utf-8"))
-        self.assertEqual(began["start_tree"], before)
+        for left in (None, "{"):
+            with self.subTest(result=left):
+                (self.out_dir / "g1").mkdir(exist_ok=True)
+                (self.out_dir / "g1" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
+                if left is not None:
+                    (self.out_dir / "g1" / "result.json").write_text(left, encoding="utf-8")
+                (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
+                self._grp_run("group_start", "group-start")
+                self.assertFalse((self.repo / "half.py").exists())
+                self.assertFalse((self.out_dir / "g1" / "dropped.json").exists())
+                began = json.loads((self.out_dir / "g1" / "group-start.json").read_text(encoding="utf-8"))
+                self.assertEqual(began["start_tree"], before)
 
     def test_tdd_step_reads_the_recorder_log(self):
         """記録の根が在る run の TDD の輪の受け付けは、group-start が作った作業ツリーの記録を読み、記録の無い変更を拒む"""
@@ -3681,15 +3752,106 @@ class FixLoopScriptsCase(FixLoopPlace):
         extra.write_bytes(before + b"\n")
         return {"changes": [_fx_change(_FX_MEAN, ["stats.py", "request_ok.json"])]}, before
 
+    def test_fix_accept_counts_in_the_rolekit_ledger_not_the_prompt_number(self):
+        """fix_accept は INPUTS_ITERATION=1 のまま 3 回拒ませても、控えの拒否の数で最後の回が来る。拒否は rolekit の
+        rejects-fix-accept.json に積まれ（reject-fix-accept-<k>.md は作らない）、reason_file は rejects-fix-accept.md でそれまでの拒否を
+        全部持つ。最後の回は名指しの単位だけを諦めて done 真で返る"""
+        self._fx_fix_mean()
+        (self.repo / "bounds.py").write_text("def bound(x):\n    return x\n", encoding="utf-8")
+        reply = {"changes": [_fx_change(_FX_MEAN, ["stats.py"]), _fx_change(_FX_BOUND, ["bounds.py"])]}
+        group = self._fx_group([_FX_MEAN, _FX_BOUND])
+        reasons = []
+        for k in (1, 2):
+            out = self._fx_accept("fix_accept", reply, 1, group=group)
+            self.assertEqual((out["ok"], out["done"]), (False, False), out)
+            reasons.append(out["reason"])
+            self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-accept.md"))
+            self.assertEqual(rolekit.rejected(self.place, "fix-accept"), reasons)
+            text = pathlib.Path(out["reason_file"]).read_text(encoding="utf-8")
+            self.assertEqual(text, rolekit.rejects_text(reasons) + "\n", "それまでの拒否を古い順に全部持つ")
+        out = self._fx_accept("fix_accept", reply, 1, group=group)
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+        units = json.loads((self.place / "fix-units.json").read_text(encoding="utf-8"))
+        self.assertEqual({k: v["status"] for k, v in units.items()}, {_FX_MEAN: "fixed", _FX_BOUND: "given_up"})
+        self.assertEqual(list(self.place.glob("reject-fix-accept-*.md")), [])
+
+    def test_fix_ruled_accept_counts_in_the_rolekit_ledger_not_the_prompt_number(self):
+        """fix_ruled_accept も INPUTS_ITERATION=1 のまま、控え rejects-fix-ruled-accept.json の拒否の数で最後の回が来る（指示書の
+        番号は諦めの判断に使わない）"""
+        self._fx_ruled_place()
+        reasons = []
+        for _ in (1, 2):
+            out = self._fx_accept("fix_ruled_accept", {"changes": []}, 1)
+            self.assertEqual((out["ok"], out["done"]), (False, False), out)
+            reasons.append(out["reason"])
+            self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-ruled-accept.md"))
+            self.assertEqual(rolekit.rejected(self.place, "fix-ruled-accept"), reasons)
+        out = self._fx_accept("fix_ruled_accept", {"changes": []}, 1)
+        self.assertTrue(out["done"], out)
+        self.assertEqual(list(self.place.glob("reject-fix-ruled-accept-*.md")), [])
+        self._fx_unusable_ledgers()
+
+    def _fx_ruled_place(self):
+        conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_test_scope", "text": "テストの期待を直してよい",
+                                                          "limits": ["test_stats.py"]})
+        code, _, err = _fx_run("fix_ruled_prep", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self._fx_json("join.json", {"groups": [{"group_id": "g1", "unit_ids": [_FX_MEAN], "returned": True, "reason": ""}],
+                                    "units": [{"unit_id": _FX_MEAN, "group_id": "g1", "status": "not_done", "reason": ""}]})
+
+    def _fx_unusable_ledgers(self):
+        """拒否の控えの名のディレクトリ（読めない控え）でも、fix_accept・fix_ruled_accept・rule_accept は script が非 0 で落ちず、
+        done 真の拒否（理由『拒否の控えが扱えない』・reason_file は空）を返す"""
+        conflict.park(self.place, [{"unit_key": _FX_BOUND, "between": ["bounds.py:1", "test_bounds.py:2"],
+                                    "why_both_cannot_hold": "テストの期待が誤った境を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}], source=conflict.FIX_SOURCE)
+        code, _, err = _fx_run("rule_prep", self.repo, self.art)   # 裁かれていない申し出が在る（rule-accept の前に rule-prep が走る）
+        self.assertEqual(code, 0, err)
+        for script, name, extra in (("fix_accept", "fix-accept", {"group": self._fx_group([_FX_MEAN])}),
+                                    ("fix_ruled_accept", "fix-ruled-accept", {}), ("rule_accept", "rule", {})):
+            with self.subTest(script=script):
+                (self.place / f"rejects-{name}.json").unlink(missing_ok=True)
+                (self.place / f"rejects-{name}.json").mkdir()
+                code, out, err = _fx_run(script, self.repo, self.art, reply=json.dumps({"changes": [], "rulings": []}),
+                                         consulted="false", iteration="1", **extra)
+                self.assertEqual(code, 0, err)
+                self.assertEqual((out["ok"], out["done"], out["reason_file"]), (False, True, ""), out)
+                self.assertIn("拒否の控えが扱えない", out["reason"])
+
+    def test_rule_accept_reason_file_is_the_rule_ledger(self):
+        """rule_accept の拒否の reason_file は rolekit の rejects-rule.md（ruling.ROLE の控えの全部）。rejects-rule.json の拒否と
+        同じ文を持ち、reject-rule-accept-<k>.md は作らない。rule_prep は同じファイルを名指す"""
+        conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE)
+        code, _, err = _fx_run("rule_prep", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        code, out, err = _fx_run("rule_accept", self.repo, self.art, reply=json.dumps({"rulings": []}), iteration="1")
+        self.assertEqual((code, out["ok"], out["done"]), (0, False, False), err)
+        self.assertEqual(out["reason_file"], str(rolekit.rejects_text_path(self.place, ruling.ROLE)))
+        rows = json.loads((self.place / "rejects-rule.json").read_text(encoding="utf-8"))
+        self.assertEqual([r["reason"] for r in rows], [out["reason"]])
+        self.assertIn(out["reason"], pathlib.Path(out["reason_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(list(self.place.glob("reject-rule-accept-*.md")), [])
+        code, nxt, err = _fx_run("rule_prep", self.repo, self.art)
+        self.assertIn(out["reason_file"], pathlib.Path(nxt["prompt_file"]).read_text(encoding="utf-8"))
+
     def test_unasked_overflow_is_queued_for_the_next_consult_check(self):
         """範囲の外のはみ出しだけの返答は、まだ聞いていなければ拒まずに相談に積み（最後の回でも輪を抜けない）、次の周の
         consult-check が積んだ頼みで答えの役を起こす（元 accept.py:549 の settle_overflow）"""
         import fixboard
         reply, before = self._fx_overflow()
         group = self._fx_group([_FX_MEAN])
-        out = self._fx_accept("fix_accept", reply, 3, group=group)
+        for k in (1, 2):   # 最後の回かは指示書の番号でなく rolekit の控え rejects-fix-accept.json の拒否の数で決まる
+            rolekit.accept_round(self.place, "fix-accept", None, lambda _: {"ok": False, "reason": f"{k} 回目の拒否"})
+        out = self._fx_accept("fix_accept", reply, 1, group=group)
         self.assertEqual((out["ok"], out["done"]), (False, False), out)
         self.assertTrue(out["reason"].startswith(fixboard.QUEUED), out["reason"])
+        self.assertEqual(len(rolekit.rejected(self.place, "fix-accept")), 2, "積んだ回は控えに数えない")
         self.assertEqual((self.repo / "request_ok.json").read_bytes(), before + b"\n", "積んだ回は作業ツリーを変えない")
         code, out, err = _fx_run("consult_check", self.repo, self.art, reply=json.dumps(reply, ensure_ascii=False),
                                  **{"pass": "first"})

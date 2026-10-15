@@ -4,8 +4,9 @@
 # ///
 """修正案の役の返答の受け付け（lib/planfile.take_plan・take_replan）。拒まれた後の出し直しの役の返答 fix_reply（拒まれた所だけ）は、
 前の回の答えの控えと合わせてから照らす（rolekit.resubmitted に、形 plan は planfile.merge_resubmit・形 replan は
-planfile.merge_replan_resubmit。合わせた答えは 1 回で書いた答えと同じ形）。拒否は rolekit.with_done の控えに積み、3 回目の拒否で
-done・give_up（輪を max_iterations で落とさずに抜ける）。受けた案の控えを置けない時（halt）は拒否に数えずに done・give_up。
+planfile.merge_replan_resubmit。合わせた答えは 1 回で書いた答えと同じ形）。拒否は rolekit.accept_round が控え rejects-plan.json に積み、3 回目の拒否で
+done・give_up（輪を max_iterations で落とさずに抜ける）。受けた案の控えを置けない時（halt。take の返りの count: false・give_up: true）は拒否に数えずに done・give_up。
+拒否の控えが読めない・書けない時は、落ちずに done・give_up の拒否（理由『拒否の控えが扱えない』。読めない時は返答を照らさず、案のファイルを書かない）。
 with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない（accept.status_keys）。返り {ok, done, give_up, reason, attempt}"""
 import functools
 import os
@@ -39,13 +40,16 @@ def main() -> None:
         judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
         merge = functools.partial(planfile.merge_resubmit, slot_list=planfile.round_slots(round_dir, judgment))
         take = functools.partial(planfile.take_plan, round_dir, plan_dir, judgment=judgment, **common)
+    n, stopped = rolekit.current_round(round_dir, planfile.ROLE)
+    if stopped:
+        boundary.returns({**rolekit.round_outcome(stopped), "attempt": 0})
+        return
     reply, why = rolekit.resubmitted(round_dir, planfile.ROLE, boundary.value(os.environ.get("INPUTS_REPLY")),
                                      boundary.value(os.environ.get("INPUTS_FIX_REPLY")), merge)
     out = take(reply=reply) if reply is not None else {"ok": False, "reason": why}
-    out = {**out, "done": True} if out.get("halt") else rolekit.with_done(round_dir, planfile.ROLE, out)
-    tries = len(rolekit.rejected(round_dir, planfile.ROLE)) + (1 if out["ok"] else 0)
-    boundary.returns({"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"],
-                      "attempt": tries})
+    got = rolekit.accept_round(round_dir, planfile.ROLE, None, lambda _: out)
+    tries = n - (1 if out.get("halt") else 0)   # 受けた・拒んだ回は今の回、halt は前の拒否の数
+    boundary.returns({**rolekit.round_outcome(got), "attempt": tries})
 
 
 if __name__ == "__main__":

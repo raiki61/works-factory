@@ -15,11 +15,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixboard  # noqa: E402
+import lenses  # noqa: E402
 import oneline  # noqa: E402
 import rolekit  # noqa: E402
 import startrec  # noqa: E402
 
-LENS = "silent-failure-hunter"   # 工程の節 lens が受けるレンズ（lenses.LENSES の名）
+(LENS,) = (row["lens"] for row in lenses.LENSES)   # 工程のレンズの節は 1 つ（節 lens）
 
 
 def main() -> None:

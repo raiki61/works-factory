@@ -114,9 +114,7 @@ def group(fixboard, conflict) -> dict:
     g = boundary.parsed(os.environ["INPUTS_GROUP"])
     gid = g["group_id"]
     gdir = fixboard.group_dir(place, os.environ.get("INPUTS_OUT_DIR", ""), gid)
-    result = fixboard.read_json(gdir / fixboard.RESULT_FILE)
-    if not isinstance(result, dict):
-        result = None
+    result = fixboard.usable_result(gdir)
     rows_groups = fixboard.join_rows([g], {gid: (result, result is not None, "" if result else fixboard.NO_RESULT)})
     extras = [result] if result else []
     fixbeside.write(place, extras)

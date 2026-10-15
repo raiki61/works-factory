@@ -20,21 +20,13 @@ import fixboard  # noqa: E402
 import oneline  # noqa: E402
 
 
-def result_of(out_dir: Path, gid: str):
-    try:
-        doc = fixboard.read_json(out_dir / gid / fixboard.RESULT_FILE)
-    except (OSError, ValueError):
-        return None
-    return doc if isinstance(doc, dict) else None
-
-
 def main() -> list:
     place = boundary.place("fix")
     plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
     out_dir = Path(plan["out_dir"])
-    body = fixboard.tdd_units(plan["groups"], {g["group_id"]: result_of(out_dir, g["group_id"]) for g in plan["groups"]})
+    body = fixboard.tdd_units(plan["groups"], {g["group_id"]: fixboard.usable_result(out_dir / g["group_id"]) for g in plan["groups"]})
     fixboard.write_json(place / fixboard.TDD_UNIT_FILE, body)
     return body
 
