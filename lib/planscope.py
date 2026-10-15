@@ -63,7 +63,6 @@ import sys
 
 sys.dont_write_bytecode = True
 
-import conflict  # noqa: E402
 import leftovers  # noqa: E402
 import planmarks  # noqa: E402
 import planrange  # noqa: E402   範囲の読みと単位に結べないパスの照らし（手直しの受け付けと同じ決まりの 1 か所。.shared/core）
@@ -440,8 +439,8 @@ def check(rows: list[dict], b, repo: pathlib.Path, rev: str, paths: list[str], *
           frozen=(), touched=None, agreed=None, items=None, round_: int = 1) -> tuple[list[str], dict]:
     """承認済みの修正案の項目 items（planmarks.approved_items の形の値か口。元は盤面 b から planmarks.approved_items(b)。修正案の
     無い run は None）と、版 rev からの変わったパス paths の版と今の中身を problems に渡す。b は fix の run の置き場（合意・許し・
-    裁定を conflict が置き場の控えから読む）。テストの変更の許し（conflict.test_permits）を先に引く（欄の控えが凍結の印と
-    食い違えば、そこで ValueError。止めるのは呼び手）。
+    裁定を conflict が置き場の控えから読む）。照らす項目と許しは planrange.fix_scope の値（修正役の指示書に貼る値と同じ）。テストの
+    変更の許し（conflict.test_permits）の欄の控えが凍結の印と食い違えば ValueError（止めるのは呼び手）。
     裁定の後（pass_ が ruled）は直す裁定（conflict.ruled_paths）のパスを permits に足す（裁定を受けた単位の全部は外さない）。
     項目が無い・範囲の欄の無い控えなら照らさず ([], {"checked": False, "why": 理由})。口が欄の控えの食い違いを出せば conflict.fields_broken
     の ValueError。
@@ -449,13 +448,10 @@ def check(rows: list[dict], b, repo: pathlib.Path, rev: str, paths: list[str], *
     中身を problems の loop に渡す（輪や前の項目が直し終えた物は欠けの証拠に数え、修正役に問わない）。touched（その木の後に変わった
     パス。git の比べ）を渡せば、frozen のうちそれに無いパスを problems の untouched に渡す（無ければ中身の比べで決めさせる）。
     範囲の相談の合意（conflict.agreed。agreed を渡せばその行）のパスをその項目の範囲に足す（with_agreed）"""
-    agreed = conflict.agreed(b) if agreed is None else agreed
-    permits = planrange.permit_paths(b, ruled=pass_ == "ruled", agreed=agreed, round_=round_)
-    items, why = planrange.approved(items)
-    if items is None:
+    got, why = planrange.fix_scope(b, pass_, items=items, agreed=agreed, round_=round_)
+    if got is None:
         return [], {"checked": False, "why": why}
-    items = with_agreed(items, agreed)
     changes = {p: (_base_text(repo, rev, p), _now_text(repo, p)) for p in paths}
     loop = {p: _base_text(repo, loop_tree, p) for p in paths if p in set(frozen)} if loop_tree else {}
     untouched = None if touched is None else set(loop) - set(touched)
-    return problems(items, rows, changes, permits=tuple(permits), loop=loop, untouched=untouched)
+    return problems(got["items"], rows, changes, permits=tuple(got["permits"]), loop=loop, untouched=untouched)

@@ -224,6 +224,21 @@ class RefixCase(DeltaPlaceCase):
         self.assertTrue(got["ok"], got)
         self.assertEqual(fixboard.output(self.place, "p3.delta_fix"), fix_ok())
 
+    def test_refix_pastes_and_accepts_the_ruled_paths(self):
+        """#570: 手直しの指示書の範囲の節（refix.scope_text）と受け付け（accept_fix）は、同じ引数（refix.SCOPE）で直す裁定の
+        パスを許す。片方だけ裁定の前の値にすれば、貼ったパスを拒むか、許すパスを貼らない"""
+        import conflict
+        items = self._scoped_refix()
+        conflict.park(self.place, [{"unit_key": items[0]["unit_keys"][0], "between": ["stats.py:3", "test_stats.py:2"],
+                                    "why_both_cannot_hold": "テストと今のコードの両方は成り立たない",
+                                    "which_is_right": "request", "kind": "brief_vs_judgment"}], source=conflict.FIX_SOURCE)
+        conflict.apply_rulings(self.place, {"c1-1": {"decision": "fix_code_as", "text": "設定のファイルも直してよい",
+                                                     "limits": ["conf.ini"]}}, by="t")
+        (self.repo / "conf.ini").write_text("[x]\n", encoding="utf-8")
+        self.assertIn("`conf.ini`", refix.scope_text(self.place, items))
+        got = refix.accept_fix(fix_ok(), self.place, self.base, self.repo, n=1, items=items)
+        self.assertTrue(got["ok"], got)
+
     def test_refix_is_not_blamed_for_the_fix_files(self):
         """修正の段が触ったファイル（1 回目の差分の files）は手直しの照らしに入れない"""
         items = self._scoped_refix(before_fix=lambda r: (r / "fixextra.py").write_text("Y = 2\n", encoding="utf-8"))
