@@ -1,4 +1,4 @@
-# 全部の単位が軽量のまま。直した後の上げ直しの信号が無く、深さは軽量（R1〜R4 を省く値）のまま eyes に渡る。
+# run の頭の深さが軽量で、全部の単位が軽量のまま。直した後の上げ直しの信号が無く、深さは軽量（R1〜R4 を省く値）のまま eyes に渡る。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
@@ -6,14 +6,14 @@ fixture:
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "ran_steps": {"ran": ["suite"], "unran": []}, "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "test_outcomes": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}, "by": "engine", "suites_line": "走らせた: suite（exit 0・direct）／走らせなかった: 無い", "log": "test-gate-base/logs/checks.log", "baseline_line": "", "reason": ""}
-judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "verify": false, "reason": ""}
+judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "reason": ""}
 judge__verify-merge: {"ok": true, "reason": ""}
-judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null, "depth": "標準", "depth_why": "筋書きの stub"}
+judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null, "depth": "軽量", "depth_why": "筋書きの stub"}
 plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
 plan__structure-state: {"state_file": "plan/r1/structure-state.json"}
 plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
 plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}], "round": 1}
-plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "depth_skip": false, "reason": ""}
+plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "reason": ""}
 plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": []}
 fix__route: {"group": true}
 fix__group-start: {"tdd": false, "units": 1, "reason": ""}

@@ -1004,6 +1004,21 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(self.reasons(run), [])
         self.assertIs(out["ready"], False)
 
+    def test_unusable_ledger_is_a_done_give_up_reject(self):
+        """拒否の控えが読めない周（控えの名がディレクトリ）でも、plan_accept の script は非 0 で落ちず、done・give_up 真の拒否で輪を止める。
+        回を先に読むので、返答を照らさず案のファイルも書かない"""
+        run = Run(self)
+
+        def writer(n, brief):
+            (run.art / "plan" / "r1" / "rejects-plan.json").mkdir(exist_ok=True)
+            return {"plan": [item(1, 2)]}
+
+        run.include(writer=writer)
+        got = run.out["plan-accept"]
+        self.assertEqual({k: got[k] for k in ("ok", "done", "give_up")}, {"ok": False, "done": True, "give_up": True})
+        self.assertIn("拒否の控えが扱えない", got["reason"])
+        self.assertFalse((run.art / "plan" / "r1" / planfile.FIX_PLAN_FILE).exists())
+
     def test_accepted_plan_has_item_ripple(self):
         """種の 1 回目の受け付けの後の ripple.json: 項目ごとに、変える名の呼び出し元と試験の覆っていない当たり"""
         run = Run(self)
@@ -1544,6 +1559,29 @@ class OwedAnswersCase(unittest.TestCase):
         error = run.json(out["ripple"])["error"]
         self.assertIn(planblk.PLAN_STUCK, error)
         self.assertIn(CLAMP, error)
+
+    def test_unattended_push_owes_the_sole_unit(self):
+        """#593: 唯一の単位の出どころが推しつきの保留の問いの時、無人の run は推しを答えに採って役を起こす。推しの無い問いと
+        人のいる run は今どおり義務 0 件で止まる"""
+        pushed = {**self.FORK, "reason": "割れる。推し: a——呼び手が a を前提にしている"}
+        run = Run(self, start={"unattended": "true"}, judge={"units": [unit(MEAN)], "questions": [pushed]})
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1)]}))["ready"], True)
+        self.assertIn("必ず案に入れる", self.duty_line(run))
+        for start, question in (({"unattended": "true"}, self.FORK), ({}, pushed)):
+            with self.subTest(start=start, question=question):
+                run = Run(self, start=start, judge={"units": [unit(MEAN)], "questions": [question]})
+                out = run.include(writer=lambda n, brief: self.fail("役を起こした"))
+                self.assertEqual(run.status["plan-loop"], "skipped")
+                self.assertIn(planfile.NOTHING_OWED, run.json(out["ripple"])["error"])
+
+    def test_unattended_push_on_a_deferred_origin_stays_held(self):
+        """#593: 推しつきの保留の問いの出どころが開いていない（defer）なら、無人の run は推しを採らずに保留のまま残し、行き止まらずに
+        ほかの開いた単位で役を起こす"""
+        pushed = {**self.FORK, "origin": CLAMP, "reason": "割れる。推し: a——呼び手が a を前提にしている"}
+        judge = {"units": [unit(MEAN), unit(CLAMP, "suggest", "defer")], "questions": [pushed]}
+        run = Run(self, start={"unattended": "true"}, judge=judge)
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1)]}))["ready"], True)
+        self.assertIn("必ず案に入れる", self.duty_line(run))
 
 
 class SurvivesCase(unittest.TestCase):

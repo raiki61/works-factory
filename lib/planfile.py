@@ -60,6 +60,7 @@ import converge  # noqa: E402
 import depth  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
+import gatepolicy  # noqa: E402
 import jsonfile  # noqa: E402
 import impact  # noqa: E402
 import judgeverify  # noqa: E402
@@ -177,15 +178,17 @@ LEDGER = "_ledger"   # read_judgment が判定の dict に添える問いの台�
 
 def read_judgment(raw: str, start, locate) -> tuple:
     """(判定の dict, 読めない訳)。判定に、直す義務の数え（gatemarks.duty）が読む問いの台帳の見え方を添える: 始めの記録 start
-    （dict か None）の依頼の answers と、判定の隣の結び・素材の状態（gatemarks.ledger_beside）。plan に関所の答えは届かない（行き止まりの
-    判定は 1 回目の周で、修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
+    （dict か None）の依頼の answers と、判定の隣の結び・素材の状態（gatemarks.ledger_beside）。始めの記録が無人の run なら、判定の
+    推しつきの fork・held を答えとして数える（gatemarks.run_push）。plan に関所の答えは届かない（行き止まりの判定は 1 回目の周で、
+    修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
     doc, why = read_pointed(raw, locate)
     if not isinstance(doc, dict):
         return doc, why
     path, _ = pointed(raw, locate)
     answers = (start or {}).get("answers") if isinstance(start, dict) else None
     return {**doc, LEDGER: gatemarks.ledger_beside(pathlib.Path(path).parent, doc,
-                                                   answers=answers if isinstance(answers, list) else [])}, why
+                                                   answers=answers if isinstance(answers, list) else [],
+                                                   takes_push=gatepolicy.unattended_of(start))}, why
 
 
 def world_rows(raw: str, locate) -> tuple:
@@ -240,7 +243,8 @@ def is_open(u) -> bool:
 
 def _owed_units(judgment) -> set:
     """今の周に直す義務の単位の key（gatemarks.duty。fix の直す義務と同じ口）: 開いた単位から、答えていない関所の問い（人に聞く状態の
-    fork と、status が escalate の問い）の出どころ・depends を除き、依頼の answers が答えた問いの出どころ・depends を戻した物（元の
+    fork と、status が escalate の問い）の出どころ・depends を除き、依頼の answers と無人の run が採った判定の推しが答えた問いの
+    出どころ・depends を戻した物（元の
     works が写しの RL の _owed_units を差し替えた works/.shared/core/conflict.py:676 の owed_units_but_asked）。問いの台帳の見え方は
     read_judgment が添えた物（無ければ判定だけの見え方）。直す裁定でない裁定の単位（held_by_rulings）は、このブロックに裁定が届かない
     ので扱わない"""
@@ -814,7 +818,8 @@ def moved(path, repo, keys=accept.TREE_KEYS) -> str:
 
 def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=None) -> dict:
     """受けた案の控えを置く。置けなければ置いた控えを消し、置けなかった控えの名を round.json の why に残して、輪を止める返り
-    {ok: False, halt: True, reason}（拒否ではない。役に出し直させず、欄の無い案で進ませない。元 planblk.with_plan_fields の BoardGap）"""
+    {ok: False, halt: True, count: false, give_up: true, reason}（拒否ではない。役に出し直させず、欄の無い案で進ませない。count: false で
+    受け付けの回の口 rolekit.accept_round が控えに積まず、give_up: true でその回を done にして輪を止める。元 planblk.with_plan_fields の BoardGap）"""
     steps = ((FIX_PLAN_FILE, lambda: _write_json(round_dir / FIX_PLAN_FILE, bare)),
              (planmarks.FIELDS_FILE, lambda: planmarks.save(round_dir, k, fields, amended=amended)),
              (REPLY_FILE, lambda: _write_json(round_dir / REPLY_FILE, plan)))
@@ -826,7 +831,7 @@ def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=No
                 (round_dir / done).unlink(missing_ok=True)
             why = f"受けた修正案の控え {name} を置けない: {e}"
             _write_json(round_dir / ROUND_FILE, {**read_round(round_dir), "why": why})
-            return {"ok": False, "halt": True, "reason": why}
+            return {"ok": False, "halt": True, "count": False, "give_up": True, "reason": why}
     return {"ok": True, "reason": ""}
 
 
@@ -840,7 +845,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（moved。keys の欄で比べる）。拒否は理由を全部 1 回で
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
-    _save の halt）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
+    _save の halt。count: false・give_up: true で受け付けの回が控えに積まずに輪を止める）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
     （出し直しが WHOLE_PLAN を立てた答えは、案の全部なので閉じた項目の行だけを差し込む）。差し込んだ案の全体は、出し直しの役が
     読み、次の出し直しを合わせる元の控え rolekit.candidate_path にも書く。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
@@ -1034,11 +1039,15 @@ def nothing_owed(round_dir) -> bool:
 
 
 def why_not_ready(round_dir) -> str:
-    """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・輪が回らなかった）"""
+    """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・拒否の控えが読めない・輪が回らなかった）。控えが読めない周は
+    plan_accept が返答を照らさずに抜けた周で、その訳を返す（落ちない）"""
     why = read_round(round_dir)["why"]
     if why:
         return str(why)
-    return rolekit.given_up_reason(pathlib.Path(round_dir), ROLE) or NO_PLAN
+    try:
+        return rolekit.given_up_reason(pathlib.Path(round_dir), ROLE) or NO_PLAN
+    except rolekit.BoardGap as e:
+        return f"拒否の控えが扱えない（{e}）"
 
 
 def accepted_fields(round_dir):

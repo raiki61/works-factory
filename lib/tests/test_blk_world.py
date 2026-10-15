@@ -91,7 +91,8 @@ class Base(unittest.TestCase):
 
     def classes(self, reply):
         worldblk.classes_prep(self.out)
-        return worldblk.classes_accept(self.out, reply)
+        return rolekit.accept_round(self.out, worldblk.CLASSES_ROLE, json.dumps(reply, ensure_ascii=False),
+                                    lambda r: worldblk.classes_accept(self.out, r))
 
     def plan(self):
         return worldblk.plan(self.out)
@@ -358,7 +359,8 @@ class Judge(Base):
         self.prompt = worldblk.judge_prep(self.out)["prompt"]
 
     def accept(self, *rows):
-        return worldblk.judge_accept(self.out, {"rows": list(rows)})
+        return rolekit.accept_round(self.out, worldblk.JUDGE_ROLE, json.dumps({"rows": list(rows)}, ensure_ascii=False),
+                                    lambda r: worldblk.judge_accept(self.out, r))
 
     def test_prompt_asks_for_excerpts_without_target_text(self):
         """抜き書きは web の役が運ぶ物で、指示書には載らない（返し方に excerpts の形が在る）。web の役に渡る文は名を外す:

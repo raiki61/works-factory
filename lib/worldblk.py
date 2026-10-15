@@ -12,7 +12,7 @@ web の検索と取得だけ）、抜き書きを機械が取り直した本文�
 - plan.json（類を決めた後）: {over, taken}
 - judge-input.json・judged.json（web の役の材料と、受け付けが通した行）
 - verified.json（web の役の受け付けが抜き書きを照らした結果）: {kept, dropped, offline, over_excerpts}
-- rejects-<役>.json: 出し直しの輪の拒否の文（core の rolekit が積む）。拒めば同じ会話で出し直させ、rolekit.GIVE_UP_AFTER 回目の拒否で
+- rejects-<役>.json: 出し直しの輪の拒否の文（rolekit.accept_round が積む。世界の解の拒否の控えはこの 1 つ）。拒めば同じ会話で出し直させ、rolekit.GIVE_UP_AFTER 回目の拒否で
   輪を抜ける（線を止めない。出口の status: failed と reason に残す）
 
 上限（5.4 節）: 類は MAX_CLASSES・検索語は類ごとに MAX_QUERIES（全部の行に 1 本以上）・抜き書きは返答の全部で MAX_EXCERPTS ×
@@ -154,10 +154,6 @@ def _prep(out, role, body: str) -> dict:
     return {"prompt": prompt, "prompt_file": str(path)}
 
 
-def _close_round(out, role, bad: list) -> dict:
-    return rolekit.with_done(pathlib.Path(out), role, {"ok": not bad, "reason": " / ".join(bad)})
-
-
 def _why_failed(out, role) -> str:
     """輪が通らなかった役の理由（諦めた文か、落ちた周の最後の拒否の文。拒否も無ければ走らなかった）"""
     rejected = rolekit.rejected(out, role)
@@ -248,7 +244,7 @@ def classes_accept(out, reply) -> dict:
                          "class_id": class_id(r["problem"]), "problem": r["problem"].strip(), "activity": r["activity"].strip(),
                          "proposed": r["proposed"].strip(), "queries": [q.strip() for q in r["queries"]]})
         _write(pathlib.Path(out) / CLASSES, rows)
-    return _close_round(out, CLASSES_ROLE, bad)
+    return {"ok": not bad, "reason": " / ".join(bad)}
 
 
 # ---------------------------------------------------------------- 類を決める
@@ -426,7 +422,7 @@ def judge_accept(out, reply, get=fetch) -> dict:
             sources = [kept[s] for s in dict.fromkeys(j["sources"]) if s in kept]
             judged.append({**j, "sources": sources, "basis": worldmark.WEB if sources else worldmark.KNOWLEDGE})
         _write(out / JUDGED, judged)
-    return _close_round(out, JUDGE_ROLE, bad)
+    return {"ok": not bad, "reason": " / ".join(bad)}
 
 
 # ---------------------------------------------------------------- 出口

@@ -80,6 +80,26 @@ class EyeAcceptCase(unittest.TestCase):
             self.assertTrue(eye.accept(s, design, {"rows": [DIRTY]})["ok"])
             row = json.loads(design.read_text(encoding="utf-8"))
         self.assertEqual((row["route"], row["route_reason"]), (eye.ROUTE, eye.ROUTE_REASON))
+
+    def test_unusable_ledger_is_a_done_reject(self):
+        """構造の目の控え rejects-<eye.NAME>.json が読めない時、eye.accept は例外を上げず、done 真・give_up 真の拒否を返し、
+        理由に『拒否の控えが扱えない』と名指す（落ちて script を非 0 にしない）"""
+        with tempfile.TemporaryDirectory() as d:
+            s = pathlib.Path(d) / "structure.json"
+            s.write_text(json.dumps(DOC, ensure_ascii=False), encoding="utf-8")
+            design = pathlib.Path(d) / "design.jsonl"
+            design.write_bytes(b"")
+            eye.prep(s)
+            (pathlib.Path(d) / f"rejects-{eye.NAME}.json").mkdir()
+            for reply in ({"rows": []}, {"rows": [DIRTY]}):
+                try:
+                    got = eye.accept(s, design, reply)
+                except eye.rolekit.BoardGap as e:
+                    self.fail(f"控えの誤りで落ちた: {e}")
+                self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
+                self.assertIn("拒否の控えが扱えない", got["reason"])
+            self.assertEqual(eye.state(pathlib.Path(d))["status"], "gave_up")
+
     def test_prompt_asks_chosen_to_follow_world_practice(self):
         """単位の要約の尾の世界の解の要点を読み、避け方 chosen を定石の作りに沿わせ、沿わないなら訳を chosen_reason に書けと頼む
         （計画 world-solution の W8・5.3 節の 3。入力の契約は 3 つのまま）"""

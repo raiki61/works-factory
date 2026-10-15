@@ -34,7 +34,7 @@ RULES = Path(__file__).resolve().parents[1] / "commands" / "fix-rules"
 rulebook.CANON = RULES / "common.md"
 fixrules.SHARED = rulebook.CANON
 fixrules.RULES_DIR = RULES
-ACCEPT = "fix-ruled-accept"            # 受け付けの節（拒否の理由のファイルの名）
+ACCEPT = "fix-ruled-accept"            # 受け付けの節（拒否の控え rejects-<名>.json の名）
 
 
 def main() -> dict:
@@ -54,7 +54,7 @@ def main() -> dict:
     values = fixboard.fix_values(place, owed, start=start, answer_node=fixrules.answer_node("ruled"))
     got = fixrules.prep(place, repo, values, "ruled",
                         owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
-                        reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
+                        reject_file=rolekit.reject_file(place, ACCEPT), lang=rolekit.lang_line(start),
                         shared=boundary.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:
         fixboard.ruled_reply_line(prompt, str(saved))

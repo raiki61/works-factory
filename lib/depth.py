@@ -1,27 +1,36 @@
 """単位ごとの深さ（計画 docs/plans/2026-10-06-variable-depth.md。ライン darkfactory のモジュール・層 L6）。使うのはブロックの script。
 
 判定が切った単位ごとに、修正案の項目の欄（plan-fields.json）の形から深さ（軽量か標準）を機械が決め、修正の後の信号で標準へ上げる。
-標準は今の振る舞いのすべて。軽量は、測りで何も見つけなかった確かめ（SKIPPED: 差分の審査とレンズ・手直し、独立の目の R1〜R4 と
-コメントの削除候補）を省く。省くのは graph の外の物と graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持ち主の決定
-2026-10-06 で写しの graph の ! 行で optional にした）。ブロックはこの控えを読まない——線が省く理由の文（skip_reason）を平の入力
-として渡し、差分の審査だけは線の h-redepth が盤面で省く（差分の審査のブロックを起こす前に、境の節 h-review が盤面の待ちを見るため）。
+run 全体の深さの段（軽量・標準・重厚）の定義は表 TIERS 1 か所（docs/design.md の「深さの段の表」の正本）。単位の深さの語は軽量・標準の 2 つ。
+標準は今の振る舞いのすべて。段の省く物（TIERS の omits。OMITS の確かめ: 差分の審査とレンズ・手直し、独立の目の R1〜R4 とコメントの
+削除候補）は、測りで何も見つけなかった確かめで、その段の頭の run で直す義務の単位がどれも軽量の時だけ省く。省くのは graph の外の物と
+graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持ち主の決定 2026-10-06 で写しの graph の ! 行で optional にした）。
+同じ段の頭の run では、軽量の単位ごとに緑の後と親に当てた後の test_cmd の走らせ直し（UNIT_OMIT）も省く（omits が段の口）。
+省くかを決めるのはこのモジュールだけで、呼ぶのは差分の審査が修正のブロックの delta-cut（fixboard.redepth）、R1〜R4 とコメントの
+削除候補が目のブロックの prep（skip_reason）、test_cmd が修正のブロックの TDD の輪と組の当て（fixboard.unit_depths）。
 
 - unit_depth(items, key, *, checked): 単位 1 つの (深さ, 理由の並び)。決め 3 の 5 つの条件を全部満たす時だけ軽量。
   配線だけの単位（触るファイルが全部 wiring の物）は条件 4（約束の形のファイル）に数えない（決め 3 の補い）
 - wiring(path): 配線のファイルか（線とブロックの YAML＝<名>/<名>.yaml・.yml と manifest.json。schemas/ の下は除く）
 - decide_doc(items, open_units, *, forced, checked): 直す義務の単位の全部の深さ（控えの形）。forced は入力 thickness の語
-  （空・自動は機械が決める。軽量・標準は全部をその深さに固定）
+  （空・自動は機械が決める。軽量・標準は全部をその深さに固定。重厚は単位では標準に固定する——重厚は単位でなく run に足す物）
 - has_checks(start): 始めの記録 start に機械の確かめ（tdd_suite か test_cmd）が在るか（unit_depth の checked に渡す。訳は UNCHECKED）
-- named(thickness): 入力 thickness が名指す深さ（軽量・標準。ほかの語・空は空）。訳は named_why(深さ)
+- named(thickness): 入力 thickness が名指す深さの段（HEADS の語。ほかの語・空は空）。訳は named_why(深さ)
+- tier_adds(head): 段 head が足す機能の語の並び（TIERS の足す物。知らない語・空は空）。機能の名と切り替えの式は entry
+  （entry.feature_words・entry.switch の adds に渡す）
 - raise_doc(doc, *, units, run): 信号で標準へ上げた控え。units は {単位: 理由}（その単位だけ）、run は理由の並び（全部の単位）。下げない
 - run_wide(items, keys, touched=()): 控えの単位 keys を合わせた run 全体の広さ（触るファイルの和集合と、受け入れと書き換えの
   テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並びと、触るファイルの数。触るファイルは計画の allowed_paths に、修正の実際の差分
   （touched。呼び手が渡す）のうちテストのファイルを除いた物を足して数える。呼び手が run の信号に足し、単位ごとには軽量の集まりも
   標準へ上げる（raise_doc の run）
-- run_depth(doc): 切った後の run 全体の段の深さ（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
-- skip_reason(doc): run が軽量なら省く理由の文、標準なら空（ブロックの平の入力 skip・skip_optional に渡す）
-- lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物。doc の eyes_kept が真なら、
-  事前審査の代わりに回した独立の目を省いた物に数えない）
+- run_depth(doc): 切った後の単位の深さの全体（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
+- omits(head): 段 head が省く確かめの名の並び（TIERS の omits。知らない語・空は標準の段の物）。空でない段だけが単位の軽量で
+  test_cmd を省く
+- skip_reason(doc, head): run の頭の深さの段 head が省く物を持ち、単位の深さの全体が軽量なら省く理由の文、ほかは空
+  （差分の審査と目の R1〜R4 を省く訳。線の redepth の skip_optional）。知らない語・空の head は標準
+- lines(doc, head, *, cmd_skipped): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・省いた物か、頭の深さで省かなかった訳）。
+  cmd_skipped は TDD の輪が軽量で test_cmd を走らせなかった単位の数（省いた時点の記録から数える。上げ直しの後の深さは
+  省いた時の深さと違いうる）。0 なら test_cmd の省きを言わない（test_cmd が空・関門が off の run は何も省いていない）
 """
 import json
 import pathlib
@@ -33,11 +42,13 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
+import entry  # noqa: E402
 import impact  # noqa: E402
 import planmarks  # noqa: E402
 
 LIGHT = "軽量"
 STANDARD = "標準"
+HEAVY = "重厚"
 MAX_PATHS = 3         # 測り: 何も見つけなかった単位は allowed_paths 1〜3 個、見つけた単位は 4 個（MAX_PATHS を超える）
 MAX_TESTS = 2         # 測り: 同じく受け入れのテストと書き換える既存のテストが合わせて 1 本、見つけた単位は 4 本（MAX_TESTS を超える）
 CONTRACT_SUFFIXES = (".json", ".yaml", ".yml", ".toml")
@@ -45,16 +56,27 @@ CONTRACT_DIR = "schemas/"
 GLOB_CHARS = ("*", "?", "[")
 WIRING_FILES = ("manifest.json",)   # 配線のファイルの名（部品の consumes・produces の宣言）
 WIRING_SUFFIXES = (".yaml", ".yml")  # <名>/<名>.yaml の形の物が線とブロックの配線（nodes・include・with）
-# 軽量の run で省く物（報告の冒頭 2 に 1 行ずつ名指す）。どれも 2026-10-05 の自分食いの小さい run で何も見つけなかった
+# 段が省く確かめの名 → 報告の文（報告の冒頭 2 に 1 行で名指す）。どれも 2026-10-05 の自分食いの小さい run で何も見つけなかった
 # 決め 6 は 2026-10-05 の測り、決め 9 は持ち主の決定 2026-10-06（写しの graph の ! 行で optional にした節）。AI の報告は省かない（決め 10）
-DELTA_SKIPPED = "差分の審査（p3.delta_review）と、それに続くレンズ・手直し（修正の後の局所レビューの全部を含む）"
-EYES_SKIPPED = ("独立の目の r1.comment_candidates（コメントの削除候補）",
-                "独立の目 R1（r1.minimality。冗長と最小性）",
-                "独立の目 R2（r2.compare。独立設計との突き合わせ。独立設計そのものは修正の前に作る）",
-                "独立の目 R3（r3.coherence。全体の整合）",
-                "独立の目 R4（r4.hidden_scope。見えていない範囲）")
-SKIPPED = (DELTA_SKIPPED, *EYES_SKIPPED)
+OMITS = {"p3.delta_review": "差分の審査（p3.delta_review）と、それに続くレンズ・手直し（修正の後の局所レビューの全部を含む）",
+         "r1.comment_candidates": "独立の目の r1.comment_candidates（コメントの削除候補）",
+         "r1.minimality": "独立の目 R1（r1.minimality。冗長と最小性）",
+         "r2.compare": "独立の目 R2（r2.compare。独立設計との突き合わせ。独立設計そのものは修正の前に作る）",
+         "r3.coherence": "独立の目 R3（r3.coherence。全体の整合）",
+         "r4.hidden_scope": "独立の目 R4（r4.hidden_scope。見えていない範囲）"}
+UNIT_OMIT = "軽量の単位の、緑の後と親の作業ツリーに当てた後の test_cmd の走らせ直し（TDD の名指しのテストは走らせる）"
 UNCHECKED = "機械の確かめが無い（tdd_suite も test_cmd も空）"
+
+# run 全体の深さの段の定義（ただ 1 つの表。docs/design.md の「深さの段の表」はこの写しで、tests/layers の E20 が一致を縛る）。
+# omits は段の頭の run で単位がどれも軽量の時に省く確かめ（OMITS の名）。標準・重厚の頭の run は単位の深さに依らず全部を通す
+# （issue #561 の承認ノードの答え。記録された方針 dynamic-depth の当て方）。adds は段が足す機能の語（字を持たず
+# entry.FEATURE_DEFAULTS の名で引く）
+TIERS = {
+    LIGHT: {"omits": tuple(OMITS), "adds": ()},
+    STANDARD: {"omits": (), "adds": ()},
+    HEAVY: {"omits": (), "adds": tuple(entry.FEATURE_DEFAULTS)},
+}
+HEADS = tuple(TIERS)
 
 
 def _items_of(items, key: str) -> list:
@@ -136,7 +158,12 @@ def has_checks(start) -> bool:
 
 def named(thickness) -> str:
     word = str(thickness or "").strip()
-    return word if word in (LIGHT, STANDARD) else ""
+    return word if word in HEADS else ""
+
+
+def tier_adds(head) -> tuple:
+    """段 head が足す機能の語の並び（知らない語・空は空）"""
+    return tuple((TIERS.get(head) or {}).get("adds") or ())
 
 
 def named_why(word: str) -> str:
@@ -148,7 +175,8 @@ def decide_doc(items, open_units, *, forced: str, checked: bool) -> dict:
     units = {}
     for key in open_units or []:
         if named(forced):
-            units[key] = {"depth": forced, "why": [named_why(forced)]}
+            unit = forced if forced in (LIGHT, STANDARD) else STANDARD
+            units[key] = {"depth": unit, "why": [named_why(forced)]}
         else:
             d, why = unit_depth(items, key, checked=checked)
             units[key] = {"depth": d, "why": why}
@@ -181,27 +209,36 @@ def run_depth(doc) -> str:
     return LIGHT if rows and all(r.get("depth") == LIGHT for r in rows) else STANDARD
 
 
-def skip_reason(doc) -> str:
-    if run_depth(doc) != LIGHT:
+def omits(head) -> tuple:
+    return TIERS[head]["omits"] if head in HEADS else TIERS[STANDARD]["omits"]
+
+
+def skip_reason(doc, head) -> str:
+    if not omits(head) or run_depth(doc) != LIGHT:
         return ""
-    return f"軽量で省いた（直す義務の単位 {len(doc['units'])} 個がすべて軽量。計画 2026-10-06-variable-depth の決め 6）"
+    return (f"軽量で省いた（run の頭の深さが {head} で、直す義務の単位 {len(doc['units'])} 個がすべて軽量。"
+            "計画 2026-10-06-variable-depth の決め 6）")
 
 
-def lines(doc) -> list:
+def lines(doc, head, *, cmd_skipped: int) -> list:
     rows = ((doc or {}).get("units") or {})
     if not rows:
         return [f"深さ: {STANDARD}（直す義務の単位が無い）"]
     light = sum(1 for r in rows.values() if r.get("depth") == LIGHT)
-    head = f"深さ: {run_depth(doc)}（単位ごと: {LIGHT} {light} 個・{STANDARD} {len(rows) - light} 個"
-    head += f"。入力 thickness の名指し {doc['forced']}）" if named(doc.get("forced")) else "。機械が決めた）"
-    out = [head]
+    head_line = f"深さ: {run_depth(doc)}（単位ごと: {LIGHT} {light} 個・{STANDARD} {len(rows) - light} 個"
+    head_line += f"。入力 thickness の名指し {doc['forced']}）" if named(doc.get("forced")) else "。機械が決めた）"
+    out = [head_line]
     out += [f"  - {k[:80]}: {r.get('depth')}（{' / '.join(r.get('why') or [])}）" for k, r in rows.items()]
     out += [f"  - 標準へ上げた信号: {why}" for why in doc.get("raised") or []]
     if doc.get("counted"):
         out.append(f"run の広さの数え: {doc['counted']}")
-    if run_depth(doc) == LIGHT:   # 事前審査を run の頭の深さで飛ばした run（eyes_kept）は、代わりの独立の目を省かない
-        skipped = (DELTA_SKIPPED,) if doc.get("eyes_kept") else SKIPPED
-        out.append("軽量で省いた: " + "／".join(skipped))   # 1 行にまとめる（項目の中に「・」が在るので区切りは「／」）
+    if skip_reason(doc, head):
+        named_omits = [*(OMITS[name] for name in omits(head)), *([UNIT_OMIT] if cmd_skipped else [])]
+        out.append("軽量で省いた: " + "／".join(named_omits))   # 項目の中に「・」が在るので区切りは「／」
+    elif cmd_skipped:
+        out.append(f"軽量の単位 {cmd_skipped} 個で省いた: {UNIT_OMIT}")
+    elif run_depth(doc) == LIGHT:
+        out.append(f"単位はどれも軽量だが、run の頭の深さが {named(head) or STANDARD} なので省かない")
     return out
 
 

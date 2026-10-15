@@ -8,14 +8,16 @@ recount.accept_fix・tddloop.selected_problems。除くパスの頭 boundary.SKI
 
 - 範囲の相談の周（入力 consulted が true）は受け付けを回さず done: false
 - 修正役を起こさなかった（入力 reply が null）周は done: true（直す義務が残らない）
-- 拒否は理由を置き場の reject-fix-accept-<iteration>.md に書き（reason_file はこの輪の拒否の全部のファイル。fixboard.write_reject）
-  done: false。iteration が 3 以上の拒否は、名指しの単位だけを
-  段の頭の木に戻して諦め、ほかの単位を受けて done: true
-- 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false
+- 拒否は rolekit の控え rejects-fix-accept.json に積み（fixboard.accept_out。reason_file はこの輪の拒否の全部のファイル
+  rolekit.reject_file の rejects-fix-accept.md）、最後の回（rolekit.is_last_attempt。回は控えの拒否の数 + 1）まで done: false。
+  最後の回の拒否は、名指しの単位だけを段の頭の木に戻して諦め、ほかの単位を受けて done: true（指示書の番号 INPUTS_ITERATION は
+  諦めの判断に使わない。with: の入力は残るが読まない）
+- 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false で、控えに数えない（count: false）
 - 1 回目で裁かれていない申し出が在れば輪を抜ける（done: true。裁定の後の修正役が受け付け直す）
 置き場に残す物: fix-units.json（{unit_key: {status, reason}}）・fix-reply.json（受けた返答に 6 つの印と rejudge_requested を
 前の控えと論理和で重ねた物）。
-返り {ok, done, reason, reason_file}。回す側の誤り（返答・回の番号が読めない・判定の写しが無い）は標準エラーに 1 行で非 0。
+返り {ok, done, reason, reason_file}。回す側の誤り（返答が読めない・判定の写しが無い）は標準エラーに 1 行で非 0。拒否の控え rejects-fix-accept.json が読めない・書けない時は
+落ちずに done: true の拒否（理由『拒否の控えが扱えない』）。rejects-fix-accept.md が書けない時は標準エラーに 1 行で非 0。
 """
 import os
 import sys
@@ -39,7 +41,6 @@ NOT_LAUNCHED = "修正役を起こさなかった（組の直す義務の単位�
 def main() -> dict:
     raw = os.environ["INPUTS_REPLY"]
     consulted = os.environ.get("INPUTS_CONSULTED", "").strip().lower() == "true"
-    iteration = int(os.environ["INPUTS_ITERATION"])
     if consulted:
         return {"ok": False, "done": False, "reason": fixboard.CONSULTED, "reason_file": ""}
     place, repo = boundary.place("fix"), boundary.work_tree()
@@ -52,6 +53,9 @@ def main() -> dict:
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise ValueError(why)
+    iteration, stopped = fixboard.round_number(place, NAME)
+    if stopped:
+        return stopped
     start = startrec.read(place)
     state, _ = fixboard.loop_files(place)
     judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
@@ -73,10 +77,9 @@ def finish(place: Path, got: dict, iteration: int) -> dict:
                        conflicted=got["conflicted"])
         return {"ok": True, "done": True, "reason": fixboard.PARKED_FOR_RULING if got["conflicted"] else "",
                 "reason_file": ""}
-    reason_file = fixboard.write_reject(place, NAME, iteration, got["reason"])
-    done = fixboard.loop_done(got, iteration)
-    fixboard.trace(place, "fix_rejected", node=NAME, iteration=iteration, done=done, parked=sorted(got["parked"]))
-    return {"ok": False, "done": done, "reason": got["reason"], "reason_file": reason_file}
+    out = fixboard.accept_out(place, NAME, got)
+    fixboard.trace(place, "fix_rejected", node=NAME, iteration=iteration, done=out["done"], parked=sorted(got["parked"]))
+    return {**out, "reason": got["reason"]}
 
 
 if __name__ == "__main__":
