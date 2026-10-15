@@ -46,7 +46,10 @@ def taken_pushes() -> tuple:
     if judgment_file is None:
         return [], []
     try:
-        b = gatemarks.ledger_at(judgment_file, start, answer, boundary.pointed(os.environ["INPUTS_TIES_JUDGMENT"]))
+        ties = boundary.pointed(os.environ["INPUTS_TIES_JUDGMENT"])
+        if ties is not None and not ties.is_file():
+            raise ValueError(f"入力 ties_judgment の先 {ties} が無い")
+        b = gatemarks.ledger_at(judgment_file, start, answer, ties)
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return [], [f"- 判定の問いの控えか始めの記録を読めない（無人の run が保留の問いに採った推しを並べていない。{type(error).__name__}: {error}）"]
     return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(b)], []
