@@ -365,7 +365,7 @@ judge の中のノードを表に足す時は、その句を出す script のノ
   - `deliver` ← `$start.output.deliver`（apply）・`$chain-start.output.deliver`（handoff）。出口の語（`lib/deliver.py`）で、空は差分を置くだけ、`pr` は置いた差分を run 専用の枝（`works-factory/run-<run id>`）へ push して既定の枝向けの PR を作る。seal は読まない。知らない語は `ok: false` と訳で拒む
   - `placed` ← `$final-diff.output.apply`（handoff だけ。鎖の最後の差分の `{ok, hash, diff, reason}` をそのまま受ける。鎖の側に欄を足さない）
   - `base_rev` ← `$chain-start.output.origin`（handoff だけ。元の基の commit。`deliver` が `pr` の時に PR の元になる版。名を `base` にしないのは、入口の入力 `base`（差分の根の名指し）と意味を割らないため）
-  - `request` ← `$chain-start.output.first_request`（handoff だけ。依頼のファイルの絶対パス。`deliver` が `pr` の時に、その欄 `issue` の番号を commit と PR の本文で名指す。apply は始めの記録の `request_file` を読む）
+  - `issues` ← `$chain-start.output.issues`（handoff だけ。始めに控えた 1 周目の依頼の欄 `issue` の番号の並び。`deliver` が `pr` の時に commit と PR の本文で名指す。apply は始めの記録の欄 `issues` を読む。どちらも依頼のファイルは読み直さない。null は始めに依頼を読めなかった印で、番号なしで提出して本文にそう 1 行書く）
 - 出力:
   - `mode`（string）: `seal`・`apply`・`handoff` → report
   - `ok`（boolean）: seal は差分を封じた。apply は封じた hash と今の差分が合い、置いて読み戻せた。handoff は `placed` の hash と差分のバイトが合い、`placed.ok` が真で、R2 が作り直しと言っておらず、置いて読み戻せた（拒みは `lib/seal.py` の `handoff_refusal` の 1 か所で、鎖の側に受け入れの決めを写さない）。出口の結果は含めない（`ok` の意味は置いて読み戻せたまま）→ メイングラフ 11（seal）・report
@@ -373,7 +373,7 @@ judge の中のノードを表に足す時は、その句を出す script のノ
   - `diff`（ポインタ・null 可）: seal は封じた差分。apply と handoff は置いた先（人が `bin/apply` で当てる物）。差分が空か組めない時は null（`ok` は false、`reason` に訳）→ report
   - `protected_hits`（array of string・null 可）: 守りのパスの当たり。seal だけ → メイングラフ 11
   - `reason`（string）: ok が false の訳（hash の食い違いなど）。ok なら `""` → report
-  - `delivered`（object・null 可）: 出口の結果 `{ok, branch, commit, url, reason}`。`deliver` が空なら null（外へは何も書かない）。`pr` で差分を置いた時は、push と PR を読み戻した値で組み（remote の枝の先と PR の head が push した commit と同じで、PR が開いていて base が既定の枝か）、`ok` は読み戻せた時だけ真。置かなかった時（`ok` が偽）は書かずに `{ok: false, reason}`。例外で落ちた時も、apply・handoff で `deliver` が空でなければ同じ `{ok: false, reason}`（null は何も頼まれていない印。訳の頭は、この run で差分を置いたかで分ける）。commit と PR の本文は、run の id・封じた hash・依頼の `issue` の番号（在る時だけ）を名指し、手元の絶対パスは載せない。報告の冒頭と在りかは、報告が PR の後に作られるので載せず、本文でそう断る。柵（枝が守られている・基の版が既定の枝から届かない・push が拒まれた）に当たっても `ok` は変わらず、`delivered` に訳を載せる → メイングラフの collect・鎖の `result`・report
+  - `delivered`（object・null 可）: 出口の結果 `{ok, branch, commit, url, reason}`。`deliver` が空なら null（外へは何も書かない）。`pr` で差分を置いた時は、push と PR を読み戻した値で組み（remote の枝の先と PR の head が push した commit と同じで、PR が開いていて base が既定の枝か）、`ok` は読み戻せた時だけ真。置かなかった時（`ok` が偽）は書かずに `{ok: false, reason}`。例外で落ちた時も、apply・handoff で `deliver` が空でなければ同じ `{ok: false, reason}`（null は何も頼まれていない印。訳の頭は、この run で差分を置いたかで分ける）。commit と PR の本文は、run の id・封じた hash・依頼の `issue` の番号（在る時だけ。始めに読めなかった時は番号なしで、読めなかったと 1 行）を名指し、手元の絶対パスは載せない。報告の冒頭と在りかは、報告が PR の後に作られるので載せず、本文でそう断る。柵（枝が守られている・基の版が既定の枝から届かない・push が拒まれた）に当たっても `ok` は変わらず、`delivered` に訳を載せる → メイングラフの collect・鎖の `result`・report
 
 ### report の出力
 

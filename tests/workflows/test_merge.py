@@ -27,6 +27,7 @@ LIB = ROOT / "lib"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import deliver  # noqa: E402
 import green_cert  # noqa: E402
 from graphloops.engine.schema import validate_schema  # noqa: E402
 import protect  # noqa: E402
@@ -38,7 +39,7 @@ SCRIPT = BLOCK / "scripts" / "merge.py"
 NAME = "works-factory-merge"
 RUN = "run-merge"
 INPUTS = ("mode", "start", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "placed", "base_rev",
-          "request")
+          "issues")
 RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "reason", "delivered")
 NO_DEADLINE = 1728000000
 PASS = json.dumps({"decision": "continue", "text": ""})
@@ -112,7 +113,7 @@ class ScriptCase(unittest.TestCase):
         (self.repo / "a.txt").write_text("two\n", encoding="utf-8")
         self.artifacts = self.tmp / "artifacts"
         self.artifacts.mkdir()
-        self.start = self.place("start.json", json.dumps({"base_rev": self.base}))
+        self.start = self.place("start.json", json.dumps({"base_rev": self.base, "issues": []}))
 
     def place(self, rel: str, text: str) -> str:
         path = self.artifacts / rel
@@ -167,7 +168,7 @@ class ScriptCase(unittest.TestCase):
             git(self.repo, "add", rule["glob"])
             git(self.repo, "commit", "-q", "-m", "protected")
             self.base = git(self.repo, "rev-parse", "HEAD")
-            self.start = self.place("start.json", json.dumps({"base_rev": self.base}))
+            self.start = self.place("start.json", json.dumps({"base_rev": self.base, "issues": []}))
             for mark in marks:
                 git(self.repo, "update-index", mark, rule["glob"])
         path.write_text("y\n", encoding="utf-8")
@@ -321,7 +322,7 @@ class ApplyTest(ScriptCase):
         git(self.repo, "add", ".works-protected.json")
         git(self.repo, "commit", "-q", "-m", "declare")
         self.base = git(self.repo, "rev-parse", "HEAD")
-        self.start = self.place("start.json", json.dumps({"base_rev": self.base}))
+        self.start = self.place("start.json", json.dumps({"base_rev": self.base, "issues": []}))
         (self.repo / ".works-protected.json").unlink()
         sealed = self.seal(fingerprint=self.fingerprint())
         self.assertEqual([h.split("（")[0] for h in sealed["protected_hits"]], [".works-protected.json", "a.txt"], sealed)
@@ -591,7 +592,7 @@ class DeliverTest(ScriptCase):
 
     def run_chain_handoff(self, placed=None, r2="pass", **over) -> dict:
         inputs = {"mode": "handoff", "placed": json.dumps(self.final_diff() if placed is None else placed), "base_rev": self.base,
-                  "r2": r2, "deliver": "pr"}
+                  "r2": r2, "deliver": "pr", "issues": "[]"}
         return self.run_script(**{**inputs, **over})
 
     def assertNothingWritten(self, delivered, words):
@@ -645,28 +646,39 @@ class DeliverTest(ScriptCase):
         self.assertNotIn(str(self.tmp), message)
         self.assertEqual([c[:2] for c in self.calls() if c[:2] in (["pr", "merge"], ["pr", "close"])], [])
 
-    def test_request_issues_are_named_in_the_commit_and_the_pr(self):
-        """依頼の欄 issue（apply は始めの記録の request_file、handoff は入力 request の先）を、commit と PR の本文で名指す"""
-        request = self.tmp / "request.json"
-        request.write_text(json.dumps({"findings": [{"text": "x"}], "issue": [555, 7]}), encoding="utf-8")
-        start = self.place("start.json", json.dumps({"base_rev": self.base, "request_file": str(request)}))
-        for name, run in (("apply", lambda: self.apply_pr(start=start)), ("handoff", lambda: self.run_chain_handoff(request=str(request)))):
-            with self.subTest(name):
-                shutil.rmtree(self.artifact("merge/objects"), ignore_errors=True)
-                git(self.bare, "update-ref", "-d", f"refs/heads/{self.BRANCH}")
-                pathlib.Path(self.state["prs"]).unlink(missing_ok=True)
-                got = run()
-                self.assertIs(got["delivered"]["ok"], True, got["delivered"])
-                body = self.made("pr", "create")[-1]
-                body = body[body.index("--body") + 1]
-                self.assertIn("依頼の issue: #555・#7", body)
-                self.assertIn("依頼の issue: #555・#7", git(self.bare, "log", "-1", "--format=%B", got["delivered"]["commit"]))
+    def delivered_body(self, run) -> tuple:
+        """提出をやり直せる様に押した枝と PR を消してから run を回し、(返り, PR の本文, commit の本文)"""
+        shutil.rmtree(self.artifact("merge/objects"), ignore_errors=True)
+        git(self.bare, "update-ref", "-d", f"refs/heads/{self.BRANCH}")
+        pathlib.Path(self.state["prs"]).unlink(missing_ok=True)
+        got = run()
+        self.assertIs(got["delivered"]["ok"], True, got["delivered"])
+        create = self.made("pr", "create")[-1]
+        return got, create[create.index("--body") + 1], git(self.bare, "log", "-1", "--format=%B", got["delivered"]["commit"])
 
-    def test_unreadable_request_stops_before_placing(self):
-        got = self.apply_pr(start=self.place("start.json", json.dumps({"base_rev": self.base, "request_file": str(self.tmp / "none")})))
-        self.assertFalse(got["ok"])
-        self.assertFalse(self.artifact("merge/apply.diff").exists())
-        self.assertNothingWritten(got["delivered"], "差分を置かなかった")
+    def test_recorded_issues_are_named_in_the_commit_and_the_pr(self):
+        """始めに控えた issue の番号（apply は始めの記録の欄 issues、handoff は入力 issues）を、commit と PR の本文で名指す。
+        依頼のファイルは読み直さない（始めの記録の request_file が指す先が無くても控えの番号を使う）"""
+        start = self.place("start.json", json.dumps({"base_rev": self.base, "request_file": str(self.tmp / "none"), "issues": [555, 7]}))
+        for name, run in (("apply", lambda: self.apply_pr(start=start)), ("handoff", lambda: self.run_chain_handoff(issues="[555, 7]"))):
+            with self.subTest(name):
+                _, body, message = self.delivered_body(run)
+                self.assertIn("依頼の issue: #555・#7", body)
+                self.assertIn("依頼の issue: #555・#7", message)
+
+    def test_unread_issues_still_place_and_deliver_without_numbers(self):
+        """始めに依頼を読めなかった印（控えが null・控えの欄が無い）でも差分を置いて提出し、番号なしと本文に 1 行書く"""
+        cases = (("apply null", lambda: self.apply_pr(start=self.place("start.json", json.dumps({"base_rev": self.base, "issues": None})))),
+                 ("apply 欄なし", lambda: self.apply_pr(start=self.place("start.json", json.dumps({"base_rev": self.base})))),
+                 ("handoff null", lambda: self.run_chain_handoff(issues="null")))
+        for name, run in cases:
+            with self.subTest(name):
+                got, body, message = self.delivered_body(run)
+                self.assertIs(got["ok"], True, got)
+                self.assertTrue(self.artifact("merge/apply.diff").exists())
+                for text in (body, message):
+                    self.assertIn(deliver.UNREAD_ISSUES, text)
+                    self.assertNotIn("依頼の issue: #", text)
 
     def test_handoff_with_a_wrong_hash_writes_nothing(self):
         got = self.run_chain_handoff(self.final_diff(hash="0" * 64))

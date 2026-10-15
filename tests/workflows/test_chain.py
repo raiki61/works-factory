@@ -281,6 +281,13 @@ class ChainStartCase(Tree):
         got = self.start(rounds="2")
         self.assertEqual((got["act"], got["deliver"]), ("launch", ""), got)
 
+    def test_issues_are_recorded_from_the_first_request(self):
+        """1 周目の依頼の欄 issue を始めに控える。名指しが無ければ空、依頼が読めなければ null（出口は番号なしで提出する）"""
+        (self.tmp / "req.json").write_text(json.dumps({"findings": [{"text": "x"}], "issue": [555, 7]}), encoding="utf-8")
+        self.assertEqual(self.start(rounds="2", request="req.json")["issues"], [555, 7])
+        self.assertEqual(self.start(rounds="2")["issues"], [])
+        self.assertIsNone(self.start(rounds="2", request="none.json")["issues"])
+
     def test_origin_is_the_head_when_the_chain_starts(self):
         self.assertEqual(self.start(rounds="2")["origin"], "", "commit の無い木の元の基は空")
         (self.tmp / "a.txt").write_text("a\n", encoding="utf-8")
@@ -553,7 +560,7 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(set(node["depends_on"]), {"chain-start", "final-diff"})
         self.assertEqual(node["with"], {"mode": "handoff", "placed": "$final-diff.output.apply", "r2": "$final-diff.output.r2_status",
                                         "base_rev": "$chain-start.output.origin", "deliver": "$chain-start.output.deliver",
-                                        "request": "$chain-start.output.first_request"})
+                                        "issues": "$chain-start.output.issues"})
         self.assertEqual(NODES["result"]["with"]["delivered"], {"from": "$deliver.output.delivered", "if_skipped": None})
         self.assertIn("delivered", NODES["result"]["output_format"]["required"])
         self.assertEqual(NODES["final-diff"]["output_format"]["required"],

@@ -11,6 +11,8 @@ lib/tests/test_concept_fences.py と tests/layers/test_concept_fences.py）。
 
 - Refused: 入口の入力を受けない（呼び手 entry が InputRefused にする。1 行）
 - named_pr(raw): 入力 pr が名指した PR の番号（無ければ None）。線の入口と周の鎖の始めが同じ読みを使う
+- named_issues(raw, repo): 依頼の欄 issue の番号の並び（読めない・形の外なら None）。線と周の鎖の始めが始めに控え、出口の提出が
+  その控えを読む（run の途中で依頼のファイルが変わっても値がずれない）
 - change_base(raw, repo, reads): 差分の根を名指す生の入力（base・pr）を {base_rev, base: {rev, from, name, label}, pr} に解く
 - refuse_empty(items, change, repo): 依頼の行が空で差分も空なら拒む（EMPTY_REFUSED）
 - build(inp, repo): 入口の入力の形 {base, head_rev, diff, requests, request_file, pr, spec}
@@ -164,20 +166,33 @@ def request_text(inp: dict) -> str:
     return f"変更（{base['label']}）の審査"
 
 
+def _request_parts(raw: dict, repo: pathlib.Path):
+    """入力 request の依頼のファイルの carry.parts。名指しが無ければ空の parts、読めない・形の外なら None"""
+    rel = _word(raw, "request")
+    if not rel:
+        return carry.parts([])
+    path = pathlib.Path(rel) if pathlib.Path(rel).is_absolute() else repo / rel
+    try:
+        return carry.parts(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+
+
 def named(raw: dict, repo: pathlib.Path):
     """入力 pr と依頼の欄 pr・issue が名指した (PR の番号の並び, issue の番号の並び)。依頼が読めない・形の外なら依頼の分は
     無しにする（形の誤りは入口の節（start）が拒む）"""
     pr = named_pr(raw)
-    prs, issues = ([] if pr is None else [pr]), []
-    rel = _word(raw, "request")
-    if rel:
-        path = pathlib.Path(rel) if pathlib.Path(rel).is_absolute() else repo / rel
-        try:
-            parts = carry.parts(json.loads(path.read_text(encoding="utf-8")))
-        except (OSError, UnicodeDecodeError, ValueError):
-            return prs, issues
-        prs, issues = list(dict.fromkeys(parts[carry.PR] + prs)), list(parts[carry.ISSUE])
-    return prs, issues
+    prs = [] if pr is None else [pr]
+    parts = _request_parts(raw, repo)
+    if parts is None:
+        return prs, []
+    return list(dict.fromkeys(parts[carry.PR] + prs)), list(parts[carry.ISSUE])
+
+
+def named_issues(raw: dict, repo: pathlib.Path):
+    """依頼の欄 issue の番号の並び（名指しが無ければ空）。依頼が読めない・形の外なら None（読めなかった印。提出は番号なしで続く）"""
+    parts = _request_parts(raw, repo)
+    return None if parts is None else list(parts[carry.ISSUE])
 
 
 def github_reads(board_dir: pathlib.Path, repo: pathlib.Path, raw: dict):

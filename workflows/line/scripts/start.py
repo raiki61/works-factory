@@ -225,7 +225,7 @@ def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: P
     except fixture.FixtureRefused as error:
         raise Refused(f"固定材料を取り込まない: {error}") from None
     named = asked["request_file"]
-    doc.update({"versions": versions_doc, **features(checked), "request_file": named,
+    doc.update({"versions": versions_doc, **features(checked), "request_file": named, "issues": asked["parts"][carry.ISSUE],
                 "input": {**startrec.shape(doc), "request_file": named}})
     prior = boundary.pointer(carry.PRIOR_IN_FILE) if (artifacts / carry.PRIOR_IN_FILE).is_file() else None
     return begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id, checked[deliver.KEY],
@@ -273,7 +273,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
-        "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
+        "issues": parts[carry.ISSUE], "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
         gatepolicy.FINAL_KEY: checked[gatepolicy.FINAL_KEY], gatepolicy.UNATTENDED_KEY: checked[gatepolicy.UNATTENDED_KEY],
         "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
         "policy_md": checked["policy_md"], "policy": policy.freeze(artifacts, repo, checked["policy_md"]), "lang": raw["lang"],

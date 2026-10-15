@@ -12,7 +12,9 @@
 first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）と、
 最後の差分の元の基 origin（run の作業ツリーの今の HEAD。1 周目の子の始めの記録の base_rev と同じ版。commit の無い木なら空）と、
 出口の語 deliver（lib/deliver.py。空か pr。知らない語と、pr で remote が GitHub でない・host の gh が無い・push の権限が無いは、周を起こす前に
-act: refused で止める。周の子へは渡さず、渡す先は final-diff の後ろのノード deliver だけ）も返す。
+act: refused で止める。周の子へは渡さず、渡す先は final-diff の後ろのノード deliver だけ）と、そのノードが提出の commit と PR の本文で
+名指す 1 周目の依頼の欄 issue の番号の並び issues（entryshape.named_issues の読み。始めに控えるので周の間に依頼のファイルが変わっても
+ずれない。読めなければ null で、提出は番号なしで続く）も返す。
 出力ノード result が結ぶので落ちない: 境の口を読めない時も標準ライブラリだけで act: refused を返す。
 
 入力: rounds・budget_usd・request・base・pr・spec・design_only・fix_fixture・deliver（鎖の入力）
@@ -44,7 +46,8 @@ FIX_FIXTURE_REFUSED = ("周の鎖は fix_fixture と組めない（固定材料�
 
 def refused(reason: str) -> dict:
     return {"ok": False, "reason": reason, "act": "refused", "word": "", "text": reason, "request": "", "base": "", "pr": "",
-            "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0, "origin": "", "deliver": ""}
+            "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0, "origin": "", "deliver": "",
+            "issues": []}
 
 
 def head() -> str:
@@ -75,7 +78,8 @@ def start() -> dict:
     return {"ok": True, "reason": "", "act": "launch", "word": "", "text": "1 周目を起こす", "request": request,
             "base": boundary.text(os.environ.get("INPUTS_BASE")), "pr": pr, "spec": boundary.text(os.environ.get("INPUTS_SPEC")),
             "rows": [], "rounds": rounds, "budget": budget, "first_request": first,
-            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": head(), deliver.KEY: word}
+            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": head(), deliver.KEY: word,
+            "issues": entryshape.named_issues({"request": first}, boundary.work_tree())}
 
 
 def main() -> None:

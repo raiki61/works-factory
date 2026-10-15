@@ -100,7 +100,9 @@ nodes:
         first_pr: { type: integer }
         origin: { type: string }
         deliver: { type: string }
-      required: [ok, reason, act, word, text, request, base, pr, spec, rows, rounds, budget, first_request, first_pr, origin, deliver]
+        issues: { type: [array, "null"], items: { type: integer } }
+      required: [ok, reason, act, word, text, request, base, pr, spec, rows, rounds, budget, first_request, first_pr, origin, deliver,
+                 issues]
     mutates_checkout: false
 
   # 周ごとの 4 つのノード。5 組は番号と前の決め（1 周目は chain-start、ほかは前の周の round-<k-1>-decide）のほかは同じ形。
@@ -592,7 +594,7 @@ nodes:
       r2: "$final-diff.output.r2_status"
       base_rev: "$chain-start.output.origin"
       deliver: "$chain-start.output.deliver"
-      request: "$chain-start.output.first_request"
+      issues: "$chain-start.output.issues"
 
   # 鎖の出力。周の子かその周のノードか final-diff が落ちて後ろが飛んでも走る（resume のたびに走り直す）
   - id: result

@@ -12,7 +12,8 @@ works-factory/run-<id> へ push し、既定の枝向けの PR を作り、書�
   リポジトリが読めて push の権限が真か。夜通しの実行が最後に初めて拒むのを避けるため、始めに呼ぶ
 - BRANCH_PREFIX・branch_of(id) -> str: 押す先の枝の名 works-factory/run-<id>（ほかに枝の名を組む所は無い。HEAD の枝の名は使わない）
 - submit(repo, base_rev, data, run_id, scratch, sealed, issues) -> dict: 提出する。柵は push の前に全部照らし、当たれば何も書かずに訳を
-  返す。commit と PR の本文は、封じた hash sealed と依頼の issue の番号の並び issues（在る時だけ）を名指す。返りは
+  返す。commit と PR の本文は、封じた hash sealed と依頼の issue の番号の並び issues（在る時だけ）を名指す。issues が番号の並びで
+  なければ（始めに依頼を読めなかった印の null）番号なしで提出し、読めなかったと 1 行（UNREAD_ISSUES）書く。返りは
   delivered {ok, branch, commit, url, reason}。ok は読み戻した値が push した commit と合った時だけ真
 - refused(word, why, placed=False) -> dict|None: 提出しなかった時の delivered。placed は差分を置いたか（訳の頭を分ける）。語が空なら
   null（何も頼まれていない印）
@@ -57,6 +58,7 @@ REPO_FLAG = re.compile(r"[a-z0-9.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 IDENTITY = ("works-factory", "works-factory@localhost")
 PUSH_NOTE = ("対象の pre-push フックは走らせずに push した（push は対象のコードを走らせない。フックの外の確かめは対象の CI が持つ）。"
              "枝は専用で、既定の枝には触れず、merge もしない。")
+UNREAD_ISSUES = "依頼の issue: 始めに依頼のファイルを読めなかったので、番号なしで提出した"
 REPORT_NOTE = "報告の冒頭と報告の在りかは載せていない（報告はこの PR を作った後に作るので、作る時にはまだ無い）。"
 
 
@@ -261,10 +263,16 @@ def _objects(repo) -> Path:
     return (common if common.is_absolute() else Path(repo) / common) / "objects"
 
 
+def _issue_line(issues) -> list:
+    """依頼の issue の行。正の整数の並びでなければ（始めに依頼を読めなかった印の null も）読めなかったと 1 行書く"""
+    if not isinstance(issues, (list, tuple)) or any(type(n) is not int or n <= 0 for n in issues):
+        return [UNREAD_ISSUES]
+    return [f"依頼の issue: {'・'.join(f'#{n}' for n in issues)}"] if issues else []
+
+
 def _facts(run_id: str, sealed: str, issues) -> list:
     """commit と PR の本文に載せる事実の行。差分の在りかは手元の絶対パスでなく run の id で言う（PR は利用者の手元の外に出る）"""
-    return [f"封じた差分の hash: {sealed}", *([f"依頼の issue: {'・'.join(f'#{n}' for n in issues)}"] if issues else []),
-            f"差分: run {run_id} の置き場（bin/apply {run_id} が当てる物と同じ）"]
+    return [f"封じた差分の hash: {sealed}", *_issue_line(issues), f"差分: run {run_id} の置き場（bin/apply {run_id} が当てる物と同じ）"]
 
 
 def _commit(repo, base_rev: str, data: bytes, run_id: str, scratch: Path, facts: list) -> str:

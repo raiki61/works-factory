@@ -34,9 +34,9 @@ inputs:
   base_rev:
     default: ""
     description: 元の基の commit（handoff だけ。deliver が pr の時に PR の元になる版。既定の枝から届く版でなければ提出しない）
-  request:
+  issues:
     default: ""
-    description: 依頼のファイルの絶対パス（handoff だけ。deliver が pr の時に、その欄 issue の番号を commit と PR の本文で名指す。空は名指さない）
+    description: 始めに控えた依頼の欄 issue の番号の並び（handoff だけ。deliver が pr の時に commit と PR の本文で名指す。空の並びは名指さない。null は始めに依頼を読めなかった印で、番号なしで提出して読めなかったと 1 行書く）
 returns: merge
 outcome_field: ok
 nodes:
@@ -57,7 +57,7 @@ nodes:
       deliver: $INPUTS.deliver
       placed: $INPUTS.placed
       base_rev: $INPUTS.base_rev
-      request: $INPUTS.request
+      issues: $INPUTS.issues
     output_format:
       type: object
       properties:

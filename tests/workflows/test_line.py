@@ -264,6 +264,14 @@ class StartCase(Artifacts):
         doc = self.record(self.start(base="base"))
         self.assertEqual((doc["request_file"], doc["input"]["request_file"]), ("", ""))
 
+    def test_request_issues_are_recorded_at_the_start(self):
+        """依頼の欄 issue の番号を始めの記録の欄 issues に控える（出口の提出が依頼のファイルを読み直さずに名指す）。名指しが無ければ空"""
+        (self.repo / "request_issue.json").write_text(json.dumps({"findings": json.loads(
+            (self.repo / "request_ok.json").read_text(encoding="utf-8")), "issue": [555]}), encoding="utf-8")
+        got, _ = self.start_with_gh({"version": 1, "pr": {}, "issue": {"555": {"status": "ok"}}}, request="request_issue.json")
+        self.assertEqual(self.record(got)["issues"], [555])
+        self.assertEqual(self.record(self.start(request="request_ok.json"))["issues"], [])
+
     def test_blocks_read_the_request_file_from_the_line_record(self):
         """issue #89: 線の始めの記録を fix の prep・事前審査の open と同じ口（startrec.adopt）で置き場の r1/start.json に字のまま写すと、
         startrec.request_file で読む fix の読み手（conflict.request_file・fixboard.fix_values）が依頼のファイルを返す"""
@@ -411,6 +419,7 @@ class StartCase(Artifacts):
         self.assertTrue(got["ok"], got)
         doc = json.loads((place / got["record"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual((doc["request_file"], doc["input"]["request_file"]), (str(again.resolve()), str(again.resolve())))
+        self.assertEqual(doc["issues"], [], "issue の控えも今の依頼の物")
 
     def test_fixture_that_does_not_match_is_refused_before_any_role(self):
         self.start(request="request_ok.json")
@@ -2894,8 +2903,8 @@ class LineWiringCase(unittest.TestCase):
         ("merge-seal", "base_rev"): HANDOFF_ONLY,
         ("merge-apply", "placed"): HANDOFF_ONLY,
         ("merge-apply", "base_rev"): HANDOFF_ONLY,
-        ("merge-seal", "request"): HANDOFF_ONLY,
-        ("merge-apply", "request"): HANDOFF_ONLY,
+        ("merge-seal", "issues"): HANDOFF_ONLY,
+        ("merge-apply", "issues"): HANDOFF_ONLY,
         ("fix", "mode"): GROUP_ONLY,
         ("fix", "group"): GROUP_ONLY,
         ("fix", "from_tree"): GROUP_ONLY,
