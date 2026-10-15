@@ -3191,7 +3191,7 @@
 - fix.md F324: lib/refix.py::cut（seat.section）、workflows/fix/commands/delta-review.md の seat_file の行
 - fix.md F325: lib/fixboard.py::refix_prompt、lib/refixrules.py、workflows/fix/commands/fix-rules/refix.md
 - fix.md F326: lib/fixboard.py::lens_route、lib/lenses.py::_any_change・lib/lenses.py::LENSES（route は変更が在るか）・lib/lenses.py::render、workflows/fix/scripts/lens_prep.py
-- fix.md F327: lib/lenses.py::collect、lib/lens.py、lib/fixboard.py::brief_lens、workflows/fix/scripts/lens_collect.py
+- fix.md F327: lib/lenses.py::collect、lib/lens.py、lib/fixboard.py::brief_lens、workflows/fix/scripts/lens_collect.py、workflows/fix/scripts/lens_reply.py（レンズが落ちた run で飛ぶ出力の中継）
 - fix.md F328: diff の隣の `lenses.json`（`{collector: {ok, reason}}`）: lib/fixboard.py::lens_collector、workflows/fix/scripts/lens_collect.py（落ちる時も ok: false と理由を書く）・workflows/fix/scripts/delta_cut.py::main・workflows/fix/scripts/delta_cut.py::no_go（前の試みの物を消し、審査を回さない時は ok: true と訳）・workflows/fix/scripts/collect.py::lenses_file（行が無ければ ok: false。stdlib だけで書く）（#121）
 - fix.md F329: fix の diff の隣の lenses.json（lens.summary と report_lines。lib/fixbeside.py）→ lib/fixbeside.py::always_rows・lib/fixbeside.py::lens_lines（未確認のレンズのセクション）・lib/fixbeside.py::next_items（再実行の要あり）
 - fix.md F330: fix の範囲の外。works-factory では bin/_lib/toolset.py・bin/_lib/COPIED_FROM.changemap が台帳を持つ
@@ -3208,8 +3208,8 @@
 - fix.md F410: lib/fixboard.py::join_group、lib/lanekit.py::merge_in_order（workflows/fix/scripts/join.py::main が呼ぶ）
 - fix.md F411: lib/fixboard.py::rerun_problem・lib/fixboard.py::rerun_cmd、workflows/fix/scripts/join.py::main（中の `merge_one`。名指しの無い組も変えたファイルに当たる試験を走らせ、前に戻せた組の名指しと重なりのファイルから届く試験を足し、子の関門が on で軽量でない単位が在れば test_cmd を 1 回）（#121）
 - fix.md F412: lib/fixboard.py::rerun_problem（重なりの在る組の赤を「意味の食い違い」SEMANTIC_CLASH と名指す）、workflows/fix/scripts/join.py（#121）
-- fix.md F413: workflows/fix/scripts/join.py::result_of と workflows/fix/scripts/join.py::main（結果の無い組で落ちる）、lib/fixboard.py::join_rows（NO_RESULT）
-- fix.md F414: lib/fixboard.py::drop_unreturned、workflows/fix/scripts/group_start.py::main
+- fix.md F413: lib/fixboard.py::usable_result と workflows/fix/scripts/join.py::main（結果の無い組で落ちる）、lib/fixboard.py::join_rows（NO_RESULT）
+- fix.md F414: lib/fixboard.py::usable_result、lib/fixboard.py::drop_unreturned、workflows/fix/scripts/group_start.py::main
 - fix.md F415: lib/fixboard.py::adopt_tdd_states・lib/fixboard.py::ruled_states、lib/baseline_red.py::exe_path
 - fix.md F416: lib/fixboard.py::tdd_units、workflows/fix/scripts/tdd_unit.py、YAML ノード tdd-unit
 - fix.md F417: lib/leftovers.py::record_ignored、workflows/fix/scripts/prep.py（fix-ignored-before.json）

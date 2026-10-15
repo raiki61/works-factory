@@ -43,22 +43,13 @@ import writes  # noqa: E402
 import writelog  # noqa: E402
 
 
-def result_of(out_dir: Path, gid: str):
-    """子の結果（無い・読めない・形が違えば None）"""
-    try:
-        doc = fixboard.read_json(out_dir / gid / fixboard.RESULT_FILE)
-    except (OSError, ValueError):
-        return None
-    return doc if isinstance(doc, dict) and isinstance(doc.get("end_tree"), str) else None
-
-
 def main() -> dict:
     place = boundary.place("fix")
     plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
     out_dir = Path(plan["out_dir"])
-    results = {g["group_id"]: result_of(out_dir, g["group_id"]) for g in plan["groups"]}
+    results = {g["group_id"]: fixboard.usable_result(out_dir / g["group_id"]) for g in plan["groups"]}
     missing = [gid for gid, r in results.items() if r is None]
     if missing:
         raise ValueError(f"組の子の結果のファイルが無いか読めない（{'・'.join(missing)}）")

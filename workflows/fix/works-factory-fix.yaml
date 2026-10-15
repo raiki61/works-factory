@@ -175,12 +175,13 @@ nodes:
         groups: {type: integer, minimum: 0}
         returned: {type: integer, minimum: 0}
 
-  # 組の節か join が落ちた run で飛ぶ柵。どの節もこれに依存しないブロックの sink で、返す節 fix（all_done で必ず済み、
-  # この時は done: false）と別に、組が落ちたことをブロックの出口に出す。resume で組の節が落ちた子を続きから回し、join が済めば
-  # この節も済む。when を書かない（形 group の run でも route だけで済ませ、飛ぶのは組か join が落ちた時に限る）
-  - id: groups-ok
+  # サブグラフのどの節かが落ちた run で飛ぶ柵。どの節もこれに依存しないブロックの sink で、返す節 fix（all_done で必ず済み、
+  # この時は done: false）と別に、節が落ちたことをブロックの出口に出す。fix とこの節と、落ちても止めない段（レンズの節 lens と
+  # その中継 lens-reply）のほかの全部の節に結ぶ（足した節を結び忘れると配線の試験が落ちる）。resume で落ちた節から続きを回し、
+  # 全部が済めばこの節も済む。when を書かない（when で飛ぶ節は落ちと数えず、route だけで済む）
+  - id: nodes-ok
     bash: "true"
-    depends_on: [route, groups-par, groups-seq, join]
+    depends_on: [route, prep, groups-par, groups-seq, join, clash-loop, tdd-unit, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-prep, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: none_failed_min_one_success
     mutates_checkout: false
     timeout: 1728000000
@@ -830,14 +831,13 @@ nodes:
             iteration: $fix-ruled-prep.output.iteration
           output_format: *accept_out
 
-  # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）。join を結ぶのは、組の節が落ちた
-  # run でもこの節は join 無しで走って済むので、resume で join が済んだ時に作り直させるため（依存の出力の字が前と同じ節は
-  # Archon が作り直さない）。assert-changed・delta-cut も同じ
+  # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）。前のどれかの節が落ちた run では
+  # この節から delta-loop までが飛ぶので、resume で作り直される
   - id: clean
     script: clean
     runtime: uv
-    depends_on: [route, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
-    trigger_rule: all_done
+    depends_on: [route, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
+    trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
     timeout: 1728000000
     output_format:
@@ -852,8 +852,8 @@ nodes:
   - id: assert-changed
     script: assert_changed
     runtime: uv
-    depends_on: [route, join, clean]
-    trigger_rule: all_done
+    depends_on: [route, clean]
+    trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
     mutates_checkout: false
     timeout: 1728000000
@@ -870,8 +870,8 @@ nodes:
   - id: delta-cut
     script: delta_cut
     runtime: uv
-    depends_on: [route, join, assert-changed]
-    trigger_rule: all_done
+    depends_on: [route, assert-changed]
+    trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
     mutates_checkout: false
     timeout: 1728000000
@@ -916,7 +916,7 @@ nodes:
     when: "$lens-prep.output.go == true"
     context: fresh
     mutates_checkout: false
-    output_format:
+    output_format: &lens_out
       type: object
       additionalProperties: false
       required: [findings]
@@ -933,17 +933,30 @@ nodes:
               why: {type: string, minLength: 20}
         findings_none: {type: string}
 
-  # レンズの行を置き場の控えに集め、審査役の材料に足す。レンズが落ちた・起きなかった時は理由の行を残す
+  # レンズの返りの中継。Archon は落ちた節の出口を読んだ節を落とすので、レンズが落ちた run ではこの節が飛び、集め役が
+  # if_skipped で受ける。レンズとこの節は落ちても run を止めない段（柵 nodes-ok に結ばない）
+  - id: lens-reply
+    script: lens_reply
+    runtime: uv
+    depends_on: [lens]
+    mutates_checkout: false
+    timeout: 1728000000
+    with:
+      reply: "$lens.output"
+    output_format: *lens_out
+
+  # レンズの行を置き場の控えに集め、審査役の材料に足す。レンズが落ちた・起きなかった時は理由の行を残す。支度が済めば走り
+  # （one_success。レンズが落ちても）、支度が落ちた・飛んだ run では飛ぶ
   - id: lens-collect
     script: lens_collect
     runtime: uv
-    depends_on: [route, delta-cut, lens-prep, lens]
-    trigger_rule: all_done
+    depends_on: [lens-prep, lens-reply]
+    trigger_rule: one_success
     when: "$route.output.group == false && $delta-cut.output.go == true"
     mutates_checkout: false
     timeout: 1728000000
     with:
-      reply: {from: "$lens.output", if_skipped: null}
+      reply: {from: "$lens-reply.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
@@ -954,7 +967,7 @@ nodes:
 
   - id: delta-loop
     depends_on: [route, delta-cut, lens-collect]
-    trigger_rule: all_done
+    trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false && $delta-cut.output.go == true"
     timeout: 1728000000
     loop_group:
