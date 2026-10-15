@@ -451,7 +451,7 @@ def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=(), spec
     asked = oc.eye_questions(returns)
     if gatepolicy.unattended_of(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
         asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
-    source = gatemarks.SPEC_UNCHECKED if spec_unchecked else gatemarks.SPEC_CHANGED_LABEL
+    source = gatemarks.spec_words(spec_unchecked).source
     out = [gatemarks._draft(q, "", source, SPEC_CHANGED_NOTE) for q in spec_changed if isinstance(q, str) and q.strip()]
     out += [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
@@ -994,7 +994,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     handoffs = [x for x in _list(as_dict(returns.get("fix")).get("handoffs")) if isinstance(x, str)]
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
-    spec_head = gatemarks.SPEC_UNCHECKED_HEAD if spec_unchecked_of(line) else gatemarks.SPEC_CHANGED_HEAD
+    spec_head = gatemarks.spec_words(spec_unchecked_of(line)).head
     parts = [(spec_head, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
              ("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs),
              ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
