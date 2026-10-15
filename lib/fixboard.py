@@ -1265,7 +1265,7 @@ def start_tree(place) -> str:
 def group_fix_reply(place):
     """組の子が受け付けた修正役の返答（groups.json の out_dir/<group_id>/result.json の reply_file）を組の順に 1 つにまとめた
     {changes, not_done, plan_faces}（差分の審査の材料 fix_report と out.p3.fix.plan_faces）を置き場の fix-reply.json に書き、
-    そのパスを返す。どの組にも返答が無ければ None。結果・返答が無い・読めない組は飛ばす（落ちた子の組は join が not_done にする）。
+    そのパスを返す。どの組にも返答が無ければ None。結果・返答が無い・読めない組は飛ばす（子が落ちた run は組の節が落ちて join まで来ない）。
     元 works/.shared/core/refix.py:362 の _fix_report が盤面の 1 つの p3.fix を読んだ所を、組ごとの返答の和で受ける"""
     p = pathlib.Path(place)
     doc = read_json(p / GROUPS_FILE)

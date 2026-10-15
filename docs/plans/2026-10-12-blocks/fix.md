@@ -218,7 +218,7 @@ fix は主に (a) を使う。継ぎ目の見込み（字の照らしで出し�
 - 型つきの成果物: `output_type: tdd-unit`（返りではない。report だけが一覧から読む。E5）。この PR では節 `tdd-unit` が 1 つ出す（形は下）。
 
 - 返す節の `output_format` は、上の欄をちょうど持つ（全部 `required`・`additionalProperties: false`）。欄を足す・名を変える・型を変える・欄を落とすのは線との約束を変えることなので、この PR ではしない。要ると分かったら PR の本文の「約束を変える頼み」に書き、約束どおりの形で作り終える。
-- 欄の値の作り方: `done` は `assert-changed` の ok かつ（審査を省いた か 審査が通った）。`units[].status` は子の結果と `join` の結果から（戻せなかった組・落ちた子の組の単位は `not_done`、理由に組の理由）。`conflicts` は置き場の `conflicts.json` の指し札（申し出が無ければ null）。`replan_items` は裁定 `fix_plan_item` の項目の id。`objection` は修正役の返答の欄 `rejudge_requested`（今の works の `blk-fix/rules/direct.md` の 97 行）を集めた文（無ければ `""`）。`allowed_test_changes` は裁定 `fix_test_scope` の `limits` と範囲の相談で許したテストのパス。`changed` は修正役の返答の 6 つの印の論理和。`delta_review.rounds` は走った審査の回数（0〜2）。
+- 欄の値の作り方: `done` は `assert-changed` の ok かつ（審査を省いた か 審査が通った）。`units[].status` は子の結果と `join` の結果から（戻せなかった組の単位は `not_done`、理由に組の理由。落ちた子の組の単位も `not_done` にしたが、issue #576 から子が落ちた run は組の節が落ちて `join` まで来ない）。`conflicts` は置き場の `conflicts.json` の指し札（申し出が無ければ null）。`replan_items` は裁定 `fix_plan_item` の項目の id。`objection` は修正役の返答の欄 `rejudge_requested`（今の works の `blk-fix/rules/direct.md` の 97 行）を集めた文（無ければ `""`）。`allowed_test_changes` は裁定 `fix_test_scope` の `limits` と範囲の相談で許したテストのパス。`changed` は修正役の返答の 6 つの印の論理和。`delta_review.rounds` は走った審査の回数（0〜2）。
 - 子の run（`mode: group`）の `fix` の返りも同じ形で、自分の組の行だけを持つ。親は子の返りでなく `out_dir` の結果のファイルを読む（子の指し札は子の run の物で、親では引けない。`docs/design.md` の「Archon の分かっていること」の「指し札は同じ run の中だけ」）。
 - 約束に無い入力 `only_items`・`mode`・`group`・`from_tree`・`out_dir` は既定 `""` で宣言し、返りの約束は変えない。PR の本文に「約束に無い入力を 5 つ足した」と書く。
 

@@ -2800,6 +2800,15 @@ class GroupChildScriptsCase(unittest.TestCase):
         self._grp_run("group_start", "group-start")
         self.assertTrue((self.repo / "half.py").is_file(), "前の組の結果の在る変更は残す")
 
+    def test_group_start_side_by_side_ignores_a_sibling_still_running(self):
+        """並べた子は兄弟の組がまだ結果を書いていなくても止まらず、兄弟のフォルダに触らない（兄弟は同時に回っている）"""
+        import leftovers
+        tree = leftovers.snapshot(self.repo)
+        (self.out_dir / "g0").mkdir()
+        (self.out_dir / "g0" / "group-start.json").write_text(json.dumps({"start_tree": tree}), encoding="utf-8")
+        self._grp_run("group_start", "group-start", from_tree=tree)
+        self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
+
     def test_group_start_in_order_drops_its_own_earlier_attempt(self):
         """自分の組の始めの記録が前の試みから残っていれば、その木に戻してから始める"""
         import leftovers

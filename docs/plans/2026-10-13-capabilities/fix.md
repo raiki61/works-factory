@@ -1241,7 +1241,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
   - 元: works/blk-fix/lib/tddlanes.py（TestSettle.test_unfinished_lane_goes_back_to_serial）、fixlanes.py（TestJoin.test_unfinished_lane_goes_back）
   - 今: 表
   - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_stops_on_a_group_without_a_readable_result、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_join_rows_keep_child_status_only_for_returned_groups
-  - 本物の run: 筋書きでのみ（子の run が落ちた時の join.json）
+  - 本物の run: 筋書きでのみ（子の run が落ちた時は組の節が落ちて groups-ok が飛び、join.json は書かれない）
   - 狭め: F410 と同じく、元は順の輪で直し直した。今は not_done で返すだけ
 
 - F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（issue #576 まで join が戻した。今は組の子が落ちると組の節が落ちて join は走らず、次の組の group-start は前の組の分を戻さずに止まり、自分の組の前の試みの分だけを戻して dropped.json に控える）
