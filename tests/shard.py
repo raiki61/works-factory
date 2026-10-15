@@ -9,6 +9,7 @@
   秒数の表 `tests/shard-seconds.json` で重い順に一番軽い分けへ置く。表に無いモジュールは表の中央値の秒数とみなす。
   置いた後で、どの分けにも入らないモジュールと 2 つの分けに入ったモジュールが 0 かを確かめ、0 でなければ落ちる。
   表が古くても分けが偏るだけで、試験は漏れない。
+- 試験を集める前に、この過程の環境から試験の子へ渡さない名（tests/bin/hermetic.dropped）を外す（hermetic.scrub）。
 - 名指しのパスだけを走らせる: `python3 -m tests.shard --paths PATH...`（tests/changed.py が使う）。
   同じ集め方で見つけたモジュールのうち、名指しのファイルか名指しのフォルダの下に在る物だけを走らせる。
   頭（__init__.py）で読めないパッケージ（discover がパッケージ名の 1 件にする物）は、その下のパスでも選ぶ。
@@ -23,6 +24,8 @@ import statistics
 import sys
 import time
 import unittest
+
+from tests.bin import hermetic
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TABLE = ROOT / "tests" / "shard-seconds.json"
@@ -146,6 +149,7 @@ def main(argv: list[str]) -> int:
     if args.merge:
         TABLE.write_text(json.dumps(merge(args.merge), indent=2) + "\n", encoding="utf-8")
         return 0
+    hermetic.scrub()
     found = suites(ROOT)
     if args.paths:
         names = pick(sorted(found), args.paths)

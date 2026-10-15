@@ -21,6 +21,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import seal  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 HASH = hashlib.sha256(b"diff").hexdigest()
 OTHER = hashlib.sha256(b"other").hexdigest()
@@ -77,7 +78,7 @@ class DiffFilesCase(unittest.TestCase):
         self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
 
     def git(self, *args) -> bytes:
-        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, check=True).stdout
+        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, check=True, env=hermetic.child_env()).stdout
 
     def diff(self) -> bytes:
         self.git("add", "-A")
@@ -107,7 +108,7 @@ class DeletedPathsCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = pathlib.Path(tmp)
             git = lambda *a: subprocess.run(["git", "-C", tmp, "-c", "user.email=a@b", "-c", "user.name=a", *a],  # noqa: E731
-                                            capture_output=True, text=True, check=True).stdout
+                                            capture_output=True, text=True, check=True, env=hermetic.child_env()).stdout
             git("init", "-q")
             (repo / "d").mkdir()
             names = ["d/日本.txt", "a b.txt", "empty", "kept.txt"]

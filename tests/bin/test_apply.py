@@ -77,7 +77,7 @@ class ApplyTest(unittest.TestCase):
         change()
         git(self.target, "add", "-A")
         data = subprocess.run(["git", "-C", str(self.target), "diff", "--cached", "--binary"], capture_output=True,
-                              check=True).stdout
+                              check=True, env=hermetic.child_env()).stdout
         git(self.target, "reset", "-q", "--hard")
         return data
 

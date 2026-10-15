@@ -41,6 +41,7 @@ import stopby  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 from lib.tests.test_plan_gate import DECIDED, FACE, FORK, FORK_UNIT, NARROW, WORLD_ROW  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 UNATTENDED = {"run_id": "run-1", "unattended": "true"}
 UNIT_A, UNIT_B, UNIT_C = ({"id": "a", "paths": ["a.py"], "summary": "狭く直す"}, {"id": "b", "paths": ["b.py"], "summary": "b"},
@@ -1842,7 +1843,7 @@ class LinesCase(Base):
         import subprocess
         target = self.dir / "target"
         target.mkdir()
-        subprocess.run(["git", "init", "-q", str(target)], check=True)
+        subprocess.run(["git", "init", "-q", str(target)], check=True, env=hermetic.child_env())
         got = runreport.build(fixed_run(), {}, {}, None, "fixed", "", out_dir=self.out, start={"run_id": RUN}, run_id=RUN, repo=target)
         self.assertIn(f"- {runreport.FORGE_HEAD}: 無い——並行 PR の確かめは条件外（not_applicable。",
                       self.section(pathlib.Path(got["report"]).read_text(encoding="utf-8"), report.ENTRY_HEADING))
