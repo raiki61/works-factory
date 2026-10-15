@@ -24,7 +24,7 @@ import lens  # noqa: E402
 import lenses  # noqa: E402
 import oneline  # noqa: E402
 
-LENS = "silent-failure-hunter"
+(LENS,) = (row["lens"] for row in lenses.LENSES)   # 工程のレンズの節は 1 つ（節 lens）
 
 
 def main() -> None:

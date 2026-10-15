@@ -230,7 +230,7 @@
   - 証: lib/tests/test_fix_seams.py::DeltaSeamCase.test_refix_prompt_names_the_policy_and_ends_with_the_language_line（名を変えた: 手直しの役は方針を貼らず policy_path で名指す。元 works/blk-refix/scripts/prep.py。貼った方針で閉じるのは元の review2.md）
   - 本物の run: 手直しが起きた run の手直しの指示書（refix-prep の出力 prompt_file）
   - 狭め: 無し（試験の欠け）
-- F328〔無・試〕レンズの集め役が落ちた・ok でない時は run を止める（観点を誰も見ていないまま先へ進ませない）
+- F328〔試〕レンズの集め役が落ちた・ok でない時は run を止める（観点を誰も見ていないまま先へ進ませない）
   - 元: works/blk-lens/scripts/exit.py（lenses.exit_。盤面を by works:lens で止める）
   - 今: 表
   - 証: tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_collect_failure_is_reported_not_silent、tests/workflows/test_fix.py::GroupsCase.test_a_failed_node_halts_the_block_for_resume

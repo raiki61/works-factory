@@ -312,6 +312,15 @@ class RolesCase(unittest.TestCase):
         marked = {nid for nid, n in self.nodes.items() if n.get("mutates_checkout") is False}
         self.assertEqual(marked, set(READ_ONLY_ROLES) | set(READ_ONLY_SCRIPTS))
 
+    def test_lens_nodes_match_the_lens_table(self):
+        """レンズの表の行と工程のレンズの節は 1 対 1 で、集め役はその節の出口を受ける。ずれると起こしたレンズの出口が無いまま
+        lens-collect が落ち、変更のある run が毎回止まる（lens_prep・lens_collect の名は表から引く）"""
+        import lenses
+        by_lens = {n["command"].removeprefix("lens-"): nid for nid, n in self.nodes.items()
+                   if str(n.get("command", "")).startswith("lens-")}
+        self.assertEqual(set(by_lens), {row["lens"] for row in lenses.LENSES})
+        self.assertEqual(refs(self.nodes["lens-collect"]["with"]["reply"]["from"]), set(by_lens.values()))
+
     def test_roles_keep_the_original_model_and_session_settings(self):
         for nid, (model, effort, context, sources, sandbox) in ORIGINAL_ROLES.items():
             node = self.nodes[nid]
