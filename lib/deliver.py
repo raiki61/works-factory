@@ -13,6 +13,7 @@ works-factory/run-<id> へ push し、既定の枝向けの PR を作り、書�
 - BRANCH_PREFIX・branch_of(id) -> str: 押す先の枝の名 works-factory/run-<id>（ほかに枝の名を組む所は無い。HEAD の枝の名は使わない）
 - submit(repo, base_rev, data, run_id, scratch) -> dict: 提出する。柵は push の前に全部照らし、当たれば何も書かずに訳を返す。返りは
   delivered {ok, branch, commit, url, reason}。ok は読み戻した値が push した commit と合った時だけ真
+- refused(word, why) -> dict|None: 差分を置かなかったので提出しなかった時の delivered。語が空なら null（何も頼まれていない印）
 - readback(target, branch, commit, base, number) -> dict: push と PR の読み戻し（1 つの関数）。remote の枝の先と PR の head が push
   した commit と同じか、PR が開いていて base が既定の枝か。書いた側の返り値でなく読み直した値で組む
 - host_gh(path) -> str|None: PATH の上の gh のうち、読むだけの口（works-gh と同じ置き場の gh）を飛ばした最初の物
@@ -48,7 +49,7 @@ BRANCH_PREFIX = "works-factory/run-"
 SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 SHA = re.compile(r"[0-9a-f]{40}([0-9a-f]{24})?\Z")
 VERBS = (("api",), ("pr", "list"), ("pr", "create"), ("pr", "view"))
-READ_ONLY_MOUTH = "works-gh"   # 読むだけの口が gh と並べて置くファイル。これの在る置き場の gh は host の gh でない
+READ_ONLY_MOUTH = "works-gh"
 API_PATH = re.compile(r"repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.%@:~+=/-]*)?\Z")
 REPO_FLAG = re.compile(r"[a-z0-9.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 IDENTITY = ("works-factory", "works-factory@localhost")
@@ -57,7 +58,7 @@ PUSH_NOTE = ("対象の pre-push フックは走らせずに push した（push 
 
 
 class Refused(ValueError):
-    """語が受けられない"""
+    pass
 
 
 class GhRefused(ValueError):
@@ -95,7 +96,6 @@ def host_gh(path):
 # --- gh を呼ぶ口 ---------------------------------------------------------------------------------------------------------
 
 def _value(args, at, flag):
-    """旗 flag の値と、読み終えた位置（--flag=値 と --flag 値 の両方）"""
     if args[at].startswith(flag + "="):
         return args[at].split("=", 1)[1], at
     return (args[at + 1], at + 1) if at + 1 < len(args) else ("", at)
@@ -337,6 +337,11 @@ def readback(target, branch: str, commit: str, base: str, number: int) -> dict:
     return _doc(True, str(pr["headRefName"]), sha, str(pr["url"]))
 
 
+def refused(word, why: str):
+    """語が空（Archon の飛んだ値 null も空）なら None。ほかは、知らない語も頼まれた扱いで {ok: false, reason}"""
+    return None if str(word or "").strip() in ("", "null") else _doc(False, reason=f"差分を置かなかったので提出しない: {why}")
+
+
 def submit(repo, base_rev: str, data: bytes, run_id: str, scratch) -> dict:
     """data（git の差分のバイト。基の版 base_rev から）を、専用の枝へ push し既定の枝向けの PR にして、delivered を返す。落ちない
     （どの失敗も ok: false と訳）。柵に当たれば何も書かない"""
@@ -370,34 +375,32 @@ def _asked(start) -> bool:
 
 
 def _result(merge_apply) -> dict:
-    """置く段 merge-apply の返りから出口の結果 {ok, text}。text は ok なら PR の言い方、偽なら作らなかった訳"""
+    """置く段 merge-apply の返りから、delivered の形 {ok, branch, commit, url, reason}。返っていなければ reason に作らなかった訳"""
     if not isinstance(merge_apply, dict):
-        return {"ok": False, "text": "merge-apply が走らなかった（最後の承認ノードが通さなかった・差分が無い・手前で止まった）"}
+        return _doc(False, reason="merge-apply が走らなかった（最後の承認ノードが通さなかった・差分が無い・手前で止まった）")
     got = merge_apply.get("delivered")
     if isinstance(got, dict) and got.get("ok") is True:
-        return {"ok": True, "url": got.get("url") or "", "branch": got.get("branch") or "", "commit": got.get("commit") or ""}
+        return _doc(True, got.get("branch") or "", got.get("commit") or "", got.get("url") or "")
     if isinstance(got, dict):
-        return {"ok": False, "text": got.get("reason") or "訳の記録なし"}
+        return _doc(False, reason=got.get("reason") or "訳の記録なし")
     if merge_apply.get("ok") is not True:
-        return {"ok": False, "text": f"差分を置けなかった: {merge_apply.get('reason') or '訳の記録なし'}"}
-    return {"ok": False, "text": "出口の結果 delivered が返っていない"}
+        return _doc(False, reason=f"差分を置けなかった: {merge_apply.get('reason') or '訳の記録なし'}")
+    return _doc(False, reason="出口の結果 delivered が返っていない")
 
 
 def report_lines(start, merge_apply) -> list:
-    """報告の行（入力が pr の実行だけ。空の語の実行は何も言わない）"""
     if not _asked(start):
         return []
     got = _result(merge_apply)
     if got["ok"]:
         return [f"PR: {got['url']}（専用の枝 {got['branch']} の {got['commit']} を読み戻した。既定の枝へは merge していない）"]
-    return [f"PR を作らなかった（{KEY}: {PR}）: {forge.redact(oneline.one_line(got['text']))}"]
+    return [f"PR を作らなかった（{KEY}: {PR}）: {got['reason']}"]
 
 
 def head_words(start, merge_apply) -> str:
-    """報告の冒頭の句（入力が pr の実行だけ）"""
     if not _asked(start):
         return ""
     got = _result(merge_apply)
     if got["ok"]:
         return f"PR を作った: {got['url']}"
-    return f"PR を作らなかった: {forge.redact(oneline.one_line(got['text']))}"
+    return f"PR を作らなかった: {got['reason']}"

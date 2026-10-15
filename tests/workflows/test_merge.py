@@ -375,6 +375,14 @@ class NeverFailsTest(ScriptCase):
         nowhere.mkdir()
         self.assertBroken(self.seal(root=nowhere), "seal")
 
+    def test_lib_missing_with_a_delivery_asked_still_returns(self):
+        """pr を頼んだ run でも、lib を読めずに落ちた時は delivered を組む口が無いので null のまま返す（訳は reason）"""
+        nowhere = self.tmp / "no-lib"
+        nowhere.mkdir()
+        got = self.apply("0" * 64, deliver="pr", root=nowhere)
+        self.assertBroken(got, "apply")
+        self.assertIsNone(got["delivered"])
+
     def test_checkout_not_git(self):
         plain = self.tmp / "plain"
         plain.mkdir()

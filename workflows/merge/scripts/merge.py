@@ -14,7 +14,7 @@ merge/apply.diff を消し、置くと決めた時だけ書く（やり直しが
 出口の語 deliver（apply と handoff だけ読む。seal は読まない）が pr の時だけ、置いた差分を lib/deliver.py の口 submit が専用の枝と PR として
 対象の remote へ書き、結果を delivered に返す。置かなかった時は書かず、置かなかった訳を delivered に返す。空の語は何も書かず delivered は null。
 落ちない: どの誤りも終了の値 0 で ok: false と理由を返す（線は落ちた返す節の先へ進めない）。apply と handoff で出口の語が空でなければ、
-例外で落ちた時も delivered に {ok: false, reason} を載せる（null は何も頼まれていない印）。
+例外で落ちた時も delivered に {ok: false, reason} を載せる（null は何も頼まれていない印。lib を読めずに落ちた時だけは null）。
 """
 import json
 import os
@@ -60,10 +60,10 @@ def main() -> None:
 
     def delivered_of(placed: bool, why: str, repo, base_rev: str, data: bytes):
         """出口の結果。空の語は null、置かなかった時は書かずにその訳、置いた時だけ提出する"""
+        if not placed:
+            return deliver.refused(word, why)
         if word != deliver.PR:
             return None
-        if not placed:
-            return {"ok": False, "branch": "", "commit": "", "url": "", "reason": f"差分を置かなかったので提出しない: {why}"}
         scratch = boundary.resolve(boundary.pointer("merge/objects"))
         return deliver.submit(repo, base_rev, data, os.environ["WORKFLOW_ID"], scratch)
 
@@ -137,12 +137,15 @@ def main() -> None:
 
 
 def broken_with_delivery(mode: str, reason: str) -> dict:
-    """落ちた時の返り。apply と handoff で出口の語が空でなければ（語の中身はここで読まない。知らない語も頼まれた扱い）、
-    頼まれたのに書かなかった訳を delivered に載せる。null は何も頼まれていない時だけ"""
-    asked = (os.environ.get("INPUTS_DELIVER") or "").strip() not in ("", "null")
+    """落ちた時の返り。apply と handoff は、出口の語（確かめる前の字）で頼まれていれば書かなかった訳を delivered に載せる。
+    lib を読めずに落ちた時は delivered は null のまま（訳は reason に在る）"""
     got = broken(mode, reason)
-    if mode != "seal" and asked:
-        got["delivered"] = {"ok": False, "branch": "", "commit": "", "url": "", "reason": f"差分を置けなかったので提出しない: {reason}"}
+    if mode != "seal":
+        try:
+            import deliver
+        except ImportError:
+            return got
+        got["delivered"] = deliver.refused(os.environ.get("INPUTS_DELIVER"), reason)
     return got
 
 

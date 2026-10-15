@@ -114,6 +114,16 @@ class WordsCase(unittest.TestCase):
                 deliver.check(word)
             self.assertIn(repr(word), str(caught.exception))
 
+    def test_refused_is_null_only_when_nothing_was_asked(self):
+        """空の語（Archon の飛んだ値 null も）は null。pr も知らない語も頼まれた扱いで、枝・commit・URL の空い delivered に訳を載せる"""
+        for word in ("", None, "null", " "):
+            with self.subTest(word=word):
+                self.assertIsNone(deliver.refused(word, "x"))
+        for word in ("pr", "push"):
+            with self.subTest(asked=word):
+                self.assertEqual(deliver.refused(word, "差分が空"),
+                                 {"ok": False, "branch": "", "commit": "", "url": "", "reason": "差分を置かなかったので提出しない: 差分が空"})
+
 
 class BranchCase(unittest.TestCase):
     def test_branch_of_is_fixed_prefix(self):
