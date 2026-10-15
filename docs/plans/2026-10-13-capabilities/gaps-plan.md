@@ -259,7 +259,7 @@
   - 元: works/.shared/core/structmark.py `plan_section`・`PLAN_ASK`
   - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_brief_carries_structure_rows（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
-  - 本物の run: `plan/r1/brief-1.md` の「## 構造の目の行」の節（種で行が在れば）
+  - 本物の run: `plan/r1/brief-1.md` の「## 構造の目の行」の節。汚れる行が在れば頼み（PLAN_ASK）とその行だけ、汚れる行が無ければ答えの要らない旨の 1 行（PLAN_NONE）。汚れない行は別の小見出し「### 汚れないと見た行」の下（種で汚れる行が出るとは限らない）
   - 狭め: 無し
 - P109〔試〕計画の返答に前の往復の閉じた・保留の項目を差し込んで案の全体を組む。閉じた項目を変えた・閉じた項目の単位を別の行に入れた・開いた項目の行が無い返答は CLOSED_REJECT で拒む。閉じた項目を前のまま書いた行は捨てて trace に `plan_converge_dropped` を残す
   - 元: works/.shared/core/converge.py:333 `splice`、works/blk-plan/lib/planblk.py:1301 `revise_take`
