@@ -110,10 +110,6 @@ class ResubmitCase(Base):
         self.assertEqual(rolekit.merge_fields(prev, part), {"a": [1], "b": "y", "c": 2})
         self.assertEqual((prev, part), ({"a": [1], "b": "x"}, {"b": "y", "c": 2}), "前の答えも出し直しも書き換えない")
 
-    def test_merge_fields_uses_the_named_merge_only_when_both_have_the_field(self):
-        both = rolekit.merge_fields({"a": [1]}, {"a": [2], "b": [3]}, {"a": lambda old, new: old + new, "b": lambda old, new: []})
-        self.assertEqual(both, {"a": [1, 2], "b": [3]})
-
     def test_first_reply_is_written_to_the_candidate(self):
         got, why = rolekit.resubmitted(self.tmp, "r", {"a": 1}, None, rolekit.merge_fields)
         self.assertEqual((got, why), ({"a": 1}, ""))

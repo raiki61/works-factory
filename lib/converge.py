@@ -35,7 +35,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   read(b) を渡す）。add_pass（record_pass の往復の行を足す半分）・plan_rows（note_plan の行）と共に、盤面を持たない呼び手
   （planfile。周ごとのファイルから控えを組み直す）も使う
 - note_plan(b, rows)・open_items(b)・filled_units(doc)・splice(doc, rows)・item_id・item_hash: 項目の控え・次に審査する項目の番号・
-  機械が差し込む（閉じた・保留の）項目の単位・直しの役が返した変えた項目の行に前の往復の行を差し込んで案の全体を組む口
+  返答に無ければ機械が差し込む項目の単位・直しの役が返した変えた項目の行に前の往復の行を差し込んで案の全体を組む口
   （閉じた項目を変えた行は拒み、前と同じ行は捨てる）
 - planned_units(plan): 今の案に在る単位の key の集合を組む唯一の口（控えの plan の行からも修正案の役の出力の plan の行からも。
   carried_notes・受け付けの plan_review_output・修正前の関所の照らしが同じ集合を引く）。その下の plan_keys(plan) は案の順・
@@ -433,17 +433,16 @@ def item_blocks(b, n: int) -> list:
     return list(dict.fromkeys(out))
 
 
-def _filled_ids(doc: dict) -> dict:
-    """今の案の項目の id → 最後の往復で閉じた・保留にした項目の state（開いた項目・まだ審査していない項目は入らない）"""
+def _closed_ids(doc: dict) -> set:
+    """今の案の項目のうち、最後の往復で閉じた項目の id"""
     last = _last_items(doc)
-    return {it["id"]: last[it["id"]]["state"] for it in doc.get("plan") or []
-            if (last.get(it["id"]) or {}).get("state") in (CLOSED, HELD)}
+    return {it["id"] for it in doc.get("plan") or [] if (last.get(it["id"]) or {}).get("state") == CLOSED}
 
 
 def filled_units(doc: dict) -> list[str]:
-    """機械が前の往復の行を差し込む項目（最後の往復で閉じた・保留にした項目）の単位の key。項目の控えが無ければ []"""
-    filled = _filled_ids(doc)
-    return plan_keys([it for it in doc.get("plan") or [] if it["id"] in filled])
+    """返答に無ければ機械が前の往復の行を差し込む項目（控えの案の、行を持つ項目の全部。splice と同じ集合）の単位の key。
+    項目の控えが無ければ []"""
+    return plan_keys([it for it in doc.get("plan") or [] if "row" in it])
 
 
 def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:
@@ -458,12 +457,12 @@ def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:
     for r in given:
         by_id.setdefault(item_id(r.get("unit_keys")), r)
     in_rows = {str(k) for r in given for k in r.get("unit_keys") or []}
-    filled = _filled_ids(doc)
+    closed = _closed_ids(doc)
     whole, rejects, dropped, used = [], [], [], set()
     for n, it in enumerate(doc.get("plan") or [], 1):
         mine = by_id.get(it["id"])
         homeless = not item_units(doc["plan"], n) & in_rows
-        if filled.get(it["id"]) == CLOSED:
+        if it["id"] in closed:
             if mine is not None:
                 used.add(id(mine))
                 if item_hash(mine) == it["hash"]:

@@ -863,26 +863,16 @@ def _replan_section(row: dict) -> str:
     return "\n".join(lines)
 
 
-REVIEW_RESUBMIT_ASK = ("前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。材料・案・リポジトリは、"
-                       "この会話で既に読んだ物のまま（読み直すな。拒否の理由を確かめるのに要る所だけ読め）。\n\n"
-                       "受け付けが拒んだ理由（字のまま）:\n\n```text\n{reason}\n```\n\n"
-                       "機械が合わせた前の回の答えの全体: {candidate}（Read で読める。返さない欄はこの形のまま残る）\n\n"
-                       "返し方:\n"
-                       "- 返すのは前と同じ型の JSON で、直す欄だけを書く。返した欄は前の欄を丸ごと置き換え（faces・design_map などの"
-                       "配列も、直さない行を含めて全部の行を返す）、返さない欄は前のまま\n"
-                       "- 受け付けは、合わせた後の答えの全体をもう 1 度照らす")
+REVIEW_RESUBMIT_RULES = ("返した欄は前の欄を丸ごと置き換え（faces・design_map などの配列も、直さない行を含めて全部の行を返す）、"
+                         "返さない欄は前のまま")
 
 
 def review_resubmit(folder, repo) -> pathlib.Path:
-    """拒まれた後の出し直しの役の指示書 pass-<k>/resubmit-<n>.md（REVIEW_RESUBMIT_ASK。この差し込みの最後の拒否の文と、合わせた前の
-    答えの控えのパスを差し込む）を書き、役を起こす前の作業ツリーの姿を pass-<k>/tree.json に置き直して、指示書のパスを返す。役は
-    1 回目の役の会話の続きで起き、材料は会話に在るので貼らない"""
+    """拒まれた後の出し直しの役の指示書 pass-<k>/resubmit-<n>.md（rolekit.write_resubmit に REVIEW_RESUBMIT_RULES）を書き、役を
+    起こす前の作業ツリーの姿を pass-<k>/tree.json に置き直して（review_material と同じ）、指示書のパスを返す"""
     d = pathlib.Path(folder)
     p = pass_dir(d, read_open(d)["k"])
-    reasons = rolekit.rejected(p, REVIEW_NODE)
-    path = p / RESUBMIT_FILE.format(n=rolekit.attempt(p, REVIEW_NODE))
-    path.write_text(REVIEW_RESUBMIT_ASK.format(reason=reasons[-1] if reasons else "",
-                                               candidate=rolekit.candidate_path(p, REVIEW_NODE)), encoding="utf-8")
+    path, _ = rolekit.write_resubmit(p, REVIEW_NODE, RESUBMIT_FILE, REVIEW_RESUBMIT_RULES)
     planfile.snap_tree(p / TREE_FILE, repo)
     return path
 

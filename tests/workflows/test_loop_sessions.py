@@ -15,6 +15,8 @@ import unittest
 
 import yaml
 
+from tests.bin.stepnames import walk
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCKS = sorted((ROOT / "workflows").glob("*/works-factory-*.yaml"))
 
@@ -22,12 +24,6 @@ FRESH_BY_DESIGN = {
     ("fix", "clash-loop"): "周ごとに扱う組が替わるので、前の周の組の会話を持ち込まない",
     ("fix", "clash-ruled-loop"): "周ごとに扱う組が替わるので、前の周の組の会話を持ち込まない",
 }
-
-
-def walk(nodes):
-    for n in nodes:
-        yield n
-        yield from walk((n.get("loop_group") or {}).get("nodes") or [])
 
 
 def loops() -> list[tuple[str, dict]]:

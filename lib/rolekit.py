@@ -21,6 +21,8 @@
 - parse_reply:    役の返答（$<役>.output の JSON の文字列）を dict に
 - candidate_path: 受け付けが前の答えと出し直しを合わせた答えの控え（置き場の candidate-<名>.json。次の出し直しを合わせる元）
 - merge_fields:   前の答えに出し直しの欄を合わせる（出し直しに在る欄が前の欄を置き換え、無い欄は前のまま）
+- resubmitting・write_resubmit・RESUBMIT_ASK: 輪の前の周が拒まれた時に、出し直しの役の短い指示書（拒否の文・控えのパス・役ごとの
+                  返し方）を書く
 - resubmitted:    受け付けが照らす答えの全体（1 回目の役の返答か、控えの前の答えと出し直しを合わせた物）を控えに書いて返す
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
                   lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
@@ -262,14 +264,37 @@ def candidate_path(board, name: str) -> pathlib.Path:
     return pathlib.Path(board) / f"candidate-{safe_name(name)}.json"
 
 
-def merge_fields(prev: dict, part: dict, merges: dict | None = None) -> dict:
-    """前の答え prev に出し直し part を合わせた写し: part に在る欄が prev の欄を置き換え、無い欄は prev のまま。merges の鍵の欄だけは
-    prev にも在る時に merges[鍵](前の値, 出し直しの値) で合わせる。prev・part は書き換えない"""
-    merges = merges or {}
-    out = copy.deepcopy(prev)
-    for key, got in part.items():
-        out[key] = merges[key](copy.deepcopy(prev[key]), copy.deepcopy(got)) if key in merges and key in prev else copy.deepcopy(got)
-    return out
+def merge_fields(prev: dict, part: dict) -> dict:
+    """前の答え prev に出し直し part を合わせた写し: part に在る欄が prev の欄を置き換え、無い欄は prev のまま。prev・part は書き換えない"""
+    return {**copy.deepcopy(prev), **copy.deepcopy(part)}
+
+
+RESUBMIT_ASK = ("前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。材料とリポジトリは、この会話で"
+                "既に読んだ物のまま（読み直すな。拒否の理由を確かめるのに要る所だけ読め）。\n\n"
+                "受け付けが拒んだ理由（字のまま）:\n\n```text\n{reason}\n```\n\n"
+                "機械が合わせた前の回の答えの全体: {candidate}（Read で読める。返さない所はこの形のまま残る）\n\n"
+                "返し方:\n"
+                "- 返すのは前と同じ型の JSON で、直す欄だけを書く。{rules}\n"
+                "- 受け付けは、合わせた後の答えの全体をもう 1 度照らす")
+
+
+def resubmitting(board, name: str, prev) -> bool:
+    """輪の前の周の受け付け name が拒み（prev は with: に結んだ前の周の ok を値に戻した物）、合わせた答えの控えが在るか。真なら
+    頭の節は材料の代わりに write_resubmit の指示書を書き、出し直しの役（1 回目の役の会話の続き）を起こさせる。resume で輪が 1 周目
+    から回り直した時は prev が空なので偽"""
+    return prev is False and candidate_path(board, name).is_file()
+
+
+def write_resubmit(board, name: str, file: str, rules: str) -> tuple:
+    """拒まれた後の出し直しの役の指示書 board/file（file は回の番号 n の雛形。RESUBMIT_ASK に最後の拒否の文・控え candidate_path・
+    役ごとの返し方 rules を差し込む）を書き、(パス, 回の番号 n) を返す。役は 1 回目の役の会話の続きで起き、材料は会話に在るので貼らない"""
+    board = pathlib.Path(board)
+    n = attempt(board, name)
+    reasons = rejected(board, name)
+    path = board / file.format(n=n)
+    path.write_text(RESUBMIT_ASK.format(reason=reasons[-1] if reasons else "", candidate=candidate_path(board, name), rules=rules),
+                    encoding="utf-8")
+    return path, n
 
 
 EMPTY_RESUBMIT = "出し直しに直した欄が無い（拒まれた所を直した欄だけを、前と同じ型で返せ）"

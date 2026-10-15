@@ -6,9 +6,10 @@
 （planfile.snap_tree。受け付けが比べる）。返り {brief, attempt, resubmit}
 
 この輪の実行の中で前の周が拒まれ（with: の prev が前の周の受け付けの ok の false。拒否の文でなく真偽を結ぶのは、Archon が
-with: に貼った値の中の節の参照の字をもう 1 度置き換えるため。元の裁定 R44）、受け付けが合わせた答えの控えが在れば、材料の代わりに
-出し直しの役の短い指示書を書き（planfile.write_resubmit）、resubmit: true で出し直しの役（1 回目の役の会話の続き）を起こさせる。
-resume で輪が 1 周目から回り直した時は prev が空なので、1 回目の役が全部の材料で新しい会話で起きる
+with: に貼った値の中の節の参照の字をもう 1 度置き換えるため。元の裁定 R44）、受け付けが合わせた答えの控えが在れば
+（rolekit.resubmitting）、材料の代わりに出し直しの役の短い指示書を書き（rolekit.write_resubmit。名を周の材料と同じ brief-<n>.md に
+するのは、読んだ証拠 collect_reads がこの周の役の会話として拾うため）、resubmit: true で出し直しの役（1 回目の役の会話の続き）を
+起こさせる
 
 ライブラリの文書の run をまたぐ控えは、境の控えの根（boundary.shared_cache）に置く"""
 import os
@@ -29,8 +30,8 @@ import startrec  # noqa: E402
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
     plan_dir, round_dir, repo = art / planfile.PLAN_DIR, art / os.environ["INPUTS_DIR"], Path.cwd()
-    if boundary.value(os.environ.get("INPUTS_PREV")) is False and rolekit.candidate_path(round_dir, planfile.ROLE).is_file():
-        path, n = planfile.write_resubmit(round_dir)
+    if rolekit.resubmitting(round_dir, planfile.ROLE, boundary.value(os.environ.get("INPUTS_PREV"))):
+        path, n = rolekit.write_resubmit(round_dir, planfile.ROLE, planfile.BRIEF_FILE, planfile.RESUBMIT_RULES)
         planfile.snap_tree(round_dir / planfile.TREE_FILE, repo)
         boundary.returns({"brief": str(path), "attempt": n, "resubmit": True})
         return

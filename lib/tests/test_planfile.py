@@ -417,8 +417,8 @@ class ConvergeCase(TmpCase):
 
 
 class UnitsSectionCase(TmpCase):
-    """材料の単位の節: 閉じた・保留の項目の単位は『必ず案に入れる』でなく、機械が差し込む行に分ける（元 planblk.plan_slots_section の
-    filled）"""
+    """材料の単位の節: 前の往復の案の項目の単位は、開いた項目も『必ず案に入れる』でなく、機械が差し込む行に分ける（splice が返答に無い
+    項目を全部差し込むので、REVISE_ASK の「変えない項目は書かなくてよい」と食い違わない。#571）"""
 
     def test_filled_units_are_not_owed_in_the_brief(self):
         self.write("r1/round.json", {"round": 1, "mode": "plan"})
@@ -426,11 +426,12 @@ class UnitsSectionCase(TmpCase):
         self.write("r2/round.json", {"round": 2, "mode": "plan"})
         self.write(f"r2/{planfile.REVIEW_FILE}", {"faces": [face("key-a1", [MEAN])]})
         filled = converge.filled_units(planfile.converge_record(self.tmp))
-        self.assertEqual(filled, [CLAMP])
+        self.assertEqual(filled, [MEAN, CLAMP])
         text = planfile.units_section(judgment(), [], [], filled)
-        self.assertIn(f"- no 1 `{MEAN}`: label=block・disposition=do-now・必ず案に入れる", text)
+        self.assertIn(f"- no 1 `{MEAN}`: label=block・disposition=do-now・{planfile.FILLED_DUTY}", text)
         self.assertIn(f"- no 2 `{CLAMP}`: label=block・disposition=do-now・{planfile.FILLED_DUTY}", text)
-        self.assertIn("- 機械が差し込む no（閉じた・保留の項目。書かなくてよい）: [2]", text)
+        self.assertNotIn("必ず案に入れる", text)
+        self.assertIn(planfile.FILLED_LINE.format(nos=[1, 2]), text)
         self.assertNotIn("機械が差し込む no", planfile.units_section(judgment(), [], []))
 
 
