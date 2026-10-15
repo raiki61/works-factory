@@ -43,7 +43,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   重複のまま字の key を並べる読み口（planfile の受け付けの照らしも引く）。item_units(plan, n) はその上で項目 n の単位の集合
   （番号の外は空）を組む唯一の口
 - owed_faces(doc, p): 往復の行 p の、次の往復で答えと照らしが要る穴（block と、開いた項目に付いた suggest）。項目の在る控えでは
-  今の開いた項目の分だけ。この絞りの住処はここ 1 つで、止め時（decide・not_fewer・stuck_reason）は block のまま引かない
+  今の開いた項目の分だけ。この絞りの住処はここ 1 つ（止め時は decide）
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（owed_faces の
   穴の分）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
@@ -620,8 +620,7 @@ def owed_faces(doc: dict, p: dict) -> list[dict]:
     unit_keys とも重ならない物だけ（項目の unit_keys は最後の往復が審査した時の物。案を組み替えた後も、閉じた項目の suggest が
     組み替えで開いた項目の物にならない）。
     閉じた・保留の項目に付いた物は答えの要る穴でなく、参考の suggest として carried_notes が修正の段へ運ぶ。doc に plan が無いか、
-    最後の往復に items が無ければ絞らない。止め時（decide・not_fewer・stuck_reason の _open_blocks）は block だけに結んだまま、
-    ここを引かない"""
+    最後の往復に items が無ければ絞らない。止め時は decide"""
     passes = doc.get("passes") or []
     items = passes[-1].get("items") if passes and doc.get("plan") else None
     scoped = items is not None
@@ -644,8 +643,8 @@ def owed_faces(doc: dict, p: dict) -> list[dict]:
 
 def answer_gaps(doc: dict, answers) -> list[str]:
     """修正案の役の block_answers の欠けと誤り。返した答えの要る穴（owed_faces。block と、開いた項目の suggest）の key ごとに、
-    key が一字違わず、handled が HANDLED のどれかで、how が 10 字以上の行がちょうど 1 つ要る（suggest は止め時には数えない。
-    face_units は block にだけ置かれるので、suggest に fixed と答えて変えない答えは fixed_unchanged では照らせず、次の往復の
+    key が一字違わず、handled が HANDLED のどれかで、how が 10 字以上の行がちょうど 1 つ要る（face_units は block にだけ
+    置かれるので、suggest に fixed と答えて変えない答えは fixed_unchanged では照らせず、次の往復の
     審査役の resolved の照らしが拾う）"""
     row = held(doc)
     owed = owed_faces(doc, row) if row else []
@@ -660,7 +659,7 @@ def answer_gaps(doc: dict, answers) -> list[str]:
             gaps.append(f"{f['severity']} の key {key} への答えが無い")
             continue
         if len(mine) > 1:
-            gaps.append(f"block の key {key} への答えが {len(mine)} 行ある（1 行だけにせよ）")
+            gaps.append(f"答えの要る穴の key {key} への答えが {len(mine)} 行ある（1 行だけにせよ）")
             continue
         a = mine[0]
         if a.get("handled") not in HANDLED:
