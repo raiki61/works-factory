@@ -70,6 +70,8 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - push_rec(text)・pushed_answer(texts): 項目の推しの尾の読み戻しと、無人の run が関所を推しで通る答え（項目の全部が通す推しを持つ
   時だけ。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
+- spec_words(unchecked) -> SpecWords(said, source, head): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
+  （最後の承認ノードの 1 行目の句・次の依頼の下書きの source の頭・最後の承認ノードと報告の人が決めることの節の頭）
 - draft_line(drafts, next_file): 答えの下書き（draft: true・source つき。報告が next-request.json の answers に置き、依頼の入口
   carry.parts が拒む）の報告の冒頭 1 の行
 グラフの中で決めてよいか（持ち主 2026-10-09 の決め 1。計画 2026-10-09-clean-whole の Task 2.6）: 関所の行を聞かずに通すのは、4 つの軸が
@@ -93,6 +95,7 @@ import json
 import pathlib
 import re
 import types
+from typing import NamedTuple
 
 import answer
 from answer import GO_WORDS
@@ -275,6 +278,19 @@ SPEC_CHANGED_LABEL = f"{KIND_WORDS[SPEC_CHANGED_KIND]}（{SPEC_CHANGED_KIND}）"
 SPEC_CHANGED_HEAD = f"承認し直すかの問い（{KIND_WORDS[SPEC_CHANGED_KIND]}）"   # 最後の承認ノードと報告の人が決めることの節の頭
 SPEC_UNCHECKED = "承認済みの受け入れ条件のテストが変わったかを照らせなかった"   # 照らせなかった時の承認ノードの 1 行目の句と下書きの source の頭
 SPEC_UNCHECKED_HEAD = f"承認し直すかの問い（{SPEC_UNCHECKED}）"   # 照らせなかった時の、最後の承認ノードと報告の人が決めることの節の頭
+
+
+class SpecWords(NamedTuple):
+    said: str     # 最後の承認ノードの開ける理由の句
+    source: str   # 次の依頼の下書きの source の頭
+    head: str     # 最後の承認ノードと報告の人が決めることの節の頭
+
+
+def spec_words(unchecked: bool) -> SpecWords:
+    """承認し直すかの問いの語。照らせなかった（unchecked）時は「変わった」でなく「照らせなかった」と言う"""
+    if unchecked:
+        return SpecWords(SPEC_UNCHECKED, SPEC_UNCHECKED, SPEC_UNCHECKED_HEAD)
+    return SpecWords(KIND_WORDS[SPEC_CHANGED_KIND], SPEC_CHANGED_LABEL, SPEC_CHANGED_HEAD)
 
 
 def question_row(kind: str, text: str) -> dict:
