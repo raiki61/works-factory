@@ -2,8 +2,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""ブロックと計画の往復の返りを受け直す受け皿の節（<include の id>-out と plan-rounds-out・plan-rounds-review-out）。collect は返りを
-ここから読む。
+"""埋め P8（docs/polyfills.md）。ブロックと計画の往復の返りを受け直す受け皿の節（<include の id>-out と plan-rounds-out・
+plan-rounds-review-out）。collect は返りをここから読む。
 
 ブロックの返す節（や往復の中の節）が落ちると、その出力は `{from, if_skipped}` でも読めない（止めた Archon の dag-executor.ts の
 resolveBindingDirective は落ちた節を if_skipped に落とさない）ので、collect が返りを直に読むと collect も落ち、報告が出ない。

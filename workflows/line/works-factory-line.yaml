@@ -7,7 +7,7 @@ description: |
   修正から後ろのノードは、直す前のテスト・判定・計画・修正前の承認の答えを中継のノード fix-in から読む。固定材料（fix_fixture）を
   名指した run は、start が写しを取り込み、直す前のテスト・判定・計画を飛ばして fix-in が写しの値を運び、修正から始める。
   サブグラフに渡す飛ばされうる値は、返しのノード（埋め P2: answer-*・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
-  サブグラフと計画の往復の出力は受け皿のノード（<include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
+  サブグラフと計画の往復の出力は受け皿のノード（埋め P8: <include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
   （受けるノードが落ちても受け皿が飛ばされるだけで、報告まで届く）。
   出力はメイングラフのノード result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
 
