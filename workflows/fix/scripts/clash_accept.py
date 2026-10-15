@@ -54,9 +54,10 @@ def main(pass_: str, limit: int) -> dict:
     else:
         start = startrec.read(place)
         cases = (fixboard.read_json(place / fixboard.BASELINE_FILE, {}) or {}).get("cases") or []
-        bad = clash.problems(place, repo, gid, reply, start=start, cases=cases, skip=boundary.SKIP, name=ACCEPT[pass_],
-                             k=rolekit.attempt(place, name))
-        out = fixboard.accept_out(place, name, {"ok": not bad, "reason": REJECTED + "\n".join(f"  - {x}" for x in bad)})
+        k, out = fixboard.round_number(place, name)   # 控えが読めなければ out が done 真の拒否（照らさずに抜ける）
+        if out is None:
+            bad = clash.problems(place, repo, gid, reply, start=start, cases=cases, skip=boundary.SKIP, name=ACCEPT[pass_], k=k)
+            out = fixboard.accept_out(place, name, {"ok": not bad, "reason": REJECTED + "\n".join(f"  - {x}" for x in bad)})
         gave_up = clash.GAVE_UP.format(n=rolekit.GIVE_UP_AFTER, file=out["reason_file"]) if not out["ok"] and out["done"] else ""
         if out["ok"]:
             clash.settle_repaired(place, repo, gid, log=log)

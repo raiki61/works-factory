@@ -3,7 +3,7 @@
 - YAML の口: 判定役の節の output_format が受け付けの規則の型（role_schema("p2.diagnose")）と同じか、良い返答の見本が
   YAML の output_format を通るか（設計書 5.4 節）。入口・出口・輪の形がブリーフどおりか
 - つなぎのスクリプト: intake（依頼を読んで check_request。拒めば終了コード 1）・accept（単独の run は core の check_judge を
-  script_io で包み、ラインの盤面は judgetake.take を rolekit.main_accept に渡す）・collect（盤面の judgment.json から出口を組む）を
+  script_io で包み、ラインの盤面は judgetake.take を rolekit.accept_round に渡す）・collect（盤面の judgment.json から出口を組む）を
   別のプロセスで回す
 - class_query の例（QueryExamplesCase）: 当たるべき hits・当たってはならない misses で問いを試し、合わなければ拒み、通れば
   例を judgment.json に戻す（querytest。受け付けの口の中で試す）

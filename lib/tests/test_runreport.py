@@ -983,12 +983,67 @@ class ReportGiveUpCase(Base):
 
     def test_give_up_text_is_rolekit_text(self):
         bad_terms = json.dumps({"text": "x", "terms": [{"term": ""}]})
-        for _ in range(report_roles.GIVE_UP_AFTER):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(bad_terms, AcceptCase.PASS, out_dir=self.out)
-        rows = json.loads((self.out / runreport.REJECTS_FILE).read_text(encoding="utf-8"))
+        rows = rolekit.reject_rows(self.out, runreport.REPORT_NODE)
         self.assertIn("\n", rows[-1]["reason"], "拒否の文が複数の行でも諦めの文は 1 行")
         ai = json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))
         self.assertEqual(ai["reason"], rolekit.gave_up_text(runreport.REPORT_NODE, len(rows), rows[-1]["reason"]))
+
+    def test_rejects_live_in_the_rolekit_ledger_with_kind(self):
+        """報告の書き手の拒否は rolekit の rejects-report.json に kind つきで積む（format・answer の順）。前の版の控え
+        report-rejects.json と reject-<n>.md は作らない。reason_file は rejects-report.md で、それまでの拒否を全部持つ。
+        読めない返答・空の返答・本文の無い返答も kind answer で積み、返りは {done, ok, reason, kind, reason_file} の 5 欄"""
+        bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)
+        bad_terms = json.dumps({"text": "x", "terms": [{"term": ""}]})
+        first = runreport.accept(bad_cell, AcceptCase.PASS, out_dir=self.out)
+        second = runreport.accept(bad_terms, AcceptCase.PASS, out_dir=self.out)
+        self.assertEqual([(first["kind"], first["done"]), (second["kind"], second["done"])], [("format", False), ("answer", False)])
+        rows = rolekit.reject_rows(self.out, runreport.REPORT_NODE)
+        self.assertEqual([r["kind"] for r in rows], ["format", "answer"])
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()), ["rejects-report.json", "rejects-report.md"])
+        self.assertEqual(second["reason_file"], str(self.out / "rejects-report.md"))
+        text = pathlib.Path(second["reason_file"]).read_text(encoding="utf-8")
+        self.assertLess(text.index(first["reason"]), text.index(second["reason"]), "それまでの拒否を古い順に全部持つ")
+        self.assertEqual(report_roles.count_rejects([{**r, "node": runreport.REPORT_NODE} for r in rows])[runreport.REPORT_NODE],
+                         {"cold": 0, "format": 1, "answer": 1, "unknown": 0})
+        # 読めない返答・空の返答・本文の無い返答は、口の既定の拒否でなく kind answer の行で積み、返りも同じ 5 欄
+        for n, raw in enumerate(("壊れた", "", json.dumps({"terms": []})), 1):
+            with self.subTest(raw=raw):
+                out = self.out / f"unreadable-{n}"
+                got = runreport.accept(raw, AcceptCase.PASS, out_dir=out)
+                self.assertEqual(set(got), {"done", "ok", "reason", "kind", "reason_file"})
+                self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
+                self.assertEqual(got["reason_file"], str(out / "rejects-report.md"))
+                self.assertEqual([r["kind"] for r in rolekit.reject_rows(out, runreport.REPORT_NODE)], ["answer"])
+                self.assertEqual(report_roles.count_rejects(
+                    [{**r, "node": runreport.REPORT_NODE} for r in rolekit.reject_rows(out, runreport.REPORT_NODE)]
+                )[runreport.REPORT_NODE]["answer"], 1, "answer が unknown に化けない")
+
+    def test_unusable_ledger_still_leaves_the_unaccepted_reason(self):
+        """報告の控え rejects-report.json が読めない時、accept は落ちずに done 真・ok 偽を返し、AI_FILE に accepted: False と
+        『拒否の控えが扱えない』を含む reason を書く。collect は None を返さず、受け取れなかった訳を報告に載せる。reason_file は空"""
+        self.out.mkdir(parents=True)
+        (self.out / "rejects-report.json").mkdir()
+        for raw in (AcceptCase.REPLY, "壊れた"):
+            with self.subTest(raw=raw[:3]):
+                (self.out / runreport.AI_FILE).unlink(missing_ok=True)
+                cold = AcceptCase.REDESIGN if raw == AcceptCase.REPLY else AcceptCase.PASS
+                got = runreport.accept(raw, cold, out_dir=self.out)
+                self.assertEqual((got["done"], got["ok"], got["reason_file"]), (True, False, ""))
+                self.assertIn("拒否の控えが扱えない", got["reason"])
+                ai = json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))
+                self.assertFalse(ai["accepted"])
+                self.assertIn("拒否の控えが扱えない", ai["reason"])
+                self.assertEqual(ai["rejects"], report_roles.count_rejects([]), "控えが読めない時は空として数える")
+                path = runreport.collect("事実", out_dir=self.out, stamp="run x")
+                self.assertIsNotNone(path)
+                self.assertIn("拒否の控えが扱えない", path.read_text(encoding="utf-8"))
+        # 通る返答は控えを読まずに受け取れる（数えは空）
+        (self.out / runreport.AI_FILE).unlink()
+        ok = runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
+        self.assertEqual((ok["done"], ok["ok"]), (True, True))
+        self.assertTrue(json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))["accepted"])
 
 
 class CollectCase(Base):
@@ -1008,7 +1063,7 @@ class CollectCase(Base):
     def test_not_passed_is_one_machine_fact_line_not_the_head(self):
         """#495: 初見の読み手が 3 回とも通さず受け取った報告は、書き手の本文で始まり、拒みの文（NOT_PASSED と出し直しの命令）を
         頭に置かない。通らなかった事実は機械の事実の拒みの数の行の尾に 1 度だけ、止まった所と一緒に載る"""
-        for _ in range(report_roles.GIVE_UP_AFTER):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, AcceptCase.REDESIGN, out_dir=self.out)
         text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertTrue(text.split("\n\n")[1].startswith("直した。"), text)
@@ -1020,7 +1075,7 @@ class CollectCase(Base):
 
     def test_words_only_on_the_not_passed_line_are_defined(self):
         """通らなかった事実の行にだけ在る語（NOT_PASSED の「ノード」、判定を読めなかった事実の「初見の読み手」）も、語の定義に載る"""
-        for _ in range(report_roles.GIVE_UP_AFTER):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, "壊れた", out_dir=self.out)
         text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertIn(report_roles.GLOSSARY_HEADING, text)
@@ -1034,18 +1089,18 @@ class CollectCase(Base):
         for cold, want in ((guessed, "推測で埋めた所: 語 X を推測"), ("壊れた", runreport.COLD_UNREADABLE)):
             with self.subTest(want=want):
                 out = self.out / want
-                for _ in range(report_roles.GIVE_UP_AFTER):
+                for _ in range(rolekit.GIVE_UP_AFTER):
                     runreport.accept(AcceptCase.REPLY, cold, out_dir=out)
                 text = runreport.collect("事実", out_dir=out, stamp="run x").read_text(encoding="utf-8")
                 [line] = [ln for ln in text.splitlines() if report_roles.NOT_PASSED in ln]
                 self.assertIn(want, line)
 
     def test_given_up_reply_still_reports(self):
-        for _ in range(report_roles.GIVE_UP_AFTER):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept("壊れた", AcceptCase.PASS, out_dir=self.out)
         text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertIn(report_roles.FAILED_TITLE, text)
-        self.assertIn(f"report の返答が {report_roles.GIVE_UP_AFTER} 回とも受け付けで拒まれた（最後の拒否: ", text)
+        self.assertIn(f"report の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けで拒まれた（最後の拒否: ", text)
         self.assertTrue(text.endswith("事実"))
 
     def test_decisions_section_is_one_place(self):

@@ -24,5 +24,5 @@ KEYS = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
 name = ja.SPEC_ROLES.get(role, "spec-" + "".join(c if c.isalnum() else "-" for c in role)[:40])
 got = rolekit.resubmitted(jdir, name, boundary.value(os.environ.get("INPUTS_REPLY")), boundary.value(os.environ.get("INPUTS_FIX_REPLY")),
                           rolekit.merge_fields)
-out = ja.accept_reply(jdir, name, got, lambda reply: ja.spec_take(jdir, role, reply, Path.cwd(), keys=KEYS))
+out = rolekit.accept_parsed(jdir, name, got, lambda reply: ja.spec_take(jdir, role, reply, Path.cwd(), keys=KEYS))
 boundary.returns({"ok": out["ok"], "done": out["done"], "reason": out["reason"], "revise": bool(out.get("revise"))})

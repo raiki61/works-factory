@@ -20,7 +20,7 @@ import stopby  # noqa: E402
 KEYS = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 jdir.mkdir(parents=True, exist_ok=True)
-out = ja.accept_round(
+out = rolekit.accept_round(
     jdir, ja.PURPOSE_ROLE, os.environ.get("INPUTS_REPLY", ""), lambda reply: ja.check_purpose(reply, jdir, Path.cwd(), keys=KEYS),
     on_give_up=lambda: ja.write_stop(jdir, stopby.PURPOSE, rolekit.given_up_reason(jdir, ja.PURPOSE_ROLE)))
 boundary.returns({"ok": bool(out["ok"]), "done": bool(out["done"]), "reason": str(out["reason"])})

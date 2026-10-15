@@ -23,7 +23,7 @@ rdir.mkdir(parents=True, exist_ok=True)
 KEYS = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
 got = rolekit.resubmitted(rdir, ja.REJUDGE_ROLE, boundary.value(os.environ.get("INPUTS_REPLY")),
                           boundary.value(os.environ.get("INPUTS_FIX_REPLY")), rolekit.merge_fields)
-out = ja.accept_reply(rdir, ja.REJUDGE_ROLE, got, lambda reply: ja.rejudge_take(jdir, rdir, reply, Path.cwd(), keys=KEYS))
+out = rolekit.accept_parsed(rdir, ja.REJUDGE_ROLE, got, lambda reply: ja.rejudge_take(jdir, rdir, reply, Path.cwd(), keys=KEYS))
 if out["done"]:
     try:
         ja.rejudge_collect(rdir)

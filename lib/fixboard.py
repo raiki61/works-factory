@@ -1108,7 +1108,6 @@ BASELINE_FILE = "baseline.json"        # 直す前の結末 {cases, exit}（base
 NOTES_FILE = "human-notes.md"          # 修正前の関所の一言と答えで直す義務に戻った単位の行（修正役と TDD の役の notes_file）
 BASE_REV_FILE = "base-rev.json"        # 修正前の版 {rev}（prep が親の作業ツリーの HEAD の sha を控え、組の子が写す）
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（差分の審査の材料 fix_report と plan_faces）
-REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理由（rejects_file が全部を 1 つに書く元）
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
 LENS_PROMPT = "prompt-lens-{}.md"      # レンズの節の指示書（lenses.key）
 LENSES_FILE = "lenses.json"            # レンズの集め役の事実 {collector: {ok, reason}}（diff の隣のファイル。読み手は最後の関所と報告）
@@ -1524,7 +1523,7 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
     TDD の役の指示書と同じ）→ 役の頭（refix-head-<n>。values の brief_file・diff_file・policy_path で穴を埋める）→
     書く役の決まりの正本（rulebook.CANON の NOT_HERE の外）→ 読み替え → 手直しだけの決まり → 返答 → 返答の後に当たる物
     （refix-tail-<n>）を rulebook.render で繋ぐ。手直しだけの決まりの後に借りたスキルの座（seat.section。receiving-code-review と
-    読み替え）を置く。reject_file（この輪の拒否の理由の全部のファイル。rejects_file）が在れば 1 行目で名指す。決まりのファイルの置き場は refixrules.RULES と
+    読み替え）を置く。reject_file（この輪の拒否の理由の全部のファイル。rolekit.reject_file）が在れば 1 行目で名指す。決まりのファイルの置き場は refixrules.RULES と
     rulebook.CANON（呼び手が置き替える）。scope（受け付けが照らす範囲の節。refix.scope_text）が在れば始めの記録の 2 行の後に貼る。
     写しが固定と違えば seat の ValueError。
     元 works/blk-refix/lib/refixrules.py:36・52 の parts・build"""
@@ -1549,30 +1548,24 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
                            reject_file=reject_file, lang=lang)["text"]
 
 
-def rejects_file(place, name: str, upto: int) -> str:
-    """受け付け name の 1〜upto 回目の拒否の理由（reject-<name>-<k>.md）の全部を古い順に rolekit.write_rejects で 1 つのファイルに
-    書いたパス（拒否が無ければ空）。次の回の役の指示書が名指す"""
-    files = [pathlib.Path(place) / REJECT_NAME.format(name=name, k=k) for k in range(1, upto + 1)]
-    return rolekit.write_rejects(place, name, [f.read_text(encoding="utf-8") for f in files if f.is_file()])
-
-
-def write_reject(place, name: str, k: int, reason: str) -> str:
-    """受け付け name の k 回目の拒否の理由を reject-<name>-<k>.md に書き、1〜k 回目の全部の rejects_file を返す（受け付けの返りの
-    reason_file。前の周の値でこれを読む役にも前の回の拒否が届く）"""
-    write_text(pathlib.Path(place) / REJECT_NAME.format(name=name, k=k), reason + "\n")
-    return rejects_file(place, name, k)
-
-
 def accept_out(place, name: str, got: dict) -> dict:
-    """受け付けの返り {ok, done, reason, reason_file}（輪の until が done を読む）。got の ok が真なら done。偽なら理由を write_reject で書き
-    （reason_file はこの輪の拒否の全部のファイル）、rolekit.with_done で控え rejects-<name>.json に積み、rolekit.GIVE_UP_AFTER 回目の拒否で done
-    （諦め。ok は偽のまま）。元 works/.shared/core/rolekit.py の main_accept の 3 回目の拒否で done・give_up の振る舞い"""
+    """受け付けの返り {ok, done, reason, reason_file}（輪の until が done を読む）。got の ok が真なら done。偽なら rolekit.accept_round で
+    控え rejects-<name>.json に積み、rolekit.GIVE_UP_AFTER 回目の拒否で done（諦め。ok は偽のまま）。got の count が false の回は積まず、
+    give_up が真なら 1 回目でも done。reason_file はこの輪の拒否の全部のファイル（rolekit.reject_file。控えが扱えない時は空）。
+    拒否の控え rejects-<name>.json が読めない・書けない時は、落ちずに done 真の拒否（理由『拒否の控えが扱えない』）。
+    rejects-<name>.md が書けない時は reject_file_or_blank の OSError がそのまま上がる。
+    元 works/.shared/core/rolekit.py の main_accept の 3 回目の拒否で done・give_up の振る舞い（今の住処は rolekit.accept_round）"""
     if got.get("ok") is True:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason = str(got.get("reason") or "受け付けが理由を書かずに拒んだ")
-    f = write_reject(place, name, rolekit.attempt(place, name), reason)
-    out = rolekit.with_done(pathlib.Path(place), name, {"ok": False, "reason": reason})
-    return {"ok": False, "done": bool(out["done"]), "reason": reason, "reason_file": f}
+    out = rolekit.accept_round(place, name, None, lambda _: {**got, "reason": reason})
+    return {"ok": False, "done": bool(out["done"]), "reason": out["reason"], "reason_file": rolekit.reject_file_or_blank(place, name)}
+
+
+def round_number(place, name: str) -> tuple:
+    """rolekit.current_round を accept_out の返りの形で: (回, None) か、控えが読めなければ (0, reason_file の空な done 真の拒否)"""
+    n, stopped = rolekit.current_round(place, name)
+    return n, stopped and {**stopped, "reason_file": ""}
 
 
 # ---------------------------------------------------------------- 組を親の木へ当てた後の名指しのテストの照らし（fix の join の script が呼ぶ）
@@ -1855,7 +1848,6 @@ FIX_HEAD_FILE = "fix-head.json"             # 組の修正の段の頭の木 {tr
 REFIX_HEAD_FILE = "refix{}-head.json"       # n 回目の手直しの段の頭の木 {tree}（refix-prep・refix2-prep が 1 回目に書く）
 PARKED_PATCH = "fix-parked"                 # 最後の回に止めた単位の戻した直しの控え（置き場の fix-parked-<n>.patch。元 accept.py:168）
 FIX_ACCEPT_BY = "fix-accept"                # 受け付けが単位を人に回した裁定の by（元 accept.py:140 の stopby の名）
-GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER       # 諦める拒否の回（元 accept.py:139。持ち主は rolekit）
 # 修正の受け付けの確かめの id → 拒否の見出しの短い名（受け付けが回す順）。元 works/blk-fix/scripts/accept.py:180
 FIX_CHECKS = {
     "consult": "範囲の相談の枠",
@@ -2236,9 +2228,9 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（tddloop.selected_problems）→
     事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。defects の問いが閉じない単位は申し出が無ければ
     戻す。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
-    拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True}。戻した回は戻した返答で頭から通し直す。reverted・
+    拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True, count: false}。戻した回は戻した返答で頭から通し直す。reverted・
     trail はその通し直しが渡す）。最後の回の単位への結びは、はみ出しでない行にだけ当てる（止めた後の通し直しのはみ出しは聞かずに戻す）。
-    iteration が GIVE_UP_AFTER 以上の拒否は、写しでない行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め
+    rolekit.is_last_attempt(iteration) が真の拒否は、写しでない行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め
     （park_units）、残りの単位で頭から通し直す。義務の外の単位にだけ結んだ行は数えず、その単位の行を changes・not_done から外して
     （直しは作業ツリーに残す）写しの照らしを当て直し、受ければ trace に ABSORBED_OP。写しの拒否が残れば同じく結び、止める単位が
     残らなければ義務の残りを全部止めて通し直す（parking.park_owed。写しの拒否の時だけ）。それでも残れば受けずに諦める（NOT_SETTLED）。
@@ -2260,7 +2252,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     parked = dict(parked or {})
     trail = {"reverted": []} if trail is None else trail
     rev = base_rev_of(place, base_rev)
-    last = iteration >= GIVE_UP_AFTER
+    last = rolekit.is_last_attempt(iteration)
     found, declared = [], {}
 
     def note(check, texts):
@@ -2459,12 +2451,6 @@ def closure_reply(reply: dict, place, repo, rev: str, judged) -> tuple:
     out, rows = unitrows.build(changes, queries, count=count, blank=recount.blank, zero_keys=zero,
                                replaced=conflict.replaced_queries(place), per_file=per_file, touched=touched)
     return {**reply, "changes": out}, rows, zero
-
-
-def loop_done(got: dict, iteration: int) -> bool:
-    """拒んだ受け付けの返り got（accept_reply）で修正の輪を抜けるか: iteration が GIVE_UP_AFTER 以上で、はみ出しを範囲の相談に積んだ
-    回（settle_overflow の queued）でない時。元 accept.py:763 の with_done の拒否の側"""
-    return iteration >= GIVE_UP_AFTER and got.get("queued") is not True
 
 
 def record_base_rev(place, repo) -> str:
@@ -2751,7 +2737,7 @@ def overflow_trace(place, trail: dict, repo, *, pass_: str, attempt: int) -> Non
 
 def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: str, reverted, trail: dict, pass_: str,
                     again, ask: bool = True):
-    """はみ出しの行だけの回の道筋の選び。返りは出口の dict（積んだ {ok: False, queued: True, …}・戻して通し直した返り）か、拒む時は
+    """はみ出しの行だけの回の道筋の選び。返りは出口の dict（積んだ {ok: False, queued: True, count: false, …}・戻して通し直した返り）か、拒む時は
     None（戻しきれない物を成り立たない行にして found に足してある）。見分けは持ち主（planscope の overflow・fixgates.overflow_asks・
     tddloop.frozen_asks）、聞いた答えは conflict.plan_asks、積みは consult.queue、戻しは keep_patch・tddloop.restore_paths・
     tddloop.restore_tests・_without_rows が持ち、ここは選ぶだけ:
@@ -2788,7 +2774,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     if fresh and consult.queue(place, pass_, _queue_rows(fresh)) or waiting and not fresh:
         reason = QUEUED + " / ".join(a["line"] for a in asks)
         return {"ok": False, "reason": reason, "rejects": [{"check": "scope", "text": reason}], "reply": whole,
-                "conflicted": False, "queued": True}   # units・parked は呼び手が足す
+                "conflicted": False, "queued": True, "count": False}   # units・parked は呼び手が足す
     back += fresh   # 枠が足りず聞けない物
     paths = sorted({p for a in back for p in a["paths"]})
     emptied = [c.get("unit_key") for c in whole.get("changes") or [] if isinstance(c, dict)
