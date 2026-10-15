@@ -861,11 +861,13 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(json.loads(rolekit.candidate_path(rnd, planfile.ROLE).read_text(encoding="utf-8")),
                          planfile.named(whole, slot_list), "控えは受け付けと同じく単位の名に戻した形")
 
-    def test_empty_resubmit_is_rejected(self):
+    def test_empty_resubmit_rechecks_the_previous_answer(self):
+        """空の出し直しは前の答えのまま全体を照らし直す（直っていなければ同じ理由で拒む）"""
         run = Run(self)
         out = run.include(writer=writer_of({"plan": [item(1)]}, {}, {"plan": [item(1, 2)]}))
         self.assertIs(out["ready"], True, out)
-        self.assertEqual(self.reasons(run)[1], rolekit.EMPTY_RESUBMIT)
+        first, again = self.reasons(run)
+        self.assertEqual(again, first)
 
     def test_whole_plan_resubmit_drops_items(self):
         """項目を消す出し直しは whole_plan: true と案の全部（plan が丸ごと置き換わる。whole_plan は控えに残り、受けた案には残らない）"""
@@ -1399,6 +1401,8 @@ class CollectCase(unittest.TestCase):
         got = json.loads((run.art / "plan" / "r2" / planfile.REPLY_FILE).read_text(encoding="utf-8"))["plan"]
         self.assertEqual(got[1], first[1], "返さない開いた項目は前の往復の行のまま")
         self.assertEqual(got[0]["approach"], changed["approach"])
+        kept = json.loads(rolekit.candidate_path(run.art / "plan" / "r2", planfile.ROLE).read_text(encoding="utf-8"))
+        self.assertEqual(kept["plan"], got, "出し直しの役が読む控えは、機械が前の往復の行を差し込んだ案の全体")
 
     def test_second_round_counts_its_own_rejections(self):
         """拒否の控えは周ごと: 1 周目に 2 回拒まれても、2 周目は 0 から数えて 3 回まで出し直せる"""

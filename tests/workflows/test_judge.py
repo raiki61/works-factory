@@ -371,6 +371,19 @@ class LoopTest(unittest.TestCase):
         self.assertTrue(got["ok"], got["reason"])
         self.assertEqual(json.loads((r.judge / f"{ja.SPEC_ROLES['write']}.json").read_text(encoding="utf-8")), SPEC)
 
+    def test_spec_resubmit_after_fixing_only_the_file_returns_nothing(self):
+        """受け入れテストのファイルが読めない拒否は、役がファイルを書けば直る。欄を直さない出し直しの {} は前の答えのまま全体を
+        照らし直して通る（出し直しの回を空で使わない）"""
+        r = Run(self)
+        r.returned("intake")
+        first = r.returned("spec_accept", role="write", reply=SPEC)
+        self.assertFalse(first["ok"])
+        self.assertIn("読めない", first["reason"])
+        (r.repo / "test_spec_mean.txt").write_text(SPEC_TEST_FILE, encoding="utf-8")
+        got = r.returned("spec_accept", role="write", reply="null", fix_reply={})
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual(json.loads((r.judge / f"{ja.SPEC_ROLES['write']}.json").read_text(encoding="utf-8")), SPEC)
+
     def test_materials_are_eleven_loops_one_per_command(self):
         material_loops = sorted(lid.removesuffix("-loop") for lid in loops() if lid.removesuffix("-loop") in MATERIALS)
         self.assertEqual(material_loops, sorted(MATERIALS))

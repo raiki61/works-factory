@@ -439,7 +439,7 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(fix["when"], "$review-prep.output.resubmit == true")
         self.assertEqual((fix["depends_on"], fix["trigger_rule"]), (["review-prep", "plan-review"], "none_failed_min_one_success"))
         self.assertNotIn("context", fix)
-        self.assertIn("$review-prep.output.prompt_file", fix["prompt"])
+        self.assertIn("$review-prep.output.brief", fix["prompt"])
         launch = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
         self.assertEqual({k: fix[k] for k in launch}, {k: first[k] for k in launch})
         self.assertEqual(fix["output_format"]["required"], [])
@@ -1065,8 +1065,8 @@ class ReviewAcceptCase(RunCase):
         self.prepped()
         got = r.accept(review(face("entrance-without-no-add", kind="entrance")))
         prep = r.out("review_prep", INPUTS_PREV="false")
-        self.assertIs(prep["resubmit"], True)
-        p = pathlib.Path(prep["prompt_file"])
+        self.assertEqual((prep["resubmit"], prep["prompt_file"]), (True, ""))
+        p = pathlib.Path(prep["brief"])
         self.assertEqual(p.name, "resubmit-2.md")
         text = p.read_text(encoding="utf-8")
         self.assertIn(got["reason"], text)
@@ -1086,12 +1086,13 @@ class ReviewAcceptCase(RunCase):
         self.assertEqual([f["key"] for f in saved["faces"]], ["entrance-with-no-add"])
         self.assertEqual(saved["reason"], review()["reason"])
 
-    def test_empty_resubmit_is_rejected(self):
+    def test_empty_resubmit_rechecks_the_previous_answer(self):
+        """空の出し直しは前の答えのまま全体を照らし直す（直っていなければ同じ理由で拒む）"""
         r = self.run_
         self.prepped()
-        r.accept(review(face("entrance-without-no-add", kind="entrance")))
+        first = r.accept(review(face("entrance-without-no-add", kind="entrance")))
         got = r.out("review_accept", INPUTS_REPLY="null", INPUTS_FIX_REPLY="{}")
-        self.assertEqual((got["ok"], got["reason"]), (False, boardview.rolekit.EMPTY_RESUBMIT))
+        self.assertEqual((got["ok"], got["reason"]), (False, first["reason"]))
 
     def test_material_carries_the_mainline_inputs(self):
         """材料は役の頭（関所の決め手・狭めない案・既にある物を量ったか・人に回す物）と、写しの指示書の差し込み（修正案・番号つきの

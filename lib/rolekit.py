@@ -278,7 +278,7 @@ RESUBMIT_ASK = ("前の回の返答は受け付けで拒まれた。この会話
                 "受け付けが拒んだ理由（字のまま）:\n\n```text\n{reason}\n```\n\n"
                 "機械が合わせた前の回の答えの全体: {candidate}（Read で読める。返さない所はこの形のまま残る）\n\n"
                 "返し方:\n"
-                "- 返すのは前と同じ型の JSON で、直す欄だけを書く。{rules}\n"
+                "- 返すのは前と同じ型の JSON で、直す欄だけを書く（欄を直さずにリポジトリのファイルだけを直したなら {{}}）。{rules}\n"
                 "- 受け付けは、合わせた後の答えの全体をもう 1 度照らす")
 
 
@@ -313,9 +313,6 @@ def write_resubmit(board, name: str, file: str, rules: str) -> tuple:
     return path, n
 
 
-EMPTY_RESUBMIT = "出し直しに直した欄が無い（拒まれた所を直した欄だけを、前と同じ型で返せ）"
-
-
 def _reply_object(got, what: str) -> tuple:
     if isinstance(got, str):
         return None, f"{what}が JSON として読めない（頭: {got[:200]!r}）"
@@ -326,14 +323,13 @@ def _reply_object(got, what: str) -> tuple:
 def resubmitted(board, name: str, reply, part, merge) -> tuple:
     """(受け付け name が照らす答えの全体, 拒否の文)。reply は 1 回目の役の返答、part は拒まれた後の出し直しの役の返答で、どちらも
     JSON に戻した値（起きなかった役は None）。part が在れば控え candidate_path の前の答えと merge(前の答え, part) で合わせ、無ければ
-    reply。合わせた答えは控えに書く（次の出し直しを合わせる元）。返答が object でない・出し直しが空・控えが読めなければ (None, 訳)"""
+    reply。空の出し直しは前の答えのまま（拒否が作業ツリーのファイルだけを名指せば、役はファイルを直して欄を返さない）。合わせた答えは
+    控えに書く（次の出し直しを合わせる元）。返答が object でない・控えが読めなければ (None, 訳)"""
     path = candidate_path(board, name)
     if part is None:
         got, why = _reply_object(reply, "返答")
     else:
         part, why = _reply_object(part, "出し直しの返答")
-        if part is not None and not part:
-            why = EMPTY_RESUBMIT
         if why:
             return None, why
         try:
