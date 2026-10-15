@@ -12,16 +12,17 @@
 
 ## E2 境の中身は全部、名簿に載せる
 
-- `workflows/.shared/` のファイルは 2 種類だけ。Archon との出入りの口（境の入出力のモジュール。1 つ）と、埋め（polyfill。Archon に無い物を外から補う部品）。
-- 埋めは `docs/polyfills.md` に 1 行ずつ載せる。載せる欄は、穴・Archon の証拠の引用・外す条件。
-- 機械: `tests/layers/test_polyfills_listed.py`（`workflows/.shared/` のファイルが、境の口か名簿の行のどれかにちょうど当たる。名簿に在って木に無い行も赤。ただし置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい）。
+- `workflows/.shared/` のファイルは 2 種類だけ。Archon との出入りの口（境の入出力のモジュール。1 つ）と、埋め（polyfill。Archon に無い物を外から補う部品）。`bin/_lib/` には埋めと入口の部品（`bin/AGENTS.md` の E15）が並ぶので、埋めでない入口の部品は `tests/layers/scan.py` の `ALLOWED["E2"]` に 1 行ずつ置いて外す。
+- 埋めは `docs/polyfills.md` に 1 行ずつ載せる。載せる欄は、穴・Archon の証拠の引用・外す条件。YAML の型の埋め（メイングラフの受け皿のノードなど）や、期限の値のような置き場を持たない埋めも載せる。
+- 機械: `tests/layers/test_polyfills_listed.py`（`workflows/.shared/` と `bin/_lib/` のファイルが、境の口・`ALLOWED["E2"]` の行・名簿の行のどれかに当たる。名簿の `- 埋め:` の行が名指す `workflows/`・`bin/`・`lib/`・`tests/` の下のパスが木に無い行も赤。ただし置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい）。
 
-## E4 サブグラフはほかのサブグラフのファイルを指さない
+## E4 サブグラフはほかのサブグラフのファイルを指さず、入力の説明で作り手を名指さない
 
 - サブグラフ（`workflows/<名>/`）の script は、ほかのサブグラフのフォルダへのパスを組まない。受け取りは `with:` の入力・前のノードの出力・ポインタ（`archon_artifact`）・型つきの成果物（`output_type`）だけ。
 - サブグラフの script は `lib/` と境の口を呼ぶだけで、確かめの中身を持たない。
 - script は同じ `scripts/` の別の script を import しない（共に使う物は lib か境の口に置く）。script の名を lib のモジュールの名にしない（script のフォルダが `sys.path` の頭に来るので、`import <名>` が lib の物でなく script を読む）。
-- 機械: `tests/layers/test_block_paths.py`（サブグラフの `scripts/` とサブグラフの YAML（直に書いた script）の字に、ほかのサブグラフを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のサブグラフの外への相対パスも無い。`scripts/*.py` の import の名が同じ `scripts/` の別のファイルの名でない。メイングラフとサブグラフの `scripts/*.py` の名と `lib/*.py` の名が重ならない）。
+- サブグラフの `inputs:` の `description:` は受け取る値の形（型・意味・空や null の時の意味・ポインタなら先のファイルの名）を書き、作り手（ほかのサブグラフ・メイングラフ・周の鎖のノード）を名指さない。結びはメイングラフの `with:` だけが持ち、説明に写すとずれる（持ち主の決め `io-in-output-format`）。そのサブグラフ自身の YAML の兄弟ノードの `$<id>.output` は作り手の名指しに数えない。
+- 機械: `tests/layers/test_block_paths.py`（サブグラフの `inputs:` の `description:`（YAML の値として読むので、flow の形も `>-`・`|` の複数行の形も覆う）に、作り手の名指しが無い。名指しは 4 つの型: `$<id>.output`（自分の YAML のノードの id は除く）・語「メイングラフ」・ほかのサブグラフの名（`works-factory-` の頭が付いてもよい）・一番上のグラフ（メイングラフと周の鎖）のノードの id のうち `-` を含む物。`-` の無い id は普通の語と重なるので語としては数えない。一番上のグラフ自身の入力は見ない。サブグラフの `scripts/` とサブグラフの YAML（直に書いた script）の字に、ほかのサブグラフを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のサブグラフの外への相対パスも無い。`scripts/*.py` の import の名が同じ `scripts/` の別のファイルの名でない。メイングラフとサブグラフの `scripts/*.py` の名と `lib/*.py` の名が重ならない）。
 
 ## E5 サブグラフの出力は 1 つのノードの構造体
 
@@ -49,7 +50,7 @@
 ## E12 期限・タイムアウトを置かない
 
 - YAML のノードにも script にも期限を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。
-- Archon は鍵を書かないノードにも既定の期限を当てる（`script:` のノードは 2 分で打ち切る。Archon の文書 `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Default: `120000` (2 min)」）。だから期限を外すには、期限を持つノードに実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値）を書く。期限を持つノードと鍵は次のとおり（止めた Archon（`docs/design.md` の「語」）の `packages/workflows/src/schemas/dag-node.ts`・`dag-executor.ts` で確かめた）。
+- Archon は鍵を書かないノードにも既定の期限を当てる（`script:` のノードは 2 分で打ち切る。Archon の文書 `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Default: `120000` (2 min)」）。だから期限を外すには、期限を持つノードに実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値。埋め P9）を書く。期限を持つノードと鍵は次のとおり（止めた Archon（`docs/design.md` の「語」）の `packages/workflows/src/schemas/dag-node.ts`・`dag-executor.ts` で確かめた）。
   - `script:`・`bash:` の `timeout`
   - `prompt:`・`command:` の `idle_timeout`
   - `loop:` の `idle_timeout`（1 周ごと）と `timeout`（`until_bash` の確かめ。無いと 120000 ms で打ち切る）
