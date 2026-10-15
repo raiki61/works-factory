@@ -513,6 +513,29 @@ class ScopeFieldsCase(PlanFieldsCase):
                 self.assertFalse(planmarks.globs_meet(a, b))
                 self.assertFalse(planmarks.globs_meet(b, a))
 
+    def test_globs_meet_is_true_when_an_argument_is_not_a_string(self):
+        """文字列でない引数は言い切れない時なので、交わると見る（組分けの保守側）"""
+        for a, b in ((None, "a"), ("a", None), ("a", 1), (1, "a")):
+            with self.subTest(a=a, b=b):
+                self.assertTrue(planmarks.globs_meet(a, b))
+
+    def test_globs_meet_reads_trailing_slash_like_glob_match(self):
+        """末尾の / は落とさず字のまま読む（glob_match と同じ）: 'a/' は 'a' と交わらず、'a/*' と 'a/**' とは交わる"""
+        for a, b in (("a/", "a/*"), ("a/", "a/**")):
+            with self.subTest(a=a, b=b):
+                self.assertTrue(planmarks.globs_meet(a, b))
+                self.assertTrue(planmarks.globs_meet(b, a))
+        self.assertFalse(planmarks.globs_meet("a/", "a"))
+        self.assertFalse(planmarks.globs_meet("a", "a/"))
+        globs = ["a/", "a", "a/*", "a/**", "lib/*.py", "lib/a.py"]
+        paths = ["a/", "a", "a/x", "lib/a.py"]
+        for x in globs:
+            for y in globs:
+                for p in paths:
+                    if planmarks.glob_match(p, x) and planmarks.glob_match(p, y):
+                        with self.subTest(x=x, y=y, path=p):
+                            self.assertTrue(planmarks.globs_meet(x, y))
+
     def test_gaps_out_of_scope_rows(self):
         bad = [{"glob": "../x.py", "why": "根の外は触らない（試験の材料）"}]
         got = planmarks.gaps({"plan": [item(out_of_scope=bad)]}, self.repo)

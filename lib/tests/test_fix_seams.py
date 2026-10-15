@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -33,6 +34,8 @@ import groups  # noqa: E402
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
+import planmarks  # noqa: E402
+import planrange  # noqa: E402
 import rolekit  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
@@ -1820,6 +1823,62 @@ class GroupScriptsSeamCase(TempCase):
                   "rewrite_tests": [{"id": "tests/test_s.py::Case::test_b"}]},
                  {"item": 3, "unit_keys": ["C"], "allowed_paths": ["", "lib/c.py"]}]
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C"], items)], [["A", "B"], ["C"]])
+
+    # 項目の範囲の表: テストのファイルの名に * ? [ を含む行・rewrite_tests だけの項目・空の allowed_paths の字の行
+    RANGE_ITEMS = {
+        "bracket": {"item": 1, "unit_keys": ["A"], "allowed_paths": ["lib/a.py", ""],
+                    "tests": [{"id": "tests/test_[x].py::Case::test_a"}]},
+        "plain": {"item": 2, "unit_keys": ["B"], "allowed_paths": ["tests/test_x.py"]},
+        "star": {"item": 3, "unit_keys": ["C"], "rewrite_tests": [{"id": "tests/test_*.py::Case::test_c"}]},
+        "mark": {"item": 4, "unit_keys": ["D"], "tests": [{"id": "tests/test_?.py::Case::test_d"}]},
+        "glob": {"item": 5, "unit_keys": ["E"], "allowed_paths": ["lib/*.py", "tests/**"]},
+    }
+    RANGE_PATHS = ["lib/a.py", "lib/b.py", "lib/sub/c.py", "tests/test_[x].py", "tests/test_x.py", "tests/test_*.py",
+                   "tests/test_a.py", "tests/test_?.py", "tests/sub/test_x.py", ""]
+
+    def test_item_globs_reads_like_inside(self):
+        """項目の範囲の glob の並び item_globs は planrange.inside と同じ読み。テストのファイルは字のまま当たる（名に * ? [ を
+        含んでもほかのファイルに当たらない）"""
+        want = {
+            "bracket": {"lib/a.py", "tests/test_[x].py"},
+            "plain": {"tests/test_x.py"},
+            "star": {"tests/test_*.py"},
+            "mark": {"tests/test_?.py"},
+            "glob": {"lib/a.py", "lib/b.py", "tests/test_[x].py", "tests/test_x.py", "tests/test_*.py", "tests/test_a.py",
+                     "tests/test_?.py", "tests/sub/test_x.py"},
+        }
+        for name, it in self.RANGE_ITEMS.items():
+            globs = planrange.item_globs(it)
+            got = {p for p in self.RANGE_PATHS if planrange.inside(p, it)}
+            self.assertEqual(got, want[name], name)
+            self.assertEqual(got, {p for p in self.RANGE_PATHS if any(planmarks.glob_match(p, g) for g in globs)}, name)
+        self.assertEqual(planrange.item_globs(self.RANGE_ITEMS["bracket"]), ["lib/a.py", "tests/test_[[]x].py"])
+        self.assertEqual(planrange.item_globs({"item": 9}), [])
+
+    def test_fix_groups_join_items_only_when_inside_shares_a_path(self):
+        """組分けは項目の範囲を planrange.inside と同じ読みで見る: inside が共にパスを入れる項目の単位は同じ組、共有するパスの無い
+        項目（テストのファイル tests/test_[x].py と allowed_paths の tests/test_x.py）は別の組"""
+        items = [self.RANGE_ITEMS["bracket"], self.RANGE_ITEMS["plain"],
+                 {"item": 3, "unit_keys": ["C"], "allowed_paths": ["lib/*.py"]},
+                 {"item": 4, "unit_keys": ["D"], "allowed_paths": ["docs/x.md"]}]
+        got = fixboard.fix_groups(["A", "B", "C", "D"], items)
+        shared = {(a["item"], b["item"]) for i, a in enumerate(items) for b in items[i + 1:]
+                  if any(planrange.inside(p, a) and planrange.inside(p, b) for p in self.RANGE_PATHS + ["docs/x.md"] if p)}
+        joined = {(a, b) for g in got for i, a in enumerate(g["items"]) for b in g["items"][i + 1:]}
+        self.assertEqual(shared, {(1, 3)})
+        self.assertEqual(joined, shared)
+        self.assertEqual([g["unit_ids"] for g in got], [["A", "C"], ["B"], ["D"]])
+
+    def test_item_globs_match_bracket_names_without_future_warning(self):
+        """名に [ を含むテストのファイル（tests/test_[x].py）の項目は字のままのパスにだけ当たり、glob の読みで re の FutureWarning
+        （入れ子の集合の予告）を出さない。警告が無いことを見るので、re のコンパイルの控えにも試験の順にも依らない"""
+        it = self.RANGE_ITEMS["bracket"]
+        with warnings.catch_warnings(record=True) as seen:
+            warnings.simplefilter("always")
+            hits = {p: (planrange.inside(p, it), any(planmarks.glob_match(p, g) for g in planrange.item_globs(it)))
+                    for p in ("tests/test_[x].py", "tests/test_x.py")}
+        self.assertEqual(hits, {"tests/test_[x].py": (True, True), "tests/test_x.py": (False, False)})
+        self.assertEqual([str(w.message) for w in seen if issubclass(w.category, FutureWarning)], [])
 
     def test_parallel_needs_two_groups_no_lane_switch_and_a_remote(self):
         two = [{"group_id": "g1"}, {"group_id": "g2"}]

@@ -7,8 +7,8 @@
 規則（全部当てて枝の和を取る。VIA の語）:
 - compliance: 準拠の落ちた行（deltamarks の行 {item, face_key}）の face_key が穴の key → その項目
 - check:      塞がっていない検算の key が事前審査の穴の key → その穴の unit_keys を持つ項目（項目に無い単位はその単位の枝）
-- path:       穴の where が項目の allowed_paths の glob（planmarks.glob_match）か受け入れ・書き換えのテストのファイル
-              （planmarks.test_paths）に当たる → その項目
+- path:       穴の where が項目の範囲（planrange.inside。allowed_paths の glob か受け入れ・書き換えのテストのファイル）に入る
+              → その項目
 - change:     修正の changes の行で files に where を持つ行の unit_key → その単位の項目（無ければ単位の枝）
 - unit:       単位の key の頭のパス（unit_path）が where と同じ → その単位の項目（無ければ単位の枝）
 - earlier:    2 回目の手直しの穴: 検算の key は 1 回目にその key に結んだ枝、where は 1 回目の手直しがそのファイルを変えた
@@ -31,7 +31,7 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
-import planmarks  # noqa: E402  （glob の当て方とテストのファイルの正本）
+import planrange  # noqa: E402  （項目の範囲の読みの正本）
 
 VIA = ("compliance", "check", "path", "change", "unit", "earlier")
 NOWHERE = "どの枝にも結べない"
@@ -73,11 +73,6 @@ def _units_to_branches(keys, items) -> set:
     return out
 
 
-def _path_hit(where: str, it: dict) -> bool:
-    globs = [g for g in it.get("allowed_paths") or [] if isinstance(g, str) and g]
-    return any(planmarks.glob_match(where, g) for g in globs) or where in planmarks.test_paths(it)
-
-
 def earlier(ties: list, handled: list) -> dict:
     """1 回目の名札 ties と 1 回目の手直しの handled から、2 回目の名札の earlier {keys: {key: [枝]}, files: {パス: [枝]}}"""
     keys = {t["key"]: list(t["branches"]) for t in ties}
@@ -115,7 +110,7 @@ def tie(holes: list, items: list, *, compliance=(), plan_faces=(), changes=(), e
                 add("check", _units_to_branches(faces[key], items))
             add("earlier", set((prev.get("keys") or {}).get(key) or []))
         if where:
-            add("path", {item_branch(it["item"]) for it in items if _path_hit(where, it)})
+            add("path", {item_branch(it["item"]) for it in items if planrange.inside(where, it)})
             add("change", _units_to_branches([c["unit_key"] for c in rows if where in (c.get("files") or [])], items))
             add("unit", _units_to_branches([k for k in dict.fromkeys(known) if unit_path(k) == where], items))
             add("earlier", set((prev.get("files") or {}).get(where) or []))
