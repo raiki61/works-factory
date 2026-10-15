@@ -100,14 +100,16 @@ nodes:
             head: {type: string}
             diff_hash: {type: string}
 
-  # 任せ先の CI の役の出し直しの輪（今の works の blk-ci）。諦めは ci-accept の done・give_up で抜け、max_iterations で落とさない
+  # 任せ先の CI の役の出し直しの輪（今の works の blk-ci）。諦めは ci-accept の done・give_up で抜け、max_iterations で落とさない。
+  # 役は 1 回目は新しい会話で起き、拒まれた後は出し直しの役 ci-fix が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと
+  # 合わせる（振り分けは ci-prep の resubmit。並んだ層は会話を切るので ci-fix は ci の後ろの層に置く。#571）
   - id: ci-loop
     depends_on: [run]
     when: "$run.output.by == 'role_needed'"
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: accepted=$ci-accept.output.done; test "$accepted" = true
       nodes:
         - id: ci-prep
@@ -118,6 +120,7 @@ nodes:
           with:
             mode: $INPUTS.mode
             start: $INPUTS.start
+            prev: "$LOOP_PREV.ci-accept.output.ok"
           output_format:
             type: object
             additionalProperties: false
@@ -130,31 +133,34 @@ nodes:
               mode: {type: string, enum: [base, final]}
               reject: {type: string}
               attempt: {type: integer, minimum: 1}
+              resubmit: {type: boolean}
+              brief: {type: string}
         - id: ci
           description: 'CI の任せ先: 対象の CI の定義を読み、作業ツリーの写しの上でテスト・lint を走らせて素材を返す'
           command: ci
           depends_on: [ci-prep]
-          model: sonnet       # 今の works の stage-models.json の blk-ci/ci（light）
-          effort: medium
-          context: fresh
-          mutates_checkout: false
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため
-          # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーへの書き込みは
-          # denyWrite で Archon の家（~/../archon-home。~ は起動が隔離した HOME）ごと塞ぐ。相対のパスは cwd でなく設定の一時
-          # ファイルのフォルダに解かれるので '.' は効かない（実測 2026-10-13。#217）。写し（ci-prep の mkdtemp。TMPDIR の下）は
-          # 書ける。起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）。
-          # その上に mutates_checkout: false と ci-accept の作業ツリーの比べ
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network: {allowedDomains: ['*'], allowLocalBinding: true}
-            filesystem: {allowWrite: ['/'], denyWrite: ['~/../archon-home']}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
+          when: "$ci-prep.output.resubmit != true"
+          <<: &ci_launch
+            model: sonnet       # 今の works の stage-models.json の blk-ci/ci（light）
+            effort: medium
+            mutates_checkout: false
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため
+            # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーへの書き込みは
+            # denyWrite で Archon の家（~/../archon-home。~ は起動が隔離した HOME）ごと塞ぐ。相対のパスは cwd でなく設定の一時
+            # ファイルのフォルダに解かれるので '.' は効かない（実測 2026-10-13。#217）。写し（ci-prep の mkdtemp。TMPDIR の下）は
+            # 書ける。起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）。
+            # その上に mutates_checkout: false と ci-accept の作業ツリーの比べ
+            sandbox:
+              enabled: true
+              allowUnsandboxedCommands: false
+              failIfUnavailable: true
+              enableWeakerNetworkIsolation: true
+              network: {allowedDomains: ['*'], allowLocalBinding: true}
+              filesystem: {allowWrite: ['/'], denyWrite: ['~/../archon-home']}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &ci_reply
             type: object
             additionalProperties: false
             required: [material]
@@ -170,16 +176,27 @@ nodes:
                   checked: {type: string}
                   reason: {type: string}
                   systems: *systems
+        - id: ci-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$ci-prep.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [ci-prep, ci]
+          trigger_rule: none_failed_min_one_success
+          when: "$ci-prep.output.resubmit == true"
+          <<: *ci_launch
+          output_format:
+            <<: *ci_reply
+            required: []
         - id: ci-accept
           script: ci_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [ci]
+          depends_on: [ci, ci-fix]
+          trigger_rule: none_failed_min_one_success
           with:
             status_guarded: true
             mode: $INPUTS.mode
-            reply: {from: "$ci.output"}
+            reply: {from: "$ci.output", if_skipped: null}
+            fix_reply: {from: "$ci-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false

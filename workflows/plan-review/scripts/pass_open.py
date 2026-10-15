@@ -22,11 +22,12 @@ OPEN_ERROR = "open-error.txt"
 
 def node_schema(yaml_text: str, node_id: str) -> dict:
     """ブロックの YAML の節 node_id の output_format。script は外のパッケージ無しで走るので、役の節の output_format は JSON の形
-    （YAML の flow の書き方。JSON は YAML の部分集合）で書き、ここは節の行の後の最初の output_format: の値を JSON として読む"""
+    （YAML の flow の書き方。JSON は YAML の部分集合）で書き、ここは節の行の後の最初の output_format: の値を JSON として読む（値の頭の
+    YAML の錨 &<名> は飛ばす）"""
     head = re.search(rf"^\s*- id: {re.escape(node_id)}\s*$", yaml_text, re.M)
     if head is None:
         raise ValueError(f"YAML にノード {node_id} が無い")
-    key = re.compile(r"^\s*output_format:\s*", re.M).search(yaml_text, head.end())
+    key = re.compile(r"^\s*output_format:\s*(?:&[\w-]+\s+)?", re.M).search(yaml_text, head.end())
     nxt = re.compile(r"^\s*- id: ", re.M).search(yaml_text, head.end())
     if key is None or (nxt is not None and nxt.start() < key.start()):
         raise ValueError(f"ノード {node_id} に output_format が無い")

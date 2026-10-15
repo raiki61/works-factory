@@ -3410,7 +3410,7 @@
 - judge.md J63: lib/judge_accept.py::brief・lib/judge_accept.py::policy_text
 - judge.md J64: lib/judge_accept.py::_take_diff
 - judge.md J65: workflows/judge/commands/diagnose.md（字は在る。元の `盤面の材料が無い時` の 1 句だけ無い——共有ボードの無い道が無くなったので要らない）
-- judge.md J66: lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（workflows/judge/scripts/reject.py・rejects.py と判定の裏取りの支度が lang_line で返し、各役の指示書の頭が `$<節>.output.lang_line` で読む）
+- judge.md J66: lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（workflows/judge/scripts/reject.py・rejects.py・material_prep.py（素材集めのループの頭）と判定の裏取りの支度が lang_line で返し、各役の指示書の頭が `$<節>.output.lang_line` で読む）
 - judge.md J67: lib/judge_accept.py::_judge_tree_unchanged・lib/judge_accept.py::snap_tree（lib/judge_accept.py::diagnose_prep で判定役の前に置く）
 - judge.md J68: workflows/judge/works-factory-judge.yaml::diagnose の `output_format`（lib の写し `DIAGNOSE_SCHEMA` は #232 で消した）、改行を落とすのは lib/judge_accept.py::ONE_LINE_FIELDS・lib/judge_accept.py::judge_output
 - judge.md J69: lib/judge_accept.py::judge_output
@@ -3425,7 +3425,7 @@
 - judge.md J78: lib/judge_accept.py::_carried_r1_accounted・lib/judge_accept.py::_fork_moves_forward（受け付けはいつも空の前の周を渡す）。前の周に残すと宣言した穴の振り分け（`_declared_route_errors`）は届かなかったので #232 で消した
 - judge.md J79: lib/judge_accept.py::material_rows・lib/judge_accept.py::take・lib/outpurpose.py
 - judge.md J80: lib/judge_accept.py::answer_tie_problems・lib/judge_accept.py::take
-- judge.md J81: lib/judge_accept.py::accept・lib/judge_accept.py::_give_up・workflows/judge/works-factory-judge.yaml の `diagnose-reject`（集めの口 `collect` は届かなかったので #232 で消した）。役が周ごとに新しい会話で起きる仕様の 3 つのループと再審のループ（fresh_context: true）は、頭のノード（script rejects）が with: の board・accept で拒否の控えの全部を読み rolekit.rejects_text で渡す（workflows/judge/scripts/rejects.py。#345）
+- judge.md J81: lib/judge_accept.py::accept・lib/judge_accept.py::_give_up・workflows/judge/works-factory-judge.yaml の `diagnose-reject`（集めの口 `collect` は届かなかったので #232 で消した）。仕様の 3 つのループと再審のループは、頭のノード（script rejects）が with: の board・accept で拒否の控えの全部を読み rolekit.rejects_text で渡す（workflows/judge/scripts/rejects.py。#345）。どのループも fresh_context: false で、拒まれた後の出し直しは同じ役の会話の続き。仕様の 3 つのループと再審のループでは、出し直しの役（workflows/judge/works-factory-judge.yaml::spec-fix・spec-review-fix・spec-revise-fix・rejudge-fix）が拒まれた欄だけを返し、受け付けが前の答えと欄ごとに合わせる（lib/rolekit.py::resubmitted・lib/rolekit.py::merge_fields。#571）
 - judge.md J82: lib/judge_accept.py::take・lib/judge_accept.py::PUBLIC_FILES
 - judge.md J83: lib/judge_accept.py::prep_on・lib/judge_accept.py::verify_not_run
 - judge.md J84: lib/judge_accept.py::prep_on
@@ -3494,7 +3494,7 @@
 - line.md L-E34: Archon の再開が済んだノードを飛ばす（start に always_run を付けない）（部分 A で閉じた）
 - line.md L-E35: workflows/line/scripts/start.py::policy_md
 - line.md L-E36: 各サブグラフが record.policy_md から組む（main lib/judge_accept.py::policy_text、workflows/fix/scripts/delta_cut.py::main、workflows/eyes/scripts/prep.py::out）
-- line.md L-E37: lib/rolekit.py::LANG_RULE・lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（住処を 1 つにし、fixboard・planfile・eyeverdict の写しはそれを引く）。judge はループの頭の拒否のノード workflows/judge/scripts/reject.py・rejects.py と判定の裏取りの支度 verify.py が `lang_line` を返し、全部の役の指示書の頭が `$<節>.output.lang_line`。report は facts が返し commands/report.md の頭（部分 A で閉じた）
+- line.md L-E37: lib/rolekit.py::LANG_RULE・lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（住処を 1 つにし、fixboard・planfile・eyeverdict の写しはそれを引く）。judge はループの頭の拒否のノード workflows/judge/scripts/reject.py・rejects.py・material_prep.py（素材集めのループの頭）と判定の裏取りの支度 verify.py が `lang_line` を返し、全部の役の指示書の頭が `$<節>.output.lang_line`。report は facts が返し commands/report.md の頭（部分 A で閉じた）
 - line.md L-E38: workflows/line/scripts/start.py::start（部分 A で閉じた）
 - line.md L-E42: workflows/line/scripts/start.py::from_fixture・workflows/line/scripts/start.py::fixture_dir・lib/fixture.py::adopt（置き場と作業ツリーのパス・run の id・HEAD の置き換え、前の版の拒みは形の版 FORMAT。trace の 1 行の代わりに起動の承認ノードの文と報告の入口のセクションの「固定材料から」の行 lib/fixture.py::lines）（#509 で戻した）
 - line.md L-E43: lib/fixture.py::capture・lib/fixture.py::noted_capture・workflows/line/scripts/fix_in.py::fix_in（今の works が写した作業の状態と名指しのファイルの代わりに、run の置き場と修正の段へ運ぶ値を写す）（#509 で戻した）
@@ -3738,7 +3738,7 @@
 - plan.md P044: lib/planfile.py::UNREAD_INPUTS_HEAD・lib/planfile.py::write_brief・workflows/plan/scripts/plan_prep.py::main
 - plan.md P045: workflows/plan/scripts/round.py::opened・lib/planfile.py::pointed
 - plan.md P046: lib/rolekit.py::REJECT_LINE・lib/rolekit.py::reject_file・lib/rolekit.py::compose・lib/planfile.py::write_brief
-- plan.md P047: workflows/plan/works-factory-plan.yaml::plan-loop・workflows/plan/scripts/plan_accept.py::main・lib/planfile.py::why_not_ready
+- plan.md P047: workflows/plan/works-factory-plan.yaml::plan-loop・workflows/plan/works-factory-plan.yaml::plan-writer-fix・workflows/plan/scripts/plan_accept.py::main・lib/planfile.py::why_not_ready
 - plan.md P048: workflows/plan/works-factory-plan.yaml::plan-writer
 - plan.md P049: lib/planfile.py::snap_tree・lib/planfile.py::moved（workflows/plan/scripts/plan_prep.py::main が plan/r<k>/tree.json を置き、take_plan・take_replan が accept.tree_moved で比べる。拒みの頭は planblk.READONLY_MOVED・NO_TREE）（#120）
 - plan.md P050: lib/planfile.py::open_round（review/p2.plan_review.json）
@@ -3807,7 +3807,7 @@
 - plan.md P114: workflows/line/works-factory-line.yaml::plan-rounds の `max_iterations: 20` と、workflows/line/works-factory-line.yaml::plan-out・workflows/line/works-factory-line.yaml::plan-review-run の `with:` の `round_limit: 20`（正本はメイングラフ。lib/boardview.py::_at_cap は入力の round_limit で converge.record_pass の at_cap を決め、数を持たない）
 - plan.md P115: lib/planfile.py::next_round・lib/planfile.py::converge_record（mode replan を飛ばす）、lib/boardview.py::place（round 1 固定）
 - plan.md P116: lib/planfile.py::converge_record（計画の側の組み直し）と plan-review/plan-converge.json（lib/boardview.py::_take が呼ぶ lib/converge.py::record_pass）。#75 の discoveries R10（converge の往復の本体の写し・約 120 行）
-- plan.md P117: 無し。2 周目は新しい会話で、前の周の案と指摘をファイルで渡す（WF workflows/plan/works-factory-plan.yaml::plan-loop の `fresh_context: true`）
+- plan.md P117: 無し。2 周目は新しい会話で、前の周の案と指摘をファイルで渡し、修正案の役は変えた項目だけを返す（lib/converge.py::splice が返さない項目に前の往復の行を機械が入れ、lib/converge.py::fixed_unchanged が fixed と答えて項目を変えていない答えを拒む。#571）。同じ周の中で受け付けに拒まれた後は、出し直しの役が同じ会話の続きで拒まれた項目だけを返し、受け付けが前の答えと合わせる（WF workflows/plan/works-factory-plan.yaml::plan-writer-fix・lib/planfile.py::merge_resubmit。plan-loop は `fresh_context: false`）
 - plan.md P118: lib/planfile.py::write_brief（形 plan の材料に独立設計のセクションは元から無い。2 周目は会話が新しいので planmarks.HEAD を含む頭を貼り直す）
 - plan.md P119: lib/runreport.py::_converge_lines（lib/gatemarks.py::converge_of。最後の承認ノードの ask_final.review_rows も同じ口）
 - plan.md P120: lib/boardview.py::_pass_rejects（受け付けが往復を控えた後、converge.stash_rejects でその往復の計画の周の rejects-plan.json と事前審査の拒否の行を往復の行の rejects に残す。拒否の控えは周・挟んだ回ごと）（#120）
@@ -3846,7 +3846,7 @@
 - plan.md P153: workflows/plan-review/works-factory-plan-review.yaml 全部のノード・workflows/plan-review/scripts/*.py の頭
 - plan.md P154: workflows/plan-review/scripts/result.py::main・lib/boardview.py::collect
 - plan.md P155: workflows/plan-review/scripts/pass_open.py::main
-- plan.md P156: workflows/plan-review/works-factory-plan-review.yaml::r2-design-loop・workflows/plan-review/works-factory-plan-review.yaml::review-loop・workflows/plan-review/works-factory-plan-review.yaml::review
+- plan.md P156: workflows/plan-review/works-factory-plan-review.yaml::r2-design-loop・workflows/plan-review/works-factory-plan-review.yaml::review-loop・workflows/plan-review/works-factory-plan-review.yaml::review・workflows/plan-review/works-factory-plan-review.yaml::plan-review-fix
 - plan.md P157: workflows/plan-review/commands/*.md・workflows/plan-review/works-factory-plan-review.yaml
 - plan.md P158: workflows/plan-review/fixtures/
 - plan.md P159: lib/boardview.py::r2_due・workflows/plan-review/works-factory-plan-review.yaml::r2-design-loop `when: "$open.output.r2_go == true"`
@@ -3996,7 +3996,7 @@
 - tail.md T45: workflows/test-gate/scripts/result.py::certified（素材が無い時 rolekit.given_up_reason の最後の拒否の文を証拠の evidence.md に出す）
 - tail.md T46: workflows/test-gate/scripts/run.py::fresh_gate
 - tail.md T47: workflows/test-gate/scripts/run.py::fresh_gate（logs/ のほかを消し、今回のログは空いた番号の logs/a<k>/。#122）
-- tail.md T48: workflows/test-gate/works-factory-test-gate.yaml::ci-loop・workflows/test-gate/works-factory-test-gate.yaml::ci-prep・workflows/test-gate/works-factory-test-gate.yaml::ci
+- tail.md T48: workflows/test-gate/works-factory-test-gate.yaml::ci-loop・workflows/test-gate/works-factory-test-gate.yaml::ci-prep・workflows/test-gate/works-factory-test-gate.yaml::ci・workflows/test-gate/works-factory-test-gate.yaml::ci-fix
 - tail.md T49: workflows/test-gate/works-factory-test-gate.yaml::ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['~/../archon-home']}`（起動が隔離した HOME の隣の Archon の家 archon-home の下＝既定の置き場の run の作業ツリーと隣の worktree・artifacts を塞ぐ。`'.'` は cwd でなく設定の一時ファイルのフォルダに解かれ作業ツリーを塞がない——実測 2026-10-13・#293。止めた Archon はノードの sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、包み workflows/.shared/fence.py::protected_paths（埋め P5。殻 bin/_lib/launcher.py::write_fence が CLAUDE_BIN_PATH に置く。固定の値を印に読み、起こす直前に cwd・共通の .git・git worktree list の全部の根・Archon の家・Claude の設定・殻の口・包みを起こす Python・本物の claude・取り置いた Archon の源・工場の checkout の根の全体を denyWrite に足す。#309・#348）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）。包みは印の在る起動を記録に書き（workflows/.shared/fence.py::record）、殻が子の env WORKS_FACTORY_FENCE_RECORDS で包みを宣言する。宣言した run は受け付け workflows/test-gate/scripts/ci_accept.py::judge が workflows/.shared/fence.py::fenced_since で ci-prep の後にこの作業ツリーで柵の掛かった起動を探し、無ければ返答を受けず諦める。宣言が読めない（絶対パスでない）run は workflows/test-gate/scripts/ci_prep.py が workflows/.shared/fence.py::bad_declaration で見て、役を起こさずに落ちる。宣言の無い run は workflows/test-gate/scripts/result.py::evidence が lib/declared_checks.py::NO_ADAPTER_NOTE を出す
 - tail.md T50: workflows/test-gate/scripts/ci_prep.py::main
 - tail.md T51: workflows/test-gate/scripts/ci_accept.py::judge・lib/accept.py::TREE_KEYS
@@ -4020,7 +4020,7 @@
 - tail.md T69: lib/green_cert.py::certify（base の素材が awaiting_human なら直す前の結末を控えて ok を真にし、メイングラフの judge へ進む。走らせられなかった系統は素材の reason が名指し、判定の台帳の awaiting の問い〔lib/judge_accept.py::baseline_local_checks〕と、報告の人が確かめる物〔lib/outcome.py::residue〕と直す前のテストの行〔lib/runreport.py::_base_word〕に載る。人が確かめて続ける道は結末 fixed_needs_check と次の依頼の answers。今の works と同じく、一部でも全部でも止めない）
 - tail.md T70: bin/_lib/launcher.py::check_test_cmd（殻が新しい run の --input test_cmd= を Archon を起こす前に照らす）・bin/_lib/testcmd_check.py::main（元の決まりのまま。#495）
 - tail.md T71: lib/carry.py::carry_ci
-- tail.md E1: workflows/eyes/works-factory-eyes.yaml::r1-comments ほかAI ノード 6 つ（`mutates_checkout: false`・`context: fresh`）
+- tail.md E1: workflows/eyes/works-factory-eyes.yaml::r1-comments ほかAI ノード 7 つ（`mutates_checkout: false`。r4-scope と r4-scope-fix 以外は `context: fresh`。r4-scope は r4-loop の 1 周目で新しい会話、workflows/eyes/works-factory-eyes.yaml::r4-scope-fix は拒まれた後にその会話の続き）
 - tail.md E2: workflows/eyes/works-factory-eyes.yaml::r1-comments・workflows/eyes/works-factory-eyes.yaml::r1-minimality・workflows/eyes/works-factory-eyes.yaml::r2-compare・workflows/eyes/works-factory-eyes.yaml::premise-check・workflows/eyes/works-factory-eyes.yaml::r3-coherence・workflows/eyes/works-factory-eyes.yaml::r4-scope
 - tail.md E3: workflows/eyes/works-factory-eyes.yaml::r1-comments・workflows/eyes/works-factory-eyes.yaml::r1-minimality・workflows/eyes/works-factory-eyes.yaml::r2-compare・workflows/eyes/works-factory-eyes.yaml::premise-check・workflows/eyes/works-factory-eyes.yaml::r3-coherence・workflows/eyes/works-factory-eyes.yaml::r4-scope
 - tail.md E4: workflows/eyes/works-factory-eyes.yaml::r1-comments ほか

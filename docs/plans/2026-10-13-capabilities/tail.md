@@ -362,7 +362,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 ### H 任せ先の CI の役
 
-- T48 任せ先の CI の役は by role_needed の時だけ起こす。道具は読むだけとテストを走らせる Bash（Read・Grep・Glob・Bash・WebSearch・WebFetch。Edit・Write 無し）、模型は sonnet・medium、settingSources [user]、新しい会話。sandbox は元と同じ形（網は全部・localhost・allowWrite ['/']・failIfUnavailable・allowUnsandboxedCommands false）。
+- T48 任せ先の CI の役は by role_needed の時だけ起こす。道具は読むだけとテストを走らせる Bash（Read・Grep・Glob・Bash・WebSearch・WebFetch。Edit・Write 無し）、模型は sonnet・medium、settingSources [user]、新しい会話（拒まれた後は出し直しの役 ci-fix が同じ会話の続きで拒まれた欄だけを返す。#571）。sandbox は元と同じ形（網は全部・localhost・allowWrite ['/']・failIfUnavailable・allowUnsandboxedCommands false）。
   - 元: works/blk-ci/blk-ci.yaml:87-105
   - 今: 表
   - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_node_reads_only・tests/workflows/test_test_gate.py::YamlCase.test_role_node_matches_works_blk_ci・tests/workflows/test_test_gate.py::YamlCase.test_loop_matches_give_up
@@ -571,7 +571,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 ### 役の節の形
 
-- E1 目の役の節は全部、読むだけ（作業ツリーを変えない宣言）で、毎回新しい会話で起きる。
+- E1 目の役の節は全部、読むだけ（作業ツリーを変えない宣言）で、1 回目は毎回新しい会話で起きる（R4 の受け付けに拒まれた後は、出し直しの役 r4-scope-fix が同じ会話の続きで拒まれた欄だけを返す。#571）。
   - 元: works/blk-eyes/blk-eyes.yaml:133-143 `r1-comments`（ほかの目も同じ形。輪の 1 回目は新しい会話）・works/blk-eyes/lib/eyes.py:474 `accept`
   - 今: 表
   - 証: tests/workflows/test_eyes.py::ShapeCase.test_every_role_node_is_read_only

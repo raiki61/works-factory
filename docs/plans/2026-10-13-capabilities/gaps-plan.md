@@ -123,11 +123,11 @@
   - 証: tests/workflows/test_plan.py::BriefCase.test_spec_reaches_the_brief（#120 で足した。消すと赤: write_brief の SPEC_HEAD の節を外すと赤）
   - 本物の run: 種は spec を使わないので出ない
   - 狭め: 無し（元より広い）
-- P046〔試〕周の拒否の理由の全部（古い順）をファイル（rejects-plan.md）に置き、次の回の材料の 1 行目がそのパスを名指す（理由の本文は貼らない）。
+- P046〔試〕拒まれた後の出し直しは同じ役の会話の続きで、出し直しの指示書に今の周の最後の拒否の文を貼る（#571）。resume で輪が 1 周目から回り直し、1 回目の役が新しい会話で起き直す時は、周の拒否の理由の全部（古い順）をファイル（rejects-plan.md）に置き、材料の 1 行目がそのパスを名指す（理由の本文は貼らない）。
   - 元: rolekit.py:64 `REJECT_LINE`・:168 `compose`、試験 works/tests/test_blk_plan.py:1012 test_reject_reason_by_file（本文を貼らないことも断言）。元は最後の拒否だけを名指したが、拒まれた役は同じ会話の続きで起きた（works/.shared/core/graphloops/engine/role_run.py:19-20）
   - 今: 表
-  - 証: tests/workflows/test_plan.py::AcceptCase.test_narrow_without_no_narrow_rejected（断言 2 つ）（#120 で足した。消すと赤: 材料に拒否の本文を貼ると赤）、tests/workflows/test_plan.py::AcceptCase.test_third_brief_names_every_reject_of_the_round（#345。消すと赤: 最後の拒否だけを書くと赤）
-  - 本物の run: plan/r1/rejects-plan.md と plan/r1/brief-2.md の 1 行目（拒否が起きた時）
+  - 証: tests/workflows/test_plan.py::AcceptCase.test_resubmit_brief_carries_the_last_reject_and_the_merged_answer（#571。消すと赤: 出し直しの指示書に最後の拒否が無いと赤）、tests/workflows/test_plan.py::AcceptCase.test_resume_brief_names_every_reject_of_the_round（#345。消すと赤: resume の材料が最後の拒否だけを書くと赤）
+  - 本物の run: plan/r1/brief-2.md（拒否が起きた時の出し直しの指示書）と、resume の時の plan/r1/rejects-plan.md
   - 狭め: 無し
 - P049〔無・戻・試〕役が作業ツリーを変えた・commit して HEAD や枝を動かした返答を、受け付けが写しと比べて拒み、出し直させる。
   - 元: entry.take の作業ツリーの比べ（accept.tree_moved: porcelain・差分・HEAD・枝。READONLY_MOVED）・planblk.py:1062 `snap` の写し、試験 works/tests/test_blk_plan.py:765 test_readonly_tree_changed_rejected
