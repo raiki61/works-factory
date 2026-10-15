@@ -1,19 +1,19 @@
 """波及の一覧（設計 docs/plans/2026-10-06-tree-line.md の 2.3 の 1。機械）。
 
-修正案の項目が変える名（単位の key の `+` の後から `:` までの ASCII の名と、項目の adds の名の ASCII の語のうち、対象に在る物）を
+修正案の項目が変える名（単位の key の `+` の後から `:` までの ASCII の名と、項目の files の change=add の symbol の名の ASCII の語のうち、対象に在る物）を
 `git grep -n -w` で引き、当たりを本体（呼び出し元・文書）と試験に分ける。Python の試験は当たりを含む試験の関数の id
 （`path::Class::test_x`。ast）まで引き、試験でない関数・ほかの言語はファイルと行（`path:line`）。当たりを項目の allowed_paths
 （glob）・tests と rewrite_tests の id とそのファイルに照らし、覆っていない当たりに項目ごとの id（h1・h2…）を振って名指す。
 試験の id・パス・試験の名（test_・Test で始まる）は変える名に数えず、呼び出し元でない文書と生成物（NON_CODE_DIRS・
-NON_CODE_FILES）の当たりは捨てる（run 68f35d6b: adds の試験の id の断片 works・tests・test_report・HeadCase と、設計書の行が
+NON_CODE_FILES）の当たりは捨てる（run 68f35d6b: 足す試験の id の断片 works・tests・test_report・HeadCase と、設計書の行が
 覆っていない当たりの大半で、下請けが全部 no_effect と答えていた）。
 当たりのファイルが多い名（COMMON_FILES を超える）は数だけを載せ、覆っていない当たりに入れない（下請けが判断する。持ち主の決定
 2026-10-06）。2 つ以上の項目の allowed_paths・当たりに出たファイルを「項目どうしの重なり」として並べる（相乗りの審査が読む）。
-項目が消す名（removes。識別子・.py のファイルの名・ファイルのパス）の残る名指しも同じに引き、kind removed（本体）・removed_test（試験）で
+項目が消す名（files の change=remove の symbol の名と、消えるパス——op=delete の行の path と op=rename の行の元のパス from）の残る名指しも同じに引き、kind removed（本体）・removed_test（試験）で
 名指す（消した後に壊れる参照。変える名の当たり code・test とは別の行で、同じ行に両方当たれば両方残る）。消す名に限り設計書の置き場
 docs/plans の当たりも数える（今の設計書に残る古さ。non_code の keep_plans）。CHANGELOG・docs-archive・skip_dirs は捨てたまま。
 
-- names(unit_keys, adds, removes=())・build(repo, fields, common_files=, skip_dirs=)・for_units(repo, unit_keys, skip_dirs=)・uncovered(doc, n):
+- names(unit_keys, files)・build(repo, fields, common_files=, skip_dirs=)・for_units(repo, unit_keys, skip_dirs=)・uncovered(doc, n):
   一覧を作る・読む（fields は盤面の plan-fields.json の項目の欄の並び。planmarks.split の形）
 - section(doc, n=None)・units_section(doc): 指示書に貼る節
 
@@ -44,7 +44,6 @@ _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _TEST_NAME = re.compile(r"^(test_|Test[A-Z_])")   # 試験の関数・クラスの名（足す試験の名で、呼び出し元を引く名でない）
 # 呼び出し元でない文書と生成物（当たりに数えない小さな一覧）: 設計書・古い文書の置き場（段の並びがパスのどこに在っても）と、
 # 実行基盤の pack の写し（呼び手が skip_dirs で渡す。dogfood が作り直す物）。README など振る舞いを書く文書は契約のずれの元なので数える
-_FILE_EXT = re.compile(r"\.(py|md|json|ya?ml|sh|js|ts|toml|txt)$")   # adds のファイルの名（変える名でない）
 NON_CODE_DIRS = (("docs", "plans"), ("docs-archive",))   # パスの段の並び（パスのどこに在っても）
 NON_CODE_FILES = ("CHANGELOG.md", "HANDOFF.md")
 HEAD = promptsection.Section("## 波及の一覧（機械が git grep で引いた。項目が変える名の呼び出し元と試験）", source="fn:ripple.section")
@@ -59,34 +58,35 @@ REMOVED_MARK = "（消す名の残り（消した後に壊れる参照））"
 REMOVED_KINDS = {"code": "removed", "test": "removed_test"}   # 変える名の当たりの kind → 消す名の当たりの kind
 
 
-def _removed_names(removes) -> list[str]:
-    """removes の 1 行ごとの名: 識別子は探す語（planmarks.search_word）か .py のファイルの名のモジュールの名（planmarks.module_name）。
-    / を含む行（ファイルのパス）は字のままと、.py ならモジュールの名・.py でなければ最後の段のファイルの名（3 字以上の時）"""
-    out = []
-    for r in removes or []:
-        if not isinstance(r, str) or not r.strip():
-            continue
-        if "/" in r:
-            path = r.strip()
-            out += [path, planmarks.declared_name(path) if path.endswith(".py") else posixpath.basename(path.rstrip("/"))]
-        else:
-            out.append(planmarks.module_name(r) or planmarks.search_word(r) or "")
-    return [n for n in out if len(n) >= 3 and not _TEST_NAME.match(n)]
-
-
-def names(unit_keys, adds, removes=()) -> list[str]:
-    """変える名・消す名の候補（現れた順・重なりは 1 つ）: 単位の key の `+` の後から `:` までの ASCII の名と、adds の名の ASCII の語と、
-    removes の名（_removed_names）。adds の試験の id（`::` を含む）・パス（`/` を含むかファイルの拡張子 _FILE_EXT で終わる）は丸ごと
-    飛ばし、試験の名（_TEST_NAME）は数えない"""
+def _changed_names(unit_keys, files) -> list[str]:
+    """変える名の候補: 単位の key の `+` の後から `:` までの ASCII の名と、files の change=add の symbol の名の ASCII の語。試験の
+    symbol（kind が test。:: を含む名も）・試験の名（_TEST_NAME）・3 字未満は数えない（名と path は別の欄なので、パスか名かを字から推さない）"""
     out = []
     for k in unit_keys or []:
         if isinstance(k, str) and "+" in k:
             out += _NAME.findall(k.split("+", 1)[1].split(":", 1)[0])
-    for a in adds or []:
-        if isinstance(a, str) and not ("::" in a or "/" in a or _FILE_EXT.search(a)):
-            out += _NAME.findall(a)
-    out = [n for n in out if len(n) >= 3 and not _TEST_NAME.match(n)] + _removed_names(removes)
-    return list(dict.fromkeys(out))
+    for row in planmarks.file_rows({"files": files}):
+        for sym in planmarks.symbol_rows(row):
+            name = sym.get("name")
+            if sym.get("change") == "add" and sym.get("kind") != "test" and isinstance(name, str) and "::" not in name:
+                out += _NAME.findall(name)
+    return [n for n in out if len(n) >= 3 and not _TEST_NAME.match(n)]
+
+
+def _removed_names(files) -> list[str]:
+    """消す名の候補: files の change=remove の symbol の探す語（planmarks.search_word）と、消えるパス（op=delete の行の path と op=rename の
+    行の元のパス from。planmarks.removed_paths）の字のままと、.py ならモジュールの名・.py でなければ最後の段のファイルの名（名が
+    パスか識別子かは行の欄で決まっているので、字から推さない）"""
+    out = [planmarks.search_word(name) or "" for _, name in planmarks.file_symbols({"files": files}, "remove")]
+    for path in planmarks.removed_paths({"files": files}):
+        out += [path, planmarks.declared_name(path) if path.endswith(".py") else posixpath.basename(path.rstrip("/"))]
+    return [n for n in out if len(n) >= 3 and not _TEST_NAME.match(n)]
+
+
+def names(unit_keys, files) -> list[str]:
+    """変える名・消す名の候補（現れた順・重なりは 1 つ）: 単位の key の `+` の後から `:` までの ASCII の名と、files の change=add の symbol の
+    名の ASCII の語（_changed_names）と、消す名（_removed_names）。試験の名（_TEST_NAME）は数えない"""
+    return list(dict.fromkeys(_changed_names(unit_keys, files) + _removed_names(files)))
 
 
 def non_code(path: str, *, skip_dirs, keep_plans: bool = False) -> bool:
@@ -171,10 +171,10 @@ def _covered(f: dict, kind: str, at: str) -> bool:
 
 
 def _item(repo: pathlib.Path, n: int, f: dict, common_files: int, cache: dict, skip_dirs) -> dict:
-    changed = set(names(f.get("unit_keys"), f.get("adds")))
-    removed = set(names((), (), f.get("removes")))
+    changed = set(_changed_names(f.get("unit_keys"), f.get("files")))
+    removed = set(_removed_names(f.get("files")))
     rows = [r for r in (_name_row(repo, nm, common_files, cache, skip_dirs, keep_plans=nm in removed)
-                        for nm in names(f.get("unit_keys"), f.get("adds"), f.get("removes"))) if r is not None]
+                        for nm in names(f.get("unit_keys"), f.get("files"))) if r is not None]
     out, seen = [], set()
 
     def add(hit):

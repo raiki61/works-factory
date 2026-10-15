@@ -155,11 +155,18 @@ def load_script(name: str) -> types.ModuleType:
     return mod
 
 
+def frow(path, *adds, op="modify", removes=(), **extra) -> dict:
+    """修正案の項目の files の 1 行（adds は足す symbol の名の並び、removes は消す symbol の名の並び（訳 why つき））"""
+    gone = [{"name": n, "kind": "function", "change": "remove", "why": "呼び手は新しい名に寄せたので要らない"} for n in removes]
+    return {"path": path, "op": op, "responsibility": "この行の受け持ち",
+            "canonical": "stats.py（新設。同じ仕事の助け手は stats.py に無い）",
+            "symbols": [{"name": n, "kind": "function", "change": "add"} for n in adds] + gone, **extra}
+
+
 def item(unit, n=1, **extra) -> dict:
     """修正案の項目の行（p2.fix_plan.json の plan[] の 1 行。unit_keys は単位の名）"""
     return {"unit_keys": [unit], "approach": f"{PLAN_MARK} 項目 {n} の直し: {unit} を直す",
-            "adds": [{"name": f"helper_{n}", "canonical": "stats.py（新設。同じ仕事の助け手は stats.py に無い）"}],
-            "removes": [], "shrink_first": "要らない", "narrows": [], **extra}
+            "files": [frow("stats.py", f"helper_{n}")], "shrink_first": "要らない", "narrows": [], **extra}
 
 
 def fields(unit) -> dict:
@@ -319,7 +326,8 @@ RIPPLE = {"items": [{"item": 1, "unit_keys": [UNIT_MEAN], "names": [], "uncovere
                                     "name": "clamp"}]}],
           "overlaps": [{"at": "stats.py", "items": [1, 2]}]}
 DESIGN_TEXT = "上限は入口 1 箇所で掛け、各所では掛け直さない。平均は定義どおりに割る"
-DESIGN_OK = {"question_stands": True, "reason": "問いは立っている", "design": DESIGN_TEXT}
+DESIGN_OK = {"question_stands": True, "reason": "問いは立っている", "design": DESIGN_TEXT,
+             "elements": [{"id": "D1", "adds": ["上限の入口"], "removes": []}]}
 ROW_TEXT = "式と戻り値を 1 か所ずつ直すだけで足りる"
 FORBIDDEN_ENV = ("INPUTS_PLAN", "INPUTS_STRUCTURE", "INPUTS_RIPPLE", "INPUTS_UNITS", "INPUTS_WORLD", "INPUTS_RULING")
 R2_ENV = ("INPUTS_PURPOSE", "INPUTS_JUDGMENT", "INPUTS_START", "INPUTS_ANSWERS", "ARTIFACTS_DIR", "WORKFLOW_ID")
@@ -789,6 +797,29 @@ class DesignCase(RunCase):
             self.assertIn(want, text)
         self.assertFalse(r.open()["r2_go"], "設計を 2 度作らない")
 
+    def test_standing_design_needs_elements_and_reaches_the_review(self):
+        """問いが立つ返答で elements が空か id が重なれば、r2_accept が拒む。揃えば受かり、事前審査の指示書に要素の id の行が貼られる。
+        問いが立たない返答は要素を持たなくてよい"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        r.out("r2_prep")
+        for label, bad in (("空", {**DESIGN_OK, "elements": []}), ("無い", {k: v for k, v in DESIGN_OK.items() if k != "elements"}),
+                           ("id が重なる", {**DESIGN_OK, "elements": [{"id": "D1", "adds": ["a"], "removes": []},
+                                                                  {"id": "D1", "adds": ["b"], "removes": []}]})):
+            with self.subTest(label):
+                got = r.accept(bad, "r2_accept")
+                self.assertFalse(got["ok"], got)
+                self.assertTrue(got["reason"].startswith(boardview.ELEMENTS_REJECT), got["reason"])
+                self.assertFalse((r.folder / design.DESIGN_FILE).exists())
+        good = {**DESIGN_OK, "elements": [{"id": "D1", "adds": ["上限の入口"], "removes": []},
+                                          {"id": "D2", "adds": [], "removes": ["各所の掛け直し"]}]}
+        self.assertTrue(r.accept(good, "r2_accept")["ok"])
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        for want in (str(design.ELEMENTS_HEAD), "- D1: 足す: 上限の入口／消す: 無し", "- D2: 足す: 無し／消す: 各所の掛け直し"):
+            self.assertIn(want, text)
+        self.assertLess(text.index(DESIGN_TEXT), text.index("- D1:"), "要素は独立設計の本文の後に貼る")
+
     def test_anchor_must_be_in_the_frozen_version(self):
         """問いが立たない根拠の名指し（パス:行）が固めた版に無い返答を拒む。在れば受ける"""
         r = self.run_
@@ -1249,16 +1280,20 @@ class ReviewAcceptCase(RunCase):
 
     @staticmethod
     def full_map():
-        return [{"item": n, "name": f"helper_{n}", "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"} for n in (1, 2)]
+        """案→設計の行（項目 1・2 の足す助け手を 1 行ずつ）。要素 D1 は項目 1 の助け手が受け、項目 2 の助け手は設計に対が無い"""
+        return [{"item": n, "path": "stats.py", "symbol": f"helper_{n}", "design_ref": "D1" if n == 1 else None,
+                 "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"} for n in (1, 2)]
 
     def test_design_map_must_cover_every_added_name(self):
-        """元 ConvergeReviewCase.test_design_map_must_cover_every_added_name: 対応表が add の name を欠く・2 行書く・設計に無い字を
-        引く返答は拒み、全部の name を 1 行ずつ持つ返答は受ける。受けた返答に design_map は残らない"""
+        """元 ConvergeReviewCase.test_design_map_must_cover_every_added_name: 対応表が files の足す symbol の (項目, path, symbol) を欠く・
+        2 行書く・設計に無い字を引く返答は拒み、全部を 1 行ずつ持つ返答は受ける。行は {item, path, symbol, design_ref, design_quote, why}。
+        受けた返答に design_map は残らない"""
         r = self.run_
         r.open()
         DesignCase.designed(self)
         r.out("review_prep")
-        row = {"item": 1, "name": "helper_1", "design_quote": "上限は入口 1 箇所で掛け", "why": "設計の上限の掛け方に案の助け手が当たる"}
+        row = {"item": 1, "path": "stats.py", "symbol": "helper_1", "design_ref": "D1", "design_quote": "上限は入口 1 箇所で掛け",
+               "why": "設計の上限の掛け方に案の助け手が当たる"}
         other = self.full_map()[1]
         for label, bad in (("欠ける", [other]), ("設計に無い字", [{**row, "design_quote": "上限は入口 2 箇所で掛け"}, other]),
                            ("2 行", [row, row, other])):
@@ -1266,11 +1301,94 @@ class ReviewAcceptCase(RunCase):
                 got = r.accept(review(design_map=bad))
                 self.assertFalse(got["ok"], got)
                 self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
-                self.assertRegex(got["reason"], r"(add|name) helper_1")
+                self.assertRegex(got["reason"], r"(stats.py::helper_1|design_quote)")
         got = r.accept(review(design_map=[row, other]))
         self.assertTrue(got["ok"], got)
         saved = json.loads((r.folder / "pass-1" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
         self.assertNotIn(converge.DESIGN_MAP, saved)
+
+    def test_design_map_keys_by_path_and_symbol_both_ways(self):
+        """同じ名 helper を a.py と b.py に足す項目は design_map に 2 行要る（名だけで数えると 1 行に潰れる）。同じ (item, path, symbol) の
+        2 行は拒む。設計→案の行（item・path・symbol が null で design_ref つき）は受ける"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1, files=[frow("a.py", "helper"), frow("b.py", "helper")]), item(UNIT_CLAMP, 2)])
+        r.open()
+        DesignCase.designed(self)
+        r.out("review_prep")
+        why = "設計に対の無い助け手の名だけを足す"
+        row = lambda item_, path, symbol, ref=None: {"item": item_, "path": path, "symbol": symbol, "design_ref": ref,  # noqa: E731
+                                                     "design_quote": None, "why": why}
+        two = self.full_map()[1]
+        by_name = [row(1, "a.py", "helper", "D1"), two]
+        got = r.accept(review(design_map=by_name))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("b.py::helper", got["reason"])
+        self.assertNotIn("a.py::helper", got["reason"].replace("design_map の項目 1 の a.py", ""), "a.py の行は在る")
+        twice = [row(1, "a.py", "helper", "D1"), row(1, "a.py", "helper"), row(1, "b.py", "helper"), two]
+        got = r.accept(review(design_map=twice))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("2 行ある", got["reason"])
+        both = [row(1, "a.py", "helper", "D1"), row(1, "b.py", "helper"), two]
+        self.assertTrue(r.accept(review(design_map=both))["ok"])
+
+    def test_design_map_covers_removals_and_every_design_element(self):
+        """拒まれる物: change=remove の symbol の行の無い design_map・どの行の design_ref にも出ない設計の要素 D2・要素に無い design_ref。
+        op=delete の行も 1 行要る。全部が揃えば受かる（設計→案の行は D2 を挙げる）"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1, files=[frow("stats.py", "helper_1", removes=["old_mean"]),
+                                          frow("old.py", op="delete", why="呼び手は stats に寄せたので要らない")]),
+                item(UNIT_CLAMP, 2)])
+        r.open()
+        DesignCase.designed(self, {**DESIGN_OK, "elements": [*DESIGN_OK["elements"], {"id": "D2", "adds": ["丸めの口"], "removes": []}]})
+        r.out("review_prep")
+        why = "設計に対の無い名だけを足す"
+        row = lambda item_, path, symbol, ref=None: {"item": item_, "path": path, "symbol": symbol, "design_ref": ref,  # noqa: E731
+                                                     "design_quote": None, "why": why}
+        full = [row(1, "stats.py", "helper_1", "D1"), row(1, "stats.py", "old_mean"), row(1, "old.py", None),
+                row(2, "stats.py", "helper_2"), row(None, None, None, "D2")]
+        no_removal = [x for x in full if x["symbol"] != "old_mean"]
+        no_element = [x for x in full if x["item"] is not None]
+        unknown = [*no_element, row(None, None, None, "D9")]
+        for label, bad, word in (("消す側の行が無い", no_removal, "stats.py::old_mean"), ("要素 D2 が漏れる", no_element, "D2"),
+                                 ("要素に無い design_ref", unknown, "D9"), ("op=delete の行が無い", [x for x in full if x["path"] != "old.py"],
+                                                                   "old.py")):
+            with self.subTest(label):
+                got = r.accept(review(design_map=bad))
+                self.assertFalse(got["ok"], got)
+                self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
+                self.assertIn(word, got["reason"])
+        got = r.accept(review(design_map=full))
+        self.assertTrue(got["ok"], got)
+        self.setUp()
+        self.closed_items_refs_are_counted()
+
+    def closed_items_refs_are_counted(self):
+        """審査役 1 つの往復でも、独立設計の要素の網羅は閉じた項目が前の往復で受けた design_ref（往復の控えの refs）を合わせて数える:
+        2 往復目に開いている項目 2 の対応表だけでは D1 を受けられなくても、閉じた項目 1 が D1 を受けていれば通る。D2 は項目 2 が受ける
+        （上の test_design_map_covers_removals_and_every_design_element の続き）"""
+        r = self.run_
+        r.open()
+        DesignCase.designed(self, {**DESIGN_OK, "elements": [{"id": "D1", "adds": ["上限の入口"], "removes": []},
+                                                              {"id": "D2", "adds": ["丸めの口"], "removes": []}]})
+        r.out("review_prep")
+        why = "設計に対の無い助け手の名だけを足す"
+        row = lambda n, ref: {"item": n, "path": "stats.py", "symbol": f"helper_{n}", "design_ref": ref,  # noqa: E731
+                              "design_quote": None, "why": why}
+        self.assertTrue(r.accept(review(CLAMP_BLOCK, design_map=[row(1, "D1"), row(2, "D2")]))["ok"])
+        self.assertEqual([it.get("refs") for it in converge.read(r.view())["passes"][-1]["items"]], [["D1"], ["D2"]])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach=f"{PLAN_MARK} 直した項目 2")], rnd=2,
+               answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
+        self.assertEqual(r.open()["form"], "review")
+        r.out("review_prep")
+        self.assertEqual(converge.open_items(r.view()), [2])
+        fixed = [CLAMP_BLOCK["key"]]
+        got = r.accept(review(design_map=[row(2, None)], resolved=fixed))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
+        self.assertIn("D2", got["reason"])
+        self.assertNotIn("D1", got["reason"], "閉じた項目 1 が受けた D1 は数える")
+        self.assertTrue(r.accept(review(design_map=[row(2, "D2")], resolved=fixed))["ok"])
 
     def test_design_quotes_not_checked_without_design(self):
         """元 ConvergeReviewCase.test_design_quotes_not_checked_without_design"""
@@ -1501,7 +1619,7 @@ class TreeCase(RunCase):
         r = self.run_
         r.judgment(precedents=PRECEDENTS)
         r.ripple(RIPPLE)
-        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])])
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")])])
 
     def prepped(self) -> str:
         r = self.run_
@@ -1609,9 +1727,11 @@ class TreeCase(RunCase):
         bad_quote = "上限は入口 2 箇所で掛け"
         drift = face("item1-design-drift", why=design.DRIFT_HEAD + f"設計の「{bad_quote}」に対し案の「{PLAN_MARK} 項目 1 の直し」は食い違う")
         one = {**answer(1, faces=[drift]), converge.DESIGN_MAP: [
-            {"item": 1, "name": "helper_1", "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"}]}
+            {"item": 1, "path": "stats.py", "symbol": "helper_1", "design_ref": "D1", "design_quote": None,
+             "why": "設計に対の無い助け手の名だけを足す"}]}
         two = {**answer(2), converge.DESIGN_MAP: [
-            {"item": 2, "name": "clamp", "design_quote": None, "why": "設計は上限の枝の関数を足さないので対が無い"}]}
+            {"item": 2, "path": "stats.py", "symbol": "clamp", "design_ref": None, "design_quote": None,
+             "why": "設計は上限の枝の関数を足さないので対が無い"}]}
         self.write_answers(1, {1: one, 2: two})
         got = r.accept(summary({1: [drift["key"]], 2: []}))
         self.assertFalse(got["ok"], got)
@@ -1632,10 +1752,10 @@ class TreeCase(RunCase):
         r.open()
         DesignCase.designed(self)
         self.prepped()
-        maps = {1: {**answer(1), converge.DESIGN_MAP: [{"item": 1, "name": "helper_1", "design_quote": None,
-                                                         "why": "設計に対の無い助け手の名だけを足す"}]},
-                2: {**answer(2), converge.DESIGN_MAP: [{"item": 2, "name": "clamp", "design_quote": None,
-                                                         "why": "設計は上限の枝の関数を足さないので対が無い"}]}}
+        maps = {1: {**answer(1), converge.DESIGN_MAP: [{"item": 1, "path": "stats.py", "symbol": "helper_1", "design_ref": "D1",
+                                                         "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"}]},
+                2: {**answer(2), converge.DESIGN_MAP: [{"item": 2, "path": "stats.py", "symbol": "clamp", "design_ref": None,
+                                                         "design_quote": None, "why": "設計は上限の枝の関数を足さないので対が無い"}]}}
         self.write_answers(1, maps)
 
         def syn_face(quote):
@@ -1707,7 +1827,7 @@ class TreeCase(RunCase):
         digits = "9"
         r.units.append({"key": digits, "label": LABEL_MARK, "reason": "番号と同じ字の key"})
         r.judgment(precedents=PRECEDENTS)
-        clamp = item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])
+        clamp = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")])
         r.plan([{**item(UNIT_MEAN, 1), "unit_keys": [UNIT_MEAN, digits]}, clamp])
         self.prepped()
         self.assertLess(len(planblk._names(r.view(), planblk.NODE_OF["plan-review"])), int(digits))
@@ -1730,7 +1850,7 @@ class TreeCase(RunCase):
         self.assertEqual(r.out("result")["pass"], False)
         rec = converge.read(r.view())
         self.assertEqual([it["state"] for it in rec["passes"][-1]["items"]], [converge.CLOSED, converge.OPEN])
-        two = item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}],
+        two = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
                    approach="clamp の上限の枝で hi を返し、上限ちょうどの値はそのまま返す（定義どおり）")
         r.plan([item(UNIT_MEAN, 1), two], rnd=2,
                answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
@@ -1754,6 +1874,45 @@ class TreeCase(RunCase):
         saved = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
         self.assertIn(note["key"], [f["key"] for f in saved["faces"]])
 
+    def test_design_elements_count_all_item_answers_and_closed_item_refs(self):
+        """独立設計の要素の網羅は、今の往復の全部の項目の答えの design_ref に、閉じた項目が前の往復で受けた design_ref（往復の控えの refs）を
+        合わせて数える（1 つの項目の答えだけでは、ほかの項目が受ける要素を『どの項目も受けない』と見分けられない）"""
+        r = self.run_
+        r.start(features_on=["review_tree"])
+        r.open()
+        DesignCase.designed(self, {**DESIGN_OK, "elements": [{"id": "D1", "adds": ["上限の入口"], "removes": []},
+                                                              {"id": "D2", "adds": ["丸めの口"], "removes": []}]})
+        self.prepped()
+        why = "設計に対の無い名だけを足す"
+        mapped = lambda n, symbol, ref: [{"item": n, "path": "stats.py", "symbol": symbol, "design_ref": ref,  # noqa: E731
+                                          "design_quote": None, "why": why}]
+        one = {**answer(1), converge.DESIGN_MAP: mapped(1, "helper_1", "D1")}
+        two = lambda ref, **kw: {**answer(2, **kw), converge.DESIGN_MAP: mapped(2, "clamp", ref)}  # noqa: E731
+        self.write_answers(1, {1: one, 2: two(None, faces=[CLAMP_BLOCK])})
+        got = r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
+        self.assertIn("独立設計の要素", got["reason"])
+        self.assertIn("D2", got["reason"])
+        self.assertNotIn("D1 が", got["reason"], "項目 1 の答えが受けた D1 は、項目 2 の答えに無くても数える")
+        self.write_answers(1, {1: one, 2: two("D2", faces=[CLAMP_BLOCK])})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        rec = converge.read(r.view())
+        self.assertEqual([it.get("refs") for it in rec["passes"][-1]["items"]], [["D1"], ["D2"]])
+        # 2 往復目: 項目 1 は閉じた。項目 2 の答えだけを見るが、D1 は閉じた項目の控えが受けている
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
+                                         approach="clamp の上限の枝で hi を返し、上限ちょうどの値はそのまま返す（定義どおり）")], rnd=2,
+               answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
+        r.open()
+        r.out("review_prep")
+        self.assertEqual(converge.carried_refs(r.view(), [2]), {"D1"})
+        self.write_answers(2, {2: {**two(None, resolved=[CLAMP_BLOCK["key"]]), "hits": []}}, syn=synergy())
+        got = r.accept(summary({2: []}))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("D2", got["reason"])
+        self.write_answers(2, {2: {**two("D2", resolved=[CLAMP_BLOCK["key"]]), "hits": []}}, syn=synergy())
+        self.assertTrue(r.accept(summary({2: []}))["ok"])
+
     def test_carried_notes_drop_units_the_plan_dropped(self):
         """#387: 2 往復目の案が落とした単位を指す前の往復の suggest の穴は、その単位を外して持ち越し、指す単位が残らなければ
         持ち越さない（受け付けが機械の足した face を「修正案に無い」で拒んで往復が止まらない）。往復の行の notes は元のまま"""
@@ -1761,7 +1920,7 @@ class TreeCase(RunCase):
         median = "stats.py median: 偶数の長さで中央の 2 つを平均しない"
         r.units.append({"key": median, "label": LABEL_MARK, "reason": "中央の 2 つを平均しない"})
         r.judgment(precedents=PRECEDENTS)
-        clamp = item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])
+        clamp = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")])
         r.plan([{**item(UNIT_MEAN, 1), "unit_keys": [UNIT_MEAN, median]}, clamp])
         self.prepped()
         both = {**face("item1-mean-median-note", severity="suggest",
@@ -1792,7 +1951,7 @@ class TreeCase(RunCase):
         edit_fields が直した後の 2 往復目の項目 2 の下請けのファイル"""
         r = self.run_
         r.start(features_on=["review_tree"])
-        rows = first or [item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])]
+        rows = first or [item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")])]
         r.plan(rows)
         self.prepped()
         self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK])})
@@ -1837,7 +1996,7 @@ class TreeCase(RunCase):
                   "world": "Python 公式の statistics.mean は空の列で例外を投げる",
                   "recommend": {"answer": "continue", "why": "空の列の例外は前から同じで、能力は減らない", "note": "今の動きのまま通す"}}
         first = [item(UNIT_MEAN, 1),
-                 item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}], narrows=[narrow])]
+                 item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")], narrows=[narrow])]
         long_world = "".join(f"事例 {i}: {c} の標準の平均は空の列で StatisticsError を投げ、呼び手が捕まえて 0 を返す慣習が広い。"
                              for i, c in enumerate("甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥", 1))
         long_why = "".join(f"理由 {i}: {c} の呼び手は例外の型を前から同じに受けるので、通しても能力は減らず、利用者の経路も変わらない。"
@@ -1869,7 +2028,7 @@ class TreeCase(RunCase):
         cache = json.loads((r.folder / planblk.PRECEDENT_CACHE).read_text(encoding="utf-8"))
         self.assertEqual(len(cache), 2)
         r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach="clamp の上限の枝で hi を返す（直した）",
-                                          adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])], rnd=2,
+                                          files=[frow("stats.py", "clamp")])], rnd=2,
                answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
         r.open()
         r.out("review_prep")
@@ -1937,7 +2096,7 @@ class TreeCase(RunCase):
         self.write_answers(1, {1: answer(1, faces=[MEAN_BLOCK]), 2: answer(2, faces=[CLAMP_BLOCK])})
         self.assertTrue(r.accept(summary({1: [MEAN_BLOCK["key"]], 2: [CLAMP_BLOCK["key"]]}))["ok"])
         r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾き、分母を len(xs) に直す"),
-                item(UNIT_CLAMP, 2, approach="clamp の上限の枝で hi を返す", adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])],
+                item(UNIT_CLAMP, 2, approach="clamp の上限の枝で hi を返す", files=[frow("stats.py", "clamp")])],
                rnd=2, answers=[{"key": f["key"], "handled": "fixed", "how": "項目の手順を書き直して確かめた"} for f in (MEAN_BLOCK, CLAMP_BLOCK)])
         self.assertTrue(r.open()["tree"])
         main = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
@@ -2024,7 +2183,7 @@ class TreeCase(RunCase):
         self.assertTrue(r.accept(summary({1: [MEAN_BLOCK["key"]], 2: []}))["ok"])
         self.assertEqual(converge.open_items(r.view()), [1])
         r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾き、分母を len(xs) に直す"),
-                item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])], rnd=2,
+                item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")])], rnd=2,
                answers=[{"key": MEAN_BLOCK["key"], "handled": "fixed", "how": "空の列を先に弾く手順を案に足した"}])
         self.assertFalse(r.open()["tree"])
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
@@ -2289,7 +2448,8 @@ class ReplanCase(RunCase):
         r = self.run_
         self.designed_replan()
         drift = face("clamp-drift-no-quote", UNIT_CLAMP, why=design.DRIFT_HEAD + "設計と継ぎ目の置き方が違う、という穴だ")
-        fresh = [{"item": 2, "name": "helper_2", "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"}]
+        fresh = [{"item": 2, "path": "stats.py", "symbol": "helper_2", "design_ref": None, "design_quote": None,
+                  "why": "設計に対の無い助け手の名だけを足す"}]
         got = r.accept(review(drift, design_map=fresh))
         self.assertFalse(got["ok"], got)
         self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
@@ -2339,15 +2499,17 @@ class ReplanCase(RunCase):
         r.out("review_prep")
         self.assertTrue(r.accept(review(design_map=ReviewAcceptCase.full_map()))["ok"])
         r.out("result")
-        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, adds=[{"name": "clamp_entry", "canonical": "stats.py の入口"}])], rnd=2)
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp_entry")])], rnd=2)
         r.inputs["ruling"] = json.dumps(["2"])
         self.assertEqual(r.open()["form"], "replan")
         r.out("review_prep")
-        stale = [{"item": 2, "name": "helper_2", "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"}]
+        stale = [{"item": 2, "path": "stats.py", "symbol": "helper_2", "design_ref": None, "design_quote": None,
+                  "why": "設計に対の無い助け手の名だけを足す"}]
         got = r.accept(review(design_map=stale))
         self.assertFalse(got["ok"], got)
         self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
-        fresh = [{"item": 2, "name": "clamp_entry", "design_quote": "上限は入口 1 箇所で掛け", "why": "設計の入口の上限に案の名が当たる"}]
+        fresh = [{"item": 2, "path": "stats.py", "symbol": "clamp_entry", "design_ref": "D1", "design_quote": "上限は入口 1 箇所で掛け",
+                  "why": "設計の入口の上限に案の名が当たる"}]
         self.assertTrue(r.accept(review(design_map=fresh))["ok"])
 
     def test_replan_review_gave_up_names_each_item(self):

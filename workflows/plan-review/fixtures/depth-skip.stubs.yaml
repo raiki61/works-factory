@@ -1,7 +1,7 @@
 # run の頭の深さが軽量の周: 頭が depth_skip: true を返し、事前審査の輪（review-loop）は飛ぶ。独立設計は今どおり作り、返す節は審査なしで通した形
 open: { ok: true, r2_go: true, tree: false, k: 1, form: review, depth_skip: true, reason: "" }
 r2-prep: { prompt: "stub: 元の目的と実測した制約" }
-r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解" }
+r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解", elements: [{ id: D1, adds: ["stub: 入口の 1 本化"], removes: [] }] }
 r2-accept: { ok: true, done: true, give_up: false, reason: "" }
 review-reads: { ok: true, missing: [], index_file: plan-review/pass-1/reads-plan-review-block.json, reason: "" }
 review:

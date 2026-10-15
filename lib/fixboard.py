@@ -586,10 +586,15 @@ def _in_order(judgment, keys) -> list:
 
 def fix_groups(owed, items, only_items=()) -> list:
     """直す義務の単位 owed（順）を、承認済みの修正案の項目 items（planmarks.approved_items の形 [{item, unit_keys, …}] か None）を
-    共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の中と組の並びは owed の順）。only_items（項目の番号か
-    その字の並び）が空でなければ、その項目に載る単位だけを残す。返り [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
+    共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の並びは owed の順）。項目の間の依存（works の欄 depends_on）は
+    組の分け方にも組の中の並びにも入れる: only_items・owed で単位 keys を絞った後に、planmarks.depends_pairs(items, among=keys)
+    （絞りの外の項目を通る依存は、中の端どうしの対に縮めた物）を lanekit.groups の after に渡す——前の項目の単位は後の項目の単位と
+    同じ組に入り、組の中は前から先に直る（子の run は remote の既定の枝から切られ、別の組は前の組の変更を見ないので、依存する
+    項目を別の組にしない）。only_items（項目の番号かその字の並び）が空でなければ、その項目に載る単位だけを残す。返り
+    [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
     元 works/blk-fix/lib/tddlanes.py:126・131 の items_of・groups（項目の番号を盤面の brief の行から引いた所を items の値で受ける）"""
     import lanekit
+    import planmarks
     by: dict = {}
     for it in items or []:
         if isinstance(it, dict) and isinstance(it.get("item"), int):
@@ -599,8 +604,9 @@ def fix_groups(owed, items, only_items=()) -> list:
     only = {str(x) for x in only_items or ()}
     if only:
         keys = [k for k in keys if any(str(n) in only for n in by.get(k, []))]
+    after = planmarks.depends_pairs(items, among=keys)
     return [{"group_id": f"g{i}", "unit_ids": list(g), "items": sorted({n for k in g for n in by.get(k, [])})}
-            for i, g in enumerate(lanekit.groups([(k, by.get(k)) for k in keys]), 1)]
+            for i, g in enumerate(lanekit.groups([(k, by.get(k)) for k in keys], after=after), 1)]
 
 
 def parallel(groups, features_cut, repo) -> bool:
@@ -907,7 +913,7 @@ def child_allowed_rows(result) -> list:
 
 def allowed_test_rows(place, results=()) -> list:
     """許したテストの変更の訳 [{path, permit, source}]（返りの diff の隣の allowed-tests.json の中身。パスと許しの id の順・重ねない）:
-    置き場 place のテストの変更の許し（conflict.test_permits の範囲の在る行。承認済みの修正案の rewrite_tests・removes・範囲の相談の
+    置き場 place のテストの変更の許し（conflict.test_permits の範囲の在る行。承認済みの修正案の rewrite_tests・files の消す名（change=remove の symbol と op=delete の行）・範囲の相談の
     合意・裁定 fix_test_scope）と、範囲の相談の合意の新しいテストのファイル（granted_new_tests）と、組の子の結果の allowed_tests の行。
     permit は許しの id、source は ALLOWED_SOURCES の語。元 works/.shared/core/conflict.py:983 ruled_test_doc（許しの id と理由を
     最後の関所の守りのファイルの行にした）を、パスごとの許しの行で受ける形にした物"""
@@ -1913,14 +1919,17 @@ RIPPLE_READ = "波及の一覧 {path} も読め（範囲に入っていない当
 def group_owed(place, unit_ids=None) -> list:
     """直す義務の単位の key の並び（判定の順）: 置き場の判定の写し・始めの記録の依頼の answers・修正前の関所の答え・判定の結びと
     素材の状態の写しから数えた直す義務（gate_view を gatemarks.duty に通した物。plan の 1 回目の周の必ず入れる単位と同じ口）。
-    unit_ids（組の単位）を渡せばその中だけ。判定の写しが無ければ ValueError。
+    unit_ids（組の単位）を渡せばその中だけを、渡した順（組の中の依存の順）で返す（判定の順でなく）。判定の写しが無ければ ValueError。
     新しい（元は盤面の写しの規則の _owed_units と gatemarks の盤面の読みが run の全部を読んだ）"""
     import gatemarks
     judgment = read_json(pathlib.Path(place) / JUDGMENT_FILE)
     if not isinstance(judgment, dict):
         raise ValueError(f"置き場に判定の写し {JUDGMENT_FILE} が無い（{place}）")
     keys = _in_order(judgment, gatemarks.duty(gate_view(place)))
-    return keys if unit_ids is None else [k for k in keys if k in {str(u) for u in unit_ids}]
+    if unit_ids is None:
+        return keys
+    have = set(keys)
+    return [k for k in dict.fromkeys(str(u) for u in unit_ids) if k in have]
 
 
 def check_unique_units(keys: list) -> list:

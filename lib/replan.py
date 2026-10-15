@@ -37,8 +37,8 @@ TRIP_KEYS = ("item", "units", "rows", "old", "brief", "new", "new_marks", "revie
              "ask", "answer", "result", "why")
 REPLAN_ASK = ("承認済みの修正案の項目のうち、下に貼った項目だけを直せ。修正の段で修正役がこの項目の誤りを申し出て、裁定役が"
               "fix_plan_item（案の項目そのものの誤り）と裁いた。申し出の文と裁定の文を読み、裁定の文が名指した所を直した項目を"
-              "返せ。plan は下に貼った項目と同じ数・同じ順で、各項目の unit_keys は貼った文字列を一字も変えずに写せ（番号で書かない）。"
-              "ほかの項目は返すな。直した項目は事前審査に掛かり、約束の欄（unit_keys・narrows・removes・allowed_paths・out_of_scope・"
+              "返せ。plan は下に貼った項目と同じ数・同じ順で、各項目の unit_keys は貼った文字列を一字も変えずに写せ（番号で書かない）。depends_on の unit も、前の項目の単位を unit_keys と同じ字（番号でなく）で書け。"
+              "ほかの項目は返すな。直した項目は事前審査に掛かり、約束の欄（unit_keys・narrows・files の消す側（op が delete・rename の行と change=remove の symbol）・allowed_paths・out_of_scope・"
               "rewrite_tests・tests の behavior）を変えた時は承認ノードに出る。")
 REPLAN_REJECT = "直した項目の返答に誤りが在る（下の行を全部直して出し直せ）:"
 ITEM_HEAD = promptsection.Section("## 直す項目 {n}（承認済みの修正案の項目の番号）", source="fn:replan._section")

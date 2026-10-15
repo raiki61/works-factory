@@ -142,7 +142,20 @@ nodes:
                   "question_stands": {"type": "boolean"},
                   "reason": {"type": "string", "minLength": 1, "pattern": "\\S"},
                   "premise_invalid_reason": {"type": "string"},
-                  "design": {"type": "string"}
+                  "design": {"type": "string"},
+                  "elements": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["id", "adds", "removes"],
+                      "properties": {
+                        "id": {"type": "string", "pattern": "^D[0-9]+$"},
+                        "adds": {"type": "array", "items": {"type": "string"}},
+                        "removes": {"type": "array", "items": {"type": "string"}}
+                      }
+                    }
+                  }
                 }
               }
         - id: r2-accept
@@ -211,7 +224,7 @@ nodes:
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
-          # resolved・items・design_map・origins は converge の壁打ちと束ね役と出自の欄
+          # resolved・items・design_map（行の型は converge.DESIGN_MAP_SCHEMA の写し）・origins は converge の壁打ちと束ね役と出自の欄
           output_format: &review_reply {
                 "type": "object",
                 "additionalProperties": false,
@@ -292,10 +305,12 @@ nodes:
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["item", "name", "design_quote", "why"],
+                      "required": ["item", "path", "symbol", "design_ref", "design_quote", "why"],
                       "properties": {
-                        "item": {"type": "integer", "minimum": 1},
-                        "name": {"type": "string", "minLength": 1, "pattern": "\\S"},
+                        "item": {"type": ["integer", "null"], "minimum": 1},
+                        "path": {"type": ["string", "null"]},
+                        "symbol": {"type": ["string", "null"]},
+                        "design_ref": {"type": ["string", "null"], "pattern": "^D[0-9]+$"},
                         "design_quote": {"type": ["string", "null"]},
                         "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"}
                       }

@@ -56,15 +56,18 @@ class ScriptCase(unittest.TestCase):
 
     def test_design_ask_names_unpaired_mechanisms_and_item_size_gap(self):
         """事前審査の頭に貼る DESIGN_ASK は、対の無い仕組みも大きさの開きも、食い違いなら contract_drift・block で挙げさせる。判じる根拠は
-        独立設計の行と案の行（approach・adds・allowed_paths・shrink_first）の「…」の引用で、設計から引用できない所は開きでも対の無さでも
+        独立設計の行と案の行（approach・files・allowed_paths・shrink_first）の「…」の引用で、設計から引用できない所は開きでも対の無さでも
         食い違いに数えない（1 つの決まり）。why の頭は design.DRIFT_HEAD・design.UNPAIRED_HEAD、対応表 design_map は項目の答えが書き
+        （行は {item, path, symbol, design_ref, design_quote, why}。案→設計は files の (path, symbol) ごとに 1 行、設計→案は
+        item・path・symbol を null にした design_ref の行。独立設計の要素の id は全部どれかの行の design_ref に出す）
         （相乗りの審査と束ね役は書かない）、「」は 2 つの頭の穴の why と design_map では独立設計と案の行の引用だけに使う。実装の細部は
         挙げない決まりと REUSE_REVIEW の copy を挙げ直さない決まりは残る"""
         ask = planblk.DESIGN_ASK
         self.assertIn("contract_drift", ask)
         self.assertIn("severity block", ask)
         self.assertIn("設計から引用できない所は、大きさの開きでも対の無さでも食い違いに数えない", ask)
-        for name in ("approach", "adds", "allowed_paths", "shrink_first", "「…」", design.DRIFT_HEAD, design.UNPAIRED_HEAD):
+        for name in ("approach", "files", "allowed_paths", "shrink_first", "「…」", design.DRIFT_HEAD, design.UNPAIRED_HEAD,
+                     "design_ref", "設計→案", "item・path・symbol を null"):
             self.assertIn(name, ask, f"DESIGN_ASK に {name!r} の名指しが無い")
         self.assertIn(converge.DESIGN_MAP, ask)
         self.assertIn("相乗りの審査と束ね役は書かない", ask)

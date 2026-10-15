@@ -11,7 +11,7 @@
   禁じない（_oos_hit_for。run 249b）。単位に結べない変更は全部の項目の out_of_scope で照らす
 - 裁定で外れた単位の項目も範囲を与える（依頼 241。外れた単位を直させない守りは受け付けの check_excused_units）
 - 見る項目: unit_keys が行のどれかの単位と重なる項目
-- 生きた項目: unit_keys の全部が行に在る見る項目。欠けを拒む側（Missing: 範囲の中の変更・adds・removes・tests）は生きた項目
+- 生きた項目: unit_keys の全部が行に在る見る項目。欠けを拒む側（Missing: 範囲の中の変更・files の add・remove・op・tests）は生きた項目
   だけを見る（止めた・外した単位の分の欠けで、残った単位を巻き添えに止めない）。範囲の外れと余分（Extra）は見る項目の全部で見る
 - 凍ったファイル（loop）: TDD の輪が凍らせたファイルと凍った時の中身。欠けの証拠は版からの差分の全部で見て、修正役に問う外れと
   余分は凍った後に修正役が変えた分だけで見る（輪が書いた物を修正役のせいにしない・凍った後に足したテストを見逃さない）
@@ -24,18 +24,17 @@
   結ばない）。裁定で範囲が広がるのはこのパスだけで、裁定を受けた単位の全部を外さない（外せば fix_code_as が案の外の変更を
   通す）。out_of_scope には勝たない（案が外したパスが要るのは案の項目の誤りで、範囲の相談か fix_plan_item の道。合意で外れた
   パスだけは、外した項目の out_of_scope に当たらない）
-- 識別子の形（planmarks.IDENT）: adds の name・removes の名のうち、差分で機械が探す物。kind を問わず :: と . で割った最後の段で探す。
-  日本語や空白を含む説明の文と、/ を含む名（ファイルのパス）は探さず、記録の unchecked に並べる（誤った拒否を重ねて単位を
-  止めない）
-- モジュールの名（planmarks.module_name）: / も :: も無い .py のファイルの名（receivers.py）は、拡張子 py の語でなくモジュールの名
-  （planmarks.declared_name。0.2.41 の名の規則）で見る。adds はそのモジュールの .py のファイル（パッケージの __init__.py も）を
-  新設したか足した行を持つ、removes はそのファイルが消えた、を差分で確かめる（ファイルの中身は自分の名を書かないので語では
-  探さない）。拡張子の前に . を含む名（app.receivers.py）はファイルに結べないので unchecked
-- docstring（DOC）: 最後の段が __doc__ の adds（stats.mode.__doc__）は、足した行の語に加えて、その前の段の def・class（名が
-  そのファイルのモジュールならモジュール）が差分で docstring を得たかを ast で見る（_doc_added。docstring の字は __doc__ を
-  書かないので、語だけでは正しい直しを拒む。run 35ad1c2a）。名の解き方は removes と同じ（最後の段の前が最上位のクラスなら
-  クラス.名、ほかは最上位の素の名）
-- 残った（removes）: 修正の後の .py を ast で読み、名がまだ定義されている（名を消した行か定義を足した行を持つファイルで）。
+- 識別子の形（planmarks.IDENT）: 項目の files の symbols の name のうち、差分で機械が探す物。kind を問わず :: と . で割った最後の段で、
+  行の path の足した行（change=add）か消した行（change=remove）から探す。日本語や空白を含む説明の文と、/ を含む名（欄の指し）は探さず、
+  記録の unchecked に並べる（誤った拒否を重ねて単位を止めない）
+- ファイルの新設・消し・移し（op）: files の行の op=create は path が差分で新設された（版に無く今に在る）、op=delete は path が消えた、
+  op=rename は元のパス from が消え path が新設された、を差分で確かめる（ファイルの中身は自分の名を書かないので語では探さない）。
+  modify は symbols の行で見る
+- docstring（DOC）: 名の最後の段が __doc__ の add（mode.__doc__。名だけの __doc__ はそのファイルのモジュールの docstring）は、足した行の語に
+  加えて、その前の段の def・class（名がそのファイルのモジュールならモジュール）が行の path の差分で docstring を得たかを ast で見る
+  （_doc_added。docstring の字は __doc__ を書かないので、語だけでは正しい直しを拒む。run 35ad1c2a）。名の解き方は remove と同じ
+  （最後の段の前が最上位のクラスならクラス.名、ほかは最上位の素の名）
+- 残った（remove）: 修正の後の .py を ast で読み、名がまだ定義されている（名を消した行か定義を足した行を持つファイルで）。
   . か :: の修飾子は、そのファイルの最上位のクラスなら クラス.名、モジュール名か :: の前のパスなら最上位の素の名で照らす。.py でない・構文が読めないファイルは、足した行に定義の行（def・class・代入・関数の形）が在れば
   残る。名を挙げるだけの行（消えたことを確かめる hasattr・変更の記録の注記）は残ったと見ない
 
@@ -76,7 +75,7 @@ REJECT_ASK = ("承認済みの修正案の項目から外れた（同じ brief �
               "範囲に入り、同じ会話の続きで直しを続ける。out_of_scope に当たる物が要る時も同じに相談せよ——修正案を書いた役が外した"
               "理由を考え直して決める。相談が聞けない・許されずに仕様として意見が割れる時だけ、変えずに食い違いの申し出で返せ）: ")
 SCOPE_OP = "fix_plan_scope"   # 受けた時の盤面の trace の行（照らした印か、照らさなかった理由）
-DOC = "__doc__"   # docstring の属性の名。字は自分の名を書かないので、adds は語でなく ast でも見る（_doc_added）
+DOC = "__doc__"   # docstring の属性の名。字は自分の名を書かないので、add は語でなく ast でも見る（_doc_added）
 
 
 def reject_head(ask: bool) -> str:
@@ -150,11 +149,6 @@ def _definition(name: str):
     return re.compile(rf"^[ \t]*(?:[a-z]+[ \t]+)*(?:def|class)[ \t]+{n}\b|^{n}\s*=|^(?:function\s+)?{n}\s*\(\)")
 
 
-def _module_files(mod: str, changes: dict) -> list[str]:
-    """変わったパスのうち、モジュール mod の .py のファイル（モジュールの名が mod。パッケージの __init__.py はディレクトリの名）"""
-    return [p for p in changes if p.endswith(".py") and planmarks.declared_name(p) == mod]
-
-
 def _defined_names(src: str | None):
     """.py の中身で定義された名 (素の名の集合（最上位の def・class・代入）, クラス.名 の集合（最上位のクラスの中の def・代入）,
     最上位のクラスの名の集合)。構文が読めなければ None"""
@@ -195,29 +189,30 @@ def _docstrings(src: str | None):
     return got, {n.name for n in tree.body if isinstance(n, ast.ClassDef)}
 
 
-def _doc_added(raw: str, changes: dict) -> bool:
-    """adds の <名>.__doc__（か <パス>::__doc__）の docstring が差分で足されたか: 変わった .py のどれかで、名の docstring が今の中身に
-    在り（空白だけでない）、版の中身の物と違う（変えた docstring も足した物に数える）。名の解き方は removes と同じ 1 本の規則:
-    最後の段の前の段がそのファイルの最上位のクラスなら クラス.名、ほかは最上位の素の名。名そのものがそのファイルのモジュールの名
-    （拡張子を除いたファイル名・/ を . にした根からのパス・パスそのもの）ならモジュールの docstring も見る"""
-    owner = re.sub(rf"(?:::|\.){DOC}$", "", raw)
-    if not owner or owner == raw:
+def _doc_added(raw: str, path: str, changes: dict) -> bool:
+    """symbol の <名>.__doc__（か <パス>::<名>.__doc__・__doc__ だけ）の docstring が、行の path の差分で足されたか: path の今の中身に
+    在り（空白だけでない）、版の中身の物と違う（変えた docstring も足した物に数える）。名の解き方は消す名と同じ 1 本の規則:
+    最後の段の前の段がそのファイルの最上位のクラスなら クラス.名、ほかは最上位の素の名。名だけ __doc__ ならそのファイルのモジュールの
+    docstring。名そのものがそのファイルのモジュールの名（拡張子を除いたファイル名・/ を . にした根からのパス・パスそのもの）なら
+    モジュールの docstring も見る"""
+    owner = re.sub(rf"(?:::|\.)?{DOC}$", "", raw)
+    if owner == raw or path not in changes:
         return False
-    name, qual = re.split(r"::|\.", owner)[-1], _qualifier(owner)
-    for p, (base, now) in changes.items():
-        got = _docstrings(now) if p.endswith(".py") and now is not None else None
-        if got is None:
-            continue
-        docs, classes = got
-        was = (_docstrings(base) or ({}, set()))[0] if base is not None else {}
+    base, now = changes[path]
+    got = _docstrings(now) if path.endswith(".py") and now is not None else None
+    if got is None:
+        return False
+    docs, classes = got
+    was = (_docstrings(base) or ({}, set()))[0] if base is not None else {}
+    keys = [""]
+    if owner:
+        name, qual = re.split(r"::|\.", owner)[-1], _qualifier(owner)
         cls = re.split(r"::|\.", qual)[-1] if qual else None
         keys = [f"{cls}.{name}" if cls in classes else name]
-        stem = posixpath.splitext(p)[0]
-        if owner in (posixpath.basename(stem), stem.replace("/", "."), p):
+        stem = posixpath.splitext(path)[0]
+        if owner in (posixpath.basename(stem), stem.replace("/", "."), path):
             keys.append("")
-        if any((docs.get(k) or "").strip() and docs.get(k) != was.get(k) for k in keys):
-            return True
-    return False
+    return any((docs.get(k) or "").strip() and docs.get(k) != was.get(k) for k in keys)
 
 
 def _qualifier(raw: str) -> str | None:
@@ -241,7 +236,7 @@ def _owns(qual: str, raw: str, path: str, classes: set) -> str | None:
 
 
 def _remains(raw: str, name: str, changes: dict, diffs: dict) -> bool:
-    """removes の名が修正の後も残っているか。変わった .py は今の中身を ast で読み、その名を消した行か定義を足した行を持つファイルで、
+    """files の change=remove の symbol の名が修正の後も残っているか（呼び手が、同じ名を移した先の path を changes から除いて渡す）。変わった .py は今の中身を ast で読み、その名を消した行か定義を足した行を持つファイルで、
     名がまだ定義されていれば残る。修飾子の無い名は最上位の素の名で照らし、修飾子の在る名はファイルごとに解く（_owns: クラスなら
     クラス.名、モジュールなら最上位の素の名、どちらでもないファイルは見ない）。.py でない・構文が読めないファイルは、足した行に
     定義の行（_definition）が在れば残る"""
@@ -269,9 +264,23 @@ def _test_key(test_id):
     return (posixpath.normpath(got[0]), tuple(got[1])) if got else None
 
 
-def _named_paths(text: str, paths) -> list[str]:
-    """文 text に字のまま（前後がパスの字でない所に）現れるパス"""
-    return [p for p in paths if re.search(rf"(?<![\w./-]){re.escape(p)}(?![\w/-])", text)]
+def _op_problems(row: dict, changes: dict) -> list[str]:
+    """files の行 row（op が create・delete・rename）を差分 changes と照らした誤りの文: create の path が差分で新設されていない・delete の
+    path が差分で消えていない・rename の元のパス from が消えていない／移し先の path が新設されていない。modify は見ない
+    （symbols の行が足した行・消した行で照らす）"""
+    path, op, old = row.get("path"), row.get("op"), row.get("from")
+    made = path in changes and changes[path][0] is None and changes[path][1] is not None
+
+    def gone(p):
+        return p in changes and changes[p][0] is not None and changes[p][1] is None
+    if op == "create" and not made:
+        return [f"files の {path}（op=create）が差分で新設されていない"]
+    if op == "delete" and not gone(path):
+        return [f"files の {path}（op=delete）が差分で消えていない"]
+    if op == "rename":
+        return ([f"files の {old}（op=rename の元のパス）が差分で消えていない"] if not (isinstance(old, str) and gone(old)) else []) \
+            + ([f"files の {path}（op=rename の移し先）が差分で新設されていない"] if not made else [])
+    return []
 
 
 def problems(items: list[dict], rows: list[dict], changes: dict, *,
@@ -284,12 +293,12 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     2. 1 で見なかった変わったパスが、全項目の範囲の和か permits に入り、どの項目の out_of_scope にも当たらない（単位に結べない
        ので緩めない。当たった行に、そのパスを許す項目を planrange.OWNER_HINT で名指す。決まりは planrange.outside の 1 か所）
     3. 生きた項目の範囲の中に変わったパスが 1 つも無ければ Missing
-    4. adds: 探す語（planmarks.search_word）が、生きた項目ならどれかのパスの足した行に語の境で現れる（無ければ Missing。語が __doc__ なら、
-       名の def・class の docstring を差分で足していても在る。_doc_added）。canonical の文に
-       変わったパスが字のまま在れば、ほかのパスの足した行の同名の定義は Extra（見る項目の全部）。.py のファイルの名（planmarks.module_name）は
-       そのモジュールのファイルを新設したか、足した行を持つ
-    5. removes: 生きた項目なら、探す語がどれかのパスの消した行に現れ、どの足した行にも定義として現れない。.py のファイルの名は
-       そのモジュールのファイルが消えた
+    4. files の add（change=add の symbol）: 探す語（planmarks.search_word）が、生きた項目なら行の path の足した行に語の境で現れる
+       （無ければ Missing。語が __doc__ なら、名の def・class の docstring を差分で足していても在る。_doc_added）。同じ名を足すと言った
+       行の path（その項目の files の add の同名の行）の外に、凍った後に修正役が足した同名の定義が在れば Extra（見る項目の全部）。
+       op=create・delete・rename の行は path の新設・消し・移し（_op_problems）を見る
+    5. files の remove（change=remove の symbol）: 生きた項目なら、探す語が行の path の消した行に現れ、どの足した行にも定義として
+       現れない（同じ名を移した先の path の定義は残りに数えない）
     6. tests: 新しく現れたテストのうち、どの項目の tests にも無い物は Extra（範囲の相談の合意で項目に入った物は tests に在る）。
        生きた項目の tests の各 id は、そのパスが変わり、今の中身に定義の行が在る
     裁定で外れた単位の項目も範囲を与える（依頼 241。外れた単位を直させない守りは受け付けの check_excused_units）。
@@ -306,8 +315,6 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     out, unchecked, overflow = [], [], []   # overflow: 1・2・6 の行（範囲の外のはみ出し）。受け付けが相談に回す物の見分けは範囲の持ち主のここ
     row_keys = {r.get("unit_key") for r in rows if isinstance(r.get("unit_key"), str)}
     diffs = {p: added_removed(*pair) for p, pair in changes.items()}
-    added_all = [(p, line) for p, (add, _) in diffs.items() for line in add]
-    removed_all = [line for _, rem in diffs.values() for line in rem]
     # 修正役に問う側の差分: 凍ったファイルは凍った時の中身から今まで
     # 凍った時の中身が無い（凍った時の木で読めない）ファイルは版からの差分に戻す
     since = {p: (loop[p], pair[1]) if loop.get(p) is not None else pair for p, pair in changes.items() if p not in untouched}
@@ -354,47 +361,36 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
         skip = not set(_keys(it)) <= row_keys
         if not skip and not any(planrange.inside(p, it) for p in changes):
             out.append(f"{who}: 範囲の中に変えたファイルが無い")
-        for add in it.get("adds") or []:
-            raw = add.get("name") if isinstance(add, dict) else None
-            if not isinstance(raw, str):
+        for frow in planmarks.file_rows(it):
+            path = frow.get("path")
+            if not isinstance(path, str):
                 continue
-            mod = planmarks.module_name(raw)
-            if mod is not None:
-                if not skip and not any(changes[p][1] is not None and (changes[p][0] is None or diffs[p][0])
-                                        for p in _module_files(mod, changes)):
-                    out.append(f"{who}: adds の {raw} のモジュールのファイル（{mod}）が差分で新設されず足した行も持たない")
-                continue
-            name = planmarks.search_word(raw)
-            if name is None:
-                unchecked.append(raw)
-                continue
-            word = planmarks.word_re(name)
-            if not skip and not any(word.search(line) for _, line in added_all) \
-                    and not (name == DOC and _doc_added(raw, changes)):
-                out.append(f"{who}: adds の {raw} が差分の足した行に無い" + ("（その def・class の docstring も差分で足されていない）"
-                                                                              if name == DOC else ""))
-            home = _named_paths(add.get("canonical") or "", changes) if isinstance(add.get("canonical"), str) else []
-            if home:
-                define = _definition(name)
-                for p in sorted({p for p, line in fixer_added if p not in home and define.search(line)}):
-                    out.append(f"{who}: adds の {raw} の canonical（{'・'.join(home)}）の外に同名の定義（{p}）")
-        for raw in it.get("removes") or []:
-            if not isinstance(raw, str):
-                continue
-            mod = planmarks.module_name(raw)
-            if mod is not None:
-                if not skip and not any(changes[p][1] is None for p in _module_files(mod, changes)):
-                    out.append(f"{who}: removes の {raw} のモジュールのファイル（{mod}）が差分で消えていない")
-                continue
-            name = planmarks.search_word(raw)
-            if name is None:
-                unchecked.append(raw)
-                continue
-            if skip:
-                continue
-            word = planmarks.word_re(name)
-            if not any(word.search(line) for line in removed_all) or _remains(raw, name, changes, diffs):
-                out.append(f"{who}: removes の {raw} が差分で消えていない（消した行に無いか、足した行に定義が残る）")
+            if not skip:
+                out += [f"{who}: {line}" for line in _op_problems(frow, changes)]
+            for sym in planmarks.symbol_rows(frow):
+                raw = sym.get("name")
+                if not isinstance(raw, str):
+                    continue
+                name = planmarks.search_word(raw)
+                if name is None:
+                    unchecked.append(raw)
+                    continue
+                if sym.get("change") == "add":
+                    word = planmarks.word_re(name)
+                    if not skip and not any(word.search(line) for line in diffs.get(path, ([], []))[0]) \
+                            and not (name == DOC and _doc_added(raw, path, changes)):
+                        out.append(f"{who}: files の {path} の add {raw} が差分の {path} の足した行に無い"
+                                   + ("（その def・class の docstring も差分で足されていない）" if name == DOC else ""))
+                    homes = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}   # 同じ名を足すと言った行の path は正本
+                    define = _definition(name)
+                    for p in sorted({p for p, line in fixer_added if p not in homes and define.search(line)}):
+                        out.append(f"{who}: files の {path} の add {raw} の canonical（足す行の path {'・'.join(sorted(homes))}）の外に同名の定義（{p}）")
+                elif sym.get("change") == "remove" and not skip:
+                    word = planmarks.word_re(name)
+                    moved = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}   # 移した先の定義は残りに数えない
+                    kept = {p: pair for p, pair in changes.items() if p not in moved}
+                    if not any(word.search(line) for line in diffs.get(path, ([], []))[1]) or _remains(raw, name, kept, diffs):
+                        out.append(f"{who}: files の {path} の remove {raw} が差分で消えていない（{path} の消した行に無いか、足した行に定義が残る）")
         for row in [] if skip else it.get("tests") or []:
             if isinstance(row, dict) and row.get("agreed"):   # 合意で入ったテストは許しで義務でない（書かなくても欠けにしない）
                 continue

@@ -65,8 +65,8 @@ _FN = "fn:planbrief.render"
 TITLE = promptsection.Section("# 要求の正本: 修正案の項目 {n}", source=_FN)
 UNITS_HEAD = promptsection.Section("## 直す単位", source=_FN)
 APPROACH_HEAD = promptsection.Section("## やり方（approach）", source=_FN)
-ADDS_HEAD = promptsection.Section("## 足す物（adds）", source=_FN)
-REMOVES_HEAD = promptsection.Section("## 消す物（removes）", source=_FN)
+FILES_HEAD = promptsection.Section("## ファイル構成（files）", source=_FN)
+DEPENDS_HEAD = promptsection.Section(f"## 前の項目から受ける物（{planmarks.DEPENDS_KEY}）", source=_FN)
 SHRINK_HEAD = promptsection.Section("## 足さずに閉じる形（shrink_first）", source=_FN)
 NARROWS_HEAD = promptsection.Section("## 狭める能力（narrows）", source=_FN)
 ROUTE_HEAD = promptsection.Section("## 直し方の道（route）", source=_FN)
@@ -100,10 +100,42 @@ def _bullets(rows: list, line) -> str:
     return "\n".join(f"- {line(r)}" for r in rows) if rows else NONE
 
 
-def _add(r) -> str:
-    if isinstance(r, dict):
-        return f"{r.get('kind')}: {r.get('name')}（正本: {r.get('canonical')}）"
-    return str(r)
+def _cell(v) -> str:
+    """表の 1 つの欄の字（| と改行は表を崩すので替える）"""
+    return str(v if v is not None else "").replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _gone(node: dict) -> str:
+    """消す側の行・symbol の訳 why と置き換え先 replaced_by の字（無ければ空）"""
+    why, to = node.get("why"), node.get("replaced_by")
+    return (f"why: {why}" if why else "") + (f"（置き換え先: {to}）" if to else "")
+
+
+def _symbols_cell(row: dict) -> str:
+    out = []
+    for sym in planmarks.symbol_rows(row):
+        text = f"{sym.get('change')} `{sym.get('name')}`（{sym.get('kind')}）"
+        out.append(text + (f"——{_gone(sym)}" if _gone(sym) else ""))
+    return "<br>".join(out) if out else NONE
+
+
+def _files_table(rows: list) -> str:
+    """項目の files のファイル構成の表（1 行 1 ファイル。消す行・消す symbol は why・replaced_by も出す）。行が無ければ NONE"""
+    rows = [r for r in rows if isinstance(r, dict)]
+    if not rows:
+        return NONE
+    lines = ["| path | op | 受け持ち | symbols | 正本 | 消す訳 |", "|---|---|---|---|---|---|"]
+    for r in rows:
+        path = r.get("path") if r.get("op") != "rename" else f"{r.get('path')}（元: {r.get('from')}）"
+        lines.append("| " + " | ".join(_cell(c) for c in (path, r.get("op"), r.get("responsibility"), _symbols_cell(r),
+                                                          r.get("canonical"), _gone(r))) + " |")
+    return "\n".join(lines)
+
+
+def _received(r) -> str:
+    if not isinstance(r, dict):
+        return str(r)
+    return f"単位 {r.get('unit')} の項目から受ける: " + "・".join(f"`{x}`" for x in r.get("receives") or [])
 
 
 def _narrow(r) -> str:
@@ -171,8 +203,8 @@ def render(n: int, item: dict, fields: dict, units: dict, purpose: str, structur
         TITLE.format(n=n),
         f"{UNITS_HEAD}\n\n" + _bullets(keys, str),
         f"{APPROACH_HEAD}\n\n{item.get('approach') or NONE}",
-        f"{ADDS_HEAD}\n\n" + _bullets(item.get("adds") or [], _add),
-        f"{REMOVES_HEAD}\n\n" + _bullets(item.get("removes") or [], str),
+        f"{FILES_HEAD}\n\n" + _files_table(item.get("files") or []),
+        f"{DEPENDS_HEAD}\n\n" + _bullets(fields.get(planmarks.DEPENDS_KEY) or [], _received),
         f"{SHRINK_HEAD}\n\n{item.get('shrink_first') or NONE}",
         f"{NARROWS_HEAD}\n\n" + _bullets(item.get("narrows") or [], _narrow),
         f"{ROUTE_HEAD}\n\n" + _route(fields),

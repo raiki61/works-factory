@@ -18,16 +18,31 @@ import planmarks  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
-PLAN_KEYS = {"unit_keys", "approach", "adds", "removes", "shrink_first", "narrows"}   # 写しの graph の修正案の項目の欄
+PLAN_KEYS = {"unit_keys", "approach", "files", "shrink_first", "narrows"}   # 写しの graph の修正案の項目の欄
 
 
 def item(**over):
-    base = {"unit_keys": [MEAN], "approach": "x" * 20, "adds": [], "removes": [], "shrink_first": "y" * 20, "narrows": [],
+    base = {"unit_keys": [MEAN], "approach": "x" * 20, "files": [], "shrink_first": "y" * 20, "narrows": [],
             "route": "tdd", "route_why": "",
             "tests": [{"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均を返す",
                        "path": "stats.mean を直に呼ぶ（mock なし）", "red_kind": "assertion", "red_why": "今は len-1 で割り 3.0 になる"}],
             "rewrite_tests": [], "refactor": {"declared": False, "why": ""}, "allowed_paths": ["stats.py"], "out_of_scope": []}
     return {**base, **over}
+
+
+def fadd(name, kind="function"):
+    """files の symbols の行（足す）"""
+    return {"name": name, "kind": kind, "change": "add"}
+
+
+def frm(name, kind="function", why="古い名で、呼び手は新しい名に寄せた"):
+    """files の symbols の行（消す。消す訳 why つき）"""
+    return {"name": name, "kind": kind, "change": "remove", "why": why}
+
+
+def frow(path="stats.py", *symbols, op="modify", **extra):
+    """files の 1 行（受け持ちと正本は gaps に関わらない固定の字）"""
+    return {"path": path, "op": op, "responsibility": "この行の受け持ち", "symbols": list(symbols), "canonical": "既存の正本", **extra}
 
 
 REWRITE = {"id": "test_stats.py::TestStats::test_clamp_within_range", "behavior": "上限の内側の値をそのまま返す",
@@ -103,30 +118,96 @@ class TestGaps(PlanFieldsCase):
         self.assertEqual(planmarks.gaps("返答でない", self.repo), [])   # 返答の形は写しの規則が拒む
 
     def test_gaps_adds_symbol_kind_named_by_file(self):
-        """kind が関数・欄（function・record_field）の adds の name がファイルの名・パスだけなら、行を名指して拒み、識別子で書いて
-        パスは canonical に書けと言う（依頼 194c: receivers.py と書いた名を TDD の輪が 'py' と比べた）。ほかの誤りと同じ 1 回の拒否に
-        並べる。識別子・<パス>::<名前>・説明の文・ファイルを名指すのが筋の kind（doc など）は今どおり通す"""
-        def add(kind, name):
-            return {"kind": kind, "name": name, "canonical": "新設: app/receivers.py"}
-        got = self.gaps(item(adds=[add("function", "clamp"), add("function", "receivers.py"),
-                                   add("record_field", "app/schema/fields.json"), add("function", " app/receivers ")], route="maybe"))
-        for j, nm in ((1, "receivers.py"), (2, "app/schema/fields.json"), (3, "app/receivers")):
-            row = [g for g in got if g.startswith(f"plan[0].adds[{j}].name")]
+        """files の symbols の name が / で始まらずに / を含むか、行の path の拡張子で終わるなら、plan[0].files[i].symbols[j].name を名指して拒み、
+        識別子で書いてパスは行の path に書けと言う（依頼 194c: receivers.py と書いた名を TDD の輪が 'py' と比べた）。ほかの誤りと同じ
+        1 回の拒否に並べる。識別子・<パス>::<名前>・説明の文は今どおり通す。kind は問わない"""
+        got = self.gaps(item(files=[frow("app/receivers.py", fadd("clamp"), fadd("receivers.py"), fadd("app/schema/fields.json", "record_field"),
+                                         fadd("docs/scope.md", "doc"))], route="maybe"))
+        for j, nm in ((1, "receivers.py"), (2, "app/schema/fields.json"), (3, "docs/scope.md")):
+            row = [g for g in got if g.startswith(f"plan[0].files[0].symbols[{j}].name")]
             self.assertEqual(len(row), 1, got)
             self.assertIn(nm, row[0])
-            self.assertIn("canonical", row[0])
-        self.assertFalse(any(g.startswith("plan[0].adds[0]") for g in got), got)
+        self.assertFalse(any(g.startswith("plan[0].files[0].symbols[0]") for g in got), got)
         self.assertTrue(any(g.startswith("plan[0].route") for g in got), got)          # ほかの誤りと 1 回で並ぶ
-        for kind, name in (("function", "Stats.median"), ("function", "app.receivers.handle"),
-                           ("function", "app/receivers.py::handle"), ("function", "role_run._probe(pgid_file) -> (pgid, why)"),
-                           ("function", "tests/run.sh skip_capability（見送りの行から能力の名前を取り出す）"),
-                           ("record_field", "plan[].adds[].name"), ("record_field", "event.ts"), ("function", "Response.json"),
-                           ("record_field", "tests/_real_db.SKIP_REASON"),   # モジュールのパスと属性（本物の案の名）
-                           ("function", "app/stats.mean"), ("record_field", "/plan/adds"),
-                           ("doc", "docs/scope.md"), ("config", "setup.cfg"),
-                           ("test", "test_stats.py::TestStats::test_mean_of_two"), ("other", "receivers.py")):
-            with self.subTest(kind=kind, name=name):
-                self.assertEqual(self.gaps(item(adds=[add(kind, name)])), [])
+        for name in ("Stats.median", "app.receivers.handle", "_probe(pgid_file) -> (pgid, why)", "plan[].files[].name", "Response.json",
+                     "SKIP_REASON", "stats.mean", "/plan/files", "TestStats::test_mean_of_two"):
+            with self.subTest(name=name):
+                self.assertEqual(self.gaps(item(files=[frow("stats.py", fadd(name))])), [])
+
+    def test_gaps_symbol_name_is_not_a_path_of_its_row(self):
+        """symbols の name に、/ で始まらずに / を含む名か、行の path の拡張子で終わる名を書くと、plan[0].files[i].symbols[j].name を名指して
+        拒む。Response.json（app/x.ts の行）や /plan/files は通す。拡張子の表は持たず、行の path の拡張子と照らす"""
+        rows = [frow("app/x.ts", fadd("event.ts"), fadd("Response.json"), fadd("/plan/files"), fadd("tests/_real_db.SKIP_REASON")),
+                frow("lib/y.py", fadd("y.py"), fadd("lib.y"), fadd("y.ts")), frow("Makefile", fadd("Makefile"))]
+        got = self.gaps(item(files=rows))
+        bad = sorted(g.split(".name", 1)[0] for g in got if ".name（" in g)
+        self.assertEqual(bad, ["plan[0].files[0].symbols[0]", "plan[0].files[0].symbols[3]", "plan[0].files[1].symbols[0]"], got)
+        self.assertTrue(all("symbols" in g for g in got), got)
+
+    def test_gaps_removal_rows_need_why(self):
+        """拒むのは 3 つ: why の無い change=remove の symbol、why の無い op=delete・rename の行、why・replaced_by を持つ足す側の行
+        （change=add の symbol・op が create・modify の行）。why と replaced_by を書いた消す行は通る。名指しは行の why か symbol の why"""
+        gone = "呼び手は新しい名に寄せたので要らない"
+        ok = [frow("stats.py", frm("old_mean", why=gone, ) | {"replaced_by": "stats.py::mean"}),
+              frow("old.py", op="delete", why=gone, replaced_by="stats.py"),
+              frow("new.py", op="rename", why="名を実体に合わせて付け替えた", **{"from": "mid.py"})]
+        self.assertEqual(self.gaps(item(files=ok)), [])
+        bare = {k: v for k, v in frm("old_mean").items() if k != "why"}
+        got = self.gaps(item(files=[frow("stats.py", bare), frow("old.py", op="delete"),
+                                    frow("new.py", op="rename", **{"from": "mid.py"}, why="短い")]))
+        for at in ("plan[0].files[0].symbols[0].why", "plan[0].files[1].why", "plan[0].files[2].why"):
+            self.assertEqual(len([g for g in got if g.startswith(at)]), 1, (at, got))
+        add_side = self.gaps(item(files=[frow("stats.py", fadd("median") | {"why": gone}, fadd("mode") | {"replaced_by": "x.py"}),
+                                         frow("new.py", fadd("run"), op="create", why=gone),
+                                         frow("mod.py", op="modify", replaced_by="x.py")]))
+        for at in ("plan[0].files[0].symbols[0].why", "plan[0].files[0].symbols[1].replaced_by", "plan[0].files[1].why",
+                   "plan[0].files[2].replaced_by"):
+            self.assertEqual(len([g for g in add_side if g.startswith(at)]), 1, (at, add_side))
+        dup = self.gaps(item(files=[frow("stats.py", fadd("median")), frow("stats.py", fadd("median"))]))
+        self.assertTrue(any(g.startswith("plan[0].files[1].symbols[0]") and "同じ (path, name, change)" in g for g in dup), dup)
+        same_name_two_paths = self.gaps(item(files=[frow("stats.py", fadd("median")), frow("other.py", fadd("median"))]))
+        self.assertEqual(same_name_two_paths, [], "同じ名でも path が違えば別の行")
+        self.assertTrue(any(g.startswith("plan[0].files[0].from") for g in self.gaps(item(files=[frow("a.py", op="rename", why=gone)]))))
+        self.assertTrue(any(g.startswith("plan[0].files[0].from") for g in self.gaps(item(files=[frow("a.py", **{"from": "b.py"})]))))
+        self.assertTrue(any(g.startswith("plan[0].files[0].path") for g in self.gaps(item(files=[frow("./a.py")]))))
+
+    def test_depends_gaps_two_items_pass_cycle_and_self_rejected(self):
+        """後の項目が depends_on で前の項目の単位と受ける物を書いた 2 項目は通る。拒むのは、自分指し・案に無い単位・前の項目に無い受ける物・
+        2 項目の輪。受ける物は前の項目の files の行の path か symbol の <パス>::<名前>（op も change も問わない）"""
+        first = item(unit_keys=[MEAN], files=[frow("stats.py", fadd("median"), op="modify"), frow("lib/new.py", op="create")])
+        second = item(unit_keys=[CLAMP], depends_on=[{"unit": MEAN, "receives": ["stats.py::median", "lib/new.py"]}])
+        self.assertEqual(planmarks.depends_gaps([first, second]), [])
+        self.assertEqual(planmarks.depends_gaps([first, item(unit_keys=[CLAMP])]), [])
+        selfie = item(unit_keys=[CLAMP], depends_on=[{"unit": CLAMP, "receives": ["stats.py"]}])
+        unknown = item(unit_keys=[CLAMP], depends_on=[{"unit": "無い単位", "receives": ["stats.py"]}, {"unit": 3, "receives": ["stats.py"]}])
+        lacking = item(unit_keys=[CLAMP], depends_on=[{"unit": MEAN, "receives": ["stats.py::median", "stats.py::nope", "other.py"]}])
+        got = planmarks.depends_gaps([first, selfie])
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[1].depends_on[0].unit") and "自分" in got[0], got)
+        got = planmarks.depends_gaps([first, unknown])
+        self.assertEqual([g.split("（")[0] for g in got], ["plan[1].depends_on[0].unit", "plan[1].depends_on[1].unit"], got)
+        got = planmarks.depends_gaps([first, lacking])
+        self.assertEqual([g.split("（")[0] for g in got], ["plan[1].depends_on[0].receives[1]", "plan[1].depends_on[0].receives[2]"], got)
+        loop1 = item(unit_keys=[MEAN], files=first["files"], depends_on=[{"unit": CLAMP, "receives": ["stats.py"]}])
+        loop2 = item(unit_keys=[CLAMP], files=[frow("stats.py")], depends_on=[{"unit": MEAN, "receives": ["stats.py"]}])
+        got = planmarks.depends_gaps([loop1, loop2])
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan.depends_on") and "循環" in got[0], got)
+        self.assertEqual(planmarks.depends_gaps("案でない"), [])
+        self.assertEqual(planmarks.depends_gaps([first, "項目でない", {"unit_keys": "壊れ"}]), [])
+        # gaps は depends_on の型（unit・receives が要る）だけを見る。指す先の照らしは案の全体を見る depends_gaps の 1 つの口に在り、
+        # 案の直しの gaps が直した項目だけを受けても、直さない項目を指す行を誤って拒まない
+        got = self.gaps(item(depends_on=[{"unit": MEAN}, {"receives": ["a.py"]}, {"unit": MEAN, "receives": []}]))
+        for j in (0, 1, 2):
+            self.assertTrue(any(g.startswith(f"plan[0].depends_on[{j}]") for g in got), (j, got))
+        self.assertEqual(self.gaps(item(depends_on=[{"unit": "無い単位", "receives": ["a.py"]}])), [])
+        # 組を作る対 depends_pairs: 後の項目の単位の全部は、指した前の項目の単位の全部の後に並ぶ。among の外を通る依存は中の端どうしに縮む
+        chain = [item(unit_keys=["A"]), item(unit_keys=["B", "B2"], depends_on=[{"unit": "A", "receives": ["a.py"]}]),
+                 item(unit_keys=["C"], depends_on=[{"unit": "B2", "receives": ["b.py"]}])]
+        self.assertEqual(planmarks.depends_pairs(chain), [("A", "B"), ("A", "B2"), ("B", "C"), ("B2", "C")])
+        self.assertEqual(planmarks.depends_pairs(chain, among=["A", "C"]), [("A", "C")])
+        self.assertEqual(planmarks.depends_pairs(chain, among=["C"]), [])
+        self.assertEqual(planmarks.depends_pairs([item(unit_keys=["A"], depends_on=[{"unit": "A", "receives": []}, "壊れ"]), "項目でない"]), [])
 
     def test_gaps_test_row_fields(self):
         t = {"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "短い", "red_kind": "import", "extra": 1}
@@ -171,21 +252,35 @@ class TestSplitAndBoard(PlanFieldsCase):
         self.assertIn("tests", reply["plan"][0])   # 渡した返答は変えない
 
     def test_split_freezes_tests_naming_removes_as_permits(self):
-        """removes（消す名）を base の本体で名指すテストは、欄の行の removes_tests に {id, limit} で並ぶ（義務でない許しの行）。
+        """files の change=remove の symbol（消す名）を base の本体で名指すテストは、欄の行の removes_tests に {id, limit} で並ぶ（義務でない許しの行）。
         探す木は渡された base_tests（作業ツリーで既に消えたテストも並ぶ）。名指さないテストは並ばない"""
         base_tests = {"test_stats.py": (SEED / "test_stats.py").read_text(encoding="utf-8")}
         tree = self.repo / "test_stats.py"
         tree.write_text(base_tests["test_stats.py"].replace(
             "    def test_clamp_within_range(self):\n        self.assertEqual(clamp(5, 0, 10), 5)\n\n", ""), encoding="utf-8")
         self.assertNotIn("test_clamp_within_range", tree.read_text(encoding="utf-8"))
-        _, fields = planmarks.split({"plan": [item(removes=["stats.clamp"])]}, self.repo, base_tests=base_tests)
+        _, fields = planmarks.split({"plan": [item(files=[frow("stats.py", frm("stats.clamp"))])]}, self.repo, base_tests=base_tests)
         got = sorted((r["id"], r["limit"]) for r in fields[0]["removes_tests"])
         self.assertEqual(got, [("test_stats.py::TestStats::test_clamp_above_range", "test_stats.py:14"),
                                ("test_stats.py::TestStats::test_clamp_within_range", "test_stats.py:11")])
         self.assertNotIn("test_stats.py::TestStats::test_mean_of_three", [r["id"] for r in fields[0]["removes_tests"]])
 
+    def test_split_permits_tests_naming_removed_symbols_of_files(self):
+        """change=remove の symbol の名を、修正前のテストの本体がコードで使う時、removes_tests に許しが並ぶ。op=delete の .py の行の
+        モジュールの名を使うテストにも許しが並ぶ。change=add の名と op=create の行は許しの元にならない"""
+        src = ("from stats import clamp\n\n\nclass TestStats:\n    def test_clamp(self):\n        assert clamp(5, 0, 10) == 5\n\n"
+               "    def test_mean(self):\n        assert 1\n\n\ndef test_old():\n    import old_tool\n    assert old_tool.run()\n")
+        base = {"test_stats.py": src}
+        files = [frow("stats.py", frm("clamp"), fadd("mean")), frow("old_tool.py", op="delete", why="呼び手は stats に寄せたので要らない")]
+        _, fields = planmarks.split({"plan": [item(files=files)]}, self.repo, base_tests=base)
+        self.assertEqual(sorted(r["id"] for r in fields[0]["removes_tests"]),
+                         ["test_stats.py::TestStats::test_clamp", "test_stats.py::test_old"])
+        added_only = [frow("stats.py", fadd("clamp")), frow("old_tool.py", op="create")]
+        _, fields = planmarks.split({"plan": [item(files=added_only)]}, self.repo, base_tests=base)
+        self.assertEqual(fields[0]["removes_tests"], [])
+
     def test_removes_tests_only_from_code_use(self):
-        """removes の語が文字列（題・辞書の値・parametrize の値・文字列で書いた注釈）やコメントの中にしか無いテストは removes_tests に
+        """消す名（files の change=remove の symbol）の語が文字列（題・辞書の値・parametrize の値・文字列で書いた注釈）やコメントの中にしか無いテストは removes_tests に
         並ばない。コードの名前（注釈の中の名も）・属性・点の付いたパスの文字列（mock.patch の的のどの段でも。デコレータでも）・属性の名の文字列（setattr・getattr・
         patch.object）・引数の名・from-import の元のモジュールの段で使うテストだけが並ぶ（ありふれた語で許しを広げない。#549）"""
         src = ("import pytest\n"
@@ -240,7 +335,7 @@ class TestSplitAndBoard(PlanFieldsCase):
                "def test_patched_method():\n"
                "    with mock.patch(\"pkg.models.Book.save\"):\n"
                "        assert run()\n")
-        _, fields = planmarks.split({"plan": [item(removes=["Book"])]}, self.repo, base_tests={"tests/test_books.py": src})
+        _, fields = planmarks.split({"plan": [item(files=[frow("books.py", frm("Book"))])]}, self.repo, base_tests={"tests/test_books.py": src})
         self.assertEqual([r["id"] for r in fields[0]["removes_tests"]],
                          ["tests/test_books.py::test_builds", "tests/test_books.py::test_patched",
                           "tests/test_books.py::test_hint", "tests/test_books.py::test_fixture", "tests/test_books.py::test_attr",
@@ -259,7 +354,7 @@ class TestSplitAndBoard(PlanFieldsCase):
                "\n"
                "def test_unrelated():\n"
                "    assert run(\"vendors\")\n")
-        _, fields = planmarks.split({"plan": [item(removes=["pkg.vendors"])]}, self.repo,
+        _, fields = planmarks.split({"plan": [item(files=[frow("pkg/vendors.py", frm("pkg.vendors"))])]}, self.repo,
                                     base_tests={"tests/test_vendors.py": src})
         self.assertEqual([r["id"] for r in fields[0]["removes_tests"]],
                          ["tests/test_vendors.py::test_patched_inside", "tests/test_vendors.py::test_local_import"])
@@ -445,35 +540,47 @@ class UnitContractCase(unittest.TestCase):
 
 class TestUnitContract(PlanFieldsCase):
     def test_names_from_adds(self):
-        """split は項目の adds の name を写し、unit_contract の names は key を含む項目の name を順に重複なしで持つ"""
-        add = lambda n: {"kind": "function", "name": n, "source": "x" * 10}
-        reply = {"plan": [item(adds=[add("clamp"), add("mean")]), item(adds=[add("clamp")], unit_keys=[MEAN, CLAMP]),
-                          item(adds=[add("other")], unit_keys=[CLAMP]), item(adds=[], unit_keys=[MEAN])]}
+        """split は項目の files を写し、unit_contract の names は key を含む項目の files の change=add の symbol の名を順に重複なしで持つ
+        （change=remove の名は持たない）"""
+        reply = {"plan": [item(files=[frow("stats.py", fadd("clamp"), fadd("mean"), frm("old_mean"))]),
+                          item(files=[frow("stats.py", fadd("clamp"))], unit_keys=[MEAN, CLAMP]),
+                          item(files=[frow("stats.py", fadd("other"))], unit_keys=[CLAMP]), item(files=[], unit_keys=[MEAN])]}
         _, fields = planmarks.split(reply, self.repo)
-        self.assertEqual(fields[0]["adds"], ["clamp", "mean"])
+        self.assertEqual(fields[0]["files"], reply["plan"][0]["files"])
         self.assertEqual(planmarks.unit_contract(fields, MEAN)["names"], ["clamp", "mean"])
         self.assertEqual(planmarks.unit_contract(fields, CLAMP)["names"], ["clamp", "other"])
         self.assertEqual(planmarks.unit_contract([{"unit_keys": [MEAN]}], MEAN)["names"], [])
         self.assertIsNone(planmarks.unit_contract(fields, "無い単位"))
 
-    def test_names_carry_new_module_of_canonical(self):
-        """canonical が新設の .py のパスを名指す adds は、そのパスも宣言した名前に足す（新しいモジュールの import の失敗を TDD の輪が
-        宣言の赤に数える。依頼 194c: read_input の canonical が works/.shared/core/nodeio.py（新設…）で、No module named 'nodeio' が
-        綴りの誤りに数えられた）。新設でない canonical・.py でないパス・作業ツリーに在るファイル（在るモジュールに新設の関数を
-        足す行）・根の外のパスは足さない。重なりは 1 つ"""
-        add = lambda n, c: {"kind": "function", "name": n, "canonical": c}
-        reply = {"plan": [item(adds=[add("read_input", "works/.shared/core/nodeio.py（新設。前の節の出力を読む口）"),
-                                     add("board_out", "works/.shared/core/nodeio.py（新設。盤面の控えから読む口）"),
-                                     add("handle", "新設: app/receivers.py（受け手の表）"),
-                                     add("mean", "stats.py の既存の mean を直す"),
-                                     add("fmt", "既存の textfmt.py から引く（新設しない result.py を読む）"),
-                                     add("golden", "works/tests/fixtures/golden.json（新設）"),
-                                     add("median", "stats.py（新設。在るモジュールに足す関数）"),
-                                     add("up", "../up.py（新設）")])]}
+    def test_names_from_files_add_symbols_and_created_modules(self):
+        """unit_contract の names が、change=add の symbol の名と、op=create の .py の行の path を持つ（新しいモジュールの import の失敗を
+        TDD の輪が宣言の赤に数える。依頼 194c: read_input の行が works/.shared/core/nodeio.py の op=create で、No module named 'nodeio' が
+        綴りの誤りに数えられた）。change=remove の名・op=modify の行の path・.py でない op=create の path は持たない。canonical の字は
+        読まない。重なりは 1 つ"""
+        reply = {"plan": [item(files=[
+            frow("works/.shared/core/nodeio.py", fadd("read_input"), fadd("board_out"), op="create", canonical="新設。前の節の出力を読む口"),
+            frow("app/receivers.py", fadd("handle"), op="create"),
+            frow("stats.py", fadd("median"), frm("old_mean"), canonical="stats.py（新設。在るモジュールに足す関数）"),
+            frow("works/tests/fixtures/golden.json", fadd("golden", "config"), op="create", canonical="新設の fixture"),
+            frow("textfmt.py", fadd("fmt"), canonical="新設しない result.py を読む")])]}
         _, fields = planmarks.split(reply, self.repo)
-        self.assertEqual(fields[0]["adds"], ["read_input", "works/.shared/core/nodeio.py", "board_out", "handle",
-                                             "app/receivers.py", "mean", "fmt", "golden", "median", "up"])
-        self.assertEqual(planmarks.unit_contract(fields, MEAN)["names"], fields[0]["adds"])
+        self.assertEqual(planmarks.unit_contract(fields, MEAN)["names"],
+                         ["works/.shared/core/nodeio.py", "read_input", "board_out", "app/receivers.py", "handle", "median", "golden", "fmt"])
+        self.assertNotIn("old_mean", planmarks.unit_contract(fields, MEAN)["names"])
+
+    def test_names_carry_new_module_of_canonical(self):
+        """新しいモジュールの宣言は op=create の .py の行の path から引く（canonical の『新設 x.py』の字からは引かない。依頼 194c:
+        nodeio.py の新設を TDD の輪が宣言の赤に数える）。canonical が『新設』と言う op=modify の行・.py でない op=create の行の path は
+        足さない。同じ path の 2 行は 1 つ"""
+        reply = {"plan": [item(files=[
+            frow("works/.shared/core/nodeio.py", fadd("read_input"), op="create", canonical="新設。前の節の出力を読む口"),
+            frow("works/.shared/core/nodeio.py", fadd("board_out"), op="create", canonical="新設。盤面の控えから読む口"),
+            frow("stats.py", fadd("median"), canonical="stats.py（新設。在るモジュールに足す関数）"),
+            frow("works/tests/fixtures/golden.json", fadd("golden", "config"), op="create",
+                 canonical="works/tests/fixtures/golden.py（新設）")])]}
+        _, fields = planmarks.split(reply, self.repo)
+        self.assertEqual(planmarks.unit_contract(fields, MEAN)["names"],
+                         ["works/.shared/core/nodeio.py", "read_input", "board_out", "median", "golden"])
 
 
 class ScopeFieldsCase(PlanFieldsCase):
@@ -515,13 +622,15 @@ class ScopeFieldsCase(PlanFieldsCase):
 
     def test_split_keeps_scope_fields_off_the_board(self):
         bare, fields = planmarks.split({"plan": [item()]}, self.repo)
-        self.assertEqual(set(bare["plan"][0]), {"unit_keys", "approach", "adds", "removes", "shrink_first", "narrows"})
+        self.assertEqual(set(bare["plan"][0]), {"unit_keys", "approach", "files", "shrink_first", "narrows"})
         self.assertEqual((fields[0]["allowed_paths"], fields[0]["out_of_scope"]), (["stats.py"], []))
 
     def test_head_and_review_ask_name_scope_fields(self):
-        for w in ("allowed_paths", "out_of_scope", "識別子", "canonical", "removes"):
+        for w in ("allowed_paths", "out_of_scope", "識別子", "canonical", "files", "depends_on", "why", "replaced_by"):
             self.assertIn(w, planmarks.HEAD)
         self.assertIn("allowed_paths", planmarks.REVIEW_ASK)
+        self.assertIn("change=remove", planmarks.REVIEW_ASK)
+        self.assertNotIn("項目の removes", planmarks.REVIEW_ASK)
 
     def test_head_asks_for_moved_and_removed_paths(self):
         self.assertIn("移す・消すファイルの元のパスも allowed_paths に書け", planmarks.HEAD)
@@ -605,6 +714,30 @@ class TestContractFields(PlanFieldsCase):
         both = item(unit_keys=[CLAMP], out_of_scope=[{"glob": "docs/**", "why": "文書は今回の直しの外"}])
         self.assertEqual(planmarks.contract_diff(item(), both), ["unit_keys", "out_of_scope"])
 
+    def test_files_add_side_is_means_and_removal_side_is_contract(self):
+        """files の足す側だけを変えた時、contract_diff は空（手段の欄。同じ run の中で関所に戻さずに直せる）。消す側（op が delete・rename の
+        行と change=remove の symbol）を変えた時は files を名指す。訳 why・受け持ち・正本の字の違いは約束の違いに数えない"""
+        old = item(files=[frow("stats.py", fadd("median"), frm("old_mean")), frow("old.py", op="delete", why="呼び手は寄せたので要らない")])
+        add_side = copy.deepcopy(old)
+        add_side["files"][0]["symbols"].append(fadd("mode"))
+        add_side["files"].append(frow("new.py", fadd("run"), op="create"))
+        add_side["files"][0]["responsibility"] = "受け持ちの言い直し"
+        add_side["files"][1]["why"] = "訳の言い直し（要らなくなったので消す）"
+        self.assertEqual(planmarks.contract_diff(old, add_side), [])
+        for name, edit in (("symbol を消す側に足した", lambda it: it["files"][0]["symbols"].append(frm("old_median"))),
+                           ("消す行を足した", lambda it: it["files"].append(frow("gone.py", op="delete", why="要らなくなったので消す"))),
+                           ("消す行の path を変えた", lambda it: it["files"][1].update(path="old2.py")),
+                           ("消す symbol を外した", lambda it: it["files"][0]["symbols"].pop(1))):
+            with self.subTest(name):
+                new = copy.deepcopy(old)
+                edit(new)
+                self.assertEqual(planmarks.contract_diff(old, new), ["files"])
+        # widened は files を丸ごと比べる: 足す側を変え、allowed_paths も広げた直しは『範囲を広げただけ』でない（None）
+        base = item(files=[frow("stats.py", fadd("median"))])
+        wide = {**base, "allowed_paths": ["stats.py", "README.md"]}
+        self.assertEqual(planmarks.widened(base, wide), {"allowed_paths": ["README.md"], "out_of_scope": []})
+        self.assertIsNone(planmarks.widened(base, {**wide, "files": [frow("stats.py", fadd("median"), fadd("mode"))]}))
+
 
 class TestWidened(PlanFieldsCase):
     """範囲を広げるだけの直しか（widened）: 違いが allowed_paths に足した行と out_of_scope から外した行だけの時だけ、足した glob と
@@ -643,8 +776,8 @@ class TestWidened(PlanFieldsCase):
             "テストの id も変えた": {**wide, "tests": tid},
             "behavior も変えた": {**wide, "tests": beh},
             "approach も変えた": {**wide, "approach": "z" * 20},
-            "adds も変えた": {**wide, "adds": [{"kind": "function", "name": "median", "canonical": "stats.py の median"}]},
-            "removes も変えた": {**wide, "removes": ["mean"]},
+            "files の足す側も変えた": {**wide, "files": [frow("stats.py", fadd("median"))]},
+            "files の消す側も変えた": {**wide, "files": [frow("stats.py", frm("mean"))]},
             "narrows も変えた": {**wide, "narrows": [{"what": "空の列", "why": "空の列は例外のまま"}]},
             "unit_keys も変えた": {**wide, "unit_keys": [MEAN, CLAMP]},
             "route も変えた": {**wide, "route": "direct", "route_why": "z" * 20},

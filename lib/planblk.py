@@ -166,7 +166,7 @@ PLAN_SLOTS_HEAD = promptsection.Section("## 案に入れてよい単位の no（
                                         "one_shot_closes に載る単位より、このセクションが優先する）", source="fn:planblk.plan_slots_section")
 DESIGN_HEAD = promptsection.Section("## 独立設計（修正案を見ない別の目が、目的と実測した制約・承認ノードの答え・依頼が名指した設計書のセクションから作った理想解。機械が貼った）", source="fn:planblk.design_only")
 DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何を固定し何を派生と見るか・どこに継ぎ目を置くか・目的の当事者が日常で回す"
-              "動線が閉じるか。案が足す仕組み（ファイル・関数・ノード・役・欄・入力）ごとと、この項目の adds・allowed_paths の大きさごとに、"
+              "動線が閉じるか。案が足す仕組み（ファイル・関数・ノード・役・欄・入力）ごとと、この項目の files・allowed_paths の大きさごとに、"
               "設計との食い違いかを判じよ。判じる根拠は引用で示す: 独立設計の行と案の行（その項目の "
               f"{'・'.join(design.ROW_QUOTE_KEYS)}）を、それぞれ「…」で字のまま引け。設計から引用できない所は、大きさの開きでも対の無さでも食い違いに数えない"
               "（表現の違い・設計が触れていない所もこの決まり1つで読む。設計は判定の単位も実装の事情も知らない）。"
@@ -176,8 +176,12 @@ DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何�
               "大きさの開きには、この項目の shrink に小さく閉じる別案も書け。この 2 つの頭の穴の why と design_map では、「」を"
               "独立設計と案の行の引用だけに使い、ほかの引用は『』か `…` で書け。"
               "独立設計が立つ run では、項目の答え（項目ごとの下請けの答えのファイル。下請けを起こさない往復と案の直しの事前審査では"
-              "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は項目の adds の name ごとに 1 行 "
-              "{item, name, design_quote（独立設計に対がある時はその行を字のまま引く。対が無ければ null）, why}。"
+              "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote（独立設計に"
+              "対がある時はその行を字のまま引く。対が無ければ null）, why} の 2 つの向き。案→設計: 項目の files の (path, symbol) ごとに"
+              "ちょうど 1 行——対象は change=add の symbol・change=remove の symbol（消す側も）・op が create・delete・rename の行"
+              "（symbol は null）。design_ref は対の要素の id（独立設計の後ろの要素の一覧の D1 など。対が無ければ null）。"
+              "設計→案: 案のどの行にも対の無い要素は、item・path・symbol を null にして design_ref だけを書いた行にする。独立設計の"
+              "要素の id は全部、どれかの行の design_ref に出す（漏れは受け付けが拒む）。"
               "単位を閉じるのに要る実装の細部は挙げない。頭の『既にある物を量ったかを見よ』（REUSE_REVIEW）で kind copy に挙げた行は、"
               "contract_drift に挙げ直さない。")
 DESIGN_NOT_STANDS = ("設計の役は、目的の問いが立たないと返した（{reason}）。問いが立つかは修正の後の独立の目が前提を実態で検算して"
@@ -185,20 +189,24 @@ DESIGN_NOT_STANDS = ("設計の役は、目的の問いが立たないと返し�
 DESIGN_NONE = "独立設計は無い（{why}）。設計との突き合わせはせずに審査せよ。"
 # 項目の組み方の決まり（修正案の役の頭。写しの指示書の「1 つの案で複数の単位を閉じてよい（一撃の原理に沿うならそれが望ましい）」
 # を同じファイルを触るだけの単位にまで当てない。canary の run 2 本が同じファイルの別の所を触る 2 単位を 1 項目にまとめた）
-ITEMS_RULE = ("項目の組み方: 項目をまとめるのは、単位が同じ根で 1 つの直しで閉じる時・同じ行か同じ塊（hunk）を変える時・"
-              "片方の直しがもう片方の直しの結果による時（先に直さないと直せない・試せない）だけ。同じファイルの別の所（別の関数・"
+ITEMS_RULE = ("項目の組み方: 項目をまとめるのは、単位が同じ根で 1 つの直しで閉じる時・同じ行か同じ塊（hunk）を変える時だけ。"
+              "片方の直しがもう片方の直しの結果による時（先に直さないと直せない・試せない）も、まとめずに項目を分け、後の項目の "
+              f"{planmarks.DEPENDS_KEY} に前の項目の単位と受ける物（前の項目の files の <パス>::<名前> か <パス>）を書け"
+              "（修正の段は依存する項目を同じ組に入れ、前の項目の単位を先に直す。循環・自分の項目への依存・前の項目に無い受ける物は"
+              "受け付けが拒む）。同じファイルの別の所（別の関数・"
               "別のクラス・別のクラスに足すテスト）を触るだけでは項目をまとめる理由にならない——そういう単位は別々の項目に分けよ。"
               "写しの指示書の『1 つの案で複数の単位を閉じてよい（一撃の原理に沿うならそれが望ましい）』は、根を本当に共にする単位の話")
 # 既にある物を先に探す決まり（修正案の役の頭と事前審査の頭。実の利用者の run 97fd532f: 事前審査が描画の検査を求め、修正案が
 # 約 260 行のサブコマンドと試験の束・偽の道具を新設したが、同じ workflow に 2〜3 行で同じ仕事をする助け手が在り、どの文書も量らなかった。
 # 判定役・修正役の「既製の物で済まないかを先に確かめろ」を案と審査の段に伸ばす）
-REUSE_RULE = ("既にある物を先に探せ: 新しい機構（スクリプト・サブコマンド・助け手の関数・テストの仕掛け（偽の道具・試験の束など））を"
-              " adds に足す前に、案が触るファイルと、その兄弟（同じ workflow の別の job・step、同じモジュール・同じ置き場の別のファイル）から、"
-              "同じ仕事を既にしている助け手を Grep で探せ。在ればそれを使う案にし、新設しない。それでも新設するなら、その adds の行の"
-              " canonical を今どおり置くファイルのパス（新しいモジュールなら <パス>.py（新設。…））で始め、その後ろに、当たった物"
-              "（パスと行）と採らない理由を書け（当たらなかったなら、どこをどう探したか）。書いていない新設は事前審査が穴に挙げる")
-REUSE_REVIEW = ("既にある物を量ったかを見よ: adds の行が新しい機構（スクリプト・サブコマンド・助け手の関数・テストの仕掛け）なのに、"
-                "canonical に当たった既存の物と採らない理由（当たらなかったなら探し方）が無ければ、kind copy の穴に挙げよ。書いてあっても、"
+REUSE_RULE = ("既にある物を先に探せ: 新しい機構（スクリプト・サブコマンド・助け手の関数・テストの仕掛け（偽の道具・試験の束など））を files の op=create の行か change=add の symbol に足す前に、"
+              "案が触るファイルと、その兄弟（同じ workflow の別の job・step、"
+              "同じモジュール・同じ置き場の別のファイル）から、同じ仕事を既にしている助け手を Grep で探せ。在ればそれを使う案にし、新設しない。"
+              "それでも新設するなら、その行の canonical に、当たった既存の物（パスと行）と採らない理由を書け（当たらなかったなら、どこを"
+              "どう探したか）。新しいモジュールは op=create の行で表す（行の path がそのモジュールのパス）。書いていない新設は事前審査が穴に挙げる")
+REUSE_REVIEW = ("既にある物を量ったかを見よ: files の op=create の行か change=add の symbol が新しい機構（スクリプト・サブコマンド・"
+                "助け手の関数・テストの仕掛け）なのに、その行の canonical に当たった既存の物と採らない理由（当たらなかったなら探し方）が"
+                "無ければ、kind copy の穴に挙げよ。書いてあっても、"
                 "案が触るファイルとその兄弟（同じ workflow・同じモジュール）を自分でも Grep で探し、同じ仕事をする既存の助け手が在れば、"
                 "それを使う形を shrink か穴の why に書け。穴を閉じる形として新しい機構を求める前にも同じ所を探し、既存の助け手で閉じるなら"
                 "それを名指して求めよ")
@@ -327,8 +335,9 @@ def design_only(b) -> str:
     if not got["question_stands"]:
         r = got.get("premise_invalid_reason") or got["reason"]
         return f"{DESIGN_HEAD}\n\n" + DESIGN_NOT_STANDS.format(reason=r + design.anchor_note(r))
+    elements = design.element_lines(got)
     return (f"{DESIGN_HEAD}\n\n{DESIGN_ASK}\n\n設計の役の理由: {got['reason']}\n\n=====独立設計ここから=====\n"
-            f"{got['design']}\n=====独立設計ここまで=====")
+            f"{got['design']}\n=====独立設計ここまで=====" + (f"\n\n{elements}" if elements else ""))
 
 
 def lib_section(b, repo, shared=None) -> str:
@@ -587,14 +596,16 @@ def carried_hits(b, n: int, rip: dict) -> dict:
     return out
 
 
-def design_gaps(b, faces, items: list, design_map=None) -> list[str]:
+def design_gaps(b, faces, items: list, design_map=None, *, cover: bool = True) -> list[str]:
     """独立設計の引用の誤りの行（design.quote_gaps。設計が立たない run では空）。faces の unit_keys は単位の名に戻して重ね、案の行は
-    壁打ちの控えの項目 items の行。design_map を渡す（None でない）と items の adds の name ごとの対応表も求める"""
+    壁打ちの控えの項目 items の行。design_map を渡す（None でない）と items の files の (path, symbol) ごとの対応表も求める。
+    cover は独立設計の要素の網羅を今の呼びで照らすか（項目ごとの答えは偽: ほかの項目が受ける要素を「どの項目も受けない」と
+    見分けられない。全部の項目の答えを合わせた網羅は tree_merge と _take が coverage_gaps で当てる）"""
     names = _names(b, NODE_OF["plan-review"])
     plan = converge.read(b).get("plan") or []
     rows = [{**plan[n - 1].get("row", {}), "item": n} for n in items if 1 <= n <= len(plan)]
     named = [{**f, "unit_keys": [unit_name(names, k) for k in f.get("unit_keys") or []]} for f in faces if isinstance(f, dict)]
-    return design.quote_gaps(b.dir, b.design_schema, named, rows, design_map)
+    return design.quote_gaps(b.dir, b.design_schema, named, rows, design_map, cover=cover)
 
 
 def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
@@ -626,7 +637,7 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     errs += [f"$.resolved: {k} は項目 {n} の前の往復の block に無い" for k in got["resolved"] if k not in prev]
     errs += [f"$.resolved: {k} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つ）"
              for k in got["resolved"] if k in block_keys]
-    return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [])]
+    return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [], cover=False)]
 
 
 def check_item(b, k: int, n: int, rip: dict, pre: list | None = None) -> tuple:
@@ -659,7 +670,8 @@ def _tree_off(b, k: int, rip: dict) -> bool:
 
 def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
     """事前審査の受け付けの木のまとめ（機械）。束ね役の返答の外した写し bare・束ね役の欄 tree・束ね役の resolved から、
-    {review（盤面へ渡す返答）, resolved, synergy（相乗りの審査の face の key）, hits（{項目: 当たりの答え}）, origins（新しい block の
+    {review（盤面へ渡す返答）, resolved, synergy（相乗りの審査の face の key）, hits（{項目: 当たりの答え}）, refs（{項目: 答えの対応表の
+    design_ref の並び}。往復の控えに置く）, origins（新しい block の
     出自の申告の行。下請けと相乗りの答えの物を集める）, files（往復の控えに写す答えのファイル）, gaps（拒む理由の行。在れば他は
     使わない）} を返す。木にしない案は審査役 1 つの返答のまま（出自の申告はその欄 origins。型は節の output_format が確かめ済み）"""
     k = converge.pass_no(b)
@@ -681,6 +693,12 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
         gaps += [f"{where}: {e}" for e in errs]
         if got is not None:
             answers[n] = got
+    refs = {n: design.refs_of(a.get(converge.DESIGN_MAP)) for n, a in answers.items()}
+    stood = design.stands(b.dir, b.design_schema)
+    if stood is not None and len(answers) == len(opened):   # 独立設計の要素の網羅は、全部の項目の答えと閉じた項目の控えを合わせて数える
+        seen = [r for rs in refs.values() for r in rs] + sorted(converge.carried_refs(b, opened))
+        gaps += [f"独立設計の要素（項目の答え {'・'.join(str(n) for n in opened)} を合わせて数えた）: {e}"
+                 for e in design.coverage_gaps(stood.get("elements"), seen)]
     if bare.get("faces") or bare.get("shrink") or tree.get(converge.ORIGINS):
         gaps.append("束ね役の faces・shrink・origins は空にする（項目の穴と出自は下請けの答えのファイルから機械がまとめる。写さない）")
     rows = tree.get(converge.ITEMS)
@@ -727,7 +745,7 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
             "synergy": [f["key"] for f in (syn or {}).get("faces") or []],
             "origins": [o for x in [*(answers[n] for n in opened), syn or {}] for o in x.get(converge.ORIGINS) or []],
             "hits": {n: _hit_rows(b, n, rip, answers[n]["hits"]) for n in opened}, "files": files, "gaps": [],
-            "precedents": (precedent_plan(b, opened), answers, k)}
+            "refs": {n: refs[n] for n in opened}, "precedents": (precedent_plan(b, opened), answers, k)}
 
 
 def _hit_rows(b, n: int, rip: dict, answered: list) -> list:

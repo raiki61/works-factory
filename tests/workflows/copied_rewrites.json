@@ -1422,6 +1422,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "**この工程が在る理由**: 修正の良し悪しを見る段は、今まで全部『直した後』に在った（P3 の自己申告・R1〜R4・次の周の全体レビュー）。\n",
    "copied": "**このノードが在る理由**: 修正の良し悪しを見る段は、今まで全部『直した後』に在った（P3 の自己申告・R1〜R4・次の周の全体レビュー）。\n"
+  },
+  {
+   "why": "修正案の項目の足す物・消す物の欄を、名前の一覧 adds・removes から 1 ファイルごとの行 files に替える（issue #568。パス・操作・受け持ちを別の欄にし、消す側に訳を求める）",
+   "original": "3. `adds` — **新しく生まれる物を全部**。1 件ごとに `kind`（種類）・`name`（名前）・`canonical` の 3 つを必ず書く。`kind` は次のどれか:\n   関数＝function・欄（schema・記録）＝record_field・柵（検査）＝guard・プロンプトの文＝prompt・文書＝doc・CLI の口＝cli・腕＝arm・\n   テスト＝test・設定＝config・どれにも当たらない物＝other。\n   `canonical`（その物の正本はどこか。既存の正本から引くなら引き先、新しく正本になるなら「新設」と理由）。\n   **書き落とした物は審査されない**——審査役は案に無い物を見ない\n4. `removes` — 消す・まとめる物（写し・使われない口・古い文）\n",
+   "copied": "3. `files` — **新しく生まれる物を全部**、1 ファイルごとの行で書く（消す物は次の 4）。1 行ごとに `path`（作業ツリーの根からの相対で 1 ファイル）・`op`（create＝新設・modify＝変える・delete＝消す・rename＝移す。rename は元のパスを `from` に）・`responsibility`（そのファイルの 1 つの受け持ち）・`symbols`・`canonical` を必ず書く。\n   `symbols` はそのファイルで足す・消す名の並びで、1 件ごとに `name`（識別子。パスや、行の `path` の拡張子で終わる字は書かない）・`kind`（種類）・`change`（add か remove）を書く。`kind` は次のどれか:\n   関数＝function・欄（schema・記録）＝record_field・柵（検査）＝guard・プロンプトの文＝prompt・文書＝doc・CLI の口＝cli・腕＝arm・\n   テスト＝test・設定＝config・どれにも当たらない物＝other。\n   `canonical`（その行の正本はどこか。既存の正本から引くなら引き先、新しく正本になるなら「新設」と理由）。\n   **書き落とした物は審査されない**——審査役は案に無い物を見ない\n4. 消す・まとめる物（写し・使われない口・古い文）も `files` に書く——消すファイルは `op` が delete か rename の行、消す名は `change` が remove の symbol。消す側には `why`（なぜ消すか。10 字以上）が必須で、置き換え先が在れば `replaced_by`（`<パス>::<名前>` か `<パス>`）も書く。足す側の行（`op` が create・modify の行と `change` が add の symbol）に `why`・`replaced_by` は書かない\n"
   }
  ],
  "workflows/test-gate/commands/ci.md": [
@@ -1523,6 +1528,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "問いが実在するなら question_stands=true とし、理想解を独立設計して design に書け。**目的の当事者が日常で回す動線（反復開発・運用・撤収）まで含めろ**——成果物の一回の起動で設計を閉じるな。お前は独立設計だけを返す。突合と verdict の確定は別の比較役がやる。\n",
    "copied": "問いが実在するなら question_stands=true とし、理想解を独立設計して design に書け。**目的の当事者が日常で回す動線（反復開発・運用・撤収）まで含めろ**——成果物の一回の起動で設計を閉じるな。この役は独立設計だけを返す。突合と verdict の確定は別の比較役がやる。\n"
+  },
+  {
+   "why": "独立設計の返答に要素の並び elements を足し、設計→案の向きの網羅を機械が数えられるようにする（issue #568。審査役が案の行を要素の id で指す）",
+   "original": "・design（独立設計）。\n",
+   "copied": "・design（独立設計）・elements（独立設計の要素の並び）。\n\n問いが立つ時は、独立設計が足す物・消す物の 1 まとまりごとに、要素を 1 つずつ elements に並べよ: {id（D1、D2、D3… と振る）, adds（その要素が足す物の字の並び）, removes（その要素が消す物の字の並び。無ければ空）}。審査役が案の行をこの id で指す（要素は設計の本文に書いた物と食い違えない）。\n"
   }
  ],
  "workflows/plan-review/commands/plan-review.md": [
@@ -1585,6 +1595,11 @@
    "why": "記録された方針だけが縛る（持ち主の決め machine-for-mechanics・issue #427）",
    "original": "7. **方針**（kind=policy）: 案が末尾の「人の方針」とぶつからないか\n",
    "copied": "7. **方針**（kind=policy）: 案が材料の「記録された方針」のセクションの行とぶつからないか。kind=policy の穴は、その行の名指しを decided_by に字のまま写す。一覧に無いコードのコメント・docstring・テストの説明文（対象の文）は方針ではない——案がその文を古いまま残すなら 3 の契約のずれ（kind=contract_drift。severity は block）で挙げ、案にその文の書き換えを入れさせよ\n"
+  },
+  {
+   "why": "修正案の項目の足す物・消す物の欄を、名前の一覧 adds・removes から 1 ファイルごとの行 files に替える（issue #568。読み手の指示書の字を欄に合わせる）",
+   "original": "## 見ること（案ごと・adds の 1 行ごと）",
+   "copied": "## 見ること（案ごと・files の 1 ファイルの行ごと）"
   }
  ],
  "workflows/fix/commands/delta-review.md": [
@@ -1617,6 +1632,16 @@
    "why": "語をグラフの語にそろえる（持ち主の決め graph-words。PR #253）",
    "original": "今まで修正が作った穴は次の周の全体レビューで初めて見つかり、次の周の修正がまた次の穴を作っていた（実測 2026-09-24: 3 周目の指摘のうち 8 件が 2 周目の修正の産物）。見るのは 3 点と下の品質の観点だけ（後退 `regression`・方針 `policy`・先行例 `precedent` は事前審査だけの語で、ここでは受け付けない——修正の後の後退は後の工程が人に上げる）:\n",
    "copied": "今まで修正が作った穴は次の周の全体レビューで初めて見つかり、次の周の修正がまた次の穴を作っていた（実測 2026-09-24: 3 周目の指摘のうち 8 件が 2 周目の修正の産物）。見るのは 3 点と下の品質の観点だけ（後退 `regression`・方針 `policy`・先行例 `precedent` は事前審査だけの語で、ここでは受け付けない——修正の後の後退は後の段が人に上げる）:\n"
+  },
+  {
+   "why": "修正案の項目の足す物・消す物の欄を、名前の一覧 adds・removes から 1 ファイルごとの行 files に替える（issue #568。読み手の指示書の字を欄に合わせる）",
+   "original": "足す物 `adds`・消す物 `removes`・受け入れ",
+   "copied": "足す物・消す物 `files`（1 ファイルごとの行。op と symbols の change で足す物・消す物を分け、消す側は訳 why を持つ）・受け入れ"
+  },
+  {
+   "why": "修正案の項目の足す物・消す物の欄を、名前の一覧 adds・removes から 1 ファイルごとの行 files に替える（issue #568。読み手の指示書の字を欄に合わせる）",
+   "original": "（`adds`・`removes`・`tests`・範囲の中の変更）",
+   "copied": "（`files` の足す行・消す行・`tests`・範囲の中の変更）"
   }
  ],
  "workflows/fix/commands/fix-rules/brief.md": [
@@ -1689,6 +1714,11 @@
    "why": "無人の run が推しで通した承認ノードの答えも同じファイルに載る（直前の行に「無人の run が採った推し」）ので、人の答えと名乗らない（持ち主の決め unattended・issue #552）",
    "original": "`which_is_right` は request（人が答えた条件の側が正しい）",
    "copied": "`which_is_right` は request（承認ノードで答えた条件の側が正しい）"
+  },
+  {
+   "why": "修正案の項目の足す物・消す物の欄を、名前の一覧 adds・removes から 1 ファイルごとの行 files に替える（issue #568。読み手の指示書の字を欄に合わせる）",
+   "original": "受け付けは差分を範囲・`adds`・`removes`・`tests` と照らし",
+   "copied": "受け付けは差分を範囲・`files`（足す物・消す物の行。ファイルの新設・消し・移しも）・`tests` と照らし"
   }
  ],
  "workflows/fix/commands/fix-rules/common.md": [
@@ -2084,6 +2114,11 @@
    "why": "組どうしの合わせの申し出（source join-clash）の裁き方と、それにだけ許す判定のやり直し rejudge を足す（持ち主の決め clash-goes-to-ruling。#382）",
    "original": "",
    "copied": "\n`source` が `join-clash` の行は、並べて直した 2 つの組の直しを親の作業ツリーで合わせたら試験が赤になり、合わせ役（ぶつかった組が変えたファイルの中だけで直す役）も直せなかった組から機械が作った申し出で、組の単位ごとに 1 件ずつ在る。`kind`・`which_is_right` は機械が決まった値を埋めた欄であり、役の見立てではない。組の直しは作業ツリーから外してあり、控えの差分に在る。この行に限り、次のとおり裁く。\n1. `why_both_cannot_hold` が名指す控えの差分と、合わせ役の拒否の理由のファイル（在れば）を Read で全部読め。赤の文が名指すテストと、前の組が変えたファイルも開け。\n2. 同じ組の行（`why_both_cannot_hold` が同じ行）は全部同じ `decision` に揃えよ。違う裁定を並べると機械が拒む。\n3. `fix_code_as`: 合わせ役がもう一度控えの差分を当てて直す時の直し方を `text` に書く。組が変えたファイルの外で触ってよいファイルが要るなら `limits` に並べる。\n4. `fix_test_scope`: 前の組の直しで、後の組のテストの期待が書いていた動きそのものが変わったと依頼か判定が示す時だけ。`limits` に直してよいテストの所を並べる。\n5. `fix_plan_item`: 2 つの組の項目が承認済みの修正案のままでは両立しない時。\n6. `rejudge`: 判定の単位の切り方が誤っていて、2 つの組が実は 1 つの問題を別々に直している時。`text` は判定のやり直しで判定役が読む異議として書く。`limits` は空。\n7. どれにも当たらない時だけ `ask_human`。\n"
+  },
+  {
+   "why": "修正案の項目の足す物・消す物の欄を、名前の一覧 adds・removes から 1 ファイルごとの行 files に替える（issue #568。読み手の指示書の字を欄に合わせる）",
+   "original": "項目の `tests`・`adds`・`removes` を",
+   "copied": "項目の `tests`・`files`（足す物・消す物の行）を"
   }
  ],
  "workflows/fix/commands/fix-rules/tdd.md": [

@@ -1,7 +1,7 @@
 # 独立設計が 1 回で通り、事前審査が block 無しで通す → pass: true・ask_human: false
 open: { ok: true, r2_go: true, tree: false, k: 1, form: review, depth_skip: false, reason: "" }
 r2-prep: { prompt: "stub: 元の目的と実測した制約" }
-r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解" }
+r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解", elements: [{ id: D1, adds: ["stub: 入口の 1 本化"], removes: [] }] }
 r2-accept: { ok: true, done: true, give_up: false, reason: "" }
 review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md", resubmit: false }
 plan-review: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }

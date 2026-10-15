@@ -2885,7 +2885,7 @@
 - K3c 既存のテストの変更を許す道は 1 本（裁定 fix_test_scope の範囲・承認済みの修正案の rewrite_tests・案の直しで直した項目・範囲の相談の合意）で、凍結の検査・事後の関門・範囲の照らし・最後の承認ノードはそこから引く
   - 元: keep-essence.md:12
   - 印: 無し
-  - 今: `lib/conflict.py::test_permits`（許す元は 5 つに増えている: 修正案の removes が名指す既存テストも足した。読み手 `lib/fixgates.py::_test_edits`・`lib/tddloop.py::frozen_problems`・`lib/planrange.py::permit_paths`・`lib/conflict.py::ruled_test_doc`）
+  - 今: `lib/conflict.py::test_permits`（許す元は 5 つに増えている: 修正案の項目の files の消す名（change=remove の symbol）が名指す既存テスト（書き換え・消しを許すだけ）も足した。読み手 `lib/fixgates.py::_test_edits`・`lib/tddloop.py::frozen_problems`・`lib/planrange.py::permit_paths`・`lib/conflict.py::ruled_test_doc`）
   - 状態: 在る
   - 旧棚卸し: F228・F039・F044
 
@@ -3711,7 +3711,7 @@
 - plan.md P017: lib/planmarks.py::gaps（元と字のまま）・lib/planfile.py::take_plan
 - plan.md P018: lib/planmarks.py::gaps
 - plan.md P019: lib/planmarks.py::gaps・lib/planmarks.py::glob_problem
-- plan.md P020: lib/planmarks.py::_file_name・lib/planmarks.py::gaps
+- plan.md P020: lib/planmarks.py::_symbol_problem・lib/planmarks.py::gaps
 - plan.md P021: lib/planfile.py::_save・lib/planfile.py::take_plan
 - plan.md P022: lib/planmarks.py::_limit・lib/planmarks.py::split
 - plan.md P023: lib/planfile.py::base_test_texts・lib/planfile.py::take_plan（`_trace(BASE_TESTS_UNREAD_OP)`）
