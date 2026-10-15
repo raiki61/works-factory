@@ -21,6 +21,7 @@ from tests.layers import scan
 
 if str(archon.ROOT / "lib") not in sys.path:
     sys.path.append(str(archon.ROOT / "lib"))
+import depth  # noqa: E402
 import fixbeside  # noqa: E402  （diff の隣の控えの名の持ち主）
 import fixboard  # noqa: E402
 
@@ -29,7 +30,7 @@ SCENARIOS = (
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
     "unattended-questions", "unattended-policy-change", "unattended-push", "unattended-push-stop", "eyes-failed-protected", "refix-handoff",
-    "nothing-owed", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence", "fix-fixture",
+    "nothing-owed", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence", "depth-heavy", "fix-fixture",
 )
 
 
@@ -214,37 +215,39 @@ class ProtectedNotAppliedTest(unittest.TestCase):
 
 
 class HeadDepthTest(unittest.TestCase):
-    """run の頭の深さ（issue #441）: 軽量の run は表のノード（事前審査の輪）が skipped になり報告まで届く。走っている間に上げる信号
-    （計画の単位に標準）が出た run と、根拠が引けず判定が標準を返した run は、輪が走る。筋書きの宣言は節が走らなかったことを照らせない
-    ので、dry-run の trace で照らす"""
+    """run の頭の深さ（issue #441）: 計画の壁打ち（plan と plan-review の往復）はどの深さでも省かない。頭が軽量・重厚・標準のどの筋書きでも
+    事前審査の輪が走って報告まで届き、事前審査の輪を飛ばす節（plan-review-due）は線に無い。筋書きの宣言は節が走らなかったことを
+    照らせないので、dry-run の trace で照らす"""
 
     LOOP = "plan-review-run__review-loop"
+    NAMES = ("depth-light", "depth-raised", "depth-heavy", "depth-no-evidence")
 
     @classmethod
     def setUpClass(cls):
-        cls.traces = line_traces(("depth-light", "depth-raised", "depth-no-evidence"))
+        cls.traces = line_traces(cls.NAMES)
 
-    def due(self, name) -> dict:
-        return json.loads(self.traces[name]["plan-review-due"]["output"])
+    def test_light_head_runs_the_review_loop(self):
+        for name in self.NAMES:
+            with self.subTest(name=name):
+                trace = self.traces[name]
+                self.assertEqual(trace[self.LOOP]["state"], "completed")
+                self.assertNotIn("plan-review-due", trace)
+                self.assertTrue(UnattendedGateTest.ran(trace, "report__report"))
 
-    def test_light_run_skips_the_listed_node_and_reports(self):
-        trace = self.traces["depth-light"]
-        due = self.due("depth-light")
-        self.assertIs(due["skip"], True, due)
-        self.assertEqual(trace[self.LOOP]["state"], "skipped")
-        self.assertIs(json.loads(trace["fixed"]["output"])["review_skipped"], True)
-        self.assertTrue(UnattendedGateTest.ran(trace, "report__report"))
-
-    def test_raised_run_runs_the_loop(self):
-        due = self.due("depth-raised")
-        self.assertEqual((due["skip"], due["why"]), (False, "計画の単位がすべて軽量ではない"), due)
-        self.assertEqual(self.traces["depth-raised"][self.LOOP]["state"], "completed")
-
-    def test_unproven_request_is_standard_and_runs_the_loop(self):
-        due = self.due("depth-no-evidence")
-        self.assertEqual((due["skip"], due["why"]), (False, ""), due)
-        self.assertEqual(self.traces["depth-no-evidence"][self.LOOP]["state"], "completed")
-        self.assertIs(json.loads(self.traces["depth-no-evidence"]["fixed"]["output"])["review_skipped"], False)
+    def test_the_head_reaches_what_it_omits_and_adds(self):
+        """issue #561: 判定の頭の深さの語は、段の省く物を効かせる所（fix・redepth・eyes）と足す物を効かせる所（plan-review-run）に
+        そのまま届き、本物の報告の頭の深さの行が段ごとに違う物を名指す（軽量は単位がどれも軽量の時の省く物、重厚は足した物）"""
+        top = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
+        nodes = {n["id"]: n for n in [*top, *(m for n in top for m in (n.get("loop_group") or {}).get("nodes") or [])]}
+        omits = "・".join(depth.TIERS[depth.LIGHT]["omits"])
+        for name, head, said in (("depth-light", depth.LIGHT, f"／省く物（単位がどれも軽量の時）: {omits}／足した物: 無い"),
+                                 ("depth-heavy", depth.HEAVY, f"／省く物: 無い／足した物: {'・'.join(depth.tier_adds(depth.HEAVY))}")):
+            with self.subTest(name=name):
+                trace = self.traces[name]
+                for node in ("fix", "redepth", "eyes", "plan-review-run"):
+                    self.assertEqual(bound(trace, nodes[node]["with"]["head_depth"]), head, node)
+                line = next(x for x in report_facts(trace)["text"].splitlines() if x.startswith("- run の頭の深さ: "))
+                self.assertTrue(line.startswith(f"- run の頭の深さ: {head}（") and line.endswith(said), line)
 
 
 def bound(trace: dict, value):
@@ -429,11 +432,6 @@ class FixFixtureTest(unittest.TestCase):
         collected = json.loads(self.trace["collect"]["output"])
         for name in ("test_gate_base", "judge", "plan", "plan_review"):
             self.assertEqual(collected[name], carried[name], name)
-
-    def test_copied_review_skip_reaches_the_eyes(self):
-        """写した run が事前審査を深さで飛ばしていれば（#517）、計画の往復が飛ぶこの run でも fixed が review_skipped を立てる"""
-        self.assertIs(json.loads(self.trace["fix-in"]["output"])["received"]["plan"]["depth_skip"], True)
-        self.assertIs(json.loads(self.trace["fixed"]["output"])["review_skipped"], True)
 
     def test_spec_check_passes_without_a_spec_stage(self):
         """固定材料の run は仕様の段と組めないので、承認し直すかの照らし（#510）は fix-in の運ぶ spec（null）を読み、問いも止めも無い"""

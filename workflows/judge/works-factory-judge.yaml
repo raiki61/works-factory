@@ -17,7 +17,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [go, mode, spec, world, verify, reason]
+      required: [go, mode, spec, world, reason]
       properties:
         go: {type: boolean}
         mode:
@@ -25,10 +25,9 @@ nodes:
           enum: [judge, rejudge]
         spec: {type: boolean}
         world: {type: boolean}
-        verify: {type: boolean}
         reason: {type: string}
-  # run の頭の深さ（docs/design.md の「深さで飛ばすノードの表」）。支度が機械の止めを通し、役が依頼と行の引用で軽量か標準かを決め、
-  # 受け付けが引用を照らす。控えは judge/depth-head.json で、返す節が読む。落ちても判定は標準で進む
+  # run の頭の深さ（docs/design.md の「深さの段の表」）。支度が機械の止めを通し、役が依頼と行の引用で 3 段のどれかを決め、
+  # 受け付けが引用を照らす。控えは judge/depth-head.json で、返す節と裏取りの支度が読む（裏取りの支度は diagnose-prep を通してこの役の終わりを待つ）。落ちても判定は標準で進む
   - id: head-depth-prep
     script: head_depth_prep
     runtime: uv
@@ -84,7 +83,7 @@ nodes:
             properties:
               depth:
                 type: string
-                enum: [軽量, 標準]
+                enum: [軽量, 標準, 重厚]
               why: {type: string, minLength: 1, pattern: '\S'}
               items:
                 type: array
@@ -1851,7 +1850,7 @@ nodes:
     runtime: uv
     timeout: 1728000000
     depends_on: [material-route, prior-decisions-loop, purpose-review-loop, local-review-loop, consistency-bypass-loop, hygiene-loop, external-standards-loop, procedure-trace-loop, gate-efficacy-loop, test-double-fidelity-loop,
-      main-path-observation-loop, provenance-loop]
+      main-path-observation-loop, provenance-loop, head-depth-loop]
     trigger_rule: all_done
     when: $intake.output.go == true && $intake.output.mode == 'judge'
     mutates_checkout: false
@@ -2293,7 +2292,7 @@ nodes:
       properties:
         depth:
           type: string
-          enum: [軽量, 標準]
+          enum: [軽量, 標準, 重厚]
         depth_why: {type: string}
         ready: {type: boolean}
         stop_reason: {type: string}

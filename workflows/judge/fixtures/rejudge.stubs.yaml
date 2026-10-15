@@ -3,7 +3,7 @@ fixture:
   expect: completed
   inputs: {objection: 単位 1 は clamp の欠陥と同じ根で、分けると二度直す}
   reached: [intake, rejudge-prep, rejudge-accept, verdict]
-intake: {go: true, mode: rejudge, spec: false, world: false, verify: false, reason: ''}
+intake: {go: true, mode: rejudge, spec: false, world: false, reason: ''}
 rejudge-prep: {go: true, brief_file: /tmp/rejudge/brief.md, reason: ''}
 rejudge:
   verdict: 一部採る
