@@ -505,6 +505,26 @@ class ScopeTextSeamCase(TempCase):
         self.assertIn("`conf.ini`", pr.scope_text(pr.fix_scope(self.place, "ruled", items=self.ITEMS)[0]))
         self.assertEqual(planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="ruled", items=self.ITEMS)[0], [])
 
+    def test_each_stage_pastes_the_out_of_scope_rule_its_check_applies(self):
+        """修正の段は申告した単位の項目が明示に許したパスをその項目の out_of_scope だけで照らし、手直しの段は全部の項目で照らす。
+        節の決まりの文は段ごとに照らしと同じ決まりを言う"""
+        import planrange as pr
+        import planscope
+        items = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["shared/x.py"], "tests": [], "rewrite_tests": [],
+                  "out_of_scope": []},
+                 {"item": 2, "unit_keys": [KEY_B], "allowed_paths": ["stats.py"], "tests": [], "rewrite_tests": [],
+                  "out_of_scope": [{"glob": "shared/**", "why": "別の項目の物"}]}]
+        lines, _ = planscope.problems(items, [{"unit_key": KEY_A, "files": ["shared/x.py"]}],
+                                      {"shared/x.py": ("A = 1\n", "A = 2\n")})
+        self.assertFalse([x for x in lines if "shared/x.py" in x], lines)
+        fix = pr.scope_text(pr.fix_scope(self.place, "first", items=items)[0])
+        self.assertIn(pr.OOS_MINE, fix)
+        self.assertNotIn(pr.OOS_ANY, fix)
+        self.assertTrue(pr.outside(items, ["shared/x.py"]), "手直しの段は別の項目の out_of_scope でも拒む")
+        refix = pr.scope_text(pr.scope(self.place, items=items, ruled=True)[0])
+        self.assertIn(pr.OOS_ANY, refix)
+        self.assertNotIn(pr.OOS_MINE, refix)
+
 
 R_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 R_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"

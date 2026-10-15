@@ -718,6 +718,16 @@ class PrepCase(unittest.TestCase):
         for path in ("stats.py", "test_stats.py", "vendored/**"):
             self.assertIn(f"`{path}`", text)
         self.assertNotIn(planrange.SCOPE_HEAD, pathlib.Path(self.prep()["prompt_file"]).read_text(encoding="utf-8"))
+        conflict = fixrules.conflict
+        conflict.park(self.place, [{"unit_key": "a: 分母", "between": ["stats.py:3", "test_stats.py:2"],
+                                    "why_both_cannot_hold": "テストと今のコードの両方は成り立たない",
+                                    "which_is_right": "request", "kind": "brief_vs_judgment"}], source=conflict.FIX_SOURCE)
+        conflict.apply_rulings(self.place, {"c1-1": {"decision": "fix_code_as", "text": "設定のファイルも直してよい",
+                                                     "limits": ["conf.ini"]}}, by="t")
+        self.assertNotIn("`conf.ini`", pathlib.Path(self.prep(items=items)["prompt_file"]).read_text(encoding="utf-8"),
+                         "裁定の前の周は直す裁定のパスを貼らない（受け付けも許さない）")
+        ruled = pathlib.Path(self.prep("ruled", items=items)["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn("`conf.ini`", ruled, "裁定の後の周は受け付けが許す直す裁定のパスを貼る")
 
     def test_unknown_pass_and_broken_briefs(self):
         with self.assertRaises(fixrules.Unfilled):
