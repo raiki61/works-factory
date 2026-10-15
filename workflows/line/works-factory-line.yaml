@@ -7,7 +7,7 @@ description: |
   修正から後ろのノードは、直す前のテスト・判定・計画・修正前の承認の答えを中継のノード fix-in から読む。固定材料（fix_fixture）を
   名指した run は、start が写しを取り込み、直す前のテスト・判定・計画を飛ばして fix-in が写しの値を運び、修正から始める。
   サブグラフに渡す飛ばされうる値は、返しのノード（埋め P2: answer-*・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
-  サブグラフと計画の往復の出力は受け皿のノード（<include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
+  サブグラフと計画の往復の出力は受け皿のノード（埋め P8: <include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
   （受けるノードが落ちても受け皿が飛ばされるだけで、報告まで届く）。
   出力はメイングラフのノード result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
 
@@ -37,7 +37,7 @@ inputs:
     description: 最後の承認ノードの開き方。always（空の既定）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
   unattended:
     default: ""
-    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず、承認ノードを開くはずの時は開かずに止める（needs-human）
+    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず、承認ノードを開くはずの時は項目の全部の推しが通すならその推しで進み、そうでなければ開かずに止める（needs-human）
   design_only:
     default: ""
     description: 設計だけの run か（空か true）。true は修正前の承認ノードを必ず開く
@@ -372,7 +372,8 @@ nodes:
         text: { type: string }
         deferred: { type: array }
         asked: { type: array }
-      required: [open, go, stop_reason, text, deferred, asked]
+        pushed: { type: [object, "null"] }
+      required: [open, go, stop_reason, text, deferred, asked, pushed]
     mutates_checkout: false
     depends_on: [plan-rounds]
     with:
@@ -414,6 +415,7 @@ nodes:
       place: gate-before-fix
       asked: "$ask-before-fix.output.asked"
       start: "$start.output.record"
+      pushed: "$ask-before-fix.output.pushed"
 
   # 7 修正の段へ運ぶ値の中継。通常の run は受け皿と修正前の承認の答えから組み、修正に入る時に 1 度だけ固定材料を写す。固定材料の run は
   # start が取り込んだ写しの値を運ぶ。どの run でも走る（answer-start は必ず走る）ので、後ろが直に読んでも飛んだ値で落ちない
@@ -606,7 +608,8 @@ nodes:
         text: { type: string }
         widened: { type: array }
         asked: { type: array }
-      required: [open, go, stop_reason, text, widened, asked]
+        pushed: { type: [object, "null"] }
+      required: [open, go, stop_reason, text, widened, asked, pushed]
     mutates_checkout: false
     depends_on: [replan-review]
     with:
@@ -655,6 +658,7 @@ nodes:
       items: "$fix.output.replan_items"
       ripple: "$replan.output.ripple"
       first_ripple: "$fix-in.output.ripple"
+      pushed: "$ask-replan.output.pushed"
 
   - id: refix-run
     include: works-factory-fix

@@ -8,7 +8,8 @@
 - read(board_dir):     控え（無い・読めない・形が違うなら None。拒まない）
 - rows(design_file):   設計の行（design.jsonl の JSON のオブジェクトの並び）。読めない・行が壊れていれば ValueError
 - note(state):         落ちた周の 1 文（ok の周・控えが無い周は ""）
-- plan_section(board_dir): 修正案の指示書の頭に貼る節（行が在れば行と守り方の指示、落ちた周は note、控えが無い・行が無い周は ""）
+- plan_section(board_dir): 修正案の指示書の頭に貼る節（汚れる行が在れば守り方の指示とその行だけ、行は在るが汚れる行が無い周は答えの要らない旨の 1 行、
+  汚れない行は別の小見出し PLAN_CLEAN_HEAD の下。落ちた周は note、控えが無い・行が無い周は ""）
 - dirty(board_dir):    汚れると見た行（単位の id → 行）。控えが無い・落ちた周・行が読めない周は {}（修正案の欄 structure の要る行）
 - report_lines(board_dir, after_dir=None): 報告の「構造の目」の節の行（判定の行か落ちの印と、構造の実測と目で増えた時間（段 A と目の秒に、
   after_dir（既定は board_dir）の直しの後の実測の段 B の秒を足す）と、直しの後の実測の行。控えが無い run は []）
@@ -39,6 +40,8 @@ DIRTY = "汚れる"           # 設計の行の verdict の語（約束は構造
 ROUTE_UP = "人に上げる"    # 設計の行の route の語（同じ約束。関所の項目にする行。gatemarks が読む）
 PLAN_ASK = ("汚れると見た行の単位を持つ項目は、行ごとに避け方（chosen）に従うか、従わない訳を、項目の works の欄 structure に書け"
             "（{row: <行の頭の単位の id>, follows: true} か {row, deviation: <訳>}。欠けは受け付けが拒む）。")
+PLAN_NONE = "構造の目が汚れると見た行は無い（structure の欄に構造の目の行への答えは要らない）。"
+PLAN_CLEAN_HEAD = promptsection.Section("### 汚れないと見た行（参考。structure にこの行への答えを書くと受け付けが拒む）", source="fn:structmark.plan_section")
 
 
 def write(board_dir, *, status: str, reason: str, design_file: str, wall_s) -> pathlib.Path:
@@ -92,6 +95,10 @@ def _row_line(r: dict) -> str:
     return text
 
 
+def _bullets(rs: list) -> str:
+    return "\n".join(f"- {_row_line(r)}" for r in rs)
+
+
 def _state_rows(board_dir):
     """(控え, 行, 落ちの 1 文)。控えが無ければ (None, [], "")。行が読めない周は落ちとして 1 文を返す"""
     state = read(board_dir)
@@ -105,10 +112,15 @@ def _state_rows(board_dir):
         return state, [], note({"status": "failed", "reason": str(e)})
 
 
+def _is_dirty(r: dict) -> bool:
+    """汚れるの判定の式（dirty() と plan_section が共に呼ぶ 1 か所）"""
+    return r.get("verdict") == DIRTY and isinstance(r.get("unit_id"), str)
+
+
 def dirty(board_dir) -> dict:
     """{単位の id: 汚れると見た設計の行}。控えが無い・落ちた周・行が読めない周は {}（行なしで計画した周は欄を求めない）"""
     _, got, _ = _state_rows(board_dir)
-    return {r["unit_id"]: r for r in got if r.get("verdict") == DIRTY and isinstance(r.get("unit_id"), str)}
+    return {r["unit_id"]: r for r in got if _is_dirty(r)}
 
 
 def plan_section(board_dir) -> str:
@@ -117,7 +129,10 @@ def plan_section(board_dir) -> str:
         return f"{PLAN_HEAD}\n\n{missing}"
     if not got:
         return ""
-    return f"{PLAN_HEAD}\n\n{PLAN_ASK}\n\n" + "\n".join(f"- {_row_line(r)}" for r in got)
+    dirty_rows = [r for r in got if _is_dirty(r)]
+    clean_rows = [r for r in got if not _is_dirty(r)]
+    out = f"{PLAN_HEAD}\n\n{PLAN_ASK}\n\n{_bullets(dirty_rows)}" if dirty_rows else f"{PLAN_HEAD}\n\n{PLAN_NONE}"
+    return f"{out}\n\n{PLAN_CLEAN_HEAD}\n\n{_bullets(clean_rows)}" if clean_rows else out
 
 
 def report_lines(board_dir, after_dir=None) -> list:

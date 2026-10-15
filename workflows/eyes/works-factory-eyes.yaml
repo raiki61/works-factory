@@ -6,24 +6,24 @@ description: |
   出力ノード verdict はそのファイルを読んで lib/eyeverdict.py でまとめる（落ちたノードへの with: は誤りで止まるため）。
 
 inputs:
-  units: {required: true, description: "$judge.output.units（単位の目録。JSON の配列）"}
-  judgment: {required: true, description: "$judge.output.judgment（judgment.json のポインタ）"}
-  purpose: {required: true, description: "$judge.output.purpose（purpose.json のポインタ）"}
-  world: {required: true, description: "$judge.output.world（定石の行のポインタ。null 可）"}
-  plan: {required: true, description: "$plan.output.plan（plan-fields.json のポインタ）"}
-  ripple: {required: true, description: "$plan.output.ripple（ripple.json のポインタ）"}
-  depth: {required: true, description: "$redepth.output.depth（単位ごとの深さ。JSON の配列）"}
-  design: {required: true, description: "$plan-review.output.design（design.json のポインタ）"}
-  changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む）"}
-  fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
-  green_ok: {required: true, description: "$test-gate-final.output.ok"}
-  test_outcomes: {required: true, description: "$test-gate-final.output.test_outcomes（テストごとの base と最後の結末 {rows, unmeasured}）。比較役に貼る"}
-  diffs: {required: true, description: "$fixed.output.diffs（修正の段ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む）"}
-  start: {default: "null", description: "$start.output.record（始めの記録のポインタ）"}
-  plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の承認ノードの項目 {kind, text}）"}
-  answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の承認ノードの答え）"}
-  start_answers: {default: "null", description: "{ from: $gate-start.output, if_skipped: null }（始めの承認ノードの答え。plan-review が独立設計に貼った人の答えと同じ源）"}
-  x_scalars: {default: "null", description: "$fix.output.x_scalars（修正役が足した x_ の規模の数値。JSON の object）"}
+  units: {required: true, description: "単位の目録。JSON の配列"}
+  judgment: {required: true, description: "judgment.json のポインタ"}
+  purpose: {required: true, description: "purpose.json のポインタ"}
+  world: {required: true, description: "定石の行のポインタ。null 可"}
+  plan: {required: true, description: "plan-fields.json のポインタ"}
+  ripple: {required: true, description: "ripple.json のポインタ"}
+  depth: {required: true, description: "単位ごとの深さ。JSON の配列"}
+  design: {required: true, description: "design.json のポインタ"}
+  changed: {required: true, description: "修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む"}
+  fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}
+  green_ok: {required: true, description: "最後のテストの段が通ったか。真偽の値"}
+  test_outcomes: {required: true, description: "テストごとの base と最後の結末 {rows, unmeasured}。比較役に貼る"}
+  diffs: {required: true, description: "修正の段ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む"}
+  start: {default: "null", description: "始めの記録のポインタ"}
+  plan_questions: {default: "null", description: "修正前の承認ノードの項目 {kind, text}"}
+  answers: {default: "null", description: "修正前の承認ノードの答え"}
+  start_answers: {default: "null", description: "始めの承認ノードの答え（独立設計に貼られる人の答えと同じ物）"}
+  x_scalars: {default: "null", description: "修正役が足した x_ の規模の数値。JSON の object"}
 
 returns: verdict
 outcome_field: ok

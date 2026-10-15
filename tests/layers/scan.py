@@ -20,8 +20,16 @@ from bin._lib import isolate
 from bin._lib.place import WORKFLOW_FOLDER
 from lib import answer
 
+
+def word(pattern: str) -> re.Pattern:
+    """pattern（正規表現の断片）を語として当てる式。前後が `[\\w\\-/.]` の時は語の一部（plan-fields.json・fix_plan・plan/r1）で数えない"""
+    return re.compile(rf"(?<![\w\-/.])(?:{pattern})(?![\w\-/.])")
+
+
 BOUNDARY = "boundary.py"
-POLYFILL_ROW = re.compile(r"workflows/\.shared/([^\s`（）()、・。]+)(`?（予定）)?")
+# 「（予定）」は語の境の外に置く。後ろに字が続いても（予定）を落とさない
+POLYFILL_ROW = re.compile(word(r"((?:workflows|bin|lib|tests)/[^\s`（）()、・。]+)").pattern + r"(`?（予定）)?")
+POLYFILL_FOLDERS = (("workflows", ".shared"), ("bin", "_lib"))
 
 ARCHON_WORDS = re.compile(
     r"(?i:archon)|ARTIFACTS_DIR|TYPED_ARTIFACTS_FILE|output_type|(?<![A-Za-z0-9_])INPUTS_[A-Z0-9_]+|WORKFLOW_ID|\$LOOP_PREV"
@@ -86,6 +94,20 @@ OWNER_ENV = ("raiki61", "claude-code-oauth-", "/Users/")
 # 決まりごとに照らしから外すパス。`/` で終わる行はそのフォルダの下の全部。`<パス>#<字>` の行は、そのパスの問題のうちその字を名指す物
 # だけ。どの行も本物の木の何かに当たる（stale_allowances）。
 ALLOWED = {
+    "E2": (
+        # bin/_lib/ の埋めでない物（起動の認証と隔離を今の works から持ってきた入口の部品。bin/AGENTS.md の E15）。埋めは名簿の行が持つ
+        "bin/_lib/auth_launch.py",
+        "bin/_lib/claude_auth.py",
+        "bin/_lib/copyledger.py",
+        "bin/_lib/hostgh.py",
+        "bin/_lib/isolate.py",
+        "bin/_lib/pack.py",
+        "bin/_lib/spseam.py",
+        "bin/_lib/startpoint.py",
+        "bin/_lib/testcmd_check.py",
+        "bin/_lib/borrow/",
+        "bin/_lib/no-post-bin/",
+    ),
     "E3": (
         "lib/AGENTS.md",
         # 役に届く文に $LOOP_PREV が無いことを確かめる試験の字。語の不在を試すので残る
@@ -284,13 +306,13 @@ def _polyfills_listed(root: Path) -> list[str]:
                 if match[1] not in listed or listed[match[1]][1] and not planned:
                     listed[match[1]] = (number, planned)
     for name, (number, planned) in listed.items():
-        if not planned and not (root / "workflows" / ".shared" / name).is_file():
-            out.append(f"{_rel(root, registry)}:{number}: 名簿の workflows/.shared/{name} が木に無い")
-    shared = root / "workflows" / ".shared"
-    for path in _files(root, "workflows", ".shared"):
-        name = path.relative_to(shared).as_posix()
-        if name != BOUNDARY and name not in listed:
-            out.append(f"{_rel(root, path)}:1: 名簿にも境の口にも当たらない")
+        if not planned and not (root / name).exists():
+            out.append(f"{_rel(root, registry)}:{number}: 名簿の {name} が木に無い")
+    for folder in POLYFILL_FOLDERS:
+        for path in _files(root, *folder):
+            name = _rel(root, path)
+            if name != f"workflows/.shared/{BOUNDARY}" and name not in listed:
+                out.append(f"{name}:1: 名簿にも境の口にも当たらない")
     return out
 
 
@@ -313,7 +335,7 @@ def _block_paths(root: Path) -> list[str]:
     script は同じ `scripts/` の別の script を import せず（K8）、script の名は lib のモジュールの名と重ならない（script のフォルダが
     sys.path の頭に来るので、`import <名>` が lib の物でなく script を読む。K19）。
     """
-    out = _script_imports(root) + _script_names(root)
+    out = _script_imports(root) + _script_names(root) + _input_producers(root)
     blocks = [p.name for p in _blocks(root)]
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
@@ -340,6 +362,58 @@ def _block_paths(root: Path) -> list[str]:
                         out.append(f"{rel}:{number}: 相対パス {target} がほかのブロック {pointed} を指す")
                     elif is_script and not resolved.startswith(allowed):
                         out.append(f"{rel}:{number}: 相対パス {target} が lib/・workflows/.shared/・自分のブロックの外を指す")
+    return out
+
+
+MAIN_GRAPH_WORD = "メイングラフ"
+OUTPUT_OF_NODE = re.compile(r"\$([\w-]+)\.output")
+
+
+def _top_hyphen_ids(root: Path) -> set[str]:
+    """一番上のグラフ（line・chain）の節の id のうち `-` を含む物。`-` の無い id は普通の語と重なるので入れない"""
+    ids = set()
+    for name in TOP_FOLDERS:
+        _, top = _workflow_doc(root / "workflows" / name)
+        if top is not None:
+            ids |= {i.value for node in _nodes(top) if isinstance(i := _top(node, "id"), yaml.ScalarNode) and "-" in i.value}
+    return ids
+
+
+def _input_producers(root: Path) -> list[str]:
+    """ブロック（一番上のグラフ line・chain を除く）の inputs: の description が、値の作り手を名指さない。
+
+    名指しに数えるのは、`$<id>.output`（そのブロック自身の YAML の節の id は兄弟の参照なので数えない）・語「メイングラフ」・ほかのブロックの名
+    （`works-factory-` の頭が付いてもよい）・一番上のグラフの節の id のうち `-` を含む物。結びはメイングラフの with: だけが持つ。
+    description は YAML の値として読むので、flow の形も `>-`・`|` の複数行の形も 1 つの字になる。
+    説明の無い入力は名指す字も無いので見ない。字でない（mapping の）説明は中に字を隠せるので、問題の行にする
+    """
+    folders = _blocks(root)
+    top_ids = _top_hyphen_ids(root)
+    ids = word("|".join(re.escape(i) for i in sorted(top_ids, key=len, reverse=True))) if top_ids else None
+    out = []
+    for folder in folders:
+        if folder.name in TOP_FOLDERS:
+            continue
+        path, document = _workflow_doc(folder)
+        if document is None:
+            continue
+        own_ids = {i.value for node in _nodes(document) if isinstance(i := _top(node, "id"), yaml.ScalarNode)}
+        others = (set(BLOCKS) | {p.name for p in folders}) - {folder.name}
+        names = word(rf"(?:{re.escape(OURS_PREFIX)})?(?:" + "|".join(re.escape(n) for n in sorted(others, key=len, reverse=True)) + ")")
+        for key, spec in _pairs(_top(document, "inputs")):
+            description = _top(spec, "description")
+            if description is None:
+                continue
+            if not isinstance(description, yaml.ScalarNode):
+                out.append(f"{_rel(root, path)}:{_line(description)}: 入力 {key} の説明が字でない")
+                continue
+            text = description.value
+            found = [m[0] for m in OUTPUT_OF_NODE.finditer(text) if m[1] not in own_ids]
+            found += [MAIN_GRAPH_WORD] * (MAIN_GRAPH_WORD in text)
+            found += [m[0] for m in names.finditer(text)]
+            found += [m[0] for m in ids.finditer(text)] if ids else []
+            for hit in found:
+                out.append(f"{_rel(root, path)}:{_line(description)}: 入力 {key} の説明が作り手 {hit} を名指す")
     return out
 
 

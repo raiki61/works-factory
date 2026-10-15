@@ -12,28 +12,28 @@ description: |
 inputs:
   start:
     default: ""
-    description: 始めの記録のポインタ（メイングラフの start の record）。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・review_rev・input.base.rev・lang を読む
+    description: 始めの記録のポインタ。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・review_rev・input.base.rev・lang を読む
   units:
     default: "[]"
-    description: 単位の目録（judge の units。[{id, paths, summary}]）
+    description: 単位の目録（[{id, paths, summary}]）
   judgment:
     default: ""
-    description: 受け付けた判定のポインタ（judge の judgment。judgment.json と、隣の judge-verify.json・pr-excluded.json）
+    description: 受け付けた判定のポインタ（judgment.json と、隣の judge-verify.json・pr-excluded.json）
   world:
     default: "null"
-    description: 定石の行のポインタ（judge の world。world-row の行の並び）。無ければ null
+    description: 定石の行のポインタ（world-row の行の並び）。無ければ null
   spec:
     default: "null"
-    description: 仕様のポインタ（judge の spec）。無ければ null
+    description: 仕様のポインタ。無ければ null
   review:
     default: ""
-    description: 事前審査の指摘のポインタ（plan-review の review。往復の 2 回目から。空の字と null は事前審査がまだ無い）
+    description: 事前審査の指摘のポインタ（往復の 2 回目から。空の字と null は事前審査がまだ無い）
   ruling:
     default: "[]"
-    description: 案の直しで直す項目の番号の字の並び（fix の replan_items）。空でなければ形 replan
+    description: 案の直しで直す項目の番号の字の並び。空でなければ形 replan
   conflicts:
     default: "null"
-    description: 申し出と裁定の行のポインタ（fix の conflicts。conflicts.json）。案の直しの時だけ
+    description: 申し出と裁定の行のポインタ（conflicts.json）。案の直しの時だけ
   prior_failures:
     default: "null"
     description: 前の run で最後まで通らなかった物の行のポインタ（[{where, text}]。lib/carry の prior-failures-in.json の形）。無ければ null
