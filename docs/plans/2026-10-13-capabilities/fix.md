@@ -1237,17 +1237,17 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
   - 本物の run: 種で組が 2 つなら、mean と clamp の直しが同じ stats.py に当たるので本物の run で起きうる。join.json の returned と rerun-<group_id>/ のログで見える
   - 狭め: → #121 で戻した（F411 の (1)(2) で埋まる）
 
-- F413 子の結果のファイルが無い（子が落ちた）組は当てず、単位を not_done・組を returned: false と理由にする
+- F413 子の結果のファイルが無い（子が落ちた）組は当てず、単位を not_done・組を returned: false と理由にする（issue #576 から、子が落ちると組の節が落ちて join は走らず、それでも結果の無いか読めない組が在れば join は作業ツリーを変えずに落ちて run を止める。返す節の行の既定 NO_RESULT は残る）
   - 元: works/blk-fix/lib/tddlanes.py（TestSettle.test_unfinished_lane_goes_back_to_serial）、fixlanes.py（TestJoin.test_unfinished_lane_goes_back）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_marks_missing_result_not_done、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_join_rows_keep_child_status_only_for_returned_groups
+  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_stops_on_a_group_without_a_readable_result、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_join_rows_keep_child_status_only_for_returned_groups
   - 本物の run: 筋書きでのみ（子の run が落ちた時の join.json）
   - 狭め: F410 と同じく、元は順の輪で直し直した。今は not_done で返すだけ
 
-- F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（join が戻し、dropped.json で 2 度戻さない。issue #576 から、組の子が落ちると組の節が落ちて join は走らず、次の組の group-start は前の組の分を戻さずに止まり、自分の組の前の試みの分だけを戻す）
+- F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（issue #576 まで join が戻した。今は組の子が落ちると組の節が落ちて join は走らず、次の組の group-start は前の組の分を戻さずに止まり、自分の組の前の試みの分だけを戻して dropped.json に控える）
   - 元: 無し（元の枝は単位の worktree で直し、run の作業ツリーへの迷い書きは機械が戻した: works/blk-fix/lib/lanekit.py `revert_strays`、tests/test_tdd_lanes.py:483 test_stray_write_of_run_tree_is_reverted）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_in_order_drops_what_a_failed_child_left、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_drops_its_own_earlier_attempt、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_stops_while_an_earlier_child_is_halted
+  - 証: tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_drops_its_own_earlier_attempt、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_stops_while_an_earlier_child_is_halted
   - 本物の run: 筋書きでのみ（落ちた子の組の置き場の `dropped.json`）
   - 狭め: 無し
 

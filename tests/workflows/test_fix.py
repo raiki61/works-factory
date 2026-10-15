@@ -1463,45 +1463,29 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertIn("当たらない", g2["reason"])
         self.assertEqual(joined["units"][1], {"unit_id": "B", "group_id": "g2", "status": "not_done", "reason": g2["reason"]})
 
-    def test_join_marks_missing_result_not_done(self):
-        start = self.snapshot(self.repo)
-        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
-                                    {"group_id": "g2", "unit_ids": ["B", "C"], "items": []}], start, par=False)
-        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start))
-        code, out, err = _blk_run("join", self.repo, self.art)
-        self.assertEqual(code, 0, err)
-        self.assertEqual(out, {"groups": 2, "returned": 1})
-        joined = json.loads((self.place / "join.json").read_text(encoding="utf-8"))
-        self.assertEqual([(u["unit_id"], u["status"]) for u in joined["units"]],
-                         [("A", "fixed"), ("B", "not_done"), ("C", "not_done")])
-        self.assertFalse(joined["groups"][1]["returned"])
-        self.assertTrue(joined["groups"][1]["reason"])
-        group_items = self.fmt["properties"]["groups"]
-        unit_items = self.fmt["properties"]["units"]
-        self.assertEqual(validate_schema(joined["groups"], group_items), [])
-        self.assertEqual(validate_schema(joined["units"], unit_items), [])
-
-    def test_join_in_order_drops_what_a_failed_child_left(self):
-        """並べない run で結果を書かずに落ちた子の変更は、その子の始めの木に戻す（前の組の直しは残す）"""
+    def test_join_stops_on_a_group_without_a_readable_result(self):
+        """#576: 結果のファイルが無いか読めない組が在れば、並べない run でも並べた run でも作業ツリーを変えず join.json も書かずに
+        1 で止まる（済んだ子の変更を戻して持ち越しにしない）"""
         start = self.snapshot(self.repo)
         src = (self.repo / "stats.py").read_text(encoding="utf-8")
-        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
-                                    {"group_id": "g2", "unit_ids": ["B"], "items": []}], start, par=False)
         (self.repo / "stats.py").write_text(src.replace("len(xs) - 1", "len(xs)"), encoding="utf-8")
         t1 = self.snapshot(self.repo)
-        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
-        _blk_write(out_dir / "g2" / "group-start.json", {"start_tree": t1})
-        (self.repo / "stats.py").write_text(src.replace("len(xs) - 1", "0"), encoding="utf-8")
-        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
-        code, out, err = _blk_run("join", self.repo, self.art)
-        self.assertEqual(code, 0, err)
-        self.assertEqual(out, {"groups": 2, "returned": 1})
-        self.assertEqual(self.snapshot(self.repo), t1)
-        g2 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"][1]
-        self.assertFalse(g2["returned"])
-        self.assertIn("half.py", g2["reason"])
-        self.assertEqual(json.loads((out_dir / "g2" / "dropped.json").read_text(encoding="utf-8"))["paths"],
-                         ["half.py", "stats.py"])
+        for par, broken in ((False, None), (False, {"group_id": "g2"}), (True, None)):
+            with self.subTest(par=par, broken=broken):
+                out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
+                                            {"group_id": "g2", "unit_ids": ["B"], "items": []}], start, par=par)
+                _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+                _blk_write(out_dir / "g2" / "group-start.json", {"start_tree": t1})
+                (out_dir / "g2" / "result.json").unlink(missing_ok=True)
+                if broken is not None:
+                    _blk_write(out_dir / "g2" / "result.json", broken)
+                code, out, err = _blk_run("join", self.repo, self.art)
+                self.assertEqual(code, 1, err)
+                self.assertIn("g2", err)
+                self.assertNotIn("g1", err)
+                self.assertEqual(self.snapshot(self.repo), t1)
+                self.assertFalse((self.place / "join.json").exists())
+                self.assertFalse((out_dir / "g2" / "dropped.json").exists())
 
     def rerun_seed(self, files, *, test_cmd=""):
         """走らせ直しの種: files を commit し、実行器（lib/tests/test_blk_fix_tdd.py の SUITE）を指す始めの記録と、その実行器で
