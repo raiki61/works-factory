@@ -9,7 +9,7 @@ structure-eye:
 structure-eye-accept: {ok: true, done: true, give_up: false, reason: "", attempt: 1}
 structure-state: {state_file: plan/structure/k/structure-state.json}
 ripple-units: {ripple_file: plan/r1/ripple-units.json}
-plan-prep: {brief: plan/r1/brief-1.md, attempt: 1}
+plan-prep: {brief: plan/r1/brief-1.md, attempt: 1, resubmit: false}
 plan-writer:
   plan:
     - unit_keys: [1]

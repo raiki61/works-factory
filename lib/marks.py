@@ -59,6 +59,8 @@ KINDS = {
     "pr": Kind({"p0.parallel_pr": ()}, "pr-excluded.json", WORK),
     # 手直しの役の Bash で書いたファイルの申告 bash_writes（refix。外すのは writes.check、控えは書き込みの記録 trace に置く）
     "writes": Kind({"refix": (), "refix2": ()}, None, WORK),
+    # 修正案の出し直しの役だけが持つ印 whole_plan（planfile。控えは受け付けが合わせた答えの控え candidate-<名>.json に置く）
+    "resubmit": Kind({"plan-revise": ()}, None, WORK),
 }
 
 
