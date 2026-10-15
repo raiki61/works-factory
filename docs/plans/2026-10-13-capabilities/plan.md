@@ -343,7 +343,7 @@
 
 ### 輪・出口・返り
 
-- P047 拒否の後は新しい会話で出し直し、3 回目の拒否で受け付けが done・give_up を出して輪を抜ける（max_iterations で落とさない）。返りは ready: false、訳は「3 回とも受け付けで拒まれた」。
+- P047 拒否の後は同じ役の会話の続きで拒まれた項目だけを出し直し（plan-writer-fix。受け付けが前の答えと合わせてから全体を照らす。#571）、3 回目の拒否で受け付けが done・give_up を出して輪を抜ける（max_iterations で落とさない）。返りは ready: false、訳は「3 回とも受け付けで拒まれた」。
   - 元: works/blk-plan/blk-plan.yaml:231 plan-loop（fresh_context: true・until_bash）・planblk.py:1441 `collect`（盤面を止める STOP_BY works:plan、gave_up・reason_file）、試験 works/tests/test_blk_plan.py:1024 test_give_up_ends_loop
   - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_three_rejections_give_up_with_every_pointer・tests/workflows/test_plan.py::ShapeCase.test_loops_give_up_in_the_body_before_max_iterations・筋書き workflows/plan/fixtures/give-up.stubs.yaml（tests/workflows/test_plan.py::FixtureCase）
@@ -1128,7 +1128,7 @@
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
-- P156 出し直しの輪は 3 回（rolekit.GIVE_UP_AFTER）で、until_bash は同じ輪の受け付けの done。独立設計の輪は fresh_context: false（拒まれた後は同じ会話）、事前審査の輪は true。輪の後の節は all_done
+- P156 出し直しの輪は 3 回（rolekit.GIVE_UP_AFTER）で、until_bash は同じ輪の受け付けの done。独立設計の輪も事前審査の輪も fresh_context: false（拒まれた後は同じ会話。事前審査の役は周ごとに新しい会話で起き、拒まれた後は plan-review-fix が同じ会話の続きで拒まれた欄だけを返す。#571）。輪の後の節は all_done
   - 元: works/blk-plan/blk-plan.yaml:79-190（r2-design-loop）・:701（plan-review-loop）。works/tests/test_blk_plan.py:215 `test_design_loop_first_and_tool_less`・:237 `test_loops_fresh_single_ai_and_give_up`
   - 今: 表
   - 証: tests/workflows/test_plan_review.py::YamlCase.test_loops_are_three_and_end_on_accept_done
