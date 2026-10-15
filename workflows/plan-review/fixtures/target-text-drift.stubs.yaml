@@ -3,7 +3,7 @@ open: { ok: true, r2_go: true, tree: false, k: 1, form: review, reason: "" }
 r2-prep: { prompt: "stub: 元の目的と実測した制約" }
 r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解" }
 r2-accept: { ok: true, done: true, give_up: false, reason: "" }
-review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md" }
+review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md", resubmit: false }
 plan-review:
   faces:
     - { key: "stub-stale-docstring", unit_keys: [1], kind: contract_drift, where: "test_stats.py:1", why: "stub: 案の後もテストの説明文が『わざと試験しない』と言い続ける。案にその文の書き換えが入っている", severity: suggest }

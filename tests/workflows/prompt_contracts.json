@@ -879,6 +879,30 @@
     "steps": [],
     "stops": []
   },
+  "workflows/eyes/works-factory-eyes.yaml#r4-scope-fix.prompt": {
+    "inserts": [
+      "$r4-reject.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/eyes/works-factory-eyes.yaml#r4-scope-fix"
+      ],
+      "output_format_sha256": "ddf2f253b59d783526d2f4393d24c57bd297a9760f155310421313c45046fb28",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
   "workflows/fix/commands/delta-review.md": {
     "inserts": [
       "$LOOP_PREV.delta-accept.output.reason_file",
@@ -2609,10 +2633,10 @@
   "workflows/judge/commands/material-consistency-bypass.md": {
     "inserts": [
       "$consistency-bypass-prep.output.brief_file",
+      "$consistency-bypass-prep.output.lang_line",
+      "$consistency-bypass-prep.output.reason",
       "$consistency-bypass-prep.output.repo_review_md",
       "$consistency-bypass-prep.output.review_md",
-      "$consistency-bypass-reject.output.lang_line",
-      "$consistency-bypass-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: inputs.repo_review_md］",
       "［材料: inputs.review_md］",
@@ -2740,10 +2764,10 @@
     "inserts": [
       "$TMPDIR",
       "$external-standards-prep.output.brief_file",
+      "$external-standards-prep.output.lang_line",
+      "$external-standards-prep.output.reason",
       "$external-standards-prep.output.repo_review_md",
       "$external-standards-prep.output.review_md",
-      "$external-standards-reject.output.lang_line",
-      "$external-standards-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: inputs.review_md］",
       "［材料: loop.changed_files］",
@@ -2901,8 +2925,8 @@
   "workflows/judge/commands/material-gate-efficacy.md": {
     "inserts": [
       "$gate-efficacy-prep.output.brief_file",
-      "$gate-efficacy-reject.output.lang_line",
-      "$gate-efficacy-reject.output.reason",
+      "$gate-efficacy-prep.output.lang_line",
+      "$gate-efficacy-prep.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.changed_files_file］",
       "［材料: loop.diff_file］",
@@ -3067,10 +3091,10 @@
   "workflows/judge/commands/material-hygiene.md": {
     "inserts": [
       "$hygiene-prep.output.brief",
+      "$hygiene-prep.output.lang_line",
+      "$hygiene-prep.output.reason",
       "$hygiene-prep.output.repo_review_md",
       "$hygiene-prep.output.review_md",
-      "$hygiene-reject.output.lang_line",
-      "$hygiene-reject.output.reason",
       "［材料: file:loop.diff_file］",
       "［材料: section:inputs.review_md#コード衛生観点］"
     ],
@@ -3163,10 +3187,10 @@
   "workflows/judge/commands/material-local-review.md": {
     "inserts": [
       "$local-review-prep.output.brief_file",
+      "$local-review-prep.output.lang_line",
+      "$local-review-prep.output.reason",
       "$local-review-prep.output.repo_review_md",
       "$local-review-prep.output.review_md",
-      "$local-review-reject.output.lang_line",
-      "$local-review-reject.output.reason",
       "［材料: inputs.repo_review_md］",
       "［材料: inputs.review_md］",
       "［材料: loop.changed_files_file］",
@@ -3388,8 +3412,8 @@
   "workflows/judge/commands/material-main-path-observation.md": {
     "inserts": [
       "$main-path-observation-prep.output.brief_file",
-      "$main-path-observation-reject.output.lang_line",
-      "$main-path-observation-reject.output.reason",
+      "$main-path-observation-prep.output.lang_line",
+      "$main-path-observation-prep.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.changed_files_file］",
       "［材料: loop.diff_file］",
@@ -3492,8 +3516,8 @@
   "workflows/judge/commands/material-prior-decisions.md": {
     "inserts": [
       "$prior-decisions-prep.output.brief_file",
-      "$prior-decisions-reject.output.lang_line",
-      "$prior-decisions-reject.output.reason",
+      "$prior-decisions-prep.output.lang_line",
+      "$prior-decisions-prep.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.changed_files］",
       "［材料: loop.request_wheres］",
@@ -3630,10 +3654,10 @@
     "inserts": [
       "$TMPDIR",
       "$procedure-trace-prep.output.brief_file",
+      "$procedure-trace-prep.output.lang_line",
+      "$procedure-trace-prep.output.reason",
       "$procedure-trace-prep.output.repo_review_md",
       "$procedure-trace-prep.output.review_md",
-      "$procedure-trace-reject.output.lang_line",
-      "$procedure-trace-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: inputs.review_md］",
       "［材料: loop.changed_files］",
@@ -3769,8 +3793,8 @@
   "workflows/judge/commands/material-provenance.md": {
     "inserts": [
       "$provenance-prep.output.brief_file",
-      "$provenance-reject.output.lang_line",
-      "$provenance-reject.output.reason",
+      "$provenance-prep.output.lang_line",
+      "$provenance-prep.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.diff_file］",
       "［材料: record.base］",
@@ -3877,8 +3901,8 @@
   "workflows/judge/commands/material-purpose-review.md": {
     "inserts": [
       "$purpose-review-prep.output.brief_file",
-      "$purpose-review-reject.output.lang_line",
-      "$purpose-review-reject.output.reason",
+      "$purpose-review-prep.output.lang_line",
+      "$purpose-review-prep.output.reason",
       "［材料: inputs.cwd］",
       "［材料: inputs.review_rev］",
       "［材料: out.p0.purpose.purpose_text］",
@@ -3997,8 +4021,8 @@
   "workflows/judge/commands/material-test-double-fidelity.md": {
     "inserts": [
       "$test-double-fidelity-prep.output.brief_file",
-      "$test-double-fidelity-reject.output.lang_line",
-      "$test-double-fidelity-reject.output.reason",
+      "$test-double-fidelity-prep.output.lang_line",
+      "$test-double-fidelity-prep.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.changed_files_file］",
       "［材料: loop.diff_file］",
@@ -5135,6 +5159,102 @@
       }
     ]
   },
+  "workflows/judge/works-factory-judge.yaml#rejudge-fix.prompt": {
+    "inserts": [
+      "$rejudge-reject.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/judge/works-factory-judge.yaml#rejudge-fix"
+      ],
+      "output_format_sha256": "6ca4fae9665b0cc8c7bef4b969e8776485cec4f828e50fe9c49482fef5e1ec8a",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
+  "workflows/judge/works-factory-judge.yaml#spec-fix.prompt": {
+    "inserts": [
+      "$spec-reject.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/judge/works-factory-judge.yaml#spec-fix"
+      ],
+      "output_format_sha256": "875adecb0eae57bac21ff44335fe2fe30646e2ad09287a893382287a2ee6e0a1",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
+  "workflows/judge/works-factory-judge.yaml#spec-review-fix.prompt": {
+    "inserts": [
+      "$spec-review-reject.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/judge/works-factory-judge.yaml#spec-review-fix"
+      ],
+      "output_format_sha256": "933045601a02cca256b1ecf379ea5ecab2dd9471658fb25d32a442b68e777047",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
+  "workflows/judge/works-factory-judge.yaml#spec-revise-fix.prompt": {
+    "inserts": [
+      "$spec-revise-reject.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/judge/works-factory-judge.yaml#spec-revise-fix"
+      ],
+      "output_format_sha256": "347e746fdc169f432f2200e1de95c1ae39da5c9390d9f0ac45e7d507bfdea01f",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
   "workflows/plan-review/commands/plan-review.md": {
     "inserts": [
       "$review-prep.output.prompt_file"
@@ -5331,6 +5451,30 @@
       }
     ]
   },
+  "workflows/plan-review/works-factory-plan-review.yaml#plan-review-fix.prompt": {
+    "inserts": [
+      "$review-prep.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/plan-review/works-factory-plan-review.yaml#plan-review-fix"
+      ],
+      "output_format_sha256": "6952029778835c1a26b60f5a806c158509f479182a54d42421ef76c207718190",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
   "workflows/plan-review/works-factory-plan-review.yaml#r2-design.systemPrompt": {
     "inserts": [],
     "returns": {
@@ -5486,6 +5630,30 @@
         "quote": "直した所だけを返すな"
       }
     ]
+  },
+  "workflows/plan/works-factory-plan.yaml#plan-writer-fix.prompt": {
+    "inserts": [
+      "$plan-prep.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/plan/works-factory-plan.yaml#plan-writer-fix"
+      ],
+      "output_format_sha256": "bd829fe65f298493ed0e45cbecd3071f34c44ff01765e53a0c34025a0cdee1b9",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
   },
   "workflows/report/commands/cold-check.md": {
     "inserts": [
@@ -5891,5 +6059,29 @@
         "quote": "迷ったら標準にせよ"
       }
     ]
+  },
+  "workflows/test-gate/works-factory-test-gate.yaml#ci-fix.prompt": {
+    "inserts": [
+      "$ci-prep.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/test-gate/works-factory-test-gate.yaml#ci-fix"
+      ],
+      "output_format_sha256": "b0e9e9b73f08b3ac031c9f205c0bfde2803d61343e45d572554d1f26615e2f7d",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
+    "stops": []
   }
 }

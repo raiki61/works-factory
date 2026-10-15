@@ -26,13 +26,12 @@ purpose:
 purpose-reject: {reason: '', "lang_line": ""}
 purpose-accept: *id001
 material-route: {prior_decisions: true, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: false, test_double_fidelity: false, main_path_observation: false, provenance: false, reason: 差分の空の run で依頼の在る入口}
-prior-decisions-prep: {brief_file: /tmp/judge/material-prior-decisions-brief.md, brief: '', review_md: '', repo_review_md: ''}
+prior-decisions-prep: {brief_file: /tmp/judge/material-prior-decisions-brief.md, brief: '', review_md: '', repo_review_md: '', reason: '', "lang_line": ""}
 prior-decisions:
   material: {status: clean, checked: 先行議論を探したが今回の変更と食い違う決定は無い}
   checked: true
   searched: [リポジトリの履歴]
   settled: []
-prior-decisions-reject: {reason: '', "lang_line": ""}
 prior-decisions-accept: *id001
 diagnose-prep: {go: true, brief_file: /tmp/judge/diagnose-brief.md, review_md: /tmp/lib/REVIEW.md, repo_review_md: '', reason: ''}
 diagnose:

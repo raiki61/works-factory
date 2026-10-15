@@ -464,16 +464,17 @@ nodes:
 
         - id: fix-ruled
           description: '裁定の文を読んで直す'
-          model: sonnet
-          effort: high
+          <<: &fix_launch
+            model: sonnet
+            effort: high
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           prompt: 指示書 `$fix-ruled-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書が名指す欄の JSON だけ。
           depends_on: [fix-ruled-prep]
           when: "$fix-ruled-prep.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format: &fix_reply
             type: object
             required: [changes, fix_closure, gates_changed, interactions, mechanism_changed, not_done, path_changed, plan_faces, premise_drift, seams_changed, security_surface_changed, wrote_refs]
@@ -753,17 +754,18 @@ nodes:
 
         - id: ruled-consult-answer
           description: '範囲の相談に答える（修正案と波及を読む新しい会話。読むだけ）'
-          model: opus
-          effort: medium
+          <<: &consult_launch
+            model: opus
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           prompt: 指示書 `$ruled-consult-check.output.prompt_file` を Read で全部読み、その相談に答えよ。返すのは指示書の JSON だけ。
           depends_on: [ruled-consult-check]
           when: "$ruled-consult-check.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format: &consult_answer
             type: object
             additionalProperties: false
@@ -904,18 +906,19 @@ nodes:
 
   - id: lens
     description: 'レンズ silent-failure-hunter: 修正の差分の黙った失敗を探す（読むだけ）'
-    model: sonnet
-    effort: medium
+    <<: &delta_launch
+      model: sonnet
+      effort: medium
+      settingSources: [user]
+      allowed_tools: [Read, Grep, Glob]
+      sandbox: {enabled: true, allowUnsandboxedCommands: false}
+      idle_timeout: 1728000000
+      retry: {max_attempts: 2, on_error: all}
     command: lens-silent-failure-hunter
     depends_on: [lens-prep]
     when: "$lens-prep.output.go == true"
     context: fresh
-    settingSources: [user]
-    allowed_tools: [Read, Grep, Glob]
     mutates_checkout: false
-    sandbox: {enabled: true, allowUnsandboxedCommands: false}
-    idle_timeout: 1728000000
-    retry: {max_attempts: 2, on_error: all}
     output_format:
       type: object
       additionalProperties: false
@@ -964,15 +967,9 @@ nodes:
       nodes:
         - id: delta-review
           description: '差分の審査役: この周の修正の差分だけを読み、修正が新しく作った穴を返す（読むだけ）'
-          model: sonnet
-          effort: medium
+          <<: *delta_launch
           command: delta-review
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1074,17 +1071,18 @@ nodes:
 
         - id: refix
           description: '手直しの役: 審査が挙げた穴に答える'
-          model: sonnet
-          effort: high
+          <<: &refix_launch
+            model: sonnet
+            effort: high
+            settingSources: [user]
+            skills: [receiving-code-review]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           prompt: 指示書 `$refix-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
           depends_on: [refix-prep]
           when: "$refix-prep.output.go == true"
-          settingSources: [user]
-          skills: [receiving-code-review]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1154,17 +1152,11 @@ nodes:
 
         - id: review2
           description: '手直しの差分の審査役（2 回目。読むだけ）'
-          model: sonnet
-          effort: medium
+          <<: *delta_launch
           command: review2
           depends_on: [cut2]
           when: "$cut2.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1228,17 +1220,10 @@ nodes:
 
         - id: refix2
           description: '2 回目の手直しの役'
-          model: sonnet
-          effort: high
+          <<: *refix_launch
           prompt: 指示書 `$refix2-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
           depends_on: [refix2-prep]
           when: "$refix2-prep.output.go == true"
-          settingSources: [user]
-          skills: [receiving-code-review]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1474,16 +1459,10 @@ nodes:
 
         - id: fixer
           description: '修正役: TDD のループで直していない単位を直す'
-          model: sonnet
-          effort: high
+          <<: *fix_launch
           prompt: 指示書 `$fix-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書が名指す欄の JSON だけ。
           depends_on: [fix-prep]
           when: "$fix-prep.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format: *fix_reply
 
         - id: consult-check
@@ -1499,17 +1478,11 @@ nodes:
 
         - id: consult-answer
           description: '範囲の相談に答える（修正案と波及を読む新しい会話。読むだけ）'
-          model: opus
-          effort: medium
+          <<: *consult_launch
           prompt: 指示書 `$consult-check.output.prompt_file` を Read で全部読み、その相談に答えよ。返すのは指示書の JSON だけ。
           depends_on: [consult-check]
           when: "$consult-check.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format: *consult_answer
 
         - id: consult-accept

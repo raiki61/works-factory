@@ -111,13 +111,16 @@ nodes:
               ok: {type: boolean}
               done: {type: boolean}
               reason: {type: string}
+  # 仕様の 3 つの輪と再審の輪（rejudge-loop）は、拒まれた後は出し直しの役 <役>-fix が同じ会話の続きで拒まれた欄だけを返し、
+  # 受け付けが前の答えと欄ごとに合わせる（振り分けは頭の節 rejects の resubmit。並んだ層は会話を切るので <役>-fix は役の後ろの
+  # 層に置く。#571）
   - id: spec-loop
     depends_on: [intake]
     when: $intake.output.spec == true
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$spec-accept.output.done; test "$done" = true
       nodes:
         - id: spec-reject
@@ -125,23 +128,25 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {board: judge, accept: spec-write}
+          with: {board: judge, accept: spec-write, prev: "$LOOP_PREV.spec-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: spec
           command: spec
           depends_on: [spec-reject]
-          model: opus
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
+          when: "$spec-reject.output.resubmit != true"
+          <<: &spec_launch
+            model: opus
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
-          output_format:
+          output_format: &spec_reply
             type: object
             additionalProperties: false
             required: [requirements, acceptance, out_of_scope]
@@ -172,13 +177,28 @@ nodes:
               out_of_scope:
                 type: array
                 items: {type: string}
+        - id: spec-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [spec-reject, spec]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-reject.output.resubmit == true"
+          <<: *spec_launch
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            <<: *spec_reply
+            required: []
         - id: spec-accept
           script: spec_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [spec]
-          with: {status_guarded: false, role: write, reply: $spec.output}
+          depends_on: [spec, spec-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            status_guarded: false
+            role: write
+            reply: {from: "$spec.output", if_skipped: null}
+            fix_reply: {from: "$spec-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
@@ -194,7 +214,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$spec-review-accept.output.done; test "$done" = true
       nodes:
         - id: spec-review-reject
@@ -202,24 +222,26 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {board: judge, accept: spec-review}
+          with: {board: judge, accept: spec-review, prev: "$LOOP_PREV.spec-review-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: spec-review
           command: spec-review
           depends_on: [spec-review-reject]
-          model: opus
-          effort: high
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          when: "$spec-review-reject.output.resubmit != true"
+          <<: &review_launch
+            model: opus
+            effort: high
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
-          output_format:
+          output_format: &spec_review_reply
             type: object
             additionalProperties: false
             required: [faces, reason]
@@ -239,13 +261,29 @@ nodes:
                     why: {type: string, minLength: 20}
               faces_none: {type: string}
               reason: {type: string, minLength: 20}
+        - id: spec-review-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-review-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [spec-review-reject, spec-review]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-review-reject.output.resubmit == true"
+          <<: *review_launch
+          mutates_checkout: false
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            <<: *spec_review_reply
+            required: []
         - id: spec-review-accept
           script: spec_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [spec-review]
-          with: {status_guarded: true, role: review, reply: $spec-review.output}
+          depends_on: [spec-review, spec-review-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            status_guarded: true
+            role: review
+            reply: {from: "$spec-review.output", if_skipped: null}
+            fix_reply: {from: "$spec-review-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
@@ -261,7 +299,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$spec-revise-accept.output.done; test "$done" = true
       nodes:
         - id: spec-revise-reject
@@ -269,23 +307,19 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {board: judge, accept: spec-revise}
+          with: {board: judge, accept: spec-revise, prev: "$LOOP_PREV.spec-revise-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: spec-revise
           command: spec-revise
           depends_on: [spec-revise-reject]
-          model: opus
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
+          when: "$spec-revise-reject.output.resubmit != true"
+          <<: *spec_launch
           retry: {max_attempts: 2, on_error: all}
-          output_format:
+          output_format: &spec_revise_reply
             type: object
             additionalProperties: false
             required: [spec, handled]
@@ -333,13 +367,28 @@ nodes:
                       type: string
                       enum: [absorbed, declared]
                     how: {type: string, minLength: 20}
+        - id: spec-revise-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-revise-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [spec-revise-reject, spec-revise]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-revise-reject.output.resubmit == true"
+          <<: *spec_launch
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            <<: *spec_revise_reply
+            required: []
         - id: spec-revise-accept
           script: spec_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [spec-revise]
-          with: {status_guarded: false, role: revise, reply: $spec-revise.output}
+          depends_on: [spec-revise, spec-revise-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            status_guarded: false
+            role: revise
+            reply: {from: "$spec-revise.output", if_skipped: null}
+            fix_reply: {from: "$spec-revise-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
@@ -430,23 +479,24 @@ nodes:
         - id: pr-check
           command: pr-check
           depends_on: [pr-check-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
-            # '.' は cwd でなく設定の一時ファイルのフォルダに解かれる。実測 2026-10-13。issue #293）
-            # 起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          <<: &net_closed_launch
+            model: sonnet
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+            sandbox:
+              enabled: true
+              allowUnsandboxedCommands: false
+              failIfUnavailable: true
+              excludedCommands: ['works-gh:*']
+              network:
+                allowedDomains: []
+              # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
+              # '.' は cwd でなく設定の一時ファイルのフォルダに解かれる。実測 2026-10-13。issue #293）
+              # 起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）
+              filesystem:
+                denyWrite: ['~/../archon-home']
+            idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -908,45 +958,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: prior-decisions}
+          with: {role: prior-decisions, reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: prior-decisions-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: prior-decisions
           command: material-prior-decisions
-          depends_on: [prior-decisions-prep, prior-decisions-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [prior-decisions-prep]
+          <<: *net_closed_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1011,30 +1038,21 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: purpose-review}
+          with: {role: purpose-review, reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: purpose-review-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: purpose-review
           command: material-purpose-review
-          depends_on: [purpose-review-prep, purpose-review-reject]
+          depends_on: [purpose-review-prep]
           <<: *read_launch
           mutates_checkout: false
           retry: {max_attempts: 2, on_error: all}
@@ -1086,47 +1104,25 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: local-review}
+          with: {role: local-review, reason: "$LOOP_PREV.local-review-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: local-review-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.local-review-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: local-review
           command: material-local-review
-          depends_on: [local-review-prep, local-review-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
+          depends_on: [local-review-prep]
+          <<: *net_closed_launch
           allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill, Agent]
           skills: [code-review, simplify, security-review]
           plugins: [pr-review-toolkit@works-local]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1198,37 +1194,23 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: consistency-bypass}
+          with: {role: consistency-bypass, reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: consistency-bypass-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: consistency-bypass
           command: material-consistency-bypass
-          depends_on: [consistency-bypass-prep, consistency-bypass-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob]
+          depends_on: [consistency-bypass-prep]
+          <<: *read_launch
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1316,30 +1298,21 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: hygiene}
+          with: {role: hygiene, reason: "$LOOP_PREV.hygiene-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: hygiene-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.hygiene-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: hygiene
           command: material-hygiene
-          depends_on: [hygiene-prep, hygiene-reject]
+          depends_on: [hygiene-prep]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1395,45 +1368,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: external-standards}
+          with: {role: external-standards, reason: "$LOOP_PREV.external-standards-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: external-standards-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.external-standards-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: external-standards
           command: material-external-standards
-          depends_on: [external-standards-prep, external-standards-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [external-standards-prep]
+          <<: *net_closed_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1513,45 +1463,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: procedure-trace}
+          with: {role: procedure-trace, reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: procedure-trace-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: procedure-trace
           command: material-procedure-trace
-          depends_on: [procedure-trace-prep, procedure-trace-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            excludedCommands: ['works-gh:*']
-            network:
-              allowedDomains: []
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [procedure-trace-prep]
+          <<: *net_closed_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1615,47 +1542,39 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: gate-efficacy}
+          with: {role: gate-efficacy, reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: gate-efficacy-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: gate-efficacy
           command: material-gate-efficacy
-          depends_on: [gate-efficacy-prep, gate-efficacy-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network:
-              allowedDomains: ['*']
-              allowLocalBinding: true
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              allowWrite: [/]
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [gate-efficacy-prep]
+          <<: &test_run_launch
+            model: sonnet
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+            sandbox:
+              enabled: true
+              allowUnsandboxedCommands: false
+              failIfUnavailable: true
+              enableWeakerNetworkIsolation: true
+              network:
+                allowedDomains: ['*']
+                allowLocalBinding: true
+              # denyWrite は pr-check の注釈と同じ
+              filesystem:
+                allowWrite: [/]
+                denyWrite: ['~/../archon-home']
+            idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1717,47 +1636,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: test-double-fidelity}
+          with: {role: test-double-fidelity, reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: test-double-fidelity-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: test-double-fidelity
           command: material-test-double-fidelity
-          depends_on: [test-double-fidelity-prep, test-double-fidelity-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network:
-              allowedDomains: ['*']
-              allowLocalBinding: true
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              allowWrite: [/]
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [test-double-fidelity-prep]
+          <<: *test_run_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1818,47 +1712,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: main-path-observation}
+          with: {role: main-path-observation, reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: main-path-observation-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: main-path-observation
           command: material-main-path-observation
-          depends_on: [main-path-observation-prep, main-path-observation-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network:
-              allowedDomains: ['*']
-              allowLocalBinding: true
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              allowWrite: [/]
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [main-path-observation-prep]
+          <<: *test_run_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -1916,47 +1785,22 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {role: provenance}
+          with: {role: provenance, reason: "$LOOP_PREV.provenance-accept.output.reason"}
           output_format:
             type: object
             additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md]
+            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
             properties:
               brief_file: {type: string}
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
-        - id: provenance-reject
-          script: reject
-          runtime: uv
-          timeout: 1728000000
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.provenance-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+              reason: {type: string}
+              lang_line: {type: string}
         - id: provenance
           command: material-provenance
-          depends_on: [provenance-prep, provenance-reject]
-          model: sonnet
-          effort: medium
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            failIfUnavailable: true
-            enableWeakerNetworkIsolation: true
-            network:
-              allowedDomains: ['*']
-              allowLocalBinding: true
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              allowWrite: [/]
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
+          depends_on: [provenance-prep]
+          <<: *test_run_launch
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -2043,13 +1887,8 @@ nodes:
         - id: diagnose
           command: diagnose
           depends_on: [diagnose-reject]
-          model: opus
-          effort: high
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          <<: *review_launch
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
@@ -2281,6 +2120,7 @@ nodes:
     timeout: 1728000000
     depends_on: [verify-prep, judge-verify]
     trigger_rule: all_done
+    when: $intake.output.mode == 'judge'
     mutates_checkout: false
     with: {status_guarded: true, stage: merge}
     output_format:
@@ -2311,7 +2151,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$rejudge-accept.output.done; test "$done" = true
       nodes:
         - id: rejudge-reject
@@ -2319,25 +2159,20 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {board: rejudge, accept: rejudge}
+          with: {board: rejudge, accept: rejudge, prev: "$LOOP_PREV.rejudge-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
+            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: rejudge
           command: rejudge
           depends_on: [rejudge-reject]
-          model: opus
-          effort: high
-          context: fresh
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          when: "$rejudge-reject.output.resubmit != true"
+          <<: *review_launch
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
-          output_format:
+          output_format: &rejudge_reply
             type: object
             required: [verdict, new_facts, units]
             additionalProperties: false
@@ -2413,13 +2248,28 @@ nodes:
                           items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
                         examples_unavailable: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
                         misses_omitted_why: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+        - id: rejudge-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$rejudge-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [rejudge-reject, rejudge]
+          trigger_rule: none_failed_min_one_success
+          when: "$rejudge-reject.output.resubmit == true"
+          <<: *review_launch
+          mutates_checkout: false
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            <<: *rejudge_reply
+            required: []
         - id: rejudge-accept
           script: rejudge_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [rejudge]
-          with: {status_guarded: true, reply: $rejudge.output}
+          depends_on: [rejudge, rejudge-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            status_guarded: true
+            reply: {from: "$rejudge.output", if_skipped: null}
+            fix_reply: {from: "$rejudge-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false

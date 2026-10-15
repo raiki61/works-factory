@@ -13,7 +13,6 @@ rejudge:
   - {key: 'stats.py mean: 分母が len(xs) - 1', label: block}
 rejudge-reject: {reason: '', "lang_line": ""}
 rejudge-accept: {ok: true, done: true, reason: ''}
-verify-merge: {ok: true, reason: ''}
 verdict:
   depth: 標準
   depth_why: 筋書きの stub

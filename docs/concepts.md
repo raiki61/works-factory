@@ -151,7 +151,7 @@
 - 状態: 住処あり
 - 住処: `lib/marks.py`（標準ライブラリだけ。種の表 `KINDS`＝ノードか役 → 行の在り処・共有ボードの控えの名・置き場、と手順の口 `add`（役の型に足す）・`rows`・`split`（受け付けが共有ボードへ渡す前に外す）・`path_of`・`write`・`load`（控えに置く・読み戻す））
 - 約束: 種の表 `KINDS` の控えの名（欄を持つモジュールは `marks.KINDS[種].file` で引く）と、控えのパスを組む `path_of`
-- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`）が持ち、手順は住処を呼ぶ
+- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` の `lib/planfile.py`）が持ち、手順は住処を呼ぶ
 - 今: 控えの名を字で持ち直す所（`lib/judge_accept.py`・`workflows/plan/scripts/plan_collect.py`）、控えのパスを `path_of` を通さずに組む所（`lib/judge_accept.py`・`lib/planfile.py`・`lib/refix.py`）、欄を手で外す所（修正役の欄 `lib/fixboard.py`・並行 PR の `lib/judge_accept.py`・手直しの `bash_writes` の `lib/writes.py`）が残る（柵の表の既知の漏れ）。`lib/judgeverify.py` は自分で組む裏取りの型で、同じ字の形の別の物
 
 ### `plan-scope` 修正案の項目の範囲の照らし
@@ -239,7 +239,7 @@
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
 
 - 状態: 散らばり
-- 今: 模型と effort の正本は役の定義の前付け（`lib/agents/`）と、グラフの YAML の AI のノードの `model:`・`effort:`・`allowed_tools:` の行。YAML の行は役の定義と結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で値を縛るだけ。数の歯止めは表の `known` の 13 ファイル 152 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 141 行・役の定義の前付けの 5 ファイル 10 行・道具を字で述べる指示書 1 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
+- 今: 模型と effort の正本は役の定義の前付け（`lib/agents/`）と、グラフの YAML の AI のノードの `model:`・`effort:`・`allowed_tools:` の行。YAML の行は役の定義と結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で値を縛るだけ。数の歯止めは表の `known` の 13 ファイル 105 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 94 行・役の定義の前付けの 5 ファイル 10 行・道具を字で述べる指示書 1 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
 - 計画: まだ無い
 
 ### `prompt-assembly` 指示書の組み立て

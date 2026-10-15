@@ -652,16 +652,16 @@
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
       ],
       "workflows/fix/works-factory-fix.yaml": [
-       36,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       21,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
       ],
       "workflows/judge/commands/material-local-review.md": [
        1,
        "散らばり（まとめる計画はまだ無い）: 素材集めの局所の審査の指示書が、審査役の道具 allowed_tools を字で述べる"
       ],
       "workflows/judge/works-factory-judge.yaml": [
-       66,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       34,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
       ],
       "workflows/plan-review/works-factory-plan-review.yaml": [
        6,
