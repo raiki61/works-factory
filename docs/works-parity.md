@@ -3205,7 +3205,7 @@
 - fix.md F407: lib/fixboard.py::record_base_rev・lib/fixboard.py::base_rev_of
 - fix.md F408: lib/fixboard.py::group_result、workflows/fix/scripts/group_end.py
 - fix.md F409: lib/fixboard.py::join_group、workflows/fix/scripts/join.py、lib/unittrees.py
-- fix.md F410: lib/fixboard.py::join_group、lib/lanekit.py::merge_in_order（workflows/fix/scripts/join.py::main が呼ぶ）
+- fix.md F410: lib/fixboard.py::join_group、lib/lanekit.py::merge_in_order（workflows/fix/scripts/join.py::main が呼ぶ）、lib/clash.py::stage（字で当たらない組も食い違いの印つきで当て直す）
 - fix.md F411: lib/fixboard.py::rerun_problem・lib/fixboard.py::rerun_cmd、workflows/fix/scripts/join.py::main（中の `merge_one`。名指しの無い組も変えたファイルに当たる試験を走らせ、前に戻せた組の名指しと重なりのファイルから届く試験を足し、子の関門が on で軽量でない単位が在れば test_cmd を 1 回）（#121）
 - fix.md F412: lib/fixboard.py::rerun_problem（重なりの在る組の赤を「意味の食い違い」SEMANTIC_CLASH と名指す）、workflows/fix/scripts/join.py（#121）
 - fix.md F413: lib/fixboard.py::usable_result と workflows/fix/scripts/join.py::main（結果の無い組で落ちる）、lib/fixboard.py::join_rows（NO_RESULT）
