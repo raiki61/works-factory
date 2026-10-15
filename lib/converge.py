@@ -35,14 +35,14 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   read(b) を渡す）。add_pass（record_pass の往復の行を足す半分）・plan_rows（note_plan の行）と共に、盤面を持たない呼び手
   （planfile。周ごとのファイルから控えを組み直す）も使う
 - note_plan(b, rows)・open_items(b)・filled_units(doc)・splice(doc, rows)・item_id・item_hash: 項目の控え・次に審査する項目の番号・
-  機械が差し込む（閉じた・保留の）項目の単位・直しの役が返した開いた項目の行に前の往復の行を差し込んで案の全体を組む口
+  機械が差し込む（閉じた・保留の）項目の単位・直しの役が返した変えた項目の行に前の往復の行を差し込んで案の全体を組む口
   （閉じた項目を変えた行は拒み、前と同じ行は捨てる）
 - planned_units(plan): 今の案に在る単位の key の集合を組む唯一の口（控えの plan の行からも修正案の役の出力の plan の行からも。
   carried_notes・受け付けの plan_review_output・修正前の関所の照らしが同じ集合を引く）。その下の plan_keys(plan) は案の順・
   重複のまま字の key を並べる読み口（planfile の受け付けの照らしも引く）。item_units(plan, n) はその上で項目 n の単位の集合
   （番号の外は空）を組む唯一の口
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（項目の在る
-  控えでは、今の往復で開いている項目の分だけ）
+  控えでは、今の往復で開いている項目の分だけ）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
   対応表）・出自 ORIGINS は tree_split が外す。下請けの答えのファイルの当たりの答えの型は HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
 - item_blocks(b, n): 項目 n が答える前の往復の block の key（受け付けが下請けの答えの resolved を確かめる）
@@ -85,8 +85,9 @@ FACE_KEYS = ("key", "kind", "where", "why")
 
 REVISE_ASK = ("事前審査（別の目）が、修正案に下の block（直しへ進めない穴）を挙げた。block ごとに、案を直したなら handled に fixed、"
               "how に直した所を、直さずに異を唱えるなら handled に disputed、how に根拠を、block_answers に 1 行ずつ書け（key は下の key を"
-              "一字も変えずに写す）。そのうえで開いた項目の行を plan に返せ（前の案と同じ型の行。閉じた項目は書くな。機械が前の往復の行を"
-              "差し込む。保留の項目は直す時だけ書け）。suggest の穴は採っても採らなくてもよい。直した案は新しい会話の事前審査に掛かり、"
+              "一字も変えずに写す）。そのうえで変えた項目の行だけを plan に返せ（前の案と同じ型の行。閉じた項目は書くな。変えない開いた項目と"
+              "保留の項目も書かなくてよく、機械が前の往復の行を差し込む。fixed と答えた block の項目は変えた行を返せ）。suggest の穴は"
+              "採っても採らなくてもよい。直した案は新しい会話の事前審査に掛かり、"
               "同じ block が残るか、開いた block の数が前の往復より減らなければ直しへ進まずに承認ノードで止まる。")
 REREVIEW_ASK = ("下は前の往復で挙がった block と、修正案の役の答え（fixed＝直した・disputed＝異を唱えた）。今の案を読み、前の block の key "
                 "ごとに、穴が消えたなら resolved にその key を入れ、残っていれば同じ key のまま faces に severity block で挙げ直せ（同じ穴に"
@@ -448,9 +449,10 @@ def filled_units(doc: dict) -> list[str]:
 def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:
     """直しの役が返した行（名前に戻した行の並び）に前の往復の行を差し込んだ案の全体, 拒む行, 捨てた id を返す。
     控えの案の順に、閉じた項目は控えの行、開いた項目と保留の項目は返答の同じ id の行を並べる。控えに当たらない返答の行（単位を
-    組み替えた行・新しい項目の行）は返答の順で後ろに足す（捨てない）。保留の項目の行が返答に無く、その単位がどの返答の行にも
-    無ければ控えの行を差し込む。閉じた項目の行が返答に在って控えと同じ hash なら捨て（捨てた id）、違えば拒む。閉じた項目の単位を
-    別の行に入れた返答、開いた項目の行も単位も返答に無い返答も拒む"""
+    組み替えた行・新しい項目の行）は返答の順で後ろに足す（捨てない）。開いた項目と保留の項目の行が返答に無く、その単位がどの
+    返答の行にも無ければ控えの行を差し込む（役は変えた項目だけを返す。#571。fixed と答えて変えていない項目は fixed_unchanged が
+    名指す）。閉じた項目の行が返答に在って控えと同じ hash なら捨て（捨てた id）、違えば拒む。閉じた項目の単位を別の行に入れた
+    返答も拒む"""
     given = [r for r in rows if isinstance(r, dict)]
     by_id = {}
     for r in given:
@@ -475,13 +477,32 @@ def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:
         elif mine is not None:
             used.add(id(mine))
             whole.append(mine)
-        elif homeless and filled.get(it["id"]) == HELD:
-            if "row" in it:
-                whole.append(copy.deepcopy(it["row"]))
-        elif homeless:
-            rejects.append(f"開いた項目 {n} の行が無い（変えないなら前のまま返せ・単位を移したなら移した行に入れよ）")
+        elif homeless and "row" in it:
+            whole.append(copy.deepcopy(it["row"]))
     whole += [r for r in given if id(r) not in used]
     return whole, rejects, dropped
+
+
+def fixed_unchanged(doc: dict, rows: list, answers) -> list[str]:
+    """修正案の役が fixed と答えたのに、その block の項目を変えていない答えの行。block の単位（最後の往復の行の face_units）が
+    重なる控えの項目（doc の plan）のどれも、合わせた案 rows（名前に戻した行の並び）で変わっていなければ（同じ id の行が在り、
+    その hash が控えと同じ）名指す。同じ id の行が無い項目は単位を組み替えたので変えた物に数える。どの項目とも重ならない block と、
+    返す往復の無い控えは見ない"""
+    row = held(doc)
+    if row is None:
+        return []
+    now = {item_id(r.get("unit_keys")): item_hash(r) for r in rows if isinstance(r, dict)}
+    out = []
+    for a in answers if isinstance(answers, list) else []:
+        if not isinstance(a, dict) or a.get("handled") != "fixed":
+            continue
+        units = set((row.get("face_units") or {}).get(a.get("key")) or [])
+        mine = [(n, it) for n, it in enumerate(doc.get("plan") or [], 1) if units & set(it["unit_keys"])]
+        if mine and all(now.get(it["id"]) == it["hash"] for _, it in mine):
+            names = "・".join(str(n) for n, _ in mine)
+            out.append(f"block {a.get('key')} を fixed と答えたが、その block の項目 {names} を変えていない（直した行を返すか、"
+                       "disputed にせよ）")
+    return out
 
 
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,

@@ -1369,6 +1369,31 @@ class CollectCase(unittest.TestCase):
         why = rolekit.rejected(run.art / "plan" / "r2", "plan")[0]
         self.assertTrue(why.startswith(planblk.CLOSED_REJECT), why)
 
+    def test_second_round_returns_only_changed_items(self):
+        """#571: 2 往復目の修正案の役は変えた項目だけを返す。返さない開いた項目は機械が前の往復の行を差し込み、受けた案は全部の
+        項目を持つ。fixed と答えた block の項目を変えていない答えは拒む"""
+        run = Run(self)
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1), item(2)]}))["ready"], True)
+        first = json.loads((run.art / "plan" / "r1" / planfile.REPLY_FILE).read_text(encoding="utf-8"))["plan"]
+        review = run.pointer("review/p2.plan_review.json", {"faces": [
+            {"key": "key-a1-mean", "kind": "regression", "where": "stats.py", "why": "空の列が落ちる", "severity": "block",
+             "unit_keys": [MEAN]},
+            {"key": "key-b1-clamp", "kind": "regression", "where": "stats.py", "why": "下限の枝が抜ける", "severity": "block",
+             "unit_keys": [CLAMP]}]})
+        changed = item(1, approach="空の列も直す形にした案の手順をここに書いた")
+        fixed_both = [{"key": "key-a1-mean", "handled": "fixed", "how": "空の列を先に返す枝を足した"},
+                      {"key": "key-b1-clamp", "handled": "fixed", "how": "下限の枝も直したことにした"}]
+        disputed = [fixed_both[0], {"key": "key-b1-clamp", "handled": "disputed", "how": "下限の枝は呼び手が先に弾いている"}]
+        out = run.include(review=review, writer=writer_of({"plan": [changed], "block_answers": fixed_both},
+                                                          {"block_answers": disputed}))
+        self.assertIs(out["ready"], True, out)
+        why = rolekit.rejected(run.art / "plan" / "r2", "plan")
+        self.assertEqual(len(why), 1, why)
+        self.assertIn("block key-b1-clamp を fixed と答えたが、その block の項目 2 を変えていない", why[0])
+        got = json.loads((run.art / "plan" / "r2" / planfile.REPLY_FILE).read_text(encoding="utf-8"))["plan"]
+        self.assertEqual(got[1], first[1], "返さない開いた項目は前の往復の行のまま")
+        self.assertEqual(got[0]["approach"], changed["approach"])
+
     def test_second_round_counts_its_own_rejections(self):
         """拒否の控えは周ごと: 1 周目に 2 回拒まれても、2 周目は 0 から数えて 3 回まで出し直せる"""
         run = Run(self)

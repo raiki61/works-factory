@@ -123,7 +123,8 @@ RESUBMIT_ASK = ("前の回の返答は受け付けで拒まれた。この会話
                 "- plan には、拒否に挙がった項目だけを、前と同じ型の丸ごとの項目で返せ。unit_keys が 1 つでも重なる前の項目は、返した項目に"
                 "置き換わる（2 つの項目をまとめる・単位を隣の項目へ移す時は、関わる項目を全部返す）。どの前の項目とも重ならない項目は後ろに足される\n"
                 "- block_answers を直す時は、全部の行を返せ（欄ごと置き換わる）\n"
-                "- 項目を消す時だけは whole_plan に true を書き、plan に案の全部を返せ（plan が丸ごと置き換わる）\n"
+                "- 項目を消す時（拒否が書くなと言った項目を外す時も）だけは whole_plan に true を書き、plan に案の全部を返せ（plan が"
+                "丸ごと置き換わる）\n"
                 "- 受け付けは、合わせた後の答えの全体をもう 1 度照らす")
 
 
@@ -863,7 +864,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     shut = set(_shut(judgment, plan))
     allowed = list(range(1, len(slots(judgment)) + 1))
     reasons = [
-        _section(planblk.ANSWERS_REJECT, converge.answer_gaps(record, answers)),
+        _section(planblk.ANSWERS_REJECT, converge.answer_gaps(record, answers) + converge.fixed_unchanged(record, whole, answers)),
         _section(planblk.CLOSED_REJECT, closed),
         _section(planblk.NO_NARROW_REJECT, gatemarks.narrow_gaps(planmarks.NODE, plan)),
         _section(planblk.RECOMMEND_REJECT, gatemarks.recommend_gaps(planmarks.NODE, plan)),

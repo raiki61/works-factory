@@ -3808,7 +3808,7 @@
 - plan.md P114: workflows/line/works-factory-line.yaml::plan-rounds の `max_iterations: 20` と、workflows/line/works-factory-line.yaml::plan-out・workflows/line/works-factory-line.yaml::plan-review-run の `with:` の `round_limit: 20`（正本はメイングラフ。lib/boardview.py::_at_cap は入力の round_limit で converge.record_pass の at_cap を決め、数を持たない）
 - plan.md P115: lib/planfile.py::next_round・lib/planfile.py::converge_record（mode replan を飛ばす）、lib/boardview.py::place（round 1 固定）
 - plan.md P116: lib/planfile.py::converge_record（計画の側の組み直し）と plan-review/plan-converge.json（lib/boardview.py::_take が呼ぶ lib/converge.py::record_pass）。#75 の discoveries R10（converge の往復の本体の写し・約 120 行）
-- plan.md P117: 無し。2 周目は新しい会話で、前の周の案と指摘をファイルで渡す（WF workflows/plan/works-factory-plan.yaml::plan-loop の `fresh_context: true`）
+- plan.md P117: 無し。2 周目は新しい会話で、前の周の案と指摘をファイルで渡し、修正案の役は変えた項目だけを返す（lib/converge.py::splice が返さない項目に前の往復の行を差し込み、lib/converge.py::fixed_unchanged が fixed と答えて項目を変えていない答えを拒む。#571）。同じ周の中で受け付けに拒まれた後は、出し直しの役が同じ会話の続きで拒まれた項目だけを返し、受け付けが前の答えと合わせる（WF workflows/plan/works-factory-plan.yaml::plan-writer-fix・lib/planfile.py::merge_resubmit。plan-loop は `fresh_context: false`）
 - plan.md P118: lib/planfile.py::write_brief（形 plan の材料に独立設計のセクションは元から無い。2 周目は会話が新しいので planmarks.HEAD を含む頭を貼り直す）
 - plan.md P119: lib/runreport.py::_converge_lines（lib/gatemarks.py::converge_of。最後の承認ノードの ask_final.review_rows も同じ口）
 - plan.md P120: lib/boardview.py::_pass_rejects（受け付けが往復を控えた後、converge.stash_rejects でその往復の計画の周の rejects-plan.json と事前審査の拒否の行を往復の行の rejects に残す。拒否の控えは周・挟んだ回ごと）（#120）

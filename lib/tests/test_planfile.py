@@ -397,10 +397,10 @@ class ConvergeCase(TmpCase):
         self.assertEqual(len(rejects), 1, rejects)
         self.assertIn("閉じた項目 2 を変えた", rejects[0])
 
-    def test_splice_refuses_missing_open_item(self):
-        _, rejects, _ = converge.splice(self.blocked_first(), [])
-        self.assertEqual(len(rejects), 1, rejects)
-        self.assertIn("開いた項目 1 の行が無い", rejects[0])
+    def test_splice_fills_missing_open_item(self):
+        """#571: 返答に無い開いた項目は前の往復の行を差し込む（役は変えた項目だけを返す）"""
+        whole, rejects, _ = converge.splice(self.blocked_first(), [])
+        self.assertEqual((whole, rejects), ([item("u1"), item("u2")], []))
 
     def test_splice_without_passes_takes_reply(self):
         self.plan_round(1, [item("u1")])

@@ -480,12 +480,27 @@ class ItemsCase(BoardCase):
         self.assertEqual(dropped, [])
         self.assertEqual(whole, [row("u2"), row("u1", "u3", approach="組み替えた"), row("u9", approach="新しい項目")])
 
-    def test_splice_refuses_missing_open_item(self):
+    def test_splice_fills_missing_open_item(self):
+        """#571: 役は変えた項目だけを返す。返答に無い開いた項目は前の往復の行を差し込む"""
         self.review([face("key-a1", units=["u1"])])
         whole, rejects, _ = self.splice([])
-        self.assertEqual(len(rejects), 1, rejects)
-        self.assertIn("開いた項目 1 の行が無い", rejects[0])
-        self.assertEqual(whole, [row("u2")])
+        self.assertEqual(rejects, [])
+        self.assertEqual(whole, [row("u1"), row("u2")])
+
+    def test_fixed_answer_on_unchanged_item_is_named(self):
+        """fixed と答えた block の項目を変えていない答えは名指す。変えた・組み替えた・disputed・どの項目とも重ならない block は見ない"""
+        self.review([face("key-a1", units=["u1"]), face("key-x1", units=["somewhere"])])
+        doc = converge.read(self.b)
+        unchanged = converge.splice(doc, [])[0]
+        got = converge.fixed_unchanged(doc, unchanged, [answer("key-a1")])
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("block key-a1 を fixed と答えたが、その block の項目 1 を変えていない", got[0])
+        changed = converge.splice(doc, [row("u1", approach="直した")])[0]
+        self.assertEqual(converge.fixed_unchanged(doc, changed, [answer("key-a1")]), [])
+        regrouped = converge.splice(doc, [row("u1", "u2", approach="まとめた")])[0]
+        self.assertEqual(converge.fixed_unchanged(doc, regrouped, [answer("key-a1")]), [])
+        self.assertEqual(converge.fixed_unchanged(doc, unchanged, [answer("key-a1", handled="disputed")]), [])
+        self.assertEqual(converge.fixed_unchanged(doc, unchanged, [answer("key-x1")]), [], "どの項目とも重ならない block は見ない")
 
     def test_splice_takes_changed_held_row(self):
         self.hold_second()
@@ -540,9 +555,10 @@ class ItemsCase(BoardCase):
         self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
         sec = converge.revise_section(converge.read(self.b))
         self.assertIn(converge.REVISE_ASK, sec)
-        self.assertIn("開いた項目の行", converge.REVISE_ASK)
+        self.assertIn("変えた項目の行だけ", converge.REVISE_ASK)
         self.assertNotIn("丸ごと", converge.REVISE_ASK)
         self.assertIn("閉じた項目は書くな", converge.REVISE_ASK)
+        self.assertIn("fixed と答えた block の項目は変えた行を返せ", converge.REVISE_ASK)
         self.assertIn("書くな", converge.CLOSED_ASK)
         self.assertNotIn("一字も変えずに入れよ", converge.CLOSED_ASK)
         self.assertIn("書かなければ機械が差し込む", converge.HELD_NOTE)
