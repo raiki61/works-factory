@@ -2,7 +2,7 @@
 
 修正案の項目が変える名（単位の key の `+` の後から `:` までの ASCII の名と、項目の adds の名の ASCII の語のうち、対象に在る物）を
 `git grep -n -w` で引き、当たりを本体（呼び出し元・文書）と試験に分ける。Python の試験は当たりを含む試験の関数の id
-（`path::Class::test_x`。ast）まで引き、試験でない関数・ほかの言語はファイルと行（`path:line`）。当たりを項目の allowed_paths
+（`path::Class[::内の Class…]::test_x`。planmarks.test_defs）まで引き、試験でない関数・ほかの言語はファイルと行（`path:line`）。当たりを項目の allowed_paths
 （glob）・tests と rewrite_tests の id とそのファイルに照らし、覆っていない当たりに項目ごとの id（h1・h2…）を振って名指す。
 試験の id・パス・試験の名（test_・Test で始まる）は変える名に数えず、呼び出し元でない文書と生成物（NON_CODE_DIRS・
 NON_CODE_FILES）の当たりは捨てる（run 68f35d6b: adds の試験の id の断片 works・tests・test_report・HeadCase と、設計書の行が
@@ -118,23 +118,17 @@ def is_test(path: str) -> bool:
 
 
 def _test_id(repo: pathlib.Path, path: str, line: int, cache: dict) -> str:
-    """当たりの行を含む試験の関数の id（.py の test で始まる関数。クラスの中ならクラスも）。引けなければ path:line"""
+    """当たりの行を含む試験の関数の id（planmarks.test_defs の形。入れ子のクラスは外から順に）。引けなければ path:line"""
     if path.endswith(".py"):
         if path not in cache:
             try:
                 cache[path] = ast.parse((repo / path).read_text(encoding="utf-8"))
             except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
                 cache[path] = None
-        tree = cache[path]
-        if tree is not None:
-            best = None
-            for owner in [tree, *(n for n in ast.walk(tree) if isinstance(n, ast.ClassDef))]:
-                for fn in owner.body:
-                    if (isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and fn.name.startswith("test")
-                            and fn.lineno <= line <= (fn.end_lineno or fn.lineno)):
-                        best = f"{path}::{owner.name}::{fn.name}" if isinstance(owner, ast.ClassDef) else f"{path}::{fn.name}"
-            if best:
-                return best
+        if cache[path] is not None:
+            for tid, fn in planmarks.test_defs(cache[path], path):
+                if fn.lineno <= line <= (fn.end_lineno or fn.lineno):
+                    return tid
     return f"{path}:{line}"
 
 

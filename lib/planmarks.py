@@ -367,7 +367,7 @@ def word_re(name: str):
     return re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
 
 
-def _test_defs(tree, path: str):
+def test_defs(tree, path: str):
     """木 tree の、名前が test で始まる関数（モジュールの直下と、クラスの直下のメソッド。入れ子のクラスも辿る）の
     (id, 定義の節) を並びの順に出す（id は test_functions の形）"""
     def walk(body, head):
@@ -395,7 +395,7 @@ def test_functions(src: str, path: str) -> dict[str, str]:
     （ast.get_source_segment。デコレータの行から）。構文が読めない・path が .py でなければ {}。純粋"""
     tree = _parse_py(src, path)
     out = {}
-    for tid, node in _test_defs(tree, path) if tree else ():
+    for tid, node in test_defs(tree, path) if tree else ():
         top = min([node.lineno] + [d.lineno for d in node.decorator_list])
         span = ast.Constant(value=None, lineno=top, col_offset=node.col_offset, end_lineno=node.end_lineno,
                             end_col_offset=node.end_col_offset)   # デコレータの行から本体の終わりまで
@@ -462,7 +462,7 @@ def test_names(src: str, path: str) -> dict[str, set[str]]:
     """test_functions と同じ id → その関数（デコレータから本体の終わりまで）がコードで使う名（_code_names）。構文が読めない・
     path が .py でなければ {}。純粋"""
     tree = _parse_py(src, path)
-    return {tid: _code_names(node) for tid, node in _test_defs(tree, path)} if tree else {}
+    return {tid: _code_names(node) for tid, node in test_defs(tree, path)} if tree else {}
 
 
 def _naming_removes(item: dict, base_tests: dict) -> list[dict]:
