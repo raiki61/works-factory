@@ -3143,7 +3143,7 @@
 - fix.md F208: workflows/fix/scripts/conflict_check.py、lib/fixboard.py::cited_rows、YAML の rule-loop の `when: conflict-check.output.go`
 - fix.md F209: lib/ruling.py::limit_problem・lib/ruling.py::grounds_problems・lib/ruling.py::problems、workflows/fix/commands/fix-rules/ruler.md、YAML のノード ruler（読むだけの道具）
 - fix.md F210: lib/ruling.py::READONLY・lib/ruling.py::accept_rule（rule-tree.json と比べる）
-- fix.md F211: lib/ruling.py::GIVE_UP_AFTER・lib/ruling.py::GIVE_UP_TEXT・lib/ruling.py::accept_rule
+- fix.md F211: lib/rolekit.py::GIVE_UP_AFTER・lib/ruling.py::GIVE_UP_TEXT・lib/ruling.py::accept_rule
 - fix.md F212: lib/ruling.py::query_problems
 - fix.md F213: lib/conflict.py::apply_rulings、lib/ruling.py::plan_item_units・lib/ruling.py::plan_item_fix_problems、lib/ruling.py::accept_rule（中の `stored`）
 - fix.md F214: lib/conflict.py::set_replan

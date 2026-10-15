@@ -361,7 +361,6 @@ def role_material_files(jdir) -> list:
 
 VERIFY_ANSWERS_DIR = f"{jv.BRIEF_DIR}/answers"   # 裏取りの下請けの答えの置き場（元 judgeverify.answers_dir の run ごとの置き場の代わり）
 VERIFY_TREE_FILE = f"{jv.BRIEF_DIR}/{jv.TREE_FILE}"   # 束ね役を起こす前の作業ツリーの姿
-GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER        # 元 judgetake.py:42（輪 diagnose-loop の max_iterations と同じ）
 
 # 元 works/.shared/core/graphloops/rules/review-loop.py:689・:3860（init の入口で選ぶ入力の値）
 GATES_MERGE = "merge"

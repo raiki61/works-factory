@@ -383,7 +383,6 @@ nodes:
           with:
             status_guarded: true
             reply: $ruler.output
-            iteration: $rule-prep.output.iteration
           output_format:
             type: object
             additionalProperties: false
@@ -827,7 +826,6 @@ nodes:
           with:
             reply: {from: "$fix-ruled.output", if_skipped: null}
             consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}
-            iteration: $fix-ruled-prep.output.iteration
           output_format: *accept_out
 
   # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）。join を結ぶのは、組の節が落ちた
@@ -1503,7 +1501,6 @@ nodes:
           with:
             reply: {from: "$fixer.output", if_skipped: null}
             consulted: {from: "$consult-accept.output.consulted", if_skipped: false}
-            iteration: $fix-prep.output.iteration
           output_format: *accept_out
 
   # 終わりの木・単位ごとの結末・TDD の輪の結果・申し出・異議・修正役の印・許したテストの変更を out_dir/<group_id>/result.json に書く

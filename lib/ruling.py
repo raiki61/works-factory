@@ -16,7 +16,7 @@
   同じ返答で fix_plan_item に裁いた項目の単位に直す裁定を出さない（plan_item_fix_problems）・rejudge は組どうしの合わせの申し出
   （conflict.JOIN_SOURCE）だけで範囲を持たず、同じ組の行は同じ裁定に揃える（clash_split_problems）、
   を確かめて conflict.apply_rulings で積む
-  （fix_plan_item には欄 plan_items にその単位の brief の項目の番号を、欄 plan_units にその項目に載る単位の全部を足す）。GIVE_UP_AFTER 回目の拒否では
+  （fix_plan_item には欄 plan_items にその単位の brief の項目の番号を、欄 plan_units にその項目に載る単位の全部を足す）。rolekit.GIVE_UP_AFTER 回目の拒否では
   裁かれていない申し出を全部 ask_human に裁いて抜ける（決められない物は人へ。max_iterations で落とさない）
 """
 import os
@@ -39,10 +39,9 @@ import stopby  # noqa: E402  （L1。止めの理由の住処）
 ROLE = "rule"
 TREE = "rule-tree.json"          # 役を起こす前の作業ツリーの姿（置き場）
 PROMPT = "prompt-rule.md"        # 指示書（置き場）
-GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER   # 輪 rule-loop の max_iterations と同じ（試験が YAML と突き合わせる）
 BY_ROLE = "role:rule"
 BY_GIVE_UP = stopby.declare("rule-give-up", "裁定の by: 裁定役の返答が受け付けを通らず、決められない物として人に回した")
-GIVE_UP_TEXT = f"裁定役の返答が {GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
+GIVE_UP_TEXT = f"裁定役の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
 READONLY = "裁定役は読むだけで、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない: "
 RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", "query")   # 置き場の控えに積む裁定の欄
 

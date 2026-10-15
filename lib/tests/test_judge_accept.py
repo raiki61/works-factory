@@ -1407,7 +1407,7 @@ class MaterialCase(_RepoCase):
         self.assertTrue(self.take_round("hygiene", hygiene("app.txt:1", f"{outside}:50", "infra/main.tf:184"))["ok"])
         (self.jdir / ja.material_file("hygiene")).unlink()
         bad = hygiene("app.txt:1", "app.txt:99")
-        for n in range(1, ja.GIVE_UP_AFTER):
+        for n in range(1, rolekit.GIVE_UP_AFTER):
             with self.subTest(round=n):
                 got = self.take_round("hygiene", bad)
                 self.assertEqual((got["ok"], got["done"]), (False, False), got)

@@ -963,7 +963,7 @@ class RulingSeamCase(TempCase):
         r = self.ruling
         r.prep(self.place, self.repo, self.VALUES)
         bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
-        for _ in range(r.GIVE_UP_AFTER - 1):
+        for _ in range(rolekit.GIVE_UP_AFTER - 1):
             got = r.accept_rule(bad, self.place, self.rev, self.repo)
             self.assertEqual((got["ok"], got["done"]), (False, False))
             self.assertIn("c9-9", got["reason"])

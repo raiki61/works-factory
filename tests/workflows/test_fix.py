@@ -400,8 +400,7 @@ class RolesCase(unittest.TestCase):
 
     def test_give_up_counts_match_the_loop_bounds(self):
         """受け付けが諦める拒否の回は、輪の max_iterations と同じ（ずれれば諦めの前に輪の上限で節が落ちる）"""
-        self.assertEqual(self.nodes["rule-loop"]["loop_group"]["max_iterations"], ruling.GIVE_UP_AFTER)
-        for nid in ("delta-loop", "refix-loop", "review2-loop", "refix2-loop"):
+        for nid in ("rule-loop", "delta-loop", "refix-loop", "review2-loop", "refix2-loop"):
             self.assertEqual(self.nodes[nid]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
 
     def test_clash_loops_sit_between_join_and_the_ruled_fix(self):
