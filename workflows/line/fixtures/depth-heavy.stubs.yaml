@@ -1,5 +1,5 @@
-# run の頭の深さが重厚（判定の depth だけが depth-light と違う）。重厚は事前審査の木と判定の裏取りを足す深さで、事前審査の輪は
-# 軽量と同じく走って報告まで届く（tests/e2e/test_line_scenarios.py）
+# run の頭の深さが重厚（判定の depth だけが depth-light と違う）。事前審査の輪は軽量と同じく走って報告まで届き、頭の深さの語は
+# 軽量と違う物として fix・redepth・eyes・plan-review-run に届き、報告の頭の深さの行が足した物を名指す（tests/e2e/test_line_scenarios.py）
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}

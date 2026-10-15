@@ -83,6 +83,6 @@
 
 ## E20 深さの段は表 1 か所に置き、when の句で飛ばさない
 
-- run の頭の深さ（judge の `depth`）の段（軽量・標準・重厚）の定義は `lib/depth.py` の `TIERS` 1 か所。`docs/design.md` の「深さの段の表」（段・省く物・足す物・理由の 4 欄）はその写しで、行は `TIERS` と等しくなければならない。深さの語・重厚が足す機能・報告の行はどれも `TIERS` から引き、字を写さない。持ち主の決め `depth-by-reason`。
+- run の頭の深さ（judge の `depth`）の段（軽量・標準・重厚）の定義は `lib/depth.py` の `TIERS` 1 か所。`docs/design.md` の「深さの段の表」（段・省く物・足す物・理由の 4 欄）はその写しで、行は `TIERS` と等しくなければならない。深さの語・段が省く物・重厚が足す機能・報告の行はどれも `TIERS` から引き、字を写さない。持ち主の決め `depth-by-reason`。
 - ノードを深さの値で飛ばさない: どのノードの `when` も、出力の深さの欄を読む句（`$<ノード>.output.<名に depth を含む欄>`）を持たない。計画の壁打ち（plan と plan-review の往復）はどの段でも省かない。段の足しは、機能の切り替えの式（`lib/entry.py` の `feature_words`・`switch` の `adds`）を通して効かせる。
 - 機械: `tests/layers/test_depth_skip.py`（どのノード〔メイングラフ・サブグラフの頭の段・ループの中〕の `when` も深さの欄を読む句を持たない・表の行が `depth.TIERS` と等しい。照らしは `tests/layers/scan.py` の `_depth_when`）。

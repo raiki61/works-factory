@@ -1721,10 +1721,15 @@ class LinesCase(Base):
         self.assertIn("- run の広さの数え: 触るファイル 1 個（起点: 修正の差分）", entry)
         light = {"depth": [{"unit_id": "u1", "depth": "軽量", "why": "触るファイル 1 個"}], "skip_optional": "軽量で省いた",
                  "raised": [], "counted": "", "stop_reason": ""}
-        _, text, _ = self.build(line={"redepth": light}, start={"run_id": RUN, "thickness": "軽量"})
+        light_head = fixed_run(judge={**fixed_run()["judge"], "depth": "軽量", "depth_why": "入力 thickness の名指し（軽量）"})
+        _, text, _ = self.build(light_head, line={"redepth": light}, start={"run_id": RUN, "thickness": "軽量"})
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn("- 深さ: 軽量（単位ごと: 軽量 1 個・標準 0 個。入力 thickness の名指し 軽量）", entry)
         self.assertIn("- 軽量で省いた: 差分の審査", entry)
+        _, text, _ = self.build(line={"redepth": {**light, "skip_optional": ""}})
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertNotIn("軽量で省いた", entry)
+        self.assertIn("- 単位はどれも軽量だが、run の頭の深さが 標準 なので省かない", entry)
         plan = {**fixed_run()["plan"], "depth": [{"unit_id": "u1", "depth": "軽量", "why": "w"}]}
         _, text, _ = self.build(fixed_run(plan=plan))
         entry = self.section(text, report.ENTRY_HEADING)
@@ -1736,10 +1741,11 @@ class LinesCase(Base):
         judge = {**fixed_run()["judge"], "depth": "軽量", "depth_why": "原因と直す行が名指されている"}
         plan = {**fixed_run()["plan"], "depth_why": "計画の単位 1 個がすべて軽量"}   # 計画の往復の欄は読まない
         _, text, _ = self.build(fixed_run(judge=judge, plan=plan))
-        self.assertIn("- run の頭の深さ: 軽量（根拠: 原因と直す行が名指されている）／省いた物: 無い／足した物: 無い\n",
+        self.assertIn("- run の頭の深さ: 軽量（根拠: 原因と直す行が名指されている）／省く物（単位がどれも軽量の時）: "
+                      f"{'・'.join(depth.OMITS)}／足した物: 無い\n",
                       self.section(text, report.ENTRY_HEADING))
         _, text, _ = self.build(fixed_run(judge={**judge, "depth": "標準", "depth_why": "試験のコマンドが無い"}))
-        self.assertIn("- run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／省いた物: 無い／足した物: 無い\n", self.section(text, report.ENTRY_HEADING))
+        self.assertIn("- run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／省く物: 無い／足した物: 無い\n", self.section(text, report.ENTRY_HEADING))
         _, text, _ = self.build(fixed_run(judge=None))
         self.assertNotIn("run の頭の深さ", text)
 
@@ -1748,7 +1754,7 @@ class LinesCase(Base):
         機能には名指しで切ったと添える"""
         judge = {**fixed_run()["judge"], "depth": "重厚", "depth_why": "設計の選びが要る"}
         _, text, _ = self.build(fixed_run(judge=judge))
-        self.assertIn("- run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省いた物: 無い／足した物: judge_verify・review_tree\n",
+        self.assertIn("- run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省く物: 無い／足した物: judge_verify・review_tree\n",
                       self.section(text, report.ENTRY_HEADING))
         start = {"run_id": RUN, "features_off": ["judge_verify"], "features_on": []}
         _, text, _ = self.build(fixed_run(judge=judge), start=start)

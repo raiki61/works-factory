@@ -21,6 +21,7 @@ from tests.layers import scan
 
 if str(archon.ROOT / "lib") not in sys.path:
     sys.path.append(str(archon.ROOT / "lib"))
+import depth  # noqa: E402
 import fixbeside  # noqa: E402  （diff の隣の控えの名の持ち主）
 import fixboard  # noqa: E402
 
@@ -232,6 +233,21 @@ class HeadDepthTest(unittest.TestCase):
                 self.assertEqual(trace[self.LOOP]["state"], "completed")
                 self.assertNotIn("plan-review-due", trace)
                 self.assertTrue(UnattendedGateTest.ran(trace, "report__report"))
+
+    def test_the_head_reaches_what_it_omits_and_adds(self):
+        """issue #561: 判定の頭の深さの語は、段の省く物を効かせる所（fix・redepth・eyes）と足す物を効かせる所（plan-review-run）に
+        そのまま届き、本物の報告の頭の深さの行が段ごとに違う物を名指す（軽量は単位がどれも軽量の時の省く物、重厚は足した物）"""
+        top = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
+        nodes = {n["id"]: n for n in [*top, *(m for n in top for m in (n.get("loop_group") or {}).get("nodes") or [])]}
+        omits = "・".join(depth.TIERS[depth.LIGHT]["omits"])
+        for name, head, said in (("depth-light", depth.LIGHT, f"／省く物（単位がどれも軽量の時）: {omits}／足した物: 無い"),
+                                 ("depth-heavy", depth.HEAVY, f"／省く物: 無い／足した物: {'・'.join(depth.tier_adds(depth.HEAVY))}")):
+            with self.subTest(name=name):
+                trace = self.traces[name]
+                for node in ("fix", "redepth", "eyes", "plan-review-run"):
+                    self.assertEqual(bound(trace, nodes[node]["with"]["head_depth"]), head, node)
+                line = next(x for x in report_facts(trace)["text"].splitlines() if x.startswith("- run の頭の深さ: "))
+                self.assertTrue(line.startswith(f"- run の頭の深さ: {head}（") and line.endswith(said), line)
 
 
 def bound(trace: dict, value):

@@ -603,8 +603,6 @@ class StartCase(Artifacts):
         self.assertEqual(line_nodes()["gate-start"]["depends_on"], ["start"])
 
     def test_heavy_thickness_is_taken(self):
-        """入力 thickness=重厚 の run を入口が受ける。重厚は足す機能を入れるので、始めの記録の features_cut に judge_verify が無く、
-        承認ノードの頭の行は「段: 重厚」で「judge_verify off」を言わない"""
         got = self.start(request="request_ok.json", thickness="重厚")
         self.assertTrue(got["ok"], got)
         doc = self.record(got)
@@ -620,7 +618,6 @@ class StartCase(Artifacts):
         self.assertIn("judge_verify off", plain["gate_text"])
 
     def test_heavy_with_a_named_off_keeps_it_off(self):
-        """thickness=重厚 と features_off=judge_verify の組を入口が受け、名指しの切りが重厚の足しに勝つ"""
         got = self.start(request="request_ok.json", thickness="重厚", features_off="judge_verify")
         self.assertTrue(got["ok"], got)
         doc = self.record(got)
@@ -645,7 +642,7 @@ class FixInCase(Artifacts):
 
     BASE = {"baseline": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate-base/baseline.json"}, "ok": True}
     JUDGE = {"units": [{"id": "u1"}], "judgment": {"path": "judge/judgment.json"}, "purpose": None, "world": None, "spec": None,
-             "rejudge_verdict": ""}
+             "rejudge_verdict": "", "depth": "軽量"}
     PLAN = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "depth": [], "structure": None}
     REVIEW = {"review": {"path": "plan-review/review.json"}, "design": {"path": "plan-review/design.json"}, "questions": []}
     ANSWER = {"decision": "continue", "text": "q1 は a", "asked": []}
@@ -672,9 +669,9 @@ class FixInCase(Artifacts):
     def test_live_run_flattens_the_receivers_and_captures_once_it_goes(self):
         got = self.run_in(before_fix_go="true")
         self.assertEqual((got["go"], got["received"]), (True, None))
-        self.assertEqual((got["baseline"], got["units"], got["plan"], got["review"], got["answer"], got["deferred"]),
+        self.assertEqual((got["baseline"], got["units"], got["plan"], got["review"], got["answer"], got["deferred"], got["head_depth"]),
                          (self.BASE["baseline"], self.JUDGE["units"], self.PLAN["plan"], self.REVIEW["review"], self.ANSWER,
-                          [{"key": "q9"}]))
+                          [{"key": "q9"}], "軽量"))
         man = json.loads((self.artifacts / fixture.DIR / fixture.MANIFEST).read_text(encoding="utf-8"))
         self.assertEqual(man["carried"], {"test_gate_base": self.BASE, "judge": self.JUDGE, "plan": self.PLAN,
                                           "plan_review": self.REVIEW, "gate_before_fix": self.ANSWER, "deferred": [{"key": "q9"}]})
@@ -691,7 +688,8 @@ class FixInCase(Artifacts):
         pointer = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": fixture.CARRIED})
         got = self.run_in(fixture=pointer, start_go="true", before_fix_go="null", test_gate_base="null", judge="null")
         self.assertEqual((got["go"], got["received"]), (True, received))
-        self.assertEqual((got["units"], got["judgment"], got["answer"]), (self.JUDGE["units"], self.JUDGE["judgment"], self.ANSWER))
+        self.assertEqual((got["units"], got["judgment"], got["answer"], got["head_depth"]),
+                         (self.JUDGE["units"], self.JUDGE["judgment"], self.ANSWER, "軽量"), "写した run の頭の深さを運ぶ（標準に倒さない）")
         self.assertFalse((self.artifacts / fixture.DIR).exists(), "固定材料から始めた run は写さない")
         self.assertIs(self.run_in(fixture=pointer, start_go="false")["go"], False)
 
@@ -2321,9 +2319,10 @@ class FixedCase(unittest.TestCase):
 class RedepthCase(Artifacts):
     LIGHT = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
 
-    def redepth(self, *, units=(), conflicts=(), signals=(), replanned=False, rejudged=False, replanned_depth=None, counted=""):
+    def redepth(self, *, units=(), conflicts=(), signals=(), replanned=False, rejudged=False, replanned_depth=None, counted="",
+                head="軽量"):
         return redepth.redepth(self.LIGHT, replanned_depth, list(units), list(conflicts), list(signals), replanned=replanned,
-                               rejudged=rejudged, counted=counted)
+                               rejudged=rejudged, head=head, counted=counted)
 
     def put(self, rel, doc):
         (self.artifacts / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -2334,6 +2333,13 @@ class RedepthCase(Artifacts):
         got = self.redepth(units=[{"unit_id": "u1", "status": "fixed"}])
         self.assertEqual(got["depth"][0]["depth"], "軽量")
         self.assertTrue(got["skip_optional"])
+
+    def test_standard_or_heavy_head_omits_nothing(self):
+        """issue #561: 単位がどれも軽量のままでも、run の頭の深さが標準・重厚・不明なら省く理由の文は空（目と差分の審査を回す）"""
+        for head in ("標準", "重厚", "", "null"):
+            with self.subTest(head=head):
+                got = self.redepth(units=[{"unit_id": "u1", "status": "fixed"}], head=head)
+                self.assertEqual((got["depth"][0]["depth"], got["skip_optional"]), ("軽量", ""))
 
     def test_signals_raise_to_standard(self):
         for kw in ({"units": [{"unit_id": "u1", "status": "given_up"}]}, {"conflicts": [{"path": "c"}]},
@@ -2392,7 +2398,8 @@ class RedepthCase(Artifacts):
         env = {"INPUTS_DEPTH": json.dumps(self.LIGHT, ensure_ascii=False), "INPUTS_REPLAN_DEPTH": "null", "INPUTS_UNITS": "[]",
                "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": json.dumps(plan), "INPUTS_DIFF": json.dumps(diff),
                "INPUTS_JUDGMENT": json.dumps(judgment), "INPUTS_START": json.dumps(start), "INPUTS_ANSWER": "null",
-               "INPUTS_TIES_JUDGMENT": json.dumps(judgment), "INPUTS_REPLANNED": "false", "INPUTS_REJUDGED": "false"}
+               "INPUTS_TIES_JUDGMENT": json.dumps(judgment), "INPUTS_REPLANNED": "false", "INPUTS_REJUDGED": "false",
+               "INPUTS_HEAD_DEPTH": "軽量"}
         self.assertLessEqual({k.removeprefix("INPUTS_").lower() for k in env}, set(line_nodes()["redepth"]["with"]))
         with mock.patch.dict(os.environ, env):
             got = redepth.compute()
@@ -2413,8 +2420,8 @@ class RedepthCase(Artifacts):
         """L-D08・L-D10: redepth は判定の問いの台帳（判定と始めの記録と修正前の関所の答えと 1 回目の判定の結び）と、修正の計画と差分を
         受ける"""
         with_ = line_nodes()["redepth"]["with"]
-        self.assertEqual({k: with_[k] for k in ("judgment", "start", "answer", "ties_judgment", "plan", "diff")},
-                         {"judgment": "$judged.output.judgment", "start": "$start.output.record",
+        self.assertEqual({k: with_[k] for k in ("judgment", "start", "answer", "ties_judgment", "plan", "diff", "head_depth")},
+                         {"judgment": "$judged.output.judgment", "start": "$start.output.record", "head_depth": "$fix-in.output.head_depth",
                           "answer": {"from": "$fix-in.output.answer", "if_skipped": None},
                           "ties_judgment": "$fix-in.output.judgment",
                           "plan": "$fixed.output.plan", "diff": "$fixed.output.diff"})
@@ -3225,8 +3232,6 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual({name for key, name in self.UNPASSED if key == "replan-review"},
                          {"mode", "round_limit", "head_depth"},
                          "申し出と関所の答えは渡す（mode は直す物が無い周の design-only だけ）")
-        # run の頭の深さは判定の出力 depth を、事前審査の木を決める往復の差し込み plan-review-run だけが平の入力 head_depth で受ける
-        # （案の直しの事前審査と直す物が無い周は木を決めない）。事前審査の輪を深さで飛ばす節は無い
         self.assertEqual(nodes["plan-review-run"]["with"]["head_depth"], "$judge.output.depth")
         self.assertNotIn("head_depth", nodes["replan-review"]["with"])
         self.assertNotIn("head_depth", nodes["design-only"]["with"])

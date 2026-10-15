@@ -1365,6 +1365,11 @@ class DeltaSeamCase(TempCase):
         import depth
         self.assertEqual(fixboard.redepth(self.place, self.repo), "")
         fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}])
+        self.assertEqual(fixboard.redepth(self.place, self.repo), "", "頭の深さの控えが無ければ標準で、省かない")
+        for head in (depth.STANDARD, depth.HEAVY):
+            fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, head)
+            self.assertEqual(fixboard.redepth(self.place, self.repo), "", head)
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         self.assertTrue(fixboard.redepth(self.place, self.repo).startswith("軽量で省いた"))
         raised = fixboard.read_json(self.place / fixboard.DEPTH_RAISED_FILE)
         self.assertEqual(raised["units"]["a"]["depth"], depth.LIGHT)
@@ -1384,6 +1389,7 @@ class DeltaSeamCase(TempCase):
         import conflict
         import depth
         light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}]
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
                                                                 "start_tree": leftovers.snapshot(self.repo)})
 
@@ -1525,6 +1531,7 @@ class DeltaSeamCase(TempCase):
         import conflict
         import depth
         light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}, {"unit_id": "b", "depth": depth.LIGHT, "why": "y"}]
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
                                                                 "start_tree": leftovers.snapshot(self.repo)})
 

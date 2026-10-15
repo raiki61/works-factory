@@ -2,9 +2,8 @@
 
 単位ごとの深さ（depth.py）の上に、run 全体の深さの段（軽量・標準・重厚。段の定義は depth.TIERS）を run の頭で 1 度決める。
 易しいか・難しいかは意味の問いなので役が決め、ここは事実を測って役に渡し、役の引用が依頼の字とリポジトリの行に実在するかを
-照らす。照らしが通らない・根拠が引けない時は標準。重厚は設計の選び・公開の約束の変更・複数のサブグラフにまたがる、のどれかを
-引用で示せた時だけ。深さで飛ばすノードは無い（計画の往復の事前審査は段に依らず走る）。段が足す機能は depth.tier_adds で引き、
-機能の切り替えの式は entry に在る。
+照らす。照らしが通らない・根拠が引けない時は標準。深さで飛ばすノードは無い（計画の往復の事前審査は段に依らず走る）。段が省く物と
+足す機能は depth.TIERS から引き、機能の切り替えの式は entry に在る。
 
 - facts(rows, start, repo): 依頼の行ごとの字と番地の実在・試験のコマンドの有無・仕様の段・設計だけ・入力 thickness の名指し
 - gate(facts): 役を起こす前の機械の止め (go, 深さ, 訳)。go が偽なら決めた深さと訳で控えを書き、役を起こさない
@@ -14,8 +13,8 @@
   行までに限る（重厚は設計の選びなどを示すので範囲の幅は問わない）
 - write(jdir, doc)・read(jdir): 控え RECORD の読み書き。read は無い・読めない時に標準の控え
 - record(depth, why, *, items, facts): 控えの形
-- report_line(depth_word, why, cut=()): 報告の冒頭 2 の 1 行。段の名・根拠と、その段の省く物・足す物（depth.TIERS）。cut に在る足しは
-  名指しで切ったと添える
+- report_line(depth_word, why, cut=()): 報告の冒頭 2 の 1 行。段の名・根拠と、その段の省く物（単位がどれも軽量の時だけ省く。実際に
+  省いたかは depth.lines の行が言う）・足す物（depth.TIERS）。cut に在る足しは名指しで切ったと添える
 """
 import json
 import pathlib
@@ -152,6 +151,6 @@ def report_line(depth_word, why, cut=()) -> str:
     tier = depth_word if depth_word in depth.HEADS else STANDARD
     spec = depth.TIERS[tier]
     head = f"run の頭の深さ: {tier}" + (f"（根拠: {why}）" if why else "")
-    omits = "・".join(spec["omits"]) or "無い"
+    omits = f"（単位がどれも軽量の時）: {'・'.join(spec['omits'])}" if spec["omits"] else ": 無い"
     adds = "・".join(f"{name}（名指しで切った）" if name in cut else name for name in spec["adds"]) or "無い"
-    return f"{head}／省いた物: {omits}／足した物: {adds}"
+    return f"{head}／省く物{omits}／足した物: {adds}"

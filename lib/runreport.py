@@ -1257,12 +1257,10 @@ def _depth_lines(start: dict, returns: dict, line: dict) -> list:
                      for d in rows if isinstance(d, dict)},
            "forced": as_dict(start).get("thickness") or "", "raised": _list(redepth.get("raised")),
            "counted": redepth.get("counted") or ""}
-    return [*depthlib.lines(doc), *([] if redepth else [NO_REDEPTH])]
+    return [*depthlib.lines(doc, as_dict(returns.get("judge")).get("depth")), *([] if redepth else [NO_REDEPTH])]
 
 
 def _head_depth_line(start: dict, returns: dict) -> list:
-    """run の頭の深さの 1 行（報告の冒頭 2。headdepth.report_line）: 1 回目の判定が決めた段と根拠と、段の省く物・足す物（始めの記録の
-    features_off で名指しで切った足しにはそう添える）。判定の返りが無ければ出さない"""
     judged = returns.get("judge")
     if not isinstance(judged, dict) or not judged.get("depth"):
         return []
@@ -1311,7 +1309,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     gate_words = gatepolicy.head_words(s)
     if gate_words:
         out.append(gate_words)
-    adds = depthlib.tier_adds(as_dict(returns.get("judge")).get("depth"))   # 判定の頭の深さの段が足した機能は、名指しの無い限り on
+    adds = depthlib.tier_adds(as_dict(returns.get("judge")).get("depth"))
     feats = (f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s), adds)}"
              if entrylib.FEATURES_KEY in s else "")
     out.append(f"段: {s.get('thickness') or '自動（機械が単位ごとに決めた）'}{feats}")

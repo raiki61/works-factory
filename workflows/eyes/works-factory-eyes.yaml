@@ -13,6 +13,7 @@ inputs:
   plan: {required: true, description: "plan-fields.json のポインタ"}
   ripple: {required: true, description: "ripple.json のポインタ"}
   depth: {required: true, description: "単位ごとの深さ。JSON の配列"}
+  head_depth: {default: "", description: "run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら R1〜R4 を省く。空は標準"}
   design: {required: true, description: "design.json のポインタ"}
   changed: {required: true, description: "修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む"}
   fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}

@@ -43,7 +43,7 @@ inputs:
     description: 設計だけの run か（空か true）。true は修正前の承認ノードを必ず開く
   thickness:
     default: ""
-    description: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は単位を標準に固定し、run に判定の裏取り（judge_verify）と事前審査の木（review_tree）を足す（features_off で名指しで切った機能は足さない）
+    description: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は単位を標準に固定する。段ごとに省く物・足す物は docs/design.md の深さの段の表（lib/depth.py の TIERS）
   features_off:
     default: ""
     description: 切る機能（語をカンマか空白で区切った 1 行。語と既定は lib/entry.py の FEATURES・FEATURE_DEFAULTS）。知らない語は start が止める
@@ -437,6 +437,7 @@ nodes:
         plan: {}
         ripple: {}
         depth: {}
+        head_depth: {}
         structure: {}
         review: {}
         design: {}
@@ -445,7 +446,7 @@ nodes:
         deferred: { type: array }
         received: { type: [object, "null"] }
         stop_reason: { type: string }
-      required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, plan, ripple, depth, structure,
+      required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, plan, ripple, depth, head_depth, structure,
                  review, design, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
@@ -475,6 +476,7 @@ nodes:
       plan: "$fix-in.output.plan"
       ripple: "$fix-in.output.ripple"
       depth: "$fix-in.output.depth"
+      head_depth: "$fix-in.output.head_depth"
       answers: "$fix-in.output.answer"
       plan_review: "$fix-in.output.review"
 
@@ -672,6 +674,7 @@ nodes:
       plan: "$replan.output.plan"
       ripple: "$answer-replan.output.fix_ripple"
       depth: "$replan.output.depth"
+      head_depth: "$fix-in.output.head_depth"
       answers: "$answer-replan.output.fix_answers"
       only_items: "$fix.output.replan_items"
       prior_conflicts: "$fix.output.conflicts"
@@ -863,6 +866,7 @@ nodes:
     with:
       depth: { from: "$fix-in.output.depth", if_skipped: null }
       replan_depth: { from: "$replan.output.depth", if_skipped: null }
+      head_depth: "$fix-in.output.head_depth"
       units: "$fixed.output.units"
       conflicts: "$fixed.output.conflicts"
       plan: "$fixed.output.plan"
@@ -925,6 +929,7 @@ nodes:
       plan: "$fixed.output.plan"
       ripple: "$fixed.output.ripple"
       depth: "$redepth.output.depth"
+      head_depth: "$fix-in.output.head_depth"
       design: "$fixed.output.design"
       changed: "$fixed.output.changed"
       x_scalars: "$fixed.output.x_scalars"

@@ -5,7 +5,7 @@
 - 引用の照らし（行の抜け・2 度指し・依頼に無い引用・無いファイル・範囲の外・.git の中・コードに無い引用・why が空・cite の下限より
   短い引用・WHERE_SPAN より広い行の範囲・依頼の行が無い軽量。重厚は軽量と同じ照らしで、行の範囲の幅は問わない）
 - 控えが無い・壊れた時は標準
-- 報告の 1 行の 3 つの形（段の名・根拠と、段の省く物・足す物。切った足しは名指しで切ったと添える）
+- 報告の 1 行の 3 つの形（段の名・根拠と、段の省く物〔単位がどれも軽量の時〕・足す物。切った足しは名指しで切ったと添える）
 """
 import pathlib
 import sys
@@ -143,16 +143,18 @@ class RecordTest(unittest.TestCase):
 
 class ReportLineTest(unittest.TestCase):
     def test_three_shapes(self):
-        self.assertEqual(headdepth.report_line("軽量", "根拠"), "run の頭の深さ: 軽量（根拠: 根拠）／省いた物: 無い／足した物: 無い")
+        omits = "・".join(headdepth.depth.OMITS)
+        self.assertEqual(headdepth.report_line("軽量", "根拠"),
+                         f"run の頭の深さ: 軽量（根拠: 根拠）／省く物（単位がどれも軽量の時）: {omits}／足した物: 無い")
         self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い"),
-                         "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／省いた物: 無い／足した物: 無い")
+                         "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／省く物: 無い／足した物: 無い")
         self.assertEqual(headdepth.report_line("重厚", "設計の選びが要る"),
-                         "run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省いた物: 無い／足した物: judge_verify・review_tree")
+                         "run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省く物: 無い／足した物: judge_verify・review_tree")
         self.assertEqual(headdepth.report_line("重厚", "設計の選びが要る", cut=("judge_verify",)),
-                         "run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省いた物: 無い／"
+                         "run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省く物: 無い／"
                          "足した物: judge_verify（名指しで切った）・review_tree")
-        self.assertEqual(headdepth.report_line("", ""), "run の頭の深さ: 標準／省いた物: 無い／足した物: 無い")
-        self.assertEqual(headdepth.report_line("極厚", "x"), "run の頭の深さ: 標準（根拠: x）／省いた物: 無い／足した物: 無い")
+        self.assertEqual(headdepth.report_line("", ""), "run の頭の深さ: 標準／省く物: 無い／足した物: 無い")
+        self.assertEqual(headdepth.report_line("極厚", "x"), "run の頭の深さ: 標準（根拠: x）／省く物: 無い／足した物: 無い")
 
 
 if __name__ == "__main__":

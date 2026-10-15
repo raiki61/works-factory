@@ -42,8 +42,8 @@ import policy
 import rolekit
 import startrec
 
-PREP_INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "answers", "units", "only_items", "baseline",
-               "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
+PREP_INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "head_depth", "answers", "units", "only_items",
+               "baseline", "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
@@ -466,7 +466,7 @@ LANE_SWITCHES = ("fix_lanes", "tdd_lanes")   # 機能の切り替えの語。ど
 NO_RESULT = "組の子の run が結果のファイルを書かなかった（子が落ちたか、結果が読めない）"
 DELTA_DIR = "delta"                       # 差分の審査の控えの置き場（置き場の下）
 DELTA_REVIEW = "review-{}.json"           # n 回目の審査の控え {pass: bool}（delta-accept・review2-accept が書く）
-DELTA_SKIPPED = "skipped.json"            # 審査を飛ばした印 {reason}（全部の単位が軽量・差分が空で塞いだ穴も無い。delta-cut が書く）
+DELTA_SKIPPED = "skipped.json"            # 審査を飛ばした印 {reason}（頭も全部の単位も軽量・差分が空で塞いだ穴も無い。delta-cut が書く）
 CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
                  "path_changed")
 DRIFT_NOTE = "premise_drift_note"   # 修正役の返答と返りの changed の欄: 前提のずれの申告の文（premise_drift が真の時の測り直した制約）
@@ -536,6 +536,7 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     ripple = read_pointed("ripple")
     if ripple is not None:
         write_json(folder / RIPPLE_FILE, ripple)
+    write_json(folder / HEAD_DEPTH_FILE, str(raw.get("head_depth") or "").strip())
     for name, file in (("depth", DEPTH_FILE), ("answers", ANSWERS_FILE), ("units", UNITS_FILE)):
         got = value(name)
         if got not in (None, "", [], {}) or name == "units":
@@ -1011,7 +1012,7 @@ def final_lines(results, field: str, more=()) -> list:
 
 def delta_review(place) -> tuple:
     """({rounds, pass}, 飛ばしたか)。置き場の delta/ の下の審査の控え review-1.json・review-2.json（{pass}）の数と最後の pass。
-    審査を飛ばした印 skipped.json（全部の単位が軽量・差分が空で塞いだ穴も無い）が在れば ({rounds: 0, pass: True}, True)。どちらも無ければ審査は走らなかった
+    審査を飛ばした印 skipped.json（頭も全部の単位も軽量・差分が空で塞いだ穴も無い）が在れば ({rounds: 0, pass: True}, True)。どちらも無ければ審査は走らなかった
     （{rounds: 0, pass: False}）。控えが読めなければ ValueError"""
     d = pathlib.Path(place) / DELTA_DIR
     if (d / DELTA_SKIPPED).is_file():
@@ -1094,6 +1095,7 @@ TDD_UNIT_FILE = "tdd-unit.json"        # 組ごとの TDD の記録（tdd_units 
 ASSERT_FILE = "assert-changed.json"    # 変更の確かめの結果 {ok, reason}（assert-changed が書き、delta-cut・collect が読む）
 RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>/result.json（reply_file に受け付けた修正役の返答の写し）
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）
+HEAD_DEPTH_FILE = "head-depth.json"    # run の頭の深さの段の語（入力 head_depth の写し。空は標準）
 DEPTH_RAISED_FILE = "depth-raised.json"   # 修正の後の信号で上げた深さの控え（depth.raise_doc の形。redepth が書く）
 PLAN_REPLY_FILE = "p2.fix_plan.json"   # 修正案の役の返答の写し（{"plan": [...]}。承認済みの項目の unit_keys の出どころ）
 PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（faces・shrink。修正役の plan_faces と差分の審査の材料 out.p2.plan_review が読む。
@@ -1202,7 +1204,8 @@ def depth_signals(place) -> tuple:
 
 def redepth(place, repo, skip=()) -> str:
     """修正の後の信号で深さを標準へ上げ（depth.raise_doc）、上げた控えを置き場の DEPTH_RAISED_FILE に書き、全部の単位が軽量のまま
-    なら差分の審査を省く理由の文（depth.skip_reason）を返す。控えが無い・標準の単位が在る・単位が無ければ空。信号は
+    で run の頭の深さの段（置き場の HEAD_DEPTH_FILE）が省く物を持てば、差分の審査を省く理由の文（depth.skip_reason）を返す。
+    控えが無い・標準の単位が在る・単位が無い・頭の深さが省かない段なら空。信号は
     depth_signals、run 全体の広さ（depth.run_wide）は修正の実際の差分（run の始めの木 start_tree から今の作業ツリーへの変更。
     除くパスの頭 skip の下は数えない）と承認済みの修正案の欄で数え直し、数えたファイルの数と起点を控えの counted に 1 行残す。
     控えが読めない・形が違えば ValueError。元 works/darkfactory/lib/depth.py:302 の raise_（線の h-redepth）"""
@@ -1222,7 +1225,7 @@ def redepth(place, repo, skip=()) -> str:
     doc["counted"] = f"触るファイル {paths} 個（起点: {origin}）"
     doc = depth.raise_doc(doc, units=units, run=run)
     write_json(pathlib.Path(place) / DEPTH_RAISED_FILE, doc)
-    return depth.skip_reason(doc)
+    return depth.skip_reason(doc, read_json(pathlib.Path(place) / HEAD_DEPTH_FILE))
 
 
 def delta_review_due(place, repo, skip=(), fix_reply=None) -> tuple:
@@ -1589,8 +1592,8 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
-           ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
+ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, HEAD_DEPTH_FILE,
+           ANSWERS_FILE, UNITS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
 ALLOWED_SOURCES = ("plan", "consult", "ruling")   # allowed-tests.json の source の語: 承認済みの修正案・範囲の相談の合意・裁定

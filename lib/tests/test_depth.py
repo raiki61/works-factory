@@ -105,7 +105,7 @@ class DecideCase(unittest.TestCase):
     def test_no_units_is_standard_run(self):
         doc = depth.decide_doc(None, [], forced="", checked=True)
         self.assertEqual(depth.run_depth(doc), depth.STANDARD)
-        self.assertEqual(depth.skip_reason(doc), "")
+        self.assertEqual(depth.skip_reason(doc, depth.LIGHT), "")
 
 
 class RaiseCase(unittest.TestCase):
@@ -138,10 +138,10 @@ class RaiseCase(unittest.TestCase):
 class LinesCase(unittest.TestCase):
     def test_light_run_names_what_it_skipped(self):
         doc = depth.decide_doc([item([U1])], [U1], forced="", checked=True)
-        reason = depth.skip_reason(doc)
+        reason = depth.skip_reason(doc, depth.LIGHT)
         self.assertIn("軽量", reason)
-        text = "\n".join(depth.lines(doc))
-        skipped = [x for x in depth.lines(doc) if x.startswith("軽量で省いた: ")]
+        text = "\n".join(depth.lines(doc, depth.LIGHT))
+        skipped = [x for x in depth.lines(doc, depth.LIGHT) if x.startswith("軽量で省いた: ")]
         self.assertEqual(len(skipped), 1, "省いた物は 1 行にまとめる（2026-10-09 の片付け）")
         for word in ("差分の審査", "レンズ", "r1.comment_candidates", "R1", "R2", "R3", "R4"):
             self.assertIn(word, skipped[0])
@@ -149,10 +149,24 @@ class LinesCase(unittest.TestCase):
 
     def test_standard_run_skips_nothing(self):
         doc = depth.decide_doc([item([U1], tests=4)], [U1], forced="", checked=True)
-        self.assertEqual(depth.skip_reason(doc), "")
-        text = "\n".join(depth.lines(doc))
+        self.assertEqual(depth.skip_reason(doc, depth.LIGHT), "")
+        text = "\n".join(depth.lines(doc, depth.LIGHT))
         self.assertNotIn("軽量で省いた", text)
         self.assertIn("標準", text)
+
+    def test_only_a_light_head_omits(self):
+        """issue #561: 単位がどれも軽量でも、run の頭の深さが標準・重厚・不明なら何も省かず、深さの行が省かない訳を言う。省く物は
+        TIERS の omits"""
+        doc = depth.decide_doc([item([U1])], [U1], forced="", checked=True)
+        self.assertEqual(depth.run_depth(doc), depth.LIGHT)
+        for head in (depth.STANDARD, depth.HEAVY, "", None, "極厚"):
+            with self.subTest(head=head):
+                self.assertEqual(depth.skip_reason(doc, head), "")
+                text = "\n".join(depth.lines(doc, head))
+                self.assertNotIn("軽量で省いた", text)
+                self.assertIn("なので省かない", text)
+        self.assertEqual(depth.TIERS[depth.LIGHT]["omits"], tuple(depth.OMITS))
+        self.assertEqual((depth.TIERS[depth.STANDARD]["omits"], depth.TIERS[depth.HEAVY]["omits"]), ((), ()))
 
 
 class WordsCase(unittest.TestCase):
