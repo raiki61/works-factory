@@ -42,7 +42,7 @@ amd64 を強いると立たない）。docker の CLI に compose の差し込�
 - docker の VM の kernel の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の kernel.apparmor_restrict_unprivileged_userns=1 を
   0 に。起こし直しても効くよう VM の起動の設定に入れる）。コンテナの側からは外せない。
 - 環境 WorksBenchDocker が課題の主のコンテナにだけ、docker の既定の seccomp に名前空間を作る呼び出しと mount を足した写し
-  （SANDBOX）を渡し、apparmor を外す。--privileged・CAP_SYS_ADMIN は使わず、egress の付き添いは docker の既定のまま。
+  （SANDBOX）を渡し、apparmor と docker が伏せる /proc の道（systempaths）を外す。--privileged・CAP_SYS_ADMIN は使わず、egress の付き添いは docker の既定のまま。
   他の環境（-e docker）の起動は、殻が setup で exec の前に断る。
 
 プロキシの要る網: prepare は環境に空でない値で在る PROXY_ENV の名を、値を付けずに docker build --build-arg <名> で渡す。
@@ -270,12 +270,13 @@ def dockerfile(base_image: str, claude_version: str, factory_commit: str, place:
     return "\n".join(lines) + "\n"
 
 
-# bwrap を止める層は 3 つ。bwrap の文と台の VM の kernel の制限の値で見分ける
+# bwrap を止める層は 4 つ。bwrap の文と台の VM の kernel の制限の値で見分ける
 SANDBOX_REFUSED = (
     "Claude Code の sandbox（bwrap）がコンテナで立たない。上の bwrap の文で止めた層を見分ける: VM の kernel の制限が 1 なら"
     " kernel（台の VM の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0 にし、起こし直しても効くよう VM の起動の設定に"
-    " 入れる）。0 か無いなら、No permissions to create new namespace は seccomp、Failed to make / slave など mount の落ちは"
-    f" apparmor（どちらも harbor run に -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。VM の kernel の制限: ")
+    " 入れる）。0 か無いなら、No permissions to create new namespace は seccomp、Can't mount proc は docker が伏せた /proc"
+    "（systempaths=unconfined で外す）、Failed to make / slave など他の mount の落ちは apparmor（どれも harbor run に"
+    f" -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。VM の kernel の制限: ")
 
 
 def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:
@@ -286,8 +287,9 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
         # 測る物と来歴の factory_commit、コンテナとホストの Claude Code の版を一致させる
         ("stamp", f"test \"$(cat {place}/{STAMP} 2>/dev/null)\" = {shlex.quote(stamp(factory_commit, claude_version))} "
                   f"|| {{ echo {shlex.quote(missing)} >&2; exit 1; }}"),
-        # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす
-        ("sandbox", "bwrap --ro-bind / / --unshare-user --unshare-net true "
+        # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす。Claude Code の bwrap と
+        # 同じく /dev と pid の名前空間の /proc を立てる（伏せた /proc の上では proc の mount だけが落ちる）
+        ("sandbox", "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc true "
                     f"|| {{ echo {shlex.quote(SANDBOX_REFUSED)}\"$(cat {USERNS_LIMIT} 2>/dev/null || echo 無い)\" >&2; exit 1; }}"),
     ]
 
