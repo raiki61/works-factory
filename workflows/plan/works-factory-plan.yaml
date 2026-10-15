@@ -252,7 +252,7 @@ nodes:
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
           # 今の works の blk-plan.yaml の修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の関所の決め手の欄）。
-          # 2 往復目からの block への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。欄の型は planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA（files）・
+          # 2 往復目からの答えの要る穴（block と開いた項目の suggest）への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。欄の型は planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA（files）・
           # gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
           output_format: &plan_reply
             type: object

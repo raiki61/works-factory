@@ -1946,15 +1946,50 @@ class TreeCase(RunCase):
                          [(both["key"], [UNIT_MEAN, median]), (only["key"], [median])],
                          "後の案が戻した単位は、2 往復目に絞って控えた写しでなく審査役の書いた穴の単位から戻る")
 
-    def second_pass_brief(self, first=None, edit=None, edit_fields=None) -> str:
-        """2 項目の案（first。既定は setUp の案）の 1 往復目は項目 2 だけ block。項目 2 の行を edit が、項目 2 の works の欄を
-        edit_fields が直した後の 2 往復目の項目 2 の下請けのファイル"""
+    def test_resolved_suggest_not_owed_again_in_tree(self):
+        """木の受け付け: 開いた項目 2 に挙げた suggest s を 2 往復目の審査が resolved に入れた往復は通り（resolved の s を『前の往復の
+        答えの要る穴に無い』で拒まない）、持ち越しの写しが返答の faces に残っても、その次の往復の答えも項目 2 の下請けの照らしも
+        s を求めない。新しい block は求める"""
+        r = self.run_
+        r.start(features_on=["review_tree"])
+        self.prepped()
+        second = face("item2-clamp-lower-branch", UNIT_CLAMP)
+        note = face("item2-clamp-docstring-note", UNIT_CLAMP, severity="suggest",
+                    why="clamp の docstring が上限ちょうどの値の扱いを言っていないので、直した後に読み手が取り違えうる")
+        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK, second, note])})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"], second["key"]]}))["ok"])
+        r.out("result")
+        two = item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}],
+                   approach="clamp の上限の枝で hi を、下限の枝で lo を返し、境の値はそのまま返す（定義どおり）")
+        r.plan([item(UNIT_MEAN, 1), two], rnd=2,
+               answers=[{"key": f["key"], "handled": "fixed", "how": "枝を直し、境の値の扱いと docstring を書いた"}
+                        for f in (CLAMP_BLOCK, second, note)])
+        r.open()
+        r.out("review_prep")
+        fresh = face("item2-clamp-boundary-value", UNIT_CLAMP)
+        self.write_answers(2, {2: {**answer(2, faces=[fresh], resolved=[CLAMP_BLOCK["key"], second["key"], note["key"]]),
+                                   "hits": []}})
+        got = r.accept(summary({2: [fresh["key"]]}))
+        self.assertTrue(got["ok"], got)
+        saved = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        self.assertIn(note["key"], [f["key"] for f in saved["faces"]], "持ち越しの写しは今のまま返答に残る")
+        r.out("result")
+        doc = converge.read(r.view())
+        self.assertEqual(doc["outcome"], converge.AGAIN)
+        self.assertEqual(converge.answer_gaps(doc, [{"key": fresh["key"], "handled": "fixed", "how": "境の値の扱いを書き足した"}]), [])
+        self.assertNotIn(note["key"], converge.item_blocks(r.view(), 2))
+        self.assertIn(fresh["key"], converge.item_blocks(r.view(), 2))
+
+    def second_pass_brief(self, first=None, edit=None, edit_fields=None, notes=()) -> str:
+        """2 項目の案（first。既定は setUp の案）の 1 往復目は項目 2 だけ block（notes は項目 2 に付けた suggest の穴で、直しの役が
+        block と同じく答える）。項目 2 の行を edit が、項目 2 の works の欄を edit_fields が直した後の 2 往復目の項目 2 の
+        下請けのファイル"""
         r = self.run_
         r.start(features_on=["review_tree"])
         rows = first or [item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")])]
         r.plan(rows)
         self.prepped()
-        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK])})
+        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK, *notes])})
         self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
         r.out("result")
         fixed = copy.deepcopy(rows)
@@ -1964,10 +1999,23 @@ class TreeCase(RunCase):
         if edit_fields is not None:
             edit_fields(field_rows[1])
         r.plan(fixed, rnd=2, field_rows=field_rows,
-               answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
+               answers=[{"key": f["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}
+                        for f in (CLAMP_BLOCK, *notes)])
         r.open()
         r.out("review_prep")
         return (self.items_dir(2) / "item-2.md").read_text(encoding="utf-8")
+
+    def test_item_history_names_owed_suggest(self):
+        """1 往復目に開いた項目 2 へ block と suggest s を挙げた後、2 往復目の項目 2 の下請けのファイルは『前の往復の block と答えの
+        要る suggest』の見出しの下に block の行と suggest s の行と、それぞれへの直しの役の答えを持つ"""
+        note = face("item2-clamp-docstring-note", UNIT_CLAMP, severity="suggest",
+                    why="clamp の docstring が上限ちょうどの値の扱いを言っていないので、直した後に読み手が取り違えうる")
+        brief = self.second_pass_brief(notes=[note])
+        history = brief[brief.index(planblk.HISTORY_HEAD):]
+        self.assertTrue(history.startswith("## この項目の前の往復の block と答えの要る suggest（"), history[:80])
+        self.assertIn(f"- 1 往復目の block {CLAMP_BLOCK['key']}: ", history)
+        self.assertIn(f"- 1 往復目の suggest {note['key']}: {note['why']}（{note['where']}）", history)
+        self.assertIn(f"  - 修正案の役の答え {note['key']}: fixed（", history)
 
     def test_tree_item_contract_change_is_reviewed_whole(self):
         """元 test_tree_item_contract_change_is_reviewed_whole・test_contract_field_change_is_reviewed_whole: 2 往復目、約束の欄

@@ -9,8 +9,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import fixboard  # noqa: E402
 
-# 台帳の直しの後ろに当てる書き直し {根からのパス: [{why, original, copied}]}。持ち主の決め graph-words（語をグラフの語に
-# そろえる）と prompts-coldread（初見の読み手で書き直してよい）で許した物で、1 件ずつ元の字と写しの字を持つ
+# 台帳の直しの後ろに当てる書き直し {根からのパス: [{why, original, copied}]}。1 件ずつ元の字・写しの字と、許した訳
+# （持ち主の決めか issue）を why に持つ
 REWRITES = json.loads((pathlib.Path(__file__).with_name("copied_rewrites.json")).read_text(encoding="utf-8"))
 
 

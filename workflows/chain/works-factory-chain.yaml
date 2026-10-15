@@ -6,7 +6,8 @@ description: |
   次の依頼（round_facts）・止めの決め（decide）の script だけ。鎖は名指して起こした時だけで、メイングラフを直に起こせば今の 1 周の run のまま。
   鎖の最後のノード final-diff が、止まった周を採らずに元の基から採る周までの差分を封じ、周ごとの表 chain.md を親の置き場に書く。
   出力はノード result（最後の決めの act・止めの語 word・周ごとの行 rounds と、止めの語が closed の時に真の closed と、bin/apply が
-  読む最後の差分 apply・sealed と chain.md のポインタ report）。bin/apply <親の run> が最後の差分を当てる。
+  読む最後の差分 apply・sealed・R2 の語 r2_status・承認し直すかの問いの数 spec_questions と chain.md のポインタ report）。
+  bin/apply <親の run> が最後の差分を当てる。
 
 inputs:
   rounds:
@@ -181,6 +182,7 @@ nodes:
       outcome: "$round-1.output.outcome"
       apply: "$round-1.output.apply"
       r2_status: "$round-1.output.r2_status"
+      spec_questions: "$round-1.output.spec_questions"
       facts: "$round-1-facts.output"
       commit: "$round-1-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -270,6 +272,7 @@ nodes:
       outcome: "$round-2.output.outcome"
       apply: "$round-2.output.apply"
       r2_status: "$round-2.output.r2_status"
+      spec_questions: "$round-2.output.spec_questions"
       facts: "$round-2-facts.output"
       commit: "$round-2-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -359,6 +362,7 @@ nodes:
       outcome: "$round-3.output.outcome"
       apply: "$round-3.output.apply"
       r2_status: "$round-3.output.r2_status"
+      spec_questions: "$round-3.output.spec_questions"
       facts: "$round-3-facts.output"
       commit: "$round-3-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -448,6 +452,7 @@ nodes:
       outcome: "$round-4.output.outcome"
       apply: "$round-4.output.apply"
       r2_status: "$round-4.output.r2_status"
+      spec_questions: "$round-4.output.spec_questions"
       facts: "$round-4-facts.output"
       commit: "$round-4-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -537,6 +542,7 @@ nodes:
       outcome: "$round-5.output.outcome"
       apply: "$round-5.output.apply"
       r2_status: "$round-5.output.r2_status"
+      spec_questions: "$round-5.output.spec_questions"
       facts: "$round-5-facts.output"
       commit: "$round-5-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -559,7 +565,8 @@ nodes:
         skipped: { type: array, items: { type: integer } }
         outcome: { type: string }
         r2_status: { type: [string, "null"] }
-      required: [ok, reason, apply, sealed, report, kept, skipped, outcome, r2_status]
+        spec_questions: { type: integer }
+      required: [ok, reason, apply, sealed, report, kept, skipped, outcome, r2_status, spec_questions]
     mutates_checkout: false
     depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide]
     trigger_rule: all_done
@@ -593,8 +600,10 @@ nodes:
         report: { type: [object, "null"] }
         outcome: { type: string }
         r2_status: { type: [string, "null"] }
+        spec_questions: { type: integer }
         stop_reason: { type: string }
-      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, stop_reason]
+      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, spec_questions,
+                 stop_reason]
     mutates_checkout: false
     depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide, final-diff]
     trigger_rule: all_done

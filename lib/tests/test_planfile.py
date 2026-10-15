@@ -420,14 +420,15 @@ class ConvergeCase(TmpCase):
         self.assertEqual(converge.answer_gaps(record, [answer("key-a1")]), [])
         gaps = converge.answer_gaps(record, [answer("key-a1", handled="ignored"), answer("key-z")])
         self.assertTrue(any("handled" in g for g in gaps), gaps)
-        self.assertIn("key-z は前の往復の block に無い", gaps)
+        self.assertIn("key-z は前の往復の答えの要る穴（block と開いた項目の suggest）に無い", gaps)   # 余りの文は穴の語
         self.assertIn("block の key key-a1 への答えが無い", converge.answer_gaps(record, []))
 
     def test_no_answers_asked_on_first_round(self):
         self.plan_round(1, [item("u1")])
         record = planfile.converge_record(self.tmp)
         self.assertEqual(converge.answer_gaps(record, []), [])
-        self.assertEqual(converge.answer_gaps(record, [answer("key-x")]), ["key-x は前の往復の block に無い"])
+        self.assertEqual(converge.answer_gaps(record, [answer("key-x")]),
+                         ["key-x は前の往復の答えの要る穴（block と開いた項目の suggest）に無い"])
 
     def test_splice_fills_closed_item_and_refuses_changed_one(self):
         record = self.blocked_first()

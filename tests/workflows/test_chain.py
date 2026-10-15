@@ -50,9 +50,10 @@ def run_script(name: str, env: dict, cwd: pathlib.Path) -> dict:
 ROUND_FILES = ("one.txt", "two.txt", "three.txt")
 
 
-def three_rounds(repo: pathlib.Path, halted_last: bool = True, placed=(1, 2, 3), r2=None) -> tuple:
+def three_rounds(repo: pathlib.Path, halted_last: bool = True, placed=(1, 2, 3), r2=None, spec=None) -> tuple:
     """repo の HEAD を元の基に、周ごとに 1 ファイルを足す commit を 3 つ積む。(chain-start の出力, 周 1〜3 の決めの出力)。
-    3 周目の結末の種は halted_last なら halted。子が差分を置いた周の番号は placed、周ごとの R2 の状態は r2（{周: 状態}）"""
+    3 周目の結末の種は halted_last なら halted。子が差分を置いた周の番号は placed、周ごとの R2 の状態は r2（{周: 状態}）、
+    周ごとの承認し直すかの問いの数は spec（{周: 数}）"""
     origin = git(repo, "rev-parse", "HEAD")
     rows, made = [], []
     for n, name in enumerate(ROUND_FILES, 1):
@@ -63,7 +64,7 @@ def three_rounds(repo: pathlib.Path, halted_last: bool = True, placed=(1, 2, 3),
         rows.append({"n": n, "run": f"child-{n}", "outcome": "stopped_by_human" if kind == chain.KIND_HALTED else "round_limit",
                      "kind": kind, "keys": [f"k{n}"], "held": 0, "same_tree": False, "cost": 1.0 * n, "cost_read": True,
                      "minutes": 10.0, "head": git(repo, "rev-parse", "HEAD"), "placed": n in placed, "r2_status": (r2 or {}).get(n),
-                     "request": "", "source": ""})
+                     "spec_questions": (spec or {}).get(n, 0), "request": "", "source": ""})
         act = "launch" if n < 3 else "stop"
         made.append({"act": act, "word": "" if act == "launch" else "halted", "text": "t", "request": "", "base": "", "pr": "",
                      "spec": "", "rows": [dict(r) for r in rows]})
@@ -282,7 +283,7 @@ class DecideCase(Tree):
                 "facts": json.dumps({"ok": True, "error": "", "run": "c", "keys": ["k"], "held_rows": [], "request": "/r.json",
                                      "source": "", "cost": 1.0, "cost_read": True}),
                 "commit": json.dumps({"ok": True, "changed": True, "head": "h", "reason": ""}), "apply": "null",
-                "r2_status": "null"}
+                "r2_status": "null", "spec_questions": "0"}
         env = {f"INPUTS_{k.upper()}": v for k, v in {**base, **inputs}.items()}
         return run_script("decide", {**env, "ARTIFACTS_DIR": str(self.tmp), "WORKFLOW_ID": "parent"}, self.tmp)
 
@@ -297,6 +298,9 @@ class DecideCase(Tree):
         self.assertEqual((got["rows"][0]["placed"], got["rows"][0]["r2_status"], got["rows"][0]["head"]), (True, "pass", "h"))
         got = self.decide(apply="null", r2_status="null")
         self.assertEqual((got["rows"][0]["placed"], got["rows"][0]["r2_status"]), (False, None))
+        for given, want in (("2", 2), ("null", 0), ("true", 0)):
+            with self.subTest(spec_questions=given):
+                self.assertEqual(self.decide(spec_questions=given)["rows"][0]["spec_questions"], want)
 
     def test_failed_commit_halts_with_the_reason(self):
         got = self.decide(commit=json.dumps({"ok": False, "changed": None, "head": "", "reason": "本体の作業ツリーでは commit しない"}))
@@ -386,6 +390,12 @@ class FinalDiffCase(Tree):
                 got = run_final(tree, self.artifacts, "parent", start, *made)
                 self.assertEqual((got["kept"], got["r2_status"]), (2, want), got)
 
+    def test_spec_questions_add_up_over_the_carried_rounds(self):
+        """前の周の変更も最後の差分に入るので、その周の問いも数える。止まって採らなかった 3 周目の問いは数えない"""
+        start, made = three_rounds(self.repo, spec={1: 1, 2: 2, 3: 4})
+        got = self.final(start, *made)
+        self.assertEqual((got["kept"], got["spec_questions"]), (2, 3), got)
+
     def test_round_whose_diff_cannot_be_made_names_the_round_and_child_run(self):
         """最後の差分を残りの周だけで作らない。止まりの訳（result の stop_reason）が周の番号と子の run の id を名指す"""
         start, made = three_rounds(self.repo, halted_last=False)
@@ -439,14 +449,15 @@ class ResultCase(Tree):
         decided = {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": 1}]}
         sealed = {"ok": True, "hash": "h", "diff": {"type": "archon_artifact", "run_id": "parent", "path": "chain/final.diff"}}
         final = {"ok": True, "reason": "", "apply": {**sealed, "reason": ""}, "sealed": sealed, "report": {"path": "chain.md"},
-                 "kept": 1, "skipped": [], "outcome": "fixed", "r2_status": "pass"}
+                 "kept": 1, "skipped": [], "outcome": "fixed", "r2_status": "pass", "spec_questions": 2}
         got = self.result(start, decided, final=final)
-        self.assertEqual({k: got[k] for k in ("apply", "sealed", "report", "outcome", "r2_status")},
+        self.assertEqual({k: got[k] for k in ("apply", "sealed", "report", "outcome", "r2_status", "spec_questions")},
                          {"apply": final["apply"], "sealed": sealed, "report": {"path": "chain.md"}, "outcome": "fixed",
-                          "r2_status": "pass"})
+                          "r2_status": "pass", "spec_questions": 2})
         self.assertEqual(got["stop_reason"], "")
         got = self.result(start, decided)
-        self.assertEqual((got["apply"], got["sealed"], got["report"], got["outcome"], got["r2_status"]), (None, None, None, "", None))
+        self.assertEqual((got["apply"], got["sealed"], got["report"], got["outcome"], got["r2_status"], got["spec_questions"]),
+                         (None, None, None, "", None, 0))
         self.assertIn("final-diff の出力が無い", got["stop_reason"])
 
     def test_why_nothing_was_placed_is_the_stop_reason(self):
@@ -552,7 +563,9 @@ class ShapeCase(unittest.TestCase):
         for k in range(1, chain.MAX_ROUNDS + 1):
             with self.subTest(round=k):
                 bound = NODES[f"round-{k}-decide"]["with"]
-                self.assertEqual((bound["apply"], bound["r2_status"]), (f"$round-{k}.output.apply", f"$round-{k}.output.r2_status"))
+                self.assertEqual((bound["apply"], bound["r2_status"], bound["spec_questions"]),
+                                 (f"$round-{k}.output.apply", f"$round-{k}.output.r2_status",
+                                  f"$round-{k}.output.spec_questions"))
 
 
 class ChainScenariosTest(unittest.TestCase):

@@ -91,7 +91,7 @@ def needs(got: dict) -> list:
     """最後の関所を開ける理由の列 [(1 句, 開き方に依らず開くか)]。開くか（ask）と 1 行目（final_head）はこの列だけから作る"""
     why = []
     if got["spec_changed"]:
-        said = gatemarks.SPEC_UNCHECKED if got["spec_unchecked"] else gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]
+        said = gatemarks.spec_words(got["spec_unchecked"]).said
         why.append((f"{said}（{len(got['spec_changed'])} 件。承認し直すかは次の run で答える）", True))
     unknown, hits = protected(got)
     if unknown:
@@ -253,7 +253,7 @@ def question_lines(got: dict) -> list:
     答え・読めなかった保留。どれも無い時だけ「盤面の問い: 無い」"""
     lines = []
     if got["spec_changed"]:
-        head = gatemarks.SPEC_UNCHECKED_HEAD if got["spec_unchecked"] else gatemarks.SPEC_CHANGED_HEAD
+        head = gatemarks.spec_words(got["spec_unchecked"]).head
         lines.append(f"- {head}: {len(got['spec_changed'])} 件")
         lines += [f"  - {q}" for q in got["spec_changed"]]
         lines.append("  - この承認ノードの答えはこの問いに答えない（continue でも仕様は承認し直さない）。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
