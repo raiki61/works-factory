@@ -19,7 +19,8 @@
 - with_done:      拒否の控え rejects-<名>.json の唯一の書き手（accept_round が呼ぶ 1 段）。通れば done。拒否は盤面の根の控えに積み、
                   GIVE_UP_AFTER 回目の拒否で done（出し直しても直らない拒みは 1 回目で）。控えは run の間消さず resume を跨いで数える。
                   消すのは構造の目の段 A が測り直す周の eye.reset だけ
-- is_last_attempt: 輪の今の回が諦める回（GIVE_UP_AFTER 回目）か。比べの式を知る所はここだけ
+- is_last_attempt: 輪の今の回が諦める回（GIVE_UP_AFTER 回目）か。rolekit の外の受け付けは回の比べをこれに任せる（TDD の段の自前の数え
+                  tddloop の tries は別のサブシステムで、ここを通らない）
 - rejected:       盤面の節でない受け付けの拒否の文の並び（古い順。指示書の番号と、輪が落ちた周の最後の拒否の文に使う）
 - reject_rows:    控えの行 {at, reason, kind}（kind は行に在る時だけ）
 - gave_up_text:   役の返答を諦めた理由の 1 行の文（回数で諦めた時と、出し直させずに諦めた時）
@@ -256,7 +257,8 @@ def with_done(board: pathlib.Path, name: str, out: dict, *, give_up: bool = Fals
 
 
 def is_last_attempt(attempt: int) -> bool:
-    """輪の今の回 attempt（attempt が返す値）が、諦める回（GIVE_UP_AFTER 回目）か。比べの式を知る所はここだけ"""
+    """輪の今の回 attempt（attempt が返す値）が、諦める回（GIVE_UP_AFTER 回目）か。rolekit の外の受け付けの回の比べはこれを引く
+    （TDD の段の自前の数え tddloop の tries は別）"""
     return attempt >= GIVE_UP_AFTER
 
 
@@ -270,8 +272,8 @@ def accept_parsed(board, name: str, got, take, *, reject=None, on_give_up=None) 
     """受け付けの輪の 1 回の本体。got は (読めた返答, 読めない訳)（parse_reply か、拒まれた後の出し直しを前の答えと合わせる
     resubmitted の返り）で、返答を take(reply) に通す。got が None なら take(None)。読めない返答と take の中の例外は
     reject(理由) で拒否にする（既定は {ok: False, reason}。受け付けは落ちない）。
-    1 回の拒否の定義はここにだけ在り、take の返りの欄を読む: ok でなければ board/rejects-<name>.json に積み（with_done）、
-    GIVE_UP_AFTER 回目で done。give_up が真なら 1 回目でも done。count が false なら控えに積まず（done は give_up が真の時だけ真）、
+    受け付けの輪の 1 回の拒否の定義はここにだけ在り（TDD の段の自前の数え tddloop の tries は別）、take の返りの欄を読む: ok でなければ
+    board/rejects-<name>.json に積み（with_done）、GIVE_UP_AFTER 回目で done。give_up が真なら 1 回目でも done。count が false なら控えに積まず（done は give_up が真の時だけ真）、
     kind が空でない字なら控えの行に kind として残す。諦めた時（done 真・ok 偽）は on_give_up() を呼ぶ。
     返り take の返りに done を足した物。拒否の控え rejects-<name>.json が読めない・書けなければ、落ちずに done 真の拒否（理由に
     『拒否の控えが扱えない』。on_give_up は呼ばない）。口は rejects-<name>.md を書かない（reject_file が口の後に書き、書けなければ
