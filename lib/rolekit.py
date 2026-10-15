@@ -253,9 +253,13 @@ def parse_reply(raw):
         reply = json.loads(raw)
     except (TypeError, json.JSONDecodeError) as e:
         return None, f"返答が JSON として読めない: {e}（頭: {str(raw)[:200]!r}）"
-    if not isinstance(reply, dict):
-        return None, f"返答が JSON のオブジェクトでない（{type(reply).__name__}）"
-    return reply, ""
+    why = _not_object(reply, "返答")
+    return (None, why) if why else (reply, "")
+
+
+def _not_object(got, what: str) -> str:
+    """値 got が JSON のオブジェクトでなければ、何の値か what を頭にした拒否の文（オブジェクトなら空）"""
+    return "" if isinstance(got, dict) else f"{what}が JSON のオブジェクトでない（{type(got).__name__}）"
 
 
 def candidate_path(board, name: str) -> pathlib.Path:
@@ -301,11 +305,10 @@ EMPTY_RESUBMIT = "出し直しに直した欄が無い（拒まれた所を直�
 
 
 def _reply_object(got, what: str) -> tuple:
-    if isinstance(got, dict):
-        return got, ""
     if isinstance(got, str):
         return None, f"{what}が JSON として読めない（頭: {got[:200]!r}）"
-    return None, f"{what}が JSON のオブジェクトでない（{type(got).__name__}）"
+    why = _not_object(got, what)
+    return (None, why) if why else (got, "")
 
 
 def resubmitted(board, name: str, reply, part, merge) -> tuple:
