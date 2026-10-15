@@ -4,7 +4,7 @@
 # ///
 """判定の裏取りの支度（stage prep。lib/judge_accept.prep_on）とまとめ（stage merge。lib/judge_accept.merge_on）。
 支度は役の文の頭に足す言語の 1 行（始めの記録の lang から rolekit.lang_line）も lang_line で返す。裏取りを回すかは、始めの記録の機能の
-切り替え（名指し）と頭の深さの控え judge/depth-head.json の段の足しから entry.switch が決める（重厚は名指しで切らない限り入れる）"""
+切り替え（名指し）と頭の深さの控え judge/depth-head.json の段の足しから entry.switch が決める"""
 import os
 import sys
 from pathlib import Path

@@ -697,13 +697,11 @@ class HeadDepthTest(unittest.TestCase):
         self.assertEqual((out["depth"], out["depth_why"]), ("標準", headdepth.REJUDGE_WHY))
 
     def test_heavy_record_does_not_cut_the_verify(self):
-        """頭の深さの控えが重厚で、judge_verify を名指しで切っていない run は、裏取りの支度が機能の切り替えの切として止めない。
-        標準の控えの run と、名指しで切った重厚の run は切のまま"""
         cut = "機能の切り替えで切"
         r = self.opened()
         self.assertIn(cut, r.returned("verify", stage="prep")["reason"])
         r.returned("head_depth_prep")
-        out = r.returned("head_depth_accept", reply={**self.LIGHT, "depth": "重厚", "why": "公開の約束を変える"})   # 重厚の返答は軽量と同じ照らしを通る
+        out = r.returned("head_depth_accept", reply={**self.LIGHT, "depth": "重厚", "why": "公開の約束を変える"})
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         self.assertEqual(r.returned("verdict")["depth"], "重厚")
         self.assertNotIn(cut, r.returned("verify", stage="prep")["reason"])

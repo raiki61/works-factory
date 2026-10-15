@@ -3783,7 +3783,7 @@ def world_finish(jdir) -> dict:
 
 # ================================================================ 入口と返り
 START_FILE = "start.json"          # 始めの記録を既定の値で読んだ物（start_view）
-INTAKE_FILE = "intake.json"        # 入口の返り {go, mode, spec, world, reason}
+INTAKE_FILE = "intake.json"
 REQUEST_FILE = "request.json"      # 依頼の行（check_request が通した物。仕様の段が受け入れ条件の行を積む）
 CARRIED_FILE = "carried-constraints.json"   # 依頼が運んだ前の run の前提の検算の実測（carry.CONSTRAINTS の行。check_premises が制約に足す）
 TREE_FILE = "judge-tree.json"      # 入口の時（仕様の段が在れば承認の後）の作業ツリーの姿（accept.tree_state）。並行 PR と前提の受け付けが比べる

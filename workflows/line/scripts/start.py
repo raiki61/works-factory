@@ -192,7 +192,6 @@ def write(artifacts: Path, doc) -> dict:
 
 
 def adds(checked: dict) -> tuple:
-    """入力 thickness が名指す段の足す機能（depth.tier_adds。名指しが無ければ足し無し）"""
     return depth.tier_adds(depth.named(checked.get("thickness")))
 
 

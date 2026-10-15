@@ -30,7 +30,6 @@ def cell(names) -> str:
 
 
 def design(heavy=None) -> str:
-    """段の表を depth.TIERS のまま書いた docs/design.md。heavy は重厚の行の足す物の差し替え"""
     rows = []
     for tier, spec in depth.TIERS.items():
         adds = heavy if heavy is not None and tier == depth.HEAVY else spec["adds"]
@@ -43,7 +42,6 @@ class DepthSkipTest(unittest.TestCase):
         self.assertEqual(scan.problems("E20", ROOT), [])
 
     def test_design_rows_are_the_tier_table(self):
-        """docs/design.md の深さの段の表の行（段・省く物・足す物）が depth.TIERS と等しく、今の木で E20 が緑"""
         rows, broken = scan._tier_rows(ROOT)
         self.assertEqual(broken, [])
         self.assertEqual({tier: (omits, adds) for _, tier, omits, adds in rows},
@@ -71,7 +69,6 @@ class DepthSkipTest(unittest.TestCase):
         self.red("ノード tg の when の句 `$judge.output.depth == '軽量'`", line_text=line(tail="    when: \"$judge.output.depth == '軽量'\"\n"))
 
     def test_depth_clause_inside_a_block_loop_is_red(self):
-        """サブグラフの輪のノードの when が出力の深さの欄を読む句を持てば、E20 がそのノードを名指して 1 件返す"""
         self.red("ノード pr__loop", block_text=block(clause=CLAUSE))
 
     def test_standard_depth_is_red(self):

@@ -968,8 +968,7 @@ DEPTH_NONE = "無し"
 
 
 def _tier_rows(root: Path) -> tuple[list, list[str]]:
-    """段の表の行 [(行番号, 段, 省く物, 足す物)] と問題の行。表は docs/design.md の DEPTH_HEAD の下の、次の見出しまでの `|` の行
-    （| 段 | 省く物 | 足す物 | 理由 |）。省く物・足す物はバッククォートで括った名を並べるか「無し」"""
+    """段の表の行 [(行番号, 段, 省く物, 足す物)] と問題の行"""
     path = root / DEPTH_TABLE
     lines, broken = _lines(root, path) if path.is_file() else ([], [])
     if broken:
