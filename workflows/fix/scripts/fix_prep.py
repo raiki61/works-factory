@@ -6,7 +6,7 @@
 
 直す義務は組の単位（入力 group の unit_ids）のうち判定の直す義務の物（fixboard.group_owed）。義務が残らない（全部が答え待ち・
 直さない裁定で外れた）時は go: false（修正役を起こさない）。この輪の拒否の理由の全部のファイル（fix-accept が書いた
-reject-fix-accept-<k>.md を fixboard.rejects_file が 1 つにまとめた物）を指示書の頭で名指す。段の頭の木（TDD の輪の後の姿）を 1 回目に置き場の fix-head.json に控える
+拒否の控え rejects-fix-accept.json を rolekit.reject_file が 1 つにまとめた rejects-fix-accept.md）を指示書の頭で名指す。段の頭の木（TDD の輪の後の姿）を 1 回目に置き場の fix-head.json に控える
 （受け付けの書き込みの出どころと、諦めた単位の戻し先。TDD の輪が書いた物を修正役の物に数えない）。範囲の相談の答えがまだ渡っていない周は、答えのファイルを名指す続きの指示書だけを
 書く（fixrules.prep の中の consult の引き）。TDD の輪が緑にした単位（tddloop.green_units）の外の単位には、修正役が項目ごとに
 Agent の新しい会話で下請け（実装役・審査役）を起こす節と下請けのファイルを置く（fixrules.g1_values・seat.g1_section）。輪が全部を
@@ -38,7 +38,7 @@ RULES = Path(__file__).resolve().parents[1] / "commands" / "fix-rules"
 rulebook.CANON = RULES / "common.md"
 fixrules.SHARED = rulebook.CANON
 fixrules.RULES_DIR = RULES
-ACCEPT = "fix-accept"            # 受け付けの節（拒否の理由のファイルの名）
+ACCEPT = "fix-accept"            # 受け付けの節（拒否の控え rejects-<名>.json の名）
 
 
 def main() -> dict:
@@ -58,7 +58,7 @@ def main() -> dict:
     got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, state=state, summary=summary,
                                                          answer_node=fixrules.answer_node("first")),
                         "first", owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
-                        reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
+                        reject_file=rolekit.reject_file(place, ACCEPT), lang=rolekit.lang_line(start),
                         green=tddloop.green_units(summary), frozen=factchecks.frozen_tests(place, state, "first"),
                         shared=boundary.shared_cache())
     fixboard.consult_skip(place, boundary.SKIP, writelog.log_here())

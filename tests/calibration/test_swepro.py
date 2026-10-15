@@ -151,7 +151,8 @@ class HarborFlagsTest(unittest.TestCase):
     uv run --isolated --extra bench で入れた環境でだけ照らす"""
 
     def test_unbounded_reads_flags_harbor_run_defines(self):
-        done = subprocess.run([sys.executable, "-c", HARBOR_RUN_FLAGS], capture_output=True, text=True, encoding="utf-8")
+        done = subprocess.run([sys.executable, "-c", HARBOR_RUN_FLAGS], capture_output=True, text=True, encoding="utf-8",
+                              env=hermetic.child_env())
         self.assertEqual(done.returncode, 0, f"入っている Harbor の harbor run の旗を読めない:\n{done.stderr}")
         flags = json.loads(done.stdout)
         if not flags:
@@ -214,7 +215,7 @@ class InsideTest(unittest.TestCase):
         return done, result
 
     def patch(self) -> str:
-        subprocess.run(["bash", "-c", swepro.capture_command(str(self.workdir), str(self.out))], check=True)
+        subprocess.run(["bash", "-c", swepro.capture_command(str(self.workdir), str(self.out))], check=True, env=hermetic.child_env())
         return (self.out / swepro.PATCH).read_text(encoding="utf-8")
 
     def calls(self, who="works-factory") -> list[dict]:
@@ -345,7 +346,7 @@ class InsideTest(unittest.TestCase):
         (tree / "vendor" / "sub" / "n.py").write_text("n = 1\n", encoding="utf-8")
         sealed = green_cert.diff_bytes(tree, "HEAD").decode("utf-8")   # merge-seal が封じる差分の組み方
         self.assertEqual(re.findall(r"^diff --git .*$", sealed, re.MULTILINE), ["diff --git a/a.py b/a.py"])
-        subprocess.run(["bash", "-c", swepro.capture_command(str(tree), str(self.out))], check=True)
+        subprocess.run(["bash", "-c", swepro.capture_command(str(tree), str(self.out))], check=True, env=hermetic.child_env())
         captured = (self.out / swepro.PATCH).read_text(encoding="utf-8")
         self.assertEqual(re.findall(r"^diff --git .*$", captured, re.MULTILINE), ["diff --git a/a.py b/a.py"])
 
@@ -400,7 +401,7 @@ class InsideTest(unittest.TestCase):
         git(self.workdir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "b")
         git(self.workdir, "rm", "-q", "b.py")
         gone = subprocess.run(["git", "-C", str(self.workdir), "diff", "--cached"], capture_output=True, text=True,
-                              check=True).stdout
+                              check=True, env=hermetic.child_env()).stdout
         git(self.workdir, "reset", "-q", "--hard")
         self.sealed_plan(gone, apply=self.seal(gone), sealed=self.seal(gone))
         done, result = self.inside()
@@ -563,7 +564,7 @@ class InsideTest(unittest.TestCase):
         (self.out / swepro.PATCH).parent.mkdir(parents=True, exist_ok=True)
         (self.out / swepro.PATCH).write_text("old", encoding="utf-8")
         done = subprocess.run(["bash", "-c", swepro.capture_command(str(self.tmp / "not-a-repo"), str(self.out))],
-                              capture_output=True)
+                              capture_output=True, env=hermetic.child_env())
         self.assertNotEqual(done.returncode, 0)
         self.assertFalse((self.out / swepro.PATCH).exists())
 
@@ -750,7 +751,7 @@ class BuildTest(unittest.TestCase):
         self.assertNotIn("ARG", [line.split(" ", 1)[0] for line in lines])   # 決まりのプロキシの build 引数を履歴に残さない
         place = hermetic.tmpdir(self)
         self.assertEqual(runs[-1][:2], ["/bin/sh", "-c"])
-        stamped = subprocess.run(["/bin/sh", "-c", runs[-1][2].replace(swepro.PLACE, str(place))])
+        stamped = subprocess.run(["/bin/sh", "-c", runs[-1][2].replace(swepro.PLACE, str(place))], env=hermetic.child_env())
         self.assertEqual(stamped.returncode, 0)
         self.assertEqual((place / swepro.STAMP).read_text(encoding="utf-8"), "f 9.9.9\n")
         for line in lines:
@@ -769,7 +770,7 @@ class BuildTest(unittest.TestCase):
                 (place / swepro.STAMP).unlink(missing_ok=True)
                 if written is not None:
                     (place / swepro.STAMP).write_text(written, encoding="utf-8")
-                done = subprocess.run(["bash", "-c", check], capture_output=True, text=True, encoding="utf-8")
+                done = subprocess.run(["bash", "-c", check], capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
                 self.assertEqual(done.returncode, code)
                 if code:
                     self.assertIn("prepare", done.stderr)
@@ -780,7 +781,7 @@ class BuildTest(unittest.TestCase):
         (fake / "bwrap").chmod(0o755)
         check = dict(swepro.setup_commands("f", "9.9.9"))["sandbox"]
         done = subprocess.run(["bash", "-c", check], capture_output=True, text=True, encoding="utf-8",
-                              env={**os.environ, "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"})
+                              env=hermetic.child_env(PATH=f"{fake}{os.pathsep}{os.environ['PATH']}"))
         self.assertEqual(done.returncode, 1)
         bwrap, said = done.stderr.splitlines()
         self.assertIn("No permissions", bwrap)
@@ -1005,7 +1006,7 @@ class EgressPolicyTest(unittest.TestCase):
         for name, body in (("nft", FAKE_NFT), ("sleep", "#!/bin/sh\n"), ("nl", "#!/bin/sh\n")):
             (fakes / name).write_text(body, encoding="utf-8")
             (fakes / name).chmod(0o755)
-        self.env = {**os.environ, "PATH": f"{fakes}{os.pathsep}{os.environ['PATH']}", "NFT_LOG": str(self.tmp / "nft.log")}
+        self.env = hermetic.child_env(PATH=f"{fakes}{os.pathsep}{os.environ['PATH']}", NFT_LOG=str(self.tmp / "nft.log"))
 
     def policy(self, *args) -> tuple[list[str], str]:
         log = pathlib.Path(self.env["NFT_LOG"])

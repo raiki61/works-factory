@@ -11,7 +11,6 @@ import copy
 import hashlib
 import importlib.util
 import json
-import os
 import pathlib
 import re
 import shutil
@@ -189,12 +188,11 @@ class Run:
         return json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": rel})
 
     def env(self, bound, root):
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
-        env.update({f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **bound}.items()})
-        env.update(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(root),
-                   PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off", CLAUDE_CONFIG_DIR=str(self.config))
-        env.update(self.env_extra)
-        return env
+        named = {f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **bound}.items()}
+        named.update(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(root),
+                     PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off", CLAUDE_CONFIG_DIR=str(self.config))
+        named.update(self.env_extra)
+        return hermetic.child_env(**named)
 
     def script(self, name, bound=None, *, root=ROOT):
         """script を子で回す。終了の値 0 と、標準出力の JSON 1 つを確かめて返す。root は lib/ を探す根（WORKS_FACTORY_ROOT）"""
@@ -238,7 +236,7 @@ class Run:
     def until(self, expr):
         """until_bash を sh で評価する（$<節>.output.<欄> を字に替えて）"""
         text = re.sub(r"\$([\w-]+)\.output\.(\w+)", lambda m: str(self.out[m.group(1)][m.group(2)]).lower(), expr)
-        return subprocess.run(["sh", "-c", text]).returncode == 0
+        return subprocess.run(["sh", "-c", text], env=hermetic.child_env()).returncode == 0
 
     def include(self, *, eye=None, writer=None, typed=True, **inputs):
         """計画のブロックを 1 度差し込み、返す節の出力を返す。eye(structure_file) と writer(回の番号, 材料の字) は役の返答。
@@ -1006,6 +1004,21 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(self.reasons(run), [])
         self.assertIs(out["ready"], False)
 
+    def test_unusable_ledger_is_a_done_give_up_reject(self):
+        """拒否の控えが読めない周（控えの名がディレクトリ）でも、plan_accept の script は非 0 で落ちず、done・give_up 真の拒否で輪を止める。
+        回を先に読むので、返答を照らさず案のファイルも書かない"""
+        run = Run(self)
+
+        def writer(n, brief):
+            (run.art / "plan" / "r1" / "rejects-plan.json").mkdir(exist_ok=True)
+            return {"plan": [item(1, 2)]}
+
+        run.include(writer=writer)
+        got = run.out["plan-accept"]
+        self.assertEqual({k: got[k] for k in ("ok", "done", "give_up")}, {"ok": False, "done": True, "give_up": True})
+        self.assertIn("拒否の控えが扱えない", got["reason"])
+        self.assertFalse((run.art / "plan" / "r1" / planfile.FIX_PLAN_FILE).exists())
+
     def test_accepted_plan_has_item_ripple(self):
         """種の 1 回目の受け付けの後の ripple.json: 項目ごとに、変える名の呼び出し元と試験の覆っていない当たり"""
         run = Run(self)
@@ -1176,10 +1189,9 @@ class ReadsCase(unittest.TestCase):
     def hook(self, run, tool, session="s-1", **tool_input):
         event = {"session_id": session, "tool_name": tool, "tool_input": tool_input, "tool_use_id": f"toolu_{tool}",
                  "cwd": str(run.repo), "hook_event_name": "PostToolUse"}
-        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
         done = subprocess.run([sys.executable, str(RECORDER), str(run.config / reads.ROOT)], input=json.dumps(event),
                               text=True, encoding="utf-8", capture_output=True, cwd=str(run.repo),
-                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+                              env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1"))
         self.assertEqual(done.returncode, 0, done.stderr)
 
     def reader(self, run, reply):

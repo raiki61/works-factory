@@ -27,6 +27,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import ghreads  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 GHREADS = LIB / "ghreads.py"
 GH_ENV = ("GH_CONFIG_DIR", "XDG_CONFIG_HOME", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN",
@@ -92,9 +93,9 @@ class ReadNamedCase(unittest.TestCase):
         self.repo = self.tmp / "repo"
         self.repo.mkdir()
         # 対象は GitHub の remote を持つ（forge の在る対象。forge の無い対象で gh が読めなかった項は条件外と書く: test_forge）
-        subprocess.run(["git", "init", "-q", str(self.repo)], check=True, capture_output=True)
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True, capture_output=True, env=hermetic.child_env())
         subprocess.run(["git", "-C", str(self.repo), "remote", "add", "origin", "git@github.com:o/r.git"], check=True,
-                       capture_output=True)
+                       capture_output=True, env=hermetic.child_env())
         self.bin, self.calls, self.login = fake_gh(self.tmp)
 
     def read(self, prs, issues, logged_in=True, **extra):
@@ -131,7 +132,7 @@ class ReadNamedCase(unittest.TestCase):
 
     def remote(self, name, url, *, add=False):
         subprocess.run(["git", "-C", str(self.repo), "remote", "add" if add else "set-url", name, url], check=True,
-                       capture_output=True)
+                       capture_output=True, env=hermetic.child_env())
 
     def targets(self):
         """記録した呼び出しの -R の値と api のパスの組（呼び出しの順）"""
@@ -218,9 +219,9 @@ class ReadNamedCase(unittest.TestCase):
         self.remote("upstream", "git@github.com:up/r.git", add=True)
         self.remote("mine", "git@github.com:mine/r.git", add=True)
         git = ["git", "-C", str(self.repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
-        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "x"], check=True, capture_output=True)
-        subprocess.run([*git, "update-ref", "refs/remotes/mine/main", "HEAD"], check=True, capture_output=True)
-        subprocess.run([*git, "branch", "-q", "--set-upstream-to=mine/main"], check=True, capture_output=True)
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "x"], check=True, capture_output=True, env=hermetic.child_env())
+        subprocess.run([*git, "update-ref", "refs/remotes/mine/main", "HEAD"], check=True, capture_output=True, env=hermetic.child_env())
+        subprocess.run([*git, "branch", "-q", "--set-upstream-to=mine/main"], check=True, capture_output=True, env=hermetic.child_env())
         self.read([], [9])
         self.assertEqual(self.targets(), ["github.com/mine/r"])
 
@@ -228,7 +229,7 @@ class ReadNamedCase(unittest.TestCase):
         """gh repo set-default の remote（remote.<名>.gh-resolved = base）を先に選ぶ（gh 自身と同じ）"""
         self.remote("fork", "git@github.com:me/r.git", add=True)
         subprocess.run(["git", "-C", str(self.repo), "config", "remote.fork.gh-resolved", "base"], check=True,
-                       capture_output=True)
+                       capture_output=True, env=hermetic.child_env())
         self.read([], [9])
         self.assertEqual(self.targets(), ["github.com/me/r"])
 
@@ -236,7 +237,7 @@ class ReadNamedCase(unittest.TestCase):
         """set-default が OWNER/REPO を記した remote（フォークの clone で親を名指した）は、その名をその remote のホストで読む"""
         self.remote("origin", "git@github.com:me/r.git")
         subprocess.run(["git", "-C", str(self.repo), "config", "remote.origin.gh-resolved", "up/r"], check=True,
-                       capture_output=True)
+                       capture_output=True, env=hermetic.child_env())
         self.read([7], [])
         self.assertEqual(self.targets(), ["github.com/up/r", "github.com repos/up/r/pulls/7/comments"])
 
@@ -260,7 +261,7 @@ class ReadNamedCase(unittest.TestCase):
         for name in ("read", "load", "adopt", "discard_source", "DiscardFailed"):
             self.assertFalse(hasattr(ghreads, name), name)
         r = subprocess.run([sys.executable, "-I", str(GHREADS), "read", "--repo", str(self.repo), "--out", str(self.tmp / "x")],
-                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+                           capture_output=True, text=True, encoding="utf-8", timeout=60, env=hermetic.child_env())
         self.assertNotEqual(r.returncode, 0)
         self.assertFalse((self.tmp / "x").exists())
 

@@ -22,6 +22,7 @@ from unittest import mock
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.workflows import test_plan_review as plan_review
 from tests.workflows.copied import assert_is_original, rewritten
 
@@ -40,6 +41,7 @@ import gatemarks  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
+import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
@@ -259,7 +261,7 @@ class ShapeCase(unittest.TestCase):
         self.assertIn(f"「{report_roles.MACHINE_HEADING.removeprefix('## ')}」", text)
 
     def test_loop_gives_up_with_the_roles_count(self):
-        self.assertEqual(NODES["write-loop"]["loop_group"]["max_iterations"], report_roles.GIVE_UP_AFTER)
+        self.assertEqual(NODES["write-loop"]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
         self.assertIs(NODES["write-loop"]["loop_group"]["fresh_context"], False)
 
 
@@ -366,10 +368,8 @@ class Run(unittest.TestCase):
         self.artifacts.mkdir()
 
     def run_script(self, name: str, **env) -> tuple[int, dict]:
-        base = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-        base.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "TYPED_ARTIFACTS_FILE": "", "LOG_DIR": "",
-                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"})
-        base.update(env)
+        base = hermetic.child_env(**{"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "TYPED_ARTIFACTS_FILE": "", "LOG_DIR": "",
+                                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1", **env})
         done = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], env=base, capture_output=True, text=True,
                               encoding="utf-8")
         lines = [line for line in done.stdout.splitlines() if line.strip()]
@@ -636,13 +636,30 @@ class AcceptScriptCase(Run):
         self.assertIs(self.accept(self.REPLY, self.REDESIGN)["done"], False)
         second = self.accept(self.REPLY, self.REDESIGN)
         self.assertIs(second["done"], False)
-        self.assertEqual(second["reason_file"], f"{runreport.OUT_DIR}/reject-2.md", "機械の事実のファイルと同じく run の置き場からの相対")
-        self.assertIn("2 行目", (self.artifacts / second["reason_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(second["reason_file"], f"{runreport.OUT_DIR}/rejects-report.md", "機械の事実のファイルと同じく run の置き場からの相対")
+        text = (self.artifacts / second["reason_file"]).read_text(encoding="utf-8")
+        self.assertIn("2 行目", text)
+        self.assertIn("1 回目の拒否:", text)
+        self.assertIn("2 回目の拒否:", text, "1・2 回目の拒否が古い順に全部在る")
         third = self.accept(self.REPLY, self.REDESIGN)
         self.assertIs(third["done"], True)
         ai = json.loads((self.artifacts / runreport.OUT_DIR / runreport.AI_FILE).read_text(encoding="utf-8"))
         self.assertTrue(ai["accepted"])
         self.assertTrue(ai["not_passed"])
+        self.unusable_ledger_is_a_done_reject_not_a_failed_script()
+
+    def unusable_ledger_is_a_done_reject_not_a_failed_script(self):
+        """拒否の控え rejects-report.json が読めなくても report_accept は非 0 で落ちず、done 真・ok 偽（reason_file は空）で返り、
+        受け取れなかった訳（accepted: false と『拒否の控えが扱えない』）を AI_FILE に残す"""
+        out_dir = self.artifacts / runreport.OUT_DIR
+        (out_dir / "rejects-report.json").unlink()
+        (out_dir / "rejects-report.json").mkdir()
+        got = self.accept(self.REPLY, self.REDESIGN)
+        self.assertEqual((got["done"], got["ok"], got["reason_file"]), (True, False, ""))
+        self.assertIn("拒否の控えが扱えない", got["reason"])
+        ai = json.loads((out_dir / runreport.AI_FILE).read_text(encoding="utf-8"))
+        self.assertFalse(ai["accepted"])
+        self.assertIn("拒否の控えが扱えない", ai["reason"])
 
     def test_cells_and_terms_rejected_first_time(self):
         cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)

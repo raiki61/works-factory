@@ -500,7 +500,7 @@ def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=Non
          reject_file: str = "", lang: str = "", green=frozenset(), frozen=None, shared=None) -> dict:
     """節 fix-prep（pass_ first）と fix-ruled-prep（pass_ ruled）: 置き場 b に指示書を書き、{prompt_file, iteration}（iteration は
     この輪の何回目か。受け付けが 3 回目の拒否で done を立てる。R50）を返す。
-    reject_file はこの輪の拒否の理由の全部のファイル（fixboard.rejects_file。同じ試行の出し直し。呼び手が渡す。見出しの次の 1 行で名指す。R44）。
+    reject_file はこの輪の拒否の理由の全部のファイル（rolekit.reject_file。同じ試行の出し直し。呼び手が渡す。見出しの次の 1 行で名指す。R44）。
     ruled は指示書を <名>-ruled.md に分け（輪の回を別に数える）、1 回目は裁定の文のファイル（conflict.RULINGS_FILE）を見出しの
     次の 1 行で名指す（裁定の文は貼らない。R44）。
     題の次（ruled の 1 回目は裁定の文のファイルの行の後）に、直す義務の単位の brief を名指す節（planbrief.head_text。義務から外れた

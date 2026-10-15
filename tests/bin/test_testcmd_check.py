@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unittest
 
-from tests.bin import gitkit
+from tests.bin import gitkit, hermetic
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TOOL = ROOT / "bin" / "_lib" / "testcmd_check.py"
@@ -37,7 +37,7 @@ class TestCmdCheck(unittest.TestCase):
 
     def check(self, cmd, rc=0, allow=False, home=None, **env_kw):
         """知らせの行（注意・止める の頭を除かずに）。rc は待つ終了コード（0 = 止める形が無い・3 = 止める形が在る）"""
-        env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV",)}
+        env = {k: v for k, v in hermetic.child_env().items() if k != "VIRTUAL_ENV"}
         env.update(env_kw)
         flags = (*(("--allow-checkout",) if allow else ()), *(("--home", home) if home else ()))
         r = subprocess.run([sys.executable, "-I", str(TOOL), *flags, str(self.repo), cmd],
@@ -430,7 +430,8 @@ class TestCmdCheck(unittest.TestCase):
     def test_usage_errors(self):
         for args in ((), ("--allow-checkout",), ("x",), ("--nope", "x", "y"), ("--home", "h", "x"), ("--home", "", "x", "y")):
             with self.subTest(args):
-                r = subprocess.run([sys.executable, "-I", str(TOOL), *args], capture_output=True, text=True, encoding="utf-8")
+                r = subprocess.run([sys.executable, "-I", str(TOOL), *args], capture_output=True, text=True, encoding="utf-8",
+                                   env=hermetic.child_env())
                 self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
                 self.assertIn("usage", r.stderr)
 

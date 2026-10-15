@@ -22,7 +22,7 @@
 語:
 - 状態（STATE。置き場の作業ファイル、段ごと）: {turns, turn_state: asked|answered|delivered, rows, question_file,
   answer_file, session}。turns はこの段・この周の相談の回数（輪の周を 1 つずつ使う）
-- 回数の枠（BUDGET）: 1 段の輪で相談に使える周の数。輪の上限 max_iterations は受け付けの 3 回（accept.GIVE_UP_AFTER）とこの枠の
+- 回数の枠（BUDGET）: 1 段の輪で相談に使える周の数。輪の上限 max_iterations は受け付けの 3 回（rolekit.GIVE_UP_AFTER）とこの枠の
   和で、枠を使い切った後の consult は受け付けが拒否の行にする（輪の上限で run を落とさない。R50）
 - 相談の控え（CONFIG。呼び手が選ぶ置き場の下）: 支度の節が書く {board, repo, scope, pass, base_rev, tdd_state,
   items}。修正役と下請けが Bash で回す事前の確かめ（factchecks.py）が読み、受け付けの拒否の文が相談を言うか（offered）を決める

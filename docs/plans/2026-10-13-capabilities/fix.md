@@ -331,7 +331,7 @@
 
 ## B. 修正役と修正の受け付け（F100〜）
 
-置き場（本物の run の記録）の読み方: 組の子の run は自分の run の成果物の置き場の `fix/fix/` に書き（`workflows/.shared/boundary.py` `place`）、結果を親の置き場の `out_dir/<group_id>/result.json` に書く。裁定の後の修正（fix-ruled）は親の置き場 `fix/fix/` で回る。2 回目の修正（線の include `refix`）は `fix/refix-run/`。受け付けの拒否の理由は置き場の `reject-<節>-<k>.md`（`lib/fixboard.py` の `REJECT_NAME`）、trace の行は `trace.jsonl`（`lib/fixboard.py:38`）。種（`tests/e2e/target-seed`、stats.py の mean と clamp の 2 つの欠陥）の健全な run は、修正役が 1 回で受け付けを通る筋になりやすく、拒否・諦め・はみ出しの道は通らない。
+置き場（本物の run の記録）の読み方: 組の子の run は自分の run の成果物の置き場の `fix/fix/` に書き（`workflows/.shared/boundary.py` `place`）、結果を親の置き場の `out_dir/<group_id>/result.json` に書く。裁定の後の修正（fix-ruled）は親の置き場 `fix/fix/` で回る。2 回目の修正（線の include `refix`）は `fix/refix-run/`。受け付けの拒否の理由は置き場の拒否の控え `rejects-<節>.json`（全部を `rejects-<節>.md` に書いて次の回に名指す。`lib/rolekit.py` の `accept_round`）、trace の行は `trace.jsonl`（`lib/fixboard.py:38`）。種（`tests/e2e/target-seed`、stats.py の mean と clamp の 2 つの欠陥）の健全な run は、修正役が 1 回で受け付けを通る筋になりやすく、拒否・諦め・はみ出しの道は通らない。
 
 - F100 修正役が出す前に使う事前の確かめのコマンド（受け付けと同じ口で範囲・書き込み・凍結を乾いた形で当て、置き場を書かない）を持つ
   - 元: works/blk-fix/lib/factchecks.py:218 `precheck`・:238 `main`（rules/direct.md が名指す）
@@ -358,7 +358,7 @@
   - 元: 無し（元は記録が在る前提。記録の無い run は通して trace に 1 行だけ。works/blk-fix/scripts/accept.py:12-17）
   - 今: 表
   - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_undeclared_change_is_rejected、tests/workflows/test_fix.py::FixLoopScriptsCase.test_tdd_loop_writes_are_not_the_fixers、lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_undeclared_writes_bind_to_changes_and_bash_writes
-  - 本物の run: 修正役が申告外のファイルを書いた時だけ `reject-fix-accept-<k>.md` に UNDECLARED の行 → 健全な run では現れない（筋書きでのみ）。通った時は組の子の `fix/fix/` に `fix-head.json`（段の頭の木）が在る
+  - 本物の run: 修正役が申告外のファイルを書いた時だけ `rejects-fix-accept.md` に UNDECLARED の行 → 健全な run では現れない（筋書きでのみ）。通った時は組の子の `fix/fix/` に `fix-head.json`（段の頭の木）が在る
   - 狭め: 無し（記録の代わりの縛り。上の F102 の狭めの埋め）
 
 - F104 申告の bash_writes は、受けた返答・盤面に渡す返答から外す（拒む時も）。2 回目の修正の段は 1 回目に受けた返答の控えの bash_writes を申告に足す
@@ -435,7 +435,7 @@
   - 元: review-loop.py:2658-2673 `fix_covers_open_units`
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::RecountSeamCase.test_rejects_uncovered_owed_unit
-  - 本物の run: 筋書きでのみ（拒否は reject-fix-accept-<k>.md）
+  - 本物の run: 筋書きでのみ（拒否は rejects-fix-accept.md）
   - 狭め: 無し
 
 - F115 修正が在るのに fix_closure が「黙って通る値」（判定の SILENT_STATUS の表から引く）なら拒む
@@ -554,14 +554,14 @@
   - 元: works/blk-fix/scripts/accept.py:5-6・`rejected`、review-loop.py:2658 の docstring
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_reject_text_follows_the_check_order
-  - 本物の run: 拒否の時の置き場 `reject-fix-accept-<k>.md`（健全な run では現れないことが多い）
+  - 本物の run: 拒否の時の置き場 `rejects-fix-accept.md`（健全な run では現れないことが多い）
   - 狭め: 無し
 
 - F132 拒否の理由をファイルに書き、輪の拒否の全部（古い順）を 1 つのファイルにまとめて次の回の指示書の 1 行目の後に名指す（役が Read で読む）
   - 元: works/blk-fix/lib/fixrules.py `last_reject`・REJECT_FN、works/.shared/core/rolekit.py:64 `REJECT_LINE`。元は最後の拒否だけを名指したが、拒まれた役は同じ会話の続きで起きた（works/.shared/core/graphloops/engine/role_run.py:19-20）
   - 今: 表
   - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit、lib/tests/test_fix_seams.py::RulebookSeamCase.test_render_heads_rejects_and_lang、tests/workflows/test_fix.py::DeltaScriptsCase.test_third_refix_prompt_names_every_reject_of_the_loop（#345）
-  - 本物の run: 拒否が在れば置き場の `reject-fix-accept-<k>.md`・`rejects-fix-accept.md` と次の回の修正役の指示書の 2 行目
+  - 本物の run: 拒否が在れば置き場の `rejects-fix-accept.json`・`rejects-fix-accept.md` と次の回の修正役の指示書の 2 行目
   - 狭め: 無し
 
 - F133 修正の受け付けの 3 回目の拒否: 拒否の行を単位に結び（申し出の行は申し出た単位、ほかは文が名指す単位・足跡・届く試験）、結んだ単位を足跡を共にする単位と一緒に段の頭の木へ戻して控えの patch に移し、ask_human の裁定つきで止め、残りの単位で頭から通し直す（keep-essence の 4 の後半）
@@ -921,7 +921,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
 
 ## D. 修正の差分の審査・レンズ・手直し（F300〜）
 
-置き場（本物の run の記録）: 差分の審査・レンズ・手直しはブロックの形（mode ""）の親の run だけで回り、置き場は親の run の成果物の置き場の `fix/fix/`（2 回目の修正の include なら `fix/refix-run/`）。主なファイルは `loop-fix_delta.json`（1 回目の差分）・`review1-brief.json`（審査役の材料）・`review1-seat.md`（task-review の座）・`out-p3.delta_review.json`（受けた審査）・`delta-verdicts.json`（準拠と品質の 2 判定）・`delta/review-1.json`・`delta/review-2.json`（{pass, owed, reply_file}）・`delta/skipped.json`（軽量で省いた理由）・`depth-raised.json`・`lens.json`・`prompt-lens-<key>.md`・`refix1-brief.json`・`refix1-head.json`・`reject-<節>-<k>.md`。種（stats.py の 2 つの欠陥）を厚み「標準」で回すと、計画の深さが全部の単位で標準に固定される（lib/depth.py の forced の語。lib/tests/test_depth.py::DecideCase.test_forced_word_fixes_every_unit）ので、assert-changed が通れば差分の審査は健全な run でも必ず走る。手直し（refix）は審査役が穴を挙げた時だけ起きる。
+置き場（本物の run の記録）: 差分の審査・レンズ・手直しはブロックの形（mode ""）の親の run だけで回り、置き場は親の run の成果物の置き場の `fix/fix/`（2 回目の修正の include なら `fix/refix-run/`）。主なファイルは `loop-fix_delta.json`（1 回目の差分）・`review1-brief.json`（審査役の材料）・`review1-seat.md`（task-review の座）・`out-p3.delta_review.json`（受けた審査）・`delta-verdicts.json`（準拠と品質の 2 判定）・`delta/review-1.json`・`delta/review-2.json`（{pass, owed, reply_file}）・`delta/skipped.json`（軽量で省いた理由）・`depth-raised.json`・`lens.json`・`prompt-lens-<key>.md`・`refix1-brief.json`・`refix1-head.json`・`rejects-<節>.json`・`rejects-<節>.md`。種（stats.py の 2 つの欠陥）を厚み「標準」で回すと、計画の深さが全部の単位で標準に固定される（lib/depth.py の forced の語。lib/tests/test_depth.py::DecideCase.test_forced_word_fixes_every_unit）ので、assert-changed が通れば差分の審査は健全な run でも必ず走る。手直し（refix）は審査役が穴を挙げた時だけ起きる。
 
 - F300 修正だけの差分（run の始めの木 → 今の作業ツリー。未追跡を含み、.gitignore に当たる物・バイトコードは除き、日本語のファイル名も拾う）を切って置き場に置く
   - 元: works/.shared/core/graphloops/rules/review-loop.py:1567 `fix_delta`、works/blk-delta/scripts/cut.py
@@ -948,7 +948,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 元: review-loop.py:3141-3171 `delta_review_output`
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::DeltaSeamCase.test_delta_review_problems_check_where_cite_and_checks、tests/workflows/test_fix.py::DeltaScriptsCase.test_third_rejection_gives_up_and_unknown_keys_are_rejected
-  - 本物の run: 拒否が在れば `reject-delta-accept-<k>.md`。健全な run は通って `out-p3.delta_review.json` が在る
+  - 本物の run: 拒否が在れば `rejects-delta-accept.md`。健全な run は通って `out-p3.delta_review.json` が在る
   - 狭め: 無し
 
 - F304 差分の審査の穴の kind が事前審査だけの語（regression・policy は後の工程が人に聞く、precedent は判定者の先行例が渡っていない）なら拒む
@@ -983,7 +983,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 元: review-loop.py:3174-3184 `delta_fix_output`
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::DeltaSeamCase.test_delta_fix_problems_answer_every_owed_key_once
-  - 本物の run: 手直しが起きた run の `reject-refix-accept-<k>.md`（拒否時）・`out-p3.delta_fix.json`
+  - 本物の run: 手直しが起きた run の `rejects-refix-accept.md`（拒否時）・`out-p3.delta_fix.json`
   - 狭め: 無し
 
 - F309 手直しの変更のうち、修正の段が触ったファイル（1 回目の差分の files）の外を承認済みの修正案の項目の範囲で照らし、外れを拒む（修正の段の変更は手直しのせいにしない）
@@ -1112,19 +1112,19 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 置き場の `lens.json` の行（state ran / not_routed と reason）と `prompt-lens-silent-failure-hunter.md`。pr-review-toolkit の無い環境では not_routed）
   - 狭め: 無し。「言語での振り分け」は元にも無い（lang は指示書の言語の 1 行だけ）
 
-- F327 レンズの返りを集め、指摘にレンズの名を付け、落ちた・起きなかったレンズは理由の行を残し、形の崩れた指摘は数えて落とす。集めた行を 1 回目の審査役の材料に足す（2 回目には載せない）
+- F327 レンズの返りを集め、指摘にレンズの名を付け、落ちた・起きなかったレンズは理由の行を残し（レンズが落ちても run を止めずに先へ進む）、形の崩れた指摘は数えて落とす。集めた行を 1 回目の審査役の材料に足す（2 回目には載せない）
   - 元: works/blk-lens/lib/lenses.py `collect`、works/.shared/core/lens.py `collect`・`brief_rows`
   - 今: 表
-  - 証: lib/tests/test_blk_lens.py::LensPlaceCase.test_collect_records_failed_lens_and_succeeds、lib/tests/test_blk_lens.py::LensPlaceCase.test_findings_keeps_valid_and_counts_dropped、lib/tests/test_blk_lens.py::LensPlaceCase.test_cut_brief_carries_lens_rows、lib/tests/test_blk_lens.py::LensPlaceCase.test_review2_brief_has_no_lens、tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_prep_with_the_role_definition_and_collect、lib/tests/test_fix_seams.py::TestLensPlace.test_routes_collect_and_summary
+  - 証: lib/tests/test_blk_lens.py::LensPlaceCase.test_collect_records_failed_lens_and_succeeds、tests/workflows/test_fix.py::DeltaScriptsCase.test_a_failed_lens_leaves_a_failed_row_and_the_collector_goes_on、tests/workflows/test_fix.py::RolesCase.test_a_failed_lens_is_recorded_and_the_block_goes_on、tests/e2e/test_fix_halt_resume.py::FixHaltResumeCase.test_failed_lens_is_recorded_and_the_line_goes_on（止めた Archon で、レンズが落ちても集め役から後ろが走る）、lib/tests/test_blk_lens.py::LensPlaceCase.test_findings_keeps_valid_and_counts_dropped、lib/tests/test_blk_lens.py::LensPlaceCase.test_cut_brief_carries_lens_rows、lib/tests/test_blk_lens.py::LensPlaceCase.test_review2_brief_has_no_lens、tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_prep_with_the_role_definition_and_collect、lib/tests/test_fix_seams.py::TestLensPlace.test_routes_collect_and_summary
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `lens.json` の行と `review1-brief.json` の lens）
   - 狭め: 無し
 
 - F328 レンズの集め役が落ちた・ok でない時は run を止める（観点を誰も見ていないまま先へ進ませない）
   - 元: works/blk-lens/scripts/exit.py（lenses.exit_。盤面を by works:lens で止める）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_collect_failure_is_reported_not_silent
+  - 証: tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_collect_failure_is_reported_not_silent、tests/workflows/test_fix.py::GroupsCase.test_a_failed_node_halts_the_block_for_resume、tests/workflows/test_line.py::CollectAndResultCase.test_stopping_stages_beside_an_absorbed_one_are_not_absorbed（報告は集め役と支度の落ちを受け止めた落ちに載せない）
   - 本物の run: 筋書きでのみ
-  - 狭め: → #121 で止めずに知らせる形で戻した（fix は落ちないを約束にした）。読み手（最後の関所と報告）は配線の部分 D2（#211）
+  - 狭め: → #594 で戻した（集め役は ok: false と理由を書いてから落ち、落ちても止めないレンズの段（レンズとその返りの中継）のほかの、修正のサブグラフのどのノードの落ちでも run が止まる。#121 の止めずに知らせる形は外した）。読み手（最後の関所と報告）は配線の部分 D2（#211）
 
 - F329 レンズの結果を報告に出す: 走ったか・読めたか・採った／採らなかった指摘の数・落ちたレンズ。落ちたレンズは次の run の依頼に「再実行の要あり」で運ぶ。見ていない観点の見出し（UNSEEN_LENS_HEADING）を立てる
   - 元: works/.shared/core/report.py:777 `lens_next_items`・:1567 の lens.summary の行・:2069（lens.report_lines）、works/.shared/core/lens.py `summary`・`report_lines`
@@ -1140,7 +1140,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 本物の run: 無し（run の能力でない）
   - 狭め: fix の能力ではないので無し。リポジトリの柵としての扱いは別の棚卸し（テストの層）へ
 
-D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の run で働かない F302・F320）/ 証が要追加 14（F302・F304・F305・F306・F312・F313・F317・F319・F320・F321・F324・F325・F328・F329）/ 狭め不可でない 6（戻す: F302・F312・F321・F329、持ち主へ: F320・F328）
+D の数: 31 行 / 今が無し 5（F312・F321・F329 と、本物の run で働かない F302・F320）/ 証が要追加 14（F302・F304・F305・F306・F312・F313・F317・F319・F320・F321・F324・F325・F328・F329）/ 狭め不可でない 5（戻す: F302・F312・F321・F329、持ち主へ: F320）
 
 ## E. 組の並べ・後始末・変更の確かめ・返りの約束と人に届く物（F400〜）
 
@@ -1240,15 +1240,15 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
 - F413 子の結果のファイルが無い（子が落ちた）組は当てず、単位を not_done・組を returned: false と理由にする（issue #576 から、子が落ちると組の節が落ちて join は走らず、それでも結果の無いか読めない組が在れば join は作業ツリーを変えずに落ちて run を止める。返す節の行の既定 NO_RESULT は残る）
   - 元: works/blk-fix/lib/tddlanes.py（TestSettle.test_unfinished_lane_goes_back_to_serial）、fixlanes.py（TestJoin.test_unfinished_lane_goes_back）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_stops_on_a_group_without_a_readable_result、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_join_rows_keep_child_status_only_for_returned_groups
-  - 本物の run: 筋書きでのみ（子の run が落ちた時は組の節が落ちて groups-ok が飛び、join.json は書かれない）
+  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_stops_on_a_group_without_a_readable_result、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_usable_result_is_the_one_group_rule、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_join_rows_keep_child_status_only_for_returned_groups
+  - 本物の run: 筋書きでのみ（子の run が落ちた時は組の節が落ちて nodes-ok が飛び、join.json は書かれない）
   - 狭め: F410 と同じく、元は順の輪で直し直した。今は not_done で返すだけ
 
-- F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（issue #576 まで join が戻した。今は組の子が落ちると組の節が落ちて join は走らず、次の組の group-start は前の組の分を戻さずに止まり、自分の組の前の試みの分だけを戻して dropped.json に控える）
+- F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（issue #576 まで join が戻した。今は組の子が落ちると組の節が落ちて join は走らず、次の組の group-start は前の組の分を戻さずに止まり、自分の組の前の試みの分だけを戻す）
   - 元: 無し（元の枝は単位の worktree で直し、run の作業ツリーへの迷い書きは機械が戻した: works/blk-fix/lib/lanekit.py `revert_strays`、tests/test_tdd_lanes.py:483 test_stray_write_of_run_tree_is_reverted）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_drops_its_own_earlier_attempt、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_stops_while_an_earlier_child_is_halted
-  - 本物の run: 筋書きでのみ（落ちた子の組の置き場の `dropped.json`）
+  - 証: tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_drops_its_own_earlier_attempt、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_stops_while_an_earlier_child_is_halted、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_halted_groups_and_drop_unreturned_follow_the_rule
+  - 本物の run: 筋書きでのみ（自分の組の前の試みの変更は親の作業ツリーで戻すだけで、置き場に控えを書かない）
   - 狭め: 無し
 
 - F415 戻せた組の子の TDD の輪の状態を親の置き場の tdd-<k>/ に写し、実行器のパス exe を親の作業ツリーで解き直す（裁定の後の修正の受け付けが凍結と変更に当たる試験に使う）
@@ -1400,13 +1400,13 @@ E の数: 36 行（F400〜F435。F435 は参照だけ） / 今が無し 4（F427
 ### 数
 
 - 行の総数: 193（A 45・B 50・C 32・D 31・E 35。参照だけの C F229・F230・E F435 は数えない）
-- 今が無し: 17（A F013・F026・F041／B F106・F107・F130・F136・F147／C F232（持ち主の決め no-queue による外し）／D F312・F321・F328・F329／E F412・F427・F428・F433）
+- 今が無し: 16（A F013・F026・F041／B F106・F107・F130・F136・F147／C F232（持ち主の決め no-queue による外し）／D F312・F321・F329／E F412・F427・F428・F433）
   - 加えて、関数は在るが線の上では一度も効かない物: 7（A F018・F023・F044、C F216、D F302・F320、B F136 の読み口）。根は 2 つ: 2 回目の修正の include の置き場が 1 回目と分かれて何も渡らない（A F018・F023・F044、C F216）、plan-review の返りが fix の入力に無い（B F130、D F302）
   - 修正役（fix-ruled）と範囲の相談の答えの役が前の会話を継がない（C F218・F222）は新しい会話で代わりを置いた（今が無しには数えない）
 - 証が要追加（試験が無いか、外しても赤にならない）: 61（A 12・B 15・C 10・D 14・E 10）
-- 狭めで Archon でも不可でない: 35
+- 狭めで Archon でも不可でない: 34
   - 戻す（持ち主の決めは要らない。元の能力が落ちていて、直し方が 1 つに決まる）: 19 — A F013・F018・F023・F041・F044／B F106・F130／C F205・F216・F225／D F302・F312・F321・F329／E F411・F412・F426・F427・F428
-  - 持ち主へ（下の節）: 16
+  - 持ち主へ（下の節）: 15
 - Archon で不可: 3（C F218・F222: loop_group の中では `context.resume` を使えず、継ぐ相手は別の run か別の include の中。Archon packages/workflows/src/loader.ts:1173-1186／E F403 の (2): remote の無い対象では作業ツリーを切れない。Archon packages/isolation/src/providers/worktree.ts:1302-1305）
 
 ### 明示を頼まれた行の在りか
@@ -1442,7 +1442,7 @@ E の数: 36 行（F400〜F435。F435 は参照だけ） / 今が無し 4（F427
 7. 修正役が書いた指しの読了の記録（B F128）: 判定のやり直し（rejudge）に渡すか
 8. 当たらなかった組・子が落ちた組の単位を同じ run で直し直すか（E F410・F413。元は順の輪で直した）
 9. 並べの切り替えを 2 語から 1 語にした件（E F403 の (1)）と、並べた run の子の worktree の片付けを機械にするか（E F433）
-10. レンズの集めが落ちた時に止めるか報告に出すか（D F328）、軽量で省いた・深さを上げた事実を報告に出すか（D F320）
+10. 軽量で省いた・深さを上げた事実を報告に出すか（D F320）
 
 ### 本物の run（種と厚み 標準）で見えない物
 

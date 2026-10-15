@@ -21,6 +21,7 @@ from unittest import mock
 
 import yaml
 
+from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.bin.linescripts import SCRIPTS, load
 from tests.workflows.test_gate_head import final_got
@@ -89,6 +90,23 @@ def load_block_script(block: str, name: str):
 def block_doc(include: str) -> dict:
     """差し込むブロックの YAML（include の名の works-factory- の後ろがフォルダ）"""
     return yaml.safe_load((SCRIPTS.parents[1] / include.removeprefix("works-factory-") / f"{include}.yaml").read_text(encoding="utf-8"))
+
+
+def record_steps(block: str = "line", prefix: str = "") -> set:
+    """線を回した時の run の記録の step に出うる節の id の全部。Archon は include の中の節に「include の節の id__」を前に付け、
+    ループの中の節は素の id のまま記録する（include-expander.ts の inlineInclude・node-record-serialization.ts の step）"""
+    doc = yaml.safe_load((SCRIPTS.parents[1] / block / f"works-factory-{block}.yaml").read_text(encoding="utf-8"))
+    got = set()
+
+    def walk(nodes, head):
+        for node in nodes:
+            got.add(head + node["id"])
+            if "include" in node:
+                got.update(record_steps(node["include"].removeprefix("works-factory-"), head + node["id"] + "__"))
+            if "loop_group" in node:
+                walk(node["loop_group"]["nodes"], "")
+    walk(doc["nodes"], prefix)
+    return got
 
 
 def line_nodes(nodes=None) -> dict:
@@ -728,7 +746,7 @@ def fixture_format(fixture_text: str):
 
 def text_at(rev: str, rel: str) -> str | None:
     """版 rev のファイル rel の字（無ければ None）"""
-    got = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, text=True, encoding="utf-8")
+    got = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{rel}"], capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
     return got.stdout if got.returncode == 0 else None
 
 
@@ -2107,7 +2125,7 @@ class SpecCheckNodeCase(Artifacts):
     def test_crash_is_a_question_not_silence(self):
         """照らしが落ちた返りの 0 件は、最後の承認ノードに「変わっていない」と読まれて問わずに通る。落ちたら問いを 1 行返す"""
         ptr = json.dumps({"type": "archon_artifact", "run_id": "another-run", "path": "judge/spec.json"})
-        env = {**os.environ, "INPUTS_SPEC": ptr}
+        env = hermetic.child_env(ARTIFACTS_DIR=str(self.artifacts), WORKFLOW_ID=RUN, INPUTS_SPEC=ptr)
         done = subprocess.run([sys.executable, str(SCRIPTS / "spec_check.py")], cwd=self.tmp, env=env, capture_output=True, text=True)
         self.assertEqual(done.returncode, 0, done.stderr)
         got = json.loads(done.stdout)
@@ -2617,10 +2635,36 @@ class CollectAndResultCase(unittest.TestCase):
         （works/darkfactory/darkfactory.yaml 347・445・946・1124・1196 行）"""
         declared = json.loads(line_nodes()["collect"]["with"]["optional"])
         self.assertEqual(collect.collect({}, self.line(optional=json.dumps(declared)))["optional"], declared)
-        for stage in ("judge__world", "plan__structure", "fix__lens", "eyes__", "judge__head-depth", "head-depth"):
+        for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
+
+    def test_stopping_stages_beside_an_absorbed_one_are_not_absorbed(self):
+        """#599: 宣言はレンズの節とその中継だけを受け止め、名の頭が同じ止める段（支度 lens-prep・集め役 lens-collect）の落ちは
+        途中で終わった落ちに数える（止まった run の報告がレンズを受け止めた落ちに載せ、止めたかの節を誤らない）。世界の解の段は
+        ループの中の節（記録の step では素の id）まで受け止める"""
+        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
+        fell = ["fix__lens", "fix__lens-reply", "refix-run__lens", "fix__lens-prep", "fix__lens-collect", "refix-run__lens-collect",
+                "world-judge-accept", "eyes__r1"]
+        rows = [r for i, s in enumerate(fell) for r in (
+            {"step": s, "type": "node_start", "ts": f"2026-10-14T00:{i:02d}:00Z"},
+            {"step": s, "type": "node_error", "ts": f"2026-10-14T00:{i:02d}:30Z", "error": "落ちた"})]
+        facts = runreport.transcript_facts(rows, optional=declared)
+        self.assertEqual(facts["failed"], ["fix__lens-prep", "fix__lens-collect", "refix-run__lens-collect"])
+        self.assertEqual([a["node"] for a in facts["absorbed"]],
+                         ["fix__lens", "fix__lens-reply", "refix-run__lens", "world-judge-accept", "eyes__r1"])
+
+    def test_declared_range_moved_only_off_the_lens_prep_and_collect(self):
+        """#599: 宣言を区切りつきの頭か名そのものに改めた時、受け止める範囲から外れたのは止める段のレンズの支度と集め役だけで、
+        ループの中の節（記録の step では素の id）を含むほかの節の受け止めは前の宣言（区切りの無い頭の一致）と変わらない"""
+        before = ["judge__world", "rejudge-run__world", "world-classes", "world-judge", "plan__structure", "replan__structure",
+                  "structure-eye", "fix__lens", "refix-run__lens", "eyes__", "judge__head-depth", "head-depth"]
+        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
+        steps = record_steps()
+        self.assertIn("world-judge-accept", steps)
+        moved = {s for s in steps if any(s.startswith(head) for head in before) != runreport._declared(s, declared)}
+        self.assertEqual(moved, {"fix__lens-prep", "fix__lens-collect", "refix-run__lens-prep", "refix-run__lens-collect"})
 
     def test_head_depth_fall_is_absorbed(self):
         """頭の深さの役が落ちても判定は標準で進む（judge_accept.head_depth）ので、報告は run を途中で終わった物と数えない"""
@@ -2699,10 +2743,9 @@ class SweepChildrenCase(unittest.TestCase):
             listing = json.dumps({"runs": [{"id": RUN, "status": "running", "parent_run_id": None, "metadata": {}}]})
             bun.write_text(f"#!/bin/sh\ncat <<'EOF'\n{listing}\nEOF\n", encoding="utf-8")
             bun.chmod(0o755)
-            env = {k: v for k, v in os.environ.items() if k != "WORKS_FACTORY_ARCHON_SOURCE"}
-            env.update({"PATH": f"{tmp / 'bin'}{os.pathsep}{env.get('PATH', '')}", "WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(tmp),
-                        "WORKS_FACTORY_ROOT": str(ROOT)})
-            env.update({k: v.replace("<tmp>", str(tmp)) for k, v in extra.items()})
+            env = hermetic.child_env(
+                PATH=f"{tmp / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}", WORKFLOW_ID=RUN, ARTIFACTS_DIR=str(tmp),
+                WORKS_FACTORY_ROOT=str(ROOT), **{k: v.replace("<tmp>", str(tmp)) for k, v in extra.items()})
             done = subprocess.run([sys.executable, str(copied / "line/scripts/sweep_children.py")], cwd=tmp, env=env,
                                   capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -2773,7 +2816,7 @@ class BrokenLibCase(unittest.TestCase):
         self.assertGreaterEqual(len(guarded), 5)
         with tempfile.TemporaryDirectory() as tmp:
             (pathlib.Path(tmp) / "lib").mkdir()
-            env = {**os.environ, "WORKS_FACTORY_ROOT": tmp, "WORKFLOW_ID": RUN, "ARTIFACTS_DIR": tmp, "INPUTS_PLACE": "gate"}
+            env = hermetic.child_env(WORKS_FACTORY_ROOT=tmp, WORKFLOW_ID=RUN, ARTIFACTS_DIR=tmp, INPUTS_PLACE="gate")
             for node in guarded:
                 with self.subTest(script=node["script"]):
                     done = subprocess.run([sys.executable, str(SCRIPTS / f"{node['script']}.py")], cwd=tmp, env=env,
@@ -3096,7 +3139,7 @@ class LineWiringCase(unittest.TestCase):
                 alone = tmp / "alone" / "scripts"
                 alone.mkdir(parents=True)
                 path = pathlib.Path(shutil.copy(path, alone))
-            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "WORKS_FACTORY_ROOT", "PYTHONPATH"))}
+            env = {k: v for k, v in hermetic.child_env().items() if k != "PYTHONPATH"}
             env.update({"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN, "PYTHONDONTWRITEBYTECODE": "1", **self.RETURN_INPUTS[block]})
             done = subprocess.run([sys.executable, str(path)], cwd=tmp, env=env, capture_output=True, text=True)
             self.assertEqual(done.returncode, 0, done.stderr)
@@ -3207,11 +3250,11 @@ class LineWiringCase(unittest.TestCase):
             (repo / "a.txt").write_text("two\n", encoding="utf-8")
             got, sealed = [], "null"
             for mode in modes:
-                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-                env.update({"WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(artifacts), "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"})
+                env = {"WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(artifacts), "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"}
                 env.update({f"INPUTS_{name.upper()}": "null" for name in block_doc("works-factory-merge")["inputs"]})
                 env.update({"INPUTS_MODE": mode, "INPUTS_START": json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "start.json"}),
                             "INPUTS_SEALED_HASH": sealed})
+                env = hermetic.child_env(**env)
                 done = subprocess.run([sys.executable, str(SCRIPTS.parents[1] / "merge" / "scripts" / "merge.py")], cwd=repo, env=env,
                                       capture_output=True, text=True)
                 out = json.loads(done.stdout)
