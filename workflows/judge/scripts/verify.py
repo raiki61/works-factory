@@ -17,14 +17,9 @@ import judge_accept as ja  # noqa: E402
 import rolekit  # noqa: E402
 
 stage = os.environ.get("INPUTS_STAGE", "")
-objection = os.environ.get("INPUTS_OBJECTION", "")
 if stage not in ("prep", "merge"):
     sys.exit(f"stage は prep か merge（{stage!r}）")
 lang = {"lang_line": rolekit.pointed_lang_line(os.environ.get("INPUTS_START"), boundary.pointed)}
-if objection.strip():   # 再審の道: 判定の道の裏取りは走らせず、置き場に触らない
-    boundary.returns({"go": False, "prompt_file": "", "reason": "再審の道（入力 objection が空でない）", **lang} if stage == "prep"
-                     else {"ok": True, "reason": "再審の道（入力 objection が空でない）"})
-    sys.exit(0)
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 jdir.mkdir(parents=True, exist_ok=True)
 if stage == "prep":

@@ -29,7 +29,7 @@ class Table(unittest.TestCase):
                          {"gate": ("gate-marks.json", marks.ROOT), "plan": ("plan-fields.json", marks.ROOT),
                           "delta": ("delta-verdicts.json", marks.WORK), "converge": (None, marks.WORK),
                           "query": ("query-examples.json", marks.ROOT), "purpose": ("out-of-purpose.json", marks.ROOT),
-                          "pr": ("pr-excluded.json", marks.WORK), "writes": (None, marks.WORK),
+                          "pr": ("pr-excluded.json", marks.WORK), "writes": (None, marks.WORK), "resubmit": (None, marks.WORK),
                           "means": ("purpose-means.json", marks.ROOT), "answers": ("answer-ties.json", marks.ROOT)})
 
     def test_nodes(self):

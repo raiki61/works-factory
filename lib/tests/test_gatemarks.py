@@ -91,5 +91,58 @@ class DutyCase(unittest.TestCase):
                          ["判定の結びの宛て先 q-e が今の問いにも単位にも無い（字の一致で当てた）: 依頼の答え どちらでもよい"])
 
 
+class PushRecCase(unittest.TestCase):
+    """#552: 関所の項目の推しの尾（_push の形）を読み戻し、無人の run が推しで通る答えを組む"""
+    REC = {"answer": "continue", "note": "空の列は 0 を返す／形で通す", "why": "呼び手が 0 を前提に書かれている"}
+    BODY = "修正案 1 が狭める能力: 空の列で例外を投げる——0 を返す形に変える（人に聞く訳: 決め手の欄が揃わない）"
+
+    def row(self, **rec):
+        return gatemarks._item(self.BODY, {gatemarks.RECOMMEND: {**self.REC, **rec}})
+
+    def test_round_trip_of_the_push_tail(self):
+        got = gatemarks.push_rec(self.row())
+        self.assertEqual(got, {"item": self.BODY, "answer": "continue", "note": "空の列は 0 を返す・形で通す",
+                               "why": "呼び手が 0 を前提に書かれている"})
+        self.assertEqual(gatemarks.push_rec(self.row(answer="stop"))["answer"], "stop")
+
+    def test_rows_without_an_answer_word_are_not_pushes(self):
+        for text in (self.BODY, f"{gatemarks.DESIGN_HEAD}x／推し: 案 A", f"x／推し: {gatemarks.NO_PUSH}",
+                     "x／推し: 止める（continue）——a（理由: b）"):
+            with self.subTest(text=text):
+                self.assertIsNone(gatemarks.push_rec(text))
+
+    def test_pushed_answer_only_when_every_row_pushes_continue(self):
+        rows = [self.row(), self.row(), gatemarks._item("修正案 2 が狭める能力: y", {gatemarks.RECOMMEND: {**self.REC, "note": "y で通す"}})]
+        got = gatemarks.pushed_answer(rows)
+        self.assertEqual((got["decision"], got["text"]), ("continue", "空の列は 0 を返す・形で通す；y で通す"))
+        self.assertEqual(got[gatemarks.answer.PUSHED], [gatemarks.push_rec(r) for r in rows])
+        for rows in ([], [self.row(), self.BODY], [self.row(), self.row(answer="stop")]):
+            with self.subTest(rows=rows):
+                self.assertIsNone(gatemarks.pushed_answer(rows))
+
+    def test_scenario_rows_are_read(self):
+        """筋書き unattended-push・unattended-push-stop の項目の字は push_rec で読める（字の形のずれを赤にする）"""
+        fixtures = pathlib.Path(__file__).resolve().parents[2] / "workflows" / "line" / "fixtures"
+        for name, word in (("unattended-push", "continue"), ("unattended-push-stop", "stop")):
+            with self.subTest(name=name):
+                text = (fixtures / f"{name}.stubs.yaml").read_text(encoding="utf-8")
+                row = next(line.split('"text": "', 1)[1].split('"', 1)[0] for line in text.splitlines() if "／推し: " in line)
+                self.assertEqual(gatemarks.push_rec(row)["answer"], word)
+
+    def test_gate_items_keep_the_push_origin(self):
+        """推しで通した答えを human_items の行にしても欄 answer.PUSHED を落とさない（人の答えの行は持たない）"""
+        pushed = gatemarks.pushed_answer([self.row()])
+        self.assertEqual(gatemarks.gate_items(pushed)[0][gatemarks.answer.PUSHED], pushed[gatemarks.answer.PUSHED])
+        self.assertNotIn(gatemarks.answer.PUSHED, gatemarks.gate_items({"decision": "continue", "text": "人"})[0])
+
+    def test_pass_line_tells_a_push_from_a_human(self):
+        row = {"node": gatemarks.R4_GATE_NODE, "round": 1, "item": "x", "passed_at": {"node": gatemarks.GATE_NODE, "round": 1}}
+        pushed, human = gatemarks.pass_lines([{**row, "by": gatemarks.PASSED_BY_PUSH}, {**row, "by": gatemarks.PASSED_BY_HUMAN}])
+        self.assertIn("無人の run で推しを採って通した", pushed)
+        self.assertNotIn("人が通した", pushed)
+        self.assertIn("人が通した", human)
+
+
+
 if __name__ == "__main__":
     unittest.main()

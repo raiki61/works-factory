@@ -7,7 +7,8 @@
 直した項目ごとに、承認済みの項目（計画の往復の plan）と直した項目（replan の plan）の約束の欄を比べる（lib/planmarks.py の
 contract_diff）。約束の欄が変わった項目と、事前審査（replan-review）が人に聞くと言った時は聞く。無人の run では、範囲を広げるだけの
 直し（planmarks.widened）は聞かずに通し、通したことを元 replan._widen_text の字（lib/replan.widen_text。足した glob・外した glob）で
-返す（widened。元の trace の行 replan.WIDEN_OP の代わりにこの節の返りが run の記録に 1 度だけ残り、線の collect が report へ渡す）。読めない計画は聞く側に倒す。無人の run で聞くはずの時は開かずに止める（needs-human）。
+返す（widened。元の trace の行 replan.WIDEN_OP の代わりにこの節の返りが run の記録に 1 度だけ残り、線の collect が report へ渡す）。読めない計画は聞く側に倒す。無人の run で聞くはずの時は、聞く項目の全部が通す推しの尾を持てば推しで進み（返り pushed。
+gatemarks.pushed_answer。約束の欄が変わった項目の行は推しを持たないので止まる）、ほかは開かずに止める（needs-human）。
 関所の文は聞く項目ごとの節（元 replan._gate_section）: 約束の欄の変化・人に聞く穴（事前審査の問い）・その項目を誤りとした申し出の文と
 裁定の文（fix の conflicts.json の、裁定 fix_plan_item が項目の番号を名指す行。字のまま）・前の項目と直した項目の JSON。
 asked は関所に見せた項目の行（「項目 <id>: …」と事前審査の問いの行。answer-replan が答えの asked にする）。
@@ -105,9 +106,13 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
     if ask_human:
         rows += [f"事前審査の問い: {q}" for q in gatemarks.row_texts(questions)] or ["事前審査が人に聞くと言った"]
     if not rows:
-        return {"open": False, "go": True, "stop_reason": "", "text": "", "widened": widened, "asked": []}
+        return {"open": False, "go": True, "stop_reason": "", "text": "", "widened": widened, "asked": [], "pushed": None}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "widened": widened, "asked": []}
+        pushed = gatemarks.pushed_answer(rows)
+        if pushed is None:
+            return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "widened": widened, "asked": [],
+                    "pushed": None}
+        return {"open": False, "go": True, "stop_reason": "", "text": "", "widened": widened, "asked": rows, "pushed": pushed}
     lines = gatemarks.head3(f"{HEAD}が開いた。修正の段が誤りとした計画の項目を直した案に、人が決める物が {len(rows)} 件ある",
                             "直した案で 2 度目の修正へ進めるか、止めるか（打つ行は末尾の答え方）", gatemarks.push_of(rows))
     lines += ["", f"項目（{len(rows)} 件）:", *[f"- {row}" for row in rows], *[f"- {w}" for w in widened],
@@ -115,11 +120,12 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
               "答え方:",
               f"- 修正に戻る: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残り、修正前の承認ノードの答えの条件と共に 2 度目の修正に届く）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
-    return {"open": True, "go": True, "stop_reason": "", "text": "\n".join(lines) + "\n", "widened": widened, "asked": rows}
+    return {"open": True, "go": True, "stop_reason": "", "text": "\n".join(lines) + "\n", "widened": widened, "asked": rows,
+            "pushed": None}
 
 
 def fallback(reason: str) -> dict:
-    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "widened": [], "asked": []}
+    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "widened": [], "asked": [], "pushed": None}
 
 
 if __name__ == "__main__":

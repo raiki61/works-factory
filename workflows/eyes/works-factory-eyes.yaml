@@ -6,25 +6,25 @@ description: |
   出力ノード verdict はそのファイルを読んで lib/eyeverdict.py でまとめる（落ちたノードへの with: は誤りで止まるため）。
 
 inputs:
-  units: {required: true, description: "$judge.output.units（単位の目録。JSON の配列）"}
-  judgment: {required: true, description: "$judge.output.judgment（judgment.json のポインタ）"}
-  purpose: {required: true, description: "$judge.output.purpose（purpose.json のポインタ）"}
-  world: {required: true, description: "$judge.output.world（定石の行のポインタ。null 可）"}
-  plan: {required: true, description: "$plan.output.plan（plan-fields.json のポインタ）"}
-  ripple: {required: true, description: "$plan.output.ripple（ripple.json のポインタ）"}
-  depth: {required: true, description: "$redepth.output.depth（単位ごとの深さ。JSON の配列）"}
-  design: {required: true, description: "$plan-review.output.design（design.json のポインタ）"}
-  changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む）"}
-  fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
-  green_ok: {required: true, description: "$test-gate-final.output.ok"}
-  test_outcomes: {required: true, description: "$test-gate-final.output.test_outcomes（テストごとの base と最後の結末 {rows, unmeasured}）。比較役に貼る"}
-  diffs: {required: true, description: "$fixed.output.diffs（修正の段ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む）"}
-  start: {default: "null", description: "$start.output.record（始めの記録のポインタ）"}
-  plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の承認ノードの項目 {kind, text}）"}
-  answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の承認ノードの答え）"}
-  start_answers: {default: "null", description: "{ from: $gate-start.output, if_skipped: null }（始めの承認ノードの答え。plan-review が独立設計に貼った人の答えと同じ源）"}
-  review_skipped: {default: "false", description: "$fixed.output.review_skipped（メイングラフの往復が事前審査を run の頭の深さで飛ばしたか。真なら単位の深さに依らず R1〜R4 を回す。事前審査の代わり）"}
-  x_scalars: {default: "null", description: "$fix.output.x_scalars（修正役が足した x_ の規模の数値。JSON の object）"}
+  units: {required: true, description: "単位の目録。JSON の配列"}
+  judgment: {required: true, description: "judgment.json のポインタ"}
+  purpose: {required: true, description: "purpose.json のポインタ"}
+  world: {required: true, description: "定石の行のポインタ。null 可"}
+  plan: {required: true, description: "plan-fields.json のポインタ"}
+  ripple: {required: true, description: "ripple.json のポインタ"}
+  depth: {required: true, description: "単位ごとの深さ。JSON の配列"}
+  design: {required: true, description: "design.json のポインタ"}
+  changed: {required: true, description: "修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む"}
+  fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}
+  green_ok: {required: true, description: "最後のテストの段が通ったか。真偽の値"}
+  test_outcomes: {required: true, description: "テストごとの base と最後の結末 {rows, unmeasured}。比較役に貼る"}
+  diffs: {required: true, description: "修正の段ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む"}
+  start: {default: "null", description: "始めの記録のポインタ"}
+  plan_questions: {default: "null", description: "修正前の承認ノードの項目 {kind, text}"}
+  answers: {default: "null", description: "修正前の承認ノードの答え"}
+  start_answers: {default: "null", description: "始めの承認ノードの答え（独立設計に貼られる人の答えと同じ物）"}
+  review_skipped: {default: "false", description: "事前審査を run の頭の深さで飛ばしたか。真なら単位の深さに依らず R1〜R4 を回す。事前審査の代わり"}
+  x_scalars: {default: "null", description: "修正役が足した x_ の規模の数値。JSON の object"}
 
 returns: verdict
 outcome_field: ok
@@ -275,7 +275,9 @@ nodes:
 
   # R1・R2 の筋が落ちても R4 を飛ばさない。方針とのぶつかりが記録された方針の行を名指さなければ受け付けが拒んで出し直させ、
   # 3 回目は通らなくても抜ける（その時は名指さない行も最後の承認ノードで人に聞く。#455）。if/then は今の works の post_check
-  # r4_inventory（棚卸しが発火したら lost を明示する）
+  # r4_inventory（棚卸しが発火したら lost を明示する）。目は 1 回目は新しい会話で起き、拒まれた後は出し直しの役 r4-scope-fix が
+  # 同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと合わせる（振り分けは r4-reject の resubmit。並んだ層は会話を切るので
+  # r4-scope-fix は r4-scope の後ろの層に置く。#571）
   - id: r4-loop
     depends_on: [prep, r1-minimality, r2-compare, premise-check]
     trigger_rule: all_done
@@ -283,7 +285,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$r4-accept.output.done; test "$done" = true
       nodes:
         - id: r4-reject
@@ -291,24 +293,26 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          with: {prev: "$LOOP_PREV.r4-accept.output.ok"}
           output_format:
             type: object
             additionalProperties: false
             required: [reason]
-            properties: {reason: {type: string}}
+            properties: {reason: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
         - id: r4-scope
           command: r4-scope
           depends_on: [r4-reject]
-          model: sonnet
-          effort: medium
-          context: fresh
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          allowed_tools: [Read, Grep, Glob]
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
+          when: "$r4-reject.output.resubmit != true"
+          <<: &r4_launch
+            model: sonnet
+            effort: medium
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            allowed_tools: [Read, Grep, Glob]
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &r4_reply
             type: object
             required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen]
             additionalProperties: false
@@ -340,13 +344,25 @@ nodes:
               unseen: {type: array, items: {type: string}}
             if: {properties: {capability_inventory: {properties: {fired: {const: true}}}}}
             then: {properties: {capability_inventory: {required: [fired, lost]}}}
+        - id: r4-scope-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$r4-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [r4-reject, r4-scope]
+          trigger_rule: none_failed_min_one_success
+          when: "$r4-reject.output.resubmit == true"
+          <<: *r4_launch
+          output_format:
+            <<: *r4_reply
+            required: []
         - id: r4-accept
           script: r4_accept
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          depends_on: [r4-scope]
-          with: {reply: $r4-scope.output}
+          depends_on: [r4-scope, r4-scope-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            reply: {from: "$r4-scope.output", if_skipped: null}
+            fix_reply: {from: "$r4-scope-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false

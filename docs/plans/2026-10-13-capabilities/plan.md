@@ -203,7 +203,7 @@
   - 元: works/.shared/core/structmark.py:111 `plan_section`・planblk.py:1085 `prep`、試験 works/tests/test_blk_plan.py:1300 StructureHeadCase.test_design_rows_reach_plan_head
   - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_dirty_structure_rows_reach_the_brief（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
-  - 本物の run: plan/r1/brief-1.md の「## 構造の目の行」の節（目の受け付けが通れば汚れない行も含め全部の行が出る。避け方の「。避け方: 」は汚れると見た行だけ）
+  - 本物の run: plan/r1/brief-1.md の「## 構造の目の行」の節（目の受け付けが通れば全部の行が出る。汚れると見た行は頼みの下、汚れない行は別の小見出しの下に分かれる。避け方の「。避け方: 」は汚れると見た行だけ）
   - 狭め: 無し（試験だけ欠け）
 
 - P028 構造の目の行が無い周（実測が落ちた・目が 3 回拒まれた・目が走らなかった・控えが読めない）は、材料に「構造の目の行なしで計画した（理由）」と書き、行への答えを求めずに計画へ進む。
@@ -334,16 +334,16 @@
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（落ちる代わりに訳つきで止まる形）
 
-- P046 周の拒否の理由の全部（古い順）をファイル（rejects-plan.md）に置き、次の回の材料の 1 行目がそのパスを名指す（理由の本文は貼らない）。
+- P046 拒まれた後の出し直しは同じ役の会話の続きで、出し直しの指示書に今の周の最後の拒否の文を貼る（#571）。resume で輪が 1 周目から回り直し、1 回目の役が新しい会話で起き直す時は、周の拒否の理由の全部（古い順）をファイル（rejects-plan.md）に置き、材料の 1 行目がそのパスを名指す（理由の本文は貼らない）。
   - 元: rolekit.py:64 `REJECT_LINE`・:168 `compose`、試験 works/tests/test_blk_plan.py:1012 test_reject_reason_by_file（本文を貼らないことも断言）。元は最後の拒否だけを名指したが、拒まれた役は同じ会話の続きで起きた（works/.shared/core/graphloops/engine/role_run.py:19-20）
   - 今: 表
-  - 証: tests/workflows/test_plan.py::AcceptCase.test_narrow_without_no_narrow_rejected（断言 2 つ）（#120 で足した。消すと赤: 材料に拒否の本文を貼ると赤）、tests/workflows/test_plan.py::AcceptCase.test_third_brief_names_every_reject_of_the_round（#345。消すと赤: 最後の拒否だけを書くと赤）
-  - 本物の run: plan/r1/rejects-plan.md と plan/r1/brief-2.md の 1 行目（拒否が起きた時）
+  - 証: tests/workflows/test_plan.py::AcceptCase.test_resubmit_brief_carries_the_last_reject_and_the_merged_answer（#571。消すと赤: 出し直しの指示書に最後の拒否が無いと赤）、tests/workflows/test_plan.py::AcceptCase.test_resume_brief_names_every_reject_of_the_round（#345。消すと赤: resume の材料が最後の拒否だけを書くと赤）
+  - 本物の run: plan/r1/brief-2.md（拒否が起きた時の出し直しの指示書）と、resume の時の plan/r1/rejects-plan.md
   - 狭め: 無し
 
 ### 輪・出口・返り
 
-- P047 拒否の後は新しい会話で出し直し、3 回目の拒否で受け付けが done・give_up を出して輪を抜ける（max_iterations で落とさない）。返りは ready: false、訳は「3 回とも受け付けで拒まれた」。
+- P047 拒否の後は同じ役の会話の続きで拒まれた項目だけを出し直し（plan-writer-fix。受け付けが前の答えと合わせてから全体を照らす。#571）、3 回目の拒否で受け付けが done・give_up を出して輪を抜ける（max_iterations で落とさない）。返りは ready: false、訳は「3 回とも受け付けで拒まれた」。
   - 元: works/blk-plan/blk-plan.yaml:231 plan-loop（fresh_context: true・until_bash）・planblk.py:1441 `collect`（盤面を止める STOP_BY works:plan、gave_up・reason_file）、試験 works/tests/test_blk_plan.py:1024 test_give_up_ends_loop
   - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_three_rejections_give_up_with_every_pointer・tests/workflows/test_plan.py::ShapeCase.test_loops_give_up_in_the_body_before_max_iterations・筋書き workflows/plan/fixtures/give-up.stubs.yaml（tests/workflows/test_plan.py::FixtureCase）
@@ -637,7 +637,7 @@
   - 元: works/.shared/core/structmark.py `plan_section`・`PLAN_ASK`
   - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_brief_carries_structure_rows（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
-  - 本物の run: `plan/r1/brief-1.md` の「## 構造の目の行」の節（種で行が在れば）
+  - 本物の run: `plan/r1/brief-1.md` の「## 構造の目の行」の節。汚れる行が在れば頼み（PLAN_ASK）とその行だけ、汚れる行が無ければ答えの要らない旨の 1 行（PLAN_NONE）。汚れない行は別の小見出し「### 汚れないと見た行」の下（種で汚れる行が出るとは限らない）
   - 狭め: 無し
 
 - P089 返りの structure の指し札は structure-state.json を指し、隣の design.jsonl を名で開ける（後段＝事前審査・関所・報告が 1 つの控えだけを読む）
@@ -849,7 +849,7 @@
   - 今: 無し（表）
   - 証: 要追加（持ち主の決めの後）。今の形を縛る試験は tests/workflows/test_plan.py::CollectCase.test_rounds_count_and_second_round_gets_review（材料のファイルで渡す）
   - 本物の run: 筋書きでのみ
-  - 狭め: #75 で狭めた（Archon で不可）。名指しの会話の継ぎ（`context: {resume: <節>}`）は loop_group の中で禁じられ（Archon packages/workflows/src/loader.ts:1173-1174「context.resume inside a loop_group body, which is not supported」）、計画の役は線の loop_group `plan-rounds` の中・さらにブロックの plan-loop の中に在る。loop_group の fresh_context: false が継ぐのは「直前の周の最後の順の会話」（dag-executor.ts:4773-4778）で、plan-rounds では事前審査の会話になり計画の役の会話ではない。入れ子の loop の 1 周目はいつも新しい会話（dag-executor.ts:5665 `needsFreshSession = loop.fresh_context || i === 1`）。よって不可。持ち主の決め `persona`（保存した返答で渡すか）の答え待ちのまま 決め: 継がない。保存した返答を読む新しい会話で回す（docs/owner-decisions.md の「導いた事」の 2026-10-12 の推しの決め。Archon loader.ts:1173-1175）。狭めとして確定（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #75 で狭めた（Archon で不可）。名指しの会話の継ぎ（`context: {resume: <節>}`）は loop_group の中で禁じられ（Archon packages/workflows/src/loader.ts:1173-1174「context.resume inside a loop_group body, which is not supported」）、計画の役は線の loop_group `plan-rounds` の中・さらにブロックの plan-loop の中に在る。loop_group の fresh_context: false が継ぐのは「直前の周の最後の順の会話」（dag-executor.ts:4773-4778）で、plan-rounds では事前審査の会話になり計画の役の会話ではない。入れ子の loop の 1 周目はいつも新しい会話（dag-executor.ts:5665 `needsFreshSession = loop.fresh_context || i === 1`）。よって不可。持ち主の決め `persona`（保存した返答で渡すか）の答え待ちのまま 決め: 継がない。保存した返答を読む新しい会話で回す（docs/owner-decisions.md の「導いた事」の 2026-10-12 の推しの決め。Archon loader.ts:1173-1175）。狭めとして確定（線の配線の文書の「この文書の外」の「決めた物」）。#571 で持ち主が改めて、新しい会話で前の案と指摘を材料に変えた項目だけを返す形を選んだ（docs/owner-decisions.md の同じ節の 2026-10-15 の行。自前の包みで会話を継ぐ形は採らない）
 
 - P118 again の時、計画の役は独立設計の節を受けない（修正案の役の頭と指示書は会話に在る）
   - 元: works/tests/test_blk_plan.py:1976 `test_revise_prompt_names_blocks_and_keys`（「=====独立設計ここから=====」が無い）
@@ -1128,7 +1128,7 @@
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
-- P156 出し直しの輪は 3 回（rolekit.GIVE_UP_AFTER）で、until_bash は同じ輪の受け付けの done。独立設計の輪は fresh_context: false（拒まれた後は同じ会話）、事前審査の輪は true。輪の後の節は all_done
+- P156 出し直しの輪は 3 回（rolekit.GIVE_UP_AFTER）で、until_bash は同じ輪の受け付けの done。独立設計の輪も事前審査の輪も fresh_context: false（拒まれた後は同じ会話。事前審査の役は周ごとに新しい会話で起き、拒まれた後は plan-review-fix が同じ会話の続きで拒まれた欄だけを返す。#571）。輪の後の節は all_done
   - 元: works/blk-plan/blk-plan.yaml:79-190（r2-design-loop）・:701（plan-review-loop）。works/tests/test_blk_plan.py:215 `test_design_loop_first_and_tool_less`・:237 `test_loops_fresh_single_ai_and_give_up`
   - 今: 表
   - 証: tests/workflows/test_plan_review.py::YamlCase.test_loops_are_three_and_end_on_accept_done

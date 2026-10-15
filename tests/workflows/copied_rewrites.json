@@ -200,7 +200,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "## 役の定義（inspector）",
-   "copied": "$consistency-bypass-reject.output.lang_line\n\n## 役の定義（inspector）"
+   "copied": "$consistency-bypass-prep.output.lang_line\n\n## 役の定義（inspector）"
   }
  ],
  "workflows/judge/commands/material-external-standards.md": [
@@ -252,7 +252,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "## 役の定義（investigator）",
-   "copied": "$external-standards-reject.output.lang_line\n\n## 役の定義（investigator）"
+   "copied": "$external-standards-prep.output.lang_line\n\n## 役の定義（investigator）"
   }
  ],
  "workflows/judge/commands/material-gate-efficacy.md": [
@@ -299,7 +299,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
-   "copied": "$gate-efficacy-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
+   "copied": "$gate-efficacy-prep.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/material-hygiene.md": [
@@ -346,7 +346,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "## 役の定義（cold-reader）",
-   "copied": "$hygiene-reject.output.lang_line\n\n## 役の定義（cold-reader）"
+   "copied": "$hygiene-prep.output.lang_line\n\n## 役の定義（cold-reader）"
   }
  ],
  "workflows/judge/commands/material-local-review.md": [
@@ -398,7 +398,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
-   "copied": "$local-review-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
+   "copied": "$local-review-prep.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/material-main-path-observation.md": [
@@ -430,7 +430,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
-   "copied": "$main-path-observation-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
+   "copied": "$main-path-observation-prep.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/material-prior-decisions.md": [
@@ -472,7 +472,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "## 役の定義（investigator）",
-   "copied": "$prior-decisions-reject.output.lang_line\n\n## 役の定義（investigator）"
+   "copied": "$prior-decisions-prep.output.lang_line\n\n## 役の定義（investigator）"
   },
   {
    "why": "記録された方針だけが縛る（持ち主の決め machine-for-mechanics・issue #427）",
@@ -534,7 +534,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "## 役の定義（investigator）",
-   "copied": "$procedure-trace-reject.output.lang_line\n\n## 役の定義（investigator）"
+   "copied": "$procedure-trace-prep.output.lang_line\n\n## 役の定義（investigator）"
   }
  ],
  "workflows/judge/commands/material-provenance.md": [
@@ -571,7 +571,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
-   "copied": "$provenance-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
+   "copied": "$provenance-prep.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/material-purpose-review.md": [
@@ -623,7 +623,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "## 役の定義（inspector）",
-   "copied": "$purpose-review-reject.output.lang_line\n\n## 役の定義（inspector）"
+   "copied": "$purpose-review-prep.output.lang_line\n\n## 役の定義（inspector）"
   }
  ],
  "workflows/judge/commands/material-test-double-fidelity.md": [
@@ -660,7 +660,7 @@
   {
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
-   "copied": "$test-double-fidelity-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
+   "copied": "$test-double-fidelity-prep.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/pr-check.md": [
@@ -834,6 +834,11 @@
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "この役は judge。呼び出し側が覆せない判定（ラベルの確定・根本診断・反証・票）を下す役である。",
    "copied": "$rejudge-reject.output.lang_line\n\nこの役は judge。呼び出し側が覆せない判定（ラベルの確定・根本診断・反証・票）を下す役である。"
+  },
+  {
+   "why": "受け付けに拒まれた後の出し直しは同じ役の会話の続きで起きる（#571。輪 rejudge-loop が fresh_context: false）",
+   "original": "判定の中身はファイルから読め）。\n",
+   "copied": "判定の中身はファイルから読め。受け付けに拒まれた後の出し直しは、この役の同じ会話の続きで起きる）。\n"
   }
  ],
  "workflows/judge/commands/spec-review.md": [
@@ -1256,6 +1261,16 @@
    "why": "記録された方針だけが縛る（持ち主の決め machine-for-mechanics・issue #427）",
    "original": "人の方針（末尾の「人の方針」のセクション。文書が無い run も、元の目的に書かれた守ること・禁じることに照らす）",
    "copied": "人の方針（末尾の「記録された方針」のセクションの行だけに照らす）"
+  },
+  {
+   "why": "受け付けに拒まれた後の出し直しは同じ役の会話の続きで起きる（#571。輪 r4-loop が fresh_context: false）",
+   "original": "この変更を書いた役の会話も、判定の経緯も引き継いでいない。\n",
+   "copied": "この変更を書いた役の会話も、判定の経緯も引き継いでいない。受け付けに拒まれた後の出し直しは、この役の同じ会話の続きで起きる。\n"
+  },
+  {
+   "why": "無人の run が推しで通した行も同じ節に載る（持ち主の決め unattended・issue #552）",
+   "original": "人が直す前の承認ノードで既に通した行は、頭の「直す前の承認ノードで人が通した狭まり」のセクションに在る",
+   "copied": "直す前の承認ノードで既に通した行（人の答えか、無人の run が採った推し）は、頭の「直す前の承認ノードで通した狭まり」のセクションに在る"
   }
  ],
  "workflows/report/commands/report.md": [
@@ -1664,6 +1679,16 @@
    "why": "語をグラフの語にそろえ、役の指示書を初見の読み手が詰まらない形に書き直した（持ち主の決め graph-words・prompts-coldread。PR #221）",
    "original": "   同じ会話の続きで直す。下請けは自分で相談せず、自分を起こした役に頼みを報告する）。節が無い・相談が聞けない・許されずに意見が割れる時は、変えずに食い違いの申し出で返せ\n",
    "copied": "   同じ会話の続きで直す。下請けは自分で相談せず、自分を起こした役に頼みを報告する）。セクションが無い・相談が聞けない（答えが refused・unavailable・invalid）・相談の答えが deny で範囲の中では依頼を満たせず、この役と修正案を書いた役の仕様の見立てが割れていると見る時は、変えずに食い違いの申し出で返せ\n"
+  },
+  {
+   "why": "無人の run が推しで通した承認ノードの答えも同じファイルに載る（直前の行に「無人の run が採った推し」）ので、人の答えと名乗らない（持ち主の決め unattended・issue #552）",
+   "original": "7. **修正の前に人が答えた条件（notes_file）は brief に勝つ。** 1〜5 より先に当てる。notes_file は「読む物」の「人が承認ノードで答えたことを書いたファイル」で、",
+   "copied": "7. **修正の前に承認ノードで答えた条件（notes_file。人の答えか、無人の run が採った推し）は brief に勝つ。** 1〜5 より先に当てる。notes_file は「読む物」の「承認ノードで答えたことを書いたファイル」で、"
+  },
+  {
+   "why": "無人の run が推しで通した承認ノードの答えも同じファイルに載る（直前の行に「無人の run が採った推し」）ので、人の答えと名乗らない（持ち主の決め unattended・issue #552）",
+   "original": "`which_is_right` は request（人が答えた条件の側が正しい）",
+   "copied": "`which_is_right` は request（承認ノードで答えた条件の側が正しい）"
   }
  ],
  "workflows/fix/commands/fix-rules/common.md": [
@@ -1756,6 +1781,21 @@
    "why": "語をグラフの語にそろえ、役の指示書を初見の読み手が詰まらない形に書き直した（持ち主の決め graph-words・prompts-coldread。PR #221）",
    "original": "- **`git commit` するな。** `git add`・`git commit`・`git stash`・`git reset`・`git checkout` で作業ツリーや履歴を動かさない。差分は作業ツリーに残したまま返せ（後の節が版からの差分と未追跡のファイルで確かめる。新しいファイルも未追跡のままで数えられる）。\n",
    "copied": "- **`git commit` するな。** `git add`・`git commit`・`git stash`・`git reset`・`git checkout` で作業ツリーや履歴を動かさない。差分は作業ツリーに残したまま返せ（後のノードが版からの差分と未追跡のファイルで確かめる。新しいファイルも未追跡のままで数えられる）。\n"
+  },
+  {
+   "why": "無人の run が推しで通した承認ノードの答えも同じファイルに載る（直前の行に「無人の run が採った推し」）ので、人の答えと名乗らない（持ち主の決め unattended・issue #552）",
+   "original": "ただし修正の前に人が答えた問い（人の答えを書いたファイル（この指示書の頭で読む物として名指された）に",
+   "copied": "ただし修正の前に人が答えた問い（承認ノードの答えを書いたファイル（この指示書の頭で読む物として名指された）に"
+  },
+  {
+   "why": "無人の run が推しで通した承認ノードの答えも同じファイルに載る（直前の行に「無人の run が採った推し」）ので、人の答えと名乗らない（持ち主の決め unattended・issue #552）",
+   "original": "人の一言（人が承認ノードで答えた文。人の答えを書いたファイルの本文）",
+   "copied": "人の一言（人が承認ノードで答えた文。承認ノードの答えを書いたファイルの本文）"
+  },
+  {
+   "why": "無人の run が推しで通した承認ノードの答えも同じファイルに載る（直前の行に「無人の run が採った推し」）ので、人の答えと名乗らない（持ち主の決め unattended・issue #552）",
+   "original": "と、判定・依頼・修正の前に人が答えた条件が食い違う。",
+   "copied": "と、判定・依頼・修正の前に承認ノードで答えた条件（人の答えか、無人の run が採った推し）が食い違う。"
   }
  ],
  "workflows/fix/commands/fix-rules/direct.md": [
@@ -1878,6 +1918,11 @@
    "why": "事前審査に答える key は機械が指示書に貼るので、写しのファイルを読ませる文を貼った節へ寄せる（#570）",
    "original": "事前審査の返答 `p2.plan_review.json` は <<plan_file>> と同じフォルダに在り、`plan_faces` に答えるのに読め（`faces` が穴、`shrink` が別案。どちらも `key` を持つ）。",
    "copied": "`plan_faces` で答える事前審査の穴（`faces`）と別案（`shrink`）の key は、機械がこの指示書に貼った「事前審査に答える key」のセクションに全部在る。"
+  },
+  {
+   "why": "無人の run が推しで通した承認ノードの答えも同じファイルに載る（直前の行に「無人の run が採った推し」）ので、人の答えと名乗らない（持ち主の決め unattended・issue #552）",
+   "original": "- 人が承認ノードで答えたことを書いたファイル（能力を減らす・狭める変更や、人の方針・方針の文書の変更を人に聞いた答え）:",
+   "copied": "- 承認ノードで答えたことを書いたファイル（能力を減らす・狭める変更や、人の方針・方針の文書の変更を聞いた答え。人の答えか、無人の run が採った推しで、推しの答えは直前の行に「無人の run が採った推し」と書いてある）:"
   }
  ],
  "workflows/fix/commands/fix-rules/principles.md": [
@@ -2141,6 +2186,11 @@
    "why": "語をグラフの語にそろえ、役の指示書を初見の読み手が詰まらない形に書き直した（持ち主の決め graph-words・prompts-coldread。PR #221）",
    "original": "- 作業ツリーはあなたの cwd（単位の worktree）。cwd の外（run の作業ツリーとほかの枝の worktree を含む）を書かない（包みの柵が\n  拒む）。commit・stash・reset・checkout をしない\n",
    "copied": "- 作業ツリーはこの役の cwd（単位の worktree）。cwd の外（run の作業ツリーとほかの枝の worktree を含む）を書かない（包みの柵が\n  拒む。例外は上の JUnit XML などの一時の出力を TMPDIR の指す置き場の下に書くことだけ）。commit・stash・reset・checkout をしない\n"
+  },
+  {
+   "why": "無人の run が推しで通した承認ノードの答えも同じファイルに載る（直前の行に「無人の run が採った推し」）ので、人の答えと名乗らない（持ち主の決め unattended・issue #552）",
+   "original": "- 人が承認ノードで答えたことを書いたファイル: <<notes_file>>（空なら聞いていない。",
+   "copied": "- 承認ノードで答えたことを書いたファイル（人の答えか、無人の run が採った推しで、推しの答えは直前の行に「無人の run が採った推し」と書いてある）: <<notes_file>>（空なら聞いていない。"
   }
  ],
  "workflows/fix/commands/lens-silent-failure-hunter.md": [

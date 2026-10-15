@@ -281,10 +281,11 @@ class YamlCase(unittest.TestCase):
                 self.assertIn(phrase, text)
 
     def test_role_node_matches_works_blk_ci(self):
-        """今の works の blk-ci.yaml の役の節の settingSources・sandbox・context と同じ値"""
+        """今の works の blk-ci.yaml の役の節の settingSources・sandbox と同じ値。context: fresh だけは外した（#571。役は輪の 1 周目が
+        新しい会話で、拒まれた後の出し直しは同じ会話の続き）"""
         ci = node("ci")
         self.assertEqual(ci["settingSources"], ["user"])
-        self.assertEqual(ci["context"], "fresh")
+        self.assertNotIn("context", ci)
         self.assertEqual(ci["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
                                          "enableWeakerNetworkIsolation": True,
                                          "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
@@ -305,18 +306,21 @@ class YamlCase(unittest.TestCase):
         self.assertEqual({**material, "type": "object"}, declared_checks.MATERIAL_SCHEMA)
 
     def test_loop_matches_give_up(self):
+        """今の works の blk-ci と違い、fresh_context は false（#571。拒まれた後の出し直しは同じ会話の続き）"""
         loop = node("ci-loop")
         self.assertEqual(loop["when"], "$run.output.by == 'role_needed'")
-        self.assertIs(loop["loop_group"]["fresh_context"], True)
+        self.assertIs(loop["loop_group"]["fresh_context"], False)
         self.assertIn("$ci-accept.output.done", loop["loop_group"]["until_bash"])
         self.assertEqual(loop["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
     def test_loop_does_not_paste_previous_reject_by_loop_prev(self):
         """前の回の拒否の文は $LOOP_PREV で with: に貼らない（元の裁定 R44）: Archon は with: の値を $LOOP_PREV で置き換えた後に
-        もう 1 度 $<節>.output.<欄> を置き換えるので、拒否の文に節の参照の字が在ると輪が落ちる。ci-prep が拒否の控えから読む"""
+        もう 1 度 $<節>.output.<欄> を置き換えるので、拒否の文に節の参照の字が在ると輪が落ちる。ci-prep が拒否の控えから読む。
+        $LOOP_PREV で結ぶのは前の周の受け付けの ok（真偽。出し直しの役を起こすかの振り分け。#571）だけ"""
         for n in node("ci-loop")["loop_group"]["nodes"]:
             with self.subTest(n["id"]):
-                self.assertNotIn("$LOOP_PREV", json.dumps(n.get("with") or {}))
+                pasted = [v for v in (n.get("with") or {}).values() if "$LOOP_PREV" in json.dumps(v)]
+                self.assertEqual(pasted, ["$LOOP_PREV.ci-accept.output.ok"] if n["id"] == "ci-prep" else [])
 
     def test_script_inputs_match_with(self):
         for n in walk(self.y["nodes"]):
@@ -694,6 +698,25 @@ class CiRoleCase(ScriptCase):
         reason = "欄を直せ: $ci.output.material と $INPUTS.mode"
         again = self.prep(reject=reason)
         self.assertEqual((again["reject"], again["attempt"]), (rolekit.rejects_text([reason]), 2))
+
+    def test_resubmit_returns_only_the_rejected_fields(self):
+        """#571: 拒まれた周の次（prev が前の周の受け付けの ok の false）は、ci-prep が出し直しの役の短い指示書を書いて
+        resubmit: true を返し、受け付けは出し直しの返答（直す欄だけ）を前の答えの控えと合わせてから照らす。resume で輪が 1 周目から
+        回り直した時（prev が空）は 1 回目の役"""
+        self.prep()
+        first = self.ok("ci_accept", mode="base", reply=self.BAD)
+        self.assertFalse(first["ok"])
+        again = self.ok("ci_prep", mode="base", start=self.start, prev="false")
+        self.assertIs(again["resubmit"], True)
+        brief = pathlib.Path(again["brief"]).read_text(encoding="utf-8")
+        self.assertIn(first["reason"], brief)
+        self.assertIn(rolekit.FIELD_RULES, brief)
+        self.assertIs(self.ok("ci_prep", mode="base", start=self.start, prev="")["resubmit"], False)
+        material = {"status": "awaiting_human", "reason": "CI の定義が実機を要る"}
+        got = self.ok("ci_accept", mode="base", reply="null", fix_reply=json.dumps({"material": material}, ensure_ascii=False))
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
+        written = json.loads((self.artifacts / "test-gate" / "base" / "ci-material.json").read_text(encoding="utf-8"))
+        self.assertEqual(written, {"material": material})
 
     def test_unreadable_reply_is_a_reject(self):
         """元 test_blk_ci.py の test_unreadable_reply_is_a_reject: 読めない返答（JSON でない・オブジェクトでない）は受け付けの拒否として
@@ -1232,7 +1255,8 @@ class ResultScriptCase(ScriptCase):
 
 class FixtureCase(unittest.TestCase):
     """筋書き（fixtures/）を止めた Archon の `workflow test` で回す。base と final の形が 1 つの返す節で返る"""
-    AUTHORED = {"base-engine": "succeeded", "base-role": "succeeded", "final-green": "succeeded", "final-red": "failed"}
+    AUTHORED = {"base-engine": "succeeded", "base-role": "succeeded", "base-resubmit": "succeeded", "final-green": "succeeded",
+                "final-red": "failed"}
 
     def test_fixtures_pass_in_archon(self):
         with archon.tree(["test-gate"]) as tree:

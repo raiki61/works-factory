@@ -29,6 +29,7 @@ _HERE = pathlib.Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+import answer  # noqa: E402
 import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import changemap  # noqa: E402
@@ -119,7 +120,8 @@ HYPOTHESIS = "仮説"                           # 前提の役が実測でなく
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
 UNSEEN = "取れない（U6）: Bash で読み書きしたファイル（道具への入力が command の字だけで、フックも Read・Edit・Write の外）"
-EYE_PASSES_HEAD = "人が通した行（修正前の承認ノードで人が通したので、独立の目 R4 の問いから外して聞き直さなかった行）"
+EYE_PASSES_HEAD = ("修正前の承認ノードで通した行（人が通したか、無人の run が推しで通したので、独立の目 R4 の問いから外して聞き直さ"
+                   "なかった行。どちらかは行ごとに書く）")
 # 線の値（線の collect が report の入力で渡す物。docs/design.md の report の返り）の行の頭
 DEFERRED_HEAD = "無人の run で修正前の承認ノードに載せずに報告へ回した問い（承認ノードを開かずに修正へ進めた）"
 FINAL_REASONS_HEAD = "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）"
@@ -1082,14 +1084,15 @@ def _tests_head_lines(returns: dict) -> list:
 
 def _apply_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run_id: str) -> list:
     """差分を対象に当てる 1 行（M37。bin/apply <run-id>。元 works/dev/lib.sh:633-644）。止まった run には止まりの 1 行（結末の語・止めた
-    所・人の一言）と --allow-stopped の要ることを出す。生の git apply の行は出さない（止まった run の拒みを素通りさせない）"""
+    所・人の一言。無人の run が推しで通した承認ノードの一言は人の一言でないので引かない）と --allow-stopped の要ることを出す。
+    生の git apply の行は出さない（止まった run の拒みを素通りさせない）"""
     sealed = as_dict(returns.get("merge-seal"))
     if not (sealed.get("ok") is True and sealed.get("diff")):
         return [f"{APPLY_HEAD}: 無い（差分を封じていない）"]
     if as_dict(returns.get("merge-apply")).get("ok") is True:
         return [f"{APPLY_HEAD}: bin/apply {run_id}（置いた差分の hash を封じた hash と照らしてから当てる）"]
-    said = next((g.get("text") for g in (gates.get(k) for k in ("gate-final", *oc.GATES)) if isinstance(g, dict) and g.get("text")),
-                "") or "一言なし"
+    said = next((g.get("text") for g in (gates.get(k) for k in ("gate-final", *oc.GATES))
+                 if isinstance(g, dict) and g.get("text") and not answer.by_push(g)), "") or "一言なし"
     out = []
     if outcome in STOP_OUTCOMES:
         out.append(f"止まった run: {report.OUTCOME_WORDS.get(outcome, outcome)}（{stop_reason or outcome}）で止まった: 「{oneline.one_line(said)}」")
@@ -1313,7 +1316,10 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
         out.append(gate_words)
     feats = f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s))}" if entrylib.FEATURES_KEY in s else ""
     out.append(f"段: {s.get('thickness') or '自動（機械が単位ごとに決めた）'}{feats}")
-    out.append(f"決めた人: 承認ノードの答え {sum(1 for g in as_dict(gates).values() if isinstance(g, dict))} 件")
+    answered = [g for g in as_dict(gates).values() if isinstance(g, dict)]
+    pushed = sum(1 for g in answered if answer.by_push(g))
+    out.append(f"決めた人: 承認ノードの答え {len(answered) - pushed} 件" + (f"（ほかに無人の run が推しで通した承認ノード {pushed} 件）"
+                                                                          if pushed else ""))
     why = forge.reason(forge.detect(repo)) if repo else ""
     if why:
         out.append(f"{FORGE_HEAD}: 無い——並行 PR の確かめは条件外（not_applicable。{why}）")
@@ -1375,13 +1381,40 @@ def _stopped_why(returns: dict, line: dict | None) -> list:
     return [*_stop_words(line), *(["開けた理由: " + "・".join(reasons)] if reasons else []), *blocked]
 
 
+def _pushed(gates: dict) -> list:
+    """無人の run が推しで通した承認ノードと採った推し [(承認ノード, 推し {item, answer, note, why})]（承認ノードの順）"""
+    return [(gid, rec) for gid in oc.GATES for rec in (as_dict(gates.get(gid)).get(answer.PUSHED) or []) if isinstance(rec, dict)]
+
+
+def _pushed_lines(gates: dict) -> list:
+    """「人が決めること」の頭に、無人の run が採った推しを 1 件 1 行（人の答えと読み分ける。違えば次の run の依頼で直す）"""
+    return [f"無人の run で推しを採って通した（承認ノード {gid}）: {oneline.one_line(r.get('item') or '')}——"
+            f"{gatemarks.RECOMMEND_WORDS.get(r.get('answer'), '')}（{r.get('answer')}）: {r.get('note')}（推す理由: {r.get('why')}）。"
+            "違えば次の run の依頼で直す" for gid, r in _pushed(gates)]
+
+
+def _pushed_said(gates: dict) -> str:
+    """冒頭 1 行目の句: 推しで通した承認ノードと件数（無ければ空）"""
+    got = _pushed(gates)
+    if not got:
+        return ""
+    return (f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(gid for gid, _ in got))}（推し {len(got)} 件。"
+            f"中身は「{report.DECISIONS_HEADING.lstrip('# ')}」のセクション）")
+
+
+def _gate_line(g) -> str:
+    if not isinstance(g, dict):
+        return "開かなかった"
+    said = oneline.one_line(g.get("text") or "")
+    return f"{g.get('decision')}（推しで通した: {said}）" if answer.by_push(g) else f"{g.get('decision')}（{said}）"
+
+
 def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,
                 line: dict | None = None) -> list:
     out = [f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", f"止めた段と理由の語: {stop_reason or '止めていない'}"]
     out += [f"メイングラフのノードの止め: {x}" for x in _stop_words(line)]
     for gid in oc.GATES:
-        g = gates.get(gid)
-        out.append(f"承認ノード {gid}: " + (f"{g.get('decision')}（{oneline.one_line(g.get('text') or '')}）" if isinstance(g, dict) else "開かなかった"))
+        out.append(f"承認ノード {gid}: {_gate_line(gates.get(gid))}")
     for rid in ("merge-seal", "merge-apply"):
         m = returns.get(rid)
         if isinstance(m, dict) and m.get("ok") is not True:
@@ -1503,10 +1536,11 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     next_file = carry.NEXT_REQUEST_FILE if findings or drafts or constraints else ""
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
-    split = split_line(returns)
+    split, pushed = split_line(returns), _pushed_said(gates)
     apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—")
     stopped = outcome in STOP_OUTCOMES
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
+                          *([pushed] if pushed else []),
                           *(_stopped_why(returns, line) if stopped else []), *_ran_notes(returns),
                           *([userenv.NOTE] if user_env else [])])
     if stopped:
@@ -1515,7 +1549,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                    *oc.eye_questions(returns)]
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*unrestored_lines(returns), *backed_out_lines(returns), *decisions,
+        (report.DECISIONS_HEADING, [*_pushed_lines(gates), *unrestored_lines(returns), *backed_out_lines(returns), *decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],

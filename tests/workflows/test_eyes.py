@@ -31,6 +31,7 @@ ROLES = {i: n for i, n in NODES.items() if "command" in n}
 EYE_NODES = ("r1-minimality", "r2-compare", "premise-check", "r3-coherence", "r4-scope")
 VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "premise-check", "r3", "r4"))}
 sys.path.append(str(ROOT / "lib"))
+import answer  # noqa: E402
 import boardview  # noqa: E402
 import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
@@ -398,8 +399,8 @@ class ShapeCase(unittest.TestCase):
                 continue
             with self.subTest(nid):
                 self.assertIs(node.get("mutates_checkout"), False)
-                if "command" in node:
-                    self.assertEqual(node.get("context"), "fresh")
+                if "command" in node:   # R4 は輪の 1 周目が新しい会話で、出し直しは同じ会話の続き（#571）
+                    self.assertEqual(node.get("context"), None if nid == "r4-scope" else "fresh")
 
     def test_no_eye_has_shell_or_writer_tools(self):
         for nid, node in ROLES.items():
@@ -538,14 +539,14 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(node.get("trigger_rule"), "all_done")
 
     def test_r4_runs_in_an_accept_loop(self):
-        """#455: R4 は受け付けの輪の中で、拒否の理由の全部を頭の節から読んで新しい会話で出し直す。受け付けの返答を輪の外の節が書く"""
+        """#455: R4 は受け付けの輪の中で、拒否の理由の全部を頭の節から読んで出し直す。1 回目は新しい会話で、拒まれた後は出し直しの役
+        r4-scope-fix が同じ会話の続きで拒まれた欄だけを返す（#571。形は test_loop_sessions）。受け付けの返答を輪の外の節が書く"""
         loop = NODES["r4-loop"]["loop_group"]
         self.assertEqual(loop["max_iterations"], rolekit.GIVE_UP_AFTER)
-        self.assertIs(loop["fresh_context"], True)
+        self.assertIs(loop["fresh_context"], False)
         self.assertIn("$r4-accept.output.done", loop["until_bash"])
-        self.assertEqual([n["id"] for n in loop["nodes"]], ["r4-reject", "r4-scope", "r4-accept"])
+        self.assertEqual([n["id"] for n in loop["nodes"]], ["r4-reject", "r4-scope", "r4-scope-fix", "r4-accept"])
         self.assertEqual(depends(NODES["r4-scope"]), {"r4-reject"})
-        self.assertEqual(NODES["r4-accept"]["with"], {"reply": "$r4-scope.output"})
         self.assertIn("$r4-reject.output.reason", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
 
     def test_r1_minimality_runs_without_the_comment_candidates(self):
@@ -661,7 +662,7 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(nid):
                 self.assertEqual(node.get("settingSources"), ["user"])
                 self.assertEqual(node.get("sandbox"), {"enabled": True, "allowUnsandboxedCommands": False})
-                self.assertEqual(node.get("context"), "fresh")
+                self.assertEqual(node.get("context"), None if nid == "r4-scope" else "fresh")
 
     def test_no_workflow_level_composed_keys(self):
         self.assertFalse({"interactive", "worktree", "container", "evidence_policy", "mutates_checkout"} & set(DOC))
@@ -804,6 +805,24 @@ class ScriptCase(unittest.TestCase):
         got = self.run_script("r4_accept", with_={"reply": json.dumps(named, ensure_ascii=False)})
         self.assertEqual((got["ok"], got["done"]), (True, True))
 
+    def test_r4_resubmit_returns_only_the_rejected_fields(self):
+        """#571: 拒まれた周の次（prev が false）は、r4-reject が出し直しの役の短い指示書を書いて resubmit: true を返し、受け付けは
+        出し直しの返答（直す欄だけ）を前の答えの控えと欄ごとに合わせてから照らす。返りの reply は合わせた答え"""
+        line = "方針の文書の 2 行目の『空の列は試験しない』に反する"
+        self.prep_file(**{policy.RECORDED_KEY: [{"source": "doc", "name": "/run/policy/abc.md", "text": "", "lines": 3, "alias": ""}]})
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "policy_conflicts": [line],
+                 "surfaced": [], "seen": [], "unseen": []}
+        first = self.run_script("r4_accept", with_={"reply": json.dumps(reply, ensure_ascii=False)})
+        self.assertFalse(first["ok"])
+        head = self.run_script("r4_rejects", with_={"prev": "false"})
+        self.assertIs(head["resubmit"], True)
+        self.assertIn(first["reason"], pathlib.Path(head["brief"]).read_text(encoding="utf-8"))
+        self.assertIs(self.run_script("r4_rejects", with_={"prev": ""})["resubmit"], False)
+        fixed = ["/run/policy/abc.md:2 の『空の列は試験しない』に反する"]
+        got = self.run_script("r4_accept", with_={"reply": "null", "fix_reply": json.dumps({"policy_conflicts": fixed}, ensure_ascii=False)})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
+        self.assertEqual(got["reply"], {**reply, "policy_conflicts": fixed})
+
     def test_r4_accept_keeps_an_unnamed_policy_line_the_human_passed(self):
         """修正前の承認ノードで人が通した方針の行は、名指さなくても拒まない（script が入力の問いと答えから組む passed）"""
         line = "方針の文書の 2 行目の『空の列は試験しない』に反する"
@@ -816,6 +835,28 @@ class ScriptCase(unittest.TestCase):
         got = self.run_script("r4_accept", with_={"reply": json.dumps(reply, ensure_ascii=False)})
         self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
         self.assertEqual(self.run_script("r4_rejects")["reason"], "")
+
+    def test_r4_can_name_the_condition_an_unattended_run_pushed(self):
+        """#562: 無人の run が修正前の承認ノードで採った推しの条件は、R4 の「記録された方針」に人の答えと別の行で並び、その条件と
+        食い違う差分を R4 が名指して挙げれば受け付けが通す（人のいる run で人の一言を照らすのと同じ確かめが無人の run にも残る）"""
+        note = "空の列は 0 を返す形で通す"
+        self.start()
+        self.no_fix_inputs()
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": note, "asked": [],
+                                             answer.PUSHED: [{"item": "x", "answer": "continue", "note": note, "why": "y"}]},
+                                            ensure_ascii=False)
+        section = self.run_script("prep")["recorded_policy"]
+        row, = json.loads((self.artifacts / "eyes" / eyeverdict.PREP_FILE).read_text(encoding="utf-8"))[policy.RECORDED_KEY]
+        self.assertEqual((row["source"], row["text"]), ("push", note))
+        self.assertTrue(row["name"].startswith(policy.PUSH_NAME.format(id="")), row["name"])
+        self.assertIn(f"`{row['name']}`: {note}", section)
+        self.assertNotIn(policy.GATE_NAME.format(id=""), section)
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "surfaced": [], "seen": [], "unseen": [],
+                 "policy_conflicts": [f"{row['name']} の『{note}』に反し、空の列で None を返す"]}
+        got = self.run_script("r4_accept", with_={"reply": json.dumps(reply, ensure_ascii=False)})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
+        unnamed = {**reply, "policy_conflicts": [f"『{note}』に反し、空の列で None を返す"]}
+        self.assertFalse(self.run_script("r4_accept", with_={"reply": json.dumps(unnamed, ensure_ascii=False)})["ok"])
 
     def test_verdict_carries_protected_hits(self):
         self.prep_file()
@@ -931,6 +972,20 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual([c["kind"] for c in notes["compare"]["claims_given"]], ["human_answer"])
         passes = json.loads((self.artifacts / "eyes" / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
         self.assertEqual([p["by"] for p in passes], ["human"])
+
+    def test_verdict_marks_the_lines_an_unattended_run_passed_by_push(self):
+        """修正前の関所を無人の run が推しで通した答え（欄 answer.PUSHED）なら、R4 から外した行の控えは「人が通した」でなく推しの印"""
+        self.prep_file()
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        self.passing_eyes(r4_lost=("古い入口——使う人がいない",))
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": "x", "asked": [],
+                                             answer.PUSHED: [{"item": "修正案 1 が狭める能力: 古い入口——使う人がいない",
+                                                              "answer": "continue", "note": "x", "why": "y"}]}, ensure_ascii=False)
+        self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
+                                                   ensure_ascii=False)
+        self.run_script("verdict")
+        passes = json.loads((self.artifacts / "eyes" / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
+        self.assertEqual([p["by"] for p in passes], [gatemarks.PASSED_BY_PUSH])
 
     def test_premise_facts_reach_the_report(self):
         """E37: 前提の検算が仮定を偽（resolved）と示したら、返り notes の隣の premise-check.json の問いの key と実測 facts_to_add を、

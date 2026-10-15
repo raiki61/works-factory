@@ -5,35 +5,36 @@ description: |
   書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳を書き、受け付けが機械で照らし、波及の一覧（変える名の
   呼び出し元と試験）を機械で出す。案の直し（fix の裁定の後の 1 度）は同じサブグラフを ruling の入力つきで include する（形 replan）。
   事前審査との往復はメイングラフが持ち、このサブグラフは 1 回の案を作って返す。2 往復目からは受けた review を周のフォルダに写し、
-  前の周の案と指摘を材料のファイルで渡して新しい会話で直させる（会話の続きでは起こさない）。
+  前の周の案と指摘を材料のファイルで渡して新しい会話で直させる（周をまたいで会話を続ける仕組みは止めた Archon に無い）。
+  同じ周の中で受け付けに拒まれた後の出し直しは、修正案の役の会話の続きで拒まれた所だけを返させ、受け付けが前の答えと合わせる。
   置き場は run の置き場の plan/ の下だけ（周ごとの plan/r<k>/ と、使い回す構造の実測の plan/structure/<鍵>/）。
   出力ノード plan は落ちない（中の誤りを捕まえて ready: false と、在って空でないポインタを返す）。
 
 inputs:
   start:
     default: ""
-    description: 始めの記録のポインタ（メイングラフの start の record）。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・review_rev・input.base.rev・lang を読む
+    description: 始めの記録のポインタ。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・review_rev・input.base.rev・lang を読む
   units:
     default: "[]"
-    description: 単位の目録（judge の units。[{id, paths, summary}]）
+    description: 単位の目録（[{id, paths, summary}]）
   judgment:
     default: ""
-    description: 受け付けた判定のポインタ（judge の judgment。judgment.json と、隣の judge-verify.json・pr-excluded.json）
+    description: 受け付けた判定のポインタ（judgment.json と、隣の judge-verify.json・pr-excluded.json）
   world:
     default: "null"
-    description: 定石の行のポインタ（judge の world。world-row の行の並び）。無ければ null
+    description: 定石の行のポインタ（world-row の行の並び）。無ければ null
   spec:
     default: "null"
-    description: 仕様のポインタ（judge の spec）。無ければ null
+    description: 仕様のポインタ。無ければ null
   review:
     default: ""
-    description: 事前審査の指摘のポインタ（plan-review の review。往復の 2 回目から。空の字と null は事前審査がまだ無い）
+    description: 事前審査の指摘のポインタ（往復の 2 回目から。空の字と null は事前審査がまだ無い）
   ruling:
     default: "[]"
-    description: 案の直しで直す項目の番号の字の並び（fix の replan_items）。空でなければ形 replan
+    description: 案の直しで直す項目の番号の字の並び。空でなければ形 replan
   conflicts:
     default: "null"
-    description: 申し出と裁定の行のポインタ（fix の conflicts。conflicts.json）。案の直しの時だけ
+    description: 申し出と裁定の行のポインタ（conflicts.json）。案の直しの時だけ
   prior_failures:
     default: "null"
     description: 前の run で最後まで通らなかった物の行のポインタ（[{where, text}]。lib/carry の prior-failures-in.json の形）。無ければ null
@@ -206,8 +207,10 @@ nodes:
       properties:
         ripple_file: {type: string}
 
-  # 修正案の輪。拒否の後は新しい会話で、前の拒否の理由のファイルを材料の頭の 1 行が名指す。3 回目の拒否で受け付けが
-  # done（give_up）を出して輪を抜ける（max_iterations で落とさない）
+  # 修正案の輪。1 回目は修正案の役 plan-writer が新しい会話で全部の材料から案を書く。拒否の後は出し直しの役 plan-writer-fix が
+  # 同じ会話の続きで拒まれた所だけを返し、受け付けが前の答えの控えと合わせてから全体を照らす（振り分けは plan-prep の resubmit。
+  # 並んだ層は会話を切るので plan-writer-fix は plan-writer の後ろの層に置く）。3 回目の拒否で受け付けが done（give_up）を出して
+  # 輪を抜ける（max_iterations で落とさない）
   - id: plan-loop
     depends_on: [round, structure-state, ripple-units]
     trigger_rule: none_failed_min_one_success
@@ -215,7 +218,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: 'done=$plan-accept.output.done; test "$done" = true'
       nodes:
         - id: plan-prep
@@ -225,33 +228,38 @@ nodes:
           timeout: 1728000000
           with:
             dir: $round.output.dir
+            prev: "$LOOP_PREV.plan-accept.output.ok"
           output_format:
             type: object
             additionalProperties: false
-            required: [brief, attempt]
+            required: [brief, attempt, resubmit]
             properties:
               brief: {type: string}
               attempt: {type: integer}
+              resubmit: {type: boolean}
+        # 模型・道具・設定は出し直しの役 plan-writer-fix と同じ（merge key の錨 writer_launch）
         - id: plan-writer
           command: fix-plan
           depends_on: [plan-prep]
-          model: opus
-          effort: medium
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          when: "$plan-prep.output.resubmit != true"
+          <<: &writer_launch
+            model: opus
+            effort: medium
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           # 今の works の blk-plan.yaml の修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の関所の決め手の欄）。
           # 2 往復目からの block への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。欄の型は planmarks.FIELD_SCHEMA・
           # gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
-          output_format:
+          output_format: &plan_reply
             type: object
             additionalProperties: false
             required:
             - plan
-            properties:
+            properties: &plan_reply_props
               plan:
                 type: array
                 minItems: 1
@@ -494,16 +502,31 @@ nodes:
                     key: {type: string, minLength: 8}
                     handled: {type: string, enum: [fixed, disputed]}
                     how: {type: string, minLength: 10}
+        # 拒まれた後の出し直しの役（plan-writer の会話の続き）。型は plan-writer の型から required を外し、whole_plan を足した物
+        - id: plan-writer-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$plan-prep.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [plan-prep, plan-writer]
+          trigger_rule: none_failed_min_one_success
+          when: "$plan-prep.output.resubmit == true"
+          <<: *writer_launch
+          output_format:
+            <<: *plan_reply
+            required: []
+            properties:
+              <<: *plan_reply_props
+              whole_plan: {type: boolean}
         - id: plan-accept
           script: plan_accept
           runtime: uv
           mutates_checkout: false
           timeout: 1728000000
-          depends_on: [plan-writer]
+          depends_on: [plan-writer, plan-writer-fix]
+          trigger_rule: none_failed_min_one_success
           with:
             status_guarded: true
             dir: $round.output.dir
-            reply: $plan-writer.output
+            reply: {from: "$plan-writer.output", if_skipped: null}
+            fix_reply: {from: "$plan-writer-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false

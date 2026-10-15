@@ -10,43 +10,43 @@ description: |
 inputs:
   start:
     required: true
-    description: 始めの記録のポインタ（メイングラフの $start.output.record）
+    description: 始めの記録のポインタ
   baseline:
     default: ""
-    description: 直す前の結末のポインタ（$test-gate-base.output.baseline）。空・null は実行器の無い run
+    description: 直す前の結末のポインタ。空・null は実行器の無い run
   units:
     required: true
-    description: 単位の目録の JSON（$judge.output.units）
+    description: 単位の目録の JSON
   judgment:
     required: true
-    description: 判定のポインタ（$judge.output.judgment）
+    description: 判定のポインタ
   plan:
     default: ""
-    description: 修正案のポインタ（$plan.output.plan。plan-fields.json）。空は修正案の無い run
+    description: 修正案のポインタ（plan-fields.json）。空は修正案の無い run
   ripple:
     default: ""
-    description: 波及の一覧のポインタ（$plan.output.ripple）
+    description: 波及の一覧のポインタ
   depth:
     default: ""
-    description: 単位ごとの深さの JSON の配列（$plan.output.depth）
+    description: 単位ごとの深さの JSON の配列
   answers:
     default: ""
-    description: 修正前の承認ノードの答え（$gate-before-fix.output。飛ばされれば null）
+    description: 修正前の承認ノードの答え（飛ばされれば null）
   prior_conflicts:
     default: "null"
     description: 前の修正の段の申し出と裁定のポインタ（前の段の出力 conflicts。2 度目の修正の段だけに渡す）。その先のフォルダの申し出と裁定と TDD のループの状態を写し、この段が前の段の裁定と凍結を見る。null は 1 回目の段
   plan_review:
     default: "null"
-    description: 事前審査の返答のポインタ（plan-review の出力 review）。修正役が plan_faces で穴と別案に答え、差分の審査の材料 out.p2.plan_review になる。null は事前審査の無い run
+    description: 事前審査の返答のポインタ。修正役が plan_faces で穴と別案に答え、差分の審査の材料 out.p2.plan_review になる。null は事前審査の無い run
   notes:
     default: ""
     description: 機械の申し送りの文（案の直しを受けた 2 度目の修正の段だけに渡す、採った項目の事前審査の穴のうち人に聞く種類でない物）。修正役と TDD の役の notes_file に足す
   only_items:
     default: ""
-    description: 案の直しの後の 2 回目の修正（メイングラフの include refix）で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
+    description: 案の直しの後の 2 回目の修正で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
   mode:
     default: ""
-    description: 空はサブグラフの形（メイングラフの include の中だけ）、group は組ごとの子の run
+    description: 空は include されたサブグラフの形、group は組ごとの子の run
   group:
     default: ""
     description: 組 1 つの JSON（{group_id, unit_ids, items}。形 group の時に親の fan_out が渡す）
@@ -105,7 +105,10 @@ nodes:
         out_dir: {type: string, minLength: 1}
 
   # 組ごとに子の run を起こし、子ごとに Archon が作業ツリーを切る。親の姿は木の sha で渡して子が写す（docs/design.md の U8）。
-  # max_parallel は Archon の既定の 5 を見えるように書く（並べの数の上限。列ではない）
+  # max_parallel は Archon の既定の 5 を見えるように書く（並べの数の上限。列ではない）。
+  # join: all_success は、子が 1 つでも落ちればこの節を落として run を止める（諦めた子は result.json を書いて completed で終わる
+  # ので、落ちた子は諦めていない）。親の resume は済んだ子を飛ばし、落ちた子だけを同じ run・同じ作業ツリーで続きから回す。
+  # all_done にすると節が済んで resume が子に届かず、落ちた子の組が持ち越しになる（issue #576）
   - id: groups-par
     workflow: works-factory-fix
     depends_on: [prep]
@@ -115,7 +118,7 @@ nodes:
       items: $prep.output.groups
       as: group
       max_parallel: 5
-      join: all_done
+      join: all_success
     with:
       start: $INPUTS.start
       baseline: $INPUTS.baseline
@@ -139,7 +142,7 @@ nodes:
       items: $prep.output.groups
       as: group
       max_parallel: 1
-      join: all_done
+      join: all_success
     with:
       start: $INPUTS.start
       baseline: $INPUTS.baseline
@@ -154,13 +157,14 @@ nodes:
       from_tree: ""
       out_dir: $prep.output.out_dir
 
-  # 子の返りを with: で受けない（落ちた子への束ねは投げる）。子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、
-  # 並べた run は子の差分を決めた順に親の作業ツリーへ当てて確かめ直す（p3.lane_merge）
+  # 子の返りを with: で受けない。子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、並べた run は子の差分を決めた順に
+  # 親の作業ツリーへ当てて確かめ直す（p3.lane_merge）。組の節が落ちた run では走らない（順の組の子が親の作業ツリーに残した変更を
+  # 戻さず、resume で続きから回す）
   - id: join
     script: join
     runtime: uv
     depends_on: [route, groups-par, groups-seq]
-    trigger_rule: all_done
+    trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
     timeout: 1728000000
     output_format:
@@ -170,6 +174,16 @@ nodes:
       properties:
         groups: {type: integer, minimum: 0}
         returned: {type: integer, minimum: 0}
+
+  # 組の節か join が落ちた run で飛ぶ柵。どの節もこれに依存しないブロックの sink で、返す節 fix（all_done で必ず済み、
+  # この時は done: false）と別に、組が落ちたことをブロックの出口に出す。resume で組の節が落ちた子を続きから回し、join が済めば
+  # この節も済む。when を書かない（形 group の run でも route だけで済ませ、飛ぶのは組か join が落ちた時に限る）
+  - id: groups-ok
+    bash: "true"
+    depends_on: [route, groups-par, groups-seq, join]
+    trigger_rule: none_failed_min_one_success
+    mutates_checkout: false
+    timeout: 1728000000
 
   # 合わせのループ（持ち主の決め clash-goes-to-ruling）。join が確かめ直しの赤で戻した組を 1 つずつ当て直し、合わせ役がその組の変えた
   # ファイルの中だけで直す。受け付けは修正役と同じ軸。直せなければ当て直す前の木へ戻し、組どうしの合わせの申し出を裁定役へ回す。
@@ -447,16 +461,17 @@ nodes:
 
         - id: fix-ruled
           description: '裁定の文を読んで直す'
-          model: sonnet
-          effort: high
+          <<: &fix_launch
+            model: sonnet
+            effort: high
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           prompt: 指示書 `$fix-ruled-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書が名指す欄の JSON だけ。
           depends_on: [fix-ruled-prep]
           when: "$fix-ruled-prep.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format: &fix_reply
             type: object
             required: [changes, fix_closure, gates_changed, interactions, mechanism_changed, not_done, path_changed, plan_faces, premise_drift, seams_changed, security_surface_changed, wrote_refs]
@@ -736,17 +751,18 @@ nodes:
 
         - id: ruled-consult-answer
           description: '範囲の相談に答える（修正案と波及を読む新しい会話。読むだけ）'
-          model: opus
-          effort: medium
+          <<: &consult_launch
+            model: opus
+            effort: medium
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           prompt: 指示書 `$ruled-consult-check.output.prompt_file` を Read で全部読み、その相談に答えよ。返すのは指示書の JSON だけ。
           depends_on: [ruled-consult-check]
           when: "$ruled-consult-check.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format: &consult_answer
             type: object
             additionalProperties: false
@@ -814,11 +830,13 @@ nodes:
             iteration: $fix-ruled-prep.output.iteration
           output_format: *accept_out
 
-  # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）
+  # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）。join を結ぶのは、組の節が落ちた
+  # run でもこの節は join 無しで走って済むので、resume で join が済んだ時に作り直させるため（依存の出力の字が前と同じ節は
+  # Archon が作り直さない）。assert-changed・delta-cut も同じ
   - id: clean
     script: clean
     runtime: uv
-    depends_on: [route, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
+    depends_on: [route, join, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
     trigger_rule: all_done
     when: "$route.output.group == false"
     timeout: 1728000000
@@ -834,7 +852,7 @@ nodes:
   - id: assert-changed
     script: assert_changed
     runtime: uv
-    depends_on: [route, clean]
+    depends_on: [route, join, clean]
     trigger_rule: all_done
     when: "$route.output.group == false"
     mutates_checkout: false
@@ -852,7 +870,7 @@ nodes:
   - id: delta-cut
     script: delta_cut
     runtime: uv
-    depends_on: [route, assert-changed]
+    depends_on: [route, join, assert-changed]
     trigger_rule: all_done
     when: "$route.output.group == false"
     mutates_checkout: false
@@ -885,18 +903,19 @@ nodes:
 
   - id: lens
     description: 'レンズ silent-failure-hunter: 修正の差分の黙った失敗を探す（読むだけ）'
-    model: sonnet
-    effort: medium
+    <<: &delta_launch
+      model: sonnet
+      effort: medium
+      settingSources: [user]
+      allowed_tools: [Read, Grep, Glob]
+      sandbox: {enabled: true, allowUnsandboxedCommands: false}
+      idle_timeout: 1728000000
+      retry: {max_attempts: 2, on_error: all}
     command: lens-silent-failure-hunter
     depends_on: [lens-prep]
     when: "$lens-prep.output.go == true"
     context: fresh
-    settingSources: [user]
-    allowed_tools: [Read, Grep, Glob]
     mutates_checkout: false
-    sandbox: {enabled: true, allowUnsandboxedCommands: false}
-    idle_timeout: 1728000000
-    retry: {max_attempts: 2, on_error: all}
     output_format:
       type: object
       additionalProperties: false
@@ -945,15 +964,9 @@ nodes:
       nodes:
         - id: delta-review
           description: '差分の審査役: この周の修正の差分だけを読み、修正が新しく作った穴を返す（読むだけ）'
-          model: sonnet
-          effort: medium
+          <<: *delta_launch
           command: delta-review
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1055,17 +1068,18 @@ nodes:
 
         - id: refix
           description: '手直しの役: 審査が挙げた穴に答える'
-          model: sonnet
-          effort: high
+          <<: &refix_launch
+            model: sonnet
+            effort: high
+            settingSources: [user]
+            skills: [receiving-code-review]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           prompt: 指示書 `$refix-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
           depends_on: [refix-prep]
           when: "$refix-prep.output.go == true"
-          settingSources: [user]
-          skills: [receiving-code-review]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1135,17 +1149,11 @@ nodes:
 
         - id: review2
           description: '手直しの差分の審査役（2 回目。読むだけ）'
-          model: sonnet
-          effort: medium
+          <<: *delta_launch
           command: review2
           depends_on: [cut2]
           when: "$cut2.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1209,17 +1217,10 @@ nodes:
 
         - id: refix2
           description: '2 回目の手直しの役'
-          model: sonnet
-          effort: high
+          <<: *refix_launch
           prompt: 指示書 `$refix2-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
           depends_on: [refix2-prep]
           when: "$refix2-prep.output.go == true"
-          settingSources: [user]
-          skills: [receiving-code-review]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -1455,16 +1456,10 @@ nodes:
 
         - id: fixer
           description: '修正役: TDD のループで直していない単位を直す'
-          model: sonnet
-          effort: high
+          <<: *fix_launch
           prompt: 指示書 `$fix-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書が名指す欄の JSON だけ。
           depends_on: [fix-prep]
           when: "$fix-prep.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format: *fix_reply
 
         - id: consult-check
@@ -1480,17 +1475,11 @@ nodes:
 
         - id: consult-answer
           description: '範囲の相談に答える（修正案と波及を読む新しい会話。読むだけ）'
-          model: opus
-          effort: medium
+          <<: *consult_launch
           prompt: 指示書 `$consult-check.output.prompt_file` を Read で全部読み、その相談に答えよ。返すのは指示書の JSON だけ。
           depends_on: [consult-check]
           when: "$consult-check.output.go == true"
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
           output_format: *consult_answer
 
         - id: consult-accept
