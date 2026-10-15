@@ -931,15 +931,15 @@ def _verify_off(jdir, reason: str) -> dict:
 
 
 def prep_on(jdir, judgment, repo, verify: bool = True) -> dict:
-    """元 works/blk-judge/lib/judgeverify.py:202。裏取りの支度。返り {go, prompt_file, reason}。verify（入口の機能の切り替え。
-    features_cut に judge_verify が在れば偽）が偽・止めの控えが在る・受けた判定が無い・開いた単位が MIN_UNITS 未満なら go 偽で、
+    """元 works/blk-judge/lib/judgeverify.py:202。裏取りの支度。返り {go, prompt_file, reason}。verify（判定の裏取りの機能の切り替え。
+    始めの記録の名指しと頭の深さの段の足しから entry.switch が on と言うか）が偽・止めの控えが在る・受けた判定が無い・開いた単位が MIN_UNITS 未満なら go 偽で、
     回さなかった形の申し送りを置く。go なら単位ごとの下請けのファイル（verify/unit-<n>.md）・相乗りのファイル（verify/synergy.md）・
     束ね役の指示書（verify/prompt.md）・番号の控え（PLAN_FILE）・作業ツリーの姿（verify/verify-tree.json）を書き、前の起動の答えを消し、
     申し送りの初めの形（全部が UNVERIFIED）を置く。答えの置き場は置き場の verify/answers/（元は盤面の外の run ごとの置き場）"""
     jdir = pathlib.Path(jdir)
     units = open_units(judgment)
     if not verify:
-        return _verify_off(jdir, "判定の裏取りは機能の切り替えで切（始めの記録の features_cut に judge_verify）")
+        return _verify_off(jdir, "判定の裏取りは機能の切り替えで切（始めの記録の features_cut に judge_verify が在るか、頭の深さの段の足しが無い）")
     stop = read_stop(jdir)
     if stop is not None:
         return _verify_off(jdir, f"run が止まっている（{stop['stop_reason']}）")
@@ -3758,7 +3758,7 @@ def world_finish(jdir) -> dict:
 
 # ================================================================ 入口と返り
 START_FILE = "start.json"          # 始めの記録を既定の値で読んだ物（start_view）
-INTAKE_FILE = "intake.json"        # 入口の返り {go, mode, spec, world, verify, reason}
+INTAKE_FILE = "intake.json"
 REQUEST_FILE = "request.json"      # 依頼の行（check_request が通した物。仕様の段が受け入れ条件の行を積む）
 CARRIED_FILE = "carried-constraints.json"   # 依頼が運んだ前の run の前提の検算の実測（carry.CONSTRAINTS の行。check_premises が制約に足す）
 TREE_FILE = "judge-tree.json"      # 入口の時（仕様の段が在れば承認の後）の作業ツリーの姿（accept.tree_state）。並行 PR と前提の受け付けが比べる
@@ -3809,8 +3809,8 @@ def read_stop(jdir):
 VERIFY_FEATURE = "judge_verify"    # 判定の裏取りの機能の語（元 entry.py:425）
 
 
-def _intake_out(go, mode="judge", *, spec=False, world=False, verify=False, reason="") -> dict:
-    return {"go": go, "mode": mode, "spec": spec, "world": world, "verify": verify, "reason": reason}
+def _intake_out(go, mode="judge", *, spec=False, world=False, reason="") -> dict:
+    return {"go": go, "mode": mode, "spec": spec, "world": world, "reason": reason}
 
 
 def request_container(view: dict, repo):
@@ -3834,8 +3834,8 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
     既定の値で読んで置き（START_FILE）、依頼の行を型に通して置き（REQUEST_FILE。元 accept.check_request）、前の run の失敗の行
     （依頼の容器の prior_failures と、入力 prior_failures の先の JSON prior の行（prior_of））を lib/carry.place_prior で 1 度だけ置き、
     作業ツリーの姿を置く（TREE_FILE）。
-    通らなければ止めの控えに依頼の語を書き go: false（AI を 1 つも起こさない）。機能の切り替えは始めの記録の features_cut、
-    仕様の段は始めの記録の input.spec。返りは INTAKE_FILE にも書く（後ろの節は with: で結ばずにここを読む）"""
+    通らなければ止めの控えに依頼の語を書き go: false（AI を 1 つも起こさない）。世界の解の段の切り替えは始めの記録の features_cut、
+    仕様の段は始めの記録の input.spec（判定の裏取りを回すかは裏取りの支度が始めの記録と頭の深さの控えから決める）。返りは INTAKE_FILE にも書く（後ろの節は with: で結ばずにここを読む）"""
     jdir, rdir = pathlib.Path(jdir), pathlib.Path(rdir)
     if objection.strip():
         out = _intake_out(True, "rejudge")
@@ -3863,7 +3863,7 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
         out = _intake_out(False, reason=reason)
     else:
         cut = set(view["features_cut"])
-        out = _intake_out(True, spec=view["spec"], world=WORLD_FEATURE not in cut, verify=VERIFY_FEATURE not in cut)
+        out = _intake_out(True, spec=view["spec"], world=WORLD_FEATURE not in cut)
     write_json(jdir / INTAKE_FILE, out)
     return out
 

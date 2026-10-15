@@ -45,7 +45,7 @@ LIB = Path(__file__).resolve().parents[2] / "lib"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import chain  # noqa: E402  （周の鎖の周の数の上限 MAX_ROUNDS）
-import depth  # noqa: E402  （深さで飛ばすノードの表の飛ばしてよい深さ LIGHT）
+import depth  # noqa: E402  （深さの段の表 TIERS）
 # INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
 BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
@@ -1035,14 +1035,14 @@ def _gate_words(root: Path) -> list[str]:
 
 
 DEPTH_TABLE = "docs/design.md"
-DEPTH_HEAD = "### 深さで飛ばすノードの表"
-DEPTH_FIELD = "depth_skip"
-DEPTH_CLAUSE = re.compile(r"^\$[\w-]+\.output\.depth_skip != true$")
+DEPTH_HEAD = "### 深さの段の表"
+DEPTH_WHEN = re.compile(r"\.output\.\w*depth\w*")
 DEPTH_NAMED = re.compile(r"`([^`]+)`")
+DEPTH_NONE = "無し"
 
 
-def _depth_rows(root: Path) -> tuple[list, list[str]]:
-    """表の行 [(行番号, ノード, 深さ, 理由)] と問題の行。表は docs/design.md の DEPTH_HEAD の下の、次の見出しまでの `|` の行"""
+def _tier_rows(root: Path) -> tuple[list, list[str]]:
+    """段の表の行 [(行番号, 段, 省く物, 足す物)] と問題の行"""
     path = root / DEPTH_TABLE
     lines, broken = _lines(root, path) if path.is_file() else ([], [])
     if broken:
@@ -1056,13 +1056,13 @@ def _depth_rows(root: Path) -> tuple[list, list[str]]:
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if cells[0] == "ノード" or not cells[0].strip("-: "):
+        if cells[0] == "段" or not cells[0].strip("-: "):
             continue
-        named = DEPTH_NAMED.fullmatch(cells[0])
-        if len(cells) != 3 or named is None:
-            out.append(f"{DEPTH_TABLE}:{n}: 表の行が「| `<ノード>` | 深さ | 理由 |」の形でない")
+        names = [DEPTH_NAMED.findall(c) for c in cells[1:3]]
+        if len(cells) != 4 or any(not found and c != DEPTH_NONE for found, c in zip(names, cells[1:3])):
+            out.append(f"{DEPTH_TABLE}:{n}: 表の行が「| 段 | 省く物 | 足す物 | 理由 |」の形でない（省く物・足す物は `名` を並べるか {DEPTH_NONE}）")
             continue
-        rows.append((n, named.group(1), cells[1], cells[2]))
+        rows.append((n, cells[0], tuple(names[0]), tuple(names[1])))
     return rows, out
 
 
@@ -1078,67 +1078,34 @@ def _graph(root: Path, rel: str) -> list:
     return out
 
 
-def _passes_depth(include) -> bool:
-    value = _top(_top(include, "with"), DEPTH_FIELD)
-    return isinstance(value, yaml.ScalarNode) and value.value.strip().lower() not in ("", "false")
-
-
-def _depth_skip(root: Path) -> list[str]:
-    """E20: depth_skip の句を持つノードの run の記録の id の集まりと docs/design.md の表の行が等しく、句の形・深さ・理由の形が合う"""
-    rows, out = _depth_rows(root)
-    line_rel = LINE_YAML
-    line = _graph(root, line_rel)
-    includes = {}   # サブグラフの YAML → [(include の id, include の節)]
-    every = set()
+def _depth_when(root: Path) -> list[str]:
+    """E20: どのノードの when も、出力の深さの欄を読む句（DEPTH_WHEN）を持たない（深さで飛ばす道を作らない）。docs/design.md の
+    深さの段の表の行（段・省く物・足す物）は depth.TIERS と等しい"""
+    rows, out = _tier_rows(root)
+    line = _graph(root, LINE_YAML)
+    includes = {}   # サブグラフの YAML → [include の id]
     for node, _ in line:
-        ident = _scalar(_top(node, "id"))
-        every.add(ident)
         name = _scalar(_top(node, "include"))
         if name.startswith(OURS_PREFIX):
-            folder = name.removeprefix(OURS_PREFIX)
-            includes.setdefault(f"workflows/{folder}/{name}.yaml", []).append((ident, node))
-    clauses = {}   # run の記録の id → (YAML, 行)
-    for rel in [line_rel, *sorted(includes)]:
-        for node, inside in _graph(root, rel) if rel != line_rel else line:
+            includes.setdefault(f"workflows/{name.removeprefix(OURS_PREFIX)}/{name}.yaml", []).append(_scalar(_top(node, "id")))
+    for rel in [LINE_YAML, *sorted(includes)]:
+        for node, inside in line if rel == LINE_YAML else _graph(root, rel):
             ident = _scalar(_top(node, "id"))
-            if rel == line_rel or inside:
-                ids = [ident]
-            else:
-                ids = [f"{inc}__{ident}" for inc, _ in includes[rel]]
-            every.update(ids)
+            ids = [ident] if rel == LINE_YAML or inside else [f"{inc}__{ident}" for inc in includes[rel]]
             when = _scalar(_top(node, "when"))
-            atoms = [a.strip() for part in when.split("||") for a in part.split("&&") if DEPTH_FIELD in a]
-            if not atoms:
-                continue
-            at = f"{rel}:{_line(node)}"
-            for atom in atoms:
-                if not DEPTH_CLAUSE.match(atom):
-                    out.append(f"{at}: ノード {ident} の句 `{atom}` が `$<頭の script>.output.depth_skip != true` の形でない")
-            if rel != line_rel:
-                passing = [inc for inc, include in includes[rel] if _passes_depth(include)]
-                if not passing:
-                    out.append(f"{at}: ノード {ident} の句を効かせる include が無い（メイングラフの include が {DEPTH_FIELD} を渡さない）")
-                ids = ids if inside else [f"{inc}__{ident}" for inc in passing]
-            for rid in ids:
-                clauses[rid] = at
-    listed = {node for _, node, _, _ in rows}
-    for rid, at in sorted(clauses.items()):
-        if rid not in listed:
-            out.append(f"{at}: {rid} の {DEPTH_FIELD} の句が {DEPTH_TABLE} の表に無い")
-    for n, node, depth_word, why in rows:
-        at = f"{DEPTH_TABLE}:{n}"
-        if node not in clauses:
-            out.append(f"{at}: 表の行 {node} に当たる {DEPTH_FIELD} の句がグラフに無い")
-        if depth_word != depth.LIGHT:
-            out.append(f"{at}: 表の行 {node} の飛ばしてよい深さが {depth.LIGHT} でない（{depth_word}）")
-        if "代わり:" not in why or "材料:" not in why:
-            out.append(f"{at}: 表の行 {node} の理由に「代わり:」と「材料:」が無い")
-        named = DEPTH_NAMED.findall(why)
-        if not named:
-            out.append(f"{at}: 表の行 {node} の理由が代わりのノードをバッククォートで名指さない")
-        for name in named:
-            if name not in every:
-                out.append(f"{at}: 表の行 {node} の理由が名指すノード {name} がグラフに無い")
+            for atom in (a.strip() for part in when.split("||") for a in part.split("&&")):
+                if DEPTH_WHEN.search(atom):
+                    out.append(f"{rel}:{_line(node)}: ノード {', '.join(ids)} の when の句 `{atom}` が出力の深さの欄を読む"
+                               "（深さで飛ばす道を作らない。深さの段は docs/design.md の表 1 か所）")
+    listed = {tier: (omits, adds, n) for n, tier, omits, adds in rows}
+    for tier, spec in depth.TIERS.items():
+        want = (tuple(spec["omits"]), tuple(spec["adds"]))
+        if tier not in listed:
+            out.append(f"{DEPTH_TABLE}:1: 段の表に段 {tier} の行が無い")
+        elif listed[tier][:2] != want:
+            out.append(f"{DEPTH_TABLE}:{listed[tier][2]}: 段 {tier} の省く物・足す物が depth.TIERS と違う"
+                       f"（表: {listed[tier][:2]}、depth.TIERS: {want}）")
+    out += [f"{DEPTH_TABLE}:{n}: 表の段 {tier} が depth.TIERS に無い" for n, tier, _, _ in rows if tier not in depth.TIERS]
     return out
 
 
@@ -1161,6 +1128,6 @@ RULES = {
     "E16": _gates,
     "E18": _origin_names,
     "E19": _role_retry,
-    "E20": _depth_skip,
+    "E20": _depth_when,
     "E21": _hermetic_env,
 }

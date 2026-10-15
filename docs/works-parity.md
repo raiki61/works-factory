@@ -835,8 +835,8 @@
 - S108 厚みを空（自動）・`標準`・`軽量` から選べる
   - 元: SKILL.md:92
   - 印: `WORKS_USE_THICKNESS`
-  - 今: `workflows/line/scripts/start.py::words`（THICKNESS・HEAVY）
-  - 状態: 形を変えて在る（`--input thickness=<語>`。`自動` も受け、`重厚` は拒む）
+  - 今: `workflows/line/scripts/start.py::words`（THICKNESS ← `lib/depth.py` の HEADS）
+  - 状態: 形を変えて在る（`--input thickness=<語>`。`自動` も受け、`重厚` も受ける。名指した重厚が足す機能を `features_off` で切る組は入口が止める。段の定義は docs/design.md の深さの段の表）
   - 旧棚卸し: L-E25
 
 - S109 機能の語 judge_verify・review_tree・tdd_lanes・fix_lanes・graph_map をカンマで区切って切る・入れる
