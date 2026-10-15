@@ -352,9 +352,9 @@ class GateAnswersCase(Base):
         self.open(gate_answers=answer)
         self.assertEqual(len(json.loads((self.folder / boardview.GATE_ANSWERS_FILE).read_text(encoding="utf-8"))), 1)
 
-    def test_pushed_answer_keeps_its_origin_and_is_not_recorded_policy(self):
+    def test_pushed_answer_keeps_its_origin_and_is_recorded_apart_from_human_answers(self):
         """無人の run が推しで通した答え（欄 answer.PUSHED）は、控えの行にも印を写し（聞き直さないのは人の答えと同じ）、
-        記録された方針（承認ノードの人の答え）には入れない"""
+        記録された方針には人の答えと混ぜず、推しの行で並べる"""
         self.open(plan_rows=[{"unit_keys": [UNIT], "narrows": [{**TP.NARROW, **TP.DECIDED}]}])
         asked = gatemarks.plan_gate_items(self.view({"faces": []}))
         boardview._note_asked(self.folder, asked, None)
@@ -364,7 +364,7 @@ class GateAnswersCase(Base):
         b = self.view({"faces": []})
         self.assertEqual(b.record["process"]["human_items"][-1][answer.PUSHED], recs)
         self.assertEqual(json.loads((self.folder / boardview.GATE_ANSWERS_FILE).read_text(encoding="utf-8"))[-1][answer.PUSHED], recs)
-        self.assertNotIn("推しの一言", json.dumps(b.record["process"][policy.RECORDED_KEY], ensure_ascii=False))
+        self.assertEqual([(r["source"], r["text"]) for r in b.record["process"][policy.RECORDED_KEY]], [("push", "推しの一言")])
         self.assertEqual(gatemarks.plan_gate_items(b), [])
 
     def test_continue_past_policy_change_refreezes(self):

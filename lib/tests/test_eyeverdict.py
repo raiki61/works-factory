@@ -724,7 +724,7 @@ class PremiseSectionCase(unittest.TestCase):
 
     def test_pushed_gate_answer_is_not_pasted_as_a_human_answer(self):
         """無人の run が推しで通した修正前の関所の答え（欄 answer.PUSHED）は行に印を写し、R2 に人の答えとして貼らず控えの withheld に回し、
-        記録された方針にも入れない"""
+        記録された方針でも人の答えの行（gate）にしない"""
         pushed = {**self.BEFORE_FIX, answer.PUSHED: [{"item": "x", "answer": "continue", "note": "n", "why": "y"}]}
         items = eyeverdict.human_items(None, pushed)
         self.assertEqual(items[0][answer.PUSHED], pushed[answer.PUSHED])
