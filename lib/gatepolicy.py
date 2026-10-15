@@ -14,6 +14,7 @@ run の入力の 2 つの語、最後の人の関所の開き方（final_gate）
 - check(final, unattended, *, spec) -> {FINAL_KEY, UNATTENDED_KEY}: 入口の語の確かめ（語の外・仕様の段と無人の組みは Refused）
 - final_mode(board_dir)・unattended(board_dir): 始めの記録からの読み（記録が無い・欄が空なら既定。記録の開き方が語の外なら
   ValueError——入口が確かめた後なので配線の誤り）
+- unattended_of(doc): 始めの記録の dict（か None）からの、無人の run かの読み（unattended と報告・台帳の見え方が同じ式を引く）
 - opens(mode, *, reasons, guarded): 最後の関所を開くか
 - head_words(doc): 報告の頭の行の句（始めの記録の dict から。開き方が無ければ空）
 """
@@ -58,7 +59,12 @@ def final_mode(board_dir) -> str:
 
 def unattended(board_dir) -> bool:
     """run が無人で回っているか（始めの記録の欄。読めなければ人の居る run）"""
-    return startrec.read(board_dir).get(UNATTENDED_KEY) == UNATTENDED
+    return unattended_of(startrec.read(board_dir))
+
+
+def unattended_of(doc) -> bool:
+    """始めの記録の dict（か None）が無人の run か"""
+    return isinstance(doc, dict) and doc.get(UNATTENDED_KEY) == UNATTENDED
 
 
 def opens(mode: str, *, reasons, guarded: bool) -> bool:

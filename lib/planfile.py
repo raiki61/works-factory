@@ -60,6 +60,7 @@ import converge  # noqa: E402
 import depth  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
+import gatepolicy  # noqa: E402
 import jsonfile  # noqa: E402
 import impact  # noqa: E402
 import judgeverify  # noqa: E402
@@ -177,15 +178,17 @@ LEDGER = "_ledger"   # read_judgment が判定の dict に添える問いの台�
 
 def read_judgment(raw: str, start, locate) -> tuple:
     """(判定の dict, 読めない訳)。判定に、直す義務の数え（gatemarks.duty）が読む問いの台帳の見え方を添える: 始めの記録 start
-    （dict か None）の依頼の answers と、判定の隣の結び・素材の状態（gatemarks.ledger_beside）。plan に関所の答えは届かない（行き止まりの
-    判定は 1 回目の周で、修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
+    （dict か None）の依頼の answers と、判定の隣の結び・素材の状態（gatemarks.ledger_beside）。始めの記録が無人の run なら、判定の
+    推しつきの fork・held を答えとして数える（gatemarks.run_push）。plan に関所の答えは届かない（行き止まりの判定は 1 回目の周で、
+    修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
     doc, why = read_pointed(raw, locate)
     if not isinstance(doc, dict):
         return doc, why
     path, _ = pointed(raw, locate)
     answers = (start or {}).get("answers") if isinstance(start, dict) else None
     return {**doc, LEDGER: gatemarks.ledger_beside(pathlib.Path(path).parent, doc,
-                                                   answers=answers if isinstance(answers, list) else [])}, why
+                                                   answers=answers if isinstance(answers, list) else [],
+                                                   takes_push=gatepolicy.unattended_of(start))}, why
 
 
 def world_rows(raw: str, locate) -> tuple:
@@ -240,7 +243,8 @@ def is_open(u) -> bool:
 
 def _owed_units(judgment) -> set:
     """今の周に直す義務の単位の key（gatemarks.duty。fix の直す義務と同じ口）: 開いた単位から、答えていない関所の問い（人に聞く状態の
-    fork と、status が escalate の問い）の出どころ・depends を除き、依頼の answers が答えた問いの出どころ・depends を戻した物（元の
+    fork と、status が escalate の問い）の出どころ・depends を除き、依頼の answers と無人の run が採った判定の推しが答えた問いの
+    出どころ・depends を戻した物（元の
     works が写しの RL の _owed_units を差し替えた works/.shared/core/conflict.py:676 の owed_units_but_asked）。問いの台帳の見え方は
     read_judgment が添えた物（無ければ判定だけの見え方）。直す裁定でない裁定の単位（held_by_rulings）は、このブロックに裁定が届かない
     ので扱わない"""
