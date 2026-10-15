@@ -722,11 +722,17 @@ def _asking(b) -> list:
     return [q for q in qs if q.get("status") in states]
 
 
+def asks_human(q, asking=ASKING) -> bool:
+    """人へ回す問いか: 人に聞く状態（asking）の fork と、status が escalate の問い。関所に載せる問い（asks）と、判定の受け付けが
+    先行例の行を求める問い（judge_accept._precedent_errors）が同じここで選ぶ"""
+    return q.get("status") in asking and (q.get("kind") == "fork" or q.get("status") == "escalate")
+
+
 def asks(b) -> list:
-    """関所に載せる問い: 人に聞く状態の fork と、status が escalate の問い（写しの _precedent_errors と同じ選び方）。直す義務
-    から外す（withheld）・戻す（returned）も、この問いだけを見る（写しの _owed_units は fork だけを外すので、works の差し替え
-    conflict.owed_units_but_asked がこの選び方で外し直す）"""
-    return [q for q in _asking(b) if q.get("kind") == "fork" or q.get("status") == "escalate"]
+    """関所に載せる問い（asks_human）。直す義務から外す（withheld）・戻す（returned）も、この問いだけを見る（写しの _owed_units は
+    fork だけを外すので、works の差し替え conflict.owed_units_but_asked がこの選び方で外し直す）"""
+    asking = b.rules.validator_module(b).ASKING
+    return [q for q in b.record.get("questions") or [] if isinstance(q, dict) and asks_human(q, asking)]
 
 
 def _ask_kind(q) -> str:
