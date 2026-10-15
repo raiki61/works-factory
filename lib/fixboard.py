@@ -560,7 +560,7 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     leftovers.record_ignored(folder, worktree)
     record_base_rev(folder, worktree)
     start_tree = groups.end_tree(worktree)
-    items = planmarks.approved_items(plan_view(folder, plan, judgment)) if plan is not None else None
+    items = place_items(folder) if plan is not None else None
     write_notes(folder, raw.get("notes") or "")
     grps = fix_groups(group_owed(folder), items, only)
     out_dir = folder / "groups"
@@ -1244,8 +1244,8 @@ def delta_review_due(place, repo, skip=(), fix_reply=None) -> tuple:
 def place_items(place):
     """置き場の承認済みの修正案の項目（planmarks.approved_items。修正案の役の返答の写し p2.fix_plan.json と判定の写し judgment.json
     を plan_view で渡し、凍結の欄 plan-fields.json と凍結の印は置き場から）。どれか無ければ None。凍結の印と食い違えば
-    planmarks.FieldsBroken。承認済みの項目を置き場から読む口はここ 1 つで、修正の段（修正役の指示書・受け付け・事前の確かめ
-    factchecks.main）と手直しの段（refix.cut・accept_review・accept_fix・prep_fix）が同じ物を items に口（引数なし）として渡す"""
+    planmarks.FieldsBroken。承認済みの項目を置き場から読む口はここ 1 つで、修正の段（群の組み立て prep・修正役の指示書・
+    受け付け・事前の確かめ factchecks.main）と手直しの段（refix.cut・accept_review・accept_fix・prep_fix）が同じ物を items に口（引数なし）として渡す"""
     import planmarks
     p = pathlib.Path(place)
     return planmarks.approved_items(plan_view(p, read_json(p / PLAN_REPLY_FILE), read_json(p / JUDGMENT_FILE)))

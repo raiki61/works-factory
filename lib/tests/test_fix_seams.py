@@ -2811,7 +2811,7 @@ class SettleOverflowSeamCase(TempCase):
         (self.place / fixboard.PLAN_REPLY_FILE).write_text(json.dumps(
             {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "adds": [], "removes": []}]}, ensure_ascii=False),
             encoding="utf-8")
-        (self.place / "judgment.json").write_text(json.dumps({"units": [R_JUDGED[0]]}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [R_JUDGED[0]]}, ensure_ascii=False), encoding="utf-8")
         self.head = leftovers.snapshot(self.repo)
         self.extra = self.repo / "request_ok.json"
         self.before = self.extra.read_bytes()
