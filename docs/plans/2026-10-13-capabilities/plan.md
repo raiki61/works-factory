@@ -203,7 +203,7 @@
   - 元: works/.shared/core/structmark.py:111 `plan_section`・planblk.py:1085 `prep`、試験 works/tests/test_blk_plan.py:1300 StructureHeadCase.test_design_rows_reach_plan_head
   - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_dirty_structure_rows_reach_the_brief（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
-  - 本物の run: plan/r1/brief-1.md の「## 構造の目の行」の節（目の受け付けが通れば汚れない行も含め全部の行が出る。避け方の「。避け方: 」は汚れると見た行だけ）
+  - 本物の run: plan/r1/brief-1.md の「## 構造の目の行」の節（目の受け付けが通れば全部の行が出る。汚れると見た行は頼みの下、汚れない行は別の小見出しの下に分かれる。避け方の「。避け方: 」は汚れると見た行だけ）
   - 狭め: 無し（試験だけ欠け）
 
 - P028 構造の目の行が無い周（実測が落ちた・目が 3 回拒まれた・目が走らなかった・控えが読めない）は、材料に「構造の目の行なしで計画した（理由）」と書き、行への答えを求めずに計画へ進む。
@@ -637,7 +637,7 @@
   - 元: works/.shared/core/structmark.py `plan_section`・`PLAN_ASK`
   - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_brief_carries_structure_rows（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
-  - 本物の run: `plan/r1/brief-1.md` の「## 構造の目の行」の節（種で行が在れば）
+  - 本物の run: `plan/r1/brief-1.md` の「## 構造の目の行」の節。汚れる行が在れば頼み（PLAN_ASK）とその行だけ、汚れる行が無ければ答えの要らない旨の 1 行（PLAN_NONE）。汚れない行は別の小見出し「### 汚れないと見た行」の下（種で汚れる行が出るとは限らない）
   - 狭め: 無し
 
 - P089 返りの structure の指し札は structure-state.json を指し、隣の design.jsonl を名で開ける（後段＝事前審査・関所・報告が 1 つの控えだけを読む）

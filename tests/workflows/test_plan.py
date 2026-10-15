@@ -1663,6 +1663,30 @@ class BriefCase(unittest.TestCase):
         self.assertNotIn(structmark.PLAN_ASK, brief)
         self.assertEqual(rolekit.rejected(run.art / "plan" / "r1", "plan"), [], "構造の行への答えを求めない")
 
+    def test_clean_only_structure_rows_need_no_answer(self):
+        run = Run(self)
+        self.assertIs(run.include(eye=eye_clean)["ready"], True)
+        brief = self.brief(run)
+        self.assertIn(structmark.PLAN_HEAD, brief)
+        self.assertNotIn(structmark.PLAN_ASK, brief)
+        self.assertIn(structmark.PLAN_NONE, brief)
+        self.assertIn(structmark.PLAN_CLEAN_HEAD, brief)
+        self.assertIn(f"- {MEAN}: 汚れない（", brief.split(structmark.PLAN_CLEAN_HEAD, 1)[1])
+        self.assertEqual(rolekit.rejected(run.art / "plan" / "r1", "plan"), [], "structure を書かない案は通る")
+
+    def test_clean_structure_rows_sit_outside_the_ask(self):
+        run = Run(self)
+        run.include(eye=eye_dirty, writer=writer_of({"plan": [item(1, 2, structure=[{"row": MEAN, "follows": True}])]}))
+        brief = self.brief(run)
+        self.assertIn(structmark.PLAN_ASK, brief)
+        self.assertNotIn(structmark.PLAN_NONE, brief)
+        head, tail = brief.split(structmark.PLAN_CLEAN_HEAD, 1)
+        asked = head.split(structmark.PLAN_ASK, 1)[1]
+        self.assertIn(f"- {MEAN}: 汚れる（", asked)
+        self.assertNotIn(": 汚れない（", asked)
+        self.assertIn(": 汚れない（", tail)
+        self.assertNotIn(": 汚れる（", tail)
+
     def test_prescriptions_reach_the_brief(self):
         judge = judgment()
         judge["units"][0]["prescriptions"] = ["分母を len(xs) にする"]

@@ -10,43 +10,43 @@ description: |
 inputs:
   start:
     required: true
-    description: 始めの記録のポインタ（メイングラフの $start.output.record）
+    description: 始めの記録のポインタ
   baseline:
     default: ""
-    description: 直す前の結末のポインタ（$test-gate-base.output.baseline）。空・null は実行器の無い run
+    description: 直す前の結末のポインタ。空・null は実行器の無い run
   units:
     required: true
-    description: 単位の目録の JSON（$judge.output.units）
+    description: 単位の目録の JSON
   judgment:
     required: true
-    description: 判定のポインタ（$judge.output.judgment）
+    description: 判定のポインタ
   plan:
     default: ""
-    description: 修正案のポインタ（$plan.output.plan。plan-fields.json）。空は修正案の無い run
+    description: 修正案のポインタ（plan-fields.json）。空は修正案の無い run
   ripple:
     default: ""
-    description: 波及の一覧のポインタ（$plan.output.ripple）
+    description: 波及の一覧のポインタ
   depth:
     default: ""
-    description: 単位ごとの深さの JSON の配列（$plan.output.depth）
+    description: 単位ごとの深さの JSON の配列
   answers:
     default: ""
-    description: 修正前の承認ノードの答え（$gate-before-fix.output。飛ばされれば null）
+    description: 修正前の承認ノードの答え（飛ばされれば null）
   prior_conflicts:
     default: "null"
     description: 前の修正の段の申し出と裁定のポインタ（前の段の出力 conflicts。2 度目の修正の段だけに渡す）。その先のフォルダの申し出と裁定と TDD のループの状態を写し、この段が前の段の裁定と凍結を見る。null は 1 回目の段
   plan_review:
     default: "null"
-    description: 事前審査の返答のポインタ（plan-review の出力 review）。修正役が plan_faces で穴と別案に答え、差分の審査の材料 out.p2.plan_review になる。null は事前審査の無い run
+    description: 事前審査の返答のポインタ。修正役が plan_faces で穴と別案に答え、差分の審査の材料 out.p2.plan_review になる。null は事前審査の無い run
   notes:
     default: ""
     description: 機械の申し送りの文（案の直しを受けた 2 度目の修正の段だけに渡す、採った項目の事前審査の穴のうち人に聞く種類でない物）。修正役と TDD の役の notes_file に足す
   only_items:
     default: ""
-    description: 案の直しの後の 2 回目の修正（メイングラフの include refix）で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
+    description: 案の直しの後の 2 回目の修正で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
   mode:
     default: ""
-    description: 空はサブグラフの形（メイングラフの include の中だけ）、group は組ごとの子の run
+    description: 空は include されたサブグラフの形、group は組ごとの子の run
   group:
     default: ""
     description: 組 1 つの JSON（{group_id, unit_ids, items}。形 group の時に親の fan_out が渡す）
