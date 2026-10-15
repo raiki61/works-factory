@@ -1244,10 +1244,10 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
   - 本物の run: 筋書きでのみ（子の run が落ちた時の join.json）
   - 狭め: F410 と同じく、元は順の輪で直し直した。今は not_done で返すだけ
 
-- F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（次の組の group-start が前の組の分を、join が最後の組の分を戻し、dropped.json で 2 度戻さない）
+- F414 1 つずつ回す run で結果を書かずに落ちた子が親の作業ツリーに残した変更を、子の始めの木に戻す（join が戻し、dropped.json で 2 度戻さない。issue #576 から、組の子が落ちると組の節が落ちて join は走らず、次の組の group-start は前の組の分を戻さずに止まり、自分の組の前の試みの分だけを戻す）
   - 元: 無し（元の枝は単位の worktree で直し、run の作業ツリーへの迷い書きは機械が戻した: works/blk-fix/lib/lanekit.py `revert_strays`、tests/test_tdd_lanes.py:483 test_stray_write_of_run_tree_is_reverted）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_in_order_drops_what_a_failed_child_left、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_drops_what_the_failed_child_before_left
+  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_in_order_drops_what_a_failed_child_left、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_drops_its_own_earlier_attempt、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_start_in_order_stops_while_an_earlier_child_is_halted
   - 本物の run: 筋書きでのみ（落ちた子の組の置き場の `dropped.json`）
   - 狭め: 無し
 

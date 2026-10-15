@@ -1777,11 +1777,18 @@ def group_dir(place, out_dir: str, gid: str) -> pathlib.Path:
     return pathlib.Path(out_dir or pathlib.Path(place) / "groups") / str(gid)
 
 
+def halted_groups(out_dir, own: str) -> list:
+    """並べない run で、out_dir の下の own 以外の組のうち、子が始めた（GROUP_START_FILE が在る）のに結果（RESULT_FILE）を書かずに
+    止まった組の名を並べる"""
+    return [g.name for g in sorted(pathlib.Path(out_dir).glob("*"))
+            if g.is_dir() and g.name != own and (g / GROUP_START_FILE).is_file() and not (g / RESULT_FILE).is_file()]
+
+
 def drop_unreturned(repo, gdir, skip=()) -> list:
     """並べない run（組の子が親の作業ツリーで直す）で、子が結果（RESULT_FILE）を書かずに落ちた組の変更を、子の始めの木
     （gdir の GROUP_START_FILE の start_tree）に戻す。戻したパス（除くパスの頭 skip の下は数えない）を返し、gdir の DROPPED_FILE
-    に控える。結果の在る組・始めの記録の無い組は何もしない（[]）。もう戻した組は控えのパスを返す（次の組の頭と join が同じ組を
-    見ても 2 度戻さない）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは親の木に届かなかった）"""
+    に控える。結果の在る組・始めの記録の無い組は何もしない（[]）。もう戻した組は控えのパスを返す（組の頭の出し直しと join が
+    同じ組を見ても 2 度戻さない）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは親の木に届かなかった）"""
     import tddloop
     gdir = pathlib.Path(gdir)
     if (gdir / RESULT_FILE).is_file():
