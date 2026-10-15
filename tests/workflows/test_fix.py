@@ -1551,6 +1551,9 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertFalse(g2["returned"])
         self.assertIn("当たらない", g2["reason"])
         self.assertEqual(joined["units"][1], {"unit_id": "B", "group_id": "g2", "status": "not_done", "reason": g2["reason"]})
+        row, = json.loads((self.place / "clash.json").read_text(encoding="utf-8"))["clashes"]
+        self.assertEqual((row["group_id"], row["kind"], row["state"], row["names"]), ("g2", "text", "pending", ["stats.py"]),
+                         "字で当たらない組も合わせのループの直し待ちに控える")
 
     def test_join_stops_on_a_group_without_a_readable_result(self):
         """#576: 結果のファイルが無いか読めない組が在れば、並べない run でも並べた run でも作業ツリーを変えず join.json も書かずに
@@ -2592,6 +2595,79 @@ class ClashScenarioCase(unittest.TestCase):
         self.assertIn("E8 = 80\n", e, "後の組の直しも残る")
         code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
         self.assertEqual((code, out), (0, {"go": False, "count": 0}), err)
+
+    def joined_with_text_clash(self, seed=None, g1=None, g2=None):
+        """種を組んで join を回し、g1 と同じ行（e.py の E1）を別の値に変えた g2 を字で当たらない組として控えた所まで進める。
+        seed・g1・g2 は種・各組が足して変えるファイル"""
+        start = self.rerun_seed({
+            "e.py": f"E1 = 1\n{self.FILLER}E8 = 8\n",
+            "b.py": "def triple(x):\n    return x * 3 + 1\n",
+            "test_b.py": self.TEST_B, **(seed or {})})
+        _blk_write(self.place / "judgment.json", {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"}],
+                                                  "questions": []})
+        t1 = self.tree_with({"e.py": f"E1 = 10\n{self.FILLER}E8 = 8\n", **(g1 or {})})
+        t2 = self.tree_with({"e.py": f"E1 = 1  # B が読む\n{self.FILLER}E8 = 8\n",
+                             "b.py": "def triple(x):\n    return x * 3\n", **(g2 or {})})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, verified=["test_b.py::TestB::test_triple"]))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 2, "returned": 1}), err)
+        self.green_tree = self.snapshot(self.repo)
+
+    def test_join_text_clash_is_redone_on_the_current_tree(self):
+        """#598: 2 つの組が同じ行を別の値に変えて後の組が字で当たらなくても、単位を落とさない。合わせのループが後の組を親の今の
+        木へ食い違いの印つきで当て直し、印を残した返答は拒み、印を解いた返答で両方の組の直しが残る"""
+        self.joined_with_text_clash()
+        out = self.prep()
+        self.assertTrue(out["go"], out)
+        e = self.repo / "e.py"
+        self.assertIn("<<<<<<< ", e.read_text(encoding="utf-8"))
+        self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3\n")
+        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
+        self.assertEqual((brief["kind"], brief["conflicted"]), ("text", ["e.py"]))
+        got = self.accept(self.fixed_reply(("e.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn("食い違いの印", got["reason"])
+        out = self.prep()
+        e.write_text(f"E1 = 10  # B が読む\n{self.FILLER}E8 = 8\n", encoding="utf-8")
+        got = self.accept(self.fixed_reply(("e.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        g2 = self.group_row()
+        self.assertEqual((g2["returned"], g2["clash"]["outcome"]), (True, "repaired"), g2)
+        units = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["units"]
+        self.assertEqual({u["unit_id"]: u["status"] for u in units}, {"A": "fixed", "B": "fixed"})
+        self.assertIn("E1 = 10  # B が読む\n", e.read_text(encoding="utf-8"))
+        self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3\n")
+
+    def test_join_text_clash_the_role_cannot_fix_reaches_ruling_as_a_text_clash(self):
+        """字で当たらない組を合わせ役が直せないと答えると、申し出は字の食い違いとして裁定役に届く（赤の文の申し出と言わない）"""
+        self.joined_with_text_clash()
+        out = self.prep()
+        got = self.accept({"handled": "cannot", "how": "E1 をどちらの値にするか決められない", "files": []}, out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, True), got)
+        self.assertEqual(self.snapshot(self.repo), self.green_tree, "直せなかった組は印つきで当て直す前の木へ戻す")
+        rows = [r for r in conflict.items(self.place) if r["source"] == conflict.JOIN_SOURCE]
+        self.assertEqual([r["unit_key"] for r in rows], ["B"], rows)
+        said = rows[0][conflict.WHY_FIELD]
+        self.assertIn("前の組の直しと同じ所を変え、字で当たらない", said)
+        self.assertNotIn("試験が赤", said)
+
+    def test_join_text_clash_marking_a_locked_test_file_goes_to_ruling_at_once(self):
+        """字で当たらない所が許しの無いテストのファイルに在れば、合わせ役は印を残しても消しても通れない。合わせ役を起こさずに、
+        そのファイルを名指して裁定役へ回す（裁定 fix_test_scope で許せる）"""
+        test_e = "import unittest\n\n\nclass TestE(unittest.TestCase):\n    def test_e(self):\n        pass  # E\n"
+        self.joined_with_text_clash(seed={"test_e.py": test_e}, g1={"test_e.py": test_e.replace("# E", "# g1")},
+                                    g2={"test_e.py": test_e.replace("# E", "# g2")})
+        out = self.prep()
+        self.assertFalse(out["go"], out)
+        self.assertEqual(self.snapshot(self.repo), self.green_tree)
+        rows = [r for r in conflict.items(self.place) if r["source"] == conflict.JOIN_SOURCE]
+        self.assertEqual([r["unit_key"] for r in rows], ["B"], rows)
+        self.assertIn("許しの無いテストのファイルに在り", rows[0][conflict.WHY_FIELD])
+        self.assertIn("test_e.py", rows[0][conflict.WHY_FIELD])
+        self.assertEqual(self.group_row()["clash"]["outcome"], "parked")
 
     def test_join_clash_rejects_writes_outside_the_group_and_test_rewrites(self):
         """受け付けは修正役と同じ軸: 組が変えたファイルの外の変更と、許しの無いテストのファイルの書き換えを拒む（作業ツリーは

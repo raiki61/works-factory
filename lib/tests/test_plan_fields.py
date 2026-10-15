@@ -502,6 +502,17 @@ class ScopeFieldsCase(PlanFieldsCase):
             with self.subTest(g):
                 self.assertIsNone(planmarks.glob_problem(g))
 
+    def test_globs_meet_only_says_no_when_no_path_can_match_both(self):
+        for a, b in (("stats.py", "stats.py"), ("lib/a.py", "lib/*.py"), ("lib/**", "lib/x/y.py"), ("**/x.py", "a/x.py"),
+                     ("tests/test_*.py", "tests/test_a*.py")):
+            with self.subTest(a=a, b=b):
+                self.assertTrue(planmarks.globs_meet(a, b))
+                self.assertTrue(planmarks.globs_meet(b, a))
+        for a, b in (("lib/a.py", "lib/b.py"), ("lib/*.py", "lib/*.md"), ("docs/**", "lib/**"), ("lib/*.py", "lib/x/a.py")):
+            with self.subTest(a=a, b=b):
+                self.assertFalse(planmarks.globs_meet(a, b))
+                self.assertFalse(planmarks.globs_meet(b, a))
+
     def test_gaps_out_of_scope_rows(self):
         bad = [{"glob": "../x.py", "why": "根の外は触らない（試験の材料）"}]
         got = planmarks.gaps({"plan": [item(out_of_scope=bad)]}, self.repo)

@@ -136,7 +136,7 @@ FORGE_HEAD = "PR を持つホスト（forge）"   # 元 report.FORGE_HEAD
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 APPLY_HEAD = "差分を対象に当てる"
 BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した組"   # 組の合わせの意味の食い違い（持ち主の決め clash-goes-to-ruling）
-REPAIRED_HEAD = "合わせ役が直して当てた組"   # 確かめ直しが赤で戻した組を、合わせのループが組の変えたファイルの中だけで直した（fix.groups の clash.outcome repaired）
+REPAIRED_HEAD = "合わせ役が直して当てた組"   # 確かめ直しが赤で戻した組か字で当たらなかった組を、合わせのループが組の変えたファイルの中だけで直した（fix.groups の clash.outcome repaired）
 UNRESTORED_GROUP_HEAD = "戻せず親の作業ツリーに当たったままの組（人が確かめる）"   # fixboard.UNRESTORED。線は先へ進めずに止めた
 STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "needs_human")   # 止まった run の結末（bin/apply が拒む）
 
@@ -507,7 +507,7 @@ def split_line(returns: dict) -> str:
 
 
 def _repaired(returns: dict) -> list:
-    """戻せた組のうち、確かめ直しが赤で戻してから合わせ役が直して当てた組（fix.groups の欄 clash の outcome が repaired）"""
+    """戻せた組のうち、確かめ直しが赤で戻すか字で当たらなかった後に合わせ役が直して当てた組（fix.groups の欄 clash の outcome が repaired）"""
     return [g for g in _list(as_dict(returns.get("fix")).get("groups"))
             if isinstance(g, dict) and g.get("returned") is True and as_dict(g.get("clash")).get("outcome") == "repaired"]
 
