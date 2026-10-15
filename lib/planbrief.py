@@ -119,9 +119,9 @@ def _symbols_cell(row: dict) -> str:
     return "<br>".join(out) if out else NONE
 
 
-def _files_table(rows: list) -> str:
-    """項目の files のファイル構成の表（1 行 1 ファイル。消す行・消す symbol は why・replaced_by も出す）。行が無ければ NONE"""
-    rows = [r for r in rows if isinstance(r, dict)]
+def _files_table(item: dict) -> str:
+    """項目 item の files のファイル構成の表（1 行 1 ファイル。消す行・消す symbol は why・replaced_by も出す）。行が無ければ NONE"""
+    rows = planmarks.file_rows(item)
     if not rows:
         return NONE
     lines = ["| path | op | 受け持ち | symbols | 正本 | 消す訳 |", "|---|---|---|---|---|---|"]
@@ -203,7 +203,7 @@ def render(n: int, item: dict, fields: dict, units: dict, purpose: str, structur
         TITLE.format(n=n),
         f"{UNITS_HEAD}\n\n" + _bullets(keys, str),
         f"{APPROACH_HEAD}\n\n{item.get('approach') or NONE}",
-        f"{FILES_HEAD}\n\n" + _files_table(item.get("files") or []),
+        f"{FILES_HEAD}\n\n" + _files_table(item),
         f"{DEPENDS_HEAD}\n\n" + _bullets(fields.get(planmarks.DEPENDS_KEY) or [], _received),
         f"{SHRINK_HEAD}\n\n{item.get('shrink_first') or NONE}",
         f"{NARROWS_HEAD}\n\n" + _bullets(item.get("narrows") or [], _narrow),

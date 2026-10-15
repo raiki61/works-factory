@@ -564,32 +564,19 @@ class TestUnitContract(PlanFieldsCase):
     def test_names_from_files_add_symbols_and_created_modules(self):
         """unit_contract の names が、change=add の symbol の名と、op=create の .py の行の path を持つ（新しいモジュールの import の失敗を
         TDD の輪が宣言の赤に数える。依頼 194c: read_input の行が works/.shared/core/nodeio.py の op=create で、No module named 'nodeio' が
-        綴りの誤りに数えられた）。change=remove の名・op=modify の行の path・.py でない op=create の path は持たない。canonical の字は
-        読まない。重なりは 1 つ"""
+        綴りの誤りに数えられた）。change=remove の名・op=modify の行の path（canonical が『新設』と言っても）・.py でない op=create の
+        path は持たない。canonical の字は読まない。同じ path の 2 行も重なりも 1 つ"""
         reply = {"plan": [item(files=[
-            frow("works/.shared/core/nodeio.py", fadd("read_input"), fadd("board_out"), op="create", canonical="新設。前の節の出力を読む口"),
+            frow("works/.shared/core/nodeio.py", fadd("read_input"), op="create", canonical="新設。前の節の出力を読む口"),
+            frow("works/.shared/core/nodeio.py", fadd("board_out"), op="create", canonical="新設。盤面の控えから読む口"),
             frow("app/receivers.py", fadd("handle"), op="create"),
             frow("stats.py", fadd("median"), frm("old_mean"), canonical="stats.py（新設。在るモジュールに足す関数）"),
-            frow("works/tests/fixtures/golden.json", fadd("golden", "config"), op="create", canonical="新設の fixture"),
+            frow("works/tests/fixtures/golden.json", fadd("golden", "config"), op="create",
+                 canonical="works/tests/fixtures/golden.py（新設）"),
             frow("textfmt.py", fadd("fmt"), canonical="新設しない result.py を読む")])]}
         _, fields = planmarks.split(reply, self.repo)
         self.assertEqual(planmarks.unit_contract(fields, MEAN)["names"],
                          ["works/.shared/core/nodeio.py", "read_input", "board_out", "app/receivers.py", "handle", "median", "golden", "fmt"])
-        self.assertNotIn("old_mean", planmarks.unit_contract(fields, MEAN)["names"])
-
-    def test_names_carry_new_module_of_canonical(self):
-        """新しいモジュールの宣言は op=create の .py の行の path から引く（canonical の『新設 x.py』の字からは引かない。依頼 194c:
-        nodeio.py の新設を TDD の輪が宣言の赤に数える）。canonical が『新設』と言う op=modify の行・.py でない op=create の行の path は
-        足さない。同じ path の 2 行は 1 つ"""
-        reply = {"plan": [item(files=[
-            frow("works/.shared/core/nodeio.py", fadd("read_input"), op="create", canonical="新設。前の節の出力を読む口"),
-            frow("works/.shared/core/nodeio.py", fadd("board_out"), op="create", canonical="新設。盤面の控えから読む口"),
-            frow("stats.py", fadd("median"), canonical="stats.py（新設。在るモジュールに足す関数）"),
-            frow("works/tests/fixtures/golden.json", fadd("golden", "config"), op="create",
-                 canonical="works/tests/fixtures/golden.py（新設）")])]}
-        _, fields = planmarks.split(reply, self.repo)
-        self.assertEqual(planmarks.unit_contract(fields, MEAN)["names"],
-                         ["works/.shared/core/nodeio.py", "read_input", "board_out", "median", "golden"])
 
 
 class ScopeFieldsCase(PlanFieldsCase):

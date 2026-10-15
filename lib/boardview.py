@@ -996,10 +996,9 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
         dmap = tree.get(converge.DESIGN_MAP) or []
         # 独立設計の要素の網羅は、案の全部の項目を審査する往復（形 review）だけで数える: 今の往復が見る項目の答えに、閉じた項目が
         # 前の往復で受けた要素（控えの refs）を足して数える。形 replan は裁かれた項目だけを見るので、鍵・重なり・design_ref の実在・引用だけ
-        gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, dmap, cover=False)
-        stood = design.stands(b.dir, b.design_schema) if inputs["form"] == "review" else None
-        if stood is not None:
-            gaps += design.coverage_gaps(stood.get("elements"), [*design.refs_of(dmap), *sorted(converge.carried_refs(b, items))])
+        gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, dmap)
+        if inputs["form"] == "review":
+            gaps += planblk.coverage_gaps(b, design.refs_of(dmap), items)
         if gaps:
             raise Reject(_lines(planblk.DESIGN_QUOTE_REJECT, gaps))
         refs = {n: list(dict.fromkeys([*design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") == n]),

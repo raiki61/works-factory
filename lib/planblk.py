@@ -596,16 +596,22 @@ def carried_hits(b, n: int, rip: dict) -> dict:
     return out
 
 
-def design_gaps(b, faces, items: list, design_map=None, *, cover: bool = True) -> list[str]:
+def design_gaps(b, faces, items: list, design_map=None) -> list[str]:
     """独立設計の引用の誤りの行（design.quote_gaps。設計が立たない run では空）。faces の unit_keys は単位の名に戻して重ね、案の行は
     壁打ちの控えの項目 items の行。design_map を渡す（None でない）と items の files の (path, symbol) ごとの対応表も求める。
-    cover は独立設計の要素の網羅を今の呼びで照らすか（項目ごとの答えは偽: ほかの項目が受ける要素を「どの項目も受けない」と
-    見分けられない。全部の項目の答えを合わせた網羅は tree_merge と _take が coverage_gaps で当てる）"""
+    独立設計の要素の網羅は照らさない（全部の項目の答えを合わせて coverage_gaps で当てる）"""
     names = _names(b, NODE_OF["plan-review"])
     plan = converge.read(b).get("plan") or []
     rows = [{**plan[n - 1].get("row", {}), "item": n} for n in items if 1 <= n <= len(plan)]
     named = [{**f, "unit_keys": [unit_name(names, k) for k in f.get("unit_keys") or []]} for f in faces if isinstance(f, dict)]
-    return design.quote_gaps(b.dir, b.design_schema, named, rows, design_map, cover=cover)
+    return design.quote_gaps(b.dir, b.design_schema, named, rows, design_map)
+
+
+def coverage_gaps(b, refs, items) -> list[str]:
+    """独立設計の要素の網羅の誤りの行（design.coverage_gaps。設計が立たない run では空）。refs は今の往復の答えの対応表の design_ref
+    の並び、items は今の往復が見る項目。見ない閉じた項目が前の往復の答えで受けた要素（converge.carried_refs）を足して数える"""
+    stood = design.stands(b.dir, b.design_schema)
+    return [] if stood is None else design.coverage_gaps(stood.get("elements"), [*refs, *converge.carried_refs(b, items)])
 
 
 def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
@@ -637,7 +643,7 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     errs += [f"$.resolved: {k} は項目 {n} の前の往復の block に無い" for k in got["resolved"] if k not in prev]
     errs += [f"$.resolved: {k} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つ）"
              for k in got["resolved"] if k in block_keys]
-    return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [], cover=False)]
+    return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [])]
 
 
 def check_item(b, k: int, n: int, rip: dict, pre: list | None = None) -> tuple:
@@ -694,11 +700,9 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
         if got is not None:
             answers[n] = got
     refs = {n: design.refs_of(a.get(converge.DESIGN_MAP)) for n, a in answers.items()}
-    stood = design.stands(b.dir, b.design_schema)
-    if stood is not None and len(answers) == len(opened):   # 独立設計の要素の網羅は、全部の項目の答えと閉じた項目の控えを合わせて数える
-        seen = [r for rs in refs.values() for r in rs] + sorted(converge.carried_refs(b, opened))
+    if len(answers) == len(opened):   # 独立設計の要素の網羅は、全部の項目の答えと閉じた項目の控えを合わせて数える
         gaps += [f"独立設計の要素（項目の答え {'・'.join(str(n) for n in opened)} を合わせて数えた）: {e}"
-                 for e in design.coverage_gaps(stood.get("elements"), seen)]
+                 for e in coverage_gaps(b, [r for rs in refs.values() for r in rs], opened)]
     if bare.get("faces") or bare.get("shrink") or tree.get(converge.ORIGINS):
         gaps.append("束ね役の faces・shrink・origins は空にする（項目の穴と出自は下請けの答えのファイルから機械がまとめる。写さない）")
     rows = tree.get(converge.ITEMS)
