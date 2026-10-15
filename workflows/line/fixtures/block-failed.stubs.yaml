@@ -1,8 +1,8 @@
 # judge の中の節が落ちた（本物の judge の入口の節 intake に output_format に合わない stub を置いて落とす。workflow test は型に合わない
-# stub の節を落ちた節にする。intake の出力を読む all_done の節も落ちる）。返す節は飛ばされ、後ろが飛び、collect・report・後始末・result は走る。
+# stub の節を落ちた節にする。intake の出力を when か all_done で読む節も落ちる）。返す節は飛ばされ、後ろが飛び、collect・report・後始末・result は走る。
 fixture:
   expect: "failed"
-  fail-node: ["judge__intake", "judge__spec-ask", "judge__spec-freeze", "judge__pr-scan", "judge__world-plan", "judge__world-finish", "judge__diagnose-prep"]
+  fail-node: ["judge__intake", "judge__spec-ask", "judge__spec-freeze", "judge__pr-scan", "judge__world-plan", "judge__world-finish", "judge__diagnose-prep", "judge__verify-merge"]
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["collect", "report__report", "sweep-children", "result"]
 exec-code: true

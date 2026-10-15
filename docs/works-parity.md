@@ -3410,7 +3410,7 @@
 - judge.md J63: lib/judge_accept.py::brief・lib/judge_accept.py::policy_text
 - judge.md J64: lib/judge_accept.py::_take_diff
 - judge.md J65: workflows/judge/commands/diagnose.md（字は在る。元の `盤面の材料が無い時` の 1 句だけ無い——共有ボードの無い道が無くなったので要らない）
-- judge.md J66: lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（workflows/judge/scripts/reject.py・rejects.py と判定の裏取りの支度が lang_line で返し、各役の指示書の頭が `$<節>.output.lang_line` で読む）
+- judge.md J66: lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（workflows/judge/scripts/reject.py・rejects.py・material_prep.py（素材集めのループの頭）と判定の裏取りの支度が lang_line で返し、各役の指示書の頭が `$<節>.output.lang_line` で読む）
 - judge.md J67: lib/judge_accept.py::_judge_tree_unchanged・lib/judge_accept.py::snap_tree（lib/judge_accept.py::diagnose_prep で判定役の前に置く）
 - judge.md J68: workflows/judge/works-factory-judge.yaml::diagnose の `output_format`（lib の写し `DIAGNOSE_SCHEMA` は #232 で消した）、改行を落とすのは lib/judge_accept.py::ONE_LINE_FIELDS・lib/judge_accept.py::judge_output
 - judge.md J69: lib/judge_accept.py::judge_output
@@ -3494,7 +3494,7 @@
 - line.md L-E34: Archon の再開が済んだノードを飛ばす（start に always_run を付けない）（部分 A で閉じた）
 - line.md L-E35: workflows/line/scripts/start.py::policy_md
 - line.md L-E36: 各サブグラフが record.policy_md から組む（main lib/judge_accept.py::policy_text、workflows/fix/scripts/delta_cut.py::main、workflows/eyes/scripts/prep.py::out）
-- line.md L-E37: lib/rolekit.py::LANG_RULE・lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（住処を 1 つにし、fixboard・planfile・eyeverdict の写しはそれを引く）。judge はループの頭の拒否のノード workflows/judge/scripts/reject.py・rejects.py と判定の裏取りの支度 verify.py が `lang_line` を返し、全部の役の指示書の頭が `$<節>.output.lang_line`。report は facts が返し commands/report.md の頭（部分 A で閉じた）
+- line.md L-E37: lib/rolekit.py::LANG_RULE・lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（住処を 1 つにし、fixboard・planfile・eyeverdict の写しはそれを引く）。judge はループの頭の拒否のノード workflows/judge/scripts/reject.py・rejects.py・material_prep.py（素材集めのループの頭）と判定の裏取りの支度 verify.py が `lang_line` を返し、全部の役の指示書の頭が `$<節>.output.lang_line`。report は facts が返し commands/report.md の頭（部分 A で閉じた）
 - line.md L-E38: workflows/line/scripts/start.py::start（部分 A で閉じた）
 - line.md L-E42: workflows/line/scripts/start.py::from_fixture・workflows/line/scripts/start.py::fixture_dir・lib/fixture.py::adopt（置き場と作業ツリーのパス・run の id・HEAD の置き換え、前の版の拒みは形の版 FORMAT。trace の 1 行の代わりに起動の承認ノードの文と報告の入口のセクションの「固定材料から」の行 lib/fixture.py::lines）（#509 で戻した）
 - line.md L-E43: lib/fixture.py::capture・lib/fixture.py::noted_capture・workflows/line/scripts/fix_in.py::fix_in（今の works が写した作業の状態と名指しのファイルの代わりに、run の置き場と修正の段へ運ぶ値を写す）（#509 で戻した）
