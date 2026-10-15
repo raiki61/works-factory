@@ -1,4 +1,4 @@
-$local-review-reject.output.lang_line
+$local-review-prep.output.lang_line
 
 外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:
 - **検索語に対象の名前を載せるな。** 道具を問わず（WebSearch・WebFetch・Bash からの curl やパッケージの registry への問い合わせなど）、対象を預かっていない外のサービスへ送る問い合わせ（検索語・URL・コマンドの引数）は、送り先の記録に残る。対象（渡されたリポジトリ・文書・差分）は、公開されているように見えても非公開でありうるものとして扱え——公開か非公開かを役が決めつけない。
@@ -16,7 +16,7 @@ $local-review-reject.output.lang_line
 前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、拒まれていない。
 
 ```text
-$local-review-reject.output.reason
+$local-review-prep.output.reason
 ```
 
 ---

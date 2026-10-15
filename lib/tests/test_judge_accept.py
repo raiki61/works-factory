@@ -1750,17 +1750,15 @@ class BriefCase(_RepoCase):
         self.assertTrue(route["hygiene"])
         for _ in range(3):
             ja.rolekit.with_done(self.jdir, "hygiene", {"ok": False, "reason": "形が違う"})
-        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", str(self.tmp / "REVIEW.md"), "")
+        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), str(self.tmp / "REVIEW.md"), "")
         self.assertFalse(got["go"])
         self.assertTrue(pathlib.Path(got["brief_file"]).is_file())
         self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.MATERIAL_STOP)
         self.assertEqual(ja.read_json(self.jdir / "materials.json")["hygiene"]["status"], "not_run")
 
-    def test_diagnose_prep_skips_on_objection_or_stop(self):
-        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "異議", "", "")
-        self.assertFalse(got["go"])
+    def test_diagnose_prep_skips_on_stop(self):
         ja.write_stop(self.jdir, ja.JUDGE_STOP, "前で止めた")
-        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", "", "")
+        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", "")
         self.assertFalse(got["go"])
         self.assertIn("前で止めた", got["reason"])
 
