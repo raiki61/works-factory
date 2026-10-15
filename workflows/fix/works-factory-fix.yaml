@@ -930,7 +930,7 @@ nodes:
               why: {type: string, minLength: 20}
         findings_none: {type: string}
 
-  # レンズの行を置き場の控えに集め、審査役の材料に足す。レンズが起きなかった時は理由の行を残す
+  # レンズの行を置き場の控えに集め、審査役の材料に足す
   - id: lens-collect
     script: lens_collect
     runtime: uv

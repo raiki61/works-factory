@@ -956,10 +956,10 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual(brief["lens"][0]["findings"][0]["where"], "stats.py")
 
     def test_lens_collect_failure_is_reported_not_silent(self):
-        """レンズの集め役（lens-collect）が落ちた・ok でない事実を止めずに知らせる: diff の隣の lenses.json に
+        """レンズの集め役（lens-collect）が落ちた・ok でない事実を、止まった run の報告に知らせる: diff の隣の lenses.json に
         {collector: {ok: false, reason}} で載せる。集め役が自分の誤りで落ちれば集め役が書き、何も書かずに落ちた・走らなかった時は
         返す節が書く（lib が読めない道でも）。集めが済めば ok: true、審査を回さない run も ok: true と訳。書けなければ名指す
-        （元 works/blk-lens/scripts/exit.py の lenses.exit_ は盤面を止めた。fix は落ちないを約束にしたので知らせる形）"""
+        （集め役は非 0 で落ち、run を止める。元 works/blk-lens/scripts/exit.py の lenses.exit_ も盤面を止めた）"""
         lenses = self.place / "lenses.json"
 
         def collector():
@@ -2012,7 +2012,7 @@ class BlockScriptsCase(unittest.TestCase):
         _blk_write(fixboard.out_file(self.place, "p3.delta_fix2"), {"handled": [
             {"key": "穴2", "handled": "fixed", "how": "分母を直した", "files": ["stats.py"]}]})
         lens.write_routes(self.place, [{"lens": "silent-failure-hunter", "agent": "a", "go": True}])
-        lens.collect(self.place, {})
+        lens.collect(self.place, {"silent-failure-hunter": {"findings": "x"}})
         code, out, err = _blk_run("collect", self.repo, self.art)
         self.assertEqual(code, 0, err)
         holes = json.loads((self.beside(out) / fixbeside.DELTA_HOLES_FILE).read_text(encoding="utf-8"))
@@ -2026,7 +2026,7 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual([i["text"].split("（")[0] for i in items], ["穴1", "穴2", "silent-failure-hunter"])
         self.assertIn("再実行の要あり", items[-1]["text"])
         always = fixbeside.always_rows(got)
-        self.assertIn("  - 落ちたレンズ silent-failure-hunter（再実行の要あり）: レンズのノードの出口が無い（落ちたか走らなかった）", always)
+        self.assertIn("  - 落ちたレンズ silent-failure-hunter（再実行の要あり）: レンズのノードの出口の findings の形が違う: {'findings': 'x'}", always)
         self.assertEqual(always[-1], fixbeside.ANOMALY_LINE)
         self.assertIn("silent-failure-hunter: 落ちた", "\n".join(fixbeside.lens_lines(got)))
 
@@ -2064,6 +2064,21 @@ class BlockScriptsCase(unittest.TestCase):
         self.assert_contract(out)
         self.assertEqual(out["units"], [{"unit_id": "B", "group_id": "g2", "status": "fixed", "reason": ""}])
         self.assertTrue(out["done"])
+
+    def test_collect_group_mode_takes_only_a_usable_result(self):
+        """組の子の自分の結果も 1 つの決まり（fixboard.usable_result）で読む: end_tree の無い結果は返っていない組で、done: false"""
+        start = self.snapshot(self.repo)
+        out_dir = self.tmp / "parent" / "groups"
+        broken = _blk_result("g2", ["B"], start, start)
+        del broken["end_tree"]
+        _blk_write(out_dir / "g2" / "result.json", broken)
+        group = json.dumps({"group_id": "g2", "unit_ids": ["B"], "items": []})
+        code, out, err = _blk_run("collect", self.repo, self.art,
+                                  {"mode": "group", "group": group, "out_dir": str(out_dir)}, "collect")
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual([g["returned"] for g in out["groups"]], [False])
+        self.assertFalse(out["done"])
 
     def test_collect_group_mode_returns_no_review(self):
         """組の子の run は差分の審査を回さず、返りの delta_review は {rounds: 0, pass: false}。子の置き場に審査を省いた印や審査の

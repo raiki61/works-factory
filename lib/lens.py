@@ -6,8 +6,9 @@
 findings の lens は指摘の出どころ（レンズの名）。dropped は形の誤りで捨てた発見の件数（ran の行だけ）。
 
 - write_routes(b, rows): 振り分けの行（{lens, agent, go, reason}）を書く。go が偽の行は not_routed、真の行は pending
-- collect(b, outputs):   {レンズの名: レンズの節の出口 | None} で pending の行を埋める（出口が無い・形が違えば failed と理由、
-                         在れば ran と出どころつきの findings。1 件の形の誤りは捨てて dropped に数える）。控えが無い・読めなければ ValueError
+- collect(b, outputs):   {レンズの名: レンズの節の出口 | None} で pending の行を埋める（形が違えば failed と理由、在れば ran と
+                         出どころつきの findings。1 件の形の誤りは捨てて dropped に数える）。控えが無い・読めない・pending の行の出口が
+                         無ければ ValueError（起こしたレンズが落ちれば run が止まり、集め役は走らない）
 - read(b):               行の一覧。控えが無い run は None、読めない・形が違えば ValueError
 - brief_rows(b):         差分の審査役の brief の lens の欄（控えが無い run は []。読めなければ ValueError）
 - summary(b, review_file=None): レンズの集計（採った・採らなかった・捨てた件数・落ちたレンズ。投げない）。報告・関所・次の依頼はこれだけを読む。
@@ -71,10 +72,10 @@ def collect(b, outputs: dict) -> list:
         if r["state"] != "pending":
             continue
         out = outputs.get(r["lens"])
-        got = None if out is None else _findings(r["lens"], out)
         if out is None:
-            r.update(state="failed", reason="レンズのノードの出口が無い（落ちたか走らなかった）")
-        elif got is None:
+            raise ValueError(f"起こしたレンズ {r['lens']} の出口が無い")
+        got = _findings(r["lens"], out)
+        if got is None:
             r.update(state="failed", reason=f"レンズのノードの出口の findings の形が違う: {str(out)[:200]}")
         else:
             r.update(state="ran", findings=got[0], dropped=got[1])

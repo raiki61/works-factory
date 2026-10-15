@@ -1429,8 +1429,8 @@ def lens_route(place, lang: str = "") -> dict:
 
 
 def lens_collector(place, ok: bool, reason: str = "") -> pathlib.Path:
-    """レンズの集め役の事実を置き場の LENSES_FILE に {collector: {ok, reason}} で書く（止めずに知らせる。集め役が落ちた・ok でない
-    時は ok: false と理由。元 works/blk-lens/lib/lenses.py:126 の exit_ は盤面を止めた）"""
+    """レンズの集め役の事実を置き場の LENSES_FILE に {collector: {ok, reason}} で書く（集め役が落ちた・ok でない時は ok: false と
+    理由。集め役は書いてから落ち、run は止まる。元 works/blk-lens/lib/lenses.py:126 の exit_ は盤面を止めた）"""
     return write_json(pathlib.Path(place) / LENSES_FILE, {"collector": {"ok": bool(ok), "reason": str(reason or "")}})
 
 
