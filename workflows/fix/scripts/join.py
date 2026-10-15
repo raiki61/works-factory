@@ -92,13 +92,10 @@ def main() -> dict:
             if got.unrestored:
                 unrestored[g["group_id"]] = got.unrestored
             elif got.backed_out and got.why == red.get(g["group_id"]):
-                clashes.append({"group_id": g["group_id"], "unit_ids": list(g["unit_ids"]), "patch": got.patch,
-                                "names": list(got.backed_out), "shared": sorted(set(got.backed_out) & earlier), "why": got.why,
-                                "kind": clash.RED})
+                clashes.append(clash.new_row(g["group_id"], g["unit_ids"], got.patch, got.backed_out, earlier, got.why, clash.RED))
             elif got.clash:
                 names = unittrees.patch_names(Path(got.patch).read_text(encoding="utf-8", errors="surrogateescape"))
-                clashes.append({"group_id": g["group_id"], "unit_ids": list(g["unit_ids"]), "patch": got.patch,
-                                "names": names, "shared": sorted(set(names) & earlier), "why": got.why, "kind": clash.TEXT})
+                clashes.append(clash.new_row(g["group_id"], g["unit_ids"], got.patch, names, earlier, got.why, clash.TEXT))
             return got
         for g, got in lanekit.merge_in_order(plan["groups"], merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)

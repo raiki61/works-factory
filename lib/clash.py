@@ -12,10 +12,11 @@
 このモジュールが持つ物（place は fix の run の置き場、repo は親の作業ツリー、skip は除くパスの頭）:
 - FILE（置き場の控え {clashes: [{group_id, unit_ids, patch, names, shared, why, kind?, state, pass?, before?, staged?, marked?,
   requests?}]}。kind は KINDS（RED は確かめ直しが赤で戻した組、TEXT は字で当たらなかった組。無い行は RED）、state は PENDING・
-  STAGED・REPAIRED・PARKED、pass は最後に扱った段、marked は当て直しで食い違いの印を書いたパス）と record(place, rows)・load(place)
+  STAGED・REPAIRED・PARKED、pass は最後に扱った段、marked は当て直しで食い違いの印を書いたパス）と new_row(...)・record(place, rows)・load(place)
 - todo(place, pass_): その段で扱う組の id（控えの順。FIRST は直し待ちと当て直し中、RULED は FIRST で回した組のうち、その組の
   申し出が全部直す裁定を受けた物と当て直し中）
-- stage(place, repo, gid, pass_, skip): 控えの差分を 3 方向で当て直す（解けない食い違いは印つきで当てる。当てる前と後の木を控える）
+- stage(place, repo, gid, pass_, skip): 控えの差分を 3 方向で当て直す（解けない食い違いは印つきで当てる。当てる前と後の木を控える。
+  印を許しの無いテストのファイルに書いたら当て直せないとする）
 - problems(place, repo, gid, reply, *, start, cases, skip, name, k): 受け付けの照らし（文の並び。空なら通る）
 - settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位・書き込みの記録・TDD のループの状態）
 - settle_parked(place, repo, gid, *, pass_, why, skip): 当て直す前の木へ戻し、申し出を積み、join.json の行に訳を置く
@@ -62,6 +63,8 @@ GAVE_UP = "合わせ役の返答が {n} 回とも受け付けを通らなかっ�
 SAID_CANNOT = "合わせ役が直せないと答えた: {how}"
 CLAIM = "組 {gid} の直しを親の作業ツリーで前の組と合わせると試験が赤（{red}）。{why}。控えの差分: {patch}"
 TEXT_CLAIM = "組 {gid} の直しが親の作業ツリーで前の組の直しと同じ所を変え、字で当たらない（{red}）。{why}。控えの差分: {patch}"
+MARKED_TESTS = ("字で当たらない所が許しの無いテストのファイルに在り、合わせ役は印を解けない（テストの範囲の裁定 fix_test_scope が"
+                "要る）: {paths}")
 UNRESOLVED = "食い違いの印が残っている（印を解いて両方の組の直しを両立させよ）: {paths}"
 RULED_CLAIM = "裁定 {ids} の直しも通らなかった: "
 OUTSIDE = "組が変えたファイルの外を変えた（触ってよいのは {allowed} だけ）: {paths}"
@@ -84,9 +87,16 @@ def _save(place, rows) -> None:
     fixboard.write_json(_path(place), {"clashes": rows})
 
 
+def new_row(group_id: str, unit_ids, patch: str, names, earlier, why: str, kind: str) -> dict:
+    """record に渡す組の行: names は組が変えたファイル、earlier は前に当てた組が変えたファイル（重なりを shared に置く）"""
+    if kind not in KINDS:
+        raise ValueError(f"合わせの控えの kind は {KINDS} のどれか: {kind!r}")
+    return {"group_id": group_id, "unit_ids": list(unit_ids), "patch": patch, "names": list(names),
+            "shared": sorted(set(names) & set(earlier)), "why": why, "kind": kind}
+
+
 def record(place, rows) -> None:
-    """組を当てるノードが、確かめ直しが赤で戻した組と字で当たらなかった組 rows（{group_id, unit_ids, patch, names, shared, why, kind}。
-    当てた順）を直し待ちで控える。
+    """組を当てるノードが、確かめ直しが赤で戻した組と字で当たらなかった組 rows（new_row の形。当てた順）を直し待ちで控える。
     rows が空なら何も書かない"""
     if rows:
         _save(place, [{**r, "state": PENDING} for r in rows])
@@ -170,7 +180,8 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     """組 gid の控えの差分を作業ツリーへ 3 方向で当て直す（組を当てるノードと同じ当て方と試験のファイルの挿しの合わせ。それでも解けない
     食い違いは印つきで当て、印を書いたパスを marked に控える。unittrees.apply の marked）。(当たったか, 訳)。
     当てる前の木 before を先に控え、当てた後の木 staged を控える。もう当て直した組（STAGED）は何もしない。前の起動が当てる途中で
-    落ちた組は before へ戻してから当て直す"""
+    落ちた組は before へ戻してから当て直す。印を許しの無いテストのファイルに書いた時は (False, MARKED_TESTS)（印つきの木は
+    呼び手の settle_parked が before へ戻す）"""
     rows = load(place)
     row = _row(rows, gid)
     if row["state"] == STAGED:
@@ -188,12 +199,22 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     ok, why = unittrees.apply(repo, patch, union=union, check=unittrees.tests_unique, marked=marked)
     if not ok:
         return False, NOT_APPLIED.format(why=oneline.one_line(why)[:300])
+    locked = _unpermitted_tests(r, set(fixboard.allowed_tests(place, [r])), marked)
+    if locked:   # 印を残しても消しても受け付けが拒む（problems の UNRESOLVED と TESTS）。回さずに裁定へ
+        return False, MARKED_TESTS.format(paths="・".join(locked))
     row.update(state=STAGED, staged=tddloop.snapshot(repo), marked=marked)
     _save(place, rows)
     return True, ""
 
 
 # ---------------------------------------------------------------- 受け付け
+def _unpermitted_tests(r, permits: set, paths) -> list:
+    """paths のうち、許し permits の無いテストのファイル（impact.is_test_file。宣言は組の子の結果 r の TDD のループの単位のテストの
+    ファイル。組自身のテストであることは許しにならない）"""
+    declared = {f for u in fixboard.child_tdd_units(r) for f in fixboard.unit_test_files(u)}
+    return sorted(p for p in paths if impact.is_test_file(p, declared) and p not in permits)
+
+
 def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(), name: str = "", k: int = 1) -> list:
     """合わせ役の返答の受け付けの照らし（文の並び。空なら通る）。当て直しで印を書いたファイル（marked）に印が残れば UNRESOLVED。
     当て直した後の木から今の作業ツリーで変わったパスが:
@@ -216,9 +237,8 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
     if outside:
         out.append(OUTSIDE.format(allowed="・".join(sorted(allowed)), paths="・".join(outside)))
     tdd_rows = fixboard.child_tdd_units(r)
-    declared = {f for u in tdd_rows for f in fixboard.unit_test_files(u)}
     permits = set(fixboard.allowed_tests(place, [r]))
-    tests = sorted(p for p in touched if impact.is_test_file(p, declared) and p not in permits)
+    tests = _unpermitted_tests(r, permits, touched)
     if tests:
         out.append(TESTS.format(paths="・".join(tests)))
     out += fixboard.undeclared_writes({"changes": [{"files": [f for f in reply.get("files") or [] if isinstance(f, str)]}],
