@@ -778,7 +778,7 @@
 {"id": "F410", "kind": "scenario-only", "why": "筋書きでのみ（種の 2 つの直しは別の行）"},
 {"id": "F411", "kind": "backlog", "why": "ブロックの中だけの穴（区分の issue）", "check": "json-has", "where": "parent/**/join.json", "path": "reason"},
 {"id": "F412", "kind": "backlog", "why": "ブロックの中だけの穴（区分の issue）", "check": "json-has", "where": "parent/**/join.json", "path": "returned"},
-{"id": "F413", "kind": "scenario-only", "why": "筋書きでのみ（子の run が落ちた時の join.json）"},
+{"id": "F413", "kind": "scenario-only", "why": "筋書きでのみ（子の run が落ちた時は組の節が落ちて groups-ok が飛び、join.json は書かれない）"},
 {"id": "F414", "kind": "scenario-only", "why": "筋書きでのみ（落ちた子の組の置き場の `dropped.json`）"},
 {"id": "F415", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
 {"id": "F416", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
