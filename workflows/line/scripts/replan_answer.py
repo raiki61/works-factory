@@ -38,26 +38,23 @@ with boundary.guarded_imports():
     import planfile
     import replan
 
-FIX_NOTES_HEAD = "## 修正前の承認ノード（gate-before-fix）で人が答えた条件（1 回目の修正の段と同じく、この段にも効く）"   # 元 replan.FIX_NOTES_HEAD
-NOTE_HEAD = "## 人の一言（承認ノード gate-replan）"   # 元 replan.NOTE_HEAD
-# 無人の run が推しで通した答え（欄 answer.PUSHED）の見出し。人の答えと読み分ける
-FIX_NOTES_PUSHED_HEAD = ("## 修正前の承認ノード（gate-before-fix）で無人の run が採った推しの条件（人の答えではない。1 回目の修正の段と"
-                         "同じく、この段にも効く）")
-NOTE_PUSHED_HEAD = "## 無人の run が採った推しの一言（承認ノード gate-replan。人の答えではない）"
+# 元 replan.FIX_NOTES_HEAD・NOTE_HEAD。答えた者を名乗らない（推しで通した答えの印は、読み手が answer.said で一言の前に 1 度だけ置く）
+FIX_NOTES_HEAD = "## 修正前の承認ノード（gate-before-fix）で答えた条件（1 回目の修正の段と同じく、この段にも効く）"
+NOTE_HEAD = "## 承認ノード gate-replan の一言"
 
 
 def fix_answers(before_fix, replan) -> dict | None:
     """2 度目の修正の answers {decision, text, asked}。decision は後の関所の答えの語で、text は条件と一言のうち在る物（元 replan._notes の
-    頭の 2 つ。推しで通した答えの物は推しの見出しの下）、asked は修正前の関所の答えの物。どちらかが推しで通した答えなら、採った推しを
-    合わせた欄 answer.PUSHED も持つ（fix の読み gatemarks.gate_items が写す）。どちらの関所も開かなかった run は null"""
+    頭の 2 つ）、asked は修正前の関所の答えの物。どちらかが推しで通した答えなら、採った推しを合わせた欄 answer.PUSHED も持つ（fix の
+    読み gatemarks.gate_items が写し、修正役へ渡す所が answer.said で印を付ける）。どちらの関所も開かなかった run は null"""
     answered = [a for a in (before_fix, replan) if isinstance(a, dict)]
     if not answered:
         return None
     prior = str(before_fix.get("text") or "").strip() if isinstance(before_fix, dict) else ""
     note = oneline.one_line(replan.get("text") or "") if isinstance(replan, dict) else ""
-    parts = [f"{FIX_NOTES_PUSHED_HEAD if answer.by_push(before_fix) else FIX_NOTES_HEAD}\n\n{prior}\n"] if prior else []
+    parts = [f"{FIX_NOTES_HEAD}\n\n{prior}\n"] if prior else []
     if note:
-        parts.append(f"{NOTE_PUSHED_HEAD if answer.by_push(replan) else NOTE_HEAD}\n\n{note}\n")
+        parts.append(f"{NOTE_HEAD}\n\n{note}\n")
     asked = before_fix.get("asked") if isinstance(before_fix, dict) else None
     got = {"decision": answered[-1]["decision"], "text": "\n".join(parts), "asked": asked if isinstance(asked, list) else []}
     if any(answer.by_push(a) for a in answered):

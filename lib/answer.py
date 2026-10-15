@@ -19,7 +19,8 @@
   持ち主の決め answerer-unnamed）
 - by_push(row) -> bool: 答えか、答えを写した行が欄 PUSHED を持つ（推しで進んだ）
 - origin(row) -> dict: 答えを別の形の行に写す時に足す欄（推しなら {PUSHED: …}、人の答えなら {}）。写しが印を落とさない
-- PUSHED_NOTE: 推しで進んだ答えの一言を役に渡す時、行の頭に付ける句（役が人の答えと読み分ける）
+- PUSHED_NOTE・said(row) -> str: 答えを写した行 {note, …} の一言を役に渡す形。推しで進んだ行は一言の前に PUSHED_NOTE の行を置く
+  （役が人の答えと読み分ける。一言が見出しで始まっても崩さない）。推しの印を一言に付けるのはここだけ
 """
 import json
 import os
@@ -43,7 +44,7 @@ STOP_NOTE = "承認ノードで止めた"
 FINAL_STOP_NOTE = "最後の承認ノードで止めた"
 FINAL = "gate-final"
 PUSHED = "pushed"
-PUSHED_NOTE = "無人の run が採った推し（人の答えではない）: "
+PUSHED_NOTE = "（無人の run が採った推し。人の答えではない）"
 
 
 def head(env=None) -> str:
@@ -89,3 +90,7 @@ def by_push(row) -> bool:
 
 def origin(row) -> dict:
     return {PUSHED: row[PUSHED]} if by_push(row) else {}
+
+
+def said(row) -> str:
+    return f"{PUSHED_NOTE}\n{row['note']}" if by_push(row) else row["note"]

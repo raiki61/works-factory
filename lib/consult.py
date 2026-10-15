@@ -144,8 +144,8 @@ ASK_GATE_TEXT = promptsection.Section("""\
 
 - 項目の今の範囲（allowed_paths）: {allowed}
 - 触らない物（out_of_scope）: {oos}
-- 承認ノードで出した条件（字のまま。直す前に人が答えた物か、無人の run が採った推し（頭に「無人の run が採った推し」と
-  書いた行）で、通す範囲と条件を超えて削れない）:
+- 承認ノードで出した条件（字のまま。直す前に人が答えた物か、無人の run が採った推し（直前の行に「無人の run が採った推し」と
+  書いた物）で、通す範囲と条件を超えて削れない）:
 {why}
 {oos_hits}- 答え方: この条件を満たすのにこの項目で要る、足すパス・書き換える既存のテストの範囲・足す新しいテスト（id と赤の種類）を決めよ。
   この項目に関わらない条件なら deny。
@@ -409,11 +409,11 @@ def left(b, pass_: str) -> int:
 
 def gate_notes(b, human_items=(), round_: int = 1) -> str:
     """今の周（round_）の直す前の人の関所（gatemarks.GATE_NODE）の continue の一言（human_items の行 {round, node, answer, note}
-    の note）を改行で並べた文（字のまま。無人の run が推しで通した行（欄 answer.PUSHED）は頭に answer.PUSHED_NOTE。無ければ空。最後の
+    の note）を改行で並べた文（字のまま。無人の run が推しで通した行は answer.said の印つき。無ければ空。最後の
     関所などほかの節の一言は入れない）。b は置き場（読まない。名を揃える）。
     元 works/blk-fix/lib/consult.py:486（盤面の record.process.human_items と b.round を読んだ所を引数に）"""
     items = human_items or []
-    return "\n".join((answer.PUSHED_NOTE if answer.by_push(h) else "") + h["note"] for h in items
+    return "\n".join(answer.said(h) for h in items
                      if isinstance(h, dict) and h.get("round") == round_ and h.get("answer") == CONTINUE
                      and h.get("node") == gatemarks.GATE_NODE and isinstance(h.get("note"), str) and h["note"].strip())
 

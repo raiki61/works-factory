@@ -2460,13 +2460,13 @@ def gate_asks(place) -> tuple:
 
 
 def write_notes(place, machine: str = "") -> str:
-    """修正前の関所の一言（無人の run が推しで通した行は頭に answer.PUSHED_NOTE）と、答えで直す義務に戻った単位の行
+    """修正前の関所の一言（無人の run が推しで通した行は answer.said の印つき）と、答えで直す義務に戻った単位の行
     （gatemarks.returned_lines）と、機械の申し送り machine（2 度目の修正の段に線が渡す、採った項目の事前審査の穴のうち人に聞く種類で
     ない物の節。元 replan._notes の FACES_HEAD の節）を置き場の NOTES_FILE に書き、パスを返す。どれも無ければ書かずに ""。
     元 works/darkfactory/lib/line_edge.py:1218 の h-fix の notes_file と works/.shared/core/replan.py:677 の notes_file"""
     import gatemarks
     view = gate_view(place)
-    said = [(answer.PUSHED_NOTE if answer.by_push(h) else "") + h["note"] for h in view.record["process"]["human_items"] if h["note"]]
+    said = [answer.said(h) for h in view.record["process"]["human_items"] if h["note"]]
     notes = "\n".join([*said, *gatemarks.returned_lines(view), *([machine.strip()] if machine.strip() else [])])
     if not notes:
         return ""

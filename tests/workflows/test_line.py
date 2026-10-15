@@ -50,6 +50,7 @@ import boardview  # noqa: E402
 import boundary  # noqa: E402
 import conceptfence  # noqa: E402
 import conflict  # noqa: E402
+import consult  # noqa: E402
 import converge  # noqa: E402
 import entry  # noqa: E402
 import entryshape  # noqa: E402
@@ -848,15 +849,14 @@ class ReplanAnswerCase(Artifacts):
         self.assertIsNone(replan_answer.fix_answers(None, None))
 
     def test_refix_answers_keep_the_push_origin(self):
-        """推しで通した関所の答え（欄 answer.PUSHED）は推しの見出しの下に並び、2 度目の修正の answers も採った推しを持つ"""
+        """推しで通した関所の答え（欄 answer.PUSHED）を含む 2 度目の修正の answers は、採った推しを合わせて持つ。本文の見出しは答えた
+        者を名乗らない（推しの印は読み手が answer.said で 1 度だけ付ける）"""
         rec = {"item": "x", "answer": "continue", "note": "n", "why": "y"}
         before = {"decision": "continue", "text": "n", "asked": ["x"], answer.PUSHED: [rec]}
-        got = replan_answer.fix_answers(before, {"decision": "continue", "text": "人の一言"})
-        self.assertEqual(got["text"], f"{replan_answer.FIX_NOTES_PUSHED_HEAD}\n\nn\n\n{replan_answer.NOTE_HEAD}\n\n人の一言\n")
-        self.assertEqual(got[answer.PUSHED], [rec])
-        got = replan_answer.fix_answers({"decision": "continue", "text": "人"}, {"decision": "continue", "text": "n", answer.PUSHED: [rec]})
-        self.assertEqual(got["text"], f"{replan_answer.FIX_NOTES_HEAD}\n\n人\n\n{replan_answer.NOTE_PUSHED_HEAD}\n\nn\n")
-        self.assertEqual(gatemarks.gate_items(got)[0][answer.PUSHED], [rec])
+        got = replan_answer.fix_answers(before, {"decision": "continue", "text": "m", answer.PUSHED: [rec]})
+        self.assertEqual(got["text"], f"{replan_answer.FIX_NOTES_HEAD}\n\nn\n\n{replan_answer.NOTE_HEAD}\n\nm\n")
+        self.assertEqual(got[answer.PUSHED], [rec, rec])
+        self.assertEqual(gatemarks.gate_items(got)[0][answer.PUSHED], [rec, rec])
         self.assertNotIn(answer.PUSHED, replan_answer.fix_answers({"decision": "continue", "text": "人"}, None))
 
     def test_answer_is_the_gate_answer_with_the_fix_answers(self):
@@ -1000,8 +1000,22 @@ class FixWiringCase(FixGateAnswersCase):
         pushed = {"decision": "continue", "text": note, "asked": [],
                   answer.PUSHED: [{"item": "1", "answer": "continue", "note": note, "why": "既存の呼び手が 0 を待つ"}]}
         read = lambda got: pathlib.Path(fixboard.write_notes(self.place_with(got))).read_text(encoding="utf-8")
-        self.assertEqual(read(pushed), answer.PUSHED_NOTE + note)
+        self.assertEqual(read(pushed), f"{answer.PUSHED_NOTE}\n{note}")
         self.assertEqual(read({key: v for key, v in pushed.items() if key != answer.PUSHED}), note)
+
+    def test_refix_notes_mark_a_pushed_answer_once_and_keep_the_headings(self):
+        """#562: 2 度目の修正の answers（replan_answer.fix_answers の見出しつきの本文）を推しで通した時も、修正役の notes_file と相談の
+        条件には推しの印が 1 度だけ付き、見出しの行は行の頭から始まる（印を見出しの前に繋げて Markdown の見出しを崩さない）"""
+        rec = {"item": "1", "answer": "continue", "note": "n", "why": "y"}
+        got = replan_answer.fix_answers({"decision": "continue", "text": "空の列は 0 を返す", "asked": [], answer.PUSHED: [rec]},
+                                        {"decision": "continue", "text": "項目 1 も", answer.PUSHED: [rec]})
+        notes = pathlib.Path(fixboard.write_notes(self.place_with(got))).read_text(encoding="utf-8")
+        said = consult.gate_notes(None, gatemarks.gate_items(got))
+        for text in (notes, said):
+            with self.subTest(text=text):
+                self.assertTrue(text.startswith(f"{answer.PUSHED_NOTE}\n{replan_answer.FIX_NOTES_HEAD}\n"), text)
+                self.assertEqual(text.count(answer.PUSHED_NOTE), 1)
+                self.assertIn(f"\n{replan_answer.NOTE_HEAD}\n", text)
 
 
 class GateAnswerCase(Artifacts):
