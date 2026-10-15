@@ -22,7 +22,7 @@ narrows を書く前に狭めを避ける形を当たり、無い時だけ narro
 いたため。この行は決め手の濾しに掛けない。関所の continue はその問いへの答えで、一言が問いに触れなければ修正役は問いの理由の推しで
 直す。一言で「保留: <key>」と名指した問いは答えに数えない。無人の run（gatepolicy.unattended）では問いの行を項目に載せない——関所を
 開けば無人の殻が stop を返し、問いと関係の無い単位の修正まで飛ぶので、出どころだけを飛ばして報告の冒頭に並べる。ただし判定の役が
-reason に選択肢を名指す推しを書き、出どころ・depends が開いた単位の fork・held の問いは、無人の run では推しを答えとして採り
+reason に選択肢を名指す推しを書き、出どころが今の周の単位に在り、出どころ・depends が開いた単位の fork・held の問いは、無人の run では推しを答えとして採り
 （answered の 3 つ目。run_push）、出どころ・depends を直す義務に戻す（持ち主 2026-10-15「人がいないときは推しの答え。」・issue #593）。
 採れる推しの無い問いと escalate は今どおり外す。関所に載せる問い・出どころの免除・答えでの戻しは、fork も escalate も同じ asks の 1 つの決まりから作る（免除は works の差し替え
 conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は fork だけを外す）。
@@ -768,11 +768,20 @@ def reason_push(q) -> str:
     return got[0] if got else ""
 
 
+_OPTION_END = re.compile(r"[\s。、，,.:：;；（(・／/—]")   # 選択肢・推しの頭の名の切れ目（後ろに帰結や理由が続く）
+
+
 def _names_option(push: str, q) -> bool:
-    """推しの頭（「——」の前）が選択肢のどれかと頭で揃うか（選択肢は帰結まで書く長文なので、どちらかがもう一方の頭であれば名指したと読む）"""
+    """推しの頭（「——」の前）が選択肢のどれかと、短い方で切れ目まで揃うか（選択肢は帰結まで書く長文なので、どちらかがもう一方の
+    頭であれば名指したと読む。ただし長い方の続きが切れ目 _OPTION_END で始まる時だけ——短い選択肢「x」が推し「xy」の頭に当たらない）"""
     head = push.split("——", 1)[0].strip()
     options = [str(o).strip() for o in q.get("options") or [] if str(o).strip()]
-    return bool(head) and any(o.startswith(head) or head.startswith(o) for o in options)
+    return bool(head) and any(_same_name(head, o) for o in options)
+
+
+def _same_name(a: str, b: str) -> bool:
+    short, long_ = sorted((a, b), key=len)
+    return long_.startswith(short) and (len(long_) == len(short) or _OPTION_END.match(long_, len(short)) is not None)
 
 
 def _takes_push(b) -> bool:
@@ -780,14 +789,15 @@ def _takes_push(b) -> bool:
 
 
 def _skips_open(b, q) -> bool:
-    """問いの出どころ・depends のうち今の周の units に在る物が全部開いた単位か（開いていない単位を推しで戻すと計画が行き止まる）"""
+    """問いの出どころが今の周の units に在り、出どころ・depends のうち units に在る物が全部開いた単位か（開いていない単位を推しで
+    戻すと計画が行き止まる。出どころの無い問いは推しで戻す単位が無い）"""
     units = {u.get("key"): u for u in b.record.get("units") or [] if isinstance(u, dict)}
-    return all(_fix_duty(units[k]) for k in _skips(q) if k in units)
+    return isinstance(q.get("origin"), str) and q["origin"] in units and all(_fix_duty(units[k]) for k in _skips(q) if k in units)
 
 
 def run_push(b, q) -> str:
-    """無人の run が答えとして採る推し: 判定が保留にした分かれ道の問い（fork・held）の理由の推しで、選択肢のどれかを名指し、出どころ・
-    depends が開いた単位の物（持ち主 2026-10-15「人がいないときは推しの答え。」。escalate は判定の役が人でないと決められないと名乗った
+    """無人の run が答えとして採る推し: 判定が保留にした分かれ道の問い（fork・held）の理由の推しで、選択肢のどれかを名指し、出どころが
+    今の周の units に在り、出どころ・depends が開いた単位の物（持ち主 2026-10-15「人がいないときは推しの答え。」。escalate は判定の役が人でないと決められないと名乗った
     物なので採らない。機械は推しを作らない。人のいる run と、採らない問いは空——今どおり保留のまま報告の冒頭で名指す）"""
     if not (_takes_push(b) and q.get("kind") == "fork" and q.get("status") == "held"):
         return ""
@@ -1298,8 +1308,8 @@ def gate_items(got) -> list:
 
 def returned_lines(b) -> list:
     """修正役に渡す行: 関所か依頼の answers か無人の run が採った推しで答えた問いと、それで直す義務に戻った単位（1 問 1 行。今の周の
-    units に無い単位は約束しない）。依頼の答えの問いは推しでなく答えの文で直させ、無人の run が採った推しは answer.PUSHED_NOTE で
-    人の答えと読み分けさせる。判定が answer_ties で今の周の単位に結んだ依頼の答えは、その単位の
+    units に無い単位は約束しない）。依頼の答えの問いは推しでなく答えの文で直させ、無人の run が採った推しの行は answer.said の形
+    （直前の行に answer.PUSHED_NOTE）で人の答えと読み分けさせる。判定が answer_ties で今の周の単位に結んだ依頼の答えは、その単位の
     答えとして 1 答え 1 行を足す"""
     out = []
     for q, keep, _ in _answered_skips(b):
@@ -1310,12 +1320,13 @@ def returned_lines(b) -> list:
         if a is not None:
             who, how = "依頼", f"——答え: {answer_note(a)}"
         elif push:
-            who, how = "無人の run が採った推し", f"——答え: {answer.PUSHED_NOTE}推し: {push}"
+            who, how = "無人の run が採った推し", f"——推し: {push}"
         else:
             who, how = "承認ノード", f"——一言に案が無ければ問いの理由の推しで直す（問いの理由: {q.get('reason') or ''}）"
-        out.append(f"{who}で答えた{ASK_HEAD} {q.get('key')} の出どころ・depends は直す義務に戻った"
-                   f"（保留の問いの出どころとして飛ばさない）: {'・'.join(keep)}{how}。"
-                   "判定者の class_query が無い単位は coverage.how と counts を書け（写しの受け付けが求める）")
+        line = (f"{who}で答えた{ASK_HEAD} {q.get('key')} の出どころ・depends は直す義務に戻った"
+                f"（保留の問いの出どころとして飛ばさない）: {'・'.join(keep)}{how}。"
+                "判定者の class_query が無い単位は coverage.how と counts を書け（写しの受け付けが求める）")
+        out.append(answer.said({"note": line, **({answer.PUSHED: [push]} if push else {})}))
     answer_rows = answer_ties(b)
     for a in request_answers(b):
         unit = _tied_unit(b, a, answer_rows) if not answer_binds(b, a, answer_rows=answer_rows) else ""

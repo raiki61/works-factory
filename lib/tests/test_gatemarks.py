@@ -107,8 +107,9 @@ class DutyCase(unittest.TestCase):
         self.assertEqual((self.plan_duty(), self.fix_duty()), (want | {"A", "B"}, want | {"A", "B"}), "fork・escalate の推しは採らない")
         self.assertEqual([q["key"] for q, _, _ in gatemarks.taken_pushes(fixboard.gate_view(self.tmp / "fix"))], ["q-a"])
         line = next(x for x in gatemarks.returned_lines(fixboard.gate_view(self.tmp / "fix")) if "q-a" in x)
-        self.assertTrue(line.startswith(f"無人の run が採った推しで答えた{gatemarks.ASK_HEAD} q-a"), line)
-        self.assertIn(f"{answer.PUSHED_NOTE}推し: x", line)
+        self.assertTrue(line.startswith(f"{answer.PUSHED_NOTE}\n無人の run が採った推しで答えた{gatemarks.ASK_HEAD} q-a"), line)
+        self.assertIn("——推し: x——呼び手が既に x を前提にしている。", line)
+        self.assertEqual(line.count(answer.PUSHED_NOTE), 1)
         self.judge(FORK, ESC)
         self.assertEqual((self.plan_duty(), self.fix_duty()), (want, want), "推しの無い問いは止まる")
 
@@ -123,10 +124,16 @@ class DutyCase(unittest.TestCase):
         push, duty, held = take("割れる。推し: x——理由")
         self.assertEqual((push, duty, held), ("x——理由", {"A"}, []))
         self.assertEqual(take("前の周の推し: y は捨てた。推し: x——理由")[0], "x——理由")
-        self.assertEqual(take("割れる。推し: 例外——理由", options=("例外を投げる。帰結: 呼び手が捕まえる", "0 を返す"))[0], "例外——理由")
-        for reason, origin in (("割れる。推し: なし——人が決める", "A"), ("割れる。推し: x——理由", "C")):
+        long_option = ("例外を投げる。帰結: 呼び手が捕まえる", "0 を返す")
+        self.assertEqual(take("割れる。推し: 例外を投げる——理由", options=long_option)[0], "例外を投げる——理由")
+        self.assertEqual(take("割れる。推し: x。呼び手が x を前提にする")[0], "x。呼び手が x を前提にする")
+        for reason, origin, options in (("割れる。推し: なし——人が決める", "A", ("x", "y")),
+                                        ("割れる。推し: x——理由", "C", ("x", "y")),
+                                        ("割れる。推し: x——理由", "gone", ("x", "y")),
+                                        ("割れる。推し: xyz を足す——理由", "A", ("x", "y")),
+                                        ("割れる。推し: 例外——理由", "A", long_option)):
             with self.subTest(reason=reason, origin=origin):
-                push, duty, held = take(reason, origin)
+                push, duty, held = take(reason, origin, options)
                 self.assertEqual((push, duty), ("", {"A"} - {origin}))
                 self.assertTrue(held, "採らない問いは保留のまま名指す")
 
