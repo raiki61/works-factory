@@ -18,7 +18,7 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
             審査のファイルを今の周の plan-review-items/pass-<k>/ に書き、束ね役の頼み（AGG_HEAD）でそれを Agent で並べて起こさせる。
             下請けは答えを作業ツリーの外の run の置き場（answers_dir。作業ツリーは役が変えてはいけない）の機械が決めたファイルに Write で
             書く。受け付け（tree_merge）がそのファイルを項目ごとに確かめ（check_item。型・覆っていない当たりの全部の答え・自分の項目の単位だけ・
-            前の block の行き先・独立設計が立つ時は穴の引用と対応表 design_map。design_gaps）、faces・shrink・resolved・当たりの答え・
+            前の往復の答えの要る穴の行き先・独立設計が立つ時は穴の引用と対応表 design_map。design_gaps）、faces・shrink・resolved・当たりの答え・
             相乗り・出自の申告（origins）を審査の返答にまとめる（相乗りの審査の答えは穴の引用だけを照らす）。束ね役の返答は項目ごとの判定の
             要約（converge.ITEMS）だけで、答えのファイルと食い違えば拒む。確かめを通らない項目は、出し直しの tree_part がその項目の下請けの
             ファイルにだけ機械の読める誤りの一覧（ERRORS_HEAD）を貼って起こし直させ、通った項目は起こし直さない。
@@ -77,8 +77,8 @@ NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gate
 RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。"
                     f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
 NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
-RESOLVED_REJECT = "前の往復の block の行き先が書かれていない（下の行を全部直して出し直せ）:"
-ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直して出し直せ）:"
+RESOLVED_REJECT = "前の往復の答えの要る穴の行き先が書かれていない（下の行を全部直して出し直せ）:"
+ANSWERS_REJECT = "答えの要る穴への答えに誤りが在る（下の行を全部直して出し直せ）:"
 RECORDED_REJECT = f"kind policy の穴と fences の policy_doc は、{policy.RECORDED_TERM}の行を名指す時だけ（下の行を全部直して出し直せ）:"
 TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
@@ -122,21 +122,21 @@ SUB_HEAD = ("この役は修正案の事前審査の下請け（読むだけ。R
             "この下請けの項目の案・単位・波及の一覧は最後のセクションに在る。ほかのファイルの指示書を読みに行かなくてよい（根拠のコードは読め）。")
 RULES_FROM = "\nリポジトリ: "   # 描いた事前審査の指示書のうち、下請けに貼る審査の決まりの頭（そこから末尾まで）
 RULES_MISSING = "審査の決まりを切り出せなかった。指示書 {main} の『見ること』『返し方』『人の方針』を Read で読め（そこの束ね役の頼みと返す型はこの下請けへの指示でない）"
-SUB_FORMAT = promptsection.Section("## 答え方（全部の下請けで同じ）\n\n項目の下請けは、覆っていない当たりの全部に covered（この項目の範囲で覆っている。"
-                                   "どこで）・no_effect（影響しない。理由）・block（穴。faces に severity block で挙げる）のどれかで答える（why は当たり"
+SUB_FORMAT = promptsection.Section("## 答え方（全部の下請けで同じ）\n\n項目の下請けは、覆っていない当たりの全部に covered（この項目の範囲で覆っている。どこで）・"
+                                   "no_effect（影響しない。理由）・block（穴。faces に severity block で挙げる）のどれかで答える（why は当たり"
                                    "ごとに 10 字以上。『同上』で済ませない）。faces の unit_keys は項目の unit_keys を字のまま写す（no の整数でなく）。"
-                                   "resolved は前の往復の block のうち消えた key（無ければ []）。答えは下の JSON Schema に合う JSON 1 つにして、"
+                                   "resolved は前の往復の答えの要る穴（block と答えの要る suggest）のうち消えた key（無ければ []）。答えは下の JSON Schema に合う JSON 1 つにして、"
                                    "最後のセクションが名指すファイルに Write で書く（そのファイルのほかに書かない。書き直す時も同じファイル）。書いたら最後の"
                                    "メッセージに 1 行だけ返す（答えの中身を写さない）。\n\n```json\n{schema}\n```", source="fn:planblk.brief_head")
 ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句
 DIFF_HEAD = promptsection.Section("## 前の往復からのこの項目の案の差分", source="fn:planblk._diff_part")
-DIFF_ASK = ("前の往復でこの項目を見た審査は、下の前の block のほかに直しへ進めない穴を挙げなかった。今の往復で見るのは (1) 前の block が"
-            "消えたか（消えたなら resolved、残れば同じ key で faces に block）と (2) 下の差分（- が前・+ が今）が作る新しい穴だけ。"
+DIFF_ASK = ("前の往復でこの項目を見た審査は、下の前の block と答えの要る suggest のほかに直しへ進めない穴を挙げなかった。今の往復で見るのは (1) 前の答えの要る穴が"
+            "消えたか（消えたなら resolved、残れば同じ key で faces に同じ重さで）と (2) 下の差分（- が前・+ が今）が作る新しい穴だけ。"
             "差分の外の所を見直して新しい穴を探さない。穴の重さの決まり（block か suggest か）は変えない。")
 # 差分に絞らず全部を審査する、前の往復の行から違う字の割合の境（決まりと字の数え方の正本は _diff_part の docstring）
 DIFF_FULL_SHARE = 0.25
-DIFF_FULL_ASK = ("この項目は前の往復から大きく変わった（下の差分は変わった所の目安）。差分に絞らず、この項目の案の全部を審査せよ。"
-                 "前の block が消えたかも見る（消えたなら resolved、残れば同じ key で faces に block）。穴の重さの決まり（block か "
+DIFF_FULL_ASK = ("この項目は前の往復から大きく変わった（下の差分は変わった所の目安）。差分に絞らず、この項目の案の全部を審査せよ。前の"
+                 "答えの要る穴が消えたかも見る（消えたなら resolved、残れば同じ key で faces に同じ重さで）。穴の重さの決まり（block か "
                  "suggest か）は変えない。")
 CARRIED_HEAD = promptsection.Section("## 前の往復で答えた当たり（機械が答えを引き継ぐ。hits に入れなくてよい。差分で答えが変わる物だけ入れ直せ）", source="fn:planblk._carried_part")
 # 先行例の出典の確かめ（見ること 8）は run の中で 1 度だけ: 開く下請けを出典ごとに 1 つに決め、受け付けがその答えの確かめを
@@ -408,21 +408,20 @@ def _item_rows(b) -> list:
             for r, f in zip(rows + [{}] * (len(fields) - len(rows)), fields + [{}] * (len(rows) - len(fields)))]
 
 
-HISTORY_HEAD = promptsection.Section(f"## この項目の前の往復の block（{converge.REREVIEW_ASK}）", source="fn:planblk._item_history")
+HISTORY_HEAD = promptsection.Section(f"## この項目の前の往復の block と答えの要る suggest（{converge.REREVIEW_ASK}）", source="fn:planblk._item_history")
 
 
 def _item_history(b, unit_keys: list) -> str:
-    """前の往復でこの項目に挙がった block と修正案の役の答えと、出自の頼み ORIGIN_ASK（下請けのファイルに貼る。1 往復目は空）"""
+    """前の往復でこの項目に挙がった答えの要る穴（converge.owed_faces。block と開いた項目の suggest）と修正案の役の答えと、
+    出自の頼み ORIGIN_ASK（下請けのファイルに貼る。1 往復目は空）"""
     doc = converge.read(b)
     mine = {str(k) for k in unit_keys}
     lines = []
     replies = [p.get("answers", []) for p in doc["passes"][1:]] + [doc["open"].get("answers", [])]
     for p, answers in zip(doc["passes"], replies):
-        units = p.get("face_units") or {}
-        keys = [k for k in p.get("blocks", []) if set(units.get(k) or []) & mine or not units.get(k)]
-        for f in p.get("faces", []):
-            if f.get("key") in keys:
-                lines.append(f"- {p['pass']} 往復目の block {f['key']}: {f.get('why')}（{f.get('where')}）")
+        owed = [f for f in converge.owed_faces(doc, p) if set(f["unit_keys"]) & mine or not f["unit_keys"]]
+        lines += [f"- {p['pass']} 往復目の {f['severity']} {f['key']}: {f.get('why')}（{f.get('where')}）" for f in owed]
+        keys = {f["key"] for f in owed}
         lines += [f"  - 修正案の役の答え {a.get('key')}: {a.get('handled')}（{a.get('how')}）" for a in answers
                   if isinstance(a, dict) and a.get("key") in keys]
     if not doc["passes"]:
@@ -599,8 +598,8 @@ def design_gaps(b, faces, items: list, design_map=None) -> list[str]:
 
 def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     """型の合った項目 n の答えの中身の誤り: 覆っていない当たり（前の往復の答えを引き継ぐ物 carried_hits は除く）の全部に
-    ちょうど 1 つの答え・block と答えた当たりには block の face・face は項目 n の単位だけを名指す・前の往復の block
-    （converge.item_blocks）は resolved か同じ key の face"""
+    ちょうど 1 つの答え・block と答えた当たりには block の face・face は項目 n の単位だけを名指す・前の往復の答えの要る穴
+    （converge.item_blocks。block と開いた項目の suggest）は resolved か同じ key の face"""
     errs = [] if got.get("item") == n else [f"$.item: {n} でない（{got.get('item')!r}）"]
     want = [h["id"] for h in ripple.uncovered(rip, n)]
     carried = carried_hits(b, n, rip)
@@ -621,9 +620,9 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     prev = converge.item_blocks(b, n)
     keys = {f["key"] for f in got["faces"]}
     block_keys = {f["key"] for f in blocks}
-    errs += [f"$.resolved: 前の block {k} を resolved に入れるか、同じ key で faces に挙げ直せ"
+    errs += [f"$.resolved: 前の穴 {k} を resolved に入れるか、同じ key で faces に挙げ直せ"
              for k in prev if k not in got["resolved"] and k not in keys]
-    errs += [f"$.resolved: {k} は項目 {n} の前の往復の block に無い" for k in got["resolved"] if k not in prev]
+    errs += [f"$.resolved: {k} は項目 {n} の前の往復の答えの要る穴に無い" for k in got["resolved"] if k not in prev]
     errs += [f"$.resolved: {k} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つ）"
              for k in got["resolved"] if k in block_keys]
     return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [])]
@@ -716,7 +715,7 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
     if gaps:
         return {**base, "gaps": gaps}
     now = {f["key"] for f in faces}
-    faces += [f for f in converge.carried_notes(b) if f.get("key") not in now]   # suggest は後の往復の返答に残す（修正の段へ）
+    faces += [f for f in converge.carried_notes(b) if f.get("key") not in now]   # suggest は resolved に入っても後の往復の返答に残す（修正の段へ。答えと照らしは converge.owed_faces が除く）
     review = {**bare, "faces": faces, "shrink": [x for n in opened for x in answers[n]["shrink"]]}
     if not faces and not review.get("faces_none"):
         review["faces_none"] = " / ".join(f"項目 {n}: {answers[n]['checked']}" for n in opened)
@@ -825,7 +824,7 @@ OVERLAPS_HEAD = promptsection.Section("### 項目どうしの重なり（機械�
 def tree_part(b, main_prompt: pathlib.Path) -> str:
     """束ね役の頼みの節。開いた項目ごとの下請けのファイルと（項目が 2 つ以上なら）相乗りの審査のファイルを今の往復の
     ITEMS_DIR に書き、その置き場を並べる（下請けの答えの置き場 answers_dir も作る）。下請けのファイルは共通の頭（brief_head）と
-    その項目の節（案・単位・波及の一覧・前の往復の block）を字のまま持つ。出し直しでは、答えのファイルが確かめを通った項目を
+    その項目の節（案・単位・波及の一覧・前の往復の block と答えの要る suggest）を字のまま持つ。出し直しでは、答えのファイルが確かめを通った項目を
     済んだ下請けに並べて起こし直させず、通らなかった項目の下請けのファイルに機械の読める誤りの一覧を貼る。項目の控えが無ければ空"""
     rows = _item_rows(b)
     if not rows:
@@ -889,12 +888,12 @@ _ROLES = (*ROLES, REVISE_ROLE, DESIGN_ROLE)
 RECEIVES = [
     *(promptsection.Receive(role, head) for role in _WRITERS for head in (
         PLAN_SLOTS_HEAD, PRESCRIPTION_HEAD, PRESCRIPTION_UNIT_HEAD, VERIFY_HEAD, ripple.UNITS_HEAD, ripple.UNIT_HEAD, structmark.PLAN_HEAD, structmark.PLAN_CLEAN_HEAD,
-        carry.PRIOR_HEAD, carry.REDESIGN_HEAD, converge.FACE_HEAD)),
+        carry.PRIOR_HEAD, carry.REDESIGN_HEAD, converge.FACE_HEAD, converge.OWED_HEAD)),
     *(promptsection.Receive("plan", head) for head in (worldmark.HEAD,)),
     *(promptsection.Receive("plan-review", head) for head in (
         DESIGN_HEAD, planmarks.REVIEW_HEAD, planmarks.FIELDS_ITEM_HEAD, planmarks.DEVIATION_HEAD, AGG_HEAD, ITEM_HEAD, SYNERGY_HEAD,
         ITEM_PLAN_HEAD, ITEM_UNITS_HEAD, ALL_ITEMS_HEAD, OVERLAPS_HEAD, BRIEF_TITLE, SUB_FORMAT, DIFF_HEAD, CARRIED_HEAD, PRECEDENT_HEAD,
-        ERRORS_HEAD, HISTORY_HEAD, ripple.HEAD, ripple.ITEM_HEAD, ripple.ITEM_KEYS_HEAD, converge.PASS_HEAD, converge.FACE_HEAD)),
+        ERRORS_HEAD, HISTORY_HEAD, ripple.HEAD, ripple.ITEM_HEAD, ripple.ITEM_KEYS_HEAD, converge.PASS_HEAD, converge.OWED_HEAD, converge.FACE_HEAD)),
     *(promptsection.Receive(role, head) for role in ("plan", "plan-review")
       for head in (libdocs.TITLE, libdocs.DOC_TITLE, libdocs.FRAGMENT_HEAD, libdocs.LIB_HEAD)),
     *(promptsection.Receive(DESIGN_ROLE, head) for head in (

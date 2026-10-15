@@ -866,7 +866,7 @@ def review_resubmit(folder, repo) -> pathlib.Path:
 def review_material(folder, repo, command_text: str, review_md, *, shared=None) -> pathlib.Path:
     """事前審査の材料のファイル pass-<k>/prompt.md を書き、役を起こす前の作業ツリーの姿を pass-<k>/tree.json に置く。材料は
     役の頭（planblk.head。関所の決め手・既にある物を量ったか・人に回す物の挙げ方・ライブラリの文書・独立設計の節・修正案の
-    works の欄・2 往復目からは前の往復の block と答え・木なら下請けのファイルと束ね役の頼み）と、写しの指示書の差し込み（修正案・
+    works の欄・2 往復目からは前の往復の答えの要る穴（block と開いた項目の suggest）と答え・木なら下請けのファイルと束ね役の頼み）と、写しの指示書の差し込み（修正案・
     単位・判定者の見立て・先行例・リポジトリと読む版と BASE）と、人の方針（在れば）と、記録された方針のセクションと、考えの住処の
     地図（今の works の包みが旗 concept-map の役の system prompt の末尾に足した物）。形 replan では独立設計の節と、裁かれた項目ごとの前の形・申し出と
     裁定・直した形（元 works/.shared/core/replan.py:423 の prep）を見させる。凍結の欄の控えが印と食い違えば（planblk.design_section の
@@ -951,7 +951,7 @@ def take_review(folder, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None) -
     出し直しの役の返答（拒まれた欄だけ）で、どちらも JSON に戻した値（起きなかった役は None）。出し直しは前の答えの控えと
     rolekit.merge_fields で合わせ（rolekit.resubmitted）、合わせた答えの全体を照らす。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 木なら下請けの
     答えのまとめ（planblk.tree_merge）→ 記録された方針（policy.face_gaps）→ 木でなければ独立設計の引用と design_map
-    （planblk.design_gaps）→ 前の往復の block の行き先
+    （planblk.design_gaps）→ 前の往復の答えの要る穴（block と開いた項目の suggest）の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
     往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める）、
     返答を pass-<k>/review.json に書く。拒みは pass-<k>/ の控えに積み、rolekit.GIVE_UP_AFTER 回目で
