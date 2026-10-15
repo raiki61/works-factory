@@ -275,13 +275,15 @@ class FenceCase(unittest.TestCase):
         self.assertEqual([f["known"] for f in arms], [{}, {}, {}, {}])
         injected = [
             (0, "out = rolekit.with_done(d, name, got)"), (0, "def counted(d, name, got):"), (0, "def accept_round(board, name, raw, take):"),
+            (0, "def current_round(board, name):"),
+            (0, 'return {"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]}'),
             (1, "if iteration >= GIVE_UP_AFTER:"), (1, "if len(rows) < rolekit.GIVE_UP_AFTER - 1:"), (1, "return n >= GIVE_UP_AFTER"),
             (2, 'REJECTS_FILE = "report-rejects.json"'), (2, 'REJECT_NAME = "reject-{name}-{k}.md"'),
             (3, "GIVE_UP_AFTER = 3"),
             (3, 'REJECT_HEAD = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:x.render")'),
         ]
         quiet = [
-            (0, "return rolekit.accept_round(d, name, raw, take)"), (1, "GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER"),
+            (0, "return rolekit.accept_round(d, name, raw, take)"), (0, "return rolekit.round_outcome(out)"), (1, "GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER"),
             (1, "return rolekit.GIVE_UP_AFTER"), (1, "for _ in range(rolekit.GIVE_UP_AFTER):"), (2, 'REJECT = "tdd-step-reject-{}.md"'),
             (3, "GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER"), (3, "REJECT_HEAD = rolekit.REJECT_HEADING"),
         ]

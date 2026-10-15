@@ -39,15 +39,10 @@ def main() -> None:
         judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
         out = planfile.take_plan(round_dir, plan_dir, judgment=judgment, reply=reply, repo=repo, tables=tables,
                                  base_rev=base_rev, keys=keys)
-    seen = {}
-
-    def take(_):
-        seen["attempt"] = rolekit.attempt(round_dir, planfile.ROLE)   # 控えの読みは口の中で（読めなければ口が done 真の拒否にする）
-        return out
-    got = rolekit.accept_round(round_dir, planfile.ROLE, None, take)
-    tries = max(seen.get("attempt", 0) - (1 if out.get("halt") else 0), 0)   # 受けた・拒んだ回は今の回、halt は前の拒否の数
-    boundary.returns({"ok": got["ok"], "done": got["done"], "give_up": got["done"] and not got["ok"], "reason": got["reason"],
-                      "attempt": tries})
+    n, stopped = rolekit.current_round(round_dir, planfile.ROLE)
+    got = stopped or rolekit.accept_round(round_dir, planfile.ROLE, None, lambda _: out)
+    tries = max(n - (1 if out.get("halt") else 0), 0)   # 受けた・拒んだ回は今の回、halt は前の拒否の数
+    boundary.returns({**rolekit.round_outcome(got), "attempt": tries})
 
 
 if __name__ == "__main__":

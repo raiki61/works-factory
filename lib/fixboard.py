@@ -1516,7 +1516,7 @@ def accept_out(place, name: str, got: dict) -> dict:
     控え rejects-<name>.json に積み、rolekit.GIVE_UP_AFTER 回目の拒否で done（諦め。ok は偽のまま）。got の count が false の回は積まず、
     give_up が真なら 1 回目でも done。reason_file はこの輪の拒否の全部のファイル（rolekit.reject_file。控えが扱えない時は空）。
     拒否の控え rejects-<name>.json が読めない・書けない時は、落ちずに done 真の拒否（理由『拒否の控えが扱えない』）。
-    rejects-<name>.md が書けない時は reject_file_or_blank の OSError がそのまま上がる（空の reason_file で返すと、次の回の役が前の拒否の名指しを失う）。
+    rejects-<name>.md が書けない時は reject_file_or_blank の OSError がそのまま上がる。
     元 works/.shared/core/rolekit.py の main_accept の 3 回目の拒否で done・give_up の振る舞い（今の住処は rolekit.accept_round）"""
     if got.get("ok") is True:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
@@ -1526,12 +1526,9 @@ def accept_out(place, name: str, got: dict) -> dict:
 
 
 def round_number(place, name: str) -> tuple:
-    """受け付けの輪 name の今の回（rolekit.attempt）と、控えが読めない時の返り: (回, None)。控えが読めなければ (0, accept_out の
-    done 真の拒否)。口（rolekit.accept_round）の前に回を読む受け付け（fix-accept・fix-ruled-accept）が、読めない控えで落ちずに抜けるため"""
-    try:
-        return rolekit.attempt(place, name), None
-    except rolekit.BoardGap as e:
-        return 0, accept_out(place, name, {"ok": False, "reason": str(e)})
+    """rolekit.current_round を accept_out の返りの形で: (回, None) か、控えが読めなければ (0, reason_file の空な done 真の拒否)"""
+    n, stopped = rolekit.current_round(place, name)
+    return n, stopped and {**stopped, "reason_file": ""}
 
 
 # ---------------------------------------------------------------- 組を親の木へ当てた後の名指しのテストの照らし（fix の join の script が呼ぶ）
@@ -2734,7 +2731,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     if fresh and consult.queue(place, pass_, _queue_rows(fresh)) or waiting and not fresh:
         reason = QUEUED + " / ".join(a["line"] for a in asks)
         return {"ok": False, "reason": reason, "rejects": [{"check": "scope", "text": reason}], "reply": whole,
-                "conflicted": False, "queued": True, "count": False}   # units・parked は呼び手が足す。count: false は口が拒否に数えない
+                "conflicted": False, "queued": True, "count": False}   # units・parked は呼び手が足す
     back += fresh   # 枠が足りず聞けない物
     paths = sorted({p for a in back for p in a["paths"]})
     emptied = [c.get("unit_key") for c in whole.get("changes") or [] if isinstance(c, dict)

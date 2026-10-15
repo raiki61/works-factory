@@ -6,7 +6,7 @@
 - RejectWordsCase: 役に返る拒みの文に古い「done し直す」を残さない
 - RejectLedgerCase: 拒否の控え rejects-<名>.json の今の回（attempt）と、拒否の全部のファイル（reject_file）
 - AcceptRoundCase: 受け付けの回の口 accept_round（読む・take・積む・上限で諦める・count: false と kind・控えの誤りは done 真の拒否）、
-  最後の回か（is_last_attempt）、前の版の控えの読み替え（_legacy_rows）
+  落ちずに今の回を読む current_round、輪の until が読む 4 つの欄 round_outcome、最後の回か（is_last_attempt）、前の版の控えの読み替え（_legacy_rows）
 実物の盤面での描画（本線の p2.fix_plan・p2.plan_review）は test_blk_plan（HEAVY）、rejudge.render の本文の一致は test_rejudge が見る。
 """
 import json
@@ -121,7 +121,7 @@ class AcceptRoundCase(Base):
     def test_round_reads_takes_counts_and_gives_up_once(self):
         gave_up = []
         call = lambda raw: rolekit.accept_round(self.tmp, "r", raw, self.take, on_give_up=lambda: gave_up.append(1))
-        first = call("{")   # 読めない返答は拒否
+        first = call("{")
         self.assertEqual((first["ok"], first["done"]), (False, False))
         self.assertIn("JSON として読めない", first["reason"])
         second = call(json.dumps({"why": "2 つ目"}))
@@ -151,10 +151,10 @@ class AcceptRoundCase(Base):
         gave_up = []
         once = rolekit.accept_round(self.tmp, "y", json.dumps({}), lambda r: {"ok": False, "give_up": True, "reason": "直らない"},
                                     on_give_up=lambda: gave_up.append(1))
-        self.assertEqual((once["done"], gave_up), (True, [1]), "give_up 真は 1 回目で done")
+        self.assertEqual((once["done"], gave_up), (True, [1]))
         self.assertEqual(rolekit.given_up_reason(self.tmp, "y"), "y の返答を受け付けが出し直させずに諦めた（拒否: 直らない）")
         got = rolekit.accept_round(self.tmp, "z", None, lambda r: {"ok": False, "reason": f"take({r})"})
-        self.assertEqual(got["reason"], "take(None)", "raw が None なら読まずに take(None)")
+        self.assertEqual(got["reason"], "take(None)")
 
     def test_uncounted_round_keeps_the_ledger_and_kind_is_kept(self):
         rolekit.accept_round(self.tmp, "k", None, lambda _: {"ok": False, "reason": "形", "kind": "format"})
@@ -162,7 +162,6 @@ class AcceptRoundCase(Base):
         self.assertEqual([r.get("kind") for r in self.ledger("k")], ["format", None], "kind は在る行にだけ残す")
         self.assertEqual([(r["reason"], r.get("kind")) for r in rolekit.reject_rows(self.tmp, "k")], [("形", "format"), ("種類なし", None)])
         self.assertNotIn("kind", rolekit.reject_rows(self.tmp, "k")[1])
-        # count: false は積まない。done は give_up が真の時だけ真
         queued = rolekit.accept_round(self.tmp, "k", None, lambda _: {"ok": False, "reason": "相談に積んだ", "count": False})
         self.assertEqual((queued["ok"], queued["done"]), (False, False))
         self.assertEqual(len(self.ledger("k")), 2, "積んだ回は控えに数えない")
@@ -184,10 +183,25 @@ class AcceptRoundCase(Base):
         self.assertEqual(rolekit.reject_file_or_blank(self.tmp, "bad"), "", "読み直して落ちない")
         with self.assertRaises(rolekit.BoardGap):
             rolekit.reject_file(self.tmp, "bad")
-        # take の中で控えを読んで落ちても、口が done 真の拒否にする（呼び手が口の前に控えを読まなくてよい）
+        # take の中で控えを読んで落ちても、口が done 真の拒否にする
         got = rolekit.accept_round(self.tmp, "bad", None, lambda _: {"ok": True, "n": rolekit.attempt(self.tmp, "bad")})
         self.assertEqual((got["ok"], got["done"]), (False, True))
         self.assertIn("拒否の控えが扱えない", got["reason"])
+
+    def test_current_round_reads_the_round_or_returns_the_ledger_reject(self):
+        rolekit.accept_round(self.tmp, "o", None, lambda _: {"ok": False, "reason": "欠け"})
+        self.assertEqual(rolekit.current_round(self.tmp, "o"), (2, None))
+        (self.tmp / "rejects-bad.json").mkdir()
+        n, stopped = rolekit.current_round(self.tmp, "bad")
+        self.assertEqual((n, stopped["ok"], stopped["done"]), (0, False, True))
+        self.assertEqual(stopped["reason"], rolekit.accept_round(self.tmp, "bad", None, lambda _: {"ok": False, "reason": "x"})["reason"],
+                         "口の控えの誤りと同じ拒否")
+        self.assertEqual(rolekit.round_outcome(stopped), {**stopped, "give_up": True})
+
+    def test_round_outcome_gives_up_only_on_a_done_reject(self):
+        for ok, done in ((True, True), (False, False), (False, True)):
+            got = rolekit.round_outcome({"ok": ok, "done": done, "reason": "r", "kind": "format"})
+            self.assertEqual(got, {"ok": ok, "done": done, "give_up": done and not ok, "reason": "r"})
 
     def test_failing_on_give_up_is_not_called_a_ledger_error(self):
         """諦めた後の処理が落ちても、控えは積めている。理由を『拒否の控えが扱えない』にせず、別の理由の done 真の拒否で返す"""

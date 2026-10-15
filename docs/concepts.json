@@ -587,8 +587,8 @@
    "status": "住処あり",
    "fences": [
     {
-     "what": "拒否の控えを積む口 rolekit.with_done の直の呼びと、受け付けの回の口（accept_round・counted）の定義",
-     "pattern": "rolekit\\.with_done\\(|^\\s*def (accept_round|counted)\\(",
+     "what": "拒否の控えを積む口 rolekit.with_done の直の呼びと、受け付けの回の口（accept_round・current_round・round_outcome・counted）の定義と、round_outcome の give_up の欄の写し",
+     "pattern": "rolekit\\.with_done\\(|^\\s*def (accept_round|current_round|round_outcome|counted)\\(|[\"']give_up[\"']\\s*:\\s*\\w+\\[[\"']done[\"']\\]\\s+and\\s+not\\b",
      "allowed": [
       "lib/rolekit.py"
      ],

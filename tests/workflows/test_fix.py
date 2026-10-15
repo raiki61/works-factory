@@ -3653,7 +3653,7 @@ class FixLoopScriptsCase(FixLoopPlace):
         group = self._fx_group([_FX_MEAN, _FX_BOUND])
         reasons = []
         for k in (1, 2):
-            out = self._fx_accept("fix_accept", reply, 1, group=group)   # 指示書の番号は 1 のまま
+            out = self._fx_accept("fix_accept", reply, 1, group=group)
             self.assertEqual((out["ok"], out["done"]), (False, False), out)
             reasons.append(out["reason"])
             self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-accept.md"))
@@ -3661,7 +3661,7 @@ class FixLoopScriptsCase(FixLoopPlace):
             text = pathlib.Path(out["reason_file"]).read_text(encoding="utf-8")
             self.assertEqual(text, rolekit.rejects_text(reasons) + "\n", "それまでの拒否を古い順に全部持つ")
         out = self._fx_accept("fix_accept", reply, 1, group=group)
-        self.assertEqual((out["ok"], out["done"]), (True, True), out)   # 3 回目は控えの数で最後の回
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
         units = json.loads((self.place / "fix-units.json").read_text(encoding="utf-8"))
         self.assertEqual({k: v["status"] for k, v in units.items()}, {_FX_MEAN: "fixed", _FX_BOUND: "given_up"})
         self.assertEqual(list(self.place.glob("reject-fix-accept-*.md")), [])
@@ -3678,7 +3678,7 @@ class FixLoopScriptsCase(FixLoopPlace):
             self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-ruled-accept.md"))
             self.assertEqual(rolekit.rejected(self.place, "fix-ruled-accept"), reasons)
         out = self._fx_accept("fix_ruled_accept", {"changes": []}, 1)
-        self.assertTrue(out["done"], out)   # 3 回目は控えの数で最後の回
+        self.assertTrue(out["done"], out)
         self.assertEqual(list(self.place.glob("reject-fix-ruled-accept-*.md")), [])
         self._fx_unusable_ledgers()
 

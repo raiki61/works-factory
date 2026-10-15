@@ -197,8 +197,7 @@ def r4_accept(eyes_dir, raw, passed: dict) -> dict:
             raise Reject(R4_REJECT + "\n" + _lines(off))
         return {"ok": True}
 
-    out = rolekit.accept_round(eyes_dir, R4_NODE, raw, lambda _: accept.guard(check))
-    return {"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"], "reply": reply}
+    return {**rolekit.round_outcome(rolekit.accept_round(eyes_dir, R4_NODE, raw, lambda _: accept.guard(check))), "reply": reply}
 
 
 def r4_rejects(eyes_dir) -> str:

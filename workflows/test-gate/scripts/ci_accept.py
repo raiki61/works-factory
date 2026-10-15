@@ -57,7 +57,7 @@ def main() -> int:
         (gate / "ci-material.json").unlink(missing_ok=True)
     if out["done"]:
         declared_checks.drop_copy(snap.get("top"))
-    boundary.returns({"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]})
+    boundary.returns(rolekit.round_outcome(out))
     return 0
 
 

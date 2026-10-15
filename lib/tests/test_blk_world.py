@@ -90,7 +90,6 @@ class Base(unittest.TestCase):
                                **accepted(worldblk.intake, cache_root="", env={}, now=T))
 
     def classes(self, reply):
-        """言い直す役の返答を受け付けの回の口（rolekit.accept_round。数えるのはここ 1 か所）に通す。返り {ok, reason, done}"""
         worldblk.classes_prep(self.out)
         return rolekit.accept_round(self.out, worldblk.CLASSES_ROLE, json.dumps(reply, ensure_ascii=False),
                                     lambda r: worldblk.classes_accept(self.out, r))

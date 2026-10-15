@@ -226,7 +226,7 @@ def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
         return {"ok": True, "done": True, "reason": "", "rulings_file": str(path), "counts": conflict.counts(b)}
     handed = {}
 
-    def hand_over():   # 諦めた回だけ: 裁かれていない申し出を人に回す（控えが扱えない時は呼ばれない）
+    def hand_over():   # 諦めた回だけ: 裁かれていない申し出を人に回す
         path = conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo},
                                       by=BY_GIVE_UP)
         handed.update(rulings_file=str(path), counts=conflict.counts(b))

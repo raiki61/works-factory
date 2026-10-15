@@ -22,10 +22,11 @@
 - gave_up_text:   役の返答を諦めた理由の 1 行の文（回数で諦めた時と、出し直させずに諦めた時）
 - given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く
 - attempt:        盤面の節でない受け付けの輪の今の回（控えの拒否の数 + 1）
+- current_round:  輪の今の回を、控えの誤りで落ちずに読む（読めなければ accept_round と同じ done 真の拒否）。take の前に回が要る受け付けが引く
+- round_outcome:  accept_round の返りの、輪の until が読む 4 つの欄 {ok, done, give_up, reason}
 - _legacy_rows:   前の版の控え（reject-<名>-<k>.md・報告の <名>-rejects.json）の読み替え（resume）。rejects-<名>.json が無い時だけ読み、
-                  次に積む時に rejects-<名>.json に合わせて書く。消す期限: 2027-01-15 以降、この変更より前に始めた run が resume
-                  されなくなったら、last_reject の reject-*.md・reject-*.txt の枝と一緒に消す
-- last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む。前の版の run の reject-*.md の枝は期限で消す）
+                  次に積む時に rejects-<名>.json に合わせて書く。消す期限はこの関数の docstring
+- last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
 - parse_reply:    役の返答（$<役>.output の JSON の文字列）を dict に
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
                   lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
@@ -278,13 +279,32 @@ def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None) -
             out = {**got, **with_done(board, name, {"ok": got.get("ok") is True, "reason": str(got.get("reason") or ""), **kind},
                                       give_up=give_up)}
     except Exception as e:  # noqa: BLE001
-        return {**got, "ok": False, "done": True, "reason": f"拒否の控えが扱えない（{type(e).__name__}: {e}）"}
+        return {**got, **_unusable(e)}
     if out["done"] and out.get("ok") is not True and on_give_up:
         try:
             on_give_up()
         except Exception as e:  # noqa: BLE001
             return {**out, "ok": False, "done": True, "reason": f"諦めた後の処理が落ちた（控えは積めた。{type(e).__name__}: {e}）"}
     return out
+
+
+def _unusable(e: Exception) -> dict:
+    return {"ok": False, "done": True, "reason": f"拒否の控えが扱えない（{type(e).__name__}: {e}）"}
+
+
+def current_round(board, name: str) -> tuple:
+    """輪の今の回を、控えの誤りで落ちずに読む: (attempt, None)。控え rejects-<name>.json が読めなければ (0, accept_round と同じ
+    done 真の拒否 {ok, done, reason})。take の前に回が要る受け付けが引き、拒否を返して照らさずに抜ける"""
+    try:
+        return attempt(board, name), None
+    except BoardGap as e:
+        return 0, _unusable(e)
+
+
+def round_outcome(out: dict) -> dict:
+    """accept_round（か current_round の拒否）の返り out の、輪の until が読む 4 つの欄 {ok, done, give_up, reason}。give_up は
+    諦めた（done 真・ok 偽）時に真"""
+    return {"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]}
 
 
 def _reject_rows(board: pathlib.Path, name: str) -> list:
@@ -322,8 +342,7 @@ def given_up_reason(board: pathlib.Path, name: str) -> str:
 def last_reject(folder) -> str:
     """置き場 folder（の下）の受け付けの最後の拒否の本文（元 report._accept_last_files の reason_file の本文）: 拒否の控え
     rejects-<名>.json の最後の行の文と、前の版の run の拒否の訳のファイル reject-*.md・reject-*.txt のうち一番新しい物。無い・読めなければ空。
-    reject-*.md・reject-*.txt の枝は前の版の run の置き場で届く。消す期限は _legacy_rows と同じ（2027-01-15 以降、この変更より前に
-    始めた run が resume されなくなったら一緒に消す）"""
+    reject-*.md・reject-*.txt の枝は前の版の run の置き場で届き、_legacy_rows と一緒に消す"""
     rows = []
     for p in pathlib.Path(folder).rglob("reject*") if pathlib.Path(folder).is_dir() else ():
         try:

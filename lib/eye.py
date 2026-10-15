@@ -126,7 +126,7 @@ def view(doc: dict) -> dict:
     return out
 
 
-REJECT_HEAD = rolekit.REJECT_HEADING   # 見出しの宣言は rolekit の 1 か所。この render が受ける（下の RECEIVES の when）
+REJECT_HEAD = rolekit.REJECT_HEADING
 ASK_HEAD = promptsection.Section("## 問い", source="fn:eye.render")
 SHAPES_HEAD = promptsection.Section("## 見る形（番号で答える）", source="fn:eye.render")
 REPLY_HEAD = promptsection.Section("## 返し方", source="fn:eye.render")
@@ -239,25 +239,22 @@ def problems(doc: dict, reply) -> list:
 
 def accept(structure_file, design_file, reply) -> dict:
     """構造の目の返答 reply（読めなければ None）の受け付け。拒否は rolekit.accept_round が控えに積み、3 回目で done・give_up。控えが
-    読めない・書けなければ、落ちずに done 真・give_up 真の拒否（理由『拒否の控えが扱えない』）。回の番号 attempt は take の中で控えから
-    読む（読めなければ 0）。返り {ok, done, give_up, reason, attempt}"""
+    読めない・書けなければ、落ちずに done 真・give_up 真の拒否（理由『拒否の控えが扱えない』）。回の番号 attempt は rolekit.current_round で
+    読む（控えが読めなければ 0 で、返答を照らさずにその拒否）。返り {ok, done, give_up, reason, attempt}"""
     out_dir = pathlib.Path(structure_file).parent
     st = state(out_dir)
     started = st.get("started_at") or time.time()
     structure = _load(structure_file)
-    seen = {}
+    attempt, stopped = rolekit.current_round(out_dir, NAME)
 
     def take(_):
-        seen["attempt"] = rolekit.attempt(out_dir, NAME)
         bad = problems(structure, reply)
         return {"ok": False, "reason": " / ".join(bad)} if bad else {"ok": True, "reason": ""}
-    got = rolekit.accept_round(out_dir, NAME, None, take)
+    got = rolekit.round_outcome(stopped or rolekit.accept_round(out_dir, NAME, None, take))
     wall = round(time.time() - started, 3)
-    attempt = seen.get("attempt", 0)
     if not got["ok"]:
-        give_up = bool(got["done"])
-        _put(out_dir, {"started_at": started, "status": "gave_up" if give_up else "pending", WALL: wall})
-        return {"ok": False, "done": give_up, "give_up": give_up, "reason": got["reason"], "attempt": attempt}
+        _put(out_dir, {"started_at": started, "status": "gave_up" if got["give_up"] else "pending", WALL: wall})
+        return {**got, "attempt": attempt}
     rows = [{**r, "route": r.get("route", ROUTE),
              "route_reason": r["undecided_because"].strip() if r.get("route") == ROUTE_UP else ROUTE_REASON}
             for r in reply["rows"]]

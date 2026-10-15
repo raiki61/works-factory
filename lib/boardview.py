@@ -802,8 +802,7 @@ def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
         ledger["claims"] = design.claims_given(design.claims_unpassed(reply), ledger.get("given") or [])
         _write_json(d / PREMISES_FILE, ledger)
         return {"ok": True, "reason": ""}
-    out = rolekit.accept_round(d, design.NODE, raw, lambda reply: accept.guard(lambda: run(reply)))
-    return {"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]}
+    return rolekit.round_outcome(rolekit.accept_round(d, design.NODE, raw, lambda reply: accept.guard(lambda: run(reply))))
 
 
 # ---------------------------------------------------------------- 事前審査
@@ -950,8 +949,8 @@ def take_review(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
     p.mkdir(parents=True, exist_ok=True)
-    out = rolekit.accept_round(p, REVIEW_NODE, raw, lambda reply: accept.guard(lambda: _take(d, p, inputs, reply, repo, keys)))
-    got = {"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]}
+    got = rolekit.round_outcome(rolekit.accept_round(p, REVIEW_NODE, raw,
+                                                     lambda reply: accept.guard(lambda: _take(d, p, inputs, reply, repo, keys))))
     if got["give_up"]:
         _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": GIVEN_UP_FACES + got["reason"]})
     return got
