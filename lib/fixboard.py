@@ -139,8 +139,8 @@ def plan_view(place, plan=None, judgment=None, round_: int = 1):
 def owed_units_but_asked(place, owed, *, withheld=(), returned=()) -> set:
     """直す義務の単位: owed（開いた単位から、人に諮っている fork の出どころ・depends を除いた物。元は盤面の写しの規則の
     _owed_units）から、関所に載せる問いのうち答えていない物の出どころ・depends（withheld。元は gatemarks.withheld）を除き、
-    修正前の関所で人が答えた問いの出どころ・depends（returned。元は gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位
-    （conflict.held_by_rulings。ask_human・fix_plan_item）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
+    修正前の関所か依頼の answers で答えた問いと、無人の run が判定の推しを採った問いの出どころ・depends（returned。元は
+    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（conflict.held_by_rulings。ask_human・fix_plan_item）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
     元 works/.shared/core/conflict.py:676（盤面の b.state["graph"] の規則と b.record の問いを読んだ）"""
     import conflict
     got = (set(owed) - set(withheld)) | set(returned)
