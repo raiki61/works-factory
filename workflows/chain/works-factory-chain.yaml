@@ -6,7 +6,8 @@ description: |
   次の依頼（round_facts）・止めの決め（decide）の script だけ。鎖は名指して起こした時だけで、メイングラフを直に起こせば今の 1 周の run のまま。
   鎖の最後のノード final-diff が、止まった周を採らずに元の基から採る周までの差分を封じ、周ごとの表 chain.md を親の置き場に書く。
   出力はノード result（最後の決めの act・止めの語 word・周ごとの行 rounds と、止めの語が closed の時に真の closed と、bin/apply が
-  読む最後の差分 apply・sealed と chain.md のポインタ report）。bin/apply <親の run> が最後の差分を当てる。
+  読む最後の差分 apply・sealed・R2 の語 r2_status・承認し直すかの問いの数 spec_questions と chain.md のポインタ report）。
+  bin/apply <親の run> が最後の差分を当てる。
 
 inputs:
   rounds:

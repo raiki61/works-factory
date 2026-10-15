@@ -29,6 +29,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
 LINE = ROOT / "workflows" / "line" / "works-factory-line.yaml"
 CHAIN = ROOT / "workflows" / "chain" / "works-factory-chain.yaml"
+# 周の鎖は承認のノードを持たない（最後の承認は周の子 run の中）ので、人の一言 final_answer を鎖の result は運ばない。
+# stopped_why は無い一言を言わないだけで、ほかの読む欄は鎖も線と同じに要る
+CHAIN_OMITS = {"final_answer"}
 
 RUN = "0123456789abcdef0123456789abcdef"
 SHORT = RUN[:8]
@@ -319,7 +322,7 @@ class ApplyTest(unittest.TestCase):
 
     def test_apply_reads_only_line_returns(self):
         """bin/_lib/apply.py が value から読む欄は、どれも線の result の output_format が要る欄として持つ（名を変えると知らせが黙って消える）。
-        spec_questions は respec_note が数えられる整数で来る。周の鎖の result も同じ口で読むので、spec_questions を同じ形で持つ"""
+        spec_questions は respec_note が数えられる整数で来る。周の鎖の result も同じ口で読むので、CHAIN_OMITS のほかは同じ欄を同じ形で持つ"""
         tree = ast.parse((ROOT / "bin" / "_lib" / "apply.py").read_text(encoding="utf-8"))
         read = {key.value for node in ast.walk(tree) for key in value_keys(node)}
         self.assertIn("spec_questions", read)
@@ -327,8 +330,7 @@ class ApplyTest(unittest.TestCase):
             with self.subTest(graph.name):
                 result = next(n for n in yaml.safe_load(graph.read_text(encoding="utf-8"))["nodes"] if n["id"] == "result")
                 returns = result["output_format"]
-                if graph == LINE:
-                    self.assertLessEqual(read, set(returns["required"]))
+                self.assertLessEqual(read - (CHAIN_OMITS if graph == CHAIN else set()), set(returns["required"]))
                 self.assertIn("spec_questions", returns["required"])
                 self.assertEqual(validate_schema(self.value(spec_questions=2)["spec_questions"],
                                                  returns["properties"]["spec_questions"]), [])
