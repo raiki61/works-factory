@@ -38,6 +38,7 @@ import report_roles  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
+import tddloop  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 from lib.tests.test_plan_gate import DECIDED, FACE, FORK, FORK_UNIT, NARROW, WORLD_ROW  # noqa: E402
@@ -1736,6 +1737,26 @@ class LinesCase(Base):
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn("- 深さ: 軽量（単位ごと: 軽量 1 個・標準 0 個。機械が決めた）", entry)
         self.assertIn(runreport.NO_REDEPTH, entry)
+
+    def test_test_cmd_skip_counts_from_the_loop_record(self):
+        """PR #597: test_cmd の省きは TDD の輪の記録（tdd-unit の単位の test_cmd が light）から数える。記録が無い run は頭と単位が
+        軽量でも省いたと言わず、輪の後に標準へ上げた単位も、輪が省いた事実を報告に残す"""
+        light_head = fixed_run(judge={**fixed_run()["judge"], "depth": "軽量", "depth_why": "入力 thickness の名指し（軽量）"})
+        light = {"depth": [{"unit_id": "u1", "depth": "軽量", "why": "触るファイル 1 個"}], "skip_optional": "軽量で省いた",
+                 "raised": [], "counted": "", "stop_reason": ""}
+        _, text, _ = self.build(light_head, line={"redepth": light})
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 軽量で省いた: 差分の審査", entry)
+        self.assertNotIn("test_cmd の走らせ直し", entry)
+        unit = {"unit_key": "u1", "route": "tdd", "why": "", "tests": ["t::a"], "red": "ok", "green": "ok", "refactor": "none",
+                "gave_up": "", "test_cmd": tddloop.CMD_LIGHT}
+        typed = {"by_type": {"tdd-unit": [{"include": "fix", "loop": [], "node": "fix__tdd", "path": "nodes/fix.md", "produced_at": "",
+                                           "body": [{"group_id": "g1", "ran": True, "reason": "", "suite": "run-tests",
+                                                     "reused": None, "units": [unit]}]}]}, "warnings": []}
+        raised = {**light, "depth": [{"unit_id": "u1", "depth": "標準", "why": "触るファイル 1 個 / 標準へ上げた: 再審が走った"}],
+                  "skip_optional": "", "raised": ["再審が走った"]}
+        _, text, _ = self.build(light_head, typed=typed, line={"redepth": raised})
+        self.assertIn(f"- 軽量の単位 1 個で省いた: {depth.UNIT_OMIT}", self.section(text, report.ENTRY_HEADING))
 
     def test_head_depth_line_names_the_depth_and_the_skipped_nodes(self):
         """issue #441: 入口の節に run の頭の深さと根拠・段の省く物・足す物を 1 行で出す。判定の返りが無い run は出さない"""

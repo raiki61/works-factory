@@ -1246,9 +1246,17 @@ def _structure_lines(returns: dict) -> list:
     return structmark.after_lines(after_dir) if after_dir is not None else []
 
 
-def _depth_lines(start: dict, returns: dict, line: dict) -> list:
+def _cmd_skipped(typed: dict) -> int:
+    """TDD の輪が軽量で緑の後の test_cmd を走らせなかった単位（tdd-unit の単位の test_cmd が CMD_LIGHT）の数"""
+    import tddloop
+    stages, _ = _tdd_stages(typed)
+    return len({u.get("unit_key") for _, tdd in stages for u in _list(as_dict(tdd).get("units"))
+                if isinstance(u, dict) and u.get("test_cmd") == tddloop.CMD_LIGHT})
+
+
+def _depth_lines(start: dict, returns: dict, line: dict, typed: dict) -> list:
     """深さの行（元 depth.lines。報告の冒頭 2）: 直した後に上げ直した深さ（線の redepth の返り {depth, raised, counted}）。上げ直しの
-    返りが無ければ計画の深さと、上げ直しが無い訳"""
+    返りが無ければ計画の深さと、上げ直しが無い訳。test_cmd の省きは省いた時点の記録（tdd-unit）から数える"""
     redepth = as_dict(as_dict(line).get("redepth"))
     rows = _list(redepth.get("depth")) if redepth else _list(_ret(returns, "plan").get("depth"))
     if not rows and not redepth:
@@ -1257,7 +1265,8 @@ def _depth_lines(start: dict, returns: dict, line: dict) -> list:
                      for d in rows if isinstance(d, dict)},
            "forced": as_dict(start).get("thickness") or "", "raised": _list(redepth.get("raised")),
            "counted": redepth.get("counted") or ""}
-    return [*depthlib.lines(doc, as_dict(returns.get("judge")).get("depth")), *([] if redepth else [NO_REDEPTH])]
+    return [*depthlib.lines(doc, as_dict(returns.get("judge")).get("depth"), cmd_skipped=_cmd_skipped(typed)),
+            *([] if redepth else [NO_REDEPTH])]
 
 
 def _head_depth_line(start: dict, returns: dict) -> list:
@@ -1296,7 +1305,7 @@ def _policy_lines(returns: dict, repo) -> list:
 
 
 def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None = None, gates: dict | None = None,
-                 repo=None) -> list:
+                 repo=None, typed: dict | None = None) -> list:
     s = as_dict(start)
     out = [f"始めの記録: run {s.get('run_id') or '—'}・元の版 {s.get('base_rev') or '—'}・テストの命令 {s.get('test_cmd') or '—'}・"
            f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}", *fixture.lines(s)]
@@ -1326,7 +1335,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     out.append(f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}")
     out += _downgrade_lines()
     out += _head_depth_line(start, returns)
-    out += _depth_lines(start, returns, line)
+    out += _depth_lines(start, returns, line, as_dict(typed))
     out += _prior_in_lines(line)
     out += _policy_lines(returns, repo)
     base = returns.get("test-gate-base")
@@ -1551,7 +1560,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
                                     *([draft] if draft else []), *apply]),
-        (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
+        (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo, typed)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems), line)),
         (report.READS_HEADING, _reads_lines(tfacts, out_dir.parent, out_dir, transcript_why, repo)),
         (report.WHERE_HEADING, _where_lines(returns)),

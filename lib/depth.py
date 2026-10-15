@@ -28,7 +28,9 @@ graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持�
   test_cmd を省く
 - skip_reason(doc, head): run の頭の深さの段 head が省く物を持ち、単位の深さの全体が軽量なら省く理由の文、ほかは空
   （差分の審査と目の R1〜R4 を省く訳。線の redepth の skip_optional）。知らない語・空の head は標準
-- lines(doc, head): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・省いた物か、頭の深さで省かなかった訳）
+- lines(doc, head, *, cmd_skipped): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・省いた物か、頭の深さで省かなかった訳）。
+  cmd_skipped は TDD の輪が軽量で test_cmd を走らせなかった単位の数（省いた時点の記録から数える。上げ直しの後の深さは
+  省いた時の深さと違いうる）。0 なら test_cmd の省きを言わない（test_cmd が空・関門が off の run は何も省いていない）
 """
 import json
 import pathlib
@@ -218,7 +220,7 @@ def skip_reason(doc, head) -> str:
             "計画 2026-10-06-variable-depth の決め 6）")
 
 
-def lines(doc, head) -> list:
+def lines(doc, head, *, cmd_skipped: int) -> list:
     rows = ((doc or {}).get("units") or {})
     if not rows:
         return [f"深さ: {STANDARD}（直す義務の単位が無い）"]
@@ -231,9 +233,10 @@ def lines(doc, head) -> list:
     if doc.get("counted"):
         out.append(f"run の広さの数え: {doc['counted']}")
     if skip_reason(doc, head):
-        out.append("軽量で省いた: " + "／".join([*(OMITS[name] for name in omits(head)), UNIT_OMIT]))   # 項目の中に「・」が在るので区切りは「／」
-    elif omits(head) and light:
-        out.append(f"軽量の単位 {light} 個で省いた: {UNIT_OMIT}")
+        named_omits = [*(OMITS[name] for name in omits(head)), *([UNIT_OMIT] if cmd_skipped else [])]
+        out.append("軽量で省いた: " + "／".join(named_omits))   # 項目の中に「・」が在るので区切りは「／」
+    elif cmd_skipped:
+        out.append(f"軽量の単位 {cmd_skipped} 個で省いた: {UNIT_OMIT}")
     elif run_depth(doc) == LIGHT:
         out.append(f"単位はどれも軽量だが、run の頭の深さが {named(head) or STANDARD} なので省かない")
     return out
