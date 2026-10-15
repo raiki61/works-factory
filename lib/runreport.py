@@ -9,7 +9,7 @@
 - cost_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行と、費用の節の行（元 report.py:1769・1806）
 - next_request(returns, left, closed, *, beside, exit_doc)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
 - ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
-- answer_drafts(returns, gates, start, spec_changed): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts。承認し直すかの問いも）
+- answer_drafts(returns, gates, start, spec_changed, spec_unchecked): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts。承認し直すかの問いも）
 - glossary_section(text, terms, pack)・pack_terms(): 本文と機械の事実に現れる語だけの定義の節（元 report_roles.py の glossary_section）
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name, line) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000。line は線の値）
@@ -432,9 +432,15 @@ def spec_changed_of(line: dict | None) -> list:
     return [q for q in _list(as_dict(line).get("spec_changed")) if isinstance(q, str) and q.strip()]
 
 
-def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=()) -> list:
+def spec_unchecked_of(line: dict | None) -> bool:
+    """線の値の、受け入れ条件のテストが変わったかを照らせなかったか（線の spec-check の unchecked）"""
+    return as_dict(line).get("spec_unchecked") is True
+
+
+def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=(), spec_unchecked=False) -> list:
     """人の判断を待つ項目への答えの下書き [{question, text, draft, source, note?}]（元 gatemarks.answer_drafts）:
-    ⓪承認の後に受け入れ条件のテストが変わった問い（線の spec-check の questions）ごとに 1 行。機械は承認し直さない
+    ⓪承認の後に受け入れ条件のテストが変わった問い（線の spec-check の questions）ごとに 1 行。照らせなかった（spec_unchecked）時は
+    source が「照らせなかった」と言う。機械は承認し直さない
     ①無人の run で修正前の関所が通さなかった事前審査の問いと、人の居る run でも無人の run でも R4 が人に回した問い（元
     report.next_items の pending_human）ごとに 1 行。項目の文が修正案の狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手
     （推し recommend・狭めない案 no_narrow・世界の解 world）を使う
@@ -445,7 +451,8 @@ def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=()) -> l
     asked = oc.eye_questions(returns)
     if _unattended(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
         asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
-    out = [gatemarks._draft(q, "", gatemarks.SPEC_CHANGED_LABEL, SPEC_CHANGED_NOTE) for q in spec_changed if isinstance(q, str) and q.strip()]
+    source = gatemarks.SPEC_UNCHECKED if spec_unchecked else gatemarks.SPEC_CHANGED_LABEL
+    out = [gatemarks._draft(q, "", source, SPEC_CHANGED_NOTE) for q in spec_changed if isinstance(q, str) and q.strip()]
     out += [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
     out += [_ask_draft(q, key) for q, key in ledger_state(returns, gates, start)["drafts"]]
@@ -987,7 +994,8 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     handoffs = [x for x in _list(as_dict(returns.get("fix")).get("handoffs")) if isinstance(x, str)]
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
-    parts = [(gatemarks.SPEC_CHANGED_HEAD, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
+    spec_head = gatemarks.SPEC_UNCHECKED_HEAD if spec_unchecked_of(line) else gatemarks.SPEC_CHANGED_HEAD
+    parts = [(spec_head, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
              ("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs),
              ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate), (report.CHECKS_LEFT, checks),
@@ -1470,8 +1478,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     out_dir に書き、{report, next_request, prior_failures, ai_go} のパスを返す（元 report.py:2000。元は盤面を読み、
     検証器の関所を踏んだ）。書き手に渡す事実のファイルは機械の報告そのもの（元の facts_text が線 A の機械の報告を字のまま使った形）。
     transcript は transcript_facts の返り、typed は型つきの成果物の読み {by_type, warnings}、repo は直しの内側の語を直す前の版と
-    比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, spec_changed, prior_failures（開けた
-    ファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）、user_env は対象のコマンドを利用者の
+    比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, spec_changed,
+    spec_unchecked, prior_failures（開けたファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）、user_env は対象のコマンドを利用者の
     HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1483,7 +1491,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     left = oc.residue(returns, facts)
     findings = next_request(returns, left, closed, beside=beside, exit_doc=exit_[0])
     prior = prior_failures(returns, left, facts)
-    drafts = answer_drafts(returns, gates, start, spec_changed_of(line))
+    drafts = answer_drafts(returns, gates, start, spec_changed_of(line), spec_unchecked_of(line))
     notes_at = eye_notes_dir(returns)   # E37: 前提の検算が偽と示した仮定の実測を次の run の制約に運ぶ
     constraints = carry.carried_constraints(eyeverdict.premise_facts(notes_at)["facts"] if notes_at is not None else [], run_id)
     decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, beside=beside, exit_=exit_,
