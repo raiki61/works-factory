@@ -592,6 +592,7 @@ def fix_groups(owed, items, only_items=()) -> list:
     単位の項目の範囲だけを照らす。返り [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
     元 works/blk-fix/lib/tddlanes.py:126・131 の items_of・groups（項目の番号を盤面の brief の行から引いた所を items の値で受ける）"""
     import lanekit
+    import planmarks
     by: dict = {}
     ranges: dict = {}
     for it in items or []:
@@ -604,20 +605,12 @@ def fix_groups(owed, items, only_items=()) -> list:
     only = {str(x) for x in only_items or ()}
     if only:
         keys = [k for k in keys if any(str(n) in only for n in by.get(k, []))]
-    anchor = _range_anchors({n: ranges[n] for k in keys for n in by.get(k, []) if n in ranges})
-    return [{"group_id": f"g{i}", "unit_ids": list(g), "items": sorted({n for k in g for n in by.get(k, [])})}
-            for i, g in enumerate(lanekit.groups([(k, [anchor.get(n, n) for n in by.get(k, [])]) for k in keys]), 1)]
-
-
-def _range_anchors(ranges: dict) -> dict:
-    """{項目の番号: 範囲の glob の並び} を範囲の交わる物どうしの塊にし、{番号: 塊の先頭の番号}（つながりは推移的）"""
-    import lanekit
-    import planmarks
-    nums = list(ranges)
-    meets = [(a, b) for i, a in enumerate(nums) for b in nums[i + 1:]
+    kept = [n for n in dict.fromkeys(n for k in keys for n in by.get(k, [])) if n in ranges]
+    meets = [(a, b) for i, a in enumerate(kept) for b in kept[i + 1:]
              if any(planmarks.globs_meet(x, y) for x in ranges[a] for y in ranges[b])]
-    rows = [(n, [pair for pair in meets if n in pair]) for n in nums]
-    return {n: g[0] for g in lanekit.groups(rows) for n in g}
+    rows = [(k, by.get(k, []) + [p for p in meets if set(p) & set(by.get(k, []))]) for k in keys]
+    return [{"group_id": f"g{i}", "unit_ids": list(g), "items": sorted({n for k in g for n in by.get(k, [])})}
+            for i, g in enumerate(lanekit.groups(rows), 1)]
 
 
 def parallel(groups, features_cut, repo) -> bool:

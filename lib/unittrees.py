@@ -215,18 +215,28 @@ def _union(repo, index: str, left: dict, allowed: set, tmp: str, check=None) -> 
     for path, stages in sorted(left.items()):
         if path not in allowed or set(stages) != {1, 2, 3}:
             return None
-        files = []
-        for n in (2, 1, 3):
-            f = os.path.join(tmp, f"union-{n}")
-            pathlib.Path(f).write_bytes(_git(repo, "cat-file", "blob", stages[n][1]).stdout)
-            files.append(f)
-        r = _git(repo, "merge-file", "-p", "--diff3", "-L", "ours", "-L", "base", "-L", "theirs", *files, check=False)
-        if r.returncode > 127:   # 落ちた（食い違いの数は 127 まで）
-            return None
-        text = _insert_only(r.stdout)
+        merged = _merged(repo, stages, tmp, ("ours", "base", "theirs"))
+        text = None if merged is None else _insert_only(merged)
         if text is None or (check is not None and not check(path, text)):
             return None
         plan.append((path, stages[2][0], text))
+    return _put(repo, index, plan)
+
+
+def _merged(repo, stages: dict, tmp: str, labels) -> bytes | None:
+    """パスの stage 2・1・3 の中身（stage 1 が無ければ空の base）を git merge-file --diff3 で合わせた中身（印の名は labels の
+    順）。merge-file が落ちれば None"""
+    files = []
+    for n in (2, 1, 3):
+        f = os.path.join(tmp, f"merge-{n}")
+        pathlib.Path(f).write_bytes(_git(repo, "cat-file", "blob", stages[n][1]).stdout if n in stages else b"")
+        files.append(f)
+    r = _git(repo, "merge-file", "-p", "--diff3", *(a for name in labels for a in ("-L", name)), *files, check=False)
+    return r.stdout if 0 <= r.returncode <= 127 else None   # 食い違いの数は 127 まで。その外と負（シグナル）は落ちた
+
+
+def _put(repo, index: str, plan: list) -> list:
+    """[(パス, mode, 中身)] を一時の index に置く。置いたパスの並び"""
     for path, mode, text in plan:
         sha = _out(repo, "hash-object", "-w", "--stdin", data=text)
         _git(repo, "update-index", "--cacheinfo", f"{mode},{sha},{path}", index=index)
@@ -253,20 +263,11 @@ def _mark(repo, index: str, left: dict, tmp: str) -> list | None:
     base で）を一時の index に置く。置いたパスの並びか、印を書けない物（片方が消した・普通のファイルでない・バイナリで落ちた）が
     1 つでも在れば None（index はそのまま）"""
     plan = []
-    labels = [a for name in MARK_LABELS for a in ("-L", name)]
     for path, stages in sorted(left.items()):
         if set(stages) not in ({1, 2, 3}, {2, 3}) or not all(stages[n][0].startswith("100") for n in (2, 3)):
             return None
-        files = []
-        for n in (2, 1, 3):
-            f = os.path.join(tmp, f"mark-{n}")
-            pathlib.Path(f).write_bytes(_git(repo, "cat-file", "blob", stages[n][1]).stdout if n in stages else b"")
-            files.append(f)
-        r = _git(repo, "merge-file", "-p", "--diff3", *labels, *files, check=False)
-        if not 0 <= r.returncode <= 127:   # 落ちた（食い違いの数は 127 まで）
+        text = _merged(repo, stages, tmp, MARK_LABELS)
+        if text is None:
             return None
-        plan.append((path, stages[2][0], r.stdout))
-    for path, mode, text in plan:
-        sha = _out(repo, "hash-object", "-w", "--stdin", data=text)
-        _git(repo, "update-index", "--cacheinfo", f"{mode},{sha},{path}", index=index)
-    return [p for p, _, _ in plan]
+        plan.append((path, stages[2][0], text))
+    return _put(repo, index, plan)

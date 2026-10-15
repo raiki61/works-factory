@@ -9,6 +9,7 @@
 - union の中のファイルで両方が同じ所（末尾）に行を足しただけの食い違いは、作業ツリーの側の行の後に patch の側の行を置いて
   当たる（unioned に積む）。行を変えた塊・union の外のファイルは今どおり当たらず、作業ツリーは前のまま
 - marked を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスを marked に積む）、markers_left が印の残るファイルを引く
+- 合わせ役の指示書（fix-rules/clash.md）は印の両側を MARK_LABELS の名のまま名指す
 - tests_unique: 合わせた中身に同じ名のテストの定義が 2 つ在れば合わせない。patch_names: 差分の行先のパス
 """
 import pathlib
@@ -188,6 +189,12 @@ class Checks(unittest.TestCase):
                  "diff --git a/d/y.txt b/d/y.txt\nnew file mode 100644\n")
         self.assertEqual(unittrees.patch_names(patch), ["x.py", "d/y.txt"])
         self.assertEqual(unittrees.patch_names(""), [])
+
+    def test_clash_prompt_names_the_marker_sides_by_their_labels(self):
+        rules = (LIB.parent / "workflows/fix/commands/fix-rules/clash.md").read_text(encoding="utf-8")
+        ours, _, theirs = unittrees.MARK_LABELS
+        self.assertIn(f"印の `{ours}` の側", rules)
+        self.assertIn(f"`{theirs}` の側", rules)
 
 
 if __name__ == "__main__":
