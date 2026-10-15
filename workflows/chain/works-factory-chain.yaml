@@ -181,6 +181,7 @@ nodes:
       outcome: "$round-1.output.outcome"
       apply: "$round-1.output.apply"
       r2_status: "$round-1.output.r2_status"
+      spec_questions: "$round-1.output.spec_questions"
       facts: "$round-1-facts.output"
       commit: "$round-1-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -270,6 +271,7 @@ nodes:
       outcome: "$round-2.output.outcome"
       apply: "$round-2.output.apply"
       r2_status: "$round-2.output.r2_status"
+      spec_questions: "$round-2.output.spec_questions"
       facts: "$round-2-facts.output"
       commit: "$round-2-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -359,6 +361,7 @@ nodes:
       outcome: "$round-3.output.outcome"
       apply: "$round-3.output.apply"
       r2_status: "$round-3.output.r2_status"
+      spec_questions: "$round-3.output.spec_questions"
       facts: "$round-3-facts.output"
       commit: "$round-3-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -448,6 +451,7 @@ nodes:
       outcome: "$round-4.output.outcome"
       apply: "$round-4.output.apply"
       r2_status: "$round-4.output.r2_status"
+      spec_questions: "$round-4.output.spec_questions"
       facts: "$round-4-facts.output"
       commit: "$round-4-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -537,6 +541,7 @@ nodes:
       outcome: "$round-5.output.outcome"
       apply: "$round-5.output.apply"
       r2_status: "$round-5.output.r2_status"
+      spec_questions: "$round-5.output.spec_questions"
       facts: "$round-5-facts.output"
       commit: "$round-5-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -559,7 +564,8 @@ nodes:
         skipped: { type: array, items: { type: integer } }
         outcome: { type: string }
         r2_status: { type: [string, "null"] }
-      required: [ok, reason, apply, sealed, report, kept, skipped, outcome, r2_status]
+        spec_questions: { type: integer }
+      required: [ok, reason, apply, sealed, report, kept, skipped, outcome, r2_status, spec_questions]
     mutates_checkout: false
     depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide]
     trigger_rule: all_done
@@ -593,8 +599,10 @@ nodes:
         report: { type: [object, "null"] }
         outcome: { type: string }
         r2_status: { type: [string, "null"] }
+        spec_questions: { type: integer }
         stop_reason: { type: string }
-      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, stop_reason]
+      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, spec_questions,
+                 stop_reason]
     mutates_checkout: false
     depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide, final-diff]
     trigger_rule: all_done

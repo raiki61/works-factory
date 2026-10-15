@@ -28,6 +28,7 @@ from tests.workflows.test_chain import ROUND_FILES, chain, run_final, run_result
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
 LINE = ROOT / "workflows" / "line" / "works-factory-line.yaml"
+CHAIN = ROOT / "workflows" / "chain" / "works-factory-chain.yaml"
 
 RUN = "0123456789abcdef0123456789abcdef"
 SHORT = RUN[:8]
@@ -318,16 +319,20 @@ class ApplyTest(unittest.TestCase):
 
     def test_apply_reads_only_line_returns(self):
         """bin/_lib/apply.py が value から読む欄は、どれも線の result の output_format が要る欄として持つ（名を変えると知らせが黙って消える）。
-        spec_questions は respec_note が数えられる整数で来る"""
+        spec_questions は respec_note が数えられる整数で来る。周の鎖の result も同じ口で読むので、spec_questions を同じ形で持つ"""
         tree = ast.parse((ROOT / "bin" / "_lib" / "apply.py").read_text(encoding="utf-8"))
         read = {key.value for node in ast.walk(tree) for key in value_keys(node)}
         self.assertIn("spec_questions", read)
-        result = next(n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"] if n["id"] == "result")
-        returns = result["output_format"]
-        self.assertLessEqual(read, set(returns["required"]))
-        self.assertEqual(validate_schema(self.value(spec_questions=2)["spec_questions"],
-                                         returns["properties"]["spec_questions"]), [])
-        self.assertNotEqual(validate_schema("2", returns["properties"]["spec_questions"]), [])
+        for graph in (LINE, CHAIN):
+            with self.subTest(graph.name):
+                result = next(n for n in yaml.safe_load(graph.read_text(encoding="utf-8"))["nodes"] if n["id"] == "result")
+                returns = result["output_format"]
+                if graph == LINE:
+                    self.assertLessEqual(read, set(returns["required"]))
+                self.assertIn("spec_questions", returns["required"])
+                self.assertEqual(validate_schema(self.value(spec_questions=2)["spec_questions"],
+                                                 returns["properties"]["spec_questions"]), [])
+                self.assertNotEqual(validate_schema("2", returns["properties"]["spec_questions"]), [])
 
     def test_apply_sets_no_deadline(self):
         for part in (ROOT / "bin" / "apply", ROOT / "bin" / "_lib" / "apply.py"):
@@ -335,6 +340,18 @@ class ApplyTest(unittest.TestCase):
                 tree = ast.parse(part.read_text(encoding="utf-8"))
                 self.assertEqual([n.lineno for n in ast.walk(tree) if isinstance(n, ast.keyword) and n.arg == "timeout"],
                                  [])
+
+    def test_refused_run_with_pending_reapproval_says_only_the_refusal(self):
+        """#565: 知らせは当てた後に出す。断った時は断りの 1 行だけで、当てていない差分に「当てた」と言わない"""
+        (self.target / "stats.py").write_text("def mean(xs):\n    return 0\n", encoding="utf-8")
+        before = self.status()
+        rc, out, err = self.run_apply(self.record(self.value(outcome="needs_human", stop_reason="spec-check:works:spec-changed",
+                                                             spec_questions=2)))
+        self.assertEqual((rc, out), (1, ""), err)
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn("手元の変更", err)
+        self.assertNotIn("承認し直す", err)
+        self.assertEqual(self.status(), before)
 
     def test_apply_refuses_when_check_fails(self):
         (self.target / "stats.py").write_text("def mean(xs):\n    return 0\n", encoding="utf-8")
@@ -458,6 +475,19 @@ class ChainApplyTest(unittest.TestCase):
         code, _, err = self.run_apply(self.parent_run(placed=(2,), r2={1: "redesign-needed"}), "--allow-stopped")
         self.assertEqual((code, self.present()), (1, []), err)
         self.assertIn("redesign-needed", err)
+
+    def test_kept_round_with_spec_questions_notes_reapproval(self):
+        """#563: 採る周に承認し直すかの問いが残る鎖の run は、メイングラフと同じく当てて 1 行で知らせる"""
+        code, out, err = self.run_apply(self.parent_run(spec={2: 2}))
+        self.assertEqual((code, self.present()), (0, ["one.txt", "two.txt"]), out + err)
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        for word in ("承認し直す", "2 件"):
+            self.assertIn(word, err)
+
+    def test_questions_of_the_halted_round_that_is_not_taken_say_nothing(self):
+        code, out, err = self.run_apply(self.parent_run(spec={3: 4}))
+        self.assertEqual((code, self.present()), (0, ["one.txt", "two.txt"]), out + err)
+        self.assertEqual(err, "")
 
     def test_nothing_to_take_names_why(self):
         start, made = three_rounds(self.work)
