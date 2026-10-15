@@ -38,7 +38,6 @@ class PolyfillsListedTest(unittest.TestCase):
         self.assertTrue(any("docs/polyfills.md:1" in line and "returned.py" in line for line in got), got)
 
     def test_entry_part_allowance_is_not_red(self):
-        """名簿に無い bin/_lib/ のファイルも、ALLOWED["E2"] の行に当たれば赤にしない"""
         with tree({"bin/_lib/pack.py": "", "bin/_lib/borrow/x.json": ""}) as root:
             got = scan.problems("E2", root)
         self.assertEqual(got, [])
@@ -46,6 +45,11 @@ class PolyfillsListedTest(unittest.TestCase):
     def test_planned_row_may_be_missing(self):
         got = scan.problems("E2", SEEDS / "e2")
         self.assertFalse(any("later.py" in line for line in got), got)
+
+    def test_planned_row_followed_by_text_may_be_missing(self):
+        with tree({"docs/polyfills.md": "- 埋め: `workflows/.shared/later.py`（予定）の部品\n"}) as root:
+            got = scan.problems("E2", root)
+        self.assertEqual(got, [])
 
     def test_boundary_and_listed_are_allowed(self):
         got = scan.problems("E2", SEEDS / "e2")

@@ -138,18 +138,14 @@ class BlockPathsTest(unittest.TestCase):
         self.assertTrue(any("works-factory-fix.yaml:3" in line and "入力 mode" in line and "メイングラフ" in line for line in got), got)
         self.assertFalse(any("works-factory-chain.yaml" in line for line in got), got)
 
-    def test_input_without_a_scalar_description_is_red(self):
-        """説明が無い入力と、字でない（mapping の）説明は、見られないので赤。報告の工程だけは説明を持たない入力で、ALLOWED の行で外す"""
-        files = {
-            "workflows/fix/works-factory-fix.yaml": ("name: works-factory-fix\ninputs:\n  bare: {default: ''}\n"
-                                                     "  nested: {default: '', description: {text: 始めの記録}}\n"),
-            "workflows/report/works-factory-report.yaml": "name: works-factory-report\ninputs:\n  fix: {default: ''}\n",
-        }
-        with tree(files) as root:
+    def test_input_description_that_is_not_a_string_is_red(self):
+        """字でない（mapping の）説明は中に字を隠せるので赤。説明の無い入力は名指す字も無いので見ない"""
+        yaml = ("name: works-factory-fix\ninputs:\n  bare: {default: ''}\n"
+                "  nested: {default: '', description: {text: 始めの記録}}\n")
+        with tree({"workflows/fix/works-factory-fix.yaml": yaml}) as root:
             got = scan.problems("E4", root)
-        self.assertTrue(any("works-factory-fix.yaml:3" in line and "入力 bare" in line for line in got), got)
         self.assertTrue(any("works-factory-fix.yaml:4" in line and "入力 nested" in line for line in got), got)
-        self.assertFalse(any("works-factory-report.yaml" in line for line in got), got)
+        self.assertFalse(any("入力 bare" in line for line in got), got)
 
     def test_top_graph_hyphen_ids_are_read_from_the_real_tree(self):
         """実際の木で一番上のグラフの `-` を含む id が取れている（空だと節の id の型が黙って外れる）"""

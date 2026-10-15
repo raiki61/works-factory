@@ -2,7 +2,7 @@
 # Archon の埋め（polyfill）の名簿
 
 - 埋め（polyfill）: Archon（止めた Archon（`docs/design.md` の「語」））に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
-- `workflows/.shared/` と `bin/_lib/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の行のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。`- 埋め:` の行が名指す `workflows/`・`bin/`・`lib/`・`tests/` の下のパスが木に無い時も赤（YAML の型の埋めの script・グラフのファイルもこれで古びが分かる）。
+- `workflows/.shared/` と `bin/_lib/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の行のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。
 - 埋めの一部は入口 `bin/` に置く物もある。置き場の欄に書く。
 - Archon の新しい版で穴が塞がったら、外す条件を確かめて埋めを消し、行を「外した」のセクションへ移して `- 埋め:` の頭を `- 外した埋め:` に書き換える（`- 埋め:` の行に消したファイルの名が残ると、名簿の古びとして赤になる）。
 
@@ -118,7 +118,7 @@
 
 - 穴: `timeout` を書かない `script:`・`bash:` のノードにも、Archon が既定の期限で打ち切りを当てる。
 - 証拠: 止めた Archon の `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Default: `120000` (2 min)」。
-- 埋め: 期限を持つノードの鍵に置く、実質無しの値 `1728000000`（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。
+- 埋め: 期限を持つノードの鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。
 - 使うサブグラフ: 全部
 - 外す条件: グラフの既定で期限を無しにできる版が出たら
 

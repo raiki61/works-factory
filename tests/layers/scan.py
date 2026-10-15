@@ -27,7 +27,8 @@ def word(pattern: str) -> re.Pattern:
 
 
 BOUNDARY = "boundary.py"
-POLYFILL_ROW = re.compile(r"(?<![\w./-])((?:workflows|bin|lib|tests)/[^\s`（）()、・。]+)(`?（予定）)?")
+# 「（予定）」は語の境の外に置く。後ろに字が続いても（予定）を落とさない
+POLYFILL_ROW = re.compile(word(r"((?:workflows|bin|lib|tests)/[^\s`（）()、・。]+)").pattern + r"(`?（予定）)?")
 POLYFILL_FOLDERS = (("workflows", ".shared"), ("bin", "_lib"))
 
 ARCHON_WORDS = re.compile(
@@ -113,10 +114,6 @@ ALLOWED = {
         "lib/tests/test_blk_fix.py#$LOOP_PREV",
         "lib/tests/test_blk_plan.py#$LOOP_PREV",
         "lib/tests/test_fix_rules.py#$LOOP_PREV",
-    ),
-    "E4": (
-        # 報告の inputs: は節の名そのもの（前の段の出力を名で受ける）で、説明を持たない
-        "workflows/report/works-factory-report.yaml#無し",
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
@@ -337,7 +334,6 @@ def _block_paths(root: Path) -> list[str]:
     YAML の中の script は Archon が写し取った所のどこから走るかが字から分からないので、相対パスは行き先のブロックの名だけを見る。
     script は同じ `scripts/` の別の script を import せず（K8）、script の名は lib のモジュールの名と重ならない（script のフォルダが
     sys.path の頭に来るので、`import <名>` が lib の物でなく script を読む。K19）。
-    ブロックの inputs: の description も照らす（作り手のほかのブロック・メイングラフ・周の鎖のノードを名指さない。`_input_producers`）。
     """
     out = _script_imports(root) + _script_names(root) + _input_producers(root)
     blocks = [p.name for p in _blocks(root)]
@@ -370,7 +366,6 @@ def _block_paths(root: Path) -> list[str]:
 
 
 MAIN_GRAPH_WORD = "メイングラフ"
-NO_DESCRIPTION = "無し"
 OUTPUT_OF_NODE = re.compile(r"\$([\w-]+)\.output")
 
 
@@ -390,7 +385,7 @@ def _input_producers(root: Path) -> list[str]:
     名指しに数えるのは、`$<id>.output`（そのブロック自身の YAML の節の id は兄弟の参照なので数えない）・語「メイングラフ」・ほかのブロックの名
     （`works-factory-` の頭が付いてもよい）・一番上のグラフの節の id のうち `-` を含む物。結びはメイングラフの with: だけが持つ。
     description は YAML の値として読むので、flow の形も `>-`・`|` の複数行の形も 1 つの字になる。
-    description が無い・字でない入力は見られないので、問題の行にする（説明の無い入力を持つ工程は ALLOWED["E4"] の `<YAML のパス>#無し` で外す）
+    説明の無い入力は名指す字も無いので見ない。字でない（mapping の）説明は中に字を隠せるので、問題の行にする
     """
     folders = _blocks(root)
     top_ids = _top_hyphen_ids(root)
@@ -408,7 +403,6 @@ def _input_producers(root: Path) -> list[str]:
         for key, spec in _pairs(_top(document, "inputs")):
             description = _top(spec, "description")
             if description is None:
-                out.append(f"{_rel(root, path)}:{_line(spec)}: 入力 {key} の説明: {NO_DESCRIPTION}")
                 continue
             if not isinstance(description, yaml.ScalarNode):
                 out.append(f"{_rel(root, path)}:{_line(description)}: 入力 {key} の説明が字でない")
