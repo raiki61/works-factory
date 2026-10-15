@@ -617,13 +617,19 @@ class StartCase(Artifacts):
         self.assertIn("judge_verify", self.record(plain)[entry.FEATURES_CUT_KEY])
         self.assertIn("judge_verify off", plain["gate_text"])
 
-    def test_heavy_with_a_named_off_keeps_it_off(self):
-        got = self.start(request="request_ok.json", thickness="重厚", features_off="judge_verify")
-        self.assertTrue(got["ok"], got)
-        doc = self.record(got)
-        self.assertEqual(doc[entry.FEATURES_CUT_KEY], ["judge_verify"])
-        self.assertEqual((doc["features"]["judge_verify"], doc["features"]["review_tree"]), ("off", "on"))
-        self.assertIn("judge_verify off", got["gate_text"])
+    def test_heavy_with_a_named_off_is_refused(self):
+        """issue #561 の求め 4: 名指した重厚が足す機能を features_off で切ると、入口がぶつかった機能を名指して止める。重厚の足さない
+        機能を切るのと、自動・軽量・標準と切りの組は受ける"""
+        for off in ("judge_verify", "review_tree", "tdd_lanes, review_tree"):
+            with self.subTest(off=off):
+                reason = self.refused(request="request_ok.json", thickness="重厚", features_off=off)
+                self.assertIn("thickness=重厚", reason)
+                self.assertIn("review_tree" if "review_tree" in off else "judge_verify", reason)
+                self.assertNotIn("tdd_lanes", reason)
+        self.assertTrue(self.start(request="request_ok.json", thickness="重厚", features_off="tdd_lanes")["ok"])
+        for thickness in ("", "自動", "軽量", "標準"):
+            with self.subTest(thickness=thickness):
+                self.assertTrue(self.start(request="request_ok.json", thickness=thickness, features_off="judge_verify")["ok"])
 
     def test_gate_text_has_the_depth_word(self):
         """L-E49: 頭の行に段（thickness と（既定））・機能・最後の関所・修正前のテストの任せ先の注を並べる（元 entry.py 1213-1219 行）"""

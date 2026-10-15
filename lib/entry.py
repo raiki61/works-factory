@@ -76,7 +76,8 @@ def features_on(word: str) -> list:
 def feature_words(off, on=(), adds=()) -> dict:
     """start の出口の機能ごとの欄 {<機能>: on | off | auto}（線がブロックの切り替えの入力へ写す）。名指した語が足しに、足しが既定に勝つ:
     features_on の語は on・features_off の語は off・adds（run の頭の深さの段が足す機能。depth.tier_adds）の語は on・どれにも無ければ
-    FEATURE_DEFAULTS（無ければ on）。features_on と features_off の両方に在る語は入口の節（start）が拒むので届かない"""
+    FEATURE_DEFAULTS（無ければ on）。features_on と features_off の両方に在る語と、名指した段の足しを features_off で切る組は入口の
+    節（start）が拒むので届かない（features_off が足しに勝つのは、入口の後に head-depth が選んだ段の足しだけ）"""
     off, on, adds = set(off or ()), set(on or ()), set(adds or ())
     return {name: SWITCH_ON if name in on else SWITCH_OFF if name in off else SWITCH_ON if name in adds
             else FEATURE_DEFAULTS.get(name, SWITCH_ON) for name in FEATURES}

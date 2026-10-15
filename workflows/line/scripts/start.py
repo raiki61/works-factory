@@ -94,6 +94,9 @@ def words(raw: dict, repo: Path) -> dict:
     thickness = raw["thickness"].strip()
     if thickness not in THICKNESS:
         raise Refused(f"thickness={raw['thickness']!r} は知らない値（{' / '.join(t for t in THICKNESS if t)}）")
+    clash = sorted(set(off) & set(depth.tier_adds(depth.named(thickness))))
+    if clash:
+        raise Refused(f"thickness={thickness} が足す機能 {', '.join(clash)} を features_off で切った（段を変えるか、切りを外す）")
     fix_fixture = fixture_dir(raw["fix_fixture"], repo)
     if fix_fixture and spec:
         raise Refused("仕様の段（spec=on）は固定材料（fix_fixture）と組めない（固定材料は判定と修正案が済んだ所の写しで、仕様の段は"
@@ -196,7 +199,7 @@ def adds(checked: dict) -> tuple:
 
 
 def features(checked: dict) -> dict:
-    """始めの記録の機能の切り替えの 4 つの欄（名指した段の足しを入れる。features_off の名指しが足しに勝つ）"""
+    """始めの記録の機能の切り替えの 4 つの欄（名指した段の足しを入れる。名指した段の足しと features_off のぶつかりは words が拒む）"""
     off, on, more = checked["features_off"], checked["features_on"], adds(checked)
     return {entry.FEATURES_KEY: off, entry.FEATURES_ON_KEY: on, entry.FEATURES_CUT_KEY: entry.features_cut(off, on, more),
             "features": entry.feature_words(off, on, more)}
