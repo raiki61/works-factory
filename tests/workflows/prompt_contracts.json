@@ -5846,7 +5846,7 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#head-depth"
       ],
-      "output_format_sha256": "63f149c68ca301a54d9b21e22b5e5fd1fb0264aab69b7f3bc92ccd28a8b53280",
+      "output_format_sha256": "e3e0bd52b99120e694dc09cffe9a482f1ae32d00eb099dd6d76a844550b5a299",
       "json_keys": [
         "cause_quote",
         "code_quote",
@@ -5883,8 +5883,8 @@
     ],
     "stops": [
       {
-        "what": "曖昧・設計の選び・原因が見えない・公開の約束を変えるなら標準",
-        "quote": "次のどれか 1 つでも当たれば標準"
+        "what": "曖昧・設計の選び・原因が見えない・公開の約束を変えるなら軽量にしない",
+        "quote": "次のどれか 1 つでも当たれば軽量にしない"
       },
       {
         "what": "迷えば標準",
