@@ -26,7 +26,7 @@
 - 記録された方針: 人か対象の持ち主が「決めた」と記録に残した決まり。出どころは方針の文書の写し・依頼の answers・承認ノードの人の答え・決定記録の突合が挙げた決着済みの論点の 4 つだけで、役を縛るのはこの一覧の行だけ。無人の run が承認ノードで採った推しの一言と、判定が保留にした問いに採った推し（目の prep が問いの台帳の `taken_pushes` から読む）は人の決めではないが、この run が従うと採った条件として、人の答えと分けた行（名指し `無人の run が採った推し <id>`）で一覧に並ぶ（R4 が推しの条件とのぶつかりを名指せる。R2 の独立設計には渡さない）。一覧は `lib/policy.py` の `recorded` が組み、判定役・修正案の役・事前審査の役・R3・R4 に同じセクションで貼る。判定役と修正案の役は承認ノードの人の答えを入力に持たないので、その行は「この役には渡っていない」と載る。R4 の方針とのぶつかりは、一覧の行を名指さない行を受け付け（`eyes` のループ `r4-loop`）が拒んで出し直させ、3 回とも通らなければ名指さない行も最後の承認ノードで人に聞く（issue #455）。
 - 対象の文: 記録された方針の一覧に当たらない、対象のリポジトリのコードのコメント・docstring・テストの説明文。コードの今の姿の説明で持ち主の決めではなく、綺麗な形と食い違うなら直しの一部として書き換える。
 - 単位: 判定役が切った 1 つの欠陥。直す・拒む・諦めるの数え方の単位。
-- 組: 判定の単位か計画の項目を共にする単位のまとまり。組は分けない。組ごとに別の作業ツリーで並べて直す。
+- 組: 判定の単位か計画の項目を共にする単位と、範囲が交わる項目の単位どうしのまとまり。組は分けない。組ごとに別の作業ツリーで並べて直す。
 - エッセンス: 持ち主のグラフ（`workflows/`）。どの確かめと役が在り、各々が何をし、どの順でどうつながり、どこで人に聞くか。Archon の書き方（メイングラフとサブグラフの YAML・役の指示書 `commands/`・ノードの script `scripts/`）で書く。持ち主の言葉「で、私がエッセンスって呼んでるのはグラフの内容やグラフ全体の形かな。」（2026-10-11）
 - lib: Archon を知らない Python の助け手（`lib/`）。script ノードが呼ぶ（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。エッセンスそのものではない。
 - 境: Archon との出入りの口と、Archon に無い物を補う埋め（`workflows/.shared/`）。
@@ -293,7 +293,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - 出力:
   - `done`（boolean）: 直しを作業ツリーに入れ終え、差分の審査を通した。諦めた単位が在っても true → メイングラフのノード `fixed`（メイングラフ 8 へ進むかの `go`）・report
   - `units`（array）: 単位ごとの結末。項目は `{unit_id, group_id, status, reason}`、status は `fixed`・`given_up`・`not_done` → eyes・report
-  - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason, backed_out?, unrestored?}`（returned は親の木へ戻せたか。backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻そうとして戻せなかった組だけが持つ、親の作業ツリーに当たったままのパスの並びで、その後の組は当てない。clash は確かめ直しの赤で戻した組だけが持つ合わせのループの結末 `{outcome, requests, patch}` で、outcome は合わせ役が直して当てた `repaired` か組どうしの合わせの申し出にした `parked`、requests はその申し出の id、patch は置き場からの控えの差分のパス。持ち主の決め `clash-goes-to-ruling`）→ report
+  - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason, backed_out?, unrestored?}`（returned は親の木へ戻せたか。backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻そうとして戻せなかった組だけが持つ、親の作業ツリーに当たったままのパスの並びで、その後の組は当てない。clash は合わせのループに入った組（確かめ直しの赤で戻した組と、字で当たらず食い違いの印つきで当て直した組。後者は backed_out を持たない）だけが持つ合わせのループの結末 `{outcome, requests, patch}` で、outcome は合わせ役が直して当てた `repaired` か組どうしの合わせの申し出にした `parked`、requests はその申し出の id、patch は置き場からの控えの差分のパス。持ち主の決め `clash-goes-to-ruling`）→ report
   - `conflicts`（ポインタ・null 可）: 申し出と裁定（`lib/conflict` の形）。無ければ null → メイングラフ 11・plan（replan）・report
   - `replan_items`（array of string）: 裁定が誤りとした計画の項目の番号（承認済みの修正案の `plan[]` の 1 から数えた位置を 10 進の字にした物。例 `["2"]`。重ねない・現れた順）。空でなければメイングラフが案の直しを 1 度include する → メイングラフ 7・plan
   - `objection`（string）: 修正役の異議と、組どうしの合わせの申し出への裁定 `rejudge`（判定の単位の切り方の誤り）の文。空でなければメイングラフが再審を 1 度include する → メイングラフ 7・judge
@@ -456,7 +456,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - 差分の審査と手直しを fix に置く訳: review-graph で同じ P3 の段（`p3.fix_delta`・`p3.delta_review`・`p3.delta_fix`）にあり、サブグラフの中でループが閉じる。サブグラフの間の戻りを作らない。
 - ASF で読む物: `W/implement/archon-implement.yaml`（`loop:` と `until_field: done`・`assert-changed` が `checkoutStart` と比べて本当に変わったかを見る・`outcome_field: green`）と `W/deliver/archon-deliver.yaml`（review → correct のループ）。
 - 入力: 判定・計画・直す前の結末。型つきの成果物 `tdd-unit` も出す。
-- 役（`commands/`）: `delta-review`・`lens-silent-failure-hunter`・`review2`・`fix-rules/`。`fix-rules/` は script が組んで渡す指示書の置き場で、役 `tdd`・`fix`（修正の決まり）・`ruler`・`clash`（合わせ役。並べた組を親の木で合わせて試験が赤になった組を、その組の変えたファイルの中だけで直す。直せなければ組を外して組どうしの合わせの申し出を裁定役へ回し、裁定役は直し方の指示・テストの範囲・案の直し・判定のやり直しのどれかで解き、どれでも解けない時だけ人に回す。持ち主の決め `clash-goes-to-ruling`）・`refix` の決まりを持つ。
+- 役（`commands/`）: `delta-review`・`lens-silent-failure-hunter`・`review2`・`fix-rules/`。`fix-rules/` は script が組んで渡す指示書の置き場で、役 `tdd`・`fix`（修正の決まり）・`ruler`・`clash`（合わせ役。並べた組を親の木で合わせて試験が赤になった組と、字で当たらず食い違いの印つきで当て直した組を、その組の変えたファイルの中だけで直す。直せなければ組を外して組どうしの合わせの申し出を裁定役へ回し、裁定役は直し方の指示・テストの範囲・案の直し・判定のやり直しのどれかで解き、どれでも解けない時だけ人に回す。持ち主の決め `clash-goes-to-ruling`）・`refix` の決まりを持つ。
 - lib: `red_check`・`baseline_red`・`test_freeze`・`plan_scope`・`write_provenance`・`impact`・`test_files`・`give_up`・`groups`（組の作り）・`cite`・`conflict`（申し出の形）・`clash`（組の合わせの直し）。
 - 埋め: 無し。組ごとの作業ツリーは未決 U8。
 

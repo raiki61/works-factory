@@ -345,7 +345,7 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
                              "new_tests": []})
     # 3〜6. 見る項目（Missing 側は生きた項目だけ）
     looked = []
-    named = {_test_key(row.get("id")) for it in items for row in it.get("tests") or [] if isinstance(row, dict)}
+    named = {_test_key(t) for it in items for t in planrange.test_ids(it)}
     for it in items:
         if not set(_keys(it)) & row_keys:
             continue

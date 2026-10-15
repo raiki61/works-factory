@@ -108,7 +108,7 @@ def problems(board_dir, repo, base_rev: str, suite: str, attempt: int, *, pass_:
         agreed = {t["id"] for t in tests if t.get("agreed")}
         rows += [{**r, "agreed": True} if r["id"] in agreed else r for r in got]   # 合意のテストの行（受け付けがそのテストだけを戻す）
         gaps += why
-    rows += _test_edits(b, repo, rev, pass_ == "ruled" or conflict.second_pass(b), [t["id"] for t in tests], round_)
+    rows += _test_edits(b, repo, rev, pass_, [t["id"] for t in tests], round_)
     _record(b, _mark(pass_, attempt), {"rows": rows, "skipped": [{"why": why} for why in gaps], "guards": guards})
     return rows
 
@@ -417,15 +417,14 @@ def _inner_exe(repo: pathlib.Path, wt: pathlib.Path, suite: str) -> str:
         return suite
 
 
-def _test_edits(b, repo: pathlib.Path, rev: str, ruled: bool, ids=(), round_: int = 1) -> list[dict]:
+def _test_edits(b, repo: pathlib.Path, rev: str, pass_: str, ids=(), round_: int = 1) -> list[dict]:
     """ids は修正案の受け入れのテストの名指し（そのパスもテストのファイルと見る。書き換えの名指しのパスも同じ）"""
-    permits = conflict.test_permits(b, rulings=ruled, round_=round_)   # テストの変更の許しの唯一の元（keep-essence の 3）
-    plan = [p["test"] for p in permits if isinstance(p.get("test"), str)]   # 修正案の名指しは id で許し、そのパスはテストのファイルの宣言
+    got = conflict.edit_permits(b, pass_, round_=round_)
+    plan = got["tests"]   # 修正案の名指しは id で許し、そのパスはテストのファイルの宣言
     files = _test_files(repo, rev, tddloop.snapshot(repo), [*ids, *plan])
     if not files:
         return []
-    limits = [p["limit"] for p in permits if "limit" in p and "test" not in p]   # 合意と裁定の範囲（裁定は 1 回目は空）
-    allowed = set(plan) | _ruled_ids(repo, rev, files, limits)
+    allowed = set(plan) | _ruled_ids(repo, rev, files, got["limits"])
     return [_row("test_edits", i, EDITED) for i in tddloop.unnamed_edits(repo, rev, files, allowed)]
 
 
