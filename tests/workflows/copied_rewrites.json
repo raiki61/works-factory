@@ -834,6 +834,11 @@
    "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
    "original": "この役は judge。呼び出し側が覆せない判定（ラベルの確定・根本診断・反証・票）を下す役である。",
    "copied": "$rejudge-reject.output.lang_line\n\nこの役は judge。呼び出し側が覆せない判定（ラベルの確定・根本診断・反証・票）を下す役である。"
+  },
+  {
+   "why": "受け付けに拒まれた後の出し直しは同じ役の会話の続きで起きる（#571。輪 rejudge-loop が fresh_context: false）",
+   "original": "判定の中身はファイルから読め）。\n",
+   "copied": "判定の中身はファイルから読め。受け付けに拒まれた後の出し直しは、この役の同じ会話の続きで起きる）。\n"
   }
  ],
  "workflows/judge/commands/spec-review.md": [
@@ -1256,6 +1261,11 @@
    "why": "記録された方針だけが縛る（持ち主の決め machine-for-mechanics・issue #427）",
    "original": "人の方針（末尾の「人の方針」のセクション。文書が無い run も、元の目的に書かれた守ること・禁じることに照らす）",
    "copied": "人の方針（末尾の「記録された方針」のセクションの行だけに照らす）"
+  },
+  {
+   "why": "受け付けに拒まれた後の出し直しは同じ役の会話の続きで起きる（#571。輪 r4-loop が fresh_context: false）",
+   "original": "この変更を書いた役の会話も、判定の経緯も引き継いでいない。\n",
+   "copied": "この変更を書いた役の会話も、判定の経緯も引き継いでいない。受け付けに拒まれた後の出し直しは、この役の同じ会話の続きで起きる。\n"
   }
  ],
  "workflows/report/commands/report.md": [

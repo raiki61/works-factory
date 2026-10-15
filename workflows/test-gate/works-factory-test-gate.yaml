@@ -100,14 +100,15 @@ nodes:
             head: {type: string}
             diff_hash: {type: string}
 
-  # 任せ先の CI の役の出し直しの輪（今の works の blk-ci）。諦めは ci-accept の done・give_up で抜け、max_iterations で落とさない
+  # 任せ先の CI の役の出し直しの輪（今の works の blk-ci）。諦めは ci-accept の done・give_up で抜け、max_iterations で落とさない。
+  # 役は 1 回目は新しい会話で起き、拒まれた後の出し直しは同じ会話の続き（#571）
   - id: ci-loop
     depends_on: [run]
     when: "$run.output.by == 'role_needed'"
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: accepted=$ci-accept.output.done; test "$accepted" = true
       nodes:
         - id: ci-prep
@@ -136,7 +137,6 @@ nodes:
           depends_on: [ci-prep]
           model: sonnet       # 今の works の stage-models.json の blk-ci/ci（light）
           effort: medium
-          context: fresh
           mutates_checkout: false
           settingSources: [user]
           allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため

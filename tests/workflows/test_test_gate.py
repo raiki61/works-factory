@@ -281,10 +281,11 @@ class YamlCase(unittest.TestCase):
                 self.assertIn(phrase, text)
 
     def test_role_node_matches_works_blk_ci(self):
-        """今の works の blk-ci.yaml の役の節の settingSources・sandbox・context と同じ値"""
+        """今の works の blk-ci.yaml の役の節の settingSources・sandbox と同じ値。context: fresh だけは外した（#571。役は輪の 1 周目が
+        新しい会話で、拒まれた後の出し直しは同じ会話の続き）"""
         ci = node("ci")
         self.assertEqual(ci["settingSources"], ["user"])
-        self.assertEqual(ci["context"], "fresh")
+        self.assertNotIn("context", ci)
         self.assertEqual(ci["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
                                          "enableWeakerNetworkIsolation": True,
                                          "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
@@ -305,9 +306,10 @@ class YamlCase(unittest.TestCase):
         self.assertEqual({**material, "type": "object"}, declared_checks.MATERIAL_SCHEMA)
 
     def test_loop_matches_give_up(self):
+        """今の works の blk-ci と違い、fresh_context は false（#571。拒まれた後の出し直しは同じ会話の続き）"""
         loop = node("ci-loop")
         self.assertEqual(loop["when"], "$run.output.by == 'role_needed'")
-        self.assertIs(loop["loop_group"]["fresh_context"], True)
+        self.assertIs(loop["loop_group"]["fresh_context"], False)
         self.assertIn("$ci-accept.output.done", loop["loop_group"]["until_bash"])
         self.assertEqual(loop["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 

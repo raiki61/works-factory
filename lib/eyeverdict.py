@@ -200,7 +200,7 @@ def r4_accept(eyes_dir, raw, passed: dict) -> dict:
 
 
 def r4_rejects(eyes_dir) -> str:
-    """R4 の受け付けがこれまでに拒んだ理由の全部（rolekit.rejects_text。役は周ごとに新しい会話で起きるので最後の 1 件では足りない）"""
+    """R4 の受け付けがこれまでに拒んだ理由の全部（rolekit.rejects_text。resume で輪が 1 周目から回り直すと役は新しい会話で起き、前の拒否が会話に無いので最後の 1 件では足りない）"""
     return rolekit.rejects_text(rolekit.rejected(pathlib.Path(eyes_dir), R4_NODE))
 
 

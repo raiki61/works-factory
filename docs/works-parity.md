@@ -3426,7 +3426,7 @@
 - judge.md J78: lib/judge_accept.py::_carried_r1_accounted・lib/judge_accept.py::_fork_moves_forward（受け付けはいつも空の前の周を渡す）。前の周に残すと宣言した穴の振り分け（`_declared_route_errors`）は届かなかったので #232 で消した
 - judge.md J79: lib/judge_accept.py::material_rows・lib/judge_accept.py::take・lib/outpurpose.py
 - judge.md J80: lib/judge_accept.py::answer_tie_problems・lib/judge_accept.py::take
-- judge.md J81: lib/judge_accept.py::accept・lib/judge_accept.py::_give_up・workflows/judge/works-factory-judge.yaml の `diagnose-reject`（集めの口 `collect` は届かなかったので #232 で消した）。役が周ごとに新しい会話で起きる仕様の 3 つのループと再審のループ（fresh_context: true）は、頭のノード（script rejects）が with: の board・accept で拒否の控えの全部を読み rolekit.rejects_text で渡す（workflows/judge/scripts/rejects.py。#345）
+- judge.md J81: lib/judge_accept.py::accept・lib/judge_accept.py::_give_up・workflows/judge/works-factory-judge.yaml の `diagnose-reject`（集めの口 `collect` は届かなかったので #232 で消した）。仕様の 3 つのループと再審のループは、頭のノード（script rejects）が with: の board・accept で拒否の控えの全部を読み rolekit.rejects_text で渡す（workflows/judge/scripts/rejects.py。#345）。どのループも fresh_context: false で、拒まれた後の出し直しは同じ役の会話の続き（#571）
 - judge.md J82: lib/judge_accept.py::take・lib/judge_accept.py::PUBLIC_FILES
 - judge.md J83: lib/judge_accept.py::prep_on・lib/judge_accept.py::verify_not_run
 - judge.md J84: lib/judge_accept.py::prep_on

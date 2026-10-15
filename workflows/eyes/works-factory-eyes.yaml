@@ -275,7 +275,7 @@ nodes:
 
   # R1・R2 の筋が落ちても R4 を飛ばさない。方針とのぶつかりが記録された方針の行を名指さなければ受け付けが拒んで出し直させ、
   # 3 回目は通らなくても抜ける（その時は名指さない行も最後の承認ノードで人に聞く。#455）。if/then は今の works の post_check
-  # r4_inventory（棚卸しが発火したら lost を明示する）
+  # r4_inventory（棚卸しが発火したら lost を明示する）。目は 1 回目は新しい会話で起き、拒まれた後の出し直しは同じ会話の続き（#571）
   - id: r4-loop
     depends_on: [prep, r1-minimality, r2-compare, premise-check]
     trigger_rule: all_done
@@ -283,7 +283,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$r4-accept.output.done; test "$done" = true
       nodes:
         - id: r4-reject
@@ -301,7 +301,6 @@ nodes:
           depends_on: [r4-reject]
           model: sonnet
           effort: medium
-          context: fresh
           settingSources: [user]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           allowed_tools: [Read, Grep, Glob]

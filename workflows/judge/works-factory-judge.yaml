@@ -118,7 +118,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$spec-accept.output.done; test "$done" = true
       nodes:
         - id: spec-reject
@@ -195,7 +195,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$spec-review-accept.output.done; test "$done" = true
       nodes:
         - id: spec-review-reject
@@ -262,7 +262,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$spec-revise-accept.output.done; test "$done" = true
       nodes:
         - id: spec-revise-reject
@@ -924,6 +924,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [prior-decisions-prep]
           with: {reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
           output_format:
             type: object
@@ -1027,6 +1028,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [purpose-review-prep]
           with: {reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
           output_format:
             type: object
@@ -1102,6 +1104,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [local-review-prep]
           with: {reason: "$LOOP_PREV.local-review-accept.output.reason"}
           output_format:
             type: object
@@ -1214,6 +1217,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [consistency-bypass-prep]
           with: {reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
           output_format:
             type: object
@@ -1332,6 +1336,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [hygiene-prep]
           with: {reason: "$LOOP_PREV.hygiene-accept.output.reason"}
           output_format:
             type: object
@@ -1411,6 +1416,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [external-standards-prep]
           with: {reason: "$LOOP_PREV.external-standards-accept.output.reason"}
           output_format:
             type: object
@@ -1529,6 +1535,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [procedure-trace-prep]
           with: {reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
           output_format:
             type: object
@@ -1631,6 +1638,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [gate-efficacy-prep]
           with: {reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
           output_format:
             type: object
@@ -1733,6 +1741,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [test-double-fidelity-prep]
           with: {reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
           output_format:
             type: object
@@ -1834,6 +1843,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [main-path-observation-prep]
           with: {reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
           output_format:
             type: object
@@ -1932,6 +1942,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
+          depends_on: [provenance-prep]
           with: {reason: "$LOOP_PREV.provenance-accept.output.reason"}
           output_format:
             type: object
@@ -2312,7 +2323,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$rejudge-accept.output.done; test "$done" = true
       nodes:
         - id: rejudge-reject
@@ -2331,7 +2342,6 @@ nodes:
           depends_on: [rejudge-reject]
           model: opus
           effort: high
-          context: fresh
           settingSources: [user]
           allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           mutates_checkout: false

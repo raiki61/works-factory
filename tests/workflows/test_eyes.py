@@ -398,8 +398,8 @@ class ShapeCase(unittest.TestCase):
                 continue
             with self.subTest(nid):
                 self.assertIs(node.get("mutates_checkout"), False)
-                if "command" in node:
-                    self.assertEqual(node.get("context"), "fresh")
+                if "command" in node:   # R4 は輪の 1 周目が新しい会話で、出し直しは同じ会話の続き（#571）
+                    self.assertEqual(node.get("context"), None if nid == "r4-scope" else "fresh")
 
     def test_no_eye_has_shell_or_writer_tools(self):
         for nid, node in ROLES.items():
@@ -538,10 +538,11 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(node.get("trigger_rule"), "all_done")
 
     def test_r4_runs_in_an_accept_loop(self):
-        """#455: R4 は受け付けの輪の中で、拒否の理由の全部を頭の節から読んで新しい会話で出し直す。受け付けの返答を輪の外の節が書く"""
+        """#455: R4 は受け付けの輪の中で、拒否の理由の全部を頭の節から読んで出し直す。1 回目は新しい会話で、出し直しは同じ会話の
+        続き（#571）。受け付けの返答を輪の外の節が書く"""
         loop = NODES["r4-loop"]["loop_group"]
         self.assertEqual(loop["max_iterations"], rolekit.GIVE_UP_AFTER)
-        self.assertIs(loop["fresh_context"], True)
+        self.assertIs(loop["fresh_context"], False)
         self.assertIn("$r4-accept.output.done", loop["until_bash"])
         self.assertEqual([n["id"] for n in loop["nodes"]], ["r4-reject", "r4-scope", "r4-accept"])
         self.assertEqual(depends(NODES["r4-scope"]), {"r4-reject"})
@@ -661,7 +662,7 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(nid):
                 self.assertEqual(node.get("settingSources"), ["user"])
                 self.assertEqual(node.get("sandbox"), {"enabled": True, "allowUnsandboxedCommands": False})
-                self.assertEqual(node.get("context"), "fresh")
+                self.assertEqual(node.get("context"), None if nid == "r4-scope" else "fresh")
 
     def test_no_workflow_level_composed_keys(self):
         self.assertFalse({"interactive", "worktree", "container", "evidence_policy", "mutates_checkout"} & set(DOC))
