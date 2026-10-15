@@ -100,6 +100,13 @@ class FrozenRuledScopeCase(unittest.TestCase):
         self.edit("    def test_values(self):\n", "    def setUp(self):\n        pass\n\n    def test_values(self):\n")
         self.assertEqual(self.frozen([]), [], "新しいクラスの中は自由（既存のテストに効かない）")
 
+    def test_importing_the_module_of_an_existing_from_import_is_not_frozen(self):
+        """`from stats import clamp, mean` は名前空間に stats を作らないので、`import stats` を足すのは既存のテストに効かない"""
+        self.edit("from stats import clamp, mean\n", "from stats import clamp, mean\nimport stats\n")
+        self.edit("\n\nif __name__", "\n\nclass TestModule(unittest.TestCase):\n    def test_mean(self):\n"
+                  "        self.assertEqual(stats.mean([2]), 2)\n\n\nif __name__")
+        self.assertEqual(self.frozen([]), [])
+
     def test_additions_with_an_edit_of_existing_lines_are_rejected(self):
         for old, new in [("clamp(5, 0, 10), 5)", "clamp(5, 0, 10), 5.0)"),               # 既存のテストの本体
                          ("class TestStats(unittest.TestCase):", "@unittest.skip('x')\nclass TestStats(unittest.TestCase):"),
