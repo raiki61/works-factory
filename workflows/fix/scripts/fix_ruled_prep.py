@@ -8,7 +8,8 @@
 skip-before.json に控え（fixboard.record_skipped。受け付けがその下を変えた返答を拒む）、組の修正役が受け付けた返答を
 1 つにまとめた控え（fixboard.group_fix_reply。fix-reply.json）と裁定の文のファイルを読む新しい会話の指示書を組む（fixrules.prep の
 ruled。題の次に保存した返答を名指す行を足す。fixboard.ruled_reply_line。docs/plans/2026-10-12-blocks/fix.md の「Archon で書けない所」
-の前の役の会話の続きの狭め）。直す義務は戻せた組の fixed でない単位（fixboard.ruled_owed）。
+の前の役の会話の続きの狭め）。直す義務は戻せた組の fixed でない単位（fixboard.ruled_owed）。凍ったテスト（factchecks.frozen_tests。輪の状態は受け付けと同じ
+fixboard.ruled_states）を受け付けと同じ口で引いて指示書に貼る。
 返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・控えが壊れた）は標準エラーに 1 行で非 0。
 """
 import sys
@@ -52,10 +53,11 @@ def main() -> dict:
     start = startrec.read(place)
     saved = fixboard.group_fix_reply(place)
     values = fixboard.fix_values(place, owed, start=start, answer_node=fixrules.answer_node("ruled"))
+    state, _ = fixboard.ruled_states(place)
     got = fixrules.prep(place, repo, values, "ruled",
                         owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
                         reject_file=rolekit.reject_file(place, ACCEPT), lang=rolekit.lang_line(start),
-                        shared=boundary.shared_cache())
+                        frozen=factchecks.frozen_tests(place, state, "ruled"), shared=boundary.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:
         fixboard.ruled_reply_line(prompt, str(saved))
     fixboard.consult_skip(place, boundary.SKIP, writelog.log_here())

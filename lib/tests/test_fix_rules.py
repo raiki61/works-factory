@@ -729,6 +729,26 @@ class PrepCase(unittest.TestCase):
         ruled = pathlib.Path(self.prep("ruled", items=items)["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn("`conf.ini`", ruled, "裁定の後の周は受け付けが許す直す裁定のパスを貼る")
 
+    def test_prompt_pastes_the_test_names_the_accept_checks(self):
+        """#603: 修正役の指示書に、受け付けが照らす足してよい新しいテストと凍ったテストのファイルが字のまま在る。テストの照らしは
+        項目の有無に依らず回るので節はいつも在り、項目と凍ったテストの行は値が在る時だけ"""
+        import planrange
+        items = [{"item": 1, "unit_keys": ["a: 分母"], "allowed_paths": ["stats.py"],
+                  "tests": [{"id": "test_stats.py::test_mean", "red_kind": "assert"}], "rewrite_tests": [], "out_of_scope": []}]
+        frozen = {"files": ["test_stats.py"], "verified": []}
+        bare = pathlib.Path(self.prep()["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(planrange.TESTS_HEAD, bare)
+        self.assertNotIn("足してよい新しいテスト", bare)
+        self.assertNotIn("凍ったテストのファイル（", bare)
+        (self.place / fixrules.conflict.RULINGS_FILE).write_text("# 裁定\n", encoding="utf-8")
+        for pass_ in fixrules.PASSES:
+            with self.subTest(pass_=pass_):
+                text = pathlib.Path(self.prep(pass_, items=items, frozen=frozen)["prompt_file"]).read_text(encoding="utf-8")
+                tests = text.split(planrange.TESTS_HEAD, 1)[1]
+                self.assertIn("`test_stats.py::test_mean`", tests)
+                self.assertIn("凍ったテストのファイル（", tests)
+                self.assertIn("`test_stats.py`", tests)
+
     def test_unknown_pass_and_broken_briefs(self):
         with self.assertRaises(fixrules.Unfilled):
             self.prep("third")
