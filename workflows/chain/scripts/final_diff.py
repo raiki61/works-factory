@@ -11,7 +11,8 @@ chain.md（lib/chain.render）に書く。
 返す apply・sealed は、メイングラフの出力と同じ形（bin/apply が読む {ok, hash, diff}）。最後の差分は元の基からなので、前の周の変更も
 入る。apply.ok は最後の差分に入る（自分の差分のファイルが在る）どの周の子の run も自分の差分を置いた時だけ真で、どれかが置かなかった時は
 sealed だけを当てられる（bin/apply の --allow-stopped）。採る周の結末の語 outcome と、r2_status（最後の差分に入る周のどれかで R2 が
-作り直しと言えばそれ、ほかは採る周の物）も返す（bin/apply が拒む訳と、R2 の作り直しを拒むのに読む）。
+作り直しと言えばそれ、ほかは採る周の物）と、spec_questions（最後の差分に入る周の承認し直すかの問いの数の和）も返す（bin/apply が
+拒む訳と、R2 の作り直しを拒むのと、承認し直しの知らせに読む）。
 書くのは親の置き場だけで、作業ツリーと枝は動かさない（git は commit の間の差分を読むだけ）。final() は始めに前の chain/final.diff と
 chain.md を消し、final.diff は封じた時だけ、chain.md は周の差分を作れた時だけ書く（resume で走り直して採る周が無くなったり final() が
 途中で返ったりしても、前の回の差分や、それを名指す表が残らない）。
@@ -98,6 +99,11 @@ def r2_of(rows: list, kept: dict):
     return kept.get("r2_status")
 
 
+def spec_of(rows: list, kept: dict) -> int:
+    """最後の差分に入る周の承認し直すかの問いの数の和。前の周の変更も最後の差分に入るので、採る周だけでなく足す"""
+    return sum(r["spec_questions"] for r in carried(rows, kept) if isinstance(r.get("spec_questions"), int))
+
+
 def final() -> dict:
     for stale in (chain.FINAL, chain.REPORT):
         boundary.resolve(boundary.pointer(stale)).unlink(missing_ok=True)
@@ -123,6 +129,7 @@ def final() -> dict:
             got["sealed"] = sealed_at(chain.FINAL, data)
             got["apply"] = {**got["sealed"], **placed(rows, kept)}
             got["r2_status"] = r2_of(rows, kept)
+            got["spec_questions"] = spec_of(rows, kept)
             got["ok"] = True
     run = os.environ["WORKFLOW_ID"]
     report = boundary.pointer(chain.REPORT)
@@ -136,7 +143,7 @@ def final() -> dict:
 
 def nothing(reason: str) -> dict:
     return {"ok": False, "reason": reason, "apply": None, "sealed": None, "report": None, "kept": 0, "skipped": [], "outcome": "",
-            "r2_status": None}
+            "r2_status": None, "spec_questions": 0}
 
 
 def main() -> None:
