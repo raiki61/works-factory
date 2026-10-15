@@ -123,7 +123,7 @@ MIN_WHY = 10
 MIN_CITES = 2
 MAX_LINES = 20
 # 申し出の種類（kind の値。設計の 4 つと、今の道を残す 2 つ）
-BRIEF_VS_JUDGMENT = "brief_vs_judgment"     # brief と、判定・依頼・人が答えた条件が食い違う
+BRIEF_VS_JUDGMENT = "brief_vs_judgment"     # brief と、判定・依頼・承認ノードで答えた条件が食い違う
 UNNAMED_TEST_BROKE = "unnamed_test_broke"   # 名指していない既存のテストが、直すと落ちる・外すしかない
 NOT_RED = "not_red"                         # 受け入れのテスト・名指しの書き換えが、案どおりに書いても赤にならない
 SCOPE_NEEDED = "scope_needed"               # brief や案の範囲の外を触らないと緑にならない・問いの数え直しが閉じない

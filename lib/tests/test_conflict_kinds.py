@@ -217,7 +217,7 @@ class BriefKindCase(unittest.TestCase):
         self.assertEqual(planbrief.by_unit_at(self.dir / "no-board"), {})
 
     def test_brief_rules_name_the_kinds(self):
-        # 節 brief-canon の申し出の道（範囲の外・query・brief の誤り・人が答えた条件）がそれぞれ種類の名を言う
+        # 節 brief-canon の申し出の道（範囲の外・query・brief の誤り・承認ノードで答えた条件）がそれぞれ種類の名を言う
         sec = fixrules.sections(fixrules.BRIEF)["brief-canon"]
         for k in ("scope_needed", "query_hits_fixed", "brief_vs_judgment"):
             self.assertIn(f"`kind` は `{k}`", sec)

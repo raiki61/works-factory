@@ -760,6 +760,16 @@ class FixWiringCase(FixGateAnswersCase):
         self.assertEqual((owed, set(excused)), ({"u1"}, {"u2"}))
         self.assertIn("答え待ちの問い q2", excused["u2"])
 
+    def test_fix_notes_name_a_pushed_answer_as_a_push(self):
+        """無人の run が推しで通した修正前の承認ノードの一言は、修正役の notes_file に頭 PUSHED_NOTE つきで届く（人の答えと名乗らない）。
+        人の答えの一言は頭を持たない"""
+        note = "空の列は 0 を返す形で通す"
+        pushed = {"decision": "continue", "text": note, "asked": [],
+                  answer.PUSHED: [{"item": "1", "answer": "continue", "note": note, "why": "既存の呼び手が 0 を待つ"}]}
+        read = lambda got: pathlib.Path(fixboard.write_notes(self.place_with(got))).read_text(encoding="utf-8")
+        self.assertEqual(read(pushed), answer.PUSHED_NOTE + note)
+        self.assertEqual(read({key: v for key, v in pushed.items() if key != answer.PUSHED}), note)
+
 
 class GateAnswerCase(Artifacts):
     def test_skipped_gate_passes_the_decision_before_it(self):

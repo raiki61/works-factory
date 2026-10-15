@@ -172,7 +172,6 @@ ANSWER_ROW_HEAD = promptsection.Section("## 相談（項目 {item}・パス {pat
 ORIGIN_ACCEPT = "accept"   # 頼みと確かめの行の origin: 受け付けが見つけて積んだ頼み（無い＝修正役が返答の consult に書いた頼み）
 ORIGIN_GATE = "gate"       # 同じ欄: 人の関所の continue の条件を機械が相談にした頼み（頼む物は無く、役が条件で要る物を決める）
 CONTINUE = "continue"
-PUSHED_NOTE = "無人の run が採った推し（人の答えではない）: "
 KINDS = planmarks.AGREED_KINDS   # 合意の新しいテストの赤の種類（赤か守りか）
 
 
@@ -410,11 +409,11 @@ def left(b, pass_: str) -> int:
 
 def gate_notes(b, human_items=(), round_: int = 1) -> str:
     """今の周（round_）の直す前の人の関所（gatemarks.GATE_NODE）の continue の一言（human_items の行 {round, node, answer, note}
-    の note）を改行で並べた文（字のまま。無人の run が推しで通した行（欄 answer.PUSHED）は頭に PUSHED_NOTE。無ければ空。最後の
+    の note）を改行で並べた文（字のまま。無人の run が推しで通した行（欄 answer.PUSHED）は頭に answer.PUSHED_NOTE。無ければ空。最後の
     関所などほかの節の一言は入れない）。b は置き場（読まない。名を揃える）。
     元 works/blk-fix/lib/consult.py:486（盤面の record.process.human_items と b.round を読んだ所を引数に）"""
     items = human_items or []
-    return "\n".join((PUSHED_NOTE if answer.by_push(h) else "") + h["note"] for h in items
+    return "\n".join((answer.PUSHED_NOTE if answer.by_push(h) else "") + h["note"] for h in items
                      if isinstance(h, dict) and h.get("round") == round_ and h.get("answer") == CONTINUE
                      and h.get("node") == gatemarks.GATE_NODE and isinstance(h.get("note"), str) and h["note"].strip())
 
