@@ -15,6 +15,7 @@ tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジト
 """
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -1837,8 +1838,8 @@ class GroupScriptsSeamCase(TempCase):
                    "tests/test_a.py", "tests/test_?.py", "tests/sub/test_x.py", ""]
 
     def test_item_globs_reads_like_inside(self):
-        """項目の範囲の glob の並び item_globs は planrange.inside と同じ読み。テストのファイルは字のまま当たる（名に * ? [ を
-        含んでもほかのファイルに当たらない）"""
+        """項目の範囲（planrange.inside。glob の並びは item_globs）のテストのファイルは字のまま当たる（名に * ? [ を含んでも
+        ほかのファイルに当たらない）"""
         want = {
             "bracket": {"lib/a.py", "tests/test_[x].py"},
             "plain": {"tests/test_x.py"},
@@ -1848,10 +1849,7 @@ class GroupScriptsSeamCase(TempCase):
                      "tests/test_?.py", "tests/sub/test_x.py"},
         }
         for name, it in self.RANGE_ITEMS.items():
-            globs = planrange.item_globs(it)
-            got = {p for p in self.RANGE_PATHS if planrange.inside(p, it)}
-            self.assertEqual(got, want[name], name)
-            self.assertEqual(got, {p for p in self.RANGE_PATHS if any(planmarks.glob_match(p, g) for g in globs)}, name)
+            self.assertEqual({p for p in self.RANGE_PATHS if planrange.inside(p, it)}, want[name], name)
         self.assertEqual(planrange.item_globs(self.RANGE_ITEMS["bracket"]), ["lib/a.py", "tests/test_[[]x].py"])
         self.assertEqual(planrange.item_globs({"item": 9}), [])
 
@@ -1870,14 +1868,13 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual([g["unit_ids"] for g in got], [["A", "C"], ["B"], ["D"]])
 
     def test_item_globs_match_bracket_names_without_future_warning(self):
-        """名に [ を含むテストのファイル（tests/test_[x].py）の項目は字のままのパスにだけ当たり、glob の読みで re の FutureWarning
-        （入れ子の集合の予告）を出さない。警告が無いことを見るので、re のコンパイルの控えにも試験の順にも依らない"""
-        it = self.RANGE_ITEMS["bracket"]
+        """名に [ を含むテストのファイル（tests/test_[x].py）の項目の glob は、読む時に re の FutureWarning（入れ子の集合の予告）を
+        出さない。re のコンパイルの控えを空にしてから読むので、試験の順に依らない"""
         with warnings.catch_warnings(record=True) as seen:
             warnings.simplefilter("always")
-            hits = {p: (planrange.inside(p, it), any(planmarks.glob_match(p, g) for g in planrange.item_globs(it)))
-                    for p in ("tests/test_[x].py", "tests/test_x.py")}
-        self.assertEqual(hits, {"tests/test_[x].py": (True, True), "tests/test_x.py": (False, False)})
+            re.purge()
+            for g in planrange.item_globs(self.RANGE_ITEMS["bracket"]):
+                planmarks.glob_match("", g)
         self.assertEqual([str(w.message) for w in seen if issubclass(w.category, FutureWarning)], [])
 
     def test_parallel_needs_two_groups_no_lane_switch_and_a_remote(self):

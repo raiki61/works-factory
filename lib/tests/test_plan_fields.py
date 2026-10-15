@@ -520,11 +520,7 @@ class ScopeFieldsCase(PlanFieldsCase):
                 self.assertTrue(planmarks.globs_meet(a, b))
 
     def test_globs_meet_reads_trailing_slash_like_glob_match(self):
-        """末尾の / は落とさず字のまま読む（glob_match と同じ）: 'a/' は 'a' と交わらず、'a/*' と 'a/**' とは交わる"""
-        for a, b in (("a/", "a/*"), ("a/", "a/**")):
-            with self.subTest(a=a, b=b):
-                self.assertTrue(planmarks.globs_meet(a, b))
-                self.assertTrue(planmarks.globs_meet(b, a))
+        """末尾の / は落とさず字のまま読む（glob_match と同じ）: 'a/' は 'a' と交わらず、同じパスに当たる glob の対は交わる"""
         self.assertFalse(planmarks.globs_meet("a/", "a"))
         self.assertFalse(planmarks.globs_meet("a", "a/"))
         globs = ["a/", "a", "a/*", "a/**", "lib/*.py", "lib/a.py"]

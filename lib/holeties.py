@@ -31,7 +31,7 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
-import planrange  # noqa: E402  （項目の範囲の読みの正本）
+import planrange  # noqa: E402
 
 VIA = ("compliance", "check", "path", "change", "unit", "earlier")
 NOWHERE = "どの枝にも結べない"
