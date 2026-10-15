@@ -22,8 +22,9 @@ from lib import answer
 
 
 def word(pattern: str) -> re.Pattern:
-    """pattern（正規表現の断片）を語として当てる式。前後が `[\\w\\-/.]` の時は語の一部（plan-fields.json・fix_plan・plan/r1）で数えない"""
-    return re.compile(rf"(?<![\w\-/.])(?:{pattern})(?![\w\-/.])")
+    """pattern（正規表現の断片）を語として当てる式。前後が `[\\w\\-/.]` の時は語の一部（plan-fields.json・fix_plan・plan/r1）で数えない。
+    `\\w` は ASCII だけ（日本語の字に続く名 `eyesの` も語として当てる）"""
+    return re.compile(rf"(?a)(?<![\w\-/.])(?:{pattern})(?![\w\-/.])")
 
 
 BOUNDARY = "boundary.py"
@@ -387,13 +388,18 @@ MAIN_GRAPH_WORD = "メイングラフ"
 OUTPUT_OF_NODE = re.compile(r"\$([\w-]+)\.output")
 
 
+def _node_ids(document) -> set[str]:
+    """グラフの YAML の節の id（字の物だけ）"""
+    return {i.value for node in _nodes(document) if isinstance(i := _top(node, "id"), yaml.ScalarNode)}
+
+
 def _top_hyphen_ids(root: Path) -> set[str]:
     """一番上のグラフ（line・chain）の節の id のうち `-` を含む物。`-` の無い id は普通の語と重なるので入れない"""
     ids = set()
     for name in TOP_FOLDERS:
         _, top = _workflow_doc(root / "workflows" / name)
         if top is not None:
-            ids |= {i.value for node in _nodes(top) if isinstance(i := _top(node, "id"), yaml.ScalarNode) and "-" in i.value}
+            ids |= {i for i in _node_ids(top) if "-" in i}
     return ids
 
 
@@ -415,7 +421,7 @@ def _input_producers(root: Path) -> list[str]:
         path, document = _workflow_doc(folder)
         if document is None:
             continue
-        own_ids = {i.value for node in _nodes(document) if isinstance(i := _top(node, "id"), yaml.ScalarNode)}
+        own_ids = _node_ids(document)
         others = (set(BLOCKS) | {p.name for p in folders}) - {folder.name}
         names = word(rf"(?:{re.escape(OURS_PREFIX)})?(?:" + "|".join(re.escape(n) for n in sorted(others, key=len, reverse=True)) + ")")
         for key, spec in _pairs(_top(document, "inputs")):
