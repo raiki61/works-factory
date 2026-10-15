@@ -2,14 +2,14 @@
 （blk-fix の planscope。単位に結べる行の照らしと欠けの照らしはそちら）と、手直しの受け付け（refix.accept_fix）が同じ決まりで使う。
 
 語:
-- 項目の範囲: allowed_paths の glob と、tests・rewrite_tests の id のファイル（planmarks.test_paths）
+- 項目の範囲: allowed_paths の glob と、tests・rewrite_tests の id のファイル（planmarks.test_paths）。glob の並びで言えば item_globs
 - out_of_scope: 範囲の中でも触らない物で、範囲より強い。ただし範囲の相談の合意でその項目の out_of_scope から外したパス（LIFTED。
   字のまま同じパスだけ）は、その項目では当たらない
 - 合意（with_agreed）: 範囲の相談で修正案を書いた役が許したパス（conflict.agreed）を、その項目の allowed_paths に足す
 - 許し（permit_paths）: テストの変更の許し（conflict.test_permits の範囲の行）のパスと、裁定の後なら直す裁定のパス
   （conflict.ruled_paths）。run の全部の項目の範囲の和に入る。out_of_scope には勝たない
 
-- with_agreed(items, agreed)・inside(path, it)・oos_hit(path, items)・oos_hit_for(path, mine, items): 範囲の読み
+- with_agreed(items, agreed)・item_globs(it)・inside(path, it)・oos_hit(path, items)・oos_hit_for(path, mine, items): 範囲の読み
 - owner(path, items): パスを結ぶ項目（範囲に入る最初の項目、無ければ項目の最初）。はみ出しを相談に回す時の項目の選び
 - permit_paths(b, *, ruled, agreed, round_): 許しのパスの並び（b は fix の run の置き場のフォルダのパス。conflict と同じ）
 - outside(items, paths, permits, *, hint): 単位に結べない変わったパスの外れの行（全項目の範囲の和か許しに入らない・どれかの項目の
@@ -29,6 +29,7 @@
 """
 from __future__ import annotations
 
+import glob
 import posixpath
 
 import conflict
@@ -64,9 +65,15 @@ def _oos(it: dict) -> list[str]:
     return [r["glob"] for r in _oos_rows(it)]
 
 
+def item_globs(it: dict) -> list[str]:
+    """項目の範囲（allowed_paths の glob・tests と rewrite_tests の id のファイル）を glob の並びで。テストのファイルは字のまま
+    当たるよう glob.escape で包む（名に * ? [ を含んでも glob として読まない）"""
+    return globs(it) + [glob.escape(f) for f in planmarks.test_paths(it)]
+
+
 def inside(path: str, it: dict) -> bool:
-    """path が項目の範囲（allowed_paths の glob・tests と rewrite_tests の id のファイル）に入るか"""
-    return path in planmarks.test_paths(it) or any(planmarks.glob_match(path, g) for g in globs(it))
+    """path が項目の範囲（item_globs）に入るか"""
+    return any(planmarks.glob_match(path, g) for g in item_globs(it))
 
 
 def owner(path: str, items: list[dict]):
