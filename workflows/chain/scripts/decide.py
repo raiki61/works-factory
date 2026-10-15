@@ -8,10 +8,11 @@
 で次の一手を決める。返す物は 0 周目の決め（chain-start）と同じ形で、次の周の子の入力 request・base・pr・spec を持つ。2 周目からの
 子には request だけを運ぶ次の依頼に替え、base・pr・spec は空にする（1 周目に名指した PR は次の依頼の pr の欄で運ぶ）。request は
 次を起こす時だけ埋める。周の commit か周の事実が読めなかった周は halted で止める。
-周の行には、最後の差分のノードが採る周の答えとして読む子の出力の placed（子が差分を置いたか。apply.ok が真か）と r2_status も載せる。
+周の行には、最後の差分のノードが採る周の答えとして読む子の出力の placed（子が差分を置いたか。apply.ok が真か）・r2_status・
+spec_questions（承認し直すかの問いの数。整数でなければ 0）も載せる。
 出力ノード result が結ぶので落ちない: 境の口か lib を読めない時も、標準ライブラリだけで halted を返す。
 
-入力（with:）: rows（前の決めの出力の欄）・outcome・apply・r2_status（子の run の出力の欄）・facts（round-k-facts の出力）・commit（round-k-commit の
+入力（with:）: rows（前の決めの出力の欄）・outcome・apply・r2_status・spec_questions（子の run の出力の欄）・facts（round-k-facts の出力）・commit（round-k-commit の
 出力）・rounds_max・budget（chain-start の出力の欄）
 """
 import json
@@ -44,10 +45,12 @@ def decide() -> dict:
     budget = boundary.value(os.environ.get("INPUTS_BUDGET"))
     placed = as_dict(boundary.value(os.environ.get("INPUTS_APPLY"))).get("ok") is True
     held = facts.get("held_rows") or []
+    spec = boundary.value(os.environ.get("INPUTS_SPEC_QUESTIONS"))
     row = {"n": len(rows) + 1, "run": facts.get("run") or "", "outcome": outcome, "kind": report.OUTCOME_KINDS.get(outcome),
            "keys": facts.get("keys") or [], "held": len(held), "same_tree": commit.get("changed") is False,
            "cost": facts.get("cost"), "cost_read": facts.get("cost_read") is True, "minutes": facts.get("minutes"),
            "head": commit.get("head") or "", "placed": placed, "r2_status": boundary.value(os.environ.get("INPUTS_R2_STATUS")),
+           "spec_questions": spec if isinstance(spec, int) and not isinstance(spec, bool) else 0,
            "request": facts.get("request") or "", "source": facts.get("source") or ""}
     error = (commit.get("reason") or "周の結果を commit できなかった") if commit.get("ok") is not True else facts.get("error") or ""
     doc = {"rounds_max": boundary.value(os.environ.get("INPUTS_ROUNDS_MAX")), "budget_usd": budget, "rounds": [*rows, row]}
