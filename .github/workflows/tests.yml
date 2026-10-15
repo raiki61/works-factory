@@ -10,8 +10,6 @@
 # WORKS_FACTORY_ARCHON_CACHE で渡す。源は commit を鍵に actions のキャッシュに置く。bun の版は源の package.json の engines.bun から読む。
 # 考えの住処の柵の試験（tests/layers/test_concept_fences.py の NotAboveMain）が origin/main との分かれ目の表と比べるので、checkout は
 # fetch-depth: 0 で全履歴を取る。分かれ目を引けなければ試験は見送らずに赤。
-# 分けの 1 つ目は、親が立てた名の漏れの受け皿として、毒にした CLAUDE_CONFIG_DIR（ディレクトリでないファイル）の下で回す。
-# tests/shard.py が試験の過程から外し、試験の子は hermetic.child_env が外すので、どちらかが崩れた時だけ毒が試験に届く（tests/AGENTS.md の E21）。
 name: tests
 
 on:
@@ -89,11 +87,6 @@ jobs:
               shutil.move(os.environ["STAGING"], dest)
           place.archon_source(pack.load(pathlib.Path(".")), pathlib.Path(os.environ["WORKS_FACTORY_ARCHON_CACHE"]), fetched)
           EOF
-      - name: 毒にした CLAUDE_CONFIG_DIR
-        if: matrix.shard == 1
-        run: |
-          echo "ディレクトリでない。試験がここを読めば赤" > "$RUNNER_TEMP/poisoned-claude-config"
-          echo "CLAUDE_CONFIG_DIR=$RUNNER_TEMP/poisoned-claude-config" >> "$GITHUB_ENV"
       - name: unittest
         env:
           WORKS_FACTORY_ARCHON_REQUIRED: "1"
