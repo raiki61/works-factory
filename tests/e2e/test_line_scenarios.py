@@ -28,7 +28,7 @@ SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
-    "unattended-questions", "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
+    "unattended-questions", "unattended-policy-change", "unattended-push", "unattended-push-stop", "eyes-failed-protected", "refix-handoff",
     "nothing-owed", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence", "fix-fixture",
 )
 
@@ -154,7 +154,7 @@ class UnattendedGateTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.traces = line_traces(("unattended-questions", "unattended-policy-change"))
+        cls.traces = line_traces(("unattended-questions", "unattended-policy-change", "unattended-push", "unattended-push-stop"))
 
     @staticmethod
     def ran(trace, node) -> bool:
@@ -172,6 +172,29 @@ class UnattendedGateTest(unittest.TestCase):
         asked = json.loads(trace["ask-before-fix"]["output"])
         self.assertEqual((asked["open"], asked["go"], asked["stop_reason"]), (False, False, "works:needs-human"), asked)
         self.assertFalse(self.ran(trace, "gate-before-fix"))
+        self.assertFalse(self.ran(trace, "fix__fix"))
+        self.assertTrue(self.ran(trace, "report__report"))
+
+    def test_continue_push_goes_to_fix_and_heads_the_report(self):
+        """#552: 項目の全部が通す推しを持つ無人の run は、承認ノードを開かずに推しを採って修正へ進み、答えが欄 pushed を持ち、本物の
+        報告の冒頭 1 行目が推しで通したと言う"""
+        trace = self.traces["unattended-push"]
+        asked = json.loads(trace["ask-before-fix"]["output"])
+        self.assertEqual((asked["open"], asked["go"], asked["stop_reason"]), (False, True, ""), asked)
+        self.assertEqual(asked["pushed"]["decision"], "continue", asked)
+        self.assertFalse(self.ran(trace, "gate-before-fix"))
+        self.assertTrue(self.ran(trace, "fix__fix"))
+        answered = json.loads(trace["answer-before-fix"]["output"])["answer"]
+        self.assertEqual(answered["pushed"], asked["pushed"]["pushed"], answered)
+        first = report_facts(trace)["text"].split("\n\n", 2)[1].splitlines()[0]
+        self.assertIn("無人の run で推しを採って通した承認ノード: gate-before-fix", first)
+
+    def test_stop_push_stops_before_fix(self):
+        """#552: 推しが止める無人の run は、推しで進まずに今どおり止まって報告へ進む"""
+        trace = self.traces["unattended-push-stop"]
+        asked = json.loads(trace["ask-before-fix"]["output"])
+        self.assertEqual((asked["open"], asked["go"], asked["stop_reason"], asked["pushed"]), (False, False, "works:needs-human", None),
+                         asked)
         self.assertFalse(self.ran(trace, "fix__fix"))
         self.assertTrue(self.ran(trace, "report__report"))
 
@@ -465,6 +488,28 @@ class RefixInputsTest(unittest.TestCase):
         self.assertEqual(bound(trace, self.nodes["eyes"]["with"]["x_scalars"]), {"x_moved_lines": 3})
 
 
+def report_facts(trace: dict) -> dict:
+    """筋書きの trace の collect の値のまま本物の report の facts を走らせた返りと、事実のファイルの本文 text（ReportOutcomeTest の訳）"""
+    with_ = {n["id"]: n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]}["report"]["with"]
+    start = bound(trace, with_["start"])
+    with tempfile.TemporaryDirectory() as tmp:
+        artifacts = pathlib.Path(tmp)
+        run_id = (start or {}).get("run_id") or "dry-run"
+        if start:
+            (artifacts / start["path"]).parent.mkdir(parents=True, exist_ok=True)
+            (artifacts / start["path"]).write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
+        env = hermetic.child_env(ARTIFACTS_DIR=str(artifacts), WORKFLOW_ID=run_id, TYPED_ARTIFACTS_FILE="", LOG_DIR="",
+                                 WORKS_FACTORY_ROOT=str(archon.WORKFLOWS.parent))
+        for key, value in with_.items():
+            got = bound(trace, value)
+            env[f"INPUTS_{key.upper().replace('-', '_')}"] = got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
+        script = archon.WORKFLOWS / "report" / "scripts" / "facts.py"
+        done = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True, cwd=artifacts)
+        out = json.loads(done.stdout)
+        out["text"] = (artifacts / out["facts_file"]).read_text(encoding="utf-8")
+        return out
+
+
 class ReportOutcomeTest(unittest.TestCase):
     """部分 C の受け入れ: 筋書き start-refused・unattended-needs-human・final-stop の道で、本物の report（facts）が結末の語を
     返す（入口の拒み → stopped_by_line、無人の run の最後の関所の止め → needs_human、人の最後の関所の stop → stopped_by_human）。
@@ -481,24 +526,7 @@ class ReportOutcomeTest(unittest.TestCase):
         cls.traces = line_traces(tuple(cls.WANT))
 
     def facts(self, trace: dict) -> dict:
-        with_ = {n["id"]: n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]}["report"]["with"]
-        start = bound(trace, with_["start"])
-        with tempfile.TemporaryDirectory() as tmp:
-            artifacts = pathlib.Path(tmp)
-            run_id = (start or {}).get("run_id") or "dry-run"
-            if start:
-                (artifacts / start["path"]).parent.mkdir(parents=True, exist_ok=True)
-                (artifacts / start["path"]).write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
-            env = hermetic.child_env(ARTIFACTS_DIR=str(artifacts), WORKFLOW_ID=run_id, TYPED_ARTIFACTS_FILE="", LOG_DIR="",
-                                     WORKS_FACTORY_ROOT=str(archon.WORKFLOWS.parent))
-            for key, value in with_.items():
-                got = bound(trace, value)
-                env[f"INPUTS_{key.upper().replace('-', '_')}"] = got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
-            script = archon.WORKFLOWS / "report" / "scripts" / "facts.py"
-            done = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True, cwd=artifacts)
-            out = json.loads(done.stdout)
-            out["text"] = (artifacts / out["facts_file"]).read_text(encoding="utf-8")
-            return out
+        return report_facts(trace)
 
     def test_real_report_names_the_outcome(self):
         for name, want in self.WANT.items():

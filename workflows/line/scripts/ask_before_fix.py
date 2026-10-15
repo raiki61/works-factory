@@ -16,10 +16,11 @@ unattended・design_only。questions の行は関所の項目の種類と文 {ki
   （元 gatemarks._item の「人に聞く訳」）ので、軸の行は項目が 1 つも無い時だけ足す
 - 無人の run: 台帳の問い（種類 fork・escalate。gatemarks.ASK_KINDS）だけは関所に載せず deferred で返し（問いの出どころは直す義務から
   外れたまま修正へ進む。元 works/.shared/core/gatemarks.py:637-638）、ほかの種類（狭め・事前審査の穴・方針の文書の変化・事前審査の
-  諦め・設計の問い・世界の解の外れ・設計だけ）が在れば開かずに止める（needs-human。今の works で無人の殻が関所に stop を返したのと
-  同じ結末）
-返り asked は関所に載せた項目の文の並び（開かない時は []）。answer-before-fix がそれを答えの asked にし、fix・plan-review・eyes が人の
-通した行として読む。
+  諦め・設計の問い・世界の解の外れ・設計だけ）が在れば、その項目の全部が通す推しの尾を持つ時だけ推しで進み（返り pushed。
+  gatemarks.pushed_answer。持ち主 2026-10-15「人がいないときは推しの答え。」）、ほかは開かずに止める（needs-human。今の works で
+  無人の殻が関所に stop を返したのと同じ結末）
+返り asked は関所に載せた項目の文の並び（開かない時は []。推しで進んだ時は推しで通した項目）。answer-before-fix がそれを答えの asked
+にし、fix・plan-review・eyes が通した行として読む。pushed は推しで進んだ時の答え（answer-before-fix が答えとして記録する）で、ほかは null。
 """
 import os
 import sys
@@ -40,7 +41,7 @@ RECORD = "run の置き場の gates/gate-before-fix.json"
 
 def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict:
     if not plan.get("ready"):
-        return {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": [], "asked": []}
+        return {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": [], "asked": [], "pushed": None}
     rows, deferred = [], []
     questions = [(str(q.get("kind") or ""), str(q.get("text") or "")) if isinstance(q, dict) else ("", str(q))
                  for q in plan.get("questions") or []]
@@ -62,13 +63,18 @@ def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict
             rows.append((gatemarks.DESIGN_ONLY_KIND, gatemarks.DESIGN_ONLY_ITEM))
     opens = bool(rows) or (bool(plan.get("ask_human")) and not unattended)
     if not opens:
-        return {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": deferred, "asked": []}
+        return {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": deferred, "asked": [], "pushed": None}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "deferred": deferred, "asked": []}
+        asked = [item for _, item in rows]
+        pushed = gatemarks.pushed_answer(asked)
+        if pushed is None:
+            return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "deferred": deferred, "asked": [],
+                    "pushed": None}
+        return {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": deferred, "asked": asked, "pushed": pushed}
     asking = {"node": gatemarks.GATE_NODE, "kinds": list(dict.fromkeys(kind for kind, _ in rows if kind)) or [AXIS_KIND],
               "question": QUESTION, "items": [item for _, item in rows]}
     return {"open": True, "go": True, "stop_reason": "", "text": gate_text(asking, run_id=run_id), "deferred": deferred,
-            "asked": [item for _, item in rows]}
+            "asked": [item for _, item in rows], "pushed": None}
 
 
 def gate_text(asking: dict, *, run_id: str) -> str:
@@ -88,7 +94,7 @@ def plan_of_env() -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "deferred": [], "asked": []}
+    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "deferred": [], "asked": [], "pushed": None}
 
 
 if __name__ == "__main__":
