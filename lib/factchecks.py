@@ -14,13 +14,12 @@ TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す
   （fixboard.fixer_head。置き場の段の頭の控え）から読む。置き場は読むだけ。
   範囲の相談の合意は、修正の輪の確かめの節が置き場の trace に書いた物（conflict.agreed）を受け付けと同じに読む。
   返り {ok, rejects: [{check, text}]}
-- place_items(place): 置き場の修正案の控え（plan-fields.json と凍結の印・p2.fix_plan.json・judgment.json）から承認済みの修正案の
-  項目を引く口（planmarks.approved_items。check_plan_scope の items に渡す）
 - main(argv): `<python> factchecks.py <相談の控え> [--reply <下書きの返答の JSON>]`。控えの board（置き場）の修正案の控えから項目を
-  引き（place_items）、控えの skip（除くパスの頭。無ければ ()）を渡して precheck を回す。終了コード 0（通る）・1（拒否の行が在る）・
+  引き（fixboard.place_items）、控えの skip（除くパスの頭。無ければ ()）を渡して precheck を回す。終了コード 0（通る）・1（拒否の行が在る）・
   2（回す側の誤り）。出力は precheck の返りの 1 行
 """
 import argparse
+import functools
 import json
 import os
 import posixpath
@@ -34,8 +33,7 @@ if _LIB not in sys.path:
 
 import consult  # noqa: E402   範囲の相談の控え（同じブロックの lib）
 import conflict  # noqa: E402
-import fixboard  # noqa: E402  （直す義務・突き合わせの起点の版）
-import planmarks  # noqa: E402  （承認済みの修正案の項目の読み口）
+import fixboard  # noqa: E402  （直す義務・突き合わせの起点の版・承認済みの修正案の項目の読み口）
 import planscope  # noqa: E402
 import tddloop  # noqa: E402
 import writelog  # noqa: E402
@@ -179,30 +177,6 @@ def declared_files(rows, repo) -> set:
     return out
 
 
-def _read_json(path):
-    """path の JSON（無ければ None。読めなければ ValueError）"""
-    try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError) as e:
-        raise ValueError(f"置き場のファイル {path} が読めない: {e}") from None
-
-
-def place_items(place):
-    """置き場 place の承認済みの修正案の項目を返す口（引数なし。planmarks.approved_items の形の値か、修正案の無い run は None）。
-    修正案の役の返答は置き場の <planmarks.NODE>.json（{"plan": [...]}）、判定は judgment.json、凍結した欄は planmarks.save が置いた
-    plan-fields.json と凍結の印（fixboard.plan_view で planmarks に渡す）。控えが凍結の印と食い違えば planmarks.FieldsBroken
-    （planscope.check が conflict.fields_broken の ValueError にする）。元 entry.open_board の盤面から planmarks.approved_items(b)
-    を読んだ所（元 blk-fix/lib/factchecks.py:184 の planscope.check の中）"""
-    def items():
-        plan = _read_json(Path(place) / f"{planmarks.NODE}.json")
-        if plan is None:
-            return None
-        return planmarks.approved_items(fixboard.plan_view(place, plan, _read_json(Path(place) / "judgment.json")))
-    return items
-
-
 def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
     """事前の確かめ（モジュールの頭）。cfg は相談の控え（consult.load_config。board・repo・pass・base_rev・tdd_state と、在れば
     書き込みの記録のファイル log）。修正役が変え始めた木は控えでなく置き場の段の頭（fixboard.fixer_head）。items は承認済みの修正案の項目（check_plan_scope）、skip は除くパスの頭（check_writes）"""
@@ -230,7 +204,7 @@ def main(argv=None) -> int:
     try:
         cfg = consult.load_config(a.config)
         reply = json.loads(Path(a.reply).read_text(encoding="utf-8")) if a.reply else None
-        out = precheck(cfg, reply, items=place_items(cfg["board"]), skip=tuple(cfg.get("skip") or ()))
+        out = precheck(cfg, reply, items=functools.partial(fixboard.place_items, cfg["board"]), skip=tuple(cfg.get("skip") or ()))
     except (ValueError, OSError, KeyError) as e:
         print(f"factchecks: {e}", file=sys.stderr)
         return 2

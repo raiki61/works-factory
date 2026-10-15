@@ -14,6 +14,7 @@ Agent の新しい会話で下請け（実装役・審査役）を起こす節�
 同じ時に、除くパスの頭 boundary.SKIP の下の姿を skip-before.json に控える（fixboard.record_skipped。受け付けがその下を変えた返答を拒む）。
 返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・brief の控えが壊れた）は標準エラーに 1 行で非 0。
 """
+import functools
 import os
 import sys
 from pathlib import Path
@@ -23,7 +24,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
-import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import groups  # noqa: E402
@@ -57,7 +57,7 @@ def main() -> dict:
     state, summary = fixboard.loop_files(place)
     got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, state=state, summary=summary,
                                                          answer_node=fixrules.answer_node("first")),
-                        "first", owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
+                        "first", owed=owed, items=functools.partial(fixboard.place_items, place), sources=fixboard.brief_sources(place),
                         reject_file=rolekit.reject_file(place, ACCEPT), lang=rolekit.lang_line(start),
                         green=tddloop.green_units(summary), shared=boundary.shared_cache())
     fixboard.consult_skip(place, boundary.SKIP, writelog.log_here())

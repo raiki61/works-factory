@@ -113,6 +113,20 @@ class ConstantsCase(unittest.TestCase):
                     copies.append(f"{path.name}:{node.lineno}")
         self.assertEqual([c.partition(":")[0] for c in copies], ["gatemarks.py"], copies)
 
+    def test_approved_items_have_one_reader(self):
+        """置き場の承認済みの修正案の項目を読む口は fixboard.place_items の 1 つ（#583）。修正の段と手直しの段が別の口で
+        修正案と判定のファイルの名を綴ると、片方の名だけ変えた時に 2 つの段が違う項目の集合を読む"""
+        strays = []
+        for path in sorted(LIB.glob("*.py")) + sorted(ROOT.glob("workflows/*/scripts/*.py")):
+            where = path.relative_to(ROOT).as_posix()
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, ast.FunctionDef) and node.name == "place_items" and where != "lib/fixboard.py":
+                    strays.append(f"{where}:{node.lineno} def")
+                if (isinstance(node, ast.Attribute) and node.attr == "place_items"
+                        and not (isinstance(node.value, ast.Name) and node.value.id == "fixboard")):
+                    strays.append(f"{where}:{node.lineno} {ast.unparse(node)}")
+        self.assertEqual(strays, [])
+
     def test_every_allowed_row_has_a_reason(self):
         self.assertFalse(FALLBACKS.keys() & OVERLAPS.keys())
         for row, reason in {**FALLBACKS, **OVERLAPS}.items():

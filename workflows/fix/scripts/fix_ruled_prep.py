@@ -11,6 +11,7 @@ ruled。題の次に保存した返答を名指す行を足す。fixboard.ruled_
 の前の役の会話の続きの狭め）。直す義務は戻せた組の fixed でない単位（fixboard.ruled_owed）。
 返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・控えが壊れた）は標準エラーに 1 行で非 0。
 """
+import functools
 import sys
 from pathlib import Path
 
@@ -20,7 +21,6 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import conflict  # noqa: E402
-import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import groups  # noqa: E402
@@ -53,7 +53,7 @@ def main() -> dict:
     saved = fixboard.group_fix_reply(place)
     values = fixboard.fix_values(place, owed, start=start, answer_node=fixrules.answer_node("ruled"))
     got = fixrules.prep(place, repo, values, "ruled",
-                        owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
+                        owed=owed, items=functools.partial(fixboard.place_items, place), sources=fixboard.brief_sources(place),
                         reject_file=rolekit.reject_file(place, ACCEPT), lang=rolekit.lang_line(start),
                         shared=boundary.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:
