@@ -4,13 +4,12 @@
 engine.validator.agent_def で前付けを剥がした本文を引く。引くのは呼び手の lens-prep の script）。レンズの節は定義の本文を指示書に貼った節そのもので、子（Agent）を起こさない
 （節ごとの model が効くように。持ち主 2026-10-01）。
 
-- LENSES:               レンズの表（{lens, agent, route}。route(files) -> (go, 理由)。行は YAML のレンズの節と 1 対 1）
+- LENSES:               レンズの表（{lens, agent, route}。route(files) -> (go, 理由)。行ごとに YAML のレンズの節と、その返りの中継の節が 1 つずつ在る）
 - key(row):            振り分けの出口の欄の頭（<key>_go・prompt_<key>）
 - render(row, body, diff_file, files, lang): レンズの節の指示書（定義の本文 body（engine.validator.agent_def の body）と、この線での
                         読み方・返し方）
 - collect(board, replies): 集め役。レンズの節の出口（{レンズの名: 境の口 value が読んだ出口の値}。無ければ None）で置き場 board の
-                        lens.json を埋めて ok。出口の形が違うレンズは failed の行に理由つきで残す。起こしたレンズに出口が無い・
-                        控えが無い時は ok: false と理由
+                        lens.json を埋め、落ちたレンズも理由つきで記録して ok。控えが無い・読めない時は ok: false と理由
 """
 import json
 import pathlib

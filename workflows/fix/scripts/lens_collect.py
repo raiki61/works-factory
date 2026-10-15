@@ -2,9 +2,10 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""レンズの集め（節 lens-collect）: レンズの返り（with: reply。起こさなかった・飛ばされた時は null）で置き場の lens.json の行を
-埋め（lenses.collect。形が違えば failed と理由、在れば ran と出どころつきの findings）、1 回目の審査役の材料の lens の欄に
-足す（fixboard.brief_lens）。この節は支度（lens-prep）とレンズのどちらも落ちなかった時だけ走る（none_failed_min_one_success）。
+"""レンズの集め（節 lens-collect）: レンズの返り（with: reply。中継の節 lens-reply の返りで、起こさなかった・レンズが落ちた時は
+null）で置き場の lens.json の行を埋め（lenses.collect。返りが無ければ failed と理由、形が違えば failed と理由、在れば ran と
+出どころつきの findings）、1 回目の審査役の材料の lens の欄に足す（fixboard.brief_lens）。この節は支度（lens-prep）が済めば
+レンズが落ちても走り、支度が落ちた run では飛ぶ。
 集め役の事実は diff の隣の lenses.json に {collector: {ok, reason}} で置く（fixboard.lens_collector）: 集め終えれば ok: true、
 集めが ok でない・この節が誤りで落ちる時は ok: false と理由を書いてから非 0 で落ち、run を止める（元 works/blk-lens/scripts/exit.py
 の lenses.exit_ も盤面を止めた）。止まった run の報告は lenses.json の理由を読む。この節が何も書けずに落ちた時は返す節 collect が

@@ -1112,19 +1112,19 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 置き場の `lens.json` の行（state ran / not_routed と reason）と `prompt-lens-silent-failure-hunter.md`。pr-review-toolkit の無い環境では not_routed）
   - 狭め: 無し。「言語での振り分け」は元にも無い（lang は指示書の言語の 1 行だけ）
 
-- F327 レンズの返りを集め、指摘にレンズの名を付け、出口の形の違うレンズ・起きなかったレンズは理由の行を残し（起こしたレンズが落ちれば run が止まり、集めない）、形の崩れた指摘は数えて落とす。集めた行を 1 回目の審査役の材料に足す（2 回目には載せない）
+- F327 レンズの返りを集め、指摘にレンズの名を付け、落ちた・起きなかったレンズは理由の行を残し（レンズが落ちても run を止めずに先へ進む）、形の崩れた指摘は数えて落とす。集めた行を 1 回目の審査役の材料に足す（2 回目には載せない）
   - 元: works/blk-lens/lib/lenses.py `collect`、works/.shared/core/lens.py `collect`・`brief_rows`
   - 今: 表
-  - 証: lib/tests/test_blk_lens.py::LensPlaceCase.test_collect_records_failed_lens_and_succeeds、lib/tests/test_blk_lens.py::LensPlaceCase.test_findings_keeps_valid_and_counts_dropped、lib/tests/test_blk_lens.py::LensPlaceCase.test_cut_brief_carries_lens_rows、lib/tests/test_blk_lens.py::LensPlaceCase.test_review2_brief_has_no_lens、tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_prep_with_the_role_definition_and_collect、lib/tests/test_fix_seams.py::TestLensPlace.test_routes_collect_and_summary
+  - 証: lib/tests/test_blk_lens.py::LensPlaceCase.test_collect_records_failed_lens_and_succeeds、tests/workflows/test_fix.py::DeltaScriptsCase.test_a_failed_lens_leaves_a_failed_row_and_the_collector_goes_on、tests/workflows/test_fix.py::RolesCase.test_a_failed_lens_is_recorded_and_the_block_goes_on、tests/e2e/test_fix_halt_resume.py::FixHaltResumeCase.test_failed_lens_is_recorded_and_the_line_goes_on（止めた Archon で、レンズが落ちても集め役から後ろが走る）、lib/tests/test_blk_lens.py::LensPlaceCase.test_findings_keeps_valid_and_counts_dropped、lib/tests/test_blk_lens.py::LensPlaceCase.test_cut_brief_carries_lens_rows、lib/tests/test_blk_lens.py::LensPlaceCase.test_review2_brief_has_no_lens、tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_prep_with_the_role_definition_and_collect、lib/tests/test_fix_seams.py::TestLensPlace.test_routes_collect_and_summary
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `lens.json` の行と `review1-brief.json` の lens）
   - 狭め: 無し
 
 - F328 レンズの集め役が落ちた・ok でない時は run を止める（観点を誰も見ていないまま先へ進ませない）
   - 元: works/blk-lens/scripts/exit.py（lenses.exit_。盤面を by works:lens で止める）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_collect_failure_is_reported_not_silent、tests/workflows/test_fix.py::GroupsCase.test_a_failed_node_halts_the_block_for_resume
+  - 証: tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_collect_failure_is_reported_not_silent、tests/workflows/test_fix.py::GroupsCase.test_a_failed_node_halts_the_block_for_resume、tests/workflows/test_line.py::CollectAndResultCase.test_stopping_stages_beside_an_absorbed_one_are_not_absorbed（報告は集め役と支度の落ちを受け止めた落ちに載せない）
   - 本物の run: 筋書きでのみ
-  - 狭め: → #594 で戻した（集め役は ok: false と理由を書いてから落ち、修正のサブグラフのどのノードの落ちでも run が止まる。#121 の止めずに知らせる形は外した）。読み手（最後の関所と報告）は配線の部分 D2（#211）
+  - 狭め: → #594 で戻した（集め役は ok: false と理由を書いてから落ち、落ちても止めないレンズの段（レンズとその返りの中継）のほかの、修正のサブグラフのどのノードの落ちでも run が止まる。#121 の止めずに知らせる形は外した）。読み手（最後の関所と報告）は配線の部分 D2（#211）
 
 - F329 レンズの結果を報告に出す: 走ったか・読めたか・採った／採らなかった指摘の数・落ちたレンズ。落ちたレンズは次の run の依頼に「再実行の要あり」で運ぶ。見ていない観点の見出し（UNSEEN_LENS_HEADING）を立てる
   - 元: works/.shared/core/report.py:777 `lens_next_items`・:1567 の lens.summary の行・:2069（lens.report_lines）、works/.shared/core/lens.py `summary`・`report_lines`

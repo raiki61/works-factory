@@ -42,21 +42,15 @@ class LensPlaceCase(RF.DeltaPlaceCase):
         self.assertEqual((row["state"], row["findings"]), ("ran", [{"lens": "silent-failure-hunter", **FINDING}]))
 
     def test_collect_records_failed_lens_and_succeeds(self):
-        """形の違う出口は failed と理由を記録し、集め役そのものは ok"""
-        self.routed()
-        out = self.collect({"findings": "x"})
-        self.assertEqual((out["ok"], out["failed"]), (True, 1))
-        row = lens.read(self.place)[0]
-        self.assertEqual(row["state"], "failed")
-        self.assertIn("形が違う", row["reason"])
-
-    def test_collect_without_the_reply_of_a_routed_lens_is_not_ok(self):
-        """起こしたレンズの出口が無ければ（落ちたレンズは run を止め、集め役は走らない）集め役は ok: false と理由で、行は pending のまま"""
-        self.routed()
-        out = self.collect(None)
-        self.assertIs(out["ok"], False)
-        self.assertIn("silent-failure-hunter の出口が無い", out["reason"])
-        self.assertEqual(lens.read(self.place)[0]["state"], "pending")
+        """落ちたレンズ（出口 null）・形の違う出口は failed と理由を記録し、集め役そのものは ok"""
+        for given, why in ((None, "出口が無い"), ({"findings": "x"}, "形が違う")):
+            with self.subTest(given):
+                self.routed()
+                out = self.collect(given)
+                self.assertEqual((out["ok"], out["failed"]), (True, 1))
+                row = lens.read(self.place)[0]
+                self.assertEqual(row["state"], "failed")
+                self.assertIn(why, row["reason"])
 
     def test_collect_without_routes_is_not_ok(self):
         """振り分けが控えを書いていない（落ちた）なら集め役は ok: false と理由"""
@@ -90,7 +84,7 @@ class LensPlaceCase(RF.DeltaPlaceCase):
         self.assertIn("落ちたレンズ 0 件", lens.count_line(lens.summary(self.place)))
         self.assertIn("落ちたレンズ 0 件", lens.report_lines(self.place)[-1])
         self.routed()
-        self.collect({"findings": "x"})
+        self.collect(None)
         self.assertIn("落ちたレンズ 1 件", lens.count_line(lens.summary(self.place)))
 
     def test_summary_counts_adopted_by_lens_field(self):

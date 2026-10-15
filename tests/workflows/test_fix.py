@@ -37,6 +37,7 @@ import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import ruling  # noqa: E402
+import runreport  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason"}
@@ -61,7 +62,7 @@ def moved_policy(tmp: pathlib.Path) -> tuple:
 # 作業ツリーを変えない script の節（E7）。置き場（run の成果物の置き場）にだけ書く
 READ_ONLY_SCRIPTS = ("route", "prep", "tdd-unit", "conflict-check", "rule-prep", "rule-accept", "fix-ruled-prep",
                      "ruled-consult-check", "ruled-consult-accept", "assert-changed", "delta-cut", "lens-prep",
-                     "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
+                     "lens-reply", "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
                      "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix", "nodes-ok")
 
 # 今の works（2aa7c66c）の同じ役の節の値: (model, effort, context, settingSources, sandbox)。
@@ -241,14 +242,22 @@ class GroupsCase(unittest.TestCase):
 
     def test_a_failed_node_halts_the_block_for_resume(self):
         """#576・#594: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
-        走らない。サブグラフのどの節が落ちても、返す節 fix のほかの全部の節に結ぶブロックの sink の柵 nodes-ok が飛ぶ"""
+        走らない。サブグラフのどの節が落ちても、返す節 fix と落ちても止めない段のほかの全部の節に結ぶブロックの sink の柵
+        nodes-ok が飛ぶ。止めない段は線が報告で受け止めると宣言した節（レンズとその中継）とちょうど同じ"""
         for nid in ("groups-par", "groups-seq"):
             self.assertEqual(self.nodes[nid]["fan_out"]["join"], "all_success", nid)
         self.assertEqual(self.nodes["join"]["trigger_rule"], "none_failed_min_one_success")
         top = [n["id"] for n in self.doc["nodes"]]
         guard = self.nodes["nodes-ok"]
         self.assertEqual(guard["bash"], "true")
-        self.assertEqual(set(guard["depends_on"]), set(top) - {"fix", "nodes-ok"})
+        line = {n["id"]: n for n in yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(
+            encoding="utf-8"))["nodes"]}
+        declared = json.loads(line["collect"]["with"]["optional"])
+        for include in ("fix", "refix-run"):
+            with self.subTest(include=include):
+                absorbed = {nid for nid in top if runreport._declared(f"{include}__{nid}", declared)}
+                self.assertEqual(absorbed, {"lens", "lens-reply"})
+                self.assertEqual(set(guard["depends_on"]), set(top) - {"fix", "nodes-ok"} - absorbed)
         self.assertEqual(guard["trigger_rule"], "none_failed_min_one_success")
         self.assertNotIn("when", guard, "柵が飛ぶのはどれかの節が落ちた時だけ（when で飛ぶ節は落ちと数えない）")
         self.assertEqual([nid for nid, n in self.nodes.items() if "nodes-ok" in (n.get("depends_on") or [])], [])
@@ -313,13 +322,25 @@ class RolesCase(unittest.TestCase):
         self.assertEqual(marked, set(READ_ONLY_ROLES) | set(READ_ONLY_SCRIPTS))
 
     def test_lens_nodes_match_the_lens_table(self):
-        """レンズの表の行と工程のレンズの節は 1 対 1 で、集め役はその節の出口を受ける。ずれると起こしたレンズの出口が無いまま
-        lens-collect が落ち、変更のある run が毎回止まる（lens_prep・lens_collect の名は表から引く）"""
+        """レンズの表の行と工程のレンズの節は 1 対 1 で、中継の節がその節の出口を受け、集め役は中継の出口を受ける。ずれると
+        起こしたレンズの行が毎回「落ちた」になる（lens_prep・lens_collect の名は表から引く）"""
         import lenses
         by_lens = {n["command"].removeprefix("lens-"): nid for nid, n in self.nodes.items()
                    if str(n.get("command", "")).startswith("lens-")}
         self.assertEqual(set(by_lens), {row["lens"] for row in lenses.LENSES})
-        self.assertEqual(refs(self.nodes["lens-collect"]["with"]["reply"]["from"]), set(by_lens.values()))
+        self.assertEqual(refs(self.nodes["lens-reply"]["with"]["reply"]), set(by_lens.values()))
+        self.assertEqual(refs(self.nodes["lens-collect"]["with"]["reply"]["from"]), {"lens-reply"})
+
+    def test_a_failed_lens_is_recorded_and_the_block_goes_on(self):
+        """F327（元 works/darkfactory/darkfactory.yaml:946 の [optional]）: レンズが落ちても集め役は走り（支度が済んでいれば
+        one_success）、レンズの行を理由つきの failed で残し、差分の審査へ進む。Archon は落ちた節の出口を if_skipped の結びでも
+        読ませないので、集め役は飛ぶ中継の節の出口を if_skipped: null で受ける。支度が落ちた・飛んだ run では集め役も飛ぶ（F328）"""
+        reply, collector = self.nodes["lens-reply"], self.nodes["lens-collect"]
+        self.assertEqual((reply["depends_on"], reply.get("trigger_rule", "all_success")), (["lens"], "all_success"))
+        self.assertEqual(reply["output_format"], self.nodes["lens"]["output_format"])
+        self.assertEqual((collector["depends_on"], collector["trigger_rule"]), (["lens-prep", "lens-reply"], "one_success"))
+        self.assertEqual(collector["with"]["reply"], {"from": "$lens-reply.output", "if_skipped": None})
+        self.assertIn("lens-collect", self.nodes["delta-loop"]["depends_on"])
 
     def test_roles_keep_the_original_model_and_session_settings(self):
         for nid, (model, effort, context, sources, sandbox) in ORIGINAL_ROLES.items():
@@ -963,6 +984,23 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual(col, {"state": "ran", "count": 1})
         brief = json.loads((self.place / "review1-brief.json").read_text(encoding="utf-8"))
         self.assertEqual(brief["lens"][0]["findings"][0]["where"], "stats.py")
+
+    def test_a_failed_lens_leaves_a_failed_row_and_the_collector_goes_on(self):
+        """F327: 中継の節はレンズの返りをそのまま返す。レンズが落ちて中継が飛んだ run（返り null）でも、集め役は起こしたレンズを
+        理由つきの failed の行に残し、審査役の材料に載せ、集め役の事実は ok: true で済む"""
+        out = self._cut()
+        agents = self.tmp / "toolkit" / "agents"
+        agents.mkdir(parents=True)
+        (agents / "silent-failure-hunter.md").write_text("---\nname: x\n---\n黙って失敗する所を探す役。\n", encoding="utf-8")
+        self.assertTrue(self._run("lens_prep", "lens-prep", env={"PR_REVIEW_TOOLKIT_ROOT": str(self.tmp / "toolkit")})["go"])
+        reply = {"findings": [], "findings_none": "差分を読んだ"}
+        self.assertEqual(self._run("lens_reply", "lens-reply", reply=json.dumps(reply, ensure_ascii=False)), reply)
+        self.assertEqual(self._run("lens_collect", "lens-collect", reply="null"), {"state": "failed", "count": 0})
+        row = json.loads((self.place / "lens.json").read_text(encoding="utf-8"))["rows"][0]
+        self.assertIn("出口が無い", row["reason"])
+        brief = json.loads(pathlib.Path(out["brief_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(brief["lens"][0]["state"], "failed")
+        self.assertEqual(json.loads((self.place / "lenses.json").read_text(encoding="utf-8"))["collector"], {"ok": True, "reason": ""})
 
     def test_lens_collect_failure_is_reported_not_silent(self):
         """レンズの集め役（lens-collect）が落ちた・ok でない事実を、止まった run の報告に知らせる: diff の隣の lenses.json に
@@ -2021,7 +2059,7 @@ class BlockScriptsCase(unittest.TestCase):
         _blk_write(fixboard.out_file(self.place, "p3.delta_fix2"), {"handled": [
             {"key": "穴2", "handled": "fixed", "how": "分母を直した", "files": ["stats.py"]}]})
         lens.write_routes(self.place, [{"lens": "silent-failure-hunter", "agent": "a", "go": True}])
-        lens.collect(self.place, {"silent-failure-hunter": {"findings": "x"}})
+        lens.collect(self.place, {})
         code, out, err = _blk_run("collect", self.repo, self.art)
         self.assertEqual(code, 0, err)
         holes = json.loads((self.beside(out) / fixbeside.DELTA_HOLES_FILE).read_text(encoding="utf-8"))
@@ -2035,7 +2073,7 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual([i["text"].split("（")[0] for i in items], ["穴1", "穴2", "silent-failure-hunter"])
         self.assertIn("再実行の要あり", items[-1]["text"])
         always = fixbeside.always_rows(got)
-        self.assertIn("  - 落ちたレンズ silent-failure-hunter（再実行の要あり）: レンズのノードの出口の findings の形が違う: {'findings': 'x'}", always)
+        self.assertIn("  - 落ちたレンズ silent-failure-hunter（再実行の要あり）: レンズのノードの出口が無い（落ちたか走らなかった）", always)
         self.assertEqual(always[-1], fixbeside.ANOMALY_LINE)
         self.assertIn("silent-failure-hunter: 落ちた", "\n".join(fixbeside.lens_lines(got)))
 

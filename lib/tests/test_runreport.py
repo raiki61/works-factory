@@ -1096,14 +1096,14 @@ class CarryCase(Base):
         diff = self.fix_place("fix")
         folder = pathlib.Path(diff).parent
         lens.write_routes(folder, [{"lens": "silent-failure-hunter", "agent": "a", "go": True}])
-        lens.collect(folder, {"silent-failure-hunter": {"findings": "x"}})
+        lens.collect(folder, {})
         fixbeside.write(folder, [{}])
         got, text, _ = self.build(self.with_fix(diff))
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         rows = [r for r in doc["findings"] if r["where"] == "レンズ silent-failure-hunter"]
         self.assertEqual(len(rows), 1)
         self.assertIn("再実行の要あり", rows[0]["text"])
-        self.assertIn("- silent-failure-hunter: 落ちた（レンズのノードの出口の findings の形が違う: {'findings': 'x'}）",
+        self.assertIn("- silent-failure-hunter: 落ちた（レンズのノードの出口が無い（落ちたか走らなかった））",
                       self.section(text, report.UNSEEN_LENS_HEADING))
 
     def test_refix_declared_and_second_fixed_holes_are_carried(self):
