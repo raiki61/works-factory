@@ -787,7 +787,7 @@ class BuildTest(unittest.TestCase):
         self.assertTrue(said.startswith(swepro.SANDBOX_REFUSED), said)
         self.assertTrue(said.removeprefix(swepro.SANDBOX_REFUSED))
         for word in ("台の VM の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", "seccomp", "apparmor",
-                     f"-e {swepro.ENVIRONMENT}"):
+                     "Can't mount proc", "systempaths=unconfined", f"-e {swepro.ENVIRONMENT}"):
             self.assertIn(word, said)
 
     def test_rewrite_image_needs_exactly_one_line(self):
@@ -1104,7 +1104,8 @@ class SandboxTest(unittest.TestCase):
     def test_overlay_loosens_only_the_main_container(self):
         overlay = yaml.safe_load((swepro.SANDBOX / "docker-compose-sandbox.yaml").read_text(encoding="utf-8"))
         self.assertEqual(overlay, {"services": {"main": {"security_opt": [
-            f"seccomp=${{{swepro.SECCOMP_ENV}:?works-bench passes the seccomp profile path}}", "apparmor=unconfined"]}}})
+            f"seccomp=${{{swepro.SECCOMP_ENV}:?works-bench passes the seccomp profile path}}", "apparmor=unconfined",
+            "systempaths=unconfined"]}}})
 
 
 class UsageTest(unittest.TestCase):
@@ -1281,7 +1282,8 @@ class AgentTest(unittest.TestCase):
         self.assertEqual([c["command"] for c in setup], [command for _, command in planned])
         self.assertEqual({c["kind"] for c in setup}, {"exec"})
         self.assertEqual({c["user"] for c in setup}, {"root"})
-        self.assertTrue(planned[-1][1].startswith("bwrap --ro-bind / / --unshare-user --unshare-net true"))
+        self.assertTrue(planned[-1][1].startswith(
+            "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc true"))
         for _, command in planned:
             self.assertNotIn(" /app", command)
             self.assertNotIn("/logs", command)
