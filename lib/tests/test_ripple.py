@@ -115,6 +115,16 @@ class RippleCase(unittest.TestCase):
         doc = ripple.build(self.repo, [fields(rewrites=["works/tests/test_report.py::TestReport::test_rows"])], skip_dirs=SKIP_DIRS)
         self.assertNotIn(("test", "works/tests/test_report.py::TestReport::test_rows"), self.uncovered(doc))
 
+    def test_nested_class_test_id_is_the_plan_id(self):
+        """入れ子のクラスの試験の id は修正案の試験の id（planmarks.test_functions）と同じ綴りで、rewrite_tests に挙げれば覆う（#567）"""
+        path = "works/tests/test_nested.py"
+        src = ("from report import always_rows\n\n\nclass Outer:\n    class Inner:\n        def test_rows(self):\n"
+               "            assert always_rows() == {}\n")
+        [tid] = planmarks.test_functions(src, path)
+        repo = self.repo_with({path: src})
+        self.assertIn(("test", tid), self.uncovered(ripple.build(repo, [fields()], skip_dirs=SKIP_DIRS)))
+        self.assertNotIn(("test", tid), self.uncovered(ripple.build(repo, [fields(rewrites=[tid])], skip_dirs=SKIP_DIRS)))
+
     def test_caller_outside_scope_is_uncovered(self):
         """既定の引数に頼る呼び出し元（195g の always-rows-left-none-undefined の形）は本体の当たりで名指す。定義の在るファイルは
         allowed_paths の中なので覆っている。試験のファイルの試験でない関数は行で名指す。文書の当たりも本体に数える"""

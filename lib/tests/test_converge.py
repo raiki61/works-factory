@@ -172,7 +172,7 @@ class FieldsCase(BoardCase):
                                              answer("d"), answer("d"), answer("z")])
         self.assertEqual(len(gaps), 5, gaps)
         self.assertIn("block の key a への答えが無い", gaps)
-        self.assertIn("z は前の往復の block に無い", gaps)
+        self.assertIn("z は前の往復の答えの要る穴（block と開いた項目の suggest）に無い", gaps)
         self.assertTrue(any("b" in g and "handled" in g for g in gaps), gaps)
         self.assertTrue(any("c" in g and "how" in g for g in gaps), gaps)
         self.assertTrue(any("d" in g and "2 行" in g for g in gaps), gaps)
@@ -185,8 +185,56 @@ class FieldsCase(BoardCase):
         gaps = converge.resolved_gaps(self.b, [face("b"), face("c")], ["b", "x"])
         self.assertIn("前の block a を resolved に入れるか、同じ key で faces に挙げ直せ", gaps)
         self.assertTrue(any("b" in g and "両方" in g for g in gaps), gaps)
-        self.assertTrue(any("x" in g and "前の往復の block に無い" in g for g in gaps), gaps)
+        self.assertTrue(any("x" in g and "前の往復の答えの要る穴に無い" in g for g in gaps), gaps)
         self.assertEqual(len(gaps), 3, gaps)
+
+    def test_answer_gaps_ask_suggest_of_open_item(self):
+        """項目の控えの無い往復の suggest も、block と同じく key ごとの答えを求める。止め時には数えない: 次の往復に block が無く
+        suggest のまま挙げ直されても、抜け方は CLEAN"""
+        self.record(["a"], extra=[face("s", severity="suggest")])
+        gaps = converge.answer_gaps(converge.read(self.b), [answer("a")])
+        self.assertEqual(gaps, ["suggest の key s への答えが無い"])
+        self.assertEqual(converge.answer_gaps(converge.read(self.b), [answer("a"), answer("s")]), [])
+        how = "s は仕様どおりなので直さない"
+        converge.note_answers(self.b, [answer("a"), answer("s", handled="disputed", how=how)])
+        row = self.record([], extra=[face("s", severity="suggest")], resolved=["a"])
+        self.assertEqual(row["outcome"], converge.CLEAN)
+        self.assertIn(converge.LINE_DISPUTED.format(key="s", how=how), converge.lines(self.b), "退けた理由は報告に残る")
+
+    def test_resolved_gaps_need_previous_suggest_accounted(self):
+        """前の往復の suggest は、resolved に入れるか同じ key で faces に挙げ直す。resolved に入れても『答えの要る穴に無い』で拒まない"""
+        self.record(["a"], extra=[face("s", severity="suggest")])
+        gaps = converge.resolved_gaps(self.b, [face("b")], ["a"])
+        self.assertEqual(gaps, ["前の suggest s を resolved に入れるか、同じ key で faces に挙げ直せ"])
+        self.assertEqual(converge.resolved_gaps(self.b, [face("b")], ["a", "s"]), [])
+        self.assertEqual(converge.resolved_gaps(self.b, [face("b"), face("s", severity="suggest")], ["a"]), [])
+
+    def test_review_section_carries_owed_suggests(self):
+        """2 往復目の審査の節は、前の往復の答えの要る suggest を『答えの要る suggest』の見出しの下に貼り、block の見出しの下には
+        block だけを置く"""
+        self.record(["a"], extra=[face("s", severity="suggest")])
+        sec = converge.review_section(self.b)
+        block_head = converge.PASS_HEAD.format(n=1)
+        owed_head = converge.OWED_HEAD.format(n=1)
+        self.assertEqual(owed_head, "## 1 往復目の答えの要る suggest")
+        at = {name: sec.index(name) for name in (block_head, "### a", owed_head, "### s", "修正案の役の答え:")}
+        self.assertEqual(sorted(at, key=at.get), [block_head, "### a", owed_head, "### s", "修正案の役の答え:"])
+        self.assertIn("s の場所", sec)
+        self.assertIn("s が穴である理由", sec)
+
+    def test_owed_faces_drop_suggest_once_resolved(self):
+        """審査が resolved に入れた suggest は、持ち越しの写しが後の往復の faces に残っても、答えも照らしも求めない。入れなかった
+        suggest は求める。持ち越し自体は今のまま"""
+        notes = [face("s", severity="suggest"), face("t", severity="suggest")]
+        self.record(["a", "b"], extra=notes)
+        row = self.record(["c"], extra=notes, resolved=["a", "b", "s"])
+        self.assertEqual(row["outcome"], converge.AGAIN)
+        doc = converge.read(self.b)
+        self.assertEqual([f["key"] for f in converge.owed_faces(doc, doc["passes"][1])], ["c", "t"])
+        self.assertEqual(converge.answer_gaps(doc, [answer("c"), answer("t")]), [])
+        gaps = converge.answer_gaps(doc, [answer("c"), answer("t"), answer("s")])
+        self.assertEqual(gaps, ["s は前の往復の答えの要る穴（block と開いた項目の suggest）に無い"])
+        self.assertEqual([f["key"] for f in converge.carried_notes(self.b)], ["s", "t"])
 
     def test_review_fields_take_origins(self):
         """事前審査の返答の任意の欄 origins は tree_split が外す"""
@@ -570,6 +618,57 @@ class ItemsCase(BoardCase):
         self.assertIn("書かなければ機械が差し込む", converge.HELD_NOTE)
         self.assertIn("項目 3（u3）", sec)
         self.assertIn("項目 1（u1）", sec)
+
+    def open_and_closed_suggests(self):
+        """項目 1（u1）に block a と suggest t、項目 2（u2）に suggest s だけ: 項目 1 が開き、項目 2 は閉じる"""
+        got = self.review([face("a", units=["u1"]), face("t", severity="suggest", units=["u1"]),
+                           face("s", severity="suggest", units=["u2"])])
+        self.assertEqual(self.states(got), [converge.OPEN, converge.CLOSED])
+        return got
+
+    def test_owed_skips_suggests_of_closed_items(self):
+        """答えを求める suggest は開いた項目に付いた物だけ。閉じた項目の suggest は求めない（答えれば余り）"""
+        self.open_and_closed_suggests()
+        doc = converge.read(self.b)
+        self.assertEqual(converge.answer_gaps(doc, [answer("a")]), ["suggest の key t への答えが無い"])
+        self.assertEqual(converge.answer_gaps(doc, [answer("a"), answer("t")]), [])
+        self.assertEqual(converge.answer_gaps(doc, [answer("a"), answer("t"), answer("s")]),
+                         ["s は前の往復の答えの要る穴（block と開いた項目の suggest）に無い"])
+
+    def test_owed_suggest_drops_once_its_item_closes(self):
+        """木にしない往復の筋: 開いた項目の suggest s は次の往復の行き先と貼る節に載り、その項目が block 無しで閉じた後の往復では
+        どちらにも載らない（block に結んだ止め時は変わらない）"""
+        self.review([face("a", units=["u1"]), face("s", severity="suggest", units=["u1"]), face("b", units=["u2"])])
+        self.assertIn("前の suggest s を resolved に入れるか、同じ key で faces に挙げ直せ",
+                      converge.resolved_gaps(self.b, [], ["a", "b"]))
+        sec = converge.review_section(self.b)
+        self.assertIn("### s", sec[sec.index(converge.OWED_HEAD.format(n=1)):])
+        got = self.review([face("s", severity="suggest", units=["u1"]), face("c", units=["u2"])], resolved=["a", "b"])
+        self.assertEqual(self.states(got), [converge.CLOSED, converge.OPEN])
+        self.assertEqual(got["outcome"], converge.AGAIN)
+        self.assertEqual(converge.resolved_gaps(self.b, [], ["b", "c"]), [], "閉じた項目の suggest s の行き先は求めない")
+        sec = converge.review_section(self.b)
+        self.assertNotIn(converge.OWED_HEAD.format(n=1), sec)
+        self.assertNotIn(converge.OWED_HEAD.format(n=2), sec)
+        self.assertNotIn("### s", sec)
+        self.assertEqual(converge.answer_gaps(converge.read(self.b), [answer("c")]), [])
+
+    def test_revise_section_asks_suggests_of_open_items(self):
+        """修正案の役に返す節は、開いた項目の suggest を『答えの要る suggest』の見出しの下に並べ、閉じた項目の suggest だけを
+        参考の見出し NOTES_HEAD の後に並べる"""
+        self.open_and_closed_suggests()
+        sec = converge.revise_section(converge.read(self.b))
+        names = (converge.OWED_HEAD.format(n=1), "### t", converge.NOTES_HEAD, "### s")
+        at = {name: sec.index(name) for name in names}
+        self.assertEqual(sorted(at, key=at.get), list(names))
+        self.assertEqual(sec.count("### t"), 1)
+        self.assertEqual(sec.count("### s"), 1)
+        self.assertIn("### a", sec[:at[names[0]]])
+
+    def test_item_blocks_include_open_item_suggests(self):
+        """項目 1 が次の往復で答える前の穴には、項目 1 の block a と suggest t が入り、閉じた項目 2 の suggest s は入らない"""
+        self.open_and_closed_suggests()
+        self.assertEqual(converge.item_blocks(self.b, 1), ["a", "t"])
 
     def test_new_block_on_unchanged_item_defaults_missed(self):
         """どの項目の行も変わっていない 2 往復目の新しい block は、出自を渡さなくても、introduced を渡しても missed（渡した物は

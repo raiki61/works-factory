@@ -3,6 +3,7 @@
 plan（1 回目の周の必ず入れる単位・行き止まり）と fix（直す義務）が同じ口を呼ぶ。義務の集合が食い違うと fix の受け付け
 check_opened_units が NOT_OPENED で拒むので、両方を同じ入力（判定・始めの記録の依頼の answers・判定の隣の結びと素材の状態）で照らす。
 """
+import ast
 import json
 import pathlib
 import sys
@@ -200,6 +201,28 @@ class PushRecCase(unittest.TestCase):
         self.assertIn("無人の run で推しを採って通した", pushed)
         self.assertNotIn("人が通した", pushed)
         self.assertIn("人が通した", human)
+
+
+
+class SpecWordsCase(unittest.TestCase):
+    """承認し直すかの問いを「変わった」か「照らせなかった」かで言う選びは spec_words の 1 か所だけ（#564）"""
+    CHOOSERS = (LIB.parent / "workflows" / "line" / "scripts" / "ask_final.py", LIB / "runreport.py")
+    WORDS = ("SPEC_UNCHECKED", "SPEC_UNCHECKED_HEAD", "SPEC_CHANGED_HEAD", "SPEC_CHANGED_LABEL", "SPEC_CHANGED_KIND")
+
+    def test_words_follow_whether_the_tests_could_be_checked(self):
+        self.assertEqual(gatemarks.spec_words(False), (gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND],
+                                                       gatemarks.SPEC_CHANGED_LABEL, gatemarks.SPEC_CHANGED_HEAD))
+        self.assertEqual(gatemarks.spec_words(True), (gatemarks.SPEC_UNCHECKED, gatemarks.SPEC_UNCHECKED,
+                                                      gatemarks.SPEC_UNCHECKED_HEAD))
+
+    def test_callers_choose_only_through_spec_words(self):
+        for path in self.CHOOSERS:
+            with self.subTest(path.name):
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+                attrs = [n for n in ast.walk(tree) if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                         and n.value.id == "gatemarks"]
+                self.assertEqual([n.attr for n in attrs if n.attr in self.WORDS], [])
+                self.assertEqual(sum(n.attr == "spec_words" for n in attrs), 2)
 
 
 

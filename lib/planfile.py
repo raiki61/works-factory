@@ -845,7 +845,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（moved。keys の欄で比べる）。拒否は理由を全部 1 回で
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
-    _save の halt。count: false・give_up: true で受け付けの回が控えに積まずに輪を止める）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
+    _save の halt。count: false・give_up: true で受け付けの回が控えに積まずに輪を止める）。2 往復目からは block_answers を外して前の往復の答えの要る穴（block と開いた項目の suggest）への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
     （出し直しが WHOLE_PLAN を立てた答えは、案の全部なので閉じた項目の行だけを差し込む）。差し込んだ案の全体は、出し直しの役が
     読み、次の出し直しを合わせる元の控え rolekit.candidate_path にも書く。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""

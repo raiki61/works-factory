@@ -2,7 +2,7 @@
 
 judge・plan-review・fix の書き手の関数で作ったファイルを、plan の読み手（lib/planfile.py）に通す。書き手と読み手が別々に鍵の字を
 持つので、片方だけ字を変えると欄が黙って空に読まれる（plan-review の review.json が壁打ちの欄 resolved を落とし、plan の往復の控えが
-前の往復の block の行き先を読めなかった）。
+前の往復の答えの要る穴（block と開いた項目の suggest）の行き先を読めなかった）。
 """
 import json
 import pathlib
@@ -73,7 +73,7 @@ class CrossKeysCase(unittest.TestCase):
         self.assertEqual((owed, slots), (set(opened) - {TJ._MEAN}, set(opened)))
         self.assertIn(TJ._MEAN, opened)
 
-        # plan-review: 受け付けた返答の resolved（前の往復の block の行き先）を plan の往復の控えが読む
+        # plan-review: 受け付けた返答の resolved（前の往復の答えの要る穴（block と開いた項目の suggest）の行き先）を plan の往復の控えが読む
         first, second = self.reviewed()
         plan_dir = self.tmp / "plan"
         plan1 = {"plan": [TR.item(TR.UNIT_MEAN, 1), TR.item(TR.UNIT_CLAMP, 2)]}

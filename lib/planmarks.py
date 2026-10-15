@@ -14,7 +14,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - split(reply, repo, base_tests=)・save(board, rnd, fields)・read(b)・rewrites(b)・removes_permits(b): 欄を外す口・盤面の控え・書き換えてよい既存のテストの並び・
   removes をコードの識別子（と点の付いたパス・属性の名の文字列）として使う既存のテストの並び（base_tests は修正前の版のテストの中身。split が欄
   removes_tests に置く許しの行）
-- IDENT・search_word(name)・module_name(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path)・code_idents(node)・DOTTED_NAME: adds・removes の名を
+- IDENT・search_word(name)・module_name(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path)・test_defs(tree, path)・code_idents(node)・DOTTED_NAME: adds・removes の名を
   差分や本体で探す語の決まり（1 行の読み方）・テストの関数の源の引き（blk-fix の planscope・tddloop・blk-plan の ripple が同じ物を呼ぶ）・
   テストの関数がコードで使う名の引き（split が removes_tests を引く）・コードの識別子の名の集めと、名と読む点の付いた文字列の形（tddloop も
   使う）
@@ -402,7 +402,7 @@ def word_re(name: str):
     return re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
 
 
-def _test_defs(tree, path: str):
+def test_defs(tree, path: str):
     """木 tree の、名前が test で始まる関数（モジュールの直下と、クラスの直下のメソッド。入れ子のクラスも辿る）の
     (id, 定義の節) を並びの順に出す（id は test_functions の形）"""
     def walk(body, head):
@@ -430,7 +430,7 @@ def test_functions(src: str, path: str) -> dict[str, str]:
     （ast.get_source_segment。デコレータの行から）。構文が読めない・path が .py でなければ {}。純粋"""
     tree = _parse_py(src, path)
     out = {}
-    for tid, node in _test_defs(tree, path) if tree else ():
+    for tid, node in test_defs(tree, path) if tree else ():
         top = min([node.lineno] + [d.lineno for d in node.decorator_list])
         span = ast.Constant(value=None, lineno=top, col_offset=node.col_offset, end_lineno=node.end_lineno,
                             end_col_offset=node.end_col_offset)   # デコレータの行から本体の終わりまで
@@ -497,7 +497,7 @@ def test_names(src: str, path: str) -> dict[str, set[str]]:
     """test_functions と同じ id → その関数（デコレータから本体の終わりまで）がコードで使う名（_code_names）。構文が読めない・
     path が .py でなければ {}。純粋"""
     tree = _parse_py(src, path)
-    return {tid: _code_names(node) for tid, node in _test_defs(tree, path)} if tree else {}
+    return {tid: _code_names(node) for tid, node in test_defs(tree, path)} if tree else {}
 
 
 def _naming_removes(item: dict, base_tests: dict) -> list[dict]:
