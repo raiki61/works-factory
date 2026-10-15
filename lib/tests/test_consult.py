@@ -264,6 +264,8 @@ class FlowCase(Base):
                  {"round": 1, "node": "p4.final_gate", "kinds": ["final"], "answer": "continue", "note": "ほかの関所の一言"}]
         self.assertEqual(consult.gate_notes(self.b, human), note)
         self.assertEqual(consult.gate_notes(self.b, human, round_=0), "前の周の一言")
+        pushed = [{**human[0], consult.answer.PUSHED: [{"item": "x", "answer": "continue", "note": note, "why": "y"}]}]
+        self.assertEqual(consult.gate_notes(self.b, pushed), f"{consult.answer.PUSHED_NOTE}\n{note}")   # 推しの条件は人の答えと名乗らない
         asks = consult.gate_asks(self.b, ITEMS, human)
         self.assertEqual([(a["item"], a["origin"]) for a in asks], [("3", "gate"), ("4", "gate")])
         _, q = put_asked(self.b, asks[:1])
