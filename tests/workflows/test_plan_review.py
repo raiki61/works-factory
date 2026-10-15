@@ -1959,7 +1959,7 @@ class TreeCase(RunCase):
         self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK, second, note])})
         self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"], second["key"]]}))["ok"])
         r.out("result")
-        two = item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}],
+        two = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
                    approach="clamp の上限の枝で hi を、下限の枝で lo を返し、境の値はそのまま返す（定義どおり）")
         r.plan([item(UNIT_MEAN, 1), two], rnd=2,
                answers=[{"key": f["key"], "handled": "fixed", "how": "枝を直し、境の値の扱いと docstring を書いた"}
