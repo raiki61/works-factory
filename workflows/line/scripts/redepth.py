@@ -9,10 +9,10 @@
 （status が fixed でない単位）、run 全体に: 申し出が在る・答えていない問い（問いの台帳の問いごと。元 depth.signals の
 gatemarks.pending。台帳が読めなければ上げる側に倒す）・案の直しが走った・再審が走った・run 全体の広さ（計画の allowed_paths と
 修正の実際の差分のファイルの和集合とテストの本数。depth.run_wide。軽量の名指しでも上げる）。返り {depth: [{unit_id, depth, why}],
-skip_optional: 軽量で省く理由の文（標準なら空）, raised, counted: run の広さの数えと起点の 1 行, stop_reason}。
+skip_optional: 省く理由の文（run の頭の深さの段が省く物を持ち、単位がどれも軽量の時だけ。depth.skip_reason。ほかは空）, raised, counted: run の広さの数えと起点の 1 行, stop_reason}。
 例外の時は止めの理由 works:line-script を返し、試験の関門から先は飛ぶ（深さの分からない差分を目に通さない）。
 
-入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・units・conflicts・plan・diff（fixed の返り）・judgment（judged の返り）・
+入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・head_depth（run の頭の深さの段の語）・units・conflicts・plan・diff（fixed の返り）・judgment（judged の返り）・
 start（始めの記録）・answer（修正前の関所の答え）・ties_judgment（1 回目の判定。結びの隣のファイル）・replanned・rejudged（after-fix の返り）
 """
 import json
@@ -73,7 +73,8 @@ def merged(planned, replanned) -> list:
     return list(rows.values())
 
 
-def redepth(planned, replanned_depth, units, conflicts, signals, *, replanned: bool, rejudged: bool, counted: str = "") -> dict:
+def redepth(planned, replanned_depth, units, conflicts, signals, *, replanned: bool, rejudged: bool, head: str,
+            counted: str = "") -> dict:
     rows = merged(planned if isinstance(planned, list) else [], replanned_depth if isinstance(replanned_depth, list) else [])
     doc = {"units": {r["unit_id"]: {"depth": r.get("depth"), "why": [r["why"]] if r.get("why") else []} for r in rows}, "raised": []}
     stopped = {u["unit_id"]: f"修正の段が止めた単位（{u.get('status')}）" for u in units or []
@@ -88,7 +89,7 @@ def redepth(planned, replanned_depth, units, conflicts, signals, *, replanned: b
         run.append("再審が走った")
     raised = depthlib.raise_doc(doc, units=stopped, run=run)
     return {"depth": [{"unit_id": key, "depth": row["depth"], "why": " / ".join(row["why"])} for key, row in raised["units"].items()],
-            "skip_optional": depthlib.skip_reason(raised), "raised": raised["raised"], "counted": counted, "stop_reason": ""}
+            "skip_optional": depthlib.skip_reason(raised, head), "raised": raised["raised"], "counted": counted, "stop_reason": ""}
 
 
 def from_env() -> dict:
@@ -102,13 +103,13 @@ def from_env() -> dict:
     return {"planned": planned, "replanned_depth": replanned_depth, "units": boundary.items(os.environ.get("INPUTS_UNITS")),
             "conflicts": boundary.items(os.environ.get("INPUTS_CONFLICTS")), "signals": [*pending, *wide],
             "replanned": boundary.flag(os.environ.get("INPUTS_REPLANNED")), "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
-            "counted": counted}
+            "counted": counted, "head": os.environ.get("INPUTS_HEAD_DEPTH", "")}
 
 
 def compute() -> dict:
     got = from_env()
     return redepth(got["planned"], got["replanned_depth"], got["units"], got["conflicts"], got["signals"],
-                   replanned=got["replanned"], rejudged=got["rejudged"], counted=got["counted"])
+                   replanned=got["replanned"], rejudged=got["rejudged"], counted=got["counted"], head=got["head"])
 
 
 def fallback(reason: str) -> dict:

@@ -78,8 +78,6 @@ OUT_DIR = "report"                      # run の置き場の中の報告の置�
 UNWRITTEN = "report-unwritten.md"       # 報告を組めない時の機械の報告（fallback_report。facts の report.md を上書きしない名）
 AI_FILE = "ai.json"                     # 受け付けた書き手の返答と初見の判定（collect が読む）
 AI_REPORT_FILE = "report-ai.md"         # AI の報告（元 report_roles.REPORT_NAME）
-REJECTS_FILE = "report-rejects.json"    # 拒否の行の控え（元 report_roles.REJECTS_NAME）
-REJECT_TEXT = "reject-{n}.md"           # 拒否の訳の本文（書き手が次の回に Read する）
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
 # 初見の読み手（report.cold_check）の返答の型。型の正本は工程の cold の節の output_format で、これと同じかを試験が縛る
 COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
@@ -1246,9 +1244,17 @@ def _structure_lines(returns: dict) -> list:
     return structmark.after_lines(after_dir) if after_dir is not None else []
 
 
-def _depth_lines(start: dict, returns: dict, line: dict) -> list:
+def _cmd_skipped(typed: dict) -> int:
+    """TDD の輪が軽量で緑の後の test_cmd を走らせなかった単位（tdd-unit の単位の test_cmd が CMD_LIGHT）の数"""
+    import tddloop
+    stages, _ = _tdd_stages(typed)
+    return len({u.get("unit_key") for _, tdd in stages for u in _list(as_dict(tdd).get("units"))
+                if isinstance(u, dict) and u.get("test_cmd") == tddloop.CMD_LIGHT})
+
+
+def _depth_lines(start: dict, returns: dict, line: dict, typed: dict) -> list:
     """深さの行（元 depth.lines。報告の冒頭 2）: 直した後に上げ直した深さ（線の redepth の返り {depth, raised, counted}）。上げ直しの
-    返りが無ければ計画の深さと、上げ直しが無い訳"""
+    返りが無ければ計画の深さと、上げ直しが無い訳。test_cmd の省きは省いた時点の記録（tdd-unit）から数える"""
     redepth = as_dict(as_dict(line).get("redepth"))
     rows = _list(redepth.get("depth")) if redepth else _list(_ret(returns, "plan").get("depth"))
     if not rows and not redepth:
@@ -1256,20 +1262,16 @@ def _depth_lines(start: dict, returns: dict, line: dict) -> list:
     doc = {"units": {str(d.get("unit_id")): {"depth": d.get("depth"), "why": [str(d["why"])] if d.get("why") else []}
                      for d in rows if isinstance(d, dict)},
            "forced": as_dict(start).get("thickness") or "", "raised": _list(redepth.get("raised")),
-           "counted": redepth.get("counted") or "", "eyes_kept": as_dict(returns.get("plan")).get("depth_skip") is True}
-    return [*depthlib.lines(doc), *([] if redepth else [NO_REDEPTH])]
+           "counted": redepth.get("counted") or ""}
+    return [*depthlib.lines(doc, as_dict(returns.get("judge")).get("depth"), cmd_skipped=_cmd_skipped(typed)),
+            *([] if redepth else [NO_REDEPTH])]
 
 
-def _head_depth_line(returns: dict) -> list:
-    """run の頭の深さの 1 行（報告の冒頭 2。headdepth.report_line）: 1 回目の判定が決めた深さと根拠と、計画の往復が飛ばしたノード・
-    標準へ上げた訳（計画の往復の depth_why。飛ばした周では飛ばした訳なので上げた訳に数えない）。判定の返りが無ければ出さない"""
+def _head_depth_line(start: dict, returns: dict) -> list:
     judged = returns.get("judge")
     if not isinstance(judged, dict) or not judged.get("depth"):
         return []
-    planned = as_dict(returns.get("plan"))
-    skipped = planned.get("depth_skip") is True
-    return [headdepth.report_line(judged["depth"], judged.get("depth_why") or "", skipped,
-                                  "" if skipped else str(planned.get("depth_why") or ""))]
+    return [headdepth.report_line(judged["depth"], judged.get("depth_why") or "", as_dict(start).get(entrylib.FEATURES_KEY) or [])]
 
 
 def _prior_in_lines(line: dict) -> list:
@@ -1301,7 +1303,7 @@ def _policy_lines(returns: dict, repo) -> list:
 
 
 def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None = None, gates: dict | None = None,
-                 repo=None) -> list:
+                 repo=None, typed: dict | None = None) -> list:
     s = as_dict(start)
     out = [f"始めの記録: run {s.get('run_id') or '—'}・元の版 {s.get('base_rev') or '—'}・テストの命令 {s.get('test_cmd') or '—'}・"
            f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}", *fixture.lines(s)]
@@ -1314,7 +1316,9 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     gate_words = gatepolicy.head_words(s)
     if gate_words:
         out.append(gate_words)
-    feats = f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s))}" if entrylib.FEATURES_KEY in s else ""
+    adds = depthlib.tier_adds(as_dict(returns.get("judge")).get("depth"))
+    feats = (f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s), adds)}"
+             if entrylib.FEATURES_KEY in s else "")
     out.append(f"段: {s.get('thickness') or '自動（機械が単位ごとに決めた）'}{feats}")
     answered = [g for g in as_dict(gates).values() if isinstance(g, dict)]
     pushed = sum(1 for g in answered if answer.by_push(g))
@@ -1328,8 +1332,8 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     out.append(f"走った段: {'・'.join(ran) or '無い'}")
     out.append(f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}")
     out += _downgrade_lines()
-    out += _head_depth_line(returns)
-    out += _depth_lines(start, returns, line)
+    out += _head_depth_line(start, returns)
+    out += _depth_lines(start, returns, line, as_dict(typed))
     out += _prior_in_lines(line)
     out += _policy_lines(returns, repo)
     base = returns.get("test-gate-base")
@@ -1562,7 +1566,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
                                     *([draft] if draft else []), *apply]),
-        (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
+        (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo, typed)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems), line)),
         (report.READS_HEADING, _reads_lines(tfacts, out_dir.parent, out_dir, transcript_why, repo)),
         (report.WHERE_HEADING, _where_lines(returns)),
@@ -1691,56 +1695,68 @@ def _named_note(head: str, note: str) -> str:
     return head[start:end + 1] if end >= 0 else note
 
 
+def _refused(reason: str, kind: str) -> dict:
+    return {"ok": False, "reason": reason, "kind": kind}
+
+
+def _reject_count(out_dir: pathlib.Path) -> dict:
+    """拒否の控え（rolekit の rejects-report.json）の種類ごとの回数。控えが読めなければ空の控えとして数える"""
+    try:
+        rows = rolekit.reject_rows(out_dir, REPORT_NODE)
+    except (rolekit.BoardGap, OSError):
+        rows = []
+    return report_roles.count_rejects([{**r, "node": REPORT_NODE} for r in rows])
+
+
 def accept(reply, cold, *, out_dir) -> dict:
     """書き手の返答を受け付ける（元 report_roles.accept を、盤面の代わりに out_dir の控えで書き直した物）。{done, ok, reason, kind,
-    reason_file}。順: 読む → terms の型 → 表のセルの書式 → 機械の報告の冒頭の HEAD_NOTES の句が頭に在るか → 初見の読み手の判定。通らなければ拒否の行を REJECTS_FILE に積み、訳を
-    REJECT_TEXT に書いて書き手に返す（reason_file はその絶対パス）。拒否が GIVE_UP_AFTER 回に達したら諦め（done、AI_FILE に
-    受け取れなかった訳）。初見の読み手だけが通さない時は GIVE_UP_AFTER 回目に受け取り、NOT_PASSED の印を AI_FILE に残す。
+    reason_file}。受け付けの回は rolekit.accept_round（out_dir、節 REPORT_NODE）が持つ。順: 読む（読めない返答・本文の無い返答は kind answer）
+    → terms の型 → 表のセルの書式 → 機械の報告の冒頭の HEAD_NOTES の句が頭に在るか → 初見の読み手の判定。通らなければ口が拒否の行
+    （kind つき）を rolekit の控え rejects-report.json に積み、reason_file は拒否の全部の rejects-report.md（rolekit.reject_file）。
+    拒否が rolekit.GIVE_UP_AFTER 回に達した時か、控え rejects-report.json が読めない・書けない時は、口の後の 1 か所で AI_FILE に
+    受け取れなかった訳（accepted: False）を書く（rejects-report.md が書けない時は OSError が上がる）。初見の読み手だけが通さない時は rolekit.is_last_attempt の回に受け取り、NOT_PASSED の印を AI_FILE に残す。
     作業ツリーを変えた返答を拒む確かめ（元の entry.take の写しの比べ）は、実行基盤が読むだけの節（mutates_checkout: false）を
     落とす形に置き換わったのでここに無い"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        rows = oc.read_json(out_dir / REJECTS_FILE)
-        rows = rows if isinstance(rows, list) else []
-    except (OSError, ValueError):
-        rows = []
     c = _cold_of(cold)
 
-    def reject(reason: str, kind: str) -> dict:
-        rows.append({"node": REPORT_NODE, "attempt": len(rows) + 1, "kind": kind, "reason": reason})
-        carry.write(out_dir / REJECTS_FILE, rows)
-        path = _write_text(out_dir / REJECT_TEXT.format(n=len(rows)), f"{report_roles.REJECT_HEADING}\n\n{reason}\n")
-        give_up = len(rows) >= report_roles.GIVE_UP_AFTER
-        if give_up:
-            carry.write(out_dir / AI_FILE, {"accepted": False,
-                                            "reason": rolekit.gave_up_text(REPORT_NODE, len(rows), reason),
-                                            "cold": c, "rejects": report_roles.count_rejects(rows)})
-        return {"done": give_up, "ok": False, "reason": reason, "kind": kind, "reason_file": str(path)}
+    def take(got: dict) -> dict:
+        if not isinstance(got.get("text"), str) or not got["text"].strip():
+            return _refused("返答に本文 text が無い", "answer")
+        bad = report_roles._terms_problems(got)
+        if bad:
+            return _refused("返答の terms の欄が型に合わない（各要素は空でない term と definition の 2 つだけ）:\n"
+                            + "\n".join(f"- {x}" for x in bad), "answer")
+        bad = report_roles.format_problems(got["text"])
+        if bad:
+            return _refused(report_roles.CELL_REASON + "\n".join(f"- {x}" for x in bad), "format")
+        head = report_roles.head_of(got["text"])
+        for note in _machine_head_notes(out_dir):
+            if note not in head:
+                return _refused(f"機械の事実の冒頭が「{note}」と言うのに、報告の頭に無い。冒頭 3 行の 1 行目にこの句をそのまま入れる", "answer")
+        not_passed = ""
+        if c["verdict"] != "pass":
+            if not rolekit.is_last_attempt(rolekit.attempt(out_dir, REPORT_NODE)):
+                return _refused(_cold_reason(c), "cold")
+            not_passed = _cold_facts(c)
+        reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
+        return {"ok": True, "reason": reason, "text": got["text"], "terms": _list(got.get("terms")), "not_passed": not_passed}
 
-    got, why = _parse(reply)
-    if got is None or not isinstance(got.get("text"), str) or not got["text"].strip():
-        return reject(why or "返答に本文 text が無い", "answer")
-    bad = report_roles._terms_problems(got)
-    if bad:
-        return reject("返答の terms の欄が型に合わない（各要素は空でない term と definition の 2 つだけ）:\n"
-                      + "\n".join(f"- {x}" for x in bad), "answer")
-    bad = report_roles.format_problems(got["text"])
-    if bad:
-        return reject(report_roles.CELL_REASON + "\n".join(f"- {x}" for x in bad), "format")
-    head = report_roles.head_of(got["text"])
-    for note in _machine_head_notes(out_dir):
-        if note not in head:
-            return reject(f"機械の事実の冒頭が「{note}」と言うのに、報告の頭に無い。冒頭 3 行の 1 行目にこの句をそのまま入れる", "answer")
-    not_passed = ""
-    if c["verdict"] != "pass":
-        if len(rows) < report_roles.GIVE_UP_AFTER - 1:
-            return reject(_cold_reason(c), "cold")
-        not_passed = _cold_facts(c)
-    carry.write(out_dir / AI_FILE, {"accepted": True, "text": got["text"], "terms": _list(got.get("terms")), "cold": c,
-                                    "not_passed": not_passed, "rejects": report_roles.count_rejects(rows)})
-    reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
-    return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}
+    out = rolekit.accept_round(out_dir, REPORT_NODE, reply, take, reject=lambda why: _refused(why, "answer"))
+    if out["ok"]:
+        carry.write(out_dir / AI_FILE, {"accepted": True, "text": out["text"], "terms": out["terms"], "cold": c,
+                                        "not_passed": out["not_passed"], "rejects": _reject_count(out_dir)})
+        return {"done": True, "ok": True, "reason": out["reason"], "kind": "", "reason_file": ""}
+    if out["done"]:   # 諦めた時も、控えが扱えない時も、受け取れなかった訳を残す（collect が輪が落ちたと読まない）
+        try:
+            why = rolekit.given_up_reason(out_dir, REPORT_NODE)
+        except (rolekit.BoardGap, OSError):
+            why = ""
+        carry.write(out_dir / AI_FILE, {"accepted": False, "reason": why or out["reason"], "cold": c,
+                                        "rejects": _reject_count(out_dir)})
+    return {"done": out["done"], "ok": False, "reason": out["reason"], "kind": out.get("kind") or "answer",
+            "reason_file": rolekit.reject_file_or_blank(out_dir, REPORT_NODE)}
 
 
 def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:
@@ -1776,7 +1792,7 @@ def _not_passed_note(ai: dict) -> str:
     """初見の読み手が通さないまま受け取った時の、拒みの数の行の尾（通っていれば空）"""
     if ai.get("accepted") is not True or not ai.get("not_passed"):
         return ""
-    return f"。{report_roles.NOT_PASSED}（上限の {report_roles.GIVE_UP_AFTER} 回目で受け取った。{oneline.one_line(ai['not_passed'])}）"
+    return f"。{report_roles.NOT_PASSED}（上限の {rolekit.GIVE_UP_AFTER} 回目で受け取った。{oneline.one_line(ai['not_passed'])}）"
 
 
 def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:

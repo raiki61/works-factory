@@ -38,6 +38,7 @@ import report_roles  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
+import tddloop  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 from lib.tests.test_plan_gate import DECIDED, FACE, FORK, FORK_UNIT, NARROW, WORLD_ROW  # noqa: E402
@@ -1001,12 +1002,67 @@ class ReportGiveUpCase(Base):
 
     def test_give_up_text_is_rolekit_text(self):
         bad_terms = json.dumps({"text": "x", "terms": [{"term": ""}]})
-        for _ in range(report_roles.GIVE_UP_AFTER):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(bad_terms, AcceptCase.PASS, out_dir=self.out)
-        rows = json.loads((self.out / runreport.REJECTS_FILE).read_text(encoding="utf-8"))
+        rows = rolekit.reject_rows(self.out, runreport.REPORT_NODE)
         self.assertIn("\n", rows[-1]["reason"], "拒否の文が複数の行でも諦めの文は 1 行")
         ai = json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))
         self.assertEqual(ai["reason"], rolekit.gave_up_text(runreport.REPORT_NODE, len(rows), rows[-1]["reason"]))
+
+    def test_rejects_live_in_the_rolekit_ledger_with_kind(self):
+        """報告の書き手の拒否は rolekit の rejects-report.json に kind つきで積む（format・answer の順）。前の版の控え
+        report-rejects.json と reject-<n>.md は作らない。reason_file は rejects-report.md で、それまでの拒否を全部持つ。
+        読めない返答・空の返答・本文の無い返答も kind answer で積み、返りは {done, ok, reason, kind, reason_file} の 5 欄"""
+        bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)
+        bad_terms = json.dumps({"text": "x", "terms": [{"term": ""}]})
+        first = runreport.accept(bad_cell, AcceptCase.PASS, out_dir=self.out)
+        second = runreport.accept(bad_terms, AcceptCase.PASS, out_dir=self.out)
+        self.assertEqual([(first["kind"], first["done"]), (second["kind"], second["done"])], [("format", False), ("answer", False)])
+        rows = rolekit.reject_rows(self.out, runreport.REPORT_NODE)
+        self.assertEqual([r["kind"] for r in rows], ["format", "answer"])
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()), ["rejects-report.json", "rejects-report.md"])
+        self.assertEqual(second["reason_file"], str(self.out / "rejects-report.md"))
+        text = pathlib.Path(second["reason_file"]).read_text(encoding="utf-8")
+        self.assertLess(text.index(first["reason"]), text.index(second["reason"]), "それまでの拒否を古い順に全部持つ")
+        self.assertEqual(report_roles.count_rejects([{**r, "node": runreport.REPORT_NODE} for r in rows])[runreport.REPORT_NODE],
+                         {"cold": 0, "format": 1, "answer": 1, "unknown": 0})
+        # 読めない返答・空の返答・本文の無い返答は、口の既定の拒否でなく kind answer の行で積み、返りも同じ 5 欄
+        for n, raw in enumerate(("壊れた", "", json.dumps({"terms": []})), 1):
+            with self.subTest(raw=raw):
+                out = self.out / f"unreadable-{n}"
+                got = runreport.accept(raw, AcceptCase.PASS, out_dir=out)
+                self.assertEqual(set(got), {"done", "ok", "reason", "kind", "reason_file"})
+                self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
+                self.assertEqual(got["reason_file"], str(out / "rejects-report.md"))
+                self.assertEqual([r["kind"] for r in rolekit.reject_rows(out, runreport.REPORT_NODE)], ["answer"])
+                self.assertEqual(report_roles.count_rejects(
+                    [{**r, "node": runreport.REPORT_NODE} for r in rolekit.reject_rows(out, runreport.REPORT_NODE)]
+                )[runreport.REPORT_NODE]["answer"], 1, "answer が unknown に化けない")
+
+    def test_unusable_ledger_still_leaves_the_unaccepted_reason(self):
+        """報告の控え rejects-report.json が読めない時、accept は落ちずに done 真・ok 偽を返し、AI_FILE に accepted: False と
+        『拒否の控えが扱えない』を含む reason を書く。collect は None を返さず、受け取れなかった訳を報告に載せる。reason_file は空"""
+        self.out.mkdir(parents=True)
+        (self.out / "rejects-report.json").mkdir()
+        for raw in (AcceptCase.REPLY, "壊れた"):
+            with self.subTest(raw=raw[:3]):
+                (self.out / runreport.AI_FILE).unlink(missing_ok=True)
+                cold = AcceptCase.REDESIGN if raw == AcceptCase.REPLY else AcceptCase.PASS
+                got = runreport.accept(raw, cold, out_dir=self.out)
+                self.assertEqual((got["done"], got["ok"], got["reason_file"]), (True, False, ""))
+                self.assertIn("拒否の控えが扱えない", got["reason"])
+                ai = json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))
+                self.assertFalse(ai["accepted"])
+                self.assertIn("拒否の控えが扱えない", ai["reason"])
+                self.assertEqual(ai["rejects"], report_roles.count_rejects([]), "控えが読めない時は空として数える")
+                path = runreport.collect("事実", out_dir=self.out, stamp="run x")
+                self.assertIsNotNone(path)
+                self.assertIn("拒否の控えが扱えない", path.read_text(encoding="utf-8"))
+        # 通る返答は控えを読まずに受け取れる（数えは空）
+        (self.out / runreport.AI_FILE).unlink()
+        ok = runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
+        self.assertEqual((ok["done"], ok["ok"]), (True, True))
+        self.assertTrue(json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))["accepted"])
 
 
 class CollectCase(Base):
@@ -1026,7 +1082,7 @@ class CollectCase(Base):
     def test_not_passed_is_one_machine_fact_line_not_the_head(self):
         """#495: 初見の読み手が 3 回とも通さず受け取った報告は、書き手の本文で始まり、拒みの文（NOT_PASSED と出し直しの命令）を
         頭に置かない。通らなかった事実は機械の事実の拒みの数の行の尾に 1 度だけ、止まった所と一緒に載る"""
-        for _ in range(report_roles.GIVE_UP_AFTER):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, AcceptCase.REDESIGN, out_dir=self.out)
         text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertTrue(text.split("\n\n")[1].startswith("直した。"), text)
@@ -1038,7 +1094,7 @@ class CollectCase(Base):
 
     def test_words_only_on_the_not_passed_line_are_defined(self):
         """通らなかった事実の行にだけ在る語（NOT_PASSED の「ノード」、判定を読めなかった事実の「初見の読み手」）も、語の定義に載る"""
-        for _ in range(report_roles.GIVE_UP_AFTER):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, "壊れた", out_dir=self.out)
         text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertIn(report_roles.GLOSSARY_HEADING, text)
@@ -1052,18 +1108,18 @@ class CollectCase(Base):
         for cold, want in ((guessed, "推測で埋めた所: 語 X を推測"), ("壊れた", runreport.COLD_UNREADABLE)):
             with self.subTest(want=want):
                 out = self.out / want
-                for _ in range(report_roles.GIVE_UP_AFTER):
+                for _ in range(rolekit.GIVE_UP_AFTER):
                     runreport.accept(AcceptCase.REPLY, cold, out_dir=out)
                 text = runreport.collect("事実", out_dir=out, stamp="run x").read_text(encoding="utf-8")
                 [line] = [ln for ln in text.splitlines() if report_roles.NOT_PASSED in ln]
                 self.assertIn(want, line)
 
     def test_given_up_reply_still_reports(self):
-        for _ in range(report_roles.GIVE_UP_AFTER):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept("壊れた", AcceptCase.PASS, out_dir=self.out)
         text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertIn(report_roles.FAILED_TITLE, text)
-        self.assertIn(f"report の返答が {report_roles.GIVE_UP_AFTER} 回とも受け付けで拒まれた（最後の拒否: ", text)
+        self.assertIn(f"report の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けで拒まれた（最後の拒否: ", text)
         self.assertTrue(text.endswith("事実"))
 
     def test_decisions_section_is_one_place(self):
@@ -1740,41 +1796,79 @@ class LinesCase(Base):
         self.assertIn("- run の広さの数え: 触るファイル 1 個（起点: 修正の差分）", entry)
         light = {"depth": [{"unit_id": "u1", "depth": "軽量", "why": "触るファイル 1 個"}], "skip_optional": "軽量で省いた",
                  "raised": [], "counted": "", "stop_reason": ""}
-        _, text, _ = self.build(line={"redepth": light}, start={"run_id": RUN, "thickness": "軽量"})
+        light_head = fixed_run(judge={**fixed_run()["judge"], "depth": "軽量", "depth_why": "入力 thickness の名指し（軽量）"})
+        _, text, _ = self.build(light_head, line={"redepth": light}, start={"run_id": RUN, "thickness": "軽量"})
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn("- 深さ: 軽量（単位ごと: 軽量 1 個・標準 0 個。入力 thickness の名指し 軽量）", entry)
         self.assertIn("- 軽量で省いた: 差分の審査", entry)
+        _, text, _ = self.build(line={"redepth": {**light, "skip_optional": ""}})
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertNotIn("軽量で省いた", entry)
+        self.assertIn("- 単位はどれも軽量だが、run の頭の深さが 標準 なので省かない", entry)
         plan = {**fixed_run()["plan"], "depth": [{"unit_id": "u1", "depth": "軽量", "why": "w"}]}
         _, text, _ = self.build(fixed_run(plan=plan))
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn("- 深さ: 軽量（単位ごと: 軽量 1 個・標準 0 個。機械が決めた）", entry)
         self.assertIn(runreport.NO_REDEPTH, entry)
 
+    def test_test_cmd_skip_counts_from_the_loop_record(self):
+        """PR #597: test_cmd の省きは TDD の輪の記録（tdd-unit の単位の test_cmd が light）から数える。記録が無い run は頭と単位が
+        軽量でも省いたと言わず、輪の後に標準へ上げた単位も、輪が省いた事実を報告に残す"""
+        light_head = fixed_run(judge={**fixed_run()["judge"], "depth": "軽量", "depth_why": "入力 thickness の名指し（軽量）"})
+        light = {"depth": [{"unit_id": "u1", "depth": "軽量", "why": "触るファイル 1 個"}], "skip_optional": "軽量で省いた",
+                 "raised": [], "counted": "", "stop_reason": ""}
+        _, text, _ = self.build(light_head, line={"redepth": light})
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 軽量で省いた: 差分の審査", entry)
+        self.assertNotIn("test_cmd の走らせ直し", entry)
+        unit = {"unit_key": "u1", "route": "tdd", "why": "", "tests": ["t::a"], "red": "ok", "green": "ok", "refactor": "none",
+                "gave_up": "", "test_cmd": tddloop.CMD_LIGHT}
+        typed = {"by_type": {"tdd-unit": [{"include": "fix", "loop": [], "node": "fix__tdd", "path": "nodes/fix.md", "produced_at": "",
+                                           "body": [{"group_id": "g1", "ran": True, "reason": "", "suite": "run-tests",
+                                                     "reused": None, "units": [unit]}]}]}, "warnings": []}
+        raised = {**light, "depth": [{"unit_id": "u1", "depth": "標準", "why": "触るファイル 1 個 / 標準へ上げた: 再審が走った"}],
+                  "skip_optional": "", "raised": ["再審が走った"]}
+        _, text, _ = self.build(light_head, typed=typed, line={"redepth": raised})
+        self.assertIn(f"- 軽量の単位 1 個で省いた: {depth.UNIT_OMIT}", self.section(text, report.ENTRY_HEADING))
+
     def test_head_depth_line_names_the_depth_and_the_skipped_nodes(self):
-        """issue #441: 入口の節に run の頭の深さと根拠・飛ばしたノード・標準へ上げた訳を 1 行で出す。判定の返りが無い run は出さない"""
+        """issue #441: 入口の節に run の頭の深さと根拠・段の省く物・足す物を 1 行で出す。判定の返りが無い run は出さない"""
         judge = {**fixed_run()["judge"], "depth": "軽量", "depth_why": "原因と直す行が名指されている"}
-        plan = {**fixed_run()["plan"], "depth_skip": True, "depth_why": "計画の単位 1 個がすべて軽量"}
+        plan = {**fixed_run()["plan"], "depth_why": "計画の単位 1 個がすべて軽量"}   # 計画の往復の欄は読まない
         _, text, _ = self.build(fixed_run(judge=judge, plan=plan))
-        self.assertIn("- run の頭の深さ: 軽量（根拠: 原因と直す行が名指されている）／飛ばしたノード: plan-review-run__review-loop\n",
-                      self.section(text, report.ENTRY_HEADING))
-        plan = {**plan, "depth_skip": False, "depth_why": "計画の単位がすべて軽量ではない"}
-        _, text, _ = self.build(fixed_run(judge=judge, plan=plan))
-        self.assertIn("- run の頭の深さ: 軽量 → 標準へ上げた（計画の単位がすべて軽量ではない）／飛ばしたノード: 無い\n",
+        self.assertIn("- run の頭の深さ: 軽量（根拠: 原因と直す行が名指されている）／省く物（単位がどれも軽量の時）: "
+                      f"{'・'.join(depth.OMITS)}／足した物: 無い\n",
                       self.section(text, report.ENTRY_HEADING))
         _, text, _ = self.build(fixed_run(judge={**judge, "depth": "標準", "depth_why": "試験のコマンドが無い"}))
-        self.assertIn("- run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／飛ばしたノード: 無い\n", self.section(text, report.ENTRY_HEADING))
+        self.assertIn("- run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／省く物: 無い／足した物: 無い\n", self.section(text, report.ENTRY_HEADING))
         _, text, _ = self.build(fixed_run(judge=None))
         self.assertNotIn("run の頭の深さ", text)
 
-    def test_light_run_that_skipped_the_pre_review_does_not_say_the_eyes_were_skipped(self):
-        """issue #441: 事前審査を run の頭の深さで飛ばした run は独立の目 R1〜R4 を回すので、軽量で省いた物は差分の審査だけ"""
-        light = {"depth": [{"unit_id": "u1", "depth": "軽量", "why": "触るファイル 1 個"}], "skip_optional": "軽量で省いた",
-                 "raised": [], "counted": "", "stop_reason": ""}
-        plan = {**fixed_run()["plan"], "depth_skip": True}
-        _, text, _ = self.build(fixed_run(plan=plan), line={"redepth": light})
+    def test_head_depth_line_names_what_the_tier_added(self):
+        """判定の depth が重厚の run の入口の節に、段の名・根拠と「足した物: judge_verify・review_tree」が出る。features_off で切った
+        機能には名指しで切ったと添える"""
+        judge = {**fixed_run()["judge"], "depth": "重厚", "depth_why": "設計の選びが要る"}
+        _, text, _ = self.build(fixed_run(judge=judge))
+        self.assertIn("- run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省く物: 無い／足した物: judge_verify・review_tree\n",
+                      self.section(text, report.ENTRY_HEADING))
+        start = {"run_id": RUN, "features_off": ["judge_verify"], "features_on": []}
+        _, text, _ = self.build(fixed_run(judge=judge), start=start)
+        self.assertIn("／足した物: judge_verify（名指しで切った）・review_tree\n", self.section(text, report.ENTRY_HEADING))
+
+    def test_heavy_entry_line_says_the_added_features_on(self):
+        """判定の depth が重厚で features を名指していない run の入口の「段: …・機能: …」の行に、judge_verify off と review_tree auto が
+        出ない。標準の run は今の既定のまま。名指しで切った機能は off のまま"""
+        heavy = {**fixed_run()["judge"], "depth": "重厚", "depth_why": "設計の選びが要る"}
+        start = {"run_id": RUN, "features_off": [], "features_on": []}
+        _, text, _ = self.build(fixed_run(judge=heavy), start=start)
         entry = self.section(text, report.ENTRY_HEADING)
-        self.assertIn(f"- 軽量で省いた: {depth.DELTA_SKIPPED}\n", entry)
-        self.assertNotIn("独立の目 R1", entry)
+        self.assertIn("- 段: 自動（機械が単位ごとに決めた）・機能: 全部 on\n", entry)
+        self.assertNotIn("judge_verify off", entry)
+        self.assertNotIn("review_tree auto", entry)
+        _, text, _ = self.build(fixed_run(judge={**heavy, "depth": "標準"}), start=start)
+        self.assertIn("- 段: 自動（機械が単位ごとに決めた）・機能: judge_verify off・review_tree auto\n", self.section(text, report.ENTRY_HEADING))
+        _, text, _ = self.build(fixed_run(judge=heavy), start={**start, "features_off": ["judge_verify"]})
+        self.assertIn("・機能: judge_verify off\n", self.section(text, report.ENTRY_HEADING))
 
     def test_converge_lines_reach_the_report(self):
         """L-D22・P119・R35: 事前審査の壁打ちの往復の行（何往復・抜け方・続いた block と、往復ごとの block・fixed・disputed・suggest に

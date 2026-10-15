@@ -58,7 +58,7 @@ def main(pass_: str) -> dict:
         row = next(r for r in clash.load(place) if r["group_id"] == gid)
         text = clash.prompt(RULES, pass_, {"brief_file": str(brief), "patch_file": row["patch"],
                                            "policy_path": policy.frozen_copy(start), "request_file": startrec.request_file(start)},
-                            reject_file=fixboard.rejects_file(place, accept, k - 1), iteration=k, lang=rolekit.lang_line(start))
+                            reject_file=rolekit.reject_file(place, accept), iteration=k, lang=rolekit.lang_line(start))
         prompt = fixboard.write_text(place / clash.PROMPT.format(gid=gid), text)
         return {"prompt_file": str(prompt), "go": True, "iteration": n}
     return {"prompt_file": "", "go": False, "iteration": n}

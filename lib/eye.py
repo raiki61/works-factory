@@ -126,12 +126,13 @@ def view(doc: dict) -> dict:
     return out
 
 
-REJECT_HEAD = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:eye.render")
+REJECT_HEAD = rolekit.REJECT_HEADING
 ASK_HEAD = promptsection.Section("## 問い", source="fn:eye.render")
 SHAPES_HEAD = promptsection.Section("## 見る形（番号で答える）", source="fn:eye.render")
 REPLY_HEAD = promptsection.Section("## 返し方", source="fn:eye.render")
 UNITS_HEAD = promptsection.Section("## 単位と実測（structure.json から機械が抜いた物。これが渡された物の全部）", source="fn:eye.render")
-RECEIVES = [promptsection.Receive("structure-eye", head) for head in (REJECT_HEAD, ASK_HEAD, SHAPES_HEAD, REPLY_HEAD, UNITS_HEAD)]
+RECEIVES = [promptsection.Receive("structure-eye", head, when="eye.render" if head is REJECT_HEAD else "")
+            for head in (REJECT_HEAD, ASK_HEAD, SHAPES_HEAD, REPLY_HEAD, UNITS_HEAD)]
 
 
 def render(doc: dict, rejected: str = "") -> str:
@@ -237,20 +238,26 @@ def problems(doc: dict, reply) -> list:
 
 
 def accept(structure_file, design_file, reply) -> dict:
+    """構造の目の返答 reply（読めなければ None）の受け付け。拒否は rolekit.accept_round が控えに積み、3 回目で done・give_up。控えが
+    読めない・書けなければ、落ちずに done 真・give_up 真の拒否（理由『拒否の控えが扱えない』）。回の番号 attempt は rolekit.current_round で
+    読む（控えが読めなければ 0 で、返答を照らさずにその拒否）。返り {ok, done, give_up, reason, attempt}"""
     out_dir = pathlib.Path(structure_file).parent
     st = state(out_dir)
-    n = rolekit.attempt(out_dir, NAME)
     started = st.get("started_at") or time.time()
-    bad = problems(_load(structure_file), reply)
+    structure = _load(structure_file)
+    attempt, stopped = rolekit.current_round(out_dir, NAME)
+
+    def take(_):
+        bad = problems(structure, reply)
+        return {"ok": False, "reason": " / ".join(bad)} if bad else {"ok": True, "reason": ""}
+    got = rolekit.round_outcome(stopped or rolekit.accept_round(out_dir, NAME, None, take))
     wall = round(time.time() - started, 3)
-    if bad:
-        reason = " / ".join(bad)
-        give_up = rolekit.with_done(out_dir, NAME, {"ok": False, "reason": reason})["done"]
-        _put(out_dir, {"started_at": started, "status": "gave_up" if give_up else "pending", WALL: wall})
-        return {"ok": False, "done": give_up, "give_up": give_up, "reason": reason, "attempt": n}
+    if not got["ok"]:
+        _put(out_dir, {"started_at": started, "status": "gave_up" if got["give_up"] else "pending", WALL: wall})
+        return {**got, "attempt": attempt}
     rows = [{**r, "route": r.get("route", ROUTE),
              "route_reason": r["undecided_because"].strip() if r.get("route") == ROUTE_UP else ROUTE_REASON}
             for r in reply["rows"]]
     pathlib.Path(design_file).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     _put(out_dir, {"started_at": started, "status": "ok", WALL: wall})
-    return {"ok": True, "done": True, "give_up": False, "reason": "", "attempt": n}
+    return {"ok": True, "done": True, "give_up": False, "reason": "", "attempt": attempt}

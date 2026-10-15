@@ -3,7 +3,7 @@
 fixture:
   expect: completed
   reached: [spec-accept, spec-review-accept, spec-revise-accept, spec-ask, spec-gate, spec-freeze, pr-scan, diagnose-accept, verdict]
-intake: {go: true, mode: judge, spec: true, world: false, verify: false, reason: ''}
+intake: {go: true, mode: judge, spec: true, world: false, reason: ''}
 head-depth-prep: {go: false, brief_file: '', reason: 仕様の段を挟む run}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:

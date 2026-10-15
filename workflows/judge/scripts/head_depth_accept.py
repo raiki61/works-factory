@@ -14,6 +14,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import headdepth  # noqa: E402
 import judge_accept as ja  # noqa: E402
+import rolekit  # noqa: E402
 
 ROLE = "head-depth"
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
@@ -35,5 +36,5 @@ def take(reply: dict) -> dict:
     return {"ok": True, "reason": ""}
 
 
-out = ja.accept_round(jdir, ROLE, os.environ.get("INPUTS_REPLY", ""), take, reject=refuse)
+out = rolekit.accept_round(jdir, ROLE, os.environ.get("INPUTS_REPLY", ""), take, reject=refuse)
 boundary.returns({"ok": bool(out["ok"]), "done": bool(out["done"]), "reason": str(out["reason"])})

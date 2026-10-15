@@ -8,12 +8,15 @@ join が組の子から写した物（fixboard.ruled_states。凍結したテス
 
 - 範囲の相談の周（入力 consulted が true）は受け付けを回さず done: false
 - 役を起こさなかった（入力 reply が null。直す裁定が無い）周は done: true
-- 拒否は理由を置き場の reject-fix-ruled-accept-<iteration>.md に書いて done: false。iteration が 3 以上の拒否は名指しの単位だけを
-  段の頭の木（fix-ruled-head.json）に戻して諦め、ほかを受けて done: true
-- 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false
+- 拒否は rolekit の控え rejects-fix-ruled-accept.json に積み（fixboard.accept_out。reason_file はこの輪の拒否の全部のファイル
+  rejects-fix-ruled-accept.md）、最後の回（rolekit.is_last_attempt。回は控えの拒否の数 + 1）まで done: false。最後の回の拒否は
+  名指しの単位だけを段の頭の木（fix-ruled-head.json）に戻して諦め、ほかを受けて done: true（指示書の番号 INPUTS_ITERATION は
+  諦めの判断に使わない。with: の入力は残るが読まない）
+- 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false で、控えに数えない（count: false）
 置き場に残す物: fix-ruled-reply.json（受けた返答に 6 つの印と rejudge_requested を前の控えと論理和で重ね、印を changed にも置いた物。
 assert-changed・collect が読む）・fix-units.json。
-返り {ok, done, reason, reason_file}。回す側の誤りは標準エラーに 1 行で非 0。
+返り {ok, done, reason, reason_file}。回す側の誤りは標準エラーに 1 行で非 0。拒否の控え rejects-fix-ruled-accept.json が読めない・書けない時は落ちずに done: true の
+拒否（理由『拒否の控えが扱えない』）。rejects-fix-ruled-accept.md が書けない時は標準エラーに 1 行で非 0。
 """
 import os
 import sys
@@ -37,7 +40,6 @@ NOT_LAUNCHED = "裁定の後の修正役を起こさなかった（直す裁定�
 def main() -> dict:
     raw = os.environ["INPUTS_REPLY"]
     consulted = os.environ.get("INPUTS_CONSULTED", "").strip().lower() == "true"
-    iteration = int(os.environ["INPUTS_ITERATION"])
     if consulted:
         return {"ok": False, "done": False, "reason": fixboard.CONSULTED, "reason_file": ""}
     if boundary.value(raw) is None:
@@ -46,6 +48,9 @@ def main() -> dict:
     if reply is None:
         raise ValueError(why)
     place, repo = boundary.place("fix"), boundary.work_tree()
+    iteration, stopped = fixboard.round_number(place, NAME)
+    if stopped:
+        return stopped
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
@@ -62,10 +67,9 @@ def main() -> dict:
         fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
         fixboard.trace(place, "fix_ruled_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]))
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
-    reason_file = fixboard.write_reject(place, NAME, iteration, got["reason"])
-    done = fixboard.loop_done(got, iteration)
-    fixboard.trace(place, "fix_ruled_rejected", node=NAME, iteration=iteration, done=done, parked=sorted(got["parked"]))
-    return {"ok": False, "done": done, "reason": got["reason"], "reason_file": reason_file}
+    out = fixboard.accept_out(place, NAME, got)
+    fixboard.trace(place, "fix_ruled_rejected", node=NAME, iteration=iteration, done=out["done"], parked=sorted(got["parked"]))
+    return {**out, "reason": got["reason"]}
 
 
 if __name__ == "__main__":

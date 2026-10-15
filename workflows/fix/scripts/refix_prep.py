@@ -53,7 +53,7 @@ def main(n: int) -> None:
         raise ValueError(got["reason"])
     text = fixboard.refix_prompt(n, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": policy.frozen_copy(start),
                                      "request_file": startrec.request_file(start)},
-                                 reject_file=fixboard.rejects_file(place, accept, iteration - 1), iteration=iteration,
+                                 reject_file=rolekit.reject_file(place, accept), iteration=iteration,
                                  lang=rolekit.lang_line(start), scope=refix.scope_text(place, items))
     prompt = fixboard.write_text(place / fixboard.REFIX_PROMPT.format(refix.passes()[n]["fix"]), text)
     boundary.returns({"prompt_file": str(prompt), "go": True, "iteration": iteration})

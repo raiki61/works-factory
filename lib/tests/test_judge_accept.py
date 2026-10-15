@@ -864,19 +864,20 @@ class IntakeCase(_RepoCase):
                     self.assertFalse((self.jdir / ja.REQUEST_FILE).exists())
 
     def test_features_cut_and_spec_set_the_stage_flags(self):
-        """元 entry.py の FEATURES・line_edge.py:1026 の _world_due・judgeverify.py:306 の prep: 始めの記録の features_cut の world が
-        世界の解の段を、judge_verify が判定の裏取りを切り、input.spec が仕様の段を入れる（features_cut の無い記録は裏取りだけ切る）"""
-        cases = (({}, (False, True, False)),
-                 ({"features_cut": []}, (False, True, True)),
-                 ({"features_cut": ["world"]}, (False, False, True)),
-                 ({"features_cut": ["world", "judge_verify"]}, (False, False, False)),
-                 ({"input": {"base": {"rev": self.head}, "spec": True}}, (True, True, False)))
+        """元 entry.py の FEATURES・line_edge.py:1026 の _world_due: 始めの記録の features_cut の world が世界の解の段を切り、
+        input.spec が仕様の段を入れる。返りに判定の裏取りの旗は無い（裏取りは裏取りの支度が始めの記録と頭の深さの控えから決める）"""
+        cases = (({}, (False, True)),
+                 ({"features_cut": []}, (False, True)),
+                 ({"features_cut": ["world"]}, (False, False)),
+                 ({"features_cut": ["world", "judge_verify"]}, (False, False)),
+                 ({"input": {"base": {"rev": self.head}, "spec": True}}, (True, True)))
         (self.repo / "req.json").write_text(json.dumps(self.ROWS), encoding="utf-8")
         for over, flags in cases:
             with self.subTest(over):
                 got = self.intake(self.start(request_file="req.json", **over))
                 self.assertTrue(got["go"], got)
-                self.assertEqual((got["spec"], got["world"], got["verify"]), flags)
+                self.assertEqual((got["spec"], got["world"]), flags)
+                self.assertNotIn("verify", got)
 
     def test_empty_request_file_is_refused_when_start_counts_requests(self):
         """J04: 依頼のファイルを名指したのに行が空なら、始めの記録が依頼 1 件以上と言う run では欠けとして止める（元 works/blk-judge/
@@ -1308,8 +1309,8 @@ class MaterialCase(_RepoCase):
         return self.view()
 
     def take_round(self, role, reply):
-        return ja.accept_round(self.jdir, role, json.dumps(reply, ensure_ascii=False),
-                               lambda r: ja.material_take(self.jdir, role, r, self.repo))
+        return rolekit.accept_round(self.jdir, role, json.dumps(reply, ensure_ascii=False),
+                                    lambda r: ja.material_take(self.jdir, role, r, self.repo))
 
     def test_route_keeps_the_first_tree_record(self):
         """元 test_blk_material.py:471 の test_route_keeps_first_snapshot: 素材の役を起こす前の作業ツリーの姿は 1 度だけ置く
@@ -1408,7 +1409,7 @@ class MaterialCase(_RepoCase):
         self.assertTrue(self.take_round("hygiene", hygiene("app.txt:1", f"{outside}:50", "infra/main.tf:184"))["ok"])
         (self.jdir / ja.material_file("hygiene")).unlink()
         bad = hygiene("app.txt:1", "app.txt:99")
-        for n in range(1, ja.GIVE_UP_AFTER):
+        for n in range(1, rolekit.GIVE_UP_AFTER):
             with self.subTest(round=n):
                 got = self.take_round("hygiene", bad)
                 self.assertEqual((got["ok"], got["done"]), (False, False), got)
@@ -2698,7 +2699,7 @@ class WorldStageCase(unittest.TestCase):
         for n in range(1, rolekit.GIVE_UP_AFTER + 1):
             got = ja.world_accept(self.jdir, "world-classes", "not json" if n == 1 else '{"classes": []}')
             self.assertEqual((got["ok"], got["done"]), (False, n == rolekit.GIVE_UP_AFTER), n)
-        self.assertEqual(len(rolekit.rejected(self.jdir, "world-classes")), 3)
+        self.assertEqual(rolekit.rejected(self.jdir, "world-classes"), [], "拒否の控えは judge/world の 1 つだけ")
         self.assertEqual(len(rolekit.rejected(self.jdir / "world", worldblk.CLASSES_ROLE)), 3)
         plan = ja.world_plan(self.jdir)
         self.assertFalse(plan["due"])
@@ -2709,6 +2710,14 @@ class WorldStageCase(unittest.TestCase):
         self.assertIsNone(ja.read_stop(self.jdir))
         self.assertEqual(worldmark.read(self.jdir)["status"], "failed")
         self.assertIsNone(worldmark.stage_rows(self.jdir))
+
+    def test_world_reject_is_kept_in_one_ledger(self):
+        """世界の解の拒否は judge/world/rejects-<classes|judge>.json の 1 つにだけ積む（judge/rejects-world-<役>.json は作らない）"""
+        self.intake()
+        got = ja.world_accept(self.jdir, "world-classes", "not json")
+        self.assertEqual((got["ok"], got["done"]), (False, False))
+        self.assertEqual(len(json.loads((self.jdir / "world" / f"rejects-{worldblk.CLASSES_ROLE}.json").read_text(encoding="utf-8"))), 1)
+        self.assertEqual(sorted(p.name for p in self.jdir.glob("rejects-*")), [])
 
     def test_judge_reject_names_the_problem(self):
         """元 test_blk_world の Judge.test_differs_needs_challenge・test_practice_with_target_identifier_is_refused"""

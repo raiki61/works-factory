@@ -29,6 +29,9 @@ inputs:
   depth:
     default: ""
     description: 単位ごとの深さの JSON の配列
+  head_depth:
+    default: ""
+    description: run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら差分の審査を省く。空は標準
   answers:
     default: ""
     description: 修正前の承認ノードの答え（飛ばされれば null）
@@ -384,7 +387,6 @@ nodes:
           with:
             status_guarded: true
             reply: $ruler.output
-            iteration: $rule-prep.output.iteration
           output_format:
             type: object
             additionalProperties: false
@@ -828,7 +830,6 @@ nodes:
           with:
             reply: {from: "$fix-ruled.output", if_skipped: null}
             consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}
-            iteration: $fix-ruled-prep.output.iteration
           output_format: *accept_out
 
   # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）。前のどれかの節が落ちた run では
@@ -865,8 +866,8 @@ nodes:
         ok: {type: boolean}
         reason: {type: string}
 
-  # 差分の審査（p3.fix_delta・p3.delta_review・p3.delta_owed・p3.delta_fix とその 2 回目）。全部の単位が軽量の run・変更の確かめが
-  # 通らなかった run は go: false で飛ばす（持ち主の決め dynamic-depth）
+  # 差分の審査（p3.fix_delta・p3.delta_review・p3.delta_owed・p3.delta_fix とその 2 回目）。頭の深さが軽量で全部の単位が軽量の
+  # run・変更の確かめが通らなかった run は go: false で飛ばす（持ち主の決め dynamic-depth）
   - id: delta-cut
     script: delta_cut
     runtime: uv
@@ -1516,7 +1517,6 @@ nodes:
           with:
             reply: {from: "$fixer.output", if_skipped: null}
             consulted: {from: "$consult-accept.output.consulted", if_skipped: false}
-            iteration: $fix-prep.output.iteration
           output_format: *accept_out
 
   # 終わりの木・単位ごとの結末・TDD の輪の結果・申し出・異議・修正役の印・許したテストの変更を out_dir/<group_id>/result.json に書く

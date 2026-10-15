@@ -8,7 +8,7 @@
 
 - prep(board_dir, repo, values, reject_file="", lang=""): 節 rule-prep の中身。作業ツリーの姿を控え（fixboard.snapshot。読むだけの役の
   見張り）、指示書を fixrules.ruler_prompt で組んで置き場の prompt-rule.md に書く。出し直しならこの輪の拒否の理由の全部のファイル reject_file
-  （呼び手が fixboard.rejects_file で渡す）を 1 行目で名指す（R44）。lang は言語の 1 行（呼び手が組む）
+  （呼び手が rolekit.reject_file で渡す）を 1 行目で名指す（R44）。lang は言語の 1 行（呼び手が組む）
 - accept_rule(reply, board, base_rev, repo): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
   ちょうど 1 件ずつ・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
   外れない・裁きの出どころ（grounds）が現物に在り、依頼のファイルが在る run の ask_human は依頼の行か request_searched を持つ・
@@ -16,7 +16,7 @@
   同じ返答で fix_plan_item に裁いた項目の単位に直す裁定を出さない（plan_item_fix_problems）・rejudge は組どうしの合わせの申し出
   （conflict.JOIN_SOURCE）だけで範囲を持たず、同じ組の行は同じ裁定に揃える（clash_split_problems）、
   を確かめて conflict.apply_rulings で積む
-  （fix_plan_item には欄 plan_items にその単位の brief の項目の番号を、欄 plan_units にその項目に載る単位の全部を足す）。GIVE_UP_AFTER 回目の拒否では
+  （fix_plan_item には欄 plan_items にその単位の brief の項目の番号を、欄 plan_units にその項目に載る単位の全部を足す）。rolekit.GIVE_UP_AFTER 回目の拒否では
   裁かれていない申し出を全部 ask_human に裁いて抜ける（決められない物は人へ。max_iterations で落とさない）
 """
 import os
@@ -39,10 +39,9 @@ import stopby  # noqa: E402  （L1。止めの理由の住処）
 ROLE = "rule"
 TREE = "rule-tree.json"          # 役を起こす前の作業ツリーの姿（置き場）
 PROMPT = "prompt-rule.md"        # 指示書（置き場）
-GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER   # 輪 rule-loop の max_iterations と同じ（試験が YAML と突き合わせる）
 BY_ROLE = "role:rule"
 BY_GIVE_UP = stopby.declare("rule-give-up", "裁定の by: 裁定役の返答が受け付けを通らず、決められない物として人に回した")
-GIVE_UP_TEXT = f"裁定役の返答が {GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
+GIVE_UP_TEXT = f"裁定役の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
 READONLY = "裁定役は読むだけで、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない: "
 RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", "query")   # 置き場の控えに積む裁定の欄
 
@@ -224,9 +223,12 @@ def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
             return got
         path = conflict.apply_rulings(b, {r["id"]: stored(r) for r in reply["rulings"]}, by=BY_ROLE)
         return {"ok": True, "done": True, "reason": "", "rulings_file": str(path), "counts": conflict.counts(b)}
-    out = rolekit.with_done(b, ROLE, {"ok": False, "reason": " / ".join(errs), "rulings_file": "", "counts": conflict.counts(b)})
-    if out["done"]:
+    handed = {}
+
+    def hand_over():   # 諦めた回だけ: 裁かれていない申し出を人に回す
         path = conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo},
                                       by=BY_GIVE_UP)
-        out.update(rulings_file=str(path), counts=conflict.counts(b))
-    return out
+        handed.update(rulings_file=str(path), counts=conflict.counts(b))
+    out = rolekit.accept_round(b, ROLE, None, lambda _: {"ok": False, "reason": " / ".join(errs), "rulings_file": "",
+                                                          "counts": conflict.counts(b)}, on_give_up=hand_over)
+    return {**out, **handed}

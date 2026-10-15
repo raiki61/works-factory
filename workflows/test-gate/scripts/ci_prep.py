@@ -39,7 +39,7 @@ def main() -> int:
     gate.mkdir(parents=True, exist_ok=True)
     if (records := os.environ.get(fence.RECORDS_ENV, "")) and (why := fence.bad_declaration(records)):
         reason = f"包みの宣言が読めない: {why}——CI の任せ先の役を起こさずに止める"
-        rolekit.with_done(gate, declared_checks.CI_ROLE, {"ok": False, "reason": reason}, give_up=True)
+        rolekit.accept_round(gate, declared_checks.CI_ROLE, None, lambda _: {"ok": False, "give_up": True, "reason": reason})
         sys.exit(reason)
     snap_path = gate / "ci-snapshot.json"
     snap = json.loads(snap_path.read_text(encoding="utf-8")) if snap_path.is_file() else {}

@@ -13,6 +13,7 @@ inputs:
   plan: {required: true, description: "plan-fields.json のポインタ"}
   ripple: {required: true, description: "ripple.json のポインタ"}
   depth: {required: true, description: "単位ごとの深さ。JSON の配列"}
+  head_depth: {default: "", description: "run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら R1〜R4 を省く。空は標準"}
   design: {required: true, description: "design.json のポインタ"}
   changed: {required: true, description: "修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む"}
   fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}
@@ -24,7 +25,6 @@ inputs:
   answers: {default: "null", description: "修正前の承認ノードの答え"}
   start_answers: {default: "null", description: "始めの承認ノードの答え（独立設計に貼られる人の答えと同じ物）"}
   ties_judgment: {default: "null", description: "判定の結び（answer-ties.json）を隣から読む 1 回目の判定のポインタ。null なら judgment の隣"}
-  review_skipped: {default: "false", description: "事前審査を run の頭の深さで飛ばしたか。真なら単位の深さに依らず R1〜R4 を回す。事前審査の代わり"}
   x_scalars: {default: "null", description: "修正役が足した x_ の規模の数値。JSON の object"}
 
 returns: verdict

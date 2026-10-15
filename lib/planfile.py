@@ -818,7 +818,8 @@ def moved(path, repo, keys=accept.TREE_KEYS) -> str:
 
 def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=None) -> dict:
     """受けた案の控えを置く。置けなければ置いた控えを消し、置けなかった控えの名を round.json の why に残して、輪を止める返り
-    {ok: False, halt: True, reason}（拒否ではない。役に出し直させず、欄の無い案で進ませない。元 planblk.with_plan_fields の BoardGap）"""
+    {ok: False, halt: True, count: false, give_up: true, reason}（拒否ではない。役に出し直させず、欄の無い案で進ませない。count: false で
+    受け付けの回の口 rolekit.accept_round が控えに積まず、give_up: true でその回を done にして輪を止める。元 planblk.with_plan_fields の BoardGap）"""
     steps = ((FIX_PLAN_FILE, lambda: _write_json(round_dir / FIX_PLAN_FILE, bare)),
              (planmarks.FIELDS_FILE, lambda: planmarks.save(round_dir, k, fields, amended=amended)),
              (REPLY_FILE, lambda: _write_json(round_dir / REPLY_FILE, plan)))
@@ -830,7 +831,7 @@ def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=No
                 (round_dir / done).unlink(missing_ok=True)
             why = f"受けた修正案の控え {name} を置けない: {e}"
             _write_json(round_dir / ROUND_FILE, {**read_round(round_dir), "why": why})
-            return {"ok": False, "halt": True, "reason": why}
+            return {"ok": False, "halt": True, "count": False, "give_up": True, "reason": why}
     return {"ok": True, "reason": ""}
 
 
@@ -844,7 +845,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（moved。keys の欄で比べる）。拒否は理由を全部 1 回で
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
-    _save の halt）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
+    _save の halt。count: false・give_up: true で受け付けの回が控えに積まずに輪を止める）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
     （出し直しが WHOLE_PLAN を立てた答えは、案の全部なので閉じた項目の行だけを差し込む）。差し込んだ案の全体は、出し直しの役が
     読み、次の出し直しを合わせる元の控え rolekit.candidate_path にも書く。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
@@ -1038,11 +1039,15 @@ def nothing_owed(round_dir) -> bool:
 
 
 def why_not_ready(round_dir) -> str:
-    """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・輪が回らなかった）"""
+    """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・拒否の控えが読めない・輪が回らなかった）。控えが読めない周は
+    plan_accept が返答を照らさずに抜けた周で、その訳を返す（落ちない）"""
     why = read_round(round_dir)["why"]
     if why:
         return str(why)
-    return rolekit.given_up_reason(pathlib.Path(round_dir), ROLE) or NO_PLAN
+    try:
+        return rolekit.given_up_reason(pathlib.Path(round_dir), ROLE) or NO_PLAN
+    except rolekit.BoardGap as e:
+        return f"拒否の控えが扱えない（{e}）"
 
 
 def accepted_fields(round_dir):

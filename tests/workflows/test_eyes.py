@@ -1110,7 +1110,8 @@ class ScriptCase(unittest.TestCase):
                             "purpose": self.pointer("judge/purpose.json", {"purpose_text": "目的"}),
                             "answers": "null", "start_answers": "null",
                             "changed": json.dumps({}), "x_scalars": "{}", "units": "[]", "fix_units": "[]",
-                            "depth": json.dumps([{"unit_id": "u1", "depth": depth.LIGHT, "why": ""}], ensure_ascii=False)})
+                            "depth": json.dumps([{"unit_id": "u1", "depth": depth.LIGHT, "why": ""}], ensure_ascii=False),
+                            "head_depth": depth.LIGHT})
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
         got = self.run_script("prep")
         self.assertFalse(got["run_eyes"], "軽量の単位だけなら目を省く")
@@ -1281,13 +1282,16 @@ class ScriptCase(unittest.TestCase):
 
     def test_prep_all_light_turns_eyes_off(self):
         self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])
+        self.inputs["head_depth"] = "軽量"
         self.assertIs(self.run_script("prep")["run_eyes"], False)
 
-    def test_prep_runs_the_eyes_when_the_pre_review_was_skipped(self):
-        """run の頭の深さで事前審査を飛ばした run は、全部の単位が軽量でも R1〜R4 を回す（目が事前審査の代わり。issue #441）"""
+    def test_prep_keeps_the_eyes_unless_the_head_is_light(self):
+        """issue #561: 単位がどれも軽量でも、run の頭の深さが標準・重厚・空なら R1〜R4 を省かない"""
         self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])
-        self.inputs["review_skipped"] = "true"
-        self.assertIs(self.run_script("prep")["run_eyes"], True)
+        for head in ("標準", "重厚", ""):
+            with self.subTest(head=head):
+                self.inputs["head_depth"] = head
+                self.assertIs(self.run_script("prep")["run_eyes"], True)
 
     def test_structure_after_never_fails_the_line(self):
         self.inputs["plan"] = self.pointer("plan/plan-fields.json", {"round": 1, "fields": []})

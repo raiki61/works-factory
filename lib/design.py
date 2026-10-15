@@ -55,7 +55,6 @@ from rolekit import BoardGap  # noqa: E402
 
 NODE = "r2.design"
 DESIGN_FILE = "design.json"             # 受け付けた設計の返答（盤面の根。run に 1 つ）
-GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER
 MISSING = "独立設計が取れなかった"
 HANDED_OP = "r2_design_handed"         # 設計の控えを後段に渡した trace の行（元 works/.shared/core/design.py:74）
 MISSING_OP = "r2_design_missing"       # 設計が無いまま先へ進んだ trace の行（元 :75）
@@ -525,7 +524,7 @@ def missing(b) -> str:
     got, broken = made(b.dir, b.design_schema)
     if got is not None or broken:
         return broken
-    gave = rolekit.given_up_reason(b.dir, NODE, give_up_after=GIVE_UP_AFTER)
+    gave = rolekit.given_up_reason(b.dir, NODE)
     if gave:
         return f"{MISSING}: {gave}"
     why = unusable(b)
