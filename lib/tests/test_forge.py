@@ -29,7 +29,7 @@ SECRET = "ghp_SECRETVALUE"
 
 
 def _git(repo, *args):
-    subprocess.run(["git", *GIT_ID, "-C", str(repo), *args], check=True, capture_output=True)
+    subprocess.run(["git", *GIT_ID, "-C", str(repo), *args], check=True, capture_output=True, env=hermetic.child_env())
 
 
 class ClassifyCase(unittest.TestCase):
@@ -152,7 +152,8 @@ class DetectCase(unittest.TestCase):
         _git(self.repo, "remote", "add", "up", "https://gitlab.com/o/r.git")
         _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "s")
         _git(self.repo, "update-ref", "refs/remotes/up/main", "HEAD")
-        br = subprocess.run(["git", "-C", str(self.repo), "branch", "--show-current"], capture_output=True, text=True, encoding="utf-8").stdout.strip()
+        br = subprocess.run(["git", "-C", str(self.repo), "branch", "--show-current"], capture_output=True, text=True, encoding="utf-8",
+                            env=hermetic.child_env()).stdout.strip()
         _git(self.repo, "branch", "--set-upstream-to=up/main", br)
         got = forge.detect(self.repo)
         self.assertEqual((got["kind"], got["remote"]), (forge.OTHER_HOST, "up"))

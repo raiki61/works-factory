@@ -19,6 +19,7 @@ from unittest import mock
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -123,10 +124,8 @@ class ScriptCase(unittest.TestCase):
     def run_script(self, cwd=None, root=ROOT, **inputs) -> dict:
         """script を走らせ、終了の値 0・返りが output_format に合う・作業ツリーが前後で同じことを確かめて返りを返す"""
         cwd = self.repo if cwd is None else cwd
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-        env.update({"WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(root),
-                    "PYTHONDONTWRITEBYTECODE": "1"})
-        env.update({f"INPUTS_{name.upper()}": inputs.get(name, "") for name in INPUTS})
+        env = hermetic.child_env(WORKFLOW_ID=RUN, ARTIFACTS_DIR=str(self.artifacts), WORKS_FACTORY_ROOT=str(root),
+                                 PYTHONDONTWRITEBYTECODE="1", **{f"INPUTS_{name.upper()}": inputs.get(name, "") for name in INPUTS})
         status = self.status(cwd)
         done = subprocess.run([sys.executable, str(SCRIPT)], cwd=cwd, env=env, capture_output=True, text=True,
                               encoding="utf-8")
@@ -138,7 +137,7 @@ class ScriptCase(unittest.TestCase):
 
     @staticmethod
     def status(cwd):
-        done = subprocess.run(["git", "status", "--porcelain"], cwd=cwd, capture_output=True, text=True)
+        done = subprocess.run(["git", "status", "--porcelain"], cwd=cwd, capture_output=True, text=True, env=hermetic.child_env())
         return done.stdout if done.returncode == 0 else None
 
     def seal(self, **over) -> dict:

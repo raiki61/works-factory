@@ -10,6 +10,8 @@ import sys
 import tempfile
 import unittest
 
+from tests.bin import hermetic
+
 LIB = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -22,7 +24,7 @@ def first_import_failures(lib: pathlib.Path) -> dict[str, str]:
                 continue
             code = f"import sys; sys.dont_write_bytecode = True; sys.path.append({str(lib)!r}); import {path.stem}"
             done = subprocess.run([sys.executable, "-B", "-c", code], cwd=cwd, stdin=subprocess.DEVNULL,
-                                  capture_output=True, text=True, encoding="utf-8")
+                                  capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
             if done.returncode != 0:
                 failures[path.stem] = (done.stderr.strip().splitlines() or [f"終了の値 {done.returncode}"])[-1]
     return failures
@@ -36,7 +38,7 @@ class LibImportCase(unittest.TestCase):
     def test_answer_imports_as_a_member_of_lib(self):
         """起動の殻（bin/_lib/launcher.py）は lib を sys.path に足さず from lib import answer で読む"""
         done = subprocess.run([sys.executable, "-I", "-B", "-c", "import sys; sys.path.insert(0, '.'); from lib import answer"],
-                              cwd=LIB.parent, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8")
+                              cwd=LIB.parent, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_a_cycle_that_fails_by_order_is_named(self):

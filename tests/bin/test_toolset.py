@@ -590,7 +590,7 @@ class ScopeCase(unittest.TestCase):
         cfg.mkdir()
         r = subprocess.run([sys.executable, str(TOOLSET), "install", "--no-plugins", "--user-config", str(self.user), str(cfg)],
                            capture_output=True, text=True, encoding="utf-8", cwd=self.target,
-                           env={**{k: v for k, v in os.environ.items() if k != "CLAUDE_CONFIG_DIR"}, **COLDWRITE_ENV})
+                           env=hermetic.child_env(**COLDWRITE_ENV))
         self.assertEqual(r.returncode, 0, r.stderr)
         rec = json.loads((cfg / toolset.RECORD).read_text())
         self.assertEqual(rec["coldwrite"]["source"], str(installed_dir(self.user, "coldwrite")))

@@ -38,7 +38,7 @@ if str(LIB) not in sys.path:
 
 import tree_run  # noqa: E402
 import userenv  # noqa: E402
-from tests.bin import gitkit  # noqa: E402
+from tests.bin import gitkit, hermetic  # noqa: E402
 
 
 def group_gone(pgid, within):
@@ -96,7 +96,7 @@ class TreeRunCase(unittest.TestCase):
         self.tmp = pathlib.Path(self._tmp.name)
         self.pidf = self.tmp / "pgid"
         self.marker = self.tmp / "late"
-        self.env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+        self.env = {k: v for k, v in hermetic.child_env().items() if k != "PYTHONDONTWRITEBYTECODE"}
         # このテストが起こした物（後片付けで止める Popen・pgid・pid）。pgid・pid は消えたと確かめた時点で外す——
         # 確かめた後に同じ番号が別のプロセスに再利用されても、後片付けで送らない。Popen は回収済みなら送らない
         self.started = []
@@ -431,7 +431,7 @@ class TreeRunCase(unittest.TestCase):
             fake.chmod(0o755)
             child = self.tmp / "child"
             p = subprocess.Popen(["/bin/sh", "-c", f"(trap '' TERM; echo $$ > {child}; sleep 300) & wait"],
-                                 start_new_session=True, stdin=subprocess.DEVNULL)
+                                 start_new_session=True, stdin=subprocess.DEVNULL, env=hermetic.child_env())
             self.started.extend([("popen", p), ("pg", p.pid)])
             read_int(child)
             t0 = time.monotonic()
@@ -451,7 +451,7 @@ class TreeRunCase(unittest.TestCase):
         fake.chmod(0o755)
         child = self.tmp / "child"
         p = subprocess.Popen(["/bin/sh", "-c", f"sleep 300 & echo $! > {child}; wait"], start_new_session=True,
-                             stdin=subprocess.DEVNULL)
+                             stdin=subprocess.DEVNULL, env=hermetic.child_env())
         self.started.extend([("popen", p), ("pg", p.pid)])
         cpid = read_int(child)
         with mock.patch.object(tree_run, "PS", str(fake)):
@@ -461,7 +461,7 @@ class TreeRunCase(unittest.TestCase):
             try:
                 ps_pid = read_int(ps_pidf)
                 state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(cpid)], capture_output=True, text=True,
-                                       timeout=30).stdout.strip()
+                                       timeout=30, env=hermetic.child_env()).stdout.strip()
                 self.assertTrue(state.startswith("T"), f"ps が固まる間、グループの子が止まっていない（stat {state!r}）")
             finally:
                 if ps_pid is not None:
@@ -477,7 +477,7 @@ class TreeRunCase(unittest.TestCase):
         ready, handled = self.tmp / "ready", self.tmp / "handled"
         p = subprocess.Popen(["/bin/sh", "-c", f"(trap 'echo 1 > {handled}; exit 0' TERM; echo 1 > {ready}; "
                                                "while :; do sleep 0.05; done) & wait"],
-                             start_new_session=True, stdin=subprocess.DEVNULL)
+                             start_new_session=True, stdin=subprocess.DEVNULL, env=hermetic.child_env())
         self.started.extend([("popen", p), ("pg", p.pid)])
         read_int(ready)
         self.assertIsNone(tree_run.stop_group(p))
@@ -493,7 +493,7 @@ class TreeRunCase(unittest.TestCase):
         fake.chmod(0o755)
         child = self.tmp / "child"
         p = subprocess.Popen(["/bin/sh", "-c", f"sleep 300 & echo $! > {child}; exit 0"], start_new_session=True,
-                             stdin=subprocess.DEVNULL)
+                             stdin=subprocess.DEVNULL, env=hermetic.child_env())
         self.started.extend([("popen", p), ("pg", p.pid)])
         cpid = read_int(child)
         self.started.append(("pid", cpid))
@@ -505,7 +505,7 @@ class TreeRunCase(unittest.TestCase):
             try:
                 ps_pid = read_int(ps_pidf)
                 state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(cpid)], capture_output=True, text=True,
-                                       timeout=30).stdout.strip()
+                                       timeout=30, env=hermetic.child_env()).stdout.strip()
                 self.assertFalse(state.startswith("T"), f"回収した長のグループを ps より前に凍らせた（stat {state!r}）")
             finally:
                 if ps_pid is not None:
@@ -568,7 +568,7 @@ class OutsideEnvCase(unittest.TestCase):
         コマンドの印は消さない"""
         record = json.dumps({"HOME": "/u"})
         with tempfile.TemporaryDirectory() as top:
-            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            env = tree_run.outside_env(hermetic.child_env(**{userenv.RECORD: record, userenv.RAN_DIR_ENV: top}))
             with self.assertRaises(OSError):
                 tree_run.run([os.path.join(top, "no-such-tool")], env=env)
             self.assertFalse(userenv.ran(top))
@@ -585,7 +585,7 @@ class OutsideEnvCase(unittest.TestCase):
         """#538: 起こせなかったのが OSError でなくても（引数の中の NUL による ValueError）、この呼び出しが置いた印を残さない"""
         record = json.dumps({"HOME": "/u"})
         with tempfile.TemporaryDirectory() as top:
-            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            env = tree_run.outside_env(hermetic.child_env(**{userenv.RECORD: record, userenv.RAN_DIR_ENV: top}))
             with self.assertRaises(ValueError):
                 tree_run.run([sys.executable, "-c", "pass\0"], env=env)
             self.assertFalse(userenv.ran(top))
@@ -595,7 +595,7 @@ class OutsideEnvCase(unittest.TestCase):
         起こしてから置けないと、利用者の環境で走らせたのを報告の冒頭が言い漏らす"""
         record = json.dumps({"HOME": "/u"})
         with tempfile.TemporaryDirectory() as top:
-            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            env = tree_run.outside_env(hermetic.child_env(**{userenv.RECORD: record, userenv.RAN_DIR_ENV: top}))
             missing = pathlib.Path(top) / "missing" / userenv.RAN_FILE
             env[userenv.MARK] = str(missing)
             seen = pathlib.Path(top) / "seen"
@@ -609,7 +609,7 @@ class OutsideEnvCase(unittest.TestCase):
         """#514: 起こした殻から継いだ userenv.MARK は、道を付けていない（RECORD の無い）run では外れ、印を書かない"""
         with tempfile.TemporaryDirectory() as top:
             mark = pathlib.Path(top) / userenv.RAN_FILE
-            env = tree_run.outside_env({**os.environ, userenv.MARK: str(mark)})
+            env = tree_run.outside_env(hermetic.child_env(**{userenv.MARK: str(mark)}))
             self.assertNotIn(userenv.MARK, env)
             self.assertEqual(tree_run.run([sys.executable, "-c", "pass"], env=env), 0)
             self.assertFalse(mark.exists())
@@ -630,7 +630,7 @@ class LaunchProofShapeCase(unittest.TestCase):
         for cmd in ("true; echo done", "true|cat", "true&&true", "# note\ntrue", "FOO=1 true", "2>/dev/null true",
                     "2>&1 true", "10<&0 true", ">/dev/null true", "time true"):
             with self.subTest(cmd=cmd):
-                self.assertEqual(subprocess.run(["bash", "-c", cmd], stdout=subprocess.DEVNULL).returncode, 0)
+                self.assertEqual(subprocess.run(["bash", "-c", cmd], stdout=subprocess.DEVNULL, env=hermetic.child_env()).returncode, 0)
                 tree_run.prove_launchable(["bash", "-c", cmd])
 
     def test_slow_proof_is_waited_out_without_deadline(self):
@@ -641,7 +641,7 @@ class LaunchProofShapeCase(unittest.TestCase):
             release = pathlib.Path(tmp) / "release"
             slow = pathlib.Path(tmp) / "slow-env.sh"
             slow.write_text(f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.01; done\n")
-            env = {**os.environ, "BASH_ENV": str(slow)}
+            env = hermetic.child_env(BASH_ENV=str(slow))
             calls = itertools.count(1)
 
             def halted():
@@ -683,7 +683,7 @@ class CommandArgvCase(unittest.TestCase):
             argv, how = tree_run.command_argv(cmd)
             self.assertEqual(how, "direct")
             words = subprocess.run(["bash", "-c", f'set -- {cmd}; printf "%s\\n" "$@"'],
-                                   capture_output=True, text=True, encoding="utf-8").stdout.splitlines()
+                                   capture_output=True, text=True, encoding="utf-8", env=hermetic.child_env()).stdout.splitlines()
             self.assertEqual(argv, words)
 
     def test_launch_kind_reads_126_127_as_red(self):

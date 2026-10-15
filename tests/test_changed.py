@@ -1,6 +1,6 @@
 """作業中の試験の選びの殻（tests/changed.py）の試験。
 
-使い捨ての git の木（lib/impact.py・lib/changemap.py・tests/changed.py の写しと、小さな lib と試験）で殻を起こし、
+使い捨ての git の木（殻と選びと分けの写し COPIED と、小さな lib と試験）で殻を起こし、
 unittest の最後の数え（Ran N tests）で何が回ったかを見る。木の試験は test_alpha 1 本・test_beta 2 本・層の柵 1 本。
 - lib の 1 ファイルを変えると、その試験のモジュールと層の柵だけが回る
 - 選べない時（tests/archon.py などの変更・選びが全部が要ると言った時・起点（origin/main との merge-base）が無い時・git が起こせない時）も
@@ -11,7 +11,6 @@ unittest の最後の数え（Ran N tests）で何が回ったかを見る。木
 - 出力の最後は unittest の数えで、harness の unit_count_pattern が最初に当たるのもその行
 """
 import json
-import os
 import pathlib
 import re
 import shutil
@@ -20,12 +19,14 @@ import sys
 import tempfile
 import unittest
 
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 IN_CI = "全部の試験は CI に寄せる（持ち主の決め full-suite-in-ci）"
 COUNT = re.compile(json.loads((ROOT / "harness" / "harness.config.json").read_text(encoding="utf-8"))["unit_count_pattern"])
-COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py", "tests/shard.py")
+COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py", "tests/shard.py", "tests/bin/hermetic.py",
+          "workflows/.shared/boundary.py")
 ONE_TEST = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_one(self):\n        pass\n"
 TWO_TESTS = ONE_TEST + "\n    def test_two(self):\n        pass\n"
 LIB_TEST = ("import unittest\n\nfrom lib import {name}\n\n\nclass T(unittest.TestCase):\n"
@@ -39,6 +40,7 @@ TREE = {
     "lib/tests/test_beta.py": LIB_TEST.format(name="beta") + "\n    def test_two(self):\n        pass\n",
     "tests/__init__.py": "",
     "tests/archon.py": "",
+    "tests/bin/__init__.py": "",
     "tests/shard-seconds.json": "{}\n",
     "tests/layers/__init__.py": "",
     "tests/layers/test_fence.py": ONE_TEST,
@@ -54,6 +56,7 @@ class ChangedTest(unittest.TestCase):
         for rel, text in TREE.items():
             self.write(rel, text)
         for rel in COPIED:
+            (self.repo / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / rel, self.repo / rel)
         git(self.repo, "init", "-q")
         git(self.repo, "add", "-A")
@@ -65,9 +68,9 @@ class ChangedTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
-    def run_changed(self, env=None):
+    def run_changed(self, **overrides):
         done = subprocess.run([sys.executable, "tests/changed.py"], cwd=self.repo, capture_output=True, text=True,
-                              encoding="utf-8", env=env)
+                              encoding="utf-8", env=hermetic.child_env(**overrides))
         return done.returncode, done.stdout, done.stdout + done.stderr
 
     def ran(self, out):
@@ -139,7 +142,7 @@ class ChangedTest(unittest.TestCase):
         self.assertIn("origin/main", stdout)
 
     def test_no_git_runs_only_the_fence_and_defers_to_ci(self):
-        rc, stdout, out = self.run_changed(env={**os.environ, "PATH": ""})
+        rc, stdout, out = self.run_changed(PATH="")
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.ran(out), 1, out)
         self.assertIn(IN_CI, stdout)
@@ -182,7 +185,7 @@ class ChangedTest(unittest.TestCase):
         self.assertIn("lib.tests.check_alpha", stdout)
         self.assertNotIn("tests.layers.test_fence", stdout)
         done = subprocess.run([sys.executable, "-m", "tests.shard", "--shard", "1/1"], cwd=self.repo, capture_output=True,
-                              text=True, encoding="utf-8")
+                              text=True, encoding="utf-8", env=hermetic.child_env())
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertEqual(self.ran(done.stderr), 1, done.stderr)
 
