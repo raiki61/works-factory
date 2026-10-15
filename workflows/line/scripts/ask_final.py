@@ -8,8 +8,9 @@
 test-gate（final）・fixed・eyes・merge（seal）・judged の返りから 1 つの列に並べ、開くかと冒頭の 1 行目をこの列だけから作る
 （元 _final_needs。開き方 final_gate で開くかは lib/gatepolicy.py の opens）。列の行のうち、守りのパスの当たり（確かめられなかった
 時も）・書き換えを許したテストに触った・人に回した食い違いの申し出・申し出の控えを読めない・修正の段の隣の控えを読めない・承認の後に
-受け入れ条件のテストが変わった（spec-check の questions。この関所の答えはその問いに答えない）、は開き方に依らず開く（must。通すのは
-人の答えだけ。元 _guard と line_edge.py:1184-1197）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
+受け入れ条件のテストが変わった（spec-check の questions。この関所の答えはその問いに答えない。照らせなかった時（unchecked）は
+「照らせなかった」と言い、答えると差分が当たることを 1 行で言う）、は開き方に依らず開く（must。通すのは人の答えだけ。元 _guard と
+line_edge.py:1184-1197）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
 申し出は fix・refix-run の conflicts.json（fixed の conflicts の指し札の並び）を lib/conflict.py の asked で数え、文は human_lines の
 行のまま（ask_human と案の直しを諦めた fix_plan_item だけ。直す裁定だけなら開けない）。控えを読めなければ黙って 0 にせず、開ける理由と
 文に訳を出す。判定の役が人に聞くと保留にしたままの問い（held）は冒頭と本文に見せるが、開ける理由には数えない（元 _final_head）。
@@ -90,8 +91,8 @@ def needs(got: dict) -> list:
     """最後の関所を開ける理由の列 [(1 句, 開き方に依らず開くか)]。開くか（ask）と 1 行目（final_head）はこの列だけから作る"""
     why = []
     if got["spec_changed"]:
-        why.append((f"{gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]}（{len(got['spec_changed'])} 件。承認し直すかは次の run で答える）",
-                    True))
+        said = gatemarks.SPEC_UNCHECKED if got["spec_unchecked"] else gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]
+        why.append((f"{said}（{len(got['spec_changed'])} 件。承認し直すかは次の run で答える）", True))
     unknown, hits = protected(got)
     if unknown:
         why.append((f"{PROTECTED_UNKNOWN}（人の確かめが要る）", True))
@@ -243,14 +244,20 @@ def eye_lines(got: dict) -> list:
     return lines
 
 
+SPEC_APPLIES = ("  - 承認して報告へ進める（continue）と、差分は承認し直しを待たずに当たる（merge が run の置き場に置き、bin/apply が"
+                "対象に当てる）。承認し直してから当てるなら stop で止める")
+
+
 def question_lines(got: dict) -> list:
     """承認し直すかの問い（spec-check の questions）・人に聞いている問い（記録のまま引く。元 _final_text の pending_human）・保留の問いと答え方・答えた問い・当たらなかった依頼の
     答え・読めなかった保留。どれも無い時だけ「盤面の問い: 無い」"""
     lines = []
     if got["spec_changed"]:
-        lines.append(f"- {gatemarks.SPEC_CHANGED_HEAD}: {len(got['spec_changed'])} 件")
+        head = gatemarks.SPEC_UNCHECKED_HEAD if got["spec_unchecked"] else gatemarks.SPEC_CHANGED_HEAD
+        lines.append(f"- {head}: {len(got['spec_changed'])} 件")
         lines += [f"  - {q}" for q in got["spec_changed"]]
         lines.append("  - この承認ノードの答えはこの問いに答えない（continue でも仕様は承認し直さない）。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
+        lines.append(SPEC_APPLIES)
     if got["questions"]:
         lines.append(f"- {gatemarks.named(gatemarks.R4_GATE_NODE)}が人に聞いている問い（記録のまま引く。{len(got['questions'])} 件）:")
         for q in got["questions"]:
@@ -553,6 +560,7 @@ def got_of_env() -> dict:
         },
         "questions": [q for q in boundary.items(os.environ.get("INPUTS_QUESTIONS")) if isinstance(q, str)],
         "spec_changed": [q for q in boundary.items(os.environ.get("INPUTS_SPEC_CHANGED")) if isinstance(q, str)],
+        "spec_unchecked": boundary.flag(os.environ.get("INPUTS_SPEC_UNCHECKED")),
         "objection": raw["objection"],
         "rejudge_verdict": raw["rejudge_verdict"],
         "rejudge": rejudge_rows(returns),

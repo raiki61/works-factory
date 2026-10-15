@@ -27,6 +27,7 @@ from tests.workflows.test_chain import ROUND_FILES, chain, run_final, run_result
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
+LINE = ROOT / "workflows" / "line" / "works-factory-line.yaml"
 
 RUN = "0123456789abcdef0123456789abcdef"
 SHORT = RUN[:8]
@@ -40,6 +41,19 @@ def sha(data: bytes) -> str:
 
 def pointer(path: str, run_id: str = RUN) -> dict:
     return {"type": "archon_artifact", "run_id": run_id, "path": path}
+
+
+def value_keys(node: ast.AST) -> list[ast.Constant]:
+    """value.get("欄") と value["欄"] の欄の名"""
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get":
+        holder, keys = node.func.value, node.args[:1]
+    elif isinstance(node, ast.Subscript):
+        holder, keys = node.value, [node.slice]
+    else:
+        return []
+    if not (isinstance(holder, ast.Name) and holder.id == "value"):
+        return []
+    return [k for k in keys if isinstance(k, ast.Constant) and isinstance(k.value, str)]
 
 
 class ApplyTest(unittest.TestCase):
@@ -134,6 +148,30 @@ class ApplyTest(unittest.TestCase):
         self.assertIn("stats.py", out)
         self.assertIn("commit はしていない", out)
         self.assertEqual(self.calls, [(RUN, self.target)])
+
+    def test_apply_notes_pending_reapproval(self):
+        """#550: 承認し直すかの問いを残した run は、断らずに当て、標準エラーにそう 1 行で知らせる。止めの語が別の待ち
+        （fix の衝突が先に立った）でも、照らせなかった（止めの語は works:line-script）でも、問いの数で知らせる"""
+        for stop in ("spec-check:works:spec-changed", "fix:works:conflict", "spec-check:works:line-script"):
+            with self.subTest(stop=stop):
+                git(self.target, "reset", "-q", "--hard")
+                value = self.value(outcome="needs_human", stop_reason=stop, spec_questions=2)
+                rc, out, err = self.run_apply(self.record(value))
+                self.assert_applied((rc, out, err))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                for word in ("承認し直す", "2 件", "needs_human", stop):
+                    self.assertIn(word, err)
+
+    def test_apply_other_waits_say_nothing(self):
+        value = self.value(outcome="needs_human", stop_reason="ask-final:works:needs-human", spec_questions=0)
+        rc, out, err = self.run_apply(self.record(value))
+        self.assert_applied((rc, out, err))
+        self.assertEqual(err, "")
+
+    def test_apply_fixed_run_says_nothing(self):
+        rc, out, err = self.run_apply(self.record())
+        self.assert_applied((rc, out, err))
+        self.assertEqual(err, "")
 
     def test_apply_refuses_changed_diff(self):
         changed = self.diff.replace(b"len(xs)\n", b"len(xs) \n")
@@ -277,6 +315,19 @@ class ApplyTest(unittest.TestCase):
             with self.subTest(name):
                 shape = {"type": "object", "properties": {k: returns[k] for k in member}, "required": list(member)}
                 self.assertEqual(validate_schema(member, shape), [])
+
+    def test_apply_reads_only_line_returns(self):
+        """bin/_lib/apply.py が value から読む欄は、どれも線の result の output_format が要る欄として持つ（名を変えると知らせが黙って消える）。
+        spec_questions は respec_note が数えられる整数で来る"""
+        tree = ast.parse((ROOT / "bin" / "_lib" / "apply.py").read_text(encoding="utf-8"))
+        read = {key.value for node in ast.walk(tree) for key in value_keys(node)}
+        self.assertIn("spec_questions", read)
+        result = next(n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"] if n["id"] == "result")
+        returns = result["output_format"]
+        self.assertLessEqual(read, set(returns["required"]))
+        self.assertEqual(validate_schema(self.value(spec_questions=2)["spec_questions"],
+                                         returns["properties"]["spec_questions"]), [])
+        self.assertNotEqual(validate_schema("2", returns["properties"]["spec_questions"]), [])
 
     def test_apply_sets_no_deadline(self):
         for part in (ROOT / "bin" / "apply", ROOT / "bin" / "_lib" / "apply.py"):

@@ -30,6 +30,7 @@ inputs:
   widened: {default: ""}
   final-reasons: {default: ""}
   spec-changed: {default: ""}
+  spec-unchecked: {default: ""}
   redepth: {default: ""}
   optional: {default: ""}
 

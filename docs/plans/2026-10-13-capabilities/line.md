@@ -256,16 +256,16 @@
   - 狭め: #74 で落とした（宣言済み。不可でない → 持ち主の確かめ） 決め: 落としても能力は落ちない（起動の印は前の殻が run を一覧から結ぶ物。今は workflow run が run の id を返す。one-launcher）（線の配線の文書の「この文書の外」の「決めた物」）
 - L-E42 固定材料（fix_fixture）から始める（取り込み・置き場の照らし・前の版の拒み・trace の 1 行）
   - 元: works/.shared/core/entry.py:1061-1114 `_start_from_fixture`、fixture.py:271-312 `adopt`
-  - 今: 無し（表）
-  - 証: tests/workflows/test_line.py::StartCase.test_refusals_stop_before_any_role（"fix_fixture"）は拒むことだけ
+  - 今: 表
+  - 証: tests/workflows/test_line.py::StartCase.test_fixture_starts_the_run_from_the_copy、tests/workflows/test_line.py::StartCase.test_fixture_that_does_not_match_is_refused_before_any_role、lib/tests/test_fixture.py::AdoptCase.test_refusals_name_what_differs
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（宣言済み。不可でない → 持ち主の確かめ） 決め: 戻すと決めた（superset）。独立の issue で、部分 D2 の後（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #74 で狭めた（宣言済み。不可でない → 持ち主の確かめ） 決め: 戻すと決めた（superset） → #509 で戻した
 - L-E43 修正の前の 1 回だけ、盤面と名指しのファイルを固定材料として写す
   - 元: works/.shared/core/fixture.py:155-183 `capture`、works/darkfactory/lib/line_edge.py:979
-  - 今: 無し
-  - 証: 無し（元 works/tests/test_fixture.py の FixtureEdgeCase.test_fix_edge_captures_once）
-  - 本物の run: 無し
-  - 狭め: #74 で L-E42 と一緒に落ちた（写しを落とすことは名指していない。持ち主の確かめ） 決め: 戻すと決めた（superset）。独立の issue で、部分 D2 の後（線の配線の文書の「この文書の外」の「決めた物」）
+  - 今: 表
+  - 証: lib/tests/test_fixture.py::CaptureCase.test_capture_writes_the_copy_and_the_manifest_once、tests/workflows/test_line.py::FixInCase.test_live_run_flattens_the_receivers_and_captures_once_it_goes
+  - 本物の run: run の置き場の fix-fixture/fixture.json と報告の入口の節の「固定材料:」の行
+  - 狭め: #74 で L-E42 と一緒に落ちた（写しを落とすことは名指していない。持ち主の確かめ） 決め: 戻すと決めた（superset） → #509 で戻した
 - L-E44 版の控え（works の版・pack の中身の sha256・写しの元・借りた物・Archon・Claude Code・模型と出どころ・設定・Python・platform）
   - 元: works/.shared/core/versions.py:119-147 `snapshot`、works/blk-entry/scripts/start.py（versions.write）
   - 今: 表
@@ -1073,10 +1073,10 @@
   - 狭め: #74 で狭めた（線の script が札を読む形は Archon で不可でない → 持ち主へ） 決め: 持ち込まない（持ち主の決め stop-at-gates。関所の間は workflow cancel）。狭めとして持ち主が認めた（線の配線の文書の「この文書の外」の「決めた物」）
 - L-W65 固定材料（1 周目の修正の前に盤面を写し、固定材料から始めた run は修正から始める）
   - 元: works/darkfactory/lib/line_edge.py:978 `_capture_fixture`・:124。試験 works/tests/test_line_a.py::FixtureLineCase.test_fixture_run_starts_at_fix（:920）
-  - 今: 無し（表）
-  - 証: 持ち主の答え待ち（L-E42・L-E43）
+  - 今: 表
+  - 証: tests/e2e/test_line_scenarios.py::FixFixtureTest.test_roles_start_from_the_fix、tests/workflows/test_line.py::FixInWiringCase.test_nodes_after_fix_read_only_the_relay
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（名指し済み。持ち主の答え待ち） 決め: 戻すと決めた（superset）。独立の issue で、部分 D2 の後（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #74 で狭めた（名指し済み。持ち主の答え待ち） 決め: 戻すと決めた（superset） → #509 で戻した
 - L-W66 配線の形を試験で縛る（with: の鍵と script の INPUTS が同じ・include の with: がブロックの宣言の中・関所が reject を受ける・validate が 0 件）
   - 元: works/tests/test_line.py::LineShapeCase（:150-229）
   - 今: 表
@@ -1538,7 +1538,7 @@
 - S51 同 4: 最後の関所を開けた理由（`ask-final` の `reasons`）を report に届ける。→ **部分 C で閉じた**（report の入力 final-reasons ← $ask-final.output.reasons）
 - S52 同 5: 再審の前後の比べ（`judged` の `rejudged`・`new_open_units`・`lowered`・`unnamed_changed`・`unread`）を report に届ける。→ **部分 C で閉じた**（再審の比べは判定のブロックが rejudge-exit.json に書き、report は再審の judgment の隣を読む。judged も同じファイルを読む）
 - S53 同 6: 直した後の深さの上げ直し（`redepth` の `skip_optional`・`raised`）を report に届ける。→ **部分 C で閉じた**（S30 と同じ入力 redepth）
-- S54「今の works から狭めた物」1 `fix_fixture`: 空でない値を `start` が止める（`LS/start.py:84-86`）。→ **狭めたまま**（持ち主の確かめ待ち） 決め: 固定材料は戻すと決めた。独立の issue（線の配線の文書の「この文書の外」の「決めた物」）
+- S54「今の works から狭めた物」1 `fix_fixture`: 空でない値を `start` が止める（`LS/start.py:84-86`）。→ **済み**（固定材料は戻すと決めた → #509 で戻した。`workflows/line/scripts/start.py::from_fixture`）
 - S55 同 2: 最後の関所で、申し出を人に回した行（行の `ruling`）だけを数える絞り。→ 部分 B2 で閉じた（`LS/ask_final.py` の `asked_conflicts` が fix と refix-run の `conflicts.json` を `lib/conflict.py` の `human_lines` で読み、人に回した行だけを数えて並べる。読めない控えは訳を出して開く）
 - S56 同 3: 版の控え `versions.json`。→ **狭めたまま**（`LS/start.py:120-126` は Archon の commit と Claude Code の版だけ）
 - S57 同 4: 止めの語の改名（`answer` → `human:<関所>`、`works:replan` → `human:gate-replan`）。→ 済み（名乗った狭め。持ち主の確かめ待ち） 決め: 認める（docs/design.md の約束が人の止めを human:<所> と決めている。結末の語は変わらない）（線の配線の文書の「この文書の外」の「決めた物」）
@@ -1571,7 +1571,7 @@
   - L-W: 07・09・14・17・18・19・20・21・24・28・30・31・32・34・35・36・39・42・48・51・54・56・60・67
   - L-D: 08・10・13・15・19・22・25・26・29・31・35・39・42・48・54
 - Archon で不可の狭め（根拠つき）: L-D18（直しの役の会話の続き。packages/workflows/src/loader.ts:1174）と L-D43・L-W41（再審の会話の続き。loader.ts:1174、include-expander.ts:492-493）。どちらも 2026-10-12 の推しの決め（新しい会話で回す）で狭めとして確定
-- 線への申し送り（S01〜S68）: 開いている 46・済み 14（一部済みを含む）・狭めたまま 3（S37・S54・S56）・線の外 5（S04・S08・S39・S43・S45）
+- 線への申し送り（S01〜S68）: 開いている 46・済み 15（一部済みを含む）・狭めたまま 2（S37・S56）・線の外 5（S04・S08・S39・S43・S45）
 - 小区分の間で同じ能力を数えている重なり（数えは小区分ごとのまま）:
   - breaks.accepted: L-W20・L-G48・S03
   - plan-review の conflicts・gate_answers: L-W45・L-D25・L-D26・L-G29・S21・S22
@@ -1600,7 +1600,7 @@
 ### 持ち主に上げる物
 
 1. 止め札（関所の間で run を報告つきで止める）: L-G55・L-W64・S60。→ 決めた: 持ち込まない（持ち主の決め `stop-at-gates`）
-2. #74 で宣言して落とした入口の物: adapter（L-E39・L-W04）・gates（L-E40・S37）・launch_mark（L-E41）・固定材料（L-E42・L-E43・L-W65・S54）・版の控え（L-E44・L-E45・S56）。どれも Archon で不可の証は無い。→ 決めた: adapter・launch_mark は落としても能力は落ちない、固定材料は戻す（独立の issue）、版の控えは部分 A のやる事 5、gates は段 3 で変異の検算と一緒に聞く
+2. #74 で宣言して落とした入口の物: adapter（L-E39・L-W04）・gates（L-E40・S37）・launch_mark（L-E41）・固定材料（L-E42・L-E43・L-W65・S54）・版の控え（L-E44・L-E45・S56）。どれも Archon で不可の証は無い。→ 決めた: adapter・launch_mark は落としても能力は落ちない、固定材料は戻す（独立の issue。#509 で戻した）、版の控えは部分 A のやる事 5、gates は段 3 で変異の検算と一緒に聞く
 3. `persona`（会話を継ぐか）: L-D18・S19（直しの役）と L-D43・L-W41・S40（再審）。→ 決めた: 継がない（2026-10-12 の推しの決め）
 4. 振る舞いを変えた所: L-D14（深さを決められない時に、標準で続けずに止める）、L-D33（案の直しができない時、1 回目の差分も試験から先へ進めない）
 5. 名指されずに落ちていた物（今回見つけた）: L-W07（直す物が無い run の最後の試験・独立設計・R2）・L-W56（直した案が目に渡らない）・L-W60（報告の always_run）・L-E17・L-E29・L-E49・L-D10（線が run の広さで深さを上げない）・L-D42（refix の異議が届かない）・L-D48
