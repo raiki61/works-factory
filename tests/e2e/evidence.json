@@ -91,7 +91,7 @@
 {"id": "L-G34", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-G35", "kind": "seed-cannot", "why": "種の run は保留の問いが出ない見込みで、問いの無い時の 0 件の行はどの run でも出る"},
 {"id": "L-G36", "kind": "seed-cannot", "why": "節の出力・関所の文は run の記録にも置き場にも残らず、節は能力が働かなくても completed になる"},
-{"id": "L-G37", "kind": "seed-cannot", "why": "答えた問いが無い: start.json の answers が []・judge/judgment.json の questions が []・修正前の関所が skipped（c0e26106・a1b08bc8）", "check": "text-contains", "where": "parent/report/report.md", "text": "答えた問い（承認ノードの continue か依頼の answers）"},
+{"id": "L-G37", "kind": "seed-cannot", "why": "答えた問いが無い: start.json の answers が []・judge/judgment.json の questions が []・修正前の関所が skipped（c0e26106・a1b08bc8）", "check": "text-contains", "where": "parent/report/report.md", "text": "答えた問い（承認ノードの continue か依頼の answers か無人の run が採った推し）"},
 {"id": "L-G38", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-G39", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-G40", "kind": "scenario-only", "why": "筋書きでのみ"},

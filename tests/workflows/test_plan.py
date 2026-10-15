@@ -1428,6 +1428,20 @@ class OwedAnswersCase(unittest.TestCase):
         self.assertIn(planblk.PLAN_STUCK, error)
         self.assertIn(CLAMP, error)
 
+    def test_unattended_push_owes_the_sole_unit(self):
+        """#593: 唯一の単位の出どころが推しつきの保留の問いの時、無人の run は推しを答えに採って役を起こす。推しの無い問いと
+        人のいる run は今どおり義務 0 件で止まる"""
+        pushed = {**self.FORK, "reason": "割れる。推し: a——呼び手が a を前提にしている"}
+        run = Run(self, start={"unattended": "true"}, judge={"units": [unit(MEAN)], "questions": [pushed]})
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1)]}))["ready"], True)
+        self.assertIn("必ず案に入れる", self.duty_line(run))
+        for start, question in (({"unattended": "true"}, self.FORK), ({}, pushed)):
+            with self.subTest(start=start, question=question):
+                run = Run(self, start=start, judge={"units": [unit(MEAN)], "questions": [question]})
+                out = run.include(writer=lambda n, brief: self.fail("役を起こした"))
+                self.assertEqual(run.status["plan-loop"], "skipped")
+                self.assertIn(planfile.NOTHING_OWED, run.json(out["ripple"])["error"])
+
 
 class SurvivesCase(unittest.TestCase):
     """周を開く節と返す節は落ちない（返す節が周の dir を束ねる。線は落ちた返す節の先へ進めない）"""

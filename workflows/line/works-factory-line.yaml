@@ -37,7 +37,7 @@ inputs:
     description: 最後の承認ノードの開き方。always（空の既定）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
   unattended:
     default: ""
-    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず、承認ノードを開くはずの時は項目の全部の推しが通すならその推しで進み、そうでなければ開かずに止める（needs-human）
+    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず（判定の推しつきの分かれ道の問いは推しを答えに採って直す義務に戻し）、承認ノードを開くはずの時は項目の全部の推しが通すならその推しで進み、そうでなければ開かずに止める（needs-human）
   design_only:
     default: ""
     description: 設計だけの run か（空か true）。true は修正前の承認ノードを必ず開く

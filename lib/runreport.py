@@ -327,12 +327,13 @@ def _request_answers(start: dict) -> list:
 def ledger(returns: dict, gates: dict, start: dict):
     """問いの台帳の値の見え方（gatemarks.ledger）: 判定（再審が在ればその）の judgment.json の問いと単位の全部（開いていない単位も。
     最後の関所と fix の直す義務と同じ単位で、関所の答えが返す単位を読む）、始めの記録の依頼の answers、
-    修正前の関所の答え {decision, text, asked}、1 回目の判定の隣の結び（answer-ties.json。再審の判定の隣には無い）、判定の隣の素材の状態"""
+    修正前の関所の答え {decision, text, asked}、1 回目の判定の隣の結び（answer-ties.json。再審の判定の隣には無い）、判定の隣の素材の状態、
+    無人の run か（判定の推しを答えに採る。gatemarks.run_push）"""
     first = as_dict(returns.get("judge")).get("judgment")
     ties = gatemarks.ties_of(marks.load(pathlib.Path(first).with_name(gatemarks.BESIDE[0]))) if isinstance(first, str) and first else []
     mats, _ = oc.materials(returns)
     return gatemarks.ledger(oc.judgment_doc(returns), answers=_request_answers(start), gate=gates.get("gate-before-fix"), ties=ties,
-                            materials=mats)
+                            materials=mats, takes_push=_unattended(start))
 
 
 def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
@@ -360,7 +361,7 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
 
 # ---------------------------------------------------------------- 答えの下書き
 def _unattended(start: dict) -> bool:
-    return as_dict(start).get(gatepolicy.UNATTENDED_KEY) == gatepolicy.UNATTENDED
+    return gatepolicy.unattended_of(start)
 
 
 def _fix_plan_rows(returns: dict) -> list:
@@ -418,9 +419,9 @@ def _gate_draft(question: str, rows: list) -> dict:
 def _ask_draft(q: dict, key: str) -> dict:
     """台帳の問い 1 つの下書き（元 gatemarks._ask_draft。question は answer_key: 出どころが測れていない素材の名でこの問いだけに
     当たればその名、ほかは問いの key）"""
-    got = [m.strip() for m in gatemarks.PUSH_IN.findall(str(q.get("reason") or "")) if m.strip() and m.strip() != gatemarks.NO_PUSH]
-    if got:
-        return gatemarks._draft(key, got[0], f"{gatemarks.ASK_HEAD} {key} の理由の推し（判定の役）")
+    push = gatemarks.reason_push(q)
+    if push:
+        return gatemarks._draft(key, push, f"{gatemarks.ASK_HEAD} {key} の理由の推し（判定の役）")
     opts = "・".join(str(o) for o in q.get("options") or []) or "（無し）"
     return gatemarks._draft(key, "", f"{gatemarks.ASK_HEAD} {key} の選択肢", f"推しを判定の役が書いていない。選択肢から人が答えを text に書く: {opts}")
 
@@ -1386,20 +1387,27 @@ def _pushed(gates: dict) -> list:
     return [(gid, rec) for gid in oc.GATES for rec in (as_dict(gates.get(gid)).get(answer.PUSHED) or []) if isinstance(rec, dict)]
 
 
-def _pushed_lines(gates: dict) -> list:
-    """「人が決めること」の頭に、無人の run が採った推しを 1 件 1 行（人の答えと読み分ける。違えば次の run の依頼で直す）"""
-    return [f"無人の run で推しを採って通した（承認ノード {gid}）: {oneline.one_line(r.get('item') or '')}——"
-            f"{gatemarks.RECOMMEND_WORDS.get(r.get('answer'), '')}（{r.get('answer')}）: {r.get('note')}（推す理由: {r.get('why')}）。"
-            "違えば次の run の依頼で直す" for gid, r in _pushed(gates)]
+def _pushed_lines(gates: dict, taken=()) -> list:
+    """「人が決めること」の頭に、無人の run が採った推しを 1 件 1 行: 承認ノードの推しと、判定の推しを答えに採った台帳の問い
+    （taken は gatemarks.taken_pushes。人の答えと読み分ける。違えば次の run の依頼で直す）"""
+    return [*(f"無人の run で推しを採って通した（承認ノード {gid}）: {oneline.one_line(r.get('item') or '')}——"
+              f"{gatemarks.RECOMMEND_WORDS.get(r.get('answer'), '')}（{r.get('answer')}）: {r.get('note')}（推す理由: {r.get('why')}）。"
+              "違えば次の run の依頼で直す" for gid, r in _pushed(gates)),
+            *(f"無人の run で推しを採って答えた（{gatemarks.ASK_HEAD} {q.get('key')}）: 推し: {oneline.one_line(push)}——出どころ・depends の"
+              f"単位 {'・'.join(keep) or '（今の周の単位に無い）'} を直す義務に戻した。違えば次の run の依頼の answers で直す"
+              for q, push, keep in taken)]
 
 
-def _pushed_said(gates: dict) -> str:
-    """冒頭 1 行目の句: 推しで通した承認ノードと件数（無ければ空）"""
+def _pushed_said(gates: dict, taken=()) -> str:
+    """冒頭 1 行目の句: 推しで通した承認ノードと件数、推しを答えに採った台帳の問い（taken は gatemarks.taken_pushes）と件数（無ければ空）"""
     got = _pushed(gates)
-    if not got:
-        return ""
-    return (f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(gid for gid, _ in got))}（推し {len(got)} 件。"
-            f"中身は「{report.DECISIONS_HEADING.lstrip('# ')}」のセクション）")
+    where = f"中身は「{report.DECISIONS_HEADING.lstrip('# ')}」のセクション"
+    said = [f"無人の run で推しを採って通した承認ノード: {'・'.join(dict.fromkeys(gid for gid, _ in got))}（推し {len(got)} 件。{where}）"
+            ] if got else []
+    if taken:
+        said.append(f"無人の run で推しを採って答えた台帳の問い: {'・'.join(str(q.get('key')) for q, _, _ in taken)}"
+                    f"（推し {len(taken)} 件。{where}）")
+    return "。".join(said)
 
 
 def _gate_line(g) -> str:
@@ -1536,7 +1544,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     next_file = carry.NEXT_REQUEST_FILE if findings or drafts or constraints else ""
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
-    split, pushed = split_line(returns), _pushed_said(gates)
+    taken = gatemarks.taken_pushes(ledger(returns, gates, start))
+    split, pushed = split_line(returns), _pushed_said(gates, taken)
     apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—")
     stopped = outcome in STOP_OUTCOMES
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
@@ -1549,7 +1558,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                    *oc.eye_questions(returns)]
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*_pushed_lines(gates), *unrestored_lines(returns), *backed_out_lines(returns), *decisions,
+        (report.DECISIONS_HEADING, [*_pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns), *decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],

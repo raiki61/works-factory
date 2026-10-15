@@ -2443,12 +2443,16 @@ def gate_view(place):
     """gatemarks の問いの口（asks・answered・pending・withheld_by・returned・duty・returned_lines）に渡す値の見え方（gatemarks.ledger）:
     置き場の判定の写しの questions・units、始めの記録の写しの依頼の answers、関所の答え answers.json（{decision, text, asked}。asked は
     人が見た関所の行）、判定の結びと素材の状態の写し（answer-ties.json・materials.json。prep が判定の隣から写す。無ければ字の一致だけ）。
+    始めの記録の写しが無人の run なら、判定の推しつきの fork・held を答えとして数える（gatemarks.run_push）。
     元は盤面の b.record と写しの検証器を読んだ"""
     import gatemarks
+    import gatepolicy
     p = pathlib.Path(place)
     judgment = read_json(p / JUDGMENT_FILE)
+    start = startrec.read(p)
     return gatemarks.ledger_beside(p, judgment if isinstance(judgment, dict) else {},
-                                   answers=startrec.read(p).get("answers") or [], gate=read_json(p / ANSWERS_FILE))
+                                   answers=start.get("answers") or [], gate=read_json(p / ANSWERS_FILE),
+                                   takes_push=gatepolicy.unattended_of(start))
 
 
 def gate_asks(place) -> tuple:

@@ -796,9 +796,10 @@ class DraftsCase(Base):
         self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
 
     def test_unattended_held_question_with_nothing_owed_waits_in_decisions(self):
-        """#283: 無人の run で、単位 1 つがその単位を出どころにした保留の問い 1 つの答え待ちで、計画が直す義務 0 件で役を起こさなかった
-        周は、線の止め（計画の諦め）にならず、問いが報告の人が決めることに載る"""
-        judgment = self.put("judge/judgment.json", {"units": [{"key": FORK_UNIT, "label": "block"}], "questions": [FORK]})
+        """#283: 無人の run で、単位 1 つがその単位を出どころにした推しの無い保留の問い 1 つの答え待ちで、計画が直す義務 0 件で役を
+        起こさなかった周は、線の止め（計画の諦め）にならず、問いが報告の冒頭 2 行目と人が決めることに載る（#593: 推しの無い問いは止まる）"""
+        judgment = self.put("judge/judgment.json", {"units": [{"key": FORK_UNIT, "label": "block"}],
+                                                    "questions": [{**FORK, "reason": "空の列の意味が 2 つに割れる"}]})
         self.put(f"plan/r1/{planfile.ROUND_FILE}", {"round": 1, "mode": "plan", "go": False, "why": planfile.NOTHING_OWED})
         fields = self.put(f"plan/r1/{planfile.planmarks.FIELDS_FILE}", {"round": 1, "fields": []})
         returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}, plan={"ready": False, "plan": fields}, fix=None,
@@ -808,6 +809,23 @@ class DraftsCase(Base):
         self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
         self.assertIn(FORK["key"], self.section(text, report.DECISIONS_HEADING))
         self.assertNotIn(runreport.PLAN_GAVE_UP_WHERE, [r["where"] for r in runreport.prior_failures(returns, [], {})])
+
+    def test_unattended_run_takes_the_held_fork_push_in_the_head(self):
+        """#593: 無人の run が推しを答えに採った台帳の問いは、承認ノードの推しと同じく冒頭 1 行目と人が決めることに並び、保留に数えず、
+        下書きにもしない。人のいる run は今どおり保留にしたままの問いに数える"""
+        judgment = self.put("judge/judgment.json", {"units": [{"key": FORK_UNIT, "label": "block"}], "questions": [FORK]})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
+        _, text, _ = self.build(returns, start=UNATTENDED)
+        lines = text.splitlines()
+        self.assertIn(f"無人の run で推しを採って答えた台帳の問い: {FORK['key']}（推し 1 件。", lines[2])
+        self.assertIn(f"無人の run で推しを採って答えた（{gatemarks.ASK_HEAD} {FORK['key']}）: 推し: 例外——呼び手が既に例外を捕まえている——"
+                      f"出どころ・depends の単位 {FORK_UNIT} を直す義務に戻した", self.section(text, report.DECISIONS_HEADING))
+        self.assertIn(gatemarks.PUSH_TAKEN, text)
+        self.assertNotIn("保留にしたままの問い", text)
+        self.assertEqual(runreport.answer_drafts(returns, {}, UNATTENDED), [])
+        _, text, _ = self.build(returns)
+        self.assertNotIn("無人の run で推しを採って答えた", text)
+        self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
 
     def test_unmeasured_material_draft_carries_its_reason(self):
         judgment = self.put("judge/judgment.json", {})

@@ -21,7 +21,9 @@ narrows を書く前に狭めを避ける形を当たり、無い時だけ narro
 2026-09-29。run 119 の人の答え）。人に聞くと名乗る問いが人の口に繋がらないまま、出どころの免除だけが効いて
 いたため。この行は決め手の濾しに掛けない。関所の continue はその問いへの答えで、一言が問いに触れなければ修正役は問いの理由の推しで
 直す。一言で「保留: <key>」と名指した問いは答えに数えない。無人の run（gatepolicy.unattended）では問いの行を項目に載せない——関所を
-開けば無人の殻が stop を返し、問いと関係の無い単位の修正まで飛ぶので、出どころだけを飛ばして報告の冒頭に並べる。関所に載せる問い・
+開けば無人の殻が stop を返し、問いと関係の無い単位の修正まで飛ぶので、出どころだけを飛ばして報告の冒頭に並べる。ただし判定の役が
+reason に推しを書いた fork・held の問いは、無人の run では推しを答えとして採り（answered の 3 つ目。run_push）、出どころ・depends を
+直す義務に戻す（持ち主 2026-10-15「人がいないときは推しの答え。」・issue #593）。推しの無い問いと escalate は今どおり外す。関所に載せる問い・
 出どころの免除・答えでの戻しは、fork も escalate も同じ asks の 1 つの決まりから作る（免除は works の差し替え
 conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は fork だけを外す）。
 
@@ -31,6 +33,9 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 直す義務が 0 件の周は関所の節が走らず、修正もしない。設計だけの行の出どころは 2 つ（入力 design_only と、事前審査の壁打ちが
 止まった事実＝converge.stuck_reason）。行は design_item の 1 か所で組む（設計だけでない run の止まりは頭を STUCK_ITEM にし、
 設計だけの run と名乗らない。種類の kinds は同じ design_only）。
+- reason_push(q)・run_push(b, q)・taken_pushes(b)・PUSH_TAKEN: 問いの理由に判定の役が書いた推し・無人の run が答えとして採る推し
+  （fork・held だけ。依頼の answers と関所の continue が先）・推しで答えた問いと戻した単位の並び（報告が冒頭と人が決めることに並べる）・
+  答えた行の印
 - asks(b)・answered(b, q)・pending(b)・withheld_by(b)・withheld(b): 関所に載せる問い・関所で答えたか・まだ答えていない
   問い・それで直す義務から外す単位と外した問い（conflict.fix_duty が理由に使う）・その単位だけ（義務の数えと held_lines が読む）
 - hold_keys(note, keys): 一言の「保留:」から台帳の key を最長一致で拾う（answered が読む）
@@ -194,7 +199,7 @@ HOLD = re.compile(r"保留\s*[:：]\s*([^。；;\n]+)")   # 一言の「保留: 
 HOLD_END = re.compile(r"[。；;\n]")   # HOLD が読む文の終わり（unread_holds が一言を文に切る）
 KEY_CHAR = re.compile(r"[A-Za-z0-9_-]")   # 台帳の key の一致の前後にこれが続けば、もっと長い key の断片
 HOLD_ITEM = re.compile(r"(?:^|[・、,，])\s*([A-Za-z0-9_-]*[A-Za-z0-9][A-Za-z0-9_-]*)")   # 「保留:」に並べた項の頭の key らしい並び
-ANSWERED_HEAD = "答えた問い（承認ノードの continue か依頼の answers）"   # 答えた行（answered_lines）の見出し（報告の冒頭と最後の承認ノード）
+ANSWERED_HEAD = "答えた問い（承認ノードの continue か依頼の answers か無人の run が採った推し）"   # 答えた行（answered_lines）の見出し（報告の冒頭と最後の承認ノード）
 ANSWER_KEY_HEAD = "答える時の answers の question"   # 保留の行の尾: 依頼の answers に字のまま書く question（answer_key。JSON の文字列で区切る）
 HAND_CHECKED = "人が手元で確かめた（実測とは書かない）"   # 命令と出力つきの依頼の答えが当たった測れていない素材の名乗り
 ANSWER_HOW = ('答え方: 次の run の依頼を {"findings": [...], "answers": [{"question": "<問いの key か出どころ>", "text": "<答え>"}]} '
@@ -752,6 +757,24 @@ def ask_text(q) -> str:
             + f"／答えが無いと直さない単位: {'・'.join(_skips(q)) or '（無し）'}")
 
 
+def reason_push(q) -> str:
+    """問いの理由に判定の役が書いた推し（PUSH_IN の最初の当たり。NO_PUSH と空は推しでない。無ければ空）"""
+    got = [m.strip() for m in PUSH_IN.findall(str(q.get("reason") or "")) if m.strip() and m.strip() != NO_PUSH]
+    return got[0] if got else ""
+
+
+def _takes_push(b) -> bool:
+    return bool(getattr(b, "takes_push", False)) if isinstance(b, Ledger) else gatepolicy.unattended(b.dir)
+
+
+def run_push(b, q) -> str:
+    """無人の run が答えとして採る推し: 判定が保留にした分かれ道の問い（fork・held）の理由の推し（持ち主 2026-10-15「人がいないときは推しの答え。」。escalate は
+    判定の役が人でないと決められないと名乗った物なので採らない。機械は推しを作らない。人のいる run と推しの無い問いは空）"""
+    if _takes_push(b) and q.get("kind") == "fork" and q.get("status") == "held":
+        return reason_push(q)
+    return ""
+
+
 def request_answers(b) -> list:
     """依頼の answers（start の控えの欄。値の見え方 Ledger はその値。無い・配列でなければ空。dict でない行は読まない）"""
     rows = b.answers if isinstance(b, Ledger) else startrec.read(b.dir).get("answers")
@@ -1054,12 +1077,26 @@ def _tied_unit(b, a, answer_rows) -> str:
 
 def answered(b, q) -> bool:
     """依頼の answers がこの問いに当たる（request_answer）か、修正前の関所の continue がこの問いの行を聞いていて、一言が
-    「保留: <key>」と名指していない"""
-    if request_answer(b, q) is not None:
-        return True
+    「保留: <key>」と名指していないか、無人の run が判定の推しを答えに採る（run_push。fork・held だけ）"""
+    return request_answer(b, q) is not None or _gate_continued(b, q) or bool(run_push(b, q))
+
+
+def _gate_continued(b, q) -> bool:
     key = str(q.get("key") or "")
     return any(key not in hold_keys(str(h.get("note") or ""), _ledger_keys(b))
                for h in _gate_continues(b) if _asked_in(h, q))
+
+
+def _pushed_only(b, q) -> str:
+    """依頼の答えも関所の continue も無く、無人の run が採った推しだけで答えた問いのその推し（ほかは空。人の答えを推しで上書きしない）"""
+    if request_answer(b, q) is not None or _gate_continued(b, q):
+        return ""
+    return run_push(b, q)
+
+
+def taken_pushes(b) -> list:
+    """無人の run が推しを採って答えた問い [(問い, 推し, 今の周の units に在る出どころ・depends)]（報告が冒頭と人が決めることに並べる）"""
+    return [(q, push, keep) for q, keep, _ in _answered_skips(b) if (push := _pushed_only(b, q))]
 
 
 def _gate_continues(b) -> list:
@@ -1172,13 +1209,15 @@ def duty(b) -> set:
 
 class Ledger(types.SimpleNamespace):
     """盤面の代わりに値で引く問いの台帳の見え方（ledger が作る。asks・answered・pending・withheld_by・withheld・returned・duty・
-    returned_lines・held_lines・answered_lines・unmatched_answer_lines・answer_key・answer_tie_lines が読む物だけを持つ）"""
+    returned_lines・held_lines・answered_lines・unmatched_answer_lines・answer_key・answer_tie_lines が読む物だけを持つ。takes_push は
+    無人の run か＝判定の推しを答えに採るか。run_push が読む）"""
 
 
-def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None) -> Ledger:
+def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_push=False) -> Ledger:
     """問いの台帳の値の見え方: judgment は判定の dict（units・questions）、answers は依頼の answers（始めの記録の欄）、gate は修正前の
     関所の答え {decision, text, asked}（か、その並び。無ければ None）、ties は判定の結びの行（answer-ties.json の最後の周）、materials は
-    素材の状態（materials.json）。人に聞く状態の語は ASKING、測れていない素材の状態は UNMEASURED"""
+    素材の状態（materials.json）、takes_push は無人の run か（判定の推しを答えに採る。run_push）。人に聞く状態の語は ASKING、測れていない
+    素材の状態は UNMEASURED"""
     doc = judgment if isinstance(judgment, dict) else {}
     status = {k: types.SimpleNamespace(blocks=True) for k in UNMEASURED}
     validator = types.SimpleNamespace(ASKING=ASKING, STATUS=status)
@@ -1187,28 +1226,30 @@ def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None) -> Ledge
               "materials": materials if isinstance(materials, dict) else {},
               "process": {"human_items": [h for a in (gate if isinstance(gate, list) else [gate]) for h in gate_items(a)]}}
     return Ledger(dir=None, round=1, record=record, answers=[a for a in answers or [] if isinstance(a, dict)],
-                  ties=[r for r in ties or [] if isinstance(r, dict)], rules=types.SimpleNamespace(validator_module=lambda b: validator))
+                  ties=[r for r in ties or [] if isinstance(r, dict)], rules=types.SimpleNamespace(validator_module=lambda b: validator),
+                  takes_push=bool(takes_push))
 
 
-def ledger_beside(judgment_dir, judgment, *, answers=(), gate=None, ties_dir=None) -> Ledger:
+def ledger_beside(judgment_dir, judgment, *, answers=(), gate=None, ties_dir=None, takes_push=False) -> Ledger:
     """ledger の結びの行と素材の状態を、判定の隣のファイル（answer-ties.json・materials.json。docs/design.md の隣のファイル）から読んだ物。
     結びは ties_dir（渡せば。再審の判定の隣には結びが無いので 1 回目の判定の置き場）から読む。フォルダが None か、ファイルが無い・
     読めなければ結び無し・素材無し（字の一致だけ。今の works の結びの無い run と同じ）"""
     ties_dir = judgment_dir if ties_dir is None else ties_dir
     ties = ties_of(marks.load(pathlib.Path(ties_dir) / BESIDE[0])) if ties_dir is not None else []
     materials = marks.load(pathlib.Path(judgment_dir) / MATERIALS_FILE) if judgment_dir is not None else None
-    return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials)
+    return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials, takes_push=takes_push)
 
 
 def ledger_at(judgment_path, start, gate=None, ties_path=None) -> Ledger:
     """ledger_beside をファイルから: 判定 judgment_path（judgment.json）・始めの記録 start（startrec.load で読んだ dict。answers を
-    読む。None は記録の無い run）・修正前の関所の答え gate・結びを読む判定 ties_path（再審の判定の隣には結びが無いので 1 回目の判定。
+    読む。無人の run なら判定の推しを答えに採る。None は記録の無い run）・修正前の関所の答え gate・結びを読む判定 ties_path（再審の判定の隣には結びが無いので 1 回目の判定。
     None なら judgment_path の隣）。読めなければ OSError・ValueError・AttributeError（読み手が訳を名指す）"""
     path = pathlib.Path(judgment_path)
     doc = json.loads(path.read_text(encoding="utf-8"))
     answers = (start or {}).get("answers") or []
     return ledger_beside(path.parent, doc if isinstance(doc, dict) else {}, answers=answers if isinstance(answers, list) else [],
-                         gate=gate, ties_dir=pathlib.Path(ties_path).parent if ties_path is not None else path.parent)
+                         gate=gate, ties_dir=pathlib.Path(ties_path).parent if ties_path is not None else path.parent,
+                         takes_push=gatepolicy.unattended_of(start))
 
 
 def passes_of(folder) -> list:
@@ -1236,17 +1277,23 @@ def gate_items(got) -> list:
 
 
 def returned_lines(b) -> list:
-    """修正役に渡す行: 関所か依頼の answers で答えた問いと、それで直す義務に戻った単位（1 問 1 行。今の周の units に無い単位は
-    約束しない）。依頼の答えの問いは推しでなく答えの文で直させる。判定が answer_ties で今の周の単位に結んだ依頼の答えは、その単位の
+    """修正役に渡す行: 関所か依頼の answers か無人の run が採った推しで答えた問いと、それで直す義務に戻った単位（1 問 1 行。今の周の
+    units に無い単位は約束しない）。依頼の答えの問いは推しでなく答えの文で直させ、無人の run が採った推しは answer.PUSHED_NOTE で
+    人の答えと読み分けさせる。判定が answer_ties で今の周の単位に結んだ依頼の答えは、その単位の
     答えとして 1 答え 1 行を足す"""
     out = []
     for q, keep, _ in _answered_skips(b):
         if not keep:
             continue
         a = request_answer(b, q)
-        how = (f"——答え: {answer_note(a)}" if a is not None else
-               f"——一言に案が無ければ問いの理由の推しで直す（問いの理由: {q.get('reason') or ''}）")
-        out.append(f"{'依頼' if a is not None else '承認ノード'}で答えた{ASK_HEAD} {q.get('key')} の出どころ・depends は直す義務に戻った"
+        push = _pushed_only(b, q) if a is None else ""
+        if a is not None:
+            who, how = "依頼", f"——答え: {answer_note(a)}"
+        elif push:
+            who, how = "無人の run が採った推し", f"——答え: {answer.PUSHED_NOTE}推し: {push}"
+        else:
+            who, how = "承認ノード", f"——一言に案が無ければ問いの理由の推しで直す（問いの理由: {q.get('reason') or ''}）"
+        out.append(f"{who}で答えた{ASK_HEAD} {q.get('key')} の出どころ・depends は直す義務に戻った"
                    f"（保留の問いの出どころとして飛ばさない）: {'・'.join(keep)}{how}。"
                    "判定者の class_query が無い単位は coverage.how と counts を書け（写しの受け付けが求める）")
     answer_rows = answer_ties(b)
@@ -1258,6 +1305,7 @@ def returned_lines(b) -> list:
 
 
 GATE_CONTINUED = "・承認ノードで continue を受けた"   # 答えた台帳の行の印。依頼の answers の答えでなく関所の continue で答えた物
+PUSH_TAKEN = "・無人の run が推しを採った（人の答えではない）"   # 同じく、無人の run が判定の推しを答えに採った物
 
 
 def unreturned_line(key, unit) -> str:
@@ -1297,8 +1345,9 @@ def answered_lines(b) -> list:
 
 
 def answered_ledger_lines(b) -> list:
-    """answered_lines のうち、関所で continue を受けたか依頼の answers が答えた台帳の問いの行（1 問 1 行）"""
-    return [_ledger_line(q, "・" + answer_note(a) if (a := request_answer(b, q)) is not None else GATE_CONTINUED)
+    """answered_lines のうち、関所で continue を受けたか依頼の answers か無人の run が採った推しが答えた台帳の問いの行（1 問 1 行）"""
+    return [_ledger_line(q, "・" + answer_note(a) if (a := request_answer(b, q)) is not None
+                         else PUSH_TAKEN if _pushed_only(b, q) else GATE_CONTINUED)
             for q in _asking(b) if _gate_answered(b, q)]
 
 
