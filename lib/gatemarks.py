@@ -267,6 +267,8 @@ KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", pol
               GIVEN_UP_KIND: "事前審査が案を審査できなかった"}
 SPEC_CHANGED_LABEL = f"{KIND_WORDS[SPEC_CHANGED_KIND]}（{SPEC_CHANGED_KIND}）"   # 承認し直すかの問いの文と下書きの source の頭
 SPEC_CHANGED_HEAD = f"承認し直すかの問い（{KIND_WORDS[SPEC_CHANGED_KIND]}）"   # 最後の承認ノードと報告の人が決めることの節の頭
+SPEC_UNCHECKED = "承認済みの受け入れ条件のテストが変わったかを照らせなかった"   # 照らせなかった時の承認ノードの 1 行目の句と下書きの source の頭
+SPEC_UNCHECKED_HEAD = f"承認し直すかの問い（{SPEC_UNCHECKED}）"   # 照らせなかった時の、最後の承認ノードと報告の人が決めることの節の頭
 
 
 def question_row(kind: str, text: str) -> dict:

@@ -549,16 +549,15 @@
 - S069 仕様の段は固定材料と組めない
   - 元: SKILL.md:81
   - 印: `--spec`
-  - 今: `workflows/line/scripts/start.py::words`（fix_fixture は空でなければ常に拒む）
-  - 状態: 形を変えて在る（固定材料の道そのものがまだ無いので、組みも起きない）
-  - 処置: #509
+  - 今: `workflows/line/scripts/start.py::words`
+  - 状態: 在る
   - 旧棚卸し: L-E42
 
 - S070 修正が受け入れ条件のテストのファイルを変えると、承認し直すかの問いを最後の承認ノード・報告の冒頭・次の run の依頼に載せ、差分の審査・最後のテスト・独立の目を回さずに終わる
   - 元: SKILL.md:81
   - 印: 無し
-  - 今: `workflows/line/scripts/spec_check.py::check`・`lib/judge_accept.py::spec_questions`
-  - 状態: 形を変えて在る（差分の審査・最後のテスト・独立の目は回したまま、問いを最後の承認ノード・報告の冒頭・次の依頼の下書きに載せて人待ちで終わる）
+  - 今: `workflows/line/scripts/spec_check.py::check`・`lib/judge_accept.py::spec_questions`・`bin/_lib/apply.py::respec_note`
+  - 状態: 形を変えて在る（差分の審査・最後のテスト・独立の目は回したまま、問いを最後の承認ノード・報告の冒頭・次の依頼の下書きに載せて人待ちで終わる。照らせなかった時はそう言い、bin/apply は承認し直すかの問いを残した run を 1 行で知らせて当てる（今の works は黙って当てた））
   - 処置: 戻した: `workflows/line/scripts/spec_check.py::check`
   - 旧棚卸し: J97
 
@@ -987,9 +986,8 @@
 - S128b 周の鎖は固定材料の run と組めない
   - 元: SKILL.md:99
   - 印: `WORKS_USE_FIX_FIXTURE`
-  - 今: `workflows/line/scripts/start.py::words`（fix_fixture は空でなければどの run でも拒む）
-  - 状態: 形を変えて在る（固定材料の道そのものがまだ無く、メイングラフの start ノードがどの run でも拒む）
-  - 処置: #509
+  - 今: `workflows/chain/scripts/chain_start.py::FIX_FIXTURE_REFUSED`・`workflows/chain/scripts/chain_start.py::start`・`workflows/chain/works-factory-chain.yaml::chain-start`
+  - 状態: 形を変えて在る（殻でなく鎖のグラフの chain-start ノードが AI の前に拒む）
   - 旧棚卸し: L-E26
 
 - S129 鎖が止まる条件として、指定の周の数・結末が閉じた・止まった・人の判断が要る・進みが無い（木が周の頭と同じ・残りが前の周と同じ）・費用の上限を持つ
@@ -1875,17 +1873,15 @@
 - U033 WORKS_USE_FIX_FIXTURE で、固定材料のフォルダから判定と修正案を作り直さずに修正から始める（入力 fix_fixture）
   - 元: use.sh:67-69・182・1141
   - 印: `WORKS_USE_FIX_FIXTURE`
-  - 今: `workflows/line/scripts/start.py::words`（空でない fix_fixture を拒む）
-  - 状態: 無い
-  - 処置: #509
+  - 今: `workflows/line/scripts/start.py::from_fixture`・`lib/fixture.py::adopt`・`lib/fixture.py::capture`・`workflows/line/scripts/fix_in.py::fix_in`・`workflows/line/works-factory-line.yaml::fix-in`（前の run が修正に入る時に写した `<run の置き場>/fix-fixture/` を名指すと、直す前のテスト・判定・計画の往復・修正前の承認ノードを飛ばして修正から始める）
+  - 状態: 在る
   - 旧棚卸し: L-E42・L-E43
 
 - U034 WORKS_USE_FIX_FIXTURE が在るフォルダでなければ何も作らずに拒み、在れば打った場所から絶対パスにして渡す
   - 元: use.sh:217-222
   - 印: `WORKS_USE_FIX_FIXTURE`・`use.sh:220`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #509
+  - 今: `workflows/line/scripts/start.py::fixture_dir`
+  - 状態: 形を変えて在る（殻でなくメイングラフの start ノードが AI の前に拒み、相対パスは打った場所でなく対象の根から解く。依頼・方針の文書の名指しと同じ規則）
   - 旧棚卸し: L-E42
 
 - U035 --rounds は WORKS_DESIGN_ONLY=1 と組めない（Archon を起こす前に拒む）
@@ -1899,9 +1895,8 @@
 - U036 --rounds は WORKS_USE_FIX_FIXTURE と組めない
   - 元: use.sh:215
   - 印: `--rounds`・`WORKS_USE_FIX_FIXTURE`・`use.sh:215`
-  - 今: `workflows/line/scripts/start.py::words`（どの周の子でも空でない fix_fixture を拒む）
-  - 状態: 形を変えて在る（鎖の前でなく 1 周目の子の start ノードが拒む。固定材料の道そのものが無い）
-  - 処置: #509
+  - 今: `workflows/chain/scripts/chain_start.py::FIX_FIXTURE_REFUSED`・`workflows/chain/scripts/chain_start.py::start`・`workflows/chain/works-factory-chain.yaml::chain-start`
+  - 状態: 形を変えて在る（殻でなく鎖のグラフの chain-start ノードが AI の前に拒む）
   - 旧棚卸し: L-D55
 
 - U037 WORKS_USE_FINAL_GATE で最後の承認ノードの開き方を選ぶ（既定 protected_only・when_needed・always）
@@ -3030,14 +3025,13 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 182
+- 状態 在る: 184
 - 状態 形を変えて在る: 174
-- 状態 無い: 49
-- 処置 #509: 5
+- 状態 無い: 47
 - 処置 #516: 4
 - 処置 戻した: 10
 - 処置 要らない: 107
-- 無い行: S001・S008・S023・S080・S100・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U033・U034・U040・U046・U056・U057・U058・U060・U064・U074・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
+- 無い行: S001・S008・S023・S080・S100・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U040・U046・U056・U057・U058・U060・U064・U074・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
 
 ## 前の棚卸しの今
 
@@ -3214,8 +3208,8 @@
 - fix.md F410: lib/fixboard.py::join_group、lib/lanekit.py::merge_in_order（workflows/fix/scripts/join.py::main が呼ぶ）
 - fix.md F411: lib/fixboard.py::rerun_problem・lib/fixboard.py::rerun_cmd、workflows/fix/scripts/join.py::main（中の `merge_one`。名指しの無い組も変えたファイルに当たる試験を走らせ、前に戻せた組の名指しと重なりのファイルから届く試験を足し、子の関門が on で軽量でない単位が在れば test_cmd を 1 回）（#121）
 - fix.md F412: lib/fixboard.py::rerun_problem（重なりの在る組の赤を「意味の食い違い」SEMANTIC_CLASH と名指す）、workflows/fix/scripts/join.py（#121）
-- fix.md F413: workflows/fix/scripts/join.py::result_of と workflows/fix/scripts/join.py::main の outcomes.setdefault、lib/fixboard.py::join_rows（NO_RESULT）
-- fix.md F414: lib/fixboard.py::drop_unreturned、workflows/fix/scripts/group_start.py::main・workflows/fix/scripts/join.py::main
+- fix.md F413: workflows/fix/scripts/join.py::result_of と workflows/fix/scripts/join.py::main（結果の無い組で落ちる）、lib/fixboard.py::join_rows（NO_RESULT）
+- fix.md F414: lib/fixboard.py::drop_unreturned、workflows/fix/scripts/group_start.py::main
 - fix.md F415: lib/fixboard.py::adopt_tdd_states・lib/fixboard.py::ruled_states、lib/baseline_red.py::exe_path
 - fix.md F416: lib/fixboard.py::tdd_units、workflows/fix/scripts/tdd_unit.py、YAML ノード tdd-unit
 - fix.md F417: lib/leftovers.py::record_ignored、workflows/fix/scripts/prep.py（fix-ignored-before.json）
@@ -3502,7 +3496,8 @@
 - line.md L-E36: 各サブグラフが record.policy_md から組む（main lib/judge_accept.py::policy_text、workflows/fix/scripts/delta_cut.py::main、workflows/eyes/scripts/prep.py::out）
 - line.md L-E37: lib/rolekit.py::LANG_RULE・lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（住処を 1 つにし、fixboard・planfile・eyeverdict の写しはそれを引く）。judge はループの頭の拒否のノード workflows/judge/scripts/reject.py・rejects.py と判定の裏取りの支度 verify.py が `lang_line` を返し、全部の役の指示書の頭が `$<節>.output.lang_line`。report は facts が返し commands/report.md の頭（部分 A で閉じた）
 - line.md L-E38: workflows/line/scripts/start.py::start（部分 A で閉じた）
-- line.md L-E42: 無し。workflows/line/scripts/start.py::words が空でない値を拒む
+- line.md L-E42: workflows/line/scripts/start.py::from_fixture・workflows/line/scripts/start.py::fixture_dir・lib/fixture.py::adopt（置き場と作業ツリーのパス・run の id・HEAD の置き換え、前の版の拒みは形の版 FORMAT。trace の 1 行の代わりに起動の承認ノードの文と報告の入口のセクションの「固定材料から」の行 lib/fixture.py::lines）（#509 で戻した）
+- line.md L-E43: lib/fixture.py::capture・lib/fixture.py::noted_capture・workflows/line/scripts/fix_in.py::fix_in（今の works が写した作業の状態と名指しのファイルの代わりに、run の置き場と修正の段へ運ぶ値を写す）（#509 で戻した）
 - line.md L-E44: workflows/line/scripts/start.py::version_record（lib/versions.py::snapshot を呼ぶ。書いた時の `versions` は {archon, claude_code} だけだった）。lib/startrec.py::cli_version
 - line.md L-E45: lib/versions.py::snapshot（元 versions.py の名。分からない値は null と unknown の訳）（部分 A で閉じた）
 - line.md L-E46: workflows/line/scripts/start.py::start（確かめの前に inputs と versions を置く）（部分 A で閉じた）
@@ -3549,7 +3544,7 @@
 - line.md L-G31: lib/gatemarks.py::unread_hold_lines。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows → final_text、報告は lib/runreport.py::ledger_state の unread_holds → _decisions
 - line.md L-G32: lib/gatemarks.py::returned・lib/gatemarks.py::returned_lines・lib/gatemarks.py::duty（値の見え方 ledger）。fix は lib/fixboard.py::gate_view・lib/fixboard.py::group_owed・lib/fixboard.py::write_notes が置き場の answers.json（{decision, text, asked}。asked は $ask-before-fix.output.asked）から引く
 - line.md L-G33: lib/gatemarks.py::pending・lib/gatemarks.py::withheld_by・lib/gatemarks.py::withheld・lib/gatemarks.py::duty。無人の run は ask-before-fix が台帳の問いだけを deferred にして修正へ進み、fix・plan の直す義務（gatemarks.duty）が出どころを外す
-- line.md L-G34: lib/gatemarks.py::binds・lib/gatemarks.py::origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger が gatemarks.ledger_at（ledger_beside をファイルから。判定の隣の materials.json と、ties_judgment: $judge.output.judgment の隣の answer-ties.json）で引く。報告は lib/runreport.py::ledger
+- line.md L-G34: lib/gatemarks.py::binds・lib/gatemarks.py::origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger が gatemarks.ledger_at（ledger_beside をファイルから。判定の隣の materials.json と、ties_judgment: $fix-in.output.judgment の隣の answer-ties.json）で引く。報告は lib/runreport.py::ledger
 - line.md L-G35: workflows/line/scripts/ask_final.py::ledger・workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.held_lines）、lib/runreport.py::ledger_state
 - line.md L-G36: workflows/line/scripts/ask_final.py::final_head・workflows/line/scripts/ask_final.py::question_lines
 - line.md L-G37: 報告は lib/runreport.py::_decisions。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.answered_lines・unmatched_answer_lines）→ question_lines
@@ -3576,13 +3571,13 @@
 - line.md L-W02: yaml の when:（workflows/line/works-factory-line.yaml::plan-rounds `judge.ready`・workflows/line/works-factory-line.yaml::fix `answer-before-fix.go`・workflows/line/works-factory-line.yaml::test-gate-final `fixed.done && redepth.stop_reason==''`・workflows/line/works-factory-line.yaml::merge-apply）
 - line.md L-W03: judge のサブグラフの中（main workflows/judge/works-factory-judge.yaml::intake・workflows/judge/works-factory-judge.yaml::pr-scan・workflows/judge/works-factory-judge.yaml::premises-loop・workflows/judge/works-factory-judge.yaml::purpose-prep・workflows/judge/works-factory-judge.yaml::world-intake・workflows/judge/works-factory-judge.yaml::spec-loop）
 - line.md L-W04: 無し（#74 の head docs/design.md の「能力の棚卸し」の包みの行が「落とす」と決めた）
-- line.md L-W05: `$judge.output.units/judgment` を plan・plan-review・fix へ（workflows/line/works-factory-line.yaml::plan・workflows/line/works-factory-line.yaml::plan-review-run・workflows/line/works-factory-line.yaml::fix）。後ろは workflows/line/scripts/judged.py::judged から
+- line.md L-W05: `$judge.output.units/judgment` を plan・plan-review へ（workflows/line/works-factory-line.yaml::plan・workflows/line/works-factory-line.yaml::plan-review-run）、fix へは中継の fix-in が集めた `$fix-in.output.units/judgment`（workflows/line/works-factory-line.yaml::fix-in・workflows/line/works-factory-line.yaml::fix。固定材料の run は写しの値）。後ろは workflows/line/scripts/judged.py::judged から
 - line.md L-W06: judge の出力ノードが ready:false と stop_reason を返し、judge-out（workflows/line/works-factory-line.yaml::judge-out）が受けて collect に届く
 - line.md L-W07: メイングラフの design-only（plan-review の形 design。lib/boardview.py::open_design・lib/boardview.py::_collect_design）→ workflows/line/scripts/fixed.py::no_fix（独立設計・go・差分無し）→ judged・redepth・test-gate-final・eyes（設計は $fixed.output.design）→ ask-final（封じのノードが飛んでも開く）。merge-seal・merge-apply は no_fix で飛ぶ。結末は lib/outcome.py（残りが無ければ no_fix_needed、封じの出力が無いのを切れ目と読まない）。計画の直す義務 0 件の周も workflows/line/scripts/plan_out.py::round_owes_nothing が真なら plan-out の nothing_owed で design-only に入る（#291。結末は round_limit）
 - line.md L-W08: lib/judge_accept.py::structure_units（record に {units, paths} を書く）・`verdict` が判定の置き場の `structure-units-dropped.json`（`STRUCTURE_DROPPED_FILE`）に書く
-- line.md L-W09: workflows/line/scripts/ask_final.py::structure_missing（計画の出力 `structure` の先の structure-state.json を `structmark.note` で読む。メイングラフの `ask-final` の `structure` ← `$plan-rounds.output.structure`）
+- line.md L-W09: workflows/line/scripts/ask_final.py::structure_missing（計画の出力 `structure` の先の structure-state.json を `structmark.note` で読む。メイングラフの `ask-final` の `structure` ← `$fix-in.output.structure`）
 - line.md L-W10: lib/planfile.py::write_brief（`planblk.verify_part` が判定の隣の judge-verify.json を貼る）
-- line.md L-W11: workflows/line/works-factory-line.yaml::fix（fix の plan・ripple・depth は `$plan-rounds.output.*`）
+- line.md L-W11: workflows/line/works-factory-line.yaml::fix（fix の plan・ripple・depth は `$fix-in.output.*`）
 - line.md L-W12: workflows/line/works-factory-line.yaml::plan-rounds（loop_group。`review: $LOOP_PREV.plan-out.output.review` は workflows/line/works-factory-line.yaml::plan）、workflows/line/scripts/plan_out.py::plan_out
 - line.md L-W13: workflows/line/works-factory-line.yaml::plan-out・workflows/line/works-factory-line.yaml::plan-rounds-out
 - line.md L-W14: メイングラフの fix の with: の answers: $answer-before-fix.output.answer（{decision, text, asked}。asked は $ask-before-fix.output.asked）。一言と戻った単位の行は fix の prep が write_notes（gatemarks.returned_lines）で human-notes.md に置く
@@ -3636,13 +3631,13 @@
 - line.md L-W62: workflows/line/scripts/result.py::result・workflows/line/scripts/result.py::FIXED
 - line.md L-W63: workflows/.shared/boundary.py::run・workflows/.shared/boundary.py::guarded_imports
 - line.md L-W64: 無し（#74 の head docs/design.md の `順と関所` の止めの行と「能力の棚卸し」の止め札の行が持ち主の答え待ち）
-- line.md L-W65: 無し（workflows/line/scripts/start.py::words が拒む）
+- line.md L-W65: workflows/line/works-factory-line.yaml::fix-in・workflows/line/works-factory-line.yaml::test-gate-base（固定材料の run は直す前のテスト・判定・計画の往復・修正前の承認ノードを飛ばし、fix から後ろは fix-in の値を読む）（#509 で戻した）
 - line.md L-W66: tests/workflows/test_line.py::LineWiringCase、tests/e2e/test_line_scenarios.py
 - line.md L-W67: tests/workflows/test_line.py の表 UNPASSED（渡さない入力と訳）
 - line.md L-D01: lib/depth.py::unit_depth。呼び手 lib/planfile.py::collect
 - line.md L-D02: lib/depth.py::wiring
 - line.md L-D03: lib/depth.py::decide_doc・lib/depth.py::run_depth
-- line.md L-D04: yaml の fix.depth（$plan-rounds.output.depth）・refix-run.depth（$replan.output.depth）
+- line.md L-D04: yaml の fix.depth（$fix-in.output.depth）・refix-run.depth（$replan.output.depth）
 - line.md L-D05: lib/depth.py::raise_doc、workflows/line/scripts/redepth.py::redepth
 - line.md L-D06: workflows/line/scripts/redepth.py::redepth
 - line.md L-D07: workflows/line/scripts/redepth.py::redepth

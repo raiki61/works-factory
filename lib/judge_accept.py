@@ -3217,19 +3217,20 @@ def spec_check(spec: dict, root) -> list:
     return changed
 
 
-def spec_questions(spec_path, root) -> list:
-    """修正の後の承認し直すかの問い（1 ファイル 1 行）。仕様が無い・読めない・形が違えば、黙って 0 件にせず「読めない」の問いを 1 行返す"""
+def spec_questions(spec_path, root) -> dict:
+    """修正の後の承認し直すかの問い（questions。1 ファイル 1 行）と、照らせなかったか（unchecked）。仕様が無い・読めない・形が違えば、
+    黙って 0 件にせず「読めない」の問いを 1 行だけ返し unchecked を真にする（変わった行と混ざらない）"""
     try:
         spec = read_json(spec_path)
         if spec is None:
             raise FileNotFoundError("ファイルが無い")
         rows = spec_check(spec, root)
     except (OSError, ValueError, KeyError, TypeError) as e:
-        return [f"承認済みの仕様 {spec_path} を読めない——受け入れ条件のテストが変わったかを確かめられない"
-                f"（{oneline.one_line(f'{type(e).__name__}: {e}')}）"]
-    return [f"{gatemarks.SPEC_CHANGED_LABEL}: {r['file']}（sha256 {str(r['from'])[:12]} → {r['why'] if r['to'] is None else r['to'][:12]}）——承認し直すか。"
-            "この run の中では答えられない: 変更を確かめて次の run の仕様の段で承認し直すか、テストを承認の版に戻して直す依頼にする"
-            for r in rows]
+        return {"questions": [f"承認済みの仕様 {spec_path} を読めない——受け入れ条件のテストが変わったかを確かめられない"
+                              f"（{oneline.one_line(f'{type(e).__name__}: {e}')}）"], "unchecked": True}
+    return {"questions": [f"{gatemarks.SPEC_CHANGED_LABEL}: {r['file']}（sha256 {str(r['from'])[:12]} → {r['why'] if r['to'] is None else r['to'][:12]}）——承認し直すか。"
+                          "この run の中では答えられない: 変更を確かめて次の run の仕様の段で承認し直すか、テストを承認の版に戻して直す依頼にする"
+                          for r in rows], "unchecked": False}
 
 
 # ---------------------------------------------------------------- 再審（元 works/.shared/core/rejudge.py と写しの rules の rejudge_output）

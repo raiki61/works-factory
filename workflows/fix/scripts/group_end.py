@@ -14,7 +14,7 @@ allowed-tests.json に集め、join の和も同じ欄から読む。受け付�
 fixboard.mismatched_lines）と、受け付けが選んだ試験を走らせた回の行（accept-trace.json。親の collect が diff の隣に集める）と、自分の置き場のパス
 （親の conflict-check がこの組の申し出の名指しに許す根）も載せる。
 TDD の輪の状態が済んでいなければ tdd を ran: false と理由にする。前の節が落ちた子ではこの節は走らず、結果のファイルは無い
-（並べない run は、その子が親の作業ツリーに残した変更を次の組の group-start か join が戻す。fixboard.drop_unreturned）。
+（親の組の節が落ちて run が止まり、親の resume がこの子を続きから回す）。
 書く先: 入力 out_dir が在ればその下の <group_id>/result.json、空の単独の run は自分の置き場の groups/<group_id>/result.json。
 返り {result_file}。入力 group が読めない・git が効かない・置き場のファイルが壊れた: 標準エラーに 1 行で 1。
 """

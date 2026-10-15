@@ -10,6 +10,7 @@ fixture:
     units: '[{"id":"u1","paths":["stats.py"],"summary":"s"}]'
     judgment: '{"type":"archon_artifact","run_id":"r","path":"judgment.json"}'
 route: {group: true}
+groups-ok: ""
 group-start: {tdd: true, units: 1, reason: ""}
 tdd-prep: {prompt_file: tdd-prompt.md, go: true, new_unit: true}
 tdd-new: {phase: route, units: [{unit_key: u1, route: tdd, why: 名指しのテストで赤を見られる}]}

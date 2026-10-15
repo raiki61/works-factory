@@ -62,7 +62,7 @@ def moved_policy(tmp: pathlib.Path) -> tuple:
 READ_ONLY_SCRIPTS = ("route", "prep", "tdd-unit", "conflict-check", "rule-prep", "rule-accept", "fix-ruled-prep",
                      "ruled-consult-check", "ruled-consult-accept", "assert-changed", "delta-cut", "lens-prep",
                      "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
-                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix")
+                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix", "groups-ok")
 
 # 今の works（2aa7c66c）の同じ役の節の値: (model, effort, context, settingSources, sandbox)。
 # 元 works/blk-fix/blk-fix.yaml の tdd・fix・fix-ruled・rule・plan-answer、blk-delta.yaml の review、blk-lens.yaml の
@@ -210,7 +210,7 @@ class InputsCase(unittest.TestCase):
         self.assertEqual({k: inputs[k]["default"] for k in ("prior_conflicts", "plan_review", "notes")},
                          {"prior_conflicts": "null", "plan_review": "null", "notes": ""})
         line = {n["id"]: n for n in yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))["nodes"]}
-        self.assertEqual(line["fix"]["with"]["plan_review"], "$plan-rounds.output.review")
+        self.assertEqual(line["fix"]["with"]["plan_review"], "$fix-in.output.review")
         self.assertEqual({k: line["refix-run"]["with"][k] for k in ("prior_conflicts", "plan_review", "notes")},
                          {"prior_conflicts": "$fix.output.conflicts", "plan_review": "$replan-review.output.review",
                           "notes": "$answer-replan.output.fix_notes"})
@@ -238,6 +238,21 @@ class GroupsCase(unittest.TestCase):
         self.assertEqual(launchers["groups-par"]["isolation"], "worktree")
         self.assertNotIn("isolation", launchers["groups-seq"])
         self.assertEqual(launchers["groups-seq"]["fan_out"]["max_parallel"], 1)
+
+    def test_a_failed_child_halts_the_block_for_resume(self):
+        """#576: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
+        走らず、ブロックの sink の柵 groups-ok が飛ぶ。join の後に作り直す all_done の節は join を結ぶ"""
+        for nid in ("groups-par", "groups-seq"):
+            self.assertEqual(self.nodes[nid]["fan_out"]["join"], "all_success", nid)
+        self.assertEqual(self.nodes["join"]["trigger_rule"], "none_failed_min_one_success")
+        guard = self.nodes["groups-ok"]
+        self.assertEqual(guard["bash"], "true")
+        self.assertEqual(set(guard["depends_on"]), {"route", "groups-par", "groups-seq", "join"})
+        self.assertEqual(guard["trigger_rule"], "none_failed_min_one_success")
+        self.assertNotIn("when", guard, "柵が飛ぶのは組か join が落ちた時だけ（形 group の run は済む）")
+        self.assertEqual([nid for nid, n in self.nodes.items() if "groups-ok" in (n.get("depends_on") or [])], [])
+        for nid in ("clean", "assert-changed", "delta-cut"):
+            self.assertIn("join", self.nodes[nid]["depends_on"], nid)
 
     def test_fanouts_hang_off_block_mode_only(self):
         prep = self.nodes["prep"]
@@ -523,7 +538,7 @@ class DeltaScriptsCase(unittest.TestCase):
         path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
 
     def _run(self, script, nid, **inputs):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT")) and not hermetic.dropped(k)}
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": "run-delta",
                     "ARCHON_NODE_EXECUTION": json.dumps({"path": f"fix__{nid}"}), "WORKS_FACTORY_ROOT": str(ROOT),
                     "CLAUDE_CONFIG_DIR": str(self.cfg), "PYTHONDONTWRITEBYTECODE": "1"})
@@ -896,7 +911,7 @@ class DeltaScriptsCase(unittest.TestCase):
                 self.assertEqual(out["reason"], f"手直しの役を起こさなかった（{n} 回目の審査が直す義務を出していない・審査を受けていない）")
                 self._json(f"rejects-{accept}.json", [{"at": "2026-10-12T00:00:00+00:00", "reason": "前の拒否"}])
                 self.assertEqual(self._run("refix_prep", prep, n=str(n))["iteration"], 2)
-                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and k != "ARTIFACTS_DIR"}
+                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and k != "ARTIFACTS_DIR" and not hermetic.dropped(k)}
                 for script, name, extra in (("refix_prep", prep, {}), ("refix_accept", accept, {"INPUTS_REPLY": "{}",
                                                                                                 "INPUTS_ITERATION": "1"})):
                     done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=self.repo,
@@ -905,7 +920,7 @@ class DeltaScriptsCase(unittest.TestCase):
                     self.assertNotEqual(done.returncode, 0)
                     self.assertTrue(done.stderr.startswith(f"{name}: KeyError: "), done.stderr)
         bad = subprocess.run([sys.executable, str(BLOCK / "scripts" / "refix_prep.py")], cwd=self.repo,
-                             env={**os.environ, "INPUTS_N": "3"}, capture_output=True, text=True, encoding="utf-8")
+                             env=hermetic.child_env(INPUTS_N="3"), capture_output=True, text=True, encoding="utf-8")
         self.assertEqual((bad.returncode, bad.stderr), (1, "refix_prep: 入力 n は 1 か 2: '3'\n"))
 
     def test_lens_prep_without_the_role_definition_is_go_false(self):
@@ -947,7 +962,7 @@ class DeltaScriptsCase(unittest.TestCase):
             return json.loads(lenses.read_text(encoding="utf-8"))["collector"]
 
         def raw(script, nid, cwd_script=None, **inputs):
-            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT"))}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT")) and not hermetic.dropped(k)}
             env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": "run-delta", "PYTHONDONTWRITEBYTECODE": "1",
                         "ARCHON_NODE_EXECUTION": json.dumps({"path": f"fix__{nid}"}), "WORKS_FACTORY_ROOT": str(ROOT),
                         "CLAUDE_CONFIG_DIR": str(self.cfg)})
@@ -1042,7 +1057,7 @@ _BLK_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_chan
 def _blk_run(script, repo, art, inputs=None, node_path="fix__x", env_extra=None):
     """scripts/<script>.py を一時の対象のリポジトリ repo で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
     env_extra は子の環境に足す（hermetic.dropped の名は継がない）"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_")) and not hermetic.dropped(k)}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _BLK_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": node_path}), "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(env_extra or {})
@@ -1155,10 +1170,9 @@ class BlockScriptsCase(unittest.TestCase):
         import reads
         event = {"session_id": session, "tool_name": "Read", "tool_input": {"file_path": str(path)}, "tool_use_id": "toolu_read",
                  "cwd": str(self.repo), "hook_event_name": "PostToolUse"}
-        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
         done = subprocess.run([sys.executable, str(ROOT / "bin" / "_lib" / "record-read.py"), str(cfg / reads.ROOT)],
                               input=json.dumps(event), text=True, encoding="utf-8", capture_output=True, cwd=str(self.repo),
-                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+                              env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1"))
         self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_fix_reads_names_what_the_fixer_did_not_read(self):
@@ -1448,45 +1462,29 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertIn("当たらない", g2["reason"])
         self.assertEqual(joined["units"][1], {"unit_id": "B", "group_id": "g2", "status": "not_done", "reason": g2["reason"]})
 
-    def test_join_marks_missing_result_not_done(self):
-        start = self.snapshot(self.repo)
-        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
-                                    {"group_id": "g2", "unit_ids": ["B", "C"], "items": []}], start, par=False)
-        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start))
-        code, out, err = _blk_run("join", self.repo, self.art)
-        self.assertEqual(code, 0, err)
-        self.assertEqual(out, {"groups": 2, "returned": 1})
-        joined = json.loads((self.place / "join.json").read_text(encoding="utf-8"))
-        self.assertEqual([(u["unit_id"], u["status"]) for u in joined["units"]],
-                         [("A", "fixed"), ("B", "not_done"), ("C", "not_done")])
-        self.assertFalse(joined["groups"][1]["returned"])
-        self.assertTrue(joined["groups"][1]["reason"])
-        group_items = self.fmt["properties"]["groups"]
-        unit_items = self.fmt["properties"]["units"]
-        self.assertEqual(validate_schema(joined["groups"], group_items), [])
-        self.assertEqual(validate_schema(joined["units"], unit_items), [])
-
-    def test_join_in_order_drops_what_a_failed_child_left(self):
-        """並べない run で結果を書かずに落ちた子の変更は、その子の始めの木に戻す（前の組の直しは残す）"""
+    def test_join_stops_on_a_group_without_a_readable_result(self):
+        """#576: 結果のファイルが無いか読めない組が在れば、並べない run でも並べた run でも作業ツリーを変えず join.json も書かずに
+        1 で止まる（済んだ子の変更を戻して持ち越しにしない）"""
         start = self.snapshot(self.repo)
         src = (self.repo / "stats.py").read_text(encoding="utf-8")
-        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
-                                    {"group_id": "g2", "unit_ids": ["B"], "items": []}], start, par=False)
         (self.repo / "stats.py").write_text(src.replace("len(xs) - 1", "len(xs)"), encoding="utf-8")
         t1 = self.snapshot(self.repo)
-        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
-        _blk_write(out_dir / "g2" / "group-start.json", {"start_tree": t1})
-        (self.repo / "stats.py").write_text(src.replace("len(xs) - 1", "0"), encoding="utf-8")
-        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
-        code, out, err = _blk_run("join", self.repo, self.art)
-        self.assertEqual(code, 0, err)
-        self.assertEqual(out, {"groups": 2, "returned": 1})
-        self.assertEqual(self.snapshot(self.repo), t1)
-        g2 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"][1]
-        self.assertFalse(g2["returned"])
-        self.assertIn("half.py", g2["reason"])
-        self.assertEqual(json.loads((out_dir / "g2" / "dropped.json").read_text(encoding="utf-8"))["paths"],
-                         ["half.py", "stats.py"])
+        for par, broken in ((False, None), (False, {"group_id": "g2"}), (True, None)):
+            with self.subTest(par=par, broken=broken):
+                out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
+                                            {"group_id": "g2", "unit_ids": ["B"], "items": []}], start, par=par)
+                _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+                _blk_write(out_dir / "g2" / "group-start.json", {"start_tree": t1})
+                (out_dir / "g2" / "result.json").unlink(missing_ok=True)
+                if broken is not None:
+                    _blk_write(out_dir / "g2" / "result.json", broken)
+                code, out, err = _blk_run("join", self.repo, self.art)
+                self.assertEqual(code, 1, err)
+                self.assertIn("g2", err)
+                self.assertNotIn("g1", err)
+                self.assertEqual(self.snapshot(self.repo), t1)
+                self.assertFalse((self.place / "join.json").exists())
+                self.assertFalse((out_dir / "g2" / "dropped.json").exists())
 
     def rerun_seed(self, files, *, test_cmd=""):
         """走らせ直しの種: files を commit し、実行器（lib/tests/test_blk_fix_tdd.py の SUITE）を指す始めの記録と、その実行器で
@@ -1879,7 +1877,7 @@ class BlockScriptsCase(unittest.TestCase):
         lone = self.tmp / "lone" / "fix" / "scripts"
         lone.mkdir(parents=True)
         (lone / "collect.py").write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_", "WORKS_FACTORY_ROOT"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _BLK_RUN, "PYTHONDONTWRITEBYTECODE": "1"})
         done = subprocess.run([sys.executable, str(lone / "collect.py")], cwd=self.repo, env=env, capture_output=True,
                               text=True, encoding="utf-8")
@@ -2188,7 +2186,7 @@ class BlockScriptsCase(unittest.TestCase):
             lone = self.tmp / "lone" / "fix" / "scripts"
             lone.mkdir(parents=True)
             (lone / "collect.py").write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
-            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_", "WORKS_FACTORY_ROOT"))}
+            env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
             env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _BLK_RUN, "PYTHONDONTWRITEBYTECODE": "1"})
             done = subprocess.run([sys.executable, str(lone / "collect.py")], cwd=self.repo, env=env, capture_output=True,
                                   text=True, encoding="utf-8")
@@ -2623,6 +2621,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.out_dir.mkdir(parents=True)
         self.art = self.tmp / "child-art"
         self.place = self.art / "fix" / "fix"
+        self.grp_env = {}
         self._grp_parent_inputs("")
 
     def _grp_parent_inputs(self, suite, **start):
@@ -2635,11 +2634,12 @@ class GroupChildScriptsCase(unittest.TestCase):
         (self.parent / "baseline.json").write_text(json.dumps({"cases": [], "exit": 1}), encoding="utf-8")
 
     def _grp_run(self, script, nid, ok=True, cwd=None, **inputs):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_"))}
+        """self.grp_env は子の環境に足す（hermetic.dropped の名は継がない。記録の根を試す試験はここに自分の根を置く）"""
+        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _GRP_RUN,
                     "ARCHON_NODE_EXECUTION": json.dumps({"path": nid}), "WORKS_FACTORY_ROOT": str(ROOT),
                     "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_GROUP": json.dumps(_GRP_GROUP, ensure_ascii=False),
-                    "INPUTS_OUT_DIR": str(self.out_dir), "INPUTS_FROM_TREE": "", "INPUTS_MODE": "group"})
+                    "INPUTS_OUT_DIR": str(self.out_dir), "INPUTS_FROM_TREE": "", "INPUTS_MODE": "group", **self.grp_env})
         env.update({f"INPUTS_{k.upper()}": v for k, v in inputs.items()})
         done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=cwd or self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
@@ -2783,16 +2783,43 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertIn(fields["policy"]["copy"], text)
         self.assertNotIn(raw_doc, text)
 
-    def test_group_start_in_order_drops_what_the_failed_child_before_left(self):
-        """親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに落ちて残した変更を戻してから始める"""
+    def test_group_start_in_order_stops_while_an_earlier_child_is_halted(self):
+        """#576: 親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに止まっていれば、その変更を戻さず何も書かずに 1 で
+        止まる（親の resume が前の子を続きから回す）。前の組が結果を書いていれば今どおり始める"""
         import leftovers
         before = leftovers.snapshot(self.repo)
         (self.out_dir / "g0").mkdir()
         (self.out_dir / "g0" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
         (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
+        err = self._grp_run("group_start", "group-start", ok=False)
+        self.assertIn("g0", err)
+        self.assertEqual((self.repo / "half.py").read_text(encoding="utf-8"), "Y = 1\n")
+        self.assertEqual(sorted(p.name for p in self.out_dir.iterdir()), ["g0"])
+        self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
+        self.assertFalse(self.place.exists())
+        (self.out_dir / "g0" / "result.json").write_text("{}", encoding="utf-8")
+        self._grp_run("group_start", "group-start")
+        self.assertTrue((self.repo / "half.py").is_file(), "前の組の結果の在る変更は残す")
+
+    def test_group_start_side_by_side_ignores_a_sibling_still_running(self):
+        """並べた子は兄弟の組がまだ結果を書いていなくても止まらず、兄弟のフォルダに触らない（兄弟は同時に回っている）"""
+        import leftovers
+        tree = leftovers.snapshot(self.repo)
+        (self.out_dir / "g0").mkdir()
+        (self.out_dir / "g0" / "group-start.json").write_text(json.dumps({"start_tree": tree}), encoding="utf-8")
+        self._grp_run("group_start", "group-start", from_tree=tree)
+        self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
+
+    def test_group_start_in_order_drops_its_own_earlier_attempt(self):
+        """自分の組の始めの記録が前の試みから残っていれば、その木に戻してから始める"""
+        import leftovers
+        before = leftovers.snapshot(self.repo)
+        (self.out_dir / "g1").mkdir()
+        (self.out_dir / "g1" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
+        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
         self._grp_run("group_start", "group-start")
         self.assertFalse((self.repo / "half.py").exists())
-        self.assertEqual(json.loads((self.out_dir / "g0" / "dropped.json").read_text(encoding="utf-8"))["paths"],
+        self.assertEqual(json.loads((self.out_dir / "g1" / "dropped.json").read_text(encoding="utf-8"))["paths"],
                          ["half.py"])
         began = json.loads((self.out_dir / "g1" / "group-start.json").read_text(encoding="utf-8"))
         self.assertEqual(began["start_tree"], before)
@@ -2803,21 +2830,21 @@ class GroupChildScriptsCase(unittest.TestCase):
         import writes
         env, root = _recorder_root(self.tmp)
         self._grp_parent_inputs(str(self.suite))
-        with mock.patch.dict(os.environ, env):
-            self._grp_run("group_start", "group-start")
-            got = self._grp_step({"phase": "route", "units": [{"unit_key": _GRP_MEAN, "route": "tdd"}]})
-            self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
-            test_file = self.repo / "test_stats.py"
-            test_file.write_text(test_file.read_text(encoding="utf-8").replace(
-                "\n\nif __name__", _GRP_NEW_TEST + "\n\nif __name__"), encoding="utf-8")
-            reply = {"phase": "test", "unit_key": _GRP_MEAN, "test_files": ["test_stats.py"],
-                     "tests": ["test_stats.py::TestStats::test_mean_of_two"]}
-            got = self._grp_step(reply)
-            self.assertEqual((got["ok"], got["done"]), (False, False), got)
-            self.assertIn(writes.REJECT + "test_stats.py", got["reason"])
-            _record(writelog.log_path(root, self.repo), test_file)
-            got = self._grp_step(reply)
-            self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
+        self.grp_env = env
+        self._grp_run("group_start", "group-start")
+        got = self._grp_step({"phase": "route", "units": [{"unit_key": _GRP_MEAN, "route": "tdd"}]})
+        self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
+        test_file = self.repo / "test_stats.py"
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace(
+            "\n\nif __name__", _GRP_NEW_TEST + "\n\nif __name__"), encoding="utf-8")
+        reply = {"phase": "test", "unit_key": _GRP_MEAN, "test_files": ["test_stats.py"],
+                 "tests": ["test_stats.py::TestStats::test_mean_of_two"]}
+        got = self._grp_step(reply)
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn(writes.REJECT + "test_stats.py", got["reason"])
+        _record(writelog.log_path(root, self.repo), test_file)
+        got = self._grp_step(reply)
+        self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
 
     def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
         """test-gate の base が線の run の置き場に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が引く（同じ run の中で
@@ -2827,7 +2854,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         line = self.tmp / "parent-art"
         self._grp_parent_inputs(str(self.suite), test_cmd=test_cmd, run_id="line-run")
         _blk_write(line / "start" / "record.json", {"run_id": "line-run", "test_cmd": test_cmd, "base_rev": "", "tdd_suite": ""})
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
         env.update({"ARTIFACTS_DIR": str(line), "WORKFLOW_ID": "line-run", "ARCHON_NODE_EXECUTION": json.dumps({"path": "test-gate"}),
                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_MODE": "base",
                     "INPUTS_START": json.dumps({"type": "archon_artifact", "run_id": "line-run", "path": "start/record.json"})})
@@ -3102,12 +3129,12 @@ class GroupChildScriptsCase(unittest.TestCase):
         """並べた子は自分の作業ツリーの記録を group-start で空で作り、group-end の結果の worktree から join が同じ記録を引く"""
         import writelog
         env, root = _recorder_root(self.tmp)
-        with mock.patch.dict(os.environ, env):
-            self._grp_run("group_start", "group-start")
-            log = writelog.log_path(root, self.repo)
-            self.assertEqual(log.read_text(encoding="utf-8"), "")
-            result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end")["result_file"]).read_text(
-                encoding="utf-8"))
+        self.grp_env = env
+        self._grp_run("group_start", "group-start")
+        log = writelog.log_path(root, self.repo)
+        self.assertEqual(log.read_text(encoding="utf-8"), "")
+        result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end")["result_file"]).read_text(
+            encoding="utf-8"))
         self.assertEqual(writelog.log_path(root, result["worktree"]), log)
 
     def test_group_end_alone_writes_into_its_own_place(self):
@@ -3150,7 +3177,7 @@ _FX_JUDGMENT = {"units": [
 def _fx_run(script, repo, art, *, env_extra=None, **inputs):
     """scripts/<script>.py を一時の対象のリポジトリ repo・一時の置き場 art で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
     env_extra は子の環境に足す（hermetic.dropped の名は継がない）"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_")) and not hermetic.dropped(k)}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _FX_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": "x"}), "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(env_extra or {})
