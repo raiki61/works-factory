@@ -1816,7 +1816,6 @@ _MODULE_HOOKS = frozenset({"setUpModule", "tearDownModule", "setup_module", "tea
                            "collect_ignore", "collect_ignore_glob"})
 _CLASS_HOOKS = frozenset({*dir(unittest.TestCase), "setup_method", "teardown_method", "setup_class",
                           "teardown_class", "setup", "teardown", "pytestmark"})
-_DOTTED = re.compile(r"^[A-Za-z_][\w.]*$")
 
 
 def _old_names(tree) -> set:
@@ -1826,7 +1825,7 @@ def _old_names(tree) -> set:
     for n in ast.walk(tree):
         if isinstance(n, (ast.Global, ast.Nonlocal)):
             out.update(n.names)
-        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and _DOTTED.match(n.value):
+        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and planmarks.DOTTED_NAME.fullmatch(n.value):
             out.update(n.value.split("."))
     return out
 
