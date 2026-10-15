@@ -207,13 +207,16 @@ def _read_beside(returns: dict, rid: str, field: str, name: str):
 
 # ---------------------------------------------------------------- run の記録
 def _declared(step: str, optional) -> bool:
-    """受け止めると宣言した段の中の節か（宣言は節の id の頭の並び）"""
-    return any(isinstance(head, str) and head and step.startswith(head) for head in optional or ())
+    """受け止めると宣言した段の中の節か。宣言の 1 つは、区切り（__・-）で終わる節の id の頭か、節の id そのもの（そのループの中の
+    節 <id>.<中の id> も含む）。区切りの無い頭で比べると、fix__lens が止める段の fix__lens-collect まで受け止めてしまう"""
+    return any(isinstance(head, str) and head
+               and (step.startswith(head) if head.endswith(("__", "-")) else step == head or step.startswith(head + "."))
+               for head in optional or ())
 
 
 def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
     """run の記録の行（実行基盤の logger の JSONL を 1 行ずつ読んだ dict）から、節ごとの事実。rows が None なら ok: False。
-    最後の行が node_error の節は、線が受け止めると宣言した段（optional。線の YAML の 1 か所が宣言する節の id の頭の並び）の中なら
+    最後の行が node_error の節は、線が受け止めると宣言した段（optional。線の YAML の 1 か所が宣言する、節の id の頭か節の id の並び。_declared）の中なら
     受け止めた落ち（absorbed）、宣言の外なら後にほかの節が始まっていても run を途中で終わらせた落ち（failed）。元 report.split_fallen
     （:545。宣言は元 _optional :533 の線の YAML の [optional]）。報告は線の出口（collect の後）で走るので、元の出口の印は在るものと
     読む。errors は落ちた節の最後の誤りの文、

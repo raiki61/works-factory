@@ -2,12 +2,14 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""レンズの集め（節 lens-collect）: レンズの返り（with: reply。起こさなかった・飛ばされた時は null）で置き場の lens.json の行を
-埋め（lenses.collect。返りが無ければ failed と理由、在れば ran と出どころつきの findings）、1 回目の審査役の材料の lens の欄に
-足す（fixboard.brief_lens）。支度が落ちて控えが無ければ、その理由の行（not_routed）を残してから集める。
-集め役の事実は diff の隣の lenses.json に {collector: {ok, reason}} で置く（fixboard.lens_collector。止めずに知らせる）: 集め終えれば
-ok: true、集めが ok でない・この節が誤りで落ちる時は ok: false と理由（元 works/blk-lens/scripts/exit.py の lenses.exit_ は盤面を
-止めた）。この節が何も書けずに落ちた時は返す節 collect が ok: false を書く。
+"""レンズの集め（節 lens-collect）: レンズの返り（with: reply。中継の節 lens-reply の返りで、起こさなかった・レンズが落ちた時は
+null）で置き場の lens.json の行を埋め（lenses.collect。返りが無ければ failed と理由、形が違えば failed と理由、在れば ran と
+出どころつきの findings）、1 回目の審査役の材料の lens の欄に足す（fixboard.brief_lens）。この節は支度（lens-prep）が済めば
+レンズが落ちても走り、支度が落ちた run では飛ぶ。
+集め役の事実は diff の隣の lenses.json に {collector: {ok, reason}} で置く（fixboard.lens_collector）: 集め終えれば ok: true、
+集めが ok でない・この節が誤りで落ちる時は ok: false と理由を書いてから非 0 で落ち、run を止める（元 works/blk-lens/scripts/exit.py
+の lenses.exit_ も盤面を止めた）。止まった run の報告は lenses.json の理由を読む。この節が何も書けずに落ちた時は返す節 collect が
+ok: false を書く。
 返り {state（レンズの行の state）, count（集めた指摘の数）}。回す側の誤り（審査役の材料が無い）は標準エラーに 1 行で非 0。
 """
 import os
@@ -23,15 +25,11 @@ import lens  # noqa: E402
 import lenses  # noqa: E402
 import oneline  # noqa: E402
 
-LENS = "silent-failure-hunter"
-NO_ROUTE = "レンズの支度（lens-prep）が振り分けの控えを書いていない（支度が落ちたか走らなかった）"
+(LENS,) = (row["lens"] for row in lenses.LENSES)   # 工程のレンズの節は 1 つ（節 lens）
 
 
 def main() -> None:
     place = boundary.place("fix")
-    if lens.read(place) is None:
-        lens.write_routes(place, [{"lens": r["lens"], "agent": r["agent"], "go": False, "reason": NO_ROUTE}
-                                  for r in lenses.LENSES])
     got = lenses.collect(place, {LENS: boundary.value(os.environ["INPUTS_REPLY"])})
     if not got["ok"]:
         raise ValueError(got["reason"])

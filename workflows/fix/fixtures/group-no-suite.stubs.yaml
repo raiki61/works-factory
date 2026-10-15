@@ -8,7 +8,7 @@ fixture:
     units: '[{"id":"u1","paths":["stats.py"],"summary":"s"}]'
     judgment: '{"type":"archon_artifact","run_id":"r","path":"judgment.json"}'
 route: {group: true}
-groups-ok: ""
+nodes-ok: ""
 group-start: {tdd: false, units: 1, reason: 実行器の無い run}
 fix-prep: {prompt_file: fix-prompt.md, go: true, iteration: 1}
 fixer: &reply

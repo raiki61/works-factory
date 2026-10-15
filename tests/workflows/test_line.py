@@ -92,6 +92,23 @@ def block_doc(include: str) -> dict:
     return yaml.safe_load((SCRIPTS.parents[1] / include.removeprefix("works-factory-") / f"{include}.yaml").read_text(encoding="utf-8"))
 
 
+def record_steps(block: str = "line", prefix: str = "") -> set:
+    """線を回した時の run の記録の step に出うる節の id の全部。Archon は include の中の節に「include の節の id__」を前に付け、
+    ループの中の節は素の id のまま記録する（include-expander.ts の inlineInclude・node-record-serialization.ts の step）"""
+    doc = yaml.safe_load((SCRIPTS.parents[1] / block / f"works-factory-{block}.yaml").read_text(encoding="utf-8"))
+    got = set()
+
+    def walk(nodes, head):
+        for node in nodes:
+            got.add(head + node["id"])
+            if "include" in node:
+                got.update(record_steps(node["include"].removeprefix("works-factory-"), head + node["id"] + "__"))
+            if "loop_group" in node:
+                walk(node["loop_group"]["nodes"], "")
+    walk(doc["nodes"], prefix)
+    return got
+
+
 def line_nodes(nodes=None) -> dict:
     """線の節（loop_group の中の節も）を id ごとに"""
     got = {}
@@ -2618,10 +2635,36 @@ class CollectAndResultCase(unittest.TestCase):
         （works/darkfactory/darkfactory.yaml 347・445・946・1124・1196 行）"""
         declared = json.loads(line_nodes()["collect"]["with"]["optional"])
         self.assertEqual(collect.collect({}, self.line(optional=json.dumps(declared)))["optional"], declared)
-        for stage in ("judge__world", "plan__structure", "fix__lens", "eyes__", "judge__head-depth", "head-depth"):
+        for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
+
+    def test_stopping_stages_beside_an_absorbed_one_are_not_absorbed(self):
+        """#599: 宣言はレンズの節とその中継だけを受け止め、名の頭が同じ止める段（支度 lens-prep・集め役 lens-collect）の落ちは
+        途中で終わった落ちに数える（止まった run の報告がレンズを受け止めた落ちに載せ、止めたかの節を誤らない）。世界の解の段は
+        ループの中の節（記録の step では素の id）まで受け止める"""
+        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
+        fell = ["fix__lens", "fix__lens-reply", "refix-run__lens", "fix__lens-prep", "fix__lens-collect", "refix-run__lens-collect",
+                "world-judge-accept", "eyes__r1"]
+        rows = [r for i, s in enumerate(fell) for r in (
+            {"step": s, "type": "node_start", "ts": f"2026-10-14T00:{i:02d}:00Z"},
+            {"step": s, "type": "node_error", "ts": f"2026-10-14T00:{i:02d}:30Z", "error": "落ちた"})]
+        facts = runreport.transcript_facts(rows, optional=declared)
+        self.assertEqual(facts["failed"], ["fix__lens-prep", "fix__lens-collect", "refix-run__lens-collect"])
+        self.assertEqual([a["node"] for a in facts["absorbed"]],
+                         ["fix__lens", "fix__lens-reply", "refix-run__lens", "world-judge-accept", "eyes__r1"])
+
+    def test_declared_range_moved_only_off_the_lens_prep_and_collect(self):
+        """#599: 宣言を区切りつきの頭か名そのものに改めた時、受け止める範囲から外れたのは止める段のレンズの支度と集め役だけで、
+        ループの中の節（記録の step では素の id）を含むほかの節の受け止めは前の宣言（区切りの無い頭の一致）と変わらない"""
+        before = ["judge__world", "rejudge-run__world", "world-classes", "world-judge", "plan__structure", "replan__structure",
+                  "structure-eye", "fix__lens", "refix-run__lens", "eyes__", "judge__head-depth", "head-depth"]
+        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
+        steps = record_steps()
+        self.assertIn("world-judge-accept", steps)
+        moved = {s for s in steps if any(s.startswith(head) for head in before) != runreport._declared(s, declared)}
+        self.assertEqual(moved, {"fix__lens-prep", "fix__lens-collect", "refix-run__lens-prep", "refix-run__lens-collect"})
 
     def test_head_depth_fall_is_absorbed(self):
         """頭の深さの役が落ちても判定は標準で進む（judge_accept.head_depth）ので、報告は run を途中で終わった物と数えない"""
