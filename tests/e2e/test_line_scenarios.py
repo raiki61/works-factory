@@ -24,13 +24,14 @@ if str(archon.ROOT / "lib") not in sys.path:
 import depth  # noqa: E402
 import fixbeside  # noqa: E402  （diff の隣の控えの名の持ち主）
 import fixboard  # noqa: E402
+import planfile  # noqa: E402
 
 SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
     "unattended-questions", "unattended-policy-change", "unattended-push", "unattended-push-stop", "eyes-failed-protected", "refix-handoff",
-    "nothing-owed", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence", "depth-heavy", "fix-fixture",
+    "nothing-owed", "unattended-held-push", "unattended-held-no-push", "spec-changed", "depth-light", "depth-raised", "depth-no-evidence", "depth-heavy", "fix-fixture",
 )
 
 
@@ -198,6 +199,61 @@ class UnattendedGateTest(unittest.TestCase):
                          asked)
         self.assertFalse(self.ran(trace, "fix__fix"))
         self.assertTrue(self.ran(trace, "report__report"))
+
+
+class HeldPushTest(unittest.TestCase):
+    """#593 の受け入れ: 唯一の単位の出どころが推しつきの保留の問い（fork・held）の無人の run は修正の段まで進み、報告に推しで採った行が
+    出る。推しの無い問いでは修正へ進まずに止まり、報告の冒頭で名指す。dry-run は計画のブロックの script を走らせず置き場にファイルを
+    書けない（docs/design.md の U3）ので、筋書き unattended-held-push・unattended-held-no-push の線の道を trace で照らし、判定の中身と
+    道が合うことは、判定を計画と同じ口（planfile.read_judgment・plan_slots）で数えて plan-out の nothing_owed と突き合わせる。報告は
+    筋書きの collect の値のまま、判定の指し札の先に判定を置いて本物の facts を走らせ直す"""
+
+    UNIT = {"key": "u1", "label": "block", "reason": "空の列の mean が 0 割りで落ちる"}
+    QUESTION = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["例外", "0"],
+                "reason": "空の列で例外を投げるか 0 を返すかが割れる"}
+    PUSHED = {**QUESTION, "reason": QUESTION["reason"] + "。推し: 例外——呼び手が既に例外を捕まえている"}
+    RECORD = {"unattended": "true"}
+
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = line_traces(("unattended-held-push", "unattended-held-no-push"))
+
+    def judgment(self, question) -> dict:
+        return {"units": [self.UNIT], "questions": [question]}
+
+    def owed(self, question) -> set:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "judgment.json"
+            path.write_text(json.dumps(self.judgment(question), ensure_ascii=False), encoding="utf-8")
+            judgment, why = planfile.read_judgment("x", self.RECORD, lambda _: path)
+            self.assertEqual(why, "")
+            return planfile.plan_slots(judgment)[0]
+
+    def report(self, name, question) -> str:
+        trace = self.traces[name]
+        ptr = bound(trace, "$judge.output.judgment")
+        return report_facts(trace, record=self.RECORD, files={ptr["path"]: self.judgment(question)})["text"]
+
+    def test_pushed_question_goes_to_fix_and_names_the_take(self):
+        trace = self.traces["unattended-held-push"]
+        self.assertEqual(self.owed(self.PUSHED), {"u1"})
+        self.assertIs(json.loads(trace["plan-out"]["output"])["nothing_owed"], False)
+        self.assertTrue(UnattendedGateTest.ran(trace, "fix__fix"))
+        self.assertFalse(UnattendedGateTest.ran(trace, "design-only__review"))
+        text = self.report("unattended-held-push", self.PUSHED)
+        self.assertIn("無人の run で推しを採って答えた台帳の問い: q1", text.split("\n\n", 2)[1].splitlines()[0])
+        self.assertIn("無人の run で推しを採って答えた（問いの台帳の問い q1）: 推し: 例外", text)
+        self.assertNotIn("保留にしたままの問い", text)
+
+    def test_question_without_a_push_stops_before_fix_and_heads_the_report(self):
+        trace = self.traces["unattended-held-no-push"]
+        self.assertEqual(self.owed(self.QUESTION), set())
+        self.assertIs(json.loads(trace["plan-out"]["output"])["nothing_owed"], True)
+        self.assertFalse(UnattendedGateTest.ran(trace, "fix__fix"))
+        self.assertTrue(UnattendedGateTest.ran(trace, "design-only__review"))
+        head = self.report("unattended-held-no-push", self.QUESTION).split("\n\n", 2)[1]
+        self.assertIn("保留にしたままの問い 1 件", head)
+        self.assertNotIn("推しを採って", head)
 
 
 class ProtectedNotAppliedTest(unittest.TestCase):
@@ -486,16 +542,19 @@ class RefixInputsTest(unittest.TestCase):
         self.assertEqual(bound(trace, self.nodes["eyes"]["with"]["x_scalars"]), {"x_moved_lines": 3})
 
 
-def report_facts(trace: dict) -> dict:
-    """筋書きの trace の collect の値のまま本物の report の facts を走らせた返りと、事実のファイルの本文 text（ReportOutcomeTest の訳）"""
+def report_facts(trace: dict, *, record=None, files=None) -> dict:
+    """筋書きの trace の collect の値のまま本物の report の facts を走らせた返りと、事実のファイルの本文 text（ReportOutcomeTest の訳）。
+    record は始めの記録に足す欄、files は置き場に置く控え {置き場からのパス: 中身}（dry-run が置けない指し札の先）"""
     with_ = {n["id"]: n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]}["report"]["with"]
     start = bound(trace, with_["start"])
     with tempfile.TemporaryDirectory() as tmp:
         artifacts = pathlib.Path(tmp)
         run_id = (start or {}).get("run_id") or "dry-run"
         if start:
-            (artifacts / start["path"]).parent.mkdir(parents=True, exist_ok=True)
-            (artifacts / start["path"]).write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
+            files = {**(files or {}), start["path"]: {"run_id": run_id, **(record or {})}}
+        for rel, doc in (files or {}).items():
+            (artifacts / rel).parent.mkdir(parents=True, exist_ok=True)
+            (artifacts / rel).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         env = hermetic.child_env(ARTIFACTS_DIR=str(artifacts), WORKFLOW_ID=run_id, TYPED_ARTIFACTS_FILE="", LOG_DIR="",
                                  WORKS_FACTORY_ROOT=str(archon.WORKFLOWS.parent))
         for key, value in with_.items():

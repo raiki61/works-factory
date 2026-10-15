@@ -140,8 +140,8 @@ def plan_view(place, plan=None, judgment=None, round_: int = 1):
 def owed_units_but_asked(place, owed, *, withheld=(), returned=()) -> set:
     """直す義務の単位: owed（開いた単位から、人に諮っている fork の出どころ・depends を除いた物。元は盤面の写しの規則の
     _owed_units）から、関所に載せる問いのうち答えていない物の出どころ・depends（withheld。元は gatemarks.withheld）を除き、
-    修正前の関所で人が答えた問いの出どころ・depends（returned。元は gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位
-    （conflict.held_by_rulings。ask_human・fix_plan_item）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
+    修正前の関所か依頼の answers で答えた問いと、無人の run が判定の推しを採った問いの出どころ・depends（returned。元は
+    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（conflict.held_by_rulings。ask_human・fix_plan_item）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
     元 works/.shared/core/conflict.py:676（盤面の b.state["graph"] の規則と b.record の問いを読んだ）"""
     import conflict
     got = (set(owed) - set(withheld)) | set(returned)
@@ -2477,12 +2477,16 @@ def gate_view(place):
     """gatemarks の問いの口（asks・answered・pending・withheld_by・returned・duty・returned_lines）に渡す値の見え方（gatemarks.ledger）:
     置き場の判定の写しの questions・units、始めの記録の写しの依頼の answers、関所の答え answers.json（{decision, text, asked}。asked は
     人が見た関所の行）、判定の結びと素材の状態の写し（answer-ties.json・materials.json。prep が判定の隣から写す。無ければ字の一致だけ）。
+    始めの記録の写しが無人の run なら、判定の推しつきの fork・held を答えとして数える（gatemarks.run_push）。
     元は盤面の b.record と写しの検証器を読んだ"""
     import gatemarks
+    import gatepolicy
     p = pathlib.Path(place)
     judgment = read_json(p / JUDGMENT_FILE)
+    start = startrec.read(p)
     return gatemarks.ledger_beside(p, judgment if isinstance(judgment, dict) else {},
-                                   answers=startrec.read(p).get("answers") or [], gate=read_json(p / ANSWERS_FILE))
+                                   answers=start.get("answers") or [], gate=read_json(p / ANSWERS_FILE),
+                                   takes_push=gatepolicy.unattended_of(start))
 
 
 def gate_asks(place) -> tuple:

@@ -24,6 +24,7 @@ inputs:
   plan_questions: {default: "null", description: "修正前の承認ノードの項目 {kind, text}"}
   answers: {default: "null", description: "修正前の承認ノードの答え"}
   start_answers: {default: "null", description: "始めの承認ノードの答え（独立設計に貼られる人の答えと同じ物）"}
+  ties_judgment: {default: "null", description: "判定の結び（answer-ties.json）を隣から読む 1 回目の判定のポインタ。null なら judgment の隣"}
   x_scalars: {default: "null", description: "修正役が足した x_ の規模の数値。JSON の object"}
 
 returns: verdict

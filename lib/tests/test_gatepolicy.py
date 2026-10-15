@@ -62,6 +62,12 @@ class ReadCase(unittest.TestCase):
             self.assertEqual(gp.final_mode(d), gp.ALWAYS)
             self.assertFalse(gp.unattended(d))
 
+    def test_reads_the_start_record_dict(self):
+        """報告と台帳の見え方は始めの記録の dict から同じ式で読む（無い・欄が無いなら人の居る run）"""
+        self.assertTrue(gp.unattended_of({gp.UNATTENDED_KEY: gp.UNATTENDED}))
+        self.assertFalse(gp.unattended_of({}))
+        self.assertFalse(gp.unattended_of(None))
+
     def test_unknown_mode_in_record_is_an_error(self):
         """入口が確かめた語の外が記録に在れば配線の誤り（黙って always に倒さない）"""
         with tempfile.TemporaryDirectory() as d:

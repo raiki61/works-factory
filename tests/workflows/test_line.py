@@ -1630,7 +1630,8 @@ class AskFinalReadsCase(Artifacts):
         field = {**self.FORK, "key": "parallel_pr: 重なり", "kind": "field", "status": "escalate", "origin": ""}
         self.assertEqual(self.held([field], answers=[{"question": "parallel_pr", "text": "a"}],
                                    materials={"parallel_pr": {"status": "not_run"}}), [])
-        self.assertEqual(line_nodes()["ask-final"]["with"]["ties_judgment"], "$fix-in.output.judgment")
+        for node in ("ask-final", "eyes"):   # 目は無人の run が採った推しを同じ台帳の読みで R4 の記録された方針に足す
+            self.assertEqual(line_nodes()[node]["with"]["ties_judgment"], "$fix-in.output.judgment", node)
 
     def test_answered_unit_missing_from_the_judgment_is_said(self):
         got = self.held([self.FORK], answers=[{"question": "q1", "text": "a"}], units=())
@@ -2392,6 +2393,16 @@ class RedepthCase(Artifacts):
         got = self.redepth(signals=redepth.pending_signals(judgment, start, answer, judgment))
         self.assertEqual(got["depth"][0]["depth"], "標準")
         self.assertIn("答えていない問い q2", got["raised"])
+
+    def test_unattended_run_does_not_raise_for_a_taken_push(self):
+        """#593: 無人の run が判定の推しを答えに採った fork・held は答えた問い（始めの記録から ledger_at が読む）なので上げない。
+        人のいる run では同じ問いが答えていない問いのまま上げる"""
+        pushed = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "a か b か。推し: a——速い"}
+        judgment = self.put("judge/judgment.json", {"units": [{"key": "u1", "label": "block"}], "questions": [pushed]})
+        for record, want in (({"unattended": "true"}, []), ({}, ["答えていない問い q1"])):
+            with self.subTest(record=record):
+                start = self.put("r1/start.json", record)
+                self.assertEqual(redepth.pending_signals(judgment, start, None, judgment), want)
 
     def test_wide_run_raises_to_standard(self):
         """L-D10: run 全体の広さ（計画の allowed_paths と修正の実際の差分のファイルの和集合・受け入れと書き換えのテストの本数。
