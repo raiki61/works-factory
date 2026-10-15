@@ -1146,10 +1146,10 @@ D の数: 31 行 / 今が無し 5（F312・F321・F329 と、本物の run で�
 
 置き場（本物の run の記録）: 親（線の include `fix`）の置き場は `<run の成果物>/fix/fix/`。prep が `groups.json`（{groups, count, par, start_tree, out_dir}）・`base-rev.json`・`fix-ignored-before.json` と入力の写しを書き、子は `out_dir/<group_id>/result.json`、join が `join.json` と `join/<group_id>.diff`、戻せた組の TDD の状態を `tdd-<k>/`、assert-changed が `assert-changed.json`、clean が `fix-removed.json`、tdd-unit が `tdd-unit.json`（型つきの成果物 tdd-unit）。2 回目の修正（include `refix`）は `fix/refix-run/`。返りは節 `fix` の出力。種（stats.py の mean と clamp）の健全な run の見込み: 修正案が 2 つの欠陥を別の項目にし、範囲が交わらなければ組は 2 つ（`fixboard.fix_groups` は項目を共にする単位と、範囲（allowed_paths）が交わる項目の単位をつなぐ。同じファイルを触る 2 つの項目は同じ組）。Archon は run の作業ツリーを切るのに remote を要する（下の F404）ので、本物の run の対象には remote が在り、組が 2 つなら並べ（groups-par）、1 つなら 1 つずつ（groups-seq）になる。
 
-- F400 直す義務の単位を、承認済みの修正案の項目を共にする物どうし（推移的）の組に分け、組の中と組の並びは義務の順にする。項目の無い単位は 1 つで 1 組
+- F400 直す義務の単位を、承認済みの修正案の項目を共にする物どうしと、範囲が交わる項目の単位どうし（推移的）の組に分け、組の中と組の並びは義務の順にする。項目の無い単位は 1 つで 1 組
   - 元: works/blk-fix/lib/tddlanes.py:126・131 `items_of`・`groups`、works/blk-fix/lib/lanekit.py `groups`
   - 今: 表
-  - 証: lib/tests/test_fix_seams.py::LanekitSeamCase.test_groups_units_sharing_items_transitively_in_input_order、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_fix_groups_join_units_through_items、tests/workflows/test_fix.py::BlockScriptsCase.test_prep_two_groups_run_side_by_side
+  - 証: lib/tests/test_fix_seams.py::LanekitSeamCase.test_groups_units_sharing_items_transitively_in_input_order、lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_fix_groups_join_units_through_items・lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_fix_groups_join_items_whose_ranges_meet・lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_fix_groups_join_items_whose_test_files_meet、tests/workflows/test_fix.py::BlockScriptsCase.test_prep_two_groups_run_side_by_side
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 親の置き場の `groups.json` の groups[]（unit_ids・items）と節 prep の出力）
   - 狭め: 無し
 
@@ -1219,9 +1219,9 @@ D の数: 31 行 / 今が無し 5（F312・F321・F329 と、本物の run で�
 - F410 当たらない組（先の組と同じ行を変えた）は当てず、先の組を残して後の組を returned: false と理由にする
   - 元: works/.shared/core/unittrees.py（test_same_line_second_does_not_apply_and_tree_keeps_first）、works/blk-fix/lib/tddlanes.py（TestSettle.test_clashing_apply_goes_back_to_serial）
   - 今: 表
-  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_keeps_first_when_second_clashes
+  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_keeps_first_when_second_clashes・tests/workflows/test_fix.py::ClashScenarioCase.test_join_text_clash_is_redone_on_the_current_tree（後の組を合わせのループで直し直す）
   - 本物の run: 筋書きでのみ（種の 2 つの直しは別の行）
-  - 狭め: 元は戻した枝の単位を順の輪（直列の修正の輪）でもう一度直した（tddlanes の「back to serial」）。今は当たらない組の単位は not_done で返り、同じ run の中で直し直す道が無い（裁定の後の修正 fix-ruled は申し出のある単位だけ）。#94 は列と順の輪を外すと書くが、戻した組を直し直さないことは「能力の狭め」に無い。Archon で不可でない（join の後に 1 つずつの子の run を起こす fan_out をもう 1 つ置ける）→ 持ち主の確かめ待ち
+  - 狭め: 元は戻した枝の単位を順の輪（直列の修正の輪）でもう一度直した（tddlanes の「back to serial」）。今は順の輪で直し直さず、当たらない組を join が合わせの控え（`clash.json` の `kind: text`）に積み、合わせのループ（`lib/clash.py::stage`）が親の今の作業ツリーへ食い違いの印つきで当て直して、合わせ役がその組の変えたファイルの中だけで直す。直せなければ組どうしの合わせの申し出として裁定役へ、裁定でも直せなければ人へ回り、黙って not_done にはならない（#598）。順の輪で直し直さないことは持ち主の確かめ待ち
 
 - F411 当てた後に、前の組とも重なったファイルの名指しのテストの中身が子の終わりの木と同じかを照らし、その組で赤 → 緑を確かめた名指しと変えたファイルに当たる試験を親の木で走らせ直す。走らない・名指しが結末に居ない・赤なら、その組の当てたパスを戻して returned: false
   - 元: works/blk-fix/lib/tddlanes.py:688 `_green_after`（当てた単位の名指し全部と変更に直に関わる試験。重なりのファイルが在れば地図が届く試験の全部も足す。test_cmd の関門が on なら test_cmd も 1 回）

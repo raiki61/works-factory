@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """合わせのループの頭（ノード clash-prep・clash-ruled-prep。入力 pass は first か ruled、limit はループの max_iterations）: 段で扱う組
-（clash.todo。first は組を当てるノードが確かめ直しの赤で戻した組、ruled はその申し出が直す裁定を受けた組）の先頭を控えの差分から
+（clash.todo。first は組を当てるノードが確かめ直しの赤で戻した組と字で当たらなかった組、ruled はその申し出が直す裁定を受けた組）の先頭を控えの差分から
 作業ツリーへ当て直し（clash.stage）、合わせ役の材料と指示書を組んで置き場に書く（clash.brief・clash.prompt。決まりは
 commands/fix-rules/clash.md。この組の前の回の拒否が在れば、拒否の理由の全部のファイルを 1 行目で名指す）。
 当て直せない組は合わせ役を起こさずに申し出へ回し（clash.settle_parked）、次の組へ進む。扱う組が無ければ go: false。

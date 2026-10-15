@@ -186,8 +186,8 @@ nodes:
     mutates_checkout: false
     timeout: 1728000000
 
-  # 合わせのループ（持ち主の決め clash-goes-to-ruling）。join が確かめ直しの赤で戻した組を 1 つずつ当て直し、合わせ役がその組の変えた
-  # ファイルの中だけで直す。受け付けは修正役と同じ軸。直せなければ当て直す前の木へ戻し、組どうしの合わせの申し出を裁定役へ回す。
+  # 合わせのループ（持ち主の決め clash-goes-to-ruling）。join が確かめ直しの赤で戻した組と字で当たらなかった組を 1 つずつ当て直し（字の
+  # 食い違いは印つき）、合わせ役がその組の変えたファイルの中だけで直す。受け付けは修正役と同じ軸。直せなければ当て直す前の木へ戻し、組どうしの合わせの申し出を裁定役へ回す。
   # max_iterations は 3 組 × 3 回（上限の周の受け付けが残りの組を申し出へ回して抜ける。with: limit と同じ値）。周ごとに組が替わりうるので
   # 毎周新しい会話にする（tdd-loop と同じく、単位が替わる周は前の会話を継がない）。同じ組の出し直しは、指示書が前の回の拒否の理由を名指して渡す。
   # 確かめ直しは並べた run だけが持つ（join）ので、並べない run では回さない（子が落ちて順の並べの節が止まった run で支度を起こさない）
@@ -1596,7 +1596,7 @@ nodes:
               reason: {type: string}
               backed_out: {type: array, items: {type: string}}
               unrestored: {type: array, items: {type: string}}
-              # 合わせのループの結末（join が確かめ直しの赤で戻した組だけ）: 合わせ役が直して当てた（repaired）か、申し出へ回した（parked）か
+              # 合わせのループの結末（join が確かめ直しの赤で戻した組と字で当たらなかった組だけ。後者は backed_out を持たない）: 合わせ役が直して当てた（repaired）か、申し出へ回した（parked）か
               clash:
                 type: object
                 additionalProperties: false
