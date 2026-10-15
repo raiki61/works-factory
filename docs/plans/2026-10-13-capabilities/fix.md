@@ -331,7 +331,7 @@
 
 ## B. 修正役と修正の受け付け（F100〜）
 
-置き場（本物の run の記録）の読み方: 組の子の run は自分の run の成果物の置き場の `fix/fix/` に書き（`workflows/.shared/boundary.py` `place`）、結果を親の置き場の `out_dir/<group_id>/result.json` に書く。裁定の後の修正（fix-ruled）は親の置き場 `fix/fix/` で回る。2 回目の修正（線の include `refix`）は `fix/refix-run/`。受け付けの拒否の理由は置き場の `reject-<節>-<k>.md`（`lib/fixboard.py` の `REJECT_NAME`）、trace の行は `trace.jsonl`（`lib/fixboard.py:38`）。種（`tests/e2e/target-seed`、stats.py の mean と clamp の 2 つの欠陥）の健全な run は、修正役が 1 回で受け付けを通る筋になりやすく、拒否・諦め・はみ出しの道は通らない。
+置き場（本物の run の記録）の読み方: 組の子の run は自分の run の成果物の置き場の `fix/fix/` に書き（`workflows/.shared/boundary.py` `place`）、結果を親の置き場の `out_dir/<group_id>/result.json` に書く。裁定の後の修正（fix-ruled）は親の置き場 `fix/fix/` で回る。2 回目の修正（線の include `refix`）は `fix/refix-run/`。受け付けの拒否の理由は置き場の拒否の控え `rejects-<節>.json`（全部を `rejects-<節>.md` に書いて次の回に名指す。`lib/rolekit.py` の `accept_round`）、trace の行は `trace.jsonl`（`lib/fixboard.py:38`）。種（`tests/e2e/target-seed`、stats.py の mean と clamp の 2 つの欠陥）の健全な run は、修正役が 1 回で受け付けを通る筋になりやすく、拒否・諦め・はみ出しの道は通らない。
 
 - F100 修正役が出す前に使う事前の確かめのコマンド（受け付けと同じ口で範囲・書き込み・凍結を乾いた形で当て、置き場を書かない）を持つ
   - 元: works/blk-fix/lib/factchecks.py:218 `precheck`・:238 `main`（rules/direct.md が名指す）
@@ -358,7 +358,7 @@
   - 元: 無し（元は記録が在る前提。記録の無い run は通して trace に 1 行だけ。works/blk-fix/scripts/accept.py:12-17）
   - 今: 表
   - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_undeclared_change_is_rejected、tests/workflows/test_fix.py::FixLoopScriptsCase.test_tdd_loop_writes_are_not_the_fixers、lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_undeclared_writes_bind_to_changes_and_bash_writes
-  - 本物の run: 修正役が申告外のファイルを書いた時だけ `reject-fix-accept-<k>.md` に UNDECLARED の行 → 健全な run では現れない（筋書きでのみ）。通った時は組の子の `fix/fix/` に `fix-head.json`（段の頭の木）が在る
+  - 本物の run: 修正役が申告外のファイルを書いた時だけ `rejects-fix-accept.md` に UNDECLARED の行 → 健全な run では現れない（筋書きでのみ）。通った時は組の子の `fix/fix/` に `fix-head.json`（段の頭の木）が在る
   - 狭め: 無し（記録の代わりの縛り。上の F102 の狭めの埋め）
 
 - F104 申告の bash_writes は、受けた返答・盤面に渡す返答から外す（拒む時も）。2 回目の修正の段は 1 回目に受けた返答の控えの bash_writes を申告に足す
@@ -435,7 +435,7 @@
   - 元: review-loop.py:2658-2673 `fix_covers_open_units`
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::RecountSeamCase.test_rejects_uncovered_owed_unit
-  - 本物の run: 筋書きでのみ（拒否は reject-fix-accept-<k>.md）
+  - 本物の run: 筋書きでのみ（拒否は rejects-fix-accept.md）
   - 狭め: 無し
 
 - F115 修正が在るのに fix_closure が「黙って通る値」（判定の SILENT_STATUS の表から引く）なら拒む
@@ -554,14 +554,14 @@
   - 元: works/blk-fix/scripts/accept.py:5-6・`rejected`、review-loop.py:2658 の docstring
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_reject_text_follows_the_check_order
-  - 本物の run: 拒否の時の置き場 `reject-fix-accept-<k>.md`（健全な run では現れないことが多い）
+  - 本物の run: 拒否の時の置き場 `rejects-fix-accept.md`（健全な run では現れないことが多い）
   - 狭め: 無し
 
 - F132 拒否の理由をファイルに書き、輪の拒否の全部（古い順）を 1 つのファイルにまとめて次の回の指示書の 1 行目の後に名指す（役が Read で読む）
   - 元: works/blk-fix/lib/fixrules.py `last_reject`・REJECT_FN、works/.shared/core/rolekit.py:64 `REJECT_LINE`。元は最後の拒否だけを名指したが、拒まれた役は同じ会話の続きで起きた（works/.shared/core/graphloops/engine/role_run.py:19-20）
   - 今: 表
   - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit、lib/tests/test_fix_seams.py::RulebookSeamCase.test_render_heads_rejects_and_lang、tests/workflows/test_fix.py::DeltaScriptsCase.test_third_refix_prompt_names_every_reject_of_the_loop（#345）
-  - 本物の run: 拒否が在れば置き場の `reject-fix-accept-<k>.md`・`rejects-fix-accept.md` と次の回の修正役の指示書の 2 行目
+  - 本物の run: 拒否が在れば置き場の `rejects-fix-accept.json`・`rejects-fix-accept.md` と次の回の修正役の指示書の 2 行目
   - 狭め: 無し
 
 - F133 修正の受け付けの 3 回目の拒否: 拒否の行を単位に結び（申し出の行は申し出た単位、ほかは文が名指す単位・足跡・届く試験）、結んだ単位を足跡を共にする単位と一緒に段の頭の木へ戻して控えの patch に移し、ask_human の裁定つきで止め、残りの単位で頭から通し直す（keep-essence の 4 の後半）
@@ -921,7 +921,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
 
 ## D. 修正の差分の審査・レンズ・手直し（F300〜）
 
-置き場（本物の run の記録）: 差分の審査・レンズ・手直しはブロックの形（mode ""）の親の run だけで回り、置き場は親の run の成果物の置き場の `fix/fix/`（2 回目の修正の include なら `fix/refix-run/`）。主なファイルは `loop-fix_delta.json`（1 回目の差分）・`review1-brief.json`（審査役の材料）・`review1-seat.md`（task-review の座）・`out-p3.delta_review.json`（受けた審査）・`delta-verdicts.json`（準拠と品質の 2 判定）・`delta/review-1.json`・`delta/review-2.json`（{pass, owed, reply_file}）・`delta/skipped.json`（軽量で省いた理由）・`depth-raised.json`・`lens.json`・`prompt-lens-<key>.md`・`refix1-brief.json`・`refix1-head.json`・`reject-<節>-<k>.md`。種（stats.py の 2 つの欠陥）を厚み「標準」で回すと、計画の深さが全部の単位で標準に固定される（lib/depth.py の forced の語。lib/tests/test_depth.py::DecideCase.test_forced_word_fixes_every_unit）ので、assert-changed が通れば差分の審査は健全な run でも必ず走る。手直し（refix）は審査役が穴を挙げた時だけ起きる。
+置き場（本物の run の記録）: 差分の審査・レンズ・手直しはブロックの形（mode ""）の親の run だけで回り、置き場は親の run の成果物の置き場の `fix/fix/`（2 回目の修正の include なら `fix/refix-run/`）。主なファイルは `loop-fix_delta.json`（1 回目の差分）・`review1-brief.json`（審査役の材料）・`review1-seat.md`（task-review の座）・`out-p3.delta_review.json`（受けた審査）・`delta-verdicts.json`（準拠と品質の 2 判定）・`delta/review-1.json`・`delta/review-2.json`（{pass, owed, reply_file}）・`delta/skipped.json`（軽量で省いた理由）・`depth-raised.json`・`lens.json`・`prompt-lens-<key>.md`・`refix1-brief.json`・`refix1-head.json`・`rejects-<節>.json`・`rejects-<節>.md`。種（stats.py の 2 つの欠陥）を厚み「標準」で回すと、計画の深さが全部の単位で標準に固定される（lib/depth.py の forced の語。lib/tests/test_depth.py::DecideCase.test_forced_word_fixes_every_unit）ので、assert-changed が通れば差分の審査は健全な run でも必ず走る。手直し（refix）は審査役が穴を挙げた時だけ起きる。
 
 - F300 修正だけの差分（run の始めの木 → 今の作業ツリー。未追跡を含み、.gitignore に当たる物・バイトコードは除き、日本語のファイル名も拾う）を切って置き場に置く
   - 元: works/.shared/core/graphloops/rules/review-loop.py:1567 `fix_delta`、works/blk-delta/scripts/cut.py
@@ -948,7 +948,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 元: review-loop.py:3141-3171 `delta_review_output`
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::DeltaSeamCase.test_delta_review_problems_check_where_cite_and_checks、tests/workflows/test_fix.py::DeltaScriptsCase.test_third_rejection_gives_up_and_unknown_keys_are_rejected
-  - 本物の run: 拒否が在れば `reject-delta-accept-<k>.md`。健全な run は通って `out-p3.delta_review.json` が在る
+  - 本物の run: 拒否が在れば `rejects-delta-accept.md`。健全な run は通って `out-p3.delta_review.json` が在る
   - 狭め: 無し
 
 - F304 差分の審査の穴の kind が事前審査だけの語（regression・policy は後の工程が人に聞く、precedent は判定者の先行例が渡っていない）なら拒む
@@ -983,7 +983,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 元: review-loop.py:3174-3184 `delta_fix_output`
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::DeltaSeamCase.test_delta_fix_problems_answer_every_owed_key_once
-  - 本物の run: 手直しが起きた run の `reject-refix-accept-<k>.md`（拒否時）・`out-p3.delta_fix.json`
+  - 本物の run: 手直しが起きた run の `rejects-refix-accept.md`（拒否時）・`out-p3.delta_fix.json`
   - 狭め: 無し
 
 - F309 手直しの変更のうち、修正の段が触ったファイル（1 回目の差分の files）の外を承認済みの修正案の項目の範囲で照らし、外れを拒む（修正の段の変更は手直しのせいにしない）

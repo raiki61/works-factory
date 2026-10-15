@@ -1609,14 +1609,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-report/blk-report.yaml（書き手の輪）、works/blk-report/lib/report_roles.py:290 `prep`・:328 `write_cold_prep`
   - 今: 表
   - 証: tests/workflows/test_report.py::ShapeCase.test_roles・tests/workflows/test_report.py::ShapeCase.test_writer_receives_the_reject_file_through_the_reject_node・tests/workflows/test_report.py::ShapeCase.test_loop_gives_up_with_the_roles_count
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__write-loop.write`・`report__write-loop.cold`・`report__write-loop.accept` の出力、report/reject-<n>.md（拒んだ回だけ））
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__write-loop.write`・`report__write-loop.cold`・`report__write-loop.accept` の出力、report/rejects-report.md（拒んだ回だけ））
   - 狭め: 無し（輪の頭の script の節は #100 の直し。Archon の include の読み込みが with: で結んだ名を入力の欠けと数えるため: packages/workflows/src/include-expander.ts:566-579）
 
 - R61 受け付けの順: 読む → terms の型 → 表のセルの書式（「。」か 50 字超で拒む。`コード` は数えない）→ 初見の判定。拒否の行に種類（cold・format・answer）。3 回拒めば受け取れなかった訳。初見だけが通さない時は 3 回目に受け取り、通らなかった事実（`report_roles.NOT_PASSED`）を機械の事実の拒みの数の行に 1 行で残す（#495 で本文の頭から移した）
   - 元: works/blk-report/lib/report_roles.py:429 `accept`・:381 `format_problems`・:510 `count_rejects`
   - 今: 表
   - 証: lib/tests/test_runreport.py::AcceptCase.test_pass_is_taken・lib/tests/test_runreport.py::AcceptCase.test_cold_rejects_twice_then_takes_with_mark・lib/tests/test_runreport.py::AcceptCase.test_format_and_terms_rejected_first・lib/tests/test_report_roles.py::FormatCase・lib/tests/test_report_roles.py::RejectCountRowsCase.test_rows_without_kind_count_as_unknown・tests/workflows/test_report.py::AcceptScriptCase.test_cold_redesign_three_times
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report-rejects.json・report/ai.json の not_passed）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/rejects-report.json・report/ai.json の not_passed）
   - 狭め: 元の「作業ツリーを変えた返答を拒む」は Archon の `mutates_checkout: false`（packages/workflows/src/dag-executor.ts:1244-1280。変えた節を落とす）と書き手の道具の制限に置き換わった。拒んで書き直させる代わりに輪が落ちて AI の報告が出ない。書き手は書く道具を持たない（works-factory-report.yaml:78）ので実害は無い
 
 - R62 初見の読み手に貼る本文は書き手の頭（見出しの前と「人が決めること」の節）と語の定義の節だけ。読み手には機械の事実の見出しの名を知らせる
@@ -1741,8 +1741,8 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:713 `_accept_last_files`・:732-749
   - 今: 表
   - 証: lib/tests/test_runreport.py::CarryCase.test_last_reject_text_is_a_prior_failure・lib/tests/test_runreport.py::CarryCase.test_line_stop_words_are_prior_failures
-  - 本物の run: 筋書きでのみ（judge/・plan/・fix/fix/ の reject-<節>-<回>.md）
-  - 狭め: 判定: 戻せる。各ブロックの受け付けは拒否の訳を自分の置き場に reject-<節>-<回>.md で残す（例 workflows/fix/scripts/fix_accept.py:10・workflows/fix/scripts/rule_accept.py:6）。置き場は返りの指し札（judgment・plan・diff）と同じフォルダ。名の決まりを約束の隣のファイルに足すか、返りに最後の拒否の指し札を足す。Archon で不可でない → 戻す → 部分 C で戻した（返りの指し札の先のフォルダの下を探す。名の決まりは各ブロックの受け付けのまま）
+  - 本物の run: 筋書きでのみ（judge/・plan/・fix/fix/ の rejects-<節>.json の最後の行。前の版の run は reject-<節>-<回>.md）
+  - 狭め: 判定: 戻せる。各ブロックの受け付けは拒否の訳を自分の置き場の rejects-<節>.json に積む（新しい run。前の版の run は reject-<節>-<回>.md。例 workflows/fix/scripts/fix_accept.py:10・workflows/fix/scripts/rule_accept.py:6）。置き場は返りの指し札（judgment・plan・diff）と同じフォルダ。名の決まりを約束の隣のファイルに足すか、返りに最後の拒否の指し札を足す。Archon で不可でない → 戻す → 部分 C で戻した（返りの指し札の先のフォルダの下を探す。名の決まりは各ブロックの受け付けのまま）
 
 - R79 世界の解の段が落ちた訳と落とした抜き書きの数（world-state.json の reason・dropped）
   - 元: works/.shared/core/worldmark.py:265-277 `report_lines`（「類 N・落とした抜き書き M」）
@@ -1791,7 +1791,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 5. 方針の文書の変化（R75）: 戻せる（plan-review/policy.json と boardview.policy_change）→ #68 の主張は誤り
 6. 再審の往復の数と周の名（R76）: 戻せる（rejudge/rejudge-exit.json）→ #68 の主張は誤り
 7. answer_ties（R77）: 戻せる（judge/answer-ties.json）→ 約束の隣のファイルに足す
-8. 受け付けの最後の拒否の本文（R78）: 戻せる（各ブロックの置き場の reject-*.md）→ 名の決まりか指し札を約束に足す
+8. 受け付けの最後の拒否の本文（R78）: 戻せる（各ブロックの置き場の rejects-*.json の最後の行（前の版の run は reject-*.md））→ 名の決まりか指し札を約束に足す
 9. 世界の解の段の訳と落とした数（R79）: 戻せる（judge/world-state.json）→ #68 の主張は誤り
 10. 並行 PR の申し送りの下書き（R80）: 戻せる（judge/material-pr-check.json）→ #68 の主張は誤り
 11. 来歴の表の版（R81）: 表は対象が無い（正しい）。線の版は start で控えれば戻せる → 決めた: 報告の側（stamp が versions.line を読む）は #124 で入れた。線の側（workflows/line/scripts/start.py の versions に line を足す）は持ち主の手に渡した

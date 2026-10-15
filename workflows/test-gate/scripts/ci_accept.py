@@ -6,7 +6,7 @@
 ci-prep の時刻（ci-snapshot.json の prepared_at）より後にこの作業ツリーで柵の掛かった起動が在ったかを見て、無ければ返答を受けず回数を待たずに
 諦める（今の works の ci_role.take と同じ所。棚卸しの T49）。役の前後の作業ツリーの姿（ci-prep の ci-snapshot.json と今。accept.tree_moved。
 HEAD・枝・git が無視するパスも見る。with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない）を比べ、素材の欄の決まり（declared_checks.role_material_problems）を照らす。通れば素材を
-test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit の控えに積む）、役が自分で置きうる ci-material.json を消し、
+test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit.accept_round が控えに積む。控えが読めない・書けない時も落ちずに done・give_up）、役が自分で置きうる ci-material.json を消し、
 rolekit.GIVE_UP_AFTER 回目の拒否で done・give_up（輪を max_iterations で落とさない）。終わる時（通った・諦めた）に写しを消す"""
 import json
 import os
@@ -52,8 +52,7 @@ def main() -> int:
     snap = json.loads((gate / "ci-snapshot.json").read_text(encoding="utf-8"))
     keys = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
     judged = judge(gate, root, snap, os.environ["INPUTS_REPLY"], mode, keys, records=os.environ.get(fence.RECORDS_ENV, ""))
-    give_up = judged.pop("give_up", False)
-    out = rolekit.with_done(gate, declared_checks.CI_ROLE, judged, give_up=give_up)
+    out = rolekit.accept_round(gate, declared_checks.CI_ROLE, None, lambda _: judged)   # give_up は judged の欄で渡す
     if not out["ok"]:
         (gate / "ci-material.json").unlink(missing_ok=True)
     if out["done"]:

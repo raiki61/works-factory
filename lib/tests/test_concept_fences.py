@@ -220,6 +220,8 @@ class FenceCase(unittest.TestCase):
         "start-record": ['NAME = "start.json"'],
         "human-gates": ['FINAL_GATES = ("always", "when_needed", "protected_only")', "import gatepolicy as gp"],
         "gate-evidence": ['RUN_ROW, LOG_ROW = "- 走らせ方: ", "- ログ: "'],
+        "accept-round": ["out = rolekit.with_done(d, name, got)", "if iteration >= GIVE_UP_AFTER:",
+                         'REJECTS_FILE = "report-rejects.json"', "GIVE_UP_AFTER = 3"],
     }
 
     def test_every_home_fence_hits_its_line(self):
@@ -261,6 +263,39 @@ class FenceCase(unittest.TestCase):
                 self.assertNotEqual(cf().verdict(more, fence["known"]), [])
         for line in ('return {"prior_failures": None}', 'VALUES = ("prior_failures", "redepth")'):
             self.assertEqual(cf().count_lines(line, fence, "lib/x.py"), 0, line)
+
+    def test_accept_round_arms_catch_each_injected_regression(self):
+        """受け付けの回の住処 rolekit.accept_round の 4 本の腕が、それぞれの形を 1 行ずつ数える。入口は lib/ と workflows/fix/scripts/ の
+        2 つ。住処の外に足すと本物の木の verdict が赤になる。当たらない行（持ち主の定数の参照・別名・別のサブシステムの文のファイル）は 0 件"""
+        table = cf().load(LIB.parent)
+        self.assertIn("accept-round", table["concepts"])
+        concept = table["concepts"]["accept-round"]
+        self.assertEqual(concept["status"], "住処あり")
+        arms = concept["fences"]
+        self.assertEqual([f["known"] for f in arms], [{}, {}, {}, {}])
+        injected = [
+            (0, "out = rolekit.with_done(d, name, got)"), (0, "def counted(d, name, got):"), (0, "def accept_round(board, name, raw, take):"),
+            (1, "if iteration >= GIVE_UP_AFTER:"), (1, "if len(rows) < rolekit.GIVE_UP_AFTER - 1:"), (1, "return n >= GIVE_UP_AFTER"),
+            (2, 'REJECTS_FILE = "report-rejects.json"'), (2, 'REJECT_NAME = "reject-{name}-{k}.md"'),
+            (3, "GIVE_UP_AFTER = 3"),
+            (3, 'REJECT_HEAD = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:x.render")'),
+        ]
+        quiet = [
+            (0, "return rolekit.accept_round(d, name, raw, take)"), (1, "GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER"),
+            (1, "return rolekit.GIVE_UP_AFTER"), (1, "for _ in range(rolekit.GIVE_UP_AFTER):"), (2, 'REJECT = "tdd-step-reject-{}.md"'),
+            (3, "GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER"), (3, "REJECT_HEAD = rolekit.REJECT_HEADING"),
+        ]
+        for path in ("lib/x.py", "workflows/fix/scripts/x.py"):
+            for arm, line in quiet:
+                with self.subTest(path=path, quiet=line):
+                    self.assertEqual(cf().count_lines(line, arms[arm], path), 0)
+            for arm, line in injected:
+                with self.subTest(path=path, line=line):
+                    found = cf().scan(LIB.parent, cf().tracked(LIB.parent), arms[arm], table["exclude"])
+                    self.assertEqual(cf().verdict(found, arms[arm]["known"]), [], "本物の木は漏れが無い")
+                    n = cf().count_lines(line, arms[arm], path)
+                    self.assertEqual(n, 1)
+                    self.assertNotEqual(cf().verdict(found | {path: n}, arms[arm]["known"]), [])
 
 
 class MainTableCase(unittest.TestCase):

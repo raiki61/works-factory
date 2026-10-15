@@ -2,8 +2,9 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""修正案の役の返答の受け付け（lib/planfile.take_plan・take_replan）。拒否は rolekit.with_done の控えに積み、3 回目の拒否で
-done・give_up（輪を max_iterations で落とさずに抜ける）。受けた案の控えを置けない時（halt）は拒否に数えずに done・give_up。
+"""修正案の役の返答の受け付け（lib/planfile.take_plan・take_replan）。拒否は rolekit.accept_round が控え rejects-plan.json に積み、3 回目の拒否で
+done・give_up（輪を max_iterations で落とさずに抜ける）。受けた案の控えを置けない時（halt。take の返りの count: false・give_up: true）は拒否に数えずに done・give_up。
+拒否の控えが読めない・書けない時は、落ちずに done・give_up の拒否（理由『拒否の控えが扱えない』）。
 with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない（accept.status_keys）。返り {ok, done, give_up, reason, attempt}"""
 import os
 import sys
@@ -38,9 +39,14 @@ def main() -> None:
         judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
         out = planfile.take_plan(round_dir, plan_dir, judgment=judgment, reply=reply, repo=repo, tables=tables,
                                  base_rev=base_rev, keys=keys)
-    out = {**out, "done": True} if out.get("halt") else rolekit.with_done(round_dir, planfile.ROLE, out)
-    tries = len(rolekit.rejected(round_dir, planfile.ROLE)) + (1 if out["ok"] else 0)
-    boundary.returns({"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"],
+    seen = {}
+
+    def take(_):
+        seen["attempt"] = rolekit.attempt(round_dir, planfile.ROLE)   # 控えの読みは口の中で（読めなければ口が done 真の拒否にする）
+        return out
+    got = rolekit.accept_round(round_dir, planfile.ROLE, None, take)
+    tries = max(seen.get("attempt", 0) - (1 if out.get("halt") else 0), 0)   # 受けた・拒んだ回は今の回、halt は前の拒否の数
+    boundary.returns({"ok": got["ok"], "done": got["done"], "give_up": got["done"] and not got["ok"], "reason": got["reason"],
                       "attempt": tries})
 
 

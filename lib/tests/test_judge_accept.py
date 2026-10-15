@@ -1307,8 +1307,8 @@ class MaterialCase(_RepoCase):
         return self.view()
 
     def take_round(self, role, reply):
-        return ja.accept_round(self.jdir, role, json.dumps(reply, ensure_ascii=False),
-                               lambda r: ja.material_take(self.jdir, role, r, self.repo))
+        return rolekit.accept_round(self.jdir, role, json.dumps(reply, ensure_ascii=False),
+                                    lambda r: ja.material_take(self.jdir, role, r, self.repo))
 
     def test_route_keeps_the_first_tree_record(self):
         """元 test_blk_material.py:471 の test_route_keeps_first_snapshot: 素材の役を起こす前の作業ツリーの姿は 1 度だけ置く
@@ -2699,7 +2699,7 @@ class WorldStageCase(unittest.TestCase):
         for n in range(1, rolekit.GIVE_UP_AFTER + 1):
             got = ja.world_accept(self.jdir, "world-classes", "not json" if n == 1 else '{"classes": []}')
             self.assertEqual((got["ok"], got["done"]), (False, n == rolekit.GIVE_UP_AFTER), n)
-        self.assertEqual(len(rolekit.rejected(self.jdir, "world-classes")), 3)
+        self.assertEqual(rolekit.rejected(self.jdir, "world-classes"), [], "拒否の控えは judge/world の 1 つだけ")
         self.assertEqual(len(rolekit.rejected(self.jdir / "world", worldblk.CLASSES_ROLE)), 3)
         plan = ja.world_plan(self.jdir)
         self.assertFalse(plan["due"])
@@ -2710,6 +2710,14 @@ class WorldStageCase(unittest.TestCase):
         self.assertIsNone(ja.read_stop(self.jdir))
         self.assertEqual(worldmark.read(self.jdir)["status"], "failed")
         self.assertIsNone(worldmark.stage_rows(self.jdir))
+
+    def test_world_reject_is_kept_in_one_ledger(self):
+        """世界の解の拒否は judge/world/rejects-<classes|judge>.json の 1 つにだけ積む（judge/rejects-world-<役>.json は作らない）"""
+        self.intake()
+        got = ja.world_accept(self.jdir, "world-classes", "not json")
+        self.assertEqual((got["ok"], got["done"]), (False, False))
+        self.assertEqual(len(json.loads((self.jdir / "world" / f"rejects-{worldblk.CLASSES_ROLE}.json").read_text(encoding="utf-8"))), 1)
+        self.assertEqual(sorted(p.name for p in self.jdir.glob("rejects-*")), [])
 
     def test_judge_reject_names_the_problem(self):
         """元 test_blk_world の Judge.test_differs_needs_challenge・test_practice_with_target_identifier_is_refused"""

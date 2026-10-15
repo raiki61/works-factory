@@ -13,7 +13,7 @@
 - accept:  返答を読み、書き手の run ごとの語（terms）は型を見て作業ファイルに控えて外し（盤面には {text} だけ。語の定義の節は
            pack の一覧とこの控えから描く）、本文は表のセルの書式を機械で見て（持ち主の決まり。works だけの検査）、頭を読んだ
            初見の読み手の返答を COLD_RESULT_NAME に控え、pass でなければ書き手に返し（上限の回は受け取って印を残す）、
-           entry.take で盤面へ。拒否は GIVE_UP_AFTER 回目で諦めの印（done）
+           entry.take で盤面へ。拒否は rolekit.GIVE_UP_AFTER 回目で諦めの印（done）
 - collect: 出口。report を受けていれば 来歴の 1 行＋書き手の本文＋語の定義の節（本文と機械の事実に現れる語）＋機械の事実
            （書き換えずに最後に付ける。初見の確かめを通らずに受け取った時は、その事実を拒みの数の行の尾に 1 行で）を盤面の REPORT_NAME に。
            受けていなければ、なぜ無いか・検証器の出力の末尾・機械の事実を付けた報告を書いて ok: false（黙らない）
@@ -37,8 +37,9 @@ from engine.schema import validate_schema  # noqa: E402
 import promptsection  # noqa: E402
 import report  # noqa: E402
 
-# 写しの graph の報告の節の全部（このラインでは頭と初見検査が absent）。拒否の控えの数え（count_rejects）はこの全部を数える
-# （頭と初見検査が回っていた前の版の run の控えも、run をまたぐ集計 dev/report_rejects.py が数えられるように）
+# 写しの graph の報告の節の全部（このラインでは頭と初見検査が absent）。拒否の控えの数え（count_rejects）は、行の kind
+# （cold・format・answer）ごとに数え、この全部の節の名を数える（頭と初見検査が回っていた前の版の節の名の行も落とさない。前の版の
+# 控え report-rejects.json は rolekit が読み替え、節 report の行として数える）
 REPORT_NODES = ("report.human_items", "report.cold_check", "report")
 DECISIONS_HEAD = "人が決めること"
 NOT_PASSED = "報告サブグラフの初見の読み手のノード cold が、この報告の頭を通さなかった"
@@ -49,10 +50,6 @@ TERM_SCHEMA = {"type": "object", "required": ["term", "definition"], "additional
 TEXT_SCHEMA = {"type": "object", "required": ["text"], "additionalProperties": False,
                "properties": {"text": {"type": "string", "minLength": 1},
                               "terms": {"type": "array", "items": TERM_SCHEMA}}}
-# 輪の max_iterations と同じ数。受け付けがこの数だけ拒んだら諦めの印（done）を出し、輪を失敗で抜けさせずに
-# 後ろへ渡す（裁定 R50）。tests/test_blk_report.py が YAML の max_iterations と同じかを見る
-GIVE_UP_AFTER = 3
-REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:report_roles.prep")
 MACHINE_HEADING = promptsection.Section("## 機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）", human=report.FOR_READERS)
 CELL_LIMIT = 50   # 表のセルの字数の上限（`コード` の部分を除く）。持ち主の決まり「セルには数語だけ」
 # 拒否の種類: cold＝書き手の頭を読んだ初見の読み手が pass でない（redesign-needed・読めない返答）／format＝表のセル／

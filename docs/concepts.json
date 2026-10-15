@@ -583,6 +583,43 @@
     }
    ]
   },
+  "accept-round": {
+   "status": "住処あり",
+   "fences": [
+    {
+     "what": "拒否の控えを積む口 rolekit.with_done の直の呼びと、受け付けの回の口（accept_round・counted）の定義",
+     "pattern": "rolekit\\.with_done\\(|^\\s*def (accept_round|counted)\\(",
+     "allowed": [
+      "lib/rolekit.py"
+     ],
+     "known": {}
+    },
+    {
+     "what": "諦める回の数 GIVE_UP_AFTER との大小の比べ（最後の回かは rolekit.is_last_attempt が答える）",
+     "pattern": "(<=?|>=?)\\s*(\\w+\\.)*GIVE_UP_AFTER\\b|\\bGIVE_UP_AFTER\\b\\s*(-\\s*\\d+\\s*)?(<=?|>=?)",
+     "allowed": [
+      "lib/rolekit.py"
+     ],
+     "known": {}
+    },
+    {
+     "what": "拒否の控えと拒否の文の置き場の名（reject-{…}…・…rejects….json の字。tdd-step-reject-{}.md の別のサブシステムは当たらない）",
+     "pattern": "[\"']reject-\\{|[\"'][\\w.-]*rejects?[\\w.-]*\\.json[\"']",
+     "allowed": [
+      "lib/rolekit.py"
+     ],
+     "known": {}
+    },
+    {
+     "what": "諦める回の数の定義 GIVE_UP_AFTER = <数> と、前の回の受け付けが拒んだ理由の見出しの Section の宣言",
+     "pattern": "^\\s*GIVE_UP_AFTER\\s*=\\s*\\d|Section\\(\\s*[\"']## 前の回の受け付けが拒んだ理由",
+     "allowed": [
+      "lib/rolekit.py"
+     ],
+     "known": {}
+    }
+   ]
+  },
   "ledger": {
    "status": "散らばり",
    "fences": [

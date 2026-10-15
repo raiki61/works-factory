@@ -14,11 +14,12 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import accept  # noqa: E402
 import judge_accept as ja  # noqa: E402
+import rolekit  # noqa: E402
 
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 jdir.mkdir(parents=True, exist_ok=True)
 role = os.environ.get("INPUTS_ROLE", "")
 KEYS = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
 name = ja.SPEC_ROLES.get(role, "spec-" + "".join(c if c.isalnum() else "-" for c in role)[:40])
-out = ja.accept_round(jdir, name, os.environ.get("INPUTS_REPLY", ""), lambda reply: ja.spec_take(jdir, role, reply, Path.cwd(), keys=KEYS))
+out = rolekit.accept_round(jdir, name, os.environ.get("INPUTS_REPLY", ""), lambda reply: ja.spec_take(jdir, role, reply, Path.cwd(), keys=KEYS))
 boundary.returns({"ok": out["ok"], "done": out["done"], "reason": out["reason"], "revise": bool(out.get("revise"))})

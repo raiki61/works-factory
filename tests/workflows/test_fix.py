@@ -3643,15 +3643,106 @@ class FixLoopScriptsCase(FixLoopPlace):
         extra.write_bytes(before + b"\n")
         return {"changes": [_fx_change(_FX_MEAN, ["stats.py", "request_ok.json"])]}, before
 
+    def test_fix_accept_counts_in_the_rolekit_ledger_not_the_prompt_number(self):
+        """fix_accept は INPUTS_ITERATION=1 のまま 3 回拒ませても、控えの拒否の数で最後の回が来る。拒否は rolekit の
+        rejects-fix-accept.json に積まれ（reject-fix-accept-<k>.md は作らない）、reason_file は rejects-fix-accept.md でそれまでの拒否を
+        全部持つ。最後の回は名指しの単位だけを諦めて done 真で返る"""
+        self._fx_fix_mean()
+        (self.repo / "bounds.py").write_text("def bound(x):\n    return x\n", encoding="utf-8")
+        reply = {"changes": [_fx_change(_FX_MEAN, ["stats.py"]), _fx_change(_FX_BOUND, ["bounds.py"])]}
+        group = self._fx_group([_FX_MEAN, _FX_BOUND])
+        reasons = []
+        for k in (1, 2):
+            out = self._fx_accept("fix_accept", reply, 1, group=group)   # 指示書の番号は 1 のまま
+            self.assertEqual((out["ok"], out["done"]), (False, False), out)
+            reasons.append(out["reason"])
+            self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-accept.md"))
+            self.assertEqual(rolekit.rejected(self.place, "fix-accept"), reasons)
+            text = pathlib.Path(out["reason_file"]).read_text(encoding="utf-8")
+            self.assertEqual(text, rolekit.rejects_text(reasons) + "\n", "それまでの拒否を古い順に全部持つ")
+        out = self._fx_accept("fix_accept", reply, 1, group=group)
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)   # 3 回目は控えの数で最後の回
+        units = json.loads((self.place / "fix-units.json").read_text(encoding="utf-8"))
+        self.assertEqual({k: v["status"] for k, v in units.items()}, {_FX_MEAN: "fixed", _FX_BOUND: "given_up"})
+        self.assertEqual(list(self.place.glob("reject-fix-accept-*.md")), [])
+
+    def test_fix_ruled_accept_counts_in_the_rolekit_ledger_not_the_prompt_number(self):
+        """fix_ruled_accept も INPUTS_ITERATION=1 のまま、控え rejects-fix-ruled-accept.json の拒否の数で最後の回が来る（指示書の
+        番号は諦めの判断に使わない）"""
+        self._fx_ruled_place()
+        reasons = []
+        for _ in (1, 2):
+            out = self._fx_accept("fix_ruled_accept", {"changes": []}, 1)
+            self.assertEqual((out["ok"], out["done"]), (False, False), out)
+            reasons.append(out["reason"])
+            self.assertEqual(out["reason_file"], str(self.place / "rejects-fix-ruled-accept.md"))
+            self.assertEqual(rolekit.rejected(self.place, "fix-ruled-accept"), reasons)
+        out = self._fx_accept("fix_ruled_accept", {"changes": []}, 1)
+        self.assertTrue(out["done"], out)   # 3 回目は控えの数で最後の回
+        self.assertEqual(list(self.place.glob("reject-fix-ruled-accept-*.md")), [])
+        self._fx_unusable_ledgers()
+
+    def _fx_ruled_place(self):
+        conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_test_scope", "text": "テストの期待を直してよい",
+                                                          "limits": ["test_stats.py"]})
+        code, _, err = _fx_run("fix_ruled_prep", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self._fx_json("join.json", {"groups": [{"group_id": "g1", "unit_ids": [_FX_MEAN], "returned": True, "reason": ""}],
+                                    "units": [{"unit_id": _FX_MEAN, "group_id": "g1", "status": "not_done", "reason": ""}]})
+
+    def _fx_unusable_ledgers(self):
+        """拒否の控えの名のディレクトリ（読めない控え）でも、fix_accept・fix_ruled_accept・rule_accept は script が非 0 で落ちず、
+        done 真の拒否（理由『拒否の控えが扱えない』・reason_file は空）を返す"""
+        conflict.park(self.place, [{"unit_key": _FX_BOUND, "between": ["bounds.py:1", "test_bounds.py:2"],
+                                    "why_both_cannot_hold": "テストの期待が誤った境を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}], source=conflict.FIX_SOURCE)
+        code, _, err = _fx_run("rule_prep", self.repo, self.art)   # 裁かれていない申し出が在る（rule-accept の前に rule-prep が走る）
+        self.assertEqual(code, 0, err)
+        for script, name, extra in (("fix_accept", "fix-accept", {"group": self._fx_group([_FX_MEAN])}),
+                                    ("fix_ruled_accept", "fix-ruled-accept", {}), ("rule_accept", "rule", {})):
+            with self.subTest(script=script):
+                (self.place / f"rejects-{name}.json").unlink(missing_ok=True)
+                (self.place / f"rejects-{name}.json").mkdir()
+                code, out, err = _fx_run(script, self.repo, self.art, reply=json.dumps({"changes": [], "rulings": []}),
+                                         consulted="false", iteration="1", **extra)
+                self.assertEqual(code, 0, err)
+                self.assertEqual((out["ok"], out["done"], out["reason_file"]), (False, True, ""), out)
+                self.assertIn("拒否の控えが扱えない", out["reason"])
+
+    def test_rule_accept_reason_file_is_the_rule_ledger(self):
+        """rule_accept の拒否の reason_file は rolekit の rejects-rule.md（ruling.ROLE の控えの全部）。rejects-rule.json の拒否と
+        同じ文を持ち、reject-rule-accept-<k>.md は作らない。rule_prep は同じファイルを名指す"""
+        conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE)
+        code, _, err = _fx_run("rule_prep", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        code, out, err = _fx_run("rule_accept", self.repo, self.art, reply=json.dumps({"rulings": []}), iteration="1")
+        self.assertEqual((code, out["ok"], out["done"]), (0, False, False), err)
+        self.assertEqual(out["reason_file"], str(rolekit.rejects_text_path(self.place, ruling.ROLE)))
+        rows = json.loads((self.place / "rejects-rule.json").read_text(encoding="utf-8"))
+        self.assertEqual([r["reason"] for r in rows], [out["reason"]])
+        self.assertIn(out["reason"], pathlib.Path(out["reason_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(list(self.place.glob("reject-rule-accept-*.md")), [])
+        code, nxt, err = _fx_run("rule_prep", self.repo, self.art)
+        self.assertIn(out["reason_file"], pathlib.Path(nxt["prompt_file"]).read_text(encoding="utf-8"))
+
     def test_unasked_overflow_is_queued_for_the_next_consult_check(self):
         """範囲の外のはみ出しだけの返答は、まだ聞いていなければ拒まずに相談に積み（最後の回でも輪を抜けない）、次の周の
         consult-check が積んだ頼みで答えの役を起こす（元 accept.py:549 の settle_overflow）"""
         import fixboard
         reply, before = self._fx_overflow()
         group = self._fx_group([_FX_MEAN])
-        out = self._fx_accept("fix_accept", reply, 3, group=group)
+        for k in (1, 2):   # 最後の回かは指示書の番号でなく rolekit の控え rejects-fix-accept.json の拒否の数で決まる
+            rolekit.accept_round(self.place, "fix-accept", None, lambda _: {"ok": False, "reason": f"{k} 回目の拒否"})
+        out = self._fx_accept("fix_accept", reply, 1, group=group)
         self.assertEqual((out["ok"], out["done"]), (False, False), out)
         self.assertTrue(out["reason"].startswith(fixboard.QUEUED), out["reason"])
+        self.assertEqual(len(rolekit.rejected(self.place, "fix-accept")), 2, "積んだ回は控えに数えない")
         self.assertEqual((self.repo / "request_ok.json").read_bytes(), before + b"\n", "積んだ回は作業ツリーを変えない")
         code, out, err = _fx_run("consult_check", self.repo, self.art, reply=json.dumps(reply, ensure_ascii=False),
                                  **{"pass": "first"})
