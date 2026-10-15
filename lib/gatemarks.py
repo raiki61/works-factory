@@ -22,9 +22,9 @@ narrows を書く前に狭めを避ける形を当たり、無い時だけ narro
 いたため。この行は決め手の濾しに掛けない。関所の continue はその問いへの答えで、一言が問いに触れなければ修正役は問いの理由の推しで
 直す。一言で「保留: <key>」と名指した問いは答えに数えない。無人の run（gatepolicy.unattended）では問いの行を項目に載せない——関所を
 開けば無人の殻が stop を返し、問いと関係の無い単位の修正まで飛ぶので、出どころだけを飛ばして報告の冒頭に並べる。ただし判定の役が
-reason に推しを書いた fork・held の問いは、無人の run では推しを答えとして採り（answered の 3 つ目。run_push）、出どころ・depends を
-直す義務に戻す（持ち主 2026-10-15「人がいないときは推しの答え。」・issue #593）。推しの無い問いと escalate は今どおり外す。関所に載せる問い・
-出どころの免除・答えでの戻しは、fork も escalate も同じ asks の 1 つの決まりから作る（免除は works の差し替え
+reason に選択肢を名指す推しを書き、出どころ・depends が開いた単位の fork・held の問いは、無人の run では推しを答えとして採り
+（answered の 3 つ目。run_push）、出どころ・depends を直す義務に戻す（持ち主 2026-10-15「人がいないときは推しの答え。」・issue #593）。
+採れる推しの無い問いと escalate は今どおり外す。関所に載せる問い・出どころの免除・答えでの戻しは、fork も escalate も同じ asks の 1 つの決まりから作る（免除は works の差し替え
 conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は fork だけを外す）。
 
 設計だけの run（入力 design_only）では、修正前の関所を項目の有無に関わらず開け、設計だけの行を 1 行載せる（持ち主 2026-09-30。
@@ -262,6 +262,7 @@ HAPPENED, DECIDE, PUSH = "起きたこと: ", "決めてほしいこと: ", "推
 # 推しは機械が作らない: 判定の役が問いの reason に書いた推しだけを拾い、無ければこの言い方（ask_text の項目と同じ）
 NO_PUSH = "判定の役が書いていない"
 PUSH_IN = re.compile(r"推し\s*[:：]\s*([^／\n]+)")
+PUSH_AT = re.compile(r"(?=推し\s*[:：])")   # 推しの頭の前（reason_push が最後の推しから読む）
 PUSH_TAIL = re.compile(r"／推し: [^／\n]*$")   # 関所の項目の末尾の推しの尾（_push が付ける形）
 # 関所の項目の種類（写しの RL の human_gate と gatemarks の問いの kinds）→ 平易な言い方
 KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", policy.POLICY_KIND: "人の方針とぶつかる変更",
@@ -762,21 +763,36 @@ def ask_text(q) -> str:
 
 
 def reason_push(q) -> str:
-    """問いの理由に判定の役が書いた最初の推し。無ければ空"""
-    got = _text_pushes(q.get("reason"))
+    """問いの理由に判定の役が書いた推し: 最後の「推し:」から後（判定の役は推しを reason の末尾に書く。前の文が引く推しは読まない）。無ければ空"""
+    got = _text_pushes(PUSH_AT.split(str(q.get("reason") or ""))[-1])
     return got[0] if got else ""
+
+
+def _names_option(push: str, q) -> bool:
+    """推しの頭（「——」の前）が選択肢のどれかと頭で揃うか（選択肢は帰結まで書く長文なので、どちらかがもう一方の頭であれば名指したと読む）"""
+    head = push.split("——", 1)[0].strip()
+    options = [str(o).strip() for o in q.get("options") or [] if str(o).strip()]
+    return bool(head) and any(o.startswith(head) or head.startswith(o) for o in options)
 
 
 def _takes_push(b) -> bool:
     return bool(getattr(b, "takes_push", False)) if isinstance(b, Ledger) else gatepolicy.unattended(b.dir)
 
 
+def _skips_open(b, q) -> bool:
+    """問いの出どころ・depends のうち今の周の units に在る物が全部開いた単位か（開いていない単位を推しで戻すと計画が行き止まる）"""
+    units = {u.get("key"): u for u in b.record.get("units") or [] if isinstance(u, dict)}
+    return all(_fix_duty(units[k]) for k in _skips(q) if k in units)
+
+
 def run_push(b, q) -> str:
-    """無人の run が答えとして採る推し: 判定が保留にした分かれ道の問い（fork・held）の理由の推し（持ち主 2026-10-15「人がいないときは推しの答え。」。escalate は
-    判定の役が人でないと決められないと名乗った物なので採らない。機械は推しを作らない。人のいる run と推しの無い問いは空）"""
-    if _takes_push(b) and q.get("kind") == "fork" and q.get("status") == "held":
-        return reason_push(q)
-    return ""
+    """無人の run が答えとして採る推し: 判定が保留にした分かれ道の問い（fork・held）の理由の推しで、選択肢のどれかを名指し、出どころ・
+    depends が開いた単位の物（持ち主 2026-10-15「人がいないときは推しの答え。」。escalate は判定の役が人でないと決められないと名乗った
+    物なので採らない。機械は推しを作らない。人のいる run と、採らない問いは空——今どおり保留のまま報告の冒頭で名指す）"""
+    if not (_takes_push(b) and q.get("kind") == "fork" and q.get("status") == "held"):
+        return ""
+    push = reason_push(q)
+    return push if push and _names_option(push, q) and _skips_open(b, q) else ""
 
 
 def request_answers(b) -> list:
@@ -1309,7 +1325,7 @@ def returned_lines(b) -> list:
 
 
 GATE_CONTINUED = "・承認ノードで continue を受けた"   # 答えた台帳の行の印。依頼の answers の答えでなく関所の continue で答えた物
-PUSH_TAKEN = "・無人の run が推しを採った（人の答えではない）"   # 同じく、無人の run が判定の推しを答えに採った物
+PUSH_TAKEN = "・" + answer.PUSHED_NOTE   # 同じく、無人の run が判定の推しを答えに採った物
 
 
 def unreturned_line(key, unit) -> str:

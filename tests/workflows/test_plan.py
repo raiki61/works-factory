@@ -1442,6 +1442,15 @@ class OwedAnswersCase(unittest.TestCase):
                 self.assertEqual(run.status["plan-loop"], "skipped")
                 self.assertIn(planfile.NOTHING_OWED, run.json(out["ripple"])["error"])
 
+    def test_unattended_push_on_a_deferred_origin_stays_held(self):
+        """#593: 推しつきの保留の問いの出どころが開いていない（defer）なら、無人の run は推しを採らずに保留のまま残し、行き止まらずに
+        ほかの開いた単位で役を起こす"""
+        pushed = {**self.FORK, "origin": CLAMP, "reason": "割れる。推し: a——呼び手が a を前提にしている"}
+        judge = {"units": [unit(MEAN), unit(CLAMP, "suggest", "defer")], "questions": [pushed]}
+        run = Run(self, start={"unattended": "true"}, judge=judge)
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1)]}))["ready"], True)
+        self.assertIn("必ず案に入れる", self.duty_line(run))
+
 
 class SurvivesCase(unittest.TestCase):
     """周を開く節と返す節は落ちない（返す節が周の dir を束ねる。線は落ちた返す節の先へ進めない）"""
