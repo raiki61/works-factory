@@ -849,7 +849,7 @@
   - 今: 無し（表）
   - 証: 要追加（持ち主の決めの後）。今の形を縛る試験は tests/workflows/test_plan.py::CollectCase.test_rounds_count_and_second_round_gets_review（材料のファイルで渡す）
   - 本物の run: 筋書きでのみ
-  - 狭め: #75 で狭めた（Archon で不可）。名指しの会話の継ぎ（`context: {resume: <節>}`）は loop_group の中で禁じられ（Archon packages/workflows/src/loader.ts:1173-1174「context.resume inside a loop_group body, which is not supported」）、計画の役は線の loop_group `plan-rounds` の中・さらにブロックの plan-loop の中に在る。loop_group の fresh_context: false が継ぐのは「直前の周の最後の順の会話」（dag-executor.ts:4773-4778）で、plan-rounds では事前審査の会話になり計画の役の会話ではない。入れ子の loop の 1 周目はいつも新しい会話（dag-executor.ts:5665 `needsFreshSession = loop.fresh_context || i === 1`）。よって不可。持ち主の決め `persona`（保存した返答で渡すか）の答え待ちのまま 決め: 継がない。保存した返答を読む新しい会話で回す（docs/owner-decisions.md の「導いた事」の 2026-10-12 の推しの決め。Archon loader.ts:1173-1175）。狭めとして確定（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #75 で狭めた（Archon で不可）。名指しの会話の継ぎ（`context: {resume: <節>}`）は loop_group の中で禁じられ（Archon packages/workflows/src/loader.ts:1173-1174「context.resume inside a loop_group body, which is not supported」）、計画の役は線の loop_group `plan-rounds` の中・さらにブロックの plan-loop の中に在る。loop_group の fresh_context: false が継ぐのは「直前の周の最後の順の会話」（dag-executor.ts:4773-4778）で、plan-rounds では事前審査の会話になり計画の役の会話ではない。入れ子の loop の 1 周目はいつも新しい会話（dag-executor.ts:5665 `needsFreshSession = loop.fresh_context || i === 1`）。よって不可。持ち主の決め `persona`（保存した返答で渡すか）の答え待ちのまま 決め: 継がない。保存した返答を読む新しい会話で回す（docs/owner-decisions.md の「導いた事」の 2026-10-12 の推しの決め。Archon loader.ts:1173-1175）。狭めとして確定（線の配線の文書の「この文書の外」の「決めた物」）。#571 で持ち主が改めて、新しい会話で前の案と指摘を材料に変えた項目だけを返す形を選んだ（docs/owner-decisions.md の同じ節の 2026-10-15 の行。自前の包みで会話を継ぐ形は採らない）
 
 - P118 again の時、計画の役は独立設計の節を受けない（修正案の役の頭と指示書は会話に在る）
   - 元: works/tests/test_blk_plan.py:1976 `test_revise_prompt_names_blocks_and_keys`（「=====独立設計ここから=====」が無い）
