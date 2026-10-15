@@ -12,7 +12,7 @@ inputs:
     description: 形。base（判定の前）か final（修正の後）
   start:
     required: true
-    description: 始めの記録のポインタの JSON の字（メイングラフの $start.output.record）
+    description: 始めの記録のポインタの JSON の字
   baseline:
     default: ""
     description: final の時だけ、base の出力の baseline のポインタの JSON の字。"" と null は「無い」と読む

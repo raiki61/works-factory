@@ -25,6 +25,7 @@ import unittest
 import yaml
 
 from tests.bin.gitkit import committed_copy, git
+from tests.layers import scan
 from tests.layers.scan import script_reads as reads
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -83,7 +84,7 @@ UNREAD = re.compile(r"読めな|読めず|読み損|無い|壊れ|unread|missing
 
 def named(name: str, strings) -> bool:
     """字のどれかが、入力の名を語として持ち、読めない・無いことも言う"""
-    word = re.compile(rf"(?<![\w\-/.]){re.escape(name)}(?![\w\-/.])")
+    word = scan.word(re.escape(name))
     return any(word.search(s) and UNREAD.search(s) for s in strings)
 
 

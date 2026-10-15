@@ -3,34 +3,34 @@ description: 取り込み。seal は run の差分を封じて守りのパスの
 inputs:
   mode:
     required: true
-    description: seal（merge-seal）・apply（merge-apply）・handoff（周の鎖の最後の差分）
+    description: seal（差分を封じる）・apply（封じた差分を置き場に置く）・handoff（周の鎖の最後の差分を受けて出口を決める）
   start:
     default: ""
     description: 始めの記録のポインタ（base_rev を読む。seal と apply だけ）
   fingerprint:
     default: ""
-    description: test-gate final の緑の認証の指紋 {head, diff_hash}
+    description: 最後のテストの段の緑の認証の指紋 {head, diff_hash}
   green_ok:
     default: ""
-    description: test-gate final の ok
+    description: 最後のテストの段が通ったか（ok）
   eyes_ok:
     default: ""
-    description: eyes の ok
+    description: 独立の目が通したか（ok）
   sealed_hash:
     default: ""
-    description: merge-seal の hash（apply だけ）
+    description: seal が封じた差分の hash（apply だけ）
   answer:
     default: ""
     description: 最後の承認ノードの答え {decision, text}。承認ノードが開かなければ null（apply だけ）
   r2:
     default: ""
-    description: apply は eyes の R2 の {status, reason}（省いた・走らなければ null）。handoff は final-diff の r2_status の字（pass・redesign-needed・null）
+    description: apply は独立設計との比較（R2）の {status, reason}（省いた・走らなければ null）。handoff は周の鎖の最後の差分の r2_status の字（pass・redesign-needed・null）
   deliver:
     default: ""
     description: 出口の語。空は差分を置くだけ、pr は置いた差分を run 専用の枝（works-factory/run-<run id>）へ push して既定の枝向けの PR を作る（apply と handoff だけ。seal は読まない）
   placed:
     default: ""
-    description: 鎖の final-diff の apply {ok, hash, diff, reason}（handoff だけ）
+    description: 周の鎖の最後の差分を置いた結果 {ok, hash, diff, reason}（handoff だけ）
   base_rev:
     default: ""
     description: 元の基の commit（handoff だけ。deliver が pr の時に PR の元になる版。既定の枝から届く版でなければ提出しない）
