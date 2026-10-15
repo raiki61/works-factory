@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """再審の役の返答を受け付け、通れば R/judgment.json と単位の前後の差を書く。輪を抜ける時（通った・3 回目の拒否）に
-再審の出口 R/rejudge-exit.json を書く（lib/judge_accept.rejudge_take・rejudge_collect）"""
+再審の出口 R/rejudge-exit.json を書く（lib/judge_accept.rejudge_take・rejudge_collect）。拒まれた後の出し直しの役の返答
+fix_reply（直す欄だけ）は、前の答えの控えと欄ごとに合わせてから照らす（rolekit.resubmitted に rolekit.merge_fields）"""
 import os
 import sys
 from pathlib import Path
@@ -14,13 +15,15 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import accept  # noqa: E402
 import judge_accept as ja  # noqa: E402
+import rolekit  # noqa: E402
 
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 rdir = boundary.resolve(boundary.pointer(ja.REJUDGE_DIR))
 rdir.mkdir(parents=True, exist_ok=True)
 KEYS = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
-out = ja.accept_round(rdir, ja.REJUDGE_ROLE, os.environ.get("INPUTS_REPLY", ""),
-                      lambda reply: ja.rejudge_take(jdir, rdir, reply, Path.cwd(), keys=KEYS))
+got = rolekit.resubmitted(rdir, ja.REJUDGE_ROLE, boundary.value(os.environ.get("INPUTS_REPLY")),
+                          boundary.value(os.environ.get("INPUTS_FIX_REPLY")), rolekit.merge_fields)
+out = ja.accept_reply(rdir, ja.REJUDGE_ROLE, got, lambda reply: ja.rejudge_take(jdir, rdir, reply, Path.cwd(), keys=KEYS))
 if out["done"]:
     try:
         ja.rejudge_collect(rdir)

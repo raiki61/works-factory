@@ -96,12 +96,13 @@ ROLES = {
     "provenance": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None, None, None),
     "diagnose": ("opus", "high", [*READ, *WEB], BASE, True, None, None, None),
     "judge-verify": ("opus", "high", [*READ, *WEB, "Agent", "Write"], BASE, True, "fresh", None, None),
-    "rejudge": ("opus", "high", [*READ, *WEB], BASE, True, "fresh", None, None),
+    "rejudge": ("opus", "high", [*READ, *WEB], BASE, True, None, None, None),
 }
-# 輪の id → 受け付けの節と fresh_context（旧 YAML: 仕様の 3 つの輪と再審の輪は true、ほかは false）
-FRESH = {"spec-loop", "spec-review-loop", "spec-revise-loop", "rejudge-loop"}
-# 新しい会話の輪の reject の節が結ぶ拒否の控え（受け付けの置き場と控えの名。lib/judge_accept の spec_accept・rejudge_accept と同じ）
-FRESH_LEDGERS = {"spec-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["write"]},
+# 頭の節（script rejects）が受け付けの拒否の控えの全部を渡す輪（旧 YAML で役が周ごとに新しい会話で起きた仕様の 3 つの輪と再審の輪。
+# #571 から全部の輪が会話を続けるが、控えの全部を渡す形は残す）と、結ぶ控え（受け付けの置き場と控えの名。lib/judge_accept の
+# spec_accept・rejudge_accept と同じ）
+RESUBMIT_ROLES = ("spec", "spec-review", "spec-revise", "rejudge")   # 拒まれた後に <役>-fix が同じ会話の続きで出し直す役（#571）
+LEDGER_REJECTS = {"spec-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["write"]},
                  "spec-review-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["review"]},
                  "spec-revise-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["revise"]},
                  "rejudge-loop": {"board": ja.REJUDGE_DIR, "accept": ja.REJUDGE_ROLE}}
@@ -296,13 +297,13 @@ class LoopTest(unittest.TestCase):
                 self.assertEqual(body["max_iterations"], 3)
                 self.assertEqual(body["until_bash"], f'done=${accept}.output.done; test "$done" = true')
                 self.assertEqual(loop["timeout"], NO_DEADLINE)
-                self.assertIs(body["fresh_context"], lid in FRESH)
+                self.assertIs(body["fresh_context"], False)
 
     def test_roles_receive_the_reject_reason_through_the_loop_head(self):
         """拒否の理由は、輪の頭の節（<役>-reject＝script reject。素材の輪では <役>-prep＝script material_prep）の with: に $LOOP_PREV で結び、
         役の指示書は今の周のその節の返り $<役>-reject.output.reason（素材の輪では $<役>-prep.output.reason）で受け、rolekit.with_reject の
         見出しと文で出す（1 周目の $LOOP_PREV は空の字）。素材の輪には <役>-reject の節が無く、<役>-prep の返りが reason・lang_line を持つ。
-        役が周ごとに新しい会話で起きる輪（FRESH）は script rejects の節で、$LOOP_PREV でなく受け付けの拒否の控え（FRESH_LEDGERS）を結ぶ（#345）。
+        控えの全部を渡す輪（LEDGER_REJECTS）は script rejects の節で、$LOOP_PREV でなく受け付けの拒否の控えと前の周の受け付けの ok を結ぶ（#345・#571）。
         役の節には with: を書かず、指示書には $INPUTS も $LOOP_PREV も書かない: 線が include すると、止めた Archon は輪の中の節が
         自分の with: で結んだ名を楯にせず「入力が無い」で止める（packages/workflows/src/include-expander.ts:566・627。楯は輪の節の
         束縛だけを見る）。ブロックの入力に宣言すると読み込みの時に既定の値で字が埋まり、周ごとの理由が消える。指示書の $LOOP_PREV は
@@ -327,8 +328,10 @@ class LoopTest(unittest.TestCase):
                     else:
                         node = body[reject]
                         self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
-                                         ("rejects" if lid in FRESH else "reject", "uv", NO_DEADLINE, False))
-                        self.assertEqual(node["with"], FRESH_LEDGERS.get(lid, {"reason": f"$LOOP_PREV.{accept}.output.reason"}))
+                                         ("rejects" if lid in LEDGER_REJECTS else "reject", "uv", NO_DEADLINE, False))
+                        want = ({**LEDGER_REJECTS[lid], "prev": f"$LOOP_PREV.{accept}.output.ok"} if lid in LEDGER_REJECTS
+                                else {"reason": f"$LOOP_PREV.{accept}.output.reason"})
+                        self.assertEqual(node["with"], want)
                         self.assertEqual(node["output_format"]["required"], ["reason", "lang_line"])   # 言語の 1 行は BriefCase
                     self.assertIn("reason", node["output_format"]["properties"])
                     self.assertNotIn("with", role)
@@ -348,17 +351,51 @@ class LoopTest(unittest.TestCase):
                 self.assertEqual(r.returned("reject", reason=reason), {"reason": reason, "lang_line": rolekit.lang_line({})})
 
     def test_third_fresh_spec_role_reads_every_reject_of_the_loop(self):
-        """新しい会話で起きる仕様の役が 2 回拒まれた後の 3 回目: rejects の返りの reason に 1 回目と 2 回目の拒否が古い順に在る（#345）。
+        """仕様の役が 2 回拒まれた後の 3 回目: rejects の返りの reason に 1 回目と 2 回目の拒否が古い順に在る（#345）。
         1 周目は空の字。言語の 1 行も reject と同じに返す"""
         r = Run(self)
         r.returned("intake")
-        self.assertEqual(r.returned("rejects", **FRESH_LEDGERS["spec-loop"]), {"reason": "", "lang_line": rolekit.lang_line({})})
+        self.assertEqual(r.returned("rejects", **LEDGER_REJECTS["spec-loop"]),
+                         {"reason": "", "lang_line": rolekit.lang_line({}), "resubmit": False, "brief": ""})
         reasons = [r.returned("spec_accept", role="write", reply=reply)["reason"]
                    for reply in ({"requirements": []}, {"acceptance": []})]
         self.assertTrue(all(reasons) and reasons[0] != reasons[1], reasons)
-        got = r.returned("rejects", **FRESH_LEDGERS["spec-loop"])["reason"]
+        got = r.returned("rejects", **LEDGER_REJECTS["spec-loop"])["reason"]
         self.assertEqual(got, rolekit.rejects_text(reasons))
         self.assertLess(got.index(reasons[0]), got.index(reasons[1]))
+
+    def test_spec_resubmit_returns_only_the_rejected_fields(self):
+        """#571: 拒まれた周の次（prev が前の周の受け付けの ok の false）は、rejects が出し直しの役の短い指示書（最後の拒否の文・
+        受け付けが合わせた前の答えの控え）を書いて resubmit: true を返す。受け付けは出し直しの返答（直す欄だけ）を前の答えの控えと
+        欄ごとに合わせてから照らし、通った答えは 1 回で書いた答えと同じ。resume で輪が 1 周目から回り直した時（prev が空）は
+        1 回目の役（resubmit: false）"""
+        r = Run(self)
+        r.returned("intake")
+        (r.repo / "test_spec_mean.txt").write_text(SPEC_TEST_FILE, encoding="utf-8")
+        first = r.returned("spec_accept", role="write", reply={**SPEC, "acceptance": [{**SPEC["acceptance"][0], "name": "無い名"}]})
+        self.assertFalse(first["ok"])
+        head = r.returned("rejects", **LEDGER_REJECTS["spec-loop"], prev="false")
+        self.assertIs(head["resubmit"], True)
+        brief = pathlib.Path(head["brief"]).read_text(encoding="utf-8")
+        self.assertIn(first["reason"], brief)
+        self.assertIn(str(rolekit.candidate_path(r.judge, ja.SPEC_ROLES["write"])), brief)
+        self.assertIs(r.returned("rejects", **LEDGER_REJECTS["spec-loop"], prev="")["resubmit"], False)
+        got = r.returned("spec_accept", role="write", reply="null", fix_reply={"acceptance": SPEC["acceptance"]})
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual(json.loads((r.judge / f"{ja.SPEC_ROLES['write']}.json").read_text(encoding="utf-8")), SPEC)
+
+    def test_spec_resubmit_after_fixing_only_the_file_returns_nothing(self):
+        """受け入れテストのファイルが読めない拒否は、役がファイルを書けば直る。欄を直さない出し直しの {} は前の答えのまま全体を
+        照らし直して通る（出し直しの回を空で使わない）"""
+        r = Run(self)
+        r.returned("intake")
+        first = r.returned("spec_accept", role="write", reply=SPEC)
+        self.assertFalse(first["ok"])
+        self.assertIn("読めない", first["reason"])
+        (r.repo / "test_spec_mean.txt").write_text(SPEC_TEST_FILE, encoding="utf-8")
+        got = r.returned("spec_accept", role="write", reply="null", fix_reply={})
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual(json.loads((r.judge / f"{ja.SPEC_ROLES['write']}.json").read_text(encoding="utf-8")), SPEC)
 
     def test_materials_are_eleven_loops_one_per_command(self):
         material_loops = sorted(lid.removesuffix("-loop") for lid in loops() if lid.removesuffix("-loop") in MATERIALS)
@@ -418,7 +455,7 @@ class RoleSettingsTest(unittest.TestCase):
     def test_roles_keep_the_old_settings(self):
         by = nodes()
         roles = {nid for nid, n in by.items() if any(k in n for k in scan.ROLE_KINDS)}
-        self.assertEqual(sorted(roles), sorted(ROLES))
+        self.assertEqual(sorted(roles), sorted([*ROLES, *(f"{r}-fix" for r in RESUBMIT_ROLES)]))   # 出し直しの役の形は test_loop_sessions
         for nid, (model, effort, tools, sandbox, read_only, context, skills, plugins) in ROLES.items():
             n = by[nid]
             with self.subTest(role=nid):

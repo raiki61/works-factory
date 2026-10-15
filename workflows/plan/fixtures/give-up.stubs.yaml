@@ -4,7 +4,7 @@ round: {round: 1, mode: plan, dir: plan/r1, go: true}
 structure-measure: {structure_file: plan/structure/k/structure.json, design_file: plan/structure/k/design.jsonl, eye: false, reused: false}
 structure-state: {state_file: plan/structure/k/structure-state.json}
 ripple-units: {ripple_file: plan/r1/ripple-units.json}
-plan-prep: {brief: plan/r1/brief-3.md, attempt: 3}
+plan-prep: {brief: plan/r1/brief-3.md, attempt: 3, resubmit: false}
 plan-writer:
   plan:
     - unit_keys: [1]
