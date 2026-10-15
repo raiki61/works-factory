@@ -83,7 +83,7 @@ class ProblemsCase(unittest.TestCase):
 
     def test_files_ops_create_and_delete_follow_the_diff(self):
         """op=create の path が差分で新設されていない時と、op=delete の path が差分で消えていない時に、それぞれ行を名指して拒む。
-        op=rename は元のパスが消え、移し先が新設されていることを見る（modify は symbols の行で見る）"""
+        op=rename は元のパスが消え、移し先が新設されていることを見る（modify の差分は test_files_modify_path_must_change_in_diff）"""
         mk = item(allowed_paths=["*.py"], files=[frow("app.py", op="create")])
         rows = [{"unit_key": MEAN, "files": ["stats.py", "app.py"]}]
         exists = {**STATS, "app.py": ("x = 1\n", "x = 2\n")}
@@ -102,6 +102,15 @@ class ProblemsCase(unittest.TestCase):
         got, _ = planscope.problems([mv], rows, {**STATS, "old.py": ("a\n", "b\n"), "new.py": ("c\n", "d\n")})
         self.assertTrue(any("old.py" in p and "op=rename" in p for p in got), got)
         self.assertTrue(any("new.py" in p and "op=rename" in p for p in got), got)
+
+    def test_files_modify_path_must_change_in_diff(self):
+        """op=modify の行は symbols が無くても、path が差分に無ければ欠けとして名指して拒む（前の欄 adds に既存の foo.py を書いた時と
+        同じ照らし）。path を変えれば通る"""
+        it = item(allowed_paths=["*.py"], files=[frow("foo.py")])
+        rows = [{"unit_key": MEAN, "files": ["stats.py", "foo.py"]}]
+        got, _ = planscope.problems([it], rows, STATS)
+        self.assertTrue(any("foo.py" in p and "op=modify" in p and MEAN in p for p in got), got)
+        self.assertEqual(planscope.problems([it], rows, {**STATS, "foo.py": ("a\n", "b\n")})[0], [])
 
     def test_canonical_elsewhere_definition_is_extra(self):
         it = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median"))])

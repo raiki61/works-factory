@@ -28,8 +28,8 @@
   行の path の足した行（change=add）か消した行（change=remove）から探す。日本語や空白を含む説明の文と、/ を含む名（欄の指し）は探さず、
   記録の unchecked に並べる（誤った拒否を重ねて単位を止めない）
 - ファイルの新設・消し・移し（op）: files の行の op=create は path が差分で新設された（版に無く今に在る）、op=delete は path が消えた、
-  op=rename は元のパス from が消え path が新設された、を差分で確かめる（ファイルの中身は自分の名を書かないので語では探さない）。
-  modify は symbols の行で見る
+  op=rename は元のパス from が消え path が新設された、op=modify は path が差分で変わった、を差分で確かめる（ファイルの中身は自分の
+  名を書かないので語では探さない）。modify の中身は symbols の行で見る
 - docstring（DOC）: 名の最後の段が __doc__ の add（mode.__doc__。名だけの __doc__ はそのファイルのモジュールの docstring）は、足した行の語に
   加えて、その前の段の def・class（名がそのファイルのモジュールならモジュール）が行の path の差分で docstring を得たかを ast で見る
   （_doc_added。docstring の字は __doc__ を書かないので、語だけでは正しい直しを拒む。run 35ad1c2a）。名の解き方は remove と同じ
@@ -266,8 +266,8 @@ def _test_key(test_id):
 
 def _op_problems(row: dict, changes: dict) -> list[str]:
     """files の行 row（op が create・delete・rename）を差分 changes と照らした誤りの文: create の path が差分で新設されていない・delete の
-    path が差分で消えていない・rename の元のパス from が消えていない／移し先の path が新設されていない。modify は見ない
-    （symbols の行が足した行・消した行で照らす）"""
+    path が差分で消えていない・rename の元のパス from が消えていない／移し先の path が新設されていない・modify の path が差分に無い
+    （symbols の無い modify の行も欠けを拒む。symbols は足した行・消した行で別に照らす）"""
     path, op, old = row.get("path"), row.get("op"), row.get("from")
     made = path in changes and changes[path][0] is None and changes[path][1] is not None
 
@@ -280,6 +280,8 @@ def _op_problems(row: dict, changes: dict) -> list[str]:
     if op == "rename":
         return ([f"files の {old}（op=rename の元のパス）が差分で消えていない"] if not (isinstance(old, str) and gone(old)) else []) \
             + ([f"files の {path}（op=rename の移し先）が差分で新設されていない"] if not made else [])
+    if op == "modify" and path not in changes:
+        return [f"files の {path}（op=modify）が差分で変わっていない"]
     return []
 
 
@@ -296,7 +298,7 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     4. files の add（change=add の symbol）: 探す語（planmarks.search_word）が、生きた項目なら行の path の足した行に語の境で現れる
        （無ければ Missing。語が __doc__ なら、名の def・class の docstring を差分で足していても在る。_doc_added）。同じ名を足すと言った
        行の path（その項目の files の add の同名の行）の外に、凍った後に修正役が足した同名の定義が在れば Extra（見る項目の全部）。
-       op=create・delete・rename の行は path の新設・消し・移し（_op_problems）を見る
+       op=create・delete・rename・modify の行は path の新設・消し・移し・変更（_op_problems）を見る
     5. files の remove（change=remove の symbol）: 生きた項目なら、探す語が行の path の消した行に現れ、どの足した行にも定義として
        現れない（同じ名を移した先の path の定義は残りに数えない）
     6. tests: 新しく現れたテストのうち、どの項目の tests にも無い物は Extra（範囲の相談の合意で項目に入った物は tests に在る）。
