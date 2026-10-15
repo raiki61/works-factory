@@ -146,12 +146,17 @@ def tests_unique(path: str, text: bytes) -> bool:
     return True
 
 
+def _is_marker(line: bytes) -> bool:
+    s = line.rstrip(b"\r")
+    return any(s == m or s.startswith(m + b" ") for m in MARKERS)
+
+
 def markers_left(repo, paths) -> list:
-    """paths（根からの相対）のうち、食い違いの印の始めか終わりの行（`<<<<<<< `・`>>>>>>> `）が残るファイル（無いファイルは外す）"""
+    """paths（根からの相対）のうち、食い違いの印（MARKERS のどれか。名つきでも名なしでも）の行が残るファイル（無いファイルは外す）"""
     out = []
     for p in paths:
         f = pathlib.Path(repo) / p
-        if f.is_file() and any(ln.startswith((b"<<<<<<< ", b">>>>>>> ")) for ln in f.read_bytes().splitlines()):
+        if f.is_file() and any(_is_marker(ln) for ln in f.read_bytes().splitlines()):
             out.append(p)
     return out
 
@@ -243,18 +248,16 @@ def _put(repo, index: str, plan: list) -> list:
     return [p for p, _, _ in plan]
 
 
-
 MARK_LABELS = ("今の作業ツリー", "元", "当てる差分")
+MARKERS = (b"<<<<<<<", b"|||||||", b"=======", b">>>>>>>")   # git merge-file --diff3 が書く印の頭（この順に並ぶ）
 
 
 def _settle(repo, index: str, left: dict, allowed: set, tmp: str, check, marking: bool) -> tuple[list, list] | None:
     """未解決のパス left を一時の index で解く: (合わせたパス, 印を書いたパス) か、解けなければ None。marking が偽なら全部を
-    挿しだけの食い違いとして合わせ（_union）、真なら合わせられる物を 1 つずつ合わせて残りに印を書く（_mark）"""
-    if not marking:
-        merged = _union(repo, index, left, allowed, tmp, check)
-        return None if merged is None else (merged, [])
-    merged = [p for p in sorted(left) if p in allowed and _union(repo, index, {p: left[p]}, allowed, tmp, check)]
-    put = _mark(repo, index, {p: st for p, st in left.items() if p not in merged}, tmp)
+    挿しだけの食い違いとして合わせ（_union。1 つでも残れば None）、真なら合わせられる物を合わせて残りに印を書く（_mark）"""
+    merged = [p for p in sorted(left) if _union(repo, index, {p: left[p]}, allowed, tmp, check)]
+    rest = {p: st for p, st in left.items() if p not in merged}
+    put = _mark(repo, index, rest, tmp) if marking else ([] if not rest else None)
     return None if put is None else (merged, put)
 
 

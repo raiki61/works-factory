@@ -8,7 +8,8 @@
 - どの口も本物の index・HEAD・枝を動かさない
 - union の中のファイルで両方が同じ所（末尾）に行を足しただけの食い違いは、作業ツリーの側の行の後に patch の側の行を置いて
   当たる（unioned に積む）。行を変えた塊・union の外のファイルは今どおり当たらず、作業ツリーは前のまま
-- marked を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスを marked に積む）、markers_left が印の残るファイルを引く
+- marked を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスを marked に積む）、union の中の挿しだけの食い違いは
+  合わせて印を書かない。markers_left は印の 4 つの頭のどれかの行が残るファイルを引く
 - 合わせ役の指示書（fix-rules/clash.md）は印の両側を MARK_LABELS の名のまま名指す
 - tests_unique: 合わせた中身に同じ名のテストの定義が 2 つ在れば合わせない。patch_names: 差分の行先のパス
 """
@@ -107,6 +108,24 @@ class UnitTrees(unittest.TestCase):
         self.assertEqual(marked, ["a.txt"])
         self.assertEqual(unittrees.markers_left(self.repo, ["a.txt", "b.txt", "gone.txt"]), ["a.txt"])
         self.assertEqual(self.real_state(), state)
+
+    def test_marked_merges_union_files_and_marks_only_the_rest(self):
+        base = groups.end_tree(self.repo)
+        _, p1 = self.unit(base, "u1", {"a.txt": "a1\nX\na3\n", "b.txt": "b1\nb2\nb3\nB4\n"})
+        _, p2 = self.unit(base, "u2", {"a.txt": "a1\nY\na3\n", "b.txt": "b1\nb2\nb3\nB5\n"})
+        self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
+        marked, unioned = [], []
+        self.assertEqual(unittrees.apply(self.repo, p2, union=["b.txt"], unioned=unioned, marked=marked), (True, ""))
+        self.assertEqual((marked, unioned), (["a.txt"], ["b.txt"]))
+        self.assertEqual((self.repo / "b.txt").read_text(), "b1\nb2\nb3\nB4\nB5\n")
+        self.assertIn("<<<<<<< 今の作業ツリー", (self.repo / "a.txt").read_text(encoding="utf-8").splitlines())
+        self.assertEqual(unittrees.markers_left(self.repo, ["a.txt", "b.txt"]), ["a.txt"])
+
+    def test_markers_left_sees_every_marker_line(self):
+        (self.repo / "mid.txt").write_text("a\n||||||| 元\nold\n=======\nY\nb\n", encoding="utf-8")
+        (self.repo / "sep.txt").write_text("a\n=======\nb\n", encoding="utf-8")
+        (self.repo / "plain.txt").write_text("a\n========\n<<<<<<<<b\n", encoding="utf-8")
+        self.assertEqual(unittrees.markers_left(self.repo, ["mid.txt", "sep.txt", "plain.txt"]), ["mid.txt", "sep.txt"])
 
     def test_insert_only_conflict_in_a_union_file_is_merged_in_order(self):
         state = self.real_state()
