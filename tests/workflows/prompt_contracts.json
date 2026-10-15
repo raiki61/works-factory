@@ -5331,6 +5331,30 @@
       }
     ]
   },
+  "workflows/plan-review/works-factory-plan-review.yaml#plan-review-fix.prompt": {
+    "inserts": [
+      "$review-prep.output.prompt_file"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/plan-review/works-factory-plan-review.yaml#plan-review-fix"
+      ],
+      "output_format_sha256": "6952029778835c1a26b60f5a806c158509f479182a54d42421ef76c207718190",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "直した欄だけの同じ型の JSON だけを返す",
+        "quote": "返すのは直した欄だけの、前と同じ型の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
   "workflows/plan-review/works-factory-plan-review.yaml#r2-design.systemPrompt": {
     "inserts": [],
     "returns": {

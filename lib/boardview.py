@@ -19,6 +19,8 @@
   :603 の accept_reply）。支度は実測した制約のうち審査する変更が足した行を名指す物に印を付ける（added_marks。新しい）
 - review_material・take_review: 事前審査の支度と受け付け（元 works/blk-plan/lib/planblk.py:1085 の prep・:1134 の take・
   :1178 の with_converge）
+- review_resubmit: 受け付けに拒まれた後の出し直しの役（事前審査の役の会話の続き）の短い指示書。出し直しは拒まれた欄だけを返し、
+  take_review が前の答えの控え（rolekit.candidate_path）と合わせてから照らす（#571）
 - collect: 返す節の組み立て（元 works/blk-plan/lib/planblk.py:1441 の collect。形 replan の関所の項目は replan_asks。元
   works/.shared/core/replan.py:620 の gate）
 - verdict・read_open_of: 最後に開いた往復の通否と、その往復が修正案の周と組むか（collect の pass・stalled と、独立の目の頭の事前審査の行が読む）
@@ -87,6 +89,7 @@ R2_TREE = "r2-tree.json"                # 独立設計の役を起こす前の�
 R2_PROMPT = "r2-prompt.md"
 TREE_FILE = planfile.TREE_FILE           # 事前審査の役を起こす前の作業ツリーの姿（pass-<k>/ の中）
 PROMPT_FILE = "prompt.md"
+RESUBMIT_FILE = "resubmit-{n}.md"       # 拒まれた後の出し直しの役の指示書（pass-<k>/ の中。n は受け付けの回）
 REVIEW_FILE = "review.json"
 PASSES_FILE = gatemarks.PASSES_FILE
 GATE_FILE = gatemarks.PLAN_GATE_FILE
@@ -860,6 +863,30 @@ def _replan_section(row: dict) -> str:
     return "\n".join(lines)
 
 
+REVIEW_RESUBMIT_ASK = ("前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。材料・案・リポジトリは、"
+                       "この会話で既に読んだ物のまま（読み直すな。拒否の理由を確かめるのに要る所だけ読め）。\n\n"
+                       "受け付けが拒んだ理由（字のまま）:\n\n```text\n{reason}\n```\n\n"
+                       "機械が合わせた前の回の答えの全体: {candidate}（Read で読める。返さない欄はこの形のまま残る）\n\n"
+                       "返し方:\n"
+                       "- 返すのは前と同じ型の JSON で、直す欄だけを書く。返した欄は前の欄を丸ごと置き換え（faces・design_map などの"
+                       "配列も、直さない行を含めて全部の行を返す）、返さない欄は前のまま\n"
+                       "- 受け付けは、合わせた後の答えの全体をもう 1 度照らす")
+
+
+def review_resubmit(folder, repo) -> pathlib.Path:
+    """拒まれた後の出し直しの役の指示書 pass-<k>/resubmit-<n>.md（REVIEW_RESUBMIT_ASK。この差し込みの最後の拒否の文と、合わせた前の
+    答えの控えのパスを差し込む）を書き、役を起こす前の作業ツリーの姿を pass-<k>/tree.json に置き直して、指示書のパスを返す。役は
+    1 回目の役の会話の続きで起き、材料は会話に在るので貼らない"""
+    d = pathlib.Path(folder)
+    p = pass_dir(d, read_open(d)["k"])
+    reasons = rolekit.rejected(p, REVIEW_NODE)
+    path = p / RESUBMIT_FILE.format(n=rolekit.attempt(p, REVIEW_NODE))
+    path.write_text(REVIEW_RESUBMIT_ASK.format(reason=reasons[-1] if reasons else "",
+                                               candidate=rolekit.candidate_path(p, REVIEW_NODE)), encoding="utf-8")
+    planfile.snap_tree(p / TREE_FILE, repo)
+    return path
+
+
 def review_material(folder, repo, command_text: str, review_md, *, shared=None) -> pathlib.Path:
     """事前審査の材料のファイル pass-<k>/prompt.md を書き、役を起こす前の作業ツリーの姿を pass-<k>/tree.json に置く。材料は
     役の頭（planblk.head。関所の決め手・既にある物を量ったか・人に回す物の挙げ方・ライブラリの文書・独立設計の節・修正案の
@@ -943,8 +970,10 @@ def _lines(head: str, gaps: list) -> str:
     return head + "\n" + "\n".join(f"  - {g}" for g in gaps)
 
 
-def take_review(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
-    """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 木なら下請けの
+def take_review(folder, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None) -> dict:
+    """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。reply は 1 回目の役の返答、fix_reply は拒まれた後の
+    出し直しの役の返答（拒まれた欄だけ）で、どちらも JSON に戻した値（起きなかった役は None）。出し直しは前の答えの控えと
+    rolekit.merge_fields で合わせ（rolekit.resubmitted）、合わせた答えの全体を照らす。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 木なら下請けの
     答えのまとめ（planblk.tree_merge）→ 記録された方針（policy.face_gaps）→ 木でなければ独立設計の引用と design_map
     （planblk.design_gaps）→ 前の往復の block の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
@@ -955,14 +984,14 @@ def take_review(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
     p.mkdir(parents=True, exist_ok=True)
-    got = counted(p, REVIEW_NODE, accept.guard(lambda: _take(d, p, inputs, raw, repo, keys)))
+    got = counted(p, REVIEW_NODE, accept.guard(lambda: _take(d, p, inputs, reply, fix_reply, repo, keys)))
     if got["give_up"]:
         _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": GIVEN_UP_FACES + got["reason"]})
     return got
 
 
-def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> dict:
-    reply, why = rolekit.parse_reply(raw)
+def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, first, fix, repo, keys) -> dict:
+    reply, why = rolekit.resubmitted(p, REVIEW_NODE, first, fix, rolekit.merge_fields)
     if reply is None:
         raise Reject(why)
     moved = planfile.moved(p / TREE_FILE, repo, keys)

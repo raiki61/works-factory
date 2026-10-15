@@ -359,7 +359,8 @@ class YamlCase(unittest.TestCase):
         """読んだ証拠の節が名指す役は YAML の役の節と同じ: 道具を持つ役は review_reads.ROLE、持たない役は planblk.DESIGN_ROLE
         （役が道具を得たのに null と書く黙った緩みを赤にする）"""
         roles = [n for n in nodes().values() if any(k in n for k in scan.ROLE_KINDS)]
-        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")}, {load_script("review_reads").ROLE})
+        # 出し直しの役は事前審査の役の会話の続きなので、読んだ証拠は同じ役に数える
+        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")} - {"plan-review-fix"}, {load_script("review_reads").ROLE})
         self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, {planblk.DESIGN_ROLE})
 
     def test_returns_review_and_outcome_pass(self):
@@ -424,6 +425,32 @@ class YamlCase(unittest.TestCase):
         self.assertNotIn("systemPrompt", got["plan-review"])
         self.assertEqual(got["plan-review"]["allowed_tools"], ["Read", "Grep", "Glob", "WebSearch", "WebFetch", "Agent", "Write"])
 
+    def test_resubmit_role_continues_the_review_conversation(self):
+        """#571: 事前審査の役は周ごとに新しい会話（輪の 1 周目と context: fresh）で、受け付けに拒まれた後は plan-review-fix が同じ会話の
+        続きで拒まれた欄だけを返す。振り分けは review-prep の resubmit（拒まれた周の値 $LOOP_PREV.review-accept.output.ok を受ける）。
+        plan-review-fix は plan-review の後ろの層に置き、context を書かず、起こし方は plan-review と同じ。型は required を外しただけ"""
+        got = nodes()
+        body = [n["id"] for n in got["review-loop"]["loop_group"]["nodes"]]
+        self.assertEqual(body, ["review-prep", "plan-review", "plan-review-fix", "review-accept"])
+        self.assertEqual(got["review-prep"]["with"], {"prev": "$LOOP_PREV.review-accept.output.ok"})
+        self.assertIn("resubmit", got["review-prep"]["output_format"]["required"])
+        self.assertEqual(got["plan-review"]["when"], "$review-prep.output.resubmit == false")
+        fix, first = got["plan-review-fix"], got["plan-review"]
+        self.assertEqual(fix["when"], "$review-prep.output.resubmit == true")
+        self.assertEqual((fix["depends_on"], fix["trigger_rule"]), (["review-prep", "plan-review"], "none_failed_min_one_success"))
+        self.assertNotIn("context", fix)
+        self.assertIn("$review-prep.output.prompt_file", fix["prompt"])
+        launch = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
+        self.assertEqual({k: fix[k] for k in launch}, {k: first[k] for k in launch})
+        self.assertEqual(fix["output_format"]["required"], [])
+        self.assertEqual({**fix["output_format"], "required": first["output_format"]["required"]}, first["output_format"])
+        accept = got["review-accept"]
+        self.assertEqual((accept["depends_on"], accept["trigger_rule"]),
+                         (["plan-review", "plan-review-fix"], "none_failed_min_one_success"))
+        self.assertEqual((accept["with"]["reply"], accept["with"]["fix_reply"]),
+                         ({"from": "$plan-review.output", "if_skipped": None},
+                          {"from": "$plan-review-fix.output", "if_skipped": None}))
+
     def test_role_prefaces_are_the_ported_role_bodies(self):
         """事前審査の指示書の頭は役 judge の本文、独立設計の systemPrompt は役 blind-judge の本文と字が同じ（今の works の
         engine が役の定義 agents/<役>.md の本文を前付けした形。写しは lib/agents/）"""
@@ -436,7 +463,7 @@ class YamlCase(unittest.TestCase):
     def test_loops_are_three_and_end_on_accept_done(self):
         """出し直しの輪は 3 回（諦めの数 rolekit.GIVE_UP_AFTER と同じ）で、until_bash は同じ輪の受け付けの done"""
         got = nodes()
-        for loop, accept_id, fresh in (("r2-design-loop", "r2-accept", False), ("review-loop", "review-accept", True)):
+        for loop, accept_id, fresh in (("r2-design-loop", "r2-accept", False), ("review-loop", "review-accept", False)):
             with self.subTest(loop):
                 group = got[loop]["loop_group"]
                 self.assertEqual(group["max_iterations"], boardview.rolekit.GIVE_UP_AFTER)
@@ -487,7 +514,7 @@ class YamlCase(unittest.TestCase):
 
     def test_scripts_read_role_formats_from_the_yaml(self):
         """script は外のパッケージ無しで走るので、役の節の型は JSON の形で書き、差し込みの頭の script の node_schema で読む
-        （節の id と YAML の並びの読みは script の側に置く。lib/AGENTS.md の E3）"""
+        （節の id と YAML の並びの読みは script の側に置く。lib/AGENTS.md の E3）。plan-review の型には出し直しの役が引く錨が付く"""
         text = YAML.read_text(encoding="utf-8")
         got = nodes()
         script = load_script("pass_open")
@@ -543,8 +570,11 @@ class YamlCase(unittest.TestCase):
                 self.assertLessEqual(reads, declared | bound)
 
     def test_no_loop_prev_reaches_a_role(self):
-        """元 YamlCase.test_no_loop_prev_reaches_a_prompt: 役に届く文に $LOOP_PREV が無い（前の拒みは支度が本文か材料の頭に貼る）"""
-        texts = [YAML.read_text(encoding="utf-8"), *(p.read_text(encoding="utf-8") for p in (BLOCK / "commands").glob("*.md"))]
+        """元 YamlCase.test_no_loop_prev_reaches_a_prompt: 役に届く文（役の節と指示書）に $LOOP_PREV が無い（前の拒みは支度が本文か
+        材料の頭に貼る。前の周が拒まれたかの真偽は輪の頭の script の節が with: で受ける）"""
+        roles = [n for n in nodes().values() if any(k in n for k in scan.ROLE_KINDS)]
+        texts = [*(json.dumps(n, ensure_ascii=False) for n in roles),
+                 *(p.read_text(encoding="utf-8") for p in (BLOCK / "commands").glob("*.md"))]
         self.assertFalse([t for t in texts if "$LOOP_PREV" in t])
 
     def test_loop_ids_unique_across_blocks(self):
@@ -1000,7 +1030,8 @@ class ReviewAcceptCase(RunCase):
         self.assertIn(got["reason"].splitlines()[0][:40], text)
 
     def test_third_material_pastes_every_reject_of_the_loop(self):
-        """事前審査の役は周ごとに新しい会話で起きるので、2 回拒まれた後の 3 回目の材料に 1 回目と 2 回目の拒否が古い順に在る（#345）"""
+        """resume で輪が 1 周目から回り直すと（前の周の値 prev が空）、1 回目の役が新しい会話で起きるので、2 回拒まれた後の材料に
+        1 回目と 2 回目の拒否が古い順に在る（#345）"""
         r = self.run_
         self.prepped()
         reasons = [r.out("review_accept", INPUTS_REPLY="{JSON でない")["reason"],
@@ -1008,6 +1039,41 @@ class ReviewAcceptCase(RunCase):
         self.assertNotEqual(*reasons)
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn(boardview.rolekit.rejects_text(reasons), text)
+
+    def test_resubmit_material_carries_the_last_reject_and_the_merged_answer(self):
+        """#571: 拒まれた後の周（prev が false）は、出し直しの役の短い指示書 pass-<k>/resubmit-<n>.md: 最後の拒否の文を字のまま貼り、
+        受け付けが合わせた前の答えの控えを名指す。材料（案・単位）は会話に在るので貼らない"""
+        r = self.run_
+        self.prepped()
+        got = r.accept(review(face("entrance-without-no-add", kind="entrance")))
+        prep = r.out("review_prep", INPUTS_PREV="false")
+        self.assertIs(prep["resubmit"], True)
+        p = pathlib.Path(prep["prompt_file"])
+        self.assertEqual(p.name, "resubmit-2.md")
+        text = p.read_text(encoding="utf-8")
+        self.assertIn(got["reason"], text)
+        self.assertIn(str(boardview.rolekit.candidate_path(p.parent, boardview.REVIEW_NODE)), text)
+        self.assertNotIn(boardview.UNITS_LINE, text)
+
+    def test_partial_resubmit_is_merged_with_the_previous_answer(self):
+        """#571: 出し直しの役は拒まれた欄だけを返す。受け付けは前の答えの控えと合わせて（返した欄は前の欄を置き換え、返さない欄は
+        前のまま）全体を照らし、合わせた答えを review.json に書く"""
+        r = self.run_
+        self.prepped()
+        self.assertFalse(r.accept(review(face("entrance-without-no-add", kind="entrance")))["ok"])
+        fixed = {"faces": [face("entrance-with-no-add", kind="entrance", no_add="柵を足さずに 2 つの入口を 1 つの口にまとめる形")]}
+        got = r.out("review_accept", INPUTS_REPLY="null", INPUTS_FIX_REPLY=json.dumps(fixed, ensure_ascii=False))
+        self.assertTrue(got["ok"], got["reason"])
+        saved = json.loads((boardview.pass_dir(r.folder, 1) / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([f["key"] for f in saved["faces"]], ["entrance-with-no-add"])
+        self.assertEqual(saved["reason"], review()["reason"])
+
+    def test_empty_resubmit_is_rejected(self):
+        r = self.run_
+        self.prepped()
+        r.accept(review(face("entrance-without-no-add", kind="entrance")))
+        got = r.out("review_accept", INPUTS_REPLY="null", INPUTS_FIX_REPLY="{}")
+        self.assertEqual((got["ok"], got["reason"]), (False, boardview.rolekit.EMPTY_RESUBMIT))
 
     def test_material_carries_the_mainline_inputs(self):
         """材料は役の頭（関所の決め手・狭めない案・既にある物を量ったか・人に回す物）と、写しの指示書の差し込み（修正案・番号つきの
@@ -2788,7 +2854,7 @@ class FixtureCase(unittest.TestCase):
         names = sorted(p.name for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
         self.assertEqual(names, sorted(f"{n}.stubs.yaml" for n in (
             "pass", "block", "stalled", "ask-human", "target-text-drift", "r2-skipped", "r2-give-up", "review-give-up",
-            "open-failed", "depth-skip")))
+            "open-failed", "depth-skip", "resubmit")))
         with archon.tree([BLOCK.name]) as tree:
             done = archon.archon(tree, "workflow", "test", "works-factory-plan-review", "--cwd", str(tree))
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)

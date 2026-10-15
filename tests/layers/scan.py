@@ -681,6 +681,8 @@ TREE_CHANGERS = frozenset({"Bash", "Edit", "Write"})
 KEEP_CHECKOUT = {
     ("judge", "judge-verify"): "単位ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
     ("plan-review", "plan-review"): "項目ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
+    ("plan-review", "plan-review-fix"): "plan-review の会話の続きの出し直しの役。項目ごとの下請けが答えのファイルを run の置き場に Write で"
+                                        "書く。作業ツリーは書かない（元の keep_checkout）",
     ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。sandbox の denyWrite が書き込みを止め、false と ci-accept の"
                          "作業ツリーの比べが重ねて守る（#69・#293）",
 }
