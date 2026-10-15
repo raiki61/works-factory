@@ -371,6 +371,23 @@ class LoopTest(unittest.TestCase):
                 self.assertEqual(by[name]["command"], f"material-{name}")
                 self.assertEqual(by[f"{name}-loop"]["when"], f"$material-route.output.{ja.route_key(name)} == true")
 
+    def test_material_role_continues_its_previous_round(self):
+        """素材の役の出し直し（J81「同じ会話で 3 回まで」）: fresh_context: false の loop_group は前の周の会話を次の周の体の AI の節へ
+        渡すが（dag-executor.ts の lastSequentialSession）、並んだ層（2 つ以上の節の層）では渡さない。だから体の最初の層は
+        支度の script 1 本で、役はその後の層に 1 本で置き、context: fresh を持たない。周をまたぐ会話は筋書きで渡らない（K6）ので、
+        ここは形だけを縛る（修正の tdd-loop の試験と同じ）"""
+        by = loops()
+        for name in MATERIALS:
+            with self.subTest(material=name):
+                loop = by[f"{name}-loop"]["loop_group"]
+                self.assertIs(loop["fresh_context"], False)
+                body = {n["id"]: n for n in loop["nodes"]}
+                first = [nid for nid, n in body.items() if not set(n.get("depends_on", ())) & set(body)]
+                self.assertEqual(first, [f"{name}-prep"], "最初の層に 2 本以上を置くと Archon は会話を切る")
+                role = body[name]
+                self.assertEqual(role["depends_on"], [f"{name}-prep"])
+                self.assertNotIn("context", role, "2 周目の役は前の周の自分の会話を継ぐ")
+
     def test_role_names_are_the_libs(self):
         """役の名の持ち主は lib（MATERIAL_ROLES・SPEC_ROLES）。YAML の route の欄と with: の role がそれに合う"""
         by = nodes()
@@ -957,6 +974,13 @@ class RejudgeTest(unittest.TestCase):
         script の枝でなく YAML の when が持つ。go は見ない（go 偽でも judge の道なら all_done でまとめが走る）"""
         node = nodes()["verify-merge"]
         self.assertEqual(node.get("when"), "$intake.output.mode == 'judge'")
+        self.assertEqual(node["trigger_rule"], "all_done")
+
+    def test_diagnose_prep_waits_on_the_judge_mode(self):
+        """判定の材料を組む段は判定の道（intake の mode が judge）の時だけ走る。diagnose_prep は入力 objection を読まないので、
+        再審の道で判定の材料を組まない守りはこの when だけが持つ"""
+        node = nodes()["diagnose-prep"]
+        self.assertEqual(node.get("when"), "$intake.output.go == true && $intake.output.mode == 'judge'")
         self.assertEqual(node["trigger_rule"], "all_done")
 
 
