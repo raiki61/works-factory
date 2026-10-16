@@ -636,7 +636,8 @@ def coverage_gaps(elements, refs) -> list:
 def _map_gaps(source, rows, design_map, elements=None) -> list:
     """design_map の誤りの行。行は {item, path, symbol, design_ref, design_quote, why} の 2 つの向き:
     - 案→設計: 案の行 rows の files の (項目, path, symbol) ごとにちょうど 1 行（対象は change=add の symbol・change=remove の symbol・
-      op が create・delete・rename の行（symbol は null）。files に無い行は誤り）。design_ref は指す要素の id（対が無ければ null）
+      op が create・delete・rename の行（symbol は null）。rows の項目の外の項目の行と、rows の項目の files に無い記号の行は誤り。
+      外の項目の行は項目の状態を言わず「この照らしの項目の外」とだけ言う）。design_ref は指す要素の id（対が無ければ null）
     - 設計→案: item・path・symbol が null で design_ref が必須（案のどの行にも対の無い要素を挙げる）
     design_ref は elements（独立設計の要素）に在る id だけ。同じ鍵の行の重なりは誤り。design_quote が在れば独立設計の文に字のまま
     在る（null は対が無い）。要素の網羅はここで照らさない（一部の項目の答えでは、ほかの項目が受ける要素を「どの項目も受けない」と
@@ -660,7 +661,10 @@ def _map_gaps(source, rows, design_map, elements=None) -> list:
     out += [f"design_map に{_label(*k)}の行が無い（files の add・remove の symbol と op が create・delete・rename の行ごとにちょうど 1 行）"
             for k in wanted if not count.get(k)]
     out += [f"design_map に{_label(*k)}の行が {count[k]} 行ある（ちょうど 1 行）" for k in wanted if count.get(k, 0) > 1]
-    out += [f"design_map の{_label(*k)}の行は項目の files に無い" for k in count if k[0] != "design" and k not in wanted]
+    shown = sorted({r.get("item") for r in rows if isinstance(r.get("item"), int)})
+    out += [f"design_map の{_label(*k)}の行は、この照らしの項目（{'・'.join(str(n) for n in shown) or '無し'}）の外。design_map に書かない"
+            for k in count if k[0] != "design" and k[0] not in shown]
+    out += [f"design_map の{_label(*k)}の行は項目の files に無い" for k in count if k[0] != "design" and k[0] in shown and k not in wanted]
     out += [f"design_map の設計→案の行の design_ref {k[1]} が {n} 行ある（1 行にまとめよ）" for k, n in count.items()
             if k[0] == "design" and n > 1]
     for e in entries:
