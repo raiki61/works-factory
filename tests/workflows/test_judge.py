@@ -54,6 +54,7 @@ RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spe
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
 MATERIALS = tuple(ja.MATERIAL_ROLES)
+PUBLIC = ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "purpose-review.json", "depth-head.json")
 
 # 役の節の設定（今の works の旧 YAML の値。works/blk-*/blk-*.yaml と darkfactory/darkfactory.yaml の 174〜400 行・866 行）
 BASE = {"enabled": True, "allowUnsandboxedCommands": False}
@@ -873,7 +874,7 @@ class UvLaunchTest(unittest.TestCase):
 
 class StopPathFilesMixin:
     def assert_pointers_filled(self, r: Run, out: dict):
-        """指し札の先と公開の隣のファイル（名の正本は ja.PUBLIC_FILES）が在り、空でない（Archon は節の終わりに先が在って空でないかを照らす）"""
+        """指し札の先と公開の隣のファイルが在り、空でない（Archon は節の終わりに先が在って空でないかを照らす）"""
         verdict_shape(self, out)
         for field in ("judgment", "purpose", "world", "spec", "out_of_purpose"):
             if out[field] is None:
@@ -881,7 +882,7 @@ class StopPathFilesMixin:
             path = r.resolve(out[field])
             self.assertTrue(path.is_file() and path.stat().st_size > 0, f"{field}: {path}")
         folder = r.resolve(out["judgment"]).parent
-        for name in ja.PUBLIC_FILES:
+        for name in PUBLIC:
             path = folder / name
             self.assertTrue(path.is_file() and path.stat().st_size > 0, name)
             json.loads(path.read_text(encoding="utf-8"))
@@ -919,7 +920,7 @@ class AcceptLoopTest(unittest.TestCase):
         self.assertEqual(judgment["units"], [])
         returned = r.returned("verdict")
         self.assertEqual(r.resolve(returned["judgment"]), r.judge / "judgment.json")
-        for name in ja.PUBLIC_FILES:
+        for name in PUBLIC:
             self.assertTrue((r.judge / name).is_file(), name)
 
     def test_judge_that_changed_the_tree_is_refused(self):

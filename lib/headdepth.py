@@ -1,4 +1,5 @@
-"""run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）。使うのは判定と線の script と計画の lib。
+"""run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）。使うのは判定と線の script と、判定・修正案・修正・報告の lib
+（judge_accept・planfile・planblk・fixboard・runreport）。
 
 単位ごとの深さ（depth.py）の上に、run 全体の深さの段（軽量・標準・重厚。段の定義は depth.TIERS）を run の頭で 1 度決める。
 依頼の行ごとに何が決まっていないか（未知の種類）は意味の問いなので役が引用つきで選び、段はその種類から機械が引く（tier_of）。
@@ -42,6 +43,7 @@ import cite  # noqa: E402
 import depth  # noqa: E402
 import gatemarks  # noqa: E402
 import jsonfile  # noqa: E402
+import oneline  # noqa: E402
 import promptsection  # noqa: E402
 import startrec  # noqa: E402
 
@@ -209,10 +211,9 @@ NO_KINDS = "行ごとの未知の種類は決まっていない（訳: {why}）"
 
 
 def _row(it: dict) -> str:
-    one = lambda x: " ".join(str(x or "").split())   # noqa: E731  （引用の改行を 1 行にたたむ）
-    where = one(it.get("where"))
-    place = f"番地 {where}「{one(it.get('code_quote'))}」" if where else "番地: 無い（原因がコードに見えない）"
-    return (f"- 行 {it.get('item')}（{it['unknown']}）: 依頼の字「{one(it.get('cause_quote'))}」・{place}"
+    where = oneline.one_line(it.get("where") or "")
+    place = f"番地 {where}「{oneline.one_line(it.get('code_quote') or '')}」" if where else "番地: 無い（原因がコードに見えない）"
+    return (f"- 行 {it.get('item')}（{it['unknown']}）: 依頼の字「{oneline.one_line(it.get('cause_quote') or '')}」・{place}"
             f"・指示: {ASKS[it['unknown']]}")
 
 
