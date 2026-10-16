@@ -1024,8 +1024,7 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
                              hits=merged["hits"], origins=merged["origins"], at_cap=_at_cap(inputs),
                              refs=merged.get("refs") or refs, push=tree.get(converge.STUCK_PUSH))
         converge.stash_rejects(out, _pass_rejects(inputs, p))
-        # 止まった案が推しで修正へ進む時（無人の run で推しの note が止まった key と項目を引いた時。gatemarks.stuck_push）は、
-        # 保留の項目の前の往復の block も review.json の faces に足す: 修正役が事前審査の穴に key ごとに答える道
+        # 止まった案が推しで修正へ進む時（gatemarks.stuck_push）は、保留の項目の前の往復の block も review.json の faces に足す: 修正役が事前審査の穴に key ごとに答える道
         # （fixboard.plan_face_rows）と差分の審査の材料に、今の往復が審査しなかった保留の穴も義務として乗る
         if gatemarks.stuck_push(out):
             held = converge.stuck_faces(converge.read(out))

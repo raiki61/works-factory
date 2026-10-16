@@ -189,15 +189,12 @@ ORIGIN_SCHEMA = {"type": "array", "items": {
 # 壁打ちが止まる往復の推し（事前審査の返答の一番上の欄。形は gatemarks.MARK_SCHEMA[RECOMMEND] の {answer, note, why}。値を往復の行の
 # 欄 push に置くだけで、形の持ち主は gatemarks）。無人の run が、止まった案を推しで修正へ進める口（gatemarks.stuck_push）
 STUCK_PUSH = "stuck_recommend"
-# 機械が review.json の faces に足した、保留の項目の前の往復の block の印の欄（stuck_faces が付け、block_faces は審査の挙げた block に
-# 数えない。印の名の持ち主はここ 1 つ）
 HELD_MARK = "held"
-KEY_CHAR = "[A-Za-z0-9_-]"   # key の字（uncited は key の前後にこれが続く一致を、長い key の断片として引用に数えない）
-# 事前審査の指示書に貼る、止まった時の推しの note に引く物の節の頭（review_section。推しを書く役の頭の決まりが名指す）
+KEY_CHAR = "[A-Za-z0-9_-]"   # key の 1 字（gatemarks の台帳の key の照らしも読む）
 HELD_CITES_HEAD = "止まった時の推し（" + STUCK_PUSH + "）の note に引く物"
 HELD_CITES = (HELD_CITES_HEAD + ": 下の保留の項目の block（今の往復は審査しない）と、今の往復で挙げる block の key 全部と、"
               "その項目の番号")
-TREE_KEYS = (ITEMS, DESIGN_MAP, ORIGINS, SYNERGY, STUCK_PUSH)   # 事前審査の返答から外す木の欄（STUCK_PUSH は壁打ちの一番上の欄）
+TREE_KEYS = (ITEMS, DESIGN_MAP, ORIGINS, SYNERGY, STUCK_PUSH)   # 事前審査の返答から外す木の欄
 
 
 # ---------------------------------------------------------------- 決まり
@@ -856,7 +853,7 @@ def review_section(b) -> str:
         parts.append("修正案の役の答え:\n" + ("\n".join(f"- {a.get('key')}: {a.get('handled')}（{a.get('how')}）"
                                                       for a in answers) or NONE))
     held = [it for it in passes[-1].get("items") or [] if it.get("state") == HELD]
-    if held:   # 推しを書く役（束ね役も）が、止まった時の推しの note に引く保留の項目の block と項目の番号を知る
+    if held:
         parts.append("\n".join([HELD_CITES, *(f"- {_label(it)}: {_keys(it.get('blocks') or [])}" for it in held)]))
     return "\n\n".join(parts)
 
@@ -869,7 +866,7 @@ def stuck_keys(doc: dict) -> list:
         return []
     last = doc["passes"][-1]
     keys = last["persists"] if doc["outcome"] == PERSISTED else last["blocks"]
-    if last.get("items") is not None:   # 保留の項目の block は前の往復の物（今の往復は審査しない）
+    if last.get("items") is not None:
         keys = list(dict.fromkeys(k for it in last["items"] if it.get("state") in (HELD, OPEN) for k in it["blocks"]))
     return keys
 

@@ -32,11 +32,9 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 この行は決め手の濾しにも無人の濾しにも掛けない（無人の殻は関所で stop を返すので、無人の設計だけの run も止まって報告へ進む）。
 直す義務が 0 件の周は関所の節が走らず、修正もしない。設計だけの行の出どころは 2 つ（入力 design_only と、事前審査の壁打ちが
 止まった事実＝converge.stuck_reason）。行は design_item の 1 か所で組む（設計だけでない run の止まりは頭を STUCK_ITEM にし、
-設計だけの run と名乗らない。種類の kinds は同じ design_only）。設計だけでない無人の run の止まりの行だけは、事前審査の役が返答の
-一番上に書いた止まった時の推し（converge.STUCK_PUSH。往復の行の push）の尾を持ちうる（stuck_push。持ち主 2026-10-15「人がいない
-ときは推しの答え。」・issue #552）。尾が付くのは、推しの note が止まった key と保留・開いた項目の『項目 n』の全部を字のまま引いた時
-だけ（converge.uncited が空）。ほかは尾が無く、pushed_answer が None を返して今どおり止まる。人のいる run と設計だけの run の行は
-尾を持たない。
+設計だけの run と名乗らない。種類の kinds は同じ design_only）。止まりの行は、事前審査の役が返答の一番上に書いた止まった時の推し
+（converge.STUCK_PUSH）の尾を持ちうる（付く条件は stuck_push。持ち主 2026-10-15「人がいないときは推しの答え。」・issue #552）。
+尾の無い行は pushed_answer が None を返して今どおり止まる。
 - reason_push(q)・run_push(b, q)・taken_pushes(b)・PUSH_TAKEN: 問いの理由に判定の役が書いた推し・無人の run が答えとして採る推し
   （fork・held だけ。依頼の answers と関所の continue が先）・推しで答えた問いと戻した単位の並び（報告が冒頭と人が決めることに並べる）・
   答えた行の印
@@ -213,7 +211,7 @@ ASK_HEAD = "問いの台帳の問い"          # 関所の項目の頭。答え�
 ASK_KINDS = ("fork", "escalate")       # 関所の項目の kinds（fork の問いと、status が escalate の問い）
 HOLD = re.compile(r"保留\s*[:：]\s*([^。；;\n]+)")   # 一言の「保留: <key>」（文の終わりまで。key を並べてよい。key は hold_keys が台帳から拾う）
 HOLD_END = re.compile(r"[。；;\n]")   # HOLD が読む文の終わり（unread_holds が一言を文に切る）
-KEY_CHAR = re.compile(r"[A-Za-z0-9_-]")   # 台帳の key の一致の前後にこれが続けば、もっと長い key の断片
+KEY_CHAR = re.compile(converge.KEY_CHAR)   # 台帳の key の一致の前後にこれが続けば、もっと長い key の断片
 HOLD_ITEM = re.compile(r"(?:^|[・、,，])\s*([A-Za-z0-9_-]*[A-Za-z0-9][A-Za-z0-9_-]*)")   # 「保留:」に並べた項の頭の key らしい並び
 ANSWERED_HEAD = "答えた問い（承認ノードの continue か依頼の answers か無人の run が採った推し）"   # 答えた行（answered_lines）の見出し（報告の冒頭と最後の承認ノード）
 ANSWER_KEY_HEAD = "答える時の answers の question"   # 保留の行の尾: 依頼の answers に字のまま書く question（answer_key。JSON の文字列で区切る）
@@ -563,7 +561,7 @@ def _gate_rows(b) -> list:
     recorded = (b.record.get("process") or {}).get(policy.RECORDED_KEY) or []
     for j, f in enumerate((b.output_of_round("p2.plan_review", b.round) or {}).get("faces") or []):
         m = _mark(f, saved, j)
-        if f.get(converge.HELD_MARK):   # 機械が足した保留の block は修正役の義務で、人に回す行は止まりの行（stuck_push の尾を持つ）が持つ
+        if f.get(converge.HELD_MARK):
             continue
         if f["kind"] in b.rules.HUMAN_FACE_KINDS and not policy.unrecorded(f, m, recorded):
             rows.append((f["kind"], f"事前審査の穴 [{f['kind']}] {f['key']}: {f['why']}", m, "p2.plan_review",
@@ -769,8 +767,8 @@ def stuck_push(b) -> str:
 
 def design_item(b) -> str:
     """関所に載せる設計だけの行。入力 design_only だけなら DESIGN_ONLY_ITEM のまま、事前審査の壁打ちが止まっていれば
-    （入力と重なっても 1 行で）尾に止まった理由を付ける。設計だけでない run の止まりは頭を STUCK_ITEM にし、無人の run では
-    事前審査の役の推しの尾（stuck_push）も付けうる（人のいる run と設計だけの run の行は付けない）。どちらも無ければ空"""
+    （入力と重なっても 1 行で）尾に止まった理由を付ける。設計だけでない run の止まりは頭を STUCK_ITEM にし、
+    事前審査の役の推しの尾（stuck_push）も付けうる。どちらも無ければ空"""
     reason = converge.stuck_reason(b)
     if reason:
         if design_only(b):

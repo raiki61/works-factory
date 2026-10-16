@@ -320,7 +320,6 @@ CHECKED = "項目の案を stats.py と test_stats.py で読み、呼び出し�
 SUMMARY_REASON = "項目ごとの下請けの答えのファイルを受け、項目ごとの判定をまとめた"
 MEAN_BLOCK = face("item1-mean-empty-division", UNIT_MEAN, kind="regression")
 CLAMP_BLOCK = face("item2-clamp-upper-branch", UNIT_CLAMP)
-# 壁打ちが止まる往復の一番上の推し（converge.STUCK_PUSH）。note が止まった key と『項目 n』を字のまま引く
 STUCK_NOTE = "{key} を項目 1 の修正の中で直す範囲で通す"
 STUCK_REC = {"answer": "continue", "note": STUCK_NOTE.format(key=MEAN_BLOCK["key"]), "why": "穴は案の項目 1 の直しで閉じられる"}
 PRECEDENTS = [{"key": UNIT_MEAN, "source": "https://docs.python.org/3/library/statistics.html#statistics.mean",
