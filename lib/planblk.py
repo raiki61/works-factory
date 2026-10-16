@@ -343,6 +343,23 @@ def design_only(b) -> str:
             f"{got['design']}\n=====独立設計ここまで=====" + (f"\n\n{elements}" if elements else ""))
 
 
+MAP_ITEMS_HEAD = promptsection.Section("## この往復で design_map を書く項目（機械が受け付けと同じ集合から作った）", source="fn:planblk.map_items_section")
+
+
+def map_items_section(b, items: list, others: str, *, carried: bool) -> str:
+    """木にしない往復の事前審査の頭に貼る、design_map を書く項目の節（独立設計が立たない run では ""）。items は受け付けが design_map を
+    照らす項目の番号（boardview._map_items）、others はそれ以外の項目を言う句（boardview.MAP_OTHERS）。carried が真なら、others が前の
+    往復で受けた独立設計の要素（converge.carried_refs。受け付けの coverage_gaps と同じ呼び）は網羅に数え済みと言い添える"""
+    if design.stands(b.dir, b.design_schema) is None:
+        return ""
+    names = "・".join(str(n) for n in sorted(items or [])) or "無し"
+    text = f"{MAP_ITEMS_HEAD}\n\nこの往復で design_map を書く項目: 項目 {names}。{others}の行は書かない（受け付けが拒む）。"
+    refs = sorted(converge.carried_refs(b, items or [])) if carried else []
+    if refs:
+        text += f"{others}が前の往復で受けた要素（{'・'.join(refs)}）は網羅に数え済み。設計→案の行に書かなくてよい。"
+    return text
+
+
 def lib_section(b, repo, shared=None) -> str:
     """判定の単位のファイルが使うライブラリの文書の節（同じ周の 2 つ目の役は盤面の控えを読み、網に出ない）。shared は run をまたぐ
     控えの根（None なら使わない）"""
@@ -917,7 +934,7 @@ RECEIVES = [
         carry.PRIOR_HEAD, carry.REDESIGN_HEAD, converge.FACE_HEAD, converge.OWED_HEAD)),
     *(promptsection.Receive("plan", head) for head in (worldmark.HEAD,)),
     *(promptsection.Receive("plan-review", head) for head in (
-        DESIGN_HEAD, planmarks.REVIEW_HEAD, planmarks.FIELDS_ITEM_HEAD, planmarks.DEVIATION_HEAD, AGG_HEAD, ITEM_HEAD, SYNERGY_HEAD,
+        DESIGN_HEAD, MAP_ITEMS_HEAD, planmarks.REVIEW_HEAD, planmarks.FIELDS_ITEM_HEAD, planmarks.DEVIATION_HEAD, AGG_HEAD, ITEM_HEAD, SYNERGY_HEAD,
         ITEM_PLAN_HEAD, ITEM_UNITS_HEAD, ALL_ITEMS_HEAD, OVERLAPS_HEAD, BRIEF_TITLE, SUB_FORMAT, DIFF_HEAD, CARRIED_HEAD, PRECEDENT_HEAD,
         ERRORS_HEAD, HISTORY_HEAD, ripple.HEAD, ripple.ITEM_HEAD, ripple.ITEM_KEYS_HEAD, converge.PASS_HEAD, converge.OWED_HEAD, converge.FACE_HEAD)),
     *(promptsection.Receive(role, head) for role in ("plan", "plan-review")

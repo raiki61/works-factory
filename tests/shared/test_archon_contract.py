@@ -345,6 +345,13 @@ ARCHON_ROWS = (
     Row("道具の呼びの道具の名と入力の欄", lambda: [runreport.TOOL_NAME, runreport.TOOL_INPUT], "packages/provider-contract/src/events.ts",
         r"export const toolCallSchema = z\.object\(\{.*?^\s*(name): z\.string\(\),$.*?^\s*(rawInput): z$",
         lambda m: list(m.groups())),
+    Row("run の記録の外の処理の行の型と呼びの名・終わりの符号の欄", lambda: [runreport.EXEC_ROW, runreport.EXEC_LABEL, runreport.EXIT_CODE],
+        "packages/workflows/src/logger.ts",
+        r"type: '(exec_output)',\s*step: nodeId,\s*(content): commandName,\s*(exit_code): output\.exitCode,",
+        lambda m: list(m.groups())),
+    Row("ループの until の呼びの名", lambda: runreport.UNTIL_ROW, "packages/workflows/src/dag-executor.ts", r"label: '(<until_bash>)'"),
+    Row("ループの回の step の継ぎ", lambda: runreport.ITERATION_MARK, "packages/workflows/src/dag-executor.ts",
+        r"nodeId: `\$\{node\.id\}(-iteration-)\$\{String\(i\)\}`"),
 )
 
 

@@ -1860,6 +1860,59 @@ class TreeCase(RunCase):
         brief = (self.items_dir() / "item-1.md").read_text(encoding="utf-8")
         self.assertIn(bad_quote, brief[brief.index(planblk.ERRORS_HEAD):])
 
+    @staticmethod
+    def map_row(n, symbol, ref=None) -> dict:
+        return {"item": n, "path": "stats.py", "symbol": symbol, "design_ref": ref, "design_quote": None,
+                "why": "設計に対の無い助け手の名だけを足す"}
+
+    def test_tree_off_second_pass_names_the_design_map_items(self):
+        """2 項目の案で、独立設計が立つ run の 1 往復目（木）に項目 1 が閉じ、項目 2 に block が残った後の 2 往復目（開いた項目 1 つで
+        木にしない）: 材料の MAP_ITEMS_HEAD の節が項目 2 だけを design_map を書く項目として名指し、項目 1 が前の往復で受けた要素 D1 を
+        数え済みと言う。項目 2 の行と設計→案の行だけの design_map は受かり、閉じた項目 1 の行を足した design_map は『照らしの項目の外』と
+        拒まれる（『項目の files に無い』とは言わない）"""
+        r = self.run_
+        elements = [{"id": "D1", "adds": ["上限の入口"], "removes": []}, {"id": "D2", "adds": ["丸めの口"], "removes": []}]
+        r.open()
+        DesignCase.designed(self, {**DESIGN_OK, "elements": elements})
+        self.prepped()
+        self.write_answers(1, {1: {**answer(1), converge.DESIGN_MAP: [self.map_row(1, "helper_1", "D1")]},
+                               2: {**answer(2, faces=[CLAMP_BLOCK]), converge.DESIGN_MAP: [self.map_row(2, "clamp", "D2")]}})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        self.assertEqual(converge.open_items(r.view()), [2])
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach=f"{PLAN_MARK} 直した項目 2", files=[frow("stats.py", "clamp")])], rnd=2,
+               answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
+        self.assertFalse(r.open()["tree"])
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        body = text[text.index(planblk.MAP_ITEMS_HEAD):].split("\n\n")[1]
+        self.assertIn("項目 2。", body)
+        self.assertNotIn("項目 1", body)
+        self.assertIn("閉じた・保留の項目の行は書かない", body)
+        self.assertIn("閉じた・保留の項目が前の往復で受けた要素（D1）は網羅に数え済み", body)
+        mine = [self.map_row(2, "clamp"), {"item": None, "path": None, "symbol": None, "design_ref": "D2", "design_quote": None,
+                                           "why": "設計の丸めの口は案のどの行にも対が無い"}]
+        fixed = [CLAMP_BLOCK["key"]]
+        got = r.accept(review(design_map=[*mine, self.map_row(1, "helper_1", "D1")], resolved=fixed))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
+        self.assertIn("この照らしの項目（2）の外", got["reason"])
+        self.assertNotIn("項目の files に無い", got["reason"])
+        self.assertTrue(r.accept(review(design_map=mine, resolved=fixed))["ok"])
+
+    def test_tree_item_answer_other_open_item_row_says_outside_not_closed(self):
+        r = self.run_
+        r.open()
+        DesignCase.designed(self)
+        self.prepped()
+        self.write_answers(1, {1: {**answer(1), converge.DESIGN_MAP: [self.map_row(1, "helper_1", "D1"), self.map_row(2, "clamp")]},
+                               2: {**answer(2), converge.DESIGN_MAP: [self.map_row(2, "clamp")]}})
+        got = r.accept(summary({1: [], 2: []}))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
+        self.assertIn("項目 1", got["reason"])
+        self.assertIn("この照らしの項目（1）の外", got["reason"])
+        for word in ("閉じた", "保留", "項目の files に無い"):
+            self.assertNotIn(word, got["reason"])
+
     def test_synergy_design_quotes_checked_against_named_items(self):
         """元 test_synergy_design_quotes_checked_against_named_items"""
         r = self.run_
