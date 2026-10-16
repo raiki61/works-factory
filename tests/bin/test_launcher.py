@@ -545,8 +545,8 @@ class LauncherTest(unittest.TestCase):
         login = {"ANTHROPIC_API_KEY": None, "FAKE_SECURITY_HOME": str(self.home), "FAKE_SECURITY_VALUE": TOKEN,
                  "FAKE_SECURITY_SERVICE": "Claude Code-credentials"}
         for args in (["workflow", "resume", "run-1"], ["workflow", "approve", "run-1"], ["workflow", "reject", "run-1"],
-                     ["workflow", "respond", "run-1", "continue", "x"], ["workflow", "wake", "run-1"],
-                     ["workflow", "signal", "run-1", "done"]):
+                     ["workflow", "respond", "run-1", "continue", "x"], ["workflow", "answer", "run-1", "x"],
+                     ["workflow", "wake", "run-1"], ["workflow", "signal", "run-1", "done"]):
             with self.subTest(args=args):
                 env = self.reached(self.launch(*args, WORKS_FACTORY_HOME=str(self.tmp / "home-of" / args[1]), **login))["env"]
                 self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))

@@ -21,10 +21,11 @@ from lib import answer, reads, userenv, writelog
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
 NAME = "works-factory"
-# 止めた Archon がグラフを走らせる命令（packages/cli/src/cli.ts の executesWorkflow と、その前で捌く続きの命令。
-# tests/shared/test_archon_contract.py が照らす）
+# 止めた Archon がグラフを走らせる命令（packages/cli/src/cli.ts の executesWorkflow の run と、run を続ける命令
+# packages/cli/src/dispatch-guards.ts の CONTINUE_SUBCOMMANDS と、その前で捌く続きの命令。tests/shared/test_archon_contract.py が照らす）
+RESUMING = frozenset({"resume", "approve", "reject", "respond", "answer"})
 CONTINUING = frozenset({"wake", "signal"})
-EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTINUING
+EXECUTING = frozenset({"run"}) | RESUMING | CONTINUING
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
