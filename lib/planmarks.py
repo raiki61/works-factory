@@ -44,7 +44,8 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   頭では役の書いた欄と分けて MACHINE_LABEL で名乗り、where でそれを名指す block の穴は事前審査の受け付けが拒む（役が直せない穴で
   案の往復を回さない）
 - climbs(norm): 整えたパスが根の外へ上るか（`..` は段で見る。conflict.parse_limit も同じ物を使う）
-- glob_problem(glob): 範囲の欄（allowed_paths・out_of_scope の glob）の誤りの文（\\ の区切り・根の外・`**`・`**/?*` のような字の無い丸ごとの許し）
+- glob_problem(glob): 範囲の欄（allowed_paths・out_of_scope の glob）の誤りの文（\\ の区切り・根の外・`**`・`**/?*` のような字の無い丸ごとの許し）。
+  末尾 / はその下の全部（'/**' と同じ）と読み、読みは _dir_glob の 1 か所から引く（glob_match・globs_meet も同じ）
 - glob_match(path, glob): 根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。守りのファイルの
   protect.match もこれを呼ぶ）。gaps は out_of_scope の glob が tests・rewrite_tests の id のファイルに当たる案を拒む
 - globs_meet(a, b): 2 つの glob が同じパスに当たり得るか（言い切れない時は真。fix の組分けが範囲の交わる項目をつなぐ）
@@ -215,6 +216,7 @@ HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を�
         "allowed_paths＝その項目で書いてよいパスの glob の並び（1 つ以上。作業ツリーの根からの相対・/ 区切り・** は段をまたぐ）。"
         "tests・rewrite_tests の id のファイルは書かなくても範囲に入り、out_of_scope の glob をそのファイルに当てた案は拒む。"
         "移す・消すファイルの元のパスも allowed_paths に書け。"
+        "末尾が / の glob（lib/）はその下の全部（lib/** と同じ）に当たる。lib// のような整えない綴りは拒む。"
         "** や * や **/* や **/?* や **/*.* のような字の無い（* と ? と [..] と . だけの）丸ごとの許しは拒む。"
         "out_of_scope＝範囲の中でも触らない物 {glob, why} の並び（why は "
         f"{MIN_WHY} 字以上。無ければ空の並び）。修正の受け付けは差分をこの範囲と照らし、外れたら同じ brief で返す。"
@@ -269,10 +271,19 @@ def climbs(norm: str) -> bool:
     return norm.startswith("/") or norm == "." or norm.split("/", 1)[0] == ".."
 
 
+def _dir_glob(glob) -> tuple:
+    """範囲の glob の末尾 / の読みの 1 か所（glob_problem・glob_match・globs_meet が引く）: 文字列で末尾が / なら、その / を 1 つだけ
+    外した本体と True（本体の下の全部）。そうでなければ (glob, False)。根からの相対に固定する読みは変えない"""
+    if isinstance(glob, str) and glob.endswith("/"):
+        return glob[:-1], True
+    return glob, False
+
+
 def glob_problem(glob: str) -> str | None:
     """範囲の欄の glob（allowed_paths の行・out_of_scope の glob）の誤りの文。無ければ None。前後の空白・\\ の区切り・絶対パス
     （/・ドライブ文字・~ で始まる）・`..` の段で根の外へ上る・整えた形でない綴り（./x・a/../b・a//b）・字の無い glob（* と ? と
     [..] と / と . だけ。**・*・**/*・**/?*・[a-z]*・**/*.* のような丸ごとの許し。全部のファイルに当たり得る）を拒む。整えずに拒む（差分のパスは整えた綴りなので、整えない綴りの glob は当たらない）。
+    末尾 / はその下の全部（'/**' と同じ）と読み（_dir_glob の 1 か所から引く）、'lib//' のような整えない綴りは拒む。
     ファイルの有無は見ない（新しく置くファイルも書く）"""
     if glob != glob.strip():
         return "前後に空白が在る（空白を外した、作業ツリーの根からの相対の glob にせよ）"
@@ -280,12 +291,14 @@ def glob_problem(glob: str) -> str | None:
         return "\\ が在る（区切りは / で書け。glob は作業ツリーの根からの相対）"
     if glob.startswith(("/", "~")) or re.match(r"[A-Za-z]:", glob):
         return "絶対パス（/・ドライブ文字・~ で始まる。作業ツリーの根からの相対の glob にせよ）"
-    norm = posixpath.normpath(glob)
+    body, under = _dir_glob(glob)
+    read = body + "/**" if under else glob
+    norm = posixpath.normpath(read)
     if climbs(norm):
         return "根の外か根そのものを指す（`..` の段で上らない、根からの相対の glob にせよ）"
     if not any(_literal(seg) for seg in norm.split("/")):
         return "丸ごとの許し（字が無く * と ? と [..] と . だけの glob）は拒む。項目の直しが触るファイルかディレクトリまで狭めよ"
-    if norm != glob.rstrip("/"):
+    if norm != read:
         return f"整えた形でない（./・..・// を含む）。整えた形 {norm} で書け"
     return None
 
@@ -345,18 +358,22 @@ def _glob_regex(glob: str):
 
 
 def glob_match(path: str, glob: str) -> bool:
-    """根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ）。範囲の欄と守りのファイルの当て方の正本
+    """根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。末尾 / はその下の全部で '/**' と同じ。
+    読みは _dir_glob の 1 か所から引く）。範囲の欄と守りのファイルの当て方の正本
     （protect.match はこれを呼ぶ。planmarks は protect を import しない: protect → accept → planmarks の輪になる）"""
-    return _glob_regex(glob).match(path) is not None
+    body, under = _dir_glob(glob)
+    return _glob_regex(body + "/**" if under else glob).match(path) is not None
 
 
 _WILD = re.compile(r"[*?\[]")
 
 
 def globs_meet(a: str, b: str) -> bool:
-    """2 つの glob（glob_match の読み）が同じパスに当たり得るか。言い切れない時は真（交わらないと言える時だけ偽）"""
+    """2 つの glob（glob_match の読み）が同じパスに当たり得るか。言い切れない時は真（交わらないと言える時だけ偽）。末尾 / は
+    _dir_glob の 1 か所から引き、本体の下の 1 段以上と読む（'a/' は 'a/x'・'a/**' と交わり、'a' とは交わらない）"""
     if isinstance(a, str) and isinstance(b, str):
-        return _parts_meet(tuple(a.split("/")), tuple(b.split("/")))
+        return _parts_meet(*(tuple(body.split("/")) + (("*", "**") if under else ())
+                             for body, under in (_dir_glob(a), _dir_glob(b))))
     return True
 
 

@@ -104,6 +104,14 @@ class ScreenCase(unittest.TestCase):
         self.assertIsNone(consult.screen(ITEMS, "3", ["works/docs/flow.md"], [], WHY))
         self.assertIsNone(consult.screen(ITEMS, "3", [], ["works/README.md:3"], WHY))
 
+    def test_trailing_slash_scope_globs_cover_paths_underneath(self):
+        """末尾 / の allowed_paths の glob はその下の全部を範囲の中に数え、末尾 / の out_of_scope の glob はその下の頼みに当たる"""
+        items = {"3": {**ITEMS["3"], "allowed_paths": ["works/.shared/core/"],
+                       "out_of_scope": [{"glob": "works/docs/", "why": OOS_WHY}]}}
+        self.assertIn("範囲の中", consult.screen(items, "3", ["works/.shared/core/lens.py"], [], WHY))
+        hits = consult.oos_hits(items, "3", ["works/docs/flow.md"], [])
+        self.assertEqual([(h["path"], h["item"], h["glob"]) for h in hits], [("works/docs/flow.md", "3", "works/docs/")])
+
     def test_new_tests_only_request_is_not_refused(self):
         """パスも書き換えの範囲も無く new_tests（足したい新しいテスト）だけを持つ頼みと、パスが全部範囲の中で new_tests を持つ頼みは
         断らない（受け付けが見つけた案の外のテストの足しは、この形で聞く）"""

@@ -623,17 +623,72 @@ class ScopeFieldsCase(PlanFieldsCase):
                 self.assertTrue(planmarks.globs_meet(a, b))
 
     def test_globs_meet_reads_trailing_slash_like_glob_match(self):
-        """末尾の / は落とさず字のまま読む（glob_match と同じ）: 'a/' は 'a' と交わらず、同じパスに当たる glob の対は交わる"""
+        """末尾 / はその下の全部（glob_match と同じ _dir_glob の 1 か所から引く）と読む: 'a/' は 'a' と交わらず、a/x・a/** と交わり、
+        同じパスに当たる glob の対は交わる"""
         self.assertFalse(planmarks.globs_meet("a/", "a"))
         self.assertFalse(planmarks.globs_meet("a", "a/"))
+        self.assertTrue(planmarks.globs_meet("a/", "a/x"))
+        self.assertTrue(planmarks.globs_meet("a/", "a/**"))
         globs = ["a/", "a", "a/*", "a/**", "lib/*.py", "lib/a.py"]
-        paths = ["a/", "a", "a/x", "lib/a.py"]
+        paths = ["a/", "a", "a/x", "a/x/y", "lib/a.py"]
         for x in globs:
             for y in globs:
                 for p in paths:
                     if planmarks.glob_match(p, x) and planmarks.glob_match(p, y):
                         with self.subTest(x=x, y=y, path=p):
                             self.assertTrue(planmarks.globs_meet(x, y))
+        for g in ("a/", "a/**/", "lib/*/"):
+            for p in ("a", "a/x", "a/x/y", "lib", "lib/a", "lib/a/x.py"):
+                with self.subTest(glob=g, path=p):
+                    self.assertEqual(planmarks.glob_match(p, g), planmarks.globs_meet(g, p))
+
+    def test_glob_problem_reads_trailing_slash_as_dir_and_rejects_doubled_slash(self):
+        """末尾 / はその下の全部（'/**' と同じ）と読む: 'lib/'・'a/**/'・'lib/*/' は通し、整えない綴り 'lib//'・'a//' と丸ごとの許し
+        '**/'・'*/' は拒む"""
+        for g in ("lib/", "a/**/", "lib/*/"):
+            with self.subTest(g):
+                self.assertIsNone(planmarks.glob_problem(g))
+        for g in ("lib//", "a//"):
+            with self.subTest(g):
+                self.assertIn("整えた形でない", planmarks.glob_problem(g) or "")
+        for g in ("**/", "*/"):
+            with self.subTest(g):
+                self.assertIn("丸ごと", planmarks.glob_problem(g) or "")
+        got = planmarks.gaps({"plan": [item(allowed_paths=["lib//"])]}, self.repo)
+        self.assertTrue(any(x.startswith("plan[0].allowed_paths[0]") for x in got), got)
+        got = planmarks.gaps({"plan": [item(allowed_paths=["lib/"])]}, self.repo)
+        self.assertFalse(any(x.startswith("plan[0].allowed_paths[0]") for x in got), got)
+
+    def test_glob_match_reads_trailing_slash_as_everything_underneath(self):
+        """末尾 / の glob は根からの相対の 'lib/**' と読む: その下のどの深さにも当たり、'lib' そのもの・名の似た別のディレクトリ・
+        深い所の同じ名には当たらない"""
+        for p in ("lib/planmarks.py", "lib/a/x.py", "lib/"):
+            with self.subTest(p):
+                self.assertTrue(planmarks.glob_match(p, "lib/"))
+        for p in ("lib", "libx/a.py", "docs/lib/a.py"):
+            with self.subTest(p):
+                self.assertFalse(planmarks.glob_match(p, "lib/"))
+
+    def test_globs_meet_reads_trailing_slash_as_everything_underneath(self):
+        """末尾 / の glob の globs_meet: 本体の下の 1 段以上と交わり、同じ名の素のパスとは交わらない"""
+        for a, b in (("lib/", "lib/a/x.py"), ("lib/", "lib/**")):
+            with self.subTest(a=a, b=b):
+                self.assertTrue(planmarks.globs_meet(a, b))
+                self.assertTrue(planmarks.globs_meet(b, a))
+        self.assertFalse(planmarks.globs_meet("lib/", "docs/x.py"))
+        self.assertFalse(planmarks.globs_meet("lib/", "lib"))
+        self.assertFalse(planmarks.globs_meet("lib", "lib/"))
+
+    def test_trailing_slash_glob_that_passes_glob_problem_matches_paths_underneath(self):
+        """検査が通す末尾 / の glob は、その下のパスに glob_match が当たる（検査の読みと当て方の読みが割れない）"""
+        for g, p in (("lib/", "lib/x.py"), ("a/b/", "a/b/c/d.py"), ("lib/*/", "lib/t/x.py")):
+            with self.subTest(g):
+                self.assertIsNone(planmarks.glob_problem(g))
+                self.assertTrue(planmarks.glob_match(p, g))
+
+    def test_head_says_trailing_slash_glob_covers_everything_underneath(self):
+        """計画の役の指示書の頭が、末尾 / の glob の読み（その下の全部）と整えない綴りの拒みを伝える"""
+        self.assertIn("その下の全部（lib/** と同じ）", planmarks.HEAD)
 
     def test_gaps_out_of_scope_rows(self):
         bad = [{"glob": "../x.py", "why": "根の外は触らない（試験の材料）"}]
