@@ -14,7 +14,8 @@
   塊・base の無い（両方が新しく作った）ファイルは今どおり当てない。marked（list）を渡すと、合わせられない食い違いも当てる:
   食い違いの塊を印（MARK_LABELS の名の `<<<<<<<`・`|||||||`・`=======`・`>>>>>>>`。git merge-file --diff3）つきで書き、印を
   書いたパスを marked に積む（片方が消した・バイナリなど印を書けないファイルが在れば今どおり当てない）
-- markers_left(repo, paths): paths のうち名つきの印（<<<<<<<・|||||||・>>>>>>>）の行が残るファイルの並び（区切りの ======= だけの行は数えない）
+- markers_left(repo, paths, staged): paths のうち、区切りを除いた 3 つの印の頭（名つきでも名なしでも。<<<<<<<・|||||||・>>>>>>>）の
+  行が残るファイルか、印を書いた時点の中身（staged の木）で塊の区切り以外に在った数を超える区切りの ======= の行が在るファイルの並び
 - tests_unique(path, text): 合わせた中身の照らし（apply の check に渡す。同じ名のテストの定義が 2 つ在れば偽）
 - patch_names(patch): 差分の行先のパスの並び
 
@@ -148,16 +149,45 @@ def tests_unique(path: str, text: bytes) -> bool:
 
 def _is_marker(line: bytes) -> bool:
     s = line.rstrip(b"\r")
-    return any(s == m or s.startswith(m + b" ") for m in MARKERS if m != b"=======")
+    return any(s == m or s.startswith(m + b" ") for m in NAMED_HEADS)
 
 
-def markers_left(repo, paths) -> list:
-    """paths（根からの相対）のうち、名つきの印の頭（<<<<<<<・|||||||・>>>>>>>）の行が残るファイル（無いファイルは外す）。
-    区切りの ======= だけの行は、中身の setext 見出しの下線と見分けられないので数えない"""
+def _separators(lines: list) -> int:
+    return sum(1 for ln in lines if ln.rstrip(b"\r") == SEPARATOR)
+
+
+def _allowed_separators(repo, staged: str, path: str) -> int:
+    """staged の木の path の中身で、塊の区切り以外に在った区切りの行の数（行全体が SEPARATOR の行の数 − 塊の頭 <<<<<<< の行の数。
+    塊ごとに区切りは 1 つ）。staged が空か木に path が無ければ 0（fail-closed。空のまま `:path` を渡すと index を読むので、
+    git を呼ぶ前に判じる）"""
+    if not staged:
+        return 0
+    r = _git(repo, "cat-file", "blob", f"{staged}:{path}", check=False)
+    if r.returncode != 0:
+        return 0
+    lines = r.stdout.splitlines()
+    heads = sum(1 for ln in lines if _is_marker(ln) and ln.startswith(NAMED_HEADS[0]))
+    return max(_separators(lines) - heads, 0)
+
+
+def markers_left(repo, paths, staged: str) -> list:
+    """paths（根からの相対）のうち、食い違いの印が残るファイル（無いファイルは外す）。次のどちらかが当たる:
+    - 区切りを除いた 3 つの印の頭（<<<<<<<・|||||||・>>>>>>>。名つきでも名なしでも）の行が 1 行でも在る
+    - 行全体が区切り（=======）の行の数が、staged（印を書いた直後の木の sha）の同じパスで塊の区切り以外に在った数を超える
+      （元から在る setext 見出しの下線は、この数に入って通る。staged の木に paths が無ければ 0）
+    塊の読みは _insert_only と git の rerere と同じで、base の側で最初の ======= を区切りとする。だから base の側の区切りの字の
+    行も許される数に入り、base の下線を戻す正しい合わせは通る。限界: 控えに在った区切りの字の行を消したり置き換えたりして、
+    その数だけ区切りを残した合わせ（base の側の下線を含む。塊の外の共通の本文の下線を消すか見出しに書き換え、塊の印の頭と
+    base の行を消して区切りを残した合わせも）は、数では見分けられない。新しく足した区切りの字の行は拒む。
+    控え方式が効く範囲は 2 つ: paths に渡した（印を書いた）ファイルだけを見る。行全体がちょうど 7 字の ======= の行だけを数え、
+    長さの違う下線（======== や -------）は数えない"""
     out = []
     for p in paths:
         f = pathlib.Path(repo) / p
-        if f.is_file() and any(_is_marker(ln) for ln in f.read_bytes().splitlines()):
+        if not f.is_file():
+            continue
+        lines = f.read_bytes().splitlines()
+        if any(_is_marker(ln) for ln in lines) or _separators(lines) > _allowed_separators(repo, staged, p):
             out.append(p)
     return out
 
@@ -200,7 +230,7 @@ def _insert_only(text: bytes) -> bytes | None:
             else:
                 ours.append(ln)
         elif state == "base":
-            if s == b"=======":
+            if s == SEPARATOR:
                 state = "theirs"
             else:
                 base.append(ln)
@@ -250,7 +280,9 @@ def _put(repo, index: str, plan: list) -> list:
 
 
 MARK_LABELS = ("今の作業ツリー", "元", "当てる差分")
-MARKERS = (b"<<<<<<<", b"|||||||", b"=======", b">>>>>>>")   # git merge-file --diff3 が書く印の頭（この順に並ぶ）
+# git merge-file --diff3 が書く印の頭。書く順は <<<・|||・===・>>> で、区切り（SEPARATOR）は ||| と >>> の間に入る
+SEPARATOR = b"======="
+NAMED_HEADS = (b"<<<<<<<", b"|||||||", b">>>>>>>")
 
 
 def _settle(repo, index: str, left: dict, allowed: set, tmp: str, check, marking: bool) -> tuple[list, list] | None:
