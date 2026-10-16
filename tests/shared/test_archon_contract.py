@@ -173,7 +173,7 @@ SEPARATOR_CANDIDATES = "/\\:"
 CONSUMER_ONLY = {
     "起こす bun を設定で差し替える": 'settings.get("bun", "bun")',
     "resume の時は --workflow-source を付けない": "if not resuming:",
-    "工程の既定の入力を引数に差し込む": "args = with_default_inputs(name, args, options, root)",
+    "工程の既定の入力を引数に差し込む": "args = with_default_inputs(name, args, options)",
 }
 
 CONSUMER = "factory/consumer.py"

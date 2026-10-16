@@ -18,8 +18,6 @@ ENTRY = "packages/cli/src/cli.ts"
 SCHEDULE = ".factory/schedule.json"
 TRIGGER = ".factory/trigger.json"
 PAUSE = ".factory/PAUSE"
-# The shared workflows that carry a merge gate and accept a declared required-check policy.
-MERGING_WORKFLOWS: set[str] = set()
 
 
 def windowless() -> bool:
@@ -216,39 +214,18 @@ def doctor(settings: dict) -> dict:
             "provider_configuration": "native configuration preserved; authentication not live-tested"}
 
 
-# Merge policy keys a project declares once in harness/harness.config.json.
-MERGE_POLICY_KEYS = ("required_checks", "protected_paths")
+def workflow_defaults(name: str) -> dict:
+    return MANIFEST.get("default_inputs", {}).get(name, {})
 
 
-def harness_inputs(root: Path, name: str) -> dict:
-    # A project's merge policy is a fact the merge gate reads, not something an
-    # agent decides. GitHub cannot report required checks on plans without branch
-    # protection, and nothing on GitHub says which files only a human may change,
-    # so the project declares both once in its harness configuration.
-    if name not in MERGING_WORKFLOWS:
-        return {}
-    try:
-        config = json.loads((root / "harness/harness.config.json").read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(config, dict):
-        return {}
-    return {key: config[key] for key in MERGE_POLICY_KEYS
-            if isinstance(config.get(key), str) and config[key].strip()}
-
-
-def workflow_defaults(root: Path, name: str) -> dict:
-    return {**MANIFEST.get("default_inputs", {}).get(name, {}), **harness_inputs(root, name)}
-
-
-def with_default_inputs(name: str, args: list[str], options: list[str], root: Path) -> list[str]:
+def with_default_inputs(name: str, args: list[str], options: list[str]) -> list[str]:
     supplied = set()
     for index, arg in enumerate(options):
         if arg == "--input" and index + 1 < len(options):
             supplied.add(options[index + 1].split("=", 1)[0])
         elif arg.startswith("--input="):
             supplied.add(arg.removeprefix("--input=").split("=", 1)[0])
-    defaults = workflow_defaults(root, name)
+    defaults = workflow_defaults(name)
     injected = [item for key, value in defaults.items() if key not in supplied
                 for item in ("--input", f"{key}={value}")]
     return [args[0], *injected, *args[1:]]
@@ -335,7 +312,7 @@ def invoke(root: Path, action: str, args: list[str]) -> int:
         resuming = any(arg.split("=", 1)[0] == "--resume" for arg in options)
         if not resuming:
             native += ["--workflow-source", str(source)]
-            args = with_default_inputs(name, args, options, root)
+            args = with_default_inputs(name, args, options)
     native += args
     if action == "status":
         print(f"Factory source={source} revision={settings['revision']} local_STOP={stop.exists()}", file=sys.stderr)
@@ -391,7 +368,7 @@ def trigger_config(root: Path, settings: dict, source: Path, interval: int) -> d
     for key in inputs:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
             raise ValueError("Invalid scheduled workflow input name")
-    values = {**workflow_defaults(root, workflow),
+    values = {**workflow_defaults(workflow),
               **{k: v if isinstance(v, str) else json.dumps(v) for k, v in inputs.items()}}
     slug = repository_slug(root)
     return {
