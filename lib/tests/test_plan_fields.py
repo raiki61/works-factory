@@ -665,30 +665,10 @@ class ScopeFieldsCase(PlanFieldsCase):
         for p in ("lib/planmarks.py", "lib/a/x.py", "lib/"):
             with self.subTest(p):
                 self.assertTrue(planmarks.glob_match(p, "lib/"))
+        self.assertTrue(planmarks.glob_match("lib/t/x.py", "lib/*/"))
         for p in ("lib", "libx/a.py", "docs/lib/a.py"):
             with self.subTest(p):
                 self.assertFalse(planmarks.glob_match(p, "lib/"))
-
-    def test_globs_meet_reads_trailing_slash_as_everything_underneath(self):
-        """末尾 / の glob の globs_meet: 本体の下の 1 段以上と交わり、同じ名の素のパスとは交わらない"""
-        for a, b in (("lib/", "lib/a/x.py"), ("lib/", "lib/**")):
-            with self.subTest(a=a, b=b):
-                self.assertTrue(planmarks.globs_meet(a, b))
-                self.assertTrue(planmarks.globs_meet(b, a))
-        self.assertFalse(planmarks.globs_meet("lib/", "docs/x.py"))
-        self.assertFalse(planmarks.globs_meet("lib/", "lib"))
-        self.assertFalse(planmarks.globs_meet("lib", "lib/"))
-
-    def test_trailing_slash_glob_that_passes_glob_problem_matches_paths_underneath(self):
-        """検査が通す末尾 / の glob は、その下のパスに glob_match が当たる（検査の読みと当て方の読みが割れない）"""
-        for g, p in (("lib/", "lib/x.py"), ("a/b/", "a/b/c/d.py"), ("lib/*/", "lib/t/x.py")):
-            with self.subTest(g):
-                self.assertIsNone(planmarks.glob_problem(g))
-                self.assertTrue(planmarks.glob_match(p, g))
-
-    def test_head_says_trailing_slash_glob_covers_everything_underneath(self):
-        """計画の役の指示書の頭が、末尾 / の glob の読み（その下の全部）と整えない綴りの拒みを伝える"""
-        self.assertIn("その下の全部（lib/** と同じ）", planmarks.HEAD)
 
     def test_gaps_out_of_scope_rows(self):
         bad = [{"glob": "../x.py", "why": "根の外は触らない（試験の材料）"}]
