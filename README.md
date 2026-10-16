@@ -86,7 +86,7 @@ Claude Code からは `/works`（raiki61/claude-plugins の works プラグイ�
 
 - 汚れていない対象は `HEAD`。PR の枝を checkout して頼めば、その枝から始まる。
 - commit していない変更か未追跡のファイル（git が無視する物は除く）が在れば、それを包んだ commit（親は `HEAD`）。包みは一時の index で作り、対象の作業ツリー・index・枝は動かさず、ref も付けない。殻は包んだファイルを 1 行で出す。
-- `--from <版>`・`--from-branch <枝>` を名指せば、それが勝つ。`--base <枝>`（作業ツリーの切り元と PR の基）か `--branch <枝>`（`-b`。run の枝の名）を名指した時も足さず、切り元は Archon が決める（既に在る枝の名は、その枝を Archon の切り元へ戻すか、在る作業ツリーをそのまま使う）。名指した枝を対象の今の姿から切るなら `--from` も一緒に名指す。`--no-worktree`・`--folder`・`--container`・`--adopt`・`--dry-run` を付けた時と、git の木でない・commit の無い対象にも足さない。
+- `--from <版>`・`--from-branch <枝>` を名指せば、それが勝つ。`--base <枝>`（作業ツリーの切り元と PR の基）か `--branch <枝>`（`-b`。run の枝の名）を名指した時も足さず、切り元は Archon が決める（既に在る枝の名は、切り元へ戻さずにその枝の頭のまま使い、在る作業ツリーもそのまま使う。remote にだけ在る枝は remote の頭で取り出し、手元が remote より遅れていれば進める。手元と remote が食い違うと、取り出す前に止まる）。名指した枝を対象の今の姿から切るなら `--from` も一緒に名指す。`--no-worktree`・`--folder`・`--container`・`--adopt`・`--dry-run` を付けた時と、git の木でない・commit の無い対象にも足さない。
 - remote の無い対象は Archon が直し方の 1 行を出して拒む。
 - 依頼が `pr` を名指す時は、その PR の head を checkout し、汚さずに頼む（包んだ commit は PR の head と違うので、run の始めで拒まれる）。
 

@@ -68,7 +68,7 @@ class ShapeTest(unittest.TestCase):
         self.assertEqual(self.node["runtime"], "uv")
         self.assertIs(self.node["mutates_checkout"], False)
         self.assertEqual(self.node["timeout"], NO_DEADLINE)
-        self.assertFalse(any("approval" in n for n in self.doc["nodes"]))
+        self.assertFalse(any("approval" in n or "wait" in n for n in self.doc["nodes"]))
 
     def test_inputs_are_the_contract(self):
         inputs = self.doc["inputs"]

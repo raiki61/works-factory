@@ -1,9 +1,9 @@
 <!-- coldwrite:skip ASF から採った型の控え。語は docs/design.md の「語」のセクションで定義 -->
 # ASF から採った型の控え
 
-- ASF（AI software factory）: Archon の作者が `coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/` に置く、SDLC（作業の受け付けから merge まで）のグラフの束。
+- ASF（AI software factory）: Archon の作者が `coleam00/Archon` の `.archon/workflows/sdlc/` に置く、SDLC（作業の受け付けから PR まで）のグラフの束。下の行の多くが引く `d97d00ef` は枝 `factory/sdlc-on-dev` の commit で、upstream の dev から消えたグラフ（lifecycle・merge-queue・verify-runtime など 8 本）を含む。
 - ASF には LICENSE のファイルが無い。だからコードは写さず、型（なぜその形か）だけを採る（`AGENTS.md` の E8）。
-- 見る版は止めた Archon（`docs/design.md` の「語」）（Archon の本体と同じ源。持ち主の決め `archon-same-as-asf`）。今は `d97d00ef15cce4b15d39e42635e4e86996ec1351`。`bin/` が取ったその源の `.archon/workflows/sdlc/` を横に並べて読む。
+- 見る版は止めた Archon（`docs/design.md` の「語」）（Archon の本体と同じ源。持ち主の決め `archon-same-as-asf`）。今は upstream の dev の `355f1867a1dceb6e913c368bab817ac4d9aa4add`（持ち主の決め `asf-follows-dev`）。`bin/` が取ったその源の `.archon/workflows/sdlc/` を横に並べて読む。下の行の commit は、その型を採った時の版。
 - 下のパスは ASF のリポジトリの根からの相対。`W` は `.archon/workflows/sdlc` の略。
 
 ## 書き方
@@ -68,14 +68,14 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 
 - ASF: d97d00ef の `W/merge-queue/archon-merge-queue.yaml`:40-43（入力の説明「A match holds the PR: a human must make that change.」）と :73-81 のノード `path-policy`。拒みは `W/merge-queue/scripts/merge-action.ts`:178。理由は `W/merge-queue/README.md`:34-35（「a reviewed delivery once rewrote one and merged unflagged.」）。
 - なぜその形か: 審査を通っても、決まった所の変更は人がする。
-- 採った先: 2 か所。(1) merge: 対象のリポジトリの守りのパスに当たる差分は人に回す（今の works の `protected.json` と最後の承認ノード）。(2) このリポジトリ自身: 共有のファイル（`workflows/.shared/`・`workflows/line/`）を守りのパスとして ASF の lifecycle に渡し、土台の持ち主の手に残す（`docs/design.md` の作りの順の段 2）。
+- 採った先: 2 か所。(1) merge: 対象のリポジトリの守りのパスに当たる差分は人に回す（今の works の `protected.json` と最後の承認ノード）。(2) このリポジトリ自身: 共有のファイル（`workflows/.shared/`・`workflows/line/`）を守りのパスとして ASF の lifecycle に渡し、土台の持ち主の手に残す（`docs/design.md` の作りの順の段 2）。(2) は dev の ASF に lifecycle も merge-queue も無いので当てていない（`asf-follows-dev`）。
 - 違い: 無し。
 
 ### A8 engineering.md を横に置き、役が引く
 
 - ASF: d97d00ef の `W/README.md`:148-159。実装役 `W/implement/commands/implement.md`:40（「If the repository has an `engineering.md` or a direction document ..., read them before writing code」）。審査役 `W/review/commands/review-code.md`:5（「a preference one of them states is a finding you cite, and one none of them states is taste you leave out.」）。
 - なぜその形か: 審査の指摘を、書いてある決まりに縛る。書いてない好みは指摘しない。
-- 採った先: (1) このリポジトリの `engineering.md`（ASF の lifecycle でこのリポジトリを作る時に、ASF の役が読む）。(2) works-factory の計画・修正・独立の目の役も、対象のリポジトリに `engineering.md` か方向の文書が在れば読み、引いて書く。
+- 採った先: (1) このリポジトリの `engineering.md`（ASF でこのリポジトリを作る時に、ASF の役が読む）。(2) works-factory の計画・修正・独立の目の役も、対象のリポジトリに `engineering.md` か方向の文書が在れば読み、引いて書く。
 - 違い: 決まりに番号（`E1` など）を振り、指摘は番号で引く。
 
 ### A9 どの道でも自分の 1 つの出力を返す出力ノード（if_skipped で飛ばされた子を null で受ける）

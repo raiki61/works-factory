@@ -1,5 +1,4 @@
 name: works-factory-line
-interactive: true
 nodes:
   - id: rounds
     loop_group:
@@ -7,8 +6,8 @@ nodes:
       until_bash: 'true'
       nodes:
         - id: gate
-          approval:
-            message: m
-            decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
-          idle_timeout: 1728000000
+          wait:
+            attention: m
+            form: select
+            options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     timeout: 1728000000

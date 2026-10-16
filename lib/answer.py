@@ -7,7 +7,7 @@
 
 - head(env=None) -> str: 答えの行の頭
 - line(run_id, verb, note, env=None) -> str: 打つ行 1 本（verb は continue か stop）
-- GO_WORDS・STOP_WORDS・REJECT・DRY_RUN_APPROVED: 関所の決めの語。通す語でない答えは止める語と読む
+- GO_WORDS・STOP_WORDS・REJECT: 関所の決めの語。通す語でない答えは止める語と読む
 - decision(got) -> dict: 関所の出力の値を {decision, text} に
 - taken(got, *, go, stop_reason, place, folder, asked=(), pushed=None) -> dict: 関所の答えの行 {go, answer, stop_reason}。関所が開かなかった
   （got が None か空の字）時は前の決め go・stop_reason をそのまま返す。ただし無人の run が推しで進んだ（pushed が
@@ -37,9 +37,8 @@ ENV = "WORKS_ANSWER_CMD"
 HOLE = "<答えの殻（bin/works-factory workflow respond --cwd <対象リポジトリ>）>"
 VERBS = ("continue", "stop")
 GO_WORDS = ("approve", VERBS[0])   # approve は関所の選び肢に要る語
-REJECT = "reject"   # 今の works の関所の語で、stop と同じ。関所の選び肢に無いと、この答えは run の取り消しになる
+REJECT = "reject"   # 今の works の関所の語で、stop と同じ。関所の選び肢に無いと、実行基盤がこの答えを拒む
 STOP_WORDS = (VERBS[1], REJECT)
-DRY_RUN_APPROVED = "approved"   # 筋書きの関所がいつも返す字。決めの語の approve と読む
 ANSWERS = "gates"
 STOP_NOTE = "承認ノードで止めた"
 FINAL_STOP_NOTE = "最後の承認ノードで止めた"
@@ -60,11 +59,9 @@ def line(run_id: str, verb: str, note: str, env=None) -> str:
 
 
 def decision(got) -> dict:
-    """関所の出力の値を {decision, text} に。決めの語を持つ関所は {decision, text} を返す。筋書きの関所はいつも approved の字"""
+    """関所の出力の値を {decision, text} に。関所（選び肢の待ち）は {decision, text} を返す"""
     if isinstance(got, dict) and isinstance(got.get("decision"), str):
         return {"decision": got["decision"], "text": str(got.get("text") or "")}
-    if got == DRY_RUN_APPROVED:
-        return {"decision": "approve", "text": ""}
     return {"decision": str(got), "text": ""}
 
 

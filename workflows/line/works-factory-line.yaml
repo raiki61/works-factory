@@ -11,8 +11,6 @@ description: |
   （受けるノードが落ちても受け皿が飛ばされるだけで、報告まで届く）。
   出力はメイングラフのノード result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
 
-interactive: true
-
 inputs:
   request:
     default: ""
@@ -90,10 +88,10 @@ nodes:
 
   # 2 起動の関所
   - id: gate-start
-    approval:
-      message: "$start.output.gate_text"
-      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
-    idle_timeout: 1728000000
+    wait:
+      attention: "$start.output.gate_text"
+      form: select
+      options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     depends_on: [start]
     when: "$start.output.ask == true"
 
@@ -387,10 +385,10 @@ nodes:
       design_only: "$start.output.design_only"
 
   - id: gate-before-fix
-    approval:
-      message: "$ask-before-fix.output.text"
-      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
-    idle_timeout: 1728000000
+    wait:
+      attention: "$ask-before-fix.output.text"
+      form: select
+      options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     depends_on: [ask-before-fix]
     when: "$ask-before-fix.output.open == true"
 
@@ -624,10 +622,10 @@ nodes:
       unattended: "$start.output.unattended"
 
   - id: gate-replan
-    approval:
-      message: "$ask-replan.output.text"
-      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
-    idle_timeout: 1728000000
+    wait:
+      attention: "$ask-replan.output.text"
+      form: select
+      options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     depends_on: [ask-replan]
     when: "$ask-replan.output.open == true"
 
@@ -1067,10 +1065,10 @@ nodes:
       spec_unchecked: { from: "$spec-check.output.unchecked", if_skipped: false }
 
   - id: gate-final
-    approval:
-      message: "$ask-final.output.text"
-      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
-    idle_timeout: 1728000000
+    wait:
+      attention: "$ask-final.output.text"
+      form: select
+      options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     depends_on: [ask-final]
     when: "$ask-final.output.open == true"
 

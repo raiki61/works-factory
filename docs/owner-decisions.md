@@ -297,13 +297,20 @@
 - 持ち主の言葉（2026-10-16、issue #627）: 「軽量ならすぐ終わるから勝手に省いたりせずとも終わるみたいなことじゃないのかな」「そうなるのが理想です」
   - 当て方: 段の違いは、ノードを省くより、易しい仕事なら同じ流れが自然に短く終わる形を先に選ぶ。行ごとの未知の種類は判定と修正案の役に種類ごとの指示（`lib/headdepth.py` の `ASKS`）で渡し、「無し」の行は確かめるだけで広げない指示にして、役が自然に短く終わるようにする。
 
+### `asf-follows-dev` ASF は upstream の dev に在る物をそのまま使い、版を固定する理由を持たない
+
+- 持ち主の言葉（2026-10-16、PR #637）: 「asfは他人のものなので、勝手にあがったらそれを使えばいいのでは？今の版に固執する意味はどこにある？」
+- 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
+- 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（`harness/harness.config.json` の `required_checks`・`protected_paths`）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
+- 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分の家の設定で決める物がある（`defaultAssistant: claude`・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方: `bin/_lib/place.py` の `home_config`。
+
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
 - 置き換えの条件: 今の works と同じ能力に届いたら置き換え、claude-plugins には `/works` の薄い入口だけを残す。根拠: 下の `superset` と `own-graph-alongside`。
 - `archon-base` の「差し替え層は作らない」との関係: 差し替え層は作らない。グラフ（エッセンス）は Archon の書き方で直に書き、`lib/` は Archon を知らない助け手にすぎない。だから食い違わない。
 - Archon から乗り換える時の備え（Archon の競合に移る危うさへの備え）: グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書（中の Archon の変数だけ書き換える）と `lib/` はそのまま持っていける。型の写しは持たない（`io-in-output-format`）。入出力はその時に `output_format` から取り出す。
 - メイングラフの承認ノードの順: `final-gate-order`（2026-09-28）は「承認ノード → 独立の目 → 報告」だが、今の works は R4 の人への問いを最後の承認ノードに載せるため「独立の目 → 最後の承認ノード → 報告」で動いている。後の形に合わせた（`docs/design.md` のメイングラフ）。持ち主に「独立の目 → 最後の承認ノード → 報告」を推しとして聞き、「あとは全部ok です」（2026-10-11）と答えを得た。`final-gate-order` の前後はこれで置き換える。
-- 段 0〜1 を回す ASF のグラフ: `archon-ship`（issue から PR まで）。持ち主の「一番最初から」（ASF を土台から使う）に従う。最新の ASF の `archon-lifecycle` は、PR ごとに動かす確かめを必ず走らせ、筋書きが確かめられない間は何も取り込まない（`W/lifecycle/archon-lifecycle.yaml`:151-156・`W/lifecycle/commands/qualify-runtime.md`:13・24-26）。段 1 の歩く骨組みが通しで動くまでは筋書きが確かめられないので、lifecycle は段 2 から。ship の PR は運び役が独立の目を当ててから merge する。引き継いだ決めの「段 0〜1 は手の直し」はこれで置き換える。
+- 段 0〜1 を回す ASF のグラフ: `archon-ship`（issue から PR まで）。持ち主の「一番最初から」（ASF を土台から使う）に従う。最新の ASF の `archon-lifecycle` は、PR ごとに動かす確かめを必ず走らせ、筋書きが確かめられない間は何も取り込まない（`W/lifecycle/archon-lifecycle.yaml`:151-156・`W/lifecycle/commands/qualify-runtime.md`:13・24-26）。段 1 の歩く骨組みが通しで動くまでは筋書きが確かめられないので、lifecycle は段 2 から。ship の PR は運び役が独立の目を当ててから merge する。引き継いだ決めの「段 0〜1 は手の直し」はこれで置き換える。dev の ASF に lifecycle が無いので、段 2 からも ship を回す（`asf-follows-dev`）。
 - 言語: Python 3.12 以上。外のパッケージは `outside-packages-ok`。根拠: 今の works の確かめが Python で書かれていて移せる。下の `py-floor`。
 - 試験の置き場 `tests/workflows/`: `tests/` は層ごとに鏡の置き場を持つ形（`tests/bin/`・`tests/shared/`）に、グラフ（`workflows/`）の鏡を足す。根拠: 持ち主の決め `agents-md-per-level` の「それ以外はASFが作りやすいようにしてくれていいが、最後には要らないものは全部掃除する感じでもいいよ」。
 - E13 の例外（持ってきた言語の表。持ち主が推しで決めた: 2026-10-12「おすすめでやっておいて」）: 当たる試験の選び（`lib/impact.py`）・変わった所の地図（`lib/changemap.py`）・TDD のループ（`lib/tddloop.py`）・修正の決まり（`lib/fixrules.py`）・手元の文書の探し方（`lib/libdocs.py`・`lib/libdocs_local.py`）は、拡張子と言語の対応とテストのファイルの名の慣習の表をコードの値に持つ。この 6 つに限って、表とそれを作る標準ライブラリの import を E13 から外す（根の `AGENTS.md` の E13 の「例外」。機械の表は `tests/layers/scan.py` の `E13_TABLES` で、外せるファイルはそこに名指した物だけ）。根拠: `lib-port-as-is`（元の中身のまま持ってきて、要らない物は最後の掃除の段で消す）と、表を外すと当たる試験の選びなどが落ちること（`superset`）。表はどの言語も同じに扱う事実の表で、1 つの言語に寄せる書き方ではない（`lang-neutral` の「抽象化すべき」「実質的標準みたいなjunitxmlとかそういうのは書いていいんじゃないかな。」）。掃除の段で言語の知識を外へ出す。持ち主が違えば戻す。
@@ -920,7 +927,7 @@
 
 逐語の言葉は無い（本文の要約）。出典の番号の元の行を引く。
 
-- 自分食いと手の直し: 危ない直しは run を通す。グラフ全体を変える直しは会話の下請け（superpowers の手順）で作り、本物の run で確かめる。どちらも同じ機械の関門を CI で通す。出典 V105・V174。当て方: 段 0〜1 は手の直し、段 2 からは ASF の lifecycle。
+- 自分食いと手の直し: 危ない直しは run を通す。グラフ全体を変える直しは会話の下請け（superpowers の手順）で作り、本物の run で確かめる。どちらも同じ機械の関門を CI で通す。出典 V105・V174。当て方: 段 0〜1 は手の直し、段 2 からは ASF の lifecycle（dev の ASF に lifecycle が無いので ship。`asf-follows-dev`）。
 - 進め方: 大きな作り替えは先に設計し、旧い物を横に残す。土台とサブグラフ分けを先に。今困っていない事には手を付けない。出典 V023・V024・V040・V015・V016・V035・V103・V090。当て方: 今日の `own-graph-alongside` の元。
 - 外の物: 外の道具の良い所を取り、review-graph と常に比べるが写しにしない。Archon の開発元へ連絡しない。出典 V138・V142・V143・V144・V141・V150。当て方: `docs/asf-notes.md` と `docs/polyfills.md`。
 - 試験と出荷: 重い試験は CI。版上げは最後の commit。wip への push では CI を回さない。出典 V109・V110・V132・V116・V118・V117・V119・V120。

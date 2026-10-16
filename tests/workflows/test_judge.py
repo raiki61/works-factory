@@ -263,22 +263,19 @@ class ReturnsShapeTest(unittest.TestCase):
         inputs = load()["inputs"]
         self.assertEqual({k: v["default"] for k, v in inputs.items()}, INPUTS)
 
-    def test_head_keeps_only_the_gate_declaration(self):
-        """include で差し込まれるブロックは run の持ち物（worktree ほか）を書かない（workflows/AGENTS.md の E16）。
-        interactive: true だけは書く: 止めた Archon の validate は、工程の頭に無いまま approval: の節を持つ工程に警告を出し
-        （loader.ts の validateWorkflowClassPlacement の猶予）、include した線の validate はこの鍵に何も言わない"""
+    def test_head_keeps_no_run_keys(self):
+        """include で差し込まれるブロックは run の持ち物（worktree ほか）と、効かない interactive を書かない（workflows/AGENTS.md の E16）"""
         doc = load()
-        self.assertEqual([k for k in RUN_OWNED if k in doc], [])
-        self.assertIs(doc["interactive"], True)
+        self.assertEqual([k for k in (*RUN_OWNED, "interactive") if k in doc], [])
 
 
 class GateTest(unittest.TestCase):
     def test_spec_gate_is_an_approval_with_the_four_words(self):
         by = nodes()
-        gate = by["spec-gate"]
-        self.assertEqual([d["id"] for d in gate["approval"]["decisions"]], list(answer.GO_WORDS + answer.STOP_WORDS))
-        self.assertEqual(gate["approval"]["message"], "$spec-ask.output.message")
-        self.assertEqual(gate["idle_timeout"], NO_DEADLINE)
+        gate = by["spec-gate"]["wait"]
+        self.assertEqual(gate["form"], "select")
+        self.assertEqual([d["id"] for d in gate["options"]], list(answer.GO_WORDS + answer.STOP_WORDS))
+        self.assertEqual(gate["attention"], "$spec-ask.output.message")
         self.assertEqual(by["spec-freeze"]["with"]["answer"], {"from": "$spec-gate.output", "if_skipped": None})
 
     def test_spec_freeze_may_change_the_checkout(self):

@@ -18,3 +18,5 @@ plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "ar
 report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": false, "outcome": "stopped_by_human", "stop_reason": "human:gate-before-fix", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
 answer-before-fix: {"go": false, "answer": {"decision": "stop", "text": "直さない", "asked": []}, "stop_reason": "human:gate-before-fix"}
+gate-start: {decision: approve, text: ''}
+gate-before-fix: {decision: stop, text: 直さない}
