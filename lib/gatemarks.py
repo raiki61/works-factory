@@ -32,7 +32,9 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 この行は決め手の濾しにも無人の濾しにも掛けない（無人の殻は関所で stop を返すので、無人の設計だけの run も止まって報告へ進む）。
 直す義務が 0 件の周は関所の節が走らず、修正もしない。設計だけの行の出どころは 2 つ（入力 design_only と、事前審査の壁打ちが
 止まった事実＝converge.stuck_reason）。行は design_item の 1 か所で組む（設計だけでない run の止まりは頭を STUCK_ITEM にし、
-設計だけの run と名乗らない。種類の kinds は同じ design_only）。
+設計だけの run と名乗らない。種類の kinds は同じ design_only）。止まりの行は、事前審査の役が返答の一番上に書いた止まった時の推し
+（converge.STUCK_PUSH）の尾を持ちうる（付く条件は stuck_push。持ち主 2026-10-15「人がいないときは推しの答え。」・issue #552）。
+尾の無い行は pushed_answer が None を返して今どおり止まる。
 - reason_push(q)・run_push(b, q)・taken_pushes(b)・PUSH_TAKEN: 問いの理由に判定の役が書いた推し・無人の run が答えとして採る推し
   （fork・held だけ。依頼の answers と関所の continue が先）・推しで答えた問いと戻した単位の並び（報告が冒頭と人が決めることに並べる）・
   答えた行の印
@@ -60,13 +62,14 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
   素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・命令と出力つきで答えた素材（報告が検証器の阻害から外す。
   HAND_CHECKED と名乗る）・答えた行に足す素材の行（利用者の声 10-09 の C2）
-- design_only(b)・design_item(b): 設計だけの run か・関所に載せる設計だけの行（載せなければ空）
+- design_only(b)・design_item(b)・stuck_push(b): 設計だけの run か・関所に載せる設計だけの行（載せなければ空）・止まりの行に付ける
+  事前審査の役の推しの尾（付けなければ空。boardview の受け付けも同じ条件で、保留の項目の穴を review.json に足すかを決める）
 - PLAIN・named(node)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・specblk・境の節・報告が使う）
 - quote(question)・QUOTE_NOTE: 盤面の問いの文を引用として載せる行と、関所で添える答え方の読み替えの 1 行
 - head3(happened, decide, push)・pushes(texts)・push_of(texts): 関所の文と報告の冒頭 3 行（起きたこと・決めてほしいこと・推し）と、推しを記録から拾う口
 - gate_text(asking, *, run_id, node, record_name): 答えを受ける関所の文（修正前の関所と仕様の関所が呼ぶ 1 つの組み立て）
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
-  形の誤り（受け付けが拒む）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしの _human_passed はこの尾を外す）
+  形の誤り（受け付けが拒む。事前審査の返答は一番上の止まった時の推し converge.STUCK_PUSH も同じ形で照らす）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしの _human_passed はこの尾を外す）
 - push_rec(text)・pushed_answer(texts): 項目の推しの尾の読み戻しと、無人の run が関所を推しで通る答え（項目の全部が通す推しを持つ
   時だけ。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
@@ -181,9 +184,17 @@ _NO_NARROW_PLAN = ("\n\n狭めない案を先に探せ: narrows を書く前に�
 _NO_NARROW_REVIEW = ("\n\n狭めない案を添えよ: kind が regression の穴で、BASE の動きを残し、直したい場合だけ新しい動きを当て、"
                      f"当てられない場合は黙らずに名指す形を示せるなら、{NO_NARROW}＝その案（{NO_NARROW_MIN} 字以上）を書け。"
                      "示せなければ書かない。書いた文は承認ノードの項目に添わる")
+# 壁打ちが止まる往復の推し（返答の一番上の欄 converge.STUCK_PUSH。事前審査の役だけ）。決め手は進める（continue）と止める（stop）の選び方
+_STUCK_RULE = (f"\n\n壁打ちが止まる時の推し: block を 1 つでも返す往復と、材料に『{converge.HELD_CITES_HEAD}』のセクションが在る往復では、"
+               f"返答の一番上の {converge.STUCK_PUSH} に {RECOMMEND_SHAPE} を書け（下請けの答えのファイルには書かない。束ね役の居る"
+               f"往復は束ね役が書く）。note は修正役への一言で、今の往復の block の key 全部と、そのセクションの key と、止まる案の保留・開いた項目の"
+               "『項目 n』（番号。項目の無い案は key だけ）を字のまま引け。引用の欠ける推しは採られずに止まる。進める（continue）のは、"
+               "開いた block と保留の項目の全部が修正の中で片付けられると言える時だけにする。書けない・判じられない時は stop を返す。"
+               "人のいる run と設計だけの run では使われない")
 # 役の指示書の頭に足す文（写しの指示書は欄を知らない）
 HEAD = {"p2.fix_plan": "承認ノードの項目の決め手: plan[].narrows の各行" + _RULE + _NO_NARROW_PLAN,
-        "p2.plan_review": "承認ノードの項目の決め手: faces のうち kind が regression・policy の各行" + _RULE + _NO_NARROW_REVIEW}
+        "p2.plan_review": ("承認ノードの項目の決め手: faces のうち kind が regression・policy の各行" + _RULE + _NO_NARROW_REVIEW
+                           + _STUCK_RULE)}
 PASSED_BY = "decided"
 PASSED_BY_HUMAN = "human"               # 修正の後の関所で、修正前の関所で人が通した行と同じなので聞き直さなかった
 PASSED_BY_PUSH = "push"                 # 同じく、修正前の関所を無人の run が推しで通した行と同じなので聞き直さなかった
@@ -200,7 +211,7 @@ ASK_HEAD = "問いの台帳の問い"          # 関所の項目の頭。答え�
 ASK_KINDS = ("fork", "escalate")       # 関所の項目の kinds（fork の問いと、status が escalate の問い）
 HOLD = re.compile(r"保留\s*[:：]\s*([^。；;\n]+)")   # 一言の「保留: <key>」（文の終わりまで。key を並べてよい。key は hold_keys が台帳から拾う）
 HOLD_END = re.compile(r"[。；;\n]")   # HOLD が読む文の終わり（unread_holds が一言を文に切る）
-KEY_CHAR = re.compile(r"[A-Za-z0-9_-]")   # 台帳の key の一致の前後にこれが続けば、もっと長い key の断片
+KEY_CHAR = re.compile(converge.KEY_CHAR)   # 台帳の key の一致の前後にこれが続けば、もっと長い key の断片
 HOLD_ITEM = re.compile(r"(?:^|[・、,，])\s*([A-Za-z0-9_-]*[A-Za-z0-9][A-Za-z0-9_-]*)")   # 「保留:」に並べた項の頭の key らしい並び
 ANSWERED_HEAD = "答えた問い（承認ノードの continue か依頼の answers か無人の run が採った推し）"   # 答えた行（answered_lines）の見出し（報告の冒頭と最後の承認ノード）
 ANSWER_KEY_HEAD = "答える時の answers の question"   # 保留の行の尾: 依頼の answers に字のまま書く question（answer_key。JSON の文字列で区切る）
@@ -403,6 +414,7 @@ def _recommend_gap(got) -> str:
 
 def recommend_gaps(node: str, reply: dict) -> list:
     """関所の項目の行のうち、recommend を書いたが形の崩れた行の 1 行ずつの文（書いていない行は通す。古い返答を拒まない）。
+    事前審査の返答は一番上の止まった時の推し（converge.STUCK_PUSH）も同じ形で照らす。
     写しの型は欄を持たず、受け付けが盤面へ渡す前に外すので、形はここで確かめる"""
     if node not in NODES:
         return []
@@ -415,6 +427,10 @@ def recommend_gaps(node: str, reply: dict) -> list:
             gap = _recommend_gap(row[RECOMMEND])
             if gap:
                 out.append(f"{where}: {gap}")
+    if node == "p2.plan_review" and isinstance(reply, dict) and converge.STUCK_PUSH in reply:
+        gap = _recommend_gap(reply[converge.STUCK_PUSH])
+        if gap:
+            out.append(f"{converge.STUCK_PUSH}: {gap}")
     return out
 
 
@@ -496,10 +512,14 @@ def _push(mark: dict) -> str:
     rec = recommend_of(mark)
     if rec is None:
         return ""
-    # 推しの文の「／」は「・」に替える（尾の区切り。PUSH_TAIL・PUSH_IN が尾の全文を読む）
     answer = rec[RECOMMEND_KEYS[0]]
-    note, why = (_squeeze(rec[k]).replace("／", "・") for k in RECOMMEND_KEYS[1:])
+    note, why = (_tail_text(rec[k]) for k in RECOMMEND_KEYS[1:])
     return f"／{PUSH}{RECOMMEND_WORDS[answer]}（{answer}）——{note}（理由: {why}）"
+
+
+def _tail_text(v) -> str:
+    """推しの文を尾に置く字にする（1 行に畳み、「／」は「・」に替える。尾の区切り。PUSH_TAIL・PUSH_IN が尾の全文を読む）"""
+    return _squeeze(v).replace("／", "・")
 
 
 _PUSH_REC = re.compile("／" + re.escape(PUSH) + "(" + "|".join(RECOMMEND_WORDS.values()) + ")（(" + "|".join(RECOMMEND_ANSWERS)
@@ -527,7 +547,8 @@ def pushed_answer(texts) -> dict | None:
 
 def _gate_rows(b) -> list:
     """修正前の関所の決め手の濾しに掛ける行 [(kind, 文, 決め手, 節, 単位の key の並び)]（修正案の narrows と事前審査の人に回す種類の穴。
-    記録された方針の行を名指さない kind policy の穴（policy.unrecorded）は行にしない。narrows の単位はその項目の unit_keys、穴の単位は
+    記録された方針の行を名指さない kind policy の穴（policy.unrecorded）と、機械が足した保留の block（converge.HELD_MARK）は行にしない。
+    narrows の単位はその項目の unit_keys、穴の単位は
     穴の unit_keys）"""
     rows = []
     plan = b.output_of_round("p2.fix_plan", b.round) or {}
@@ -540,6 +561,8 @@ def _gate_rows(b) -> list:
     recorded = (b.record.get("process") or {}).get(policy.RECORDED_KEY) or []
     for j, f in enumerate((b.output_of_round("p2.plan_review", b.round) or {}).get("faces") or []):
         m = _mark(f, saved, j)
+        if f.get(converge.HELD_MARK):
+            continue
         if f["kind"] in b.rules.HUMAN_FACE_KINDS and not policy.unrecorded(f, m, recorded):
             rows.append((f["kind"], f"事前審査の穴 [{f['kind']}] {f['key']}: {f['why']}", m, "p2.plan_review",
                          [k for k in f.get("unit_keys") or [] if isinstance(k, str)]))
@@ -723,12 +746,34 @@ def design_only(b) -> bool:
     return startrec.read(b.dir).get("design_only") == DESIGN_ONLY
 
 
+def stuck_push(b) -> str:
+    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。往復の行の push）の尾 _push。4 つが全部揃う時
+    だけ: 無人の run（gatepolicy.unattended）・設計だけの run でない・壁打ちの抜け方が止まり（converge.STUCK）・最後の往復の push が
+    recommend_of で読めて通す（continue）推しで、その note が止まった key と保留・開いた項目の番号の全部を字のまま引く
+    （converge.uncited が空。修正役に届くのは note だけ）。ほかは空（推しが無い・止める・崩れた・引用が欠ける時は pushed_answer が
+    None を返して今どおり止まる。止める推しは往復の行の push に残る）。
+    boardview（review.json に保留の項目の穴を足す）と design_item が同じこの 1 つの条件を読む"""
+    if not gatepolicy.unattended(b.dir) or design_only(b):
+        return ""
+    doc = converge.read(b)
+    if doc["outcome"] not in converge.STUCK:
+        return ""
+    mark = {RECOMMEND: doc["passes"][-1].get("push")}
+    rec = recommend_of(mark)
+    if rec is None or rec[RECOMMEND_KEYS[0]] != RECOMMEND_ANSWERS[0] or converge.uncited(_tail_text(rec[RECOMMEND_KEYS[1]]), doc):
+        return ""
+    return _push(mark)
+
+
 def design_item(b) -> str:
     """関所に載せる設計だけの行。入力 design_only だけなら DESIGN_ONLY_ITEM のまま、事前審査の壁打ちが止まっていれば
-    （入力と重なっても 1 行で）尾に止まった理由を付ける。設計だけでない run の止まりは頭を STUCK_ITEM にする。どちらも無ければ空"""
+    （入力と重なっても 1 行で）尾に止まった理由を付ける。設計だけでない run の止まりは頭を STUCK_ITEM にし、
+    事前審査の役の推しの尾（stuck_push）も付けうる。どちらも無ければ空"""
     reason = converge.stuck_reason(b)
     if reason:
-        return f"{DESIGN_ONLY_ITEM if design_only(b) else STUCK_ITEM}。理由: {reason}"
+        if design_only(b):
+            return f"{DESIGN_ONLY_ITEM}。理由: {reason}"
+        return f"{STUCK_ITEM}。理由: {reason}{stuck_push(b)}"
     return DESIGN_ONLY_ITEM if design_only(b) else ""
 
 

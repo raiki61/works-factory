@@ -109,6 +109,8 @@ AGG_ASK = ("この役は束ね役。案の項目を自分で見ずに、下の�
 AGG_MERGE = ("下請けが全部返ったら、返答は次の形だけにせよ（受け付けが答えのファイルと突き合わせ、食い違えば拒む）: faces と shrink は"
              "空の配列、origins は書かない（出自は下請けの答えのファイルに書く）、reason にこの往復のまとめ（20 字以上）、items に開いた項目ごとに 1 行 {item, verdict（下請けの要約が clean なら"
              " clean、block なら block）, blocks（下請けの要約の block の key ごとに {key, why（一言）}。clean なら []）}。"
+             f"block の項目が在るか、保留の項目のセクション（{converge.HELD_CITES_HEAD}）が在る往復は、頭の決まりのとおり一番上に "
+             f"{converge.STUCK_PUSH}＝{gatemarks.RECOMMEND_SHAPE} も書け（書く前に、下請けの答えのファイルの block の why と案の項目を読め）。"
              "閉じた項目・保留の項目の行は入れない。前の拒否の理由が済んだ項目の答えの中身を名指していれば、その項目の下請けを起こし"
              "直して理由のファイルを読ませ、答えのファイルを直させよ。")
 AGG_SYNERGY = ("開いた項目の全部が clean なら、同じ往復の最後に相乗りの下請けを 1 つ起こす（{path}）。block の項目が在れば起こさない。")

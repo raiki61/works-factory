@@ -690,6 +690,34 @@ class ItemsCase(BoardCase):
         self.open_and_closed_suggests()
         self.assertEqual(converge.item_blocks(self.b, 1), ["a", "t"])
 
+    def test_review_section_names_held_cites_for_the_stuck_push(self):
+        """項目 1 を保留にした往復の後の review_section は、止まった時の推しの note に引く物（HELD_CITES）として保留の項目 1 の block
+        key-a1 と『項目 1』を貼る。止まった後は、今の往復の block と貼られた物の全部を引いた note なら uncited は空・今の往復の block
+        だけなら key-a1 と『項目 1』を名指す（『項目 12』と key-a12 は引用に数えない）。保留の項目の前の往復の block は stuck_faces が
+        印 HELD_MARK つきで返し、block_faces は数えない"""
+        self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
+        self.assertNotIn(converge.HELD_CITES, converge.review_section(self.b))
+        self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
+        sec = converge.review_section(self.b)
+        self.assertIn(converge.HELD_CITES, sec)
+        self.assertIn("- 項目 1（u1）: key-a1", sec[sec.index(converge.HELD_CITES):])
+        self.assertNotIn("項目 2（u2）: ", sec[sec.index(converge.HELD_CITES):], "開いた項目は貼らない（今の往復で挙げる）")
+        self.assertEqual(converge.uncited("何でも", converge.read(self.b)), [], "止まっていない控えは照らさない")
+        got = self.review([face("key-b3", units=["u2"])], resolved=["key-b2"])
+        self.assertEqual(got["outcome"], converge.PERSISTED)
+        doc = converge.read(self.b)
+        self.assertEqual(converge.stuck_keys(doc), ["key-a1", "key-b3"])
+        self.assertIn("key-a1、key-b3", converge.stuck_reason(self.b), "stuck_reason も同じ式で止めた key を出す")
+        cites = "key-a1 と key-b3 を項目 1・項目 2 の修正の中で片付ける"
+        self.assertEqual(converge.uncited(cites, doc), [])
+        self.assertEqual(converge.uncited("key-b3 を項目 2 の修正で片付ける", doc), ["key-a1", "項目 1"])
+        self.assertEqual(converge.uncited("key-a12 と key-b3 を項目 12・項目 2 で片付ける", doc), ["key-a1", "項目 1"])
+        self.assertEqual(converge.uncited("key-a1・key-b3・項目 1・項目 2", doc), [])
+        held = converge.stuck_faces(doc)
+        self.assertEqual([f["key"] for f in held], ["key-a1"], "最後の往復の faces に在る key-b3 は足さない")
+        self.assertEqual(held[0], {**face("key-a1", units=["u1"]), converge.HELD_MARK: True})
+        self.assertEqual(converge.block_faces({"faces": held}), [])
+
     def test_new_block_on_unchanged_item_defaults_missed(self):
         """どの項目の行も変わっていない 2 往復目の新しい block は、出自を渡さなくても、introduced を渡しても missed（渡した物は
         採らずに origins_claimed に残る）"""

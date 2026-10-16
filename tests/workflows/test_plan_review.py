@@ -28,6 +28,7 @@ from tests import archon
 from tests.workflows import copied
 from tests.bin import hermetic, trimmed
 from tests.bin.gitkit import committed_copy, git
+from tests.bin.linescripts import load as load_line_script
 from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -40,19 +41,24 @@ if str(LIB) not in sys.path:
 
 from lib.tests import test_gate_drafts as TD  # noqa: E402
 from lib.tests import test_plan_gate as TP  # noqa: E402
+import answer as gate_answer  # noqa: E402   （この試験の関数 answer と名が重なるので別の名で読む）
 import boardview  # noqa: E402
 import converge  # noqa: E402
 import design  # noqa: E402
 import eyeverdict  # noqa: E402
+import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import outcome  # noqa: E402
 import planblk  # noqa: E402
 import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import policy  # noqa: E402
 import reads  # noqa: E402
 import rolekit  # noqa: E402
+import runreport  # noqa: E402
 import startrec  # noqa: E402
+import stopby  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
@@ -314,6 +320,8 @@ CHECKED = "項目の案を stats.py と test_stats.py で読み、呼び出し�
 SUMMARY_REASON = "項目ごとの下請けの答えのファイルを受け、項目ごとの判定をまとめた"
 MEAN_BLOCK = face("item1-mean-empty-division", UNIT_MEAN, kind="regression")
 CLAMP_BLOCK = face("item2-clamp-upper-branch", UNIT_CLAMP)
+STUCK_NOTE = "{key} を項目 1 の修正の中で直す範囲で通す"
+STUCK_REC = {"answer": "continue", "note": STUCK_NOTE.format(key=MEAN_BLOCK["key"]), "why": "穴は案の項目 1 の直しで閉じられる"}
 PRECEDENTS = [{"key": UNIT_MEAN, "source": "https://docs.python.org/3/library/statistics.html#statistics.mean",
                "verdict": "adopt", "reason": "空の列の平均の扱いを公式に合わせる"},
               {"key": UNIT_CLAMP, "source": "https://numpy.org/doc/stable/reference/generated/numpy.clip.html",
@@ -500,6 +508,25 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(trimmed.without_trimmed(fmt["properties"]["origins"]), converge.ORIGIN_SCHEMA)
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
         self.assertLessEqual(set(boardview.HUMAN_FACE_KINDS), set(row["kind"]["enum"]), "人の関所に回す穴の種類が役の返りの kind に無い")
+
+    def test_stuck_recommend_has_the_recommend_shape(self):
+        """事前審査の役の型の一番上の止まった時の推し（converge.STUCK_PUSH）は gatemarks.MARK_SCHEMA[RECOMMEND]（note を除く）の写しで、
+        required に入らない。役の頭の決まり（HEAD['p2.plan_review']）が、その欄の名・推しの形・continue と stop の選び方・引く物の節を
+        書かせる（修正案の役の頭には書かない）"""
+        fmt = nodes()["plan-review"]["output_format"]
+        schema = gatemarks.MARK_SCHEMA[gatemarks.RECOMMEND]
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"][converge.STUCK_PUSH]),
+                         {k: v for k, v in schema.items() if k != "note"})
+        self.assertNotIn(converge.STUCK_PUSH, fmt["required"])
+        self.assertEqual(nodes()["plan-review-fix"]["output_format"]["properties"][converge.STUCK_PUSH],
+                         fmt["properties"][converge.STUCK_PUSH], "出し直しの役の型も同じ欄を持つ")
+        head = gatemarks.HEAD["p2.plan_review"]
+        for part in (converge.STUCK_PUSH, gatemarks.RECOMMEND_SHAPE, converge.HELD_CITES_HEAD, "字のまま引け",
+                     "進める（continue）のは、開いた block と保留の項目の全部が修正の中で片付けられると言える時だけにする",
+                     "書けない・判じられない時は stop を返す"):
+            with self.subTest(part=part):
+                self.assertIn(part, head)
+        self.assertNotIn(converge.STUCK_PUSH, gatemarks.HEAD["p2.fix_plan"])
 
     def test_recommend_is_optional_on_both_roles(self):
         """元 tests/test_gate_drafts.py の SchemaCase.test_gate_rows_have_the_recommend_field: 推しの欄は事前審査の faces の行と
@@ -998,6 +1025,91 @@ class ReviewAcceptCase(RunCase):
                                            recommend={"answer": "continue", "note": "x", "why": "推す理由を書いた"})))
         self.assertFalse(got["ok"])
         self.assertTrue(got["reason"].startswith(planblk.RECOMMEND_REJECT), got["reason"])
+
+    def test_stuck_recommend_rides_on_the_pass_row(self):
+        """返答の一番上の止まった時の推し（converge.STUCK_PUSH）は、形が崩れていれば推しの形の拒み（RECOMMEND_REJECT）になり、整って
+        いれば受け付けを通る。盤面へ渡す review.json には欄が無く、往復の行の push に同じ推しが残る。書かない往復の行は push を持たない"""
+        r = self.run_
+        self.prepped()
+        for bad in ({**STUCK_REC, "answer": "maybe"}, {**STUCK_REC, "note": "x"}, "通す"):
+            with self.subTest(bad=bad):
+                got = r.accept(review(MEAN_BLOCK, **{converge.STUCK_PUSH: bad}))
+                self.assertFalse(got["ok"])
+                self.assertTrue(got["reason"].startswith(planblk.RECOMMEND_REJECT), got["reason"])
+                self.assertIn(converge.STUCK_PUSH, got["reason"])
+        self.assertEqual(converge.read(r.view())["passes"], [], "拒んだ往復は控えない")
+        got = r.accept(review(MEAN_BLOCK, **{converge.STUCK_PUSH: STUCK_REC}))
+        self.assertTrue(got["ok"], got)
+        saved = json.loads((r.folder / "pass-1" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        self.assertNotIn(converge.STUCK_PUSH, saved)
+        self.assertEqual([f["key"] for f in saved["faces"]], [MEAN_BLOCK["key"]])
+        self.assertEqual(converge.read(r.view())["passes"][-1]["push"], STUCK_REC)
+        self.run_.out("result")
+        self.run_.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)], rnd=2,
+                       answers=[{"key": MEAN_BLOCK["key"], "handled": "fixed", "how": "空の列を先に弾く手順を案に足して直した"}])
+        r.open()
+        r.out("review_prep")
+        self.assertTrue(r.accept(review(resolved=[MEAN_BLOCK["key"]]))["ok"])
+        self.assertNotIn("push", converge.read(r.view())["passes"][-1])
+
+    def held_only_pass(self, run, push, *, unattended=True):
+        """項目 1 を保留にした 2 往復目の後、block を返さず保留だけが残る 3 往復目（PERSISTED）を受け付ける（返りは 3 往復目の受け付けの
+        返り）。1 往復目は項目 1・2 の block、2 往復目は項目 1 が同じ block（保留）・項目 2 が新しい block（開いた数が減るので続く）、
+        3 往復目は項目 2 の block が消え、項目 1 の保留だけが残る"""
+        run.start(features_off=["review_tree"], **({"unattended": "true"} if unattended else {}))
+        second = face("item2-clamp-second-form", UNIT_CLAMP)
+        how = "案の項目を直して、穴を塞ぐ手順を足した"
+        run.pass_(review(MEAN_BLOCK, CLAMP_BLOCK))
+        run.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)], rnd=2,
+                 answers=[{"key": k, "handled": "fixed", "how": how} for k in (MEAN_BLOCK["key"], CLAMP_BLOCK["key"])])
+        run.pass_(review(MEAN_BLOCK, second, resolved=[CLAMP_BLOCK["key"]]))
+        self.assertEqual(converge.read(run.view())["outcome"], converge.AGAIN)
+        run.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)], rnd=3, answers=[{"key": second["key"], "handled": "fixed", "how": how}])
+        run.open()
+        run.out("review_prep")
+        return run.accept(review(resolved=[CLAMP_BLOCK["key"], second["key"]], **({converge.STUCK_PUSH: push} if push else {})))
+
+    def test_stuck_push_carries_held_blocks_to_fix_duty(self):
+        """無人の run で項目 1 を保留にした往復の後、block を返さず保留だけが残る往復（PERSISTED）に、note が key-a1 に当たる保留の
+        block の key と『項目 1』を引いた通す推しを置くと、書かれた review.json の faces に保留の項目の block が印 held つきで載り、
+        修正役が事前審査の穴に key ごとに答える道（fixboard.plan_face_rows）の key に converge.stuck_keys の全部が入る。その印の face
+        は審査が挙げた block に数えず（boardview.verdict の blocks は空・独立の目の頭は『前の往復の穴を保留のまま』）、人のいる
+        run と、note が key を欠く推しでは、review.json の faces は今のまま（保留の block を足さない）"""
+        held = MEAN_BLOCK["key"]
+
+        def faces_of(run) -> list:
+            return json.loads((run.folder / "pass-3" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))["faces"]
+
+        got = self.held_only_pass(self.run_, STUCK_REC)
+        self.assertTrue(got["ok"], got)
+        doc = converge.read(self.run_.view())
+        self.assertEqual((doc["outcome"], converge.stuck_keys(doc)), (converge.PERSISTED, [held]))
+        self.assertNotIn(held, [f["key"] for f in doc["passes"][-1]["faces"]], "最後の往復は保留の block を挙げ直していない")
+        faces = faces_of(self.run_)
+        self.assertEqual([(f["key"], f["severity"], f.get(converge.HELD_MARK), f["unit_keys"]) for f in faces],
+                         [(held, "block", True, [UNIT_MEAN])])
+        self.assertEqual({k: faces[0][k] for k in ("kind", "where", "why")},
+                         {k: MEAN_BLOCK[k] for k in ("kind", "where", "why")})
+        with tempfile.TemporaryDirectory() as place:
+            shutil.copyfile(self.run_.folder / "pass-3" / boardview.REVIEW_FILE, pathlib.Path(place) / fixboard.PLAN_REVIEW_FILE)
+            for units in (None, fixboard.face_units("first", {UNIT_MEAN})):
+                keys = {row["key"] for _, row in fixboard.plan_face_rows(place, units)}
+                self.assertLessEqual(set(converge.stuck_keys(doc)), keys)
+        v = boardview.verdict(self.run_.folder, boardview.read_open(self.run_.folder))
+        self.assertEqual((v.blocks, v.outcome, v.ok, v.stalled), ([], converge.PERSISTED, False, True))
+        self.assertEqual(eyeverdict.plan_review_line(self.run_.folder, self.run_.art / "plan/r3/plan-fields.json"),
+                         eyeverdict.REVIEW_HELD.format(k=3, outcome=converge.PERSISTED))
+        for why, push, unattended in (("人のいる run", STUCK_REC, False),
+                                      ("note が key を欠く推し", {**STUCK_REC, "note": "項目 1 の修正の中で直す範囲で通す",
+                                                                     "why": f"{held} の穴は案の項目 1 の直しで閉じられる"}, True),
+                                      ("止める推し", {**STUCK_REC, "answer": "stop"}, True)):
+            with self.subTest(why):
+                with tempfile.TemporaryDirectory() as tmp:
+                    run = Run(pathlib.Path(os.path.realpath(tmp)))
+                    self.assertTrue(self.held_only_pass(run, push, unattended=unattended)["ok"])
+                    self.assertEqual(faces_of(run), [])
+                    if not unattended:
+                        self.assertEqual(gatemarks.stuck_push(run.view()), "")
 
     def test_faces_none_and_units_and_keys(self):
         """穴も別案も挙げない返答は faces_none が要る。案に無い単位・重複の key は拒む（元 rules の plan_review_output）"""
@@ -1783,6 +1895,28 @@ class TreeCase(RunCase):
         got = r.accept(summary({1: [MEAN_BLOCK["key"]], 2: []}))
         self.assertTrue(got["ok"], got)
         self.assertEqual(converge.read(r.view())["outcome"], converge.AGAIN)
+
+    def test_bundler_stuck_push_rides_on_the_pass_row(self):
+        """束ね役の指示書（AGG_MERGE）は、一番上の止まった時の推しの欄の名（converge.STUCK_PUSH）と推しの形（RECOMMEND_SHAPE）と、
+        block の項目が在るか保留の項目の節が在る往復は頭の決まりのとおり書くこと、書く前に下請けの答えのファイルの block の why と案の
+        項目を読むことを名指す。束ね役の要約の返答の一番上に置いた推しは、受け付けを通って往復の行の push に乗り、review.json には無い"""
+        r = self.run_
+        text = self.prepped()
+        for part in (converge.STUCK_PUSH, gatemarks.RECOMMEND_SHAPE, converge.HELD_CITES_HEAD, "頭の決まりのとおり",
+                     "下請けの答えのファイルの block の why と案の項目を読め"):
+            with self.subTest(part=part):
+                self.assertIn(part, planblk.AGG_MERGE)
+        self.assertIn(planblk.AGG_MERGE, text)
+        self.write_answers(1, {1: answer(1, faces=[MEAN_BLOCK]), 2: answer(2)})
+        got = r.accept({**summary({1: [MEAN_BLOCK["key"]], 2: []}), converge.STUCK_PUSH: {**STUCK_REC, "answer": "maybe"}})
+        self.assertFalse(got["ok"])
+        self.assertTrue(got["reason"].startswith(planblk.RECOMMEND_REJECT), got["reason"])
+        got = r.accept({**summary({1: [MEAN_BLOCK["key"]], 2: []}), converge.STUCK_PUSH: STUCK_REC})
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(converge.read(r.view())["passes"][-1]["push"], STUCK_REC)
+        saved = json.loads((r.folder / "pass-1" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        self.assertNotIn(converge.STUCK_PUSH, saved)
+        self.assertEqual([f["key"] for f in saved["faces"]], [MEAN_BLOCK["key"]])
 
     def test_all_clean_pass_needs_synergy(self):
         """元 test_all_clean_pass_needs_synergy"""
@@ -3772,16 +3906,99 @@ class ConvergeGateCase(GateBase):
         """converge.record_pass の書き先（今の周 1・置き場 self.tmp）"""
         return types.SimpleNamespace(round=1, dir=self.tmp, work=lambda name: self.tmp / name, trace=lambda op, **kw: None)
 
-    def converged(self, outcome, blocks=("a-key-001",)):
-        """控えに往復と抜け方を置く（converge.record_pass を往復の数だけ）"""
+    def converged(self, outcome, blocks=("a-key-001",), push=None):
+        """控えに往復と抜け方を置く（converge.record_pass を往復の数だけ。push は最後の往復の行に置く止まった時の推し）"""
         fake = self.fake()
         faces = [{"key": k, "kind": "regression", "where": "stats.py", "why": "穴", "severity": "block"} for k in blocks]
         reviews = {converge.CLEAN: [[]], converge.AGAIN: [faces], converge.PERSISTED: [faces, faces]}[outcome]
-        for review in reviews:
-            row = converge.record_pass(fake, {"faces": review}, resolved=[], files={})
+        for n, review in enumerate(reviews, 1):
+            row = converge.record_pass(fake, {"faces": review}, resolved=[], files={}, push=push if n == len(reviews) else None)
         self.assertEqual(row["outcome"], outcome)
 
     start = DesignOnlyCase.start
+    PUSH = {"answer": "continue", "note": "a-key-001 を修正の中で直す範囲で通す", "why": "穴は案の項目の直しで閉じられる"}
+
+    def stuck_items(self, push, **start):
+        """止まった（PERSISTED）控えに最後の往復の推し push を置き、start の控えで run を決めて、関所の項目の文の並びと見え方を返す"""
+        (self.tmp / converge.RECORD).unlink(missing_ok=True)
+        self.start(**start)
+        self.converged(converge.PERSISTED, push=push)
+        got, b = self.gate()
+        return got["ask"]["items"], b
+
+    def test_unattended_stuck_item_carries_the_review_push(self):
+        """無人の run の止まりの行（STUCK_ITEM）は、最後の往復の推しの note が止まった key を引いている時だけ、push_rec で読める通す
+        尾を持つ。人のいる run の行は今の字のまま、設計だけの run の行は DESIGN_ONLY_ITEM で始まり尾を持たない。note が key を欠く推し
+        （why だけが引く物を含む）・止める推し・崩れた推し・推しの無い止まりには尾が付かない"""
+        items, b = self.stuck_items(self.PUSH, unattended="true")
+        head = f"{gatemarks.STUCK_ITEM}。理由: {converge.stuck_reason(b)}"
+        self.assertEqual(gatemarks.push_rec(items[0]), {"item": head, **self.PUSH})
+        self.assertEqual(gatemarks.pushed_answer(items)["text"], self.PUSH["note"])
+        items, b = self.stuck_items(self.PUSH)
+        self.assertEqual(items, [head])
+        self.assertIsNone(gatemarks.push_rec(items[0]))
+        items, b = self.stuck_items(self.PUSH, unattended="true", design_only="true")
+        self.assertEqual(items, [f"{gatemarks.DESIGN_ONLY_ITEM}。理由: {converge.stuck_reason(b)}"])
+        self.assertIsNone(gatemarks.push_rec(items[0]))
+        for why, push in (("note が key を欠く", {**self.PUSH, "note": "修正の中で直す範囲で通す", "why": "a-key-001 の穴は項目の直しで閉じられる"}),
+                          ("key の断片", {**self.PUSH, "note": "a-key-0012 を修正の中で直す範囲で通す"}),
+                          ("止める", {**self.PUSH, "answer": "stop"}), ("崩れた", {**self.PUSH, "answer": "maybe"}),
+                          ("推しの無い", None)):
+            with self.subTest(why):
+                items, b = self.stuck_items(push, unattended="true")
+                self.assertEqual(items, [f"{gatemarks.STUCK_ITEM}。理由: {converge.stuck_reason(b)}"])
+                self.assertIsNone(gatemarks.push_rec(items[0]))
+                self.assertIsNone(gatemarks.pushed_answer(items))
+
+    def test_unattended_stuck_push_goes_to_fix(self):
+        """無人の run の止まりの行を question_row のまま ask_before_fix.ask に通すと、go・pushed 非 null・asked にその行が入り、pushed の
+        text（修正役に answer.said で届く一言）が止まった key を字のまま含む。答えを answer.taken で残し、runreport._pushed_lines
+        （置き場の名 gate-before-fix で通す）は STUCK_ITEM で始まる止まりの行を推しで通したと並べる。推しが止める・欄が無い・note が
+        key を欠く時は、go 偽・needs-human・pushed は null"""
+        ask_before_fix = load_line_script("ask_before_fix")
+
+        def ask(push):
+            items, b = self.stuck_items(push, unattended="true")
+            rows = [gatemarks.question_row(kind, text) for kind, text in gatemarks.plan_gate_items(b)]
+            plan = {"ready": True, "pass": False, "stalled": True, "round": 1, "ask_human": True, "gate_axes": {}, "questions": rows}
+            return items, ask_before_fix.ask(plan, unattended=True, design_only=False, run_id="run-1")
+
+        items, got = ask(self.PUSH)
+        self.assertEqual((got["open"], got["go"], got["stop_reason"], got["asked"]), (False, True, "", items))
+        self.assertIsNotNone(got["pushed"])
+        self.assertIn("a-key-001", got["pushed"]["text"])
+        self.assertTrue(got["asked"][0].startswith(gatemarks.STUCK_ITEM))
+        place = "gate-before-fix"
+        self.assertIn(place, outcome.GATES, "報告の _pushed は outcome.GATES の置き場の名だけを読む（鍵を GATE_NODE にすると空になる）")
+        taken = gate_answer.taken(None, go=got["go"], stop_reason=got["stop_reason"], place=place, folder=self.tmp,
+                                  asked=got["asked"], pushed=got["pushed"])
+        self.assertEqual((taken["go"], taken["stop_reason"]), (True, ""))
+        lines = runreport._pushed_lines({place: taken["answer"]})
+        self.assertEqual(len(lines), 1, lines)
+        self.assertTrue(lines[0].startswith(f"無人の run で推しを採って通した（承認ノード {place}）: {gatemarks.STUCK_ITEM}"), lines)
+        self.assertIn(self.PUSH["note"], lines[0])
+        for why, push in (("止める推し", {**self.PUSH, "answer": "stop"}), ("欄が無い", None),
+                          ("note が key を欠く", {**self.PUSH, "note": "修正の中で直す範囲で通す", "why": "a-key-001 の穴は項目の直しで閉じられる"})):
+            with self.subTest(why):
+                _, got = ask(push)
+                self.assertEqual((got["go"], got["stop_reason"], got["pushed"]), (False, stopby.NEEDS_HUMAN, None))
+
+    def test_held_face_added_for_the_push_is_not_a_second_gate_row(self):
+        """推しが付く止まりで review.json の faces に足した保留の項目の block（印 held つき。kind は元のまま regression）は、関所の別の行に
+        ならない（推しの尾を持てず、載る項目の全部が尾を持つ時だけ通す pushed_answer を None にしてしまう）。止まりの行 1 つだけが載って
+        推しの尾を持ち、pushed_answer が通す。印の無い同じ block の face は今までどおり人に回す行になる"""
+        unmarked = {"key": "a-key-001", "kind": "regression", "where": "stats.py", "why": "穴", "severity": "block", "unit_keys": ["u"]}
+        held = {**unmarked, converge.HELD_MARK: True}
+        self.start(unattended="true")
+        self.converged(converge.PERSISTED, push=self.PUSH)
+        got, _ = self.gate(faces=[held], unattended=True)
+        items = got["ask"]["items"]
+        self.assertEqual(len(items), 1, items)
+        self.assertTrue(items[0].startswith(gatemarks.STUCK_ITEM), items)
+        self.assertIsNotNone(gatemarks.pushed_answer(items))
+        got, _ = self.gate(faces=[unmarked], unattended=True)
+        self.assertEqual(len(got["ask"]["items"]), 2, got)
+        self.assertIsNone(gatemarks.pushed_answer(got["ask"]["items"]))
 
     def test_stuck_opens_design_item_with_reason(self):
         """元 tests/test_plan_gate.py の ConvergeGateCase.test_stuck_opens_design_item_with_reason。壁打ちが止まった案は修正に
