@@ -368,7 +368,7 @@
 {"id": "P017", "kind": "seed-cannot", "why": "plan/r1/rejects-plan.json（拒否が起きた時）・plan/r1/plan-fields.json の fields[].route・tests"},
 {"id": "P018", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
 {"id": "P019", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
-{"id": "P020", "kind": "seed-cannot", "why": "adds の名の照らしは拒否でしか見えず、健全な種の案は拒まれるとは限らない", "check": "text-contains", "where": "parent/plan/r*/rejects-plan.json", "text": "の name はファイルの名・パスでなく識別子"},
+{"id": "P020", "kind": "seed-cannot", "why": "files の symbols の name の照らし（行の path の拡張子で終わる名の拒否）は拒否でしか見えず、健全な種の案は拒まれるとは限らない", "check": "text-contains", "where": "parent/plan/r*/rejects-plan.json", "text": "ファイルの名でなく識別子で書け"},
 {"id": "P021", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
 {"id": "P022", "kind": "backlog", "why": "ブロックの中だけの穴（区分の issue）", "check": "json-has", "where": "parent/plan/r1/plan-fields.json", "path": "fields.*.rewrite_tests.*.limit"},
 {"id": "P023", "kind": "backlog", "why": "ブロックの中だけの穴（区分の issue）", "check": "json-has", "where": "parent/plan/r1/plan-fields.json", "path": "fields.*.removes_tests.0"},

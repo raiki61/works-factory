@@ -8,8 +8,8 @@ plan-writer:
   plan:
     - unit_keys: [1]
       approach: "stub: mean の分母を len(xs) に直す"
-      adds: []
-      removes: []
+      files:
+        - {path: stats.py, op: modify, responsibility: "stub: 平均の分母の式を直す", symbols: [], canonical: "stub: 既存の stats.py"}
       shrink_first: "stub: 足す物は無い。式を 1 か所直すだけで足りる"
       narrows: []
       route: direct

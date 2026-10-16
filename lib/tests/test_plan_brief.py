@@ -32,7 +32,7 @@ FIELDS = [{"route": "tdd", "route_why": "", "tests": [{"id": "test_stats.py::Tes
 def plan_reply(narrows=()):
     """修正案の役の返答（元 works/tests/test_blk_fix.py の plan_reply）"""
     return {"plan": [{"unit_keys": [MEAN, CLAMP], "approach": "mean の分母を len(xs) に、clamp の上限の枝の戻り値を hi に直す",
-                      "adds": [], "removes": [], "shrink_first": "足す物は無い。2 か所の式を 1 行ずつ直すだけで足りる",
+                      "files": [], "shrink_first": "足す物は無い。2 か所の式を 1 行ずつ直すだけで足りる",
                       "narrows": list(narrows)}]}
 
 
@@ -97,6 +97,32 @@ class BriefCase(PlaceCase):
         self.ready()
         got = planbrief.cut(self.place, purpose="平均と範囲の丸めを定義どおりにする", **self.src)
         self.assertIn("平均と範囲の丸めを定義どおりにする", pathlib.Path(got[0]["file"]).read_text(encoding="utf-8"))
+
+    def test_render_shows_files_table_and_received_names(self):
+        """項目の brief に、ファイル構成の表（1 行 1 ファイル。消す行は why・replaced_by つき）と、前の項目から受ける物の節が出る。
+        足す物・消す物の 2 節（adds・removes）は 1 つの表になる。files の無い項目は表の代わりに「無し」"""
+        files = [{"path": "lib/new.py", "op": "create", "responsibility": "新しい口", "canonical": "新設の理由",
+                  "symbols": [{"name": "handle", "kind": "function", "change": "add"}]},
+                 {"path": "lib/old.py", "op": "delete", "responsibility": "古い口", "canonical": "消す", "symbols": [],
+                  "why": "呼び手は new に寄せた", "replaced_by": "lib/new.py::handle"},
+                 {"path": "lib/keep.py", "op": "modify", "responsibility": "呼び手", "canonical": "既存",
+                  "symbols": [{"name": "legacy", "kind": "function", "change": "remove", "why": "handle に寄せたので要らない",
+                               "replaced_by": "lib/new.py::handle"}]}]
+        item2 = {**plan_reply()["plan"][0], "files": files}
+        f = {**FIELDS[0], planmarks.DEPENDS_KEY: [{"unit": MEAN, "receives": ["lib/new.py::handle", "lib/keep.py"]}]}
+        text = planbrief.render(2, item2, f, {}, "", "")
+        self.assertIn(str(planbrief.FILES_HEAD), text)
+        self.assertNotIn("## 足す物（adds）", text)
+        self.assertNotIn("## 消す物（removes）", text)
+        for w in ("| lib/new.py | create | 新しい口 | add `handle`（function） |", "| lib/old.py | delete | 古い口 |",
+                  "why: 呼び手は new に寄せた（置き換え先: lib/new.py::handle）",
+                  "remove `legacy`（function）——why: handle に寄せたので要らない（置き換え先: lib/new.py::handle）"):
+            self.assertIn(w, text)
+        self.assertIn(str(planbrief.DEPENDS_HEAD), text)
+        self.assertIn(f"単位 {MEAN} の項目から受ける: `lib/new.py::handle`・`lib/keep.py`", text)
+        bare = planbrief.render(1, plan_reply()["plan"][0], FIELDS[0], {}, "", "")
+        self.assertIn(f"{planbrief.FILES_HEAD}\n\n無し", bare)
+        self.assertIn(f"{planbrief.DEPENDS_HEAD}\n\n無し", bare)
 
     def test_render_shows_scope(self):
         """brief に書いてよいパス（allowed_paths）と触らない物（out_of_scope）の節が並ぶ。欄の無い行（217 番の形）は無し"""

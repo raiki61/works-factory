@@ -294,13 +294,12 @@ def not_allowed(judgment, reply) -> list:
 
 
 def named(reply, slot_list):
-    """no の整数を slots の id に戻した返答の写し。文字列の unit_keys と slots に無い no はそのまま（網羅の照らしが知らない key と言う）"""
+    """no の整数を slots の id に戻した返答の写し（単位を持つ欄は planmarks.UNIT_REFS の unit_keys と depends_on[].unit。planmarks.renumber が
+    回す）。文字列の単位と slots に無い no はそのまま（網羅の照らしが知らない key と言う）"""
     got = copy.deepcopy(reply)
     for p in got.get("plan") if isinstance(got, dict) and isinstance(got.get("plan"), list) else []:
-        keys = p.get("unit_keys") if isinstance(p, dict) else None
-        if not isinstance(keys, list):
-            continue
-        p["unit_keys"] = [planblk.unit_name(slot_list, k) for k in keys]
+        if isinstance(p, dict):
+            planmarks.renumber(p, lambda k: planblk.unit_name(slot_list, k))
     return got
 
 
@@ -384,9 +383,12 @@ def exists_at(repo, rev: str):
 
 
 # ---------------------------------------------------------------- 案の直し
-def _plan_errors(rows, reply, repo, exists, tables) -> list:
-    """修正案の役の直した項目の返答の誤りの行の全部（数・unit_keys の字・works の欄・構造と世界の解の行への答え・狭めない案）
-    （元 works/.shared/core/replan.py:478。型の外れは役の節の output_format が先に照らす）。rows は渡した項目の行（old を持つ）"""
+def _plan_errors(rows, reply, repo, exists, tables, whole) -> list:
+    """修正案の役の直した項目の返答の誤りの行の全部（数・unit_keys の字・works の欄・項目の間の依存・構造と世界の解の行への答え・
+    狭めない案）（元 works/.shared/core/replan.py:478。型の外れは役の節の output_format が先に照らす）。rows は渡した項目の行（old を
+    持つ）。whole は承認済みの案の全体（take_replan の old）で、依存 depends_on の照らし（planmarks.depends_gaps）は、直した番号の所に
+    返答の項目を差し替えた並びに当てる（直した項目だけを渡すと、直さない項目を指す行を誤って拒み、直さない項目の受けの切れを見逃す）。
+    返答は unit_keys を字で写すので、depends_on[].unit も単位の字で書く"""
     plan = reply.get("plan") if isinstance(reply, dict) else None
     out = []
     if not isinstance(plan, list) or len(plan) != len(rows):
@@ -397,9 +399,19 @@ def _plan_errors(rows, reply, repo, exists, tables) -> list:
             out.append(f"plan[{i}].unit_keys が貼った {json.dumps(want, ensure_ascii=False)} と違う（一字も変えずに写す）")
     if not replan._malformed(reply):
         out += planmarks.gaps(reply, pathlib.Path(repo), exists=exists)
+        out += planmarks.depends_gaps(_replaced(whole, rows, plan))
         out += planmarks.structure_gaps(reply.get("plan"), tables)
         out += gatemarks.narrow_gaps(planmarks.NODE, reply)
         out += gatemarks.recommend_gaps(planmarks.NODE, reply)
+    return out
+
+
+def _replaced(whole, rows, plan) -> list:
+    """承認済みの案の全体 whole の、rows の項目の番号の所に返答の項目 plan（rows と同じ並び）を差し替えた並び（whole は変えない）"""
+    out = list(whole)
+    for row, got in zip(rows, plan if isinstance(plan, list) else []):
+        if 1 <= row["item"] <= len(out):
+            out[row["item"] - 1] = got
     return out
 
 
@@ -878,6 +890,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
             [{**p, "unit_keys": [k for k in p["unit_keys"] if k not in shut]} if isinstance(p.get("unit_keys"), list) else p
              for p in whole], owed, opened)),
         _section(planmarks.REJECT, planmarks.gaps(plan, pathlib.Path(repo))),
+        _section(planmarks.DEPENDS_REJECT, planmarks.depends_gaps(whole)),
         _section(planmarks.STRUCTURE_REJECT, planmarks.structure_gaps(whole, tables)),
     ]
     reason = "\n".join(r for r in reasons if r)
@@ -913,7 +926,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
              "old": copy.deepcopy(old[n - 1])} for n in items if 1 <= n <= len(old)]
     rev = base_rev or "HEAD"
     try:
-        errs = _plan_errors(rows, reply, repo, exists_at(repo, rev), tables)
+        errs = _plan_errors(rows, reply, repo, exists_at(repo, rev), tables, old)
     except ValueError as e:
         errs = [str(e)]
     if errs:

@@ -4,7 +4,8 @@
 （rewrite_tests）・整えの申告（refactor）・書いてよいパス（allowed_paths）・触らない物（out_of_scope。依頼 218）を書かせる。承認された案は後で項目ごとの brief に切り出され、修正役・TDD の役が従う
 要求の正本になる。写しの graph の型は欄を持てない（写しはバイト一致で縛られる）ので、足す・外す・置く・読むの手順は住処
 marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡す前に外して盤面の plan-fields.json に置く）に任せる。
-- gaps(reply, repo, exists=): 欠けと誤りの行（kind が関数・欄の adds の name がファイルの名・パスだけの行も。修正案の受け付けが拒む。拒否の理由は書いた役に戻り、その役が直せる）。exists は
+- gaps(reply, repo, exists=): 欠けと誤りの行（files の行の誤り——symbols の name がパスの形か行の path の拡張子で終わる・同じ
+  (path, name, change) の重なり・消す側の訳 why の欠け——も。修正案の受け付けが拒む。拒否の理由は書いた役に戻り、その役が直せる）。exists は
   受け入れのテストが既に在るかを引く口（既定は作業ツリー。同じ run の中の案の直しは修正の起点の版の木）
 - find_test(repo, test_id): テストの id の定義の行（rewrite_tests は在るテストだけ・tests は無いテストだけを名指す）
 - line_in(src, test_id): 渡したファイルの中身でのテストの id の定義の行（凍結の検査が輪の後の木で引き直す）
@@ -12,12 +13,20 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   別の版の木へ移す口
   （範囲の相談の合意の行は修正前の版の行で、凍結の検査が読む木へはこの 2 つで移す）
 - split(reply, repo, base_tests=)・save(board, rnd, fields)・read(b)・rewrites(b)・removes_permits(b): 欄を外す口・盤面の控え・書き換えてよい既存のテストの並び・
-  removes をコードの識別子（と点の付いたパス・属性の名の文字列）として使う既存のテストの並び（base_tests は修正前の版のテストの中身。split が欄
-  removes_tests に置く許しの行）
-- IDENT・search_word(name)・module_name(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path)・test_defs(tree, path)・code_idents(node)・DOTTED_NAME: adds・removes の名を
-  差分や本体で探す語の決まり（1 行の読み方）・テストの関数の源の引き（blk-fix の planscope・tddloop・blk-plan の ripple が同じ物を呼ぶ）・
-  テストの関数がコードで使う名の引き（split が removes_tests を引く）・コードの識別子の名の集めと、名と読む点の付いた文字列の形（tddloop も
+  files の change=remove の symbol（消す名）をコードの識別子（と点の付いたパス・属性の名の文字列）として使う既存のテストの並び（base_tests は
+  修正前の版のテストの中身。split が欄 removes_tests に置く許しの行）
+- FILES_SCHEMA・FILE_OPS・SYMBOL_CHANGES: 修正案の項目の欄 files（ファイル構成の行。足す物・消す物を 1 ファイルごとの {path, op, from?,
+  responsibility, symbols:[{name, kind, change, why?, replaced_by?}], canonical, why?, replaced_by?} にした物）の型の住処（yaml の plan_reply の
+  files はその写し）。読みの口は file_rows(item)・symbol_rows(row)・file_symbols(item, change)・file_paths(item, ops)・removed_paths(item)。読み手（planscope・ripple・design・
+  planbrief）は欄の字を自分で読まず、この口を引く
+- IDENT・search_word(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path)・test_defs(tree, path)・code_idents(node)・DOTTED_NAME: files の
+  symbols の name を差分や本体で探す語の決まり（1 行の読み方）・テストの関数の源の引き（blk-fix の planscope・tddloop・blk-plan の ripple が
+  同じ物を呼ぶ）・テストの関数がコードで使う名の引き（split が removes_tests を引く）・コードの識別子の名の集めと、名と読む点の付いた文字列の形（tddloop も
   使う）
+- 項目の間の依存（DEPENDS_KEY=depends_on。後の項目が前の項目の単位と受ける物を書く works の欄）: depends_gaps(items) は案の全体を受ける
+  依存の照らしの 1 つの口（take_plan と案の直しの _plan_errors が案の全体を渡して呼ぶ）、depends_pairs(items, among=None) は組を作る
+  (前の単位, 後の単位) の対（among の外の単位を通る依存は中の端どうしに縮める）、renumber(item, name_of) は UNIT_REFS の欄の単位の no を名に戻す
+  （planfile.named が呼ぶ）
 - unit_contract(fields, key): 1 つの単位の約束（その単位を名指す項目の道・受け入れのテスト・書き換えの id・整えの申告を合わせた物。TDD の輪が読む）
 - append_trace(folder, op, **row): 開いた盤面の書き口の無い時に trace.jsonl（TRACE_FILE）へ足す行 {t, op, …}（save と planfile が書く）
 - 凍結（SAVED_OP・frozen(b)・FieldsBroken）: save は控えを置いた後、盤面の trace に印 {round, sha256（控えのバイトの sha256）} を
@@ -59,6 +68,7 @@ from __future__ import annotations
 import ast
 import copy
 import difflib
+import graphlib
 import hashlib
 import json
 import pathlib
@@ -82,14 +92,16 @@ NODE = NODES[0]
 FIELDS_FILE = marks.KINDS["plan"].file   # 盤面の根の控え {"round": 周, "fields": [項目ごとの欄], "amended"?: {番号: 核の欄}}
 SAVED_OP = "plan_fields_saved"     # save が盤面の trace に書く凍結の印 {round, sha256}
 TRACE_FILE = "trace.jsonl"
-KEYS = ("route", "route_why", "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope", "structure")
+DEPENDS_KEY = "depends_on"       # 項目の間の依存の欄の名（1 か所。ITEMS_RULE・REJECT・planbrief が貼る）
+KEYS = ("route", "route_why", "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope", "structure", DEPENDS_KEY)
 # 写しの graph の修正案の項目の欄（核）。差し替えた項目のこの欄を控えの AMENDED_KEY に置く（approved_items が足す鍵 item は外す）
-CORE_KEYS = ("unit_keys", "approach", "adds", "removes", "shrink_first", "narrows")
+CORE_KEYS = ("unit_keys", "approach", "files", "shrink_first", "narrows")
 # 約束の欄（変えると関所に戻す物）と手段の欄（同じ run の中で修正案の役が直してよい物）。tests[] の行は CONTRACT_TEST_KEYS の
-# 欄だけが約束で、ほかの欄（id・path・red_kind・red_why）は手段
-CONTRACT_KEYS = ("unit_keys", "narrows", "removes", "allowed_paths", "out_of_scope", "rewrite_tests")
+# 欄だけが約束で、ほかの欄（id・path・red_kind・red_why）は手段。files は消す側（op が delete・rename の行と change=remove の
+# symbol。_contract_value）だけが約束で、足す側は手段
+CONTRACT_KEYS = ("unit_keys", "narrows", "files", "allowed_paths", "out_of_scope", "rewrite_tests")
 CONTRACT_TEST_KEYS = ("behavior",)
-MEANS_KEYS = ("approach", "adds", "shrink_first", "route", "route_why", "tests", "refactor", "structure")
+MEANS_KEYS = ("approach", "files", "shrink_first", "route", "route_why", "tests", "refactor", "structure", DEPENDS_KEY)
 # 範囲を広げる欄（widened が見る）: allowed_paths に足す・out_of_scope から外すだけの直しは、範囲を広げるだけの直し
 WIDEN_KEYS = ("allowed_paths", "out_of_scope")
 AMENDED_KEY = "amended"            # 控えの鍵 {"<項目の番号>": {CORE_KEYS の欄}}（差し替えた項目の核の欄）
@@ -106,13 +118,30 @@ AGREED_KINDS = (AGREED_RED, GUARD_KIND)   # 範囲の相談の答えの new_test
 MIN_WHY = 10
 _WHY = {"type": "string", "minLength": MIN_WHY}
 MIN_DEVIATION = 20   # 構造の目の避け方・処方から外れる訳の字の下限
-# adds の kind のうち name が識別子（関数・欄の名）の物。ファイルの名・パスだけの name（_file_name）を gaps が拒む（依頼 194c:
-# receivers.py と書いた名を TDD の輪が 'py' と比べた）。文書・設定・CLI・柵・腕・テストなどはファイルを名指すのが筋の時が在るので見ない
-SYMBOL_KINDS = ("function", "record_field")
-_PATHLIKE = re.compile(r"[A-Za-z0-9_./-]+")
-_FILE_EXT = re.compile(r".*\.(?:py|md|json|ya?ml|sh|js|ts|toml|txt|cfg|ini|csv|html?)")   # / を含む名の最後の段のファイルの拡張子
-# canonical の頭（か頭の『新設』の後）の .py のパス。canonical に『新設』が在る時だけ、split がそのパスを宣言した名前に足す
-_NEW_MODULE = re.compile(r"^\s*(?:新設[\s:：、。]*)?([A-Za-z0-9_./-]+\.py)(?![\w.])")
+# ファイル構成の行 files（足す物・消す物を、1 ファイルごとの path・操作・受け持ちと、そのファイルの symbols の行にした物）。行の型
+# FILES_SCHEMA の住処はここ 1 か所（workflows/plan/works-factory-plan.yaml の plan_reply の files はその写しで、一致を試験が縛る）
+FILE_OPS = ("create", "modify", "delete", "rename")       # 行の操作。rename は元のパス from を持つ
+SYMBOL_CHANGES = ("add", "remove")                       # symbols の行の変え方
+SYMBOL_KIND_WORDS = ("function", "record_field", "guard", "prompt", "doc", "cli", "arm", "test", "config", "other")
+FILES_SCHEMA = {"type": "array", "minItems": 1, "items": {
+    "type": "object", "additionalProperties": False, "required": ["path", "op", "responsibility", "symbols", "canonical"],
+    "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "op": {"type": "string", "enum": list(FILE_OPS)},
+        "from": {"type": "string", "minLength": 1},
+        "responsibility": {"type": "string", "minLength": 4},
+        "symbols": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False, "required": ["name", "kind", "change"],
+            "properties": {"name": {"type": "string", "minLength": 1},
+                           "kind": {"type": "string", "enum": list(SYMBOL_KIND_WORDS)},
+                           "change": {"type": "string", "enum": list(SYMBOL_CHANGES)},
+                           "why": _WHY, "replaced_by": {"type": "string", "minLength": 1}}}},
+        "canonical": {"type": "string", "minLength": 4},
+        "why": _WHY,
+        "replaced_by": {"type": "string", "minLength": 1}}}}
+# 項目の欄のうち単位の no（か単位の字）を持つ欄の表 (欄の名, 行の中の鍵)。鍵が None の欄は単位の並びそのもの、鍵が在る欄は
+# その鍵に単位を持つ object の並び。renumber が回す
+UNIT_REFS = (("unit_keys", None), (DEPENDS_KEY, "unit"))
 FIELD_SCHEMA = {
     "route": {"type": "string", "enum": list(ROUTES)},
     "route_why": {"type": "string"},
@@ -124,6 +153,8 @@ FIELD_SCHEMA = {
         "type": "object", "additionalProperties": False, "required": ["id", "behavior", "old", "new"],
         "properties": {"id": {"type": "string", "pattern": "::"}, "behavior": _WHY,
                        "old": {"type": "string", "minLength": 4}, "new": _WHY}}},
+    # 整えは直しの項目の中の申告で持ち、別の項目に分けない: 項目は単位を 1 つ以上持つ（unit_keys の minItems 1）ので単位の無い整えの項目は
+    # 作れず、整えは緑の後に同じ単位の輪の整えの段が、今の直しの所だけに回すため
     "refactor": {"type": "object", "additionalProperties": False, "required": ["declared", "why"],
                  "properties": {"declared": {"type": "boolean"}, "why": {"type": "string"}}},
     # 範囲の欄（依頼 218）: 書いてよいパスの glob と、範囲の中でも触らない物 {glob, why}
@@ -139,6 +170,12 @@ FIELD_SCHEMA = {
         "properties": {"row": {"type": "string", "minLength": 1}, "prescription": {"type": "string", "minLength": 1},
                        "world": {"type": "string", "minLength": 1},
                        "follows": {"type": "boolean"}, "deviation": {"type": "string"}}}},
+    # 項目の間の依存の欄: 前の項目を位置でなく単位（前の項目の unit_keys のどれか）で指し、前の項目の files から受ける物を
+    # <パス>::<名前>（symbol）か <パス>（行）の字で書く。単位は unit_keys と同じ型（no か字。受け付けが字に戻す）
+    DEPENDS_KEY: {"type": "array", "items": {
+        "type": "object", "additionalProperties": False, "required": ["unit", "receives"],
+        "properties": {"unit": {"type": ["integer", "string"], "minLength": 1, "minimum": 1},
+                       "receives": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}}}},
 }
 
 STRUCTURE_REJECT = ("修正案の項目の works の欄 structure に欠けか誤りが在る（構造の目が汚れると見た単位を持つ項目は、その行ごとに"
@@ -155,8 +192,10 @@ STRUCTURE_HEAD = ("structure＝構造の目が汚れると見た行（頭の『�
                   f"{MIN_DEVIATION} 字以上で、出どころ（URL・<パス>:<行>・決定の記録のパス）を添える>}} を書け（{cite.RUN_FILES}）。どの項目も答えていない"
                   "答えの要る行は受け付けが拒む。依頼そのものを出どころにした外れは修正前の承認ノードで人に回る。"
                   "汚れる行も答えの要る世界の解の行も無い項目は空の並びか書かない")
-REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope）か adds の name に欠けか誤りが在る。"
-          "下の行を直した案を丸ごと出し直せ:")
+REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope・depends_on）か、files の行"
+          "（symbols の name・消す行の why・replaced_by）に欠けか誤りが在る。下の行を直した案を丸ごと出し直せ:")
+DEPENDS_REJECT = (f"修正案の項目の依存 {DEPENDS_KEY} に誤りが在る（unit は案の項目の unit_keys の字・自分の項目の単位でない・受ける物は"
+                  "その項目の files の <パス>::<名前> か <パス>・依存は循環しない）。下の行を直した案を丸ごと出し直せ:")
 # 修正案の役の指示書の頭に足す文（写しの指示書はこの欄を知らない）
 HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を知らないが、plan[] の各項目に必ず書け。"
         "route＝直し方の道（tdd＝先に落ちる受け入れのテストを書いてから直す・direct＝テストを先に書かずに直す）。"
@@ -164,7 +203,8 @@ HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を�
         "tests＝この項目で新しく足す受け入れのテストの並び（route が tdd なら 1 本以上）。各行は id（<パス>::<クラス>::<名前> か "
         "<パス>::<名前>。パスは作業ツリーの根からの相対で、まだ無いテストを名指す）・behavior（確かめる振る舞い）・path（本物の経路を"
         "どう通すか。mock の戻り値を断言しない）・red_kind・red_why（今のコードでなぜ赤になるか）。red_kind は断言の失敗（assertion）か"
-        "期待した例外が出ない（exception）のどちらかで、項目の adds に宣言した名前の失敗は赤に数え、宣言の外の名前・import や収集の失敗は赤に数えない。"
+        "期待した例外が出ない（exception）のどちらかで、項目の files に宣言した名前（change=add の symbol の名と、op=create の .py の path）の失敗は赤に数え、"
+        "宣言の外の名前・import や収集の失敗は赤に数えない。"
         "tests の id と置き場は、名指すファイル（無ければ同じディレクトリの既存のテストのファイル）の既存のテストの置き方"
         "（クラスの中か一番外か・クラス名の付け方）に合わせよ。"
         "rewrite_tests＝依頼で振る舞いが変わるため期待を書き換える既存のテストの並び。各行は id（作業ツリーに在るテストの定義）・"
@@ -178,10 +218,19 @@ HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を�
         "** や * や **/* や **/?* や **/*.* のような字の無い（* と ? と [..] と . だけの）丸ごとの許しは拒む。"
         "out_of_scope＝範囲の中でも触らない物 {glob, why} の並び（why は "
         f"{MIN_WHY} 字以上。無ければ空の並び）。修正の受け付けは差分をこの範囲と照らし、外れたら同じ brief で返す。"
-        "機械は差分で次を探すので、adds の name は識別子（関数・欄・CLI・テストの名）で書き、新設の物の canonical には"
-        "置くファイルのパスを書け。removes に識別子を書けば、差分で消えたかを見る。"
-        # removes の句: 波及の一覧の kind removed の当たりを、案の範囲で先に覆わせる（覆わない当たりは事前審査が答える）
+        "files＝足す物・消す物を 1 ファイルごとに書いた行の並び（FILES_SCHEMA）。各行は path（作業ツリーの根からの相対で 1 ファイル）・"
+        "op（create＝新設・modify＝変える・delete＝消す・rename＝移す。rename は元のパスを from に書く）・responsibility（そのファイルの "
+        "1 つの受け持ち）・symbols（そのファイルで足す・消す名の並び [{name, kind, change（add か remove）}]。name は識別子（関数・欄・"
+        "CLI・テストの名）で書き、/ を含む字（/ で始まる欄の指しを除く）や行の path の拡張子で終わる字を書くな。パスは行の path に書く）・canonical（既存の"
+        "正本の引き先か新設の理由）。機械は差分で、change=add の name を行の path の足した行から、change=remove の name を消した行から、"
+        "op=create・delete・rename の path を新設・消し・移しから探す。消す物（op が delete・rename の行と change=remove の symbol）は"
+        f"why（消す訳。{MIN_WHY} 字以上）を必ず書き、置き換え先が在れば replaced_by（<パス>::<名前> か <パス>）も書け。足す物の行に why・"
+        "replaced_by は書くな。"
+        # 消す名の句: 波及の一覧の kind removed の当たりを、案の範囲で先に覆わせる（覆わない当たりは事前審査が答える）
         "消す名を名指すファイルは allowed_paths に入れよ。入れない当たりは事前審査の下請けが答える。"
+        f"{DEPENDS_KEY}＝項目の間の依存（任意）。後の項目が前の項目の結果を前提にするなら、項目をまとめずに分け、後の項目に "
+        "{unit: <前の項目の unit_keys のどれか 1 つ（unit_keys と同じ書き方）>, receives: [<前の項目の files から受ける物。"
+        "<パス>::<名前> か <パス>>]} を書け（自分の項目の単位・案に無い単位・前の項目の files に無い物・依存の循環は受け付けが拒む）。"
         + STRUCTURE_HEAD)
 REVIEW_HEAD = promptsection.Section("## 修正案の項目の works の欄（機械が貼った）", source="fn:planmarks.review_section")
 FIELDS_ITEM_HEAD = promptsection.Section("### 修正案の項目 {n}", source="fn:planmarks.review_section")
@@ -194,9 +243,9 @@ REVIEW_ASK = ("下は修正案の役が項目ごとに書いた works の欄（r
               "本物の経路を通るか・mock の戻り値を断言していないか・文言の比べに寄っていないか、red_kind の赤が今のコードで本当に"
               "起きるか、rewrite_tests が依頼で変わる振る舞いだけを書き換え、期待値を実装に合わせる書き換えでないかを見よ。"
               "allowed_paths が項目の直しに足りて広すぎないか、out_of_scope が依頼の触らない物を覆うかも見よ。"
-              "項目の後の機械が足した許しの行 " + MACHINE_KEY + " は、項目の removes（消す名）をコードの識別子として使う修正前のテストを"
-              "機械が並べた物で、修正案の役は書いていない・直せない。where でこれを名指す block は受け付けが拒む。許しが広すぎる・"
-              "狭すぎると見るなら、その項目の removes を名指せ。"
+              "項目の後の機械が足した許しの行 " + MACHINE_KEY + " は、項目の files の change=remove の symbol（消す名）をコードの識別子として"
+              "使う修正前のテストを機械が並べた物で、修正案の役は書いていない・直せない。where でこれを名指す block は受け付けが拒む。許しが"
+              "広すぎる・狭すぎると見るなら、その項目の files の change=remove の symbol を名指せ。"
               "穴は faces に挙げよ")
 MACHINE_LABEL = f"機械が足した許しの行 {MACHINE_KEY}（修正案の役は書いていない・直せない。書き換え・消しを許すだけで、消す指示でも義務でもない）:"
 
@@ -364,21 +413,21 @@ def _py_line(src: str, names: list):
     return fn[0].lineno if fn else None
 
 
-IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_.:/-]*$")   # adds の name・removes の名が識別子の形か
+IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_.:/-]*$")   # files の symbols の name が識別子の形か
 
 
 def search_word(name) -> str | None:
-    """adds の name・removes の名で差分や本体を探す語（:: と . で割った最後の段）。識別子の形でない・/ を含む名と、.py のファイルの名
-    （拡張子 py を語にしない）は None（語では確かめない）"""
-    if not isinstance(name, str) or not IDENT.match(name) or "/" in name or name.endswith(".py"):
+    """files の symbols の name で差分や本体を探す語（:: と . で割った最後の段）。識別子の形でない名と、/ を含む名（欄の指し
+    /plan/files のような字。パスは行の path に書くので、name の / は欄の指しだけ）は None（語では確かめない）"""
+    if not isinstance(name, str) or not IDENT.match(name) or "/" in name:
         return None
     last = re.split(r"::|\.", name)[-1]
     return last or None
 
 
 def declared_name(d) -> str:
-    """adds・removes の名 1 つが宣言する名前（'(' より前を見る）: <パス>::<名前> は :: の後の最後の . の後・.py のファイルの名・パスは
-    モジュールの名（__init__.py はディレクトリの名。拡張子 py と比べない。receivers.py は receivers）・ほかは最後の . の後"""
+    """名 d 1 つが宣言する名前（'(' より前を見る）: <パス>::<名前> は :: の後の最後の . の後・.py のパスはモジュールの名
+    （__init__.py はディレクトリの名。拡張子 py と比べない。receivers.py は receivers）・ほかは最後の . の後"""
     s = str(d).split("(", 1)[0].strip()
     if "::" in s:
         return s.rsplit("::", 1)[-1].rsplit(".", 1)[-1]
@@ -386,15 +435,6 @@ def declared_name(d) -> str:
         p = posixpath.normpath(s[:-3])
         return posixpath.basename(posixpath.dirname(p)) if posixpath.basename(p) == "__init__" else posixpath.basename(p)
     return s.rsplit(".", 1)[-1]
-
-
-def module_name(name) -> str | None:
-    """.py のファイルの名（/ も :: も無い）が宣言するモジュールの名（declared_name。receivers.py は receivers で、拡張子 py ではない）。
-    ほかの名と、モジュールの名が引けない名（__init__.py だけ・app.receivers.py のように拡張子の前に . を含みファイルに結べない名）は None"""
-    if not isinstance(name, str) or not IDENT.match(name) or "/" in name or "::" in name or not name.endswith(".py") \
-            or "." in name[:-3]:
-        return None
-    return declared_name(name) or None
 
 
 def word_re(name: str):
@@ -500,12 +540,56 @@ def test_names(src: str, path: str) -> dict[str, set[str]]:
     return {tid: _code_names(node) for tid, node in test_defs(tree, path)} if tree else {}
 
 
+# ---------------------------------------------------------------- files の読みの口（行の型 FILES_SCHEMA の読み手は全部ここを引く）
+def file_rows(item) -> list[dict]:
+    """項目 item の files の行（object の物だけ。files が並びでなければ空）"""
+    rows = item.get("files") if isinstance(item, dict) else None
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
+def symbol_rows(row: dict) -> list[dict]:
+    """行 row の symbols の行（object の物だけ）"""
+    rows = row.get("symbols")
+    return [s for s in rows if isinstance(s, dict)] if isinstance(rows, list) else []
+
+
+def file_symbols(item, change: str | None = None) -> list[tuple[str, str]]:
+    """項目 item の files の (path, name) の並び（現れた順・重なりは 1 つ）。change（SYMBOL_CHANGES）を渡せばその変え方の symbol だけ。
+    path か name が字でない行は並べない"""
+    out = []
+    for row in file_rows(item):
+        path = row.get("path")
+        for sym in symbol_rows(row):
+            name = sym.get("name")
+            if isinstance(path, str) and isinstance(name, str) and (change is None or sym.get("change") == change):
+                out.append((path, name))
+    return list(dict.fromkeys(out))
+
+
+def file_paths(item, ops) -> list[str]:
+    """項目 item の files のうち op が ops の行の path の並び（現れた順・重なりは 1 つ）"""
+    return list(dict.fromkeys(r["path"] for r in file_rows(item) if r.get("op") in ops and isinstance(r.get("path"), str)))
+
+
+def removed_paths(item) -> list[str]:
+    """項目 item の files で、この直しの後に無くなるパス: op=delete の行の path と、op=rename の行の元のパス from（現れた順・重なりは 1 つ）"""
+    out = []
+    for row in file_rows(item):
+        old = row.get("path") if row.get("op") == "delete" else row.get("from") if row.get("op") == "rename" else None
+        if isinstance(old, str) and old:
+            out.append(old)
+    return list(dict.fromkeys(out))
+
+
 def _naming_removes(item: dict, base_tests: dict) -> list[dict]:
-    """項目 item の removes（消す名）の探す語（search_word）を、base_tests（パス → 修正前の版のテストのファイルの中身）の
-    テストの関数がコードの識別子（と点の付いたパス・属性の名の文字列）として使う所（test_names）から探し、当たった関数の行
-    {id, limit: "<パス>:<定義の行>"} を並びの順で返す。ほかの文字列（文字列で書いた注釈も）の中の同じ語は当たりにしない
+    """項目 item の files の change=remove の symbol の名（消す名）の探す語（search_word）を、base_tests（パス → 修正前の版のテストの
+    ファイルの中身）のテストの関数がコードの識別子（と点の付いたパス・属性の名の文字列）として使う所（test_names）から探し、当たった
+    関数の行 {id, limit: "<パス>:<定義の行>"} を並びの順で返す。この直しの後に無くなる .py（removed_paths: op=delete の path と
+    op=rename の元のパス from）のモジュールの名も消す名の語に数える（消える・移るモジュールの旧名を使う修正前のテストにも許しを
+    並べる）。ほかの文字列（文字列で書いた注釈も）の中の同じ語は当たりにしない
     （ありふれた語で関わらないテストへ許しを広げない）。定義の行が引けない関数（入れ子のクラスの中など）は並べない（許しを広げない）"""
-    words = {w for w in map(search_word, item.get("removes") or []) if w}
+    words = {w for w in map(search_word, (name for _, name in file_symbols(item, "remove"))) if w}
+    words |= {declared_name(p) for p in removed_paths(item) if p.endswith(".py")} - {""}
     out = []
     for path, text in (base_tests if words else {}).items():
         for tid, names in test_names(text, path).items():
@@ -606,9 +690,21 @@ def _canon(v) -> str:
     return json.dumps(v, sort_keys=True, ensure_ascii=False)
 
 
+def _removal_side(it: dict) -> list:
+    """項目 it の files の消す側だけ: op が delete・rename の行（path と元のパス from）と、change=remove の symbol（path と name）を
+    並べ替えた並び。足す側（op が create・modify の行・change=add の symbol）と訳（why・replaced_by）・受け持ち・正本は入れない"""
+    gone = [{"op": r.get("op"), "path": r.get("path"), "from": r.get("from")} for r in file_rows(it)
+            if r.get("op") in ("delete", "rename")]
+    gone += [{"symbol": name, "path": path} for path, name in file_symbols(it, "remove")]
+    return sorted(gone, key=_canon)
+
+
 def _contract_value(it: dict, key: str) -> str:
     """約束の欄 key の比べる字（欄が無い・None は空の並びと同じ。unit_keys は並べ替える。rewrite_tests の行は型の欄
-    （FIELD_SCHEMA）だけで比べる——凍結の控えの行は split が足した範囲 limit を持ち、返答の行は型で持てないので）"""
+    （FIELD_SCHEMA）だけで比べる——凍結の控えの行は split が足した範囲 limit を持ち、返答の行は型で持てないので。files は
+    消す側 _removal_side だけに写して比べる——足す側は手段の欄で、同じ run の中で関所に戻さずに直せる）"""
+    if key == "files":
+        return _canon(_removal_side(it))
     v = it.get(key) if isinstance(it, dict) else None
     v = [] if v is None else v
     if key == "unit_keys" and isinstance(v, list):
@@ -637,8 +733,10 @@ def contract_diff(old: dict, new: dict) -> list[str]:
 
 
 def _item_value(it: dict, key: str) -> str:
-    """項目の欄 key の比べる字（約束の欄は _contract_value、tests は行の全部の欄を並べ替えた並び、ほかは字のまま。無いのは None）"""
-    if key in CONTRACT_KEYS:
+    """項目の欄 key の比べる字（約束の欄は _contract_value、tests は行の全部の欄を並べ替えた並び、ほかは字のまま。無いのは None）。
+    files は足す側も違いに数える（widened が、足す側を変えて範囲も広げた直しを『範囲を広げただけ』と読まないように。消す側だけに
+    写すのは contract_diff の約束の比べ）"""
+    if key in CONTRACT_KEYS and key != "files":
         return _contract_value(it, key)
     v = it.get(key) if isinstance(it, dict) else None
     if key == "tests" and isinstance(v, list):
@@ -718,23 +816,100 @@ def _scope_overlaps(plan: list) -> list[str]:
     return out
 
 
-def _file_name(name: str) -> bool:
-    """name がファイルの名・パスだけか: ASCII の語・. ・- ・/ だけで、.py で終わるか、/ を含み最後の段がファイルの拡張子
-    （_FILE_EXT）で終わるか、/ で始まらずに / を含み最後の段に . が無い（app/receivers）。/ の無いほかの拡張子の名
-    （Response.json・event.ts）・パスの後ろの属性（tests/_real_db.SKIP_REASON・app/stats.mean）・/ で始まる欄の指し（/plan/adds）は
-    修飾した識別子と分けられないので当たらない。説明の文・<パス>::<名前>・Stats.median も当たらない"""
-    s = name.strip()
-    if not _PATHLIKE.fullmatch(s):
-        return False
-    if s.endswith(".py"):
-        return True
-    last = s.rsplit("/", 1)[-1]
-    return "/" in s and (bool(_FILE_EXT.fullmatch(last)) or ("." not in last and not s.startswith("/")))
+def _symbol_problem(path: str, name: str) -> str | None:
+    """行の path の symbol の name の誤りの文（無ければ None）: / で始まらずに / を含む（パスの形。/ で始まる字は /plan/files のような
+    欄の指しなので通す）か、行の path の拡張子で終わる（ファイルの名。Response.json は app/x.ts の行では通る）。拡張子の表は持たず、
+    行の path の拡張子と照らす"""
+    if "/" in name and not name.startswith("/"):
+        return "パスの形（/ を含む）。パスは行の path に書き、name は識別子で書け"
+    ext = posixpath.splitext(path)[1]
+    if ext and name.endswith(ext):
+        return f"行の path（{path}）の拡張子 {ext} で終わる（ファイルの名でなく識別子で書け。置くファイルは行の path に書く）"
+    return None
+
+
+def _path_problem_of(path) -> str | None:
+    """files の行の path・from の誤りの文（\\ の区切り・根の外・整えた形でない。ファイルの有無は見ない）"""
+    if not isinstance(path, str) or not path:
+        return None
+    if "\\" in path:
+        return "\\ が在る（区切りは / で書け）"
+    norm = posixpath.normpath(path)
+    if climbs(norm):
+        return "作業ツリーの根からの相対でない（絶対パス・根の外・根そのものを指す）"
+    return None if norm == path else f"整えた形でない（./・..・// を含む）。整えた形 {norm} で書け"
+
+
+def _gone_why(at: str, node: dict, what: str) -> list[str]:
+    """消す側の node（at の指し）の why が MIN_WHY 字以上か。what は誤りの文の頭"""
+    why = node.get("why")
+    if isinstance(why, str) and len(why.strip()) >= MIN_WHY:
+        return []
+    return [f"{at}.why: {what}は消す訳（why）を {MIN_WHY} 字以上で書く（置き換え先が在れば replaced_by に <パス>::<名前> か <パス> も）"]
+
+
+def _removal_gaps(i: int, it: dict) -> list[str]:
+    """項目 it（plan[i]）の files の消す訳の欠けと、足す側の訳の書き間違い。消す側（op が delete・rename の行と change=remove の
+    symbol）は why（MIN_WHY 字以上）が必須で、replaced_by は任意。足す側（op が create・modify の行と change=add の symbol）に
+    why・replaced_by を書くのは拒む。型の if-then は output_format に書かず、ここ 1 か所で照らす"""
+    out = []
+    for j, row in enumerate(it.get("files") if isinstance(it.get("files"), list) else []):
+        if not isinstance(row, dict):
+            continue
+        at = f"plan[{i}].files[{j}]"
+        if row.get("op") in ("delete", "rename"):
+            out += _gone_why(at, row, f"op={row.get('op')} の行")
+        else:
+            out += [f"{at}.{k}: 足す側の行（op={row.get('op')}）に {k} は書かない（消す側の行と symbol の物）"
+                    for k in ("why", "replaced_by") if k in row]
+        for k, sym in enumerate(row.get("symbols") if isinstance(row.get("symbols"), list) else []):
+            if not isinstance(sym, dict):
+                continue
+            sat = f"{at}.symbols[{k}]"
+            if sym.get("change") == "remove":
+                out += _gone_why(sat, sym, "change=remove の symbol ")
+            else:
+                out += [f"{sat}.{key}: 足す側の symbol（change={sym.get('change')}）に {key} は書かない（change=remove の symbol の物）"
+                        for key in ("why", "replaced_by") if key in sym]
+    return out
+
+
+def _files_gaps(i: int, it: dict) -> list[str]:
+    """項目 it（plan[i]）の files の行の誤り: path・from の形・rename の from・symbols の name（_symbol_problem）・同じ
+    (path, name, change) の行の重なり・消す訳の欠け（_removal_gaps）"""
+    out, seen = [], {}
+    for j, row in enumerate(it.get("files") if isinstance(it.get("files"), list) else []):
+        if not isinstance(row, dict):
+            continue
+        at, path = f"plan[{i}].files[{j}]", row.get("path")
+        for key in ("path", "from"):
+            bad = _path_problem_of(row.get(key))
+            if bad:
+                out.append(f"{at}.{key}（{row.get(key)}）: {bad}")
+        if row.get("op") == "rename" and not (isinstance(row.get("from"), str) and row["from"]):
+            out.append(f"{at}.from: op=rename の行は元のパス from を書く")
+        elif row.get("op") != "rename" and "from" in row:
+            out.append(f"{at}.from: from は op=rename の行だけが書く（元のパス）")
+        for k, sym in enumerate(row.get("symbols") if isinstance(row.get("symbols"), list) else []):
+            name = sym.get("name") if isinstance(sym, dict) else None
+            if not (isinstance(name, str) and isinstance(path, str)):
+                continue
+            bad = _symbol_problem(path, name)
+            if bad:
+                out.append(f"{at}.symbols[{k}].name（{name}）: {bad}")
+            key = (path, name, sym.get("change"))
+            if key in seen:
+                out.append(f"{at}.symbols[{k}]（{path}::{name}・change={key[2]}）: 同じ (path, name, change) の行を {seen[key]} にも書いた"
+                           "（1 行にまとめよ）")
+            seen.setdefault(key, f"{at}.symbols[{k}]")
+    return out + _removal_gaps(i, it)
 
 
 def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
-    """修正案の返答の works の欄の欠けと誤りの行と、kind が SYMBOL_KINDS の adds の name がファイルの名・パスだけの行
-    （"plan[<i>].<欄>…: <理由>"）。空なら通る。返答や plan が形を成さなければ空
+    """修正案の返答の works の欄の欠けと誤りの行と、files の行の誤り（symbols の name がパスの形か行の path の拡張子で終わる・
+    同じ (path, name, change) の重なり・消す側の訳 why の欠けと足す側の訳の書き間違い。_files_gaps）（"plan[<i>].<欄>…: <理由>"）。
+    空なら通る。項目の間の依存 depends_on の照らしは案の全体を見る depends_gaps に在り、ここでは型（FIELD_SCHEMA）だけを見る
+    （案の直しの返答は直した項目だけなので、直さない項目を指す行をここでは照らせない）。返答や plan が形を成さなければ空
     （写しの規則が型で拒む）。例外で拒まない。exists(test_id) -> 定義の行 | None は、受け入れのテスト（tests）が既に在るかを
     引く口（None なら find_test で作業ツリーを引く。同じ run の中の案の直しは修正の起点の版の木で引く）"""
     plan = reply.get("plan") if isinstance(reply, dict) else None
@@ -787,13 +962,7 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
             bad = glob_problem(g) if isinstance(g, str) and g else None
             if bad:
                 out.append(f"plan[{i}].out_of_scope[{j}].glob（{g}）: {bad}")
-        for j, add in enumerate(it.get("adds") if isinstance(it.get("adds"), list) else []):
-            name = add.get("name") if isinstance(add, dict) and add.get("kind") in SYMBOL_KINDS else None
-            if isinstance(name, str) and _file_name(name):
-                out.append(f"plan[{i}].adds[{j}].name（{name}）: kind が {add['kind']} の name はファイルの名・パスでなく識別子"
-                           "（足す関数・欄の名。例 handle・Receiver.handle・app.receivers.handle）で書け。置くファイルのパスは "
-                           "canonical に書け（新しいモジュールは canonical を『<パス>.py（新設。理由）』と書けば、そのモジュールも宣言した"
-                           "名前になる。TDD のループは宣言した名前を名前・import の失敗の無い名前と比べ、修正の受け付けは name を差分の足した行で探す）")
+        out += _files_gaps(i, it)
         rf = it.get("refactor")
         if isinstance(rf, dict) and rf.get("declared") is True:
             rwhy = rf.get("why")
@@ -817,45 +986,135 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
     return out
 
 
-def _new_module(repo: pathlib.Path, canonical) -> str | None:
-    """canonical が『新設』で頭に名指す .py のパス（_NEW_MODULE）のうち、作業ツリーの根の中でまだ無いファイルの物。ほかは None
-    （在るファイルに新設の関数を足す行・根の外のパスは、モジュールを宣言しない）"""
-    m = _NEW_MODULE.match(canonical) if isinstance(canonical, str) and "新設" in canonical else None
-    norm = posixpath.normpath(m.group(1)) if m else None
-    if norm is None or norm.startswith("/") or climbs(norm) or (pathlib.Path(repo) / norm).exists():
-        return None
-    return m.group(1)
-
-
-def _declared(adds, repo: pathlib.Path) -> list[str]:
-    """項目の adds の宣言した名前の並び: 各行の name（今までどおり全部）と、canonical が新設の無いモジュールを名指す行のその
-    パス（_new_module。まだ並びに無ければ。新しいモジュールの import の失敗を TDD の輪が宣言の赤に数える。依頼 194c の nodeio.py）"""
-    out = []
-    for a in adds if isinstance(adds, list) else []:
-        if not (isinstance(a, dict) and isinstance(a.get("name"), str)):
+# ---------------------------------------------------------------- 項目の間の依存（depends_on）
+def renumber(item: dict, name_of: Callable) -> dict:
+    """項目 item（その場で書き換える）の単位を持つ欄（UNIT_REFS: unit_keys と depends_on[].unit）の単位の no を name_of(no) の単位の名に
+    戻し、item を返す。字は name_of にそのまま通す（planblk.unit_name は字をそのまま返す。案の直しの返答は unit_keys を字で写すので、
+    depends_on[].unit も字で書く）。形の崩れた欄（並びでない・object でない行）は触らない"""
+    for field, sub in UNIT_REFS:
+        rows = item.get(field)
+        if not isinstance(rows, list):
             continue
-        out.append(a["name"])
-        mod = _new_module(repo, a.get("canonical"))
-        if mod and mod not in out:
-            out.append(mod)
+        for n, row in enumerate(rows):
+            if sub is None:
+                rows[n] = name_of(row)
+            elif isinstance(row, dict) and sub in row:
+                row[sub] = name_of(row[sub])
+    return item
+
+
+def _unit_owner(items: list) -> dict:
+    """{単位の字: それを unit_keys に持つ最初の項目の位置}（字でない key は入れない）"""
+    owner = {}
+    for n, it in enumerate(items):
+        for k in it.get("unit_keys") if isinstance(it, dict) and isinstance(it.get("unit_keys"), list) else []:
+            if isinstance(k, str):
+                owner.setdefault(k, n)
+    return owner
+
+
+def _provided(item: dict) -> set[str]:
+    """項目 item の files から後の項目が受けてよい物の字: 行の path と、symbol の <パス>::<名前>"""
+    return {r["path"] for r in file_rows(item) if isinstance(r.get("path"), str)} | {f"{p}::{n}" for p, n in file_symbols(item)}
+
+
+def depends_gaps(items) -> list[str]:
+    """案の全体 items（unit_keys を単位の字に戻した項目の並び）の depends_on の誤りの行（"plan[<i>].depends_on[<j>]…: <理由>"）。
+    拒むのは、自分の項目の単位を指す行・案のどの項目の unit_keys にも無い単位を指す行・受ける物が指した項目の files（行の path か
+    symbol の <パス>::<名前>）に無い行・依存の循環（graphlib.TopologicalSorter の CycleError）。案の全体を受ける 1 つの口で、gaps には
+    入れない（案の直しの gaps は直した項目だけを受け、直さない項目を指す行を誤って拒むので）。呼ぶのは take_plan（splice した
+    案の全体）と案の直しの _plan_errors（直した項目を差し替えた案の全体）。形の崩れた項目・行は飛ばす（型は gaps が見る）"""
+    if not isinstance(items, list):
+        return []
+    owner = _unit_owner(items)
+    out, graph = [], {}
+    for i, it in enumerate(items):
+        for j, row in enumerate(_rows(it, DEPENDS_KEY) if isinstance(it, dict) else []):
+            if not isinstance(row, dict):
+                continue
+            at, unit = f"plan[{i}].{DEPENDS_KEY}[{j}]", row.get("unit")
+            src = owner.get(unit) if isinstance(unit, str) else None
+            if src is None:
+                out.append(f"{at}.unit（{unit}）: 案のどの項目の unit_keys にも無い単位（前の項目の unit_keys の字を書け）")
+                continue
+            if src == i:
+                out.append(f"{at}.unit（{unit}）: 自分の項目の単位（前の項目の単位を書け。同じ項目の中は依存でなく同じ直し）")
+                continue
+            have = _provided(items[src])
+            receives = row.get("receives") if isinstance(row.get("receives"), list) else []
+            out += [f"{at}.receives[{k}]（{r}）: 項目 {src + 1}（plan[{src}]）の files に無い（行の path か <パス>::<名前> で書け。"
+                    f"在るのは {sorted(have)[:5]}）" for k, r in enumerate(receives) if isinstance(r, str) and r not in have]
+            graph.setdefault(i, set()).add(src)
+    try:
+        graphlib.TopologicalSorter(graph).prepare()
+    except graphlib.CycleError as e:
+        ring = e.args[1] if len(e.args) > 1 else []
+        out.append(f"plan.{DEPENDS_KEY}: 依存が循環している（{' → '.join(f'plan[{n}]' for n in ring)}）。循環する項目は前後を決められない"
+                   "（まとめるか、依存の向きを 1 つにせよ）")
     return out
 
 
+def depends_pairs(items, among=None) -> list[tuple[str, str]]:
+    """承認済みの項目の並び items（planmarks.approved_items の形。unit_keys は単位の字）の依存を、単位の対 (前の単位, 後の単位) の並びで
+    引く（後の項目の depends_on が指す前の項目の単位の全部 × 後の項目の単位の全部。現れた順・重なりは 1 つ）。among（組に渡す
+    単位の並び）を渡せば、among の外の単位を通る依存を among の中の端どうしの対に縮める（A→B→C で B が外なら (A, C)）。
+    指す単位が案に無い行・自分の項目への行は数えない（depends_gaps が受け付けで拒む）"""
+    items = [it for it in items or [] if isinstance(it, dict)]
+    owner = _unit_owner(items)
+    units = [[k for k in it.get("unit_keys") or [] if isinstance(k, str)] for it in items]
+    edges: dict = {}
+    for i, it in enumerate(items):
+        for row in _rows(it, DEPENDS_KEY):
+            src = owner.get(row.get("unit")) if isinstance(row, dict) and isinstance(row.get("unit"), str) else None
+            if src is None or src == i:
+                continue
+            for a in units[src]:
+                for b in units[i]:
+                    if b not in units[src]:   # 両方の項目が持つ単位は前の項目の側で直る（向きの逆の対で循環させない）
+                        edges.setdefault(a, {})[b] = None
+    if among is None:
+        return [(a, b) for a, nexts in edges.items() for b in nexts]
+    inside, pairs = set(among), {}
+    for a in [k for k in edges if k in inside]:
+        seen, queue = {a}, list(edges[a])
+        while queue:
+            x = queue.pop(0)
+            if x in seen:
+                continue
+            seen.add(x)
+            if x in inside:
+                pairs[(a, x)] = None   # 外の単位を通ってきた依存は、中の端どうしの対に縮める（中の単位から先は、その単位の対が引く）
+            else:
+                queue += list(edges.get(x, ()))
+    return list(pairs)
+
+
+def _declared(files) -> list[str]:
+    """項目の files の宣言した名前の並び: 行の順に、op=create の .py の行の path（新しいモジュールの import の失敗を TDD の輪が宣言の赤に
+    数える。依頼 194c の nodeio.py）と、その行の change=add の symbol の名（重なりは 1 つ）。canonical の字は読まない"""
+    out = []
+    for row in file_rows({"files": files}):
+        path = row.get("path")
+        if row.get("op") == "create" and isinstance(path, str) and path.endswith(".py"):
+            out.append(path)
+        out += [s["name"] for s in symbol_rows(row) if s.get("change") == "add" and isinstance(s.get("name"), str)]
+    return list(dict.fromkeys(out))
+
+
 def split(reply: dict, repo: pathlib.Path, *, base_tests: dict | None = None) -> tuple[dict, list[dict]]:
-    """（works の欄を外した返答の写し, 項目と同じ並びの欄）。欄の行は外した欄に、項目の unit_keys の写しと、宣言した名前 adds
-    （_declared: adds の name と、canonical が新設の無いモジュールを名指す行のパス）と、項目の removes の写し（波及の一覧が消す名を
-    引く）と、rewrite_tests の各行の書き換えてよい範囲
+    """（works の欄を外した返答の写し, 項目と同じ並びの欄）。欄の行は外した欄に、項目の unit_keys の写しと、項目の files の写し
+    （宣言した名前 _declared と消す名は、読み手が files から引く。unit_contract・ripple）と、rewrite_tests の各行の書き換えてよい範囲
     limit（"<パス>:<定義の行>"。引けない行には付けない）を足した物。gaps を通った返答に使う。
-    base_tests（パス → 修正前の版のテストのファイルの中身）を渡せば、項目の removes をコードの識別子として使うテストの行 removes_tests
-    [{id, limit}] も足す（書き換え・消しを許すだけの行で、義務でない。作業ツリーでは消えたテストも修正前の版で探す）"""
+    base_tests（パス → 修正前の版のテストのファイルの中身）を渡せば、項目の files の change=remove の symbol（消す名）をコードの
+    識別子として使うテストの行 removes_tests [{id, limit}] も足す（書き換え・消しを許すだけの行で、義務でない。作業ツリーでは消えた
+    テストも修正前の版で探す）。repo は rewrite_tests の範囲 limit を引く作業ツリー"""
     out, rows = marks.split("plan", NODE, reply, KEYS)
     items = out.get("plan") if isinstance(out, dict) else None
     for it, got in zip(items if isinstance(items, list) else [], rows):
         if not isinstance(it, dict):   # 形の崩れた項目の欄は空のまま
             continue
         got["unit_keys"] = copy.deepcopy(it.get("unit_keys") or [])
-        got["adds"] = _declared(it.get("adds"), repo)
-        got["removes"] = copy.deepcopy(it.get("removes") or [])
+        got["files"] = copy.deepcopy(it.get("files") or [])
         for row in got.get("rewrite_tests") or []:
             lim = _limit(repo, _id_of(row)) if _id_of(row) else None
             if lim:
@@ -1156,7 +1415,7 @@ def rewrites(b) -> list[dict]:
 
 
 def removes_permits(b) -> list[dict]:
-    """今の周の承認済みの修正案の項目の removes（消す名）をコードで使う既存のテストの並び {item, id, limit}（split が凍結した欄の
+    """今の周の承認済みの修正案の項目の files の change=remove の symbol（消す名）をコードで使う既存のテストの並び {item, id, limit}（split が凍結した欄の
     removes_tests。書き換え・消しを許すだけの行で、義務ではない）。rewrites と同じく frozen で読み（印と食い違えば FieldsBroken）、
     範囲 limit の無い行は並べない（許しを広げない）"""
     out = []
@@ -1170,10 +1429,10 @@ def removes_permits(b) -> list[dict]:
 
 
 def unit_contract(fields: list | None, key: str) -> dict | None:
-    """単位 key の約束 {items: 項目の番号（1 始まり）, route, tests: [{id, red_kind}], rewrites: [id], refactor: [{item, why}], names: [宣言した名前（欄の adds）]}。
+    """単位 key の約束 {items: 項目の番号（1 始まり）, route, tests: [{id, red_kind}], rewrites: [id], refactor: [{item, why}], names: [宣言した名前（欄の files から _declared）]}。
     key を unit_keys に含む項目の欄を合わせる: route はどれかの項目が tdd なら tdd（ほかは direct）・tests は項目の順で id の重複を
     除く（同じ id に別の red_kind は gaps が拒む）・rewrites は範囲 limit の在る行の id だけ（rewrites と同じ選び方）・refactor は
-    refactor.declared が真の項目の番号と理由（申告が無ければ空）・names は項目の欄の adds（split の宣言した名前）を項目の順で重複を除いた列。
+    refactor.declared が真の項目の番号と理由（申告が無ければ空）・names は項目の欄の files の宣言した名前（_declared: change=add の symbol の名と op=create の .py の path）を項目の順で重複を除いた列。
     fields が None か、当たる項目が無ければ None。純粋（盤面もファイルも読まない）"""
     if not isinstance(fields, list):
         return None
@@ -1191,9 +1450,8 @@ def unit_contract(fields: list | None, key: str) -> dict | None:
         for row in _rows(f, "rewrite_tests"):
             if _id_of(row) and isinstance(row.get("limit"), str) and row["limit"]:
                 rws.setdefault(row["id"])
-        for nm in f.get("adds") or []:
-            if isinstance(nm, str) and nm:
-                names.setdefault(nm)
+        for nm in _declared(f.get("files")):
+            names.setdefault(nm)
         rf = f.get("refactor")
         if isinstance(rf, dict) and rf.get("declared") is True:
             refactor.append({"item": n, "why": rf.get("why").strip() if isinstance(rf.get("why"), str) else ""})
@@ -1221,7 +1479,7 @@ def machine_face_gaps(faces: list) -> list[str]:
     """事前審査の穴 faces のうち、where が機械の足した欄（MACHINE_KEY）を名指す block の誤りの行（受け付けが拒む。修正案の役が
     直せない穴で案の往復を回さない）。suggest は往復を回さないので拒まない"""
     return [f"faces[{j}]（{str(f.get('key'))[:40]}）: where が機械の足した欄 {MACHINE_KEY} を名指す block（修正案の役は直せない。"
-            f"許しが広すぎるなら removes を名指せ。そうでなければ suggest にせよ）"
+            f"許しが広すぎるなら files の change=remove の symbol を名指せ。そうでなければ suggest にせよ）"
             for j, f in enumerate(faces)
             if f.get("severity") == "block" and _MACHINE_KEY_IN.search(str(f.get("where") or ""))]
 

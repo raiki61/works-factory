@@ -140,7 +140,7 @@ KIND = "conflict"                       # process.human_items の行の kinds（
 HEAD = "食い違いの申し出"                # 最後の関所の文の節の見出し・報告の行の頭
 RULED_TEST_ID = "conflict-ruling"       # 裁定が許したテストの変更を守りのファイルの行にする時の id の頭
 PLAN_TEST_ID = "plan-rewrite"           # 承認済みの修正案が名指した既存テストの書き換えを守りのファイルの行にする時の id の頭
-REMOVES_TEST_ID = "plan-removes"        # 承認済みの修正案の項目の removes（消す名）を本体で名指す既存テストの書き換え・消しの許しの行の id の頭
+REMOVES_TEST_ID = "plan-removes"        # 承認済みの修正案の項目の files の change=remove の symbol（消す名）を本体で名指す既存テストの書き換え・消しの許しの行の id の頭
 AGREED_TEST_ID = "plan-agreed"         # 範囲の相談で修正案を書いた役が許したテストの書き換えを守りのファイルの行にする時の id の頭
 AMENDED_TEST_ID = "plan-amended"        # 案の直しで直した項目の単位の前の輪の受け入れのテストの許しの行の id の頭（範囲の文字列を持たない）
 # 範囲の相談（修正役が返答の欄 consult で頼み、修正の輪の答えの節が修正案を書いた役の会話の続きで答える。設計
@@ -886,7 +886,7 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
                  round_: int = 1) -> list[dict]:
     """既存のテストの変更の許しの唯一の元（keep-essence の 3。許す元を読むのはここだけで、凍結の検査・事後の関門・範囲の照らし・
     最後の関所はこの行を読む）。許す元は 5 つ: 承認済みの修正案の rewrite_tests（いつも。planmarks.rewrites の順）・範囲の相談の
-    合意（agreed_permits）・承認済みの修正案の項目の removes をコードで使う既存テスト（planmarks.removes_permits。書き換えも関数の
+    合意（agreed_permits）・承認済みの修正案の項目の files の change=remove の symbol（消す名）と op=delete の path・op=rename の元のパス from の .py のモジュールの名をコードで使う既存テスト（planmarks.removes_permits。書き換えも関数の
     丸ごとの消しも許す）・rulings が真なら裁定 fix_test_scope の範囲（ruled_fix の順）・案の直しで直した項目の単位（amended_keys。
     前の輪の受け入れのテストの関数を、直した案で書き直してよい）。
     行は {limit: 範囲の文字列, id: 守りのファイルの行の id の頭, why: 許した理由, source: 許しの出どころの語（fixboard.ALLOWED_SOURCES。

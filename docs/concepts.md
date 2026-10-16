@@ -142,8 +142,8 @@
 ### `lanes` 並べの組
 
 - 状態: 住処あり
-- 住処: `lib/lanekit.py`（組の分け方 `groups`（タグを共にする物どうしの組。つながりは推移的）・当てた結末 `Merge`・組を順に当てる `merge_in_order`）
-- 約束: 住処の口の形（`groups` の返す並び・`Merge` の欄 `why`・`patch`・`names`・`unioned`・`clash`・`merge_in_order` に渡す `merge_one(lane, earlier)`）。何を 1 つの組に当てるか（子の差分を 3 方向で当てる `lib/unittrees.py` の `apply`）は呼び手が渡す
+- 住処: `lib/lanekit.py`（組の分け方 `groups`（タグを共にする物どうしの組。つながりは推移的。引数 `after` の依存の対 (前, 後) も同じ組に繋ぎ、組の中を前から後へ並べる）・当てた結末 `Merge`・組を順に当てる `merge_in_order`）
+- 約束: 住処の口の形（`groups(rows, after=())` の返す並びと、`rows` の外の端を持つ `after` の対は捨てる約束（項目の依存から組の対を引くのは `lib/planmarks.py` の `depends_pairs`）・`Merge` の欄 `why`・`patch`・`names`・`unioned`・`clash`・`merge_in_order` に渡す `merge_one(lane, earlier)`）。何を 1 つの組に当てるか（子の差分を 3 方向で当てる `lib/unittrees.py` の `apply`）は呼び手が渡す
 - 知ってよい所: 住処だけ。呼び手（組を作る `workflows/fix/scripts/prep.py`・子の差分を当てる `workflows/fix/scripts/join.py`・`lib/fixboard.py`）は住処の口を引き、分け方・当てる順のループ・結末の語を写さない
 - 今: 外の当たりは 0 件
 
@@ -159,8 +159,8 @@
 
 - 状態: 住処あり
 - 住処: `lib/planrange.py`（項目の範囲の glob の並び `item_globs`・項目の範囲 `inside`・`out_of_scope` の当たり `oos_hit`・`oos_hit_for`・範囲の相談の合意 `with_agreed`・パスを結ぶ項目 `owner`・許しのパス `permit_paths`・単位に結べないパスの外れ `outside`・共有ボードで照らす `check_paths`）
-- 約束: 修正案の項目の欄 `allowed_paths`・`out_of_scope`（欄の型と読みは `lib/planmarks.py`）
-- 知ってよい所: 住処と、glob の当て方の下回りと項目の欄の読みを持つ `lib/planmarks.py`（`glob_match`・`test_paths`）。使う所は修正の受け付けの照らし `lib/planscope.py`・手直しの受け付け `lib/refix.py`・波及の照らし `lib/ripple.py` の `_covered`・穴の名札の path の規則 `lib/holeties.py`（`inside`）・修正の組分け `lib/fixboard.py` の `fix_groups`（`item_globs`）で、どれも住処を呼ぶ
+- 約束: 修正案の項目の欄 `allowed_paths`・`out_of_scope`・`files`（ファイル構成の行。行の型 `FILES_SCHEMA`）・`depends_on`（欄の型と読みは `lib/planmarks.py`）
+- 知ってよい所: 住処と、glob の当て方の下回りと項目の欄の読みを持つ `lib/planmarks.py`（`glob_match`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `lib/planscope.py`・手直しの受け付け `lib/refix.py`・波及の照らし `lib/ripple.py` の `_covered`・穴の名札の path の規則 `lib/holeties.py`（`inside`）・修正の組分け `lib/fixboard.py` の `fix_groups`（`item_globs`）で、どれも住処を呼ぶ
 - 今: 同じ当て方を手で書く所が残る（`lib/consult.py`。`out_of_scope` に当たるパスを範囲から除く別の決まりで、`inside` に寄せると振る舞いが変わる。柵の表の既知の漏れ）。`lib/protect.py` は守りのファイルの型を同じ下回りで当てる別の考え
 
 ### `test-files` テストのファイルの見分け

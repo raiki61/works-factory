@@ -644,7 +644,9 @@ class TestTestEdits(FixGatesCase):
     def removes_fields(self, *, base_tests=None, rows=()):
         """removes に stats.clamp を持つ direct の項目の欄を、種の木を相手に planmarks.split で作る（リポジトリの複製はまだ無い）。
         base_tests を渡せば split が removes_tests を引き、rows を渡せばその行（{id, limit}）を欄にそのまま足す"""
-        it = {"unit_keys": [MEAN], "approach": "x" * 20, "adds": [], "removes": ["stats.clamp"], "shrink_first": "y" * 20,
+        gone = {"name": "stats.clamp", "kind": "function", "change": "remove", "why": "境の判定は mean に寄せたので消す"}
+        files = [{"path": "stats.py", "op": "modify", "responsibility": "境の判定", "symbols": [gone], "canonical": "既存の正本"}]
+        it = {"unit_keys": [MEAN], "approach": "x" * 20, "files": files, "shrink_first": "y" * 20,
               "narrows": [], "route": "direct", "route_why": "既存の期待の書き換えだけの項目", "tests": [], "rewrite_tests": [],
               "refactor": {"declared": False, "why": ""}}
         kw = {} if base_tests is None else {"base_tests": base_tests}
@@ -654,7 +656,7 @@ class TestTestEdits(FixGatesCase):
         return fields
 
     def test_removes_permit_is_a_test_permits_row(self):
-        """removes を名指すテストの許しは conflict.test_permits の行（test にテストの id、limit つき）として返り、凍結の検査が読む
+        """files の change=remove の symbol（消す名）を名指すテストの許しは conflict.test_permits の行（test にテストの id、limit つき）として返り、凍結の検査が読む
         ruled_test_limits にも同じ limit が入る（許しの元は test_permits の 1 本だけ）"""
         b = self.ready_with_fields(self.removes_fields(rows=self.CLAMP_TESTS))
         rows = [p for p in conflict.test_permits(b) if p.get("test") in dict(self.CLAMP_TESTS)]
@@ -663,9 +665,9 @@ class TestTestEdits(FixGatesCase):
         self.assertTrue({lim for _, lim in self.CLAMP_TESTS} <= set(conflict.ruled_test_limits(b)))
 
     def test_edit_of_test_naming_removes_passes(self):
-        """run 6a51125d: 修正案の項目の removes（消す名）を本体で名指す既存のテストは、書き換え・消しを許す（消す仕組みを縛る
-        テストは変えざるを得ない）。許しは split が base の版のテストの本体から引いて凍結した欄の removes_tests（conflict.test_permits の
-        行）。removes を名指さないテストの書き換えは今までどおり拒む"""
+        """run 6a51125d: 修正案の項目の files の change=remove の symbol（消す名）を本体で名指す既存のテストは、書き換え・消しを許す（消す
+        仕組みを縛るテストは変えざるを得ない）。許しは split が base の版のテストの本体から引いて凍結した欄の removes_tests
+        （conflict.test_permits の行）。消す名を名指さないテストの書き換えは今までどおり拒む"""
         base_tests = {"test_stats.py": (SEED / "test_stats.py").read_text(encoding="utf-8")}
         self.ready_with_fields(self.removes_fields(base_tests=base_tests))
         self.edit_tests("self.assertEqual(clamp(15, 0, 10), 10)", "pass")   # test_clamp_above_range（clamp を名指す）の書き換え

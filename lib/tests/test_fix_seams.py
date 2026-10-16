@@ -1098,7 +1098,7 @@ class FactchecksSeamCase(TempCase):
     （元 works/tests/test_fix_precheck.py の PrecheckCase の場合を写した。盤面の代わりに承認済みの修正案の項目 items を値で渡し、
     合意は置き場の trace.jsonl に置く）。直す義務は fixboard.fix_duty、書き込みの記録は引数 log、除くパスの頭は skip"""
 
-    ITEM = {"item": 1, "unit_keys": [R_MEAN], "adds": [], "removes": [], "route": "direct", "tests": [], "rewrite_tests": [],
+    ITEM = {"item": 1, "unit_keys": [R_MEAN], "files": [], "route": "direct", "tests": [], "rewrite_tests": [],
             "allowed_paths": ["docs/**"], "out_of_scope": []}
 
     def setUp(self):
@@ -1234,7 +1234,7 @@ class FactchecksSeamCase(TempCase):
         planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": allowed,
                                          "out_of_scope": []}])
         (self.place / fixboard.PLAN_REPLY_FILE).write_text(json.dumps(
-            {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "adds": [], "removes": []}]}, ensure_ascii=False),
+            {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "files": []}]}, ensure_ascii=False),
             encoding="utf-8")
         (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         cfg = consult.write_config(self.place, {**self.cfg, "items": {"1": {"unit_keys": [R_MEAN]}}})
@@ -1374,7 +1374,7 @@ class LaneChecksSeamCase(TempCase):
         for old, new in R_FIXED.items():
             text = text.replace(old, new)
         stats.write_text(text, encoding="utf-8")
-        item = {"item": 2, "unit_keys": [R_MEAN], "adds": [], "removes": [], "route": "direct", "tests": [],
+        item = {"item": 2, "unit_keys": [R_MEAN], "files": [], "route": "direct", "tests": [],
                 "rewrite_tests": [], "allowed_paths": ["stats.py"],
                 "out_of_scope": [{"glob": "NOTES.md", "why": "記録は項目 2 では触らない"},
                                  {"glob": "test_stats.py", "why": "試験は項目 2 では触らない"}]}
@@ -1437,8 +1437,9 @@ class LaneChecksSeamCase(TempCase):
         stats = self.repo / "stats.py"
         since = leftovers.snapshot(self.repo)
         stats.write_text(stats.read_text(encoding="utf-8") + "\n\ndef helper():\n    return 1\n", encoding="utf-8")
-        item = {"item": 1, "unit_keys": [R_MEAN], "removes": [], "route": "direct", "tests": [], "rewrite_tests": [],
-                "adds": [{"kind": "function", "name": "helper", "canonical": "stats.py"}],
+        item = {"item": 1, "unit_keys": [R_MEAN], "route": "direct", "tests": [], "rewrite_tests": [],
+                "files": [{"path": "stats.py", "op": "modify", "responsibility": "平均の助け手", "canonical": "既存の stats.py",
+                           "symbols": [{"name": "helper", "kind": "function", "change": "add"}]}],
                 "allowed_paths": ["stats.py"], "out_of_scope": []}
         reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
         self.assertEqual(writes.changed_from(self.repo, since), ["stats.py"], "git の比べでは helper.py を触っていない")
@@ -1447,7 +1448,7 @@ class LaneChecksSeamCase(TempCase):
         self.assertEqual(lines, [])
 
     def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
-        """TDD の輪が直し終えた単位（stats.py の直しと adds・tests の test_mean_of_two）の後の木を since（段の頭）に取り、修正役が
+        """TDD の輪が直し終えた単位（stats.py の直しと files の add・tests の test_mean_of_two）の後の木を since（段の頭）に取り、修正役が
         何も変えずにその単位の行だけを返せば、欠けにしない（修正役の指示書は輪の単位を直し直させない。較正 clamp-above）"""
         import factchecks
         from lib.tests.test_blk_fix_tdd import NEW_TEST
@@ -1461,8 +1462,9 @@ class LaneChecksSeamCase(TempCase):
         stats.write_text(text, encoding="utf-8")
         since = leftovers.snapshot(self.repo)
         tid = "test_stats.py::TestStats::test_mean_of_two"
-        item = {"item": 1, "unit_keys": [R_MEAN], "removes": [], "route": "tdd", "tests": [{"id": tid}], "rewrite_tests": [],
-                "adds": [{"kind": "test", "name": tid, "canonical": "test_stats.py に新設"}],
+        item = {"item": 1, "unit_keys": [R_MEAN], "route": "tdd", "tests": [{"id": tid}], "rewrite_tests": [],
+                "files": [{"path": "test_stats.py", "op": "modify", "responsibility": "平均の試験", "canonical": "既存の test_stats.py",
+                           "symbols": [{"name": "TestStats::test_mean_of_two", "kind": "test", "change": "add"}]}],
                 "allowed_paths": ["stats.py", "test_stats.py"], "out_of_scope": []}
         reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py", "test_stats.py"]}]}
         args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
@@ -1804,6 +1806,24 @@ class GroupScriptsSeamCase(TempCase):
                          [("g1", ["A", "C", "D"], [1, 2]), ("g2", ["B"], [3]), ("g3", ["E"], [])])
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C"], items, ["3"])], [["B"]])
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B"], None)], [["A"], ["B"]])
+
+    def test_fix_groups_put_dependent_items_in_one_group_in_order(self):
+        """項目 2 が項目 1 の単位 A に依る時、owed が [B, A] でも組は 1 つで、unit_ids は [A, B]（依存する項目を別の組に分けない。
+        子の run は前の組の変更を見ない）。依存の無い項目は今までどおり別の組"""
+        items = [{"item": 1, "unit_keys": ["A"]},
+                 {"item": 2, "unit_keys": ["B"], "depends_on": [{"unit": "A", "receives": ["stats.py"]}]},
+                 {"item": 3, "unit_keys": ["C"]}]
+        got = fixboard.fix_groups(["B", "C", "A"], items)
+        self.assertEqual([(g["unit_ids"], g["items"]) for g in got], [(["A", "B"], [1, 2]), (["C"], [3])])
+
+    def test_fix_groups_keep_order_through_units_left_out_by_only_items(self):
+        """依存が A→B→C で、only_items が B の項目を外した時、組は [A, C] の順で 1 つになる（B を通る依存は A と C の対に縮む。落ちない）"""
+        items = [{"item": 1, "unit_keys": ["A"]},
+                 {"item": 2, "unit_keys": ["B"], "depends_on": [{"unit": "A", "receives": ["a.py"]}]},
+                 {"item": 3, "unit_keys": ["C"], "depends_on": [{"unit": "B", "receives": ["b.py"]}]}]
+        got = fixboard.fix_groups(["C", "B", "A"], items, ["1", "3"])
+        self.assertEqual([g["unit_ids"] for g in got], [["A", "C"]])
+        self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["C", "B", "A"], items)], [["A", "B", "C"]])
 
     def test_fix_groups_join_items_whose_ranges_meet(self):
         items = [{"item": 1, "unit_keys": ["A"], "allowed_paths": ["lib/a.py"]},
@@ -2344,6 +2364,13 @@ class FixAcceptSeamCase(TempCase):
                       {"unit_id": "c", "group_id": "g2", "status": "not_done"}]}), encoding="utf-8")
         self.assertEqual(fixboard.ruled_owed(self.place), ["b"])
         self.assertEqual(fixboard.group_owed(self.place, ["c", "z"]), ["c"])
+
+    def test_group_owed_keeps_the_unit_ids_order(self):
+        """group_owed(place, [後, 前]) が、判定の順でなく、渡した unit_ids の順（組の中の依存の順）で返す。重なりは 1 つ。直す義務に無い単位は落ちる"""
+        (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": k, "label": "block"} for k in "abc"]}),
+                                                  encoding="utf-8")
+        self.assertEqual(fixboard.group_owed(self.place), ["a", "b", "c"])
+        self.assertEqual(fixboard.group_owed(self.place, ["c", "a", "z", "c"]), ["c", "a"])
 
     def test_ruled_reply_line_once_after_the_title(self):
         p = self.place / "prompt.md"
@@ -2947,7 +2974,7 @@ class SettleOverflowSeamCase(TempCase):
         planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": ["stats.py"],
                                          "out_of_scope": []}])
         (self.place / fixboard.PLAN_REPLY_FILE).write_text(json.dumps(
-            {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "adds": [], "removes": []}]}, ensure_ascii=False),
+            {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "files": []}]}, ensure_ascii=False),
             encoding="utf-8")
         (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [R_JUDGED[0]]}, ensure_ascii=False), encoding="utf-8")
         self.head = leftovers.snapshot(self.repo)

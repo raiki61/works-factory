@@ -98,6 +98,7 @@ GATE_FILE = gatemarks.PLAN_GATE_FILE
 TREE_FEATURE = "review_tree"
 # 元 works/.shared/core/design.py:104
 PREMISE_MISS = "premise_invalid_reason の名指しが固めた版の実物に当たらない（追跡されたファイルと、その行の範囲を名指せ）: "
+ELEMENTS_REJECT = "問いが立つ設計の elements に誤りが在る（設計の要素を 1 つ以上、id の重ならない {id, adds, removes} の行で並べる。下の行を直した返答を丸ごと出し直せ）: "
 # 元 works/.shared/core/design.py:82。指示書は「渡すのは元の目的と実測した制約だけ」と書くので、貼った前提をこの節で読み替える
 DESIGN_PREMISE_REREAD = ("下の指示書の「渡すのは元の目的と実測した制約だけである」は、この run では、このセクション（承認ノードの答え・"
                          "依頼が名指した設計書のセクション・対象のリポジトリの地図）も渡していると読み替えよ。")
@@ -784,7 +785,8 @@ def added_marks(constraints: list, repo, start_doc) -> list:
 
 def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
     """独立設計の受け付け: 作業ツリーが役の前と同じ（keys の欄で比べる）→ 問いが立たない時は根拠の名指し（パス:行）が固めた版に在る。通れば
-    design.json と、返答が『渡されていない』と書いた文と控えの given の対（PREMISES_FILE の claims）。拒みは控えに積み、
+    design.json と、返答が『渡されていない』と書いた文と控えの given の対（PREMISES_FILE の claims）。問いが立つ返答は elements の空と
+    id の重なりを拒む（design.element_gaps）。拒みは控えに積み、
     rolekit.GIVE_UP_AFTER 回目で done・give_up。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
 
@@ -796,6 +798,9 @@ def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
             misses = design.anchor_misses(reply.get("premise_invalid_reason") or reply["reason"], repo)
             if misses:
                 raise Reject(PREMISE_MISS + "・".join(misses))
+        gaps = design.element_gaps(reply)   # 問いが立つ設計は要素を持つ（design.json を書くのはここだけなので、立つ設計は必ず要素を持つ）
+        if gaps:
+            raise Reject(_lines(ELEMENTS_REJECT, gaps))
         accept.write_board(d, design.DESIGN_FILE, reply)
         ledger = _read_json(d / PREMISES_FILE) if (d / PREMISES_FILE).is_file() else {}
         ledger["claims"] = design.claims_given(design.claims_unpassed(reply), ledger.get("given") or [])
@@ -985,11 +990,20 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
     gaps = policy.face_gaps(merged["review"].get("faces") or [], inputs.get(policy.RECORDED_KEY) or [])
     if gaps:
         raise Reject(_lines(planblk.RECORDED_REJECT, gaps))
+    refs = {}
     if merged.get("off"):
         items = inputs.get("ruled") if inputs["form"] == "replan" else converge.open_items(b)
-        gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, tree.get(converge.DESIGN_MAP) or [])
+        dmap = tree.get(converge.DESIGN_MAP) or []
+        # 独立設計の要素の網羅は、案の全部の項目を審査する往復（形 review）だけで数える: 今の往復が見る項目の答えに、閉じた項目が
+        # 前の往復で受けた要素（控えの refs）を足して数える。形 replan は裁かれた項目だけを見るので、鍵・重なり・design_ref の実在・引用だけ
+        gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, dmap)
+        if inputs["form"] == "review":
+            gaps += planblk.coverage_gaps(b, design.refs_of(dmap), items)
         if gaps:
             raise Reject(_lines(planblk.DESIGN_QUOTE_REJECT, gaps))
+        refs = {n: list(dict.fromkeys([*design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") == n]),
+                                       *design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") is None])]))
+                for n in items or []}
     review = named(b, merged["review"])
     if inputs["form"] == "review":
         gaps = converge.resolved_gaps(b, review["faces"], merged["resolved"])
@@ -1004,7 +1018,8 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
             planblk.save_precedents(b, *merged["precedents"])
         files = {**merged["files"], PROMPT_FILE: str(p / PROMPT_FILE)}
         converge.record_pass(out, bare_review, resolved=merged["resolved"], files=files, synergy=merged["synergy"],
-                             hits=merged["hits"], origins=merged["origins"], at_cap=_at_cap(inputs))
+                             hits=merged["hits"], origins=merged["origins"], at_cap=_at_cap(inputs),
+                             refs=merged.get("refs") or refs)
         converge.stash_rejects(out, _pass_rejects(inputs, p))
     # 壁打ちの欄 resolved は写しの型の外なので外して照らしたが、plan の往復の控え（planfile.converge_record）が review.json から読む
     _write_json(p / REVIEW_FILE, {**review, converge.RESOLVED: merged["resolved"]} if merged["resolved"] else review)
