@@ -247,18 +247,23 @@ ARCHON_ROWS = (
         lambda m: True),
     Row("include の入力は節の返りの欄を字に差し込み、空の解決は空の字で届く（境の口はそれを null と読む）", lambda: None,
         "packages/workflows/src/dag-executor.ts",
-        r"readComposedMeta\(node\)\?\.inputs \?\? \{\}\)\) \{\n.*?\? substituteNodeOutputRefs\(\n"
-        r".*?^export function substituteNodeOutputRefs\(\n"
+        r"readComposedMeta\(node\)\?\.inputs \?\? \{\}\)\) \{\n.*?\? resolveValueTemplate\(value, ctx, runInputs\)\n"
+        r".*?^function resolveValueTemplate\(\n.*?references: nodeTemplateReferences\(template, ctx\),\n"
+        r".*?^function nodeOutputRefToken\(\n"
         r".*?resolution = resolveNodeOutputField\(nodeOutput, nodeId, field, match\);\n"
-        r".*?if \(resolution\.kind === 'empty'\) return escapedForBash \? \"''\" : '([^']*)';",
+        r".*?if \(resolution\.kind === 'empty'\) return escapedForBash \? \"''\" : '([^']*)';"
+        r".*?^export function nodeTemplateReferences\(\n.*?after: \[\n\s*nodeOutputRefToken\(",
         lambda m: boundary.value(m[1])),
     Row("工程の置き場 WORKFLOW_FOLDER", lambda: place.WORKFLOW_FOLDER, "packages/paths/src/archon-paths.ts",
         r"export function getWorkflowFolderSearchPaths\(\): string\[\] \{\n\s*return \['([^']+)'\];"),
-    Row("工程を走らせる命令", lambda: sorted(launcher.EXECUTING - launcher.CONTINUING), "packages/cli/src/cli.ts",
-        r"const executesWorkflow = \[([^\]]+)\]\.includes\(", lambda m: sorted(re.findall(r"'(\w+)'", m[1]))),
+    Row("工程を走らせる命令は run と、run を続ける命令", lambda: sorted(launcher.EXECUTING - launcher.RESUMING - launcher.CONTINUING),
+        "packages/cli/src/cli.ts", r"const executesWorkflow = subcommand === '(\w+)' \|\| isContinueSubcommand\(subcommand\);",
+        lambda m: [m[1]]),
+    Row("run を続ける命令", lambda: sorted(launcher.RESUMING), "packages/cli/src/dispatch-guards.ts",
+        r"const CONTINUE_SUBCOMMANDS: readonly string\[\] = \[([^\]]+)\];", lambda m: sorted(re.findall(r"'(\w+)'", m[1]))),
     Row("工程を続ける命令", lambda: sorted(launcher.CONTINUING), "packages/cli/src/cli.ts",
         r"if \(command === 'workflow' && \(subcommand === '(\w+)' \|\| subcommand === '(\w+)'\)\) \{\n"
-        r"\s*const schedule", lambda m: sorted(m.groups())),
+        r"\s*const \{ workflowContinuationCommand", lambda m: sorted(m.groups())),
     Row("起こす claude の実行ファイルを替える環境変数（殻が書き込みの柵の包みを置く）", lambda: launcher.CLAUDE_BIN_ENV,
         "packages/providers/src/claude/binary-resolver.ts", r"^\s*const envPath = process\.env\.(\w+);$"),
     Row("節の sandbox は置き換えずに SDK へ渡す（包みが起動の直前に足す）", lambda: None,
@@ -274,8 +279,10 @@ ARCHON_ROWS = (
     Row("順の節は並んだ層か context: fresh の時だけ新しい会話で、ほかは前の節の会話を続ける", lambda: None,
         "packages/workflows/src/dag-executor.ts",
         r"^\s*isParallelLayer \|\| node\.context === 'fresh' \|\| composedBlockEntry;$", lambda m: None),
-    Row("名指しの続き context: resume は輪の本体の中で使えない", lambda: None, "packages/workflows/src/loader.ts",
-        r"uses context\.resume inside a loop_group body, which is not supported", lambda m: None),
+    Row("名指しの続き context: resume は、輪の本体の中では輪の前の節だけを指せる（同じ本体の節は指せない）", lambda: None,
+        "packages/workflows/src/loader.ts",
+        r"context\.resume cannot name a source inside the same loop_group body.*?"
+        r"context\.resume source '\$\{sourceId\}' is not an upstream dependency of the loop_group", lambda m: None),
     Row("節の設定は object のまま SDK へ渡す（SDK が JSON の字にする）", lambda: None,
         "packages/providers/src/claude/provider.ts", r"^\s*options\.settings = buildClaudePluginSettings\(", lambda m: None),
     Row("SDK は sandbox を設定の JSON の字の鍵に入れて --settings で渡す。設定のパスとは併せず、object の設定も JSON の字にする（包みが読む形）",
