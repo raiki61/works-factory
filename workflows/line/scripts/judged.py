@@ -63,7 +63,7 @@ def judge_from_env(prefix: str) -> dict:
 def from_env() -> tuple:
     rejudge = boundary.picked(os.environ.get("INPUTS_REJUDGE"), REJUDGE)   # 走らなかった（飛んだ節）なら None
     stop = rejudge["stop_reason"] if rejudge is not None else ""
-    return (judge_from_env("JUDGE"), rejudge, boundary.text(os.environ.get("INPUTS_OBJECTION")), stop if isinstance(stop, str) else "")
+    return (judge_from_env("JUDGE"), rejudge, boundary.text(os.environ.get("INPUTS_OBJECTION")), boundary.as_text(stop))
 
 
 def fallback(reason: str) -> dict:

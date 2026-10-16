@@ -524,18 +524,6 @@ def env(name: str):
     return boundary.value(os.environ.get(f"INPUTS_{name}"))
 
 
-def as_flag(value) -> bool:
-    return value is True
-
-
-def as_text(value) -> str:
-    return value if isinstance(value, str) else ""
-
-
-def as_items(value) -> list:
-    return list(value) if isinstance(value, list) else []
-
-
 def final_tests(tests) -> dict:
     """最後のテストの返り tests（試験の関門の返りまるごと）の by・suites_line・log・baseline_line・reason を declared_checks.gate_values で
     見せる値にし、関門が返さなかった（tests が None＝飛ばされた節）時だけ unread にその旨（by の空の字は返った形のまま）"""
@@ -564,20 +552,20 @@ def got_of_env() -> dict:
            "fix_units": boundary.items(os.environ.get("INPUTS_FIX_UNITS")), "groups": boundary.items(os.environ.get("INPUTS_GROUPS"))}
     returns = judged_returns(raw)
     return {
-        "tests_ok": as_flag(gate["ok"]),
-        "green": as_flag(gate["green"]),
-        "red_cause": as_text(gate["red_cause"]),
+        "tests_ok": boundary.as_flag(gate["ok"]),
+        "green": boundary.as_flag(gate["green"]),
+        "red_cause": boundary.as_text(gate["red_cause"]),
         "ran_steps": gate["ran_steps"],
         "tests": final_tests(tests),
         "worktree": str(Path.cwd().resolve()),
         "base_rev": str((start or {}).get("base_rev") or ""),
-        "protected_hits": as_items(closing["protected_hits"]),
+        "protected_hits": boundary.as_items(closing["protected_hits"]),
         "asked": asked,
         "conflicts_unread": conflicts_unread,
         "handoffs": [x for x in boundary.items(os.environ.get("INPUTS_HANDOFFS")) if isinstance(x, str)],
         "mismatched": [x for x in boundary.items(os.environ.get("INPUTS_MISMATCHED")) if isinstance(x, str)],
         "eyes": {name: eye[name] for name in ("r1", "r2", "r3", "r4", "premise_check")},
-        "questions": [q for q in as_items(eye["questions"]) if isinstance(q, str)],
+        "questions": [q for q in boundary.as_items(eye["questions"]) if isinstance(q, str)],
         "spec_changed": [q for q in boundary.items(os.environ.get("INPUTS_SPEC_CHANGED")) if isinstance(q, str)],
         "spec_unchecked": boundary.flag(os.environ.get("INPUTS_SPEC_UNCHECKED")),
         "objection": raw["objection"],
@@ -591,9 +579,9 @@ def got_of_env() -> dict:
         "delta_review": env("DELTA_REVIEW"),
         **beside,
         "structure_missing": structure_missing(env("STRUCTURE")),
-        "sealed": as_flag(closing["ok"]),
-        "seal_reason": as_text(closing["reason"]),
-        "hash": as_text(closing["hash"]),
+        "sealed": boundary.as_flag(closing["ok"]),
+        "seal_reason": boundary.as_text(closing["reason"]),
+        "hash": boundary.as_text(closing["hash"]),
         "deleted": deleted,
         "fenced": fenced,
         "after": after,

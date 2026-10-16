@@ -17,6 +17,7 @@
   読めない。lib/tests/test_stopby.py が突き合わせる）
 - parsed・value・text・flag・items・picked・pointed・needed: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）。script は入力の字を
   自分で json.loads しない（宣言した null の欄は空の字で届く。tests/workflows/test_input_reads.py が縛る）
+- as_flag・as_text・as_items: picked の欄のように型を保って届いた値を、flag・text・items と同じ倒し方で読む
 
 Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、script がここから引いて lib/ へ引数で渡す）:
 - RUNTIME_COPY・RUNTIME_COPY_PREFIX・RUNTIME_COPY_DIRS・SKIP: Archon が run の作業ツリーに写す工程の置き場。修正の変更でないので、
@@ -198,11 +199,25 @@ def text(raw) -> str:
 
 
 def flag(raw) -> bool:
-    return skip_value.value(raw) is True
+    return as_flag(skip_value.value(raw))
 
 
 def items(raw) -> list:
-    got = skip_value.value(raw)
+    return as_items(skip_value.value(raw))
+
+
+def as_flag(got) -> bool:
+    """型を保って届いた値（picked の欄）の真偽。true の外は False"""
+    return got is True
+
+
+def as_text(got) -> str:
+    """型を保って届いた値（picked の欄）の字。字の外（飛ばされた欄の None など）は空の字"""
+    return got if isinstance(got, str) else ""
+
+
+def as_items(got) -> list:
+    """型を保って届いた値（picked の欄）の配列。配列の外は空"""
     return got if isinstance(got, list) else []
 
 
