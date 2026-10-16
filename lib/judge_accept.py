@@ -510,11 +510,6 @@ def _precedent_gap(r):
     return "source（一次情報の出典）が無い" if blank(r.get("source"), 4) else ""
 
 
-def _asks_human(q) -> bool:
-    """人へ回す問い（設計の岐路の fork で聞く物と、escalate）"""
-    return (q.get("kind") == "fork" and q.get("status") in gatemarks.ASKING) or q.get("status") == "escalate"
-
-
 def _precedent_errors(out):
     """元 works/.shared/core/graphloops/rules/review-loop.py:2445。判定者の先行例の行（precedents）: 今の周に直す単位と人へ回す問いの
     key ごとに 1 行、出典つき。人へ回す問いの行には『世界の解を当たっても決まらない理由』（検証器の表はこのモジュールの頭の物）"""
@@ -525,7 +520,7 @@ def _precedent_errors(out):
         if gap:
             errs.append(f"precedents[{i}]（{r['verdict']}）に {gap}")
     need = [(u["key"], False) for u in out["units"] if is_open(u)]
-    need += [(q["key"], True) for q in out["questions"] if _asks_human(q)]
+    need += [(q["key"], True) for q in out["questions"] if gatemarks.asks_human(q)]
     for k, asks in need:
         r = by.get(k)
         if r is None:
@@ -808,7 +803,7 @@ def _recorded(jdir) -> list:
 
 def recorded_question_problems(out, rows) -> list:
     """人へ回す問いの先行例のうち、undecided_because が頭の印で ③ を名乗るのに記録された方針のどの行も名指さない物（1 件 1 文）"""
-    asked = {q["key"]: q for q in out["questions"] if _asks_human(q)}
+    asked = {q["key"]: q for q in out["questions"] if gatemarks.asks_human(q)}
     return [f"precedents['{r['key'][:60]}'] の undecided_because が頭の印で {PREMISE_THREE} を名乗るが、{policy.RECORDED_TERM}の一覧の"
             "どの行も名指さない——一覧に無いコードのコメント・docstring・テストの説明文は対象の文で、そのぶつかりは "
             f"{PREMISE_THREE} に当たらない（その文を書き換える site を単位の prescriptions に入れよ）。① か ② に当たる問いなら頭の印をそれに"

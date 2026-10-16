@@ -106,14 +106,6 @@
 - 使うサブグラフ: メイングラフ（入口）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
-### P8 落ちたノードの出力を受け直せない
-
-- 穴: 落ちたノードの出力は `{from, if_skipped}` でも読めず、読んだノードも落ちる。
-- 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` の `resolveBindingDirective`（落ちた producer を `assertProducerNotFailed` で止め、「A binding never falls back to 'if_skipped' for a failed producer」）。
-- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。
-- 使うサブグラフ: メイングラフ・fix
-- 外す条件: 落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
-
 ### P9 鍵を書かないノードにも既定の期限が当たる
 
 - 穴: `timeout` を書かない `script:`・`bash:` のノードにも、Archon が既定の期限で打ち切りを当てる。
@@ -121,6 +113,18 @@
 - 埋め: 期限を持つノードの鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。
 - 使うサブグラフ: 全部
 - 外す条件: グラフの既定で期限を無しにできる版が出たら
+
+## Archon の決めに合わせた形
+
+Archon の穴でなく、Archon が決めてそうしている振る舞いに合わせた埋め。版が上がっても外れる見込みは無い。行の形と照らしは「今の行」と同じ。
+
+### P8 落ちたノードの出力を受け直せない
+
+- 穴: 落ちたノードの出力は `{from, if_skipped}` でも読めず、読んだノードも落ちる。
+- 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` の `resolveBindingDirective`（落ちた producer を `assertProducerNotFailed` で止め、「A binding never falls back to 'if_skipped' for a failed producer」）。
+- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。
+- 使うサブグラフ: メイングラフ・fix
+- 外す条件: 見込みは無い（Archon が落ちたノードの出力を `if_skipped` に落とさないと決めている。上の証拠の文）。決めが変わって落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
 
 ## 外した
 

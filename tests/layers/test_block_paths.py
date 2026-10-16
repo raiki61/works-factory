@@ -102,6 +102,21 @@ class BlockPathsTest(unittest.TestCase):
         self.assertTrue(any("works-factory-merge.yaml:3" in line and "入力 eyes_ok" in line and "eyes" in line for line in got), got)
         self.assertFalse(any("入力 x " in line for line in got), got)
 
+    def test_name_glued_to_japanese_is_still_a_word(self):
+        """#556: 日本語の字にくっついた名（`eyesの ok`・`（eyesが通したか）`・`gate-before-fixの答え`）も名指しに数えて赤"""
+        files = {
+            "workflows/line/works-factory-line.yaml": "name: works-factory-line\nnodes:\n  - id: gate-before-fix\n    script: x\n",
+            "workflows/merge/works-factory-merge.yaml": ("name: works-factory-merge\ninputs:\n"
+                                                         "  eyes_ok: {default: '', description: eyesの ok}\n"
+                                                         "  passed: {default: '', description: （eyesが通したか）}\n"
+                                                         "  answers: {default: '', description: gate-before-fixの答え}\n"),
+        }
+        with tree(files) as root:
+            got = scan.problems("E4", root)
+        for name, said in (("eyes_ok", "eyes"), ("passed", "eyes"), ("answers", "gate-before-fix")):
+            with self.subTest(name=name):
+                self.assertTrue(any(f"入力 {name} " in line and said in line for line in got), got)
+
     def test_input_description_naming_a_prefixed_block_is_red(self):
         yaml = "name: works-factory-eyes\ninputs:\n  plan: {default: 'null', description: works-factory-plan の出力}\n"
         with tree({"workflows/eyes/works-factory-eyes.yaml": yaml}) as root:

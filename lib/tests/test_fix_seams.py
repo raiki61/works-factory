@@ -1233,10 +1233,10 @@ class FactchecksSeamCase(TempCase):
         import planmarks
         planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": allowed,
                                          "out_of_scope": []}])
-        (self.place / f"{planmarks.NODE}.json").write_text(json.dumps(
+        (self.place / fixboard.PLAN_REPLY_FILE).write_text(json.dumps(
             {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "adds": [], "removes": []}]}, ensure_ascii=False),
             encoding="utf-8")
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         cfg = consult.write_config(self.place, {**self.cfg, "items": {"1": {"unit_keys": [R_MEAN]}}})
         draft = self.tmp / "draft.json"
         draft.write_text(json.dumps(self.reply, ensure_ascii=False), encoding="utf-8")
@@ -2522,7 +2522,7 @@ class FixAcceptSeamCase(TempCase):
         """裁定の後の段の最後の回に、同じファイルの別の単位を止めて段の頭へ戻すと、人に回した query_hits_fixed の単位の直しも
         控えの patch へ移る。関所の行と単位の結末の理由は「直しは差分に在り」と言わず、控えの patch を名指す（#355）"""
         import conflict
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         path = self.repo / "stats.py"
         text = path.read_text(encoding="utf-8")
@@ -2546,7 +2546,7 @@ class FixAcceptSeamCase(TempCase):
         """clamp の直しと人に回した query_hits_fixed の clamp の行（park_clamp が積む）を段の頭より前に置き、頭の後に mean を直して、
         裁定の後の段の最後の回に mean を止めて stats.py を段の頭へ戻す。返りは clamp の関所の行"""
         import conflict
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         path = self.repo / "stats.py"
         old, new = list(R_FIXED.items())[1]
         path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
@@ -2647,7 +2647,7 @@ class FixAcceptSeamCase(TempCase):
     def _accept_claims(self, conflicts, *, pass_="first", iteration=1, judgment=True, changes=()):
         """判定の写し（R_JUDGED。judgment が偽なら置かない）の置き場で、申し出 conflicts を持つ返答を受け付けに通す"""
         if judgment:
-            (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+            (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         return fixboard.accept_reply({"changes": list(changes), "conflicts": conflicts}, self.place, self.repo, pass_=pass_,
                                      iteration=iteration, owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head,
@@ -2737,7 +2737,7 @@ class FixAcceptSeamCase(TempCase):
     def _held_turns(self, held_files: dict):
         """判定の写しを置き、段の頭の木を控えてから MEAN を直し、外れた単位 CLAMP の直し held_files {パス: 中身} を書く。返りは
         受け付けを回す口 accept(返答, iteration)"""
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         path = self.repo / "stats.py"
         path.write_text(path.read_text(encoding="utf-8").replace("sum(xs) / (len(xs) - 1)", "sum(xs) / len(xs)"),
@@ -2833,7 +2833,7 @@ class FixAcceptSeamCase(TempCase):
         copy.parent.mkdir(parents=True)
         copy.write_text("a: 1\n", encoding="utf-8")
         fixboard.record_skipped(self.place, self.repo, SKIP)
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         path = self.repo / "stats.py"
         text = path.read_text(encoding="utf-8")
@@ -2946,10 +2946,10 @@ class SettleOverflowSeamCase(TempCase):
         import planmarks
         planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": ["stats.py"],
                                          "out_of_scope": []}])
-        (self.place / f"{planmarks.NODE}.json").write_text(json.dumps(
+        (self.place / fixboard.PLAN_REPLY_FILE).write_text(json.dumps(
             {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "adds": [], "removes": []}]}, ensure_ascii=False),
             encoding="utf-8")
-        (self.place / "judgment.json").write_text(json.dumps({"units": [R_JUDGED[0]]}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [R_JUDGED[0]]}, ensure_ascii=False), encoding="utf-8")
         self.head = leftovers.snapshot(self.repo)
         self.extra = self.repo / "request_ok.json"
         self.before = self.extra.read_bytes()
@@ -2961,8 +2961,7 @@ class SettleOverflowSeamCase(TempCase):
         self.kw = dict(pass_="first", owed=[R_MEAN], judged=[R_JUDGED[0]], head=self.head, skip=SKIP, base_rev=self.rev)
 
     def items(self):
-        import factchecks
-        return factchecks.place_items(self.place)()
+        return fixboard.place_items(self.place)
 
     def test_unasked_overflow_is_queued_not_rejected(self):
         import consult
