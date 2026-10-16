@@ -5539,7 +5539,7 @@
       "nodes": [
         "workflows/plan/works-factory-plan.yaml#plan-writer"
       ],
-      "output_format_sha256": "526b29ee7190ae4c99bb6edc91921249c50611eb37caedd2995c0c5f999b68d8",
+      "output_format_sha256": "d47d6228b74cf91c10960c8bb5059364bf72470a76d93ee0f3b64bd681123e80",
       "json_keys": []
     },
     "forbidden": [
@@ -5651,7 +5651,7 @@
       "nodes": [
         "workflows/plan/works-factory-plan.yaml#plan-writer-fix"
       ],
-      "output_format_sha256": "bb222b3b099ccc0e99ccbe9cea7d2981b9a2d63b1fa28f1fc393d058ddbb1753",
+      "output_format_sha256": "b32ff1f2dac6a012c0d634c5828e82bc8121b116cfec1645704c7fd9497bbb8b",
       "json_keys": []
     },
     "forbidden": [],
@@ -6026,13 +6026,13 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#head-depth"
       ],
-      "output_format_sha256": "e3e0bd52b99120e694dc09cffe9a482f1ae32d00eb099dd6d76a844550b5a299",
+      "output_format_sha256": "03394a1ead21682429753cf6ef5f0469f3357ffe3acf88587fb261edb0a503fe",
       "json_keys": [
         "cause_quote",
         "code_quote",
-        "depth",
         "item",
         "items",
+        "unknown",
         "where",
         "why"
       ]
@@ -6053,11 +6053,11 @@
         "quote": "まず Read せよ"
       },
       {
-        "what": "依頼の全部の行の原因と直す所を引用で示せるかを問う",
-        "quote": "依頼のどの行も、原因と直す所を名指していて、その両方を依頼の字とリポジトリの行の引用で示せるか"
+        "what": "依頼の行ごとに残る未知の種類を1つ引用で示す",
+        "quote": "依頼の行ごとに残っている未知の種類を 1 つ"
       },
       {
-        "what": "軽量なら全部の行をちょうど1度ずつ引用する",
+        "what": "どの段でも全部の行をちょうど1度ずつ引用する",
         "quote": "依頼の全部の行をちょうど 1 度ずつ書け"
       }
     ],

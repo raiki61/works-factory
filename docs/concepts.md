@@ -110,7 +110,7 @@
 ### `depth` 単位ごとの深さ
 
 - 状態: 住処あり
-- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの段の省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）
+- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・修正の後に上げる信号 `outside_cited`（引用の外の差分）・`late_signals`（引用の外の差分・TDD の拒否・範囲の相談の理由）・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの段の省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）
 - 約束: 計画の出力 `depth`（`[{unit_id, depth, why}]`。depth は `軽量`・`標準`）と、修正と目のサブグラフへ渡す run の頭の深さの語（平の入力 `head_depth`）。run の頭の深さの語（`軽量`・`標準`・`重厚`）は判定の出力 `depth` で、表 `TIERS` が定義する
 - 知ってよい所: 住処と、メイングラフ `workflows/line/`（始めのノードの入力 `thickness` の確かめと、直した後の上げ直しのノード `redepth`）
 - 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所
@@ -152,7 +152,7 @@
 - 状態: 住処あり
 - 住処: `lib/marks.py`（標準ライブラリだけ。種の表 `KINDS`＝ノードか役 → 行の在り処・共有ボードの控えの名・置き場、と手順の口 `add`（役の型に足す）・`rows`・`split`（受け付けが共有ボードへ渡す前に外す）・`path_of`・`write`・`load`（控えに置く・読み戻す））
 - 約束: 種の表 `KINDS` の控えの名（欄を持つモジュールは `marks.KINDS[種].file` で引く）と、控えのパスを組む `path_of`
-- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` の `lib/planfile.py`）が持ち、手順は住処を呼ぶ
+- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` と引き継ぎのメモ `handoff` の `lib/planfile.py`）が持ち、手順は住処を呼ぶ
 - 今: 控えの名を字で持ち直す所（`lib/judge_accept.py`・`workflows/plan/scripts/plan_collect.py`）、控えのパスを `path_of` を通さずに組む所（`lib/judge_accept.py`・`lib/planfile.py`・`lib/refix.py`）、欄を手で外す所（修正役の欄 `lib/fixboard.py`・並行 PR の `lib/judge_accept.py`・手直しの `bash_writes` の `lib/writes.py`）が残る（柵の表の既知の漏れ）。`lib/judgeverify.py` は自分で組む裏取りの型で、同じ字の形の別の物
 
 ### `plan-scope` 修正案の項目の範囲の照らし

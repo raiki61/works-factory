@@ -30,7 +30,8 @@ class Table(unittest.TestCase):
                           "delta": ("delta-verdicts.json", marks.WORK), "converge": (None, marks.WORK),
                           "query": ("query-examples.json", marks.ROOT), "purpose": ("out-of-purpose.json", marks.ROOT),
                           "pr": ("pr-excluded.json", marks.WORK), "writes": (None, marks.WORK), "resubmit": (None, marks.WORK),
-                          "means": ("purpose-means.json", marks.ROOT), "answers": ("answer-ties.json", marks.ROOT)})
+                          "means": ("purpose-means.json", marks.ROOT), "answers": ("answer-ties.json", marks.ROOT),
+                          "handoff": ("handoff.json", marks.ROOT)})
 
     def test_nodes(self):
         self.assertEqual(marks.nodes("gate"), ("p2.fix_plan", "p2.plan_review"))
