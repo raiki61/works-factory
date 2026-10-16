@@ -699,7 +699,7 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 - 持ち主の決め `overnight-speed` により、段 1 の歩く骨組みを待たずに回す。未決は、U4 は Archon の文書で決着（`guides/loop-nodes.md`「`include:` is valid in a `loop_group` body」）、U5 は土台の足し P0（issue #47）、U8 は fix の issue の実測で決める。回すのは archon-ship（2026-10-11 の決めから導いた事の「段 0〜1 を回す ASF のグラフ」。upstream の dev の ASF に lifecycle が無いので段 2 でも同じ。持ち主の決め `asf-follows-dev`）。
 - 1 つのフォルダに 1 つの issue。中身は「サブグラフ 1 つ（YAML・役の指示書・script）と、それが呼ぶ `lib/` のモジュールを移す。筋書き（fixture）と `lib/` の試験を先に書く」。
 - 1 run で 1 issue。並べは issue ごとに run を起こして作る（ship は自分では並べない）。
-- 共有のファイル（`workflows/.shared/`・`workflows/line/`・各階層の `AGENTS.md`・`engineering.md`・`MISSION.md`・`pack.json`）は土台の持ち主だけが変える。dev の ASF は merge の工程も守りのパスの入力も持たないので、ship の PR を merge する前に運び役が共有のファイルへの当たりを見る（ASF の型 A7 の (2) は当てていない）。issue の中で共有のファイルの変更が要ると分かったら、止めて土台の持ち主に issue で頼む。
+- 共有のファイル（`workflows/.shared/`・`workflows/line/`・各階層の `AGENTS.md`・`engineering.md`・`MISSION.md`・`pack.json`）は土台の持ち主だけが変える。dev の ASF は merge のグラフも守りのパスの入力も持たないので、ship の PR を merge する前に運び役が共有のファイルへの当たりを見る（ASF の型 A7 の (2) は当てていない）。issue の中で共有のファイルの変更が要ると分かったら、止めて土台の持ち主に issue で頼む。
 
 issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 
