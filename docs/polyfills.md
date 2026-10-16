@@ -2,8 +2,8 @@
 # Archon の埋め（polyfill）の名簿
 
 - 埋め（polyfill）: Archon（止めた Archon（`docs/design.md` の「語」））に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
-- `workflows/.shared/` と `bin/_lib/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の行のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。
-- 埋めの一部は入口 `bin/` に置く物もある。置き場の欄に書く。
+- `workflows/.shared/` と `bin/_lib/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の `- 埋め:` の行の頭の欄が名指す物のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。行の説明の文にだけ名が出る部品は数えない。
+- 頭の欄は `- 埋め:` の直後に、部品のパスを `、` 区切りで並べる（予定ならパスの直後に「（予定）」）。欄は「（予定）」と `、` 以外の最初の字で終わる。部品を持たない埋め（値の埋め・YAML の型の埋め）は、頭が文で始まり欄は空。埋めの一部は入口 `bin/` に置く物もある。それも頭の欄に書く。
 - Archon の新しい版で穴が塞がったら、外す条件を確かめて埋めを消し、行を「外した」のセクションへ移して `- 埋め:` の頭を `- 外した埋め:` に書き換える（`- 埋め:` の行に消したファイルの名が残ると、名簿の古びとして赤になる）。
 
 ## 書き方
@@ -12,7 +12,7 @@
 ### P<番号> <穴の短い名>
 - 穴: Archon でできないこと（1〜2 文）
 - 証拠: 止めた版の Archon の文書かソースの引用と在り処
-- 埋め: 何を置くか（置き場のパス。予定ならパスの直後に「（予定）」）
+- 埋め: `<パス>`、`<パス>`（予定）。何を置くか
 - 使うサブグラフ: 
 - 外す条件: Archon のどの振る舞いが入ったら消せるか
 ```
@@ -31,7 +31,7 @@
 - 穴: Archon を動かしていた process が落ちると、run は `running` のまま残り、`resume` できない。
 - 証拠: `packages/core/src/operations/workflow-operations.ts` 948 行の文「Cannot resume run with status 'running'. Only failed or paused runs can be resumed.」（再開できるのは `failed`・`paused` だけ。`schemas/workflow-run.ts` 164-167 行）。cancel は、走らせている process が答えない時（`no_owner_answered`）に「If its process is gone, abandon the run to release it.」と abandon を案内する（同じファイル 1250-1251 行）。
 - 範囲: 長い待ち（CI・人の答え）は Archon の `wait:` のノードと承認ノードで書く。Archon 0.10.0 から待ちは持ちこたえる（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」。server が期限の来た run を再開する）。だからこの穴に当たるのは、ノードを走らせている途中で process が落ちた run だけ。
-- 埋め: `bin/apply`（中身は `bin/_lib/apply.py`。#101。続けられない run の差分を取り出して対象に当てる。今の works の apply と同じ能力）。Archon の命令だけでは足りない: 下の実測のとおり `abandon` は書きかけごと作業ツリーを消し、`--adopt` は最初のノードからやり直すので、持ち主の決め `carry`（止まった run の差分も捨てない。`docs/owner-decisions.md`）を満たさない。手放しと続きの起こしは止めた Archon の命令をそのまま打つ（入口に別名を作らない。持ち主の決め `one-launcher`）。
+- 埋め: `bin/apply`、`bin/_lib/apply.py`（`bin/apply` の中身は `bin/_lib/apply.py`。#101。続けられない run の差分を取り出して対象に当てる。今の works の apply と同じ能力）。Archon の命令だけでは足りない: 下の実測のとおり `abandon` は書きかけごと作業ツリーを消し、`--adopt` は最初のノードからやり直すので、持ち主の決め `carry`（止まった run の差分も捨てない。`docs/owner-decisions.md`）を満たさない。手放しと続きの起こしは止めた Archon の命令をそのまま打つ（入口に別名を作らない。持ち主の決め `one-launcher`）。
   - 足りない残り: ノードの途中で持ち主が落ちた run の、commit していない書きかけ。`bin/apply` は終わっていない run（`terminal_record` が null。手放す前の `running`）を拒み、手放した後は作業ツリーが消えている（commit 済みの物は残った枝に在る）。だから今は、手放す前に人が `workflow get <run> --json` の `working_path` で作業ツリーの変更（新しいファイルを含む）を取り出しておく。
   - 持ち主に聞く項にしない: 持ち主の決め `carry` と既にある `bin/apply` で答えが 1 つに決まる（運び役の決め。PR #182 の 1 回目の修理）。
 - 実測（段 1b、2026-10-12。止めた Archon に AI の無い使い捨てのグラフ。ノード `write` が書きかけのファイルを書いて眠り、後ろに `trigger_rule: all_done` のノード `tail`。run `4300fc39121ab1838cc25c38fcf83e98`）: `write` が走っている間に `--detach` の子のプロセスを pid で止めた（`kill -9`）。run の記録は使い捨ての Archon の家と一緒に消え、id から読み戻せない（下の「再現」で回し直す）。
@@ -57,7 +57,7 @@
 
 - 穴: メイングラフがサブグラフを `include:` で呼ぶ時、`with:` に `{from, if_skipped}` の束ねを書いても、飛ばされた前のノードの代わりの値がサブグラフの中まで運ばれない。
 - 証拠: 止めた Archon の `packages/workflows/src/schemas/dag-node.ts` 270-282 行（束ね `{from, if_skipped}` は `command:`・`script:` の `with:` だけの形で、「Include/workflow `with:` maps have no directive, so objects there stay ordinary JSON literals.」）と、`packages/workflows/src/include-expander.ts` 619 行（include の展開は `binding.if_skipped` の欄を置き換えずにそのまま残す。`if (slot.surface === 'binding_from' || slot.name === 'binding.if_skipped') return slot.value;`）。書いた束ねは黙って JSON の値として渡り、書けたように見えて効かない。
-- 埋め: メイングラフの中継のノード。飛ばされうる値を、メイングラフの `script:` のノードの `with:` で欄ごとに `{from: "$<ノード>.output.<欄>", if_skipped: null}` で受け、明示の値で返し直す。サブグラフにはそのノードの出力を渡す。P2 のために在る中継のノードは `workflows/line/works-factory-line.yaml` の `answer-*`（承認ノードの答えを fix・merge に渡す）と `collect`（全部の出力を report に渡す）だけ。Archon が `INPUTS_<名>` に渡した字を値に戻す部品は `workflows/.shared/skip_value.py`。
+- 埋め: `workflows/.shared/skip_value.py`。メイングラフの中継のノードが使う。飛ばされうる値を、メイングラフの `script:` のノードの `with:` で欄ごとに `{from: "$<ノード>.output.<欄>", if_skipped: null}` で受け、明示の値で返し直す。サブグラフにはそのノードの出力を渡す。P2 のために在る中継のノードは `workflows/line/works-factory-line.yaml` の `answer-*`（承認ノードの答えを fix・merge に渡す）と `collect`（全部の出力を report に渡す）だけ。Archon が `INPUTS_<名>` に渡した字を値に戻す部品は `workflows/.shared/skip_value.py`。
 - 使うサブグラフ: メイングラフ
 - 外す条件: include の `with:` に書いた `if_skipped` が子の中まで効く版が出たら
 
@@ -73,7 +73,7 @@
 
 - 穴: ノードの hooks: は固定の返事だけで、役が読んだ・書いたファイルの記録を残せない。
 - 証拠: 止めた Archon の packages/docs-web/src/content/docs/guides/hooks.md 59-77 行「YAML hooks: are deliberately static」と 64-70 行の表（中身を見るフックは Claude の設定に置く）。
-- 埋め: bin/_lib/record-read.py（Read と、Agent・WebFetch・WebSearch を path の無い行で）と bin/_lib/record-write.py（Edit・Write・NotebookEdit の書いた記録）。bin/_lib/toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
+- 埋め: `bin/_lib/record-read.py`、`bin/_lib/record-write.py`、`bin/_lib/toolset.py`。record-read.py は Read と、Agent・WebFetch・WebSearch を path の無い行で、record-write.py は Edit・Write・NotebookEdit の書いた記録を残す。toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
 - 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）
 - 外す条件: ノードの hooks: が command の種類を受け、入力を見て書ける版が出たら
 
@@ -81,7 +81,7 @@
 
 - 穴: ノードの `sandbox` は YAML の固定の値のまま SDK に渡るので、run ごとに違うパス（cwd・共通の `.git`・対象の本体の作業ツリー・`worktree.path` で置き場を替えた worktree）を読むだけの役の `denyWrite` に名指せない。固定の値 `~/../archon-home`（`tests/layers/scan.py` の `NO_TREE_WRITE`）は Archon の家の下しか塞がない。
 - 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` 1847 行（`sandbox: node.sandbox ?? workflowLevelOptions.sandbox`。同じ関数で `systemPrompt` などは `resolveAiText` で置き換えるが、`sandbox` は置き換えない）と `packages/providers/src/claude/provider.ts` 801-803 行（`options.sandbox = nodeConfig.sandbox`）。起こす claude の実行ファイルは `packages/providers/src/claude/binary-resolver.ts` 172-178 行が環境変数 `CLAUDE_BIN_PATH` から読む（dev mode でも読む）。実測は issue #306（固定の値でも symlink の綴りでも、共有の `.git` と対象の本体の作業ツリーに書けた）。
-- 埋め: `workflows/.shared/fence.py`。起動の殻（`bin/_lib/launcher.py` の `write_fence`）が、Archon を走らせる命令の時だけ包みの殻を書いて子の `CLAUDE_BIN_PATH` をそこへ向ける。包みは SDK が渡す `--settings` の `sandbox.filesystem.denyWrite` に固定の値（印）が在る起動だけ、起こす直前に cwd から組んだ一覧（cwd・`git rev-parse --git-common-dir`・`git worktree list` の全部の根・Archon の家・Claude の設定・殻が書いた口・後の役の起動と次の起動が sandbox の外で走らせる物〔それを起こす Python・本物の claude・取り置いた Archon の源・工場の checkout の根の全体（包み・版の止め、`bin/works-factory` が import の先頭に置く根の `.py` を含む）〕）を足して本物の claude を起こす。印の無い起動は argv を変えない。`--settings` が JSON の object でない起動は止める。形は包み `claude-adapter`（旗 `no-tree-write`）。試験は `tests/shared/test_fence.py`（本物の claude で書き込みが止まることも見る）。
+- 埋め: `workflows/.shared/fence.py`、`bin/_lib/launcher.py`。起動の殻（`bin/_lib/launcher.py` の `write_fence`）が、Archon を走らせる命令の時だけ包みの殻を書いて子の `CLAUDE_BIN_PATH` をそこへ向ける。包みは SDK が渡す `--settings` の `sandbox.filesystem.denyWrite` に固定の値（印）が在る起動だけ、起こす直前に cwd から組んだ一覧（cwd・`git rev-parse --git-common-dir`・`git worktree list` の全部の根・Archon の家・Claude の設定・殻が書いた口・後の役の起動と次の起動が sandbox の外で走らせる物〔それを起こす Python・本物の claude・取り置いた Archon の源・工場の checkout の根の全体（包み・版の止め、`bin/works-factory` が import の先頭に置く根の `.py` を含む）〕）を足して本物の claude を起こす。印の無い起動は argv を変えない。`--settings` が JSON の object でない起動は止める。形は包み `claude-adapter`（旗 `no-tree-write`）。試験は `tests/shared/test_fence.py`（本物の claude で書き込みが止まることも見る）。
   - 写した元（台帳）: 一覧の組み方 `_git`・`protected_paths` は、今の works（`raiki61/claude-plugins` の commit `2aa7c66cf7abe1fe09699ac2942d107123214168`）の `graphloops/engine/role_run.py` 141-172 行をそのまま写した。それを縛る元の試験（`graphloops/tests/simulate.py` の `test_tooled_launch_fence` の守る場所の 2 つの check と、`graphloops/tests/py/test_role_run_stop.py` の `test_protected_paths_is_undecided_when_git_answers_partly`）は `tests/shared/test_fence.py` の `ProtectedPathsCopiedTest` に写した。同じ元の `tooled_permission`（sandbox の形と道具の許しを組む）は写さない。ここでは役の sandbox の形と道具を YAML が持ち、層の柵 `tests/layers/scan.py` が縛る。
   - 起こす場所の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env`（`archon setup` の既定の書き先）が `CLAUDE_BIN_PATH` を名指すと、Archon はその値で包みを置き換えるか消す（`packages/paths/src/strip-cwd-env.ts`・`packages/paths/src/env-loader.ts` の `loadArchonEnv`）。起動の殻はその時 Archon を起こさずに止める。同じファイルが `WORKS_FACTORY_FENCE_RECORDS`（下の宣言）を名指しても止める。
   - 起動の記録（今の works の包みの起動の記録と `ci_role.take`。`docs/plans/2026-10-13-capabilities/tail.md` の T49）: 包みは印の在る起動を、起こす前に `--records` の記録（家の `claude-fence/launches.jsonl`。`--own` の下で役は書き換えられない）へ時刻と cwd の 1 行で足し、書けなければ起こさない。起動の殻は同じパスを子の env `WORKS_FACTORY_FENCE_RECORDS` に置き、run が包みを通ると script のノードに宣言する。宣言が読めない（絶対パスでない）run は test-gate の `ci-prep` が落ち、CI の役を起こさない。宣言した run では test-gate の `ci-accept` が、`ci-prep` の後にその作業ツリーで柵の掛かった起動が記録に無ければ返答を受けずに諦める。宣言の無い run（殻を通らない起動。`tests/archon.py` が起こす Archon）は、test-gate の証拠に知らせ `NO_ADAPTER_NOTE` を出す。
