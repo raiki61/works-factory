@@ -184,13 +184,14 @@ _NO_NARROW_PLAN = ("\n\n狭めない案を先に探せ: narrows を書く前に�
 _NO_NARROW_REVIEW = ("\n\n狭めない案を添えよ: kind が regression の穴で、BASE の動きを残し、直したい場合だけ新しい動きを当て、"
                      f"当てられない場合は黙らずに名指す形を示せるなら、{NO_NARROW}＝その案（{NO_NARROW_MIN} 字以上）を書け。"
                      "示せなければ書かない。書いた文は承認ノードの項目に添わる")
-# 壁打ちが止まる往復の推し（返答の一番上の欄 converge.STUCK_PUSH。事前審査の役だけ）。決め手は進める（continue）と止める（stop）の選び方
+# 壁打ちが止まる往復の推し（返答の一番上の欄 converge.STUCK_PUSH。事前審査の役だけ）。決め手は進める（continue）と止める（stop）の選び方。
+# 文の末尾の『使われない』場合は stuck_push が外す条件と揃える（_STUCK_RULE だけ直すと、役に見せる使われ方と実装が食い違う）
 _STUCK_RULE = (f"\n\n壁打ちが止まる時の推し: block を 1 つでも返す往復と、材料に『{converge.HELD_CITES_HEAD}』のセクションが在る往復では、"
                f"返答の一番上の {converge.STUCK_PUSH} に {RECOMMEND_SHAPE} を書け（下請けの答えのファイルには書かない。束ね役の居る"
                f"往復は束ね役が書く）。note は修正役への一言で、今の往復の block の key 全部と、そのセクションの key と、止まる案の保留・開いた項目の"
                "『項目 n』（番号。項目の無い案は key だけ）を字のまま引け。引用の欠ける推しは採られずに止まる。進める（continue）のは、"
                "開いた block と保留の項目の全部が修正の中で片付けられると言える時だけにする。書けない・判じられない時は stop を返す。"
-               "人のいる run と設計だけの run では使われない")
+               "人のいる run と設計だけの run では使われない。安全の上限に届いて止まる往復でも使われない（人の判断待ちになる）")
 # 役の指示書の頭に足す文（写しの指示書は欄を知らない）
 HEAD = {"p2.fix_plan": "承認ノードの項目の決め手: plan[].narrows の各行" + _RULE + _NO_NARROW_PLAN,
         "p2.plan_review": ("承認ノードの項目の決め手: faces のうち kind が regression・policy の各行" + _RULE + _NO_NARROW_REVIEW
@@ -747,16 +748,18 @@ def design_only(b) -> bool:
 
 
 def stuck_push(b) -> str:
-    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。往復の行の push）の尾 _push。4 つが全部揃う時
-    だけ: 無人の run（gatepolicy.unattended）・設計だけの run でない・壁打ちの抜け方が止まり（converge.STUCK）・最後の往復の push が
-    recommend_of で読めて通す（continue）推しで、その note が止まった key と保留・開いた項目の番号の全部を字のまま引く
-    （converge.uncited が空。修正役に届くのは note だけ）。ほかは空（推しが無い・止める・崩れた・引用が欠ける時は pushed_answer が
-    None を返して今どおり止まる。止める推しは往復の行の push に残る）。
+    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。往復の行の push）の尾 _push。5 つが全部揃う時
+    だけ: 無人の run（gatepolicy.unattended）・設計だけの run でない・壁打ちの抜け方が止まり（converge.STUCK）・最後の往復が
+    安全の上限の周で止めた物（converge.pushable）でない・最後の往復の push が recommend_of で読めて通す（continue）推しで、
+    その note が止まった key と保留・開いた項目の番号の全部を字のまま引く（converge.uncited が空。修正役に届くのは note だけ）。
+    ほかは空（推しが無い・止める・崩れた・引用が欠ける時は pushed_answer が None を返して今どおり止まる。止める推しは往復の行の
+    push に残る）。stuck_push が上限の止まりを外す訳: 上限の止まりは仕組みの異常（converge.CAP_WHY）で、持ち主の決め（issue #552）は関所の
+    問いへの答えであり、異常の止まりは含まない。
     boardview（review.json に保留の項目の穴を足す）と design_item が同じこの 1 つの条件を読む"""
     if not gatepolicy.unattended(b.dir) or design_only(b):
         return ""
     doc = converge.read(b)
-    if doc["outcome"] not in converge.STUCK:
+    if not converge.pushable(doc):
         return ""
     mark = {RECOMMEND: doc["passes"][-1].get("push")}
     rec = recommend_of(mark)
