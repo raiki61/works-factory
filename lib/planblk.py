@@ -50,7 +50,7 @@ import converge  # noqa: E402
 import design  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 import gatemarks  # noqa: E402
-import headdepth  # noqa: E402  （頭の深さの控えの節の見出し。修正案の役が受ける）
+import headdepth  # noqa: E402
 import libdocs  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402

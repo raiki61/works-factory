@@ -533,7 +533,7 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
         if (judgment_file.parent / name).is_file():
             write_json(folder / name, json.loads((judgment_file.parent / name).read_text(encoding="utf-8")))
     import headdepth
-    (folder / headdepth.RECORD).unlink(missing_ok=True)   # 頭の深さの控え（redepth が引用した where のファイルを読む。字のまま。組の子は読まない）
+    (folder / headdepth.RECORD).unlink(missing_ok=True)
     if (judgment_file.parent / headdepth.RECORD).is_file():
         (folder / headdepth.RECORD).write_bytes((judgment_file.parent / headdepth.RECORD).read_bytes())
 

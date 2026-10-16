@@ -1,9 +1,10 @@
 """run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）。使うのは判定と線の script と計画の lib。
 
 単位ごとの深さ（depth.py）の上に、run 全体の深さの段（軽量・標準・重厚。段の定義は depth.TIERS）を run の頭で 1 度決める。
-易しいか・難しいかは意味の問いなので役が決め、ここは事実を測って役に渡し、役の引用が依頼の字とリポジトリの行に実在するかを
-照らす。照らしが通らない・根拠が引けない時は標準。深さで飛ばすノードは無い（計画の往復の事前審査は段に依らず走る）。段が省く物と
-足す機能は depth.TIERS から引き、機能の切り替えの式は entry に在る。
+依頼の行ごとに何が決まっていないか（未知の種類）は意味の問いなので役が引用つきで選び、段はその種類から機械が引く（tier_of）。
+ここは事実を測って役に渡し、役の引用が依頼の字とリポジトリの行に実在するかを照らす。照らしが通らない・根拠が引けない時は標準。
+深さで飛ばすノードは無い（計画の往復の事前審査は段に依らず走る）。段が省く物と足す機能は depth.TIERS から引き、機能の切り替えの式は
+entry に在る。
 
 - facts(rows, start, repo): 依頼の行ごとの字と番地の実在・試験のコマンドの有無・仕様の段・設計だけ・入力 thickness の名指し
 - gate(facts): 役を起こす前の機械の止め (go, 深さ, 訳)。go が偽なら決めた深さと訳で控えを書き、役を起こさない
@@ -54,7 +55,6 @@ REJUDGE_WHY = "再審の判定（run の頭の深さは 1 回目の判定が決�
 NOT_ACCEPTED = "役の返答が受け付けを通らない（{why}）"
 WHERE_SPAN = 30   # 軽量の根拠の where の行の範囲の幅の上限。直す所を 1 画面で名指せない範囲はファイルを指すのと変わらない
 NO_ROWS = "依頼の行が無い（行ごとの未知の種類を引けない）"
-# 依頼の行ごとに残っている未知の種類 → その行が要る段。段は行の並びの一番重い種類から tier_of が引く（段の語は depth の定数）
 NONE, CAUSE, SHAPE, SCOPE = "無し", "原因", "形", "範囲"
 UNKNOWNS = {NONE: depth.LIGHT, CAUSE: depth.STANDARD, SHAPE: depth.HEAVY, SCOPE: depth.HEAVY}
 
@@ -114,7 +114,6 @@ def tier_of(items) -> str:
 
 
 def _check_item(it: dict, rows: list, repo, span=WHERE_SPAN, code_optional=False) -> list:
-    """code_optional が真で where が空の行は、code_quote を求めず照らさない（where を書いた行は code_quote も照らす）"""
     n = it.get("item")
     head = f"行 {n}: "
     where = str(it.get("where") or "").strip()
@@ -200,7 +199,6 @@ def cited_files(doc) -> list:
 
 
 UNKNOWN_HEAD = promptsection.Section("## 頭の深さの行ごとの未知の種類と指示（依頼の行ごと。機械が頭の深さの控えから貼った）", source="fn:headdepth.section")
-# 種類ごとの指示。鍵は UNKNOWNS と同じ。どの役が読んでも通じる字にし、受け手の役の口（相談・申し出）を名指さない
 ASKS = {
     NONE: "引用した番地が本当に直す所かを先に確かめよ。外れていれば黙って広げず、外れた訳と本当の直す所を引用で返答に名指せ。",
     CAUSE: "症状の行から原因の行まで引用で辿って原因を探せ。",

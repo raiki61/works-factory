@@ -97,7 +97,7 @@ class CheckTest(Repo):
                 self.assertEqual(self.check(reply), [])
                 self.assertEqual(headdepth.tier_of(reply["items"]), "重厚")
                 self.assertTrue(self.check(self.item(unknown=kind, cause_quote="書いていない字")))
-        self.assertTrue(self.check(self.item(unknown="無し", **wide)))   # 『無し』には範囲の幅の上限を当てる
+        self.assertTrue(self.check(self.item(unknown="無し", **wide)))
         self.assertTrue(self.check({**LIGHT_REPLY, "items": []}))
         self.assertEqual(self.check({"why": "設計の選び", "items": []}, rows=[]), [headdepth.NO_ROWS])
 
@@ -154,14 +154,14 @@ class CheckTest(Repo):
     def test_rules_follow_each_row_kind(self):
         wide = dict(where=f"long.py:1-{headdepth.WHERE_SPAN + 1}", code_quote="value = 1")
         cause = {"item": 1, "unknown": "原因", "cause_quote": "mean が 0 割り"}
-        self.assertEqual(self.check({"why": "x", "items": [cause]}), [])   # 『原因』は where 無しの cause_quote だけで通る
+        self.assertEqual(self.check({"why": "x", "items": [cause]}), [])
         self.assertEqual(self.check(self.item(unknown="原因", **wide)), [])
         none = {k: v for k, v in LIGHT_REPLY["items"][0].items() if k != "code_quote"}
         got = self.check({**LIGHT_REPLY, "items": [none]})
-        self.assertTrue(got and all("code_quote" in why for why in got), got)   # 『無し』は code_quote が要る
+        self.assertTrue(got and all("code_quote" in why for why in got), got)
         got = self.check(self.item(unknown="無し", **wide))
-        self.assertTrue(got and any("行の範囲" in why for why in got), got)   # 『無し』は where が WHERE_SPAN 行まで
-        self.assertEqual(self.check(self.item(unknown="形", **wide)), [])      # 『形』は幅を問わない
+        self.assertTrue(got and any("行の範囲" in why for why in got), got)
+        self.assertEqual(self.check(self.item(unknown="形", **wide)), [])
         got = self.check(self.item(unknown="極厚"))
         self.assertTrue(got and all("unknown" in why for why in got), got)
 
@@ -181,7 +181,7 @@ class CheckTest(Repo):
         good = {**cause, "where": "stats.py:1-2", "code_quote": "return sum(xs) / len(xs)"}
         self.assertEqual(self.check({"why": "x", "items": [good]}), [])
         wide = {**cause, "where": f"long.py:1-{headdepth.WHERE_SPAN + 1}", "code_quote": "value = 1"}
-        self.assertEqual(self.check({"why": "x", "items": [wide]}), [])   # 『原因』の where の幅は問わない
+        self.assertEqual(self.check({"why": "x", "items": [wide]}), [])
         for name, bad, word in (("outside the file", {**good, "where": "stats.py:2-9"}, "where"),
                                 ("no file", {**good, "where": "nope.py:1"}, "where"),
                                 ("code not in range", {**good, "code_quote": "return 0"}, "code_quote"),
@@ -230,7 +230,6 @@ class SectionTest(unittest.TestCase):
         for row, it in zip(rows, self.ITEMS):
             self.assertTrue(row.endswith(f"指示: {headdepth.ASKS[it['unknown']]}"), row)
         self.assertNotIn(headdepth.ASKS["形"], rows[0])   # 種類ごとに違う指示
-        # 決まっていない run は黙って空にせず、見出しと訳の 1 行
         for name, path, why in (("no file", self.path(), headdepth.NO_RECORD),
                                 ("empty path", "", headdepth.NO_RECORD),
                                 ("no kinds", self.path(headdepth.record("標準", "機械の止め")), "機械の止め"),
@@ -243,7 +242,7 @@ class SectionTest(unittest.TestCase):
         for kind, ask in headdepth.ASKS.items():
             with self.subTest(kind):
                 self.assertTrue(ask.strip())
-                for word in ("範囲の相談", "申し出"):   # 受け手の役に無い口
+                for word in ("範囲の相談", "申し出"):
                     self.assertNotIn(word, ask)
         self.assertEqual(headdepth.UNKNOWN_HEAD.source, "fn:headdepth.section")
 

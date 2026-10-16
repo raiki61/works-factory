@@ -2503,7 +2503,6 @@ class RedepthCase(Artifacts):
         self.put(tdd_name, {"error": "組めなかった"})
         self.assertIn("組めなかった", signals()[0][0])
         self.assertEqual(redepth.fix_signals(plan, None, judgment, ["u1"]), ([], []), "diff が null なら何も足さない")
-        # ノード redepth: 3 つの信号がそれぞれ軽量の単位を標準へ上げる
         env = {"INPUTS_DEPTH": json.dumps(self.LIGHT, ensure_ascii=False), "INPUTS_REPLAN_DEPTH": "null", "INPUTS_UNITS": "[]",
                "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": json.dumps(plan), "INPUTS_DIFF": json.dumps(diff),
                "INPUTS_JUDGMENT": json.dumps(judgment), "INPUTS_START": "null", "INPUTS_ANSWER": "null",

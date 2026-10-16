@@ -145,7 +145,7 @@ GATE_OFF = "off"
 LIGHT = "軽量"
 CMD_LIGHT = "light"
 SUITE_MADE_NOTE = "一式を走らせて出来たファイル"
-ROUTE_REFUSED = "振り分けの段（単位の名の無い拒否）"   # refused_units が、振り分けの段（calls の unit_key が空）の拒否を数える名
+ROUTE_REFUSED = "振り分けの段（単位の名の無い拒否）"
 
 
 class Broken(Exception):

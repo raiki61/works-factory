@@ -1759,18 +1759,18 @@ class DeltaSeamCase(TempCase):
         (self.repo / "stats.py").write_text("X = 2\n", encoding="utf-8")
         kept()   # 引用したファイルの中の変更
         (self.repo / "test_new.py").write_text("X = 1\n", encoding="utf-8")
-        kept()   # テストのファイルだけが外に出た
+        kept()
         (self.repo / "other.py").write_text("X = 1\n", encoding="utf-8")
         raised("引用した where の外に出た", "other.py")
         (self.place / headdepth.RECORD).unlink()
-        kept()   # 引用の無い run（控えが無い・where の無い行）は外を持たない
+        kept()
         headdepth.write(self.place, headdepth.record(depth.LIGHT, "易しい", items=[{**cited, "where": ""}]))
         kept()
         (self.repo / "other.py").unlink()
         (self.repo / "test_new.py").unlink()
         # (2) TDD のループでの拒否
         tdd({"n": 1, "phase": "runner", "unit_key": "a", "ok": False}, {"n": 2, "phase": "fix", "unit_key": "a", "ok": True})
-        kept()   # 機械の止まりと通った call は役の拒否でない
+        kept()
         tdd({"n": 1, "phase": "test", "unit_key": "a", "ok": False}, {"n": 2, "phase": "test", "unit_key": "a", "ok": True})
         raised("TDD のループで修正役が拒まれた", "a")
         tdd({"n": 1, "phase": "route", "unit_key": "", "ok": False})
@@ -1779,7 +1779,7 @@ class DeltaSeamCase(TempCase):
         kept()
         # (3) 範囲の相談
         fixboard.trace(self.place, conflict.ASKED_OP, item=1, unit_keys=["a"], origin=consult.ORIGIN_GATE)
-        kept()   # 関所の条件の相談は機械が立てた物
+        kept()
         fixboard.trace(self.place, conflict.ASKED_OP, item=2, unit_keys=[], origin=None)
         raised("修正役が範囲の相談をした", "項目 2")
         (self.place / "trace.jsonl").unlink()

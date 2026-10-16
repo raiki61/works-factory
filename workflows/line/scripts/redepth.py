@@ -17,10 +17,6 @@ counted: run の広さの数えと起点の 1 行（fix_signals の隣の控え�
 
 入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・head_depth（run の頭の深さの段の語）・units・conflicts・plan・diff（fixed の返り）・judgment（judged の返り）・
 start（始めの記録）・answer（修正前の関所の答え）・ties_judgment（1 回目の判定。結びの隣のファイル）・replanned・rejudged（after-fix の返り）
-
-読む隣のファイル: ties_judgment の隣の depth-head.json（頭の深さの控え。引用した where のファイル。lib/headdepth.py の cited_files）、
-diff の隣の tdd-unit.json（組ごとの TDD の記録。欄 refused）と accept-trace.json（受け付けの行。範囲の相談の行）。後ろの 2 つは
-lib/fixbeside.py の late_records で読み、無い時は上げずに counted に訳を添え、在るのに読めない時だけ上げる。
 """
 import json
 import os

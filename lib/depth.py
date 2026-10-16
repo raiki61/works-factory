@@ -98,7 +98,6 @@ def _tests(items: list) -> int:
 
 
 def _mine(items, keys) -> list:
-    """keys の単位を載せる項目（重ねずに）"""
     return list({id(it): it for key in keys for it in _items_of(items, key)}.values())
 
 
