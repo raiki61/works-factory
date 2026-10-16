@@ -8,9 +8,10 @@
   pack の形にするのは、Archon が名前の script を pack のグラフの時だけグラフのフォルダの scripts/ から探し、
   pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
-Archon の家（$ARCHON_HOME/workflows など）には何も置かない。
+Archon の家（$ARCHON_HOME）には、工場が決める値（home_config）を書いた config.yaml のほかは何も置かない（$ARCHON_HOME/workflows など）。
 """
 import hashlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -21,6 +22,17 @@ ENTRY = "packages/cli/src/cli.ts"
 WORKFLOW_FOLDER = ".archon/workflows"
 # 入口の殻が run に渡す、起こした源のパス。run の中のノードはこれで殻を入れ子にせず同じ Archon を起こす（bin/_lib/childsweep.py）
 SOURCE_ENV = "WORKS_FACTORY_ARCHON_SOURCE"
+# Archon は既定の provider の無い run を始めで拒む（packages/provider-contract/src/registration.ts の NO_DEFAULT_PROVIDER_MESSAGE）。
+# 工場の役は claude で書いてあり、Archon の文書の口は家の config.yaml の defaultAssistant（docs-web の reference/configuration.md）。
+# グラフごとの provider: では、手を加えない ASF のグラフに届かない
+DEFAULT_PROVIDER = "claude"
+PROVIDER_KEY = re.compile(r"^defaultAssistant\s*:", re.MULTILINE)
+# Archon の既定（true）は、使用枠の上限に当たった run を落とさず paused で待たせる。工場の回復の道（落ちた run を別のアカウントで
+# resume する）と fan_out の子の起こし方がその待ちに効くかは未実測なので、落とす形のまま置く（docs/owner-decisions.md の
+# asf-follows-dev の近くの行）
+QUOTA_KEY = "autoResumeOnQuotaReset"
+QUOTA_VALUE = "false"
+WORKFLOWS_KEY = re.compile(r"^workflows\s*:(?P<rest>.*)$", re.MULTILINE)
 
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
@@ -34,6 +46,47 @@ def cache_dir(env: Mapping[str, str]) -> Path:
 def archon_folder(cache: Path, commit: str) -> Path:
     """cache の中で Archon の源 commit を取り置く所 <cache>/archon/<commit>"""
     return cache / "archon" / commit
+
+
+def home_config(archon_home: Path) -> None:
+    """archon_home/config.yaml に、工場が Archon の既定に従わずに決める値（defaultAssistant と workflows.autoResumeOnQuotaReset）が
+    無ければ足す。在る値（利用者が選んだ物）は変えない。Archon は config.yaml の無い家にだけ注記だけの雛形を書くので、先に書けば
+    雛形は置かれない"""
+    config = archon_home / "config.yaml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    before = config.read_text(encoding="utf-8") if config.exists() else ""
+    text = before
+    if not PROVIDER_KEY.search(text):
+        text = appended(text, f"defaultAssistant: {DEFAULT_PROVIDER}\n")
+    text = with_quota_policy(text, config)
+    if text != before:
+        config.write_text(text, encoding="utf-8")
+
+
+def appended(text: str, lines: str) -> str:
+    """text の末に lines を足す（text が改行で終わらなければ改行を挟む）"""
+    gap = "" if not text or text.endswith("\n") else "\n"
+    return f"{text}{gap}{lines}"
+
+
+def with_quota_policy(text: str, config: Path) -> str:
+    """text の workflows: の塊に QUOTA_KEY が無ければ足す。塊が無ければ末に作り、在れば塊の頭に子の字下げで足す（鍵を重ねない）"""
+    found = WORKFLOWS_KEY.search(text)
+    if found is None:
+        return appended(text, f"workflows:\n  {QUOTA_KEY}: {QUOTA_VALUE}\n")
+    if found["rest"].split("#", 1)[0].strip():
+        raise RuntimeError(f"{config} の workflows: が 1 行の形で、{QUOTA_KEY} を足せない。塊の形（次の行から字下げ）に直す")
+    head, rest = text[:found.end()], text[found.end():]
+    children = []
+    for line in rest.split("\n")[1:]:
+        if line.strip() and not line[0].isspace() and not line.startswith("#"):
+            break
+        if line.strip() and not line.lstrip().startswith("#"):
+            children.append(line)
+    if any(re.match(rf"\s+{QUOTA_KEY}\s*:", line) for line in children):
+        return text
+    indent = re.match(r"\s*", children[0]).group() if children else "  "
+    return f"{head}\n{indent}{QUOTA_KEY}: {QUOTA_VALUE}" + (rest or "\n")
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:

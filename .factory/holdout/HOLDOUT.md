@@ -5,7 +5,7 @@ works-factory を、通しの筋書き（`harness/runtime.scenario.json`。人�
 ## 読む前に
 
 - このリポジトリを作っているのは ASF（Archon の作者が作った、issue から merge までの工程の束）の AI で、このファイルはその AI も読める。だから隠しの確かめ（holdout）にはならない。機械が読む形の JSON はリポジトリの外（運び役の機械の `${XDG_STATE_HOME:-$HOME/.local/state}/works-factory/holdout/runtime.holdout.json`）に置き、確かめる側にだけ渡す。
-- ASF の工程 `archon-lifecycle` には、入力 `holdout` を空で渡す。lifecycle は別筋が空ならその確かめを飛ばし、筋書きだけで判定する。下の 3 つの筋はどれも本物の通しを 1 回ずつ要り、PR ごとに回すと 1 つの PR の確かめに通しが 4 回走る。別筋は段 1 で 1 度だけ本物で回して確かめ、PR ごとには回さない。
+- 止めた Archon の ASF（upstream の dev の物）は別筋を動かす工程を持たない。下の 3 つの筋はどれも本物の通しを 1 回ずつ要る。別筋は段 1 で 1 度だけ本物で回して確かめ、PR ごとには回さない。
 - 対象・依頼・家は `python3 tests/e2e/make_target.py make <試みのフォルダ>` で作り、run の起こし方・待ち方・関所の答え方は筋書きの JSON の `request-to-report` の手順と同じ（線を起こす命令は `--detach` を付けずに前で打ち、関所の答えは `workflow respond <run> … --detach` で打つ）。`bin/works-factory` と `bin/apply` の呼び出しには毎回 `WORKS_FACTORY_HOME=<家>` を前に付ける。
 
 ## 2 つの依頼を同じ対象に続けて回す

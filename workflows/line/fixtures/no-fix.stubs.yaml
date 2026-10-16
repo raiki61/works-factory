@@ -37,3 +37,5 @@ eyes__r2-compare-verdict: {"eye": "r2", "status": "pass", "reason": "独立設�
 eyes__verdict: {"ok": true, "r1": {"status": "pass", "reason": ""}, "r2": {"status": "pass", "reason": "独立設計も直す物が無いと言う"}, "r3": {"status": "pass", "reason": ""}, "r4": {"status": "pass", "reason": ""}, "questions": [], "premise_check": null, "structure_after": null, "protected_hits": [], "notes": null}
 report__facts: {"outcome": "no_fix_needed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": true, "outcome": "no_fix_needed", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
+gate-start: {decision: approve, text: ''}
+gate-final: {decision: approve, text: ''}

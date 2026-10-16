@@ -101,7 +101,9 @@ elif verb == "get":
     print(json.dumps({"id": run["id"], "status": run["status"], "started_at": "2026-10-12T01:00:00Z",
                       "completed_at": "2026-10-12T01:30:00Z",
                       "metadata": {"total_cost_usd": 3.25,
-                                   **({"approval": {"nodeId": plan.get("gate", "gate-final")}} if run["status"] == "paused" else {})},
+                                   **({plan.get("gate_record", "approval"): {"kind": "attention", "owner": "node",
+                                                                              "nodeId": plan.get("gate", "gate-final")}}
+                                      if run["status"] == "paused" else {})},
                       "terminal_record": {"run_id": run["id"], "status": run["status"],
                                           "nodes": plan.get("nodes", []) if parent else [],
                                           "returns": {"availability": "available", "node_id": "result",
@@ -493,8 +495,9 @@ class RunTest(RunnerCase):
         self.assertEqual(old["provenance"]["archon"], "v0.11.1")
 
     def test_paused_run_is_not_answered(self):
-        for producer, plan in (("works-factory", {"status": "paused"}), ("works", {"waits": [3, 0]})):
-            with self.subTest(producer=producer):
+        for producer, plan in (("works-factory", {"status": "paused"}),
+                               ("works-factory", {"status": "paused", "gate_record": "wait"}), ("works", {"waits": [3, 0]})):
+            with self.subTest(producer=producer, plan=plan):
                 self.log.unlink(missing_ok=True)
                 shutil.rmtree(self.attempts, ignore_errors=True)
                 self.set_plan(**plan)

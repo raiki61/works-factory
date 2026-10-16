@@ -11,3 +11,4 @@ test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause":
 judge__intake: {"go": "型に合わない"}
 report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": false, "outcome": "stopped_by_line", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
+gate-start: {decision: approve, text: ''}

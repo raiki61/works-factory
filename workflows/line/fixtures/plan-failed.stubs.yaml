@@ -14,3 +14,4 @@ judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths
 plan__round: {"round": 0}
 report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": false, "outcome": "stopped_by_line", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
+gate-start: {decision: approve, text: ''}

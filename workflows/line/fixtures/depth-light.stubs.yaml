@@ -36,3 +36,5 @@ plan-review-run__review-reads: {"ok": true, "missing": [], "index_file": "plan-r
 review-prep: {"prompt_file": "/fixture/plan-review/pass-1/prompt.md"}
 plan-review: {"faces": [], "shrink": [], "reason": "stub: 写し・入口・契約のずれを確かめた", "faces_none": "stub: 穴が無いことを全部の見ることで確かめた"}
 review-accept: {"ok": true, "done": true, "give_up": false, "reason": ""}
+gate-start: {decision: approve, text: ''}
+gate-final: {decision: approve, text: ''}

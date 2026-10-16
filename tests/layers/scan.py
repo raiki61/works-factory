@@ -1344,47 +1344,37 @@ def _role_retry(root: Path) -> list[str]:
     return out
 
 
-# 差し込まれるブロックが工程の頭に書かない鍵（E16）。run の形は差し込む一番上の工程が決める。ただし自分の節に approval: を持つ
-# ブロックの interactive: true だけは許す: 外すと止めた Archon の単独の validate が警告を出す（workflows/AGENTS.md の E16）
-BLOCK_HEAD_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
+# 差し込まれるブロックが工程の頭に書かない鍵（E16）。run の形は差し込む一番上の工程が決める
+BLOCK_HEAD_KEYS = ("worktree", "container", "evidence_policy", "mutates_checkout")
+# 止めた Archon が非推奨にし、効かない工程の頭の鍵（読み込みの警告。packages/workflows/src/loader.ts の「workflow-level 'interactive:'
+# is deprecated and has no effect」）。一番上の工程も書かない
+DEAD_HEAD_KEYS = ("interactive",)
 
 
 def _gates(root: Path) -> list[str]:
     out = []
-    docs = {}
     for folder in _blocks(root):
         path, document = _workflow_doc(folder)
-        if document is not None:
-            docs[f"{OURS_PREFIX}{folder.name}"] = (path, document)
-
-    def own_gate(name: str) -> bool:
-        return any(_top(n, "approval") is not None for n in _nodes(docs[name][1]))
-
-    def gated(name: str, trail: frozenset = frozenset()) -> bool:
-        if name not in docs or name in trail:
-            return False
-        return own_gate(name) or any(
-            gated(value.value, trail | {name})
-            for n in _nodes(docs[name][1]) if isinstance(value := _top(n, "include"), yaml.ScalarNode)
-        )
-
-    tops = {f"{OURS_PREFIX}{folder}" for folder in TOP_FOLDERS}
-    for name, (path, document) in docs.items():
+        if document is None:
+            continue
         rel = _rel(root, path)
-        if name not in tops:
-            for key, value in _pairs(document):
-                if key in BLOCK_HEAD_KEYS and not (key == "interactive" and _is_bool(value, "true") and own_gate(name)):
-                    out.append(f"{rel}:{_line(value)}: 差し込まれるブロックが工程の頭に {key} を書く")
-        elif gated(name):
-            if not _is_bool(_top(document, "interactive"), "true"):
-                out.append(f"{rel}:1: 人の関所を持つ一番上の工程に interactive: true が無い")
+        for key, value in _pairs(document):
+            if key in DEAD_HEAD_KEYS:
+                out.append(f"{rel}:{_line(value)}: 工程の頭に効かない {key} を書く")
+            elif key in BLOCK_HEAD_KEYS and folder.name not in TOP_FOLDERS:
+                out.append(f"{rel}:{_line(value)}: 差し込まれるブロックが工程の頭に {key} を書く")
     return out + _gate_words(root)
 
 
+def _human_gate(node) -> bool:
+    """人に答えを聞く節: wait: の attention か、非推奨の approval:"""
+    return _top(_top(node, "wait"), "attention") is not None or _top(node, "approval") is not None
+
+
 def _gate_words(root: Path) -> list[str]:
-    """関所（approval:）は decisions に答えの語（lib/answer.py の GO_WORDS・STOP_WORDS。STOP_WORDS は REJECT を含む）を全部持ち、on_reject を持たない
-    （K10。止めた Archon の core/src/operations/workflow-operations.ts 1625-1700 行: decisions に reject が無いか on_reject が在る
-    関所の reject は run の取り消しになり、報告が出ない。ほかの語が無いと、その答えを関所が受けない）。
+    """関所は wait: の attention を form: select で書き、options に答えの語（lib/answer.py の GO_WORDS・STOP_WORDS。STOP_WORDS は
+    REJECT を含む）を全部持つ（K10。止めた Archon は options に無い答えを拒み、run は関所で止まったまま。実測 2026-10-16）。
+    approval: は書かない（止めた Archon が非推奨にした。packages/workflows/src/loader.ts の LEGACY_PAUSE_REPLACEMENTS）。
     輪（loop_group）の本体に関所を置かない（K18。本体が関所で終わる輪の再開は会話を引き継がない。元 works/tests/test_yaml_rules.py 43-45 行）"""
     out = []
     for path in _workflow_yamls(root):
@@ -1394,18 +1384,21 @@ def _gate_words(root: Path) -> list[str]:
         for document in documents:
             for node in _nodes(document):
                 for inner in getattr(_top(_top(node, "loop_group"), "nodes"), "value", []):
-                    if _top(inner, "approval") is not None:
+                    if _human_gate(inner):
                         out.append(f"{rel}:{_line(inner)}: 輪の本体に関所 {getattr(_top(inner, 'id'), 'value', '?')} を置いた")
-                gate = _top(node, "approval")
-                if gate is None:
-                    continue
                 ident = getattr(_top(node, "id"), "value", "?")
-                words = {getattr(_top(d, "id"), "value", None) for d in getattr(_top(gate, "decisions"), "value", [])}
+                if _top(node, "approval") is not None:
+                    out.append(f"{rel}:{_line(node)}: 関所 {ident} を非推奨の approval: で書く（wait: の attention で書く）")
+                    continue
+                wait = _top(node, "wait")
+                if _top(wait, "attention") is None:
+                    continue
+                if getattr(_top(wait, "form"), "value", None) != "select":
+                    out.append(f"{rel}:{_line(node)}: 関所 {ident} の form が select でない")
+                words = {getattr(_top(o, "id"), "value", None) for o in getattr(_top(wait, "options"), "value", [])}
                 for word in answer.GO_WORDS + answer.STOP_WORDS:
                     if word not in words:
-                        out.append(f"{rel}:{_line(node)}: 関所 {ident} の decisions に {word} が無い")
-                if _top(gate, "on_reject") is not None or _top(node, "on_reject") is not None:
-                    out.append(f"{rel}:{_line(node)}: 関所 {ident} が on_reject を持つ")
+                        out.append(f"{rel}:{_line(node)}: 関所 {ident} の options に {word} が無い")
     return out
 
 

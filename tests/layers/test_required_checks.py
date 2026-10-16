@@ -1,5 +1,5 @@
 """merge に要る確かめの名（harness/harness.config.json の required_checks）が、CI（.github/workflows/）の job が出す check の名と
-合う。食い違えば merge queue が待つ必須の確かめが永遠に来ない（または別の名を待つ）。
+合う。今は読むグラフが無い（dev の ASF に merge queue が無い。持ち主の決め asf-follows-dev）が、宣言が CI とずれたまま残らないように縛る。
 
 check の名は job の name、無ければ job の id。matrix の job は分けごとに名が変わるので、必須の確かめには使えない。
 """

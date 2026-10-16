@@ -250,6 +250,58 @@ class CacheDirTest(unittest.TestCase):
                 self.assertEqual(place.cache_dir(env), pathlib.Path("/h/.cache/works-factory"))
 
 
+class HomeConfigTest(unittest.TestCase):
+    """工場の Archon の家の config.yaml に、Archon の既定に従わない値を書く。Archon は既定の provider の無い run を拒むので
+    defaultAssistant を、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道を残すので
+    workflows.autoResumeOnQuotaReset: false を"""
+
+    WRITTEN = "defaultAssistant: claude\nworkflows:\n  autoResumeOnQuotaReset: false\n"
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.home = pathlib.Path(tmp.name) / "archon-home"
+        self.config = self.home / "config.yaml"
+
+    def test_new_home_gets_both_values(self):
+        place.home_config(self.home)
+        self.assertEqual(self.config.read_text(encoding="utf-8"), self.WRITTEN)
+
+    def test_archon_template_keeps_its_notes_and_gains_the_lines(self):
+        template = "# Default AI assistant\n# defaultAssistant: claude\n# workflows:\n# botName: Archon"
+        write(self.config, template.encode())
+        place.home_config(self.home)
+        place.home_config(self.home)
+        self.assertEqual(self.config.read_text(encoding="utf-8"), f"{template}\n{self.WRITTEN}")
+
+    def test_chosen_values_are_kept(self):
+        chosen = b"botName: x\ndefaultAssistant: codex\nworkflows:\n    autoResumeOnQuotaReset: true\n"
+        write(self.config, chosen)
+        place.home_config(self.home)
+        self.assertEqual(self.config.read_bytes(), chosen)
+
+    def test_existing_workflows_block_gains_the_key_without_a_second_block(self):
+        cases = {
+            "between": ("workflows:  # 方針\n    toolCallAttentionMs: 0\nbotName: x\n",
+                        "workflows:  # 方針\n    autoResumeOnQuotaReset: false\n    toolCallAttentionMs: 0\nbotName: x\n"),
+            "last": ("botName: x\nworkflows:\n  # 注\n  toolCallAttentionMs: 0",
+                     "botName: x\nworkflows:\n  autoResumeOnQuotaReset: false\n  # 注\n  toolCallAttentionMs: 0"),
+            "empty": ("workflows:", "workflows:\n  autoResumeOnQuotaReset: false\n"),
+        }
+        for name, (before, after) in cases.items():
+            with self.subTest(name):
+                write(self.config, f"defaultAssistant: claude\n{before}".encode())
+                place.home_config(self.home)
+                self.assertEqual(self.config.read_text(encoding="utf-8"), f"defaultAssistant: claude\n{after}")
+
+    def test_one_line_workflows_is_refused_unchanged(self):
+        flow = b"defaultAssistant: claude\nworkflows: { toolCallAttentionMs: 0 }\n"
+        write(self.config, flow)
+        with self.assertRaisesRegex(RuntimeError, "1 行の形"):
+            place.home_config(self.home)
+        self.assertEqual(self.config.read_bytes(), flow)
+
+
 class WorkflowRunTest(unittest.TestCase):
     def test_source_flags_come_before_caller_arguments(self):
         source, shim, cwd = pathlib.Path("/src"), pathlib.Path("/shim"), pathlib.Path("/target")
