@@ -360,7 +360,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 
 ### merge の出力
 
-- 出力ノード `merge`・`outcome_field: ok`（ASF の `W/merge-queue/archon-merge-queue.yaml` の封印と読み戻し）
+- 出力ノード `merge`・`outcome_field: ok`（ASF の `d97d00ef` の `W/merge-queue/archon-merge-queue.yaml` の封印と読み戻し）
 - 既定は E17: apply は封じた差分を run の置き場に置くだけ。対象のリポジトリへ当てるのは人（`bin/apply`）。
 - 入力（`with:`）:
   - `mode`: `seal`（`merge-seal`）・`apply`（`merge-apply`）
@@ -417,7 +417,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 ### line（メイングラフ）
 
 - 目的: サブグラフを並べ、承認ノード・往復・止め札・深さ・無人の方針を持つ。
-- ASF で読む物: `W/lifecycle/archon-lifecycle.yaml`（子の承認ノードを子が持つ形・`returns: merge`）と `W/ship/archon-ship.yaml`（routes の合流と `trigger_rule: none_failed_min_one_success`、`if_skipped` で飛ばされた子を `null` で受ける `outcome`）。`W` は `.archon/workflows/sdlc`。
+- ASF で読む物: `d97d00ef` の `W/lifecycle/archon-lifecycle.yaml`（子の承認ノードを子が持つ形・`returns: merge`。dev には無い）と `W/ship/archon-ship.yaml`（routes の合流と `trigger_rule: none_failed_min_one_success`、`if_skipped` で飛ばされた子を `null` で受ける `outcome`）。`W` は `.archon/workflows/sdlc`。
 - 入力: 入口の入力。出力: メイングラフのノード `result`（report の出力と、結末が `fixed`・`fixed_needs_check` の時に真の `fixed`、`bin/apply` が読む `apply`・`sealed`・`r2_status`・`final_answer`・`spec_questions`。`outcome_field: fixed`。「サブグラフの出力の約束」の「メイングラフの出力」）。
 - lib: `entry_shape`・`depth`・`headdepth`（run の頭の深さ）・`gate_policy`・`halt`・`converge`・`stop_reasons`（止めの理由の語）・`features`（機能の切り替えの語）。
 - 埋め: P1（持ち主の居ない running）・P2（include に if_skipped を通せない）。
@@ -490,7 +490,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 ### merge（取り込み）
 
 - 目的: 2 つの形で include する。seal は人に見せる差分を封じ（hash）、守りのパスの当たりを出す。apply は封じた hash を今の差分と照らし、違えば止める。同じなら外へ 1 度だけ書き、読み戻す。既定の書き先は run の置き場の差分（人が `bin/apply` で当てる）。今の works には PR を出す口も main へ当てる口も無いので、それは置き換えの後の足し。
-- ASF で読む物: `W/merge-queue/archon-merge-queue.yaml`（`path-policy`・`gate` の封印・`approval`・`refresh` → `execute`）と `W/merge-queue/scripts/merge-action.ts`（封印と読み戻し）。
+- ASF で読む物: `d97d00ef` の `W/merge-queue/archon-merge-queue.yaml`（`path-policy`・`gate` の封印・`approval`・`refresh` → `execute`）と `W/merge-queue/scripts/merge-action.ts`（封印と読み戻し）。dev には無い。
 - 入力: 緑の認証・独立の目・始めの記録。fix の差分は受けない（封じる差分は作業ツリーと始めの記録の `base_rev` から組み直す。緑の認証の指紋は今の作業ツリーの指紋（`green_cert.matches`）と照らす。今の works の取り込み `dev/use.sh` の apply も run の作業ツリーから差分を組み直して当てた）。
 - lib: `seal`・`protected`。
 - 埋め: 無し。
@@ -658,7 +658,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - 取れない物: (1) 下請け（Agent）の中の Read・Edit・Write。`provider_event` には下請けの `subtask` の要約（`description`・`usage`・`lastToolName`）しか載らず、`file_path` が無い（同じ run の 713 個の `tool_call` に親の呼びを指す欄の在る物は 0。ノード `deliver__impl__implement` の Agent の呼びの下は `subtask` の行だけ。`provider-contract/src/events.ts` の `subtaskSchema`）。(2) 読んだ時のファイルの sha。`rawInput` はパスだけで、後から作れない。(3) Bash で書いたファイル（`command` の字しか無い。F102 の bash_writes の申告は残る）。web の引き（P213）も同じ `tool_call` の行で、形は `{"name":"WebFetch","rawInput":{"url":…,"prompt":…}}`（段 1a の run `a1b08bc8-cbbf-4f70-9605-a32996153189` のノード `judge__world-judge-loop.world-judge`）。
   - 段 1a のメイングラフの実測（同じ run）: 親の transcript の `tool_call` 147 件と `--events` の `provider_event` 147 件が同じ数（Read 86・WebFetch 5・Agent 2・Write 2 ほか）。修正役の Edit は fix の組の子の run（`6ca53279`）の transcript に `file_path` 付きで在る。下請け（Agent）の中の呼び出しは `subtask` の行 28 件だけで、親の呼びを指す欄の在る `tool_call` は 0 件（上の (1) のとおり）。前で起こしたメイングラフでは起こしの出力に `transcriptPath` が無く、`workflow get <run> --json` の `transcript_path` から取る（#263）。
   - 今の works は (1)(2) を PostToolUse のフック（包みの `record-read.py`・`record-write.py`）で取っていた。書き込みの記録は PR #178 で同じ PostToolUse のフックに戻った（`bin/_lib/record-write.py`。隔離した設定の `settings.json` の `hooks` に置き、Edit・Write・NotebookEdit の後の中身の sha を残す）。読んだ証拠も #120 で同じ形のフックに戻った（`bin/_lib/record-read.py`。`bin/_lib/toolset.py` が同じ `hooks` に置き、Read の後の中身の sha と、Agent・WebFetch・WebSearch の呼びを残す。記録の根は `works-reads/`、作業の場ごとの置き場の決め方と片付けは書き込みの記録と同じ `lib/writelog.py`）。
-- U7 ASF の lifecycle を段 2 で使う時、必須の入力 `scenario`（動かして確かめる筋書き）に何を渡すか。段 1a（#154）に移した。
+- U7 ASF の lifecycle を段 2 で使う時、必須の入力 `scenario`（動かして確かめる筋書き）に何を渡すか。段 1a（#154）に移した。upstream の dev の ASF に lifecycle が無いので、問いごと消えた（持ち主の決め `asf-follows-dev`）。
 - U8（決めた）組ごとに別の作業ツリーを持てる。`workflow:` + `fan_out:` + `isolation: worktree` の子の run は組ごとに作業ツリーを持つ。親の姿は木の sha（fix の入力 `from_tree`）で渡して子が写し（`groups.adopt_tree`）、子の差分は木の sha と `out_dir` のファイルで戻す（fix の `join`）。remote の無い対象では子の作業ツリーが切れないので、fix は 1 つずつ回す（`docs/polyfills.md` の「fan_out の子ごとの作業ツリー」）。PR #94 の実測（2026-10-12）。メイングラフの実測（段 1a、run `cf9a8f44-4cd5-466c-ac70-be503479ae31`。2 つの欠陥を `avg.py` と `bounds.py` に分けた種）: `fix__prep` が組 2 つ・並べる（`par: true`）を返して `groups-par` を通り、子 `2f2b3d31`（g1）は `…/task-cf9a8f44-fix-groups-par-77abda76-child-0`、子 `10f1ab3c`（g2）は `…-child-1` の別の作業ツリーで、どちらも `from_tree` `d70ee096` から写した。`fix__join` は `{"groups":2,"returned":2}` で、親の作業ツリーに 2 つの組の差分が戻った。子の作業ツリーは `children.cleaned` で 2 本とも消えた。組が 1 つの run（`a1b08bc8`）は `groups-seq` で、子 `6ca53279` は親と同じ作業ツリーで走った。remote の無い対象（1 つずつ回す形）は本物のメイングラフでは試していない。
 - P2（決めた）メイングラフの返しのノードは、飛ばされた値を `{from, if_skipped: null}` で `null` に受けて先へ進む。実物（段 1a、run `a1b08bc8-cbbf-4f70-9605-a32996153189`）: 修正前の承認ノード `gate-before-fix` が skipped で、それを受ける `answer-before-fix` が completed で `{"go":true,"answer":null,"stop_reason":""}` を返した。2 例目: 同じ run で `refix-run__*` の 25 ノードが全部 skipped で、`fixed` が `refixed: false`・`rejudge: false` を返して進んだ。
 - 層の E3 の `deps:`（決めた）: 今の `workflows/` に `deps:` を持つ script のノードは無い（`grep -rn "deps:" workflows/` が 0 件）。script のノードは標準ライブラリと `lib/` だけで書き（`workflows/AGENTS.md` の E7 の PEP 723 の頭 `dependencies = []`）、外のパッケージを得る道は通し（run `c0e26106-14a7-46d2-afee-91de07f782c4`）に無い。自分の `pyproject.toml` を持つ対象では未確かめ。
@@ -696,10 +696,10 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 
 ### 段 2 サブグラフごとの issue を並べて回す
 
-- 持ち主の決め `overnight-speed` により、段 1 の歩く骨組みを待たずに回す。未決は、U4 は Archon の文書で決着（`guides/loop-nodes.md`「`include:` is valid in a `loop_group` body」）、U5 は土台の足し P0（issue #47）、U8 は fix の issue の実測で決める。回すのは archon-ship（段 1 の通しが無い間は lifecycle の筋書きの確かめが通らないため。2026-10-11 の決めから導いた事の「段 0〜1 を回す ASF のグラフ」）。
+- 持ち主の決め `overnight-speed` により、段 1 の歩く骨組みを待たずに回す。未決は、U4 は Archon の文書で決着（`guides/loop-nodes.md`「`include:` is valid in a `loop_group` body」）、U5 は土台の足し P0（issue #47）、U8 は fix の issue の実測で決める。回すのは archon-ship（2026-10-11 の決めから導いた事の「段 0〜1 を回す ASF のグラフ」。upstream の dev の ASF に lifecycle が無いので段 2 でも同じ。持ち主の決め `asf-follows-dev`）。
 - 1 つのフォルダに 1 つの issue。中身は「サブグラフ 1 つ（YAML・役の指示書・script）と、それが呼ぶ `lib/` のモジュールを移す。筋書き（fixture）と `lib/` の試験を先に書く」。
-- 回すのは最新の ASF の lifecycle（`archon-lifecycle`。1 run で 1 issue）。並べは issue ごとに run を起こして作る（lifecycle は自分では並べない）。
-- 共有のファイル（`workflows/.shared/`・`workflows/line/`・各階層の `AGENTS.md`・`engineering.md`・`MISSION.md`・`pack.json`）は土台の持ち主だけが変える。lifecycle の入力 `protected_paths` にこれらを渡し、ASF の merge が人の手に残す（ASF の型 A7）。issue の中で共有のファイルの変更が要ると分かったら、止めて土台の持ち主に issue で頼む。
+- 1 run で 1 issue。並べは issue ごとに run を起こして作る（ship は自分では並べない）。
+- 共有のファイル（`workflows/.shared/`・`workflows/line/`・各階層の `AGENTS.md`・`engineering.md`・`MISSION.md`・`pack.json`）は土台の持ち主だけが変える。dev の ASF は merge の工程も守りのパスの入力も持たないので、ship の PR を merge する前に運び役が共有のファイルへの当たりを見る（ASF の型 A7 の (2) は当てていない）。issue の中で共有のファイルの変更が要ると分かったら、止めて土台の持ち主に issue で頼む。
 
 issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 

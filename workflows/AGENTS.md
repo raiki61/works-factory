@@ -62,10 +62,10 @@
 
 ## E16 承認ノードと並べは最新の ASF の形で書く
 
-- 承認ノード: `wait:` の `attention`（見せる文）を `form: select` で書き、選び肢を `options` に並べる。後ろのノードはその答え `{decision, text}` を `{ from: "$<承認ノード>.output", if_skipped: null }` で受ける（ASF の `W/merge-queue/archon-merge-queue.yaml`:8・179-225 の形を、止めた Archon 355f1867 が非推奨にした `approval:` から書き換えた物）。持ち主の決め `asf-way-gates-fanout`。
+- 承認ノード: `wait:` の `attention`（見せる文）を `form: select` で書き、選び肢を `options` に並べる。後ろのノードはその答え `{decision, text}` を `{ from: "$<承認ノード>.output", if_skipped: null }` で受ける（ASF の `d97d00ef` の `W/merge-queue/archon-merge-queue.yaml`:8・179-225 の形を、止めた Archon 355f1867 が非推奨にした `approval:` から書き換えた物）。持ち主の決め `asf-way-gates-fanout`。
 - `approval:` と、グラフの頭の `interactive:` は書かない。止めた Archon は読み込みで非推奨の警告を出し（`packages/workflows/src/loader.ts` の `LEGACY_PAUSE_REPLACEMENTS` と「workflow-level 'interactive:' is deprecated and has no effect」）、`interactive:` は効かない。
 - 筋書き（`fixtures/*.stubs.yaml`）が承認ノードを通る時は、その承認ノードの答えを stub に書く（`<承認ノード>: {decision: approve, text: ''}`）。止めた Archon の dry-run は、答えの stub の無い `wait:` で止まる（`packages/workflows/src/dry-run.ts`）。
-- 並べ: `fan_out:`（`items`・`as`・`max_parallel`・`join`）で書く（ASF の `W/verify-runtime-suite/archon-verify-runtime-suite.yaml`:27-34）。作業ツリーに書く並べ（fix の組）は、組ごとに子の run を起こして作業ツリーを分ける。子の run が自分の作業ツリーを持つかは段 1 で実測する（`docs/design.md` の U8）。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
+- 並べ: `fan_out:`（`items`・`as`・`max_parallel`・`join`）で書く（ASF の `d97d00ef` の `W/verify-runtime-suite/archon-verify-runtime-suite.yaml`:27-34）。作業ツリーに書く並べ（fix の組）は、組ごとに子の run を起こして作業ツリーを分ける。子の run が自分の作業ツリーを持つかは段 1 で実測する（`docs/design.md` の U8）。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
 - どの承認ノードも `options` に答えの語（`lib/answer.py` の `GO_WORDS`・`STOP_WORDS`。`STOP_WORDS` は `REJECT` を含む）を全部持つ（止めた Archon は `options` に無い答えを拒み、run は承認ノードで止まったまま。`workflow respond <run> continue|stop|approve|reject` と `workflow approve`・`reject` は、どれも `{decision, text}` を返して run を続ける。実測 2026-10-16）。ループ（`loop_group`）の本体に承認ノードを置かない（本体が承認ノードで終わるループの再開は会話を引き継がない。今の works の `works/tests/test_yaml_rules.py` 43-45 行）。
 - 機械: `tests/layers/test_gates.py`（全グラフの承認ノードが `wait:` の `attention` で `form: select` を持ち、`options` に `lib/answer.py` の答えの語を全部持つ。`approval:` のノードが無い。ループの本体に承認ノードが無い。どのグラフも頭に `interactive` を書かない。include されるサブグラフはグラフの頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない（一番上のグラフ（メイングラフ・周の鎖）は書いてよい））。筋書きの stub は `workflow test` が照らす（答えの stub の無い承認ノードで止まると赤）。並べの形は人が見る。
 

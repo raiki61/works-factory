@@ -19,7 +19,7 @@ SCHEDULE = ".factory/schedule.json"
 TRIGGER = ".factory/trigger.json"
 PAUSE = ".factory/PAUSE"
 # The shared workflows that carry a merge gate and accept a declared required-check policy.
-MERGING_WORKFLOWS = {"archon-lifecycle", "archon-merge-queue"}
+MERGING_WORKFLOWS: set[str] = set()
 
 
 def windowless() -> bool:
@@ -376,9 +376,11 @@ def trigger_config(root: Path, settings: dict, source: Path, interval: int) -> d
     the durable queue and overlap; this only names what to start."""
     schedule_file = shared_root(root) / SCHEDULE
     schedule_data = json.loads(schedule_file.read_text(encoding="utf-8"))
-    workflow = schedule_data.get("workflow", "archon-lifecycle")
+    workflow = schedule_data.get("workflow")
     inputs = schedule_data.get("inputs")
-    if not isinstance(workflow, str) or not isinstance(inputs, dict):
+    if not isinstance(workflow, str) or not workflow:
+        raise ValueError(f"{SCHEDULE} must name its shared workflow in \"workflow\"")
+    if not isinstance(inputs, dict):
         raise ValueError("schedule.json requires a shared workflow and inputs object")
     if "runtime_host" in schedule_data:
         raise ValueError("A trigger cannot wrap the runtime host. Run it as its own service "

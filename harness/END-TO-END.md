@@ -4,7 +4,7 @@
 
 works-factory は修正の工場で、人は入口の殻 `bin/works-factory` で Archon の命令をそのまま打ち（`workflow run works-factory-line` で依頼を渡して run を始め、`workflow respond` で止まった所で答え、`workflow wait`・`workflow get` で今どこか・報告を見る）、`bin/apply` で封じた差分を当てる。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。工場の工程は、判定・計画・修正・報告などの部品（ブロック。各々が `workflows/<名>/` のフォルダ）を順に並べた線。
 
-ASF（Archon という AI の工程を回す道具の作者が作った、issue から merge までの工程の束）の `archon-lifecycle` は、取り込む前にこの筋書きを実際に動かして確かめる。対象は `tests/e2e/make_target.py make` が試みごとに作る小さな種のリポジトリ（`stats.py` の 2 つの欠陥と、それを名指す依頼）。
+この筋書きは人（か運び役）が本物の役で回して確かめる。止めた Archon の ASF（Archon の作者が作った、issue から PR までの工程の束。upstream の dev の物）は筋書きを動かす工程を持たない。対象は `tests/e2e/make_target.py make` が試みごとに作る小さな種のリポジトリ（`stats.py` の 2 つの欠陥と、それを名指す依頼）。
 
 ## `request-to-report`
 

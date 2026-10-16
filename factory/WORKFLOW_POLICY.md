@@ -20,30 +20,13 @@ adding tests or CI is allowed, but weakening its judge is not. In an existing
 codebase that already provides this foundation, the first ticket is an ordinary
 first story.
 
-## Factory-owned workflow inputs
-
-Factory supplies this state-label mapping to `archon-triage`, `archon-ship`, and
-`archon-lifecycle` unless the caller explicitly supplies `state_labels`, including
-an explicit `{}`:
-
-| State | GitHub label |
-|---|---|
-| `READY` | `archon-ready` |
-| `DESIGN_FIRST` | `archon-design-first` |
-| `NEEDS_CONTRACT_WORK` | `archon-needs-contract` |
-| `BLOCKED` | `archon-blocked` |
-| `NO_ACTION` | `archon-close` |
-
-Automatic lifecycle intake requires the complete mapping and `publish=true` to
-mark selected issues as touched. Publication remains off by default. Hold-comment
-publication separately requires `publish_holds=true` in approve or auto merge mode;
-`merge_mode=preview` is always read-only, and a published hold never authorizes a
-merge.
-
 ## Runtime and review evidence
 
-Runtime and holdout evidence must exercise the delivered candidate and match its
-current source identity. When using the factory runtime host, follow
+The pinned SDLC source (upstream dev) has no runtime, holdout, discovery or
+merge-queue workflow; a pull request it delivers is merged outside them. Where a
+project still gathers runtime or holdout evidence by hand, that evidence must
+exercise the delivered candidate and match its current source identity. When
+using the factory runtime host, follow
 `factory/RUNTIME_HOST.md`: prepare the resource from the delivering checkout at its
 expected revision, require the configured health and build-identity checks, use
 fresh state for each attempt, and preserve the typed result as evidence. Ordinary
