@@ -702,6 +702,20 @@ class TakePlanCase(TmpCase):
         self.assertFalse((self.round / planfile.REPLY_FILE).exists())
         self.assertEqual(self.take(reply({})), {"ok": True, "reason": ""})
 
+    def test_handoff_is_kept_beside_the_plan_not_in_it(self):
+        """返答の頭の欄 handoff は案から外れ、周のフォルダの引き継ぎのメモの控えに字のまま置かれる。案の控え（p2.fix_plan.json・
+        plan-fields.json・reply.json）には入らない"""
+        note = {"read": [{"path": "stats.py", "lines": "1-20", "why": "mean の分母を確かめた"}],
+                "decided": ["分母は len(xs) にする"],
+                "rejected": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
+                "open": ["空の列の扱い"]}
+        self.assertEqual(self.take({"plan": [item(MEAN, CLAMP)], "handoff": note}), {"ok": True, "reason": ""})
+        kept = self.round / "handoff.json"
+        self.assertTrue(kept.is_file(), "引き継ぎのメモの控えが無い")
+        self.assertEqual(json.loads(kept.read_text(encoding="utf-8")), note)
+        for name in (planfile.FIX_PLAN_FILE, planmarks.FIELDS_FILE, planfile.REPLY_FILE):
+            self.assertNotIn("handoff", (self.round / name).read_text(encoding="utf-8"), f"{name} に引き継ぎのメモが混ざった")
+
     def test_save_failure_leaves_no_accepted_plan(self):
         """受けた後に欄の控えを置けなければ、置いた控えを消し、置けなかった控えの名を round.json の why に残す（欄の無い案で進ませない）"""
         with mock.patch.object(planmarks, "save", side_effect=OSError("書けない")):
