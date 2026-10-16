@@ -19,7 +19,8 @@ unattended・design_only。questions の行は関所の項目の種類と文 {ki
   載せず deferred で返す（問いの出どころは直す義務から外れたまま修正へ進む。元 works/.shared/core/gatemarks.py:637-638）。ほかの種類（狭め・事前審査の穴・方針の文書の変化・事前審査の
   諦め・設計の問い・世界の解の外れ・設計だけ）が在れば、その項目の全部が通す推しの尾を持つ時だけ推しで進み（返り pushed。
   gatemarks.pushed_answer。持ち主 2026-10-15「人がいないときは推しの答え。」）、ほかは開かずに止める（needs-human。今の works で
-  無人の殻が関所に stop を返したのと同じ結末）
+  無人の殻が関所に stop を返したのと同じ結末）。事前審査の壁打ちが止まった行（種類 design_only の止まりの行）も、
+  事前審査の役の推しの尾（付く条件は gatemarks.stuck_push）を持てば同じく推しで進む。ここは pushed_answer に渡すだけで変えない
 返り asked は関所に載せた項目の文の並び（開かない時は []。推しで進んだ時は推しで通した項目）。answer-before-fix がそれを答えの asked
 にし、fix・plan-review・eyes が通した行として読む。pushed は推しで進んだ時の答え（answer-before-fix が答えとして記録する）で、ほかは null。
 """
