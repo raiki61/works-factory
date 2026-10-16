@@ -1948,15 +1948,19 @@ class TreeCase(RunCase):
 
     def test_resolved_suggest_not_owed_again_in_tree(self):
         """木の受け付け: 開いた項目 2 に挙げた suggest s を 2 往復目の審査が resolved に入れた往復は通り（resolved の s を『前の往復の
-        答えの要る穴に無い』で拒まない）、持ち越しの写しが返答の faces に残っても、その次の往復の答えも項目 2 の下請けの照らしも
-        s を求めない。新しい block は求める"""
+        block と suggest に無い』で拒まない）、持ち越しの写しが返答の faces に残っても、その次の往復の答えも項目 2 の下請けの照らしも
+        s を求めない。新しい block は求める。3 往復目の項目 2 の答えが s をもう一度 resolved に書いても通る（状態は変わらない
+        繰り返し）。どの往復にも無い key は拒まれ、閉じた項目 1 の suggest は項目 2 の範囲の外で拒まれる。一括の入口（resolved_gaps）は
+        同じ項目 1 の suggest を通す。通す集合は resolvable_keys が持つ"""
         r = self.run_
         r.start(features_on=["review_tree"])
         self.prepped()
         second = face("item2-clamp-lower-branch", UNIT_CLAMP)
         note = face("item2-clamp-docstring-note", UNIT_CLAMP, severity="suggest",
                     why="clamp の docstring が上限ちょうどの値の扱いを言っていないので、直した後に読み手が取り違えうる")
-        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK, second, note])})
+        mean_note = face("item1-mean-docstring-note", UNIT_MEAN, severity="suggest",
+                         why="mean の docstring が空の列の扱いを言っていないので、直した後に読み手が取り違えうる")
+        self.write_answers(1, {1: answer(1, faces=[mean_note]), 2: answer(2, faces=[CLAMP_BLOCK, second, note])})
         self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"], second["key"]]}))["ok"])
         r.out("result")
         two = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
@@ -1976,9 +1980,35 @@ class TreeCase(RunCase):
         r.out("result")
         doc = converge.read(r.view())
         self.assertEqual(doc["outcome"], converge.AGAIN)
-        self.assertEqual(converge.answer_gaps(doc, [{"key": fresh["key"], "handled": "fixed", "how": "境の値の扱いを書き足した"}]), [])
+        fixed = [{"key": fresh["key"], "handled": "fixed", "how": "境の値の扱いを枝を分けずに書き直した"}]
+        self.assertEqual(converge.answer_gaps(doc, fixed), [])
         self.assertNotIn(note["key"], converge.item_blocks(r.view(), 2))
         self.assertIn(fresh["key"], converge.item_blocks(r.view(), 2))
+
+        three = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
+                     approach="clamp の上限の枝で hi を、下限の枝で lo を返し、境の値は枝を分けずに定義どおり返す")
+        r.plan([item(UNIT_MEAN, 1), three], rnd=3, answers=fixed)
+        r.open()
+        r.out("review_prep")
+        owed = [CLAMP_BLOCK["key"], second["key"], fresh["key"]]
+        allowed = {*owed, note["key"]}
+        doc = converge.read(r.view())
+        self.assertEqual(converge.resolvable_keys(doc, 2), allowed)
+        self.assertEqual(converge.resolvable_keys(doc), {*allowed, mean_note["key"]})
+
+        def tried(key):
+            self.write_answers(3, {2: {**answer(2, resolved=[*owed, key]), "hits": []}}, syn=synergy())
+            return r.accept(summary({2: []}))
+
+        unknown = tried("item2-no-such-key")
+        self.assertFalse(unknown["ok"], unknown)
+        self.assertIn("item2-no-such-key", unknown["reason"])
+        other = tried(mean_note["key"])
+        self.assertFalse(other["ok"], other)
+        self.assertIn(f"$.resolved: resolved の {mean_note['key']} は項目 2 の前の往復の block と suggest に無い", other["reason"])
+        self.assertNotIn(mean_note["key"], "\n".join(converge.resolved_gaps(r.view(), [], [*owed, mean_note["key"]])))
+        got = tried(note["key"])
+        self.assertTrue(got["ok"], got)
 
     def second_pass_brief(self, first=None, edit=None, edit_fields=None, notes=()) -> str:
         """2 項目の案（first。既定は setUp の案）の 1 往復目は項目 2 だけ block（notes は項目 2 に付けた suggest の穴で、直しの役が

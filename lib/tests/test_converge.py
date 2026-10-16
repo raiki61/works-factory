@@ -185,7 +185,7 @@ class FieldsCase(BoardCase):
         gaps = converge.resolved_gaps(self.b, [face("b"), face("c")], ["b", "x"])
         self.assertIn("前の block a を resolved に入れるか、同じ key で faces に挙げ直せ", gaps)
         self.assertTrue(any("b" in g and "両方" in g for g in gaps), gaps)
-        self.assertTrue(any("x" in g and "前の往復の答えの要る穴に無い" in g for g in gaps), gaps)
+        self.assertIn("resolved の x は前の往復の block と suggest に無い", gaps)
         self.assertEqual(len(gaps), 3, gaps)
 
     def test_answer_gaps_ask_suggest_of_open_item(self):
@@ -202,7 +202,7 @@ class FieldsCase(BoardCase):
         self.assertIn(converge.LINE_DISPUTED.format(key="s", how=how), converge.lines(self.b), "退けた理由は報告に残る")
 
     def test_resolved_gaps_need_previous_suggest_accounted(self):
-        """前の往復の suggest は、resolved に入れるか同じ key で faces に挙げ直す。resolved に入れても『答えの要る穴に無い』で拒まない"""
+        """前の往復の suggest は、resolved に入れるか同じ key で faces に挙げ直す。resolved に入れても『前の往復の block と suggest に無い』で拒まない"""
         self.record(["a"], extra=[face("s", severity="suggest")])
         gaps = converge.resolved_gaps(self.b, [face("b")], ["a"])
         self.assertEqual(gaps, ["前の suggest s を resolved に入れるか、同じ key で faces に挙げ直せ"])
@@ -418,6 +418,26 @@ class ItemsCase(BoardCase):
         got = self.review([], resolved=["key-a1"])
         self.assertEqual(self.states(got), [converge.CLOSED, converge.CLOSED])
         self.assertEqual(got["outcome"], converge.CLEAN)
+
+    def test_resolved_gaps_accept_restated_resolved_suggest(self):
+        """開いた項目 1 の suggest s を 2 往復目に resolved に入れた控えで、一括の入口は s の言い直しを通し（状態が変わらない繰り返し）、
+        どの往復にも無い key だけを拒む。resolved に書いてよい key の集合は resolvable_keys が持ち、項目 n を渡すと閉じた項目 2 の
+        block b は範囲の外になる。拒否の行は stray_resolved の 1 つの型"""
+        self.review([face("a", units=["u1"]), face("s", severity="suggest", units=["u1"]), face("b", units=["u2"])])
+        self.review([face("c", units=["u1"])], resolved=["a", "s", "b"])
+        doc = converge.read(self.b)
+        self.assertEqual(converge.open_items(self.b), [1])
+        self.assertEqual(converge.resolved_gaps(self.b, [], ["a", "c", "s"]), [])
+        self.assertEqual(converge.resolved_gaps(self.b, [], ["a", "c", "z"]),
+                         ["resolved の z は前の往復の block と suggest に無い"])
+        self.assertEqual(converge.resolvable_keys(doc, 1), {"a", "s", "c"})
+        self.assertEqual(converge.resolvable_keys(doc), {"a", "s", "b", "c"})
+        self.assertEqual(converge.resolvable_keys(doc, 3), set(), "番号の外は空")
+        self.assertEqual(converge.stray_resolved(doc, ["b", "s", "z"], 1),
+                         ["resolved の b は項目 1 の前の往復の block と suggest に無い",
+                          "resolved の z は項目 1 の前の往復の block と suggest に無い"])
+        self.assertEqual(converge.stray_resolved(doc, ["b", "s"]), [])
+        self.assertEqual(converge.resolved_gaps(self.b, [], ["a", "c", "b"]), [], "一括の入口は閉じた項目の block も通す")
 
     def test_persisted_item_is_held_and_others_go_on(self):
         self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
