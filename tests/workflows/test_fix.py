@@ -1372,6 +1372,18 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertFalse((self.place / headdepth.RECORD).exists(), "判定の隣に無ければ古い写しを消す")
 
+    def test_prep_stops_on_a_broken_answer_ties_beside_the_judgment(self):
+        """判定の隣の結び（gatemarks.BESIDE）が JSON として読めなければ prep が落ちる。修正の段の読み手は壊れた結びを無いと読み、
+        人の答えを問いに結ぶ行が黙って消えるため（no-silent-loosen）"""
+        import gatemarks
+        inputs = self.prep_inputs()
+        judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
+        (judgment_dir / gatemarks.BESIDE[0]).write_text('{"rounds": {"1": [', encoding="utf-8")
+        code, _, err = _blk_run("prep", self.repo, self.art, inputs, "fix__prep")
+        self.assertNotEqual(code, 0)
+        self.assertIn(gatemarks.BESIDE[0], err)
+        self.assertFalse((self.place / gatemarks.BESIDE[0]).exists())
+
     def test_prep_takes_the_gate_answers_into_the_duty(self):
         """修正前の関所で答えた問いの単位は直す義務に戻り、答えていない問いの単位は外れる（gatemarks.returned・withheld_by）。
         関所の一言と戻った単位の行は修正役と TDD の役が読む human-notes.md に載る"""

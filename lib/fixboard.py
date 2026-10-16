@@ -529,11 +529,19 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     judgment = json.loads(judgment_file.read_text(encoding="utf-8"))
     write_json(folder / JUDGMENT_FILE, judgment)
     import headdepth
-    # 判定の結びと素材の状態（直す義務の数え gatemarks.duty が読む。無い run は字の一致だけ）と頭の深さの控え。読み手はどれも読めない時を無いと読む
+    # 判定の結びと素材の状態（直す義務の数え gatemarks.duty が読む。無い run は字の一致だけ）と頭の深さの控え。結びと素材の状態は
+    # 読み手が壊れた JSON を無いと読み、結びが黙って消えるので、ここで読めるかを確かめて落とす。頭の深さの控えは壊れていれば標準と読む
     for name in (*gatemarks.BESIDE, headdepth.RECORD):
         (folder / name).unlink(missing_ok=True)
-        if (judgment_file.parent / name).is_file():
-            (folder / name).write_bytes((judgment_file.parent / name).read_bytes())
+        source = judgment_file.parent / name
+        if not source.is_file():
+            continue
+        if name in gatemarks.BESIDE:
+            try:
+                json.loads(source.read_text(encoding="utf-8"))
+            except ValueError as e:
+                raise ValueError(f"判定の隣の {name} が JSON として読めない: {e}") from None
+        (folder / name).write_bytes(source.read_bytes())
 
     plan_file = pointed("plan")
     plan = None
