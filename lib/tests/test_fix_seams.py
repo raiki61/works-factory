@@ -1723,7 +1723,7 @@ class DeltaSeamCase(TempCase):
 
     def test_redepth_raises_on_the_late_signals(self):
         """修正の後に上げる 3 つの信号（頭の深さの引用した where の外の差分・TDD のループでの修正役の拒否・範囲の相談）で、頭が軽量で
-        単位が全部軽量の置き場も省く理由を空にして標準へ上げる。runner の call だけ・テストのファイルだけが外に出た時・関所の条件の
+        単位が全部軽量の置き場も省く理由を空にして標準へ上げる。TDD の輪の状態が読めない時も線の redepth と同じく上げる。runner の call だけ・テストのファイルだけが外に出た時・関所の条件の
         相談だけの時・引用の無い控えは上げずに省く"""
         import conflict
         import consult
@@ -1775,6 +1775,10 @@ class DeltaSeamCase(TempCase):
         raised("TDD のループで修正役が拒まれた", "a")
         tdd({"n": 1, "phase": "route", "unit_key": "", "ok": False})
         raised("TDD のループで修正役が拒まれた", tddloop.ROUTE_REFUSED)
+        (self.place / "tdd-1" / tddloop.STATE).write_text("{壊れた", encoding="utf-8")
+        raised("修正の後の信号の控えが読めない", "tdd-1")
+        fixboard.write_json(self.place / "tdd-1" / tddloop.STATE, {"error": "組めない"})
+        raised("修正の後の信号の控えが読めない", "組めない")
         (self.place / "tdd-1" / tddloop.STATE).unlink()
         kept()
         # (3) 範囲の相談

@@ -528,14 +528,12 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
         raise ValueError("入力 judgment が無い")
     judgment = json.loads(judgment_file.read_text(encoding="utf-8"))
     write_json(folder / JUDGMENT_FILE, judgment)
-    for name in gatemarks.BESIDE:   # 判定の結びと素材の状態（直す義務の数え gatemarks.duty が読む。無い run は字の一致だけ）
+    import headdepth
+    # 判定の結びと素材の状態（直す義務の数え gatemarks.duty が読む。無い run は字の一致だけ）と頭の深さの控え。読み手はどれも読めない時を無いと読む
+    for name in (*gatemarks.BESIDE, headdepth.RECORD):
         (folder / name).unlink(missing_ok=True)
         if (judgment_file.parent / name).is_file():
-            write_json(folder / name, json.loads((judgment_file.parent / name).read_text(encoding="utf-8")))
-    import headdepth
-    (folder / headdepth.RECORD).unlink(missing_ok=True)
-    if (judgment_file.parent / headdepth.RECORD).is_file():
-        (folder / headdepth.RECORD).write_bytes((judgment_file.parent / headdepth.RECORD).read_bytes())
+            (folder / name).write_bytes((judgment_file.parent / name).read_bytes())
 
     plan_file = pointed("plan")
     plan = None
@@ -1208,15 +1206,15 @@ def depth_signals(place) -> tuple:
     受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末 given_up）。run: 答えていない
     修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が空でない 2 回目の修正）・
     修正役が判定に異議を出した（組の子の結果と裁定の後の返答の objection）・TDD のループで修正役が拒まれた（置き場の tdd-<k>/
-    state.json の calls。tddloop.refused_units）・修正役が範囲の相談をした（受け付けの行 accept_trace_rows。consult.consulted_units）。
-    後ろの 2 つの理由の文は depth.late_signals が持つ（頭の深さの引用した where の外の差分は run の広さと同じく redepth が数える）。
-    控えが読めなければ上げる側へ倒す。
+    state.json の calls。線の redepth と同じ読みの fixbeside.tdd_refused）・修正役が範囲の相談をした（受け付けの行
+    accept_trace_rows。consult.consulted_units）。後ろの 2 つの理由の文は depth.late_signals が持つ（頭の深さの引用した where の
+    外の差分は run の広さと同じく redepth が数える）。控えが読めなければ上げる側へ倒す（TDD の輪の状態は fixbeside.LATE_UNREAD）。
     元 works/darkfactory/lib/depth.py:268 の signals と、線の h-redepth が渡した replanned・rejudged"""
     import conflict
     import consult
     import depth
+    import fixbeside
     import gatemarks
-    import tddloop
     place = pathlib.Path(place)
     units, run = {}, []
     try:
@@ -1242,11 +1240,10 @@ def depth_signals(place) -> tuple:
     results = [r for r in results if isinstance(r, dict)]
     if objection(results + [read_json(place / RULED_REPLY_FILE)]):
         run.append("修正役が判定に異議を出した")
-    refused = []
-    for state in tddloop.states(place):
-        doc = read_json(state, {})
-        refused += tddloop.refused_units(doc.get("calls") if isinstance(doc, dict) else None)
+    unread = []
+    refused = fixbeside.tdd_refused(place, unread)
     run += depth.late_signals(refused=refused, consulted=consult.consulted_units(accept_trace_rows(place, results)))
+    run += [fixbeside.LATE_UNREAD.format(why=why) for why in unread]
     return units, run
 
 
