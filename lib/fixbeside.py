@@ -43,6 +43,7 @@ if str(_HERE) not in sys.path:
 
 import fixboard  # noqa: E402
 import impact  # noqa: E402  （受け付けの trace の op の住処）
+import listcut  # noqa: E402
 import oneline  # noqa: E402
 import querytest  # noqa: E402
 
@@ -375,7 +376,9 @@ def lens_lines(got: dict) -> list:
 
 def always_rows(got: dict) -> list:
     """clean が消したファイル・レンズ・仕組みの異常の行（0 件でも、走らせていない・読めないを 0 件と分ける。元 report.always_rows の
-    頭の 3 つ。残りの行は呼び手が持つ）。字下げの行は内訳"""
+    頭の 3 つ。残りの行は呼び手が持つ）。字下げの行は内訳で、先頭 listcut.SHOWN 本と（それを超える時は）上位のフォルダごとの本数。
+    全件は fix-removed.json に在る（残りの行がその置き場を指す）"""
+    import leftovers
     rows = []
     for folder, gone in got["removed"]:
         where = f"（{folder.name}）"
@@ -385,7 +388,13 @@ def always_rows(got: dict) -> list:
             rows.append(f"clean が消したファイル{where}: 走らせていない（fix-removed.json が無い。clean の前に止まった）")
         else:
             rows.append(f"clean が消したファイル{where}: {gone['count']} 本")
-            rows += [f"  - {n}" for n in gone["paths"]]
+            # 全件の置き場は scope ごとの fix-removed.json（鍵 "" は根。置き場の数は scope の数で決まり、消した本数に依らない）
+            scopes = gone["by_scope"] or {"": []}
+            rows += listcut.lines(gone["paths"], where="、".join(str(folder / s / leftovers.REMOVED_FILE) for s in scopes))
+            if len(gone["paths"]) > listcut.SHOWN:
+                # パスの頭の 1 段で数える。根に直に在るファイル（区切りの / が無い名）はファイル名ごとに数えず 1 つの区分にまとめる
+                tops = collections.Counter(n.split("/", 1)[0] if "/" in n else "（根）" for n in gone["paths"])
+                rows += ["  - 上位のフォルダごとの本数:", *listcut.lines((f"{k}: {v} 本" for k, v in tops.most_common()), prefix="    - ")]
     if not got["removed"]:
         rows.append("clean が消したファイル: 走らせていない（修正の段が無い run）")
     import lens
