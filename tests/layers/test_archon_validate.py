@@ -6,6 +6,7 @@ Archon の源か bun が無ければ見送る。
 """
 import json
 import pathlib
+import re
 import unittest
 
 import yaml
@@ -106,10 +107,11 @@ class ArchonValidateTest(unittest.TestCase):
             elsewhere.parent.mkdir(parents=True)
             elsewhere.write_text("---\nname: security-review\ndescription: seed\n---\n", encoding="utf-8")
             found = validate(tree)
-        self.assertEqual(found, {"works-factory-skills": [
-            "error: Claude skill 'security-review' not found in an enabled .claude/skills/ directory, though it is installed elsewhere",
-            "warning: Claude skill 'unlisted-skill' not found on disk — expected for built-in and plugin-qualified skills, "
-            "which Claude resolves itself"]})
+        roots = re.compile(r"^(warning: Skill '[^']+' not found in ).+$")   # 探した置き場は場の HOME で変わる
+        self.assertEqual({name: [roots.sub(r"\1<置き場>", line) for line in lines] for name, lines in found.items()},
+                         {"works-factory-skills": [
+            "error: Claude (Anthropic) skill 'security-review' not found in an enabled skill directory, though it is installed elsewhere",
+            "warning: Skill 'unlisted-skill' not found in <置き場>"]})
 
 
 if __name__ == "__main__":

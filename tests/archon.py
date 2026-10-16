@@ -35,7 +35,7 @@ PACK = pack.load(ROOT)
 BUILTIN_SKILLS = frozenset({"code-review", "simplify", "security-review"})
 BORROWED_SKILLS = frozenset(json.loads((ROOT / "bin" / "_lib" / "borrow" / "borrow.json").read_text(encoding="utf-8"))
                             ["superpowers"]["skills"])
-BUILTIN_SKILL_WARNING = re.compile(r"Claude skill '([^']+)' not found on disk — expected for built-in")
+BUILTIN_SKILL_WARNING = re.compile(r"Skill '([^']+)' not found in ")
 WORKFLOWS = ROOT / PACK["ours"]["folder"]
 SHARED = ".shared"
 
