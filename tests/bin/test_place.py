@@ -250,6 +250,32 @@ class CacheDirTest(unittest.TestCase):
                 self.assertEqual(place.cache_dir(env), pathlib.Path("/h/.cache/works-factory"))
 
 
+class DefaultProviderTest(unittest.TestCase):
+    """Archon は既定の provider の無い run を拒むので、工場の Archon の家の config.yaml に defaultAssistant を書く"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.home = pathlib.Path(tmp.name) / "archon-home"
+        self.config = self.home / "config.yaml"
+
+    def test_new_home_gets_claude(self):
+        place.default_provider(self.home)
+        self.assertEqual(self.config.read_text(encoding="utf-8"), "defaultAssistant: claude\n")
+
+    def test_archon_template_keeps_its_notes_and_gains_the_line(self):
+        template = "# Default AI assistant\n# defaultAssistant: claude\n# botName: Archon"
+        write(self.config, template.encode())
+        place.default_provider(self.home)
+        place.default_provider(self.home)
+        self.assertEqual(self.config.read_text(encoding="utf-8"), f"{template}\ndefaultAssistant: claude\n")
+
+    def test_chosen_provider_is_kept(self):
+        write(self.config, b"botName: x\ndefaultAssistant: codex\n")
+        place.default_provider(self.home)
+        self.assertEqual(self.config.read_bytes(), b"botName: x\ndefaultAssistant: codex\n")
+
+
 class WorkflowRunTest(unittest.TestCase):
     def test_source_flags_come_before_caller_arguments(self):
         source, shim, cwd = pathlib.Path("/src"), pathlib.Path("/shim"), pathlib.Path("/target")

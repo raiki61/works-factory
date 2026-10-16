@@ -354,6 +354,7 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env["ARCHON_TELEMETRY_DISABLED"], "1")
         self.assertEqual(env["DO_NOT_TRACK"], "1")
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
+        self.assertIn("defaultAssistant: claude", (pathlib.Path(env["ARCHON_HOME"]) / "config.yaml").read_text(encoding="utf-8"))
 
     def test_users_home_reaches_target_commands_only_when_asked(self):
         """#492: OPT_IN=1 の起動だけが、対象のコマンドに戻す利用者の HOME を控え、明示したことと AI の試験のコードが資格に届きうることを起動の 1 行で言う。

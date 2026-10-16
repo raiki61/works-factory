@@ -8,9 +8,10 @@
   pack の形にするのは、Archon が名前の script を pack のグラフの時だけグラフのフォルダの scripts/ から探し、
   pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
-Archon の家（$ARCHON_HOME/workflows など）には何も置かない。
+Archon の家（$ARCHON_HOME）には、既定の provider を書いた config.yaml のほかは何も置かない（$ARCHON_HOME/workflows など）。
 """
 import hashlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -21,6 +22,11 @@ ENTRY = "packages/cli/src/cli.ts"
 WORKFLOW_FOLDER = ".archon/workflows"
 # 入口の殻が run に渡す、起こした源のパス。run の中のノードはこれで殻を入れ子にせず同じ Archon を起こす（bin/_lib/childsweep.py）
 SOURCE_ENV = "WORKS_FACTORY_ARCHON_SOURCE"
+# Archon は既定の provider の無い run を始めで拒む（packages/provider-contract/src/registration.ts の NO_DEFAULT_PROVIDER_MESSAGE）。
+# 工場の役は claude で書いてあり、Archon の文書の口は家の config.yaml の defaultAssistant（docs-web の reference/configuration.md）。
+# グラフごとの provider: では、手を加えない ASF のグラフに届かない
+DEFAULT_PROVIDER = "claude"
+PROVIDER_KEY = re.compile(r"^defaultAssistant\s*:", re.MULTILINE)
 
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
@@ -34,6 +40,18 @@ def cache_dir(env: Mapping[str, str]) -> Path:
 def archon_folder(cache: Path, commit: str) -> Path:
     """cache の中で Archon の源 commit を取り置く所 <cache>/archon/<commit>"""
     return cache / "archon" / commit
+
+
+def default_provider(archon_home: Path) -> None:
+    """archon_home/config.yaml に defaultAssistant が無ければ DEFAULT_PROVIDER を足す。在る値（利用者が選んだ物）は変えない。
+    Archon は config.yaml の無い家にだけ注記だけの雛形を書くので、先に書けば雛形は置かれない"""
+    config = archon_home / "config.yaml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    text = config.read_text(encoding="utf-8") if config.exists() else ""
+    if PROVIDER_KEY.search(text):
+        return
+    gap = "" if not text or text.endswith("\n") else "\n"
+    config.write_text(f"{text}{gap}defaultAssistant: {DEFAULT_PROVIDER}\n", encoding="utf-8")
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:
