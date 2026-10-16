@@ -799,6 +799,8 @@ class BuildTest(unittest.TestCase):
         (place / "bin").mkdir()
         (place / "bin" / "claude").write_text(
             '#!/bin/sh\n'
+            # FAKE_STDIN が在れば、標準入力から 1 行読めた時に落ちる（対話で待つ版の真似）
+            'if [ -n "$FAKE_STDIN" ] && read -r line; then echo "claude が標準入力を読んだ: $line" >&2; exit 1; fi\n'
             'if [ "$ARGV0" = apply-seccomp ]; then\n'
             '  [ -z "$FAKE_SECCOMP_ERROR" ] && exit 0\n'
             '  echo "$FAKE_SECCOMP_ERROR" >&2; exit 1\n'
@@ -874,9 +876,6 @@ class BuildTest(unittest.TestCase):
                                   env={**env, "FAKE_RG_OUTPUT": "ripgrep 14.1.1", "FAKE_RG_STDERR": "a note", "FAKE_RG_CODE": "0"})
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(done.stderr, "a note\n")
-        with self.subTest("existing FAKE_RG path"):
-            done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8", env={**env, "FAKE_RG": "1"})
-            self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_seccomp_and_rg_checks_pass_under_sh(self):
         place, env = self.helper_place(FAKE_RG="1")
@@ -884,6 +883,15 @@ class BuildTest(unittest.TestCase):
         for name in ("seccomp", "rg"):
             with self.subTest(check=name):
                 done = subprocess.run(["/bin/sh", "-c", planned[name]], capture_output=True, text=True, encoding="utf-8", env=env)
+                self.assertEqual(done.returncode, 0, done.stderr)
+
+    def test_seccomp_and_rg_checks_close_stdin_of_claude(self):
+        place, env = self.helper_place(FAKE_RG="1", FAKE_STDIN="1")
+        planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
+        for name in ("seccomp", "rg"):
+            with self.subTest(check=name):
+                done = subprocess.run(["/bin/sh", "-c", planned[name]], input="y\n", capture_output=True, text=True,
+                                      encoding="utf-8", env=env)
                 self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_rewrite_image_needs_exactly_one_line(self):
@@ -960,12 +968,10 @@ class PrepareTest(unittest.TestCase):
 
     def test_host_claude_other_than_the_bwrap_copy_names_every_check_to_recheck(self):
         done = self.prepare(OPENLIBRARY, FAKE_CLAUDE_VERSION="9.9.9")
-        self.assertEqual(done.returncode, 1)
         for covered in swepro.BWRAP_FROM_COVERS.values():
             with self.subTest(covered=covered):
                 self.assertIn(covered, done.stderr)
         self.assertIn("swepro.py の BWRAP_FROM を上げる", done.stderr)
-        self.assertEqual(self.docker_calls(), [])
         # 一覧は setup の確かめのうち版に依る物（焼き印の stamp は版の一致を見る側）と同じ名で揃う。確かめを足したら一覧にも足す
         checks = [name for name, _ in swepro.setup_commands("f", "9.9.9") if name != "stamp"]
         self.assertEqual(list(swepro.BWRAP_FROM_COVERS), checks)

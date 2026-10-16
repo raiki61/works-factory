@@ -37,7 +37,7 @@ docker の型: 課題のイメージは linux/amd64 だけなので、prepare �
 amd64 を強いると立たない）。docker の CLI に compose の差し込み（docker compose）が要る。
 
 台に要る物（setup の確かめ（setup_commands）が通る台。試行の段で Claude Code の sandbox が課題のコンテナの中で立つため。
-立たなければ止めた層を見分ける道を 1 行で出す）:
+立たなければ止めた層を見分ける道を 1 行で出す。台の要件の決めの正本は持ち主の決め public-bench-at-major で、ここはその当て方）:
 - 課題のコンテナが動く Linux の kernel が x86_64 そのものであること。x86_64 の機械の上の docker でも、kernel ごと x86_64 を
   真似る VM の中の docker でもよい。命令の翻訳で amd64 のプロセスを arm64 の kernel の上に動かす台（プロセス単位の翻訳・binfmt の
   利用者空間の真似）は通らない（kernel が x86_64 でないので seccomp の登録が拒まれ、setup の seccomp の確かめが名指して止める）。
@@ -129,8 +129,7 @@ GOST_CONFIG_ENV = "WORKS_BENCH_GOST_CONFIG"
 # COPIED_FROM）。WorksBenchDocker がプロキシの有無に依らず使う
 SANDBOX = HERE / "swepro_sandbox"
 SECCOMP_ENV = "WORKS_BENCH_SECCOMP"
-# setup の確かめ（BWRAP_FROM_COVERS）が依る Claude Code の版。ホストの版が違えば prepare が止める。
-# setup に版に依る確かめを足したら BWRAP_FROM_COVERS にも足す
+# setup の確かめ（BWRAP_FROM_COVERS）が依る Claude Code の版。ホストの版が違えば prepare が止める
 BWRAP_FROM = "2.1.301"
 BWRAP_FROM_COVERS = {"sandbox": "bwrap の引数", "seccomp": "apply-seccomp の起こし方", "rg": "同梱の rg を argv0 を rg にした起こし方"}
 USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
@@ -308,7 +307,8 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
     # sandbox と seccomp の確かめが同じ bwrap の中で走る引数。Claude Code BWRAP_FROM の bwrap の引数のうち、/proc と名前空間に
     # 関わる部分の写し（伏せた /proc の上では proc の mount だけが落ちる）
     bwrap = "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc"
-    rg = shlex.quote(f"(exec -a rg {place}/bin/claude --no-config --version)")
+    # claude を起こす確かめは標準入力を閉じる（版が変わって claude が対話で待っても、期限の無い setup が終わる）
+    rg = shlex.quote(f"(exec -a rg {place}/bin/claude --no-config --version </dev/null)")
     return [
         # 測る物と来歴の factory_commit、コンテナとホストの Claude Code の版を一致させる
         ("stamp", f"test \"$(cat {place}/{STAMP} 2>/dev/null)\" = {shlex.quote(stamp(factory_commit, claude_version))} "
@@ -321,13 +321,12 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
         # ARGV0=apply-seccomp <claude-binary> /bin/true で、後ろの /bin/true は filter を当てた後に走る命令。prctl(PR_SET_SECCOMP) の
         # Invalid argument の文は #86928 に無く、持ち主の issue #592 のコメント（2.1.300）だけが出どころ。bwrap の中で起こすので、
         # 上の sandbox の確かめが通った後の落ちは helper の層に絞れる
-        ("seccomp", f"{bwrap} env ARGV0=apply-seccomp {place}/bin/claude /bin/true "
+        ("seccomp", f"{bwrap} env ARGV0=apply-seccomp {place}/bin/claude /bin/true </dev/null "
                     f"|| {{ echo {shlex.quote(SECCOMP_REFUSED)} >&2; exit 1; }}"),
         # 役の Grep・Glob は同梱の rg を argv0 を rg にして起こす（issue #592 のコメントの (exec -a rg <claude> --no-config --version)）。
         # exec -a は bash の組み込みで POSIX sh に無いので、setup の exec がどの殻で渡しても効くよう bash -c で包む
         # 照らすのは標準出力だけで、標準エラーはそのまま流す（bash や claude の欠け・権限の落ちの文は RG_REFUSED の前に残る）。
-        # 起こしが 0 で終わり、出力の頭が「ripgrep 」と数字（ripgrep の --version の 1 行目）で始まる時だけ通す。落ちた時は
-        # 取った標準出力を先に標準エラーへ出す
+        # ripgrep の --version は 1 行目を「ripgrep <版>」で出す
         ("rg", f"out=$(bash -c {rg}) && case \"$out\" in \"ripgrep \"[0-9]*) ;; *) false;; esac "
                f"|| {{ printf '%s\\n' \"$out\" >&2; echo {shlex.quote(RG_REFUSED)} >&2; exit 1; }}"),
     ]
