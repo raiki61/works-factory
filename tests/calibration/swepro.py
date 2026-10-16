@@ -32,15 +32,16 @@ bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json �
 例外を数え、測れた試行（予測が在り例外の無い試行）が 1 つも無い（全部が例外・予測も例外も無い・試行が 1 つも無い）なら
 落ちを名指して 0 でない値で終わる。
 
-Apple silicon の上の docker: 課題のイメージは linux/amd64 だけなので、prepare は docker pull と docker build に
+docker の型: 課題のイメージは linux/amd64 だけなので、prepare は daemon の素の型によらず docker pull と docker build に
 --platform linux/amd64 を付ける。DOCKER_DEFAULT_PLATFORM は付けない（Harbor の egress の付き添いは daemon の素の型で build され、
 amd64 を強いると立たない）。docker の CLI に compose の差し込み（docker compose）が要る。
 
 台に要る物（setup の確かめ（setup_commands）が通る台。試行の段で Claude Code の sandbox が課題のコンテナの中で立つため。
 立たなければ止めた層を見分ける道を 1 行で出す）:
-- amd64 のネイティブの Linux の docker で回す。amd64 の真似の VM では、Rosetta なら seccomp の層で、qemu の利用者モードなら
-  実行ファイルが Segmentation fault で落ちる（seccomp・rg の層は setup が名指して止める）。
-- docker を回す kernel（ネイティブの Linux ならホスト、VM ならその VM）の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の
+- 課題のコンテナが動く Linux の kernel が x86_64 そのものであること。x86_64 の機械の上の docker でも、kernel ごと x86_64 を
+  真似る VM の中の docker でもよい。命令の翻訳で amd64 のプロセスを arm64 の kernel の上に動かす台（プロセス単位の翻訳・binfmt の
+  利用者空間の真似）は通らない（kernel が x86_64 でないので seccomp の登録が拒まれ、setup の seccomp の確かめが名指して止める）。
+- docker を回す kernel（x86_64 の機械ならそのホスト、VM ならその VM）の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の
   kernel.apparmor_restrict_unprivileged_userns=1 を
   0 に。起こし直しても効くよう sysctl.d か VM の起動の設定に入れる）。コンテナの側からは外せない。
 - 環境 WorksBenchDocker が課題の主のコンテナにだけ、docker の既定の seccomp に名前空間を作る呼び出しと mount を足した写し
@@ -274,27 +275,28 @@ def dockerfile(base_image: str, claude_version: str, factory_commit: str, place:
     return "\n".join(lines) + "\n"
 
 
-# SANDBOX_REFUSED: bwrap を止める層は 4 つ。bwrap の文と docker を回す kernel の制限の値で見分ける
+# bwrap を止める層は 4 つ。bwrap の文と docker を回す kernel の制限の値で見分ける
 SANDBOX_REFUSED = (
-    "Claude Code の sandbox（bwrap）がコンテナで立たない。上の bwrap の文で止めた層を見分ける: docker を回す kernel の制限が 1 なら"
-    " kernel（docker を回す kernel（ネイティブの Linux ならホスト、VM ならその VM）の側で sysctl"
-    " kernel.apparmor_restrict_unprivileged_userns=0 にし、起こし直しても効く設定に入れる）。0 か無いなら、No permissions to"
-    " create new namespace は seccomp、Can't mount proc は docker が伏せた /proc"
+    "Claude Code の sandbox（bwrap）がコンテナで立たない。上の bwrap の文で止めた層を見分ける: docker を回す kernel（x86_64 の"
+    "機械ならそのホスト、VM ならその VM）の制限が 1 なら kernel（その側で sysctl kernel.apparmor_restrict_unprivileged_userns=0"
+    " にし、起こし直しても効く設定に入れる）。0 か無いなら、No permissions to create new namespace は seccomp、Can't mount proc は docker が伏せた /proc"
     "（systempaths=unconfined で外す）、Failed to make / slave など他の mount の落ちは apparmor（どれも harbor run に"
     f" -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。docker を回す kernel の制限: ")
 
 # 役の Bash が踏む apply-seccomp の登録の落ち。上の helper の文の層を見分ける。壊れの機構はここに寄せる
 SECCOMP_REFUSED = (
     "Claude Code の sandbox の seccomp の helper（apply-seccomp）が立たない。上の helper の文で層を見分ける:"
-    " prctl(PR_SET_SECCOMP) の Invalid argument は amd64 の真似の上の seccomp の登録の拒みで、seccomp の写しを緩めても docker の"
-    " seccomp を外しても直らない（台を amd64 のネイティブの Linux の docker に移す）。unshare(CLONE_NEWUSER) の Invalid argument は"
+    " prctl(PR_SET_SECCOMP) の Invalid argument は kernel が x86_64 でない台（命令の翻訳で amd64 を動かす台）の seccomp の登録の"
+    "拒みで、seccomp の写しを緩めても docker の seccomp を外しても直らない（x86_64 の機械の上の docker か、kernel ごと x86_64 を"
+    "真似る VM の中の docker で回す）。unshare(CLONE_NEWUSER) の Invalid argument は"
     " helper 自身の糸の競り合いで台の問題でない（setup を打ち直し、続くなら Claude Code の版の問題として報告する）")
 
 # 役の Grep・Glob が踏む同梱の rg の argv0 の落ち。壊れの機構はここに寄せる
 RG_REFUSED = (
     "同梱の rg を argv0 が rg の形で起こせず、Claude Code の Grep・Glob が 0 件を返す。上の行が rg の起こしの出力で、bash や claude の"
-    " 欠け・権限の落ちならその文が原因。出力が Claude Code 自身の版の行なら、amd64 の真似の binfmt の登録に P フラグが無く、argv0 が"
-    " 実行ファイルのパスに替わっている（docker を回す kernel（VM ならその VM）で binfmt を P フラグ付き（POCF）で登録し直す）")
+    "欠け・権限の落ちならその文が原因。出力が Claude Code 自身の版の行なら、argv0 が実行ファイルのパスに替わっている。命令の翻訳で"
+    " amd64 を動かす台の binfmt の登録に P フラグが無いと起きる（x86_64 の機械の上の docker か、kernel ごと x86_64 を真似る VM の"
+    "中の docker で回す）")
 
 
 def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:

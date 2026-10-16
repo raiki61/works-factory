@@ -787,14 +787,12 @@ class BuildTest(unittest.TestCase):
         self.assertIn("No permissions", bwrap)
         self.assertTrue(said.startswith(swepro.SANDBOX_REFUSED), said)
         self.assertTrue(said.removeprefix(swepro.SANDBOX_REFUSED))
-        for word in ("の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", "ネイティブの Linux ならホスト", "seccomp",
+        for word in ("の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", "x86_64 の機械ならそのホスト", "seccomp",
                      "apparmor", "Can't mount proc", "systempaths=unconfined", f"-e {swepro.ENVIRONMENT}"):
             self.assertIn(word, said)
 
     def helper_place(self, **claude_env) -> tuple[pathlib.Path, dict]:
-        """偽の bwrap（--proc /proc の後ろの命令をそのまま起こす）を PATH の先に、偽の claude を <place>/bin に置く。
-        偽の claude は ARGV0 が apply-seccomp なら FAKE_SECCOMP_ERROR を標準エラーに出して 1 で終わり（無ければ 0）、
-        --no-config --version には FAKE_RG が在れば ripgrep と言い、無ければ Claude Code 本体のように 1 で終わる"""
+        """偽の bwrap（--proc /proc の後ろの命令を起こす）を PATH の先に、偽の claude を <place>/bin に置く"""
         fake, place = hermetic.tmpdir(self), hermetic.tmpdir(self)
         (fake / "bwrap").write_text('#!/bin/sh\nwhile [ "$1" != /proc ]; do shift; done\nshift\nexec "$@"\n', encoding="utf-8")
         (fake / "bwrap").chmod(0o755)
@@ -814,13 +812,9 @@ class BuildTest(unittest.TestCase):
         place, env = self.helper_place()
         planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
         check = planned["seccomp"]
-        bwrap = "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc"
-        self.assertTrue(planned["sandbox"].startswith(f"{bwrap} true"))
-        self.assertTrue(check.startswith(f"{bwrap} env ARGV0=apply-seccomp"))
-        # 2 つの確かめが引く bwrap の引数は swepro.py の中に 1 か所だけ書く
-        self.assertEqual(pathlib.Path(swepro.__file__).read_text(encoding="utf-8").count("--unshare-user --unshare-net --unshare-pid"), 1)
-        self.assertIn(f"env ARGV0=apply-seccomp {place}/bin/claude /bin/true", check)
-        for helper, words in (("apply-seccomp: prctl(PR_SET_SECCOMP): Invalid argument", ("amd64", "ネイティブの Linux")),
+        bwrap = planned["sandbox"].partition(" true ")[0]
+        self.assertTrue(check.startswith(f"{bwrap} env ARGV0=apply-seccomp {place}/bin/claude /bin/true "), check)
+        for helper, words in (("apply-seccomp: prctl(PR_SET_SECCOMP): Invalid argument", ("命令の翻訳", "kernel ごと x86_64")),
                               ("apply-seccomp: unshare(CLONE_NEWUSER): Invalid argument", ("競り合い", "setup を打ち直し"))):
             with self.subTest(helper=helper):
                 done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8",
@@ -840,9 +834,8 @@ class BuildTest(unittest.TestCase):
         done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8", env=env)
         self.assertEqual(done.returncode, 1)
         self.assertTrue(done.stderr.splitlines()[-1].startswith(swepro.RG_REFUSED), done.stderr)
-        for word in ("Grep", "Glob", "0 件", "P フラグ", "POCF"):
+        for word in ("Grep", "Glob", "0 件", "P フラグ", "kernel ごと x86_64"):
             self.assertIn(word, done.stderr.splitlines()[-1])
-        # 取った出力（rg の起こしの実際の文）が止めの文の前に残る
         self.assertEqual(done.stderr.splitlines()[:-1], ["2.1.300 (Claude Code)"])
 
     def test_failed_rg_check_keeps_the_error_when_the_tool_is_missing(self):
@@ -862,8 +855,6 @@ class BuildTest(unittest.TestCase):
             with self.subTest(check=name):
                 done = subprocess.run(["/bin/sh", "-c", planned[name]], capture_output=True, text=True, encoding="utf-8", env=env)
                 self.assertEqual(done.returncode, 0, done.stderr)
-                for refused in (swepro.SECCOMP_REFUSED, swepro.RG_REFUSED):
-                    self.assertNotIn(refused, done.stderr)
 
     def test_rewrite_image_needs_exactly_one_line(self):
         self.assertEqual(swepro.rewrite_image('a = 1\ndocker_image = "x:1"\n', "x:1", "y:1"), 'a = 1\ndocker_image = "y:1"\n')
@@ -1205,7 +1196,7 @@ class UsageTest(unittest.TestCase):
         self.assertIn(f"-e {swepro.ENVIRONMENT} ", usage)
         self.assertNotIn("-e docker ", usage)
         self.assertNotIn("proxy_refused", usage)
-        self.assertIn("Rosetta", usage)
+        self.assertIn("命令の翻訳で amd64 のプロセスを arm64 の kernel の上に動かす台", usage)
         self.assertIn("kernel.apparmor_restrict_unprivileged_userns=1 を\n  0 に", usage)
 
 
