@@ -55,8 +55,8 @@
   - `prompt:`・`command:` の `idle_timeout`
   - `loop:` の `idle_timeout`（1 周ごと）と `timeout`（`until_bash` の確かめ。無いと 120000 ms で打ち切る）
   - `loop_group:` の `timeout`（`until_bash` の確かめ）
-  - `approval:` の `idle_timeout`（`on_reject` の直しの役が受け継ぐ。関所は `approval:` で書かない（E16））
-  - `wait:` の中の `deadline_ms`（`event` を待つ時）。`attention` の待ち（関所）は期限を持たない（Archon の文書 `guides/authoring-workflows.md` の「An attention wait has no deadline」）
+  - `approval:` の `idle_timeout`（`on_reject` の直しの役が受け継ぐ。承認ノードは `approval:` で書かない（E16））
+  - `wait:` の中の `deadline_ms`（`event` を待つ時）。`attention` の待ち（承認ノード）は期限を持たない（Archon の文書 `guides/authoring-workflows.md` の「An attention wait has no deadline」）
   - `cancel:`・`include:`・`workflow:` は期限を持たない（`include:`・`workflow:` の先のノードは自分の鍵を持つ）
 - 機械: `tests/layers/test_no_timeouts.py`（`workflows/` の YAML のノードが全部上の種類のどれかで（知らない種類は赤）、期限を持つノードに上の鍵が在り、`timeout`・`idle_timeout`・`deadline_ms` が全部 `1728000000`）。
 
