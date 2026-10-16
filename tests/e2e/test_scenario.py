@@ -24,8 +24,9 @@ class ScenarioCase(unittest.TestCase):
         self.assertEqual(heads, ids)
 
     def test_plan_and_scenario_drive_the_line_with_the_same_commands(self):
-        """線は interactive: true なので、止めた Archon は切り離した新しい起こし（workflow run --detach）を拒む（#187）。関所の答えは
-        続きなので切り離せ、切り離さないと答えた後の run の続きが道具の 1 回の呼び出しの中で走る"""
+        """d97d00ef の Archon は interactive の線の切り離した新しい起こし（workflow run --detach）を拒んだ（#187）。355f1867 で
+        切り離して起こす形はまだ実測していないので、線は前で起こす。関所の答えは続きなので切り離せ、切り離さないと答えた後の
+        run の続きが道具の 1 回の呼び出しの中で走る"""
         plan = commands(PLAN.read_text(encoding="utf-8"))
         scenario = commands(SCENARIO.read_text(encoding="utf-8"))
         self.assertEqual(sorted(plan), sorted(SHARED_VERBS), plan)
