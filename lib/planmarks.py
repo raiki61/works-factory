@@ -5,7 +5,7 @@
 要求の正本になる。写しの graph の型は欄を持てない（写しはバイト一致で縛られる）ので、足す・外す・置く・読むの手順は住処
 marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡す前に外して盤面の plan-fields.json に置く）に任せる。
 - gaps(reply, repo, exists=): 欠けと誤りの行（files の行の誤り——symbols の name がパスの形か行の path の拡張子で終わる・同じ
-  (path, name, change) の重なり・消す側の訳 why の欠け——も。修正案の受け付けが拒む。拒否の理由は書いた役に戻り、その役が直せる）。exists は
+  (path, name, change) の重なり・considered の path の誤り・消す側の訳 why の欠け——も。修正案の受け付けが拒む。拒否の理由は書いた役に戻り、その役が直せる）。exists は
   受け入れのテストが既に在るかを引く口（既定は作業ツリー。同じ run の中の案の直しは修正の起点の版の木）
 - find_test(repo, test_id): テストの id の定義の行（rewrite_tests は在るテストだけ・tests は無いテストだけを名指す）
 - line_in(src, test_id): 渡したファイルの中身でのテストの id の定義の行（凍結の検査が輪の後の木で引き直す）
@@ -16,7 +16,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   files の change=remove の symbol（消す名）をコードの識別子（と点の付いたパス・属性の名の文字列）として使う既存のテストの並び（base_tests は
   修正前の版のテストの中身。split が欄 removes_tests に置く許しの行）
 - FILES_SCHEMA・FILE_OPS・SYMBOL_CHANGES: 修正案の項目の欄 files（ファイル構成の行。足す物・消す物を 1 ファイルごとの {path, op, from?,
-  responsibility, symbols:[{name, kind, change, why?, replaced_by?}], canonical, why?, replaced_by?} にした物）の型の住処（yaml の plan_reply の
+  responsibility, symbols:[{name, change, why?, replaced_by?}], home:{concept, why}, considered:[{path, why_not}], why?, replaced_by?} にした物）の型の住処（yaml の plan_reply の
   files はその写し）。読みの口は file_rows(item)・symbol_rows(row)・file_symbols(item, change)・file_paths(item, ops)・removed_paths(item)。読み手（planscope・ripple・design・
   planbrief）は欄の字を自分で読まず、この口を引く
 - IDENT・search_word(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path)・test_defs(tree, path)・code_idents(node)・DOTTED_NAME: files の
@@ -24,7 +24,8 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   同じ物を呼ぶ）・テストの関数がコードで使う名の引き（split が removes_tests を引く）・コードの識別子の名の集めと、名と読む点の付いた文字列の形（tddloop も
   使う）
 - 項目の間の依存（DEPENDS_KEY=depends_on。後の項目が前の項目の単位と受ける物を書く works の欄）: depends_gaps(items) は案の全体を受ける
-  依存の照らしの 1 つの口（take_plan と案の直しの _plan_errors が案の全体を渡して呼ぶ）、depends_pairs(items, among=None) は組を作る
+  依存の照らしの 1 つの口（take_plan と案の直しの _plan_errors が案の全体を渡して呼ぶ）、home_gaps(items) は同じ案の全体を受ける考えの住処の
+  照らし（files の行の home.concept が案の 2 行に出たら拒む。純な関数）、depends_pairs(items, among=None) は組を作る
   (前の単位, 後の単位) の対（among の外の単位を通る依存は中の端どうしに縮める）、renumber(item, name_of) は UNIT_REFS の欄の単位の no を名に戻す
   （planfile.named が呼ぶ）
 - unit_contract(fields, key): 1 つの単位の約束（その単位を名指す項目の道・受け入れのテスト・書き換えの id・整えの申告を合わせた物。TDD の輪が読む）
@@ -123,21 +124,25 @@ MIN_DEVIATION = 20   # 構造の目の避け方・処方から外れる訳の字
 # FILES_SCHEMA の住処はここ 1 か所（workflows/plan/works-factory-plan.yaml の plan_reply の files はその写しで、一致を試験が縛る）
 FILE_OPS = ("create", "modify", "delete", "rename")       # 行の操作。rename は元のパス from を持つ
 SYMBOL_CHANGES = ("add", "remove")                       # symbols の行の変え方
-SYMBOL_KIND_WORDS = ("function", "record_field", "guard", "prompt", "doc", "cli", "arm", "test", "config", "other")
 FILES_SCHEMA = {"type": "array", "minItems": 1, "items": {
-    "type": "object", "additionalProperties": False, "required": ["path", "op", "responsibility", "symbols", "canonical"],
+    "type": "object", "additionalProperties": False,
+    "required": ["path", "op", "responsibility", "symbols", "home", "considered"],
     "properties": {
         "path": {"type": "string", "minLength": 1},
         "op": {"type": "string", "enum": list(FILE_OPS)},
         "from": {"type": "string", "minLength": 1},
         "responsibility": {"type": "string", "minLength": 4},
         "symbols": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False, "required": ["name", "kind", "change"],
+            "type": "object", "additionalProperties": False, "required": ["name", "change"],
             "properties": {"name": {"type": "string", "minLength": 1},
-                           "kind": {"type": "string", "enum": list(SYMBOL_KIND_WORDS)},
                            "change": {"type": "string", "enum": list(SYMBOL_CHANGES)},
                            "why": _WHY, "replaced_by": {"type": "string", "minLength": 1}}}},
-        "canonical": {"type": "string", "minLength": 4},
+        # 考えの住処（home）と退けた置き場（considered）。置き場のパスは行の path が持つので home に書かない
+        "home": {"type": "object", "additionalProperties": False, "required": ["concept", "why"],
+                 "properties": {"concept": {"type": "string", "minLength": 1}, "why": {"type": "string", "minLength": 1}}},
+        "considered": {"type": "array", "minItems": 1, "items": {
+            "type": "object", "additionalProperties": False, "required": ["path", "why_not"],
+            "properties": {"path": {"type": "string", "minLength": 1}, "why_not": _WHY}}},
         "why": _WHY,
         "replaced_by": {"type": "string", "minLength": 1}}}}
 # 項目の欄のうち単位の no（か単位の字）を持つ欄の表 (欄の名, 行の中の鍵)。鍵が None の欄は単位の並びそのもの、鍵が在る欄は
@@ -194,7 +199,7 @@ STRUCTURE_HEAD = ("structure＝構造の目が汚れると見た行（頭の『�
                   "答えの要る行は受け付けが拒む。依頼そのものを出どころにした外れは修正前の承認ノードで人に回る。"
                   "汚れる行も答えの要る世界の解の行も無い項目は空の並びか書かない")
 REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope・depends_on）か、files の行"
-          "（symbols の name・消す行の why・replaced_by）に欠けか誤りが在る。下の行を直した案を丸ごと出し直せ:")
+          "（symbols の name・消す行の why・replaced_by・home・considered）に欠けか誤りが在る。下の行を直した案を丸ごと出し直せ:")
 DEPENDS_REJECT = (f"修正案の項目の依存 {DEPENDS_KEY} に誤りが在る（unit は案の項目の unit_keys の字・自分の項目の単位でない・受ける物は"
                   "その項目の files の <パス>::<名前> か <パス>・依存は循環しない）。下の行を直した案を丸ごと出し直せ:")
 # 修正案の役の指示書の頭に足す文（写しの指示書はこの欄を知らない）
@@ -221,9 +226,14 @@ HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を�
         f"{MIN_WHY} 字以上。無ければ空の並び）。修正の受け付けは差分をこの範囲と照らし、外れたら同じ brief で返す。"
         "files＝足す物・消す物を 1 ファイルごとに書いた行の並び（FILES_SCHEMA）。各行は path（作業ツリーの根からの相対で 1 ファイル）・"
         "op（create＝新設・modify＝変える・delete＝消す・rename＝移す。rename は元のパスを from に書く）・responsibility（そのファイルの "
-        "1 つの受け持ち）・symbols（そのファイルで足す・消す名の並び [{name, kind, change（add か remove）}]。name は識別子（関数・欄・"
-        "CLI・テストの名）で書き、/ を含む字（/ で始まる欄の指しを除く）や行の path の拡張子で終わる字を書くな。パスは行の path に書く）・canonical（既存の"
-        "正本の引き先か新設の理由）。機械は差分で、change=add の name を行の path の足した行から、change=remove の name を消した行から、"
+        "1 つの受け持ち）・symbols（そのファイルで足す・消す名の並び [{name, change（add か remove）}]。name は識別子（関数・欄・"
+        "CLI・テストの名）で書き、/ を含む字（/ で始まる欄の指しを除く）や行の path の拡張子で終わる字を書くな。パスは行の path に書く）・"
+        "home（{concept, why}。その行が住処になる考えの名 concept と、ここを選んだ訳 why。置き場のパスは行の path が持つので書かない）・"
+        "considered（[{path, why_not}] で 1 行以上。考えて退けた別の置き場。path はファイルのパスだけ（lib/x.py:12 の形にしない。"
+        f"行の番号は why_not に書く）、why_not は {MIN_WHY} 字以上の退けた訳）を、op を問わず全部の行に必ず書く。"
+        "受け付けが照らすのは 5 つ: considered の path が行の path と同じ・同じ行で同じ path を 2 度書く・path の形の誤り（\\ ・根の外・"
+        "整えていない形）・2 段以上の path の最初の段が対象の根に無い・同じ home.concept（前後の空白と大文字小文字を除く）を案の 2 行に"
+        "置く（一方の行の considered にもう一方の行の path が在れば矛盾としても拒む。op=delete の行の home は照らしに数えない）。機械は差分で、change=add の name を行の path の足した行から、change=remove の name を消した行から、"
         "op=create・delete・rename の path を新設・消し・移しから探す。消す物（op が delete・rename の行と change=remove の symbol）は"
         f"why（消す訳。{MIN_WHY} 字以上）を必ず書き、置き換え先が在れば replaced_by（<パス>::<名前> か <パス>）も書け。足す物の行に why・"
         "replaced_by は書くな。"
@@ -707,7 +717,7 @@ def _canon(v) -> str:
 
 def _removal_side(it: dict) -> list:
     """項目 it の files の消す側だけ: op が delete・rename の行（path と元のパス from）と、change=remove の symbol（path と name）を
-    並べ替えた並び。足す側（op が create・modify の行・change=add の symbol）と訳（why・replaced_by）・受け持ち・正本は入れない"""
+    並べ替えた並び。足す側（op が create・modify の行・change=add の symbol）と訳（why・replaced_by）・受け持ち・home・considered は入れない"""
     gone = [{"op": r.get("op"), "path": r.get("path"), "from": r.get("from")} for r in file_rows(it)
             if r.get("op") in ("delete", "rename")]
     gone += [{"symbol": name, "path": path} for path, name in file_symbols(it, "remove")]
@@ -889,9 +899,42 @@ def _removal_gaps(i: int, it: dict) -> list[str]:
     return out
 
 
-def _files_gaps(i: int, it: dict) -> list[str]:
+def _roots(repo: pathlib.Path) -> set[str]:
+    """repo の根の直下の名の集合（.git を除く）。根が dir でなければ空（その時は根の名を照らさない）"""
+    try:
+        return {p.name for p in pathlib.Path(repo).iterdir() if p.name != ".git"}
+    except OSError:
+        return set()
+
+
+def _considered_gaps(at: str, row: dict, roots: set[str]) -> list[str]:
+    """行 row（at は "plan[i].files[j]"）の considered の path の誤りの行。拒むのは、行の path と同じ path（自分を退けた先に数えない）・
+    同じ行で同じ path を 2 度書く・_path_problem_of の形の誤り・2 段以上の path の最初の段が roots（対象の根の名）に無い。1 段の path
+    （根に置く新しいファイルの候補）は根の名を照らさない。roots が空なら根の名を照らさない。欄が無い・形が違う行は飛ばす（型が見る）。
+    純な関数（作業ツリーの中の在りかは引かない）"""
+    out, seen = [], set()
+    for k, c in enumerate(row.get("considered") if isinstance(row.get("considered"), list) else []):
+        path = c.get("path") if isinstance(c, dict) else None
+        if not (isinstance(path, str) and path):
+            continue
+        here = f"{at}.considered[{k}].path（{path}）"
+        bad = _path_problem_of(path)
+        if bad:
+            out.append(f"{here}: {bad}")
+        elif path == row.get("path"):
+            out.append(f"{here}: 行の path と同じ（自分を退けた先に数えない。この行が住処にしない別の置き場を書け）")
+        elif path in seen:
+            out.append(f"{here}: 同じ行の considered に同じ path を 2 度書いた（1 つにまとめ、訳を why_not に続けよ）")
+        elif roots and "/" in path and path.split("/", 1)[0] not in roots:
+            out.append(f"{here}: 最初の段 {path.split('/', 1)[0]} が対象の根に無い（在る置き場のパスを書け。根に置く新しいファイルの"
+                       "候補は 1 段の path で書く）")
+        seen.add(path)
+    return out
+
+
+def _files_gaps(i: int, it: dict, roots: set[str]) -> list[str]:
     """項目 it（plan[i]）の files の行の誤り: path・from の形・rename の from・symbols の name（_symbol_problem）・同じ
-    (path, name, change) の行の重なり・消す訳の欠け（_removal_gaps）"""
+    (path, name, change) の行の重なり・considered の path の誤り（_considered_gaps）・消す訳の欠け（_removal_gaps）"""
     out, seen = [], {}
     for j, row in enumerate(it.get("files") if isinstance(it.get("files"), list) else []):
         if not isinstance(row, dict):
@@ -917,12 +960,15 @@ def _files_gaps(i: int, it: dict) -> list[str]:
                 out.append(f"{at}.symbols[{k}]（{path}::{name}・change={key[2]}）: 同じ (path, name, change) の行を {seen[key]} にも書いた"
                            "（1 行にまとめよ）")
             seen.setdefault(key, f"{at}.symbols[{k}]")
+        out += _considered_gaps(at, row, roots)
     return out + _removal_gaps(i, it)
 
 
 def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
     """修正案の返答の works の欄の欠けと誤りの行と、files の行の誤り（symbols の name がパスの形か行の path の拡張子で終わる・
-    同じ (path, name, change) の重なり・消す側の訳 why の欠けと足す側の訳の書き間違い。_files_gaps）（"plan[<i>].<欄>…: <理由>"）。
+    同じ (path, name, change) の重なり・considered の path の誤り（_considered_gaps。対象の根の名は repo の根を 1 度だけ引く）・
+    消す側の訳 why の欠けと足す側の訳の書き間違い。_files_gaps）（"plan[<i>].<欄>…: <理由>"）。案の全体を見る home.concept の重なりは
+    home_gaps に在り、ここには入れない。
     空なら通る。項目の間の依存 depends_on の照らしは案の全体を見る depends_gaps に在り、ここでは型（FIELD_SCHEMA）だけを見る
     （案の直しの返答は直した項目だけなので、直さない項目を指す行をここでは照らせない）。返答や plan が形を成さなければ空
     （写しの規則が型で拒む）。例外で拒まない。exists(test_id) -> 定義の行 | None は、受け入れのテスト（tests）が既に在るかを
@@ -933,7 +979,7 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
     if exists is None:
         def exists(tid):
             return find_test(repo, tid)
-    out, new_ids, kinds = [], {}, {}
+    out, new_ids, kinds, roots = [], {}, {}, _roots(repo)
     for i, it in enumerate(plan):
         if not isinstance(it, dict):
             out.append(f"plan[{i}]: 項目が object でない")
@@ -977,7 +1023,7 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
             bad = glob_problem(g) if isinstance(g, str) and g else None
             if bad:
                 out.append(f"plan[{i}].out_of_scope[{j}].glob（{g}）: {bad}")
-        out += _files_gaps(i, it)
+        out += _files_gaps(i, it, roots)
         rf = it.get("refactor")
         if isinstance(rf, dict) and rf.get("declared") is True:
             rwhy = rf.get("why")
@@ -1069,6 +1115,43 @@ def depends_gaps(items) -> list[str]:
     return out
 
 
+def home_gaps(items) -> list[str]:
+    """案の全体 items の files の行の home.concept（前後の空白を落として casefold）が、案の全部の行で 2 度出たら、2 度目の行の
+    home.concept を名指し、1 度目の行も文に載せて拒む（同じ考えの住処を 2 行に置かない）。2 度目の行の path が 1 度目の行の considered に
+    在るか、1 度目の行の path が 2 度目の行の considered に在れば、退けた所に同じ考えを住まわせる矛盾の行も足す。行は
+    "plan[<i>].files[<j>].home.concept…: <理由>"。案の全体を受ける 1 つの口で、gaps には入れない（案の直しの gaps は直した項目だけを
+    受け、直さない項目の行と重なる考えを見逃すので）。呼ぶのは take_plan と案の直しの _plan_errors（depends_gaps と同じ案の全体を渡す）。
+    op=delete の行は数えない（消えるファイルは変更の後に考えの住処になれず、移す前の考えの名を書くのが自然なので）。
+    純な関数（案の JSON だけを読む）。形の崩れた項目・行は飛ばす（型は gaps が見る）"""
+    out, first = [], {}
+    for i, it in enumerate(items if isinstance(items, list) else []):
+        for j, row in enumerate(_rows(it, "files") if isinstance(it, dict) else []):
+            if not isinstance(row, dict) or row.get("op") == "delete":
+                continue
+            home = row.get("home")
+            concept = home.get("concept") if isinstance(home, dict) else None
+            if not (isinstance(concept, str) and concept.strip()):
+                continue
+            at, key = f"plan[{i}].files[{j}]", concept.strip().casefold()
+            if key not in first:
+                first[key] = (at, row)
+                continue
+            was_at, was = first[key]
+            here = f"{at}.home.concept（{concept.strip()}）"
+            out.append(f"{here}: {was_at} の home.concept にも同じ考えの住処を置いた（考えの住処は 1 か所。同じ考えを 2 行に置かず、"
+                       "1 行にまとめるか、考えの名を分けよ）")
+            if row.get("path") in _considered_paths(was) or was.get("path") in _considered_paths(row):
+                out.append(f"{here}: 矛盾（退けた所に同じ考えを住まわせる）。{was_at} と {at} の一方の considered に、もう一方の行の path が"
+                           "在る（退けた置き場を住処にしない。住処を 1 つに決め、退けた方の行から考えを外せ）")
+    return out
+
+
+def _considered_paths(row: dict) -> set[str]:
+    """行 row の considered の path の集合（字の物だけ）"""
+    return {c["path"] for c in row.get("considered") if isinstance(c, dict) and isinstance(c.get("path"), str)} \
+        if isinstance(row.get("considered"), list) else set()
+
+
 def depends_pairs(items, among=None) -> list[tuple[str, str]]:
     """承認済みの項目の並び items（planmarks.approved_items の形。unit_keys は単位の字）の依存を、単位の対 (前の単位, 後の単位) の並びで
     引く（後の項目の depends_on が指す前の項目の単位の全部 × 後の項目の単位の全部。現れた順・重なりは 1 つ）。among（組に渡す
@@ -1106,7 +1189,7 @@ def depends_pairs(items, among=None) -> list[tuple[str, str]]:
 
 def _declared(files) -> list[str]:
     """項目の files の宣言した名前の並び: 行の順に、op=create の .py の行の path（新しいモジュールの import の失敗を TDD の輪が宣言の赤に
-    数える。依頼 194c の nodeio.py）と、その行の change=add の symbol の名（重なりは 1 つ）。canonical の字は読まない"""
+    数える。依頼 194c の nodeio.py）と、その行の change=add の symbol の名（重なりは 1 つ）。home・considered の字は読まない"""
     out = []
     for row in file_rows({"files": files}):
         path = row.get("path")
