@@ -11,11 +11,13 @@
   当たらなければ作業ツリーを変えずに (False, 理由)。union（根からの相対のパスの並び）の中のファイルの食い違いが「挿しだけ」
   （3 方向の食い違いの塊がどれも base の側に行を持たない＝両方が同じ所に行を足しただけ）なら、作業ツリーの側の行の後に patch の
   側の行を置いて合わせる（合わせたパスを unioned に積む。check が偽を返す中身は合わせない）。並びの外のファイル・行を変えた
-  塊・base の無い（両方が新しく作った）ファイルは今どおり当てない。marked（list）を渡すと、合わせられない食い違いも当てる:
-  食い違いの塊を印（MARK_LABELS の名の `<<<<<<<`・`|||||||`・`=======`・`>>>>>>>`。git merge-file --diff3）つきで書き、印を
-  書いたパスを marked に積む（片方が消した・バイナリなど印を書けないファイルが在れば今どおり当てない）
-- markers_left(repo, paths, staged): paths のうち、区切りを除いた 3 つの印の頭（名つきでも名なしでも。<<<<<<<・|||||||・>>>>>>>）の
-  行が残るファイルか、印を書いた時点の中身（staged の木）で塊の区切り以外に在った数を超える区切りの ======= の行が在るファイルの並び
+  塊・base の無い（両方が新しく作った）ファイルは今どおり当てない。marked（dict）を渡すと、合わせられない食い違いも当てる:
+  食い違いの塊を印（MARK_LABELS の名の、長さ n の `<`・`|`・`=`・`>` の 4 つ。git merge-file --diff3 --marker-size）つきで書き、
+  印を書いたパス→印の長さ n を marked に積む。n は 3 つの段の中身のどの行も長さ n の印の形（marks(n)）に当たらない最小の値を
+  DEFAULT_MARKER_SIZE から選ぶので、印を書いた中身で塊の外に長さ n の印の形の行は無い（片方が消した・バイナリなど印を書けない
+  ファイルが在れば今どおり当てない）
+- markers_left(repo, marked): marked（パス→印の長さ）のうち、そのパスの長さの印の頭（名つきでも名なしでも）か区切りの行が
+  1 行でも残るファイルと、長さの値が正しくないパスの並び
 - tests_unique(path, text): 合わせた中身の照らし（apply の check に渡す。同じ名のテストの定義が 2 つ在れば偽）
 - patch_names(patch): 差分の行先のパスの並び
 
@@ -94,12 +96,12 @@ def fresh_tree(repo) -> str:
 
 
 def apply(repo, patch: str, union=(), unioned: list | None = None, check=None,
-          marked: list | None = None) -> tuple[bool, str]:
+          marked: dict | None = None) -> tuple[bool, str]:
     """patch を run の作業ツリー repo へ 3 方向で当てる。(True, "") か、作業ツリーを変えずに (False, 理由)。
     一時の index（作業ツリーの今の姿）で `git apply --cached --3way` を試し、食い違い（未解決の段）が残れば当てない。
     ただし未解決のファイルが全部 union の中で、どれも挿しだけの食い違いなら合わせて通す（頭の注記。合わせたパスを unioned に積む）。
     check（任意。(パス, 合わせた中身のバイト) → 真偽）が偽を返すファイルは合わせない（呼び手の言語ごとの照らし）。
-    marked（list）を渡すと、合わせられない未解決のファイルに食い違いの印を書いて当て、そのパスを marked に積む（頭の注記）。
+    marked（dict）を渡すと、合わせられない未解決のファイルに食い違いの印を書いて当て、そのパスと印の長さを marked に積む（頭の注記）。
     通れば、今の姿とその結果の木の差分を作業ツリーへそのまま当てる（git apply は全部か無しか。本物の index は読まない）"""
     if not patch.strip():
         return True, ""
@@ -110,7 +112,7 @@ def apply(repo, patch: str, union=(), unioned: list | None = None, check=None,
         r = _git(repo, "apply", "--cached", "--3way", "--whitespace=nowarn", index=index, data=data, check=False)
         left = _unmerged(repo, index)
         err = r.stderr.decode("utf-8", "replace").strip()
-        settled = _settle(repo, index, left, set(union), tmp, check, marked is not None) if left else ([], [])
+        settled = _settle(repo, index, left, set(union), tmp, check, marked is not None) if left else ([], {})
         broke = any(ln.startswith(("error:", "fatal:")) for ln in err.splitlines())
         if broke or (r.returncode != 0 and not left) or settled is None:
             return False, (err or "3 方向で当てると食い違いが残る")
@@ -118,7 +120,7 @@ def apply(repo, patch: str, union=(), unioned: list | None = None, check=None,
         if merged and unioned is not None:
             unioned.extend(merged)
         if put:
-            marked.extend(put)
+            marked.update(put)
         after = _out(repo, "write-tree", index=index)
         if after == before:
             return True, ""
@@ -147,47 +149,26 @@ def tests_unique(path: str, text: bytes) -> bool:
     return True
 
 
-def _is_marker(line: bytes) -> bool:
-    s = line.rstrip(b"\r")
-    return any(s == m or s.startswith(m + b" ") for m in NAMED_HEADS)
+def usable_marker_size(n) -> bool:
+    """印の長さの値として正しいか（bool でない int で DEFAULT_MARKER_SIZE 以上）。markers_left が残りと返す条件と、
+    拒みの文に長さを添えるかの判じは、この 1 つを引く"""
+    return type(n) is int and n >= DEFAULT_MARKER_SIZE
 
 
-def _separators(lines: list) -> int:
-    return sum(1 for ln in lines if ln.rstrip(b"\r") == SEPARATOR)
-
-
-def _allowed_separators(repo, staged: str, path: str) -> int:
-    """staged の木の path の中身で、塊の区切り以外に在った区切りの行の数（行全体が SEPARATOR の行の数 − 塊の頭 <<<<<<< の行の数。
-    塊ごとに区切りは 1 つ）。staged が空か木に path が無ければ 0（fail-closed。空のまま `:path` を渡すと index を読むので、
-    git を呼ぶ前に判じる）"""
-    if not staged:
-        return 0
-    r = _git(repo, "cat-file", "blob", f"{staged}:{path}", check=False)
-    if r.returncode != 0:
-        return 0
-    lines = r.stdout.splitlines()
-    heads = sum(1 for ln in lines if _is_marker(ln) and ln.startswith(NAMED_HEADS[0]))
-    return max(_separators(lines) - heads, 0)
-
-
-def markers_left(repo, paths, staged: str) -> list:
-    """paths（根からの相対）のうち、食い違いの印が残るファイル（無いファイルは外す）。次のどちらかが当たる:
-    - 区切りを除いた 3 つの印の頭（<<<<<<<・|||||||・>>>>>>>。名つきでも名なしでも）の行が 1 行でも在る
-    - 行全体が区切り（=======）の行の数が、staged（印を書いた直後の木の sha）の同じパスで塊の区切り以外に在った数を超える
-      （元から在る setext 見出しの下線は、この数に入って通る。staged の木に paths が無ければ 0）
-    塊の読みは _insert_only と git の rerere と同じで、base の側で最初の ======= を区切りとする。だから base の側の区切りの字の
-    行も許される数に入り、base の下線を戻す正しい合わせは通る。限界: 控えに在った区切りの字の行を消したり置き換えたりして、
-    その数だけ区切りを残した合わせ（base の側の下線を含む。塊の外の共通の本文の下線を消すか見出しに書き換え、塊の印の頭と
-    base の行を消して区切りを残した合わせも）は、数では見分けられない。新しく足した区切りの字の行は拒む。
-    控え方式が効く範囲は 2 つ: paths に渡した（印を書いた）ファイルだけを見る。行全体がちょうど 7 字の ======= の行だけを数え、
-    長さの違う下線（======== や -------）は数えない"""
+def markers_left(repo, marked: dict) -> list:
+    """marked（印を書いたパス→印の長さ。apply が積む）のうち、食い違いの印が残るファイル（無いファイルは外す）と、長さの値が
+    正しくないパス。残る印は、そのパスの長さ n の印の形（marks(n)）の行が 1 行でも在ること: 区切りを除いた 3 つの印の頭（名つきでも
+    名なしでも）か、`=`*n だけの行。印の長さは印を書いた時の中身のどの行とも重ならない長さなので、塊の外に長さ n の印の形の行は
+    元から無く、1 行でも残れば半端な合わせか新しく足した行。長さの違う行（7 字の setext の下線など）は数えない。
+    長さの値が bool でない int で DEFAULT_MARKER_SIZE 以上でないパス（無い・整数でない・7 未満）は、ファイルを読まずに残りとして
+    返す（8 字以上の印を短い長さで照らすと見逃す側に倒れるので、拒む側に倒す）"""
     out = []
-    for p in paths:
-        f = pathlib.Path(repo) / p
-        if not f.is_file():
+    for p, n in marked.items():
+        if not usable_marker_size(n):
+            out.append(p)
             continue
-        lines = f.read_bytes().splitlines()
-        if any(_is_marker(ln) for ln in lines) or _separators(lines) > _allowed_separators(repo, staged, p):
+        f = pathlib.Path(repo) / p
+        if f.is_file() and any(_marker_line(ln, n) for ln in f.read_bytes().splitlines()):
             out.append(p)
     return out
 
@@ -213,28 +194,30 @@ def _unmerged(repo, index: str) -> dict:
     return out
 
 
-def _insert_only(text: bytes) -> bytes | None:
-    """`git merge-file --diff3 -L ours -L base -L theirs` の出力を、塊がどれも base の側に行を持たない時だけ ours の行の後に
-    theirs の行を置いた中身にする。base の側に行の在る塊・閉じない塊・改行で終わらない ours の行が在れば None"""
+def _insert_only(text: bytes, n: int) -> bytes | None:
+    """`git merge-file --diff3 --marker-size=<n> -L ours -L base -L theirs` の出力 text（長さ n の印）を、塊がどれも base の側に
+    行を持たない時だけ ours の行の後に theirs の行を置いた中身にする。n は 3 つの段のどの行とも重ならない長さなので、base の側の
+    行が区切りと読み違えられることは無い。base の側に行の在る塊・閉じない塊・改行で終わらない ours の行が在れば None"""
+    lt, bar, eq, gt = marks(n)
     out, state, ours, base, theirs = [], None, [], [], []
     for ln in text.splitlines(keepends=True):
         s = ln.rstrip(b"\r\n")
         if state is None:
-            if s == b"<<<<<<< ours":
+            if s == lt + b" ours":
                 state, ours, base, theirs = "ours", [], [], []
             else:
                 out.append(ln)
         elif state == "ours":
-            if s == b"||||||| base":
+            if s == bar + b" base":
                 state = "base"
             else:
                 ours.append(ln)
         elif state == "base":
-            if s == SEPARATOR:
+            if s == eq:
                 state = "theirs"
             else:
                 base.append(ln)
-        elif s == b">>>>>>> theirs":
+        elif s == gt + b" theirs":
             if base or any(not x.endswith(b"\n") for x in ours):
                 return None
             out += ours + theirs
@@ -252,23 +235,28 @@ def _union(repo, index: str, left: dict, allowed: set, tmp: str, check=None) -> 
         if path not in allowed or set(stages) != {1, 2, 3}:
             return None
         merged = _merged(repo, stages, tmp, ("ours", "base", "theirs"))
-        text = None if merged is None else _insert_only(merged)
+        text = None if merged is None else _insert_only(*merged)
         if text is None or (check is not None and not check(path, text)):
             return None
         plan.append((path, stages[2][0], text))
     return _put(repo, index, plan)
 
 
-def _merged(repo, stages: dict, tmp: str, labels) -> bytes | None:
-    """パスの stage 2・1・3 の中身（stage 1 が無ければ空の base）を git merge-file --diff3 で合わせた中身（印の名は labels の
-    順）。merge-file が落ちれば None"""
-    files = []
+def _merged(repo, stages: dict, tmp: str, labels) -> tuple[bytes, int] | None:
+    """パスの stage 2・1・3 の中身（stage 1 が無ければ空の base）を git merge-file --diff3 で合わせた (中身, 印の長さ n)（印の名は
+    labels の順）。n は 3 つの段の中身のどの行とも重ならない長さ（_marker_size）で、--marker-size で書く。印の長さを選ぶのは
+    ここだけ。merge-file が落ちれば None"""
+    files, texts = [], []
     for n in (2, 1, 3):
         f = os.path.join(tmp, f"merge-{n}")
-        pathlib.Path(f).write_bytes(_git(repo, "cat-file", "blob", stages[n][1]).stdout if n in stages else b"")
+        text = _git(repo, "cat-file", "blob", stages[n][1]).stdout if n in stages else b""
+        pathlib.Path(f).write_bytes(text)
         files.append(f)
-    r = _git(repo, "merge-file", "-p", "--diff3", *(a for name in labels for a in ("-L", name)), *files, check=False)
-    return r.stdout if 0 <= r.returncode <= 127 else None   # 食い違いの数は 127 まで。その外と負（シグナル）は落ちた
+        texts.append(text)
+    size = _marker_size(texts)
+    r = _git(repo, "merge-file", "-p", "--diff3", f"--marker-size={size}", *(a for name in labels for a in ("-L", name)),
+             *files, check=False)
+    return (r.stdout, size) if 0 <= r.returncode <= 127 else None   # 食い違いの数は 127 まで。その外と負（シグナル）は落ちた
 
 
 def _put(repo, index: str, plan: list) -> list:
@@ -280,30 +268,52 @@ def _put(repo, index: str, plan: list) -> list:
 
 
 MARK_LABELS = ("今の作業ツリー", "元", "当てる差分")
-# git merge-file --diff3 が書く印の頭。書く順は <<<・|||・===・>>> で、区切り（SEPARATOR）は ||| と >>> の間に入る
-SEPARATOR = b"======="
-NAMED_HEADS = (b"<<<<<<<", b"|||||||", b">>>>>>>")
+DEFAULT_MARKER_SIZE = 7   # git merge-file の印の長さの既定（印の長さの下限。これより短い印は書かず、値がこれ未満のパスは残りと返す）
 
 
-def _settle(repo, index: str, left: dict, allowed: set, tmp: str, check, marking: bool) -> tuple[list, list] | None:
-    """未解決のパス left を一時の index で解く: (合わせたパス, 印を書いたパス) か、解けなければ None。marking が偽なら全部を
+def marks(n: int) -> tuple:
+    """長さ n の印の頭 (`<`・`|`・`=`・`>` を n 個ずつ。git merge-file --diff3 が書く順。`=` が区切り)"""
+    return tuple(c * n for c in (b"<", b"|", b"=", b">"))
+
+
+def _marker_line(line: bytes, n: int) -> bool:
+    """行（行の終わりの CR を除く）が長さ n の印の形か: `=`*n と等しい、または `<`・`|`・`>` が n 個で、そのまま終わるか空白が続く"""
+    s = line.rstrip(b"\r")
+    lt, bar, eq, gt = marks(n)
+    return s == eq or any(s == m or s.startswith(m + b" ") for m in (lt, bar, gt))
+
+
+def _marker_size(texts) -> int:
+    """texts（3 つの段の中身）のどの行も長さ n の印の形（_marker_line）に当たらない最小の n（DEFAULT_MARKER_SIZE から）。
+    行の数は有限なので必ず止まる"""
+    lines = [ln for t in texts for ln in t.splitlines()]
+    n = DEFAULT_MARKER_SIZE
+    while any(_marker_line(ln, n) for ln in lines):
+        n += 1
+    return n
+
+
+def _settle(repo, index: str, left: dict, allowed: set, tmp: str, check, marking: bool) -> tuple[list, dict] | None:
+    """未解決のパス left を一時の index で解く: (合わせたパス, 印を書いたパス→印の長さ) か、解けなければ None。marking が偽なら全部を
     挿しだけの食い違いとして合わせ（_union。1 つでも残れば None）、真なら合わせられる物を合わせて残りに印を書く（_mark）"""
     merged = [p for p in sorted(left) if _union(repo, index, {p: left[p]}, allowed, tmp, check)]
     rest = {p: st for p, st in left.items() if p not in merged}
-    put = _mark(repo, index, rest, tmp) if marking else ([] if not rest else None)
+    put = _mark(repo, index, rest, tmp) if marking else ({} if not rest else None)
     return None if put is None else (merged, put)
 
 
-def _mark(repo, index: str, left: dict, tmp: str) -> list | None:
+def _mark(repo, index: str, left: dict, tmp: str) -> dict | None:
     """未解決のパス left に食い違いの印を書いた中身（git merge-file --diff3。印の名は MARK_LABELS。両方が新しく作ったファイルは空の
-    base で）を一時の index に置く。置いたパスの並びか、印を書けない物（片方が消した・普通のファイルでない・バイナリで落ちた）が
-    1 つでも在れば None（index はそのまま）"""
-    plan = []
+    base で）を一時の index に置く。置いたパス→印の長さの dict か、印を書けない物（片方が消した・普通のファイルでない・バイナリで
+    落ちた）が 1 つでも在れば None（index はそのまま）"""
+    plan, sizes = [], {}
     for path, stages in sorted(left.items()):
         if set(stages) not in ({1, 2, 3}, {2, 3}) or not all(stages[n][0].startswith("100") for n in (2, 3)):
             return None
-        text = _merged(repo, stages, tmp, MARK_LABELS)
-        if text is None:
+        got = _merged(repo, stages, tmp, MARK_LABELS)
+        if got is None:
             return None
-        plan.append((path, stages[2][0], text))
-    return _put(repo, index, plan)
+        plan.append((path, stages[2][0], got[0]))
+        sizes[path] = got[1]
+    _put(repo, index, plan)
+    return sizes

@@ -2699,8 +2699,8 @@ class ClashScenarioCase(unittest.TestCase):
         """文書のファイル d.md（setext の見出しの下線 ======= を持つ）で、g1 と g2 が本文の同じ行を変えて印が書かれた後:
         (1) 名の付く 3 つの印の行と base の行だけを消し、区切りと両側の本文を残した返答は UNRESOLVED で拒まれ、拒みの文に
         長さの違う下線で書く道が添えられる。
-        (2) 印を全部解いて g2 の見出しと下線を採った返答は通る。g2 の側にだけ在る下線は、控え（row の staged）の区切りの行の数に
-        入るので、受け付けが staged を markers_left に渡していなければ通らない"""
+        (2) 印を全部解いて g2 の見出しと下線を採った返答は通る。d.md の印は 8 字で書かれ（g2 の側に 7 字の下線が在る）、
+        受け付けは行の marked の長さを markers_left に渡していなければ 8 字の区切りを見逃す"""
         seed = "Title\n=======\nbody\n"
         self.joined_with_text_clash(seed={"d.md": seed}, g1={"d.md": "Title\n=======\ng1 body\n"},
                                     g2={"d.md": "Title\n=======\nSub\n=======\n"})
@@ -2708,19 +2708,35 @@ class ClashScenarioCase(unittest.TestCase):
         self.assertTrue(out["go"], out)
         d, e = self.repo / "d.md", self.repo / "e.py"
         marked = d.read_text(encoding="utf-8")
-        self.assertIn("<<<<<<< ", marked)
+        self.assertIn("<<<<<<<< ", marked)
         self.assertIn("g1 body\n", marked)
         e.write_text(f"E1 = 10  # B が読む\n{self.FILLER}E8 = 8\n", encoding="utf-8")
-        d.write_text("Title\n=======\ng1 body\n=======\nSub\n=======\n", encoding="utf-8")
+        d.write_text("Title\n=======\ng1 body\n========\nSub\n=======\n", encoding="utf-8")
         got = self.accept(self.fixed_reply(("e.py", "d.md")), out["iteration"])
         self.assertEqual((got["ok"], got["done"]), (False, False), got)
         self.assertIn("食い違いの印", got["reason"])
-        self.assertIn("d.md", got["reason"])
+        self.assertIn("d.md（8 字）", got["reason"])
         self.assertIn("長さの違う下線", got["reason"])
         out = self.prep()
         d.write_text("Title\n=======\nSub\n=======\n", encoding="utf-8")
         got = self.accept(self.fixed_reply(("e.py", "d.md")), out["iteration"])
         self.assertEqual((got["ok"], got["done"]), (True, True), got)
+
+    def test_join_text_clash_brief_carries_each_file_marker_and_the_rule(self):
+        """setext の 7 字の下線を持つ d.md と、= の行の無い e.py が字で当たらずに印つきで当て直された時、brief はファイルごとの
+        印の 4 つの頭（d.md は 8 字・e.py は 7 字）と拒みの決まり MARKER_RULE を載せ、clash.json の行の marked はパス→印の長さを持つ"""
+        import clash
+        self.joined_with_text_clash(seed={"d.md": "Title\n=======\nbody\n"}, g1={"d.md": "Title\n=======\ng1 body\n"},
+                                    g2={"d.md": "Title\n=======\nSub\n=======\n"})
+        out = self.prep()
+        self.assertTrue(out["go"], out)
+        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
+        self.assertEqual(brief["conflicted"], ["d.md", "e.py"])
+        self.assertEqual(brief["markers"], {"d.md": ["<" * 8, "|" * 8, "=" * 8, ">" * 8],
+                                            "e.py": ["<" * 7, "|" * 7, "=" * 7, ">" * 7]})
+        self.assertEqual(brief["marker_rule"], clash.MARKER_RULE)
+        [row] = clash.load(self.place)
+        self.assertEqual(row["marked"], {"d.md": 8, "e.py": 7})
 
     def test_join_text_clash_the_role_cannot_fix_reaches_ruling_as_a_text_clash(self):
         """字で当たらない組を合わせ役が直せないと答えると、申し出は字の食い違いとして裁定役に届く（赤の文の申し出と言わない）"""
