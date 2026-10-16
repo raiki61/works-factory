@@ -111,21 +111,38 @@ class RippleCase(unittest.TestCase):
         self.assertEqual(ripple.names(["a.py+Report.rows: x"], []), ["Report", "rows"])
 
     def test_names_skip_test_ids_and_paths(self):
-        """試験のモジュールの行の symbol と試験の名（test_・Test）は変える名でない（run 68f35d6b: 試験の id の断片 works・tests・
+        """試験の id（:: を含む名）と試験の名（test_・Test）は変える名でない（run 68f35d6b: 試験の id の断片 works・tests・
         test_report・HeadCase が当たりの大半を作った）。パスは行の path に在るので、名の字から読み分ける要はない"""
         files = [frow("works/tests/test_report.py", adds=["HeadCase::test_rows_carry", "TestCleanIgnored"]),
                  frow(adds=["_removed_file", "test_report", "report.always_rows"])]
         self.assertEqual(ripple.names([KEY], files), ["always_rows", "_removed_file", "report"])
 
-    def test_names_skip_adds_in_test_modules_but_count_support(self):
-        """試験のモジュール（impact.is_test が module を返す works/tests/test_report.py）の行の change=add の symbol は、kind が無くても
-        変える名に数えない（助け手の名 frow_rows・定数の名 SEED_ROWS）。試験のフォルダの下の支え（support を返す works/tests/helpers.py）の
-        行の add の名 seed_rows は変える名に数える（試験のモジュールの助け手を、ほかの試験が使う時の呼び手を引く）。本体の行の名も数える"""
-        files = [frow("works/tests/test_report.py", adds=["frow_rows", "SEED_ROWS"]),
+    def test_names_count_helpers_in_test_modules(self):
+        """試験のモジュール（impact.is_test が module を返す works/tests/test_report.py）の行の change=add の名も、試験の名でなければ
+        変える名に数える（助け手の名 frow_rows・定数の名 SEED_ROWS。ほかの試験が import して使う時の呼び手を引く）。試験のフォルダの下の
+        支え（works/tests/helpers.py）の行の名・本体の行の名も数える"""
+        files = [frow("works/tests/test_report.py", adds=["frow_rows", "SEED_ROWS", "test_rows_carry"]),
                  frow("works/tests/helpers.py", adds=["seed_rows"]),
                  frow(adds=["always_rows"])]
-        self.assertEqual(ripple.names([KEY], files), ["always_rows", "seed_rows"])
-        self.assertEqual(ripple.names(["a.py+Report.rows: x"], [files[0]]), ["Report", "rows"])
+        self.assertEqual(ripple.names([KEY], files), ["always_rows", "frow_rows", "SEED_ROWS", "seed_rows"])
+
+    HELPER = "def seed_rows():\n    return [1]\n\n\ndef test_seed():\n    assert seed_rows()\n"
+    HELPER_ITEM = fields(unit_keys=(), files=[frow("works/tests/test_report.py", adds=["seed_rows"])],
+                         allowed=("works/tests/test_report.py",))
+
+    def test_test_module_helper_used_by_other_test_is_named(self):
+        """試験のモジュールの行で足す助け手 seed_rows を別の試験のファイルが import して使うと、その使い手が当たりに出る。定義した
+        ファイル（works/tests/test_report.py）の中の当たりは捨てる"""
+        user = "from test_report import seed_rows\n\n\ndef test_final_rows():\n    assert seed_rows()\n"
+        repo = self.repo_with({"works/tests/test_report.py": self.HELPER, "works/tests/test_final.py": user})
+        doc = ripple.build(repo, [self.HELPER_ITEM], skip_dirs=SKIP_DIRS)
+        self.assertEqual(self.uncovered(doc), [("test", "works/tests/test_final.py:1"),
+                                               ("test", "works/tests/test_final.py::test_final_rows")])
+
+    def test_test_module_helper_used_only_in_own_file_is_not_named(self):
+        """試験のモジュールの行で足す助け手 seed_rows の当たりが定義したファイルの中だけなら、名も当たりも出ない"""
+        doc = ripple.build(self.repo_with({"works/tests/test_report.py": self.HELPER}), [self.HELPER_ITEM], skip_dirs=SKIP_DIRS)
+        self.assertEqual((doc["items"][0]["names"], self.uncovered(doc)), ([], []))
 
     def test_docs_and_generated_copies_are_not_hits(self):
         """設計書（docs/plans）・CHANGELOG・実行基盤の pack の写し（skip_dirs）は当たりに数えない（ファイルの数にも）"""
