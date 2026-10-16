@@ -4,7 +4,7 @@
   在れば place._verify を当て、壊れていれば赤にする。環境変数か置き場が無い時だけ見送る。試験の中では取りに行かない。
 - 見送らない: 環境変数 WORKS_FACTORY_ARCHON_REQUIRED が在れば（CI が立てる）、見送る所で同じ文の赤にする。
   CI の用意が崩れて Archon の要る試験が黙って見送られ、CI が緑のままになるのを防ぐ。
-- 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME（既定の provider を書いた config.yaml。place.default_provider）と、このリポジトリを指す WORKS_FACTORY_ROOT をつけて起こす。
+- 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME（工場が決める値を書いた config.yaml。place.home_config）と、このリポジトリを指す WORKS_FACTORY_ROOT をつけて起こす。
   bun が無ければ見送る。
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
@@ -94,6 +94,6 @@ def archon(cwd: pathlib.Path, *args: str, **env: str) -> subprocess.CompletedPro
     if bun is None:
         raise absent("bun が無い")
     home = cwd.parent / "archon-home"
-    place.default_provider(home)
+    place.home_config(home)
     child = hermetic.child_env(**{**env, "ARCHON_HOME": str(home), "WORKS_FACTORY_ROOT": str(ROOT)})
     return subprocess.run([bun, str(entry), *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")

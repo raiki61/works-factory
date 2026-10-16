@@ -298,6 +298,7 @@
 - 持ち主の言葉（2026-10-16、PR #637）: 「asfは他人のものなので、勝手にあがったらそれを使えばいいのでは？今の版に固執する意味はどこにある？」
 - 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
 - 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（`harness/harness.config.json` の `required_checks`・`protected_paths`）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
+- 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分の家の設定で決める物がある（`defaultAssistant: claude`・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方: `bin/_lib/place.py` の `home_config`。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
