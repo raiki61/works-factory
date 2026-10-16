@@ -445,6 +445,17 @@ class PlanrangeSeamCase(unittest.TestCase):
         self.assertTrue(any("other.py" in x and "allowed_paths" in x for x in lines), lines)
         self.assertTrue(any("vendored/x.py" in x and "out_of_scope" in x for x in lines), lines)
 
+    def test_trailing_slash_scope_globs_cover_paths_underneath(self):
+        """末尾 / の allowed_paths・out_of_scope の glob は、その下の全部に効く（前は何にも当たらず、範囲が空・柵が空だった）"""
+        items = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["lib/"], "tests": [], "rewrite_tests": [],
+                  "out_of_scope": [{"glob": "lib/vendored/", "why": "外の写し"}]}]
+        lines, rec = self.planrange.check_paths(self.place, ["lib/x.py", "docs/x.md", "lib/vendored/y.py"], items=items)
+        self.assertTrue(rec["checked"])
+        self.assertEqual(len(lines), 2, lines)
+        self.assertFalse(any("lib/x.py" in x for x in lines), lines)
+        self.assertTrue(any("docs/x.md" in x and "allowed_paths" in x for x in lines), lines)
+        self.assertTrue(any("lib/vendored/y.py" in x and "out_of_scope" in x for x in lines), lines)
+
     def test_unchecked_without_a_scoped_plan(self):
         pr = self.planrange
         self.assertEqual(pr.check_paths(self.place, ["x.py"], items=None), ([], {"checked": False, "why": pr.NO_PLAN}))
