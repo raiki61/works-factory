@@ -68,7 +68,7 @@ CLAIM = "組 {gid} の直しを親の作業ツリーで前の組と合わせる�
 TEXT_CLAIM = "組 {gid} の直しが親の作業ツリーで前の組の直しと同じ所を変え、字で当たらない（{red}）。{why}。控えの差分: {patch}"
 MARKED_TESTS = ("字で当たらない所が許しの無いテストのファイルに在り、合わせ役は印を解けない（テストの範囲の裁定 fix_test_scope が"
                 "要る）: {paths}")
-MARKER_RULE = ("印の長さはファイルごとに違い、7 字以上で、印を書いた時の中身のどの行とも重ならない長さ。brief の markers がそのファイルの "
+MARKER_RULE = (f"印の長さはファイルごとに違い、{unittrees.DEFAULT_MARKER_SIZE} 字以上で、印を書いた時の中身のどの行とも重ならない長さ。brief の markers がそのファイルの "
                "4 つの印の頭（`<`・`|`・`=`・`>` の順）を並べる。そのファイルの印と同じ長さの印の頭の行（`<`・`|`・`>` が同じ数だけ並び、"
                "空白か行の終わりが続く行）と `=` だけの行は、1 行でも残すか新しく足すと拒まれる。新しい見出しの下線は、印と長さの違う下線で書け")
 UNRESOLVED = "食い違いの印が残っている（印を解いて両方の組の直しを両立させよ。" + MARKER_RULE + "）: {paths}"
@@ -240,7 +240,6 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
     marked = row.get("marked") or {}
     left = unittrees.markers_left(repo, marked)
     if left:
-        # 拒んだパスに印の長さを添える。長さの値が正しくない（markers_left が長さを見ずに返した）パスはパスだけ
         sized = [f"{p}（{n} 字）" if unittrees.usable_marker_size(n := marked.get(p)) else p for p in left]
         out.append(UNRESOLVED.format(paths="・".join(sized)))
     outside = sorted(p for p in touched if p not in allowed)

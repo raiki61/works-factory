@@ -174,48 +174,30 @@ class UnitTrees(unittest.TestCase):
 
     def test_markers_left_tells_the_marker_length_from_an_underline(self):
         """中身に setext の見出し（見出しの次の行が =======）を持つ .md では、印は 8 字で書かれ、7 字の下線と印の区切りを長さで
-        見分ける。(i) 3 つの印の頭と base の行を消し、8 字の区切りと両側の本文を残した合わせは返す。(ii) 印を全部解いて元の
-        下線だけを残した合わせは返さない。(iii) 塊の base の側に ======= が在る時、base の側の見出しと下線を戻して印を解いた
-        合わせは返さない"""
-        marked, _ = self.marked_md("s.md", "Title\n=======\nbody\n", "Title\n=======\nX\n", "Title\n=======\nY\n")
+        見分ける。8 字の区切りを残した合わせは、下線を残しても別の見出しの下線に書き換えても返す。印を全部解いて元の下線だけを
+        残した合わせと、7 字の下線つきの見出しを新しく足した合わせは返さない（印と長さが違う）"""
+        sep = unittrees.marks(8)[2].decode()
+        marked, text = self.marked_md("s.md", "Title\n=======\nbody\n", "Title\n=======\nX\n", "Title\n=======\nY\n")
         self.assertEqual(marked, {"s.md": 8})
-        (self.repo / "s.md").write_text("Title\n=======\nX\n========\nY\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, marked), ["s.md"])
-        (self.repo / "s.md").write_text("Title\n=======\nY\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, marked), [])
-        marked, text = self.marked_md("t.md", "Head\n=======\nbody\n", "Head1\n-----\nbody\n", "Head2\n#####\nbody\n")
-        self.assertEqual(marked, {"t.md": 8})
-        self.assertIn("|||||||| 元\nHead\n=======\n========\n", text)
-        (self.repo / "t.md").write_text("Head\n=======\nbody\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, marked), [])
+        self.assertIn(f"\n{sep}\n", text)
+        for merged, left in ((f"Title\n=======\nX\n{sep}\nY\n", ["s.md"]), (f"Title\n-------\nX\n{sep}\nY\n", ["s.md"]),
+                             ("Title\n=======\nY\n", []), ("Title\n=======\nX\nSub\n=======\nY\n", [])):
+            with self.subTest(merged=merged):
+                (self.repo / "s.md").write_text(merged, encoding="utf-8")
+                self.assertEqual(unittrees.markers_left(self.repo, marked), left)
 
     def test_marker_grows_past_a_base_side_separator_and_a_half_merge_is_rejected(self):
         """塊の base の側に 7 字の ======= が入る時、印は 8 字で書かれて base の側の ======= は区切りに読まれない。印の頭の 3 行と
-        base の行を消し、8 字の区切りと両側を残した合わせは残りとして返る"""
+        base の行を消し、8 字の区切りと両側を残した合わせは残りとして返り、base の側の見出しと下線を戻して印を解いた合わせは返らない"""
         heads = unittrees.marks(8)
         sep = heads[2].decode()
         marked, text = self.marked_md("t.md", "Head\n=======\nbody\n", "Head1\n-----\nbody\n", "Head2\n#####\nbody\n")
         self.assertEqual(marked, {"t.md": 8})
         self.assertIn(f"{heads[1].decode()} 元\nHead\n=======\n{sep}\n", text)
-        (self.repo / "t.md").write_text(f"Head1\n-----\n{sep}\nHead2\n#####\nbody\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, marked), ["t.md"])
-
-    def test_markers_left_rejects_a_kept_separator_after_a_staged_underline_is_removed(self):
-        """塊の外の 7 字の下線を別の見出しの下線に書き換え、8 字の区切りを残した合わせは、下線の数が合っても残りとして返る"""
-        sep = unittrees.marks(8)[2].decode()
-        marked, text = self.marked_md("s.md", "Title\n=======\nbody\n", "Title\n=======\nX\n", "Title\n=======\nY\n")
-        self.assertEqual(marked, {"s.md": 8})
-        self.assertIn(f"\n{sep}\n", text)
-        (self.repo / "s.md").write_text(f"Title\n-------\nX\n{sep}\nY\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, marked), ["s.md"])
-
-    def test_markers_left_lets_a_new_underline_of_another_length_through(self):
-        """8 字の印を書いたファイルで、印を全部解いて 7 字の下線つきの見出しを新しく足した合わせは拒まれない（印と長さが違う）"""
-        sep = unittrees.marks(8)[2].decode()
-        marked, text = self.marked_md("s.md", "Title\n=======\nbody\n", "Title\n=======\nX\n", "Title\n=======\nY\n")
-        self.assertIn(f"\n{sep}\n", text)
-        (self.repo / "s.md").write_text("Title\n=======\nX\nSub\n=======\nY\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, marked), [])
+        for merged, left in ((f"Head1\n-----\n{sep}\nHead2\n#####\nbody\n", ["t.md"]), ("Head\n=======\nbody\n", [])):
+            with self.subTest(merged=merged):
+                (self.repo / "t.md").write_text(merged, encoding="utf-8")
+                self.assertEqual(unittrees.markers_left(self.repo, marked), left)
 
     def test_union_refuses_a_base_side_separator_line(self):
         """base の側の行が 7 字の ======= の塊は、行を変えた塊なので挿しだけと読まず合わせない（印は 8 字で読む）"""

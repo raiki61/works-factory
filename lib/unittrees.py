@@ -277,7 +277,6 @@ def marks(n: int) -> tuple:
 
 
 def _marker_line(line: bytes, n: int) -> bool:
-    """行（行の終わりの CR を除く）が長さ n の印の形か: `=`*n と等しい、または `<`・`|`・`>` が n 個で、そのまま終わるか空白が続く"""
     s = line.rstrip(b"\r")
     lt, bar, eq, gt = marks(n)
     return s == eq or any(s == m or s.startswith(m + b" ") for m in (lt, bar, gt))
