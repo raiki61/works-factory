@@ -96,6 +96,12 @@ def idle_rows(found: dict[str, list[tuple[str, str]]], allowed) -> list[tuple[st
     return sorted(row for row in allowed if row not in shared)
 
 
+def _called(node, name: str) -> bool:
+    """node が name（素の名か X.name）を呼ぶ式か"""
+    func = getattr(node, "func", None) if isinstance(node, ast.Call) else None
+    return isinstance(func, ast.Name) and func.id == name or isinstance(func, ast.Attribute) and func.attr == name
+
+
 class ConstantsCase(unittest.TestCase):
     def test_same_file_name_literal_is_defined_once(self):
         found = file_name_constants(ROOT)
@@ -112,6 +118,26 @@ class ConstantsCase(unittest.TestCase):
                 if isinstance(node, (ast.Tuple, ast.List, ast.Set)) and {"held", "escalate"} <= words:
                     copies.append(f"{path.name}:{node.lineno}")
         self.assertEqual([c.partition(":")[0] for c in copies], ["gatemarks.py"], copies)
+
+    def test_approved_items_have_one_reader(self):
+        """置き場の承認済みの修正案の項目を読む口は fixboard.place_items の 1 つ（#583）。修正の段と手直しの段が別の口で
+        修正案と判定のファイルの名を綴ると、片方の名だけ変えた時に 2 つの段が違う項目の集合を読む"""
+        strays = []
+        for path in sorted(LIB.glob("*.py")) + sorted(ROOT.glob("workflows/*/scripts/*.py")):
+            where = path.relative_to(ROOT).as_posix()
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            owner = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "place_items"]
+            if where != "lib/fixboard.py":
+                strays += [f"{where}:{n.lineno} def" for n in owner]
+                owner = []
+            for node in ast.walk(tree):
+                if (_called(node, "approved_items") and node.args and _called(node.args[0], "plan_view")
+                        and not any(o.lineno <= node.lineno <= o.end_lineno for o in owner)):
+                    strays.append(f"{where}:{node.lineno} {ast.unparse(node)}")
+                if (isinstance(node, ast.Attribute) and node.attr == "place_items"
+                        and not (isinstance(node.value, ast.Name) and node.value.id == "fixboard")):
+                    strays.append(f"{where}:{node.lineno} {ast.unparse(node)}")
+        self.assertEqual(strays, [])
 
     def test_every_allowed_row_has_a_reason(self):
         self.assertFalse(FALLBACKS.keys() & OVERLAPS.keys())

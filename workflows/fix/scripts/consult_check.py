@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
-import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import oneline  # noqa: E402
@@ -33,7 +32,7 @@ def main() -> dict:
         raise ValueError(why)
     place = boundary.place("fix")
     try:
-        items = factchecks.place_items(place)() or []
+        items = fixboard.place_items(place) or []
     except (planmarks.FieldsBroken, ValueError):   # 控えの壊れは受け付けが止める。頼みは全部断る側
         items = []
     plan = next((str(place / n) for n in (fixboard.PLAN_REPLY_FILE, fixboard.marks_path(place).name)

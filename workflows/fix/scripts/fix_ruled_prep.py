@@ -12,6 +12,7 @@ ruled。題の次に保存した返答を名指す行を足す。fixboard.ruled_
 fixboard.ruled_states）を受け付けと同じ口で引いて指示書に貼る。
 返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・控えが壊れた）は標準エラーに 1 行で非 0。
 """
+import functools
 import sys
 from pathlib import Path
 
@@ -55,7 +56,7 @@ def main() -> dict:
     values = fixboard.fix_values(place, owed, start=start, answer_node=fixrules.answer_node("ruled"))
     state, _ = fixboard.ruled_states(place)
     got = fixrules.prep(place, repo, values, "ruled",
-                        owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
+                        owed=owed, items=functools.partial(fixboard.place_items, place), sources=fixboard.brief_sources(place),
                         reject_file=rolekit.reject_file(place, ACCEPT), lang=rolekit.lang_line(start),
                         frozen=factchecks.frozen_tests(place, state, "ruled"), shared=boundary.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:

@@ -52,7 +52,7 @@ FAKE_CLAUDE = """#!PYTHON
 import json, os, sys
 args = sys.argv[1:]
 if args == ["--version"]:
-    print("9.9.9 (Claude Code)")
+    print(os.environ.get("FAKE_CLAUDE_VERSION", "9.9.9") + " (Claude Code)")
     sys.exit(0)
 with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps({"who": "claude", "args": args, "cwd": os.getcwd(), "names": sorted(os.environ),
@@ -811,6 +811,7 @@ class PrepareTest(unittest.TestCase):
         self.env = {k: v for k, v in hermetic.child_env(FAKE_DOCKER_LOG=str(self.log)).items()
                     if k != "CLAUDE_BIN_PATH" and k not in swepro.PROXY_ENV}
         self.env["PATH"] = os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])
+        self.env["FAKE_CLAUDE_VERSION"] = swepro.BWRAP_FROM
 
     def prepare(self, *instances, **env):
         return subprocess.run([sys.executable, str(HERE / "swepro.py"), "prepare", str(self.tasks), str(self.out), *instances],
@@ -830,7 +831,7 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(pull["args"], ["pull", "--platform", "linux/amd64", image])
         self.assertEqual(build["args"][:-1], ["build", "--platform", "linux/amd64", "-t", derived])
         self.assertEqual(build["files"], ["Dockerfile", swepro.REPO_TAR])
-        self.assertEqual(build["dockerfile"], swepro.dockerfile(image, "9.9.9", swepro.head_commit()))
+        self.assertEqual(build["dockerfile"], swepro.dockerfile(image, swepro.BWRAP_FROM, swepro.head_commit()))
         copied = tomllib.loads((self.out / OPENLIBRARY / "task.toml").read_text(encoding="utf-8"))
         before = tomllib.loads(original)
         self.assertEqual(copied["environment"].pop("docker_image"), derived)
@@ -853,6 +854,14 @@ class PrepareTest(unittest.TestCase):
         self.assertNotIn("ARG", [line.split(" ", 1)[0] for line in build["dockerfile"].splitlines()])
         for text in (self.log.read_text(encoding="utf-8"), done.stdout, done.stderr):
             self.assertNotIn(secret, text)
+
+    def test_host_claude_other_than_the_bwrap_copy_stops_before_docker(self):
+        done = self.prepare(OPENLIBRARY, FAKE_CLAUDE_VERSION="9.9.9")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("ホストの Claude Code 9.9.9 が", done.stderr)
+        self.assertIn(f"写した版 {swepro.BWRAP_FROM} と違う", done.stderr)
+        self.assertEqual(self.docker_calls(), [])
+        self.assertFalse((self.out / OPENLIBRARY).exists())
 
     def test_failed_docker_names_the_instance(self):
         done = self.prepare(OPENLIBRARY, FAKE_DOCKER_CODE="1")

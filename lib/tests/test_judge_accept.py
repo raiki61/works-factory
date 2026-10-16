@@ -516,6 +516,16 @@ class JudgeTakeCase(_JudgeBase):
         got = self.take(reply)
         self.assertIs(got["ok"], True, got["reason"])
 
+    def test_precedent_asks_are_the_gate_asks(self):
+        """#604: 先行例の行を求める人へ回す問いは、関所に載せる問い（gatemarks.asks）と同じ選び方。どちらかだけ変えると赤"""
+        questions = [{"key": f"{kind}-{status}", "kind": kind, "status": status}
+                     for kind in ("fork", "field", "stuck") for status in (*gatemarks.ASKING, "decided")]
+        errs = ja._precedent_errors({"units": [], "questions": questions, "precedents": []})
+        wanted = sorted(q["key"] for q in questions if f"precedents に '{q['key']}' の行が無い" in " ".join(errs))
+        gate = sorted(q["key"] for q in gatemarks.asks(gatemarks.ledger({"questions": questions})))
+        self.assertEqual(wanted, gate)
+        self.assertEqual(gate, sorted(["fork-held", "fork-escalate", "field-escalate", "stuck-escalate"]))
+
     def test_premise_three_question_must_name_a_recorded_row(self):
         """#427: 人へ回す問いの先行例が ③（前の決定か方針とぶつかる）を名乗るなら、記録された方針の行を名指す。対象のテストの
         docstring を名指す問いは拒み、方針の文書の写しの <パス>:<行> を名指す問いは受ける"""
