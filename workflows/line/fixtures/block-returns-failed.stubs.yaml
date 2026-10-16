@@ -13,3 +13,4 @@ report__report: {"ok": false, "outcome": "stopped_by_line", "stop_reason": "", "
 judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "reason": ""}
 judge__verify-merge: {"ok": true, "reason": ""}
 judge__verdict: {"ready": "型に合わない"}
+gate-start: {decision: approve, text: ''}

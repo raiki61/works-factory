@@ -311,7 +311,7 @@
 - L-E51 起動の関所の答え: approve・continue は進み、stop・reject は human:gate-start で止める（報告は出る）。答えは gates/<関所>.json に残す
   - 元: works/blk-entry/blk-entry.yaml の launch（reject は run の取り消し）
   - 今: 表
-  - 証: tests/workflows/test_line.py::GateAnswerCase.test_go_words_continue_and_are_recorded・tests/workflows/test_line.py::GateAnswerCase.test_stop_word_stops_with_the_gate_named・tests/workflows/test_line.py::GateAnswerCase.test_reject_stops_like_stop・tests/workflows/test_line.py::GateAnswerCase.test_dry_run_approval_reads_as_approve、tests/workflows/test_line.py::GateDecisionsCase.test_gates_take_the_words_their_text_prints
+  - 証: tests/workflows/test_line.py::GateAnswerCase.test_go_words_continue_and_are_recorded・tests/workflows/test_line.py::GateAnswerCase.test_stop_word_stops_with_the_gate_named・tests/workflows/test_line.py::GateAnswerCase.test_reject_stops_like_stop、tests/workflows/test_line.py::GateDecisionsCase.test_gates_take_the_words_their_text_prints
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gates/gate-start.json、answer-start の output.go）
   - 狭め: 無し（報告が出るので強くなった）
 - L-E52 入口の拒みは AI を起こす前に止める。ブロックは when: で全部飛び、collect・report・result だけが走る（止めの語 works:start-refused）
@@ -680,9 +680,9 @@
 - L-G56 `interactive: true` は関所を持つ工程の頭だけ。線は自分の関所で interactive
   - 元: works/darkfactory/darkfactory.yaml:17・works/blk-entry/blk-entry.yaml:13
   - 今: 表
-  - 証: tests/layers/test_gates.py::GatesTest.test_line_with_its_own_gate_is_interactive
+  - 証: tests/layers/test_gates.py::GatesTest.test_interactive_is_red_on_every_workflow
   - 本物の run: 筋書きでのみ
-  - 狭め: 無し
+  - 狭め: 無し（止めた Archon 355f1867 で `interactive:` は効かず、関所の `wait:` の attention はどの工程でも止まる。どの工程も書かない）
 - 区分の外: works/tests/test_gate_na.py は人の関所でなく、判定の素材 p1.gate_efficacy の「当てはまらない」の差し替え（judge の担当。main lib/judge_accept.py）
 
 ## L-W 境の節とブロックの間の受け渡し

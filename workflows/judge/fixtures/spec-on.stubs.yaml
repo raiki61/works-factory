@@ -1,4 +1,4 @@
-# 筋書き spec-on: 始めの記録が仕様の段を選んだ run。仕様を書き・審査し・穴を直し、関所の承認（筋書きでは自ずと済む）の後に
+# 筋書き spec-on: 始めの記録が仕様の段を選んだ run。仕様を書き・審査し・穴を直し、関所の承認（筋書きでは spec-gate の stub が答える）の後に
 # 受け入れテストを固めてから判定の道へ進む
 fixture:
   expect: completed
@@ -40,6 +40,7 @@ spec-revise:
 spec-revise-reject: {reason: '', "lang_line": ""}
 spec-revise-accept: {ok: true, done: true, reason: '', revise: false}
 spec-ask: {ask: true, message: '仕様の関所: 要件 R1・受け入れ条件 A1'}
+spec-gate: {decision: approve, text: ''}
 spec-freeze: {go: true, reason: ''}
 material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: false, test_double_fidelity: false, main_path_observation: false, provenance: false, reason: 差分の空の run}
 diagnose-prep: {go: true, brief_file: /tmp/judge/diagnose-brief.md, review_md: /tmp/lib/REVIEW.md, repo_review_md: '', reason: ''}

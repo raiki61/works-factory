@@ -34,3 +34,5 @@ report__report: {"ok": true, "outcome": "fixed", "stop_reason": "", "report": {"
 rejudge-run__intake: {"go": false, "mode": "rejudge", "spec": false, "world": false, "reason": ""}
 rejudge-run__verify-merge: {"ok": true, "reason": ""}
 rejudge-run__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u2", "paths": ["stats.py"], "summary": "本当の穴"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": "採る", "depth": "標準", "depth_why": "筋書きの stub"}
+gate-start: {decision: approve, text: ''}
+gate-final: {decision: approve, text: ''}

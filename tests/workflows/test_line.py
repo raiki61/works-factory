@@ -617,7 +617,7 @@ class StartCase(Artifacts):
         self.assertIn("最後の承認ノード: when_needed", text)
         self.assertIn(answer.line(RUN, "continue", "<一言>"), text)
         self.assertIn(answer.line(RUN, "stop", "<理由>"), text)
-        self.assertEqual(line_nodes()["gate-start"]["approval"]["message"], "$start.output.gate_text")
+        self.assertEqual(line_nodes()["gate-start"]["wait"]["attention"], "$start.output.gate_text")
         self.assertEqual(line_nodes()["gate-start"]["depends_on"], ["start"])
 
     def test_heavy_thickness_is_taken(self):
@@ -1124,9 +1124,6 @@ class GateAnswerCase(Artifacts):
         self.assertEqual(got["answer"]["asked"], [gatemarks.ask_text(FixGateAnswersCase.FORK)])
         self.assertEqual(line_nodes()["answer-before-fix"]["with"]["asked"], "$ask-before-fix.output.asked")
 
-    def test_dry_run_approval_reads_as_approve(self):
-        got = gate_answer.take(answer.DRY_RUN_APPROVED, "true", "", "gate-start", self.artifacts)
-        self.assertEqual(got, {"go": True, "answer": {"decision": "approve", "text": "", "asked": []}, "stop_reason": ""})
 
 
 def pushed_row(word: str, note: str) -> str:
@@ -2799,13 +2796,14 @@ class GateDecisionsCase(unittest.TestCase):
     reject が decisions に無いと、Archon はその答えを run の取り消しとして扱い、報告が出ない"""
 
     def test_gates_take_the_words_their_text_prints(self):
-        gates = {key: node for key, node in line_nodes().items() if "approval" in node}
+        gates = {key: node for key, node in line_nodes().items() if "attention" in node.get("wait", {})}
         self.assertEqual(set(gates), {"gate-start", "gate-before-fix", "gate-replan", "gate-final"})
         stop_words = set(answer.VERBS) - set(answer.GO_WORDS)
         self.assertEqual(stop_words, {"stop"})
         for key, node in gates.items():
             with self.subTest(gate=key):
-                self.assertEqual({d["id"] for d in node["approval"]["decisions"]},
+                self.assertEqual(node["wait"]["form"], "select")
+                self.assertEqual({d["id"] for d in node["wait"]["options"]},
                                  set(answer.GO_WORDS) | set(answer.VERBS) | {answer.REJECT})
 
 

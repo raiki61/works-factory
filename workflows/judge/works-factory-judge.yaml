@@ -1,6 +1,5 @@
 name: works-factory-judge
 description: '判定のサブグラフ（メイングラフが include する部品。単独の run には使わない）。依頼を根本の単位にまとめる: run の頭の深さ・前提の実測・目的の固定・定石（世界の解）・並行 PR とのぶつかり・素材集め 11 本・根本の診断と受け付け・判定の裏取り・再審・目的の外の所見の持ち越し。始めの記録が仕様の段を選んだ run は、仕様を書いて審査し、仕様の承認ノードの承認の後に受け入れテストを固める'
-interactive: true
 inputs:
   start: {default: 'null', description: 始めの記録のポインタ（JSON の字）}
   baseline: {default: 'null', description: 直す前の結末のポインタ（JSON の字）}
@@ -416,10 +415,10 @@ nodes:
   - id: spec-gate
     depends_on: [spec-ask]
     when: $spec-ask.output.ask == true
-    idle_timeout: 1728000000
-    approval:
-      message: $spec-ask.output.message
-      decisions:
+    wait:
+      attention: $spec-ask.output.message
+      form: select
+      options:
         - {id: approve}
         - {id: continue}
         - {id: stop}

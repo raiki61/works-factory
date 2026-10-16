@@ -18,7 +18,7 @@
 - AI ノード: AI の役を起こすノード。役の名（判定役・修正役・裁定役など）はそのまま使う。
 - script ノード: `script:` で Python などのコードを走らせるノード。
 - エッジ: ノードの間の依り（`depends_on`）。
-- 承認ノード: 止まって人に答えを聞くノード（Archon の承認ノード `approval:`）。
+- 承認ノード: 止まって人に答えを聞くノード（Archon の待ちのノード `wait:` の `attention` を `form: select` で書いた物）。
 - 出力ノード: サブグラフの出力を返すノード（`returns:` が名指す物）。出力はノードやサブグラフが返す値。
 - ループ: 同じノードの並びを条件まで繰り返す物（Archon の `loop:`・`loop_group`）。
 - 共有ボード: 今の works で `盤面` と呼んでいた、run の状態を持つ作業場。
@@ -200,7 +200,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - 同じメイングラフの run の中の試験の結果の控えは、メイングラフの run の成果物の置き場の直下 `test-reuse/`（名は `lib/tree_run.py` の `REUSE_SUB`）に置き、test-gate と fix がこの名で開く。鍵の run は始めの記録の `run_id`。test-gate の base が置いて引き、fix の組の子の run の TDD のループの頭が引いて置く（子の run の置き場から辿る。`workflows/.shared/boundary.py` の `line_place`）。最後のテスト（test-gate の final）は引かない。別のメイングラフの run の控えは引かない（持ち主の決め `reuse-results`）。
   - fix の `conflicts` の先は `conflicts.json` = `{"items": [...]}`（今の works の `conflict.py` の形。行の欄 `unit_key`・`kind`・`between`・`ruling`（`decision`・`text`・`limits`）・`replan`）。
   - 型つきの成果物: `green-cert` は test-gate の出力ノードの出力そのもの。`tdd-unit` は fix の 1 回の include に 1 つで、中身は組ごとの段の物 `[{group_id, ran, reason, suite, reused, units}]`（今の works の blk-fix の `tdd` の出口。走らなかった組も `ran: false` で載る）。`eye-verdict` は `{eye, status, reason}`（`eye` は `r1`・`r2`・`r3`・`r4`・`premise-check`）。
-  - 承認ノード（`approval:`）の `decisions` は `approve` を含む（Archon の決まり。`guides/approval-nodes.md`）。通す語は `approve`・`continue`、止める語は `stop`・`reject`（今の works のメイングラフの承認ノードの語）。止め札は止める語で、文が `request:` で始まる物。サブグラフの `stop_reason` は人の止めを `human:<所>`、止め札を `request:<所>` の形で返す。
+  - 承認ノード（`wait:` の `attention`）の `options` は答えの語を全部持つ（Archon は `options` に無い答えを拒む）。通す語は `approve`・`continue`、止める語は `stop`・`reject`（今の works のメイングラフの承認ノードの語）。止め札は止める語で、文が `request:` で始まる物。サブグラフの `stop_reason` は人の止めを `human:<所>`、止め札を `request:<所>` の形で返す。
   - メイングラフが include に渡す値（`with:`）は、飛ばされうるノードの出力を直に書かない。include の `with:` には `{from, if_skipped}` の束ねが書けない（埋め P2）ので、メイングラフの返しのノード（`answer-*`・`collect`）が `{from, if_skipped: null}` で受けて返し直した欄を渡す。返しのノードの `output_format` は受けた欄の名だけを書き、型は受けた元（サブグラフの出力ノードの `output_format`）を正本とする（返しのノードの `from` が読む欄は Archon の `validate` が照らす）。
   - サブグラフが約束に無い入力を要る時は、YAML の `inputs:` に既定値（`""`・`"null"`・`"[]"`）つきで宣言し、メイングラフが渡す前も動く形にする。出力の欄は足さない。足す入力はこのノードに書いてからメイングラフが渡す。
   - 出力ノードは落ちない。lib と境の口の import は出力ノードの `main` の中で読み、読めない時も標準ライブラリだけで偽の結末とポインタの先のファイルを書いて返す（merge・test-gate・eyes・plan・plan-review・report・judge・fix の出力ノードと同じ形）。中の誤りを全部捕まえ、そのサブグラフの偽の結末（`ok: false`・`ready: false`・`done: false`・`pass: false`）と訳を `output_format` に合う形で返す（メイングラフは落ちた出力ノードの先へ進めない。報告は受け皿を通して出るが、そのサブグラフの出力は null になる）。
@@ -635,7 +635,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - `script:` のノードの `output_format` は標準出力の約束で、Archon が照らす（`d97d00ef` の文書 `guides/script-nodes.md` 124 行「JSON Schema the node's stdout must satisfy」）。だからサブグラフの出力の型を自前で照らす口は要らない。
 - `workflow:` の `fan_out:` の子が承認ノードで止まると、その子は取り消される（親は承認ノードを 1 つしか持てない。承認ノードを外して resume すればその子からやり直す。`dag-executor.ts` 7716-7719 行・7771-7790 行）。`include:` の `fan_out:` の中の承認ノードと待ちは、読み込みの時に誤りになる（`include-expander.ts` 1148-1157 行）。承認ノードは fan_out の前か後に置く。
 - 持ち主の居ない `running` の run は `resume` できない。`workflow abandon` で手放し、`workflow run --adopt <run>` で新しい run として最初のノードから起こし直す。手放すと commit していない書きかけは作業ツリーごと消える（埋め P1 は `bin/apply`。段 1b の実測）。メイングラフでも同じ（段 1 の手順 6、run `ee0f15b7`: 役のノードが走る間に持ち主を止めると `get` は `running` のまま・`wait` は `owner_lost`・`resume` は拒み・`abandon` は `cancelled` にして作業ツリーを書きかけごと消し、枝は残る。`--adopt` の run `097c08dc` はメイングラフの頭からやり直し、報告のノードまで全部走った）。埋めは今の `bin/apply` で足り、足さない（`docs/polyfills.md` の P1）。
-- `interactive: true` のグラフは `workflow run --detach` で起こせない（「Workflow '<名>' is interactive-class … cannot be dispatched in the background」。`d97d00ef` の `utils/workflow-requirements.ts` の `assertInteractiveClassNotBackgrounded`）。メイングラフは `interactive: true` なので、`workflow run` は前で打つ。前の run は最初の承認ノードで止まると終わって戻る（段 1b の実測）。同じ `interactive: true` のグラフの `workflow respond <run> reject --detach` と `workflow resume <run> --detach` は通った。
+- `d97d00ef` では `interactive: true` のグラフは `workflow run --detach` で起こせなかった（「Workflow '<名>' is interactive-class … cannot be dispatched in the background」。`utils/workflow-requirements.ts` の `assertInteractiveClassNotBackgrounded`）。前の run は最初の承認ノードで止まると終わって戻る（段 1b の実測）。`355f1867` では `interactive:` は非推奨で効かない（読み込みの警告「Any workflow can start in the foreground, in the background or from a trigger」）ので、メイングラフも頭に書かない。メイングラフを `--detach` で起こす実測はまだ。
 - 待ちは持ちこたえる（0.10.0 から）。`wait:` のノードと承認ノードの待ちは DB が持ち、process が再起動しても消えない（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」）。server は期限の来た run を再開する（`d97d00ef` の CHANGELOG 244 行）。だから CI と人の長い待ちは `wait:` のノードと承認ノードで書く。
 - `include:` のノードに `fan_out:` を書ける（0.10.0、PR #2512・#2795）。「Load time resolves and validates the full static block…; runtime decides only its width」。並べの数に上限を付けられ、結果は入力の順に `$<id>.output` に集まる（`d97d00ef` の CHANGELOG 246 行）。
 - `workflow:` のノードに `fan_out:` を書くと、項目ごとに自分の run（「its own row, artifacts, cost line and gates」）を持つ子が起きる（同じ 246 行）。

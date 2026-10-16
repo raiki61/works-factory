@@ -24,12 +24,10 @@ IN_LOOP_REFUSED = {
         "packages/workflows/src/loader.ts 1302-1311 行）。Archon で不可の形で、線は fix を輪の外でだけ include するので、"
         "線の能力は落ちない（狭めでない）"),
     f"{scan.OURS_PREFIX}probe-judge": (
-        ["warning: Node 'block__spec-gate': a gate node inside a loop_group body must be the body's sole terminal sink to "
-         "pause the enclosing loop (#2707 step 3) — this gate is not, so it will not stop loop iteration. Move it to the end "
-         "of the body with nothing else depending on it, and no other node left un-depended-on."],
-        "judge の関所 spec-gate は本体の終わりでないので、輪の中では輪を止めない（止めた Archon の packages/workflows/src/"
-        "loader.ts 492 行の警告）。線は judge を輪の外でだけ include する。輪の中で include できる形（関所を本体の終わりに"
-        "置く）にするかは区分 J。区分の issue で外す"),
+        ["error: loop_group 'rounds' body: wait node 'block__spec-gate' must be the body's sole terminal sink"],
+        "judge の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に置けない（止めた Archon の "
+        "packages/workflows/src/loader.ts の loop_group の本体の照らし）。線は judge を輪の外でだけ include する。輪の中で include "
+        "できる形（関所を本体の終わりに置く）にするかは区分 J。区分の issue で外す"),
 }
 
 
@@ -82,7 +80,7 @@ class ArchonValidateTest(unittest.TestCase):
                 needed = {key: "x" for key, spec in (block.get("inputs") or {}).items()
                           if not (isinstance(spec, dict) and "default" in spec)}
                 include = {"id": "block", "include": f"{scan.OURS_PREFIX}{name}", **({"with": needed} if needed else {})}
-                probe = {"name": f"{scan.OURS_PREFIX}probe-{name}", "description": "include の確かめ", "interactive": True,
+                probe = {"name": f"{scan.OURS_PREFIX}probe-{name}", "description": "include の確かめ",
                          "nodes": wrap(include)}
                 folder = placed / f"probe-{name}"
                 folder.mkdir()

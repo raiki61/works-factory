@@ -55,18 +55,19 @@
   - `prompt:`・`command:` の `idle_timeout`
   - `loop:` の `idle_timeout`（1 周ごと）と `timeout`（`until_bash` の確かめ。無いと 120000 ms で打ち切る）
   - `loop_group:` の `timeout`（`until_bash` の確かめ）
-  - `approval:` の `idle_timeout`（`on_reject` の直しの役が受け継ぐ）
-  - `wait:` の中の `deadline_ms`（`event` を待つ時）
+  - `approval:` の `idle_timeout`（`on_reject` の直しの役が受け継ぐ。関所は `approval:` で書かない（E16））
+  - `wait:` の中の `deadline_ms`（`event` を待つ時）。`attention` の待ち（関所）は期限を持たない（Archon の文書 `guides/authoring-workflows.md` の「An attention wait has no deadline」）
   - `cancel:`・`include:`・`workflow:` は期限を持たない（`include:`・`workflow:` の先のノードは自分の鍵を持つ）
 - 機械: `tests/layers/test_no_timeouts.py`（`workflows/` の YAML のノードが全部上の種類のどれかで（知らない種類は赤）、期限を持つノードに上の鍵が在り、`timeout`・`idle_timeout`・`deadline_ms` が全部 `1728000000`）。
 
 ## E16 承認ノードと並べは最新の ASF の形で書く
 
-- 承認ノード: グラフに `interactive: true` を書き、承認ノードは `approval:`（見せる文 `message` と選び肢 `decisions`）で書く。後ろのノードはその答えを `{ from: "$<承認ノード>.output", if_skipped: null }` で受ける（ASF の `W/merge-queue/archon-merge-queue.yaml`:8・179-225）。持ち主の決め `asf-way-gates-fanout`。
-- 自分のノードに `approval:` を持つサブグラフ（judge の仕様の承認ノード）は、グラフの頭に `interactive: true` を残す。止めた Archon の単独の `archon validate` は、`approval:` のノードを持つグラフの頭に `interactive: true` が無いと警告を出す（`packages/workflows/src/loader.ts` 1389-1427 行の `validateWorkflowClassPlacement` が誤りの文を返し、1666-1675 行が猶予の警告にする）。メイングラフから include された時はメイングラフの `interactive: true` が効き、サブグラフの頭のこの鍵には何も言わない。
+- 承認ノード: `wait:` の `attention`（見せる文）を `form: select` で書き、選び肢を `options` に並べる。後ろのノードはその答え `{decision, text}` を `{ from: "$<承認ノード>.output", if_skipped: null }` で受ける（ASF の `W/merge-queue/archon-merge-queue.yaml`:8・179-225 の形を、止めた Archon 355f1867 が非推奨にした `approval:` から書き換えた物）。持ち主の決め `asf-way-gates-fanout`。
+- `approval:` と、グラフの頭の `interactive:` は書かない。止めた Archon は読み込みで非推奨の警告を出し（`packages/workflows/src/loader.ts` の `LEGACY_PAUSE_REPLACEMENTS` と「workflow-level 'interactive:' is deprecated and has no effect」）、`interactive:` は効かない。
+- 筋書き（`fixtures/*.stubs.yaml`）が承認ノードを通る時は、その承認ノードの答えを stub に書く（`<承認ノード>: {decision: approve, text: ''}`）。止めた Archon の dry-run は、答えの stub の無い `wait:` で止まる（`packages/workflows/src/dry-run.ts`）。
 - 並べ: `fan_out:`（`items`・`as`・`max_parallel`・`join`）で書く（ASF の `W/verify-runtime-suite/archon-verify-runtime-suite.yaml`:27-34）。作業ツリーに書く並べ（fix の組）は、組ごとに子の run を起こして作業ツリーを分ける。子の run が自分の作業ツリーを持つかは段 1 で実測する（`docs/design.md` の U8）。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
-- どの承認ノードも `decisions` に答えの語（`lib/answer.py` の `GO_WORDS`・`STOP_WORDS`。`STOP_WORDS` は `REJECT` を含む）を全部持ち、`on_reject` を持たない（止めた Archon の `packages/core/src/operations/workflow-operations.ts` 1625-1700 行: `reject` が無いか `on_reject` が在る承認ノードの reject は run の取り消しになり、報告が出ない。ほかの語が無いと、その答えを承認ノードが受けない）。ループ（`loop_group`）の本体に承認ノードを置かない（本体が承認ノードで終わるループの再開は会話を引き継がない。今の works の `works/tests/test_yaml_rules.py` 43-45 行）。
-- 機械: `tests/layers/test_gates.py`（全グラフの承認ノードが `lib/answer.py` の答えの語を全部持ち `on_reject` を持たない。ループの本体に承認ノードが無い。`approval:` のノードを持つグラフを include する一番上のグラフ（メイングラフ）に `interactive: true` が在る。include されるサブグラフはグラフの頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない（一番上のグラフ（メイングラフ・周の鎖）は書いてよい）。`interactive` は、自分のノードに `approval:` を持つサブグラフが `true` で書く時だけ許し、ほかのサブグラフが書いた時と `true` 以外の値は赤）。並べの形は人が見る。
+- どの承認ノードも `options` に答えの語（`lib/answer.py` の `GO_WORDS`・`STOP_WORDS`。`STOP_WORDS` は `REJECT` を含む）を全部持つ（止めた Archon は `options` に無い答えを拒み、run は承認ノードで止まったまま。`workflow respond <run> continue|stop|approve|reject` と `workflow approve`・`reject` は、どれも `{decision, text}` を返して run を続ける。実測 2026-10-16）。ループ（`loop_group`）の本体に承認ノードを置かない（本体が承認ノードで終わるループの再開は会話を引き継がない。今の works の `works/tests/test_yaml_rules.py` 43-45 行）。
+- 機械: `tests/layers/test_gates.py`（全グラフの承認ノードが `wait:` の `attention` で `form: select` を持ち、`options` に `lib/answer.py` の答えの語を全部持つ。`approval:` のノードが無い。ループの本体に承認ノードが無い。どのグラフも頭に `interactive` を書かない。include されるサブグラフはグラフの頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない（一番上のグラフ（メイングラフ・周の鎖）は書いてよい））。筋書きの stub は `workflow test` が照らす（答えの stub の無い承認ノードで止まると赤）。並べの形は人が見る。
 
 ## E17 対象のリポジトリには差分を置くだけ
 
