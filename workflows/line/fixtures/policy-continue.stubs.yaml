@@ -33,3 +33,6 @@ merge-apply__merge: {"mode": "apply", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaa
 report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": true, "outcome": "fixed", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
 answer-before-fix: {"go": true, "answer": {"decision": "approve", "text": "範囲は stats.py だけ", "asked": ["空の列で例外を投げるか 0 を返すか"]}, "stop_reason": ""}
+gate-start: {decision: approve, text: ''}
+gate-before-fix: {decision: approve, text: ''}
+gate-final: {decision: approve, text: ''}

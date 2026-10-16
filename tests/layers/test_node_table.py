@@ -52,7 +52,7 @@ KEEP_NAMES = {k: v.replace(*KEEP_NAME_REWRITES[k]) if k in KEEP_NAME_REWRITES el
 BY_KINDS = {
     "role": set(scan.ROLE_KINDS),
     "machine": set(scan.CODE_KINDS),
-    "archon": {"approval", "loop_group", "loop", "workflow", "include"},
+    "archon": {"wait", "loop_group", "loop", "workflow", "include"},
 }
 BY = (*BY_KINDS, "absent")
 FALLBACKS = ("role", "absent")
@@ -382,7 +382,7 @@ nodes:
   - id: r
     command: r
   - id: g
-    approval: {message: m}
+    wait: {attention: m, form: select, options: [{id: approve}]}
   - id: lp
     loop_group:
       nodes:

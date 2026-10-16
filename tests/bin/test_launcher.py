@@ -354,6 +354,21 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env["ARCHON_TELEMETRY_DISABLED"], "1")
         self.assertEqual(env["DO_NOT_TRACK"], "1")
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
+        self.assertIn("defaultAssistant: claude", (pathlib.Path(env["ARCHON_HOME"]) / "config.yaml").read_text(encoding="utf-8"))
+
+    def test_rebuilt_home_gets_the_factory_settings_and_users_archon_is_untouched(self):
+        """工場の Archon の家を消して作り直しても家の config.yaml に工場の決める値が入り、利用者の ~/.archon には書かない"""
+        users = put(self.home / ".archon" / "config.yaml", "workflows:\n  autoResumeOnQuotaReset: true\n")
+        before = users.read_bytes()
+        for attempt in ("new", "rebuilt"):
+            with self.subTest(attempt):
+                archon_home = pathlib.Path(self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]["ARCHON_HOME"])
+                self.assertNotEqual(archon_home.resolve(), (self.home / ".archon").resolve())
+                self.assertEqual((archon_home / "config.yaml").read_text(encoding="utf-8"),
+                                 "defaultAssistant: claude\nworkflows:\n  autoResumeOnQuotaReset: false\n")
+                shutil.rmtree(self.default_home(self.target))
+        self.assertEqual(users.read_bytes(), before)
+        self.assertEqual(sorted(p.name for p in (self.home / ".archon").iterdir()), ["config.yaml"])
 
     def test_users_home_reaches_target_commands_only_when_asked(self):
         """#492: OPT_IN=1 の起動だけが、対象のコマンドに戻す利用者の HOME を控え、明示したことと AI の試験のコードが資格に届きうることを起動の 1 行で言う。
@@ -544,8 +559,8 @@ class LauncherTest(unittest.TestCase):
         login = {"ANTHROPIC_API_KEY": None, "FAKE_SECURITY_HOME": str(self.home), "FAKE_SECURITY_VALUE": TOKEN,
                  "FAKE_SECURITY_SERVICE": "Claude Code-credentials"}
         for args in (["workflow", "resume", "run-1"], ["workflow", "approve", "run-1"], ["workflow", "reject", "run-1"],
-                     ["workflow", "respond", "run-1", "continue", "x"], ["workflow", "wake", "run-1"],
-                     ["workflow", "signal", "run-1", "done"]):
+                     ["workflow", "respond", "run-1", "continue", "x"], ["workflow", "answer", "run-1", "x"],
+                     ["workflow", "wake", "run-1"], ["workflow", "signal", "run-1", "done"]):
             with self.subTest(args=args):
                 env = self.reached(self.launch(*args, WORKS_FACTORY_HOME=str(self.tmp / "home-of" / args[1]), **login))["env"]
                 self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))

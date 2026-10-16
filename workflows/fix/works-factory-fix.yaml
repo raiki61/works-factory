@@ -438,7 +438,7 @@ nodes:
           output_format: *accept_out
 
   # 裁定の後の修正の輪。直す裁定（fix_test_scope・fix_code_as）が無ければ支度が go: false を返し、役を起こさずに抜ける。
-  # 役 fix-ruled は修正役の返答と裁定を機械が保存したファイルを読む新しい会話（Archon の context: resume は loop_group の体で使えない）
+  # 役 fix-ruled は修正役の返答と裁定を機械が保存したファイルを読む新しい会話
   - id: fix-ruled-loop
     depends_on: [conflict-check, rule-loop, clash-ruled-loop]
     when: "$conflict-check.output.go == true"

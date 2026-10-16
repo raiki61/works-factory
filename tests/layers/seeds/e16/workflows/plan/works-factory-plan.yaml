@@ -1,5 +1,5 @@
 name: works-factory-plan
-interactive: true
+worktree: {enabled: false}
 nodes:
   - id: round
     script: round

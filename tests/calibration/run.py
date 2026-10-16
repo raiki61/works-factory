@@ -197,7 +197,7 @@ class WorksFactory:
     def gate(self, attempt: Path, run_id: str) -> str:
         for rid in [run_id, *evidence.children(self._runs(attempt), run_id)]:
             got = self._get(attempt, rid)
-            node = ((got.get("metadata") or {}).get("approval") or {}).get("nodeId")
+            node = paused_node(got.get("metadata") or {})
             if got.get("status") == "paused" and node:
                 return node if rid == run_id else f"{node}（子の run {rid}）"
         return "（記録に承認ノードの名が無い）"
@@ -578,6 +578,15 @@ def _number(value) -> float | None:
 
 def _state(status) -> str:
     return STATES.get(status, "failed")
+
+
+def paused_node(metadata: dict) -> str | None:
+    """止まった run の記録の metadata から、待っている承認ノードの名。wait: の関所（355f1867 の形）は metadata.wait の
+    attention の待ちが、古い approval: の関所は metadata.approval が持つ"""
+    wait = metadata.get("wait") or {}
+    if wait.get("kind") == "attention" and wait.get("nodeId"):
+        return wait["nodeId"]
+    return (metadata.get("approval") or {}).get("nodeId")
 
 
 PRODUCERS = {c.name: c for c in (OldWorks, WorksFactory, PlainClaude)}

@@ -1,8 +1,7 @@
 name: works-factory-line
-interactive: true
 nodes:
   - id: gate
-    approval:
-      message: m
-      decisions: [{ id: approve }, { id: continue }, { id: stop }]
-    idle_timeout: 1728000000
+    wait:
+      attention: m
+      form: select
+      options: [{ id: approve }, { id: continue }, { id: stop }]

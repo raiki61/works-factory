@@ -4,10 +4,15 @@ Factory can own ordinary application environments while Archon owns every workfl
 and coding agent. It never chooses a stage, retries an agent, evaluates a scenario,
 interprets workflow output to dispatch more work, or authorizes a merge.
 
+The pinned SDLC source (upstream dev) ships no runtime-verification workflow:
+`archon-verify-runtime` and `archon-verify-runtime-suite` are gone, so nothing in
+`factory/pack.json` consumes a runtime host today, and the evaluator calibration
+those workflows ran is gone with them.
+
 ## Foreground lifetime
 
 ```text
-factory run archon-verify-runtime --runtime-host /private/runtime.json --input scenario=/private/baseline.json
+factory run <workflow> --runtime-host /private/runtime.json --input <name>=<value>
 ```
 
 The consumer starts a separate local owner, passes its connection through
@@ -191,70 +196,6 @@ Keep original `harness/END-TO-END.md`, `.factory/holdout/HOLDOUT.md`, and defect
 unchanged. Convert assertions and case metadata into separate project JSON as
 data only. Store private holdout scenario JSON outside the builder checkout;
 do not include it in app snapshots. Factory does not generate shared instructions.
-### Calibrate the evaluator before relying on it
-
-Author assertions around substantive user behavior: make the user create or earn
-a nonempty value, take a real transition, and verify the resulting nonzero value
-and visible state. Do not seed the final state directly or accept only "the page
-loads". Configure one uniquely anchored mutation that breaks that behavior.
-
-For example, adapt this to the product's public interface in both controls:
-
-```json
-{
-  "assertions": [
-    {
-      "id": "earned-value",
-      "description": "Begin with fresh state, create one real user record through the public interface, perform the user action that earns value, then observe exactly one record, a nonempty display value, and an earned numeric value greater than zero. Do not write the database or seed the resulting state directly."
-    }
-  ],
-  "environment": {
-    "ownership": "external",
-    "candidate_command": "python factory/runtime_host.py identity --slot baseline --connection-file /private/connection.json"
-  }
-}
-```
-
-Start stable baseline and mutation slots, record their exact host identities, and
-write a caller-owned suite manifest accepted by `archon-verify-runtime-suite`:
-
-```json
-{
-  "baseline": "baseline",
-  "cases": [
-    {"id": "baseline", "scenario": "baseline.json", "candidate": "<baseline identity>", "expected_verdict": "verified"},
-    {"id": "relevant-fault", "scenario": "relevant-fault.json", "candidate": "<mutation identity>", "expected_verdict": "failed"}
-  ]
-}
-```
-
-The two scenarios probe those already-running slots and apply the same behavioral
-expectations; the fault description identifies it as a deliberate control. Run:
-
-```text
-python factory/consumer.py run archon-verify-runtime-suite --input manifest=/private/calibration/manifest.json
-```
-
-Require `expectations_passed: true` and `baseline_verified: true`. Do not create
-native return files yourself. Separately run `archon-verify-runtime` with the
-baseline scenario and a deliberately different `candidate` input; require its
-native verdict to be `inconclusive`. The pinned suite manifest schema permits only
-`verified` and `failed` expectations, so the identity/infrastructure control
-cannot truthfully be an expected third suite case. An unavailable case never
-counts as a caught mutation.
-
-Keep independent holdout scenarios private and unchanged by calibration. Repeat
-this calibration at initial setup and after a material evaluator, assertion,
-runtime-adapter or identity-contract change, not after prose-only edits.
-
-Save the probe command's actual stdout/stderr and exit status, then inspect the
-saved file for the literal measurements and candidate identity before accepting
-it as evidence. On Windows, `Start-Transcript` can capture terminal prompts
-instead of subprocess output; a nonempty transcript alone is not proof of the
-observations. Capture subprocess output directly. If recovering an original tool
-receipt, preserve its provenance and the original artifacts without inventing
-measurements or presenting a replay as the original attempt.
-
 ## Identity and supported shapes
 
 HTTP apps must implement a build-id path that returns the exact
