@@ -1,4 +1,4 @@
-"""`workflows/.shared/` と `bin/_lib/` のファイルが境の口・入口の部品の外し・埋めの名簿の行のどれかに当たり、名簿の `- 埋め:` の行のリポジトリの中のパスが木に無い行も赤。「（予定）」の行は木に無くてよい（workflows/AGENTS.md の E2 の機械の行）。"""
+"""`workflows/.shared/` と `bin/_lib/` のファイルが境の口・入口の部品の外し・埋めの名簿の `- 埋め:` の行の頭の欄のどれかに当たり（説明の文にだけ出る名は数えない）、名簿の `- 埋め:` の行の全部のリポジトリの中のパスが木に無い行も赤。「（予定）」の行は木に無くてよい（workflows/AGENTS.md の E2 の機械の行）。"""
 import pathlib
 import unittest
 
@@ -67,6 +67,34 @@ class PolyfillsListedTest(unittest.TestCase):
         with tree({"docs/polyfills.md": registry}) as root:
             got = scan.problems("E2", root)
         self.assertTrue(any("docs/polyfills.md:2" in line and "later.py" in line for line in got), got)
+
+    def test_bin_lib_name_only_in_description_is_red(self):
+        """頭の欄の外（説明の文）にだけ名が出る bin/_lib/ の部品は、名簿に載った埋めに数えない"""
+        registry = "- 埋め: `bin/_lib/y.py`。説明の中の `bin/_lib/x.py`\n"
+        with tree({"docs/polyfills.md": registry, "bin/_lib/x.py": "", "bin/_lib/y.py": ""}) as root:
+            got = scan.problems("E2", root)
+        self.assertEqual(got, ["bin/_lib/x.py:1: 名簿にも境の口にも当たらない"])
+
+    def test_shared_name_only_in_description_is_red(self):
+        registry = "- 埋め: `workflows/.shared/y.py`。説明の中の `workflows/.shared/x.py`\n"
+        files = {"docs/polyfills.md": registry, "workflows/.shared/x.py": "", "workflows/.shared/y.py": ""}
+        with tree(files) as root:
+            got = scan.problems("E2", root)
+        self.assertEqual(got, ["workflows/.shared/x.py:1: 名簿にも境の口にも当たらない"])
+
+    def test_every_head_path_counts_and_description_does_not(self):
+        registry = "- 埋め: `bin/_lib/a.py`、`bin/_lib/b.py`。説明の `bin/_lib/c.py`\n"
+        files = {"docs/polyfills.md": registry, **{f"bin/_lib/{n}.py": "" for n in "abc"}}
+        with tree(files) as root:
+            got = scan.problems("E2", root)
+        self.assertEqual(got, ["bin/_lib/c.py:1: 名簿にも境の口にも当たらない"])
+
+    def test_parenthesized_description_after_head_is_not_counted(self):
+        """（予定）は欄を続け、ほかの `（` は欄を閉じる"""
+        registry = "- 埋め: `bin/_lib/p.py`（予定）、`bin/_lib/y.py`（中身は `bin/_lib/x.py`）。\n"
+        with tree({"docs/polyfills.md": registry, "bin/_lib/x.py": "", "bin/_lib/y.py": ""}) as root:
+            got = scan.problems("E2", root)
+        self.assertEqual(got, ["bin/_lib/x.py:1: 名簿にも境の口にも当たらない"])
 
 
 if __name__ == "__main__":

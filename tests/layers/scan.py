@@ -30,6 +30,9 @@ def word(pattern: str) -> re.Pattern:
 BOUNDARY = "boundary.py"
 # 「（予定）」は語の境の外に置く。後ろに字が続いても（予定）を落とさない
 POLYFILL_ROW = re.compile(word(r"((?:workflows|bin|lib|tests)/[^\s`（）()、・。]+)").pattern + r"(`?（予定）)?")
+# 名簿の `- 埋め:` の行の頭の欄（group 1）。`- 埋め:` の直後から続くパスの並びで、backtick で囲んでも素でもよい。欄を続けるのはパスの直後の「（予定）」と区切りの `、` だけ。それ以外の最初の字で欄が終わる（頭が文で始まる行は空）
+_POLYFILL_HEAD_PATH = "`?(?:" + POLYFILL_ROW.pattern + ")`?"
+POLYFILL_HEAD = re.compile(rf"\s*- 埋め:\s*((?:{_POLYFILL_HEAD_PATH}(?:、{_POLYFILL_HEAD_PATH})*)?)")
 POLYFILL_FOLDERS = (("workflows", ".shared"), ("bin", "_lib"))
 
 ARCHON_WORDS = re.compile(
@@ -316,10 +319,13 @@ def includes(root: Path, rel: str) -> list[str]:
 
 def _polyfills_listed(root: Path) -> list[str]:
     registry = root / "docs" / "polyfills.md"
-    listed = {}
+    listed = {}  # 行の全部のパス。木に在るかを照らす
+    covered = set()  # 頭の欄のパスだけ。説明の文にだけ出る名は覆いに数えない
     rows, out = _lines(root, registry) if registry.is_file() else ([], [])
     for number, line in enumerate(rows, 1):
-        if line.strip().startswith("- 埋め:"):
+        head = POLYFILL_HEAD.match(line)
+        if head:
+            covered.update(match[1] for match in POLYFILL_ROW.finditer(head[1]))
             for match in POLYFILL_ROW.finditer(line):
                 planned = bool(match[2])
                 if match[1] not in listed or listed[match[1]][1] and not planned:
@@ -330,7 +336,7 @@ def _polyfills_listed(root: Path) -> list[str]:
     for folder in POLYFILL_FOLDERS:
         for path in _files(root, *folder):
             name = _rel(root, path)
-            if name != f"workflows/.shared/{BOUNDARY}" and name not in listed:
+            if name != f"workflows/.shared/{BOUNDARY}" and name not in covered:
                 out.append(f"{name}:1: 名簿にも境の口にも当たらない")
     return out
 
