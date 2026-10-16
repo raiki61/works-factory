@@ -14,7 +14,7 @@
 
 - `workflows/.shared/` のファイルは 2 種類だけ。Archon との出入りの口（境の入出力のモジュール。1 つ）と、埋め（polyfill。Archon に無い物を外から補う部品）。`bin/_lib/` には埋めと入口の部品（`bin/AGENTS.md` の E15）が並ぶので、埋めでない入口の部品は `tests/layers/scan.py` の `ALLOWED["E2"]` に 1 行ずつ置いて外す。
 - 埋めは `docs/polyfills.md` に 1 行ずつ載せる。載せる欄は、穴・Archon の証拠の引用・外す条件。YAML の型の埋め（メイングラフの受け皿のノードなど）や、期限の値のような置き場を持たない埋めも載せる。
-- 機械: `tests/layers/test_polyfills_listed.py`（`workflows/.shared/` と `bin/_lib/` のファイルが、境の口・`ALLOWED["E2"]` の行・名簿の行のどれかに当たる。名簿の `- 埋め:` の行が名指す `workflows/`・`bin/`・`lib/`・`tests/` の下のパスが木に無い行も赤。ただし置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい）。
+- 機械: `tests/layers/test_polyfills_listed.py`（`workflows/.shared/` と `bin/_lib/` のファイルが、境の口・`ALLOWED["E2"]` の行・名簿の `- 埋め:` の行の頭の欄が名指す物のどれかに当たる。行の説明の文にだけ名が出る部品は数えない。木に在るかの照らしは頭の欄に限らず行の全部のパスに掛かり、名簿の `- 埋め:` の行が名指す `workflows/`・`bin/`・`lib/`・`tests/` の下のパスが木に無い行も赤。ただし置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい）。
 
 ## E4 サブグラフはほかのサブグラフのファイルを指さず、入力の説明で作り手を名指さない
 
