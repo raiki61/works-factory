@@ -69,7 +69,6 @@ class PolyfillsListedTest(unittest.TestCase):
         self.assertTrue(any("docs/polyfills.md:2" in line and "later.py" in line for line in got), got)
 
     def test_bin_lib_name_only_in_description_is_red(self):
-        """頭の欄の外（説明の文）にだけ名が出る bin/_lib/ の部品は、名簿に載った埋めに数えない"""
         registry = "- 埋め: `bin/_lib/y.py`。説明の中の `bin/_lib/x.py`\n"
         with tree({"docs/polyfills.md": registry, "bin/_lib/x.py": "", "bin/_lib/y.py": ""}) as root:
             got = scan.problems("E2", root)
