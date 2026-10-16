@@ -1712,7 +1712,7 @@ class BriefCase(_RepoCase):
         text = pathlib.Path(ja.brief(self.jdir, self.repo, start, review)).read_text(encoding="utf-8")
         self.assertIn(f"{headdepth.UNKNOWN_HEAD}\n\n行ごとの未知の種類は決まっていない（訳: {headdepth.NO_RECORD}）", text)
         items = [{"item": 1, "unknown": "形", "cause_quote": "二通りの直し方", "where": "app.txt:1", "code_quote": "一行目"}]
-        headdepth.write(self.jdir, headdepth.record("重厚", "設計の選び", items=items))
+        headdepth.write(self.jdir, headdepth.record(headdepth.tier_of(items), "設計の選び", items=items))
         text = pathlib.Path(ja.brief(self.jdir, self.repo, start, review)).read_text(encoding="utf-8")
         self.assertIn(f"- 行 1（形）: 依頼の字「二通りの直し方」・番地 app.txt:1「一行目」・指示: {headdepth.ASKS['形']}", text)
         self.assertLess(text.index(headdepth.UNKNOWN_HEAD), text.index("## 入力"))

@@ -759,7 +759,7 @@ class HeadDepthTest(unittest.TestCase):
         out = r.returned("head_depth_accept", reply=reply)
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         doc = self.record(r)
-        self.assertEqual((doc["depth"], doc["why"]), ("重厚", reply["why"]))
+        self.assertEqual((doc["depth"], doc["why"]), ("標準", reply["why"]))
         self.assertEqual([(it["item"], it["unknown"]) for it in doc["items"]], [(1, "無し"), (2, "形")])
         bad = {**reply, "items": [self.LIGHT["items"][0], {**shape, "cause_quote": "書いていない字"}]}
         out = r.returned("head_depth_accept", reply=bad)

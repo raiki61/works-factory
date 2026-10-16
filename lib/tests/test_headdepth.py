@@ -89,13 +89,13 @@ class CheckTest(Repo):
         self.assertEqual(headdepth.tier_of(LIGHT_REPLY["items"]), "軽量")
 
     def test_quoted_heavy_passes(self):
-        """重厚は『形』『範囲』の行から決まり、where の行の範囲の幅を問わないのもその行だけ"""
+        """重厚は範囲の行から決まる。形・範囲の行は where の行の範囲の幅を問わない"""
         wide = dict(where=f"long.py:1-{headdepth.WHERE_SPAN + 1}", code_quote="value = 1")
-        for kind in ("形", "範囲"):
+        for kind, tier in (("形", "標準"), ("範囲", "重厚")):
             with self.subTest(kind):
                 reply = self.item(unknown=kind, **wide)
                 self.assertEqual(self.check(reply), [])
-                self.assertEqual(headdepth.tier_of(reply["items"]), "重厚")
+                self.assertEqual(headdepth.tier_of(reply["items"]), tier)
                 self.assertTrue(self.check(self.item(unknown=kind, cause_quote="書いていない字")))
         self.assertTrue(self.check(self.item(unknown="無し", **wide)))
         self.assertTrue(self.check({**LIGHT_REPLY, "items": []}))
@@ -142,9 +142,10 @@ class CheckTest(Repo):
         self.assertEqual(self.check({**LIGHT_REPLY, "items": []}, rows=[]), [headdepth.NO_ROWS])
 
     def test_tier_is_the_heaviest_row_kind(self):
-        """段は行の未知の種類の一番重い物から機械が引く（無し→軽量・原因→標準・形か範囲→重厚）"""
-        for kinds, tier in ((("無し",), "軽量"), (("原因",), "標準"), (("形",), "重厚"), (("範囲",), "重厚"),
-                            (("無し", "無し"), "軽量"), (("無し", "原因"), "標準"), (("原因", "形", "無し"), "重厚"),
+        """段は行の未知の種類の一番重い物から機械が引く（無し→軽量・原因→標準・形→標準・範囲→重厚）"""
+        for kinds, tier in ((("無し",), "軽量"), (("原因",), "標準"), (("形",), "標準"), (("範囲",), "重厚"),
+                            (("無し", "無し"), "軽量"), (("無し", "原因"), "標準"), (("原因", "形", "無し"), "標準"),
+                            (("原因", "形"), "標準"), (("形", "範囲"), "重厚"),
                             (("無し", "範囲", "原因"), "重厚")):
             with self.subTest(kinds=kinds):
                 self.assertEqual(headdepth.tier_of([{"unknown": k} for k in kinds]), tier)
@@ -244,7 +245,13 @@ class SectionTest(unittest.TestCase):
                 self.assertTrue(ask.strip())
                 for word in ("範囲の相談", "申し出"):
                     self.assertNotIn(word, ask)
+        # 形の指示の字は今のまま、ここ 1 か所で縛る（段を下げても設計の選びの指示を落とさない。他の試験は ASKS の参照で載ることだけを見る）
+        self.assertEqual(headdepth.ASKS[headdepth.SHAPE], "形を 2 つ以上並べ、選んだ訳と退けた訳を書け。")
         self.assertEqual(headdepth.UNKNOWN_HEAD.source, "fn:headdepth.section")
+
+    def test_scope_ask_keeps_the_shape_ask(self):
+        """範囲になった行も、選びが要る時の指示（形の行の指示）を失わない"""
+        self.assertIn(headdepth.ASKS[headdepth.SHAPE], headdepth.ASKS[headdepth.SCOPE])
 
 
 class ReportLineTest(unittest.TestCase):
