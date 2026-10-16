@@ -1,7 +1,7 @@
 """SWE-Bench Pro V2 の Harbor の agent WorksBench（--ak producer=<works-factory|claude>）。命令の形と 1 件の流れは
 tests/calibration/swepro.py の頭。harbor を import するのはこのファイルだけで、harbor は pyproject.toml の extra bench に在る。
 
-ホストで動く薄い殻: setup で swepro.py prepare が課題のイメージに焼いた焼き印と bwrap を確かめ（網を使わない）、run で
+ホストで動く薄い殻 WorksBench: setup で swepro.py prepare が課題のイメージに焼いた焼き印と sandbox の層を確かめ（網を使わない）、run で
 課題の入力と認証のファイルを上げて起こし役（swepro.py inside）を 1 回 exec し、/app の差分を model.patch に取り、
 起こし役の標準出力と予測を <試み>/agent/ に書く。
 命令の字は swepro.py が組む。期限を足さない（setup・exec とも上限なし。作業の段の上限は --agent-timeout-multiplier inf で外し、
