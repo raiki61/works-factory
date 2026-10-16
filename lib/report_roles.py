@@ -47,9 +47,15 @@ NOT_PASSED = "報告サブグラフの初見の読み手のノード cold が、
 # 受け付けが外して TERMS_NAME に控える
 TERM_SCHEMA = {"type": "object", "required": ["term", "definition"], "additionalProperties": False,
                "properties": {"term": {"type": "string", "minLength": 1}, "definition": {"type": "string", "minLength": 1}}}
-TEXT_SCHEMA = {"type": "object", "required": ["text"], "additionalProperties": False,
+# handoff は報告の本文にも AI_FILE にも載らない。拒んだ回だけ、受け付け runreport.accept が前の答えの控え
+# runreport.PREV_ANSWER_FILE に周の順で積み、次の周の書き手に渡す
+HANDOFF_KEYS = ("read", "decided", "rejected", "doubts")   # 読んだ所（ファイルと行）・そう決めた訳・退けた案・迷っている所
+HANDOFF_SCHEMA = {"type": "object", "required": list(HANDOFF_KEYS), "additionalProperties": False,
+                  "properties": {k: {"type": "array", "items": {"type": "string"}} for k in HANDOFF_KEYS}}
+TEXT_SCHEMA = {"type": "object", "required": ["text", "handoff"], "additionalProperties": False,
                "properties": {"text": {"type": "string", "minLength": 1},
-                              "terms": {"type": "array", "items": TERM_SCHEMA}}}
+                              "terms": {"type": "array", "items": TERM_SCHEMA},
+                              "handoff": HANDOFF_SCHEMA}}
 MACHINE_HEADING = promptsection.Section("## 機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）", human=report.FOR_READERS)
 CELL_LIMIT = 50   # 表のセルの字数の上限（`コード` の部分を除く）。持ち主の決まり「セルには数語だけ」
 # 拒否の種類: cold＝書き手の頭を読んだ初見の読み手が pass でない（redesign-needed・読めない返答）／format＝表のセル／

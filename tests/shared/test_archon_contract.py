@@ -279,6 +279,9 @@ ARCHON_ROWS = (
     Row("順の節は並んだ層か context: fresh の時だけ新しい会話で、ほかは前の節の会話を続ける", lambda: None,
         "packages/workflows/src/dag-executor.ts",
         r"^\s*isParallelLayer \|\| node\.context === 'fresh' \|\| composedBlockEntry;$", lambda m: None),
+    Row("順の層で completed になり sessionId を持つ節は、context: fresh の節でも次の節の会話のカーソルになる（tests/workflows/test_loop_sessions.py）",
+        lambda: None, "packages/workflows/src/dag-executor.ts",
+        r"^\s*if \(output\.state === 'completed' && !isParallelLayer && output\.sessionId !== undefined\) \{$", lambda m: None),
     Row("名指しの続き context: resume は、輪の本体の中では輪の前の節だけを指せる（同じ本体の節は指せない）", lambda: None,
         "packages/workflows/src/loader.ts",
         r"context\.resume cannot name a source inside the same loop_group body.*?"

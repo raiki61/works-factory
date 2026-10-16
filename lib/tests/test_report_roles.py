@@ -14,6 +14,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import report_roles as rr  # noqa: E402
+from engine.schema import validate_schema  # noqa: E402  report_roles が写しの engine の置き場を sys.path に足す
 
 
 class FormatCase(unittest.TestCase):
@@ -59,6 +60,21 @@ class TermsCase(unittest.TestCase):
         self.assertEqual(rr._terms_problems({"text": "x", "terms": [{"term": "盤面", "definition": "置き場"}]}), [])
         self.assertNotEqual(rr._terms_problems({"text": "x", "terms": [{"term": ""}]}), [])
         self.assertNotEqual(rr._terms_problems({"text": "x", "terms": [{"term": "a", "definition": "b", "extra": 1}]}), [])
+
+
+class HandoffCase(unittest.TestCase):
+    def test_text_schema_requires_the_four_handoff_lists(self):
+        schema = rr.TEXT_SCHEMA
+        self.assertIn("handoff", schema["required"])
+        handoff = schema["properties"]["handoff"]
+        self.assertEqual(sorted(handoff["required"]), ["decided", "doubts", "read", "rejected"])
+        self.assertIs(handoff["additionalProperties"], False)
+        for key in handoff["required"]:
+            self.assertEqual(handoff["properties"][key], {"type": "array", "items": {"type": "string"}})
+        full = {"read": ["a.py:1"], "decided": [], "rejected": [], "doubts": []}
+        self.assertEqual(validate_schema({"text": "x", "handoff": full}, schema, "$"), [])
+        self.assertNotEqual(validate_schema({"text": "x"}, schema, "$"), [], "handoff の無い返答は破れ")
+        self.assertNotEqual(validate_schema({"text": "x", "handoff": {"read": []}}, schema, "$"), [], "欄の欠けた handoff は破れ")
 
 
 class RejectCountRowsCase(unittest.TestCase):

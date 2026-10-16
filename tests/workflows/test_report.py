@@ -237,17 +237,19 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(cold["output_format"], runreport.COLD_SCHEMA)
 
     def test_writer_receives_the_reject_file_through_the_reject_node(self):
-        """前の周の拒否の訳のファイルは、輪の頭の節 write-reject（script reject）の with: に $LOOP_PREV で結び、書き手の指示書は今の周の
-        その節の返り $write-reject.output.reason で受ける。書き手の節に with: を書かない（線が include すると、止めた Archon は輪の中の
+        """前の周の拒否の訳のファイルと前の答えの控えは、輪の頭の節 write-reject（script reject）の with: に $LOOP_PREV で結び、書き手の
+        指示書は今の周のその節の返り $write-reject.output.reason・$write-reject.output.prev で受ける。書き手の節に with: を書かない（線が include すると、止めた Archon は輪の中の
         節の with: の名を楯にせず「入力が無い」で止める。packages/workflows/src/include-expander.ts:566・627）"""
         reject, write = BODY["write-reject"], BODY["write"]
         self.assertEqual((reject["script"], reject["runtime"], reject["with"]),
-                         ("reject", "uv", {"reason": "$LOOP_PREV.accept.output.reason_file"}))
-        self.assertEqual(reject["output_format"]["required"], ["reason"])
+                         ("reject", "uv", {"reason": "$LOOP_PREV.accept.output.reason_file", "prev": "$LOOP_PREV.accept.output.prev_file"}))
+        self.assertEqual(reject["output_format"]["required"], ["reason", "prev"])
+        self.assertIn("prev_file", NODES["write-loop"]["loop_group"]["nodes"][-1]["output_format"]["required"])
         self.assertNotIn("with", write)
         self.assertEqual(write["depends_on"], ["write-reject"])
         text = (BLOCK / "commands" / "report.md").read_text(encoding="utf-8")
         self.assertIn("`$write-reject.output.reason`", text)
+        self.assertIn("`$write-reject.output.prev`", text)
         self.assertNotIn("$INPUTS", text)
         self.assertNotIn("$LOOP_PREV", text)
 
@@ -262,7 +264,6 @@ class ShapeCase(unittest.TestCase):
 
     def test_loop_gives_up_with_the_roles_count(self):
         self.assertEqual(NODES["write-loop"]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-        self.assertIs(NODES["write-loop"]["loop_group"]["fresh_context"], False)
 
 
 class CopiedTextsCase(unittest.TestCase):
@@ -661,11 +662,34 @@ class AcceptScriptCase(Run):
         self.assertFalse(ai["accepted"])
         self.assertIn("拒否の控えが扱えない", ai["reason"])
 
+    def test_rejected_round_names_the_previous_answer_relative(self):
+        """初見の読み手が通さずに拒んだ回は、前の答えの控えを run の置き場からの相対のパスで返す。控えの本文は返答と同じで、
+        handoffs の最後は返答の handoff。受け取った回は空"""
+        handoff = {"read": ["lib/runreport.py:1"], "decided": ["訳"], "rejected": ["案"], "doubts": ["迷い"]}
+        reply = json.dumps({**json.loads(self.REPLY), "handoff": handoff}, ensure_ascii=False)
+        out = self.accept(reply, self.REDESIGN)
+        self.assertTrue(out.get("prev_file"))
+        self.assertEqual(out["prev_file"], f"{runreport.OUT_DIR}/{runreport.PREV_ANSWER_FILE}")
+        kept = json.loads((self.artifacts / out["prev_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(kept["text"], json.loads(reply)["text"])
+        self.assertEqual(kept["handoffs"][-1], handoff)
+        self.assertEqual(self.accept(self.REPLY, self.PASS)["prev_file"], "")
+
     def test_cells_and_terms_rejected_first_time(self):
         cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)
         self.assertEqual(self.accept(cell, self.PASS)["kind"], "format")
         terms = json.dumps({"text": "x", "terms": [{"term": "a"}]})
         self.assertEqual(self.accept(terms, self.PASS)["kind"], "answer")
+
+
+class RejectScriptCase(Run):
+    def test_previous_answer_passes_through(self):
+        """輪の頭の節 reject は、前の周の拒否の訳と前の答えの控えのパスをそのまま返す（1 周目は両方空の字）"""
+        for reason, prev in (("", ""), ("2 行目", "report/prev-answer.json")):
+            with self.subTest(prev=prev):
+                code, out = self.run_script("reject", INPUTS_REASON=reason, INPUTS_PREV=prev)
+                self.assertEqual(code, 0)
+                self.assertEqual(out, {"reason": reason, "prev": prev})
 
 
 class OutDirCase(unittest.TestCase):
