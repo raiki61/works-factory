@@ -617,7 +617,7 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     """型の合った項目 n の答えの中身の誤り: 覆っていない当たり（前の往復の答えを引き継ぐ物 carried_hits は除く）の全部に
     ちょうど 1 つの答え・block と答えた当たりには block の face・face は項目 n の単位だけを名指す・前の往復の答えの要る穴
     （求める側 converge.item_blocks。block と開いた項目の suggest）は resolved か同じ key の face・resolved に書いてよい側は
-    converge.resolvable_keys（言い直しも許す。拒否の行は converge.stray_resolved）"""
+    converge.resolvable_keys（拒否の行は converge.stray_resolved）"""
     errs = [] if got.get("item") == n else [f"$.item: {n} でない（{got.get('item')!r}）"]
     want = [h["id"] for h in ripple.uncovered(rip, n)]
     carried = carried_hits(b, n, rip)

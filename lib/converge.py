@@ -688,10 +688,9 @@ def stray_resolved(doc: dict, resolved, n: int | None = None) -> list[str]:
 def owed_faces(doc: dict, p: dict) -> list[dict]:
     """控え doc の往復の行 p について、次の往復で答えと照らしが要る穴の行 [{key, severity, kind, where, why, unit_keys}]
     （答えの要る穴の正本。answer_gaps・resolved_gaps・revise_section・review_section・item_blocks と planblk の下請けのファイルが
-    これを引き、block の字と項目の state を自分では持たない。往復の行の穴の歩きは resolvable_keys と共有する _pass_faces）。
-    中身は 2 つ: p の block（face は p の faces、unit_keys は p の face_units）と、p の notes の suggest のうち doc のどの往復の
-    resolved にも入っていない key（審査が消えたと言った suggest は
-    持ち越しの写しが後の往復の faces に残っても、答えも照らしも開き直さない）。どちらも今の開いた項目で絞る: face の unit_keys が
+    これを引き、block の字と項目の state を自分では持たない）。中身は p の穴（_pass_faces）のうち、block の全部と、doc のどの往復の
+    resolved にも入っていない suggest（審査が消えたと言った suggest は持ち越しの写しが後の往復の faces に残っても、答えも照らしも
+    開き直さない）。どちらも今の開いた項目で絞る: face の unit_keys が
     今の開いた項目（doc の最後の往復の items のうち _unsettled の項目。open_items と同じ決まり）の unit_keys の和と重なる物か、その往復の項目のどの
     unit_keys とも重ならない物だけ（項目の unit_keys は最後の往復が審査した時の物。案を組み替えた後も、閉じた項目の suggest が
     組み替えで開いた項目の物にならない）。

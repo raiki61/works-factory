@@ -1949,41 +1949,9 @@ class TreeCase(RunCase):
     def test_resolved_suggest_not_owed_again_in_tree(self):
         """木の受け付け: 開いた項目 2 に挙げた suggest s を 2 往復目の審査が resolved に入れた往復は通り（resolved の s を『前の往復の
         block と suggest に無い』で拒まない）、持ち越しの写しが返答の faces に残っても、その次の往復の答えも項目 2 の下請けの照らしも
-        s を求めない。新しい block は求める"""
-        r = self.run_
-        r.start(features_on=["review_tree"])
-        self.prepped()
-        second = face("item2-clamp-lower-branch", UNIT_CLAMP)
-        note = face("item2-clamp-docstring-note", UNIT_CLAMP, severity="suggest",
-                    why="clamp の docstring が上限ちょうどの値の扱いを言っていないので、直した後に読み手が取り違えうる")
-        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK, second, note])})
-        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"], second["key"]]}))["ok"])
-        r.out("result")
-        two = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
-                   approach="clamp の上限の枝で hi を、下限の枝で lo を返し、境の値はそのまま返す（定義どおり）")
-        r.plan([item(UNIT_MEAN, 1), two], rnd=2,
-               answers=[{"key": f["key"], "handled": "fixed", "how": "枝を直し、境の値の扱いと docstring を書いた"}
-                        for f in (CLAMP_BLOCK, second, note)])
-        r.open()
-        r.out("review_prep")
-        fresh = face("item2-clamp-boundary-value", UNIT_CLAMP)
-        self.write_answers(2, {2: {**answer(2, faces=[fresh], resolved=[CLAMP_BLOCK["key"], second["key"], note["key"]]),
-                                   "hits": []}})
-        got = r.accept(summary({2: [fresh["key"]]}))
-        self.assertTrue(got["ok"], got)
-        saved = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
-        self.assertIn(note["key"], [f["key"] for f in saved["faces"]], "持ち越しの写しは今のまま返答に残る")
-        r.out("result")
-        doc = converge.read(r.view())
-        self.assertEqual(doc["outcome"], converge.AGAIN)
-        self.assertEqual(converge.answer_gaps(doc, [{"key": fresh["key"], "handled": "fixed", "how": "境の値の扱いを書き足した"}]), [])
-        self.assertNotIn(note["key"], converge.item_blocks(r.view(), 2))
-        self.assertIn(fresh["key"], converge.item_blocks(r.view(), 2))
-
-    def test_resolved_suggest_restated_in_tree(self):
-        """木の受け付け: 2 往復目に resolved に入った suggest を 3 往復目の項目 2 の答えがもう一度 resolved に書いても通る（状態は
-        変わらない繰り返し）。どの往復にも無い key は拒まれ、閉じた項目 1 の suggest は項目 2 の範囲の外で拒まれる。一括の入口
-        （resolved_gaps）は同じ項目 1 の suggest を通す。通す集合は resolvable_keys が持つ"""
+        s を求めない。新しい block は求める。3 往復目の項目 2 の答えが s をもう一度 resolved に書いても通る（状態は変わらない
+        繰り返し）。どの往復にも無い key は拒まれ、閉じた項目 1 の suggest は項目 2 の範囲の外で拒まれる。一括の入口（resolved_gaps）は
+        同じ項目 1 の suggest を通す。通す集合は resolvable_keys が持つ"""
         r = self.run_
         r.start(features_on=["review_tree"])
         self.prepped()
@@ -2005,12 +1973,21 @@ class TreeCase(RunCase):
         fresh = face("item2-clamp-boundary-value", UNIT_CLAMP)
         self.write_answers(2, {2: {**answer(2, faces=[fresh], resolved=[CLAMP_BLOCK["key"], second["key"], note["key"]]),
                                    "hits": []}})
-        self.assertTrue(r.accept(summary({2: [fresh["key"]]}))["ok"])
+        got = r.accept(summary({2: [fresh["key"]]}))
+        self.assertTrue(got["ok"], got)
+        saved = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        self.assertIn(note["key"], [f["key"] for f in saved["faces"]], "持ち越しの写しは今のまま返答に残る")
         r.out("result")
+        doc = converge.read(r.view())
+        self.assertEqual(doc["outcome"], converge.AGAIN)
+        fixed = [{"key": fresh["key"], "handled": "fixed", "how": "境の値の扱いを枝を分けずに書き直した"}]
+        self.assertEqual(converge.answer_gaps(doc, fixed), [])
+        self.assertNotIn(note["key"], converge.item_blocks(r.view(), 2))
+        self.assertIn(fresh["key"], converge.item_blocks(r.view(), 2))
+
         three = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
                      approach="clamp の上限の枝で hi を、下限の枝で lo を返し、境の値は枝を分けずに定義どおり返す")
-        r.plan([item(UNIT_MEAN, 1), three], rnd=3,
-               answers=[{"key": fresh["key"], "handled": "fixed", "how": "境の値の扱いを枝を分けずに書き直した"}])
+        r.plan([item(UNIT_MEAN, 1), three], rnd=3, answers=fixed)
         r.open()
         r.out("review_prep")
         owed = [CLAMP_BLOCK["key"], second["key"], fresh["key"]]
