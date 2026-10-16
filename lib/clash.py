@@ -12,16 +12,19 @@
 このモジュールが持つ物（place は fix の run の置き場、repo は親の作業ツリー、skip は除くパスの頭）:
 - FILE（置き場の控え {clashes: [{group_id, unit_ids, patch, names, shared, why, kind?, state, pass?, before?, staged?, marked?,
   requests?}]}。kind は KINDS（RED は確かめ直しが赤で戻した組、TEXT は字で当たらなかった組。無い行は RED）、state は PENDING・
-  STAGED・REPAIRED・PARKED、pass は最後に扱った段、marked は当て直しで食い違いの印を書いたパス）と new_row(...)・record(place, rows)・load(place)
+  STAGED・REPAIRED・PARKED、pass は最後に扱った段、marked は当て直しで食い違いの印を書いたパス→印の長さの dict。長さは
+  unittrees.apply が積んだ値のまま）と new_row(...)・record(place, rows)・load(place)
 - todo(place, pass_): その段で扱う組の id（控えの順。FIRST は直し待ちと当て直し中、RULED は FIRST で回した組のうち、その組の
   申し出が全部直す裁定を受けた物と当て直し中）
-- stage(place, repo, gid, pass_, skip): 控えの差分を 3 方向で当て直す（解けない食い違いは印つきで当てる。当てる前と後の木を控える。
-  印を許しの無いテストのファイルに書いたら当て直せないとする）
-- problems(place, repo, gid, reply, *, start, cases, skip, name, k): 受け付けの照らし（文の並び。空なら通る）
+- stage(place, repo, gid, pass_, skip): 控えの差分を 3 方向で当て直す（解けない食い違いは印つきで当てる。当てる前と後の木と、印を
+  書いたパス→印の長さを控える。印を許しの無いテストのファイルに書いたら当て直せないとする）
+- problems(place, repo, gid, reply, *, start, cases, skip, name, k): 受け付けの照らし（文の並び。空なら通る。印が残るかは控えの
+  パスごとの印の長さで照らす）
 - settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位。子から親へ写す物は fixboard.adopt_returned）
 - settle_parked(place, repo, gid, *, pass_, why, skip): 当て直す前の木へ戻し、申し出を積み、join.json の行に訳を置く
 - cites(patch_text, files): 申し出の名指し（<パス>:<差分の最初の塊の新しい側の始めの行>）
-- brief(place, gid, pass_)・prompt(rules, pass_, values, ...): 合わせ役の材料のファイルと指示書
+- brief(place, gid, pass_)・prompt(rules, pass_, values, ...): 合わせ役の材料のファイル（印を書いたファイルごとの印の頭 markers と
+  拒みの決まり marker_rule を載せる）と指示書
 標準ライブラリだけ。期限は持たない。
 """
 import os
@@ -65,10 +68,10 @@ CLAIM = "組 {gid} の直しを親の作業ツリーで前の組と合わせる�
 TEXT_CLAIM = "組 {gid} の直しが親の作業ツリーで前の組の直しと同じ所を変え、字で当たらない（{red}）。{why}。控えの差分: {patch}"
 MARKED_TESTS = ("字で当たらない所が許しの無いテストのファイルに在り、合わせ役は印を解けない（テストの範囲の裁定 fix_test_scope が"
                 "要る）: {paths}")
-_SEP = unittrees.SEPARATOR.decode()
-UNRESOLVED = (f"食い違いの印が残っている（印を解いて両方の組の直しを両立させよ。区切りの印はちょうど {len(_SEP)} 字の {_SEP} の行なので、"
-              f"新しい setext の見出しを書く時は長さの違う下線（{len(_SEP) + 1} 字以上の {_SEP + _SEP[0]} か {'-' * len(_SEP)}）で書け）"
-              ": {paths}")
+MARKER_RULE = (f"印の長さはファイルごとに違い、{unittrees.DEFAULT_MARKER_SIZE} 字以上で、印を書いた時の中身のどの行とも重ならない長さ。brief の markers がそのファイルの "
+               "4 つの印の頭（`<`・`|`・`=`・`>` の順）を並べる。そのファイルの印と同じ長さの印の頭の行（`<`・`|`・`>` が同じ数だけ並び、"
+               "空白か行の終わりが続く行）と `=` だけの行は、1 行でも残すか新しく足すと拒まれる。新しい見出しの下線は、印と長さの違う下線で書け")
+UNRESOLVED = "食い違いの印が残っている（印を解いて両方の組の直しを両立させよ。" + MARKER_RULE + "）: {paths}"
 RULED_CLAIM = "裁定 {ids} の直しも通らなかった: "
 OUTSIDE = "組が変えたファイルの外を変えた（触ってよいのは {allowed} だけ）: {paths}"
 TESTS = "許しの無いテストのファイルを変えた（テストを緩めて緑にしない。直すべきテストなら直せないと答えて裁定に回せ）: {paths}"
@@ -181,7 +184,7 @@ def _back_to(repo, before: str, skip) -> None:
 
 def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     """組 gid の控えの差分を作業ツリーへ 3 方向で当て直す（組を当てるノードと同じ当て方と試験のファイルの挿しの合わせ。それでも解けない
-    食い違いは印つきで当て、印を書いたパスを marked に控える。unittrees.apply の marked）。(当たったか, 訳)。
+    食い違いは印つきで当て、印を書いたパス→印の長さを marked に控える。unittrees.apply の marked）。(当たったか, 訳)。
     当てる前の木 before を先に控え、当てた後の木 staged を控える。もう当て直した組（STAGED）は何もしない。前の起動が当てる途中で
     落ちた組は before へ戻してから当て直す。印を許しの無いテストのファイルに書いた時は (False, MARKED_TESTS)（印つきの木は
     呼び手の settle_parked が before へ戻す）"""
@@ -198,7 +201,7 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     row["pass"] = pass_
     _save(place, rows)
     patch = pathlib.Path(row["patch"]).read_text(encoding="utf-8", errors="surrogateescape")
-    marked: list = []
+    marked: dict = {}
     ok, why = unittrees.apply(repo, patch, union=union, check=unittrees.tests_unique, marked=marked)
     if not ok:
         return False, NOT_APPLIED.format(why=oneline.one_line(why)[:300])
@@ -219,7 +222,8 @@ def _unpermitted_tests(r, permits: set, paths) -> list:
 
 
 def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(), name: str = "", k: int = 1) -> list:
-    """合わせ役の返答の受け付けの照らし（文の並び。空なら通る）。当て直しで印を書いたファイル（marked）に印が残れば UNRESOLVED。
+    """合わせ役の返答の受け付けの照らし（文の並び。空なら通る）。当て直しで印を書いたファイル（marked。パス→印の長さ）に、その長さの
+    印の形の行が残れば UNRESOLVED（拒んだパスに長さを添える）。
     当て直した後の木から今の作業ツリーで変わったパスが:
     1. 組が変えたファイル（控えの names）と、段 RULED なら直す裁定の範囲のパス（ruled_paths）の和に収まる
     2. テストのファイル（impact.is_test_file。宣言は組の TDD のループの単位のテストのファイル）なら、許しの訳（fixboard.allowed_tests。
@@ -233,9 +237,11 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
     touched = fixboard.touched_since(repo, staged, skip)
     allowed = set(row["names"]) | (set(ruled_paths(place, row)) if row.get("pass") == RULED else set())
     out = []
-    left = unittrees.markers_left(repo, row.get("marked") or [], staged)
+    marked = row.get("marked") or {}
+    left = unittrees.markers_left(repo, marked)
     if left:
-        out.append(UNRESOLVED.format(paths="・".join(left)))
+        sized = [f"{p}（{n} 字）" if unittrees.usable_marker_size(n := marked.get(p)) else p for p in left]
+        out.append(UNRESOLVED.format(paths="・".join(sized)))
     outside = sorted(p for p in touched if p not in allowed)
     if outside:
         out.append(OUTSIDE.format(allowed="・".join(sorted(allowed)), paths="・".join(outside)))
@@ -283,7 +289,7 @@ def settle_repaired(place, repo, gid: str, *, log=None) -> None:
                  mark={"outcome": REPAIRED, "requests": list(row.get("requests") or []), "patch": _rel(place, row["patch"])})
     fixboard.adopt_returned(place, repo, [r], log=log,
                             applied=[(r["worktree"], writelog.log_here(r["worktree"]), row["names"])] if r.get("worktree") else ())
-    row.update(state=REPAIRED, staged="", before="", marked=[])
+    row.update(state=REPAIRED, staged="", before="", marked={})
     _save(place, rows)
 
 
@@ -331,7 +337,7 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
     _settle_join(place, gid, returned=False, reason=row["why"] + tail,
                  mark={"outcome": PARKED, "requests": every, "patch": _rel(place, str(patch))},
                  extra={gid: stuck} if stuck else None)
-    row.update(state=PARKED, requests=every, staged="", before="", marked=[])
+    row.update(state=PARKED, requests=every, staged="", before="", marked={})
     row["pass"] = pass_
     _save(place, rows)
     return ids
@@ -340,14 +346,17 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
 # ---------------------------------------------------------------- 合わせ役の材料と指示書
 def brief(place, gid: str) -> pathlib.Path:
     """合わせ役の材料のファイル（置き場の clash-brief-<group_id>.json）: 組・単位・控えの差分・触ってよいファイル・前の組とも
-    重なったファイル・食い違いの種（kind）・確かめ直しの赤の文か字で当たらなかった訳・食い違いの印を書いたファイル・走らせる名指し・
-    戻せている組と、段 RULED なら裁定の文のファイルと組の申し出の裁定"""
+    重なったファイル・食い違いの種（kind）・確かめ直しの赤の文か字で当たらなかった訳・食い違いの印を書いたファイル（conflicted）と
+    そのファイルごとの印の 4 つの頭（markers）・拒みの決まり（marker_rule）・走らせる名指し・戻せている組と、段 RULED なら裁定の文の
+    ファイルと組の申し出の裁定"""
     row = _row(load(place), gid)
     ruled = row.get("pass") == RULED
     doc = {"group_id": gid, "unit_ids": row["unit_ids"], "patch_file": row["patch"],
            "files": sorted(set(row["names"]) | (set(ruled_paths(place, row)) if ruled else set())),
            "shared": row.get("shared") or [], "kind": row.get("kind") or RED, "red": row["why"],
-           "conflicted": row.get("marked") or [], "named_tests": named_tests(place, gid),
+           "conflicted": list(row.get("marked") or {}),
+           "markers": {p: [m.decode() for m in unittrees.marks(n)] for p, n in (row.get("marked") or {}).items()},
+           "marker_rule": MARKER_RULE, "named_tests": named_tests(place, gid),
            "returned_groups": [g["group_id"] for g in _joined(place)["groups"] if g.get("returned")]}
     if ruled:
         doc["rulings_file"] = str(pathlib.Path(place) / conflict.RULINGS_FILE)
