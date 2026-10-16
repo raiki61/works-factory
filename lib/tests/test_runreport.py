@@ -474,7 +474,6 @@ class TranscriptCase(Base):
 
     @staticmethod
     def until(loop, n, ts, code):
-        """輪の回の until の行（止めた実行基盤の logger.ts の logExecOutput と dag-executor.ts の輪の until の呼びの形）"""
         return {"type": runreport.EXEC_ROW, "step": f"{loop}{runreport.ITERATION_MARK}{n}", runreport.EXEC_LABEL: runreport.UNTIL_ROW,
                 runreport.EXIT_CODE: code, "ts": ts, "workflow_id": RUN}
 
@@ -502,8 +501,8 @@ class TranscriptCase(Base):
                                               "fix__tdd": {"count": 0, "minutes": 0.0},
                                               "fix__kill": {"count": 0, "minutes": 0.0},
                                               "fix__flag": {"count": 0, "minutes": 0.0}},
-                         "exclude_prefix の輪・until でない呼びは数えない。字の exit_code（打ち切り）と bool は回り直しに数えない")
-        self.assertIn("judge__world-classes-loop: until が通らず回り直した回 1（受け付けの輪では拒否で出し直した回）・2.0 分", cost)
+                         "exclude_prefix のループ・until でない呼びは数えない。字の exit_code（打ち切り）と bool は回り直しに数えない")
+        self.assertIn("judge__world-classes-loop: until が通らず回り直した回 1（受け付けのループでは拒否で出し直した回）・2.0 分", cost)
         self.assertNotIn("fix__tdd: until", cost)
         self.assertNotIn("fix__kill: until", cost)
         self.assertNotIn("report__ask", cost)
@@ -516,12 +515,12 @@ class TranscriptCase(Base):
             self.until("fix__tdd", 1, "2026-10-12T00:02:00Z", 0),
         )
         _, cost = self.cost_section(rows)
-        self.assertIn("回り直し: 0 回（until の行を読んだ輪 2 本）", cost)
+        self.assertIn("回り直し: 0 回（until の行を読んだループ 2 本）", cost)
         self.assertEqual(cost.splitlines()[-1], f"- {runreport.CHILD_LOOPS}")
 
         _, cost = self.cost_section(rows_of(start("judge__diagnose", "2026-10-12T00:00:00Z"),
                                             done("judge__diagnose", "2026-10-12T00:03:00Z", cost=0.5)))
-        self.assertIn("回り直し: 数えられない（記録に輪の until の行が無い）", cost)
+        self.assertIn("回り直し: 数えられない（記録にループの until の行が無い）", cost)
         self.assertNotIn("回り直し: 0 回", cost)
         self.assertEqual(cost.splitlines()[-1], f"- {runreport.CHILD_LOOPS}")
 

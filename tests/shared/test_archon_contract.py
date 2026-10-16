@@ -342,8 +342,8 @@ ARCHON_ROWS = (
         "packages/workflows/src/logger.ts",
         r"type: '(exec_output)',\s*step: nodeId,\s*(content): commandName,\s*(exit_code): output\.exitCode,",
         lambda m: list(m.groups())),
-    Row("輪の until の呼びの名", lambda: runreport.UNTIL_ROW, "packages/workflows/src/dag-executor.ts", r"label: '(<until_bash>)'"),
-    Row("輪の回の step の継ぎ", lambda: runreport.ITERATION_MARK, "packages/workflows/src/dag-executor.ts",
+    Row("ループの until の呼びの名", lambda: runreport.UNTIL_ROW, "packages/workflows/src/dag-executor.ts", r"label: '(<until_bash>)'"),
+    Row("ループの回の step の継ぎ", lambda: runreport.ITERATION_MARK, "packages/workflows/src/dag-executor.ts",
         r"nodeId: `\$\{node\.id\}(-iteration-)\$\{String\(i\)\}`"),
 )
 

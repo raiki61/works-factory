@@ -6,8 +6,8 @@
 隣のファイル）は指し札の先と同じフォルダから読む。
 
 - transcript_facts(rows, *, exclude_prefix, optional) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models, calls, resubmits}
-  （run の記録の行の読み。resubmits は輪ごとの {count: until が通らなかった回, minutes: 回り直しにかかった分}）
-- cost_rows(facts)・resubmit_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行・輪の回り直しの行と、費用の節の行（元 report.py:1769・1806）
+  （run の記録の行の読み。resubmits はループごとの {count: until が通らなかった回, minutes: 回り直しにかかった分}）
+- cost_rows(facts)・resubmit_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行・ループの回り直しの行と、費用の節の行（元 report.py:1769・1806）
 - next_request(returns, left, closed, *, beside, exit_doc)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
 - ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
 - answer_drafts(returns, gates, start, spec_changed, spec_unchecked): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts。承認し直すかの問いも）
@@ -99,8 +99,8 @@ TOOL_NAME = "name"
 TOOL_INPUT = "rawInput"
 PATH_TOOLS = ("Read", "Edit", "Write")         # 道具への入力の file_path でファイルを名指す道具
 SHELL_TOOL = "Bash"                            # 読み書きしたファイルを入力から取れない道具（数だけ数える）
-# 輪の until の行（止めた実行基盤の logger.ts の logExecOutput が {type, step, content: 呼びの名, exit_code} で書き、dag-executor.ts の
-# 輪の until の呼びが content を '<until_bash>'、step を <輪の id>-iteration-<回> にする。境の試験の写しの表が源と照らす）
+# ループの until の行（止めた実行基盤の logger.ts の logExecOutput が {type, step, content: 呼びの名, exit_code} で書き、dag-executor.ts の
+# ループの until の呼びが content を '<until_bash>'、step を <ループの id>-iteration-<回> にする。境の試験の写しの表が源と照らす）
 EXEC_ROW = "exec_output"
 EXEC_LABEL = "content"
 EXIT_CODE = "exit_code"
@@ -232,8 +232,8 @@ def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
     exclude_prefix で始まる節（報告のブロック自身）は数えない。費用は自分の費用を言う行（execution.accounting が node か無い）の
     cost_usd の和。cost_usd の無い行は 0 と数えず uncosted に件数を積む。時間は node_start から最後の node_complete・node_error まで（分）。
     calls は役が呼んだ道具（provider_event の tool_call の行）の節ごとの {Read・Edit・Write: 名指したファイル（記録の順で重ねない）,
-    Bash: 呼んだ回数}。resubmits は輪（step の ITERATION_MARK の前）ごとの {count, minutes}（輪の until の行から。_resubmit）。
-    exclude_prefix で始まる輪は数えない"""
+    Bash: 呼んだ回数}。resubmits はループ（step の ITERATION_MARK の前）ごとの {count, minutes}（ループの until の行から。_resubmit）。
+    exclude_prefix で始まるループは数えない"""
     if rows is None:
         return {"ok": False, "failed": [], "absorbed": [], "errors": {}, "retried": [], "cost": {}, "uncosted": {}, "minutes": {},
                 "models": {}, "calls": {}, "resubmits": {}}
@@ -287,8 +287,8 @@ def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
 
 
 def _resubmit(untils: list) -> dict:
-    """輪 1 本の until の行（記録の順の (exit_code, ts)）から {count, minutes}。count は exit_code が bool でない int で 0 でない行
-    （字の exit_code は打ち切りで、回り直しではない）。minutes は通らなかった行の ts から同じ輪の次の until の行の ts までの分の和
+    """ループ 1 本の until の行（記録の順の (exit_code, ts)）から {count, minutes}。count は exit_code が bool でない int で 0 でない行
+    （字の exit_code は打ち切りで、回り直しではない）。minutes は通らなかった行の ts から同じループの次の until の行の ts までの分の和
     （次の行が無いか、ts が読めない行は足さない）"""
     count, seconds = 0, 0.0
     for (code, at), (_, after) in zip(untils, [*untils[1:], (None, None)]):
@@ -330,16 +330,16 @@ def cost_rows(facts: dict) -> list:
 
 
 def resubmit_rows(facts: dict) -> list:
-    """輪の回り直しの行（run の記録の輪の until の行から作る。読む時に作り、保存しない）。回り直した輪（count が 1 以上）ごとに 1 行、
-    どの輪も 0 なら 0 回の 1 行、until の行が 1 本も無ければ数えられない旨の 1 行（空と合格を見分ける）。最後に子の run の輪を数えない旨"""
+    """ループの回り直しの行（run の記録のループの until の行から作る。読む時に作り、保存しない）。回り直したループ（count が 1 以上）ごとに 1 行、
+    どのループも 0 なら 0 回の 1 行、until の行が 1 本も無ければ数えられない旨の 1 行（空と合格を見分ける）。最後に子の run のループを数えない旨"""
     loops = facts.get("resubmits") or {}
     again = [(loop, got) for loop, got in sorted(loops.items()) if got.get("count")]
     if not loops:
-        rows = ["回り直し: 数えられない（記録に輪の until の行が無い）"]
+        rows = ["回り直し: 数えられない（記録にループの until の行が無い）"]
     elif not again:
-        rows = [f"回り直し: 0 回（until の行を読んだ輪 {len(loops)} 本）"]
+        rows = [f"回り直し: 0 回（until の行を読んだループ {len(loops)} 本）"]
     else:
-        rows = [f"{loop}: until が通らず回り直した回 {got['count']}（受け付けの輪では拒否で出し直した回）・{got['minutes']} 分"
+        rows = [f"{loop}: until が通らず回り直した回 {got['count']}（受け付けのループでは拒否で出し直した回）・{got['minutes']} 分"
                 for loop, got in again]
     return [*rows, CHILD_LOOPS]
 
@@ -1501,7 +1501,7 @@ def _bullets(lines: list) -> list:
 CALLS_HEAD = "役が自分で呼んだ道具（run の記録の provider_event。ノードごと）:"
 HOOK_HEAD = "渡した物を読んだか（フック bin/_lib/record-read.py の記録。下請けの中の Read も数える）:"
 CHILD_RUNS = "fix の組の子の run の道具の呼びは子の run の記録に在り、上のノードごとの行に入らない"
-CHILD_LOOPS = "fix の組の子の run の輪の回り直しは子の run の記録に在り、この行に入らない"
+CHILD_LOOPS = "fix の組の子の run のループの回り直しは子の run の記録に在り、この行に入らない"
 SHOWN_FILES = 3   # 1 ノードの行に名を出すファイルの数
 
 
