@@ -1426,7 +1426,7 @@
   {
    "why": "修正案の項目の足す物・消す物の欄を、名前の一覧 adds・removes から 1 ファイルごとの行 files に替える（issue #568。パス・操作・受け持ちを別の欄にし、消す側に訳を求める）",
    "original": "3. `adds` — **新しく生まれる物を全部**。1 件ごとに `kind`（種類）・`name`（名前）・`canonical` の 3 つを必ず書く。`kind` は次のどれか:\n   関数＝function・欄（schema・記録）＝record_field・柵（検査）＝guard・プロンプトの文＝prompt・文書＝doc・CLI の口＝cli・腕＝arm・\n   テスト＝test・設定＝config・どれにも当たらない物＝other。\n   `canonical`（その物の正本はどこか。既存の正本から引くなら引き先、新しく正本になるなら「新設」と理由）。\n   **書き落とした物は審査されない**——審査役は案に無い物を見ない\n4. `removes` — 消す・まとめる物（写し・使われない口・古い文）\n",
-   "copied": "3. `files` — **新しく生まれる物を全部**、1 ファイルごとの行で書く（消す物は次の 4）。1 行ごとに `path`（作業ツリーの根からの相対で 1 ファイル）・`op`（create＝新設・modify＝変える・delete＝消す・rename＝移す。rename は元のパスを `from` に）・`responsibility`（そのファイルの 1 つの受け持ち）・`symbols`・`canonical` を必ず書く。\n   `symbols` はそのファイルで足す・消す名の並びで、1 件ごとに `name`（識別子。パスや、行の `path` の拡張子で終わる字は書かない）・`kind`（種類）・`change`（add か remove）を書く。`kind` は次のどれか:\n   関数＝function・欄（schema・記録）＝record_field・柵（検査）＝guard・プロンプトの文＝prompt・文書＝doc・CLI の口＝cli・腕＝arm・\n   テスト＝test・設定＝config・どれにも当たらない物＝other。\n   `canonical`（その行の正本はどこか。既存の正本から引くなら引き先、新しく正本になるなら「新設」と理由）。\n   **書き落とした物は審査されない**——審査役は案に無い物を見ない\n4. 消す・まとめる物（写し・使われない口・古い文）も `files` に書く——消すファイルは `op` が delete か rename の行、消す名は `change` が remove の symbol。消す側には `why`（なぜ消すか。10 字以上）が必須で、置き換え先が在れば `replaced_by`（`<パス>::<名前>` か `<パス>`）も書く。足す側の行（`op` が create・modify の行と `change` が add の symbol）に `why`・`replaced_by` は書かない\n"
+   "copied": "3. `files` — **新しく生まれる物を全部**、1 ファイルごとの行で書く（消す物は次の 4）。1 行ごとに `path`（作業ツリーの根からの相対で 1 ファイル）・`op`（create＝新設・modify＝変える・delete＝消す・rename＝移す。rename は元のパスを `from` に）・`responsibility`（そのファイルの 1 つの受け持ち）・`symbols`・`home`・`considered` を必ず書く。\n   `symbols` はそのファイルで足す・消す名の並びで、1 件ごとに `name`（識別子。パスや、行の `path` の拡張子で終わる字は書かない）・`change`（add か remove）を書く。新しく生まれる物の見本（書き落とさないための並び）は、関数・欄（schema・記録）・柵（検査）・プロンプトの文・文書・CLI の口・腕・テスト・設定。\n   `home`（その行が住処になる考えの名 `concept` と、ここを選んだ訳 `why`。置き場のパスは行の `path` が持つので書かない）と `considered`（考えて退けた別の置き場の並びで、1 件以上。1 件ごとに `path`（ファイルのパスだけ。`lib/x.py:12` の形にしない）と `why_not`（退けた訳。10 字以上。行の番号はここに書く））を、`op` を問わず全部の行に書く。受け付けが照らす決まりは、頭に貼った `files` の説明に在る。\n   **書き落とした物は審査されない**——審査役は案に無い物を見ない\n4. 消す・まとめる物（写し・使われない口・古い文）も `files` に書く——消すファイルは `op` が delete か rename の行、消す名は `change` が remove の symbol。消す側には `why`（なぜ消すか。10 字以上）が必須で、置き換え先が在れば `replaced_by`（`<パス>::<名前>` か `<パス>`）も書く。足す側の行（`op` が create・modify の行と `change` が add の symbol）に `why`・`replaced_by` は書かない\n"
   }
  ],
  "workflows/test-gate/commands/ci.md": [
@@ -1620,6 +1620,11 @@
    "why": "計画の審査に最小性と能力の棚卸しを足す（issue #572）",
    "original": "6・7 の穴と案の `narrows` は、修正の前に run が人に聞く。**後退や方針違反を代償として通すかを、この役も判定者も修正役も決めない**——並べるだけでよい。\n",
    "copied": "6・7 の穴と案の `narrows` は、修正の前に run が人に聞く。6 の書き落としは、計画の役が `narrows` に書き戻した後、その `narrows` の行として聞く。**後退や方針違反を代償として通すかを、この役も判定者も修正役も決めない**——並べるだけでよい。\n"
+  },
+  {
+   "why": "修正案の項目の files の行の canonical を、考えの住処 home と退けた置き場 considered に替える（issue #622。読み手の指示書の字を欄に合わせる）",
+   "original": "1. **写し**（kind=copy）: 足す物が、既に正本を持つ規則・型・語彙・手続きを別の場所に写していないか。`canonical` が「新設」なのに\n   現物に正本が在るなら写し。リポジトリを読んで確かめろ\n",
+   "copied": "1. **写し**（kind=copy）: 足す物が、既に正本を持つ規則・型・語彙・手続きを別の場所に写していないか。`home.concept` の考えの住処が\n   `considered` の退けた置き場に在るのに、その行が新しい所に同じ考えを置いているなら写し（退けた訳 `why_not` が成り立つかも見よ）。リポジトリを読んで確かめろ\n"
   }
  ],
  "workflows/fix/commands/delta-review.md": [

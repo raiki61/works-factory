@@ -68,10 +68,12 @@ def item(*keys, **more):
             "allowed_paths": ["stats.py", "test_stats.py"], "out_of_scope": [], **more}
 
 
-def _frow(path, *adds):
-    """files の 1 行（足す symbol の並び）"""
-    return {"path": path, "op": "modify", "responsibility": "この行の受け持ち", "canonical": "既存の正本",
-            "symbols": [{"name": n, "kind": "function", "change": "add"} for n in adds]}
+def _frow(path, *adds, **over):
+    """files の 1 行（足す symbol の並び。home の考えの名は行の path ごとに違う字で、considered は根に置く 1 段の path 1 つ）"""
+    return {"path": path, "op": "modify", "responsibility": "この行の受け持ち",
+            "home": {"concept": f"{path} の考え", "why": "この行の path が住処だから"},
+            "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}],
+            "symbols": [{"name": n, "change": "add"} for n in adds], **over}
 
 
 def face(key, units, severity="block"):
@@ -102,8 +104,8 @@ class RippleItemsCase(TmpCase):
         名指される"""
         repo = self.tmp / "repo"
         committed_copy(repo, SEED)
-        gone = {"name": "stats.clamp", "kind": "function", "change": "remove", "why": "境の判定は mean に寄せたので要らない"}
-        files = [{"path": "stats.py", "op": "modify", "responsibility": "境の判定", "symbols": [gone], "canonical": "既存の正本"}]
+        gone = {"name": "stats.clamp", "change": "remove", "why": "境の判定は mean に寄せたので要らない"}
+        files = [{**_frow("stats.py"), "responsibility": "境の判定", "symbols": [gone]}]
         item = {"unit_keys": [MEAN], "approach": "x" * 20, "files": files, "shrink_first": "y" * 20,
                 "narrows": [], "route": "tdd", "route_why": "", "tests": [], "rewrite_tests": [],
                 "refactor": {"declared": False, "why": ""}, "allowed_paths": ["stats.py"], "out_of_scope": []}
@@ -293,6 +295,21 @@ class ReplanErrorsCase(TmpCase):
         got = errors({"plan": [loop]})
         self.assertTrue(any(g.startswith("plan.depends_on") and "循環" in g for g in got), got)
         self.assertEqual(errors({"plan": [first]}), [], "直さない項目の受けは切れていない")
+
+    def test_home_concept_is_read_over_the_whole_plan(self):
+        """案の直しで、直した項目の行の home.concept が、直さない承認済みの項目の行の考えと同じなら、拒否の行が出る（直した項目だけを
+        見ると、直さない項目の行と考えが重なるのを見逃す）。考えが分かれていれば出ない"""
+        first = item(MEAN, files=[_frow("stats.py", "mean")])
+        second = item(CLAMP)
+        self.rows = [{"item": 2, "old": second}]
+        errors = lambda reply: planfile._plan_errors(self.rows, reply, self.repo, planfile.exists_at(self.repo, "HEAD"), [],
+                                                     [first, second])
+        apart = item(CLAMP, files=[_frow("test_stats.py", "clamp")])
+        self.assertEqual(errors({"plan": [apart]}), [])
+        twice = item(CLAMP, files=[_frow("test_stats.py", "clamp", home={"concept": " STATS.py の考え", "why": "ここが住処だから"})])
+        got = errors({"plan": [twice]})
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[1].files[0].home.concept") and "plan[0].files[0]" in got[0], got)
 
     def test_test_in_start_tree_is_rejected(self):
         it = item(MEAN)
@@ -644,6 +661,19 @@ class TakePlanCase(TmpCase):
         self.assertEqual(self.take({"plan": [item(MEAN, CLAMP)]}, base_rev="0" * 40), {"ok": True, "reason": ""})
         rows = [r for r in self.trace() if r["op"] == planfile.BASE_TESTS_UNREAD_OP]
         self.assertEqual([(r["rev"], r["unread"]) for r in rows], [("0" * 40, ["<版>"])])
+
+    def test_concept_housed_twice_is_rejected(self):
+        """案の受け付けは、2 つの項目の files の行が同じ home.concept を持つ返答を ok False で拒み、reason に home.concept の行を名指す。
+        考えが分かれた返答は通る"""
+        def reply(second):
+            return {"plan": [item(MEAN, files=[_frow("stats.py", "mean")]), item(CLAMP, files=[_frow("test_stats.py", "clamp", **second)])]}
+        same = {"home": {"concept": "stats.py の考え", "why": "ここが住処だから"}}
+        out = self.take(reply(same))
+        self.assertFalse(out["ok"], out)
+        self.assertIn("plan[1].files[0].home.concept", out["reason"])
+        self.assertIn("plan[0].files[0]", out["reason"])
+        self.assertFalse((self.round / planfile.REPLY_FILE).exists())
+        self.assertEqual(self.take(reply({})), {"ok": True, "reason": ""})
 
     def test_save_failure_leaves_no_accepted_plan(self):
         """受けた後に欄の控えを置けなければ、置いた控えを消し、置けなかった控えの名を round.json の why に残す（欄の無い案で進ませない）"""

@@ -101,12 +101,19 @@ class BriefCase(PlaceCase):
     def test_render_shows_files_table_and_received_names(self):
         """項目の brief に、ファイル構成の表（1 行 1 ファイル。消す行は why・replaced_by つき）と、前の項目から受ける物の節が出る。
         足す物・消す物の 2 節（adds・removes）は 1 つの表になる。files の無い項目は表の代わりに「無し」"""
-        files = [{"path": "lib/new.py", "op": "create", "responsibility": "新しい口", "canonical": "新設の理由",
-                  "symbols": [{"name": "handle", "kind": "function", "change": "add"}]},
-                 {"path": "lib/old.py", "op": "delete", "responsibility": "古い口", "canonical": "消す", "symbols": [],
+        files = [{"path": "lib/new.py", "op": "create", "responsibility": "新しい口",
+                  "home": {"concept": "入口の受け方", "why": "新しい口なのでここに置く"},
+                  "considered": [{"path": "lib/old.py", "why_not": "古い口は呼び手が多すぎて直せない"},
+                                 {"path": "lib/keep.py", "why_not": "呼び手の置き場で、入口の考えを持たない"}],
+                  "symbols": [{"name": "handle", "change": "add"}]},
+                 {"path": "lib/old.py", "op": "delete", "responsibility": "古い口",
+                  "home": {"concept": "古い口の消し方", "why": "消す行の考えはここ"},
+                  "considered": [{"path": "lib/new.py", "why_not": "新しい口に寄せて消す"}], "symbols": [],
                   "why": "呼び手は new に寄せた", "replaced_by": "lib/new.py::handle"},
-                 {"path": "lib/keep.py", "op": "modify", "responsibility": "呼び手", "canonical": "既存",
-                  "symbols": [{"name": "legacy", "kind": "function", "change": "remove", "why": "handle に寄せたので要らない",
+                 {"path": "lib/keep.py", "op": "modify", "responsibility": "呼び手",
+                  "home": {"concept": "呼び手の寄せ方", "why": "呼び手は元の所を直す"},
+                  "considered": [{"path": "lib/new.py", "why_not": "呼び手を新しい口へ動かすと差分が広がる"}],
+                  "symbols": [{"name": "legacy", "change": "remove", "why": "handle に寄せたので要らない",
                                "replaced_by": "lib/new.py::handle"}]}]
         item2 = {**plan_reply()["plan"][0], "files": files}
         f = {**FIELDS[0], planmarks.DEPENDS_KEY: [{"unit": MEAN, "receives": ["lib/new.py::handle", "lib/keep.py"]}]}
@@ -114,10 +121,15 @@ class BriefCase(PlaceCase):
         self.assertIn(str(planbrief.FILES_HEAD), text)
         self.assertNotIn("## 足す物（adds）", text)
         self.assertNotIn("## 消す物（removes）", text)
-        for w in ("| lib/new.py | create | 新しい口 | add `handle`（function） |", "| lib/old.py | delete | 古い口 |",
+        for w in ("| path | op | 受け持ち | symbols | 住処 | 退けた置き場 | 消す訳 |",
+                  "| lib/new.py | create | 新しい口 | add `handle` | 入口の受け方——新しい口なのでここに置く | "
+                  "lib/old.py——古い口は呼び手が多すぎて直せない<br>lib/keep.py——呼び手の置き場で、入口の考えを持たない |",
+                  "| lib/old.py | delete | 古い口 |", "古い口の消し方——消す行の考えはここ", "lib/new.py——新しい口に寄せて消す",
                   "why: 呼び手は new に寄せた（置き換え先: lib/new.py::handle）",
-                  "remove `legacy`（function）——why: handle に寄せたので要らない（置き換え先: lib/new.py::handle）"):
+                  "remove `legacy`——why: handle に寄せたので要らない（置き換え先: lib/new.py::handle）"):
             self.assertIn(w, text)
+        for w in ("（function）", "| 正本 |"):
+            self.assertNotIn(w, text)
         self.assertIn(str(planbrief.DEPENDS_HEAD), text)
         self.assertIn(f"単位 {MEAN} の項目から受ける: `lib/new.py::handle`・`lib/keep.py`", text)
         bare = planbrief.render(1, plan_reply()["plan"][0], FIELDS[0], {}, "", "")

@@ -51,11 +51,14 @@ def tearDownModule():
     shutil.rmtree(SRC, ignore_errors=True)
 
 
-def frow(path="works/report.py", *, adds=(), removes=(), op="modify", kind="function", **extra):
-    """files の 1 行（adds・removes は symbols の名の並び。消す symbol は why つき）"""
-    symbols = [{"name": n, "kind": kind, "change": "add"} for n in adds]
-    symbols += [{"name": n, "kind": kind, "change": "remove", "why": "古い名で、呼び手は新しい名に寄せた"} for n in removes]
-    return {"path": path, "op": op, "responsibility": "この行の受け持ち", "symbols": symbols, "canonical": "既存の正本", **extra}
+def frow(path="works/report.py", *, adds=(), removes=(), op="modify", **extra):
+    """files の 1 行（adds・removes は symbols の名の並び。消す symbol は why つき。受け持ちは波及の一覧に関わらない固定の字。
+    home・considered は波及の一覧に当たらない既定で、考えの名は行の path ごとに違う字）"""
+    symbols = [{"name": n, "change": "add"} for n in adds]
+    symbols += [{"name": n, "change": "remove", "why": "古い名で、呼び手は新しい名に寄せた"} for n in removes]
+    return {"path": path, "op": op, "responsibility": "この行の受け持ち", "symbols": symbols,
+            "home": {"concept": f"{path} の考え", "why": "この行の path が住処だから"},
+            "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}], **extra}
 
 
 def gone(path):
@@ -108,11 +111,21 @@ class RippleCase(unittest.TestCase):
         self.assertEqual(ripple.names(["a.py+Report.rows: x"], []), ["Report", "rows"])
 
     def test_names_skip_test_ids_and_paths(self):
-        """kind が test の symbol と試験の名（test_・Test）は変える名でない（run 68f35d6b: 試験の id の断片 works・tests・
+        """試験のモジュールの行の symbol と試験の名（test_・Test）は変える名でない（run 68f35d6b: 試験の id の断片 works・tests・
         test_report・HeadCase が当たりの大半を作った）。パスは行の path に在るので、名の字から読み分ける要はない"""
-        files = [frow("works/tests/test_report.py", adds=["HeadCase::test_rows_carry", "TestCleanIgnored"], kind="test"),
+        files = [frow("works/tests/test_report.py", adds=["HeadCase::test_rows_carry", "TestCleanIgnored"]),
                  frow(adds=["_removed_file", "test_report", "report.always_rows"])]
         self.assertEqual(ripple.names([KEY], files), ["always_rows", "_removed_file", "report"])
+
+    def test_names_skip_adds_in_test_modules_but_count_support(self):
+        """試験のモジュール（impact.is_test が module を返す works/tests/test_report.py）の行の change=add の symbol は、kind が無くても
+        変える名に数えない（助け手の名 frow_rows・定数の名 SEED_ROWS）。試験のフォルダの下の支え（support を返す works/tests/helpers.py）の
+        行の add の名 seed_rows は変える名に数える（試験のモジュールの助け手を、ほかの試験が使う時の呼び手を引く）。本体の行の名も数える"""
+        files = [frow("works/tests/test_report.py", adds=["frow_rows", "SEED_ROWS"]),
+                 frow("works/tests/helpers.py", adds=["seed_rows"]),
+                 frow(adds=["always_rows"])]
+        self.assertEqual(ripple.names([KEY], files), ["always_rows", "seed_rows"])
+        self.assertEqual(ripple.names(["a.py+Report.rows: x"], [files[0]]), ["Report", "rows"])
 
     def test_docs_and_generated_copies_are_not_hits(self):
         """設計書（docs/plans）・CHANGELOG・実行基盤の pack の写し（skip_dirs）は当たりに数えない（ファイルの数にも）"""

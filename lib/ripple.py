@@ -4,7 +4,7 @@
 `git grep -n -w` で引き、当たりを本体（呼び出し元・文書）と試験に分ける。Python の試験は当たりを含む試験の関数の id
 （`path::Class[::内の Class…]::test_x`。planmarks.test_defs）まで引き、試験でない関数・ほかの言語はファイルと行（`path:line`）。当たりを項目の allowed_paths
 （glob）・tests と rewrite_tests の id とそのファイルに照らし、覆っていない当たりに項目ごとの id（h1・h2…）を振って名指す。
-試験の id・パス・試験の名（test_・Test で始まる）は変える名に数えず、呼び出し元でない文書と生成物（NON_CODE_DIRS・
+試験の id・パス・試験のモジュール（impact.is_test が module を返すファイル）の行の symbol・試験の名（test_・Test で始まる）は変える名に数えず（試験のフォルダの下の支えの行の名は数える）、呼び出し元でない文書と生成物（NON_CODE_DIRS・
 NON_CODE_FILES）の当たりは捨てる（run 68f35d6b: 足す試験の id の断片 works・tests・test_report・HeadCase と、設計書の行が
 覆っていない当たりの大半で、下請けが全部 no_effect と答えていた）。
 当たりのファイルが多い名（COMMON_FILES を超える）は数だけを載せ、覆っていない当たりに入れない（下請けが判断する。持ち主の決定
@@ -59,16 +59,21 @@ REMOVED_KINDS = {"code": "removed", "test": "removed_test"}   # 変える名の�
 
 
 def _changed_names(unit_keys, files) -> list[str]:
-    """変える名の候補: 単位の key の `+` の後から `:` までの ASCII の名と、files の change=add の symbol の名の ASCII の語。試験の
-    symbol（kind が test。:: を含む名も）・試験の名（_TEST_NAME）・3 字未満は数えない（名と path は別の欄なので、パスか名かを字から推さない）"""
+    """変える名の候補: 単位の key の `+` の後から `:` までの ASCII の名と、files の change=add の symbol の名の ASCII の語。試験のモジュール
+    （行の path を impact.is_test が module と読む。名の慣習の正本は impact.is_test の 1 か所）の行の symbol・:: を含む名・試験の名
+    （_TEST_NAME）・3 字未満は数えない。試験のフォルダの下の支え（is_test が support）の行の名は数える（試験のモジュールの助け手を
+    ほかの試験が使う時の呼び手を引く）。名と path は別の欄なので、パスか名かを字から推さない"""
     out = []
     for k in unit_keys or []:
         if isinstance(k, str) and "+" in k:
             out += _NAME.findall(k.split("+", 1)[1].split(":", 1)[0])
     for row in planmarks.file_rows({"files": files}):
+        path = row.get("path")
+        if isinstance(path, str) and impact.is_test(path) == "module":
+            continue
         for sym in planmarks.symbol_rows(row):
             name = sym.get("name")
-            if sym.get("change") == "add" and sym.get("kind") != "test" and isinstance(name, str) and "::" not in name:
+            if sym.get("change") == "add" and isinstance(name, str) and "::" not in name:
                 out += _NAME.findall(name)
     return [n for n in out if len(n) >= 3 and not _TEST_NAME.match(n)]
 

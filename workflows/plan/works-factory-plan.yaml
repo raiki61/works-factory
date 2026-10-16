@@ -300,7 +300,8 @@ nodes:
                         - op
                         - responsibility
                         - symbols
-                        - canonical
+                        - home
+                        - considered
                         properties:
                           path:
                             type: string
@@ -325,25 +326,11 @@ nodes:
                               additionalProperties: false
                               required:
                               - name
-                              - kind
                               - change
                               properties:
                                 name:
                                   type: string
                                   minLength: 1
-                                kind:
-                                  type: string
-                                  enum:
-                                  - function
-                                  - record_field
-                                  - guard
-                                  - prompt
-                                  - doc
-                                  - cli
-                                  - arm
-                                  - test
-                                  - config
-                                  - other
                                 change:
                                   type: string
                                   enum:
@@ -355,9 +342,33 @@ nodes:
                                 replaced_by:
                                   type: string
                                   minLength: 1
-                          canonical:
-                            type: string
-                            minLength: 4
+                          home:
+                            type: object
+                            additionalProperties: false
+                            required:
+                            - concept
+                            - why
+                            properties:
+                              concept:
+                                type: string
+                                minLength: 1
+                              why:
+                                type: string
+                                minLength: 1
+                          considered:
+                            type: array
+                            minItems: 1
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required:
+                              - path
+                              - why_not
+                              properties:
+                                path:
+                                  type: string
+                                  minLength: 1
+                                why_not: *id001
                           why: *id001
                           replaced_by:
                             type: string

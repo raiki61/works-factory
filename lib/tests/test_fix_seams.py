@@ -1441,7 +1441,7 @@ class LaneChecksSeamCase(TempCase):
 
     def test_plan_scope_skips_a_file_only_the_git_filter_shows_changed(self):
         """since の前に書いた ident のファイルは、作業ツリーの中身（$Id: <sha> $）と since の木の中身（$Id$）が違っても git の
-        比べでは触っていない: 修正役が足した行（canonical の外の同名の定義）として照らさない（#333）"""
+        比べでは触っていない: 修正役が足した行（足す行の path の外の同名の定義）として照らさない（#333）"""
         import factchecks
         (self.repo / ".gitattributes").write_text("helper.py ident\n", encoding="utf-8")
         (self.repo / "helper.py").write_text(f'def helper(): return "$Id: {"0" * 40} $"\n', encoding="utf-8")
@@ -1449,8 +1449,10 @@ class LaneChecksSeamCase(TempCase):
         since = leftovers.snapshot(self.repo)
         stats.write_text(stats.read_text(encoding="utf-8") + "\n\ndef helper():\n    return 1\n", encoding="utf-8")
         item = {"item": 1, "unit_keys": [R_MEAN], "route": "direct", "tests": [], "rewrite_tests": [],
-                "files": [{"path": "stats.py", "op": "modify", "responsibility": "平均の助け手", "canonical": "既存の stats.py",
-                           "symbols": [{"name": "helper", "kind": "function", "change": "add"}]}],
+                "files": [{"path": "stats.py", "op": "modify", "responsibility": "平均の助け手",
+                           "home": {"concept": "平均の助け手", "why": "平均の式の置き場"},
+                           "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}],
+                           "symbols": [{"name": "helper", "change": "add"}]}],
                 "allowed_paths": ["stats.py"], "out_of_scope": []}
         reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
         self.assertEqual(writes.changed_from(self.repo, since), ["stats.py"], "git の比べでは helper.py を触っていない")
@@ -1474,8 +1476,10 @@ class LaneChecksSeamCase(TempCase):
         since = leftovers.snapshot(self.repo)
         tid = "test_stats.py::TestStats::test_mean_of_two"
         item = {"item": 1, "unit_keys": [R_MEAN], "route": "tdd", "tests": [{"id": tid}], "rewrite_tests": [],
-                "files": [{"path": "test_stats.py", "op": "modify", "responsibility": "平均の試験", "canonical": "既存の test_stats.py",
-                           "symbols": [{"name": "TestStats::test_mean_of_two", "kind": "test", "change": "add"}]}],
+                "files": [{"path": "test_stats.py", "op": "modify", "responsibility": "平均の試験",
+                           "home": {"concept": "平均の試験", "why": "平均の試験の置き場"},
+                           "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}],
+                           "symbols": [{"name": "TestStats::test_mean_of_two", "change": "add"}]}],
                 "allowed_paths": ["stats.py", "test_stats.py"], "out_of_scope": []}
         reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py", "test_stats.py"]}]}
         args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
