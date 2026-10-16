@@ -152,6 +152,12 @@ def narrow(**more):
     return {"what": "空の列の mean が例外を投げる", "why": "空の列の平均は 0 割りの例外のまま残す", **more}
 
 
+HANDOFF_NOTE = {"read": [{"path": "stats.py", "lines": "1-20", "why": "mean と clamp の枝を確かめた"}],
+                "decided": ["分母は len(xs) にする"],
+                "rejected": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
+                "open": ["空の列の扱い"]}
+
+
 class _NodeFailed(Exception):
     """試験が落とした script の節（Archon は節を failed にして、後の節の trigger_rule に渡す）"""
 
@@ -481,6 +487,9 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual(marks[key], bare(gatemarks.MARK_SCHEMA[key]), key)
         self.assertEqual(marks[gatemarks.NO_NARROW], bare(gatemarks.NO_NARROW_SCHEMA))
         self.assertEqual(fmt[converge.ANSWERS], converge.ANSWER_SCHEMA)
+        self.assertEqual(fmt[planfile.HANDOFF], planfile.HANDOFF_SCHEMA)
+        self.assertNotIn(planfile.HANDOFF, node(doc, "plan-writer")["output_format"]["required"], "引き継ぎのメモは任意の欄")
+        self.assertEqual(node(doc, "plan-writer-fix")["output_format"]["properties"][planfile.HANDOFF], planfile.HANDOFF_SCHEMA)
         owner = json.loads((LIB / "design-row.schema.json").read_text(encoding="utf-8"))
         added = {"route_reason"}           # 受け付けが足す
         dropped = {"precedents"}           # 今の works の structure-eye の型に無い
@@ -1048,6 +1057,31 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(self.reasons(run), [])
         self.assertIs(out["ready"], False)
 
+    def test_unsavable_handoff_halts_without_counting_a_rejection(self):
+        """引き継ぎのメモの控えを置けない周（置く時の一時のファイルの名がディレクトリ）も、役の拒否に数えず（出し直させず）に輪を止める。
+        先に置いた案の控えは消え、置けなかった控えの名が round.json の why に残る"""
+        run = Run(self)
+        calls = []
+
+        def writer(n, brief):
+            calls.append(n)
+            (run.art / "plan" / "r1" / "handoff.json.tmp").mkdir(exist_ok=True)
+            return {"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}
+
+        out = run.include(writer=writer)
+        self.assertEqual({k: run.out["plan-accept"][k] for k in ("ok", "done", "give_up")},
+                         {"ok": False, "done": True, "give_up": True})
+        self.assertIn("handoff.json", run.out["plan-accept"]["reason"])
+        self.assertEqual(calls, [1])
+        self.assertEqual(self.reasons(run), [])
+        self.assertIs(out["ready"], False)
+        rnd = run.art / "plan" / "r1"
+        for name in (planfile.FIX_PLAN_FILE, planfile.REPLY_FILE, "handoff.json"):
+            self.assertFalse((rnd / name).exists(), name)
+        self.assertEqual(json.loads((rnd / planmarks.FIELDS_FILE).read_text(encoding="utf-8")), {"round": 1, "fields": []},
+                         "置いた欄の控えは消え、返りの指し札のための空の控えだけが残る")
+        self.assertIn("handoff.json", planfile.read_round(rnd)["why"])
+
     def test_unusable_ledger_is_a_done_give_up_reject(self):
         """拒否の控えが読めない周（控えの名がディレクトリ）でも、plan_accept の script は非 0 で落ちず、done・give_up 真の拒否で輪を止める。
         回を先に読むので、返答を照らさず案のファイルも書かない"""
@@ -1200,6 +1234,25 @@ class ReplanCase(unittest.TestCase):
         self.assertIs(run.out["structure-measure"]["reused"], True)
         self.assertEqual(run.status["structure-eye-loop"], "skipped")
         self.assertEqual(out["structure"], self.first["structure"])
+
+    def test_replan_brief_names_the_handoff_of_the_plan_it_revises(self):
+        """メモつきで受かった案を直す時、案の直しの材料は直す元の周のメモのパスを名指し、案の直しの役の返すメモは案の直しの周に置かれる"""
+        run = Run(self)
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}))["ready"], True)
+        conflicts = run.pointer("fix/conflicts.json", {"items": [
+            {"id": "c1", "unit_key": CLAMP, "kind": "scope", "between": ["stats.py", "test_stats.py"],
+             "why_both_cannot_hold": "試験を直さないと上限の枝を直した証が立たない", "which_is_right": "plan",
+             "ruling": {"decision": "fix_plan_item", "text": "項目 1 の allowed_paths に request_ok.json を足せ", "limits": [],
+                        "plan_items": [1]}}]})
+        again = {**HANDOFF_NOTE, "decided": ["項目 1 の allowed_paths に request_ok.json を足した"]}
+        out = run.include(ruling='["1"]', conflicts=conflicts, writer=writer_of({"plan": [self.fixed()], "handoff": again}))
+        self.assertIs(out["ready"], True, out)
+        first, second = run.art / "plan" / "r1", run.art / "plan" / "r2"
+        brief = (second / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn(planfile.HANDOFF_HEAD, brief)
+        self.assertIn(str(first / "handoff.json"), brief)
+        self.assertEqual(json.loads((second / "handoff.json").read_text(encoding="utf-8")), again)
+        self.assertEqual(json.loads((first / "handoff.json").read_text(encoding="utf-8")), HANDOFF_NOTE, "直す元の周のメモは変えない")
 
     def test_ruling_outside_the_plan_skips_the_role(self):
         run = self.run_
@@ -1396,6 +1449,41 @@ class CollectCase(unittest.TestCase):
         trace = [json.loads(x) for x in (rnd / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
         self.assertEqual([(r["op"], r.get("id")) for r in trace if r["op"] == converge.DROPPED_OP],
                          [(converge.DROPPED_OP, converge.item_id([CLAMP]))], "前のまま書いた閉じた項目の行は捨てて trace に残す")
+
+    def test_second_round_brief_names_the_prior_handoff(self):
+        """1 往復目の役が引き継ぎのメモつきで返した案が受かると、メモは周のフォルダに置かれ、2 往復目の材料が前の周のメモのパスを名指す
+        （中身は貼らない）。メモを書けという頼みは 1 往復目の材料にも載る"""
+        run = Run(self)
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}))["ready"], True)
+        first = run.art / "plan" / "r1"
+        self.assertEqual(json.loads((first / "handoff.json").read_text(encoding="utf-8")), HANDOFF_NOTE)
+        self.assertIn(planfile.HANDOFF_ASK, (first / "brief-1.md").read_text(encoding="utf-8"))
+        run.include(review=run.pointer("review/p2.plan_review.json", {"faces": []}))
+        brief = (run.art / "plan" / "r2" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn(planfile.HANDOFF_HEAD, brief)
+        self.assertIn(str(first / "handoff.json"), brief)
+        self.assertNotIn(HANDOFF_NOTE["decided"][0], brief)
+
+    def test_second_round_brief_says_when_the_prior_round_left_no_handoff(self):
+        """前の周の役がメモを書かなかった時は、2 往復目の材料がメモの無いことを名指す（黙って落とさない）。前の周そのものが無い
+        1 往復目の材料には、メモの節を出さない（書かなかった事実が無い）"""
+        run = Run(self)
+        run.include()
+        self.assertNotIn(planfile.HANDOFF_HEAD, (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8"))
+        run.include(review=run.pointer("review/p2.plan_review.json", {"faces": []}))
+        brief = (run.art / "plan" / "r2" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn(planfile.HANDOFF_HEAD, brief)
+        self.assertIn(planfile.NO_HANDOFF, brief)
+        self.assertNotIn(str(run.art / "plan" / "r1" / "handoff.json"), brief)
+
+    def test_resubmit_without_handoff_keeps_the_first_handoff(self):
+        """1 回目の返答がメモつきで拒まれ、出し直しがメモを返さずに受かると、周のメモは 1 回目の物になる"""
+        run = Run(self)
+        out = run.include(writer=writer_of({"plan": [item(1)], "handoff": HANDOFF_NOTE}, {"plan": [item(1, 2)]}))
+        self.assertIs(out["ready"], True, out)
+        rnd = run.art / "plan" / "r1"
+        self.assertEqual(len(rolekit.rejected(rnd, "plan")), 1)
+        self.assertEqual(json.loads((rnd / "handoff.json").read_text(encoding="utf-8")), HANDOFF_NOTE)
 
     def test_second_round_brief_has_no_independent_design(self):
         """元 tests/test_blk_plan.py の test_revise_prompt_names_blocks_and_keys: 2 周目の材料に独立設計の節は無い（役の頭は貼り直す）"""
