@@ -832,11 +832,8 @@ def child_verified(result) -> list:
 
 
 def tdd_units(groups, results) -> list:
-    """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, units, refused}]（子の結果の欄
-    tdd。tddloop.exit_fields の形）。refused は exit_fields の欄でなく、tddloop.refused_units が子の結果の tdd.calls から作る欄（修正役が
-    拒まれた単位の名。線の redepth が diff の隣の tdd-unit.json から読み、修正の後に深さを標準へ上げる信号にする）。結果の無い組・
-    実行器の無い組は ran: false・units: []・refused: []。results は {group_id: 子の結果の dict}"""
-    import tddloop
+    """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, units}]（子の結果の欄 tdd。
+    tddloop.exit_fields の形）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
         result = results.get(g["group_id"])
@@ -845,7 +842,7 @@ def tdd_units(groups, results) -> list:
         out.append({"group_id": g["group_id"], "ran": ran,
                     "reason": str(tdd.get("reason") or ("" if result else NO_RESULT)), "suite": str(tdd.get("suite") or ""),
                     "reused": tdd.get("reused") if isinstance(tdd.get("reused"), dict) else {},
-                    "units": child_tdd_units(result) if ran else [], "refused": tddloop.refused_units(tdd.get("calls"))})
+                    "units": child_tdd_units(result) if ran else []})
     return out
 
 

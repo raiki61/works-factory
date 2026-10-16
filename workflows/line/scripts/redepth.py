@@ -85,17 +85,18 @@ def wide_signals(plan, diff, keys) -> tuple:
     return wide, f"触るファイル {paths} 個（起点: {origin}）"
 
 
-NO_LATE_RECORD = "修正の後の信号の控えが無い（{name}）——TDD の拒否・範囲の相談を数えていない"
+NO_LATE_RECORD = "修正の後の信号の控えが無い（{name}）——範囲の相談を数えていない"
 LATE_UNREAD = "修正の後の信号の控えが読めない（{why}）"
 
 
 def fix_signals(plan, diff, ties_judgment, keys) -> tuple:
     """(修正の後の 3 つの事実の信号, counted に添える訳の並び)。事実の言い方は depth.late_signals、引用の外の差分は depth.outside_cited:
     引用の外の差分は diff の触るファイルを、1 回目の判定（ties_judgment）の隣の頭の深さの控えの where のファイル（headdepth.cited_files）と比べ、
-    TDD の拒否と範囲の相談は diff の隣の tdd-unit.json の欄 refused と accept-trace.json の行を lib/fixbeside.py の late_records で読む。
-    diff が null（直す物が無い周）・指し札が解けない時は何も足さず訳も添えない。控えの扱いは 1 つの決まり: 無い時（本物の run では
-    TDD の前に止まった run は単位が止めた単位として既に上がる）は上げずに訳を添え（NO_LATE_RECORD。黙らない）、在るのに読めない・
-    {error}・形が違う時だけ LATE_UNREAD の信号で上げる側へ倒す。判定の隣に控えが無い・where の無い run は引用の外を持たない"""
+    TDD の拒否と範囲の相談は diff の隣の TDD の輪の状態 tdd-<k>/state.json と accept-trace.json の行を lib/fixbeside.py の late_records で読む。
+    diff が null（直す物が無い周）・指し札が解けない時は何も足さず訳も添えない。控えの扱いは 1 つの決まり: 受け付けの行が無い時は
+    上げずに訳を添え（NO_LATE_RECORD。黙らない）、在るのに読めない・{error}・形が違う時だけ LATE_UNREAD の信号で上げる側へ倒す。
+    TDD の輪の状態が無い置き場は輪が走っていない（本物の run で TDD の前に止まった run は単位が止めた単位として既に上がる）。
+    判定の隣に控えが無い・where の無い run は引用の外を持たない"""
     if diff is None:
         return [], []
     try:
@@ -111,8 +112,7 @@ def fix_signals(plan, diff, ties_judgment, keys) -> tuple:
     except READ_ERRORS:
         cited = []
     got = fixbeside.late_records(folder)
-    refused = [name for row in got["tdd"] or [] for name in row.get("refused") or [] if isinstance(name, str)]
-    signals = depthlib.late_signals(outside=depthlib.outside_cited(_plan_items(plan), keys, touched, cited), refused=refused,
+    signals = depthlib.late_signals(outside=depthlib.outside_cited(_plan_items(plan), keys, touched, cited), refused=got["refused"],
                                     consulted=consult.consulted_units(got["trace"] or []))
     return ([*signals, *(LATE_UNREAD.format(why=why) for why in got["unread"])],
             [NO_LATE_RECORD.format(name=name) for name in got["missing"]])

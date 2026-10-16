@@ -2002,30 +2002,25 @@ class GroupScriptsSeamCase(TempCase):
         row = {"unit_key": "A"}
         got = fixboard.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
                                  {"g1": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [row]}}, "g2": None})
-        self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row],
-                                  "refused": []})
+        self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row]})
         self.assertEqual((got[1]["ran"], got[1]["units"], got[1]["reason"]), (False, [], fixboard.NO_RESULT))
         got = fixboard.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
                                  {"g1": {"tdd": ["x"]}, "g2": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": 5}}})
         self.assertEqual([(r["ran"], r["units"]) for r in got], [(False, []), (True, [])], "形の崩れた tdd・units は空で読む（#342）")
 
-    def test_tdd_units_carry_the_refused_units(self):
-        """組の行の refused は、子の結果の tdd.calls のうち ok が偽で phase が runner でない call の unit_key（振り分けの段の空の key は
-        ROUTE_REFUSED）。runner だけ・拒否の無い組・calls の無い組は空の並び"""
+    def test_refused_units_name_the_refused_calls(self):
+        """tddloop.refused_units は、calls のうち ok が偽で phase が runner でない call の unit_key（振り分けの段の空の key は
+        ROUTE_REFUSED）。runner だけ・拒否の無い calls・calls の無い時は空の並び"""
         import tddloop
-        calls = {"g1": [{"n": 1, "phase": "route", "unit_key": "", "ok": False, "runs": 0, "secs": 0.1},
-                        {"n": 2, "phase": "route", "unit_key": "", "ok": True, "runs": 0, "secs": 0.1},
-                        {"n": 3, "phase": "test", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1},
-                        {"n": 4, "phase": "test", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1},
-                        {"n": 5, "phase": "conflict", "unit_key": "B", "ok": False, "runs": 0, "secs": 0.1},
-                        {"n": 6, "phase": "fix", "unit_key": "A", "ok": True, "runs": 1, "secs": 0.1}],
-                 "g2": [{"n": 1, "phase": "runner", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1}],
-                 "g3": [{"n": 1, "phase": "test", "unit_key": "A", "ok": True, "runs": 1, "secs": 0.1}]}
-        results = {g: {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [], "calls": rows}} for g, rows in calls.items()}
-        results["g4"] = {"tdd": {"ran": True, "reason": "", "suite": "s", "units": []}}
-        results["g5"] = {"tdd": {"ran": False, "reason": "実行器が無い", "suite": "", "units": []}}
-        got = fixboard.tdd_units([{"group_id": g} for g in (*calls, "g4", "g5", "g6")], results)
-        self.assertEqual([r["refused"] for r in got], [[tddloop.ROUTE_REFUSED, "A", "B"], [], [], [], [], []])
+        calls = [{"n": 1, "phase": "route", "unit_key": "", "ok": False, "runs": 0, "secs": 0.1},
+                 {"n": 2, "phase": "route", "unit_key": "", "ok": True, "runs": 0, "secs": 0.1},
+                 {"n": 3, "phase": "test", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1},
+                 {"n": 4, "phase": "test", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1},
+                 {"n": 5, "phase": "conflict", "unit_key": "B", "ok": False, "runs": 0, "secs": 0.1},
+                 {"n": 6, "phase": "fix", "unit_key": "A", "ok": True, "runs": 1, "secs": 0.1}]
+        self.assertEqual(tddloop.refused_units(calls), [tddloop.ROUTE_REFUSED, "A", "B"])
+        self.assertEqual(tddloop.refused_units([{"n": 1, "phase": "runner", "unit_key": "A", "ok": False}]), [])
+        self.assertEqual(tddloop.refused_units([{"n": 1, "phase": "test", "unit_key": "A", "ok": True}]), [])
         self.assertEqual(tddloop.refused_units(None), [])
         self.assertEqual(tddloop.refused_units([{"ok": False, "phase": "fix", "unit_key": 5}, "x"]), [])
 

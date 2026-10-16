@@ -1917,10 +1917,9 @@ class BlockScriptsCase(unittest.TestCase):
             "g1", ["A"], start, start, tdd={"ran": True, "reason": "", "suite": "run.sh", "reused": {}, "units": [row]}))
         code, out, err = _blk_run("tdd_unit", self.repo, self.art)
         self.assertEqual(code, 0, err)
-        self.assertEqual(out, [{"group_id": "g1", "ran": True, "reason": "", "suite": "run.sh", "reused": {}, "units": [row],
-                                "refused": []},
+        self.assertEqual(out, [{"group_id": "g1", "ran": True, "reason": "", "suite": "run.sh", "reused": {}, "units": [row]},
                                {"group_id": "g2", "ran": False, "reason": out[1]["reason"], "suite": "", "reused": {},
-                                "units": [], "refused": []}])
+                                "units": []}])
         self.assertTrue(out[1]["reason"])
         self.assertEqual(json.loads((self.place / "tdd-unit.json").read_text(encoding="utf-8")), out)
 

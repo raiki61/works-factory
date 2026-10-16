@@ -2446,11 +2446,13 @@ class RedepthCase(Artifacts):
 
     def test_fix_signals_read_the_records_beside_the_diff(self):
         """修正の後の 3 つの事実: diff の触るファイルが 1 回目の判定の隣の頭の深さの控えの where の外（テストのファイルを除く）・diff の隣の
-        tdd-unit.json の欄 refused・同じ隣の accept-trace.json の範囲の相談の行。それぞれ上げる理由になり、ノード redepth が軽量の単位を標準へ上げる。
-        隣の 2 つの控えが無い時は上げずに counted に訳を添え、在るのに読めない・{error} の時だけ上げる。diff が null なら何も足さない"""
+        TDD の輪の状態 tdd-<k>/state.json の拒まれた call・同じ隣の accept-trace.json の範囲の相談の行。それぞれ上げる理由になり、ノード redepth が
+        軽量の単位を標準へ上げる。受け付けの行が無い時は上げずに counted に訳を添え、輪の状態が無い時は拒否を数えず、在るのに読めない・
+        {error} の時だけ上げる。diff が null なら何も足さない"""
         import conflict
         import consult
         import headdepth
+        import tddloop
 
         def patch(*names):
             return "".join(f"diff --git a/{n} b/{n}\n--- a/{n}\n+++ b/{n}\n@@ -1 +1 @@\n-x\n+y\n" for n in names)
@@ -2460,8 +2462,9 @@ class RedepthCase(Artifacts):
         self.put(f"judge/{headdepth.RECORD}", record)
         plan = self.put("plan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["stats.py"], "tests": [], "rewrite_tests": []}]})
         diff = self.put("fix/diff.patch", patch("stats.py"))
-        tdd_name, trace_name = "fix/tdd-unit.json", "fix/accept-trace.json"
-        tdd_rows = [{"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [], "refused": ["u1", "振り分けの段"]}]
+        tdd_name, trace_name = f"fix/tdd-1/{tddloop.STATE}", "fix/accept-trace.json"
+        refused = {"calls": [{"n": 1, "phase": "test", "unit_key": "u1", "ok": False}, {"n": 2, "phase": "route", "unit_key": "", "ok": False}]}
+        passed = {"calls": [{"n": 1, "phase": "runner", "unit_key": "u1", "ok": False}, {"n": 2, "phase": "fix", "unit_key": "u1", "ok": True}]}
         asked = {"op": conflict.ASKED_OP, "item": 1, "unit_keys": ["u1"], "origin": None}
         gate = {"op": conflict.ASKED_OP, "item": 1, "unit_keys": ["u1"], "origin": consult.ORIGIN_GATE}
 
@@ -2469,20 +2472,19 @@ class RedepthCase(Artifacts):
             if names:
                 self.put("fix/diff.patch", patch(*names))   # 同じ指し札のまま差分の中身を替える
             return redepth.fix_signals(plan, diff, judgment, ["u1"])
-        no_tdd = redepth.NO_LATE_RECORD.format(name="tdd-unit.json")
         no_trace = redepth.NO_LATE_RECORD.format(name="accept-trace.json")
-        self.assertEqual(signals(), ([], [no_tdd, no_trace]), "隣の控えが無い時は上げずに訳を添える")
-        self.put(tdd_name, [{**tdd_rows[0], "refused": []}])
+        self.assertEqual(signals(), ([], [no_trace]), "受け付けの行が無い時は上げずに訳を添え、輪の状態が無い時は拒否を数えない")
+        self.put(tdd_name, passed)
         self.put(trace_name, [gate, {"op": "fix_tests_selected", "note": "x"}])
         self.assertEqual(signals(), ([], []), "拒否も相談も引用の外も無い")
-        self.put(tdd_name, tdd_rows)
+        self.put(tdd_name, refused)
         got, notes = signals()
         self.assertEqual(notes, [])
         self.assertEqual(len(got), 1)
         self.assertIn("TDD のループで修正役が拒まれた", got[0])
         self.assertIn("u1", got[0])
-        self.assertIn("振り分けの段", got[0])
-        self.put(tdd_name, [{**tdd_rows[0], "refused": []}])
+        self.assertIn(tddloop.ROUTE_REFUSED, got[0])
+        self.put(tdd_name, passed)
         self.put(trace_name, [gate, asked])
         got, _ = signals()
         self.assertEqual([("範囲の相談" in w, "u1" in w) for w in got], [(True, True)])
@@ -2515,12 +2517,12 @@ class RedepthCase(Artifacts):
             self.put(trace_name, trace)
             with mock.patch.dict(os.environ, env):
                 return redepth.compute()
-        quiet = run(["stats.py"], [{**tdd_rows[0], "refused": []}], [])
+        quiet = run(["stats.py"], passed, [])
         self.assertEqual((quiet["depth"][0]["depth"], bool(quiet["skip_optional"])), ("軽量", True))
         self.assertNotIn("控えが無い", quiet["counted"])
-        for why, args in (("TDD のループで修正役が拒まれた", (["stats.py"], tdd_rows, [])),
-                          ("修正役が範囲の相談をした", (["stats.py"], [{**tdd_rows[0], "refused": []}], [asked])),
-                          ("引用した where の外に出た", (["stats.py", "other.py"], [{**tdd_rows[0], "refused": []}], []))):
+        for why, args in (("TDD のループで修正役が拒まれた", (["stats.py"], refused, [])),
+                          ("修正役が範囲の相談をした", (["stats.py"], passed, [asked])),
+                          ("引用した where の外に出た", (["stats.py", "other.py"], passed, []))):
             with self.subTest(why=why):
                 got = run(*args)
                 self.assertEqual((got["depth"][0]["depth"], got["skip_optional"]), ("標準", ""))
@@ -2531,7 +2533,6 @@ class RedepthCase(Artifacts):
         with mock.patch.dict(os.environ, env):
             got = redepth.compute()
         self.assertEqual((got["depth"][0]["depth"], bool(got["skip_optional"])), ("軽量", True), "控えが無ければ今どおり軽量のまま省く")
-        self.assertIn(no_tdd, got["counted"])
         self.assertIn(no_trace, got["counted"])
 
     def test_replanned_depth_merges_by_unit(self):

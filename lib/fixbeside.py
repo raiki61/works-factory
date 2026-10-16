@@ -15,15 +15,14 @@ read が同じ diff の隣から一緒に読む物（書き手は fix のほか�
 - fixboard.LENSES_FILE（lenses.json）: レンズの集め役の事実 {collector: {ok, reason}}。レンズの数え（lens.summary）は置き場の
   lens.json と差分の審査の 1 回目の出力から読む時に数える
 - leftovers.REMOVED_FILE（fix-removed.json）: clean が消したパス（読みは leftovers.removed）
-- fixboard.TDD_UNIT_FILE（tdd-unit.json）: 組ごとの TDD の記録（書き手は fix の tdd-unit。読みは tdd。eyes が R2 の比較役に貼る。
-  線の redepth は欄 refused を late_records で読む）
-accept-trace.json の読み手には線の redepth も居る（範囲の相談の行。late_records）。
+- fixboard.TDD_UNIT_FILE（tdd-unit.json）: 組ごとの TDD の記録（書き手は fix の tdd-unit。読みは tdd。eyes が R2 の比較役に貼る）
+accept-trace.json と TDD の輪の状態 tdd-<k>/state.json の読み手には線の redepth も居る（範囲の相談の行と修正役の拒否。late_records）。
 
 - claimed_of(reply)・closure_rows(place): 子の結果と親が欄を組む口
 - write(place, results, ruled_reply, *, items, plan_review, fix_reply): 書く
 - read(folders): 段ごとの置き場（fix と 2 度目の修正）の全部を読み合わせた見え方
 - tdd(folder): 段の置き場の TDD の記録
-- late_records(folder): TDD の記録と受け付けの行の 2 つを 1 つの決まり（無い・読めないを分ける）で読む。線の redepth が修正の後に
+- late_records(folder): TDD の輪の状態と受け付けの行を 1 つの決まり（無い・読めないを分ける）で読む。線の redepth が修正の後に
   深さを上げる信号（TDD の拒否・範囲の相談）の元を diff の隣から引く口
 - closure_lines・not_closed・tests_left_lines・gates_lines・plan_ask_lines・branch_rows・always_rows・lens_lines・next_items:
   最後の承認ノードと報告が同じ行を出す口（元 works/.shared/core/report.py の branch_rows・gates_lines・plan_ask_lines・
@@ -211,19 +210,23 @@ def tdd(folder):
 
 
 def late_records(folder) -> dict:
-    """段の置き場 folder（diff のポインタの先のフォルダ）の、修正の後に深さを上げる信号の元の 2 つの控え（TDD の記録 TDD_UNIT_FILE と
-    受け付けの行 ACCEPT_TRACE_FILE）を 1 つの決まりで読む。返り {tdd: 組の行の並び | None, trace: 受け付けの行の並び | None,
-    missing: [無いファイルの名], unread: [在るのに読めない・{"error"}・形が違う訳]}。無い物は None で missing に名を、在るのに読めない物は
-    None で unread に訳を足す（呼び手 redepth が、無い時は上げずに訳を添え、読めない時だけ上げる側へ倒すため。tdd(folder) は両方を
-    1 つの訳の字にする）。行は dict の物だけ"""
+    """段の置き場 folder（diff のポインタの先のフォルダ）の、修正の後に深さを上げる信号の元: TDD の輪の状態（tddloop.states）の calls
+    から修正役が拒まれた単位の名（tddloop.refused_units。fixboard.depth_signals と同じ読み）と、受け付けの行 ACCEPT_TRACE_FILE。
+    返り {refused: [単位の名], trace: 受け付けの行の並び | None, missing: [無いファイルの名], unread: [在るのに読めない・{"error"}・
+    形が違う訳]}。受け付けの行が無ければ None で missing に名を、在るのに読めない控えは unread に訳を足す（呼び手 redepth が、無い時は
+    上げずに訳を添え、読めない時だけ上げる側へ倒すため）。輪の状態が 1 つも無い置き場は TDD の輪が走っていないので拒否も無い。
+    行は dict の物だけ"""
+    import tddloop
     folder = pathlib.Path(folder)
-    got: dict = {"tdd": None, "trace": None, "missing": [], "unread": []}
-    for key, name in (("tdd", fixboard.TDD_UNIT_FILE), ("trace", fixboard.ACCEPT_TRACE_FILE)):
-        if not (folder / name).exists():
-            got["missing"].append(name)
-            continue
-        rows = _load(folder / name, got["unread"], rows=True)
-        got[key] = None if rows is None else [r for r in rows if isinstance(r, dict)]
+    got: dict = {"refused": [], "trace": None, "missing": [], "unread": []}
+    for state in tddloop.states(folder):
+        doc = _load(state, got["unread"])
+        got["refused"] += tddloop.refused_units(doc.get("calls") if doc is not None else None)
+    if not (folder / fixboard.ACCEPT_TRACE_FILE).exists():
+        got["missing"].append(fixboard.ACCEPT_TRACE_FILE)
+    else:
+        rows = _load(folder / fixboard.ACCEPT_TRACE_FILE, got["unread"], rows=True)
+        got["trace"] = None if rows is None else [r for r in rows if isinstance(r, dict)]
     return got
 
 
