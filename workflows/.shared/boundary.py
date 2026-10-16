@@ -175,16 +175,21 @@ class Picked(dict):
         return self[key]
 
 
-def picked(raw, names) -> Picked | None:
-    """ブロックの返りまるごとの入力 raw を value で dict に戻し、宣言した名 names だけを持つ Picked にする（欠けた欄は None）。
-    飛ばされた節（null・空の字・無い入力）は None。dict でなければ ValueError。ブロックの返りの欄の型は返す節の output_format が
-    持つので、字の欄も型つきの dict で届き、字か値かを読み分ける表は要らない"""
+def passed(raw) -> dict | None:
+    """ブロックの返りまるごとの入力 raw を value で dict に戻す（受け皿の素通し）。飛ばされた節（null・空の字・無い入力）は None。
+    dict でなければ ValueError。欄は読まずに出力へ運ぶだけで、欄を読むなら picked で名指す（tests/layers/scan.py の E5 が照らす）"""
     got = value(raw)
-    if got is None:
-        return None
-    if not isinstance(got, dict):
+    if got is not None and not isinstance(got, dict):
         raise ValueError(f"まるごとの入力が object でない（{type(got).__name__}）: {str(got)[:80]!r}")
-    return Picked((name, got.get(name)) for name in names)
+    return got
+
+
+def picked(raw, names) -> Picked | None:
+    """ブロックの返りまるごとの入力 raw を passed で dict に戻し、宣言した名 names だけを持つ Picked にする（欠けた欄は None）。
+    飛ばされた節は None。ブロックの返りの欄の型は返す節の output_format が持つので、字の欄も型つきの dict で届き、
+    字か値かを読み分ける表は要らない"""
+    got = passed(raw)
+    return None if got is None else Picked((name, got.get(name)) for name in names)
 
 
 def text(raw) -> str:

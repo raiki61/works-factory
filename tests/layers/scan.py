@@ -641,8 +641,7 @@ OUTPUT_REF = re.compile(r"\$(?:LOOP_PREV\.)?([A-Za-z_][\w-]*)\.output(?:\.([A-Za
 # 境の口（workflows/.shared/boundary.py）の呼びの名と、受け皿の素通しの宣言の名。scan.py が script について知るのはこれと環境の名の頭だけ
 GATE_MODULE = "boundary"
 GATE_PICKED = "picked"
-GATE_VALUE = "value"
-GATE_PASSES = "PASSES"
+GATE_PASSED = "passed"
 INPUT_HEAD = "INPUTS_"
 
 
@@ -1036,10 +1035,53 @@ def _boundary_calls(source, attr: str) -> list:
             and isinstance(n.func.value, ast.Name) and n.func.value.id == GATE_MODULE]
 
 
+def _gate_calls(source, attr: str, env: str) -> list:
+    """`boundary.<attr>(…)` の呼びのうち、どれかの引数が env の字を持つ物"""
+    return [c for c in _boundary_calls(source, attr) if any(_holds(a, env) for a in (*c.args, *(k.value for k in c.keywords)))]
+
+
+def _returned_as_is(node, parents: dict) -> bool:
+    """式 node が return の dict・tuple の literal の値に直に置かれているか（欄を引かずに出力へ運ぶだけの形）"""
+    literal = parents.get(node)
+    if isinstance(literal, ast.Dict):
+        placed = any(value is node for value in literal.values)
+    else:
+        placed = isinstance(literal, ast.Tuple) and any(item is node for item in literal.elts)
+    return placed and isinstance(parents.get(literal), ast.Return)
+
+
+def _passed_uses(source, call) -> list:
+    """`boundary.passed` の呼び call の値の使い方の誤り (行, 訳) の並び。許す形は 2 つだけで、ほかは形を並べず既定の拒み:
+    呼びそのものを return の literal に直に置く形と、呼びを 1 度だけ名に代入し、同じ有効範囲のその名の読みが全部、return の literal に
+    直に置く形か `<名> is None`・`<名> is not None` の形。添字・.get・属性・関数への引数・別の名への代入は欄を読みうるので赤"""
+    why = f"boundary.{GATE_PASSED} で受けた値を return の literal に直に置く外で使う（欄を引くなら boundary.{GATE_PICKED} で名指す）"
+    parents = source.parents
+    if _returned_as_is(call, parents):
+        return []
+    bound = parents.get(call)
+    if not (isinstance(bound, ast.Assign) and bound.value is call and len(bound.targets) == 1 and isinstance(bound.targets[0], ast.Name)):
+        return [(call.lineno, why)]
+    name = bound.targets[0].id
+    scope = parents.get(bound)
+    while scope is not None and not isinstance(scope, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+        scope = parents.get(scope)
+    out = []
+    for node in ast.walk(scope):
+        if not (isinstance(node, ast.Name) and node.id == name) or node is bound.targets[0]:
+            continue
+        test = parents.get(node)
+        checked = (isinstance(test, ast.Compare) and test.left is node and len(test.ops) == 1 and isinstance(test.ops[0], (ast.Is, ast.IsNot))
+                   and isinstance(test.comparators[0], ast.Constant) and test.comparators[0].value is None)
+        if not (isinstance(node.ctx, ast.Load) and (checked or _returned_as_is(node, parents))):
+            out.append((node.lineno, why))
+    return out
+
+
 def _gate_reads(path: Path, key: str, lib: Path) -> tuple:
     """まるごとの参照を with:<key> で受ける script path が入力 key を読む口を AST で読む。返りは (口の名の並び, 行, 赤の訳の並び)。
-    読みの口は `boundary.picked(<字の定数 "INPUTS_<key>" を持つ式>, <名の並び>)` の呼び 1 つだけ。名の並びは _str_names で解く。
-    受け皿の素通し（module の頭の PASSES に key が在る）は INPUTS_<key> を `boundary.value(…)` の呼びの中だけで読み、名の並びは None（全部の欄）。
+    口は `boundary.picked(<字の定数 "INPUTS_<key>" を持つ式>, <名の並び>)` か `boundary.passed(<同じ式>)` の呼び 1 つだけ。
+    欄を読む口は picked だけで、名の並びは _str_names で解く。passed は受け皿の素通しで欄を読まず、名の並びは None（全部の欄を運ぶ）。
+    素通しの値は _passed_uses の形の外で使えない（欄を引く・lib に渡すと赤）。
     迂回の判じは形を並べず既定の拒み: (i) 値がちょうど INPUTS_<key> の字の定数が口の呼びの外に在る、(ii) INPUTS_ で始まる名を組む式
     （_str_names で組みうる名を全部解き、INPUTS_<key> が在るか解けなければ赤）、(iii) INPUTS_ で始まるが名の全部でも組む式の頭でもない
     字の定数で INPUTS_<key> がその字で始まる（前置きで環境を舐める形）"""
@@ -1048,35 +1090,28 @@ def _gate_reads(path: Path, key: str, lib: Path) -> tuple:
         return (), 1, ["script を UTF-8 の構文として読めない"]
     env = _input_env(key)
     reasons = []   # (行, 訳)
-    passes = _top_value(source, GATE_PASSES)
-    passed = False
-    if GATE_PASSES in source.top:
-        names = _str_names(passes, path, lib) if passes is not None else None
-        line = getattr(passes, "lineno", 1)
-        if names is None:
-            reasons.append((line, f"{GATE_PASSES} を解けない"))
-        passed = names is not None and key in names
-    if passed:
-        gates = [c for c in _boundary_calls(source, GATE_VALUE) if any(_holds(a, env) for a in (*c.args, *(k.value for k in c.keywords)))]
-        allowed = {id(n) for c in gates for a in (*c.args, *(k.value for k in c.keywords)) for n in ast.walk(a)}
+    picks, passes = _gate_calls(source, GATE_PICKED, env), _gate_calls(source, GATE_PASSED, env)
+    gates = sorted(picks + passes, key=lambda c: (c.lineno, c.col_offset))
+    allowed = {id(n) for c in gates for a in (*c.args, *(k.value for k in c.keywords)) for n in ast.walk(a)}
+    names = ()
+    if not gates:
+        reasons.append((1, f"boundary.{GATE_PICKED} の呼びが無い（{env} は boundary.{GATE_PICKED}(<{env} の字を持つ式>, <名の並び>) で読み、"
+                           f"受け皿の素通しは boundary.{GATE_PASSED}(<{env} の字を持つ式>) で運ぶ）"))
+    elif len(gates) > 1:
+        reasons.append((gates[1].lineno, f"boundary.{GATE_PICKED}・boundary.{GATE_PASSED} の呼びが 2 つ以上ある（{env} の口は 1 つだけ）"))
+    elif passes:
         names = None
-        if not gates:
-            reasons.append((1, f"boundary.{GATE_VALUE} の呼びが無い（受け皿の素通しは {env} を boundary.{GATE_VALUE}(…) の中だけで読む）"))
+        if len(passes[0].args) != 1 or passes[0].keywords:
+            reasons.append((passes[0].lineno, f"boundary.{GATE_PASSED} の引数は {env} の字を持つ式の 1 つだけ"))
+        reasons += _passed_uses(source, passes[0])
     else:
-        gates = [c for c in _boundary_calls(source, GATE_PICKED) if c.args and _holds(c.args[0], env)]
-        allowed = {id(n) for c in gates for n in ast.walk(c.args[0])}
-        names = ()
-        if not gates:
-            reasons.append((1, f"boundary.{GATE_PICKED} の呼びが無い（{env} は boundary.{GATE_PICKED}(<{env} の字を持つ式>, <名の並び>) で読む）"))
-        elif len(gates) > 1:
-            reasons.append((gates[1].lineno, f"boundary.{GATE_PICKED} の呼びが 2 つ以上ある（{env} の口は 1 つだけ）"))
-        if gates:
-            gate = gates[0]
-            solved = _str_names(gate.args[1], path, lib) if len(gate.args) == 2 and not gate.keywords else None
-            if solved is None:
-                reasons.append((gate.lineno, f"口の名の並びを解けない（boundary.{GATE_PICKED} の第 2 引数は 2 つの引数のうちの名の並びで、定数に解ける形）"))
-            else:
-                names = solved
+        gate = picks[0]
+        solved = _str_names(gate.args[1], path, lib) if len(gate.args) == 2 and not gate.keywords and _holds(gate.args[0], env) else None
+        if solved is None:
+            reasons.append((gate.lineno, f"口の名の並びを解けない（boundary.{GATE_PICKED} は {env} の字を持つ式と名の並びの 2 つの引数で、"
+                                         "名の並びは定数に解ける形）"))
+        else:
+            names = solved
     heads, inner = set(), set()
     for node in ast.walk(source.tree):
         if id(node) in inner or (head := _name_head(node)) is None:

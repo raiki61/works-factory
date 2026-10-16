@@ -2,10 +2,10 @@
 
 在るブロックに `returns:` と `outcome_field:` が在り、返す節が `output_format` を持ち、`outcome_field` の欄がその `required` に在る。
 返りの欄のうち、線の `with:`・`when:`・返しの節の `from` の誰も `$<include の id>.output.<欄>` で読まず、まるごとの参照
-`$<include の id>.output` を受ける script の口（boundary.picked の名の並び）も受け皿の素通し（PASSES）も数えない物は赤。
+`$<include の id>.output` を受ける script の口（boundary.picked の名の並び）も受け皿の素通し（boundary.passed）も数えない物は赤。
 欄つきの参照の読む欄が返す節に在るかは Archon の `validate` が照らす（tests/layers/test_archon_validate.py）ので、ここでは照らさない。
 まるごとの参照は validate が欄を見られないので、ここで照らす: 受けてよい置き場は script の節の `with:<鍵>` の直の字か `with:<鍵>.from` の字で、
-ほかは赤。受けた script は口の呼びで読む名が返す節の output_format に在り、口を迂回して読まない。
+ほかは赤。受けた script は口の呼びで読む名が返す節の output_format に在り、口を迂回して読まない。素通しの値は欄を引かずに出力へ運ぶだけ。
 """
 import pathlib
 import unittest
@@ -213,7 +213,7 @@ class BlockReturnsTest(unittest.TestCase):
                               'vals = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in PLAN + REVIEW}\n', '"$judge.output"', {}),
             "接頭辞つき f 字": (GATE + 'FIELDS = ("units", "ready")\n'
                                       "def with_prefix(prefix):\n"
-                                      '    return {k: boundary.field(k, os.environ.get(f"INPUTS_{prefix}_{k.upper()}")) for k in FIELDS}\n'
+                                      '    return {k: boundary.value(os.environ.get(f"INPUTS_{prefix}_{k.upper()}")) for k in FIELDS}\n'
                                       'judge = with_prefix("JUDGE")\n', '"$judge.output"', {}),
             "env(名)": (GATE + "def env(name):\n"
                               '    return boundary.value(os.environ.get(f"INPUTS_{name}"))\n'
@@ -248,16 +248,41 @@ class BlockReturnsTest(unittest.TestCase):
         self.assertIn("読み手が無い", got[0])
 
     def test_passed_through_whole_ref_counts_every_field(self):
-        passed = 'PASSES = ("got",)\nout = boundary.value(os.environ.get("INPUTS_GOT"))\n'
-        self.assertEqual(self.gated(passed), [])
-        for name, script, why in (
-            ("PASSES に鍵が無い", 'PASSES = ("other",)\nout = boundary.value(os.environ.get("INPUTS_GOT"))\n', "boundary.picked の呼びが無い"),
-            ("口の呼びの外で読む", 'PASSES = ("got",)\nout = json.loads(os.environ["INPUTS_GOT"])\n', "口の呼びの外"),
-            ("boundary.value の外にも読み", passed + 'again = os.environ.get("INPUTS_GOT")\n', "口の呼びの外"),
-        ):
+        forms = {
+            "return の literal に直に置く": 'def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"))}\n',
+            "名に束ねて None を見て return の dict と tuple": ('def f(env):\n    whole = boundary.passed(env.get("INPUTS_GOT"))\n'
+                                      '    if whole is not None:\n        return {"got": whole, "stop_reason": ""}\n'
+                                      '    return (whole, 1)\n'),
+        }
+        for name, script in forms.items():
+            with self.subTest(name):
+                self.assertEqual(self.gated(script), [])
+
+    def test_passed_value_used_beyond_the_return_is_red(self):
+        bound = 'def f(env):\n    whole = boundary.passed(env.get("INPUTS_GOT"))\n'
+        cases = {
+            "名に束ねて添字で引く": (bound + '    return {"got": whole, "units": whole["unitz"]}\n', "literal に直に置く外"),
+            "名に束ねて .get で引く": (bound + '    return {"got": whole.get("units")}\n', "literal に直に置く外"),
+            "lib に丸ごと渡す": (bound + '    return {"got": report.build(whole)}\n', "literal に直に置く外"),
+            "呼びを直に lib に渡す": ('out = report.build(boundary.passed(os.environ.get("INPUTS_GOT")))\n', "literal に直に置く外"),
+            "別の名へ移す": (bound + '    other = whole\n    return {"got": other}\n', "literal に直に置く外"),
+            "名に 2 度代入": (bound + '    whole = {}\n    return {"got": whole}\n', "literal に直に置く外"),
+            "return でない literal": (bound + '    out = {"got": whole}\n    return out\n', "literal に直に置く外"),
+            "isinstance で見る": (bound + '    if isinstance(whole, dict):\n        return {"got": whole}\n', "literal に直に置く外"),
+            "口が picked と passed の 2 つ": (GATE + 'def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"))}\n',
+                                         "2 つ以上"),
+            "passed の引数が 2 つ": ('def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"), 1)}\n', "引数は"),
+            "口の呼びの外にも字": ('def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"))}\n'
+                             'again = os.environ.get("INPUTS_GOT")\n', "口の呼びの外"),
+            "前の素通しの宣言 PASSES と boundary.value": ('PASSES = ("got",)\ngot = boundary.value(os.environ.get("INPUTS_GOT"))\nx = got["unitz"]\n',
+                                                 "boundary.picked の呼びが無い"),
+            "口の呼びの外で json.loads": ('out = json.loads(os.environ["INPUTS_GOT"])\n', "boundary.picked の呼びが無い"),
+        }
+        for name, (script, why) in cases.items():
             with self.subTest(name):
                 got = self.gated(script, reads=READS)
                 self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith(f"{TAKE}:"), got)
                 self.assertIn(why, got[0])
 
     def test_whole_ref_read_outside_the_gate_is_red(self):
@@ -265,7 +290,7 @@ class BlockReturnsTest(unittest.TestCase):
         env_def = 'def env(name):\n    return boundary.value(os.environ.get(f"INPUTS_{name}"))\n'
         cases = {
             "口が無く json.loads で読む": ("NAMES = ('ready', 'units')\ngot = json.loads(os.environ[\"INPUTS_GOT\"])\n", "boundary.picked の呼びが無い"),
-            "PASSES 無しで boundary.value": ('got = boundary.value(os.environ.get("INPUTS_GOT"))\n', "boundary.picked の呼びが無い"),
+            "boundary.value で読む": ('got = boundary.value(os.environ.get("INPUTS_GOT"))\n', "boundary.picked の呼びが無い"),
             "口の外にもう 1 つ字": (GATE + 'again = os.environ.get("INPUTS_GOT")\n', "口の呼びの外"),
             "口の呼びが 2 つ": (GATE + 'GATE_AGAIN = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)\n', "2 つ以上"),
             "env(GOT) で読む": (GATE + env_def + 'r = env("GOT")\n', "INPUTS_GOT を組みうる"),

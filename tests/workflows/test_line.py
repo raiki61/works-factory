@@ -2685,7 +2685,6 @@ class ReturnedCase(unittest.TestCase):
         got = returned.returned({"INPUTS_GOT": json.dumps(whole)})
         self.assertEqual(got, {"got": whole, "stop_reason": ""})
         self.assertEqual((got["got"]["hash"], got["got"]["reason"], got["got"]["diff"]), ("123", "", None))
-        self.assertEqual(returned.PASSES, ("got",))
 
     def test_fields_are_gathered_and_strings_stay_strings(self):
         """got_<欄> の形（計画の往復の 2 本だけに残る）は、欄を boundary.value で JSON の値として読む（"" は None、数の字は数。計画の
