@@ -25,6 +25,7 @@ import accept as core_accept  # noqa: E402
 import carry  # noqa: E402
 import diverted  # noqa: E402
 import gatemarks  # noqa: E402
+import headdepth  # noqa: E402
 import judge_accept as ja  # noqa: E402
 import judgeverify as jv  # noqa: E402
 import rolekit  # noqa: E402
@@ -1689,8 +1690,8 @@ class BriefCase(_RepoCase):
         carry.place_prior(self.jdir, [{"where": "受け付け", "text": "前の拒否"}, {"where": carry.REDESIGN_WHERE, "text": "作り直し"}])
         path = ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"), "")
         text = pathlib.Path(path).read_text(encoding="utf-8")
-        heads = [ja.BRIEF_HEAD, worldmark.HEAD, "## 入力", ja.LEDGER_HEAD.strip(), ja.REQUEST_HEAD, ja.ANSWERS_HEAD,
-                 carry.PRIOR_HEAD, carry.REDESIGN_HEAD, ja.policy.RECORDED_HEAD]
+        heads = [ja.BRIEF_HEAD, worldmark.HEAD, headdepth.UNKNOWN_HEAD, "## 入力", ja.LEDGER_HEAD.strip(), ja.REQUEST_HEAD,
+                 ja.ANSWERS_HEAD, carry.PRIOR_HEAD, carry.REDESIGN_HEAD, ja.policy.RECORDED_HEAD]
         at = [text.find(h) for h in heads]
         self.assertNotIn(-1, at, list(zip(heads, at)))
         self.assertEqual(at, sorted(at), "節の並び")
@@ -1700,6 +1701,22 @@ class BriefCase(_RepoCase):
         self.assertIn("PR の本文", text)
         self.assertIn(str(self.jdir / "diff.patch"), text)
         self.assertNotIn("{{", text, "穴を残さない")
+
+    def test_brief_carries_the_head_depth_row_kinds(self):
+        """判定の置き場の頭の深さの控え（行ごとの種類つき）が、世界の解の節の後・入力の節の前に、種類・番地・指示の節として載る。
+        控えの無い置き場は『決まっていない』の 1 行"""
+        start = self.start()
+        ja.write_json(self.jdir / ja.START_FILE, start)
+        ja.material_route(self.jdir, self.repo)
+        review = str(self.tmp / "REVIEW.md")
+        text = pathlib.Path(ja.brief(self.jdir, self.repo, start, review)).read_text(encoding="utf-8")
+        self.assertIn(f"{headdepth.UNKNOWN_HEAD}\n\n行ごとの未知の種類は決まっていない（訳: {headdepth.NO_RECORD}）", text)
+        items = [{"item": 1, "unknown": "形", "cause_quote": "二通りの直し方", "where": "app.txt:1", "code_quote": "一行目"}]
+        headdepth.write(self.jdir, headdepth.record("重厚", "設計の選び", items=items))
+        text = pathlib.Path(ja.brief(self.jdir, self.repo, start, review)).read_text(encoding="utf-8")
+        self.assertIn(f"- 行 1（形）: 依頼の字「二通りの直し方」・番地 app.txt:1「一行目」・指示: {headdepth.ASKS['形']}", text)
+        self.assertLess(text.index(headdepth.UNKNOWN_HEAD), text.index("## 入力"))
+        self.assertNotIn("決まっていない", text.split("## 入力")[0])
 
     def test_brief_pastes_out_replies_under_material_roles_nodes(self):
         """判定役の「入力」の {{?out.<節>}} の穴は MATERIAL_ROLES の節の名で埋まる: 役の返答が材料に貼られ、ABSENT の語にならない"""
@@ -2792,8 +2809,29 @@ class VerdictPublicCase(unittest.TestCase):
             self.assertEqual(ja.read_json(jdir / "purpose-review.json"), {})
 
 
+    def test_verdict_places_the_head_depth_record_for_the_rejudge(self):
+        """止めの道（控えが無い）では空の形（標準・NO_RECORD）の depth-head.json を置き、再審では 1 回目の置き場の控えを字のまま
+        再審のフォルダへ写す"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            jdir, rdir = root / "judge", root / "rejudge"
+            ja.verdict(jdir, rdir, root, "", lambda rel: rel)
+            self.assertEqual(ja.read_json(jdir / headdepth.RECORD), headdepth.record(headdepth.STANDARD, headdepth.NO_RECORD))
+            self.assertIn(headdepth.RECORD, ja.PUBLIC_FILES)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            jdir, rdir = root / "judge", root / "rejudge"
+            items = [{"item": 1, "unknown": "原因", "cause_quote": "空の列で落ちる"}]
+            doc = headdepth.record("標準", "原因を探す", items=items)
+            headdepth.write(jdir, doc)
+            ja.verdict(jdir, rdir, root, "", lambda rel: rel)
+            self.assertEqual(ja.read_json(jdir / headdepth.RECORD), doc)   # 在る控えは書き換えない
+            ja.verdict(jdir, rdir, root, "異議", lambda rel: rel)
+            self.assertEqual(ja.read_json(rdir / headdepth.RECORD), doc)
+
+
 class PublicFileReadersCase(unittest.TestCase):
-    OWNERS = {"judge_accept.py", "premises.py", "judgeverify.py", "marks.py", "gatemarks.py", "purpose.py"}
+    OWNERS = {"judge_accept.py", "premises.py", "judgeverify.py", "marks.py", "gatemarks.py", "purpose.py", "headdepth.py"}
     READERS = ("outcome", "runreport", "boardview", "planfile")
 
     def test_readers_take_the_names_from_the_owner(self):
