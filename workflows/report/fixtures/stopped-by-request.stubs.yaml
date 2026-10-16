@@ -8,8 +8,9 @@ fixture:
   resolved-text-contains:
     write: "結末の語は **stopped_by_request**"
 exec-code: true
-write-reject: {reason: ''}
+write-reject: {reason: '', prev: ''}
 write:
   text: "止め札で止めた。\n最後の関所の前で止めた。\n続けるなら新しい run を始める。"
   terms: []
+  handoff: {read: [], decided: [], rejected: [], doubts: []}
 cold: {verdict: pass, stops: [], guessed: [], decidable: true}
