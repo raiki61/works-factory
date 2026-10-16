@@ -1723,8 +1723,8 @@ class DeltaSeamCase(TempCase):
 
     def test_redepth_raises_on_the_late_signals(self):
         """修正の後に上げる 3 つの信号（頭の深さの引用した where の外の差分・TDD のループでの修正役の拒否・範囲の相談）で、頭が軽量で
-        単位が全部軽量の置き場も省く理由を空にして標準へ上げる。TDD の輪の状態が読めない時も線の redepth と同じく上げる。runner の call だけ・テストのファイルだけが外に出た時・関所の条件の
-        相談だけの時・引用の無い控えは上げずに省く"""
+        単位が全部軽量の置き場も省く理由を空にして標準へ上げる。TDD の輪の状態が読めない時も線の redepth と同じく上げる。
+        runner の call だけ・テストのファイルだけが外に出た時・関所の条件の相談だけの時・引用の無い控えは上げずに省く"""
         import conflict
         import consult
         import depth
