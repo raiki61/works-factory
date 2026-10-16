@@ -162,11 +162,13 @@ def load_script(name: str) -> types.ModuleType:
 
 
 def frow(path, *adds, op="modify", removes=(), **extra) -> dict:
-    """修正案の項目の files の 1 行（adds は足す symbol の名の並び、removes は消す symbol の名の並び（訳 why つき））"""
-    gone = [{"name": n, "kind": "function", "change": "remove", "why": "呼び手は新しい名に寄せたので要らない"} for n in removes]
+    """修正案の項目の files の 1 行（adds は足す symbol の名の並び、removes は消す symbol の名の並び（訳 why つき））。home・considered は
+    照らしに当たらない既定（考えの名は行の path と足す名ごとに違う字）"""
+    gone = [{"name": n, "change": "remove", "why": "呼び手は新しい名に寄せたので要らない"} for n in removes]
     return {"path": path, "op": op, "responsibility": "この行の受け持ち",
-            "canonical": "stats.py（新設。同じ仕事の助け手は stats.py に無い）",
-            "symbols": [{"name": n, "kind": "function", "change": "add"} for n in adds] + gone, **extra}
+            "home": {"concept": f"{path} の考え（{'・'.join(adds) or op}）", "why": "この行の path が住処だから"},
+            "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}],
+            "symbols": [{"name": n, "change": "add"} for n in adds] + gone, **extra}
 
 
 def item(unit, n=1, **extra) -> dict:

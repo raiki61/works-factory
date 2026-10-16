@@ -114,9 +114,23 @@ def _gone(node: dict) -> str:
 def _symbols_cell(row: dict) -> str:
     out = []
     for sym in planmarks.symbol_rows(row):
-        text = f"{sym.get('change')} `{sym.get('name')}`（{sym.get('kind')}）"
+        text = f"{sym.get('change')} `{sym.get('name')}`"
         out.append(text + (f"——{_gone(sym)}" if _gone(sym) else ""))
     return "<br>".join(out) if out else NONE
+
+
+def _home_cell(row: dict) -> str:
+    """行の home の字（考えの名——ここを選んだ訳。無ければ空）"""
+    home = row.get("home")
+    if not isinstance(home, dict):
+        return ""
+    return f"{home.get('concept')}——{home.get('why')}"
+
+
+def _considered_cell(row: dict) -> str:
+    """行の considered の字（退けた置き場のパス——退けた訳 を <br> でつなぐ。無ければ空）"""
+    rows = row.get("considered")
+    return "<br>".join(f"{c.get('path')}——{c.get('why_not')}" for c in rows if isinstance(c, dict)) if isinstance(rows, list) else ""
 
 
 def _files_table(item: dict) -> str:
@@ -124,11 +138,11 @@ def _files_table(item: dict) -> str:
     rows = planmarks.file_rows(item)
     if not rows:
         return NONE
-    lines = ["| path | op | 受け持ち | symbols | 正本 | 消す訳 |", "|---|---|---|---|---|---|"]
+    lines = ["| path | op | 受け持ち | symbols | 住処 | 退けた置き場 | 消す訳 |", "|---|---|---|---|---|---|---|"]
     for r in rows:
         path = r.get("path") if r.get("op") != "rename" else f"{r.get('path')}（元: {r.get('from')}）"
         lines.append("| " + " | ".join(_cell(c) for c in (path, r.get("op"), r.get("responsibility"), _symbols_cell(r),
-                                                          r.get("canonical"), _gone(r))) + " |")
+                                                          _home_cell(r), _considered_cell(r), _gone(r))) + " |")
     return "\n".join(lines)
 
 

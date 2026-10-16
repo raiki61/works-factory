@@ -386,8 +386,9 @@ def exists_at(repo, rev: str):
 def _plan_errors(rows, reply, repo, exists, tables, whole) -> list:
     """修正案の役の直した項目の返答の誤りの行の全部（数・unit_keys の字・works の欄・項目の間の依存・構造と世界の解の行への答え・
     狭めない案）（元 works/.shared/core/replan.py:478。型の外れは役の節の output_format が先に照らす）。rows は渡した項目の行（old を
-    持つ）。whole は承認済みの案の全体（take_replan の old）で、依存 depends_on の照らし（planmarks.depends_gaps）は、直した番号の所に
-    返答の項目を差し替えた並びに当てる（直した項目だけを渡すと、直さない項目を指す行を誤って拒み、直さない項目の受けの切れを見逃す）。
+    持つ）。whole は承認済みの案の全体（take_replan の old）で、依存 depends_on の照らし（planmarks.depends_gaps）と考えの住処の照らし
+    （planmarks.home_gaps）は、直した番号の所に返答の項目を差し替えた並びに当てる（直した項目だけを渡すと、直さない項目を指す行を誤って
+    拒み、直さない項目の受けの切れと、直さない項目の行と重なる考えを見逃す）。
     返答は unit_keys を字で写すので、depends_on[].unit も単位の字で書く"""
     plan = reply.get("plan") if isinstance(reply, dict) else None
     out = []
@@ -399,7 +400,9 @@ def _plan_errors(rows, reply, repo, exists, tables, whole) -> list:
             out.append(f"plan[{i}].unit_keys が貼った {json.dumps(want, ensure_ascii=False)} と違う（一字も変えずに写す）")
     if not replan._malformed(reply):
         out += planmarks.gaps(reply, pathlib.Path(repo), exists=exists)
-        out += planmarks.depends_gaps(_replaced(whole, rows, plan))
+        replaced = _replaced(whole, rows, plan)
+        out += planmarks.depends_gaps(replaced)
+        out += planmarks.home_gaps(replaced)
         out += planmarks.structure_gaps(reply.get("plan"), tables)
         out += gatemarks.narrow_gaps(planmarks.NODE, reply)
         out += gatemarks.recommend_gaps(planmarks.NODE, reply)
@@ -889,7 +892,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
         _section(f"{COVERS_REJECT} {allowed}:", fix_plan_covers_units(
             [{**p, "unit_keys": [k for k in p["unit_keys"] if k not in shut]} if isinstance(p.get("unit_keys"), list) else p
              for p in whole], owed, opened)),
-        _section(planmarks.REJECT, planmarks.gaps(plan, pathlib.Path(repo))),
+        _section(planmarks.REJECT, planmarks.gaps(plan, pathlib.Path(repo)) + planmarks.home_gaps(whole)),
         _section(planmarks.DEPENDS_REJECT, planmarks.depends_gaps(whole)),
         _section(planmarks.STRUCTURE_REJECT, planmarks.structure_gaps(whole, tables)),
     ]

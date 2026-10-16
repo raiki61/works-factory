@@ -24,7 +24,7 @@
   結ばない）。裁定で範囲が広がるのはこのパスだけで、裁定を受けた単位の全部を外さない（外せば fix_code_as が案の外の変更を
   通す）。out_of_scope には勝たない（案が外したパスが要るのは案の項目の誤りで、範囲の相談か fix_plan_item の道。合意で外れた
   パスだけは、外した項目の out_of_scope に当たらない）
-- 識別子の形（planmarks.IDENT）: 項目の files の symbols の name のうち、差分で機械が探す物。kind を問わず :: と . で割った最後の段で、
+- 識別子の形（planmarks.IDENT）: 項目の files の symbols の name のうち、差分で機械が探す物。:: と . で割った最後の段で、
   行の path の足した行（change=add）か消した行（change=remove）から探す。日本語や空白を含む説明の文と、/ を含む名（欄の指し）は探さず、
   記録の unchecked に並べる（誤った拒否を重ねて単位を止めない）
 - ファイルの新設・消し・移し（op）: files の行の op=create は path が差分で新設された（版に無く今に在る）、op=delete は path が消えた、
@@ -307,7 +307,7 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     permits のパスは 1 でも範囲に入る。out_of_scope は permits にも勝つ（1・2 とも先に見る）。ただし範囲の相談の合意でその項目の
     out_of_scope から外したパス（with_agreed の LIFTED）は、その項目の out_of_scope に当たらない（1・2 とも）。
     loop は修正役が変え始めた時の中身（パス → check の loop_tree の木の中身。無ければ None）。規則は 1 本: 欠け（Missing）の証拠は版からの差分の
-    全部（changes）で見て、修正役に問う外れと余分（1・2・6 の Extra・canonical の外の定義）は凍った後に修正役が変えた分だけ
+    全部（changes）で見て、修正役に問う外れと余分（1・2・6 の Extra・足す行の path の外の定義）は凍った後に修正役が変えた分だけ
     （凍った時の中身と今の中身の差分）で見る。凍った後に変わっていないファイル（untouched。渡さなければ loop の中身が今の中身と
     同じパス）は 1・2・6 で照らさない"""
     permits, loop = set(permits), dict(loop or {})
@@ -383,10 +383,10 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
                             and not (name == DOC and _doc_added(raw, path, changes)):
                         out.append(f"{who}: files の {path} の add {raw} が差分の {path} の足した行に無い"
                                    + ("（その def・class の docstring も差分で足されていない）" if name == DOC else ""))
-                    homes = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}   # 同じ名を足すと言った行の path は正本
+                    add_paths = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}
                     define = _definition(name)
-                    for p in sorted({p for p, line in fixer_added if p not in homes and define.search(line)}):
-                        out.append(f"{who}: files の {path} の add {raw} の canonical（足す行の path {'・'.join(sorted(homes))}）の外に同名の定義（{p}）")
+                    for p in sorted({p for p, line in fixer_added if p not in add_paths and define.search(line)}):
+                        out.append(f"{who}: files の {path} の add {raw} の足す行の path（{'・'.join(sorted(add_paths))}）の外に同名の定義（{p}）")
                 elif sym.get("change") == "remove" and not skip:
                     word = planmarks.word_re(name)
                     moved = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}   # 移した先の定義は残りに数えない

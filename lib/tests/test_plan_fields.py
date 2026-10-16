@@ -30,19 +30,22 @@ def item(**over):
     return {**base, **over}
 
 
-def fadd(name, kind="function"):
+def fadd(name):
     """files の symbols の行（足す）"""
-    return {"name": name, "kind": kind, "change": "add"}
+    return {"name": name, "change": "add"}
 
 
-def frm(name, kind="function", why="古い名で、呼び手は新しい名に寄せた"):
+def frm(name, why="古い名で、呼び手は新しい名に寄せた"):
     """files の symbols の行（消す。消す訳 why つき）"""
-    return {"name": name, "kind": kind, "change": "remove", "why": why}
+    return {"name": name, "change": "remove", "why": why}
 
 
 def frow(path="stats.py", *symbols, op="modify", **extra):
-    """files の 1 行（受け持ちと正本は gaps に関わらない固定の字）"""
-    return {"path": path, "op": op, "responsibility": "この行の受け持ち", "symbols": list(symbols), "canonical": "既存の正本", **extra}
+    """files の 1 行（受け持ちは照らしに関わらない固定の字。home・considered は照らしに当たらない既定: 考えの名は行の path ごとに違う字、
+    退けた置き場は根に置く 1 段の path 1 つ）"""
+    return {"path": path, "op": op, "responsibility": "この行の受け持ち", "symbols": list(symbols),
+            "home": {"concept": f"{path} の考え", "why": "この行の path が住処だから"},
+            "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}], **extra}
 
 
 REWRITE = {"id": "test_stats.py::TestStats::test_clamp_within_range", "behavior": "上限の内側の値をそのまま返す",
@@ -120,9 +123,9 @@ class TestGaps(PlanFieldsCase):
     def test_gaps_adds_symbol_kind_named_by_file(self):
         """files の symbols の name が / で始まらずに / を含むか、行の path の拡張子で終わるなら、plan[0].files[i].symbols[j].name を名指して拒み、
         識別子で書いてパスは行の path に書けと言う（依頼 194c: receivers.py と書いた名を TDD の輪が 'py' と比べた）。ほかの誤りと同じ
-        1 回の拒否に並べる。識別子・<パス>::<名前>・説明の文は今どおり通す。kind は問わない"""
-        got = self.gaps(item(files=[frow("app/receivers.py", fadd("clamp"), fadd("receivers.py"), fadd("app/schema/fields.json", "record_field"),
-                                         fadd("docs/scope.md", "doc"))], route="maybe"))
+        1 回の拒否に並べる。識別子・<パス>::<名前>・説明の文は今どおり通す"""
+        got = self.gaps(item(files=[frow("app/receivers.py", fadd("clamp"), fadd("receivers.py"), fadd("app/schema/fields.json"),
+                                         fadd("docs/scope.md"))], route="maybe"))
         for j, nm in ((1, "receivers.py"), (2, "app/schema/fields.json"), (3, "docs/scope.md")):
             row = [g for g in got if g.startswith(f"plan[0].files[0].symbols[{j}].name")]
             self.assertEqual(len(row), 1, got)
@@ -214,6 +217,110 @@ class TestGaps(PlanFieldsCase):
         got = self.gaps(item(tests=[t]))
         for w in ("plan[0].tests[0].behavior", "plan[0].tests[0].red_kind", "'path'", "'red_why'", "'extra'"):
             self.assertTrue(any(w in g for g in got), (w, got))
+
+    def test_files_schema_rows_hold_home_and_considered_without_kind(self):
+        """FILES_SCHEMA の行は home {concept, why} と considered [{path, why_not}]（1 行以上）を必ず持ち、旧い正本の自由文の欄を持たない。symbol は
+        種類の札を持たない。旧い正本の欄を持つ行・種類の札を持つ symbol・concept の無い home・空の considered・at など別の鍵を持つ considered の行は
+        型の誤りになる（additionalProperties false）。種類の札の列挙は無い"""
+        from engine.schema import validate_schema
+
+        def errs(row):
+            return validate_schema([row], planmarks.FILES_SCHEMA, "files")
+        good = frow("lib/x.py", fadd("run"), frm("old_run"), op="create")
+        self.assertEqual(errs(good), [])
+        old = {k: v for k, v in good.items() if k not in ("home", "considered")} | {"canonical": "既存の正本"}
+        self.assertTrue(any("'canonical'" in e for e in errs(old)), errs(old))
+        self.assertTrue(any("'home'" in e for e in errs(old)) and any("'considered'" in e for e in errs(old)), errs(old))
+        kinded = dict(good, symbols=[{"name": "run", "kind": "function", "change": "add"}])
+        self.assertTrue(any("'kind'" in e for e in errs(kinded)), errs(kinded))
+        no_concept = dict(good, home={"why": "ここを選んだ訳"})
+        self.assertTrue(any("'concept'" in e for e in errs(no_concept)), errs(no_concept))
+        loose_home = dict(good, home=dict(good["home"], path="lib/x.py"))
+        self.assertTrue(any("'path'" in e for e in errs(loose_home)), errs(loose_home))
+        self.assertTrue(errs(dict(good, home=dict(good["home"], why=" "))))
+        self.assertTrue(errs(dict(good, considered=[])))
+        at = dict(good, considered=[{"path": "alt_home.py", "why_not": "同じ仕事の助け手が無かった", "at": "alt_home.py"}])
+        self.assertTrue(any("'at'" in e for e in errs(at)), errs(at))
+        self.assertTrue(errs(dict(good, considered=[{"path": "alt_home.py", "why_not": "短い"}])))
+        self.assertTrue(errs(dict(good, considered=[{"path": "", "why_not": "同じ仕事の助け手が無かった"}])))
+        self.assertFalse(hasattr(planmarks, "SYMBOL_KIND_WORDS"))
+
+    def test_gaps_considered_path_is_not_its_row_and_not_repeated(self):
+        """considered[].path が行の path と同じ（自分を退けた先に数える）なら、plan[0].files[0].considered[k].path を名指して拒む。同じ行で
+        同じ path を 2 度書いたら 2 度目を名指して拒む。行の path と違う path を 1 度ずつ書いた行は通す"""
+        why = "同じ仕事の助け手が無かった"
+        own = frow("lib/x.py", op="create", considered=[{"path": "stats.py", "why_not": why}, {"path": "lib/x.py", "why_not": why}])
+        got = self.gaps(item(files=[own]))
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[0].considered[1].path"), got)
+        twice = frow("lib/x.py", op="create", considered=[{"path": "stats.py", "why_not": why}, {"path": "stats.py", "why_not": why}])
+        got = self.gaps(item(files=[frow("stats.py"), twice]))
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[1].considered[1].path"), got)
+        once = frow("lib/x.py", op="create", considered=[{"path": "stats.py", "why_not": why}, {"path": "test_stats.py", "why_not": why}])
+        self.assertEqual(self.gaps(item(files=[once])), [])
+
+    def test_gaps_considered_path_is_relative_and_starts_at_a_root_name(self):
+        """considered[].path が \\ を含む・根の外を指す（/abs・../x）・整えていない形（./x）・2 段以上で最初の段が種の根に無い
+        （nowhere/x.py）なら、plan[0].files[0].considered[0].path を名指して 1 行拒む。通すのは、種の根に在る名で始まる path・まだ無い
+        1 段の path（median.py）・作業ツリーにまだ無いファイルを根に在る段の下に置く path。根が dir でない時は根の名を照らさない"""
+        (self.repo / "lib").mkdir()
+        why = "同じ仕事の助け手が無かった"
+
+        def row(path):
+            return frow("lib/x.py", op="create", considered=[{"path": path, "why_not": why}])
+        for bad in ("a\\b.py", "/abs/x.py", "../x.py", "./x.py", "nowhere/x.py", "stats.py//x", "lib/../x.py"):
+            with self.subTest(bad):
+                got = self.gaps(item(files=[row(bad)]))
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith("plan[0].files[0].considered[0].path"), got)
+        for good in ("stats.py", "test_stats.py", "median.py", "lib/new_helper.py", "lib/deep/er/new.py", "Makefile"):
+            with self.subTest(good):
+                self.assertEqual(self.gaps(item(files=[row(good)])), [])
+        self.assertEqual(planmarks.gaps({"plan": [item(files=[row("nowhere/x.py")])]}, self.repo / "no-such-root"), [])
+        for torn in ({"considered": "壊れ"}, {"considered": ["壊れ", {"path": 3}, {"why_not": "path が無い"}]}):
+            with self.subTest(torn=torn):
+                self.assertEqual(self.gaps(item(files=[frow("lib/x.py", **torn)])), [])   # 形の崩れは型が見る
+
+    def test_home_gaps_concept_once_across_the_plan(self):
+        """home_gaps(items) は、案の全部の行で home.concept（前後の空白を落として casefold）が 2 度出たら、2 度目の行の home.concept を
+        名指し、1 度目の行も文に載せて拒む。2 つの項目でも同じ項目の 2 行でもよい。2 度目の行の path が 1 度目の行の considered に在れば
+        （逆も）、退けた所に同じ考えを住まわせる矛盾の文でも拒む。考えが分かれていれば空。形の崩れた項目・行は飛ばす"""
+        def row(path, concept, *, considered="alt_home.py"):
+            return frow(path, home={"concept": concept, "why": "ここが住処だから"},
+                        considered=[{"path": considered, "why_not": "同じ仕事の助け手が無かった"}])
+        a = item(files=[row("lib/a.py", "出力の読み口")])
+        self.assertEqual(planmarks.home_gaps([a, item(files=[row("lib/b.py", "別の考え")])]), [])
+        got = planmarks.home_gaps([a, item(files=[row("lib/b.py", "  出力の読み口 ")])])
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[1].files[0].home.concept") and "plan[0].files[0]" in got[0], got)
+        got = planmarks.home_gaps([item(files=[row("lib/a.py", "Reader"), row("lib/b.py", "別の考え"), row("lib/c.py", "READER")])])
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[2].home.concept") and "plan[0].files[0]" in got[0], got)
+        for first, second in ((row("lib/a.py", "考え", considered="lib/b.py"), row("lib/b.py", "考え")),
+                              (row("lib/a.py", "考え"), row("lib/b.py", "考え", considered="lib/a.py"))):
+            got = planmarks.home_gaps([item(files=[first]), item(files=[second])])
+            clash = [g for g in got if "矛盾" in g]
+            self.assertEqual(len(got), 2, got)
+            self.assertEqual(len(clash), 1, got)
+            self.assertTrue(clash[0].startswith("plan[1].files[0].home.concept"), got)
+        self.assertEqual(planmarks.home_gaps([item(files=[row("lib/a.py", "考え", considered="lib/b.py"), row("lib/b.py", "別の考え")])]), [])
+        torn = [a, "項目でない", {"files": "壊れ"}, item(files=["行でない", {"home": "壊れ"}, {"home": {"concept": 3}}, {"home": {}}, {}])]
+        self.assertEqual(planmarks.home_gaps(torn), [])
+        self.assertEqual(planmarks.home_gaps("案でない"), [])
+
+    def test_home_gaps_skips_deleted_rows(self):
+        """op=delete の行の home は照らしに数えない。消す行と作る行が同じ考えを持ち、作る行の considered に消す行の path が在っても
+        拒まない（消えるファイルは変更の後に住処になれないので）。消さない 2 行の重なりは今までどおり拒む"""
+        def row(path, op, considered):
+            return frow(path, op=op, home={"concept": "出力の読み口", "why": "ここが住処だから"},
+                        considered=[{"path": considered, "why_not": "同じ仕事の助け手が無かった"}])
+        old, new = row("lib/old.py", "delete", "lib/new.py"), row("lib/new.py", "create", "lib/old.py")
+        self.assertEqual(planmarks.home_gaps([item(files=[old, new])]), [])
+        self.assertEqual(planmarks.home_gaps([item(files=[new]), item(files=[old])]), [])
+        got = planmarks.home_gaps([item(files=[old, new, row("lib/b.py", "modify", "alt_home.py")])])
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[2].home.concept") and "plan[0].files[1]" in got[0], got)
 
 
 class TestFindTest(PlanFieldsCase):
@@ -564,16 +671,17 @@ class TestUnitContract(PlanFieldsCase):
     def test_names_from_files_add_symbols_and_created_modules(self):
         """unit_contract の names が、change=add の symbol の名と、op=create の .py の行の path を持つ（新しいモジュールの import の失敗を
         TDD の輪が宣言の赤に数える。依頼 194c: read_input の行が works/.shared/core/nodeio.py の op=create で、No module named 'nodeio' が
-        綴りの誤りに数えられた）。change=remove の名・op=modify の行の path（canonical が『新設』と言っても）・.py でない op=create の
-        path は持たない。canonical の字は読まない。同じ path の 2 行も重なりも 1 つ"""
+        綴りの誤りに数えられた）。change=remove の名・op=modify の行の path（home の考えが『新設』と言っても）・.py でない op=create の
+        path は持たない。home・considered の字は読まない。同じ path の 2 行も重なりも 1 つ"""
+        def housing(what):
+            return {"concept": what, "why": "新しい口なので、ここに置く"}
         reply = {"plan": [item(files=[
-            frow("works/.shared/core/nodeio.py", fadd("read_input"), op="create", canonical="新設。前の節の出力を読む口"),
-            frow("works/.shared/core/nodeio.py", fadd("board_out"), op="create", canonical="新設。盤面の控えから読む口"),
+            frow("works/.shared/core/nodeio.py", fadd("read_input"), op="create", home=housing("新設。前の節の出力を読む口")),
+            frow("works/.shared/core/nodeio.py", fadd("board_out"), op="create", home=housing("新設。盤面の控えから読む口")),
             frow("app/receivers.py", fadd("handle"), op="create"),
-            frow("stats.py", fadd("median"), frm("old_mean"), canonical="stats.py（新設。在るモジュールに足す関数）"),
-            frow("works/tests/fixtures/golden.json", fadd("golden", "config"), op="create",
-                 canonical="works/tests/fixtures/golden.py（新設）"),
-            frow("textfmt.py", fadd("fmt"), canonical="新設しない result.py を読む")])]}
+            frow("stats.py", fadd("median"), frm("old_mean"), home=housing("stats.py（新設。在るモジュールに足す関数）")),
+            frow("works/tests/fixtures/golden.json", fadd("golden"), op="create", home=housing("works/tests/fixtures/golden.py（新設）")),
+            frow("textfmt.py", fadd("fmt"), home=housing("新設しない result.py を読む"))])]}
         _, fields = planmarks.split(reply, self.repo)
         self.assertEqual(planmarks.unit_contract(fields, MEAN)["names"],
                          ["works/.shared/core/nodeio.py", "read_input", "board_out", "app/receivers.py", "handle", "median", "golden", "fmt"])
@@ -687,8 +795,9 @@ class ScopeFieldsCase(PlanFieldsCase):
         self.assertEqual((fields[0]["allowed_paths"], fields[0]["out_of_scope"]), (["stats.py"], []))
 
     def test_head_and_review_ask_name_scope_fields(self):
-        for w in ("allowed_paths", "out_of_scope", "識別子", "canonical", "files", "depends_on", "why", "replaced_by"):
+        for w in ("allowed_paths", "out_of_scope", "識別子", "home", "considered", "files", "depends_on", "why", "replaced_by"):
             self.assertIn(w, planmarks.HEAD)
+        self.assertNotIn("canonical", planmarks.HEAD)
         self.assertIn("allowed_paths", planmarks.REVIEW_ASK)
         self.assertIn("change=remove", planmarks.REVIEW_ASK)
         self.assertNotIn("項目の removes", planmarks.REVIEW_ASK)
@@ -777,12 +886,14 @@ class TestContractFields(PlanFieldsCase):
 
     def test_files_add_side_is_means_and_removal_side_is_contract(self):
         """files の足す側だけを変えた時、contract_diff は空（手段の欄。同じ run の中で関所に戻さずに直せる）。消す側（op が delete・rename の
-        行と change=remove の symbol）を変えた時は files を名指す。訳 why・受け持ち・正本の字の違いは約束の違いに数えない"""
+        行と change=remove の symbol）を変えた時は files を名指す。訳 why・受け持ち・home・considered の字の違いは約束の違いに数えない"""
         old = item(files=[frow("stats.py", fadd("median"), frm("old_mean")), frow("old.py", op="delete", why="呼び手は寄せたので要らない")])
         add_side = copy.deepcopy(old)
         add_side["files"][0]["symbols"].append(fadd("mode"))
         add_side["files"].append(frow("new.py", fadd("run"), op="create"))
         add_side["files"][0]["responsibility"] = "受け持ちの言い直し"
+        add_side["files"][0]["home"] = {"concept": "考えの言い直し", "why": "住処の訳の言い直し"}
+        add_side["files"][0]["considered"] = [{"path": "other.py", "why_not": "退けた訳の言い直し（other.py:3）"}]
         add_side["files"][1]["why"] = "訳の言い直し（要らなくなったので消す）"
         self.assertEqual(planmarks.contract_diff(old, add_side), [])
         for name, edit in (("symbol を消す側に足した", lambda it: it["files"][0]["symbols"].append(frm("old_median"))),

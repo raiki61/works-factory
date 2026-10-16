@@ -132,9 +132,14 @@ def catalog(*rows):
 
 
 def item(*keys, **more):
+    """修正案の項目の見本。files の行の home・considered は照らしに当たらない既定（考えの名は項目の単位の番号ごとに違う字。
+    単位を番号で書いても字で書いても同じ名になる——同じ項目を番号と字で書き分けた直しの比べを崩さない）"""
+    nos = {MEAN: 1, CLAMP: 2, NIT: 3}
     return {"unit_keys": list(keys), "approach": "mean の分母を len(xs) に、clamp の上限の枝を hi に直す",
-            "files": [{"path": "stats.py", "op": "modify", "responsibility": "上限の枝の戻り値を直す", "canonical": "stats.py の clamp（既存の正本）",
-                       "symbols": [{"name": "clamp", "kind": "function", "change": "add"}]}],
+            "files": [{"path": "stats.py", "op": "modify", "responsibility": "上限の枝の戻り値を直す",
+                       "home": {"concept": f"単位 {'・'.join(str(nos.get(k, k)) for k in keys)} の考え", "why": "上限の枝は stats.py の clamp が持つ"},
+                       "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}],
+                       "symbols": [{"name": "clamp", "change": "add"}]}],
             "shrink_first": "足す物は無い。式と戻り値を 1 か所ずつ直すだけで足りる", "narrows": [], "route": "tdd",
             "tests": [{"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
                        "path": "stats.mean を本物のまま呼び、戻り値を断言する", "red_kind": "assertion",

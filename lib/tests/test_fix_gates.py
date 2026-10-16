@@ -644,8 +644,10 @@ class TestTestEdits(FixGatesCase):
     def removes_fields(self, *, base_tests=None, rows=()):
         """removes に stats.clamp を持つ direct の項目の欄を、種の木を相手に planmarks.split で作る（リポジトリの複製はまだ無い）。
         base_tests を渡せば split が removes_tests を引き、rows を渡せばその行（{id, limit}）を欄にそのまま足す"""
-        gone = {"name": "stats.clamp", "kind": "function", "change": "remove", "why": "境の判定は mean に寄せたので消す"}
-        files = [{"path": "stats.py", "op": "modify", "responsibility": "境の判定", "symbols": [gone], "canonical": "既存の正本"}]
+        gone = {"name": "stats.clamp", "change": "remove", "why": "境の判定は mean に寄せたので消す"}
+        files = [{"path": "stats.py", "op": "modify", "responsibility": "境の判定", "symbols": [gone],
+                  "home": {"concept": "境の判定", "why": "境の判定は stats.py が持つ"},
+                  "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}]}]
         it = {"unit_keys": [MEAN], "approach": "x" * 20, "files": files, "shrink_first": "y" * 20,
               "narrows": [], "route": "direct", "route_why": "既存の期待の書き換えだけの項目", "tests": [], "rewrite_tests": [],
               "refactor": {"declared": False, "why": ""}}
