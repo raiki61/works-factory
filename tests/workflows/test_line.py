@@ -3138,6 +3138,11 @@ class LineWiringCase(unittest.TestCase):
 
     ROUNDS = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
 
+    def test_receiver_body_is_written_once(self):
+        """受け皿の本体（script・runtime・timeout・output_format）は YAML の字に 1 度だけ在り、ほかの受け皿はアンカーで受ける"""
+        self.assertEqual(len(re.findall(r"^\s*script: returned\s*$", LINE_TEXT, re.M)), 1)
+        self.assertEqual(sum(node.get("script") == "returned" for node in line_nodes().values()), 13)
+
     def test_receivers_take_every_field_of_what_they_receive(self):
         """受け皿は、受ける節の出力をまるごとで受ける: with: がちょうど {got: $<dep>.output}（欄は受け皿が書き写さないので、ブロックの
         返す節の output_format の欄がそのまま got の欄で、欄の一致の照らしは要らない）。計画の往復の 2 本は got_<欄> が受ける節の同じ欄を
