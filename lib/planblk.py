@@ -616,7 +616,8 @@ def coverage_gaps(b, refs, items) -> list[str]:
 def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     """型の合った項目 n の答えの中身の誤り: 覆っていない当たり（前の往復の答えを引き継ぐ物 carried_hits は除く）の全部に
     ちょうど 1 つの答え・block と答えた当たりには block の face・face は項目 n の単位だけを名指す・前の往復の答えの要る穴
-    （converge.item_blocks。block と開いた項目の suggest）は resolved か同じ key の face"""
+    （求める側 converge.item_blocks。block と開いた項目の suggest）は resolved か同じ key の face・resolved に書いてよい側は
+    converge.resolvable_keys（言い直しも許す。拒否の行は converge.stray_resolved）"""
     errs = [] if got.get("item") == n else [f"$.item: {n} でない（{got.get('item')!r}）"]
     want = [h["id"] for h in ripple.uncovered(rip, n)]
     carried = carried_hits(b, n, rip)
@@ -639,7 +640,7 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     block_keys = {f["key"] for f in blocks}
     errs += [f"$.resolved: 前の穴 {k} を resolved に入れるか、同じ key で faces に挙げ直せ"
              for k in prev if k not in got["resolved"] and k not in keys]
-    errs += [f"$.resolved: {k} は項目 {n} の前の往復の答えの要る穴に無い" for k in got["resolved"] if k not in prev]
+    errs += [f"$.resolved: {line}" for line in converge.stray_resolved(converge.read(b), got["resolved"], n)]
     errs += [f"$.resolved: {k} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つ）"
              for k in got["resolved"] if k in block_keys]
     return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [])]
