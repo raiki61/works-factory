@@ -212,8 +212,9 @@ def unchecked_whys(whys) -> list[str]:
 def _accept_tests(b, fields, repo=None, *, owed=None, withheld=(), returned=()) -> tuple[list[dict], list[str]]:
     """(受け入れのテスト [{id, unit_keys, guard, agreed}]（項目の順・id の重複は最初の物。単位は名指した項目の全部。guard は守りの
     テスト（赤の種類が planmarks.GUARD_KIND）か、agreed は合意で入ったテストか）, 義務の外の項目を見なかった理由)。見るのは、route が
-    tdd の項目の tests と、範囲の相談の合意で項目に入った新しいテスト（planrange.with_agreed。項目の route を問わない）のうち、直す
-    義務の単位を名指す項目（unit_keys の無い項目も）の物。合意のテストは許しで義務でないので、今の木（repo）に定義が在る物だけ。
+    tdd の項目の tests と、範囲の相談の合意で項目に入った新しいテスト（planrange.with_agreed。項目の route を問わない。戻せた組の
+    子から写した合意も）のうち、直す義務の単位を名指す項目（unit_keys の無い項目も）の物。合意のテストは許しで義務でないので、今の木
+    （repo）に定義が在る物だけ。
     凍結した欄は番号（item）を付けて with_agreed に通して読む。直す義務は fixboard.owed_units_but_asked(b, owed, withheld=,
     returned=)（owed が None なら欄の項目が名指す単位の全部から引く）"""
     if owed is None:

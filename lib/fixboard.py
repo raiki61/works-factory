@@ -23,8 +23,11 @@
 - ROLE_DEF_HEAD: 役の定義の見出し（元 works/.shared/core/rolekit.py:205 の写し。lenses.render が使う）
 - write_json・out_file・output・loop_file・loop_value・snapshot・tree_moved_since・take・READONLY_MOVED: 差分の審査と手直しの
   置き場の決まった名のファイル（盤面の b.output_of_round・b.loop_state と entry.snapshot・take の代わり。元 entry.py:1228・1231・1240・1262）
-- _owed_rows・_read_value・_brief・_plan_items・_fix_report・tie_items・hole_ties: 差分の審査と手直しの材料（元
-  works/.shared/core/refix.py:189・197・219・340・362・291・308。盤面の読みを置き場のファイルと引数の値で受ける）
+- _owed_rows・_read_value・_brief・_plan_items・scope_brief・_fix_report・tie_items・hole_ties: 差分の審査と手直しの材料（元
+  works/.shared/core/refix.py:189・197・219・340・362・291・308。盤面の読みを置き場のファイルと引数の値で受ける）。役の brief の範囲の欄
+  （plan_items・ruled_paths・agreed）は scope_brief が planrange.scope の 1 つの口から組む
+- group_result・adopt_returned・adopt_tdd_states: 組の子の結果と、戻せた組の子から親の置き場へ写す物（書き込みの記録・TDD の輪の状態・
+  範囲の相談の合意）の 1 つの口
 
 外のパッケージは使わない（startrec・gatemarks・jsonfile のほかの lib の部品は、使う関数の中で import する）。
 """
@@ -382,30 +385,41 @@ def _brief(nid, values: dict) -> dict:
 
 
 def _plan_items(place, items, by: str = "") -> list:
-    """範囲の欄の在る承認済みの修正案の項目（planmarks.scoped の時だけ。修正案の無い run・範囲の欄の無い控えは空）。全部の項目を
-    番号のまま写して返し、裁定で外れた項目（conflict.held_item）には held を、単位の一部だけが外れた項目には held_units を足す
-    （裁定は置き場 place の conflicts.json）。items は planmarks.approved_items の形の値か、それを返す口か、その JSON のパス。
-    口が凍結の印との食い違い（planmarks.FieldsBroken）を出せば conflict.fields_broken の道（by の印の文の ValueError。既定は
-    差分の審査の段 stopby.DELTA）。元 works/.shared/core/refix.py:340（盤面の planmarks.scoped_items(b) を読んだ）"""
+    """scope_brief の plan_items（refix.accept_review の照らしが読む）。元 works/.shared/core/refix.py:340（盤面の
+    planmarks.scoped_items(b) を読んだ）"""
+    return scope_brief(place, items, by=by)["plan_items"]
+
+
+def scope_brief(place, items, by: str = "") -> dict:
+    """役の brief の範囲の欄 {plan_items, ruled_paths, agreed}（差分の審査 refix.cut と手直し prep_fix の 1 回目が載せる 1 つの口）。
+    範囲の値は受け付けが照らすのと同じ planrange.scope（範囲の相談の合意を置き場 place から読む。scope の permits は使わない）から
+    引く。plan_items は scope の items（合意のパスを allowed_paths に足し、許したテストの範囲は印 agreed つきで tests に足した物）の
+    写しに、裁定（置き場 place の conflicts.json）で外れた項目（conflict.held_item）の held・単位の一部だけが外れた項目の held_units を
+    足した物。ruled_paths は直す裁定が広げたパス（conflict.ruled_paths）、agreed は plan_items に足した合意の行（conflict.agreed の行の
+    まま。出どころは各行の id と group_id）。範囲の欄の無い控え・修正案の無い run は plan_items と agreed が []。items は
+    planmarks.approved_items の形の値か、それを返す口か、その JSON のパス。口が凍結の印との食い違い（planmarks.FieldsBroken）を出せば
+    conflict.fields_broken の道（by の印の文の ValueError。既定は差分の審査の段 stopby.DELTA）"""
     import copy
     import conflict
     import planmarks
+    import planrange
     import stopby
     by = by or stopby.DELTA
     try:
         items = _given(items)
     except planmarks.FieldsBroken as e:
         raise conflict.fields_broken(None, e, by=by) from None
-    items = copy.deepcopy(items) if planmarks.scoped(items) else []
-    held = conflict.held_by_rulings(place) if items else {}
-    for it in items:
+    got = planrange.scope(place, items=items, ruled=False, by=by)[0]
+    plan_items = copy.deepcopy(got["items"]) if got else []
+    held = conflict.held_by_rulings(place) if plan_items else {}
+    for it in plan_items:
         why = conflict.held_item(it.get("unit_keys"), held)
         some = conflict.held_units(it.get("unit_keys"), held)
         if why:
             it["held"] = why
         elif some:
             it["held_units"] = some
-    return items
+    return {"plan_items": plan_items, "ruled_paths": conflict.ruled_paths(place), "agreed": got["agreed"] if got else []}
 
 
 def _fix_report(fix_reply) -> dict:
@@ -1510,11 +1524,9 @@ def brief_lens(place, n: int = 1) -> pathlib.Path:
 def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, policy=None) -> dict:
     """n 回目の手直しの役を起こす前の支度。義務（_owed_rows）が無ければ {ok: False, reason}。在れば前の試みの材料を消し、義務と
     差分のパス・読ませる値（_brief）・人の方針・穴ごとの枝の名札（refix.brief_ties。組めなければ理由を置いて先へ）を
-    refix<n>-brief.json に書き、{ok: True, owed, diff_file, brief_file} を返す。1 回目は承認済みの修正案の項目 plan_items
-    （_plan_items。凍結の印との食い違いは手直しの段の印 stopby.REFIX の ValueError）・直す裁定が広げたパス ruled_paths・審査の
-    準拠の落ちた行 compliance も載せる。元 works/.shared/core/refix.py:248 の prep_fix（盤面の待ち・起こした印・指示書を外した。
-    指示書は refix_prompt）"""
-    import conflict
+    refix<n>-brief.json に書き、{ok: True, owed, diff_file, brief_file} を返す。1 回目は scope_brief の欄（plan_items・ruled_paths・
+    agreed。凍結の印との食い違いは手直しの段の印 stopby.REFIX の ValueError）と審査の準拠の落ちた行 compliance も載せる。元
+    works/.shared/core/refix.py:248 の prep_fix（盤面の待ち・起こした印・指示書を外した。指示書は refix_prompt）"""
     import deltamarks
     import refix
     import stopby
@@ -1533,8 +1545,7 @@ def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, pol
     except Exception as e:
         doc["ties"], doc["ties_error"] = [], f"{type(e).__name__}: {oneline.one_line(e)}"
     if n == 1:
-        doc["plan_items"] = _plan_items(place, items, by=stopby.REFIX)
-        doc["ruled_paths"] = conflict.ruled_paths(place)
+        doc.update(scope_brief(place, items, by=stopby.REFIX))
         doc["compliance"] = deltamarks.fail_rows(deltamarks.read(place))
     brief = write_json(pathlib.Path(place) / brief_name, doc)
     return {"ok": True, "owed": len(rows), "diff_file": doc["diff_file"], "brief_file": str(brief)}
@@ -1757,7 +1768,8 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
     changes の単位（親の collect が diff の隣の fixbeside.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
-    writes.carry_children）。place は子の run の置き場（親の conflict-check がこの組の申し出の名指しに許す根）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
+    writes.carry_children）。place は子の run の置き場（読み手は 2 つ: 親の conflict-check がこの組の申し出の名指しに許す根と、join の
+    fixboard.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
@@ -1811,6 +1823,19 @@ def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:
             write_text(dst / tddloop.SUMMARY, summary.read_text(encoding="utf-8"))
         out.append(str(dst / tddloop.STATE))
     return out
+
+
+def adopt_returned(place, repo, results, *, log=None, applied=()) -> None:
+    """戻せた組の子の結果 results（組の順）から、親の置き場 place・親の作業ツリー repo へ写す物の全部の 1 つの口（join と
+    clash.settle_repaired が呼ぶ）: 子の書き込みの記録（log が在り is_file なら writes.carry_children(log, repo, applied)。applied は
+    [(子の作業ツリー, 子の記録のファイル, 当てたパスの並び)]）→ TDD の輪の状態（adopt_tdd_states）→ 範囲の相談の合意
+    （consult.carry_agreed。group_id つきで親の trace へ。親の範囲とテストの許しにだけ効く）"""
+    import consult
+    import writes
+    if log is not None and pathlib.Path(log).is_file():
+        writes.carry_children(log, repo, applied)
+    adopt_tdd_states(place, results, repo)
+    consult.carry_agreed(place, results)
 
 
 def ruled_states(place) -> tuple:
@@ -2749,12 +2774,14 @@ def _without_rows(reply: dict, rest: list, mine: set, repo) -> dict:
 def overflow_trace(place, trail: dict, repo, *, pass_: str, attempt: int) -> None:
     """受けた回 (pass_, attempt) に、はみ出しを相談で認めた（合意の行の origin が accept）・機械が戻した物・守りのテスト・関所の
     条件の相談（origin が gate）で認めた新しいテストのうち今の木（repo）に在る物を置き場の trace の impact.ACCEPT_OVERFLOW_OP の
-    行に名指す（どれも無ければ書かない）。名指しの字は元 accept.py:715 の traced の中の 1 行と同じ（報告が 1 件ずつ読む）"""
+    行に名指す（どれも無ければ書かない）。名指しの字は元 accept.py:715 の traced の中の 1 行と同じ（報告が 1 件ずつ読む）。
+    はみ出しの相談はこの置き場の受け付けが聞いた物だけを数える（agreed(carried=False)。戻せた組の子から写した行は子の置き場の
+    受け付けが数えた物で、ここで二重に数えない）"""
     import conflict
     import consult
     import fixgates
     import impact
-    rows = conflict.agreed(place)
+    rows = conflict.agreed(place, carried=False)
     agreed = [r.get("id") for r in rows if r.get("origin") == consult.ORIGIN_ACCEPT]
     gated = [f"{g['id']}（{g.get('red_kind')}）" for r in rows if r.get("origin") == consult.ORIGIN_GATE
              for g in r.get("granted_new_tests") or [] if isinstance(g, dict) and fixgates.present(repo, g.get("id"))]

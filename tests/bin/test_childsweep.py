@@ -1,7 +1,9 @@
 """線の後始末の部品 bin/_lib/childsweep.py の試験。Archon は起こさず、起こす口 run に偽を差して、起こした引数と環境を照らす。"""
+import inspect
 import json
 import pathlib
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -10,6 +12,11 @@ import yaml
 from bin._lib import childsweep, place
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(ROOT / "lib") not in sys.path:
+    sys.path.append(str(ROOT / "lib"))
+
+import fixboard  # noqa: E402  （join の写しの鎖を縛る試験が adopt_returned の本文を読む）
+
 RUN = "1a2b3c4d-0000-4000-8000-000000000001"
 OTHER = "9f8e7d6c-0000-4000-8000-000000000002"
 CHECKOUT = "/runs/checkout"
@@ -171,7 +178,8 @@ class ChildSweepTest(unittest.TestCase):
         self.assertTrue(isolated)
         self.assertLessEqual(isolated, set(nodes[childsweep.READER]["depends_on"]))
         self.assertEqual(nodes[childsweep.READER]["script"], "join")
-        self.assertIn("carry_children", (ROOT / "workflows/fix/scripts/join.py").read_text(encoding="utf-8"))
+        self.assertIn("adopt_returned", (ROOT / "workflows/fix/scripts/join.py").read_text(encoding="utf-8"))
+        self.assertIn("carry_children", inspect.getsource(fixboard.adopt_returned))
         self.assertEqual(childsweep.reader_of("fix__groups-par"), "fix__join")
 
     def test_unreadable_node_states_remove_nothing(self):
