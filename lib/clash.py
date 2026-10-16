@@ -65,7 +65,8 @@ CLAIM = "組 {gid} の直しを親の作業ツリーで前の組と合わせる�
 TEXT_CLAIM = "組 {gid} の直しが親の作業ツリーで前の組の直しと同じ所を変え、字で当たらない（{red}）。{why}。控えの差分: {patch}"
 MARKED_TESTS = ("字で当たらない所が許しの無いテストのファイルに在り、合わせ役は印を解けない（テストの範囲の裁定 fix_test_scope が"
                 "要る）: {paths}")
-UNRESOLVED = "食い違いの印が残っている（印を解いて両方の組の直しを両立させよ）: {paths}"
+UNRESOLVED = ("食い違いの印が残っている（印を解いて両方の組の直しを両立させよ。区切りの印はちょうど 7 字の ======= の行なので、"
+              "新しい setext の見出しを書く時は長さの違う下線（8 字以上の ======== か -------）で書け）: {paths}")
 RULED_CLAIM = "裁定 {ids} の直しも通らなかった: "
 OUTSIDE = "組が変えたファイルの外を変えた（触ってよいのは {allowed} だけ）: {paths}"
 TESTS = "許しの無いテストのファイルを変えた（テストを緩めて緑にしない。直すべきテストなら直せないと答えて裁定に回せ）: {paths}"
@@ -230,7 +231,7 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
     touched = fixboard.touched_since(repo, staged, skip)
     allowed = set(row["names"]) | (set(ruled_paths(place, row)) if row.get("pass") == RULED else set())
     out = []
-    left = unittrees.markers_left(repo, row.get("marked") or [])
+    left = unittrees.markers_left(repo, row.get("marked") or [], staged)
     if left:
         out.append(UNRESOLVED.format(paths="・".join(left)))
     outside = sorted(p for p in touched if p not in allowed)
