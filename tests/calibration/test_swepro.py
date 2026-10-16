@@ -799,11 +799,20 @@ class BuildTest(unittest.TestCase):
         (place / "bin").mkdir()
         (place / "bin" / "claude").write_text(
             '#!/bin/sh\n'
+            # FAKE_STDIN が在れば、標準入力から 1 行読めた時に落ちる（対話で待つ版の真似）
+            'if [ -n "$FAKE_STDIN" ] && read -r line; then echo "claude が標準入力を読んだ: $line" >&2; exit 1; fi\n'
             'if [ "$ARGV0" = apply-seccomp ]; then\n'
             '  [ -z "$FAKE_SECCOMP_ERROR" ] && exit 0\n'
             '  echo "$FAKE_SECCOMP_ERROR" >&2; exit 1\n'
             'fi\n'
             'if [ "$1 $2" = "--no-config --version" ] && [ -n "$FAKE_RG" ]; then echo "ripgrep 14.1.1"; exit 0; fi\n'
+            # FAKE_RG_OUTPUT（標準出力）・FAKE_RG_STDERR（標準エラー）・FAKE_RG_CODE（終わりの値）のどれかが在れば、その字を出して
+            # その値で終わる（空の字も「在る」。改行は printf '%s\n' が壊さない）
+            'if [ "$1 $2" = "--no-config --version" ] && [ -n "${FAKE_RG_OUTPUT+x}${FAKE_RG_STDERR+x}${FAKE_RG_CODE+x}" ]; then\n'
+            '  [ -z "${FAKE_RG_OUTPUT+x}" ] || printf \'%s\\n\' "$FAKE_RG_OUTPUT"\n'
+            '  [ -z "${FAKE_RG_STDERR+x}" ] || printf \'%s\\n\' "$FAKE_RG_STDERR" >&2\n'
+            '  exit "${FAKE_RG_CODE:-0}"\n'
+            'fi\n'
             'echo "2.1.300 (Claude Code)"; exit 1\n', encoding="utf-8")
         (place / "bin" / "claude").chmod(0o755)
         return place, hermetic.child_env(PATH=f"{fake}{os.pathsep}{os.environ['PATH']}", **claude_env)
@@ -848,12 +857,41 @@ class BuildTest(unittest.TestCase):
         self.assertTrue(said.startswith(swepro.RG_REFUSED), done.stderr)
         self.assertIn(f"{place}/bin/claude", "\n".join(said_by_shell))
 
+    def test_rg_check_refuses_anything_but_a_ripgrep_version_line_on_stdout(self):
+        place, env = self.helper_place()
+        check = dict(swepro.setup_commands("f", "9.9.9", str(place)))["rg"]
+        for name, fake in (
+                ("version in the middle of a sentence", {"FAKE_RG_OUTPUT": "error: ripgrep 14.1.1 を起こせない", "FAKE_RG_CODE": "0"}),
+                ("colon after the name", {"FAKE_RG_OUTPUT": "ripgrep: 14.1.1", "FAKE_RG_CODE": "0"}),
+                ("name without a version", {"FAKE_RG_OUTPUT": "ripgrep could not start", "FAKE_RG_CODE": "0"}),
+                ("version only on stderr", {"FAKE_RG_OUTPUT": "", "FAKE_RG_STDERR": "ripgrep 14.1.1", "FAKE_RG_CODE": "0"}),
+                ("version line but a failing exit", {"FAKE_RG_OUTPUT": "ripgrep 14.1.1", "FAKE_RG_CODE": "1"}),
+                ("version on the second line", {"FAKE_RG_OUTPUT": "warning: something\nripgrep 14.1.1", "FAKE_RG_CODE": "0"})):
+            with self.subTest(name):
+                done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8", env={**env, **fake})
+                self.assertEqual(done.returncode, 1, done.stderr)
+                self.assertTrue(done.stderr.splitlines()[-1].startswith(swepro.RG_REFUSED), done.stderr)
+        with self.subTest("version line on stdout, notes on stderr"):
+            done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8",
+                                  env={**env, "FAKE_RG_OUTPUT": "ripgrep 14.1.1", "FAKE_RG_STDERR": "a note", "FAKE_RG_CODE": "0"})
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(done.stderr, "a note\n")
+
     def test_seccomp_and_rg_checks_pass_under_sh(self):
         place, env = self.helper_place(FAKE_RG="1")
         planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
         for name in ("seccomp", "rg"):
             with self.subTest(check=name):
                 done = subprocess.run(["/bin/sh", "-c", planned[name]], capture_output=True, text=True, encoding="utf-8", env=env)
+                self.assertEqual(done.returncode, 0, done.stderr)
+
+    def test_seccomp_and_rg_checks_close_stdin_of_claude(self):
+        place, env = self.helper_place(FAKE_RG="1", FAKE_STDIN="1")
+        planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
+        for name in ("seccomp", "rg"):
+            with self.subTest(check=name):
+                done = subprocess.run(["/bin/sh", "-c", planned[name]], input="y\n", capture_output=True, text=True,
+                                      encoding="utf-8", env=env)
                 self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_rewrite_image_needs_exactly_one_line(self):
@@ -927,6 +965,16 @@ class PrepareTest(unittest.TestCase):
         self.assertIn(f"写した版 {swepro.BWRAP_FROM} と違う", done.stderr)
         self.assertEqual(self.docker_calls(), [])
         self.assertFalse((self.out / OPENLIBRARY).exists())
+
+    def test_host_claude_other_than_the_bwrap_copy_names_every_check_to_recheck(self):
+        done = self.prepare(OPENLIBRARY, FAKE_CLAUDE_VERSION="9.9.9")
+        for covered in swepro.BWRAP_FROM_COVERS.values():
+            with self.subTest(covered=covered):
+                self.assertIn(covered, done.stderr)
+        self.assertIn("swepro.py の BWRAP_FROM を上げる", done.stderr)
+        # 一覧は setup の確かめのうち版に依る物（焼き印の stamp は版の一致を見る側）と同じ名で揃う。確かめを足したら一覧にも足す
+        checks = [name for name, _ in swepro.setup_commands("f", "9.9.9") if name != "stamp"]
+        self.assertEqual(list(swepro.BWRAP_FROM_COVERS), checks)
 
     def test_failed_docker_names_the_instance(self):
         done = self.prepare(OPENLIBRARY, FAKE_DOCKER_CODE="1")
