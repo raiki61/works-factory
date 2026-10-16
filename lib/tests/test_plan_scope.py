@@ -114,12 +114,12 @@ class ProblemsCase(unittest.TestCase):
         self.assertTrue(any("foo.py" in p and "op=modify" in p and MEAN in p for p in got), got)
         self.assertEqual(planscope.problems([it], rows, {**STATS, "foo.py": ("a\n", "b\n")})[0], [])
 
-    def test_canonical_elsewhere_definition_is_extra(self):
-        """同名の定義が足す行の path の外に在れば余分に数える（外れの文は『足す行の path』と言う）"""
+    def test_definition_outside_add_paths_is_extra(self):
+        """同名の定義が足す行の path の外に在れば余分に数える"""
         it = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median"))])
         ch = {"stats.py": ("", "def median(xs):\n    pass\n"), "util.py": ("", "def median(xs):\n    pass\n")}
         got, _ = planscope.problems([it], [{"unit_key": MEAN, "files": ["stats.py", "util.py"]}], ch)
-        self.assertTrue(any("util.py" in p and "足す行の path" in p and "canonical" not in p for p in got), got)
+        self.assertTrue(any("util.py" in p and "足す行の path" in p for p in got), got)
         both = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median")), frow("util.py", add("median"))])
         self.assertEqual(planscope.problems([both], [{"unit_key": MEAN, "files": ["stats.py", "util.py"]}], ch)[0], [],
                          "同じ名を足すと言った行の path は、どれも足す先")
@@ -339,7 +339,7 @@ class FalseRejectCase(unittest.TestCase):
 
     CONCEPTS_LINE = '  "pattern": "def where_paths|def lead_path",\n'
 
-    def test_definition_text_in_data_file_is_not_canonical_elsewhere(self):
+    def test_definition_text_in_data_file_is_not_outside_add_paths(self):
         """行の頭（字下げは許す）で始まる定義だけを定義と数える: 表（JSON）の文字列の中の `def <名>` は足す行の path の外の定義でなく、
         字下げした本物の定義（async def）は数え続ける"""
         it = item(allowed_paths=["stats.py", "util.py", "docs/**"],
@@ -519,7 +519,7 @@ class Round3Case(unittest.TestCase):
         rows = [{"unit_key": MEAN, "files": ["stats.py", "test_stats.py"]}]
         self.assertEqual(planscope.problems([it], rows, ch, loop={"test_stats.py": None})[0], [])
 
-    def test_canonical_elsewhere_in_frozen_file(self):
+    def test_definition_outside_add_paths_in_frozen_file(self):
         """輪が書いて凍らせたファイルの同名の定義は足す行の path の外として問わない。凍った後に修正役が足した物は拒む"""
         it = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median"))])
         stats = ("", "def median(xs):\n    return xs[0]\n")

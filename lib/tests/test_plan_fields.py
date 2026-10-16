@@ -297,7 +297,6 @@ class TestGaps(PlanFieldsCase):
         got = planmarks.home_gaps([item(files=[row("lib/a.py", "Reader"), row("lib/b.py", "別の考え"), row("lib/c.py", "READER")])])
         self.assertEqual(len(got), 1, got)
         self.assertTrue(got[0].startswith("plan[0].files[2].home.concept") and "plan[0].files[0]" in got[0], got)
-        # 退けた所に同じ考えを住まわせる矛盾: 後の行の path が先の行の considered に在る・先の行の path が後の行の considered に在る
         for first, second in ((row("lib/a.py", "考え", considered="lib/b.py"), row("lib/b.py", "考え")),
                               (row("lib/a.py", "考え"), row("lib/b.py", "考え", considered="lib/a.py"))):
             got = planmarks.home_gaps([item(files=[first]), item(files=[second])])
@@ -874,12 +873,14 @@ class TestContractFields(PlanFieldsCase):
 
     def test_files_add_side_is_means_and_removal_side_is_contract(self):
         """files の足す側だけを変えた時、contract_diff は空（手段の欄。同じ run の中で関所に戻さずに直せる）。消す側（op が delete・rename の
-        行と change=remove の symbol）を変えた時は files を名指す。訳 why・受け持ち・正本の字の違いは約束の違いに数えない"""
+        行と change=remove の symbol）を変えた時は files を名指す。訳 why・受け持ち・home・considered の字の違いは約束の違いに数えない"""
         old = item(files=[frow("stats.py", fadd("median"), frm("old_mean")), frow("old.py", op="delete", why="呼び手は寄せたので要らない")])
         add_side = copy.deepcopy(old)
         add_side["files"][0]["symbols"].append(fadd("mode"))
         add_side["files"].append(frow("new.py", fadd("run"), op="create"))
         add_side["files"][0]["responsibility"] = "受け持ちの言い直し"
+        add_side["files"][0]["home"] = {"concept": "考えの言い直し", "why": "住処の訳の言い直し"}
+        add_side["files"][0]["considered"] = [{"path": "other.py", "why_not": "退けた訳の言い直し（other.py:3）"}]
         add_side["files"][1]["why"] = "訳の言い直し（要らなくなったので消す）"
         self.assertEqual(planmarks.contract_diff(old, add_side), [])
         for name, edit in (("symbol を消す側に足した", lambda it: it["files"][0]["symbols"].append(frm("old_median"))),

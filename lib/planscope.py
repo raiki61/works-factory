@@ -383,10 +383,10 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
                             and not (name == DOC and _doc_added(raw, path, changes)):
                         out.append(f"{who}: files の {path} の add {raw} が差分の {path} の足した行に無い"
                                    + ("（その def・class の docstring も差分で足されていない）" if name == DOC else ""))
-                    homes = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}   # 同じ名を足すと言った行の path は足す先
+                    add_paths = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}
                     define = _definition(name)
-                    for p in sorted({p for p, line in fixer_added if p not in homes and define.search(line)}):
-                        out.append(f"{who}: files の {path} の add {raw} の足す行の path（{'・'.join(sorted(homes))}）の外に同名の定義（{p}）")
+                    for p in sorted({p for p, line in fixer_added if p not in add_paths and define.search(line)}):
+                        out.append(f"{who}: files の {path} の add {raw} の足す行の path（{'・'.join(sorted(add_paths))}）の外に同名の定義（{p}）")
                 elif sym.get("change") == "remove" and not skip:
                     word = planmarks.word_re(name)
                     moved = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}   # 移した先の定義は残りに数えない
