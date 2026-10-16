@@ -23,6 +23,11 @@ graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持�
   テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並びと、触るファイルの数。触るファイルは計画の allowed_paths に、修正の実際の差分
   （touched。呼び手が渡す）のうちテストのファイルを除いた物を足して数える。呼び手が run の信号に足し、単位ごとには軽量の集まりも
   標準へ上げる（raise_doc の run）
+- outside_cited(items, keys, touched, cited): 修正の差分 touched のうち、頭の深さの役が引用した where のファイル cited の外に出たパス
+  （テストのファイルは run_wide と同じ除き _code_touched で除く。cited が空なら空）
+- late_signals(*, outside, refused, consulted): 修正の後の 3 つの事実（引用の外の差分・TDD のループで修正役が拒まれた単位・範囲の相談をした
+  単位）の run の理由の並び。空の欄からは理由を出さない。呼ぶのは修正のブロックの fixboard.depth_signals・redepth と、線の redepth
+  （raise_doc の run に足す。上げるだけで下げない）
 - run_depth(doc): 切った後の単位の深さの全体（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
 - omits(head): 段 head が省く確かめの名の並び（TIERS の omits。知らない語・空は標準の段の物）。空でない段だけが単位の軽量で
   test_cmd を省く
@@ -34,6 +39,7 @@ graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持�
 """
 import json
 import pathlib
+import posixpath
 import sys
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように
@@ -91,13 +97,47 @@ def _tests(items: list) -> int:
     return sum(len(it.get("tests") or []) + len(it.get("rewrite_tests") or []) for it in items)
 
 
+def _mine(items, keys) -> list:
+    """keys の単位を載せる項目（重ねずに）"""
+    return list({id(it): it for key in keys for it in _items_of(items, key)}.values())
+
+
+def _code_touched(items, keys, touched) -> list:
+    """touched のうち、テストのファイルでない物（現れた順・重なりは 1 つ）。テストのファイルの見分けは impact.is_test_file
+    （宣言＝keys の単位を載せる項目の tests・rewrite_tests の id のファイルか、名の慣習。TDD の輪が凍らせるテストのファイルの見分けと
+    同じ口）。_wide と outside_cited が同じ除きを引く 1 か所"""
+    declared = {p for it in _mine(items, keys) for p in planmarks.test_paths(it)}
+    return list(dict.fromkeys(p for p in touched if isinstance(p, str) and not impact.is_test_file(p, declared)))
+
+
 def _wide(items, keys, touched=()) -> tuple:
     """(run 全体で触るファイルの集合, 受け入れと書き換えのテストの本数)。keys の単位を載せる項目を重ねずにまとめ、触るファイルは
-    計画の allowed_paths と touched（テストのファイルを除く）の和集合（重なりは 1 個）。テストのファイルの見分けは impact.is_test_file
-    （宣言＝項目の tests・rewrite_tests の id のファイルか、名の慣習。TDD の輪が凍らせるテストのファイルの見分けと同じ口）"""
-    mine = list({id(it): it for key in keys for it in _items_of(items, key)}.values())
-    declared = {p for it in mine for p in planmarks.test_paths(it)}
-    return set(_paths(mine)) | {p for p in touched if isinstance(p, str) and not impact.is_test_file(p, declared)}, _tests(mine)
+    計画の allowed_paths と touched（テストのファイルを除く。_code_touched）の和集合（重なりは 1 個）"""
+    mine = _mine(items, keys)
+    return set(_paths(mine)) | set(_code_touched(items, keys, touched)), _tests(mine)
+
+
+def outside_cited(items, keys, touched, cited) -> list:
+    """touched のうち、頭の深さの役が引用した where のファイル cited の外に出たパス（テストのファイルは除く。_code_touched。
+    現れた順）。cited が空（where の無い run）なら空——省く物の無い段で上げても効かない"""
+    named = {posixpath.normpath(p) for p in cited or [] if isinstance(p, str) and p}
+    if not named:
+        return []
+    return [p for p in _code_touched(items, keys, touched) if posixpath.normpath(p) not in named]
+
+
+def late_signals(*, outside=(), refused=(), consulted=()) -> list:
+    """修正の後に標準へ上げる 3 つの事実の run の理由（raise_doc の run）。outside は outside_cited の返り、refused は TDD のループで
+    修正役が拒まれた単位の名（tddloop.refused_units）、consulted は範囲の相談をした単位の名（consult.consulted_units）。空の欄からは
+    理由を出さない。上げる先は標準で、下げない（raise_doc）"""
+    out = []
+    for names, head in ((outside, "修正の差分が頭の深さの引用した where の外に出た"),
+                        (refused, "TDD のループで修正役が拒まれた"),
+                        (consulted, "修正役が範囲の相談をした")):
+        names = list(dict.fromkeys(str(n) for n in names or []))
+        if names:
+            out.append(f"{head}（{', '.join(names)}）")
+    return out
 
 
 def run_wide(items, keys, touched=()) -> tuple:

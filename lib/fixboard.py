@@ -532,6 +532,10 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
         (folder / name).unlink(missing_ok=True)
         if (judgment_file.parent / name).is_file():
             write_json(folder / name, json.loads((judgment_file.parent / name).read_text(encoding="utf-8")))
+    import headdepth
+    (folder / headdepth.RECORD).unlink(missing_ok=True)   # 頭の深さの控え（redepth が引用した where のファイルを読む。字のまま。組の子は読まない）
+    if (judgment_file.parent / headdepth.RECORD).is_file():
+        (folder / headdepth.RECORD).write_bytes((judgment_file.parent / headdepth.RECORD).read_bytes())
 
     plan_file = pointed("plan")
     plan = None
@@ -828,8 +832,11 @@ def child_verified(result) -> list:
 
 
 def tdd_units(groups, results) -> list:
-    """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, units}]（子の結果の欄 tdd。
-    tddloop.exit_fields の形）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
+    """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, units, refused}]（子の結果の欄
+    tdd。tddloop.exit_fields の形）。refused は exit_fields の欄でなく、tddloop.refused_units が子の結果の tdd.calls から作る欄（修正役が
+    拒まれた単位の名。線の redepth が diff の隣の tdd-unit.json から読み、修正の後に深さを標準へ上げる信号にする）。結果の無い組・
+    実行器の無い組は ran: false・units: []・refused: []。results は {group_id: 子の結果の dict}"""
+    import tddloop
     out = []
     for g in groups:
         result = results.get(g["group_id"])
@@ -838,7 +845,7 @@ def tdd_units(groups, results) -> list:
         out.append({"group_id": g["group_id"], "ran": ran,
                     "reason": str(tdd.get("reason") or ("" if result else NO_RESULT)), "suite": str(tdd.get("suite") or ""),
                     "reused": tdd.get("reused") if isinstance(tdd.get("reused"), dict) else {},
-                    "units": child_tdd_units(result) if ran else []})
+                    "units": child_tdd_units(result) if ran else [], "refused": tddloop.refused_units(tdd.get("calls"))})
     return out
 
 
@@ -1203,10 +1210,16 @@ def depth_signals(place) -> tuple:
     """修正の後の深さを標準へ上げる信号 ({単位: 理由}, [run の理由])。単位ごと: 食い違いの申し出の在る単位（conflict.items）・
     受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末 given_up）。run: 答えていない
     修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が空でない 2 回目の修正）・
-    修正役が判定に異議を出した（組の子の結果と裁定の後の返答の objection）。控えが読めなければ上げる側へ倒す。
+    修正役が判定に異議を出した（組の子の結果と裁定の後の返答の objection）・TDD のループで修正役が拒まれた（置き場の tdd-<k>/
+    state.json の calls。tddloop.refused_units）・修正役が範囲の相談をした（受け付けの行 accept_trace_rows。consult.consulted_units）。
+    後ろの 2 つの理由の文は depth.late_signals が持つ（頭の深さの引用した where の外の差分は run の広さと同じく redepth が数える）。
+    控えが読めなければ上げる側へ倒す。
     元 works/darkfactory/lib/depth.py:268 の signals と、線の h-redepth が渡した replanned・rejudged"""
     import conflict
+    import consult
+    import depth
     import gatemarks
+    import tddloop
     place = pathlib.Path(place)
     units, run = {}, []
     try:
@@ -1229,8 +1242,14 @@ def depth_signals(place) -> tuple:
     plan = read_json(place / GROUPS_FILE, {}) or {}
     back = [g.get("group_id") for g in joined.get("groups") or [] if isinstance(g, dict) and g.get("returned")]
     results = [read_json(pathlib.Path(plan["out_dir"]) / gid / RESULT_FILE) for gid in back if plan.get("out_dir")]
-    if objection([r for r in results if isinstance(r, dict)] + [read_json(place / RULED_REPLY_FILE)]):
+    results = [r for r in results if isinstance(r, dict)]
+    if objection(results + [read_json(place / RULED_REPLY_FILE)]):
         run.append("修正役が判定に異議を出した")
+    refused = []
+    for state in tddloop.states(place):
+        doc = read_json(state, {})
+        refused += tddloop.refused_units(doc.get("calls") if isinstance(doc, dict) else None)
+    run += depth.late_signals(refused=refused, consulted=consult.consulted_units(accept_trace_rows(place, results)))
     return units, run
 
 
@@ -1240,8 +1259,12 @@ def redepth(place, repo, skip=()) -> str:
     控えが無い・標準の単位が在る・単位が無い・頭の深さが省かない段なら空。信号は
     depth_signals、run 全体の広さ（depth.run_wide）は修正の実際の差分（run の始めの木 start_tree から今の作業ツリーへの変更。
     除くパスの頭 skip の下は数えない）と承認済みの修正案の欄で数え直し、数えたファイルの数と起点を控えの counted に 1 行残す。
+    同じ差分のうち、置き場の頭の深さの控え（HEAD_DEPTH_FILE でなく headdepth.RECORD。prep が判定の隣から写す）の引用した where の
+    ファイルの外に出たパスは depth.outside_cited が拾い、理由は depth.late_signals（テストのファイルは run_wide と同じ除きで数えない。
+    控えが無い・where の無い run は外を持たない）。
     控えが読めない・形が違えば ValueError。元 works/darkfactory/lib/depth.py:302 の raise_（線の h-redepth）"""
     import depth
+    import headdepth
     import planmarks
     import writes
     doc = depth_doc(place)
@@ -1254,6 +1277,7 @@ def redepth(place, repo, skip=()) -> str:
     origin = f"修正の差分 {tree[:12]}" if tree else "計画の allowed_paths（修正の差分の起点が無い）"
     wide, paths = depth.run_wide(items, doc["units"], touched)
     run += wide
+    run += depth.late_signals(outside=depth.outside_cited(items, doc["units"], touched, headdepth.cited_files(headdepth.read(place))))
     doc["counted"] = f"触るファイル {paths} 個（起点: {origin}）"
     doc = depth.raise_doc(doc, units=units, run=run)
     write_json(pathlib.Path(place) / DEPTH_RAISED_FILE, doc)

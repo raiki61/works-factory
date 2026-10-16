@@ -4,12 +4,13 @@
 語:
 - 深さ: 単位の工程の厚さ。標準は今の振る舞いのすべて、軽量は測りで何も見つけなかった確かめ（レンズ・コメントの削除候補）を省く。
 - 項目の欄: 修正案の項目ごとの works の欄（allowed_paths・tests・rewrite_tests・unit_keys）。
-- 上げる信号: 修正の後に単位を標準へ上げる事実（食い違いの申し出・止めた単位・案の直し・再審・答えていない問い）。
+- 上げる信号: 修正の後に単位を標準へ上げる事実（食い違いの申し出・止めた単位・案の直し・再審・答えていない問い・引用の外の差分・
+  TDD のループでの修正役の拒否・範囲の相談）。
 
 見る物:
 - 決め 3 の 5 つの条件を全部満たす単位だけが軽量で、1 つ外れれば標準と理由
 - thickness の名指しで全部の単位を固定する（自動と空は機械が決める）
-- 信号で上げる（単位に結べる物はその単位、結べない物は全部）・下げない
+- 信号で上げる（単位に結べる物はその単位、結べない物は全部）・下げない。修正の後の 3 つの事実の理由の文と、引用の外のパスの拾い方
 - run の深さは全部が軽量の時だけ軽量（単位が無ければ標準）
 - 省く理由と報告の行（軽量で省いた物を名指す）
 - 控えの書き読み
@@ -25,6 +26,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import depth  # noqa: E402
+import tddloop  # noqa: E402
 
 U1, U2 = "u1: 一つ目の根本", "u2: 二つ目の根本"
 
@@ -133,6 +135,50 @@ class RaiseCase(unittest.TestCase):
     def test_no_signal_keeps_light(self):
         got = depth.raise_doc(self.doc, units={}, run=[])
         self.assertEqual(depth.run_depth(got), depth.LIGHT)
+
+    def test_late_signals_name_each_fact(self):
+        """修正の後の 3 つの事実（引用の外の差分・TDD の拒否・範囲の相談）がそれぞれ run の理由 1 つになり、空の欄は理由を出さない。
+        raise_doc に渡すと軽量の単位が標準へ上がり、下がらない"""
+        self.assertEqual(depth.late_signals(), [])
+        self.assertEqual(depth.late_signals(outside=[], refused=[], consulted=[]), [])
+        got = depth.late_signals(outside=["x.py", "y.py"])
+        self.assertEqual(len(got), 1)
+        self.assertIn("修正の差分が頭の深さの引用した where の外に出た", got[0])
+        self.assertIn("x.py", got[0])
+        self.assertIn("y.py", got[0])
+        got = depth.late_signals(refused=[U1, tddloop.ROUTE_REFUSED])
+        self.assertEqual(len(got), 1)
+        self.assertIn("TDD のループで修正役が拒まれた", got[0])
+        self.assertIn(U1, got[0])
+        self.assertIn(tddloop.ROUTE_REFUSED, got[0])
+        got = depth.late_signals(consulted=["項目 2"])
+        self.assertEqual(len(got), 1)
+        self.assertIn("修正役が範囲の相談をした", got[0])
+        self.assertIn("項目 2", got[0])
+        every = depth.late_signals(outside=["x.py"], refused=[U1], consulted=[U2])
+        self.assertEqual(len(every), 3)
+        for run in ([r] for r in every):
+            raised = depth.raise_doc(self.doc, units={}, run=run)
+            self.assertEqual({v["depth"] for v in raised["units"].values()}, {depth.STANDARD}, run)
+            self.assertEqual(raised["raised"], run)
+        again = depth.raise_doc(depth.raise_doc(self.doc, units={}, run=every), units={}, run=[])
+        self.assertEqual(depth.run_depth(again), depth.STANDARD, "上げた後に信号が無くても下げない")
+
+    def test_outside_cited_skips_test_files(self):
+        """cited の外のコードのファイルだけを返し（慣習の名と項目の tests で宣言したテストのファイルは除く）、cited が空なら空。
+        run_wide と同じ除きで数える"""
+        items = [item([U1], paths=("a/b.py",), tests=0)]
+        items[0]["tests"] = [{"id": "checks/odd.py::T::t0"}]
+        touched = ["a/b.py", "c/d.py", "tests/test_d.py", "checks/odd.py", "e/f.py", "c/d.py"]
+        self.assertEqual(depth.outside_cited(items, [U1], touched, {"a/b.py"}), ["c/d.py", "e/f.py"])
+        self.assertEqual(depth.outside_cited(items, [U1], touched, {"a/b.py", "c/d.py", "e/f.py"}), [])
+        self.assertEqual(depth.outside_cited(items, [U1], ["tests/test_d.py", "checks/odd.py"], {"a/b.py"}), [])
+        self.assertEqual(depth.outside_cited(items, [U1], touched, set()), [], "引用した where の無い run は外を持たない")
+        self.assertEqual(depth.outside_cited(items, [U1], touched, ["./a/b.py", "c/d.py"]), ["e/f.py"])
+        paths, _ = depth._wide(items, [U1], touched)
+        self.assertEqual(paths, {"a/b.py", "c/d.py", "e/f.py"}, "run_wide の数えが除くテストのファイルと同じ")
+        wide, count = depth.run_wide(items, [U1], touched)
+        self.assertEqual(count, 3)
 
 
 class LinesCase(unittest.TestCase):

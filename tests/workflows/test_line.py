@@ -2441,7 +2441,99 @@ class RedepthCase(Artifacts):
         self.assertEqual(got["depth"][0]["depth"], "標準")
         self.assertIn("答えていない問い q1", got["raised"])
         self.assertIn("run 全体で触るファイル 5 個（3 個まで）", got["raised"])
-        self.assertEqual(got["counted"], "触るファイル 5 個（起点: 修正の差分 fix/diff.patch）")
+        self.assertTrue(got["counted"].startswith("触るファイル 5 個（起点: 修正の差分 fix/diff.patch）"), got["counted"])
+        self.assertIn("修正の後の信号の控えが無い", got["counted"])
+
+    def test_fix_signals_read_the_records_beside_the_diff(self):
+        """修正の後の 3 つの事実: diff の触るファイルが 1 回目の判定の隣の頭の深さの控えの where の外（テストのファイルを除く）・diff の隣の
+        tdd-unit.json の欄 refused・同じ隣の accept-trace.json の範囲の相談の行。それぞれ上げる理由になり、ノード redepth が軽量の単位を標準へ上げる。
+        隣の 2 つの控えが無い時は上げずに counted に訳を添え、在るのに読めない・{error} の時だけ上げる。diff が null なら何も足さない"""
+        import conflict
+        import consult
+        import headdepth
+
+        def patch(*names):
+            return "".join(f"diff --git a/{n} b/{n}\n--- a/{n}\n+++ b/{n}\n@@ -1 +1 @@\n-x\n+y\n" for n in names)
+        record = headdepth.record("軽量", "易しい", items=[{"item": 1, "unknown": "無し", "where": "stats.py:9", "cause_quote": "分母が違う",
+                                                           "code_quote": "return"}])
+        judgment = self.put("judge/judgment.json", {"units": [], "questions": []})
+        self.put(f"judge/{headdepth.RECORD}", record)
+        plan = self.put("plan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["stats.py"], "tests": [], "rewrite_tests": []}]})
+        diff = self.put("fix/diff.patch", patch("stats.py"))
+        tdd_name, trace_name = "fix/tdd-unit.json", "fix/accept-trace.json"
+        tdd_rows = [{"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [], "refused": ["u1", "振り分けの段"]}]
+        asked = {"op": conflict.ASKED_OP, "item": 1, "unit_keys": ["u1"], "origin": None}
+        gate = {"op": conflict.ASKED_OP, "item": 1, "unit_keys": ["u1"], "origin": consult.ORIGIN_GATE}
+
+        def signals(*names):
+            if names:
+                self.put("fix/diff.patch", patch(*names))   # 同じ指し札のまま差分の中身を替える
+            return redepth.fix_signals(plan, diff, judgment, ["u1"])
+        no_tdd = redepth.NO_LATE_RECORD.format(name="tdd-unit.json")
+        no_trace = redepth.NO_LATE_RECORD.format(name="accept-trace.json")
+        self.assertEqual(signals(), ([], [no_tdd, no_trace]), "隣の控えが無い時は上げずに訳を添える")
+        self.put(tdd_name, [{**tdd_rows[0], "refused": []}])
+        self.put(trace_name, [gate, {"op": "fix_tests_selected", "note": "x"}])
+        self.assertEqual(signals(), ([], []), "拒否も相談も引用の外も無い")
+        self.put(tdd_name, tdd_rows)
+        got, notes = signals()
+        self.assertEqual(notes, [])
+        self.assertEqual(len(got), 1)
+        self.assertIn("TDD のループで修正役が拒まれた", got[0])
+        self.assertIn("u1", got[0])
+        self.assertIn("振り分けの段", got[0])
+        self.put(tdd_name, [{**tdd_rows[0], "refused": []}])
+        self.put(trace_name, [gate, asked])
+        got, _ = signals()
+        self.assertEqual([("範囲の相談" in w, "u1" in w) for w in got], [(True, True)])
+        self.put(trace_name, [])
+        got, _ = signals("stats.py", "tests/test_stats.py", "other.py")
+        self.assertEqual(len(got), 1)
+        self.assertIn("引用した where の外に出た", got[0])
+        self.assertIn("other.py", got[0])
+        self.assertNotIn("test_stats.py", got[0], "テストのファイルだけが外なら外の信号は出ない")
+        self.assertEqual(signals("stats.py", "tests/test_stats.py"), ([], []))
+        self.put(f"judge/{headdepth.RECORD}", headdepth.record("標準", "割れる"))
+        self.assertEqual(signals("stats.py", "other.py"), ([], []), "where の無い頭の深さの控えは外を持たない")
+        self.put(f"judge/{headdepth.RECORD}", record)
+        self.put(tdd_name, "{壊れた")
+        got, notes = signals("stats.py")
+        self.assertEqual((len(got), notes), (1, []))
+        self.assertIn("修正の後の信号の控えが読めない", got[0])
+        self.put(tdd_name, {"error": "組めなかった"})
+        self.assertIn("組めなかった", signals()[0][0])
+        self.assertEqual(redepth.fix_signals(plan, None, judgment, ["u1"]), ([], []), "diff が null なら何も足さない")
+        # ノード redepth: 3 つの信号がそれぞれ軽量の単位を標準へ上げる
+        env = {"INPUTS_DEPTH": json.dumps(self.LIGHT, ensure_ascii=False), "INPUTS_REPLAN_DEPTH": "null", "INPUTS_UNITS": "[]",
+               "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": json.dumps(plan), "INPUTS_DIFF": json.dumps(diff),
+               "INPUTS_JUDGMENT": json.dumps(judgment), "INPUTS_START": "null", "INPUTS_ANSWER": "null",
+               "INPUTS_TIES_JUDGMENT": json.dumps(judgment), "INPUTS_REPLANNED": "false", "INPUTS_REJUDGED": "false",
+               "INPUTS_HEAD_DEPTH": "軽量"}
+
+        def run(names, tdd, trace):
+            self.put("fix/diff.patch", patch(*names))
+            self.put(tdd_name, tdd)
+            self.put(trace_name, trace)
+            with mock.patch.dict(os.environ, env):
+                return redepth.compute()
+        quiet = run(["stats.py"], [{**tdd_rows[0], "refused": []}], [])
+        self.assertEqual((quiet["depth"][0]["depth"], bool(quiet["skip_optional"])), ("軽量", True))
+        self.assertNotIn("控えが無い", quiet["counted"])
+        for why, args in (("TDD のループで修正役が拒まれた", (["stats.py"], tdd_rows, [])),
+                          ("修正役が範囲の相談をした", (["stats.py"], [{**tdd_rows[0], "refused": []}], [asked])),
+                          ("引用した where の外に出た", (["stats.py", "other.py"], [{**tdd_rows[0], "refused": []}], []))):
+            with self.subTest(why=why):
+                got = run(*args)
+                self.assertEqual((got["depth"][0]["depth"], got["skip_optional"]), ("標準", ""))
+                self.assertTrue(any(why in r for r in got["raised"]), got["raised"])
+        (self.artifacts / tdd_name).unlink()
+        (self.artifacts / trace_name).unlink()
+        self.put("fix/diff.patch", patch("stats.py"))
+        with mock.patch.dict(os.environ, env):
+            got = redepth.compute()
+        self.assertEqual((got["depth"][0]["depth"], bool(got["skip_optional"])), ("軽量", True), "控えが無ければ今どおり軽量のまま省く")
+        self.assertIn(no_tdd, got["counted"])
+        self.assertIn(no_trace, got["counted"])
 
     def test_replanned_depth_merges_by_unit(self):
         """L-D15: 案の直しの後の深さは、1 回目の単位の行を残して直した案の単位の行で単位ごとに置き換える（元 depth.raise_ は全部の単位の
@@ -3035,6 +3127,7 @@ class LineWiringCase(unittest.TestCase):
         "local-review-lenses.json": (("judge", "judgment"), "lib/diverted.py"),
         "pr-downgrades.json": (("judge", "judgment"), "lib/prcheck.py"),
         "world-state.json": (("judge", "judgment"), "lib/worldmark.py"),
+        "depth-head.json": (("judge", "judgment"), "lib/planfile.py"),
         "p2.fix_plan.json": (("plan", "plan"), "lib/fixboard.py"),
         "rejects-plan.json": (("plan", "plan"), "lib/boardview.py"),
         "replan-gave-up.json": (("plan", "plan"), "lib/runreport.py"),
@@ -3066,7 +3159,8 @@ class LineWiringCase(unittest.TestCase):
     # 境の口も無い返す節が書く・read: 読み手が名を開く）。表に無い新しい穴と、通るようになったのに残る行は赤
     UNPROVEN = {
         **{(name, "bare"): "区分の issue で外す（judge の返す節 verdict.py の lib の無い道 fallen は judgment.json・purpose.json だけを書く）"
-           for name in ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "purpose-review.json")},
+           for name in ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "purpose-review.json",
+                     "depth-head.json")},
         **{("p2.fix_plan.json", check): "区分の issue で外す（plan の返す節の止めの道と lib の無い道が修正案の役の返答の写しを置かない）"
            for check in ("stop", "bare")},
         **{("design-premises.json", check): "区分の issue で外す（plan-review の返す節の止めの道と lib の無い道が独立設計の控えを置かない）"

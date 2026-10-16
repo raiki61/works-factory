@@ -54,7 +54,6 @@ RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spe
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
 MATERIALS = tuple(ja.MATERIAL_ROLES)
-PUBLIC = ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "purpose-review.json")
 
 # 役の節の設定（今の works の旧 YAML の値。works/blk-*/blk-*.yaml と darkfactory/darkfactory.yaml の 174〜400 行・866 行）
 BASE = {"enabled": True, "allowUnsandboxedCommands": False}
@@ -704,8 +703,8 @@ class ScriptReturnsTest(unittest.TestCase):
 class HeadDepthTest(unittest.TestCase):
     """run の頭の深さ（issue #441）: 支度の機械の止め・受け付けの引用の照らし・返す節の欄。根拠が引けない依頼は標準"""
 
-    LIGHT = {"depth": "軽量", "why": "原因と直す行が名指されている",
-             "items": [{"item": 1, "cause_quote": "2 でなく 3 を返す", "where": "stats.py:4-5",
+    LIGHT = {"why": "原因と直す行が名指されている",
+             "items": [{"item": 1, "unknown": "無し", "cause_quote": "2 でなく 3 を返す", "where": "stats.py:4-5",
                         "code_quote": "return sum(xs) / (len(xs) - 1)"}]}
 
     def opened(self, **start) -> Run:
@@ -750,6 +749,48 @@ class HeadDepthTest(unittest.TestCase):
         self.assertEqual(doc["depth"], "標準")
         self.assertIn("code_quote", doc["why"])
 
+    def test_accept_records_the_tier_and_row_kinds(self):
+        """段は行の一番重い種類から受け付けが引いて控えに書き、行は unknown つきのまま残る。引用の欠けた返答は拒まれ標準のまま"""
+        shape = {"item": 2, "unknown": "形", "cause_quote": "どちらの形にするか", "where": "stats.py:4-13",
+                 "code_quote": "def clamp(x, lo, hi):"}
+        rows = [*REQUEST, {"where": "stats.py", "text": "clamp の戻りをどちらの形にするか決める"}]
+        r = Run(self, request=rows, test_cmd="./junit-suite.sh")
+        self.assertTrue(r.returned("intake")["go"])
+        r.returned("head_depth_prep")
+        reply = {"why": "1 行目は直す所が見え、2 行目は形を選ぶ", "items": [self.LIGHT["items"][0], shape]}
+        out = r.returned("head_depth_accept", reply=reply)
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+        doc = self.record(r)
+        self.assertEqual((doc["depth"], doc["why"]), ("重厚", reply["why"]))
+        self.assertEqual([(it["item"], it["unknown"]) for it in doc["items"]], [(1, "無し"), (2, "形")])
+        bad = {**reply, "items": [self.LIGHT["items"][0], {**shape, "cause_quote": "書いていない字"}]}
+        out = r.returned("head_depth_accept", reply=bad)
+        self.assertEqual((out["ok"], out["done"]), (False, False), out)
+        self.assertIn("cause_quote", out["reason"])
+        self.assertEqual(self.record(r)["depth"], "標準")
+
+    def test_role_kinds_are_the_lib_kinds(self):
+        """役の出力の型の unknown の enum が lib/headdepth.py の UNKNOWNS で、head-depth の出力に depth の欄が無い
+        （YAML は lib を引けないので、試験が結ぶ）"""
+        fmt = nodes()["head-depth"]["output_format"]
+        item = fmt["properties"]["items"]["items"]
+        self.assertEqual(item["properties"]["unknown"]["enum"], list(headdepth.UNKNOWNS))
+        self.assertEqual(item["required"], ["item", "unknown", "cause_quote"])
+        self.assertNotIn("depth", fmt["properties"])
+        self.assertNotIn("depth", fmt["required"])
+
+    def test_refused_reply_keeps_the_role_why(self):
+        """引用の外れた返答を拒んだ後の控えの why に、拒みの訳と役の訳の両方が残る（段は標準）"""
+        r = self.opened()
+        r.returned("head_depth_prep")
+        bad = {**self.LIGHT, "items": [{**self.LIGHT["items"][0], "code_quote": "return 0"}]}
+        r.returned("head_depth_accept", reply=bad)
+        doc = self.record(r)
+        self.assertEqual(doc["depth"], "標準")
+        self.assertIn(headdepth.NOT_ACCEPTED.split("（")[0], doc["why"])
+        self.assertIn("code_quote", doc["why"])
+        self.assertIn(f"役の訳: {self.LIGHT['why']}", doc["why"])
+
     def test_verdict_returns_the_recorded_depth(self):
         r = self.opened()
         r.returned("head_depth_prep")
@@ -770,7 +811,8 @@ class HeadDepthTest(unittest.TestCase):
         r = self.opened()
         self.assertIn(cut, r.returned("verify", stage="prep")["reason"])
         r.returned("head_depth_prep")
-        out = r.returned("head_depth_accept", reply={**self.LIGHT, "depth": "重厚", "why": "公開の約束を変える"})
+        scope = {**self.LIGHT["items"][0], "unknown": "範囲"}
+        out = r.returned("head_depth_accept", reply={**self.LIGHT, "items": [scope], "why": "公開の約束を変える"})
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         self.assertEqual(r.returned("verdict")["depth"], "重厚")
         self.assertNotIn(cut, r.returned("verify", stage="prep")["reason"])
@@ -805,9 +847,7 @@ class HeadDepthTest(unittest.TestCase):
         （YAML と lib を読めない script は lib を引けないので、試験が結ぶ）"""
         words = [depth.LIGHT, depth.STANDARD]
         got = nodes()
-        for node in ("head-depth", "verdict"):
-            with self.subTest(node=node):
-                self.assertEqual(got[node]["output_format"]["properties"]["depth"]["enum"], list(depth.HEADS))
+        self.assertEqual(got["verdict"]["output_format"]["properties"]["depth"]["enum"], list(depth.HEADS))
         self.assertEqual(list(depth.HEADS), [depth.LIGHT, depth.STANDARD, depth.HEAVY])
         self.assertIn(f'"depth": "{depth.STANDARD}"', (SCRIPTS / "verdict.py").read_text(encoding="utf-8"))
         plan = {n["id"]: n for n in walk(yaml.safe_load((ROOT / "workflows" / "plan" / "works-factory-plan.yaml")
@@ -833,7 +873,7 @@ class UvLaunchTest(unittest.TestCase):
 
 class StopPathFilesMixin:
     def assert_pointers_filled(self, r: Run, out: dict):
-        """指し札の先と公開の隣のファイルが在り、空でない（Archon は節の終わりに先が在って空でないかを照らす）"""
+        """指し札の先と公開の隣のファイル（名の正本は ja.PUBLIC_FILES）が在り、空でない（Archon は節の終わりに先が在って空でないかを照らす）"""
         verdict_shape(self, out)
         for field in ("judgment", "purpose", "world", "spec", "out_of_purpose"):
             if out[field] is None:
@@ -841,7 +881,7 @@ class StopPathFilesMixin:
             path = r.resolve(out[field])
             self.assertTrue(path.is_file() and path.stat().st_size > 0, f"{field}: {path}")
         folder = r.resolve(out["judgment"]).parent
-        for name in PUBLIC:
+        for name in ja.PUBLIC_FILES:
             path = folder / name
             self.assertTrue(path.is_file() and path.stat().st_size > 0, name)
             json.loads(path.read_text(encoding="utf-8"))
@@ -879,7 +919,7 @@ class AcceptLoopTest(unittest.TestCase):
         self.assertEqual(judgment["units"], [])
         returned = r.returned("verdict")
         self.assertEqual(r.resolve(returned["judgment"]), r.judge / "judgment.json")
-        for name in PUBLIC:
+        for name in ja.PUBLIC_FILES:
             self.assertTrue((r.judge / name).is_file(), name)
 
     def test_judge_that_changed_the_tree_is_refused(self):

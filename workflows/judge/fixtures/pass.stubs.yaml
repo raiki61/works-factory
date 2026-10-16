@@ -7,9 +7,9 @@ intake: {go: true, mode: judge, spec: false, world: false, reason: ''}
 head-depth-prep: {go: true, brief_file: /tmp/judge/depth-head-brief.md, reason: ''}
 head-depth-reject: {reason: '', "lang_line": ""}
 head-depth:
-  depth: 標準
-  why: 筋書きの役は標準を返す
-  items: []
+  why: 筋書きの役は原因が残る行を返す（段は標準）
+  items:
+    - {item: 1, unknown: 原因, cause_quote: 筋書きの依頼の行の字}
 head-depth-accept: &id001 {ok: true, done: true, reason: ''}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:

@@ -1354,6 +1354,24 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(written - own, set(fixboard.ADOPTED))
         self.assertEqual(fixboard.read_json(self.place / fixboard.HEAD_DEPTH_FILE), "軽量")
 
+    def test_prep_copies_the_head_depth_record_beside_the_judgment(self):
+        """判定の記録の隣に頭の深さの控え（headdepth.RECORD）が在れば、prep が修正の親の置き場に字のまま写す（fixboard.redepth が
+        引用した where のファイルを読む）。無ければ置き場の古い写しを消す。組の子は読まないので fixboard.ADOPTED には載せない"""
+        import fixboard
+        import headdepth
+        inputs = self.prep_inputs()
+        judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
+        text = '{"depth": "軽量",   "why": "易しい", "items": [{"item": 1, "unknown": "無し", "where": "stats.py:9"}], "facts": {}}\n'
+        (judgment_dir / headdepth.RECORD).write_text(text, encoding="utf-8")
+        code, _, err = _blk_run("prep", self.repo, self.art, inputs, "fix__prep")
+        self.assertEqual(code, 0, err)
+        self.assertEqual((self.place / headdepth.RECORD).read_text(encoding="utf-8"), text, "字のまま写す")
+        self.assertNotIn(headdepth.RECORD, fixboard.ADOPTED)
+        (judgment_dir / headdepth.RECORD).unlink()
+        code, _, err = _blk_run("prep", self.repo, self.art, inputs, "fix__prep")
+        self.assertEqual(code, 0, err)
+        self.assertFalse((self.place / headdepth.RECORD).exists(), "判定の隣に無ければ古い写しを消す")
+
     def test_prep_takes_the_gate_answers_into_the_duty(self):
         """修正前の関所で答えた問いの単位は直す義務に戻り、答えていない問いの単位は外れる（gatemarks.returned・withheld_by）。
         関所の一言と戻った単位の行は修正役と TDD の役が読む human-notes.md に載る"""
@@ -1899,9 +1917,10 @@ class BlockScriptsCase(unittest.TestCase):
             "g1", ["A"], start, start, tdd={"ran": True, "reason": "", "suite": "run.sh", "reused": {}, "units": [row]}))
         code, out, err = _blk_run("tdd_unit", self.repo, self.art)
         self.assertEqual(code, 0, err)
-        self.assertEqual(out, [{"group_id": "g1", "ran": True, "reason": "", "suite": "run.sh", "reused": {}, "units": [row]},
+        self.assertEqual(out, [{"group_id": "g1", "ran": True, "reason": "", "suite": "run.sh", "reused": {}, "units": [row],
+                                "refused": []},
                                {"group_id": "g2", "ran": False, "reason": out[1]["reason"], "suite": "", "reused": {},
-                                "units": []}])
+                                "units": [], "refused": []}])
         self.assertTrue(out[1]["reason"])
         self.assertEqual(json.loads((self.place / "tdd-unit.json").read_text(encoding="utf-8")), out)
 

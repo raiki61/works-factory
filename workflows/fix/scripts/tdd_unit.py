@@ -5,8 +5,9 @@
 """節 tdd-unit（形 ""・output_type: tdd-unit）: 子の結果から、組ごとの TDD の輪の結果を 1 つの型つきの成果物にして出す（子の run の
 型つきの成果物は子の run の物で親の一覧に載らないので、親の節で出す）。
 
-本文は [{group_id, ran, reason, suite, reused, units: [...]}]（tddloop.exit_fields の形。実行器の無い組・結果の無い組は ran: false・
-units: []）。同じ物を置き場の tdd-unit.json にも書き、標準出力に出す。置き場の groups.json が無い・読めない: 標準エラーに 1 行で 1。
+本文は [{group_id, ran, reason, suite, reused, units: [...], refused}]（tddloop.exit_fields の形に refused を足した物。実行器の無い組・
+結果の無い組は ran: false・units: []・refused: []）。refused は tddloop.exit_fields の欄でなく、tddloop.refused_units が子の結果の
+tdd.calls から作る欄（修正役が拒まれた単位の名）。同じ物を置き場の tdd-unit.json にも書き、標準出力に出す。置き場の groups.json が無い・読めない: 標準エラーに 1 行で 1。
 """
 import sys
 from pathlib import Path

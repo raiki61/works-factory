@@ -1,4 +1,4 @@
-"""run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）。使うのは判定と線の script。
+"""run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）。使うのは判定と線の script と計画の lib。
 
 単位ごとの深さ（depth.py）の上に、run 全体の深さの段（軽量・標準・重厚。段の定義は depth.TIERS）を run の頭で 1 度決める。
 易しいか・難しいかは意味の問いなので役が決め、ここは事実を測って役に渡し、役の引用が依頼の字とリポジトリの行に実在するかを
@@ -8,10 +8,21 @@
 - facts(rows, start, repo): 依頼の行ごとの字と番地の実在・試験のコマンドの有無・仕様の段・設計だけ・入力 thickness の名指し
 - gate(facts): 役を起こす前の機械の止め (go, 深さ, 訳)。go が偽なら決めた深さと訳で控えを書き、役を起こさない
 - brief(facts): 役に貼る材料の本文
+- UNKNOWNS・tier_of(items): 依頼の行ごとに残っている未知の種類（無し・原因・形・範囲）とその段の表と、行の並びの一番重い種類の段
+  （depth.HEADS の順）を引く関数。役は段を返さず、段は受け付けがここから引く
+- ASKS・UNKNOWN_HEAD・section(record_file): 種類ごとの指示の表（鍵は UNKNOWNS と同じ。受け手の役に依らない字）と、節の見出し
+  （promptsection.Section）と、控えのパス（在ればパス・無ければ空の字）から行ごとの『行 n（種類）: 依頼の字・番地と引用・指示』を
+  描く節。種類が決まっていない run は見出しと訳の 1 行。使うのは判定の材料（lib/judge_accept.py の brief）と修正案の材料
+  （lib/planfile.py の write_brief）
 - check(reply, rows, repo): 役の返答の照らし。拒む訳の並び（空なら受ける）。番地の規則と引用の照らしと引用の字数の下限は cite
-  （problem・quoted_in・QUOTE_MIN）。軽量と重厚は依頼の行が在り、引用が通る時だけ受ける。軽量は where の行の範囲が WHERE_SPAN
-  行までに限る（重厚は設計の選びなどを示すので範囲の幅は問わない）
+  （problem・quoted_in・QUOTE_MIN）。どの段にも why が空でないこと・依頼の行が在ること・items が依頼の全部の行をちょうど 1 度ずつ
+  指すこと・各行の unknown が UNKNOWNS に在ることを求め、行を種類で照らす: 無しは cause_quote と where の行の範囲が WHERE_SPAN 行
+  までの code_quote、形・範囲は範囲の幅を問わない同じ照らし、原因は cause_quote を必ず照らし、where を書いた行だけ where と
+  code_quote も範囲の幅を問わず照らす
 - write(jdir, doc)・read(jdir): 控え RECORD の読み書き。read は無い・読めない時に標準の控え
+- cited_files(doc): 控えの items の where が指すファイル（cite.CITE で読む）。修正の後に差分が引用の外に出たかを数える口
+  （depth.outside_cited の cited）。使うのは修正のブロック（fixboard.redepth。prep が判定の隣から親の置き場へ RECORD を写す）と
+  線の redepth（ties_judgment の隣の控え。workflows/line/scripts/redepth.py の fix_signals）
 - record(depth, why, *, items, facts): 控えの形
 - report_line(depth_word, why, cut=()): 報告の冒頭 2 の 1 行。段の名・根拠と、その段の省く物（単位がどれも軽量の時だけ省く。実際に
   省いたかは depth.lines の行が言う）・足す物（depth.TIERS）。cut に在る足しは名指しで切ったと添える
@@ -30,6 +41,7 @@ import cite  # noqa: E402
 import depth  # noqa: E402
 import gatemarks  # noqa: E402
 import jsonfile  # noqa: E402
+import promptsection  # noqa: E402
 import startrec  # noqa: E402
 
 LIGHT = depth.LIGHT
@@ -41,7 +53,10 @@ NO_REPLY = "役の返答が受け付けに届いていない（役が走らな�
 REJUDGE_WHY = "再審の判定（run の頭の深さは 1 回目の判定が決めた）"
 NOT_ACCEPTED = "役の返答が受け付けを通らない（{why}）"
 WHERE_SPAN = 30   # 軽量の根拠の where の行の範囲の幅の上限。直す所を 1 画面で名指せない範囲はファイルを指すのと変わらない
-NO_ROWS = "依頼の行が無い（軽量・重厚の根拠を引けない）"
+NO_ROWS = "依頼の行が無い（行ごとの未知の種類を引けない）"
+# 依頼の行ごとに残っている未知の種類 → その行が要る段。段は行の並びの一番重い種類から tier_of が引く（段の語は depth の定数）
+NONE, CAUSE, SHAPE, SCOPE = "無し", "原因", "形", "範囲"
+UNKNOWNS = {NONE: depth.LIGHT, CAUSE: depth.STANDARD, SHAPE: depth.HEAVY, SCOPE: depth.HEAVY}
 
 
 def _squash(text) -> str:
@@ -87,14 +102,29 @@ def brief(f: dict) -> str:
                       f"機械の確かめ（試験のコマンド）: {'在る' if f['test_cmd'] else '無い'}", ""])
 
 
-def _check_item(it: dict, rows: list, repo, span=WHERE_SPAN) -> list:
+def _known(kind) -> bool:
+    return isinstance(kind, str) and kind in UNKNOWNS
+
+
+def tier_of(items) -> str:
+    """行の並び（各行の `unknown` が UNKNOWNS の鍵）から、一番重い種類の段を depth.HEADS の順で引く。引けない（行が無い・
+    表に無い種類しか無い）時は標準"""
+    tiers = [UNKNOWNS[it["unknown"]] for it in items or [] if isinstance(it, dict) and _known(it.get("unknown"))]
+    return max(tiers, key=depth.HEADS.index, default=STANDARD)
+
+
+def _check_item(it: dict, rows: list, repo, span=WHERE_SPAN, code_optional=False) -> list:
+    """code_optional が真で where が空の行は、code_quote を求めず照らさない（where を書いた行は code_quote も照らす）"""
     n = it.get("item")
     head = f"行 {n}: "
-    out = [head + f"{name} が {cite.QUOTE_MIN} 字より短い" for name in ("cause_quote", "code_quote")
+    where = str(it.get("where") or "").strip()
+    quotes = ("cause_quote",) if code_optional and not where else ("cause_quote", "code_quote")
+    out = [head + f"{name} が {cite.QUOTE_MIN} 字より短い" for name in quotes
            if len(_squash(it.get(name))) < cite.QUOTE_MIN]
     if not cite.quoted_in(it.get("cause_quote"), rows[n - 1].get("text"), norm=_squash):
         out.append(head + "cause_quote が依頼のその行の字の部分でない")
-    where = str(it.get("where") or "").strip()
+    if len(quotes) == 1:
+        return out
     bad = cite.problem(where, repo)
     if bad:
         return out + [head + f"where が通らない（{bad}）"]
@@ -111,12 +141,8 @@ def _check_item(it: dict, rows: list, repo, span=WHERE_SPAN) -> list:
 def check(reply, rows, repo) -> list:
     if not isinstance(reply, dict):
         return ["返答が object でない"]
-    if reply.get("depth") not in depth.HEADS:
-        return [f"depth が {'・'.join(depth.HEADS)} のどれでもない（{reply.get('depth')!r}）"]
     if not str(reply.get("why") or "").strip():
         return ["why が空"]
-    if reply["depth"] == STANDARD:
-        return []
     rows = [r for r in rows or [] if isinstance(r, dict)]
     if not rows:
         return [NO_ROWS]
@@ -125,8 +151,16 @@ def check(reply, rows, repo) -> list:
     want = list(range(1, len(rows) + 1))
     if sorted(n for n in named if isinstance(n, int) and not isinstance(n, bool)) != want or len(named) != len(want):
         return [f"items が依頼の行 {len(rows)} 個をちょうど 1 度ずつ指していない（指した行: {named}）"]
-    span = None if reply["depth"] == depth.HEAVY else WHERE_SPAN
-    return [why for it in items for why in _check_item(it, rows, repo, span)]
+    out = []
+    for it in items:
+        kind = it.get("unknown")
+        if not _known(kind):
+            out.append(f"行 {it['item']}: unknown が {'・'.join(UNKNOWNS)} のどれでもない（{kind!r}）")
+        elif kind == NONE:
+            out += _check_item(it, rows, repo)
+        else:
+            out += _check_item(it, rows, repo, span=None, code_optional=kind == CAUSE)
+    return out
 
 
 def record(depth_word: str, why: str, *, items=(), facts_doc=None) -> dict:
@@ -137,14 +171,62 @@ def write(jdir, doc: dict) -> pathlib.Path:
     return jsonfile.write(pathlib.Path(jdir) / RECORD, doc, parents=True)
 
 
-def read(jdir) -> dict:
+def _read_file(path) -> dict:
     try:
-        doc = json.loads((pathlib.Path(jdir) / RECORD).read_text(encoding="utf-8"))
+        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return record(STANDARD, NO_RECORD)
     if not isinstance(doc, dict) or doc.get("depth") not in depth.HEADS:
         return record(STANDARD, NO_RECORD)
     return doc
+
+
+def read(jdir) -> dict:
+    return _read_file(pathlib.Path(jdir) / RECORD)
+
+
+def cited_files(doc) -> list:
+    """頭の深さの控え doc（read の返り）の items の where が指すファイル（cite.CITE の `<パス>:<行>` のパスか、行の無い `<パス>`。
+    現れた順・重なりは 1 つ）。where の無い行・items の無い控え（標準・名指し・機械の止め）は何も足さない。修正の後に、差分が
+    引用の外に出たかを数える口（depth.outside_cited の cited）"""
+    out = []
+    for it in (doc.get("items") if isinstance(doc, dict) else None) or []:
+        where = str(it.get("where") or "").strip() if isinstance(it, dict) else ""
+        m = cite.CITE.match(where)
+        path = m["path"] if m else where
+        if path and path not in out:
+            out.append(path)
+    return out
+
+
+UNKNOWN_HEAD = promptsection.Section("## 頭の深さの行ごとの未知の種類と指示（依頼の行ごと。機械が頭の深さの控えから貼った）", source="fn:headdepth.section")
+# 種類ごとの指示。鍵は UNKNOWNS と同じ。どの役が読んでも通じる字にし、受け手の役の口（相談・申し出）を名指さない
+ASKS = {
+    NONE: "引用した番地が本当に直す所かを先に確かめよ。外れていれば黙って広げず、外れた訳と本当の直す所を引用で返答に名指せ。",
+    CAUSE: "症状の行から原因の行まで引用で辿って原因を探せ。",
+    SHAPE: "形を 2 つ以上並べ、選んだ訳と退けた訳を書け。",
+    SCOPE: "触る約束（型・設定の鍵・入出力の形・サブグラフ）を並べ、それぞれへの響きを名指せ。",
+}
+NO_KINDS = "行ごとの未知の種類は決まっていない（訳: {why}）"
+
+
+def _row(it: dict) -> str:
+    one = lambda x: " ".join(str(x or "").split())   # noqa: E731  （引用の改行を 1 行にたたむ）
+    where = one(it.get("where"))
+    place = f"番地 {where}「{one(it.get('code_quote'))}」" if where else "番地: 無い（原因がコードに見えない）"
+    return (f"- 行 {it.get('item')}（{it['unknown']}）: 依頼の字「{one(it.get('cause_quote'))}」・{place}"
+            f"・指示: {ASKS[it['unknown']]}")
+
+
+def section(record_file) -> str:
+    """判定と修正案の役の材料に貼る、依頼の行ごとの未知の種類と番地と指示の節。入力 record_file は頭の深さの控え RECORD のパス
+    （在ればパス・無ければ空の字）。控えが無い・行に種類が無い run（機械の止め・名指しの thickness・受け付けを通らなかった・
+    止めの道の空の控え）は、黙って空にせず見出しと訳の 1 行"""
+    doc = _read_file(record_file) if record_file else record(STANDARD, NO_RECORD)
+    rows = [_row(it) for it in doc.get("items") or [] if isinstance(it, dict) and _known(it.get("unknown"))]
+    if not rows:
+        return f"{UNKNOWN_HEAD}\n\n{NO_KINDS.format(why=str(doc.get('why') or NO_RECORD))}\n"
+    return "\n".join([UNKNOWN_HEAD, "", *rows]) + "\n"
 
 
 def report_line(depth_word, why, cut=()) -> str:

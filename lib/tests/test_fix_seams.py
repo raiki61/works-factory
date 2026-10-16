@@ -1721,6 +1721,71 @@ class DeltaSeamCase(TempCase):
         (self.place / conflict.FILE).write_text("{壊れた", encoding="utf-8")
         raised("食い違いの控えが読めない")
 
+    def test_redepth_raises_on_the_late_signals(self):
+        """修正の後に上げる 3 つの信号（頭の深さの引用した where の外の差分・TDD のループでの修正役の拒否・範囲の相談）で、頭が軽量で
+        単位が全部軽量の置き場も省く理由を空にして標準へ上げる。runner の call だけ・テストのファイルだけが外に出た時・関所の条件の
+        相談だけの時・引用の無い控えは上げずに省く"""
+        import conflict
+        import consult
+        import depth
+        import headdepth
+        import tddloop
+        light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}]
+        fixboard.write_json(self.place / fixboard.HEAD_DEPTH_FILE, depth.LIGHT)
+        fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
+                                                                "start_tree": leftovers.snapshot(self.repo)})
+        cited = {"item": 1, "unknown": headdepth.NONE, "where": "stats.py:9", "cause_quote": "分母が len(xs) - 1", "code_quote": "return"}
+        headdepth.write(self.place, headdepth.record(depth.LIGHT, "易しい", items=[cited]))
+
+        def run():
+            fixboard.write_json(self.place / fixboard.DEPTH_FILE, light)
+            skip = fixboard.redepth(self.place, self.repo)
+            return skip, fixboard.read_json(self.place / fixboard.DEPTH_RAISED_FILE)
+
+        def kept():
+            skip, doc = run()
+            self.assertTrue(skip.startswith("軽量で省いた"), doc)
+            self.assertEqual((doc["units"]["a"]["depth"], doc["raised"]), (depth.LIGHT, []))
+
+        def raised(why_part, name):
+            skip, doc = run()
+            self.assertEqual((skip, doc["units"]["a"]["depth"]), ("", depth.STANDARD), doc)
+            self.assertTrue(any(why_part in w and name in w for w in doc["raised"]), doc)
+
+        def tdd(*calls):
+            fixboard.write_json(self.place / "tdd-1" / tddloop.STATE, {"calls": list(calls)})
+        kept()
+        # (1) 引用の外の差分
+        (self.repo / "stats.py").write_text("X = 2\n", encoding="utf-8")
+        kept()   # 引用したファイルの中の変更
+        (self.repo / "test_new.py").write_text("X = 1\n", encoding="utf-8")
+        kept()   # テストのファイルだけが外に出た
+        (self.repo / "other.py").write_text("X = 1\n", encoding="utf-8")
+        raised("引用した where の外に出た", "other.py")
+        (self.place / headdepth.RECORD).unlink()
+        kept()   # 引用の無い run（控えが無い・where の無い行）は外を持たない
+        headdepth.write(self.place, headdepth.record(depth.LIGHT, "易しい", items=[{**cited, "where": ""}]))
+        kept()
+        (self.repo / "other.py").unlink()
+        (self.repo / "test_new.py").unlink()
+        # (2) TDD のループでの拒否
+        tdd({"n": 1, "phase": "runner", "unit_key": "a", "ok": False}, {"n": 2, "phase": "fix", "unit_key": "a", "ok": True})
+        kept()   # 機械の止まりと通った call は役の拒否でない
+        tdd({"n": 1, "phase": "test", "unit_key": "a", "ok": False}, {"n": 2, "phase": "test", "unit_key": "a", "ok": True})
+        raised("TDD のループで修正役が拒まれた", "a")
+        tdd({"n": 1, "phase": "route", "unit_key": "", "ok": False})
+        raised("TDD のループで修正役が拒まれた", tddloop.ROUTE_REFUSED)
+        (self.place / "tdd-1" / tddloop.STATE).unlink()
+        kept()
+        # (3) 範囲の相談
+        fixboard.trace(self.place, conflict.ASKED_OP, item=1, unit_keys=["a"], origin=consult.ORIGIN_GATE)
+        kept()   # 関所の条件の相談は機械が立てた物
+        fixboard.trace(self.place, conflict.ASKED_OP, item=2, unit_keys=[], origin=None)
+        raised("修正役が範囲の相談をした", "項目 2")
+        (self.place / "trace.jsonl").unlink()
+        fixboard.trace(self.place, conflict.ASKED_OP, item=1, unit_keys=["a"], origin=None)
+        raised("修正役が範囲の相談をした", "a")
+
     def test_refix_prompt_names_the_policy_and_ends_with_the_language_line(self):
         """手直しの役の指示書の並び: 1 行目の機械の頭 → 前の回の拒否の 1 行 → 始めの記録の 2 行 → 役の頭（人の方針の文書の置き場を
         名指す）→ 書く役の決まりの正本（申し出の決まりは載せない）→ 読み替え → 手直しだけの決まり → receiving-code-review の座 →
@@ -1937,11 +2002,32 @@ class GroupScriptsSeamCase(TempCase):
         row = {"unit_key": "A"}
         got = fixboard.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
                                  {"g1": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [row]}}, "g2": None})
-        self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row]})
+        self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row],
+                                  "refused": []})
         self.assertEqual((got[1]["ran"], got[1]["units"], got[1]["reason"]), (False, [], fixboard.NO_RESULT))
         got = fixboard.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
                                  {"g1": {"tdd": ["x"]}, "g2": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": 5}}})
         self.assertEqual([(r["ran"], r["units"]) for r in got], [(False, []), (True, [])], "形の崩れた tdd・units は空で読む（#342）")
+
+    def test_tdd_units_carry_the_refused_units(self):
+        """組の行の refused は、子の結果の tdd.calls のうち ok が偽で phase が runner でない call の unit_key（振り分けの段の空の key は
+        ROUTE_REFUSED）。runner だけ・拒否の無い組・calls の無い組は空の並び"""
+        import tddloop
+        calls = {"g1": [{"n": 1, "phase": "route", "unit_key": "", "ok": False, "runs": 0, "secs": 0.1},
+                        {"n": 2, "phase": "route", "unit_key": "", "ok": True, "runs": 0, "secs": 0.1},
+                        {"n": 3, "phase": "test", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1},
+                        {"n": 4, "phase": "test", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1},
+                        {"n": 5, "phase": "conflict", "unit_key": "B", "ok": False, "runs": 0, "secs": 0.1},
+                        {"n": 6, "phase": "fix", "unit_key": "A", "ok": True, "runs": 1, "secs": 0.1}],
+                 "g2": [{"n": 1, "phase": "runner", "unit_key": "A", "ok": False, "runs": 1, "secs": 0.1}],
+                 "g3": [{"n": 1, "phase": "test", "unit_key": "A", "ok": True, "runs": 1, "secs": 0.1}]}
+        results = {g: {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [], "calls": rows}} for g, rows in calls.items()}
+        results["g4"] = {"tdd": {"ran": True, "reason": "", "suite": "s", "units": []}}
+        results["g5"] = {"tdd": {"ran": False, "reason": "実行器が無い", "suite": "", "units": []}}
+        got = fixboard.tdd_units([{"group_id": g} for g in (*calls, "g4", "g5", "g6")], results)
+        self.assertEqual([r["refused"] for r in got], [[tddloop.ROUTE_REFUSED, "A", "B"], [], [], [], [], []])
+        self.assertEqual(tddloop.refused_units(None), [])
+        self.assertEqual(tddloop.refused_units([{"ok": False, "phase": "fix", "unit_key": 5}, "x"]), [])
 
     def test_cited_rows_drop_claims_whose_lines_are_gone(self):
         row = {"unit_key": "A", "between": ["stats.py:9", "test_stats.py:1"], "why_both_cannot_hold": "x" * 12,
