@@ -10,6 +10,9 @@
 3. 確かめの節（script consult_accept → settle）: 答えを確かめ（judge。許すのは頼んだ物の中だけ。人の関所の条件の相談を除く）、
    1 頼み 1 行を置き場の trace.jsonl（conflict.ASKED_OP）に書き、修正役が読む答えのファイルを書く。合意（allow の行）は
    conflict.agreed が読み、範囲の照らし（planrange.with_agreed）とテストの変更の許し（conflict.test_permits）に入る。
+並べた組の子の run は自分の置き場に書くので、戻せた組の子の合意は join（clash.settle_repaired も）が carry_agreed で親の置き場へ
+group_id つきで写す（fixboard.adopt_returned）。写した行は親の範囲とテストの許しにだけ効き、親が聞いた行には数えない
+（conflict.plan_asks の既定は返さない）。
 人の関所の continue の条件（直す前の人の関所の今の周の一言）も、役が頼まなくても頼みの節が承認済みの項目ごとの
 相談にする（gate_asks。origin gate。今の周の条件 1 回につき 1 度）。頼む物の一覧は無く、答えの役が条件で要るパス・テストの書き換え・新しい
 テストを決める（judge は根の外のパスだけ捨てる）。合意は条件のテストも含め、ほかの相談と同じ読み口に入る。
@@ -37,6 +40,7 @@
 - judge(answer, paths, tests): 答えの 1 件の確かめ（(行の欄 | None, 注記)）
 - question(items, asks): 答えの節の指示書の本文
 - gate_notes(b, human_items, round_)・gate_asks(b, items, human_items, round_): 人の関所の条件の頼み
+- carry_agreed(place, results): 戻せた組の子の結果の置き場の合意の行を、group_id つきで親の置き場 place の trace に足す
 - settle(b, answer, pass_, node, round_=1): 確かめの節の中身。返り {consulted, turn, answer_file, counts}
 - take(b, pass_): 支度の節が、まだ渡していない答えを引く（渡した印を付ける）。返り {turn, answer_file, left} か None
 - write_config・load_config・offered: 相談の控え（事前の確かめのコマンドと受け付けの拒否の文）
@@ -420,8 +424,8 @@ def gate_notes(b, human_items=(), round_: int = 1) -> str:
 
 def gate_asks(b, items: dict, human_items=(), round_: int = 1) -> list:
     """人の関所の条件（gate_notes）の頼み。今の周の条件がまだ相談に出ていなければ（置き場 b の trace.jsonl の確かめの行を見る）、
-    承認済みの項目ごとに 1 件 {item, paths, tests, new_tests, why, origin: gate}。条件が無い・出し済み（確かめの行が 1 件でも在る）・
-    項目が無ければ []"""
+    承認済みの項目ごとに 1 件 {item, paths, tests, new_tests, why, origin: gate}。条件が無い・出し済み（この置き場の役が聞いた確かめの行が
+    1 件でも在る。戻せた組の子から写した行（group_id つき）は数えない）・項目が無ければ []"""
     notes = gate_notes(b, human_items, round_)
     if not notes or not items or any(r.get("origin") == ORIGIN_GATE and r.get("round") == round_ for r in conflict.plan_asks(b)):
         return []
@@ -471,8 +475,8 @@ def settle(b, answer, pass_: str, node: str, round_: int = 1) -> dict:
 
 
 def _trace_rows(b, st: dict, answer, by_n: dict, turn: int, pass_: str, node: str, round_: int = 1) -> list:
-    """頼みごとの行を確かめて trace（conflict.ASKED_OP）に書き、行の並びを返す（番号は trace の今の最大の次から）"""
-    known = [r.get("id") for r in conflict.plan_asks(b) if isinstance(r.get("id"), int)]
+    """頼みごとの行を確かめて trace（conflict.ASKED_OP）に書き、行の並びを返す（番号は写した行も含めた trace の今の最大の次から）"""
+    known = [r.get("id") for r in conflict.plan_asks(b, carried=True) if isinstance(r.get("id"), int)]
     next_id = 1 + max(known, default=0)
     out_rows = []
     for r in st.get("rows") or []:
@@ -502,6 +506,25 @@ def _trace_rows(b, st: dict, answer, by_n: dict, turn: int, pass_: str, node: st
         fixboard.trace(b, conflict.ASKED_OP, **row)
         out_rows.append(row)
     return out_rows
+
+
+def carry_agreed(place, results) -> None:
+    """戻せた組の子の結果 results の各行の place（子の run の置き場）の合意（conflict.agreed の行）を、欄 op を外して group_id（結果の
+    組の id）を足した形で、親の置き場 place の trace.jsonl に足す（fixboard.trace）。親の trace（写した行も含める）に同じ行が在れば
+    足さない。place が空の結果・親と同じ置き場の結果・group_id の無い結果は飛ばす。deny などの行は写さない。写した行は親の範囲と
+    テストの許しに効くだけで、親が聞いた行には数えない（conflict.plan_asks の carried）。子どうしの番号は重なりうるので、出どころは
+    (group_id, id) で辿る"""
+    place = pathlib.Path(place)
+    have = conflict.plan_asks(place, carried=True)
+    for r in results:
+        src, gid = str((r or {}).get("place") or ""), str((r or {}).get("group_id") or "")
+        if not src or not gid or pathlib.Path(src).resolve() == place.resolve():
+            continue
+        for row in conflict.agreed(src):
+            carried = {**{k: v for k, v in row.items() if k != "op"}, "group_id": gid}
+            if {"op": conflict.ASKED_OP, **carried} not in have:
+                fixboard.trace(place, conflict.ASKED_OP, **carried)
+                have.append({"op": conflict.ASKED_OP, **carried})
 
 
 def answer_text(turn: int, rows: list) -> str:

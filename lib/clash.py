@@ -18,7 +18,8 @@
 - stage(place, repo, gid, pass_, skip): 控えの差分を 3 方向で当て直す（解けない食い違いは印つきで当てる。当てる前と後の木を控える。
   印を許しの無いテストのファイルに書いたら当て直せないとする）
 - problems(place, repo, gid, reply, *, start, cases, skip, name, k): 受け付けの照らし（文の並び。空なら通る）
-- settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位・書き込みの記録・TDD のループの状態）
+- settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位と、子から親へ写す物 fixboard.adopt_returned:
+  書き込みの記録・TDD のループの状態・子の run の範囲の相談の合意）
 - settle_parked(place, repo, gid, *, pass_, why, skip): 当て直す前の木へ戻し、申し出を積み、join.json の行に訳を置く
 - cites(patch_text, files): 申し出の名指し（<パス>:<差分の最初の塊の新しい側の始めの行>）
 - brief(place, gid, pass_)・prompt(rules, pass_, values, ...): 合わせ役の材料のファイルと指示書
@@ -271,18 +272,16 @@ def _settle_join(place, gid: str, *, returned: bool, reason: str, mark: dict, ex
 
 def settle_repaired(place, repo, gid: str, *, log=None) -> None:
     """合わせ役の直しが受け付けを通った組 gid を、戻せた組にする: join.json の行（returned・理由は空・欄 clash の outcome は
-    REPAIRED）と単位（子の結果の結末）、子の書き込みの記録を親の記録へ写し（writes.carry_children。log が在る時）、子の TDD の
-    ループの状態を親の置き場へ写す（fixboard.adopt_tdd_states）。組を当てるノードが戻せた組にすることと同じ"""
-    import writes
+    REPAIRED）と単位（子の結果の結末）、子から親へ写す物を写す（fixboard.adopt_returned: 書き込みの記録（log が在る時）・TDD の
+    ループの状態・子の run の範囲の相談の合意）。組を当てるノードが戻せた組にすることと同じ"""
     import writelog
     rows = load(place)
     row = _row(rows, gid)
     r = result(place, gid)
     _settle_join(place, gid, returned=True, reason="",
                  mark={"outcome": REPAIRED, "requests": list(row.get("requests") or []), "patch": _rel(place, row["patch"])})
-    if log is not None and pathlib.Path(log).is_file() and r.get("worktree"):
-        writes.carry_children(log, repo, [(r["worktree"], writelog.log_here(r["worktree"]), row["names"])])
-    fixboard.adopt_tdd_states(place, [r], repo)
+    fixboard.adopt_returned(place, repo, [r], log=log,
+                            applied=[(r["worktree"], writelog.log_here(r["worktree"]), row["names"])] if r.get("worktree") else ())
     row.update(state=REPAIRED, staged="", before="", marked=[])
     _save(place, rows)
 

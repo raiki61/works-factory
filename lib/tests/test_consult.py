@@ -226,6 +226,67 @@ class FlowCase(Base):
         self.assertEqual([r["id"] for r in conflict.plan_asks(self.b)], [1, 2, 3])
         self.assertEqual(len(conflict.agreed(self.b)), 1, "deny は合意にならない")
 
+    def test_carry_agreed_copies_returned_childrens_agreed_rows_once(self):
+        """戻せた組の子の置き場の allow の行だけを、group_id つきで親の trace に足す（deny の行・置き場の無い結果・親と同じ置き場は
+        写さない）。2 度呼んでも増えない。その後に親で起こす相談の id は、写した行の最大の次から振る"""
+        fixboard = consult.fixboard
+        child = self.b.parent / "child"
+        child.mkdir()
+        _, _q = put_asked(child, consult.requests(reply(
+            ask_row(paths=["../outside.md"]), ask_row(paths=["works/CHANGELOG.md"]), ask_row(paths=["works/NEWS.md"]))) or [])
+        answers = {"answers": [{"ask": 2, "decision": "allow", "paths": ["works/CHANGELOG.md"], "tests": [], "spec": "",
+                                "reason": "子が直しに伴う記録を足す"},
+                               {"ask": 3, "decision": "deny", "paths": [], "tests": [], "spec": "", "reason": "範囲の中で直せる"}]}
+        consult.settle(child, answers, "first", NODE)
+        (own,) = conflict.agreed(child)
+        self.assertEqual(own["id"], 2)
+        results = [{"group_id": "g1", "place": str(child)}, {"group_id": "g2", "place": ""}, {"group_id": "g3", "place": str(self.b)},
+                   {"group_id": "g4"}]
+        consult.carry_agreed(self.b, results)
+        (row,) = conflict.plan_asks(self.b, carried=True)
+        self.assertEqual({k: v for k, v in row.items() if k not in ("op", "group_id")}, {k: v for k, v in own.items() if k != "op"})
+        self.assertEqual((row["op"], row["group_id"]), (conflict.ASKED_OP, "g1"))
+        consult.carry_agreed(self.b, results)
+        self.assertEqual(len(conflict.plan_asks(self.b, carried=True)), 1, "2 度呼んでも行は増えない")
+        self.assertEqual(len(fixboard.trace_rows(self.b, lambda r: r.get("op") == conflict.ASKED_OP)), 1)
+        self.assertEqual(len(conflict.plan_asks(child)), 3, "子の置き場は変えない")
+        self.ask(reply(ask_row()))
+        consult.settle(self.b, {"answers": [{"ask": 1, "decision": "deny", "paths": [], "tests": [], "spec": "",
+                                             "reason": "範囲の中で直せる"}]}, "first", NODE)
+        self.assertEqual([r["id"] for r in conflict.plan_asks(self.b, carried=True)], [2, 3], "写した行の最大の次から振る")
+
+    def test_carried_rows_widen_scope_but_are_not_asked_here(self):
+        """写した行（group_id つき）は、親が自分で聞いた行（plan_asks の既定）には出ない。gate_asks は BASE どおり全部の項目を返す。
+        一方、agreed と with_agreed には入る（agreed(carried=False) には入らない）"""
+        note = "既存の集計を壊さないことを確かめるテストを足してから直せ"
+        human = [{"round": 1, "node": GATE, "kinds": ["final"], "answer": "continue", "note": note}]
+        consult.fixboard.trace(self.b, conflict.ASKED_OP, id=1, item="3", status="answered", decision="allow",
+                               origin=consult.ORIGIN_GATE, round=1, granted_paths=["works/CHANGELOG.md"], granted_tests=[],
+                               granted_new_tests=[], reason="子で許した", group_id="g1")
+        self.assertEqual(conflict.plan_asks(self.b), [])
+        self.assertEqual([a["item"] for a in consult.gate_asks(self.b, ITEMS, human)], ["3", "4"],
+                         "写した関所の相談の行は、この置き場で関所の条件を出し済みにしない")
+        (got,) = conflict.agreed(self.b)
+        self.assertEqual((got["id"], got["group_id"]), (1, "g1"))
+        self.assertEqual(conflict.agreed(self.b, carried=False), [])
+        self.assertEqual(conflict.plan_asks(self.b, carried=True), [got])
+        items = [{"item": 3, "allowed_paths": ["works/.shared/core/lens.py"], "tests": []}]
+        (merged,) = planrange.with_agreed(items, conflict.agreed(self.b))
+        self.assertIn("works/CHANGELOG.md", merged["allowed_paths"])
+        self.assertEqual(planrange.scope(self.b, items=items, ruled=False)[0]["agreed"], [got])
+
+    def test_carried_new_test_enters_the_accept_gate_as_an_agreed_permit(self):
+        """子が許した新しいテスト（写した行の granted_new_tests）は、親の事後の関門の受け入れのテストに印 agreed で入る（今の木に
+        在る物だけ。許しで義務でない）。親が自分で聞いていない行でも、写した行は既定の読み口 conflict.agreed に入るため"""
+        import fixgates
+        consult.fixboard.trace(self.b, conflict.ASKED_OP, id=1, item="1", status="answered", decision="allow", origin="",
+                               granted_paths=[], granted_tests=[], reason="子が足した",
+                               granted_new_tests=[{"id": "test_new.py::T::test_a", "red_kind": "assertion"}], group_id="g1")
+        fields = [{"unit_keys": ["u"], "route": "direct", "tests": [], "allowed_paths": ["a.py"]}]
+        tests, _ = fixgates._accept_tests(self.b, fields, None, owed={"u"})
+        self.assertEqual([(t["id"], t["agreed"]) for t in tests], [("test_new.py::T::test_a", True)])
+        self.assertEqual(conflict.plan_asks(self.b), [], "親が聞いた行ではない")
+
     def test_queued_overflow_is_asked_without_reply_consult(self):
         """受け付けが見つけたはみ出し（consult.queue で積んだ頼み）は、確かめの行に origin accept が残り、new_tests の許しが合意に
         入る。積む周で turns が 1 増え、残りが 2 未満なら積まない"""

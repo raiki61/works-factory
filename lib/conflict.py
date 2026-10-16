@@ -824,8 +824,11 @@ def frozen_fields(b, round_: int = 1) -> list | None:
         raise fields_broken(b, e) from None
 
 
-def plan_asks(b, op: str = ASKED_OP) -> list[dict]:
-    """置き場の trace の範囲の相談の行（既定は ASKED_OP。ほかの語の行も op で引く。古い順。読めない・壊れた行は飛ばす）"""
+def plan_asks(b, op: str = ASKED_OP, *, carried: bool = False) -> list[dict]:
+    """置き場の trace の範囲の相談の行（既定は ASKED_OP。ほかの語の行も op で引く。古い順。読めない・壊れた行は飛ばす）。
+    既定は、この置き場の役が自分で聞いた行だけ。group_id の在る行（戻せた組の子の置き場から親へ写した行。consult.carry_agreed）は
+    返さない（写した行は親の範囲とテストの許しに効くだけで、親が聞いた行ではない。関所の条件を出し済みにも、受け付けの聞いた答えにも
+    数えない）。carried が真なら写した行も全部返す。自分の行と写した行の見分け（group_id の有無）を持つのはここだけ"""
     try:
         lines = (pathlib.Path(b) / "trace.jsonl").read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
@@ -836,15 +839,19 @@ def plan_asks(b, op: str = ASKED_OP) -> list[dict]:
             row = json.loads(line)
         except ValueError:
             continue
-        if isinstance(row, dict) and row.get("op") == op:
+        if isinstance(row, dict) and row.get("op") == op and (carried or "group_id" not in row):
             out.append(row)
     return out
 
 
-def agreed(b) -> list[dict]:
+def agreed(b, *, carried: bool = True) -> list[dict]:
     """範囲の相談の合意（plan_asks のうち答えが allow の行）。範囲（blk-fix の planscope）とテストの許し（test_permits）の唯一の
-    読み口"""
-    return [r for r in plan_asks(b) if r.get("status") == "answered" and r.get("decision") == "allow"]
+    読み口。既定は、戻せた組の子から親へ写した行（group_id つき）も含める（親の範囲を広げる）。既定で読む所は、範囲
+    （planrange.scope・planscope）・テストの許し（test_permits）・brief（fixboard.scope_brief）のほか、事後の関門の受け入れのテスト
+    （fixgates._accept_tests。子が許した新しいテストも、今の木に在れば印 agreed の許しとして赤緑を確かめる）・事前の確かめ
+    （factchecks.precheck）・許したテストの訳（fixboard.allowed_test_rows）。carried が偽なら、この置き場の役が自分で聞いた合意だけ
+    （はみ出しの名指し fixboard.overflow_trace）"""
+    return [r for r in plan_asks(b, carried=carried) if r.get("status") == "answered" and r.get("decision") == "allow"]
 
 
 def _in_tree(lim: str, source, base):
@@ -937,8 +944,8 @@ def ruled_limits(b, *, decisions=FIX_DECISIONS) -> list[tuple[dict, str]]:
 
 
 def ruled_paths(b) -> list[str]:
-    """直す裁定（ruled_limits）の limits のパス（parse_limit。重ねない・並びの順）。裁定の後に範囲が広がるのはこのパスだけで、
-    run の全部の項目に足す（blk-fix の planscope と差分の審査・手直しの材料が読む 1 つの口）"""
+    """直す裁定（ruled_limits）の limits のパス（parse_limit。重ねない・並びの順）。裁定が run の全部の項目に足す範囲で（範囲の相談の
+    合意 agreed は項目ごとに足す別の口）、blk-fix の planscope と差分の審査・手直しの材料（fixboard.scope_brief）が読む 1 つの口"""
     out = []
     for _, lim in ruled_limits(b):
         got = parse_limit(lim)

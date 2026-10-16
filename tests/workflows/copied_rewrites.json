@@ -1662,6 +1662,21 @@
    "why": "修正案の項目の足す物・消す物の欄を、名前の一覧 adds・removes から 1 ファイルごとの行 files に替える（issue #568。読み手の指示書の字を欄に合わせる）",
    "original": "（`adds`・`removes`・`tests`・範囲の中の変更）",
    "copied": "（`files` の足す行・消す行・`tests`・範囲の中の変更）"
+  },
+  {
+   "why": "範囲の相談の合意（戻せた組の子の run から運んだ行も含む）を材料の plan_items に足し、出どころを欄 agreed で渡すので、合意で足したパスを範囲外と判じさせず、印 agreed の tests を義務にしない文にする",
+   "original": "残りの単位の分だけ照らす\n  - `ruled_paths`",
+   "copied": "残りの単位の分だけ照らす。`allowed_paths` には範囲の相談の合意のパスが足してあり、合意で外したパスは項目の `out_of_scope_lifted` に並ぶ。`tests` の印 `agreed` の行は相談で許したテストで、許しであって義務ではない\n  - `ruled_paths`"
+  },
+  {
+   "why": "範囲の相談の合意（戻せた組の子の run から運んだ行も含む）を材料の plan_items に足し、出どころを欄 agreed で渡すので、合意で足したパスを範囲外と判じさせず、印 agreed の tests を義務にしない文にする",
+   "original": "範囲が広がるのはこのパスだけ",
+   "copied": "範囲が広がるのはこのパスと、範囲の相談の合意（`plan_items` の `allowed_paths` に足してある）だけ。合意の出どころは欄 `agreed`（`plan_items` に足した合意の行。相談の `id`・`item`・`granted_paths`・`granted_tests`・`reason` を持ち、戻せた組の子の run が許した行は `group_id` も持つ）の `id` と `group_id`"
+  },
+  {
+   "why": "範囲の相談の合意（戻せた組の子の run から運んだ行も含む）を材料の plan_items に足し、出どころを欄 agreed で渡すので、合意で足したパスを範囲外と判じさせず、印 agreed の tests を義務にしない文にする",
+   "original": "`ruled_paths` のパスの変更は `extra` と判じるな。",
+   "copied": "`ruled_paths` のパスと、範囲の相談の合意で足したパス（`plan_items` の `allowed_paths`。出どころは `agreed`）の変更は `extra` と判じるな。印 `agreed` の `tests` は許しで義務ではない（`missing` にするな）。"
   }
  ],
  "workflows/fix/commands/fix-rules/brief.md": [
@@ -2112,6 +2127,11 @@
    "why": "範囲の相談で許されたパスとテストの許しも機械が貼る範囲の節に入るので、材料に載らないと言う文を貼った節へ寄せる（#570）",
    "original": "項目の範囲の外で変えてよいのはこのパス（と、修正の段で修正役が修正案を書いた役との範囲の相談で許されたパス、修正案の `rewrite_tests` と相談で許されたテストのパス。この 2 つは材料に載らず、受け付けの機械が自分で足して照らす）だけ。",
    "copied": "項目の範囲の外で変えてよいのは、機械がこの指示書に貼った「変えてよいパスと触らない物」のセクションに載るパスだけ（このパスも、そこに入っている）。"
+  },
+  {
+   "why": "範囲の相談の合意（戻せた組の子の run から運んだ行も含む）を材料の plan_items に足し、出どころを欄 agreed で渡すので、材料の欄の説明に足す",
+   "original": "受け付けが、修正の段の触ったファイルの外の変更を項目の範囲の和と `out_of_scope` で機械が照らし、外れは拒む。試験を回して出来たファイルも消せ）\n",
+   "copied": "受け付けが、修正の段の触ったファイルの外の変更を項目の範囲の和と `out_of_scope` で機械が照らし、外れは拒む。試験を回して出来たファイルも消せ）\n  - `agreed`: `plan_items` の範囲に足した範囲の相談の合意の行（相談の `id`・`item`・`granted_paths`・`granted_tests`・`reason`。戻せた組の子の run が許した行は `group_id` も持つ）。`plan_items` の `allowed_paths` に足してあるパスと、印 `agreed` の `tests`（相談で許したテストで、許しであって義務ではない）の出どころ。空なら合意は無い\n"
   }
  ],
  "workflows/fix/commands/fix-rules/ruler.md": [
