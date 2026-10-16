@@ -1899,8 +1899,6 @@ class TreeCase(RunCase):
         self.assertTrue(r.accept(review(design_map=mine, resolved=fixed))["ok"])
 
     def test_tree_item_answer_other_open_item_row_says_outside_not_closed(self):
-        """2 項目とも開いた木の往復で、項目 1 の下請けの答えの design_map に開いている項目 2 の行を混ぜると、その答えは拒まれ、誤りの文は
-        項目 2 の行を『この照らしの項目（1）の外』と言い、『閉じた』『保留』の字を含まない"""
         r = self.run_
         r.open()
         DesignCase.designed(self)

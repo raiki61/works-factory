@@ -353,8 +353,7 @@ def map_items_section(b, items: list, others: str, *, carried: bool) -> str:
     if design.stands(b.dir, b.design_schema) is None:
         return ""
     names = "・".join(str(n) for n in sorted(items or [])) or "無し"
-    text = (f"{MAP_ITEMS_HEAD}\n\nこの往復で design_map を書く項目: 項目 {names}。案→設計の行はこの項目の files の (path, symbol) と "
-            f"op が create・delete・rename の行ごと。{others}の行は書かない（受け付けが拒む）。")
+    text = f"{MAP_ITEMS_HEAD}\n\nこの往復で design_map を書く項目: 項目 {names}。{others}の行は書かない（受け付けが拒む）。"
     refs = sorted(converge.carried_refs(b, items or [])) if carried else []
     if refs:
         text += f"{others}が前の往復で受けた要素（{'・'.join(refs)}）は網羅に数え済み。設計→案の行に書かなくてよい。"
