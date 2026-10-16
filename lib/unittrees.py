@@ -153,7 +153,6 @@ def _is_marker(line: bytes) -> bool:
 
 
 def _separators(lines: list) -> int:
-    """行全体が SEPARATOR の行の数（行末の \\r は落とす。_is_marker と同じ正規化）"""
     return sum(1 for ln in lines if ln.rstrip(b"\r") == SEPARATOR)
 
 
@@ -167,7 +166,7 @@ def _allowed_separators(repo, staged: str, path: str) -> int:
     if r.returncode != 0:
         return 0
     lines = r.stdout.splitlines()
-    heads = sum(1 for ln in lines if _is_marker(ln) and ln.rstrip(b"\r").startswith(NAMED_HEADS[0]))
+    heads = sum(1 for ln in lines if _is_marker(ln) and ln.startswith(NAMED_HEADS[0]))
     return max(_separators(lines) - heads, 0)
 
 
@@ -283,7 +282,7 @@ def _put(repo, index: str, plan: list) -> list:
 MARK_LABELS = ("今の作業ツリー", "元", "当てる差分")
 # git merge-file --diff3 が書く印の頭。書く順は <<<・|||・===・>>> で、区切り（SEPARATOR）は ||| と >>> の間に入る
 SEPARATOR = b"======="
-NAMED_HEADS = (b"<<<<<<<", b"|||||||", b">>>>>>>")   # 区切りを除いた 3 つの頭（書く順）
+NAMED_HEADS = (b"<<<<<<<", b"|||||||", b">>>>>>>")
 
 
 def _settle(repo, index: str, left: dict, allowed: set, tmp: str, check, marking: bool) -> tuple[list, list] | None:

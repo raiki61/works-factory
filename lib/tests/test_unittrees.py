@@ -170,7 +170,7 @@ class UnitTrees(unittest.TestCase):
         (self.repo / "s.md").write_text("Title\n=======\nY\n", encoding="utf-8")
         self.assertEqual(unittrees.markers_left(self.repo, ["s.md"], staged), [])
         staged, text = self.marked_md("t.md", "Head\n=======\nbody\n", "Head1\n-----\nbody\n", "Head2\n#####\nbody\n")
-        self.assertIn("||||||| 元\nHead\n=======\n=======\n", text)   # base の側の下線と塊の区切りが続く
+        self.assertIn("||||||| 元\nHead\n=======\n=======\n", text)
         (self.repo / "t.md").write_text("Head\n=======\nbody\n", encoding="utf-8")
         self.assertEqual(unittrees.markers_left(self.repo, ["t.md"], staged), [])
 
