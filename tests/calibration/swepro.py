@@ -130,7 +130,7 @@ GOST_CONFIG_ENV = "WORKS_BENCH_GOST_CONFIG"
 SANDBOX = HERE / "swepro_sandbox"
 SECCOMP_ENV = "WORKS_BENCH_SECCOMP"
 # setup の sandbox の確かめが写した bwrap の引数の元の Claude Code の版。ホストの版が違えば prepare が止める（写し直す）
-BWRAP_FROM = "2.1.300"
+BWRAP_FROM = "2.1.301"
 USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
 HOST_GATEWAY = "host.docker.internal"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
