@@ -11,7 +11,8 @@
           "answers": [{key, handled, how}], "resolved": [key], "persists": [key], "outcome": 語,
           "origins": {key: 出自の語}, "origins_claimed": [採らなかった申告の行],
           "files": {名: 写した先}, "rejects": [{role, at, reason}（その往復の計画と事前審査の拒否の行。stash_rejects）]}
-          （輪の上限の周で止めた行だけ "capped": true が付く）
+          （輪の上限の周で止めた行だけ "capped": true が付く。事前審査の返答の一番上に止まった時の推し STUCK_PUSH が在った往復だけ
+          "push": {answer, note, why} が付く。形は gatemarks が照らし、無人の run が止まった案を推しで進める時の元になる）
 k 往復目の行の answers と resolved は、k-1 往復目の答えの要る穴（block と開いた項目の suggest。owed_faces）への修正案の役の答えと、
 直した案を読んだ審査の言い分。
 origins は 2 往復目からの新しい block（前のどの往復の block の key とも違う物）ごとの出自で、審査の申告を控えの事実（項目の行の
@@ -47,7 +48,11 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（owed_faces の
   穴の分）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
-  対応表）・出自 ORIGINS は tree_split が外す。下請けの答えのファイルの当たりの答えの型は HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
+  対応表）・出自 ORIGINS・一番上の止まった時の推し STUCK_PUSH は tree_split が外す。下請けの答えのファイルの当たりの答えの型は
+  HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
+- stuck_keys(doc)・uncited(note, doc)・stuck_faces(doc): 止まった壁打ちの止めた block の key（stuck_reason も同じ式）・止まった時の
+  推しの note が引いていない key と『項目 n』・保留の項目の前の往復の block を review.json の faces に足す行（印 HELD_MARK つき。
+  block_faces は審査の挙げた block に数えない）
 - carried_refs(b, opened): 今の往復が見ない項目が前の往復の答えの対応表（DESIGN_MAP）で受けた独立設計の要素の id（往復の行の items の refs。
   要素の網羅は全部の項目の答えを合わせて数える）
 - item_blocks(b, n): 項目 n が答える前の往復の答えの要る穴の key（求める側。受け付けが下請けの答えの resolved か同じ key の face を求める）
@@ -56,7 +61,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
   notes。項目を開き直さず、受け付けが後の往復の返答に今の案の単位だけで引き継ぎ、修正の段へ運ぶ。答えと照らしが要る suggest は
   owed_faces が引く開いた項目の物だけで、閉じた・保留の項目の物と審査が消えたと言った物は参考として渡る）
-- revise_section(doc)・review_section(b)・stuck_reason(b)・lines(b): 指示書に足す文・関所の理由・報告の行（往復ごとの行は
+- revise_section(doc)・review_section(b)・stuck_reason(b)・lines(b): 指示書に足す文（review_section は、最後の往復に保留の項目が
+  在れば HELD_CITES と保留の項目ごとの block の key も貼る）・関所の理由・報告の行（往復ごとの行は
   前の往復の block を審査が suggest に下げた key も名指し、disputed と答えた穴の key と根拠を 1 行ずつ後ろに足す）
 
 役の型に欄を足す・返答から外す手順は住処 marks（種 converge）に任せる。外した欄は足し欄の控えでなく、この往復の控えに置く。
@@ -69,6 +75,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import shutil
 
 import marks
@@ -179,7 +186,18 @@ ORIGIN_SCHEMA = {"type": "array", "items": {
     "type": "object", "additionalProperties": False, "required": ["key", "origin"],
     "properties": {"key": {"type": "string"}, "origin": {"type": "string", "enum": list(CLAIMED)},
                    "of": {"type": "string"}}}}
-TREE_KEYS = (ITEMS, DESIGN_MAP, ORIGINS, SYNERGY)   # 事前審査の返答から外す木の欄
+# 壁打ちが止まる往復の推し（事前審査の返答の一番上の欄。形は gatemarks.MARK_SCHEMA[RECOMMEND] の {answer, note, why}。値を往復の行の
+# 欄 push に置くだけで、形の持ち主は gatemarks）。無人の run が、止まった案を推しで修正へ進める口（gatemarks.stuck_push）
+STUCK_PUSH = "stuck_recommend"
+# 機械が review.json の faces に足した、保留の項目の前の往復の block の印の欄（stuck_faces が付け、block_faces は審査の挙げた block に
+# 数えない。印の名の持ち主はここ 1 つ）
+HELD_MARK = "held"
+KEY_CHAR = "[A-Za-z0-9_-]"   # key の字（uncited は key の前後にこれが続く一致を、長い key の断片として引用に数えない）
+# 事前審査の指示書に貼る、止まった時の推しの note に引く物の節の頭（review_section。推しを書く役の頭の決まりが名指す）
+HELD_CITES_HEAD = "止まった時の推し（" + STUCK_PUSH + "）の note に引く物"
+HELD_CITES = (HELD_CITES_HEAD + ": 下の保留の項目の block（今の往復は審査しない）と、今の往復で挙げる block の key 全部と、"
+              "その項目の番号")
+TREE_KEYS = (ITEMS, DESIGN_MAP, ORIGINS, SYNERGY, STUCK_PUSH)   # 事前審査の返答から外す木の欄（STUCK_PUSH は壁打ちの一番上の欄）
 
 
 # ---------------------------------------------------------------- 決まり
@@ -190,10 +208,11 @@ def _faces(review) -> list[dict]:
 
 
 def block_faces(review: dict) -> list[dict]:
-    """審査の返答の severity が block の face（key で重複を除き、順を保つ）"""
+    """審査の返答の severity が block の face（key で重複を除き、順を保つ）。機械が足した保留の項目の block（HELD_MARK つき。
+    stuck_faces）は審査が挙げた block でないので数えない"""
     out = {}
     for f in _faces(review):
-        if f.get("severity") == "block" and f.get("key") not in out:
+        if f.get("severity") == "block" and f.get("key") not in out and not f.get(HELD_MARK):
             out[f.get("key")] = f
     return list(out.values())
 
@@ -551,14 +570,16 @@ def fixed_unchanged(doc: dict, rows: list, answers) -> list[str]:
 
 
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,
-             hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None) -> dict:
+             hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None,
+             push=None) -> dict:
     """控え doc に事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて doc と行の outcome に置く（ファイルの写し・
     書き込み・trace はしない）。at_cap（呼び手が渡す、輪がもう 1 周回せない事実）が真で decide が AGAIN の往復は、行に
     capped: true を立てて UNSETTLED（保留の項目が在れば PERSISTED）で止める（決まりは decide のまま。CLEAN と止める往復は
     変えない）。origins（審査の出自の申告の行。型は節の output_format か、受け付けが答えのファイルの型（ORIGIN_SCHEMA の写し）で照らし済み）は
     _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く（採らなかった申告は origins_claimed）。refs（{項目の番号:
     その項目の答えの対応表の design_ref の並び}）は審査した項目の items の行に置く（carried_refs が、閉じた項目が受けた要素を後の往復の
-    網羅に数える。carried_refs）。返りは足した行"""
+    網羅に数える。carried_refs）。push（返答の一番上の止まった時の推し STUCK_PUSH の値。形は照らさず、読む gatemarks が照らす）は、
+    在れば行の push に置く。返りは足した行"""
     passes = doc["passes"]
     k = len(passes) + 1
     faces = block_faces(review)
@@ -570,6 +591,8 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
            "notes": list({f.get("key"): copy.deepcopy(f) for f in _faces(review) if f.get("severity") != "block"}.values()),
            "resolved": list(resolved), "persists": [key for key in blocks if key in earlier], "outcome": None,
            "origins": {}, "origins_claimed": [], "files": {}, "rejects": []}
+    if push is not None:
+        row["push"] = copy.deepcopy(push)
     if doc.get("plan"):
         row["face_units"] = {f.get("key"): [str(k) for k in f.get("unit_keys") or []] for f in faces}
         row["items"] = _item_states(doc["plan"], faces, row["face_units"],
@@ -595,14 +618,15 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
 
 
 def record_pass(b, review: dict, *, resolved: list, files: dict, synergy: list | None = None,
-                hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None) -> dict:
+                hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None,
+                push=None) -> dict:
     """事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて控えを書く（行の組み立てと at_cap・origins は add_pass）。files（{名: パス}）の在るファイルを
     pass-<k>/ に写し、写した先を行に置く。盤面の trace に OP の行を書く。控えに項目（note_plan）が在れば行に items・
     synergy（相乗りの審査が挙げた key）・face_units を置き、hits（{項目の番号: 当たりの答えの行}。受け付けが下請けの答えの
-    ファイルから引いた物）を審査した項目の items の行に置く。trace の行には新しい block の出自の語ごとの数も載る。返りは足した行"""
+    ファイルから引いた物）を審査した項目の items の行に置く。push（返答の一番上の止まった時の推し）は往復の行の push に置く（add_pass）。trace の行には新しい block の出自の語ごとの数も載る。返りは足した行"""
     doc = read(b)
     row = add_pass(doc, review, answers=doc["open"].get("answers", []), resolved=resolved, synergy=synergy,
-                   hits=hits, origins=origins, at_cap=at_cap, refs=refs)
+                   hits=hits, origins=origins, at_cap=at_cap, refs=refs, push=push)
     k = row["pass"]
     dest = b.work(PASS_DIR) / f"pass-{k}"
     for name, src in files.items():
@@ -764,7 +788,8 @@ def split(role: str, reply: dict) -> tuple[dict, list]:
 
 
 def tree_split(reply: dict) -> tuple[dict, dict]:
-    """（木の欄 TREE_KEYS（束ね役の欄 ITEMS・SYNERGY と対応表 DESIGN_MAP・出自 ORIGINS）を外した返答の写し, {欄: 値 | None}）"""
+    """（木の欄 TREE_KEYS（束ね役の欄 ITEMS・SYNERGY と対応表 DESIGN_MAP・出自 ORIGINS と、壁打ちが止まる往復の一番上の推し
+    STUCK_PUSH）を外した返答の写し, {欄: 値 | None}）"""
     out, got = marks.split("converge", "plan-review", reply, TREE_KEYS)
     return out, {name: got.get(name) for name in TREE_KEYS}
 
@@ -815,6 +840,8 @@ def revise_section(doc: dict) -> str:
 def review_section(b) -> str:
     """2 往復目からの事前審査の指示書の節（REREVIEW_ASK と、前の往復ごとの block の face（PASS_HEAD の下）と答えの要る suggest
     （OWED_HEAD の下。owed_faces の物なので、閉じた項目の suggest と審査が消えたと言った suggest は貼らない）と修正案の役の答え）。
+    最後の往復に保留の項目が在れば、最後に HELD_CITES と保留の項目ごとの『- 項目 n（単位）: block の key』の行も貼る（推しを書く役が
+    stuck_recommend の note に引く key の集合を知る。束ね役の指示書も同じ節を貼る）。
     1 往復目は空。出自の頼み ORIGIN_ASK は貼らない（出自を書く役は、審査の答えを書く層ごとに違う。貼るのは書き手の居る層）"""
     doc = read(b)
     passes = doc["passes"]
@@ -828,7 +855,63 @@ def review_section(b) -> str:
         parts += _owed_suggest_text(owed_faces(doc, p), p["pass"])
         parts.append("修正案の役の答え:\n" + ("\n".join(f"- {a.get('key')}: {a.get('handled')}（{a.get('how')}）"
                                                       for a in answers) or NONE))
+    held = [it for it in passes[-1].get("items") or [] if it.get("state") == HELD]
+    if held:   # 推しを書く役（束ね役も）が、止まった時の推しの note に引く保留の項目の block と項目の番号を知る
+        parts.append("\n".join([HELD_CITES, *(f"- {_label(it)}: {_keys(it.get('blocks') or [])}" for it in held)]))
     return "\n\n".join(parts)
+
+
+def stuck_keys(doc: dict) -> list:
+    """止まった壁打ち（PERSISTED・UNSETTLED）の、止めた block の key（stuck_reason・uncited・stuck_faces が読む 1 つの式）。
+    項目の無い控えは PERSISTED なら最後の往復の続いた key・UNSETTLED なら最後の往復の block。項目の在る控えは、保留の項目の
+    block（前の往復の物。今の往復は審査しない）と開いた項目の block。止まっていなければ []"""
+    if doc["outcome"] not in STUCK:
+        return []
+    last = doc["passes"][-1]
+    keys = last["persists"] if doc["outcome"] == PERSISTED else last["blocks"]
+    if last.get("items") is not None:   # 保留の項目の block は前の往復の物（今の往復は審査しない）
+        keys = list(dict.fromkeys(k for it in last["items"] if it.get("state") in (HELD, OPEN) for k in it["blocks"]))
+    return keys
+
+
+def _stuck_items(doc: dict) -> list:
+    """止まった控えの最後の往復の、保留・開いた項目の番号（項目の無い控えは []）"""
+    last = doc["passes"][-1] if doc["outcome"] in STUCK else {}
+    return [it["n"] for it in last.get("items") or [] if it.get("state") in (HELD, OPEN)]
+
+
+def uncited(note: str, doc: dict) -> list[str]:
+    """止まった時の推し（STUCK_PUSH）の note が字のまま引いていない物の並び: stuck_keys の key（前後に key の字 KEY_CHAR が続かない
+    一致。長い key の断片は引用に数えない）と、最後の往復の保留・開いた項目の『項目 n』（後ろに数字が続かない一致。『項目 12』は
+    『項目 1』の引用に数えない）。止まっていなければ []。
+    修正役に届くのは note だけなので、推しが修正の義務（止まった key と項目）に触れているかをここで照らす"""
+    note = str(note or "")
+    out = [k for k in stuck_keys(doc) if not re.search(rf"(?<!{KEY_CHAR})" + re.escape(k) + rf"(?!{KEY_CHAR})", note)]
+    out += [name for n in _stuck_items(doc) for name in [f"項目 {n}"] if not re.search(re.escape(name) + r"(?!\d)", note)]
+    return out
+
+
+def stuck_faces(doc: dict) -> list[dict]:
+    """止まった壁打ちの stuck_keys のうち、最後の往復の faces に無い key（保留の項目の前の往復の block）を、その key を最後に挙げた
+    往復の faces と face_units から owed_faces と同じ形 {key, kind, where, why, severity: block, unit_keys} に印 HELD_MARK を足して
+    返す（stuck_keys の順。挙げた往復が控えに無い key は返さない）。review.json の faces に足すと、修正役が事前審査の穴に key ごとに
+    答える道（fixboard.plan_face_rows）に、保留の項目の block も義務として乗る"""
+    keys = stuck_keys(doc)
+    if not keys:
+        return []
+    passes = doc["passes"]
+    now = {f.get("key") for f in passes[-1]["faces"]}
+    out = []
+    for key in keys:
+        if key in now:
+            continue
+        for p in reversed(passes):
+            f = next((x for x in p["faces"] if x.get("key") == key), None)
+            if f is not None:
+                out.append({**{n: f.get(n, "") for n in FACE_KEYS}, "severity": "block",
+                            "unit_keys": [str(k) for k in (p.get("face_units") or {}).get(key) or []], HELD_MARK: True})
+                break
+    return out
 
 
 def stuck_reason(b) -> str:
@@ -839,9 +922,7 @@ def stuck_reason(b) -> str:
     passes = doc["passes"]
     last = passes[-1]
     text = PERSISTED_WHY if doc["outcome"] == PERSISTED else UNSETTLED_WHY
-    keys = last["persists"] if doc["outcome"] == PERSISTED else last["blocks"]
-    if last.get("items") is not None:   # 保留の項目の block は前の往復の物（今の往復は審査しない）
-        keys = list(dict.fromkeys(k for it in last["items"] if it.get("state") in (HELD, OPEN) for k in it["blocks"]))
+    keys = stuck_keys(doc)
     why = text.format(keys=_keys(keys), n=len(passes), path=b.work(PASS_DIR))
     why += "。" + _items_text(last["items"]) if last.get("items") is not None else ""
     # 同じ block が続いて止めた PERSISTED は数の比べで止めたのでないから、数の句を付けない

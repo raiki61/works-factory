@@ -19,6 +19,7 @@ if str(LIB) not in sys.path:
 from lib.tests import test_plan_gate as TP  # noqa: E402
 import gatemarks  # noqa: E402
 import carry  # noqa: E402
+import converge  # noqa: E402
 import planblk  # noqa: E402
 
 REC = {"answer": "continue", "note": "daemon だけを Recreate にする範囲で通す", "why": "Dagster 公式の chart が同じ分け方"}
@@ -75,6 +76,19 @@ class GapsCase(unittest.TestCase):
         got = gatemarks.recommend_gaps("p2.plan_review", {"faces": [{**TP.FACE, "recommend": {"answer": "x"}}]})
         self.assertEqual(len(got), 1, got)
         self.assertIn("faces[0]", got[0])
+
+    def test_review_stuck_recommend_is_checked_too(self):
+        """返答の一番上の止まった時の推し（converge.STUCK_PUSH）も faces の行と同じ形で照らし、崩れていれば 1 行で名指す。
+        整った推しと、欄の無い返答は通す"""
+        reply = {"faces": [TP.FACE]}
+        self.assertEqual(gatemarks.recommend_gaps("p2.plan_review", reply), [])
+        self.assertEqual(gatemarks.recommend_gaps("p2.plan_review", {**reply, converge.STUCK_PUSH: REC}), [])
+        for bad in ({**REC, "answer": "maybe"}, {k: v for k, v in REC.items() if k != "why"}, "通す", {**REC, "note": ""}):
+            with self.subTest(bad=bad):
+                got = gatemarks.recommend_gaps("p2.plan_review", {**reply, converge.STUCK_PUSH: bad})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(converge.STUCK_PUSH, got[0])
+        self.assertEqual(gatemarks.recommend_gaps("p2.fix_plan", {**self.plan(REC), converge.STUCK_PUSH: "x"}), [])
 
     def test_split_takes_recommend_off_and_save_keeps_it(self):
         reply = self.plan(REC)

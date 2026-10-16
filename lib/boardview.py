@@ -958,8 +958,10 @@ def take_review(folder, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None) -
     答えのまとめ（planblk.tree_merge）→ 記録された方針（policy.face_gaps）→ 木でなければ独立設計の引用と design_map
     （planblk.design_gaps）→ 前の往復の答えの要る穴（block と開いた項目の suggest）の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
-    往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める）、
-    返答を pass-<k>/review.json に書く。拒みは pass-<k>/ の控えに積み、rolekit.GIVE_UP_AFTER 回目で
+    往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める。
+    返答の一番上の止まった時の推し converge.STUCK_PUSH は外して往復の行の push に置く）、
+    返答を pass-<k>/review.json に書く（壁打ちの欄 resolved も持つ。推しが付く止まり＝gatemarks.stuck_push が空でない時は、機械が足した
+    保留の項目の前の往復の block も印 converge.HELD_MARK つきで faces に持ち、修正役の答える義務に乗る）。拒みは pass-<k>/ の控えに積み、rolekit.GIVE_UP_AFTER 回目で
     done・give_up（その時は最後の拒みの訳を reason に置いた空の返答を review.json に書く）。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
@@ -1013,16 +1015,23 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
     bare_review, marks = gatemarks.split(REVIEW_NODE, review)
     out = place(d)
     gatemarks.save(out, REVIEW_NODE, out.round, marks)
+    held = []
     if inputs["form"] == "review":
         if merged.get("precedents"):
             planblk.save_precedents(b, *merged["precedents"])
         files = {**merged["files"], PROMPT_FILE: str(p / PROMPT_FILE)}
         converge.record_pass(out, bare_review, resolved=merged["resolved"], files=files, synergy=merged["synergy"],
                              hits=merged["hits"], origins=merged["origins"], at_cap=_at_cap(inputs),
-                             refs=merged.get("refs") or refs)
+                             refs=merged.get("refs") or refs, push=tree.get(converge.STUCK_PUSH))
         converge.stash_rejects(out, _pass_rejects(inputs, p))
+        # 止まった案が推しで修正へ進む時（無人の run で推しの note が止まった key と項目を引いた時。gatemarks.stuck_push）は、
+        # 保留の項目の前の往復の block も review.json の faces に足す: 修正役が事前審査の穴に key ごとに答える道
+        # （fixboard.plan_face_rows）と差分の審査の材料に、今の往復が審査しなかった保留の穴も義務として乗る
+        if gatemarks.stuck_push(out):
+            held = converge.stuck_faces(converge.read(out))
     # 壁打ちの欄 resolved は写しの型の外なので外して照らしたが、plan の往復の控え（planfile.converge_record）が review.json から読む
-    _write_json(p / REVIEW_FILE, {**review, converge.RESOLVED: merged["resolved"]} if merged["resolved"] else review)
+    written = {**review, "faces": list(review.get("faces") or []) + held} if held else review
+    _write_json(p / REVIEW_FILE, {**written, converge.RESOLVED: merged["resolved"]} if merged["resolved"] else written)
     return {"ok": True, "reason": ""}
 
 
@@ -1119,7 +1128,8 @@ def verdict(d: pathlib.Path, inputs: dict) -> types.SimpleNamespace:
     """置き場 d の最後に開いた往復（inputs は read_open の返り。形 design でない物）の通否。collect の pass・stalled と、独立の目の
     頭の事前審査の結論の持ち主。抜け方は形 review なら往復の控えの converge.decide（record_pass が決めた語）、形 replan なら block の
     有無（stalled はいつも偽）。受け付けが諦めた往復は ok 偽・stalled 真。返り: pass_dir・review（返答）・gave（諦めた訳。無ければ空）・
-    board（見え方）・blocks・outcome（形 review の控えの語。ほかは None）・ok・stalled。返答が無ければ Missing"""
+    board（見え方）・blocks（審査が挙げた block。機械が足した保留の項目の block は数えない。converge.block_faces）・
+    outcome（形 review の控えの語。ほかは None）・ok・stalled。返答が無ければ Missing"""
     p = pass_dir(d, inputs["k"])
     gave = rolekit.given_up_reason(p, REVIEW_NODE)
     review = _read_json(p / REVIEW_FILE) if (p / REVIEW_FILE).is_file() else None

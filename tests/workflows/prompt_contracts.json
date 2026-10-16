@@ -5263,7 +5263,7 @@
       "nodes": [
         "workflows/plan-review/works-factory-plan-review.yaml#plan-review"
       ],
-      "output_format_sha256": "0b43ae330487e7b13fe7631c87c9b8eb5d74430c5d78d181062ed9ee81d1ad9f",
+      "output_format_sha256": "297258cd271af65a781b7eea8fb139477e12d1adec88e5204e0498681ae7940f",
       "json_keys": []
     },
     "forbidden": [
@@ -5471,7 +5471,7 @@
       "nodes": [
         "workflows/plan-review/works-factory-plan-review.yaml#plan-review-fix"
       ],
-      "output_format_sha256": "98e4521e6dc21aca5f1becf7d5ea87918f92462044e4077cb9ed7d404ad98d67",
+      "output_format_sha256": "53945eb94ed8b5a6f20514bd190cb94dd584ab1e587dc3d8b94dfb8d5400b5ff",
       "json_keys": []
     },
     "forbidden": [],
