@@ -30,7 +30,7 @@ import pathlib
 
 import concepthome
 import eye   # ブロックの時間の欄（eye.wall）
-import listcut   # 件数の決まらない一覧を切る（after_lines）
+import listcut
 import planmarks   # 修正案の外れの訳の文の住処（answer_line）
 import promptsection
 
@@ -199,7 +199,7 @@ def after_lines(board_dir) -> list:
     doc = read_after(board_dir)
     if doc is None:
         return []
-    where = str(pathlib.Path(board_dir) / AFTER_FILE)   # 全件の置き場（切った一覧の残りの行が指す）
+    where = str(pathlib.Path(board_dir) / AFTER_FILE)
     out = [after_counts(board_dir)]
     out += listcut.lines((r["text"] for r in after_rows(board_dir)), where=where)
     out += listcut.lines((f"新しい名 {n.get('name')}（現れる所 {n.get('sites')} か所）" for n in doc["after"].get("new_names") or []

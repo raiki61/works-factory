@@ -27,7 +27,6 @@ class ListcutCase(unittest.TestCase):
         self.assertEqual(got[:listcut.SHOWN], [f"  - {x}" for x in items[:listcut.SHOWN]])
         self.assertEqual(got[-1], "  - " + listcut.REST.format(n=20000 - listcut.SHOWN) + "（全件: out/fix-removed.json）")
         self.assertIn(str(20000 - listcut.SHOWN), got[-1])
-        # 置き場を渡さない時は残りの行に全件の句を足さない。shown と prefix は呼び手が選べる
         small = listcut.lines(list("abcdef"), shown=2, prefix="    - ")
         self.assertEqual(small, ["    - a", "    - b", "    - " + listcut.REST.format(n=4)])
 

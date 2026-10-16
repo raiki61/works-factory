@@ -27,7 +27,7 @@ from answer import GO_WORDS, STOP_WORDS
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
 PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "
-DELETED_HEAD = "取り込むと消えるファイル"   # 元 works/dev/lib.sh:622-623 の行の頭（SHOWN 件を超える分は件数と封じた差分のパス。deleted_lines）
+DELETED_HEAD = "取り込むと消えるファイル"
 
 
 class SealError(Exception):

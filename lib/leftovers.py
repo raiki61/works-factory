@@ -172,10 +172,11 @@ def remove_new_ignored(board, repo, before_name: str = IGNORED_BEFORE_FILE, remo
 
 def removed(board, removed_name: str = REMOVED_FILE) -> dict:
     """盤面 board の根とその直下のフォルダ（include の scope の根）に clean が書いた removed_name を全部読む。投げない。
-    返り {ran, readable, reason, count, paths, by_scope}: ran はファイルが 1 つでも在る（clean が走った）。readable が偽なら
+    返り {ran, readable, reason, count, paths, by_scope, files}: ran はファイルが 1 つでも在る（clean が走った）。readable が偽なら
     reason に読めないファイルと理由（0 本に見せない）。by_scope は {scope の名（盤面の直下は ""）: [消したパス]}（名前の順）、
-    paths はその全部をつないだ物、count はその数。scope ごとに最後に clean が走った周の分だけ（前の周の分は上書きで残らない）"""
-    out = {"ran": False, "readable": True, "reason": "", "count": 0, "paths": [], "by_scope": {}}
+    paths はその全部をつないだ物、count はその数、files は見つけた removed_name のパス（全件の置き場）。scope ごとに最後に
+    clean が走った周の分だけ（前の周の分は上書きで残らない）"""
+    out = {"ran": False, "readable": True, "reason": "", "count": 0, "paths": [], "by_scope": {}, "files": []}
     board = pathlib.Path(board)
     try:
         found = sorted(p for p in [board / removed_name, *board.glob(f"*/{removed_name}")] if p.is_file())
@@ -194,7 +195,7 @@ def removed(board, removed_name: str = REMOVED_FILE) -> dict:
             continue
         out["by_scope"][scope] = names
     paths = [n for names in out["by_scope"].values() for n in names]
-    out.update(ran=bool(found), count=len(paths), paths=paths)
+    out.update(ran=bool(found), count=len(paths), paths=paths, files=[str(p) for p in found])
     if bad:
         out.update(readable=False, reason=f"{removed_name} が読めない（" + "／".join(bad) + "）")
     return out
