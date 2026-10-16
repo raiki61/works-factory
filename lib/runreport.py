@@ -1755,9 +1755,6 @@ def _reject_count(out_dir: pathlib.Path) -> dict:
 
 
 def _keep_rejected(out_dir: pathlib.Path, reply: dict, refused: dict) -> dict:
-    """take の拒否 refused を、拒んだ回の本文と引き継ぎのメモを控え PREV_ANSWER_FILE に積んでから返す。本文の無い返答の回は
-    控えを書き直さない。控えが読めない・オブジェクトでない・handoffs が並びでない・書けない時は、上書きせず refused に give_up を付けて
-    返す（口が 1 回目でも諦める）"""
     text = reply.get("text")
     if not isinstance(text, str) or not text.strip():
         return refused

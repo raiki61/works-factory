@@ -663,8 +663,6 @@ class AcceptScriptCase(Run):
         self.assertIn("拒否の控えが扱えない", ai["reason"])
 
     def test_rejected_round_names_the_previous_answer_relative(self):
-        """初見の読み手が通さずに拒んだ回は、前の答えの控えを run の置き場からの相対のパスで返す。控えの本文は返答と同じで、
-        handoffs の最後は返答の handoff。受け取った回は空"""
         handoff = {"read": ["lib/runreport.py:1"], "decided": ["訳"], "rejected": ["案"], "doubts": ["迷い"]}
         reply = json.dumps({**json.loads(self.REPLY), "handoff": handoff}, ensure_ascii=False)
         out = self.accept(reply, self.REDESIGN)
@@ -684,7 +682,6 @@ class AcceptScriptCase(Run):
 
 class RejectScriptCase(Run):
     def test_previous_answer_passes_through(self):
-        """輪の頭の節 reject は、前の周の拒否の訳と前の答えの控えのパスをそのまま返す（1 周目は両方空の字）"""
         for reason, prev in (("", ""), ("2 行目", "report/prev-answer.json")):
             with self.subTest(prev=prev):
                 code, out = self.run_script("reject", INPUTS_REASON=reason, INPUTS_PREV=prev)

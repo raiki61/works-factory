@@ -1087,8 +1087,6 @@ class AcceptCase(Base):
         self.assertEqual(kept["handoffs"], [json.loads(first)["handoff"], json.loads(second)["handoff"]])
 
     def test_unreadable_previous_answer_stops_without_overwrite(self):
-        """前の答えの控えが在るのに使えない（壊れた字・null・オブジェクトでない・handoffs が並びでない）時は、上書きせず、口の give_up で
-        1 回目から諦める。諦めの訳は AI_FILE・拒否の控え・reason_file に載る"""
         for n, broken in enumerate(("{壊れた", "null", "[]", '{"handoffs": "x"}', '{"text": "x"}')):
             with self.subTest(broken=broken):
                 out = self.out / f"broken-{n}"
@@ -1123,8 +1121,7 @@ class ReportGiveUpCase(Base):
     def test_rejects_live_in_the_rolekit_ledger_with_kind(self):
         """報告の書き手の拒否は rolekit の rejects-report.json に kind つきで積む（format・answer の順）。前の版の控え
         report-rejects.json と reject-<n>.md は作らない。reason_file は rejects-report.md で、それまでの拒否を全部持つ。
-        読めない返答・空の返答・本文の無い返答も kind answer で積み、返りは {done, ok, reason, kind, reason_file, prev_file} の 6 欄。
-        本文の在る返答を拒んだ回は、前の答えの控え PREV_ANSWER_FILE も置き場に残す（本文の無い返答の回は作らず、prev_file は空）"""
+        読めない返答・空の返答・本文の無い返答も kind answer で積み、返りは {done, ok, reason, kind, reason_file, prev_file} の 6 欄"""
         bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)
         bad_terms = json.dumps({"text": "x", "terms": [{"term": ""}]})
         first = runreport.accept(bad_cell, AcceptCase.PASS, out_dir=self.out)

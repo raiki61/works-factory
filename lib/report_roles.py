@@ -49,7 +49,7 @@ TERM_SCHEMA = {"type": "object", "required": ["term", "definition"], "additional
                "properties": {"term": {"type": "string", "minLength": 1}, "definition": {"type": "string", "minLength": 1}}}
 # handoff は報告の本文にも AI_FILE にも載らない。拒んだ回だけ、受け付け runreport.accept が前の答えの控え
 # runreport.PREV_ANSWER_FILE に周の順で積み、次の周の書き手に渡す
-HANDOFF_KEYS = ("read", "decided", "rejected", "doubts")   # 読んだ所（ファイルと行）・そう決めた訳・退けた案・迷っている所
+HANDOFF_KEYS = ("read", "decided", "rejected", "doubts")
 HANDOFF_SCHEMA = {"type": "object", "required": list(HANDOFF_KEYS), "additionalProperties": False,
                   "properties": {k: {"type": "array", "items": {"type": "string"}} for k in HANDOFF_KEYS}}
 TEXT_SCHEMA = {"type": "object", "required": ["text", "handoff"], "additionalProperties": False,
