@@ -6026,13 +6026,13 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#head-depth"
       ],
-      "output_format_sha256": "e3e0bd52b99120e694dc09cffe9a482f1ae32d00eb099dd6d76a844550b5a299",
+      "output_format_sha256": "03394a1ead21682429753cf6ef5f0469f3357ffe3acf88587fb261edb0a503fe",
       "json_keys": [
         "cause_quote",
         "code_quote",
-        "depth",
         "item",
         "items",
+        "unknown",
         "where",
         "why"
       ]
@@ -6053,11 +6053,11 @@
         "quote": "まず Read せよ"
       },
       {
-        "what": "依頼の全部の行の原因と直す所を引用で示せるかを問う",
-        "quote": "依頼のどの行も、原因と直す所を名指していて、その両方を依頼の字とリポジトリの行の引用で示せるか"
+        "what": "依頼の行ごとに残る未知の種類を1つ引用で示す",
+        "quote": "依頼の行ごとに残っている未知の種類を 1 つ"
       },
       {
-        "what": "軽量なら全部の行をちょうど1度ずつ引用する",
+        "what": "どの段でも全部の行をちょうど1度ずつ引用する",
         "quote": "依頼の全部の行をちょうど 1 度ずつ書け"
       }
     ],

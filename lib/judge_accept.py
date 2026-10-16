@@ -2794,13 +2794,17 @@ def _diagnose_ctx(jdir, repo, start, doc, mats, review_md, repo_review_md) -> di
     }
 
 
+RECEIVES = [promptsection.Receive(DIAGNOSE_ROLE, headdepth.UNKNOWN_HEAD)]   # 判定役の材料 brief が貼る節（世界の解の行 worldmark.HEAD の行の欠けは別）
+
+
 def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> str:
     """元 works/blk-judge/lib/judgebrief.py:86 の brief の書き直し。判定役の材料を diagnose-brief.md に組み、パスを返す。節の並び:
-    1 頭 BRIEF_HEAD・2 世界の解の行（worldmark.section。置き場の world-state.json が行を指す時）・3 p2.diagnose の「## 入力」の節を
-    置き場の値で埋めた物・4 問いの台帳の段（LEDGER_HEAD。{{validator.*}} は PROMPT_TABLES）・5 依頼と PR の題と本文（始めの記録に
-    input.pr が在る時。request_text と pr_file_text）・6 依頼の answers（answers_section）・7 前の run の行（入口が置いた
-    prior-failures-in.json。carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・8 記録された方針
-    （policy.recorded_text。受け付けの _recorded と同じ置き場から組む。行が無い run も RECORDED_NONE と載る）・9 人の方針（POLICY_HEAD。文書が在る時。policy_text）。
+    1 頭 BRIEF_HEAD・2 世界の解の行（worldmark.section。置き場の world-state.json が行を指す時）・3 頭の深さの行ごとの未知の種類と
+    指示（headdepth.section。置き場の depth-head.json。決まっていない run は訳の 1 行）・4 p2.diagnose の「## 入力」の節を
+    置き場の値で埋めた物・5 問いの台帳の段（LEDGER_HEAD。{{validator.*}} は PROMPT_TABLES）・6 依頼と PR の題と本文（始めの記録に
+    input.pr が在る時。request_text と pr_file_text）・7 依頼の answers（answers_section）・8 前の run の行（入口が置いた
+    prior-failures-in.json。carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・9 記録された方針
+    （policy.recorded_text。受け付けの _recorded と同じ置き場から組む。行が無い run も RECORDED_NONE と載る）・10 人の方針（POLICY_HEAD。文書が在る時。policy_text）。
     素材の状態は materials.json（無ければ fill_materials）。
     対象差分は material-view.json（無ければ取る）"""
     j = pathlib.Path(jdir)
@@ -2808,6 +2812,7 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> 
     mats = read_json(j / MATERIALS_FILE) or fill_materials(j)
     body = Renderer(_diagnose_ctx(j, repo, start, doc, mats, review_md, repo_review_md), cap=None).render(template())
     world = worldmark.section(worldmark.stage_rows(j) or [])
+    unknowns = headdepth.section(j / headdepth.RECORD)
     pr = _pr_of(start)
     req = ""
     if pr:
@@ -2820,7 +2825,7 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> 
     pol = policy_text(start)
     p = j / DIAGNOSE_BRIEF_FILE
     tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(BRIEF_HEAD + "\n\n" + (f"{world}\n" if world else "") + body + (f"\n\n{req.rstrip()}\n" if req else "")
+    tmp.write_text(BRIEF_HEAD + "\n\n" + (f"{world}\n" if world else "") + f"{unknowns}\n" + body + (f"\n\n{req.rstrip()}\n" if req else "")
                    + (f"\n\n{answers}\n" if answers else "") + (f"\n\n{prior}\n" if prior else "") + f"\n\n{recorded}\n"
                    + (f"\n\n{POLICY_HEAD}\n\n{pol.strip()}\n" if pol.strip() else ""), encoding="utf-8")
     os.replace(tmp, p)
@@ -3868,8 +3873,8 @@ EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "
 EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
 PURPOSE_REVIEW_FILE = _purpose.PURPOSE_REVIEW_FILE
-PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE,
-                PURPOSE_REVIEW_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
+PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE, PURPOSE_REVIEW_FILE,
+                headdepth.RECORD)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
 
 
 def _empty_public(name: str):
@@ -3877,7 +3882,8 @@ def _empty_public(name: str):
     return {PREMISES_FILE: lambda: {"constraints": []},
             PR_EXCLUDED_FILE: lambda: {"node": prcheck.NODE, "excluded": []},
             MATERIALS_FILE: lambda: {},
-            PURPOSE_REVIEW_FILE: lambda: {}}[name]()
+            PURPOSE_REVIEW_FILE: lambda: {},
+            headdepth.RECORD: lambda: headdepth.record(headdepth.STANDARD, headdepth.NO_RECORD)}[name]()
 
 
 def _fill(path: pathlib.Path, empty) -> pathlib.Path:

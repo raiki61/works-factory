@@ -588,6 +588,33 @@ class VerifyNeighborCase(TmpCase):
         self.assertIn("- 単位 1 `a.py 分母`: ", text)
 
 
+class HeadDepthNeighborCase(TmpCase):
+    """判定の隣の頭の深さの控え（depth-head.json）の行ごとの未知の種類と指示を、形 plan の修正案の役の材料に貼る"""
+
+    JUDGMENT = {"units": [{"key": "a.py 分母", "label": "block", "disposition": "do-now", "reason": "r"}], "questions": []}
+
+    def brief(self, judgment_file, root="run"):
+        rd = self.tmp / root / "plan" / "r1"
+        rd.mkdir(parents=True)
+        path, _ = planfile.write_brief(rd, self.tmp / root / "plan", mode="plan", judgment=self.JUDGMENT, judgment_file=judgment_file, units=[],
+                                       structure_dir_=self.tmp / "s", world_rows=None, spec=None, repo=self.tmp, review_rev="", base="",
+                                       review_md="", lang_line=rolekit.lang_line({}))
+        return path.read_text(encoding="utf-8")
+
+    def test_head_depth_kinds_reach_the_prompt(self):
+        """控えが在れば種類・番地・指示の節、控えが無ければ『決まっていない』の 1 行、判定の記録の無い run には節が無い"""
+        import headdepth
+        jdir = self.tmp / "judge"
+        text = self.brief(jdir / "judgment.json", root="no-record")
+        self.assertIn(f"{headdepth.UNKNOWN_HEAD}\n\n行ごとの未知の種類は決まっていない（訳: {headdepth.NO_RECORD}）", text)
+        items = [{"item": 1, "unknown": "範囲", "cause_quote": "設定の鍵に響く", "where": "a.py:3", "code_quote": "KEY = 1"}]
+        headdepth.write(jdir, headdepth.record("重厚", "設計の選び", items=items))
+        text = self.brief(jdir / "judgment.json")
+        self.assertIn(f"{headdepth.UNKNOWN_HEAD}\n\n- 行 1（範囲）: 依頼の字「設定の鍵に響く」・番地 a.py:3「KEY = 1」"
+                      f"・指示: {headdepth.ASKS['範囲']}", text)
+        self.assertNotIn(headdepth.UNKNOWN_HEAD, self.brief(None, root="no-judgment"))
+
+
 class RevisedFieldsCase(TmpCase):
     """元 replan.revised_fields（直した項目の欄を planmarks.split で作り直して差し替える）"""
 

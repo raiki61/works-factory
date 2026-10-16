@@ -23,16 +23,20 @@ facts = headdepth.read(jdir).get("facts") or {}
 rows = ja.read_json(jdir / ja.REQUEST_FILE, []) or []
 
 
-def refuse(why: str) -> dict:
-    headdepth.write(jdir, headdepth.record(headdepth.STANDARD, headdepth.NOT_ACCEPTED.format(why=why), facts_doc=facts))
+def refuse(why: str, role_why: str = "") -> dict:
+    """控えは標準と拒みの訳。役の訳（返答の why）が在れば添える（3 回目で標準に落ちた時に報告の根拠に役の訳が残る）"""
+    kept = f"{why}／役の訳: {role_why}" if role_why else why
+    headdepth.write(jdir, headdepth.record(headdepth.STANDARD, headdepth.NOT_ACCEPTED.format(why=kept), facts_doc=facts))
     return {"ok": False, "reason": why}
 
 
 def take(reply: dict) -> dict:
     gaps = headdepth.check(reply, rows, Path.cwd())
     if gaps:
-        return refuse("／".join(gaps))
-    headdepth.write(jdir, headdepth.record(reply["depth"], reply["why"].strip(), items=reply.get("items") or [], facts_doc=facts))
+        role_why = reply.get("why") if isinstance(reply, dict) else ""
+        return refuse("／".join(gaps), role_why.strip() if isinstance(role_why, str) else "")
+    items = reply.get("items") or []
+    headdepth.write(jdir, headdepth.record(headdepth.tier_of(items), reply["why"].strip(), items=items, facts_doc=facts))
     return {"ok": True, "reason": ""}
 
 

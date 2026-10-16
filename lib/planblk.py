@@ -50,6 +50,7 @@ import converge  # noqa: E402
 import design  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 import gatemarks  # noqa: E402
+import headdepth  # noqa: E402
 import libdocs  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402
@@ -933,6 +934,7 @@ RECEIVES = [
         PLAN_SLOTS_HEAD, PRESCRIPTION_HEAD, PRESCRIPTION_UNIT_HEAD, VERIFY_HEAD, ripple.UNITS_HEAD, ripple.UNIT_HEAD, structmark.PLAN_HEAD, structmark.PLAN_CLEAN_HEAD,
         carry.PRIOR_HEAD, carry.REDESIGN_HEAD, converge.FACE_HEAD, converge.OWED_HEAD)),
     *(promptsection.Receive("plan", head) for head in (worldmark.HEAD,)),
+    *(promptsection.Receive(role, headdepth.UNKNOWN_HEAD) for role in _WRITERS),
     *(promptsection.Receive("plan-review", head) for head in (
         DESIGN_HEAD, MAP_ITEMS_HEAD, planmarks.REVIEW_HEAD, planmarks.FIELDS_ITEM_HEAD, planmarks.DEVIATION_HEAD, AGG_HEAD, ITEM_HEAD, SYNERGY_HEAD,
         ITEM_PLAN_HEAD, ITEM_UNITS_HEAD, ALL_ITEMS_HEAD, OVERLAPS_HEAD, BRIEF_TITLE, SUB_FORMAT, DIFF_HEAD, CARRIED_HEAD, PRECEDENT_HEAD,

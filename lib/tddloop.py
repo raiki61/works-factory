@@ -145,6 +145,7 @@ GATE_OFF = "off"
 LIGHT = "軽量"
 CMD_LIGHT = "light"
 SUITE_MADE_NOTE = "一式を走らせて出来たファイル"
+ROUTE_REFUSED = "振り分けの段（単位の名の無い拒否）"
 
 
 class Broken(Exception):
@@ -2217,6 +2218,19 @@ def exit_fields(start_out: dict) -> dict:
            "calls": st.get("calls", [])}
     if st.get("reused"):
         out["reused"] = st["reused"]
+    return out
+
+
+def refused_units(calls) -> list:
+    """出口の欄 calls（step 1 回ごとの {n, phase, unit_key, ok, …}）のうち、ok が偽で phase が runner（機械の止まり。役の拒否と
+    分ける）でない物の unit_key（現れた順・重なりは 1 つ）。単位の名の無い拒否（振り分けの段。unit_key が空）は ROUTE_REFUSED で
+    数える。calls が並びでなければ空。修正の後に深さを標準へ上げる信号（depth.late_signals の refused）の元"""
+    out = []
+    for c in calls if isinstance(calls, list) else []:
+        if isinstance(c, dict) and c.get("ok") is False and c.get("phase") != "runner":
+            name = c.get("unit_key") or ROUTE_REFUSED
+            if isinstance(name, str) and name not in out:
+                out.append(name)
     return out
 
 
