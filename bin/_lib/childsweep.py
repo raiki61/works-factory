@@ -10,7 +10,7 @@ finishes」）。この部品はメイングラフの最後のノードから呼
 - status が completed の子だけを消す。再開は completed の子を起こし直さず記録だけを使うが、failed などの子は作業ツリーを
   使い回して起こし直す（packages/workflows/src/dag-executor.ts の fan_out の再開）。
 - completed の子でも、子を起こした fan_out のノードと、同じ include の join（子の作業ツリーから書き込みの記録を写す。
-  workflows/fix/scripts/join.py の writes.carry_children）の両方がこの run で completed になるまでは残す。どちらかが落ちた run は
+  workflows/fix/scripts/join.py の fixboard.adopt_returned（writes.carry_children））の両方がこの run で completed になるまでは残す。どちらかが落ちた run は
   再開でき、再開は前に成功したノードだけを飛ばし、依存が走り直したノードも走らせ直す（dag-executor.ts の node_skipped_prior_success・
   node_prior_cache_invalidated）ので、join が消えた作業ツリーを読みに行く。ノードの状態は workflow get --json --verbose の nodes で読む。
 - --force は commit していない変更の照らしを越えるために要る（子は修正を commit せず木の sha で親へ渡す）。越えないのは

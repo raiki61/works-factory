@@ -1516,6 +1516,40 @@ class BlockScriptsCase(unittest.TestCase):
                          [(os.path.realpath(self.repo / "stats.py"), os.path.realpath(child / "stats.py"))])
         self.assertEqual(writes.unrecorded(self.repo, ["stats.py", "extra.py"], parent_log), ["extra.py"])
 
+    def test_join_carries_a_childs_agreed_scope_to_the_review_and_refix_briefs(self):
+        """組の子の置き場の範囲の相談の合意（allow の行）は、join が親の置き場へ group_id つきで写し、親の差分の審査の材料
+        （review1-brief.json）と手直しの材料（refix1-brief.json）の plan_items の allowed_paths に許したパスが入る。欄 agreed には
+        相談の id と group_id が載り、手直しの指示書の範囲の節にも同じパスが出る"""
+        import refix
+        start = self.snapshot(self.repo)
+        t1 = self.tree_with({"stats.py": (self.repo / "stats.py").read_text(encoding="utf-8").replace("len(xs) - 1", "len(xs)")})
+        child = self.tmp / "child-place"
+        row = {"id": 4, "item": "1", "status": "answered", "decision": "allow", "origin": "",
+               "granted_paths": ["extra.py"], "granted_tests": [], "granted_new_tests": [], "reason": "子が記録の定数を足す"}
+        fixboard.trace(child, conflict.ASKED_OP, **row)
+        fixboard.trace(child, conflict.ASKED_OP, **{**row, "id": 5, "decision": "deny", "granted_paths": ["denied.py"]})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start, place=str(child)))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 1, "returned": 1}), err)
+        self.assertEqual([(r["id"], r["group_id"]) for r in conflict.agreed(self.place)], [(4, "g1")])
+        self.assertEqual(conflict.plan_asks(self.place), [], "写した行は親が自分で聞いた行ではない")
+        items = [{"item": 1, "unit_keys": ["A"], "route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": ["stats.py"],
+                  "out_of_scope": []}]
+        base = fixboard.record_base_rev(self.place, self.repo)
+        got = refix.cut(self.place, 1, self.repo, base, items=items)
+        self.assertTrue(got["ok"], got)
+        reviewed = refix.accept_review(_RV_REVIEW, self.place, base, self.repo, n=1, items=items)
+        self.assertTrue(reviewed["ok"], reviewed)
+        prep = fixboard.prep_fix(self.place, 1, items=items)
+        self.assertTrue(prep["ok"], prep)
+        for name in ("review1-brief.json", "refix1-brief.json"):
+            with self.subTest(brief=name):
+                brief = json.loads((self.place / name).read_text(encoding="utf-8"))
+                self.assertEqual(brief["plan_items"][0]["allowed_paths"], ["stats.py", "extra.py"])
+                self.assertEqual([(r["id"], r["group_id"], r["granted_paths"]) for r in brief["agreed"]], [(4, "g1", ["extra.py"])])
+        self.assertIn("extra.py", refix.scope_text(self.place, items))
+
     # ---- join.py
     def test_join_applies_both_groups_in_order(self):
         start = self.snapshot(self.repo)
@@ -2515,8 +2549,9 @@ class ClashScenarioCase(unittest.TestCase):
     TEST_B = ("import unittest\n\nfrom b import triple\n\n\nclass TestB(unittest.TestCase):\n"
               "    def test_triple(self):\n        self.assertEqual(triple(2), 6)\n")
 
-    def joined_with_clash(self, g2_extra=None):
-        """種を組んで join を回し、g2 を赤で戻して直し待ちに控えた所まで進める。g2_extra は g2 が足して変えるファイル"""
+    def joined_with_clash(self, g2_extra=None, g2_result=None):
+        """種を組んで join を回し、g2 を赤で戻して直し待ちに控えた所まで進める。g2_extra は g2 が足して変えるファイル、
+        g2_result は g2 の子の結果に足す欄"""
         start = self.rerun_seed({
             "e.py": f"E1 = 1\n{self.FILLER}E8 = 8\n",
             "b.py": "def triple(x):\n    return x * 3 + 1\n",
@@ -2529,7 +2564,8 @@ class ClashScenarioCase(unittest.TestCase):
         out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
                                     {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
         _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
-        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, verified=["test_b.py::TestB::test_triple"]))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, verified=["test_b.py::TestB::test_triple"],
+                                                                 **(g2_result or {})))
         code, out, err = _blk_run("join", self.repo, self.art)
         self.assertEqual((code, out), (0, {"groups": 2, "returned": 1}), err)
         self.green_tree = self.snapshot(self.repo)
@@ -2595,6 +2631,24 @@ class ClashScenarioCase(unittest.TestCase):
         self.assertIn("E8 = 80\n", e, "後の組の直しも残る")
         code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
         self.assertEqual((code, out), (0, {"go": False, "count": 0}), err)
+
+    def test_join_clash_repaired_carries_the_childs_agreed_scope(self):
+        """合わせ役の直しが通って戻せた組になった組（clash.settle_repaired）の子の置き場の allow の相談の行は、親の conflict.agreed に
+        group_id つきで 1 行だけ出る（deny の行は写さない）。join で赤のまま戻した間は、まだ届いていない"""
+        child = self.tmp / "child-g2"
+        row = {"id": 3, "item": "2", "status": "answered", "decision": "allow", "origin": "",
+               "granted_paths": ["c.py"], "granted_tests": [], "granted_new_tests": [], "reason": "b.py の直しに c.py が要る"}
+        fixboard.trace(child, conflict.ASKED_OP, **row)
+        fixboard.trace(child, conflict.ASKED_OP, **{**row, "id": 4, "decision": "deny", "granted_paths": []})
+        self.joined_with_clash(g2_result={"place": str(child)})
+        self.assertEqual(conflict.agreed(self.place), [], "戻した組の合意はまだ親に無い")
+        out = self.prep()
+        self.assertTrue(out["go"], out)
+        (self.repo / "b.py").write_text(self.FIXED_B, encoding="utf-8")
+        got = self.accept(self.fixed_reply(), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        self.assertEqual([(r["id"], r["group_id"], r["granted_paths"]) for r in conflict.agreed(self.place)], [(3, "g2", ["c.py"])])
+        self.assertEqual(conflict.plan_asks(self.place), [], "写した行は親が自分で聞いた行ではない")
 
     def joined_with_text_clash(self, seed=None, g1=None, g2=None):
         """種を組んで join を回し、g1 と同じ行（e.py の E1）を別の値に変えた g2 を字で当たらない組として控えた所まで進める。
@@ -3275,7 +3329,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((result["objection"], [t["path"] for t in result["allowed_tests"]], result["verified"], result["conflicts"]),
                          ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
-        self.assertEqual(result["place"], str(self.place), "親の conflict-check がこの組の名指しに許す根")
+        self.assertEqual(result["place"], str(self.place), "置き場のパス（読み手と使い道は fixboard.group_result の place の説明）")
 
     def test_group_end_lists_allowed_tests_only_for_an_accepted_reply(self):
         """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても許しの訳 allowed_tests を

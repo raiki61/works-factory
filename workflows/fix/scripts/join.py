@@ -12,8 +12,9 @@
 works/blk-fix/lib/tddlanes.py:688 _green_after。その前に Archon の変数を環境から落とす）。赤なら今の組だけを戻して後の組を当て続け、
 戻した組を置き場の clash.json に直し待ちで控える（clash.record。後ろの合わせのループが当て直して直すか、裁定へ回す。持ち主の決め
 clash-goes-to-ruling）。字で当たらない組も控える（合わせのループが食い違いの印つきで当て直し、合わせ役が印を解く。確かめ直しが
-落ちた組は控えない）。戻せた組の子の
-書き込みの記録は、親の作業ツリーの記録へ写す（writes.carry_children。親の手直しの受け付けが、子の書いた変更を記録の無い変更と見ない）。
+落ちた組は控えない）。戻せた組の子から親へ写す物は fixboard.adopt_returned の 1 つの口が持つ（子の書き込みの記録を親の作業ツリーの
+記録へ。writes.carry_children。親の手直しの受け付けが、子の書いた変更を記録の無い変更と見ない。子の TDD の輪の状態と、子の run の範囲の
+相談の合意も）。
 当たらない・確かめ直しが赤・確かめ直しが落ちた組は当てたパスを戻して、returned: false と理由。
 当てたパスを戻せなかった組は当てていないと言わず、当たったままのパスを欄 unrestored に名指し（fixboard.UNRESTORED）、作業ツリーが
 信用できないので後の組は当てない（fixboard.AFTER_UNRESTORED。返す節が止めの語 stopby.UNRESTORED で人に回す）。
@@ -21,8 +22,7 @@ clash-goes-to-ruling）。字で当たらない組も控える（合わせのル
 置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], units: [{unit_id, group_id, status, reason}]}
 （backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻せなかった組だけが持つ、
 当たったままのパスの並び。後ろの合わせのループが、直し待ちに控えた組の行を置き直して欄 clash を足す。lib/clash.py）を書き、
-組の差分は join/<group_id>.diff に控える。戻せた組の子の TDD の輪の状態（結果の tdd_state）は親の置き場の tdd-<k>/ に、実行器を
-親の作業ツリーで解き直して写す（fixboard.adopt_tdd_states。裁定の後の修正の受け付けが読む）。返り {groups: 組の数, returned: 戻せた組の数}。
+組の差分は join/<group_id>.diff に控える。返り {groups: 組の数, returned: 戻せた組の数}。
 置き場の groups.json が無い・読めない・git が効かない: 標準エラーに 1 行で 1。結果のファイルが無いか読めない組が在れば、作業ツリーを
 変えずに同じく 1（子が落ちた run は組の節が落ちてこの節が走らず、諦めた子も group-end が結果を書くので、結果の無い組は壊れた結果。
 持ち越しにして済んだ子の変更を失わず、この節が落ちて run を止める。issue #576）。
@@ -41,7 +41,6 @@ import lanekit  # noqa: E402
 import oneline  # noqa: E402
 import startrec  # noqa: E402
 import unittrees  # noqa: E402
-import writes  # noqa: E402
 import writelog  # noqa: E402
 
 
@@ -112,10 +111,8 @@ def main() -> dict:
     joined = {"par": bool(plan["par"]), "groups": rows, "units": units}
     if unrestored:   # 後の写しが落ちても、当たったままの組を後の節（fixboard.held）が読めるように先に書く
         fixboard.write_json(place / fixboard.JOIN_FILE, joined)
-    if log is not None and log.is_file():
-        writes.carry_children(log, repo, applied)
-    fixboard.adopt_tdd_states(place, [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]],
-                              boundary.work_tree())
+    fixboard.adopt_returned(place, boundary.work_tree(), [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]],
+                            log=log, applied=applied)
     fixboard.write_json(place / fixboard.JOIN_FILE, joined)
     return {"groups": len(rows), "returned": sum(1 for r in rows if r["returned"])}
 

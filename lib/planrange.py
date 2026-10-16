@@ -5,7 +5,8 @@
 - 項目の範囲: allowed_paths の glob と、tests・rewrite_tests の id のファイル（planmarks.test_paths）。glob の並びで言えば item_globs
 - out_of_scope: 範囲の中でも触らない物で、範囲より強い。ただし範囲の相談の合意でその項目の out_of_scope から外したパス（LIFTED。
   字のまま同じパスだけ）は、その項目では当たらない
-- 合意（with_agreed）: 範囲の相談で修正案を書いた役が許したパス（conflict.agreed）を、その項目の allowed_paths に足す
+- 合意（with_agreed）: 範囲の相談で修正案を書いた役が許したパス（conflict.agreed。戻せた組の子の置き場から写した行も含む）を、
+  その項目の allowed_paths に足す
 - 許し（permit_paths）: テストの変更の許し（conflict.test_permits の範囲の行）のパスと、裁定の後なら直す裁定のパス
   （conflict.ruled_paths）。run の全部の項目の範囲の和に入る。out_of_scope には勝たない
 
@@ -15,8 +16,9 @@
 - outside(items, paths, permits, *, hint): 単位に結べない変わったパスの外れの行（全項目の範囲の和か許しに入らない・どれかの項目の
   out_of_scope に当たる）。hint なら、ほかの項目の out_of_scope に当たるがある項目の範囲には入るパスに OWNER_HINT を足す
 - approved(items, *, by): 承認済みの修正案の項目の値 items（planmarks.approved_items の形。呼び手が渡す）を照らせるか
-- scope(b, *, items, ruled, by, agreed, round_): 受け付けが照らす値 ({items: 合意を足した項目, permits: 許しのパス, rule: OOS_ANY}, "")。照らさない
-  項目なら (None, 理由)。照らし（check_paths・planscope.check）と役の指示書（scope_text）が同じ値を引く 1 か所
+- scope(b, *, items, ruled, by, agreed, round_): 受け付けが照らす値 ({items: 合意を足した項目, permits: 許しのパス, rule: OOS_ANY,
+  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（check_paths・planscope.check）と役の指示書（scope_text）と
+  役の brief の範囲の欄（fixboard.scope_brief）が同じ値を引く 1 か所
 - fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く（rule は OOS_MINE）
 - scope_text(got): 役の指示書に貼る節（SCOPE_HEAD）。scope の値の out_of_scope の決まりの文（rule）と、項目の範囲・out_of_scope・
   許しのパスを字のまま並べる
@@ -199,14 +201,15 @@ def approved(items, *, by: str = stopby.FIX):
 
 def scope(b, *, items, ruled: bool, by: str = stopby.FIX, agreed=None, round_: int = 1) -> tuple[dict | None, str]:
     """受け付けが照らす値: ({items: 承認済みの修正案の項目 items（approved に渡す値か口）に範囲の相談の合意（agreed。None なら
-    置き場 b の conflict.agreed）を足した物, permits: permit_paths, rule: out_of_scope の決まりの文 OOS_ANY（outside の決まり）},
-    "")。照らさない項目なら (None, 理由)"""
+    置き場 b の conflict.agreed）を足した物, permits: permit_paths, rule: out_of_scope の決まりの文 OOS_ANY（outside の決まり）,
+    agreed: items に足した合意の行（conflict.agreed の行のまま。出どころは各行の id と group_id）}, "")。照らさない項目なら
+    (None, 理由)"""
     items, why = approved(items, by=by)
     if items is None:
         return None, why
     agreed = conflict.agreed(b) if agreed is None else agreed
     return {"items": with_agreed(items, agreed), "permits": permit_paths(b, ruled=ruled, agreed=agreed, round_=round_),
-            "rule": OOS_ANY}, ""
+            "rule": OOS_ANY, "agreed": agreed}, ""
 
 
 def fix_scope(b, pass_: str, *, items, agreed=None, round_: int = 1) -> tuple[dict | None, str]:
