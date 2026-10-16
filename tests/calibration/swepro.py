@@ -20,7 +20,8 @@ claude（素の Claude Code を run.PLAIN_MODEL・run.PLAIN_EFFORT で claude -p
 1 件の流れ: prepare がホストの docker build で、課題のイメージの上の /opt/works-bench に道具と HEAD の工場の写しを焼いた
 派生のイメージ works-bench-swepro:<instance_id> を作り（dockerfile・build_steps。網が要る段は全部ここ）、課題のフォルダの写しの
 docker_image をそれに替える（ホストの Claude Code の版が bwrap の写しの元の版 BWRAP_FROM と違えば docker の前に止める）。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
-（工場の commit と Claude Code の版がホストと同じか）と bwrap を確かめるだけで網を使わず（setup_commands）、run で課題の入力
+（工場の commit と Claude Code の版がホストと同じか）と、役の道具が踏む sandbox の層（bwrap の proc・apply-seccomp の seccomp の登録・
+同梱の rg の argv0）を確かめるだけで網を使わず（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら remote の無い /app に試みの
 フォルダの中の写しを origin として持たせてから起こし（give_origin。Archon は remote の無い対象を拒む）、
@@ -35,12 +36,13 @@ Apple silicon の上の docker: 課題のイメージは linux/amd64 だけな�
 --platform linux/amd64 を付ける。DOCKER_DEFAULT_PLATFORM は付けない（Harbor の egress の付き添いは daemon の素の型で build され、
 amd64 を強いると立たない）。docker の CLI に compose の差し込み（docker compose）が要る。
 
-台に要る物（試行の段で Claude Code の sandbox の bwrap が課題のコンテナの中で立つため。setup が bwrap を確かめ、立たなければ
-止めた層を見分ける道を 1 行で出す）:
-- Apple silicon では、amd64 の真似を Rosetta で行う VM（Apple の Virtualization の上）で docker を回す（qemu の利用者モードの
-  真似では、Claude Code の実行ファイルが Segmentation fault で落ちる）。
-- docker の VM の kernel の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の kernel.apparmor_restrict_unprivileged_userns=1 を
-  0 に。起こし直しても効くよう VM の起動の設定に入れる）。コンテナの側からは外せない。
+台に要る物（setup の確かめ（setup_commands）が通る台。試行の段で Claude Code の sandbox が課題のコンテナの中で立つため。
+立たなければ止めた層を見分ける道を 1 行で出す）:
+- amd64 のネイティブの Linux の docker で回す。amd64 の真似の VM では、Rosetta なら seccomp の層で、qemu の利用者モードなら
+  実行ファイルが Segmentation fault で落ちる（seccomp・rg の層は setup が名指して止める）。
+- docker を回す kernel（ネイティブの Linux ならホスト、VM ならその VM）の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の
+  kernel.apparmor_restrict_unprivileged_userns=1 を
+  0 に。起こし直しても効くよう sysctl.d か VM の起動の設定に入れる）。コンテナの側からは外せない。
 - 環境 WorksBenchDocker が課題の主のコンテナにだけ、docker の既定の seccomp に名前空間を作る呼び出しと mount を足した写し
   （SANDBOX）を渡し、apparmor と docker が伏せる /proc の道（systempaths）を外す。--privileged・CAP_SYS_ADMIN は使わず、
   egress の付き添いは docker の既定のまま。他の環境（-e docker）の起動は、殻が setup で exec の前に断る。
@@ -272,27 +274,56 @@ def dockerfile(base_image: str, claude_version: str, factory_commit: str, place:
     return "\n".join(lines) + "\n"
 
 
-# bwrap を止める層は 4 つ。bwrap の文と台の VM の kernel の制限の値で見分ける
+# SANDBOX_REFUSED: bwrap を止める層は 4 つ。bwrap の文と docker を回す kernel の制限の値で見分ける
 SANDBOX_REFUSED = (
-    "Claude Code の sandbox（bwrap）がコンテナで立たない。上の bwrap の文で止めた層を見分ける: VM の kernel の制限が 1 なら"
-    " kernel（台の VM の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0 にし、起こし直しても効くよう VM の起動の設定に"
-    " 入れる）。0 か無いなら、No permissions to create new namespace は seccomp、Can't mount proc は docker が伏せた /proc"
+    "Claude Code の sandbox（bwrap）がコンテナで立たない。上の bwrap の文で止めた層を見分ける: docker を回す kernel の制限が 1 なら"
+    " kernel（docker を回す kernel（ネイティブの Linux ならホスト、VM ならその VM）の側で sysctl"
+    " kernel.apparmor_restrict_unprivileged_userns=0 にし、起こし直しても効く設定に入れる）。0 か無いなら、No permissions to"
+    " create new namespace は seccomp、Can't mount proc は docker が伏せた /proc"
     "（systempaths=unconfined で外す）、Failed to make / slave など他の mount の落ちは apparmor（どれも harbor run に"
-    f" -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。VM の kernel の制限: ")
+    f" -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。docker を回す kernel の制限: ")
+
+# 役の Bash が踏む apply-seccomp の登録の落ち。上の helper の文の層を見分ける。壊れの機構はここに寄せる
+SECCOMP_REFUSED = (
+    "Claude Code の sandbox の seccomp の helper（apply-seccomp）が立たない。上の helper の文で層を見分ける:"
+    " prctl(PR_SET_SECCOMP) の Invalid argument は amd64 の真似の上の seccomp の登録の拒みで、seccomp の写しを緩めても docker の"
+    " seccomp を外しても直らない（台を amd64 のネイティブの Linux の docker に移す）。unshare(CLONE_NEWUSER) の Invalid argument は"
+    " helper 自身の糸の競り合いで台の問題でない（setup を打ち直し、続くなら Claude Code の版の問題として報告する）")
+
+# 役の Grep・Glob が踏む同梱の rg の argv0 の落ち。壊れの機構はここに寄せる
+RG_REFUSED = (
+    "同梱の rg を argv0 が rg の形で起こせず、Claude Code の Grep・Glob が 0 件を返す。上の行が rg の起こしの出力で、bash や claude の"
+    " 欠け・権限の落ちならその文が原因。出力が Claude Code 自身の版の行なら、amd64 の真似の binfmt の登録に P フラグが無く、argv0 が"
+    " 実行ファイルのパスに替わっている（docker を回す kernel（VM ならその VM）で binfmt を P フラグ付き（POCF）で登録し直す）")
 
 
 def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:
     """(名, 命令)。殻が setup で順に root で打つ。どれも網を使わない（道具と工場は prepare が build の段で焼いた）"""
     missing = (f"課題のイメージに工場 {factory_commit} と Claude Code {claude_version} の焼き印が無い。"
                "swepro.py prepare で派生のイメージを作り直し、harbor run -p にその写しを渡す")
+    # sandbox と seccomp の確かめが同じ bwrap の中で走る引数。Claude Code BWRAP_FROM の bwrap の引数のうち、/proc と名前空間に
+    # 関わる部分の写し（伏せた /proc の上では proc の mount だけが落ちる）
+    bwrap = "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc"
+    rg = shlex.quote(f"(exec -a rg {place}/bin/claude --no-config --version)")
     return [
         # 測る物と来歴の factory_commit、コンテナとホストの Claude Code の版を一致させる
         ("stamp", f"test \"$(cat {place}/{STAMP} 2>/dev/null)\" = {shlex.quote(stamp(factory_commit, claude_version))} "
                   f"|| {{ echo {shlex.quote(missing)} >&2; exit 1; }}"),
-        # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす。引数は Claude Code
-        # BWRAP_FROM の bwrap の引数のうち、/proc と名前空間に関わる部分の写し（伏せた /proc の上では proc の mount だけが落ちる）
-        ("sandbox", "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc true "
+        # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす
+        ("sandbox", f"{bwrap} true "
                     f"|| {{ echo {shlex.quote(SANDBOX_REFUSED)}\"$(cat {USERNS_LIMIT} 2>/dev/null || echo 無い)\" >&2; exit 1; }}"),
+        # 役の Bash は sandbox の中で Claude Code 自身を ARGV0=apply-seccomp で起こして seccomp を登録する。起こし方は
+        # anthropics/claude-code の issue #86928 の再現の行（2.1.232 の idle-loop の試しと 2.1.241 の失敗率のループ）の
+        # ARGV0=apply-seccomp <claude-binary> /bin/true で、後ろの /bin/true は filter を当てた後に走る命令。prctl(PR_SET_SECCOMP) の
+        # Invalid argument の文は #86928 に無く、持ち主の issue #592 のコメント（2.1.300）だけが出どころ。bwrap の中で起こすので、
+        # 上の sandbox の確かめが通った後の落ちは helper の層に絞れる
+        ("seccomp", f"{bwrap} env ARGV0=apply-seccomp {place}/bin/claude /bin/true "
+                    f"|| {{ echo {shlex.quote(SECCOMP_REFUSED)} >&2; exit 1; }}"),
+        # 役の Grep・Glob は同梱の rg を argv0 を rg にして起こす（issue #592 のコメントの (exec -a rg <claude> --no-config --version)）。
+        # exec -a は bash の組み込みで POSIX sh に無いので、setup の exec がどの殻で渡しても効くよう bash -c で包む
+        # 落ちた時は取った出力を先に標準エラーへ出す（bash や claude の欠け・権限の落ちも、原因の行が残る）
+        ("rg", f"out=$(bash -c {rg} 2>&1); case \"$out\" in *ripgrep*) ;; "
+               f"*) printf '%s\\n' \"$out\" >&2; echo {shlex.quote(RG_REFUSED)} >&2; exit 1;; esac"),
     ]
 
 
