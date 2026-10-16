@@ -472,6 +472,59 @@ class TranscriptCase(Base):
         self.assertIn("- judge__diagnose: sonnet", self.section(text, report.MODEL_HEADING))
 
 
+    @staticmethod
+    def until(loop, n, ts, code):
+        """輪の回の until の行（止めた実行基盤の logger.ts の logExecOutput と dag-executor.ts の輪の until の呼びの形）"""
+        return {"type": runreport.EXEC_ROW, "step": f"{loop}{runreport.ITERATION_MARK}{n}", runreport.EXEC_LABEL: runreport.UNTIL_ROW,
+                runreport.EXIT_CODE: code, "ts": ts, "workflow_id": RUN}
+
+    def cost_section(self, rows):
+        facts = runreport.transcript_facts(rows, exclude_prefix="report__")
+        _, text, _ = self.build(transcript=facts)
+        return facts, self.section(text, report.COST_HEADING)
+
+    def test_until_rows_give_resubmit_count_and_minutes(self):
+        rows = rows_of(
+            start("judge__world-classes-loop", "2026-10-12T00:00:00Z"),
+            self.until("judge__world-classes-loop", 1, "2026-10-12T00:01:00Z", 1),
+            self.until("judge__world-classes-loop", 2, "2026-10-12T00:03:00Z", 0),
+            self.until("fix__tdd", 1, "2026-10-12T00:04:00Z", 0),
+            self.until("report__ask", 1, "2026-10-12T00:05:00Z", 1),
+            self.until("report__ask", 2, "2026-10-12T00:06:00Z", 0),
+            self.until("fix__kill", 1, "2026-10-12T00:07:00Z", "SIGTERM"),
+            self.until("fix__kill", 2, "2026-10-12T00:09:00Z", 0),
+            self.until("fix__flag", 1, "2026-10-12T00:10:00Z", True),
+            self.until("fix__flag", 2, "2026-10-12T00:11:00Z", 0),
+            {**self.until("fix__other", 1, "2026-10-12T00:12:00Z", 1), runreport.EXEC_LABEL: "ほかの呼び"},
+        )
+        facts, cost = self.cost_section(rows)
+        self.assertEqual(facts["resubmits"], {"judge__world-classes-loop": {"count": 1, "minutes": 2.0},
+                                              "fix__tdd": {"count": 0, "minutes": 0.0},
+                                              "fix__kill": {"count": 0, "minutes": 0.0},
+                                              "fix__flag": {"count": 0, "minutes": 0.0}},
+                         "exclude_prefix の輪・until でない呼びは数えない。字の exit_code（打ち切り）と bool は回り直しに数えない")
+        self.assertIn("judge__world-classes-loop: until が通らず回り直した回 1（受け付けの輪では拒否で出し直した回）・2.0 分", cost)
+        self.assertNotIn("fix__tdd: until", cost)
+        self.assertNotIn("fix__kill: until", cost)
+        self.assertNotIn("report__ask", cost)
+        self.assertNotIn("回り直し: 0 回", cost)
+        self.assertEqual(cost.splitlines()[-1], f"- {runreport.CHILD_LOOPS}")
+
+    def test_no_failed_until_says_zero_resubmits(self):
+        rows = rows_of(
+            self.until("judge__world-classes-loop", 1, "2026-10-12T00:01:00Z", 0),
+            self.until("fix__tdd", 1, "2026-10-12T00:02:00Z", 0),
+        )
+        _, cost = self.cost_section(rows)
+        self.assertIn("回り直し: 0 回（until の行を読んだ輪 2 本）", cost)
+        self.assertEqual(cost.splitlines()[-1], f"- {runreport.CHILD_LOOPS}")
+
+        _, cost = self.cost_section(rows_of(start("judge__diagnose", "2026-10-12T00:00:00Z"),
+                                            done("judge__diagnose", "2026-10-12T00:03:00Z", cost=0.5)))
+        self.assertIn("回り直し: 数えられない（記録に輪の until の行が無い）", cost)
+        self.assertNotIn("回り直し: 0 回", cost)
+        self.assertEqual(cost.splitlines()[-1], f"- {runreport.CHILD_LOOPS}")
+
     def test_fall_the_line_went_past_is_absorbed_not_interrupted(self):
         """元 report.split_fallen・head_stop: 線が受け止めると宣言した段（optional）の中で落ちた節は受け止めた落ち（止めたかの節に名と
         誤り、残りに 1 行）で、run を途中で終わらせた落ちと分ける。再試行の回と最後の誤りの文も出す"""
