@@ -150,17 +150,10 @@ class InputReadsCase(unittest.TestCase):
             with self.subTest(not_dict=not_dict), self.assertRaises(ValueError):
                 boundary.picked(not_dict, ("ok",))
 
-    def test_passed_carries_the_whole_dict(self):
-        """受け皿の素通しは、まるごとの入力の字を欄を削らない dict に戻す。飛んだ節は None、dict でない値は ValueError"""
+    def test_picked_is_the_only_way_to_the_whole_dict(self):
+        """返りまるごとを欄を削らずに戻す口は無い（素通しの口を置くと、宣言の外の欄が値として script に届く）"""
         from tests.shared.test_boundary import boundary
-        whole = {"ok": True, "hash": "123", "reason": "", "diff": None, "extra": 1}
-        self.assertEqual(boundary.passed(json.dumps(whole)), whole)
-        for skipped in ("null", "", None):
-            with self.subTest(skipped=skipped):
-                self.assertIsNone(boundary.passed(skipped))
-        for not_dict in ("[]", '"text"', "7"):
-            with self.subTest(not_dict=not_dict), self.assertRaises(ValueError):
-                boundary.passed(not_dict)
+        self.assertFalse(hasattr(boundary, "passed"))
 
 
 if __name__ == "__main__":

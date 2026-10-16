@@ -127,7 +127,7 @@ nodes:
 
   - id: test-gate-base-out
     # 受け皿 13 本の本体（script・runtime・timeout・output_format・mutates_checkout）はここ 1 か所。ほかの 12 本は <<: *receiver で受け、
-    # 受け皿ごとに id・depends_on・with だけを書く
+    # 受け皿ごとに id・depends_on・with だけを書く。with: の names は got から運ぶ欄の名で、宣言の外の欄は運ばない（workflows/AGENTS.md の E5）
     <<: &receiver
       script: returned
       runtime: uv
@@ -142,6 +142,7 @@ nodes:
     depends_on: [test-gate-base]
     with:
       got: "$test-gate-base.output"
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason"
 
   # 4 判定
   - id: judge
@@ -159,6 +160,7 @@ nodes:
     depends_on: [judge]
     with:
       got: "$judge.output"
+      names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why"
 
   # 5' 直す物が無い周（判定が直す単位を出さず、止めてもいない）は修正案を作らず、最後の R2 が要る独立設計だけを作る（元
   # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める。
@@ -186,6 +188,7 @@ nodes:
     depends_on: [design-only]
     with:
       got: "$design-only.output"
+      names: "pass stalled review design gate_axes ask_human questions"
 
   # 5 計画の往復。中の節は外から見えないので、本体の終わりの返しの節 plan-out が返りを欄ごとに受けて返す
   - id: plan-rounds
@@ -421,6 +424,7 @@ nodes:
     depends_on: [fix]
     with:
       got: "$fix.output"
+      names: "done units groups conflicts replan_items objection diff allowed_test_changes changed x_scalars delta_review handoffs mismatched stop_reason"
 
   - id: after-fix
     script: after_fix
@@ -457,6 +461,7 @@ nodes:
     depends_on: [replan]
     with:
       got: "$replan.output"
+      names: "ready plan structure ripple depth round"
 
   - id: replan-review
     include: works-factory-plan-review
@@ -481,6 +486,7 @@ nodes:
     depends_on: [replan-review]
     with:
       got: "$replan-review.output"
+      names: "pass stalled review design gate_axes ask_human questions"
 
   - id: ask-replan
     script: ask_replan
@@ -650,6 +656,7 @@ nodes:
     depends_on: [rejudge-run]
     with:
       got: "$rejudge-run.output"
+      names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why"
 
   - id: judged
     script: judged
@@ -728,6 +735,7 @@ nodes:
     depends_on: [test-gate-final]
     with:
       got: "$test-gate-final.output"
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason"
 
   # 9 独立の目
   - id: eyes
@@ -760,6 +768,7 @@ nodes:
     depends_on: [eyes]
     with:
       got: "$eyes.output"
+      names: "ok r1 r2 r3 r4 questions premise_check structure_after protected_hits notes"
 
   # 10 封じる
   - id: merge-seal
@@ -778,6 +787,7 @@ nodes:
     depends_on: [merge-seal]
     with:
       got: "$merge-seal.output"
+      names: "mode ok hash diff protected_hits reason"
 
   # 11 最後の関所
   - id: ask-final
@@ -876,6 +886,7 @@ nodes:
     depends_on: [merge-apply]
     with:
       got: "$merge-apply.output"
+      names: "mode ok hash diff protected_hits reason"
 
   # 13 報告。前の段が落ちても飛ばされても走る。resume でも collect と result は回し直す（always_run。report は include で、Archon は
   # include の always_run を捨てるので、回し直した collect の返りが変われば Archon が report の中の控えを捨てて回し直す）

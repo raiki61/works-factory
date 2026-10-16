@@ -769,35 +769,17 @@ LINE_TEXT = (ROOT / LINE_REL).read_text(encoding="utf-8")
 FIX_IN_TEXT = (ROOT / FIX_IN_REL).read_text(encoding="utf-8")
 
 
-def block_rel(include: str) -> str:
-    """差し込むブロック include のサブグラフの YAML のパス"""
-    return f"workflows/{include.removeprefix('works-factory-')}/{include}.yaml"
-
-
-BLOCK_TEXTS = {f"works-factory-{name}": (ROOT / block_rel(f"works-factory-{name}")).read_text(encoding="utf-8") for name in BLOCKS}
-
-
-def returned_fields(block_text: str) -> list:
-    """ブロックの YAML の返す節の output_format の欄（受け皿が受ける got の欄）"""
-    doc = yaml.safe_load(block_text)
-    return sorted(next(n for n in doc["nodes"] if n["id"] == doc["returns"])["output_format"]["properties"])
-
-
-def carried_shape(line_text: str, fix_in_text: str, block_texts: dict | None = None) -> dict:
-    """固定材料の運ぶ値の形: fix_in.received_live の鍵と、fix-in が受け皿（script returned）から受ける入力ごとの got の欄。got の欄は、
-    受け皿の with: が got_<欄> ならその鍵から、`got: $<dep>.output` なら同じ版のブロックの YAML（block_texts。include の名 → 字。
-    渡さなければ今の木のブロック）の返す節の output_format の properties から引く"""
-    block_texts = BLOCK_TEXTS if block_texts is None else block_texts
+def carried_shape(line_text: str, fix_in_text: str) -> dict:
+    """固定材料の運ぶ値の形: fix_in.received_live の鍵と、fix-in が受け皿（script returned）から受ける入力ごとの got の欄（受け皿の
+    with: の names か、got_<欄> の鍵）"""
     nodes = line_nodes(yaml.safe_load(line_text)["nodes"])
     live = next(n for n in ast.walk(ast.parse(fix_in_text)) if isinstance(n, ast.FunctionDef) and n.name == "received_live")
     got = {}
     for name, source in nodes["fix-in"]["with"].items():
         node = nodes.get((source.get("from") if isinstance(source, dict) else source).removeprefix("$").removesuffix(".output"))
         if node is not None and node.get("script") == "returned":
-            if "got" in node["with"]:
-                got[name] = returned_fields(block_texts[nodes[node["depends_on"][0]]["include"]])
-            else:
-                got[name] = sorted(key.removeprefix("got_") for key in node["with"] if key.startswith("got_"))
+            names = node["with"].get("names")
+            got[name] = sorted(names.split() if names else (key.removeprefix("got_") for key in node["with"] if key.startswith("got_")))
     return {"received": sorted(k.value for r in ast.walk(live) if isinstance(r, ast.Return) for k in r.value.keys), "got": got}
 
 
@@ -820,21 +802,16 @@ class CarriedShapeCase(unittest.TestCase):
         fork = conceptfence.fork_ref(ROOT)
         if fork is None:
             self.fail(f"HEAD と {conceptfence.MAIN_REF} の分かれ目を引けない（手元では git fetch origin main）")
-        old = {rel: text_at(fork, rel) for rel in (LINE_REL, FIX_IN_REL, FIXTURE_REL, *(block_rel(include) for include in BLOCK_TEXTS))}
+        old = {rel: text_at(fork, rel) for rel in (LINE_REL, FIX_IN_REL, FIXTURE_REL)}
         if None in old.values():
             return
-        old_blocks = {include: old[block_rel(include)] for include in BLOCK_TEXTS}
-        if carried_shape(old[LINE_REL], old[FIX_IN_REL], old_blocks) != carried_shape(LINE_TEXT, FIX_IN_TEXT, BLOCK_TEXTS):
+        if carried_shape(old[LINE_REL], old[FIX_IN_REL]) != carried_shape(LINE_TEXT, FIX_IN_TEXT):
             self.assertNotEqual(fixture.FORMAT, fixture_format(old[FIXTURE_REL]),
                                 f"運ぶ値の形が分かれ目 {fork[:12]} と違うのに lib/fixture.py の FORMAT が同じ")
 
     def test_shape_and_format_read_the_texts(self):
-        """受け皿が返りをまるごとで受ける形では、got の欄は受けるブロックの返す節の output_format から引く（欄の名を替えると形が変わる）"""
-        doc = yaml.safe_load(BLOCK_TEXTS["works-factory-judge"])
-        properties = next(n for n in doc["nodes"] if n["id"] == doc["returns"])["output_format"]["properties"]
-        properties["purposex"] = properties.pop("purpose")
-        renamed = {**BLOCK_TEXTS, "works-factory-judge": yaml.safe_dump(doc, allow_unicode=True)}
-        self.assertNotEqual(carried_shape(LINE_TEXT, FIX_IN_TEXT, renamed), carried_shape(LINE_TEXT, FIX_IN_TEXT, BLOCK_TEXTS))
+        renamed = LINE_TEXT.replace(" judgment purpose ", " judgment purposex ", 1)
+        self.assertNotEqual(carried_shape(renamed, FIX_IN_TEXT), carried_shape(LINE_TEXT, FIX_IN_TEXT))
         self.assertEqual(fixture_format((ROOT / FIXTURE_REL).read_text(encoding="utf-8")), fixture.FORMAT)
 
 
@@ -2679,27 +2656,41 @@ class RedepthCase(Artifacts):
 
 
 class ReturnedCase(unittest.TestCase):
-    def test_whole_output_is_the_got(self):
-        """受け皿は INPUTS_GOT（受ける節の返りまるごと）を、型を保ったまま got にする（hash "123" は字、reason "" は字、diff null は None）"""
-        whole = {"mode": "seal", "ok": True, "hash": "123", "diff": None, "protected_hits": [], "reason": ""}
-        got = returned.returned({"INPUTS_GOT": json.dumps(whole)})
-        self.assertEqual(got, {"got": whole, "stop_reason": ""})
+    def test_whole_output_gives_the_declared_fields(self):
+        """受け皿は INPUTS_GOT（受ける節の返りまるごと）の、INPUTS_NAMES（with: の names）で宣言した欄だけを、型を保ったまま got にする
+        （hash "123" は字、reason "" は字、diff null は None。返りに無い宣言の名は None、宣言の外の欄は運ばない）"""
+        whole = {"mode": "seal", "ok": True, "hash": "123", "diff": None, "protected_hits": [], "reason": "", "extra": 1}
+        got = returned.returned({"INPUTS_GOT": json.dumps(whole), "INPUTS_NAMES": "mode ok hash diff protected_hits reason missing"})
+        self.assertEqual(got, {"got": {**{k: v for k, v in whole.items() if k != "extra"}, "missing": None}, "stop_reason": ""})
         self.assertEqual((got["got"]["hash"], got["got"]["reason"], got["got"]["diff"]), ("123", "", None))
+
+    def test_fields_outside_the_declaration_stop_the_script(self):
+        """前の目の反例（返りを名で引き直す・globals・getattr・locals で引く）は、どれも宣言の外の欄を値として持たないので KeyError で止まる"""
+        env = {"INPUTS_GOT": json.dumps({"ok": True, "stall": True}), "INPUTS_NAMES": "ok"}
+        reads = {
+            "返りの欄を .get": 'returned(env)["got"].get("stall")',
+            "globals": 'globals()["returned"](env)["got"].get("stall")',
+            "getattr": 'getattr(sys.modules[__name__], "returned")(env)["got"]["stall"]',
+            "locals": '(lambda whole: locals()["whole"].get("stall"))(returned(env)["got"])',
+        }
+        for name, read in reads.items():
+            with self.subTest(name), self.assertRaises(KeyError):
+                eval(read, {**vars(returned), "sys": sys, "env": env})
 
     def test_fields_are_gathered_and_strings_stay_strings(self):
         """got_<欄> の形（計画の往復の 2 本だけに残る）は、欄を boundary.value で JSON の値として読む（"" は None、数の字は数。計画の
-        往復の欄に字の欄は無い）。字を字のまま保つのはまるごとの got の形（test_whole_output_is_the_got）"""
+        往復の欄に字の欄は無い）。字を字のまま保つのはまるごとの got の形（test_whole_output_gives_the_declared_fields）"""
         env = {"INPUTS_GOT_OK": "true", "INPUTS_GOT_ROUND": "2", "INPUTS_GOT_PLAN": "null", "INPUTS_GOT_QUESTIONS": "[]",
                "INPUTS_GOT_READY": ""}
         self.assertEqual(returned.returned(env),
                          {"got": {"ok": True, "round": 2, "plan": None, "questions": [], "ready": None}, "stop_reason": ""})
 
     def test_unreadable_got_is_a_fallback_not_an_empty_got(self):
-        """受ける返りが読めない（INPUTS_GOT が無い・空・null・object でない。got_<欄> の入力も無い）時は、空の got の成功にせず
+        """受ける返りが読めない（INPUTS_GOT が無い・空・null・object でない・運ぶ欄の名 names が無い。got_<欄> の入力も無い）時は、空の got の成功にせず
         例外にして、boundary.run が fallback（got が None、stop_reason が works:line-script）に落とす"""
         line_inputs = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]}
         for case, env in {"無い": {}, "空": {"INPUTS_GOT": ""}, "null": {"INPUTS_GOT": "null"}, "字": {"INPUTS_GOT": "abc"},
-                          "配列": {"INPUTS_GOT": "[]"}, "線の入力だけ": line_inputs}.items():
+                          "配列": {"INPUTS_GOT": "[]"}, "names が無い": {"INPUTS_GOT": "{}"}, "線の入力だけ": line_inputs}.items():
             with self.subTest(case):
                 with self.assertRaises(ValueError):
                     returned.returned(env)
@@ -3121,8 +3112,9 @@ class LineWiringCase(unittest.TestCase):
                                  {f"INPUTS_{name.upper()}" for name in node["with"]})
 
     def test_receivers_return_every_with_key_and_nothing_else(self):
-        """受け皿（returned）の with: は、ちょうど {got}（返りまるごと）。計画の往復の 2 本だけは plan-out の 1 つの返りを PLAN と REVIEW の
-        2 つの got に分けて受けるので、with: の鍵が全部 got_<欄>。どちらも Archon が同じく INPUTS_<名> で渡す線の inputs: は欄にしない"""
+        """受け皿（returned）の with: は、ちょうど {got, names}（返りまるごとと、運ぶ欄の名）で、got は names の欄だけを持つ。計画の往復の
+        2 本だけは plan-out の 1 つの返りを PLAN と REVIEW の 2 つの got に分けて受けるので、with: の鍵が全部 got_<欄>。どちらも Archon が
+        同じく INPUTS_<名> で渡す線の inputs: は欄にしない"""
         run_inputs = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]}
         for key, node in line_nodes().items():
             if node.get("script") != "returned":
@@ -3133,8 +3125,9 @@ class LineWiringCase(unittest.TestCase):
                     env = run_inputs | {f"INPUTS_{name.upper()}": "null" for name in node["with"]}
                     self.assertEqual(set(returned.returned(env)["got"]), {name.removeprefix("got_") for name in node["with"]})
                     continue
-                self.assertEqual(set(node["with"]), {"got"})
-                self.assertEqual(returned.returned(run_inputs | {"INPUTS_GOT": json.dumps({"a": 1})})["got"], {"a": 1})
+                self.assertEqual(set(node["with"]), {"got", "names"})
+                env = run_inputs | {"INPUTS_GOT": json.dumps({"a": 1}), "INPUTS_NAMES": node["with"]["names"]}
+                self.assertEqual(list(returned.returned(env)["got"]), node["with"]["names"].split())
 
     ROUNDS = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
 
@@ -3144,9 +3137,9 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual(sum(node.get("script") == "returned" for node in line_nodes().values()), 13)
 
     def test_receivers_take_every_field_of_what_they_receive(self):
-        """受け皿は、受ける節の出力をまるごとで受ける: with: がちょうど {got: $<dep>.output}（欄は受け皿が書き写さないので、ブロックの
-        返す節の output_format の欄がそのまま got の欄で、欄の一致の照らしは要らない）。計画の往復の 2 本は got_<欄> が受ける節の同じ欄を
-        指し、欄の組は plan_out の PLAN と REVIEW と同じ（受け皿の鍵を消すか向け違えると、その欄が黙って報告から落ちる）"""
+        """受け皿は、受ける節の出力をまるごとの got: $<dep>.output で受け、運ぶ欄の names の組はブロックの返す節の output_format の
+        欄と同じ。計画の往復の 2 本は got_<欄> が受ける節の同じ欄を指し、欄の組は plan_out の PLAN と REVIEW と同じ（names の名を消すか
+        受け皿の鍵を向け違えると、その欄が黙って報告から落ちる）"""
         nodes = line_nodes()
         for key, node in nodes.items():
             if node.get("script") != "returned":
@@ -3159,7 +3152,10 @@ class LineWiringCase(unittest.TestCase):
                     self.assertEqual(fields, set(self.ROUNDS[key]))
                     continue
                 self.assertIn("include", nodes[dep])
-                self.assertEqual(node["with"], {"got": f"${dep}.output"})
+                self.assertEqual(node["with"]["got"], f"${dep}.output")
+                doc = block_doc(nodes[dep]["include"])
+                returns = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
+                self.assertEqual(sorted(node["with"]["names"].split()), sorted(returns["output_format"]["properties"]))
 
     def test_every_include_and_the_plan_rounds_have_a_receiver_that_collect_reads(self):
         """ブロックの返す節が落ちても報告が出るように、collect は返りを受け皿 <id>-out からだけ読む。2 度目の修正 refix-run は、
