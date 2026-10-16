@@ -1,4 +1,4 @@
-"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.GO_WORDS・STOP_WORDS）だけ（git は repo を cwd にして呼ぶ）。
+"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.GO_WORDS・STOP_WORDS）と件数の決まらない一覧の切り口（listcut）だけ（git は repo を cwd にして呼ぶ）。
 
 差分を組む・作業ツリーの指紋を取るのは green_cert（差分の組み方の 1 か所）で、ここは持たない。
 封じる型は ASF の merge-queue（gate の封印を execute が照らし直し、書いた後に読み戻す）に倣う。
@@ -10,7 +10,9 @@
 - diff_files(repo, data) -> {path: (added, deleted)}: 差分のバイトに載るファイルごとの行数。読めなければ ValueError
 - seal_refusal(*, fingerprint, fingerprint_ok) -> str: 封じてよいかの理由（空なら封じてよい）
 - unknown_row(reason) -> str: 守りのパスを確かめられない時に、当たりとして数える 1 行
-- deleted_paths(text) -> list: 封じた差分の字が消すファイル（取り込む前に 1 本ずつ名指す。DELETED_HEAD）
+- deleted_paths(text) -> list: 封じた差分の字が消すファイル（DELETED_HEAD）
+- deleted_lines(paths, where) -> list: 取り込むと消えるファイルの行（承認ノードの文と報告が共に引く）。listcut.SHOWN 件までは取り込む前に
+  1 本ずつ名指し、超える分は件数と where（封じた差分の実のパス）で指す
 - apply_refusal(*, ...) -> str: 置いてよいかの理由（空なら置く）。決まりは関数の doc
 """
 import hashlib
@@ -19,12 +21,13 @@ import pathlib
 import re
 import subprocess
 
+import listcut
 from answer import GO_WORDS, STOP_WORDS
 
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
 PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "
-DELETED_HEAD = "取り込むと消えるファイル"   # 元 works/dev/lib.sh:622-623 の行の頭
+DELETED_HEAD = "取り込むと消えるファイル"
 
 
 class SealError(Exception):
@@ -104,6 +107,12 @@ def deleted_paths(text: str) -> list:
             path = got[2:] if got.startswith("a/") else got
     close()
     return out
+
+
+def deleted_lines(paths, where: str) -> list:
+    """取り込むと消えるファイルの行（承認ノードの文と報告が同じ字で並べる）。where は封じた差分の実のパス。paths が listcut.SHOWN 件を
+    超える時は先頭 SHOWN 件と『ほか K 件（全件: where）』の 1 行だけ（行の数は本数に依らない）"""
+    return listcut.lines(paths, where=where, prefix=f"{DELETED_HEAD}: ")
 
 
 def _answer_refusal(answer: dict) -> str:

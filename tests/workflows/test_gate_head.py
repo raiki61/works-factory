@@ -128,7 +128,7 @@ def final_got(**kw) -> dict:
            "allowed_tests": [], "beside_unread": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [], "spec_changed": [], "spec_unchecked": False,
            "objection": "", "rejudge_verdict": "", "rejudge": [], "split": "", "unproven": [], "amend": [],
            "delta_review": None, "branch_rows": [], "handoffs": [], "mismatched": [], "stuck": [], "closure": [], "tests_left": [],
-           "gates": [], "always": [], "structure_missing": "", "r2_inputs": [], "premise_facts": [], "sealed": True, "seal_reason": "", "hash": "a" * 64, "deleted": [], "fenced": [],
+           "gates": [], "always": [], "structure_missing": "", "r2_inputs": [], "premise_facts": [], "sealed": True, "seal_reason": "", "hash": "a" * 64, "deleted": [], "sealed_diff": "", "fenced": [],
            "after": [], "passes": [], "converge": [], "held": [], "answered": [], "unmatched": [], "unread_holds": [], "unread": []}
     got.update(kw)
     return got
