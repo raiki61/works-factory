@@ -871,7 +871,7 @@ def review_resubmit(folder, repo) -> pathlib.Path:
 def review_material(folder, repo, command_text: str, review_md, *, shared=None) -> pathlib.Path:
     """事前審査の材料のファイル pass-<k>/prompt.md を書き、役を起こす前の作業ツリーの姿を pass-<k>/tree.json に置く。材料は
     役の頭（planblk.head。関所の決め手・既にある物を量ったか・人に回す物の挙げ方・ライブラリの文書・独立設計の節・修正案の
-    works の欄・2 往復目からは前の往復の答えの要る穴（block と開いた項目の suggest）と答え・木なら下請けのファイルと束ね役の頼み）と、写しの指示書の差し込み（修正案・
+    works の欄・木にしない往復の頭の design_map を書く項目の節（planblk.map_items_section。独立設計が立つ時だけ）・2 往復目からは前の往復の答えの要る穴（block と開いた項目の suggest）と答え・木なら下請けのファイルと束ね役の頼み）と、写しの指示書の差し込み（修正案・
     単位・判定者の見立て・先行例・リポジトリと読む版と BASE）と、人の方針（在れば）と、記録された方針のセクションと、考えの住処の
     地図（今の works の包みが旗 concept-map の役の system prompt の末尾に足した物）。形 replan では独立設計の節と、裁かれた項目ごとの前の形・申し出と
     裁定・直した形（元 works/.shared/core/replan.py:423 の prep）を見させる。凍結の欄の控えが印と食い違えば（planblk.design_section の
@@ -896,11 +896,15 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
                                                    policy_md=inputs.get("policy_copy") or "", recorded=recorded)}
     b = view(d, inputs)
     main = p / PROMPT_FILE
-    if inputs["form"] == "replan":
-        part = "\n\n".join([planblk.design_only(b), REVIEW_ASK_REPLAN, planmarks.REVIEW_ASK,
-                             *(_replan_section(r) for r in inputs.get("replan_items") or [])])
+    form = inputs["form"]
+    # design_map を書く項目の節は、木にしない往復だけに貼る（木の往復は下請けが自分の項目だけを見て書き、束ね役は書かない）
+    mapped = "" if inputs.get("tree") else planblk.map_items_section(
+        b, _map_items(b, inputs), MAP_OTHERS[form], carried=_counts_coverage(inputs))
+    if form == "replan":
+        part = "\n\n".join(x for x in (planblk.design_only(b), mapped, REVIEW_ASK_REPLAN, planmarks.REVIEW_ASK,
+                                       *(_replan_section(r) for r in inputs.get("replan_items") or [])) if x)
     else:
-        part = "\n\n".join(x for x in (planblk.design_section(b), converge.review_section(b), _origin_ask(b, inputs),
+        part = "\n\n".join(x for x in (planblk.design_section(b), mapped, converge.review_section(b), _origin_ask(b, inputs),
                                        planblk.tree_part(b, main) if inputs.get("tree") else "") if x)
     head = planblk.head("plan-review", excluded_file=inputs.get("excluded_file") or "",
                         lib_docs=planblk.lib_section(b, pathlib.Path(repo), shared), design_part=part)
@@ -920,6 +924,23 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
     main.write_text(body + "\n", encoding="utf-8")
     planfile.snap_tree(p / TREE_FILE, repo)
     return main
+
+
+def _map_items(b, inputs: dict) -> list:
+    """この往復で design_map を照らす項目の番号（受け付け _take と、木にしない往復の材料の節 planblk.map_items_section が引く）:
+    形 replan は裁かれた項目 ruled、形 review は開いた項目 converge.open_items"""
+    return inputs.get("ruled") if inputs["form"] == "replan" else converge.open_items(b)
+
+
+def _counts_coverage(inputs: dict) -> bool:
+    """独立設計の要素の網羅を数える往復か（受け付け _take の coverage_gaps と、材料の節の数え済みの句が引く）。網羅は案の全部の項目を
+    審査する往復（形 review）だけで数える: 今の往復が見る項目の答えに、閉じた項目が前の往復で受けた要素（控えの refs）を足して数える。
+    形 replan は裁かれた項目だけを見るので、鍵・重なり・design_ref の実在・引用だけ"""
+    return inputs["form"] == "review"
+
+
+# 形ごとの、この往復で design_map を照らさない項目を言う句（形を知るのは boardview だけなので、項目の状態の訳もここに置く）
+MAP_OTHERS = {"review": "閉じた・保留の項目", "replan": "裁かれていない項目（前に承認済み）"}
 
 
 def _origin_ask(b, inputs: dict) -> str:
@@ -994,12 +1015,10 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
         raise Reject(_lines(planblk.RECORDED_REJECT, gaps))
     refs = {}
     if merged.get("off"):
-        items = inputs.get("ruled") if inputs["form"] == "replan" else converge.open_items(b)
+        items = _map_items(b, inputs)
         dmap = tree.get(converge.DESIGN_MAP) or []
-        # 独立設計の要素の網羅は、案の全部の項目を審査する往復（形 review）だけで数える: 今の往復が見る項目の答えに、閉じた項目が
-        # 前の往復で受けた要素（控えの refs）を足して数える。形 replan は裁かれた項目だけを見るので、鍵・重なり・design_ref の実在・引用だけ
         gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, dmap)
-        if inputs["form"] == "review":
+        if _counts_coverage(inputs):
             gaps += planblk.coverage_gaps(b, design.refs_of(dmap), items)
         if gaps:
             raise Reject(_lines(planblk.DESIGN_QUOTE_REJECT, gaps))

@@ -760,7 +760,7 @@ class BuildTest(unittest.TestCase):
     def test_setup_does_not_touch_the_network(self):
         place = hermetic.tmpdir(self)
         planned = swepro.setup_commands("f", "9.9.9", str(place))
-        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox"])
+        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox", "seccomp", "rg"])
         for name, command in planned:
             for word in NETWORK:
                 self.assertNotIn(word, command, name)
@@ -787,9 +787,74 @@ class BuildTest(unittest.TestCase):
         self.assertIn("No permissions", bwrap)
         self.assertTrue(said.startswith(swepro.SANDBOX_REFUSED), said)
         self.assertTrue(said.removeprefix(swepro.SANDBOX_REFUSED))
-        for word in ("台の VM の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", "seccomp", "apparmor",
-                     "Can't mount proc", "systempaths=unconfined", f"-e {swepro.ENVIRONMENT}"):
+        for word in ("の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", "x86_64 の機械ならそのホスト", "seccomp",
+                     "apparmor", "Can't mount proc", "systempaths=unconfined", f"-e {swepro.ENVIRONMENT}"):
             self.assertIn(word, said)
+
+    def helper_place(self, **claude_env) -> tuple[pathlib.Path, dict]:
+        """偽の bwrap（--proc /proc の後ろの命令を起こす）を PATH の先に、偽の claude を <place>/bin に置く"""
+        fake, place = hermetic.tmpdir(self), hermetic.tmpdir(self)
+        (fake / "bwrap").write_text('#!/bin/sh\nwhile [ "$1" != /proc ]; do shift; done\nshift\nexec "$@"\n', encoding="utf-8")
+        (fake / "bwrap").chmod(0o755)
+        (place / "bin").mkdir()
+        (place / "bin" / "claude").write_text(
+            '#!/bin/sh\n'
+            'if [ "$ARGV0" = apply-seccomp ]; then\n'
+            '  [ -z "$FAKE_SECCOMP_ERROR" ] && exit 0\n'
+            '  echo "$FAKE_SECCOMP_ERROR" >&2; exit 1\n'
+            'fi\n'
+            'if [ "$1 $2" = "--no-config --version" ] && [ -n "$FAKE_RG" ]; then echo "ripgrep 14.1.1"; exit 0; fi\n'
+            'echo "2.1.300 (Claude Code)"; exit 1\n', encoding="utf-8")
+        (place / "bin" / "claude").chmod(0o755)
+        return place, hermetic.child_env(PATH=f"{fake}{os.pathsep}{os.environ['PATH']}", **claude_env)
+
+    def test_failed_seccomp_check_names_the_layers_in_one_line(self):
+        place, env = self.helper_place()
+        planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
+        check = planned["seccomp"]
+        bwrap = planned["sandbox"].partition(" true ")[0]
+        self.assertTrue(check.startswith(f"{bwrap} env ARGV0=apply-seccomp {place}/bin/claude /bin/true "), check)
+        for helper, words in (("apply-seccomp: prctl(PR_SET_SECCOMP): Invalid argument", ("命令の翻訳", "kernel ごと x86_64")),
+                              ("apply-seccomp: unshare(CLONE_NEWUSER): Invalid argument", ("競り合い", "setup を打ち直し"))):
+            with self.subTest(helper=helper):
+                done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8",
+                                      env={**env, "FAKE_SECCOMP_ERROR": helper})
+                self.assertEqual(done.returncode, 1)
+                said_by_helper, said = done.stderr.splitlines()
+                self.assertEqual(said_by_helper, helper)
+                self.assertTrue(said.startswith(swepro.SECCOMP_REFUSED), said)
+                for word in ("prctl(PR_SET_SECCOMP)", "unshare(CLONE_NEWUSER)", *words):
+                    self.assertIn(word, said)
+
+    def test_failed_rg_check_names_the_binfmt_p_flag(self):
+        place, env = self.helper_place()
+        check = dict(swepro.setup_commands("f", "9.9.9", str(place)))["rg"]
+        self.assertIn("bash -c", check)
+        self.assertIn(f"exec -a rg {place}/bin/claude --no-config --version", check)
+        done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8", env=env)
+        self.assertEqual(done.returncode, 1)
+        self.assertTrue(done.stderr.splitlines()[-1].startswith(swepro.RG_REFUSED), done.stderr)
+        for word in ("Grep", "Glob", "0 件", "P フラグ", "kernel ごと x86_64"):
+            self.assertIn(word, done.stderr.splitlines()[-1])
+        self.assertEqual(done.stderr.splitlines()[:-1], ["2.1.300 (Claude Code)"])
+
+    def test_failed_rg_check_keeps_the_error_when_the_tool_is_missing(self):
+        place, env = self.helper_place()
+        (place / "bin" / "claude").unlink()
+        check = dict(swepro.setup_commands("f", "9.9.9", str(place)))["rg"]
+        done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8", env=env)
+        self.assertEqual(done.returncode, 1)
+        *said_by_shell, said = done.stderr.splitlines()
+        self.assertTrue(said.startswith(swepro.RG_REFUSED), done.stderr)
+        self.assertIn(f"{place}/bin/claude", "\n".join(said_by_shell))
+
+    def test_seccomp_and_rg_checks_pass_under_sh(self):
+        place, env = self.helper_place(FAKE_RG="1")
+        planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
+        for name in ("seccomp", "rg"):
+            with self.subTest(check=name):
+                done = subprocess.run(["/bin/sh", "-c", planned[name]], capture_output=True, text=True, encoding="utf-8", env=env)
+                self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_rewrite_image_needs_exactly_one_line(self):
         self.assertEqual(swepro.rewrite_image('a = 1\ndocker_image = "x:1"\n', "x:1", "y:1"), 'a = 1\ndocker_image = "y:1"\n')
@@ -1131,7 +1196,7 @@ class UsageTest(unittest.TestCase):
         self.assertIn(f"-e {swepro.ENVIRONMENT} ", usage)
         self.assertNotIn("-e docker ", usage)
         self.assertNotIn("proxy_refused", usage)
-        self.assertIn("Rosetta", usage)
+        self.assertIn("命令の翻訳で amd64 のプロセスを arm64 の kernel の上に動かす台", usage)
         self.assertIn("kernel.apparmor_restrict_unprivileged_userns=1 を\n  0 に", usage)
 
 
@@ -1288,11 +1353,11 @@ class AgentTest(unittest.TestCase):
         self.go()
         setup = self.environment.calls[:self.environment.calls_after_setup]
         planned = swepro.setup_commands(swepro.head_commit(), "9.9.9")
-        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox"])
+        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox", "seccomp", "rg"])
         self.assertEqual([c["command"] for c in setup], [command for _, command in planned])
         self.assertEqual({c["kind"] for c in setup}, {"exec"})
         self.assertEqual({c["user"] for c in setup}, {"root"})
-        self.assertTrue(planned[-1][1].startswith(
+        self.assertTrue(dict(planned)["sandbox"].startswith(
             "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc true"))
         for _, command in planned:
             self.assertNotIn(" /app", command)
