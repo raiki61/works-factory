@@ -21,9 +21,8 @@
 （自分の一覧と、対象のリポジトリが修正前の版 fixboard.base_rev_of で宣言した物を合わせた protect.merged に当てた protect.hits）の
 protected_files も、1 回目の審査役の brief には修正の差分に当てたレンズの行（lens.brief_rows）の lens も
 （手直しの差分にはレンズが当たらないので 2 回目には載せない）。
-1 回目の審査役の brief には範囲の欄の在る承認済みの修正案の項目 plan_items（範囲の相談の合意のパスを allowed_paths に足した物。無ければ
-空。裁定で外れた項目は held つき）と直す裁定が広げたパス ruled_paths と足した合意の行 agreed（出どころは各行の id と group_id。この 3 欄は
-fixboard.scope_brief が組む）と直した側の報告 fix_report（修正の返答の changes・not_done。無ければ空）も載せる）・
+1 回目の審査役の brief には fixboard.scope_brief の欄（plan_items・ruled_paths・agreed）と直した側の報告 fix_report（修正の返答の
+changes・not_done。無ければ空）も載せる）・
 差分 <state_key>.patch・状態 loop-<state_key>.json・受けた返答 out-<節>.json（fixboard.out_file）。
 支度は前の試みの自分の出力（brief・受けた審査の返答・1 回目の審査の 2 判定の控え delta-verdicts.json）を先に消す——新しい
 審査の義務が前の審査の穴を数えない（darkfactory の自分食いで 1 本目の blk-delta が踏んだ形）。

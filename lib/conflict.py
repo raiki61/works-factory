@@ -846,11 +846,7 @@ def plan_asks(b, op: str = ASKED_OP, *, carried: bool = False) -> list[dict]:
 
 def agreed(b, *, carried: bool = True) -> list[dict]:
     """範囲の相談の合意（plan_asks のうち答えが allow の行）。範囲（blk-fix の planscope）とテストの許し（test_permits）の唯一の
-    読み口。既定は、戻せた組の子から親へ写した行（group_id つき）も含める（親の範囲を広げる）。既定で読む所は、範囲
-    （planrange.scope・planscope）・テストの許し（test_permits）・brief（fixboard.scope_brief）のほか、事後の関門の受け入れのテスト
-    （fixgates._accept_tests。子が許した新しいテストも、今の木に在れば印 agreed の許しとして赤緑を確かめる）・事前の確かめ
-    （factchecks.precheck）・許したテストの訳（fixboard.allowed_test_rows）。carried が偽なら、この置き場の役が自分で聞いた合意だけ
-    （はみ出しの名指し fixboard.overflow_trace）"""
+    読み口。既定は写した行（group_id つき）も含む。carried=False はこの置き場の役が自分で聞いた合意だけ（fixboard.overflow_trace）"""
     return [r for r in plan_asks(b, carried=carried) if r.get("status") == "answered" and r.get("decision") == "allow"]
 
 

@@ -1519,7 +1519,7 @@ class BlockScriptsCase(unittest.TestCase):
     def test_join_carries_a_childs_agreed_scope_to_the_review_and_refix_briefs(self):
         """組の子の置き場の範囲の相談の合意（allow の行）は、join が親の置き場へ group_id つきで写し、親の差分の審査の材料
         （review1-brief.json）と手直しの材料（refix1-brief.json）の plan_items の allowed_paths に許したパスが入る。欄 agreed には
-        相談の id と group_id が載り、手直しの指示書の範囲の節にも同じパスが出る。写した行は親が自分で聞いた行ではない"""
+        相談の id と group_id が載り、手直しの指示書の範囲の節にも同じパスが出る"""
         import refix
         start = self.snapshot(self.repo)
         t1 = self.tree_with({"stats.py": (self.repo / "stats.py").read_text(encoding="utf-8").replace("len(xs) - 1", "len(xs)")})
@@ -2634,8 +2634,7 @@ class ClashScenarioCase(unittest.TestCase):
 
     def test_join_clash_repaired_carries_the_childs_agreed_scope(self):
         """合わせ役の直しが通って戻せた組になった組（clash.settle_repaired）の子の置き場の allow の相談の行は、親の conflict.agreed に
-        group_id つきで 1 行だけ出る（deny の行は写さない）。写した行は plan_asks（親が自分で聞いた行）には出ない。join で赤のまま
-        戻した間は、まだ届いていない"""
+        group_id つきで 1 行だけ出る（deny の行は写さない）。join で赤のまま戻した間は、まだ届いていない"""
         child = self.tmp / "child-g2"
         row = {"id": 3, "item": "2", "status": "answered", "decision": "allow", "origin": "",
                "granted_paths": ["c.py"], "granted_tests": [], "granted_new_tests": [], "reason": "b.py の直しに c.py が要る"}

@@ -10,9 +10,7 @@
 3. 確かめの節（script consult_accept → settle）: 答えを確かめ（judge。許すのは頼んだ物の中だけ。人の関所の条件の相談を除く）、
    1 頼み 1 行を置き場の trace.jsonl（conflict.ASKED_OP）に書き、修正役が読む答えのファイルを書く。合意（allow の行）は
    conflict.agreed が読み、範囲の照らし（planrange.with_agreed）とテストの変更の許し（conflict.test_permits）に入る。
-並べた組の子の run は自分の置き場に書くので、戻せた組の子の合意は join（clash.settle_repaired も）が carry_agreed で親の置き場へ
-group_id つきで写す（fixboard.adopt_returned）。写した行は親の範囲とテストの許しにだけ効き、親が聞いた行には数えない
-（conflict.plan_asks の既定は返さない）。
+戻せた組の子の合意は join が親の置き場へ写す（carry_agreed）。
 人の関所の continue の条件（直す前の人の関所の今の周の一言）も、役が頼まなくても頼みの節が承認済みの項目ごとの
 相談にする（gate_asks。origin gate。今の周の条件 1 回につき 1 度）。頼む物の一覧は無く、答えの役が条件で要るパス・テストの書き換え・新しい
 テストを決める（judge は根の外のパスだけ捨てる）。合意は条件のテストも含め、ほかの相談と同じ読み口に入る。
@@ -511,9 +509,8 @@ def _trace_rows(b, st: dict, answer, by_n: dict, turn: int, pass_: str, node: st
 def carry_agreed(place, results) -> None:
     """戻せた組の子の結果 results の各行の place（子の run の置き場）の合意（conflict.agreed の行）を、欄 op を外して group_id（結果の
     組の id）を足した形で、親の置き場 place の trace.jsonl に足す（fixboard.trace）。親の trace（写した行も含める）に同じ行が在れば
-    足さない。place が空の結果・親と同じ置き場の結果・group_id の無い結果は飛ばす。deny などの行は写さない。写した行は親の範囲と
-    テストの許しに効くだけで、親が聞いた行には数えない（conflict.plan_asks の carried）。子どうしの番号は重なりうるので、出どころは
-    (group_id, id) で辿る"""
+    足さない。place が空の結果・親と同じ置き場の結果・group_id の無い結果は飛ばす。deny などの行は写さない。子どうしの番号は
+    重なりうるので、出どころは (group_id, id) で辿る"""
     place = pathlib.Path(place)
     have = conflict.plan_asks(place, carried=True)
     for r in results:

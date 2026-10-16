@@ -385,34 +385,31 @@ def _brief(nid, values: dict) -> dict:
 
 
 def _plan_items(place, items, by: str = "") -> list:
-    """範囲の欄の在る承認済みの修正案の項目（planmarks.scoped の時だけ。修正案の無い run・範囲の欄の無い控えは空）。全部の項目を
-    番号のまま写して返し、範囲の相談の合意（戻せた組の子から写した行も含む。scope_brief）のパスを allowed_paths に足し、裁定で外れた
-    項目（conflict.held_item）には held を、単位の一部だけが外れた項目には held_units を足す（裁定は置き場 place の conflicts.json）。
-    items は planmarks.approved_items の形の値か、それを返す口か、その JSON のパス。口が凍結の印との食い違い（planmarks.FieldsBroken）を
-    出せば conflict.fields_broken の道（by の印の文の ValueError。既定は差分の審査の段 stopby.DELTA）。scope_brief の plan_items を
-    返すだけ。元 works/.shared/core/refix.py:340（盤面の planmarks.scoped_items(b) を読んだ）"""
+    """scope_brief の plan_items（refix.accept_review の照らしが読む）。元 works/.shared/core/refix.py:340（盤面の
+    planmarks.scoped_items(b) を読んだ）"""
     return scope_brief(place, items, by=by)["plan_items"]
 
 
 def scope_brief(place, items, by: str = "") -> dict:
     """役の brief の範囲の欄 {plan_items, ruled_paths, agreed}（差分の審査 refix.cut と手直し prep_fix の 1 回目が載せる 1 つの口）。
-    範囲の値は受け付けが照らすのと同じ planrange.scope（refix.SCOPE の ruled と、by の印。範囲の相談の合意と許しを置き場 place から
-    読む）から引く。plan_items は scope の items（合意のパスを allowed_paths に足し、許したテストの範囲は印 agreed つきで tests に足した
-    物）の写しに、裁定で外れた項目の held・単位の一部だけが外れた項目の held_units を足した物。ruled_paths は直す裁定が広げたパス
-    （conflict.ruled_paths）、agreed は plan_items に足した合意の行（conflict.agreed の行のまま。出どころは各行の id と group_id）。
-    範囲の欄の無い控え・修正案の無い run は plan_items と agreed が []。items・by・食い違いの ValueError は _plan_items と同じ"""
+    範囲の値は受け付けが照らすのと同じ planrange.scope（範囲の相談の合意を置き場 place から読む。scope の permits は使わない）から
+    引く。plan_items は scope の items（合意のパスを allowed_paths に足し、許したテストの範囲は印 agreed つきで tests に足した物）の
+    写しに、裁定（置き場 place の conflicts.json）で外れた項目（conflict.held_item）の held・単位の一部だけが外れた項目の held_units を
+    足した物。ruled_paths は直す裁定が広げたパス（conflict.ruled_paths）、agreed は plan_items に足した合意の行（conflict.agreed の行の
+    まま。出どころは各行の id と group_id）。範囲の欄の無い控え・修正案の無い run は plan_items と agreed が []。items は
+    planmarks.approved_items の形の値か、それを返す口か、その JSON のパス。口が凍結の印との食い違い（planmarks.FieldsBroken）を出せば
+    conflict.fields_broken の道（by の印の文の ValueError。既定は差分の審査の段 stopby.DELTA）"""
     import copy
     import conflict
     import planmarks
     import planrange
-    import refix
     import stopby
     by = by or stopby.DELTA
     try:
         items = _given(items)
     except planmarks.FieldsBroken as e:
         raise conflict.fields_broken(None, e, by=by) from None
-    got = planrange.scope(place, items=items, ruled=refix.SCOPE["ruled"], by=by)[0]
+    got = planrange.scope(place, items=items, ruled=False, by=by)[0]
     plan_items = copy.deepcopy(got["items"]) if got else []
     held = conflict.held_by_rulings(place) if plan_items else {}
     for it in plan_items:
@@ -1527,10 +1524,9 @@ def brief_lens(place, n: int = 1) -> pathlib.Path:
 def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, policy=None) -> dict:
     """n 回目の手直しの役を起こす前の支度。義務（_owed_rows）が無ければ {ok: False, reason}。在れば前の試みの材料を消し、義務と
     差分のパス・読ませる値（_brief）・人の方針・穴ごとの枝の名札（refix.brief_ties。組めなければ理由を置いて先へ）を
-    refix<n>-brief.json に書き、{ok: True, owed, diff_file, brief_file} を返す。1 回目は承認済みの修正案の項目 plan_items
-    （範囲の相談の合意を足した物。scope_brief。凍結の印との食い違いは手直しの段の印 stopby.REFIX の ValueError）・直す裁定が広げた
-    パス ruled_paths・足した合意の行 agreed（出どころは各行の id と group_id）・審査の準拠の落ちた行 compliance も載せる。元 works/.shared/core/refix.py:248 の prep_fix（盤面の待ち・起こした印・指示書を外した。
-    指示書は refix_prompt）"""
+    refix<n>-brief.json に書き、{ok: True, owed, diff_file, brief_file} を返す。1 回目は scope_brief の欄（plan_items・ruled_paths・
+    agreed。凍結の印との食い違いは手直しの段の印 stopby.REFIX の ValueError）と審査の準拠の落ちた行 compliance も載せる。元
+    works/.shared/core/refix.py:248 の prep_fix（盤面の待ち・起こした印・指示書を外した。指示書は refix_prompt）"""
     import deltamarks
     import refix
     import stopby
