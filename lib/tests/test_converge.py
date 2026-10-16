@@ -297,6 +297,35 @@ class TextCase(BoardCase):
         self.assertNotIn("capped", row)
         self.assertNotIn(converge.CAP_WHY.split("（")[0].format(n=2), converge.stuck_reason(b))
 
+    def test_pushable_excludes_capped_stop(self):
+        def doc(rnd, passes, plan=()):
+            b = self.board(rnd)
+            if plan:
+                converge.note_plan(b, [row(u) for u in plan])
+            for keys, cap in passes:
+                units = (lambda k: ["u1"] if k.startswith("key-a") else ["u2"]) if plan else (lambda k: ["u"])
+                converge.record_pass(b, {"faces": [face(k, units=units(k)) for k in keys]}, resolved=[], files={}, at_cap=cap)
+            return converge.read(b)
+        again = doc(2, [(["key-a1"], False)])
+        self.assertEqual(again["outcome"], converge.AGAIN)
+        self.assertFalse(converge.pushable(again))
+        clean = doc(3, [([], False)])
+        self.assertEqual(clean["outcome"], converge.CLEAN)
+        self.assertFalse(converge.pushable(clean))
+        unsettled = doc(4, [(["key-a1"], False), (["key-b1"], False)])
+        self.assertEqual(unsettled["outcome"], converge.UNSETTLED)
+        self.assertTrue(converge.pushable(unsettled))
+        persisted = doc(5, [(["key-a1"], False), (["key-a1", "key-b1"], False)])
+        self.assertEqual(persisted["outcome"], converge.PERSISTED)
+        self.assertTrue(converge.pushable(persisted))
+        capped = doc(6, [(["key-a1", "key-a2"], False), (["key-b1"], True)])
+        self.assertEqual((capped["outcome"], capped["passes"][-1]["capped"]), (converge.UNSETTLED, True))
+        self.assertFalse(converge.pushable(capped))
+        held_passes = [(["key-a1", "key-b1", "key-b2", "key-b3"], False), (["key-a1", "key-b4", "key-b5"], False), (["key-b6"], True)]
+        held = doc(7, held_passes, plan=("u1", "u2"))
+        self.assertEqual((held["outcome"], held["passes"][-1]["capped"]), (converge.PERSISTED, True))
+        self.assertFalse(converge.pushable(held), "保留の項目が在る上限の止まりも、outcome が PERSISTED でも偽")
+
     def test_stuck_reason_names_open_counts_per_pass(self):
         self.record(["key-a1", "key-a2"])
         self.record(["key-b1", "key-b2"])

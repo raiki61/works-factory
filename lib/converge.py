@@ -50,6 +50,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
   対応表）・出自 ORIGINS・一番上の止まった時の推し STUCK_PUSH は tree_split が外す。下請けの答えのファイルの当たりの答えの型は
   HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
+- pushable(doc): 止まった壁打ちを役の推しで越えてよいか（gatemarks.stuck_push が引く）
 - stuck_keys(doc)・uncited(note, doc)・stuck_faces(doc): 止まった壁打ちの止めた block の key（stuck_reason も同じ式）・止まった時の
   推しの note が引いていない key と『項目 n』・保留の項目の前の往復の block を review.json の faces に足す行（印 HELD_MARK つき。
   block_faces は審査の挙げた block に数えない）
@@ -187,7 +188,8 @@ ORIGIN_SCHEMA = {"type": "array", "items": {
     "properties": {"key": {"type": "string"}, "origin": {"type": "string", "enum": list(CLAIMED)},
                    "of": {"type": "string"}}}}
 # 壁打ちが止まる往復の推し（事前審査の返答の一番上の欄。形は gatemarks.MARK_SCHEMA[RECOMMEND] の {answer, note, why}。値を往復の行の
-# 欄 push に置くだけで、形の持ち主は gatemarks）。無人の run が、止まった案を推しで修正へ進める口（gatemarks.stuck_push）
+# 欄 push に置くだけで、形の持ち主は gatemarks）。無人の run が、止まった案を推しで修正へ進める口（gatemarks.stuck_push。
+# 越えてよいかは pushable）
 STUCK_PUSH = "stuck_recommend"
 HELD_MARK = "held"
 KEY_CHAR = "[A-Za-z0-9_-]"   # key の 1 字（gatemarks の台帳の key の照らしも読む）
@@ -909,6 +911,14 @@ def stuck_faces(doc: dict) -> list[dict]:
                             "unit_keys": [str(k) for k in (p.get("face_units") or {}).get(key) or []], HELD_MARK: True})
                 break
     return out
+
+
+def pushable(doc: dict) -> bool:
+    """止まった壁打ちを、事前審査の役の推し（STUCK_PUSH）で越えてよいか: 抜け方が止まり（STUCK）で、最後の往復が輪の安全の上限の
+    周で止めた物（capped）でない時だけ真。UNSETTLED か PERSISTED かでは絞らない（保留の項目が在る上限の止まりは PERSISTED になる）。
+    capped を外す訳: 減り続ける往復はふつう上限に届かないので、上限での止まりは仕組みの異常（CAP_WHY）で、役の推しでなく人が見る物。
+    capped を立てるのは add_pass で、止める往復の行だけなので、最後の行を見れば足りる"""
+    return doc["outcome"] in STUCK and not doc["passes"][-1].get("capped")
 
 
 def stuck_reason(b) -> str:

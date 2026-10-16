@@ -3985,6 +3985,30 @@ class ConvergeGateCase(GateBase):
                 _, got = ask(push)
                 self.assertEqual((got["go"], got["stop_reason"], got["pushed"]), (False, stopby.NEEDS_HUMAN, None))
 
+    def test_unattended_capped_stuck_is_not_pushed(self):
+        ask_before_fix = load_line_script("ask_before_fix")
+
+        def ask(b):
+            rows = [gatemarks.question_row(kind, text) for kind, text in gatemarks.plan_gate_items(b)]
+            plan = {"ready": True, "pass": False, "stalled": True, "round": 1, "ask_human": True, "gate_axes": {}, "questions": rows}
+            return ask_before_fix.ask(plan, unattended=True, design_only=False, run_id="run-1")
+
+        self.start(unattended="true")
+        fake = self.fake()
+        capped_push = {**self.PUSH, "note": "a-key-003 を修正の中で直す範囲で通す"}
+        for keys, last in ((("a-key-001", "a-key-002"), False), (("a-key-003",), True)):
+            faces = [{"key": k, "kind": "regression", "where": "stats.py", "why": "穴", "severity": "block"} for k in keys]
+            row = converge.record_pass(fake, {"faces": faces}, resolved=[], files={}, at_cap=last, push=capped_push if last else None)
+        self.assertEqual((row["outcome"], row["capped"]), (converge.UNSETTLED, True))
+        got, b = self.gate()
+        items = got["ask"]["items"]
+        self.assertFalse(converge.pushable(converge.read(b)), "上限の止まりは役の推しで越えない")
+        self.assertEqual(gatemarks.stuck_push(b), "")
+        self.assertEqual(items, [f"{gatemarks.STUCK_ITEM}。理由: {converge.stuck_reason(b)}"])
+        self.assertIsNone(gatemarks.push_rec(items[0]))
+        got = ask(b)
+        self.assertEqual((got["go"], got["stop_reason"], got["pushed"]), (False, stopby.NEEDS_HUMAN, None))
+
     def test_held_face_added_for_the_push_is_not_a_second_gate_row(self):
         """推しが付く止まりで review.json の faces に足した保留の項目の block（印 held つき。kind は元のまま regression）は、関所の別の行に
         ならない（推しの尾を持てず、載る項目の全部が尾を持つ時だけ通す pushed_answer を None にしてしまう）。止まりの行 1 つだけが載って
