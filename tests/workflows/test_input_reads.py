@@ -1,5 +1,5 @@
 """節の script は入力の字（INPUTS_<名>）を自分で json.loads しない。JSON に戻すのは境の口（workflows/.shared/boundary.py の
-parsed・value・pointed・needed・items・flag・field）だけ。
+parsed・value・pointed・needed・items・flag・picked）だけ。
 
 止めた Archon は output_format で宣言した欄の null と無い欄を、include の入力に空の字で渡す（tests/shared/test_archon_contract.py が
 照らす）。json.loads("") は落ちるので、前の失敗の持ち越しの無い run が判定の入口で止まった（#265）。口は空の字を null と読む。
@@ -8,6 +8,7 @@ script の字を ast で読み、入力の字が流れ込む名（入力を代�
 を辿って、json.loads にそれが届けば赤にする。lib/ の関数・境の口・ファイルの読み（read_text）の返りは入力の字でないので、そこで辿りを切る。
 """
 import ast
+import json
 import pathlib
 import unittest
 
@@ -125,10 +126,29 @@ class InputReadsCase(unittest.TestCase):
         """宣言した null の欄が届く空の字を、口の読み手は全部「無い」と読む"""
         from tests.shared.test_boundary import boundary
         self.assertEqual((boundary.parsed(""), boundary.value(""), boundary.pointed(""), boundary.items(""), boundary.flag(""),
-                          boundary.field("units", ""), boundary.field("mode", ""), boundary.text("")),
-                         (None, None, None, [], False, None, "", ""))
+                          boundary.text("")),
+                         (None, None, None, [], False, ""))
         with self.assertRaisesRegex(ValueError, "入力 start のポインタが無い"):
             boundary.needed("", "start")
+
+    def test_picked_reads_only_the_named_fields(self):
+        """まるごとの入力の字を、宣言した名だけの dict にする。欠けた名は None、宣言の外の名は [] でも .get でも KeyError。飛んだ節（null・
+        空の字・無い入力）は None、dict でない値は ValueError"""
+        from tests.shared.test_boundary import boundary
+        raw = json.dumps({"ok": True, "hash": "123", "reason": "", "diff": None, "extra": 1})
+        got = boundary.picked(raw, ("ok", "hash", "reason", "diff", "missing"))
+        self.assertEqual(got, {"ok": True, "hash": "123", "reason": "", "diff": None, "missing": None})
+        self.assertIsInstance(got, dict)
+        self.assertEqual((got["hash"], got["reason"], got.get("diff"), got.get("missing")), ("123", "", None, None))
+        for read in (lambda: got["extra"], lambda: got.get("extra"), lambda: got["typo"], lambda: got.get("typo")):
+            with self.assertRaises(KeyError):
+                read()
+        for skipped in ("null", "", "  ", None):
+            with self.subTest(skipped=skipped):
+                self.assertIsNone(boundary.picked(skipped, ("ok",)))
+        for not_dict in ("[]", "[1]", '"text"', "7", "true", "not json"):
+            with self.subTest(not_dict=not_dict), self.assertRaises(ValueError):
+                boundary.picked(not_dict, ("ok",))
 
 
 if __name__ == "__main__":

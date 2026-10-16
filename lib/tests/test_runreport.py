@@ -947,7 +947,8 @@ class DraftsCase(Base):
         """#510: 承認の後に受け入れ条件のテストが変わった問いは、結末を人待ちにし、冒頭（止めの語の意味と人が決めることの件数）と
         次の依頼の下書き（答えの空の行）に載る"""
         q = "承認の後に受け入れ条件のテストが変わった（spec_changed）: t.txt（sha256 aaaaaaaaaaaa → 消えた）——承認し直すか"
-        got, text, decided = self.build(line={"spec_changed": [q], "stops": {"spec-check": stopby.SPEC_CHANGED}})
+        got, text, decided = self.build(line={"spec_changed": [q], "spec_unchecked": False,
+                                              "stops": {"spec-check": stopby.SPEC_CHANGED}})
         self.assertEqual(decided, ("needs_human", f"spec-check:{stopby.SPEC_CHANGED}"))
         head = "\n".join(text.splitlines()[2:5])
         self.assertIn(stopby.REASONS["spec-changed"], head)
@@ -956,9 +957,11 @@ class DraftsCase(Base):
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
         self.assertEqual([(a["question"], a["text"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, "", True)])
         self.assertTrue(doc[carry.ANSWERS][0]["source"].startswith(gatemarks.SPEC_CHANGED_LABEL))
+        self.assertEqual(doc[carry.ANSWERS][0]["note"], gatemarks.spec_words(False).note)
 
     def test_spec_unchecked_says_could_not_check(self):
-        """#550: 照らせなかった時は、結末と止めは変わった時と同じで、冒頭の見出しと下書きの source が「照らせなかった」と言う"""
+        """#550: 照らせなかった時は、結末と止めは変わった時と同じで、冒頭の見出しと下書きの source と注 note が「照らせなかった」と言い、
+        注は変更を確かめろとは言わない"""
         q = "照らしが落ちた——承認済みの受け入れ条件のテストが変わったかを確かめられない（ValueError: x）"
         got, text, decided = self.build(line={"spec_changed": [q], "spec_unchecked": True,
                                               "stops": {"spec-check": stopby.SPEC_CHANGED}})
@@ -970,6 +973,20 @@ class DraftsCase(Base):
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
         self.assertEqual([(a["question"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, True)])
         self.assertTrue(doc[carry.ANSWERS][0]["source"].startswith(gatemarks.SPEC_UNCHECKED))
+        self.assertEqual(doc[carry.ANSWERS][0]["note"], gatemarks.spec_words(True).note)
+        self.assertNotIn("変更を確かめ", doc[carry.ANSWERS][0]["note"])
+
+    def test_spec_unchecked_unknown_says_could_not_check(self):
+        """判らない（線の値に spec_unchecked が無い）時は、照らせなかった側に倒す: 冒頭の見出し・下書きの source・注が「照らせなかった」と言う"""
+        q = "照らしが落ちた——承認済みの受け入れ条件のテストが変わったかを確かめられない（ValueError: x）"
+        got, text, _ = self.build(line={"spec_changed": [q], "stops": {"spec-check": stopby.SPEC_CHANGED}})
+        head = "\n".join(text.splitlines()[2:5])
+        self.assertIn(f"{gatemarks.SPEC_UNCHECKED_HEAD} 1 件", head)
+        self.assertNotIn(gatemarks.SPEC_CHANGED_HEAD, text)
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        self.assertTrue(doc[carry.ANSWERS][0]["source"].startswith(gatemarks.SPEC_UNCHECKED))
+        self.assertEqual(doc[carry.ANSWERS][0]["note"], gatemarks.spec_words(True).note)
+        self.assertNotIn("変更を確かめ", doc[carry.ANSWERS][0]["note"])
 
 
 class GlossaryCase(unittest.TestCase):

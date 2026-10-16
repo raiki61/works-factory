@@ -15,7 +15,7 @@
   fallback の返りにする（lib/ の誤りでも節は落ちない）
 - LINE_SCRIPT: fallback の返りの止めの理由。lib/stopby.py の LINE_SCRIPT の写し（lib を読めない時の fallback も引くので lib から
   読めない。lib/tests/test_stopby.py が突き合わせる）
-- parsed・value・text・flag・items・field・pointed・needed: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）。script は入力の字を
+- parsed・value・text・flag・items・picked・pointed・needed: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）。script は入力の字を
   自分で json.loads しない（宣言した null の欄は空の字で届く。tests/workflows/test_input_reads.py が縛る）
 
 Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、script がここから引いて lib/ へ引数で渡す）:
@@ -42,14 +42,6 @@ import skip_value
 
 POINTER_TYPE = "archon_artifact"
 LINE_SCRIPT = "works:line-script"
-# JSON として読まない欄（field）。出す節の output_format が字（string）と型づける返りの欄を受け手が手で写した表で、型の正本は
-# output_format（Archon が返りを照らす）。写しを残すのは、run の中の script が output_format を読めず（YAML を読むパッケージを持たない。
-# workflows/AGENTS.md の E7 の dependencies = []）、Archon が字の欄を字のまま・ほかを JSON の字で渡して空の字は字の "" と null の欄の
-# どちらでも届くので、届いた字だけからは決まらないため（"" を None に読むと返す節の中の誤りの by "" と返らなかった by が見分けられず、
-# line/scripts/ask_final.py の最後の関所の字が変わる）。output_format と揃えるものは無く、字の欄を足して此処に足し忘れると、その欄の
-# "" は None に、"1" は数に読まれる
-TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread", "by", "suites_line", "log",
-               "baseline_line", "depth_why")
 
 _import_error = None
 
@@ -173,10 +165,26 @@ def needed(raw, name: str) -> Path:
     return path
 
 
-def field(key: str, raw):
-    """ブロックの返りの 1 欄。字の欄（TEXT_FIELDS）は字のまま（空の字も空の字）で、飛ばされた節（null）は None。ほかは JSON として
-    読み、null と空の字は None"""
-    return skip_value.text(raw) if key in TEXT_FIELDS else skip_value.value(raw)
+class Picked(dict):
+    """picked が返す、宣言した名だけを持つ dict。宣言の外の名は [] でも get でも KeyError にする（打ち違いが黙って None にならない）"""
+
+    def __missing__(self, key):
+        raise KeyError(f"宣言の外の名 {key!r}（宣言した名: {', '.join(self)}）")
+
+    def get(self, key):
+        return self[key]
+
+
+def picked(raw, names) -> Picked | None:
+    """ブロックの返りまるごとの入力 raw を value で dict に戻し、宣言した名 names だけを持つ Picked にする（欠けた欄は None）。
+    飛ばされた節（null・空の字・無い入力）は None。dict でなければ ValueError。ブロックの返りの欄の型は返す節の output_format が
+    持つので、字の欄も型つきの dict で届き、字か値かを読み分ける表は要らない"""
+    got = value(raw)
+    if got is None:
+        return None
+    if not isinstance(got, dict):
+        raise ValueError(f"まるごとの入力が object でない（{type(got).__name__}）: {str(got)[:80]!r}")
+    return Picked((name, got.get(name)) for name in names)
 
 
 def text(raw) -> str:

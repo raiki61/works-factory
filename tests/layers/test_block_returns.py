@@ -1,8 +1,11 @@
 """ブロックの返りが 1 つの節の構造体で、返りの欄に読み手が在る（workflows/AGENTS.md の E5 の機械の行）。
 
 在るブロックに `returns:` と `outcome_field:` が在り、返す節が `output_format` を持ち、`outcome_field` の欄がその `required` に在る。
-返りの欄のうち、線の `with:`・`when:`・返しの節の `from` の誰も `$<include の id>.output.<欄>` で読まない物は赤。
-線の読む欄が返す節に在るかは Archon の `validate` が照らす（tests/layers/test_archon_validate.py）ので、ここでは照らさない。
+返りの欄のうち、線の `with:`・`when:`・返しの節の `from` の誰も `$<include の id>.output.<欄>` で読まず、まるごとの参照
+`$<include の id>.output` を受ける script の口（boundary.picked の名の並び）も受け皿の素通し（PASSES）も数えない物は赤。
+欄つきの参照の読む欄が返す節に在るかは Archon の `validate` が照らす（tests/layers/test_archon_validate.py）ので、ここでは照らさない。
+まるごとの参照は validate が欄を見られないので、ここで照らす: 受けてよい置き場は script の節の `with:<鍵>` の直の字か `with:<鍵>.from` の字で、
+ほかは赤。受けた script は口の呼びで読む名が返す節の output_format に在り、口を迂回して読まない。
 """
 import pathlib
 import unittest
@@ -20,6 +23,21 @@ RETURNING = (
     "    output_format:\n      type: object\n      properties:\n        ready: {type: boolean}\n        units: {type: array}\n"
     "      required: [ready, units]\n"
 )
+TAKE = "workflows/line/scripts/take.py"
+LINE_HEAD = "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+# 返りの欄を欄つきの参照で読む節。まるごとの参照の試験で、読み手の無い欄の赤を消すのに足す
+READS = (
+    "  - id: reader\n    script: reader\n    timeout: 1728000000\n    with:\n"
+    "      ready: $judge.output.ready\n      units: $judge.output.units\n"
+)
+GATE_NAMES = 'NAMES = ("ready", "units")\n'
+GATE_CALL = 'got = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)\n'
+GATE = GATE_NAMES + GATE_CALL
+
+
+def take_node(value):
+    """script の節 take。with: の got に value（YAML の字）を結ぶ"""
+    return f"  - id: take\n    script: take\n    timeout: 1728000000\n    with:\n      got: {value}\n"
 
 
 class BlockReturnsTest(unittest.TestCase):
@@ -175,6 +193,173 @@ class BlockReturnsTest(unittest.TestCase):
         got = scan.problems("E5", SEEDS / "k5-loop-role-with")
         self.assertEqual(len(got), 1, got)
         self.assertIn("輪の中の役", got[0])
+
+    def gated(self, script, value='"$judge.output"', reads="", files=None):
+        """script の節 take が with: の got でブロック judge の返りをまるごとで受ける木。script の字は workflows/line/scripts/take.py"""
+        line = LINE_HEAD + reads + take_node(value)
+        return self.files({BLOCK: RETURNING, LINE: line, TAKE: script, **(files or {})})
+
+    def test_whole_ref_read_through_the_gate_is_clean(self):
+        board = "NAMES = ('ready', 'units')\n"
+        forms = {
+            "字のまま": (GATE, '"$judge.output"', {}),
+            "{from, if_skipped}": (GATE, '{ from: "$judge.output", if_skipped: null }', {}),
+            "* 展開の名の並び": ("BASE = ('ready',)\nNAMES = (*BASE, 'units')\n" + GATE_CALL, '"$judge.output"', {}),
+            "鍵と同じ字を辞書の鍵に持つ": (GATE_NAMES + 'out = {"got": boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)}\n', '"$judge.output"', {}),
+            "別の INPUTS_{…} の内包": (GATE + 'PLANS = ("plan", "ripple")\n'
+                                      'vals = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in (*PLANS, "replanned")}\n',
+                                      '"$judge.output"', {}),
+            "+ の連結": (GATE + 'PLAN = ("a", "b")\nREVIEW = ("c",)\n'
+                              'vals = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in PLAN + REVIEW}\n', '"$judge.output"', {}),
+            "接頭辞つき f 字": (GATE + 'FIELDS = ("units", "ready")\n'
+                                      "def with_prefix(prefix):\n"
+                                      '    return {k: boundary.field(k, os.environ.get(f"INPUTS_{prefix}_{k.upper()}")) for k in FIELDS}\n'
+                                      'judge = with_prefix("JUDGE")\n', '"$judge.output"', {}),
+            "env(名)": (GATE + "def env(name):\n"
+                              '    return boundary.value(os.environ.get(f"INPUTS_{name}"))\n'
+                              'r1 = env("R1")\n', '"$judge.output"', {}),
+            "別の部品の定数": (GATE + 'vals = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in board.NAMES}\n',
+                            '"$judge.output"', {"lib/board.py": board}),
+            "前置き INPUTS_GOT_ で環境を舐める": (GATE + 'HEAD = "INPUTS_GOT_"\n'
+                                          "rest = {k.removeprefix(HEAD): raw for k, raw in names.items() if k.startswith(HEAD)}\n",
+                                          '"$judge.output"', {}),
+        }
+        for name, (script, value, files) in forms.items():
+            with self.subTest(name):
+                self.assertEqual(self.gated(script, value, files=files), [])
+        anchored = (
+            "name: works-factory-line\nx-bind: &bind\n  got: \"$judge.output\"\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+            "  - id: take\n    script: take\n    timeout: 1728000000\n    with:\n      <<: *bind\n"
+        )
+        with self.subTest("<<: で引いた with: の値"):
+            self.assertEqual(self.files({BLOCK: RETURNING, LINE: anchored, TAKE: GATE}), [])
+
+    def test_gate_name_not_in_the_output_format_is_red(self):
+        got = self.gated("NAMES = ('ready', 'units', 'extra')\n" + GATE_CALL)
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith(f"{TAKE}:"), got)
+        self.assertIn("got で読む欄 extra が works-factory-judge の返りに無い", got[0])
+
+    def test_field_not_named_by_the_gate_is_red(self):
+        got = self.gated("NAMES = ('ready',)\n" + GATE_CALL)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn(f"{BLOCK}:", got[0])
+        self.assertIn("units", got[0])
+        self.assertIn("読み手が無い", got[0])
+
+    def test_passed_through_whole_ref_counts_every_field(self):
+        passed = 'PASSES = ("got",)\nout = boundary.value(os.environ.get("INPUTS_GOT"))\n'
+        self.assertEqual(self.gated(passed), [])
+        for name, script, why in (
+            ("PASSES に鍵が無い", 'PASSES = ("other",)\nout = boundary.value(os.environ.get("INPUTS_GOT"))\n', "boundary.picked の呼びが無い"),
+            ("口の呼びの外で読む", 'PASSES = ("got",)\nout = json.loads(os.environ["INPUTS_GOT"])\n', "口の呼びの外"),
+            ("boundary.value の外にも読み", passed + 'again = os.environ.get("INPUTS_GOT")\n', "口の呼びの外"),
+        ):
+            with self.subTest(name):
+                got = self.gated(script, reads=READS)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(why, got[0])
+
+    def test_whole_ref_read_outside_the_gate_is_red(self):
+        looped = 'vals = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in %s}\n'
+        env_def = 'def env(name):\n    return boundary.value(os.environ.get(f"INPUTS_{name}"))\n'
+        cases = {
+            "口が無く json.loads で読む": ("NAMES = ('ready', 'units')\ngot = json.loads(os.environ[\"INPUTS_GOT\"])\n", "boundary.picked の呼びが無い"),
+            "PASSES 無しで boundary.value": ('got = boundary.value(os.environ.get("INPUTS_GOT"))\n', "boundary.picked の呼びが無い"),
+            "口の外にもう 1 つ字": (GATE + 'again = os.environ.get("INPUTS_GOT")\n', "口の呼びの外"),
+            "口の呼びが 2 つ": (GATE + 'GATE_AGAIN = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)\n', "2 つ以上"),
+            "env(GOT) で読む": (GATE + env_def + 'r = env("GOT")\n', "INPUTS_GOT を組みうる"),
+            "内包の並びの literal に got": (GATE + looped % '("got", "x")', "INPUTS_GOT を組みうる"),
+            "連結の定数に got": (GATE + 'PLAN = ("a", "got")\nREVIEW = ("c",)\n' + looped % "PLAN + REVIEW", "INPUTS_GOT を組みうる"),
+            "* 展開の定数に got": (GATE + 'PLANS = ("got", "b")\n' + looped % '(*PLANS, "x")', "INPUTS_GOT を組みうる"),
+            "INPUTS_ + key.upper()": (GATE + 'KEYS = ("a", "got")\n'
+                                      'vals = {k: os.environ.get("INPUTS_" + k.upper()) for k in KEYS}\n', "INPUTS_GOT を組みうる"),
+            "内包の並びが関数の返り": (GATE + looped % "names()", "を解けない"),
+            "stop_key(node).upper()": (GATE + 'vals = {n: os.environ.get(f"INPUTS_{stop_key(n).upper()}") for n in ("a",)}\n', "を解けない"),
+            "% で組む": (GATE + 'vals = {k: os.environ.get("INPUTS_%s" % k) for k in ("a",)}\n', "を解けない"),
+            ".format で組む": (GATE + 'vals = {k: os.environ.get("INPUTS_{}".format(k)) for k in ("a",)}\n', "を解けない"),
+            "env(変数) で呼ぶ": (GATE + env_def + "r = env(which)\n", "を解けない"),
+            "渡さない引数の既定の値": (GATE + 'def env(name="GOT"):\n    return boundary.value(os.environ.get(f"INPUTS_{name}"))\nr = env()\n',
+                                "INPUTS_GOT を組みうる"),
+            "鍵の名で渡す引数": (GATE + env_def + 'r = env(name="GOT")\n', "INPUTS_GOT を組みうる"),
+            "* で展開して渡す引数": (GATE + env_def + 'r = env(*("GOT",))\n', "を解けない"),
+            "後の += で足した名": (GATE + 'KEYS = ("a",)\nKEYS += ("got",)\n' + looped % "KEYS", "を解けない"),
+            "再代入した名の並び": (GATE + 'KEYS = ("a",)\nKEYS = ("got",)\n' + looped % "KEYS", "を解けない"),
+            "小文字の前置きを upper で組む": (GATE + 'vals = {k: boundary.value(os.environ.get(f"inputs_{k}".upper())) for k in ("got",)}\n',
+                                    "INPUTS_GOT を組みうる"),
+            "前置き INPUTS_ で環境を舐める": (GATE + 'rest = [raw for k, raw in names.items() if k.startswith("INPUTS_")]\n', "前置き"),
+            "名の並びが定数に解けない": ('boundary.picked(os.environ.get("INPUTS_GOT"), names())\n', "口の名の並びを解けない"),
+        }
+        for name, (script, why) in cases.items():
+            with self.subTest(name):
+                got = self.gated(script, reads=READS)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(TAKE, got[0])
+                self.assertIn("節 take", got[0])
+                self.assertIn("got", got[0])
+                self.assertIn(why, got[0])
+
+    def test_whole_ref_to_a_script_that_does_not_read_it_is_red(self):
+        cases = {
+            "INPUTS_GOT を読まない script": ({TAKE: "NAMES = ('ready', 'units')\nx = 1\n"}, "take", "INPUTS_GOT を読まない"),
+            "直に書いた script": ({}, "|\n      print(1)", "script のファイルを引けない"),
+            "名の取り違え": ({"workflows/line/scripts/other.py": GATE}, "take", "script のファイルを引けない"),
+        }
+        for name, (files, script, why) in cases.items():
+            with self.subTest(name):
+                line = LINE_HEAD + READS + f"  - id: take\n    script: {script}\n    timeout: 1728000000\n    with:\n      got: \"$judge.output\"\n"
+                got = self.files({BLOCK: RETURNING, LINE: line, **files})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("節 take", got[0])
+                self.assertIn("with.got", got[0])
+                self.assertIn(why, got[0])
+
+    def test_whole_ref_outside_a_script_with_is_red(self):
+        places = {
+            "include の with:": ("  - id: plan\n    include: works-factory-plan\n    with:\n      x: \"$judge.output\"\n", "with.x"),
+            "workflow の with:": ("  - id: plan\n    workflow: works-factory-plan\n    with:\n      x: \"$judge.output\"\n", "with.x"),
+            "bash": ("  - id: plan\n    bash: echo $judge.output\n", "bash"),
+            "prompt": ("  - id: plan\n    prompt: see $judge.output\n", "prompt"),
+            "when": ("  - id: plan\n    script: plan\n    when: \"$judge.output == 1\"\n", "when"),
+            "approval の message": ("  - id: plan\n    approval:\n      message: \"$judge.output\"\n", "approval.message"),
+            "loop_group の until_bash": ("  - id: plan\n    loop_group:\n      until_bash: '[ \"$judge.output\" = x ]'\n      nodes: []\n",
+                                         "loop_group.until_bash"),
+            "with: の値の入れ子の mapping": ("  - id: plan\n    script: plan\n    with:\n      x:\n        y: \"$judge.output\"\n", "with.x.y"),
+            "with: の list の中": ("  - id: plan\n    script: plan\n    with:\n      x: [\"$judge.output\"]\n", "with.x.0"),
+            "文の終わりの .": ("  - id: plan\n    script: plan\n    with:\n      x: \"$judge.output.\"\n", "with.x"),
+            ".0": ("  - id: plan\n    script: plan\n    with:\n      x: \"$judge.output.0\"\n", "with.x"),
+            "-x": ("  - id: plan\n    script: plan\n    with:\n      x: \"$judge.output-x\"\n", "with.x"),
+            "outputs": ("  - id: plan\n    script: plan\n    with:\n      x: \"$judge.outputs\"\n", "with.x"),
+            "文の中のまるごと": ("  - id: plan\n    script: plan\n    with:\n      x: \"a $judge.output b\"\n", "with.x"),
+            "from の中の入れ子": ("  - id: plan\n    script: plan\n    with:\n      x: { from: { from: \"$judge.output\" } }\n", "with.x.from.from"),
+        }
+        for name, (node, where) in places.items():
+            with self.subTest(name):
+                got = self.files({BLOCK: RETURNING, LINE: LINE_HEAD + READS + node})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("節 plan", got[0])
+                self.assertIn(where, got[0])
+        anchored = (
+            "name: works-factory-line\nx-bind: &bind\n  x: \"$judge.output\"\nnodes:\n  - id: judge\n    include: works-factory-judge\n" + READS +
+            "  - id: plan\n    include: works-factory-plan\n    with:\n      <<: *bind\n"
+        )
+        with self.subTest("<<: で include の with: に引いた値"):
+            got = self.files({BLOCK: RETURNING, LINE: anchored})
+            self.assertEqual(len(got), 1, got)
+            self.assertIn("with.x", got[0])
+
+    def test_loop_prev_whole_ref_is_read_through_the_gate(self):
+        line = (
+            "name: works-factory-line\nnodes:\n  - id: rounds\n    loop_group:\n      max_iterations: 3\n      until_bash: 'true'\n      nodes:\n"
+            "        - id: judge\n          include: works-factory-judge\n"
+            "        - id: take\n          script: take\n          depends_on: [judge]\n          with:\n"
+            "            got: \"$LOOP_PREV.judge.output\"\n"
+        )
+        self.assertEqual(self.files({BLOCK: RETURNING, LINE: line, TAKE: GATE}), [])
+        got = self.files({BLOCK: RETURNING, LINE: line + READS, TAKE: 'got = json.loads(os.environ["INPUTS_GOT"])\n'})
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("節 take", got[0])
+        self.assertIn("boundary.picked の呼びが無い", got[0])
 
 
 if __name__ == "__main__":

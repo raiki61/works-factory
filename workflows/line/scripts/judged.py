@@ -16,8 +16,8 @@ works:line-script を返し、fixed がそれを読んで後ろへ進めない�
 再審が止まった（3 回とも拒まれた・支度ができない。judge のブロックが止めの理由 works:rejudge ほかを返した）時は、その止めの理由を
 stop_reason で返し、fixed が試験の関門・独立の目・merge へ進めない（元 works/.shared/core/rejudge.py 546-558 行の b.stop）。
 
-入力（with:）: judge_<欄>（judge の返り）・rejudge_<欄>（rejudge-run の返り。`{from, if_skipped: null}`）・rejudge_stop_reason
-（rejudge-run の止めの理由。`{from, if_skipped: null}`）・objection（fix の異議）
+入力（with:）: judge_<欄>（judge の返り。fix-in の欄つきの参照）・rejudge（rejudge-run の返りまるごと。`{from, if_skipped: null}`。
+読む欄の名は REJUDGE で、止めの理由 stop_reason も同じ返りから読む）・objection（fix の異議）
 """
 import os
 import sys
@@ -30,6 +30,7 @@ with boundary.guarded_imports():
     import report
 
 FIELDS = ("units", "judgment", "purpose", "world", "rejudge_verdict")
+REJUDGE = (*FIELDS, "stop_reason")   # rejudge-run の返りから読む欄（口 boundary.picked に渡す）。止めの理由 stop_reason も同じ返りから読む
 COMPARED = ("new_open_units", "lowered", "unnamed_changed")
 
 
@@ -54,14 +55,15 @@ def judged(judge: dict, rejudge: dict | None, objection: str, rejudge_stop: str 
             "stop_reason": rejudge_stop if rejudge is not None else ""}
 
 
-def of_env(prefix: str) -> dict:
-    return {key: boundary.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
+def judge_from_env(prefix: str) -> dict:
+    """judge_ の頭の入力（fix-in の欄つきの参照）。値は enum の字か null なので、5 欄とも boundary.value で読む"""
+    return {key: boundary.value(os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
 
 
 def from_env() -> tuple:
-    rejudge = of_env("REJUDGE")
-    return (of_env("JUDGE"), (None if rejudge["units"] is None else rejudge), boundary.text(os.environ.get("INPUTS_OBJECTION")),
-            boundary.text(os.environ.get("INPUTS_REJUDGE_STOP_REASON")))
+    rejudge = boundary.picked(os.environ.get("INPUTS_REJUDGE"), REJUDGE)   # 走らなかった（飛んだ節）なら None
+    stop = rejudge["stop_reason"] if rejudge is not None else ""
+    return (judge_from_env("JUDGE"), rejudge, boundary.text(os.environ.get("INPUTS_OBJECTION")), stop if isinstance(stop, str) else "")
 
 
 def fallback(reason: str) -> dict:

@@ -635,7 +635,15 @@ def _origin_names(root: Path) -> list[str]:
     return out
 
 
-OUTPUT_REF = re.compile(r"\$(?:LOOP_PREV\.)?([A-Za-z_][\w-]*)\.output\.([A-Za-z_]\w*)")
+# Archon の出力の参照（dag-executor.ts の `\.output(?:\.([a-zA-Z_][a-zA-Z0-9_]*))?`）と同じ形の 1 本。欄の組は任意で、match[2] が None の一致が
+# まるごとの参照。だから `.output-x`・`.outputs`・`.output.`・`.output.0` も欄の無い側（まるごと）に入り、欄つきとの間に隙間が開かない
+OUTPUT_REF = re.compile(r"\$(?:LOOP_PREV\.)?([A-Za-z_][\w-]*)\.output(?:\.([A-Za-z_]\w*))?")
+# 境の口（workflows/.shared/boundary.py）の呼びの名と、受け皿の素通しの宣言の名。scan.py が script について知るのはこれと環境の名の頭だけ
+GATE_MODULE = "boundary"
+GATE_PICKED = "picked"
+GATE_VALUE = "value"
+GATE_PASSES = "PASSES"
+INPUT_HEAD = "INPUTS_"
 
 
 def _workflow_doc(folder: Path):
@@ -647,42 +655,90 @@ def _workflow_doc(folder: Path):
     return path, (documents[0] if documents and not broken else None)
 
 
-def _scalars(node):
-    """node の下の字の値を全部（鍵は除く）"""
+def _scalars(node, path=(), skip=frozenset()):
+    """node の下の字の値を、merge key を _pairs で解いた鍵の道と字の組で全部（鍵は除く）。list の項は添字を道に足す。道が skip に在る物の下は回さない"""
+    if path in skip:
+        return
     if isinstance(node, yaml.ScalarNode):
-        yield node.value
+        yield path, node.value
     elif isinstance(node, yaml.SequenceNode):
-        for item in node.value:
-            yield from _scalars(item)
+        for index, item in enumerate(node.value):
+            yield from _scalars(item, (*path, index), skip)
     elif isinstance(node, yaml.MappingNode):
-        for _, value in node.value:
-            yield from _scalars(value)
+        for key, value in _pairs(node):
+            yield from _scalars(value, (*path, key), skip)
 
 
-def _line_reads(root: Path) -> dict:
-    """線が `$<include の id>.output.<欄>` で読む欄を、差し込んだ工程の名ごとに {名: {欄…}}"""
+def _line_reads(root: Path) -> tuple[dict, dict, list[str]]:
+    """線のメイングラフの節ごとに、字を鍵の道つきで 1 回の走査で読む。返りは (reads, whole, 赤の行):
+    reads は `$<include の id>.output.<欄>` で読む欄を、差し込んだ工程の名ごとに {名: {欄…}}。
+    whole は、まるごとの参照 `$<include の id>.output` を受けてよい置き場（script の節の with:<鍵> の直の字か with:<鍵>.from の字が、
+    参照そのもの）で受けた script の口の読みを、工程の名ごとに {名: [(script のパス, 行, 鍵, 口の名の並び（受け皿の素通しは None）)…]}。
+    受けてよい置き場の外のまるごとの参照と、口を引けない・読まない・迂回して読む受け手は、列挙せずに全部赤（既定の拒み）"""
     path = root / LINE_YAML
     documents, broken = _documents(root, path) if path.is_file() else ([], [])
     if broken or not documents:
-        return {}
+        return {}, {}, []
     document = documents[0]
     target = {
         _top(node, "id").value: value.value
         for node in _nodes(document)
         if isinstance(value := _top(node, "include"), yaml.ScalarNode) and isinstance(_top(node, "id"), yaml.ScalarNode)
     }
-    reads = {}
-    for text in _scalars(_top(document, "nodes")):
-        for match in OUTPUT_REF.finditer(text):
-            if match[1] in target:
-                reads.setdefault(target[match[1]], set()).add(match[2])
-    return reads
+    reads, whole, out = {}, {}, []
+    for node in _nodes(document):
+        ident = getattr(_top(node, "id"), "value", "?")
+        received = {}   # 受けてよい置き場の鍵 → まるごとの参照が指す include の id
+        for keys, text in _scalars(node, skip={("loop_group", "nodes")}):   # loop_group の中の節は別の節として回す
+            refs = []
+            for match in OUTPUT_REF.finditer(text):
+                if match[1] not in target:
+                    continue
+                if match[2] is None:
+                    refs.append(match)
+                else:
+                    reads.setdefault(target[match[1]], set()).add(match[2])
+            if refs and _takes_whole(node, keys, text):
+                received[keys[1]] = refs[0][1]
+            elif refs:
+                out.append(f"{_rel(root, path)}:{_line(node)}: 節 {ident} の {'.'.join(map(str, keys))} のまるごとの参照 {refs[0][0]} は受けられない"
+                           "（受けてよいのは script の節の with:<鍵> の直の字と with:<鍵>.from の字だけ）")
+        for key, include in received.items():
+            entry, problems = _gated(root, path, node, ident, key)
+            out += problems
+            if entry is not None:
+                whole.setdefault(target[include], []).append(entry)
+    return reads, whole, out
+
+
+def _takes_whole(node, keys: tuple, text: str) -> bool:
+    """節 node の鍵の道 keys の字 text が、受けてよい置き場のまるごとの参照そのものか"""
+    place = len(keys) in (2, 3) and keys[0] == "with" and isinstance(keys[1], str) and (len(keys) == 2 or keys[2] == "from")
+    whole = OUTPUT_REF.fullmatch(text)
+    return _top(node, "script") is not None and place and whole is not None and whole[2] is None
+
+
+def _gated(root: Path, line_path: Path, node, ident: str, key: str):
+    """まるごとの参照を with:<key> で受ける script の節 node の口の読み。(whole の組か None, 赤の行の並び)"""
+    here = f"節 {ident} の with.{key}"
+    scripts = [p for p in node_scripts(line_path.parent, node) if p.suffix == ".py"]
+    if len(scripts) != 1:
+        return None, [f"{_rel(root, line_path)}:{_line(node)}: {here} を受ける script のファイルを引けない（直に書いた script: | か名の取り違え）"]
+    script = scripts[0]
+    rel = _rel(root, script)
+    if not script_reads(script.read_text(encoding="utf-8", errors="replace"), key, root / "lib"):
+        return None, [f"{rel}:1: {here} を受ける script が {_input_env(key)} を読まない"]
+    names, line, reasons = _gate_reads(script, key, root / "lib")
+    if reasons:
+        return None, [f"{rel}:{line}: {here} を受ける script が口を通らずに読む: " + "／".join(reasons)]
+    return (rel, line, key, names), []
 
 
 def _block_returns(root: Path) -> list[str]:
-    """返りの欄の読み手に加えて、ブロックの入力の読み手（K12）と、輪の中の役が自分の with: を結ばないこと（K5）も照らす"""
-    out = _inputs_read(root) + _loop_roles(root)
-    reads = _line_reads(root)
+    """返りの欄の読み手に加えて、ブロックの入力の読み手（K12）と、輪の中の役が自分の with: を結ばないこと（K5）も照らす。
+    まるごとの参照を受ける script の口の名は、順方向（返す節の output_format に在る）と逆向き（読み手に数える）の両方で照らす"""
+    reads, whole, problems = _line_reads(root)
+    out = _inputs_read(root) + _loop_roles(root) + problems
     for folder in _blocks(root):
         if folder.name == LINE_FOLDER:
             continue
@@ -706,38 +762,345 @@ def _block_returns(root: Path) -> list[str]:
             out.append(f"{rel}:{_line(outcome)}: outcome_field の欄 {outcome.value} が返す節の required に無い")
         if folder.name == CHAIN_FOLDER:   # 鎖の出力を読むのは人（workflow get）で、グラフの読み手は無い
             continue
-        read = reads.get(f"{OURS_PREFIX}{folder.name}", set())
-        for key, value in _pairs(_top(schema, "properties")):
+        name = f"{OURS_PREFIX}{folder.name}"
+        fields = list(_pairs(_top(schema, "properties")))
+        known = {k for k, _ in fields}
+        read = set(reads.get(name, ()))
+        for script, line, key, names in whole.get(name, ()):
+            read |= known if names is None else set(names)   # 受け皿の素通しは全部の欄を写す
+            out += [f"{script}:{line}: script {script} が {key} で読む欄 {n} が {name} の返りに無い" for n in names or () if n not in known]
+        for key, value in fields:
             if key not in read:
-                out.append(f"{rel}:{_line(value)}: 返りの欄 {key} に読み手が無い（線の with:・when:・返しの節の from の誰も読まない）")
+                out.append(f"{rel}:{_line(value)}: 返りの欄 {key} に読み手が無い"
+                           "（線の with:・when:・返しの節の from の欄つきの参照も、まるごとの参照を受ける script の口の名も、受け皿の素通しも読まない）")
     return out
 
 
 def script_reads(text: str, name: str, lib: Path = LIB) -> bool:
     """script の字が入力 name を読むか。Archon は名の - を _ にして大文字の INPUTS_<名> で渡す。`INPUTS_{…}` を組んで読む script は
-    名の字を持つ物と、INPUTS_{…} を組む内包の for で名を持つ lib の部品の字の並びの定数（BUILT_FROM。部品は lib の下）を回す物を読み手に数える"""
+    名の字を持つ物と、INPUTS_{…} を組む内包の for で名を持つ lib の部品の字の並びの定数（BUILT_FROM。部品は lib の下）を回す物を読み手に数える。
+    定数の字の並びは名の組を解く唯一の所 _str_names で解く"""
     if re.search(rf"INPUTS_{re.escape(name.replace('-', '_').upper())}(?![A-Z0-9_])", text):
         return True
     if "INPUTS_{" not in text:
         return False
     if re.search(rf"[\"']{re.escape(name)}[\"']", text):
         return True
-    return any(name in _lib_names(lib / f"{module}.py", const) for module, const in BUILT_FROM.findall(text))
+    return any(name in _lib_names(lib / f"{module}.py", const, lib) for module, const in BUILT_FROM.findall(text))
 
 
 @functools.cache
-def _lib_names(path: Path, const: str) -> tuple:
-    """lib の部品 path の頭で const に置いた字の並び（無い・字の並びでなければ空）"""
-    if not path.is_file():
-        return ()
-    for node in ast.parse(path.read_text(encoding="utf-8")).body:
-        if isinstance(node, ast.Assign) and [getattr(t, "id", None) for t in node.targets] == [const]:
-            try:
-                value = ast.literal_eval(node.value)
-            except ValueError:
-                return ()
-            return value if isinstance(value, tuple) and all(isinstance(v, str) for v in value) else ()
-    return ()
+def _lib_names(path: Path, const: str, lib: Path) -> tuple:
+    """lib の部品か script の頭の定数 const（path の module の頭の代入）を _str_names で解いた字の並び（解けなければ空）"""
+    source = _source(path)
+    value = _top_value(source, const) if source else None
+    return (_str_names(value, path, lib, sequence=True) or ()) if value is not None else ()
+
+
+def _input_env(name: str) -> str:
+    """入力 name を Archon が script に渡す環境の名（- は _ にして大文字）"""
+    return INPUT_HEAD + name.replace("-", "_").upper()
+
+
+class _Source:
+    """名の組みを解く相手の module の木と、親の結びと、頭の代入（名 → 値の並び。1 つに定まらない束縛は None を足す）"""
+
+    def __init__(self, tree: ast.Module):
+        self.tree = tree
+        self.parents = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+        self.top: dict = {}
+        for stmt in tree.body:
+            if isinstance(stmt, ast.Assign):
+                for target in stmt.targets:
+                    plain = isinstance(target, ast.Name)
+                    for name in ([target] if plain else [n for n in ast.walk(target) if isinstance(n, ast.Name)]):
+                        self.top.setdefault(name.id, []).append(stmt.value if plain else None)
+            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                self.top.setdefault(stmt.target.id, []).append(stmt.value)
+            else:
+                bound = [stmt.target.id] if isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name) else []
+                bound += [a.asname or a.name.partition(".")[0] for a in getattr(stmt, "names", []) if isinstance(stmt, (ast.Import, ast.ImportFrom))]
+                bound += [stmt.name] if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else []
+                for name in bound:
+                    self.top.setdefault(name, []).append(None)
+
+
+@functools.cache
+def _source(path: Path):
+    """script か lib の部品 path の module の _Source（無い・読めない・構文の誤りは None）"""
+    try:
+        return _Source(ast.parse(path.read_text(encoding="utf-8")))
+    except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
+        return None
+
+
+def _top_value(source, name: str):
+    """module の頭で name に 1 度だけ置いた式（無い・何度も束縛される物は None）"""
+    values = source.top.get(name, [])
+    return values[0] if len(values) == 1 else None
+
+
+STR, SEQ = "str", "seq"   # 解いた物の種類: 取りうる字（f 字・連結・名）か、字の並び（tuple・list・set）
+MAX_NAMES = 4096
+LIB_PART = re.compile(r"[a-z_][a-z0-9_]*")
+LIB_CONST = re.compile(r"[A-Z][A-Z0-9_]*")
+
+
+def _str_names(node, path: Path, lib: Path, sequence: bool = False):
+    """式 node（path の module の木の中の node）が取りうる名の集まり（字の並びの tuple）を解く唯一の所。解けなければ None。
+    sequence なら字の並び（tuple・list・set）の式だけを解く。解くのは次の形:
+    字の定数・字の tuple・list・set の literal・`*` 展開・`+` の連結・同じ module の頭の定数の名（再帰で）・lib の部品の定数 `<module>.<CONST>`・
+    `.upper()` と `.lower()` の呼び・内包の生成の変数（回す並びを解く）・関数の引数の名（同じ module のその関数の全部の呼びの引数を解き、
+    関数が呼び以外で使われる時と引数が解けない時は解けない）。f 字は字の欄と解いた欄の積で名を組む。
+    関数の返り・添字・属性の連なり・`%` と `.format` で組む形は解けない。どの字の定数にも INPUTS_ の字を持たない組み方（字を割る形）は数えない"""
+    source = _source(path)
+    got = _solve(node, source, lib) if source else None
+    return got[1] if got is not None and (got[0] == SEQ or not sequence) else None
+
+
+def _solve(node, source, lib: Path, seen=frozenset()):
+    """(STR か SEQ, 字の tuple) か、解けなければ None。seen は解いている途中の式（回る定義を解けない側に倒す）"""
+    if id(node) in seen:
+        return None
+    seen = seen | {id(node)}
+    if isinstance(node, ast.Constant):
+        return (STR, (node.value,)) if isinstance(node.value, str) else None
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        names = []
+        for item in node.elts:
+            spread = isinstance(item, ast.Starred)
+            got = _solve(item.value if spread else item, source, lib, seen)
+            if got is None or got[0] != (SEQ if spread else STR):
+                return None
+            names += got[1]
+        return SEQ, tuple(dict.fromkeys(names))
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _solve(node.left, source, lib, seen), _solve(node.right, source, lib, seen)
+        if left is None or right is None or left[0] != right[0]:
+            return None
+        return (SEQ, tuple(dict.fromkeys(left[1] + right[1]))) if left[0] == SEQ else _product([left[1], right[1]])
+    if isinstance(node, ast.JoinedStr):
+        parts = []
+        for value in node.values:
+            if isinstance(value, ast.Constant):
+                parts.append((value.value,))
+            elif isinstance(value, ast.FormattedValue) and value.conversion == -1 and value.format_spec is None:
+                got = _solve(value.value, source, lib, seen)
+                if got is None or got[0] != STR:
+                    return None
+                parts.append(got[1])
+            else:
+                return None
+        return _product(parts)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("upper", "lower") \
+            and not node.args and not node.keywords:
+        got = _solve(node.func.value, source, lib, seen)
+        return (STR, tuple(dict.fromkeys(getattr(v, node.func.attr)() for v in got[1]))) if got is not None and got[0] == STR else None
+    if isinstance(node, ast.Name):
+        return _solve_name(node, source, lib, seen)
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) \
+            and LIB_PART.fullmatch(node.value.id) and LIB_CONST.fullmatch(node.attr):
+        part = _source(lib / f"{node.value.id}.py")
+        value = _top_value(part, node.attr) if part else None
+        return _solve(value, part, lib, seen) if value is not None else None
+    return None
+
+
+def _product(parts):
+    """字の欄の並び parts（それぞれ取りうる字の tuple）の積の (STR, 字の tuple)。大きすぎる積は解けない側に倒す"""
+    names = ("",)
+    for options in parts:
+        names = tuple(dict.fromkeys(a + b for a in names for b in options))
+        if len(names) > MAX_NAMES:
+            return None
+    return STR, names
+
+
+def _solve_name(node, source, lib: Path, seen):
+    """名 node を、内包の生成の変数・関数の引数・module の頭の定数の順に内側から解く"""
+    name, child, parent, in_iter = node.id, node, source.parents.get(node), False
+    while parent is not None:
+        if isinstance(parent, ast.comprehension):
+            in_iter = child is parent.iter
+        elif isinstance(parent, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+            generators = parent.generators
+            if child in generators:   # 回す並び（先頭の生成の iter は内包の外で、後の生成の iter は前の変数が見える）
+                at = generators.index(child)
+                generators = generators[:at] if in_iter else generators[:at + 1]
+            for generator in reversed(generators):
+                if any(n.id == name for n in ast.walk(generator.target) if isinstance(n, ast.Name)):
+                    got = _solve(generator.iter, source, lib, seen) if isinstance(generator.target, ast.Name) else None
+                    return (STR, got[1]) if got is not None and got[0] == SEQ else None
+            in_iter = False
+        elif isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            inside = child is parent.body if isinstance(parent, ast.Lambda) else any(child is stmt for stmt in parent.body)
+            if inside and name in {a.arg for a in ast.walk(parent.args) if isinstance(a, ast.arg)}:
+                return _solve_param(parent, name, source, lib, seen)
+            if inside and _assigns(parent, name, source):
+                return None
+        child, parent = parent, source.parents.get(parent)
+    value = _top_value(source, name)
+    return _solve(value, source, lib, seen) if value is not None else None
+
+
+def _assigns(function, name: str, source) -> bool:
+    """関数の中で name を（内包の生成の変数以外で）束縛するか。束縛するなら同じ名の頭の定数は見えない"""
+    for node in ast.walk(function):
+        if isinstance(node, ast.Name) and node.id == name and isinstance(node.ctx, (ast.Store, ast.Del)) and not _in_comprehension_target(node, source):
+            return True
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node is not function and node.name == name:
+            return True
+    return False
+
+
+def _in_comprehension_target(node, source) -> bool:
+    while True:
+        parent = source.parents.get(node)
+        if parent is None or isinstance(parent, ast.stmt):
+            return False
+        if isinstance(parent, ast.comprehension):
+            return parent.target is node
+        node = parent
+
+
+def _solve_param(function, name: str, source, lib: Path, seen):
+    """関数 function の引数 name を、同じ module のその関数の全部の呼びの引数で解く。呼び以外で使われる・呼びが無い・引数が解けなければ None"""
+    scope = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef)   # module の頭か、関数の中に入れ子にした関数（メソッドは属性の呼びで追えない）
+    if not isinstance(function, scope[1:]) or not isinstance(source.parents.get(function), scope):
+        return None
+    args = function.args
+    positional = [*args.posonlyargs, *args.args]
+    where = [a.arg for a in positional].index(name) if name in [a.arg for a in positional] else None
+    keyword_only = [a.arg for a in args.kwonlyargs]
+    if where is None and name not in keyword_only:
+        return None   # *args・**kwargs
+    default = None
+    if where is not None and where >= len(positional) - len(args.defaults):
+        default = args.defaults[where - (len(positional) - len(args.defaults))]
+    elif where is None:
+        default = args.kw_defaults[keyword_only.index(name)]
+    calls = []
+    for use in ast.walk(source.tree):
+        if isinstance(use, ast.Name) and use.id == function.name and isinstance(use.ctx, ast.Load):
+            call = source.parents.get(use)
+            if not (isinstance(call, ast.Call) and call.func is use):
+                return None
+            calls.append(call)
+    if not calls:
+        return None
+    solved = []
+    for call in calls:
+        if any(isinstance(a, ast.Starred) for a in call.args) or any(k.arg is None for k in call.keywords):
+            return None
+        given = call.args[where] if where is not None and where < len(call.args) else next((k.value for k in call.keywords if k.arg == name), default)
+        got = _solve(given, source, lib, seen) if given is not None else None
+        if got is None:
+            return None
+        solved.append(got)
+    kinds = {kind for kind, _ in solved}
+    if len(kinds) != 1:
+        return None
+    return kinds.pop(), tuple(dict.fromkeys(n for _, names in solved for n in names))
+
+
+def _norm(name: str) -> str:
+    return name.replace("-", "_").upper()
+
+
+def _is_name_head(node) -> bool:
+    """INPUTS_ で始まる字の定数か（大文字・小文字を問わない）"""
+    return isinstance(node, ast.Constant) and isinstance(node.value, str) and _norm(node.value).startswith(INPUT_HEAD)
+
+
+def _name_head(node):
+    """INPUTS_ で始まる名を組む式 node の頭の字の定数（そうでなければ None）: 頭の字の欄が INPUTS_ で始まる f 字・頭の字が INPUTS_ で始まる
+    `+` の連結・`%` と `.format` で組む形。名を組まない式（辞書の鍵・比べの字・ほかの引数）は数えない"""
+    head = None
+    if isinstance(node, ast.JoinedStr):
+        head = node.values[0] if node.values else None
+    elif isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mod)):
+        head = node.left
+        while isinstance(head, ast.BinOp) and isinstance(head.op, ast.Add):
+            head = head.left
+    elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "format":
+        head = node.func.value
+    return head if _is_name_head(head) else None
+
+
+def _holds(node, env: str) -> bool:
+    return any(isinstance(n, ast.Constant) and isinstance(n.value, str) and _norm(n.value) == env for n in ast.walk(node))
+
+
+def _boundary_calls(source, attr: str) -> list:
+    return [n for n in ast.walk(source.tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == attr
+            and isinstance(n.func.value, ast.Name) and n.func.value.id == GATE_MODULE]
+
+
+def _gate_reads(path: Path, key: str, lib: Path) -> tuple:
+    """まるごとの参照を with:<key> で受ける script path が入力 key を読む口を AST で読む。返りは (口の名の並び, 行, 赤の訳の並び)。
+    読みの口は `boundary.picked(<字の定数 "INPUTS_<key>" を持つ式>, <名の並び>)` の呼び 1 つだけ。名の並びは _str_names で解く。
+    受け皿の素通し（module の頭の PASSES に key が在る）は INPUTS_<key> を `boundary.value(…)` の呼びの中だけで読み、名の並びは None（全部の欄）。
+    迂回の判じは形を並べず既定の拒み: (i) 値がちょうど INPUTS_<key> の字の定数が口の呼びの外に在る、(ii) INPUTS_ で始まる名を組む式
+    （_str_names で組みうる名を全部解き、INPUTS_<key> が在るか解けなければ赤）、(iii) INPUTS_ で始まるが名の全部でも組む式の頭でもない
+    字の定数で INPUTS_<key> がその字で始まる（前置きで環境を舐める形）"""
+    source = _source(path)
+    if source is None:
+        return (), 1, ["script を UTF-8 の構文として読めない"]
+    env = _input_env(key)
+    reasons = []   # (行, 訳)
+    passes = _top_value(source, GATE_PASSES)
+    passed = False
+    if GATE_PASSES in source.top:
+        names = _str_names(passes, path, lib) if passes is not None else None
+        line = getattr(passes, "lineno", 1)
+        if names is None:
+            reasons.append((line, f"{GATE_PASSES} を解けない"))
+        passed = names is not None and key in names
+    if passed:
+        gates = [c for c in _boundary_calls(source, GATE_VALUE) if any(_holds(a, env) for a in (*c.args, *(k.value for k in c.keywords)))]
+        allowed = {id(n) for c in gates for a in (*c.args, *(k.value for k in c.keywords)) for n in ast.walk(a)}
+        names = None
+        if not gates:
+            reasons.append((1, f"boundary.{GATE_VALUE} の呼びが無い（受け皿の素通しは {env} を boundary.{GATE_VALUE}(…) の中だけで読む）"))
+    else:
+        gates = [c for c in _boundary_calls(source, GATE_PICKED) if c.args and _holds(c.args[0], env)]
+        allowed = {id(n) for c in gates for n in ast.walk(c.args[0])}
+        names = ()
+        if not gates:
+            reasons.append((1, f"boundary.{GATE_PICKED} の呼びが無い（{env} は boundary.{GATE_PICKED}(<{env} の字を持つ式>, <名の並び>) で読む）"))
+        elif len(gates) > 1:
+            reasons.append((gates[1].lineno, f"boundary.{GATE_PICKED} の呼びが 2 つ以上ある（{env} の口は 1 つだけ）"))
+        if gates:
+            gate = gates[0]
+            solved = _str_names(gate.args[1], path, lib) if len(gate.args) == 2 and not gate.keywords else None
+            if solved is None:
+                reasons.append((gate.lineno, f"口の名の並びを解けない（boundary.{GATE_PICKED} の第 2 引数は 2 つの引数のうちの名の並びで、定数に解ける形）"))
+            else:
+                names = solved
+    heads, inner = set(), set()
+    for node in ast.walk(source.tree):
+        if id(node) in inner or (head := _name_head(node)) is None:
+            continue
+        heads.add(id(head))
+        spine = node.left if isinstance(node, ast.BinOp) else None
+        while isinstance(spine, ast.BinOp) and isinstance(spine.op, ast.Add):
+            inner.add(id(spine))
+            spine = spine.left
+        built = _str_names(node, path, lib)
+        if built is None:
+            reasons.append((node.lineno, f"{INPUT_HEAD} で始まる名を組む式 {ast.unparse(node)} を解けない"))
+        elif any(_norm(name) == env for name in built):
+            reasons.append((node.lineno, f"{INPUT_HEAD} で始まる名を組む式 {ast.unparse(node)} が {env} を組みうる"))
+    for node in ast.walk(source.tree):
+        if not _is_name_head(node) or id(node) in heads:
+            continue
+        spelled = _norm(node.value)
+        if spelled == env and id(node) not in allowed:
+            reasons.append((node.lineno, f"{env} の字が口の呼びの外にある"))
+        elif spelled != env and env.startswith(spelled):
+            reasons.append((node.lineno, f"字 {node.value!r} が {env} の前置きにあたり、環境を舐めうる"))
+    line = min((n for n, _ in reasons), default=gates[0].lineno if gates else 1)
+    return names, line, list(dict.fromkeys(why for _, why in reasons))
 
 
 def _role_reads(text: str, name: str) -> bool:
@@ -767,7 +1130,7 @@ def _inputs_read(root: Path) -> list[str]:
         declared = {key for key, _ in _pairs(_top(document, "inputs"))}
         for script, text in scripts.items():
             for module, const in BUILT_FROM.findall(text):
-                for name in _lib_names(root / "lib" / f"{module}.py", const):
+                for name in _lib_names(root / "lib" / f"{module}.py", const, root / "lib"):
                     if name not in declared:
                         out.append(f"{_rel(root, script)}:1: {module}.{const} の名 {name} が {_rel(root, path)} の inputs: に無い"
                                    f"（INPUTS_{name.upper()} は空の字で届く）")

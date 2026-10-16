@@ -25,7 +25,8 @@ plan・ripple は独立の目が照らす修正案と波及: 2 度目の修正�
 design・plan_questions・answer は独立の目へ渡す計画の往復の設計と修正前の関所の問いと答え（そのまま渡す）。直す物が無い周（fix が
 走らず design-only が走った。fix の欄が null）は no_fix の形（no_fix）を返す（L-W07）。
 
-入力（with:）: fix_<欄>（fix の返り。止めの語 stop_reason も）・refix_<欄>（refix-run の返り）・replan（after-fix の返り）・stop_after_fix（after-fix の止めの理由）・
+入力（with:）: fix（fix の返りまるごと。止めの語 stop_reason も）・refix（refix-run の返りまるごと。読む欄の名は FIELDS で、口 boundary.picked に渡す。
+refix が走らなかったかは値が null かで見分ける）・replan（after-fix の返り）・stop_after_fix（after-fix の止めの理由）・
 plan・ripple・design・plan_questions（計画の往復の返り）・answer（修正前の関所の答え）・no_fix_design（design-only の design）・replanned
 （案の直しの返りの受け皿 replan-out の got。案の直しの返す節が落ちても fixed が落ちないように、replan を直に読まない）。直す物が
 無い周に飛ぶ節を結ぶので、どれも `{from, if_skipped: null}`
@@ -113,13 +114,10 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
     }
 
 
-def of_env(prefix: str) -> dict:
-    return {key: boundary.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
-
-
 def from_env() -> dict:
-    refix = of_env("REFIX")
-    return {"fix": of_env("FIX"), "refix": None if refix["done"] is None else refix,
+    fix = boundary.picked(os.environ.get("INPUTS_FIX"), FIELDS)
+    refix = boundary.picked(os.environ.get("INPUTS_REFIX"), FIELDS)   # 走らなかった（飛んだ節）なら None
+    return {"fix": dict.fromkeys(FIELDS) if fix is None else fix, "refix": refix,
             "replan": boundary.flag(os.environ.get("INPUTS_REPLAN")),
             "plans": {key: boundary.value(os.environ.get(f"INPUTS_{key.upper()}"))
                       for key in (*PLANS, "replanned", *PASSED, "no_fix_design")},
