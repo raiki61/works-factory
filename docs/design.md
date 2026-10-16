@@ -7,7 +7,7 @@
 
 - Archon: AI のグラフを YAML で書き、機械が順に回す道具。土台は止めた Archon（下）。
 - ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までのグラフの束（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/`）。見る版は止めた Archon と同じ。
-- 止めた Archon: ASF の取り付け命令が置いた `factory/pack.json` の `repository` を、`integration_revision_required` の commit（今は `d97d00ef`）で取った Archon の源。ASF と同じ開発中の源で、Archon の本体と ASF のグラフの両方をここから取り、`bun` で起こす（持ち主の決め `archon-same-as-asf`。読み方は「pack.json」のセクション）。
+- 止めた Archon: ASF の取り付け命令が置いた `factory/pack.json` の `repository` を、`integration_revision_required` の commit（今は `355f1867`。2026-10-16 に `d97d00ef` から上げた）で取った Archon の源。ASF と同じ開発中の源で、Archon の本体と ASF のグラフの両方をここから取り、`bun` で起こす（持ち主の決め `archon-same-as-asf`。読み方は「pack.json」のセクション）。
 - 今の works: raiki61/claude-plugins の `works/`。工場 darkfactory を持つ。棚卸しは origin/main の 2026-10-11 の姿（commit `ab9b9f17` まで）。
 - review-graph: graphloops プラグインのレビューと修正のループ（`works/.shared/core/graphloops/graphs/review-loop.json`）。今の works の元。
 - 語をそろえた訳: 持ち主の言葉「言葉は統一しようか。そろそろ。ノード、エッジとかグラフ図の考え方で統一して」（2026-10-12）。持ち主の決め `graph-words`（`docs/owner-decisions.md`）。
