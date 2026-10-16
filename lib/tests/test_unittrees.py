@@ -8,10 +8,11 @@
 - どの口も本物の index・HEAD・枝を動かさない
 - union の中のファイルで両方が同じ所（末尾）に行を足しただけの食い違いは、作業ツリーの側の行の後に patch の側の行を置いて
   当たる（unioned に積む）。行を変えた塊・union の外のファイルは今どおり当たらず、作業ツリーは前のまま
-- marked を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスを marked に積む）、union の中の挿しだけの食い違いは
-  合わせて印を書かない。markers_left は、区切りを除いた 3 つの印の頭（名つきでも名なしでも）の行が残るファイルと、印を書いた時点の
-  中身（staged）で塊の区切り以外に在った数を超える区切りの ======= の行が在るファイルを引く
-- 合わせ役の指示書（fix-rules/clash.md）は印の両側を MARK_LABELS の名のまま名指す
+- marked（dict）を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスとその印の長さを marked に積む。印の長さは中身の
+  どの行とも重ならない長さを 7 から選ぶ）、union の中の挿しだけの食い違いは合わせて印を書かない。markers_left はそのパスの長さの
+  印の頭か区切りの行が 1 行でも残るファイルと、長さの値が正しくないパスを引く。union の挿しだけの読みも同じ長さで読む
+- 合わせ役の指示書（fix-rules/clash.md）は印の両側を MARK_LABELS の名のまま名指し、印の長さと拒まれる行の決まりは brief の
+  markers・marker_rule を指す
 - tests_unique: 合わせた中身に同じ名のテストの定義が 2 つ在れば合わせない。patch_names: 差分の行先のパス
 """
 import pathlib
@@ -100,15 +101,14 @@ class UnitTrees(unittest.TestCase):
         _, p1 = self.unit(base, "u1", {"a.txt": "a1\nX\na3\n"})
         _, p2 = self.unit(base, "u2", {"a.txt": "a1\nY\na3\n", "b.txt": "b1\nb2\nB3\n"})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
-        marked = []
+        marked = {}
         self.assertEqual(unittrees.apply(self.repo, p2, marked=marked), (True, ""))
         a = (self.repo / "a.txt").read_text(encoding="utf-8").splitlines()
         for line in ("<<<<<<< 今の作業ツリー", "X", "Y", ">>>>>>> 当てる差分"):
             self.assertIn(line, a)
         self.assertEqual((self.repo / "b.txt").read_text(), "b1\nb2\nB3\n")
-        self.assertEqual(marked, ["a.txt"])
-        staged = groups.end_tree(self.repo)
-        self.assertEqual(unittrees.markers_left(self.repo, ["a.txt", "b.txt", "gone.txt"], staged), ["a.txt"])
+        self.assertEqual(marked, {"a.txt": 7})
+        self.assertEqual(unittrees.markers_left(self.repo, {**marked, "b.txt": 7, "gone.txt": 7}), ["a.txt"])
         self.assertEqual(self.real_state(), state)
 
     def test_marked_merges_union_files_and_marks_only_the_rest(self):
@@ -116,63 +116,102 @@ class UnitTrees(unittest.TestCase):
         _, p1 = self.unit(base, "u1", {"a.txt": "a1\nX\na3\n", "b.txt": "b1\nb2\nb3\nB4\n"})
         _, p2 = self.unit(base, "u2", {"a.txt": "a1\nY\na3\n", "b.txt": "b1\nb2\nb3\nB5\n"})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
-        marked, unioned = [], []
+        marked, unioned = {}, []
         self.assertEqual(unittrees.apply(self.repo, p2, union=["b.txt"], unioned=unioned, marked=marked), (True, ""))
-        self.assertEqual((marked, unioned), (["a.txt"], ["b.txt"]))
+        self.assertEqual((marked, unioned), ({"a.txt": 7}, ["b.txt"]))
         self.assertEqual((self.repo / "b.txt").read_text(), "b1\nb2\nb3\nB4\nB5\n")
         self.assertIn("<<<<<<< 今の作業ツリー", (self.repo / "a.txt").read_text(encoding="utf-8").splitlines())
-        staged = groups.end_tree(self.repo)
-        self.assertEqual(unittrees.markers_left(self.repo, ["a.txt", "b.txt"], staged), ["a.txt"])
+        self.assertEqual(unittrees.markers_left(self.repo, {"a.txt": 7, "b.txt": 7}), ["a.txt"])
 
     def test_markers_left_sees_every_marker_line(self):
-        """区切りを除いた 3 つの印の頭（名つきでも名なしでも。<<<<<<<・|||||||・>>>>>>>）の行が 1 行でも残るファイルを数える。
-        控え（staged）に何も無いので、区切りの ======= の行は 1 行でも許される数（0）を超えて数える"""
-        staged = groups.end_tree(self.repo)
+        """パスごとの長さの印の行（区切りを除いた 3 つの印の頭は名つきでも名なしでも、区切りは行全体）が 1 行でも残るファイルを
+        数える。長さは marked の値から取り、別の長さの行は数えない"""
         (self.repo / "mid.txt").write_text("a\n||||||| 元\nold\n=======\nY\nb\n", encoding="utf-8")
         (self.repo / "sep.txt").write_text("a\n=======\nb\n", encoding="utf-8")
         (self.repo / "plain.txt").write_text("a\n========\n<<<<<<<<b\n", encoding="utf-8")
         (self.repo / "half.txt").write_text("a\n<<<<<<< 今の作業ツリー\nb\n", encoding="utf-8")
         (self.repo / "bare.txt").write_text("a\n<<<<<<<\nb\n", encoding="utf-8")
         paths = ["mid.txt", "sep.txt", "plain.txt", "half.txt", "bare.txt"]
-        self.assertEqual(unittrees.markers_left(self.repo, paths, staged), ["mid.txt", "sep.txt", "half.txt", "bare.txt"])
+        self.assertEqual(unittrees.markers_left(self.repo, dict.fromkeys(paths, 7)), ["mid.txt", "sep.txt", "half.txt", "bare.txt"])
+        (self.repo / "wide.txt").write_text("a\n========\nb\n", encoding="utf-8")
+        (self.repo / "narrow.txt").write_text("a\n=======\n<<<<<<< x\nb\n", encoding="utf-8")
+        self.assertEqual(unittrees.markers_left(self.repo, {"wide.txt": 8, "narrow.txt": 8}), ["wide.txt"])
 
     def test_markers_left_skips_a_lone_separator_line(self):
-        """区切りの行を見逃すのは、印を書いた時点の中身（staged）の、塊の区切り以外に同じ数の区切りの行が在った時だけ"""
+        """区切りの行を見逃すのは、印の長さと違う長さの = だけの行（setext の下線）だけ。根拠は印の長さの違い"""
         (self.repo / "r.md").write_text("Heading\n=======\ntext\n", encoding="utf-8")
-        staged = groups.end_tree(self.repo)
-        self.assertEqual(unittrees.markers_left(self.repo, ["r.md"], staged), [])
+        self.assertEqual(unittrees.markers_left(self.repo, {"r.md": 8}), [])
+        self.assertEqual(unittrees.markers_left(self.repo, {"r.md": 7}), ["r.md"])
+
+    def test_markers_left_returns_a_path_without_a_usable_marker_size(self):
+        """長さの値が 7 以上の整数でないパス（7 未満・字・無し・bool）は、ファイルの中身を見ずに残りとして返す（通さず拒む）"""
+        size = unittrees.DEFAULT_MARKER_SIZE
+        for name in ("ok.txt", "short.txt", "text.txt", "none.txt", "flag.txt"):
+            (self.repo / name).write_text("a\nb\n", encoding="utf-8")
+        got = unittrees.markers_left(self.repo, {"ok.txt": size, "short.txt": size - 1, "text.txt": "8", "none.txt": None,
+                                                 "flag.txt": True})
+        self.assertEqual(got, ["short.txt", "text.txt", "none.txt", "flag.txt"])
 
     def marked_md(self, name, seed, edit1, edit2):
         """seed の中身の name を親に commit し、2 つの組が edit1・edit2 に書き換えて、後の組を印つきで当てる。
-        (印を書いた時点の木 staged, 印を書いた中身) を返す"""
-        (self.repo / name).write_text(seed, encoding="utf-8")
-        git(self.repo, "add", name)
-        git(self.repo, "commit", "-q", "-m", name)
+        (印を書いたパス→印の長さの marked, 印を書いた中身) を返す"""
+        self.commit_seed(name, seed)
         base = groups.end_tree(self.repo)
         _, p1 = self.unit(base, f"{name}-1", {name: edit1})
         _, p2 = self.unit(base, f"{name}-2", {name: edit2})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
-        marked = []
+        marked = {}
         self.assertEqual(unittrees.apply(self.repo, p2, marked=marked), (True, ""))
-        self.assertEqual(marked, [name])
+        self.assertEqual(list(marked), [name])
         text = (self.repo / name).read_text(encoding="utf-8")
-        self.assertIn("<<<<<<< 今の作業ツリー\n", text)
-        return groups.end_tree(self.repo), text
+        self.assertIn("<" * marked[name] + " 今の作業ツリー\n", text)
+        return marked, text
 
-    def test_markers_left_counts_separators_beyond_the_marked_snapshot(self):
-        """中身に setext の見出し（見出しの次の行が =======）を持つ .md で、印を書いた時点の中身（staged）で塊の区切り以外に在った
-        数を超える区切りの行は、印の頭の行が無くても数える。(i) 3 つの印の頭と base の行を消し、区切りと両側の本文を残した合わせは
-        返す。(ii) 印を全部解いて元の下線だけを残した合わせは返さない。(iii) 塊の base の側に ======= が在る時、base の側の見出しと
-        下線を戻して印を解いた合わせは返さない（base の側の区切りの字の行は許される数に入る）"""
-        staged, _ = self.marked_md("s.md", "Title\n=======\nbody\n", "Title\n=======\nX\n", "Title\n=======\nY\n")
-        (self.repo / "s.md").write_text("Title\n=======\nX\n=======\nY\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, ["s.md"], staged), ["s.md"])
-        (self.repo / "s.md").write_text("Title\n=======\nY\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, ["s.md"], staged), [])
-        staged, text = self.marked_md("t.md", "Head\n=======\nbody\n", "Head1\n-----\nbody\n", "Head2\n#####\nbody\n")
-        self.assertIn("||||||| 元\nHead\n=======\n=======\n", text)
-        (self.repo / "t.md").write_text("Head\n=======\nbody\n", encoding="utf-8")
-        self.assertEqual(unittrees.markers_left(self.repo, ["t.md"], staged), [])
+    def commit_seed(self, name, seed):
+        (self.repo / name).write_text(seed, encoding="utf-8")
+        git(self.repo, "add", name)
+        git(self.repo, "commit", "-q", "-m", name)
+
+    def test_markers_left_tells_the_marker_length_from_an_underline(self):
+        """中身に setext の見出し（見出しの次の行が =======）を持つ .md では、印は 8 字で書かれ、7 字の下線と印の区切りを長さで
+        見分ける。8 字の区切りを残した合わせは、下線を残しても別の見出しの下線に書き換えても返す。印を全部解いて元の下線だけを
+        残した合わせと、7 字の下線つきの見出しを新しく足した合わせは返さない（印と長さが違う）"""
+        sep = unittrees.marks(8)[2].decode()
+        marked, text = self.marked_md("s.md", "Title\n=======\nbody\n", "Title\n=======\nX\n", "Title\n=======\nY\n")
+        self.assertEqual(marked, {"s.md": 8})
+        self.assertIn(f"\n{sep}\n", text)
+        for merged, left in ((f"Title\n=======\nX\n{sep}\nY\n", ["s.md"]), (f"Title\n-------\nX\n{sep}\nY\n", ["s.md"]),
+                             ("Title\n=======\nY\n", []), ("Title\n=======\nX\nSub\n=======\nY\n", [])):
+            with self.subTest(merged=merged):
+                (self.repo / "s.md").write_text(merged, encoding="utf-8")
+                self.assertEqual(unittrees.markers_left(self.repo, marked), left)
+
+    def test_marker_grows_past_a_base_side_separator_and_a_half_merge_is_rejected(self):
+        """塊の base の側に 7 字の ======= が入る時、印は 8 字で書かれて base の側の ======= は区切りに読まれない。印の頭の 3 行と
+        base の行を消し、8 字の区切りと両側を残した合わせは残りとして返り、base の側の見出しと下線を戻して印を解いた合わせは返らない"""
+        heads = unittrees.marks(8)
+        sep = heads[2].decode()
+        marked, text = self.marked_md("t.md", "Head\n=======\nbody\n", "Head1\n-----\nbody\n", "Head2\n#####\nbody\n")
+        self.assertEqual(marked, {"t.md": 8})
+        self.assertIn(f"{heads[1].decode()} 元\nHead\n=======\n{sep}\n", text)
+        for merged, left in ((f"Head1\n-----\n{sep}\nHead2\n#####\nbody\n", ["t.md"]), ("Head\n=======\nbody\n", [])):
+            with self.subTest(merged=merged):
+                (self.repo / "t.md").write_text(merged, encoding="utf-8")
+                self.assertEqual(unittrees.markers_left(self.repo, marked), left)
+
+    def test_union_refuses_a_base_side_separator_line(self):
+        """base の側の行が 7 字の ======= の塊は、行を変えた塊なので挿しだけと読まず合わせない（印は 8 字で読む）"""
+        self.commit_seed("a.txt", "x\n=======\ny\n")
+        base = groups.end_tree(self.repo)
+        _, p1 = self.unit(base, "u1", {"a.txt": "x\nA\ny\n"})
+        _, p2 = self.unit(base, "u2", {"a.txt": "x\nB\ny\n"})
+        self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
+        got = []
+        ok, why = unittrees.apply(self.repo, p2, union=["a.txt"], unioned=got)
+        self.assertFalse(ok)
+        self.assertTrue(why)
+        self.assertEqual((self.repo / "a.txt").read_text(), "x\nA\ny\n")
+        self.assertEqual(got, [])
 
     def test_insert_only_conflict_in_a_union_file_is_merged_in_order(self):
         state = self.real_state()
@@ -261,6 +300,12 @@ class Checks(unittest.TestCase):
         ours, _, theirs = unittrees.MARK_LABELS
         self.assertIn(f"印の `{ours}` の側", rules)
         self.assertIn(f"`{theirs}` の側", rules)
+
+    def test_clash_prompt_points_to_the_marker_fields_of_the_brief(self):
+        rules = (LIB.parent / "workflows/fix/commands/fix-rules/clash.md").read_text(encoding="utf-8")
+        self.assertIn("`markers`", rules)
+        self.assertIn("`marker_rule`", rules)
+        self.assertNotIn("`=======`", rules)
 
 
 if __name__ == "__main__":
