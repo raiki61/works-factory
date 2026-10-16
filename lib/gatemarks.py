@@ -748,13 +748,11 @@ def design_only(b) -> bool:
 
 
 def stuck_push(b) -> str:
-    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。往復の行の push）の尾 _push。5 つが全部揃う時
-    だけ: 無人の run（gatepolicy.unattended）・設計だけの run でない・壁打ちの抜け方が止まり（converge.STUCK）・最後の往復が
-    安全の上限の周で止めた物（converge.pushable）でない・最後の往復の push が recommend_of で読めて通す（continue）推しで、
-    その note が止まった key と保留・開いた項目の番号の全部を字のまま引く（converge.uncited が空。修正役に届くのは note だけ）。
-    ほかは空（推しが無い・止める・崩れた・引用が欠ける時は pushed_answer が None を返して今どおり止まる。止める推しは往復の行の
-    push に残る）。stuck_push が上限の止まりを外す訳: 上限の止まりは仕組みの異常（converge.CAP_WHY）で、持ち主の決め（issue #552）は関所の
-    問いへの答えであり、異常の止まりは含まない。
+    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。往復の行の push）の尾 _push。4 つが全部揃う時
+    だけ: 無人の run（gatepolicy.unattended）・設計だけの run でない・壁打ちが推しで越えてよい止まり（converge.pushable）・
+    最後の往復の push が recommend_of で読めて通す（continue）推しで、その note が止まった key と保留・開いた項目の番号の全部を
+    字のまま引く（converge.uncited が空。修正役に届くのは note だけ）。ほかは空（推しが無い・止める・崩れた・引用が欠ける時は
+    pushed_answer が None を返して今どおり止まる。止める推しは往復の行の push に残る）。
     boardview（review.json に保留の項目の穴を足す）と design_item が同じこの 1 つの条件を読む"""
     if not gatepolicy.unattended(b.dir) or design_only(b):
         return ""

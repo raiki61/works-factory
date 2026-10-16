@@ -298,8 +298,6 @@ class TextCase(BoardCase):
         self.assertNotIn(converge.CAP_WHY.split("（")[0].format(n=2), converge.stuck_reason(b))
 
     def test_pushable_excludes_capped_stop(self):
-        """pushable は、上限に届かない止まり（UNSETTLED・PERSISTED）で真、安全の上限の周で止めた往復（capped。保留の項目が在る
-        PERSISTED も含む）と、止まっていない控え（AGAIN・CLEAN）で偽を返す"""
         def doc(rnd, passes, plan=()):
             b = self.board(rnd)
             if plan:

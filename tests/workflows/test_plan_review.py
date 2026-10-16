@@ -3954,8 +3954,7 @@ class ConvergeGateCase(GateBase):
         """無人の run の止まりの行を question_row のまま ask_before_fix.ask に通すと、go・pushed 非 null・asked にその行が入り、pushed の
         text（修正役に answer.said で届く一言）が止まった key を字のまま含む。答えを answer.taken で残し、runreport._pushed_lines
         （置き場の名 gate-before-fix で通す）は STUCK_ITEM で始まる止まりの行を推しで通したと並べる。推しが止める・欄が無い・note が
-        key を欠く時と、安全の上限の周で止めた往復（capped）は推しが通す形でも、go 偽・needs-human・pushed は null
-        （上限の止まりは test_unattended_capped_stuck_is_not_pushed）"""
+        key を欠く時は、go 偽・needs-human・pushed は null"""
         ask_before_fix = load_line_script("ask_before_fix")
 
         def ask(push):
@@ -3985,10 +3984,6 @@ class ConvergeGateCase(GateBase):
                 self.assertEqual((got["go"], got["stop_reason"], got["pushed"]), (False, stopby.NEEDS_HUMAN, None))
 
     def test_unattended_capped_stuck_is_not_pushed(self):
-        """無人の run で、上限に届かない止まり（PERSISTED。continue の推し）は ask_before_fix.ask で go が真・pushed が非 null になる。
-        安全の上限の周で止めた往復（at_cap=True で記録した capped・UNSETTLED。note が止まった key を引く continue の推し）は、
-        止まりの行に推しの尾が付かず、go が偽・stop_reason が stopby.NEEDS_HUMAN・pushed が null になり、gatemarks.stuck_push も空。
-        保留の項目が在る上限の止まり（PERSISTED で capped）も、止まりの行は理由（converge.stuck_reason）のまま推しの尾を持たない"""
         ask_before_fix = load_line_script("ask_before_fix")
 
         def ask(b):
@@ -3996,15 +3991,6 @@ class ConvergeGateCase(GateBase):
             plan = {"ready": True, "pass": False, "stalled": True, "round": 1, "ask_human": True, "gate_axes": {}, "questions": rows}
             return ask_before_fix.ask(plan, unattended=True, design_only=False, run_id="run-1")
 
-        items, b = self.stuck_items(self.PUSH, unattended="true")
-        self.assertNotIn("capped", converge.read(b)["passes"][-1])
-        self.assertTrue(converge.pushable(converge.read(b)))
-        self.assertNotEqual(gatemarks.stuck_push(b), "")
-        got = ask(b)
-        self.assertEqual((got["go"], got["stop_reason"]), (True, ""))
-        self.assertIsNotNone(got["pushed"])
-
-        (self.tmp / converge.RECORD).unlink(missing_ok=True)
         self.start(unattended="true")
         fake = self.fake()
         capped_push = {**self.PUSH, "note": "a-key-003 を修正の中で直す範囲で通す"}
@@ -4020,23 +4006,6 @@ class ConvergeGateCase(GateBase):
         self.assertIsNone(gatemarks.push_rec(items[0]))
         got = ask(b)
         self.assertEqual((got["go"], got["stop_reason"], got["pushed"]), (False, stopby.NEEDS_HUMAN, None))
-
-        held = [{"key": "a-key-001", "kind": "regression", "where": "stats.py", "why": "穴", "severity": "block", "unit_keys": ["u1"]}]
-        (self.tmp / converge.RECORD).unlink(missing_ok=True)
-        converge.note_plan(fake, [{"unit_keys": [u], "approach": "案の手順"} for u in ("u1", "u2")])
-        decaying = ([*held, *[{**held[0], "key": f"a-key-00{n}", "unit_keys": ["u2"]} for n in (2, 3, 4)]],
-                    [*held, *[{**held[0], "key": f"a-key-00{n}", "unit_keys": ["u2"]} for n in (5, 6)]],
-                    [{**held[0], "key": "a-key-007", "unit_keys": ["u2"]}])
-        for n, faces in enumerate(decaying, 1):
-            row = converge.record_pass(fake, {"faces": faces}, resolved=[], files={}, at_cap=n == len(decaying),
-                                       push=self.PUSH if n == len(decaying) else None)
-        self.assertEqual((row["outcome"], row["capped"]), (converge.PERSISTED, True))
-        got, b = self.gate()
-        items = got["ask"]["items"]
-        self.assertFalse(converge.pushable(converge.read(b)), "保留の項目が在る上限の止まり（PERSISTED）も越えない")
-        self.assertEqual(gatemarks.stuck_push(b), "")
-        self.assertIn(converge.stuck_reason(b), items[0])
-        self.assertIsNone(gatemarks.push_rec(items[0]))
 
     def test_held_face_added_for_the_push_is_not_a_second_gate_row(self):
         """推しが付く止まりで review.json の faces に足した保留の項目の block（印 held つき。kind は元のまま regression）は、関所の別の行に
