@@ -19,7 +19,7 @@ inputs:
     description: 単位の目録（[{id, paths, summary}]）
   judgment:
     default: ""
-    description: 受け付けた判定のポインタ（judgment.json と、隣の judge-verify.json・pr-excluded.json）
+    description: 受け付けた判定のポインタ（judgment.json と、隣の judge-verify.json・pr-excluded.json・depth-head.json）
   world:
     default: "null"
     description: 定石の行のポインタ（world-row の行の並び）。無ければ null

@@ -26,8 +26,9 @@ nodes:
         spec: {type: boolean}
         world: {type: boolean}
         reason: {type: string}
-  # run の頭の深さ（docs/design.md の「深さの段の表」）。支度が機械の止めを通し、役が依頼と行の引用で 3 段のどれかを決め、
-  # 受け付けが引用を照らす。控えは judge/depth-head.json で、返す節と裏取りの支度が読む（裏取りの支度は diagnose-prep を通してこの役の終わりを待つ）。落ちても判定は標準で進む
+  # run の頭の深さ（docs/design.md の「深さの段の表」）。支度が機械の止めを通し、役が依頼の行ごとの未知の種類を引用つきで返し、段は受け付けが一番重い種類から引く
+  # （引用の実在も受け付けが照らす）。控えは judge/depth-head.json で、判定役の材料（diagnose-prep が行ごとの指示を貼る）・返す節・裏取りの支度が読み
+  # （裏取りの支度は diagnose-prep を通してこの役の終わりを待つ）、判定の外では修正案の材料・修正の支度（置き場へ写す）・線の redepth が読む。落ちても判定は標準で進む
   - id: head-depth-prep
     script: head_depth_prep
     runtime: uv
@@ -79,20 +80,20 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [depth, why, items]
+            required: [why, items]
             properties:
-              depth:
-                type: string
-                enum: [軽量, 標準, 重厚]
               why: {type: string, minLength: 1, pattern: '\S'}
               items:
                 type: array
                 items:
                   type: object
                   additionalProperties: false
-                  required: [item, cause_quote, where, code_quote]
+                  required: [item, unknown, cause_quote]
                   properties:
                     item: {type: integer, minimum: 1}
+                    unknown:
+                      type: string
+                      enum: [無し, 原因, 形, 範囲]
                     cause_quote: {type: string, minLength: 1}
                     where: {type: string, minLength: 3}
                     code_quote: {type: string, minLength: 1}

@@ -65,6 +65,7 @@ import depth  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import headdepth  # noqa: E402
 import jsonfile  # noqa: E402
 import impact  # noqa: E402
 import judgeverify  # noqa: E402
@@ -762,7 +763,8 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
     元の planblk.prior_part）・記録された方針のセクション recorded（policy.recorded_text）・考えの住処の地図（元は包みが旗
     concept-map で足した concepthome.section）・引き継ぎのメモを書けという頼み HANDOFF_ASK・前の周の引き継ぎのメモの節
     handoff_section（前の周が在る時だけ。前の周の案の隣のメモを名指し、メモが無ければ無いと名指す）。形 plan はほかに単位と no・
-    処方・構造の目の行・世界の解の行・波及の一覧・裏取りの申し送り・仕様・方針の文書の段落（policy_md が在る時。元の p2.fix_plan の
+    処方・構造の目の行・世界の解の行・波及の一覧・裏取りの申し送り・頭の深さの行ごとの未知の種類と指示（headdepth.section。
+    判定の隣の控え）・仕様・方針の文書の段落（policy_md が在る時。元の p2.fix_plan の
     prompt_append の policy-path.md と policy.md）・2 往復目からは前の周の案と事前審査の指摘と前の周の波及の一覧。形 replan は
     ほかに REPLAN_ASK・直す項目ごとの前の形と申し出と裁定の文を足す（前の周は、直す元の案の周）。
     judgment_file は判定の記録の絶対パス（隣の控えを引く元で、処方の節に出どころとして名指す。無い run は None）"""
@@ -801,6 +803,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
                  f"{world}\n{worldmark.PLAN_ASK}\n" if world else "",
                  ripple.units_section(doc) if isinstance(doc, dict) else "",
                  planblk.verify_part(_neighbor(judgment_dir, judgeverify.VERIFY_FILE)),
+                 headdepth.section(_neighbor(judgment_dir, headdepth.RECORD)) if judgment_dir else "",
                  f"{SPEC_HEAD}\n\n" + "\n".join(replan._json_block(spec)) if spec is not None else "",
                  _prior_section(round_dir, plan_dir, record),
                  POLICY_PART.format(path=policy_md) if policy_md else ""]
