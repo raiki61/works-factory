@@ -50,7 +50,9 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   対応表）・出自 ORIGINS は tree_split が外す。下請けの答えのファイルの当たりの答えの型は HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
 - carried_refs(b, opened): 今の往復が見ない項目が前の往復の答えの対応表（DESIGN_MAP）で受けた独立設計の要素の id（往復の行の items の refs。
   要素の網羅は全部の項目の答えを合わせて数える）
-- item_blocks(b, n): 項目 n が答える前の往復の答えの要る穴の key（受け付けが下請けの答えの resolved を確かめる）
+- item_blocks(b, n): 項目 n が答える前の往復の答えの要る穴の key（求める側。受け付けが下請けの答えの resolved か同じ key の face を求める）
+- resolvable_keys(doc, n=None)・stray_resolved(doc, resolved, n=None): resolved に書いてよい key の集合（どの往復かの block と suggest の
+  key。n で項目 n の範囲に絞る）の唯一の持ち主と、それに無い key の拒否の行（resolved_gaps と下請けの答えの受け付けが引く）
 - prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
   notes。項目を開き直さず、受け付けが後の往復の返答に今の案の単位だけで引き継ぎ、修正の段へ運ぶ。答えと照らしが要る suggest は
   owed_faces が引く開いた項目の物だけで、閉じた・保留の項目の物と審査が消えたと言った物は参考として渡る）
@@ -456,16 +458,25 @@ def carried_notes(b) -> list:
 
 
 def item_blocks(b, n: int) -> list:
-    """項目 n（1 始まり。今の案の項目の控え）が答える前の穴の key（resolved_gaps と同じ owed_faces の行のうち、unit_keys が
-    項目と重なる物と、どの項目とも重ならない物。block と、開いた項目の suggest。出た順・重なりは 1 つ）。控えか往復が無ければ []"""
+    """項目 n（1 始まり。今の案の項目の控え）が答える前の穴の key＝求める側（owed_faces の行のうち、unit_keys が項目と重なる物と、
+    どの項目とも重ならない物。block と、開いた項目の suggest。出た順・重なりは 1 つ）。resolved に書いてよい側は resolvable_keys
+    が持つ。控えか往復が無ければ []"""
     doc = read(b)
-    plan = doc.get("plan") or []
-    if not doc["passes"] or not 1 <= n <= len(plan):
+    in_scope = _item_scope(doc, n)
+    if not doc["passes"] or in_scope is None:
         return []
-    mine = item_units(plan, n)
-    every = planned_units(plan)
-    out = [f["key"] for p in doc["passes"] for f in owed_faces(doc, p) if _touches(f["unit_keys"], mine, every)]
+    out = [f["key"] for p in doc["passes"] for f in owed_faces(doc, p) if in_scope(f["unit_keys"])]
     return list(dict.fromkeys(out))
+
+
+def _item_scope(doc: dict, n: int):
+    """項目 n（1 始まり）の範囲の述語 unit_keys -> bool（項目 n の単位と重なる物と、どの項目とも重ならない物。item_blocks と
+    resolvable_keys が共有する）。n が今の案の項目の番号の外なら None"""
+    plan = doc.get("plan") or []
+    if not 1 <= n <= len(plan):
+        return None
+    mine, every = item_units(plan, n), planned_units(plan)
+    return lambda units: _touches(units, mine, every)
 
 
 def _closed_ids(doc: dict) -> set:
@@ -636,12 +647,50 @@ def _touches(units, mine: set, every: set) -> bool:
     return bool(got & mine) or not got & every
 
 
+def _pass_faces(p: dict) -> list[dict]:
+    """往復の行 p の穴の行 [{FACE_KEYS, severity, unit_keys}]（絞らない）。p の block（face は p の faces、unit_keys は p の
+    face_units）と、p の notes の suggest（block と同じ key は除く）。unit_keys は str。owed_faces と resolvable_keys が引く歩き"""
+    units_of = p.get("face_units") or {}
+    out = {}
+    for f in p.get("faces", []):
+        units = [str(k) for k in units_of.get(f.get("key")) or []]
+        out[f.get("key")] = {**{n: f.get(n, "") for n in FACE_KEYS}, "severity": "block", "unit_keys": units}
+    for f in p.get("notes") or []:
+        if f.get("key") not in out:
+            out[f.get("key")] = {**{n: f.get(n, "") for n in FACE_KEYS}, "severity": f.get("severity") or "suggest",
+                                 "unit_keys": [str(k) for k in f.get("unit_keys") or []]}
+    return list(out.values())
+
+
+def resolvable_keys(doc: dict, n: int | None = None) -> set[str]:
+    """審査役が resolved に書いてよい key の集合の唯一の持ち主（resolved_gaps と planblk の item_answer_gaps が stray_resolved を通して
+    引く）。doc のどの往復かの穴（_pass_faces）の key の全部で、resolved 済みで持ち越された suggest も含む。n（1 始まり）を渡すと
+    item_blocks と同じ _item_scope で、項目 n の単位と重なる穴と、どの項目とも重ならない穴に絞る（n が項目の番号の外なら空）。
+    resolved 済みの suggest の言い直しを許す訳: owed_faces はどの往復の resolved に入った suggest も開き直さないので、言い直しは
+    状態を変えず、拒めば出し直しを食うだけ。処分の違う申告（resolved と block の face の両方）は、この集合でなく両方の受け付けの
+    『両方に在る』の照らしが拒む"""
+    passes = doc.get("passes") or []
+    if n is None:
+        return {f["key"] for p in passes for f in _pass_faces(p)}
+    in_scope = _item_scope(doc, n)
+    if in_scope is None:
+        return set()
+    return {f["key"] for p in passes for f in _pass_faces(p) if in_scope(f["unit_keys"])}
+
+
+def stray_resolved(doc: dict, resolved, n: int | None = None) -> list[str]:
+    """resolved の key のうち resolvable_keys(doc, n) に無い物の拒否の行（n を渡すと『項目 n の』と範囲を名指す）"""
+    ok = resolvable_keys(doc, n)
+    where = "" if n is None else f"項目 {n} の"
+    return [f"resolved の {key} は{where}前の往復の block と suggest に無い" for key in resolved if key not in ok]
+
+
 def owed_faces(doc: dict, p: dict) -> list[dict]:
     """控え doc の往復の行 p について、次の往復で答えと照らしが要る穴の行 [{key, severity, kind, where, why, unit_keys}]
     （答えの要る穴の正本。answer_gaps・resolved_gaps・revise_section・review_section・item_blocks と planblk の下請けのファイルが
-    これを引き、block の字と項目の state を自分では持たない）。中身は 2 つ: p の block（face は p の faces、unit_keys は p の
-    face_units）と、p の notes の suggest のうち doc のどの往復の resolved にも入っていない key（審査が消えたと言った suggest は
-    持ち越しの写しが後の往復の faces に残っても、答えも照らしも開き直さない）。どちらも今の開いた項目で絞る: face の unit_keys が
+    これを引き、block の字と項目の state を自分では持たない）。中身は p の穴（_pass_faces）のうち、block の全部と、doc のどの往復の
+    resolved にも入っていない suggest（審査が消えたと言った suggest は持ち越しの写しが後の往復の faces に残っても、答えも照らしも
+    開き直さない）。どちらも今の開いた項目で絞る: face の unit_keys が
     今の開いた項目（doc の最後の往復の items のうち _unsettled の項目。open_items と同じ決まり）の unit_keys の和と重なる物か、その往復の項目のどの
     unit_keys とも重ならない物だけ（項目の unit_keys は最後の往復が審査した時の物。案を組み替えた後も、閉じた項目の suggest が
     組み替えで開いた項目の物にならない）。
@@ -653,18 +702,8 @@ def owed_faces(doc: dict, p: dict) -> list[dict]:
     mine = planned_units([it for it in items or [] if _unsettled(it)])
     every = planned_units(items)
     resolved = {key for q in passes for key in q.get("resolved", [])}
-    units_of = p.get("face_units") or {}
-    out = {}
-    for f in p.get("faces", []):
-        units = [str(k) for k in units_of.get(f.get("key")) or []]
-        if not scoped or _touches(units, mine, every):
-            out[f.get("key")] = {**{n: f.get(n, "") for n in FACE_KEYS}, "severity": "block", "unit_keys": units}
-    for f in p.get("notes") or []:
-        units = [str(k) for k in f.get("unit_keys") or []]
-        if f.get("key") not in out and f.get("key") not in resolved and (not scoped or _touches(units, mine, every)):
-            out[f.get("key")] = {**{n: f.get(n, "") for n in FACE_KEYS}, "severity": f.get("severity") or "suggest",
-                                 "unit_keys": units}
-    return list(out.values())
+    return [f for f in _pass_faces(p)
+            if (f["severity"] == "block" or f["key"] not in resolved) and (not scoped or _touches(f["unit_keys"], mine, every))]
 
 
 def answer_gaps(doc: dict, answers) -> list[str]:
@@ -698,19 +737,18 @@ def answer_gaps(doc: dict, answers) -> list[str]:
 
 def resolved_gaps(b, faces: list, resolved: list) -> list[str]:
     """事前審査の役の resolved の欠けと誤り。前のどの往復かの答えの要る穴（owed_faces。block と、開いた項目の suggest）の key は、
-    resolved か faces のどちらかに要る（1 往復目は前の往復が無いので見ない）。resolved に入れてよい key は前の往復の blocks と
-    notes の key（審査役が閉じた項目の suggest を消えたと言っても拒まない）"""
+    resolved か faces のどちらかに要る（1 往復目は前の往復が無いので見ない）。resolved に書いてよい key は resolvable_keys の
+    集合（stray_resolved が拒む）"""
     doc = read(b)
     passes = doc["passes"]
     if not passes:
         return []
-    earlier = {key for p in passes for key in [*p.get("blocks", []), *(f.get("key") for f in p.get("notes") or [])]}
     wanted = {f["key"]: f["severity"] for p in passes for f in owed_faces(doc, p)}
     face_keys = {f.get("key") for f in faces if isinstance(f, dict)}
     block_keys = {f.get("key") for f in block_faces({"faces": faces})}
     gaps = [f"前の {severity} {key} を resolved に入れるか、同じ key で faces に挙げ直せ"
             for key, severity in wanted.items() if key not in resolved and key not in face_keys]
-    gaps += [f"resolved の {key} は前の往復の答えの要る穴に無い" for key in resolved if key not in earlier]
+    gaps += stray_resolved(doc, resolved)
     gaps += [f"{key} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つにせよ）"
              for key in resolved if key in block_keys]
     return gaps
