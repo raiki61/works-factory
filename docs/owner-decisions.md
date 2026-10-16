@@ -257,6 +257,9 @@
   - `tests/calibration/run.py` の作り手は works-factory・今の works・素の Claude Code の 3 つ。ReviewBench の Python の部分集合を回し、指摘の一覧に変え、判定役で採点し、ノードごとの表（`run.py nodes`）を出す。
   - #214 の結果は `docs/calibration-214.md` に残した。
   - 今の works は WebFetch・WebSearch を隔離した設定で塞げない（版を止めた toolset の柵が `permissions` の鍵を拒み、今の works は変えない）。変換の控えの `leak_guard` に書き、今の works の採点は塞いだ 2 つの作り手と同じ重みで読まない。
+- 持ち主の言葉（2026-10-16、PR #639 のコメント）: 「colimavmとかのなかでdockerすればいいんじゃないの」「あとmacじゃないかもしれない環境も考慮してね」
+  - 運び役の結論（持ち主の言葉ではない。持ち主の向きと合うとして #592・PR #639 で採った）: ベンチの台は、課題のコンテナを回す Linux の kernel そのものが x86_64 であること（実機でも、kernel ごと x86_64 を真似る VM でもよい）。命令を訳して amd64 を動かす台は起動前の確かめで止め、sandbox の柵は弱めない。
+  - 当て方: `tests/calibration/swepro.py` の docstring の「台に要る物」と setup_commands の確かめ・prepare の版の照らし。台の要件の中身はそこに置き、ここに写さない。
 
 ### `swap-is-the-value` 価値は、簡単に入れ替え・作り変えられることだけに置く
 

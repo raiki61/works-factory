@@ -19,7 +19,7 @@ claude（素の Claude Code を run.PLAIN_MODEL・run.PLAIN_EFFORT で claude -p
 
 1 件の流れ: prepare がホストの docker build で、課題のイメージの上の /opt/works-bench に道具と HEAD の工場の写しを焼いた
 派生のイメージ works-bench-swepro:<instance_id> を作り（dockerfile・build_steps。網が要る段は全部ここ）、課題のフォルダの写しの
-docker_image をそれに替える（ホストの Claude Code の版が bwrap の写しの元の版 BWRAP_FROM と違えば docker の前に止める）。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
+docker_image をそれに替える（ホストの Claude Code の版が setup の確かめ（BWRAP_FROM_COVERS）が依る版 BWRAP_FROM と違えば docker の前に止める）。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
 （工場の commit と Claude Code の版がホストと同じか）と、役の道具が踏む sandbox の層（bwrap の proc・apply-seccomp の seccomp の登録・
 同梱の rg の argv0）を確かめるだけで網を使わず（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
@@ -129,8 +129,10 @@ GOST_CONFIG_ENV = "WORKS_BENCH_GOST_CONFIG"
 # COPIED_FROM）。WorksBenchDocker がプロキシの有無に依らず使う
 SANDBOX = HERE / "swepro_sandbox"
 SECCOMP_ENV = "WORKS_BENCH_SECCOMP"
-# setup の sandbox の確かめが写した bwrap の引数の元の Claude Code の版。ホストの版が違えば prepare が止める（写し直す）
+# setup の確かめ（BWRAP_FROM_COVERS）が依る Claude Code の版。ホストの版が違えば prepare が止める。
+# setup に版に依る確かめを足したら BWRAP_FROM_COVERS にも足す
 BWRAP_FROM = "2.1.301"
+BWRAP_FROM_COVERS = {"sandbox": "bwrap の引数", "seccomp": "apply-seccomp の起こし方", "rg": "同梱の rg を argv0 を rg にした起こし方"}
 USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
 HOST_GATEWAY = "host.docker.internal"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
@@ -323,9 +325,11 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
                     f"|| {{ echo {shlex.quote(SECCOMP_REFUSED)} >&2; exit 1; }}"),
         # 役の Grep・Glob は同梱の rg を argv0 を rg にして起こす（issue #592 のコメントの (exec -a rg <claude> --no-config --version)）。
         # exec -a は bash の組み込みで POSIX sh に無いので、setup の exec がどの殻で渡しても効くよう bash -c で包む
-        # 落ちた時は取った出力を先に標準エラーへ出す（bash や claude の欠け・権限の落ちも、原因の行が残る）
-        ("rg", f"out=$(bash -c {rg} 2>&1); case \"$out\" in *ripgrep*) ;; "
-               f"*) printf '%s\\n' \"$out\" >&2; echo {shlex.quote(RG_REFUSED)} >&2; exit 1;; esac"),
+        # 照らすのは標準出力だけで、標準エラーはそのまま流す（bash や claude の欠け・権限の落ちの文は RG_REFUSED の前に残る）。
+        # 起こしが 0 で終わり、出力の頭が「ripgrep 」と数字（ripgrep の --version の 1 行目）で始まる時だけ通す。落ちた時は
+        # 取った標準出力を先に標準エラーへ出す
+        ("rg", f"out=$(bash -c {rg}) && case \"$out\" in \"ripgrep \"[0-9]*) ;; *) false;; esac "
+               f"|| {{ printf '%s\\n' \"$out\" >&2; echo {shlex.quote(RG_REFUSED)} >&2; exit 1; }}"),
     ]
 
 
@@ -405,8 +409,9 @@ def prepare(tasks: Path, out: Path, instances: list[str]) -> list[str]:
     if not claude_version:
         raise BenchError("ホストの claude --version が読めない（コンテナにはホストと同じ版の Claude Code を焼く）")
     if claude_version != BWRAP_FROM:
-        raise BenchError(f"ホストの Claude Code {claude_version} が、setup の sandbox の確かめが bwrap の引数を写した版 {BWRAP_FROM} と"
-                         f"違う。{claude_version} の bwrap の引数と照らして写し直し、swepro.py の BWRAP_FROM を上げる")
+        raise BenchError(f"ホストの Claude Code {claude_version} が、setup の確かめが写した版 {BWRAP_FROM} と違う。{claude_version} で "
+                         f"{'・'.join(BWRAP_FROM_COVERS.values())} を照らして写し直し、swepro.py の BWRAP_FROM を上げる"
+                         "（照らさずに上げると、起こし方が変わった版で setup が誤って止まるか、対話で待って終わらない）")
     factory_commit = head_commit()
     made = []
     with tempfile.TemporaryDirectory(prefix="works-bench-") as tmp:
