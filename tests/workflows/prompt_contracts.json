@@ -5753,15 +5753,21 @@
       "$facts.output.lang_line",
       "$facts.output.outcome",
       "$facts.output.stop_reason",
+      "$write-reject.output.prev",
       "$write-reject.output.reason"
     ],
     "returns": {
       "nodes": [
         "workflows/report/works-factory-report.yaml#write"
       ],
-      "output_format_sha256": "715b28203c7fb51d85ffd077383a32381fbee8b076c8ab243c72aa685bf316a2",
+      "output_format_sha256": "32124ccb123a8569ee086832049bfab7090417fcc75f1cc1d4d0aaefcca2f5a3",
       "json_keys": [
+        "decided",
         "definition",
+        "doubts",
+        "handoff",
+        "read",
+        "rejected",
         "term",
         "terms",
         "text"
