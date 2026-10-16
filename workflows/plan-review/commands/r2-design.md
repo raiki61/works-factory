@@ -14,4 +14,6 @@ $r2-prep.output.prompt
 
 問いが実在するなら question_stands=true とし、理想解を独立設計して design に書け。**目的の当事者が日常で回す動線（反復開発・運用・撤収）まで含めろ**——成果物の一回の起動で設計を閉じるな。この役は独立設計だけを返す。突合と verdict の確定は別の比較役がやる。
 
-返すのは JSON だけ: question_stands（問いが立つか）・reason（判断の理由）・premise_invalid_reason（問いが立たない時の根拠）・design（独立設計）。
+返すのは JSON だけ: question_stands（問いが立つか）・reason（判断の理由）・premise_invalid_reason（問いが立たない時の根拠）・design（独立設計）・elements（独立設計の要素の並び）。
+
+問いが立つ時は、独立設計が足す物・消す物の 1 まとまりごとに、要素を 1 つずつ elements に並べよ: {id（D1、D2、D3… と振る）, adds（その要素が足す物の字の並び）, removes（その要素が消す物の字の並び。無ければ空）}。審査役が案の行をこの id で指す（要素は設計の本文に書いた物と食い違えない）。

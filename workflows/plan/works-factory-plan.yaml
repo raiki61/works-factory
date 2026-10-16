@@ -252,7 +252,7 @@ nodes:
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
           # 今の works の blk-plan.yaml の修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の関所の決め手の欄）。
-          # 2 往復目からの答えの要る穴（block と開いた項目の suggest）への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。欄の型は planmarks.FIELD_SCHEMA・
+          # 2 往復目からの答えの要る穴（block と開いた項目の suggest）への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。欄の型は planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA（files）・
           # gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
           output_format: &plan_reply
             type: object
@@ -269,8 +269,7 @@ nodes:
                   required:
                   - unit_keys
                   - approach
-                  - adds
-                  - removes
+                  - files
                   - shrink_first
                   - narrows
                   - route
@@ -290,40 +289,79 @@ nodes:
                     approach:
                       type: string
                       minLength: 20
-                    adds:
+                    files:
                       type: array
+                      minItems: 1
                       items:
                         type: object
                         additionalProperties: false
                         required:
-                        - kind
-                        - name
+                        - path
+                        - op
+                        - responsibility
+                        - symbols
                         - canonical
                         properties:
-                          kind:
-                            type: string
-                            enum:
-                            - function
-                            - record_field
-                            - guard
-                            - prompt
-                            - doc
-                            - cli
-                            - arm
-                            - test
-                            - config
-                            - other
-                          name:
+                          path:
                             type: string
                             minLength: 1
+                          op:
+                            type: string
+                            enum:
+                            - create
+                            - modify
+                            - delete
+                            - rename
+                          from:
+                            type: string
+                            minLength: 1
+                          responsibility:
+                            type: string
+                            minLength: 4
+                          symbols:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required:
+                              - name
+                              - kind
+                              - change
+                              properties:
+                                name:
+                                  type: string
+                                  minLength: 1
+                                kind:
+                                  type: string
+                                  enum:
+                                  - function
+                                  - record_field
+                                  - guard
+                                  - prompt
+                                  - doc
+                                  - cli
+                                  - arm
+                                  - test
+                                  - config
+                                  - other
+                                change:
+                                  type: string
+                                  enum:
+                                  - add
+                                  - remove
+                                why: &id001
+                                  type: string
+                                  minLength: 10
+                                replaced_by:
+                                  type: string
+                                  minLength: 1
                           canonical:
                             type: string
                             minLength: 4
-                    removes:
-                      type: array
-                      items:
-                        type: string
-                        minLength: 1
+                          why: *id001
+                          replaced_by:
+                            type: string
+                            minLength: 1
                     shrink_first:
                       type: string
                       minLength: 20
@@ -492,6 +530,27 @@ nodes:
                             type: boolean
                           deviation:
                             type: string
+                    depends_on:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - unit
+                        - receives
+                        properties:
+                          unit:
+                            type:
+                            - integer
+                            - string
+                            minLength: 1
+                            minimum: 1
+                          receives:
+                            type: array
+                            minItems: 1
+                            items:
+                              type: string
+                              minLength: 1
               block_answers:
                 type: array
                 items:

@@ -1,6 +1,6 @@
 """波及の一覧（blk-plan/lib/ripple.py。設計 docs/plans/2026-10-06-tree-line.md の 2.3 の 1）の検査。
 
-項目が変える名（単位の key の `+` の後の名・adds の名のうち対象に在る物）を `git grep -w` で引き、本体の呼び出し元と試験に分け、
+項目が変える名（単位の key の `+` の後の名・files の change=add の symbol の名のうち対象に在る物）を `git grep -w` で引き、本体の呼び出し元と試験に分け、
 項目の allowed_paths・tests・rewrite_tests に照らして覆っていない当たりを名指す。見本は run 195g の波及の見落としの形
 （字のままの値を断言する試験が rewrite_tests に無い・既定の引数に頼る呼び出し元・入力の組を多くのファイルが共有する名）。
 種の git は gitkit の型の写し（FAST）。
@@ -51,14 +51,28 @@ def tearDownModule():
     shutil.rmtree(SRC, ignore_errors=True)
 
 
-def fields(unit_keys=(KEY,), adds=(), allowed=("works/report.py",), tests=(), rewrites=()):
-    return {"unit_keys": list(unit_keys), "adds": list(adds), "allowed_paths": list(allowed),
+def frow(path="works/report.py", *, adds=(), removes=(), op="modify", kind="function", **extra):
+    """files の 1 行（adds・removes は symbols の名の並び。消す symbol は why つき）"""
+    symbols = [{"name": n, "kind": kind, "change": "add"} for n in adds]
+    symbols += [{"name": n, "kind": kind, "change": "remove", "why": "古い名で、呼び手は新しい名に寄せた"} for n in removes]
+    return {"path": path, "op": op, "responsibility": "この行の受け持ち", "symbols": symbols, "canonical": "既存の正本", **extra}
+
+
+def gone(path):
+    """消すファイルの行（op=delete。訳つき）"""
+    return frow(path, op="delete", why="呼び手は寄せたので要らない")
+
+
+def fields(unit_keys=(KEY,), files=(), allowed=("works/report.py",), tests=(), rewrites=()):
+    return {"unit_keys": list(unit_keys), "files": list(files), "allowed_paths": list(allowed),
             "tests": [{"id": t} for t in tests], "rewrite_tests": [{"id": t} for t in rewrites], "out_of_scope": []}
 
 
-def split_fields(unit_keys=(KEY,), removes=(), adds=(), allowed=("works/report.py",)):
-    """修正案の項目を planmarks.split で欄にした物（盤面の plan-fields.json の項目の欄の形）"""
-    item = {"unit_keys": list(unit_keys), "approach": "x" * 20, "adds": [{"name": a, "kind": "function", "canonical": "works/report.py"} for a in adds], "removes": list(removes),
+def split_fields(unit_keys=(KEY,), removes=(), adds=(), deletes=(), allowed=("works/report.py",)):
+    """修正案の項目を planmarks.split で欄にした物（盤面の plan-fields.json の項目の欄の形）。adds・removes は works/report.py の行の
+    symbols の名、deletes は op=delete の行の path"""
+    item = {"unit_keys": list(unit_keys), "approach": "x" * 20,
+            "files": [frow(adds=adds, removes=removes), *[gone(d) for d in deletes]],
             "shrink_first": "y" * 20, "narrows": [], "route": "tdd", "route_why": "", "tests": [], "rewrite_tests": [],
             "refactor": {"declared": False, "why": ""}, "allowed_paths": list(allowed), "out_of_scope": []}
     return planmarks.split({"plan": [item]}, pathlib.Path("."))[1][0]
@@ -88,17 +102,17 @@ class RippleCase(unittest.TestCase):
         return repo
 
     def test_names_from_unit_key_and_adds(self):
-        """単位の key の `+` の後から `:` までの ASCII の名と、adds の名の ASCII の語（日本語の語は名でない）"""
-        self.assertEqual(ripple.names([KEY, "stats.py mean: 分母"], ["removed_rounds", "lens 数え"]),
+        """単位の key の `+` の後から `:` までの ASCII の名と、files の change=add の symbol の名の ASCII の語（日本語の語は名でない）"""
+        self.assertEqual(ripple.names([KEY, "stats.py mean: 分母"], [frow(adds=["removed_rounds", "lens 数え"])]),
                          ["always_rows", "removed_rounds", "lens"])
         self.assertEqual(ripple.names(["a.py+Report.rows: x"], []), ["Report", "rows"])
 
     def test_names_skip_test_ids_and_paths(self):
-        """adds の試験の id・パスと試験の名（test_・Test）は変える名でない（run 68f35d6b: 試験の id の断片 works・tests・
-        test_report・HeadCase が当たりの大半を作った）"""
-        self.assertEqual(ripple.names([KEY], ["works/tests/test_report.py::HeadCase::test_rows_carry", "_removed_file",
-                                              "TestCleanIgnored", "test_report", "works/report.py", "report.always_rows"]),
-                         ["always_rows", "_removed_file", "report"])
+        """kind が test の symbol と試験の名（test_・Test）は変える名でない（run 68f35d6b: 試験の id の断片 works・tests・
+        test_report・HeadCase が当たりの大半を作った）。パスは行の path に在るので、名の字から読み分ける要はない"""
+        files = [frow("works/tests/test_report.py", adds=["HeadCase::test_rows_carry", "TestCleanIgnored"], kind="test"),
+                 frow(adds=["_removed_file", "test_report", "report.always_rows"])]
+        self.assertEqual(ripple.names([KEY], files), ["always_rows", "_removed_file", "report"])
 
     def test_docs_and_generated_copies_are_not_hits(self):
         """設計書（docs/plans）・CHANGELOG・実行基盤の pack の写し（skip_dirs）は当たりに数えない（ファイルの数にも）"""
@@ -154,7 +168,7 @@ class RippleCase(unittest.TestCase):
         self.assertEqual(self.uncovered(doc), [("code", "works/n1.py:1"), ("code", "works/n2.py:1")])
 
     def test_names_absent_from_repo_are_dropped(self):
-        doc = ripple.build(self.repo, [fields(unit_keys=["works/report.py+no_such_name: x"], adds=["also_missing"])], skip_dirs=SKIP_DIRS)
+        doc = ripple.build(self.repo, [fields(unit_keys=["works/report.py+no_such_name: x"], files=[frow(adds=["also_missing"])])], skip_dirs=SKIP_DIRS)
         self.assertEqual(doc["items"][0]["names"], [])
 
     def test_overlaps_between_items(self):
@@ -185,12 +199,32 @@ class RippleCase(unittest.TestCase):
 
 
     def test_removes_names_hits_are_uncovered(self):
-        """消す名（removes）も名として引く: 識別子は探す語、.py のファイルの名はモジュールの名。残る名指しは kind removed で名指す"""
-        f = split_fields(removes=["report.always_rows", "final.py"])
-        self.assertEqual(f.get("removes"), ["report.always_rows", "final.py"])
+        """消す名（change=remove の symbol と op=delete の行の path）も名として引く: 識別子は探す語、.py のファイルの名はモジュールの名。
+        残る名指しは kind removed で名指す"""
+        f = split_fields(removes=["report.always_rows"], deletes=["works/final.py"])
+        self.assertEqual([(r["path"], r["op"]) for r in f["files"]], [("works/report.py", "modify"), ("works/final.py", "delete")])
         doc = ripple.build(self.repo, [f], skip_dirs=SKIP_DIRS)
         self.assertEqual([r["name"] for r in doc["items"][0]["names"]], ["always_rows", "final"])
         self.assertIn(("removed", "works/final.py:1"), self.uncovered(doc))
+
+    def test_files_rows_give_changed_and_removed_names(self):
+        """files の change=add の symbol の名は変える名（kind code・test）に、change=remove の名と op=delete・op=rename の行のパス
+        （rename は元のパス）は消す名（kind removed・removed_test）に引かれる"""
+        edit = split_fields(unit_keys=[], adds=["always_rows"])
+        kinds = {kind for kind, _ in self.uncovered(ripple.build(self.repo, [edit], skip_dirs=SKIP_DIRS))}
+        self.assertEqual(kinds, {"code", "test"})
+        cut = split_fields(unit_keys=[], removes=["always_rows"])
+        kinds = {kind for kind, _ in self.uncovered(ripple.build(self.repo, [cut], skip_dirs=SKIP_DIRS))}
+        self.assertEqual(kinds, {"removed", "removed_test"})
+        gone_file = split_fields(unit_keys=[], deletes=["works/final.py"])
+        got = self.uncovered(ripple.build(self.repo, [gone_file], skip_dirs=SKIP_DIRS))
+        self.assertEqual({kind for kind, _ in got}, {"removed"}, got)
+        moved = {"unit_keys": [], "approach": "x" * 20, "shrink_first": "y" * 20, "narrows": [],
+                 "files": [frow("works/ended.py", op="rename", **{"from": "works/final.py"}, why="名を実体に合わせた")],
+                 "allowed_paths": ["works/ended.py"], "out_of_scope": []}
+        row = planmarks.split({"plan": [moved]}, pathlib.Path("."))[1][0]
+        got = self.uncovered(ripple.build(self.repo, [row], skip_dirs=SKIP_DIRS))
+        self.assertEqual({kind for kind, _ in got}, {"removed"}, "rename の元のパスを消す名に引く")
 
     def test_removed_and_changed_name_on_same_line_both_listed(self):
         """変える名と消す名が同じ行・同じ試験の関数に当たれば、変える名の行（code・test）と消す名の行（removed・removed_test）が両方残る"""
@@ -230,7 +264,7 @@ class RippleCase(unittest.TestCase):
     def test_removed_path_hits_are_uncovered(self):
         """消すファイルのパスは、パスの字のままの名指しと、.py ならモジュールの名の import も残りとして名指す"""
         repo = self.repo_with({"works/README.md": "道具は works/old_tool.py\n", "works/user.py": "import old_tool\n"})
-        f = split_fields(unit_keys=["works/old_tool.py: 古い道具を消す"], removes=["works/old_tool.py"], allowed=("works/old_tool.py",))
+        f = split_fields(unit_keys=["works/old_tool.py: 古い道具を消す"], deletes=["works/old_tool.py"], allowed=("works/old_tool.py",))
         got = self.uncovered(ripple.build(repo, [f], skip_dirs=SKIP_DIRS))
         self.assertIn(("removed", "works/README.md:1"), got)
         self.assertIn(("removed", "works/user.py:1"), got)
@@ -239,7 +273,7 @@ class RippleCase(unittest.TestCase):
     def test_removed_non_python_path_uses_file_name(self):
         """.py でないパスは、最後の段のファイルの名も名にする"""
         repo = self.repo_with({"works/docs/old-notes.md": "古い\n", "works/README.md": "メモは old-notes.md にある\n"})
-        f = split_fields(unit_keys=["x: y"], removes=["works/docs/old-notes.md"], allowed=("works/docs/old-notes.md",))
+        f = split_fields(unit_keys=["x: y"], deletes=["works/docs/old-notes.md"], allowed=("works/docs/old-notes.md",))
         self.assertIn(("removed", "works/README.md:1"), self.uncovered(ripple.build(repo, [f], skip_dirs=SKIP_DIRS)))
 
     def test_item_text_marks_removed_name_hits(self):

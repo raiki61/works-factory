@@ -48,6 +48,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   穴の分）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
   対応表）・出自 ORIGINS は tree_split が外す。下請けの答えのファイルの当たりの答えの型は HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
+- carried_refs(b, opened): 今の往復が見ない項目が前の往復の答えの対応表（DESIGN_MAP）で受けた独立設計の要素の id（往復の行の items の refs。
+  要素の網羅は全部の項目の答えを合わせて数える）
 - item_blocks(b, n): 項目 n が答える前の往復の答えの要る穴の key（受け付けが下請けの答えの resolved を確かめる）
 - prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
   notes。項目を開き直さず、受け付けが後の往復の返答に今の案の単位だけで引き継ぎ、修正の段へ運ぶ。答えと照らしが要る suggest は
@@ -153,12 +155,15 @@ HITS_SCHEMA = {"type": "array", "items": {
     "type": "object", "additionalProperties": False, "required": ["id", "answer", "why"],
     "properties": {"id": {"type": "string", "minLength": 2}, "answer": {"type": "string", "enum": list(HIT_ANSWERS)},
                    "why": {"type": "string", "minLength": 10}}}}
-# 独立設計と案の仕組みの対応表（項目の adds の name ごとに 1 行。独立設計が立つ run の項目の答えが書く。design_quote は独立設計の
-# 字のままの引用か、対が無ければ null。照らしは core の design.quote_gaps）。事前審査の役の型にだけ在り、盤面へ渡す前に外す
+# 独立設計と案の仕組みの対応表（独立設計が立つ run の項目の答えが書く）。行は 2 つの向き。案→設計: 案の files の (項目, path, symbol)
+# ごとにちょうど 1 行（change=add の symbol・change=remove の symbol・op が create・delete・rename の行（symbol は null））で、design_ref は
+# 指す要素の id（対が無ければ null）。設計→案: item・path・symbol が null で design_ref が必須（案に対の無い要素）。design_quote は
+# 独立設計の字のままの引用か、対が無ければ null。照らしは core の design.quote_gaps。事前審査の役の型にだけ在り、盤面へ渡す前に外す
 DESIGN_MAP = "design_map"
 DESIGN_MAP_SCHEMA = {"type": "array", "items": {
-    "type": "object", "additionalProperties": False, "required": ["item", "name", "design_quote", "why"],
-    "properties": {"item": {"type": "integer", "minimum": 1}, "name": {"type": "string", "minLength": 1},
+    "type": "object", "additionalProperties": False, "required": ["item", "path", "symbol", "design_ref", "design_quote", "why"],
+    "properties": {"item": {"type": ["integer", "null"], "minimum": 1}, "path": {"type": ["string", "null"]},
+                   "symbol": {"type": ["string", "null"]}, "design_ref": {"type": ["string", "null"], "pattern": "^D[0-9]+$"},
                    "design_quote": {"type": ["string", "null"]}, "why": {"type": "string", "minLength": 10}}}}
 # 新しい block の出自（2 往復目から。審査の申告で、機械が控えの事実で照らして採る）。of は rephrased の時の言い換えた前の key
 ORIGINS = "origins"
@@ -389,6 +394,23 @@ def open_items(b) -> list[int]:
     return [n for n, it in enumerate(doc.get("plan") or [], 1) if _unsettled(last.get(it["id"]))]
 
 
+def carried_refs(b, opened) -> set:
+    """今の案の項目のうち opened（今の往復が審査する項目の番号）でない項目が、前の往復の答えの対応表で受けた独立設計の要素の id の集まり
+    （項目ごとに、その項目を最後に審査した往復の行の refs。要素の網羅は全部の項目の答えを合わせて数えるので、今の往復が見ない
+    項目の物は控えから足す）。控えに項目の行・refs の無い項目は足さない"""
+    doc = read(b)
+    out = set()
+    for n, item in enumerate(doc.get("plan") or [], 1):
+        if n in set(opened):
+            continue
+        for p in reversed(doc["passes"]):
+            row = next((x for x in p.get("items") or [] if x.get("id") == item["id"] and isinstance(x.get("refs"), list)), None)
+            if row is not None:
+                out.update(r for r in row["refs"] if isinstance(r, str))
+                break
+    return out
+
+
 def prev_row(b, n: int) -> dict | None:
     """項目 n（今の案の項目の控え）を最後に審査した往復のその項目の行（同じ id。無い・行の控えの無い古い控えなら None）"""
     doc = read(b)
@@ -518,12 +540,14 @@ def fixed_unchanged(doc: dict, rows: list, answers) -> list[str]:
 
 
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,
-             hits: dict | None = None, origins: list | None = None, at_cap: bool = False) -> dict:
+             hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None) -> dict:
     """控え doc に事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて doc と行の outcome に置く（ファイルの写し・
     書き込み・trace はしない）。at_cap（呼び手が渡す、輪がもう 1 周回せない事実）が真で decide が AGAIN の往復は、行に
     capped: true を立てて UNSETTLED（保留の項目が在れば PERSISTED）で止める（決まりは decide のまま。CLEAN と止める往復は
     変えない）。origins（審査の出自の申告の行。型は節の output_format か、受け付けが答えのファイルの型（ORIGIN_SCHEMA の写し）で照らし済み）は
-    _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く（採らなかった申告は origins_claimed）。返りは足した行"""
+    _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く（採らなかった申告は origins_claimed）。refs（{項目の番号:
+    その項目の答えの対応表の design_ref の並び}）は審査した項目の items の行に置く（carried_refs が、閉じた項目が受けた要素を後の往復の
+    網羅に数える。carried_refs）。返りは足した行"""
     passes = doc["passes"]
     k = len(passes) + 1
     faces = block_faces(review)
@@ -542,6 +566,8 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
         for it in row["items"]:
             if it["n"] in (hits or {}):
                 it["hits"] = copy.deepcopy(hits[it["n"]])
+            if it["n"] in (refs or {}):
+                it["refs"] = list(refs[it["n"]])
         row["synergy"] = list(synergy or [])
     row["origins"], row["origins_claimed"] = _origins(
         [key for key in blocks if key not in earlier] if passes else [], origins if isinstance(origins, list) else [],
@@ -558,14 +584,14 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
 
 
 def record_pass(b, review: dict, *, resolved: list, files: dict, synergy: list | None = None,
-                hits: dict | None = None, origins: list | None = None, at_cap: bool = False) -> dict:
+                hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None) -> dict:
     """事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて控えを書く（行の組み立てと at_cap・origins は add_pass）。files（{名: パス}）の在るファイルを
     pass-<k>/ に写し、写した先を行に置く。盤面の trace に OP の行を書く。控えに項目（note_plan）が在れば行に items・
     synergy（相乗りの審査が挙げた key）・face_units を置き、hits（{項目の番号: 当たりの答えの行}。受け付けが下請けの答えの
     ファイルから引いた物）を審査した項目の items の行に置く。trace の行には新しい block の出自の語ごとの数も載る。返りは足した行"""
     doc = read(b)
     row = add_pass(doc, review, answers=doc["open"].get("answers", []), resolved=resolved, synergy=synergy,
-                   hits=hits, origins=origins, at_cap=at_cap)
+                   hits=hits, origins=origins, at_cap=at_cap, refs=refs)
     k = row["pass"]
     dest = b.work(PASS_DIR) / f"pass-{k}"
     for name, src in files.items():

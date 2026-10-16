@@ -2,7 +2,7 @@
 # 返す節に届く（配線だけを見る。出し直しを合わせる中身は tests/workflows/test_plan_review.py が script を子のプロセスで回して見る）
 open: { ok: true, r2_go: true, tree: false, k: 1, form: review, reason: "" }
 r2-prep: { prompt: "stub: 元の目的と実測した制約" }
-r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解" }
+r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解", elements: [{ id: D1, adds: ["stub: 入口の 1 本化"], removes: [] }] }
 r2-accept: { ok: true, done: true, give_up: false, reason: "" }
 review-prep: { prompt_file: "", brief: "/fixture/plan-review/pass-1/resubmit-2.md", resubmit: true }
 plan-review-fix: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }

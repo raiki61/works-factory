@@ -228,8 +228,9 @@ class RulingLimitsTextCase(KindRowsCase):
     修正役の brief の決まりが同じく言う"""
 
     def test_ruler_says_limits_only_add_paths(self):
+        """裁定役の決まり（ruler）は、足しても項目は変わらず、項目の `tests`・`files`（足す物・消す物の行）を直しで満たす義務は残ると言う"""
         sec = fixrules.sections(fixrules.RULER)["ruler-reply"]
-        for w in ("空なら足すパスは無い", "新しいファイル", "`out_of_scope`", "`tests`・`adds`・`removes`"):
+        for w in ("空なら足すパスは無い", "新しいファイル", "`out_of_scope`", "`tests`・`files`"):
             self.assertIn(w, sec)
 
     def test_rulings_file_says_only_ruled_paths_widen(self):

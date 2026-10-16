@@ -58,14 +58,20 @@ def judgment(*, questions=()):
 
 def item(*keys, **more):
     """修正案の項目の見本（works の欄つき。stats.py の 2 単位を直す形）"""
-    return {"unit_keys": list(keys), "approach": "mean の分母を len(xs) に、clamp の上限の枝を hi に直す", "adds": [],
-            "removes": [], "shrink_first": "足す物は無い。式と戻り値を 1 か所ずつ直すだけで足りる", "narrows": [],
+    return {"unit_keys": list(keys), "approach": "mean の分母を len(xs) に、clamp の上限の枝を hi に直す", "files": [],
+            "shrink_first": "足す物は無い。式と戻り値を 1 か所ずつ直すだけで足りる", "narrows": [],
             "route": "tdd",
             "tests": [{"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
                        "path": "stats.mean を本物のまま呼び、戻り値を断言する", "red_kind": "assertion",
                        "red_why": "今の分母は len(xs) - 1 なので mean([1, 3]) が 4.0 を返す"}],
             "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
             "allowed_paths": ["stats.py", "test_stats.py"], "out_of_scope": [], **more}
+
+
+def _frow(path, *adds):
+    """files の 1 行（足す symbol の並び）"""
+    return {"path": path, "op": "modify", "responsibility": "この行の受け持ち", "canonical": "既存の正本",
+            "symbols": [{"name": n, "kind": "function", "change": "add"} for n in adds]}
 
 
 def face(key, units, severity="block"):
@@ -92,10 +98,13 @@ class TmpCase(unittest.TestCase):
 
 class RippleItemsCase(TmpCase):
     def test_ripple_items_sees_removes(self):
-        """受け付けた案の項目の removes（planmarks.split が欄に写す）が波及の一覧に届き、残る名指しが kind removed で名指される"""
+        """受け付けた案の項目の files の change=remove の symbol（planmarks.split が欄に写す）が波及の一覧に届き、残る名指しが kind removed で
+        名指される"""
         repo = self.tmp / "repo"
         committed_copy(repo, SEED)
-        item = {"unit_keys": [MEAN], "approach": "x" * 20, "adds": [], "removes": ["stats.clamp"], "shrink_first": "y" * 20,
+        gone = {"name": "stats.clamp", "kind": "function", "change": "remove", "why": "境の判定は mean に寄せたので要らない"}
+        files = [{"path": "stats.py", "op": "modify", "responsibility": "境の判定", "symbols": [gone], "canonical": "既存の正本"}]
+        item = {"unit_keys": [MEAN], "approach": "x" * 20, "files": files, "shrink_first": "y" * 20,
                 "narrows": [], "route": "tdd", "route_why": "", "tests": [], "rewrite_tests": [],
                 "refactor": {"declared": False, "why": ""}, "allowed_paths": ["stats.py"], "out_of_scope": []}
         rnd = self.tmp / "plan" / "r1"
@@ -195,6 +204,20 @@ class SlotsCase(unittest.TestCase):
         self.assertEqual(reply["plan"][0]["unit_keys"], [1, 2], "役の返答は書き換えない")
 
 
+    def test_named_turns_depends_on_units_into_ids(self):
+        """named が depends_on[].unit の no を単位の名に戻す（unit_keys と同じ表 UNIT_REFS）。字の unit・slots に無い no・形の崩れた欄は
+        そのまま通す"""
+        later = item(CLAMP, depends_on=[{"unit": 1, "receives": ["stats.py::mean"]}, {"unit": CLAMP, "receives": ["stats.py"]},
+                                        {"unit": 9, "receives": ["x.py"]}])
+        reply = {"plan": [item(1), later, item(2)]}
+        got = planfile.named(reply, [MEAN, CLAMP])
+        self.assertEqual([r["unit"] for r in got["plan"][1]["depends_on"]], [MEAN, CLAMP, 9])
+        self.assertEqual(got["plan"][0].get("depends_on"), None)
+        self.assertEqual(reply["plan"][1]["depends_on"][0]["unit"], 1, "役の返答は書き換えない")
+        self.assertEqual(planfile.named({"plan": [{"unit_keys": [1], "depends_on": "壊れ"}, "項目でない"]}, [MEAN])["plan"][0],
+                         {"unit_keys": [MEAN], "depends_on": "壊れ"})
+
+
 class CoversCase(unittest.TestCase):
     """元 rules/review-loop.py:3077 の fix_plan_covers_units（例外の代わりに行を返す）"""
     owed, opened = {MEAN, CLAMP}, {MEAN, CLAMP, ASKED}
@@ -232,7 +255,7 @@ class ReplanErrorsCase(TmpCase):
         self.rows = [{"item": 1, "old": item(MEAN)}]
 
     def errors(self, reply):
-        return planfile._plan_errors(self.rows, reply, self.repo, planfile.exists_at(self.repo, "HEAD"), [])
+        return planfile._plan_errors(self.rows, reply, self.repo, planfile.exists_at(self.repo, "HEAD"), [], whole=[item(MEAN)])
 
     def test_good_reply_has_no_error(self):
         self.assertEqual(self.errors({"plan": [item(MEAN, approach="mean の分母を len(xs) にし、試験を足して直す")]}), [])
@@ -249,6 +272,27 @@ class ReplanErrorsCase(TmpCase):
         got = "\n".join(self.errors({"plan": [bad]}))
         for word in ("plan[0].unit_keys が貼った", "plan[0].route_why", "plan[0].narrows[0]"):
             self.assertIn(word, got)
+
+    def test_depends_on_reads_the_whole_plan_with_revised_items(self):
+        """案の直しで、2 項目の案の 2 番目だけを直した返答を扱う。直さない 1 番目の単位を字で指す depends_on は通る。1 番目を直して
+        受けられる物を外すと、直さない 2 番目の受けの切れが拒まれる（直した項目だけを見ると、直さない項目を指す行を誤って拒み、
+        直さない項目の受けの切れを見逃す）"""
+        first = item(MEAN, files=[_frow("stats.py", "mean")])
+        second = item(CLAMP, depends_on=[{"unit": MEAN, "receives": ["stats.py::mean"]}])
+        whole = [first, second]
+        self.rows = [{"item": 2, "old": second}]
+        revised = item(CLAMP, depends_on=[{"unit": MEAN, "receives": ["stats.py::mean"]}], approach="clamp の上限の枝を hi に直す。mean を使う")
+        errors = lambda reply, whole_=whole: planfile._plan_errors(self.rows, reply, self.repo, planfile.exists_at(self.repo, "HEAD"),
+                                                                    [], whole_)
+        self.assertEqual(errors({"plan": [revised]}), [])
+        cut_first = item(MEAN, files=[_frow("stats.py", "other")])
+        self.rows = [{"item": 1, "old": first}]
+        got = errors({"plan": [cut_first]})
+        self.assertEqual(len([g for g in got if g.startswith("plan[1].depends_on[0].receives[0]")]), 1, got)
+        loop = item(MEAN, depends_on=[{"unit": CLAMP, "receives": ["stats.py"]}], files=[_frow("stats.py", "mean")])
+        got = errors({"plan": [loop]})
+        self.assertTrue(any(g.startswith("plan.depends_on") and "循環" in g for g in got), got)
+        self.assertEqual(errors({"plan": [first]}), [], "直さない項目の受けは切れていない")
 
     def test_test_in_start_tree_is_rejected(self):
         it = item(MEAN)

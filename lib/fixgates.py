@@ -32,7 +32,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
   しない。受けた回の trace が名指す）
 - test_edits: base から今の木で変わったテストのファイル（impact.is_test_file: 修正案の受け入れのテスト・書き換えの名指しのパスか名の慣習）のうち、base に在ったテストの関数
   （tddloop.test_functions）の源が変わった・消えた物（tddloop.unnamed_edits）。許すのはテストの変更の許し（conflict.test_permits）の
-  行だけ: 承認済みの修正案の rewrite_tests の id（行の test）と、修正案の項目の removes（消す名）を base の本体で名指す関数の id
+  行だけ: 承認済みの修正案の rewrite_tests の id（行の test）と、修正案の項目の files の change=remove の symbol（消す名。op=delete の path・op=rename の元のパス from の .py のモジュールの名も）を base の本体で名指す関数の id
   （行の test。消す仕組みを縛るテストは変えざるを得ない。関数の丸ごとの消しも許す）と、範囲の相談の合意・裁定 fix_test_scope の範囲
   （裁定は裁定の後の受け付けだけ）の中だけを変えた関数。案の直しの単位の行は見ない（前の輪が足したテストは base に無く、ここでは照らさない）。範囲の読みは輪の凍結の検査（tddloop.frozen_problems）と同じ: 1 行の指しの .py はその行を
   含む関数の全体に広げ、`<行>-<行>` は書いたとおり（base との差分の塊の旧い側の行が範囲の外なら、その塊に掛かる関数は

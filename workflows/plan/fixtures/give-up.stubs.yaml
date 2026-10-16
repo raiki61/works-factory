@@ -9,8 +9,8 @@ plan-writer:
   plan:
     - unit_keys: [1]
       approach: "stub: 単位を 1 つ書き落とした案の手順をここに書いた"
-      adds: []
-      removes: []
+      files:
+        - {path: stats.py, op: modify, responsibility: "stub: 平均の分母の式を直す", symbols: [], canonical: "stub: 既存の stats.py"}
       shrink_first: "stub: 足す物は無い。式を 1 か所直すだけで足りる"
       narrows: []
       route: direct

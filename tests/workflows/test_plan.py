@@ -133,7 +133,8 @@ def catalog(*rows):
 
 def item(*keys, **more):
     return {"unit_keys": list(keys), "approach": "mean の分母を len(xs) に、clamp の上限の枝を hi に直す",
-            "adds": [{"kind": "function", "name": "clamp", "canonical": "stats.py の clamp（既存の正本）"}], "removes": [],
+            "files": [{"path": "stats.py", "op": "modify", "responsibility": "上限の枝の戻り値を直す", "canonical": "stats.py の clamp（既存の正本）",
+                       "symbols": [{"name": "clamp", "kind": "function", "change": "add"}]}],
             "shrink_first": "足す物は無い。式と戻り値を 1 か所ずつ直すだけで足りる", "narrows": [], "route": "tdd",
             "tests": [{"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
                        "path": "stats.mean を本物のまま呼び、戻り値を断言する", "red_kind": "assertion",
@@ -443,6 +444,19 @@ class ShapeCase(unittest.TestCase):
         self.assertLessEqual({"decided_by", "undecided_because", "fences", "world", "recommend", "no_narrow"}, set(marks))
         self.assertNotIn("description", fmt)
 
+    def test_writer_files_schema_is_the_planmarks_owner(self):
+        """修正案の役の output_format の plan[].files と depends_on が、planmarks.FILES_SCHEMA と FIELD_SCHEMA に一致する。adds・removes は
+        型に無い（足す物・消す物は files の 1 つの並びに置き換えた）。出し直しの役の型も同じ写し"""
+        row = node(load(), "plan-writer")["output_format"]["properties"]["plan"]["items"]
+        self.assertEqual(row["properties"]["files"], planmarks.FILES_SCHEMA)
+        self.assertEqual(row["properties"][planmarks.DEPENDS_KEY], planmarks.FIELD_SCHEMA[planmarks.DEPENDS_KEY])
+        self.assertNotIn("adds", row["properties"])
+        self.assertNotIn("removes", row["properties"])
+        self.assertIn("files", row["required"])
+        self.assertNotIn(planmarks.DEPENDS_KEY, row["required"], "依存は任意の欄")
+        fix = node(load(), "plan-writer-fix")["output_format"]["properties"]["plan"]["items"]
+        self.assertEqual(fix["properties"]["files"], planmarks.FILES_SCHEMA, "出し直しの役の型も同じ写し")
+
     def test_role_schemas_match_their_lib_owners(self):
         """役の型は lib の持ち主の型の写し（Archon の YAML は lib を読めない）。写しが持ち主とずれたら落ちる"""
         def bare(schema):
@@ -723,6 +737,31 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(state["status"], "ok", state)
         self.assertEqual(run.json(out["ripple"])["error"], "")
         self.assertEqual(out["depth"][0]["unit_id"], MEAN)
+
+    def test_dependent_items_stay_two_items_and_cycle_rejected(self):
+        """take_plan の受け付けで、依存する 2 項目の案は 2 項目のまま受かり（後の項目の depends_on の unit は no で書いても単位の名に戻る）、
+        輪の案は依存の輪を名指して拒まれる。自分指し・案に無い単位・前の項目に無い受ける物も拒む"""
+        later = item(2, depends_on=[{"unit": 1, "receives": ["stats.py::clamp"]}])
+        run = Run(self)
+        out = run.include(writer=writer_of({"plan": [item(1), later]}))
+        self.assertIs(out["ready"], True, out)
+        self.assertEqual(self.reasons(run), [])
+        side = json.loads((run.file(out["plan"]).parent / "p2.fix_plan.json").read_text(encoding="utf-8"))
+        self.assertEqual([p["unit_keys"] for p in side["plan"]], [[MEAN], [CLAMP]], "2 項目のまま")
+        self.assertNotIn(planmarks.DEPENDS_KEY, side["plan"][1], "依存は works の欄として外れ、控えに置く")
+        fields = run.json(out["plan"])["fields"]
+        self.assertEqual(fields[1][planmarks.DEPENDS_KEY], [{"unit": MEAN, "receives": ["stats.py::clamp"]}], "no が単位の名に戻る")
+        loop = [item(1, depends_on=[{"unit": 2, "receives": ["stats.py"]}]), item(2, depends_on=[{"unit": 1, "receives": ["stats.py"]}])]
+        why = self.reject_once(Run(self), {"plan": loop})
+        self.assertIn(planmarks.DEPENDS_REJECT, why)
+        self.assertIn("依存が循環している", why)
+        for label, bad, word in (("自分指し", item(2, depends_on=[{"unit": 2, "receives": ["stats.py"]}]), "自分の項目の単位"),
+                                 ("案に無い単位", item(2, depends_on=[{"unit": 7, "receives": ["stats.py"]}]), "どの項目の unit_keys にも無い"),
+                                 ("前の項目に無い受ける物", item(2, depends_on=[{"unit": 1, "receives": ["other.py::nope"]}]), "files に無い")):
+            with self.subTest(label):
+                why = self.reject_once(Run(self), {"plan": [item(1), bad]})
+                self.assertIn(planmarks.DEPENDS_REJECT, why)
+                self.assertIn(word, why)
 
     def test_ripple_skips_the_runtime_copy(self):
         """作業ツリーの中の工程の写し（境の RUNTIME_COPY_DIRS）の当たりは、項目ごとの波及にも単位の波及にも数えない"""
@@ -1083,7 +1122,7 @@ class ReplanCase(unittest.TestCase):
         self.assertEqual([r["items"] for r in trace if r["op"] == planmarks.AMEND_OP], [[1]])
         fields = run.json(out["plan"])
         self.assertEqual(fields["round"], 2)
-        self.assertEqual(sorted(fields["amended"]["1"]), sorted(["unit_keys", "approach", "adds", "removes", "shrink_first",
+        self.assertEqual(sorted(fields["amended"]["1"]), sorted(["unit_keys", "approach", "files", "shrink_first",
                                                                  "narrows"]))
         self.assertEqual(fields["fields"][0]["allowed_paths"], ["stats.py", "test_stats.py", "request_ok.json"])
         trip = json.loads((rnd / "replan.json").read_text(encoding="utf-8"))

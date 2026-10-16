@@ -27,7 +27,11 @@
 - missing(b):    設計が無い理由の 1 文（諦めた・目的が使えない・控えが無い）。事前審査の指示書と独立の目の出口が使う
 - DRIFT_HEAD・UNPAIRED_HEAD: 事前審査の穴の why の頭の 2 語（構造の食い違い・対の無い仕組み）。指示書の決まり・照らし・試験が同じ名を読む
 - stands(board_dir, schema): 設計が在り問いが立つ時のその返答（無い・壊れている・問いが立たないなら None）
-- quote_gaps(board_dir, schema, faces, rows, design_map=None): 2 つの頭の穴の引用と、項目の答えの design_map の誤りの行（設計が立たなければ空）
+- quote_gaps(board_dir, schema, faces, rows, design_map=None): 2 つの頭の穴の引用と、項目の答えの design_map の誤りの行（設計が立たなければ空）。
+                 design_map の行の形は converge.DESIGN_MAP_SCHEMA、案→設計で要る行は _wanted。coverage_gaps は独立設計の要素の網羅
+                 （呼び手が全部の項目の答えの design_ref を合わせて当てる。planblk.coverage_gaps）
+- element_gaps(reply)・element_lines(got): 立つ設計の elements（{id, adds, removes}）の空と id の重なりの誤り（boardview.check_design が呼ぶ）と、
+                 要素を 1 行ずつ描く文（planblk.design_only が貼る）
 """
 import pathlib
 import re
@@ -49,6 +53,7 @@ import accept  # noqa: E402
 import answer  # noqa: E402
 import cite  # noqa: E402
 import impact  # noqa: E402
+import planmarks  # noqa: E402
 import promptsection  # noqa: E402
 import rolekit  # noqa: E402
 from rolekit import BoardGap  # noqa: E402
@@ -64,7 +69,7 @@ UNUSABLE = {"目的不明": "目的の出典が取れない（目的不明）—
 DRIFT_HEAD = "独立設計との構造の食い違い: "
 UNPAIRED_HEAD = "独立設計に対の無い仕組み: "
 QUOTE_HEADS = (DRIFT_HEAD, UNPAIRED_HEAD)
-ROW_QUOTE_KEYS = ("approach", "adds", "allowed_paths", "shrink_first")   # 案の行のうち、引用の照らしが読む欄
+ROW_QUOTE_KEYS = ("approach", "files", "allowed_paths", "shrink_first")   # 案の行のうち、引用の照らしが読む欄
 TEXT_SEP = "\x00"   # 引用の照らしで文を継ぐ字（畳みの空白に化けないので、欄をまたぐ引用は字のままと数えない）
 HUMAN_HEAD = promptsection.Section("### 承認ノードの答え", source="fn:design.human_answers")
 HUMAN_ASK = ("人が承認ノードで答えた前提（run の中で人が決めた物）。ほかのセクションより先に読め。答えが目的の文や前の要求を取り下げ・変えていれば、"
@@ -533,6 +538,36 @@ def missing(b) -> str:
     return f"{MISSING}: 修正の前に設計の役を起こしていない（{DESIGN_FILE} が無い）"
 
 
+ELEMENTS_HEAD = promptsection.Section("### 独立設計の要素（design_map の design_ref が指す id）", source="fn:design.element_lines")
+
+
+def element_gaps(reply) -> list:
+    """立つ設計の返答 reply（question_stands が真）の elements の誤りの行: 空・id の重なり（立たない返答は空。id の形 ^D[0-9]+$ と
+    adds・removes の型は役の型が先に照らす）。design_ref の実在（_map_gaps）と設計→案の網羅（coverage_gaps）は要素の一覧が
+    要るので、立つ設計は必ず要素を持つ。design.json を書くのは boardview.check_design だけで、そこが呼ぶ"""
+    if not (isinstance(reply, dict) and reply.get("question_stands") is True):
+        return []
+    elements = reply.get("elements")
+    ids = element_ids(elements)
+    out = []
+    if not ids:
+        out.append("elements が空（問いが立つ設計は、設計の要素を id（D1…）と足す物・消す物の字を持つ行で 1 つ以上並べる。"
+                   "審査役が案の行を要素の id で指せるように）")
+    out += [f"elements の id {i} が {ids.count(i)} 行ある（id は重ならない）" for i in dict.fromkeys(ids) if ids.count(i) > 1]
+    return out
+
+
+def element_lines(got) -> str:
+    """立つ設計の返答 got の要素を 1 行ずつ描いた文（`- D1: 足す: …／消す: …`。先頭に ELEMENTS_HEAD）。要素が無ければ空
+    （planblk.design_only が独立設計の本文の後に貼る。審査役が id で指せる）"""
+    rows = [e for e in (got or {}).get("elements") or [] if isinstance(e, dict) and isinstance(e.get("id"), str)]
+    if not rows:
+        return ""
+    def side(e, key):
+        return "・".join(str(x) for x in e.get(key) or []) or "無し"
+    return f"{ELEMENTS_HEAD}\n\n" + "\n".join(f"- {e['id']}: 足す: {side(e, 'adds')}／消す: {side(e, 'removes')}" for e in rows)
+
+
 def stands(board_dir, schema):
     """設計が在り問いが立つ時のその返答（設計が無い・控えが壊れている・問いが立たないなら None）"""
     got, _ = made(board_dir, schema)
@@ -554,21 +589,85 @@ def _row_text(row) -> str:
     return TEXT_SEP.join(t for k in ROW_QUOTE_KEYS for t in _texts(row.get(k)))
 
 
-def _map_gaps(source, rows, design_map) -> list:
-    """design_map の誤りの行: 項目の adds の (項目, name) ごとにちょうど 1 行・adds に無い行は誤り・design_quote が在れば独立設計の
-    文に字のまま在る（null は対が無い）"""
+def _ref_of(e: dict):
+    return e.get("design_ref")
+
+
+def _wanted(rows) -> list:
+    """案の行 rows の、対応表に 1 行ずつ要る (項目の番号, path, symbol): files の change=add の symbol・change=remove の symbol（消す側も入れる）
+    と、op が create・delete・rename の行（symbol は None）。現れた順・重なりは 1 つ"""
+    out = []
+    for r in rows:
+        for row in planmarks.file_rows(r):
+            path = row.get("path")
+            if not isinstance(path, str):
+                continue
+            if row.get("op") in ("create", "delete", "rename"):
+                out.append((r.get("item"), path, None))
+            out += [(r.get("item"), path, s["name"]) for s in planmarks.symbol_rows(row)
+                    if s.get("change") in planmarks.SYMBOL_CHANGES and isinstance(s.get("name"), str)]
+    return list(dict.fromkeys(out))
+
+
+def _label(item, path, symbol) -> str:
+    return f"項目 {item} の {path}" + (f"::{symbol}" if symbol is not None else "（行）")
+
+
+def element_ids(elements) -> list:
+    """独立設計の要素 elements（{id, adds, removes} の行の並び。役の返答の欄 elements）の id の並び（字の物だけ・現れた順）"""
+    return [e["id"] for e in elements if isinstance(e, dict) and isinstance(e.get("id"), str)] if isinstance(elements, list) else []
+
+
+def refs_of(design_map) -> list:
+    """対応表 design_map の design_ref の並び（字の物だけ・重なりは 1 つ）"""
+    return list(dict.fromkeys(e["design_ref"] for e in design_map if isinstance(e, dict) and isinstance(e.get("design_ref"), str))) \
+        if isinstance(design_map, list) else []
+
+
+def coverage_gaps(elements, refs) -> list:
+    """独立設計の要素 elements のうち、refs（design_ref の集まり）に出ない物の誤りの行（設計→案の向きの網羅。要素の漏れ）。refs は
+    今の往復の全部の項目の答えの対応表の design_ref と、閉じた項目の控えに残した design_ref を合わせた物（呼び手が集める。1 つの答え
+    だけでは、ほかの項目が受ける要素を『どの項目も受けない』と見分けられない）"""
+    have = set(refs)
+    return [f"独立設計の要素 {i} が、どの行の design_ref にも出ない（受ける案の行の design_ref に {i} を書くか、案に対が無いなら item・path・"
+            f"symbol を null にした行に design_ref {i} を書け）" for i in element_ids(elements) if i not in have]
+
+
+def _map_gaps(source, rows, design_map, elements=None) -> list:
+    """design_map の誤りの行。行は {item, path, symbol, design_ref, design_quote, why} の 2 つの向き:
+    - 案→設計: 案の行 rows の files の (項目, path, symbol) ごとにちょうど 1 行（対象は change=add の symbol・change=remove の symbol・
+      op が create・delete・rename の行（symbol は null）。files に無い行は誤り）。design_ref は指す要素の id（対が無ければ null）
+    - 設計→案: item・path・symbol が null で design_ref が必須（案のどの行にも対の無い要素を挙げる）
+    design_ref は elements（独立設計の要素）に在る id だけ。同じ鍵の行の重なりは誤り。design_quote が在れば独立設計の文に字のまま
+    在る（null は対が無い）。要素の網羅はここで照らさない（一部の項目の答えでは、ほかの項目が受ける要素を「どの項目も受けない」と
+    見分けられない。呼び手が全部の答えを合わせて coverage_gaps を当てる）"""
     entries = [e for e in design_map if isinstance(e, dict)] if isinstance(design_map, list) else []
-    wanted = list(dict.fromkeys((r.get("item"), a["name"]) for r in rows for a in r.get("adds") or []
-                                if isinstance(a, dict) and isinstance(a.get("name"), str)))
+    ids = set(element_ids(elements))
+    wanted = _wanted(rows)
     count = {}
+    out = []
     for e in entries:
-        count[(e.get("item"), e.get("name"))] = count.get((e.get("item"), e.get("name")), 0) + 1
-    out = [f"design_map に項目 {item} の add {name} の行が無い（adds の name ごとにちょうど 1 行）" for item, name in wanted
-           if not count.get((item, name))]
-    out += [f"design_map に項目 {item} の add {name} の行が {count[(item, name)]} 行ある（ちょうど 1 行）" for item, name in wanted
-            if count.get((item, name), 0) > 1]
-    out += [f"design_map の行（項目 {e.get('item')}・name {e.get('name')}）は項目の adds に無い" for e in entries
-            if (e.get("item"), e.get("name")) not in wanted]
+        key = (e.get("item"), e.get("path"), e.get("symbol"))
+        if key[0] is None:
+            if key[1] is not None or key[2] is not None:
+                out.append(f"design_map の設計→案の行（item が null）は path・symbol も null にする（今は {key[1]}・{key[2]}）")
+            elif not isinstance(_ref_of(e), str):
+                out.append("design_map の設計→案の行（item・path・symbol が null）には design_ref が要る（案に対の無い要素の id）")
+            else:
+                count[("design", _ref_of(e))] = count.get(("design", _ref_of(e)), 0) + 1
+            continue
+        count[key] = count.get(key, 0) + 1
+    out += [f"design_map に{_label(*k)}の行が無い（files の add・remove の symbol と op が create・delete・rename の行ごとにちょうど 1 行）"
+            for k in wanted if not count.get(k)]
+    out += [f"design_map に{_label(*k)}の行が {count[k]} 行ある（ちょうど 1 行）" for k in wanted if count.get(k, 0) > 1]
+    out += [f"design_map の{_label(*k)}の行は項目の files に無い" for k in count if k[0] != "design" and k not in wanted]
+    out += [f"design_map の設計→案の行の design_ref {k[1]} が {n} 行ある（1 行にまとめよ）" for k, n in count.items()
+            if k[0] == "design" and n > 1]
+    for e in entries:
+        ref = _ref_of(e)
+        if ref is not None and ref not in ids:
+            out.append(f"design_map の design_ref {ref} は独立設計の要素に無い（在るのは {sorted(ids) or '無し'}。"
+                       "案に対が無い行の design_ref は null）")
     for e in entries:
         quote = e.get("design_quote")
         if quote is None:
@@ -576,16 +675,17 @@ def _map_gaps(source, rows, design_map) -> list:
         inner = str(quote).strip()
         inner = inner[1:-1] if inner.startswith("「") and inner.endswith("」") else inner
         if not cite.quoted_in(inner, source, norm=cite.fold):
-            out.append(f"design_map の name {e.get('name')} の design_quote「{inner}」が独立設計の文に字のまま無い（対が無いなら null）")
+            where = _label(e.get("item"), e.get("path"), e.get("symbol")) if e.get("item") is not None else f"設計→案 {_ref_of(e)}"
+            out.append(f"design_map の{where}の design_quote「{inner}」が独立設計の文に字のまま無い（対が無いなら null）")
     return out
 
 
 def quote_gaps(board_dir, schema, faces, rows, design_map=None) -> list:
     """事前審査の穴の引用の誤りの行（設計が無い・問いが立たない run では空）。faces は unit_keys を単位の名にした穴、rows は案の行
     （unit_keys は単位の名・item は項目の番号）。why が DRIFT_HEAD か UNPAIRED_HEAD で始まる穴ごとに、why の引用「…」が
-    独立設計の文に字のまま在る物と、穴の unit_keys が重なる案の行（どれにも重ならなければ rows の全部）の approach・adds・
+    独立設計の文に字のまま在る物と、穴の unit_keys が重なる案の行（どれにも重ならなければ rows の全部）の approach・files・
     allowed_paths・shrink_first に字のまま在る物が 1 つ以上ずつ要り、どちらにも無い引用は誤り。design_map を渡した時（None は
-    求めない）は rows の adds の name ごとに 1 行を求め、design_quote の実在を照らす"""
+    求めない）は rows の files の (項目, path, symbol) ごとに 1 行を求め（_map_gaps）、design_quote の実在を照らす"""
     got = stands(board_dir, schema)
     if got is None:
         return []
@@ -609,5 +709,5 @@ def quote_gaps(board_dir, schema, faces, rows, design_map=None) -> list:
         out += [f"{name}: 引用「{q}」が独立設計にも案の行にも字のまま無い（「」は独立設計と案の行の引用だけに使い、"
                 "ほかの引用は『』か `…` で書く）" for q in dict.fromkeys(off_design) if q in off_rows]
     if design_map is not None:
-        out += _map_gaps(source, rows, design_map)
+        out += _map_gaps(source, rows, design_map, got.get("elements"))
     return out

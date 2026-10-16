@@ -12,7 +12,7 @@ import planscope  # noqa: E402
 
 MEAN, CLAMP = "stats.py mean: 分母が len(xs) - 1 になっている", "stats.py clamp: 上限を超えた値に lo を返す"   # 元 tests/replies/judge_ok.json の units の key
 
-ITEM = {"item": 1, "unit_keys": [MEAN], "adds": [], "removes": [], "route": "direct", "tests": [], "rewrite_tests": [],
+ITEM = {"item": 1, "unit_keys": [MEAN], "files": [], "route": "direct", "tests": [], "rewrite_tests": [],
         "allowed_paths": ["stats.py"], "out_of_scope": []}
 ROW = {"unit_key": MEAN, "files": ["stats.py"]}
 STATS = {"stats.py": ("def mean(xs):\n    return 0\n", "def mean(xs):\n    return 1\n")}
@@ -20,6 +20,21 @@ STATS = {"stats.py": ("def mean(xs):\n    return 0\n", "def mean(xs):\n    retur
 
 def item(**over):
     return {**ITEM, **over}
+
+
+def add(name, kind="function"):
+    """files の symbols の行（足す）"""
+    return {"name": name, "kind": kind, "change": "add"}
+
+
+def rm(name, kind="function"):
+    """files の symbols の行（消す。消す訳 why つき）"""
+    return {"name": name, "kind": kind, "change": "remove", "why": "古い名で、呼び手は新しい名に寄せた"}
+
+
+def frow(path, *symbols, op="modify", **extra):
+    """files の行（path・操作・symbols）。受け持ちと正本は照らしに関わらない固定の字"""
+    return {"path": path, "op": op, "responsibility": "この行の受け持ち", "symbols": list(symbols), "canonical": "既存の正本", **extra}
 
 
 class ProblemsCase(unittest.TestCase):
@@ -44,26 +59,77 @@ class ProblemsCase(unittest.TestCase):
         self.assertTrue(any("範囲の中に変えたファイルが無い" in p and MEAN in p for p in got), got)
 
     def test_adds_identifier_must_appear_in_added_lines(self):
-        it = item(adds=[{"kind": "function", "name": "median", "canonical": "stats.py に新設（平均と同じ置き場）"}])
+        it = item(files=[frow("stats.py", add("median"))])
         self.assertTrue(any("median" in p for p in planscope.problems([it], [ROW], STATS)[0]))
         ok = {"stats.py": ("", "def median(xs):\n    return xs[0]\n")}
         self.assertEqual(planscope.problems([it], [ROW], ok)[0], [])
 
+    def test_files_rows_check_same_name_per_path(self):
+        """同じ名 median を stats.py と other.py の 2 行で足すと言い、差分が stats.py にだけ median を足した時、other.py の行だけが
+        欠けとして名指される（名だけで数えると 2 行が潰れ、stats.py の足しで other.py の欠けも通る）。同じ path で名の違う 2 行も
+        1 行ずつ照らされる"""
+        two = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median")), frow("other.py", add("median"))])
+        rows = [{"unit_key": MEAN, "files": ["stats.py", "other.py"]}]
+        only_stats = {"stats.py": ("", "def median(xs):\n    return xs[0]\n"), "other.py": ("a\n", "b\n")}
+        got, _ = planscope.problems([two], rows, only_stats)
+        self.assertEqual([p for p in got if "median" in p and "other.py" in p and "足した行に無い" in p].__len__(), 1, got)
+        self.assertFalse(any("stats.py の add median" in p for p in got), got)
+        both = {**only_stats, "other.py": ("a\n", "def median(xs):\n    return xs[-1]\n")}
+        self.assertEqual(planscope.problems([two], rows, both)[0], [])
+        pair = item(files=[frow("stats.py", add("median"), add("mode"))])
+        got, _ = planscope.problems([pair], [ROW], {"stats.py": ("", "def median(xs):\n    return xs[0]\n")})
+        self.assertEqual([p for p in got if "足した行に無い" in p and "mode" in p].__len__(), 1, got)
+        self.assertFalse(any("add median" in p for p in got), got)
+
+    def test_files_ops_create_and_delete_follow_the_diff(self):
+        """op=create の path が差分で新設されていない時と、op=delete の path が差分で消えていない時に、それぞれ行を名指して拒む。
+        op=rename は元のパスが消え、移し先が新設されていることを見る（modify の差分は test_files_modify_path_must_change_in_diff）"""
+        mk = item(allowed_paths=["*.py"], files=[frow("app.py", op="create")])
+        rows = [{"unit_key": MEAN, "files": ["stats.py", "app.py"]}]
+        exists = {**STATS, "app.py": ("x = 1\n", "x = 2\n")}
+        self.assertTrue(any("app.py" in p and "op=create" in p for p in planscope.problems([mk], rows, exists)[0]))
+        self.assertTrue(any("app.py" in p and "op=create" in p for p in planscope.problems([mk], rows, STATS)[0]), "差分に無い")
+        self.assertEqual(planscope.problems([mk], rows, {**STATS, "app.py": (None, "x = 1\n")})[0], [])
+        rm_ = item(allowed_paths=["*.py"], files=[frow("old.py", op="delete", why="呼び手は stats に寄せたので要らない")])
+        rows = [{"unit_key": MEAN, "files": ["stats.py", "old.py"]}]
+        self.assertTrue(any("old.py" in p and "op=delete" in p
+                            for p in planscope.problems([rm_], rows, {**STATS, "old.py": ("a\n", "b\n")})[0]))
+        self.assertEqual(planscope.problems([rm_], rows, {**STATS, "old.py": ("a\n", None)})[0], [])
+        mv = item(allowed_paths=["*.py"], files=[frow("new.py", op="rename", **{"from": "old.py"}, why="名を実体に合わせた")])
+        rows = [{"unit_key": MEAN, "files": ["stats.py", "old.py", "new.py"]}]
+        moved = {**STATS, "old.py": ("a\n", None), "new.py": (None, "a\n")}
+        self.assertEqual(planscope.problems([mv], rows, moved)[0], [])
+        got, _ = planscope.problems([mv], rows, {**STATS, "old.py": ("a\n", "b\n"), "new.py": ("c\n", "d\n")})
+        self.assertTrue(any("old.py" in p and "op=rename" in p for p in got), got)
+        self.assertTrue(any("new.py" in p and "op=rename" in p for p in got), got)
+
+    def test_files_modify_path_must_change_in_diff(self):
+        """op=modify の行は symbols が無くても、path が差分に無ければ欠けとして名指して拒む（前の欄 adds に既存の foo.py を書いた時と
+        同じ照らし）。path を変えれば通る"""
+        it = item(allowed_paths=["*.py"], files=[frow("foo.py")])
+        rows = [{"unit_key": MEAN, "files": ["stats.py", "foo.py"]}]
+        got, _ = planscope.problems([it], rows, STATS)
+        self.assertTrue(any("foo.py" in p and "op=modify" in p and MEAN in p for p in got), got)
+        self.assertEqual(planscope.problems([it], rows, {**STATS, "foo.py": ("a\n", "b\n")})[0], [])
+
     def test_canonical_elsewhere_definition_is_extra(self):
-        it = item(allowed_paths=["*.py"], adds=[{"kind": "function", "name": "median", "canonical": "stats.py に新設"}])
+        it = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median"))])
         ch = {"stats.py": ("", "def median(xs):\n    pass\n"), "util.py": ("", "def median(xs):\n    pass\n")}
         got, _ = planscope.problems([it], [{"unit_key": MEAN, "files": ["stats.py", "util.py"]}], ch)
         self.assertTrue(any("util.py" in p and "canonical" in p for p in got), got)
+        both = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median")), frow("util.py", add("median"))])
+        self.assertEqual(planscope.problems([both], [{"unit_key": MEAN, "files": ["stats.py", "util.py"]}], ch)[0], [],
+                         "同じ名を足すと言った行の path は、どれも正本")
 
     def test_removes_identifier_must_be_gone(self):
-        it = item(removes=["old_mean"])
+        it = item(files=[frow("stats.py", rm("old_mean"))])
         kept = {"stats.py": ("def old_mean():\n    pass\n", "def old_mean():\n    return 1\n")}
         self.assertTrue(any("old_mean" in p for p in planscope.problems([it], [ROW], kept)[0]))
         gone = {"stats.py": ("def old_mean():\n    pass\n", "def mean():\n    pass\n")}
         self.assertEqual(planscope.problems([it], [ROW], gone)[0], [])
 
     def test_prose_names_not_checked(self):
-        it = item(adds=[{"kind": "doc", "name": "平均の定義の注記", "canonical": "新設（stats.py の頭）"}], removes=["古い注記の文"])
+        it = item(files=[frow("stats.py", add("平均の定義の注記", "doc"), rm("古い注記の文", "doc"))])
         got, note = planscope.problems([it], [ROW], STATS)
         self.assertEqual(got, [])
         self.assertEqual(note["unchecked"], ["平均の定義の注記", "古い注記の文"])
@@ -209,8 +275,8 @@ class ProblemsCase(unittest.TestCase):
 
     def test_problem_lines_carry_unit_keys_for_binding(self):
         """拒否の行は単位の key か項目の unit_keys の全部を字のまま含める（3 回目の拒否で単位に結ぶ）"""
-        it = item(unit_keys=[MEAN, CLAMP], adds=[{"kind": "function", "name": "median", "canonical": "stats.py に新設"}],
-                  removes=["old_mean"], tests=[{"id": "test_stats.py::TestStats::test_two"}])
+        it = item(unit_keys=[MEAN, CLAMP], files=[frow("stats.py", add("median"), rm("old_mean"))],
+                  tests=[{"id": "test_stats.py::TestStats::test_two"}])
         got, _ = planscope.problems([it], [{"unit_key": MEAN, "files": ["other.py"]}, {"unit_key": CLAMP, "files": ["stats.py"]}],
                                     {"other.py": (None, "x\n")})
         unit_lines = [p for p in got if "どの項目の allowed_paths にも無い" not in p]
@@ -247,8 +313,8 @@ class FalseRejectCase(unittest.TestCase):
     def test_absent_partner_unit_does_not_reject_live_unit(self):
         """項目 [MEAN, CLAMP] の MEAN が行に無い（止めた・外した）とき、足す物・消す物・tests の欠けで CLAMP を拒まない
         （Missing 側は項目の単位が全部生きている時だけ見る）。範囲の検査は残る"""
-        it = item(unit_keys=[MEAN, CLAMP], adds=[{"kind": "function", "name": "median", "canonical": "stats.py に新設"}],
-                  removes=["old_mean"], tests=[{"id": "test_stats.py::TestStats::test_mean_of_two"}])
+        it = item(unit_keys=[MEAN, CLAMP], files=[frow("stats.py", add("median"), rm("old_mean"))],
+                  tests=[{"id": "test_stats.py::TestStats::test_mean_of_two"}])
         rows = [{"unit_key": CLAMP, "files": ["stats.py"]}]
         self.assertEqual(planscope.problems([it], rows, STATS)[0], [])
         got, _ = planscope.problems([it], [{"unit_key": CLAMP, "files": ["other.py"]}], {"other.py": (None, "x\n")})
@@ -258,7 +324,7 @@ class FalseRejectCase(unittest.TestCase):
 
     def test_mentioned_removed_name_is_gone(self):
         """消した名が足した行に定義でなく現れる（消えたことを確かめる hasattr・CHANGELOG の注記）だけなら、残ったと見ない"""
-        it = item(allowed_paths=["*.py", "CHANGELOG.md"], removes=["old_mean"])
+        it = item(allowed_paths=["*.py", "CHANGELOG.md"], files=[frow("stats.py", rm("old_mean"))])
         ch = {"stats.py": ("def old_mean():\n    pass\n", "def mean():\n    pass\n"),
               "check_gone.py": (None, "import stats\nassert not hasattr(stats, 'old_mean')\n"),
               "CHANGELOG.md": ("# 変更\n", "# 変更\n- `old_mean` を消した\n")}
@@ -274,7 +340,7 @@ class FalseRejectCase(unittest.TestCase):
         """行の頭（字下げは許す）で始まる定義だけを定義と数える: 表（JSON）の文字列の中の `def <名>` は canonical の外の定義でなく、
         字下げした本物の定義（async def）は数え続ける"""
         it = item(allowed_paths=["stats.py", "util.py", "docs/**"],
-                  adds=[{"kind": "function", "name": "where_paths", "canonical": "stats.py に新設"}])
+                  files=[frow("stats.py", add("where_paths"))])
         ch = {"stats.py": ("", "def where_paths(xs):\n    return xs\n"),
               "docs/concepts.json": ("", self.CONCEPTS_LINE),
               "util.py": ("", "    async def where_paths(xs):\n        return xs\n")}
@@ -284,8 +350,8 @@ class FalseRejectCase(unittest.TestCase):
         self.assertFalse(any("docs/concepts.json" in p for p in got), got)
 
     def test_removed_name_in_data_file_string_is_gone(self):
-        """removes の名を消した差分に、その名を `def <名>` の字で含む表（JSON）の文字列を足しても、足した行に定義が残ったと見ない"""
-        it = item(allowed_paths=["stats.py", "docs/**"], removes=["lead_path"])
+        """files の change=remove の名を消した差分に、その名を `def <名>` の字で含む表（JSON）の文字列を足しても、足した行に定義が残ったと見ない"""
+        it = item(allowed_paths=["stats.py", "docs/**"], files=[frow("stats.py", rm("lead_path"))])
         ch = {"stats.py": ("def lead_path(xs):\n    return xs\n", "def where_paths(xs):\n    return xs\n"),
               "docs/concepts.json": ("", self.CONCEPTS_LINE)}
         got, _ = planscope.problems([it], [{"unit_key": MEAN, "files": sorted(ch)}], ch)
@@ -293,69 +359,67 @@ class FalseRejectCase(unittest.TestCase):
 
     def test_dotted_name_found_by_last_segment(self):
         """名は kind を問わず :: と . で割った最後の段で探す。/ を含む名は確かめず unchecked に回す"""
-        it = item(adds=[{"kind": "function", "name": "Stats.median", "canonical": "stats.py の Stats に新設"},
-                        {"kind": "doc", "name": "docs/scope.md", "canonical": "docs/scope.md に新設"}])
+        it = item(files=[frow("stats.py", add("Stats.median"), add("平均の注記", "doc"))])
         ch = {"stats.py": ("", "class Stats:\n    def median(self):\n        pass\n")}
         got, note = planscope.problems([it], [ROW], ch)
         self.assertEqual(got, [])
-        self.assertEqual(note["unchecked"], ["docs/scope.md"])
+        self.assertEqual(note["unchecked"], ["平均の注記"])
 
     def test_py_file_name_is_module_not_extension(self):
-        """.py のファイルの名（/ も :: も無い）の adds・removes はモジュールの名で見る（0.2.41 の名の規則。planmarks.declared_name）:
-        拡張子 py を語として探さない。足すモジュールは、そのモジュールの名の .py のファイル（パッケージの __init__.py も）が足した
-        行を持つか、消すモジュールはそのファイルが消えたか（ファイルの中身が自分の名を書かないので語では探せない）。__init__.py
-        だけの名はモジュールの名が引けないので unchecked"""
-        it = item(allowed_paths=["*.py", "app/**"], adds=[{"kind": "other", "name": "receivers.py", "canonical": "新設"}])
-        rows = [{"unit_key": MEAN, "files": ["stats.py", "receivers.py"]}]
+        """.py のファイルは symbols の名でなく、行の path と op で見る: op=create の行は path が差分で新設されたか（足した行の 'py' の
+        語で通さない）、op=delete の行は path が差分で消えたか（ファイルの中身が自分の名を書かないので語では探せない）"""
+        it = item(allowed_paths=["*.py", "app/**"], files=[frow("app/receivers.py", op="create")])
+        rows = [{"unit_key": MEAN, "files": ["stats.py", "app/receivers.py"]}]
         word_only = {"stats.py": ("a\n", "a\np = \"data.py\"\n")}
-        self.assertTrue(any("receivers.py" in p for p in planscope.problems([it], rows, word_only)[0]),
+        self.assertTrue(any("app/receivers.py" in p for p in planscope.problems([it], rows, word_only)[0]),
                         "モジュールのファイルが無ければ、足した行の 'py' の語で通さない")
-        added = {"stats.py": ("a\n", "b\n"), "receivers.py": (None, "def handle():\n    pass\n")}
+        added = {"stats.py": ("a\n", "b\n"), "app/receivers.py": (None, "def handle():\n    pass\n")}
         self.assertEqual(planscope.problems([it], rows, added)[0], [], "モジュールのファイルを足せば、中身に自分の名が無くても通る")
-        pkg = {"stats.py": ("a\n", "b\n"), "app/receivers/__init__.py": (None, "X = 1\n")}
-        self.assertEqual(planscope.problems([it], [{"unit_key": MEAN, "files": sorted(pkg)}], pkg)[0], [])
-        rm = item(allowed_paths=["*.py"], removes=["old.py"])
+        pkg = item(allowed_paths=["*.py", "app/**"], files=[frow("app/receivers/__init__.py", op="create")])
+        files = {"stats.py": ("a\n", "b\n"), "app/receivers/__init__.py": (None, "X = 1\n")}
+        self.assertEqual(planscope.problems([pkg], [{"unit_key": MEAN, "files": sorted(files)}], files)[0], [])
+        rm_ = item(allowed_paths=["*.py"], files=[frow("old.py", op="delete", why="呼び手は stats に寄せたので要らない")])
         gone = {"stats.py": ("a\n", "b\n"), "old.py": ("def f():\n    pass\n", None)}
-        self.assertEqual(planscope.problems([rm], [{"unit_key": MEAN, "files": sorted(gone)}], gone)[0], [])
+        self.assertEqual(planscope.problems([rm_], [{"unit_key": MEAN, "files": sorted(gone)}], gone)[0], [])
         kept = {"stats.py": ("a\n", "b\n"), "old.py": ("import x.py\n", "y = 1\n")}
-        self.assertTrue(any("old.py" in p for p in planscope.problems([rm], [{"unit_key": MEAN, "files": sorted(kept)}], kept)[0]),
+        self.assertTrue(any("old.py" in p for p in planscope.problems([rm_], [{"unit_key": MEAN, "files": sorted(kept)}], kept)[0]),
                         "ファイルが残れば、消した行の 'py' の語で通さない")
-        init = item(adds=[{"kind": "other", "name": "__init__.py", "canonical": "新設"}])
-        self.assertEqual(planscope.problems([init], [ROW], STATS)[1]["unchecked"], ["__init__.py"])
 
     def test_py_file_name_edge_shapes(self):
-        """空の __init__.py で新設したパッケージも足したモジュールに数える（新しいファイルは足した行が無くてもよい）。
-        . を含む名（app.receivers.py）はファイルに結べないので unchecked（審査の指摘）"""
-        it = item(allowed_paths=["*.py", "app/**"], adds=[{"kind": "other", "name": "receivers.py", "canonical": "新設"}])
+        """空の __init__.py で新設したパッケージも新設に数える（新しいファイルは足した行が無くてもよい）。パスは op=create の行の path
+        そのもので見る（拡張子の前に . を含む名も、名の字の読み分けでなく path の一致）"""
+        it = item(allowed_paths=["*.py", "app/**"],
+                  files=[frow("app/receivers/__init__.py", op="create"), frow("app/receivers/core.py", op="create")])
         pkg = {"stats.py": ("a\n", "b\n"), "app/receivers/__init__.py": (None, ""), "app/receivers/core.py": (None, "X = 1\n")}
         self.assertEqual(planscope.problems([it], [{"unit_key": MEAN, "files": sorted(pkg)}], pkg)[0], [])
-        dotted = item(adds=[{"kind": "other", "name": "app.receivers.py", "canonical": "新設"}])
-        got, note = planscope.problems([dotted], [ROW], STATS)
-        self.assertEqual((got, note["unchecked"]), ([], ["app.receivers.py"]))
+        dotted = item(allowed_paths=["*.py"], files=[frow("app.receivers.py", op="create")])
+        got, note = planscope.problems([dotted], [{"unit_key": MEAN, "files": ["stats.py", "app.receivers.py"]}],
+                                       {**STATS, "app.receivers.py": (None, "")})
+        self.assertEqual((got, note["unchecked"]), ([], []))
 
-    # docstring の __doc__（run 35ad1c2a: adds の stats.mode.__doc__ を、def の直下に足した docstring の差分で拒んだ）
+    # docstring の __doc__（run 35ad1c2a: stats.mode.__doc__ を足すと言った案を、def の直下に足した docstring の差分で拒んだ）
     SRC = "def mean(xs):\n    return 0\n\n\ndef mode(xs):\n    return max(xs, key=xs.count)\n"
 
     def test_doc_attribute_found_by_docstring(self):
         """名の最後の段が __doc__ なら、足した行の語でなく、その前の段の def・class が差分で docstring を得たかを ast で見る
         （docstring の字は __doc__ を書かない）"""
-        it = item(adds=[{"kind": "doc", "name": "stats.mode.__doc__", "canonical": "stats.py の mode の docstring（新設）"}])
+        it = item(files=[frow("stats.py", add("mode.__doc__", "doc"))])
         now = self.SRC.replace("def mode(xs):\n", "def mode(xs):\n    \"\"\"最頻値。空の xs は ValueError\"\"\"\n")
         got, note = planscope.problems([it], [ROW], {"stats.py": (self.SRC, now)})
         self.assertEqual((got, note["unchecked"]), ([], []))
 
     def test_doc_attribute_missing_when_owner_gains_no_docstring(self):
         """名指した def が docstring を得なければ Missing（ほかの関数の docstring・本体の変更では通さない）"""
-        it = item(adds=[{"kind": "doc", "name": "stats.mode.__doc__", "canonical": "stats.py の mode の docstring（新設）"}])
+        it = item(files=[frow("stats.py", add("mode.__doc__", "doc"))])
         body = self.SRC.replace("key=xs.count", "key=xs.count)  # 最頻値\n    (0")
         other = self.SRC.replace("def mean(xs):\n", "def mean(xs):\n    \"\"\"平均\"\"\"\n")
         for now in (body, other):
             got, _ = planscope.problems([it], [ROW], {"stats.py": (self.SRC, now)})
-            self.assertTrue(any("stats.mode.__doc__" in p and MEAN in p for p in got), got)
+            self.assertTrue(any("mode.__doc__" in p and MEAN in p for p in got), got)
 
     def test_doc_attribute_same_docstring_is_not_added(self):
         """版に既に在る docstring と同じ字のままなら足していない（変えた docstring は足した物に数える）"""
-        it = item(adds=[{"kind": "doc", "name": "mode.__doc__", "canonical": "stats.py の mode の docstring"}])
+        it = item(files=[frow("stats.py", add("mode.__doc__", "doc"))])
         base = self.SRC.replace("def mode(xs):\n", "def mode(xs):\n    \"\"\"最頻値\"\"\"\n")
         same = base.replace("key=xs.count", "key=lambda x: xs.count(x)")
         self.assertTrue(planscope.problems([it], [ROW], {"stats.py": (base, same)})[0])
@@ -363,20 +427,23 @@ class FalseRejectCase(unittest.TestCase):
         self.assertEqual(planscope.problems([it], [ROW], {"stats.py": (base, changed)})[0], [])
 
     def test_doc_attribute_of_method_module_and_path_forms(self):
-        """クラスの中の def（Stats.median.__doc__）・モジュール（stats.__doc__）・<パス>::<名>.__doc__ も同じに見る"""
+        """クラスの中の def（Stats.median.__doc__）・モジュール（名だけの __doc__）は行の path のファイルで同じに見る。パスは行の
+        path 欄に移ったので、<パス>::<名>.__doc__ の形は要らない"""
         base = "class Stats:\n    def median(self):\n        pass\n"
-        meth = item(adds=[{"kind": "doc", "name": "Stats.median.__doc__", "canonical": "stats.py"}])
+        meth = item(files=[frow("stats.py", add("Stats.median.__doc__", "doc"))])
         now = base.replace("def median(self):\n", "def median(self):\n        \"\"\"中央値\"\"\"\n")
         self.assertEqual(planscope.problems([meth], [ROW], {"stats.py": (base, now)})[0], [])
-        mod = item(adds=[{"kind": "doc", "name": "stats.__doc__", "canonical": "stats.py の頭"}])
+        mod = item(files=[frow("stats.py", add("__doc__", "doc"))])
         self.assertEqual(planscope.problems([mod], [ROW], {"stats.py": (base, "\"\"\"数の道具\"\"\"\n" + base)})[0], [])
         self.assertTrue(planscope.problems([mod], [ROW], {"stats.py": (base, now)})[0], "def の docstring はモジュールの物でない")
-        path = item(adds=[{"kind": "doc", "name": "stats.py::Stats.median.__doc__", "canonical": "stats.py"}])
-        self.assertEqual(planscope.problems([path], [ROW], {"stats.py": (base, now)})[0], [])
+        other = item(allowed_paths=["*.py"], files=[frow("other.py", add("Stats.median.__doc__", "doc"))])
+        got, _ = planscope.problems([other], [{"unit_key": MEAN, "files": ["stats.py", "other.py"]}],
+                                    {"stats.py": (base, now), "other.py": ("a\n", "b\n")})
+        self.assertTrue(any("other.py" in p and "Stats.median.__doc__" in p for p in got), "別の path の docstring では通さない")
 
     def test_doc_attribute_literal_assignment_still_passes(self):
         """__doc__ の字を書いて足す形（mode.__doc__ = ...）は今までどおり足した行の語で通る"""
-        it = item(adds=[{"kind": "doc", "name": "stats.mode.__doc__", "canonical": "stats.py"}])
+        it = item(files=[frow("stats.py", add("mode.__doc__", "doc"))])
         now = self.SRC + "\n\nmode.__doc__ = \"最頻値\"\n"
         self.assertEqual(planscope.problems([it], [ROW], {"stats.py": (self.SRC, now)})[0], [])
 
@@ -403,19 +470,19 @@ class LoopFrozenCase(unittest.TestCase):
         self.assertFalse(any("test_new" in p for p in got), got)
 
     def test_qualified_remove_sees_other_class(self):
-        """removes の Stats.median は、Legacy.median を消して Stats.median を残した差分を拒む（ast の名で見る）"""
+        """消す名 Stats.median は、Legacy.median を消して Stats.median を残した差分を拒む（ast の名で見る）"""
         base = "class Legacy:\n    def median(self):\n        pass\n\n\nclass Stats:\n    def median(self):\n        pass\n"
         now = "class Legacy:\n    pass\n\n\nclass Stats:\n    def median(self):\n        pass\n"
         ch = {"stats.py": (base, now)}
-        got = planscope.problems([item(removes=["Stats.median"])], [ROW], ch)[0]
+        got = planscope.problems([item(files=[frow("stats.py", rm("Stats.median"))])], [ROW], ch)[0]
         self.assertTrue(any("Stats.median" in p for p in got), got)
-        self.assertEqual(planscope.problems([item(removes=["Legacy.median"])], [ROW], ch)[0], [])
+        self.assertEqual(planscope.problems([item(files=[frow("stats.py", rm("Legacy.median"))])], [ROW], ch)[0], [])
 
     def test_removed_call_with_kept_definition_remains(self):
         """呼び出しの行だけを消して定義を残した差分は、消えていない"""
         base = "def old_mean():\n    pass\n\n\nx = old_mean()\n"
         now = "def old_mean():\n    pass\n\n\nx = 1\n"
-        got = planscope.problems([item(removes=["old_mean"])], [ROW], {"stats.py": (base, now)})[0]
+        got = planscope.problems([item(files=[frow("stats.py", rm("old_mean"))])], [ROW], {"stats.py": (base, now)})[0]
         self.assertTrue(any("old_mean" in p for p in got), got)
 
 
@@ -430,12 +497,12 @@ class Round3Case(unittest.TestCase):
         self.assertIn("def old_mean():", planscope.added_removed(base, now)[1], "定義の行は消した行にも出る（移した）")
         for raw in ("stats.old_mean", "stats.py::old_mean"):
             with self.subTest(raw):
-                got = planscope.problems([item(removes=[raw])], [ROW], {"stats.py": (base, now)})[0]
+                got = planscope.problems([item(files=[frow("stats.py", rm(raw))])], [ROW], {"stats.py": (base, now)})[0]
                 self.assertTrue(any(raw in p for p in got), got)
 
     def test_module_qualified_other_module_keeps_own_name(self):
         """legacy.median を消し、stats.py が自前の median を残す（その名を含む行は消した）差分は通る"""
-        it = item(allowed_paths=["*.py"], removes=["legacy.median"])
+        it = item(allowed_paths=["*.py"], files=[frow("legacy.py", rm("legacy.median"))])
         ch = {"legacy.py": ("def median(xs):\n    return 0\n", "x = 1\n"),
               "stats.py": ("def median(xs):\n    return 0\n\n\ny = median([1])\n", "def median(xs):\n    return 0\n")}
         rows = [{"unit_key": MEAN, "files": ["legacy.py", "stats.py"]}]
@@ -451,7 +518,7 @@ class Round3Case(unittest.TestCase):
 
     def test_canonical_elsewhere_in_frozen_file(self):
         """輪が書いて凍らせたファイルの同名の定義は canonical の外として問わない。凍った後に修正役が足した物は拒む"""
-        it = item(allowed_paths=["*.py"], adds=[{"kind": "function", "name": "median", "canonical": "stats.py に新設"}])
+        it = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median"))])
         stats = ("", "def median(xs):\n    return xs[0]\n")
         rows = [{"unit_key": MEAN, "files": ["stats.py"]}]
         loop_written = {"stats.py": stats, "helper.py": (None, self.FROZEN_HELPER)}
@@ -461,11 +528,11 @@ class Round3Case(unittest.TestCase):
         self.assertTrue(any("helper.py" in p and "canonical" in p for p in got), got)
 
     def test_tdd_shape_with_test_adds_passes(self):
-        """TDD の形: adds の kind test の test_mean_of_two は輪が書いて凍らせ、凍った後に変わっていなくても、版からの差分で在る"""
+        """TDD の形: files の kind test の symbol test_mean_of_two は輪が書いて凍らせ、凍った後に変わっていなくても、版からの差分で在る"""
         base = "class TestStats:\n    def test_a(self):\n        pass\n"
         frozen = base + "    def test_mean_of_two(self):\n        pass\n"
         it = item(allowed_paths=["stats.py"], tests=[{"id": "test_stats.py::TestStats::test_mean_of_two"}],
-                  adds=[{"kind": "test", "name": "test_stats.py::TestStats::test_mean_of_two", "canonical": "test_stats.py に新設"}])
+                  files=[frow("test_stats.py", add("TestStats::test_mean_of_two", "test"))])
         ch = {**STATS, "test_stats.py": (base, frozen)}
         self.assertEqual(planscope.problems([it], [ROW], ch, loop={"test_stats.py": frozen})[0], [])
 
@@ -477,7 +544,7 @@ class Round3Case(unittest.TestCase):
 
     def test_same_name_in_untouched_lines_of_other_file_is_gone(self):
         """名を含む行に触れていない別の .py に同じ名の定義が在っても、残ったとは見ない"""
-        it = item(allowed_paths=["*.py"], removes=["old_mean"])
+        it = item(allowed_paths=["*.py"], files=[frow("stats.py", rm("old_mean"))])
         ch = {"stats.py": ("def old_mean():\n    pass\n", "def mean():\n    pass\n"),
               "util.py": ("def old_mean():\n    pass\n\n\nA = 1\n", "def old_mean():\n    pass\n\n\nA = 2\n")}
         rows = [{"unit_key": MEAN, "files": ["stats.py", "util.py"]}]

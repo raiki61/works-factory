@@ -9,7 +9,7 @@
   - `out.p3.fix.plan_faces`: その穴への修正役の応答（`absorbed`＝塞いだと言う・`declared`＝残す）
   - `protected_files`: 変わったファイルのうちこのラインの守りのファイル（試験・柵・受け付けの口。対象に無ければ空。`path`・`id`・`why`）。在れば、その変更が検査を緩めていないか（試験を消す・弱める・期待を書き換える・柵や受け付けを外す）を読み、緩めていれば穴にしろ（`kind` は審査の 5 つの語——下の `copy`・`entrance`・`contract_drift`・`dead_path`・`scope_creep`——のどれか。守りのファイルは最後の承認ノードにも必ず出る）
   - `lens`: 修正の差分に当てた修正の後のレンズ（利用者が入れた pr-review-toolkit の agent を 1 本ずつ独立に起こした局所レビュー）の行（`lens`・`state`・`reason`・`findings`）。`findings` の各行は出どころのレンズの名 `lens` つきの指摘（`where`・`cite`・`why`）。指摘を無検算で写すな——差分と今の姿で確かめ、当たっていれば穴として `faces` に挙げ（`kind` は審査の 5 つの語——下の `copy`・`entrance`・`contract_drift`・`dead_path`・`scope_creep`——のどれか）、その行の `lens` にレンズの名を一字も変えずに写せ（機械が採った・採らなかった件数をこの欄で数える）。`state` が `failed`・`not_routed` のレンズの観点は誰も見ていない（`reason` が理由）。空なら、この周はレンズを走らせていない（`lens_error` が在れば控えが読めなかった）
-  - `plan_items`: 承認済みの修正案の項目（項目の番号 `item`・直す単位 `unit_keys`・やり方 `approach`・足す物 `adds`・消す物 `removes`・受け入れのテスト `tests`・書き換えてよい既存のテスト `rewrite_tests`・範囲 `allowed_paths`・触らない物 `out_of_scope`）。空なら、この run に修正案は無い。`held` の在る項目は、裁定で直す義務から外れた項目（`held` は外した裁定。この run では直さず、最後に人が決める）。`held_units` の在る項目は、単位の一部だけが外れた項目（`held_units` は外れた単位と外した裁定）。`held_units` の単位の分は missing・extra・misunderstood に書くな。残りの単位の分だけ照らす
+  - `plan_items`: 承認済みの修正案の項目（項目の番号 `item`・直す単位 `unit_keys`・やり方 `approach`・足す物・消す物 `files`（1 ファイルごとの行。op と symbols の change で足す物・消す物を分け、消す側は訳 why を持つ）・受け入れのテスト `tests`・書き換えてよい既存のテスト `rewrite_tests`・範囲 `allowed_paths`・触らない物 `out_of_scope`）。空なら、この run に修正案は無い。`held` の在る項目は、裁定で直す義務から外れた項目（`held` は外した裁定。この run では直さず、最後に人が決める）。`held_units` の在る項目は、単位の一部だけが外れた項目（`held_units` は外れた単位と外した裁定）。`held_units` の単位の分は missing・extra・misunderstood に書くな。残りの単位の分だけ照らす
   - `ruled_paths`: 直す裁定が項目の範囲に足したパス（裁定の `limits`）。範囲が広がるのはこのパスだけ
   - `fix_report`: 直した側の報告（`changes`・`not_done`）。主張であって証拠ではない
   - `seat_file`: 空でなければ Read で全部読み、その型の手順で審査せよ。`seat_file` の中身は 2 つ: 借りたレビューの手順書（superpowers の task-reviewer の写し。この指示書で「型」と呼ぶ）と、その後ろに機械が付けた表「判定の語の欄」（型が結論に使う語 `✅ Spec compliant`・`Needs fixes` などが、返答の `compliance.verdict`・`quality.verdict` のどの値に当たるかの 3 列の表）。ぶつかる所はこのコマンドが勝つ: 返す JSON の形はこのコマンドの形。読む物はこのコマンドの読む義務（読む側・呼び元・作業ツリーの今の姿）で、型の「Do not crawl the broader codebase」「変わったファイルを別に Read しない」は効かない。判定の欄の値は下の「2 つの判定」の決まりで行から決まる（型の後ろの表「判定の語の欄」は、型の語がどの欄のどの値に当たるかを示すだけで、表と行が食い違えば行で決める。`plan_items` が空なら型が何と言っても `compliance.verdict` は `not_applicable`、準拠の行に結ばれない穴が `faces` に在れば `quality.verdict` は `fail`）
@@ -30,7 +30,7 @@
 上の穴と検算を挙げたうえで、判定を 2 つ書け。先に準拠、次に品質の順で判じる（準拠の外れを品質の穴と混ぜない）。
 
 1. **準拠**（`compliance`）: `plan_items` の各項目について、`fix_report` を信じずに差分と作業ツリーの今の姿を読み、項目どおりに直したかを確かめる。外れを 1 件ごとに `compliance.items` の 1 行（`item`・`kind`・`face_key`・`why`）に書け:
-   - `missing`: 項目が足す・消す・通すと言った物（`adds`・`removes`・`tests`・範囲の中の変更）が差分に無い
+   - `missing`: 項目が足す・消す・通すと言った物（`files` の足す行・消す行・`tests`・範囲の中の変更）が差分に無い
    - `extra`: 項目の外の物（範囲の外のファイル・頼まれていない機能）を足した
    - `misunderstood`: 項目を読み違えて別の形に直した
    - `unverifiable`: 差分と今の姿からは確かめられない（何が足りなくて確かめられないかを `why` に書く）

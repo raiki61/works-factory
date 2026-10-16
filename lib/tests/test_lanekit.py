@@ -30,6 +30,21 @@ class Groups(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(lanekit.groups([]), [])
 
+    def test_after_joins_and_orders_within_group(self):
+        """after の対（前, 後）は、タグを共にしない 2 つを同じ組に入れ、組の中で前を先に並べる（rows の順が後→前でも。鎖も通る）"""
+        got = lanekit.groups([("late", ["x"]), ("early", ["y"])], after=[("early", "late")])
+        self.assertEqual(got, [["early", "late"]])
+        chain = lanekit.groups([("c", []), ("b", []), ("a", [])], after=[("a", "b"), ("b", "c")])
+        self.assertEqual(chain, [["a", "b", "c"]])
+
+    def test_after_drops_pairs_outside_rows_and_keeps_rows_order_among_ready(self):
+        """rows の外の端を持つ対は捨てる（組に紛れ込ませない・KeyError も出ない）。依存の無い 2 つは rows の順のまま、
+        同時に進めてよい物（get_ready の返り）も rows の位置で並べる"""
+        self.assertEqual(lanekit.groups([("p", []), ("q", [])], after=[("p", "gone"), ("gone", "q"), ("x", "y")]),
+                         [["p"], ["q"]])
+        got = lanekit.groups([("d", []), ("b", []), ("c", []), ("a", [])], after=[("a", "d"), ("c", "d")])
+        self.assertEqual(got, [["c", "a", "d"], ["b"]], "組は rows の先頭の順、組の中は準備できた物を rows の順に並べてから後ろへ")
+
 
 class MergeInOrder(unittest.TestCase):
     def test_earlier_grows_only_with_applied(self):
