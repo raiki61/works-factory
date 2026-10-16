@@ -233,7 +233,7 @@ HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を�
         f"行の番号は why_not に書く）、why_not は {MIN_WHY} 字以上の退けた訳）を、op を問わず全部の行に必ず書く。"
         "受け付けが照らすのは 5 つ: considered の path が行の path と同じ・同じ行で同じ path を 2 度書く・path の形の誤り（\\ ・根の外・"
         "整えていない形）・2 段以上の path の最初の段が対象の根に無い・同じ home.concept（前後の空白と大文字小文字を除く）を案の 2 行に"
-        "置く（一方の行の considered にもう一方の行の path が在れば矛盾としても拒む）。機械は差分で、change=add の name を行の path の足した行から、change=remove の name を消した行から、"
+        "置く（一方の行の considered にもう一方の行の path が在れば矛盾としても拒む。op=delete の行の home は照らしに数えない）。機械は差分で、change=add の name を行の path の足した行から、change=remove の name を消した行から、"
         "op=create・delete・rename の path を新設・消し・移しから探す。消す物（op が delete・rename の行と change=remove の symbol）は"
         f"why（消す訳。{MIN_WHY} 字以上）を必ず書き、置き換え先が在れば replaced_by（<パス>::<名前> か <パス>）も書け。足す物の行に why・"
         "replaced_by は書くな。"
@@ -1121,11 +1121,14 @@ def home_gaps(items) -> list[str]:
     在るか、1 度目の行の path が 2 度目の行の considered に在れば、退けた所に同じ考えを住まわせる矛盾の行も足す。行は
     "plan[<i>].files[<j>].home.concept…: <理由>"。案の全体を受ける 1 つの口で、gaps には入れない（案の直しの gaps は直した項目だけを
     受け、直さない項目の行と重なる考えを見逃すので）。呼ぶのは take_plan と案の直しの _plan_errors（depends_gaps と同じ案の全体を渡す）。
+    op=delete の行は数えない（消えるファイルは変更の後に考えの住処になれず、移す前の考えの名を書くのが自然なので）。
     純な関数（案の JSON だけを読む）。形の崩れた項目・行は飛ばす（型は gaps が見る）"""
     out, first = [], {}
     for i, it in enumerate(items if isinstance(items, list) else []):
         for j, row in enumerate(_rows(it, "files") if isinstance(it, dict) else []):
-            home = row.get("home") if isinstance(row, dict) else None
+            if not isinstance(row, dict) or row.get("op") == "delete":
+                continue
+            home = row.get("home")
             concept = home.get("concept") if isinstance(home, dict) else None
             if not (isinstance(concept, str) and concept.strip()):
                 continue

@@ -309,6 +309,19 @@ class TestGaps(PlanFieldsCase):
         self.assertEqual(planmarks.home_gaps(torn), [])
         self.assertEqual(planmarks.home_gaps("案でない"), [])
 
+    def test_home_gaps_skips_deleted_rows(self):
+        """op=delete の行の home は照らしに数えない。消す行と作る行が同じ考えを持ち、作る行の considered に消す行の path が在っても
+        拒まない（消えるファイルは変更の後に住処になれないので）。消さない 2 行の重なりは今までどおり拒む"""
+        def row(path, op, considered):
+            return frow(path, op=op, home={"concept": "出力の読み口", "why": "ここが住処だから"},
+                        considered=[{"path": considered, "why_not": "同じ仕事の助け手が無かった"}])
+        old, new = row("lib/old.py", "delete", "lib/new.py"), row("lib/new.py", "create", "lib/old.py")
+        self.assertEqual(planmarks.home_gaps([item(files=[old, new])]), [])
+        self.assertEqual(planmarks.home_gaps([item(files=[new]), item(files=[old])]), [])
+        got = planmarks.home_gaps([item(files=[old, new, row("lib/b.py", "modify", "alt_home.py")])])
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[2].home.concept") and "plan[0].files[1]" in got[0], got)
+
 
 class TestFindTest(PlanFieldsCase):
     def test_find_test_py_and_other(self):

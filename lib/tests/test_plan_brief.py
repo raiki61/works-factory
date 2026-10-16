@@ -107,7 +107,7 @@ class BriefCase(PlaceCase):
                                  {"path": "lib/keep.py", "why_not": "呼び手の置き場で、入口の考えを持たない"}],
                   "symbols": [{"name": "handle", "change": "add"}]},
                  {"path": "lib/old.py", "op": "delete", "responsibility": "古い口",
-                  "home": {"concept": "古い口の消し方", "why": "消す行の考えはここ"},
+                  "home": {"concept": "入口の受け方", "why": "移す前の入口の考えはここに在った"},
                   "considered": [{"path": "lib/new.py", "why_not": "新しい口に寄せて消す"}], "symbols": [],
                   "why": "呼び手は new に寄せた", "replaced_by": "lib/new.py::handle"},
                  {"path": "lib/keep.py", "op": "modify", "responsibility": "呼び手",
@@ -124,7 +124,7 @@ class BriefCase(PlaceCase):
         for w in ("| path | op | 受け持ち | symbols | 住処 | 退けた置き場 | 消す訳 |",
                   "| lib/new.py | create | 新しい口 | add `handle` | 入口の受け方——新しい口なのでここに置く | "
                   "lib/old.py——古い口は呼び手が多すぎて直せない<br>lib/keep.py——呼び手の置き場で、入口の考えを持たない |",
-                  "| lib/old.py | delete | 古い口 |", "古い口の消し方——消す行の考えはここ", "lib/new.py——新しい口に寄せて消す",
+                  "| lib/old.py | delete | 古い口 |", "入口の受け方——移す前の入口の考えはここに在った", "lib/new.py——新しい口に寄せて消す",
                   "why: 呼び手は new に寄せた（置き換え先: lib/new.py::handle）",
                   "remove `legacy`——why: handle に寄せたので要らない（置き換え先: lib/new.py::handle）"):
             self.assertIn(w, text)
