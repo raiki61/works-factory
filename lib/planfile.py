@@ -869,16 +869,15 @@ def moved(path, repo, keys=accept.TREE_KEYS) -> str:
 
 
 def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=None, handoff=None) -> dict:
-    """受けた案の控えを置く（handoff が空でなければ、案の控えの後に引き継ぎのメモの控えも置く）。置けなければ置いた控えを消し、置けなかった
-    控えの名を round.json の why に残して、輪を止める返り
+    """受けた案の控えを置く（案の控えの後に、handoff が空でなければ引き継ぎのメモの控えを置き、空なら周のフォルダに残る前のメモを消す）。
+    置けなければ置いた控えを消し、置けなかった控えの名を round.json の why に残して、輪を止める返り
     {ok: False, halt: True, count: false, give_up: true, reason}（拒否ではない。役に出し直させず、欄の無い案で進ませない。count: false で
     受け付けの回の口 rolekit.accept_round が控えに積まず、give_up: true でその回を done にして輪を止める。元 planblk.with_plan_fields の BoardGap）"""
+    note = marks.path_of("handoff", round_dir)
     steps = [(FIX_PLAN_FILE, lambda: _write_json(round_dir / FIX_PLAN_FILE, bare)),
              (planmarks.FIELDS_FILE, lambda: planmarks.save(round_dir, k, fields, amended=amended)),
-             (REPLY_FILE, lambda: _write_json(round_dir / REPLY_FILE, plan))]
-    if handoff:
-        note = marks.path_of("handoff", round_dir)
-        steps.append((note.name, lambda: marks.write(note, handoff)))
+             (REPLY_FILE, lambda: _write_json(round_dir / REPLY_FILE, plan)),
+             (note.name, lambda: marks.write(note, handoff) if handoff else note.unlink(missing_ok=True))]
     for name, step in steps:
         try:
             step()
@@ -902,7 +901,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
     _save の halt。count: false・give_up: true で受け付けの回が控えに積まずに輪を止める）。返答の頭の欄 HANDOFF（引き継ぎのメモ）は
-    照らす前に外し、案の控えには混ぜずに handoff.json に書く（メモの控えを置けない時も同じ halt）。2 往復目からは block_answers を外して前の往復の答えの要る穴（block と開いた項目の suggest）への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
+    照らす前に外し、案の控えには混ぜずに handoff.json に書く（無ければ周に残る前のメモを消す。メモの控えを置けない時も同じ halt）。2 往復目からは block_answers を外して前の往復の答えの要る穴（block と開いた項目の suggest）への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
     （出し直しが WHOLE_PLAN を立てた答えは、案の全部なので閉じた項目の行だけを差し込む）。差し込んだ案の全体は、出し直しの役が
     読み、次の出し直しを合わせる元の控え rolekit.candidate_path にも書く。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
@@ -960,7 +959,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     """修正案の役の直した項目の返答（形 replan）を受け付ける。拒否は REPLAN_REJECT と誤りの全部。通れば replan.json（行は
     replan.TRIP_KEYS の形。contract_changed・widened は事実だけ）と、直した項目を差し替えた案の全体を p2.fix_plan.json・
     plan-fields.json（amended に直した項目の核の欄）・reply.json に書き、trace に planmarks.AMEND_OP を書く。返答の頭の欄 HANDOFF
-    （引き継ぎのメモ）は take_plan と同じく照らす前に外し、この周の handoff.json に書く（直す元の周のメモは変えない）。
+    （引き継ぎのメモ）は take_plan と同じく照らす前に外し、この周の handoff.json に書く（無ければこの周に残る前のメモを消す。直す元の周のメモは変えない）。
     作業ツリーの比べと控えを置けない時は take_plan と同じ"""
     round_dir = pathlib.Path(round_dir)
     why = moved(round_dir / TREE_FILE, repo, keys)

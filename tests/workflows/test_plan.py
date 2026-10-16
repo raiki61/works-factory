@@ -1485,6 +1485,18 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(len(rolekit.rejected(rnd, "plan")), 1)
         self.assertEqual(json.loads((rnd / "handoff.json").read_text(encoding="utf-8")), HANDOFF_NOTE)
 
+    def test_accepted_reply_without_handoff_removes_a_stale_handoff(self):
+        """メモを返さずに受かった周は、周のフォルダに前から残るメモを消す（使い回した周の古いメモを次の周に前の周の物として載せない）"""
+        run = Run(self)
+        rnd = run.art / "plan" / "r1"
+
+        def writer(n, brief):
+            (rnd / "handoff.json").write_text(json.dumps(HANDOFF_NOTE), encoding="utf-8")
+            return {"plan": [item(1, 2)]}
+
+        self.assertIs(run.include(writer=writer)["ready"], True)
+        self.assertFalse((rnd / "handoff.json").exists())
+
     def test_second_round_brief_has_no_independent_design(self):
         """元 tests/test_blk_plan.py の test_revise_prompt_names_blocks_and_keys: 2 周目の材料に独立設計の節は無い（役の頭は貼り直す）"""
         run = Run(self)
