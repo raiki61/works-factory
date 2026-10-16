@@ -13,14 +13,15 @@ facts:
   facts_file: report/report.md
   stamp: "works-factory-report / run fixture-run / 周 1 / グラフの版 000000000000"
   lang_line: ""
-write-reject: {reason: ''}
+write-reject: {reason: '', prev: ''}
 write:
   text: "直して、最後のテストまで通った。\n直した単位は 1 つ。\n次の run に渡す物は無い。"
   terms: []
+  handoff: {read: [], decided: [], rejected: [], doubts: []}
 cold-prep:
   body: "直して、最後のテストまで通った。"
 cold: {verdict: pass, stops: [], guessed: [], decidable: true}
-accept: {done: true, ok: true, reason: "", kind: "", reason_file: ""}
+accept: {done: true, ok: true, reason: "", kind: "", reason_file: "", prev_file: ""}
 report:
   outcome: fixed
   stop_reason: ""

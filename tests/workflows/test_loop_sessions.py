@@ -1,8 +1,9 @@
 """輪（loop_group）の会話の配線の試験（#571）。全部のブロックの YAML を PyYAML で読むだけ（Archon を起こさない）。
 
-頼っている止めた Archon の振る舞いは tests/shared/test_archon_contract.py の ARCHON_ROWS の 4 行が源の字で縛る:
+頼っている止めた Archon の振る舞いは tests/shared/test_archon_contract.py の ARCHON_ROWS の 5 行が源の字で縛る:
 fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1 周目はいつも新しい会話・並んだ層は会話を切る・順の節は
-並んだ層か context: fresh の時だけ新しい会話・名指しの続き（context: resume）は輪の本体の中では輪の前の節だけを指せる。
+並んだ層か context: fresh の時だけ新しい会話・context: fresh の節も順の層で completed になれば次の節の会話のカーソルになる
+（FRESH_BY_DESIGN の report の訳が頼る）・名指しの続き（context: resume）は輪の本体の中では輪の前の節だけを指せる。
 
 - 受け付けの出し直しの輪（本体の最後の節の id が accept で終わる輪）は fresh_context: false で、拒まれた後の出し直しは同じ役の
   会話の続きで起きる。外れは FRESH_BY_DESIGN の輪だけ
@@ -26,6 +27,8 @@ BLOCKS = sorted((ROOT / "workflows").glob("*/works-factory-*.yaml"))
 FRESH_BY_DESIGN = {
     ("fix", "clash-loop"): "周ごとに扱う組が替わるので、前の周の組の会話を持ち込まない",
     ("fix", "clash-ruled-loop"): "周ごとに扱う組が替わるので、前の周の組の会話を持ち込まない",
+    ("report", "write-loop"): "書き手と初見の読み手が同じ鎖に居て、会話を継ぐと次の周の書き手が初見の読み手の会話の続きで起きる。"
+                              "前の周の考えの筋は引き継ぎのメモと前の答えのファイルで渡す（#589）",
 }
 
 

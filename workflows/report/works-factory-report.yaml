@@ -65,7 +65,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 3
-      fresh_context: false
+      fresh_context: true
       until_bash: done=$accept.output.done; test "$done" = true
       nodes:
         - id: write-reject
@@ -73,12 +73,12 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.accept.output.reason_file"}
+          with: {reason: "$LOOP_PREV.accept.output.reason_file", prev: "$LOOP_PREV.accept.output.prev_file"}
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, prev]
+            properties: {reason: {type: string}, prev: {type: string}}
 
         - id: write
           command: report
@@ -93,7 +93,7 @@ nodes:
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
-            required: [text]
+            required: [text, handoff]
             additionalProperties: false
             properties:
               text: {type: string, minLength: 1}
@@ -106,6 +106,15 @@ nodes:
                   properties:
                     term: {type: string, minLength: 1}
                     definition: {type: string, minLength: 1}
+              handoff:
+                type: object
+                required: [read, decided, rejected, doubts]
+                additionalProperties: false
+                properties:
+                  read: {type: array, items: {type: string}}
+                  decided: {type: array, items: {type: string}}
+                  rejected: {type: array, items: {type: string}}
+                  doubts: {type: array, items: {type: string}}
 
         - id: cold-prep
           script: cold_prep
@@ -156,13 +165,14 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [done, ok, reason, kind, reason_file]
+            required: [done, ok, reason, kind, reason_file, prev_file]
             properties:
               done: {type: boolean}
               ok: {type: boolean}
               reason: {type: string}
               kind: {type: string}
               reason_file: {type: string}
+              prev_file: {type: string}
 
   - id: report
     script: collect

@@ -79,6 +79,7 @@ OUT_DIR = "report"                      # run の置き場の中の報告の置�
 UNWRITTEN = "report-unwritten.md"       # 報告を組めない時の機械の報告（fallback_report。facts の report.md を上書きしない名）
 AI_FILE = "ai.json"                     # 受け付けた書き手の返答と初見の判定（collect が読む）
 AI_REPORT_FILE = "report-ai.md"         # AI の報告（元 report_roles.REPORT_NAME）
+PREV_ANSWER_FILE = "prev-answer.json"   # 拒んだ回の書き手の本文と、周ごとの引き継ぎのメモ（次の周の書き手が読む）
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
 # 初見の読み手（report.cold_check）の返答の型。型の正本は工程の cold の節の output_format で、これと同じかを試験が縛る
 COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
@@ -1753,9 +1754,37 @@ def _reject_count(out_dir: pathlib.Path) -> dict:
     return report_roles.count_rejects([{**r, "node": REPORT_NODE} for r in rows])
 
 
+def _keep_rejected(out_dir: pathlib.Path, reply: dict, refused: dict) -> dict:
+    text = reply.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return refused
+    path = out_dir / PREV_ANSWER_FILE
+    stuck = None
+    try:
+        old = fixboard.read_json(path, {"handoffs": []})   # 無い時の既定を None にしない（中身が null の控えを『在るのに使えない』に入れる）
+        if not isinstance(old, dict):
+            stuck = "が JSON のオブジェクトでない"
+        elif not isinstance(old.get("handoffs"), list):
+            stuck = "の handoffs が並びでない"
+        else:
+            handoffs = old["handoffs"] + ([reply["handoff"]] if isinstance(reply.get("handoff"), dict) else [])
+            carry.write(path, {"text": text, "terms": _list(reply.get("terms")), "handoffs": handoffs})
+    except ValueError as e:
+        stuck = f"が読めない（{type(e).__name__}）"
+    except OSError as e:
+        stuck = f"に書けない（{type(e).__name__}）"
+    if stuck is None:
+        return refused
+    return {**refused, "give_up": True,
+            "reason": f"{refused['reason']}\n前の答えの控え {path} {stuck}ので、前の周の引き継ぎのメモを次の周へ渡せない"}
+
+
 def accept(reply, cold, *, out_dir) -> dict:
     """書き手の返答を受け付ける（元 report_roles.accept を、盤面の代わりに out_dir の控えで書き直した物）。{done, ok, reason, kind,
-    reason_file}。受け付けの回は rolekit.accept_round（out_dir、節 REPORT_NODE）が持つ。順: 読む（読めない返答・本文の無い返答は kind answer）
+    reason_file, prev_file}。拒んだ回の返答の本文 text・terms と、返答の handoff（読んだ所・決めた訳・退けた案・迷い）を周の順に積んだ
+    並び handoffs は、前の答えの控え PREV_ANSWER_FILE に書き、まだ諦めていない拒否の回の prev_file がそのパスを指す（受け取った回・
+    諦めた回・控えの無い回は空の字）。handoff は AI_FILE にも初見の読み手に貼る本文（cold_body）にも載らない。控えが読めない・書けない
+    時は上書きせず、take の拒否に give_up を付けて口に止めさせる。受け付けの回は rolekit.accept_round（out_dir、節 REPORT_NODE）が持つ。順: 読む（読めない返答・本文の無い返答は kind answer）
     → terms の型 → 表のセルの書式 → 機械の報告の冒頭の HEAD_NOTES の句が頭に在るか → 初見の読み手の判定。通らなければ口が拒否の行
     （kind つき）を rolekit の控え rejects-report.json に積み、reason_file は拒否の全部の rejects-report.md（rolekit.reject_file）。
     拒否が rolekit.GIVE_UP_AFTER 回に達した時か、控え rejects-report.json が読めない・書けない時は、口の後の 1 か所で AI_FILE に
@@ -1788,11 +1817,15 @@ def accept(reply, cold, *, out_dir) -> dict:
         reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
         return {"ok": True, "reason": reason, "text": got["text"], "terms": _list(got.get("terms")), "not_passed": not_passed}
 
-    out = rolekit.accept_round(out_dir, REPORT_NODE, reply, take, reject=lambda why: _refused(why, "answer"))
+    def kept(got: dict) -> dict:
+        out = take(got)
+        return out if out.get("ok") is True else _keep_rejected(out_dir, got, out)
+
+    out = rolekit.accept_round(out_dir, REPORT_NODE, reply, kept, reject=lambda why: _refused(why, "answer"))
     if out["ok"]:
         carry.write(out_dir / AI_FILE, {"accepted": True, "text": out["text"], "terms": out["terms"], "cold": c,
                                         "not_passed": out["not_passed"], "rejects": _reject_count(out_dir)})
-        return {"done": True, "ok": True, "reason": out["reason"], "kind": "", "reason_file": ""}
+        return {"done": True, "ok": True, "reason": out["reason"], "kind": "", "reason_file": "", "prev_file": ""}
     if out["done"]:   # 諦めた時も、控えが扱えない時も、受け取れなかった訳を残す（collect が輪が落ちたと読まない）
         try:
             why = rolekit.given_up_reason(out_dir, REPORT_NODE)
@@ -1800,8 +1833,10 @@ def accept(reply, cold, *, out_dir) -> dict:
             why = ""
         carry.write(out_dir / AI_FILE, {"accepted": False, "reason": why or out["reason"], "cold": c,
                                         "rejects": _reject_count(out_dir)})
+    answer = out_dir / PREV_ANSWER_FILE
     return {"done": out["done"], "ok": False, "reason": out["reason"], "kind": out.get("kind") or "answer",
-            "reason_file": rolekit.reject_file_or_blank(out_dir, REPORT_NODE)}
+            "reason_file": rolekit.reject_file_or_blank(out_dir, REPORT_NODE),
+            "prev_file": str(answer) if not out["done"] and answer.is_file() else ""}
 
 
 def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:
