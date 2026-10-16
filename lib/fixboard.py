@@ -28,6 +28,7 @@
 
 外のパッケージは使わない（startrec・gatemarks・jsonfile のほかの lib の部品は、使う関数の中で import する）。
 """
+import functools
 import json
 import os
 import pathlib
@@ -560,7 +561,7 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     leftovers.record_ignored(folder, worktree)
     record_base_rev(folder, worktree)
     start_tree = groups.end_tree(worktree)
-    items = planmarks.approved_items(plan_view(folder, plan, judgment)) if plan is not None else None
+    items = place_items(folder) if plan is not None else None
     write_notes(folder, raw.get("notes") or "")
     grps = fix_groups(group_owed(folder), items, only)
     out_dir = folder / "groups"
@@ -588,7 +589,7 @@ def _in_order(judgment, keys) -> list:
 def fix_groups(owed, items, only_items=()) -> list:
     """直す義務の単位 owed（順）を、承認済みの修正案の項目 items（planmarks.approved_items の形 [{item, unit_keys, …}] か None）を
     共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の並びは owed の順）。範囲（allowed_paths の glob と
-    tests・rewrite_tests のファイル。planrange の「項目の範囲」）が交わり得る項目（planmarks.globs_meet）もつなぐ: 別の組の子が同じ
+    tests・rewrite_tests のファイル。planrange.item_globs）が交わり得る項目（planmarks.globs_meet）もつなぐ: 別の組の子が同じ
     ファイルを変えると、締めの節で後の組の差分が字で当たらない。範囲の無い項目は項目の番号だけでつなぐ。項目の間の依存（works の欄
     depends_on）は組の分け方にも組の中の並びにも入れる: only_items・owed で単位 keys を絞った後に、planmarks.depends_pairs(items, among=keys)
     （絞りの外の項目を通る依存は、中の端どうしの対に縮めた物）を lanekit.groups の after に渡す——前の項目の単位は後の項目の単位と
@@ -605,7 +606,7 @@ def fix_groups(owed, items, only_items=()) -> list:
         if isinstance(it, dict) and isinstance(it.get("item"), int):
             for k in it.get("unit_keys") or []:
                 by.setdefault(k, []).append(it["item"])
-            got = planrange.globs(it) + planmarks.test_paths(it)
+            got = planrange.item_globs(it)
             if got:
                 ranges[it["item"]] = got
     keys = list(owed)
@@ -1263,7 +1264,8 @@ def delta_review_due(place, repo, skip=(), fix_reply=None) -> tuple:
 def place_items(place):
     """置き場の承認済みの修正案の項目（planmarks.approved_items。修正案の役の返答の写し p2.fix_plan.json と判定の写し judgment.json
     を plan_view で渡し、凍結の欄 plan-fields.json と凍結の印は置き場から）。どれか無ければ None。凍結の印と食い違えば
-    planmarks.FieldsBroken。refix.cut・accept_review・accept_fix・prep_fix の items に口（引数なし）として渡す"""
+    planmarks.FieldsBroken。承認済みの項目を置き場から読む口はここ 1 つで、修正の段（群の組み立て prep・修正役の指示書・
+    受け付け・事前の確かめ factchecks.main）と手直しの段（refix.cut・accept_review・accept_fix・prep_fix）が同じ物を items に口（引数なし）として渡す"""
     import planmarks
     p = pathlib.Path(place)
     return planmarks.approved_items(plan_view(p, read_json(p / PLAN_REPLY_FILE), read_json(p / JUDGMENT_FILE)))
@@ -2316,7 +2318,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         note("not_opened", [NOT_OPENED + k for k in check_opened_units(keys, duty | set(excused))])
         note("excused", [f"{EXCUSED}{k}（{why}）" for k, why in check_excused_units(keys, duty, excused).items()])
         scope, scope_note = factchecks.check_plan_scope(reply, keys, pathlib.Path(place), rev, repo, state, pass_, since=head or None,
-                                               items=factchecks.place_items(place), consult_place=place)
+                                               items=functools.partial(place_items, place), consult_place=place)
         note("scope", scope)
     else:
         duty, excused = fix_duty(place, owed)
@@ -2682,11 +2684,10 @@ QUEUED = ("受け付けが範囲の外のはみ出しを見つけ、修正案を
 
 def _overflow_items(place) -> list:
     """承認済みの修正案の項目（範囲の相談の合意を足した物。planrange.with_agreed）。案の無い run は []。元 accept.py:498 の _items
-    （盤面の代わりに置き場の控えを factchecks.place_items で読む）"""
+    （盤面の代わりに置き場の控えを place_items で読む）"""
     import conflict
-    import factchecks
     import planrange
-    items = factchecks.place_items(place)()
+    items = place_items(place)
     return planrange.with_agreed(items, conflict.agreed(place)) if items else []
 
 

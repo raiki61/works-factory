@@ -37,6 +37,13 @@ class PolyfillsListedTest(unittest.TestCase):
             got = scan.problems("E2", root)
         self.assertTrue(any("docs/polyfills.md:1" in line and "returned.py" in line for line in got), got)
 
+    def test_path_ends_at_full_width_space(self):
+        """名簿の行の素のパスは全角の空白（U+3000）で切れる。続く字までパスに入れると、木に在るファイルを無いと言う"""
+        registry = "- 埋め: workflows/line/scripts/returned.py\u3000の外\n"
+        with tree({"docs/polyfills.md": registry, "workflows/line/scripts/returned.py": ""}) as root:
+            got = scan.problems("E2", root)
+        self.assertEqual(got, [])
+
     def test_entry_part_allowance_is_not_red(self):
         with tree({"bin/_lib/pack.py": "", "bin/_lib/borrow/x.json": ""}) as root:
             got = scan.problems("E2", root)

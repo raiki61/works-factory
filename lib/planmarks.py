@@ -324,7 +324,7 @@ def _segment(seg: str) -> str:
             out.append("[^/]")
         elif k > 0:
             body = seg[i + 1:k]
-            out.append("[" + ("^" + body[1:] if body.startswith("!") else body).replace("\\", "\\\\") + "]")
+            out.append("[" + ("^" + body[1:] if body.startswith("!") else body).replace("\\", "\\\\").replace("[", "\\[") + "]")
             i = k
         else:
             out.append(re.escape(c))
@@ -355,9 +355,9 @@ _WILD = re.compile(r"[*?\[]")
 
 def globs_meet(a: str, b: str) -> bool:
     """2 つの glob（glob_match の読み）が同じパスに当たり得るか。言い切れない時は真（交わらないと言える時だけ偽）"""
-    if not isinstance(a, str) or not isinstance(b, str):
-        return False
-    return _parts_meet(tuple(a.rstrip("/").split("/")), tuple(b.rstrip("/").split("/")))
+    if isinstance(a, str) and isinstance(b, str):
+        return _parts_meet(tuple(a.split("/")), tuple(b.split("/")))
+    return True
 
 
 def _parts_meet(a: tuple, b: tuple) -> bool:

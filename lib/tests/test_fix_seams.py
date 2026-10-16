@@ -15,10 +15,12 @@ tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジト
 """
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -33,6 +35,8 @@ import groups  # noqa: E402
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
+import planmarks  # noqa: E402
+import planrange  # noqa: E402
 import rolekit  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
@@ -1229,10 +1233,10 @@ class FactchecksSeamCase(TempCase):
         import planmarks
         planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": allowed,
                                          "out_of_scope": []}])
-        (self.place / f"{planmarks.NODE}.json").write_text(json.dumps(
+        (self.place / fixboard.PLAN_REPLY_FILE).write_text(json.dumps(
             {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "files": []}]}, ensure_ascii=False),
             encoding="utf-8")
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         cfg = consult.write_config(self.place, {**self.cfg, "items": {"1": {"unit_keys": [R_MEAN]}}})
         draft = self.tmp / "draft.json"
         draft.write_text(json.dumps(self.reply, ensure_ascii=False), encoding="utf-8")
@@ -1840,6 +1844,58 @@ class GroupScriptsSeamCase(TempCase):
                   "rewrite_tests": [{"id": "tests/test_s.py::Case::test_b"}]},
                  {"item": 3, "unit_keys": ["C"], "allowed_paths": ["", "lib/c.py"]}]
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C"], items)], [["A", "B"], ["C"]])
+
+    # 項目の範囲の表: テストのファイルの名に * ? [ を含む行・rewrite_tests だけの項目・空の allowed_paths の字の行
+    RANGE_ITEMS = {
+        "bracket": {"item": 1, "unit_keys": ["A"], "allowed_paths": ["lib/a.py", ""],
+                    "tests": [{"id": "tests/test_[x].py::Case::test_a"}]},
+        "plain": {"item": 2, "unit_keys": ["B"], "allowed_paths": ["tests/test_x.py"]},
+        "star": {"item": 3, "unit_keys": ["C"], "rewrite_tests": [{"id": "tests/test_*.py::Case::test_c"}]},
+        "mark": {"item": 4, "unit_keys": ["D"], "tests": [{"id": "tests/test_?.py::Case::test_d"}]},
+        "glob": {"item": 5, "unit_keys": ["E"], "allowed_paths": ["lib/*.py", "tests/**"]},
+    }
+    RANGE_PATHS = ["lib/a.py", "lib/b.py", "lib/sub/c.py", "tests/test_[x].py", "tests/test_x.py", "tests/test_*.py",
+                   "tests/test_a.py", "tests/test_?.py", "tests/sub/test_x.py", ""]
+
+    def test_item_globs_reads_like_inside(self):
+        """項目の範囲（planrange.inside。glob の並びは item_globs）のテストのファイルは字のまま当たる（名に * ? [ を含んでも
+        ほかのファイルに当たらない）"""
+        want = {
+            "bracket": {"lib/a.py", "tests/test_[x].py"},
+            "plain": {"tests/test_x.py"},
+            "star": {"tests/test_*.py"},
+            "mark": {"tests/test_?.py"},
+            "glob": {"lib/a.py", "lib/b.py", "tests/test_[x].py", "tests/test_x.py", "tests/test_*.py", "tests/test_a.py",
+                     "tests/test_?.py", "tests/sub/test_x.py"},
+        }
+        for name, it in self.RANGE_ITEMS.items():
+            self.assertEqual({p for p in self.RANGE_PATHS if planrange.inside(p, it)}, want[name], name)
+        self.assertEqual(planrange.item_globs(self.RANGE_ITEMS["bracket"]), ["lib/a.py", "tests/test_[[]x].py"])
+        self.assertEqual(planrange.item_globs({"item": 9}), [])
+
+    def test_fix_groups_join_items_only_when_inside_shares_a_path(self):
+        """組分けは項目の範囲を planrange.inside と同じ読みで見る: inside が共にパスを入れる項目の単位は同じ組、共有するパスの無い
+        項目（テストのファイル tests/test_[x].py と allowed_paths の tests/test_x.py）は別の組"""
+        items = [self.RANGE_ITEMS["bracket"], self.RANGE_ITEMS["plain"],
+                 {"item": 3, "unit_keys": ["C"], "allowed_paths": ["lib/*.py"]},
+                 {"item": 4, "unit_keys": ["D"], "allowed_paths": ["docs/x.md"]}]
+        got = fixboard.fix_groups(["A", "B", "C", "D"], items)
+        shared = {(a["item"], b["item"]) for i, a in enumerate(items) for b in items[i + 1:]
+                  if any(planrange.inside(p, a) and planrange.inside(p, b) for p in self.RANGE_PATHS + ["docs/x.md"] if p)}
+        joined = {(a, b) for g in got for i, a in enumerate(g["items"]) for b in g["items"][i + 1:]}
+        self.assertEqual(shared, {(1, 3)})
+        self.assertEqual(joined, shared)
+        self.assertEqual([g["unit_ids"] for g in got], [["A", "C"], ["B"], ["D"]])
+
+    def test_item_globs_match_bracket_names_without_future_warning(self):
+        """名に [ を含むテストのファイル（tests/test_[x].py）の項目の glob は、読む時に re の FutureWarning（入れ子の集合の予告）を
+        出さない。re のコンパイルの控えを空にしてから読むので、試験の順に依らない"""
+        with warnings.catch_warnings(record=True) as seen:
+            warnings.simplefilter("always")
+            re.purge()
+            for g in planrange.item_globs(self.RANGE_ITEMS["bracket"]):
+                planmarks.glob_match("", g)
+        self.assertEqual([str(w.message) for w in seen if issubclass(w.category, FutureWarning)], [])
 
     def test_parallel_needs_two_groups_no_lane_switch_and_a_remote(self):
         two = [{"group_id": "g1"}, {"group_id": "g2"}]
@@ -2493,7 +2549,7 @@ class FixAcceptSeamCase(TempCase):
         """裁定の後の段の最後の回に、同じファイルの別の単位を止めて段の頭へ戻すと、人に回した query_hits_fixed の単位の直しも
         控えの patch へ移る。関所の行と単位の結末の理由は「直しは差分に在り」と言わず、控えの patch を名指す（#355）"""
         import conflict
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         path = self.repo / "stats.py"
         text = path.read_text(encoding="utf-8")
@@ -2517,7 +2573,7 @@ class FixAcceptSeamCase(TempCase):
         """clamp の直しと人に回した query_hits_fixed の clamp の行（park_clamp が積む）を段の頭より前に置き、頭の後に mean を直して、
         裁定の後の段の最後の回に mean を止めて stats.py を段の頭へ戻す。返りは clamp の関所の行"""
         import conflict
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         path = self.repo / "stats.py"
         old, new = list(R_FIXED.items())[1]
         path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
@@ -2618,7 +2674,7 @@ class FixAcceptSeamCase(TempCase):
     def _accept_claims(self, conflicts, *, pass_="first", iteration=1, judgment=True, changes=()):
         """判定の写し（R_JUDGED。judgment が偽なら置かない）の置き場で、申し出 conflicts を持つ返答を受け付けに通す"""
         if judgment:
-            (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+            (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         return fixboard.accept_reply({"changes": list(changes), "conflicts": conflicts}, self.place, self.repo, pass_=pass_,
                                      iteration=iteration, owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head,
@@ -2708,7 +2764,7 @@ class FixAcceptSeamCase(TempCase):
     def _held_turns(self, held_files: dict):
         """判定の写しを置き、段の頭の木を控えてから MEAN を直し、外れた単位 CLAMP の直し held_files {パス: 中身} を書く。返りは
         受け付けを回す口 accept(返答, iteration)"""
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         path = self.repo / "stats.py"
         path.write_text(path.read_text(encoding="utf-8").replace("sum(xs) / (len(xs) - 1)", "sum(xs) / len(xs)"),
@@ -2804,7 +2860,7 @@ class FixAcceptSeamCase(TempCase):
         copy.parent.mkdir(parents=True)
         copy.write_text("a: 1\n", encoding="utf-8")
         fixboard.record_skipped(self.place, self.repo, SKIP)
-        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         path = self.repo / "stats.py"
         text = path.read_text(encoding="utf-8")
@@ -2917,10 +2973,10 @@ class SettleOverflowSeamCase(TempCase):
         import planmarks
         planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": ["stats.py"],
                                          "out_of_scope": []}])
-        (self.place / f"{planmarks.NODE}.json").write_text(json.dumps(
+        (self.place / fixboard.PLAN_REPLY_FILE).write_text(json.dumps(
             {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "files": []}]}, ensure_ascii=False),
             encoding="utf-8")
-        (self.place / "judgment.json").write_text(json.dumps({"units": [R_JUDGED[0]]}, ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [R_JUDGED[0]]}, ensure_ascii=False), encoding="utf-8")
         self.head = leftovers.snapshot(self.repo)
         self.extra = self.repo / "request_ok.json"
         self.before = self.extra.read_bytes()
@@ -2932,8 +2988,7 @@ class SettleOverflowSeamCase(TempCase):
         self.kw = dict(pass_="first", owed=[R_MEAN], judged=[R_JUDGED[0]], head=self.head, skip=SKIP, base_rev=self.rev)
 
     def items(self):
-        import factchecks
-        return factchecks.place_items(self.place)()
+        return fixboard.place_items(self.place)
 
     def test_unasked_overflow_is_queued_not_rejected(self):
         import consult

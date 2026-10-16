@@ -19,7 +19,7 @@ claude（素の Claude Code を run.PLAIN_MODEL・run.PLAIN_EFFORT で claude -p
 
 1 件の流れ: prepare がホストの docker build で、課題のイメージの上の /opt/works-bench に道具と HEAD の工場の写しを焼いた
 派生のイメージ works-bench-swepro:<instance_id> を作り（dockerfile・build_steps。網が要る段は全部ここ）、課題のフォルダの写しの
-docker_image をそれに替える。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
+docker_image をそれに替える（ホストの Claude Code の版が bwrap の写しの元の版 BWRAP_FROM と違えば docker の前に止める）。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
 （工場の commit と Claude Code の版がホストと同じか）と bwrap を確かめるだけで網を使わず（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら remote の無い /app に試みの
@@ -126,6 +126,8 @@ GOST_CONFIG_ENV = "WORKS_BENCH_GOST_CONFIG"
 # COPIED_FROM）。WorksBenchDocker がプロキシの有無に依らず使う
 SANDBOX = HERE / "swepro_sandbox"
 SECCOMP_ENV = "WORKS_BENCH_SECCOMP"
+# setup の sandbox の確かめが写した bwrap の引数の元の Claude Code の版。ホストの版が違えば prepare が止める（写し直す）
+BWRAP_FROM = "2.1.300"
 USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
 HOST_GATEWAY = "host.docker.internal"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
@@ -288,7 +290,7 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
         ("stamp", f"test \"$(cat {place}/{STAMP} 2>/dev/null)\" = {shlex.quote(stamp(factory_commit, claude_version))} "
                   f"|| {{ echo {shlex.quote(missing)} >&2; exit 1; }}"),
         # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす。引数は Claude Code
-        # 2.1.300 の bwrap の引数のうち、/proc と名前空間に関わる部分の写し（伏せた /proc の上では proc の mount だけが落ちる）
+        # BWRAP_FROM の bwrap の引数のうち、/proc と名前空間に関わる部分の写し（伏せた /proc の上では proc の mount だけが落ちる）
         ("sandbox", "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc true "
                     f"|| {{ echo {shlex.quote(SANDBOX_REFUSED)}\"$(cat {USERNS_LIMIT} 2>/dev/null || echo 無い)\" >&2; exit 1; }}"),
     ]
@@ -369,6 +371,9 @@ def prepare(tasks: Path, out: Path, instances: list[str]) -> list[str]:
     claude_version = host_claude_version(os.environ)
     if not claude_version:
         raise BenchError("ホストの claude --version が読めない（コンテナにはホストと同じ版の Claude Code を焼く）")
+    if claude_version != BWRAP_FROM:
+        raise BenchError(f"ホストの Claude Code {claude_version} が、setup の sandbox の確かめが bwrap の引数を写した版 {BWRAP_FROM} と"
+                         f"違う。{claude_version} の bwrap の引数と照らして写し直し、swepro.py の BWRAP_FROM を上げる")
     factory_commit = head_commit()
     made = []
     with tempfile.TemporaryDirectory(prefix="works-bench-") as tmp:
