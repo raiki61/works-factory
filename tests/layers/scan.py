@@ -635,9 +635,10 @@ def _origin_names(root: Path) -> list[str]:
     return out
 
 
-# Archon の出力の参照（dag-executor.ts の `\.output(?:\.([a-zA-Z_][a-zA-Z0-9_]*))?`）と同じ形の 1 本。欄の組は任意で、match[2] が None の一致が
-# まるごとの参照。だから `.output-x`・`.outputs`・`.output.`・`.output.0` も欄の無い側（まるごと）に入り、欄つきとの間に隙間が開かない
-OUTPUT_REF = re.compile(r"\$(?:LOOP_PREV\.)?([A-Za-z_][\w-]*)\.output(?:\.([A-Za-z_]\w*))?")
+# Archon の出力の参照（355f1867 の packages/workflows/src/output-ref.ts の CURRENT_OUTPUT_PATH_SOURCE と PRIOR_OUTPUT_PATH_SOURCE）と同じ形の 1 本。
+# match[2] は任意の欄の道 `a.b`（入れ子も通る）で、頭の欄が返す節の欄。match[2] が None の一致がまるごとの参照。だから `.output-x`・`.outputs`・
+# `.output.`・`.output.0` も欄の無い側（まるごと）に入り、欄つきとの間に隙間が開かない
+OUTPUT_REF = re.compile(r"\$(?:LOOP_PREV\.)?([A-Za-z_][\w-]*)\.output(?:\.([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*))?")
 # 境の口（workflows/.shared/boundary.py）の呼びの名と、受け皿の素通しの宣言の名。scan.py が script について知るのはこれと環境の名の頭だけ
 GATE_MODULE = "boundary"
 GATE_PICKED = "picked"
@@ -672,7 +673,7 @@ def _line_reads(root: Path) -> tuple[dict, dict, list[str]]:
     """線のメイングラフの節ごとに、字を鍵の道つきで 1 回の走査で読む。返りは (reads, whole, 赤の行):
     reads は `$<include の id>.output.<欄>` で読む欄を、差し込んだ工程の名ごとに {名: {欄…}}。
     whole は、まるごとの参照 `$<include の id>.output` を受けてよい置き場（script の節の with:<鍵> の直の字か with:<鍵>.from の字が、
-    参照そのもの）で受けた script の口の読みを、工程の名ごとに {名: [(script のパス, 行, 鍵, 口の名の並び（受け皿の素通しは None）)…]}。
+    参照そのもの）で受けた script の口の読みを、工程の名ごとに {名: [(script のパス, 行, 鍵, 口の名の並び（受け皿の素通しは None）, 節の id)…]}。
     受けてよい置き場の外のまるごとの参照と、口を引けない・読まない・迂回して読む受け手は、列挙せずに全部赤（既定の拒み）"""
     path = root / LINE_YAML
     documents, broken = _documents(root, path) if path.is_file() else ([], [])
@@ -696,7 +697,7 @@ def _line_reads(root: Path) -> tuple[dict, dict, list[str]]:
                 if match[2] is None:
                     refs.append(match)
                 else:
-                    reads.setdefault(target[match[1]], set()).add(match[2])
+                    reads.setdefault(target[match[1]], set()).add(match[2].partition(".")[0])
             if refs and _takes_whole(node, keys, text):
                 received[keys[1]] = refs[0][1]
             elif refs:
@@ -730,13 +731,14 @@ def _gated(root: Path, line_path: Path, node, ident: str, key: str):
     names, line, reasons = _gate_reads(script, key, root / "lib")
     if reasons:
         return None, [f"{rel}:{line}: {here} を受ける script が口を通らずに読む: " + "／".join(reasons)]
-    return (rel, line, key, names), []
+    return (rel, line, key, names, ident), []
 
 
 def _block_returns(root: Path) -> list[str]:
     """返りの欄の読み手に加えて、ブロックの入力の読み手（K12）と、輪の中の役が自分の with: を結ばないこと（K5）も照らす。
     まるごとの参照を受ける script の口の名は、順方向（返す節の output_format に在る）と逆向き（読み手に数える）の両方で照らす"""
     reads, whole, problems = _line_reads(root)
+    line_nodes = [n for d in _documents(root, root / LINE_YAML)[0] for n in _nodes(d)] if whole else []
     out = _inputs_read(root) + _loop_roles(root) + problems
     for folder in _blocks(root):
         if folder.name == LINE_FOLDER:
@@ -765,14 +767,84 @@ def _block_returns(root: Path) -> list[str]:
         fields = list(_pairs(_top(schema, "properties")))
         known = {k for k, _ in fields}
         read = set(reads.get(name, ()))
-        for script, line, key, names in whole.get(name, ()):
-            read |= known if names is None else set(names)   # 受け皿の素通しは全部の欄を写す
+        for script, line, key, names, receiver in whole.get(name, ()):
+            read |= _relayed_reads(root, line_nodes, receiver) if names is None else set(names)
             out += [f"{script}:{line}: script {script} が {key} で読む欄 {n} が {name} の返りに無い" for n in names or () if n not in known]
         for key, value in fields:
             if key not in read:
                 out.append(f"{rel}:{_line(value)}: 返りの欄 {key} に読み手が無い"
-                           "（線の with:・when:・返しの節の from の欄つきの参照も、まるごとの参照を受ける script の口の名も、受け皿の素通しも読まない）")
+                           "（線の with:・when:・返しの節の from の欄つきの参照も、まるごとの参照を受ける script の口の名も、受け皿の先の名指しも読まない）")
     return out
+
+
+def _relayed_reads(root: Path, nodes: list, receiver: str) -> set[str]:
+    """受け皿の節 receiver（欄を読まずに運ぶだけの中継）の先が名指しで読む名。先は、receiver の出力を参照する線の節と、その節の出力を
+    参照する節と…の閉包（nodes は線の節の全部）。名は、先の節の字の参照の道 `.output.<a>.<b>` の名と、先の script（差し込んだ工程なら、その scripts/ の全部）と
+    それらが import する lib の部品（入れ子も）の、読む位置の字の定数（_read_names）"""
+    path = root / LINE_YAML
+    reached, names, files = {receiver}, set(), set()
+    grew = True
+    while grew:
+        grew = False
+        for node in nodes:
+            ident = getattr(_top(node, "id"), "value", None)
+            refs = [m for _, text in _scalars(node, skip={("loop_group", "nodes")}) for m in OUTPUT_REF.finditer(text) if m[1] in reached]
+            if not refs:
+                continue
+            names.update(part for m in refs if m[2] for part in m[2].split("."))
+            if ident is not None and ident not in reached:
+                reached.add(ident)
+                grew = True
+            files.update(p for p in node_scripts(path.parent, node) if p.suffix == ".py")
+            include = _top(node, "include")
+            if isinstance(include, yaml.ScalarNode) and include.value.startswith(OURS_PREFIX):
+                files.update((root / "workflows" / include.value.removeprefix(OURS_PREFIX) / "scripts").glob("*.py"))
+    for file in _imported(root / "lib", files):
+        names |= _read_names(file)
+    return names
+
+
+def _imported(lib: Path, files: set) -> set[Path]:
+    """files と、それらが import する lib の部品の閉包"""
+    seen, todo = set(), list(files)
+    while todo:
+        file = todo.pop()
+        if file not in seen:
+            seen.add(file)
+            todo += _lib_imports(lib, file)
+    return seen
+
+
+@functools.cache
+def _lib_imports(lib: Path, file: Path) -> tuple:
+    """file が import する lib の部品（`import <部品>`・`from <部品> import …`・`from lib import <部品>`）のパス"""
+    source, parts = _source(file), []
+    for node in ast.walk(source.tree) if source else ():
+        if isinstance(node, ast.Import):
+            parts += [a.name.partition(".")[0] for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            parts += [node.module.partition(".")[0]] + ([a.name for a in node.names] if node.module == "lib" else [])
+    return tuple(lib / f"{part}.py" for part in dict.fromkeys(parts) if (lib / f"{part}.py").is_file())
+
+
+@functools.cache
+def _read_names(path: Path) -> frozenset:
+    """script か lib の部品 path の、読む位置の字の定数。書く位置（dict の literal の鍵・代入と del の添字）と docstring と f 字の欄は数えない"""
+    source = _source(path)
+    if source is None:
+        return frozenset()
+    written = set()
+    for node in ast.walk(source.tree):
+        if isinstance(node, ast.Dict):
+            written.update(id(k) for k in node.keys if k is not None)
+        elif isinstance(node, ast.Subscript) and not isinstance(node.ctx, ast.Load):
+            written.add(id(node.slice))
+        elif isinstance(node, ast.JoinedStr):
+            written.update(id(v) for v in node.values)
+        elif isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and ast.get_docstring(node, clean=False) is not None:
+            written.add(id(node.body[0].value))
+    return frozenset(n.value for n in ast.walk(source.tree)
+                     if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in written)
 
 
 def script_reads(text: str, name: str, lib: Path = LIB) -> bool:
@@ -1053,11 +1125,12 @@ def _returned_as_is(node, parents: dict) -> bool:
 def _passed_uses(source, call) -> list:
     """`boundary.passed` の呼び call の値の使い方の誤り (行, 訳) の並び。許す形は 2 つだけで、ほかは形を並べず既定の拒み:
     呼びそのものを return の literal に直に置く形と、呼びを 1 度だけ名に代入し、同じ有効範囲のその名の読みが全部、return の literal に
-    直に置く形か `<名> is None`・`<名> is not None` の形。添字・.get・属性・関数への引数・別の名への代入は欄を読みうるので赤"""
+    直に置く形か `<名> is None`・`<名> is not None` の形。添字・.get・属性・関数への引数・別の名への代入は欄を読みうるので赤。
+    その return を持つ関数の返りも、_returner_uses の形の外で使えない"""
     why = f"boundary.{GATE_PASSED} で受けた値を return の literal に直に置く外で使う（欄を引くなら boundary.{GATE_PICKED} で名指す）"
     parents = source.parents
     if _returned_as_is(call, parents):
-        return []
+        return _returner_uses(source, call)
     bound = parents.get(call)
     if not (isinstance(bound, ast.Assign) and bound.value is call and len(bound.targets) == 1 and isinstance(bound.targets[0], ast.Name)):
         return [(call.lineno, why)]
@@ -1074,7 +1147,36 @@ def _passed_uses(source, call) -> list:
                    and isinstance(test.comparators[0], ast.Constant) and test.comparators[0].value is None)
         if not (isinstance(node.ctx, ast.Load) and (checked or _returned_as_is(node, parents))):
             out.append((node.lineno, why))
-    return out
+        elif not checked:
+            out += _returner_uses(source, node)
+    return list(dict.fromkeys(out))
+
+
+def _returner_uses(source, placed) -> list:
+    """素通しの値 placed を置いた return の関数の返りの使い方の誤り (行, 訳) の並び。関数は module の頭の飾りの無い def で、その名を読んでよいのは
+    `boundary.run(…)` の第 1 引数の中（関数の名そのものか、それを呼ぶだけの lambda の呼びの頭）だけ。ほかの読み（返りの添字・.get・展開・
+    lib への引数・別の名への代入）は返りの欄を読みうるので、形を並べず既定の拒み"""
+    parents = source.parents
+    function = parents.get(placed)
+    while function is not None and not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.Module)):
+        function = parents.get(function)
+    why = (f"boundary.{GATE_PASSED} の値を返す関数の返りを boundary.run の第 1 引数の外で使う"
+           "（その関数か、それを呼ぶだけの lambda を boundary.run に渡すだけにする）")
+    if not (isinstance(function, ast.FunctionDef) and isinstance(parents.get(function), ast.Module) and not function.decorator_list
+            and len(source.top.get(function.name, [])) == 1):
+        return [(placed.lineno, why)]
+    handed = set()
+    for run in _boundary_calls(source, "run"):
+        compute = run.args[0] if run.args else None
+        if isinstance(compute, ast.Lambda) and isinstance(compute.body, ast.Call):
+            compute = compute.body.func
+        if isinstance(compute, ast.Name):
+            handed.add(id(compute))
+    uses = [n for n in ast.walk(source.tree) if isinstance(n, ast.Name) and n.id == function.name]
+    stray = [n.lineno for n in uses if id(n) not in handed]
+    if stray or not uses:
+        return [(min(stray, default=function.lineno), why)]
+    return []
 
 
 def _gate_reads(path: Path, key: str, lib: Path) -> tuple:

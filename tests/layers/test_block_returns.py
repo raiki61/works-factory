@@ -2,12 +2,15 @@
 
 在るブロックに `returns:` と `outcome_field:` が在り、返す節が `output_format` を持ち、`outcome_field` の欄がその `required` に在る。
 返りの欄のうち、線の `with:`・`when:`・返しの節の `from` の誰も `$<include の id>.output.<欄>` で読まず、まるごとの参照
-`$<include の id>.output` を受ける script の口（boundary.picked の名の並び）も受け皿の素通し（boundary.passed）も数えない物は赤。
+`$<include の id>.output` を受ける script の口（boundary.picked の名の並び）も、受け皿の素通し（boundary.passed）の先の名指しも数えない物は赤。
 欄つきの参照の読む欄が返す節に在るかは Archon の `validate` が照らす（tests/layers/test_archon_validate.py）ので、ここでは照らさない。
 まるごとの参照は validate が欄を見られないので、ここで照らす: 受けてよい置き場は script の節の `with:<鍵>` の直の字か `with:<鍵>.from` の字で、
-ほかは赤。受けた script は口の呼びで読む名が返す節の output_format に在り、口を迂回して読まない。素通しの値は欄を引かずに出力へ運ぶだけ。
+ほかは赤。受けた script は口の呼びで読む名が返す節の output_format に在り、口を迂回して読まない。素通しの値は欄を引かずに出力へ運ぶだけで、
+それを返す関数は boundary.run に渡すだけ。
 """
 import pathlib
+import shutil
+import tempfile
 import unittest
 
 from tests.layers import scan
@@ -33,6 +36,9 @@ READS = (
 GATE_NAMES = 'NAMES = ("ready", "units")\n'
 GATE_CALL = 'got = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)\n'
 GATE = GATE_NAMES + GATE_CALL
+# 受け皿の素通しの形（workflows/line/scripts/returned.py と同じ）
+PASSED = 'def f(env):\n    whole = boundary.passed(env.get("INPUTS_GOT"))\n    if whole is not None:\n        return {"got": whole}\n'
+RUN = "boundary.run(lambda: f(os.environ), fallback)\n"
 
 
 def take_node(value):
@@ -247,32 +253,79 @@ class BlockReturnsTest(unittest.TestCase):
         self.assertIn("units", got[0])
         self.assertIn("読み手が無い", got[0])
 
-    def test_passed_through_whole_ref_counts_every_field(self):
+    def relayed(self, script, after="", files=None):
+        """受け皿の節 take がブロック judge の返りをまるごとで受けて運び、after の節がその先で読む木"""
+        line = LINE_HEAD + take_node('"$judge.output"') + after
+        return self.files({BLOCK: RETURNING, LINE: line, TAKE: script, **(files or {})})
+
+    def test_passed_through_whole_ref_counts_fields_named_beyond_the_receiver(self):
+        relay = "  - id: relay\n    script: relay\n    timeout: 1728000000\n    with:\n      got: \"$take.output\"\n"
+        reader = (relay + "  - id: report\n    script: report\n    timeout: 1728000000\n    with:\n"
+                  "      got: { from: \"$relay.output\", if_skipped: null }\n")
+        reads = 'import board\nboundary.run(lambda: board.view(os.environ.get("INPUTS_GOT")), fallback)\n'
         forms = {
-            "return の literal に直に置く": 'def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"))}\n',
-            "名に束ねて None を見て return の dict と tuple": ('def f(env):\n    whole = boundary.passed(env.get("INPUTS_GOT"))\n'
-                                      '    if whole is not None:\n        return {"got": whole, "stop_reason": ""}\n'
-                                      '    return (whole, 1)\n'),
+            "return の literal に直に置く": ('def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"))}\nboundary.run(f, fallback)\n',
+                                         "  - id: reader\n    script: reader\n    timeout: 1728000000\n    with:\n"
+                                         "      ready: $take.output.got.ready\n      units: \"$take.output.got.units\"\n", {}),
+            "名に束ねて None を見て return の dict と tuple、先の先の lib が添字と .get で読む":
+                (PASSED + '    return (whole, 1)\n' + RUN, reader,
+                 {"workflows/line/scripts/report.py": reads,
+                  "lib/board.py": 'import rows\ndef view(raw):\n    got = json.loads(raw)["got"]\n    return rows.units(got), got.get("ready")\n',
+                  "lib/rows.py": 'def units(got):\n    return got["units"]\n'}),
         }
-        for name, script in forms.items():
+        for name, (script, after, files) in forms.items():
             with self.subTest(name):
-                self.assertEqual(self.gated(script), [])
+                self.assertEqual(self.relayed(script, after, files), [])
+
+    def test_field_relayed_without_a_named_reader_is_red(self):
+        report = "  - id: report\n    script: report\n    timeout: 1728000000\n    with:\n      got: \"$take.output\"\n      x: \"$judge.output.ready\"\n"
+        writes = 'def view(got):\n    out = {"units": got}\n    out["units"] = got\n    return f"units{got}"\n'
+        cases = {
+            "先が無い": ("  - id: report\n    script: report\n    timeout: 1728000000\n    with:\n      x: \"$judge.output.ready\"\n", {}),
+            "先が欄を書くだけ（dict の鍵・添字への代入・f 字）": (report, {"workflows/line/scripts/report.py": writes}),
+            "先の外の script が名指す": (report.replace("$take.output", "$other.output"),
+                                   {"workflows/line/scripts/report.py": 'x = got["units"]\n'}),
+            "docstring に書くだけ": (report, {"workflows/line/scripts/report.py": '"""units"""\n'}),
+        }
+        for name, (after, files) in cases.items():
+            with self.subTest(name):
+                got = self.relayed(PASSED + RUN, after, files)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(f"{BLOCK}:", got[0])
+                self.assertIn("返りの欄 units に読み手が無い", got[0])
+
+    def test_dead_field_in_a_real_block_behind_a_receiver_is_red(self):
+        fix = "workflows/fix/works-factory-fix.yaml"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            for part in ("workflows", "lib"):
+                shutil.copytree(ROOT / part, root / part, ignore=shutil.ignore_patterns("tests", "fixtures", "__pycache__"))
+            text = (root / fix).read_text(encoding="utf-8")
+            schema = text.index("properties:\n", text.index("output_format:", text.index("\n  - id: fix\n")))
+            head = schema + len("properties:\n")
+            indent = text[head:len(text) - len(text[head:].lstrip(" "))]
+            (root / fix).write_text(text[:head] + f"{indent}dead_field: {{ type: string }}\n" + text[head:], encoding="utf-8")
+            got = scan.problems("E5", root)
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith(f"{fix}:"), got)
+        self.assertIn("返りの欄 dead_field に読み手が無い", got[0])
 
     def test_passed_value_used_beyond_the_return_is_red(self):
         bound = 'def f(env):\n    whole = boundary.passed(env.get("INPUTS_GOT"))\n'
         cases = {
-            "名に束ねて添字で引く": (bound + '    return {"got": whole, "units": whole["unitz"]}\n', "literal に直に置く外"),
-            "名に束ねて .get で引く": (bound + '    return {"got": whole.get("units")}\n', "literal に直に置く外"),
-            "lib に丸ごと渡す": (bound + '    return {"got": report.build(whole)}\n', "literal に直に置く外"),
+            "名に束ねて添字で引く": (bound + '    return {"got": whole, "units": whole["unitz"]}\n' + RUN, "literal に直に置く外"),
+            "名に束ねて .get で引く": (bound + '    return {"got": whole.get("units")}\n' + RUN, "literal に直に置く外"),
+            "lib に丸ごと渡す": (bound + '    return {"got": report.build(whole)}\n' + RUN, "literal に直に置く外"),
             "呼びを直に lib に渡す": ('out = report.build(boundary.passed(os.environ.get("INPUTS_GOT")))\n', "literal に直に置く外"),
-            "別の名へ移す": (bound + '    other = whole\n    return {"got": other}\n', "literal に直に置く外"),
-            "名に 2 度代入": (bound + '    whole = {}\n    return {"got": whole}\n', "literal に直に置く外"),
-            "return でない literal": (bound + '    out = {"got": whole}\n    return out\n', "literal に直に置く外"),
-            "isinstance で見る": (bound + '    if isinstance(whole, dict):\n        return {"got": whole}\n', "literal に直に置く外"),
+            "別の名へ移す": (bound + '    other = whole\n    return {"got": other}\n' + RUN, "literal に直に置く外"),
+            "名に 2 度代入": (bound + '    whole = {}\n    return {"got": whole}\n' + RUN, "literal に直に置く外"),
+            "return でない literal": (bound + '    out = {"got": whole}\n    return out\n' + RUN, "literal に直に置く外"),
+            "isinstance で見る": (bound + '    if isinstance(whole, dict):\n        return {"got": whole}\n' + RUN, "literal に直に置く外"),
             "口が picked と passed の 2 つ": (GATE + 'def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"))}\n',
                                          "2 つ以上"),
-            "passed の引数が 2 つ": ('def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"), 1)}\n', "引数は"),
-            "口の呼びの外にも字": ('def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"))}\n'
+            "passed の引数が 2 つ": ('def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"), 1)}\nboundary.run(f, fallback)\n',
+                                 "引数は"),
+            "口の呼びの外にも字": ('def f():\n    return {"got": boundary.passed(os.environ.get("INPUTS_GOT"))}\nboundary.run(f, fallback)\n'
                              'again = os.environ.get("INPUTS_GOT")\n', "口の呼びの外"),
             "前の素通しの宣言 PASSES と boundary.value": ('PASSES = ("got",)\ngot = boundary.value(os.environ.get("INPUTS_GOT"))\nx = got["unitz"]\n',
                                                  "boundary.picked の呼びが無い"),
@@ -284,6 +337,26 @@ class BlockReturnsTest(unittest.TestCase):
                 self.assertEqual(len(got), 1, got)
                 self.assertTrue(got[0].startswith(f"{TAKE}:"), got)
                 self.assertIn(why, got[0])
+
+    def test_return_of_the_passing_function_used_beyond_boundary_run_is_red(self):
+        tupled = PASSED.replace('{"got": whole}', "(whole, 1)")
+        cases = {
+            "返りの欄を .get で引く": PASSED + RUN + 'def stalled(env):\n    return f(env)["got"].get("stalld") is True\n',
+            "tuple の返りを展開して .get": tupled + RUN + 'def g(env):\n    got, _ = f(env)\n    return got.get("stalld")\n',
+            "返りを lib に丸ごと渡す": PASSED + RUN + "out = report.build(f(os.environ))\n",
+            "lambda が返りの欄を引く": PASSED + 'boundary.run(lambda: f(os.environ)["got"], fallback)\n',
+            "別の名へ移す": PASSED + "g = f\nboundary.run(g, fallback)\n",
+            "boundary.run に渡さない": PASSED,
+            "飾りの付いた関数": "@spy\n" + PASSED + RUN,
+            "入れ子の関数": "def outer():\n" + "".join(f"    {row}\n" for row in PASSED.splitlines()) + "    return f\nboundary.run(outer(), fallback)\n",
+            "名を 2 度束ねる": PASSED + "f = other\n" + RUN,
+        }
+        for name, script in cases.items():
+            with self.subTest(name):
+                got = self.gated(script, reads=READS)
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith(f"{TAKE}:"), got)
+                self.assertIn("boundary.run の第 1 引数の外", got[0])
 
     def test_whole_ref_read_outside_the_gate_is_red(self):
         looped = 'vals = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in %s}\n'
