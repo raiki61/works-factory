@@ -354,7 +354,7 @@ class RolesCase(unittest.TestCase):
         blk-refix.yaml:64,332。seat.SKILL_NODES と同じ役）。下請けを起こす修正役は Agent を持つ"""
         import seat
         got = {nid: n["skills"] for nid, n in self.nodes.items() if "skills" in n}
-        want = {nid: [seat.skill_of(seat.load_seams()[seat.SEATS[nid]])] for nid in seat.SKILL_NODES}
+        want = {nid: [seat.skill_of(seat.spseam.load_seams()[seat.SEATS[nid]])] for nid in seat.SKILL_NODES}
         self.assertEqual(got, want)
         for nid in got:
             self.assertIn("Skill", self.nodes[nid]["allowed_tools"], nid)
