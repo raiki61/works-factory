@@ -1,7 +1,7 @@
 """入口の殻 bin/works-factory の中身: 利用者の環境から認証と隔離を整え、止めた Archon を bun で起こし、引数をそのまま渡す。
 
 Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せ・
-run の作業ツリーの起点・test_cmd の形の確かめは bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
+run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
 B の「約束」1〜11。約束 7 の後半——道具の信頼を子の環境に足す当て物——は消した。場所ごとの信頼は対象の宣言の setup で取り戻す）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import fnmatch
@@ -16,7 +16,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place, startpoint, testcmd_check
+from bin._lib import hostgh, isolate, pack, place, startpoint
 from lib import answer, launchgroups, reads, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,11 +27,12 @@ NAME = "works-factory"
 RESUMING = frozenset({"resume", "approve", "reject", "respond", "answer"})
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run"}) | RESUMING | CONTINUING
+# run のノードが lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root が読む名）
+ROOT_ENV = "WORKS_FACTORY_ROOT"
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
 NO_AUTH_ENV = "WORKS_FACTORY_NO_AUTH"   # 認証の要らない起動（lib/entryshape.py の NO_AUTH_ENV と同じ名）
-ALLOW_TESTCMD_ENV = "WORKS_FACTORY_ALLOW_TESTCMD"   # 1 なら、対象の手元を走らせる形の test_cmd でも止めずに起こす
 HOST_GH_DIR = "host-gh"
 FENCE_DIR = "claude-fence"
 FENCE = ROOT / "workflows" / ".shared" / "fence.py"
@@ -103,10 +104,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         raise Stop(str(error)) from None
 
     child = isolate.isolate(user, home)
-    try:
-        place.home_config(Path(child["ARCHON_HOME"]))
-    except RuntimeError as error:
-        raise Stop(str(error)) from None
     # GitHub の資格は AI の役に渡さない（持ち主の決め auth-middleware）。run の中の gh は、利用者の gh 自身の置き場のログインを
     # hostgh の口が継ぎ、役にはその前に置く読むだけの口 works-gh（no-post-bin/）だけが見える（持ち主の決め roles-read-only-gh）。
     # 環境変数だけでログインする利用者の値は、gh の読まない名（hostgh.RELAY）で口へ渡す
@@ -118,12 +115,14 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
     heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
     child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
-    child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
+    child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", **{place.PROVIDER_ENV: place.DEFAULT_PROVIDER})
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
-    child[answer.ENV] = answer_head(home, target)
 
     executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
+    if executing and workflow is None:
+        # 前に始めた run を続ける命令。#679 より前に始めた run は封じた層に ROOT_ENV を持たない。層を持つ run では層の値が勝つ
+        child[ROOT_ENV] = str(ROOT)
     if executing:
         refuse_bin_override([where / name for where in dict.fromkeys([here, here / (flag_value(flags, "--cwd") or "."), target])
                              for name in ARCHON_CWD_ENV_FILES] + [Path(child["ARCHON_HOME"]) / ".env"])
@@ -152,13 +151,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
-        rest = without_flag(argv[3:], "--cwd")
-        config = None
-        if not adopting(flags):
-            config = run_config(bun, source, cache, home, target, flags)
-            rest = without_flag(rest, "--config")
-        check_test_cmd(user, target, [v.removeprefix("test_cmd=") for v in flag_values(flags, "--input")
-                                     if v.startswith("test_cmd=")])
+        rest = without_flag(without_flag(argv[3:], "--cwd"), "--config")
+        config = run_config(bun, source, cache, home, target, flags)
         try:
             start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
         except RuntimeError as error:
@@ -195,8 +189,8 @@ def require_command_first(argv: list[str]) -> None:
 
 
 def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
-    """新しい run（workflow run <グラフの名>。--resume でない）のグラフの名。--cwd・--workflow-source・--config（--adopt の時は除く。
-    run_config）を殻が足すのはこの時だけ"""
+    """新しい run（workflow run <グラフの名>。--resume でない）のグラフの名。--cwd・--workflow-source・--config（run_config）を殻が
+    足すのはこの時だけ。続ける命令（RESUMING）は、Archon が起動の時に封じた層を戻す"""
     if argv[:2] != ["workflow", "run"] or "--resume" in flags:
         return None
     if len(argv) < 3 or argv[2].startswith("-"):
@@ -206,26 +200,35 @@ def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
 
 def adopting(flags: list[str]) -> bool:
     """記録のある run を引き継ぐ起動（--adopt）か。Archon はその run の記録した AI の設定を受け継ぎ、aliases を持つ --config の層を
-    「Cannot override AI configuration inherited from a recorded run.」で拒む（packages/workflows/src/run-preflight.ts）"""
+    「Cannot override AI configuration inherited from a recorded run.」で拒む（packages/workflows/src/run-preflight.ts）。env と
+    workflows の層は受け、引き継ぐ run の層は受け継がない"""
     return any(a == "--adopt" or a.startswith("--adopt=") for a in flags)
 
 
+def run_env(home: Path, target: Path) -> dict[str, str]:
+    """run のノード（script・bash）に渡す環境変数: lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root）と、承認ノードの
+    文の答えの行の頭（answer_head）"""
+    return {ROOT_ENV: str(ROOT), answer.ENV: answer_head(home, target)}
+
+
 def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str]) -> Path:
-    """新しい run に渡す設定の層（place.run_config）。利用者の --config があれば合わせる。Archon は --config を 1 つしか読まず後ろの物を
-    採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む。群の別名だけの層は秘密を持たないので取り置き cache に、利用者の層を
-    合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を解く鍵の置き場）に置き、家と一緒に消える"""
+    """新しい run に渡す設定の層（place.run_config。--adopt の時は群の別名を除く）。利用者の --config があれば合わせる。Archon は
+    --config を 1 つしか読まず後ろの物を採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む。工場の値だけの層は秘密を
+    持たないので取り置き cache に、利用者の層を合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を
+    解く鍵の置き場）に置き、家と一緒に消える"""
+    env, aliases = run_env(home, target), not adopting(flags)
     mine = (flag_values(flags, "--config") or [None])[-1]
     if not mine:
-        return place.run_config(cache)
+        return place.run_config(cache, env, aliases=aliases)
     try:
         layer = place.read_run_config(bun, source, target / mine)
     except RuntimeError as error:
         raise Stop(str(error)) from None
-    replaced = sorted(set(layer.get("aliases", {})) & set(launchgroups.GROUPS))
+    replaced = sorted(set(layer.get("aliases", {})) & set(launchgroups.GROUPS)) if aliases else []
     if replaced:
         print(f"{NAME}: --config の群の別名 {'・'.join(replaced)} は工場の値で上書きした。群の値の付け替えは --model @wf-<群>=<模型>",
               file=sys.stderr)
-    return place.run_config(home, layer)
+    return place.run_config(home, env, layer, aliases=aliases)
 
 
 def refuse_unknown_groups(flags: list[str]) -> None:
@@ -234,36 +237,6 @@ def refuse_unknown_groups(flags: list[str]) -> None:
     unknown = [name for name in named if name.startswith("@wf-") and name not in launchgroups.GROUPS]
     if unknown:
         raise Stop(f"--model の群 {'・'.join(unknown)} は群の表（lib/launchgroups.py）に無い。知っている群: {'・'.join(launchgroups.GROUPS)}")
-
-
-def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], run=subprocess.run) -> None:
-    """test_cmd の形を Archon を起こす前に確かめる（bin/_lib/testcmd_check.py。決まりはそちら）。対象の手元を走らせる形（終了の値 3）と、
-    確かめそのものが落ちた時（0 と STOP_EXIT の外。手元を走らせる形を除けない）は止める。ALLOW_TESTCMD_ENV が 1 なら知らせて起こす。
-    注意の形（作業ツリーで走らない。走れば落ちて分かる）は行を出すだけ。対象のコマンドは run の中で利用者の HOME を見る
-    （lib/userenv.py）ので、~・$HOME で手元を指す形も、いつも user の HOME へ展開して確かめる（user に HOME が無ければ展開しない）"""
-    allowed = user.get(ALLOW_TESTCMD_ENV) == "1"
-    home = user.get("HOME")
-    flags = [*(["--allow-checkout"] if allowed else []), *(["--home", home] if home else [])]
-    for cmd in filter(str.strip, commands):
-        done = run([sys.executable, "-I", str(LIB / "testcmd_check.py"), *flags, str(target), cmd],
-                   env=user, stdout=subprocess.PIPE, text=True, encoding="utf-8")
-        if done.stdout.strip():
-            print(done.stdout.rstrip("\n"), file=sys.stderr)
-        if done.returncode == 0:
-            continue
-        if done.returncode == testcmd_check.STOP_EXIT:
-            if not allowed:
-                raise Stop(f"test_cmd が対象の手元（{target}）を走らせる形なので、Archon を起こさずに止めた（run の試験が直しでなく手元の"
-                           "コードを試し、直しの正誤に関わらず緑になりうる）。作業ツリーの中で環境を作る形にして打ち直す。形を知った上で"
-                           f"回すなら {ALLOW_TESTCMD_ENV}=1 を前に付ける（README.md の「test_cmd と作業ツリー」）")
-            print(f"{NAME}: {ALLOW_TESTCMD_ENV}=1 なので止めずに起こす（上の形は作業ツリーの直しでなく対象の手元を試しうる）",
-                  file=sys.stderr)
-        elif not allowed:
-            raise Stop(f"test_cmd の形の確かめ（testcmd_check.py）が終了の値 {done.returncode} で落ち、対象の手元を走らせる形かを"
-                       f"確かめられないので、Archon を起こさずに止めた。確かめずに回すなら {ALLOW_TESTCMD_ENV}=1 を前に付ける")
-        else:
-            print(f"{NAME}: test_cmd の形の確かめ（testcmd_check.py）が終了の値 {done.returncode} で落ちた。{ALLOW_TESTCMD_ENV}=1 なので"
-                  "確かめずに起こす", file=sys.stderr)
 
 
 def absolute(value: str, here: Path) -> str:
