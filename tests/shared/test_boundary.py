@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from bin._lib import launcher, place
 from tests import archon
 from tests.bin import hermetic
 
@@ -232,9 +233,12 @@ class LibRootTest(unittest.TestCase):
             self.assertEqual(boundary.lib_root(), pathlib.Path("/elsewhere/lib"))
 
     def test_script_run_by_archon_finds_repository_lib(self):
-        """Archon は run の始めに工程のフォルダを写し取り、script はその写しから走る。写しからは自分の置き場を辿っても lib/ に届かない"""
+        """Archon は run の始めに工程のフォルダを写し取り、script はその写しから走る。写しからは自分の置き場を辿っても lib/ に届かない。
+        殻と同じく、リポジトリの根は run の --config の層（launcher.run_env）だけで渡し、起こす Archon の環境には置かない"""
         with archon.tree(["hello"], SEEDS / "e1" / "workflows") as tree:
-            done = archon.archon(tree, "workflow", "run", "works-factory-hello", "--no-worktree", "--cwd", str(tree))
+            config = place.run_config(tree.parent, launcher.run_env(tree.parent / "home", tree), aliases=False)
+            done = archon.archon(tree, "workflow", "run", "works-factory-hello", "--no-worktree", "--cwd", str(tree),
+                                 "--config", str(config), WORKS_FACTORY_ROOT=None)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         returned = [json.loads(line) for line in done.stdout.splitlines() if line.startswith('{"lib"')]
         self.assertEqual(returned, [{"lib": str(ROOT / "lib")}], done.stdout)

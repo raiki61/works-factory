@@ -27,6 +27,8 @@ NAME = "works-factory"
 RESUMING = frozenset({"resume", "approve", "reject", "respond", "answer"})
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run"}) | RESUMING | CONTINUING
+# run のノードが lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root が読む名）
+ROOT_ENV = "WORKS_FACTORY_ROOT"
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
@@ -119,6 +121,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
 
     executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
+    if executing and workflow is None:
+        # 前に始めた run を続ける命令。#679 より前に始めた run は封じた層に ROOT_ENV を持たない。層を持つ run では層の値が勝つ
+        child[ROOT_ENV] = str(ROOT)
     if executing:
         refuse_bin_override([where / name for where in dict.fromkeys([here, here / (flag_value(flags, "--cwd") or "."), target])
                              for name in ARCHON_CWD_ENV_FILES] + [Path(child["ARCHON_HOME"]) / ".env"])
@@ -206,7 +211,7 @@ def adopting(flags: list[str]) -> bool:
 def run_env(home: Path, target: Path) -> dict[str, str]:
     """run のノード（script・bash）に渡す環境変数: lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root）と、承認ノードの
     文の答えの行の頭（answer_head）"""
-    return {"WORKS_FACTORY_ROOT": str(ROOT), answer.ENV: answer_head(home, target)}
+    return {ROOT_ENV: str(ROOT), answer.ENV: answer_head(home, target)}
 
 
 def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str]) -> Path:

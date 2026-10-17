@@ -307,6 +307,7 @@
 - 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
 - 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（必須の check・守りのパス）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
 - 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分で決める物がある（既定の provider の claude・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方（#679 で家の `config.yaml` の書き換えをやめた）: 既定の provider は Archon の環境変数 `DEFAULT_AI_ASSISTANT`（家と対象の repo の設定が provider を選んでいればそちらが勝つ）、`workflows.autoResumeOnQuotaReset` は新しい run の `--config` の層（`bin/_lib/place.py` の `run_config`。利用者の `--config` の値が勝つ）。群の別名（`@wf-<群>`）も同じ層で渡す（`run-model-choice`）。
+- 運び役の決め（2026-10-17、#679 の修理の依頼。持ち主の言葉ではない）: 使用枠の方針 `workflows.autoResumeOnQuotaReset` は、対象のリポジトリの設定（`.archon/config.yaml`）より層が勝つ。変えられるのは利用者の `--config` だけ（審査される側のリポジトリに工場の方針を変えさせない）。
 
 ### `run-model-choice` run ごとにノード群の模型と effort を替えられる
 

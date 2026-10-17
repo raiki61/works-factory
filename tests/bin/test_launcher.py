@@ -423,6 +423,18 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env[place.PROVIDER_ENV], "claude")
         self.assertNotIn("WORKS_FACTORY_ROOT", env, "run のノードへは --config の層で渡す")
 
+    def test_continuing_commands_keep_the_root_for_runs_sealed_without_it(self):
+        """#679 より前に始めた run の封じた層には WORKS_FACTORY_ROOT が無い。前の run を続ける命令の時だけ子の環境に置き、そうした run の
+        script ノードも lib/ を見つける（層を持つ run では層の値が勝つ）。新しい run・run を走らせない命令には置かない"""
+        continuing = [["workflow", verb, "run-1"] for verb in sorted(launcher.RESUMING | launcher.CONTINUING)]
+        for args in [*continuing, ["workflow", "run", "works-factory-line", "--resume"]]:
+            with self.subTest(args=args):
+                env = self.reached(self.launch(*args, WORKS_FACTORY_HOME=str(self.tmp / "home-of" / args[1])))["env"]
+                self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
+        for args in (["workflow", "run", "works-factory-line"], ["workflow", "status"]):
+            with self.subTest(args=args):
+                self.assertNotIn("WORKS_FACTORY_ROOT", self.reached(self.launch(*args))["env"])
+
     def test_factory_writes_nothing_in_either_archon_home(self):
         """工場の値は run の層と環境変数で渡し、工場の Archon の家にも利用者の ~/.archon にも書かない"""
         users = put(self.home / ".archon" / "config.yaml", "workflows:\n  autoResumeOnQuotaReset: true\n")

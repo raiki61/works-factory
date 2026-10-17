@@ -5,7 +5,7 @@
 - 見送らない: 環境変数 WORKS_FACTORY_ARCHON_REQUIRED が在れば（CI が立てる）、見送る所で同じ文の赤にする。
   CI の用意が崩れて Archon の要る試験が黙って見送られ、CI が緑のままになるのを防ぐ。
 - 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME と、殻と同じ既定の provider（place.PROVIDER_ENV）と、このリポジトリを指す
-  WORKS_FACTORY_ROOT（呼ぶ側が env で替えられる）をつけて起こす。家の config.yaml には群の別名（place.group_presets）を書く。殻は群の
+  WORKS_FACTORY_ROOT（呼ぶ側が env で替え、None で外せる）をつけて起こす。家の config.yaml には群の別名（place.group_presets）を書く。殻は群の
   別名と run のノードへの環境変数を新しい run の --config で渡すが、止めた Archon の validate と workflow test は --config を受けない
   （「--config can only be used with workflow run, trigger fire, or trigger schedule」）。本番の家と同じく何も書かない家は
   aliases=False で起こす（家の置き場は別。--config の層が値を運ぶことを照らす試験が使う）。
@@ -89,10 +89,10 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS) -> Iterator[
         yield root
 
 
-def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str) -> subprocess.CompletedProcess:
+def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:
     """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。子の環境は hermetic.child_env で
     作る（入口の殻が渡す Archon の頭・包みの宣言・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
-    起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しする"""
+    起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しし、値を None にした名は置かない"""
     entry = source() / place.ENTRY
     bun = shutil.which("bun")
     if bun is None:
@@ -103,6 +103,6 @@ def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str) -> s
         (home / "config.yaml").write_text("aliases:\n" + "".join(f"  {json.dumps(name)}: {json.dumps(preset)}\n"
                                                                 for name, preset in place.group_presets().items()),
                                           encoding="utf-8")
-    child = hermetic.child_env(**{"WORKS_FACTORY_ROOT": str(ROOT), **env, "ARCHON_HOME": str(home),
-                                  place.PROVIDER_ENV: place.DEFAULT_PROVIDER})
+    named = {"WORKS_FACTORY_ROOT": str(ROOT), **env, "ARCHON_HOME": str(home), place.PROVIDER_ENV: place.DEFAULT_PROVIDER}
+    child = hermetic.child_env(**{name: value for name, value in named.items() if value is not None})
     return subprocess.run([bun, str(entry), *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")
