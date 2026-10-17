@@ -136,6 +136,8 @@ ALLOWED = {
         "lib/recount.py#import judge_accept",  # 閉鎖の状態・先行例・指しの数え直し
         "workflows/line/scripts/ask_final.py#import judge_accept",  # 再審の採りの語 ADOPTED
         "workflows/line/scripts/spec_check.py#import judge_accept",  # 受けた J/spec.json のポインタを照らす spec_questions
+        "workflows/line/scripts/fix_in.py#import judge_accept",  # 前の版の判定の出力を止める require_ports
+        "workflows/line/scripts/collect.py#import judge_accept",  # 前の版の判定・再審の出力を止める require_ports
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue

@@ -721,6 +721,15 @@ class FixInCase(Artifacts):
         self.assertFalse((self.artifacts / fixture.DIR).exists(), "固定材料から始めた run は写さない")
         self.assertIs(self.run_in(fixture=pointer, start_go="false")["go"], False)
 
+    def test_judge_return_of_the_prior_version_stops(self):
+        """この版より前に走った判定の返り（出力の欄の鍵が無い）を修正前の承認からの resume で受けた fix-in は止める（欄を読んで
+        KeyError で落ちない・写さない）。先の無い欄の null は止めない"""
+        prior = {key: value for key, value in self.JUDGE.items() if key != "depth_record"}
+        with self.assertRaisesRegex(ValueError, judge_accept.PRIOR_VERSION):
+            self.run_in(before_fix_go="true", judge=json.dumps({"got": prior, "stop_reason": ""}))
+        self.assertFalse((self.artifacts / fixture.DIR).exists())
+        self.assertIsNone(self.run_in(before_fix_go="false")["depth_record"])
+
     def test_returns_and_fallback_are_the_output_format(self):
         required = line_nodes()["fix-in"]["output_format"]["required"]
         self.assertEqual(sorted(self.run_in(before_fix_go="false")), sorted(required))
@@ -2832,9 +2841,22 @@ class CollectAndResultCase(unittest.TestCase):
         relay = json.dumps({"received": received})
         got = collect.collect({"judge": "null", "plan": "null"}, self.line(fix_in=relay))
         self.assertEqual({name: got[name] for name in received}, received)
-        live = json.dumps({"got": {"ready": False}, "stop_reason": ""})
+        judge = {"ready": False, **dict.fromkeys((*judge_accept.PORTS, *judge_accept.FIRST_PORTS))}
+        live = json.dumps({"got": judge, "stop_reason": ""})
         got = collect.collect({"judge": live}, self.line(fix_in=json.dumps({"received": None})))
-        self.assertEqual((got["judge"], got["plan"], got["deferred"]), ({"ready": False}, None, []))
+        self.assertEqual((got["judge"], got["plan"], got["deferred"]), (judge, None, []))
+
+    def test_judge_return_of_the_prior_version_stops(self):
+        """この版より前に走った判定・再審の返りを resume で受けた（出力の欄の鍵が無い）集めは、欄を空と読んで結末を作らず止める。
+        先の無い欄の null は今の判定の返りなので止めない"""
+        current = {"ready": True, **dict.fromkeys((*judge_accept.PORTS, *judge_accept.FIRST_PORTS))}
+        for name in ("judge", "rejudge"):
+            with self.subTest(name=name):
+                prior = {key: value for key, value in current.items() if key != "depth_record"}
+                with self.assertRaisesRegex(ValueError, judge_accept.PRIOR_VERSION):
+                    collect.collect({name: json.dumps({"got": prior, "stop_reason": ""})}, self.line())
+                got = collect.collect({name: json.dumps({"got": current, "stop_reason": ""})}, self.line())
+                self.assertEqual(got[name], current)
 
     def test_no_fix_design_is_the_plan_review(self):
         """L-W07: 直す物が無い周（計画の往復が飛んだ）は、report の plan-review の欄に design-only の受け皿の返りを置く"""
@@ -3100,7 +3122,8 @@ class BrokenLibCase(unittest.TestCase):
                     done = subprocess.run([sys.executable, str(SCRIPTS / f"{node['script']}.py")], cwd=tmp, env=env,
                                           capture_output=True, text=True)
                     self.assertEqual(done.returncode, 0, done.stderr)
-                    self.assertEqual(json.loads(done.stdout)["stop_reason"], stopby.LINE_SCRIPT)
+                    out = json.loads(done.stdout)
+                    self.assertEqual(out["stops"]["collect"] if node["script"] == "collect" else out["stop_reason"], stopby.LINE_SCRIPT)
                     self.assertIn("ModuleNotFoundError", done.stderr)
 
 

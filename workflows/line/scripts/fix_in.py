@@ -10,7 +10,7 @@ fix から後ろのノードは、直す前のテスト・判定・計画の往�
   （lib/fixture.py の noted_capture。received を運ぶ値として控えに入れる。写せなくても止めない）
 - 固定材料の run（start が取り込んだ）: start が置いた書き換え済みの運ぶ値を received にし、同じ式で平らな欄にする。go は起動の承認を
   通ったか（直す前のテスト・判定・計画・修正前の承認は飛んでいる）。写さない。返りの received は collect が飛んだ段の代わりに読む
-落ちない（boundary.run）。
+落ちない（boundary.run）。この版より前に走った判定の返り（judge_accept.require_ports）を resume で受けた通常の run は fallback で止める。
 
 入力（with:）: fixture（start の fixture）・start_go・test_gate_base・judge・plan・plan_review（受け皿の出力）・before_fix_go・
 before_fix_answer・deferred
@@ -25,6 +25,7 @@ import boundary  # noqa: E402
 
 with boundary.guarded_imports():
     import fixture
+    import judge_accept
 
 # 平らな欄 ← (運ぶ値の欄, 受け皿の got の欄)
 FLAT = {"baseline": ("test_gate_base", "baseline"),
@@ -64,6 +65,7 @@ def fix_in(env, place: Path, repo: Path, run_id: str) -> dict:
     if carried is not None:
         received = json.loads(carried.read_text(encoding="utf-8"))
         return {**flat(received), "go": start_go, "received": received, "stop_reason": ""}
+    judge_accept.require_ports(live["judge"])
     received, go = live, before_fix_go
     if go:
         fixture.noted_capture(place, repo, run_id=run_id, carried=received)

@@ -3883,6 +3883,15 @@ PORTS = {"premises": PREMISES_FILE, "verify": VERIFY_FILE, "pr_excluded": PR_EXC
          "rejudge_exit": report.REJUDGE_EXIT, "rejudge_diff": report.REJUDGE_DIFF}
 FIRST_PORTS = {"purpose_means": MEANS_FILE, "world_state": worldmark.STATE_FILE, "decisions": policy.PRIOR_DECISIONS_FILE,
                "answer_ties": marks.KINDS["answers"].file, "review_lenses": diverted.LENS_FILE, "pr_drafts": prcheck.DRAFTS}
+PRIOR_VERSION = "前の版の判定の出力。workflow run で最初から起こし直す"
+
+
+def require_ports(got: dict | None) -> None:
+    """判定（再審）の返りを受けた受け皿の got が、出力の欄 PORTS・FIRST_PORTS の鍵を全部持つか照らす（飛んだ受け皿の None は照らさない）。
+    今の判定は先の無い欄も null で返すので、鍵の無い got はこの版より前に走った判定の控えを resume で受けた物。欄を空と読むと
+    測れていない素材を無いと数えるので、ValueError で止める（script は works:line-script の止め方に倒す）"""
+    if got is not None and any(field not in got for field in (*PORTS, *FIRST_PORTS)):
+        raise ValueError(PRIOR_VERSION)
 
 
 def _empty_public(name: str):
