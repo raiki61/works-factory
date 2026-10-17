@@ -112,8 +112,7 @@ nodes:
         - id: r2-design
           command: r2-design
           depends_on: [r2-prep]
-          model: opus
-          effort: high
+          model: '@wf-plan-review'
           allowed_tools: []
           settingSources: [user]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -211,8 +210,7 @@ nodes:
           when: "$review-prep.output.resubmit != true"
           context: fresh
           <<: &review_launch
-            model: opus
-            effort: high
+            model: '@wf-plan-review'
             allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
             settingSources: [user]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
