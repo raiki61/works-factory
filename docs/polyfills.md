@@ -5,7 +5,7 @@
 - `workflows/.shared/` と `bin/_lib/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の `- 埋め:` の行の頭の欄が名指す物のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。行の説明の文にだけ名が出る部品は数えない。
 - 頭の欄は `- 埋め:` の直後に、部品のパスを `、` 区切りで並べる（予定ならパスの直後に「（予定）」）。欄は「（予定）」と `、` 以外の最初の字で終わる。部品を持たない埋め（値の埋め・YAML の型の埋め）は、頭が文で始まり欄は空。埋めの一部は入口 `bin/` に置く物もある。それも頭の欄に書く。
 - 証拠の在り処は、止めた Archon（`factory/pack.json` の `integration_revision_required`）の源のファイルと、そのファイルで探せる引用で書く。行番号は版で動くので書かない（証拠の「12-14 行」の形も、項目のどこかの `ファイル:数字` の形も）。`- 証拠:` の下の字下げした行は 1 行に 1 つのファイルで、頭にファイルのパスを置き、その行の「」の中の字はどれもそのファイルにちょうど 1 か所だけ字のまま在る（2 か所に当たる時は 1 か所に決まるまで字を伸ばす）。行の説明に「」を使わない。候補の項目も、証拠を書くなら同じ形で書く。試験 `tests/layers/test_polyfill_evidence.py` が照らす。「外した」の項目は、源の引用と版の照らしから外す（外した時の版の字のまま残す）。
-- 各行の `- 上流（<止めた版の頭 8 字> の後の dev の <読んだ dev の commit の頭 8 字以上> まで）:` に、止めた版より後の upstream の dev で穴が塞がったかの確かめの結果を書く。「塞がった」と書く時は、塞いだ upstream の commit（`` ` `` で囲んだ頭 8 字以上）か PR（`#<番号>`）を添える。版を上げたら書き直す（頭の 8 字が止めた版と違うと試験が赤）。読んだ日が古くなっても赤にはしない。
+- 各行の `` - 上流（`<止めた版の頭 8 字>` の後の dev の `<読んだ dev の commit の頭 8 字以上>` まで）: `` に、止めた版より後の upstream の dev で穴が塞がったかの確かめの結果を書く。「塞がった」と書く時は、塞いだ upstream の commit（`` ` `` で囲んだ頭 8 字以上）か PR（`#<番号>`）を添える。版を上げたら書き直す（頭の 8 字が止めた版と違うと試験が赤）。読んだ日が古くなっても赤にはしない。
 - 上流の確かめ方（upstream の Archon `https://github.com/coleam00/Archon` の clone で）:
   1. `git fetch origin dev` の後、`git rev-parse --short=9 origin/dev` が読んだ dev の commit。上流の行にそれを書く。
   2. `git log --oneline <止めた版>..origin/dev -- <証拠のファイル>` で、証拠のファイルを変えた commit を出す。1 つも無ければ、その証拠の振る舞いは変わっていない。
@@ -102,7 +102,7 @@
 
 - 穴: ノードの hooks: は固定の返事だけで、役が読んだ・書いたファイルの記録を残せない。
 - 証拠:
-  - `packages/docs-web/src/content/docs/guides/hooks.md` の「YAML `hooks:` are deliberately static.」と、表「## Choosing where hook logic lives」の行「Logic that inspects the hook input at runtime」（中身を見るフックは Claude の設定に置く）
+  - `packages/docs-web/src/content/docs/guides/hooks.md` の「YAML `hooks:` are deliberately static.」と、見出し「## Choosing where hook logic lives」の下の行「Logic that inspects the hook input at runtime」（中身を見るフックは Claude の設定に置く）
 - 上流（`355f1867` の後の dev の `f906471c4` まで）: 塞がっていない（証拠の字と、その辺りの振る舞いは変わっていない）。
 - 埋め: `bin/_lib/record-read.py`、`bin/_lib/record-write.py`、`bin/_lib/toolset.py`。record-read.py は Read と、Agent・WebFetch・WebSearch を path の無い行で、record-write.py は Edit・Write・NotebookEdit の書いた記録を残す。toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
 - 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）

@@ -15,7 +15,7 @@ ROW = re.compile(r"^(P\d+) ")
 REMOVED = "外した"
 CITATION = re.compile(r"^  - `([^`]+)` の")
 QUOTE = re.compile(r"「([^」]+)」")
-LINE_NUMBER = re.compile(r"\d+(?:-\d+)? ?行")
+LINE_NUMBER = re.compile(r"\d+(?:[-〜–]\d+)? ?行")
 FILE_LINE = re.compile(r"[\w-]\.\w+:\d+")
 UPSTREAM_REF = re.compile(r"`[0-9a-f]{8,}`|#\d+")
 
@@ -63,12 +63,14 @@ def evidence(lines: list[str]) -> list[str]:
 
 def upstream(entry: Entry, commit: str) -> list[str]:
     """上流の確かめの行が止めた版と読んだ dev の commit を名指し、「塞がった」に塞いだ upstream の commit か PR が在るか"""
-    head = re.compile(rf"^- 上流（`{commit[:8]}` の後の dev の `[0-9a-f]{{8,}}` まで）: (.*)")
-    results = [m.group(1) for m in map(head.match, entry.lines) if m]
+    head = re.compile(rf"^- 上流（`{commit[:8]}` の後の dev の `([0-9a-f]{{8,}})` まで）: (.*)")
+    results = [m.groups() for m in map(head.match, entry.lines) if m]
     if not results:
         return [f"{entry.name}: 止めた版 {commit[:8]} の後の dev の読んだ commit を名指す上流の確かめの行が無い"]
+    # 止めた版と読んだ dev の commit そのものは、塞いだ証拠に数えない
     return [f"{entry.name}: 塞がったと書くのに塞いだ upstream の commit か PR が無い: {result}"
-            for result in results if result.startswith("塞がった") and not UPSTREAM_REF.search(result)]
+            for dev, result in results
+            if "塞がった" in result and not UPSTREAM_REF.search(result.replace(f"`{dev}`", "").replace(f"`{commit[:8]}`", ""))]
 
 
 def problems(text: str, commit: str, source: pathlib.Path | None) -> list[str]:
