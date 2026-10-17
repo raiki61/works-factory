@@ -103,8 +103,8 @@
 
 - 穴: `fan_out:` の子の run が作った作業ツリーと枝は、子が終わっても残る。
 - 証拠: 止めた Archon の `packages/docs-web/src/content/docs/guides/authoring-workflows.md` 2087 行「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）。
-- 埋め: `bin/_lib/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。
-- 使うサブグラフ: メイングラフ（入口）
+- 埋め: `workflows/.shared/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。試験は `tests/shared/test_childsweep.py`。
+- 使うサブグラフ: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
 ### P9 鍵を書かないノードにも既定の期限が当たる

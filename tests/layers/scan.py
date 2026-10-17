@@ -40,6 +40,7 @@ ARCHON_WORDS = re.compile(
     r"|loop_group|\$[A-Za-z_][\w-]*\.output\b"
 )
 LAYER_IMPORT = re.compile(r"^\s*(from|import)\s+(workflows|bin)\b")
+BIN_IMPORT = re.compile(r"^\s*(from|import)\s+bin\b")
 
 # まだ木に無いブロックを指す字も捕まえるための名の表。根の AGENTS.md の「リポジトリの形」の木との一致は test_block_paths が縛る。木に在るブロックは木から読む。
 BLOCKS = ("line", "chain", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
@@ -360,7 +361,7 @@ def _block_paths(root: Path) -> list[str]:
     script は同じ `scripts/` の別の script を import せず（K8）、script の名は lib のモジュールの名と重ならない（script のフォルダが
     sys.path の頭に来るので、`import <名>` が lib の物でなく script を読む。K19）。
     """
-    out = _script_imports(root) + _script_names(root) + _input_producers(root)
+    out = _script_imports(root) + _script_names(root) + _input_producers(root) + _graph_bin_imports(root)
     blocks = [p.name for p in _blocks(root)]
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
@@ -388,6 +389,12 @@ def _block_paths(root: Path) -> list[str]:
                     elif is_script and not resolved.startswith(allowed):
                         out.append(f"{rel}:{number}: 相対パス {target} が lib/・workflows/.shared/・自分のブロックの外を指す")
     return out
+
+
+def _graph_bin_imports(root: Path) -> list[str]:
+    """グラフ（script・境・YAML に直に書いた script）は起動の殻の bin を import しない。Archon の上で動く物が Archon の外の殻に頼らない"""
+    code = (p for p in _files(root, "workflows") if p.suffix in (".py", ".yaml", ".yml"))
+    return _grep(root, code, (BIN_IMPORT, lambda m: "bin の中の物を import する"))
 
 
 MAIN_GRAPH_WORD = "メイングラフ"

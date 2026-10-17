@@ -2827,7 +2827,7 @@ class CollectAndResultCase(unittest.TestCase):
 
 class SweepChildrenCase(unittest.TestCase):
     """線の後始末の節 sweep-children（issue #113）: 報告の後・線の返す節の前に在り、落ちずに {cleaned, left, error} を返し、
-    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/bin/test_childsweep.py"""
+    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/shared/test_childsweep.py"""
 
     def test_runs_after_the_report_and_feeds_only_the_result(self):
         nodes = line_nodes()

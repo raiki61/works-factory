@@ -1,5 +1,5 @@
 """Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
-bin/_lib/startpoint.py・bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・
+bin/_lib/startpoint.py・workflows/.shared/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・
 tests/layers/scan.py の役の節の鍵・機械の節の鍵・節の種類の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
@@ -21,7 +21,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 from unittest import mock
 
-from bin._lib import childsweep, launcher, pack, place, startpoint
+from bin._lib import launcher, pack, place, startpoint
 from lib import answer
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
@@ -30,12 +30,15 @@ from tests.bin.gitkit import git
 from tests.layers import scan
 from tests.shared.test_boundary import boundary
 from tests.shared.test_fence import fence
+from tests.shared import shared_module
 from tests.workflows import test_uv_scripts
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT / "lib") not in sys.path:   # 後ろに足す（頭に入れると lib/tests が根の tests を隠す）
     sys.path.append(str(ROOT / "lib"))
 import runreport  # noqa: E402
+
+childsweep = shared_module.load("childsweep")
 
 
 class Row(NamedTuple):

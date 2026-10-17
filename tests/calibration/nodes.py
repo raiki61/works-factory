@@ -8,8 +8,10 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from bin._lib.childsweep import INCLUDE_SEP
 from tests.calibration import reviewbench
+from tests.shared import shared_module
+
+INCLUDE_SEP = shared_module.load("childsweep").INCLUDE_SEP
 
 PREFIX = "works-factory-"
 NOTE = "数はノードが何をしたかの事実まで。そのノードのおかげで直ったとは言わない（それはノードを外して回し直す比べで、別に立てる）"

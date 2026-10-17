@@ -1480,7 +1480,7 @@
 - S195 run の worktree・枝・控えと、修正の段が切った単位の worktree・守りの参照（`refs/works/units/`）は自動で片付く
   - 元: SKILL.md:140
   - 印: 無し
-  - 今: `workflows/line/scripts/sweep_children.py::sweep`・`bin/_lib/childsweep.py::sweep`（fix の組の子の run の作業ツリーと枝を `complete --force` で消す）
+  - 今: `workflows/line/scripts/sweep_children.py::sweep`・`workflows/.shared/childsweep.py::sweep`（fix の組の子の run の作業ツリーと枝を `complete --force` で消す）
   - 状態: 形を変えて在る（自動で消すのは completed の組の子だけ。メイングラフの run の作業ツリーと枝は残り、Archon の `complete`・`isolation cleanup` で消す）
   - 処置: 要らない: Archon が作業ツリーの片付けを持ち（on-archon-only）、差分は置き場に残るので片付けの後も `bin/apply` で当たる（前の棚卸し M41）
   - 旧棚卸し: M41
@@ -1496,7 +1496,7 @@
 - S197 差分を書けなかった run と、走っている・承認ノードで待つ run は残す
   - 元: SKILL.md:140
   - 印: 無し
-  - 今: `bin/_lib/childsweep.py::select`（completed でない子と、fan_out・join が済んでいない子を残す）
+  - 今: `workflows/.shared/childsweep.py::select`（completed でない子と、fan_out・join が済んでいない子を残す）
   - 状態: 形を変えて在る（組の子の run の範囲だけ）
   - 処置: 要らない: S195 と同じ（Archon が作業ツリーの片付けを持つ。on-archon-only）
   - 旧棚卸し: 無し
@@ -2750,7 +2750,7 @@
 - U152 run の worktree から切った単位の worktree と守りの参照も先に片付ける
   - 元: use.sh:585-596
   - 印: `clean`
-  - 今: `workflows/line/scripts/sweep_children.py::main`・`bin/_lib/childsweep.py::sweep`（fix の並べの子の worktree と枝を run の終わりに消す）
+  - 今: `workflows/line/scripts/sweep_children.py::main`・`workflows/.shared/childsweep.py::sweep`（fix の並べの子の worktree と枝を run の終わりに消す）
   - 状態: 形を変えて在る（clean でなくメイングラフの後始末のノードが自動で）
   - 旧棚卸し: 無し
 

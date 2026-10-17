@@ -1,4 +1,4 @@
-"""線の後始末の部品 bin/_lib/childsweep.py の試験。Archon は起こさず、起こす口 run に偽を差して、起こした引数と環境を照らす。"""
+"""線の後始末の埋め P7（workflows/.shared/childsweep.py）の試験。Archon は起こさず、起こす口 run に偽を差して、起こした引数と環境を照らす。"""
 import inspect
 import json
 import pathlib
@@ -9,13 +9,16 @@ import unittest
 
 import yaml
 
-from bin._lib import childsweep, place
+from bin._lib import place
+from tests.shared import shared_module
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
 import fixboard  # noqa: E402  （join の写しの鎖を縛る試験が adopt_returned の本文を読む）
+
+childsweep = shared_module.load("childsweep")
 
 RUN = "1a2b3c4d-0000-4000-8000-000000000001"
 OTHER = "9f8e7d6c-0000-4000-8000-000000000002"
@@ -228,7 +231,7 @@ class ChildSweepTest(unittest.TestCase):
     def test_runs_the_pinned_archon_without_prompts(self):
         archon = FakeArchon({"runs": [child(0), row(RUN, "running")]})
         self.sweep(archon)
-        head = [str(self.bun), f"--config={self.source / 'bunfig.toml'}", str(self.source / place.ENTRY)]
+        head = place.archon(str(self.bun), self.source)
         listing, states, complete = archon.calls
         self.assertEqual(listing["argv"], [*head, "workflow", "runs", "--json", "--all", "--limit",
                                            str(childsweep.LIST_LIMIT), "--cwd", CHECKOUT])
@@ -238,6 +241,12 @@ class ChildSweepTest(unittest.TestCase):
             self.assertEqual(call["env"]["GIT_TERMINAL_PROMPT"], "0")
             self.assertEqual(call["env"]["GIT_SSH_COMMAND"], "ssh -o BatchMode=yes")
             self.assertEqual(call["cwd"], str(self.tmp))
+
+    def test_launcher_facts_are_copied_as_is(self):
+        """グラフは bin を読まないので、殻が run に渡す源の変数の名と起こす命令の頭を写す。写しが殻とずれると源を見失う"""
+        self.assertEqual(childsweep.SOURCE_ENV, place.SOURCE_ENV)
+        self.assertEqual(childsweep.ENTRY, place.ENTRY)
+        self.assertEqual(childsweep.archon_head("bun", self.source), place.archon("bun", self.source))
 
     def test_own_ssh_command_is_kept(self):
         archon = FakeArchon({"runs": [row(RUN, "running")]})

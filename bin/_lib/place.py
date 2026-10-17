@@ -20,7 +20,7 @@ from pathlib import Path
 
 ENTRY = "packages/cli/src/cli.ts"
 WORKFLOW_FOLDER = ".archon/workflows"
-# 入口の殻が run に渡す、起こした源のパス。run の中のノードはこれで殻を入れ子にせず同じ Archon を起こす（bin/_lib/childsweep.py）
+# 入口の殻が run に渡す、起こした源のパス。run の中のノードはこれで殻を入れ子にせず同じ Archon を起こす（workflows/.shared/childsweep.py）
 SOURCE_ENV = "WORKS_FACTORY_ARCHON_SOURCE"
 # Archon は既定の provider の無い run を始めで拒む（packages/provider-contract/src/registration.ts の NO_DEFAULT_PROVIDER_MESSAGE）。
 # 工場の役は claude で書いてあり、Archon の文書の口は家の config.yaml の defaultAssistant（docs-web の reference/configuration.md）。
