@@ -99,8 +99,9 @@ class OpenCase(Base):
         self.assertEqual(structmark.read(b.dir)["status"], "ok")
         self.assertEqual(structmark.rows(structmark.read(b.dir)["design_file"]), [TP.ROUTE_UP])
         self.assertEqual(pathlib.Path(structmark.read(b.dir)["design_file"]).parent.parent, self.folder)
-        self.assertEqual([r["class_id"] for r in worldmark.stage_rows(b.dir)], ["w-mean", "w-empty"])
-        self.assertEqual(worldmark.read(b.dir)["classes"], 2)
+        self.assertEqual([r["class_id"] for r in worldmark.stage_rows(b.dir, worldmark.COPY_STATE)], ["w-mean", "w-empty"])
+        self.assertEqual(worldmark.read(b.dir, worldmark.COPY_STATE)["classes"], 2)
+        self.assertFalse((b.dir / worldmark.STATE_FILE).exists(), "受けた控えは判定の置き場の名でなく自分の名で写す")
         self.assertEqual(planmarks.read(b), [{"route": "direct", "structure": []}])
         self.assertEqual(planmarks.frozen(b), [{"route": "direct", "structure": []}])
         saved = marks.load(marks.path_of("gate", b))
@@ -133,9 +134,9 @@ class OpenCase(Base):
     def test_world_null_removes_the_stage(self):
         wf = self.put("judge/world/world.jsonl", json.dumps(TP.WORLD_ROW, ensure_ascii=False) + "\n", raw=True)
         self.open(world=wf)
-        self.assertIsNotNone(worldmark.stage_rows(self.folder))
+        self.assertIsNotNone(worldmark.stage_rows(self.folder, worldmark.COPY_STATE))
         self.open(world=None)
-        self.assertIsNone(worldmark.stage_rows(self.folder))
+        self.assertIsNone(worldmark.stage_rows(self.folder, worldmark.COPY_STATE))
 
     def test_failed_structure_is_kept_failed(self):
         self.open(structure={"status": "failed", "reason": "構造の目が落ちた", "design_file": "", "wall_s": 0})

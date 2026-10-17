@@ -600,7 +600,7 @@ def _design_rows(b) -> list:
 
 def _world_rows(b) -> dict | None:
     """{類の id: 世界の解の行}（段が行を出した run だけ。控えが無い・落ちた・読めない run は None＝今どおりの軸）"""
-    got = worldmark.stage_rows(b.dir)
+    got = worldmark.stage_rows(b.dir, worldmark.COPY_STATE)
     return None if got is None else {r["class_id"]: r for r in got}
 
 
@@ -636,7 +636,7 @@ def _cite_check(b):
     roots = conflict.cite_roots(b.dir, pathlib.Path(b.dir).parent)
     def cite_ok(text):
         return cite.sources_problem(text, repo, roots, quoted)
-    return cite_ok, req, worldmark.means_of(b.dir), repo
+    return cite_ok, req, worldmark.means_of(b.dir, worldmark.COPY_MEANS), repo
 
 
 def world_items(b) -> list:

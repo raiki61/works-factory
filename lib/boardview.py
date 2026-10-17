@@ -672,12 +672,13 @@ def change_row(ch: dict) -> str:
 def _copy_world(d: pathlib.Path, world) -> None:
     """世界の解の行の写しと段の控え（world が null なら控えを置かない＝関所の軸が今どおりの決まりに戻る）"""
     if world is None:
-        worldmark.clear(d)
+        (d / worldmark.COPY_STATE).unlink(missing_ok=True)
         return
     dest = d / WORLD_COPY
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(world, dest)
-    worldmark.write(d, status="ok", reason="", world_file=str(dest), classes=len(worldmark.rows(dest)), dropped=0)
+    worldmark.write(d, status="ok", reason="", world_file=str(dest), classes=len(worldmark.rows(dest)), dropped=0,
+                    name=worldmark.COPY_STATE)
 
 
 def _copy_structure(d: pathlib.Path, structure) -> None:

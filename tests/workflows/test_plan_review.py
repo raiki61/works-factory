@@ -3535,7 +3535,7 @@ class WorldGateCase(GateBase):
         wf = self.tmp / "world-out" / worldmark.WORLD_FILE
         wf.parent.mkdir(parents=True, exist_ok=True)
         wf.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-        (self.tmp / worldmark.STATE_FILE).write_text(json.dumps(
+        (self.tmp / worldmark.COPY_STATE).write_text(json.dumps(
             {"status": "ok", "reason": "", "world_file": str(wf), "classes": len(rows), "dropped": 0}), encoding="utf-8")
 
     def put_answers(self, *answers):

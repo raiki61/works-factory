@@ -108,7 +108,7 @@ class SplitCase(AxesBase):
         """世界の解の段の行の在る run は、行の world が空でもこの軸で見ない（外れは world_items が聞く）"""
         wf = self.tmp / "world.jsonl"
         wf.write_text(json.dumps(TP.WORLD_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
-        worldmark.write(self.tmp, status="ok", reason="", world_file=str(wf), classes=1, dropped=0)
+        worldmark.write(self.tmp, status="ok", reason="", world_file=str(wf), classes=1, dropped=0, name=worldmark.COPY_STATE)
         (self.tmp / "keep.md").write_text("空の列は例外のまま\n", encoding="utf-8")
         got, _ = self.check({**TP.DECIDED, "decided_by": "keep.md:1", "world": ""})
         self.assertEqual(self.bad(got), [])
@@ -176,7 +176,7 @@ class RunRootCase(AxesBase):
         """世界の解の外れ 1 行の揃わない訳（揃えば []）"""
         wf = self.board / "world.jsonl"
         wf.write_text(json.dumps(TP.WORLD_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
-        worldmark.write(self.board, status="ok", reason="", world_file=str(wf), classes=1, dropped=0)
+        worldmark.write(self.board, status="ok", reason="", world_file=str(wf), classes=1, dropped=0, name=worldmark.COPY_STATE)
         planmarks.save(self.board, 1, [{"structure": [{"world": "w-mean", "deviation": deviation}]}])
         [(_, _, why)] = gatemarks.world_items(self.view())
         return why
@@ -229,7 +229,7 @@ class GatherCase(AxesBase):
         """世界の解の外れ（world_items の揃わない行）は world、構造の目が人に上げた設計の問い（design_items）は clean に載る"""
         wf = self.tmp / "world.jsonl"
         wf.write_text(json.dumps(TP.WORLD_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
-        worldmark.write(self.tmp, status="ok", reason="", world_file=str(wf), classes=1, dropped=0)
+        worldmark.write(self.tmp, status="ok", reason="", world_file=str(wf), classes=1, dropped=0, name=worldmark.COPY_STATE)
         planmarks.save(self.tmp, 1, [{"structure": [{"world": "w-mean", "deviation": "呼び手の都合で 0 を返す形に寄せたい、と考えた"}]}])
         self.put_rows(TP.ROUTE_UP)
         got = gate_axes.gather(self.view())

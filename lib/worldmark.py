@@ -15,8 +15,9 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 出来事から作れる値は控えに持ち直さない）。
 
 - rows(path)・read(board_dir)・read_file(path): 行（読めない・形が違えば ValueError）と控え（無い・読めない・形が違えば None）
-- write(board_dir, …)・clear(board_dir)・stage_rows(board_dir): 控えを書く（線の境）・消す・控えが指す行（段が行を出さなかった周を None で分ける＝関所の軸。
-  盤面の根から読む判定の支度・修正案の頭・関所が使う。呼び手は None と [] の違いを `stage_rows(d) or []` の 1 式で書く）
+- write(board_dir, …)・stage_rows(board_dir): 控えを書く（線の境）・控えが指す行（段が行を出さなかった周を None で分ける＝関所の軸。
+  盤面の根から読む判定の支度・修正案の頭・関所が使う。呼び手は None と [] の違いを `stage_rows(d) or []` の 1 式で書く）。
+  read・write・stage_rows の name は控えのファイルの名（既定は判定の STATE_FILE。事前審査の盤面の写しは COPY_STATE）
 - ref_problems(reply, board_dir): 判定の返答の先例の出どころ world:<類の id> が控えの指す行に無い誤りの文（判定の受け付けが拒む）
 - section(rows): 判定・修正案・事前審査の頭に貼る節（行が無ければ ""）。修正案の役に行ごとの答えを頼む文は PLAN_ASK
 - need(rows)・challenges(rows): 修正案の受け付けに渡す答えの要る行の表（planmarks.Need。答えの仕組みは構造の目の汚れる
@@ -34,9 +35,9 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 足し欄 MEANS に分ける。足す・外す・置くの手順は住処 marks（種 means）に任せ、欄の意味（型・読んだ後の使い方）をここが持つ。
 目的の文の型は写しのまま。控えは世界の解の段の入力（言い直す役が依頼の解き方として見る）で、独立設計には渡さない（目的だけから設計する）。
 - MEANS_NODES・split_means(reply): 欄を持つ節・（欄を外した返答の写し, 手段の並び）
-- write_means(board_dir, means)・means_of(board_dir): 控えを置く（空なら置かない）・読む（無い・読めなければ []）
-- copy_means(src_file, board_dir): 控えのファイル（判定の外の読み手は判定の出力の欄 purpose_means のパス）を別の置き場に写す
-  （事前審査の置き場の関所が世界の解の外れの出どころを照らす）
+- write_means(board_dir, means)・means_of(board_dir, name): 控えを置く（空なら置かない）・読む（無い・読めなければ []。name は写しの名）
+- copy_means(src_file, board_dir): 控えのファイル（判定の外の読み手は判定の出力の欄 purpose_means のパス）を別の置き場に写しの名
+  COPY_MEANS で写す（事前審査の置き場の関所が世界の解の外れの出どころを照らす）
 """
 import json
 import pathlib
@@ -68,6 +69,9 @@ PLAN_ASK = ("当たる所の在る行（答えの要る行）は、行ごとに�
 STATES = ("ok", "failed")
 MEANS = "means"
 MEANS_NODES = marks.nodes(MEANS)
+# 判定の外の盤面（事前審査）が、受けた控えを自分の置き場に写す名（判定の置き場の名と分ける。workflows/AGENTS.md の E4）
+COPY_STATE = f"judge-{STATE_FILE}"
+COPY_MEANS = f"judge-{marks.KINDS[MEANS].file}"
 
 
 # ---------------------------------------------------------------- 読む
@@ -107,8 +111,8 @@ def rows(path) -> list:
     return out
 
 
-def read(board_dir) -> dict | None:
-    return read_file(pathlib.Path(board_dir) / STATE_FILE)
+def read(board_dir, name: str = STATE_FILE) -> dict | None:
+    return read_file(pathlib.Path(board_dir) / name)
 
 
 def read_file(path) -> dict | None:
@@ -120,23 +124,18 @@ def read_file(path) -> dict | None:
     return doc if isinstance(doc, dict) and doc.get("status") in STATES else None
 
 
-def write(board_dir, *, status: str, reason: str, world_file: str, classes, dropped) -> pathlib.Path:
+def write(board_dir, *, status: str, reason: str, world_file: str, classes, dropped, name: str = STATE_FILE) -> pathlib.Path:
     """控えを盤面の根に書く（線の境が 1 回。書けなければ OSError。受ける側が理由にして返す）"""
-    path = pathlib.Path(board_dir) / STATE_FILE
+    path = pathlib.Path(board_dir) / name
     doc = {"status": status, "reason": reason, "world_file": world_file, "classes": classes, "dropped": dropped}
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return path
 
 
-def clear(board_dir) -> None:
-    """盤面の控えを消す（無ければ何もしない）"""
-    (pathlib.Path(board_dir) / STATE_FILE).unlink(missing_ok=True)
-
-
-def stage_rows(board_dir) -> list | None:
-    """盤面の根の控えが指す行。段が行を出した周（控えが ok。行の無い段は []）だけ並びで、控えが無い・落ちた・行が読めない周は
+def stage_rows(board_dir, name: str = STATE_FILE) -> list | None:
+    """盤面の根の控え name が指す行。段が行を出した周（控えが ok。行の無い段は []）だけ並びで、控えが無い・落ちた・行が読めない周は
     None（関所の軸が今どおりの決まりに戻る目印。拒まない）"""
-    st = read(board_dir)
+    st = read(board_dir, name)
     if st is None or st["status"] != "ok":
         return None
     try:
@@ -174,8 +173,8 @@ def write_means(board_dir, means) -> None:
 
 
 def copy_means(src_file, board_dir) -> None:
-    """目的の役が置いた控えのファイル src_file（None 可）を board_dir に写す（無ければ board_dir の前の写しを消す）"""
-    dest = marks.path_of(MEANS, board_dir)
+    """目的の役が置いた控えのファイル src_file（None 可）を board_dir に写しの名 COPY_MEANS で写す（無ければ board_dir の前の写しを消す）"""
+    dest = pathlib.Path(board_dir) / COPY_MEANS
     src = pathlib.Path(src_file) if src_file is not None else None
     if src is not None and src.is_file():
         shutil.copyfile(src, dest)
@@ -183,8 +182,8 @@ def copy_means(src_file, board_dir) -> None:
         dest.unlink(missing_ok=True)
 
 
-def means_of(board_dir) -> list:
-    doc = marks.load(marks.path_of(MEANS, board_dir))
+def means_of(board_dir, name: str | None = None) -> list:
+    doc = marks.load(pathlib.Path(board_dir) / name if name else marks.path_of(MEANS, board_dir))
     got = doc.get(MEANS) if isinstance(doc, dict) else None
     return [m for m in got if isinstance(m, str) and m.strip()] if isinstance(got, list) else []
 
