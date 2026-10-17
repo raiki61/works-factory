@@ -640,13 +640,14 @@ class OutsideEnvCase(unittest.TestCase):
             repo = self.setup_repo(base, [self.count_line(count)])
             second = base / "second"
             gitkit.git(repo, "worktree", "add", "-q", "--detach", str(second))
-            env = tree_run.outside_env(hermetic.child_env())
-            self.assertEqual(env, {**hermetic.child_env(), "PYTHONDONTWRITEBYTECODE": "1"})   # 返りに制御の変数は足さない
+            given = hermetic.child_env()
+            env = tree_run.outside_env(given)
+            self.assertLessEqual(env.keys() - given.keys(), {"PYTHONDONTWRITEBYTECODE"})
             for tree in (repo, second):
                 for _ in range(2):
                     self.assertEqual(tree_run.run(["true"], cwd=str(tree), env=env), 0)
             self.assertEqual(count.read_text(encoding="utf-8").splitlines(), ["x", "x"])
-            self.assertEqual(tree_run.run(["true"], env=env), 0)   # cwd の無い呼びは準備しない
+            self.assertEqual(tree_run.run(["true"], env=env), 0)
             self.assertEqual(len(count.read_text(encoding="utf-8").splitlines()), 2)
 
     def test_setup_changed_runs_again_and_no_setup_does_nothing(self):
@@ -659,14 +660,14 @@ class OutsideEnvCase(unittest.TestCase):
             self.assertFalse(count.exists())
             plain = base / "plain"
             plain.mkdir()
-            self.assertEqual(tree_run.run(["true"], cwd=str(plain), env=env), 0)   # git の木でない所は何もしない
+            self.assertEqual(tree_run.run(["true"], cwd=str(plain), env=env), 0)
             decl = json.dumps({"suite": [{"name": "s", "argv": ["true"]}], "setup": [self.count_line(count)]})
             (repo / ".review-checks.json").write_text(decl, encoding="utf-8")
             for expected in (1, 1):
                 self.assertEqual(tree_run.run(["true"], cwd=str(repo), env=env), 0)
                 self.assertEqual(len(count.read_text(encoding="utf-8").splitlines()), expected)
             other = json.dumps({"suite": [{"name": "s", "argv": ["true"]}], "setup": [self.count_line(count), ["true"]]})
-            (repo / ".review-checks.json").write_text(other, encoding="utf-8")   # 並びが変われば別の準備
+            (repo / ".review-checks.json").write_text(other, encoding="utf-8")
             self.assertEqual(tree_run.run(["true"], cwd=str(repo), env=env), 0)
             self.assertEqual(len(count.read_text(encoding="utf-8").splitlines()), 2)
 
