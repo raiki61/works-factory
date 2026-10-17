@@ -174,7 +174,7 @@ class LauncherTest(unittest.TestCase):
             self.assertEqual(argv[11:], ["works-factory-line", "--from", "x", "--input", "request=x"])
 
     def test_test_cmd_running_the_checkout_reaches_archon(self):
-        """#678: test_cmd の形はメイングラフの頭の節 testcmd が確かめる。殻は対象の手元を絶対パスで指す test_cmd も照らさずに Archon
+        """#678: test_cmd の形はメイングラフの頭のノード testcmd が確かめる。殻は対象の手元を絶対パスで指す test_cmd も照らさずに Archon
         へ渡し、確かめの部品も持たない"""
         self.commit_target()
         runner = self.target / "run-tests"

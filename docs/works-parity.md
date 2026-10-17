@@ -698,29 +698,29 @@
 - S089 run の worktree には無視される物（.venv・node_modules・.env）が無いので、test_cmd を worktree の中で環境を作る形にするよう README で案内する
   - 元: SKILL.md:86
   - 印: 無し
-  - 今: README.md「test_cmd と作業ツリー」・`bin/_lib/testcmd_check.py::HOW`（#495 を #503 で戻した）
+  - 今: README.md「test_cmd と作業ツリー」・`lib/testcmd_check.py::HOW`（#495 を #503 で戻した）
   - 状態: 在る
   - 旧棚卸し: 無し
 
 - S090 手元を走らせる形の test_cmd（手元の物を絶対パスで指す・editable の外の環境・立てた環境）を見つけると `止める（test_cmd）` の行を出し、Archon を起こさずに終了コード 2 で止まる（形の確かめが落ちた時も 1 行で止まる）
   - 元: SKILL.md:86
   - 印: `start`
-  - 今: `bin/_lib/launcher.py::check_test_cmd`・`bin/_lib/testcmd_check.py::path_notes`・`bin/_lib/testcmd_check.py::venv_notes`（止める形と、形の確かめが落ちた時に Archon を起こさず終了コード 2 で止まる。#495 を #503 で戻した）
-  - 状態: 在る
+  - 今: `workflows/line/works-factory-line.yaml::testcmd`・`workflows/line/works-factory-line.yaml::testcmd-stop`・`lib/testcmd_check.py::path_notes`・`lib/testcmd_check.py::venv_notes`（止める形と、形の確かめが落ちた時に、メイングラフの頭のノードが AI を起こす前に cancel で run を止める。#678）
+  - 状態: 形を変えて在る（殻の終了コード 2 でなく、run の頭の cancel で止める。#678）
   - 旧棚卸し: 無し
 
 - S091 依頼者が形を知った上で回すと決めた時だけ、手元を走らせる形の test_cmd を通す（AI が自分で付けない）
   - 元: SKILL.md:86
   - 印: `WORKS_USE_ALLOW_TESTCMD`
-  - 今: `bin/_lib/launcher.py::ALLOW_TESTCMD_ENV`・`bin/_lib/launcher.py::check_test_cmd`
-  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。#495 を #503 で戻した）
+  - 今: `lib/testcmd_check.py::ALLOW_ENV`・`workflows/line/scripts/testcmd.py::check`
+  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。殻を起こす env に置き、メイングラフの頭のノードが読む。#678）
   - 旧棚卸し: 無し
 
 - S092 相対パスのように worktree で走らない形の test_cmd は `注意（test_cmd）` の行だけ出して止めない
   - 元: SKILL.md:86
   - 印: 無し
-  - 今: `bin/_lib/testcmd_check.py::path_notes`・README.md「test_cmd と作業ツリー」（#495 を #503 で戻した）
-  - 状態: 在る
+  - 今: `lib/declared_checks.py::checks_reply`・README.md「test_cmd と作業ツリー」（#678 で行を出すのをやめ、修正の前の試験が走らずに判定の前で止まる #666 の止めに 1 つにした）
+  - 状態: 形を変えて在る（注意の行は出さず、走らない形は修正の前の試験で止まる。#678）
   - 旧棚卸し: 無し
 
 - S093 `.review-checks.json` の段の任意の `junit` を読み、報告が無い・段の起動より古い・0 件・全部 error なら、赤でなく基準の検査が走らなかった（コードの赤ではない）に回す
@@ -1837,14 +1837,14 @@
 - U028 WORKS_USE_ALLOW_TESTCMD=1 で、対象の手元を走らせる形の test_cmd でも止めずに起こす
   - 元: use.sh:61・185・1026・1030-1032
   - 印: `WORKS_USE_ALLOW_TESTCMD`
-  - 今: `bin/_lib/launcher.py::ALLOW_TESTCMD_ENV`・`bin/_lib/launcher.py::check_test_cmd`
-  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。#495 を #503 で戻した）
+  - 今: `lib/testcmd_check.py::ALLOW_ENV`・`workflows/line/scripts/testcmd.py::check`
+  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。殻を起こす env に置き、メイングラフの頭のノードが読む。#678）
   - 旧棚卸し: T70
 
 - U029 WORKS_USE_ALLOW_TESTCMD が空・1 の外なら拒む
   - 元: use.sh:207-210
   - 印: `WORKS_USE_ALLOW_TESTCMD`・`use.sh:209`
-  - 今: `bin/_lib/launcher.py::check_test_cmd`
+  - 今: `workflows/line/scripts/testcmd.py::allowed`
   - 状態: 形を変えて在る（1 の外の値は拒まず、許さない側として扱う。#495 を #503 で戻した）
   - 処置: 要らない: 1 の外の値は止める側に倒れ、手元を走らせる形の test_cmd を黙って通す事は無い（keep-essence 12）
   - 旧棚卸し: T70
@@ -1852,22 +1852,22 @@
 - U030 test_cmd が対象の手元（元の clone）を走らせる形なら、何も写す前に「止める（test_cmd）」の行と理由で止める（終了コード 2）
   - 元: use.sh:58-60・1019-1036
   - 印: `use.sh:1035`
-  - 今: `bin/_lib/launcher.py::check_test_cmd`（Archon を起こす前に止め、終了コード 2。#495 を #503 で戻した）
-  - 状態: 在る
+  - 今: `workflows/line/works-factory-line.yaml::testcmd-stop`（AI を起こす前に、メイングラフの頭で cancel で run を止める。#678）
+  - 状態: 形を変えて在る（終了コード 2 でなく、run の頭の cancel で止める。#678）
   - 旧棚卸し: T70
 
 - U031 test_cmd の形の確かめ（testcmd_check.py）そのものが落ちたら止める（許しが在れば落ちたと出して起こす）
   - 元: use.sh:60・1038-1046
   - 印: `WORKS_USE_ALLOW_TESTCMD`・`use.sh:1044`
-  - 今: `bin/_lib/launcher.py::check_test_cmd`（#495 を #503 で戻した）
+  - 今: `workflows/line/scripts/testcmd.py::fallback`（#678）
   - 状態: 在る
   - 旧棚卸し: T70
 
 - U032 run・単位の worktree で走らない形（git が無視するパスを相対で指す）の test_cmd には「注意（test_cmd）」の行だけ出して止めない
   - 元: use.sh:61-62・1028
   - 印: 無し
-  - 今: `bin/_lib/testcmd_check.py::path_notes`・README.md「test_cmd と作業ツリー」（#495 を #503 で戻した）
-  - 状態: 在る
+  - 今: `lib/declared_checks.py::checks_reply`・README.md「test_cmd と作業ツリー」（#678 で行を出すのをやめ、修正の前の試験が走らずに判定の前で止まる #666 の止めに 1 つにした）
+  - 状態: 形を変えて在る（注意の行は出さず、走らない形は修正の前の試験で止まる。#678）
   - 旧棚卸し: T70
 
 - U033 WORKS_USE_FIX_FIXTURE で、固定材料のフォルダから判定と修正案を作り直さずに修正から始める（入力 fix_fixture）
@@ -3025,8 +3025,8 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 184
-- 状態 形を変えて在る: 174
+- 状態 在る: 180
+- 状態 形を変えて在る: 178
 - 状態 無い: 47
 - 処置 #516: 4
 - 処置 戻した: 10
@@ -4018,7 +4018,7 @@
 - tail.md T67: workflows/line/scripts/ask_final.py::tests_word
 - tail.md T68: lib/runreport.py::_base_word（lib/runreport.py::_entry_lines の「直す前のテスト:」の行。red_cause incomplete は「走らせられなかった」）
 - tail.md T69: lib/green_cert.py::certify（base の素材が awaiting_human なら直す前の結末を控えて ok を真にし、メイングラフの judge へ進む。走らせられなかった系統は素材の reason が名指し、判定の台帳の awaiting の問い〔lib/judge_accept.py::baseline_local_checks〕と、報告の人が確かめる物〔lib/outcome.py::residue〕と直す前のテストの行〔lib/runreport.py::_base_word〕に載る。人が確かめて続ける道は結末 fixed_needs_check と次の依頼の answers。一部だけ走った base・書式の誤り・任せ先の役の awaiting_human は今の works と同じく止めない。起こした段が 1 つも走らなかった base の 2 つの形〔宣言の段が全部起こせないか JUnit を宣言した段が全部試験を走らせなかった base〔試験が全部 error の段は除く。判定へ進む〕と、test_cmd を起こせなかった by role の base〕は素材が not_run で、ok を偽にして止める〔lib/declared_checks.py::checks_reply〕。#122）
-- tail.md T70: bin/_lib/launcher.py::check_test_cmd（殻が新しい run の --input test_cmd= を Archon を起こす前に照らす）・bin/_lib/testcmd_check.py::main（元の決まりのまま。#495）
+- tail.md T70: workflows/line/scripts/testcmd.py::check（メイングラフの頭のノードが入力 test_cmd を AI を起こす前に照らし、止める形なら testcmd-stop が cancel で止める。#678）・lib/testcmd_check.py::stops
 - tail.md T71: lib/carry.py::carry_ci
 - tail.md E1: workflows/eyes/works-factory-eyes.yaml::r1-comments ほかAI ノード 7 つ（`mutates_checkout: false`。r4-scope と r4-scope-fix 以外は `context: fresh`。r4-scope は r4-loop の 1 周目で新しい会話、workflows/eyes/works-factory-eyes.yaml::r4-scope-fix は拒まれた後にその会話の続き）
 - tail.md E2: workflows/eyes/works-factory-eyes.yaml::r1-comments・workflows/eyes/works-factory-eyes.yaml::r1-minimality・workflows/eyes/works-factory-eyes.yaml::r2-compare・workflows/eyes/works-factory-eyes.yaml::premise-check・workflows/eyes/works-factory-eyes.yaml::r3-coherence・workflows/eyes/works-factory-eyes.yaml::r4-scope

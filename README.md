@@ -40,7 +40,7 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 - 止める: 承認ノードで `workflow respond <run> stop <一言>` と打つと、メイングラフが後ろを飛ばして報告を出す（`workflow reject <run>` も同じ）。承認ノードの間で走っている run は `workflow cancel <run>` で止まるが、報告は出ない。
 - 自分のグラフ（`workflows/`）を Archon に渡すのは `workflow run` の時だけ。`trigger`・`chat` には渡らない。
 - run は始めに `workflows/` だけを写し取るので、走っている間にこのリポジトリの `lib/` を変えると、その run に効く。
-- 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス。家・対象・Archon の源の取り置き（`XDG_CACHE_HOME`）が実パスで `/tmp/claude-*` の下なら、役の sandbox が書ける置き場なので拒む。家がこの checkout の下でも、読むだけの役の書き込みの柵が checkout を丸ごと禁じて役が家に書けないので拒む。checkout の外を選ぶ）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れ、役を起こす本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す。殻は役との間に書き込みの柵の包みを置く。殻を起こす env に置く。起こす場所・`--cwd`・対象の根の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env` が名指すと、包みが外れるので殻は止まる。同じファイルが包みの記録 `WORKS_FACTORY_FENCE_RECORDS` を名指しても止まる）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）・`WORKS_FACTORY_ALLOW_TESTCMD=1`（対象の手元を走らせる形の `test_cmd` でも止めずに起こす。下の「test_cmd と作業ツリー」）。
+- 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス。家・対象・Archon の源の取り置き（`XDG_CACHE_HOME`）が実パスで `/tmp/claude-*` の下なら、役の sandbox が書ける置き場なので拒む。家がこの checkout の下でも、読むだけの役の書き込みの柵が checkout を丸ごと禁じて役が家に書けないので拒む。checkout の外を選ぶ）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れ、役を起こす本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す。殻は役との間に書き込みの柵の包みを置く。殻を起こす env に置く。起こす場所・`--cwd`・対象の根の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env` が名指すと、包みが外れるので殻は止まる。同じファイルが包みの記録 `WORKS_FACTORY_FENCE_RECORDS` を名指しても止まる）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）・`WORKS_FACTORY_ALLOW_TESTCMD=1`（対象の手元を走らせる形の `test_cmd` でも run を止めずに進める。下の「test_cmd と作業ツリー」）。
 - 対象の試験・受け入れ・TDD の試験のコマンドは、いつも利用者の HOME・XDG で走る（隔離した置き場ではない。道具が設定・信頼・キャッシュ・認証を見失わないため。Archon・役の Bash・工場の script 自身は隔離のまま）。AI が書いた試験のコードを、あなたの権限（利用者の HOME・XDG）で走らせる。書く物も利用者の家に入る。守りが要るなら工場ごとコンテナか VM の中で回す。実行する run を起こすたびに、殻が標準エラーへ同じ告知を 1 行出す。
 - 対象のリポジトリが頼れる印: 役の claude と、その子（役の Bash が起こす対象のテストなど）には `GRAPHLOOPS_ENGINE_CHILD=1` が立つ。対象の重い一式（e2e など）はこの値で AI の役からの起動を見分けて拒める。メイングラフの最後のテストなど script ノードが走らせる物には立たない。
 - ログインの資格は数時間で切れるので、長い run は `claude setup-token` で作ったトークンを `CLAUDE_CODE_OAUTH_TOKEN` に置いて殻を起こす。
@@ -74,10 +74,10 @@ Claude Code からは `/works`（raiki61/claude-plugins の works プラグイ�
 
 `--input test_cmd='<1 行>'` は、対象のテストを走らせる 1 行。run の作業ツリーの根で走る。run の作業ツリー（と、修正の段が並べて直す単位の作業ツリー）は commit から切るので、git が無視する物（依存の置き場・仮想環境・ビルドの出力・`.env` など）が無い。作業ツリーの中で環境を作ってから試験を走らせる 1 行にし、元の clone を絶対パスで指さない。対象のコマンドは利用者の HOME で走るので、`~`・`$HOME` で元の clone を指す形も同じ（run の中でも元の clone を指す）。
 
-殻は Archon を起こす前に `test_cmd` の形を確かめる（`bin/_lib/testcmd_check.py`）。
+メイングラフの頭のノード（`testcmd`。`lib/testcmd_check.py`）が、AI を起こす前に `test_cmd` の形を確かめる。
 
-- 止める形（行の頭「止める（test_cmd）」）: 対象の手元（元の clone）を絶対パスか `~`・`$HOME`・`${HOME}`（利用者の HOME に展開してから見る）で指す・対象を editable で入れた外の仮想環境を絶対パスか `~` などで指すか立てたまま起こす。run の試験が直しでなく手元のコードを走らせ、直しの正誤に関わらず緑になりうる。形を知った上で回すなら `WORKS_FACTORY_ALLOW_TESTCMD=1` を前に付ける（行の頭が「注意（test_cmd）」になり、止めずに起こす）。確かめそのものが落ちた時も同じに止める。
-- 注意の形（行の頭「注意（test_cmd）」）: git が無視する物を相対のパスで指す。作業ツリーに無いので走らず、落ちて分かる。止めない。
+- 止める形（行の頭「止める（test_cmd）」）: 対象の手元（元の clone）を絶対パスか `~`・`$HOME`・`${HOME}`（利用者の HOME に展開してから見る）で指す・対象を editable で入れた外の仮想環境を絶対パスか `~` などで指すか立てたまま起こす。run の試験が直しでなく手元のコードを走らせ、直しの正誤に関わらず緑になりうる。run は頭で止まり（Archon の cancel。`workflow status` に止めの理由の行が出る）、AI は起きない。形を知った上で回すなら `WORKS_FACTORY_ALLOW_TESTCMD=1` を殻を起こす env に置く（行の頭が「注意（test_cmd）」になり、止めずに進める）。確かめそのものが落ちた時も同じに止める。
+- git が無視する物を相対のパスで指す形は、作業ツリーに無いので走らない。頭では止めず、修正の前の試験が 1 段も走らずに判定の前で止まり、道具の誤りの文を見せる（下の `setup` の段落と同じ止め）。
 
 `test_cmd` を省けば、対象の宣言 `.review-checks.json` で走らせ、それも無ければ CI の任せ先の役が対象の CI の定義から走らせ方を探す（役の緑は自己申告なので、緑の認証には数えない）。
 

@@ -1,4 +1,4 @@
-"""メイングラフの頭の節 testcmd（workflows/line/scripts/testcmd.py）と、それを受けて run を止める cancel の節 testcmd-stop の試験（#678）。
+"""メイングラフの頭のノード testcmd（workflows/line/scripts/testcmd.py）と、それを受けて run を止める cancel のノード testcmd-stop の試験（#678）。
 
 test_cmd が対象の手元を試す形なら、AI を起こす前に run が頭で止まり（cancelled）、止める形の文と止めの理由が cancel の理由に出る。
 形の見分けそのものは lib/tests/test_testcmd_check.py が縛る。
@@ -19,7 +19,7 @@ from tests.e2e.test_line_scenarios import blocks
 
 testcmd = load("testcmd")
 
-import testcmd_check  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+import testcmd_check  # noqa: E402  （メイングラフの script が lib/ を sys.path に足した後に読む）
 
 SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
@@ -79,7 +79,7 @@ class TestCmdNodeTest(unittest.TestCase):
 
 
 class TestCmdHeadDryRunTest(unittest.TestCase):
-    """Archon が頭の節を走らせ、止める形なら run を cancelled にし、cancel の理由に節の文が出る（止めた Archon の dry-run の
+    """Archon が頭のノードを走らせ、止める形なら run を cancelled にし、cancel の理由にノードの文が出る（止めた Archon の dry-run の
     trace。源か bun が無ければ見送る）"""
 
     def dry_run(self, tree: pathlib.Path, test_cmd: str, **env) -> dict:
@@ -88,7 +88,7 @@ class TestCmdHeadDryRunTest(unittest.TestCase):
         try:
             return json.JSONDecoder().raw_decode(done.stdout.lstrip())[0]
         except json.JSONDecodeError as error:
-            raise AssertionError(f"dry-run の返りが読めない（{error}）: {done.stdout[-2000:]}{done.stderr[-2000:]}") from None
+            raise AssertionError(f"dry-run の出力が読めない（{error}）: {done.stdout[-2000:]}{done.stderr[-2000:]}") from None
 
     def test_command_running_the_checkout_cancels_the_run_at_the_head(self):
         with archon.tree(["line", *blocks()]) as tree:

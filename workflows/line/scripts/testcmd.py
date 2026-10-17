@@ -2,10 +2,10 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""線の頭の節 testcmd（docs/design.md の「メイングラフ」の「順と承認ノード」の 0）。
+"""メイングラフの頭のノード testcmd（docs/design.md の「メイングラフ」の「順と承認ノード」の 0）。
 
-入力 test_cmd が run の作業ツリーの直しでなく対象の手元を試す形（lib/testcmd_check.py。決まりはそちら）なら、返り {stop, reason} の
-stop を真にし、次の cancel の節 testcmd-stop が reason を理由に、AI を起こす前に run を止める。形を知った上で回す人の許し
+入力 test_cmd が run の作業ツリーの直しでなく対象の手元を試す形（lib/testcmd_check.py。決まりはそちら）なら、出力 {stop, reason} の
+stop を真にし、次の cancel のノード testcmd-stop が reason を理由に、AI を起こす前に run を止める。形を知った上で回す人の許し
 （ALLOW_ENV が 1）が在れば止めず、reason に形を残す。確かめそのものが落ちた時も、手元を試す形を除けないので同じに
 止める（許しが在れば止めない）。
 
