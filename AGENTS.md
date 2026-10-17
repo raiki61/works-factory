@@ -34,6 +34,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 | E19 | `workflows/AGENTS.md` |
 | E20 | `workflows/AGENTS.md` |
 | E21 | `tests/AGENTS.md` |
+| E22 | `AGENTS.md` |
 
 ## リポジトリの形
 
@@ -67,7 +68,7 @@ works-factory/
 │   ├── bin/                     入口の試験
 │   ├── shared/                  境の試験
 │   ├── workflows/               サブグラフの YAML の形と筋書きの試験（test_<サブグラフ>.py。筋書きは tests/archon.py の使い捨ての木で回す）
-│   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験
+│   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験と筋書き（scenario.json。人が読む要約は scenario.md）
 ├── docs/
 │   ├── design.md                設計（メイングラフ・サブグラフ・能力の棚卸し・未決）
 │   ├── owner-decisions.md       持ち主の決めの正本
@@ -75,6 +76,7 @@ works-factory/
 │   ├── polyfills.md      埋めの名簿
 │   ├── concepts.md              考えの住処の地図
 │   ├── concepts.json            考えの住処の柵の表（tests/layers/test_concept_fences.py が照らす）
+│   ├── layers.json              層の地図と既知の漏れの表（E22。tests/layers/test_layer_map.py が照らす）
 │   ├── calibration-214.md       #214 の自作の較正の束の比べの記録（束は消した）
 │   ├── works-parity.md          今の works の利用者に見える能力の照らし（tests/layers/test_works_parity.py が照らす）
 │   └── plans/                   実装の計画
@@ -86,8 +88,7 @@ works-factory/
 ├── MISSION.md・README.md
 ├── engineering.md               ASF の役が読む入口。ここを指すだけ
 └── ASF の取り付け命令が置いた物（持ち主の決め asf-installer-in-repo。E8）
-    ├── factory/・FACTORY.md・FACTORY_RULES.md     手を加えない
-    ├── harness/                 END-TO-END.md・harness.config.json・runtime.inputs.json・runtime.scenario.json だけ書く。ほかは手を加えない
+    ├── factory/・FACTORY.md・FACTORY_RULES.md     手を加えない。factory/ は consumer.py・pack.json・WORKFLOW_POLICY.md だけ
     └── .factory/holdout/HOLDOUT.md                書く
 ```
 
@@ -97,7 +98,7 @@ works-factory/
 ## E8 ASF は横に並べて見るだけ
 
 - ASF と Archon 同梱のグラフを `include:`・`workflow:` で呼ばない。ASF のコードを自分の層（`bin/`・`workflows/`・`lib/`）に写さない。採るのは型（なぜその形か）だけ。
-- ASF の取り付け命令が置いた物（`factory/`・`harness/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）は、ASF がこのリポジトリを作るための物で、4 つの層の外に置いたまま手を加えない。ASF の共有のグラフへの決まりは `factory/WORKFLOW_POLICY.md`。持ち主の決め `asf-installer-in-repo`。
+- ASF の取り付け命令が置いた物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）は、ASF がこのリポジトリを作るための物で、4 つの層の外に置いたまま手を加えない。起こす物の無くなった取り付け物は外し、置き直さない（外した物の一覧は持ち主の決め `asf-installer-in-repo`）。ASF の共有のグラフへの決まりは `factory/WORKFLOW_POLICY.md`。
 - ASF の型を採ったら、`docs/asf-notes.md` に 1 行足す（ASF の commit・ファイル・採った先のサブグラフ・違いと訳）。
 - 機械: `tests/layers/test_no_asf.py`（`include:`・`workflow:` の値が `works-factory-` で始まる）。写していないことと名簿の行は人が見る。
 
@@ -140,3 +141,12 @@ works-factory/
 - 自分の物には、それらで始まる名前を付けない（ファイル・フォルダ・グラフ・型の名）。自分のグラフは `works-factory-` で始める（E9）。
 - 今の works から持ってきた物（E15）は、元と同じファイル名で置く。元と見比べられるようにするため。どこから持ってきたかは commit に書く。
 - 機械: `tests/layers/test_names.py`（`bin/`・`workflows/`・`lib/`・`tests/`・`docs/` の下のパスの部分に、`factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる物が無い）。ASF の物が「リポジトリの形」の木の場所の外に無いことは人が見る。
+
+## E22 層は地図に沿って頼る
+
+- 層の地図は `docs/layers.json` の 1 か所。層は起動の殻 `bin/`・メイングラフと周の鎖 `workflows/line/`・`workflows/chain/`・サブグラフ `workflows/<名>/`（サブグラフ同士は互いに独立）・サブグラフの共通の部品 `workflows/.shared/`・共通の lib `lib/` の 5 つで、層ごとに頼ってよい層（`may_use`）を書く。形は import-linter の layers・forbidden・independence の契約に倣う。`lib/` の E3 の import の向きと、`workflows/` の E4 のサブグラフの名は、この地図から読む。
+- グラフ（`workflows/`）と `lib/` は `bin/` の物を import しない。Archon の上で動く物は、Archon の外の起動の殻に頼らない。殻の事実（Archon の起こし方など）が要る時は、殻が組んだ物を env で渡し、その名は読む側の埋めが持つ（殻は `bin/_lib/place.py` の `shared` で埋めを読んで名を取る。`workflows/.shared/childsweep.py` の `CLI_ENV`）。
+- 地図に反する頼りは 4 つの照らしで見る: import の向き（`.py` と、YAML に直に書いた script の行。上の `bin/` の import を含む）・ほかのサブグラフが隣に書くファイルの名（サブグラフごとの名は地図の `beside`。1 つの名が複数のサブグラフの隣に在ってよく、`<k>` の形の段は名の 1 段に当たる。名の集まりは `docs/design.md` の「サブグラフの出力の約束」の、ほかのサブグラフも名で開く隣のファイルと等しい）・`lib/` とサブグラフの中のメイングラフのノードの id（メイングラフと周の鎖の YAML の `-` を含む id から作る）・指示書（`commands/`）と入力の説明の中のほかのサブグラフの名（`works-factory-` の頭つき）と役の名（ほかのサブグラフの AI のノードの `-` を含む id と、古い名 `blk-*`）。
+- 今ある漏れは地図の `known` に、照らしごとにファイルと当たりの数（1 行に 2 つ当たれば 2）と訳（直す issue）で載せる。表は減らす向きにだけ変える。直したら表から消す（当たりの数が表と違えば、増えても減っても赤）。地図そのもの（`outside`・`may_use`・`paths`・`independent`・`names`・`beside`、層の足しと並び）を緩める時は、地図の `loosened` に `{"<鍵>": "<訳>"}` の新しい行を足す（鍵は赤の文が名指す。考えの住処の柵の `loosened` と同じ形）。
+- 関門は CI に置き、pre-commit は足さない（どの道の変更も同じ機械の関門を CI で通す）。手元で先に見る時は `uv run --isolated python3 -m unittest tests.layers.test_layer_map` の 1 つで同じ照らしを回す（`NotAboveMain` が `origin/main` を要るので、先に `git fetch origin main`）。
+- 機械: `tests/layers/test_layer_map.py`（4 つの照らし（`tests/layers/scan.py` の `layer_hits`）の当たりが、ファイルごとの当たりの数で `known` とちょうど揃う。`known` は HEAD と `origin/main` の分かれ目の地図より、照らしごとの和も、ファイルごとの当たりの数も増えず、分かれ目に無いファイルも出ない。地図の緩めは `loosened` に新しい訳の行が無ければ赤（`NotAboveMain`。分かれ目に地図が無ければ比べない）。地図の `beside` の名の集まりが `docs/design.md` の約束の文の名の集まりと等しい。`bin/`・`workflows/`・`lib/` のファイルは地図の `outside` の外ならどれかの層に入る）。字の形で見るので、組んで作る名・`importlib` の読み込み・日本語の役の呼び名（「修正役」など）・素のサブグラフの名と `-` の無い id は人が見る。

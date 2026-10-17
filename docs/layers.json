@@ -1,0 +1,78 @@
+{
+  "about": "層の地図（根の AGENTS.md の E22）。layers は層ごとの置き場と頼ってよい層（may_use。自分の層の中は頼ってよい）で、independent の層の中の置き場どうしは互いに頼らない。import-linter の layers・forbidden・independence の契約の形に倣う。置き場の paths の * はパスの 1 段。最初に当たる層が、そのファイルの層。outside は層の照らしの外（試験と決まりの文。/ で終わる物はフォルダ）。beside はサブグラフごとの、そのサブグラフが隣に書くファイルの名（docs/design.md の「サブグラフの出力の約束」の隣のファイル）。名は複数のサブグラフの隣に在ってよく、<k> の形の段は名の 1 段に当たる。known は照らしごとの既知の漏れ {パス: [当たりの数, 訳]} で、減らす向きにだけ動かす。loosened は地図を緩めた所の訳 {鍵: 訳}（tests/layers/test_layer_map.py の NotAboveMain）",
+  "layers": [
+    {"id": "shell", "what": "起動の殻", "paths": ["bin/"], "may_use": ["shared", "lib"]},
+    {"id": "top", "what": "メイングラフと周の鎖", "paths": ["workflows/line/", "workflows/chain/"], "may_use": ["shared", "lib"]},
+    {"id": "shared", "what": "サブグラフの共通の部品（境の口と埋め）", "paths": ["workflows/.shared/"], "may_use": ["lib"]},
+    {"id": "block", "what": "サブグラフ", "paths": ["workflows/*/"], "may_use": ["shared", "lib"], "independent": true,
+     "names": ["judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge"]},
+    {"id": "lib", "what": "共通の lib", "paths": ["lib/"], "may_use": []}
+  ],
+  "outside": ["lib/tests/", "workflows/*/fixtures/", "bin/AGENTS.md", "workflows/AGENTS.md", "lib/AGENTS.md"],
+  "beside": {
+    "judge": ["premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "depth-head.json", "purpose-review.json",
+              "answer-ties.json", "local-review-lenses.json", "pr-downgrades.json", "world-state.json", "rejudge-exit.json",
+              "rejudge-diff.json"],
+    "plan": ["p2.fix_plan.json", "rejects-plan.json", "replan-gave-up.json", "design.jsonl"],
+    "plan-review": ["gate-passes.json", "replan-gave-up.json", "gate.json", "design-premises.json"],
+    "fix": ["allowed-tests.json", "lenses.json", "accept-trace.json", "closure.json", "delta-holes.json", "fix-removed.json",
+            "tdd-unit.json", "tdd-<k>/state.json"],
+    "eyes": ["r4-gate-passes.json", "premise-check.json"]
+  },
+  "loosened": {},
+  "known": {
+    "import": {},
+    "beside": {
+      "lib/boardview.py": [8, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の premises.json・purpose-review.json（#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）、plan-review の隣の design-premises.json・gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "lib/conflict.py": [1, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の allowed-tests.json（#681）"],
+      "lib/consult.py": [2, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の accept-trace.json（#681）"],
+      "lib/design-row.schema.json": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（#681）"],
+      "lib/diverted.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の local-review-lenses.json（#680）"],
+      "lib/eye.py": [2, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（#681）"],
+      "lib/eyeverdict.py": [5, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の premises.json（#680）、plan-review の隣の design-premises.json（issue 無し。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "lib/fixbeside.py": [11, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の accept-trace.json・closure.json・delta-holes.json・fix-removed.json・lenses.json・tdd-unit.json・tdd-<k>/state.json（#681）"],
+      "lib/fixboard.py": [13, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・materials.json（#680）、plan の隣の p2.fix_plan.json（#681）、fix の隣の accept-trace.json・allowed-tests.json・lenses.json・tdd-unit.json（#681）"],
+      "lib/gatemarks.py": [13, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・materials.json（#680）、plan-review の隣の gate-passes.json・gate.json（issue 無し。#680 の約束に沿う）"],
+      "lib/headdepth.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の depth-head.json（#680）"],
+      "lib/judge_accept.py": [19, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・depth-head.json・judge-verify.json・materials.json・pr-downgrades.json・pr-excluded.json・premises.json・rejudge-diff.json・rejudge-exit.json・world-state.json（#680）"],
+      "lib/judgeverify.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の judge-verify.json（#680）"],
+      "lib/leftovers.py": [4, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の fix-removed.json（#681）"],
+      "lib/marks.py": [2, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・pr-excluded.json（#680）"],
+      "lib/planblk.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan と plan-review の隣の replan-gave-up.json（#681）"],
+      "lib/planfile.py": [8, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl・p2.fix_plan.json・rejects-plan.json（#681）"],
+      "lib/prcheck.py": [2, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の pr-downgrades.json・pr-excluded.json（#680）"],
+      "lib/premises.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の premises.json（#680）"],
+      "lib/purpose.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の purpose-review.json（#680）"],
+      "lib/report.py": [3, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の rejudge-diff.json・rejudge-exit.json（#680）"],
+      "lib/runreport.py": [19, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・depth-head.json・judge-verify.json・local-review-lenses.json・materials.json・pr-downgrades.json・pr-excluded.json・premises.json・rejudge-diff.json・rejudge-exit.json・world-state.json（#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）、fix の隣の lenses.json（#681）、plan-review の隣の gate.json（issue 無し。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "lib/stage_a.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（#681）"],
+      "lib/structmark.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（#681）"],
+      "lib/tddloop.py": [1, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の tdd-<k>/state.json（#681）"],
+      "lib/worldmark.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の world-state.json（#680）"],
+      "workflows/eyes/scripts/prep.py": [1, "サブグラフ eyes が名指す: judge の隣の premises.json（#680）"],
+      "workflows/eyes/works-factory-eyes.yaml": [2, "サブグラフ eyes が名指す: judge の隣の answer-ties.json（#680）、fix の隣の tdd-unit.json（#681）"],
+      "workflows/fix/scripts/prep.py": [4, "サブグラフ fix が名指す: judge の隣の answer-ties.json・depth-head.json・materials.json（#680）、plan の隣の p2.fix_plan.json（#681）"],
+      "workflows/fix/scripts/tdd_prep.py": [1, "サブグラフ fix が名指す: plan の隣の p2.fix_plan.json（#681）"],
+      "workflows/line/scripts/ask_final.py": [5, "メイングラフが名指す: judge の隣の answer-ties.json・materials.json（#680）、fix の隣の allowed-tests.json（#681）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "workflows/line/scripts/fixed.py": [1, "メイングラフが名指す: fix の隣の allowed-tests.json（#681）"],
+      "workflows/line/scripts/judged.py": [1, "メイングラフが名指す: judge の隣の rejudge-exit.json（#680）"],
+      "workflows/line/scripts/redepth.py": [2, "メイングラフが名指す: fix の隣の accept-trace.json・tdd-<k>/state.json（#681）"],
+      "workflows/plan-review/scripts/r2_prep.py": [1, "サブグラフ plan-review が名指す: judge の隣の premises.json（#680）"],
+      "workflows/plan-review/works-factory-plan-review.yaml": [5, "サブグラフ plan-review が名指す: judge の隣の materials.json・premises.json・purpose-review.json（#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）"],
+      "workflows/plan/works-factory-plan.yaml": [3, "サブグラフ plan が名指す: judge の隣の depth-head.json・judge-verify.json・pr-excluded.json（#680）"]
+    },
+    "main-id": {
+      "lib/answer.py": [1, "#682: メイングラフのノードの id（gate-final）を決め打ちする"],
+      "lib/boardview.py": [4, "#682: メイングラフのノードの id（answer-before-fix・design-only・gate-start）を決め打ちする"],
+      "lib/eyeverdict.py": [1, "#682: メイングラフのノードの id（gate-start）を決め打ちする"],
+      "lib/outcome.py": [17, "#682: メイングラフのノードの id（design-only・gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-final）を決め打ちする"],
+      "lib/replan.py": [3, "#682: メイングラフのノードの id（ask-final・ask-replan・gate-replan）を決め打ちする"],
+      "lib/runreport.py": [40, "#682: メイングラフのノードの id（ask-before-fix・ask-final・ask-replan・gate-before-fix・gate-final・gate-replan・merge-apply・merge-seal・replan-review・spec-check・test-gate-base・test-gate-final）を決め打ちする"],
+      "workflows/report/scripts/facts.py": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"],
+      "workflows/report/works-factory-report.yaml": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"]
+    },
+    "role": {
+      "workflows/judge/commands/material-local-review.md": [2, "#683: 借りた読み替えが fix の役の名（fix-ruled・delta-review）を書く"]
+    }
+  }
+}

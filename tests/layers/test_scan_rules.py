@@ -10,8 +10,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 HERE = pathlib.Path(__file__).resolve().parent
 # 土台の計画 docs/plans/2026-10-11-foundation.md の Task 2 の Produces が名指す決まりと、根の AGENTS.md の E18 の機械の行と、
 # 線の計画（docs/plans/2026-10-12-groundwork-line-launcher.md の「A」）が足す workflows/AGENTS.md の E5・E6・E7・E16 の機械の行と、
-# workflows/AGENTS.md の E19・E20 の機械の行と、tests/AGENTS.md の E21 の機械の行。
-REQUIRED = {"E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E12", "E13", "E14", "E16", "E18", "E19", "E20", "E21"}
+# workflows/AGENTS.md の E19・E20 の機械の行と、tests/AGENTS.md の E21 の機械の行と、根の AGENTS.md の E22 の機械の行。
+REQUIRED = {"E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E12", "E13", "E14", "E16", "E18", "E19", "E20", "E21", "E22"}
 CALL = re.compile(r'scan\.problems\("(E\d+)"')
 
 

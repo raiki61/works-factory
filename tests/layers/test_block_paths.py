@@ -26,18 +26,6 @@ class BlockPathsTest(unittest.TestCase):
             got = scan.problems("E4", root)
         self.assertTrue(any("a.py:1" in line and "外" in line for line in got), got)
 
-    def test_import_of_bin_from_graph_is_red(self):
-        """script・境・YAML に直に書いた script のどれから bin を読んでも赤。lib を読むのは赤でない"""
-        for rel, text in (("workflows/line/scripts/a.py", "    from bin._lib import childsweep\n"),
-                          ("workflows/.shared/b.py", "import bin._lib.place\n"),
-                          ("workflows/judge/works-factory-judge.yaml",
-                           "name: works-factory-judge\nnodes:\n  - id: a\n    script: |\n      from bin._lib import place\n")):
-            with self.subTest(rel=rel), tree({rel: text}) as root:
-                got = scan.problems("E4", root)
-                self.assertTrue(any(rel in line and "bin の中の物を import する" in line for line in got), got)
-        with tree({"workflows/line/scripts/a.py": "from lib import answer\nimport binascii\n"}) as root:
-            self.assertEqual(scan.problems("E4", root), [])
-
     def test_relative_path_into_lib_is_clean(self):
         with tree({"workflows/judge/scripts/a.py": 'X = "../../../lib/x.py"\n'}) as root:
             self.assertEqual(scan.problems("E4", root), [])
