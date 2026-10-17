@@ -136,6 +136,10 @@ def without_note(schema):
 
 
 SEEN_UNSEEN = ("seen", "unseen")   # concepthome.R3_HEAD と r3・r4 の指示書が求める、graph の schema に足した欄
+# r1-minimality の指示書の status の決まりが求める、graph の schema に足した物（#663）: status の enum の直しが要る（seal.FIX_NEEDED。
+# R1 だけの語）と、組み直す設計の点の名指しの欄（空でない文字列の配列。必須にしない）
+R1_ADDED = {"status_word": seal.FIX_NEEDED,
+            "redesign_points": {"type": "array", "items": {"type": "string", "minLength": 1}}}
 
 # 役の道具・模型・effort の元の表（今の works の works/blk-eyes/lib/eyes.py:78-81 の TOOLS・NODE_TOOLS と、
 # works/blk-eyes/blk-eyes.yaml:135-140,292-297,452-457,602-607,753-758,888-893 の各役の段）。道具は役（graph の run_by）の道具に
@@ -613,6 +617,31 @@ class ShapeCase(unittest.TestCase):
                 text = (BLOCK / "commands" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertLess(text.index(f"$prep.output.{field}"), text.index("$prep.output.concept_map"))
 
+    def test_r1_status_rule_names_fix_needed_and_points(self):
+        """#663: R1 の札の決まりは status の決まりの行が正本。直しが要るの語と redesign_points を名指し、pass の条件は 4 項を全部名指す。
+        :4 の逃げ道と :49 の台帳の監査と R1_HEAD は札の語を書かず所見に数えるかだけを書いて、決まりの行へ委ねる"""
+        text = (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8")
+        rule = next(line for line in text.splitlines() if line.startswith("status は "))
+        self.assertTrue(rule.startswith("status は " + " / ".join(seal.STATUSES) + "。"), rule)
+        self.assertIn("redesign_points", rule)
+        self.assertIn(f"で閉じるなら {seal.FIX_NEEDED}。", rule)
+        pass_cond = rule[rule.index("pass は、"):rule.index("だけ。")]
+        for item in ("deletions", "正当化できない増分", "正当化の無い処方", "逃げ道"):
+            self.assertIn(item, pass_cond)
+        for old in ("1 つでも見つかれば redesign-needed", "問いが在れば redesign-needed", "同じく redesign-needed にし"):
+            self.assertNotIn(old, text)
+        self.assertIn("所見に数え（札は下の status の決まりで選ぶ）", text)
+        self.assertIn("所見に数える（逃げ道の検知。札は下の status の決まりで選ぶ）", text)
+        head = concepthome.R1_HEAD.format(section="")
+        self.assertNotIn("status を redesign-needed に", head)
+        self.assertIn("所見に数え（札は下の指示書の status の決まりで選ぶ）", head)
+        unhoused = head[head.index("住処の無い考えの知る所が増えただけなら"):]
+        unhoused = unhoused[:unhoused.index("置け。")]
+        for word in ("所見に数えずに", "正当化できる増分"):
+            self.assertIn(word, unhoused)
+        for word in seal.STATUSES:
+            self.assertNotIn(word, unhoused)
+
     def test_commands_read_only_declared_prep_fields(self):
         declared = set(NODES["prep"]["output_format"]["properties"])
         for nid, node in ROLES.items():
@@ -625,6 +654,11 @@ class ShapeCase(unittest.TestCase):
         for nid, graph in GRAPH_SCHEMAS.items():
             got, want = json.loads(json.dumps(ROLES[nid]["output_format"])), without_note(graph)
             with self.subTest(nid):
+                if nid == "r1-minimality":
+                    self.assertEqual(got["properties"]["status"]["enum"], list(seal.eye_statuses("r1")))
+                    got["properties"]["status"]["enum"].remove(R1_ADDED["status_word"])
+                    self.assertEqual(got["properties"].pop("redesign_points"), R1_ADDED["redesign_points"])
+                    self.assertNotIn("redesign_points", got["required"])
                 if nid in ("r3-coherence", "r4-scope"):
                     for key in SEEN_UNSEEN:
                         self.assertEqual(got["properties"].pop(key), {"type": "array", "items": {"type": "string"}})

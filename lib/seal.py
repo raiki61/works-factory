@@ -4,6 +4,9 @@
 封じる型は ASF の merge-queue（gate の封印を execute が照らし直し、書いた後に読み戻す）に倣う。
 
 - SealError: 書けない・読み戻しが書いた物と違う
+- STATUSES・FIX_NEEDED: 目の状態の語（pass・fix-needed・redesign-needed・unverifiable）。fix-needed は R1 だけが言う
+- STATUS_WORDS: 目の状態の語 → 平易な言い方（通った・直しが要る・作り直しが要る・確かめられない）
+- eye_statuses(eye) -> tuple: 目ごとに許す語の組（r1 は STATUSES・ほかは fix-needed を除く 3 語）
 - digest(data) -> str: sha256 の 16 進 64 字
 - write_readback(path, data) -> str: 隣の一時ファイルに書いて読み戻し、合えば path に付け替えて digest を返す。違えば SealError
   （書けたと言わない・path は前のまま）
@@ -25,7 +28,18 @@ import listcut
 from answer import GO_WORDS, STOP_WORDS
 
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
-PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
+# 目の状態の語の持ち主（ほかは写さずここを読む）。直しが要る（FIX_NEEDED）は、見つけた物がどれも零処方で閉じる札。作り直しが要る
+# （REDESIGN）は、組み直す設計の点を名指した札。FIX_NEEDED は pass でないので eyes.ok は偽で、最後の承認ノードが開く。置くかは
+# apply_refusal と人の答えが決める（語ごとに阻害かを持つ表は置かない。重さの区別は STATUS_WORDS の言い方だけ）
+PASSED, FIX_NEEDED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "fix-needed", "redesign-needed", "unverifiable")
+STATUS_WORDS = {PASSED: "通った", FIX_NEEDED: "直しが要る", REDESIGN: "作り直しが要る", UNVERIFIABLE: "確かめられない"}   # 語 → 平易な言い方
+
+
+def eye_statuses(eye: str) -> tuple:
+    """目ごとに許す状態の語の組。R1（eye が r1。大文字小文字は問わない）は STATUSES の全部、ほかの目は FIX_NEEDED を除く 3 語"""
+    return STATUSES if eye.lower() == "r1" else tuple(w for w in STATUSES if w != FIX_NEEDED)
+
+
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "
 DELETED_HEAD = "取り込むと消えるファイル"
 
@@ -137,7 +151,7 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
     4. r2（None か {status, reason}）の status が REDESIGN（unverifiable は機械で拒まず人の答えに任せる）。人の通しの答えでも拒む（R2 が作り直しと言った run は部分を取り込まない）
     5. 答えが無い（関所が開かなかった）のに、green_ok・eyes_ok・fingerprint_ok のどれかが真でないか、protected（守りの当たりの行。
        unknown_row の行は「確かめられない」として書き分けるが、当たりと同じく拒む）が空でない。守りのパスは人の通しの答えだけが通す
-    答えが通す語なら、赤でも・R2 の作り直しのほかの目の阻害でも置く"""
+    答えが通す語なら、赤でも・R2 の作り直しのほかの目が通さなかった札（fix-needed を含む）でも置く"""
     if not sealed_hash:
         return "封じた hash が無い（seal が走っていない）"
     if current_hash != sealed_hash:

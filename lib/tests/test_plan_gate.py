@@ -12,6 +12,8 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import seal  # noqa: E402
+
 NARROW = {"what": "空の列の mean", "why": "空の列の平均は 0 割りの例外のまま"}
 # 決め手の出どころは現物に在る物（URL・パス:行・依頼の引用「…」・設計の決定の記録のパス）。世界の解は world か URL の決め手
 URL = "https://docs.python.org/3/library/statistics.html#statistics.mean"
@@ -50,8 +52,8 @@ SKIP_MARK = "答えが無いと直さない単位"
 
 
 RECORD_NAME = re.compile(r"(?<![A-Za-z0-9_.])(?:(?:p\d|spec|report)\.[a-z0-9_]+|process\.[a-z_.]+[a-z]|fix_test_scope|fix_code_as|ask_human)")
-EYE_OR_STATE = re.compile(r"(?<![A-Za-z0-9_-])(?:R[1-4]|pass|redesign-needed|unverifiable|premise-invalid|carried_over|not_applicable"
-                          r"|not_run)(?![A-Za-z0-9_-])")
+EYE_OR_STATE = re.compile(r"(?<![A-Za-z0-9_-])(?:R[1-4]|" + "|".join(map(re.escape, seal.STATUSES))
+                          + r"|premise-invalid|carried_over|not_applicable|not_run)(?![A-Za-z0-9_-])")
 
 
 def _spans(line: str) -> list:

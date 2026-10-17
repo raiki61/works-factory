@@ -83,8 +83,11 @@ def protected(got: dict) -> tuple:
     return unknown, [row for row in rows if row not in unknown]
 
 
-def blocked_eyes(got: dict) -> list:
-    return [name.upper() for name in eyeverdict.EYES if isinstance(got["eyes"].get(name), dict) and got["eyes"][name].get("status") != seal.PASSED]
+def unpassed_eyes(got: dict) -> list:
+    """pass でない目を『R1: 直しが要る』の形で（目の順）。言い方は gatemarks.REVIEW_WORDS（seal.STATUS_WORDS）から引き、表に無い語は
+    字のまま出す（表に無い語も pass でないので数える）。知るのは seal.PASSED だけで、語ごとの重さは持たない"""
+    rows = [(name.upper(), str(row.get("status"))) for name in eyeverdict.EYES if isinstance(row := got["eyes"].get(name), dict)]
+    return [f"{label}: {gatemarks.REVIEW_WORDS.get(status, status)}" for label, status in rows if status != seal.PASSED]
 
 
 def needs(got: dict) -> list:
@@ -111,9 +114,9 @@ def needs(got: dict) -> list:
         why.append((f"{BESIDE_UNREAD}（{len(got['beside_unread'])} 件。人に回した物・数え直しの食い違いを数えられない）", True))
     if got["handoffs"]:
         why.append((f"{HANDOFF_REASON}（{len(got['handoffs'])} 件）", False))
-    blocked = blocked_eyes(got)
-    if blocked:
-        why.append((f"独立の目が阻害を返した（{'・'.join(blocked)}）", False))
+    unpassed = unpassed_eyes(got)
+    if unpassed:
+        why.append((f"独立の目が通さなかった（{'・'.join(unpassed)}）", False))
     premise = got["eyes"].get("premise_check")
     if isinstance(premise, dict) and premise.get("verdict") == eyeverdict.VERDICTS[1]:
         why.append(("前提の検算が人に上げた", False))
@@ -220,7 +223,8 @@ def delta_lines(got: dict) -> list:
 
 def eye_lines(got: dict) -> list:
     """独立の目の判定（元 line_edge._eyes。主語は平易な名、目の名と状態の語は括弧に回す: gatemarks.eye_named）と残りの数え"""
-    lines = [f"- 独立の目の判定（阻害: {'・'.join(blocked_eyes(got)) or '無い'}）:"]
+    unpassed = unpassed_eyes(got)
+    lines = [f"- 独立の目の判定（通さなかった目: {'・'.join(unpassed) or '無い'}）:"]
     missing = []
     for name in eyeverdict.EYES:
         row = got["eyes"].get(name)
@@ -236,8 +240,7 @@ def eye_lines(got: dict) -> list:
     if isinstance(premise, dict):
         lines.append(f"  - 前提の検算: {premise.get('verdict') or '語が無い'}（{oneline.one_line(premise.get('reason') or '')}）")
         lines += [f"    - {x}" for x in got["premise_facts"]]
-    blocked = blocked_eyes(got)
-    lines.append(f"- 残り（最後の承認ノードで数えられる分）: 独立の目の阻害 {len(blocked)} 件（{'・'.join(blocked) or '無し'}）・"
+    lines.append(f"- 残り（最後の承認ノードで数えられる分）: 独立の目が通さなかった目 {len(unpassed)} 件（{'・'.join(unpassed) or '無し'}）・"
                  f"結果が無い目 {len(missing)} 件（{'・'.join(missing) or '無し'}）・最後のテストが緑でない "
                  f"{0 if tests_word(got) == '緑' else 1} 件・柵の増え {len(got['fenced'])} 件")
     lines += [x if x[:1].isspace() else f"- {x}" for x in got["always"]]
