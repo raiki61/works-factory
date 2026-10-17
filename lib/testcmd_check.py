@@ -546,4 +546,7 @@ def checkouts(cwd):
     listed = subprocess.run(["git", "-C", str(cwd), "worktree", "list", "--porcelain"], capture_output=True, text=True,
                             encoding="utf-8", check=True).stdout
     trees = [line.removeprefix("worktree ") for line in listed.splitlines() if line.startswith("worktree ")]
-    return [t for t in trees if os.path.realpath(t) != os.path.realpath(cwd) and os.path.isdir(t)]
+    # cwd が作業ツリーの下のフォルダでも、run 自身の作業ツリーを手元に数えないよう根に直して比べる
+    own = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--show-toplevel"], capture_output=True, text=True,
+                         encoding="utf-8", check=True).stdout.strip()
+    return [t for t in trees if os.path.realpath(t) != os.path.realpath(own) and os.path.isdir(t)]
