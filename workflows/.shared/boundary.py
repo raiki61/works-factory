@@ -24,6 +24,7 @@ Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.m
   差分・後始末・波及で数えない・消さない（パスの頭の字と、フォルダの名の組の形と、パスの頭の組の形）
 - include_name(block)・place(block)・work_tree(): サブグラフ block の script のこの run の置き場（include ごとに分ける）と、
   run の作業ツリーの根
+- own_prefix(execution): 自分の include の名前空間の節の id の頭（run の記録の行の step と比べる）
 - shared_cache(): run をまたぐ控えの根
 - RUNNER_PREFIXES・RUNNER_NAMES・drop_runner_env(): Archon が script の節に立てる変数
 - line_place()・USER_ENV_RAN_DIR・aim_user_env(): メイングラフの run の置き場（fix の組の子の run からも辿る）と、対象のコマンドを利用者の
@@ -258,6 +259,18 @@ def include_name(block: str) -> str:
         path = ""
     head, sep, _ = path.partition("__")
     return head if sep and head else block
+
+
+def own_prefix(execution: str) -> str:
+    """自分の節の実行の記録（ARCHON_NODE_EXECUTION の JSON）の path から、自分の include の名前空間の節の id の頭（節の id の
+    最後の __ まで。入れ子の include の節の id は outer__inner__node なので outer__inner__。include の外の節なら空）"""
+    try:
+        doc = json.loads(execution) if execution else {}
+    except ValueError:
+        return ""
+    path = doc.get("path") if isinstance(doc, dict) else None
+    head = path.rsplit(".", 1)[-1].rpartition("__")[0] if isinstance(path, str) else ""
+    return f"{head}__" if head else ""
 
 
 def place(block: str) -> Path:

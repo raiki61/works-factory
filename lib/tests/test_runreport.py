@@ -685,6 +685,63 @@ class TranscriptCase(Base):
         self.assertEqual(runreport.transcript_facts(rows)["failed"], ["fix__write", "eyes__r1"])
 
 
+def fell(step, error, failure_class=None):
+    """落ちた節の行。provider の落ちの種は execution.lifecycle.providerFailure（止めた実行基盤の node-execution.ts の形）"""
+    row = {**done(step, "2026-10-18T00:01:00Z", kind="node_error"), "error": error}
+    lifecycle = {"status": "failed", "error": error}
+    if failure_class:
+        lifecycle["providerFailure"] = {"class": failure_class, "evidence": "e"}
+    row["execution"]["lifecycle"] = lifecycle
+    return row
+
+
+class WriterFellCase(unittest.TestCase):
+    """#702: 書き手のループが落ちた訳を run の記録から読み、機械の報告の冒頭に置く。resume で書き直したら外す"""
+    QUOTA = "Loop-group node 'write-loop' failed at iteration 1: 'write': usage or credit limit is used up\n詳しい行"
+    SAFEGUARDS = "Loop-group node 'write-loop' failed at iteration 1: 'write': API Error: Sonnet 5.5's safeguards flagged this message"
+    MACHINE = "# 報告（run run-1）\n\n起きたこと\n当ててよいか\n人が決めること\n\n## 1. 結末\n\n本文\n"
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.machine = pathlib.Path(tmp.name) / "report.md"
+        self.machine.write_text(self.MACHINE, encoding="utf-8")
+
+    def head(self) -> str:
+        return runreport.machine_head(self.machine.read_text(encoding="utf-8"))
+
+    def test_last_row_of_the_loop_decides(self):
+        quota = fell("report__write-loop", self.QUOTA, "quota_exhausted")
+        self.assertEqual(runreport.writer_fell(rows_of(start("report__write-loop", "t"), quota), "report__write-loop"),
+                         {"error": "Loop-group node 'write-loop' failed at iteration 1: 'write': usage or credit limit is used up",
+                          "quota": True})
+        self.assertEqual(runreport.writer_fell([fell("write-loop", self.SAFEGUARDS)], "write-loop"),
+                         {"error": self.SAFEGUARDS, "quota": False})
+        again = done("report__write-loop", "2026-10-18T00:09:00Z")
+        for rows in ([quota, again], [quota, {"type": "node_skipped", "step": "report__write-loop"}], [], None,
+                     [fell("report__write", self.QUOTA, "quota_exhausted")]):
+            with self.subTest(rows=rows):
+                self.assertIsNone(runreport.writer_fell(rows, "report__write-loop"))
+
+    def test_note_names_the_error_and_resume_only_for_quota(self):
+        runreport.note_writer_fell(self.machine, {"error": "API Error: x", "quota": False}, run_id="run-1")
+        self.assertTrue(self.head().endswith(runreport.WRITER_FELL.format(error="API Error: x")), self.head())
+        self.assertNotIn("resume", self.head())
+        self.assertIn("## 1. 結末\n\n本文", self.machine.read_text(encoding="utf-8"))
+        runreport.note_writer_fell(self.machine, {"error": "used up", "quota": True}, run_id="run-1")
+        lines = [x for x in self.head().splitlines() if x.startswith("AI が書く報告の本文は無い")]
+        self.assertEqual(len(lines), 1, "前の周の訳を置き換える")
+        self.assertIn("used up", lines[0])
+        self.assertIn("bin/works-factory workflow resume run-1", lines[0])
+
+    def test_rewritten_run_drops_the_note_and_untouched_report_stays(self):
+        runreport.note_writer_fell(self.machine, None, run_id="run-1")
+        self.assertEqual(self.machine.read_text(encoding="utf-8"), self.MACHINE)
+        runreport.note_writer_fell(self.machine, {"error": "used up", "quota": True}, run_id="run-1")
+        runreport.note_writer_fell(self.machine, None, run_id="run-1")
+        self.assertEqual(self.machine.read_text(encoding="utf-8"), self.MACHINE)
+
+
 class DecisionsCase(Base):
     def test_stopped_head_says_why_and_what_to_do(self):
         """#383 の 9: R2 が redesign-needed で無人の run が最後の承認ノードの手前で止まった時、冒頭 1 行目に止めた語・開けた理由・

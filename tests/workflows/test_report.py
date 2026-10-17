@@ -273,6 +273,9 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(NODES["report"]["trigger_rule"], "all_done")
         self.assertEqual(NODES["report"]["depends_on"], ["facts", "write-loop"])
 
+    def test_return_node_names_the_writer_loop_of_this_graph(self):
+        self.assertEqual(NODES[load_script("collect").WRITER]["loop_group"]["nodes"][1]["id"], "write")
+
     def test_cold_reader_is_told_the_machine_heading(self):
         """初見の読み手の決まりが名指す機械の事実の見出しは、AI の報告が付ける見出しの字そのまま"""
         text = (BLOCK / "commands" / "cold-check.md").read_text(encoding="utf-8")
@@ -340,11 +343,6 @@ class TypedCase(unittest.TestCase):
         rows = [self.entry("outer__fix__tdd", "nodes/a.md", {}), self.entry("outer__report__x", "nodes/b.md", {})]
         got = self.read(self.listing({"k": rows}), json.dumps({"path": "outer__report__facts"}))
         self.assertEqual([u["node"] for u in got["by_type"]["k"]], ["outer__fix__tdd"])
-
-    def test_own_prefix_is_the_full_namespace(self):
-        self.assertEqual(facts_script.own_prefix(json.dumps({"path": "outer__report__facts"})), "outer__report__")
-        self.assertEqual(facts_script.own_prefix(json.dumps({"path": "report__facts"})), "report__")
-        self.assertEqual(facts_script.own_prefix(json.dumps({"path": "facts"})), "")
 
     def test_errors_each_become_a_warning(self):
         errors = [{"path": "nodes/x.meta.json", "kind": "invalid_metadata"}, {"path": "nodes", "kind": "unreadable_directory", "code": "EACCES"}]
@@ -808,6 +806,30 @@ class CollectScriptCase(Run):
         self.assertTrue(detail.startswith(f"works-factory-report / run {RUN} / 周 — / グラフの版 "))
         self.assertIn(report_roles.MACHINE_HEADING, detail)
 
+    def test_fallen_writer_is_named_in_the_head_until_resume_rewrites_it(self):
+        """#702: 書き手のループ（include の中の節）が使用枠の切れで落ちた run は、機械の報告の冒頭に訳と resume の道が載る。
+        resume で書き直した run（記録の最後の行が済んだ行）では、facts が走り直さなくても訳を外し、人に向けた報告を返す"""
+        facts = self.facts()
+        log = self.dir / "logs" / f"{RUN}.jsonl"
+        log.parent.mkdir()
+        error = "Loop-group node 'write-loop' failed at iteration 1: 'write': usage or credit limit is used up"
+        fell = {"type": "node_error", "step": "report__write-loop", "error": error,
+                "execution": {"lifecycle": {"status": "failed", "error": error,
+                                            "providerFailure": {"class": "quota_exhausted", "evidence": "e"}}}}
+        log.write_text(json.dumps(fell) + "\n", encoding="utf-8")
+        env = {"LOG_DIR": str(log.parent), "ARCHON_NODE_EXECUTION": json.dumps({"path": "report__report"})}
+        out = self.collect(json.dumps(facts), **env)
+        self.assertIsNone(out["report_ai"])
+        head = runreport.machine_head((self.artifacts / out["report"]["path"]).read_text(encoding="utf-8"))
+        self.assertIn(runreport.WRITER_FELL.format(error=error), head)
+        self.assertIn(f"workflow resume {RUN}", head)
+        with log.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "node_complete", "step": "report__write-loop"}) + "\n")
+        runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / runreport.OUT_DIR)
+        out = self.collect(json.dumps(facts), **env)
+        for got in (out["report"], out["report_ai"]):
+            self.assertNotIn("AI が書く報告の本文は無い", (self.artifacts / got["path"]).read_text(encoding="utf-8"))
+
     def test_ok_is_passed_through_from_facts(self):
         facts = self.facts()
         for ok in (True, False):
@@ -988,7 +1010,129 @@ class RealRunCase(unittest.TestCase):
                                     env["ARCHON_NODE_EXECUTION"])
                 self.assertEqual(got["warnings"], [])
                 self.assertEqual([(r["node"], r["body"]) for r in got["by_type"]["probe-kind"]], [("make", {"a": 1})])
-                self.assertEqual(facts_script.own_prefix(env["ARCHON_NODE_EXECUTION"]), "")
+                self.assertEqual(facts_script.boundary.own_prefix(env["ARCHON_NODE_EXECUTION"]), "")
+
+
+# 書き手と初見の読み手の役が起こす Claude Code の代わり（Archon の claude provider が話す stream-json の最小の形）。認証のトークンが
+# SPENT の時だけ、書き手は使用枠の切れ（SDK の billing_error。Archon は quota_exhausted と読む）で落ちる。ほかは型に合う答えを返す
+FAKE_CLAUDE = """import json, os, sys
+if sys.argv[1:2] == ["plugin"]:
+    print("[]")
+    sys.exit(0)
+def say(doc):
+    print(json.dumps(doc, ensure_ascii=False), flush=True)
+schema = {}
+for line in sys.stdin:
+    msg = json.loads(line)
+    if msg.get("type") == "control_request":
+        schema = msg["request"].get("jsonSchema") or {}
+        say({"type": "control_response", "response": {"subtype": "success", "request_id": msg["request_id"], "response": {}}})
+    elif msg.get("type") == "user":
+        break
+session = "fake-session"
+say({"type": "system", "subtype": "init", "session_id": session, "model": "sonnet", "tools": [], "plugins": [], "mcp_servers": []})
+cold = "verdict" in schema.get("properties", {})
+if not cold and os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") == "SPENT":
+    words = "Claude AI usage limit reached"
+    say({"type": "assistant", "session_id": session, "error": "billing_error",
+         "message": {"model": "<synthetic>", "role": "assistant", "content": [{"type": "text", "text": words}]}})
+    say({"type": "result", "subtype": "success", "is_error": True, "session_id": session, "result": words,
+         "terminal_reason": "api_error", "num_turns": 1})
+    sys.exit(1)
+answer = ({"verdict": "pass", "stops": [], "guessed": [], "decidable": True} if cold else
+          {"text": "依頼で止めた。\\n直した物は無い。\\n次の run に渡す物は無い。", "terms": [],
+           "handoff": {"read": [], "decided": [], "rejected": [], "doubts": []}})
+say({"type": "result", "subtype": "success", "is_error": False, "session_id": session, "num_turns": 1, "total_cost_usd": 0,
+     "result": json.dumps(answer, ensure_ascii=False), "structured_output": answer})
+"""
+SPENT = "SPENT"
+# メイングラフの写し: report を include し、後ろに報告を読むノードを置く（書き手のループの節の id は include の頭つき）
+REPORT_LINE = """name: works-factory-report-line
+description: report を include したメイングラフの写し
+nodes:
+  - id: report
+    include: works-factory-report
+    with:
+      final-answer: '{"decision":"stop","text":"request: 止め札"}'
+  - id: after
+    bash: echo after
+    depends_on: [report]
+    trigger_rule: all_done
+    timeout: 1728000000
+    mutates_checkout: false
+"""
+
+
+class WriterRunCase(unittest.TestCase):
+    """#702 の筋書き: 止めた Archon で報告のブロックを include したグラフを本物の run（dry-run でない）で回し、書き手の役を偽の
+    Claude Code に替える。書き手が通る筋は人に向けた報告が載る。使用枠の切れで落ちる筋は run が failed で終わり、機械の報告の冒頭に
+    訳と resume の道が載り、別のアカウント（別のトークン）で resume すると書き手のループと返す節と後ろが走り直して本文が載る"""
+
+    def setUp(self):
+        if shutil.which("uv") is None:
+            self.skipTest("uv が無い")
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.fake = pathlib.Path(tmp.name) / "claude"
+        self.fake.write_text(f"#!{sys.executable}\n{FAKE_CLAUDE}", encoding="utf-8")
+        self.fake.chmod(0o755)
+        self.flows = pathlib.Path(tmp.name) / "flows"
+        shutil.copytree(BLOCK, self.flows / "report", ignore=shutil.ignore_patterns("__pycache__"))
+        (self.flows / "report-line").mkdir()
+        (self.flows / "report-line" / "works-factory-report-line.yaml").write_text(REPORT_LINE, encoding="utf-8")
+
+    def drive(self, tree, *args, token):
+        return archon.archon(tree, "workflow", *args, "--cwd", str(tree), CLAUDE_BIN_PATH=str(self.fake),
+                             CLAUDE_CODE_OAUTH_TOKEN=token)
+
+    def run_line(self, tree, token) -> tuple[dict, list]:
+        done = self.drive(tree, "run", "works-factory-report-line", "--no-worktree", token=token)
+        return self.state(tree, f"{done.stdout}{done.stderr}")
+
+    def state(self, tree, said="") -> tuple[dict, list]:
+        """(run の行, 節の出来事 (種, 節) の並び)"""
+        runs = json.loads(archon.archon(tree, "workflow", "runs", "--json", "--cwd", str(tree)).stdout)["runs"]
+        self.assertEqual(len(runs), 1, said)
+        got = json.loads(archon.archon(tree, "workflow", "get", runs[0]["id"], "--json", "--verbose", "--events",
+                                       "--cwd", str(tree)).stdout)
+        return runs[0], [(e["event_type"], e["step_name"]) for e in got["events"] if e["event_type"].startswith("node_")]
+
+    def written(self, tree, run_id) -> dict:
+        """run の置き場の report/ のファイルの名 → 中身"""
+        return {p.name: p.read_text(encoding="utf-8")
+                for p in (tree.parent / "archon-home").rglob(f"runs/{run_id}/{runreport.OUT_DIR}/*.md")}
+
+    def test_writer_passes_and_the_human_report_is_written(self):
+        with archon.tree(["report", "report-line"], workflows=self.flows) as tree:
+            run, events = self.run_line(tree, "FRESH")
+            files = self.written(tree, run["id"])
+        self.assertEqual(run["status"], "completed", events)
+        self.assertIn(("node_completed", "report__write-loop"), events)
+        self.assertIn(runreport.AI_REPORT_FILE, files)
+        self.assertNotIn("AI が書く報告の本文は無い", files[report.REPORT_FILE])
+
+    def test_quota_fall_fails_the_run_and_resume_with_another_account_writes_the_body(self):
+        with archon.tree(["report", "report-line"], workflows=self.flows) as tree:
+            run, first = self.run_line(tree, SPENT)
+            fallen = self.written(tree, run["id"])
+            resumed = self.drive(tree, "resume", run["id"], token="FRESH")
+            again, both = self.state(tree, f"{resumed.stdout}{resumed.stderr}")
+            files = self.written(tree, run["id"])
+        self.assertEqual(run["status"], "failed", first)
+        self.assertIn(("node_failed", "report__write-loop"), first)
+        self.assertIn(("node_completed", "report__report"), first, "返す節は書き手が落ちても走る")
+        self.assertNotIn(runreport.AI_REPORT_FILE, fallen)
+        head = runreport.machine_head(fallen[report.REPORT_FILE])
+        self.assertIn("AI が書く報告の本文は無い。書き手のノードが落ちた（Loop-group node 'report__write-loop' failed", head)
+        self.assertIn(f"workflow resume {run['id']}", head)
+        self.assertEqual(again["status"], "completed", f"{resumed.stdout}{resumed.stderr}")
+        later = both[len(first):]
+        for ran in ("report__write-loop", "report__report", "after"):
+            self.assertIn(("node_completed", ran), later)
+        self.assertNotIn(("node_completed", "report__facts"), later, "facts は走り直さない")
+        self.assertIn(runreport.AI_REPORT_FILE, files)
+        for name in (report.REPORT_FILE, runreport.AI_REPORT_FILE):
+            self.assertNotIn("AI が書く報告の本文は無い", files[name], name)
 
 
 if __name__ == "__main__":
