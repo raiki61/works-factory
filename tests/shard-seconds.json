@@ -87,7 +87,6 @@
   "tests.bin.test_isolate": 0.0,
   "tests.bin.test_launcher": 7.9,
   "tests.bin.test_place": 0.3,
-  "tests.bin.test_seat_borrow": 0.0,
   "tests.bin.test_toolset": 5.0,
   "tests.bin.test_works_gh": 1.2,
   "tests.e2e.test_line_scenarios": 56.0,

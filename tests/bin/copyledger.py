@@ -1,4 +1,4 @@
-"""写しの台帳（COPIED_FROM・COPIED_FROM.<名>）の読み口。写し直しの道具と、写しの一致を見る試験が同じここから読む。
+"""写しの台帳（COPIED_FROM・COPIED_FROM.<名>）の読み口。写しの一致を見る試験がここから読む。
 
 台帳の形:
 - 1 行目: 写した commit（頭の語）と、写し元の系統・版の説明
@@ -9,7 +9,6 @@ works の物を何も知らない（標準ライブラリだけ）。
 """
 import json
 import pathlib
-import subprocess
 from dataclasses import dataclass, field
 
 MARK = "! "
@@ -25,7 +24,7 @@ class Ledger:
     commit: str
     head: str                                    # 1 行目（丸ごと）
     rows: list = field(default_factory=list)     # [(写しのパス, 元のパス か None)]
-    deviations: dict = field(default_factory=dict)   # {写しのパス: [(元のバイト, 写しのバイト)]}
+    deviations: dict = field(default_factory=dict)   # {写しのパス: [(元のバイト, 写しのバイト, 訳)]}
 
     @property
     def base(self) -> pathlib.Path:
@@ -49,7 +48,7 @@ def read(path) -> Ledger:
                 raise LedgerError(f"{path}:{n}: 手直しの行が JSON でない（{e}）") from None
             if not isinstance(d, dict) or not all(isinstance(d.get(k), str) and d[k] for k in ("path", "old", "new", "why")):
                 raise LedgerError(f"{path}:{n}: 手直しの行は path・old・new・why（どれも空でない文字列）を持つ")
-            led.deviations.setdefault(d["path"], []).append((d["old"].encode("utf-8"), d["new"].encode("utf-8")))
+            led.deviations.setdefault(d["path"], []).append((d["old"].encode("utf-8"), d["new"].encode("utf-8"), d["why"]))
             continue
         cols = ln.split("#", 1)[0].split()
         led.rows.append((cols[0], cols[1] if len(cols) > 1 else None))
@@ -62,14 +61,9 @@ def read(path) -> Ledger:
 
 def apply(led: Ledger, rel: str, src: bytes) -> bytes:
     """元の中身 src に rel の手直しを当てた、写しが持つべきバイト（元のバイトが 1 度でなければ LedgerError）"""
-    for old, new in led.deviations.get(rel, ()):
+    for old, new, _ in led.deviations.get(rel, ()):
         if src.count(old) != 1:
             raise LedgerError(f"{rel}: 手直しの元 {old!r} が元の中身に {src.count(old)} 度在る（1 度だけのはず）")
         src = src.replace(old, new)
     return src
 
-
-def show(repo, rev: str, path: str):
-    """git show <rev>:<path> のバイト（無ければ None）"""
-    r = subprocess.run(["git", "-C", str(repo), "show", f"{rev}:{path}"], capture_output=True)
-    return r.stdout if r.returncode == 0 else None

@@ -179,7 +179,7 @@
   - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「A named plugin brings its agents, hooks, LSP servers and commands」「The node fails before its first model turn when a named plugin is not installed」「An `mcp:` declared `optional: true` runs the node without its servers instead」「Your own settings, hooks, permissions and `CLAUDE.md` still load」（hooks だけは選べず、任意の形は `mcp:` にだけ在り、利用者の設定のフックは名指しなしで読む）
   - `packages/workflows/src/template-walker.test.ts` の「'plugins.*': { kind: 'literal'」（`plugins:` の値は literal）
 - 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（後の 40 commit は証拠の 3 つのファイルを変えていない）。
-- 埋め: `bin/_lib/toolset.py`。hooked の道で、coldwrite の `hooks/hooks.json` の表を隔離した設定の `settings.json` の hooks に足す。`settingSources: [user]` のノードは利用者の設定のフックを読む（証拠の `authoring-workflows.md`）ので、全部の役で効く。coldwrite の取り元の env は `bin/_lib/borrow/borrow.json` の coldwrite の項が持ち、利用者の設定に無ければ借りずに見送る（`toolset.user_borrow`。持ち主の決め `others-may-use`・`AGENTS.md` の E14）。env の字はここに写さない。
+- 埋め: `bin/_lib/toolset.py`。hooked の道で、coldwrite の `hooks/hooks.json` の表を隔離した設定の `settings.json` の hooks に足す。`settingSources: [user]` のノードは利用者の設定のフックを読む（証拠の `authoring-workflows.md`）ので、全部の役で効く。coldwrite の取り元の env は `lib/borrow/borrow.json` の coldwrite の項が持ち、利用者の設定に無ければ借りずに見送る（`toolset.user_borrow`。持ち主の決め `others-may-use`・`AGENTS.md` の E14）。env の字はここに写さない。
 - 使うサブグラフ: 書く役を持つ全部
 - 外す条件: 2 つが揃った版が出たら。1 つは、`plugins:` に入っていなければ飛ばす形が入ること。もう 1 つは、名指したプラグインのうち hooks だけを載せられること（か coldwrite が hooks しか持たないこと）。`plugins:` は agents・hooks・LSP・commands をまとめて載せる。外す時は、hooked の物が隔離した設定にプラグインとして入らない（`toolset.py` の install が CLI で入れる物から外している）ので、coldwrite を works-local へ入れる道（`pr-review-toolkit` と同じ）に替える要る。
 

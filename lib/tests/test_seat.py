@@ -1,5 +1,4 @@
 """借りたスキルの座（lib/seat.py）の試験。元 works の tests/test_sp_skills.py のうち座と下請けの所を、置き場の写しで回す。
-起動の bin/_lib/spseam.py と同じ置き場・同じ埋め方であることは tests/bin/test_seat_borrow.py が縛る。
 """
 import pathlib
 import sys
@@ -26,7 +25,7 @@ class SeatCase(unittest.TestCase):
             seat.fill("implementer", {k: v for k, v in IMPL.items() if k != "[directory]"})
 
     def test_sections_of_each_seat(self):
-        overlay = (seat.BORROW_DIR / seat.OVERLAY_FILE).read_text(encoding="utf-8").strip()
+        overlay = (seat.spseam.BORROW_DIR / seat.spseam.OVERLAY_FILE).read_text(encoding="utf-8").strip()
         for node in seat.SKILL_NODES:
             text = seat.section(node)
             self.assertIn(seat.SKILL_LEAD.split("`")[0], text, node)
@@ -51,7 +50,7 @@ class SeatCase(unittest.TestCase):
         self.assertIn("'/p/g1 1.patch'", section)
 
     def test_copy_that_differs_from_the_pin_is_named(self):
-        with mock.patch.object(seat, "_sha", return_value="0" * 64):
+        with mock.patch.object(seat.spseam, "_sha", return_value="0" * 64):
             with self.assertRaises(ValueError) as e:
                 seat.section("tdd")
         self.assertIn("固定", str(e.exception))

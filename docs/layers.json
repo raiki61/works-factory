@@ -72,7 +72,7 @@
       "workflows/report/works-factory-report.yaml": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"]
     },
     "role": {
-      "workflows/judge/commands/material-local-review.md": [5, "#683: 指示書がほかのサブグラフの役の古い名（blk-delta・blk-fix・blk-refix）と振る舞いを書く"]
+      "workflows/judge/commands/material-local-review.md": [2, "#683: 借りた読み替えが fix の役の名（fix-ruled・delta-review）を書く"]
     }
   }
 }

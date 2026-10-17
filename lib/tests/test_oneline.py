@@ -9,8 +9,9 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import oneline  # noqa: E402
 
-# 振る舞いの違う畳みを持ち主に残すモジュール: 色の制御文字を除く・NFKC に揃える cite と、lib を読まない単独の script の measure
-OWN_FOLDS = {"oneline.py", "cite.py", "measure.py"}
+# 振る舞いの違う畳みを持ち主に残すモジュール: 色の制御文字を除く・NFKC に揃える cite と、lib を読まない単独の script の measure、
+# 殻も読むので標準ライブラリだけで書く spseam
+OWN_FOLDS = {"oneline.py", "cite.py", "measure.py", "spseam.py"}
 
 
 class OneLineCase(unittest.TestCase):
