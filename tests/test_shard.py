@@ -5,6 +5,7 @@
 - (c) 分けの秒数の最大と最小の差が、表の 1 モジュールの最大より小さい
 - (d) 新しい試験のファイルを足すと、どれかの分けに入る
 - (e) --paths の選び（pick）は、名指しのファイルと、名指しのフォルダの下のモジュールだけを取る。何も取らなければ全部に広げず赤（終了の値 5）
+- (f) 並べる子の数は CPU の数を SHARING で割った数（1 以上）で、環境変数 WORKERS_ENV が上書きする
 """
 import contextlib
 import io
@@ -120,7 +121,7 @@ def tree(root: pathlib.Path, pkg: str, files: dict[str, str]) -> None:
 
 def run_quietly(suites: dict, record: pathlib.Path | None = None) -> int:
     with contextlib.redirect_stderr(io.StringIO()):
-        return shard.run(suites, record)
+        return shard.run(suites, record, 2)
 
 
 class SameAsDiscoverTest(unittest.TestCase):
@@ -171,6 +172,24 @@ class RunExitTest(unittest.TestCase):
     def test_paths_that_pick_nothing_are_red_not_everything(self):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), mock.patch.dict(os.environ):
             self.assertEqual(shard.main(["--paths", "no/such/dir"]), 5)
+
+
+class WorkersTest(unittest.TestCase):
+    def test_default_divides_the_cpus_among_the_runs_sharing_the_machine(self):
+        with mock.patch.dict(os.environ), mock.patch("os.cpu_count", return_value=24):
+            os.environ.pop(shard.WORKERS_ENV, None)
+            self.assertEqual(shard.workers(), 24 // shard.SHARING)
+        with mock.patch.dict(os.environ), mock.patch("os.cpu_count", return_value=4):
+            os.environ.pop(shard.WORKERS_ENV, None)
+            self.assertEqual(shard.workers(), 1)
+
+    def test_the_environment_overrides_the_default(self):
+        with mock.patch.dict(os.environ, {shard.WORKERS_ENV: "7"}):
+            self.assertEqual(shard.workers(), 7)
+        for value in ("0", "x", "-2", ""):
+            with self.subTest(value=value), mock.patch.dict(os.environ, {shard.WORKERS_ENV: value}):
+                with self.assertRaises(SystemExit):
+                    shard.workers()
 
 
 class ScrubTest(unittest.TestCase):
