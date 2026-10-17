@@ -99,13 +99,36 @@ def group_presets() -> dict[str, dict[str, str]]:
             for name in launchgroups.GROUPS for model, effort in [launchgroups.default_of(name)]}
 
 
-def run_config(cache: Path) -> Path:
-    """新しい run に --config で渡す、run 1 本ぶんの設定の層のファイル <cache>/run-config/<中身の hash>.json を書いて返す。中身は群の別名の aliases: だけ。
+# 利用者の --config のファイルを Archon と同じ Bun.YAML.parse で読み、JSON で出す（packages/core/src/config/run-config.ts の
+# loadWorkflowRunConfigFile。空のファイルは {}）
+READ_YAML = ("try { console.log(JSON.stringify(Bun.YAML.parse(await Bun.file(process.argv.at(-1)).text()) ?? {})) }"
+             " catch (error) { console.error(error.message); process.exit(1) }")
+
+
+def read_run_config(bun: str, source: Path, path: Path) -> dict:
+    """利用者の --config のファイル（YAML）を読む。読めない・object でない・aliases が object でない時は RuntimeError。
+    鍵の照らしは Archon に任せる"""
+    done = subprocess.run([bun, f"--config={source / 'bunfig.toml'}", "-e", READ_YAML, str(path)], cwd=source,
+                          capture_output=True, text=True, encoding="utf-8")
+    if done.returncode != 0:
+        raise RuntimeError(f"--config の {path} が読めない: {' '.join(done.stderr.split())}")
+    layer = json.loads(done.stdout)
+    if not isinstance(layer, dict) or not isinstance(layer.get("aliases", {}), dict):
+        raise RuntimeError(f"--config の {path} は object にし、aliases も object にする")
+    return layer
+
+
+def run_config(cache: Path, mine: dict | None = None) -> Path:
+    """新しい run に --config で渡す、run 1 本ぶんの設定の層のファイル <cache>/run-config/<中身の hash>.json を書いて返す。中身は利用者の
+    --config の層 mine（read_run_config）に群の別名を aliases: で重ねた物で、同じ名の群の別名は工場の値が勝つ（群の付け替えは --model だけ）。
 
     この層は対象のリポジトリの .archon/config.yaml を含む持続の設定より強く、呼ぶ人の --model だけがその上に立つ。Archon は起動の時に
     層を封じて run に記録し、workflow: の子の run が受け継ぎ、resume はその記録を戻す（止めた Archon の docs-web の reference/cli.md の
-    --config の行）。名を中身の hash にするのは、版の違う工場の木が同じ取り置きを使っても互いの層を書き換えないため"""
-    text = json.dumps({"aliases": group_presets()}, ensure_ascii=False, indent=2) + "\n"
+    --config の行）。Archon は --config を 1 つしか読まないので、利用者の層もここで合わせる。名を中身の hash にするのは、版の違う工場の木が
+    同じ取り置きを使っても互いの層を書き換えないため。利用者の env の値も入りうるので、ファイルは持ち主だけが読める"""
+    mine = mine or {}
+    layer = {**mine, "aliases": {**mine.get("aliases", {}), **group_presets()}}
+    text = json.dumps(layer, ensure_ascii=False, indent=2) + "\n"
     path = cache / "run-config" / f"{hashlib.sha256(text.encode()).hexdigest()[:16]}.json"
     if not (path.is_file() and path.read_text(encoding="utf-8") == text):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -191,16 +214,16 @@ def archon(bun: str, source: Path) -> list[str]:
     return [bun, f"--config={source / 'bunfig.toml'}", str(source / ENTRY)]
 
 
-def workflow_run(source: Path, workflow_dir: Path, config: Path, cwd: Path, name: str, *args: str) -> list[str]:
-    """グラフ name を workflow_dir から読み、run 1 本ぶんの設定の層 config（run_config）をつけて cwd に対して回す命令。
+def workflow_run(source: Path, workflow_dir: Path, config: Path | None, cwd: Path, name: str, *args: str) -> list[str]:
+    """グラフ name を workflow_dir から読み、run 1 本ぶんの設定の層 config（run_config。None なら付けない）をつけて cwd に対して回す命令。
 
     --cwd と --workflow-source と --config は利用者の引数より前に置く。利用者の -- の後ろに付くと、文として渡り、
     Archon が cwd のグラフを探す元の動きに黙って戻る（ASF の factory/consumer.py と同じ並べ）。
     """
     return [
         "bun", str(source / ENTRY),
-        "workflow", "run", "--cwd", str(cwd), "--workflow-source", str(workflow_dir), "--config", str(config),
-        name, *args,
+        "workflow", "run", "--cwd", str(cwd), "--workflow-source", str(workflow_dir),
+        *(["--config", str(config)] if config else []), name, *args,
     ]
 
 

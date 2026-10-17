@@ -75,7 +75,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     require_command_first(argv)
     workflow = fresh_run_workflow(argv, flags)
     if workflow is not None:
-        refuse_run_config(flags)
         refuse_unknown_groups(flags)
     no_auth = user.get(NO_AUTH_ENV) == "1"
     user_home = user.get("HOME")
@@ -147,6 +146,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache)
         child[FENCE_RECORDS_ENV] = str(fence_records(home))
 
+    bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     if workflow is None:
         args = argv
     else:
@@ -154,6 +154,11 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
+        rest = without_flag(argv[3:], "--cwd")
+        config = None
+        if not adopting(flags):
+            config = run_config(bun, source, cache, target, flags)
+            rest = without_flag(rest, "--config")
         check_test_cmd(user, target, [v.removeprefix("test_cmd=") for v in flag_values(flags, "--input")
                                      if v.startswith("test_cmd=")], home=user.get("HOME") if userenv.opted(child) else None)
         try:
@@ -162,9 +167,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             raise Stop(str(error)) from None
         if said:
             print(f"{NAME}: {said}", file=sys.stderr)
-        args = place.workflow_run(source, workflows, place.run_config(cache), target, workflow, *start,
-                                  *without_flag(argv[3:], "--cwd"))[2:]
-    bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
+        args = place.workflow_run(source, workflows, config, target, workflow, *start, *rest)[2:]
     command = [*place.archon(bun, source), *args]
     if not reads_only(argv):
         command = [*auth, "exec", *auth_user, "--", *command]
@@ -192,7 +195,8 @@ def require_command_first(argv: list[str]) -> None:
 
 
 def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
-    """新しい run（workflow run <グラフの名>。--resume でない）のグラフの名。--cwd と --workflow-source を殻が足すのはこの時だけ"""
+    """新しい run（workflow run <グラフの名>。--resume でない）のグラフの名。--cwd・--workflow-source・--config（--adopt の時は除く。
+    run_config）を殻が足すのはこの時だけ"""
     if argv[:2] != ["workflow", "run"] or "--resume" in flags:
         return None
     if len(argv) < 3 or argv[2].startswith("-"):
@@ -200,11 +204,27 @@ def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
     return argv[2]
 
 
-def refuse_run_config(flags: list[str]) -> None:
-    """新しい run の --config は殻が渡す（群の別名の層。place.run_config）。Archon は --config を 1 つしか読まず後ろの物が勝つので、
-    利用者の物を通すと群の値が対象のリポジトリの別名に落ちる"""
-    if any(a == "--config" or a.startswith("--config=") for a in flags):
-        raise Stop("workflow run に --config は渡さない。AI ノードの群の値の層は殻が渡す。群の値の付け替えは --model @wf-<群>=<模型>")
+def adopting(flags: list[str]) -> bool:
+    """記録のある run を引き継ぐ起動（--adopt）か。Archon はその run の記録した AI の設定を受け継ぎ、aliases を持つ --config の層を
+    「Cannot override AI configuration inherited from a recorded run.」で拒む（packages/workflows/src/run-preflight.ts）"""
+    return any(a == "--adopt" or a.startswith("--adopt=") for a in flags)
+
+
+def run_config(bun: str, source: Path, cache: Path, target: Path, flags: list[str]) -> Path:
+    """新しい run に渡す設定の層（place.run_config）。利用者の --config があれば合わせる。Archon は --config を 1 つしか読まず後ろの物を
+    採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む"""
+    mine = (flag_values(flags, "--config") or [None])[-1]
+    if not mine:
+        return place.run_config(cache)
+    try:
+        layer = place.read_run_config(bun, source, target / mine)
+    except RuntimeError as error:
+        raise Stop(str(error)) from None
+    replaced = sorted(set(layer.get("aliases", {})) & set(launchgroups.GROUPS))
+    if replaced:
+        print(f"{NAME}: --config の群の別名 {'・'.join(replaced)} は工場の値で上書きした。群の値の付け替えは --model @wf-<群>=<模型>",
+              file=sys.stderr)
+    return place.run_config(cache, layer)
 
 
 def refuse_unknown_groups(flags: list[str]) -> None:

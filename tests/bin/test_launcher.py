@@ -55,6 +55,12 @@ exit 0
 """
 
 
+# 利用者の --config を読む bun -e だけ本物の bun に回し、ほかは FAKE_BUN と同じに記録する
+def read_with_real_bun(bun: str) -> str:
+    return (f"#!/usr/bin/env python3\nimport os, sys\nif '-e' in sys.argv:\n    os.execv({bun!r}, [{bun!r}, *sys.argv[1:]])\n"
+            + FAKE_BUN.split("\n", 1)[1])
+
+
 def short(path) -> str:
     return hashlib.sha256(str(path).encode()).hexdigest()[:8]
 
@@ -237,12 +243,34 @@ class LauncherTest(unittest.TestCase):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--workflow-source", str(self.tmp)))
         self.assertIn("--workflow-source", err)
 
-    def test_user_run_config_is_refused_on_a_new_run(self):
-        """利用者の --config は殻の群の層を上書きするので、新しい run では止める"""
-        for flag in (["--config", str(self.tmp / "mine.yaml")], [f"--config={self.tmp / 'mine.yaml'}"]):
+    def test_users_run_config_is_merged_under_the_factory_groups(self):
+        """利用者の --config は殻の層に合わせて 1 つで渡る: env などは効き、同じ名の群の別名は工場の値に替わる。相対のパスは対象から引く"""
+        if shutil.which("bun") is None:
+            self.skipTest("bun が無い（利用者の --config は Archon と同じ Bun.YAML.parse で読む）")
+        self.bun.write_text(read_with_real_bun(shutil.which("bun")), encoding="utf-8")
+        group = next(iter(launchgroups.GROUPS))
+        (self.target / "mine.yaml").write_text(f"env:\n  MINE: '1'\naliases:\n  '{group}': {{provider: claude, model: haiku}}\n",
+                                               encoding="utf-8")
+        for flag in (["--config", "mine.yaml"], [f"--config={self.target / 'mine.yaml'}"]):
             with self.subTest(flag=flag):
-                err = self.stopped(self.launch("workflow", "run", "works-factory-line", *flag))
-                self.assertIn("--config", err)
+                done = self.launch("workflow", "run", "works-factory-line", *flag, "--input", "request=x")
+                argv = self.reached(done)["argv"]
+                self.assertEqual(argv.count("--config"), 1)
+                self.assertNotIn(flag[-1], argv)
+                layer = json.loads(pathlib.Path(argv[argv.index("--config") + 1]).read_text(encoding="utf-8"))
+                self.assertEqual(layer, {"env": {"MINE": "1"}, "aliases": place.group_presets()})
+                self.assertIn(group, done.stderr)
+                self.assertEqual(argv[11:], ["works-factory-line", "--input", "request=x"])
+        with self.subTest("読めない --config は起こさずに止める"):
+            self.assertIn("none.yaml", self.stopped(self.launch("workflow", "run", "works-factory-line", "--config", "none.yaml")))
+
+    def test_adopt_gets_no_run_config(self):
+        """--adopt は記録した AI の設定を受け継ぐ。Archon は aliases を持つ --config の層をその時に拒むので、殻は足さず、利用者の物も触らない"""
+        for args in (["--adopt", "run-1"], ["--adopt=run-1", "--config", "mine.yaml"]):
+            with self.subTest(args=args):
+                argv = self.reached(self.launch("workflow", "run", "works-factory-line", *args))["argv"]
+                self.assertEqual(argv[3:9], ["workflow", "run", "--cwd", str(self.target), "--workflow-source", argv[8]])
+                self.assertEqual(argv[9:], ["works-factory-line", *args])
 
     def test_unknown_group_in_model_is_refused_with_the_known_groups(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--model", "@wf-judge-cor=haiku"))

@@ -7,6 +7,7 @@
 - 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME（工場が決める値を書いた config.yaml。place.home_config）と、このリポジトリを指す WORKS_FACTORY_ROOT をつけて起こす。
   その config.yaml には群の別名（place.group_presets）も書く。殻は群の別名を新しい run の --config で渡すが、止めた Archon の
   validate と workflow test は --config を受けない（「--config can only be used with workflow run, trigger fire, or trigger schedule」）。
+  本番の家と同じく別名を書かない家は aliases=False で起こす（家の置き場は別。--config の層が群の値を運ぶことを照らす試験が使う）。
   bun が無ければ見送る。
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
@@ -87,7 +88,7 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS) -> Iterator[
         yield root
 
 
-def archon(cwd: pathlib.Path, *args: str, **env: str) -> subprocess.CompletedProcess:
+def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str) -> subprocess.CompletedProcess:
     """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。子の環境は hermetic.child_env で
     作る（入口の殻が渡す源のパス・包みの宣言・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
     起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しする"""
@@ -95,11 +96,12 @@ def archon(cwd: pathlib.Path, *args: str, **env: str) -> subprocess.CompletedPro
     bun = shutil.which("bun")
     if bun is None:
         raise absent("bun が無い")
-    home = cwd.parent / "archon-home"
+    home = cwd.parent / ("archon-home" if aliases else "archon-home-bare")
     if not home.exists():
         place.home_config(home)
-        with (home / "config.yaml").open("a", encoding="utf-8") as config:
-            config.write("aliases:\n" + "".join(f"  {json.dumps(name)}: {json.dumps(preset)}\n"
-                                                 for name, preset in place.group_presets().items()))
+        if aliases:
+            with (home / "config.yaml").open("a", encoding="utf-8") as config:
+                config.write("aliases:\n" + "".join(f"  {json.dumps(name)}: {json.dumps(preset)}\n"
+                                                     for name, preset in place.group_presets().items()))
     child = hermetic.child_env(**{**env, "ARCHON_HOME": str(home), "WORKS_FACTORY_ROOT": str(ROOT)})
     return subprocess.run([bun, str(entry), *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")

@@ -320,6 +320,42 @@ class RunConfigTest(unittest.TestCase):
             self.assertEqual(path.read_bytes(), written)
             self.assertEqual(sorted(p.name for p in path.parent.iterdir()), [path.name])
 
+    def test_users_layer_is_kept_and_factory_groups_win(self):
+        """利用者の --config の層はそのまま渡り、同じ名の群の別名だけ工場の値に替わる。env の値も入りうるので持ち主だけが読める"""
+        group = next(iter(launchgroups.GROUPS))
+        mine = {"env": {"A": "1"}, "assistant": "claude",
+                "aliases": {group: {"provider": "claude", "model": "haiku"}, "mine": {"provider": "claude", "model": "opus"}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = place.run_config(pathlib.Path(tmp), mine)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
+                             {"env": {"A": "1"}, "assistant": "claude",
+                              "aliases": {"mine": {"provider": "claude", "model": "opus"}, **place.group_presets()}})
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+
+@unittest.skipIf(shutil.which("bun") is None, "bun が無い")
+class ReadRunConfigTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.dir)
+        (self.dir / "bunfig.toml").write_text("", encoding="utf-8")
+
+    def read(self, text: str) -> dict:
+        (self.dir / "mine.yaml").write_text(text, encoding="utf-8")
+        return place.read_run_config(shutil.which("bun"), self.dir, self.dir / "mine.yaml")
+
+    def test_yaml_is_read_as_archon_reads_it(self):
+        self.assertEqual(self.read("env:\n  A: '1'\naliases:\n  x: {provider: claude, model: haiku}\n"),
+                         {"env": {"A": "1"}, "aliases": {"x": {"provider": "claude", "model": "haiku"}}})
+        self.assertEqual(self.read(""), {})
+
+    def test_unreadable_or_misshapen_layer_stops(self):
+        for text in ("a: [", "- 1\n", "aliases: [1]\n"):
+            with self.subTest(text=text), self.assertRaisesRegex(RuntimeError, "--config"):
+                self.read(text)
+        with self.assertRaisesRegex(RuntimeError, "読めない"):
+            place.read_run_config(shutil.which("bun"), self.dir, self.dir / "none.yaml")
+
 
 class WorkflowRunTest(unittest.TestCase):
     def test_source_flags_come_before_caller_arguments(self):
@@ -332,6 +368,7 @@ class WorkflowRunTest(unittest.TestCase):
                 "works-factory-line", "--", "--workflow-source", "x",
             ],
         )
+        self.assertNotIn("--config", place.workflow_run(source, shim, None, cwd, "works-factory-line"))
 
 
 if __name__ == "__main__":
