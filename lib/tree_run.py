@@ -1,5 +1,5 @@
 """コマンドを自分のプロセスグループで走らせ、止めるときは木ごと止める殻（標準ライブラリと、同じく標準ライブラリだけの
-unittrees・webget）。
+unittrees・webget。対象の宣言の読み手 graphloops の engine.declared）。
 
 実行基盤は節を止める（Ctrl-C・SIGTERM・期限）とき直下の子だけを止め、テストが背景に起こした孫は生き残って
 作業ツリーに書き続ける（試作で実測: 期限の 2 分後に孫の subshell がファイルを書いた）。graphloops の
@@ -26,6 +26,9 @@ engine/role_run.py（_tree_members・_stop_tree。本線 9f91687 = graphloops 0.
 - コマンドが自分で終わった後も、背景に残した孫を同じ手順で止める（節が終わった後に作業ツリーを書く物を残さない）
 抜け道: 数える前に親が消えて親子の鎖が切れ、かつ setsid でセッションも抜けた子孫（二重 fork の daemon 化。コマンドが
 終わった後の `setsid … &` もこの形）は拾えない（本線と同じ限界）。止め切れなかった仲間は標準エラーに名指しする。
+
+対象のコマンド（cwd を渡して run を呼ぶ口）は、起こす直前に、作業ツリーごとに 1 度、対象の宣言（.review-checks.json）の setup を
+利用者の HOME・XDG で走らせる（run の docstring）。
 
 使い方: `python3 tree_run.py -- <コマンド>`（-- の後の語は空白で繋いで 1 行にし /bin/sh -c で走らせる）。終了コードはコマンドの終了コード、信号で死んだら 128+信号、殻が止められたら
 128+受けた信号（直下の親が消えた回は SIGHUP）、コマンドが空なら 2。関数として使う側は run(argv, **Popen の引数) を呼ぶ。
@@ -61,6 +64,12 @@ import unittrees  # noqa: E402
 import userenv  # noqa: E402
 import webget  # noqa: E402
 
+_GL = pathlib.Path(__file__).resolve().parent / "graphloops"
+if str(_GL) not in sys.path:
+    sys.path.insert(0, str(_GL))
+
+from engine import declared  # noqa: E402
+
 
 KILL_GRACE = 2    # SIGTERM から SIGKILL までの猶予（秒）。実行基盤の cancel の猶予（SIGTERM → 5 秒 → SIGKILL）より短くする:
                   # 同じ 5 秒だと、SIGTERM を無視する孫へ SIGKILL を送る前に殻が実行基盤に殺され、孫が残った（試し P11）
@@ -68,6 +77,11 @@ POLL = 0.2        # 信号と親の替わりを見る間隔（秒）
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 # 印を置けなかった時の OSError の頭。起こせば報告の冒頭がこの run を利用者の環境で走らせたと言えないので、起こさない
 MARK_FAILED = "利用者の HOME・XDG で走らせる印を置けない（コマンドは起こさない）"
+# 対象の準備（宣言の setup）が済まなかった時の OSError の頭。準備の無いまま対象のコマンドを起こすと、新しい作業ツリーを信頼しない道具が
+# 試験に入る前に落ちて偽の赤になるので、起こさない
+SETUP_FAILED = "対象の準備（宣言の setup）が済まなかった（対象のコマンドは起こさない）"
+SETUP_DONE = "works-setup-done"
+SETUP_TAIL = 1500   # 落ちた準備の出力のうち、誤りの文に載せる末尾のバイト数
 LINGER = 1.0      # 止める信号で木を止めた後、抜ける前に待つ秒数（試し P17 の Ctrl-C の穴。モジュールの説明に上限の勘定）
 # 全プロセスの表を読む ps。期限を置かず（E12）、止まらない形を命令の選びで持つ: 絶対パスで名指して PATH の替え玉（対象の道具・
 # 試験の偽物）を拾わず、欄はカーネルのプロセスの表から引ける物だけにする（args・command・env のように他のプロセスの記憶を読む欄は、
@@ -95,8 +109,8 @@ def outside_env(environ):
     uv run の外で起こされた（UV_RUN_RECURSION_DEPTH が無い）ときは、下の UV_NO_CONFIG のほかは外さない。
     - UV_NO_CONFIG はいつも外す。利用者が実行基盤の環境に立てていても、テストのコマンド（`uv run <試験の実行器>` など）には対象の
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
-    - userenv.RECORD（利用者が明示した時だけ起動の殻が控えた、隔離の前の HOME・XDG_*）・userenv.RAN_DIR_ENV・継いだ userenv.MARK は
-      いつも外し、RECORD が在れば中の値に戻して、印のパスを MARK に置く（userenv.restore。印を置くのは run が子を起こす直前。RECORD の
+    - userenv.RECORD（起動の殻がいつも控えた、隔離の前の HOME・XDG_*）・userenv.RAN_DIR_ENV・継いだ userenv.MARK はいつも外し、
+      RECORD が在れば中の値に戻して、印のパスを MARK に置く（userenv.restore。印を置くのは run が子を起こす直前。RECORD の
       形が違う・RAN_DIR_ENV が無ければ ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身の git は隔離のまま
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
@@ -401,14 +415,64 @@ def _place_mark(mark) -> bool:
         raise OSError(f"{MARK_FAILED}: {mark}: {e}") from e
 
 
+def _prepare(cwd, popen_kw):
+    """cwd の作業ツリーで、対象の宣言の setup を作業ツリーごとに 1 度走らせる。作業ツリーの根とその作業ツリー自身の git dir は
+    unittrees._out（script 自身の os.environ から git の置き場の変数を外した、隔離のままの git）で引く。git の木でなければ何もしない。
+    setup の argv だけが popen_kw の env（戻した利用者の HOME・XDG と印）で、根を cwd に _launch で起こされ、標準入力は空・出力は
+    誤りの文のために控える。全部が 0 で終われば、git dir の SETUP_DONE に argv の並びの sha を書く（同じ sha なら次から走らせない）。
+    落ちた・起こせない・宣言の setup の形が誤り（declared.read_setup。宣言を parse しない呼び手の分）なら、SETUP_DONE を書かずに
+    SETUP_FAILED を頭にした OSError"""
+    try:
+        root, git_dir = unittrees._out(cwd, "rev-parse", "--show-toplevel", "--absolute-git-dir").splitlines()
+    except unittrees.UnitTreeError:
+        return
+    argvs, bad = declared.read_setup(root)
+    if bad:
+        raise OSError(f"{SETUP_FAILED}: {bad}")
+    if not argvs:
+        return
+    sha = declared.steps_sha(argvs)
+    done = pathlib.Path(git_dir) / SETUP_DONE
+    try:
+        if done.read_text(encoding="utf-8").strip() == sha:
+            return
+    except (OSError, UnicodeDecodeError):
+        pass
+    for argv in argvs:
+        with tempfile.TemporaryFile() as log:
+            try:
+                rc = _launch(argv, **{**popen_kw, "cwd": root, "stdin": subprocess.DEVNULL, "stdout": log, "stderr": subprocess.STDOUT})
+            except OSError as e:
+                raise OSError(f"{SETUP_FAILED}: {shlex.join(argv)} を起こせない: {e}") from e
+            if rc != 0:
+                log.seek(0)
+                tail = log.read()[-SETUP_TAIL:].decode("utf-8", "replace").strip()
+                raise OSError(f"{SETUP_FAILED}: {shlex.join(argv)} が終了コード {rc} で終わった。末尾: {tail}")
+    try:
+        done.write_text(sha + "\n", encoding="utf-8")
+    except OSError as e:
+        raise OSError(f"{SETUP_FAILED}: 済んだ印 {done} を書けない: {e}") from e
+
+
 def run(argv, **popen_kw):
-    """argv を新しいプロセスグループで起こして終わりを待ち、終了コード（信号で死んだら 128+信号）を返す。bash -c の argv は起こす前に
+    """cwd（Popen の引数）が渡された時は、argv の前に _prepare で、その作業ツリーの宣言の setup を作業ツリーごとに 1 度走らせる
+    （対象のコマンドの呼び手は全部 cwd を渡す。落ちたら SETUP_FAILED を頭にした OSError で、argv は起こさない。cwd が無い呼び出し
+    ——CLI の main——は走らせない。setup は env の戻した利用者の HOME・XDG と印で、sha に結ばずに走り、作業ツリーに書いた物は
+    最初の対象のコマンドが書いた物として数えられる）。続けて _launch で argv を起こす:
+    新しいプロセスグループで起こして終わりを待ち、終了コード（信号で死んだら 128+信号）を返す。bash -c の argv は起こす前に
     prove_launchable で中の先頭の語を引き、引けなければ起こさずに OSError。env に userenv.MARK（outside_env が利用者の HOME・XDG に
     戻した印）が在れば、子に渡さず、起こす直前に印を置く。置けなければ起こさずに MARK_FAILED を頭にした OSError（利用者の環境で
     走らせて報告が言い漏らす事が無い。起きた子は印のために止めない）。起こせなければ、誤りの型に依らず新しく置いた印を消す（報告が言い過ぎない）。
     待つ間（後始末の間も）に STOP_SIGNALS を受けたか直下の親が替わったら、木ごと止め、LINGER 秒待ってから Stopped を投げる。
     起きた時に既に孤児（親が 1）なら起こさずに Stopped(SIGHUP)。どの道で抜けても木を止めに行き、止め切れなければ
     標準エラーに名指しする（抜け道はモジュールの説明）"""
+    if popen_kw.get("cwd") is not None:
+        _prepare(popen_kw["cwd"], popen_kw)
+    return _launch(argv, **popen_kw)
+
+
+def _launch(argv, **popen_kw):
+    """run の内側の起こし手（setup も対象のコマンドも、これで起こす。準備は呼ばない）。決まりは run の docstring"""
     got = []
     old = {s: signal.signal(s, lambda signum, _f: got.append(signum)) for s in STOP_SIGNALS}
     ppid = os.getppid()

@@ -2,7 +2,7 @@
 
 Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せ・
 run の作業ツリーの起点・test_cmd の形の確かめは bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
-B の「約束」1〜11）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
+B の「約束」1〜11。約束 7 の後半——道具の信頼を子の環境に足す当て物——は消した。場所ごとの信頼は対象の宣言の setup で取り戻す）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import fnmatch
 import hashlib
@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from bin._lib import hostgh, isolate, pack, place, startpoint, testcmd_check
-from lib import answer, launchgroups, reads, userenv, writelog
+from lib import answer, launchgroups, reads, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
@@ -51,6 +51,10 @@ ARCHON_CWD_ENV_FILES = (".env", ".env.local", ".env.development", ".env.producti
 # works_dev_refuse_claude_tmp と同じ（実パスで照らす。* は / も越える）。読むだけの役（allowWrite が / ）はどこでも書けるので、
 # この照らしでは守れない。その役からは write_fence の --own が取り置きと工場の根を守る
 SANDBOX_WRITABLE = ("/tmp/claude-*", "/private/tmp/claude-*")
+# 実行する run の起動で毎回出す 1 行（持ち主の決め target-user-env）。対象の試験・受け入れ・TDD の試験のコマンドは利用者の HOME・XDG で走る。
+# コマンドごとの守りは工場が作らない（隔離が要る人は工場ごと包む）
+TARGET_ENV_NOTICE = ("AI が書いた試験のコードを、あなたの権限（利用者の HOME・XDG）で走らせる。書く物も利用者の家に入る。"
+                     "守りが要るなら工場ごとコンテナか VM の中で回す")
 
 
 class Stop(Exception):
@@ -118,11 +122,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
     child[answer.ENV] = answer_head(home, target)
-    if not no_auth and mise_trusts(user, target):
-        workspaces = Path(child["ARCHON_HOME"]) / "workspaces"
-        workspaces.mkdir(parents=True, exist_ok=True)
-        child["MISE_TRUSTED_CONFIG_PATHS"] = os.pathsep.join(
-            filter(None, [user.get("MISE_TRUSTED_CONFIG_PATHS"), os.path.realpath(workspaces)]))
 
     executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
     if executing:
@@ -134,10 +133,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         if check.returncode != 0:
             raise Stop(code=check.returncode)
         print(f"{NAME}: 認証は {check.stdout.strip()} から拾う（値は出さない）", file=sys.stderr)
-    if executing and userenv.opted(child):
-        print(f"{NAME}: {userenv.OPT_IN}=1 を明示した——この run が対象の試験・受け入れのコマンドを機械で走らせる時は、利用者の"
-              "HOME・XDG に戻して走らせ、AI が書いた試験のコードが利用者の資格（keychain・gh のログイン）に届きうる。走らせたかは"
-              "報告の冒頭が言う", file=sys.stderr)
     real = None
     if executing:
         real = real_claude(user)
@@ -163,7 +158,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             config = run_config(bun, source, cache, home, target, flags)
             rest = without_flag(rest, "--config")
         check_test_cmd(user, target, [v.removeprefix("test_cmd=") for v in flag_values(flags, "--input")
-                                     if v.startswith("test_cmd=")], home=user.get("HOME") if userenv.opted(child) else None)
+                                     if v.startswith("test_cmd=")])
         try:
             start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
         except RuntimeError as error:
@@ -171,6 +166,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         if said:
             print(f"{NAME}: {said}", file=sys.stderr)
         args = place.workflow_run(source, workflows, config, target, workflow, *start, *rest)[2:]
+    if executing:   # 止まる所を全部過ぎた後（起こさずに止まる起動は走らせないので、告げない）
+        print(f"{NAME}: {TARGET_ENV_NOTICE}", file=sys.stderr)
     command = [*place.archon(bun, source), *args]
     if not reads_only(argv):
         command = [*auth, "exec", *auth_user, "--", *command]
@@ -239,13 +236,13 @@ def refuse_unknown_groups(flags: list[str]) -> None:
         raise Stop(f"--model の群 {'・'.join(unknown)} は群の表（lib/launchgroups.py）に無い。知っている群: {'・'.join(launchgroups.GROUPS)}")
 
 
-def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], home: str | None = None,
-                   run=subprocess.run) -> None:
+def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], run=subprocess.run) -> None:
     """test_cmd の形を Archon を起こす前に確かめる（bin/_lib/testcmd_check.py。決まりはそちら）。対象の手元を走らせる形（終了の値 3）と、
     確かめそのものが落ちた時（0 と STOP_EXIT の外。手元を走らせる形を除けない）は止める。ALLOW_TESTCMD_ENV が 1 なら知らせて起こす。
-    注意の形（作業ツリーで走らない。走れば落ちて分かる）は行を出すだけ。home は対象のコマンドが run の中で見る利用者の HOME
-    （userenv の OPT_IN の run だけ。~・$HOME で手元を指す形もそこへ展開して確かめる）"""
+    注意の形（作業ツリーで走らない。走れば落ちて分かる）は行を出すだけ。対象のコマンドは run の中で利用者の HOME を見る
+    （lib/userenv.py）ので、~・$HOME で手元を指す形も、いつも user の HOME へ展開して確かめる（user に HOME が無ければ展開しない）"""
     allowed = user.get(ALLOW_TESTCMD_ENV) == "1"
+    home = user.get("HOME")
     flags = [*(["--allow-checkout"] if allowed else []), *(["--home", home] if home else [])]
     for cmd in filter(str.strip, commands):
         done = run([sys.executable, "-I", str(LIB / "testcmd_check.py"), *flags, str(target), cmd],
@@ -358,23 +355,6 @@ def refuse_in_factory(what: str, path) -> None:
     if real.is_relative_to(ROOT):
         raise Stop(f"{what} の置き場 {real} は工場の checkout {ROOT} の下で、読むだけの役の書き込みの柵に入り役が家に書けない。"
                    "checkout の外を選ぶ")
-
-
-def mise_trusts(user: Mapping[str, str], target: Path) -> bool:
-    """利用者の mise が対象の根を信頼済みか（run の worktree は家の下の新しいパスで、対象の根の信頼が効かない）。
-    mise は HOME の下のパスを ~/… と出す"""
-    mise = shutil.which("mise", path=user.get("PATH"))
-    if mise is None:
-        return False
-    shown = subprocess.run([mise, "trust", "--show"], cwd=target, env=user, stdin=subprocess.DEVNULL,
-                           capture_output=True, text=True, encoding="utf-8")
-    for line in shown.stdout.splitlines():
-        path, _, state = line.rpartition(": ")
-        if path == "~" or path.startswith("~/"):
-            path = user["HOME"] + path[1:]
-        if state == "trusted" and path and os.path.realpath(path) == str(target):
-            return True
-    return False
 
 
 def install_toolset(child: dict[str, str], target: Path, user_config: str, claude: str | None) -> None:
