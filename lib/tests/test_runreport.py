@@ -1159,6 +1159,24 @@ class GlossaryCase(unittest.TestCase):
         self.assertEqual(text, "前の判定から確かめまでの一巡に戻り、判定から確かめまでの一巡ごとに決まりを確かめる試験の印を見た。"
                                "周囲と周知、一周、周辺")
         self.assertEqual(counts, {"周": 2, "柵": 1})
+        self.assertEqual(runreport.plain_words("周りを見た。3 周目")[0], "周りを見た。3 周目")
+
+    def test_plain_words_keep_any_question_key_on_a_ledger_line(self):
+        """#660: 問いの key は判定の役が書く自由な 1 行なので、空白・全角括弧・「（…・…）」を含んでも、key の後ろの印
+        （kind・status と答えの印）が何であっても、key だけを字のまま残し、行の残りは言い換える"""
+        noted = "・" + gatemarks.answer_note({"text": "柵で", "command": "ls", "output": "柵"})
+        for key, kind, status, mark in (("parallel_pr: 単位の柵", "fork", "held", ""),
+                                        ("柵（住処）", "fork", "held", ""),
+                                        ("柵（住処・素材）", "fork", "held", ""),
+                                        ("柵の住処（周）", "fork", "held", noted),
+                                        ("ci（柵）", "awaiting", "held", ""),
+                                        ("柵（周・住処）", "rule", "escalate", "")):
+            with self.subTest(key=key):
+                q = {"key": key, "kind": kind, "status": status, "reason": "柵が要る"}
+                text = runreport.plain_words(gatemarks._ledger_line(q, mark))[0]
+                self.assertIn(f" {key}（{kind}・{status}", text)
+                self.assertNotIn(gatemarks.ASK_HEAD, text)
+                self.assertNotIn("柵が要る", text)
 
     def test_plain_wording_keeps_the_meaning(self):
         """#660: 守りのパスは対象のリポジトリが守ると宣言したファイルも含み、承認ノードは無人の run では機械が通すので、言い方が
