@@ -10,6 +10,7 @@ Harbor を import しない。Harbor の agent の殻は tests/calibration/swepr
         -o <リポジトリの外の置き場> --job-name <名>
     python3 tests/calibration/swepro.py tally <置き場>/<名>
     python3 tests/calibration/swepro.py inside <works-factory|claude>   （殻が課題のコンテナの中で打つ）
+    python3 tests/calibration/swepro.py sandbox <claude> <役の sandbox の設定の JSON>   （殻が setup で課題のコンテナの中で打つ）
 
 再採点は Pro の patch_replay:PatchReplayAgent に --ak source_job=<置き場>/<名> を渡す（<試み>/agent/model.patch を読む）。
 
@@ -19,9 +20,9 @@ claude（素の Claude Code を run.PLAIN_MODEL・run.PLAIN_EFFORT で claude -p
 
 1 件の流れ: prepare がホストの docker build で、課題のイメージの上の /opt/works-bench に道具と HEAD の工場の写しを焼いた
 派生のイメージ works-bench-swepro:<instance_id> を作り（dockerfile・build_steps。網が要る段は全部ここ）、課題のフォルダの写しの
-docker_image をそれに替える（ホストの Claude Code の版が setup の確かめ（BWRAP_FROM_COVERS）が依る版 BWRAP_FROM と違えば docker の前に止める）。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
-（工場の commit と Claude Code の版がホストと同じか）と、役の道具が踏む sandbox の層（bwrap の proc・apply-seccomp の seccomp の登録・
-同梱の rg の argv0）を確かめるだけで網を使わず（setup_commands）、run で課題の入力
+docker_image をそれに替える。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
+（工場の commit と Claude Code の版がホストと同じか）と、役の道具が踏む sandbox（本物の Claude Code に偽の Anthropic API で
+sandbox の Bash と Grep を 1 回ずつ踏ませる。tests/bin/sandbox_probe.py）を確かめるだけで網を使わず（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら remote の無い /app に試みの
 フォルダの中の写しを origin として持たせてから起こし（give_origin。Archon は remote の無い対象を拒む）、
@@ -37,13 +38,14 @@ docker の型: 課題のイメージは linux/amd64 だけなので、prepare �
 amd64 を強いると立たない）。docker の CLI に compose の差し込み（docker compose）が要る。
 
 台に要る物（setup の確かめ（setup_commands）が通る台。試行の段で Claude Code の sandbox が課題のコンテナの中で立つため。
-立たなければ止めた層を見分ける道を 1 行で出す。台の要件の決めの正本は持ち主の決め public-bench-at-major で、ここはその当て方）:
+立たなければ、落ちた段（claude が偽の API に要求を送らない・Bash が落ちた・Grep が 0 件・拒まれるはずの書き込みが通った）の名と、
+台の問題の見分け方を 1 行で出す。台の要件の決めの正本は持ち主の決め public-bench-at-major で、ここはその当て方）:
 - 課題のコンテナが動く Linux の kernel が x86_64 そのものであること。x86_64 の機械の上の docker でも、kernel ごと x86_64 を
   真似る VM の中の docker でもよい。命令の翻訳で amd64 のプロセスを arm64 の kernel の上に動かす台（プロセス単位の翻訳・binfmt の
-  利用者空間の真似）は通らない（kernel が x86_64 でないので seccomp の登録が拒まれ、setup の seccomp の確かめが名指して止める）。
-- docker を回す kernel（x86_64 の機械ならそのホスト、VM ならその VM）の利用者の名前空間の制限を外す（Ubuntu 24.04 の既定の
-  kernel.apparmor_restrict_unprivileged_userns=1 を
-  0 に。起こし直しても効くよう sysctl.d か VM の起動の設定に入れる）。コンテナの側からは外せない。
+  利用者空間の真似）は通らない（kernel が x86_64 でないので seccomp の登録が拒まれ、setup の sandbox の確かめが名指して止める）。
+- docker を回す kernel（x86_64 の機械ならそのホスト、VM ならその VM）の利用者の名前空間の制限を外す（制限の値
+  kernel.apparmor_restrict_unprivileged_userns が 1 なら 0 に。起こし直しても効くよう sysctl.d か VM の起動の設定に入れる）。
+  コンテナの側からは外せない。
 - 環境 WorksBenchDocker が課題の主のコンテナにだけ、docker の既定の seccomp に名前空間を作る呼び出しと mount を足した写し
   （SANDBOX）を渡し、apparmor と docker が伏せる /proc の道（systempaths）を外す。--privileged・CAP_SYS_ADMIN は使わず、
   egress の付き添いは docker の既定のまま。他の環境（-e docker）の起動は、殻が setup で exec の前に断る。
@@ -105,6 +107,7 @@ if str(ROOT / "lib") not in sys.path:
 from bin._lib import apply, launcher, pack  # noqa: E402
 import chain  # noqa: E402
 import report  # noqa: E402
+from tests.bin import sandbox_probe  # noqa: E402
 from tests.calibration import run  # noqa: E402
 from tests.e2e import evidence, make_target  # noqa: E402
 
@@ -129,10 +132,10 @@ GOST_CONFIG_ENV = "WORKS_BENCH_GOST_CONFIG"
 # COPIED_FROM）。WorksBenchDocker がプロキシの有無に依らず使う
 SANDBOX = HERE / "swepro_sandbox"
 SECCOMP_ENV = "WORKS_BENCH_SECCOMP"
-# setup の確かめ（BWRAP_FROM_COVERS）が依る Claude Code の版。ホストの版が違えば prepare が止める
-BWRAP_FROM = "2.1.301"
-BWRAP_FROM_COVERS = {"sandbox": "bwrap の引数", "seccomp": "apply-seccomp の起こし方", "rg": "同梱の rg を argv0 を rg にした起こし方"}
-USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
+USERNS_LIMIT = sandbox_probe.USERNS_LIMIT
+# 作業の段の網は api.anthropic.com だけが開く。役の claude も、setup の sandbox の確かめが起こす claude も、これで網に出ない
+QUIET_ENV = {"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
+SETUP_TAIL = 5   # 殻が落ちた setup の命令の標準エラーから人に見せる末尾の行の数。命令が出す行は、これに収まる数にする
 HOST_GATEWAY = "host.docker.internal"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
 INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
@@ -276,60 +279,80 @@ def dockerfile(base_image: str, claude_version: str, factory_commit: str, place:
     return "\n".join(lines) + "\n"
 
 
-# bwrap を止める層は 4 つ。bwrap の文と docker を回す kernel の制限の値で見分ける
-SANDBOX_REFUSED = (
-    "Claude Code の sandbox（bwrap）がコンテナで立たない。上の bwrap の文で止めた層を見分ける: docker を回す kernel（x86_64 の"
-    "機械ならそのホスト、VM ならその VM）の制限が 1 なら kernel（その側で sysctl kernel.apparmor_restrict_unprivileged_userns=0"
-    " にし、起こし直しても効く設定に入れる）。0 か無いなら、No permissions to create new namespace は seccomp、Can't mount proc は docker が伏せた /proc"
-    "（systempaths=unconfined で外す）、Failed to make / slave など他の mount の落ちは apparmor（どれも harbor run に"
-    f" -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。docker を回す kernel の制限: ")
+# setup の sandbox の確かめ（tests/bin/sandbox_probe.py。本物の Claude Code に Bash と Grep を踏ませる）が落ちた段ごとの文。
+# 段は終わりの値で見分け、段の文の前に、probe が拾った要の行（claude の標準エラーと Bash の結果の最後の行をこの順に。claude を
+# 起こせなければ起こせなかったパス）が 2 行まで並ぶ。壊れの機構はここに寄せる
+LIMIT_IS = "docker を回す kernel の制限: "   # 文の後ろに USERNS_LIMIT の値を足す
+USERNS_FIX = ("docker を回す kernel（x86_64 の機械ならそのホスト、VM ならその VM）の制限が 1 なら kernel（その側で sysctl "
+              "kernel.apparmor_restrict_unprivileged_userns=0 にし、起こし直しても効く設定に入れる）")
 
-# 役の Bash が踏む apply-seccomp の登録の落ち。上の helper の文の層を見分ける。壊れの機構はここに寄せる
+SANDBOX_REFUSED = (
+    "Claude Code の sandbox の Bash が通らない（コンテナで sandbox が立たない）。直前の行の bwrap の文で止めた層を見分ける: "
+    f"{USERNS_FIX}。0 か無いなら、No permissions to create new namespace は seccomp、Can't mount proc は docker が伏せた /proc"
+    "（systempaths=unconfined で外す）、Failed to make / slave など他の mount の落ちは apparmor（どれも harbor run に"
+    f" -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。{LIMIT_IS}")
+
 SECCOMP_REFUSED = (
-    "Claude Code の sandbox の seccomp の helper（apply-seccomp）が立たない。上の helper の文で層を見分ける:"
+    "Claude Code の sandbox の seccomp の helper（apply-seccomp）が立たない場合は、上の Bash の結果の行の helper の文で層を見分ける:"
     " prctl(PR_SET_SECCOMP) の Invalid argument は kernel が x86_64 でない台（命令の翻訳で amd64 を動かす台）の seccomp の登録の"
     "拒みで、seccomp の写しを緩めても docker の seccomp を外しても直らない（x86_64 の機械の上の docker か、kernel ごと x86_64 を"
     "真似る VM の中の docker で回す）。unshare(CLONE_NEWUSER) の Invalid argument は"
     " helper 自身の糸の競り合いで台の問題でない（setup を打ち直し、続くなら Claude Code の版の問題として報告する）")
 
-# 役の Grep・Glob が踏む同梱の rg の argv0 の落ち。壊れの機構はここに寄せる
 RG_REFUSED = (
-    "同梱の rg を argv0 が rg の形で起こせず、Claude Code の Grep・Glob が 0 件を返す。上の行が rg の起こしの出力で、bash や claude の"
-    "欠け・権限の落ちならその文が原因。出力が Claude Code 自身の版の行なら、argv0 が実行ファイルのパスに替わっている。命令の翻訳で"
-    " amd64 を動かす台の binfmt の登録に P フラグが無いと起きる（x86_64 の機械の上の docker か、kernel ごと x86_64 を真似る VM の"
-    "中の docker で回す）")
+    "Claude Code の sandbox の Bash は通ったが、Grep が印のファイルを 0 件と返した（Glob も同じ rg を使う）。同梱の rg を argv0 が rg の形で"
+    "起こせないことが多い。命令の翻訳で amd64 を動かす台の binfmt の登録に P フラグが無いと起きる（x86_64 の機械の上の docker か、"
+    "kernel ごと x86_64 を真似る VM の中の docker で回す）")
+
+UNCONFINED_REFUSED = (
+    "Claude Code の sandbox の Bash は通ったが、役の設定の denyWrite の置き場への書き込みが通った。sandbox が実際には閉じ込めて"
+    "いない台で、柵を弱めて通さない。直前の行は Bash の結果。Claude Code の版か、台の sandbox の立て方を見直す")
+
+START_REFUSED = (
+    "claude が偽の Anthropic API に要求を 1 度も送らずに終わった。層は言い切れない: claude の欠け・権限、設定や plugin の読みの落ち、"
+    "Claude Code が起動の時に sandbox を立てられず終わった（役の設定の failIfUnavailable: true は、立たなければ要求の前に拒む）の"
+    "どれか。直前の行（起こせなかったパスか、claude の標準エラーの最後の行）で読む。起動の時の sandbox の拒みなら、"
+    f"{USERNS_FIX}。{LIMIT_IS}")
+
+# 確かめの口が段の終わりの値を返さずに終わった段（捕まえない例外の 1・使い方の誤りの 2・python3.12 を起こせない 126/127、
+# 偽の API が tool_result を 1 つも受けなかった sandbox_probe.NO_TOOL_RESULT など）。claude や台の層は、まだ何も言えない
+PROBE_CRASHED = (
+    "sandbox の確かめの口そのものが終わりの値を返さずに落ちた（claude や台の層の判定に届いていない）。直前の行の Traceback や"
+    "起こせなかったパスで読む。確かめの部品や設定の不具合を疑う")
 
 
 def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE) -> list[tuple[str, str]]:
     """(名, 命令)。殻が setup で順に root で打つ。どれも網を使わない（道具と工場は prepare が build の段で焼いた）"""
     missing = (f"課題のイメージに工場 {factory_commit} と Claude Code {claude_version} の焼き印が無い。"
                "swepro.py prepare で派生のイメージを作り直し、harbor run -p にその写しを渡す")
-    # sandbox と seccomp の確かめが同じ bwrap の中で走る引数。Claude Code BWRAP_FROM の bwrap の引数のうち、/proc と名前空間に
-    # 関わる部分の写し（伏せた /proc の上では proc の mount だけが落ちる）
-    bwrap = "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc"
-    # claude を起こす確かめは標準入力を閉じる（版が変わって claude が対話で待っても、期限の無い setup が終わる）
-    rg = shlex.quote(f"(exec -a rg {place}/bin/claude --no-config --version </dev/null)")
+    # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす。確かめは本物の claude に sandbox の
+    # Bash と Grep を踏ませる口（sandbox_check）で、起こし方を写さない。標準入力を閉じる（版が変わって claude が対話で待っても、
+    # 期限の無い setup が終わる）。終わりの値ごとに、落ちた段の文を出す。どの段も終了の値 1
+    check = shlex.join([f"{place}/bin/python3.12", f"{place}/repo/tests/calibration/swepro.py", "sandbox", f"{place}/bin/claude",
+                        json.dumps(sandbox_probe.role_sandbox())])
+    limit = f'"$(cat {USERNS_LIMIT} 2>/dev/null || echo 無い)"'
+    said = {sandbox_probe.BASH_FAILED: f"echo {shlex.quote(SANDBOX_REFUSED)}{limit} >&2; echo {shlex.quote(SECCOMP_REFUSED)} >&2",
+            sandbox_probe.GREP_EMPTY: f"echo {shlex.quote(RG_REFUSED)} >&2",
+            sandbox_probe.UNCONFINED: f"echo {shlex.quote(UNCONFINED_REFUSED)} >&2"}
+    said[sandbox_probe.START_FAILED] = f"echo {shlex.quote(START_REFUSED)}{limit} >&2"
+    cases = "".join(f"{code}) {say}; exit 1;; " for code, say in said.items())
+    crashed = f"echo {shlex.quote(PROBE_CRASHED)} >&2; exit 1"
     return [
         # 測る物と来歴の factory_commit、コンテナとホストの Claude Code の版を一致させる
         ("stamp", f"test \"$(cat {place}/{STAMP} 2>/dev/null)\" = {shlex.quote(stamp(factory_commit, claude_version))} "
                   f"|| {{ echo {shlex.quote(missing)} >&2; exit 1; }}"),
-        # 役の節は sandbox の failIfUnavailable: true を持つ。立たなければ何時間も回す前に落とす
-        ("sandbox", f"{bwrap} true "
-                    f"|| {{ echo {shlex.quote(SANDBOX_REFUSED)}\"$(cat {USERNS_LIMIT} 2>/dev/null || echo 無い)\" >&2; exit 1; }}"),
-        # 役の Bash は sandbox の中で Claude Code 自身を ARGV0=apply-seccomp で起こして seccomp を登録する。起こし方は
-        # anthropics/claude-code の issue #86928 の再現の行（2.1.232 の idle-loop の試しと 2.1.241 の失敗率のループ）の
-        # ARGV0=apply-seccomp <claude-binary> /bin/true で、後ろの /bin/true は filter を当てた後に走る命令。prctl(PR_SET_SECCOMP) の
-        # Invalid argument の文は #86928 に無く、持ち主の issue #592 のコメント（2.1.300）だけが出どころ。bwrap の中で起こすので、
-        # 上の sandbox の確かめが通った後の落ちは helper の層に絞れる
-        ("seccomp", f"{bwrap} env ARGV0=apply-seccomp {place}/bin/claude /bin/true </dev/null "
-                    f"|| {{ echo {shlex.quote(SECCOMP_REFUSED)} >&2; exit 1; }}"),
-        # 役の Grep・Glob は同梱の rg を argv0 を rg にして起こす（issue #592 のコメントの (exec -a rg <claude> --no-config --version)）。
-        # exec -a は bash の組み込みで POSIX sh に無いので、setup の exec がどの殻で渡しても効くよう bash -c で包む
-        # 照らすのは標準出力だけで、標準エラーはそのまま流す（bash や claude の欠け・権限の落ちの文は RG_REFUSED の前に残る）。
-        # ripgrep の --version は 1 行目を「ripgrep <版>」で出す
-        ("rg", f"out=$(bash -c {rg}) && case \"$out\" in \"ripgrep \"[0-9]*) ;; *) false;; esac "
-               f"|| {{ printf '%s\\n' \"$out\" >&2; echo {shlex.quote(RG_REFUSED)} >&2; exit 1; }}"),
+        ("sandbox", f"{check} </dev/null; case $? in 0) ;; {cases}*) {crashed};; esac"),
     ]
+
+
+def sandbox_check(claude: str, sandbox: dict) -> int:
+    """課題のコンテナの中で setup が打つ口。claude に sandbox の Bash と Grep を踏ませ、要の行を標準エラーに出して sandbox_probe.probe の
+    終わりの値を返す。claude の環境は、役の環境と同じ QUIET_ENV で網に出ない"""
+    with tempfile.TemporaryDirectory(prefix="works-sandbox-") as tmp:
+        code, clues = sandbox_probe.probe(claude, sandbox, tmp, {**os.environ, **QUIET_ENV})
+    for line in clues:
+        print(line, file=sys.stderr)
+    return code
 
 
 AGENT_MULTIPLIER, MULTIPLIER = "--agent-timeout-multiplier", "--timeout-multiplier"   # harbor run の旗
@@ -407,10 +430,6 @@ def prepare(tasks: Path, out: Path, instances: list[str]) -> list[str]:
     claude_version = host_claude_version(os.environ)
     if not claude_version:
         raise BenchError("ホストの claude --version が読めない（コンテナにはホストと同じ版の Claude Code を焼く）")
-    if claude_version != BWRAP_FROM:
-        raise BenchError(f"ホストの Claude Code {claude_version} が、setup の確かめが写した版 {BWRAP_FROM} と違う。{claude_version} で "
-                         f"{'・'.join(BWRAP_FROM_COVERS.values())} を照らして写し直し、swepro.py の BWRAP_FROM を上げる"
-                         "（照らさずに上げると、起こし方が変わった版で setup が誤って止まるか、対話で待って終わらない）")
     factory_commit = head_commit()
     made = []
     with tempfile.TemporaryDirectory(prefix="works-bench-") as tmp:
@@ -525,8 +544,7 @@ def child_env(place: str, auth: dict, base: dict) -> dict:
     return {**base, "HOME": p["home"], "PATH": os.pathsep.join(filter(None, [base.get("PATH"), p["bin"], f"{p['bun']}/bin"])),
             "UV_PYTHON_INSTALL_DIR": p["python"],
             "IS_SANDBOX": "1",   # root で bypassPermissions を許す（Harbor の upstream の claude_code.py と同じ）
-            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",   # 作業の段の網は api.anthropic.com だけが開く
-            **auth}
+            **QUIET_ENV, **auth}
 
 
 def stopped(state: str, outcome: str) -> bool:
@@ -809,11 +827,16 @@ def main(argv=None) -> int:
     driven.add_argument("--workdir", default=WORKDIR)
     driven.add_argument("--place", default=PLACE)
     driven.add_argument("--out", default=OUT)
+    checked = sub.add_parser("sandbox")
+    checked.add_argument("claude")
+    checked.add_argument("sandbox", type=json.loads)
     counted = sub.add_parser("tally")
     counted.add_argument("job", type=Path)
     args = parser.parse_args(argv)
     if args.command == "inside":
         return inside(args)
+    if args.command == "sandbox":
+        return sandbox_check(args.claude, args.sandbox)
     try:
         if args.command == "prepare":
             print("\n".join(prepare(args.tasks, args.out, args.instances)))
