@@ -20,9 +20,7 @@
     "eyes": ["r4-gate-passes.json", "premise-check.json"]
   },
   "known": {
-    "import": {
-      "workflows/line/scripts/sweep_children.py": [1, "#673: グラフの script が起動の殻の子の run の後始末（bin/_lib/childsweep.py）を import する"]
-    },
+    "import": {},
     "beside": {
       "lib/boardview.py": [8, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の premises.json・purpose-review.json（#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）、plan-review の隣の design-premises.json・gate-passes.json（issue 無し。#680 の約束に沿う）"],
       "lib/conflict.py": [1, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の allowed-tests.json（#681）"],
