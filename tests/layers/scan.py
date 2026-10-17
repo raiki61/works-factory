@@ -1346,7 +1346,9 @@ def _depth_when(root: Path) -> list[str]:
 
 # E22 の照らしの名（docs/layers.json の known の鍵）
 LAYER_CHECKS = ("import", "beside", "main-id", "role")
-OLD_ROLE = re.compile(r"(?<!(?a:[\w\-/.]))blk-[a-z][a-z0-9_-]*")
+OLD_ROLE = r"blk-[a-z][a-z0-9_-]*"
+# 借りた読み替え（lib/seat.py の skill_overlay が役の種類の節と共通の文を役の指示書に載せる）。どのブロックの名も役の名も書かない
+OVERLAY_COPY = "lib/borrow/unattended.md"
 
 
 def place_match(pattern: str, rel: str) -> bool:
@@ -1464,41 +1466,59 @@ def _own_ids(root: Path, place: str) -> set[str]:
 
 
 def _roles(document) -> set[str]:
-    """グラフの YAML の役（AI の節）の id のうち `-` を含む物"""
-    return {ident for node in _nodes(document) if any(_top(node, k) is not None for k in ("prompt", "command", "loop"))
-            and isinstance(i := _top(node, "id"), yaml.ScalarNode) and "-" in (ident := i.value)}
+    """グラフの YAML の役（AI の節）の id"""
+    return {i.value for node in _nodes(document) if any(_top(node, k) is not None for k in ("prompt", "command", "loop"))
+            and isinstance(i := _top(node, "id"), yaml.ScalarNode)}
+
+
+def _naming(roles: set[str], blocks: set[str]) -> re.Pattern:
+    """役 roles とブロック blocks の名指しの式: backtick で囲んだ役の id（`fixer`）・素の語の `-` を含む役の id と古い名 `blk-*`・
+    `works-factory-` の頭つきのブロックの名・パス `workflows/<名>/`。素の `-` の無い id と素のブロックの名（judge・fix・merge）は
+    普通の語と重なり見分けられないので数えない"""
+    def alt(names):
+        return "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+    bare = [alt(r for r in roles if "-" in r), OLD_ROLE]
+    if blocks:
+        bare.append(re.escape(OURS_PREFIX) + f"(?:{alt(blocks)})")
+    parts = [word("|".join(filter(None, bare))).pattern]
+    if roles:
+        parts.append(f"`(?:{alt(roles)})`")
+    if blocks:
+        parts.append(rf"workflows/(?:{re.escape(OURS_PACK)}/)?(?:{alt(blocks)})/")
+    return re.compile("|".join(parts))
 
 
 def _role_names(root: Path) -> list[str]:
-    """ブロックの指示書（commands/）が、ほかのブロックの名と役の名（今の `-` を含む id と、古い名 `blk-*`）を書かない。入力の説明は
-    ほかのブロックの役の名を書かない（ブロックの名は E4 が見る）。指示書のブロックの名は `works-factory-` の頭つきだけを数える。素の名
-    （judge・fix・merge・plan・report）は普通の語と重なり、`-` の無い id と同じく語として見分けられない"""
+    """ブロックの指示書（commands/）と入力の説明は、ほかのブロックの名と役の名を書かない（_naming の形）。自分の YAML の節の id と、
+    自分の YAML の字の値そのもの（返答の enum の語 `rejudge` など。ほかのブロックの役の id と同じ字でも自分の語）は数えない。
+    借りた読み替え OVERLAY_COPY は、どのブロックの名も役の名も書かない"""
     folders = [f for f in _blocks(root) if f.name not in TOP_FOLDERS]
     docs = {f.name: _workflow_doc(f) for f in folders}
     roles = {name: _roles(doc) for name, (_, doc) in docs.items() if doc is not None}
+    every_block = set(BLOCKS) | {f.name for f in _blocks(root)}
     out = []
+
+    def lines_naming(path: Path, pattern: re.Pattern) -> list[str]:
+        lines, broken = _lines(root, path)
+        return broken + [f"{_rel(root, path)}:{number}: ほかのブロックか役の名 {m[0]} を書く"
+                         for number, line in enumerate(lines, 1) for m in pattern.finditer(line)]
+
     for folder in folders:
         path, document = docs[folder.name]
-        own = (_node_ids(document) if document is not None else set()) | {folder.name}
+        own = {folder.name} | ((_node_ids(document) | {value for _, value in _scalars(document)}) if document is not None else set())
         other_roles = set().union(*(r for n, r in roles.items() if n != folder.name)) - own
-        other_blocks = (set(BLOCKS) | {f.name for f in _blocks(root)}) - {folder.name}
-        block_word = re.escape(OURS_PREFIX) + "(?:" + "|".join(re.escape(n) for n in sorted(other_blocks, key=len, reverse=True)) + ")"
-        role_word = "|".join(re.escape(r) for r in sorted(other_roles, key=len, reverse=True))
-        in_commands = word("|".join(filter(None, (role_word, block_word))))
-        in_inputs = word(role_word) if role_word else None
+        in_commands = _naming(other_roles, every_block - {folder.name})
         for command in _files(folder, "commands"):
-            lines, broken = _lines(root, command)
-            out += broken
-            for number, line in enumerate(lines, 1):
-                out += [f"{_rel(root, command)}:{number}: ほかのブロックか役の名 {m[0]} を書く" for m in in_commands.finditer(line)]
-                out += [f"{_rel(root, command)}:{number}: 古い役の名 {m[0]} を書く" for m in OLD_ROLE.finditer(line)]
+            out += lines_naming(command, in_commands)
+        in_inputs = _naming(other_roles, set())
         for key, spec in _pairs(_top(document, "inputs")) if document is not None else ():
             description = _top(spec, "description")
             if not isinstance(description, yaml.ScalarNode):
                 continue   # 字でない説明は E4 が赤にする
-            hits = [m[0] for m in in_inputs.finditer(description.value)] if in_inputs else []
-            hits += [m[0] for m in OLD_ROLE.finditer(description.value)]
-            out += [f"{_rel(root, path)}:{_line(description)}: 入力 {key} の説明がほかのブロックの役 {h} を名指す" for h in hits]
+            out += [f"{_rel(root, path)}:{_line(description)}: 入力 {key} の説明がほかのブロックの役 {m[0]} を名指す"
+                    for m in in_inputs.finditer(description.value)]
+    if (root / OVERLAY_COPY).is_file():
+        out += lines_naming(root / OVERLAY_COPY, _naming(set().union(*roles.values()), every_block))
     return out
 
 
