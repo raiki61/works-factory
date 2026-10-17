@@ -1,0 +1,8 @@
+name: works-factory-stop-kid
+description: |
+  tests/bin/test_runstop.py の使い捨ての工程 works-factory-stop-probe が子の run として起こす。AI のノードが 1 つで、偽の claude が眠る。
+
+nodes:
+  - id: kidai
+    prompt: 子の run の AI のノード
+    idle_timeout: 1728000000
