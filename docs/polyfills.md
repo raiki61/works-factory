@@ -132,8 +132,8 @@
 - 証拠:
   - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）
 - 上流（`355f1867` の後の dev（2026-10-17 まで））: 一部が動いた。upstream の #4328（`8c741d891`）で、終わった（`completed`）run は自分で作った作業ツリーを、変更が無く commit が全部 remote に在り枝を公開していない時だけ外す（枝は残す）。fix の子は push しないので、子の作業ツリーはたぶん残る（実測はまだ）。証拠の文は dev でも同じ。
-- 埋め: `bin/_lib/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。
-- 使うサブグラフ: メイングラフ（入口）
+- 埋め: `workflows/.shared/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。試験は `tests/shared/test_childsweep.py`。
+- 使うサブグラフ: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
 ### P9 鍵を書かないノードにも既定の期限が当たる

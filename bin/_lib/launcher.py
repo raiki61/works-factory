@@ -6,6 +6,7 @@ B の「約束」1〜11）。止まる時は Archon を起こさない。トー�
 """
 import fnmatch
 import hashlib
+import json
 import os
 import re
 import shlex
@@ -37,6 +38,8 @@ FENCE = ROOT / "workflows" / ".shared" / "fence.py"
 # 包みが印の在る起動を書く記録（fence.py の RECORDS_ENV と同じ名）。子の env に置くと、run が包みを通ると script のノードに宣言する
 FENCE_RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"
 FENCE_RECORDS = "launches.jsonl"
+# run の中のノードが殻を入れ子にせず同じ Archon を起こす命令の頭を置く名（名の持ち主は読む側の埋め P7）
+ARCHON_CLI_ENV = place.shared("childsweep").CLI_ENV
 CLAUDE_BIN_ENV = "CLAUDE_BIN_PATH"   # Archon が起こす claude の実行ファイル（packages/providers/src/claude/binary-resolver.ts）
 # Archon が起きた場所から読む env のファイル。.env* が名指す鍵は env から消し（packages/paths/src/strip-cwd-env.ts）、.archon/.env の
 # 値で env を上書きする（packages/paths/src/env-loader.ts。CLAUDE_BIN_PATH は拒む鍵に無い）。--detach の子は --cwd の場所で起きる
@@ -112,7 +115,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
     child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
-    child[place.SOURCE_ENV] = str(source)
+    bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
+    child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
     child[answer.ENV] = answer_head(home, target)
     if not no_auth and mise_trusts(user, target):
         workspaces = Path(child["ARCHON_HOME"]) / "workspaces"
@@ -146,7 +150,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache)
         child[FENCE_RECORDS_ENV] = str(fence_records(home))
 
-    bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     if workflow is None:
         args = argv
     else:
