@@ -249,6 +249,37 @@ class JudgeNamesTest(unittest.TestCase):
                 self.assertEqual(len(got), 1, got)
                 self.assertIn("workflows/plan/scripts/a.py:", got[0])
 
+    def test_passing_beside_the_judge_pointer_to_an_opener_is_red(self):
+        """判定のポインタの隣（`.parent`・`.with_name(…)`）を、住処の中の判定の置き場を名で開く関数に渡すと赤。開かない関数は通す"""
+        homes = {"lib/worldmark.py": 'import marks\nSTATE_FILE = "world-state.json"\nMEANS = "means"\n'
+                                     "def read(d):\n    return d / STATE_FILE\n"
+                                     "def means_of(d):\n    return marks.path_of(MEANS, d)\n"
+                                     "def read_file(p):\n    return p\n",
+                 "lib/marks.py": 'KINDS = {"means": Kind({}, "purpose-means.json", ROOT)}\n'}
+        for body in ("import worldmark\nX = worldmark.read(j.parent)\n", "import worldmark\nX = worldmark.means_of(Path(j).parent)\n",
+                     "from worldmark import read\nX = read(board=j.with_name('x'))\n"):
+            with self.subTest(body=body):
+                got = self.judge_names({**homes, "workflows/eyes/scripts/a.py": body})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("(<判定のポインタの隣>)", got[0])
+        clean = "import worldmark\nX = worldmark.read_file(j)\nY = worldmark.read_file(j.parent / 'x')\nZ = worldmark.read(j)\n"
+        self.assertEqual(self.judge_names({**homes, "workflows/eyes/scripts/a.py": clean}), [])
+
+    def test_importing_the_writer_or_getattr_of_a_name_is_red(self):
+        """判定の外は書き手の judge_accept を import しない（PORTS の鍵を引く形も塞ぐ）。住処の定数を getattr で名で引くのも赤"""
+        for body in ("import judge_accept\nX = judge_accept.PORTS['decisions']\n", "from judge_accept import PORTS\n",
+                     'import gatemarks\nX = getattr(gatemarks, "MATERIALS_FILE")\n'):
+            with self.subTest(body=body):
+                got = self.judge_names({"workflows/plan/scripts/a.py": body})
+                self.assertEqual(len(got), 1, got)
+
+    def test_lib_subfolders_and_shared_are_read(self):
+        """lib の下のフォルダと workflows/.shared/ も判定の外。lib の試験は名を字で持って照らすので見ない"""
+        files = {"lib/graphloops/a.py": 'X = "materials.json"\n', "workflows/.shared/b.py": 'X = "materials.json"\n',
+                 "lib/tests/test_c.py": 'X = "materials.json"\n'}
+        got = self.judge_names(files)
+        self.assertEqual(sorted(line.split(":")[0] for line in got), ["lib/graphloops/a.py", "workflows/.shared/b.py"], got)
+
     def test_main_graph_script_and_lib_reader_are_red(self):
         got = self.judge_names({"workflows/line/scripts/a.py": 'X = "rejudge-exit.json"\n',
                                 "lib/reader.py": "import gatemarks\nX = gatemarks.MATERIALS_FILE\n"})
