@@ -424,20 +424,25 @@ class ApplyTest(TargetCase):
 class FailedAfterSealTest(TargetCase):
     """#665: 封じた後のノードが落ちてメイングラフの出力が読めない run は、--allow-failed が在れば封じのノードの出力から照らして当てる"""
 
-    def failed_run(self, seal_state="completed", eyes_state="completed") -> dict:
-        """最後の問いを組むノード ask-final が落ち、result が走らなかった run の workflow get --json の答え"""
-        nodes = [{"node_id": apply.SEAL_STEP, "state": seal_state}, {"node_id": apply.EYES_STEP, "state": eyes_state},
-                 {"node_id": "ask-final", "state": "failed", "error": "output too large"},
+    def failed_run(self, seal_state="completed", eyes_state="completed", answer=None) -> dict:
+        """最後の問いを組むノード ask-final が落ち、result が走らなかった run の workflow get --json の答え。
+        seal_state が None なら封じのノードの無い run。answer を渡すと、最後の承認ノードの答え answer-final が済んだ後に report が落ちた run"""
+        nodes = [*([{"node_id": apply.SEAL_STEP, "state": seal_state}] if seal_state else []),
+                 {"node_id": apply.EYES_STEP, "state": eyes_state}, {"node_id": "ask-final", "state": "completed" if answer else "failed"},
                  {"node_id": "result", "state": "skipped"}]
+        failed = "ask-final"
+        if answer:
+            nodes += [{"node_id": apply.ANSWER_STEP, "state": "completed"}, {"node_id": "report__report", "state": "failed"}]
+            failed = "report__report"
         return {"id": RUN, "status": "failed", "working_path": str(self.worktree),
                 "terminal_record": {
-                    "run_id": RUN, "status": "failed", "outcome": None, "error": "ask-final failed",
-                    "first_failed_node": "ask-final", "nodes": nodes,
+                    "run_id": RUN, "status": "failed", "outcome": None, "error": f"{failed} failed",
+                    "first_failed_node": failed, "nodes": nodes,
                     "returns": {"availability": "unavailable", "node_id": "result", "reason": "node_not_completed"},
                     "artifacts": {"root": str(self.root), "files": [], "limitations": []}}}
 
-    def events(self, seal=None, r2=None, *, seal_data=None) -> dict:
-        """出来事の列つきの答え。封じのノードの出力は素の出力（JSON の字）で、独立の目の出力は型つきの出力で持つ"""
+    def events(self, seal=None, r2=None, *, seal_data=None, answer=None) -> dict:
+        """出来事の列つきの答え。封じのノードの受け皿の出力は素の出力（JSON の字）で、独立の目の受け皿と承認ノードの答えの出力は型つきの出力で持つ"""
         sealed = {"mode": "seal", "ok": True, "hash": sha(self.diff), "diff": pointer("merge/sealed.diff"),
                   "protected_hits": [], "reason": ""} if seal is None else seal
         verdict = {"ok": True, "r1": None, "r2": r2, "r3": None, "r4": None, "questions": [], "premise_check": None,
@@ -445,12 +450,16 @@ class FailedAfterSealTest(TargetCase):
         events = [
             {"event_type": "node_started", "step_name": apply.SEAL_STEP, "data": {}},
             {"event_type": "node_completed", "step_name": apply.SEAL_STEP,
-             "data": seal_data if seal_data is not None else {"node_output": json.dumps(sealed)}},
+             "data": seal_data if seal_data is not None else {"node_output": json.dumps({"got": sealed, "stop_reason": ""})}},
             {"event_type": "node_completed", "step_name": apply.EYES_STEP,
-             "data": json.dumps({"node_output": json.dumps(verdict), "structured_output": verdict})},
-            {"event_type": "node_failed", "step_name": "ask-final", "data": {"error": "output too large"}},
+             "data": json.dumps({"node_output": "", "structured_output": {"got": verdict, "stop_reason": ""}})},
         ]
-        return {**self.failed_run(), "events": events}
+        if answer:
+            events += [{"event_type": "node_completed", "step_name": apply.ANSWER_STEP, "data": {"structured_output": answer}},
+                       {"event_type": "node_failed", "step_name": "report__report", "data": {"error": "boom"}}]
+        else:
+            events.append({"event_type": "node_failed", "step_name": "ask-final", "data": {"error": "output too large"}})
+        return {**self.failed_run(answer=answer), "events": events}
 
     def test_applies_sealed_diff_with_flag(self):
         rc, out, err = self.run_apply(self.failed_run(), "--allow-failed", events=self.events())
@@ -465,25 +474,57 @@ class FailedAfterSealTest(TargetCase):
                                   "人が見るはずだった物")
         self.assertNotIn("git -C", err)
 
+    def test_approved_run_whose_report_failed_says_the_human_approved(self):
+        go = {"go": True, "answer": {"decision": "approve", "text": "", "asked": []}, "stop_reason": ""}
+        rc, out, err = self.run_apply(self.failed_run(answer=go), "--allow-failed", events=self.events(answer=go))
+        self.assert_applied((rc, out, err))
+        self.assertIn("人は承認した", err)
+        self.assertNotIn("人が見るはずだった物", err)
+
+    def test_run_stopped_at_the_final_gate_whose_report_failed_needs_allow_stopped(self):
+        """最後の承認ノードで人が止めた後に report が落ちた run は、--allow-failed だけでは当てない（止めた run の許しを迂回させない）"""
+        stop = {"go": False, "answer": {"decision": "stop", "text": "当てない", "asked": []}, "stop_reason": "human:gate-final"}
+        run, events = self.failed_run(answer=stop), self.events(answer=stop)
+        self.assert_refused(self.run_apply(run, "--allow-failed", events=events), 1, "--allow-stopped", "human:gate-final",
+                            "人の一言「当てない」")
+        rc, out, err = self.run_apply(run, "--allow-failed", "--allow-stopped", events=events)
+        self.assert_applied((rc, out, err))
+        for word in ("report__report", "human:gate-final", "--allow-stopped"):
+            self.assertIn(word, err)
+
+    def test_unreadable_answer_is_refused(self):
+        go = {"go": True, "answer": None, "stop_reason": ""}
+        events = self.events(answer=go)
+        events["events"] = [e for e in events["events"] if e["step_name"] != apply.ANSWER_STEP]
+        self.assert_refused(self.run_apply(self.failed_run(answer=go), "--allow-failed", "--allow-stopped", events=events), 2,
+                            apply.ANSWER_STEP, "git -C")
+
     def test_seal_not_completed_is_refused_as_before(self):
         """封じのノードが済んでいない run は、旗が在っても今どおり拒み、置き場の差分を確かめずに当てる道を言う"""
-        for state in ("failed", "skipped", "pending", None):
+        place = self.root / "merge" / "apply.diff"
+        for state in ("failed", "skipped", "pending"):
             with self.subTest(state=state):
-                place = self.root / "merge" / "apply.diff"
                 self.assert_refused(self.run_apply(self.failed_run(seal_state=state), "--allow-failed", events=self.events()),
                                     2, apply.SEAL_STEP, "済んでいない", f"git -C {self.target} apply {place}")
+        with self.subTest("封じのノードが無い"):
+            self.assert_refused(self.run_apply(self.failed_run(seal_state=None), "--allow-failed", events=self.events()),
+                                2, f"この run には封じのノード {apply.SEAL_STEP} が無い", f"git -C {self.target} apply {place}")
 
     def test_unreadable_seal_output_is_refused(self):
-        cases = {"切り詰めた": {"node_output": "{", "node_output_truncated": True},
+        whole = json.dumps({"got": {"mode": "seal", "ok": True, "hash": sha(self.diff), "diff": pointer("merge/sealed.diff"),
+                                    "protected_hits": [], "reason": ""}, "stop_reason": ""})
+        cases = {"切り詰めた": {"node_output": whole, "node_output_truncated": True},
                  "JSON でない": {"node_output": "not json"},
                  "出力が無い": {},
-                 "seal の形でない": {"node_output": json.dumps({"mode": "apply", "ok": True, "hash": sha(self.diff)})}}
+                 "受け皿の形でない": {"node_output": json.dumps({"mode": "seal", "ok": True, "hash": sha(self.diff)})},
+                 "seal の形でない": {"node_output": json.dumps({"got": {"mode": "apply", "ok": True, "hash": sha(self.diff)}})}}
         for name, data in cases.items():
             with self.subTest(name):
                 self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.events(seal_data=data)),
                                     2, "出力が読めない", "git -C")
-        with self.subTest("出来事の列が無い"):
-            self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.failed_run()), 2, "events")
+        for name, answer in {"出来事の列が無い": self.failed_run(), "答えが JSON でない": "not json"}.items():
+            with self.subTest(name):
+                self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=answer), 2, "events", "git -C")
         with self.subTest("封じていない"):
             refused = {"mode": "seal", "ok": False, "hash": "", "diff": None, "protected_hits": [], "reason": "指紋が違う"}
             self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.events(seal=refused)), 1,
@@ -491,6 +532,13 @@ class FailedAfterSealTest(TargetCase):
         with self.subTest("独立の目が済んでいない"):
             self.assert_refused(self.run_apply(self.failed_run(eyes_state="failed"), "--allow-failed", events=self.events()),
                                 2, apply.EYES_STEP, "R2")
+
+    def test_structured_output_is_read_before_the_truncation_mark(self):
+        """Archon の terminal-record.ts と同じく、型つきの出力が在れば切り詰めの印を見ない"""
+        got = {"got": {"mode": "seal", "ok": True, "hash": sha(self.diff), "diff": pointer("merge/sealed.diff"),
+                       "protected_hits": [], "reason": ""}, "stop_reason": ""}
+        data = {"node_output": "{", "node_output_truncated": True, "structured_output": got}
+        self.assert_applied(self.run_apply(self.failed_run(), "--allow-failed", events=self.events(seal_data=data)))
 
     def test_redesign_is_refused_even_with_flag(self):
         events = self.events(r2={"status": "redesign-needed", "reason": "設計を組み直す"})
@@ -501,19 +549,23 @@ class FailedAfterSealTest(TargetCase):
         self.place("merge/sealed.diff", self.diff + b"\n")
         self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.events()), 1, "封じた hash と合わない")
 
-    def test_steps_are_the_line_seal_and_eyes_outputs(self):
-        """SEAL_STEP は mode: seal で merge を include するノードの出力ノード、EYES_STEP は merge-apply に r2 を渡すノードの出力ノード。
-        どちらもメイングラフの run の記録に出るノードの id"""
+    def test_steps_are_the_line_seal_and_eyes_receivers_and_the_final_answer(self):
+        """SEAL_STEP は mode: seal で merge を include するノードの受け皿、EYES_STEP は merge-apply に r2 を渡すノードの受け皿で、
+        どちらも読む欄を names に宣言する。ANSWER_STEP は merge-apply に人の答えを渡すノード。どれもメイングラフの run の記録に出るノードの id"""
         nodes = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
-        returns = {n["include"]: yaml.safe_load(next((ROOT / "workflows").glob(f"*/{n['include']}.yaml")).read_text(
-            encoding="utf-8"))["returns"] for n in nodes if "include" in n}
+        by_id = {n["id"]: n for n in nodes}
         (sealer,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "seal"]
         (applier,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "apply"]
         eyes_id = applier["with"]["r2"].removeprefix("$").removesuffix(".output.r2")
-        (eyes,) = [n for n in nodes if n["id"] == eyes_id]
-        self.assertEqual(apply.SEAL_STEP, f"{sealer['id']}__{returns[sealer['include']]}")
-        self.assertEqual(apply.EYES_STEP, f"{eyes_id}__{returns[eyes['include']]}")
-        self.assertLessEqual({apply.SEAL_STEP, apply.EYES_STEP}, step_names("works-factory-line"))
+        for step, source, names in ((apply.SEAL_STEP, sealer["id"], {"mode", "ok", "hash", "diff", "reason"}),
+                                    (apply.EYES_STEP, eyes_id, {"r2"})):
+            with self.subTest(step):
+                self.assertEqual(by_id[step]["script"], "returned")
+                self.assertEqual(by_id[step]["with"]["got"], f"${source}.output")
+                self.assertLessEqual(names, set(by_id[step]["with"]["names"].split()))
+        self.assertEqual(applier["with"]["answer"], f"${apply.ANSWER_STEP}.output.answer")
+        self.assertLessEqual({"go", "answer", "stop_reason"}, set(by_id[apply.ANSWER_STEP]["output_format"]["properties"]))
+        self.assertLessEqual({apply.SEAL_STEP, apply.EYES_STEP, apply.ANSWER_STEP}, step_names("works-factory-line"))
 
 
 class ChainApplyTest(unittest.TestCase):
