@@ -5,15 +5,19 @@
 ブロックの返り（returns）・人の関所の答え（gates）・報告が集めた事実（facts）を引数で受ける。順は元の docstring の順を写し、
 元に無い「途中で終わった」（interrupted）を 5 に置く。
 
-- returns: 差し込んだブロックの id → 返りの dict か None（飛ばされた・落ちた・読めない）。指し札の欄は開けたファイルのパスの字
+- returns: 段の役の名 → 返りの dict か None（飛ばされた・落ちた・読めない）。指し札の欄は開けたファイルのパスの字
   （開けなければ None）。conflicts だけは段ごとのパスの配列もよい
-- gates: 関所の id → {decision, text} か None（開かなかった）
-- facts: {start_ok, record_problems, failed, absorbed, answers, stops}。failed は run の記録で落ちて、線が受け止めると宣言した段の
+- gates: 関所の答えの役の名（GATES） → {decision, text} か None（開かなかった）
+- stages: 段の表 {nodes: {役の名: 節の名}, links: [{before, flag, after, text, held?, needs?}]}（メイングラフが値で渡す。lib は段の順も
+  節の名も持たない）。links は返りの続き: 前の段 before の返りの欄 flag（None は返りが在るだけ）が真なのに後の段 after の返りが無い
+  run は途中で終わった。held は before の返りのその欄が偽なら数えない（線が意図して後の段を飛ばした周）、needs はその役の返りが無い周は
+  数えない。node_of(stages, 役の名) が節の名を引く（表に無い役は役の名のまま）
+- facts: {start_ok, record_problems, failed, absorbed, answers, stops, stages}。failed は run の記録で落ちて、線が受け止めると宣言した段の
   外の節の id の並び（記録が読めなければ空）、absorbed は宣言した段の中で落ちた節 [{node, error}]、answers は依頼の answers（始めの
   記録の欄）、stops は線の節が返した止めの語 [(節の id, 語)]（線の collect が集めた物。入口の拒み・無人の関所の止め・線の script の
   例外・人の止め）。record_problems は record_problems() の返り
-- decide_outcome(returns, gates, facts) -> (結末の語, stop_reason)。stop_reason は「<段の id>:<語>」、止まらなければ ""
-- record_problems(returns, gates, *, unread, unopened) -> (結果を名乗れない訳, 注意): 入力の読めなかった訳・開けなかった指し札・
+- decide_outcome(returns, gates, facts) -> (結末の語, stop_reason)。stop_reason は「<段の節の名>:<語>」、止まらなければ ""
+- record_problems(returns, gates, *, unread, unopened, stages) -> (結果を名乗れない訳, 注意): 入力の読めなかった訳・開けなかった指し札・
   申し出と裁定の読めなかった訳・知らない答えの語を、結果を名乗らせない物と注意に分ける
 - residue(returns, facts) -> fixed を名乗らせない残りの行 [{where, text}]（報告と次の依頼が同じ行を読む）
 - conflict_rows(returns)・asked_conflicts(returns, closed)・waiting_conflicts(returns)・conflict_counts(returns): 申し出と裁定の行・
@@ -23,7 +27,7 @@
 - judgment_doc(returns)・questions(returns)・ledger(returns)・answer_binds(questions, answer, missing)・origin_of(question, missing):
   判定の judgment.json の中身と問いの台帳の全部と
   人に聞く状態の問いと、依頼の答えの当て方
-- unknown_answers(gates) -> 通しにも止めにも数えない答えの語の行
+- unknown_answers(gates, stages) -> 通しにも止めにも数えない答えの語の行
 """
 from __future__ import annotations
 
@@ -49,7 +53,7 @@ import stopby  # noqa: E402
 import structmark  # noqa: E402
 
 OK_OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed")   # 返す節の ok が true になる結末（docs/design.md の report の返り）
-GATES = ("gate-start", "gate-before-fix", "gate-replan", "gate-final")
+GATES = ("start-answer", "before-fix-answer", "replan-answer", "final-answer")
 STOP_WORDS = answer.STOP_WORDS
 PASS_WORDS = answer.GO_WORDS
 WAIT_WORDS = stopby.WAITING
@@ -74,12 +78,6 @@ PENDING_WHY = replan.PENDING_WHY
 UNMEASURED = gatemarks.UNMEASURED
 MATERIAL_WHERE = "素材"
 
-# 返りの続き (前の段, 前の段の欄（None は返りが在るだけ）, 後の段, 文)。前の段が欄を真にしたのに後の段の出力が無い run は途中で終わった
-CHAIN = (("judge", "ready", "plan", "判定が直す単位を出したのに計画の出力が無い"),
-         ("plan", "ready", "fix", "計画が修正案を出したのに修正の出力が無い"),
-         ("fix", None, "test-gate-final", "修正の段が走ったのに最後のテストの出力が無い"),
-         ("test-gate-final", "ok", "merge-seal", "最後のテストが通ったのに差分を封じた出力が無い"))
-
 
 def as_dict(v) -> dict:
     return v if isinstance(v, dict) else {}
@@ -89,7 +87,18 @@ def read_json(path) -> object:
     return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
 
 
-LATER = {"judge": "rejudge", "plan": "replan", "plan-review": "replan-review"}   # 後の段の返り（線は後の段で先に読む）
+LATER = {"judge": "rejudge", "plan": "replan", "plan-review": "replan-review-result"}   # 後の段の返り（線は後の段で先に読む）
+
+
+def node_of(stages, role: str) -> str:
+    """役の名の節の名（渡された段の表 stages の nodes から引く。表に無い役・表が無い時は役の名のまま）"""
+    got = as_dict(as_dict(stages).get("nodes")).get(role)
+    return got if isinstance(got, str) and got else role
+
+
+def _links(stages) -> list:
+    rows = as_dict(stages).get("links")
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
 def latest(returns: dict, rid: str) -> dict | None:
@@ -131,13 +140,13 @@ def fix_folders(returns: dict) -> list:
     return [pathlib.Path(p).parent for p in paths(fix.get("diffs") if "diffs" in fix else fix.get("diff"))]
 
 
-def record_problems(returns: dict, gates: dict, *, unread=(), unopened=()) -> tuple[list, list]:
+def record_problems(returns: dict, gates: dict, *, unread=(), unopened=(), stages=None) -> tuple[list, list]:
     """(結果を名乗れない訳, 注意)。unread は入力の読めなかった訳の行、unopened は開けなかった指し札 [(段, 欄, 訳)]。
     MUST_OPEN の指し札が開けない・申し出と裁定のファイルが読めない・知らない答えの語は結果を名乗れない訳、ほかの開けなかった
-    指し札は注意"""
+    指し札は注意。stages は段の表（知らない答えの語の行が承認ノードの名を表で描く）"""
     must = [why for rid, field, why in unopened if (rid, field) in MUST_OPEN]
     notes = [why for rid, field, why in unopened if (rid, field) not in MUST_OPEN]
-    return [*unread, *must, *conflict_rows(returns)[1], *unknown_answers(gates)], notes
+    return [*unread, *must, *conflict_rows(returns)[1], *unknown_answers(gates, stages)], notes
 
 
 def conflict_rows(returns: dict) -> tuple[list, list]:
@@ -314,7 +323,7 @@ def residue(returns: dict, facts: dict | None = None) -> list:
     在れば読み直さない。封じの ok は残りに数えない（読み手は _proved の docstring）"""
     facts = facts or {}
     rows = []
-    final = returns.get("test-gate-final")
+    final = returns.get("final-tests")
     if isinstance(final, dict) and (final.get("ok") is not True or final.get("green") is not True):
         rows.append({"where": "最後のテスト", "text": f"最後のテストが緑でない・認証できない（ok {final.get('ok')}・green {final.get('green')}・"
                                                  f"赤の原因 {final.get('red_cause') or '—'}）"})
@@ -344,17 +353,17 @@ def residue(returns: dict, facts: dict | None = None) -> list:
     return rows
 
 
-def unknown_answers(gates: dict) -> list:
+def unknown_answers(gates: dict, stages=None) -> list:
     out = []
     for gid in GATES:
         g = gates.get(gid)
         if isinstance(g, dict) and g.get("decision") not in (*PASS_WORDS, *STOP_WORDS):
-            out.append(f"承認ノード {gid} の知らない答えの語 {g.get('decision')!r}（通す語 {'・'.join(PASS_WORDS)}・止める語 {'・'.join(STOP_WORDS)}）")
+            out.append(f"承認ノード {node_of(stages, gid)} の知らない答えの語 {g.get('decision')!r}（通す語 {'・'.join(PASS_WORDS)}・止める語 {'・'.join(STOP_WORDS)}）")
     return out
 
 
 def stop_reasons(returns: dict, facts: dict | None) -> list:
-    """止めの語 [(段か線の節の id, 語)]: ブロックの返りの stop_reason と、facts の stops（線の節の止めの語）"""
+    """止めの語 [(段の役の名か線の節の id, 語)]: ブロックの返りの stop_reason と、facts の stops（線の節の止めの語）"""
     got = [(rid, r["stop_reason"]) for rid, r in returns.items() if isinstance(r, dict) and isinstance(r.get("stop_reason"), str)
            and r["stop_reason"]]
     return got + [(str(node), word) for node, word in as_dict(facts).get("stops") or () if isinstance(word, str) and word]
@@ -362,39 +371,41 @@ def stop_reasons(returns: dict, facts: dict | None) -> list:
 
 def _human_stop(returns: dict, gates: dict, facts: dict | None) -> tuple:
     """1. 人の止め: 関所の止める語か、返りの stop_reason が human:・request: で始まる。文が request: で始まれば止め札"""
+    stages = as_dict(facts).get("stages")
     for gid in GATES:
         g = gates.get(gid)
         if isinstance(g, dict) and g.get("decision") in STOP_WORDS:
             word = "stopped_by_request" if str(g.get("text") or "").startswith(report.REQUEST_BY) else "stopped_by_human"
-            return word, f"{gid}:{g['decision']}"
+            return word, f"{node_of(stages, gid)}:{g['decision']}"
     for rid, sr in stop_reasons(returns, facts):
         if sr.startswith(report.REQUEST_BY):
-            return "stopped_by_request", f"{rid}:{sr}"
+            return "stopped_by_request", f"{node_of(stages, rid)}:{sr}"
         if sr.startswith(report.HUMAN_BY):
-            return "stopped_by_human", f"{rid}:{sr}"
+            return "stopped_by_human", f"{node_of(stages, rid)}:{sr}"
     return ()
 
 
 def _line_stop(returns: dict, facts: dict | None) -> str:
     """2. 線の止め: stopby の語（人待ちの語を除く。線の節の語も）・事前審査の往復が進まない・計画が諦めた・封じと置きが ok でない"""
+    stages = as_dict(facts).get("stages")
     for rid, sr in stop_reasons(returns, facts):
         if stopby.is_line(sr) and sr not in WAIT_WORDS:
-            return f"{rid}:{sr}"
+            return f"{node_of(stages, rid)}:{sr}"
     if as_dict(plan_reviewed(returns)).get("stalled") is True:
         return f"plan-review:{stopby.PLAN_CONVERGE}"
     if plan_gave_up(returns):
         sr = planned(returns).get("stop_reason")
         return f"plan:{sr if isinstance(sr, str) and sr else GIVE_UP}"
-    for rid in ("merge-seal", "merge-apply"):
+    for rid in ("sealed-diff", "applied-diff"):
         if isinstance(returns.get(rid), dict) and returns[rid].get("ok") is False:
-            return f"{rid}:{NOT_OK}"
+            return f"{node_of(stages, rid)}:{NOT_OK}"
     return ""
 
 
 def plan_gave_up(returns: dict) -> bool:
     """計画が直す単位を受けたのに修正案を出せなかった（受け付けが 3 回とも拒んだか、行き止まりの単位が在る）。直す義務 0 件で役を
     起こさなかった周（開いた単位が全部人の答え待ちの問いの出どころ）は諦めでなく、今の works と同じく最後のテストと独立の目まで回って
-    （線の design-only。#291）残りの決めに落ちる（round_limit）"""
+    （線の独立設計だけを作る道。#291）残りの決めに落ちる（round_limit）"""
     plan = planned(returns)
     return bool(plan) and plan.get("ready") is False and bool(_units(returns)) and not plan_nothing_owed(returns)
 
@@ -417,48 +428,52 @@ def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None) -> str:
     問い（元 report.decide_outcome の pending_human）・無人の run が残した修正前の問い"""
     if asked_conflicts(returns, closed):
         return f"fix:{stopby.CONFLICT}"
+    stages = as_dict(facts).get("stages")
     for rid, sr in stop_reasons(returns, facts):
         if sr in WAIT_WORDS:
-            return f"{rid}:{sr}"
+            return f"{node_of(stages, rid)}:{sr}"
     if as_dict(as_dict(returns.get("eyes")).get("premise_check")).get("verdict") == "escalate":
         return "eyes:premise-escalate"
     if eye_questions(returns):
         return "eyes:r4-ask"
     review = plan_reviewed(returns)
-    if review and review.get("ask_human") is True and gates.get("gate-before-fix") is None and returns.get("fix") is None:
+    if review and review.get("ask_human") is True and gates.get("before-fix-answer") is None and returns.get("fix") is None:
         return "plan-review:ask-human"
     return ""
 
 
-def _chain_cuts(returns: dict) -> list:
-    """返りの続きが切れている所 [(後の段, 文)]"""
+def _chain_cuts(returns: dict, stages) -> list:
+    """返りの続きが切れている所 [(後の段の役の名, 文)]（段の表 stages の links の行を歩く）"""
     out = []
-    for before, flag, after, text in CHAIN:
-        if after == "merge-seal" and returns.get("fix") is None:   # 直す物が無い周（L-W07）は差分が無いので封じない
+    for row in _links(stages):
+        before, flag, after = row.get("before"), row.get("flag"), row.get("after")
+        if row.get("needs") and returns.get(row["needs"]) is None:   # その段の返りが無い周（直す物が無い周。L-W07）は後の段が無いのが常
             continue
-        # 線が最後のテストを意図して飛ばした周（fixed の go が偽）は切れ目でなく、元 works と同じく人待ちか残りで決める
-        if before == "fix" and as_dict(latest(returns, "fix")).get("go") is False:
+        # 線が後の段を意図して飛ばした周（held の欄が偽。修正の go）は切れ目でなく、元 works と同じく人待ちか残りで決める
+        if row.get("held") and as_dict(latest(returns, before)).get(row["held"]) is False:
             continue
         got = latest(returns, before)
         if got and (flag is None or got.get(flag) is True) and latest(returns, after) is None:
-            out.append((after, text))
+            out.append((after, row.get("text")))
     return out
 
 
-def cut_at(returns: dict, failed) -> str:
+def cut_at(returns: dict, failed, stages) -> str:
     """5. 途中で終わった所の「<段>:<語>」（終わっていなければ ""）: 記録で落ちて線が進まなかった節 failed が在るか、返りの続きが
-    切れている"""
+    切れている。段の表の最初の続きの前の段の返りが無い run は、そこで切れている"""
     if isinstance(failed, list) and failed:
         return f"{failed[0]}:{NODE_ERROR}"
-    if judged(returns) is None:
-        return f"judge:{CHAIN_CUT}"
-    cuts = _chain_cuts(returns)
-    return f"{cuts[0][0]}:{CHAIN_CUT}" if cuts else ""
+    links = _links(stages)
+    first = links[0].get("before") if links else None
+    if first and latest(returns, first) is None:
+        return f"{node_of(stages, first)}:{CHAIN_CUT}"
+    cuts = _chain_cuts(returns, stages)
+    return f"{node_of(stages, cuts[0][0])}:{CHAIN_CUT}" if cuts else ""
 
 
-def chain_notes(returns: dict) -> list:
+def chain_notes(returns: dict, stages) -> list:
     """返りの続きが切れている所の文（報告の「止めたか」の行）"""
-    return [text for _, text in _chain_cuts(returns)]
+    return [text for _, text in _chain_cuts(returns, stages)]
 
 
 def _no_fix(returns: dict) -> bool:
@@ -468,10 +483,10 @@ def _no_fix(returns: dict) -> bool:
 
 
 def _proved(returns: dict) -> bool:
-    """直したと名乗れる証: 最後のテストの ok と green が真で、差分を封じた（merge-seal の ok が真）。封じの ok の読み手は 3 つで
+    """直したと名乗れる証: 最後のテストの ok と green が真で、差分を封じた（封じた差分の返りの ok が真）。封じの ok の読み手は 3 つで
     役が違う: ここは結末を fixed と名乗れるか、_line_stop は ok: false を線の止めにするか、runreport._stop_lines は ok でない訳を
     報告に出すか"""
-    final, seal = as_dict(returns.get("test-gate-final")), as_dict(returns.get("merge-seal"))
+    final, seal = as_dict(returns.get("final-tests")), as_dict(returns.get("sealed-diff"))
     return final.get("ok") is True and final.get("green") is True and seal.get("ok") is True
 
 
@@ -486,7 +501,7 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
        待つ行も元の build の締めと同じく諦めた行として人に回す）
     4. 関所が通らない（accepted か round_closed が偽）→ record_invalid（元は検証器の関所。ここは始めの記録が読めない・
        record_problems が在る）
-    5. 元に無い: 途中で終わった → interrupted（記録の落ちて線が進まなかった節か、返りの続きの切れ目 CHAIN。線が受け止めた落ちは
+    5. 元に無い: 途中で終わった → interrupted（記録の落ちて線が進まなかった節か、渡された段の表 stages の links の返りの続きの切れ目。線が受け止めた落ちは
        ここでなく 7 の残り。fix の go が false（欄が無いのは除く）の周は線が意図して最後のテストを飛ばしたので切れ目に数えず、3 か 7 に落ちる）
     6. 直す物が無い周 → no_fix_needed（周を締めた最後のテストと独立の目の残りが無い時。残りが在れば 7）
     7. 残り（residue。依頼の答えが命令と出力つきで答えた素材を除き、受け止めた落ちを含む）が測れていない素材の行だけで最後の
@@ -502,7 +517,7 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
     line = _line_stop(returns, facts)
     if line:
         return "stopped_by_line", line
-    cut = cut_at(returns, facts.get("failed"))
+    cut = cut_at(returns, facts.get("failed"), facts.get("stages"))
     wait = _waits(returns, gates, closed=not cut, facts=facts)
     if wait:
         return "needs_human", wait

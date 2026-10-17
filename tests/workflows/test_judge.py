@@ -223,13 +223,32 @@ class ReturnsShapeTest(unittest.TestCase):
         doc, by = load(), nodes()
         self.assertEqual((doc["returns"], doc["outcome_field"]), ("verdict", "ready"))
         fmt = by["verdict"]["output_format"]
-        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNS))
-        self.assertEqual(sorted(fmt["required"]), sorted(RETURNS))
+        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNS + ("optional",)))
+        self.assertEqual(sorted(fmt["required"]), sorted(RETURNS), "optional は required に無い欄（差し替えの返りに無くても落ちない）")
+        self.assertEqual(fmt["properties"]["optional"]["type"], "array")
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["ready"], {"type": "boolean"})
         self.assertEqual(fmt["properties"]["stop_reason"], {"type": "string"})
         self.assertEqual(by["verdict"]["trigger_rule"], "all_done")
         self.assertNotIn("output_type", by["verdict"])
+        self.assertIn("optional", by["verdict"].get("with") or {}, "返す節 verdict の with: に宣言 optional が無い")
+        declared = by["verdict"]["with"]["optional"]
+        want = json.loads(declared)
+        self.assertEqual(sorted((row["node"], row["bare"]) for row in want),
+                         [("head-depth", True), ("head-depth-", False), ("head-depth-", True), ("world-", False),
+                          ("world-classes", True), ("world-classes-", True), ("world-judge", True), ("world-judge-", True)])
+        for what, kw in (("宣言を渡された呼び手", {"optional": declared}), ("宣言を渡されない呼び手", {})):
+            with self.subTest(what):
+                r = Run(self)
+                (r.artifacts / "judge").mkdir(exist_ok=True)
+                out = r.returned("verdict", **kw)
+                verdict_shape(self, out)
+                self.assertEqual(out["optional"], want if kw else [])
+        with self.subTest("lib を読めない返す節の約束の形も宣言を写す"):
+            r = Run(self)
+            out = r.returned("verdict", optional=declared, root=r.artifacts / "no-repository")
+            verdict_shape(self, out)
+            self.assertEqual(out["optional"], want)
 
     def test_port_fields_are_pointers_or_null(self):
         """判定の置き場のファイルを返す欄（ja.PORTS・FIRST_PORTS）は、どれもポインタか null。lib を読めない時の返す節の欄の名
@@ -697,9 +716,10 @@ class Run:
 
 
 def verdict_shape(case: unittest.TestCase, out: dict) -> None:
-    """返す節の返りが output_format に合う（欄がちょうど在り、型が合う）"""
+    """返す節の返りが output_format に合う（欄がちょうど在り、型が合う）。返す節は required に無い欄 optional も必ず返すので、
+    返りの欄は required でなく properties とちょうど等しい"""
     fmt = nodes()["verdict"]["output_format"]
-    case.assertEqual(sorted(out), sorted(fmt["required"]))
+    case.assertEqual(sorted(out), sorted(fmt["properties"]))
     case.assertIsInstance(out["ready"], bool)
     case.assertIsInstance(out["stop_reason"], str)
     case.assertIsInstance(out["units"], list)

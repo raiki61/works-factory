@@ -139,7 +139,7 @@ class ContractCase(unittest.TestCase):
         self.assertEqual(self.doc["outcome_field"], "done")
 
     def test_exact_fields_all_required_and_closed(self):
-        self.assertEqual(set(self.fmt["properties"]), CONTRACT_FIELDS)
+        self.assertEqual(set(self.fmt["properties"]), CONTRACT_FIELDS | {"optional"}, "optional は required に無い欄（差し替えの返りに無くても落ちない）")
         self.assertEqual(set(self.fmt["required"]), CONTRACT_FIELDS)
         self.assertIs(self.fmt["additionalProperties"], False)
         self.assertEqual(self.fmt["properties"]["done"], {"type": "boolean"})
@@ -244,24 +244,46 @@ class GroupsCase(unittest.TestCase):
     def test_a_failed_node_halts_the_block_for_resume(self):
         """#576・#594: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
         走らない。サブグラフのどの節が落ちても、返す節 fix と落ちても止めない段のほかの全部の節に結ぶブロックの sink の柵
-        nodes-ok が飛ぶ。止めない段は線が報告で受け止めると宣言した節（レンズとその中継）とちょうど同じ"""
+        nodes-ok が飛ぶ。止めない段は fix 自身が返す節の with: の optional で受け止めると宣言した節（レンズとその中継）とちょうど同じ"""
         for nid in ("groups-par", "groups-seq"):
             self.assertEqual(self.nodes[nid]["fan_out"]["join"], "all_success", nid)
         self.assertEqual(self.nodes["join"]["trigger_rule"], "none_failed_min_one_success")
         top = [n["id"] for n in self.doc["nodes"]]
         guard = self.nodes["nodes-ok"]
         self.assertEqual(guard["bash"], "true")
-        line = {n["id"]: n for n in yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(
-            encoding="utf-8"))["nodes"]}
-        declared = json.loads(line["collect"]["with"]["optional"])
+        declared = [row["node"] for row in json.loads(self.nodes["fix"]["with"]["optional"])]
         for include in ("fix", "refix-run"):
             with self.subTest(include=include):
-                absorbed = {nid for nid in top if runreport._declared(f"{include}__{nid}", declared)}
+                absorbed = {nid for nid in top if runreport._declared(f"{include}__{nid}", [f"{include}__{d}" for d in declared])}
                 self.assertEqual(absorbed, {"lens", "lens-reply"})
                 self.assertEqual(set(guard["depends_on"]), set(top) - {"fix", "nodes-ok"} - absorbed)
         self.assertEqual(guard["trigger_rule"], "none_failed_min_one_success")
         self.assertNotIn("when", guard, "柵が飛ぶのはどれかの節が落ちた時だけ（when で飛ぶ節は落ちと数えない）")
         self.assertEqual([nid for nid, n in self.nodes.items() if "nodes-ok" in (n.get("depends_on") or [])], [])
+
+    def test_fix_declares_its_absorbed_nodes_in_its_return(self):
+        with_ = self.nodes["fix"].get("with") or {}
+        self.assertIn("optional", with_, "返す節 fix の with: に宣言 optional が無い")
+        declared = with_["optional"]
+        want = json.loads(declared)
+        self.assertEqual(sorted((row["node"], row["bare"]) for row in want), [("lens", False), ("lens-reply", False)])
+        self.assertTrue({row["node"] for row in want} <= {n["id"] for n in self.doc["nodes"]})
+        self.assertFalse({row["node"] for row in want} & set(self.nodes["nodes-ok"]["depends_on"]))
+        fmt = self.nodes["fix"]["output_format"]
+        self.assertEqual(fmt["properties"]["optional"]["type"], "array")
+        self.assertNotIn("optional", fmt["required"])
+        from tests.bin.gitkit import committed_copy
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="works-fix-declared-"))
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        repo, art = tmp / "repo", tmp / "art"
+        committed_copy(repo, ROOT / "tests" / "e2e" / "target-seed")
+        art.mkdir()
+        for given, expected in ((declared, want), (None, [])):
+            with self.subTest(declared=given is not None):
+                code, out, err = _blk_run("collect", repo, art, {} if given is None else {"optional": given})
+                self.assertEqual(code, 0, err)
+                self.assertEqual(validate_schema(out, fmt), [], out)
+                self.assertEqual(out["optional"], expected)
 
     def test_only_the_returning_node_and_reads_run_after_a_failure(self):
         """#594: 落ちた節の後ろの節は飛ぶ（済んだ控えを残さず、resume で作り直される）。all_done で走るのは返す節と、
@@ -486,8 +508,10 @@ class FilesCase(unittest.TestCase):
 
     def test_collectors_read_files_not_bindings(self):
         """落ちうる前の節の返りを with: で束ねない（落ちた節への束ねは if_skipped が在っても投げる）"""
-        for nid in ("join", "tdd-unit", "fix"):
+        for nid in ("join", "tdd-unit"):
             self.assertNotIn("with", self.nodes[nid], nid)
+        for key, value in self.nodes["fix"].get("with", {}).items():
+            self.assertFalse(str(value).startswith("$"), f"fix の with: {key} が上流の出力を結ぶ")
 
     def test_named_scripts_and_commands_exist(self):
         scripts = {n["script"] for n in self.nodes.values() if "script" in n}
@@ -1252,7 +1276,7 @@ class BlockScriptsCase(unittest.TestCase):
 
     def assert_contract(self, out):
         self.assertEqual(validate_schema(out, self.fmt), [], out)
-        self.assertEqual(set(out), CONTRACT_FIELDS, "返す節は required に無い欄も全部返す")
+        self.assertEqual(set(out), set(self.fmt["properties"]), "返す節は required に無い欄も全部返す")
 
     # ---- fix_reads.py
     def read_hook(self, cfg, path, session="s-1"):

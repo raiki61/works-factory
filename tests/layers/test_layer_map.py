@@ -1,8 +1,8 @@
 """層の地図 docs/layers.json に反する頼りが、地図の既知の漏れの表（known）とちょうど揃う（根の AGENTS.md の E22 の機械の行）。
 
-照らしは 4 つ（tests/layers/scan.py の layer_hits）: Python の import の向き・ほかのブロックの隣のファイルの名・lib とブロックの中の
-メイングラフのノードの id・指示書と入力の説明の中のほかのブロックと役の名。ファイルごとの当たりの数が表より増えても・減っても・表に
-無いファイルが出ても赤（直したら表から消す）。表そのものも、HEAD と origin/main の分かれ目の表より、照らしごとの当たりの数の和が増えず、
+照らしは 5 つ（tests/layers/scan.py の layer_hits）: Python の import の向き・ほかのブロックの隣のファイルの名・lib とブロックの中の
+メイングラフのノードの id・指示書と入力の説明の中のほかのブロックと役の名・メイングラフと周の鎖の字の中の、
+ブロックの中のノードの id とその頭。ファイルごとの当たりの数が表より増えても・減っても・表に無いファイルが出ても赤（直したら表から消す）。表そのものも、HEAD と origin/main の分かれ目の表より、照らしごとの当たりの数の和が増えず、
 分かれ目の表に無いファイルも、分かれ目より多い当たりの数も出ない。地図を緩めた所は、地図の loosened に新しい訳の行が無ければ赤
 （考えの住処の柵の NotAboveMain と loosened と同じ歯止め）。分かれ目に地図が無ければ
 比べない（柵を初めて入れる差分）。分かれ目を引けなければ見送らずに赤（CI は全履歴を取る）。
@@ -262,6 +262,43 @@ class MainIdCase(unittest.TestCase):
                  "workflows/eyes/works-factory-eyes.yaml": "name: works-factory-eyes\nnodes:\n  - id: gate-final\n    script: x\n",
                  "workflows/eyes/scripts/a.py": 'X = "gate-final"\n', "lib/a.py": 'X = "gate-finally"\n'}
         self.assertEqual(hits(files, "main-id"), [])
+
+
+def inner_hits(files: dict) -> list[str]:
+    """inner-id の照らしの当たり。照らしが無ければ空（その時は当たり 1 つの断言が落ちる）"""
+    with tree(files) as root:
+        return scan.layer_hits(root).get("inner-id", [])
+
+
+class InnerIdCase(unittest.TestCase):
+    """メイングラフと周の鎖の字の中の、ブロックの中のノードの id とその頭"""
+
+    LINE_JUDGE = LINE + "  - id: judge\n    include: works-factory-judge\n    with:\n"
+    JUDGE = "name: works-factory-judge\nnodes:\n  - id: world-judge\n    script: x\n  - id: gate-final\n    script: x\n"
+    BASE = {"workflows/line/works-factory-line.yaml": LINE_JUDGE + "      x: y\n", "workflows/judge/works-factory-judge.yaml": JUDGE}
+
+    def test_top_naming_a_block_inner_id_is_red(self):
+        line, script = "workflows/line/works-factory-line.yaml", "workflows/line/scripts/a.py"
+        shots = (
+            (line, self.LINE_JUDGE + '      x: "judge__world-judge"\n', "judge__world-judge"),
+            (line, self.LINE_JUDGE + '      x: "judge__world-"\n', "judge__world-"),
+            (line, self.LINE_JUDGE + '      x: "judge__loop.world-judge"\n', "judge__loop"),
+            (line, self.LINE_JUDGE + "      x: y\n  # 中の節（world-judge- など）を名指す\n", "world-judge"),
+            (script, 'X = "world-judge"\n', "world-judge"),
+            (script, 'X = "world-judge-"\n', "world-judge"),
+            ("workflows/chain/scripts/a.py", 'X = "judge__world-judge"\n', "judge__world-judge"),
+        )
+        for rel, text, said in shots:
+            with self.subTest(rel=rel, text=text):
+                got = inner_hits({**self.BASE, rel: text})
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith(f"{rel}:") and said in got[0], got)
+        clean = {**self.BASE,
+                 script: 'A = "judge__"\nB = "gate-final"\nC = "world-judge.json"\nD = "gate-final-x"\n',
+                 "workflows/judge/scripts/a.py": 'X = "world-judge"\nY = "judge__world-judge"\n',
+                 "lib/a.py": 'X = "world-judge"\n'}
+        self.assertEqual(inner_hits(clean), [])
+        self.assertIn("inner-id", scan.LAYER_CHECKS)
 
 
 class RoleCase(unittest.TestCase):

@@ -61,7 +61,6 @@ DRIFT_HEAD = "### 前提のずれ（修正の中の申告）"     # 元 同 :118
 CONSTRAINT_HEAD = "### 記録の制約"                 # 元 同 :119
 NO_CONSTRAINTS = "（記録の制約 premises.json が渡っていない）"
 NO_REQUEST = "依頼のファイルが渡っていない"
-START_GATE_NODE = "gate-start"   # 線の始めの関所（plan-review が独立設計に貼る人の答えの源）
 # 元 .shared/core/graphloops/rules/review-loop.py:4103 の R4_ROWS（種類・R4 の返りの欄・行の頭）
 R4_ROWS = (("regression", "lost", "R4 が BASE から消えたと見た能力: "),
            (policy.POLICY_KIND, "policy_conflicts", "R4 が見た人の方針とのぶつかり: "))
@@ -267,7 +266,7 @@ def human_items(start_answer, answer) -> list:
     独立設計の控えの seen.count は、plan-review が始めの関所の答えから design.human_answers で数えた数なので、この並びの頭を数える。
     無人の run が推しで通した答えは欄 answer.PUSHED を行にも写す（design.human_answers・policy.recorded が人の答えから外す）"""
     return [{"round": 1, "node": node, "answer": a.get("decision"), "note": (a.get("text") or "").strip() or None, **origin(a)}
-            for node, a in ((START_GATE_NODE, start_answer), (gatemarks.GATE_NODE, answer)) if isinstance(a, dict)]
+            for node, a in ((gatemarks.START_GATE_NODE, start_answer), (gatemarks.GATE_NODE, answer)) if isinstance(a, dict)]
 
 
 def _constraint_rows(constraints) -> list[str]:

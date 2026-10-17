@@ -1567,12 +1567,19 @@ nodes:
     depends_on: [route, prep, join, clash-loop, tdd-unit, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: all_done
     timeout: 1728000000
+    # optional は、この修正のブロックが落ちても線が先へ進めてよい節の宣言（レンズの節 lens とその中継 lens-reply。柵 nodes-ok に結ばない
+    # 節と同じ集まり）。[{node, bare}] の JSON の字で、node は自分の中の節の id かその頭、bare はループの中の節で、記録の step に include
+    # の前付けの無い素の id で載るか。線は返りの欄 optional を受け皿で受け、include の id の頭を付けて報告へ渡す。2 度目の修正も
+    # 同じブロックの差し込みなので同じ宣言を使う
+    with:
+      optional: '[{"node": "lens", "bare": false}, {"node": "lens-reply", "bare": false}]'
     output_format:
       type: object
       additionalProperties: false
       required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, x_scalars, delta_review,
                  handoffs, mismatched, stop_reason]
       properties:
+        optional: {type: array}
         done: {type: boolean}
         units:
           type: array
