@@ -1132,9 +1132,9 @@ class GlossaryCase(unittest.TestCase):
 
     def test_plain_words_skip_katakana_words_that_only_contain_a_term(self):
         """片仮名の語は、長い片仮名語の一部（パイプライン・サブノード）なら置き換えない"""
-        pack = [{"term": "ライン", "plain": "工程の組み合わせ"}, {"term": "ノード", "plain": "工程の段"}]
+        pack = [{"term": "ライン", "plain": "処理の段の組み合わせ"}, {"term": "ノード", "plain": "処理の段"}]
         text, counts = runreport.plain_words("パイプラインとライン。サブノードとノード", pack)
-        self.assertEqual(text, "パイプラインと工程の組み合わせ。サブノードと工程の段")
+        self.assertEqual(text, "パイプラインと処理の段の組み合わせ。サブノードと処理の段")
         self.assertEqual(counts, {"ライン": 1, "ノード": 1})
 
     def test_plain_wording_keeps_the_meaning(self):
