@@ -4,10 +4,11 @@
   在れば place._verify を当て、壊れていれば赤にする。環境変数か置き場が無い時だけ見送る。試験の中では取りに行かない。
 - 見送らない: 環境変数 WORKS_FACTORY_ARCHON_REQUIRED が在れば（CI が立てる）、見送る所で同じ文の赤にする。
   CI の用意が崩れて Archon の要る試験が黙って見送られ、CI が緑のままになるのを防ぐ。
-- 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME（工場が決める値を書いた config.yaml。place.home_config）と、このリポジトリを指す WORKS_FACTORY_ROOT をつけて起こす。
-  その config.yaml には群の別名（place.group_presets）も書く。殻は群の別名を新しい run の --config で渡すが、止めた Archon の
-  validate と workflow test は --config を受けない（「--config can only be used with workflow run, trigger fire, or trigger schedule」）。
-  本番の家と同じく別名を書かない家は aliases=False で起こす（家の置き場は別。--config の層が群の値を運ぶことを照らす試験が使う）。
+- 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME と、殻と同じ既定の provider（place.PROVIDER_ENV）と、このリポジトリを指す
+  WORKS_FACTORY_ROOT（呼ぶ側が env で替えられる）をつけて起こす。家の config.yaml には群の別名（place.group_presets）を書く。殻は群の
+  別名と run のノードへの環境変数を新しい run の --config で渡すが、止めた Archon の validate と workflow test は --config を受けない
+  （「--config can only be used with workflow run, trigger fire, or trigger schedule」）。本番の家と同じく何も書かない家は
+  aliases=False で起こす（家の置き場は別。--config の層が値を運ぶことを照らす試験が使う）。
   bun が無ければ見送る。
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
@@ -97,11 +98,11 @@ def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str) -> s
     if bun is None:
         raise absent("bun が無い")
     home = cwd.parent / ("archon-home" if aliases else "archon-home-bare")
-    if not home.exists():
-        place.home_config(home)
-        if aliases:
-            with (home / "config.yaml").open("a", encoding="utf-8") as config:
-                config.write("aliases:\n" + "".join(f"  {json.dumps(name)}: {json.dumps(preset)}\n"
-                                                     for name, preset in place.group_presets().items()))
-    child = hermetic.child_env(**{**env, "ARCHON_HOME": str(home), "WORKS_FACTORY_ROOT": str(ROOT)})
+    if aliases and not home.exists():
+        home.mkdir()
+        (home / "config.yaml").write_text("aliases:\n" + "".join(f"  {json.dumps(name)}: {json.dumps(preset)}\n"
+                                                                for name, preset in place.group_presets().items()),
+                                          encoding="utf-8")
+    child = hermetic.child_env(**{"WORKS_FACTORY_ROOT": str(ROOT), **env, "ARCHON_HOME": str(home),
+                                  place.PROVIDER_ENV: place.DEFAULT_PROVIDER})
     return subprocess.run([bun, str(entry), *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")

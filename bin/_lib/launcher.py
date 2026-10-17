@@ -103,10 +103,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         raise Stop(str(error)) from None
 
     child = isolate.isolate(user, home)
-    try:
-        place.home_config(Path(child["ARCHON_HOME"]))
-    except RuntimeError as error:
-        raise Stop(str(error)) from None
     # GitHub の資格は AI の役に渡さない（持ち主の決め auth-middleware）。run の中の gh は、利用者の gh 自身の置き場のログインを
     # hostgh の口が継ぎ、役にはその前に置く読むだけの口 works-gh（no-post-bin/）だけが見える（持ち主の決め roles-read-only-gh）。
     # 環境変数だけでログインする利用者の値は、gh の読まない名（hostgh.RELAY）で口へ渡す
@@ -118,10 +114,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
     heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
     child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
-    child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
+    child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", **{place.PROVIDER_ENV: place.DEFAULT_PROVIDER})
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
-    child[answer.ENV] = answer_head(home, target)
 
     executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
     if executing:
@@ -152,11 +147,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
-        rest = without_flag(argv[3:], "--cwd")
-        config = None
-        if not adopting(flags):
-            config = run_config(bun, source, cache, home, target, flags)
-            rest = without_flag(rest, "--config")
+        rest = without_flag(without_flag(argv[3:], "--cwd"), "--config")
+        config = run_config(bun, source, cache, home, target, flags)
         check_test_cmd(user, target, [v.removeprefix("test_cmd=") for v in flag_values(flags, "--input")
                                      if v.startswith("test_cmd=")])
         try:
@@ -195,8 +187,8 @@ def require_command_first(argv: list[str]) -> None:
 
 
 def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
-    """新しい run（workflow run <グラフの名>。--resume でない）のグラフの名。--cwd・--workflow-source・--config（--adopt の時は除く。
-    run_config）を殻が足すのはこの時だけ"""
+    """新しい run（workflow run <グラフの名>。--resume でない）のグラフの名。--cwd・--workflow-source・--config（run_config）を殻が
+    足すのはこの時だけ。続ける命令（RESUMING）は、Archon が起動の時に封じた層を戻す"""
     if argv[:2] != ["workflow", "run"] or "--resume" in flags:
         return None
     if len(argv) < 3 or argv[2].startswith("-"):
@@ -206,26 +198,35 @@ def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
 
 def adopting(flags: list[str]) -> bool:
     """記録のある run を引き継ぐ起動（--adopt）か。Archon はその run の記録した AI の設定を受け継ぎ、aliases を持つ --config の層を
-    「Cannot override AI configuration inherited from a recorded run.」で拒む（packages/workflows/src/run-preflight.ts）"""
+    「Cannot override AI configuration inherited from a recorded run.」で拒む（packages/workflows/src/run-preflight.ts）。env と
+    workflows の層は受け、引き継ぐ run の層は受け継がない"""
     return any(a == "--adopt" or a.startswith("--adopt=") for a in flags)
 
 
+def run_env(home: Path, target: Path) -> dict[str, str]:
+    """run のノード（script・bash）に渡す環境変数: lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root）と、承認ノードの
+    文の答えの行の頭（answer_head）"""
+    return {"WORKS_FACTORY_ROOT": str(ROOT), answer.ENV: answer_head(home, target)}
+
+
 def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str]) -> Path:
-    """新しい run に渡す設定の層（place.run_config）。利用者の --config があれば合わせる。Archon は --config を 1 つしか読まず後ろの物を
-    採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む。群の別名だけの層は秘密を持たないので取り置き cache に、利用者の層を
-    合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を解く鍵の置き場）に置き、家と一緒に消える"""
+    """新しい run に渡す設定の層（place.run_config。--adopt の時は群の別名を除く）。利用者の --config があれば合わせる。Archon は
+    --config を 1 つしか読まず後ろの物を採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む。工場の値だけの層は秘密を
+    持たないので取り置き cache に、利用者の層を合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を
+    解く鍵の置き場）に置き、家と一緒に消える"""
+    env, aliases = run_env(home, target), not adopting(flags)
     mine = (flag_values(flags, "--config") or [None])[-1]
     if not mine:
-        return place.run_config(cache)
+        return place.run_config(cache, env, aliases=aliases)
     try:
         layer = place.read_run_config(bun, source, target / mine)
     except RuntimeError as error:
         raise Stop(str(error)) from None
-    replaced = sorted(set(layer.get("aliases", {})) & set(launchgroups.GROUPS))
+    replaced = sorted(set(layer.get("aliases", {})) & set(launchgroups.GROUPS)) if aliases else []
     if replaced:
         print(f"{NAME}: --config の群の別名 {'・'.join(replaced)} は工場の値で上書きした。群の値の付け替えは --model @wf-<群>=<模型>",
               file=sys.stderr)
-    return place.run_config(home, layer)
+    return place.run_config(home, env, layer, aliases=aliases)
 
 
 def refuse_unknown_groups(flags: list[str]) -> None:
