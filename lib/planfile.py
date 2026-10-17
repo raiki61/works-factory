@@ -13,8 +13,8 @@
 - reply.json（受け付けた返答。番号を id に戻した全体で、works の欄も決め手の欄も持つ。項目の同じさ converge.item_hash の元）
 - p2.fix_plan.json（reply.json から works の欄を外した物。2 往復目からは block_answers も）・plan-fields.json（planmarks.save の形）・
   replan.json（形 replan の時。replan.TRIP_FILE の行の形）・ripple-units.json・ripple.json・trace.jsonl
-- handoff.json（受け付けた返答の頭の欄 HANDOFF。役が次の周の自分へ書いた引き継ぎのメモ: 読んだ所・決めた訳・退けた案・迷っている所。
-  案の控えには入れず、次の周の材料 handoff_section がパスで名指す）
+- handoff.json（住処は lib/handoff.py。受け付けた返答の頭の欄 handoff.FIELD。役が次の周の自分へ書いた引き継ぎのメモ: 読んだ所・決めた訳・退けた案・迷っている所。
+  案の控えには入れず、次の周の材料が handoff.section でパスで名指す）
 - prior-failures-in.json（入力 prior_failures の行の写し。carry.PRIOR_IN_FILE）・structure/（役を起こさない周の構造の控え）
 
 - 直す義務: is_open（元 works/.shared/core/scripts/review-record.py:624）・_owed_units（元 works/.shared/core/conflict.py:676 の owed_units_but_asked）・
@@ -28,14 +28,14 @@
   この控えを converge の answer_gaps・splice・revise_section・filled_units に渡す
 - 材料と受け付け: write_brief・prior_section・take_plan・take_replan（元 planblk の prep・prior_part・take・with_plan_fields・revise_take と
   replan の prep・_take）
-- 引き継ぎのメモ: HANDOFF・HANDOFF_SCHEMA（欄の型。役の型の写しは workflows/plan/works-factory-plan.yaml）・HANDOFF_ASK（書けという頼み）・
-  HANDOFF_HEAD・NO_HANDOFF・handoff_section（前の周のメモを名指す節）。控えの名と置き場は marks の種 handoff
+- 引き継ぎのメモ: 型・頼み・前の周の節・控えの書き読みの住処は lib/handoff.py（役の型の写しは workflows/plan/works-factory-plan.yaml）。
+  ここは受け付けた返答から欄を外して handoff.save で置き、材料に handoff.ASK と handoff.section を貼る。控えの名と置き場は marks の種 handoff
 - 拒まれた後の出し直し（#571）: RESUBMIT_RULES・REPLAN_RESUBMIT_RULES（出し直しの役の指示書 rolekit.write_resubmit に差し込む
   返し方）・merge_plan_items・merge_resubmit・merge_replan_resubmit（拒まれた所だけの出し直しを前の答えと合わせる。
   rolekit.resubmitted に渡す）・round_slots（形 plan の周の単位の名の並び）
 - 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）・
   keep_state（書けない周の控え）
-- 周と出口: next_round・latest・structure_key・open_round・ripple_units・ripple_items・owed_order・collect・placeholders
+- 周と出口: next_round・accepted_rounds・latest・structure_key・open_round・ripple_units・ripple_items・owed_order・collect・placeholders
 """
 from __future__ import annotations
 
@@ -65,6 +65,7 @@ import depth  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import handoff  # noqa: E402
 import headdepth  # noqa: E402
 import jsonfile  # noqa: E402
 import impact  # noqa: E402
@@ -122,24 +123,6 @@ UNREAD_INPUTS_HEAD = promptsection.Section("## 読めなかった入力（機械
 FILLED_DUTY = "機械が前の往復の行を差し込む（変えない項目は書かなくてよい。閉じた項目は書くな）"
 FILLED_LINE = "- 機械が差し込む no（前の往復の案の項目。変えない項目は書かなくてよい。閉じた項目は書くな）: {nos}"
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
-HANDOFF = "handoff"                # 修正案の役の返答の頭の任意の欄。次の周の自分へ運ぶ引き継ぎのメモ（受け付けが外して周のフォルダに置く。控えの名は marks の種）
-HANDOFF_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["read", "decided", "rejected", "open"],
-                  "properties": {
-                      "read": {"type": "array", "items": {
-                          "type": "object", "additionalProperties": False, "required": ["path", "lines", "why"],
-                          "properties": {"path": {"type": "string", "minLength": 1}, "lines": {"type": "string", "minLength": 1},
-                                         "why": {"type": "string", "minLength": 1}}}},
-                      "decided": {"type": "array", "items": {"type": "string", "minLength": 1}},
-                      "rejected": {"type": "array", "items": {
-                          "type": "object", "additionalProperties": False, "required": ["option", "why"],
-                          "properties": {"option": {"type": "string", "minLength": 1}, "why": {"type": "string", "minLength": 1}}}},
-                      "open": {"type": "array", "items": {"type": "string", "minLength": 1}}}}
-HANDOFF_HEAD = promptsection.Section("## 前の周の引き継ぎのメモ（機械が名指した）", source="fn:planfile.write_brief")
-NO_HANDOFF = "無い（前の周の役が書かなかった）"
-HANDOFF_ASK = (f"次の周の自分は新しい会話で起きて、この会話で読んだ所も考えも持たない。返答の一番上の欄 {HANDOFF}（plan とは別の欄。案には入らず、"
-               "機械が周のフォルダに置く）に、次の周の自分へのメモを書け: read＝読んだ所（path・lines・読んだ訳 why）、"
-               "decided＝そう決めた訳の文、rejected＝退けた案（option）と退けた訳（why）——置き場の案に限らず別の直し方も、"
-               "open＝迷っている所の文。どの並びも空でよいが、4 つとも書け")
 WHOLE_PLAN = "whole_plan"          # 出し直しの役の型だけが持つ欄。真なら plan が前の案を丸ごと置き換える（合わせた後も控えに残す）
 RESUBMIT_RULES = ("直す所の無い欄は書くな\n"
                   "- plan には、拒否に挙がった項目だけを、前と同じ型の丸ごとの項目で返せ。unit_keys が 1 つでも重なる前の項目は、返した項目に"
@@ -147,12 +130,12 @@ RESUBMIT_RULES = ("直す所の無い欄は書くな\n"
                   "全部返す）。どの前の項目とも重ならない項目は後ろに足される。今の周に直す単位を 1 つも持たない前の項目（知らない key・"
                   "外す単位だけの項目）は、plan を返すと消える\n"
                   "- block_answers を直す時は、全部の行を返せ（欄ごと置き換わる）\n"
-                  f"- {HANDOFF} を直す時は、全部を返せ（欄ごと置き換わる）\n"
+                  f"- {handoff.FIELD} を直す時は、全部を返せ（欄ごと置き換わる）\n"
                   f"- 項目を消す時（拒否が書くなと言った項目を外す時も）だけは {WHOLE_PLAN} に true を書き、plan に閉じた項目を除く案の全部を"
                   "返せ（plan が丸ごと置き換わり、機械は閉じた項目の行だけを差し込む。この後の出し直しも、この全部の案に合わせる）")
 REPLAN_RESUBMIT_RULES = ("直す所の無い欄は書くな\n"
                          "- plan を直す時は、貼った項目の全部を貼った順に返せ（plan は丸ごと置き換わる）\n"
-                         f"- {HANDOFF} を直す時は、全部を返せ（欄ごと置き換わる）")
+                         f"- {handoff.FIELD} を直す時は、全部を返せ（欄ごと置き換わる）")
 
 
 # ---------------------------------------------------------------- 読み書きの小道具
@@ -535,10 +518,15 @@ def next_round(plan_dir) -> int:
     return len(_rounds(plan_dir)) + 1
 
 
+def accepted_rounds(plan_dir, *, before=None) -> list:
+    """受け付けた案（reply.json）の在る周のフォルダを古い順に（before の周より前だけ。無ければ空）。受け付けた周の絞りはここ 1 か所"""
+    return [d for d in _rounds(plan_dir) if (d / REPLY_FILE).is_file()
+            and (before is None or round_no(d) < round_no(before))]
+
+
 def latest(plan_dir, *, before=None):
     """受け付けた案（reply.json）の在る一番新しい周のフォルダ（before の周より前だけ。無ければ None）"""
-    got = [d for d in _rounds(plan_dir) if (d / REPLY_FILE).is_file()
-           and (before is None or round_no(d) < round_no(before))]
+    got = accepted_rounds(plan_dir, before=before)
     return got[-1] if got else None
 
 
@@ -761,8 +749,8 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
     出し直しの役の短い指示書 rolekit.write_resubmit）。前の回の拒否が在れば（resume で輪が 1 周目から回り直した時）、この周の拒否の理由の全部を
     rolekit.reject_file で書いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
     元の planblk.prior_part）・記録された方針のセクション recorded（policy.recorded_text）・考えの住処の地図（元は包みが旗
-    concept-map で足した concepthome.section）・引き継ぎのメモを書けという頼み HANDOFF_ASK・前の周の引き継ぎのメモの節
-    handoff_section（前の周が在る時だけ。前の周の案の隣のメモを名指し、メモが無ければ無いと名指す）。形 plan はほかに単位と no・
+    concept-map で足した concepthome.section）・引き継ぎのメモを書けという頼み handoff.ASK・前の周までの引き継ぎのメモの節
+    handoff.section（受け付けた周が前に在る時だけ。前の周までの案の隣のメモを古い順に全部名指し、メモが無い周は無いと名指す）。形 plan はほかに単位と no・
     処方・構造の目の行・世界の解の行・波及の一覧・裏取りの申し送り・頭の深さの行ごとの未知の種類と指示（headdepth.section。
     判定の隣の控え）・仕様・方針の文書の段落（policy_md が在る時。元の p2.fix_plan の
     prompt_append の policy-path.md と policy.md）・2 往復目からは前の周の案と事前審査の指摘と前の周の波及の一覧。形 replan は
@@ -780,7 +768,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
     except ValueError as e:
         carried = ""
         unread.append(f"prior_failures: {e}")
-    common = [head, carried, recorded, concepthome.section(repo), HANDOFF_ASK, handoff_section(prev)]
+    common = [head, carried, recorded, concepthome.section(repo), handoff.ASK, handoff.section(accepted_rounds(plan_dir, before=round_dir))]
     if mode == "replan":
         rows = _rows(jsonfile.read_or(prev / REPLY_FILE), "plan") if prev else []
         items = [i for i in read_round(round_dir)["items"] if 1 <= i <= len(rows)]
@@ -811,18 +799,6 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
     path = round_dir / BRIEF_FILE.format(n=n)
     path.write_text(rolekit.compose([*parts, notes, lang_line], reject_file=reject_file), encoding="utf-8")
     return path, n
-
-
-def handoff_section(prev) -> str:
-    """前の周 prev（latest が返す周のフォルダ。無ければ None）の引き継ぎのメモを名指す節。メモは中身を貼らず、パスで名指して
-    Read させる（案の控えと同じ渡し方）。前の周が無ければ節ごと出さず（書かなかった事実が無い）、前の周が在ってメモが無ければ
-    NO_HANDOFF と名指す。控えのパスは marks.path_of が組む"""
-    if prev is None:
-        return ""
-    path = marks.path_of("handoff", prev)
-    note = (f"{path}（Read で読め。前の周の自分が読んだ所・決めた訳・退けた案・迷っている所）"
-            if path.is_file() else NO_HANDOFF)
-    return f"{HANDOFF_HEAD}\n\n- 前の周の引き継ぎのメモ: {note}"
 
 
 def _prior_section(round_dir, plan_dir, record: dict) -> str:
@@ -871,16 +847,16 @@ def moved(path, repo, keys=accept.TREE_KEYS) -> str:
     return planblk.READONLY_MOVED + "；".join(changes) if changes else ""
 
 
-def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=None, handoff=None) -> dict:
-    """受けた案の控えを置く（案の控えの後に、handoff が空でなければ引き継ぎのメモの控えを置き、空なら周のフォルダに残る前のメモを消す）。
+def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=None, memo=None) -> dict:
+    """受けた案の控えを置く（案の控えの後に、引き継ぎのメモ memo を handoff.save で置く。memo が空なら周のフォルダに残る前のメモを消す）。
     置けなければ置いた控えを消し、置けなかった控えの名を round.json の why に残して、輪を止める返り
     {ok: False, halt: True, count: false, give_up: true, reason}（拒否ではない。役に出し直させず、欄の無い案で進ませない。count: false で
     受け付けの回の口 rolekit.accept_round が控えに積まず、give_up: true でその回を done にして輪を止める。元 planblk.with_plan_fields の BoardGap）"""
-    note = marks.path_of("handoff", round_dir)
+    note = handoff.path_of(round_dir)
     steps = [(FIX_PLAN_FILE, lambda: _write_json(round_dir / FIX_PLAN_FILE, bare)),
              (planmarks.FIELDS_FILE, lambda: planmarks.save(round_dir, k, fields, amended=amended)),
              (REPLY_FILE, lambda: _write_json(round_dir / REPLY_FILE, plan)),
-             (note.name, lambda: marks.write(note, handoff) if handoff else note.unlink(missing_ok=True))]
+             (note.name, lambda: handoff.save(round_dir, memo))]
     for name, step in steps:
         try:
             step()
@@ -903,7 +879,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（moved。keys の欄で比べる）。拒否は理由を全部 1 回で
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
-    _save の halt。count: false・give_up: true で受け付けの回が控えに積まずに輪を止める）。返答の頭の欄 HANDOFF（引き継ぎのメモ）は
+    _save の halt。count: false・give_up: true で受け付けの回が控えに積まずに輪を止める）。返答の頭の欄 handoff.FIELD（引き継ぎのメモ）は
     照らす前に外し、案の控えには混ぜずに handoff.json に書く（無ければ周に残る前のメモを消す。メモの控えを置けない時も同じ halt）。2 往復目からは block_answers を外して前の往復の答えの要る穴（block と開いた項目の suggest）への答えを照らし、返答に無い項目に前の往復の行を差し込んだ案の全体を照らす
     （出し直しが WHOLE_PLAN を立てた答えは、案の全部なので閉じた項目の行だけを差し込む）。差し込んだ案の全体は、出し直しの役が
     読み、次の出し直しを合わせる元の控え rolekit.candidate_path にも書く。
@@ -915,8 +891,8 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     given = reply
     reply, mark = marks.split("resubmit", "plan-revise", reply, (WHOLE_PLAN,))
     whole_plan = (mark or {}).get(WHOLE_PLAN) is True
-    reply, note = marks.split("handoff", "plan-revise", reply, (HANDOFF,))
-    handoff = (note or {}).get(HANDOFF)
+    reply, note = marks.split("handoff", "plan-revise", reply, (handoff.FIELD,))
+    memo = (note or {}).get(handoff.FIELD)
     if replan._malformed(reply):
         return {"ok": False, "reason": MALFORMED_REJECT}
     record = converge_record(plan_dir)
@@ -951,7 +927,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     out, fields = planmarks.split(plan, pathlib.Path(repo), base_tests=texts)
     extra = {converge.ANSWERS: answers} if record["passes"] else {}
     k = round_no(round_dir)
-    saved = _save(round_dir, k, {**plan, **extra}, fields, {**out, **extra}, handoff=handoff)
+    saved = _save(round_dir, k, {**plan, **extra}, fields, {**out, **extra}, memo=memo)
     if saved["ok"]:
         for item_id in dropped:
             planmarks.append_trace(round_dir, converge.DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
@@ -961,15 +937,15 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
 def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_rev: str, keys=accept.TREE_KEYS) -> dict:
     """修正案の役の直した項目の返答（形 replan）を受け付ける。拒否は REPLAN_REJECT と誤りの全部。通れば replan.json（行は
     replan.TRIP_KEYS の形。contract_changed・widened は事実だけ）と、直した項目を差し替えた案の全体を p2.fix_plan.json・
-    plan-fields.json（amended に直した項目の核の欄）・reply.json に書き、trace に planmarks.AMEND_OP を書く。返答の頭の欄 HANDOFF
+    plan-fields.json（amended に直した項目の核の欄）・reply.json に書き、trace に planmarks.AMEND_OP を書く。返答の頭の欄 handoff.FIELD
     （引き継ぎのメモ）は take_plan と同じく照らす前に外し、この周の handoff.json に書く（無ければこの周に残る前のメモを消す。直す元の周のメモは変えない）。
     作業ツリーの比べと控えを置けない時は take_plan と同じ"""
     round_dir = pathlib.Path(round_dir)
     why = moved(round_dir / TREE_FILE, repo, keys)
     if why:
         return {"ok": False, "reason": why}
-    reply, note = marks.split("handoff", "plan-revise", reply, (HANDOFF,))
-    handoff = (note or {}).get(HANDOFF)
+    reply, note = marks.split("handoff", "plan-revise", reply, (handoff.FIELD,))
+    memo = (note or {}).get(handoff.FIELD)
     prev = latest(plan_dir, before=round_dir)
     if prev is None:
         return {"ok": False, "reason": f"{replan.REPLAN_REJECT}\n  - 直す元の承認済みの修正案が無い"}
@@ -1002,7 +978,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
         amended[row["item"]] = {k: it[k] for k in planmarks.CORE_KEYS if k in it}
     out, _ = planmarks.split({"plan": whole}, pathlib.Path(repo))
     k = round_no(round_dir)
-    saved = _save(round_dir, k, {"plan": whole}, fields, out, amended=dict(sorted(amended.items())), handoff=handoff)
+    saved = _save(round_dir, k, {"plan": whole}, fields, out, amended=dict(sorted(amended.items())), memo=memo)
     if not saved["ok"]:
         return saved
     planmarks.append_trace(round_dir, planmarks.AMEND_OP, round=k, items=sorted(row["item"] for row in rows))
