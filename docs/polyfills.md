@@ -171,6 +171,31 @@
   - `lib/marks.py::KINDS` の種 `handoff`。
   - `lib/tests/test_handoff.py` の全体と、ほかの試験の handoff の分（残りの試験は import で赤になるので、黙っては残らない）。
 
+### P11 ノードの plugins: で入っていないかもしれないプラグインを名指せない
+
+- 穴: ノードの `plugins:` は、名指したプラグインが入っていないと最初の turn の前にノードを落とす。入っていれば載せる任意の形（`mcp:` の `optional: true` の類）は無く、値は literal。coldwrite（書く散文の初見検査のフック）は利用者の env の marketplace から取る任意の借り物で、入れていない利用者には入れる物が無い。
+- 証拠:
+  - `packages/providers/src/claude/plugins.ts` の「Fails when a named id is not installed, because Claude Code would skip it」（`buildClaudePluginSettings` は入っていない名指しを `misconfigured` で投げる）
+  - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「A named plugin brings its agents, hooks, LSP servers and commands」「The node fails before its first model turn when a named plugin is not installed」「An `mcp:` declared `optional: true` runs the node without its servers instead」「Your own settings, hooks, permissions and `CLAUDE.md` still load」（hooks だけは選べず、任意の形は `mcp:` にだけ在り、利用者の設定のフックは名指しなしで読む）
+  - `packages/workflows/src/template-walker.test.ts` の「'plugins.*': { kind: 'literal'」（`plugins:` の値は literal）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（後の 40 commit は証拠の 3 つのファイルを変えていない）。
+- 埋め: `bin/_lib/toolset.py`。hooked の道で、coldwrite の `hooks/hooks.json` の表を隔離した設定の `settings.json` の hooks に足す。`settingSources: [user]` のノードは利用者の設定のフックを読む（証拠の `authoring-workflows.md`）ので、全部の役で効く。coldwrite の取り元の env は `bin/_lib/borrow/borrow.json` の coldwrite の項が持ち、利用者の設定に無ければ借りずに見送る（`toolset.user_borrow`。持ち主の決め `others-may-use`・`AGENTS.md` の E14）。env の字はここに写さない。
+- 使うサブグラフ: 書く役を持つ全部
+- 外す条件: 2 つが揃った版が出たら。1 つは、`plugins:` に入っていなければ飛ばす形が入ること。もう 1 つは、名指したプラグインのうち hooks だけを載せられること（か coldwrite が hooks しか持たないこと）。`plugins:` は agents・hooks・LSP・commands をまとめて載せる。外す時は、hooked の物が隔離した設定にプラグインとして入らない（`toolset.py` の install が CLI で入れる物から外している）ので、coldwrite を works-local へ入れる道（`pr-review-toolkit` と同じ）に替える要る。
+
+### P12 道具の拒みを run ごとに変えられない
+
+- 穴: ノードの `denied_tools` は YAML の literal で、公開ベンチの run だけで拒むことを書けない。run 1 本ぶんの `--config` の層にも、`assistants.claude` の strict な形にも、道具を拒む鍵が無い。
+- 証拠:
+  - `packages/workflows/src/schemas/dag-node.ts` の「denied_tools: z.array(z.string()).optional()」（ノードの欄）
+  - `packages/workflows/src/template-walker.test.ts` の「'denied_tools.*': { kind: 'literal'」（値は literal）
+  - `packages/workflows/src/schemas/run-config.ts` の「Sparse configuration values whose consumers still run after dispatch」（run の設定の層 `workflowRunConfigLayerSchema`。鍵は `assistant`・`assistants`・`aliases`・`tiers`・`workflows`・`docsPath`・`envVars` だけの strict な形）
+  - `packages/providers/src/claude/config.ts` の「install: z.strictObject(fields)」「run: z.strictObject(fields)」（`assistants.claude` は `model`・`settingSources`・`claudeBinaryPath` だけの strict な形）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（後の 40 commit は証拠の 4 つのファイルを変えていない）。
+- 埋め: `bin/_lib/toolset.py`。埋めは run ごとの部分だけ。`toolset.DENY_WEB_ENV`（`tests/calibration/run.py` が立てる）が 1 の時、install が permissions に拒みを足す（`toolset.permissions`）。env の字はここに写さない。決めは持ち主の決め `public-bench-at-major`。
+- 使うサブグラフ: 全部（公開ベンチの run だけで効く）
+- 外す条件: `denied_tools` か run の設定の層で、道具の拒みを run ごとに書ける版が出たら。外した後も `toolset.DENY_WEB` の一覧は残る: ベンチが素の Claude Code にも使う（`tests/calibration/run.py` の `--disallowedTools`・`settings.json`・漏れの数え）ため。
+
 ## Archon の決めに合わせた形
 
 Archon の穴でなく、Archon が決めてそうしている振る舞いに合わせた埋め。版が上がっても外れる見込みは無い。行の形と照らしは「今の行」と同じ。
