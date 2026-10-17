@@ -328,6 +328,7 @@ COPIED_TEXTS = {
     "r4-scope.md": (WORKS_GL + "r4.hidden_scope.md", "a8b038965a694909ca4ac3046965d072a5b3e4efb51d4b4430a6ace62da5b800", [
         ("", head_of("R4 見えてないスコープ", "inspector")),
         ("", "$prep.output.carried\n\n---\n\n"),   # 直す前の関所で人が通した狭まり（元 eyes.prep の gatemarks.carried_section）
+        ("", "$prep.output.plan_declared\n\n---\n\n"),   # 修正役が直さずに残した事前審査の block（#662。eyeverdict.declared_section）
         ("", R4_REJECTS),   # 名指さない方針の行を拒んだ受け付けの理由の全部（#455）
         ("累積差分: " + DIFF_SLOT[0], "累積差分: " + DIFF_FIELD[0]), DIFF_EDITS[1], CHANGED_FILES, REPO_SLOT,
         ("元の目的: " + PURPOSE[0], "元の目的: " + PURPOSE[1]),
@@ -1479,6 +1480,21 @@ class ScriptCase(unittest.TestCase):
         carried = self.run_script("prep")["carried"]
         self.assertTrue(carried.startswith(gatemarks.CARRIED_HEAD), carried)
         self.assertIn("- [regression] 古い入口——使う人がいない", carried)
+
+
+    def test_prep_pastes_declared_plan_blocks_at_the_r4_head(self):
+        """issue #662: 修正役が直さずに残すと答えた事前審査の block（入力 plan_declared。fix の出力を fixed が合わせた行）を R4 の頭に
+        貼る。無ければ空"""
+        self.prep_inputs()
+        self.assertEqual(self.run_script("prep")["plan_declared"], "")
+        row = "stale-docstring-left: 古い docstring が直しの後の戻り値を説明しない（修正役の答え: 範囲の外なので残す）"
+        self.inputs["plan_declared"] = json.dumps([row], ensure_ascii=False)
+        got = self.run_script("prep")["plan_declared"]
+        self.assertTrue(got.startswith(eyeverdict.DECLARED_HEAD), got)
+        self.assertIn(eyeverdict.DECLARED_ASK, got)
+        self.assertIn(f"- {row}", got)
+        r4 = (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8")
+        self.assertIn("$prep.output.plan_declared", r4)
 
 
 class CopiedTextsCase(unittest.TestCase):

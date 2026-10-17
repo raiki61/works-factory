@@ -1814,6 +1814,20 @@ class ConvergeCase(RunCase):
                          [(left["key"], "block", converge.PERIPHERAL)])
         self.assertIn(converge.WORDS[converge.SETTLED], converge.lines(r.view())[0])
 
+    def test_relabel_to_peripheral_needs_a_new_why(self):
+        """前の往復で中央だった block の key を peripheral に付け替える時、why が前の往復と同じ字なら受け付けが拒む（付け替えの訳が
+        無い）。why を書き直せば受ける"""
+        r = self.run_
+        self.first()
+        r.open()
+        r.out("review_prep")
+        same = {**MEAN_BLOCK, converge.REACH: converge.PERIPHERAL}
+        got = r.accept(review(same))
+        self.assertFalse(got["ok"], got)
+        self.assertIn(f"{MEAN_BLOCK['key']} を前の往復の中央", got["reason"])
+        moved = {**same, "why": "直しの後は空の列の扱いが試験の材料の言い回しだけに残り、どの害の定義にも当たらない"}
+        self.assertTrue(r.accept(review(moved))["ok"])
+
     def test_peripheral_only_first_pass_goes_again(self):
         """1 往復目の block が端だけでも、一度は修正案の役へ返して答えさせる（AGAIN）"""
         got = self.run_.pass_(review(face("stale-docstring-left", reach=converge.PERIPHERAL)))
@@ -1837,6 +1851,36 @@ class ConvergeCase(RunCase):
             self.assertNotIn(unchanged, text, unchanged)
         first = pathlib.Path(r.folder / boardview.PASS_DIR.format(k=1) / boardview.PROMPT_FILE).read_text(encoding="utf-8")
         self.assertIn("修正役の案: ", first, "1 往復目は案の全体")
+
+    def test_second_pass_material_shows_other_items_scope(self):
+        """木にしない 2 往復目でも、開いた項目の直しが閉じた項目と食い違うのが見える: 項目が 2 つ以上なら、波及の一覧の重なりの
+        うち開いた項目に当たる行と、ほかの項目の unit_keys・allowed_paths・files の path を貼る（閉じた項目の案の文は貼らない）"""
+        r = self.run_
+        self.first()
+        r.plan([item(UNIT_MEAN, 1, approach="mean の分母を直し、clamp の上限の枝も同じ関数で包む",
+                     files=[frow("stats.py", "helper_1", "clamp")]), item(UNIT_CLAMP, 2)], rnd=2, answers=self.ANSWERS)
+        r.ripple(RIPPLE)
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        cross = text[text.index(planblk.CROSS_HEAD):]
+        for w in (planblk.CROSS_ASK, "- stats.py: 項目 1, 2", f"- 項目 2（{UNIT_CLAMP}）", "  - allowed_paths: stats.py",
+                  "  - files: stats.py"):
+            self.assertIn(w, cross, w)
+        self.assertNotIn(f"- 項目 1（{UNIT_MEAN}）", cross, "開いた項目が 1 つなら自分の範囲は差分の側に在る")
+        self.assertIn("+ files[stats.py].symbols[clamp].name: clamp", text, "閉じた項目 2 の名に触る直しの文")
+        for unchanged in (f"{PLAN_MARK} 項目 2 の直し", "helper_2"):
+            self.assertNotIn(unchanged, text, unchanged)
+
+    def test_second_pass_material_of_one_item_has_no_cross_section(self):
+        """項目が 1 つの案には項目どうしの節を足さない"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1)])
+        r.pass_(review(MEAN_BLOCK))
+        r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾いて分母を直す")], rnd=2, answers=self.ANSWERS)
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(planblk.REREVIEW_HEAD.format(n=1, units=UNIT_MEAN), text)
+        self.assertNotIn(planblk.CROSS_HEAD, text)
 
     def decay(self, rnd):
         """1 往復目に 2 項目へ block を 1 つずつ、計画の周 rnd の 2 往復目に項目 1 へ新しい block を 1 つ（開いた block が 2 → 1）"""

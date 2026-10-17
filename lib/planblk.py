@@ -27,7 +27,8 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
             （束ね役の組）でだけ呼ばれる。木にしない往復（単独の組）は審査役 1 つの返答をそのまま受ける（出自の申告 origins は役の型が
             確かめた返答の欄のまま）。木の往復で開いた項目の答えのファイルが無ければ、その項目の下請けを起こせと拒む
 - 後の回の材料: 2 往復目からの形 review は、開いた項目ごとの案の文の差分（_diff_part。converge.sentence_diff）と波及の一覧だけを
-            貼る（rereview_part・木の下請けのファイル。変わっていない文は載せない）。design_map は前の往復の行にも在った鍵（kept_keys）を
+            貼る（rereview_part・木の下請けのファイル。変わっていない文は載せない。単独の審査役には、項目が 2 つ以上なら項目どうしの
+            重なりとほかの項目の範囲の節 _cross_part も貼る。木の道では相乗りの審査が持つ）。design_map は前の往復の行にも在った鍵（kept_keys）を
             求めず、その行が受けた要素を item_refs で網羅に引き継ぐ
 - 単位の名: unit_name（返答の no → 単位の名。boardview・planfile も引く）
 - RECEIVES: 役ごとに貼る節の見出しの表（promptsection）
@@ -143,6 +144,9 @@ DIFF_ASK = ("前の往復でこの項目を見た審査は、前の block と答
             "差分の外の所を見直して新しい穴を探さない。穴の重さの決まり（block か suggest か）と reach の決まりは変えない（前に中央の"
             "値だった block を peripheral に付け替えるなら、why の頭の 1 文に前の定義に当たらなくなった訳を書く）。")
 REREVIEW_HEAD = promptsection.Section("## 開いた項目 {n}（{units}）の差分と波及の一覧", source="fn:planblk.rereview_part")
+CROSS_HEAD = promptsection.Section("## 項目どうしの重なりと、ほかの項目の範囲（機械が範囲と波及の一覧から引いた）", source="fn:planblk.rereview_part")
+CROSS_ASK = ("開いた項目の差分が、下のほかの項目（閉じた項目も含む）の単位・範囲・触るファイルと食い違えば、その食い違いも穴に挙げよ"
+             "（ほかの項目の案の文はここに無い。要れば作業ツリーのファイルを読め）。")
 # 2 往復目からの独立設計の突き合わせ（design_map の鍵の一覧と網羅の引き継ぎは map_items_section・coverage_gaps）
 DESIGN_DIFF_ASK = ("2 往復目からは、差分の足した文・消した文と、design_map の鍵の一覧の鍵だけを設計と突き合わせよ。変わっていない"
                    "行の突き合わせは前の往復の物を機械が引き継ぐ（鍵の一覧に無い行は書かない）。")
@@ -731,6 +735,7 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     errs += [f"$.resolved: {line}" for line in converge.stray_resolved(converge.read(b), got["resolved"], n)]
     errs += [f"$.resolved: {k} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つ）"
              for k in got["resolved"] if k in block_keys]
+    errs += [f"$.faces: {line}" for line in converge.relabel_gaps(converge.read(b), got["faces"])]
     errs += [f"$.{e}" for e in face_row_gaps(got["faces"], _recorded_rows(b))]
     return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [],
                                                                      kept_keys(b, [n]))]
@@ -893,14 +898,32 @@ def _item_plan_part(b, n: int, it: dict) -> str:
 
 def rereview_part(b) -> str:
     """木にしない 2 往復目からの形 review の材料で、修正案の全体の代わりに貼る節: 開いた項目（converge.open_items）ごとに、案の
-    差分（前の行の無い項目は全体。_item_plan_part）と波及の一覧（ripple.section）。閉じた・保留の項目と変わっていない文は載せない"""
+    差分（前の行の無い項目は全体。_item_plan_part）と波及の一覧（ripple.section）。項目が 2 つ以上なら項目どうしの節（_cross_part）を
+    足す。閉じた・保留の項目の案と変わっていない文は載せない"""
     rows = _item_rows(b)
     rip = _ripple_of(b, converge.pass_no(b)) or {"error": "波及の一覧のノードがこの往復の一覧を置いていない"}
+    opened = _opened(b, rows)
     parts = []
-    for n in _opened(b, rows):
+    for n in opened:
         units = "、".join(str(k) for k in rows[n - 1].get("unit_keys") or [])
         parts += [REREVIEW_HEAD.format(n=n, units=units), _item_plan_part(b, n, rows[n - 1]), ripple.section(rip, n)]
+    if len(rows) >= 2 and opened:
+        parts.append(_cross_part(rows, opened, rip))
     return "\n\n".join(parts)
+
+
+def _cross_part(rows: list, opened: list, rip: dict) -> str:
+    """単独の審査役が項目どうしの食い違いを見る節（木の道では相乗りの審査が持つ）: 波及の一覧の重なりのうち開いた項目に当たる行と、
+    開いた項目から見たほかの項目の unit_keys・allowed_paths・files の path。案の文は貼らない"""
+    over = [f"- {o['at']}: 項目 {', '.join(map(str, o['items']))}" for o in rip.get("overlaps") or [] if set(o["items"]) & set(opened)]
+    others = [m for m in range(1, len(rows) + 1) if any(m != n for n in opened)]
+    scope = []
+    for m in others:
+        it = rows[m - 1]
+        scope += [f"- 項目 {m}（{'、'.join(str(k) for k in it.get('unit_keys') or [])}）",
+                  f"  - allowed_paths: {'、'.join(str(x) for x in it.get('allowed_paths') or []) or '無い'}",
+                  f"  - files: {'、'.join(str(f.get('path')) for f in it.get('files') or [] if isinstance(f, dict)) or '無い'}"]
+    return "\n".join([CROSS_HEAD, "", CROSS_ASK, "", "重なり:", *(over or ["- 無い"]), "", "ほかの項目:", *scope])
 
 
 def _carried_part(b, n: int, rip: dict) -> str:
@@ -1003,7 +1026,7 @@ RECEIVES = [
     *(promptsection.Receive("plan-review", head) for head in (
         DESIGN_HEAD, MAP_ITEMS_HEAD, planmarks.REVIEW_HEAD, planmarks.FIELDS_ITEM_HEAD, planmarks.DEVIATION_HEAD, AGG_HEAD, ITEM_HEAD, SYNERGY_HEAD,
         ITEM_PLAN_HEAD, ITEM_UNITS_HEAD, ALL_ITEMS_HEAD, OVERLAPS_HEAD, BRIEF_TITLE, SUB_FORMAT, DIFF_HEAD, CARRIED_HEAD, PRECEDENT_HEAD,
-        ERRORS_HEAD, HISTORY_HEAD, REREVIEW_HEAD, ripple.HEAD, ripple.ITEM_HEAD, ripple.ITEM_KEYS_HEAD, converge.PASS_HEAD, converge.OWED_HEAD, converge.FACE_HEAD)),
+        ERRORS_HEAD, HISTORY_HEAD, REREVIEW_HEAD, CROSS_HEAD, ripple.HEAD, ripple.ITEM_HEAD, ripple.ITEM_KEYS_HEAD, converge.PASS_HEAD, converge.OWED_HEAD, converge.FACE_HEAD)),
     *(promptsection.Receive(role, head) for role in ("plan", "plan-review")
       for head in (libdocs.TITLE, libdocs.DOC_TITLE, libdocs.FRAGMENT_HEAD, libdocs.LIB_HEAD)),
     *(promptsection.Receive(DESIGN_ROLE, head) for head in (

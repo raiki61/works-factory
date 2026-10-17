@@ -466,7 +466,7 @@ nodes:
     depends_on: [fix]
     with:
       got: "$fix.output"
-      names: "done units groups conflicts replan_items objection diff allowed_test_changes changed x_scalars delta_review handoffs mismatched stop_reason"
+      names: "done units groups conflicts replan_items objection diff allowed_test_changes changed x_scalars delta_review handoffs mismatched plan_declared stop_reason"
 
   - id: after-fix
     script: after_fix
@@ -649,6 +649,7 @@ nodes:
         delta_review: {}
         handoffs: { type: array }
         mismatched: { type: array }
+        plan_declared: { type: array }
         done: { type: boolean }
         go: { type: boolean }
         rejudge: { type: boolean }
@@ -661,7 +662,7 @@ nodes:
         no_fix: { type: boolean }
         stop_reason: { type: string }
       required: [units, groups, conflicts, replan_items, objection, diff, diffs, allowed_test_changes, changed, x_scalars, delta_review,
-                 handoffs, mismatched,
+                 handoffs, mismatched, plan_declared,
                  done, go, rejudge, refixed, plan, ripple, design, plan_questions, answer, no_fix, stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, refix-run, replan-out, design-only]
@@ -828,6 +829,7 @@ nodes:
       green_ok: "$test-gate-final.output.ok"
       test_outcomes: "$test-gate-final.output.test_outcomes"
       diffs: "$fixed.output.diffs"
+      plan_declared: "$fixed.output.plan_declared"
       plan_questions: "$fixed.output.plan_questions"
       answers: "$fixed.output.answer"
       start_answers: "$answer-start.output.answer"

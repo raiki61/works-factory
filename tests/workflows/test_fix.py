@@ -41,7 +41,7 @@ import ruling  # noqa: E402
 import runreport  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
-                   "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason"}
+                   "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "plan_declared", "stop_reason"}
 CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "answer_ties", "materials", "depth_record", "plan", "ripple", "depth",
                    "head_depth", "answers", "prior_conflicts", "plan_review", "notes"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
@@ -126,7 +126,8 @@ def refs(text: str) -> set:
 
 
 class ContractCase(unittest.TestCase):
-    """返す節 fix の output_format が約束の 12 欄をちょうど持つ（10 欄と、最後の関所を開ける理由の 2 欄 handoffs・mismatched）"""
+    """返す節 fix の output_format が約束の欄をちょうど持つ（最後の関所を開ける理由の 2 欄 handoffs・mismatched と、独立の目への
+    申し送り plan_declared を含む）"""
 
     def setUp(self):
         self.doc = load()
@@ -162,7 +163,7 @@ class ContractCase(unittest.TestCase):
         self.assertEqual(props["changed"]["properties"]["premise_drift_note"], {"type": "string"})
         self.assertEqual(props["x_scalars"], {"type": "object"})
         self.assertEqual(set(props["delta_review"]["required"]), {"rounds", "pass"})
-        for name in ("replan_items", "allowed_test_changes", "handoffs", "mismatched"):
+        for name in ("replan_items", "allowed_test_changes", "handoffs", "mismatched", "plan_declared"):
             self.assertEqual(props[name]["items"], {"type": "string"})
         self.assertEqual(props["objection"], {"type": "string"})
         pointer = props["diff"]
@@ -2403,6 +2404,29 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertEqual(code, 0, err)
             self.assert_contract(out)
             self.assertEqual((out["done"], out["handoffs"], out["mismatched"]), (False, [], []))
+
+    def test_collect_returns_declared_plan_blocks(self):
+        """修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block は、key・why・修正役の答えの 1 行で plan_declared に
+        載る（独立の目へ申し送る）。取り込んだ（absorbed）block と suggest は載らず、裁定の後の返答の答えが組の答えに勝つ"""
+        import fixboard
+        self.collect_place()
+        why = "古い docstring が直しの後の戻り値を説明しないまま残る"
+        _blk_write(self.place / fixboard.PLAN_REVIEW_FILE, {"faces": [
+            {"key": "stale-docstring-left", "severity": "block", "why": why},
+            {"key": "absorbed-block-0001", "severity": "block", "why": "取り込んだ穴"},
+            {"key": "suggest-left-000001", "severity": "suggest", "why": "参考の穴"},
+            {"key": "ruled-block-000001", "severity": "block", "why": "裁定の後に答え直した穴"}], "shrink": []})
+        _blk_write(self.place / fixboard.FIX_REPLY_FILE, {"changes": [], "not_done": [], "plan_faces": [
+            {"key": "stale-docstring-left", "handled": "declared", "how": "範囲の外のファイルなので直さずに残す"},
+            {"key": "absorbed-block-0001", "handled": "absorbed", "how": "直しに取り込んだ"},
+            {"key": "suggest-left-000001", "handled": "declared", "how": "参考なので残す"},
+            {"key": "ruled-block-000001", "handled": "declared", "how": "組では残すと答えた"}]})
+        _blk_write(self.place / fixboard.RULED_REPLY_FILE, {"changes": [], "plan_faces": [
+            {"key": "ruled-block-000001", "handled": "absorbed", "how": "裁定の後の修正で取り込んだ"}]})
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual(out["plan_declared"], [f"stale-docstring-left: {why}（修正役の答え: 範囲の外のファイルなので直さずに残す）"])
 
     def test_collect_diff_holds_every_returned_group(self):
         """F424: 返りの diff は run の始めの版（prep が控えた base-rev.json）から今の作業ツリーへの累積差分の指し札で、戻せた組の

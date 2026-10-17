@@ -1571,7 +1571,7 @@ nodes:
       type: object
       additionalProperties: false
       required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, x_scalars, delta_review,
-                 handoffs, mismatched, stop_reason]
+                 handoffs, mismatched, plan_declared, stop_reason]
       properties:
         done: {type: boolean}
         units:
@@ -1647,5 +1647,7 @@ nodes:
         # 最後の承認ノードを開ける理由の 2 欄（修正役が人に回した物・申告と数え直しが合わない単位）
         handoffs: {type: array, items: {type: string}}
         mismatched: {type: array, items: {type: string}}
+        # 修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block の行。独立の目の R4 へ申し送る
+        plan_declared: {type: array, items: {type: string}}
         # 止めの語（戻せず当たったままの組が在れば stopby.UNRESTORED。ほかは ""）
         stop_reason: {type: string}

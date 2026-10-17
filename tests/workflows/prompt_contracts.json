@@ -728,6 +728,7 @@
       "$prep.output.diff_file",
       "$prep.output.green_line",
       "$prep.output.lang_line",
+      "$prep.output.plan_declared",
       "$prep.output.policy_path",
       "$prep.output.purpose_text",
       "$prep.output.r4_context",

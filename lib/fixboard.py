@@ -1044,6 +1044,27 @@ def closure_table(place) -> list:
     return querytest.closure_rows(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1))
 
 
+def declared_lines(place) -> list:
+    """修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block の 1 件 1 行「key: why（修正役の答え: how）」。問いは
+    置き場の事前審査の返答の写し PLAN_REVIEW_FILE の severity block の faces、答えは組の返答の和 FIX_REPLY_FILE（裁定の後の返答
+    RULED_REPLY_FILE が同じ key に答えていればそちら）。写しが無ければ []（事前審査の無い run）"""
+    p = pathlib.Path(place)
+    rv = read_json(p / PLAN_REVIEW_FILE)
+    if not isinstance(rv, dict):
+        return []
+    said = {}
+    for name in (FIX_REPLY_FILE, RULED_REPLY_FILE):
+        doc = read_json(p / name)
+        rows = doc.get("plan_faces") if isinstance(doc, dict) else None
+        said.update({r.get("key"): r for r in rows or [] if isinstance(r, dict)})
+    out = []
+    for f in rv.get("faces") or []:
+        a = said.get(f.get("key")) if isinstance(f, dict) and f.get("severity") == "block" else None
+        if a is not None and a.get("handled") == "declared":
+            out.append(f"{f['key']}: {oneline.one_line(f.get('why') or '')}（修正役の答え: {oneline.one_line(a.get('how') or '')}）")
+    return out
+
+
 def final_lines(results, field: str, more=()) -> list:
     """組の子の結果 results の欄 field（handoffs・mismatched の行の並び）と more を、重ねずに現れた順でつないだ並び"""
     out: list = []

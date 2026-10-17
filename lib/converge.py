@@ -54,7 +54,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - owed_faces(doc, p): 往復の行 p の、次の往復で答えと照らしが要る穴（block と、開いた項目に付いた suggest）。項目の在る控えでは
   今の開いた項目の分だけ。この絞りの住処はここ 1 つ（止め時は decide）
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（owed_faces の
-  穴の分）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
+  穴の分。resolved_gaps は relabel_gaps〔中央の block を訳なしで端に付け替えた行〕も持つ。下請けの答えの受け付けも引く）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
   対応表）・出自 ORIGINS・一番上の止まった時の推し STUCK_PUSH は tree_split が外す。下請けの答えのファイルの当たりの答えの型は
   HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
@@ -111,7 +111,8 @@ HANDLED = ("fixed", "disputed")
 FACE_KEYS = ("key", "kind", "where", "why")
 # 穴の中央・端の札（block の face の欄 REACH。役の型の faces の reach はこの写し）。中央の値は、直さずに修正へ進むと当たる害の
 # 定義の名（直しが壊れる・今ある振る舞いを失う・記録された方針に背く・やり直しを迫る設計の選び）。端はどれにも当たらない穴
-# （古い説明文の取り残し・書き換えの一覧の漏れ・試験の材料）で、修正の段と直しの後の目でも拾える。定義と訳は docs/design.md
+# （古い説明文の取り残し・書き換えの一覧の漏れ・試験の材料）で、修正の段で修正役が答え、直さずに残せば直しの後の目の R4 に
+# 申し送られる（fixboard.declared_lines）。定義と訳は docs/design.md
 REACH = "reach"
 CENTRAL = ("breaks_fix", "loses_behavior", "against_policy", "forces_redesign")
 PERIPHERAL = "peripheral"
@@ -887,6 +888,20 @@ def resolved_gaps(b, faces: list, resolved: list) -> list[str]:
     gaps += stray_resolved(doc, resolved)
     gaps += [f"{key} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つにせよ）"
              for key in resolved if key in block_keys]
+    return gaps + relabel_gaps(doc, faces)
+
+
+def relabel_gaps(doc: dict, faces: list) -> list[str]:
+    """前の往復で中央だった block の key を今の往復の block で PERIPHERAL に付け替えたのに、why が前の往復と同じ字の行の拒否の行
+    （付け替えの訳が無い。端へ移せば止め時 decide が通すので、訳なしの付け替えを受けない）。前の行は key を最後に挙げた往復の faces"""
+    gaps = []
+    for f in block_faces({"faces": faces}):
+        if f.get(REACH) != PERIPHERAL:
+            continue
+        prev = next((q for p in reversed(doc.get("passes") or []) for q in p.get("faces") or [] if q.get("key") == f.get("key")), None)
+        if prev is not None and central(prev) and str(f.get("why") or "").strip() == str(prev.get("why") or "").strip():
+            gaps.append(f"{f.get('key')} を前の往復の中央（{prev.get(REACH) or '札なし'}）から {PERIPHERAL} に付け替えたのに why が前の往復と"
+                        "同じ字（why の頭の 1 文に、前の定義に当たらなくなった訳を書け）")
     return gaps
 
 

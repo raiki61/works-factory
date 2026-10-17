@@ -174,6 +174,18 @@ def carried_section(passed: dict) -> str:
     return f"{gatemarks.CARRIED_HEAD}\n\n{gatemarks.CARRIED_ASK}\n\n" + "\n".join(rows) if rows else ""
 
 
+DECLARED_HEAD = "## 修正役が直さずに残した事前審査の block（事前審査の返答と修正役の答えから機械が並べた）"
+DECLARED_ASK = ("下の行は、計画の事前審査が挙げ、修正役が直さずに残すと答えた block（key: 穴の訳（修正役の答え））。累積差分の後も"
+                "まだ在るかを読み、在る物はこの変更が手を付けていない残りとして扱え: この変更が入れた・露呈させた害なら redesign-needed、"
+                "知らせるだけで足りるなら surfaced に挙げる（text の頭に [suggest]）。消えていれば挙げない")
+
+
+def declared_section(rows) -> str:
+    """R4 の指示書の頭に貼る、修正役が直さずに残すと答えた事前審査の block の行（fixboard.declared_lines の行。無ければ空）"""
+    rows = [r for r in rows or [] if isinstance(r, str) and r.strip()] if isinstance(rows, list) else []
+    return f"{DECLARED_HEAD}\n\n{DECLARED_ASK}\n\n" + "\n".join(f"- {r}" for r in rows) if rows else ""
+
+
 def _r4_rows(r4: dict | None) -> list[tuple]:
     """R4 の消えた能力と方針とのぶつかりの [(種類, 行の頭, 本文)]"""
     r4 = r4 or {}
@@ -307,7 +319,8 @@ def premise_section(*, human_items, request_text, repo, changed, constraints, de
     return "\n\n".join(parts), {"node": "r2.compare", **ledger}
 
 
-def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_file: str, world_file: str, passed: dict) -> dict:
+def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_file: str, world_file: str, passed: dict,
+                 declared=None) -> dict:
     """目の指示書に差し込む文。値は線から届いたままの形（無い物は None）"""
     unit_rows = [f"{u.get('id')}: {u.get('summary')}（{', '.join(u.get('paths') or [])}）" for u in units or [] if isinstance(u, dict)]
     fix_rows = [f"{u.get('unit_id')}（組 {u.get('group_id')}）: {u.get('status')}——{u.get('reason')}"
@@ -319,6 +332,7 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
         "fixes_text": _lines(fix_rows, "（修正の単位の結末が渡っていない）"),
         "constraints_text": constraints_text(constraints),
         "carried": carried_section(passed),
+        "plan_declared": declared_section(declared),
         "r4_context": "\n".join([
             f"- 波及の一覧: {ripple_file or '（渡っていない）'}",
             f"- 定石の行: {world_file or '（渡っていない）'}",

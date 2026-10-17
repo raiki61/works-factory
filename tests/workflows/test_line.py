@@ -2436,6 +2436,15 @@ class FixedCase(unittest.TestCase):
         self.assertEqual(got["allowed_test_changes"], ["tests/a.py", "tests/b.py"])
         self.assertEqual((got["diff"], got["replan_items"], got["refixed"]), ({"path": "refix/diff"}, ["1"], True))
 
+    def test_declared_plan_blocks_reach_the_eyes(self):
+        """issue #662: 修正役が直さずに残すと答えた事前審査の block の行は、1 回目と 2 度目の修正の分を重ねずに合わせ、独立の目の
+        入力 plan_declared へ渡す"""
+        row = "stale-docstring-left: 古い docstring が残る（修正役の答え: 範囲の外なので残す）"
+        got = fixed.fixed(self.fix(plan_declared=[row]), self.fix(plan_declared=[row, "b: x（修正役の答え: y）"]), replan=True,
+                          stops=("", ""))
+        self.assertEqual(got["plan_declared"], [row, "b: x（修正役の答え: y）"])
+        self.assertEqual(line_nodes()["eyes"]["with"]["plan_declared"], "$fixed.output.plan_declared")
+
     def test_eyes_get_the_final_test_outcomes_and_every_fix_diff(self):
         """issue #384: R2 の比較役の実測は最後のテストの関門の比べ（base の関門の欄は常に null）と、修正の段ごとの diff"""
         self.assertEqual({k: line_nodes()["eyes"]["with"][k] for k in ("test_outcomes", "diffs")},
