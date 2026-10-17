@@ -46,6 +46,7 @@
 - 決め: ASF の取り付け命令（`factory.py init`）が置いた物を、出どころの断り書きを足さずにこのリポジトリに入れる。ASF にライセンスが付いたら、それに従う。
 - 当て方: 置いた物は 4 つの層の外に、手を加えずに置く（`AGENTS.md` の E8）。ASF の版を進める時と、ASF のリポジトリにライセンスのファイルが付いた時に、その中身を読み、従い方をこのセクションに書き足す。
 - 運び役の補足（判断は変えない）: 著作権の法では、ライセンスが無い物は既定で作者が権利を全部持つ扱いになる。作者が嫌がれば消すよう求められる余地は残る。
+- 運び役の決め（2026-10-17、issue #676。持ち主の言葉「さっきのはそれでおどうぞ。」は運び役の案への答え）: PR #637（下の `asf-follows-dev`）の後に起こす物の無くなった取り付け物は外し、置き直さない。外した物は `factory/runtime_host.py`（入口の `serve`・`setup`・`start`・`describe`・`identity`・`teardown`）・`factory/runtime_process.py`・`factory/runtime_resource.py`（入口の `prepare`・`start`）・`factory/RUNTIME_HOST.md`・`factory/MIGRATION.md`・`harness/` の全部（`ci.py`・`appproc.py`・`mutations/`（`run.py` と `defects.json`）・`harness.config.json`・`runtime.inputs.json`）。要れば git の履歴から戻す。通しの筋書きは `tests/e2e/scenario.json`・`scenario.md` へ移し、試験が `harness.config.json` から読んでいた値は読む試験の定数にした。`factory/consumer.py`・`factory/pack.json` は上流のまま置く（`consumer.py` の `--runtime-host` の道は遅延 import なので、使えば import の誤りで止まる。工場はこの旗を使わない）。版を上げて取り付け命令が外した物を置き直したら、同じ一覧で消し直す。
 
 ### `io-in-output-format` サブグラフの間で渡す物の型は Archon の output の構造体で表す
 
@@ -189,8 +190,8 @@
 ### `full-suite-in-ci` 全部の試験は CI に寄せ、run の中では回さない
 
 - 持ち主の言葉: 「全部回すのはCIに寄せて」（2026-10-12）
-- 決め: 作業中の試験（`harness/harness.config.json` の `unit` が呼ぶ `tests/changed.py`）は、変更から試験を選べない時も全部の試験を回さない。選べた範囲と層の柵（`tests/layers/`）だけを回し、全部の試験は CI に寄せると選べなかった訳を出して終える。全部の試験は CI（`.github/workflows/tests.yml` の 4 つの分け）が必ず回し、main へのマージは CI の緑を待つので、確かめの網は減らない。
-- 当て方: ASF から取り付けた `harness/ci.py` の段の上限には手を加えない（`AGENTS.md` の E8）。前の決め「手元の重いのはやめます」（2026-10-06。下の `light-in-loop`）と同じ向き。
+- 決め: 作業中の試験（run の中の確かめの全体の命令が呼ぶ `tests/changed.py`）は、変更から試験を選べない時も全部の試験を回さない。選べた範囲と層の柵（`tests/layers/`）だけを回し、全部の試験は CI に寄せると選べなかった訳を出して終える。全部の試験は CI（`.github/workflows/tests.yml` の 4 つの分け）が必ず回し、main へのマージは CI の緑を待つので、確かめの網は減らない。
+- 当て方: 前の決め「手元の重いのはやめます」（2026-10-06。下の `light-in-loop`）と同じ向き。
 - 出典: PR #196 の運び役のコメント（2026-10-12 の 1 回目の修理）。issue #184 の受け入れ「全部を回す場合も TIMEOUT で落ちない」を「全部を回す場合に倒れず、CI に寄せる」に読み替えた。
 
 ### `on-archon-only` Archon の上に載るだけ。ASF は手本で、Archon の役を自分で覆わない
@@ -304,7 +305,7 @@
 
 - 持ち主の言葉（2026-10-16、PR #637）: 「asfは他人のものなので、勝手にあがったらそれを使えばいいのでは？今の版に固執する意味はどこにある？」
 - 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
-- 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（`harness/harness.config.json` の `required_checks`・`protected_paths`）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
+- 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（必須の check・守りのパス）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
 - 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分の家の設定で決める物がある（`defaultAssistant: claude`・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方: `bin/_lib/place.py` の `home_config`。群の別名（`@wf-<群>`）は家の設定に書かず、新しい run の `--config` の層で渡す（`run-model-choice`）。
 
 ### `run-model-choice` run ごとにノード群の模型と effort を替えられる

@@ -8,7 +8,6 @@
   "**/fixtures/**",
   "lib/graphloops/**",
   "factory/**",
-  "harness/**",
   ".github/**",
   "*AGENTS.md",
   "MISSION.md",

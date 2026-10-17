@@ -25,12 +25,10 @@ first story.
 The pinned SDLC source (upstream dev) has no runtime, holdout, discovery or
 merge-queue workflow; a pull request it delivers is merged outside them. Where a
 project still gathers runtime or holdout evidence by hand, that evidence must
-exercise the delivered candidate and match its current source identity. When
-using the factory runtime host, follow
-`factory/RUNTIME_HOST.md`: prepare the resource from the delivering checkout at its
-expected revision, require the configured health and build-identity checks, use
-fresh state for each attempt, and preserve the typed result as evidence. Ordinary
-checks do not substitute for required runtime or holdout evidence.
+exercise the delivered candidate and match its current source identity: run it
+from the delivering checkout at its expected revision, use fresh state for each
+attempt, and preserve the result as evidence. Ordinary checks do not substitute for
+required runtime or holdout evidence.
 
 Independent review evidence may be Archon's canonical current-head report, a
 genuine review by an independent human, or an external independent report format
