@@ -224,6 +224,17 @@ class BuildCase(Base):
         self.assertIn(userenv.NOTE, self.first_line(user_env=True))
         self.assertNotIn(userenv.NOTE, self.first_line())
 
+    def test_notices_before_the_run_are_in_the_head(self):
+        """#678: run を止めずに進めた起こす前の注意の行（線の値 notices）は、冒頭の 3 行の下に 1 行ずつ載り、人に向けた報告の頭
+        （machine_head）に入る。無ければ冒頭は今のまま"""
+        notices = ["注意（test_cmd）: test_cmd の .venv/bin/x は対象の git が無視するパス", "許しなので止めずに進める"]
+        _, text, _ = self.build(line={"notices": notices})
+        head = runreport.machine_head(text)
+        self.assertTrue(head.split("\n\n")[1].startswith(gatemarks.HAPPENED), head)
+        self.assertEqual(head.split("\n\n")[-1].splitlines(), notices)
+        _, quiet, _ = self.build()
+        self.assertEqual(runreport.machine_head(quiet), head.rsplit("\n\n", 1)[0])
+
     def test_prior_section_names_only_the_files_written(self):
         """#383 の 10: 前の失敗だけが在る run は next-request.json を書かないので、節はそれを名指さず prior-failures.json を名指す"""
         got, text, _ = self.build(line={"stops": {"ask-final": stopby.LINE_SCRIPT}})

@@ -60,8 +60,9 @@ LINE = {   # 線の値（線の collect が渡す。docs/design.md の report �
     "spec-unchecked": os.environ.get("INPUTS_SPEC_UNCHECKED", ""),
     "redepth": os.environ.get("INPUTS_REDEPTH", ""),
     "optional": os.environ.get("INPUTS_OPTIONAL", ""),
+    "notices": os.environ.get("INPUTS_NOTICES", ""),
 }
-LISTS = ("deferred", "widened", "final-reasons", "spec-changed", "optional")
+LISTS = ("deferred", "widened", "final-reasons", "spec-changed", "optional", "notices")
 WORKFLOW_FILE = Path(__file__).resolve().parents[1] / "works-factory-report.yaml"   # 来歴の行の版を測る自分の工程
 
 
@@ -207,7 +208,7 @@ def opened(value, unopened: list, rid: str, field: str = ""):
 
 
 def line_values(unread: list, unopened: list) -> dict:
-    """線の値を {stops, prior_failures, deferred, widened, final_reasons, spec_changed, spec_unchecked, redepth, optional} に（欄の名は
+    """線の値を {stops, prior_failures, deferred, widened, final_reasons, spec_changed, spec_unchecked, redepth, optional, notices} に（欄の名は
     - を _ に）。並びの入力は配列でなければ空にし、JSON でない入力は訳を unread に積む（黙って空にしない）。依頼の前の失敗の指し札は
     開けたパスの字にする"""
     out = {}
