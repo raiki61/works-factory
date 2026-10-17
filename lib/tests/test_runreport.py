@@ -1105,6 +1105,22 @@ class GlossaryCase(unittest.TestCase):
         self.assertEqual(text, "直す項目と項目。`単位` は鍵\n```\n単位\n```\n項目")
         self.assertEqual(counts, {"根本の単位": 1, "単位": 2})
 
+    def test_plain_words_skip_katakana_words_that_only_contain_a_term(self):
+        """片仮名の語は、長い片仮名語の一部（パイプライン・サブノード）なら置き換えない"""
+        pack = [{"term": "ライン", "plain": "工程の組み合わせ"}, {"term": "ノード", "plain": "工程の段"}]
+        text, counts = runreport.plain_words("パイプラインとライン。サブノードとノード", pack)
+        self.assertEqual(text, "パイプラインと工程の組み合わせ。サブノードと工程の段")
+        self.assertEqual(counts, {"ライン": 1, "ノード": 1})
+
+    def test_plain_wording_keeps_the_meaning(self):
+        """#660: 守りのパスは対象のリポジトリが守ると宣言したファイルも含み、承認ノードは無人の run では機械が通すので、言い方が
+        工場の内輪や人の確認に寄らない。周・ノードも言い換える（定義の節を持たない語を人に向けた報告に字のまま残さない）"""
+        text = runreport.plain_words("守りのパスに当たった差分。無人の run が推しで通した承認ノード。周 2 のノード")[0]
+        self.assertIn("対象のリポジトリ", text)
+        self.assertNotIn("工場自身", text)
+        self.assertNotIn("人の確認", text)
+        self.assertEqual([t["term"] for t in runreport.pack_terms() if t["term"] in text], [])
+
 
 class AcceptCase(Base):
     REPLY = json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
@@ -1352,7 +1368,7 @@ class CollectCase(Base):
         self.assertIn("観点ごとの見直しが直す項目を見た。`fix__lens` は名", human)
         detail = self.detail()
         self.assertIn("レンズが根本の単位を見た。", detail)
-        self.assertIn(f"- {runreport.SWAPPED_HEAD}: 承認ノード→人の確認を待つ所 1 回・レンズ→観点ごとの見直し 1 回・根本の単位→直す項目 1 回",
+        self.assertIn(f"- {runreport.SWAPPED_HEAD}: 承認ノード→先へ進めるかを決める所 1 回・レンズ→観点ごとの見直し 1 回・根本の単位→直す項目 1 回",
                       detail)
 
     def test_human_report_is_cut_to_the_line_budget(self):
@@ -1368,6 +1384,24 @@ class CollectCase(Base):
         body = human.split(cut)[0]
         self.assertEqual(sum(1 for x in body.splitlines() if x.startswith("```")) % 2, 0, "コードの囲みを閉じる")
         self.assertIn("行 199", self.detail())
+
+    def test_cut_right_after_an_opening_fence_opens_no_new_fence(self):
+        """#660: 切って落ちた行が囲みの開く印なら、閉じる印を足さない（足すと新しい囲みが開き、切った訳の 1 行がコードに入る）"""
+        cut = runreport._cut("a\nb\nc\n```\nx\ny\n```\nz", 5)
+        self.assertEqual(cut.splitlines()[:3], ["a", "b", "c"])
+        self.assertEqual(runreport._fences(cut.splitlines()), [])
+
+    def test_definitions_are_kept_and_follow_the_shown_head(self):
+        """#660: 書き手の頭が長くても語の定義は切られず、切った後に見えている頭に現れる語だけを並べる"""
+        text = "\n".join(["寄せて直した。", "", "## 1. 人が決めること", "", *[f"- 行 {i}" for i in range(200)], "- 畳みの話"])
+        terms = [{"term": "寄せ", "definition": "合わせること"}, {"term": "畳み", "definition": "後ろへ送ること"}]
+        runreport.accept(json.dumps({"text": text, "terms": terms}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect("# 報告\n\n起きたこと: 赤\n", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        self.assertLessEqual(len(human.splitlines()), runreport.line_budget(0), human)
+        self.assertNotIn("畳みの話", human)
+        defined = human.split(report_roles.GLOSSARY_HEADING)[1]
+        self.assertIn("- 寄せ: 合わせること", defined)
+        self.assertNotIn("畳み", defined)
 
     def test_not_passed_is_said_at_the_head(self):
         """#660（#495 の形を変えた）: 初見の読み手が 3 回とも通さず受け取った報告は、人に向けた報告の冒頭（機械の冒頭の直後）でそれを
@@ -1436,7 +1470,7 @@ class ColdBodyCase(Base):
         reply = json.dumps({"text": "承認ノードで止めた。\n\n## 1. 人が決めること\n\n- A\n\n## 2. 経緯\n\n長い",
                             "terms": [{"term": "A", "definition": "決める物"}]}, ensure_ascii=False)
         body = runreport.cold_body(reply, out_dir=self.out)
-        self.assertTrue(body.startswith("# 報告\n\n起きたこと: 赤\n\n人の確認を待つ所で止めた。"), body)
+        self.assertTrue(body.startswith("# 報告\n\n起きたこと: 赤\n\n先へ進めるかを決める所で止めた。"), body)
         self.assertNotIn("長い", body)
         self.assertNotIn("機械の行", body)
         self.assertIn(report_roles.GLOSSARY_HEADING, body)

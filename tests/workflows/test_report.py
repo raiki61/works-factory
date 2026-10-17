@@ -715,7 +715,7 @@ class ColdPrepScriptCase(Run):
         code, out = self.run_script("cold_prep", INPUTS_WRITER=writer)
         self.assertEqual(code, 0)
         self.assertTrue(out["body"].startswith(f"# 報告（run {RUN}）\n\n{gatemarks.HAPPENED}"), out["body"])
-        self.assertIn("人の確認を待つ所で止めた。", out["body"])
+        self.assertIn("先へ進めるかを決める所で止めた。", out["body"])
         self.assertNotIn("長い", out["body"])
 
 

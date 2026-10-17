@@ -851,15 +851,25 @@ KEPT_SPAN = re.compile(r"```.*?(?:```|\Z)|~~~.*?(?:~~~|\Z)|`[^`\n]*`"
                        + "|(?<=" + re.escape(gatemarks.ANSWER_KEY_HEAD) + r': )"(?:[^"\\\n]|\\.)*"', re.S)
 
 
+KATAKANA = "ァ-ヺー"
+
+
+def _term_pattern(term: str) -> str:
+    """語の表の語を当てる式。片仮名で始まる・終わる語は、続く片仮名語の一部（パイプライン・サブノード）には当てない"""
+    head = f"(?<![{KATAKANA}])" if re.match(f"[{KATAKANA}]", term) else ""
+    tail = f"(?![{KATAKANA}])" if re.search(f"[{KATAKANA}]$", term) else ""
+    return head + re.escape(term) + tail
+
+
 def plain_words(text: str, pack=None) -> tuple[str, dict]:
     """人に向けた文の、語の表の記録の名を人に向けた言い方に置き換えた字と、置き換えた語ごとの回数 {term: 回数}（長い語から当てる。
-    KEPT_SPAN の所は置き換えない）"""
+    KEPT_SPAN の所と、長い片仮名語の一部は置き換えない）"""
     text = str(text or "")
     rows = sorted(pack_terms() if pack is None else pack, key=lambda r: -len(r["term"]))
     if not rows:
         return text, {}
     to = {r["term"]: r["plain"] for r in rows}
-    word = re.compile("|".join(re.escape(r["term"]) for r in rows))
+    word = re.compile("|".join(_term_pattern(r["term"]) for r in rows))
     counts = {}
 
     def swap(m):
@@ -1997,19 +2007,24 @@ def _cut(block: str, room: int) -> str:
     if len(lines) <= room:
         return block
     shown = room - 1
-    fences = [x.strip()[:3] for x in lines[:shown] if x.strip().startswith(("```", "~~~"))]
-    if len(fences) % 2:
+    if len(_fences(lines[:shown])) % 2:
         shown -= 1
-    kept = [*lines[:shown], *([fences[-1]] if len(fences) % 2 else [])]
+    opened = _fences(lines[:shown])
+    kept = [*lines[:shown], *([opened[-1]] if len(opened) % 2 else [])]
     return "\n".join([*kept, CUT_LINE.format(n=len(lines) - shown, file=DETAIL_FILE, heading=RAW_HEADING.lstrip("# "))])
+
+
+def _fences(lines: list) -> list:
+    return [x.strip()[:3] for x in lines if x.strip().startswith(("```", "~~~"))]
 
 
 def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     """人に向けた報告（AI_REPORT_FILE）と詳細のファイル（DETAIL_FILE）を書き、人に向けた報告のパスを返す（元 report_roles.collect）。
     AI_FILE が無ければ None（書き手の輪が落ちた・飛ばされた）。
     人に向けた報告: 機械の報告の冒頭（machine_head）→ 初見の読み手が通さないまま受け取った時はその 1 行 → 書き手の頭（平易な要約と
-    人が決めることのセクション。report_roles.head_of）と語の定義の節 → 詳細のファイルを指す 1 行と来歴。全体を語の表で言い換え
-    （plain_words）、行は line_budget（人が決める物の件数）までに書き手の頭を切る（_cut）。受け取れなかった時は書き手の頭の所に訳。
+    人が決めることのセクション。report_roles.head_of）と、切った後に見えている頭に現れる語の定義の節 → 詳細のファイルを指す 1 行と
+    来歴。来歴より前を語の表で言い換え（plain_words。来歴は詳細のファイルと同じ字）、行は line_budget（人が決める物の件数）までに
+    書き手の頭を切る（_cut。語の定義の行は先に取り置く）。受け取れなかった時は書き手の頭の所に訳。
     詳細のファイル: 来歴・言い換えた語と回数の 1 行・書き手の本文の字のまま・語の定義・機械の事実（拒みの数の行と embedded）"""
     out_dir = pathlib.Path(out_dir)
     try:
@@ -2030,9 +2045,12 @@ def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     if note:
         head += f"\n{note.removeprefix('。')}"
     tail = f"{POINTER_LINE.format(file=DETAIL_FILE)}\n{stamp}"
-    sec = glossary_section(writer, terms)
     room = line_budget(sum(1 for x in head.splitlines() if x.startswith("- "))) - len(head.splitlines()) - len(tail.splitlines()) - 2
-    human, counts = plain_words("\n\n".join([head, _cut(writer + (f"\n\n{sec.rstrip()}" if sec else ""), room), tail]) + "\n")
+    held = glossary_section(writer, terms).rstrip()
+    shown = _cut(writer, max(room - (len(held.splitlines()) + 1 if held else 0), 2))
+    sec = glossary_section(shown, terms).rstrip()
+    human, counts = plain_words("\n\n".join([head, shown + (f"\n\n{sec}" if sec else "")]))
+    human += f"\n\n{tail}\n"
     colds = sum(c.get("cold", 0) for c in as_dict(ai.get("rejects")).values() if isinstance(c, dict))
     whole = glossary_section(f"{body}\n{note}", terms)
     detail = (f"{stamp}\n\n{DETAIL_TITLE}\n\n- {swapped_line(counts)}\n\n{RAW_HEADING}\n\n{body}\n\n"
