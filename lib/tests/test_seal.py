@@ -236,6 +236,21 @@ class ApplyR2Case(unittest.TestCase):
                     self.assertEqual(got, "")
 
 
+class EyeStatusWordsCase(unittest.TestCase):
+    def test_fix_needed_is_a_word_only_r1_says(self):
+        self.assertIn("fix-needed", seal.STATUSES)
+        self.assertEqual(seal.FIX_NEEDED, "fix-needed")
+        self.assertEqual(seal.eye_statuses("r1"), seal.STATUSES)
+        rest = {seal.PASSED, seal.REDESIGN, seal.UNVERIFIABLE}
+        for eye in ("r2", "r3", "r4"):
+            with self.subTest(eye):
+                got = seal.eye_statuses(eye)
+                self.assertNotIn(seal.FIX_NEEDED, got)
+                self.assertEqual(set(got), rest)
+        self.assertEqual(set(seal.STATUS_WORDS), set(seal.STATUSES))
+        self.assertNotEqual(seal.STATUS_WORDS[seal.FIX_NEEDED], seal.STATUS_WORDS[seal.REDESIGN])
+
+
 class ApplyNoAnswerCase(unittest.TestCase):
     def test_each_unchecked_fact_refuses(self):
         for over, word in (({"green_ok": False}, "緑でない"), ({"eyes_ok": False}, "目が通していない"),

@@ -38,6 +38,7 @@ if str(LIB / "graphloops") not in sys.path:
 import converge  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
+import handoff  # noqa: E402
 import launchgroups  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
@@ -244,13 +245,15 @@ class ShapeCase(unittest.TestCase):
         reject, write = BODY["write-reject"], BODY["write"]
         self.assertEqual((reject["script"], reject["runtime"], reject["with"]),
                          ("reject", "uv", {"reason": "$LOOP_PREV.accept.output.reason_file", "prev": "$LOOP_PREV.accept.output.prev_file"}))
-        self.assertEqual(reject["output_format"]["required"], ["reason", "prev"])
+        self.assertEqual(reject["output_format"]["required"], ["reason", "prev", "handoff"])
+        self.assertEqual(reject["output_format"]["properties"]["handoff"], {"type": "string"})
         self.assertIn("prev_file", NODES["write-loop"]["loop_group"]["nodes"][-1]["output_format"]["required"])
         self.assertNotIn("with", write)
         self.assertEqual(write["depends_on"], ["write-reject"])
         text = (BLOCK / "commands" / "report.md").read_text(encoding="utf-8")
         self.assertIn("`$write-reject.output.reason`", text)
         self.assertIn("`$write-reject.output.prev`", text)
+        self.assertIn("$write-reject.output.handoff", text)
         self.assertNotIn("$INPUTS", text)
         self.assertNotIn("$LOOP_PREV", text)
 
@@ -664,14 +667,16 @@ class AcceptScriptCase(Run):
         self.assertIn("拒否の控えが扱えない", ai["reason"])
 
     def test_rejected_round_names_the_previous_answer_relative(self):
-        handoff = {"read": ["lib/runreport.py:1"], "decided": ["訳"], "rejected": ["案"], "doubts": ["迷い"]}
-        reply = json.dumps({**json.loads(self.REPLY), "handoff": handoff}, ensure_ascii=False)
+        note = {"read": [{"path": "lib/runreport.py", "lines": "1", "why": "確かめた"}], "decided": ["訳"],
+                "rejected": [{"option": "案", "why": "訳"}], "doubts": ["迷い"]}
+        reply = json.dumps({**json.loads(self.REPLY), "handoff": note}, ensure_ascii=False)
         out = self.accept(reply, self.REDESIGN)
         self.assertTrue(out.get("prev_file"))
-        self.assertEqual(out["prev_file"], f"{runreport.OUT_DIR}/{runreport.PREV_ANSWER_FILE}")
+        self.assertEqual(out["prev_file"], f"{runreport.OUT_DIR}/candidate-report.json")
         kept = json.loads((self.artifacts / out["prev_file"]).read_text(encoding="utf-8"))
-        self.assertEqual(kept["text"], json.loads(reply)["text"])
-        self.assertEqual(kept["handoffs"][-1], handoff)
+        self.assertEqual(kept, {"text": json.loads(reply)["text"], "terms": []})
+        saved = self.artifacts / runreport.OUT_DIR / runreport.NOTE_ROUND.format(n=1) / "handoff.json"
+        self.assertEqual(json.loads(saved.read_text(encoding="utf-8")), note)
         self.assertEqual(self.accept(self.REPLY, self.PASS)["prev_file"], "")
 
     def test_cells_and_terms_rejected_first_time(self):
@@ -683,11 +688,37 @@ class AcceptScriptCase(Run):
 
 class RejectScriptCase(Run):
     def test_previous_answer_passes_through(self):
-        for reason, prev in (("", ""), ("2 行目", "report/prev-answer.json")):
+        for reason, prev in (("", ""), ("2 行目", "report/candidate-report.json")):
             with self.subTest(prev=prev):
                 code, out = self.run_script("reject", INPUTS_REASON=reason, INPUTS_PREV=prev)
                 self.assertEqual(code, 0)
-                self.assertEqual(out, {"reason": reason, "prev": prev})
+                self.assertEqual(out, {"reason": reason, "prev": prev, "handoff": handoff.ASK})
+
+    def test_reject_hands_the_ask_and_every_prior_note(self):
+        """輪の頭の節の返りの欄 handoff に、住処の頼み handoff.ASK と、使い方 handoff.USE と、前の周までの report/r<n>/handoff.json の
+        パスが古い順に在る（今の周の分は無い）。メモを書かなかった周は無いと名指す"""
+        redesign = AcceptScriptCase.REDESIGN
+        note = {"read": [{"path": "a.py", "lines": "1", "why": "読んだ"}], "decided": ["aの訳"],
+                "rejected": [{"option": "aの案", "why": "訳"}], "doubts": []}
+        replies = [json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n無い", "terms": [], "handoff": note}, ensure_ascii=False),
+                   json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)]
+        for reply in replies:
+            code, _ = self.run_script("report_accept", INPUTS_REPLY=reply, INPUTS_COLD=redesign)
+            self.assertEqual(code, 0)
+        code, out = self.run_script("reject", INPUTS_REASON="x", INPUTS_PREV="y")
+        self.assertEqual(code, 0)
+        part = out["handoff"]
+        folder = self.artifacts / runreport.OUT_DIR
+        self.assertTrue(part.startswith(handoff.ASK))
+        self.assertIn(handoff.HEAD, part)
+        self.assertIn(handoff.USE, part)
+        first, second = str(handoff.path_of(folder / "r1")), str(handoff.path_of(folder / "r2"))
+        self.assertIn(first, part)
+        self.assertNotIn(second, part, "メモを書かなかった周のパスは名指さない")
+        self.assertLess(part.index(handoff.USE), part.index(first))
+        self.assertLess(part.index(first), part.index(handoff.NONE))
+        self.assertNotIn("r3", part, "今の周の分は無い")
+        self.assertNotIn(note["decided"][0], part, "中身は貼らずパスで名指す")
 
 
 class OutDirCase(unittest.TestCase):
