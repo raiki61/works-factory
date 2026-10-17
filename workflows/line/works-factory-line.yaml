@@ -127,7 +127,8 @@ nodes:
 
   - id: test-gate-base-out
     # 受け皿 13 本の本体（script・runtime・timeout・output_format・mutates_checkout）はここ 1 か所。ほかの 12 本は <<: *receiver で受け、
-    # 受け皿ごとに id・depends_on・with だけを書く。with: の names は got から運ぶ欄の名で、宣言の外の欄は運ばない（workflows/AGENTS.md の E5）
+    # 受け皿ごとに id・depends_on・with だけを書く（計画の往復の 2 本は script も returned_fields に替える）。with: の names は got から運ぶ
+    # 欄の名で、宣言の外の欄は運ばない（workflows/AGENTS.md の E5）
     <<: &receiver
       script: returned
       runtime: uv
@@ -276,6 +277,7 @@ nodes:
 
   - id: plan-rounds-out
     <<: *receiver
+    script: returned_fields
     depends_on: [plan-rounds]
     with:
       got_ready: "$plan-rounds.output.ready"
@@ -287,6 +289,7 @@ nodes:
 
   - id: plan-rounds-review-out
     <<: *receiver
+    script: returned_fields
     depends_on: [plan-rounds]
     with:
       got_pass: "$plan-rounds.output.pass"

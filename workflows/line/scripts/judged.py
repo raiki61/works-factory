@@ -55,15 +55,19 @@ def judged(judge: dict, rejudge: dict | None, objection: str, rejudge_stop: str 
             "stop_reason": rejudge_stop if rejudge is not None else ""}
 
 
-def judge_from_env(prefix: str) -> dict:
+def judge_from_env() -> dict:
     """judge_ の頭の入力（fix-in の欄つきの参照）。値は enum の字か null なので、5 欄とも boundary.value で読む"""
-    return {key: boundary.value(os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
+    return {"units": boundary.value(os.environ.get("INPUTS_JUDGE_UNITS")),
+            "judgment": boundary.value(os.environ.get("INPUTS_JUDGE_JUDGMENT")),
+            "purpose": boundary.value(os.environ.get("INPUTS_JUDGE_PURPOSE")),
+            "world": boundary.value(os.environ.get("INPUTS_JUDGE_WORLD")),
+            "rejudge_verdict": boundary.value(os.environ.get("INPUTS_JUDGE_REJUDGE_VERDICT"))}
 
 
 def from_env() -> tuple:
     rejudge = boundary.picked(os.environ.get("INPUTS_REJUDGE"), REJUDGE)   # 走らなかった（飛んだ節）なら None
     stop = rejudge["stop_reason"] if rejudge is not None else ""
-    return (judge_from_env("JUDGE"), rejudge, boundary.text(os.environ.get("INPUTS_OBJECTION")), boundary.as_text(stop))
+    return (judge_from_env(), rejudge, boundary.text(os.environ.get("INPUTS_OBJECTION")), boundary.as_text(stop))
 
 
 def fallback(reason: str) -> dict:

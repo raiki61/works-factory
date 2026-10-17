@@ -7,6 +7,7 @@
 まるごとの参照は validate が欄を見られないので、ここで照らす: 受けてよい置き場は script の節の `with:<鍵>` の直の字か `with:<鍵>.from` の字で、
 ほかは赤。受けた script は口の呼び 1 つで読み、口の名の並びは module の頭の字の tuple・lib の部品の定数・with: の names の字のどれかで、
 宣言した名は返す節の output_format に在る。宣言の外の欄は口が値を返さない（tests/workflows/test_input_reads.py）。
+受けた script は環境変数を字のままの鍵でだけ読み、名を組む・回す・写す・渡す読みは赤。
 """
 import pathlib
 import shutil
@@ -37,7 +38,7 @@ GATE_NAMES = 'NAMES = ("ready", "units")\n'
 GATE_CALL = 'got = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)\n'
 GATE = GATE_NAMES + GATE_CALL
 # 受け皿の口（workflows/line/scripts/returned.py と同じ形）。名の並びは節の with: の names
-DECLARED = 'got = boundary.picked(env.get("INPUTS_GOT"), boundary.text(env.get("INPUTS_NAMES")).split())\n'
+DECLARED = 'got = boundary.picked(os.environ.get("INPUTS_GOT"), boundary.text(os.environ.get("INPUTS_NAMES")).split())\n'
 
 
 def take_node(value, names=None):
@@ -213,8 +214,8 @@ class BlockReturnsTest(unittest.TestCase):
             "lib の部品の定数": ('got = boundary.picked(os.environ.get("INPUTS_GOT"), board.NAMES)\n', '"$judge.output"',
                             {"lib/board.py": 'NAMES = ("ready", "units")\n'}, None),
             "受け皿の with: の names": (DECLARED, '"$judge.output"', {}, '"ready units"'),
-            "別の INPUTS_ を読む": (GATE + 'vals = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in ("plan",)}\n',
-                                 '"$judge.output"', {}, None),
+            "別の INPUTS_ を字のままの鍵で読む": (GATE + 'plan = boundary.value(os.environ.get("INPUTS_PLAN"))\n'
+                                         'run = os.environ["WORKFLOW_ID"]\nhome = os.getenv("HOME", "")\n', '"$judge.output"', {}, None),
         }
         for name, (script, value, files, names) in forms.items():
             with self.subTest(name):
@@ -303,6 +304,32 @@ class BlockReturnsTest(unittest.TestCase):
                 self.assertIn(TAKE, got[0])
                 self.assertIn("節 take の with.got", got[0])
                 self.assertIn(why, got[0])
+
+    def test_env_read_by_a_built_name_or_walked_is_red(self):
+        """まるごとの参照を受ける script は、環境変数を字のままの鍵でだけ読む。名を組む・回す・写す・ほかへ渡す読みは、値の流れを解かずに
+        赤（前の目の反例 4 つ: 名を組む小関数・名を組む内包・頭の字で絞って回す・字をつなぐ）"""
+        cases = {
+            "名を組む小関数": ('def env(name):\n    return boundary.value(os.environ.get(f"INPUTS_{name}"))\n'
+                          'got2 = env("TESTS")["fingerprint"]\n', 2),
+            "名を組む内包": ('plans = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in ("plan", "fix")}\n', 1),
+            "頭の字で絞って回す（os を別の名で import）": ('more = {k: v for k, v in system.environ.items() if k.startswith("INPUTS_G")}\n', 1),
+            "字をつなぐ": ('again = os.getenv("INPUTS_" + "REJUDGE")\n', 1),
+            "添字の鍵を組む": ('again = os.environ["INPUTS_" + "X"]\n', 1),
+            "keys": ('names = list(os.environ.keys())\n', 1),
+            "values": ('vals = list(os.environ.values())\n', 1),
+            "for で回す": ('for k in os.environ:\n    pass\n', 1),
+            "dict で写す（os を別の名で import）": ('copy = dict(system.environ)\n', 1),
+            "ほかの名へ渡す": ('e = os.environ\nmore = e.get("INPUTS_GOT_X")\n', 1),
+            "引数で渡す": ('def f(env):\n    return env.get("INPUTS_X")\nf(os.environ)\n', 3),
+            "from import": ('from os import environ as e\n', 1),
+            "名を字で引く": ('more = getattr(os, "environ")\n', 1),
+        }
+        for name, (extra, line) in cases.items():
+            with self.subTest(name):
+                got = self.gated(GATE + extra, reads=READS)
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith(f"{TAKE}:{line + 2}:"), got)
+                self.assertIn("字のままでない鍵で読むか、回す・写す・渡す", got[0])
 
     def test_whole_ref_to_a_script_that_cannot_be_read_is_red(self):
         cases = {

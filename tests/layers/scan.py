@@ -645,6 +645,8 @@ GATE_PICKED = "picked"
 GATE_TEXT = "text"
 DECLARED = "names"
 INPUT_HEAD = "INPUTS_"
+# 環境変数を読む os の名（まるごとの参照を受ける script では、鍵が字のままの読みだけを許す）
+ENV_NAMES = ("environ", "environb", "getenv", "getenvb")
 
 
 def _workflow_doc(folder: Path):
@@ -730,6 +732,10 @@ def _gated(root: Path, line_path: Path, node, here: str, key: str):
         tree = ast.parse(scripts[0].read_text(encoding="utf-8"))
     except (SyntaxError, UnicodeDecodeError, ValueError):
         return None, f"{rel}:1: {here} を受ける script を UTF-8 の構文として読めない"
+    raw = _raw_env_reads(tree)
+    if raw:
+        return None, (f"{rel}:{raw[0]}: {here} を受ける script が環境変数を字のままでない鍵で読むか、回す・写す・渡す（許すのは "
+                      'os.environ.get("<字>")・os.environ["<字>"]・os.getenv("<字>") だけ）')
     env = _input_env(key)
     gates = [n for n in ast.walk(tree) if _boundary_call(n, GATE_PICKED) and n.args and _holds(n.args[0], env)]
     if len(gates) != 1:
@@ -786,6 +792,39 @@ def _top_names(tree, name: str) -> tuple | None:
         else:
             return None
     return tuple(names)
+
+
+def _raw_env_reads(tree) -> list[int]:
+    """環境変数の読みのうち、鍵が字のままの get・添字・getenv の外の物の行。名を組んで読む・回す・写す・ほかの名へ渡す読みは、値の
+    流れを解かずに全部ここに入る（`environ`・`getenv` の名を from import する物と、名を字で引く物も）"""
+    parent = {id(child): n for n in ast.walk(tree) for child in ast.iter_child_nodes(n)}
+    out = []
+    for n in ast.walk(tree):
+        name = n.attr if isinstance(n, ast.Attribute) else n.id if isinstance(n, ast.Name) else None
+        if isinstance(n, ast.ImportFrom) and any(alias.name in ENV_NAMES for alias in n.names) \
+                or isinstance(n, ast.Constant) and n.value in ENV_NAMES \
+                or name in ENV_NAMES and not _literal_env_read(n, name, parent):
+            out.append(n.lineno)
+    return sorted(out)
+
+
+def _literal_env_read(node, name: str, parent: dict) -> bool:
+    """環境変数の名 node が `os.getenv("<字>")`・`os.environ.get("<字>")`・`os.environ["<字>"]` の頭か"""
+    up = parent.get(id(node))
+    if name.startswith("getenv"):
+        return isinstance(up, ast.Call) and up.func is node and _literal_key(up)
+    if isinstance(up, ast.Subscript) and up.value is node:
+        return _is_text(up.slice)
+    call = parent.get(id(up))
+    return isinstance(up, ast.Attribute) and up.attr == "get" and isinstance(call, ast.Call) and call.func is up and _literal_key(call)
+
+
+def _literal_key(call) -> bool:
+    return 1 <= len(call.args) <= 2 and not call.keywords and _is_text(call.args[0])
+
+
+def _is_text(node) -> bool:
+    return isinstance(node, ast.Constant) and isinstance(node.value, str)
 
 
 def _boundary_call(node, attr: str) -> bool:

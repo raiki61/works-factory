@@ -42,7 +42,6 @@ import boundary  # noqa: E402
 FIELDS = ("done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes", "changed",
           "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason")
 PLANS = ("plan", "ripple")
-PASSED = ("design", "plan_questions", "answer")   # 独立の目へ渡す計画の往復の設計・修正前の関所の問いと答え（飛ばされた周は null）
 
 
 def no_fix(plans: dict) -> dict:
@@ -117,10 +116,14 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
 def from_env() -> dict:
     fix = boundary.picked(os.environ.get("INPUTS_FIX"), FIELDS)
     refix = boundary.picked(os.environ.get("INPUTS_REFIX"), FIELDS)   # 走らなかった（飛んだ節）なら None
-    return {"fix": dict.fromkeys(FIELDS) if fix is None else fix, "refix": refix,
+    return {"fix": boundary.Picked(dict.fromkeys(FIELDS)) if fix is None else fix, "refix": refix,
             "replan": boundary.flag(os.environ.get("INPUTS_REPLAN")),
-            "plans": {key: boundary.value(os.environ.get(f"INPUTS_{key.upper()}"))
-                      for key in (*PLANS, "replanned", *PASSED, "no_fix_design")},
+            "plans": {"plan": boundary.value(os.environ.get("INPUTS_PLAN")), "ripple": boundary.value(os.environ.get("INPUTS_RIPPLE")),
+                      "replanned": boundary.value(os.environ.get("INPUTS_REPLANNED")),
+                      "design": boundary.value(os.environ.get("INPUTS_DESIGN")),
+                      "plan_questions": boundary.value(os.environ.get("INPUTS_PLAN_QUESTIONS")),
+                      "answer": boundary.value(os.environ.get("INPUTS_ANSWER")),
+                      "no_fix_design": boundary.value(os.environ.get("INPUTS_NO_FIX_DESIGN"))},
             "stops": (boundary.text(os.environ.get("INPUTS_STOP_AFTER_FIX")),)}
 
 
