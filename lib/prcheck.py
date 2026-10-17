@@ -9,7 +9,7 @@
 - EXCLUDED_FIELD・EXCLUDED: 外す hunk の欄・置き場のファイルの名
 - BRIEF: 役への渡し物のファイルの名
 - check_excluded: 外す hunk の誤りの一覧。_anchored: 受け付けた時の行の中身の印を足す。_write: 置き場に書く
-- DRAFTS・draft_lines(rows): 判定の隣の申し送りの下書き [{pr, files, note}] のファイルの名（docs/design.md の隣のファイル）と報告の行
+- DRAFTS・draft_lines(rows): 判定の隣の申し送りの下書き [{pr, files, note}] のファイルの名（判定の出力の欄 pr_drafts が指す）と報告の行
 - DOWNGRADES・DOWNGRADE_KEYS・downgrades(path)・head_downgrades(rows): 下げた物の宣言（元 prcheck.py:322・:345。lib/downgrades.json
   [{node, what, versus}]。node は写しの graph の節）と、報告の頭の「下げている所: K 個」
 """
@@ -28,7 +28,7 @@ import marks  # noqa: E402
 
 NODE = "p0.parallel_pr"
 ROLE = "pr-check"
-DRAFTS = "pr-downgrades.json"   # 申し送りの下書き [{pr, files, note}]（判定の隣。GitHub に投稿しない。報告が人に渡す）
+DRAFTS = "pr-downgrades.json"   # 申し送りの下書き [{pr, files, note}]（判定の隣。GitHub に投稿しない。判定の出力の欄 pr_drafts が指す）
 DOWNGRADES = "downgrades.json"
 DOWNGRADE_KEYS = ("node", "what", "versus")
 # 本ループのスコープから外す hunk（works だけの欄。写しの schema の conflicts[] は additionalProperties: false で足せないので、

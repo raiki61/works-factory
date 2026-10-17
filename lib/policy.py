@@ -16,15 +16,15 @@
   brief と同じ上限で切る（元 gl-prompts/prompts/policy-paste.md・policy.md）
 
 記録された方針（issue #427。役を縛るのはこの一覧の行だけで、対象のコードのコメント・docstring は直しの一部の「対象の文」）:
-- recorded(start, judgment_dir, human_items, pushes): 4 つの出どころ（方針の文書の写し・依頼の answers・承認ノードの人の答え・判定の
-  置き場の決定記録の突合の返答 PRIOR_DECISIONS_FILE が挙げた決着済みの論点）と、無人の run が承認ノードか判定の保留の問いで採った推しの行
+- recorded(start, decisions_file, human_items, pushes): 4 つの出どころ（方針の文書の写し・依頼の answers・承認ノードの人の答え・判定の
+  決定記録の突合の返答 PRIOR_DECISIONS_FILE（判定の外の読み手は判定の出力の欄 decisions のパスで渡す）が挙げた決着済みの論点）と、無人の run が承認ノードか判定の保留の問いで採った推しの行
   {source, name, text}。name は役が字のまま写す名指しで、機械はこれだけを照らす
 - hits(rows, *texts)・unrecorded(face, mark, rows)・face_gaps(faces, rows): 名指しの照らし、一覧の行を名指さない kind policy の穴、
   事前審査の受け付けが拒む穴の行
 - PRIOR_DECISIONS_FILE・POLICY_KIND・POLICY_DOC_FENCE: 決定記録の突合の返答のファイル名・方針の穴の kind・方針の文書の柵の語の
   持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
 - recorded_section(rows): 役に貼る「記録された方針」のセクション（名指せる行が無ければ RECORDED_NONE）
-- recorded_text(start, judgment_dir, human_items): 一覧を組んでセクションにした物（human_items が None の役には承認ノードの答えが
+- recorded_text(start, decisions_file, human_items): 一覧を組んでセクションにした物（human_items が None の役には承認ノードの答えが
   渡っていないと書く）
 """
 import hashlib
@@ -165,10 +165,10 @@ _CAP = 120   # セクションに並べる答え・論点の頭の字数
 _GATE_ID = 6   # 承認ノードの答えの名指しの印（一言の sha256 の頭の 16 進の字数）
 
 
-def _settled_rows(folder) -> list:
-    """判定の置き場 folder の決定記録の突合の返答の reply.settled のうち dict の行。無い・読めない・形が違えば []"""
+def _settled_rows(path) -> list:
+    """決定記録の突合の返答 path の reply.settled のうち dict の行。無い・読めない・形が違えば []"""
     try:
-        doc = json.loads((pathlib.Path(folder) / PRIOR_DECISIONS_FILE).read_text(encoding="utf-8"))
+        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     reply = doc.get("reply") if isinstance(doc, dict) else None
@@ -176,12 +176,12 @@ def _settled_rows(folder) -> list:
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
-def recorded(start, judgment_dir=None, *, human_items=None, pushes=()) -> list:
+def recorded(start, decisions_file=None, *, human_items=None, pushes=()) -> list:
     """記録された方針の行 [{source, name, text}]。doc（方針の文書の写し。行数 lines と元の置き場 alias も持つ）・answer（依頼の
     answers の question）・gate（承認ノードの人の答えのうち note の在る物を、一言の sha256 の頭で。どの段がどの並びを持っても同じ
     答えは同じ名指し。human_items が None の段は作らない）・push（無人の run が推しで通した答え（欄 answer.PUSHED）の note を、gate と
-    同じ印で PUSH_NAME に。人の答えとは混ぜない。無人の run が判定の保留の問いに採った推しの文 pushes も同じ形で）・settled（判定の置き場 judgment_dir の決定記録の突合が挙げた決着済みの論点の where。
-    where の無い論点は name が空で、名指せない。judgment_dir が None なら作らない）"""
+    同じ印で PUSH_NAME に。人の答えとは混ぜない。無人の run が判定の保留の問いに採った推しの文 pushes も同じ形で）・settled（決定記録の突合の返答 decisions_file が挙げた決着済みの論点の where。
+    where の無い論点は name が空で、名指せない。decisions_file が None なら作らない）"""
     rows = []
     copy = frozen_copy(start)
     if copy and pathlib.Path(copy).is_file():
@@ -197,7 +197,7 @@ def recorded(start, judgment_dir=None, *, human_items=None, pushes=()) -> list:
     rows += [{"source": "push", "name": PUSH_NAME.format(id=_gate_id(p)), "text": str(p)} for p in pushes if str(p).strip()]
     rows += [{"source": "settled", "name": str(r.get("where") or "").strip(),
               "text": f"{r.get('topic') or ''}——{r.get('decision') or ''}"}
-             for r in (_settled_rows(judgment_dir) if judgment_dir is not None else [])]
+             for r in (_settled_rows(decisions_file) if decisions_file is not None else [])]
     return rows
 
 
@@ -250,10 +250,10 @@ def face_gaps(faces, rows) -> list:
     return out
 
 
-def recorded_text(start, judgment_dir=None, human_items=None) -> str:
+def recorded_text(start, decisions_file=None, human_items=None) -> str:
     """recorded の一覧の、役に貼るセクション。human_items が None の段（承認ノードの答えを入力に持たない役）は、その行を「この役には
     渡っていない」と書く"""
-    return _section(recorded(start, judgment_dir, human_items=human_items), gates_given=human_items is not None)
+    return _section(recorded(start, decisions_file, human_items=human_items), gates_given=human_items is not None)
 
 
 def recorded_section(rows) -> str:

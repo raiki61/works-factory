@@ -16,7 +16,8 @@ counted: run の広さの数えと起点の 1 行（fix_signals の隣の控え�
 例外の時は止めの理由 works:line-script を返し、試験の関門から先は飛ぶ（深さの分からない差分を目に通さない）。
 
 入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・head_depth（run の頭の深さの段の語）・units・conflicts・plan・diff（fixed の返り）・judgment（judged の返り）・
-start（始めの記録）・answer（修正前の関所の答え）・ties_judgment（1 回目の判定。結びの隣のファイル）・replanned・rejudged（after-fix の返り）
+start（始めの記録）・answer（修正前の関所の答え）・answer_ties・depth_record（1 回目の判定の結びと頭の深さの控えのポインタ）・
+materials（judged の返りの素材の状態のポインタ）・replanned・rejudged（after-fix の返り）
 """
 import json
 import os
@@ -42,14 +43,15 @@ def _doc(ptr):
     return json.loads(boundary.resolve(ptr).read_text(encoding="utf-8"))
 
 
-def pending_signals(judgment, start, answer, ties_judgment) -> list:
+def pending_signals(judgment, start, answer, ties, materials) -> list:
     """答えていない問いの信号（問いの台帳の問いごと。依頼の answers と修正前の関所の答えが答えた問いは数えない）。判定が無ければ空、
     台帳が読めなければ読めない訳の 1 行（上げる側に倒す）"""
     if judgment is None:
         return []
     try:
         b = gatemarks.ledger_at(boundary.resolve(judgment), startrec.load(boundary.resolve(start)) if start is not None else None, answer,
-                                boundary.resolve(ties_judgment) if ties_judgment is not None else None)
+                                ties_file=boundary.resolve(ties) if ties is not None else None,
+                                materials_file=boundary.resolve(materials) if materials is not None else None)
         return [f"答えていない問い {q.get('key')}" for q in gatemarks.pending(b)]
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return [f"問いの台帳が読めない（{type(error).__name__}）"]
@@ -88,14 +90,14 @@ def wide_signals(plan, diff, keys) -> tuple:
 NO_LATE_RECORD = "修正の後の信号の控えが無い（{name}）——範囲の相談を数えていない"
 
 
-def fix_signals(plan, diff, ties_judgment, keys) -> tuple:
+def fix_signals(plan, diff, depth_record, keys) -> tuple:
     """(修正の後の 3 つの事実の信号, counted に添える訳の並び)。事実の言い方は depth.late_signals、引用の外の差分は depth.outside_cited:
-    引用の外の差分は diff の触るファイルを、1 回目の判定（ties_judgment）の隣の頭の深さの控えの where のファイル（headdepth.cited_files）と比べ、
+    引用の外の差分は diff の触るファイルを、1 回目の判定の頭の深さの控え（depth_record のポインタ）の where のファイル（headdepth.cited_files）と比べ、
     TDD の拒否と範囲の相談は diff の隣の TDD の輪の状態 tdd-<k>/state.json と accept-trace.json の行を lib/fixbeside.py の late_records で読む。
     diff が null（直す物が無い周）・指し札が解けない時は何も足さず訳も添えない。控えの扱いは 1 つの決まり: 受け付けの行が無い時は
     上げずに訳を添え（NO_LATE_RECORD。黙らない）、在るのに読めない・{error}・形が違う時だけ fixbeside.LATE_UNREAD の信号で上げる側へ倒す。
     TDD の輪の状態が無い置き場は輪が走っていない（本物の run で TDD の前に止まった run は単位が止めた単位として既に上がる）。
-    判定の隣に控えが無い・where の無い run は引用の外を持たない"""
+    控えが無い・where の無い run は引用の外を持たない"""
     if diff is None:
         return [], []
     try:
@@ -107,7 +109,7 @@ def fix_signals(plan, diff, ties_judgment, keys) -> tuple:
     except READ_ERRORS:
         touched = []
     try:
-        cited = headdepth.cited_files(headdepth.read(boundary.resolve(ties_judgment).parent)) if ties_judgment is not None else []
+        cited = headdepth.cited_files(headdepth.read_file(boundary.resolve(depth_record))) if depth_record is not None else []
     except READ_ERRORS:
         cited = []
     got = fixbeside.late_records(folder)
@@ -150,8 +152,8 @@ def from_env() -> dict:
     keys = [r["unit_id"] for r in merged(planned if isinstance(planned, list) else [],
                                         replanned_depth if isinstance(replanned_depth, list) else []) if r.get("unit_id")]
     wide, counted = wide_signals(value("PLAN"), value("DIFF"), keys)
-    late, missing = fix_signals(value("PLAN"), value("DIFF"), value("TIES_JUDGMENT"), keys)
-    pending = pending_signals(value("JUDGMENT"), value("START"), value("ANSWER"), value("TIES_JUDGMENT"))
+    late, missing = fix_signals(value("PLAN"), value("DIFF"), value("DEPTH_RECORD"), keys)
+    pending = pending_signals(value("JUDGMENT"), value("START"), value("ANSWER"), value("ANSWER_TIES"), value("MATERIALS"))
     return {"planned": planned, "replanned_depth": replanned_depth, "units": boundary.items(os.environ.get("INPUTS_UNITS")),
             "conflicts": boundary.items(os.environ.get("INPUTS_CONFLICTS")), "signals": [*pending, *wide, *late],
             "replanned": boundary.flag(os.environ.get("INPUTS_REPLANNED")), "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),

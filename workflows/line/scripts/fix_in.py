@@ -28,7 +28,9 @@ with boundary.guarded_imports():
 
 # 平らな欄 ← (運ぶ値の欄, 受け皿の got の欄)
 FLAT = {"baseline": ("test_gate_base", "baseline"),
-        **{name: ("judge", name) for name in ("units", "judgment", "purpose", "world", "spec", "rejudge_verdict")},
+        **{name: ("judge", name) for name in ("units", "judgment", "purpose", "world", "spec", "rejudge_verdict", "premises", "verify",
+                                              "pr_excluded", "materials", "purpose_review", "depth_record", "decisions", "answer_ties",
+                                              "purpose_means")},
         "head_depth": ("judge", "depth"),
         **{name: ("plan", name) for name in ("plan", "ripple", "structure")},
         "depth": ("plan", "depth"),

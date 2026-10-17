@@ -81,7 +81,8 @@ CONTRACT_INPUTS = ("units", "judgment", "purpose", "world", "plan", "structure",
 ORIGINAL_UNITS_LINE = ("直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
                        "{{record.units | pick key,label,disposition,reason}}")
 ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null",
-                "round_limit": "null", "mode": "", "head_depth": ""}
+                "round_limit": "null", "mode": "", "head_depth": "", "premises": "null", "materials": "null", "pr_excluded": "null",
+                "purpose_review": "null", "decisions": "null", "purpose_means": "null"}
 RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
@@ -234,10 +235,10 @@ class Run:
         self.inputs["judgment"] = self.put("judge/judgment.json", {
             "units": self.units, "questions": list(questions), "framing": f"{FRAMING_MARK} 分母と上限の 2 つの誤り",
             "one_shot": f"{ONE_SHOT_MARK} 2 か所を直す", "precedents": list(precedents), **extra})
-        self.put("judge/premises.json", {"constraints": constraints if constraints is not None else [
+        self.inputs["premises"] = self.put("judge/premises.json", {"constraints": constraints if constraints is not None else [
             {"text": f"{CONSTRAINT_MARK} 空の列は例外", "measured_how": "読んだ", "kind": "実測", "measured_output": "x"}]})
-        self.put("judge/materials.json", materials or {})
-        self.put("judge/purpose-review.json", purpose_review or {})
+        self.inputs["materials"] = self.put("judge/materials.json", materials or {})
+        self.inputs["purpose_review"] = self.put("judge/purpose-review.json", purpose_review or {})
 
     def purpose(self, **extra):
         self.inputs["purpose"] = self.put("judge/purpose.json", {"purpose_text": f"{PURPOSE_MARK} 統計の関数が正しい値を返す",
@@ -341,7 +342,7 @@ DESIGN_OK = {"question_stands": True, "reason": "問いは立っている", "des
              "elements": [{"id": "D1", "adds": ["上限の入口"], "removes": []}]}
 ROW_TEXT = "式と戻り値を 1 か所ずつ直すだけで足りる"
 FORBIDDEN_ENV = ("INPUTS_PLAN", "INPUTS_STRUCTURE", "INPUTS_RIPPLE", "INPUTS_UNITS", "INPUTS_WORLD", "INPUTS_RULING")
-R2_ENV = ("INPUTS_PURPOSE", "INPUTS_JUDGMENT", "INPUTS_START", "INPUTS_ANSWERS", "ARTIFACTS_DIR", "WORKFLOW_ID")
+R2_ENV = ("INPUTS_PURPOSE", "INPUTS_PREMISES", "INPUTS_PURPOSE_REVIEW", "INPUTS_START", "INPUTS_ANSWERS", "ARTIFACTS_DIR", "WORKFLOW_ID")
 
 
 def answer(n, doc=RIPPLE, faces=(), resolved=(), why=NO_EFFECT) -> dict:
@@ -686,9 +687,9 @@ class IsolationCase(RunCase):
         self.assertNotIn(boardview.STALE_LINE.format(stale=boardview.NONE_YET), prompt)
 
     def test_purpose_means_do_not_reach_the_design(self):
-        """目的の役が分けた依頼の解き方 means（purpose.json の隣）は独立設計に渡らない"""
+        """目的の役が分けた依頼の解き方 means（入力 purpose_means の先）は独立設計に渡らない"""
         sentinel = "読むだけの役を足して生のログから引用つきで判じさせる手段"
-        self.run_.put("judge/purpose-means.json", {"means": [sentinel]})
+        self.run_.inputs["purpose_means"] = self.run_.put("judge/purpose-means.json", {"means": [sentinel]})
         prompt = self.run_.out("r2_prep")["prompt"]
         self.assertNotIn(sentinel, prompt)
         self.assertNotIn(sentinel, (self.run_.folder / boardview.PREMISES_FILE).read_text(encoding="utf-8"))
@@ -940,8 +941,8 @@ class DesignCase(RunCase):
         self.assertTrue(r.open()["r2_go"])
 
     def test_unreadable_purpose_review_sibling_is_named(self):
-        """判定の隣の purpose-review.json が無い・壊れている・object でない時は監査無しとして読み、その訳を事前審査の材料の頭に残す
-        （持ち主の決め no-silent-loosen）"""
+        """入力 purpose_review の先（purpose-review.json）が無い・壊れている・object でない時は監査無しとして読み、その訳を事前審査の
+        材料の頭に残す（持ち主の決め no-silent-loosen）"""
         r = self.run_
         r.start(features_off=["review_tree"])
         sibling = r.art / "judge" / "purpose-review.json"
@@ -1316,9 +1317,9 @@ class ReviewAcceptCase(RunCase):
         self.assertIn("WC-8841", text[at:])
 
     def test_excluded_range_named(self):
-        """元 ScriptCase.test_excluded_range_named: 判定の隣の並行 PR の外した範囲が在れば、役の頭に名指す"""
+        """元 ScriptCase.test_excluded_range_named: 入力 pr_excluded の先の並行 PR の外した範囲が在れば、写して役の頭に名指す"""
         r = self.run_
-        r.put("judge/pr-excluded.json", {"excluded": ["docs/"]})
+        r.inputs["pr_excluded"] = r.put("judge/pr-excluded.json", {"excluded": ["docs/"]})
         r.open()
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn(planblk.EXCLUDED_HEAD, text)
@@ -1354,7 +1355,7 @@ class ReviewAcceptCase(RunCase):
         の fences の policy_doc は拒み、依頼の answers の question と決着済みの論点の where を名指す穴は受ける"""
         r = self.run_
         r.start(features_off=["review_tree"], answers=[{"question": "q-mean-empty", "text": "空の列の平均は例外にする"}])
-        r.put(f"judge/{policy.PRIOR_DECISIONS_FILE}", {"role": "prior-decisions", "materials": {}, "reply": {"settled": [
+        r.inputs["decisions"] = r.put("judge/material-prior-decisions.json", {"role": "prior-decisions", "materials": {}, "reply": {"settled": [
             {"topic": "公開の口", "decision": "減らさない", "where": "docs/adr/0002.md"}]}})
         self.prepped()
         docstring = {**SEED_DOCSTRING_FACE, "unit_keys": [UNIT_MEAN], "fences": []}
@@ -3669,7 +3670,7 @@ class WorldGateRunCase(RunCase):
         means = "空の並びは 0 を返す形に寄せる"
         why = f"{means}、と stats.py:1 の呼び手が決める"
         self.assertEqual(self.deviate(why), [], "means の控えが無ければ依頼の外の出どころで通る")
-        self.run_.put("judge/purpose-means.json", {"means": [means]})
+        self.run_.inputs["purpose_means"] = self.run_.put("judge/purpose-means.json", {"means": [means]})
         items = self.deviate(why)
         self.assertEqual(len(items), 1, items)
         self.assertIn("依頼", items[0])

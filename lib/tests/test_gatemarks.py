@@ -43,24 +43,26 @@ class DutyCase(unittest.TestCase):
         self.tmp = pathlib.Path(tmp.name)
         self.jdir = self.tmp / "judge"
         self.jdir.mkdir()
-        for name, doc in (("judgment.json", JUDGMENT), (gatemarks.BESIDE[0], TIES), (gatemarks.MATERIALS_FILE, MATERIALS)):
+        for name, doc in (("judgment.json", JUDGMENT), ("answer-ties.json", TIES), ("materials.json", MATERIALS)):
             (self.jdir / name).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         self.start = {"run_id": "run-1", "answers": ANSWERS}
 
     def plan_duty(self) -> set:
         """plan の口: 線の指し札の先を read_judgment で読み、planfile.plan_slots の必ず入れる単位"""
-        raw = json.dumps({"path": str(self.jdir / "judgment.json")})
-        judgment, why = planfile.read_judgment(raw, self.start, lambda text: pathlib.Path(json.loads(text)["path"]))
+        raw = {name: json.dumps({"path": str(self.jdir / name)}) for name in ("judgment.json", "answer-ties.json", "materials.json")}
+        judgment, why = planfile.read_judgment(raw["judgment.json"], self.start, lambda text: pathlib.Path(json.loads(text)["path"]),
+                                               ties=raw["answer-ties.json"], materials=raw["materials.json"])
         self.assertEqual(why, "")
         return planfile.plan_slots(judgment)[0]
 
     def fix_duty(self, answers=None) -> set:
-        """fix の口: prep が置き場に写す物（判定・始めの記録・判定の隣の結びと素材の状態・関所の答え）から group_owed と fix_duty"""
+        """fix の口: prep が置き場に写す物（判定・始めの記録・入力の結びと素材の状態の写し・関所の答え）から group_owed と fix_duty"""
         place = self.tmp / "fix"
         place.mkdir(exist_ok=True)
         startrec.write(place, self.start)
-        for name in ("judgment.json", *gatemarks.BESIDE):
-            (place / name).write_bytes((self.jdir / name).read_bytes())
+        for name, copy in (("judgment.json", fixboard.JUDGMENT_FILE), ("answer-ties.json", fixboard.TIES_FILE),
+                           ("materials.json", fixboard.MATERIALS_FILE)):
+            (place / copy).write_bytes((self.jdir / name).read_bytes())
         if answers is not None:
             (place / fixboard.ANSWERS_FILE).write_text(json.dumps(answers, ensure_ascii=False), encoding="utf-8")
         owed = set(fixboard.group_owed(place))
@@ -85,7 +87,8 @@ class DutyCase(unittest.TestCase):
     def test_binds_is_the_one_formula(self):
         """K20: 依頼の答えの当ては gatemarks.binds の 1 つの式（判定の受け付け・報告の読み・最後の関所が呼ぶ）。結びの宛て先が無い時は
         字の一致に落とし、落としたことを 1 行で名指す"""
-        b = gatemarks.ledger_beside(self.jdir, JUDGMENT, answers=ANSWERS)
+        b = gatemarks.ledger_files(JUDGMENT, ties_file=self.jdir / "answer-ties.json", materials_file=self.jdir / "materials.json",
+                                   answers=ANSWERS)
         self.assertEqual([q["key"] for q in gatemarks.binds(ANSWERS[1], JUDGMENT["questions"], ties=b.ties)], ["q-e"])
         self.assertEqual([q["key"] for q in gatemarks.binds(ANSWERS[2], JUDGMENT["questions"], missing=gatemarks.unmeasured_of(MATERIALS))],
                          [FIELD["key"]])

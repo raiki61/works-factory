@@ -5,9 +5,9 @@
 """判定の単位と判定を後の段へ渡す節 judged。
 
 再審（rejudge-run）が走ればその返りから、走らなければ判定（judge）の返りから返す。後の段は単位と判定をここから読む。
-再審が走った時は、判定のブロックが再審の judgment の隣に書いた再審の出口 rejudge-exit.json（lib/report.REJUDGE_EXIT。書き手は
+再審が走った時は、再審の判定の出力の欄 rejudge_exit が指す再審の出口（lib/report.REJUDGE_EXIT の形。書き手は
 lib/judge_accept.rejudge_collect。元 works/.shared/core/rejudge.py の collect 552-563 行と diff_units 474-509 行）の比べを返す
-（自分では数えない。報告も同じファイルを読む）:
+（自分では数えない。報告も同じファイルを読む。出口のポインタは欄 rejudge_exit で最後の関所へ返す）:
 - new_open_units: 再審の後に開いた単位（再審の前は無いか開いていなかった）
 - lowered: 再審の前は block で、後は block でない単位
 - unnamed_changed: 欄が変わったか増えた・消えたのに、異議の文が名指していない単位（変化は争点外として強調する側に倒す）
@@ -29,8 +29,9 @@ import boundary  # noqa: E402
 with boundary.guarded_imports():
     import report
 
-FIELDS = ("units", "judgment", "purpose", "world", "rejudge_verdict")
-REJUDGE = (*FIELDS, "stop_reason")   # rejudge-run の返りから読む欄（口 boundary.picked に渡す）。止めの理由 stop_reason も同じ返りから読む
+FIELDS = ("units", "judgment", "purpose", "world", "rejudge_verdict", "premises", "materials", "decisions")
+# rejudge-run の返りから読む欄（口 boundary.picked に渡す）。止めの理由 stop_reason と再審の出口 rejudge_exit も同じ返りから読む
+REJUDGE = (*FIELDS, "stop_reason", "rejudge_exit")
 COMPARED = ("new_open_units", "lowered", "unnamed_changed")
 
 
@@ -40,10 +41,10 @@ def compared(rejudge: dict | None) -> dict:
     if rejudge is None:
         return empty
     try:
-        folder = boundary.resolve(rejudge.get("judgment")).parent
+        path = boundary.resolve(rejudge.get("rejudge_exit")) if rejudge.get("rejudge_exit") is not None else None
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
-        return {**empty, "unread": f"再審の前後を比べられない（再審の判定のポインタを開けない。{type(error).__name__}: {error}）"}
-    doc, why = report.rejudge_exit(folder)
+        return {**empty, "unread": f"再審の前後を比べられない（再審の出口のポインタを開けない。{type(error).__name__}: {error}）"}
+    doc, why = report.rejudge_exit(path)
     if doc is None:
         return {**empty, "unread": f"再審の前後を比べられない（{why}）"}
     return {**{key: [k for k in doc.get(key) or [] if isinstance(k, str)] for key in COMPARED}, "unread": ""}
@@ -51,17 +52,21 @@ def compared(rejudge: dict | None) -> dict:
 
 def judged(judge: dict, rejudge: dict | None, objection: str, rejudge_stop: str = "") -> dict:
     took = rejudge if rejudge is not None else judge
-    return {**{key: took.get(key) for key in FIELDS}, "rejudged": rejudge is not None, **compared(rejudge),
+    return {**{key: took.get(key) for key in FIELDS}, "rejudged": rejudge is not None,
+            "rejudge_exit": rejudge.get("rejudge_exit") if rejudge is not None else None, **compared(rejudge),
             "stop_reason": rejudge_stop if rejudge is not None else ""}
 
 
 def judge_from_env() -> dict:
-    """judge_ の頭の入力（fix-in の欄つきの参照）。値は enum の字か null なので、5 欄とも boundary.value で読む"""
+    """judge_ の頭の入力（fix-in の欄つきの参照）。値は enum の字か null なので、どの欄も boundary.value で読む"""
     return {"units": boundary.value(os.environ.get("INPUTS_JUDGE_UNITS")),
             "judgment": boundary.value(os.environ.get("INPUTS_JUDGE_JUDGMENT")),
             "purpose": boundary.value(os.environ.get("INPUTS_JUDGE_PURPOSE")),
             "world": boundary.value(os.environ.get("INPUTS_JUDGE_WORLD")),
-            "rejudge_verdict": boundary.value(os.environ.get("INPUTS_JUDGE_REJUDGE_VERDICT"))}
+            "rejudge_verdict": boundary.value(os.environ.get("INPUTS_JUDGE_REJUDGE_VERDICT")),
+            "premises": boundary.value(os.environ.get("INPUTS_JUDGE_PREMISES")),
+            "materials": boundary.value(os.environ.get("INPUTS_JUDGE_MATERIALS")),
+            "decisions": boundary.value(os.environ.get("INPUTS_JUDGE_DECISIONS"))}
 
 
 def from_env() -> tuple:
@@ -71,7 +76,7 @@ def from_env() -> tuple:
 
 
 def fallback(reason: str) -> dict:
-    return {**{key: None for key in FIELDS}, "rejudged": False, "new_open_units": [], "lowered": [], "unnamed_changed": [],
+    return {**{key: None for key in FIELDS}, "rejudged": False, "rejudge_exit": None, "new_open_units": [], "lowered": [], "unnamed_changed": [],
             "unread": "", "stop_reason": boundary.LINE_SCRIPT}
 
 

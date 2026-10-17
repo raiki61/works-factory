@@ -53,10 +53,7 @@ import planblk
 import planfile
 import planmarks
 import policy
-import prcheck
-import premises as _premises
 import promptsection
-import purpose as _purpose
 import reads
 import replan
 import rolekit
@@ -76,8 +73,7 @@ OPEN_FILE = "open.json"                 # open_pass が置く見え方の材料�
 OPEN_ERROR = "open-error.txt"           # 差し込みの頭の節が落ちた訳（返す節の訳に載る。節が書く）
 PREP_ERROR = "prep-error.txt"           # 事前審査の支度が止めた訳（凍結の欄の食い違い。pass-<k>/ の中。返す節の訳に載る）
 JUDGMENT_COPY = "judgment.json"         # 判定の写し（planblk.lib_section が state.outputs から引く）
-EXCLUDED_FILE = prcheck.EXCLUDED   # 判定の隣の並行 PR の外した範囲（在れば写して役の頭に名指す）
-PURPOSE_REVIEW_FILE = _purpose.PURPOSE_REVIEW_FILE   # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
+EXCLUDED_FILE = "judge-excluded.json"   # 並行 PR と重なるので外した範囲の写し（入力 pr_excluded の先。在れば写して役の頭に名指す）
 POLICY_FILE = "policy.json"             # 方針の文書を固めた版 {named, path, sha256, copy, amendments}（始めの記録の欄 policy から置く）
 POLICY_DIR = policy.DIR
 POLICY_CHANGED = "policy_changed"       # 関所の項目の種類（方針の文書が固めた版から変わった）
@@ -118,7 +114,7 @@ DEFAULTS_HEAD = "メイングラフが渡していない入力を既定で読ん
 DEFAULT_START = ("start（始めの記録）が null——無人でない・設計だけでない・依頼のファイル無し（依頼の引用の決め手は照らせないので"
                  "人に回る）・方針の文書無し・事前審査の木は auto として読んだ")
 DEFAULT_ANSWERS = "answers（承認ノードの答え）が null——独立設計に貼る人の答えは無い"
-PURPOSE_REVIEW_UNREAD = (f"判定の隣の {PURPOSE_REVIEW_FILE}（目的の監査の受けた返答）を読めない（{{why}}）——監査は無かったとして読み、"
+PURPOSE_REVIEW_UNREAD = ("入力 purpose_review の先（目的の監査の受けた返答）を読めない（{why}）——監査は無かったとして読み、"
                          "独立設計を目的の『狭めている』では止めない")
 REQUEST_UNREAD = "依頼のファイル {path} を読めない（{why}）——依頼の本文は空として読み、依頼が名指した設計書のセクションは渡っていない"
 # 案の直しの事前審査の頼みと項目の節（元 works/.shared/core/replan.py:121・126-129）
@@ -322,12 +318,18 @@ def _sibling(pointed, name: str):
     return p if p.is_file() else None
 
 
-def _purpose_review(judgment) -> tuple[dict, str]:
-    """判定の隣の purpose-review.json（目的の監査の受けた返答。judge が必ず置く）と、読めなかった訳（読めれば ""）。
-    無い・読めない・object でない時は {} で読む"""
-    p = pathlib.Path(judgment).parent / PURPOSE_REVIEW_FILE
+def _existing(path):
+    """在るファイルのパス（None・無ければ None）"""
+    return pathlib.Path(path) if path is not None and pathlib.Path(path).is_file() else None
+
+
+def _purpose_review(path) -> tuple[dict, str]:
+    """目的の監査の受けた返答（入力 purpose_review の先のパス path）と、読めなかった訳（読めれば ""）。null・無い・読めない・
+    object でない時は {} で読む"""
+    if path is None:
+        return {}, PURPOSE_REVIEW_UNREAD.format(why="ポインタが null")
     try:
-        doc = _read_json(p)
+        doc = _read_json(path)
     except (OSError, ValueError) as e:
         return {}, PURPOSE_REVIEW_UNREAD.format(why=type(e).__name__)
     if not isinstance(doc, dict):
@@ -450,7 +452,8 @@ def _request(start: dict | None) -> tuple:
 # ---------------------------------------------------------------- 差し込みの頭
 def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=None, start=None, answers=None,
               ruling=(), conflicts=None, gate_answers=None, round_limit: int | None = None, review_schema: dict,
-              design_schema: dict, head_depth: str = "") -> dict:
+              design_schema: dict, head_depth: str = "", materials=None, pr_excluded=None, purpose_review=None,
+              decisions=None, purpose_means=None, unread=()) -> dict:
     """入力の指し札の先を置き場に写し、見え方の材料 OPEN_FILE を置く。judgment・purpose・plan・structure・ripple・world・start・
     conflicts は指し札の先のパス（world・start・conflicts は null 可）、answers は始めの人の関所の答え・gate_answers は修正前の
     関所の答え（JSON の値。take_gate_answers）、round_limit は線の往復の輪の安全の上限（max_iterations と同じ数。輪の外で
@@ -459,6 +462,9 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     （ブロックの YAML の役の節の output_format。下請けの答えのファイルの faces・shrink と design.json の読み直しが照らす）。形 replan
     では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
     head_depth は run の頭の深さの段の語（形 review の事前審査の木を決める時に、始めの記録の名指しが無ければ段の足しを引く。空は足し無し）。
+    materials・pr_excluded・purpose_review・decisions・purpose_means は判定の出力の欄の先のパス（null 可。素材の状態・並行 PR の
+    外した範囲・目的の監査の受けた返答・決定記録の突合の返答・目的の役が分けた依頼の解き方の控え）。unread は読めなかった入力の訳の行
+    （役の材料の頭の既定で読んだ物の並びに足す）。
     返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go}"""
     d = pathlib.Path(folder)
     d.mkdir(parents=True, exist_ok=True)
@@ -467,9 +473,9 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     gate_rows = take_gate_answers(d, gate_answers)
     judged = _read_json(judgment)
     shutil.copyfile(judgment, d / JUDGMENT_COPY)
-    mats = _sibling(judgment, gatemarks.MATERIALS_FILE)
-    excluded = _sibling(judgment, EXCLUDED_FILE)
-    purpose_review, review_unread = _purpose_review(judgment)
+    mats = _existing(materials)
+    excluded = _existing(pr_excluded)
+    purpose_review, review_unread = _purpose_review(purpose_review)
     if excluded is not None:
         shutil.copyfile(excluded, d / EXCLUDED_FILE)
     fields = _read_json(plan)
@@ -480,7 +486,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     planmarks.save(d, 1, fields["fields"], {int(n): v for n, v in (fields.get("amended") or {}).items()} or None,
                    trace=out.trace)
     _copy_world(d, world)
-    worldmark.copy_means(pathlib.Path(purpose).parent, d)
+    worldmark.copy_means(purpose_means, d)
     _copy_structure(d, structure)
     _write_json(d / planblk.RIPPLE_PASS.format(k=converge.pass_no(out)), _read_json(ripple))
     bare, answered = converge.split("plan-revise", fix_plan)
@@ -500,9 +506,9 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
         converge.note_answers(out, answered)
     frozen = _frozen_policy(d, start_doc, cwd)
     units = [u for u in judged.get("units") or [] if isinstance(u, dict)]
-    _, request, unread = _request(start_doc)
+    _, request, unread_request = _request(start_doc)
     defaults = [x for x, given in ((DEFAULT_START, start is not None), (DEFAULT_ANSWERS, answers is not None)) if not given]
-    defaults += [x for x in (review_unread, unread) if x]
+    defaults += [x for x in (review_unread, unread_request, *unread) if x]
     inputs = {
         "k": k, "form": form, "ruled": ruled, "round_limit": round_limit, "cwd": str(cwd),
         "rev": startrec.read_rev(start_doc), "base": startrec.diff_base(start_doc),
@@ -514,7 +520,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
         "diagnosis": {x: judged[x] for x in ("framing", "one_shot") if x in judged},
         "purpose_review": purpose_review, "purpose": _read_json(purpose), "plan": bare,
         "human_items": human_items(answers) + gate_rows, "tree_word": tree_word(start_doc, head_depth),
-        policy.RECORDED_KEY: _recorded(start_doc, frozen, judgment, human_items(answers) + gate_rows),
+        policy.RECORDED_KEY: _recorded(start_doc, frozen, decisions, human_items(answers) + gate_rows),
         "review_schema": review_schema, "design_schema": design_schema,
         "defaults": defaults,
         "plan_rejects": rolekit.reject_rows(pathlib.Path(plan).parent, planfile.ROLE),
@@ -534,9 +540,11 @@ DESIGN_ONLY_DIR = "design-only"   # 形 design の返りの置き場（事前審
 DESIGN_ONLY_WHY = "直す物が無い周（判定が直す単位を出さなかったか、計画の直す義務が 0 件だった）——修正案も事前審査も無く、最後の R2 が要る独立設計だけを作った"
 
 
-def open_design(folder, *, cwd, judgment, purpose, world=None, start=None, answers=None, design_schema: dict) -> dict:
+def open_design(folder, *, cwd, judgment, purpose, world=None, start=None, answers=None, design_schema: dict, purpose_review=None,
+                decisions=None, unread=()) -> dict:
     """直す物が無い周の差し込みの頭（形 design）: 修正案を読まずに、独立設計の支度と受け付けと返す節が読む材料だけを置く。
-    返り {k: 0, form: DESIGN_FORM, tree: False, r2_go}（事前審査は回さない）"""
+    purpose_review・decisions・unread は open_pass と同じ。返り {k: 0, form: DESIGN_FORM, tree: False, r2_go}
+    （事前審査は回さない）"""
     d = pathlib.Path(folder)
     d.mkdir(parents=True, exist_ok=True)
     start_doc = startrec.adopt(d, start) if start else None
@@ -545,17 +553,17 @@ def open_design(folder, *, cwd, judgment, purpose, world=None, start=None, answe
     _copy_world(d, world)
     frozen = _frozen_policy(d, start_doc, cwd)
     units = [u for u in judged.get("units") or [] if isinstance(u, dict)]
-    _, request, unread = _request(start_doc)
-    purpose_review, review_unread = _purpose_review(judgment)
+    _, request, unread_request = _request(start_doc)
+    purpose_review, review_unread = _purpose_review(purpose_review)
     inputs = {"k": 0, "form": DESIGN_FORM, "ruled": [], "cwd": str(cwd), "rev": startrec.read_rev(start_doc),
               "base": startrec.diff_base(start_doc), "request": request, "policy_md": frozen.get("path") or "",
               "policy_copy": frozen.get("copy") or "", "excluded_file": "", "units": units,
               "names": [u["key"] for u in units if isinstance(u.get("key"), str)], "questions": judged.get("questions") or [],
               "materials": {}, "precedents": [], "diagnosis": {}, "purpose_review": purpose_review,
               "purpose": _read_json(purpose), "plan": {"plan": []}, "human_items": human_items(answers),
-              policy.RECORDED_KEY: _recorded(start_doc, frozen, judgment, human_items(answers)),
+              policy.RECORDED_KEY: _recorded(start_doc, frozen, decisions, human_items(answers)),
               "tree_word": tree_word(start_doc), "review_schema": {}, "design_schema": design_schema,
-              "defaults": [x for x in (review_unread, unread) if x], "tree": False}
+              "defaults": [x for x in (review_unread, unread_request, *unread) if x], "tree": False}
     _write_json(d / OPEN_FILE, inputs)
     return {"k": 0, "form": DESIGN_FORM, "tree": False, "r2_go": r2_due(view(d, inputs))}
 
@@ -620,10 +628,10 @@ def _frozen_policy(d: pathlib.Path, start_doc, cwd) -> dict:
     return doc
 
 
-def _recorded(start_doc, frozen: dict, judgment, gates: list) -> list:
-    """記録された方針の行（policy.recorded）。方針の文書は関所で通した書き直しを含む固めた版 frozen から、決着済みの論点は判定の隣の
-    決定記録の突合の返答から読む"""
-    return policy.recorded({**(start_doc or {}), "policy": frozen}, pathlib.Path(judgment).parent, human_items=gates)
+def _recorded(start_doc, frozen: dict, decisions, gates: list) -> list:
+    """記録された方針の行（policy.recorded）。方針の文書は関所で通した書き直しを含む固めた版 frozen から、決着済みの論点は
+    決定記録の突合の返答 decisions（null 可）から読む"""
+    return policy.recorded({**(start_doc or {}), "policy": frozen}, decisions, human_items=gates)
 
 
 def policy_change(folder, cwd) -> dict | None:
@@ -663,9 +671,8 @@ def change_row(ch: dict) -> str:
 
 def _copy_world(d: pathlib.Path, world) -> None:
     """世界の解の行の写しと段の控え（world が null なら控えを置かない＝関所の軸が今どおりの決まりに戻る）"""
-    state = d / worldmark.STATE_FILE
     if world is None:
-        state.unlink(missing_ok=True)
+        worldmark.clear(d)
         return
     dest = d / WORLD_COPY
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -709,9 +716,9 @@ def r2_view(request: str, answers) -> types.SimpleNamespace:
                                  state={"inputs": {"request": request}}, rules=rules)
 
 
-def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> str:
+def r2_prompt(folder, *, cwd, purpose, premises=None, purpose_review=None, start=None, answers=None) -> str:
     """独立設計の役に貼る本文: 人が決めた前提の節（人の関所の答え・依頼が名指した設計書の節・対象のリポジトリの地図）と、元の目的
-    （purpose.json の purpose_text）と、実測した制約（judgment の隣の premises.json の constraints だけ。判定の中身は読まない。
+    （purpose.json の purpose_text）と、実測した制約（入力 premises の先の constraints だけ。判定の中身は読まない。
     審査する変更が足した行を名指す物には added_marks の印）と、
     人の方針（差し込みの頭が固めた方針の文書の置き場。run をまたいで人が決めた前提なので実測した制約と同じく渡す。元の
     graphloops の r2.design の prompt_append）と、元の指示書の前提のドリフトと裏取りを通っていない目的の判定の 2 行（DRIFT_LINE・
@@ -720,7 +727,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     d.mkdir(parents=True, exist_ok=True)
     start_doc = _read_json(start) if start else None
     text = _read_json(purpose).get("purpose_text") or ""
-    premises = _sibling(judgment, _premises.PREMISES_FILE)
+    premises = _existing(premises)
     constraints = added_marks((_read_json(premises).get("constraints") or []) if premises else [], cwd, start_doc)
     req, request, unread = _request(start_doc)
     parts, ledger = design.premises(r2_view(request, answers), cwd)
@@ -733,8 +740,8 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     if answers is None:
         ledger["withheld"].append({"kind": "human_answer", "what": "answers", "why": DEFAULT_ANSWERS})
     if premises is None:
-        ledger["withheld"].append({"kind": "constraint", "what": _premises.PREMISES_FILE, "why": "判定の隣に実測した制約のファイルが無い"})
-    stale = stale_purpose_review(_purpose_review(judgment)[0])
+        ledger["withheld"].append({"kind": "constraint", "what": "premises", "why": "実測した制約のファイル（入力 premises の先）が無い"})
+    stale = stale_purpose_review(_purpose_review(purpose_review)[0])
     body = (f"{PURPOSE_HEAD}\n{text}\n\n{CONSTRAINTS_HEAD} "
             f"{json.dumps(constraints, ensure_ascii=False)}\n{DRIFT_LINE.format(notes=NONE_YET)}\n"
             + STALE_LINE.format(stale=json.dumps(stale, ensure_ascii=False) if stale else NONE_YET))

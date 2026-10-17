@@ -7,7 +7,7 @@
 eyes/r2-premises.json に書く。目が読む累積差分は、入口の base（startrec.diff_base。差分の run では PR の根）から今の作業ツリーまで
 （未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
 （直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
-（試験の関門が比べた入力 test_outcomes）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
+（試験の関門が比べた入力 test_outcomes）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（入力 premises の先の制約のうち measured_how が
 carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に）"""
 import json
 import os
@@ -26,7 +26,6 @@ import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import policy  # noqa: E402
-import premises as _premises  # noqa: E402
 import rolekit  # noqa: E402
 import startrec  # noqa: E402
 
@@ -45,10 +44,8 @@ def taken_pushes() -> tuple:
     if judgment_file is None:
         return [], []
     try:
-        ties = boundary.pointed(os.environ["INPUTS_TIES_JUDGMENT"])
-        if ties is not None and not ties.is_file():
-            raise ValueError(f"入力 ties_judgment の先 {ties} が無い")
-        b = gatemarks.ledger_at(judgment_file, start, answer, ties)
+        b = gatemarks.ledger_at(judgment_file, start, answer, ties_file=boundary.pointed(os.environ["INPUTS_ANSWER_TIES"]),
+                                materials_file=boundary.pointed(os.environ["INPUTS_MATERIALS"]))
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return [], [f"- 判定の問いの控えか始めの記録を読めない（無人の run が保留の問いに採った推しを並べていない。{type(error).__name__}: {error}）"]
     return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(b)], []
@@ -68,7 +65,7 @@ base_rev = startrec.diff_base(start)
 diff_file, diff_text, diff_why = fixboard.diff_file(Path.cwd(), entry_base, EYES, "run.diff", "run-diff-none.txt", boundary.SKIP)
 answer = boundary.parsed(os.environ["INPUTS_ANSWERS"])
 changed = boundary.parsed(os.environ["INPUTS_CHANGED"])
-premises = judgment_file.with_name(_premises.PREMISES_FILE) if judgment_file else None
+premises = boundary.pointed(os.environ["INPUTS_PREMISES"])
 constraints = json.loads(premises.read_text(encoding="utf-8")).get("constraints") if premises and premises.is_file() else None
 request_file = startrec.request_file(start)
 request = Path(request_file) if request_file else None
@@ -78,7 +75,7 @@ purpose_text = purpose.get("purpose_text") or ""
 after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
 human_items = eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer)
 pushes, pushes_unread = taken_pushes()
-recorded = policy.recorded(start, judgment_file.parent if judgment_file else None, human_items=human_items, pushes=pushes)
+recorded = policy.recorded(start, boundary.pointed(os.environ["INPUTS_DECISIONS"]), human_items=human_items, pushes=pushes)
 premises_text, r2_ledger = eyeverdict.premise_section(
     human_items=human_items,
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),

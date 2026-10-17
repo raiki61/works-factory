@@ -2,8 +2,8 @@
 
 元は works/.shared/core/report.py と works/blk-report/lib/report_roles.py の、盤面（b）を読む関数。ここでは同じ名のまま、
 ブロックの返り・関所の答え・始めの記録・型つきの成果物の読み・run の記録の行を引数で受ける（盤面の偽物は作らない）。指し札は呼び手が
-開けたファイルのパスの字にして渡す（開けなければ None）。指し札の隣のファイル（docs/design.md の「書き方の決め」の名指しの
-隣のファイル）は指し札の先と同じフォルダから読む。
+開けたファイルのパスの字にして渡す（開けなければ None）。判定の置き場のファイルは判定の出力の欄（docs/design.md の「judge の出力」）の
+指し札から読む。修正案と修正の段の隣のファイル（docs/design.md の「書き方の決め」の名指しの隣のファイル）は指し札の先と同じフォルダから読む。
 
 - transcript_facts(rows, *, exclude_prefix, optional) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models, efforts, calls, resubmits}
   （run の記録の行の読み。efforts は models と同じ形の、行の execution.binding.effort。resubmits はループごとの {count: until が通らなかった回,
@@ -52,7 +52,6 @@ import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import green_cert  # noqa: E402
 import headdepth  # noqa: E402
-import judgeverify  # noqa: E402
 import marks  # noqa: E402
 import oneline  # noqa: E402
 import outcome as oc  # noqa: E402
@@ -60,7 +59,6 @@ import outpurpose  # noqa: E402
 import planblk  # noqa: E402
 import planmarks  # noqa: E402
 import prcheck  # noqa: E402
-import premises  # noqa: E402
 import promptsection  # noqa: E402
 import querytest  # noqa: E402
 import reads  # noqa: E402
@@ -182,11 +180,27 @@ def _beside(returns: dict, rid: str, field: str, name: str) -> pathlib.Path | No
     return pathlib.Path(p).with_name(name) if isinstance(p, str) and p else None
 
 
-def _first_beside(returns: dict, name: str) -> pathlib.Path | None:
-    """1 回目の判定（judge の差し込み）の judgment の隣の name。世界の解・局所レビュー・並行 PR の控えは判定の道の置き場にだけ在り、
-    再審の judgment の隣には無い（docs/design.md の隣のファイル）。指し札が無ければ None"""
-    p = as_dict(returns.get("judge")).get("judgment")
-    return pathlib.Path(p).with_name(name) if isinstance(p, str) and p else None
+def _port(returns: dict, rid: str, field: str) -> pathlib.Path | None:
+    """段の返り（後の段の返りが在ればそちら）の欄 field の指し札の先（開けたファイルのパス。null・開けなければ None）"""
+    p = _ret(returns, rid).get(field)
+    return pathlib.Path(p) if isinstance(p, str) and p else None
+
+
+def _first_port(returns: dict, field: str) -> pathlib.Path | None:
+    """1 回目の判定（judge の差し込み）の返りの欄 field の指し札の先。世界の解・局所レビュー・並行 PR・結びの控えは判定の道にだけ在り、
+    再審の判定の返りでは null（docs/design.md の「judge の出力」）。無ければ None"""
+    p = as_dict(returns.get("judge")).get(field)
+    return pathlib.Path(p) if isinstance(p, str) and p else None
+
+
+def _read_port(path: pathlib.Path | None):
+    """(中身, 読めなかった訳)。指し札が無い・先のファイルが無ければ (None, "")"""
+    if path is None or not path.is_file():
+        return None, ""
+    try:
+        return oc.read_json(path), ""
+    except (OSError, ValueError) as e:
+        return None, f"{path} が読めない: {oneline.one_line(e)}"
 
 
 def eyes_skip(line):
@@ -208,13 +222,7 @@ def eye_notes_dir(returns: dict) -> pathlib.Path | None:
 
 def _read_beside(returns: dict, rid: str, field: str, name: str):
     """(中身, 読めなかった訳)。指し札が無い・隣のファイルが無ければ (None, "")"""
-    path = _beside(returns, rid, field, name)
-    if path is None or not path.is_file():
-        return None, ""
-    try:
-        return oc.read_json(path), ""
-    except (OSError, ValueError) as e:
-        return None, f"{path} が読めない: {oneline.one_line(e)}"
+    return _read_port(_beside(returns, rid, field, name))
 
 
 # ---------------------------------------------------------------- run の記録
@@ -399,8 +407,8 @@ def ledger(returns: dict, gates: dict, start: dict):
     最後の関所と fix の直す義務と同じ単位で、関所の答えが返す単位を読む）、始めの記録の依頼の answers、
     修正前の関所の答え {decision, text, asked}、1 回目の判定の隣の結び（answer-ties.json。再審の判定の隣には無い）、判定の隣の素材の状態、
     無人の run か（判定の推しを答えに採る。gatemarks.run_push）"""
-    first = as_dict(returns.get("judge")).get("judgment")
-    ties = gatemarks.ties_of(marks.load(pathlib.Path(first).with_name(gatemarks.BESIDE[0]))) if isinstance(first, str) and first else []
+    ties_at = _first_port(returns, "answer_ties")
+    ties = gatemarks.ties_of(marks.load(ties_at)) if ties_at is not None else []
     mats, _ = oc.materials(returns)
     return gatemarks.ledger(oc.judgment_doc(returns), answers=_request_answers(start), gate=gates.get("gate-before-fix"), ties=ties,
                             materials=mats, takes_push=gatepolicy.unattended_of(start))
@@ -639,10 +647,8 @@ def rejudge_exit(returns: dict) -> tuple:
     rejudge = returns.get("rejudge")
     if not isinstance(rejudge, dict):
         return None, ""
-    p = rejudge.get("judgment")
-    if not (isinstance(p, str) and p):
-        return None, "再審の判定のポインタが無いか開けなかった"
-    return report.rejudge_exit(pathlib.Path(p).parent)
+    p = rejudge.get("rejudge_exit")
+    return report.rejudge_exit(pathlib.Path(p) if isinstance(p, str) and p else None)
 
 
 def _exit_keys(doc, field: str) -> list:
@@ -672,7 +678,7 @@ def rejudge_opened(returns: dict, exit_doc) -> list:
 def rejudge_changes(returns: dict) -> list:
     """再審で単位が変わった行（元 report._rejudge_changes。再審の judgment の隣の rejudge-diff.json の changed の全部。異議に名指されて
     いない物は「争点でない」と印を付ける）"""
-    rows, why = _read_beside(returns, "rejudge", "judgment", report.REJUDGE_DIFF)
+    rows, why = _read_port(_port(returns, "rejudge", "rejudge_diff"))
     if why:
         return [f"再審の単位の前後の差: {why}"]
     lines = []
@@ -913,7 +919,7 @@ def inner_word_lines(diff_path, known) -> list:
 
 def verify_lines(returns: dict) -> list:
     """判定の単位の裏取りの申し送り（判定の隣の judge-verify.json）の行（元 report.verify_lines の 1 周分）"""
-    doc, why = _read_beside(returns, "judge", "judgment", judgeverify.VERIFY_FILE)
+    doc, why = _read_port(_port(returns, "judge", "verify"))
     if why or (doc is not None and not (isinstance(doc, dict) and isinstance(doc.get("units"), list))):
         return [f"判定の単位の裏取り: 申し送りが読めない（{why or '欄 units の配列が無い'}）"]
     if doc is None:
@@ -948,7 +954,7 @@ def verify_lines(returns: dict) -> list:
 
 def pr_lines(returns: dict) -> list:
     """並行 PR と重なるので外した範囲（判定の隣の pr-excluded.json。元 report._pr_lines の外した範囲の側）"""
-    doc, why = _read_beside(returns, "judge", "judgment", prcheck.EXCLUDED)
+    doc, why = _read_port(_port(returns, "judge", "pr_excluded"))
     if why:
         return [f"並行 PR と重なるので外した範囲: {why}"]
     return [f"並行 PR #{x.get('pr')} と重なるので外した範囲: {x.get('file')}:{x.get('start')}-{x.get('end')}（{x.get('why') or ''}）"
@@ -958,7 +964,7 @@ def pr_lines(returns: dict) -> list:
 def premise_lines(returns: dict, start: dict) -> list:
     """依頼が実測（measured）を持っていたのに、前提の役が仮説でしか書けなかった制約（判定の隣の premises.json。元
     report._premise_hypotheses。依頼の行は始めの記録の依頼のファイルから）"""
-    doc, why = _read_beside(returns, "judge", "judgment", premises.PREMISES_FILE)
+    doc, why = _read_port(_port(returns, "judge", "premises"))
     if why:
         return [f"前提の制約: {why}"]
     hyp = [c for c in _list(as_dict(doc).get("constraints")) if isinstance(c, dict) and c.get("kind") == HYPOTHESIS]
@@ -1268,8 +1274,8 @@ def _world_lines(returns: dict) -> list:
     worldmark.report_lines :265-277。数と段が落ちた訳は 1 回目の判定の隣の world-state.json）。判定が返ったのに world が null なら、
     段が落ちた訳（控えが無ければ、段が落ちたか行を取れなかった 1 行）"""
     judge = _ret(returns, "judge")
-    state_at = _first_beside(returns, worldmark.STATE_FILE)
-    state = worldmark.read(state_at.parent) if state_at is not None else None
+    state_at = _first_port(returns, "world_state")
+    state = worldmark.read_file(state_at) if state_at is not None else None
     p = judge.get("world")
     if not (isinstance(p, str) and p):
         if state is not None and state.get("status") != "ok":
@@ -1287,14 +1293,14 @@ def _world_lines(returns: dict) -> list:
 def _unseen_lens_lines(returns: dict, beside: dict) -> list:
     """未確認のレンズの節（元 report.py:2069-2073: 局所レビューの戻した・見ていないレンズ diverted.report_lines を先に、修正の後の
     レンズ lens.report_lines を後に。1 回目の判定の隣の local-review-lenses.json と、修正の diff の隣の lenses.json）"""
-    at = _first_beside(returns, diverted.LENS_FILE)
-    return [*(diverted.report_lines(at.parent) if at is not None else []), *fixbeside.lens_lines(beside)] or ["無い"]
+    at = _first_port(returns, "review_lenses")
+    return [*(diverted.report_lines(at) if at is not None else []), *fixbeside.lens_lines(beside)] or ["無い"]
 
 
 def _pr_draft_lines(returns: dict) -> list:
     """並行 PR の担当への申し送りの下書き（1 回目の判定の隣の pr-downgrades.json。prcheck.draft_lines）。読めなければその 1 行"""
-    at = _first_beside(returns, prcheck.DRAFTS)
-    if at is None or not at.is_file():
+    at = _first_port(returns, "pr_drafts")
+    if at is None:
         return []
     try:
         return prcheck.draft_lines(_list(oc.read_json(at)))
@@ -1637,8 +1643,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     asked_texts = [*spec_changed_of(line), *_plan_questions(returns, gates, start)[0],
                    *oc.eye_questions(returns)]
     carried = len(findings) + len(drafts) + len(constraints)
-    head_at = _first_beside(returns, headdepth.RECORD)
-    head_doc = headdepth.read(head_at.parent) if head_at is not None else None
+    head_at = _first_port(returns, "depth_record")
+    head_doc = headdepth.read_file(head_at) if head_at is not None else None
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {carried} 件")
     sections = [
         (report.DECISIONS_HEADING, [*_pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns), *decisions,

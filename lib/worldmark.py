@@ -14,8 +14,8 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 控え: {status: ok|failed, reason, world_file, classes, dropped}（数は類・落とした抜き書き）。段の時間は持たない（流れの道具の
 出来事から作れる値は控えに持ち直さない）。
 
-- rows(path)・read(board_dir): 行（読めない・形が違えば ValueError）と控え（無い・読めない・形が違えば None）
-- write(board_dir, …)・stage_rows(board_dir): 控えを書く（線の境）・控えが指す行（段が行を出さなかった周を None で分ける＝関所の軸。
+- rows(path)・read(board_dir)・read_file(path): 行（読めない・形が違えば ValueError）と控え（無い・読めない・形が違えば None）
+- write(board_dir, …)・clear(board_dir)・stage_rows(board_dir): 控えを書く（線の境）・消す・控えが指す行（段が行を出さなかった周を None で分ける＝関所の軸。
   盤面の根から読む判定の支度・修正案の頭・関所が使う。呼び手は None と [] の違いを `stage_rows(d) or []` の 1 式で書く）
 - ref_problems(reply, board_dir): 判定の返答の先例の出どころ world:<類の id> が控えの指す行に無い誤りの文（判定の受け付けが拒む）
 - section(rows): 判定・修正案・事前審査の頭に貼る節（行が無ければ ""）。修正案の役に行ごとの答えを頼む文は PLAN_ASK
@@ -35,7 +35,8 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 目的の文の型は写しのまま。控えは世界の解の段の入力（言い直す役が依頼の解き方として見る）で、独立設計には渡さない（目的だけから設計する）。
 - MEANS_NODES・split_means(reply): 欄を持つ節・（欄を外した返答の写し, 手段の並び）
 - write_means(board_dir, means)・means_of(board_dir): 控えを置く（空なら置かない）・読む（無い・読めなければ []）
-- copy_means(src_dir, board_dir): 控えを別の置き場に写す（事前審査の置き場の関所が世界の解の外れの出どころを照らす）
+- copy_means(src_file, board_dir): 控えのファイル（判定の外の読み手は判定の出力の欄 purpose_means のパス）を別の置き場に写す
+  （事前審査の置き場の関所が世界の解の外れの出どころを照らす）
 """
 import json
 import pathlib
@@ -107,8 +108,13 @@ def rows(path) -> list:
 
 
 def read(board_dir) -> dict | None:
+    return read_file(pathlib.Path(board_dir) / STATE_FILE)
+
+
+def read_file(path) -> dict | None:
+    """段の控えのファイル path（判定の外の読み手は判定の出力の欄 world_state のパス）。無い・読めない・形が違えば None"""
     try:
-        doc = json.loads((pathlib.Path(board_dir) / STATE_FILE).read_text(encoding="utf-8"))
+        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError):
         return None
     return doc if isinstance(doc, dict) and doc.get("status") in STATES else None
@@ -120,6 +126,11 @@ def write(board_dir, *, status: str, reason: str, world_file: str, classes, drop
     doc = {"status": status, "reason": reason, "world_file": world_file, "classes": classes, "dropped": dropped}
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return path
+
+
+def clear(board_dir) -> None:
+    """盤面の控えを消す（無ければ何もしない）"""
+    (pathlib.Path(board_dir) / STATE_FILE).unlink(missing_ok=True)
 
 
 def stage_rows(board_dir) -> list | None:
@@ -162,10 +173,11 @@ def write_means(board_dir, means) -> None:
         marks.write(marks.path_of(MEANS, board_dir), {MEANS: got})
 
 
-def copy_means(src_dir, board_dir) -> None:
-    """src_dir（目的の役が控えを置いた judge の置き場）の控えを board_dir に写す（無ければ board_dir の前の写しを消す）"""
-    src, dest = marks.path_of(MEANS, src_dir), marks.path_of(MEANS, board_dir)
-    if src.is_file():
+def copy_means(src_file, board_dir) -> None:
+    """目的の役が置いた控えのファイル src_file（None 可）を board_dir に写す（無ければ board_dir の前の写しを消す）"""
+    dest = marks.path_of(MEANS, board_dir)
+    src = pathlib.Path(src_file) if src_file is not None else None
+    if src is not None and src.is_file():
         shutil.copyfile(src, dest)
     else:
         dest.unlink(missing_ok=True)

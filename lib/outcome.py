@@ -18,8 +18,8 @@
 - residue(returns, facts) -> fixed を名乗らせない残りの行 [{where, text}]（報告と次の依頼が同じ行を読む）
 - conflict_rows(returns)・asked_conflicts(returns, closed)・waiting_conflicts(returns)・conflict_counts(returns): 申し出と裁定の行・
   人に回した行・案の直しを待つ行・裁定と種類の内訳
-- materials(returns)・unmeasured(returns)・answers_ledger(returns, answers)・measured_materials(returns, answers): 判定の隣の素材の
-  状態と、今の周に測れていない素材 {名: status}と、依頼の答えを当てる台帳の見え方と、そのうち依頼の答えが命令と出力つきで答えた素材
+- materials(returns)・unmeasured(returns)・answers_ledger(returns, answers)・measured_materials(returns, answers): 判定の返りの欄
+  materials の先の素材の状態と、今の周に測れていない素材 {名: status}と、依頼の答えを当てる台帳の見え方と、そのうち依頼の答えが命令と出力つきで答えた素材
 - judgment_doc(returns)・questions(returns)・ledger(returns)・answer_binds(questions, answer, missing)・origin_of(question, missing):
   判定の judgment.json の中身と問いの台帳の全部と
   人に聞く状態の問いと、依頼の答えの当て方
@@ -70,9 +70,8 @@ MUST_OPEN = (("fix", "conflicts"),)
 CLOSE_WHY = replan.CLOSE_WHY
 PENDING_WHY = replan.PENDING_WHY
 
-# 判定の judgment の隣の素材の測りの状態 {<素材の名>: {status, …}}（docs/design.md の「書き方の決め」の名指しの隣のファイル）。
+# 判定の素材の測りの状態 {<素材の名>: {status, …}}（判定の出力の欄 materials の先。docs/design.md の「judge の出力」）。
 # 測れていない status は元の写しの検証器の STATUS で阻害になる物（gatemarks.unmeasured。works/.shared/core/gatemarks.py:708-716）
-MATERIALS_FILE = gatemarks.MATERIALS_FILE
 UNMEASURED = gatemarks.UNMEASURED
 MATERIAL_WHERE = "素材"
 
@@ -191,11 +190,11 @@ def conflict_counts(returns: dict) -> tuple[dict, dict]:
 
 
 def materials(returns: dict) -> tuple[dict, str]:
-    """判定の judgment の隣の素材の状態と、読めなかった訳（読めれば ""。無い・読めない時は素材 0 と数える）"""
-    jf = as_dict(judged(returns)).get("judgment")
-    if not (isinstance(jf, str) and jf):
+    """判定（再審が在ればその）の返りの欄 materials の先の素材の状態と、読めなかった訳（読めれば ""。無い・読めない時は素材 0 と数える）"""
+    mf = as_dict(judged(returns)).get("materials")
+    if not (isinstance(mf, str) and mf):
         return {}, ""
-    p = pathlib.Path(jf).with_name(MATERIALS_FILE)
+    p = pathlib.Path(mf)
     try:
         doc = read_json(p)
     except (OSError, ValueError) as e:

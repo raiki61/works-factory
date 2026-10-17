@@ -62,7 +62,7 @@ class Base(unittest.TestCase):
         self.put("judge/judgment.json", judgment or {"units": [{"key": UNIT, "label": "block"}], "questions": [],
                                                      "framing": "見立て", "one_shot": "一撃", "precedents": []})
         self.put("judge/materials.json", {"parallel_pr": {"status": "not_run", "reason": "網に出られない"}})
-        self.put(f"judge/{boardview.PURPOSE_REVIEW_FILE}", purpose_review or {})
+        self.put("judge/purpose-review.json", purpose_review or {})
         self.put(f"plan/r{rnd}/p2.fix_plan.json", {"plan": rows})
         self.put(f"plan/r{rnd}/plan-fields.json", {"round": rnd, "fields": fields or [{"route": "direct", "structure": []}]})
         self.put("plan/structure-state.json", structure or {"status": "ok", "reason": "", "design_file": "x", "wall_s": 3})
@@ -73,7 +73,13 @@ class Base(unittest.TestCase):
             self.folder, cwd=self.tmp, judgment=self.src / "judge/judgment.json", purpose=self.src / "judge/purpose.json",
             plan=self.src / f"plan/r{rnd}/plan-fields.json", structure=self.src / "plan/structure-state.json",
             ripple=self.src / "plan/ripple.json", world=world, start=start, answers=answers, ruling=list(ruling),
-            conflicts=conflicts, gate_answers=gate_answers, review_schema=REVIEW, design_schema=R2)
+            conflicts=conflicts, gate_answers=gate_answers, review_schema=REVIEW, design_schema=R2, **self.ports())
+
+    def ports(self) -> dict:
+        """判定の出力の欄の先（置いた物だけ。線が judge の出力の欄から配線する入力）"""
+        names = {"materials": "materials.json", "pr_excluded": "pr-excluded.json", "purpose_review": "purpose-review.json",
+                 "decisions": "material-prior-decisions.json", "purpose_means": "purpose-means.json"}
+        return {k: self.src / "judge" / n for k, n in names.items() if (self.src / "judge" / n).is_file()}
 
     def view(self, review=None):
         return boardview.view(self.folder, boardview.read_open(self.folder), review)
@@ -491,9 +497,9 @@ class Owners(unittest.TestCase):
                                   {"replan_items": [{"item": 1, "units": [UNIT], "old": item, "new": item}]}, {})
         self.assertEqual(seen, [item, item])
 
-    def test_purpose_review_is_a_judge_public_file(self):
-        """判定の隣の目的の監査は、judge が置く名で読む（boardview は judge_accept を import しないので、名を合わせるのはここ）"""
-        self.assertIn(boardview.PURPOSE_REVIEW_FILE, judge_accept.PUBLIC_FILES)
+    def test_purpose_review_comes_through_a_judge_port(self):
+        """目的の監査は判定の出力の欄 purpose_review で受ける（judge が止めた時も必ず置くファイルを指す）"""
+        self.assertIn(judge_accept.PORTS["purpose_review"], judge_accept.PUBLIC_FILES)
 
 
     def test_request_file_is_the_same_file_for_review_and_gate(self):

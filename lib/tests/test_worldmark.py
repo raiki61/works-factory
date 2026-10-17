@@ -180,10 +180,13 @@ class Answers(unittest.TestCase):
             src.mkdir()
             dest.mkdir()
             worldmark.write_means(src, ["読むだけの役を足す"])
-            worldmark.copy_means(src, dest)
+            worldmark.copy_means(src / "purpose-means.json", dest)
             self.assertEqual(worldmark.means_of(dest), ["読むだけの役を足す"])
-            worldmark.copy_means(pathlib.Path(tmp, "none"), dest)
+            worldmark.copy_means(pathlib.Path(tmp, "none", "purpose-means.json"), dest)
             self.assertEqual(worldmark.means_of(dest), [])
+            worldmark.write_means(dest, ["前の写し"])
+            worldmark.copy_means(None, dest)
+            self.assertEqual(worldmark.means_of(dest), [], "欄が null の run も前の写しを消す")
 
     def test_world_ok_follow(self):
         ok, why = worldmark.world_ok({"world": "w1", "follows": True}, row(), "", [], lambda text: "", ".")
