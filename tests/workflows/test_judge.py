@@ -815,7 +815,7 @@ class HeadDepthTest(unittest.TestCase):
         self.assertEqual(r.returned("verdict")["depth"], "重厚")
         self.assertNotIn(cut, r.returned("verify", stage="prep")["reason"])
         named = self.opened(features_off=["judge_verify"], features_cut=["judge_verify"])
-        headdepth.write(named.judge, headdepth.record("重厚", "設計の選びが要る"))
+        headdepth.write(named.judge, headdepth.record("重厚", "公開の約束を変える"))
         self.assertIn(cut, named.returned("verify", stage="prep")["reason"])
         light = self.opened()
         headdepth.write(light.judge, headdepth.record("軽量", "x"))

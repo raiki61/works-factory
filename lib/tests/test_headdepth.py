@@ -261,10 +261,10 @@ class ReportLineTest(unittest.TestCase):
                          f"run の頭の深さ: 軽量（根拠: 根拠）／省く物（単位がどれも軽量の時）: {omits}／足した物: 無い")
         self.assertEqual(headdepth.report_line("標準", "試験のコマンドが無い"),
                          "run の頭の深さ: 標準（根拠: 試験のコマンドが無い）／省く物: 無い／足した物: 無い")
-        self.assertEqual(headdepth.report_line("重厚", "設計の選びが要る"),
-                         "run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省く物: 無い／足した物: judge_verify・review_tree")
-        self.assertEqual(headdepth.report_line("重厚", "設計の選びが要る", cut=("judge_verify",)),
-                         "run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省く物: 無い／"
+        self.assertEqual(headdepth.report_line("重厚", "公開の約束を変える"),
+                         "run の頭の深さ: 重厚（根拠: 公開の約束を変える）／省く物: 無い／足した物: judge_verify・review_tree")
+        self.assertEqual(headdepth.report_line("重厚", "公開の約束を変える", cut=("judge_verify",)),
+                         "run の頭の深さ: 重厚（根拠: 公開の約束を変える）／省く物: 無い／"
                          "足した物: judge_verify（名指しで切った）・review_tree")
         self.assertEqual(headdepth.report_line("", ""), "run の頭の深さ: 標準／省く物: 無い／足した物: 無い")
         self.assertEqual(headdepth.report_line("極厚", "x"), "run の頭の深さ: 標準（根拠: x）／省く物: 無い／足した物: 無い")
