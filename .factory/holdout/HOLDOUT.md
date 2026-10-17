@@ -1,6 +1,6 @@
 # 別の組み合わせの筋書き（holdout）
 
-works-factory を、通しの筋書き（`harness/runtime.scenario.json`。人が読む要約は `harness/END-TO-END.md`）とは別の組み合わせと端の場合で確かめる筋書き。works-factory は修正の工場で、人は入口の殻 `bin/works-factory` で Archon の命令をそのまま打ち（`workflow run works-factory-line` で依頼を渡して run を始め、`workflow respond` で止まった所で答え、`workflow wait`・`workflow get` で今どこか・報告を見る）、`bin/apply` で封じた差分を当てる。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。人の関所は、人に答えを聞いて止まる所。works-factory は Archon（AI の工程を YAML で書き、順に回す道具）の上で動く。
+works-factory を、通しの筋書き（`tests/e2e/scenario.json`。人が読む要約は `tests/e2e/scenario.md`）とは別の組み合わせと端の場合で確かめる筋書き。works-factory は修正の工場で、人は入口の殻 `bin/works-factory` で Archon の命令をそのまま打ち（`workflow run works-factory-line` で依頼を渡して run を始め、`workflow respond` で止まった所で答え、`workflow wait`・`workflow get` で今どこか・報告を見る）、`bin/apply` で封じた差分を当てる。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。人の関所は、人に答えを聞いて止まる所。works-factory は Archon（AI の工程を YAML で書き、順に回す道具）の上で動く。
 
 ## 読む前に
 

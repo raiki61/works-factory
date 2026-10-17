@@ -16,7 +16,7 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
 - coldwrite はプラグインとして入れず、hooks/hooks.json の表を settings.json の hooks に置く。書き込みの記録のフック
   （record-write.py）と読んだ証拠のフック（record-read.py）の行も同じ所に置き、記録の根 works-writes/・works-reads/ を作る。
 柵（guard）は一覧の外（CLAUDE.md・rules/・agents/・commands/・output-styles/・settings.json 以外の settings*.json・
-一覧の外のスキル・settings.json の許す鍵の外・一覧の外のプラグインと marketplace）を名前で並べ、CLI は終了コード 2 で止まる。
+一覧の外のスキル・settings.json の許す鍵の外・一覧の外の marketplace）を名前で並べ、CLI は終了コード 2 で止まる。
 Claude Code が自分で書く状態（projects/・.claude.json・backups/・remote-settings.json など）は見ない。
 
 本物の claude も、利用者の本物の設定も使わない。偽の利用者の設定（make_user_config。偽のプラグインを入れた形）と、偽の claude
@@ -1093,10 +1093,7 @@ class GuardCase(Base):
                 "settings.json", '{"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": []}]}}'),
             "settings.json の hooks（表でない）": lambda: self.put("settings.json", '{"hooks": []}'),
             "works-writes（フォルダでない）": lambda: self.put("works-writes"),
-            "有効なプラグイン other@x": lambda: self.put("settings.json", '{"enabledPlugins": {"other@x": true}}'),
             "marketplace x（settings.json）": lambda: self.put("settings.json", '{"extraKnownMarketplaces": {"x": {}}}'),
-            "入れたプラグイン other@x": lambda: self.put("plugins/installed_plugins.json",
-                                                        '{"version": 2, "plugins": {"other@x": []}}'),
             "marketplace x（plugins/known_marketplaces.json）": lambda: self.put("plugins/known_marketplaces.json",
                                                                                   '{"x": {}}'),
             "settings.json（JSON の表として読めない）": lambda: self.put("settings.json", "{"),
@@ -1116,6 +1113,16 @@ class GuardCase(Base):
                 self.assertEqual(r.returncode, 2, r.stderr)
                 self.assertIn(name, r.stderr)
                 self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
+
+    def test_guard_leaves_foreign_plugins_to_archon(self):
+        """一覧の外のプラグインを有効にしても入れても、guard は名指さない（ノードの plugins: の照合が、名指さない物を切り、
+        読み込まれた物があればノードを落とす）。CLI も何も出さずに終了コード 0"""
+        self.put("settings.json", '{"enabledPlugins": {"other@x": true}}')
+        self.put("plugins/installed_plugins.json", '{"version": 2, "plugins": {"other@x": []}}')
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
+        r = self.cli("guard", str(self.cfg))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stderr, "")
 
     def test_guard_ignores_claude_state(self):
         for rel in ("projects/p/s.jsonl", ".claude.json", "backups/.claude.json.backup.1", "remote-settings.json",
