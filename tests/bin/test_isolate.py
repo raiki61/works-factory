@@ -49,25 +49,27 @@ class IsolateCase(unittest.TestCase):
         self.assertEqual((child["PATH"], child["LANG"]), ("/usr/bin", "ja_JP.UTF-8"))
         self.assertEqual(env, {"HOME": "/u", "PATH": "/usr/bin", "LANG": "ja_JP.UTF-8"})
 
-    def test_users_home_and_xdg_are_recorded_only_when_asked(self):
-        """#492: 既定は控えず（利用者の env から継いだ古い控えも落とす）、userenv.OPT_IN=1 の時だけ隔離の前の HOME・XDG_* を控える。
+    def test_users_home_and_xdg_are_always_recorded(self):
+        """隔離の前の HOME・XDG_* の新しい控えをいつも置く（利用者の env から継いだ古い控え・印の置き場・印のパスは落とす）。
         控える名は、隔離する名から Archon と Claude Code の置き場を除いた物"""
         env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c", userenv.RECORD: "stale",
                userenv.RAN_DIR_ENV: "/stale", userenv.MARK: "/stale/mark"}
-        self.assertNotIn(userenv.RECORD, isolate.isolate(env, self.run_home))
-        self.assertNotIn(userenv.RAN_DIR_ENV, isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home))
-        for asked in ({}, {userenv.OPT_IN: "1"}):
-            with self.subTest(asked=asked):   # #514: 継いだ印のパスは、道を付けても付けなくても子に残さない
-                self.assertNotIn(userenv.MARK, isolate.isolate({**env, **asked}, self.run_home))
-        record = json.loads(isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home)[userenv.RECORD])
+        child = isolate.isolate(env, self.run_home)
+        self.assertNotEqual(child[userenv.RECORD], "stale")
+        self.assertNotIn(userenv.RAN_DIR_ENV, child)
+        self.assertNotIn(userenv.MARK, child)   # #514: 継いだ印のパスは子に残さない
+        record = json.loads(child[userenv.RECORD])
         self.assertEqual(record["HOME"], "/u")
+        self.assertEqual(record["XDG_CONFIG_HOME"], "/u/.cfg")
+        self.assertEqual(set(record), set(userenv.NAMES))
         self.assertEqual(set(userenv.NAMES), set(isolate.DIRS) - {"ARCHON_HOME", "CLAUDE_CONFIG_DIR"})
+        self.assertIn(userenv.RECORD, isolate.isolate({"HOME": "/u"}, self.run_home))
+        self.assertEqual(pathlib.Path(child["HOME"]), self.run_home / "home")   # 子の HOME は控えと別に隔離したまま
 
     def test_every_inherited_control_name_is_dropped(self):
-        """#532: userenv が持つ制御の変数の組（userenv.CONTROL）の、継いだ値は子に残さない（立てた時の控えは新しく作った物だけ）"""
+        """#532: userenv が持つ制御の変数の組（userenv.CONTROL）の、継いだ値は子に残さない（子に残るのは新しく作った控えだけ）"""
         env = {"HOME": "/u", **{name: "stale" for name in userenv.CONTROL}}
-        self.assertEqual(set(userenv.CONTROL) & set(isolate.isolate(env, self.run_home)), set())
-        child = isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home)
+        child = isolate.isolate(env, self.run_home)
         self.assertEqual(set(userenv.CONTROL) & set(child), {userenv.RECORD})
         self.assertNotEqual(child[userenv.RECORD], "stale")
 

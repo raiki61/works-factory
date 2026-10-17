@@ -41,6 +41,7 @@ import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
 import launchgroups  # noqa: E402
 import rolekit  # noqa: E402
+import tree_run  # noqa: E402
 import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
 
@@ -389,7 +390,6 @@ class ScriptCase(unittest.TestCase):
         self.artifacts = self.tmp / "artifacts"
         self.declared = {}   # 包みの宣言（launcher.FENCE_RECORDS_ENV）。空なら起動の殻を通らない run
         self.user_home = None   # 在れば起動の殻の隔離を通った run（as_user）
-        self.opted = False   # 起動の殻を通った run で、利用者が userenv.OPT_IN=1 を置いたか
         self.write_start()
 
     def write_start(self, **over):
@@ -406,8 +406,7 @@ class ScriptCase(unittest.TestCase):
         if self.user_home is None:
             return env
         user = {k: v for k, v in env.items() if k not in userenv.NAMES}
-        return isolate.isolate({**user, "HOME": str(self.user_home), **({userenv.OPT_IN: "1"} if self.opted else {})},
-                               self.tmp / "run-home")
+        return isolate.isolate({**user, "HOME": str(self.user_home)}, self.tmp / "run-home")
 
     def as_user(self) -> pathlib.Path:
         """起動の殻の隔離を通った run にし、HOME の下の全体の設定（.config/homecfg/ok）が在る時だけ通る小さな道具を返す。
@@ -435,8 +434,9 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(rc, 0, err)
         return out
 
-    def decl(self, steps, commit=True):
-        (self.repo / declared_checks.DECL_NAME).write_text(json.dumps({"suite": steps}), encoding="utf-8")
+    def decl(self, steps, commit=True, setup=None):
+        (self.repo / declared_checks.DECL_NAME).write_text(json.dumps({"suite": steps, **({"setup": setup} if setup else {})}),
+                                                           encoding="utf-8")
         if commit:
             git(self.repo, "add", "-A")
             git(self.repo, "commit", "-qm", "decl")
@@ -495,34 +495,26 @@ class RunScriptCase(ScriptCase):
         self.assertEqual((out["by"], out["material"]["status"], out["junit_steps"]), ("engine", "clean", ["suite"]))
         self.assertEqual(sorted(out), sorted(node("run")["output_format"]["required"]))
 
-    def test_target_command_reads_the_users_global_config_only_when_asked(self):
-        """#492: 起動の殻が HOME・XDG を隔離した run で、試験のコマンドは既定では利用者の HOME の下の全体の設定を見失い、
-        利用者が userenv.OPT_IN=1 で明示した時だけ読める"""
+    def test_target_command_reads_the_users_global_config_without_a_switch(self):
+        """起動の殻が HOME・XDG を隔離した run でも、対象のコマンドは旗を置かずに利用者の HOME の下の全体の設定を読める
+        （殻の隔離を通した run は、いつも隔離の前の HOME・XDG の控えを持つ）"""
         tool = self.as_user()
         (self.user_home / ".config" / "homecfg").mkdir(parents=True)
         (self.user_home / ".config" / "homecfg" / "ok").write_text("", encoding="utf-8")
         self.decl([{"name": "suite", "argv": [str(tool)]}])
-        for opted, code in ((False, 3), (True, 0)):
-            with self.subTest(opted=opted):
-                self.opted = opted
-                out = self.ok("run", mode="final", start=self.start)
-                self.assertEqual([r["exit"] for r in out["runs"]], [code])
+        out = self.ok("run", mode="final", start=self.start)
+        self.assertEqual([r["exit"] for r in out["runs"]], [0])
 
     def test_users_env_marker_only_when_a_target_command_ran(self):
-        """#504: 利用者が明示した run で対象のコマンドを起こした時だけ、メイングラフの run の置き場に印（userenv.RAN_FILE）が残る。
-        CI の役だけに任せた run（走らせる物が無い）と、明示しない run には残らない"""
+        """#504: 殻の隔離を通した run で対象のコマンドを起こした時だけ、メイングラフの run の置き場に印（userenv.RAN_FILE）が残る。
+        CI の役だけに任せた run（走らせる物が無い。role_needed）には残らない"""
         tool = self.as_user()
-        self.opted = True
         self.write_start(test_cmd=str(tool))
         self.ok("run", mode="final", start=self.start)
         self.assertTrue(userenv.ran(self.artifacts))
         (self.artifacts / userenv.RAN_FILE).unlink()
         self.write_start()
         self.assertEqual(self.ok("run", mode="final", start=self.start)["by"], declared_checks.ROLE_NEEDED)
-        self.assertFalse(userenv.ran(self.artifacts))
-        self.opted = False
-        self.write_start(test_cmd=str(tool))
-        self.ok("run", mode="final", start=self.start)
         self.assertFalse(userenv.ran(self.artifacts))
 
     def scoped(self):
@@ -1110,13 +1102,12 @@ class ResultScriptCase(ScriptCase):
 
     def test_shell_command_that_cannot_start_is_named_not_ran(self):
         """#504: test_cmd のコマンドが起きない（試験に入れなかった証拠）final は incomplete で、冒頭の句は「走っていない」。
-        利用者が明示した run でも、起きなかったコマンドは利用者の HOME・XDG で走らせた印（userenv.RAN_FILE）を残さない"""
+        起動の殻の隔離を通した run でも、起きなかったコマンドは利用者の HOME・XDG で走らせた印（userenv.RAN_FILE）を残さない"""
         self.write_start(test_cmd=str(self.tmp / "no-such-tool"))
-        for opted in (False, True):
-            with self.subTest(opted=opted):
-                if opted:
+        for through_shell in (False, True):
+            with self.subTest(through_shell=through_shell):
+                if through_shell:
                     self.as_user()
-                    self.opted = True
                 self.ok("run", mode="final", start=self.start)
                 out = self.result("final")
                 self.assertEqual((out["green"], out["red_cause"]), (False, green_cert.INCOMPLETE))
@@ -1124,6 +1115,78 @@ class ResultScriptCase(ScriptCase):
                 note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"], steps=out["ran_steps"])
                 self.assertTrue(note.startswith(green_cert.NOT_RAN), note)
                 self.assertFalse(userenv.ran(self.artifacts))
+
+    def stopped_base(self):
+        """base を run と result の節まで通し、(run の返り, result の返り) を返す。直す前の基準を測れず止めた形（ok も green も偽）かを照らす"""
+        run = self.ok("run", mode="base", start=self.start)
+        out = self.result("base")
+        self.assertEqual((out["ok"], out["green"]), (False, False), out)
+        return run, out
+
+    def test_base_whose_declared_steps_all_fail_to_start_stops(self):
+        """宣言の段が全部起こせない（無いコマンド）base は、返す節の ok が false。reason に起こせない誤りの文と準備の案（SETUP_HINT）が載り、
+        報告の行も走らせられなかったと言う"""
+        self.decl([{"name": "a", "argv": [str(self.tmp / "no-such-tool")]}, {"name": "b", "argv": [str(self.tmp / "no-such-tool-b")]}])
+        run, out = self.stopped_base()
+        self.assertEqual((run["by"], run["material"]["status"]), ("engine", "not_run"))
+        self.assertEqual(out["red_cause"], green_cert.ENVIRONMENT)
+        self.assertIn("宣言の語を起こせない", out["reason"])
+        self.assertIn("no-such-tool", out["reason"])
+        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+        self.assertIn(declared_checks.declared.SETUP_HINT, self.pointed(out["evidence"]).read_text(encoding="utf-8"))
+
+    def test_place_trusting_tool_stops_the_base_until_setup_trusts_the_place(self):
+        """場所ごとに信頼する道具（利用者の HOME の下の信頼の一覧に cwd の実パスが在る時だけ試験の報告を書いて 0 で抜ける）は、準備を
+        宣言しなければ試験に入る前に 3 で落ち、base は ok が false で止まる。reason に道具の誤りの文と準備の案（SETUP_HINT）が載る。
+        宣言の setup が一覧に cwd を書けば、殻の隔離を通した base の段が 0 で走り、ok が true"""
+        self.as_user()
+        tool = self.tmp / "bin" / "trusting"
+        tool.write_text('#!/bin/sh\nif grep -qxF "$(pwd -P)" "$HOME/.config/trust/list" 2>/dev/null; then\n'
+                        "  mkdir -p out && echo '<testsuite><testcase classname=\"m\" name=\"a\"/></testsuite>' > out/r.xml && exit 0\n"
+                        'fi\necho "untrusted: $(pwd -P)" >&2\nexit 3\n', encoding="utf-8")
+        tool.chmod(0o755)
+        trust = [PY, "-c", "import os, pathlib; p = pathlib.Path(os.environ['HOME'], '.config', 'trust', 'list'); "
+                           "p.parent.mkdir(parents=True, exist_ok=True); open(p, 'a').write(os.path.realpath(os.getcwd()) + chr(10))"]
+        step = {"name": "suite", "argv": [str(tool)], "junit": "out/r.xml"}
+        self.decl([step])
+        run, out = self.stopped_base()
+        self.assertEqual(([r["exit"] for r in run["runs"]], run["material"]["status"]), ([3], "not_run"))
+        self.assertIn("untrusted: ", out["reason"])
+        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+        self.decl([step], setup=[trust])
+        run = self.ok("run", mode="base", start=self.start)
+        self.assertEqual(([r["exit"] for r in run["runs"]], run["material"]["status"]), ([0], "clean"))
+        self.assertTrue(self.result("base")["ok"])
+
+    def test_base_whose_test_cmd_cannot_start_stops(self):
+        """宣言が無く test_cmd を起こせない（無いコマンド）base は、by が role・素材が not_run で、返す節の ok が false"""
+        self.write_start(test_cmd=str(self.tmp / "no-such-tool"))
+        run, out = self.stopped_base()
+        self.assertEqual((run["by"], run["material"]["status"]), (declared_checks.ROLE, "not_run"))
+        self.assertIn("素材が not_run", out["reason"])
+        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+
+    def test_base_where_junit_steps_ran_no_tests_stops_with_the_tools_error(self):
+        """JUnit を宣言した唯一の段が、試験に入る前に道具の誤り（config missing）で落ちた base は、ok が false。reason に道具が出した誤りの
+        文が載る"""
+        tool = self.as_user()
+        self.decl([{"name": "suite", "argv": [str(tool)], "junit": "out/r.xml"}])
+        run, out = self.stopped_base()
+        self.assertEqual(run["material"]["status"], "not_run")
+        self.assertIn("config missing", out["reason"])
+
+    def test_failing_setup_stops_the_base_with_its_error(self):
+        """suite の横に宣言した setup が非 0 で終わる（標準エラーに『準備が落ちた』）base は、suite の段が起こされず、ok が false。reason に
+        setup の誤りの文が載る"""
+        ran = self.tmp / "suite-ran"
+        self.decl([{"name": "suite", "argv": [PY, "-c", f"open({str(ran)!r}, 'w')"]}],
+                  setup=[[PY, "-c", "import sys; print('準備が落ちた', file=sys.stderr); sys.exit(4)"]])
+        run, out = self.stopped_base()
+        self.assertEqual(run["material"]["status"], "not_run")
+        self.assertFalse(ran.exists())
+        self.assertIn(tree_run.SETUP_FAILED, out["reason"])
+        self.assertIn("準備が落ちた", out["reason"])
+        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
 
     def test_partly_startable_steps_are_named_not_not_ran(self):
         """#514: 宣言の段の一部だけ起こせた final は、判定はそのまま（赤で認証しない）で、冒頭の句は起こした段と起こせなかった段を

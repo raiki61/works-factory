@@ -3957,7 +3957,7 @@
 - tail.md T6: lib/declared_checks.py::_planned_run・workflows/test-gate/works-factory-test-gate.yaml::ci-loop（ci-loop の when）
 - tail.md T7: lib/declared_checks.py::checks_plan・lib/declared_checks.py::checks_reply
 - tail.md T8: lib/declared_checks.py::run_ci・lib/declared_checks.py::_planned_run・lib/declared_checks.py::_declaration_moved（走らせた後の宣言の sha を照らし、違えば計画から 1 度だけやり直す。ログは logs/…/replan。#122）
-- tail.md T9: lib/declared_checks.py::run_ci（material_problems を engine の素材にも当てる）・lib/declared_checks.py::_fall_back（engine が走らせた test_cmd の段の結果から素材を組む。落とした訳 fell_back は workflows/test-gate/scripts/result.py::evidence が証拠の文にも出す）・lib/declared_checks.py::_cant_status（#122）
+- tail.md T9: lib/declared_checks.py::run_ci（material_problems を engine の素材にも当てる）・lib/declared_checks.py::_fall_back（engine が走らせた test_cmd の段の結果から素材を組む。落とした訳 fell_back は workflows/test-gate/scripts/result.py::evidence が証拠の文にも出す）・lib/declared_checks.py::checks_reply（判定の前の走らせられない status を決める。起こした段が 1 つも走らなかった時は判定の前でも not_run）・lib/declared_checks.py::role_material_problems（任せ先の役の base の not_run を拒む）（_cant_status は消した。1 段も走らない base は not_run で止める。#122）
 - tail.md T10: lib/checkscope.py::read_scope
 - tail.md T11: lib/checkscope.py::read_scope・lib/declared_checks.py::_planned_run・workflows/test-gate/scripts/run.py::main
 - tail.md T12: lib/declared_checks.py::run_ci・workflows/test-gate/scripts/run.py::main
@@ -4017,7 +4017,7 @@
 - tail.md T66: workflows/test-gate/scripts/result.py::main・メイングラフ workflows/line/works-factory-line.yaml::eyes（eyes は test-gate-final の後にいつも走る）・workflows/line/works-factory-line.yaml::ask-final（ask-final が tests_ok・green・red_cause を読む）
 - tail.md T67: workflows/line/scripts/ask_final.py::tests_word
 - tail.md T68: lib/runreport.py::_base_word（lib/runreport.py::_entry_lines の「直す前のテスト:」の行。red_cause incomplete は「走らせられなかった」）
-- tail.md T69: lib/green_cert.py::certify（base の素材が awaiting_human なら直す前の結末を控えて ok を真にし、メイングラフの judge へ進む。走らせられなかった系統は素材の reason が名指し、判定の台帳の awaiting の問い〔lib/judge_accept.py::baseline_local_checks〕と、報告の人が確かめる物〔lib/outcome.py::residue〕と直す前のテストの行〔lib/runreport.py::_base_word〕に載る。人が確かめて続ける道は結末 fixed_needs_check と次の依頼の answers。今の works と同じく、一部でも全部でも止めない）
+- tail.md T69: lib/green_cert.py::certify（base の素材が awaiting_human なら直す前の結末を控えて ok を真にし、メイングラフの judge へ進む。走らせられなかった系統は素材の reason が名指し、判定の台帳の awaiting の問い〔lib/judge_accept.py::baseline_local_checks〕と、報告の人が確かめる物〔lib/outcome.py::residue〕と直す前のテストの行〔lib/runreport.py::_base_word〕に載る。人が確かめて続ける道は結末 fixed_needs_check と次の依頼の answers。一部だけ走った base・書式の誤り・任せ先の役の awaiting_human は今の works と同じく止めない。起こした段が 1 つも走らなかった base の 2 つの形〔宣言の段が全部起こせないか JUnit を宣言した段が全部試験を走らせなかった base〔試験が全部 error の段は除く。判定へ進む〕と、test_cmd を起こせなかった by role の base〕は素材が not_run で、ok を偽にして止める〔lib/declared_checks.py::checks_reply〕。#122）
 - tail.md T70: bin/_lib/launcher.py::check_test_cmd（殻が新しい run の --input test_cmd= を Archon を起こす前に照らす）・bin/_lib/testcmd_check.py::main（元の決まりのまま。#495）
 - tail.md T71: lib/carry.py::carry_ci
 - tail.md E1: workflows/eyes/works-factory-eyes.yaml::r1-comments ほかAI ノード 7 つ（`mutates_checkout: false`。r4-scope と r4-scope-fix 以外は `context: fresh`。r4-scope は r4-loop の 1 周目で新しい会話、workflows/eyes/works-factory-eyes.yaml::r4-scope-fix は拒まれた後にその会話の続き）

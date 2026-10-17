@@ -614,6 +614,109 @@ class OutsideEnvCase(unittest.TestCase):
             self.assertEqual(tree_run.run([sys.executable, "-c", "pass"], env=env), 0)
             self.assertFalse(mark.exists())
 
+    # ------------------------------------------------ 対象の準備（宣言の setup）
+    def setup_repo(self, base, setup):
+        """suite と setup（数えのファイル base/count に 1 行足す python の 1 行などを渡す）を持つ宣言を commit した repo"""
+        repo = base / "repo"
+        repo.mkdir()
+        gitkit.git(repo, "init", "-q")
+        decl = {"suite": [{"name": "s", "argv": ["true"]}], **({"setup": setup} if setup is not None else {})}
+        (repo / ".review-checks.json").write_text(json.dumps(decl), encoding="utf-8")
+        gitkit.git(repo, "add", "-A")
+        gitkit.git(repo, "commit", "-q", "-m", "seed")
+        return repo
+
+    @staticmethod
+    def count_line(count):
+        return [sys.executable, "-c", f"open({str(count)!r}, 'a').write('x\\n')"]
+
+    def test_declared_setup_runs_once_per_worktree(self):
+        """宣言に suite と setup を持つ repo とその linked worktree で、cwd つきの run は setup を作業ツリーごとに 1 度だけ走らせる。
+        outside_env の返りの形は変わらない"""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = pathlib.Path(os.path.realpath(tmp))
+            count = base / "count"
+            count.touch()
+            repo = self.setup_repo(base, [self.count_line(count)])
+            second = base / "second"
+            gitkit.git(repo, "worktree", "add", "-q", "--detach", str(second))
+            given = hermetic.child_env()
+            env = tree_run.outside_env(given)
+            self.assertLessEqual(env.keys() - given.keys(), {"PYTHONDONTWRITEBYTECODE"})
+            for tree in (repo, second):
+                for _ in range(2):
+                    self.assertEqual(tree_run.run(["true"], cwd=str(tree), env=env), 0)
+            self.assertEqual(count.read_text(encoding="utf-8").splitlines(), ["x", "x"])
+            self.assertEqual(tree_run.run(["true"], env=env), 0)
+            self.assertEqual(len(count.read_text(encoding="utf-8").splitlines()), 2)
+
+    def test_setup_changed_runs_again_and_no_setup_does_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = pathlib.Path(os.path.realpath(tmp))
+            count = base / "count"
+            repo = self.setup_repo(base, None)
+            env = tree_run.outside_env(hermetic.child_env())
+            self.assertEqual(tree_run.run(["true"], cwd=str(repo), env=env), 0)
+            self.assertFalse(count.exists())
+            plain = base / "plain"
+            plain.mkdir()
+            self.assertEqual(tree_run.run(["true"], cwd=str(plain), env=env), 0)
+            decl = json.dumps({"suite": [{"name": "s", "argv": ["true"]}], "setup": [self.count_line(count)]})
+            (repo / ".review-checks.json").write_text(decl, encoding="utf-8")
+            for expected in (1, 1):
+                self.assertEqual(tree_run.run(["true"], cwd=str(repo), env=env), 0)
+                self.assertEqual(len(count.read_text(encoding="utf-8").splitlines()), expected)
+            other = json.dumps({"suite": [{"name": "s", "argv": ["true"]}], "setup": [self.count_line(count), ["true"]]})
+            (repo / ".review-checks.json").write_text(other, encoding="utf-8")
+            self.assertEqual(tree_run.run(["true"], cwd=str(repo), env=env), 0)
+            self.assertEqual(len(count.read_text(encoding="utf-8").splitlines()), 2)
+
+    def test_setup_runs_in_the_users_env_and_leaves_the_marker(self):
+        """setup も戻した利用者の HOME・XDG で走り、走った印を置く（対象のコマンドが起きなくても）"""
+        record = json.dumps({"HOME": "/u"})
+        with tempfile.TemporaryDirectory() as tmp:
+            base = pathlib.Path(os.path.realpath(tmp))
+            seen, top = base / "seen", base / "top"
+            repo = self.setup_repo(base, [[sys.executable, "-c",
+                                           f"import os; open({str(seen)!r}, 'w').write(os.environ['HOME'] + os.environ.get({userenv.MARK!r}, ''))"]])
+            env = tree_run.outside_env(hermetic.child_env(**{"HOME": "/run/home", userenv.RECORD: record, userenv.RAN_DIR_ENV: str(top)}))
+            with self.assertRaises(OSError):
+                tree_run.run([str(base / "no-such-tool")], cwd=str(repo), env=env)
+            self.assertEqual(seen.read_text(encoding="utf-8"), "/u")   # 印のパスは子に渡さない
+            self.assertTrue(userenv.ran(top))
+
+    def test_failing_setup_starts_nothing_and_is_tried_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = pathlib.Path(os.path.realpath(tmp))
+            ran = base / "ran"
+            repo = self.setup_repo(base, [[sys.executable, "-c", "import sys; print('準備が落ちた'); sys.exit(7)"]])
+            env = tree_run.outside_env(hermetic.child_env())
+            for _ in range(2):
+                with self.assertRaises(OSError) as raised:
+                    tree_run.run([sys.executable, "-c", f"open({str(ran)!r}, 'w')"], cwd=str(repo), env=env)
+                self.assertTrue(str(raised.exception).startswith(tree_run.SETUP_FAILED), str(raised.exception))
+                self.assertIn("終了コード 7", str(raised.exception))
+                self.assertIn("準備が落ちた", str(raised.exception))
+            self.assertFalse(ran.exists())
+            git_dir = pathlib.Path(gitkit.git(repo, "rev-parse", "--absolute-git-dir"))
+            self.assertFalse((git_dir / tree_run.SETUP_DONE).exists())
+
+    def test_setup_that_cannot_start_or_is_malformed_starts_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = pathlib.Path(os.path.realpath(tmp))
+            repo = self.setup_repo(base, [[str(base / "no-such-tool")]])
+            env = tree_run.outside_env(hermetic.child_env())
+            with self.assertRaises(OSError) as raised:
+                tree_run.run(["true"], cwd=str(repo), env=env)
+            self.assertIn(tree_run.SETUP_FAILED, str(raised.exception))
+            self.assertIn("を起こせない", str(raised.exception))
+            (repo / ".review-checks.json").write_text(json.dumps({"suite": [{"name": "s", "argv": ["true"]}], "setup": [[]]}),
+                                                      encoding="utf-8")
+            with self.assertRaises(OSError) as raised:   # 宣言を parse しない呼び手（TDD の輪・受け入れ条件）の分
+                tree_run.run(["true"], cwd=str(repo), env=env)
+            self.assertTrue(str(raised.exception).startswith(tree_run.SETUP_FAILED), str(raised.exception))
+            self.assertIn("setup[0]", str(raised.exception))
+
     def test_without_user_record_home_stays(self):
         self.assertEqual(tree_run.outside_env({"HOME": "/run/home"}), {"HOME": "/run/home", "PYTHONDONTWRITEBYTECODE": "1"})
 

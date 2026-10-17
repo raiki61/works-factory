@@ -30,6 +30,43 @@ class ParseCase(unittest.TestCase):
         self.assertIsNone(err)
         self.assertEqual(steps, [STEP])
 
+    def test_accepts_setup_only_beside_suite(self):
+        """suite の横の setup（argv の並び）は誤り無しで読み、sha は suite だけで結ぶ。setup だけの宣言は拒む。空の argv・文字列でない語の
+        setup は、parse の誤り（宣言の書式の誤り）にも read_setup の誤りにもなる"""
+        setup = [["prepare", "--here"], ["second"]]
+        doc = json.dumps({"suite": [STEP], "setup": setup})
+        steps, err = declared.parse(doc)
+        self.assertIsNone(err)
+        self.assertEqual(steps, [STEP])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / declared.DECL_NAME).write_text(doc, encoding="utf-8")
+            self.assertEqual(declared.read_setup(root), (setup, ""))
+            self.assertEqual(declared.read(root)["sha"], declared.steps_sha([STEP]))
+            self.assertEqual(declared.read(root)["steps"], [STEP])
+        steps, err = declared.parse(json.dumps({"setup": setup}))
+        self.assertIsNone(steps)
+        self.assertIn("最上位", err)
+        for bad in ([], "x", [[]], [[""]], [["x", 3]], ["x"], [["x"], 4]):
+            with self.subTest(bad=bad):
+                bad_doc = json.dumps({"suite": [STEP], "setup": bad})
+                steps, err = declared.parse(bad_doc)
+                self.assertIsNone(steps)
+                self.assertIn("setup", err)
+                with tempfile.TemporaryDirectory() as tmp:
+                    (pathlib.Path(tmp) / declared.DECL_NAME).write_text(bad_doc, encoding="utf-8")
+                    argvs, read_err = declared.read_setup(tmp)
+                    self.assertEqual(argvs, [])
+                    self.assertIn("setup", read_err)
+                    self.assertIn("setup", declared.read(tmp)["error"])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self.assertEqual(declared.read_setup(root), ([], ""))
+            for text in ("{", "[]", json.dumps({"suite": [STEP]}), json.dumps({"setup": [["x"]]})):
+                with self.subTest(text=text):
+                    (root / declared.DECL_NAME).write_text(text, encoding="utf-8")
+                    self.assertEqual(declared.read_setup(root), ([], ""))
+
     def test_rejects_top_level_keys(self):
         for doc in ({}, {"suite": [STEP], "extra": 1}, [STEP], {"steps": [STEP]}):
             with self.subTest(doc):
