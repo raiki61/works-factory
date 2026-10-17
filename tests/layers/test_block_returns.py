@@ -1,10 +1,17 @@
 """ブロックの返りが 1 つの節の構造体で、返りの欄に読み手が在る（workflows/AGENTS.md の E5 の機械の行）。
 
 在るブロックに `returns:` と `outcome_field:` が在り、返す節が `output_format` を持ち、`outcome_field` の欄がその `required` に在る。
-返りの欄のうち、線の `with:`・`when:`・返しの節の `from` の誰も `$<include の id>.output.<欄>` で読まない物は赤。
-線の読む欄が返す節に在るかは Archon の `validate` が照らす（tests/layers/test_archon_validate.py）ので、ここでは照らさない。
+返りの欄のうち、線の `with:`・`when:`・返しの節の `from` の誰も `$<include の id>.output.<欄>` で読まず、まるごとの参照
+`$<include の id>.output` を受ける script の口（boundary.picked）の宣言した名にも無い物は赤。
+欄つきの参照の読む欄が返す節に在るかは Archon の `validate` が照らす（tests/layers/test_archon_validate.py）ので、ここでは照らさない。
+まるごとの参照は validate が欄を見られないので、ここで照らす: 受けてよい置き場は script の節の `with:<鍵>` の直の字か `with:<鍵>.from` の字で、
+ほかは赤。受けた script は口の呼び 1 つで読み、口の名の並びは module の頭の字の tuple・lib の部品の定数・with: の names の字のどれかで、
+宣言した名は返す節の output_format に在る。宣言の外の欄は口が値を返さない（tests/workflows/test_input_reads.py）。
+受けた script は環境変数を字のままの鍵でだけ読み、名を組む・回す・写す・渡す読みは赤。
 """
 import pathlib
+import shutil
+import tempfile
 import unittest
 
 from tests.layers import scan
@@ -20,6 +27,24 @@ RETURNING = (
     "    output_format:\n      type: object\n      properties:\n        ready: {type: boolean}\n        units: {type: array}\n"
     "      required: [ready, units]\n"
 )
+TAKE = "workflows/line/scripts/take.py"
+LINE_HEAD = "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+# 返りの欄を欄つきの参照で読む節。まるごとの参照の試験で、読み手の無い欄の赤を消すのに足す
+READS = (
+    "  - id: reader\n    script: reader\n    timeout: 1728000000\n    with:\n"
+    "      ready: $judge.output.ready\n      units: $judge.output.units\n"
+)
+GATE_NAMES = 'NAMES = ("ready", "units")\n'
+GATE_CALL = 'got = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)\n'
+GATE = GATE_NAMES + GATE_CALL
+# 受け皿の口（workflows/line/scripts/returned.py と同じ形）。名の並びは節の with: の names
+DECLARED = 'got = boundary.picked(os.environ.get("INPUTS_GOT"), boundary.text(os.environ.get("INPUTS_NAMES")).split())\n'
+
+
+def take_node(value, names=None):
+    """script の節 take。with: の got に value（YAML の字）を結び、names を渡せば with: の names に結ぶ"""
+    declared = "" if names is None else f"      names: {names}\n"
+    return f"  - id: take\n    script: take\n    timeout: 1728000000\n    with:\n      got: {value}\n{declared}"
 
 
 class BlockReturnsTest(unittest.TestCase):
@@ -176,6 +201,201 @@ class BlockReturnsTest(unittest.TestCase):
         self.assertEqual(len(got), 1, got)
         self.assertIn("輪の中の役", got[0])
 
+    def gated(self, script, value='"$judge.output"', reads="", files=None, names=None):
+        """script の節 take が with: の got でブロック judge の返りをまるごとで受ける木。script の字は workflows/line/scripts/take.py"""
+        line = LINE_HEAD + reads + take_node(value, names)
+        return self.files({BLOCK: RETURNING, LINE: line, TAKE: script, **(files or {})})
+
+    def test_whole_ref_read_through_the_gate_is_clean(self):
+        forms = {
+            "字のまま": (GATE, '"$judge.output"', {}, None),
+            "{from, if_skipped}": (GATE, '{ from: "$judge.output", if_skipped: null }', {}, None),
+            "添字で読む": (GATE_NAMES + 'got = boundary.picked(os.environ["INPUTS_GOT"], NAMES)\n', '"$judge.output"', {}, None),
+            "* 展開の名の並び": ('BASE = ("ready",)\nNAMES = (*BASE, "units")\n' + GATE_CALL, '"$judge.output"', {}, None),
+            "lib の部品の定数": ('got = boundary.picked(os.environ.get("INPUTS_GOT"), board.NAMES)\n', '"$judge.output"',
+                            {"lib/board.py": 'NAMES = ("ready", "units")\n'}, None),
+            "受け皿の with: の names": (DECLARED, '"$judge.output"', {}, '"ready units"'),
+            "別の INPUTS_ を字のままの鍵で読む": (GATE + 'plan = boundary.value(os.environ.get("INPUTS_PLAN"))\n'
+                                         'run = os.environ["WORKFLOW_ID"]\nhome = os.getenv("HOME", "")\n', '"$judge.output"', {}, None),
+        }
+        for name, (script, value, files, names) in forms.items():
+            with self.subTest(name):
+                self.assertEqual(self.gated(script, value, files=files, names=names), [])
+        anchored = (
+            "name: works-factory-line\nx-bind: &bind\n  got: \"$judge.output\"\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+            "  - id: take\n    script: take\n    timeout: 1728000000\n    with:\n      <<: *bind\n"
+        )
+        with self.subTest("<<: で引いた with: の値"):
+            self.assertEqual(self.files({BLOCK: RETURNING, LINE: anchored, TAKE: GATE}), [])
+
+    def test_declared_name_not_in_the_output_format_is_red(self):
+        got = self.gated('NAMES = ("ready", "units", "extra")\n' + GATE_CALL)
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith(f"{TAKE}:2:"), got)
+        self.assertIn("宣言した欄 extra が works-factory-judge の返りに無い", got[0])
+        got = self.gated(DECLARED, names='"ready units extra"')
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith(f"{LINE}:"), "with: の names の宣言は YAML の行を指す")
+        self.assertIn("宣言した欄 extra", got[0])
+
+    def test_field_not_declared_is_red(self):
+        for name, (script, names) in {"script の名の並び": ('NAMES = ("ready",)\n' + GATE_CALL, None),
+                                      "with: の names": (DECLARED, '"ready"')}.items():
+            with self.subTest(name):
+                got = self.gated(script, names=names)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(f"{BLOCK}:", got[0])
+                self.assertIn("返りの欄 units に読み手が無い", got[0])
+
+    def test_common_field_name_in_a_real_block_behind_a_receiver_is_red(self):
+        """ありふれた名（note）の欄を fix の output_format に足すと、ほかのどこかの字に同じ名が在っても、受け皿の names に無いので赤"""
+        fix = "workflows/fix/works-factory-fix.yaml"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            for part in ("workflows", "lib"):
+                shutil.copytree(ROOT / part, root / part, ignore=shutil.ignore_patterns("tests", "fixtures", "__pycache__"))
+            text = (root / fix).read_text(encoding="utf-8")
+            schema = text.index("properties:\n", text.index("output_format:", text.index("\n  - id: fix\n")))
+            head = schema + len("properties:\n")
+            indent = text[head:len(text) - len(text[head:].lstrip(" "))]
+            (root / fix).write_text(text[:head] + f"{indent}note: {{ type: string }}\n" + text[head:], encoding="utf-8")
+            got = scan.problems("E5", root)
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith(f"{fix}:"), got)
+        self.assertIn("返りの欄 note に読み手が無い", got[0])
+
+    def test_names_that_do_not_resolve_are_red(self):
+        """口の名の並びは読める 3 つの形だけで、ほかは解かずに赤"""
+        call = 'got = boundary.picked(os.environ.get("INPUTS_GOT"), %s)\n'
+        cases = {
+            "関数の返り": (call % "names()", None),
+            "字の tuple を直に書く": (call % '("ready", "units")', None),
+            "list の定数": ('NAMES = ["ready", "units"]\n' + GATE_CALL, None),
+            "頭の定数を関数の中で束ね直す": (GATE_NAMES + 'def f():\n    NAMES = ("ready", "units", "x")\n    ' + GATE_CALL, None),
+            "後の += で足す": (GATE_NAMES + 'NAMES += ("x",)\n' + GATE_CALL, None),
+            "引数の名": ('def f(NAMES):\n    ' + GATE_CALL, None),
+            "鍵の名で渡す": ('got = boundary.picked(os.environ.get("INPUTS_GOT"), names=NAMES)\n' + GATE_NAMES, None),
+            "names の字に足す": (DECLARED.replace(".split())", '.split() + ["x"])'), '"ready units"'),
+            "names の外の入力の字": (DECLARED.replace("INPUTS_NAMES", "INPUTS_OTHER"), '"ready units"'),
+            "with: に names が無い": (DECLARED, None),
+            "names が参照": (DECLARED, '"$x.output.names"'),
+            "lib の定数が字の tuple でない": ('got = boundary.picked(os.environ.get("INPUTS_GOT"), board.NAMES)\n', None),
+        }
+        for name, (script, names) in cases.items():
+            with self.subTest(name):
+                got = self.gated(script, reads=READS, names=names, files={"lib/board.py": "NAMES = names()\n"})
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith(f"{TAKE}:"), got)
+                self.assertIn("名の並びを解けない", got[0])
+
+    def test_whole_ref_read_outside_the_gate_is_red(self):
+        """まるごとの参照は口 boundary.picked の 1 つの呼びでだけ読み、その 1 つ目の引数は os.environ の読みそのもの。ほかの読みは赤"""
+        cases = {
+            "口が無く json.loads で読む": ('got = json.loads(os.environ["INPUTS_GOT"])\n', "呼びが 0 個"),
+            "boundary.value で読む": ('got = boundary.value(os.environ.get("INPUTS_GOT"))\n', "呼びが 0 個"),
+            "口でない関数で読み、globals で引く": ('def f(env):\n    return {"got": boundary.value(env.get("INPUTS_GOT"))}\n'
+                                             'def stalled(env):\n    return globals()["f"](env)["got"].get("stall")\n', "呼びが 0 個"),
+            "口の呼びが 2 つ": (GATE + 'again = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)\n', "呼びが 2 個"),
+            "口の外にもう 1 つ字": (GATE + 'again = os.environ.get("INPUTS_GOT")\n', "呼びの外"),
+            "口の中で walrus で取っておく": (GATE_NAMES + 'got = boundary.picked(raw := os.environ.get("INPUTS_GOT"), NAMES)\n'
+                                       '_typo = json.loads(raw or "{}").get("no_such_field")\n', "そのものでない"),
+            "口の中で包む関数で取っておく": (GATE_NAMES + 'got = boundary.picked(keep(os.environ.get("INPUTS_GOT")), NAMES)\n', "そのものでない"),
+            "os.environ でない物の get": (GATE_NAMES + 'got = boundary.picked(kept.get("INPUTS_GOT"), NAMES)\n', "そのものでない"),
+        }
+        for name, (script, why) in cases.items():
+            with self.subTest(name):
+                got = self.gated(script, reads=READS)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(TAKE, got[0])
+                self.assertIn("節 take の with.got", got[0])
+                self.assertIn(why, got[0])
+
+    def test_env_read_by_a_built_name_or_walked_is_red(self):
+        """まるごとの参照を受ける script は、環境変数を字のままの鍵でだけ読む。名を組む・回す・写す・ほかへ渡す読みは、値の流れを解かずに
+        赤"""
+        cases = {
+            "名を組む小関数": ('def env(name):\n    return boundary.value(os.environ.get(f"INPUTS_{name}"))\n'
+                          'got2 = env("TESTS")["fingerprint"]\n', 2),
+            "名を組む内包": ('plans = {k: boundary.value(os.environ.get(f"INPUTS_{k.upper()}")) for k in ("plan", "fix")}\n', 1),
+            "頭の字で絞って回す（os を別の名で import）": ('more = {k: v for k, v in system.environ.items() if k.startswith("INPUTS_G")}\n', 1),
+            "字をつなぐ": ('again = os.getenv("INPUTS_" + "REJUDGE")\n', 1),
+            "添字の鍵を組む": ('again = os.environ["INPUTS_" + "X"]\n', 1),
+            "keys": ('names = list(os.environ.keys())\n', 1),
+            "values": ('vals = list(os.environ.values())\n', 1),
+            "for で回す": ('for k in os.environ:\n    pass\n', 1),
+            "dict で写す（os を別の名で import）": ('copy = dict(system.environ)\n', 1),
+            "ほかの名へ渡す": ('e = os.environ\nmore = e.get("INPUTS_GOT_X")\n', 1),
+            "引数で渡す": ('def f(env):\n    return env.get("INPUTS_X")\nf(os.environ)\n', 3),
+            "from import": ('from os import environ as e\n', 1),
+            "名を字で引く": ('more = getattr(os, "environ")\n', 1),
+        }
+        for name, (extra, line) in cases.items():
+            with self.subTest(name):
+                got = self.gated(GATE + extra, reads=READS)
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith(f"{TAKE}:{line + 2}:"), got)
+                self.assertIn("字のままでない鍵で読むか、回す・写す・渡す", got[0])
+
+    def test_whole_ref_to_a_script_that_cannot_be_read_is_red(self):
+        cases = {
+            "直に書いた script": ({}, "|\n      print(1)", "script のファイルを引けない"),
+            "名の取り違え": ({"workflows/line/scripts/other.py": GATE}, "take", "script のファイルを引けない"),
+            "構文の誤り": ({TAKE: "def (\n"}, "take", "構文として読めない"),
+        }
+        for name, (files, script, why) in cases.items():
+            with self.subTest(name):
+                line = LINE_HEAD + READS + f"  - id: take\n    script: {script}\n    timeout: 1728000000\n    with:\n      got: \"$judge.output\"\n"
+                got = self.files({BLOCK: RETURNING, LINE: line, **files})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("節 take の with.got", got[0])
+                self.assertIn(why, got[0])
+
+    def test_whole_ref_outside_a_script_with_is_red(self):
+        places = {
+            "include の with:": ("  - id: plan\n    include: works-factory-plan\n    with:\n      x: \"$judge.output\"\n", "with.x"),
+            "workflow の with:": ("  - id: plan\n    workflow: works-factory-plan\n    with:\n      x: \"$judge.output\"\n", "with.x"),
+            "bash": ("  - id: plan\n    bash: echo $judge.output\n", "bash"),
+            "prompt": ("  - id: plan\n    prompt: see $judge.output\n", "prompt"),
+            "when": ("  - id: plan\n    script: plan\n    when: \"$judge.output == 1\"\n", "when"),
+            "approval の message": ("  - id: plan\n    approval:\n      message: \"$judge.output\"\n", "approval.message"),
+            "loop_group の until_bash": ("  - id: plan\n    loop_group:\n      until_bash: '[ \"$judge.output\" = x ]'\n      nodes: []\n",
+                                         "loop_group.until_bash"),
+            "with: の値の入れ子の mapping": ("  - id: plan\n    script: plan\n    with:\n      x:\n        y: \"$judge.output\"\n", "with.x.y"),
+            "with: の list の中": ("  - id: plan\n    script: plan\n    with:\n      x: [\"$judge.output\"]\n", "with.x.0"),
+            "文の終わりの .": ("  - id: plan\n    script: plan\n    with:\n      x: \"$judge.output.\"\n", "with.x"),
+            ".0": ("  - id: plan\n    script: plan\n    with:\n      x: \"$judge.output.0\"\n", "with.x"),
+            "-x": ("  - id: plan\n    script: plan\n    with:\n      x: \"$judge.output-x\"\n", "with.x"),
+            "outputs": ("  - id: plan\n    script: plan\n    with:\n      x: \"$judge.outputs\"\n", "with.x"),
+            "文の中のまるごと": ("  - id: plan\n    script: plan\n    with:\n      x: \"a $judge.output b\"\n", "with.x"),
+            "from の中の入れ子": ("  - id: plan\n    script: plan\n    with:\n      x: { from: { from: \"$judge.output\" } }\n", "with.x.from.from"),
+        }
+        for name, (node, where) in places.items():
+            with self.subTest(name):
+                got = self.files({BLOCK: RETURNING, LINE: LINE_HEAD + READS + node})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("節 plan", got[0])
+                self.assertIn(where, got[0])
+        anchored = (
+            "name: works-factory-line\nx-bind: &bind\n  x: \"$judge.output\"\nnodes:\n  - id: judge\n    include: works-factory-judge\n" + READS +
+            "  - id: plan\n    include: works-factory-plan\n    with:\n      <<: *bind\n"
+        )
+        with self.subTest("<<: で include の with: に引いた値"):
+            got = self.files({BLOCK: RETURNING, LINE: anchored})
+            self.assertEqual(len(got), 1, got)
+            self.assertIn("with.x", got[0])
+
+    def test_loop_prev_whole_ref_is_read_through_the_gate(self):
+        line = (
+            "name: works-factory-line\nnodes:\n  - id: rounds\n    loop_group:\n      max_iterations: 3\n      until_bash: 'true'\n      nodes:\n"
+            "        - id: judge\n          include: works-factory-judge\n"
+            "        - id: take\n          script: take\n          depends_on: [judge]\n          with:\n"
+            "            got: \"$LOOP_PREV.judge.output\"\n"
+        )
+        self.assertEqual(self.files({BLOCK: RETURNING, LINE: line, TAKE: GATE}), [])
+        got = self.files({BLOCK: RETURNING, LINE: line + READS, TAKE: 'got = json.loads(os.environ["INPUTS_GOT"])\n'})
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("節 take", got[0])
+        self.assertIn("呼びが 0 個", got[0])
 
 if __name__ == "__main__":
     unittest.main()

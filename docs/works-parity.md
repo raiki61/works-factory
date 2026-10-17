@@ -3681,7 +3681,7 @@
 - line.md L-D45: lib/judge_accept.py::diff_units・lib/judge_accept.py::rejudge_collect が再審の出口 rejudge-exit.json に書き、workflows/line/scripts/judged.py::compared と報告の lib/runreport.py::rejudge_opened・lib/runreport.py::rejudge_lowered は読むだけ（書いた時は報告が自分でも比べ直す 2 か所だった）
 - line.md L-D46: workflows/line/scripts/judged.py::compared の unread（報告への入口が無い）
 - line.md L-D47: lib/runreport.py::rejudge_opened・lib/runreport.py::next_request
-- line.md L-D48: workflows/line/scripts/judged.py::judged（rejudge_stop_reason を stop_reason で返す）→ 試験の関門（final）の when が `$judged.output.stop_reason == ''` を読む（部分 A で閉じ、部分 D1 で再審を 2 度目の修正の後に移したので fixed の held から試験の関門の when へ移した）
+- line.md L-D48: workflows/line/scripts/judged.py::judged（rejudge の出力の stop_reason を stop_reason で返す）→ 試験の関門（final）の when が `$judged.output.stop_reason == ''` を読む（部分 A で閉じ、部分 D1 で再審を 2 度目の修正の後に移したので fixed の held から試験の関門の when へ移した）
 - line.md L-D49: workflows/line/scripts/ask_final.py::needs・workflows/line/scripts/ask_final.py::left_objection
 - line.md L-D50: workflows/line/scripts/start.py::start、workflows/line/works-factory-line.yaml::judge・workflows/line/works-factory-line.yaml::plan・workflows/line/works-factory-line.yaml::rejudge-run・workflows/line/works-factory-line.yaml::replan
 - line.md L-D51: lib/carry.py::_prior_failures（start が parts を呼ぶ）（部分 A で閉じた）
