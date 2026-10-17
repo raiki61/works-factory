@@ -348,7 +348,7 @@ class RunEngineCase(RepoCase):
     def test_unran_step_is_not_found(self):
         """元 test_unran_step_is_not_found: 報告を宣言した段が試験を走らせていない形は、赤でなく走らせられない status。唯一の段の
         試験が始まらなかった形は 1 段も走らなかった base なので、判定の前も後も not_run（理由に走らなかった訳）。試験が全部 error の
-        段は試験が始まった形（直したいコードの import の誤りなど）なので、判定の前は awaiting_human で止めずに判定へ進む。終了コードの
+        段は報告に試験が並んだ（実行器が試験を集めた）形（直したいコードの import の誤りなど）なので、判定の前は awaiting_human で止めずに判定へ進む。終了コードの
         数値でなく件数で分ける"""
         stale = "<testsuite><testcase name='t'><failure/></testcase></testsuite>"
         cases = [(self.reported_step("", 5), None, "試験が 0 件", "not_run"),
