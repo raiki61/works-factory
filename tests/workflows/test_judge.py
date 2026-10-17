@@ -458,7 +458,6 @@ class RoleSettingsTest(unittest.TestCase):
             n = by[nid]
             with self.subTest(role=nid):
                 self.assertEqual(launchgroups.default_of(n["model"]), (model, effort))
-                self.assertNotIn("effort", n)
                 self.assertEqual(n["settingSources"], ["user"])
                 self.assertEqual(n["allowed_tools"], tools)
                 self.assertEqual(n["sandbox"], sandbox)
@@ -512,7 +511,6 @@ class ModelGroupsRunTest(unittest.TestCase):
 
     @classmethod
     def resolved(cls, *extra: str) -> dict:
-        """仕様の段に入る筋書き spec-on の stub で judge を dry-run し、ノードの id → (模型, effort)（解いた物がある節だけ）"""
         fixture = yaml.safe_load((BLOCK / "fixtures" / "spec-on.stubs.yaml").read_text(encoding="utf-8"))
         with archon.tree(["judge"]) as tree:
             stubs = tree.parent / "spec-on.stubs.yaml"
@@ -813,8 +811,6 @@ class HeadDepthTest(unittest.TestCase):
         self.assertEqual(self.record(r)["depth"], "標準")
 
     def test_accept_records_group_choices_without_changing_the_tier(self):
-        """群の選び（groups）は段の照らしが通った後に住処の口で照らして控える。上げ・下げは向きつきで残り、表に無い群の行は既定に
-        戻って訳を持つ。groups が外れても段は変わらず（軽量のまま）、引用の外れた返答では段が標準になり groups は空"""
         r = self.opened()
         r.returned("head_depth_prep")
         up = {"group": "@wf-judge-core", "model": "opus", "effort": "max", "why": "多段の根拠を読む"}

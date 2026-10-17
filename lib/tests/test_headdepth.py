@@ -13,6 +13,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -77,7 +78,6 @@ class GateTest(Repo):
         self.assertIn("行 3: y", headdepth.brief(f))
 
     def test_brief_lists_the_groups_and_allowed_words(self):
-        """役の材料に全部の群の名と既定の組・許す模型と effort の並び・記録だけの 1 文が並ぶ（表は launchgroups が持つ）"""
         text = headdepth.brief(headdepth.facts(ROWS, START, self.repo))
         for name, spec in launchgroups.GROUPS.items():
             self.assertIn(name, text)
@@ -320,6 +320,9 @@ class ReportLineTest(unittest.TestCase):
         for group in launchgroups.GROUPS:
             if group not in ("@wf-fix-writers", "@wf-eyes-core"):
                 self.assertNotIn(group, lines, "選ばれていない群の行は出ない")
+        with mock.patch.dict(launchgroups.GROUPS, {"@wf-fix-writers": {"model": "haiku", "effort": "low", "what": "替えた表"}}):
+            self.assertEqual(headdepth.groups_lines(doc)[0], "@wf-fix-writers: 既定 sonnet・high → 役の選び opus・high（上げ。訳: 広い書き換え）",
+                             "控えた時の既定を出し、後で替えた表から引き直さない")
         same = launchgroups.choices([{"group": "@wf-report", "model": "sonnet", "effort": "medium", "why": ""}])
         self.assertEqual(headdepth.groups_lines({"groups": same})[0],
                          "@wf-report: 既定 sonnet・medium → 役の選び sonnet・medium（同じ。訳: 訳の記録が無い）")

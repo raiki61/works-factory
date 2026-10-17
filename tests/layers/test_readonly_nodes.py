@@ -137,7 +137,6 @@ class ReadonlyNodesTest(unittest.TestCase):
         self.assertIn("ROLE_TOOLS の外", got[0])
 
     def test_role_model_names_a_group_without_effort(self):
-        """役の model は表 GROUPS の群の名で、役にも工程の根にも effort・modelReasoningEffort を書かない（輪の中の役も同じ）"""
         nodes = role("r", "[Read]", True)
         loop = "  - id: g\n    loop_group:\n      nodes:\n" + role("again", "[Read]", True, indent=8)
         self.assertEqual(self.problems({FIX: workflow("fix", nodes + loop)}), [])

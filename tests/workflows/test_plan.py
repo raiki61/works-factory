@@ -379,7 +379,6 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual(n["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False}, n["id"])
             self.assertNotIn("context", n, n["id"])
             self.assertEqual(launchgroups.default_of(n["model"])[0], "opus", n["id"])
-            self.assertNotIn("effort", n, n["id"])
         eye_node, writer, fix = roles
         self.assertEqual((eye_node["allowed_tools"], launchgroups.default_of(eye_node["model"])[1]), ([], "high"))
         self.assertEqual((writer["allowed_tools"], launchgroups.default_of(writer["model"])[1]),

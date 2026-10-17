@@ -39,7 +39,7 @@ def take(reply: dict) -> dict:
         role_why = reply.get("why") if isinstance(reply, dict) else ""
         return refuse("／".join(gaps), role_why.strip() if isinstance(role_why, str) else "")
     items = reply.get("items") or []
-    groups = launchgroups.choices(reply.get("groups"))   # 段の照らしが通った後。外れた行は既定に戻るだけで段は落とさない
+    groups = launchgroups.choices(reply.get("groups"))
     headdepth.write(jdir, headdepth.record(headdepth.tier_of(items), reply["why"].strip(), items=items, facts_doc=facts, groups=groups))
     return {"ok": True, "reason": ""}
 

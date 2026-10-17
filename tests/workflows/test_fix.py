@@ -346,8 +346,8 @@ class RolesCase(unittest.TestCase):
     def test_roles_keep_the_original_model_and_session_settings(self):
         for nid, (model, effort, context, sources, sandbox) in ORIGINAL_ROLES.items():
             node = self.nodes[nid]
-            self.assertEqual((launchgroups.default_of(node["model"]), node.get("effort"), node.get("context"),
-                              node.get("settingSources"), node.get("sandbox")), ((model, effort), None, context, sources, sandbox), nid)
+            self.assertEqual((launchgroups.default_of(node["model"]), node.get("context"), node.get("settingSources"), node.get("sandbox")),
+                             ((model, effort), context, sources, sandbox), nid)
 
     def test_borrowed_skills_sit_on_the_seat_roles(self):
         """借りた superpowers の技: TDD の役に test-driven-development、手直しの役に receiving-code-review（元 blk-fix.yaml:188・

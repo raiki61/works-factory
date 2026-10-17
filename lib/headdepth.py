@@ -1,5 +1,5 @@
 """run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）。使うのは判定と線の script と、判定・修正案・修正・報告の lib
-（judge_accept・planfile・planblk・fixboard・runreport）。ここが引く物は、群の表の launchgroups（brief が群のセクションを貼り、受け付けが群の選びを照らす）。
+（judge_accept・planfile・planblk・fixboard・runreport）。
 
 単位ごとの深さ（depth.py）の上に、run 全体の深さの段（軽量・標準・重厚。段の定義は depth.TIERS）を run の頭で 1 度決める。
 依頼の行ごとに何が決まっていないか（未知の種類）は意味の問いなので役が引用つきで選び、段はその種類から機械が引く（tier_of）。
@@ -101,7 +101,6 @@ def gate(f: dict) -> tuple:
 
 
 def brief(f: dict) -> str:
-    """役に貼る材料の本文。依頼の行ごとの番地の事実・試験のコマンドの有無に、群の表から描いたセクション（launchgroups.brief_section）を続ける"""
     rows = [f"- 行 {it['item']}: {it['text']}\n  - 番地: {it['where'] or '（無い）'}"
             f"（ファイル {'在る' if it['path_ok'] else '無い'}・行の範囲 {'ファイルの中' if it['lines_ok'] else '外か読めない'}）"
             for it in f["items"]]
@@ -240,9 +239,10 @@ NO_CHOICE = "役の選びは無い（呼ぶ人の名指しと層の付け替え�
 def _group_line(row: dict) -> str:
     group = oneline.one_line(row.get("group") or "") or "（群の名が無い）"
     why = oneline.one_line(row.get("fallback") or row.get("why") or "") or "訳の記録が無い"
-    if group not in launchgroups.GROUPS:
+    pair = row.get("default") if isinstance(row.get("default"), dict) else {}
+    if not pair.get("model"):
         return f"{group}: 表に無い群を既定に戻した（訳: {why}）"
-    default = "・".join(launchgroups.default_of(group))
+    default = f"{pair['model']}・{pair.get('effort')}"
     if row.get("fallback"):
         return f"{group}: 役の選びを既定 {default} に戻した（訳: {why}）"
     return f"{group}: 既定 {default} → 役の選び {row.get('model')}・{row.get('effort')}（{row.get('direction')}。訳: {why}）"
@@ -252,7 +252,7 @@ def groups_lines(doc) -> list:
     """報告の ## 模型 のセクションに並べる、役の選びの行。控え doc（read が読んだ物。控えの無い run は None）の groups の行ごとに 1 行
     （1 群 1 行。選ばれていない群の行は出さない）: 選びは既定の (model, effort)・役の選び・向き・訳、既定に戻した行は戻した訳。
     選びも戻した行も無い・控えの無い run は NO_CHOICE の 1 行。どちらの形も最後に launchgroups.RECORD_ONLY の 1 文を添える。
-    既定の値は launchgroups の表から引く"""
+    既定の値は控えの行の default（控えた時の表の既定）を使い、表を後で替えても控えと食い違わない"""
     groups = doc.get("groups") if isinstance(doc, dict) else None
     rows = [_group_line(r) for r in groups if isinstance(r, dict)] if isinstance(groups, list) else []
     return [*(rows or [NO_CHOICE]), launchgroups.RECORD_ONLY]

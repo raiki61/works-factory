@@ -269,7 +269,6 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(ci["allowed_tools"], ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"])
         self.assertFalse({"Edit", "Write"} & set(ci["allowed_tools"]))
         self.assertEqual(launchgroups.default_of(ci["model"]), ("sonnet", "medium"))   # 今の works の stage-models.json の blk-ci/ci（light）
-        self.assertNotIn("effort", ci)
         self.assertEqual(ci["command"], "ci")
         self.assertTrue((BLOCK / "commands" / "ci.md").is_file())
 

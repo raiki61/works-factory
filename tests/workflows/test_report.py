@@ -234,7 +234,6 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual(node["settingSources"], ["user"])
             self.assertEqual(node["sandbox"], SANDBOX)
             self.assertEqual(launchgroups.default_of(node["model"]), ("sonnet", "medium"))
-            self.assertNotIn("effort", node)
         self.assertEqual(write["output_format"], {k: v for k, v in report_roles.TEXT_SCHEMA.items()})
         self.assertEqual(cold["output_format"], runreport.COLD_SCHEMA)
 

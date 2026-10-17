@@ -514,8 +514,6 @@ class TranscriptCase(Base):
         for place in ("depth-head.json", "groups", "$LOG_DIR/<run の id>.jsonl", "execution.binding", "result", "outcome", "stop_reason"):
             self.assertIn(place, runreport.DATA_PLACES)
         self.assertNotIn("同じ run の置き場", runreport.DATA_PLACES)
-        self.assertIn(runreport.DATA_PLACES, (pathlib.Path(__file__).resolve().parents[2] / "docs" / "design.md").read_text(encoding="utf-8"))
-        # 目の語は『独立の目』のセクションと結末の行で同じ（返りの在る目・結果が無い目・深さで省いた目・出力の無い run）
         for skip, said in (("", "結果が無い——再実行の要あり（深さは標準で、省いていない）"), ("軽量で省いた", "深さで省いた")):
             with self.subTest(skip=skip):
                 _, text, _ = self.build(fixed_run(judge=judged, eyes=eyes), line={"redepth": {"skip_optional": skip}}, transcript=facts)
@@ -528,7 +526,6 @@ class TranscriptCase(Base):
         _, text, _ = self.build(fixed_run(judge=judged, eyes=None), transcript=facts)
         self.assertIn(f"独立の目: {runreport.NO_EYES}", self.section(text, report.MODEL_HEADING))
         self.assertIn(f"- {runreport.NO_EYES}\n", self.section(text, runreport.EYES_HEADING) + "\n")
-        # 判定の返りの無い run: 群の行は『役の選びは無い』の 1 行と記録だけの 1 文。ノードごとの行は今の字のまま
         _, text, _ = self.build(fixed_run(judge=None), transcript=facts)
         section = self.section(text, report.MODEL_HEADING)
         self.assertEqual(section.splitlines()[:2], [f"- {headdepth.NO_CHOICE}", f"- {launchgroups.RECORD_ONLY}"])

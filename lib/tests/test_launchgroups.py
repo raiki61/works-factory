@@ -1,12 +1,4 @@
-"""AI ノードの群の表（lib/launchgroups.py）の形の検査。表を直に読むだけ。
-
-見る物:
-- 群の名は全部 '@wf-' で始まり、what が空でない
-- default_of が返す (model, effort) は表の値と同じで、旧来の字の値の 4 つの組のどれか
-- 表に無い名は KeyError
-- 役の群の選びの照らし（choices）: 表に無い群・許さない語・同じ群の 2 行目・形の壊れた行はその行だけ既定に戻って訳が残り、
-  向き（direction）は上げ・下げ・同じ・混ざる。役に貼るセクション（brief_section）は表から描く
-"""
+"""AI ノードの群の表（lib/launchgroups.py）の形の検査。表を直に読むだけ。"""
 import pathlib
 import sys
 import unittest
@@ -36,8 +28,8 @@ class GroupTableTest(unittest.TestCase):
                 launchgroups.default_of(name)
 
 
-JUDGE = "@wf-judge-core"      # 既定 opus・high
-WRITERS = "@wf-fix-writers"   # 既定 sonnet・high
+JUDGE = "@wf-judge-core"
+WRITERS = "@wf-fix-writers"
 
 
 def row(group, model, effort, why="訳"):
@@ -47,11 +39,11 @@ def row(group, model, effort, why="訳"):
 class ChoiceTest(unittest.TestCase):
     def test_unknown_group_or_word_falls_back_with_reason(self):
         got = launchgroups.choices([
-            row(JUDGE, "opus", "max"),              # 通る
-            row("@wf-nope", "opus", "high"),        # 表に無い群
-            row(WRITERS, "gpt", "high"),            # 許さない模型
-            row("@wf-report", "sonnet", "extreme"),  # 許さない effort
-            row(JUDGE, "haiku", "low"),             # 同じ群の 2 行目
+            row(JUDGE, "opus", "max"),
+            row("@wf-nope", "opus", "high"),
+            row(WRITERS, "gpt", "high"),
+            row("@wf-report", "sonnet", "extreme"),
+            row(JUDGE, "haiku", "low"),
         ])
         self.assertEqual(len(got), 5)
         self.assertEqual((got[0]["model"], got[0]["effort"], got[0]["fallback"]), ("opus", "max", ""))

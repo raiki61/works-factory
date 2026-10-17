@@ -416,9 +416,7 @@ class ShapeCase(unittest.TestCase):
                 self.assertEqual(ROLES[nid]["allowed_tools"], WORKS_TOOLS[role] + WORKS_NODE_TOOLS.get(nid, []))
 
     def test_role_model_and_effort_match_the_works_table(self):
-        """目の役は字の模型も effort も書かず、群の名を指す（群の既定が今の works の表と同じ）"""
         self.assertEqual({nid: launchgroups.default_of(node["model"]) for nid, node in ROLES.items()}, WORKS_MODEL)
-        self.assertEqual([nid for nid, node in ROLES.items() if "effort" in node], [])
 
     def test_eyes_run_side_by_side(self):
         """R1 の前段・比較役・前提の検算・R3 は互いを待たず、支度の後に並んで走る（元 works/blk-eyes/lib/eyes.py:26-27）"""

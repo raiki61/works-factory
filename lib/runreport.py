@@ -367,8 +367,6 @@ DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 
 
 
 def _outcome_line(outcome: str, gates: dict, returns: dict, carried: int, prior: list, eyes_skip=None) -> str:
-    """## 模型 のセクションの結末の 1 行: 結末の語・最後の承認ノード gate-final の答え・独立の目ごとの語（_eye_word。『独立の目』の
-    セクションと同じ字）・次の run に渡す物の件数 carried・持ち越した失敗の件数（prior_failures が組んだ prior）・DATA_PLACES"""
     eyes = returns.get("eyes")
     seen = NO_EYES if eyes is None else "・".join(f"{name.upper()}: {_eye_word(eyes, name, eyes_skip)}" for name in oc.EYE_NAMES)
     return "／".join([f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）",

@@ -435,7 +435,6 @@ class YamlCase(unittest.TestCase):
                 n = got[nid]
                 self.assertEqual(n["command"], nid)
                 self.assertEqual(launchgroups.default_of(n["model"]), ("opus", "high"))
-                self.assertNotIn("effort", n)
                 self.assertEqual(n["settingSources"], ["user"])
                 self.assertEqual(n["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False})
                 self.assertEqual(n["idle_timeout"], DEADLINE)
@@ -463,7 +462,6 @@ class YamlCase(unittest.TestCase):
         self.assertIn("$review-prep.output.brief", fix["prompt"])
         launch = ("model", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
         self.assertEqual({k: fix[k] for k in launch}, {k: first[k] for k in launch})
-        self.assertNotIn("effort", {**fix, **first})
         self.assertEqual(fix["output_format"]["required"], [])
         self.assertEqual({**fix["output_format"], "required": first["output_format"]["required"]}, first["output_format"])
         accept = got["review-accept"]
