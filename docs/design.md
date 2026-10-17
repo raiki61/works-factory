@@ -677,7 +677,7 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 
 #### 段 1 の結果
 
-記録は #154 のコメント。起こし方は筋書き `harness/runtime.scenario.json` が正本。
+記録は #154 のコメント。起こし方は筋書き `tests/e2e/scenario.json` が正本。
 
 - 本物の通し（手順 4。main `0d9aff01`）: run `c0e26106-14a7-46d2-afee-91de07f782c4`（fix の組の子 `4613c39a`・`8b118ff5`・`8df84c56`、どれも completed）。`terminal_record.status` は completed、結末は `round_limit`（数え方の型が正しい行にも当たって閉じない。#313）。承認ノードは `gate-start` と `gate-final` の 2 回で、どちらも approve。封じた差分は `bin/apply` が当て（当てる前 3 件中 2 件が赤、当てた後 3 件とも緑）、1 バイト変えた差分は拒んだ。
 - 費用と時間（承認ノードの待ちを除く。約 6.7 ドル・約 14 分）:
