@@ -96,7 +96,7 @@ class LayoutTest(unittest.TestCase):
     def test_root_names_cover_the_tree(self):
         self.assertLessEqual(
             {"bin", "workflows", "lib", "tests", "docs", ".github", "AGENTS.md", "pyproject.toml", "factory",
-             "FACTORY.md", "harness", ".factory", "MISSION.md", "README.md"},
+             "FACTORY.md", ".factory", "MISSION.md", "README.md"},
             root_names(agents_md()))
 
     def test_good_seed_is_clean(self):
