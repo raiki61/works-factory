@@ -3544,7 +3544,7 @@
 - line.md L-G31: lib/gatemarks.py::unread_hold_lines。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows → final_text、報告は lib/runreport.py::ledger_state の unread_holds → _decisions
 - line.md L-G32: lib/gatemarks.py::returned・lib/gatemarks.py::returned_lines・lib/gatemarks.py::duty（値の見え方 ledger）。fix は lib/fixboard.py::gate_view・lib/fixboard.py::group_owed・lib/fixboard.py::write_notes が置き場の answers.json（{decision, text, asked}。asked は $ask-before-fix.output.asked）から引く
 - line.md L-G33: lib/gatemarks.py::pending・lib/gatemarks.py::withheld_by・lib/gatemarks.py::withheld・lib/gatemarks.py::duty。無人の run は ask-before-fix が台帳の問いだけを deferred にして修正へ進み、fix・plan の直す義務（gatemarks.duty）が出どころを外す。ただし判定の推しが選択肢を名指し、出どころ・depends が開いた単位の fork・held は、無人の run が推しを答えに採って出どころを直す義務に戻す（lib/gatemarks.py::run_push。issue #593）
-- line.md L-G34: lib/gatemarks.py::binds・lib/gatemarks.py::origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger が gatemarks.ledger_at（ledger_beside をファイルから。判定の隣の materials.json と、ties_judgment: $fix-in.output.judgment の隣の answer-ties.json）で引く。報告は lib/runreport.py::ledger
+- line.md L-G34: lib/gatemarks.py::binds・lib/gatemarks.py::origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger が gatemarks.ledger_at（ties_file・materials_file に、入力 answer_ties・materials（`$judged.output.<同じ名>`。判定の出力の欄のポインタ）の先を渡す）で引く。報告は lib/runreport.py::ledger
 - line.md L-G35: workflows/line/scripts/ask_final.py::ledger・workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.held_lines）、lib/runreport.py::ledger_state
 - line.md L-G36: workflows/line/scripts/ask_final.py::final_head・workflows/line/scripts/ask_final.py::question_lines
 - line.md L-G37: 報告は lib/runreport.py::_decisions。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.answered_lines・unmatched_answer_lines）→ question_lines
@@ -3641,7 +3641,7 @@
 - line.md L-D05: lib/depth.py::raise_doc、workflows/line/scripts/redepth.py::redepth
 - line.md L-D06: workflows/line/scripts/redepth.py::redepth
 - line.md L-D07: workflows/line/scripts/redepth.py::redepth
-- line.md L-D08: workflows/line/scripts/redepth.py::pending_signals（gatemarks.ledger_beside・gatemarks.pending。判定の問いの台帳と依頼の answers と修正前の承認ノードの答え。台帳が読めなければ上げる側）
+- line.md L-D08: workflows/line/scripts/redepth.py::pending_signals（gatemarks.ledger_at・gatemarks.pending。入力 answer_ties・materials のポインタの先。判定の問いの台帳と依頼の answers と修正前の承認ノードの答え。台帳が読めなければ上げる側）
 - line.md L-D09: workflows/line/scripts/redepth.py::redepth、workflows/line/works-factory-line.yaml::redepth
 - line.md L-D10: workflows/line/scripts/redepth.py::wide_signals（depth.run_wide。計画の欄と fixed の差分。counted を返し報告の深さの行に出る）と fix の中の lib/fixboard.py::redepth
 - line.md L-D11: yaml の eyes.depth（$redepth.output.depth）→ workflows/eyes/scripts/prep.py::out の run_eyes（depth.skip_reason）
@@ -4173,7 +4173,7 @@
 - tail.md R74: lib/runreport.py::_depth_lines（redepth の出力を lib/depth.lines の形で）
 - tail.md R75: lib/runreport.py::_policy_lines（事前審査の出力 review の隣の policy.json と今の文書を boardview.policy_change で比べ、change_row の 1 行）
 - tail.md R76: lib/runreport.py::rejudge_lines（rejudge-exit.json の verdicts の並びと往復の数）・lib/runreport.py::rejudge_exit
-- tail.md R77: lib/gatemarks.py::answer_ties・lib/gatemarks.py::ties_of・lib/gatemarks.py::answer_tie_lines・lib/gatemarks.py::returned_lines（判定が単位に結んだ答えの行）。報告は lib/runreport.py::ledger が 1 回目の判定の隣の answer-ties.json を読む。fix は prep が判定の隣から写す
+- tail.md R77: lib/gatemarks.py::answer_ties・lib/gatemarks.py::ties_of・lib/gatemarks.py::answer_tie_lines・lib/gatemarks.py::returned_lines（判定が単位に結んだ答えの行）。報告は lib/runreport.py::ledger が判定の出力の欄 answer_ties の先を読む。fix は prep が入力 answer_ties の先を自分の名で写す
 - tail.md R78: lib/rolekit.py::last_reject（段の置き場の下の rejects-*.json の最後の行と、前の版の run の reject-*.md・reject-*.txt（読み替えの期限まで）の一番新しい物）→ lib/runreport.py::_last_reject（止めた段の前の失敗の行の文）
 - tail.md R79: lib/runreport.py::_world_lines（world-state.json の reason・classes・dropped）
 - tail.md R80: lib/runreport.py::_pr_draft_lines（判定の隣の pr-downgrades.json。material-pr-check.json の reply.conflicts[].note を judge_accept.prcheck_drafts が写した物）

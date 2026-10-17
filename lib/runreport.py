@@ -372,7 +372,7 @@ def head_cost(facts: dict, why: str = "") -> list:
             *cost_rows(facts), *resubmit_rows(facts)]
 
 
-DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 判定の置き場の隣の depth-head.json の groups／"
+DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 判定の出力の欄 depth_record の先の groups／"
                "実際の値 = $LOG_DIR/<run の id>.jsonl の行の execution.binding／"
                "結末 = メイングラフの出力 result の outcome・stop_reason")
 
@@ -386,7 +386,7 @@ def _outcome_line(outcome: str, gates: dict, returns: dict, carried: int, prior:
 
 
 def _model_lines(facts: dict, head_doc, outcome_line: str) -> list:
-    """## 模型 のセクション: 群ごとの役の選び（headdepth.groups_lines。head_doc は判定の隣の控え）・ノードごとの実際に走った模型と
+    """## 模型 のセクション: 群ごとの役の選び（headdepth.groups_lines。head_doc は判定の出力の欄 depth_record の先の控え）・ノードごとの実際に走った模型と
     effort（呼ぶ人の名指しも層の付け替えも解いた後の値）・結末の行（_outcome_line）"""
     models, efforts = facts.get("models") or {}, facts.get("efforts") or {}
     if not facts.get("ok"):
@@ -408,7 +408,7 @@ def _request_answers(start: dict) -> list:
 def ledger(returns: dict, gates: dict, start: dict):
     """問いの台帳の値の見え方（gatemarks.ledger）: 判定（再審が在ればその）の judgment.json の問いと単位の全部（開いていない単位も。
     最後の関所と fix の直す義務と同じ単位で、関所の答えが返す単位を読む）、始めの記録の依頼の answers、
-    修正前の関所の答え {decision, text, asked}、1 回目の判定の隣の結び（answer-ties.json。再審の判定の隣には無い）、判定の隣の素材の状態、
+    修正前の関所の答え {decision, text, asked}、判定の出力の欄 answer_ties の先の結び（1 回目の判定の物）、欄 materials の先の素材の状態、
     無人の run か（判定の推しを答えに採る。gatemarks.run_push）"""
     ties_at = _first_port(returns, "answer_ties")
     ties = gatemarks.ties_of(marks.load(ties_at)) if ties_at is not None else []
@@ -645,7 +645,7 @@ def _judgment_units(ret) -> dict:
 
 
 def rejudge_exit(returns: dict) -> tuple:
-    """(再審の出口 rejudge-exit.json の中身, 読めなかった訳)。再審の judgment の隣の約束のファイル（判定のブロックが書く。
+    """(再審の出口 rejudge-exit.json の中身, 読めなかった訳)。再審の判定の出力の欄 rejudge_exit の先（判定のブロックが書く。
     lib/report.rejudge_exit）。再審が走っていなければ (None, "")"""
     rejudge = returns.get("rejudge")
     if not isinstance(rejudge, dict):
@@ -679,7 +679,7 @@ def rejudge_opened(returns: dict, exit_doc) -> list:
 
 
 def rejudge_changes(returns: dict) -> list:
-    """再審で単位が変わった行（元 report._rejudge_changes。再審の judgment の隣の rejudge-diff.json の changed の全部。異議に名指されて
+    """再審で単位が変わった行（元 report._rejudge_changes。再審の判定の出力の欄 rejudge_diff の先の changed の全部。異議に名指されて
     いない物は「争点でない」と印を付ける）"""
     rows, why = _read_port(_port(returns, "rejudge", "rejudge_diff"))
     if why:
@@ -699,7 +699,7 @@ def rejudge_changes(returns: dict) -> list:
 
 
 def rejudge_lines(returns: dict, exit_: tuple) -> list:
-    """決着した再審の結果の行（元 report.rejudge_lines・_settled_rounds。再審の judgment の隣の rejudge-exit.json の往復の数と答えの
+    """決着した再審の結果の行（元 report.rejudge_lines・_settled_rounds。再審の判定の出力の欄 rejudge_exit の先の往復の数と答えの
     並び・異議の文、再審が直す単位にした単位と block から下げた単位）と、再審されずに残った異議（線の fixed の objection は 1 回目と 2 度目の修正の異議をつないだ文）。出口が
     読めない再審は 1 行で名指す。exit_ は rejudge_exit の返り"""
     verdict, objection = _rejudge(returns)
@@ -921,7 +921,7 @@ def inner_word_lines(diff_path, known) -> list:
 
 
 def verify_lines(returns: dict) -> list:
-    """判定の単位の裏取りの申し送り（判定の隣の judge-verify.json）の行（元 report.verify_lines の 1 周分）"""
+    """判定の単位の裏取りの申し送り（判定の出力の欄 verify の先）の行（元 report.verify_lines の 1 周分）"""
     doc, why = _read_port(_port(returns, "judge", "verify"))
     if why or (doc is not None and not (isinstance(doc, dict) and isinstance(doc.get("units"), list))):
         return [f"判定の単位の裏取り: 申し送りが読めない（{why or '欄 units の配列が無い'}）"]
@@ -956,7 +956,7 @@ def verify_lines(returns: dict) -> list:
 
 
 def pr_lines(returns: dict) -> list:
-    """並行 PR と重なるので外した範囲（判定の隣の pr-excluded.json。元 report._pr_lines の外した範囲の側）"""
+    """並行 PR と重なるので外した範囲（判定の出力の欄 pr_excluded の先。元 report._pr_lines の外した範囲の側）"""
     doc, why = _read_port(_port(returns, "judge", "pr_excluded"))
     if why:
         return [f"並行 PR と重なるので外した範囲: {why}"]
@@ -965,7 +965,7 @@ def pr_lines(returns: dict) -> list:
 
 
 def premise_lines(returns: dict, start: dict) -> list:
-    """依頼が実測（measured）を持っていたのに、前提の役が仮説でしか書けなかった制約（判定の隣の premises.json。元
+    """依頼が実測（measured）を持っていたのに、前提の役が仮説でしか書けなかった制約（判定の出力の欄 premises の先。元
     report._premise_hypotheses。依頼の行は始めの記録の依頼のファイルから）"""
     doc, why = _read_port(_port(returns, "judge", "premises"))
     if why:
@@ -1274,7 +1274,7 @@ def _eye_lines(returns: dict, typed: dict, eyes_skip=None) -> tuple[list, list]:
 
 def _world_lines(returns: dict) -> list:
     """依頼の行ごとの定石と、定石を web で確かめたかの印と、依頼の解き方との比べと、類の数と落とした抜き書きの数のまとめ（元
-    worldmark.report_lines :265-277。数と段が落ちた訳は 1 回目の判定の隣の world-state.json）。判定が返ったのに world が null なら、
+    worldmark.report_lines :265-277。数と段が落ちた訳は判定の出力の欄 world_state の先）。判定が返ったのに world が null なら、
     段が落ちた訳（控えが無ければ、段が落ちたか行を取れなかった 1 行）"""
     judge = _ret(returns, "judge")
     state_at = _first_port(returns, "world_state")
@@ -1295,13 +1295,13 @@ def _world_lines(returns: dict) -> list:
 
 def _unseen_lens_lines(returns: dict, beside: dict) -> list:
     """未確認のレンズの節（元 report.py:2069-2073: 局所レビューの戻した・見ていないレンズ diverted.report_lines を先に、修正の後の
-    レンズ lens.report_lines を後に。1 回目の判定の隣の local-review-lenses.json と、修正の diff の隣の lenses.json）"""
+    レンズ lens.report_lines を後に。判定の出力の欄 review_lenses の先と、修正の diff の隣の lenses.json）"""
     at = _first_port(returns, "review_lenses")
     return [*(diverted.report_lines(at) if at is not None else []), *fixbeside.lens_lines(beside)] or ["無い"]
 
 
 def _pr_draft_lines(returns: dict) -> list:
-    """並行 PR の担当への申し送りの下書き（1 回目の判定の隣の pr-downgrades.json。prcheck.draft_lines）。読めなければその 1 行"""
+    """並行 PR の担当への申し送りの下書き（判定の出力の欄 pr_drafts の先。prcheck.draft_lines）。読めなければその 1 行"""
     at = _first_port(returns, "pr_drafts")
     if at is None:
         return []
