@@ -146,6 +146,22 @@
 - 使うサブグラフ: 全部
 - 外す条件: グラフの既定で期限を無しにできる版が出たら
 
+### P10 ノードの plugins: で入っていないかもしれないプラグインを名指せない
+
+- 穴: ノードの `plugins:` は、名指したプラグインが入っていないと最初の turn の前にノードを落とす。入っていれば載せる任意の形（`mcp:` の `optional: true` の類）は無く、値は literal。coldwrite（書く散文の初見検査のフック）は利用者の env の marketplace から取る任意の借り物で、入れていない利用者には入れる物が無い。
+- 証拠: 止めた Archon `355f1867` の `packages/providers/src/claude/plugins.ts` 164-177 行（`buildClaudePluginSettings` は入っていない名指しを `misconfigured` で投げる）、`packages/docs-web/src/content/docs/guides/authoring-workflows.md` 396 行（「A named plugin brings its agents, hooks, LSP servers and commands」。hooks だけは選べない）・398 行（「The node fails before its first model turn when a named plugin is not installed」）・402 行（任意の形があるのは `mcp:` の `optional: true` だけ）、`packages/workflows/src/template-walker.test.ts` 52 行（`'plugins.*'` は literal）。upstream の dev（`3ca24b60`、2026-10-17 に確かめた）の同じ文書と `plugins.ts` も同じで、ASF の `factory/sdlc-on-dev`（`5fa0a816`、同日）の `.archon/workflows/sdlc/` の YAML 145 本は `plugins:` を使っていない。
+- 埋め: `bin/_lib/toolset.py`。hooked の道で、coldwrite の `hooks/hooks.json` の表を隔離した設定の `settings.json` の hooks に足す。`settingSources: [user]` のノードは利用者の設定のフックを読む（`authoring-workflows.md` 386 行）ので、全部の役で効く。coldwrite の取り元の env は `bin/_lib/borrow/borrow.json` の coldwrite の項が持ち、利用者の設定に無ければ借りずに見送る（`toolset.user_borrow`。持ち主の決め `others-may-use`・`AGENTS.md` の E14）。env の字はここに写さない。
+- 使うサブグラフ: 書く役を持つ全部
+- 外す条件: 2 つが揃った版が出たら。1 つは、`plugins:` に入っていなければ飛ばす形が入ること。もう 1 つは、名指したプラグインのうち hooks だけを載せられること（か coldwrite が hooks しか持たないこと）。`plugins:` は agents・hooks・LSP・commands をまとめて載せる。外す時は、hooked の物が隔離した設定にプラグインとして入らない（`toolset.py` の install が CLI で入れる物から外している）ので、coldwrite を works-local へ入れる道（`pr-review-toolkit` と同じ）に替える要る。
+
+### P11 道具の拒みを run ごとに変えられない
+
+- 穴: ノードの `denied_tools` は YAML の literal で、公開ベンチの run だけで拒むことを書けない。run 1 本ぶんの `--config` の層にも、`assistants.claude` の strict な形にも、道具を拒む鍵が無い。
+- 証拠: 止めた Archon `355f1867` の `packages/workflows/src/schemas/dag-node.ts` 223 行（`denied_tools: z.array(z.string())`）、`packages/workflows/src/template-walker.test.ts` 46 行（`'denied_tools.*'` は literal）、`packages/workflows/src/schemas/run-config.ts` 32-42 行（層の鍵は `assistant`・`assistants`・`aliases`・`tiers`・`workflows`・`docsPath`・`envVars` だけ）、`packages/providers/src/claude/config.ts` 10-34 行（`model`・`settingSources`・`claudeBinaryPath` だけの strict な形）。upstream の dev（`3ca24b60`、2026-10-17 に確かめた）の `run-config.ts` と `claude/config.ts` も同じで、ASF の `factory/sdlc-on-dev`（`5fa0a816`、同日）の `.archon/workflows/sdlc/` の YAML 145 本は `denied_tools:` を使っていない。
+- 埋め: `bin/_lib/toolset.py`。埋めは run ごとの部分だけ。`toolset.DENY_WEB_ENV`（`tests/calibration/run.py` が立てる）が 1 の時、install が permissions に拒みを足す（`toolset.permissions`）。env の字はここに写さない。決めは持ち主の決め `public-bench-at-major`。
+- 使うサブグラフ: 全部（公開ベンチの run だけで効く）
+- 外す条件: `denied_tools` か run の設定の層で、道具の拒みを run ごとに書ける版が出たら。外した後も `toolset.DENY_WEB` の一覧は残る: ベンチが素の Claude Code にも使う（`tests/calibration/run.py` の `--disallowedTools`・`settings.json`・漏れの数え）ため。
+
 ## Archon の決めに合わせた形
 
 Archon の穴でなく、Archon が決めてそうしている振る舞いに合わせた埋め。版が上がっても外れる見込みは無い。行の形と照らしは「今の行」と同じ。

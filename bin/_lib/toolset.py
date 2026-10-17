@@ -35,9 +35,9 @@ AI ノードは全部 settingSources: [user] で、bin/ の起動が隔離した
   enabledPlugins に載らなければ止まる。--no-plugins（認証の要らない道。validate・テスト）は CLI を呼ばない（探して名前を確かめるのは
   同じ）。
 - kind "plugin" で borrow の hooks を持つ物（coldwrite。書く散文の初見検査のフック）: プラグインとしては入れず、入れた置き場の
-  hooks/hooks.json の hooks の表をそのまま隔離した設定の settings.json の hooks に足す（hooked）。Archon はノードが plugins: で名指さない
-  プラグインを切り、名指すと入っていない利用者の run のノードが落ちる（E14）が、settingSources: [user] のノードは利用者の設定のフックを
-  読むので、全部の役で効く。表がプラグインの置き場を指す字（PLUGIN_PLACE）を持てば、置かずに名指して止まる。前の版が
+  hooks/hooks.json の hooks の表をそのまま隔離した設定の settings.json の hooks に足す（hooked）。Archon で表せない形で、
+  docs/polyfills.md の P10 が穴と外す条件を持つ。settingSources: [user] のノードは利用者の設定のフックを読むので、全部の役で効く。
+  表がプラグインの置き場を指す字（PLUGIN_PLACE）を持てば、置かずに名指して止まる。前の版が
   プラグインとして入れた物は、CLI を呼ぶ道で外す。
 - 書き込みの記録のフック: 同じ置き場の record-write.py を PostToolUse:Edit|Write|NotebookEdit（WRITE_MATCHER）で settings.json の
   hooks に置き、記録の根 <置き場>/works-writes/（lib/writelog.ROOT）を作る（どちらの道でも。期限の鍵は書かない）。書く役の
@@ -51,8 +51,8 @@ AI ノードは全部 settingSources: [user] で、bin/ の起動が隔離した
   settings*.json・一覧の外のスキル・works-parts/ の下の部品の外のファイル・settings.json の鍵が {enabledPlugins,
   extraKnownMarketplaces, hooks} の外（permissions は deny だけを持ち、その行が DENY_PUSH と DENY_WEB の中の時だけ受ける。
   install が置く）・hooks の行のうち記録のフックの行と記録（hooks）に載せた借りる物の行の外・フォルダでない
-  works-writes・works-reads・一覧の外の有効な
-  プラグイン・入れたプラグイン（plugins/installed_plugins.json）・marketplace（settings.json と plugins/known_marketplaces.json）。
+  works-writes・works-reads・一覧の外の marketplace（settings.json と plugins/known_marketplaces.json）。一覧の外のプラグイン
+  （有効な物・入れた物）は照らさない: Archon のノードの plugins: の照合が、名指さない物を切り、読み込まれた物でノードを落とす。
   Claude Code が自分で書く状態（projects/・.claude.json・backups/・remote-settings.json・plugins/cache/ など）は見ない。
   install は組む前と後に柵を当て、当たれば何も写さずに止まる。CLI は 1 行を出して終了コード 2（入っていない物は 1 物 1 行）。
 - 記録 <置き場>/.works-toolset.json: {名: {version, source, sha256, loaded[, commit][, source_enabled][, hooks]}}（run ごとの
@@ -104,7 +104,7 @@ import spseam  # noqa: E402
 MARKETPLACE = "works-local"                 # 隔離した設定の中の手元の marketplace の名
 MP_DIR = "works-marketplace"                # その置き場（<設定の置き場>/works-marketplace）
 # Claude Code が起動の時に自分で足す公式の marketplace（名と GitHub の repo が両方合う時だけ）。登録だけで、入れた・有効な
-# プラグインは増えない（それは installed_plugins.json・enabledPlugins の検査が見る）ので、選んだ物の外に数えない
+# プラグインは増えない（それはノードの plugins: の照合が見る）ので、選んだ物の外に数えない
 OFFICIAL_MARKETPLACE = ("claude-plugins-official", "anthropics/claude-plugins-official")
 
 
@@ -117,7 +117,8 @@ SETTINGS_KEYS = frozenset({"enabledPlugins", "extraKnownMarketplaces", "hooks"})
 # 役は push しない（merge のサブグラフの push は script のノードで、permissions に掛からない）。資格が役に届いても、事故で外へ
 # 出さない柵（今の works の adapter.NO_POST_DENY の git の側。gh の側は読むだけの口 no-post-bin/works-gh）
 DENY_PUSH = "Bash(git push:*)"
-# 公開ベンチの run で役が網から正解の議論を引かないように拒む道具（tests/calibration/run.py が env で頼む）
+# 公開ベンチの run で役が網から正解の議論を引かないように拒む道具（tests/calibration/run.py が env で頼む）。run ごとに拒む部分は
+# Archon で表せない形で、docs/polyfills.md の P11 が穴と外す条件を持つ。この一覧はベンチの素の Claude Code も使う
 DENY_WEB = {"deny": ["WebFetch", "WebSearch"]}
 DENY_WEB_ENV = "WORKS_FACTORY_DENY_WEB"
 RECORDER = pathlib.Path(__file__).resolve().parent / "record-write.py"
@@ -510,7 +511,6 @@ def guard(config_dir: pathlib.Path, borrow: dict, record=None) -> list:
     """一覧の外の物の名前の一覧（空なら通る）。record は settings.json の借りる物のフックの行を知る記録（無ければ置き場の RECORD）"""
     cfg = pathlib.Path(config_dir)
     skills = {s for i in borrow.values() if i["kind"] == "skills" for s in i["skills"]}
-    plugins = {f"{n}@{MARKETPLACE}" for n, i in borrow.items() if i["kind"] == "plugin"}
     out = [n for n in FOREIGN_FILES if (cfg / n).exists()]
     out += sorted(p.name for p in cfg.glob("settings*.json") if p.name != "settings.json")
     out += [f"{d}/" for d in FOREIGN_DIRS if (cfg / d).exists()]
@@ -532,13 +532,8 @@ def guard(config_dir: pathlib.Path, borrow: dict, record=None) -> list:
         allowed = SETTINGS_KEYS | ({"permissions"} if _known_permissions(st.get("permissions")) else set())
         out += [f"settings.json の鍵 {k}" for k in sorted(set(st) - allowed)]
         out += _foreign_hooks(cfg, st["hooks"], record) if "hooks" in st else []
-        out += [f"有効なプラグイン {k}" for k in sorted(_keys(st.get("enabledPlugins")) - plugins)]
+        # 一覧の外のプラグインはノードの plugins: の照合が見る。その照合は読み込まれた物しか見ないので、marketplace はここで名指す
         out += [f"marketplace {k}（settings.json）" for k in sorted(_keys(st.get("extraKnownMarketplaces")) - {MARKETPLACE})]
-    ip = _read_json(cfg / "plugins" / "installed_plugins.json")
-    if ip is _BAD:
-        out.append("plugins/installed_plugins.json（JSON の表として読めない）")
-    elif ip is not None:
-        out += [f"入れたプラグイン {k}" for k in sorted(_keys(ip.get("plugins")) - plugins)]
     km = _read_json(cfg / "plugins" / "known_marketplaces.json")
     if km is _BAD:
         out.append("plugins/known_marketplaces.json（JSON の表として読めない）")

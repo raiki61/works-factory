@@ -631,6 +631,8 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - 型つきの成果物は、ノードの id と繰り返しの道（`loopGroupPath`）で鍵が付き、`$TYPED_ARTIFACTS_FILE` の一覧（`{runId, artifactsByType, errors}`）で引く（`artifacts-index.ts` 44-57 行・366-377 行）。
 - `loop:` の出力は最後の回の出力。`output_format` を書いた `loop:` では、それが照らした JSON になる（`dag-executor.ts` 5322 行の `executeLoopNode` の `lastIterationOutput`・文書 `guides/loop-nodes.md` 338-341 行）。
 - `if_skipped` は include の入力を通して運べない（埋め P2）。
+- `355f1867` では、`plugins:` は名指した物が入っていないとノードを落とし、入っていれば載せる任意の形（`mcp:` の `optional: true` の類）が無い（`packages/providers/src/claude/plugins.ts` 164-177 行。埋め P10）。
+- `355f1867` では、`denied_tools` は literal で、run の設定の層にも道具の鍵が無い（`schemas/dag-node.ts` 223 行・`schemas/run-config.ts` 32-42 行。埋め P11）。
 - ポインタは同じ run の中だけ。パスは相対で、在って空でない普通のファイルだけ（`artifact-pointer.ts` 15-20 行・101 行・146-153 行）。
 - `script:` のノードの `output_format` は標準出力の約束で、Archon が照らす（`d97d00ef` の文書 `guides/script-nodes.md` 124 行「JSON Schema the node's stdout must satisfy」）。だからサブグラフの出力の型を自前で照らす口は要らない。
 - `workflow:` の `fan_out:` の子が承認ノードで止まると、その子は取り消される（親は承認ノードを 1 つしか持てない。承認ノードを外して resume すればその子からやり直す。`dag-executor.ts` 7716-7719 行・7771-7790 行）。`include:` の `fan_out:` の中の承認ノードと待ちは、読み込みの時に誤りになる（`include-expander.ts` 1148-1157 行）。承認ノードは fan_out の前か後に置く。
@@ -645,6 +647,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - `outcome_field:` は出力ノードの `output_format` の `required` に在る boolean の欄しか受けず、ほかはグラフの読み込みで落ちる（止めた Archon の `packages/workflows/src/loader.ts` の `validateWorkflowOutcomeDeclaration`）。
 - `workflow:` のノードが起こした子の run の結果ごとに、親のノードは次のとおりになる（`dag-executor.ts` の子の結果の読みと、その後の再入の分岐）。`completed` は子の出力を持って `completed`。`paused`（子の承認ノード）は親が止まり、子の run の id で承認すると親が続く。`failed` は親のノードが出力を持たずに `failed` になり、親を resume すると落ちた子を 1 度起こし直す。子の費用は子の `total_cost_usd` が親の記録のそのノードの行に `execution.accounting: node` で載る（`node-execution.ts`）。周の鎖はこの行から周の費用を読む。
 - 受け止めた落ち（メイングラフが受け止めると宣言した段の落ち）の在るメイングラフの run も、Archon では `failed` で終わる（`dag-executor.ts` が落ちたノードの在る run を落とす。メイングラフの筋書き `eyes-failed-protected` も `expect: "failed"`）。周の鎖の中ではその周の `workflow:` のノードが落ち、決めのノードは走らない。鎖の出力は `act: wait` で、親の run を resume すれば子を起こし直す。
+- `355f1867` のグラフの Claude のノードは、`plugins:` を書かないノードも含め、入れたプラグインを全部 false・名指した物を true にして走らせる（`packages/providers/src/claude/provider.ts` 644-653 行・`plugins.ts` 159-183 行）。`claude plugin list --json` が読めなければ `misconfigured` で落ちる（`plugins.ts` 110-157 行）。名指さない物が `system/init` に読み込まれていれば最初の turn の前に落ち、ファイルに在るだけでは止まらない（`provider.ts` 1806-1808 行・`plugins.ts` 205-264 行）。この照合は利用者の認証の形（`claude /login` だけ・API キー・会社のゲートウェイ）に依らずグラフの Claude のノードの全部で走るので、普通の利用者の run でも guard の代わりが働く。だから toolset の guard は一覧の外のプラグインを照らさない。marketplace の登録は読み込まれたプラグインでないので、guard が今も名指す。
 
 ### 未決（歩く骨組みで決める）
 
