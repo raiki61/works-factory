@@ -4156,18 +4156,18 @@
 - tail.md R57: lib/runreport.py::next_request・lib/runreport.py::build
 - tail.md R58: lib/runreport.py::prior_failures、lib/report.py::prior_lines
 - tail.md R59: lib/carry.py（元とバイト一致）
-- tail.md R60: workflows/report/works-factory-report.yaml::write-loop・workflows/report/works-factory-report.yaml::write-reject・workflows/report/works-factory-report.yaml::write・workflows/report/works-factory-report.yaml::cold-prep・workflows/report/works-factory-report.yaml::cold・workflows/report/works-factory-report.yaml::accept、workflows/report/commands/report.md・workflows/report/commands/cold-check.md
+- tail.md R60: workflows/report-write/works-factory-report-write.yaml::write-loop・workflows/report-write/works-factory-report-write.yaml::write-reject・workflows/report-write/works-factory-report-write.yaml::write・workflows/report-write/works-factory-report-write.yaml::cold-prep・workflows/report-write/works-factory-report-write.yaml::cold・workflows/report-write/works-factory-report-write.yaml::accept、workflows/report-write/commands/report.md・workflows/report-write/commands/cold-check.md
 - tail.md R61: lib/runreport.py::accept、lib/report_roles.py::format_problems・lib/report_roles.py::count_rejects
-- tail.md R62: lib/report_roles.py::head_of・lib/runreport.py::cold_body、workflows/report/commands/cold-check.md
+- tail.md R62: lib/report_roles.py::head_of・lib/runreport.py::cold_body、workflows/report-write/commands/cold-check.md
 - tail.md R63: lib/runreport.py::collect・lib/runreport.py::embedded
 - tail.md R64: lib/runreport.py::stamp
 - tail.md R65: lib/runreport.py::glossary_section・lib/runreport.py::pack_terms・lib/runreport.py::plain_words、lib/glossary.json
-- tail.md R66: lib/runreport.py::build、workflows/report/works-factory-report.yaml::write-loop
+- tail.md R66: lib/runreport.py::build、workflows/report-write/works-factory-report-write.yaml::write-loop
 - tail.md R67: workflows/report/works-factory-report.yaml::report、workflows/report/scripts/facts.py::fallen・workflows/report/scripts/collect.py::fallen・workflows/report/scripts/facts.py::unwritten・workflows/report/scripts/collect.py::unwritten、workflows/line/works-factory-line.yaml::report（trigger_rule: all_done）
 - tail.md R68: workflows/report/works-factory-report.yaml（グラフの入力の 17 の名）・workflows/report/works-factory-report.yaml::report（出力ノードの 7 欄）
 - tail.md R69: 無し（メイングラフの result は fixed の真偽だけ。tests/workflows/test_line.py::CollectAndResultCase.test_result_fixed）
 - tail.md R70: workflows/line/works-factory-line.yaml::merge-apply（merge-apply は answer-final の go が真の時だけ）
-- tail.md R71: 無し（workflows/report/commands/report.md の構成 1 から外した）
+- tail.md R71: 無し（workflows/report-write/commands/report.md の構成 1 から外した）
 - tail.md R72: fix の diff の隣の closure.json（子の結果の closure で運ぶ。lib/fixbeside.py）を最後の承認ノードと報告が querytest.closure_lines で数え直す
 - tail.md R73: fix の diff の隣の delta-holes.json（lib/fixbeside.py）→ lib/runreport.py::next_request（fixbeside.next_items: declared と 2 回目の fixed を名札つきで）と lib/runreport.py::_decisions（branch_rows）
 - tail.md R74: lib/runreport.py::_depth_lines（redepth の出力を lib/depth.lines の形で）

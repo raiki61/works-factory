@@ -90,7 +90,7 @@ class FencesHold(unittest.TestCase):
 
 
     def test_handoff_fence_catches_a_copy_on_each_side(self):
-        """考え handoff の柵は、計画側（lib/planfile.py）・報告側（lib/report_roles.py）・YAML 側（workflows/report/works-factory-report.yaml）に
+        """考え handoff の柵は、計画側（lib/planfile.py）・報告側（lib/report_roles.py）・YAML 側（workflows/report-write/works-factory-report-write.yaml）に
         1 本ずつ注入した型の写しを、それぞれ漏れとして数える。住処 lib/handoff.py の宣言と、結んだ写し（YAML の本物の required の行）は数えない"""
         table = cf.load(ROOT)
         fences = table["concepts"]["handoff"]["fences"]
@@ -100,7 +100,7 @@ class FencesHold(unittest.TestCase):
             "lib/planfile.py": "HANDOFF_SCHEMA = {'type': 'object'}\n",
             "lib/report_roles.py": 'HANDOFF_KEYS = ("read", "decided", "rejected", "doubts")\n',
             "workflows/plan/works-factory-plan.yaml": bound.replace("doubts", "open") + "\n",
-            "workflows/report/works-factory-report.yaml": f"{bound}\n" + " " * 8 + "required: [read, decided, rejected, doubts]\n",
+            "workflows/report-write/works-factory-report-write.yaml": f"{bound}\n" + " " * 8 + "required: [read, decided, rejected, doubts]\n",
         }
         with tree(files) as root:
             found: dict = {}
@@ -108,7 +108,7 @@ class FencesHold(unittest.TestCase):
                 for path, n in cf.scan(root, sorted(files), fence, table["exclude"]).items():
                     found[path] = found.get(path, 0) + n
         self.assertEqual(found, {"lib/planfile.py": 1, "lib/report_roles.py": 1, "workflows/plan/works-factory-plan.yaml": 1,
-                                 "workflows/report/works-factory-report.yaml": 1})
+                                 "workflows/report-write/works-factory-report-write.yaml": 1})
         self.assertEqual(table["concepts"]["handoff"]["status"], "住処あり")
         self.assertTrue(all(f["allowed"] == ["lib/handoff.py"] for f in fences))
 

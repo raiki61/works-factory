@@ -1,0 +1,19 @@
+# 全部の節を差し替え、書き手が 1 回で初見の確かめを通る。返す節は答えのポインタを返す
+fixture:
+  expect: completed
+  reached: [write-reject, write, cold-prep, cold, accept, written]
+  inputs:
+    facts_file: report/report.md
+    outcome: fixed
+write-reject: {reason: '', prev: '', handoff: ''}
+write:
+  text: "直して、最後のテストまで通った。\n直した単位は 1 つ。\n次の run に渡す物は無い。"
+  terms: []
+  handoff: {read: [], decided: [], rejected: [], doubts: []}
+cold-prep:
+  body: "直して、最後のテストまで通った。"
+cold: {verdict: pass, stops: [], guessed: [], decidable: true}
+accept: {done: true, ok: true, reason: "", kind: "", reason_file: "", prev_file: ""}
+written:
+  ok: true
+  ai: {type: archon_artifact, run_id: fixture-run, path: report/ai.json}

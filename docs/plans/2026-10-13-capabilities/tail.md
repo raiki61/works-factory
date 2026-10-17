@@ -1608,21 +1608,21 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - R60 書き手の輪: 書き手（読むだけの道具・sonnet・medium）→ 初見の確かめの本文 → 初見の読み手（道具なし・新しい会話）→ 受け付け。3 回まで。前の回の拒否の訳はファイルで script の節（write-reject）から渡す
   - 元: works/blk-report/blk-report.yaml（書き手の輪）、works/blk-report/lib/report_roles.py:290 `prep`・:328 `write_cold_prep`
   - 今: 表
-  - 証: tests/workflows/test_report.py::ShapeCase.test_roles・tests/workflows/test_report.py::ShapeCase.test_writer_receives_the_reject_file_through_the_reject_node・tests/workflows/test_report.py::ShapeCase.test_loop_gives_up_with_the_roles_count
+  - 証: tests/workflows/test_report_write.py::ShapeCase.test_roles・tests/workflows/test_report_write.py::ShapeCase.test_writer_receives_the_reject_file_through_the_reject_node・tests/workflows/test_report_write.py::ShapeCase.test_loop_gives_up_with_the_roles_count
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__write-loop.write`・`report__write-loop.cold`・`report__write-loop.accept` の出力、report/rejects-report.md（拒んだ回だけ））
   - 狭め: 無し（輪の頭の script の節は #100 の直し。Archon の include の読み込みが with: で結んだ名を入力の欠けと数えるため: packages/workflows/src/include-expander.ts:566-579）
 
 - R61 受け付けの順: 読む → terms の型 → 表のセルの書式（「。」か 50 字超で拒む。`コード` は数えない）→ 初見の判定。拒否の行に種類（cold・format・answer）。3 回拒めば受け取れなかった訳。初見だけが通さない時は 3 回目に受け取り、通らなかった事実（`report_roles.NOT_PASSED`）を機械の事実の拒みの数の行に 1 行で残す（#495 で本文の頭から移した）
   - 元: works/blk-report/lib/report_roles.py:429 `accept`・:381 `format_problems`・:510 `count_rejects`
   - 今: 表
-  - 証: lib/tests/test_runreport.py::AcceptCase.test_pass_is_taken・lib/tests/test_runreport.py::AcceptCase.test_cold_rejects_twice_then_takes_with_mark・lib/tests/test_runreport.py::AcceptCase.test_format_and_terms_rejected_first・lib/tests/test_report_roles.py::FormatCase・lib/tests/test_report_roles.py::RejectCountRowsCase.test_rows_without_kind_count_as_unknown・tests/workflows/test_report.py::AcceptScriptCase.test_cold_redesign_three_times
+  - 証: lib/tests/test_runreport.py::AcceptCase.test_pass_is_taken・lib/tests/test_runreport.py::AcceptCase.test_cold_rejects_twice_then_takes_with_mark・lib/tests/test_runreport.py::AcceptCase.test_format_and_terms_rejected_first・lib/tests/test_report_roles.py::FormatCase・lib/tests/test_report_roles.py::RejectCountRowsCase.test_rows_without_kind_count_as_unknown・tests/workflows/test_report_write.py::AcceptScriptCase.test_cold_redesign_three_times
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/rejects-report.json・report/ai.json の not_passed）
   - 狭め: 元の「作業ツリーを変えた返答を拒む」は Archon の `mutates_checkout: false`（packages/workflows/src/dag-executor.ts:1244-1280。変えた節を落とす）と書き手の道具の制限に置き換わった。拒んで書き直させる代わりに輪が落ちて AI の報告が出ない。書き手は書く道具を持たない（works-factory-report.yaml:78）ので実害は無い
 
 - R62 初見の読み手に貼る本文は書き手の頭（見出しの前と「人が決めること」の節）と語の定義の節だけ。読み手には機械の事実の見出しの名を知らせる
   - 元: works/blk-report/lib/report_roles.py:316 `head_of`・:328 `write_cold_prep`
   - 今: 表
-  - 証: lib/tests/test_runreport.py::ColdBodyCase.test_head_and_glossary_only・lib/tests/test_runreport.py::ColdBodyCase.test_unreadable_reply_says_so・lib/tests/test_report_roles.py::HeadCase・tests/workflows/test_report.py::ShapeCase.test_cold_reader_is_told_the_machine_heading
+  - 証: lib/tests/test_runreport.py::ColdBodyCase.test_head_and_glossary_only・lib/tests/test_runreport.py::ColdBodyCase.test_unreadable_reply_says_so・lib/tests/test_report_roles.py::HeadCase・tests/workflows/test_report_write.py::ShapeCase.test_cold_reader_is_told_the_machine_heading
   - 本物の run: 節 `report__write-loop.cold-prep` の出力 body、`report__write-loop.cold` の出力 verdict
   - 狭め: 無し
 

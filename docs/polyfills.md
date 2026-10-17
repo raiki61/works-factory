@@ -164,19 +164,19 @@
   - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「A command or prompt in the body can continue a statically named pre-loop session」（ループの中で続けられるのは、ループの前の `command:`・`prompt:` のノードを名指した時だけ）
 - 上流（`355f1867` の後の dev の `f906471c4` まで）: 塞がっていない。`355f1867..f906471c4` の 51 commit に、周をまたいで同じ役の会話を続けられるようにする物は無い。
 - 埋め: `lib/handoff.py`。引き継ぎのメモの型・頼み・前の周のノードに貼るセクション・控えを置く。
-- 使うサブグラフ: plan・report
+- 使うサブグラフ: plan・report-write
 - 外す条件: 場合に分ける。
   - 計画（plan）: `include` をまたぐか、CLI の別の run で同じノードの会話を続けられる版が出たら。外す前に、`docs/owner-decisions.md` の「計画の往復の周をまたぐ書き直し（#571。2026-10-15）」の行（前の周の会話を続けず新しい会話で始めると持ち主が選んだ）と、同じ文書の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の行の訳（`d97d00ef` の `authoring-workflows.md` の「Addressable resume is not supported inside `loop_group` bodies」に頼っていて、`355f1867` の同じ所の「Inside a `loop_group` body, the source must complete before entry into the group」とはもう合わない）を持ち主に戻す。`docs/owner-decisions.md` はこの名簿からは書き換えない。
-  - 報告（report）の `write-loop`: `355f1867` では、ループの前に書き手の AI のノードを置けば（今の `write-loop` の前は `facts` の script だけ）書き手の会話をループの中で続けられるので、既に外せる候補。作り直し（`write-loop` を名指しの持ち主の会話に替えて報告の引き継ぎのメモを外すか）は #671 で確かめる。
+  - 報告の本文（report-write）の `write-loop`: `355f1867` では、ループの前に書き手の AI のノードを置けば（今の `write-loop` の前にノードは無い）書き手の会話をループの中で続けられるので、既に外せる候補。作り直し（`write-loop` を名指しの持ち主の会話に替えて報告の引き継ぎのメモを外すか）は #671 で確かめる。
 - 外す手順: 外す条件を満たしたら次を全部消し、役の会話を続ける形に替える。`lib/handoff.py` を import する物の全部（`grep -rn "import handoff" lib workflows tests`）も、取りこぼしの入口にする。
   - `lib/handoff.py` の全体。
   - `lib/planfile.py::write_brief`・`_save`・`take_plan`・`take_replan` の handoff の呼びと、`RESUBMIT_RULES`・`REPLAN_RESUBMIT_RULES` の `handoff.FIELD` の行（`accepted_rounds` は `latest` の絞りとして残す）。
   - `lib/report_roles.py::TEXT_SCHEMA` の handoff の欄。
   - `lib/runreport.py::NOTE_ROUND`・`handoff_part`・`_prior_rounds` と、`_carry_rejected` の前の周のメモの読み・置き（前の答えの控えに本文を置く所は残す）。
-  - `workflows/report/scripts/reject.py` の出力の handoff。
-  - YAML の handoff の欄: plan の `plan-writer`・`plan-writer-fix` の `output_format`（`workflows/plan/works-factory-plan.yaml`）、report の `write` と `write-reject` の `output_format`（`workflows/report/works-factory-report.yaml`）。
-  - `workflows/report/commands/report.md` の `$write-reject.output.handoff` と、報告の 2 本の筋書きの stub（`workflows/report/fixtures/fixed.stubs.yaml`・`workflows/report/fixtures/stopped-by-request.stubs.yaml`）の handoff。
-  - 指示書の約束の台帳 `tests/workflows/prompt_contracts.json` の `workflows/report/commands/report.md` の行と、写しの手直しの台帳 `tests/workflows/copied_rewrites.json` の `#589` の 2 行。
+  - `workflows/report-write/scripts/reject.py` の出力の handoff。
+  - YAML の handoff の欄: plan の `plan-writer`・`plan-writer-fix` の `output_format`（`workflows/plan/works-factory-plan.yaml`）、report-write の `write` と `write-reject` の `output_format`（`workflows/report-write/works-factory-report-write.yaml`）。
+  - `workflows/report-write/commands/report.md` の `$write-reject.output.handoff` と、報告の本文の 2 本の筋書きの stub（`workflows/report-write/fixtures/accepted.stubs.yaml`・`workflows/report-write/fixtures/request-stop.stubs.yaml`）の handoff。
+  - 指示書の約束の台帳 `tests/workflows/prompt_contracts.json` の `workflows/report-write/commands/report.md` の行と、写しの手直しの台帳 `tests/workflows/copied_rewrites.json` の `#589` の 2 行。
   - `docs/concepts.json`・`docs/concepts.md` の handoff の行と、`docs/concepts.md` の `marks` の行の持ち主の記述。
   - `lib/marks.py::KINDS` の種 `handoff`。
   - `lib/tests/test_handoff.py` の全体と、ほかの試験の handoff の分（残りの試験は import で赤になるので、黙っては残らない）。

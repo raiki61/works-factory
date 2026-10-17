@@ -36,8 +36,15 @@ SCENARIOS = (
 
 
 def blocks() -> list[str]:
-    """線が差し込むブロックのフォルダの名"""
-    return sorted({name.removeprefix(scan.OURS_PREFIX) for name in scan.includes(archon.ROOT, scan.LINE_YAML)})
+    """線が差し込むブロックのフォルダの名（ブロックが差し込むブロックも。報告は書き手のループのブロックを差し込む）"""
+    found, todo = set(), [scan.LINE_YAML]
+    while todo:
+        for name in scan.includes(archon.ROOT, todo.pop()):
+            folder = name.removeprefix(scan.OURS_PREFIX)
+            if folder not in found:
+                found.add(folder)
+                todo.append(f"workflows/{folder}/{name}.yaml")
+    return sorted(found)
 
 
 def run_line() -> dict:

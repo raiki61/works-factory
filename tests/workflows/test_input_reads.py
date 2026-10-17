@@ -1,5 +1,5 @@
 """節の script は入力の字（INPUTS_<名>）を自分で json.loads しない。JSON に戻すのは境の口（workflows/.shared/boundary.py の
-parsed・value・pointed・needed・items・flag・picked）だけ。
+parsed・value・pointed・needed・items・flag・picked・fanned）だけ。
 
 止めた Archon は output_format で宣言した欄の null と無い欄を、include の入力に空の字で渡す（tests/shared/test_archon_contract.py が
 照らす）。json.loads("") は落ちるので、前の失敗の持ち越しの無い run が判定の入口で止まった（#265）。口は空の字を null と読む。
@@ -158,6 +158,24 @@ class InputReadsCase(unittest.TestCase):
         for name in ("extra", "typo"):
             with self.subTest(name), self.assertRaises(KeyError):
                 got.get(name, None)
+
+    def test_fanned_reads_each_item_by_name_and_names_the_fallen(self):
+        """#702: fan_out の join: all_done の出力の配列を、項目の順に宣言した名だけの dict か、落ちた項目（印 FAN_OUT_FAILED）の
+        誤りの文 Fell にする。飛んだ節は空の並び、配列でない値と object でない項目は ValueError"""
+        from tests.shared.test_boundary import boundary
+        raw = json.dumps([{"ok": True, "ai": None, "extra": 1}, {boundary.FAN_OUT_FAILED: True, "error": "API Error: x", "status": "failed"}])
+        got = boundary.fanned(raw, ("ok", "ai"))
+        self.assertEqual(got[0], {"ok": True, "ai": None})
+        with self.assertRaises(KeyError):
+            got[0]["extra"]
+        self.assertIsInstance(got[1], boundary.Fell)
+        self.assertEqual(got[1], "API Error: x")
+        for skipped in ("null", "", None):
+            with self.subTest(skipped=skipped):
+                self.assertEqual(boundary.fanned(skipped, ("ok",)), [])
+        for bad in ('{"ok": true}', "[1]", "not json"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                boundary.fanned(bad, ("ok",))
 
     def test_picked_is_the_only_way_to_the_whole_dict(self):
         """返りまるごとを欄を削らずに戻す口は無い（素通しの口を置くと、宣言の外の欄が値として script に届く）"""

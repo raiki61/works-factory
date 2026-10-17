@@ -43,6 +43,7 @@ ALONE_BOUND = HERE + "test_every_bound_script_runs_alone_and_fits_its_output_for
 NEVER_FAIL = {
     ("plan", "round"): ALONE_BOUND,
     ("report", "facts"): ALONE_BOUND,
+    ("report", "write-out"): ALONE_BOUND,
     ("line", "report"): ALONE_RETURN,
     ("line", "collect"): ALONE_BOUND,
     ("line", "sweep-children"): ALONE_BOUND,
@@ -71,6 +72,8 @@ LIBLESS_EXITS = {
     "workflows/merge/scripts/merge.py": "merge の返す節",
     "workflows/report/scripts/collect.py": "report の返す節",
     "workflows/report/scripts/facts.py": "report の返す節が $facts.output で結ぶ",
+    "workflows/report/scripts/write_out.py": "report の返す節が $write-out.output で結ぶ",
+    "workflows/report-write/scripts/written.py": "report-write の返す節",
     "workflows/chain/scripts/result.py": "周の鎖の返す節",
     "workflows/chain/scripts/chain_start.py": "周の鎖の返す節が $chain-start.output で結ぶ",
     "workflows/chain/scripts/decide.py": "周の鎖の返す節が $round-k-decide.output で結ぶ",

@@ -75,6 +75,7 @@ SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
 BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
+INNER_BLOCKS = ("report-write",)   # 線でなくブロックが差し込むブロック（報告の書き手のループ）
 ROUND_LIMIT = 20
 
 
@@ -3382,8 +3383,8 @@ class LineWiringCase(unittest.TestCase):
         """落とし穴 K11: ブロックの入力のうち docs/design.md の「サブグラフの出力の約束」の入力（「入力（`with:`）:」の箇条）の外の物は
         既定値を持つ（既定値の無い入力は include する全部の工程の読み込みを落とす。Archon の include-expander.ts 576-580 行）"""
         contract = contract_inputs(DESIGN.read_text(encoding="utf-8"))
-        self.assertEqual(set(contract), set(BLOCKS), "約束の節からブロックごとの入力の箇条を読めない")
-        for block in BLOCKS:
+        self.assertEqual(set(contract), {*BLOCKS, *INNER_BLOCKS}, "約束の節からブロックごとの入力の箇条を読めない")
+        for block in sorted(contract):
             declared = block_doc(f"works-factory-{block}")["inputs"]
             agreed = contract[block] & set(declared)
             with self.subTest(block=block):

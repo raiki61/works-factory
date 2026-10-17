@@ -64,6 +64,26 @@ class BlockReturnsTest(unittest.TestCase):
         with tree(files) as root:
             return scan.problems("E5", root)
 
+    def test_block_that_includes_a_block_reads_its_fanned_output(self):
+        """#702: ほかのサブグラフを fan_out で include するサブグラフも読み手に数え、出力の配列を読む口 boundary.fanned の宣言を読む"""
+        outer = ("name: works-factory-report\nreturns: r\noutcome_field: ok\nnodes:\n"
+                 "  - id: judge\n    include: works-factory-judge\n"
+                 "    fan_out: {items: '[\"x\"]', as: x, join: all_done}\n"
+                 "  - id: take\n    script: take\n    timeout: 1728000000\n    with:\n      got: $judge.output\n"
+                 "  - id: r\n    script: r\n    timeout: 1728000000\n"
+                 "    output_format:\n      type: object\n      properties:\n        ok: {type: boolean}\n      required: [ok]\n")
+        line = ("name: works-factory-line\nnodes:\n  - id: report\n    include: works-factory-report\n"
+                "  - id: reader\n    script: reader\n    timeout: 1728000000\n    with:\n      ok: $report.output.ok\n")
+        take = "workflows/report/scripts/take.py"
+        files = {BLOCK: RETURNING, LINE: line, "workflows/report/works-factory-report.yaml": outer,
+                 take: GATE_NAMES + 'got = boundary.fanned(os.environ.get("INPUTS_GOT"), NAMES)\n'}
+        self.assertEqual(self.files(files), [])
+        files[take] = 'NAMES = ("ready",)\ngot = boundary.fanned(os.environ.get("INPUTS_GOT"), NAMES)\n'
+        got = self.files(files)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn(f"{BLOCK}:", got[0])
+        self.assertIn("返りの欄 units に読み手が無い", got[0])
+
     def test_every_field_read_by_the_line_is_clean(self):
         line = (
             "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"

@@ -15,7 +15,7 @@
   fallback の返りにする（lib/ の誤りでも節は落ちない）
 - LINE_SCRIPT: fallback の返りの止めの理由。lib/stopby.py の LINE_SCRIPT の写し（lib を読めない時の fallback も引くので lib から
   読めない。lib/tests/test_stopby.py が突き合わせる）
-- parsed・value・text・flag・items・picked・pointed・needed: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）。script は入力の字を
+- parsed・value・text・flag・items・picked・fanned・pointed・needed: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）。script は入力の字を
   自分で json.loads しない（宣言した null の欄は空の字で届く。tests/workflows/test_input_reads.py が縛る）
 - as_flag・as_text・as_items: picked の欄のように型を保って届いた値を、flag・text・items と同じ倒し方で読む
 
@@ -42,6 +42,9 @@ from pathlib import Path
 import skip_value
 
 POINTER_TYPE = "archon_artifact"
+# fan_out の join: all_done が落ちた項目に置く印の欄（packages/workflows/src/dag-executor.ts の all_done の集め。
+# tests/shared/test_archon_contract.py が照らす）
+FAN_OUT_FAILED = "archon_failed"
 LINE_SCRIPT = "works:line-script"
 
 _import_error = None
@@ -182,11 +185,30 @@ def picked(raw, names) -> Picked | None:
     値として script に届かない（names の形は tests/layers/scan.py の E5 が照らす）。ブロックの返りの欄の型は返す節の output_format が
     持つので、字の欄も型つきの dict で届き、字か値かを読み分ける表は要らない"""
     got = value(raw)
-    if got is None:
-        return None
+    return None if got is None else _picked_of(got, names)
+
+
+def _picked_of(got, names) -> Picked:
     if not isinstance(got, dict):
         raise ValueError(f"まるごとの入力が object でない（{type(got).__name__}）: {str(got)[:80]!r}")
     return Picked((name, got.get(name)) for name in names)
+
+
+class Fell(str):
+    """fanned が落ちた項目に返す、落ちた誤りの文"""
+
+
+def fanned(raw, names) -> list[Picked | Fell]:
+    """fan_out の join: all_done で受けたブロックの出力の配列 raw を、項目の順に、picked と同じ Picked（宣言した名 names だけ）か、
+    落ちた項目（印 FAN_OUT_FAILED を持つ項目）の誤りの文 Fell にする。飛ばされた節は空の並び。配列でなければ ValueError。
+    返りまるごとを読む口は picked とこれだけ（names の形は tests/layers/scan.py の E5 が照らす）"""
+    got = value(raw)
+    if got is None:
+        return []
+    if not isinstance(got, list):
+        raise ValueError(f"fan_out の出力が配列でない（{type(got).__name__}）: {str(got)[:80]!r}")
+    return [Fell(item.get("error") or "") if isinstance(item, dict) and item.get(FAN_OUT_FAILED) is True else _picked_of(item, names)
+            for item in got]
 
 
 def text(raw) -> str:

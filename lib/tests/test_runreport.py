@@ -724,7 +724,7 @@ class DecisionsCase(Base):
         _, machine, _ = self.build(fixed_run(fix={**fixed_run()["fix"], "groups": groups, "units": []}))
         long = "\n".join(["要約。", "", "## 1. 人が決めること", "", *[f"- 行 {i}" for i in range(200)]])
         runreport.accept(json.dumps({"text": long, "terms": []}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
-        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()
+        human = runreport.collect(machine, ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()
         self.assertTrue(human[4].startswith(runreport.DECIDE_HEAD + "2 件——"), human[4])
         self.assertTrue(human[5].startswith("- 戻せず親の作業ツリーに当たったままの組"), human[5])
         self.assertTrue(human[6].startswith("- 当ててから確かめ直しが赤か落ちて戻した組: 組 g1"), human[6])
@@ -1251,7 +1251,7 @@ class AcceptCase(Base):
                 (self.out / report.REPORT_FILE).write_text(machine, encoding="utf-8")
                 (self.out / runreport.AI_FILE).unlink(missing_ok=True)
                 self.assertTrue(runreport.accept(self.REPLY, self.PASS, out_dir=self.out)["ok"])
-                head = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()[2]
+                head = runreport.collect(machine, ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()[2]
                 self.assertIn(runreport.plain_words(note)[0], head)
 
     def test_format_and_terms_rejected_first(self):
@@ -1294,7 +1294,7 @@ class AcceptCase(Base):
         self.assertEqual(self.kept_note(1), json.loads(first)["handoff"], "メモは前もって作っていない report/r1/ に置かれる")
         self.assertEqual(sorted(p.name for p in self.out.iterdir()),
                          ["candidate-report.json", "r1", "rejects-report.json", "rejects-report.md"], "自前の控えのファイルは作らない")
-        self.assertNotIn("a.py", runreport.cold_body(first, out_dir=self.out))
+        self.assertNotIn("a.py", runreport.cold_body(first, machine=self.out / report.REPORT_FILE))
         self.assertNotIn("handoff", json.loads((self.out / "rejects-report.json").read_text(encoding="utf-8"))[-1])
         second = runreport.accept(self.REPLY, self.REDESIGN, out_dir=self.out)
         self.assertEqual(second["prev_file"], got["prev_file"])
@@ -1458,7 +1458,7 @@ class ReportGiveUpCase(Base):
                 self.assertFalse(ai["accepted"])
                 self.assertIn("拒否の控えが扱えない", ai["reason"])
                 self.assertEqual(ai["rejects"], report_roles.count_rejects([]), "控えが読めない時は空として数える")
-                path = runreport.collect("事実", out_dir=self.out, stamp="run x")
+                path = runreport.collect("事実", ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x")
                 self.assertIsNotNone(path)
                 self.assertIn("拒否の控えが扱えない", path.read_text(encoding="utf-8"))
         # 通る返答は控えを読まずに受け取れる（数えは空）
@@ -1476,8 +1476,25 @@ class CollectCase(Base):
         return (self.out / runreport.DETAIL_FILE).read_text(encoding="utf-8")
 
     def test_no_ai_file_is_none(self):
-        self.assertIsNone(runreport.collect("機械の事実", out_dir=self.out, stamp="run x"))
+        self.assertIsNone(runreport.collect("機械の事実", ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x"))
+        self.assertIsNone(runreport.collect("機械の事実", ai=None, out_dir=self.out, stamp="run x"))
         self.assertFalse((self.out / runreport.DETAIL_FILE).exists())
+
+    def test_writer_fell_line_follows_the_head(self):
+        """#702: 書き手の輪が落ちた時は、機械の報告の冒頭の後ろに AI の本文が無い訳（誤りの文の 1 行目）が載り、セクションは残る"""
+        self.out.mkdir(parents=True)
+        machine = self.out / report.REPORT_FILE
+        machine.write_text("# 報告\n\n起きたこと: 赤\n人が決めること: 1 件\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
+        runreport.note_writer_fell(machine, "API Error: safeguards flagged this message\n二行目")
+        line = runreport.WRITER_FELL.format(error="API Error: safeguards flagged this message")
+        self.assertEqual(machine.read_text(encoding="utf-8"),
+                         f"# 報告\n\n起きたこと: 赤\n人が決めること: 1 件\n\n{line}\n\n## 1. 人が決めること\n\n- 機械の行\n")
+        self.assertIn(line, runreport.machine_head(machine.read_text(encoding="utf-8")))
+        bare = self.out / "bare.md"
+        bare.write_text("# 報告\n\n起きたこと: 赤\n", encoding="utf-8")
+        runreport.note_writer_fell(bare, "")
+        self.assertEqual(bare.read_text(encoding="utf-8"),
+                         f"# 報告\n\n起きたこと: 赤\n\n{runreport.WRITER_FELL.format(error='誤りの文が無い')}\n")
 
     def test_taken_reply_becomes_ai_report(self):
         """#660: 人に向けた報告は機械の冒頭・書き手の頭・語の定義・詳細のファイルを指す 1 行と来歴。書き手の頭の後ろの本文と機械の
@@ -1486,7 +1503,7 @@ class CollectCase(Base):
                             "terms": [{"term": "寄せ", "definition": "合わせること"}]}, ensure_ascii=False)
         runreport.accept(reply, AcceptCase.PASS, out_dir=self.out)
         machine = "# 報告（run x）\n\n起きたこと: 直した\n\n## 1. 人が決めること\n\n- 承認ノード: 開かなかった\n"
-        path = runreport.collect(machine, out_dir=self.out, stamp="works-factory report / run x")
+        path = runreport.collect(machine, ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="works-factory report / run x")
         self.assertEqual(path, self.out / runreport.AI_REPORT_FILE)
         human = self.human()
         self.assertTrue(human.startswith("# 報告（run x）\n\n起きたこと: 直した\n\n直した。\n\n## 1. 人が決めること"), human)
@@ -1515,7 +1532,7 @@ class CollectCase(Base):
                       "- 決めないと: 止まる", ""]
         parts += ["## 2. 入口と依頼", "", *[f"- 経緯 {i}" for i in range(400)]]
         runreport.accept(json.dumps({"text": "\n".join(parts), "terms": []}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
-        lines = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()
+        lines = runreport.collect(machine, ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()
         self.assertTrue(lines[2].startswith(gatemarks.HAPPENED), lines[2])
         self.assertEqual(lines[3], runreport.APPLY_ASK + f"人が決めること 3 件を決めてから当てる（bin/apply {RUN}）")
         self.assertTrue(lines[4].startswith(runreport.DECIDE_HEAD + "3 件——"), lines[4])
@@ -1530,7 +1547,7 @@ class CollectCase(Base):
         """#660: 人に向けた報告は語の表の語を言い換え、詳細のファイルが書き手の字のままの本文と、言い換えた語と回数の 1 行を持つ"""
         reply = json.dumps({"text": "レンズが根本の単位を見た。`fix__lens` は名", "terms": []}, ensure_ascii=False)
         runreport.accept(reply, AcceptCase.PASS, out_dir=self.out)
-        human = runreport.collect("# 報告\n\n起きたこと: 承認ノードで止めた\n", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        human = runreport.collect("# 報告\n\n起きたこと: 承認ノードで止めた\n", ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         for t in runreport.pack_terms():
             self.assertNotIn(t["term"], human.replace("`fix__lens`", ""))
         self.assertIn("観点ごとの見直しが直す項目を見た。`fix__lens` は名", human)
@@ -1545,7 +1562,7 @@ class CollectCase(Base):
         long = "\n".join(["要約。", "", "## 1. 人が決めること", "", "```", *[f"行 {i}" for i in range(200)], "```"])
         runreport.accept(json.dumps({"text": long, "terms": []}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
         machine = "# 報告\n\n起きたこと: 赤\n差分を当ててよいか: 無い\n人が決めること: 2 件\n- a: x\n- b: y\n"
-        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        human = runreport.collect(machine, ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertLessEqual(len(human.splitlines()), runreport.line_budget(2), human)
         [cut] = [x for x in human.splitlines() if runreport.DETAIL_FILE in x and "行は" in x]
         self.assertRegex(cut, r"ここから先 \d+ 行は")
@@ -1564,7 +1581,7 @@ class CollectCase(Base):
         text = "\n".join(["寄せて直した。", "", "## 1. 人が決めること", "", *[f"- 行 {i}" for i in range(200)], "- 畳みの話"])
         terms = [{"term": "寄せ", "definition": "合わせること"}, {"term": "畳み", "definition": "後ろへ送ること"}]
         runreport.accept(json.dumps({"text": text, "terms": terms}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
-        human = runreport.collect("# 報告\n\n起きたこと: 赤\n", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        human = runreport.collect("# 報告\n\n起きたこと: 赤\n", ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertLessEqual(len(human.splitlines()), runreport.line_budget(0), human)
         self.assertNotIn("畳みの話", human)
         defined = human.split(report_roles.GLOSSARY_HEADING)[1]
@@ -1576,7 +1593,7 @@ class CollectCase(Base):
         1 行で言い、出し直しの命令は書かない。詳細のファイルは拒みの数の行の尾に同じ事実を持つ"""
         for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, AcceptCase.REDESIGN, out_dir=self.out)
-        human = runreport.collect("# 報告\n\n起きたこと: 赤\n", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        human = runreport.collect("# 報告\n\n起きたこと: 赤\n", ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         said = runreport.plain_words(report_roles.NOT_PASSED)[0]
         self.assertEqual(human.splitlines()[3].split("（")[0], said, human)
         self.assertIn("止まった所: 冒頭の 2 行目", human.splitlines()[3])
@@ -1589,7 +1606,7 @@ class CollectCase(Base):
         """通らなかった事実の行にだけ在る語（判定を読めなかった事実の「初見の読み手」）も、人に向けた報告では言い換えて出る"""
         for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, "壊れた", out_dir=self.out)
-        human = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        human = runreport.collect("事実", ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         self.assertIn(runreport.plain_words(runreport.COLD_UNREADABLE)[0], human)
         self.assertNotIn("初見の読み手", human)
 
@@ -1601,7 +1618,7 @@ class CollectCase(Base):
                 out = self.out / want
                 for _ in range(rolekit.GIVE_UP_AFTER):
                     runreport.accept(AcceptCase.REPLY, cold, out_dir=out)
-                runreport.collect("事実", out_dir=out, stamp="run x")
+                runreport.collect("事実", ai=out / runreport.AI_FILE, out_dir=out, stamp="run x")
                 [line] = [ln for ln in (out / runreport.DETAIL_FILE).read_text(encoding="utf-8").splitlines()
                           if report_roles.NOT_PASSED in ln]
                 self.assertIn(want, line)
@@ -1609,7 +1626,7 @@ class CollectCase(Base):
     def test_given_up_reply_still_reports(self):
         for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept("壊れた", AcceptCase.PASS, out_dir=self.out)
-        human = runreport.collect("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n事実", out_dir=self.out,
+        human = runreport.collect("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n事実", ai=self.out / runreport.AI_FILE, out_dir=self.out,
                                   stamp="run x").read_text(encoding="utf-8")
         self.assertTrue(human.startswith("# 報告\n\n起きたこと: 赤\n\n"), human)
         self.assertIn(report_roles.FAILED_TITLE, human)
@@ -1621,7 +1638,7 @@ class CollectCase(Base):
         1 段下げる）。人に向けた報告は機械の事実の節を持たない"""
         runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
         got, machine, _ = self.build()
-        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        human = runreport.collect(machine, ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         for text in (human, self.detail()):
             heads = [line for line in text.splitlines() if line.startswith("#") and report_roles.DECISIONS_HEAD in line]
             self.assertEqual(heads, ["## 1. 人が決めること"])
@@ -1637,16 +1654,16 @@ class ColdBodyCase(Base):
         (self.out / report.REPORT_FILE).write_text("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
         reply = json.dumps({"text": "承認ノードで止めた。\n\n## 1. 人が決めること\n\n- A\n\n## 2. 経緯\n\n長い",
                             "terms": [{"term": "A", "definition": "決める物"}]}, ensure_ascii=False)
-        body = runreport.cold_body(reply, out_dir=self.out)
+        body = runreport.cold_body(reply, machine=self.out / report.REPORT_FILE)
         self.assertTrue(body.startswith("# 報告\n\n起きたこと: 赤\n\n先へ進めるかを決める所で止めた。"), body)
         self.assertNotIn("長い", body)
         self.assertNotIn("機械の行", body)
         self.assertIn(report_roles.GLOSSARY_HEADING, body)
 
     def test_unreadable_reply_says_so(self):
-        self.assertIn("書き手の返答を読めない", runreport.cold_body("壊れた", out_dir=self.out))
+        self.assertIn("書き手の返答を読めない", runreport.cold_body("壊れた", machine=self.out / report.REPORT_FILE))
         reply = json.dumps({"text": "本文"}, ensure_ascii=False)
-        self.assertIn("機械の報告の冒頭を読めない", runreport.cold_body(reply, out_dir=self.out))
+        self.assertIn("機械の報告の冒頭を読めない", runreport.cold_body(reply, machine=self.out / report.REPORT_FILE))
 
 
 class CarryCase(Base):
@@ -1919,7 +1936,7 @@ class LedgerCase(Base):
         q = {**FORK, "key": "柵の住処"}
         _, machine, _ = self.build(self.returns(q))
         runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
-        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        human = runreport.collect(machine, ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         [held] = [x for x in human.splitlines() if x.startswith("- 保留にしたままの問い: ")]
         self.assertIn(f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(q['key'], ensure_ascii=False)}", held)
         self.assertIn(" 柵の住処（", held)
@@ -1930,7 +1947,7 @@ class LedgerCase(Base):
         q = {**FORK, "key": "parallel_pr: 単位の柵"}
         _, machine, _ = self.build(self.returns(q))
         runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
-        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        human = runreport.collect(machine, ai=self.out / runreport.AI_FILE, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
         [held] = [x for x in human.splitlines() if x.startswith("- 保留にしたままの問い: ")]
         self.assertIn(" parallel_pr: 単位の柵（", held)
         self.assertNotIn("問いの台帳", held)

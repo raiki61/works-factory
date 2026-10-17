@@ -1343,7 +1343,7 @@
    "copied": "直す前の承認ノードで既に通した行（人の答えか、無人の run が採った推し）は、頭の「直す前の承認ノードで通した狭まり」のセクションに在る"
   }
  ],
- "workflows/report/commands/report.md": [
+ "workflows/report-write/commands/report.md": [
   {
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "お前はレビューの最終報告を書く役（writer）。この run の記録を読み、報告の全部——平易な冒頭 3 行と人が決めること、その後ろの本文——を書く。\n",
@@ -1508,9 +1508,24 @@
    "why": "ほかのサブグラフの役を和名に「の役」が続く形（判定の役・計画の役）で書かず、中身か役の種類で書く（#698）",
    "original": "書いていなければ「判定の役が書いていない」と書き",
    "copied": "書かれていなければ「判定のファイルに推しが書かれていない」と書き"
+  },
+  {
+   "why": "#702: 書き手の輪を別のサブグラフに分けたので、結末の語・止めた段・機械の事実のファイル・言語の 1 行を、報告の段の facts の出力でなく自分の入力で受ける",
+   "original": "$facts.output.lang_line\n",
+   "copied": "$INPUTS.lang_line\n"
+  },
+  {
+   "why": "#702: 書き手の輪を別のサブグラフに分けたので、結末の語・止めた段・機械の事実のファイル・言語の 1 行を、報告の段の facts の出力でなく自分の入力で受ける",
+   "original": "**$facts.output.outcome**（止めた段と理由の語: `$facts.output.stop_reason`）",
+   "copied": "**$INPUTS.outcome**（止めた段と理由の語: `$INPUTS.stop_reason`）"
+  },
+  {
+   "why": "#702: 書き手の輪を別のサブグラフに分けたので、結末の語・止めた段・機械の事実のファイル・言語の 1 行を、報告の段の facts の出力でなく自分の入力で受ける",
+   "original": "`$ARTIFACTS_DIR/$facts.output.facts_file`",
+   "copied": "`$ARTIFACTS_DIR/$INPUTS.facts_file`"
   }
  ],
- "workflows/report/commands/cold-check.md": [
+ "workflows/report-write/commands/cold-check.md": [
   {
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "お前は cold-reader。文脈を持たない初見の読み手である。\n",

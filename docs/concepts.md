@@ -160,7 +160,7 @@
 - 状態: 住処あり
 - 住処: `lib/handoff.py`（欄の名 `FIELD`・欄の並び `KEYS`・型 `SCHEMA`・書けという頼み `ASK`・前の周のセクションの見出し `HEAD`・使い方 `USE`・メモが無い周の文 `NONE`・読めない周の文 `UNREADABLE`・控えのパス `path_of`・控えを置く `save`・読めない控えを返す `unreadable`・前の周のセクションを組む `section`）
 - 約束: 役の返答の欄 `handoff`（4 つの欄 `read`・`decided`・`rejected`・`doubts`）と、周のフォルダの控え `handoff.json`（控えの名と置き場は `lib/marks.py` の種 `handoff`）
-- 知ってよい所: 住処だけ。計画の受け付け `lib/planfile.py` と報告の受け付け `lib/runreport.py` は住処の `FIELD`・`path_of`・`save`・`unreadable`・`section`・`ASK` を使い、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report/works-factory-report.yaml`）は `SCHEMA` の写しで、`tests/workflows/test_plan.py`・`tests/workflows/test_report.py` が住処と等しいことを縛る（表の bound）
+- 知ってよい所: 住処だけ。計画の受け付け `lib/planfile.py` と報告の受け付け `lib/runreport.py` は住処の `FIELD`・`path_of`・`save`・`unreadable`・`section`・`ASK` を使い、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report-write/works-factory-report-write.yaml`）は `SCHEMA` の写しで、`tests/workflows/test_plan.py`・`tests/workflows/test_report_write.py` が住処と等しいことを縛る（表の bound）
 - 今: 外の当たりは 0 件
 
 ### `plan-scope` 修正案の項目の範囲の照らし
@@ -256,7 +256,7 @@
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
 
 - 状態: 散らばり
-- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 12 ファイル 73 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
+- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 11 ファイル 69 行（`workflows/*/works-factory-*.yaml` の 6 ファイル 59 行・役の定義の前付けの 5 ファイル 10 行）。報告の本文の YAML（`workflows/report-write/works-factory-report-write.yaml`）の 4 行は、#702 で報告の YAML から字のまま移した物で、`tests/workflows/test_report_write.py` が群の既定と道具の並びを縛る（表の bound）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
 - 計画: まだ無い
 
 ### `prompt-assembly` 指示書の組み立て

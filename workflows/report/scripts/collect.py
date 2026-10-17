@@ -2,7 +2,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""報告のブロックの返す節。facts の返りに人に向けた報告（在れば。隣に詳細のファイルも書く）を足して約束の欄を返す。落ちない: lib/ を読めない時も含めて
+"""報告のブロックの返す節。facts の返りに人に向けた報告（書き手の答えが在れば。隣に詳細のファイルも書く）を足して約束の欄を返す。
+書き手のループが落ちた時（write-out の fell）は、機械の報告の冒頭の後ろにその訳を足して機械の報告を返す。落ちない: lib/ を読めない時も含めて
 中の誤りを全部捕まえ、ok: false・outcome: record_invalid と訳を、返す節の output_format に合う形で返す（線は落ちた返す節の
 先へ進めない）。lib/ は main の中で読む。境の口を読めない時も、標準ライブラリだけで同じ形を返す。"""
 import json
@@ -20,6 +21,7 @@ except Exception as error:  # noqa: BLE001 — 返す節は落ちない（下の
     boundary, unread = None, error
 
 FACTS = os.environ.get("INPUTS_FACTS", "")
+WRITE = os.environ.get("INPUTS_WRITE", "")
 CARRIED = ("next_request", "prior_failures")
 
 
@@ -60,7 +62,11 @@ def main() -> dict:
     if not isinstance(facts, dict) or not isinstance(facts.get("report"), dict):
         raise ValueError("facts の出力が無いか、機械の報告のポインタを持たない")
     machine = boundary.resolve(facts["report"])
-    ai = runreport.collect(machine.read_text(encoding="utf-8"), out_dir=out_dir(), stamp=facts["stamp"])
+    write = boundary.parsed(WRITE) or {}
+    if write.get("fell"):
+        runreport.note_writer_fell(machine, write["fell"])
+    answer = boundary.resolve(write["ai"]) if write.get("ai") else None
+    ai = runreport.collect(machine.read_text(encoding="utf-8"), ai=answer, out_dir=out_dir(), stamp=facts["stamp"])
     return {"outcome": facts["outcome"], "ok": facts["ok"], "stop_reason": facts["stop_reason"], "report": rel(machine),
             "report_ai": rel(ai) if ai else None, **{k: facts[k] for k in CARRIED}}
 

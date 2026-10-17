@@ -210,6 +210,9 @@ NODE_TRANSFORM = r"^  \.transform\(\(data\): DagNode \| IncludeDirective => \{\n
 ARCHON_ROWS = (
     Row("指し札の型", lambda: boundary.POINTER_TYPE, POINTER_SCHEMA,
         r"export const ARTIFACT_POINTER_TYPE = '([^']+)';"),
+    Row("include の fan_out の join: all_done が落ちた項目に置く印の欄", lambda: boundary.FAN_OUT_FAILED,
+        "packages/workflows/src/dag-executor.ts",
+        r"^\s*: \{\n\s*(\w+): true,\n\s*error: o\.error \?\? `instance \$\{o\.status\}`,"),
     Row("指し札の欄", _pointer_fields, POINTER_SCHEMA,
         r"export const artifactPointerSchema = z\.object\(\{([^}]*)\}\);",
         lambda m: sorted(re.findall(r"^\s*(\w+):", m[1], re.M))),

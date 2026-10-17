@@ -1,7 +1,10 @@
-# 全部の節を差し替え、書き手が 1 回で初見の確かめを通る。返す節は約束の欄を全部持つ
+# 結果を名乗れる run（ai_go: true）は書き手のループの節 write（include の fan_out）に届く。dry-run は届く fan_out を模擬できずに落とし
+# （止めた Archon の dry-run.ts）、中継 write-out が飛ばされ、返す節は書き手の答え無しで返る。ループの中の通しは report-write の筋書きが、
+# ループが落ちても run が落ちないことは tests/workflows/test_report.py の本物の run が持つ
 fixture:
-  expect: completed
-  reached: [facts, write, cold-prep, cold, accept, report]
+  expect: failed
+  fail-node: write
+  reached: [facts, report]
 facts:
   outcome: fixed
   ok: true
@@ -13,20 +16,11 @@ facts:
   facts_file: report/report.md
   stamp: "works-factory-report / run fixture-run / 周 1 / グラフの版 000000000000"
   lang_line: ""
-write-reject: {reason: '', prev: '', handoff: ''}
-write:
-  text: "直して、最後のテストまで通った。\n直した単位は 1 つ。\n次の run に渡す物は無い。"
-  terms: []
-  handoff: {read: [], decided: [], rejected: [], doubts: []}
-cold-prep:
-  body: "直して、最後のテストまで通った。"
-cold: {verdict: pass, stops: [], guessed: [], decidable: true}
-accept: {done: true, ok: true, reason: "", kind: "", reason_file: "", prev_file: ""}
 report:
   outcome: fixed
   stop_reason: ""
   report: {type: archon_artifact, run_id: fixture-run, path: report/report.md}
-  report_ai: {type: archon_artifact, run_id: fixture-run, path: report/report-ai.md}
+  report_ai: null
   next_request: null
   prior_failures: null
   ok: true

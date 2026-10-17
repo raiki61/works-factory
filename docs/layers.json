@@ -5,7 +5,7 @@
     {"id": "top", "what": "メイングラフと周の鎖", "paths": ["workflows/line/", "workflows/chain/"], "may_use": ["shared", "lib"]},
     {"id": "shared", "what": "サブグラフの共通の部品（境の口と埋め）", "paths": ["workflows/.shared/"], "may_use": ["lib"]},
     {"id": "block", "what": "サブグラフ", "paths": ["workflows/*/"], "may_use": ["shared", "lib"], "independent": true,
-     "names": ["judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge"]},
+     "names": ["judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "report-write", "merge"]},
     {"id": "lib", "what": "共通の lib", "paths": ["lib/"], "may_use": []}
   ],
   "outside": ["lib/tests/", "workflows/*/fixtures/", "bin/AGENTS.md", "workflows/AGENTS.md", "lib/AGENTS.md"],

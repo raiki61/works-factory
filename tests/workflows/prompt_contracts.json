@@ -5695,13 +5695,13 @@
     ],
     "stops": []
   },
-  "workflows/report/commands/cold-check.md": {
+  "workflows/report-write/commands/cold-check.md": {
     "inserts": [
       "$cold-prep.output.body"
     ],
     "returns": {
       "nodes": [
-        "workflows/report/works-factory-report.yaml#cold"
+        "workflows/report-write/works-factory-report-write.yaml#cold"
       ],
       "output_format_sha256": "826fa6c98f3a8fee28e6faaa156517e4b6acdbea15c5b35968675e3e2049997c",
       "json_keys": [
@@ -5774,20 +5774,20 @@
       }
     ]
   },
-  "workflows/report/commands/report.md": {
+  "workflows/report-write/commands/report.md": {
     "inserts": [
       "$ARTIFACTS_DIR",
-      "$facts.output.facts_file",
-      "$facts.output.lang_line",
-      "$facts.output.outcome",
-      "$facts.output.stop_reason",
+      "$INPUTS.facts_file",
+      "$INPUTS.lang_line",
+      "$INPUTS.outcome",
+      "$INPUTS.stop_reason",
       "$write-reject.output.handoff",
       "$write-reject.output.prev",
       "$write-reject.output.reason"
     ],
     "returns": {
       "nodes": [
-        "workflows/report/works-factory-report.yaml#write"
+        "workflows/report-write/works-factory-report-write.yaml#write"
       ],
       "output_format_sha256": "6fa577633d01afdbb4436c5918356e2b33b0668da7a19ef78fbf34b5aebb3daa",
       "json_keys": [

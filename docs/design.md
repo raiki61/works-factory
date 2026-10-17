@@ -187,7 +187,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 
 ## サブグラフの出力の約束
 
-8 つのサブグラフを並べて移すための、メイングラフとの約束。サブグラフごとに、出力ノード（`returns:`）・`outcome_field`・出力の欄・受ける入力（`with:`）を先に決める。欄の名は今の works（`blk-*/schemas/`・review-graph のノードの schema・`report.py`）から採り、E5・E17 と持ち主の決めが求める所だけ変えた。
+9 つのサブグラフを並べて移すための、メイングラフとの約束。サブグラフごとに、出力ノード（`returns:`）・`outcome_field`・出力の欄・受ける入力（`with:`）を先に決める。欄の名は今の works（`blk-*/schemas/`・review-graph のノードの schema・`report.py`）から採り、E5・E17 と持ち主の決めが求める所だけ変えた。
 
 - 正本: YAML が書けたら、型の正本は出力ノードの `output_format` とメイングラフの `with:`（持ち主の決め `io-in-output-format`）。このセクションは並べて書く間に名・型・読み手を揃えるための約束。YAML と食い違ったら、どちらが正しいかを決めて両方を合わせる。
 - 機械: メイングラフの `with:` が読む `$<include の id>.output.<欄>` が、そのサブグラフの出力ノードの `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`）が見る。まるごとの参照 `$<include の id>.output` を受ける script が読む欄の名（`boundary.picked` の名の並び）は validate が見られないので、`output_format` に在るかも E5 の機械が見る。`outcome_field` が `required` に在るかと、読み手の無い欄が無いかも E5 の機械（`tests/layers/test_block_returns.py`）が見る。下の「→」の読み手は、その試験を赤にしないための目録。
@@ -417,6 +417,16 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `next_request`（ポインタ・null 可）: 次の依頼（`lib/carry`。今の works の `next-request.json`）→ メイングラフの出力。欄 `constraints`（部分 D2。E37・S14）は前提の検算が仮定を偽と示した時の実測 `[{text, measured_how, kind: "実測"}]`（今の works が共有ボードの制約に足した行の形 `review-loop.py:253-257`。書き手は report〔`carry.carried_constraints`〕、読み手は次の run の `start`〔`carry.parts` の鍵。`findings`・`answers`・`prior_failures` と同じ 1 つの口〕と judge〔入口が置き場の `carried-constraints.json` に置き、前提の実測の受け付けが `premises.json` の `constraints` に足す。`judge_accept.with_carried`〕と eyes〔R2 を省かない〕。直す穴 `findings` にも前の失敗 `prior_failures` にも混ぜない。約束は `lib/next-request.schema.json`）
   - `prior_failures`（ポインタ・null 可）: 前の失敗の行（`lib/carry`。今の works の `prior-failures.json`）→ メイングラフの出力
 
+### report-write の出力
+
+- 出力ノード `written`・`outcome_field: ok`。report がノード `write`（1 つの項目の `fan_out`、`join: all_done`）で include し、出力は項目ごとの配列で届く。落ちた項目は Archon の印 `{archon_failed: true, error, status}` になる
+- 入力（`with:`）:
+  - `outcome`・`stop_reason`・`lang_line` ← report の `facts` の出力の同じ名の欄
+  - `facts_file` ← fan_out の項目（`as: facts_file`。report の `facts` の出力 `facts_file`）
+- 出力:
+  - `ok`（boolean）: 書き手のループが答えのファイルを残した → report（`write-out`。偽ならその旨を AI の本文が無い訳にする）
+  - `ai`（ポインタ・null 可）: 受け取った答え（受け取れなかった訳も）の `ai.json`。`ok` が偽なら null → report（`write-out` を通して `report` が人に向けた報告を組む）
+
 ### メイングラフの出力
 
 - 出力ノード `result`（`workflows/line/scripts/result.py`）・`outcome_field: fixed`。`collect` と `report` と後始末 `sweep-children` の後に `trigger_rule: all_done` で走り、resume でも回し直す（`always_run`）。読み手は人（`bin/works-factory workflow get`）・差分を当てる殻 `bin/apply`・段 1 の通しの試験
@@ -504,7 +514,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - 目的: 結末の語（10 語）を決め、機械の報告と AI の報告を書き、段ごとの費用と時間を Archon の出来事の記録から作って載せ、文脈を持たない読み手に確かめさせる。次の run への持ち越し（次の依頼・前の失敗の行）を書く。承認ノードの答えと TDD の単位の行（引用と理由）を載せる。
 - ASF で読む物: `W/ship/scripts/outcome.ts`（どの道でも 1 つの出力）と `W/.shared/report.ts`（型つきの成果物の `errors` を注意として出す）。
 - 入力: 全サブグラフの出力（飛ばされた物は `null`）とメイングラフの値（止めの語・無人の run で回した問い・最後の承認ノードを開ける理由・深さの上げ直し・受け止める段の宣言ほか。「report の出力」）。
-- 役（`commands/`）: `report`・`cold-check`。
+- 書き手のループ: サブグラフ report-write を、1 つの項目の `fan_out`（`join: all_done`）で include して回す（ノード `write`）。書き手と初見の読み手の役（提供元の安全の判定の誤りなど）が `retry` の後も落ちると、report-write の中のノードは落ちるが、Archon は fan_out の中の落ちを run の落ちに数えず、`write` の出力の配列の項目を印 `archon_failed` と誤りの文にする（止めた Archon の `dag-executor.ts` の all_done の集め。fan_out でなく直に include したノードが落ちると、run は failed で終わる）。中継のノード `write-out` がその配列を境の口 `boundary.fanned` で読み、答えのポインタか落ちた誤りの文にする。`report` はそれを受け、落ちた時は機械の報告の冒頭の後ろに AI の本文が無い訳（誤りの文の 1 行目。`lib/runreport.py` の `note_writer_fell`）を足して、機械の報告を報告として返す（`report_ai` は null。#702）。Archon の dry-run は届く fan_out を模擬できずに落とすので、report の筋書きは `write` が落ちる形で書き、書き手のループの中は report-write の筋書きが、ループが落ちても run が落ちないことは `tests/workflows/test_report.py` の本物の run が持つ。
 - 報告の形（#660）: 置き場 `report/` に 3 つ書く。
   - `report.md`（機械の報告。書き手が読む事実のファイルで、書き手のループが走らない run では人もこれを読む）
   - `report-ai.md`（人に向けた報告。出力の `report_ai`）: 機械の冒頭 → 初見の読み手が通さないまま受け取った時はその 1 行 → 書き手の頭（平易な要約と「人が決めること」のセクション）と語の定義 → 詳細のファイルを指す 1 行と来歴
@@ -513,6 +523,14 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - 語の表: `lib/glossary.json` の記録の名 `term` と人に向けた言い方 `plain` の対。人に向けた報告と初見の読み手に貼る本文だけを機械が言い換える（`plain_words`。長い語から当て、コードの囲みと `…` の中は識別子とパスなので、問いの key と答えの鍵は人が次の run の依頼の answers に字のまま写すので言い換えない。片仮名の語は長い片仮名語の一部には当てない。漢字 1 字の語（周・柵）は熟語の一部には当てない。来歴は言い換えない）。言い方は元の定義の意味を保つ（例: 守りのパスは対象のリポジトリが `.works-protected.json` で守ると宣言したファイルも含む）。書き手を言い換えで拒まない。
 - 報告の行数: 人に向けた報告は `line_budget(n) = HEAD_LINES + LINES_PER_DECISION × n`（n は冒頭の人が決める物の行の数）行までに、書き手の頭を切って収める（切った残りの行数と置き場を 1 行で言う。全文は詳細のファイル）。`HEAD_LINES` 20 は件数に依らない行の数え: 題と空行で 2・冒頭の 3・初見の読み手の 1・書き手の要約 3 ほど・人が決めることの見出し 1・語の定義の見出しと数語で 4 ほど・置き場の 1 行と来歴の 1 行で 2・書き手の頭を切った訳の 1 行・まとまりの間の空行 3 ほど。`LINES_PER_DECISION` 8 は 1 件ごとの行の数え: 冒頭の 1 行と、書き手の指示書が 1 件に求める 6 つ（何を決めるか・背景・選択肢ごとに起きること・推し・答えの後に起きること・決めないと止まる物）と空行 1。1,000 行級だった中身（機械の事実の全部と書き手の構成 2〜10）は詳細のファイルだけに在る。
 - lib: `outcome`・`carry`・`runreport`。下げている所の宣言（並行 PR を投稿しない形と独立設計を 1 度だけ作る形。今の works の `darkfactory/downgrades.json`）は `lib/downgrades.json` で、`lib/prcheck.downgrades` が読み報告の入口のノードに出す。結末の 10 語は report の出力ノードの `output_format` の enum が正本で、`lib/outcome` は決め方だけを持つ。次の依頼と前の失敗の行の形（run をまたぐ控え）は `lib/carry` が持つ。
+- 埋め: 無し。
+
+### report-write（報告の本文）
+
+- 目的: report の機械の報告を読んだ書き手が、平易な要約・人が決めること・本文を書き、道具を持たない初見の読み手が頭だけを読んで確かめる（`write-loop`。3 回目は通らなくても受け取って印を付ける）。受け取った答え（受け取れなかった訳も）を run の置き場の `report/` の `ai.json`（`lib/runreport.py` の `AI_FILE`）に書き、出力でそのポインタを返す。
+- 入力: 機械の報告のファイルの相対のパス `facts_file`（fan_out の項目）・結末の語 `outcome`・止めた段 `stop_reason`・言語の 1 行 `lang_line`。
+- 役（`commands/`）: `report`・`cold-check`。
+- 呼ばれ方: report が 1 つの項目の `fan_out`（`join: all_done`）で include する。役が落ちればこのサブグラフが落ち、呼ぶ側はその落ちを出力の配列の印で受ける（「report（報告）」）。
 - 埋め: 無し。
 
 ### merge（取り込み）

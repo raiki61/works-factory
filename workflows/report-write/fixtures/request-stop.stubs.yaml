@@ -1,0 +1,18 @@
+# 止め札で止めた run の結末の語と止めた段が書き手の指示書に届く。初見の読み手の支度・受け付け・返す節の script が本当に走る。
+# 役の節だけを差し替える
+fixture:
+  expect: completed
+  reached: [write-reject, write, cold-prep, cold, accept, written]
+  inputs:
+    facts_file: report/report.md
+    outcome: stopped_by_request
+    stop_reason: "gate-final:request: 止め札"
+  resolved-text-contains:
+    write: "結末の語は **stopped_by_request**（止めた段と理由の語: `gate-final:request: 止め札`）"
+exec-code: true
+write-reject: {reason: '', prev: '', handoff: ''}
+write:
+  text: "止め札で止めた。\n最後の関所の前で止めた。\n続けるなら新しい run を始める。"
+  terms: []
+  handoff: {read: [], decided: [], rejected: [], doubts: []}
+cold: {verdict: pass, stops: [], guessed: [], decidable: true}

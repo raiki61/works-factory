@@ -22,9 +22,10 @@
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name, line) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000。line は線の値）
 - fallback_report(out_dir, why, name, *, user_env): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
-- cold_body(raw, *, out_dir)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start):
+- cold_body(raw, *, machine)・accept(reply, cold, *, out_dir)・collect(machine, *, ai, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start):
   書き手の返答の受け付けと、人に向けた報告（AI_REPORT_FILE）と詳細のファイル（DETAIL_FILE。元 report_roles.py の write_cold_prep・
-  accept・collect・stamp）。line_budget(decisions): 人に向けた報告の行の上限
+  accept・collect・stamp）。line_budget(decisions): 人に向けた報告の行の上限。note_writer_fell(machine, error): 書き手のループが落ちた訳を
+  機械の報告の冒頭の後ろに足す
 """
 from __future__ import annotations
 
@@ -89,6 +90,7 @@ UNWRITTEN = "report-unwritten.md"       # 報告を組めない時の機械の�
 AI_FILE = "ai.json"                     # 受け付けた書き手の返答と初見の判定（collect が読む）
 AI_REPORT_FILE = "report-ai.md"         # 人に向けた報告（元 report_roles.REPORT_NAME の AI の報告）
 DETAIL_FILE = "report-detail.md"        # 人に向けた報告から外した詳しい中身（書き手の本文の字のまま・言い換えた語・機械の事実）
+WRITER_FELL = "AI が書く報告の本文は無い。書き手のノードが落ちた（{error}）。この機械の報告が報告の全部"   # note_writer_fell
 NOTE_ROUND = "r{n}"                     # 周ごとのフォルダ（拒んだ回の書き手の引き継ぎのメモを置く。n は輪の今の回 rolekit.attempt）
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
 # 初見の読み手（report.cold_check）の返答の型。型の正本は工程の cold の節の output_format で、これと同じかを試験が縛る
@@ -1894,8 +1896,8 @@ def machine_head(machine_text: str) -> str:
     return str(machine_text or "").split("\n## ", 1)[0].strip()
 
 
-def cold_body(raw, *, out_dir) -> str:
-    """初見の読み手に貼る本文: 人に向けた報告の頭と同じ物——機械の報告（out_dir の report.REPORT_FILE）の冒頭・書き手の返答の頭
+def cold_body(raw, *, machine) -> str:
+    """初見の読み手に貼る本文: 人に向けた報告の頭と同じ物——機械の報告（ファイル machine）の冒頭・書き手の返答の頭
     （report_roles.head_of）・その後ろに付く語の定義の節を、語の表で言い換えた物（元 report_roles の write_cold_prep の本文。頭は
     見出しの付いたセクションを落とすので、書き手が本文に書いた定義は届かない）。書き手の返答を読めなければ読めない事実"""
     got, why = _parse(raw)
@@ -1904,12 +1906,12 @@ def cold_body(raw, *, out_dir) -> str:
         return f"（書き手の返答を読めない: {why or '本文が無い'}）"
     terms = _list(got.get("terms")) if not report_roles._terms_problems(got) else []
     try:
-        machine = machine_head((pathlib.Path(out_dir) / report.REPORT_FILE).read_text(encoding="utf-8"))
+        machine_text = machine_head(pathlib.Path(machine).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError) as e:
-        machine = f"（機械の報告の冒頭を読めない: {type(e).__name__}）"
+        machine_text = f"（機械の報告の冒頭を読めない: {type(e).__name__}）"
     head = report_roles.head_of(text)
     sec = glossary_section(head, terms)
-    return plain_words("\n\n".join(x.strip() for x in (machine, head, sec) if x.strip()) + "\n")[0]
+    return plain_words("\n\n".join(x.strip() for x in (machine_text, head, sec) if x.strip()) + "\n")[0]
 
 
 def _refused(reason: str, kind: str) -> dict:
@@ -2026,6 +2028,16 @@ def accept(reply, cold, *, out_dir) -> dict:
             "prev_file": str(answer) if not out["done"] and answer.is_file() else ""}
 
 
+def note_writer_fell(machine, error: str) -> None:
+    """書き手のループが落ちて AI の本文が無い時に、機械の報告のファイル machine の冒頭（machine_head と同じ所）の後ろへ、その訳の
+    1 行 WRITER_FELL（落ちた誤りの文の 1 行目）を足す"""
+    path = pathlib.Path(machine)
+    head, sep, rest = path.read_text(encoding="utf-8").partition("\n## ")
+    first = (str(error).strip().splitlines() or [""])[0]
+    line = WRITER_FELL.format(error=oneline.one_line(first) or "誤りの文が無い")
+    _write_text(path, f"{head.rstrip()}\n\n{line}\n" + (f"{sep}{rest}" if sep else ""))
+
+
 def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:
     """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、グラフの名（ファイルの名）・run・
     周（計画の round。何回目の案か。無ければ —）・グラフのファイルの sha256 の頭 12 字（グラフの版）・メイングラフの版（始めの記録 start の
@@ -2086,17 +2098,19 @@ def _fences(lines: list) -> list:
     return [x.strip()[:3] for x in lines if x.strip().startswith(("```", "~~~"))]
 
 
-def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
-    """人に向けた報告（AI_REPORT_FILE）と詳細のファイル（DETAIL_FILE）を書き、人に向けた報告のパスを返す（元 report_roles.collect）。
-    AI_FILE が無ければ None（書き手の輪が落ちた・飛ばされた）。
+def collect(machine_text: str, *, ai, out_dir, stamp: str) -> pathlib.Path | None:
+    """人に向けた報告（AI_REPORT_FILE）と詳細のファイル（DETAIL_FILE）を out_dir に書き、人に向けた報告のパスを返す（元 report_roles.collect）。
+    ai は書き手のループが受け取った答え（accept が書いた AI_FILE）のパス。None か、ファイルが無ければ None を返す（書き手のループが落ちた・飛ばされた）。
     人に向けた報告: 機械の報告の冒頭（machine_head）→ 初見の読み手が通さないまま受け取った時はその 1 行 → 書き手の頭（平易な要約と
     人が決めることのセクション。report_roles.head_of）と、切った後に見えている頭に現れる語の定義の節 → 詳細のファイルを指す 1 行と
     来歴。来歴より前を語の表で言い換え（plain_words。来歴は詳細のファイルと同じ字）、行は line_budget（人が決める物の件数）までに
     書き手の頭を切る（_cut。語の定義の行は先に取り置く）。受け取れなかった時は書き手の頭の所に訳。
     詳細のファイル: 来歴・言い換えた語と回数の 1 行・書き手の本文の字のまま・語の定義・機械の事実（拒みの数の行と embedded）"""
+    if ai is None:
+        return None
     out_dir = pathlib.Path(out_dir)
     try:
-        ai = oc.read_json(out_dir / AI_FILE)
+        ai = oc.read_json(ai)
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as e:

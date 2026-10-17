@@ -840,9 +840,12 @@ def _origin_names(root: Path) -> list[str]:
 # match[2] は任意の欄の道 `a.b`（入れ子も通る）で、頭の欄が返す節の欄。match[2] が None の一致がまるごとの参照。だから `.output-x`・`.outputs`・
 # `.output.`・`.output.0` も欄の無い側（まるごと）に入り、欄つきとの間に隙間が開かない
 OUTPUT_REF = re.compile(r"\$(?:LOOP_PREV\.)?([A-Za-z_][\w-]*)\.output(?:\.([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*))?")
-# 返りまるごとを読む唯一の口 boundary.picked（workflows/.shared/boundary.py）と、名の並びを YAML で宣言する with: の鍵（受け皿の names）
+# 返りまるごとを読む口 boundary.picked と、fan_out の join: all_done の返りの配列を読む口 boundary.fanned（workflows/.shared/boundary.py）と、
+# 名の並びを YAML で宣言する with: の鍵（受け皿の names）
 GATE_MODULE = "boundary"
 GATE_PICKED = "picked"
+GATE_FANNED = "fanned"
+GATES = (GATE_PICKED, GATE_FANNED)
 GATE_TEXT = "text"
 DECLARED = "names"
 INPUT_HEAD = "INPUTS_"
@@ -873,12 +876,25 @@ def _scalars(node, path=(), skip=frozenset()):
             yield from _scalars(value, (*path, key), skip)
 
 
-def _line_reads(root: Path) -> tuple[dict, dict, list[str]]:
-    """線のメイングラフの節の字を鍵の道つきで読む。返りは (reads, named, 赤の行):
+def _include_reads(root: Path) -> tuple[dict, dict, list[str]]:
+    """サブグラフを include する工程（メイングラフと、ほかのサブグラフを include するサブグラフ）ごとの _graph_reads を合わせる"""
+    reads, named, out = {}, {}, []
+    paths = [root / LINE_YAML, *(_workflow_doc(f)[0] for f in _blocks(root) if f.name not in TOP_FOLDERS)]
+    for path in paths:
+        got_reads, got_named, got_out = _graph_reads(root, path)
+        for name, fields in got_reads.items():
+            reads.setdefault(name, set()).update(fields)
+        for name, entries in got_named.items():
+            named.setdefault(name, []).extend(entries)
+        out += got_out
+    return reads, named, out
+
+
+def _graph_reads(root: Path, path: Path) -> tuple[dict, dict, list[str]]:
+    """工程 path の節の字を鍵の道つきで読む。返りは (reads, named, 赤の行):
     reads は `$<include の id>.output.<欄>` で読む欄を、差し込んだ工程の名ごとに {名: {欄…}}。
     named は、まるごとの参照 `$<include の id>.output` を受けた script の口が宣言した名を、工程の名ごとに {名: [(宣言の場所, 名の並び)…]}。
     まるごとの参照を受けてよいのは script の節の with:<鍵> の直の字か with:<鍵>.from の字が参照そのものの時だけで、ほかは赤"""
-    path = root / LINE_YAML
     documents, broken = _documents(root, path) if path.is_file() else ([], [])
     if broken or not documents:
         return {}, {}, []
@@ -921,14 +937,15 @@ def _takes_whole(node, keys: tuple, text: str) -> bool:
     return _top(node, "script") is not None and place and whole is not None and whole[2] is None
 
 
-def _gated(root: Path, line_path: Path, node, here: str, key: str):
+def _gated(root: Path, graph_path: Path, node, here: str, key: str):
     """まるごとの参照を with:<key> で受ける script の節 node の口。返りは ((宣言の場所, 名の並び), "") か (None, 赤の行)。
-    口は `boundary.picked(os.environ.get("INPUTS_<KEY>"), <名の並び>)`（添字の読みも可）の呼び 1 つで、"INPUTS_<KEY>" の字はその
+    口は `boundary.picked(os.environ.get("INPUTS_<KEY>"), <名の並び>)`（添字の読みも可）か、fan_out の返りの配列を読む同じ形の
+    `boundary.fanned(…)` の呼び 1 つで、"INPUTS_<KEY>" の字はその
     第 1 引数の外に無い（第 1 引数を読みそのものに限るので、まるごとの値を別の名に取っておけない）。
     名の並びは _declared が読む形だけで、ほかの形は解かずに赤"""
-    scripts = [p for p in node_scripts(line_path.parent, node) if p.suffix == ".py"]
+    scripts = [p for p in node_scripts(graph_path.parent, node) if p.suffix == ".py"]
     if len(scripts) != 1:
-        return None, f"{_rel(root, line_path)}:{_line(node)}: {here} を受ける script のファイルを引けない（直に書いた script: | か名の取り違え）"
+        return None, f"{_rel(root, graph_path)}:{_line(node)}: {here} を受ける script のファイルを引けない（直に書いた script: | か名の取り違え）"
     rel = _rel(root, scripts[0])
     try:
         tree = ast.parse(scripts[0].read_text(encoding="utf-8"))
@@ -939,27 +956,28 @@ def _gated(root: Path, line_path: Path, node, here: str, key: str):
         return None, (f"{rel}:{raw[0]}: {here} を受ける script が環境変数を字のままでない鍵で読むか、回す・写す・渡す（許すのは "
                       'os.environ.get("<字>")・os.environ["<字>"]・os.getenv("<字>") だけ）')
     env = _input_env(key)
-    gates = [n for n in ast.walk(tree) if _boundary_call(n, GATE_PICKED) and n.args and _holds(n.args[0], env)]
+    gates = [n for n in ast.walk(tree) if any(_boundary_call(n, g) for g in GATES) and n.args and _holds(n.args[0], env)]
     if len(gates) != 1:
         return None, (f"{rel}:{gates[1].lineno if gates else 1}: {here} を受ける script が {env} を boundary.{GATE_PICKED}"
-                      f'(os.environ.get("{env}"), <名の並び>) の 1 つの呼びで読まない（呼びが {len(gates)} 個）')
+                      f'(os.environ.get("{env}"), <名の並び>) か boundary.{GATE_FANNED}(…) の 1 つの呼びで読まない（呼びが {len(gates)} 個）')
     gate = gates[0]
+    called = gate.func.attr
     if not _environ_read(gate.args[0], env):
-        return None, (f"{rel}:{gate.lineno}: {here} を受ける script の boundary.{GATE_PICKED} の 1 つ目の引数が、"
+        return None, (f"{rel}:{gate.lineno}: {here} を受ける script の boundary.{called} の 1 つ目の引数が、"
                       f'os.environ.get("{env}") か os.environ["{env}"] そのものでない')
     inside = {id(n) for n in ast.walk(gate.args[0])}
     stray = [n.lineno for n in ast.walk(tree) if _spells(n, env) and id(n) not in inside]
     if stray:
-        return None, f"{rel}:{stray[0]}: {here} を受ける script の {env} の字が boundary.{GATE_PICKED} の呼びの外にある"
-    where, names = _declared(root, line_path, node, rel, tree, gate)
+        return None, f"{rel}:{stray[0]}: {here} を受ける script の {env} の字が boundary.{called} の呼びの外にある"
+    where, names = _declared(root, graph_path, node, rel, tree, gate)
     if names is None:
-        return None, (f"{rel}:{gate.lineno}: {here} を受ける script の boundary.{GATE_PICKED} の名の並びを解けない（許すのは module の頭の"
+        return None, (f"{rel}:{gate.lineno}: {here} を受ける script の boundary.{called} の名の並びを解けない（許すのは module の頭の"
                       f"字の tuple の名・lib の部品の字の tuple の定数 <部品>.<定数>・with: の {DECLARED} の字を読む "
                       f"boundary.{GATE_TEXT}(<{_input_env(DECLARED)} の読み>).split()）")
     return (where, names), ""
 
 
-def _declared(root: Path, line_path: Path, node, rel: str, tree, gate) -> tuple:
+def _declared(root: Path, graph_path: Path, node, rel: str, tree, gate) -> tuple:
     """口の呼び gate の名の並び。返りは (宣言の場所, 名の tuple)。解けなければ (None, None)。読む形は 3 つだけ:
     module の頭の字の tuple の名（_top_names）・lib の部品の字の tuple の定数 `<部品>.<定数>`・節の with: の names の字を
     `boundary.text(<"INPUTS_NAMES" の get か添字>).split()` で読む形（受け皿。名は YAML の字で、`$` の参照を持たない）"""
@@ -974,7 +992,7 @@ def _declared(root: Path, line_path: Path, node, rel: str, tree, gate) -> tuple:
     if _boundary_call(text, GATE_TEXT) and len(text.args) == 1 and not text.keywords and _reads_env(text.args[0], _input_env(DECLARED)):
         value = _top(_top(node, "with"), DECLARED)
         if isinstance(value, yaml.ScalarNode) and "$" not in value.value:
-            return f"{_rel(root, line_path)}:{_line(value)}", tuple(value.value.split())
+            return f"{_rel(root, graph_path)}:{_line(value)}", tuple(value.value.split())
     return None, None
 
 
@@ -1063,7 +1081,7 @@ def _block_returns(root: Path) -> list[str]:
     """返りの欄の読み手に加えて、ブロックの入力の読み手（K12）と、輪の中の役が自分の with: を結ばないこと（K5）も照らす。
     まるごとの参照の口が宣言した名は、返す節の output_format に在り（宣言した名 ⊆ 返りの欄）、返りの欄はどれも欄つきの参照か宣言の
     どれかに在る（返りの欄 ⊆ 読みの和）"""
-    reads, named, problems = _line_reads(root)
+    reads, named, problems = _include_reads(root)
     out = _inputs_read(root) + _loop_roles(root) + problems
     for folder in _blocks(root):
         if folder.name == LINE_FOLDER:
@@ -1098,7 +1116,7 @@ def _block_returns(root: Path) -> list[str]:
         for key, value in fields:
             if key not in read:
                 out.append(f"{rel}:{_line(value)}: 返りの欄 {key} に読み手が無い"
-                           "（線の with:・when:・返しの節の from の欄つきの参照も、まるごとの参照の口の宣言も読まない）")
+                           "（include する工程の with:・when:・返しの節の from の欄つきの参照も、まるごとの参照の口の宣言も読まない）")
     return out
 
 

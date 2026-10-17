@@ -1,0 +1,177 @@
+name: works-factory-report-write
+description: |
+  報告の本文のサブグラフ。機械の報告を読んだ書き手が平易な要約・人が決めること・本文を書き、道具を持たない初見の読み手が頭だけを読んで
+  確かめる（write-loop。3 回目は通らなくても受け取って印を付ける）。受け取った返答（受け取れなかった訳も）は run の置き場の報告の置き場に
+  書き、出力ノード written がそのポインタを返す。書き手の役が落ちればこのサブグラフが落ちる。呼ぶ側は fan_out の join: all_done で
+  受け、落ちを run の落ちにせず、出力の配列の印 archon_failed と誤りの文で受け取る。
+
+inputs:
+  facts_file:
+    default: ""
+    description: 機械の報告のファイルの、run の置き場からの相対のパス
+  outcome:
+    default: ""
+    description: 結末の語（lib/report.py の OUTCOMES の 1 つ）
+  stop_reason:
+    default: ""
+    description: 止めた段と理由の語。止まらなければ空
+  lang_line:
+    default: ""
+    description: 役の文の頭に置く言語の 1 行。空なら置かない
+
+returns: written
+outcome_field: ok
+
+nodes:
+  - id: write-loop
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: true
+      until_bash: done=$accept.output.done; test "$done" = true
+      nodes:
+        - id: write-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.accept.output.reason_file", prev: "$LOOP_PREV.accept.output.prev_file"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason, prev, handoff]
+            properties: {reason: {type: string}, prev: {type: string}, handoff: {type: string}}
+
+        - id: write
+          command: report
+          depends_on: [write-reject]
+          model: '@wf-report'
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [text, handoff]
+            additionalProperties: false
+            properties:
+              text: {type: string, minLength: 1}
+              terms:
+                type: array
+                items:
+                  type: object
+                  required: [term, definition]
+                  additionalProperties: false
+                  properties:
+                    term: {type: string, minLength: 1}
+                    definition: {type: string, minLength: 1}
+              handoff:
+                type: object
+                additionalProperties: false
+                required: [read, decided, rejected, doubts]
+                properties:
+                  read:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [path, lines, why]
+                      properties:
+                        path: {type: string, minLength: 1}
+                        lines: {type: string, minLength: 1}
+                        why: {type: string, minLength: 1}
+                  decided:
+                    type: array
+                    items: {type: string, minLength: 1}
+                  rejected:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [option, why]
+                      properties:
+                        option: {type: string, minLength: 1}
+                        why: {type: string, minLength: 1}
+                  doubts:
+                    type: array
+                    items: {type: string, minLength: 1}
+
+        - id: cold-prep
+          script: cold_prep
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          depends_on: [write]
+          with:
+            writer: $write.output
+            facts_file: $INPUTS.facts_file
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [body]
+            properties:
+              body: {type: string}
+
+        - id: cold
+          command: cold-check
+          depends_on: [cold-prep]
+          context: fresh
+          model: '@wf-report'
+          allowed_tools: []
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [verdict, stops, guessed, decidable]
+            additionalProperties: false
+            properties:
+              verdict: {type: string, enum: [pass, redesign-needed]}
+              stops: {type: array, items: {type: string}}
+              guessed: {type: array, items: {type: string}}
+              decidable: {type: boolean}
+
+        - id: accept
+          script: report_accept
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          depends_on: [write, cold]
+          with:
+            reply: $write.output
+            cold: $cold.output
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [done, ok, reason, kind, reason_file, prev_file]
+            properties:
+              done: {type: boolean}
+              ok: {type: boolean}
+              reason: {type: string}
+              kind: {type: string}
+              reason_file: {type: string}
+              prev_file: {type: string}
+
+  - id: written
+    script: written
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [write-loop]
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, ai]
+      properties:
+        ok: {type: boolean}
+        ai:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}

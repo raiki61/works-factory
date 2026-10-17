@@ -71,7 +71,7 @@
   - 根拠: PR #100（merged）。Archon `workflows/src/include-expander.ts:566`（自分の `with:` で結んだ名を外すのは節の指示書だけ）・`:579`・`:596`（足りない入力は読み込みの誤り）・`:627`（`agent.prompt` だけを守る）・`:584`（入力に宣言すると include の時に既定の字で固まる）・`template-walker.ts:266-283`（輪の中の節も同じ走査に入る）。PR #74 本文の「止まっている所」
   - 今の機械（main）:
     - `tests/layers/test_archon_validate.py::ArchonValidateTest.test_every_block_loads_when_included`: 各ブロックを 1 つずつ include するだけの親の工程を足し、宣言の既定値の無い入力に仮の字 `"x"` を渡して `archon validate` が誤りも警告も出さないかを見る。CI は `WORKS_FACTORY_ARCHON_REQUIRED=1` なので見送らない
-    - ブロックごとの形の試験: `tests/workflows/test_judge.py::LoopTest.test_roles_receive_the_reject_reason_through_the_loop_head`、`tests/workflows/test_report.py::ShapeCase.test_writer_receives_the_reject_file_through_the_reject_node`、`tests/workflows/test_test_gate.py::YamlCase.test_loop_does_not_paste_previous_reject_by_loop_prev`（#202 で test-gate は `$LOOP_PREV` で結ぶのをやめ、ci-prep が拒否の控えから読む形に替わった。旧 `test_prep_takes_previous_reject`）
+    - ブロックごとの形の試験: `tests/workflows/test_judge.py::LoopTest.test_roles_receive_the_reject_reason_through_the_loop_head`、`tests/workflows/test_report_write.py::ShapeCase.test_writer_receives_the_reject_file_through_the_reject_node`、`tests/workflows/test_test_gate.py::YamlCase.test_loop_does_not_paste_previous_reject_by_loop_prev`（#202 で test-gate は `$LOOP_PREV` で結ぶのをやめ、ci-prep が拒否の控えから読む形に替わった。旧 `test_prep_takes_previous_reject`）
     - #74 の head にはまだこの試験が無い（rebase で入る）
   - 穴:
     - 親の工程はブロックを一番上の段に include するだけ。線のように `loop_group` の中で include する形（線の `plan-rounds` の中の plan-review）は照らさない

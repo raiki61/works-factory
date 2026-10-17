@@ -143,7 +143,7 @@ class _Check:
         self._downgrades(table.get("downgrades") or [], table.get("graph") or {})
         self._design(table.get("graph") or {})
         if line in self.nodes:
-            self._wiring(table, line, includes[line])
+            self._wiring(table, line, self._reached(line, includes))
         for key in sorted(set(self.kinds) - self.covered):
             self.out.append(f"{key}: 木の節が表（graph・keep の where・fallback_where・support）のどこにも無い")
 
@@ -346,6 +346,16 @@ class _Check:
             if name not in graph:
                 self.out.append(f"{DESIGN}: 受け入れの一覧の {name} が graph に無い")
 
+    def _reached(self, line, includes) -> set:
+        """線から include を辿って届く工程の名（ほかのサブグラフを include するサブグラフの先も）"""
+        reached, todo = set(), list(includes[line])
+        while todo:
+            name = todo.pop()
+            if name not in reached:
+                reached.add(name)
+                todo += includes.get(name.removeprefix(self.prefix), [])
+        return reached
+
     def _wiring(self, table, line, line_includes):
         rows = [(f"graph.{n}", r) for n, r in (table.get("graph") or {}).items()]
         rows += [(f"keep.{n}", r) for n, r in (table.get("keep") or {}).items()]
@@ -355,7 +365,7 @@ class _Check:
             keys = [k for field in ("where", "fallback_where") if _strings(row.get(field)) for k in row[field]]
             for block in sorted({k.split("/", 1)[0] for k in keys} - {line}):
                 if f"{self.prefix}{block}" not in line_includes:
-                    self.out.append(f"{label}: where か fallback_where のブロック {block} が線の include: に無い")
+                    self.out.append(f"{label}: where か fallback_where のブロック {block} に線から include で届かない")
 
 
 def check(root) -> tuple[list[str], dict[str, tuple[int, int, tuple[str, ...]]]]:
@@ -622,14 +632,20 @@ class NodeTableTest(unittest.TestCase):
         self.assertEqual(wired(LINE_YAML), [])
         got = wired(LINE_YAML.replace("include: works-factory-a", "include: works-factory-b"))
         self.assertEqual(len(got), 1, got)
-        self.assertIn("graph.p0.base: where か fallback_where のブロック a が線の include: に無い", got[0])
+        self.assertIn("graph.p0.base: where か fallback_where のブロック a に線から include で届かない", got[0])
         t = use(base_table(), "graph", "p0.base",
                 {"by": "machine", "where": ["a/x"], "fallback": "role", "fallback_where": ["b/r"], "proof": [OK_TEST]})
         t["support"].update({"line/start": "始め", "line/a": "差し込み"})
         got = self.broken(t, **{"workflows/line/works-factory-line.yaml": LINE_YAML,
                                 "workflows/b/works-factory-b.yaml": "name: works-factory-b\nnodes:\n  - id: r\n    command: r\n"})
         self.assertEqual(len(got), 1, got)
-        self.assertIn("graph.p0.base: where か fallback_where のブロック b が線の include: に無い", got[0])
+        self.assertIn("graph.p0.base: where か fallback_where のブロック b に線から include で届かない", got[0])
+        inner = "name: works-factory-b\nnodes:\n  - id: r\n    command: r\n"
+        nested = BLOCK_YAML + "  - id: b\n    include: works-factory-b\n"
+        t["support"].update({"a/b": "差し込み"})
+        self.assertEqual(self.broken(t, **{"workflows/line/works-factory-line.yaml": LINE_YAML,
+                                           "workflows/a/works-factory-a.yaml": nested, "workflows/b/works-factory-b.yaml": inner}),
+                         [], "サブグラフが include したサブグラフにも線から届く")
 
     def test_pending_block_tolerated_while_absent(self):
         t = base_table()
