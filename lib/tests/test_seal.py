@@ -5,6 +5,7 @@
 - diff_files: 差分のバイトに載るファイルと行数。バイナリ・利用者の apply.whitespace=error の設定・読めない差分
 - seal_refusal: 緑の認証の指紋が今の木と合う・合わない・認証の指紋が無い
 - unknown_row: 守りのパスを確かめられない時の 1 行の頭
+- deleted_lines: 取り込むと消えるファイルの行（SHOWN 件までは 1 本ずつ・超える分は件数と封じた差分のパス）
 - apply_refusal: 置くかの決まりの 1〜5 を上から順に。通しの答え（approve・continue）なら赤でも・R2 の作り直しのほかの目の阻害でも置く
 """
 import hashlib
@@ -20,6 +21,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import listcut  # noqa: E402
 import seal  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
 
@@ -120,6 +122,21 @@ class DeletedPathsCase(unittest.TestCase):
                 (repo / name).unlink()
             (repo / "kept.txt").write_text("y\n", encoding="utf-8")
             self.assertEqual(sorted(seal.deleted_paths(git("diff"))), sorted(names[:3]))
+
+
+class DeletedLinesCase(unittest.TestCase):
+    def test_lines_cut_past_shown(self):
+        """取り込むと消えるファイルの行: SHOWN 件以下なら『取り込むと消えるファイル: <パス>』を全件、超えるなら先頭 SHOWN 件と、
+        残りの件数と where（封じた差分の実のパス）を添えた 1 行だけ（行の数は本数に依らない）"""
+        self.assertEqual(seal.deleted_lines(["old.py"], where="/run/merge/sealed.diff"), [f"{seal.DELETED_HEAD}: old.py"])
+        self.assertEqual(seal.deleted_lines([], where="/run/merge/sealed.diff"), [])
+        names = [f"gen/{i}.o" for i in range(20000)]
+        got = seal.deleted_lines(names, where="/run/merge/sealed.diff")
+        self.assertEqual(len(got), listcut.SHOWN + 1)
+        self.assertEqual(got[:listcut.SHOWN], [f"{seal.DELETED_HEAD}: {n}" for n in names[:listcut.SHOWN]])
+        self.assertEqual(got[-1], f"{seal.DELETED_HEAD}: ほか 19995 件（全件: /run/merge/sealed.diff）")
+        edge = names[:listcut.SHOWN]
+        self.assertEqual(seal.deleted_lines(edge, where="x"), [f"{seal.DELETED_HEAD}: {n}" for n in edge])
 
 
 class SealRefusalCase(unittest.TestCase):

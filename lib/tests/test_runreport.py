@@ -698,6 +698,29 @@ class DecisionsCase(Base):
         _, text, _ = self.build()
         self.assertIn("- clean が消したファイル: 走らせていない（修正の段が無い run）", self.section(text, report.DECISIONS_HEADING))
 
+    def test_many_removed_files_keep_the_section_short(self):
+        """clean が消したファイルが 20,000 本でも、人が決めることの節は本数に依らず短い。件数の行・先頭の数本・上位のフォルダごとの本数
+        （根に直に在るファイルは 1 つの区分『（根）』）・全件の置き場（根と scope の両方の fix-removed.json）を出し、全部のパスは並べない"""
+        diff = self.fix_place("fix")
+        folder = pathlib.Path(diff).parent
+        root = [f"r{i}.log" if i % 10 == 0 else f"{('cache', 'dist', 'build', 'tmp')[i % 4]}/a/{i}.bin" for i in range(19990)]
+        scoped = [f"gen/{i}.o" for i in range(10)]
+        fixboard.write_json(folder / "fix-removed.json", {"removed": root})
+        (folder / "sub").mkdir()
+        fixboard.write_json(folder / "sub" / "fix-removed.json", {"removed": scoped})
+        _, text, _ = self.build(self.with_fix(diff))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertLessEqual(len(body.splitlines()), 40, body[:2000])
+        self.assertLess(len(body), 6000)
+        self.assertIn("- clean が消したファイル（fix）: 20000 本", body)
+        self.assertIn("  - " + root[0], body)
+        self.assertNotIn(root[100], body)
+        self.assertIn(f"（全件: {folder / 'fix-removed.json'}、{folder / 'sub' / 'fix-removed.json'}）", body)
+        self.assertIn("  - 上位のフォルダごとの本数:", body)
+        self.assertIn("    - （根）: 1999 本", body)
+        self.assertIn("    - dist: 4998 本", body)
+        self.assertNotIn("    - r10.log", body)
+
     def test_nothing_to_decide_puts_next_items(self):
         """元 ReportHeadCase.test_nothing_to_decide_puts_next_items: 決めることが無い run は 2 行目に次の run に渡す物の件数"""
         p = self.put("judge/out-of-purpose.json", {"rounds": {"1": [{"source": "P1", "why_outside": "目的の外の所見",
@@ -2127,7 +2150,8 @@ class LinesCase(Base):
 
     def test_tests_head_lines_and_deleted_files(self):
         """T35・T41・M38（部分 B2 の申し送り。最後の関所と同じ行を報告の冒頭に）: 人が決めることの節に最後のテストの一式の行と修正前のテストの
-        行（test-gate の返りの欄のまま）、任せ先の申告の緑なら走らせる語の宣言の仕方、封じた差分が消すファイルを 1 本ずつ出す"""
+        行（test-gate の返りの欄のまま）、任せ先の申告の緑なら走らせる語の宣言の仕方、封じた差分が消すファイルを SHOWN 件までは 1 本ずつ、
+        超える分は件数と封じた差分のパスで出す"""
         import declared_checks
         import seal
         final = {**fixed_run()["test-gate-final"], "by": "role_needed", "suites_line": "一式: 任せ先の申告", "log": "/tmp/ci.log",
@@ -2141,6 +2165,21 @@ class LinesCase(Base):
         self.assertIn("- 修正前のテスト: 赤（段ごとの終了コード {\"suite\": 1}）——最後のテストの赤は修正前から在りうる\n", body)
         self.assertIn(f"- {declared_checks.SELF_REPORTED_NOTE}", body)
         self.assertIn(f"- {seal.DELETED_HEAD}: old.py\n", body)
+
+    def test_many_deleted_files_stay_short(self):
+        """封じた差分が 20,000 本を消しても、人が決めることの節は本数に依らず短い。先頭の数本と、残りの件数と封じた差分の実のパス
+        （merge-seal の diff）の 1 行を出し、全部のパスは並べない"""
+        import seal
+        names = [f"gen/{i}.o" for i in range(20000)]
+        diff = self.put("merge/sealed.diff", "".join(f"diff --git a/{n} b/{n}\ndeleted file mode 100644\n--- a/{n}\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n"
+                                                      for n in names))
+        _, text, _ = self.build(fixed_run(**{"merge-seal": {"mode": "seal", "ok": True, "diff": diff}}))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertLessEqual(len(body.splitlines()), 40, body[:2000])
+        self.assertLess(len(body), 6000)
+        self.assertIn(f"- {seal.DELETED_HEAD}: {names[0]}\n", body)
+        self.assertNotIn(names[100], body)
+        self.assertIn(f"- {seal.DELETED_HEAD}: ほか 19995 件（全件: {diff}）\n", body)
 
     def test_every_line_is_a_bullet(self):
         """元 build の行の組み方: 節の行は「- 」か、字下げした内訳の行"""

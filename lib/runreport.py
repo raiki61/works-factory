@@ -1116,8 +1116,7 @@ def _tests_head_lines(returns: dict) -> list:
     p = as_dict(returns.get("merge-seal")).get("diff")
     if isinstance(p, str) and p:
         try:
-            out += [f"{seallib.DELETED_HEAD}: {x}" for x in seallib.deleted_paths(pathlib.Path(p).read_text(encoding="utf-8",
-                                                                                                        errors="replace"))]
+            out += seallib.deleted_lines(seallib.deleted_paths(pathlib.Path(p).read_text(encoding="utf-8", errors="replace")), where=p)
         except OSError as e:
             out.append(f"{seallib.DELETED_HEAD}: 封じた差分が読めない（{oneline.one_line(e)}）")
     return out

@@ -1786,6 +1786,28 @@ class AskFinalReadsCase(Artifacts):
                      "  - 穴1: 直した（fixed）——直した", f"## {ask_final.BESIDE_UNREAD}（1 件"):
             self.assertIn(want, text)
 
+    def test_many_removed_files_keep_the_answer_lines(self):
+        """clean が消したファイルが 20,000 本でも、最後の承認ノードの文は本数に依らず短く、末尾の答え方の行まで在る。件数の行と
+        全件の置き場（fix-removed.json のパス）を出し、全部のパスは並べない"""
+        import fixboard
+        diff = self.place("fix/fix/fix.diff", {})
+        folder = self.artifacts / "fix" / "fix"
+        fixbeside.write(folder, [{}])
+        names = [f"cache/a/{i}.bin" if i % 2 else f"dist/b/{i}.o" for i in range(20000)]
+        fixboard.write_json(folder / "fix-removed.json", {"removed": names})
+        got = ask_final.fix_beside([diff])
+        text = ask_final.final_text(final_got(**got), [], RUN)
+        lines = text.splitlines()
+        self.assertLessEqual(len(lines), 120, text[:3000])
+        self.assertIn("- clean が消したファイル（fix）: 20000 本", lines)
+        self.assertIn("  - " + names[0], lines)
+        self.assertNotIn("  - " + names[100], lines)
+        self.assertIn(f"（全件: {folder / 'fix-removed.json'}）", text)
+        self.assertIn("  - 上位のフォルダごとの本数:", lines)
+        self.assertIn("    - cache: 10000 本", lines)
+        self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
+        self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)
+
     def test_unreadable_fix_beside_opens_the_gate(self):
         """errors F1: 修正の段の控えを読めない時は、人に回した物と数え直しの食い違いを数えられないので、開き方に依らず関所を開け、
         無人の run は開かずに止める（黙って merge-apply へ進めない）"""
@@ -1985,7 +2007,8 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn("差分を封じられなかった（封じる差分が空）", ask_final.final_needs(got))
 
     def test_deleted_files_named(self):
-        """M38: 封じた差分の中で消えるファイルを、当てる前に 1 本ずつ名指す（「取り込むと消えるファイル: <パス>」）"""
+        """M38: 封じた差分の中で消えるファイルを、当てる前に SHOWN 件までは 1 本ずつ名指し（「取り込むと消えるファイル: <パス>」）、
+        超える分は件数と封じた差分のパスで指す"""
         diff = ("diff --git a/old.py b/old.py\ndeleted file mode 100644\nindex 1..0\n--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n"
                 "diff --git a/keep.py b/keep.py\nindex 1..2 100644\n--- a/keep.py\n+++ b/keep.py\n@@ -1 +1 @@\n-a\n+b\n")
         ptr = self.place("merge/sealed.diff", {})
@@ -1993,6 +2016,49 @@ class AskFinalReadsCase(Artifacts):
         self.assertEqual(ask_final.deleted_files(ptr), (["old.py"], ""))
         self.assertIn(f"- {seal.DELETED_HEAD}: old.py", ask_final.final_text(final_got(deleted=["old.py"]), [], RUN))
         self.assertIn("封じた差分を読めない", ask_final.deleted_files({"type": "archon_artifact", "run_id": "x", "path": "d"})[1])
+
+    def test_many_deleted_files_are_cut(self):
+        """封じた差分が 20,000 本を消しても、最後の承認ノードの文は本数に依らず短く、末尾の答え方の行まで在る。with: の鍵（sealed_diff の
+        指し札）から文まで本物で通し、先頭 SHOWN 件と、残りの件数と封じた差分の実のパスの 1 行だけを出す"""
+        names = [f"gen/{i}.o" for i in range(20000)]
+        ptr = self.place("merge/sealed.diff", {})
+        (self.artifacts / "merge/sealed.diff").write_text(
+            "".join(f"diff --git a/{n} b/{n}\ndeleted file mode 100644\n--- a/{n}\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n" for n in names), encoding="utf-8")
+        env = {f"INPUTS_{name.upper()}": "null" for name in line_nodes()["ask-final"]["with"]}
+        env.update({"INPUTS_SEALED_DIFF": json.dumps(ptr), "INPUTS_FINAL_GATE": "always", "INPUTS_UNATTENDED": "false",
+                    "INPUTS_TESTS_OK": "true", "INPUTS_GREEN": "true", "INPUTS_SEALED": "true"})
+        with mock.patch.dict(os.environ, env):
+            out = ask_final.ask(**ask_final.from_env())
+        text, lines = out["text"], out["text"].splitlines()
+        self.assertTrue(out["open"], out)
+        self.assertLessEqual(len(lines), 120, text[:3000])
+        self.assertIn(f"- {seal.DELETED_HEAD}: {names[0]}", lines)
+        self.assertNotIn(f"- {seal.DELETED_HEAD}: {names[100]}", lines)
+        self.assertIn(f"- {seal.DELETED_HEAD}: ほか 19995 件（全件: {boundary.resolve(ptr)}）", lines)
+        self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
+        self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)
+
+    def test_many_new_names_are_cut(self):
+        """直した後の実測の新しい名と知る場所の増えが 20,000 件ずつでも、最後の承認ノードの文は件数に依らず短く、末尾の答え方の行まで在る。
+        各一覧は先頭 SHOWN 件と、残りの件数と structure-after.json のパスの 1 行だけで、全件の数の行（after_counts）は残る"""
+        rises = [{"concept": "止め", "what": "語", "path": f"m{i}.py", "before": 1, "after": 2} for i in range(20000)]
+        names = [{"name": f"name_{i}", "sites": 2} for i in range(20000)]
+        ptr = self.place("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
+                                                       "after": {"tables": ["t"], "fence_up": rises, "new_names": names}})
+        fenced, after, unread = ask_final.after_rows(ptr)
+        text = ask_final.final_text(final_got(fenced=fenced, after=after), [], RUN)
+        lines = text.splitlines()
+        where = f"（全件: {ask_final.path_of(ptr)}）"
+        self.assertEqual(unread, "")
+        self.assertLessEqual(len(lines), 120, text[:3000])
+        self.assertTrue(any("新しい名 20000 個" in x and "知る場所の増え 20000 件" in x for x in lines), text[:3000])
+        self.assertIn("  - 新しい名 name_0（現れる所 2 か所）", lines)
+        self.assertNotIn("  - 新しい名 name_100（現れる所 2 か所）", lines)
+        self.assertIn(f"  - ほか 19995 件{where}", lines)
+        self.assertEqual(sum(1 for x in lines if x == f"  - ほか 19995 件{where}"), 2, text[:3000])
+        self.assertNotIn("m100.py", text)
+        self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
+        self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)
 
     def test_gate_text_is_kept_in_the_artifacts(self):
         """L-W37: 開いた関所の文の控えを run の置き場の gates/final-gate.md に残し、文はそのパスを名指す"""

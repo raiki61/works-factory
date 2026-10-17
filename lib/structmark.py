@@ -20,7 +20,8 @@
 - write_after(board_dir, …)・read_after(board_dir): 控えを書く・読む（無い・読めない・形が違うなら None）
 - after_rows(board_dir): 結末を fixed にしない残りの行 [{where, text}]（柵の表を持つ対象で、住処の外の知る場所が増えた所。
   text は「考えの住処: 」で始まる。表の無い対象・控えが無い run は []）
-- after_lines(board_dir): 最後の関所と報告に並べる行（実測の数・増えた所・外れの訳。控えが無い run は []）
+- after_lines(board_dir): 最後の関所と報告に並べる行（実測の数・増えた所・新しい名・外れの訳。控えが無い run は []）。増えた所と新しい名は
+  それぞれ listcut.SHOWN 件までは 1 件ずつ、超える分は件数と structure-after.json のパス。数の行（after_counts）は全件の数
 - after_counts(board_dir): 独立の目の頭に渡す数の 1 文（控えが無い run は ""）
 - deviation_lines(board_dir): after_lines の末尾の修正案の外れの訳の行（独立の目の頭も同じ行を引く。訳が無い・控えが無い run は []）
 """
@@ -29,6 +30,7 @@ import pathlib
 
 import concepthome
 import eye   # ブロックの時間の欄（eye.wall）
+import listcut
 import planmarks   # 修正案の外れの訳の文の住処（answer_line）
 import promptsection
 
@@ -197,11 +199,11 @@ def after_lines(board_dir) -> list:
     doc = read_after(board_dir)
     if doc is None:
         return []
+    where = str(pathlib.Path(board_dir) / AFTER_FILE)
     out = [after_counts(board_dir)]
-    out += [f"  - {r['text']}" for r in after_rows(board_dir)]
-    for n in doc["after"].get("new_names") or []:
-        if isinstance(n, dict):
-            out.append(f"  - 新しい名 {n.get('name')}（現れる所 {n.get('sites')} か所）")
+    out += listcut.lines((r["text"] for r in after_rows(board_dir)), where=where)
+    out += listcut.lines((f"新しい名 {n.get('name')}（現れる所 {n.get('sites')} か所）" for n in doc["after"].get("new_names") or []
+                          if isinstance(n, dict)), where=where)
     return out + deviation_lines(board_dir)
 
 

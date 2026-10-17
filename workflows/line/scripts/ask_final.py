@@ -306,7 +306,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
                      f"{len(got['passes'])} 件）:")
         lines += [f"  - {x}" for x in got["passes"]]
     lines += [x if x[:1].isspace() else f"- {x}" for x in got["converge"]]
-    lines += [f"- {seal.DELETED_HEAD}: {p}" for p in got["deleted"]]
+    lines += [f"- {x}" for x in seal.deleted_lines(got["deleted"], where=got["sealed_diff"])]
     lines += eye_lines(got)
     lines += question_lines(got)
     lines += [f"- {why_}" for why_ in got["unread"]]
@@ -583,6 +583,7 @@ def got_of_env() -> dict:
         "seal_reason": boundary.as_text(closing["reason"]),
         "hash": boundary.as_text(closing["hash"]),
         "deleted": deleted,
+        "sealed_diff": path_of(env("SEALED_DIFF")),
         "fenced": fenced,
         "after": after,
         "passes": [*passes, *noted["eye_passes"]],
