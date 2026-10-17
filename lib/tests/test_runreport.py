@@ -653,22 +653,37 @@ class TranscriptCase(Base):
 class DecisionsCase(Base):
     def test_stopped_head_says_why_and_what_to_do(self):
         """#383 の 9: R2 が redesign-needed で無人の run が最後の承認ノードの手前で止まった時、冒頭 1 行目に止めた語・開けた理由・
-        阻害の目（R2・状態の語・訳）が、2 行目に人の取る手（差分を当てる行）が出る。節 1 に 0 件の種の行は出ない（元の head3・
+        通さなかった目（R2・状態の語・訳）が、2 行目に人の取る手（差分を当てる行）が出る。節 1 に 0 件の種の行は出ない（元の head3・
         head_decisions は在る種だけを出した）"""
         eyes = {**fixed_run()["eyes"], "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
-        line = {"stops": {"ask-final": stopby.NEEDS_HUMAN}, "final_reasons": ["独立の目が阻害を返した（R2）"]}
+        line = {"stops": {"ask-final": stopby.NEEDS_HUMAN}, "final_reasons": ["独立の目が通さなかった（R2: 作り直しが要る）"]}
         seal = {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"}
         _, text, decided = self.build(fixed_run(eyes=eyes, **{"merge-seal": seal, "merge-apply": None}), line=line)
         self.assertEqual(decided[0], "needs_human")
         head = text.splitlines()[2:5]
         self.assertIn(f"ask-final が {stopby.NEEDS_HUMAN}（{stopby.REASONS['needs-human']}）", head[0])
-        self.assertIn("開けた理由: 独立の目が阻害を返した（R2）", head[0])
+        self.assertIn("開けた理由: 独立の目が通さなかった（R2: 作り直しが要る）", head[0])
         self.assertIn(f"{gatemarks.eye_named('R2', 'redesign-needed')}——独立設計と食い違う", head[0])
         self.assertIn(f"{runreport.APPLY_HEAD}: しない", head[1])
         decisions = self.section(text, report.DECISIONS_HEADING).splitlines()
         zero = [x for x in decisions if x.endswith(": 0 件")]
         self.assertEqual(zero, ["- 次の run に渡す物: 0 件"], "0 件で残すのは元の head_decisions が常に出した行だけ")
         self.assertTrue(any(x.startswith(f"- {conflict.HEAD}: 0 件") for x in decisions), "申し出の件数の行は元どおり 0 件でも出す")
+
+    def test_stopped_head_says_fix_apart_from_redesign(self):
+        """R1 が fix-needed、R2 が redesign-needed で止まった run の冒頭 1 行目は、直しが要る目と作り直しが要る目を別の言い方で並べる
+        （直しが要る目を黙って落とさない）。残りの行と結果が無い目の注意に『阻害』の字は無い"""
+        eyes = {**fixed_run()["eyes"], "r1": {"status": "fix-needed", "reason": "名前が揃っていない"},
+                "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
+        line = {"stops": {"ask-final": stopby.NEEDS_HUMAN}, "final_reasons": []}
+        seal = {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"}
+        _, text, _ = self.build(fixed_run(eyes=eyes, **{"merge-seal": seal, "merge-apply": None}), line=line)
+        first = text.splitlines()[2]
+        fix_said, redesign_said = gatemarks.eye_named("R1", "fix-needed"), gatemarks.eye_named("R2", "redesign-needed")
+        self.assertIn(f"{fix_said}——名前が揃っていない", first)
+        self.assertIn(f"{redesign_said}——独立設計と食い違う", first)
+        self.assertNotEqual(fix_said.split(": ", 1)[1], redesign_said.split(": ", 1)[1])
+        self.assertNotIn("阻害", text)
 
     def test_backed_out_group_is_named_in_head_and_decisions(self):
         """#383 の 8（持ち主の決め clash-goes-to-ruling のそれまでの間）: 当ててから確かめ直しが赤で戻した組は、冒頭 1 行目で名指し、
