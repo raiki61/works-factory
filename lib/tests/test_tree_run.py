@@ -364,7 +364,7 @@ class TreeRunCase(unittest.TestCase):
     def test_ps_is_named_by_path_without_timeout(self):
         # 期限の替わりに、止まらない形を命令の選びで持つ: PATH から引かずに /bin/ps を名指し、期限を渡さない
         with mock.patch.object(tree_run.subprocess, "run", wraps=subprocess.run) as run:
-            rows, why = tree_run._ps_all()
+            rows, why = tree_run.ps_all()
         self.assertIsNone(why)
         self.assertIn(os.getpid(), rows)
         call = run.call_args

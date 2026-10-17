@@ -259,7 +259,7 @@ def parse_etime(s):
         return None
 
 
-def _ps_all():
+def ps_all():
     """全プロセスの表 ——({pid: _Proc}, None)。読めなければ (None, 理由)。開始時刻は ps を起こす**前**の時刻から etime を
     引く（後から引くと ps の遅れが開始時刻に乗り、番号の再利用の見分けを誤る）。本線 role_run._ps_all の写し"""
     now = time.time()
@@ -280,7 +280,7 @@ def _ps_all():
     return rows, None
 
 
-def _tree_members(pgid, known=None, born=None):
+def tree_members(pgid, known=None, born=None):
     """木の仲間を数え上げる ——({pid: _Proc}, 理由)。表が読めなければ (None, 理由)。本線 role_run._tree_members の写し。
     拾う印は 3 つ: pgid が長の番号・セッションの番号が長の番号（長は setsid で起こしてある）・その 2 つと known（前の回に
     数えた {pid: 開始時刻}。今の表に同じ開始時刻で居るものだけ）から親子の鎖で辿れる子孫（setsid で出た孫）。
@@ -288,7 +288,7 @@ def _tree_members(pgid, known=None, born=None):
     （グループもセッションも在る限り番号は再利用されない）ので、グループとセッションでは拾わない。
     呼んだ自分と自分の祖先は数えない。セッションの番号を読めない同じ利用者のプロセスが在れば、仲間かを決められないと
     理由を返す"""
-    rows, why = _ps_all()
+    rows, why = ps_all()
     if rows is None:
         return None, why
     uid, sessions, unreadable = os.getuid(), {}, []
@@ -322,7 +322,7 @@ def _tree_members(pgid, known=None, born=None):
     return {pid: rows[pid] for pid in found}, why
 
 
-def _live(members):
+def living(members):
     return {pid: m for pid, m in members.items() if not m.stat.startswith("Z")}
 
 
@@ -346,7 +346,7 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
     ps の 1 回の内に出る（＋殻が信号に気づくまでの POLL。実行基盤の cancel の 5 秒より前）。表を読めなかった回は、外へ出た
     子孫を確かめていないと返す。
     born は長の番号の再利用の目印で、長を回収した後にだけ効かせる（回収していない子の番号は再利用されない）。
-    known は呼ぶ側が前に数えた仲間 {pid: 開始時刻}（_tree_members の known。Claude の包みが走る間の見回りで溜めた物。
+    known は呼ぶ側が前に数えた仲間 {pid: 開始時刻}（tree_members の known。Claude の包みが走る間の見回りで溜めた物。
     同じ辞書に数えた仲間を足していく）。省けば空から数える"""
     t0 = time.monotonic()
 
@@ -379,7 +379,7 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
         end = t0 + KILL_GRACE if i == 0 else None
         if blind is None:
             p.poll()
-            members, why = _tree_members(p.pid, known, born if p.returncode is not None else None)
+            members, why = tree_members(p.pid, known, born if p.returncode is not None else None)
             if members is None:
                 blind = why
         if blind is not None:
@@ -389,7 +389,7 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
             done = watch(pending, group=True)
         else:
             known.update({pid: m.started for pid, m in members.items()})
-            live = _live(members)
+            live = living(members)
             if not live:
                 return why
             if not sigs:
@@ -508,7 +508,7 @@ def _launch(argv, **popen_kw):
         if (signum := stop_signal()) is not None:   # 証明の間に止められたら起こさない
             raise stopped_by(signum)
         placed = _place_mark(mark) if mark is not None else False
-        born = time.time()   # 長の番号の再利用の目印（_tree_members の born）
+        born = time.time()   # 長の番号の再利用の目印（tree_members の born）
         try:
             p = subprocess.Popen(argv, start_new_session=True, **popen_kw)
         except BaseException:
