@@ -218,7 +218,7 @@ class TestStart(LoopCase):
         full = pathlib.Path(tddloop.prep(self.state)["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn(str(seat.HEAD), full)
         self.assertIn("`test-driven-development`", full)
-        self.assertIn((seat.BORROW_DIR / seat.OVERLAY_FILE).read_text(encoding="utf-8").strip(), full)
+        self.assertIn((seat.spseam.BORROW_DIR / seat.spseam.OVERLAY_FILE).read_text(encoding="utf-8").strip(), full)
 
     def test_prep_marks_a_new_unit_only_when_the_unit_changes(self):
         """支度の返りの new_unit は、前の周の支度と単位の鍵（振り分けの段は route、ほかの段は今の単位）が違う周だけ真（YAML が
