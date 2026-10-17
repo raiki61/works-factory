@@ -174,8 +174,8 @@ def carried_section(passed: dict) -> str:
     return f"{gatemarks.CARRIED_HEAD}\n\n{gatemarks.CARRIED_ASK}\n\n" + "\n".join(rows) if rows else ""
 
 
-DECLARED_HEAD = "## 修正役が直さずに残した事前審査の block（事前審査の返答と修正役の答えから機械が並べた）"
-DECLARED_ASK = ("下の行は、計画の事前審査が挙げ、修正役が直さずに残すと答えた block（key: 穴の訳（修正役の答え））。累積差分の後も"
+DECLARED_HEAD = "## 直す側が直さずに残すと答えた、案の審査の block（案の審査の返答と直す側の答えから機械が並べた）"
+DECLARED_ASK = ("下の行は、修正案の審査が挙げ、直す側が直さずに残すと答えた block（key: 穴の訳（直す側の答え））。累積差分の後も"
                 "まだ在るかを読み、在る物はこの変更が手を付けていない残りとして扱え: この変更が入れた・露呈させた害なら redesign-needed、"
                 "知らせるだけで足りるなら surfaced に挙げる（text の頭に [suggest]）。消えていれば挙げない")
 

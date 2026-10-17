@@ -1487,7 +1487,7 @@ class ScriptCase(unittest.TestCase):
         貼る。無ければ空"""
         self.prep_inputs()
         self.assertEqual(self.run_script("prep")["plan_declared"], "")
-        row = "stale-docstring-left: 古い docstring が直しの後の戻り値を説明しない（修正役の答え: 範囲の外なので残す）"
+        row = "stale-docstring-left: 古い docstring が直しの後の戻り値を説明しない（直す側の答え: 範囲の外なので残す）"
         self.inputs["plan_declared"] = json.dumps([row], ensure_ascii=False)
         got = self.run_script("prep")["plan_declared"]
         self.assertTrue(got.startswith(eyeverdict.DECLARED_HEAD), got)

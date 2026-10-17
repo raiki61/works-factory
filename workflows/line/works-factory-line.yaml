@@ -790,6 +790,7 @@ nodes:
       materials: "$judged.output.materials"
       replanned: { from: "$after-fix.output.replan", if_skipped: null }
       rejudged: "$fixed.output.rejudge"
+      plan_declared: "$fixed.output.plan_declared"
 
   # 8 試験の関門（final）
   - id: test-gate-final

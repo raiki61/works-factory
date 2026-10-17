@@ -2426,7 +2426,7 @@ class BlockScriptsCase(unittest.TestCase):
         code, out, err = _blk_run("collect", self.repo, self.art)
         self.assertEqual(code, 0, err)
         self.assert_contract(out)
-        self.assertEqual(out["plan_declared"], [f"stale-docstring-left: {why}（修正役の答え: 範囲の外のファイルなので直さずに残す）"])
+        self.assertEqual(out["plan_declared"], [f"stale-docstring-left: {why}（直す側の答え: 範囲の外のファイルなので直さずに残す）"])
 
     def test_collect_diff_holds_every_returned_group(self):
         """F424: 返りの diff は run の始めの版（prep が控えた base-rev.json）から今の作業ツリーへの累積差分の指し札で、戻せた組の

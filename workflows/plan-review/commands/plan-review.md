@@ -52,7 +52,7 @@
   kind= の値（copy・entrance・contract_drift・dead_path・scope_creep・regression・policy・precedent のどれか 1 つ）、
   `where` は現物の場所（ファイル・関数・欄）、`why` は穴になる筋道。
   `severity`: 書けば次の周に [block] になる穴は block、それ以外は suggest。
-  `reach`: 直さずに修正へ進むと当たる害。`breaks_fix`（直しが壊れる）・`loses_behavior`（今ある振る舞いを失う）・`against_policy`（記録された方針に背く）・`forces_redesign`（やり直しを迫る設計の選び。柵が一類の入口を丸ごと見逃す物を含む）のどれかに当たる穴（中央）はその値、どれにも当たらない穴（古い説明文の取り残し・書き換えの一覧の漏れ・試験の材料。直す時に答えが求められ、直さずに残せば直した後の審査に申し送られる端）は `peripheral`。`why` の頭の 1 文に、その定義に当たる具体の害（`peripheral` ならどの定義にも当たらない訳）を書け。2 往復目からは、開いた block に中央の値が無くなれば案は修正へ進み、`peripheral` の block は直す時へ申し送られる。
+  `reach`: 直さずに修正へ進むと当たる害。`breaks_fix`（直しが壊れる）・`loses_behavior`（今ある振る舞いを失う）・`against_policy`（記録された方針に背く）・`forces_redesign`（やり直しを迫る設計の選び。柵が一類の入口を丸ごと見逃す物を含む）のどれかに当たる穴（中央）はその値、どれにも当たらない穴（古い説明文の取り残し・書き換えの一覧の漏れ・試験の材料。直す時に答えが求められ、直さずに残せば、深さが軽量の run でも省かずに回す直した後の審査に申し送られる端）は `peripheral`。`why` の頭の 1 文に、その定義に当たる具体の害（`peripheral` ならどの定義にも当たらない訳）を書け。2 往復目からは、開いた block に中央の値が無くなれば案は修正へ進み、`peripheral` の block は直す時へ申し送られる。
   `no_add` は入口の穴（kind=entrance）に必ず書き、ほかの穴では書かなくてよい。残りの欄（`decided_by`・`fences`・`recommend` など）は
   材料のファイルの役の頭の決まりが求めるときだけ書く
 - 穴が無いと判断したなら `faces` を空にし、`faces_none` に何を確かめて無いと言えるかを書け

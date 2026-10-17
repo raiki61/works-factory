@@ -2439,10 +2439,10 @@ class FixedCase(unittest.TestCase):
     def test_declared_plan_blocks_reach_the_eyes(self):
         """issue #662: 修正役が直さずに残すと答えた事前審査の block の行は、1 回目と 2 度目の修正の分を重ねずに合わせ、独立の目の
         入力 plan_declared へ渡す"""
-        row = "stale-docstring-left: 古い docstring が残る（修正役の答え: 範囲の外なので残す）"
-        got = fixed.fixed(self.fix(plan_declared=[row]), self.fix(plan_declared=[row, "b: x（修正役の答え: y）"]), replan=True,
+        row = "stale-docstring-left: 古い docstring が残る（直す側の答え: 範囲の外なので残す）"
+        got = fixed.fixed(self.fix(plan_declared=[row]), self.fix(plan_declared=[row, "b: x（直す側の答え: y）"]), replan=True,
                           stops=("", ""))
-        self.assertEqual(got["plan_declared"], [row, "b: x（修正役の答え: y）"])
+        self.assertEqual(got["plan_declared"], [row, "b: x（直す側の答え: y）"])
         self.assertEqual(line_nodes()["eyes"]["with"]["plan_declared"], "$fixed.output.plan_declared")
 
     def test_eyes_get_the_final_test_outcomes_and_every_fix_diff(self):
@@ -2744,6 +2744,25 @@ class RedepthCase(Artifacts):
         self.assertEqual((got["depth"][0]["depth"], bool(got["skip_optional"])), ("軽量", True), "控えが無ければ今どおり軽量のまま省く")
         self.assertIn(no_trace, got["counted"])
 
+    def test_declared_plan_block_raises_a_light_run(self):
+        """issue #662: 修正役が直さずに残すと答えた事前審査の block（入力 plan_declared）が在れば、頭も単位も軽量の run も標準へ上げ、
+        目の R1〜R4 を省かない（省くと、その block を読む R4 が走らず誰にも届かない）。無ければ軽量のまま省く"""
+        plan = self.put("plan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "tests": [], "rewrite_tests": []}]})
+        env = {"INPUTS_DEPTH": json.dumps(self.LIGHT, ensure_ascii=False), "INPUTS_REPLAN_DEPTH": "null", "INPUTS_UNITS": "[]",
+               "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": json.dumps(plan), "INPUTS_DIFF": "null", "INPUTS_JUDGMENT": "null",
+               "INPUTS_START": "null", "INPUTS_ANSWER": "null", "INPUTS_ANSWER_TIES": "null", "INPUTS_MATERIALS": "null",
+               "INPUTS_DEPTH_RECORD": "null", "INPUTS_REPLANNED": "false", "INPUTS_REJUDGED": "false", "INPUTS_HEAD_DEPTH": "軽量",
+               "INPUTS_PLAN_DECLARED": "[]"}
+        self.assertLessEqual({k.removeprefix("INPUTS_").lower() for k in env}, set(line_nodes()["redepth"]["with"]))
+        with mock.patch.dict(os.environ, env):
+            quiet = redepth.compute()
+        self.assertEqual((quiet["depth"][0]["depth"], bool(quiet["skip_optional"])), ("軽量", True))
+        line = "b1: 古い説明文が残る（直す側の答え: 別の issue で直す）"
+        with mock.patch.dict(os.environ, {**env, "INPUTS_PLAN_DECLARED": json.dumps([line], ensure_ascii=False)}):
+            got = redepth.compute()
+        self.assertEqual((got["depth"][0]["depth"], got["skip_optional"]), ("標準", ""))
+        self.assertTrue(any("直さずに残すと答えた事前審査の block が在る" in r and "b1" in r for r in got["raised"]), got["raised"])
+
     def test_replanned_depth_merges_by_unit(self):
         """L-D15: 案の直しの後の深さは、1 回目の単位の行を残して直した案の単位の行で単位ごとに置き換える（元 depth.raise_ は全部の単位の
         控えを残して上げた）"""
@@ -2754,15 +2773,15 @@ class RedepthCase(Artifacts):
 
     def test_line_passes_what_the_signals_read(self):
         """L-D08・L-D10: redepth は判定の問いの台帳（判定と始めの記録と修正前の関所の答えと今の判定の結びと素材の状態）と、
-        1 回目の判定の頭の深さの控えと、修正の計画と差分を受ける"""
+        1 回目の判定の頭の深さの控えと、修正の計画と差分と、修正役が直さずに残した事前審査の block の行を受ける"""
         with_ = line_nodes()["redepth"]["with"]
-        keys = ("judgment", "start", "answer", "answer_ties", "materials", "depth_record", "plan", "diff", "head_depth")
+        keys = ("judgment", "start", "answer", "answer_ties", "materials", "depth_record", "plan", "diff", "head_depth", "plan_declared")
         self.assertEqual({k: with_[k] for k in keys},
                          {"judgment": "$judged.output.judgment", "start": "$start.output.record", "head_depth": "$fix-in.output.head_depth",
                           "answer": {"from": "$fix-in.output.answer", "if_skipped": None},
                           "answer_ties": "$judged.output.answer_ties", "materials": "$judged.output.materials",
                           "depth_record": "$fix-in.output.depth_record",
-                          "plan": "$fixed.output.plan", "diff": "$fixed.output.diff"})
+                          "plan": "$fixed.output.plan", "diff": "$fixed.output.diff", "plan_declared": "$fixed.output.plan_declared"})
         self.assertIn("counted", line_nodes()["redepth"]["output_format"]["required"])
 
 

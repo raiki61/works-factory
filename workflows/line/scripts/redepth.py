@@ -10,14 +10,15 @@
 gatemarks.pending。台帳が読めなければ上げる側に倒す）・案の直しが走った・再審が走った・run 全体の広さ（計画の allowed_paths と
 修正の実際の差分のファイルの和集合とテストの本数。depth.run_wide。軽量の名指しでも上げる）・修正の後の 3 つの事実
 （修正の差分が頭の深さの役の引用した where のファイルの外に出た・TDD のループで修正役が拒まれた・修正役が範囲の相談をした。
-fix_signals。理由の文は depth.late_signals）。どれも上げるだけで下げない。返り {depth: [{unit_id, depth, why}],
+fix_signals。理由の文は depth.late_signals）・修正役が直さずに残すと答えた事前審査の block が在る（入力 plan_declared。軽量で差分の
+審査と目の R4 を省くと、その block を読む所が無くなる。理由の文は depth.late_signals）。どれも上げるだけで下げない。返り {depth: [{unit_id, depth, why}],
 skip_optional: 省く理由の文（run の頭の深さの段が省く物を持ち、単位がどれも軽量の時だけ。depth.skip_reason。ほかは空）, raised,
 counted: run の広さの数えと起点の 1 行（fix_signals の隣の控えが無い訳を「／」で添える）, stop_reason}。
 例外の時は止めの理由 works:line-script を返し、試験の関門から先は飛ぶ（深さの分からない差分を目に通さない）。
 
 入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・head_depth（run の頭の深さの段の語）・units・conflicts・plan・diff（fixed の返り）・judgment（judged の返り）・
 start（始めの記録）・answer（修正前の関所の答え）・depth_record（1 回目の判定の頭の深さの控えのポインタ）・
-answer_ties・materials（judged の返りの結びと素材の状態のポインタ）・replanned・rejudged（after-fix の返り）
+answer_ties・materials（judged の返りの結びと素材の状態のポインタ）・replanned・rejudged（after-fix の返り）・plan_declared（fixed の返り）
 """
 import json
 import os
@@ -154,8 +155,9 @@ def from_env() -> dict:
     wide, counted = wide_signals(value("PLAN"), value("DIFF"), keys)
     late, missing = fix_signals(value("PLAN"), value("DIFF"), value("DEPTH_RECORD"), keys)
     pending = pending_signals(value("JUDGMENT"), value("START"), value("ANSWER"), value("ANSWER_TIES"), value("MATERIALS"))
+    declared = depthlib.late_signals(declared=boundary.items(os.environ.get("INPUTS_PLAN_DECLARED")))
     return {"planned": planned, "replanned_depth": replanned_depth, "units": boundary.items(os.environ.get("INPUTS_UNITS")),
-            "conflicts": boundary.items(os.environ.get("INPUTS_CONFLICTS")), "signals": [*pending, *wide, *late],
+            "conflicts": boundary.items(os.environ.get("INPUTS_CONFLICTS")), "signals": [*pending, *wide, *late, *declared],
             "replanned": boundary.flag(os.environ.get("INPUTS_REPLANNED")), "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
             "counted": counted + "".join(f"／{why}" for why in missing), "head": os.environ.get("INPUTS_HEAD_DEPTH", "")}
 
