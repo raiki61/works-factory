@@ -32,7 +32,7 @@ REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める�
 # （REDESIGN）は、組み直す設計の点を名指した札。FIX_NEEDED は pass でないので eyes.ok は偽で、最後の承認ノードが開く。置くかは
 # apply_refusal と人の答えが決める（語ごとに阻害かを持つ表は置かない。重さの区別は STATUS_WORDS の言い方だけ）
 PASSED, FIX_NEEDED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "fix-needed", "redesign-needed", "unverifiable")
-STATUS_WORDS = {PASSED: "通った", FIX_NEEDED: "直しが要る", REDESIGN: "作り直しが要る", UNVERIFIABLE: "確かめられない"}   # 語 → 平易な言い方
+STATUS_WORDS = {PASSED: "通った", FIX_NEEDED: "直しが要る", REDESIGN: "作り直しが要る", UNVERIFIABLE: "確かめられない"}
 
 
 def eye_statuses(eye: str) -> tuple:

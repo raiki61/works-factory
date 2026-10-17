@@ -376,7 +376,6 @@ class CollectCase(unittest.TestCase):
                 self.assertEqual(got["status"], seal.FIX_NEEDED)
                 self.assertEqual(got["reason"], eyeverdict.UNNAMED_REDESIGN + "冗長な写しが在る")
                 self.assertFalse(self.collect()["ok"])
-        # 倒した訳の字は最後の承認ノードと報告の冒頭に平易な主語で出る。語は seal の名から組み、状態の語は括弧の中にだけ置く
         for word in (seal.REDESIGN, seal.FIX_NEEDED):
             self.assertIn(f"（{word}）", eyeverdict.UNNAMED_REDESIGN)
         self.assertIn(seal.STATUS_WORDS[seal.REDESIGN], eyeverdict.UNNAMED_REDESIGN)

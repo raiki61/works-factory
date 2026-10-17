@@ -69,13 +69,12 @@ R4_NODE = "r4-scope"   # R4 の受け付けの拒否の控えの名（置き場�
 R4_REJECT = (f"policy_conflicts の次の行は{policy.RECORDED_TERM}のどの行も名指さない。{policy.RECORDED_REF}の行の名指しを字のまま"
              "写して書き直すか、一覧に無いコードのコメント・docstring・テストの説明文（対象の文で、方針ではない）なら policy_conflicts "
              "から外せ。下の行を全部直して、返答を丸ごと出し直せ:")
-# R1 の作り直しが要るの導き（_row）の頭の字。最後の承認ノードと報告の冒頭に平易な主語で出るので、状態の語は括弧の中にだけ置き、
-# 語は seal の名から組む
-_FIX, _REDESIGN = (f"{seal.STATUS_WORDS[w]}（{w}）" for w in (seal.FIX_NEEDED, seal.REDESIGN))
+# R1 の作り直しが要るの導き（_row）の頭の字。最後の承認ノードと報告の冒頭に平易な主語で出る
+_FIX, _REDESIGN = map(gatemarks.status_named, (seal.FIX_NEEDED, seal.REDESIGN))
 UNNAMED_REDESIGN = f"目は{_REDESIGN}と書いたが、組み直す設計の点（redesign_points）の名指しが無いので{_FIX}に倒した: "
 RAISED_BY_POINTS = f"組み直す設計の点（redesign_points）の名指しが在るので{_REDESIGN}にした: "
 BROKEN_POINTS = (f"組み直す設計の点（redesign_points）の欄が配列でないか読める項が無く、名指しの有無を決められないので"
-                 f"{seal.STATUS_WORDS[seal.UNVERIFIABLE]}（{seal.UNVERIFIABLE}）にした: ")
+                 f"{gatemarks.status_named(seal.UNVERIFIABLE)}にした: ")
 R4_GAVE_UP = "（R4 の方針とのぶつかりの名指しが受け付けを通らなかったので、名指さない行も人に聞く: {why}）"
 PREP_FILE = "prep.json"   # 支度の節が書く、目の指示書に差し込んだ値と記録された方針の一覧（policy.RECORDED_KEY）
 X_SCALAR = re.compile(r"^x_[a-z0-9_]+$")   # 元 graphs/review-loop.json の p3.fix の x_scalars の patternProperties
@@ -635,9 +634,7 @@ def _off_contract(eye: str) -> dict:
 
 
 def _row(eye: str, doc: dict | None, fell: dict | None, *, ran: str) -> dict:
-    """目の返りの行。許す語は目ごと（seal.eye_statuses）。直しが要る（FIX_NEEDED）を持つ目は、作り直しが要るかを目の札でなく
-    redesign_points の名指しで決める（名指しが在れば作り直し、無ければ作り直しと書いても直しが要る。pass と直しが要るの境は目の札のまま。
-    欄が在るのに配列でない・読める項が無い時は、名指しが無いのと区別して確かめられない（BROKEN_POINTS）に落とす）"""
+    """目の返りの行。許す語は目ごと（seal.eye_statuses）"""
     if doc is None or doc.get("status") not in seal.eye_statuses(eye):
         return {"status": seal.UNVERIFIABLE, "reason": fell_text([fell or _off_contract(eye)], ran)}
     status, reason = doc["status"], str(doc.get("reason"))
