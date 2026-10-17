@@ -737,6 +737,19 @@ class OutDirCase(unittest.TestCase):
                 self.assertEqual(found, [])
 
 
+class ColdPrepScriptCase(Run):
+    def test_body_is_the_human_head(self):
+        """初見の読み手に貼る本文は、run の置き場の機械の報告の冒頭と書き手の頭を語の表で言い換えた物（#660）"""
+        code, facts = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}))
+        self.assertEqual(code, 0)
+        writer = json.dumps({"text": "承認ノードで止めた。\n\n## 2. 経緯\n\n長い", "terms": []}, ensure_ascii=False)
+        code, out = self.run_script("cold_prep", INPUTS_WRITER=writer)
+        self.assertEqual(code, 0)
+        self.assertTrue(out["body"].startswith(f"# 報告（run {RUN}）\n\n{gatemarks.HAPPENED}"), out["body"])
+        self.assertIn("先へ進めるかを決める所で止めた。", out["body"])
+        self.assertNotIn("長い", out["body"])
+
+
 class CollectScriptCase(Run):
     SCHEMA = NODES["report"]["output_format"]
 
@@ -761,12 +774,18 @@ class CollectScriptCase(Run):
         self.assertEqual(out["report"], facts["report"])
 
     def test_with_ai_file_returns_ai_report(self):
+        """人に向けた報告は機械の冒頭で始まり来歴で終わり、来歴で始まる詳細のファイルが機械の事実を持つ（#660）"""
         facts = self.facts()
         runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / runreport.OUT_DIR)
         out = self.collect(json.dumps(facts))
+        self.assertEqual(out["report_ai"]["path"], f"{runreport.OUT_DIR}/{runreport.AI_REPORT_FILE}")
         text = (self.artifacts / out["report_ai"]["path"]).read_text(encoding="utf-8")
-        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / グラフの版 "))
-        self.assertIn(report_roles.MACHINE_HEADING, text)
+        self.assertTrue(text.startswith(f"# 報告（run {RUN}）\n\n{gatemarks.HAPPENED}"), text)
+        self.assertRegex(text.splitlines()[-1], rf"^works-factory-report / run {RUN} / 周 — / グラフの版 ")
+        self.assertNotIn(report_roles.MACHINE_HEADING, text)
+        detail = (self.artifacts / runreport.OUT_DIR / runreport.DETAIL_FILE).read_text(encoding="utf-8")
+        self.assertTrue(detail.startswith(f"works-factory-report / run {RUN} / 周 — / グラフの版 "))
+        self.assertIn(report_roles.MACHINE_HEADING, detail)
 
     def test_ok_is_passed_through_from_facts(self):
         facts = self.facts()

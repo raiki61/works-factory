@@ -1626,10 +1626,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 本物の run: 節 `report__write-loop.cold-prep` の出力 body、`report__write-loop.cold` の出力 verdict
   - 狭め: 無し
 
-- R63 AI の報告: 来歴の 1 行・本文・語の定義・初見の拒否の回数（通っていなければ同じ行の尾に通らなかった事実と止まった所）・機械の事実（見出しを 1 段下げ、「人が決めること」を機械の数えの見出しに言い換えて節を 1 つに）。受け取れなかった時は訳と機械の事実
+- R63 AI の報告: 来歴の 1 行・本文・語の定義・初見の拒否の回数（通っていなければ同じ行の尾に通らなかった事実と止まった所）・機械の事実（見出しを 1 段下げ、「人が決めること」を機械の数えの見出しに言い換えて節を 1 つに）。受け取れなかった時は訳と機械の事実。#660 で人に向けた報告（機械の冒頭・通らなかった事実の 1 行・書き手の頭・語の定義・置き場の 1 行）と、それ以外を持つ詳細のファイル report-detail.md に分けた
   - 元: works/blk-report/lib/report_roles.py:537 `collect`
   - 今: 表
-  - 証: lib/tests/test_runreport.py::CollectCase.test_taken_reply_becomes_ai_report・lib/tests/test_runreport.py::CollectCase.test_not_passed_is_one_machine_fact_line_not_the_head・lib/tests/test_runreport.py::CollectCase.test_given_up_reply_still_reports・lib/tests/test_runreport.py::CollectCase.test_decisions_section_is_one_place
+  - 証: lib/tests/test_runreport.py::CollectCase.test_taken_reply_becomes_ai_report・lib/tests/test_runreport.py::CollectCase.test_not_passed_is_said_at_the_head・lib/tests/test_runreport.py::CollectCase.test_given_up_reply_still_reports・lib/tests/test_runreport.py::CollectCase.test_decisions_section_is_one_place
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report-ai.md、`report__report.output.report_ai`）
   - 狭め: 無し
 
@@ -1637,10 +1637,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-report/lib/report_roles.py:476 `stamp`（線・run・周・graph と規則の表の版）
   - 今: 表
   - 証: lib/tests/test_runreport.py::StampCase.test_stamp_names_workflow_run_and_version・tests/workflows/test_report.py::FactsCase.test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__facts` の出力 stamp、report/report-ai.md の 1 行目）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__facts` の出力 stamp、report/report-ai.md の最後の行と report/report-detail.md の 1 行目）
   - 狭め: 表の版と線の版は R81
 
-- R65 語の定義の節: pack の一覧と書き手の terms のうち本文と機械の事実に現れる語だけ（同じ語は pack を採る）。pack の一覧が読めなければ例外
+- R65 語の定義の節: 書き手の terms のうち本文に現れる語だけ。pack の一覧は #660 で語の表（記録の名と人に向けた言い方の対）に変え、人に向けた報告で言い換える（定義しない）。pack の一覧が読めなければ例外
   - 元: works/blk-report/lib/report_roles.py:240 `glossary_section`・:236 `_pack_terms`
   - 今: 表
   - 証: lib/tests/test_runreport.py::GlossaryCase.test_only_terms_in_text・lib/tests/test_runreport.py::GlossaryCase.test_pack_terms_come_from_lib・lib/tests/test_runreport.py::StampCase.test_pack_terms_raise_when_unreadable
@@ -1762,7 +1762,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-report/lib/report_roles.py:476 `stamp`
   - 今: 表
   - 証: lib/tests/test_runreport.py::StampCase.test_stamp_names_line_version、tests/workflows/test_report.py::FactsCase.test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome（facts の節が始めの記録を渡す）
-  - 本物の run: report/report-ai.md の 1 行目
+  - 本物の run: report/report-ai.md の最後の行と report/report-detail.md の 1 行目
   - 狭め: 判定: 表の版は規則の表が無いので対象が無い（#68 は正しい）。線の版は report の側を入れた。線の始めの記録の versions.line（workflows/line/scripts/start.py の versions）は持ち主の手に渡した（#124）
 
 - R82 受け止めた落ちの決め方（元は線の YAML の [optional] の宣言と出口の印。今は落ちた後にほかの節が始まったか）
