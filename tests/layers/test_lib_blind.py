@@ -23,6 +23,12 @@ class LibBlindTest(unittest.TestCase):
             got = scan.problems("E3", root)
         self.assertTrue(any("lib/y.py:1" in line and "import" in line for line in got), got)
 
+    def test_import_of_bin_is_red(self):
+        for text in ("from bin._lib import place\n", "import bin._lib.place\n"):
+            with self.subTest(text=text), tree({"lib/y.py": text}) as root:
+                got = scan.problems("E3", root)
+                self.assertTrue(any("lib/y.py:1" in line and "bin の中の物を import する" in line for line in got), got)
+
     def test_unreadable_file_is_red(self):
         with tree({"lib/z.py": b"\xff TYPED_ARTIFACTS_FILE\n"}) as root:
             got = scan.problems("E3", root)

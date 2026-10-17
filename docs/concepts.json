@@ -320,6 +320,37 @@
     }
    ]
   },
+  "handoff": {
+   "status": "住処あり",
+   "fences": [
+    {
+     "what": "引き継ぎのメモの型・頼み・欄の並び（旧い名の宣言 HANDOFF_SCHEMA・HANDOFF_KEYS・HANDOFF_ASK・NO_HANDOFF と、4 つの欄名 read・decided・rejected・doubts|open の並び）",
+     "pattern": "\\b(HANDOFF_SCHEMA|HANDOFF_KEYS|HANDOFF_ASK|NO_HANDOFF)\\b\\s*=|\\bread\\b\\W+decided\\W+rejected\\W+(doubts|open)\\b",
+     "allowed": [
+      "lib/handoff.py"
+     ],
+     "known": {},
+     "bound": [
+      {
+       "paths": [
+        "workflows/plan/works-factory-plan.yaml"
+       ],
+       "lines": "^ {16}required: \\[read, decided, rejected, doubts\\]$",
+       "by": "tests/workflows/test_plan.py",
+       "why": "計画の役の返答の型の handoff の写し。Archon の output_format は YAML の字で書くので写しは YAML に残り、試験 test_role_schemas_match_their_lib_owners が handoff.SCHEMA と等しいことを縛る"
+      },
+      {
+       "paths": [
+        "workflows/report/works-factory-report.yaml"
+       ],
+       "lines": "^ {16}required: \\[read, decided, rejected, doubts\\]$",
+       "by": "tests/workflows/test_report.py",
+       "why": "報告の書き手の返答の型の handoff の写し。試験 test_roles が書き手の output_format を report_roles.TEXT_SCHEMA（handoff.SCHEMA を引く）と等しいことを縛る"
+      }
+     ]
+    }
+   ]
+  },
   "plan-scope": {
    "status": "住処あり",
    "fences": [

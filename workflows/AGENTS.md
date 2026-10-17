@@ -20,9 +20,10 @@
 
 - サブグラフ（`workflows/<名>/`）の script は、ほかのサブグラフのフォルダへのパスを組まない。受け取りは `with:` の入力・前のノードの出力・ポインタ（`archon_artifact`）・型つきの成果物（`output_type`）だけ。
 - サブグラフの script は `lib/` と境の口を呼ぶだけで、確かめの中身を持たない。
+- グラフ（`workflows/` の script・境・YAML に直に書いた script）は `bin/` の物を import しない。Archon の上で動く物は、Archon の外の起動の殻に頼らない。殻の事実（Archon の起こし方など）が要る時は、殻が組んだ物を env で渡し、その名は読む側の埋めが持つ（殻は `bin/_lib/place.py` の `shared` で埋めを読んで名を取る。`workflows/.shared/childsweep.py` の `CLI_ENV`）。
 - script は同じ `scripts/` の別の script を import しない（共に使う物は lib か境の口に置く）。script の名を lib のモジュールの名にしない（script のフォルダが `sys.path` の頭に来るので、`import <名>` が lib の物でなく script を読む）。
 - サブグラフの `inputs:` の `description:` は受け取る値の形（型・意味・空や null の時の意味・ポインタなら先のファイルの名）を書き、作り手（ほかのサブグラフ・メイングラフ・周の鎖のノード）を名指さない。結びはメイングラフの `with:` だけが持ち、説明に写すとずれる（持ち主の決め `io-in-output-format`）。そのサブグラフ自身の YAML の兄弟ノードの `$<id>.output` は作り手の名指しに数えない。
-- 機械: `tests/layers/test_block_paths.py`（サブグラフの `inputs:` の `description:`（YAML の値として読むので、flow の形も `>-`・`|` の複数行の形も覆う）に、作り手の名指しが無い。名指しは 4 つの型: `$<id>.output`（自分の YAML のノードの id は除く）・語「メイングラフ」・ほかのサブグラフの名（`works-factory-` の頭が付いてもよい）・一番上のグラフ（メイングラフと周の鎖）のノードの id のうち `-` を含む物。`-` の無い id は普通の語と重なるので語としては数えない。一番上のグラフ自身の入力は見ない。サブグラフの `scripts/` とサブグラフの YAML（直に書いた script）の字に、ほかのサブグラフを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のサブグラフの外への相対パスも無い。`scripts/*.py` の import の名が同じ `scripts/` の別のファイルの名でない。メイングラフとサブグラフの `scripts/*.py` の名と `lib/*.py` の名が重ならない）。
+- 機械: `tests/layers/test_block_paths.py`（サブグラフの `inputs:` の `description:`（YAML の値として読むので、flow の形も `>-`・`|` の複数行の形も覆う）に、作り手の名指しが無い。名指しは 4 つの型: `$<id>.output`（自分の YAML のノードの id は除く）・語「メイングラフ」・ほかのサブグラフの名（`works-factory-` の頭が付いてもよい）・一番上のグラフ（メイングラフと周の鎖）のノードの id のうち `-` を含む物。`-` の無い id は普通の語と重なるので語としては数えない。一番上のグラフ自身の入力は見ない。サブグラフの `scripts/` とサブグラフの YAML（直に書いた script）の字に、ほかのサブグラフを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のサブグラフの外への相対パスも無い。`scripts/*.py` の import の名が同じ `scripts/` の別のファイルの名でない。メイングラフとサブグラフの `scripts/*.py` の名と `lib/*.py` の名が重ならない。`workflows/` の `.py`・`.yaml` に `bin` の import の行が無い）。
 
 ## E5 サブグラフの出力は 1 つのノードの構造体
 

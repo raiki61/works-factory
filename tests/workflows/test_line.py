@@ -22,6 +22,7 @@ from unittest import mock
 
 import yaml
 
+from bin._lib.place import shared
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.bin.linescripts import SCRIPTS, load
@@ -1568,14 +1569,14 @@ class AskFinalCase(unittest.TestCase):
 
     def test_final_text_sections_match_the_original(self):
         """L-W34: 例で試していない単位・同じ run で直した案の項目（AMEND_HEAD）・持ち越した単位（split_line）・取り込むと消える
-        ファイル・残りの件数（目の阻害と結果が無い目）と、clean・レンズ・仕組みの異常の行（修正の diff の隣の控え。fixbeside.always_rows）を並べる"""
+        ファイル・残りの件数（独立の目が通さなかった目と結果が無い目）と、clean・レンズ・仕組みの異常の行（修正の diff の隣の控え。fixbeside.always_rows）を並べる"""
         got = self.got(unproven=["u1: 例が無い"], amend=["案の項目 1: 直した——人が承認した"],
                        split="修正の段は 1 単位（u1）を受け、1 単位（u2）を止めて持ち越した", deleted=["old.py"],
                        always=["clean が消したファイル（fix）: 0 本", fixbeside.ANOMALY_LINE],
                        eyes={**self.got()["eyes"], "r3": {"status": "redesign-needed", "reason": ""}, "r4": None})
         text = ask_final.final_text(got, [], RUN)
         for want in (f"## {querytest.UNPROVEN_HEAD}（1 件）", "- u1: 例が無い", f"## {replan.AMEND_HEAD}（1 件）", "- 案の項目 1: 直した",
-                     f"- {seal.DELETED_HEAD}: old.py", "独立の目の阻害 1 件（R3）・結果が無い目 1 件（R4）",
+                     f"- {seal.DELETED_HEAD}: old.py", "独立の目が通さなかった目 1 件（R3: 作り直しが要る）・結果が無い目 1 件（R4）",
                      "- clean が消したファイル（fix）: 0 本", f"- {fixbeside.ANOMALY_LINE}"):
             self.assertIn(want, text)
         self.assertIn("1 単位（u2）を止めて持ち越した", text.splitlines()[0])
@@ -2964,7 +2965,7 @@ class CollectAndResultCase(unittest.TestCase):
 
 class SweepChildrenCase(unittest.TestCase):
     """線の後始末の節 sweep-children（issue #113）: 報告の後・線の返す節の前に在り、落ちずに {cleaned, left, error} を返し、
-    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/bin/test_childsweep.py"""
+    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/shared/test_childsweep.py"""
 
     def test_runs_after_the_report_and_feeds_only_the_result(self):
         nodes = line_nodes()
@@ -3011,12 +3012,13 @@ class SweepChildrenCase(unittest.TestCase):
         return json.loads(done.stdout)
 
     def test_run_without_children_does_not_fail(self):
-        self.assertEqual(self.run_node({"WORKS_FACTORY_ARCHON_SOURCE": "<tmp>/archon"}), {"cleaned": [], "left": [], "error": ""})
+        head = {shared("childsweep").CLI_ENV: json.dumps(["<tmp>/bin/bun"])}
+        self.assertEqual(self.run_node(head), {"cleaned": [], "left": [], "error": ""})
 
     def test_run_outside_the_launcher_does_not_fail(self):
         got = self.run_node({})
         self.assertEqual((got["cleaned"], got["left"]), ([], []))
-        self.assertIn("WORKS_FACTORY_ARCHON_SOURCE", got["error"])
+        self.assertIn(shared("childsweep").CLI_ENV, got["error"])
 
 
 class BoundaryRunCase(unittest.TestCase):

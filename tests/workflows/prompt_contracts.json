@@ -378,7 +378,7 @@
       "nodes": [
         "workflows/eyes/works-factory-eyes.yaml#r1-minimality"
       ],
-      "output_format_sha256": "19e15d7bed3733f2ef491ce5ced96b1765cc3b07858203c7249a71976f3bcdca",
+      "output_format_sha256": "ff83891f5e30f9eb7163a29cd9fa3f643eb924af0de4f603fb124f802097f8b1",
       "json_keys": []
     },
     "forbidden": [
@@ -507,8 +507,8 @@
         "quote": "candidates_note に理由を書いて残りで判定しろ"
       },
       {
-        "what": "零処方を経ずに人へ回した問いは redesign-needed",
-        "quote": "redesign-needed（逃げ道の検知）"
+        "what": "零処方を経ずに人へ回した問いは所見に数える（札は status の決まりで選ぶ）",
+        "quote": "所見に数える（逃げ道の検知"
       },
       {
         "what": "方針とぶつかるものを通すかは人が決める",
@@ -5539,7 +5539,7 @@
       "nodes": [
         "workflows/plan/works-factory-plan.yaml#plan-writer"
       ],
-      "output_format_sha256": "d47d6228b74cf91c10960c8bb5059364bf72470a76d93ee0f3b64bd681123e80",
+      "output_format_sha256": "b8422e2d36478958b8fa28dab5f4522f8587928d2940da38d3d2192dc88437ee",
       "json_keys": []
     },
     "forbidden": [
@@ -5651,7 +5651,7 @@
       "nodes": [
         "workflows/plan/works-factory-plan.yaml#plan-writer-fix"
       ],
-      "output_format_sha256": "b32ff1f2dac6a012c0d634c5828e82bc8121b116cfec1645704c7fd9497bbb8b",
+      "output_format_sha256": "9eedf35b9c2693fa7753736c7ad16a04ef5b6312567322889ee23a81f1a06e03",
       "json_keys": []
     },
     "forbidden": [],
@@ -5753,6 +5753,7 @@
       "$facts.output.lang_line",
       "$facts.output.outcome",
       "$facts.output.stop_reason",
+      "$write-reject.output.handoff",
       "$write-reject.output.prev",
       "$write-reject.output.reason"
     ],
@@ -5760,14 +5761,10 @@
       "nodes": [
         "workflows/report/works-factory-report.yaml#write"
       ],
-      "output_format_sha256": "32124ccb123a8569ee086832049bfab7090417fcc75f1cc1d4d0aaefcca2f5a3",
+      "output_format_sha256": "6fa577633d01afdbb4436c5918356e2b33b0668da7a19ef78fbf34b5aebb3daa",
       "json_keys": [
-        "decided",
         "definition",
-        "doubts",
         "handoff",
-        "read",
-        "rejected",
         "term",
         "terms",
         "text"

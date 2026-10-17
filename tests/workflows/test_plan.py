@@ -40,6 +40,7 @@ import carry  # noqa: E402
 import converge  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
+import handoff  # noqa: E402
 import launchgroups  # noqa: E402
 import libdocs  # noqa: E402
 import outcome  # noqa: E402
@@ -156,7 +157,7 @@ def narrow(**more):
 HANDOFF_NOTE = {"read": [{"path": "stats.py", "lines": "1-20", "why": "mean と clamp の枝を確かめた"}],
                 "decided": ["分母は len(xs) にする"],
                 "rejected": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
-                "open": ["空の列の扱い"]}
+                "doubts": ["空の列の扱い"]}
 
 
 class _NodeFailed(Exception):
@@ -489,9 +490,9 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual(marks[key], bare(gatemarks.MARK_SCHEMA[key]), key)
         self.assertEqual(marks[gatemarks.NO_NARROW], bare(gatemarks.NO_NARROW_SCHEMA))
         self.assertEqual(fmt[converge.ANSWERS], converge.ANSWER_SCHEMA)
-        self.assertEqual(fmt[planfile.HANDOFF], planfile.HANDOFF_SCHEMA)
-        self.assertNotIn(planfile.HANDOFF, node(doc, "plan-writer")["output_format"]["required"], "引き継ぎのメモは任意の欄")
-        self.assertEqual(node(doc, "plan-writer-fix")["output_format"]["properties"][planfile.HANDOFF], planfile.HANDOFF_SCHEMA)
+        self.assertEqual(fmt[handoff.FIELD], handoff.SCHEMA)
+        self.assertNotIn(handoff.FIELD, node(doc, "plan-writer")["output_format"]["required"], "引き継ぎのメモは任意の欄")
+        self.assertEqual(node(doc, "plan-writer-fix")["output_format"]["properties"][handoff.FIELD], handoff.SCHEMA)
         owner = json.loads((LIB / "design-row.schema.json").read_text(encoding="utf-8"))
         added = {"route_reason"}           # 受け付けが足す
         dropped = {"precedents"}           # 今の works の structure-eye の型に無い
@@ -1251,7 +1252,7 @@ class ReplanCase(unittest.TestCase):
         self.assertIs(out["ready"], True, out)
         first, second = run.art / "plan" / "r1", run.art / "plan" / "r2"
         brief = (second / "brief-1.md").read_text(encoding="utf-8")
-        self.assertIn(planfile.HANDOFF_HEAD, brief)
+        self.assertIn(handoff.HEAD, brief)
         self.assertIn(str(first / "handoff.json"), brief)
         self.assertEqual(json.loads((second / "handoff.json").read_text(encoding="utf-8")), again)
         self.assertEqual(json.loads((first / "handoff.json").read_text(encoding="utf-8")), HANDOFF_NOTE, "直す元の周のメモは変えない")
@@ -1459,23 +1460,40 @@ class CollectCase(unittest.TestCase):
         self.assertIs(run.include(writer=writer_of({"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}))["ready"], True)
         first = run.art / "plan" / "r1"
         self.assertEqual(json.loads((first / "handoff.json").read_text(encoding="utf-8")), HANDOFF_NOTE)
-        self.assertIn(planfile.HANDOFF_ASK, (first / "brief-1.md").read_text(encoding="utf-8"))
+        self.assertIn(handoff.ASK, (first / "brief-1.md").read_text(encoding="utf-8"))
         run.include(review=run.pointer("review/p2.plan_review.json", {"faces": []}))
         brief = (run.art / "plan" / "r2" / "brief-1.md").read_text(encoding="utf-8")
-        self.assertIn(planfile.HANDOFF_HEAD, brief)
+        self.assertIn(handoff.HEAD, brief)
+        self.assertIn(handoff.USE, brief, "前の周のメモの使い方の案内も届く")
         self.assertIn(str(first / "handoff.json"), brief)
         self.assertNotIn(HANDOFF_NOTE["decided"][0], brief)
+
+    def test_third_round_brief_names_every_prior_handoff_oldest_first(self):
+        run = Run(self)
+        again = {**HANDOFF_NOTE, "decided": ["二往復目で決めた訳"]}
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}))["ready"], True)
+        review = run.pointer("review/p2.plan_review.json", {"faces": []})
+        self.assertIs(run.include(review=review, writer=writer_of({"plan": [item(1, 2)], "handoff": again}))["ready"], True)
+        run.include(review=review)
+        first, second, third = (run.art / "plan" / f"r{n}" for n in (1, 2, 3))
+        brief = (third / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn(str(first / "handoff.json"), brief)
+        self.assertIn(str(second / "handoff.json"), brief)
+        self.assertLess(brief.index(str(first / "handoff.json")), brief.index(str(second / "handoff.json")))
+        self.assertLess(brief.index(handoff.HEAD), brief.index(str(first / "handoff.json")))
+        for note in (HANDOFF_NOTE, again):
+            self.assertNotIn(note["decided"][0], brief)
 
     def test_second_round_brief_says_when_the_prior_round_left_no_handoff(self):
         """前の周の役がメモを書かなかった時は、2 往復目の材料がメモの無いことを名指す（黙って落とさない）。前の周そのものが無い
         1 往復目の材料には、メモの節を出さない（書かなかった事実が無い）"""
         run = Run(self)
         run.include()
-        self.assertNotIn(planfile.HANDOFF_HEAD, (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8"))
+        self.assertNotIn(handoff.HEAD, (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8"))
         run.include(review=run.pointer("review/p2.plan_review.json", {"faces": []}))
         brief = (run.art / "plan" / "r2" / "brief-1.md").read_text(encoding="utf-8")
-        self.assertIn(planfile.HANDOFF_HEAD, brief)
-        self.assertIn(planfile.NO_HANDOFF, brief)
+        self.assertIn(handoff.HEAD, brief)
+        self.assertIn(handoff.NONE, brief)
         self.assertNotIn(str(run.art / "plan" / "r1" / "handoff.json"), brief)
 
     def test_resubmit_without_handoff_keeps_the_first_handoff(self):
