@@ -73,6 +73,7 @@ prep:
   constraints_text: （無い）
   premises_text: '### 記録の制約'
   carried: ''
+  plan_declared: ''
   r4_context: '- 波及の一覧: /tmp/ripple.json'
   green_line: ''
   measured_text: "### テストごとの base と最後の結末\n\n- 赤→緑（base で赤・最後に緑）: 1 件\n  - `tests.test_a::test_entry`（base failure: AssertionError）"

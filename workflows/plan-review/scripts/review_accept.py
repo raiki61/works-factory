@@ -5,7 +5,7 @@
 """事前審査の受け付け（boardview.take_review）。役の節は単独の組（reply・fix_reply）と束ね役の組（tree_reply・tree_fix_reply）の
 4 つで、起きなかった節の返答は null（if_skipped: null）。null でない方を take_review の reply・fix_reply に渡す（どの組が起きたかは
 boardview が知らない。open の tree で木のまとめに入るかを決める）。拒まれた後の出し直しの役の返答 fix_reply（拒まれた欄だけ）は
-前の答えと合わせてから照らす。拒みは控えに積み、3 回目で done・give_up"""
+前の答えと合わせてから照らす。拒みは控えに積み、受け付けの網 rolekit.NET_AFTER 回目で done・give_up（届けば工場の不具合）"""
 import os
 import sys
 from pathlib import Path
