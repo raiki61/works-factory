@@ -461,10 +461,6 @@
       "lib/judge_accept.py": [
        2,
        "判定のノードの中身が docstring で世界の解の出口の書き先と頭のセクションの出どころを置き場の名で説明する（コードは worldmark.WORLD_FILE・worldmark.write を引く）"
-      ],
-      "lib/runreport.py": [
-       1,
-       "報告のセクション「世界の解」の docstring が段の控えの置き場を名で説明する（コードは worldmark.STATE_FILE を引く）"
       ]
      }
     }

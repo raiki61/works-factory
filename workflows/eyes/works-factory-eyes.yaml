@@ -24,7 +24,10 @@ inputs:
   plan_questions: {default: "null", description: "修正の前に人に聞いた項目 {kind, text}"}
   answers: {default: "null", description: "修正の前に人が返した答え"}
   start_answers: {default: "null", description: "始めに人が返した答え（独立設計に貼られる物と同じ）"}
-  ties_judgment: {default: "null", description: "判定の結び（answer-ties.json）を隣から読む 1 回目の判定のポインタ。null なら judgment の隣"}
+  answer_ties: {default: "null", description: "依頼の答えを判定の問い・単位に結んだ行のポインタ（answer-ties.json）。null は結びが無い（字の一致だけ）"}
+  materials: {default: "null", description: "判定の素材の状態のポインタ（materials.json）。null は素材の状態が無い"}
+  premises: {default: "null", description: "実測した制約のポインタ（premises.json。{constraints}）。null は制約が渡っていない"}
+  decisions: {default: "null", description: "決定記録の突合の返答のポインタ（material-prior-decisions.json）。null は突合が無い"}
   x_scalars: {default: "null", description: "直しの規模の数値の欄（名は x_ で始まる）。JSON の object"}
 
 returns: verdict

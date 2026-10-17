@@ -5,6 +5,7 @@
 - script の振る舞い: scripts/<名>.py を子のプロセスで走らせる（Archon が渡す INPUTS_<名>・ARTIFACTS_DIR・WORKFLOW_ID と、
   boundary.lib_root() が届く WORKS_FACTORY_ROOT を置く。作業ツリーは tests/e2e/target-seed/ の写し）
 """
+import ast
 import json
 import os
 import pathlib
@@ -51,7 +52,7 @@ RUN_ID = "run-judge"
 
 # 返す節の欄（docs/design.md の「サブグラフの出力の約束」の judge の返り）
 RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict", "depth",
-           "depth_why")
+           "depth_why", *ja.PORTS, *ja.FIRST_PORTS)
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
 MATERIALS = tuple(ja.MATERIAL_ROLES)
@@ -229,6 +230,17 @@ class ReturnsShapeTest(unittest.TestCase):
         self.assertEqual(fmt["properties"]["stop_reason"], {"type": "string"})
         self.assertEqual(by["verdict"]["trigger_rule"], "all_done")
         self.assertNotIn("output_type", by["verdict"])
+
+    def test_port_fields_are_pointers_or_null(self):
+        """判定の置き場のファイルを返す欄（ja.PORTS・FIRST_PORTS）は、どれもポインタか null。lib を読めない時の返す節の欄の名
+        （verdict.py の PORTS）も同じ並び"""
+        props = nodes()["verdict"]["output_format"]["properties"]
+        for name in (*ja.PORTS, *ja.FIRST_PORTS):
+            with self.subTest(name=name):
+                self.assertEqual(props[name], props["world"])
+        tree = ast.parse((BLOCK / "scripts" / "verdict.py").read_text(encoding="utf-8"))
+        fallen = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and n.targets[0].id == "PORTS")
+        self.assertEqual(fallen, (*ja.PORTS, *ja.FIRST_PORTS))
 
     def test_rejudge_vocabulary_matches_output_format(self):
         """受け付けの論理が使う再審の答えの語（ja.REJUDGE_VERDICTS）は、再審の役の節の output_format の verdict の enum と同じ。

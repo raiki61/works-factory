@@ -64,3 +64,17 @@ verdict:
   spec: null
   out_of_purpose: null
   rejudge_verdict: null
+  premises: null
+  verify: null
+  pr_excluded: null
+  materials: null
+  purpose_review: null
+  depth_record: null
+  decisions: null
+  answer_ties: null
+  review_lenses: null
+  pr_drafts: null
+  rejudge_exit: null
+  rejudge_diff: null
+  purpose_means: null
+  world_state: null

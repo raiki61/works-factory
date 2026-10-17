@@ -39,7 +39,6 @@ import posixpath
 import types
 
 import answer
-import gatemarks
 import jsonfile
 import oneline
 import policy
@@ -47,8 +46,8 @@ import promptsection
 import rolekit
 import startrec
 
-PREP_INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "head_depth", "answers", "units", "only_items",
-               "baseline", "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
+PREP_INPUTS = ("start", "judgment", "answer_ties", "materials", "depth_record", "plan", "plan_review", "ripple", "depth", "head_depth",
+               "answers", "units", "only_items", "baseline", "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
@@ -528,20 +527,21 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
         raise ValueError("入力 judgment が無い")
     judgment = json.loads(judgment_file.read_text(encoding="utf-8"))
     write_json(folder / JUDGMENT_FILE, judgment)
-    import headdepth
     # 判定の結びと素材の状態（直す義務の数え gatemarks.duty が読む。無い run は字の一致だけ）と頭の深さの控え。結びと素材の状態は
     # 読み手が壊れた JSON を無いと読み、結びが黙って消えるので、ここで読めるかを確かめて落とす。頭の深さの控えは壊れていれば標準と読む
-    for name in (*gatemarks.BESIDE, headdepth.RECORD):
-        (folder / name).unlink(missing_ok=True)
-        source = judgment_file.parent / name
-        if not source.is_file():
+    for name, file in JUDGE_COPIES.items():
+        (folder / file).unlink(missing_ok=True)
+        source = pointed(name)
+        if source is None:
             continue
-        if name in gatemarks.BESIDE:
+        if not source.is_file():
+            raise ValueError(f"入力 {name} の先 {source} が無い")
+        if file in CHECKED_COPIES:
             try:
                 json.loads(source.read_text(encoding="utf-8"))
             except ValueError as e:
-                raise ValueError(f"判定の隣の {name} が JSON として読めない: {e}") from None
-        (folder / name).write_bytes(source.read_bytes())
+                raise ValueError(f"入力 {name} の先 {source.name} が JSON として読めない: {e}") from None
+        (folder / file).write_bytes(source.read_bytes())
 
     plan_file = pointed("plan")
     plan = None
@@ -1144,6 +1144,11 @@ PLAN_REPLY_FILE = "p2.fix_plan.json"   # 修正案の役の返答の写し（{"p
 PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（faces・shrink。修正役の plan_faces と差分の審査の材料 out.p2.plan_review が読む。
                                            # 修正役の指示書は修正案 PLAN_REPLY_FILE と同じフォルダに在ると書く）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
+TIES_FILE = "judge-ties.json"          # 判定の結びの写し（入力 answer_ties の先。answer-ties.json の形）
+MATERIALS_FILE = "judge-materials.json"   # 判定の素材の状態の写し（入力 materials の先。materials.json の形）
+HEAD_RECORD_FILE = "judge-depth-head.json"   # run の頭の深さの控えの写し（入力 depth_record の先。headdepth.record の形）
+JUDGE_COPIES = {"answer_ties": TIES_FILE, "materials": MATERIALS_FILE, "depth_record": HEAD_RECORD_FILE}   # prep が写す入力 → 写しの名
+CHECKED_COPIES = (TIES_FILE, MATERIALS_FILE)   # 読み手が壊れた JSON を無いと読むので、写す前に読めるかを確かめる写し
 RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
 ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（承認の節の出力 {decision, text, asked}）
 UNITS_FILE = "units.json"              # 入力 units の写し
@@ -1261,7 +1266,7 @@ def redepth(place, repo, skip=()) -> str:
     控えが無い・標準の単位が在る・単位が無い・頭の深さが省かない段なら空。信号は
     depth_signals、run 全体の広さ（depth.run_wide）は修正の実際の差分（run の始めの木 start_tree から今の作業ツリーへの変更。
     除くパスの頭 skip の下は数えない）と承認済みの修正案の欄で数え直し、数えたファイルの数と起点を控えの counted に 1 行残す。
-    同じ差分のうち、置き場の頭の深さの控え（HEAD_DEPTH_FILE でなく headdepth.RECORD。prep が判定の隣から写す）の引用した where の
+    同じ差分のうち、置き場の頭の深さの控えの写し（HEAD_DEPTH_FILE でなく HEAD_RECORD_FILE。prep が入力 depth_record の先から写す）の引用した where の
     ファイルの外に出たパスは depth.outside_cited が拾い、理由は depth.late_signals（テストのファイルは run_wide と同じ除きで数えない。
     控えが無い・where の無い run は外を持たない）。
     控えが読めない・形が違えば ValueError。元 works/darkfactory/lib/depth.py:302 の raise_（線の h-redepth）"""
@@ -1279,7 +1284,7 @@ def redepth(place, repo, skip=()) -> str:
     origin = f"修正の差分 {tree[:12]}" if tree else "計画の allowed_paths（修正の差分の起点が無い）"
     wide, paths = depth.run_wide(items, doc["units"], touched)
     run += wide
-    run += depth.late_signals(outside=depth.outside_cited(items, doc["units"], touched, headdepth.cited_files(headdepth.read(place))))
+    run += depth.late_signals(outside=depth.outside_cited(items, doc["units"], touched, headdepth.cited_files(headdepth.read_file(pathlib.Path(place) / HEAD_RECORD_FILE))))
     doc["counted"] = f"触るファイル {paths} 個（起点: {origin}）"
     doc = depth.raise_doc(doc, units=units, run=run)
     write_json(pathlib.Path(place) / DEPTH_RAISED_FILE, doc)
@@ -1678,7 +1683,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, HEAD_DEPTH_FILE,
+ADOPTED = (startrec.REL, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, HEAD_DEPTH_FILE,
            ANSWERS_FILE, UNITS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
@@ -2549,7 +2554,7 @@ def base_rev_of(place, given: str = "") -> str:
 def gate_view(place):
     """gatemarks の問いの口（asks・answered・pending・withheld_by・returned・duty・returned_lines）に渡す値の見え方（gatemarks.ledger）:
     置き場の判定の写しの questions・units、始めの記録の写しの依頼の answers、関所の答え answers.json（{decision, text, asked}。asked は
-    人が見た関所の行）、判定の結びと素材の状態の写し（answer-ties.json・materials.json。prep が判定の隣から写す。無ければ字の一致だけ）。
+    人が見た関所の行）、判定の結びと素材の状態の写し（TIES_FILE・MATERIALS_FILE。prep が入力 answer_ties・materials の先から写す。無ければ字の一致だけ）。
     始めの記録の写しが無人の run なら、判定の推しつきの fork・held を答えとして数える（gatemarks.run_push）。
     元は盤面の b.record と写しの検証器を読んだ"""
     import gatemarks
@@ -2557,9 +2562,9 @@ def gate_view(place):
     p = pathlib.Path(place)
     judgment = read_json(p / JUDGMENT_FILE)
     start = startrec.read(p)
-    return gatemarks.ledger_beside(p, judgment if isinstance(judgment, dict) else {},
-                                   answers=start.get("answers") or [], gate=read_json(p / ANSWERS_FILE),
-                                   takes_push=gatepolicy.unattended_of(start))
+    return gatemarks.ledger_files(judgment if isinstance(judgment, dict) else {}, ties_file=p / TIES_FILE,
+                                  materials_file=p / MATERIALS_FILE, answers=start.get("answers") or [],
+                                  gate=read_json(p / ANSWERS_FILE), takes_push=gatepolicy.unattended_of(start))
 
 
 def gate_asks(place) -> tuple:

@@ -13,7 +13,8 @@ fork（下請けの会話）で走る。返答の道具 StructuredOutput を継�
 受け付けが戻す）は、旗の起動では戻す物が無く（実の run の控えで 3 本とも 0 件）、2026-10-09 の掃除で外した。
 
 - mark_unseen(reply, skills): (印を付けた返答の写し, 控え {unseen})。受けた返答は書き換えない
-- report_lines(folder): 報告の「未確認のレンズ」の節の行（元 diverted.report_lines。判定の隣の LENS_FILE の unseen）
+- report_lines(path): 報告の「未確認のレンズ」の節の行（元 diverted.report_lines。控え LENS_FILE の unseen。報告は判定の出力の欄
+  review_lenses のパスで渡す）
 """
 import copy
 import json
@@ -46,10 +47,10 @@ def mark_unseen(reply: dict, skills: list) -> tuple:
     return out, notes
 
 
-def report_lines(folder) -> list:
-    """報告の「未確認のレンズ」の節に足す行（元 diverted.report_lines :71。周は 1 つ）。控えが無い・読めなければ空"""
+def report_lines(path) -> list:
+    """報告の「未確認のレンズ」の節に足す行（元 diverted.report_lines :71。周は 1 つ）。控え path が無い・読めなければ空"""
     try:
-        doc = json.loads((pathlib.Path(folder) / LENS_FILE).read_text(encoding="utf-8"))
+        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError):
         return []
     lenses = doc.get("unseen") if isinstance(doc, dict) else None

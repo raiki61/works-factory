@@ -359,16 +359,17 @@ def asked_conflicts(pointers) -> tuple:
     return rows, unread
 
 
-def ledger(judgment, start, before_fix, ties_judgment=None) -> tuple:
-    """(問いの台帳の見え方（gatemarks.ledger_beside）か None, 添える行)。判定の指し札の先（judgment.json の questions・units と隣の
-    materials.json）・始めの記録 start（start_doc で読んだ dict）の answers（依頼の答え）・修正前の関所の答え {decision, text, asked}・判定の結び（answer-ties.json。
-    再審の判定の隣には無いので、1 回目の判定の指し札 ties_judgment の隣から読む）。結びの宛て先の key が今の問いにも単位にも無ければ
+def ledger(judgment, start, before_fix, ties=None, materials=None) -> tuple:
+    """(問いの台帳の見え方（gatemarks.ledger_at）か None, 添える行)。判定の指し札の先（judgment.json の questions・units）と素材の状態の
+    指し札 materials の先・始めの記録 start（start_doc で読んだ dict）の answers（依頼の答え）・修正前の関所の答え {decision, text, asked}・
+    判定の結びの指し札 ties の先（judged の返りの answer_ties）。結びの宛て先の key が今の問いにも単位にも無ければ
     字の一致に落とし、そのことを添える行に 1 行出す（gatemarks.lost_ties）。判定が無い（null）時は None、読めなければ添える行に訳"""
     if judgment is None:
         return None, []
     try:
         b = gatemarks.ledger_at(boundary.resolve(judgment), start, before_fix,
-                                boundary.resolve(ties_judgment) if ties_judgment is not None else None)
+                                ties_file=boundary.resolve(ties) if ties is not None else None,
+                                materials_file=boundary.resolve(materials) if materials is not None else None)
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return None, [f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
     units = [u.get("key") for u in b.record["units"]]
@@ -491,9 +492,9 @@ def path_of(ptr) -> str:
 def judged_returns(raw: dict) -> dict:
     """runreport の段の返りの形（指し札はパスの字）: 判定・再審・修正の欄のうち、再審の結果と例で試していない単位と持ち越した単位を
     組むのに要る物"""
-    rejudge = ({"units": raw["units"], "judgment": path_of(raw["judgment"]), "rejudge_verdict": raw["rejudge_verdict"]}
-               if raw["rejudged"] else None)
-    return {"judge": {"units": raw["first_units"], "judgment": path_of(raw["ties_judgment"])}, "rejudge": rejudge,
+    rejudge = ({"units": raw["units"], "judgment": path_of(raw["judgment"]), "rejudge_verdict": raw["rejudge_verdict"],
+                "rejudge_exit": path_of(raw["rejudge_exit"])} if raw["rejudged"] else None)
+    return {"judge": {"units": raw["first_units"], "judgment": path_of(raw["first_judgment"])}, "rejudge": rejudge,
             "fix": {"objection": raw["objection"], "units": raw["fix_units"],
                     "groups": raw["groups"]}}
 
@@ -536,9 +537,10 @@ def got_of_env() -> dict:
     gate = boundary.Picked(dict.fromkeys(TESTS)) if tests is None else tests
     eye = boundary.Picked(dict.fromkeys(EYES)) if eyes is None else eyes
     closing = SEAL_SKIPPED if seal is None else seal
-    judgment, ties = boundary.value(os.environ.get("INPUTS_JUDGMENT")), boundary.value(os.environ.get("INPUTS_TIES_JUDGMENT"))
+    judgment = boundary.value(os.environ.get("INPUTS_JUDGMENT"))
     start, start_unread = start_doc(boundary.value(os.environ.get("INPUTS_START")))
-    b, ledger_notes = ledger(judgment, start, boundary.value(os.environ.get("INPUTS_BEFORE_FIX_ANSWER")), ties)
+    b, ledger_notes = ledger(judgment, start, boundary.value(os.environ.get("INPUTS_BEFORE_FIX_ANSWER")),
+                             boundary.value(os.environ.get("INPUTS_ANSWER_TIES")), boundary.value(os.environ.get("INPUTS_MATERIALS")))
     fenced, after, after_unread = after_rows(eye["structure_after"])
     asked, conflicts_unread = asked_conflicts(boundary.items(os.environ.get("INPUTS_CONFLICTS")))
     passes, rounds, review_unread = review_rows((boundary.value(os.environ.get("INPUTS_PLAN_REVIEW")),
@@ -547,7 +549,9 @@ def got_of_env() -> dict:
     beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_DIFFS")))
     noted = eye_notes(eye["notes"])
     raw = {"units": boundary.items(os.environ.get("INPUTS_UNITS")), "first_units": boundary.items(os.environ.get("INPUTS_FIRST_UNITS")),
-           "judgment": judgment, "ties_judgment": ties, "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
+           "judgment": judgment, "first_judgment": boundary.value(os.environ.get("INPUTS_FIRST_JUDGMENT")),
+           "rejudge_exit": boundary.value(os.environ.get("INPUTS_REJUDGE_EXIT")),
+           "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
            "rejudge_verdict": boundary.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
            "objection": boundary.text(os.environ.get("INPUTS_OBJECTION")),
            "fix_units": boundary.items(os.environ.get("INPUTS_FIX_UNITS")), "groups": boundary.items(os.environ.get("INPUTS_GROUPS"))}
