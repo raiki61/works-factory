@@ -845,12 +845,15 @@ def pack_terms() -> list:
             and isinstance(r.get("plain"), str) and r["plain"]]
 
 
-CODE_SPAN = re.compile(r"```.*?(?:```|\Z)|~~~.*?(?:~~~|\Z)|`[^`\n]*`", re.S)   # 言い換えない所（コードの囲みと `…`）
+# 言い換えない所: コードの囲みと `…`（識別子とパス）・問いの key と答えの鍵（人が次の run の依頼の answers に字のまま写す）
+KEPT_SPAN = re.compile(r"```.*?(?:```|\Z)|~~~.*?(?:~~~|\Z)|`[^`\n]*`"
+                       + "|(?<=" + re.escape(gatemarks.ASK_HEAD) + r" )[^\s（]+（"
+                       + "|(?<=" + re.escape(gatemarks.ANSWER_KEY_HEAD) + r': )"(?:[^"\\\n]|\\.)*"', re.S)
 
 
 def plain_words(text: str, pack=None) -> tuple[str, dict]:
     """人に向けた文の、語の表の記録の名を人に向けた言い方に置き換えた字と、置き換えた語ごとの回数 {term: 回数}（長い語から当てる。
-    コードの囲みと `…` の中は識別子とパスなので置き換えない）"""
+    KEPT_SPAN の所は置き換えない）"""
     text = str(text or "")
     rows = sorted(pack_terms() if pack is None else pack, key=lambda r: -len(r["term"]))
     if not rows:
@@ -864,9 +867,9 @@ def plain_words(text: str, pack=None) -> tuple[str, dict]:
         return to[m.group(0)]
 
     out, at = [], 0
-    for code in CODE_SPAN.finditer(text):
-        out += [word.sub(swap, text[at:code.start()]), code.group(0)]
-        at = code.end()
+    for kept in KEPT_SPAN.finditer(text):
+        out += [word.sub(swap, text[at:kept.start()]), kept.group(0)]
+        at = kept.end()
     out.append(word.sub(swap, text[at:]))
     return "".join(out), counts
 

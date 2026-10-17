@@ -1710,6 +1710,18 @@ class LedgerCase(Base):
                          [gatemarks._ledger_line(FORK, skip=[FORK_UNIT]) + f'／{gatemarks.ANSWER_KEY_HEAD}: "{FORK["key"]}"'])
         self.assertIn(f"／答えが無いと直さない単位: {FORK_UNIT}", state["held"][0][1])
 
+    def test_answer_key_with_inner_words_survives_the_human_report(self):
+        """#660: 問いの key に語の表の語が混じっても、人に向けた報告の 1 件 1 行の問いの key と答えの鍵は字のまま（人が次の run の
+        answers に写す字が問いに当たる）。key の外の語は言い換える"""
+        q = {**FORK, "key": "柵の住処"}
+        _, machine, _ = self.build(self.returns(q))
+        runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        [held] = [x for x in human.splitlines() if x.startswith("- 保留にしたままの問い: ")]
+        self.assertIn(f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(q['key'], ensure_ascii=False)}", held)
+        self.assertIn(" 柵の住処（", held)
+        self.assertNotIn("問いの台帳", held)
+
     def test_held_lines_warn_to_read_the_measuring_command_first(self):
         """#505: 保留の行の下の答え方は、測り方の命令が対象を読んだ役の書いた物なので、打つ前に読み読み取りだけの時だけ打てと言う
         （元 works の skills/works/SKILL.md 117 行）"""
