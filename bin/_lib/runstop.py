@@ -57,7 +57,7 @@ class _Reaped:
 def cancel(head: list[str], argv: list[str], env: Mapping[str, str], cwd: str | None) -> int:
     """argv（workflow cancel <run> …）を Archon に渡し、run の木に残った物を止める。head は Archon を起こす命令の頭、cwd は --cwd の値"""
     run_id = argv[2] if len(argv) > 2 and not argv[2].startswith("-") else None
-    tree = counted(head, run_id, env, cwd) if run_id else None
+    tree = before_cancel(head, run_id, env, cwd) if run_id else None
     code = subprocess.run([*head, *argv], env=env).returncode
     if tree is None:
         return code
@@ -82,7 +82,7 @@ def cancel(head: list[str], argv: list[str], env: Mapping[str, str], cwd: str | 
     return code
 
 
-def counted(head: list[str], run_id: str, env: Mapping[str, str], cwd: str | None) -> tuple[int, float, dict] | None:
+def before_cancel(head: list[str], run_id: str, env: Mapping[str, str], cwd: str | None) -> tuple[int, float, dict] | None:
     """cancel を打つ前の run の木 (持ち主の番号, born, known)。止める物が無い・決められない run は None"""
     got = subprocess.run([*head, "workflow", "get", run_id, "--json", *(["--cwd", cwd] if cwd else [])], env=env,
                          capture_output=True, text=True, encoding="utf-8")

@@ -215,7 +215,7 @@
   - `packages/workflows/src/exec-environment.ts` の「WORKFLOW_ID: execution.runId,」（AI のノードのプロセスは run の id を env に持つ。番号のつながりの外の印はこれだけ）
   - `packages/core/src/operations/workflow-operations.ts` の「because it is not a detached run (a foreground CLI run, or an Archon server)」（前の run の cancel を拒む）
 - 上流（`355f1867` の後の dev の `1d54e964a` まで）: 塞がっていない（`run-owner-stop.ts` を変えた commit は無い。`process-provider.ts` の変更〔#4310・#4422〕は版の食い違いの文と resume の案内だけで、detached の起こしは同じ。#4375〔`372a494c9`〕は `archon serve` の cancel が bash・script のノードの木を止める変更で、provider と切り離した持ち主には触れない）。
-- 実測（2026-10-18、止めた Archon に偽の claude〔`CLAUDE_BIN_PATH`。自分と同じグループの子と、別のセッションの子を起こして眠る〕の AI のノードと、`workflow:` の子の run の AI のノードを並べた使い捨てのグラフ。試験 `tests/bin/test_runstop.py` の工程と同じ形）:
+- 実測（2026-10-18、止めた Archon に偽の claude〔`CLAUDE_BIN_PATH`。自分と同じグループの子と、別のセッションの子を起こして眠る〕の AI のノードと、`workflow:` の子の run の AI のノードを並べた使い捨てのグラフ。試験 `tests/bin/test_runstop.py` のグラフと同じ形）:
   - `--detach` の run の `workflow cancel` は `"processStopped": true` を返すが、ノードごとの provider（`bun --no-env-file <源>/packages/providers/src/claude/plugin.ts`）が親 1 で残った。数秒の後に provider は claude を止めたが、provider 自身と claude の子（同じグループの物も別のセッションの物も）は 15 秒の後も残った。子の run のノードも同じ。
   - 前の run の `workflow cancel` は拒んで（終了の値 1）何も止めず、持ち主に SIGTERM を送る（割り込みと同じ）と、持ち主は抜けたが provider と claude の子が親 1 で残った。
   - 子の run だけの `workflow cancel` は根の持ち主が答えて子を止め、子の provider のグループは消えたが、claude が別のセッションに起こした子は残った。

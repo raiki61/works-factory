@@ -1,6 +1,6 @@
 """殻の workflow cancel（bin/_lib/runstop.py。docs/polyfills.md の P13）を、止めた Archon と偽の claude で照らす（#706）。
 
-使い捨ての工程 works-factory-stop-probe（tests/bin/stop-probe/）は、親の run の AI のノード・子の run の AI のノード・bash のノードを
+使い捨てのグラフ works-factory-stop-probe（tests/bin/stop-probe/）は、親の run の AI のノード・子の run の AI のノード・bash のノードを
 並べて走らせる。偽の claude（CLAUDE_BIN_PATH）は、本物の Claude Code が道具で起こすプロセスの代わりに、自分と同じグループの子と
 別のセッションの子を起こして眠る。止めた Archon の cancel だけでは、provider のプロセス（持ち主が detached で起こす）とその下が
 親が 1 になって残る（P13 の実測）。源か bun が無ければ見送る。
