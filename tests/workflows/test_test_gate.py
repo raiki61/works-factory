@@ -39,6 +39,7 @@ if str(ROOT / "lib") not in sys.path:
 import baseline_red  # noqa: E402
 import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
+import launchgroups  # noqa: E402
 import rolekit  # noqa: E402
 import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
@@ -267,7 +268,8 @@ class YamlCase(unittest.TestCase):
         self.assertIs(ci["mutates_checkout"], False)
         self.assertEqual(ci["allowed_tools"], ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"])
         self.assertFalse({"Edit", "Write"} & set(ci["allowed_tools"]))
-        self.assertEqual((ci["model"], ci["effort"]), ("sonnet", "medium"))   # 今の works の stage-models.json の blk-ci/ci（light）
+        self.assertEqual(launchgroups.default_of(ci["model"]), ("sonnet", "medium"))   # 今の works の stage-models.json の blk-ci/ci（light）
+        self.assertNotIn("effort", ci)
         self.assertEqual(ci["command"], "ci")
         self.assertTrue((BLOCK / "commands" / "ci.md").is_file())
 

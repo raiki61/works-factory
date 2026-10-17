@@ -49,6 +49,7 @@ import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import launchgroups  # noqa: E402
 import outcome  # noqa: E402
 import planblk  # noqa: E402
 import planfile  # noqa: E402
@@ -424,7 +425,7 @@ class YamlCase(unittest.TestCase):
                 self.assertIs(n.get("mutates_checkout"), False)
 
     def test_role_nodes(self):
-        """役の節の設定は今の works の節 r2-design・plan-review のまま（模型と深さは役の前付け blind-judge・judge）。独立設計は
+        """役の節の設定は今の works の節 r2-design・plan-review のまま（模型と effort は群 @wf-plan-review の既定。lib/launchgroups.py）。独立設計は
         context を書かず、拒まれた後の出し直しは輪（fresh_context: false）の中で前の会話を継ぐ（今の works の r2-design と同じ）"""
         got = nodes()
         self.assertNotIn("context", got["r2-design"])
@@ -432,7 +433,9 @@ class YamlCase(unittest.TestCase):
         for nid in ("r2-design", "plan-review"):
             with self.subTest(nid):
                 n = got[nid]
-                self.assertEqual((n["command"], n["model"], n["effort"]), (nid, "opus", "high"))
+                self.assertEqual(n["command"], nid)
+                self.assertEqual(launchgroups.default_of(n["model"]), ("opus", "high"))
+                self.assertNotIn("effort", n)
                 self.assertEqual(n["settingSources"], ["user"])
                 self.assertEqual(n["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False})
                 self.assertEqual(n["idle_timeout"], DEADLINE)
@@ -458,8 +461,9 @@ class YamlCase(unittest.TestCase):
         self.assertEqual((fix["depends_on"], fix["trigger_rule"]), (["review-prep", "plan-review"], "none_failed_min_one_success"))
         self.assertNotIn("context", fix)
         self.assertIn("$review-prep.output.brief", fix["prompt"])
-        launch = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
+        launch = ("model", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
         self.assertEqual({k: fix[k] for k in launch}, {k: first[k] for k in launch})
+        self.assertNotIn("effort", {**fix, **first})
         self.assertEqual(fix["output_format"]["required"], [])
         self.assertEqual({**fix["output_format"], "required": first["output_format"]["required"]}, first["output_format"])
         accept = got["review-accept"]

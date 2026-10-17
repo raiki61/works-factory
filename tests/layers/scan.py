@@ -50,6 +50,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import chain  # noqa: E402  （周の鎖の周の数の上限 MAX_ROUNDS）
 import depth  # noqa: E402  （深さの段の表 TIERS）
+import launchgroups  # noqa: E402  （AI ノードの群の表 GROUPS）
 # INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
 BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
@@ -873,6 +874,8 @@ CLOSED_SANDBOX = (("enabled", "true"), ("allowUnsandboxedCommands", "false"))
 # 掛けた: role_run.py の tooled_permission と DELEGATE_TOOLS）
 NO_TREE_WRITE = f"~/../{isolate.DIRS['ARCHON_HOME']}"
 YAML_BOOL = "tag:yaml.org,2002:bool"
+# 工程の根に書くと effort の無いノードの全部へ写る鍵（止めた Archon の include-expander.ts と loader.ts）。写った effort は群の別名の effort より先に採られる
+ROOT_EFFORT_KEYS = ("effort", "modelReasoningEffort")
 
 
 def _is_bool(node, word: str) -> bool:
@@ -887,6 +890,10 @@ def _readonly_nodes(root: Path) -> list[str]:
             continue
         rel = _rel(root, path)
         seen = set()
+        for key in ROOT_EFFORT_KEYS:
+            if (value := _top(document, key)) is not None:
+                out.append(f"{rel}:{_line(value)}: 工程の根に {key} が在る（工程の根の effort は effort の無いノードへ写り、群の別名の effort より先に採られる。"
+                           "run ごとの付け替えが効かなくなるので、effort は群の既定に任せて書かない）")
         for node in _nodes(document):
             ident = getattr(_top(node, "id"), "value", "")
             seen.add(ident)
@@ -920,6 +927,11 @@ def _readonly_nodes(root: Path) -> list[str]:
 
 def _role_settings(at: str, ident: str, node, tools) -> list[str]:
     out = []
+    model = getattr(_top(node, "model"), "value", None)
+    if model not in launchgroups.GROUPS:
+        out.append(f"{at}: 役 {ident} の model が表 launchgroups.GROUPS の群の名でない（字の模型は run ごとの付け替えの的にならない。'@wf-<群>' を書く）")
+    if _top(node, "effort") is not None:
+        out.append(f"{at}: 役 {ident} に effort が在る（ノードの effort は群の別名の effort より先に採られ、run ごとの付け替えが効かない。群の既定に任せる）")
     sources = _top(node, "settingSources")
     if not (isinstance(sources, yaml.SequenceNode) and [getattr(i, "value", None) for i in sources.value] == ["user"]):
         out.append(f"{at}: 役 {ident} に settingSources: [user] が無い")

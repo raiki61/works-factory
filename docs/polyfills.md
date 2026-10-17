@@ -26,6 +26,10 @@
 - remote（`origin`）の無い対象のリポジトリでは、子の作業ツリーが切れない（`no git remote is configured`。親の run そのものも remote が無いと作業ツリーを切れない）。fix は remote が在る時だけ組を並べ、無い時は親の作業ツリーで 1 つずつ回す（`groups-seq`）。埋めは要らない。
 - 2026-10-06 の判断「fan_out は子ごとに作業ツリー（cwd）を決められない」は、ノードの `fan_out:` だけを見ていたかもしれない。U8 で読み直す。
 
+### 候補（まだ埋めでない）: run の中で後のノードの模型と effort を付け替える口
+
+- 穴: Archon 355f1867 に、run の中で後のノードの模型と effort を付け替える口が無い。`--model` は run を起こす時だけで続きの run には渡せず、`workflow:` のノードにも付け替えの欄が無い。証拠: `model-validation.ts:447-483`（`--model` は run を起こす時だけ）・`executor.ts:2057`・`dispatch-guards.ts:32-41`・`dag-node.ts:1112-1122`。run の頭の深さの役の群の選び（`groups`）は、今は控えに残すだけで効かない（`lib/headdepth.py`・`lib/launchgroups.py`）。上流に issue は出さない。
+
 ### P1 持ち主が居なくなった running の run を再開できない
 
 - 穴: Archon を動かしていた process が落ちると、run は `running` のまま残り、`resume` できない。

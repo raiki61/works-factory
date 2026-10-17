@@ -90,8 +90,9 @@ EVENTS = "record/{name}-events.json"
 WITHHELD = {"web": "denied", "gh": "withheld"}
 JUDGE_MODEL = "claude-sonnet-5"   # 公開の採点と同じ判定役の模型（ReviewBench の docs/OFFLINE_EVAL.md）
 KEY_LINE = "判定役が API キーを要るなら、作るかは持ち主の決め（#435）"
-# 素の Claude Code の模型と effort は、works-factory の判定の中心の役（workflows/judge/works-factory-judge.yaml の diagnose）と同じ。
-# 持ち主の言葉「同じ模型・effort」の基準を run ごとに揺らさないため、旗で選ばせない
+# 素の Claude Code の模型と effort は、works-factory の判定の中心の役（workflows/judge/works-factory-judge.yaml の diagnose。群
+# @wf-judge-core の既定。lib/launchgroups.py）と同じ。持ち主の言葉「同じ模型・effort」の基準を run ごとに揺らさないため、旗で選ばせず、
+# 群の表からも引かない（表を書き換えると基準が黙って動く）
 PLAIN_MODEL, PLAIN_EFFORT = "opus", "high"
 PLAIN_PROMPT = """You are reviewing a pull request. The current directory is the repository checked out at the pull request head (HEAD).
 The change under review is `git diff $RB_BASE...HEAD`; the same diff is in the file $RB_DIFF, and the pull request metadata is in $RB_PR_JSON.

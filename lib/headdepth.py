@@ -1,5 +1,5 @@
 """run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）。使うのは判定と線の script と、判定・修正案・修正・報告の lib
-（judge_accept・planfile・planblk・fixboard・runreport）。
+（judge_accept・planfile・planblk・fixboard・runreport）。ここが引く物は、群の表の launchgroups（brief が群のセクションを貼り、受け付けが群の選びを照らす）。
 
 単位ごとの深さ（depth.py）の上に、run 全体の深さの段（軽量・標準・重厚。段の定義は depth.TIERS）を run の頭で 1 度決める。
 依頼の行ごとに何が決まっていないか（未知の種類）は意味の問いなので役が引用つきで選び、段はその種類から機械が引く（tier_of）。
@@ -9,7 +9,7 @@ entry に在る。
 
 - facts(rows, start, repo): 依頼の行ごとの字と番地の実在・試験のコマンドの有無・仕様の段・設計だけ・入力 thickness の名指し
 - gate(facts): 役を起こす前の機械の止め (go, 深さ, 訳)。go が偽なら決めた深さと訳で控えを書き、役を起こさない
-- brief(facts): 役に貼る材料の本文
+- brief(facts): 役に貼る材料の本文。依頼の行の事実に、群の表から描いた群のセクション（launchgroups.brief_section）も貼る
 - UNKNOWNS・tier_of(items): 依頼の行ごとに残っている未知の種類（無し・原因・形・範囲）とその段の表と、行の並びの一番重い種類の段
   （depth.HEADS の順）を引く関数。役は段を返さず、段は受け付けがここから引く
 - ASKS・UNKNOWN_HEAD・section(record_file): 種類ごとの指示の表（鍵は UNKNOWNS と同じ。受け手の役に依らない字）と、節の見出し
@@ -25,9 +25,12 @@ entry に在る。
 - cited_files(doc): 控えの items の where が指すファイル（cite.CITE で読む）。修正の後に差分が引用の外に出たかを数える口
   （depth.outside_cited の cited）。使うのは修正のブロック（fixboard.redepth。prep が判定の隣から親の置き場へ RECORD を写す）と
   線の redepth（ties_judgment の隣の控え。workflows/line/scripts/redepth.py の fix_signals）
-- record(depth, why, *, items, facts): 控えの形
+- record(depth, why, *, items, facts, groups): 控えの形。groups は役の群の選びを launchgroups.choices で照らした行（既定のまま・
+  拒んだ時は空）。この run では効かず記録だけで、段の check には混ぜない
 - report_line(depth_word, why, cut=()): 報告の冒頭 2 の 1 行。段の名・根拠と、その段の省く物（単位がどれも軽量の時だけ省く。実際に
   省いたかは depth.lines の行が言う）・足す物（depth.TIERS）。cut に在る足しは名指しで切ったと添える
+- groups_lines(doc): 報告の ## 模型 のセクションに並べる群ごとの選びの行（lib/runreport.py の _model_lines が読む）。選びか既定への
+  戻しの在る群だけを 1 群 1 行で描き、無ければ NO_CHOICE の 1 行。記録だけの 1 文（launchgroups.RECORD_ONLY）を添える
 """
 import json
 import pathlib
@@ -43,6 +46,7 @@ import cite  # noqa: E402
 import depth  # noqa: E402
 import gatemarks  # noqa: E402
 import jsonfile  # noqa: E402
+import launchgroups  # noqa: E402
 import oneline  # noqa: E402
 import promptsection  # noqa: E402
 import startrec  # noqa: E402
@@ -97,11 +101,12 @@ def gate(f: dict) -> tuple:
 
 
 def brief(f: dict) -> str:
+    """役に貼る材料の本文。依頼の行ごとの番地の事実・試験のコマンドの有無に、群の表から描いたセクション（launchgroups.brief_section）を続ける"""
     rows = [f"- 行 {it['item']}: {it['text']}\n  - 番地: {it['where'] or '（無い）'}"
             f"（ファイル {'在る' if it['path_ok'] else '無い'}・行の範囲 {'ファイルの中' if it['lines_ok'] else '外か読めない'}）"
             for it in f["items"]]
     return "\n".join(["# run の頭の深さの材料（機械が測った）", "", f"依頼の行 {len(f['items'])} 個:", *rows, "",
-                      f"機械の確かめ（試験のコマンド）: {'在る' if f['test_cmd'] else '無い'}", ""])
+                      f"機械の確かめ（試験のコマンド）: {'在る' if f['test_cmd'] else '無い'}", "", launchgroups.brief_section()])
 
 
 def _known(kind) -> bool:
@@ -164,8 +169,8 @@ def check(reply, rows, repo) -> list:
     return out
 
 
-def record(depth_word: str, why: str, *, items=(), facts_doc=None) -> dict:
-    return {"depth": depth_word, "why": why, "items": list(items), "facts": facts_doc or {}}
+def record(depth_word: str, why: str, *, items=(), facts_doc=None, groups=()) -> dict:
+    return {"depth": depth_word, "why": why, "items": list(items), "facts": facts_doc or {}, "groups": list(groups)}
 
 
 def write(jdir, doc: dict) -> pathlib.Path:
@@ -226,6 +231,30 @@ def section(record_file) -> str:
     if not rows:
         return f"{UNKNOWN_HEAD}\n\n{NO_KINDS.format(why=str(doc.get('why') or NO_RECORD))}\n"
     return "\n".join([UNKNOWN_HEAD, "", *rows]) + "\n"
+
+
+NO_CHOICE = "役の選びは無い（呼ぶ人の名指しと層の付け替えの後の値は下のノードごとの行）"
+
+
+def _group_line(row: dict) -> str:
+    group = oneline.one_line(row.get("group") or "") or "（群の名が無い）"
+    why = oneline.one_line(row.get("fallback") or row.get("why") or "") or "訳の記録が無い"
+    if group not in launchgroups.GROUPS:
+        return f"{group}: 表に無い群を既定に戻した（訳: {why}）"
+    default = "・".join(launchgroups.default_of(group))
+    if row.get("fallback"):
+        return f"{group}: 役の選びを既定 {default} に戻した（訳: {why}）"
+    return f"{group}: 既定 {default} → 役の選び {row.get('model')}・{row.get('effort')}（{row.get('direction')}。訳: {why}）"
+
+
+def groups_lines(doc) -> list:
+    """報告の ## 模型 のセクションに並べる、役の選びの行。控え doc（read が読んだ物。控えの無い run は None）の groups の行ごとに 1 行
+    （1 群 1 行。選ばれていない群の行は出さない）: 選びは既定の (model, effort)・役の選び・向き・訳、既定に戻した行は戻した訳。
+    選びも戻した行も無い・控えの無い run は NO_CHOICE の 1 行。どちらの形も最後に launchgroups.RECORD_ONLY の 1 文を添える。
+    既定の値は launchgroups の表から引く"""
+    groups = doc.get("groups") if isinstance(doc, dict) else None
+    rows = [_group_line(r) for r in groups if isinstance(r, dict)] if isinstance(groups, list) else []
+    return [*(rows or [NO_CHOICE]), launchgroups.RECORD_ONLY]
 
 
 def report_line(depth_word, why, cut=()) -> str:

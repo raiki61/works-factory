@@ -27,7 +27,8 @@ nodes:
         reason: {type: string}
   # run の頭の深さ（docs/design.md の「深さの段の表」）。支度が機械の止めを通し、役が依頼の行ごとの未知の種類を引用つきで返し、段は受け付けが一番重い種類から引く
   # （引用の実在も受け付けが照らす）。控えは judge/depth-head.json で、判定役の材料（diagnose-prep が行ごとの指示を貼る）・返す節・裏取りの支度が読み
-  # （裏取りの支度は diagnose-prep を通してこの役の終わりを待つ）、判定の外では修正案の材料・修正の支度（置き場へ写す）・線の redepth が読む。落ちても判定は標準で進む
+  # （裏取りの支度は diagnose-prep を通してこの役の終わりを待つ）、判定の外では修正案の材料・修正の支度（置き場へ写す）・線の redepth が読む。落ちても判定は標準で進む。
+  # 役は段のほかにノード群の模型と effort の選びを groups で返し、受け付けが群の表で照らして控えに残す（外れた行は既定に戻る。この run では効かず記録だけ）
   - id: head-depth-prep
     script: head_depth_prep
     runtime: uv
@@ -66,10 +67,9 @@ nodes:
         - id: head-depth
           command: head-depth
           depends_on: [head-depth-reject]
-          # 読むだけの sonnet の役の起こし方（目的の監査の役 purpose-review と同じ。docs/concepts.md の ai-launch）
+          # 読むだけの役の起こし方（目的の監査の役 purpose-review と同じ。模型と effort は群 @wf-judge-materials の既定。docs/concepts.md の ai-launch）
           <<: &read_launch
-            model: sonnet
-            effort: medium
+            model: '@wf-judge-materials'
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -79,9 +79,12 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [why, items]
+            required: [why, items, groups]
             properties:
               why: {type: string, minLength: 1, pattern: '\S'}
+              groups:
+                type: array
+                items: {type: object, additionalProperties: false, required: [group, model, effort, why], properties: {group: {type: string, minLength: 1}, model: {type: string, minLength: 1}, effort: {type: string, minLength: 1}, why: {type: string, minLength: 1}}}
               items:
                 type: array
                 items:
@@ -139,8 +142,7 @@ nodes:
           depends_on: [spec-reject]
           when: "$spec-reject.output.resubmit != true"
           <<: &spec_launch
-            model: opus
-            effort: medium
+            model: '@wf-judge-spec'
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -233,8 +235,7 @@ nodes:
           depends_on: [spec-review-reject]
           when: "$spec-review-reject.output.resubmit != true"
           <<: &review_launch
-            model: opus
-            effort: high
+            model: '@wf-judge-core'
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -480,8 +481,7 @@ nodes:
           command: pr-check
           depends_on: [pr-check-reject]
           <<: &net_closed_launch
-            model: sonnet
-            effort: medium
+            model: '@wf-judge-materials'
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
             sandbox:
@@ -603,8 +603,7 @@ nodes:
         - id: premises
           command: premises
           depends_on: [premises-reject]
-          model: sonnet
-          effort: medium
+          model: '@wf-judge-materials'
           settingSources: [user]
           allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
           sandbox:
@@ -685,8 +684,7 @@ nodes:
         - id: purpose
           command: purpose
           depends_on: [purpose-reject]
-          model: sonnet
-          effort: medium
+          model: '@wf-judge-materials'
           settingSources: [user]
           allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           mutates_checkout: false
@@ -764,8 +762,7 @@ nodes:
         - id: world-classes
           command: world-classes
           depends_on: [world-classes-reject]
-          model: opus
-          effort: high
+          model: '@wf-judge-core'
           settingSources: [user]
           allowed_tools: []
           mutates_checkout: false
@@ -845,8 +842,7 @@ nodes:
         - id: world-judge
           command: world-judge
           depends_on: [world-judge-reject]
-          model: sonnet
-          effort: medium
+          model: '@wf-judge-materials'
           settingSources: [user]
           allowed_tools: [WebSearch, WebFetch]
           mutates_checkout: false
@@ -1313,8 +1309,7 @@ nodes:
         - id: hygiene
           command: material-hygiene
           depends_on: [hygiene-prep]
-          model: sonnet
-          effort: medium
+          model: '@wf-judge-materials'
           settingSources: [user]
           allowed_tools: []
           mutates_checkout: false
@@ -1558,8 +1553,7 @@ nodes:
           command: material-gate-efficacy
           depends_on: [gate-efficacy-prep]
           <<: &test_run_launch
-            model: sonnet
-            effort: medium
+            model: '@wf-judge-materials'
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
             sandbox:
@@ -2099,8 +2093,7 @@ nodes:
     command: judge-verify
     depends_on: [verify-prep]
     when: $verify-prep.output.go == true
-    model: opus
-    effort: high
+    model: '@wf-judge-core'
     context: fresh
     settingSources: [user]
     allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]

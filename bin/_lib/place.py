@@ -8,7 +8,8 @@
   pack の形にするのは、Archon が名前の script を pack のグラフの時だけグラフのフォルダの scripts/ から探し、
   pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
-Archon の家（$ARCHON_HOME）には、工場が決める値（home_config）を書いた config.yaml のほかは何も置かない（$ARCHON_HOME/workflows など）。
+Archon の家（$ARCHON_HOME）には、工場が決める値（home_config。defaultAssistant・workflows.autoResumeOnQuotaReset・AI ノードの群の別名 aliases の
+'@wf-<群>' の行）を書いた config.yaml のほかは何も置かない（$ARCHON_HOME/workflows など）。
 """
 import hashlib
 import re
@@ -17,6 +18,8 @@ import subprocess
 import tempfile
 from collections.abc import Callable, Mapping
 from pathlib import Path
+
+from lib import launchgroups
 
 ENTRY = "packages/cli/src/cli.ts"
 WORKFLOW_FOLDER = ".archon/workflows"
@@ -32,7 +35,6 @@ PROVIDER_KEY = re.compile(r"^defaultAssistant\s*:", re.MULTILINE)
 # asf-follows-dev の近くの行）
 QUOTA_KEY = "autoResumeOnQuotaReset"
 QUOTA_VALUE = "false"
-WORKFLOWS_KEY = re.compile(r"^workflows\s*:(?P<rest>.*)$", re.MULTILINE)
 
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
@@ -49,16 +51,19 @@ def archon_folder(cache: Path, commit: str) -> Path:
 
 
 def home_config(archon_home: Path) -> None:
-    """archon_home/config.yaml に、工場が Archon の既定に従わずに決める値（defaultAssistant と workflows.autoResumeOnQuotaReset）が
-    無ければ足す。在る値（利用者が選んだ物）は変えない。Archon は config.yaml の無い家にだけ注記だけの雛形を書くので、先に書けば
-    雛形は置かれない"""
+    """archon_home/config.yaml に、工場が Archon の既定に従わずに決める値を書く。
+    - defaultAssistant と workflows.autoResumeOnQuotaReset: 無ければ足す。在る値（利用者が選んだ物）は変えない
+    - aliases の '@wf-<群>' の行（群は lib/launchgroups.py の表。AI ノードが model: で指す別名）: 工場の持ち物として呼ぶたびに表の値へ書き揃える。
+      @wf- でない利用者の別名は残す。利用者が @wf- の行を手で替えても次の呼びで表の値に戻る（run ごとの付け替えは --model で名指す）
+    Archon は config.yaml の無い家にだけ注記だけの雛形を書くので、先に書けば雛形は置かれない"""
     config = archon_home / "config.yaml"
     config.parent.mkdir(parents=True, exist_ok=True)
     before = config.read_text(encoding="utf-8") if config.exists() else ""
     text = before
     if not PROVIDER_KEY.search(text):
         text = appended(text, f"defaultAssistant: {DEFAULT_PROVIDER}\n")
-    text = with_quota_policy(text, config)
+    text = with_children(text, config, "workflows", {QUOTA_KEY: QUOTA_VALUE}, owned=False)
+    text = with_children(text, config, "aliases", group_aliases(), owned=True)
     if text != before:
         config.write_text(text, encoding="utf-8")
 
@@ -69,24 +74,55 @@ def appended(text: str, lines: str) -> str:
     return f"{text}{gap}{lines}"
 
 
-def with_quota_policy(text: str, config: Path) -> str:
-    """text の workflows: の塊に QUOTA_KEY が無ければ足す。塊が無ければ末に作り、在れば塊の頭に子の字下げで足す（鍵を重ねない）"""
-    found = WORKFLOWS_KEY.search(text)
-    if found is None:
-        return appended(text, f"workflows:\n  {QUOTA_KEY}: {QUOTA_VALUE}\n")
-    if found["rest"].split("#", 1)[0].strip():
-        raise RuntimeError(f"{config} の workflows: が 1 行の形で、{QUOTA_KEY} を足せない。塊の形（次の行から字下げ）に直す")
-    head, rest = text[:found.end()], text[found.end():]
-    children = []
-    for line in rest.split("\n")[1:]:
-        if line.strip() and not line[0].isspace() and not line.startswith("#"):
-            break
-        if line.strip() and not line.lstrip().startswith("#"):
-            children.append(line)
-    if any(re.match(rf"\s+{QUOTA_KEY}\s*:", line) for line in children):
-        return text
-    indent = re.match(r"\s*", children[0]).group() if children else "  "
-    return f"{head}\n{indent}{QUOTA_KEY}: {QUOTA_VALUE}" + (rest or "\n")
+def group_aliases() -> dict[str, str]:
+    """群の別名の行（群の名 → 1 行の flow）。値は lib/launchgroups.py の表の既定と DEFAULT_PROVIDER から組む"""
+    return {name: f"{{provider: {DEFAULT_PROVIDER}, model: {model}, effort: {effort}}}"
+            for name in launchgroups.GROUPS for model, effort in [launchgroups.default_of(name)]}
+
+
+def with_children(text: str, config: Path, block: str, children: Mapping[str, str], *, owned: bool) -> str:
+    """text の block: の塊に子の鍵 children（鍵 → 値の字）を足す。塊が無ければ末に作り、在れば塊の頭に子の字下げで足す（鍵を重ねない）。
+
+    在る鍵は owned が偽なら変えない（利用者が選んだ値）。owned が真なら工場の持ち物として値を書き揃える（行の中で置き換え、
+    その鍵の字下げの深い続きの行は消す）。children に無い鍵の行は変えない。塊が 1 行の形（`block: { … }`）なら RuntimeError"""
+    lines = text.split("\n")
+    head = next((i for i, line in enumerate(lines) if re.match(rf"{block}\s*:", line)), None)
+    if head is None:
+        return appended(text, f"{block}:\n" + "".join(f"  {_child(key, value)}\n" for key, value in children.items()))
+    if lines[head].split(":", 1)[1].split("#", 1)[0].strip():
+        raise RuntimeError(f"{config} の {block}: が 1 行の形で、工場の決める鍵（{next(iter(children))} など）を足せない。"
+                           "塊の形（次の行から字下げ）に直す")
+    end = head + 1
+    while end < len(lines) and not (lines[end].strip() and not lines[end][0].isspace() and not lines[end].startswith("#")):
+        end += 1
+    kids = [i for i in range(head + 1, end) if lines[i].strip() and not lines[i].lstrip().startswith("#")]
+    missing, drop = [], set()
+    for key, value in children.items():
+        found = next((i for i in kids if re.match(rf"\s+['\"]?{re.escape(key)}['\"]?\s*:", lines[i])), None)
+        if found is None:
+            missing.append(_child(key, value))
+        elif owned:
+            depth = _indent(lines[found])
+            lines[found] = f"{lines[found][:depth]}{_child(key, value)}"
+            for i in range(found + 1, end):
+                if lines[i].strip() and _indent(lines[i]) <= depth:
+                    break
+                if lines[i].strip():
+                    drop.add(i)
+    pad = lines[kids[0]][:_indent(lines[kids[0]])] if kids else "  "
+    added = [f"{pad}{row}" for row in missing]
+    tail = [""] if added and head == len(lines) - 1 else []
+    return "\n".join([*lines[:head + 1], *added, *(line for i, line in enumerate(lines) if i > head and i not in drop), *tail])
+
+
+def _child(key: str, value: str) -> str:
+    """塊の子 1 行（YAML は '@' で始まる鍵を引用符で囲まないと読めない）"""
+    shown = f"'{key}'" if key.startswith("@") else key
+    return f"{shown}: {value}"
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:

@@ -2033,8 +2033,8 @@
 - U055 WORKS_DEV_MODEL で模型を明示する（未設定なら既定。包みが前付けの無い役の段に効かせる）
   - 元: use.sh:80-81・186
   - 印: `WORKS_DEV_MODEL`
-  - 今: Archon の `workflow run --model`（tier・@alias の付け替え）と各ノードの YAML の `model:`
-  - 状態: 形を変えて在る（ノードごとの model: が正で、run 単位の付け替えは Archon の旗）
+  - 今: `lib/launchgroups.py::GROUPS`・`bin/_lib/place.py::home_config` と Archon の `workflow run --model`
+  - 状態: 形を変えて在る（ノードは群の名 @wf-<群> を指し、run 単位の付け替えは Archon の --model。run-model-choice）
   - 旧棚卸し: F146・J106
 
 - U056 run の控え（模型・claude の実行ファイル・keychain の項目の名・包み）を残し、別の殻で打つ answer・stop・show・次の周がそれで Archon を起こす
@@ -2042,7 +2042,7 @@
   - 印: `answer`・`stop`・`show`
   - 今: 無し（殻は打つたびに利用者の env から解く）
   - 状態: 無い
-  - 処置: 要らない: 模型は YAML のノードごとに固定で run の記録に残り、claude は `bin/_lib/launcher.py::real_claude` が毎回解き、包みはいつも在る（`one-launcher` で殻は控えを持たない）
+  - 処置: 要らない: 模型と effort は run ごとに Archon が run の記録の metadata.model_bindings に残し、続きの run で同じ付け替えを使い直す（run-model-choice）。claude は `bin/_lib/launcher.py::real_claude` が毎回解き、包みはいつも在る（`one-launcher` で殻は控えを持たない）
   - 旧棚卸し: 無し
 
 - U057 WORKS_MODEL_PINNED を利用者の殻から受けない（既定の釘は控えからだけ）

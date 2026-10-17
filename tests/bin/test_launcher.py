@@ -17,6 +17,8 @@ import sys
 import tempfile
 import unittest
 
+import yaml
+
 from bin._lib import launcher, place, toolset
 from lib import answer, reads, userenv, writelog
 from tests.bin import fakelaunch, hermetic
@@ -364,8 +366,9 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(attempt):
                 archon_home = pathlib.Path(self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]["ARCHON_HOME"])
                 self.assertNotEqual(archon_home.resolve(), (self.home / ".archon").resolve())
-                self.assertEqual((archon_home / "config.yaml").read_text(encoding="utf-8"),
-                                 "defaultAssistant: claude\nworkflows:\n  autoResumeOnQuotaReset: false\n")
+                written = (archon_home / "config.yaml").read_text(encoding="utf-8")
+                self.assertTrue(written.startswith("defaultAssistant: claude\nworkflows:\n  autoResumeOnQuotaReset: false\naliases:\n"), written)
+                self.assertEqual(yaml.safe_load(written)["aliases"], {name: yaml.safe_load(flow) for name, flow in place.group_aliases().items()})
                 shutil.rmtree(self.default_home(self.target))
         self.assertEqual(users.read_bytes(), before)
         self.assertEqual(sorted(p.name for p in (self.home / ".archon").iterdir()), ["config.yaml"])
