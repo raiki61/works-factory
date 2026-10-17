@@ -1637,7 +1637,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-report/lib/report_roles.py:476 `stamp`（線・run・周・graph と規則の表の版）
   - 今: 表
   - 証: lib/tests/test_runreport.py::StampCase.test_stamp_names_workflow_run_and_version・tests/workflows/test_report.py::FactsCase.test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__facts` の出力 stamp、report/report-ai.md の 1 行目）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__facts` の出力 stamp、report/report-ai.md の最後の行と report/report-detail.md の 1 行目）
   - 狭め: 表の版と線の版は R81
 
 - R65 語の定義の節: 書き手の terms のうち本文に現れる語だけ。pack の一覧は #660 で語の表（記録の名と人に向けた言い方の対）に変え、人に向けた報告で言い換える（定義しない）。pack の一覧が読めなければ例外
@@ -1762,7 +1762,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-report/lib/report_roles.py:476 `stamp`
   - 今: 表
   - 証: lib/tests/test_runreport.py::StampCase.test_stamp_names_line_version、tests/workflows/test_report.py::FactsCase.test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome（facts の節が始めの記録を渡す）
-  - 本物の run: report/report-ai.md の 1 行目
+  - 本物の run: report/report-ai.md の最後の行と report/report-detail.md の 1 行目
   - 狭め: 判定: 表の版は規則の表が無いので対象が無い（#68 は正しい）。線の版は report の側を入れた。線の始めの記録の versions.line（workflows/line/scripts/start.py の versions）は持ち主の手に渡した（#124）
 
 - R82 受け止めた落ちの決め方（元は線の YAML の [optional] の宣言と出口の印。今は落ちた後にほかの節が始まったか）
