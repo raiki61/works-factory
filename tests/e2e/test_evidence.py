@@ -436,7 +436,7 @@ class EvidenceTableCase(unittest.TestCase):
                     self.assertTrue(row["why"].strip() and row["to"].strip())
 
 
-SCENARIO = ROOT / "harness" / "runtime.scenario.json"
+SCENARIO = ROOT / "tests" / "e2e" / "scenario.json"
 SCRIPTS = ROOT / "workflows"
 IDLE_RUN = "idle"
 SKIPPED, COMPLETED = "skipped", evidence.COMPLETED

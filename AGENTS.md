@@ -67,7 +67,7 @@ works-factory/
 │   ├── bin/                     入口の試験
 │   ├── shared/                  境の試験
 │   ├── workflows/               サブグラフの YAML の形と筋書きの試験（test_<サブグラフ>.py。筋書きは tests/archon.py の使い捨ての木で回す）
-│   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験
+│   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験と筋書き（scenario.json。人が読む要約は scenario.md）
 ├── docs/
 │   ├── design.md                設計（メイングラフ・サブグラフ・能力の棚卸し・未決）
 │   ├── owner-decisions.md       持ち主の決めの正本
@@ -87,8 +87,7 @@ works-factory/
 ├── MISSION.md・README.md
 ├── engineering.md               ASF の役が読む入口。ここを指すだけ
 └── ASF の取り付け命令が置いた物（持ち主の決め asf-installer-in-repo。E8）
-    ├── factory/・FACTORY.md・FACTORY_RULES.md     手を加えない
-    ├── harness/                 END-TO-END.md・harness.config.json・runtime.inputs.json・runtime.scenario.json だけ書く。ほかは手を加えない
+    ├── factory/・FACTORY.md・FACTORY_RULES.md     手を加えない。factory/ は consumer.py・pack.json・WORKFLOW_POLICY.md だけ
     └── .factory/holdout/HOLDOUT.md                書く
 ```
 
@@ -98,7 +97,7 @@ works-factory/
 ## E8 ASF は横に並べて見るだけ
 
 - ASF と Archon 同梱のグラフを `include:`・`workflow:` で呼ばない。ASF のコードを自分の層（`bin/`・`workflows/`・`lib/`）に写さない。採るのは型（なぜその形か）だけ。
-- ASF の取り付け命令が置いた物（`factory/`・`harness/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）は、ASF がこのリポジトリを作るための物で、4 つの層の外に置いたまま手を加えない。ASF の共有のグラフへの決まりは `factory/WORKFLOW_POLICY.md`。持ち主の決め `asf-installer-in-repo`。
+- ASF の取り付け命令が置いた物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）は、ASF がこのリポジトリを作るための物で、4 つの層の外に置いたまま手を加えない。起こす物の無くなった取り付け物は外し、置き直さない（外した物の一覧は持ち主の決め `asf-installer-in-repo`）。ASF の共有のグラフへの決まりは `factory/WORKFLOW_POLICY.md`。
 - ASF の型を採ったら、`docs/asf-notes.md` に 1 行足す（ASF の commit・ファイル・採った先のサブグラフ・違いと訳）。
 - 機械: `tests/layers/test_no_asf.py`（`include:`・`workflow:` の値が `works-factory-` で始まる）。写していないことと名簿の行は人が見る。
 
