@@ -238,13 +238,13 @@ class JudgeNamesTest(unittest.TestCase):
 
     def test_names_come_from_the_judge_ports(self):
         import judge_accept
-        self.assertEqual(scan.judge_port_files(), {*judge_accept.PORTS.values(), *judge_accept.FIRST_PORTS.values()})
-        self.assertIn("materials.json", scan.judge_port_files())
+        self.assertEqual(scan.port_files("judge"), {*judge_accept.PORTS.values(), *judge_accept.FIRST_PORTS.values()})
+        self.assertIn("materials.json", scan.port_files("judge"))
 
     def test_every_port_file_has_a_home(self):
         """判定の出力の欄のファイルの名は、どれも住処のモジュールが字か定数で持つ（住処の表が欄の足しに遅れていない）"""
-        text = "".join((ROOT / home).read_text(encoding="utf-8") for home in scan.JUDGE_NAME_HOMES)
-        for name in scan.judge_port_files():
+        text = "".join((ROOT / home).read_text(encoding="utf-8") for home in scan.NAME_HOMES["judge"].homes)
+        for name in scan.port_files("judge"):
             with self.subTest(name=name):
                 self.assertIn(f'"{name}"', text)
 
@@ -270,7 +270,7 @@ class JudgeNamesTest(unittest.TestCase):
             with self.subTest(body=body):
                 got = self.judge_names({**homes, "workflows/eyes/scripts/a.py": body})
                 self.assertEqual(len(got), 1, got)
-                self.assertIn("(<判定のポインタの隣>)", got[0])
+                self.assertIn("(<判定に届く値>)", got[0])
         clean = "import worldmark\nX = worldmark.read_file(j)\nY = worldmark.read_file(j.parent / 'x')\nZ = worldmark.read(j)\n"
         self.assertEqual(self.judge_names({**homes, "workflows/eyes/scripts/a.py": clean}), [])
 
@@ -315,6 +315,133 @@ class JudgeNamesTest(unittest.TestCase):
                  "lib/judge_accept.py": "import gatemarks\nX = gatemarks.MATERIALS_FILE\n",
                  "workflows/plan/scripts/b.py": 'X = "判定の materials.json の先"\nY = "judge-materials.json"\n'}
         self.assertEqual(self.judge_names(files), [])
+
+
+
+class PortNamesTest(unittest.TestCase):
+    """表 NAME_HOMES の計画・修正・メイングラフの置き場の行（issue #681）: 持ち主の置き場のファイルとメイングラフの run の共有の置き場を、
+    持ち主の外が名の字・住処の定数・名の表・開く関数に届く値（直・名に置いた値・助け手の返り・ARTIFACTS_DIR の読み）・印の環境変数で
+    名指すと赤。返りのままの段と resolve を住処の読み手の口に渡す形・入力の字を渡す形は通る"""
+
+    PLAN_HOMES = {"lib/planfile.py": 'FIX_PLAN_FILE = "p2.fix_plan.json"\nROUND_FILE = "round.json"\n'
+                                     "def nothing_owed(d):\n    return (d / ROUND_FILE).is_file()\n"
+                                     "def require_ports(got):\n    return got\n",
+                  "lib/rolekit.py": "def reject_rows(board, name):\n    return []\ndef last_reject(folder):\n    return ''\n"}
+    FIX_HOMES = {"lib/fixboard.py": 'ALLOWED_TESTS_FILE = "allowed-tests.json"\nACCEPT_TRACE_FILE = "accept-trace.json"\n',
+                 "lib/fixbeside.py": 'CLOSURE_FILE = "closure.json"\n'
+                                     "def read(stages, resolve):\n    return [resolve(s) / CLOSURE_FILE for s in stages]\n"
+                                     "def stage(got):\n    return got\n",
+                 "lib/leftovers.py": 'REMOVED_FILE = "fix-removed.json"\ndef found(board):\n    return [board / REMOVED_FILE]\n',
+                 "lib/tddloop.py": 'STATE, PROMPT = "state.json", "next.md"\n'}
+    LINE_HOMES = {"lib/tree_run.py": 'REUSE_SUB = "test-reuse"\ndef reuse_dir(top):\n    return top\n'
+                                     "def reuse_place(place, run, *, rerun):\n    return place\n",
+                  "lib/userenv.py": 'RAN_DIR_ENV = "WORKS_FACTORY_USER_ENV_RAN_DIR"\nRAN_FILE = "user-env-ran"\n'
+                                    "def ran(top):\n    return top\n",
+                  "workflows/.shared/boundary.py": "import os\nfrom pathlib import Path\n"
+                                                   'USER_ENV_RAN_DIR = "WORKS_FACTORY_USER_ENV_RAN_DIR"\n'
+                                                   "def place(block):\n    return Path(os.environ['ARTIFACTS_DIR']) / block\n"
+                                                   "def aim_user_env(place):\n    os.environ[USER_ENV_RAN_DIR] = place.strip()\n"}
+
+    def names(self, block: str, homes: dict, files: dict) -> list:
+        row = scan.NAME_HOMES[block]
+        with tree({**homes, **files}) as root:
+            return [line for line in scan.problems("E4", root) if f"で{row.said}。" in line]
+
+    def assert_red(self, block, homes, path, bodies, mark=None):
+        for body in bodies:
+            with self.subTest(body=body):
+                got = self.names(block, homes, {path: body})
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith(f"{path}:"), got)
+                if mark:
+                    self.assertIn(mark, got[0])
+
+    def test_every_table_block_names_come_from_its_port_table(self):
+        """名は行の名の出どころ（PORTS・FROM ほか）の値から引き、字を写さない。計画と修正の名の表の鍵は返す節の出力の欄"""
+        import yaml
+        import fixbeside
+        import planfile
+        import tree_run
+        import userenv
+        self.assertEqual(scan.port_files("plan"), {*planfile.PORTS.values(), *planfile.FROM.values()})
+        self.assertEqual(scan.port_files("fix"), {*fixbeside.PORTS.values(), *fixbeside.FROM.values()})
+        self.assertEqual(scan.port_files("line"), {tree_run.REUSE_SUB, userenv.RAN_FILE})
+        for block, tables in (("plan", (planfile.PORTS, planfile.FROM)), ("fix", (fixbeside.PORTS, fixbeside.FROM))):
+            doc = yaml.safe_load((ROOT / "workflows" / block / f"works-factory-{block}.yaml").read_text(encoding="utf-8"))
+            returned = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
+            with self.subTest(block=block):
+                self.assertLessEqual({k for table in tables for k in table}, set(returned["output_format"]["required"]))
+        self.assertEqual(set(scan.NAME_HOMES), {"judge", "plan", "fix", "line"})
+
+    def test_plan_file_through_a_home_constant_or_opener_is_red(self):
+        """計画の置き場のファイルを、名の字・住処の定数・名の表・開く関数（rolekit は頭の関数の全部）に計画のポインタの隣で名指すと赤"""
+        self.assert_red("plan", self.PLAN_HOMES, "workflows/line/scripts/a.py", (
+            'X = "p2.fix_plan.json"\n', "import planfile\nX = d / planfile.FIX_PLAN_FILE\n",
+            "import planfile\nX = planfile.PORTS['fix_plan']\n", "from planfile import FROM\n",
+            "import pathlib, planfile\nX = planfile.nothing_owed(pathlib.Path(p).parent)\n",
+            "import pathlib, rolekit, planfile\nX = rolekit.reject_rows(pathlib.Path(p).parent, 'plan')\n",
+            "import pathlib, rolekit\nX = rolekit.last_reject(pathlib.Path(p).parent)\n"), mark="計画")
+        clean = "import planfile\nplanfile.require_ports(got)\nX = got['fix_plan']\n"
+        self.assertEqual(self.names("plan", self.PLAN_HOMES, {"workflows/line/scripts/a.py": clean}), [])
+
+    def test_fix_file_through_a_home_constant_or_opener_is_red(self):
+        """修正の置き場のファイルを、名の字・住処の定数・名の表・開く関数に修正のポインタの隣で名指すと赤。返りのままの段と resolve を
+        住処の読み手の口に渡す形は通る（どの欄がポインタかを知り、戻すのは住処の中だけ）"""
+        self.assert_red("fix", self.FIX_HOMES, "workflows/line/scripts/a.py", (
+            'X = "closure.json"\n', 'X = "state.json"\n', "import fixboard\nX = d / fixboard.ALLOWED_TESTS_FILE\n",
+            "import fixbeside\nX = fixbeside.PORTS['closure']\n", "import fixbeside\nX = fixbeside.FROM\n",
+            "import fixbeside\nX = fixbeside.read([diff.parent], str)\n", "import leftovers\nX = leftovers.found(diff.parent)\n"),
+                        mark="修正")
+        clean = "import boundary, fixbeside\nX = fixbeside.read(records, boundary.resolve)\nY = fixbeside.stage(got)\n"
+        self.assertEqual(self.names("fix", self.FIX_HOMES, {"workflows/line/scripts/a.py": clean}), [])
+
+    def test_beside_kept_in_a_name_or_a_helper_is_red(self):
+        """ポインタの隣は、名に置いた値（代入・for の的・`.append(…)` の並び）と、照らす木の中でそういう値を返す助け手の呼びも数える。
+        値から読んだ中身（str・.get）は数えない"""
+        self.assert_red("fix", self.FIX_HOMES, "lib/reader.py", (
+            "import fixbeside\nfolder = diff.parent\nX = fixbeside.read([folder], str)\n",
+            "import fixbeside\nfolders = []\nfor p in ps:\n    folders.append(p.parent)\nX = fixbeside.read(folders, str)\n",
+            "import fixbeside\ndef folder_of(p):\n    return p.parent\nX = fixbeside.read([folder_of(diff)], str)\n",
+            "import fixbeside\nfor folder in [d.parent for d in diffs]:\n    fixbeside.read([folder], str)\n"))
+        homes = {**self.FIX_HOMES, "lib/outcome.py": "def folders(fix):\n    return [d.parent for d in fix]\n"}
+        self.assert_red("fix", homes, "workflows/line/scripts/a.py", ("import fixbeside, outcome\nX = fixbeside.read(outcome.folders(f), str)\n",))
+        clean = "import fixbeside\nname = str(diff.parent)\nX = fixbeside.read(records.get(name), str)\n"
+        self.assertEqual(self.names("fix", self.FIX_HOMES, {"lib/reader.py": clean}), [])
+
+    def test_reaching_the_line_place_is_red(self):
+        """メイングラフの run の共有の置き場を、名の字・住処の定数・住処の関数の全部（置き場を受ける口）に届く値（ポインタの隣・
+        ARTIFACTS_DIR の読み・それを返す境の口）で名指すと赤。線の script と、入力の字をそのまま渡す形は通る。誤りの文は直し方を
+        線が渡す入力と言う"""
+        self.assert_red("line", self.LINE_HOMES, "workflows/test-gate/scripts/run.py", (
+            'X = "test-reuse"\n', "import tree_run\nX = top / tree_run.REUSE_SUB\n",
+            "import os, tree_run\nfrom pathlib import Path\nX = tree_run.reuse_place(Path(os.environ['ARTIFACTS_DIR']), run, rerun=False)\n",
+            "import boundary, userenv\nX = userenv.ran(boundary.place('report'))\n",
+            "import os, tree_run\nfrom pathlib import Path\nX = tree_run.reuse_place(Path(os.environ['INPUTS_OUT_DIR']).parents[2], r, rerun=False)\n"),
+                        mark="reuse_dir・user_env_dir")
+        clean = ("import os, tree_run, userenv\nX = tree_run.reuse_place(os.environ.get('INPUTS_REUSE_DIR', ''), r, rerun=False)\n"
+                 "Y = userenv.ran(os.environ.get('INPUTS_USER_ENV_DIR', '').strip() or None)\n")
+        self.assertEqual(self.names("line", self.LINE_HOMES, {"workflows/test-gate/scripts/run.py": clean}), [])
+        own = "import os, tree_run\nfrom pathlib import Path\nX = tree_run.reuse_dir(Path(os.environ['ARTIFACTS_DIR']))\n"
+        self.assertEqual(self.names("line", self.LINE_HOMES, {"workflows/line/scripts/start.py": own}), [], "線の script は持ち主")
+
+    def test_artifacts_dir_kept_in_a_name_or_a_helper_is_red(self):
+        """ARTIFACTS_DIR の読みは、名に置いた値と、それを返す助け手（照らす木の中の関数）の返りも数える"""
+        self.assert_red("line", self.LINE_HOMES, "workflows/fix/scripts/a.py", (
+            "import os, tree_run\nfrom pathlib import Path\nart = Path(os.environ.get('ARTIFACTS_DIR'))\n"
+            "X = tree_run.reuse_place(art, r, rerun=False)\n",
+            "import os, userenv\ndef top():\n    return os.getenv('ARTIFACTS_DIR')\nX = userenv.ran(top())\n"))
+
+    def test_aiming_the_marker_env_at_a_reached_place_is_red(self):
+        """印の環境変数（userenv.RAN_DIR_ENV とその値の定数）に、届く値を置く形（代入・update・setdefault・putenv）は赤。入力の字を
+        置く形は通る"""
+        boundary = "workflows/.shared/boundary.py"
+        head = "import os\nfrom pathlib import Path\nUSER_ENV_RAN_DIR = 'WORKS_FACTORY_USER_ENV_RAN_DIR'\n"
+        self.assert_red("line", {k: v for k, v in self.LINE_HOMES.items() if k != boundary}, boundary, (
+            head + "os.environ[USER_ENV_RAN_DIR] = str(Path(os.environ['ARTIFACTS_DIR']))\n",
+            head + "os.environ['WORKS_FACTORY_USER_ENV_RAN_DIR'] = str(Path(os.environ['INPUTS_OUT_DIR']).parents[2])\n",
+            head + "import userenv\nos.environ.update({userenv.RAN_DIR_ENV: str(out.parent)})\n",
+            head + "os.environ.setdefault(USER_ENV_RAN_DIR, os.environ['ARTIFACTS_DIR'])\n"), mark="環境の印の置き場")
+        self.assertEqual(self.names("line", self.LINE_HOMES, {}), [], "入力の字を置く境の口は通る")
 
 
 if __name__ == "__main__":
