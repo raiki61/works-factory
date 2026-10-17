@@ -30,9 +30,12 @@
 - quote_gaps(board_dir, schema, faces, rows, design_map=None): 2 つの頭の穴の引用と、項目の答えの design_map の誤りの行（設計が立たなければ空）。
                  design_map の行の形は converge.DESIGN_MAP_SCHEMA、案→設計で要る行は _wanted。coverage_gaps は独立設計の要素の網羅
                  （呼び手が全部の項目の答えの design_ref を合わせて当てる。planblk.coverage_gaps）
+- wanted_lines(rows): design_map に案→設計の行が 1 行ずつ要る鍵（_wanted。受け付けが照らすのと同じ集合）を、指示書に貼る行 {item, path, symbol} の
+                 JSON にした並び（planblk.map_items_section が貼る）
 - element_gaps(reply)・element_lines(got): 立つ設計の elements（{id, adds, removes}）の空と id の重なりの誤り（boardview.check_design が呼ぶ）と、
                  要素を 1 行ずつ描く文（planblk.design_only が貼る）
 """
+import json
 import pathlib
 import re
 import subprocess
@@ -607,6 +610,12 @@ def _wanted(rows) -> list:
             out += [(r.get("item"), path, s["name"]) for s in planmarks.symbol_rows(row)
                     if s.get("change") in planmarks.SYMBOL_CHANGES and isinstance(s.get("name"), str)]
     return list(dict.fromkeys(out))
+
+
+def wanted_lines(rows) -> list:
+    """案の行 rows の、design_map に案→設計の行が 1 行ずつ要る鍵（_wanted。受け付けの _map_gaps が照らすのと同じ集合）を、役の指示書に
+    貼る行にした並び。1 行は design_map の行の頭 {"item": n, "path": "…", "symbol": "…" か null} の JSON"""
+    return [json.dumps({"item": i, "path": p, "symbol": s}, ensure_ascii=False) for i, p, s in _wanted(rows)]
 
 
 def _label(item, path, symbol) -> str:
