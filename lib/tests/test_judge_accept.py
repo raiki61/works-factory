@@ -2791,7 +2791,7 @@ class VerdictPublicCase(unittest.TestCase):
              "findings": [{"text": "clamp の件が目的から落ちた", "cite": "request.json:2", "hits": 1}]}
 
     def test_verdict_places_purpose_review_sibling(self):
-        """目的の監査の受けた返答は判定の指し札の隣の purpose-review.json に返答のまま置く（plan-review が名で開く）。
+        """目的の監査の受けた返答は判定の指し札の隣の purpose-review.json に返答のまま置き、欄 purpose_review が指す。
         監査が走らない・止めの道では {}。再審では最初の置き場から写る"""
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
@@ -2799,9 +2799,9 @@ class VerdictPublicCase(unittest.TestCase):
             jdir.mkdir()
             ja.write_json(jdir / ja.material_file("purpose-review"),
                           {"role": "purpose-review", "materials": {}, "reply": self.REPLY})
-            ja.verdict(jdir, rdir, root, "", lambda rel: rel)
+            self.assertEqual(ja.verdict(jdir, rdir, root, "", lambda rel: rel)["purpose_review"], "judge/purpose-review.json")
             self.assertEqual(ja.read_json(jdir / "purpose-review.json"), self.REPLY)
-            ja.verdict(jdir, rdir, root, "異議", lambda rel: rel)
+            self.assertEqual(ja.verdict(jdir, rdir, root, "異議", lambda rel: rel)["purpose_review"], "rejudge/purpose-review.json")
             self.assertEqual(ja.read_json(rdir / "purpose-review.json"), self.REPLY)
         with tempfile.TemporaryDirectory() as tmp:
             jdir = pathlib.Path(tmp) / "judge"
@@ -2830,19 +2830,50 @@ class VerdictPublicCase(unittest.TestCase):
             self.assertEqual(ja.read_json(rdir / headdepth.RECORD), doc)
 
 
-class PublicFileReadersCase(unittest.TestCase):
-    OWNERS = {"judge_accept.py", "premises.py", "judgeverify.py", "marks.py", "gatemarks.py", "purpose.py", "headdepth.py"}
-    READERS = ("outcome", "runreport", "boardview", "planfile")
+class VerdictPortsCase(unittest.TestCase):
+    """判定の置き場のファイルのうちほかのブロックが読む物は、返す節の欄（PORTS・FIRST_PORTS）のポインタで返す。先が無い欄は
+    null（issue #680。判定の外が名を持たないことは tests/layers/test_block_paths.py の E4 の柵が縛る）"""
 
-    def test_readers_take_the_names_from_the_owner(self):
-        """判定の隣の公開のファイルの名（PUBLIC_FILES）を、持ち主の外の lib と script の節が字で書かない（持ち主が名を変えると、
-        字で書いた読み手は黙って何も読まなくなる）"""
-        import ast
-        files = [p for p in LIB.glob("*.py") if p.name not in self.OWNERS] + sorted(LIB.parent.glob("workflows/*/scripts/*.py"))
-        hits = [f"{p.relative_to(LIB.parent)}:{n.lineno} {n.value}" for p in files
-                for n in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
-                if isinstance(n, ast.Constant) and n.value in ja.PUBLIC_FILES]
-        self.assertEqual(hits, [])
+    def test_judge_returns_pointers_to_the_files_it_placed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            jdir, rdir = root / "judge", root / "rejudge"
+            jdir.mkdir()
+            ja.write_json(jdir / ja.FIRST_PORTS["answer_ties"], {"rounds": {"1": []}})
+            ja.write_json(jdir / ja.FIRST_PORTS["purpose_means"], {"means": ["x"]})
+            got = ja.verdict(jdir, rdir, root, "", lambda rel: rel)
+            for name in ja.PUBLIC_FILES:
+                field = next(f for f, n in ja.PORTS.items() if n == name)
+                self.assertEqual(got[field], f"judge/{name}", field)
+            self.assertEqual((got["answer_ties"], got["purpose_means"]), (f"judge/{ja.FIRST_PORTS['answer_ties']}", "judge/purpose-means.json"))
+            for field in ("review_lenses", "pr_drafts", "decisions", "rejudge_exit", "rejudge_diff", "world_state"):
+                self.assertIsNone(got[field], field)
+
+    def test_rejudge_returns_its_own_place_and_the_exit(self):
+        """再審の欄は再審の置き場を指し（公開のファイルは 1 回目から写る）、1 回目の判定でしか書かないファイルの欄（FIRST_PORTS）は
+        1 回目の置き場を指す（再審の後も目の記録された方針が決着済みの論点を落とさない）。出口が在れば rejudge_exit が指す"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            jdir, rdir = root / "judge", root / "rejudge"
+            jdir.mkdir()
+            rdir.mkdir()
+            for field in ja.FIRST_PORTS:
+                ja.write_json(jdir / ja.FIRST_PORTS[field], {})
+            ja.write_json(rdir / ja.REJUDGE_EXIT, {"ok": True})
+            got = ja.verdict(jdir, rdir, root, "異議", lambda rel: rel)
+            self.assertEqual((got["premises"], got["rejudge_exit"]), ("rejudge/premises.json", f"rejudge/{ja.REJUDGE_EXIT}"))
+            self.assertEqual({field: got[field] for field in ja.FIRST_PORTS},
+                             {field: f"judge/{name}" for field, name in ja.FIRST_PORTS.items()})
+            self.assertEqual(got["decisions"], f"judge/{ja.FIRST_PORTS['decisions']}")
+
+    def test_fallback_names_every_port_as_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            got = ja.verdict_fallback(pathlib.Path(tmp) / "judge", pathlib.Path(tmp) / "rejudge", "", lambda rel: rel)
+        self.assertEqual({f: got[f] for f in (*ja.PORTS, *ja.FIRST_PORTS)}, dict.fromkeys((*ja.PORTS, *ja.FIRST_PORTS)))
+
+
+class PublicFileReadersCase(unittest.TestCase):
+    READERS = ("outcome", "runreport", "boardview", "planfile")
 
     def test_readers_do_not_load_judge_accept(self):
         """名だけを読む読み手は名の軽い持ち主を読み、判定の受け付け（judge_accept と、それが読む数十のモジュール）を読み込まない"""

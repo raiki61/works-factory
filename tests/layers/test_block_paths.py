@@ -223,5 +223,99 @@ class BlockPathsTest(unittest.TestCase):
         self.assertIn("collect.py:2: 同じ scripts/ の script b", got[0])
         self.assertIn("new.py:1: 同じ scripts/ の script place", got[1])
 
+
+class JudgeNamesTest(unittest.TestCase):
+    """判定の置き場のファイルを、判定の外（住処でない lib とほかのブロックの script）が名指さず、判定の出力の欄のポインタで受ける
+    （issue #680。workflows/AGENTS.md の E4）"""
+
+    HOMES = {"lib/gatemarks.py": 'MATERIALS_FILE = "materials.json"\n',
+             "lib/marks.py": 'KINDS = {"answers": Kind({}, "answer-ties.json", ROOT)}\n',
+             "lib/prcheck.py": 'EXCLUDED = marks.KINDS["pr"].file\n'}
+
+    def judge_names(self, files: dict) -> list:
+        with tree({**self.HOMES, **files}) as root:
+            return [line for line in scan.problems("E4", root) if "判定の置き場のファイル" in line]
+
+    def test_names_come_from_the_judge_ports(self):
+        import judge_accept
+        self.assertEqual(scan.judge_port_files(), {*judge_accept.PORTS.values(), *judge_accept.FIRST_PORTS.values()})
+        self.assertIn("materials.json", scan.judge_port_files())
+
+    def test_every_port_file_has_a_home(self):
+        """判定の出力の欄のファイルの名は、どれも住処のモジュールが字か定数で持つ（住処の表が欄の足しに遅れていない）"""
+        text = "".join((ROOT / home).read_text(encoding="utf-8") for home in scan.JUDGE_NAME_HOMES)
+        for name in scan.judge_port_files():
+            with self.subTest(name=name):
+                self.assertIn(f'"{name}"', text)
+
+    def test_other_block_script_opening_a_judge_file_by_name_is_red(self):
+        for body in ('import os\nX = os.path.join(d, "materials.json")\n', "import gatemarks\nX = d / gatemarks.MATERIALS_FILE\n",
+                     "import gatemarks as g\nX = d.with_name(g.MATERIALS_FILE)\n", "from gatemarks import MATERIALS_FILE\n",
+                     'import marks\nX = marks.path_of("answers", d)\n', 'import marks\nX = marks.KINDS["answers"].file\n',
+                     "import prcheck\nX = d / prcheck.EXCLUDED\n"):
+            with self.subTest(body=body):
+                got = self.judge_names({"workflows/plan/scripts/a.py": body})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("workflows/plan/scripts/a.py:", got[0])
+
+    def test_passing_beside_the_judge_pointer_to_an_opener_is_red(self):
+        """判定のポインタの隣（`.parent`・`.with_name(…)`）を、住処の中の判定の置き場を名で開く関数に渡すと赤。開かない関数は通す"""
+        homes = {"lib/worldmark.py": 'import marks\nSTATE_FILE = "world-state.json"\nMEANS = "means"\n'
+                                     "def read(d):\n    return d / STATE_FILE\n"
+                                     "def means_of(d):\n    return marks.path_of(MEANS, d)\n"
+                                     "def read_file(p):\n    return p\n",
+                 "lib/marks.py": 'KINDS = {"means": Kind({}, "purpose-means.json", ROOT)}\n'}
+        for body in ("import worldmark\nX = worldmark.read(j.parent)\n", "import worldmark\nX = worldmark.means_of(Path(j).parent)\n",
+                     "from worldmark import read\nX = read(board=j.with_name('x'))\n"):
+            with self.subTest(body=body):
+                got = self.judge_names({**homes, "workflows/eyes/scripts/a.py": body})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("(<判定のポインタの隣>)", got[0])
+        clean = "import worldmark\nX = worldmark.read_file(j)\nY = worldmark.read_file(j.parent / 'x')\nZ = worldmark.read(j)\n"
+        self.assertEqual(self.judge_names({**homes, "workflows/eyes/scripts/a.py": clean}), [])
+
+    def test_importing_the_writer_or_getattr_of_a_name_is_red(self):
+        """判定の外は書き手の judge_accept を import しない（PORTS の鍵を引く形も塞ぐ）。住処の定数を getattr で名で引くのも赤"""
+        for body in ("import judge_accept\n", "from judge_accept import PORTS\n",
+                     'import gatemarks\nX = getattr(gatemarks, "MATERIALS_FILE")\n'):
+            with self.subTest(body=body):
+                got = self.judge_names({"workflows/plan/scripts/a.py": body})
+                self.assertEqual(len(got), 1, got)
+
+    def test_allowed_writer_import_does_not_allow_its_name_tables(self):
+        """ALLOWED["E4"] は書き手の import の行だけを外す。許した所でも名の表（PORTS・FIRST_PORTS）を引けば赤"""
+        for path in ("lib/recount.py", "workflows/line/scripts/ask_final.py", "workflows/line/scripts/spec_check.py"):
+            for body, table in (("import judge_accept\nX = judge_accept.PORTS['decisions']\n", "judge_accept.PORTS"),
+                                ("import judge_accept as ja\nX = ja.FIRST_PORTS['answer_ties']\n", "judge_accept.FIRST_PORTS"),
+                                ("from judge_accept import FIRST_PORTS\n", "judge_accept.FIRST_PORTS"),
+                                ('import judge_accept\nX = getattr(judge_accept, "PORTS")\n', "getattr(judge_accept, 'PORTS')")):
+                with self.subTest(path=path, body=body):
+                    got = self.judge_names({path: body})
+                    self.assertEqual(len(got), 1, got)
+                    self.assertIn(f"{path}:", got[0])
+                    self.assertIn(table, got[0])
+            with self.subTest(path=path, body="clean"):
+                self.assertEqual(self.judge_names({path: "import judge_accept\nX = judge_accept.ADOPTED\n"}), [])
+
+    def test_lib_subfolders_and_shared_are_read(self):
+        """lib の下のフォルダと workflows/.shared/ も判定の外。lib の試験は名を字で持って照らすので見ない"""
+        files = {"lib/graphloops/a.py": 'X = "materials.json"\n', "workflows/.shared/b.py": 'X = "materials.json"\n',
+                 "lib/tests/test_c.py": 'X = "materials.json"\n'}
+        got = self.judge_names(files)
+        self.assertEqual(sorted(line.split(":")[0] for line in got), ["lib/graphloops/a.py", "workflows/.shared/b.py"], got)
+
+    def test_main_graph_script_and_lib_reader_are_red(self):
+        got = self.judge_names({"workflows/line/scripts/a.py": 'X = "rejudge-exit.json"\n',
+                                "lib/reader.py": "import gatemarks\nX = gatemarks.MATERIALS_FILE\n"})
+        self.assertEqual(sorted(line.split(":")[0] for line in got), ["lib/reader.py", "workflows/line/scripts/a.py"], got)
+
+    def test_judge_and_homes_and_prose_are_clean(self):
+        """判定の script・書き手の judge_accept・住処は名を持ってよい。長い文の中の名は名指しに数えない"""
+        files = {"workflows/judge/scripts/a.py": 'X = "materials.json"\n',
+                 "lib/judge_accept.py": "import gatemarks\nX = gatemarks.MATERIALS_FILE\n",
+                 "workflows/plan/scripts/b.py": 'X = "判定の materials.json の先"\nY = "judge-materials.json"\n'}
+        self.assertEqual(self.judge_names(files), [])
+
+
 if __name__ == "__main__":
     unittest.main()

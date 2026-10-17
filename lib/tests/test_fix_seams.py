@@ -1735,7 +1735,7 @@ class DeltaSeamCase(TempCase):
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
                                                                 "start_tree": leftovers.snapshot(self.repo)})
         cited = {"item": 1, "unknown": headdepth.NONE, "where": "stats.py:9", "cause_quote": "分母が len(xs) - 1", "code_quote": "return"}
-        headdepth.write(self.place, headdepth.record(depth.LIGHT, "易しい", items=[cited]))
+        fixboard.write_json(self.place / fixboard.HEAD_RECORD_FILE, headdepth.record(depth.LIGHT, "易しい", items=[cited]))
 
         def run():
             fixboard.write_json(self.place / fixboard.DEPTH_FILE, light)
@@ -1762,9 +1762,9 @@ class DeltaSeamCase(TempCase):
         kept()
         (self.repo / "other.py").write_text("X = 1\n", encoding="utf-8")
         raised("引用した where の外に出た", "other.py")
-        (self.place / headdepth.RECORD).unlink()
+        (self.place / fixboard.HEAD_RECORD_FILE).unlink()
         kept()
-        headdepth.write(self.place, headdepth.record(depth.LIGHT, "易しい", items=[{**cited, "where": ""}]))
+        fixboard.write_json(self.place / fixboard.HEAD_RECORD_FILE, headdepth.record(depth.LIGHT, "易しい", items=[{**cited, "where": ""}]))
         kept()
         (self.repo / "other.py").unlink()
         (self.repo / "test_new.py").unlink()

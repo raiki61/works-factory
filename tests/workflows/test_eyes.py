@@ -1150,7 +1150,7 @@ class ScriptCase(unittest.TestCase):
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
         got = self.run_script("prep")
         self.assertFalse(got["run_eyes"], "軽量の単位だけなら目を省く")
-        self.pointer("judge/premises.json", {"constraints": [
+        self.inputs["premises"] = self.pointer("judge/premises.json", {"constraints": [
             {"text": "上限は 10", "measured_how": carry.CARRIED_HOW.format(run="run-0"), "kind": carry.MEASURED}]})
         self.assertTrue(self.run_script("prep")["run_eyes"])
 
@@ -1451,21 +1451,20 @@ class ScriptCase(unittest.TestCase):
         named = sorted(p.stem for p in (BLOCK / "commands").glob("*.md") if "review_md" in prep_reads(p.read_text(encoding="utf-8")))
         self.assertEqual(named, ["r1-comments", "r1-minimality", "r3-coherence", "r4-scope"])
 
-    def test_prep_reads_constraints_next_to_the_judgment(self):
-        """記録の制約は判定の指し札の隣の premises.json から読み、比較役の頭と前提の検算に同じ字で渡す。再審が走った run は judgment が
-        再審の置き場を指し、判定のブロックがその隣に premises.json を写す（tests/workflows/test_judge.py の
-        test_rejudge_returns_its_own_units_and_keeps_the_first_judgment）。隣に無ければ渡っていないと名指す（K15）"""
+    def test_prep_reads_constraints_from_the_premises_input(self):
+        """記録の制約は入力 premises の先から読み、比較役の頭と前提の検算に同じ字で渡す。再審が走った run は線が再審の判定の欄を渡す
+        （判定のブロックが再審の置き場に premises.json を写す。tests/workflows/test_judge.py の
+        test_rejudge_returns_its_own_units_and_keeps_the_first_judgment）。判定の隣に在っても入力が無ければ読まず、渡っていないと名指す（K15）"""
         self.prep_inputs()
         constraints = [{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}]
         for place in ("judge", "rejudge"):
             with self.subTest(place):
                 self.inputs["judgment"] = self.pointer(f"{place}/judgment.json", {"units": [], "questions": []})
-                (self.artifacts / place / "premises.json").write_text(json.dumps({"constraints": constraints}, ensure_ascii=False),
-                                                                      encoding="utf-8")
+                self.inputs["premises"] = self.pointer(f"{place}/premises.json", {"constraints": constraints})
                 got = self.run_script("prep")
                 self.assertIn("1 デプロイは 2 リポジトリ", got["constraints_text"])
                 self.assertIn(f"{eyeverdict.CONSTRAINT_HEAD}\n\n{got['constraints_text']}", got["premises_text"])
-        (self.artifacts / "rejudge" / "premises.json").unlink()
+        self.inputs["premises"] = "null"
         got = self.run_script("prep")
         self.assertEqual(got["constraints_text"], eyeverdict.NO_CONSTRAINTS)
         self.assertIn(eyeverdict.NO_CONSTRAINTS, got["premises_text"])

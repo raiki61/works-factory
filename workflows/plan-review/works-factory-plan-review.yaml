@@ -14,10 +14,28 @@ inputs:
     description: 単位の目録（配列）。判定の単位は judgment のポインタの先から読む
   judgment:
     required: true
-    description: 判定のポインタ（judgment.json。隣の premises.json・materials.json・purpose-review.json を名で開く）
+    description: 判定のポインタ（judgment.json）
   purpose:
     required: true
     description: 目的の固定のポインタ（purpose.json）
+  premises:
+    default: "null"
+    description: 実測した制約のポインタ（premises.json。{constraints}）。独立設計に貼る。null は制約のファイルが無い
+  materials:
+    default: "null"
+    description: 判定の素材の状態のポインタ（materials.json。素材の名 → {status, …}）。null は素材の状態が無い
+  pr_excluded:
+    default: "null"
+    description: 並行 PR と重なるので外した範囲のポインタ（pr-excluded.json）。在れば写して役の頭に名指す。null は外した範囲が無い
+  purpose_review:
+    default: "null"
+    description: 目的の監査の受けた返答のポインタ（purpose-review.json。{verdict, reason, findings} か {}）。裏取りを通った「狭めている」なら独立設計を回さない。null は監査が読めないとして読む
+  decisions:
+    default: "null"
+    description: 決定記録の突合の返答のポインタ（material-prior-decisions.json。reply.settled が決着済みの論点）。null は突合が無い
+  purpose_means:
+    default: "null"
+    description: 目的の役が目的の文から分けた依頼の解き方の控えのポインタ（purpose-means.json。{means}）。null は控えが無い
   world:
     required: true
     description: 世界の解の行のポインタか null

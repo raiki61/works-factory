@@ -19,7 +19,25 @@ inputs:
     description: 単位の目録（[{id, paths, summary}]）
   judgment:
     default: ""
-    description: 受け付けた判定のポインタ（judgment.json と、隣の judge-verify.json・pr-excluded.json・depth-head.json）
+    description: 受け付けた判定のポインタ（judgment.json）
+  verify:
+    default: "null"
+    description: 判定の単位の裏取りの申し送りのポインタ（judge-verify.json）。null は申し送りが無い
+  pr_excluded:
+    default: "null"
+    description: 並行 PR と重なるので外した範囲のポインタ（pr-excluded.json）。null は外した範囲が無い
+  depth_record:
+    default: "null"
+    description: run の頭の深さの控えのポインタ（depth-head.json。行ごとの未知の種類と引用）。null は控えが無い（標準）
+  answer_ties:
+    default: "null"
+    description: 依頼の答えを判定の問い・単位に結んだ行のポインタ（answer-ties.json）。null は結びが無い（字の一致だけ）
+  materials:
+    default: "null"
+    description: 判定の素材の状態のポインタ（materials.json。素材の名 → {status, …}）。null は素材の状態が無い
+  decisions:
+    default: "null"
+    description: 決定記録の突合の返答のポインタ（material-prior-decisions.json。reply.settled が決着済みの論点）。null は突合が無い
   world:
     default: "null"
     description: 定石の行のポインタ（world-row の行の並び）。無ければ null

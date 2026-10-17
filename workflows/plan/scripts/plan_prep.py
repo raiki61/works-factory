@@ -40,14 +40,23 @@ def main() -> None:
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
     start = start if isinstance(start, dict) else {}
     judgment_file, _ = planfile.pointed(os.environ["INPUTS_JUDGMENT"], boundary.pointed)
-    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
+    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed,
+                                       ties=os.environ.get("INPUTS_ANSWER_TIES", ""), materials=os.environ.get("INPUTS_MATERIALS", ""))
     units = planfile.units_of(os.environ["INPUTS_UNITS"])
     world, bad_world = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.pointed)
     spec, bad_spec = planfile.read_pointed(os.environ["INPUTS_SPEC"], boundary.pointed, text=True)
     conflicts, bad_conflicts = planfile.read_pointed(os.environ["INPUTS_CONFLICTS"], boundary.pointed)
     prior, bad_prior = planfile.read_pointed(os.environ["INPUTS_PRIOR_FAILURES"], boundary.pointed)
+    excluded, bad_excluded = planfile.pointed(os.environ.get("INPUTS_PR_EXCLUDED", ""), boundary.pointed)
+    verify, bad_verify = planfile.pointed(os.environ.get("INPUTS_VERIFY", ""), boundary.pointed)
+    depth_record, bad_depth = planfile.pointed(os.environ.get("INPUTS_DEPTH_RECORD", ""), boundary.pointed)
+    decisions, bad_decisions = planfile.pointed(os.environ.get("INPUTS_DECISIONS", ""), boundary.pointed)
+    bad_ties = planfile.pointed(os.environ.get("INPUTS_ANSWER_TIES", ""), boundary.pointed)[1]
+    bad_materials = planfile.pointed(os.environ.get("INPUTS_MATERIALS", ""), boundary.pointed)[1]
     unread = [f"{name}: {why}" for name, why in (("world", bad_world), ("spec", bad_spec), ("conflicts", bad_conflicts),
-                                                 ("prior_failures", bad_prior)) if why]
+                                                 ("prior_failures", bad_prior), ("pr_excluded", bad_excluded),
+                                                 ("verify", bad_verify), ("depth_record", bad_depth), ("decisions", bad_decisions),
+                                                 ("answer_ties", bad_ties), ("materials", bad_materials)) if why]
     keys = set(planfile.slots(judgment)) if isinstance(judgment, dict) else None
     path, n = planfile.write_brief(
         round_dir, plan_dir, mode=rnd["mode"], judgment=judgment, judgment_file=judgment_file,
@@ -57,7 +66,7 @@ def main() -> None:
         lang_line=rolekit.lang_line(start), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,
                                                                      shared=boundary.shared_cache()),
         conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread,
-        recorded=policy.recorded_text(start, Path(judgment_file).parent if judgment_file else None))
+        recorded=policy.recorded_text(start, decisions), excluded_file=excluded, verify_file=verify, depth_file=depth_record)
     planfile.snap_tree(round_dir / planfile.TREE_FILE, repo)
     boundary.returns({"brief": str(path), "attempt": n, "resubmit": False})
 

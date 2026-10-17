@@ -18,7 +18,8 @@ import planfile  # noqa: E402
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
-    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
+    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed,
+                                       ties=os.environ.get("INPUTS_ANSWER_TIES", ""), materials=os.environ.get("INPUTS_MATERIALS", ""))
     path = planfile.ripple_units(art / os.environ["INPUTS_DIR"], judgment, Path.cwd(), skip_dirs=boundary.RUNTIME_COPY_DIRS)
     boundary.returns({"ripple_file": path.relative_to(art).as_posix()})
 

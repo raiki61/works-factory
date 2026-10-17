@@ -51,10 +51,22 @@ def opened() -> tuple:
 
     text = YAML.read_text(encoding="utf-8")
     folder = Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER
+    unread = []
+
+    def port(name: str, raw):
+        """判定の出力の欄を受ける入力の先（null は None。先が無ければ訳を unread に積み、null と同じに読む）"""
+        path = boundary.pointed(raw)
+        if path is not None and not path.is_file():
+            unread.append(f"入力 {name} の先が無い（{path}）——無いとして読んだ")
+            return None
+        return path
+
     shared = {"judgment": boundary.needed(os.environ["INPUTS_JUDGMENT"], "judgment"),
               "purpose": boundary.needed(os.environ["INPUTS_PURPOSE"], "purpose"),
               "world": boundary.pointed(os.environ["INPUTS_WORLD"]), "start": boundary.pointed(os.environ["INPUTS_START"]),
-              "answers": boundary.parsed(os.environ["INPUTS_ANSWERS"]), "design_schema": node_schema(text, "r2-design")}
+              "answers": boundary.parsed(os.environ["INPUTS_ANSWERS"]), "design_schema": node_schema(text, "r2-design"),
+              "purpose_review": boundary.pointed(os.environ.get("INPUTS_PURPOSE_REVIEW", "")),
+              "decisions": port("decisions", os.environ.get("INPUTS_DECISIONS", "")), "unread": unread}
     if os.environ.get("INPUTS_MODE", "") == boardview.DESIGN_FORM:   # 直す物が無い周: 修正案を読まずに独立設計だけ
         got = boardview.open_design(folder, cwd=Path.cwd(), **shared)
         return boundary, {"ok": True, **got, "reason": ""}
@@ -64,7 +76,10 @@ def opened() -> tuple:
         ripple=boundary.needed(os.environ["INPUTS_RIPPLE"], "ripple"),
         ruling=boundary.parsed(os.environ["INPUTS_RULING"]) or [], conflicts=boundary.pointed(os.environ["INPUTS_CONFLICTS"]),
         gate_answers=boundary.parsed(os.environ["INPUTS_GATE_ANSWERS"]), round_limit=boundary.parsed(os.environ["INPUTS_ROUND_LIMIT"]),
-        review_schema=node_schema(text, "plan-review"), head_depth=os.environ.get("INPUTS_HEAD_DEPTH", "").strip())
+        review_schema=node_schema(text, "plan-review"), head_depth=os.environ.get("INPUTS_HEAD_DEPTH", "").strip(),
+        materials=port("materials", os.environ.get("INPUTS_MATERIALS", "")),
+        pr_excluded=port("pr_excluded", os.environ.get("INPUTS_PR_EXCLUDED", "")),
+        purpose_means=port("purpose_means", os.environ.get("INPUTS_PURPOSE_MEANS", "")))
     return boundary, {"ok": True, **got, "reason": ""}
 
 

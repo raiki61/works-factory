@@ -126,13 +126,19 @@ class MapCase(unittest.TestCase):
         self.assertLessEqual(set(scan.LAYER_MAP["beside"]), set(scan.LAYERS["block"]["names"]))
 
     def test_beside_names_match_the_design_promise(self):
-        """地図の beside の名の集まりは、docs/design.md の「サブグラフの出力の約束」の、ほかのサブグラフも名で開く隣のファイルの
-        名の集まりと等しい。約束の文の字の名（`*.json`・`*.jsonl`）から、欄の指す先（`<欄>`（`<ファイル>`）の形）を除いて読む"""
-        line = next(line for line in (ROOT / "docs/design.md").read_text(encoding="utf-8").splitlines()
-                    if "ほかのサブグラフもこの名で開く" in line)
+        """地図の beside の名は docs/design.md の「サブグラフの出力の約束」から読める。judge の外の名の集まりは、まだ出力の欄に直して
+        いないのでほかのサブグラフも名で開く隣のファイルの文の名（`*.json`・`*.jsonl`。欄の指す先 `<欄>`（`<ファイル>`）の形は除く）と
+        等しい。judge の名は欄で返したので約束の文から外れ、「judge の出力」の置き場のファイルの欄の先に在る（地図に残すのは柵のため）"""
+        lines = (ROOT / "docs/design.md").read_text(encoding="utf-8").splitlines()
+        line = next(line for line in lines if "ほかのサブグラフとメイングラフもこの名で開く" in line)
         named = set(re.findall(r"`([^`\s]+\.jsonl?)`", line))
         pointed = set(re.findall(r"`[\w-]+`（`([^`\s]+\.jsonl?)`）", line))
-        self.assertEqual({n for names in scan.LAYER_MAP["beside"].values() for n in names}, named - pointed)
+        beside = scan.LAYER_MAP["beside"]
+        self.assertEqual({n for block, names in beside.items() if block != "judge" for n in names}, named - pointed)
+        start = lines.index("### judge の出力")
+        section = lines[start + 1:next(i for i in range(start + 1, len(lines)) if lines[i].startswith("### "))]
+        ports = {m[1] for line in section if (m := re.match(r"    - `\w+`: [^`]*?（`([^`\s]+\.jsonl?)`", line))}
+        self.assertLessEqual(set(beside["judge"]), ports)
 
     def test_known_rows_have_count_and_reason(self):
         self.assertEqual(set(scan.LAYER_MAP["known"]), set(scan.LAYER_CHECKS))
@@ -228,6 +234,17 @@ class BesideCase(unittest.TestCase):
     def test_path_into_another_place_still_counts(self):
         got = hits({"workflows/line/scripts/a.py": "# R/rejudge-exit.json を読む\n"}, "beside")
         self.assertEqual(len(got), 1, got)
+
+    def test_input_description_of_block_yaml_is_not_counted(self):
+        """ブロックの YAML の inputs: の description: はポインタの先のファイルの名を書く決まりなので数えない（flow・`>-` の形も）。
+        prompt や with: に書いた名は数える"""
+        yaml = ("name: works-factory-plan\ninputs:\n"
+                "  answer_ties:\n    default: \"null\"\n    description: ポインタ（answer-ties.json）。null は無い\n"
+                "  premises: {default: \"null\", description: \"ポインタ（premises.json）\"}\n"
+                "  materials:\n    description: >-\n      ポインタ\n      （materials.json）\n"
+                "nodes:\n  - id: a\n    prompt: |\n      $ARTIFACTS_DIR/premises.json を読む\n")
+        got = hits({"workflows/plan/works-factory-plan.yaml": yaml}, "beside")
+        self.assertEqual([line.split(": ", 1)[0] for line in got], ["workflows/plan/works-factory-plan.yaml:14"], got)
 
 
 class MainIdCase(unittest.TestCase):

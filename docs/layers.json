@@ -23,7 +23,7 @@
   "known": {
     "import": {},
     "beside": {
-      "lib/boardview.py": [8, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の premises.json・purpose-review.json（#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）、plan-review の隣の design-premises.json・gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "lib/boardview.py": [6, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl・p2.fix_plan.json（#681）、plan-review の隣の design-premises.json・gate-passes.json（issue 無し。#680 の約束に沿う）"],
       "lib/conflict.py": [1, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の allowed-tests.json（#681）"],
       "lib/consult.py": [2, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の accept-trace.json（#681）"],
       "lib/design-row.schema.json": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（#681）"],
@@ -44,22 +44,16 @@
       "lib/premises.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の premises.json（#680）"],
       "lib/purpose.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の purpose-review.json（#680）"],
       "lib/report.py": [3, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の rejudge-diff.json・rejudge-exit.json（#680）"],
-      "lib/runreport.py": [19, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・depth-head.json・judge-verify.json・local-review-lenses.json・materials.json・pr-downgrades.json・pr-excluded.json・premises.json・rejudge-diff.json・rejudge-exit.json・world-state.json（#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）、fix の隣の lenses.json（#681）、plan-review の隣の gate.json（issue 無し。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "lib/runreport.py": [10, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の depth-head.json・materials.json・rejudge-exit.json（判定の出力の欄の先を説く文の中の名。読むのは欄のポインタ。#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）、fix の隣の lenses.json（#681）、plan-review の隣の gate.json（issue 無し。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
       "lib/stage_a.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（#681）"],
       "lib/structmark.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（#681）"],
       "lib/tddloop.py": [1, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の tdd-<k>/state.json（#681）"],
       "lib/worldmark.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の world-state.json（#680）"],
-      "workflows/eyes/scripts/prep.py": [1, "サブグラフ eyes が名指す: judge の隣の premises.json（#680）"],
-      "workflows/eyes/works-factory-eyes.yaml": [2, "サブグラフ eyes が名指す: judge の隣の answer-ties.json（#680）、fix の隣の tdd-unit.json（#681）"],
-      "workflows/fix/scripts/prep.py": [4, "サブグラフ fix が名指す: judge の隣の answer-ties.json・depth-head.json・materials.json（#680）、plan の隣の p2.fix_plan.json（#681）"],
+      "workflows/fix/scripts/prep.py": [1, "サブグラフ fix が名指す: plan の隣の p2.fix_plan.json（#681）"],
       "workflows/fix/scripts/tdd_prep.py": [1, "サブグラフ fix が名指す: plan の隣の p2.fix_plan.json（#681）"],
-      "workflows/line/scripts/ask_final.py": [5, "メイングラフが名指す: judge の隣の answer-ties.json・materials.json（#680）、fix の隣の allowed-tests.json（#681）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "workflows/line/scripts/ask_final.py": [3, "メイングラフが名指す: fix の隣の allowed-tests.json（#681）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
       "workflows/line/scripts/fixed.py": [1, "メイングラフが名指す: fix の隣の allowed-tests.json（#681）"],
-      "workflows/line/scripts/judged.py": [1, "メイングラフが名指す: judge の隣の rejudge-exit.json（#680）"],
-      "workflows/line/scripts/redepth.py": [2, "メイングラフが名指す: fix の隣の accept-trace.json・tdd-<k>/state.json（#681）"],
-      "workflows/plan-review/scripts/r2_prep.py": [1, "サブグラフ plan-review が名指す: judge の隣の premises.json（#680）"],
-      "workflows/plan-review/works-factory-plan-review.yaml": [5, "サブグラフ plan-review が名指す: judge の隣の materials.json・premises.json・purpose-review.json（#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）"],
-      "workflows/plan/works-factory-plan.yaml": [3, "サブグラフ plan が名指す: judge の隣の depth-head.json・judge-verify.json・pr-excluded.json（#680）"]
+      "workflows/line/scripts/redepth.py": [2, "メイングラフが名指す: fix の隣の accept-trace.json・tdd-<k>/state.json（#681）"]
     },
     "main-id": {
       "lib/answer.py": [1, "#682: メイングラフのノードの id（gate-final）を決め打ちする"],

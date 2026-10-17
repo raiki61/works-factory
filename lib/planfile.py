@@ -69,13 +69,11 @@ import handoff  # noqa: E402
 import headdepth  # noqa: E402
 import jsonfile  # noqa: E402
 import impact  # noqa: E402
-import judgeverify  # noqa: E402
 import libdocs  # noqa: E402
 import marks  # noqa: E402
 import planblk  # noqa: E402
 import planbrief  # noqa: E402
 import planmarks  # noqa: E402
-import prcheck  # noqa: E402
 import promptsection  # noqa: E402
 import replan  # noqa: E402
 import ripple  # noqa: E402
@@ -184,19 +182,20 @@ def read_pointed(raw: str, locate, *, text: bool = False) -> tuple:
 LEDGER = "_ledger"   # read_judgment が判定の dict に添える問いの台帳の値の見え方（gatemarks.Ledger）の鍵。判定の欄ではない
 
 
-def read_judgment(raw: str, start, locate) -> tuple:
+def read_judgment(raw: str, start, locate, *, ties: str = "", materials: str = "") -> tuple:
     """(判定の dict, 読めない訳)。判定に、直す義務の数え（gatemarks.duty）が読む問いの台帳の見え方を添える: 始めの記録 start
-    （dict か None）の依頼の answers と、判定の隣の結び・素材の状態（gatemarks.ledger_beside）。始めの記録が無人の run なら、判定の
-    推しつきの fork・held を答えとして数える（gatemarks.run_push）。plan に関所の答えは届かない（行き止まりの判定は 1 回目の周で、
-    修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
+    （dict か None）の依頼の answers と、入力 answer_ties・materials の指し札の字 ties・materials の先の結び・素材の状態
+    （gatemarks.ledger_files。null・空は無し）。始めの記録が無人の run なら、判定の推しつきの fork・held を答えとして数える
+    （gatemarks.run_push）。plan に関所の答えは届かない（行き止まりの判定は 1 回目の周で、修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
     doc, why = read_pointed(raw, locate)
     if not isinstance(doc, dict):
         return doc, why
-    path, _ = pointed(raw, locate)
     answers = (start or {}).get("answers") if isinstance(start, dict) else None
-    return {**doc, LEDGER: gatemarks.ledger_beside(pathlib.Path(path).parent, doc,
-                                                   answers=answers if isinstance(answers, list) else [],
-                                                   takes_push=gatepolicy.unattended_of(start))}, why
+    ties_file = pointed(ties, locate)[0] if ties else None
+    materials_file = pointed(materials, locate)[0] if materials else None
+    return {**doc, LEDGER: gatemarks.ledger_files(doc, ties_file=ties_file, materials_file=materials_file,
+                                                  answers=answers if isinstance(answers, list) else [],
+                                                  takes_push=gatepolicy.unattended_of(start))}, why
 
 
 def world_rows(raw: str, locate) -> tuple:
@@ -737,14 +736,13 @@ def units_section(judgment, units, skipped, filled=()) -> str:
     return "\n".join(lines)
 
 
-def _neighbor(judgment_dir, name: str) -> str:
-    p = pathlib.Path(judgment_dir) / name if judgment_dir else None
-    return str(p) if p is not None and p.is_file() else ""
+def _existing(path) -> str:
+    return str(path) if path is not None and pathlib.Path(path).is_file() else ""
 
 
 def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, units, structure_dir_, world_rows, spec,
                 repo, review_rev: str, base: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
-                prior_failures=None, unread=(), recorded: str = "") -> tuple:
+                prior_failures=None, unread=(), recorded: str = "", excluded_file=None, verify_file=None, depth_file=None) -> tuple:
     """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す（拒まれた後の回の brief-<n>.md は、ふつうは
     出し直しの役の短い指示書 rolekit.write_resubmit）。前の回の拒否が在れば（resume で輪が 1 周目から回り直した時）、この周の拒否の理由の全部を
     rolekit.reject_file で書いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
@@ -752,17 +750,17 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
     concept-map で足した concepthome.section）・引き継ぎのメモを書けという頼み handoff.ASK・前の周までの引き継ぎのメモの節
     handoff.section（受け付けた周が前に在る時だけ。前の周までの案の隣のメモを古い順に全部名指し、メモが無い周は無いと名指す）。形 plan はほかに単位と no・
     処方・構造の目の行・世界の解の行・波及の一覧・裏取りの申し送り・頭の深さの行ごとの未知の種類と指示（headdepth.section。
-    判定の隣の控え）・仕様・方針の文書の段落（policy_md が在る時。元の p2.fix_plan の
+    判定の出力の欄 depth_record の先の控え）・仕様・方針の文書の段落（policy_md が在る時。元の p2.fix_plan の
     prompt_append の policy-path.md と policy.md）・2 往復目からは前の周の案と事前審査の指摘と前の周の波及の一覧。形 replan は
     ほかに REPLAN_ASK・直す項目ごとの前の形と申し出と裁定の文を足す（前の周は、直す元の案の周）。
-    judgment_file は判定の記録の絶対パス（隣の控えを引く元で、処方の節に出どころとして名指す。無い run は None）"""
+    judgment_file は判定の記録の絶対パス（処方の節に出どころとして名指す。無い run は None）。excluded_file・verify_file・depth_file は
+    判定の出力の欄 pr_excluded・verify・depth_record の先のパス（無い run は None）"""
     round_dir, plan_dir = pathlib.Path(round_dir), pathlib.Path(plan_dir)
-    judgment_dir = pathlib.Path(judgment_file).parent if judgment_file else None
     prev = latest(plan_dir, before=round_dir)
     unread = list(unread)
     n = rolekit.attempt(round_dir, ROLE)
     reject_file = rolekit.reject_file(round_dir, ROLE)
-    head = planblk.head("plan", _neighbor(judgment_dir, prcheck.EXCLUDED), lib_docs)
+    head = planblk.head("plan", _existing(excluded_file), lib_docs)
     try:
         carried = prior_section(round_dir, prior_failures)
     except ValueError as e:
@@ -790,8 +788,8 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
                  structmark.plan_section(structure_dir_),
                  f"{world}\n{worldmark.PLAN_ASK}\n" if world else "",
                  ripple.units_section(doc) if isinstance(doc, dict) else "",
-                 planblk.verify_part(_neighbor(judgment_dir, judgeverify.VERIFY_FILE)),
-                 headdepth.section(_neighbor(judgment_dir, headdepth.RECORD)) if judgment_dir else "",
+                 planblk.verify_part(_existing(verify_file)),
+                 headdepth.section(_existing(depth_file)) if judgment_file else "",
                  f"{SPEC_HEAD}\n\n" + "\n".join(replan._json_block(spec)) if spec is not None else "",
                  _prior_section(round_dir, plan_dir, record),
                  POLICY_PART.format(path=policy_md) if policy_md else ""]

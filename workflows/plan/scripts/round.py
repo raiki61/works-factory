@@ -32,7 +32,8 @@ def opened() -> dict:
     except ValueError as e:
         ruling, why = [], f"ruling が JSON の字でない: {e}"
     start, bad_start = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
-    judgment, bad = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
+    judgment, bad = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed,
+                                       ties=os.environ.get("INPUTS_ANSWER_TIES", ""), materials=os.environ.get("INPUTS_MATERIALS", ""))
     review, bad_review = planfile.read_pointed(os.environ["INPUTS_REVIEW"], boundary.pointed)
     _, bad_world = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.pointed)
     unread = [f"{name} が読めない（{b}）" for name, b in (("start", bad_start), ("review", bad_review), ("world", bad_world)) if b]

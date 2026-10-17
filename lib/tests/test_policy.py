@@ -134,14 +134,14 @@ class RecordedCase(unittest.TestCase):
         pol.write_text("# 方針\n- 公開の口を減らさない\n", encoding="utf-8")
         self.frozen = policy.freeze(self.tmp / "run", self.tmp, str(pol))
         self.start = {"policy": self.frozen, "answers": [{"question": "q-mean-empty", "text": "空の列は例外"}, {"question": ""}]}
-        self.jdir = self.tmp / "judge"
-        self.jdir.mkdir()
+        self.decisions = self.tmp / "judge" / policy.PRIOR_DECISIONS_FILE
+        self.decisions.parent.mkdir()
         settled = [{"topic": "公開の口", "decision": "減らさない", "where": "docs/adr/0002.md"},
                    {"topic": "where の無い論点", "decision": "決めた"}, "壊れた行"]
-        (self.jdir / policy.PRIOR_DECISIONS_FILE).write_text(
+        self.decisions.write_text(
             json.dumps({"role": "prior-decisions", "reply": {"settled": settled}}, ensure_ascii=False), encoding="utf-8")
         self.human = [{"note": "通す"}, {"note": ""}, {"note": "名前を残す"}]
-        self.rows = policy.recorded(self.start, self.jdir, human_items=self.human)
+        self.rows = policy.recorded(self.start, self.decisions, human_items=self.human)
         self.gates = [r["name"] for r in self.rows if r["source"] == "gate"]
 
     def test_rows_of_the_four_sources(self):
@@ -234,7 +234,7 @@ class RecordedCase(unittest.TestCase):
 
     def test_text_tells_a_role_without_gate_answers_so(self):
         """承認ノードの答えを入力に持たない役（human_items が None）には「渡っていない」、持つ役には行か「無い」"""
-        self.assertIn("承認ノードの人の答え: この役には渡っていない", policy.recorded_text(self.start, self.jdir))
-        self.assertIn("承認ノードの人の答え: 無い", policy.recorded_text(self.start, self.jdir, []))
-        self.assertIn(f"`{self.gates[0]}`", policy.recorded_text(self.start, self.jdir, self.human))
+        self.assertIn("承認ノードの人の答え: この役には渡っていない", policy.recorded_text(self.start, self.decisions))
+        self.assertIn("承認ノードの人の答え: 無い", policy.recorded_text(self.start, self.decisions, []))
+        self.assertIn(f"`{self.gates[0]}`", policy.recorded_text(self.start, self.decisions, self.human))
         self.assertNotIn("docs/adr/0002.md", policy.recorded_text(self.start))
