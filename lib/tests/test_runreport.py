@@ -207,7 +207,7 @@ class BuildCase(Base):
         self.assertIn(green_cert.GATE_BROKE, broke)
         self.assertNotIn(green_cert.NOT_RAN, broke)
         green = self.first_line()
-        for note in runreport.HEAD_NOTES:
+        for note in (*green_cert.RAN_NOTES, userenv.NOTE):
             self.assertNotIn(note, green)
 
     def test_final_tests_partly_started_name_the_steps_in_the_head(self):
@@ -664,7 +664,7 @@ class DecisionsCase(Base):
         self.assertIn(f"ask-final が {stopby.NEEDS_HUMAN}（{stopby.REASONS['needs-human']}）", head[0])
         self.assertIn("開けた理由: 独立の目が通さなかった（R2: 作り直しが要る）", head[0])
         self.assertIn(f"{gatemarks.eye_named('R2', 'redesign-needed')}——独立設計と食い違う", head[0])
-        self.assertIn(f"{runreport.APPLY_HEAD}: しない", head[1])
+        self.assertEqual(head[1], runreport.APPLY_ASK + "当てない（R2 が redesign-needed を言った run の差分は bin/apply も当てない）")
         decisions = self.section(text, report.DECISIONS_HEADING).splitlines()
         zero = [x for x in decisions if x.endswith(": 0 件")]
         self.assertEqual(zero, ["- 次の run に渡す物: 0 件"], "0 件で残すのは元の head_decisions が常に出した行だけ")
@@ -698,10 +698,36 @@ class DecisionsCase(Base):
         head = text.splitlines()[2]
         self.assertIn(f"{runreport.BACKED_OUT_HEAD}: 組 g2", head)
         self.assertNotIn(f"{runreport.BACKED_OUT_HEAD}: 組 g3", head)
+        self.assertIn(f"{runreport.BACKED_OUT_HEAD} 1 件", text.splitlines()[4], "#660: 戻した組は冒頭の件数に入る")
+        self.assertIn(f"- {runreport.BACKED_OUT_HEAD}: 組 g2（単位 B）。戻したパス b.py・e.py", text.splitlines()[5:])
         body = self.section(text, report.DECISIONS_HEADING).splitlines()
         self.assertEqual(body[:3], [f"- {runreport.BACKED_OUT_HEAD}: 組 g2（単位 B）。戻したパス b.py・e.py",
                                     "  - 赤: 意味の食い違い: test_triple が赤",
                                     "  - 合わせの結果: 合わせ役が直していない。ほかの組は 1 組を当てたまま、外した単位 B は次の run の依頼に回した"])
+
+    def test_backed_out_group_reaches_the_human_report_past_the_cut(self):
+        """#660: 戻した組と当たったままの組は 1 組 1 件で人が決めることに数え、書き手の頭が切られても人に向けた報告の冒頭に残る。
+        行の上限もその件を数える"""
+        groups = [{"group_id": "g1", "unit_ids": ["A"], "returned": False, "reason": "赤", "backed_out": ["a.py"]},
+                  {"group_id": "g2", "unit_ids": ["B"], "returned": False, "reason": fixboard.UNRESTORED_HEAD, "unrestored": ["b.py"]}]
+        _, machine, _ = self.build(fixed_run(fix={**fixed_run()["fix"], "groups": groups, "units": []}))
+        long = "\n".join(["要約。", "", "## 1. 人が決めること", "", *[f"- 行 {i}" for i in range(200)]])
+        runreport.accept(json.dumps({"text": long, "terms": []}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(human[4].startswith(runreport.DECIDE_HEAD + "2 件——"), human[4])
+        self.assertTrue(human[5].startswith("- 戻せず親の作業ツリーに当たったままの組"), human[5])
+        self.assertTrue(human[6].startswith("- 当ててから確かめ直しが赤か落ちて戻した組: 組 g1"), human[6])
+        self.assertLessEqual(len(human), runreport.line_budget(2))
+
+    def test_unit_and_premise_items_are_plain_lines(self):
+        """#660: 直す義務に戻せなかった単位と前提の検算が人に上げた物は、冒頭の 1 件 1 行で JSON でなく id・判定と訳の 1 文"""
+        fix = {**fixed_run()["fix"], "units": [{"unit_id": "u9", "group_id": "g1", "status": fixboard.NOT_DONE, "reason": "赤のまま"}]}
+        eyes = {**fixed_run()["eyes"], "premise_check": {"verdict": "escalate", "reason": "仮定が偽"}}
+        _, text, _ = self.build(fixed_run(fix=fix, eyes=eyes))
+        head = text.split("\n## ", 1)[0].splitlines()
+        self.assertIn("- 直す義務に戻せなかった単位: 単位 u9: 赤のまま", head)
+        self.assertIn("- 前提の検算が人に上げた物: 検算の判定 escalate: 仮定が偽", head)
+        self.assertFalse([x for x in head if "{" in x], head)
 
     def test_parked_clash_names_its_requests_and_patch(self):
         """#382: 合わせ役が直せず組どうしの合わせの申し出にした組（欄 clash の outcome parked）は、3 行目で申し出の id と控えの差分を
@@ -760,8 +786,11 @@ class DecisionsCase(Base):
         handoffs = ["u1: 壊すと分かって通した——古い呼び手が壊れる", "u2: 壊すと分かって通した——既定が変わる"]
         returns = self.with_fix(self.fix_place("fix"), self.fix_place("refix-run"))
         _, text, _ = self.build({**returns, "fix": {**returns["fix"], "handoffs": handoffs}})
-        self.assertTrue(text.splitlines()[3].startswith(gatemarks.DECIDE + "2 件"), text.splitlines()[3])
-        self.assertIn(f"{fixboard.HANDOFF_HEAD} 2 件", text.splitlines()[3])
+        self.assertTrue(text.splitlines()[4].startswith(runreport.DECIDE_HEAD + "2 件"), text.splitlines()[4])
+        self.assertIn(f"{fixboard.HANDOFF_HEAD} 2 件", text.splitlines()[4])
+        self.assertEqual(text.splitlines()[5:7], [f"- {fixboard.HANDOFF_HEAD}: u1: 壊すと分かって通した——古い呼び手が壊れる",
+                                                  f"- {fixboard.HANDOFF_HEAD}: u2: 壊すと分かって通した——既定が変わる"],
+                         "人が決める物は冒頭に 1 件 1 行。問いでない物に推しの尾は付けない")
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn(f"- {fixboard.HANDOFF_HEAD}: 2 件\n  - u1: 壊すと分かって通した——古い呼び手が壊れる\n"
                       "  - u2: 壊すと分かって通した——既定が変わる", body)
@@ -822,17 +851,20 @@ class DecisionsCase(Base):
         _, text, _ = self.build(fixed_run(judge=judge))
         lines = text.splitlines()
         self.assertEqual(lines[2], gatemarks.HAPPENED + report.OUTCOME_WORDS["fixed"] + "（fixed）")
-        self.assertEqual(lines[3], "次の run に渡す物: 2 件")
-        self.assertEqual(lines[4], gatemarks.PUSH + gatemarks.NO_PUSH)
+        self.assertEqual(lines[3], runreport.APPLY_ASK + "当てる差分が無い（差分を封じていない）")
+        self.assertEqual(lines[4], "次の run に渡す物: 2 件")
+        self.assertEqual(lines[5], "", "人が決める物の行は無い")
 
     def test_decisions_are_counted(self):
         """元 ReportHeadCase.test_decisions_are_counted"""
         review = {"pass": True, "ask_human": True, "questions": [gatemarks.question_row("fork", "どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）")]}
         eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか"]}
         _, text, _ = self.build(fixed_run(eyes=eyes, **{"plan-review": review}), gates={"gate-before-fix": {"decision": "approve", "text": ""}})
-        second = text.splitlines()[3]
-        self.assertTrue(second.startswith(gatemarks.DECIDE + "2 件"), second)
-        self.assertIn("小さい方", text.splitlines()[4])
+        third = text.splitlines()[4]
+        self.assertTrue(third.startswith(runreport.DECIDE_HEAD + "2 件"), third)
+        self.assertEqual(text.splitlines()[5:7], ["- 修正前の問い: どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）",
+                                                  f"- 独立の目 R4 の問い: 守りを触ってよいか——{gatemarks.PUSH}{gatemarks.NO_PUSH}"],
+                         "推しは判定の役が書いた物を 1 件ごとに、無ければ書いていないと言う")
 
     def test_question_answered_at_the_gate_is_not_counted(self):
         """修正前の承認ノードが通す語で答えた問い（答えの asked の行）は人が決めることと冒頭の件数・推しから外し、答えた問いの行に出す。
@@ -843,15 +875,15 @@ class DecisionsCase(Base):
         returns = fixed_run(eyes=eyes, **{"plan-review": review})
         _, text, _ = self.build(returns, gates={"gate-before-fix": {"decision": "approve", "text": "", "asked": [text_q]}})
         head = text.splitlines()
-        self.assertTrue(head[3].startswith(gatemarks.DECIDE + "1 件——独立の目 R4 の問い 1 件"), head[3])
-        self.assertNotIn("小さい方", head[4])
+        self.assertTrue(head[4].startswith(runreport.DECIDE_HEAD + "1 件——独立の目 R4 の問い 1 件"), head[4])
+        self.assertNotIn("小さい方", "\n".join(head[5:7]))
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertNotIn("- 修正前の問い:", body)   # 0 件の種は出さない（#383 の項目 9）。答えた問いは数えない
         self.assertIn(f"- {gatemarks.ANSWERED_HEAD}（1 件。保留と人が決めることの件数には数えない）:\n  - {text_q}", body)
         for gates in ({}, {"gate-before-fix": {"decision": "stop", "text": "止める", "asked": [text_q]}}):
             with self.subTest(gates=gates):
                 _, text, _ = self.build(returns, gates=gates)
-                self.assertTrue(text.splitlines()[3].startswith(gatemarks.DECIDE + "2 件——修正前の問い 1 件"), text.splitlines()[3])
+                self.assertTrue(text.splitlines()[4].startswith(runreport.DECIDE_HEAD + "2 件——修正前の問い 1 件"), text.splitlines()[4])
                 self.assertNotIn(gatemarks.ANSWERED_HEAD, text)
 
     def test_unreturned_unit_is_counted_as_decision(self):
@@ -859,7 +891,8 @@ class DecisionsCase(Base):
         fix = {**fixed_run()["fix"], "units": [{"unit_id": "u9", "status": "not_done", "reason": "案の直しを待つ"}]}
         _, text, decided = self.build(fixed_run(fix=fix))
         self.assertEqual(decided[0], "round_limit")
-        self.assertEqual(text.splitlines()[3], gatemarks.DECIDE + f"1 件——直す義務に戻せなかった単位 1 件（下の「{report.DECISIONS_HEADING.lstrip('# ')}」）",
+        self.assertEqual(text.splitlines()[4], runreport.DECIDE_HEAD + "1 件——直す義務に戻せなかった単位 1 件（1 件ずつ下の行。詳しくは見出しに"
+                         f"「{report_roles.DECISIONS_HEAD}」を持つセクション）",
                          "round_limit の残りの同じ単位の行を重ねて数えない")
         self.assertIn("u9", self.section(text, report.DECISIONS_HEADING))
 
@@ -870,7 +903,7 @@ class DecisionsCase(Base):
         _, text, decided = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "materials": materials}))
         self.assertEqual(decided[0], "fixed_needs_check")
         self.assertTrue(text.splitlines()[2].startswith(gatemarks.HAPPENED + report.OUTCOME_WORDS["fixed_needs_check"]))
-        self.assertIn(f"{report.CHECKS_LEFT} 1 件", text.splitlines()[3])
+        self.assertIn(f"{report.CHECKS_LEFT} 1 件", text.splitlines()[4])
         self.assertNotIn("直しきれず", "\n".join(text.splitlines()[2:5]), "冒頭 3 行は直しきれずと呼ばない")
 
     def test_gate_passes_follow_decisions(self):
@@ -962,7 +995,7 @@ class DraftsCase(Base):
         self.assertEqual(len(runreport.answer_drafts(returns, held, {"run_id": RUN})), 1)
         returns = fixed_run(judge=returns["judge"])
         _, text, _ = self.build(returns)
-        self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
+        self.assertIn("保留にしたままの問い 1 件", text.splitlines()[4])
 
     def test_unattended_held_question_with_nothing_owed_waits_in_decisions(self):
         """#283: 無人の run で、単位 1 つがその単位を出どころにした推しの無い保留の問い 1 つの答え待ちで、計画が直す義務 0 件で役を
@@ -975,7 +1008,7 @@ class DraftsCase(Base):
                             eyes=None, **{"plan-review": None, "test-gate-final": None, "merge-seal": None, "merge-apply": None})
         _, text, decided = self.build(returns, start=UNATTENDED)
         self.assertEqual(decided, ("round_limit", ""))
-        self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
+        self.assertIn("保留にしたままの問い 1 件", text.splitlines()[4])
         self.assertIn(FORK["key"], self.section(text, report.DECISIONS_HEADING))
         self.assertNotIn(runreport.PLAN_GAVE_UP_WHERE, [r["where"] for r in runreport.prior_failures(returns, [], {})])
 
@@ -994,7 +1027,7 @@ class DraftsCase(Base):
         self.assertEqual(runreport.answer_drafts(returns, {}, UNATTENDED), [])
         _, text, _ = self.build(returns)
         self.assertNotIn("無人の run で推しを採って答えた", text)
-        self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
+        self.assertIn("保留にしたままの問い 1 件", text.splitlines()[4])
 
     def test_unmeasured_material_draft_carries_its_reason(self):
         judgment = self.put("judge/judgment.json", {})
@@ -1065,7 +1098,7 @@ class DraftsCase(Base):
         got, text, decided = self.build(line={"spec_changed": [q], "spec_unchecked": False,
                                               "stops": {"spec-check": stopby.SPEC_CHANGED}})
         self.assertEqual(decided, ("needs_human", f"spec-check:{stopby.SPEC_CHANGED}"))
-        head = "\n".join(text.splitlines()[2:5])
+        head = "\n".join(text.splitlines()[2:6])
         self.assertIn(stopby.REASONS["spec-changed"], head)
         self.assertIn(f"{gatemarks.SPEC_CHANGED_HEAD} 1 件", head)
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
@@ -1081,7 +1114,7 @@ class DraftsCase(Base):
         got, text, decided = self.build(line={"spec_changed": [q], "spec_unchecked": True,
                                               "stops": {"spec-check": stopby.SPEC_CHANGED}})
         self.assertEqual(decided, ("needs_human", f"spec-check:{stopby.SPEC_CHANGED}"))
-        head = "\n".join(text.splitlines()[2:5])
+        head = "\n".join(text.splitlines()[2:6])
         self.assertIn(f"{gatemarks.SPEC_UNCHECKED_HEAD} 1 件", head)
         self.assertNotIn(gatemarks.SPEC_CHANGED_HEAD, text)
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
@@ -1106,16 +1139,68 @@ class DraftsCase(Base):
 
 class GlossaryCase(unittest.TestCase):
     def test_only_terms_in_text(self):
-        pack = [{"term": "関所", "definition": "止まる所"}, {"term": "盤面", "definition": "置き場"}]
-        sec = runreport.glossary_section("関所で止めた", [{"term": "関所", "definition": "別の定義"}, {"term": "周", "definition": "一巡"}],
-                                         pack)
-        self.assertIn("- 関所: 止まる所", sec, "同じ語は pack を採る")
-        self.assertNotIn("盤面", sec)
+        """語の定義の節は書き手の terms のうち本文に現れる語だけ（語の表の語は言い換えるので定義しない）"""
+        sec = runreport.glossary_section("寄せて止めた", [{"term": "寄せ", "definition": "合わせること"}, {"term": "周", "definition": "一巡"}])
+        self.assertIn("- 寄せ: 合わせること", sec)
         self.assertNotIn("一巡", sec)
-        self.assertEqual(runreport.glossary_section("何も無い", [], pack), "")
+        self.assertEqual(runreport.glossary_section("何も無い", []), "")
 
     def test_pack_terms_come_from_lib(self):
-        self.assertTrue(any(t["term"] == "承認ノード" for t in runreport.pack_terms()))
+        """語の表は lib/glossary.json の記録の名と人に向けた言い方の対。言い方の字に表の語が混じらない（言い換えた文に内側の語が残らない）"""
+        pack = runreport.pack_terms()
+        self.assertTrue(any(t["term"] == "承認ノード" for t in pack))
+        self.assertTrue(all(set(t) == {"term", "plain"} for t in pack))
+        for t in pack:
+            with self.subTest(t["term"]):
+                self.assertEqual([u["term"] for u in pack if u["term"] in t["plain"]], [])
+
+    def test_plain_words_swap_outside_code(self):
+        """長い語から当て、`…` とコードの囲みの中は識別子とパスなので置き換えない。置き換えた語ごとに回数を返す"""
+        pack = [{"term": "単位", "plain": "項目"}, {"term": "根本の単位", "plain": "直す項目"}]
+        text, counts = runreport.plain_words("根本の単位と単位。`単位` は鍵\n```\n単位\n```\n単位", pack)
+        self.assertEqual(text, "直す項目と項目。`単位` は鍵\n```\n単位\n```\n項目")
+        self.assertEqual(counts, {"根本の単位": 1, "単位": 2})
+
+    def test_plain_words_skip_katakana_words_that_only_contain_a_term(self):
+        """片仮名の語は、長い片仮名語の一部（パイプライン・サブノード）なら置き換えない"""
+        pack = [{"term": "ライン", "plain": "処理の段の組み合わせ"}, {"term": "ノード", "plain": "処理の段"}]
+        text, counts = runreport.plain_words("パイプラインとライン。サブノードとノード", pack)
+        self.assertEqual(text, "パイプラインと処理の段の組み合わせ。サブノードと処理の段")
+        self.assertEqual(counts, {"ライン": 1, "ノード": 1})
+
+    def test_plain_words_skip_compounds_that_only_contain_a_one_kanji_term(self):
+        """#660: 漢字 1 字の語（周・柵）は、前後が漢字でない時だけ置き換え、熟語の一部（周囲・周知・一周・周辺）は残す"""
+        text, counts = runreport.plain_words("前の周に戻り、周ごとに柵の印を見た。周囲と周知、一周、周辺")
+        self.assertEqual(text, "前の判定から確かめまでの一巡に戻り、判定から確かめまでの一巡ごとに決まりを確かめる試験の印を見た。"
+                               "周囲と周知、一周、周辺")
+        self.assertEqual(counts, {"周": 2, "柵": 1})
+        self.assertEqual(runreport.plain_words("周りを見た。3 周目")[0], "周りを見た。3 周目")
+
+    def test_plain_words_keep_any_question_key_on_a_ledger_line(self):
+        """#660: 問いの key は判定の役が書く自由な 1 行なので、空白・全角括弧・「（…・…）」を含んでも、key の後ろの印
+        （kind・status と答えの印）が何であっても、key だけを字のまま残し、行の残りは言い換える"""
+        noted = "・" + gatemarks.answer_note({"text": "柵で", "command": "ls", "output": "柵"})
+        for key, kind, status, mark in (("parallel_pr: 単位の柵", "fork", "held", ""),
+                                        ("柵（住処）", "fork", "held", ""),
+                                        ("柵（住処・素材）", "fork", "held", ""),
+                                        ("柵の住処（周）", "fork", "held", noted),
+                                        ("ci（柵）", "awaiting", "held", ""),
+                                        ("柵（周・住処）", "rule", "escalate", "")):
+            with self.subTest(key=key):
+                q = {"key": key, "kind": kind, "status": status, "reason": "柵が要る"}
+                text = runreport.plain_words(gatemarks._ledger_line(q, mark))[0]
+                self.assertIn(f" {key}（{kind}・{status}", text)
+                self.assertNotIn(gatemarks.ASK_HEAD, text)
+                self.assertNotIn("柵が要る", text)
+
+    def test_plain_wording_keeps_the_meaning(self):
+        """#660: 守りのパスは対象のリポジトリが守ると宣言したファイルも含み、承認ノードは無人の run では機械が通すので、言い方が
+        工場の内輪や人の確認に寄らない。周・ノードも言い換える（定義の節を持たない語を人に向けた報告に字のまま残さない）"""
+        text = runreport.plain_words("守りのパスに当たった差分。無人の run が推しで通した承認ノード。周 2 のノード")[0]
+        self.assertIn("対象のリポジトリ", text)
+        self.assertNotIn("工場自身", text)
+        self.assertNotIn("人の確認", text)
+        self.assertEqual([t["term"] for t in runreport.pack_terms() if t["term"] in text], [])
 
 
 class AcceptCase(Base):
@@ -1144,31 +1229,19 @@ class AcceptCase(Base):
         self.assertTrue(self.ai()["not_passed"])
         self.assertEqual(self.ai()["rejects"]["report"]["cold"], 2)
 
-    def test_head_must_carry_the_head_notes_of_the_machine_report(self):
-        """#492: 機械の報告の冒頭が試験は走っていない・利用者の資格に届く環境で走らせたと言う時、その句が頭に無い返答は answer で
-        拒み、在れば受け取る"""
+    def test_head_notes_are_the_machines_not_the_writers(self):
+        """#492・#514（#660 で形を変えた）: 冒頭の 1 行目は機械が組むので、試験が走っていない・段の一部しか走らせられていない・
+        利用者の資格に届く環境で走らせたの句を書き手の頭に求めて拒まない。句は機械の冒頭のまま人に向けた報告の頭に載る"""
         self.out.mkdir(parents=True)
-        for note in (green_cert.NOT_RAN, userenv.NOTE):
+        partly = green_cert.ran_note(green=False, red_cause="incomplete", by="engine", steps={"ran": ["unit"], "unran": ["e2e"]})
+        for note in (green_cert.NOT_RAN, partly, userenv.NOTE):
             with self.subTest(note=note):
-                (self.out / report.REPORT_FILE).write_text(f"# 報告\n\n起きたこと: 赤。{note}\n\n## 1. 人が決めること\n\n- 無い\n",
-                                                           encoding="utf-8")
-                got = runreport.accept(self.REPLY, self.PASS, out_dir=self.out)
-                self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
-                self.assertIn(note, got["reason"])
-                named = json.dumps({"text": f"{note}。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
-                self.assertTrue(runreport.accept(named, self.PASS, out_dir=self.out)["ok"])
-
-    def test_partly_ran_note_must_keep_its_step_names(self):
-        """#514: 機械の冒頭が段を名指した PARTLY_RAN を言う時、句の頭だけで名を落とした返答は拒み、名まで写した返答は受け取る"""
-        self.out.mkdir(parents=True)
-        note = green_cert.ran_note(green=False, red_cause="incomplete", by="engine", steps={"ran": ["unit"], "unran": ["e2e"]})
-        (self.out / report.REPORT_FILE).write_text(f"# 報告\n\n起きたこと: 赤。{note}\n\n## 1. 人が決めること\n\n- 無い\n",
-                                                   encoding="utf-8")
-        bare = json.dumps({"text": f"{green_cert.PARTLY_RAN}。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
-        got = runreport.accept(bare, self.PASS, out_dir=self.out)
-        self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
-        named = json.dumps({"text": f"{note}\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
-        self.assertTrue(runreport.accept(named, self.PASS, out_dir=self.out)["ok"])
+                machine = f"# 報告\n\n起きたこと: 赤。{note}\n\n## 1. 人が決めること\n\n- 無い\n"
+                (self.out / report.REPORT_FILE).write_text(machine, encoding="utf-8")
+                (self.out / runreport.AI_FILE).unlink(missing_ok=True)
+                self.assertTrue(runreport.accept(self.REPLY, self.PASS, out_dir=self.out)["ok"])
+                head = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()[2]
+                self.assertIn(runreport.plain_words(note)[0], head)
 
     def test_format_and_terms_rejected_first(self):
         bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)
@@ -1210,7 +1283,7 @@ class AcceptCase(Base):
         self.assertEqual(self.kept_note(1), json.loads(first)["handoff"], "メモは前もって作っていない report/r1/ に置かれる")
         self.assertEqual(sorted(p.name for p in self.out.iterdir()),
                          ["candidate-report.json", "r1", "rejects-report.json", "rejects-report.md"], "自前の控えのファイルは作らない")
-        self.assertNotIn("a.py", runreport.cold_body(first))
+        self.assertNotIn("a.py", runreport.cold_body(first, out_dir=self.out))
         self.assertNotIn("handoff", json.loads((self.out / "rejects-report.json").read_text(encoding="utf-8"))[-1])
         second = runreport.accept(self.REPLY, self.REDESIGN, out_dir=self.out)
         self.assertEqual(second["prev_file"], got["prev_file"])
@@ -1385,41 +1458,129 @@ class ReportGiveUpCase(Base):
 
 
 class CollectCase(Base):
+    def human(self) -> str:
+        return (self.out / runreport.AI_REPORT_FILE).read_text(encoding="utf-8")
+
+    def detail(self) -> str:
+        return (self.out / runreport.DETAIL_FILE).read_text(encoding="utf-8")
+
     def test_no_ai_file_is_none(self):
         self.assertIsNone(runreport.collect("機械の事実", out_dir=self.out, stamp="run x"))
+        self.assertFalse((self.out / runreport.DETAIL_FILE).exists())
 
     def test_taken_reply_becomes_ai_report(self):
-        runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
-        path = runreport.collect("- 承認ノード: 開かなかった\n", out_dir=self.out, stamp="works-factory report / run x")
-        text = path.read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("works-factory report / run x\n\n直した。"))
-        self.assertIn(report_roles.MACHINE_HEADING, text)
-        self.assertIn(f"{report_roles.COLD_REJECTS_LINE} 0 回", text)
-        self.assertTrue(text.endswith("- 承認ノード: 開かなかった\n"), "機械の事実の行は書き換えずに最後に付ける")
-        self.assertIn("- 承認ノード:", text.split(report_roles.GLOSSARY_HEADING)[1], "機械の事実に現れる語も定義する")
+        """#660: 人に向けた報告は機械の冒頭・書き手の頭・語の定義・詳細のファイルを指す 1 行と来歴。書き手の頭の後ろの本文と機械の
+        事実は詳細のファイルにだけ在り、機械の事実の行は書き換えずに最後に付ける"""
+        reply = json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n- 寄せるか\n\n## 2. 経緯\n\n長い経緯",
+                            "terms": [{"term": "寄せ", "definition": "合わせること"}]}, ensure_ascii=False)
+        runreport.accept(reply, AcceptCase.PASS, out_dir=self.out)
+        machine = "# 報告（run x）\n\n起きたこと: 直した\n\n## 1. 人が決めること\n\n- 承認ノード: 開かなかった\n"
+        path = runreport.collect(machine, out_dir=self.out, stamp="works-factory report / run x")
+        self.assertEqual(path, self.out / runreport.AI_REPORT_FILE)
+        human = self.human()
+        self.assertTrue(human.startswith("# 報告（run x）\n\n起きたこと: 直した\n\n直した。\n\n## 1. 人が決めること"), human)
+        self.assertIn("- 寄せ: 合わせること", human.split(report_roles.GLOSSARY_HEADING)[1])
+        self.assertTrue(human.endswith(runreport.POINTER_LINE.format(file=runreport.DETAIL_FILE) + "\nworks-factory report / run x\n"))
+        self.assertNotIn("長い経緯", human)
+        self.assertNotIn(report_roles.MACHINE_HEADING, human)
+        detail = self.detail()
+        self.assertIn(f"{runreport.RAW_HEADING}\n\n{json.loads(reply)['text']}\n", detail)
+        self.assertIn(report_roles.MACHINE_HEADING, detail)
+        self.assertIn(f"{report_roles.COLD_REJECTS_LINE} 0 回", detail)
+        self.assertTrue(detail.endswith("- 承認ノード: 開かなかった\n"), "機械の事実の行は書き換えずに最後に付ける")
 
-    def test_not_passed_is_one_machine_fact_line_not_the_head(self):
-        """#495: 初見の読み手が 3 回とも通さず受け取った報告は、書き手の本文で始まり、拒みの文（NOT_PASSED と出し直しの命令）を
-        頭に置かない。通らなかった事実は機械の事実の拒みの数の行の尾に 1 度だけ、止まった所と一緒に載る"""
+    def test_sample_run_human_report_shape(self):
+        """#660 の受け入れ（見本の run）: 人が決める物が 3 件の run の人に向けた報告は、冒頭に起きたこと・差分を当ててよいか・
+        人が決めることの 3 行と 1 件 1 行の 3 行が並び、語の表の内側の語が無く、行は line_budget(3) までに収まる"""
+        review = {"pass": True, "ask_human": True,
+                  "questions": [gatemarks.question_row("fork", "どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）")]}
+        eyes = {**fixed_run()["eyes"], "questions": ["守りのパスを触ってよいか"], "protected_hits": ["ci/deploy.yml"]}
+        seal = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
+        _, machine, _ = self.build(fixed_run(eyes=eyes, **{"plan-review": review, "merge-seal": seal}),
+                                   gates={"gate-before-fix": {"decision": "approve", "text": ""}})
+        parts = ["レンズ 2 本の指摘を直し、根本の単位 1 つを残した。", "", "## 1. 人が決めること", ""]
+        for n in range(3):
+            parts += [f"### {n + 1}. 問い {n + 1}", "- 何を決めるか: x", "- 背景: 単位 a の柵", "- 選択肢: A か B", "- 推し: A",
+                      "- 決めないと: 止まる", ""]
+        parts += ["## 2. 入口と依頼", "", *[f"- 経緯 {i}" for i in range(400)]]
+        runreport.accept(json.dumps({"text": "\n".join(parts), "terms": []}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
+        lines = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(lines[2].startswith(gatemarks.HAPPENED), lines[2])
+        self.assertEqual(lines[3], runreport.APPLY_ASK + f"人が決めること 3 件を決めてから当てる（bin/apply {RUN}）")
+        self.assertTrue(lines[4].startswith(runreport.DECIDE_HEAD + "3 件——"), lines[4])
+        self.assertEqual(len([x for x in lines[5:8] if x.startswith("- ")]), 3, lines[5:8])
+        self.assertEqual(lines[8], "")
+        text = "\n".join(lines)
+        self.assertEqual([t["term"] for t in runreport.pack_terms() if t["term"] in text], [])
+        self.assertLessEqual(len(lines), runreport.line_budget(3))
+        self.assertNotIn("経緯 0", text)
+
+    def test_inner_words_are_swapped_only_in_the_human_report(self):
+        """#660: 人に向けた報告は語の表の語を言い換え、詳細のファイルが書き手の字のままの本文と、言い換えた語と回数の 1 行を持つ"""
+        reply = json.dumps({"text": "レンズが根本の単位を見た。`fix__lens` は名", "terms": []}, ensure_ascii=False)
+        runreport.accept(reply, AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect("# 報告\n\n起きたこと: 承認ノードで止めた\n", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        for t in runreport.pack_terms():
+            self.assertNotIn(t["term"], human.replace("`fix__lens`", ""))
+        self.assertIn("観点ごとの見直しが直す項目を見た。`fix__lens` は名", human)
+        detail = self.detail()
+        self.assertIn("レンズが根本の単位を見た。", detail)
+        self.assertIn(f"- {runreport.SWAPPED_HEAD}: 承認ノード→先へ進めるかを決める所 1 回・レンズ→観点ごとの見直し 1 回・根本の単位→直す項目 1 回",
+                      detail)
+
+    def test_human_report_is_cut_to_the_line_budget(self):
+        """#660: 書き手の頭が長くても、人に向けた報告は line_budget（人が決める物の件数）の行に収まり、切った残りの行数と置き場を
+        1 行で言う。切った所がコードの囲みの中なら閉じる。全文は詳細のファイルに在る"""
+        long = "\n".join(["要約。", "", "## 1. 人が決めること", "", "```", *[f"行 {i}" for i in range(200)], "```"])
+        runreport.accept(json.dumps({"text": long, "terms": []}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
+        machine = "# 報告\n\n起きたこと: 赤\n差分を当ててよいか: 無い\n人が決めること: 2 件\n- a: x\n- b: y\n"
+        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        self.assertLessEqual(len(human.splitlines()), runreport.line_budget(2), human)
+        [cut] = [x for x in human.splitlines() if runreport.DETAIL_FILE in x and "行は" in x]
+        self.assertRegex(cut, r"ここから先 \d+ 行は")
+        body = human.split(cut)[0]
+        self.assertEqual(sum(1 for x in body.splitlines() if x.startswith("```")) % 2, 0, "コードの囲みを閉じる")
+        self.assertIn("行 199", self.detail())
+
+    def test_cut_right_after_an_opening_fence_opens_no_new_fence(self):
+        """#660: 切って落ちた行が囲みの開く印なら、閉じる印を足さない（足すと新しい囲みが開き、切った訳の 1 行がコードに入る）"""
+        cut = runreport._cut("a\nb\nc\n```\nx\ny\n```\nz", 5)
+        self.assertEqual(cut.splitlines()[:3], ["a", "b", "c"])
+        self.assertEqual(runreport._fences(cut.splitlines()), [])
+
+    def test_definitions_are_kept_and_follow_the_shown_head(self):
+        """#660: 書き手の頭が長くても語の定義は切られず、切った後に見えている頭に現れる語だけを並べる"""
+        text = "\n".join(["寄せて直した。", "", "## 1. 人が決めること", "", *[f"- 行 {i}" for i in range(200)], "- 畳みの話"])
+        terms = [{"term": "寄せ", "definition": "合わせること"}, {"term": "畳み", "definition": "後ろへ送ること"}]
+        runreport.accept(json.dumps({"text": text, "terms": terms}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect("# 報告\n\n起きたこと: 赤\n", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        self.assertLessEqual(len(human.splitlines()), runreport.line_budget(0), human)
+        self.assertNotIn("畳みの話", human)
+        defined = human.split(report_roles.GLOSSARY_HEADING)[1]
+        self.assertIn("- 寄せ: 合わせること", defined)
+        self.assertNotIn("畳み", defined)
+
+    def test_not_passed_is_said_at_the_head(self):
+        """#660（#495 の形を変えた）: 初見の読み手が 3 回とも通さず受け取った報告は、人に向けた報告の冒頭（機械の冒頭の直後）でそれを
+        1 行で言い、出し直しの命令は書かない。詳細のファイルは拒みの数の行の尾に同じ事実を持つ"""
         for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, AcceptCase.REDESIGN, out_dir=self.out)
-        text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
-        self.assertTrue(text.split("\n\n")[1].startswith("直した。"), text)
-        self.assertEqual(text.count(report_roles.NOT_PASSED), 1)
-        self.assertNotIn("出し直せ", text)
-        [line] = [ln for ln in text.splitlines() if report_roles.NOT_PASSED in ln]
+        human = runreport.collect("# 報告\n\n起きたこと: 赤\n", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        said = runreport.plain_words(report_roles.NOT_PASSED)[0]
+        self.assertEqual(human.splitlines()[3].split("（")[0], said, human)
+        self.assertIn("止まった所: 冒頭の 2 行目", human.splitlines()[3])
+        self.assertEqual(human.count(said), 1)
+        self.assertNotIn("出し直せ", human)
+        [line] = [ln for ln in self.detail().splitlines() if report_roles.NOT_PASSED in ln]
         self.assertTrue(line.startswith(f"{report_roles.COLD_REJECTS_LINE} 2 回。{report_roles.NOT_PASSED}"), line)
-        self.assertIn("止まった所: 冒頭の 2 行目", line)
 
     def test_words_only_on_the_not_passed_line_are_defined(self):
-        """通らなかった事実の行にだけ在る語（NOT_PASSED の「ノード」、判定を読めなかった事実の「初見の読み手」）も、語の定義に載る"""
+        """通らなかった事実の行にだけ在る語（判定を読めなかった事実の「初見の読み手」）も、人に向けた報告では言い換えて出る"""
         for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, "壊れた", out_dir=self.out)
-        text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
-        self.assertIn(report_roles.GLOSSARY_HEADING, text)
-        glossary = text.split(report_roles.GLOSSARY_HEADING)[1].split(report_roles.MACHINE_HEADING)[0]
-        self.assertIn("- ノード:", glossary)
-        self.assertIn("- 初見の読み手:", glossary)
+        human = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        self.assertIn(runreport.plain_words(runreport.COLD_UNREADABLE)[0], human)
+        self.assertNotIn("初見の読み手", human)
 
     def test_not_passed_line_keeps_guesses_and_unreadable_verdict(self):
         """通らなかった事実の行は、止まった所だけでなく推測で埋めた所と、判定を読めなかった事実も落とさない"""
@@ -1429,39 +1590,52 @@ class CollectCase(Base):
                 out = self.out / want
                 for _ in range(rolekit.GIVE_UP_AFTER):
                     runreport.accept(AcceptCase.REPLY, cold, out_dir=out)
-                text = runreport.collect("事実", out_dir=out, stamp="run x").read_text(encoding="utf-8")
-                [line] = [ln for ln in text.splitlines() if report_roles.NOT_PASSED in ln]
+                runreport.collect("事実", out_dir=out, stamp="run x")
+                [line] = [ln for ln in (out / runreport.DETAIL_FILE).read_text(encoding="utf-8").splitlines()
+                          if report_roles.NOT_PASSED in ln]
                 self.assertIn(want, line)
 
     def test_given_up_reply_still_reports(self):
         for _ in range(rolekit.GIVE_UP_AFTER):
             runreport.accept("壊れた", AcceptCase.PASS, out_dir=self.out)
-        text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
-        self.assertIn(report_roles.FAILED_TITLE, text)
-        self.assertIn(f"report の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けで拒まれた（最後の拒否: ", text)
-        self.assertTrue(text.endswith("事実"))
+        human = runreport.collect("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n事実", out_dir=self.out,
+                                  stamp="run x").read_text(encoding="utf-8")
+        self.assertTrue(human.startswith("# 報告\n\n起きたこと: 赤\n\n"), human)
+        self.assertIn(report_roles.FAILED_TITLE, human)
+        self.assertIn(f"report の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けで拒まれた（最後の拒否: ", human)
+        self.assertTrue(self.detail().endswith("事実"))
 
     def test_decisions_section_is_one_place(self):
-        """書き手の頭の「人が決めること」の後ろに機械の事実が付いても、その見出しの節は 1 つ（機械の数えの見出しを言い換え、1 段下げる）"""
+        """書き手の頭の「人が決めること」の後ろに機械の事実が付いても、詳細のファイルの見出しの節は 1 つ（機械の数えの見出しを言い換え、
+        1 段下げる）。人に向けた報告は機械の事実の節を持たない"""
         runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
         got, machine, _ = self.build()
-        text = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
-        heads = [line for line in text.splitlines() if line.startswith("#") and report_roles.DECISIONS_HEAD in line]
-        self.assertEqual(heads, ["## 1. 人が決めること"])
-        self.assertIn(f"#{runreport.MACHINE_DECISIONS}", text)
-        self.assertIn(f"#{report.STOP_HEADING}", text)
+        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        for text in (human, self.detail()):
+            heads = [line for line in text.splitlines() if line.startswith("#") and report_roles.DECISIONS_HEAD in line]
+            self.assertEqual(heads, ["## 1. 人が決めること"])
+        self.assertIn(f"#{runreport.MACHINE_DECISIONS}", self.detail())
+        self.assertIn(f"#{report.STOP_HEADING}", self.detail())
+        self.assertNotIn(report.STOP_HEADING, human)
 
 
-class ColdBodyCase(unittest.TestCase):
+class ColdBodyCase(Base):
     def test_head_and_glossary_only(self):
-        reply = json.dumps({"text": "承認ノードで止めた。\n\n## 1. 人が決めること\n\n- A\n\n## 2. 経緯\n\n長い", "terms": []}, ensure_ascii=False)
-        body = runreport.cold_body(reply)
-        self.assertIn("承認ノードで止めた", body)
+        """初見の読み手に貼る本文は人に向けた報告の頭と同じ: 機械の冒頭・書き手の頭・語の定義を、語の表で言い換えた物"""
+        self.out.mkdir(parents=True)
+        (self.out / report.REPORT_FILE).write_text("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
+        reply = json.dumps({"text": "承認ノードで止めた。\n\n## 1. 人が決めること\n\n- A\n\n## 2. 経緯\n\n長い",
+                            "terms": [{"term": "A", "definition": "決める物"}]}, ensure_ascii=False)
+        body = runreport.cold_body(reply, out_dir=self.out)
+        self.assertTrue(body.startswith("# 報告\n\n起きたこと: 赤\n\n先へ進めるかを決める所で止めた。"), body)
         self.assertNotIn("長い", body)
+        self.assertNotIn("機械の行", body)
         self.assertIn(report_roles.GLOSSARY_HEADING, body)
 
     def test_unreadable_reply_says_so(self):
-        self.assertIn("書き手の返答を読めない", runreport.cold_body("壊れた"))
+        self.assertIn("書き手の返答を読めない", runreport.cold_body("壊れた", out_dir=self.out))
+        reply = json.dumps({"text": "本文"}, ensure_ascii=False)
+        self.assertIn("機械の報告の冒頭を読めない", runreport.cold_body(reply, out_dir=self.out))
 
 
 class CarryCase(Base):
@@ -1728,6 +1902,28 @@ class LedgerCase(Base):
                          [gatemarks._ledger_line(FORK, skip=[FORK_UNIT]) + f'／{gatemarks.ANSWER_KEY_HEAD}: "{FORK["key"]}"'])
         self.assertIn(f"／答えが無いと直さない単位: {FORK_UNIT}", state["held"][0][1])
 
+    def test_answer_key_with_inner_words_survives_the_human_report(self):
+        """#660: 問いの key に語の表の語が混じっても、人に向けた報告の 1 件 1 行の問いの key と答えの鍵は字のまま（人が次の run の
+        answers に写す字が問いに当たる）。key の外の語は言い換える"""
+        q = {**FORK, "key": "柵の住処"}
+        _, machine, _ = self.build(self.returns(q))
+        runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        [held] = [x for x in human.splitlines() if x.startswith("- 保留にしたままの問い: ")]
+        self.assertIn(f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(q['key'], ensure_ascii=False)}", held)
+        self.assertIn(" 柵の住処（", held)
+        self.assertNotIn("問いの台帳", held)
+
+    def test_answer_key_with_a_space_and_inner_words_survives_the_human_report(self):
+        """#660: 空白を含む問いの key（素材の名と問いの文）も、行の頭で語の表の語を言い換えない"""
+        q = {**FORK, "key": "parallel_pr: 単位の柵"}
+        _, machine, _ = self.build(self.returns(q))
+        runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        [held] = [x for x in human.splitlines() if x.startswith("- 保留にしたままの問い: ")]
+        self.assertIn(" parallel_pr: 単位の柵（", held)
+        self.assertNotIn("問いの台帳", held)
+
     def test_held_lines_warn_to_read_the_measuring_command_first(self):
         """#505: 保留の行の下の答え方は、測り方の命令が対象を読んだ役の書いた物なので、打つ前に読み読み取りだけの時だけ打てと言う
         （元 works の skills/works/SKILL.md 117 行）"""
@@ -1770,7 +1966,7 @@ class LedgerCase(Base):
             with self.subTest(decision=decision):
                 gate = {"decision": decision, "text": f"保留: {FORK['key']}", "asked": [gatemarks.ask_text(FORK)]}
                 _, text, _ = self.build(returns, gates={"gate-before-fix": gate})
-                self.assertIn("修正前の問い 1 件", text.splitlines()[3])
+                self.assertIn("修正前の問い 1 件", text.splitlines()[4])
                 body = self.section(text, report.DECISIONS_HEADING)
                 self.assertIn("- 修正前の問い: 1 件\n", body)
                 self.assertNotIn(gatemarks.ANSWERED_HEAD, body)
@@ -1915,14 +2111,14 @@ class LinesCase(Base):
         apply_ = {"mode": "apply", "ok": False, "reason": "hash が封じた物と違う"}
         _, text, decided = self.build(fixed_run(eyes=eyes, **{"merge-seal": seal, "merge-apply": apply_}))
         self.assertEqual(decided, ("stopped_by_line", "merge-apply:not-ok"))
-        self.assertIn("守りのパスに当たった差分 1 件", text.splitlines()[3])
+        self.assertIn("守りのパスに当たった差分 1 件", text.splitlines()[4])
         self.assertIn("merge-apply が ok でない: hash が封じた物と違う", self.section(text, report.STOP_HEADING))
 
     def test_protected_hits_from_eyes_only(self):
         """封じの返りが当たりを持たない（封じが走らない・欄が無い）run も、独立の目の当たりだけで人が決めることに数える"""
         eyes = {**fixed_run()["eyes"], "protected_hits": ["ci/deploy.yml", "ci/deploy.yml"]}
         _, text, _ = self.build(fixed_run(eyes=eyes))
-        self.assertIn("守りのパスに当たった差分 1 件", text.splitlines()[3])
+        self.assertIn("守りのパスに当たった差分 1 件", text.splitlines()[4])
         self.assertIn("ci/deploy.yml", self.section(text, report.DECISIONS_HEADING))
 
     def test_seal_not_ok_says_why(self):
@@ -2314,6 +2510,21 @@ class LinesCase(Base):
         self.assertNotIn("git apply", text)
         _, text, _ = self.build(fixed_run(**{"merge-seal": None, "merge-apply": None, "eyes": None}))
         self.assertIn(f"- {runreport.APPLY_HEAD}: 無い（差分を封じていない）", self.section(text, report.DECISIONS_HEADING))
+
+    def test_head_says_whether_to_apply(self):
+        """#660: 冒頭の 2 行目は差分を当ててよいかを、bin/apply の打ち方（apply_said が _apply_lines と同じ道で決める）と結末・人が決める
+        物の件数で言う"""
+        seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
+        cases = ((fixed_run(**{"merge-seal": seal_ok}), {}, f"当ててよい（bin/apply {RUN}）"),
+                 (fixed_run(**{"merge-seal": seal_ok, "merge-apply": None}), {"gate-final": {"decision": "stop", "text": "x"}},
+                  f"差分を置かずに止まった run。止めた訳を確かめてから当てる（bin/apply {RUN} --allow-stopped）"),
+                 (fixed_run(**{"merge-seal": None, "merge-apply": None}), {}, "当てる差分が無い（差分を封じていない）"))
+        for returns, gates, said in cases:
+            with self.subTest(said=said):
+                _, text, _ = self.build(returns, gates=gates)
+                self.assertEqual(text.splitlines()[3], runreport.APPLY_ASK + said)
+        self.assertEqual(runreport.apply_said(fixed_run(**{"merge-seal": seal_ok}), "round_limit", RUN, 0),
+                         f"確かめてから当てる（結末が「{report.OUTCOME_WORDS['round_limit']}」。bin/apply {RUN}）")
 
     def test_tests_head_lines_and_deleted_files(self):
         """T35・T41・M38（部分 B2 の申し送り。最後の関所と同じ行を報告の冒頭に）: 人が決めることの節に最後のテストの一式の行と修正前のテストの
