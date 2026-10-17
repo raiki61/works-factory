@@ -15,9 +15,9 @@ unattended.md  works/.shared/borrow/unattended.md
 ! {"path": "unattended.md", "old": "[`.shared/core/writerules/common.md`](../core/writerules/common.md)（機械が修正役・TDD の輪の役", "new": "[`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md)（機械が修正役・TDD のループの役", "why": "グラフの語にそろえ（持ち主の決め graph-words）、今の works の置き場の名を works-factory の今の名に（#674）"}
 ! {"path": "unattended.md", "old": "修正の前に人がまだ答えていない fork", "new": "修正の前にまだ答えていない（人の答えも無人の run が採った推しも無い）fork", "why": "無人の run が採った推しも答えに数える（持ち主の決め unattended の 2026-10-15。修正の決まりの正本 common.md の同じ行に合わせる）"}
 ! {"path": "unattended.md", "old": "受け付けの輪が上限まで回って", "new": "受け付けのループが上限まで回って", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
-! {"path": "unattended.md", "old": "blk-fix` の `fix", "new": "workflows/fix` の `fixer`・`fix-ruled", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
+! {"path": "unattended.md", "old": "修正役（`blk-fix` の `fix`）は、上の", "new": "修正役は、上の", "why": "今の works の置き場の名を works-factory の今の名にし（#674）、ほかのサブグラフの役の名を書かず役の種類で書く（#683）"}
 ! {"path": "unattended.md", "old": "最後の人の関所に届く（正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md", "new": "最後の承認ノードに届く（正本 [`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md", "why": "グラフの語にそろえ（持ち主の決め graph-words）、今の works の置き場の名を works-factory の今の名に（#674）"}
-! {"path": "unattended.md", "old": "`blk-refix`", "new": "`workflows/fix` の `refix`・`refix2`", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
+! {"path": "unattended.md", "old": "手直し（`blk-refix`）は", "new": "手直しの役は", "why": "今の works の置き場の名を works-factory の今の名にし（#674）、ほかのサブグラフの役の名を書かず役の種類で書く（#683）"}
 ! {"path": "unattended.md", "old": "省いてよい単位は線の側", "new": "省いてよい単位はメイングラフの側", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
 ! {"path": "unattended.md", "old": "の節が入ったら本線", "new": "のノードが入ったら元の graphloops の", "why": "グラフの語にそろえ（持ち主の決め graph-words）、works-factory に無い本線を元の graphloops の物と名指す"}
 ! {"path": "unattended.md", "old": "つの会話の中の直しの試み。受け付けの輪（", "new": "つの会話の中の直しの試み。受け付けのループ（", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
@@ -28,8 +28,9 @@ unattended.md  works/.shared/borrow/unattended.md
 ! {"path": "unattended.md", "old": "一式は線が渡す", "new": "一式はメイングラフが渡す", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
 ! {"path": "unattended.md", "old": "[`.shared/core/writerules/common.md`](../core/writerules/common.md) の一式の行と同じ行き先", "new": "[`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md) の一式の行と同じ行き先", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
 ! {"path": "unattended.md", "old": "同じ名前のスキルが隔離した設定に在り、節が ", "new": "同じ名前のスキルが隔離した設定に在り、ノードが ", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
-! {"path": "unattended.md", "old": "線の別の節（`blk-delta` の審査役など", "new": "メイングラフの別のノード（`workflows/fix` の差分の審査役 `delta-review` など", "why": "グラフの語にそろえ（持ち主の決め graph-words）、今の works の置き場の名を works-factory の今の名に（#674）"}
+! {"path": "unattended.md", "old": "線の別の節（`blk-delta` の審査役など", "new": "メイングラフの別のノード（差分の審査役など", "why": "グラフの語にそろえ（持ち主の決め graph-words）、今の works の置き場の名を works-factory の今の名にし（#674）、ほかのサブグラフの役の名を書かず役の種類で書く（#683）"}
 ! {"path": "unattended.md", "old": "受け付けの節", "new": "受け付けのノード", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
-! {"path": "unattended.md", "old": "blk-delta/commands/delta-review.md", "new": "workflows/fix/commands/delta-review.md", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
+! {"path": "unattended.md", "old": "差分の審査役（`blk-delta/commands/delta-review.md`）は", "new": "差分の審査役は", "why": "今の works の置き場の名を works-factory の今の名にし（#674）、ほかのサブグラフの役の名を書かず役の種類で書く（#683）"}
 ! {"path": "unattended.md", "old": "返答は節の", "new": "返答はノードの", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
 ! {"path": "unattended.md", "old": "より、節の ", "new": "より、ノードの ", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
+! {"path": "unattended.md", "old": "TDD の役・手直しの役（`tdd`・`refix`・`refix2`）", "new": "TDD の役・手直しの役", "why": "指示書にほかのサブグラフの役の名を書かず、役の種類で書く（#683）"}

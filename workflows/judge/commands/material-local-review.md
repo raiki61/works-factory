@@ -92,7 +92,7 @@ args に旗の綴り（`--comment`・`--fix`）を書くな——『付けない
 
 対象は、works に写した superpowers（`lib/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 5 本（`lib/borrow/borrow.json` の `skills`。`bin/_lib/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `bin/_lib/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（セクションごとの使い道・錨・穴・出口の語）は、包むセクションの表 `lib/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`workflows/*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの `output_format` は、このファイルより勝つ。
 
-このファイルは、借りたスキルを読める役（道具に Skill を持つ役。素材集めの局所レビューと、TDD の役・手直しの役（`tdd`・`refix`・`refix2`））の指示書の末尾と、借りた型を骨にする座（修正役（下請けを起こす項目が無い周）と 1 回目の差分の審査役。`lib/seat.py` の `section`）と、下請けを回す修正役のセクション（`seat.g1_section`）の末尾に、機械が全文を載せる（`lib/seat.py` の `skill_overlay`。superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載ることは `lib/tests/test_seat.py` と `tests/workflows/test_judge.py` が見張る。
+このファイルは、借りたスキルを読める役（道具に Skill を持つ役。素材集めの局所レビューと、TDD の役・手直しの役）の指示書の末尾と、借りた型を骨にする座（修正役（下請けを起こす項目が無い周）と 1 回目の差分の審査役。`lib/seat.py` の `section`）と、下請けを回す修正役のセクション（`seat.g1_section`）の末尾に、機械が全文を載せる（`lib/seat.py` の `skill_overlay`。superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載ることは `lib/tests/test_seat.py` と `tests/workflows/test_judge.py` が見張る。
 
 ## 読み方
 
@@ -109,8 +109,8 @@ args に旗の綴り（`--comment`・`--fix`）を書くな——『付けない
 
 無人の役には聞く相手が居ない。止まって答えを待たない（待っても答えは来ず、受け付けのループが上限まで回って run が落ちる）。
 
-- 修正役（`workflows/fix` の `fixer`・`fix-ruled`）は、上の「義務の単位の行き先」に従う。直す義務の単位は、分かる範囲で一番ましな直しを `changes` に載せる。人の答えが無いと直し方が決まらない単位は、直さずに食い違いの申し出（`conflicts`。`which_is_right` は unknown・`kind` は `needs_context`）で返す——裁定役が人に回し、最後の承認ノードに届く（正本 [`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md) の「食い違いの申し出」）。`rejudge_requested` は判定のフレーミングへの異議だけで、人への問いを書かない（読むのは判定役）。義務の外の単位は `not_done` に理由を書いてよい（`unit_key`・`why`）。
-- 差分の審査への手直し（`workflows/fix` の `refix`・`refix2`）は、その穴を `declared` で残し、`how` に何が分からないかを書く。
+- 修正役は、上の「義務の単位の行き先」に従う。直す義務の単位は、分かる範囲で一番ましな直しを `changes` に載せる。人の答えが無いと直し方が決まらない単位は、直さずに食い違いの申し出（`conflicts`。`which_is_right` は unknown・`kind` は `needs_context`）で返す——裁定役が人に回し、最後の承認ノードに届く（正本 [`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md) の「食い違いの申し出」）。`rejudge_requested` は判定のフレーミングへの異議だけで、人への問いを書かない（読むのは判定役）。義務の外の単位は `not_done` に理由を書いてよい（`unit_key`・`why`）。
+- 差分の審査への手直しの役は、その穴を `declared` で残し、`how` に何が分からないかを書く。
 - 読むだけの役（判定・審査）は、分からないまま置いた前提を、返答の型の中の理由の欄に書く。
 - TDD の例外（使い捨ての試作・生成したコード・設定のファイル）に当たるかどうかは、役は決めない。役は先のテストを省かない。省いてよい単位はメイングラフの側（修正案の route と機械の決まり。TDD のノードが入ったら元の graphloops の fix-tdd の `route: direct`）が決める。
 - 分からない項目があるうちは実装を始めない、という原則（receiving-code-review）はそのまま効く。分からない項目は上のとおり返答に書き、分かった項目だけを直す。
@@ -140,7 +140,7 @@ args に旗の綴り（`--comment`・`--fix`）を書くな——『付けない
 
 ## DISPATCH 下請けの AI を起こす・調整役として振る舞う
 
-スキルの文に従って下請けを起こさない。Agent を持つ役（素材集めの局所レビュー）が起こすのは、指示書が名指すレンズだけ。ほかの役の道具に Agent は無い。別の目の審査は、メイングラフの別のノード（`workflows/fix` の差分の審査役 `delta-review` など）が新しい会話で受け持つ。`requesting-code-review/code-reviewer.md` をテストの審査役の手引きに使うときは、`Subagent (general-purpose):` の枠と `description:` の行を読み飛ばし、`prompt: |` の中身だけを手引きとして読む。「DESCRIPTION」などの角括弧の埋め草は、engine が渡す材料で埋まる。
+スキルの文に従って下請けを起こさない。Agent を持つ役（素材集めの局所レビュー）が起こすのは、指示書が名指すレンズだけ。ほかの役の道具に Agent は無い。別の目の審査は、メイングラフの別のノード（差分の審査役など）が新しい会話で受け持つ。`requesting-code-review/code-reviewer.md` をテストの審査役の手引きに使うときは、`Subagent (general-purpose):` の枠と `description:` の行を読み飛ばし、`prompt: |` の中身だけを手引きとして読む。「DESCRIPTION」などの角括弧の埋め草は、engine が渡す材料で埋まる。
 
 ## DELEGATE エージェントの報告を信じない
 
@@ -152,7 +152,7 @@ args に旗の綴り（`--comment`・`--fix`）を書くな——『付けない
 
 ## CRAWL 差分の外を読むな・変わったファイルを別に読むなと言われる
 
-部品の審査役の型（`task-reviewer-prompt.md`）の「Do not crawl the broader codebase」と「do not Read a changed file separately」は、役の指示書が読む義務を定める役には効かない。差分の審査役（`workflows/fix/commands/delta-review.md`）は、差分を起点に、変わったファイルの今の姿と、読む側・呼び元まで Read・Grep で読む（指示書の読む義務が勝つ）。指示書が読む義務を定めない役（修正役が起こす下請けの審査役）は型のとおり。
+部品の審査役の型（`task-reviewer-prompt.md`）の「Do not crawl the broader codebase」と「do not Read a changed file separately」は、役の指示書が読む義務を定める役には効かない。差分の審査役は、差分を起点に、変わったファイルの今の姿と、読む側・呼び元まで Read・Grep で読む（指示書の読む義務が勝つ）。指示書が読む義務を定めない役（修正役が起こす下請けの審査役）は型のとおり。
 
 ## GITHUB GitHub のスレッドに返信する
 
