@@ -849,15 +849,19 @@ def pack_terms() -> list:
 
 # 言い換えない所: コードの囲みと `…`（識別子とパス）・問いの key と答えの鍵（人が次の run の依頼の answers に字のまま写す）
 KEPT_SPAN = re.compile(r"```.*?(?:```|\Z)|~~~.*?(?:~~~|\Z)|`[^`\n]*`"
-                       + "|(?<=" + re.escape(gatemarks.ASK_HEAD) + r" )[^\s（]+（"
+                       + "|(?<=" + re.escape(gatemarks.ASK_HEAD) + r" )[^（\n]+?(?=（[^（）\n]*・)"
                        + "|(?<=" + re.escape(gatemarks.ANSWER_KEY_HEAD) + r': )"(?:[^"\\\n]|\\.)*"', re.S)
 
 
 KATAKANA = "ァ-ヺー"
+KANJI = "一-鿿々"
 
 
 def _term_pattern(term: str) -> str:
-    """語の表の語を当てる式。片仮名で始まる・終わる語は、続く片仮名語の一部（パイプライン・サブノード）には当てない"""
+    """語の表の語を当てる式。片仮名で始まる・終わる語は、続く片仮名語の一部（パイプライン・サブノード）には当てない。漢字 1 字の語は、
+    熟語の一部（周囲・周知・一周）には当てない"""
+    if re.fullmatch(f"[{KANJI}]", term):
+        return f"(?<![{KANJI}]){re.escape(term)}(?![{KANJI}])"
     head = f"(?<![{KATAKANA}])" if re.match(f"[{KATAKANA}]", term) else ""
     tail = f"(?![{KATAKANA}])" if re.search(f"[{KATAKANA}]$", term) else ""
     return head + re.escape(term) + tail

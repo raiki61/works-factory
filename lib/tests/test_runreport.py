@@ -1153,6 +1153,13 @@ class GlossaryCase(unittest.TestCase):
         self.assertEqual(text, "パイプラインと処理の段の組み合わせ。サブノードと処理の段")
         self.assertEqual(counts, {"ライン": 1, "ノード": 1})
 
+    def test_plain_words_skip_compounds_that_only_contain_a_one_kanji_term(self):
+        """#660: 漢字 1 字の語（周・柵）は、前後が漢字でない時だけ置き換え、熟語の一部（周囲・周知・一周・周辺）は残す"""
+        text, counts = runreport.plain_words("前の周に戻り、周ごとに柵の印を見た。周囲と周知、一周、周辺")
+        self.assertEqual(text, "前の判定から確かめまでの一巡に戻り、判定から確かめまでの一巡ごとに決まりを確かめる試験の印を見た。"
+                               "周囲と周知、一周、周辺")
+        self.assertEqual(counts, {"周": 2, "柵": 1})
+
     def test_plain_wording_keeps_the_meaning(self):
         """#660: 守りのパスは対象のリポジトリが守ると宣言したファイルも含み、承認ノードは無人の run では機械が通すので、言い方が
         工場の内輪や人の確認に寄らない。周・ノードも言い換える（定義の節を持たない語を人に向けた報告に字のまま残さない）"""
@@ -1871,6 +1878,16 @@ class LedgerCase(Base):
         [held] = [x for x in human.splitlines() if x.startswith("- 保留にしたままの問い: ")]
         self.assertIn(f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(q['key'], ensure_ascii=False)}", held)
         self.assertIn(" 柵の住処（", held)
+        self.assertNotIn("問いの台帳", held)
+
+    def test_answer_key_with_a_space_and_inner_words_survives_the_human_report(self):
+        """#660: 空白を含む問いの key（素材の名と問いの文）も、行の頭で語の表の語を言い換えない"""
+        q = {**FORK, "key": "parallel_pr: 単位の柵"}
+        _, machine, _ = self.build(self.returns(q))
+        runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        [held] = [x for x in human.splitlines() if x.startswith("- 保留にしたままの問い: ")]
+        self.assertIn(" parallel_pr: 単位の柵（", held)
         self.assertNotIn("問いの台帳", held)
 
     def test_held_lines_warn_to_read_the_measuring_command_first(self):
