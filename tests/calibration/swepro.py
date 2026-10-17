@@ -219,7 +219,7 @@ def build_steps(claude_version: str, place: str = PLACE) -> list[tuple[str, str]
                "-e 's|security.debian.org|archive.debian.org|g' -e 's|deb.debian.org|archive.debian.org|g' -e '/-updates/d' "
                "/etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null")
     plugins = [(name, entry["marketplace"], entry["marketplace_repo"])
-               for name, entry in json.loads((ROOT / "bin" / "_lib" / "borrow" / "borrow.json").read_text(encoding="utf-8")).items()
+               for name, entry in json.loads((ROOT / "lib" / "borrow" / "borrow.json").read_text(encoding="utf-8")).items()
                if entry.get("kind") == "plugin" and entry.get("marketplace_repo")]
     return [
         ("place", f"mkdir -p {p['bin']} {p['home']} {place}/task {place}/secret && chmod 700 {place}/secret"),

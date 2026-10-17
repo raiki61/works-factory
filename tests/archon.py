@@ -13,7 +13,7 @@
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
 - validate の数えない警告: Claude Code に同梱の skill（BUILTIN_SKILLS）と、借りる superpowers の skill（BORROWED_SKILLS。
-  bin/_lib/borrow/borrow.json の superpowers.skills）を節が名指した時の「ディスクに無い」の警告だけ。同梱の skill は SKILL.md を
+  lib/borrow/borrow.json の superpowers.skills）を節が名指した時の「ディスクに無い」の警告だけ。同梱の skill は SKILL.md を
   持たず、借りる skill は起動の時に run の隔離した設定へ入るので使い捨ての木には無い。止めた Archon（packages/workflows/src/
   validator.ts の skills の照らし）はどちらも名指すたびに出す。
 """
@@ -37,7 +37,7 @@ CACHE_ENV = hermetic.ARCHON_CACHE_ENV
 REQUIRED_ENV = hermetic.ARCHON_REQUIRED_ENV
 PACK = pack.load(ROOT)
 BUILTIN_SKILLS = frozenset({"code-review", "simplify", "security-review"})
-BORROWED_SKILLS = frozenset(json.loads((ROOT / "bin" / "_lib" / "borrow" / "borrow.json").read_text(encoding="utf-8"))
+BORROWED_SKILLS = frozenset(json.loads((ROOT / "lib" / "borrow" / "borrow.json").read_text(encoding="utf-8"))
                             ["superpowers"]["skills"])
 BUILTIN_SKILL_WARNING = re.compile(r"Skill '([^']+)' not found in ")
 WORKFLOWS = ROOT / PACK["ours"]["folder"]

@@ -1,47 +1,38 @@
-"""借りたスキルの座: 借りた superpowers の節（bin/_lib/borrow/seams.json の 1 項目）を、修正のブロックの役の指示書に載せる 1 節の
+"""借りたスキルの座: 借りた superpowers の節（lib/borrow/seams.json の 1 項目）を、修正のブロックの役の指示書に載せる 1 節の
 文を組む。元 works/.shared/core/seat.py（修正役の並べの枝の座と、下請けのファイルを単位の worktree で読む決まりは、枝が無いので外した）。
 
 語:
 - 節（seam）: seams.json の 1 項目。use_as が skill（スキル 1 本を Skill の道具で読ませる）か prompt（部品の型の穴を埋めて指示書に置く）
 - 座: 節を役に載せる口。SEATS（役の名 → 節の名）が表で持つ
-- 読み替え: skill_overlay（bin/_lib/borrow/unattended.md の頭の 1 行と全文）。座の末尾にいつも載る
+- 読み替え: skill_overlay（lib/borrow/unattended.md の頭の 1 行と全文）。座の末尾にいつも載る
 
 口:
 - carries(node)・SKILL_NODES: 座が載る役・座が skill の役（YAML の skills: と一致）
-- pin_problems(src, item)・pinned(): 写しが固定（borrow.json の superpowers.pin）と合うかを照らし (借りる物, 写しの置き場) を返す
-  （合わなければ ValueError。照らしは bin/_lib/spseam.pin_problems の写し）
-- fill(seam_id, values): 部品の型の穴を埋めた本文（bin/_lib/spseam.py の fill と同じ決まり。試験が同じ文を返すことを縛る）
+- pinned(): 写しが固定（borrow.json の superpowers.pin）と合うかを照らし (借りる物, 写しの置き場) を返す
+  （合わなければ ValueError。照らしは spseam.pin_problems）
+- fill(seam_id, values): 固定と照らした写しの、部品の型の穴を埋めた本文（spseam.fill）
 - section(node, values): 座の文。載らなければ空。頭 → 節の種類ごとの本文 → 読み替え。1 回目の差分の審査役（review）の型の後ろには
   判定の語の欄の表（words_table）、語に conflict.WORD を持つ節（implementer）の後ろには申し出の種類の手引き DIVERGENCE_HINT
 - g1_prompt(seam_id, values)・g1_section(rows)・g1_diff_cmd(base, patch): 修正役（fix・fix-ruled）が直す単位の項目ごとに Agent の
   新しい会話で起こす下請け（実装役・審査役）のファイルの中身と、修正役の指示書の節と、審査役に渡す差分のファイルを書くコマンド
 - skill_overlay()・query_rule(): 読み替えの段と、下請けのファイルに字のまま載せる検索語の規律の塊（lib/agents/judge.md）
 
-lib/ は bin/ を import しない（lib/AGENTS.md の E3）ので、写しと節の表は置き場 BORROW_DIR のファイルを読む（起動の bin/_lib/toolset.py
-が同じ写しを run の隔離した設定へ写す。写しを変えるのは toolset の vendor だけ）。食い違い・型の穴の埋め残りは ValueError で名指す。
+写しと節の表は spseam の置き場 BORROW_DIR のファイルを読む（起動の bin/_lib/toolset.py が同じ写しを run の隔離した設定へ
+写す。写しを変えるのは toolset の vendor だけ）。食い違い・型の穴の埋め残りは ValueError で名指す。
 """
-import hashlib
 import json
-import os
 import pathlib
-import re
 import shlex
 import sys
-import textwrap
 
 sys.dont_write_bytecode = True
 
 import conflict  # noqa: E402  （申し出の種類の語 DIV_KINDS と状態の語の読み替え WORD）
-import oneline  # noqa: E402
 import promptsection  # noqa: E402
+import spseam  # noqa: E402
 
-BORROW_DIR = pathlib.Path(__file__).resolve().parents[1] / "bin" / "_lib" / "borrow"   # 借りた物の置き場（bin/_lib/spseam.BORROW_DIR）
-SEAMS_FILE = "seams.json"
-OVERLAY_FILE = "unattended.md"
 OVERLAY_HEAD = ("借りたスキル（superpowers）を読む時は、下の読み替えに従え。これは役への直の指示で、スキルの文より勝つ。"
                 "Agent で下請けを起こすなら、その prompt に、このファイル {path} を Read せよと書け。")
-BRACKETED = re.compile(r"\[[^\[\]]+\]")   # 型の本文の角括弧の語（bin/_lib/spseam.BRACKETED）
-FENCE, PROMPT_LINE = "```", "  prompt: |"
 QUERY_RULE_SOURCE = pathlib.Path(__file__).resolve().parent / "agents" / "judge.md"   # 検索語の規律の正本（写し）
 QUERY_RULE_HEAD = "- **検索語に対象の名前を載せるな。**"
 
@@ -184,147 +175,28 @@ def _bullets(rows) -> str:
     return "\n".join(f"- {r}" for r in rows)
 
 
-def load_seams() -> dict:
-    return json.loads((BORROW_DIR / SEAMS_FILE).read_text(encoding="utf-8"))
-
-
-def _sha(p: pathlib.Path) -> str:
-    return hashlib.sha256(p.read_bytes()).hexdigest()
-
-
-OUTSIDE = "版のフォルダの外を指す（絶対のパスか ..）"   # 以下 pin_problems まで bin/_lib/spseam.py の写し（試験が同じ行を返すことを縛る）
-LINKED = "symlink が在る（たどらない）"
-MARKERS = frozenset({".in_use", ".orphaned_at"})   # Claude Code がプラグインのキャッシュの版の置き場に置く印
-IGNORED = frozenset({".DS_Store"})
-
-
-def _bad_path(src: pathlib.Path, rel: str) -> str | None:
-    """rel が版のフォルダの外を指す・途中か先が symlink なら理由（OUTSIDE・LINKED）。読んでよければ None"""
-    pure = pathlib.PurePosixPath(rel)
-    if not rel or pure.is_absolute() or pathlib.PureWindowsPath(rel).is_absolute() or ".." in pure.parts:
-        return OUTSIDE
-    at = src
-    for part in pure.parts:
-        at = at / part
-        if at.is_symlink():
-            return LINKED
-    return None
-
-
-def _scan(src: pathlib.Path, item: dict) -> tuple[dict[str, str], dict[str, str]]:
-    """包むファイルの ({相対パス: sha256}, {読まなかったパス: 理由})。symlink はたどらず、外を指すパスは読まない"""
-    files, bad = {}, {}
-    for name in item["skills"]:
-        rel = f"skills/{name}"
-        why = _bad_path(src, rel)
-        if why:
-            bad[rel] = why
-            continue
-        root = src / rel
-        if not root.is_dir():
-            continue
-        for here, dirs, names in os.walk(root, followlinks=False):
-            for n in [*dirs, *names]:
-                p = pathlib.Path(here) / n
-                r = p.relative_to(src)
-                if MARKERS & set(r.parts) or n in IGNORED:
-                    continue
-                if p.is_symlink():
-                    bad[r.as_posix()] = LINKED
-                elif n in names and p.is_file():
-                    files[r.as_posix()] = _sha(p)
-            dirs[:] = [d for d in dirs if not (pathlib.Path(here) / d).is_symlink() and d not in MARKERS]
-    for rel in [*item.get("parts", []), *([item["licence_file"]] if item.get("licence_file") else [])]:
-        why = _bad_path(src, rel)
-        if why:
-            bad[rel] = why
-        elif (src / rel).is_file():
-            files[rel] = _sha(src / rel)
-    return dict(sorted(files.items())), bad
-
-
-def pin_problems(src: pathlib.Path, item: dict) -> list[str]:
-    """固定の files と版のフォルダ src の包むファイルの食い違いの行（パスの順）。借りる一覧と部品が固定に無ければ、それも名指す。
-    空なら写しは固定と同じ"""
-    pin = item.get("pin")
-    if not pin:
-        return ["borrow.json の superpowers に pin が無い"]
-    want = pin.get("files", {})
-    have, bad = _scan(src, item)
-    for rel in want:
-        why = rel not in bad and _bad_path(src, rel)
-        if why:
-            bad[rel] = why
-    unpinned = {rel for rel in [*(f"skills/{s}/SKILL.md" for s in item["skills"]), *item.get("parts", [])] if rel not in want}
-    out = []
-    for rel in sorted(set(want) | set(have) | set(bad) | unpinned):
-        if rel in bad:
-            out.append(f"{rel}: {bad[rel]}")
-        elif rel in unpinned:
-            out.append(f"{rel}: 借りる一覧（borrow.json の skills・parts）が名指すのに、固定（pin.files）にその sha256 が無い"
-                       "（bin/_lib/toolset.py vendor で写し直す）")
-        elif rel not in have:
-            out.append(f"{rel}: 固定に在るのに手元に無い")
-        elif rel not in want:
-            out.append(f"{rel}: 固定に無いファイルが手元に在る")
-        elif want[rel] != have[rel]:
-            out.append(f"{rel}: 中身が固定と違う（固定 {want[rel][:12]} / 手元 {have[rel][:12]}）")
-    return out
-
-
 def pinned() -> tuple[dict, pathlib.Path]:
     """借りる物（borrow.json の superpowers）と写しの置き場（superpowers/<pin の版>）。写しが固定と合わなければ ValueError
-    （pin_problems を名指す）。支度は書き込みの前にこれを呼ぶ"""
-    item = json.loads((BORROW_DIR / "borrow.json").read_text(encoding="utf-8"))[ITEM]
-    src = BORROW_DIR / ITEM / str((item.get("pin") or {}).get("version") or "")
-    bad = pin_problems(src, item)
+    （spseam.pin_problems を名指す）。支度は書き込みの前にこれを呼ぶ"""
+    item = json.loads((spseam.BORROW_DIR / "borrow.json").read_text(encoding="utf-8"))[ITEM]
+    src = spseam.BORROW_DIR / ITEM / str((item.get("pin") or {}).get("version") or "")
+    bad = spseam.pin_problems(src, item)
     if bad:
         raise ValueError(f"借りた写し {src} が固定（borrow.json の pin）と合わない: {'; '.join(bad)}")
     return item, src
 
 
-def _prompt_body(text: str) -> str:
-    """型の最初の ``` の囲みの中の「  prompt: |」の次の行から囲みの終わりまでを dedent した物。無ければ ValueError"""
-    lines = text.split("\n")
-    try:
-        start = next(i for i, line in enumerate(lines) if line.startswith(FENCE))
-        end = next(i for i in range(start + 1, len(lines)) if lines[i].startswith(FENCE))
-    except StopIteration:
-        raise ValueError("``` の囲みが無い（開きか閉じが欠けている）") from None
-    head = [i for i in range(start + 1, end) if lines[i].rstrip() == PROMPT_LINE]
-    if not head:
-        raise ValueError(f"最初の ``` の囲みに「{PROMPT_LINE.strip()}」の行が無い")
-    return textwrap.dedent("\n".join(lines[head[0] + 1:end]) + "\n")
-
-
-def _stray(text: str, sec: dict) -> list:
-    known = {oneline.one_line(t) for t in [*sec.get("placeholders", []), *sec.get("literals", [])]}
-    return sorted({oneline.one_line(t) for t in BRACKETED.findall(text)} - known)
-
-
 def fill(seam_id: str, values: dict[str, str]) -> str:
-    """部品の節（use_as が prompt）の型の穴を全部 values で置き換えた本文（bin/_lib/spseam.fill と同じ決まり）。写しが固定と違う・
-    値の鍵が穴と違う・置き換えの後に穴でも埋めない語でもない角括弧の語が残れば ValueError"""
-    _, src = pinned()
-    sec = load_seams().get(seam_id)
-    if not sec or sec.get("use_as") != "prompt":
-        raise ValueError(f"{seam_id}: 部品のセクションでない")
-    holes = list(sec.get("placeholders", []))
-    lack, extra = sorted(set(holes) - set(values)), sorted(set(values) - set(holes))
-    if lack or extra:
-        raise ValueError(f"{seam_id}: 値の鍵が穴と違う（足りない {lack} / 余る {extra}）")
-    body = _prompt_body((src / sec["files"][0]).read_text(encoding="utf-8"))
-    pat = re.compile("|".join(re.escape(h) for h in sorted(holes, key=len, reverse=True))) if holes else None
-    left = _stray(pat.sub("", body) if pat else body, sec)
-    if left:
-        raise ValueError(f"{seam_id}: 埋めていない穴 {' '.join(left)} が {sec['files'][0]} の prompt の本文に残る")
-    return pat.sub(lambda m: values[m.group(0)], body) if pat else body
+    """部品の節（use_as が prompt）の型の穴を全部 values で置き換えた本文（spseam.fill）。写しが固定と違う・値の鍵が穴と違う・
+    置き換えの後に穴でも埋めない語でもない角括弧の語が残れば ValueError"""
+    item, src = pinned()
+    return spseam.fill(seam_id, values, src, item)
 
 
 def skill_overlay() -> str:
     """借りたスキルを読める役の指示書に足す段: 頭の 1 行と、読み替えの正本の全文（字のまま。写しを持たない）。superpowers の
     using-superpowers は、直の指示がスキルに勝つと定める。元 works/.shared/core/rolekit.py:74"""
-    path = BORROW_DIR / OVERLAY_FILE
+    path = spseam.BORROW_DIR / spseam.OVERLAY_FILE
     return OVERLAY_HEAD.format(path=path) + "\n\n" + path.read_text(encoding="utf-8")
 
 
@@ -347,7 +219,7 @@ def query_rule() -> str:
 def words_table(seam_id: str) -> str:
     """節 seam_id の出口の語の表（型の語・works の語・欄の値の 3 列の Markdown。見出し WORDS_HEAD つき）。works の語が
     VERDICT_WORDS に無ければ ValueError（推して埋めない）"""
-    words = load_seams()[seam_id].get("words") or {}
+    words = spseam.load_seams()[seam_id].get("words") or {}
     lack = sorted(w for w in words.values() if w not in VERDICT_WORDS)
     if lack:
         raise ValueError(f"セクション {seam_id} の語 {lack} が判定の欄の語の対応（seat.VERDICT_WORDS）に無い")
@@ -361,10 +233,10 @@ def section(node: str, values: dict[str, str] | None = None) -> str:
     写しが固定と違う・穴が埋まらなければ ValueError（名指す）"""
     if not carries(node):
         return ""
-    seams = load_seams()
+    seams = spseam.load_seams()
     sid = SEATS[node]
     if sid not in seams:
-        raise ValueError(f"座 {node} のセクション {sid} が {SEAMS_FILE} に無い")
+        raise ValueError(f"座 {node} のセクション {sid} が {spseam.SEAMS_FILE} に無い")
     sec = seams[sid]
     if sec.get("use_as") == "prompt" and values is None:
         raise ValueError(f"座 {node}（セクション {sid}）の型の穴の値が無い")
