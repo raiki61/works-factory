@@ -648,21 +648,28 @@ class MeasuredSectionCase(unittest.TestCase):
                       eyeverdict.measured_section(self.OUTCOMES, ["tdd-unit.json が無い"]))
         self.assertIn("修正の段が走っていない", eyeverdict.measured_section(self.OUTCOMES, []))
 
-    def test_reads_the_tdd_record_beside_each_fix_diff(self):
+    def test_tdd_stages_read_the_tdd_unit_port(self):
+        """段ごとの TDD の記録は段の欄 tdd_unit の先から読む（diff の隣を名で開かない）。null の欄は「無い」、戻せないポインタは訳"""
         import fixboard
         with tempfile.TemporaryDirectory() as tmp:
-            stage = pathlib.Path(tmp) / "fix"
-            stage.mkdir()
-            (stage / fixboard.TDD_UNIT_FILE).write_text(json.dumps([{"group_id": "g1", "ran": False}]), encoding="utf-8")
-            got = eyeverdict.tdd_stages([str(stage / "fix.diff"), str(pathlib.Path(tmp) / "refix" / "fix.diff")], pathlib.Path)
+            record = pathlib.Path(tmp) / "elsewhere" / "record.json"
+            record.parent.mkdir()
+            record.write_text(json.dumps([{"group_id": "g1", "ran": False}]), encoding="utf-8")
+            stages = [{"diff": str(pathlib.Path(tmp) / "fix" / "fix.diff"), "tdd_unit": str(record)},
+                      {"diff": str(pathlib.Path(tmp) / "refix" / "fix.diff"), "tdd_unit": None},
+                      {"diff": None, "tdd_unit": str(pathlib.Path(tmp) / "fix" / fixboard.TDD_UNIT_FILE)}]
+            got = eyeverdict.tdd_stages(stages, pathlib.Path)
         self.assertEqual(got[0], [{"group_id": "g1", "ran": False}])
-        self.assertIn(f"refix/{fixboard.TDD_UNIT_FILE} が無い", got[1])
+        self.assertEqual(got[1], "修正の控え tdd_unit が無い")
+        self.assertIn(f"fix/{fixboard.TDD_UNIT_FILE} が無い", got[2])
         self.assertEqual(eyeverdict.tdd_stages(None, pathlib.Path), [])
 
         def refuse(ptr):
             raise ValueError("ほかの run のポインタ")
-        self.assertIn("diffs）のポインタが読めない（ほかの run のポインタ）", eyeverdict.tdd_stages([{}], refuse)[0])
+        self.assertIn("修正の控え tdd_unit のポインタを読めない（ValueError: ほかの run のポインタ）",
+                      eyeverdict.tdd_stages([{"tdd_unit": {}}], refuse)[0])
         self.assertIn("並びでない", eyeverdict.tdd_stages({"type": "x"}, pathlib.Path)[0])
+        self.assertEqual(eyeverdict.tdd_stages(["x"], pathlib.Path), ["修正の段の出力が dict でない"])
 
 
 class OriginSectionCase(unittest.TestCase):

@@ -40,6 +40,12 @@ def fixed_run(**over) -> dict:
     return returns
 
 
+def stage_of(diff: str) -> dict:
+    """修正の段 1 つの返りの控えの欄（返す節が fixbeside.returned で組む物を、報告が受ける形＝指し札を開けたパスの字で）"""
+    import fixbeside
+    return {"diff": diff, **fixbeside.returned(pathlib.Path(diff).parent, str)}
+
+
 def decide(returns=None, gates=None, facts=None):
     return outcome.decide_outcome(fixed_run() if returns is None else returns, gates or {}, OK_FACTS if facts is None else facts)
 
@@ -267,7 +273,7 @@ class ReadingCase(unittest.TestCase):
         folder.mkdir(parents=True)
         (folder / "fix.diff").write_text("x", encoding="utf-8")
         fixbeside.write(folder, [{"closure": [{"unit_key": "u1", "closed": False}]}])
-        fix = {**fixed_run()["fix"], "diff": str(folder / "fix.diff"), "diffs": [str(folder / "fix.diff")]}
+        fix = {**fixed_run()["fix"], "diff": str(folder / "fix.diff"), "records": [stage_of(str(folder / "fix.diff"))]}
         self.assertEqual(decide(fixed_run(fix=fix))[0], "round_limit")
         left = outcome.residue(fixed_run(fix=fix))
         self.assertEqual([r["where"] for r in left], ["修正 u1"])
@@ -282,7 +288,7 @@ class ReadingCase(unittest.TestCase):
         folder = self.dir / "fix" / "fix"
         folder.mkdir(parents=True)
         (folder / "fix.diff").write_text("x", encoding="utf-8")
-        fix = {**fixed_run()["fix"], "diff": str(folder / "fix.diff"), "diffs": [str(folder / "fix.diff")]}
+        fix = {**fixed_run()["fix"], "diff": str(folder / "fix.diff"), "records": [stage_of(str(folder / "fix.diff"))]}
         (folder / fixbeside.CLOSURE_FILE).write_text('{"rows": [{"unit_key": "U1", "closed": false}', encoding="utf-8")
         self.assertEqual(decide(fixed_run(fix=fix))[0], "round_limit")
         self.assertTrue([r for r in outcome.residue(fixed_run(fix=fix)) if fixbeside.CLOSURE_UNREAD in r["text"]])
@@ -433,38 +439,26 @@ class ReadingCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(judge=judge, plan={"ready": False}, fix=None))[0], "no_fix_needed")
 
     def test_nothing_owed_plan_is_not_give_up(self):
-        """#283: 開いた単位が全部人の答え待ちで直す義務 0 件の周（round.json の why が NOTHING_OWED）は計画の諦めでなく、今の works
-        （works/.shared/core/report.py:670-695）と同じく round_limit に落ちる"""
-        with tempfile.TemporaryDirectory() as tmp:
-            round_dir = pathlib.Path(tmp) / "plan" / "r1"
-            round_dir.mkdir(parents=True)
-            fields = round_dir / planfile.planmarks.FIELDS_FILE
-            fields.write_text('{"round": 1, "fields": []}', encoding="utf-8")
-            returns = fixed_run(plan={"ready": False, "plan": str(fields)}, fix=None, eyes=None,
-                                **{"plan-review": None, "test-gate-final": None, "merge-seal": None, "merge-apply": None})
-            for why, want in ((planfile.NOTHING_OWED, ("round_limit", "")), ("", ("stopped_by_line", "plan:give-up"))):
-                with self.subTest(why=why):
-                    (round_dir / planfile.ROUND_FILE).write_text(json.dumps({"round": 1, "mode": "plan", "go": False, "why": why}),
-                                                          encoding="utf-8")
-                    self.assertEqual(decide(returns), want)
+        """#283: 開いた単位が全部人の答え待ちで直す義務 0 件の周（計画の返りの欄 nothing_owed が真）は計画の諦めでなく、今の works
+        （works/.shared/core/report.py:670-695）と同じく round_limit に落ちる。欄が偽・無い周は諦め"""
+        base = fixed_run(fix=None, eyes=None, **{"plan-review": None, "test-gate-final": None, "merge-seal": None, "merge-apply": None})
+        for plan, want in (({"ready": False, "nothing_owed": True}, ("round_limit", "")),
+                           ({"ready": False, "nothing_owed": False}, ("stopped_by_line", "plan:give-up")),
+                           ({"ready": False}, ("stopped_by_line", "plan:give-up"))):
+            with self.subTest(plan=plan):
+                self.assertEqual(decide({**base, "plan": plan}), want)
+                self.assertIs(outcome.plan_nothing_owed({**base, "plan": plan}), plan.get("nothing_owed", False))
 
     def test_nothing_owed_round_with_the_tail_is_round_limit(self):
         """#291: 直す義務 0 件の周も今の works（works/darkfactory/lib/line_edge.py:1109-1114 の空の修正）と同じく最後のテストと独立の目
         まで回り、結末は round_limit のまま。目の阻害の行（works の [block] の行）は残りに載る"""
-        with tempfile.TemporaryDirectory() as tmp:
-            round_dir = pathlib.Path(tmp) / "plan" / "r1"
-            round_dir.mkdir(parents=True)
-            fields = round_dir / planfile.planmarks.FIELDS_FILE
-            fields.write_text('{"round": 1, "fields": []}', encoding="utf-8")
-            (round_dir / planfile.ROUND_FILE).write_text(
-                json.dumps({"round": 1, "mode": "plan", "go": False, "why": planfile.NOTHING_OWED}), encoding="utf-8")
-            returns = fixed_run(plan={"ready": False, "plan": str(fields)}, fix=None,
-                                **{"plan-review": None, "merge-seal": None, "merge-apply": None})
-            self.assertEqual(decide(returns), ("round_limit", ""))
-            eyes = {**returns["eyes"], "ok": False, "r2": {"status": "redesign-needed", "reason": "直す物が在る"}}
-            blocked = {**returns, "eyes": eyes}
-            self.assertEqual(decide(blocked), ("round_limit", ""))
-            self.assertIn(f"{report.EYES_WHERE} R2", [row["where"] for row in outcome.residue(blocked)])
+        returns = fixed_run(plan={"ready": False, "nothing_owed": True}, fix=None,
+                            **{"plan-review": None, "merge-seal": None, "merge-apply": None})
+        self.assertEqual(decide(returns), ("round_limit", ""))
+        eyes = {**returns["eyes"], "ok": False, "r2": {"status": "redesign-needed", "reason": "直す物が在る"}}
+        blocked = {**returns, "eyes": eyes}
+        self.assertEqual(decide(blocked), ("round_limit", ""))
+        self.assertIn(f"{report.EYES_WHERE} R2", [row["where"] for row in outcome.residue(blocked)])
 
     def test_later_judge_and_plan_are_read_first(self):
         """再審・案の直しの返りは後の段で先に読む（線と同じ）"""

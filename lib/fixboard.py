@@ -46,7 +46,7 @@ import promptsection
 import rolekit
 import startrec
 
-PREP_INPUTS = ("start", "judgment", "answer_ties", "materials", "depth_record", "plan", "plan_review", "ripple", "depth", "head_depth",
+PREP_INPUTS = ("start", "judgment", "answer_ties", "materials", "depth_record", "plan", "fix_plan", "plan_review", "ripple", "depth", "head_depth",
                "answers", "units", "only_items", "baseline", "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
@@ -127,7 +127,7 @@ def plan_view(place, plan=None, judgment=None, round_: int = 1):
     """planmarks の承認済みの修正案の読み口（plan_items・approved_items・prescriptions。読むのは b.dir・b.round・
     b.output_of_round・b.latest_output・b.trace だけ）に渡す形: dir は置き場 place（plan-fields.json と凍結の印の行の在る
     trace.jsonl を置く所）、round は round_、output_of_round(node, rnd) は rnd が round_ の時だけ修正案の役の返答 plan
-    （{"plan": [...]}。今の works の p2.fix_plan の出力・plan の隣の p2.fix_plan.json）、latest_output(node) は判定 judgment
+    （{"plan": [...]}。今の works の p2.fix_plan の出力。入力 fix_plan の先の写し PLAN_REPLY_FILE）、latest_output(node) は判定 judgment
     （judgment.json の dict）、trace は置き場の trace.jsonl への 1 行（trace）。fix のブロックの中だけの合わせ口（marks_view と同じ）"""
     def output_of_round(node, rnd):
         return plan if rnd == round_ else None
@@ -544,17 +544,16 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
         (folder / file).write_bytes(source.read_bytes())
 
     plan_file = pointed("plan")
-    plan = None
     if plan_file is not None:
         doc = json.loads(plan_file.read_text(encoding="utf-8"))
         if not isinstance(doc, dict) or not isinstance(doc.get("fields"), list):
             raise ValueError(f"修正案の欄 {plan_file.name} の形が違う（{{round, fields}}）")
         amended = doc.get(planmarks.AMENDED_KEY)
         planmarks.save(folder, 1, doc["fields"], {int(n): c for n, c in amended.items()} if isinstance(amended, dict) else None)
-        reply = plan_file.parent / PLAN_REPLY_FILE
-        if reply.is_file():
-            plan = json.loads(reply.read_text(encoding="utf-8"))
-            write_json(folder / PLAN_REPLY_FILE, plan)
+    (folder / PLAN_REPLY_FILE).unlink(missing_ok=True)
+    plan = read_pointed("fix_plan") if plan_file is not None else None
+    if plan is not None:
+        write_json(folder / PLAN_REPLY_FILE, plan)
     (folder / PLAN_REVIEW_FILE).unlink(missing_ok=True)
     review = read_pointed("plan_review")
     if review is not None:
@@ -1134,13 +1133,13 @@ def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pa
 # ---------------------------------------------------------------- 差分の審査・レンズ・手直しの節の口（delta・lens・refix の scripts が呼ぶ）
 # 置き場の決まった名（prep が写し、ここが読む）
 GROUPS_FILE = "groups.json"            # {groups: [{group_id, …}], out_dir, start_tree, …}（prep の返りと同じ）
-TDD_UNIT_FILE = "tdd-unit.json"        # 組ごとの TDD の記録（tdd_units の本文。tdd-unit が書き、diff の隣の約束として eyes が読む）
+TDD_UNIT_FILE = "tdd-unit.json"        # 組ごとの TDD の記録（tdd_units の本文。tdd-unit が書き、返す節が欄 tdd_unit で返して eyes が読む）
 ASSERT_FILE = "assert-changed.json"    # 変更の確かめの結果 {ok, reason}（assert-changed が書き、delta-cut・collect が読む）
 RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>/result.json（reply_file に受け付けた修正役の返答の写し）
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）
 HEAD_DEPTH_FILE = "head-depth.json"    # run の頭の深さの段の語（入力 head_depth の写し。空は標準）
 DEPTH_RAISED_FILE = "depth-raised.json"   # 修正の後の信号で上げた深さの控え（depth.raise_doc の形。redepth が書く）
-PLAN_REPLY_FILE = "p2.fix_plan.json"   # 修正案の役の返答の写し（{"plan": [...]}。承認済みの項目の unit_keys の出どころ）
+PLAN_REPLY_FILE = "fix-plan-reply.json"   # 修正案の役の返答の写し（入力 fix_plan の先。{"plan": [...]}。承認済みの項目の unit_keys の出どころ）
 PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（faces・shrink。修正役の plan_faces と差分の審査の材料 out.p2.plan_review が読む。
                                            # 修正役の指示書は修正案 PLAN_REPLY_FILE と同じフォルダに在ると書く）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
@@ -1159,7 +1158,7 @@ BASE_REV_FILE = "base-rev.json"        # 修正前の版 {rev}（prep が親の�
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（差分の審査の材料 fix_report と plan_faces）
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
 LENS_PROMPT = "prompt-lens-{}.md"      # レンズの節の指示書（lenses.key）
-LENSES_FILE = "lenses.json"            # レンズの集め役の事実 {collector: {ok, reason}}（diff の隣のファイル。読み手は最後の関所と報告）
+LENSES_FILE = "lenses.json"            # レンズの集め役の事実 {collector: {ok, reason}}（返す節が数えを足して欄 lenses で返す。読み手は最後の関所と報告）
 LENS_NOT_DONE = "レンズの集め役が終わらなかった: {why}"   # 集め役が落ちた・ok でない時の理由の頭（元 works/blk-lens/lib/lenses.py:130 の exit_）
 LENS_NOT_DUE = "差分の審査を回さないのでレンズは起こさない（{why}）"   # delta-cut が go: false の時の理由
 # 差分の審査の受け付けが拒む穴の語（元 works/.shared/core/graphloops/rules/review-loop.py:4084-4087）
@@ -1219,7 +1218,7 @@ def depth_signals(place) -> tuple:
     受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末 given_up）。run: 答えていない
     修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が空でない 2 回目の修正）・
     修正役が判定に異議を出した（組の子の結果と裁定の後の返答の objection）・TDD のループで修正役が拒まれた（置き場の tdd-<k>/
-    state.json の calls。線の redepth と同じ読みの fixbeside.tdd_refused）・修正役が範囲の相談をした（受け付けの行
+    state.json の calls。返す節が欄 tdd_refused で線の redepth へ返すのと同じ読みの fixbeside.tdd_refused）・修正役が範囲の相談をした（受け付けの行
     accept_trace_rows。consult.consulted_units）。後ろの 2 つの理由の文は depth.late_signals が持つ（頭の深さの引用した where の
     外の差分は run の広さと同じく redepth が数える）。控えが読めなければ上げる側へ倒す（TDD の輪の状態は fixbeside.LATE_UNREAD）。
     元 works/darkfactory/lib/depth.py:268 の signals と、線の h-redepth が渡した replanned・rejudged"""
@@ -1307,7 +1306,7 @@ def delta_review_due(place, repo, skip=(), fix_reply=None) -> tuple:
 
 
 def place_items(place):
-    """置き場の承認済みの修正案の項目（planmarks.approved_items。修正案の役の返答の写し p2.fix_plan.json と判定の写し judgment.json
+    """置き場の承認済みの修正案の項目（planmarks.approved_items。修正案の役の返答の写し PLAN_REPLY_FILE と判定の写し judgment.json
     を plan_view で渡し、凍結の欄 plan-fields.json と凍結の印は置き場から）。どれか無ければ None。凍結の印と食い違えば
     planmarks.FieldsBroken。承認済みの項目を置き場から読む口はここ 1 つで、修正の段（群の組み立て prep・修正役の指示書・
     受け付け・事前の確かめ factchecks.main）と手直しの段（refix.cut・accept_review・accept_fix・prep_fix）が同じ物を items に口（引数なし）として渡す"""
@@ -1686,8 +1685,8 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 ADOPTED = (startrec.REL, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, HEAD_DEPTH_FILE,
            ANSWERS_FILE, UNITS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
-ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
-ALLOWED_SOURCES = ("plan", "consult", "ruling")   # allowed-tests.json の source の語: 承認済みの修正案・範囲の相談の合意・裁定
+ALLOWED_TESTS_FILE = "allowed-tests.json"   # 許したテストの変更の訳 [{path, permit, source}]（collect が書き、欄 allowed_tests で返す。allowed_test_rows）
+ALLOWED_SOURCES = ("plan", "consult", "ruling")   # ALLOWED_TESTS_FILE の source の語: 承認済みの修正案・範囲の相談の合意・裁定
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
 ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
 PRIOR_LOOP = "prior_pass"               # 2 回目の修正の段の置き場に写した 1 回目の段の輪の状態の印（adopt_prior_pass。新しい）
@@ -2700,7 +2699,7 @@ def ruled_owed(place) -> list:
 
 
 def brief_sources(place) -> dict:
-    """planbrief.cut の材料（置き場の修正案の役の返答の写し p2.fix_plan.json と判定の写し judgment.json。無ければ None）"""
+    """planbrief.cut の材料（置き場の修正案の役の返答の写し PLAN_REPLY_FILE と判定の写し judgment.json。無ければ None）"""
     p = pathlib.Path(place)
     return {"plan": read_json(p / PLAN_REPLY_FILE), "judgment": read_json(p / JUDGMENT_FILE)}
 

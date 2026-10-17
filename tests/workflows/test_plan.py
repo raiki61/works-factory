@@ -61,7 +61,7 @@ NO_DEADLINE = 1728000000
 INPUTS = {"start": "", "units": "[]", "judgment": "", "world": "null", "spec": "null", "review": "", "ruling": "[]",
           "conflicts": "null", "prior_failures": "null", "verify": "null", "pr_excluded": "null", "depth_record": "null",
           "answer_ties": "null", "materials": "null", "decisions": "null"}
-RETURNED = ["ready", "plan", "structure", "ripple", "depth", "round"]
+RETURNED = ["ready", "plan", "structure", "ripple", "depth", "round", "fix_plan", "rejects", "nothing_owed", "gave_up"]
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 NIT = "stats.py mean: 変数名が短い"
@@ -870,8 +870,10 @@ class AcceptCase(unittest.TestCase):
             briefs[n] = brief
             return copy.deepcopy([{"plan": [item(1)]}, {"plan": [item(1, 2), item(2)]}, {"plan": [item(1, 2)]}][n - 1])
 
-        self.assertIs(run.include(writer=writer)["ready"], True)
+        out = run.include(writer=writer)
+        self.assertIs(out["ready"], True)
         first, second = self.reasons(run)
+        self.assertEqual([r["reason"] for r in out["rejects"]], [first, second], "#681: 周の拒否の行は欄 rejects で返す")
         rnd = run.art / "plan" / "r1"
         self.assertTrue(briefs[3].startswith(rolekit.RESUBMIT_ASK.partition("\n")[0]), briefs[3][:200])
         self.assertIn(second, briefs[3])
@@ -1194,6 +1196,9 @@ class ReplanCase(unittest.TestCase):
         rows = json.loads((run.file(out["plan"]).parent / planblk.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(r["item"], r["ruling"]) for r in rows], [(1, "項目 1 の allowed_paths に request_ok.json を足せ")])
         self.assertTrue(rows[0]["why"].startswith(planblk.PLAN_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])
+        self.assertEqual(out["gave_up"], rows, "諦めの行は欄 gave_up でも返す（報告は置き場の控えを開かない）")
+        self.assertEqual(len(out["rejects"]), 3)
+        self.assertIsNone(out["fix_plan"], "受け付けを通った返答が無い周の欄 fix_plan は null")
 
     def test_replan_writer_that_moved_the_tree_is_refused(self):
         """P049 の形 replan: 案の直しの役が作業ツリーを書き換えれば、直した項目を照らす前に拒み、直した案を置かない"""
@@ -1652,9 +1657,20 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(state["status"], "failed", state)
         self.assertIs(out["ready"], True)
 
+    def test_collect_returns_the_fix_plan_rejects_and_nothing_owed(self):
+        """#681: 返す節は、ほかのブロックが読む周のフォルダの控えを欄で返す: 修正案の役の返答のポインタ fix_plan（周の
+        planfile.FIX_PLAN_FILE）・受け付けの拒否の行 rejects・直す義務 0 件の周か nothing_owed・諦めの行 gave_up（形 plan は null）"""
+        run = Run(self)
+        out = run.include()
+        self.assertEqual(run.file(out["fix_plan"]), run.file(out["plan"]).parent / planfile.FIX_PLAN_FILE)
+        self.assertTrue(run.json(out["fix_plan"])["plan"])
+        self.assertEqual((out["rejects"], out["nothing_owed"], out["gave_up"]), ([], False, None))
+
     def test_nothing_owed_skips_the_role(self):
         run = Run(self, judge={"units": [unit(NIT, "nit", None)], "questions": []})
         out = run.include(writer=lambda n, brief: self.fail("役を起こした"))
+        self.assertIs(out["nothing_owed"], True)
+        self.assertIsNone(out["fix_plan"])
         self.assertEqual(run.status["plan-loop"], "skipped")
         self.assertIs(out["ready"], False)
         self.assertIn(planfile.NOTHING_OWED, run.json(out["ripple"])["error"])

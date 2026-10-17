@@ -82,8 +82,8 @@ ORIGINAL_UNITS_LINE = ("直す単位（各行の `no` は engine が振った番
                        "{{record.units | pick key,label,disposition,reason}}")
 ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null",
                 "round_limit": "null", "mode": "", "head_depth": "", "premises": "null", "materials": "null", "pr_excluded": "null",
-                "purpose_review": "null", "decisions": "null", "purpose_means": "null"}
-RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
+                "purpose_review": "null", "decisions": "null", "purpose_means": "null", "fix_plan": "null", "plan_rejects": "[]"}
+RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions", "gave_up")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
 
@@ -248,14 +248,16 @@ class Run:
         doc = {"plan": rows}
         if answers is not None:
             doc[converge.ANSWERS] = answers
-        self.put(f"plan/r{rnd}/p2.fix_plan.json", doc)
+        self.inputs["fix_plan"] = self.put(f"plan/r{rnd}/p2.fix_plan.json", doc)
+        self.inputs["plan_rejects"] = "[]"
         self.inputs["plan"] = self.put(f"plan/r{rnd}/plan-fields.json",
                                        {"round": rnd, "fields": field_rows or [fields(r["unit_keys"][0]) for r in rows]})
 
     def structure(self, rows=(), status="ok"):
         self.put("plan/structure/design.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), raw=True)
         self.inputs["structure"] = self.put("plan/structure/structure-state.json",
-                                            {"status": status, "reason": "", "design_file": "x", "wall_s": 0})
+                                            {"status": status, "reason": "", "design_file": str(self.art / "plan/structure/design.jsonl"),
+                                             "wall_s": 0})
 
     def ripple(self, doc):
         self.inputs["ripple"] = self.put("plan/ripple.json", doc)
@@ -1687,11 +1689,10 @@ class ConvergeCase(RunCase):
         self.assertEqual(doc["passes"][1]["answers"], self.ANSWERS)
 
     def test_pass_row_keeps_each_pass_rejections(self):
-        """往復の行に、その往復の計画の周の拒否（plan-fields.json の隣の rejects-plan.json）と事前審査の拒否の行を残す。拒否の控えは
+        """往復の行に、その往復の計画の周の拒否（入力 plan_rejects の行）と事前審査の拒否の行を残す。拒否の控えは
         周・差し込みごとなので、次の往復は 0 から数える（元 planblk.with_converge の converge.stash_rejects）"""
         r = self.run_
-        r.put("plan/r1/" + rolekit.rejects_path(pathlib.Path("."), planfile.ROLE).name,
-              [{"at": "t1", "reason": "計画の 1 回目の拒否"}])
+        r.inputs["plan_rejects"] = json.dumps([{"at": "t1", "reason": "計画の 1 回目の拒否"}], ensure_ascii=False)
         r.open()
         r.out("review_prep")
         self.assertFalse(r.accept(review(face("entrance-without-no-add", kind="entrance")))["ok"])
@@ -1706,8 +1707,8 @@ class ConvergeCase(RunCase):
         self.assertEqual(rows[1], [], "2 往復目は拒否を数え直す")
 
     def test_answers_written_by_the_plan_block_reach_the_record(self):
-        """計画のブロックが 2 周目に書いた block への答え（p2.fix_plan.json の脇の block_answers）が、指し札で渡ると往復の控えの
-        2 往復目の answers に入る（2 つのブロックの script を続けて回す。K6）"""
+        """計画のブロックが 2 周目に書いた block への答え（p2.fix_plan.json の脇の block_answers）が、計画の出力の欄 fix_plan で渡ると
+        往復の控えの 2 往復目の answers に入る（2 つのブロックの script を続けて回し、メイングラフと同じく欄を入力へ配線する。K6）"""
         from tests.workflows import test_plan as plan_block
         r = self.run_
         plan_run = plan_block.Run(self)
@@ -1716,8 +1717,9 @@ class ConvergeCase(RunCase):
 
         def hand(out):
             shutil.copytree(plan_run.art / "plan", r.art / "plan", dirs_exist_ok=True)
-            for key in ("plan", "structure", "ripple"):
+            for key in ("plan", "fix_plan", "structure", "ripple"):
                 r.inputs[key] = json.dumps({**out[key], "run_id": RUN_ID})
+            r.inputs["plan_rejects"] = json.dumps(out["rejects"], ensure_ascii=False)
 
         hand(first)
         got = r.pass_(review(MEAN_BLOCK))

@@ -707,7 +707,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ready, plan, structure, ripple, depth, round]
+      required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, nothing_owed, gave_up]
       properties:
         ready: {type: boolean}
         plan: &pointer
@@ -731,3 +731,29 @@ nodes:
               depth: {type: string, enum: [軽量, 標準]}
               why: {type: string}
         round: {type: integer, minimum: 1}
+        fix_plan:
+          anyOf:
+            - *pointer
+            - {type: 'null'}
+        rejects:
+          type: array
+          items:
+            type: object
+            required: [at, reason]
+            properties:
+              at: {}
+              reason: {type: string}
+              kind: {type: string}
+        nothing_owed: {type: boolean}
+        gave_up:
+          anyOf:
+            - type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [item, why, ruling]
+                properties:
+                  item: {type: integer}
+                  why: {type: string}
+                  ruling: {type: string}
+            - {type: 'null'}

@@ -56,7 +56,7 @@ class Base(unittest.TestCase):
         return p
 
     def open(self, *, plan_rows=None, fields=None, rnd=2, world=None, start=None, answers=None, ruling=(), structure=None,
-             purpose=None, judgment=None, conflicts=None, gate_answers=None, purpose_review=None):
+             purpose=None, judgment=None, conflicts=None, gate_answers=None, purpose_review=None, plan_rejects=()):
         rows = plan_rows or [{"unit_keys": [UNIT], "approach": "分母を直す", "adds": [], "removes": [], "shrink_first": "要らない",
                               "narrows": [{**TP.NARROW, **TP.DECIDED}]}]
         self.put("judge/judgment.json", judgment or {"units": [{"key": UNIT, "label": "block"}], "questions": [],
@@ -65,13 +65,15 @@ class Base(unittest.TestCase):
         self.put("judge/purpose-review.json", purpose_review or {})
         self.put(f"plan/r{rnd}/p2.fix_plan.json", {"plan": rows})
         self.put(f"plan/r{rnd}/plan-fields.json", {"round": rnd, "fields": fields or [{"route": "direct", "structure": []}]})
-        self.put("plan/structure-state.json", structure or {"status": "ok", "reason": "", "design_file": "x", "wall_s": 3})
+        self.put("plan/structure-state.json", structure or {"status": "ok", "reason": "", "design_file": str(self.src / "plan/design.jsonl"),
+                                                            "wall_s": 3})
         self.put("plan/design.jsonl", json.dumps(TP.ROUTE_UP, ensure_ascii=False) + "\n", raw=True)
         self.put("plan/ripple.json", {"items": [], "overlaps": []})
         self.put("judge/purpose.json", purpose or {"purpose_text": "目的", "source_files": [], "source": "依頼"})
         return boardview.open_pass(
             self.folder, cwd=self.tmp, judgment=self.src / "judge/judgment.json", purpose=self.src / "judge/purpose.json",
-            plan=self.src / f"plan/r{rnd}/plan-fields.json", structure=self.src / "plan/structure-state.json",
+            plan=self.src / f"plan/r{rnd}/plan-fields.json", fix_plan=self.src / f"plan/r{rnd}/p2.fix_plan.json",
+            plan_rejects=list(plan_rejects), structure=self.src / "plan/structure-state.json",
             ripple=self.src / "plan/ripple.json", world=world, start=start, answers=answers, ruling=list(ruling),
             conflicts=conflicts, gate_answers=gate_answers, review_schema=REVIEW, design_schema=R2, **self.ports())
 
@@ -86,6 +88,23 @@ class Base(unittest.TestCase):
 
 
 class OpenCase(Base):
+    def test_open_reads_the_fix_plan_and_rejects_from_inputs(self):
+        """修正案の役の返答と計画の周の拒否の行は入力（fix_plan・plan_rejects）から受け、修正案のポインタの隣を名で開かない。構造の目の
+        行は控えの design_file が指す所から写す"""
+        rows = [{"at": "t1", "reason": "網羅が足りない", "kind": "covers"}]
+        moved = self.put("elsewhere/reply.json", {"plan": [{"unit_keys": [UNIT], "approach": "別の所の返答", "adds": [], "removes": [],
+                                                             "shrink_first": "要らない", "narrows": []}]})
+        self.open(plan_rejects=rows)
+        b = self.view()
+        self.assertEqual(boardview.read_open(self.folder)["plan_rejects"], rows)
+        self.assertEqual(structmark.rows(structmark.read(b.dir)["design_file"]), [TP.ROUTE_UP])
+        boardview.open_pass(
+            self.folder, cwd=self.tmp, judgment=self.src / "judge/judgment.json", purpose=self.src / "judge/purpose.json",
+            plan=self.src / "plan/r2/plan-fields.json", fix_plan=moved, structure=self.src / "plan/structure-state.json",
+            ripple=self.src / "plan/ripple.json", review_schema=REVIEW, design_schema=R2)
+        self.assertEqual(boardview.read_open(self.folder)["plan"]["plan"][0]["approach"], "別の所の返答")
+        self.assertEqual(boardview.read_open(self.folder)["plan_rejects"], [])
+
     def test_view_reads_what_open_placed(self):
         """始めの記録・構造の目の控え・世界の解の段・修正案の欄・決め手の控えを、今の works の読み口が見え方の上で読む"""
         wf = self.put("judge/world/world.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (

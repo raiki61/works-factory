@@ -30,6 +30,10 @@ plan:
   ripple: {type: archon_artifact, run_id: fixture-run, path: plan/r1/ripple.json}
   depth: []
   round: 1
+  fix_plan: null
+  rejects: []
+  nothing_owed: false
+  gave_up: null
 fixture:
   expect: completed
   reached: [plan-accept, plan]

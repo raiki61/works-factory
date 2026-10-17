@@ -14,7 +14,7 @@ fixture:
     fix_units: '[]'
     green_ok: 'true'
     test_outcomes: 'null'
-    diffs: '[]'
+    records: '[]'
   reached:
   - protected
   - verdict

@@ -35,6 +35,7 @@ inputs:
   redepth: {default: ""}
   optional: {default: ""}
   notices: {default: ""}
+  user-env-dir: {default: ""}
 
 returns: report
 outcome_field: ok

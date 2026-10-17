@@ -722,12 +722,12 @@ class FixtureCase(unittest.TestCase):
                 self.assertEqual((result["outcome"], result["authoredOutcome"]), ("completed", self.AUTHORED[name]))
 
     def test_pass_fixture_takes_the_test_outcomes_and_carries_the_measured_rows(self):
-        """issue #384: 筋書き pass は eyes が試験の関門の比べたテストごとの base と最後の結末と修正の段の diff を受け、prep の出力に
+        """issue #384: 筋書き pass は eyes が試験の関門の比べたテストごとの base と最後の結末と修正の段の控えの欄を受け、prep の出力に
         実測の行と起点の訳が載る配線（ほかの筋書きは渡っていない形）"""
         doc = yaml.safe_load((BLOCK / "fixtures" / "pass.stubs.yaml").read_text(encoding="utf-8"))
         inputs = doc["fixture"]["inputs"]
         self.assertEqual(json.loads(inputs["test_outcomes"])["rows"][0]["key"], "tests.test_a::test_entry")
-        self.assertEqual(len(json.loads(inputs["diffs"])), 1)
+        self.assertEqual(len(json.loads(inputs["records"])), 1)
         self.assertIn("赤→緑（", doc["prep"]["measured_text"])
         self.assertIn("起点は", doc["prep"]["origin_text"])
 
@@ -1191,7 +1191,7 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), {**got, policy.RECORDED_KEY: []})
 
     def test_prep_pastes_the_measured_test_outcomes_and_the_tdd_proof(self):
-        """issue #384: 試験の関門が比べたテストごとの base と最後の結末（入力 test_outcomes）と、修正の段の diff の隣の TDD の記録が
+        """issue #384: 試験の関門が比べたテストごとの base と最後の結末（入力 test_outcomes）と、修正の段の欄 tdd_unit の先の TDD の記録が
         比較役への実測の行に載る。渡っていない時は測っていないと書く"""
         import tddloop
         self.prep_inputs()
@@ -1201,11 +1201,11 @@ class ScriptCase(unittest.TestCase):
         self.inputs["test_outcomes"] = json.dumps({"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range",
                                                              "base": "failure", "final": "passed",
                                                              "fail_message": "AssertionError: 0 != 10"}], "unmeasured": ""})
-        self.inputs["diffs"] = json.dumps([json.loads(self.pointer("fix/fix/fix.diff", ""))])
-        self.pointer(f"fix/fix/{fixboard.TDD_UNIT_FILE}", [{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
+        record = self.pointer("elsewhere/tdd.json", [{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
                                                            "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
                                                                       "tests": ["tests/test_stats.py::TestStats::test_clamp_above_range"],
                                                                       tddloop.QUOTES_FIELD: {}}]}])
+        self.inputs["records"] = json.dumps([{"diff": json.loads(self.pointer("fix/fix/fix.diff", "")), "tdd_unit": json.loads(record)}])
         got = self.run_script("prep")["measured_text"]
         self.assertIn("  - `tests.test_stats.TestStats::test_clamp_above_range`（base failure: AssertionError: 0 != 10）", got)
         self.assertIn("  - u1: 赤 ok・緑 ok・整え —（名指しのテスト tests/test_stats.py::TestStats::test_clamp_above_range）", got)

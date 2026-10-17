@@ -41,10 +41,16 @@ inputs:
     description: 世界の解の行のポインタか null
   plan:
     required: true
-    description: 修正案のポインタ（plan-fields.json。隣の p2.fix_plan.json を名で開く）
+    description: 修正案のポインタ（plan-fields.json）
+  fix_plan:
+    default: "null"
+    description: 修正案の役の返答のポインタ（p2.fix_plan.json。項目の並びと、人に聞く項目の決め手の欄）。修正案を審査する時は要り、null なら落ちる
+  plan_rejects:
+    default: "[]"
+    description: 修正案の受け付けがこの周に拒んだ行の並び（{at, reason, kind?}。往復の行に残す）。空は拒否が無い
   structure:
     required: true
-    description: 構造の目の控えのポインタ（structure-state.json。隣の design.jsonl を名で開く）
+    description: 構造の目の控えのポインタ（structure-state.json。設計の行は控えの design_file が指す）
   ripple:
     required: true
     description: 波及の一覧のポインタ（ripple.json）
@@ -459,7 +465,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [pass, stalled, review, design, gate_axes, ask_human, questions]
+      required: [pass, stalled, review, design, gate_axes, ask_human, questions, gave_up]
       properties:
         pass: {type: boolean}
         stalled: {type: boolean}
@@ -523,3 +529,16 @@ nodes:
             properties:
               kind: {type: string}
               text: {type: string}
+        # 案の直しの審査で受け付けが諦めた時の、裁かれた項目ごとの諦めの行 {item, why, ruling}（replan-gave-up.json と同じ中身）。ほかは null
+        gave_up:
+          anyOf:
+            - type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [item, why, ruling]
+                properties:
+                  item: {type: integer}
+                  why: {type: string}
+                  ruling: {type: string}
+            - {type: 'null'}

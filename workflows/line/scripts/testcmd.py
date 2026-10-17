@@ -38,7 +38,7 @@ def allowed() -> bool:
 def check(cmd: str, cwd: Path) -> dict:
     if not cmd.strip():
         return {"stop": False, "reason": ""}
-    boundary.aim_user_env()
+    boundary.aim_user_env(os.environ["ARTIFACTS_DIR"])
     environ = tree_run.outside_env(os.environ)
     stops, notices, hit = [], [], []
     for root in testcmd_check.checkouts(cwd):

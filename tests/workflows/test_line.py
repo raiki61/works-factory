@@ -264,6 +264,16 @@ class StartCase(Artifacts):
         self.assertIn("archon", doc["versions"])
         self.assertTrue(got["gate_text"].startswith("起きたこと: "), got["gate_text"])
 
+    def test_start_returns_the_shared_places(self):
+        """#681: 始めのノードはメイングラフの run の共有の置き場（試験の結果の控え tree_run.reuse_dir と、利用者の HOME・XDG に戻して
+        起こした印の置き場＝run の置き場）を出力の欄で返す。拒んだ run の控えの置き場は空（後ろの節は飛ぶ）"""
+        import tree_run
+        got = self.start(request="request_ok.json")
+        self.assertEqual((got["reuse_dir"], got["user_env_dir"]), (str(tree_run.reuse_dir(self.artifacts)), str(self.artifacts)))
+        refused = self.start()
+        self.assertFalse(refused["ok"])
+        self.assertEqual((refused["reuse_dir"], refused["user_env_dir"]), ("", str(self.artifacts)))
+
     def test_base_alone_is_a_change_entry(self):
         got = self.start(base="base")
         self.assertTrue(got["ok"], got)
@@ -671,7 +681,8 @@ class FixInCase(Artifacts):
     JUDGE = {"units": [{"id": "u1"}], "judgment": {"path": "judge/judgment.json"}, "purpose": None, "world": None, "spec": None,
              "rejudge_verdict": "", "depth": "軽量", **dict.fromkeys(judge_accept.PORTS), **dict.fromkeys(judge_accept.FIRST_PORTS),
              "materials": {"path": "judge/materials.json"}}
-    PLAN = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "depth": [], "structure": None}
+    PLAN = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "depth": [], "structure": None,
+            "fix_plan": {"path": "plan/p2.fix_plan.json"}, "rejects": [], "nothing_owed": False, "gave_up": None}
     REVIEW = {"review": {"path": "plan-review/review.json"}, "design": {"path": "plan-review/design.json"}, "questions": []}
     ANSWER = {"decision": "continue", "text": "q1 は a", "asked": []}
 
@@ -729,6 +740,15 @@ class FixInCase(Artifacts):
             self.run_in(before_fix_go="true", judge=json.dumps({"got": prior, "stop_reason": ""}))
         self.assertFalse((self.artifacts / fixture.DIR).exists())
         self.assertIsNone(self.run_in(before_fix_go="false")["depth_record"])
+
+    def test_plan_return_of_the_prior_version_stops(self):
+        """#681: この版より前に走った計画の返り（出力の欄 fix_plan ほかの鍵が無い）を resume で受けた fix-in は止める（修正案の返答の
+        無い修正を黙って走らせない・写さない）"""
+        prior = {key: value for key, value in self.PLAN.items() if key not in planfile.PORTS}
+        with self.assertRaisesRegex(ValueError, planfile.PRIOR_VERSION):
+            self.run_in(before_fix_go="true", plan=json.dumps({"got": prior, "stop_reason": ""}))
+        self.assertFalse((self.artifacts / fixture.DIR).exists())
+        self.assertEqual(self.run_in(before_fix_go="false")["fix_plan"], self.PLAN["fix_plan"])
 
     def test_returns_and_fallback_are_the_output_format(self):
         required = line_nodes()["fix-in"]["output_format"]["required"]
@@ -966,9 +986,9 @@ class ReplanAnswerCase(Artifacts):
     def test_refix_answers_carry_the_non_human_faces_of_taken_items(self):
         """P144・L-D35・L-W17: 2 度目の修正に、採った項目ごとの事前審査の穴のうち人に聞く種類でない物を見出しつきで渡す（元
         works/.shared/core/replan.py:688-693 の _notes の 3 つ目）。人に聞く種類（regression・policy）は関所が聞くので渡さず、人の答え
-        fix_answers には混ぜない。止める答えでは渡さない"""
+        fix_answers には混ぜない。止める答えでは渡さない。項目の単位は入力 fix_plan（案の直しの修正案の役の返答）の先から引く"""
         (self.artifacts / "replan").mkdir()
-        (self.artifacts / "replan" / "p2.fix_plan.json").write_text(json.dumps(
+        (self.artifacts / "replan" / "reply-of-the-replan.json").write_text(json.dumps(
             {"plan": [{"unit_keys": ["u1", "u2"]}, {"unit_keys": ["u3"]}]}), encoding="utf-8")
         (self.artifacts / "replan-review").mkdir()
         faces = [{"key": "穴-分母", "kind": "contract_drift", "where": "stats.py", "why": "空の列で割れる", "unit_keys": ["u2"]},
@@ -977,17 +997,17 @@ class ReplanAnswerCase(Artifacts):
         (self.artifacts / "replan-review" / "review.json").write_text(json.dumps({"faces": faces}, ensure_ascii=False), encoding="utf-8")
         ptr = lambda rel: json.dumps({"type": "archon_artifact", "run_id": RUN, "path": rel})
         got = replan_answer.take(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts,
-                                   None, ptr("replan-review/review.json"), ptr("replan/plan-fields.json"), '["1"]')
+                                   None, ptr("replan-review/review.json"), ptr("replan/reply-of-the-replan.json"), '["1"]')
         self.assertEqual(got["fix_notes"], f"{replan.FACES_HEAD.format(item='1', units='u1、u2')}\n\n"
                                            "- [contract_drift] 穴-分母（stats.py）: 空の列で割れる\n")
         self.assertNotIn("穴-分母", got["fix_answers"]["text"])
         stopped = replan_answer.take(json.dumps({"decision": "stop", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts,
-                                       None, ptr("replan-review/review.json"), ptr("replan/plan-fields.json"), '["1"]')
+                                       None, ptr("replan-review/review.json"), ptr("replan/reply-of-the-replan.json"), '["1"]')
         self.assertEqual(stopped["fix_notes"], "")
         nodes = line_nodes()
         self.assertEqual(nodes["refix-run"]["with"]["notes"], "$answer-replan.output.fix_notes")
-        self.assertEqual({k: nodes["answer-replan"]["with"][k] for k in ("review", "plan", "items")},
-                         {"review": {"from": "$replan-review.output.review", "if_skipped": None}, "plan": "$replan.output.plan",
+        self.assertEqual({k: nodes["answer-replan"]["with"][k] for k in ("review", "fix_plan", "items")},
+                         {"review": {"from": "$replan-review.output.review", "if_skipped": None}, "fix_plan": "$replan.output.fix_plan",
                           "items": "$fix.output.replan_items"})
 
 
@@ -1610,6 +1630,12 @@ class AskFinalReadsCase(Artifacts):
     def judgment(self, questions, units=("u1",)):
         return self.place("judge/judgment.json", {"units": [{"key": k} for k in units], "questions": questions})
 
+    def stage(self, diff: dict) -> dict:
+        """diff のポインタの置き場から、fix の返す節が組む段の控えの欄（fixbeside.returned）を今の置き場で組んだ段"""
+        folder = (self.artifacts / diff["path"]).parent
+        got = fixbeside.returned(folder, lambda path: boundary.pointer(path.relative_to(self.artifacts).as_posix()))
+        return fixbeside.stage({"diff": diff, **got})
+
     def held(self, questions, *, answers=(), before_fix=None, asked=(), units=("u1",), ties=None, materials=None, notes=()):
         start_ptr = self.place("start.json", {"answers": list(answers)})
         before_fix = {**before_fix, "asked": list(asked)} if isinstance(before_fix, dict) else before_fix
@@ -1761,9 +1787,9 @@ class AskFinalReadsCase(Artifacts):
         self.assertNotIn(green_cert.NOT_RAN, out["text"])
 
     def test_fix_beside_files_reach_the_final_gate(self):
-        """F013・F041・F312・F329・L-W20・L-W21（S03・S28・S29）: 最後の関所は修正の段ごとの diff の隣の控え（fixed の diffs。
+        """F013・F041・F312・F329・L-W20・L-W21（S03・S28・S29）: 最後の関所は修正の段ごとの返りの控えの欄（fixed の records。
         1 回目と 2 度目の修正の両方）を読み、申告と合わない単位・回さなかった試験・確かめずに受けた回・穴の名札と手直しの結果・
-        clean とレンズを並べる。修正役が人に回した物は fixed の handoffs から並べる。読めないファイルは訳にする"""
+        clean とレンズを並べる。修正役が人に回した物は fixed の handoffs から並べる。無い控えは欄の名で訳にする"""
         import fixboard
         diffs = []
         for name in ("fix", "refix-run"):
@@ -1779,16 +1805,15 @@ class AskFinalReadsCase(Artifacts):
         fixboard.write_json(self.artifacts / "fix" / "fix" / fixbeside.DELTA_HOLES_FILE, {
             "ties": {"1": [{"key": "穴1", "branches": ["item:1"], "via": ["path"], "held": ""}]},
             "handled": {"1": [{"key": "穴1", "handled": "fixed", "how": "直した"}]}})
-        got = ask_final.fix_beside(diffs)
+        got = ask_final.fix_beside([self.stage(d) for d in diffs])
         self.assertIn("  - 穴1: 項目 1", got["branch_rows"])
         self.assertEqual([x.split("（")[0] for x in got["closure"]], ["u-fix: 閉じていない", "u-refix-run: 閉じていない"])
         self.assertIn("  - t_refix-run.py", got["tests_left"])
         self.assertEqual(got["gates"], ["事後の関門の束: 受け付け 2 回が受け入れのテストの赤緑を確かめずに通した（理由: 実行器が無い）"])
         self.assertIn("clean が消したファイル（refix-run）: 1 本", got["always"])
         self.assertEqual(got["always"][-1], fixbeside.ANOMALY_LINE)
-        self.assertEqual(len(got["beside_unread"]), 1)
-        self.assertIn(fixboard.LENSES_FILE, got["beside_unread"][0])
-        self.assertEqual(line_nodes()["ask-final"]["with"]["fix_diffs"], "$fixed.output.diffs")
+        self.assertEqual(got["beside_unread"], ["修正の控え lenses が無い"])
+        self.assertEqual(line_nodes()["ask-final"]["with"]["fix_records"], "$fixed.output.records")
         self.assertEqual(line_nodes()["ask-final"]["with"]["handoffs"], "$fixed.output.handoffs")
         handoffs = ["u-fix: 壊すと分かって通した——古い呼び手が壊れる"]
         text = ask_final.final_text(final_got(handoffs=handoffs, **got), [], RUN)
@@ -1806,7 +1831,7 @@ class AskFinalReadsCase(Artifacts):
         fixbeside.write(folder, [{}])
         names = [f"cache/a/{i}.bin" if i % 2 else f"dist/b/{i}.o" for i in range(20000)]
         fixboard.write_json(folder / "fix-removed.json", {"removed": names})
-        got = ask_final.fix_beside([diff])
+        got = ask_final.fix_beside([self.stage(diff)])
         text = ask_final.final_text(final_got(**got), [], RUN)
         lines = text.splitlines()
         self.assertLessEqual(len(lines), 120, text[:3000])
@@ -1862,16 +1887,16 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn("notes", ask_final.EYES)
 
     def test_allowed_tests_come_from_beside_both_diffs(self):
-        """許したテストの変更は fix と refix-run の差分の隣の allowed-tests.json を読み、許しの id と出どころつきで並べる（重ねない）。
+        """許したテストの変更は fix と refix-run の段の欄 allowed_tests の先を読み、許しの id と出どころつきで並べる（重ねない）。
         開き方に依らず関所を開ける"""
         row = {"path": "tests/test_a.py", "permit": "plan-1", "source": "plan"}
         fix = self.place("fix/fix/fix.diff", "")
         self.place("fix/fix/allowed-tests.json", [row])
         refix = self.place("fix/refix/fix.diff", "")
         self.place("fix/refix/allowed-tests.json", [row, {"path": "tests/test_b.py", "permit": "r-2", "source": "ruling"}])
-        rows = ask_final.fix_beside([fix, refix])["allowed_tests"]
+        rows = ask_final.fix_beside([self.stage(fix), self.stage(refix)])["allowed_tests"]
         self.assertEqual([r["path"] for r in rows], ["tests/test_a.py", "tests/test_b.py"])
-        self.assertEqual(ask_final.fix_beside([fix])["allowed_tests"], [row])
+        self.assertEqual(ask_final.fix_beside([self.stage(fix)])["allowed_tests"], [row])
         got = final_got(allowed_tests=rows)
         text = ask_final.final_text(got, ask_final.final_needs(got), RUN)
         self.assertIn(f"## {ask_final.ALLOWED_TESTS_HEAD}（2 件", text)
@@ -1879,12 +1904,29 @@ class AskFinalReadsCase(Artifacts):
         self.assertTrue(any(must for _, must in ask_final.needs(got)))
 
     def test_unreadable_allowed_tests_is_said(self):
-        """collect は落ちた道でも [] を置くので、無い・形の違う allowed-tests.json は読めなかった訳を返す（黙って空にしない）"""
-        got = ask_final.fix_beside([self.place("fix/fix/fix.diff", "")])
+        """collect は落ちた道でも [] を置くので、欄が null・先が形の違う許したテストの変更の訳は読めなかった訳を返す（黙って空にしない）"""
+        diff = self.place("fix/fix/fix.diff", "")
+        got = ask_final.fix_beside([self.stage(diff)])
         self.assertEqual(got["allowed_tests"], [])
-        self.assertTrue(any("allowed-tests.json を読めない" in x for x in got["beside_unread"]), got["beside_unread"])
+        self.assertIn("修正の控え allowed_tests が無い", got["beside_unread"])
         self.place("fix/fix/allowed-tests.json", {"path": "x"})
-        self.assertTrue(any("行の配列でない" in x for x in ask_final.fix_beside([self.place("fix/fix/fix.diff", "")])["beside_unread"]))
+        self.assertTrue(any("行の配列でない" in x for x in ask_final.fix_beside([self.stage(diff)])["beside_unread"]))
+
+    def test_fix_beside_reads_the_stage_ports_not_the_diff_folder(self):
+        """#681: 最後の承認ノードは段の欄のポインタの先を読み、diff の隣を名で開かない（欄が別の置き場を指せばそちらを読む）"""
+        diff = self.place("fix/fix/fix.diff", "")
+        self.place("fix/fix/allowed-tests.json", [{"path": "tests/beside.py", "permit": "p", "source": "plan"}])
+        moved = self.place("elsewhere/allowed.json", [{"path": "tests/ported.py", "permit": "p", "source": "plan"}])
+        got = ask_final.fix_beside([{**self.stage(diff), "allowed_tests": moved}])
+        self.assertEqual([r["path"] for r in got["allowed_tests"]], ["tests/ported.py"])
+
+    def test_unresolvable_stage_port_is_named_by_its_field(self):
+        """#681: 戻せないポインタ（ほかの run の物）の欄と dict でない段は、欄の名と訳で読めなかった行にする（黙って空にしない）"""
+        diff = self.place("fix/fix/fix.diff", "")
+        other = {**self.stage(diff), "closure": {"type": "archon_artifact", "run_id": "other", "path": "fix/fix/closure.json"}}
+        got = ask_final.fix_beside([other, "壊れた段"])
+        self.assertTrue(any(x.startswith("修正の控え closure のポインタを読めない（") for x in got["beside_unread"]), got["beside_unread"])
+        self.assertIn("修正の段の出力が dict でない", got["beside_unread"])
 
     def test_unread_is_shown_in_the_gate_text(self):
         text = ask_final.final_text(final_got(unread=["読めない訳"]), [], RUN)
@@ -2152,38 +2194,25 @@ class PlanOutCase(unittest.TestCase):
 
 
 class PlanOutNothingOwedCase(Artifacts):
-    def round_pointer(self, why: str) -> dict:
-        rdir = self.artifacts / "plan" / "r1"
-        rdir.mkdir(parents=True)
-        (rdir / planfile.ROUND_FILE).write_text(json.dumps({"round": 1, "mode": "plan", "go": False, "why": why}), encoding="utf-8")
-        (rdir / "plan-fields.json").write_text("{}", encoding="utf-8")
-        return boundary.pointer("plan/r1/plan-fields.json")
-
-    def test_nothing_owed_is_read_from_the_round(self):
-        """#291: 直す義務 0 件の周（round.json の why が planfile.NOTHING_OWED。lib/outcome.py の plan_nothing_owed と同じ読み）だけが
-        nothing_owed。ほかの訳・ほかの run の指し札・指し札の無い時は偽。計画ができた周は読みが真でも偽"""
-        self.assertTrue(plan_out.round_owes_nothing(self.round_pointer(planfile.NOTHING_OWED)))
-        self.assertFalse(plan_out.round_owes_nothing({**boundary.pointer("plan/r1/plan-fields.json"), "run_id": "other"}))
-        self.assertFalse(plan_out.round_owes_nothing(None))
+    def test_nothing_owed_is_the_plan_field(self):
+        """#291・#681: 直す義務 0 件の周かは plan の出力の欄 nothing_owed をそのまま読む（周のフォルダの round.json を開かない。
+        lib/outcome.py の plan_nothing_owed も同じ欄）。計画ができた周は欄が真でも偽"""
         got = {key: None for key in plan_out.PLAN + plan_out.REVIEW}
-        self.assertTrue(plan_out.plan_out({**got, "ready": False}, ROUND_LIMIT, True)["nothing_owed"])
-        self.assertFalse(plan_out.plan_out({**got, "ready": True, "round": 1}, ROUND_LIMIT, True)["nothing_owed"])
+        self.assertTrue(plan_out.plan_out({**got, "ready": False, "nothing_owed": True}, ROUND_LIMIT)["nothing_owed"])
+        self.assertFalse(plan_out.plan_out({**got, "ready": False, "nothing_owed": False}, ROUND_LIMIT)["nothing_owed"])
+        self.assertFalse(plan_out.plan_out({**got, "ready": True, "round": 1, "nothing_owed": True}, ROUND_LIMIT)["nothing_owed"])
 
-    def test_another_reason_is_not_nothing_owed(self):
-        self.assertFalse(plan_out.round_owes_nothing(self.round_pointer("")))
-
-    def read_from_env(self, pointer: dict) -> dict:
+    def read_from_env(self, nothing_owed: str) -> dict:
         env = {f"INPUTS_{key.upper()}": "null" for key in plan_out.PLAN + plan_out.REVIEW}
-        env.update({"INPUTS_READY": "false", "INPUTS_PLAN": json.dumps(pointer), "INPUTS_ROUND_LIMIT": str(ROUND_LIMIT)})
+        env.update({"INPUTS_READY": "false", "INPUTS_NOTHING_OWED": nothing_owed, "INPUTS_ROUND_LIMIT": str(ROUND_LIMIT)})
         with mock.patch.dict(os.environ, env):
             return plan_out.plan_out(*plan_out.from_env())
 
-    def test_the_node_reads_the_round_from_its_plan_input(self):
-        """本番の節の口（from_env）が plan の入力の指し札から周の訳を読んで nothing_owed に渡す"""
-        self.assertTrue(self.read_from_env(self.round_pointer(planfile.NOTHING_OWED))["nothing_owed"])
-
-    def test_the_node_leaves_another_reason_false(self):
-        self.assertFalse(self.read_from_env(self.round_pointer(""))["nothing_owed"])
+    def test_the_node_reads_the_field_from_its_input(self):
+        """本番の節の口（from_env）が入力 nothing_owed（$plan.output.nothing_owed）を読む"""
+        self.assertTrue(self.read_from_env("true")["nothing_owed"])
+        self.assertFalse(self.read_from_env("false")["nothing_owed"])
+        self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["nodes"][2]["with"]["nothing_owed"], "$plan.output.nothing_owed")
 
 
 class SpecCheckNodeCase(Artifacts):
@@ -2356,7 +2385,9 @@ class FixedCase(unittest.TestCase):
     def fix(self, **kw):
         got = {"done": True, "units": [{"unit_id": "u1", "status": "given_up"}], "groups": [{"group_id": "g1"}],
                "conflicts": {"path": "fix/conflicts.json"}, "replan_items": ["1"], "objection": "", "diff": {"path": "fix/diff"},
-               "allowed_test_changes": ["tests/a.py"], "changed": {"path_changed": False}, "delta_review": {"rounds": 1, "pass": True}}
+               "allowed_test_changes": ["tests/a.py"], "changed": {"path_changed": False}, "delta_review": {"rounds": 1, "pass": True},
+               **{field: {"path": f"fix/{name}"} for field, name in fixbeside.PORTS.items()}, "removed": [{"path": "fix/fix-removed.json"}],
+               "tdd_refused": {"refused": [], "unread": []}}
         got.update(kw)
         return got
 
@@ -2373,7 +2404,7 @@ class FixedCase(unittest.TestCase):
         plans = {"plan": None, "ripple": None, "replanned": None, "design": None, "no_fix_design": design,
                  "plan_questions": None, "answer": None}
         got = fixed.fixed({key: None for key in fixed.FIELDS}, None, replan=False, stops=("",), plans=plans)
-        self.assertEqual((got["no_fix"], got["go"], got["done"], got["design"], got["diff"], got["diffs"], got["units"],
+        self.assertEqual((got["no_fix"], got["go"], got["done"], got["design"], got["diff"], got["records"], got["units"],
                           got["conflicts"], got["rejudge"], got["plan_questions"], got["answer"]),
                          (True, True, True, design, None, [], [], [], False, [], None))
         normal = fixed.fixed(self.fix(), None, replan=False, stops=("",),
@@ -2382,13 +2413,21 @@ class FixedCase(unittest.TestCase):
         self.assertEqual((normal["no_fix"], normal["design"], normal["plan_questions"], normal["answer"]),
                          (False, {"path": "pr/design.json"}, [{"kind": "fork", "text": "q"}], {"decision": "continue"}))
 
-    def test_diffs_name_both_passes(self):
-        """部分 D2: fixed は段ごとの diff の指し札の並び diffs（1 回目・2 度目の順。どちらの隣にも段の約束のファイル）を返し、最後の
-        関所と報告が両方を読む。2 度目が走らなければ 1 回目だけ"""
+    def test_records_line_up_the_stage_ports(self):
+        """部分 D2・#681: fixed は段ごとの diff と控えの欄の並び records（1 回目・2 度目の順。fixbeside.stage）を返し、最後の
+        承認ノード・深さの上げ直し・独立の目・報告が段ごとに読む。2 度目が走らなければ 1 回目だけ。控えの欄の無い返り（この版より前に
+        走った修正の返り）は止める"""
         first = fixed.fixed(self.fix(), None, replan=False, stops=("", ""))
-        self.assertEqual(first["diffs"], [{"path": "fix/diff"}])
-        both = fixed.fixed(self.fix(), self.fix(diff={"path": "refix/diff"}), replan=True, stops=("", ""))
-        self.assertEqual((both["diff"], both["diffs"]), ({"path": "refix/diff"}, [{"path": "fix/diff"}, {"path": "refix/diff"}]))
+        self.assertEqual(first["records"], [fixbeside.stage(self.fix())])
+        self.assertEqual(set(first["records"][0]), {"diff", *fixbeside.PORTS, *fixbeside.FROM})
+        second = self.fix(diff={"path": "refix/diff"}, closure={"path": "refix/closure.json"})
+        both = fixed.fixed(self.fix(), second, replan=True, stops=("", ""))
+        self.assertEqual(both["diff"], {"path": "refix/diff"})
+        self.assertEqual([(r["diff"], r["closure"]) for r in both["records"]],
+                         [({"path": "fix/diff"}, {"path": "fix/closure.json"}), ({"path": "refix/diff"}, {"path": "refix/closure.json"})])
+        for prior in ({k: v for k, v in self.fix().items() if k != "tdd_refused"}, {**self.fix(), "tdd_refused": None}):
+            with self.subTest(prior=sorted(prior)), self.assertRaisesRegex(ValueError, fixbeside.PRIOR_VERSION):
+                fixed.fixed(self.fix(), prior, replan=True, stops=("", ""))
 
     def test_replan_without_the_second_fix_is_not_done(self):
         """案の直しの関所の stop・無人の止め・案ができなかった時に、1 回目の修正の差分を試験の関門から先へ進めない"""
@@ -2438,8 +2477,8 @@ class FixedCase(unittest.TestCase):
 
     def test_eyes_get_the_final_test_outcomes_and_every_fix_diff(self):
         """issue #384: R2 の比較役の実測は最後のテストの関門の比べ（base の関門の欄は常に null）と、修正の段ごとの diff"""
-        self.assertEqual({k: line_nodes()["eyes"]["with"][k] for k in ("test_outcomes", "diffs")},
-                         {"test_outcomes": "$test-gate-final.output.test_outcomes", "diffs": "$fixed.output.diffs"})
+        self.assertEqual({k: line_nodes()["eyes"]["with"][k] for k in ("test_outcomes", "records")},
+                         {"test_outcomes": "$test-gate-final.output.test_outcomes", "records": "$fixed.output.records"})
 
     def test_eyes_get_the_replanned_plan(self):
         """L-W56: 独立の目が照らす修正案と波及は、案の直しの後（2 度目の修正が走った run）は案の直しの物に差し替えた承認済みの物
@@ -2634,7 +2673,9 @@ class RedepthCase(Artifacts):
                "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": json.dumps(plan), "INPUTS_DIFF": json.dumps(diff),
                "INPUTS_JUDGMENT": json.dumps(judgment), "INPUTS_START": json.dumps(start), "INPUTS_ANSWER": "null",
                "INPUTS_ANSWER_TIES": "null", "INPUTS_MATERIALS": "null", "INPUTS_DEPTH_RECORD": "null",
-               "INPUTS_REPLANNED": "false", "INPUTS_REJUDGED": "false", "INPUTS_HEAD_DEPTH": "軽量"}
+               "INPUTS_REPLANNED": "false", "INPUTS_REJUDGED": "false", "INPUTS_HEAD_DEPTH": "軽量",
+               "INPUTS_RECORDS": json.dumps([fixbeside.stage({"diff": diff, **dict.fromkeys(fixbeside.PORTS), "removed": [],
+                                                              "tdd_refused": {"refused": [], "unread": []}})])}
         self.assertLessEqual({k.removeprefix("INPUTS_").lower() for k in env}, set(line_nodes()["redepth"]["with"]))
         with mock.patch.dict(os.environ, env):
             got = redepth.compute()
@@ -2644,11 +2685,12 @@ class RedepthCase(Artifacts):
         self.assertTrue(got["counted"].startswith("触るファイル 5 個（起点: 修正の差分 fix/diff.patch）"), got["counted"])
         self.assertIn("修正の後の信号の控えが無い", got["counted"])
 
-    def test_fix_signals_read_the_records_beside_the_diff(self):
-        """修正の後の 3 つの事実: diff の触るファイルが 1 回目の判定の頭の深さの控え（入力 depth_record）の where の外（テストのファイルを除く）・diff の隣の
-        TDD の輪の状態 tdd-<k>/state.json の拒まれた call・同じ隣の accept-trace.json の範囲の相談の行。それぞれ上げる理由になり、ノード redepth が
-        軽量の単位を標準へ上げる。受け付けの行が無い時は上げずに counted に訳を添え、輪の状態が無い時は拒否を数えず、在るのに読めない・
-        {error} の時だけ上げる。diff が null なら何も足さない"""
+    def test_late_signals_come_from_the_stage_ports(self):
+        """修正の後の 3 つの事実: diff の触るファイルが 1 回目の判定の頭の深さの控え（入力 depth_record）の where の外（テストのファイルを除く）・最後の
+        修正の段の欄 tdd_refused（返す節が TDD の輪の状態 tdd-<k>/state.json の拒まれた call から組む）・同じ段の欄 accept_trace の先の範囲の相談の行。
+        それぞれ上げる理由になり、ノード redepth が軽量の単位を標準へ上げる。欄 accept_trace が null の時は上げずに counted に訳を添え、輪の状態が無い時は
+        拒否を数えず、在るのに読めない・{error} の時だけ上げる。diff が null なら何も足さない。段は返す節が fixbeside.returned で組む形（#681。
+        diff の隣を名で開かない）"""
         import conflict
         import consult
         import headdepth
@@ -2668,10 +2710,15 @@ class RedepthCase(Artifacts):
         asked = {"op": conflict.ASKED_OP, "item": 1, "unit_keys": ["u1"], "origin": None}
         gate = {"op": conflict.ASKED_OP, "item": 1, "unit_keys": ["u1"], "origin": consult.ORIGIN_GATE}
 
+        def records():
+            """fix の返す節が今の置き場から組む段（fixbeside.returned）の並び"""
+            got = fixbeside.returned(self.artifacts / "fix", lambda path: boundary.pointer(path.relative_to(self.artifacts).as_posix()))
+            return [fixbeside.stage({"diff": diff, **got})]
+
         def signals(*names):
             if names:
                 self.put("fix/diff.patch", patch(*names))   # 同じ指し札のまま差分の中身を替える
-            return redepth.fix_signals(plan, diff, depth_record, ["u1"])
+            return redepth.fix_signals(plan, diff, records(), depth_record, ["u1"])
         no_trace = redepth.NO_LATE_RECORD.format(name="accept-trace.json")
         self.assertEqual(signals(), ([], [no_trace]), "受け付けの行が無い時は上げずに訳を添え、輪の状態が無い時は拒否を数えない")
         self.put(tdd_name, passed)
@@ -2704,7 +2751,7 @@ class RedepthCase(Artifacts):
         self.assertIn("修正の後の信号の控えが読めない", got[0])
         self.put(tdd_name, {"error": "組めなかった"})
         self.assertIn("組めなかった", signals()[0][0])
-        self.assertEqual(redepth.fix_signals(plan, None, depth_record, ["u1"]), ([], []), "diff が null なら何も足さない")
+        self.assertEqual(redepth.fix_signals(plan, None, [], depth_record, ["u1"]), ([], []), "diff が null なら何も足さない")
         env = {"INPUTS_DEPTH": json.dumps(self.LIGHT, ensure_ascii=False), "INPUTS_REPLAN_DEPTH": "null", "INPUTS_UNITS": "[]",
                "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": json.dumps(plan), "INPUTS_DIFF": json.dumps(diff),
                "INPUTS_JUDGMENT": json.dumps(judgment), "INPUTS_START": "null", "INPUTS_ANSWER": "null",
@@ -2715,7 +2762,7 @@ class RedepthCase(Artifacts):
             self.put("fix/diff.patch", patch(*names))
             self.put(tdd_name, tdd)
             self.put(trace_name, trace)
-            with mock.patch.dict(os.environ, env):
+            with mock.patch.dict(os.environ, {**env, "INPUTS_RECORDS": json.dumps(records(), ensure_ascii=False)}):
                 return redepth.compute()
         quiet = run(["stats.py"], passed, [])
         self.assertEqual((quiet["depth"][0]["depth"], bool(quiet["skip_optional"])), ("軽量", True))
@@ -2730,7 +2777,7 @@ class RedepthCase(Artifacts):
         (self.artifacts / tdd_name).unlink()
         (self.artifacts / trace_name).unlink()
         self.put("fix/diff.patch", patch("stats.py"))
-        with mock.patch.dict(os.environ, env):
+        with mock.patch.dict(os.environ, {**env, "INPUTS_RECORDS": json.dumps(records(), ensure_ascii=False)}):
             got = redepth.compute()
         self.assertEqual((got["depth"][0]["depth"], bool(got["skip_optional"])), ("軽量", True), "控えが無ければ今どおり軽量のまま省く")
         self.assertIn(no_trace, got["counted"])
@@ -2747,13 +2794,13 @@ class RedepthCase(Artifacts):
         """L-D08・L-D10: redepth は判定の問いの台帳（判定と始めの記録と修正前の関所の答えと今の判定の結びと素材の状態）と、
         1 回目の判定の頭の深さの控えと、修正の計画と差分を受ける"""
         with_ = line_nodes()["redepth"]["with"]
-        keys = ("judgment", "start", "answer", "answer_ties", "materials", "depth_record", "plan", "diff", "head_depth")
+        keys = ("judgment", "start", "answer", "answer_ties", "materials", "depth_record", "plan", "diff", "records", "head_depth")
         self.assertEqual({k: with_[k] for k in keys},
                          {"judgment": "$judged.output.judgment", "start": "$start.output.record", "head_depth": "$fix-in.output.head_depth",
                           "answer": {"from": "$fix-in.output.answer", "if_skipped": None},
                           "answer_ties": "$judged.output.answer_ties", "materials": "$judged.output.materials",
                           "depth_record": "$fix-in.output.depth_record",
-                          "plan": "$fixed.output.plan", "diff": "$fixed.output.diff"})
+                          "plan": "$fixed.output.plan", "diff": "$fixed.output.diff", "records": "$fixed.output.records"})
         self.assertIn("counted", line_nodes()["redepth"]["output_format"]["required"])
 
 
@@ -2859,6 +2906,21 @@ class CollectAndResultCase(unittest.TestCase):
                 got = collect.collect({name: json.dumps({"got": current, "stop_reason": ""})}, self.line())
                 self.assertEqual(got[name], current)
 
+    def test_plan_and_fix_returns_of_the_prior_version_stop(self):
+        """#681: この版より前に走った計画・案の直し・修正の返り（控えの欄の鍵が無い）と、段の並び records の無い fixed の出力を resume で
+        受けた集めは、欄を空と読んで結末を作らず止める（修正案の返答や修正の控えを「無い」と読まない）"""
+        plan = {"ready": True, "fix_plan": None, "rejects": [], "nothing_owed": False, "gave_up": None}
+        for name in ("plan", "replan"):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, planfile.PRIOR_VERSION):
+                    collect.collect({name: json.dumps({"got": {"ready": True}, "stop_reason": ""})}, self.line())
+                self.assertEqual(collect.collect({name: json.dumps({"got": plan, "stop_reason": ""})}, self.line())[name], plan)
+        fix = {"done": True, **FixedCase.fix(FixedCase())}
+        with self.assertRaisesRegex(ValueError, fixbeside.PRIOR_VERSION):
+            collect.collect({"fix": json.dumps({"got": {**fix, "tdd_refused": None}, "stop_reason": ""})}, self.line())
+        with self.assertRaisesRegex(ValueError, fixbeside.PRIOR_VERSION):
+            collect.collect({"fix": json.dumps({"got": fix, "stop_reason": ""})}, self.line(fixed=json.dumps({"done": True, "diffs": []})))
+
     def test_no_fix_design_is_the_plan_review(self):
         """L-W07: 直す物が無い周（計画の往復が飛んだ）は、report の plan-review の欄に design-only の受け皿の返りを置く"""
         only = {"pass": True, "design": {"path": "plan-review/design.json"}}
@@ -2869,8 +2931,8 @@ class CollectAndResultCase(unittest.TestCase):
     def test_fix_is_the_first_and_second_fix_merged(self):
         """report の入力 fix は 1 回目と 2 度目の修正を合わせた物（申し出 conflicts は段ごとの指し札の配列）。合わせる節 fixed が
         飛ばされた（2 度目の修正の中が落ちた）時は 1 回目の返り。修正が走らなければ null"""
-        first = {"got": {"done": True, "conflicts": "c1"}, "stop_reason": ""}
-        merged = {"done": True, "conflicts": ["c1", "c2"], "refixed": True, "stop_reason": ""}
+        first = {"got": {**FixedCase.fix(FixedCase()), "conflicts": "c1"}, "stop_reason": ""}
+        merged = {"done": True, "conflicts": ["c1", "c2"], "records": [], "refixed": True, "stop_reason": ""}
         got = collect.collect({"fix": json.dumps(first)}, self.line(fixed=json.dumps(merged)))
         self.assertEqual(got["fix"], merged)
         self.assertEqual(collect.collect({"fix": json.dumps(first)}, self.line())["fix"], first["got"])
@@ -3212,6 +3274,48 @@ class NoFixWiringCase(unittest.TestCase):
         self.assertIn("nothing_owed", nodes["plan-out"]["output_format"]["required"])
 
 
+class SharedPlacesWiringCase(unittest.TestCase):
+    """#681: メイングラフの run の共有の置き場は、始めのノードの出力の欄から入力でブロックへ配線する（ブロックは自分の置き場の形から
+    辿らない）。最後のテストは控えを引かないので印の置き場だけ。report へは collect を通す"""
+
+    def test_shared_places_are_wired_from_start(self):
+        nodes = line_nodes()
+        both = {"reuse_dir": "$start.output.reuse_dir", "user_env_dir": "$start.output.user_env_dir"}
+        for key in ("test-gate-base", "fix", "refix-run"):
+            with self.subTest(node=key):
+                self.assertEqual({k: nodes[key]["with"][k] for k in both}, both)
+        for key in ("test-gate-final", "judge", "rejudge-run"):
+            with self.subTest(node=key):
+                self.assertEqual(nodes[key]["with"]["user_env_dir"], both["user_env_dir"])
+        self.assertNotIn("reuse_dir", nodes["test-gate-final"]["with"])
+        self.assertEqual(nodes["collect"]["with"]["user_env_dir"], {"from": "$start.output.user_env_dir", "if_skipped": None})
+        self.assertEqual(nodes["report"]["with"]["user-env-dir"], "$collect.output.user_env_dir")
+        group = {k: v for node in block_doc("works-factory-fix")["nodes"] if node["id"] in ("groups-par", "groups-seq")
+                 for k, v in node["with"].items() if k in both}
+        self.assertEqual(group, {"reuse_dir": "$INPUTS.reuse_dir", "user_env_dir": "$INPUTS.user_env_dir"})
+
+    def test_plan_ports_are_wired_to_their_readers(self):
+        """#681: 計画の出力の欄（修正案の役の返答 fix_plan・拒否の行 rejects・直す義務 0 件の周 nothing_owed・諦めの行 gave_up）を、
+        事前審査・修正・案の直しの答えの返し・往復の終わりの返し・受け皿が受ける（隣の控えを名で開かない）"""
+        nodes = line_nodes()
+        loop = {n["id"]: n for n in nodes["plan-rounds"]["loop_group"]["nodes"]}
+        self.assertEqual({k: loop["plan-review-run"]["with"][k] for k in ("fix_plan", "plan_rejects")},
+                         {"fix_plan": "$plan.output.fix_plan", "plan_rejects": "$plan.output.rejects"})
+        self.assertEqual({k: nodes["replan-review"]["with"][k] for k in ("fix_plan", "plan_rejects")},
+                         {"fix_plan": "$replan.output.fix_plan", "plan_rejects": "$replan.output.rejects"})
+        self.assertEqual({k: loop["plan-out"]["with"][k] for k in ("fix_plan", "rejects", "nothing_owed", "gave_up")},
+                         {k: f"$plan.output.{k}" for k in ("fix_plan", "rejects", "nothing_owed", "gave_up")})
+        self.assertEqual((nodes["fix"]["with"]["fix_plan"], nodes["refix-run"]["with"]["fix_plan"], nodes["answer-replan"]["with"]["fix_plan"]),
+                         ("$fix-in.output.fix_plan", "$replan.output.fix_plan", "$replan.output.fix_plan"))
+        self.assertEqual(fix_in.FLAT["fix_plan"], ("plan", "fix_plan"))
+        for key in ("plan-rounds-out", "replan-out"):
+            with self.subTest(receiver=key):
+                self.assertLessEqual({*planfile.PORTS, *planfile.FROM, planfile.GAVE_UP}, set(nodes[key]["with"]["names"].split()))
+        for key in ("replan-review-out", "design-only-out"):
+            with self.subTest(receiver=key):
+                self.assertIn("gave_up", nodes[key]["with"]["names"].split())
+
+
 class Recorded(dict):
     """読まれた環境変数の名を控える os.environ の代わり"""
 
@@ -3355,6 +3459,9 @@ class LineWiringCase(unittest.TestCase):
         ("design-only", "conflicts"): "直す物が無い周は修正の段が無いので申し出が無い",
         ("design-only", "gate_answers"): "直す物が無い周は修正前の承認ノードが無い",
         ("design-only", "round_limit"): "形 design は往復のループの外で、ループの上限が無い",
+        ("design-only", "fix_plan"): "形 design は修正案を読まない（boardview.open_design）",
+        ("design-only", "plan_rejects"): "形 design は修正案を読まないので計画の周の拒否も無い",
+        ("test-gate-final", "reuse_dir"): "最後のテストは試験の結果の控えを引かない（test-gate の run は base だけ引く）",
         **{("design-only", name): "形 design は修正案を読まず事前審査を回さないので、素材の状態・並行 PR の外した範囲・依頼の解き方の控えを使わない"
            for name in ("materials", "pr_excluded", "purpose_means")},
     }
@@ -3402,52 +3509,24 @@ class LineWiringCase(unittest.TestCase):
 
     # 隣のファイル（docs/design.md の約束の節）: 名 → ((書き手のブロック, 隣に置く返りの欄), 読み手の lib か script)
     NEIGHBOURS = {
-        "p2.fix_plan.json": (("plan", "plan"), "lib/fixboard.py"),
-        "rejects-plan.json": (("plan", "plan"), "lib/boardview.py"),
-        "replan-gave-up.json": (("plan", "plan"), "lib/runreport.py"),
-        "design.jsonl": (("plan", "structure"), "lib/boardview.py"),
         "gate-passes.json": (("plan-review", "review"), "lib/gatemarks.py"),
         "gate.json": (("plan-review", "review"), "lib/gatemarks.py"),
         "r4-gate-passes.json": (("eyes", "notes"), "lib/eyeverdict.py"),
         "premise-check.json": (("eyes", "notes"), "lib/eyeverdict.py"),
         "design-premises.json": (("plan-review", "design"), "lib/eyeverdict.py"),
-        "allowed-tests.json": (("fix", "diff"), "workflows/line/scripts/ask_final.py"),
-        "lenses.json": (("fix", "diff"), "lib/fixbeside.py"),
-        "accept-trace.json": (("fix", "diff"), "lib/fixbeside.py"),
-        "closure.json": (("fix", "diff"), "lib/fixbeside.py"),
-        "delta-holes.json": (("fix", "diff"), "lib/fixbeside.py"),
-        "fix-removed.json": (("fix", "diff"), "lib/leftovers.py"),
-        "tdd-unit.json": (("fix", "diff"), "lib/fixbeside.py"),
     }
     # 書き手の返す節を空の置き場で走らせる時の入力（ブロックの YAML がその節に渡す with: と、Archon がブロックの入力を渡す INPUTS_*）
     RETURN_INPUTS = {
-        "plan": {"INPUTS_DIR": "plan/r1", "INPUTS_START": "", "INPUTS_JUDGMENT": ""},
         "plan-review": {},
-        "fix": {"INPUTS_MODE": ""},
         "eyes": {},
     }
     # 今の木で照らしが通らない所（named: 書き手の script と lib が名を持つ・stop: lib の在る返す節が空の置き場でも書く・bare: lib も
     # 境の口も無い返す節が書く・read: 読み手が名を開く）。表に無い新しい穴と、通るようになったのに残る行は赤
     UNPROVEN = {
-        **{("p2.fix_plan.json", check): "区分の issue で外す（plan の返す節の止めの道と lib の無い道が修正案の役の返答の写しを置かない）"
-           for check in ("stop", "bare")},
         **{("design-premises.json", check): "区分の issue で外す（plan-review の返す節の止めの道と lib の無い道が独立設計の控えを置かない）"
            for check in ("stop", "bare")},
-        **{(name, check): "fix の出力を組めない道では置かない（読み手 fixbeside.read が「無い」と名指し、最後の承認ノードを開ける理由にし、"
-                          "閉鎖の表は残りに数える）"
-           for name in ("closure.json", "delta-holes.json") for check in ("stop", "bare")},
-        **{("fix-removed.json", check): "書き手は fix のノード clean で出力ノードではない（clean の前に止まった run には無く、"
-                                        "leftovers.removed が「走らせていない」と読む）" for check in ("stop", "bare")},
-        **{("tdd-unit.json", check): "書き手は fix のノード tdd-unit で出力ノードではない（tdd-unit の前に止まった run と組の子の run には"
-                                     "無く、読み手 fixbeside.tdd が「無い」と名指す）" for check in ("stop", "bare")},
         **{(name, check): "eyes の出力ノードは目の材料を書けない道で notes を null にする（読み手 ask_final.eye_notes と報告が null を訳にする）"
            for name in ("r4-gate-passes.json", "premise-check.json") for check in ("stop", "bare")},
-        **{("rejects-plan.json", check): "拒んだ回にだけ書く（rolekit.reject）。空の置き場の返す節は書かない"
-           for check in ("stop", "bare")},
-        ("rejects-plan.json", "named"): "名は rolekit.rejects_path が役の名から組み（rejects-<役>.json）、字の定数が無い",
-        ("rejects-plan.json", "read"): "plan-review は rolekit.reject_rows で役の名から開き、名の字を持たない",
-        **{("replan-gave-up.json", check): "案の直しで役が諦めた項目が在る時だけ書く（planfile.note_gave_up）。空の置き場の返す節は書かない"
-           for check in ("stop", "bare")},
     }
 
     def written_beside(self, block: str, field: str, bare: bool) -> set:
@@ -3478,8 +3557,8 @@ class LineWiringCase(unittest.TestCase):
         """落とし穴 K12: docs/design.md のまだ出力の欄に直していない隣のファイルの一覧と表 NEIGHBOURS が同じで、各行で、書き手の
         ブロックの script か lib がその名を字の定数で持ち（named）、書き手の返す節が止めの道（空の置き場で lib の在る道。stop）と lib の
         無い道（bare）でも返りの欄の指し札の隣にそのファイルを置き、読み手（書き手でないブロックの script か、そこから import で辿れる
-        lib）がその名を字か持ち主の定数で開く（read）。通らない照らしは UNPROVEN に名指して許す。judge の置き場のファイルは出力の欄で
-        受けるので一覧に無い（返す欄は lib/tests/test_judge_accept.py の VerdictPortsCase、名を持たないことは E4 の柵）"""
+        lib）がその名を字か持ち主の定数で開く（read）。通らない照らしは UNPROVEN に名指して許す。judge・plan・fix の置き場のファイルは
+        出力の欄で受けるので一覧に無い（返す欄は各ブロックの返す節の試験、名を持たないことは E4 の柵）"""
         names = neighbour_files(DESIGN.read_text(encoding="utf-8"))
         self.assertEqual(set(self.NEIGHBOURS), names, "表と docs/design.md の隣のファイルの一覧が違う")
         reach = {block: imported_files(block_scripts(block)) for block in (*BLOCKS, "line")}

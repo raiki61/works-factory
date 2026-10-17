@@ -15,7 +15,7 @@ fixture:
     fix_units: '[]'
     green_ok: 'true'
     test_outcomes: 'null'
-    diffs: '[]'
+    records: '[]'
   reached:
   - r2-compare
   - r2-compare-verdict

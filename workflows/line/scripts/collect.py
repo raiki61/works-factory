@@ -16,7 +16,8 @@ fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（
 固定材料から始めた run（fix-in の received が在る）は直す前のテスト・判定・計画の往復・修正前の承認が飛ぶので、その受け皿と
 承認の答え・載せなかった問いの空の所を、fix-in が運んだ写しの値（received）で埋める（報告の結末の決めは判定と計画の出力が無いと
 途中で終わった run と読む）。
-判定・再審の受け皿の got がこの版より前に走った判定の返り（judge_accept.require_ports）なら、欄を空と読んで結末を作らず fallback で止める。
+判定・再審・計画・案の直し・修正の受け皿の got と fixed の出力がこの版より前に走った返り（judge_accept.require_ports・
+planfile.require_ports・fixbeside.require_ports と、fixed の段の並び records の無い出力）なら、欄を空と読んで結末を作らず fallback で止める。
 
 メイングラフのノードの値（docs/design.md の report の出力の「メイングラフの値」）:
 - stops: メイングラフの script のノード（STOPS）の止めの語 {ノード: 語}（入口の拒み・無人の承認ノードの止め・script の例外・人の止め。
@@ -28,12 +29,14 @@ fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（
 - notices: run を止めずに進めた起こす前の注意の行の並び（メイングラフの YAML の collect の with: が、どのノードの出力の字かを決める。
   行ごとに割る。飛ばされたノードと空の字は []）
 - optional: 受け止める段の宣言（メイングラフの YAML の collect の with: の 1 か所。落ちても先へ進めてよい段の、区切りで終わるノードの id の頭かノードの id の並び。runreport._declared）
+- user_env_dir: 利用者の HOME・XDG に戻して起こした印の置き場（start の出力の字。飛ばされたら ""）
 
 result が $collect.output を読むので、このノードは落ちない: 境の口を読めない時も、標準ライブラリだけで fallback の出力を書く（止めの
 理由は LINE_SCRIPT。境の口の LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。
 
 入力（with:）: <include の id>（受け皿の出力）・plan・plan_review・design_only（計画の往復と直す物が無い周の受け皿の出力）・start・
-fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・spec_unchecked・optional・notices
+fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・spec_unchecked・optional・notices・
+user_env_dir
 """
 import json
 import os
@@ -48,7 +51,9 @@ except Exception as error:   # result が読むノードは落ちない（上の
     boundary, unread = None, error
 if boundary is not None:
     with boundary.guarded_imports():
+        import fixbeside
         import judge_accept
+        import planfile
 
 RECEIVED = ("test_gate_base", "judge", "rejudge", "replan", "replan_review", "fix", "test_gate_final", "eyes", "merge_seal",
             "merge_apply")
@@ -59,6 +64,7 @@ STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in
 LISTS = ("deferred", "widened", "final_reasons", "spec_changed", "optional")
 VALUES = ("prior_failures", "redepth", "spec_unchecked")
 TEXT_LINES = ("notices",)   # 字を行ごとの並びに割る入力
+TEXTS = ("user_env_dir",)   # 字のまま運ぶ入力（飛ばされたら ""）
 LINE_SCRIPT = "works:line-script"
 
 
@@ -78,7 +84,12 @@ def collect(received: dict, line: dict) -> dict:
     design_only = got.pop("design_only")
     for name in ("judge", "rejudge"):
         judge_accept.require_ports(got[name])
+    for name in ("plan", "replan"):
+        planfile.require_ports(got[name])
+    fixbeside.require_ports(got["fix"])
     fixed = boundary.value(line["fixed"])
+    if isinstance(fixed, dict) and "records" not in fixed:
+        raise ValueError(fixbeside.PRIOR_VERSION)
     stops = {node: boundary.text((line.get("stops") or {}).get(node)) for node in STOPS}
     out = {
         **got,
@@ -91,6 +102,7 @@ def collect(received: dict, line: dict) -> dict:
         **{name: boundary.items(line.get(name)) for name in LISTS},
         **{name: boundary.value(line.get(name)) for name in VALUES},
         **{name: boundary.text(line.get(name)).splitlines() for name in TEXT_LINES},
+        **{name: boundary.text(line.get(name)) for name in TEXTS},
     }
     return {**out, **{name: value for name, value in carried(line.get("fix_in")).items() if name in out and not out[name]}}
 
@@ -110,13 +122,14 @@ def line_of_env() -> dict:
         "fix_in": os.environ.get("INPUTS_FIX_IN"),
         "gates": {name: os.environ.get(f"INPUTS_{name.upper()}") for name in GATES},
         "stops": {node: os.environ.get(f"INPUTS_{stop_key(node).upper()}") for node in STOPS},
-        **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*LISTS, *VALUES, *TEXT_LINES)},
+        **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*LISTS, *VALUES, *TEXT_LINES, *TEXTS)},
     }
 
 
 def fallback(reason: str) -> dict:
     return {**{name: None for name in (*RECEIVED, *ROUNDS)}, "start": None, **{name: None for name in GATES},
-            "stops": {"collect": LINE_SCRIPT}, **{name: [] for name in LISTS}, **{name: None for name in VALUES}, **{name: [] for name in TEXT_LINES}}
+            "stops": {"collect": LINE_SCRIPT}, **{name: [] for name in LISTS}, **{name: None for name in VALUES}, **{name: [] for name in TEXT_LINES},
+            **{name: "" for name in TEXTS}}
 
 
 def main() -> None:

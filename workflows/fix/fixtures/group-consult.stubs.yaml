@@ -46,3 +46,11 @@ fix:
   handoffs: []
   mismatched: []
   stop_reason: ""
+  allowed_tests: {type: archon_artifact, run_id: r, path: fix/fix/allowed-tests.json}
+  accept_trace: {type: archon_artifact, run_id: r, path: fix/fix/accept-trace.json}
+  lenses: {type: archon_artifact, run_id: r, path: fix/fix/lenses.json}
+  closure: {type: archon_artifact, run_id: r, path: fix/fix/closure.json}
+  delta_holes: {type: archon_artifact, run_id: r, path: fix/fix/delta-holes.json}
+  tdd_unit: {type: archon_artifact, run_id: r, path: fix/fix/tdd-unit.json}
+  removed: []
+  tdd_refused: {refused: [], unread: []}

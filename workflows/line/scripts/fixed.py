@@ -8,9 +8,10 @@ done・diff・changed・delta_review は refix-run が走ればその物（diff 
 groups・allowed_test_changes と、最後の承認ノードを開ける理由の行 handoffs（修正役が人に回した物）・mismatched（申告と
 数え直しが合わない単位）は和、x_scalars（修正役が足した規模の数値）は名ごとに 2 度目の値を優先して合わせる。申し出 conflicts は
 指し札の配列: refix-run が返した控えは 1 回目の段の行を写して持つ（fix の入力 prior_conflicts。元は 1 つの盤面）ので、在ればそれ 1 つ、
-無ければ 1 回目の物（1 回目の申し出が最後の関所と報告から消えず、同じ行を 2 度数えない）。diffs は段ごとの diff の指し札の並び
-（1 回目・2 度目の順。どちらの隣にも段の約束のファイル lib/fixbeside.py と許したテストの変更の訳 allowed-tests.json が在り、
-最後の承認ノードと報告が両方を読む）。replan_items は 1 回目の物（差し込みを
+無ければ 1 回目の物（1 回目の申し出が最後の関所と報告から消えず、同じ行を 2 度数えない）。records は段ごとの diff と控えの欄
+（lib/fixbeside.py の PORTS・FROM）の並び（1 回目・2 度目の順。最後の承認ノード・深さの上げ直し・独立の目・報告が段ごとに読む）。
+fix か refix の返りが控えの欄を持たなければ、この版より前に走った修正の返り（fixbeside.require_ports）なので fallback で止める。
+replan_items は 1 回目の物（差し込みを
 決めたのは 1 回目）。objection は 1 回目と 2 度目の修正役の異議をつないだ文で、rejudge は異議が在り held でない時に真（再審は 2 度目の
 修正の後に 1 度だけ両方の異議を受ける。元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。
 done は、案の直しが要ったのに 2 度目の修正が走らなかった時（案の直しの関所の stop・無人の止め・案ができなかった・refix-run の中が
@@ -39,8 +40,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
+with boundary.guarded_imports():
+    import fixbeside
+
 FIELDS = ("done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes", "changed",
-          "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason")
+          "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason", "allowed_tests", "accept_trace", "lenses", "closure",
+          "delta_holes", "tdd_unit", "removed", "tdd_refused")
 PLANS = ("plan", "ripple")
 
 
@@ -49,7 +54,7 @@ def no_fix(plans: dict) -> dict:
     の plan_edge）の形: 直す物も差分も申し出も無く、最後のテストと独立の目へ進める（go）。独立の目の設計は design-only の物、
     修正前の関所は開いていない（問い []・答え null）。差分が無いので封じず当てない（線の merge-seal・merge-apply の when が no_fix を読む）"""
     return {"done": True, "go": True, "units": [], "groups": [], "conflicts": [], "replan_items": [], "objection": "", "diff": None,
-            "diffs": [], "allowed_test_changes": [], "handoffs": [], "mismatched": [], "changed": {}, "x_scalars": {}, "delta_review": None, "refixed": False,
+            "records": [], "allowed_test_changes": [], "handoffs": [], "mismatched": [], "changed": {}, "x_scalars": {}, "delta_review": None, "refixed": False,
             "rejudge": False, "plan": None, "ripple": None, "design": plans.get("no_fix_design"), "plan_questions": [],
             "answer": None, "no_fix": True, "stop_reason": ""}
 
@@ -73,6 +78,9 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
     plans = plans or {}
     if fix.get("done") is None and refix is None:
         return no_fix(plans)
+    for returned in (fix, refix):
+        if returned is not None and returned.get("done") is not None:
+            fixbeside.require_ports(returned)
     last = refix if refix is not None else fix
     again = plans.get("replanned") if refix is not None and isinstance(plans.get("replanned"), dict) else None
     own = next((s for s in (fix.get("stop_reason"), (refix or {}).get("stop_reason")) if isinstance(s, str) and s), "")
@@ -96,7 +104,7 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         "objection": objection,
         "rejudge": bool(objection) and not held,
         "diff": last.get("diff"),
-        "diffs": [d for d in (fix.get("diff"), (refix or {}).get("diff")) if d],
+        "records": [fixbeside.stage(r) for r in (fix, refix) if r is not None and r.get("diff")],
         "allowed_test_changes": union(fix.get("allowed_test_changes"), (refix or {}).get("allowed_test_changes")),
         "handoffs": union(fix.get("handoffs"), (refix or {}).get("handoffs")),
         "mismatched": union(fix.get("mismatched"), (refix or {}).get("mismatched")),
@@ -128,7 +136,8 @@ def from_env() -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {**{key: None for key in FIELDS}, "done": False, "go": False, "units": [], "groups": [], "conflicts": [], "diffs": [], "replan_items": [],
+    return {"done": False, "go": False, "units": [], "groups": [], "conflicts": [], "diff": None, "records": [], "replan_items": [],
+            "changed": None, "delta_review": None,
             "handoffs": [], "mismatched": [],
             "objection": "", "rejudge": False, "allowed_test_changes": [], "x_scalars": {}, "refixed": False, "plan": None, "ripple": None,
             "design": None, "plan_questions": [], "answer": None, "no_fix": False,

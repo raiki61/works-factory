@@ -810,7 +810,7 @@ class ReuseRunCase(unittest.TestCase):
         gitkit.git(self.repo, "commit", "-q", "-m", "seed")
         self.count = self.tmp / "count"
         self.report = self.tmp / "report.xml"
-        self.place = tree_run.reuse_place(self.tmp / "art", "run-a", rerun=False)
+        self.place = tree_run.reuse_place(tree_run.reuse_dir(self.tmp / "art"), "run-a", rerun=False)
         self.n = 0
 
     def launch(self, argv=None, outputs=None):
@@ -872,9 +872,16 @@ class ReuseRunCase(unittest.TestCase):
         self.launch(make, ())
         self.assertEqual(self.launched(), 4)   # 置かれていれば 2 度目は控えから使われ、子が起きない
 
+    def test_reuse_dir_is_under_the_own_place(self):
+        """控えの置き場は run の置き場の直下の REUSE_SUB（reuse_dir。メイングラフが作って入力で渡す）で、reuse_place は渡された置き場を
+        そのまま使い、REUSE_SUB を継がない"""
+        self.assertEqual(tree_run.reuse_dir(self.tmp / "art"), self.tmp / "art" / tree_run.REUSE_SUB)
+        self.assertEqual(tree_run.reuse_place(str(self.tmp / "given"), "run-a", rerun=False)["dir"], self.tmp / "given")
+
     def test_no_place_always_launches(self):
-        """置き場の無い呼び（reuse_place が None。top か run が空）は控えを読まず書かず、note に何も置かない"""
+        """置き場の無い呼び（reuse_place が None。置き場か run が空）は控えを読まず書かず、note に何も置かない"""
         self.assertIsNone(tree_run.reuse_place("", "run-a", rerun=False))
+        self.assertIsNone(tree_run.reuse_place(None, "run-a", rerun=False))
         self.assertIsNone(tree_run.reuse_place(self.tmp, "", rerun=False))
         self.place = None
         notes = [self.launch()[2] for _ in range(2)]

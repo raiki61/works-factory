@@ -5,6 +5,7 @@ inputs:
   baseline: {default: 'null', description: 直す前の結末のポインタ（JSON の字）}
   objection: {default: '', description: 判定のフレーミングへの異議の文。空でなければ再審の道}
   prior_failures: {default: 'null', description: 前の run の持ち越しの前の失敗の行のポインタ（JSON の字。今の works の prior-failures-in.json）。約束に無い入力}
+  user_env_dir: {default: '', description: 利用者の HOME・XDG に戻して起こした印（user-env-ran）を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）}
 returns: verdict
 outcome_field: ready
 nodes:

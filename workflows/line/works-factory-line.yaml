@@ -103,8 +103,10 @@ nodes:
         spec: { type: boolean }
         from_fixture: { type: boolean }
         fixture: { type: [object, "null"] }
+        reuse_dir: { type: string }
+        user_env_dir: { type: string }
       required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate, spec,
-                 from_fixture, fixture]
+                 from_fixture, fixture, reuse_dir, user_env_dir]
 
   # 2 起動の関所
   - id: gate-start
@@ -144,6 +146,8 @@ nodes:
       mode: base
       start: "$start.output.record"
       baseline: null
+      reuse_dir: "$start.output.reuse_dir"
+      user_env_dir: "$start.output.user_env_dir"
 
   - id: test-gate-base-out
     # 受け皿 13 本の本体（script・runtime・timeout・output_format・mutates_checkout）はここ 1 か所。ほかの 12 本は <<: *receiver で受け、
@@ -175,6 +179,7 @@ nodes:
       baseline: "$test-gate-base.output.baseline"
       objection: ""
       prior_failures: "$start.output.prior_failures"
+      user_env_dir: "$start.output.user_env_dir"
 
   - id: judge-out
     <<: *receiver
@@ -214,7 +219,7 @@ nodes:
     depends_on: [design-only]
     with:
       got: "$design-only.output"
-      names: "pass stalled review design gate_axes ask_human questions"
+      names: "pass stalled review design gate_axes ask_human questions gave_up"
 
   # 5 計画の往復。中の節は外から見えないので、本体の終わりの返しの節 plan-out が返りを欄ごとに受けて返す
   - id: plan-rounds
@@ -261,6 +266,8 @@ nodes:
             purpose_means: "$judge.output.purpose_means"
             world: "$judge.output.world"
             plan: "$plan.output.plan"
+            fix_plan: "$plan.output.fix_plan"
+            plan_rejects: "$plan.output.rejects"
             structure: "$plan.output.structure"
             ripple: "$plan.output.ripple"
             answers: "$answer-start.output.answer"
@@ -281,6 +288,9 @@ nodes:
               ripple: {}
               depth: {}
               round: {}
+              fix_plan: {}
+              rejects: {}
+              gave_up: {}
               pass: {}
               stalled: {}
               review: {}
@@ -291,8 +301,8 @@ nodes:
               nothing_owed: { type: boolean }
               done: { type: boolean }
               stop_reason: { type: string }
-            required: [ready, plan, structure, ripple, depth, round, pass, stalled, review, design, gate_axes, ask_human, questions,
-                       nothing_owed, done, stop_reason]
+            required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, gave_up, pass, stalled, review, design, gate_axes,
+                       ask_human, questions, nothing_owed, done, stop_reason]
           mutates_checkout: false
           depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success
@@ -304,6 +314,10 @@ nodes:
             ripple: "$plan.output.ripple"
             depth: "$plan.output.depth"
             round: "$plan.output.round"
+            fix_plan: "$plan.output.fix_plan"
+            rejects: "$plan.output.rejects"
+            nothing_owed: "$plan.output.nothing_owed"
+            gave_up: "$plan.output.gave_up"
             pass: { from: "$plan-review-run.output.pass", if_skipped: null }
             stalled: { from: "$plan-review-run.output.stalled", if_skipped: null }
             review: { from: "$plan-review-run.output.review", if_skipped: null }
@@ -317,7 +331,7 @@ nodes:
     depends_on: [plan-rounds]
     with:
       got: "$plan-rounds.output"
-      names: "ready plan structure ripple depth round"
+      names: "ready plan structure ripple depth round fix_plan rejects nothing_owed gave_up"
 
   - id: plan-rounds-review-out
     <<: *receiver
@@ -416,6 +430,7 @@ nodes:
         depth: {}
         head_depth: {}
         structure: {}
+        fix_plan: {}
         review: {}
         design: {}
         questions: {}
@@ -425,7 +440,7 @@ nodes:
         stop_reason: { type: string }
       required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, premises, verify, pr_excluded, materials,
                  purpose_review, depth_record, decisions, answer_ties, purpose_means, plan, ripple, depth, head_depth, structure,
-                 review, design, questions, answer, deferred, received, stop_reason]
+                 fix_plan, review, design, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix]
@@ -455,18 +470,22 @@ nodes:
       materials: "$fix-in.output.materials"
       depth_record: "$fix-in.output.depth_record"
       plan: "$fix-in.output.plan"
+      fix_plan: "$fix-in.output.fix_plan"
       ripple: "$fix-in.output.ripple"
       depth: "$fix-in.output.depth"
       head_depth: "$fix-in.output.head_depth"
       answers: "$fix-in.output.answer"
       plan_review: "$fix-in.output.review"
+      reuse_dir: "$start.output.reuse_dir"
+      user_env_dir: "$start.output.user_env_dir"
 
   - id: fix-out
     <<: *receiver
     depends_on: [fix]
     with:
       got: "$fix.output"
-      names: "done units groups conflicts replan_items objection diff allowed_test_changes changed x_scalars delta_review handoffs mismatched stop_reason"
+      names: "done units groups conflicts replan_items objection diff allowed_test_changes changed x_scalars delta_review handoffs mismatched stop_reason
+        allowed_tests accept_trace lenses closure delta_holes tdd_unit removed tdd_refused"
 
   - id: after-fix
     script: after_fix
@@ -509,7 +528,7 @@ nodes:
     depends_on: [replan]
     with:
       got: "$replan.output"
-      names: "ready plan structure ripple depth round"
+      names: "ready plan structure ripple depth round fix_plan rejects nothing_owed gave_up"
 
   - id: replan-review
     include: works-factory-plan-review
@@ -528,6 +547,8 @@ nodes:
       purpose_means: "$fix-in.output.purpose_means"
       world: "$fix-in.output.world"
       plan: "$replan.output.plan"
+      fix_plan: "$replan.output.fix_plan"
+      plan_rejects: "$replan.output.rejects"
       structure: "$replan.output.structure"
       ripple: "$replan.output.ripple"
       answers: "$answer-start.output.answer"
@@ -540,7 +561,7 @@ nodes:
     depends_on: [replan-review]
     with:
       got: "$replan-review.output"
-      names: "pass stalled review design gate_axes ask_human questions"
+      names: "pass stalled review design gate_axes ask_human questions gave_up"
 
   - id: ask-replan
     script: ask_replan
@@ -601,7 +622,7 @@ nodes:
       before_fix: "$fix-in.output.answer"
       asked: "$ask-replan.output.asked"
       review: { from: "$replan-review.output.review", if_skipped: null }
-      plan: "$replan.output.plan"
+      fix_plan: "$replan.output.fix_plan"
       items: "$fix.output.replan_items"
       ripple: "$replan.output.ripple"
       first_ripple: "$fix-in.output.ripple"
@@ -620,6 +641,7 @@ nodes:
       materials: "$fix-in.output.materials"
       depth_record: "$fix-in.output.depth_record"
       plan: "$replan.output.plan"
+      fix_plan: "$replan.output.fix_plan"
       ripple: "$answer-replan.output.fix_ripple"
       depth: "$replan.output.depth"
       head_depth: "$fix-in.output.head_depth"
@@ -628,6 +650,8 @@ nodes:
       prior_conflicts: "$fix.output.conflicts"
       plan_review: "$replan-review.output.review"
       notes: "$answer-replan.output.fix_notes"
+      reuse_dir: "$start.output.reuse_dir"
+      user_env_dir: "$start.output.user_env_dir"
 
   - id: fixed
     script: fixed
@@ -642,7 +666,7 @@ nodes:
         replan_items: {}
         objection: {}
         diff: {}
-        diffs: { type: array }
+        records: { type: array }
         allowed_test_changes: {}
         changed: {}
         x_scalars: { type: object }
@@ -660,7 +684,7 @@ nodes:
         answer: {}
         no_fix: { type: boolean }
         stop_reason: { type: string }
-      required: [units, groups, conflicts, replan_items, objection, diff, diffs, allowed_test_changes, changed, x_scalars, delta_review,
+      required: [units, groups, conflicts, replan_items, objection, diff, records, allowed_test_changes, changed, x_scalars, delta_review,
                  handoffs, mismatched,
                  done, go, rejudge, refixed, plan, ripple, design, plan_questions, answer, no_fix, stop_reason]
     mutates_checkout: false
@@ -707,6 +731,7 @@ nodes:
       baseline: "$fix-in.output.baseline"
       objection: "$fixed.output.objection"
       prior_failures: "$start.output.prior_failures"
+      user_env_dir: "$start.output.user_env_dir"
 
   - id: rejudge-run-out
     <<: *receiver
@@ -781,6 +806,7 @@ nodes:
       conflicts: "$fixed.output.conflicts"
       plan: "$fixed.output.plan"
       diff: "$fixed.output.diff"
+      records: "$fixed.output.records"
       judgment: "$judged.output.judgment"
       start: "$start.output.record"
       answer: { from: "$fix-in.output.answer", if_skipped: null }
@@ -799,6 +825,7 @@ nodes:
       mode: final
       start: "$start.output.record"
       baseline: "$fix-in.output.baseline"
+      user_env_dir: "$start.output.user_env_dir"
 
   - id: test-gate-final-out
     <<: *receiver
@@ -827,7 +854,7 @@ nodes:
       fix_units: "$fixed.output.units"
       green_ok: "$test-gate-final.output.ok"
       test_outcomes: "$test-gate-final.output.test_outcomes"
-      diffs: "$fixed.output.diffs"
+      records: "$fixed.output.records"
       plan_questions: "$fixed.output.plan_questions"
       answers: "$fixed.output.answer"
       start_answers: "$answer-start.output.answer"
@@ -884,7 +911,7 @@ nodes:
       unattended: "$start.output.unattended"
       tests: { from: "$test-gate-final.output", if_skipped: null }
       conflicts: "$fixed.output.conflicts"
-      fix_diffs: "$fixed.output.diffs"
+      fix_records: "$fixed.output.records"
       handoffs: "$fixed.output.handoffs"
       mismatched: "$fixed.output.mismatched"
       eyes: { from: "$eyes.output", if_skipped: null }
@@ -1000,8 +1027,9 @@ nodes:
         spec_changed: { type: array }
         spec_unchecked: {}
         notices: { type: array }
+        user_env_dir: {}
       required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
-                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, notices]
+                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, notices, user_env_dir]
     mutates_checkout: false
     depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
@@ -1051,6 +1079,7 @@ nodes:
       prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
       redepth: { from: "$redepth.output", if_skipped: null }
       notices: { from: "$testcmd.output.reason", if_skipped: null }
+      user_env_dir: { from: "$start.output.user_env_dir", if_skipped: null }
       # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の、区切り（__・-）で終わる節の id の頭か、節の id そのもの。
       # 宣言の外の落ちは途中で終わった run に数える。元は線の YAML の節の description の [optional]: 世界の解・構造の実測・レンズ・
       # 直した後の構造・独立の目。レンズはレンズの節とその返りの中継だけで、支度と集め役は止める段。run の頭の深さの段は
@@ -1090,6 +1119,7 @@ nodes:
       redepth: "$collect.output.redepth"
       optional: "$collect.output.optional"
       notices: "$collect.output.notices"
+      user-env-dir: "$collect.output.user_env_dir"
 
   # 後始末。fix の並べ（groups-par）の子の run が残した作業ツリーと枝を消す（issue #113）。消すのはこの run の子で status が
   # completed の物で、子を起こした fan_out の節と join が済んだ物だけ（再開が join を走らせ直しうる間は残す）。落ちない（返りの error に畳む）ので run の結末を変えず、返り {cleaned, left, error} は result が線の返りに載せる
