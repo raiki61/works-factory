@@ -1688,7 +1688,7 @@ def _naming(roles: set[str], blocks: set[str]) -> re.Pattern:
 
 def _role_names(root: Path) -> list[str]:
     """ブロックの指示書（commands/）と入力の説明は、ほかのブロックの名と役の名を書かない（_naming の形）。指示書は、ほかのブロックの
-    和名に「役」「の段」が続く形（修正役・修正の段）も書かない。自分の YAML の節の id と、
+    和名に「役」「の役」「の段」が続く形（修正役・判定の役・修正の段）も書かない。自分の YAML の節の id と、
     自分の YAML の字の値そのもの（返答の enum の語 `rejudge` など。ほかのブロックの役の id と同じ字でも自分の語）は数えない。
     借りた読み替え OVERLAY_COPY は、どのブロックの名も役の名も書かない"""
     folders = [f for f in _blocks(root) if f.name not in TOP_FOLDERS]
@@ -1707,7 +1707,7 @@ def _role_names(root: Path) -> list[str]:
         own = {folder.name} | ((_node_ids(document) | {value for _, value in _scalars(document)}) if document is not None else set())
         other_roles = set().union(*(r for n, r in roles.items() if n != folder.name)) - own
         in_commands = _naming(other_roles, every_block - {folder.name})
-        titles = _title_makers(every_block - {folder.name}, ("役", "の段"))
+        titles = _title_makers(every_block - {folder.name}, ("役", "の役", "の段"))
         for command in _files(folder, "commands"):
             out += lines_naming(command, in_commands, titles)
         in_inputs = _naming(other_roles, set())
