@@ -1845,7 +1845,7 @@ class LinesCase(Base):
     def judge_with(self, **beside) -> dict:
         """判定の返り（judgment と、置いた隣のファイルを指す出力の欄。欄の名は judge_accept の表から引く）"""
         import judge_accept
-        field = {name: key for key, name in {**judge_accept.PORTS, **judge_accept.PURPOSE_PORTS}.items()}
+        field = {name: key for key, name in {**judge_accept.PORTS, **judge_accept.FIRST_PORTS}.items()}
         judgment = self.put("judge/judgment.json", {})
         return {**fixed_run()["judge"], "judgment": judgment,
                 **{field[name]: self.put(f"judge/{name}", doc) for name, doc in beside.items()}}

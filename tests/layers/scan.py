@@ -511,7 +511,7 @@ JUDGE_FOLDER = "judge"
 WRITER = "judge_accept"
 # lib の下で判定の外の読み手に数えない所（試験は名を字で持って照らす）
 JUDGE_NAME_UNREAD = ("lib/tests/",)
-# 判定の置き場のファイルの名（lib/judge_accept.py の PORTS・PURPOSE_PORTS の値）の住処。書き手の judge_accept と、名を定数で持つモジュール
+# 判定の置き場のファイルの名（lib/judge_accept.py の PORTS・FIRST_PORTS の値）の住処。書き手の judge_accept と、名を定数で持つモジュール
 # だけが名を持ってよい。ほかの lib とほかのブロックの script は判定の出力の欄（ポインタ）で受ける（workflows/AGENTS.md の E4）
 JUDGE_NAME_HOMES = ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py", "lib/gatemarks.py",
                     "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py", "lib/worldmark.py",
@@ -522,7 +522,7 @@ JUDGE_NAME_HOMES = ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.p
 def judge_port_files() -> frozenset:
     """判定の出力の欄が指す置き場のファイルの名（judge_accept の表から引く）"""
     import judge_accept
-    return frozenset((*judge_accept.PORTS.values(), *judge_accept.PURPOSE_PORTS.values()))
+    return frozenset((*judge_accept.PORTS.values(), *judge_accept.FIRST_PORTS.values()))
 
 
 def _home_constants(root: Path, names: frozenset, kinds: frozenset) -> tuple[set, set, set]:

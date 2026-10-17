@@ -29,7 +29,7 @@ import boundary  # noqa: E402
 with boundary.guarded_imports():
     import report
 
-FIELDS = ("units", "judgment", "purpose", "world", "rejudge_verdict", "premises", "materials", "decisions")
+FIELDS = ("units", "judgment", "purpose", "world", "rejudge_verdict", "premises", "materials", "decisions", "answer_ties")
 # rejudge-run の返りから読む欄（口 boundary.picked に渡す）。止めの理由 stop_reason と再審の出口 rejudge_exit も同じ返りから読む
 REJUDGE = (*FIELDS, "stop_reason", "rejudge_exit")
 COMPARED = ("new_open_units", "lowered", "unnamed_changed")
@@ -66,7 +66,8 @@ def judge_from_env() -> dict:
             "rejudge_verdict": boundary.value(os.environ.get("INPUTS_JUDGE_REJUDGE_VERDICT")),
             "premises": boundary.value(os.environ.get("INPUTS_JUDGE_PREMISES")),
             "materials": boundary.value(os.environ.get("INPUTS_JUDGE_MATERIALS")),
-            "decisions": boundary.value(os.environ.get("INPUTS_JUDGE_DECISIONS"))}
+            "decisions": boundary.value(os.environ.get("INPUTS_JUDGE_DECISIONS")),
+            "answer_ties": boundary.value(os.environ.get("INPUTS_JUDGE_ANSWER_TIES"))}
 
 
 def from_env() -> tuple:

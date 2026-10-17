@@ -3876,12 +3876,13 @@ PURPOSE_REVIEW_FILE = _purpose.PURPOSE_REVIEW_FILE
 PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE, PURPOSE_REVIEW_FILE,
                 headdepth.RECORD)   # 判定の指し札の隣に必ず置く（下の PORTS の欄が指す）
 # 返す節の出力の欄 → 置き場のファイル。ほかのブロックはこの欄のポインタで受け、名で開かない（docs/design.md の「judge の出力」）。
-# PORTS は判定の指し札の隣（再審なら再審の置き場）、PURPOSE_PORTS は目的の指し札と同じ 1 回目の判定の置き場。先が無い run の欄は null
+# PORTS は判定の指し札の隣（再審なら再審の置き場）。FIRST_PORTS は 1 回目の判定でしか書かない物（目的の段・素材の役・並行 PR の照らし）で、
+# 再審の時も 1 回目の判定の置き場を指す。先が無い run の欄は null
 PORTS = {"premises": PREMISES_FILE, "verify": VERIFY_FILE, "pr_excluded": PR_EXCLUDED_FILE, "materials": MATERIALS_FILE,
-         "purpose_review": PURPOSE_REVIEW_FILE, "depth_record": headdepth.RECORD, "decisions": policy.PRIOR_DECISIONS_FILE,
-         "answer_ties": marks.KINDS["answers"].file, "review_lenses": diverted.LENS_FILE, "pr_drafts": prcheck.DRAFTS,
+         "purpose_review": PURPOSE_REVIEW_FILE, "depth_record": headdepth.RECORD,
          "rejudge_exit": report.REJUDGE_EXIT, "rejudge_diff": report.REJUDGE_DIFF}
-PURPOSE_PORTS = {"purpose_means": MEANS_FILE, "world_state": worldmark.STATE_FILE}
+FIRST_PORTS = {"purpose_means": MEANS_FILE, "world_state": worldmark.STATE_FILE, "decisions": policy.PRIOR_DECISIONS_FILE,
+               "answer_ties": marks.KINDS["answers"].file, "review_lenses": diverted.LENS_FILE, "pr_drafts": prcheck.DRAFTS}
 
 
 def _empty_public(name: str):
@@ -3969,7 +3970,7 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
 
     units = structure_units(judgment, repo, record=here / STRUCTURE_DROPPED_FILE) if stop is None else []
     rel = lambda p: None if p is None else ptr(f"{p.parent.name}/{p.name}")   # noqa: E731
-    ports = {**{field: here / name for field, name in PORTS.items()}, **{field: jdir / name for field, name in PURPOSE_PORTS.items()}}
+    ports = {**{field: here / name for field, name in PORTS.items()}, **{field: jdir / name for field, name in FIRST_PORTS.items()}}
     return {
         "ready": stop is None and bool(units),
         "stop_reason": stop["stop_reason"] if stop else "",
@@ -4005,4 +4006,4 @@ def verdict_fallback(jdir, rdir, objection: str, ptr) -> dict:
     return {"ready": False, "stop_reason": stopby.REJUDGE if objection.strip() else JUDGE_STOP, "units": [],
             "judgment": ptr(f"{here.name}/{JUDGMENT_FILE}"), "purpose": ptr(f"{here.name}/{PURPOSE_FILE}"),
             "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None,
-            **dict.fromkeys((*PORTS, *PURPOSE_PORTS))}
+            **dict.fromkeys((*PORTS, *FIRST_PORTS))}

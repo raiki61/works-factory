@@ -16,8 +16,8 @@ counted: run の広さの数えと起点の 1 行（fix_signals の隣の控え�
 例外の時は止めの理由 works:line-script を返し、試験の関門から先は飛ぶ（深さの分からない差分を目に通さない）。
 
 入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・head_depth（run の頭の深さの段の語）・units・conflicts・plan・diff（fixed の返り）・judgment（judged の返り）・
-start（始めの記録）・answer（修正前の関所の答え）・answer_ties・depth_record（1 回目の判定の結びと頭の深さの控えのポインタ）・
-materials（judged の返りの素材の状態のポインタ）・replanned・rejudged（after-fix の返り）
+start（始めの記録）・answer（修正前の関所の答え）・depth_record（1 回目の判定の頭の深さの控えのポインタ）・
+answer_ties・materials（judged の返りの結びと素材の状態のポインタ）・replanned・rejudged（after-fix の返り）
 """
 import json
 import os

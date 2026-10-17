@@ -669,7 +669,7 @@ class FixInCase(Artifacts):
 
     BASE = {"baseline": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate-base/baseline.json"}, "ok": True}
     JUDGE = {"units": [{"id": "u1"}], "judgment": {"path": "judge/judgment.json"}, "purpose": None, "world": None, "spec": None,
-             "rejudge_verdict": "", "depth": "軽量", **dict.fromkeys(judge_accept.PORTS), **dict.fromkeys(judge_accept.PURPOSE_PORTS),
+             "rejudge_verdict": "", "depth": "軽量", **dict.fromkeys(judge_accept.PORTS), **dict.fromkeys(judge_accept.FIRST_PORTS),
              "materials": {"path": "judge/materials.json"}}
     PLAN = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "depth": [], "structure": None}
     REVIEW = {"review": {"path": "plan-review/review.json"}, "design": {"path": "plan-review/design.json"}, "questions": []}
@@ -1651,7 +1651,7 @@ class AskFinalReadsCase(Artifacts):
 
     def test_request_answers_answer_by_key_or_origin(self):
         """L-G34: 依頼の answers は key か出どころの字の一致で 1 つの問いだけに当たる時に答えに数える（gatemarks.binds の 1 つの式）。
-        判定の結び（1 回目の判定の出力の欄 answer_ties。線は fix-in から渡す）と測れていない素材の名（今の判定の出力の欄 materials）
+        判定の結び（1 回目の判定の出力の欄 answer_ties。再審の後も 1 回目の物を指し、線は judged から渡す）と測れていない素材の名（今の判定の出力の欄 materials）
         も読み、結びの宛て先が今の（再審の）問いに無ければ字の一致に落として 1 行添える"""
         self.assertEqual(self.held([self.FORK], answers=[{"question": "q1", "text": "a"}]), [])
         self.assertEqual(self.held([self.FORK], answers=[{"question": "u1", "text": "a"}]), [])
@@ -1666,7 +1666,7 @@ class AskFinalReadsCase(Artifacts):
         self.assertEqual(self.held([field], answers=[{"question": "parallel_pr", "text": "a"}],
                                    materials={"parallel_pr": {"status": "not_run"}}), [])
         for node in ("ask-final", "eyes", "redepth"):   # 目は無人の run が採った推しを同じ台帳の読みで R4 の記録された方針に足す
-            self.assertEqual(line_nodes()[node]["with"]["answer_ties"], "$fix-in.output.answer_ties", node)
+            self.assertEqual(line_nodes()[node]["with"]["answer_ties"], "$judged.output.answer_ties", node)
             self.assertEqual(line_nodes()[node]["with"]["materials"], "$judged.output.materials", node)
 
     def test_answered_unit_missing_from_the_judgment_is_said(self):
@@ -2310,7 +2310,7 @@ class AfterFixAndJudgedCase(Artifacts):
 
     def test_judged_reads_the_whole_rejudge_output(self):
         """judged は INPUTS_REJUDGE（再審の返りまるごと）から、再審の単位と止めの理由 stop_reason を読む。judge_ の欄（fix-in の欄つきの
-        参照）は 5 欄とも値に戻す。再審の節が飛んだ（null）時は再審なし"""
+        参照）はどの欄も値に戻す。再審の節が飛んだ（null）時は再審なし"""
         judge = self.returned(self.judgment("judge/judgment.json", []), "採る")
         again = {**self.returned(self.judgment("rejudge/judgment.json", []), "一部採る"), "units": [],
                  "ready": False, "stop_reason": "works:rejudge", "depth": [], "depth_why": ""}
@@ -2322,6 +2322,17 @@ class AfterFixAndJudgedCase(Artifacts):
             took = judged.judged(*judged.from_env())
         self.assertEqual((took["rejudged"], took["stop_reason"], took["rejudge_verdict"]), (False, "", "採る"))
         self.assertEqual(judged.REJUDGE, (*judged.FIELDS, "stop_reason", "rejudge_exit"))
+
+    def test_judged_passes_the_first_only_ports_of_the_rejudge(self):
+        """1 回目の判定でしか書かない控え（decisions・answer_ties。judge_accept.FIRST_PORTS）は再審の返りも 1 回目の物を指すので、
+        judged はそれを運ぶ（再審の後に目の記録された方針が null にならない）"""
+        first = {"decisions": f"judge/{judge_accept.FIRST_PORTS['decisions']}",
+                 "answer_ties": f"judge/{judge_accept.FIRST_PORTS['answer_ties']}"}
+        judge = {**self.returned(self.judgment("judge/judgment.json", [])), **first}
+        again = {**self.returned(self.judgment("rejudge/judgment.json", []), "採る"), **first}
+        got = judged.judged(judge, again, "異議")
+        self.assertEqual({key: got[key] for key in first}, first)
+        self.assertEqual(line_nodes()["judged"]["with"]["judge_answer_ties"], "$fix-in.output.answer_ties")
 
     def test_unreadable_judgments_are_said(self):
         judge = self.returned({"type": "archon_artifact", "run_id": "another", "path": "judge/judgment.json"})
@@ -2725,14 +2736,14 @@ class RedepthCase(Artifacts):
         self.assertEqual([(row["unit_id"], row["depth"]) for row in got["depth"]], [("u1", "標準")])
 
     def test_line_passes_what_the_signals_read(self):
-        """L-D08・L-D10: redepth は判定の問いの台帳（判定と始めの記録と修正前の関所の答えと 1 回目の判定の結びと今の判定の素材の状態）と、
+        """L-D08・L-D10: redepth は判定の問いの台帳（判定と始めの記録と修正前の関所の答えと今の判定の結びと素材の状態）と、
         1 回目の判定の頭の深さの控えと、修正の計画と差分を受ける"""
         with_ = line_nodes()["redepth"]["with"]
         keys = ("judgment", "start", "answer", "answer_ties", "materials", "depth_record", "plan", "diff", "head_depth")
         self.assertEqual({k: with_[k] for k in keys},
                          {"judgment": "$judged.output.judgment", "start": "$start.output.record", "head_depth": "$fix-in.output.head_depth",
                           "answer": {"from": "$fix-in.output.answer", "if_skipped": None},
-                          "answer_ties": "$fix-in.output.answer_ties", "materials": "$judged.output.materials",
+                          "answer_ties": "$judged.output.answer_ties", "materials": "$judged.output.materials",
                           "depth_record": "$fix-in.output.depth_record",
                           "plan": "$fixed.output.plan", "diff": "$fixed.output.diff"})
         self.assertIn("counted", line_nodes()["redepth"]["output_format"]["required"])

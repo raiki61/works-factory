@@ -362,7 +362,7 @@ def asked_conflicts(pointers) -> tuple:
 def ledger(judgment, start, before_fix, ties=None, materials=None) -> tuple:
     """(問いの台帳の見え方（gatemarks.ledger_at）か None, 添える行)。判定の指し札の先（judgment.json の questions・units）と素材の状態の
     指し札 materials の先・始めの記録 start（start_doc で読んだ dict）の answers（依頼の答え）・修正前の関所の答え {decision, text, asked}・
-    判定の結びの指し札 ties の先（再審の判定には無いので、1 回目の判定の answer_ties）。結びの宛て先の key が今の問いにも単位にも無ければ
+    判定の結びの指し札 ties の先（judged の返りの answer_ties）。結びの宛て先の key が今の問いにも単位にも無ければ
     字の一致に落とし、そのことを添える行に 1 行出す（gatemarks.lost_ties）。判定が無い（null）時は None、読めなければ添える行に訳"""
     if judgment is None:
         return None, []

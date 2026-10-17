@@ -712,6 +712,7 @@ nodes:
         premises: {}
         materials: {}
         decisions: {}
+        answer_ties: {}
         rejudged: { type: boolean }
         rejudge_exit: {}
         new_open_units: { type: array }
@@ -719,7 +720,7 @@ nodes:
         unnamed_changed: { type: array }
         unread: { type: string }
         stop_reason: { type: string }
-      required: [units, judgment, purpose, world, rejudge_verdict, premises, materials, decisions, rejudged, rejudge_exit,
+      required: [units, judgment, purpose, world, rejudge_verdict, premises, materials, decisions, answer_ties, rejudged, rejudge_exit,
                  new_open_units, lowered, unnamed_changed, unread, stop_reason]
     mutates_checkout: false
     depends_on: [fixed, rejudge-run]
@@ -733,6 +734,7 @@ nodes:
       judge_premises: "$fix-in.output.premises"
       judge_materials: "$fix-in.output.materials"
       judge_decisions: "$fix-in.output.decisions"
+      judge_answer_ties: "$fix-in.output.answer_ties"
       rejudge: { from: "$rejudge-run.output", if_skipped: null }
       objection: "$fixed.output.objection"
 
@@ -762,7 +764,7 @@ nodes:
       judgment: "$judged.output.judgment"
       start: "$start.output.record"
       answer: { from: "$fix-in.output.answer", if_skipped: null }
-      answer_ties: "$fix-in.output.answer_ties"
+      answer_ties: "$judged.output.answer_ties"
       depth_record: "$fix-in.output.depth_record"
       materials: "$judged.output.materials"
       replanned: { from: "$after-fix.output.replan", if_skipped: null }
@@ -809,7 +811,7 @@ nodes:
       plan_questions: "$fixed.output.plan_questions"
       answers: "$fixed.output.answer"
       start_answers: "$answer-start.output.answer"
-      answer_ties: "$fix-in.output.answer_ties"
+      answer_ties: "$judged.output.answer_ties"
       materials: "$judged.output.materials"
       premises: "$judged.output.premises"
       decisions: "$judged.output.decisions"
@@ -875,7 +877,7 @@ nodes:
       rejudged: "$judged.output.rejudged"
       rejudge_exit: "$judged.output.rejudge_exit"
       first_judgment: "$fix-in.output.judgment"
-      answer_ties: "$fix-in.output.answer_ties"
+      answer_ties: "$judged.output.answer_ties"
       materials: "$judged.output.materials"
       first_units: "$fix-in.output.units"
       fix_units: "$fixed.output.units"

@@ -2831,7 +2831,7 @@ class VerdictPublicCase(unittest.TestCase):
 
 
 class VerdictPortsCase(unittest.TestCase):
-    """判定の置き場のファイルのうちほかのブロックが読む物は、返す節の欄（PORTS・PURPOSE_PORTS）のポインタで返す。先が無い欄は
+    """判定の置き場のファイルのうちほかのブロックが読む物は、返す節の欄（PORTS・FIRST_PORTS）のポインタで返す。先が無い欄は
     null（issue #680。判定の外が名を持たないことは tests/layers/test_block_paths.py の E4 の柵が縛る）"""
 
     def test_judge_returns_pointers_to_the_files_it_placed(self):
@@ -2839,35 +2839,37 @@ class VerdictPortsCase(unittest.TestCase):
             root = pathlib.Path(tmp)
             jdir, rdir = root / "judge", root / "rejudge"
             jdir.mkdir()
-            ja.write_json(jdir / ja.PORTS["answer_ties"], {"rounds": {"1": []}})
-            ja.write_json(jdir / ja.PURPOSE_PORTS["purpose_means"], {"means": ["x"]})
+            ja.write_json(jdir / ja.FIRST_PORTS["answer_ties"], {"rounds": {"1": []}})
+            ja.write_json(jdir / ja.FIRST_PORTS["purpose_means"], {"means": ["x"]})
             got = ja.verdict(jdir, rdir, root, "", lambda rel: rel)
             for name in ja.PUBLIC_FILES:
                 field = next(f for f, n in ja.PORTS.items() if n == name)
                 self.assertEqual(got[field], f"judge/{name}", field)
-            self.assertEqual((got["answer_ties"], got["purpose_means"]), (f"judge/{ja.PORTS['answer_ties']}", "judge/purpose-means.json"))
+            self.assertEqual((got["answer_ties"], got["purpose_means"]), (f"judge/{ja.FIRST_PORTS['answer_ties']}", "judge/purpose-means.json"))
             for field in ("review_lenses", "pr_drafts", "decisions", "rejudge_exit", "rejudge_diff", "world_state"):
                 self.assertIsNone(got[field], field)
 
     def test_rejudge_returns_its_own_place_and_the_exit(self):
-        """再審の欄は再審の置き場を指し（公開のファイルは 1 回目から写る）、1 回目の判定の道にだけ在るファイルの欄は null。
-        目的の控えの欄は目的の指し札と同じ 1 回目の置き場。出口が在れば rejudge_exit が指す"""
+        """再審の欄は再審の置き場を指し（公開のファイルは 1 回目から写る）、1 回目の判定でしか書かないファイルの欄（FIRST_PORTS）は
+        1 回目の置き場を指す（再審の後も目の記録された方針が決着済みの論点を落とさない）。出口が在れば rejudge_exit が指す"""
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             jdir, rdir = root / "judge", root / "rejudge"
             jdir.mkdir()
             rdir.mkdir()
-            ja.write_json(jdir / ja.PORTS["answer_ties"], {"rounds": {"1": []}})
-            ja.write_json(jdir / ja.PURPOSE_PORTS["purpose_means"], {"means": ["x"]})
+            for field in ja.FIRST_PORTS:
+                ja.write_json(jdir / ja.FIRST_PORTS[field], {})
             ja.write_json(rdir / ja.REJUDGE_EXIT, {"ok": True})
             got = ja.verdict(jdir, rdir, root, "異議", lambda rel: rel)
-            self.assertEqual((got["premises"], got["rejudge_exit"], got["answer_ties"], got["purpose_means"]),
-                             ("rejudge/premises.json", f"rejudge/{ja.REJUDGE_EXIT}", None, "judge/purpose-means.json"))
+            self.assertEqual((got["premises"], got["rejudge_exit"]), ("rejudge/premises.json", f"rejudge/{ja.REJUDGE_EXIT}"))
+            self.assertEqual({field: got[field] for field in ja.FIRST_PORTS},
+                             {field: f"judge/{name}" for field, name in ja.FIRST_PORTS.items()})
+            self.assertEqual(got["decisions"], f"judge/{ja.FIRST_PORTS['decisions']}")
 
     def test_fallback_names_every_port_as_null(self):
         with tempfile.TemporaryDirectory() as tmp:
             got = ja.verdict_fallback(pathlib.Path(tmp) / "judge", pathlib.Path(tmp) / "rejudge", "", lambda rel: rel)
-        self.assertEqual({f: got[f] for f in (*ja.PORTS, *ja.PURPOSE_PORTS)}, dict.fromkeys((*ja.PORTS, *ja.PURPOSE_PORTS)))
+        self.assertEqual({f: got[f] for f in (*ja.PORTS, *ja.FIRST_PORTS)}, dict.fromkeys((*ja.PORTS, *ja.FIRST_PORTS)))
 
 
 class PublicFileReadersCase(unittest.TestCase):

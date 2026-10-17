@@ -229,7 +229,7 @@ class JudgeNamesTest(unittest.TestCase):
 
     def test_names_come_from_the_judge_ports(self):
         import judge_accept
-        self.assertEqual(scan.judge_port_files(), {*judge_accept.PORTS.values(), *judge_accept.PURPOSE_PORTS.values()})
+        self.assertEqual(scan.judge_port_files(), {*judge_accept.PORTS.values(), *judge_accept.FIRST_PORTS.values()})
         self.assertIn("materials.json", scan.judge_port_files())
 
     def test_every_port_file_has_a_home(self):

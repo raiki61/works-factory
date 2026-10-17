@@ -189,8 +189,9 @@ def _port(returns: dict, rid: str, field: str) -> pathlib.Path | None:
 
 
 def _first_port(returns: dict, field: str) -> pathlib.Path | None:
-    """1 回目の判定（judge の差し込み）の返りの欄 field の指し札の先。世界の解・局所レビュー・並行 PR・結びの控えは判定の道にだけ在り、
-    再審の判定の返りでは null（docs/design.md の「judge の出力」）。無ければ None"""
+    """1 回目の判定（judge の差し込み）の返りの欄 field の指し札の先。1 回目にしか無い控え（judge_accept.FIRST_PORTS）は再審の返りも
+    同じ先を指すが、再審が思わぬ誤りで落ちた返りは null なので 1 回目の返りから読む。頭の深さの控えも 1 回目の判定が決めた物を読む。
+    無ければ None"""
     p = as_dict(returns.get("judge")).get(field)
     return pathlib.Path(p) if isinstance(p, str) and p else None
 

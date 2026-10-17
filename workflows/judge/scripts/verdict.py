@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 
 
-# lib/judge_accept.PORTS・PURPOSE_PORTS の欄（lib を読めない時に null で返す。名の照らしは tests/workflows/test_judge.py）
-PORTS = ("premises", "verify", "pr_excluded", "materials", "purpose_review", "depth_record", "decisions", "answer_ties",
-         "review_lenses", "pr_drafts", "rejudge_exit", "rejudge_diff", "purpose_means", "world_state")
+# lib/judge_accept.PORTS・FIRST_PORTS の欄（lib を読めない時に null で返す。名の照らしは tests/workflows/test_judge.py）
+PORTS = ("premises", "verify", "pr_excluded", "materials", "purpose_review", "depth_record", "rejudge_exit", "rejudge_diff",
+         "purpose_means", "world_state", "decisions", "answer_ties", "review_lenses", "pr_drafts")
 
 
 def fallen(objection: str) -> dict:
