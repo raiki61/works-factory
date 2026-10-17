@@ -149,11 +149,14 @@
 ### P10 周をまたいで同じ役の会話を続けられない
 
 - 穴: 周をまたいで、同じ役の AI の会話を続けられない。当たるのは 3 つの場合: `include` したサブグラフをまたぐ時、別の run（周の鎖）をまたぐ時、ループの前に同じ役の AI のノードが無いループの中で、別の役のノードを挟む時。前の周の自分が読んだ所も考えも次の周の自分に届かないので、周ごとに新しい会話で起きる役には、書き置き（引き継ぎのメモ）で渡す。
-- 証拠: 止めた Archon（`355f1867`）の文書。`packages/docs-web/src/content/docs/guides/authoring-workflows.md` 1171 行（CLI の `archon workflow run` は会話を持たずに起きるので、`persist_session` のノードは毎回新しい会話）と 1201 行（`loop_group` に run をまたぐ持続は配線されていない）。同 288 行と `guides/loop-nodes.md` 783-813 行（ループの中で続けられるのは、ループの前の `command:`・`prompt:` のノードを名指した時だけ）。後ろの 2 つの源の字は `tests/shared/test_archon_contract.py` の `ARCHON_ROWS` の行 `名指しの続き context: resume` が縛る。
+- 証拠: 後ろの 2 つの引用の振る舞いは、`tests/shared/test_archon_contract.py` の `ARCHON_ROWS` の行 `名指しの続き context: resume` が `packages/workflows/src/loader.ts` の字でも縛る。
+  - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「`archon workflow run` starts a run without a conversation, so its `persist_session` nodes start fresh on every invocation」「Cross-run persistence isn't wired for them in this release」「Inside a `loop_group` body, the source must complete before entry into the group」（CLI の別の run は毎回新しい会話で、`loop_group` に run をまたぐ持続は無く、ループの中で続けられるのはループの前のノードだけ）
+  - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「A command or prompt in the body can continue a statically named pre-loop session」（ループの中で続けられるのは、ループの前の `command:`・`prompt:` のノードを名指した時だけ）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない。後の 35 commit に、周をまたいで同じ役の会話を続けられるようにする物は無い。
 - 埋め: `lib/handoff.py`。引き継ぎのメモの型・頼み・前の周のノードに貼るセクション・控えを置く。
 - 使うサブグラフ: plan・report
 - 外す条件: 場合に分ける。
-  - 計画（plan）: `include` をまたぐか、CLI の別の run で同じノードの会話を続けられる版が出たら。外す前に、`docs/owner-decisions.md` の「計画の往復の周をまたぐ書き直し（#571。2026-10-15）」の行（前の周の会話を続けず新しい会話で始めると持ち主が選んだ）と、同じ文書の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の行の訳（`d97d00ef` の `authoring-workflows.md` 285 行に頼っていて、`355f1867` の 288 行とはもう合わない）を持ち主に戻す。`docs/owner-decisions.md` はこの名簿からは書き換えない。
+  - 計画（plan）: `include` をまたぐか、CLI の別の run で同じノードの会話を続けられる版が出たら。外す前に、`docs/owner-decisions.md` の「計画の往復の周をまたぐ書き直し（#571。2026-10-15）」の行（前の周の会話を続けず新しい会話で始めると持ち主が選んだ）と、同じ文書の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の行の訳（`d97d00ef` の `authoring-workflows.md` の「Addressable resume is not supported inside `loop_group` bodies」に頼っていて、`355f1867` の同じ所の「Inside a `loop_group` body, the source must complete before entry into the group」とはもう合わない）を持ち主に戻す。`docs/owner-decisions.md` はこの名簿からは書き換えない。
   - 報告（report）の `write-loop`: `355f1867` では、ループの前に書き手の AI のノードを置けば（今の `write-loop` の前は `facts` の script だけ）書き手の会話をループの中で続けられるので、既に外せる候補。作り直し（`write-loop` を名指しの持ち主の会話に替えて報告の引き継ぎのメモを外すか）は #671 で確かめる。
 - 外す手順: 外す条件を満たしたら次を全部消し、役の会話を続ける形に替える。`lib/handoff.py` を import する物の全部（`grep -rn "import handoff" lib workflows tests`）も、取りこぼしの入口にする。
   - `lib/handoff.py` の全体。
