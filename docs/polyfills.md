@@ -4,6 +4,8 @@
 - 埋め（polyfill）: Archon（止めた Archon（`docs/design.md` の「語」））に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
 - `workflows/.shared/` と `bin/_lib/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の `- 埋め:` の行の頭の欄が名指す物のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。行の説明の文にだけ名が出る部品は数えない。
 - 頭の欄は `- 埋め:` の直後に、部品のパスを `、` 区切りで並べる（予定ならパスの直後に「（予定）」）。欄は「（予定）」と `、` 以外の最初の字で終わる。部品を持たない埋め（値の埋め・YAML の型の埋め）は、頭が文で始まり欄は空。埋めの一部は入口 `bin/` に置く物もある。それも頭の欄に書く。
+- 証拠の在り処は、止めた Archon（`factory/pack.json` の `integration_revision_required`）の源のファイルと、そのファイルで探せる引用で書く。行番号は版で動くので書かない。`- 証拠:` の下の字下げした行は 1 行に 1 つのファイルで、頭にファイルのパスを置き、その行の「」の中の字はどれもそのファイルに字のまま在る（試験 `tests/layers/test_polyfill_evidence.py` が照らす）。行の説明に「」を使わない。
+- 各行の `- 上流（<止めた版の頭 8 字> の後の dev（<日付> まで））:` に、止めた版より後の upstream の dev で穴が塞がったかの確かめの結果を書く。版を上げたら書き直す（頭の 8 字が止めた版と違うと試験が赤）。
 - 埋めや回り道を出す前に、upstream の Archon と ASF の、止めた版より後の commit で、その穴が塞がっていないかを確かめる（塞がっていれば、埋めを作らずに版を上げる方で足りる）。
 - Archon の新しい版で穴が塞がったら、外す条件を確かめて埋めを消し、行を「外した」のセクションへ移して `- 埋め:` の頭を `- 外した埋め:` に書き換える（`- 埋め:` の行に消したファイルの名が残ると、名簿の古びとして赤になる）。
 
@@ -12,7 +14,9 @@
 ```
 ### P<番号> <穴の短い名>
 - 穴: Archon でできないこと（1〜2 文）
-- 証拠: 止めた版の Archon の文書かソースの引用と在り処
+- 証拠: （引用で足りない説明が要る時だけ、ここに文）
+  - `<止めた Archon の源のパス>` の「<そのファイルに字のまま在る引用>」（説明）
+- 上流（`<止めた版の頭 8 字>` の後の dev（<日付> まで））: 塞がったか
 - 埋め: `<パス>`、`<パス>`（予定）。何を置くか
 - 使うサブグラフ: 
 - 外す条件: Archon のどの振る舞いが入ったら消せるか
@@ -30,7 +34,11 @@
 ### P1 持ち主が居なくなった running の run を再開できない
 
 - 穴: Archon を動かしていた process が落ちると、run は `running` のまま残り、`resume` できない。
-- 証拠: `packages/core/src/operations/workflow-operations.ts` 948 行の文「Cannot resume run with status 'running'. Only failed or paused runs can be resumed.」（再開できるのは `failed`・`paused` だけ。`schemas/workflow-run.ts` 164-167 行）。cancel は、走らせている process が答えない時（`no_owner_answered`）に「If its process is gone, abandon the run to release it.」と abandon を案内する（同じファイル 1250-1251 行）。
+- 証拠:
+  - `packages/core/src/operations/workflow-operations.ts` の「Only failed or paused runs can be resumed.」（`resumeWorkflow` が、再開できる status の一覧に無い run を拒む）
+  - `packages/workflows/src/schemas/workflow-run.ts` の「export const RESUMABLE_WORKFLOW_STATUSES」（再開できるのは `failed`・`paused` だけ）
+  - `packages/core/src/operations/workflow-operations.ts` の「If its process is gone, abandon the run to release it.」（cancel は、走らせている process が答えない時〔`no_owner_answered`〕に abandon を案内する）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（証拠の字と、その辺りの振る舞いは変わっていない）。
 - 範囲: 長い待ち（CI・人の答え）は Archon の `wait:` のノードと承認ノードで書く。Archon 0.10.0 から待ちは持ちこたえる（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」。server が期限の来た run を再開する）。だからこの穴に当たるのは、ノードを走らせている途中で process が落ちた run だけ。
 - 埋め: `bin/apply`、`bin/_lib/apply.py`（`bin/apply` の中身は `bin/_lib/apply.py`。#101。続けられない run の差分を取り出して対象に当てる。今の works の apply と同じ能力）。Archon の命令だけでは足りない: 下の実測のとおり `abandon` は書きかけごと作業ツリーを消し、`--adopt` は最初のノードからやり直すので、持ち主の決め `carry`（止まった run の差分も捨てない。`docs/owner-decisions.md`）を満たさない。手放しと続きの起こしは止めた Archon の命令をそのまま打つ（入口に別名を作らない。持ち主の決め `one-launcher`）。
   - 足りない残り: ノードの途中で持ち主が落ちた run の、commit していない書きかけ。`bin/apply` は終わっていない run（`terminal_record` が null。手放す前の `running`）を拒み、手放した後は作業ツリーが消えている（commit 済みの物は残った枝に在る）。だから今は、手放す前に人が `workflow get <run> --json` の `working_path` で作業ツリーの変更（新しいファイルを含む）を取り出しておく。
@@ -57,7 +65,10 @@
 ### P2 include の入力に if_skipped を通せない
 
 - 穴: メイングラフがサブグラフを `include:` で呼ぶ時、`with:` に `{from, if_skipped}` の束ねを書いても、飛ばされた前のノードの代わりの値がサブグラフの中まで運ばれない。
-- 証拠: 止めた Archon の `packages/workflows/src/schemas/dag-node.ts` 270-282 行（束ね `{from, if_skipped}` は `command:`・`script:` の `with:` だけの形で、「Include/workflow `with:` maps have no directive, so objects there stay ordinary JSON literals.」）と、`packages/workflows/src/include-expander.ts` 619 行（include の展開は `binding.if_skipped` の欄を置き換えずにそのまま残す。`if (slot.surface === 'binding_from' || slot.name === 'binding.if_skipped') return slot.value;`）。書いた束ねは黙って JSON の値として渡り、書けたように見えて効かない。
+- 証拠: 書いた束ねは黙って JSON の値として渡り、書けたように見えて効かない。
+  - `packages/workflows/src/schemas/dag-node.ts` の「Include/workflow `with:` maps have no directive, so」「objects there stay ordinary JSON literals.」（束ね `{from, if_skipped}` は `command:`・`script:` の `with:` だけの形）
+  - `packages/workflows/src/include-expander.ts` の「if (slot.surface === 'binding_from' || slot.name === 'binding.if_skipped') return slot.value;」（include の展開は `binding.if_skipped` の欄を置き換えずにそのまま残す）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（証拠の字と、その辺りの振る舞いは変わっていない）。
 - 埋め: `workflows/.shared/skip_value.py`。メイングラフの中継のノードが使う。飛ばされうる値を、メイングラフの `script:` のノードの `with:` で欄ごとに `{from: "$<ノード>.output.<欄>", if_skipped: null}` で受け、明示の値で返し直す。サブグラフにはそのノードの出力を渡す。P2 のために在る中継のノードは `workflows/line/works-factory-line.yaml` の `answer-*`（承認ノードの答えを fix・merge に渡す）と `collect`（全部の出力を report に渡す）だけ。Archon が `INPUTS_<名>` に渡した字を値に戻す部品は `workflows/.shared/skip_value.py`。
 - 使うサブグラフ: メイングラフ
 - 外す条件: include の `with:` に書いた `if_skipped` が子の中まで効く版が出たら
@@ -65,7 +76,10 @@
 ### P3 --workflow-source が任意のフォルダを読まない
 
 - 穴: `--workflow-source <dir>` は `<dir>/.archon/workflows/` しか読まない。自分のグラフのフォルダ（リポジトリの `workflows/`）を直に渡せない。
-- 証拠: 止めた Archon の `packages/cli/src/cli.ts` 805-825 行と `packages/paths/src/archon-paths.ts` 378 行。
+- 証拠:
+  - `packages/cli/src/cli.ts` の「discoveryCwd: workflowSource,」「Point it at the checkout holding .archon/workflows/.」（`--workflow-source` は探す木の根を替えるだけ）
+  - `packages/paths/src/archon-paths.ts` の「return ['.archon/workflows'];」（`getWorkflowFolderSearchPaths`。根の下で探すのは `.archon/workflows` だけ）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（証拠の字と、その辺りの振る舞いは変わっていない）。
 - 埋め: `bin/_lib/place.py` の `workflow_source`。キャッシュの中に置き場を作り、その `.archon/workflows/works-factory`（pack の形。名は `pack.json` の `ours.pack`）からリポジトリの `workflows/` へ symlink を張る。
 - 使うサブグラフ: メイングラフ（入口）
 - 外す条件: `--workflow-source` に任意のフォルダを渡して、その中のグラフを読める版が出たら
@@ -73,7 +87,9 @@
 ### P4 読んだ・書いた証拠のフックをノードに付けられない
 
 - 穴: ノードの hooks: は固定の返事だけで、役が読んだ・書いたファイルの記録を残せない。
-- 証拠: 止めた Archon の packages/docs-web/src/content/docs/guides/hooks.md 59-77 行「YAML hooks: are deliberately static」と 64-70 行の表（中身を見るフックは Claude の設定に置く）。
+- 証拠:
+  - `packages/docs-web/src/content/docs/guides/hooks.md` の「YAML `hooks:` are deliberately static.」と、表「Choosing where hook logic lives」の行「Logic that inspects the hook input at runtime」（中身を見るフックは Claude の設定に置く）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（証拠の字と、その辺りの振る舞いは変わっていない）。
 - 埋め: `bin/_lib/record-read.py`、`bin/_lib/record-write.py`、`bin/_lib/toolset.py`。record-read.py は Read と、Agent・WebFetch・WebSearch を path の無い行で、record-write.py は Edit・Write・NotebookEdit の書いた記録を残す。toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
 - 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）
 - 外す条件: ノードの hooks: が command の種類を受け、入力を見て書ける版が出たら
@@ -81,7 +97,11 @@
 ### P5 役の sandbox に起動ごとの値を渡せない
 
 - 穴: ノードの `sandbox` は YAML の固定の値のまま SDK に渡るので、run ごとに違うパス（cwd・共通の `.git`・対象の本体の作業ツリー・`worktree.path` で置き場を替えた worktree）を読むだけの役の `denyWrite` に名指せない。固定の値 `~/../archon-home`（`tests/layers/scan.py` の `NO_TREE_WRITE`）は Archon の家の下しか塞がない。
-- 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` 1847 行（`sandbox: node.sandbox ?? workflowLevelOptions.sandbox`。同じ関数で `systemPrompt` などは `resolveAiText` で置き換えるが、`sandbox` は置き換えない）と `packages/providers/src/claude/provider.ts` 801-803 行（`options.sandbox = nodeConfig.sandbox`）。起こす claude の実行ファイルは `packages/providers/src/claude/binary-resolver.ts` 172-178 行が環境変数 `CLAUDE_BIN_PATH` から読む（dev mode でも読む）。実測は issue #306（固定の値でも symlink の綴りでも、共有の `.git` と対象の本体の作業ツリーに書けた）。
+- 証拠: 実測は issue #306（固定の値でも symlink の綴りでも、共有の `.git` と対象の本体の作業ツリーに書けた）。
+  - `packages/workflows/src/dag-executor.ts` の「sandbox: node.sandbox ?? workflowLevelOptions.sandbox,」（同じ関数で `systemPrompt` などは `resolveAiText` で置き換えるが、`sandbox` は置き換えない）
+  - `packages/providers/src/claude/provider.ts` の「options.sandbox = nodeConfig.sandbox as Options['sandbox'];」
+  - `packages/providers/src/claude/binary-resolver.ts` の「const envPath = process.env.CLAUDE_BIN_PATH;」「honored in both modes」（起こす claude の実行ファイルを環境変数 `CLAUDE_BIN_PATH` から読む。dev mode でも読む）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（証拠の字と、その辺りの振る舞いは変わっていない）。
 - 埋め: `workflows/.shared/fence.py`、`bin/_lib/launcher.py`。起動の殻（`bin/_lib/launcher.py` の `write_fence`）が、Archon を走らせる命令の時だけ包みの殻を書いて子の `CLAUDE_BIN_PATH` をそこへ向ける。包みは SDK が渡す `--settings` の `sandbox.filesystem.denyWrite` に固定の値（印）が在る起動だけ、起こす直前に cwd から組んだ一覧（cwd・`git rev-parse --git-common-dir`・`git worktree list` の全部の根・Archon の家・Claude の設定・殻が書いた口・後の役の起動と次の起動が sandbox の外で走らせる物〔それを起こす Python・本物の claude・取り置いた Archon の源・工場の checkout の根の全体（包み・版の止め、`bin/works-factory` が import の先頭に置く根の `.py` を含む）〕）を足して本物の claude を起こす。印の無い起動は argv を変えない。`--settings` が JSON の object でない起動は止める。形は包み `claude-adapter`（旗 `no-tree-write`）。試験は `tests/shared/test_fence.py`（本物の claude で書き込みが止まることも見る）。
   - 写した元（台帳）: 一覧の組み方 `_git`・`protected_paths` は、今の works（`raiki61/claude-plugins` の commit `2aa7c66cf7abe1fe09699ac2942d107123214168`）の `graphloops/engine/role_run.py` 141-172 行をそのまま写した。それを縛る元の試験（`graphloops/tests/simulate.py` の `test_tooled_launch_fence` の守る場所の 2 つの check と、`graphloops/tests/py/test_role_run_stop.py` の `test_protected_paths_is_undecided_when_git_answers_partly`）は `tests/shared/test_fence.py` の `ProtectedPathsCopiedTest` に写した。同じ元の `tooled_permission`（sandbox の形と道具の許しを組む）は写さない。ここでは役の sandbox の形と道具を YAML が持ち、層の柵 `tests/layers/scan.py` が縛る。
   - 起こす場所の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env`（`archon setup` の既定の書き先）が `CLAUDE_BIN_PATH` を名指すと、Archon はその値で包みを置き換えるか消す（`packages/paths/src/strip-cwd-env.ts`・`packages/paths/src/env-loader.ts` の `loadArchonEnv`）。起動の殻はその時 Archon を起こさずに止める。同じファイルが `WORKS_FACTORY_FENCE_RECORDS`（下の宣言）を名指しても止める。
@@ -94,7 +114,10 @@
 ### P6 親が子の run のポインタを読めない
 
 - 穴: `workflow:` のノードが起こした子の run の出力のポインタ（`{type: archon_artifact, run_id, path}`）を、親の run の script が読む口が無い。境の口 `workflows/.shared/boundary.py` の `resolve` は自分の run のポインタしか読まない。
-- 証拠: 止めた Archon の `packages/workflows/src/artifact-pointer.ts` 1-33 行（「A pointer naming any other run is rejected — a result may only point at its own run's artifacts today.」と、読む側は「a future in-workflow resolver」で、読む時に symlink を辿った照らしは「not yet implemented」）。run の置き場は `packages/paths/src/archon-paths.ts` の `getRunArtifactsDirForRoot` の `<artifactsRoot>/runs/<run の id>` で、子と親は同じ `runs/` の下に兄弟で並ぶ。
+- 証拠:
+  - `packages/workflows/src/artifact-pointer.ts` の「A pointer naming any other run is rejected — a result may only point」（読む側は「in-workflow resolver, the terminal run record」で、読む時に symlink を辿った照らしは「not yet implemented (#3160)」）
+  - `packages/paths/src/archon-paths.ts` の「return join(getStoragePathsForRoot(root).artifactsRoot, 'runs', workflowRunId);」（`getRunArtifactsDirForRoot`。子と親は同じ `runs/` の下に兄弟で並ぶ）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（証拠の字と、その辺りの振る舞いは変わっていない）。
 - 埋め: `workflows/.shared/child_pointer.py`。自分の置き場（`ARTIFACTS_DIR`）の隣の `<run_id>` を子の置き場とし、札の形・run の id の形（空・`..`・`/` を拒む）・相対のパスを照らして、symlink を辿った先が子の置き場の中に在ることを確かめてから返す。試験は `tests/shared/test_child_pointer.py`。
 - 使うサブグラフ: 周の鎖（`workflows/chain/works-factory-chain.yaml` の `round-k-facts`）
 - 外す条件: Archon の run の中から、ほかの run のポインタを読む口が入ったら
@@ -102,7 +125,9 @@
 ### P7 fan_out の子の作業ツリーが子の終わりで消えない
 
 - 穴: `fan_out:` の子の run が作った作業ツリーと枝は、子が終わっても残る。
-- 証拠: 止めた Archon の `packages/docs-web/src/content/docs/guides/authoring-workflows.md` 2087 行「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）。
+- 証拠:
+  - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 一部が動いた。upstream の #4328（`8c741d891`）で、終わった（`completed`）run は自分で作った作業ツリーを、変更が無く commit が全部 remote に在り枝を公開していない時だけ外す（枝は残す）。fix の子は push しないので、子の作業ツリーはたぶん残る（実測はまだ）。証拠の文は dev でも同じ。
 - 埋め: `bin/_lib/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。
 - 使うサブグラフ: メイングラフ（入口）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
@@ -110,7 +135,9 @@
 ### P9 鍵を書かないノードにも既定の期限が当たる
 
 - 穴: `timeout` を書かない `script:`・`bash:` のノードにも、Archon が既定の期限で打ち切りを当てる。
-- 証拠: 止めた Archon の `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Default: `120000` (2 min)」。
+- 証拠:
+  - `packages/docs-web/src/content/docs/guides/script-nodes.md` の「Hard kill after this many milliseconds. Default: `120000` (2 min)」（`timeout` の欄）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない。upstream の #4307（`7c287f52e`）で期限の来たノードの process の木ごと止めるようになったが、既定の期限は同じ 2 分。
 - 埋め: 期限を持つノードの鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。
 - 使うサブグラフ: 全部
 - 外す条件: グラフの既定で期限を無しにできる版が出たら
@@ -122,8 +149,10 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 ### P8 落ちたノードの出力を受け直せない
 
 - 穴: 落ちたノードの出力は `{from, if_skipped}` でも読めず、読んだノードも落ちる。
-- 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` の `resolveBindingDirective`（落ちた producer を `assertProducerNotFailed` で止め、「A binding never falls back to 'if_skipped' for a failed producer」）。
-- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`。置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。
+- 証拠:
+  - `packages/workflows/src/dag-executor.ts` の「A binding never falls back to 'if_skipped' for a failed producer」（`resolveBindingDirective` が、落ちた producer を `assertProducerNotFailed` で止める）
+- 上流（`355f1867` の後の dev（2026-10-17 まで））: 塞がっていない（証拠の字と、その辺りの振る舞いは変わっていない）。
+- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。
 - 使うサブグラフ: メイングラフ・fix
 - 外す条件: 見込みは無い（Archon が落ちたノードの出力を `if_skipped` に落とさないと決めている。上の証拠の文）。決めが変わって落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
 
