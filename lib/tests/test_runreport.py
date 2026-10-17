@@ -1981,9 +1981,9 @@ class LinesCase(Base):
     def test_head_depth_line_names_what_the_tier_added(self):
         """判定の depth が重厚の run の入口の節に、段の名・根拠と「足した物: judge_verify・review_tree」が出る。features_off で切った
         機能には名指しで切ったと添える"""
-        judge = {**fixed_run()["judge"], "depth": "重厚", "depth_why": "設計の選びが要る"}
+        judge = {**fixed_run()["judge"], "depth": "重厚", "depth_why": "公開の約束を変える"}
         _, text, _ = self.build(fixed_run(judge=judge))
-        self.assertIn("- run の頭の深さ: 重厚（根拠: 設計の選びが要る）／省く物: 無い／足した物: judge_verify・review_tree\n",
+        self.assertIn("- run の頭の深さ: 重厚（根拠: 公開の約束を変える）／省く物: 無い／足した物: judge_verify・review_tree\n",
                       self.section(text, report.ENTRY_HEADING))
         start = {"run_id": RUN, "features_off": ["judge_verify"], "features_on": []}
         _, text, _ = self.build(fixed_run(judge=judge), start=start)
@@ -1992,7 +1992,7 @@ class LinesCase(Base):
     def test_heavy_entry_line_says_the_added_features_on(self):
         """判定の depth が重厚で features を名指していない run の入口の「段: …・機能: …」の行に、judge_verify off と review_tree auto が
         出ない。標準の run は今の既定のまま。名指しで切った機能は off のまま"""
-        heavy = {**fixed_run()["judge"], "depth": "重厚", "depth_why": "設計の選びが要る"}
+        heavy = {**fixed_run()["judge"], "depth": "重厚", "depth_why": "公開の約束を変える"}
         start = {"run_id": RUN, "features_off": [], "features_on": []}
         _, text, _ = self.build(fixed_run(judge=heavy), start=start)
         entry = self.section(text, report.ENTRY_HEADING)
