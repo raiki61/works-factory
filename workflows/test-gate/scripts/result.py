@@ -143,7 +143,8 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
         red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
                                                  junit_steps=run["junit_steps"], junit_unran=run["junit_unran"])
     ok, why = green_cert.certify(mode=mode, material_status=status, green=green, before=run["fingerprint_before"],
-                                 after=run["fingerprint_after"], now=now, self_reported=role)
+                                 after=run["fingerprint_after"], now=now, self_reported=role,
+                                 material_reason=(material or {}).get("reason"))
     out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause,
            "ran_steps": role_systems(material) if role else green_cert.ran_steps(run["runs"], run["junit_unran"]), "baseline": None, "fingerprint": None, "test_outcomes": rows}
     if mode == "base":
