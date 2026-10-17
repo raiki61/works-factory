@@ -1106,8 +1106,8 @@ def _plan_questions(returns: dict, gates: dict, start: dict) -> tuple[list, list
 
 def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, beside: dict, exit_: tuple,
                repo=None, line: dict | None = None) -> tuple[list, list]:
-    """人が決めることの節の行と、人が決める物 [(種, 1 件の文)]（冒頭が 1 件 1 行に並べる。保留の問いの文は台帳の選択肢を尾に持つ）。
-    数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは直す義務に戻せなかった単位の行を重ねて数えない。closed は
+    """人が決めることの節の行と、人が決める物 [(種, 1 件の文)]（冒頭が 1 件 1 行に並べる。問いの文だけが、保留の問いは台帳の選択肢を、
+    判定の役が推しを書いていなければ NO_PUSH を尾に持つ。確かめ直しで戻した組・戻せず当たったままの組も 1 組 1 件）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは直す義務に戻せなかった単位の行を重ねて数えない。closed は
     途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs, plan_done = _plan_questions(returns, gates, start)
     eye_qs = oc.eye_questions(returns)
@@ -1128,20 +1128,25 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
     spec_head = gatemarks.spec_words(spec_unchecked_of(line)).head
-    parts = [(spec_head, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
-             ("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs),
+    questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_)]
+    parts = [("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs),
              ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate), (report.CHECKS_LEFT, checks),
              ("直しきれずに残った物", rest), ("記録が通らないこと", [outcome] if outcome == "record_invalid" else [])]
-    lines, asks = [], []
-    for word, items in parts:
+    lines, asks = [], [(head, x.removeprefix(f"{head}: ")) for head, rows in ((UNRESTORED_GROUP_HEAD, unrestored_lines(returns)),
+                                                                             (BACKED_OUT_HEAD, backed_out_lines(returns)))
+                       for x in rows if x.startswith(f"{head}: ")]
+    for n, (word, items) in enumerate([*questions, *parts]):
         if not items:
             continue
         lines.append(f"{word}: {len(items)} 件")
         for x in items:
-            text = x if isinstance(x, str) else (f"{x.get('where')}: {x.get('text')}" if "where" in x else json.dumps(x, ensure_ascii=False))
-            lines.append(f"  - {oneline.one_line(text)}")
-            asks.append((word, oneline.one_line(text) + (choices.get(x, "") if isinstance(x, str) else "")))
+            text = oneline.one_line(_item_said(x))
+            lines.append(f"  - {text}")
+            if n < len(questions):
+                text += choices.get(x, "") if isinstance(x, str) else ""
+                text += "" if gatemarks.PUSH_IN.search(text) else f"——{gatemarks.PUSH}{gatemarks.NO_PUSH}"
+            asks.append((word, text))
     if held_:
         lines.append(f"  {gatemarks.ANSWER_HOW}")
     if done:
@@ -1173,6 +1178,22 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     return lines + _gate_passes(returns) + _converge_lines(returns) + _amend_lines(returns, gates, line, closed) + _line_lines(line), asks
 
 
+def _item_said(x) -> str:
+    """人が決める物の 1 件の文: 字はそのまま、行の where と text・直す義務に戻せなかった単位の id と訳・前提の検算の判定と訳・
+    人に回した申し出の単位と裁定の文"""
+    if isinstance(x, str):
+        return x
+    if "where" in x:
+        return f"{x.get('where')}: {x.get('text')}"
+    if "unit_id" in x:
+        return f"単位 {x.get('unit_id')}: {x.get('reason') or '訳の記録が無い'}"
+    if "verdict" in x:
+        return f"検算の判定 {x.get('verdict')}: {x.get('reason') or '訳の記録が無い'}"
+    if "unit_key" in x:
+        return f"単位 {x.get('unit_key')}: {as_dict(x.get(conflict.RULING)).get('text') or x.get(conflict.WHY_FIELD) or '訳の記録が無い'}"
+    return json.dumps(x, ensure_ascii=False)
+
+
 def _choices(q) -> str:
     """台帳の問いの選択肢の尾（判定の役が書いた options。無ければ空）"""
     opts = [str(o) for o in _list(as_dict(q).get("options")) if str(o).strip()]
@@ -1181,13 +1202,12 @@ def _choices(q) -> str:
 
 def head_lines(happened: str, apply: str, asks: list, other: str) -> list:
     """報告の冒頭（機械が組む）: 起きたこと・差分を当ててよいか・人が決めること（件数と種ごとの内訳）の 3 行と、その下に人が決める物を
-    1 件 1 行（推しは判定の役が書いた物だけ。文に無ければ NO_PUSH を尾に）。決める物が無ければ 3 行目に other（次に大事な事実）を置く
+    1 件 1 行（_decisions が組んだ文のまま）。決める物が無ければ 3 行目に other（次に大事な事実）を置く
     （「無い」と断る決まり文句は書かない）"""
     counted = list(dict.fromkeys(w for w, _ in asks))
     decide = (DECIDE_HEAD + f"{len(asks)} 件——" + "・".join(f"{w} {sum(1 for x, _ in asks if x == w)} 件" for w in counted)
               + f"（1 件ずつ下の行。詳しくは見出しに「{report_roles.DECISIONS_HEAD}」を持つセクション）" if asks else other)
-    items = [f"- {w}: {text}" + ("" if gatemarks.PUSH_IN.search(text) else f"——{gatemarks.PUSH}{gatemarks.NO_PUSH}")
-             for w, text in asks]
+    items = [f"- {w}: {text}" for w, text in asks]
     return [gatemarks.HAPPENED + happened, APPLY_ASK + apply, decide, *items]
 
 

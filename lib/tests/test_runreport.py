@@ -667,10 +667,36 @@ class DecisionsCase(Base):
         head = text.splitlines()[2]
         self.assertIn(f"{runreport.BACKED_OUT_HEAD}: 組 g2", head)
         self.assertNotIn(f"{runreport.BACKED_OUT_HEAD}: 組 g3", head)
+        self.assertIn(f"{runreport.BACKED_OUT_HEAD} 1 件", text.splitlines()[4], "#660: 戻した組は冒頭の件数に入る")
+        self.assertIn(f"- {runreport.BACKED_OUT_HEAD}: 組 g2（単位 B）。戻したパス b.py・e.py", text.splitlines()[5:])
         body = self.section(text, report.DECISIONS_HEADING).splitlines()
         self.assertEqual(body[:3], [f"- {runreport.BACKED_OUT_HEAD}: 組 g2（単位 B）。戻したパス b.py・e.py",
                                     "  - 赤: 意味の食い違い: test_triple が赤",
                                     "  - 合わせの結果: 合わせ役が直していない。ほかの組は 1 組を当てたまま、外した単位 B は次の run の依頼に回した"])
+
+    def test_backed_out_group_reaches_the_human_report_past_the_cut(self):
+        """#660: 戻した組と当たったままの組は 1 組 1 件で人が決めることに数え、書き手の頭が切られても人に向けた報告の冒頭に残る。
+        行の上限もその件を数える"""
+        groups = [{"group_id": "g1", "unit_ids": ["A"], "returned": False, "reason": "赤", "backed_out": ["a.py"]},
+                  {"group_id": "g2", "unit_ids": ["B"], "returned": False, "reason": fixboard.UNRESTORED_HEAD, "unrestored": ["b.py"]}]
+        _, machine, _ = self.build(fixed_run(fix={**fixed_run()["fix"], "groups": groups, "units": []}))
+        long = "\n".join(["要約。", "", "## 1. 人が決めること", "", *[f"- 行 {i}" for i in range(200)]])
+        runreport.accept(json.dumps({"text": long, "terms": []}, ensure_ascii=False), AcceptCase.PASS, out_dir=self.out)
+        human = runreport.collect(machine, out_dir=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(human[4].startswith(runreport.DECIDE_HEAD + "2 件——"), human[4])
+        self.assertTrue(human[5].startswith("- 戻せず親の作業ツリーに当たったままの組"), human[5])
+        self.assertTrue(human[6].startswith("- 当ててから確かめ直しが赤か落ちて戻した組: 組 g1"), human[6])
+        self.assertLessEqual(len(human), runreport.line_budget(2))
+
+    def test_unit_and_premise_items_are_plain_lines(self):
+        """#660: 直す義務に戻せなかった単位と前提の検算が人に上げた物は、冒頭の 1 件 1 行で JSON でなく id・判定と訳の 1 文"""
+        fix = {**fixed_run()["fix"], "units": [{"unit_id": "u9", "group_id": "g1", "status": fixboard.NOT_DONE, "reason": "赤のまま"}]}
+        eyes = {**fixed_run()["eyes"], "premise_check": {"verdict": "escalate", "reason": "仮定が偽"}}
+        _, text, _ = self.build(fixed_run(fix=fix, eyes=eyes))
+        head = text.split("\n## ", 1)[0].splitlines()
+        self.assertIn("- 直す義務に戻せなかった単位: 単位 u9: 赤のまま", head)
+        self.assertIn("- 前提の検算が人に上げた物: 検算の判定 escalate: 仮定が偽", head)
+        self.assertFalse([x for x in head if "{" in x], head)
 
     def test_parked_clash_names_its_requests_and_patch(self):
         """#382: 合わせ役が直せず組どうしの合わせの申し出にした組（欄 clash の outcome parked）は、3 行目で申し出の id と控えの差分を
@@ -731,10 +757,9 @@ class DecisionsCase(Base):
         _, text, _ = self.build({**returns, "fix": {**returns["fix"], "handoffs": handoffs}})
         self.assertTrue(text.splitlines()[4].startswith(runreport.DECIDE_HEAD + "2 件"), text.splitlines()[4])
         self.assertIn(f"{fixboard.HANDOFF_HEAD} 2 件", text.splitlines()[4])
-        self.assertEqual(text.splitlines()[5:7], [f"- {fixboard.HANDOFF_HEAD}: u1: 壊すと分かって通した——古い呼び手が壊れる——"
-                                                  f"{gatemarks.PUSH}{gatemarks.NO_PUSH}",
-                                                  f"- {fixboard.HANDOFF_HEAD}: u2: 壊すと分かって通した——既定が変わる——"
-                                                  f"{gatemarks.PUSH}{gatemarks.NO_PUSH}"], "人が決める物は冒頭に 1 件 1 行")
+        self.assertEqual(text.splitlines()[5:7], [f"- {fixboard.HANDOFF_HEAD}: u1: 壊すと分かって通した——古い呼び手が壊れる",
+                                                  f"- {fixboard.HANDOFF_HEAD}: u2: 壊すと分かって通した——既定が変わる"],
+                         "人が決める物は冒頭に 1 件 1 行。問いでない物に推しの尾は付けない")
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn(f"- {fixboard.HANDOFF_HEAD}: 2 件\n  - u1: 壊すと分かって通した——古い呼び手が壊れる\n"
                       "  - u2: 壊すと分かって通した——既定が変わる", body)
