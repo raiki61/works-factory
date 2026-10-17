@@ -378,7 +378,7 @@
       "nodes": [
         "workflows/eyes/works-factory-eyes.yaml#r1-minimality"
       ],
-      "output_format_sha256": "19e15d7bed3733f2ef491ce5ced96b1765cc3b07858203c7249a71976f3bcdca",
+      "output_format_sha256": "ff83891f5e30f9eb7163a29cd9fa3f643eb924af0de4f603fb124f802097f8b1",
       "json_keys": []
     },
     "forbidden": [
@@ -507,8 +507,8 @@
         "quote": "candidates_note に理由を書いて残りで判定しろ"
       },
       {
-        "what": "零処方を経ずに人へ回した問いは redesign-needed",
-        "quote": "redesign-needed（逃げ道の検知）"
+        "what": "零処方を経ずに人へ回した問いは所見に数える（札は status の決まりで選ぶ）",
+        "quote": "所見に数える（逃げ道の検知"
       },
       {
         "what": "方針とぶつかるものを通すかは人が決める",
