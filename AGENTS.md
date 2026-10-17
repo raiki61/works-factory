@@ -34,6 +34,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 | E19 | `workflows/AGENTS.md` |
 | E20 | `workflows/AGENTS.md` |
 | E21 | `tests/AGENTS.md` |
+| E22 | `AGENTS.md` |
 
 ## リポジトリの形
 
@@ -74,6 +75,7 @@ works-factory/
 │   ├── polyfills.md      埋めの名簿
 │   ├── concepts.md              考えの住処の地図
 │   ├── concepts.json            考えの住処の柵の表（tests/layers/test_concept_fences.py が照らす）
+│   ├── layers.json              層の地図と既知の漏れの表（E22。tests/layers/test_layer_map.py が照らす）
 │   ├── calibration-214.md       #214 の自作の較正の束の比べの記録（束は消した）
 │   ├── works-parity.md          今の works の利用者に見える能力の照らし（tests/layers/test_works_parity.py が照らす）
 │   └── plans/                   実装の計画
@@ -138,3 +140,11 @@ works-factory/
 - 自分の物には、それらで始まる名前を付けない（ファイル・フォルダ・グラフ・型の名）。自分のグラフは `works-factory-` で始める（E9）。
 - 今の works から持ってきた物（E15）は、元と同じファイル名で置く。元と見比べられるようにするため。どこから持ってきたかは commit に書く。
 - 機械: `tests/layers/test_names.py`（`bin/`・`workflows/`・`lib/`・`tests/`・`docs/` の下のパスの部分に、`factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる物が無い）。ASF の物が「リポジトリの形」の木の場所の外に無いことは人が見る。
+
+## E22 層は地図に沿って頼る
+
+- 層の地図は `docs/layers.json` の 1 か所。層は起動の殻 `bin/`・メイングラフと周の鎖 `workflows/line/`・`workflows/chain/`・サブグラフ `workflows/<名>/`（サブグラフ同士は互いに独立）・サブグラフの共通の部品 `workflows/.shared/`・共通の lib `lib/` の 5 つで、層ごとに頼ってよい層（`may_use`）を書く。形は import-linter の layers・forbidden・independence の契約に倣う。`lib/` の E3 の import の向きと、`workflows/` の E4 のサブグラフの名は、この地図から読む。
+- 地図に反する頼りは 4 つの照らしで見る: Python の import の向き（グラフと `lib/` から `bin/` を import しない、を含む）・ほかのサブグラフが隣に書くファイルの名（サブグラフごとの名は地図の `beside`。`docs/design.md` の「サブグラフの出力の約束」の隣のファイル）・`lib/` とサブグラフの中のメイングラフのノードの id（メイングラフと周の鎖の YAML の `-` を含む id から作る）・指示書（`commands/`）と入力の説明の中のほかのサブグラフの名（`works-factory-` の頭つき）と役の名（ほかのサブグラフの AI のノードの `-` を含む id と、古い名 `blk-*`）。
+- 今ある漏れは地図の `known` に、照らしごとにファイルと行の数と訳（直す issue）で載せる。表は減らす向きにだけ変える。直したら表から消す（行の数が表と違えば、増えても減っても赤）。
+- 関門は CI に置き、pre-commit は足さない（どの道の変更も同じ機械の関門を CI で通す）。手元で先に見る時は `uv run --isolated python3 -m unittest tests.layers.test_layer_map` の 1 つで同じ照らしを回す（`NotAboveMain` が `origin/main` を要るので、先に `git fetch origin main`）。
+- 機械: `tests/layers/test_layer_map.py`（4 つの照らし（`tests/layers/scan.py` の `layer_hits`）の当たりが、ファイルごとの行の数で `known` とちょうど揃う。`known` は HEAD と `origin/main` の分かれ目の表より、照らしごとの和も、ファイルごとの行の数も増えず、分かれ目に無いファイルも出ない（`NotAboveMain`。分かれ目に地図が無ければ比べない）。`bin/`・`workflows/`・`lib/` のファイルは地図の `outside` の外ならどれかの層に入る）。字の形で見るので、組んで作る名・`importlib` の読み込み・YAML に直に書いた script の import・日本語の役の呼び名（「修正役」など）・素のサブグラフの名と `-` の無い id は人が見る。

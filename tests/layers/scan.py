@@ -1,9 +1,10 @@
 """層の決まりの「機械」の行を照らす。`problems(rule, root)` は 1 行に 1 つ `<パス>:<行>: <何が>` を返す（無ければ空）。
 
 字の形でしか見ないので、次は人が見る:
-- E3: 節の id（字の形で見分けられない）
+- E3: 節の id（字の形で見分けられない。`-` を含むメイングラフの id は E22 が見る）
 - E4: `pathlib` などで部品を継いで組むパス
 - E12: script の中で置く期限
+- E22: 組んで作る名・`importlib` の読み込み・YAML に直に書いた script の import・日本語の役の呼び名・素のブロックの名
 """
 import ast
 import functools
@@ -39,13 +40,22 @@ ARCHON_WORDS = re.compile(
     r"(?i:archon)|ARTIFACTS_DIR|TYPED_ARTIFACTS_FILE|output_type|(?<![A-Za-z0-9_])INPUTS_[A-Z0-9_]+|WORKFLOW_ID|\$LOOP_PREV"
     r"|loop_group|\$[A-Za-z_][\w-]*\.output\b"
 )
-LAYER_IMPORT = re.compile(r"^\s*(from|import)\s+(workflows|bin)\b")
 
+REPO = Path(__file__).resolve().parents[2]
+# 層の地図（根の AGENTS.md の E22）。試験の小さな木にも、このリポジトリの地図を当てる
+LAYER_MAP_FILE = "docs/layers.json"
+LAYER_MAP = json.loads((REPO / LAYER_MAP_FILE).read_text(encoding="utf-8"))
+LAYERS = {layer["id"]: layer for layer in LAYER_MAP["layers"]}
+TOP_FOLDERS = tuple(path.split("/")[1] for path in LAYERS["top"]["paths"])
 # まだ木に無いブロックを指す字も捕まえるための名の表。根の AGENTS.md の「リポジトリの形」の木との一致は test_block_paths が縛る。木に在るブロックは木から読む。
-BLOCKS = ("line", "chain", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
+BLOCKS = (*TOP_FOLDERS, *LAYERS["block"]["names"])
+# lib/ が頼ってはならない層の頭のフォルダ（E3。地図の lib の may_use の外の層）
+LAYER_IMPORT = re.compile(r"^\s*(from|import)\s+(" + "|".join(sorted(
+    {path.split("/")[0] for layer in LAYERS.values() if layer["id"] not in ("lib", *LAYERS["lib"]["may_use"])
+     for path in layer["paths"]})) + r")\b")
 RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
-LIB = Path(__file__).resolve().parents[2] / "lib"
+LIB = REPO / "lib"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import chain  # noqa: E402  （周の鎖の周の数の上限 MAX_ROUNDS）
@@ -53,14 +63,13 @@ import depth  # noqa: E402  （深さの段の表 TIERS）
 import launchgroups  # noqa: E402  （AI ノードの群の表 GROUPS）
 # INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
 BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
-OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
+OURS = json.loads((REPO / "pack.json").read_text(encoding="utf-8"))["ours"]
 OURS_PREFIX = OURS["name_prefix"]
 OURS_PACK = OURS["pack"]
 LINE_FOLDER = OURS["line"].removeprefix(OURS_PREFIX)
 LINE_YAML = f"workflows/{LINE_FOLDER}/{OURS['line']}.yaml"
 # 周の鎖。メイングラフを workflow: のノードで子の run として起こす一番上の親のグラフ（人が Archon の命令で名指して起こす）
 CHAIN_FOLDER = "chain"
-TOP_FOLDERS = (LINE_FOLDER, CHAIN_FOLDER)
 CALL_KEYS = ("include", "workflow")
 
 NO_DEADLINE = "1728000000"
@@ -1319,6 +1328,168 @@ def _depth_when(root: Path) -> list[str]:
     return out
 
 
+# E22 の照らしの名（docs/layers.json の known の鍵）
+LAYER_CHECKS = ("import", "beside", "main-id", "role")
+OLD_ROLE = re.compile(r"(?<!(?a:[\w\-/.]))blk-[a-z][a-z0-9_-]*")
+
+
+def place_match(pattern: str, rel: str) -> bool:
+    """地図のパス pattern（`*` はパスの 1 段）が根からのパス rel に当たるか。`/` で終わる pattern はフォルダで、その下の全部に当たる"""
+    heads = pattern.rstrip("/").split("/")
+    parts = rel.split("/")
+    fits = len(parts) > len(heads) if pattern.endswith("/") else len(parts) == len(heads)
+    return fits and all(h == "*" or h == p for h, p in zip(heads, parts))
+
+
+def layer_of(rel: str) -> tuple[str, str] | None:
+    """根からのパスの (層の id, 置き場 `workflows/judge/` の形)。地図の outside か、どの層にも当たらなければ None"""
+    if any(place_match(p, rel) for p in LAYER_MAP["outside"]):
+        return None
+    for layer in LAYER_MAP["layers"]:
+        for pattern in layer["paths"]:
+            if place_match(pattern, rel):
+                return layer["id"], "/".join(rel.split("/")[:pattern.rstrip("/").count("/") + 1]) + "/"
+    return None
+
+
+def _layer_files(root: Path):
+    """層の中のファイルの (パス, 根からのパス, 層の id, 置き場)"""
+    for top in sorted({path.split("/")[0] for layer in LAYER_MAP["layers"] for path in layer["paths"]}):
+        for path in _files(root, top):
+            rel = _rel(root, path)
+            if (where := layer_of(rel)) is not None:
+                yield path, rel, *where
+
+
+def _module_layer(root: Path, name: str) -> tuple[str, str] | None:
+    """import の名の (層の id, 置き場)。頭が層のフォルダ（`bin`・`lib`・`workflows.<名>`）の名と、sys.path に置いた境の口と lib の
+    モジュールの素の名を引く。ほかの名（標準ライブラリ・外のパッケージ・同じフォルダの物）は None"""
+    parts = name.split(".")
+    if parts[0] == "workflows":
+        return layer_of(f"workflows/{parts[1]}/x") if len(parts) > 1 else None
+    if parts[0] in ("bin", "lib"):
+        return layer_of(f"{parts[0]}/x")
+    for rel in ("workflows/.shared", "lib"):
+        folder = root / rel
+        if folder.is_dir() and ((folder / f"{parts[0]}.py").is_file() or (folder / parts[0] / "__init__.py").is_file()):
+            return layer_of(f"{rel}/x")
+    return None
+
+
+def _imports_against_map(root: Path, files) -> list[str]:
+    out = []
+    for path, rel, layer, place in files:
+        if path.suffix != ".py":
+            continue
+        lines, _ = _lines(root, path)
+        for number, line in enumerate(lines, 1):
+            match = IMPORT_NAMES.match(line)
+            names = ([match[1]] if match[1] else [n.strip() for n in match[2].split(",")]) if match else []
+            for name in names:
+                target = _module_layer(root, name)
+                if target is None:
+                    continue
+                to_layer, to_place = target
+                if to_layer not in (layer, *LAYERS[layer]["may_use"]):
+                    out.append(f"{rel}:{number}: 層 {layer} が層 {to_layer} の {name} を import する")
+                elif to_layer == layer and LAYERS[layer].get("independent") and to_place != place:
+                    out.append(f"{rel}:{number}: {place} が {to_place} の {name} を import する（層 {layer} の置き場は互いに独立）")
+    return out
+
+
+def _beside_names(root: Path, files) -> list[str]:
+    owner = {name: block for block, names in LAYER_MAP["beside"].items() for name in names}
+    pattern = re.compile(r"(?<!(?a:[\w\-.]))(" + "|".join(re.escape(n) for n in sorted(owner, key=len, reverse=True))
+                         + r")(?!(?a:[\w\-]|\.\w))")
+    out = []
+    for path, rel, _, place in files:
+        lines, broken = _lines(root, path)
+        out += broken
+        for number, line in enumerate(lines, 1):
+            for match in pattern.finditer(line):
+                if place != f"workflows/{owner[match[1]]}/":
+                    out.append(f"{rel}:{number}: ブロック {owner[match[1]]} の隣のファイル {match[1]} を名指す")
+    return out
+
+
+def _main_ids(root: Path, files) -> list[str]:
+    """lib とブロックの字の、一番上のグラフの `-` を含むノードの id（ブロックの名と同じ id と、ブロック自身の YAML のノードの id は除く）"""
+    top = _top_hyphen_ids(root) - set(BLOCKS)
+    own = {}
+    out = []
+    for path, rel, layer, place in files:
+        if layer not in ("lib", "block"):
+            continue
+        if layer == "block" and place not in own:
+            own[place] = _own_ids(root, place)
+        ids = top - own.get(place, set())
+        if not ids:
+            continue
+        pattern = word("|".join(re.escape(i) for i in sorted(ids, key=len, reverse=True)))
+        lines, broken = _lines(root, path)
+        out += broken
+        for number, line in enumerate(lines, 1):
+            out += [f"{rel}:{number}: メイングラフのノードの id {m[0]} を持つ" for m in pattern.finditer(line)]
+    return out
+
+
+def _own_ids(root: Path, place: str) -> set[str]:
+    """置き場 `workflows/<名>/` のグラフの YAML の節の id（YAML が無い・読めなければ空）"""
+    _, document = _workflow_doc(root / place)
+    return _node_ids(document) if document is not None else set()
+
+
+def _roles(document) -> set[str]:
+    """グラフの YAML の役（AI の節）の id のうち `-` を含む物"""
+    return {ident for node in _nodes(document) if any(_top(node, k) is not None for k in ("prompt", "command", "loop"))
+            and isinstance(i := _top(node, "id"), yaml.ScalarNode) and "-" in (ident := i.value)}
+
+
+def _role_names(root: Path) -> list[str]:
+    """ブロックの指示書（commands/）が、ほかのブロックの名と役の名（今の `-` を含む id と、古い名 `blk-*`）を書かない。入力の説明は
+    ほかのブロックの役の名を書かない（ブロックの名は E4 が見る）。指示書のブロックの名は `works-factory-` の頭つきだけを数える。素の名
+    （judge・fix・merge・plan・report）は普通の語と重なり、`-` の無い id と同じく語として見分けられない"""
+    folders = [f for f in _blocks(root) if f.name not in TOP_FOLDERS]
+    docs = {f.name: _workflow_doc(f) for f in folders}
+    roles = {name: _roles(doc) for name, (_, doc) in docs.items() if doc is not None}
+    out = []
+    for folder in folders:
+        path, document = docs[folder.name]
+        own = (_node_ids(document) if document is not None else set()) | {folder.name}
+        other_roles = set().union(*(r for n, r in roles.items() if n != folder.name)) - own
+        other_blocks = (set(BLOCKS) | {f.name for f in _blocks(root)}) - {folder.name}
+        block_word = re.escape(OURS_PREFIX) + "(?:" + "|".join(re.escape(n) for n in sorted(other_blocks, key=len, reverse=True)) + ")"
+        role_word = "|".join(re.escape(r) for r in sorted(other_roles, key=len, reverse=True))
+        in_commands = word("|".join(filter(None, (role_word, block_word))))
+        in_inputs = word(role_word) if role_word else None
+        for command in _files(folder, "commands"):
+            lines, broken = _lines(root, command)
+            out += broken
+            for number, line in enumerate(lines, 1):
+                out += [f"{_rel(root, command)}:{number}: ほかのブロックか役の名 {m[0]} を書く" for m in in_commands.finditer(line)]
+                out += [f"{_rel(root, command)}:{number}: 古い役の名 {m[0]} を書く" for m in OLD_ROLE.finditer(line)]
+        for key, spec in _pairs(_top(document, "inputs")) if document is not None else ():
+            description = _top(spec, "description")
+            if not isinstance(description, yaml.ScalarNode):
+                continue   # 字でない説明は E4 が赤にする
+            hits = [m[0] for m in in_inputs.finditer(description.value)] if in_inputs else []
+            hits += [m[0] for m in OLD_ROLE.finditer(description.value)]
+            out += [f"{_rel(root, path)}:{_line(description)}: 入力 {key} の説明がほかのブロックの役 {h} を名指す" for h in hits]
+    return out
+
+
+def layer_hits(root: Path) -> dict[str, list[str]]:
+    """層の地図に反する頼りを、照らしごとに `<パス>:<行>: <何が>` の行で（E22）。既知の漏れの表との突き合わせは test_layer_map"""
+    root = Path(root)
+    files = list(_layer_files(root))
+    return {"import": _imports_against_map(root, files), "beside": _beside_names(root, files),
+            "main-id": _main_ids(root, files), "role": _role_names(root)}
+
+
+def _layer_map(root: Path) -> list[str]:
+    return [line for check in LAYER_CHECKS for line in layer_hits(root)[check]]
+
+
 def _scalar(value) -> str:
     return value.value if isinstance(value, yaml.ScalarNode) else ""
 
@@ -1340,4 +1511,5 @@ RULES = {
     "E19": _role_retry,
     "E20": _depth_when,
     "E21": _hermetic_env,
+    "E22": _layer_map,
 }
