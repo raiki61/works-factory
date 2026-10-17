@@ -17,6 +17,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from lib.tests import test_plan_gate as plan_gate
 from lib.tests.test_outcome import fixed_run
 from tests.bin.linescripts import load
 
@@ -26,6 +27,7 @@ ask_final = load("ask_final")
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
 import conflict  # noqa: E402
 import declared_checks  # noqa: E402
+import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
 import protect  # noqa: E402
@@ -46,8 +48,8 @@ FORK = {"key": "q-empty-mean", "kind": "fork", "status": "held", "origin": FORK_
 
 # 元 works/tests/test_plan_gate.py 716-750 行
 RECORD_NAME = re.compile(r"(?<![A-Za-z0-9_.])(?:(?:p\d|spec|report)\.[a-z0-9_]+|process\.[a-z_.]+[a-z]|fix_test_scope|fix_code_as|ask_human)")
-EYE_OR_STATE = re.compile(r"(?<![A-Za-z0-9_-])(?:R[1-4]|pass|redesign-needed|unverifiable|premise-invalid|carried_over|not_applicable"
-                          r"|not_run)(?![A-Za-z0-9_-])")
+EYE_OR_STATE = re.compile(r"(?<![A-Za-z0-9_-])(?:R[1-4]|" + "|".join(map(re.escape, seal.STATUSES))
+                          + r"|premise-invalid|carried_over|not_applicable|not_run)(?![A-Za-z0-9_-])")
 
 
 def _spans(line: str) -> list:
@@ -143,7 +145,7 @@ class FinalHeadCase(unittest.TestCase):
         got = self.head(final_got(green=False, red_cause="introduced", asked=["u1: 裁定の文（名指し a.py:1, t.py:2・種類 not_red・正しいと見た側 unknown・c1）"],
                                   eyes={**final_got()["eyes"], "r3": blocked}))
         self.assertEqual(heads("\n".join(got)), HEADS)
-        for want in ("テストは赤", "食い違いの申し出を人に回した（1 件）", "独立の目が阻害を返した（R3）"):
+        for want in ("テストは赤", "食い違いの申し出を人に回した（1 件）", "独立の目が通さなかった（R3: 作り直しが要る）"):
             self.assertIn(want, got[0])
         self.assertEqual(got[2], gatemarks.PUSH + gatemarks.NO_PUSH)
         self.assertEqual(internal_subjects("\n".join(got)), [])
@@ -214,10 +216,25 @@ class FinalHeadCase(unittest.TestCase):
         self.assertIn("開けた理由: " + "・".join(got["reasons"]), got["text"].splitlines()[0])
 
     def test_unknown_eye_status_opens_when_needed(self):
-        """表に無い status を返した目（R3）は『独立の目が阻害を返した』を開ける理由に入れる（when_needed で関所が開く）"""
+        """表に無い status を返した目（R3）は『独立の目が通さなかった』を開ける理由に入れる（when_needed で関所が開く）。表に無い語は字のまま"""
         odd = {"status": "not-in-the-status-table", "reason": "表に無い"}
         got = final_got(eyes={**final_got()["eyes"], "r3": odd})
-        self.assertEqual(ask_final.final_needs(got), ["独立の目が阻害を返した（R3）"])
+        self.assertEqual(ask_final.final_needs(got), ["独立の目が通さなかった（R3: not-in-the-status-table）"])
+
+    def test_fix_needed_eye_opens_without_calling_it_blocking(self):
+        """R1 だけが fix-needed の時、開ける理由は『独立の目が通さなかった（R1: 直しが要る）』の 1 句で『阻害』と呼ばず、when_needed で関所は
+        開く。冒頭と目の行の主語は平易なまま（目の名と状態の語は括弧の中だけ。R1 の理由の頭の UNNAMED_REDESIGN も同じ）"""
+        fix = {"status": seal.FIX_NEEDED, "reason": eyeverdict.UNNAMED_REDESIGN + "名前の付け方が揃っていない"}
+        got = final_got(eyes={**final_got()["eyes"], "r1": fix})
+        self.assertEqual(ask_final.final_needs(got), ["独立の目が通さなかった（R1: 直しが要る）"])
+        opened = ask_final.ask(got, mode="when_needed", unattended=False, run_id="run-1")
+        self.assertTrue(opened["open"])
+        self.assertEqual(opened["reasons"], ["独立の目が通さなかった（R1: 直しが要る）"])
+        shown = "\n".join([*self.head(got), *ask_final.eye_lines(got)])
+        self.assertNotIn("阻害", opened["text"])
+        self.assertEqual(internal_subjects(shown), [])
+        self.assertIn("独立の目の判定（通さなかった目: R1: 直しが要る）", shown)
+        self.assertIn("独立の目が通さなかった目 1 件（R1: 直しが要る）", shown)
 
     def test_held_questions_shown_but_not_a_reason(self):
         """保留にしたままの問いは 1 行目に出るが、開けた理由には数えない（when_needed で関所を開けない）"""
@@ -287,6 +304,15 @@ class FinalSectionsCase(unittest.TestCase):
         got["eyes"] = {**got["eyes"], "r2": blocked, "r4": None}
         got["questions"] = []
         self.assertEqual(internal_subjects(self.text(got)), [])
+
+    def test_plain_subject_guard_sees_every_eye_word(self):
+        """目の状態の語（seal.STATUSES の全部。直しが要る seal.FIX_NEEDED を含む）は、素の語で主語に置くと両方の柵が拾い、括弧の中なら拾わない"""
+        self.assertIn(seal.FIX_NEEDED, seal.STATUSES)
+        for guard in (internal_subjects, plan_gate.internal_subjects):
+            for word in seal.STATUSES:
+                with self.subTest(guard=guard.__module__, word=word):
+                    self.assertTrue(guard(f"目が {word} を返した"))
+                    self.assertEqual(guard(f"目が返した（{word}）"), [])
 
     def test_final_text_carries_suites_and_baseline_lines(self):
         """T35: 最後のテストの一式の行と修正前のテストの行を、test-gate の返りの欄のまま出す"""

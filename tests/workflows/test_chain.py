@@ -516,6 +516,14 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(round=k):
                 self.assertEqual(shape(k), first)
 
+    def test_round_bodies_are_written_once(self):
+        """周の 4 つのノードの本体（子の workflow と commit・facts・decide の script）は YAML の字に 1 度だけ在り、2〜5 周目はアンカーで受ける
+        （周ごとに書き写すと、1 周だけ直して形が分かれる）"""
+        text = (FOLDER / "works-factory-chain.yaml").read_text(encoding="utf-8")
+        for body in ("workflow: works-factory-line", "script: round_commit", "script: round_facts", "script: decide"):
+            with self.subTest(body=body):
+                self.assertEqual(len(re.findall(rf"^\s*{re.escape(body)}\s*$", text, re.M)), 1)
+
     def test_rounds_launch_the_main_graph_on_launch(self):
         for k in range(1, chain.MAX_ROUNDS + 1):
             with self.subTest(round=k):

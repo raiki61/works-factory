@@ -49,6 +49,7 @@ import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import launchgroups  # noqa: E402
 import outcome  # noqa: E402
 import planblk  # noqa: E402
 import planfile  # noqa: E402
@@ -426,7 +427,7 @@ class YamlCase(unittest.TestCase):
                 self.assertIs(n.get("mutates_checkout"), False)
 
     def test_role_nodes(self):
-        """役の節の設定は今の works の節 r2-design・plan-review のまま（模型と深さは役の前付け blind-judge・judge）。独立設計は
+        """役の節の設定は今の works の節 r2-design・plan-review のまま（模型と effort は群 @wf-plan-review の既定。lib/launchgroups.py）。独立設計は
         context を書かず、拒まれた後の出し直しは輪（fresh_context: false）の中で前の会話を継ぐ（今の works の r2-design と同じ）"""
         got = nodes()
         self.assertNotIn("context", got["r2-design"])
@@ -434,7 +435,8 @@ class YamlCase(unittest.TestCase):
         for nid in ("r2-design", "plan-review"):
             with self.subTest(nid):
                 n = got[nid]
-                self.assertEqual((n["command"], n["model"], n["effort"]), (nid, "opus", "high"))
+                self.assertEqual(n["command"], nid)
+                self.assertEqual(launchgroups.default_of(n["model"]), ("opus", "high"))
                 self.assertEqual(n["settingSources"], ["user"])
                 self.assertEqual(n["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False})
                 self.assertEqual(n["idle_timeout"], DEADLINE)
@@ -461,7 +463,7 @@ class YamlCase(unittest.TestCase):
         prep = "$review-prep.output"
         self.assertEqual(got["plan-review"]["when"], f"{prep}.resubmit != true && {prep}.tree != true")
         self.assertEqual(got["plan-review-tree"]["when"], f"{prep}.resubmit != true && {prep}.tree == true")
-        launch = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
+        launch = ("model", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
         for first_id, fix_id, tree in (("plan-review", "plan-review-fix", "!="), ("plan-review-tree", "plan-review-tree-fix", "==")):
             with self.subTest(fix_id):
                 fix, first = got[fix_id], got[first_id]

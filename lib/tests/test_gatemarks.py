@@ -19,6 +19,7 @@ import answer  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import planfile  # noqa: E402
+import seal  # noqa: E402
 import startrec  # noqa: E402
 
 FORK = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "depends": ["B"], "options": ["x", "y"], "reason": "割れる"}
@@ -204,16 +205,28 @@ class PushRecCase(unittest.TestCase):
 
 
 
+class EyeWordsCase(unittest.TestCase):
+    def test_eye_words_come_from_seal(self):
+        got = gatemarks.eye_named("R1", "fix-needed")
+        self.assertIn("直しが要る（fix-needed）", got)
+        self.assertNotIn("作り直し", got)
+        for word in seal.STATUSES:
+            with self.subTest(word):
+                self.assertEqual(gatemarks.REVIEW_WORDS[word], seal.STATUS_WORDS[word])
+
+
 class SpecWordsCase(unittest.TestCase):
     """承認し直すかの問いを「変わった」か「照らせなかった」かで言う選びは spec_words の 1 か所だけ（#564）"""
     CHOOSERS = (LIB.parent / "workflows" / "line" / "scripts" / "ask_final.py", LIB / "runreport.py")
-    WORDS = ("SPEC_UNCHECKED", "SPEC_UNCHECKED_HEAD", "SPEC_CHANGED_HEAD", "SPEC_CHANGED_LABEL", "SPEC_CHANGED_KIND")
+    WORDS = ("SPEC_UNCHECKED", "SPEC_UNCHECKED_HEAD", "SPEC_UNCHECKED_NOTE", "SPEC_CHANGED_HEAD", "SPEC_CHANGED_LABEL",
+             "SPEC_CHANGED_KIND", "SPEC_CHANGED_NOTE")
 
     def test_words_follow_whether_the_tests_could_be_checked(self):
         self.assertEqual(gatemarks.spec_words(False), (gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND],
-                                                       gatemarks.SPEC_CHANGED_LABEL, gatemarks.SPEC_CHANGED_HEAD))
+                                                       gatemarks.SPEC_CHANGED_LABEL, gatemarks.SPEC_CHANGED_HEAD,
+                                                       gatemarks.SPEC_CHANGED_NOTE))
         self.assertEqual(gatemarks.spec_words(True), (gatemarks.SPEC_UNCHECKED, gatemarks.SPEC_UNCHECKED,
-                                                      gatemarks.SPEC_UNCHECKED_HEAD))
+                                                      gatemarks.SPEC_UNCHECKED_HEAD, gatemarks.SPEC_UNCHECKED_NOTE))
 
     def test_callers_choose_only_through_spec_words(self):
         for path in self.CHOOSERS:

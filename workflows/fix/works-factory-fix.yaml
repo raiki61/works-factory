@@ -221,8 +221,7 @@ nodes:
         - id: clash-fix
           description: '合わせ役: 組を合わせて赤になった所を、その組の変えたファイルの中だけで直す'
           <<: &clash_launch
-            model: sonnet
-            effort: high
+            model: '@wf-fix-writers'
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob, Edit, Write, Bash]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -324,8 +323,7 @@ nodes:
 
         - id: ruler
           description: '裁定役: 食い違いを持ち主の決まりで裁く（読むだけ）'
-          model: opus
-          effort: high
+          model: '@wf-fix-ruler'
           prompt: 指示書 `$rule-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
           depends_on: [rule-prep]
           settingSources: [user]
@@ -465,8 +463,7 @@ nodes:
         - id: fix-ruled
           description: '裁定の文を読んで直す'
           <<: &fix_launch
-            model: sonnet
-            effort: high
+            model: '@wf-fix-writers'
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -755,8 +752,7 @@ nodes:
         - id: ruled-consult-answer
           description: '範囲の相談に答える（修正案と波及を読む新しい会話。読むだけ）'
           <<: &consult_launch
-            model: opus
-            effort: medium
+            model: '@wf-fix-consult'
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -905,8 +901,7 @@ nodes:
   - id: lens
     description: 'レンズ silent-failure-hunter: 修正の差分の黙った失敗を探す（読むだけ）'
     <<: &delta_launch
-      model: sonnet
-      effort: medium
+      model: '@wf-fix-review'
       settingSources: [user]
       allowed_tools: [Read, Grep, Glob]
       sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -1083,8 +1078,7 @@ nodes:
         - id: refix
           description: '手直しの役: 審査が挙げた穴に答える'
           <<: &refix_launch
-            model: sonnet
-            effort: high
+            model: '@wf-fix-writers'
             settingSources: [user]
             skills: [receiving-code-review]
             allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
@@ -1329,8 +1323,7 @@ nodes:
         - id: tdd
           description: 'TDD の役（今の単位を直す。同じ単位の続き）'
           <<: &tdd_launch
-            model: sonnet
-            effort: high
+            model: '@wf-fix-writers'
             prompt: 指示書 `$tdd-prep.output.prompt_file` を Read で毎回全部読み（回ごとに中身が替わる）、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
             settingSources: [user]
             skills: [test-driven-development]

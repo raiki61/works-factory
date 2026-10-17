@@ -103,8 +103,7 @@ nodes:
     command: r1-comments
     depends_on: [prep]
     when: "$prep.output.run_eyes == true"
-    model: sonnet
-    effort: medium
+    model: '@wf-eyes-read'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -160,8 +159,7 @@ nodes:
     depends_on: [prep, r1-comments-save]
     trigger_rule: all_done
     when: "$prep.output.run_eyes == true"
-    model: opus
-    effort: high
+    model: '@wf-eyes-core'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -174,8 +172,10 @@ nodes:
       required: [status, reason, deletions, ledger_audit, increments]
       additionalProperties: false
       properties:
-        status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+        status: {type: string, enum: [pass, fix-needed, redesign-needed, unverifiable]}
         reason: {type: string, minLength: 1}
+        # 零処方で閉じない設計の点の名指し。在れば機械が redesign-needed にし、無い redesign-needed は fix-needed に倒す（lib/eyeverdict.py の _row）
+        redesign_points: {type: array, items: {type: string, minLength: 1}}
         deletions:
           type: array
           items:
@@ -196,8 +196,7 @@ nodes:
     command: r2-compare
     depends_on: [prep]
     when: "$prep.output.run_eyes == true && $prep.output.compare_due == true"
-    model: opus
-    effort: high
+    model: '@wf-eyes-core'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -228,8 +227,7 @@ nodes:
     command: premise-check
     depends_on: [prep]
     when: "$prep.output.run_eyes == true && $prep.output.premise_due == true"
-    model: opus
-    effort: high
+    model: '@wf-eyes-core'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -256,8 +254,7 @@ nodes:
     command: r3-coherence
     depends_on: [prep]
     when: "$prep.output.run_eyes == true"
-    model: sonnet
-    effort: medium
+    model: '@wf-eyes-scope'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -305,8 +302,7 @@ nodes:
           depends_on: [r4-reject]
           when: "$r4-reject.output.resubmit != true"
           <<: &r4_launch
-            model: sonnet
-            effort: medium
+            model: '@wf-eyes-scope'
             settingSources: [user]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
             allowed_tools: [Read, Grep, Glob]
@@ -392,7 +388,7 @@ nodes:
       required: [eye, status, reason]
       properties:
         eye: {type: string, enum: [r1, r2, r3, r4, premise-check]}
-        status: {type: string, enum: [pass, redesign-needed, unverifiable, resolved, escalate]}
+        status: {type: string, enum: [pass, fix-needed, redesign-needed, unverifiable, resolved, escalate]}
         reason: {type: string}
 
   - id: r2-compare-verdict
@@ -486,7 +482,7 @@ nodes:
           additionalProperties: false
           required: [status, reason]
           properties:
-            status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+            status: {type: string, enum: [pass, fix-needed, redesign-needed, unverifiable]}
             reason: {type: string}
         r2: *eye_row
         r3: *eye_row
