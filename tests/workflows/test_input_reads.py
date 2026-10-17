@@ -150,6 +150,15 @@ class InputReadsCase(unittest.TestCase):
             with self.subTest(not_dict=not_dict), self.assertRaises(ValueError):
                 boundary.picked(not_dict, ("ok",))
 
+    def test_picked_get_takes_a_default_but_still_refuses_undeclared_names(self):
+        """Picked.get は dict.get と同じく既定値を受けるが、宣言の外の名は既定値があっても KeyError（宣言した名の値はそのまま返す）"""
+        from tests.shared.test_boundary import boundary
+        got = boundary.picked(json.dumps({"ok": True, "extra": 1}), ("ok", "missing"))
+        self.assertEqual((got.get("ok", False), got.get("missing", "x")), (True, None))
+        for name in ("extra", "typo"):
+            with self.subTest(name), self.assertRaises(KeyError):
+                got.get(name, None)
+
     def test_picked_is_the_only_way_to_the_whole_dict(self):
         """返りまるごとを欄を削らずに戻す口は無い（素通しの口を置くと、宣言の外の欄が値として script に届く）"""
         from tests.shared.test_boundary import boundary

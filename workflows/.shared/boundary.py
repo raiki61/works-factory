@@ -167,12 +167,12 @@ def needed(raw, name: str) -> Path:
 
 
 class Picked(dict):
-    """picked が返す、宣言した名だけを持つ dict。宣言の外の名は [] でも get でも KeyError にする（打ち違いが黙って None にならない）"""
+    """picked が返す、宣言した名だけを持つ dict。宣言の外の名は [] でも get でも（既定値を渡しても）KeyError にする（打ち違いが黙って None にならない）"""
 
     def __missing__(self, key):
         raise KeyError(f"宣言の外の名 {key!r}（宣言した名: {', '.join(self)}）")
 
-    def get(self, key):
+    def get(self, key, *_):
         return self[key]
 
 

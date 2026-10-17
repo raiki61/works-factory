@@ -210,6 +210,7 @@ class BlockReturnsTest(unittest.TestCase):
         forms = {
             "字のまま": (GATE, '"$judge.output"', {}, None),
             "{from, if_skipped}": (GATE, '{ from: "$judge.output", if_skipped: null }', {}, None),
+            "添字で読む": (GATE_NAMES + 'got = boundary.picked(os.environ["INPUTS_GOT"], NAMES)\n', '"$judge.output"', {}, None),
             "* 展開の名の並び": ('BASE = ("ready",)\nNAMES = (*BASE, "units")\n' + GATE_CALL, '"$judge.output"', {}, None),
             "lib の部品の定数": ('got = boundary.picked(os.environ.get("INPUTS_GOT"), board.NAMES)\n', '"$judge.output"',
                             {"lib/board.py": 'NAMES = ("ready", "units")\n'}, None),
@@ -288,14 +289,18 @@ class BlockReturnsTest(unittest.TestCase):
                 self.assertIn("名の並びを解けない", got[0])
 
     def test_whole_ref_read_outside_the_gate_is_red(self):
-        """前の目の反例の素通しの口 boundary.passed は無く、口を通らない読みは赤"""
+        """まるごとの参照は口 boundary.picked の 1 つの呼びでだけ読み、その 1 つ目の引数は os.environ の読みそのもの。ほかの読みは赤"""
         cases = {
             "口が無く json.loads で読む": ('got = json.loads(os.environ["INPUTS_GOT"])\n', "呼びが 0 個"),
             "boundary.value で読む": ('got = boundary.value(os.environ.get("INPUTS_GOT"))\n', "呼びが 0 個"),
-            "素通しの boundary.passed": ('def f(env):\n    return {"got": boundary.passed(env.get("INPUTS_GOT"))}\n'
-                                       'def stalled(env):\n    return globals()["f"](env)["got"].get("stall")\n', "呼びが 0 個"),
+            "口でない関数で読み、globals で引く": ('def f(env):\n    return {"got": boundary.value(env.get("INPUTS_GOT"))}\n'
+                                             'def stalled(env):\n    return globals()["f"](env)["got"].get("stall")\n', "呼びが 0 個"),
             "口の呼びが 2 つ": (GATE + 'again = boundary.picked(os.environ.get("INPUTS_GOT"), NAMES)\n', "呼びが 2 個"),
             "口の外にもう 1 つ字": (GATE + 'again = os.environ.get("INPUTS_GOT")\n', "呼びの外"),
+            "口の中で walrus で取っておく": (GATE_NAMES + 'got = boundary.picked(raw := os.environ.get("INPUTS_GOT"), NAMES)\n'
+                                       '_typo = json.loads(raw or "{}").get("no_such_field")\n', "そのものでない"),
+            "口の中で包む関数で取っておく": (GATE_NAMES + 'got = boundary.picked(keep(os.environ.get("INPUTS_GOT")), NAMES)\n', "そのものでない"),
+            "os.environ でない物の get": (GATE_NAMES + 'got = boundary.picked(kept.get("INPUTS_GOT"), NAMES)\n', "そのものでない"),
         }
         for name, (script, why) in cases.items():
             with self.subTest(name):
@@ -307,7 +312,7 @@ class BlockReturnsTest(unittest.TestCase):
 
     def test_env_read_by_a_built_name_or_walked_is_red(self):
         """まるごとの参照を受ける script は、環境変数を字のままの鍵でだけ読む。名を組む・回す・写す・ほかへ渡す読みは、値の流れを解かずに
-        赤（前の目の反例 4 つ: 名を組む小関数・名を組む内包・頭の字で絞って回す・字をつなぐ）"""
+        赤"""
         cases = {
             "名を組む小関数": ('def env(name):\n    return boundary.value(os.environ.get(f"INPUTS_{name}"))\n'
                           'got2 = env("TESTS")["fingerprint"]\n', 2),

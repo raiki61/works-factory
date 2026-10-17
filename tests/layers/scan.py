@@ -722,7 +722,8 @@ def _takes_whole(node, keys: tuple, text: str) -> bool:
 
 def _gated(root: Path, line_path: Path, node, here: str, key: str):
     """まるごとの参照を with:<key> で受ける script の節 node の口。返りは ((宣言の場所, 名の並び), "") か (None, 赤の行)。
-    口は `boundary.picked(<"INPUTS_<KEY>" の字を持つ式>, <名の並び>)` の呼び 1 つで、"INPUTS_<KEY>" の字はその第 1 引数の外に無い。
+    口は `boundary.picked(os.environ.get("INPUTS_<KEY>"), <名の並び>)`（添字の読みも可）の呼び 1 つで、"INPUTS_<KEY>" の字はその
+    第 1 引数の外に無い（第 1 引数を読みそのものに限るので、まるごとの値を別の名に取っておけない）。
     名の並びは _declared が読む形だけで、ほかの形は解かずに赤"""
     scripts = [p for p in node_scripts(line_path.parent, node) if p.suffix == ".py"]
     if len(scripts) != 1:
@@ -740,8 +741,11 @@ def _gated(root: Path, line_path: Path, node, here: str, key: str):
     gates = [n for n in ast.walk(tree) if _boundary_call(n, GATE_PICKED) and n.args and _holds(n.args[0], env)]
     if len(gates) != 1:
         return None, (f"{rel}:{gates[1].lineno if gates else 1}: {here} を受ける script が {env} を boundary.{GATE_PICKED}"
-                      f"(<{env} の字を持つ式>, <名の並び>) の 1 つの呼びで読まない（呼びが {len(gates)} 個）")
+                      f'(os.environ.get("{env}"), <名の並び>) の 1 つの呼びで読まない（呼びが {len(gates)} 個）')
     gate = gates[0]
+    if not _environ_read(gate.args[0], env):
+        return None, (f"{rel}:{gate.lineno}: {here} を受ける script の boundary.{GATE_PICKED} の 1 つ目の引数が、"
+                      f'os.environ.get("{env}") か os.environ["{env}"] そのものでない')
     inside = {id(n) for n in ast.walk(gate.args[0])}
     stray = [n.lineno for n in ast.walk(tree) if _spells(n, env) and id(n) not in inside]
     if stray:
@@ -838,6 +842,13 @@ def _spells(node, env: str) -> bool:
 
 def _holds(node, env: str) -> bool:
     return any(_spells(n, env) for n in ast.walk(node))
+
+
+def _environ_read(node, env: str) -> bool:
+    """node が `os.environ.get("<env>")` か `os.environ["<env>"]` か"""
+    environ = node.func.value if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) else getattr(node, "value", None)
+    return _reads_env(node, env) and isinstance(environ, ast.Attribute) and environ.attr == "environ" \
+        and isinstance(environ.value, ast.Name) and environ.value.id == "os"
 
 
 def _reads_env(node, env: str) -> bool:
