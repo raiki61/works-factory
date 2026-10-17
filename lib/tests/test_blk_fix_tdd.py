@@ -213,12 +213,12 @@ class TestStart(LoopCase):
         self.assertEqual(git(self.repo, "status", "--porcelain"), "", "元の結末を取っても作業ツリーは変わらない")
 
     def test_prompt_carries_the_borrowed_skill_seat(self):
-        """TDD の役の指示書に借りたスキルの座（Skill で test-driven-development を読む 1 文と読み替えの全文）が載る（元 tddloop の seat.section）"""
+        """TDD の役の指示書に借りたスキルの座（Skill で test-driven-development を読む 1 文と読み替えの TDD の役の節）が載る（元 tddloop の seat.section）"""
         import seat
         full = pathlib.Path(tddloop.prep(self.state)["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn(str(seat.HEAD), full)
         self.assertIn("`test-driven-development`", full)
-        self.assertIn((seat.BORROW_DIR / seat.OVERLAY_FILE).read_text(encoding="utf-8").strip(), full)
+        self.assertIn(seat.overlay_body(seat.OVERLAY_KINDS["tdd"]).strip(), full)
 
     def test_prep_marks_a_new_unit_only_when_the_unit_changes(self):
         """支度の返りの new_unit は、前の周の支度と単位の鍵（振り分けの段は route、ほかの段は今の単位）が違う周だけ真（YAML が

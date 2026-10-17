@@ -6,7 +6,8 @@
 仕事は fixboard.prep が持つ（単独の run の節 group-start も同じ写しを置くのに呼ぶ）。
 
 置き場（boundary.place("fix") = $ARTIFACTS_DIR/fix/<include の名>/）に書く物: r1/start.json（始めの記録の字のままの写し。startrec.adopt）・
-judgment.json と隣の answer-ties.json・materials.json・depth-head.json（在れば。頭の深さの控え）・plan-fields.json と凍結の印（planmarks.save）・p2.fix_plan.json（修正案の隣に在れば）・
+judgment.json と、入力 answer_ties・materials・depth_record の先の写し judge-ties.json・judge-materials.json・judge-depth-head.json
+（在れば。fixboard.JUDGE_COPIES）・plan-fields.json と凍結の印（planmarks.save）・p2.fix_plan.json（修正案の隣に在れば）・
 p2.plan_review.json（入力 plan_review の事前審査の返答の写し。修正役の plan_faces と差分の審査の材料。無ければ書かない）・ripple.json・
 depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・human-notes.md（関所の一言と答えで戻った単位の行と、
 入力 notes の機械の申し送り。無ければ書かない）・base-rev.json

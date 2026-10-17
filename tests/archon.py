@@ -4,15 +4,16 @@
   在れば place._verify を当て、壊れていれば赤にする。環境変数か置き場が無い時だけ見送る。試験の中では取りに行かない。
 - 見送らない: 環境変数 WORKS_FACTORY_ARCHON_REQUIRED が在れば（CI が立てる）、見送る所で同じ文の赤にする。
   CI の用意が崩れて Archon の要る試験が黙って見送られ、CI が緑のままになるのを防ぐ。
-- 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME（工場が決める値を書いた config.yaml。place.home_config）と、このリポジトリを指す WORKS_FACTORY_ROOT をつけて起こす。
-  その config.yaml には群の別名（place.group_presets）も書く。殻は群の別名を新しい run の --config で渡すが、止めた Archon の
-  validate と workflow test は --config を受けない（「--config can only be used with workflow run, trigger fire, or trigger schedule」）。
-  本番の家と同じく別名を書かない家は aliases=False で起こす（家の置き場は別。--config の層が群の値を運ぶことを照らす試験が使う）。
+- 起こす: 源の Archon を bun で、使い捨ての ARCHON_HOME と、殻と同じ既定の provider（place.PROVIDER_ENV）と、このリポジトリを指す
+  WORKS_FACTORY_ROOT（呼ぶ側が env で替え、None で外せる）をつけて起こす。家の config.yaml には群の別名（place.group_presets）を書く。殻は群の
+  別名と run のノードへの環境変数を新しい run の --config で渡すが、止めた Archon の validate と workflow test は --config を受けない
+  （「--config can only be used with workflow run, trigger fire, or trigger schedule」）。本番の家と同じく何も書かない家は
+  aliases=False で起こす（家の置き場は別。--config の層が値を運ぶことを照らす試験が使う）。
   bun が無ければ見送る。
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
 - validate の数えない警告: Claude Code に同梱の skill（BUILTIN_SKILLS）と、借りる superpowers の skill（BORROWED_SKILLS。
-  bin/_lib/borrow/borrow.json の superpowers.skills）を節が名指した時の「ディスクに無い」の警告だけ。同梱の skill は SKILL.md を
+  lib/borrow/borrow.json の superpowers.skills）を節が名指した時の「ディスクに無い」の警告だけ。同梱の skill は SKILL.md を
   持たず、借りる skill は起動の時に run の隔離した設定へ入るので使い捨ての木には無い。止めた Archon（packages/workflows/src/
   validator.ts の skills の照らし）はどちらも名指すたびに出す。
 """
@@ -36,7 +37,7 @@ CACHE_ENV = hermetic.ARCHON_CACHE_ENV
 REQUIRED_ENV = hermetic.ARCHON_REQUIRED_ENV
 PACK = pack.load(ROOT)
 BUILTIN_SKILLS = frozenset({"code-review", "simplify", "security-review"})
-BORROWED_SKILLS = frozenset(json.loads((ROOT / "bin" / "_lib" / "borrow" / "borrow.json").read_text(encoding="utf-8"))
+BORROWED_SKILLS = frozenset(json.loads((ROOT / "lib" / "borrow" / "borrow.json").read_text(encoding="utf-8"))
                             ["superpowers"]["skills"])
 BUILTIN_SKILL_WARNING = re.compile(r"Skill '([^']+)' not found in ")
 WORKFLOWS = ROOT / PACK["ours"]["folder"]
@@ -88,20 +89,20 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS) -> Iterator[
         yield root
 
 
-def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str) -> subprocess.CompletedProcess:
+def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:
     """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。子の環境は hermetic.child_env で
     作る（入口の殻が渡す Archon の頭・包みの宣言・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
-    起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しする"""
+    起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しし、値を None にした名は置かない"""
     entry = source() / place.ENTRY
     bun = shutil.which("bun")
     if bun is None:
         raise absent("bun が無い")
     home = cwd.parent / ("archon-home" if aliases else "archon-home-bare")
-    if not home.exists():
-        place.home_config(home)
-        if aliases:
-            with (home / "config.yaml").open("a", encoding="utf-8") as config:
-                config.write("aliases:\n" + "".join(f"  {json.dumps(name)}: {json.dumps(preset)}\n"
-                                                     for name, preset in place.group_presets().items()))
-    child = hermetic.child_env(**{**env, "ARCHON_HOME": str(home), "WORKS_FACTORY_ROOT": str(ROOT)})
+    if aliases and not home.exists():
+        home.mkdir()
+        (home / "config.yaml").write_text("aliases:\n" + "".join(f"  {json.dumps(name)}: {json.dumps(preset)}\n"
+                                                                for name, preset in place.group_presets().items()),
+                                          encoding="utf-8")
+    named = {"WORKS_FACTORY_ROOT": str(ROOT), **env, "ARCHON_HOME": str(home), place.PROVIDER_ENV: place.DEFAULT_PROVIDER}
+    child = hermetic.child_env(**{name: value for name, value in named.items() if value is not None})
     return subprocess.run([bun, str(entry), *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")

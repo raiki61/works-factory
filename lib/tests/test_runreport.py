@@ -250,6 +250,17 @@ class BuildCase(Base):
         self.assertIn(userenv.NOTE, self.first_line(user_env=True))
         self.assertNotIn(userenv.NOTE, self.first_line())
 
+    def test_notices_before_the_run_are_in_the_head(self):
+        """#678: run を止めずに進めた起こす前の注意の行（線の値 notices）は、冒頭の 3 行の下に 1 行ずつ載り、人に向けた報告の頭
+        （machine_head）に入る。無ければ冒頭は今のまま"""
+        notices = ["注意（test_cmd）: test_cmd の .venv/bin/x は対象の git が無視するパス", "許しなので止めずに進める"]
+        _, text, _ = self.build(line={"notices": notices})
+        head = runreport.machine_head(text)
+        self.assertTrue(head.split("\n\n")[1].startswith(gatemarks.HAPPENED), head)
+        self.assertEqual(head.split("\n\n")[-1].splitlines(), notices)
+        _, quiet, _ = self.build()
+        self.assertEqual(runreport.machine_head(quiet), head.rsplit("\n\n", 1)[0])
+
     def test_prior_section_names_only_the_files_written(self):
         """#383 の 10: 前の失敗だけが在る run は next-request.json を書かないので、節はそれを名指さず prior-failures.json を名指す"""
         got, text, _ = self.build(line={"stops": {"ask-final": stopby.LINE_SCRIPT}})
@@ -521,8 +532,8 @@ class TranscriptCase(Base):
         jdir = self.dir / "judge"
         chosen = launchgroups.choices([{"group": "@wf-fix-writers", "model": "opus", "effort": "high", "why": "広い書き換え"},
                                        {"group": "@wf-nothing", "model": "opus", "effort": "high", "why": "x"}])
-        headdepth.write(jdir, headdepth.record("重厚", "設計の選び", groups=chosen))
-        judged = {**fixed_run()["judge"], "judgment": str(jdir / "judgment.json")}
+        record = headdepth.write(jdir, headdepth.record("重厚", "設計の選び", groups=chosen))
+        judged = {**fixed_run()["judge"], "judgment": str(jdir / "judgment.json"), "depth_record": str(record)}
         facts = runreport.transcript_facts(rows_of(
             start("judge__diagnose", "2026-10-12T00:00:00Z"),
             done("judge__diagnose", "2026-10-12T00:03:00Z", cost=0.5, model="opus", effort="high"),
@@ -925,8 +936,8 @@ class DecisionsCase(Base):
     def test_checks_left_are_counted_as_decision(self):
         """元 ReportHeadCase.test_checks_left_are_counted_as_decision"""
         judgment = self.put("judge/judgment.json", {})
-        self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}})
-        _, text, decided = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}))
+        materials = self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}})
+        _, text, decided = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "materials": materials}))
         self.assertEqual(decided[0], "fixed_needs_check")
         self.assertTrue(text.splitlines()[2].startswith(gatemarks.HAPPENED + report.OUTCOME_WORDS["fixed_needs_check"]))
         self.assertIn(f"{report.CHECKS_LEFT} 1 件", text.splitlines()[4])
@@ -1057,8 +1068,8 @@ class DraftsCase(Base):
 
     def test_unmeasured_material_draft_carries_its_reason(self):
         judgment = self.put("judge/judgment.json", {})
-        self.put("judge/materials.json", {"parallel_pr": {"status": "not_run", "reason": "forge が無い"}})
-        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
+        materials = self.put("judge/materials.json", {"parallel_pr": {"status": "not_run", "reason": "forge が無い"}})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "materials": materials})
         drafts = runreport.answer_drafts(returns, {}, {"run_id": RUN})
         self.assertEqual(drafts[0]["question"], "parallel_pr")
         self.assertIn("forge が無い", drafts[0]["note"])
@@ -1676,7 +1687,8 @@ class CarryCase(Base):
         (rdir / judge_accept.REJUDGE_BEFORE).write_text(json.dumps({"units": before, "objection": objection,
                                                                     "numbered_keys": [u["key"] for u in before]}), encoding="utf-8")
         judge = {**fixed_run()["judge"], "judgment": self.put("judge/judgment.json", {"units": before})}
-        rejudge = {**judge, "judgment": self.put("rejudge/judgment.json", {"units": after}), "rejudge_verdict": verdicts[-1]}
+        rejudge = {**judge, "judgment": self.put("rejudge/judgment.json", {"units": after}), "rejudge_verdict": verdicts[-1],
+                   "rejudge_exit": str(rdir / judge_accept.PORTS["rejudge_exit"]), "rejudge_diff": str(rdir / judge_accept.REJUDGE_DIFF)}
         rows = [{"round": 1, "pass": judge_accept.REJUDGE_ROLE, "verdict": v,
                  **judge_accept.diff_units(before, after, objection, [u["key"] for u in before])} for v in verdicts]
         self.put(f"rejudge/{judge_accept.REJUDGE_DIFF}", rows)
@@ -1915,9 +1927,9 @@ class LedgerCase(Base):
         units = units if units is not None else [{"id": FORK_UNIT}]
         judged = judged if judged is not None else [{"key": u["id"], "label": u.get("label", "block")} for u in units]
         judgment = self.put("judge/judgment.json", {"questions": list(questions), "units": judged})
-        if materials is not None:
-            self.put("judge/materials.json", materials)
-        judge = {**fixed_run()["judge"], "judgment": judgment, "units": units}
+        mats = self.put("judge/materials.json", materials) if materials is not None else None
+        judge = {**fixed_run()["judge"], "judgment": judgment, "units": units, "materials": mats,
+                 "answer_ties": str(self.dir / "judge" / "answer-ties.json")}
         return fixed_run(judge=judge, **{"plan-review": {**fixed_run()["plan-review"],
                                                         "questions": [gatemarks.question_row("fork", q) for q in review]}})
 
@@ -2079,10 +2091,12 @@ class LinesCase(Base):
     """機械の報告の節に取り戻した行（判定・計画・目・封じの返りと、その隣のファイルから）"""
 
     def judge_with(self, **beside) -> dict:
+        """判定の返り（judgment と、置いた隣のファイルを指す出力の欄。欄の名は judge_accept の表から引く）"""
+        import judge_accept
+        field = {name: key for key, name in {**judge_accept.PORTS, **judge_accept.FIRST_PORTS}.items()}
         judgment = self.put("judge/judgment.json", {})
-        for name, doc in beside.items():
-            self.put(f"judge/{name}", doc)
-        return {**fixed_run()["judge"], "judgment": judgment}
+        return {**fixed_run()["judge"], "judgment": judgment,
+                **{field[name]: self.put(f"judge/{name}", doc) for name, doc in beside.items()}}
 
     def test_answer_ties_reach_the_report(self):
         """J109: 判定の隣の answer-ties.json を報告が読み、どの問いにも当たらなかった答え（結ばない訳つき）と判定が単位にしなかった
@@ -2182,22 +2196,20 @@ class LinesCase(Base):
         """J112・R79（元 worldmark.report_lines :265-277）: 判定の隣の world-state.json の段が落ちた訳（status が ok でない時の reason）と、
         類の数・落とした抜き書きの数を世界の解の節に出す。控えが無い run は前の 1 行のまま"""
         judgment = self.put("judge/judgment.json", {})
-        self.put(f"judge/{worldmark.STATE_FILE}", {"status": "failed", "reason": "網が無い（web を引けない）", "world_file": "",
-                                                   "classes": 0, "dropped": 0})
-        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "world": None}))
+        state = self.put("judge/world-state.json", {"status": "failed", "reason": "網が無い（web を引けない）", "world_file": "",
+                                                    "classes": 0, "dropped": 0})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "world": None, "world_state": state}))
         self.assertIn("- 世界の解の段が落ちた（行なしで進んだ）: 網が無い（web を引けない）", self.section(text, report.WORLD_HEADING))
         world = self.put("judge/world.jsonl", json.dumps({**WORLD_ROW, "basis": "knowledge"}, ensure_ascii=False))
-        self.put(f"judge/{worldmark.STATE_FILE}", {"status": "ok", "reason": "", "world_file": world, "classes": 1, "dropped": 3})
-        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "world": world}))
+        self.put("judge/world-state.json", {"status": "ok", "reason": "", "world_file": world, "classes": 1, "dropped": 3})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "world": world, "world_state": state}))
         self.assertIn("- 類 1・落とした抜き書き 3", self.section(text, report.WORLD_HEADING))
 
     def test_unseen_local_review_lens_is_reported(self):
         """J110（元 diverted.report_lines・report.py:2069）: 判定の隣の local-review-lenses.json の見ていないレンズを、報告の
         「未確認のレンズ」の節に出す。控えが無ければ節に「無い」"""
-        import diverted
-        judgment = self.put("judge/judgment.json", {})
-        self.put(f"judge/{diverted.LENS_FILE}", {"unseen": ["/code-review"]})
-        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}))
+        judge = self.judge_with(**{"local-review-lenses.json": {"unseen": ["/code-review"]}})
+        _, text, _ = self.build(fixed_run(judge=judge))
         self.assertIn("- 局所レビューの /code-review: 所見を受け取れていない（fork の返答が届かなかった）——見ていないのと同じ",
                       self.section(text, report.UNSEEN_LENS_HEADING))
         _, text, _ = self.build()
@@ -2206,10 +2218,8 @@ class LinesCase(Base):
     def test_parallel_pr_drafts_reach_the_head(self):
         """J111・R80（元 report._pr_lines の前半 :1274-1281）: 判定の隣の pr-downgrades.json の並行 PR の担当への申し送りの下書きを、
         人が決めることの節に「投稿していない」と出す（人が担当の PR に渡す）"""
-        import prcheck
-        judgment = self.put("judge/judgment.json", {})
-        self.put(f"judge/{prcheck.DRAFTS}", [{"pr": 12, "files": ["a.py", "b.py"], "note": "a.py の 3 行目を同時に直しています"}])
-        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}))
+        judge = self.judge_with(**{"pr-downgrades.json": [{"pr": 12, "files": ["a.py", "b.py"], "note": "a.py の 3 行目を同時に直しています"}]})
+        _, text, _ = self.build(fixed_run(judge=judge))
         self.assertIn("- 並行 PR #12 の担当への申し送りの下書き（a.py・b.py。投稿していない）: a.py の 3 行目を同時に直しています",
                       self.section(text, report.DECISIONS_HEADING))
 

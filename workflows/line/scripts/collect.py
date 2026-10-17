@@ -16,6 +16,7 @@ fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（
 固定材料から始めた run（fix-in の received が在る）は直す前のテスト・判定・計画の往復・修正前の承認が飛ぶので、その受け皿と
 承認の答え・載せなかった問いの空の所を、fix-in が運んだ写しの値（received）で埋める（報告の結末の決めは判定と計画の出力が無いと
 途中で終わった run と読む）。
+判定・再審の受け皿の got がこの版より前に走った判定の返り（judge_accept.require_ports）なら、欄を空と読んで結末を作らず fallback で止める。
 
 メイングラフのノードの値（docs/design.md の report の出力の「メイングラフの値」）:
 - stops: メイングラフの script のノード（STOPS）の止めの語 {ノード: 語}（入口の拒み・無人の承認ノードの止め・script の例外・人の止め。
@@ -24,6 +25,8 @@ fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（
   最後の承認ノードを開ける理由・承認の後に受け入れ条件のテストが変わった問い（spec-check の questions）（飛ばされたノードは []）
 - prior_failures: 依頼の前の失敗のポインタ（start の出力）・redepth: 直した後の深さの上げ直しの出力・spec_unchecked: 受け入れ条件の
   テストを照らせなかったか（spec-check の unchecked）（飛ばされたノードは null）
+- notices: run を止めずに進めた起こす前の注意の行の並び（メイングラフの YAML の collect の with: が、どのノードの出力の字かを決める。
+  行ごとに割る。飛ばされたノードと空の字は []）
 - optional: 受け止める段の宣言（落ちても先へ進めてよい段の、区切りで終わるノードの id の頭かノードの id の並び。runreport._declared）。
   include 丸ごと受け止める段の宣言はメイングラフの collect の with: の optional、ブロックの中の節の宣言は各ブロックが返す節の返りの欄
   optional で、受け皿が運ぶ。ここで include の id の頭を付けて（absorbed）メイングラフの宣言と重ねずに合わせる。report の入力の欄の値には
@@ -34,7 +37,7 @@ result が $collect.output を読むので、このノードは落ちない: 境
 理由は LINE_SCRIPT。境の口の LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。
 
 入力（with:）: <include の id>（受け皿の出力）・plan・plan_review・design_only（計画の往復と直す物が無い周の受け皿の出力）・start・
-fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・spec_unchecked・optional
+fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・spec_unchecked・optional・notices
 """
 import json
 import os
@@ -48,6 +51,9 @@ try:
     unread = None
 except Exception as error:   # result が読むノードは落ちない（上の docstring）
     boundary, childsweep, unread = None, None, error
+if boundary is not None:
+    with boundary.guarded_imports():
+        import judge_accept
 
 RECEIVED = ("test_gate_base", "judge", "rejudge", "replan", "replan_review", "fix", "test_gate_final", "eyes", "merge_seal",
             "merge_apply")
@@ -57,6 +63,7 @@ STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in
          "spec-check", "redepth", "ask-final", "answer-final")
 LISTS = ("deferred", "widened", "final_reasons", "spec_changed", "optional")
 VALUES = ("prior_failures", "redepth", "spec_unchecked")
+TEXT_LINES = ("notices",)   # 字を行ごとの並びに割る入力
 LINE_SCRIPT = "works:line-script"
 # 受け皿が運んだブロックの返りの宣言（欄 optional）を、記録の step の頭にする対応: collect の欄 → その返りを返す include の id の並び。
 # 欄の名と include の id は字が違う物（rejudge は rejudge-run）があり、2 度目の修正 refix-run は受け皿が無く 1 回目の修正 fix と同じブロックの
@@ -113,6 +120,8 @@ def absorbed(got: dict, own: list) -> list:
 def collect(received: dict, line: dict) -> dict:
     got = {name: (boundary.value(received.get(name)) or {}).get("got") for name in (*RECEIVED, *ROUNDS, "design_only")}
     design_only = got.pop("design_only")
+    for name in ("judge", "rejudge"):
+        judge_accept.require_ports(got[name])
     fixed = boundary.value(line["fixed"])
     stops = {node: boundary.text((line.get("stops") or {}).get(node)) for node in STOPS}
     out = {
@@ -126,6 +135,7 @@ def collect(received: dict, line: dict) -> dict:
         "stops": {node: word for node, word in stops.items() if word},
         **{name: boundary.items(line.get(name)) for name in LISTS},
         **{name: boundary.value(line.get(name)) for name in VALUES},
+        **{name: boundary.text(line.get(name)).splitlines() for name in TEXT_LINES},
     }
     out["optional"] = absorbed(got, out["optional"])   # 宣言を読むのはこの run で受け皿が運んだ got だけ（carried は読まない）
     out = {**out, **{name: value for name, value in carried(line.get("fix_in")).items() if name in out and not out[name]}}
@@ -147,13 +157,13 @@ def line_of_env() -> dict:
         "fix_in": os.environ.get("INPUTS_FIX_IN"),
         "gates": {name: os.environ.get(f"INPUTS_{name.upper()}") for name in GATES},
         "stops": {node: os.environ.get(f"INPUTS_{stop_key(node).upper()}") for node in STOPS},
-        **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*LISTS, *VALUES)},
+        **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*LISTS, *VALUES, *TEXT_LINES)},
     }
 
 
 def fallback(reason: str) -> dict:
     return {**{name: None for name in (*RECEIVED, *ROUNDS)}, "start": None, **{name: None for name in GATES},
-            "stops": {"collect": LINE_SCRIPT}, **{name: [] for name in LISTS}, **{name: None for name in VALUES}, "stages": STAGES}
+            "stops": {"collect": LINE_SCRIPT}, **{name: [] for name in LISTS}, **{name: None for name in VALUES}, **{name: [] for name in TEXT_LINES}, "stages": STAGES}
 
 
 def main() -> None:

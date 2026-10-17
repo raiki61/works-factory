@@ -20,6 +20,15 @@ inputs:
   judgment:
     required: true
     description: 判定のポインタ
+  answer_ties:
+    default: "null"
+    description: 依頼の答えを判定の問い・単位に結んだ行のポインタ（answer-ties.json）。直す義務の数えが読む。null は結びが無い（字の一致だけ）
+  materials:
+    default: "null"
+    description: 判定の素材の状態のポインタ（materials.json。素材の名 → {status, …}）。直す義務の数えが読む。null は素材の状態が無い
+  depth_record:
+    default: "null"
+    description: run の頭の深さの控えのポインタ（depth-head.json）。修正の差分が引用した where のファイルの外に出たかを数える。null は控えが無い
   plan:
     default: ""
     description: 修正案のポインタ（plan-fields.json）。空は修正案の無い run
@@ -34,7 +43,7 @@ inputs:
     description: run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら差分の審査を省く。空は標準
   answers:
     default: ""
-    description: 修正前の承認ノードの答え（飛ばされれば null）
+    description: 修正の前に人が返した答え（人に聞かなければ null）
   prior_conflicts:
     default: "null"
     description: 前の修正の段の申し出と裁定のポインタ（前の段の出力 conflicts。2 度目の修正の段だけに渡す）。その先のフォルダの申し出と裁定と TDD のループの状態を写し、この段が前の段の裁定と凍結を見る。null は 1 回目の段

@@ -11,7 +11,7 @@
 - `injectors` 包みが足す system prompt の塊: AI を起こす包み（前の works の adapter.py の INJECTORS と --append-system-prompt）を持ってきていない（docs/design.md:474 で落とした）。system prompt を足すのは Archon の AI ノードの systemPrompt（workflows/plan-review・workflows/eyes の YAML）がノードごとに字で担う
 - `replycontract` 返答の契約: 返答を本文で受けて型を確かめ出し直させる包みの旗 text-reply と replycontract.py を持ってきていない（docs/design.md:474 で包みを落とした）。返答の型は Archon の AI ノードの output_format（SDK の構造化出力 StructuredOutput）が担う
 - `writes` 役の返答を共有ボードに書く規則: graphloops の engine の共有ボードと書く規則（record.py の apply_writes・rules の WRITE_OPS）を持ってきていない（docs/design.md の graphloops の写しの行で落とした）。役の返答を後ろへ渡すのは Archon のノードの出力（$<ノード>.output）と各サブグラフの script が置き場に書くファイル
-- `core-seams` 写しの核の差し替えの口: 写しの核（graphloops の review-loop）が無く（lib/graphloops は engine の型検査・描き方の 7 ファイルだけ）、走る時に写しの名を替える CORE_OVERRIDES・組み手の印 rl_builder も無い。承認ノードの組み立て（gatemarks.plan_gate_items）などはグラフの script が直に呼び、写しのバイトの手直しは写しの台帳の読み口 bin/_lib/copyledger.py の ! 行が担う
+- `core-seams` 写しの核の差し替えの口: 写しの核（graphloops の review-loop）が無く（lib/graphloops は engine の型検査・描き方の 7 ファイルだけ）、走る時に写しの名を替える CORE_OVERRIDES・組み手の印 rl_builder も無い。承認ノードの組み立て（gatemarks.plan_gate_items）などはグラフの script が直に呼び、写しのバイトの手直しは写しの台帳の読み口 tests/bin/copyledger.py の ! 行が担う
 
 ## 平たく言うと（3 行）
 
@@ -137,7 +137,7 @@
 - 住処: `lib/conflict.py`（申し出の形 `ITEM_SCHEMA`・`CONFLICTS_SCHEMA`、欄の名 `FIELDS`（`WHY_FIELD`・`WHICH_FIELD`・`KIND_FIELD` を含む）、申し出の種類 `DIV_KINDS`、機械の確かめ `problems`、止めた単位の積み `park`、出どころの語 `SOURCES`（組どうしの合わせの申し出 `JOIN_SOURCE` を含む）、裁定の語 `DECISIONS`（判定のやり直し `REJUDGE` を含む）・`FIX_DECISIONS`、直す義務から外す単位 `held_by_rulings`）
 - 約束: 住処の定数の表（申し出の欄と裁定の語）と、修正役の返答の欄 `conflicts` の形（`workflows/fix/works-factory-fix.yaml` の `output_format` に字で書く）
 - 知ってよい所: 住処と、申し出を書いて裁く修正のサブグラフ（`workflows/fix/`・修正の受け付けの申し出の取り込み `lib/fixboard.py`・TDD のループ `lib/tddloop.py`・裁定のループ `lib/ruling.py`・組の合わせの直し `lib/clash.py`（組どうしの合わせの申し出を積む。欄の名は住処の `clash_claims` で組み、字を写さない））
-- 今: 外の当たりは、案の直しの事前審査と項目のセクションに申し出を貼る `lib/boardview.py`・`lib/planfile.py` と、`lib/querytest.py` の docstring と、修正役の申し出の返し方を述べる素材集めの局所の審査の指示書 `workflows/judge/commands/material-local-review.md` の 4 ファイル 7 行
+- 今: 外の当たりは、案の直しの事前審査と項目のセクションに申し出を貼る `lib/boardview.py`・`lib/planfile.py` と、`lib/querytest.py` の docstring の 3 ファイル 5 行
 
 ### `lanes` 並べの組
 
@@ -256,7 +256,7 @@
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
 
 - 状態: 散らばり
-- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 13 ファイル 74 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行・道具を字で述べる指示書 1 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
+- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 12 ファイル 73 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
 - 計画: まだ無い
 
 ### `prompt-assembly` 指示書の組み立て

@@ -1,4 +1,5 @@
 """役の指示書（`workflows/*/commands/`）と `lib/` に、言語と実行器の名の語の表に当たる字が無い（根の AGENTS.md の E13 の機械の行）。"""
+import json
 import pathlib
 import unittest
 
@@ -12,6 +13,15 @@ SEEDS = pathlib.Path(__file__).resolve().parent / "seeds"
 class LangNeutralTest(unittest.TestCase):
     def test_real_tree_clean(self):
         self.assertEqual(scan.problems("E13", ROOT), [])
+
+    def test_borrowed_copy_holds_only_pinned_files(self):
+        """E13 が丸ごと外す lib/borrow/superpowers/ の下は、固定（borrow.json の pin.files）が sha256 で縛るファイルと台帳だけ"""
+        borrow = ROOT / "lib" / "borrow"
+        pin = json.loads((borrow / "borrow.json").read_text(encoding="utf-8"))["superpowers"]["pin"]
+        want = {"COPIED_FROM", *(f"{pin['version']}/{rel}" for rel in pin["files"])}
+        copy = borrow / "superpowers"
+        have = {p.relative_to(copy).as_posix() for p in copy.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
+        self.assertEqual(have, want)
 
     def test_seed_caught(self):
         got = scan.problems("E13", SEEDS / "e13")

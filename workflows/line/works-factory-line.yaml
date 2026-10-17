@@ -62,11 +62,31 @@ returns: result
 outcome_field: fixed
 
 nodes:
+  # 0 test_cmd の形の確かめ。対象の手元を試す形なら testcmd-stop が理由の文で run を止める（AI を起こす前）
+  - id: testcmd
+    script: testcmd
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        stop: { type: boolean }
+        reason: { type: string }
+      required: [stop, reason]
+    mutates_checkout: false
+
+  - id: testcmd-stop
+    cancel: "$testcmd.output.reason"
+    depends_on: [testcmd]
+    when: "$testcmd.output.stop == true"
+
   # 1 始め。入力をそろえ、始めの記録を書く。受けなければ ok: false で、後ろは when: で飛ぶ（AI を起こす前に止める）
   - id: start
     script: start
     runtime: uv
     timeout: 1728000000
+    depends_on: [testcmd]
+    when: "$testcmd.output.stop == false"
     output_format:
       type: object
       properties:
@@ -162,7 +182,9 @@ nodes:
     depends_on: [judge]
     with:
       got: "$judge.output"
-      names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why optional"
+      names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why premises verify
+        pr_excluded materials purpose_review depth_record decisions answer_ties review_lenses pr_drafts rejudge_exit rejudge_diff
+        purpose_means world_state optional"
 
   # 5' 直す物が無い周（判定が直す単位を出さず、止めてもいない）は修正案を作らず、最後の R2 が要る独立設計だけを作る（元
   # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める。
@@ -180,6 +202,9 @@ nodes:
       judgment: "$judge.output.judgment"
       purpose: "$judge.output.purpose"
       world: "$judge.output.world"
+      premises: "$judge.output.premises"
+      purpose_review: "$judge.output.purpose_review"
+      decisions: "$judge.output.decisions"
       plan: "null"
       structure: "null"
       ripple: "null"
@@ -207,6 +232,12 @@ nodes:
             start: "$start.output.record"
             units: "$judge.output.units"
             judgment: "$judge.output.judgment"
+            verify: "$judge.output.verify"
+            pr_excluded: "$judge.output.pr_excluded"
+            depth_record: "$judge.output.depth_record"
+            answer_ties: "$judge.output.answer_ties"
+            materials: "$judge.output.materials"
+            decisions: "$judge.output.decisions"
             world: "$judge.output.world"
             spec: "$judge.output.spec"
             review: "$LOOP_PREV.plan-out.output.review"
@@ -223,6 +254,12 @@ nodes:
             units: "$judge.output.units"
             judgment: "$judge.output.judgment"
             purpose: "$judge.output.purpose"
+            premises: "$judge.output.premises"
+            materials: "$judge.output.materials"
+            pr_excluded: "$judge.output.pr_excluded"
+            purpose_review: "$judge.output.purpose_review"
+            decisions: "$judge.output.decisions"
+            purpose_means: "$judge.output.purpose_means"
             world: "$judge.output.world"
             plan: "$plan.output.plan"
             structure: "$plan.output.structure"
@@ -368,6 +405,15 @@ nodes:
         world: {}
         spec: {}
         rejudge_verdict: {}
+        premises: {}
+        verify: {}
+        pr_excluded: {}
+        materials: {}
+        purpose_review: {}
+        depth_record: {}
+        decisions: {}
+        answer_ties: {}
+        purpose_means: {}
         plan: {}
         ripple: {}
         depth: {}
@@ -380,7 +426,8 @@ nodes:
         deferred: { type: array }
         received: { type: [object, "null"] }
         stop_reason: { type: string }
-      required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, plan, ripple, depth, head_depth, structure,
+      required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, premises, verify, pr_excluded, materials,
+                 purpose_review, depth_record, decisions, answer_ties, purpose_means, plan, ripple, depth, head_depth, structure,
                  review, design, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
@@ -407,6 +454,9 @@ nodes:
       baseline: "$fix-in.output.baseline"
       units: "$fix-in.output.units"
       judgment: "$fix-in.output.judgment"
+      answer_ties: "$fix-in.output.answer_ties"
+      materials: "$fix-in.output.materials"
+      depth_record: "$fix-in.output.depth_record"
       plan: "$fix-in.output.plan"
       ripple: "$fix-in.output.ripple"
       depth: "$fix-in.output.depth"
@@ -444,6 +494,12 @@ nodes:
       start: "$start.output.record"
       units: "$fix-in.output.units"
       judgment: "$fix-in.output.judgment"
+      verify: "$fix-in.output.verify"
+      pr_excluded: "$fix-in.output.pr_excluded"
+      depth_record: "$fix-in.output.depth_record"
+      answer_ties: "$fix-in.output.answer_ties"
+      materials: "$fix-in.output.materials"
+      decisions: "$fix-in.output.decisions"
       world: "$fix-in.output.world"
       spec: "$fix-in.output.spec"
       review: ""
@@ -467,6 +523,12 @@ nodes:
       units: "$fix-in.output.units"
       judgment: "$fix-in.output.judgment"
       purpose: "$fix-in.output.purpose"
+      premises: "$fix-in.output.premises"
+      materials: "$fix-in.output.materials"
+      pr_excluded: "$fix-in.output.pr_excluded"
+      purpose_review: "$fix-in.output.purpose_review"
+      decisions: "$fix-in.output.decisions"
+      purpose_means: "$fix-in.output.purpose_means"
       world: "$fix-in.output.world"
       plan: "$replan.output.plan"
       structure: "$replan.output.structure"
@@ -557,6 +619,9 @@ nodes:
       baseline: "$fix-in.output.baseline"
       units: "$fix-in.output.units"
       judgment: "$fix-in.output.judgment"
+      answer_ties: "$fix-in.output.answer_ties"
+      materials: "$fix-in.output.materials"
+      depth_record: "$fix-in.output.depth_record"
       plan: "$replan.output.plan"
       ripple: "$answer-replan.output.fix_ripple"
       depth: "$replan.output.depth"
@@ -651,7 +716,9 @@ nodes:
     depends_on: [rejudge-run]
     with:
       got: "$rejudge-run.output"
-      names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why optional"
+      names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why premises verify
+        pr_excluded materials purpose_review depth_record decisions answer_ties review_lenses pr_drafts rejudge_exit rejudge_diff
+        purpose_means world_state optional"
 
   - id: judged
     script: judged
@@ -665,14 +732,19 @@ nodes:
         purpose: {}
         world: {}
         rejudge_verdict: {}
+        premises: {}
+        materials: {}
+        decisions: {}
+        answer_ties: {}
         rejudged: { type: boolean }
+        rejudge_exit: {}
         new_open_units: { type: array }
         lowered: { type: array }
         unnamed_changed: { type: array }
         unread: { type: string }
         stop_reason: { type: string }
-      required: [units, judgment, purpose, world, rejudge_verdict, rejudged, new_open_units, lowered, unnamed_changed, unread,
-                 stop_reason]
+      required: [units, judgment, purpose, world, rejudge_verdict, premises, materials, decisions, answer_ties, rejudged, rejudge_exit,
+                 new_open_units, lowered, unnamed_changed, unread, stop_reason]
     mutates_checkout: false
     depends_on: [fixed, rejudge-run]
     trigger_rule: none_failed_min_one_success
@@ -682,6 +754,10 @@ nodes:
       judge_purpose: "$fix-in.output.purpose"
       judge_world: "$fix-in.output.world"
       judge_rejudge_verdict: "$fix-in.output.rejudge_verdict"
+      judge_premises: "$fix-in.output.premises"
+      judge_materials: "$fix-in.output.materials"
+      judge_decisions: "$fix-in.output.decisions"
+      judge_answer_ties: "$fix-in.output.answer_ties"
       rejudge: { from: "$rejudge-run.output", if_skipped: null }
       objection: "$fixed.output.objection"
 
@@ -711,7 +787,9 @@ nodes:
       judgment: "$judged.output.judgment"
       start: "$start.output.record"
       answer: { from: "$fix-in.output.answer", if_skipped: null }
-      ties_judgment: "$fix-in.output.judgment"
+      answer_ties: "$judged.output.answer_ties"
+      depth_record: "$fix-in.output.depth_record"
+      materials: "$judged.output.materials"
       replanned: { from: "$after-fix.output.replan", if_skipped: null }
       rejudged: "$fixed.output.rejudge"
 
@@ -756,7 +834,10 @@ nodes:
       plan_questions: "$fixed.output.plan_questions"
       answers: "$fixed.output.answer"
       start_answers: "$answer-start.output.answer"
-      ties_judgment: "$fix-in.output.judgment"
+      answer_ties: "$judged.output.answer_ties"
+      materials: "$judged.output.materials"
+      premises: "$judged.output.premises"
+      decisions: "$judged.output.decisions"
 
   - id: eyes-out
     <<: *receiver
@@ -817,7 +898,10 @@ nodes:
       judgment: "$judged.output.judgment"
       units: "$judged.output.units"
       rejudged: "$judged.output.rejudged"
-      ties_judgment: "$fix-in.output.judgment"
+      rejudge_exit: "$judged.output.rejudge_exit"
+      first_judgment: "$fix-in.output.judgment"
+      answer_ties: "$judged.output.answer_ties"
+      materials: "$judged.output.materials"
       first_units: "$fix-in.output.units"
       fix_units: "$fixed.output.units"
       groups: "$fixed.output.groups"
@@ -921,10 +1005,11 @@ nodes:
         spec_changed: { type: array }
         spec_unchecked: {}
         stages: { type: object }
+        notices: { type: array }
       required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
-                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, stages]
+                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, stages, notices]
     mutates_checkout: false
-    depends_on: [start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
+    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
                  fixed, spec-check, redepth, test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
@@ -971,6 +1056,7 @@ nodes:
       spec_unchecked: { from: "$spec-check.output.unchecked", if_skipped: null }
       prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
       redepth: { from: "$redepth.output", if_skipped: null }
+      notices: { from: "$testcmd.output.reason", if_skipped: null }
       # 受け止める段の宣言: include 丸ごと受け止める段だけをここに書く。ブロックの中の節は各ブロックが返りの欄 optional で宣言し、
       # collect が include の頭を付けて合わせる。宣言の外の落ちは途中で終わった run に数える
       optional: '["eyes__"]'
@@ -1007,6 +1093,7 @@ nodes:
       redepth: "$collect.output.redepth"
       optional: "$collect.output.optional"
       stages: "$collect.output.stages"
+      notices: "$collect.output.notices"
 
   # 後始末。fix の並べの子の run が残した作業ツリーと枝を消す（issue #113）。消すのはこの run の子で status が
   # completed の物で、子を起こした fan_out の節と join が済んだ物だけ（再開が join を走らせ直しうる間は残す）。落ちない（返りの error に畳む）ので run の結末を変えず、返り {cleaned, left, error} は result が線の返りに載せる

@@ -15,7 +15,7 @@
   "FACTORY_RULES.md",
   "engineering.md",
   "lib/REVIEW.md",
-  "bin/_lib/borrow/**",
+  "lib/borrow/**",
   ".factory/**"
  ],
  "concepts": {
@@ -221,10 +221,6 @@
       "lib/querytest.py": [
        1,
        "docstring が try_query の照らしを申し出の欄 which_is_right で述べる"
-      ],
-      "workflows/judge/commands/material-local-review.md": [
-       2,
-       "素材集めの局所の審査の指示書が、修正役の食い違いの申し出の欄 which_is_right を字で書いて返し方を述べる"
       ]
      }
     }
@@ -465,10 +461,6 @@
       "lib/judge_accept.py": [
        2,
        "判定のノードの中身が docstring で世界の解の出口の書き先と頭のセクションの出どころを置き場の名で説明する（コードは worldmark.WORLD_FILE・worldmark.write を引く）"
-      ],
-      "lib/runreport.py": [
-       1,
-       "報告のセクション「世界の解」の docstring が段の控えの置き場を名で説明する（コードは worldmark.STATE_FILE を引く）"
       ]
      }
     }
@@ -718,10 +710,6 @@
        14,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
-      "workflows/judge/commands/material-local-review.md": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 素材集めの局所の審査の指示書が、審査役の道具 allowed_tools を字で述べる"
-      ],
       "workflows/judge/works-factory-judge.yaml": [
        23,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
@@ -884,6 +872,7 @@
   }
  },
  "loosened": {
+  "exclude:lib/borrow/**": "#674 で借りた物の置き場を bin/_lib/borrow/ から lib/borrow/ へ移した。外す中身（借りた superpowers の写し・継ぎ目の表・無人の読み替え）は前の bin/_lib/borrow/** と同じ",
   "allowed:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形:workflows/chain/scripts/chain_start.py": "周の鎖（#380）の始めのノードが、一番上のグラフとして受けた入力 base・pr を 1 周目の子（メイングラフ）へ写して渡し、1 周目に名指した PR の番号を次の周の依頼の pr の欄で運ぶ。入口の種類の決めはメイングラフの start のまま",
   "allowed:human-gates:人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない:workflows/chain/works-factory-chain.yaml": "周の鎖（#380）の親のグラフが、メイングラフの入力 final_gate・unattended を同じ名で宣言し、5 組の周の子へ写して渡す。方針の語の読みはメイングラフの start と gatepolicy のまま",
   "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/works-factory-fix.yaml": "TDD の役の返答の型（output_format の &tdd_reply）に赤の引用の欄 red_quotes を足した（#290）。型の正本は output_format だけ（持ち主の決め io-in-output-format）なので、欄の名がこの YAML に在るのは住処の外の漏れでなく型の宣言",

@@ -1,5 +1,4 @@
 """借りたスキルの座（lib/seat.py）の試験。元 works の tests/test_sp_skills.py のうち座と下請けの所を、置き場の写しで回す。
-起動の bin/_lib/spseam.py と同じ置き場・同じ埋め方であることは tests/bin/test_seat_borrow.py が縛る。
 """
 import pathlib
 import sys
@@ -26,11 +25,10 @@ class SeatCase(unittest.TestCase):
             seat.fill("implementer", {k: v for k, v in IMPL.items() if k != "[directory]"})
 
     def test_sections_of_each_seat(self):
-        overlay = (seat.BORROW_DIR / seat.OVERLAY_FILE).read_text(encoding="utf-8").strip()
         for node in seat.SKILL_NODES:
             text = seat.section(node)
             self.assertIn(seat.SKILL_LEAD.split("`")[0], text, node)
-            self.assertTrue(text.rstrip().endswith(overlay), node)
+            self.assertTrue(text.rstrip().endswith(seat.overlay_body(seat.OVERLAY_KINDS[node]).strip()), node)
         fix = seat.section("fix", IMPL)
         self.assertIn(seat.DIVERGENCE_HINT, fix)
         review = seat.section("review", REVIEW)
@@ -39,6 +37,30 @@ class SeatCase(unittest.TestCase):
         self.assertEqual(seat.section("review2", REVIEW), "")
         with self.assertRaises(ValueError):
             seat.section("fix")
+
+    def test_each_role_gets_only_its_declared_kinds(self):
+        """読み替えは、役が宣言した種類の節と共通の文だけを載せる（局所レビューの役に修正・手直し・審査の役の節は載らない）"""
+        full = (seat.spseam.BORROW_DIR / seat.spseam.OVERLAY_FILE).read_text(encoding="utf-8")
+        heads = {line.removeprefix("### ") for line in full.splitlines() if line.startswith("### ")}
+        self.assertEqual({k for h in heads for k in h.split("・")}, set(seat.KINDS), "種類の見出しは KINDS の名だけで、どの種類も使う")
+        self.assertLessEqual(set(seat.SEATS), set(seat.OVERLAY_KINDS), "座の載る役はどれも種類を宣言する")
+        for node, kinds in seat.OVERLAY_KINDS.items():
+            with self.subTest(node=node):
+                text = seat.overlay_body(kinds)
+                got = {line.removeprefix("### ") for line in text.splitlines() if line.startswith("### ")}
+                self.assertEqual(got, {h for h in heads if set(h.split("・")) & set(kinds)})
+                self.assertIn("## COMMIT ", text, "共通の文は載る")
+        local = seat.overlay_body(seat.OVERLAY_KINDS["local-review"])
+        for other in (seat.FIX, seat.TDD, seat.REFIX, seat.REVIEW):
+            self.assertNotIn(other, local)
+        self.assertNotIn("## 義務の単位の行き先", local, "種類の節が全部落ちた決まりは見出しごと落ちる")
+        self.assertTrue(seat.skill_overlay("fix").endswith(seat.overlay_body((seat.FIX,))))
+
+    def test_unknown_kind_heading_is_named(self):
+        with mock.patch.object(pathlib.Path, "read_text", return_value="# t\n\n## A x\n\n### 知らない役\n\n文\n"):
+            with self.assertRaises(ValueError) as e:
+                seat.overlay_body((seat.FIX,))
+        self.assertIn("知らない役", str(e.exception))
 
     def test_g1_files_carry_the_works_rules_and_the_query_rule(self):
         text = seat.g1_prompt("task-review", REVIEW)
@@ -51,7 +73,7 @@ class SeatCase(unittest.TestCase):
         self.assertIn("'/p/g1 1.patch'", section)
 
     def test_copy_that_differs_from_the_pin_is_named(self):
-        with mock.patch.object(seat, "_sha", return_value="0" * 64):
+        with mock.patch.object(seat.spseam, "_sha", return_value="0" * 64):
             with self.assertRaises(ValueError) as e:
                 seat.section("tdd")
         self.assertIn("固定", str(e.exception))

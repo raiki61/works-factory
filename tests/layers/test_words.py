@@ -2,8 +2,8 @@
 持ち主の決め `graph-words`）。
 
 見る字（`scope`）: `docs/` の直下の `*.md`・`*.json`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`MISSION.md`・`engineering.md`・
-`lib/` の直下の `*.md`・`*.json`・借りる物の表 `bin/_lib/borrow/*.json`・
-役の指示書（`workflows/*/commands/` の下の全部・`lib/agents/*.md`・`bin/_lib/borrow/unattended.md`）・グラフの YAML の `description`・`prompt`・`systemPrompt`・`message` の値・
+`lib/` の直下の `*.md`・`*.json`・借りる物の表 `lib/borrow/*.json`・
+役の指示書（`workflows/*/commands/` の下の全部・`lib/agents/*.md`・`lib/borrow/unattended.md`）・グラフの YAML の `description`・`prompt`・`systemPrompt`・`message` の値・
 `lib/` の直下・`workflows/*/scripts/`・境 `workflows/.shared/` の Python の文字列（docstring とコメントは開発者の字なので見ない）・
 入口 `bin/`（殻 2 つ・`bin/_lib/` の直下・`bin/_lib/no-post-bin/works-gh`）の Python の文字列・docstring・コメントの全部。旧い語は #115 の対応表の左の全部で、部分一致で探す。外す規則は `EXCEPT` の 1 か所。
 """
@@ -18,17 +18,16 @@ from unittest import mock
 
 import yaml
 
+from tests.bin import copyledger
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-sys.path.append(str(ROOT / "bin" / "_lib"))
-import copyledger  # noqa: E402
 
 BANNED = ("節", "線", "輪", "関所", "指し札", "盤面", "工程", "ワークフロー", "ブロック", "返り", "差し込み", "依る", "お前")
 YAML_TEXT_KEYS = frozenset({"description", "prompt", "systemPrompt", "message"})
 ASF_DIRS = ("factory", ".factory")
 ROOT_DOCS = ("README.md", "MISSION.md", "engineering.md")
-BORROWED_PROMPT = "bin/_lib/borrow/unattended.md"   # 局所レビューの役の指示書の末尾に全文で載る
+BORROWED_PROMPT = "lib/borrow/unattended.md"   # 役の指示書の末尾に、役の種類の節と共通の文が載る
 BIN_PY = ("bin/works-factory", "bin/apply", "bin/_lib/*.py", "bin/_lib/no-post-bin/works-gh")
 
 _SECTION_NUMBER = "依頼が設計書のセクションを番号で名指す書き方（「`<path>` 3 節」）。依頼の字を読むので変えない"
@@ -76,7 +75,7 @@ def scope(root):
     found += guides(root)
     found += [p for p in root.glob("docs/*.json")]
     found += [p for p in root.glob("lib/*.md")] + [p for p in root.glob("lib/*.json")]
-    found += [p for p in root.glob("bin/_lib/borrow/*.json")]
+    found += [p for p in root.glob("lib/borrow/*.json")]
     found += [p for p in root.glob(BORROWED_PROMPT)]
     found += [p for p in root.glob("workflows/*/commands/**/*") if p.is_file()]
     found += [p for p in root.glob("lib/agents/*.md")]
@@ -256,7 +255,7 @@ class WordsTest(unittest.TestCase):
 
     def test_json_tables_are_red(self):
         self.red({"docs/nodes.json": '{"graph": {"a": "判定のブロック"}}\n'}, "docs/nodes.json:1", "ブロック")
-        self.red({"bin/_lib/borrow/seams.json": '{"x": "線の route"}\n'}, "bin/_lib/borrow/seams.json:1", "線")
+        self.red({"lib/borrow/seams.json": '{"x": "線の route"}\n'}, "lib/borrow/seams.json:1", "線")
 
     def test_copies_in_a_ledger_are_not_read(self):
         ledger = "742a61d  元の説明の節\nc.py  src/c.py\n"

@@ -189,7 +189,7 @@
 - S018 superpowers は works に写した固定の版を使い、利用者が入れた版は使わない
   - 元: SKILL.md:17
   - 印: 無し
-  - 今: `bin/_lib/toolset.py::installed_sources`・`bin/_lib/toolset.py::VENDORED`（`bin/_lib/borrow/borrow.json` の pin）
+  - 今: `bin/_lib/toolset.py::installed_sources`・`bin/_lib/toolset.py::VENDORED`（`lib/borrow/borrow.json` の pin）
   - 状態: 在る
   - 旧棚卸し: F033
 
@@ -218,7 +218,7 @@
 - S022 superpowers の写しが borrow.json の pin と合わない時、その行を出して止まる
   - 元: SKILL.md:31
   - 印: 無し
-  - 今: `bin/_lib/toolset.py::installed_sources`・`bin/_lib/spseam.py::pin_problems`
+  - 今: `bin/_lib/toolset.py::installed_sources`・`lib/spseam.py::pin_problems`
   - 状態: 形を変えて在る（直し方の案内が works を入れ直す道でなく、リポジトリの写しを toolset.py vendor で取り直す道）
   - 旧棚卸し: 無し
 
@@ -698,29 +698,29 @@
 - S089 run の worktree には無視される物（.venv・node_modules・.env）が無いので、test_cmd を worktree の中で環境を作る形にするよう README で案内する
   - 元: SKILL.md:86
   - 印: 無し
-  - 今: README.md「test_cmd と作業ツリー」・`bin/_lib/testcmd_check.py::HOW`（#495 を #503 で戻した）
+  - 今: README.md「test_cmd と作業ツリー」・`lib/testcmd_check.py::HOW`（#495 を #503 で戻した）
   - 状態: 在る
   - 旧棚卸し: 無し
 
 - S090 手元を走らせる形の test_cmd（手元の物を絶対パスで指す・editable の外の環境・立てた環境）を見つけると `止める（test_cmd）` の行を出し、Archon を起こさずに終了コード 2 で止まる（形の確かめが落ちた時も 1 行で止まる）
   - 元: SKILL.md:86
   - 印: `start`
-  - 今: `bin/_lib/launcher.py::check_test_cmd`・`bin/_lib/testcmd_check.py::path_notes`・`bin/_lib/testcmd_check.py::venv_notes`（止める形と、形の確かめが落ちた時に Archon を起こさず終了コード 2 で止まる。#495 を #503 で戻した）
-  - 状態: 在る
+  - 今: `workflows/line/works-factory-line.yaml::testcmd`・`workflows/line/works-factory-line.yaml::testcmd-stop`・`lib/testcmd_check.py::path_notes`・`lib/testcmd_check.py::venv_notes`・`lib/testcmd_check.py::checkouts`（止める形と、形の確かめが落ちた時に、メイングラフの頭のノードが AI を起こす前に cancel で run を止める。手元は元の clone と git worktree add で作った作業ツリーの全部。#678）
+  - 状態: 形を変えて在る（殻の終了コード 2 でなく、run の頭の cancel で止める。#678）
   - 旧棚卸し: 無し
 
 - S091 依頼者が形を知った上で回すと決めた時だけ、手元を走らせる形の test_cmd を通す（AI が自分で付けない）
   - 元: SKILL.md:86
   - 印: `WORKS_USE_ALLOW_TESTCMD`
-  - 今: `bin/_lib/launcher.py::ALLOW_TESTCMD_ENV`・`bin/_lib/launcher.py::check_test_cmd`
-  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。#495 を #503 で戻した）
+  - 今: `lib/testcmd_check.py::ALLOW_ENV`・`workflows/line/scripts/testcmd.py::check`
+  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。殻を起こす env に置き、メイングラフの頭のノードが読む。#678）
   - 旧棚卸し: 無し
 
 - S092 相対パスのように worktree で走らない形の test_cmd は `注意（test_cmd）` の行だけ出して止めない
   - 元: SKILL.md:86
   - 印: 無し
-  - 今: `bin/_lib/testcmd_check.py::path_notes`・README.md「test_cmd と作業ツリー」（#495 を #503 で戻した）
-  - 状態: 在る
+  - 今: `lib/testcmd_check.py::path_notes`・`workflows/line/scripts/testcmd.py::check`・`lib/runreport.py::build`・README.md「test_cmd と作業ツリー」（メイングラフの頭のノードが注意の行を出力の reason に入れ、collect が受けて報告の冒頭に載せる。最初の語なら #666 の止め `lib/tree_run.py::prove_launchable` が試験を起こす前にも止める。#678）
+  - 状態: 形を変えて在る（行は殻の標準エラーでなく報告の冒頭に出る。#678）
   - 旧棚卸し: 無し
 
 - S093 `.review-checks.json` の段の任意の `junit` を読み、報告が無い・段の起動より古い・0 件・全部 error なら、赤でなく基準の検査が走らなかった（コードの赤ではない）に回す
@@ -1837,14 +1837,14 @@
 - U028 WORKS_USE_ALLOW_TESTCMD=1 で、対象の手元を走らせる形の test_cmd でも止めずに起こす
   - 元: use.sh:61・185・1026・1030-1032
   - 印: `WORKS_USE_ALLOW_TESTCMD`
-  - 今: `bin/_lib/launcher.py::ALLOW_TESTCMD_ENV`・`bin/_lib/launcher.py::check_test_cmd`
-  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。#495 を #503 で戻した）
+  - 今: `lib/testcmd_check.py::ALLOW_ENV`・`workflows/line/scripts/testcmd.py::check`
+  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。殻を起こす env に置き、メイングラフの頭のノードが読む。#678）
   - 旧棚卸し: T70
 
 - U029 WORKS_USE_ALLOW_TESTCMD が空・1 の外なら拒む
   - 元: use.sh:207-210
   - 印: `WORKS_USE_ALLOW_TESTCMD`・`use.sh:209`
-  - 今: `bin/_lib/launcher.py::check_test_cmd`
+  - 今: `workflows/line/scripts/testcmd.py::allowed`
   - 状態: 形を変えて在る（1 の外の値は拒まず、許さない側として扱う。#495 を #503 で戻した）
   - 処置: 要らない: 1 の外の値は止める側に倒れ、手元を走らせる形の test_cmd を黙って通す事は無い（keep-essence 12）
   - 旧棚卸し: T70
@@ -1852,22 +1852,22 @@
 - U030 test_cmd が対象の手元（元の clone）を走らせる形なら、何も写す前に「止める（test_cmd）」の行と理由で止める（終了コード 2）
   - 元: use.sh:58-60・1019-1036
   - 印: `use.sh:1035`
-  - 今: `bin/_lib/launcher.py::check_test_cmd`（Archon を起こす前に止め、終了コード 2。#495 を #503 で戻した）
-  - 状態: 在る
+  - 今: `workflows/line/works-factory-line.yaml::testcmd-stop`（AI を起こす前に、メイングラフの頭で cancel で run を止める。#678）
+  - 状態: 形を変えて在る（終了コード 2 でなく、run の頭の cancel で止める。#678）
   - 旧棚卸し: T70
 
 - U031 test_cmd の形の確かめ（testcmd_check.py）そのものが落ちたら止める（許しが在れば落ちたと出して起こす）
   - 元: use.sh:60・1038-1046
   - 印: `WORKS_USE_ALLOW_TESTCMD`・`use.sh:1044`
-  - 今: `bin/_lib/launcher.py::check_test_cmd`（#495 を #503 で戻した）
+  - 今: `workflows/line/scripts/testcmd.py::fallback`（#678）
   - 状態: 在る
   - 旧棚卸し: T70
 
 - U032 run・単位の worktree で走らない形（git が無視するパスを相対で指す）の test_cmd には「注意（test_cmd）」の行だけ出して止めない
   - 元: use.sh:61-62・1028
   - 印: 無し
-  - 今: `bin/_lib/testcmd_check.py::path_notes`・README.md「test_cmd と作業ツリー」（#495 を #503 で戻した）
-  - 状態: 在る
+  - 今: `lib/testcmd_check.py::path_notes`・`workflows/line/scripts/testcmd.py::check`・`lib/runreport.py::build`・README.md「test_cmd と作業ツリー」（メイングラフの頭のノードが注意の行を出力の reason に入れ、collect が受けて報告の冒頭に載せる。最初の語なら #666 の止め `lib/tree_run.py::prove_launchable` が試験を起こす前にも止める。#678）
+  - 状態: 形を変えて在る（行は殻の標準エラーでなく報告の冒頭に出る。#678）
   - 旧棚卸し: T70
 
 - U033 WORKS_USE_FIX_FIXTURE で、固定材料のフォルダから判定と修正案を作り直さずに修正から始める（入力 fix_fixture）
@@ -2064,7 +2064,7 @@
 - U059 承認ノードの文の答えの行の頭を、殻が env WORKS_ANSWER_CMD に置く
   - 元: use.sh:73・266-268
   - 印: `WORKS_ANSWER_CMD`
-  - 今: `bin/_lib/launcher.py::answer_head`・`lib/answer.py::ENV`・`lib/answer.py::head`
+  - 今: `bin/_lib/launcher.py::answer_head`・`bin/_lib/launcher.py::run_env`（新しい run の `--config` の層の `env:`）・`lib/answer.py::ENV`・`lib/answer.py::head`
   - 状態: 在る
   - 旧棚卸し: L-E50・L-G08
 
@@ -3025,8 +3025,8 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 184
-- 状態 形を変えて在る: 174
+- 状態 在る: 180
+- 状態 形を変えて在る: 178
 - 状態 無い: 47
 - 処置 #516: 4
 - 処置 戻した: 10
@@ -3126,7 +3126,7 @@
 - fix.md F141: lib/planbrief.py::cut（置き場の briefs.json）
 - fix.md F142: workflows/fix/scripts/fix_prep.py、workflows/fix/works-factory-fix.yaml::fixer の `when: "$fix-prep.output.go == true"`
 - fix.md F143: lib/fixrules.py::g1_values（下請けのファイルの名 `G1_IMPL`・`G1_REVIEW`）と lib/fixrules.py::prep（ループが緑にしていない単位が在れば seat.g1_section）、lib/seat.py::g1_prompt・lib/seat.py::g1_section・lib/seat.py::g1_diff_cmd。修正役に Agent の道具（workflows/fix/works-factory-fix.yaml::fixer の allowed_tools）
-- fix.md F144: lib/seat.py（spseam の写し。lib は bin を import しない）、bin/_lib/spseam.py
+- fix.md F144: lib/seat.py（照らしと埋めは lib/spseam.py）、lib/spseam.py
 - fix.md F145: workflows/fix/works-factory-fix.yaml::tdd・workflows/fix/works-factory-fix.yaml::refix・workflows/fix/works-factory-fix.yaml::refix2 の `skills:`
 - fix.md F146: workflows/fix/works-factory-fix.yaml の各役
 - fix.md F147: lib/fixboard.py::collect_reads・lib/fixboard.py::read_stages（lib/reads.collect の上。修正役 fix と裁定の後の修正役 fix-ruled の段ごとに、指示書・判定の写し・brief を渡したパスにし、段の頭の印から後の、指示書を読んだ session の行で切る）、workflows/fix/scripts/fix_reads.py（ノード fix-reads。受け付けの条件にしない。出力ノードに結ばない。落ちない）
@@ -3453,10 +3453,10 @@
 - judge.md J106: workflows/judge/works-factory-judge.yaml
 - judge.md J107: 13 本の workflows/judge/commands/*.md の頭
 - judge.md J108: 読み手は在る。materials.json → lib/runreport.py・lib/outcome.py・lib/boardview.py・lib/outcome.py::materials・workflows/plan-review/works-factory-plan-review.yaml の入力 judgment（隣の materials.json を名で開くと書く）、judge-verify.json → workflows/plan/works-factory-plan.yaml・lib/planfile.py・lib/runreport.py::verify_lines、pr-excluded.json → lib/planfile.py・lib/runreport.py::pr_lines、premises.json → workflows/eyes/scripts/prep.py・workflows/plan-review/scripts/r2_prep.py・lib/runreport.py::premise_lines
-- judge.md J109: lib/runreport.py の ledger・ledger_state（gatemarks.unmatched_answer_lines・answer_tie_lines を 1 回目の判定の隣の answer-ties.json で引き、人が決めることのセクションに並べる）
-- judge.md J110: lib/diverted.py の report_lines（判定の隣の local-review-lenses.json）→ lib/runreport.py の _unseen_lens_lines（報告の「未確認のレンズ」のセクション report.UNSEEN_LENS_HEADING）
-- judge.md J111: lib/prcheck.py の DRAFTS・draft_lines（判定の隣の pr-downgrades.json）→ lib/runreport.py の _pr_draft_lines（人が決めることのセクション）
-- judge.md J112: lib/runreport.py の _world_lines（1 回目の判定の隣の world-state.json を worldmark.read で。段が落ちた訳・類・落とした抜き書きの数）
+- judge.md J109: lib/runreport.py の ledger・ledger_state（gatemarks.unmatched_answer_lines・answer_tie_lines を判定の出力の欄 answer_ties の先（1 回目の判定の物。answer-ties.json）で引き、人が決めることのセクションに並べる）
+- judge.md J110: lib/diverted.py の report_lines（判定の出力の欄 review_lenses の先。local-review-lenses.json）→ lib/runreport.py の _unseen_lens_lines（報告の「未確認のレンズ」のセクション report.UNSEEN_LENS_HEADING）
+- judge.md J111: lib/prcheck.py の DRAFTS・draft_lines（判定の出力の欄 pr_drafts の先。pr-downgrades.json）→ lib/runreport.py の _pr_draft_lines（人が決めることのセクション）
+- judge.md J112: lib/runreport.py の _world_lines（判定の出力の欄 world_state の先〔1 回目の判定の物。world-state.json〕を worldmark.read で。段が落ちた訳・類・落とした抜き書きの数）
 - judge.md J113: 書くのは lib/judge_accept.py::rejudge_collect。読み手はメイングラフ（workflows/line/scripts/judged.py::compared が rejudge-exit.json を lib/report.py::rejudge_exit で開く）と報告（lib/runreport.py::rejudge_exit・lib/runreport.py::rejudge_lowered・lib/runreport.py::rejudge_changes が rejudge-diff.json を開く・lib/runreport.py::rejudge_lines）
 - line.md L-E01: workflows/line/scripts/start.py::request、lib/entry.py::request_problems
 - line.md L-E02: workflows/line/scripts/start.py::request（読めない・JSON として読めない・形の 3 つを別の文で拒む）（部分 A で閉じた）
@@ -3544,7 +3544,7 @@
 - line.md L-G31: lib/gatemarks.py::unread_hold_lines。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows → final_text、報告は lib/runreport.py::ledger_state の unread_holds → _decisions
 - line.md L-G32: lib/gatemarks.py::returned・lib/gatemarks.py::returned_lines・lib/gatemarks.py::duty（値の見え方 ledger）。fix は lib/fixboard.py::gate_view・lib/fixboard.py::group_owed・lib/fixboard.py::write_notes が置き場の answers.json（{decision, text, asked}。asked は $ask-before-fix.output.asked）から引く
 - line.md L-G33: lib/gatemarks.py::pending・lib/gatemarks.py::withheld_by・lib/gatemarks.py::withheld・lib/gatemarks.py::duty。無人の run は ask-before-fix が台帳の問いだけを deferred にして修正へ進み、fix・plan の直す義務（gatemarks.duty）が出どころを外す。ただし判定の推しが選択肢を名指し、出どころ・depends が開いた単位の fork・held は、無人の run が推しを答えに採って出どころを直す義務に戻す（lib/gatemarks.py::run_push。issue #593）
-- line.md L-G34: lib/gatemarks.py::binds・lib/gatemarks.py::origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger が gatemarks.ledger_at（ledger_beside をファイルから。判定の隣の materials.json と、ties_judgment: $fix-in.output.judgment の隣の answer-ties.json）で引く。報告は lib/runreport.py::ledger
+- line.md L-G34: lib/gatemarks.py::binds・lib/gatemarks.py::origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger が gatemarks.ledger_at（ties_file・materials_file に、入力 answer_ties・materials（`$judged.output.<同じ名>`。判定の出力の欄のポインタ）の先を渡す）で引く。報告は lib/runreport.py::ledger
 - line.md L-G35: workflows/line/scripts/ask_final.py::ledger・workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.held_lines）、lib/runreport.py::ledger_state
 - line.md L-G36: workflows/line/scripts/ask_final.py::final_head・workflows/line/scripts/ask_final.py::question_lines
 - line.md L-G37: 報告は lib/runreport.py::_decisions。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.answered_lines・unmatched_answer_lines）→ question_lines
@@ -3576,7 +3576,7 @@
 - line.md L-W07: メイングラフの design-only（plan-review の形 design。lib/boardview.py::open_design・lib/boardview.py::_collect_design）→ workflows/line/scripts/fixed.py::no_fix（独立設計・go・差分無し）→ judged・redepth・test-gate-final・eyes（設計は $fixed.output.design）→ ask-final（封じのノードが飛んでも開く）。merge-seal・merge-apply は no_fix で飛ぶ。結末は lib/outcome.py（残りが無ければ no_fix_needed、封じの出力が無いのを切れ目と読まない）。計画の直す義務 0 件の周も workflows/line/scripts/plan_out.py::round_owes_nothing が真なら plan-out の nothing_owed で design-only に入る（#291。結末は round_limit）
 - line.md L-W08: lib/judge_accept.py::structure_units（record に {units, paths} を書く）・`verdict` が判定の置き場の `structure-units-dropped.json`（`STRUCTURE_DROPPED_FILE`）に書く
 - line.md L-W09: workflows/line/scripts/ask_final.py::structure_missing（計画の出力 `structure` の先の structure-state.json を `structmark.note` で読む。メイングラフの `ask-final` の `structure` ← `$fix-in.output.structure`）
-- line.md L-W10: lib/planfile.py::write_brief（`planblk.verify_part` が判定の隣の judge-verify.json を貼る）
+- line.md L-W10: lib/planfile.py::write_brief（`planblk.verify_part` が判定の出力の欄 verify の先〔judge-verify.json〕を貼る）
 - line.md L-W11: workflows/line/works-factory-line.yaml::fix（fix の plan・ripple・depth は `$fix-in.output.*`）
 - line.md L-W12: workflows/line/works-factory-line.yaml::plan-rounds（loop_group。`review: $LOOP_PREV.plan-out.output.review` は workflows/line/works-factory-line.yaml::plan）、workflows/line/scripts/plan_out.py::plan_out
 - line.md L-W13: workflows/line/works-factory-line.yaml::plan-out・workflows/line/works-factory-line.yaml::plan-rounds-out
@@ -3641,7 +3641,7 @@
 - line.md L-D05: lib/depth.py::raise_doc、workflows/line/scripts/redepth.py::redepth
 - line.md L-D06: workflows/line/scripts/redepth.py::redepth
 - line.md L-D07: workflows/line/scripts/redepth.py::redepth
-- line.md L-D08: workflows/line/scripts/redepth.py::pending_signals（gatemarks.ledger_beside・gatemarks.pending。判定の問いの台帳と依頼の answers と修正前の承認ノードの答え。台帳が読めなければ上げる側）
+- line.md L-D08: workflows/line/scripts/redepth.py::pending_signals（gatemarks.ledger_at・gatemarks.pending。入力 answer_ties・materials のポインタの先。判定の問いの台帳と依頼の answers と修正前の承認ノードの答え。台帳が読めなければ上げる側）
 - line.md L-D09: workflows/line/scripts/redepth.py::redepth、workflows/line/works-factory-line.yaml::redepth
 - line.md L-D10: workflows/line/scripts/redepth.py::wide_signals（depth.run_wide。計画の欄と fixed の差分。counted を返し報告の深さの行に出る）と fix の中の lib/fixboard.py::redepth
 - line.md L-D11: yaml の eyes.depth（$redepth.output.depth）→ workflows/eyes/scripts/prep.py::out の run_eyes（depth.skip_reason）
@@ -3851,7 +3851,7 @@
 - plan.md P158: workflows/plan-review/fixtures/
 - plan.md P159: lib/boardview.py::r2_due・workflows/plan-review/works-factory-plan-review.yaml::r2-design-loop `when: "$open.output.r2_go == true"`
 - plan.md P160: lib/boardview.py::purpose_unusable・lib/design.py::UNUSABLE
-- plan.md P161: judge が判定の隣に purpose-review.json を置き（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が名で開く（名は lib/purpose.py::PURPOSE_REVIEW_FILE の 1 か所）
+- plan.md P161: judge が判定の隣に purpose-review.json を置いて出力の欄 purpose_review で返し（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が入力 purpose_review の先を読む（名は lib/purpose.py::PURPOSE_REVIEW_FILE の 1 か所）
 - plan.md P162: workflows/plan-review/works-factory-plan-review.yaml::r2-design（systemPrompt。Archon の packages/providers/src/claude/provider.ts がノードの systemPrompt で既定の system prompt を置き換える）
 - plan.md P163: lib/boardview.py::r2_prompt・workflows/plan-review/scripts/r2_prep.py
 - plan.md P164: lib/boardview.py::r2_prompt（purpose.json の purpose_text だけを読む）
@@ -4018,7 +4018,7 @@
 - tail.md T67: workflows/line/scripts/ask_final.py::tests_word
 - tail.md T68: lib/runreport.py::_base_word（lib/runreport.py::_entry_lines の「直す前のテスト:」の行。red_cause incomplete は「走らせられなかった」）
 - tail.md T69: lib/green_cert.py::certify（base の素材が awaiting_human なら直す前の結末を控えて ok を真にし、メイングラフの judge へ進む。走らせられなかった系統は素材の reason が名指し、判定の台帳の awaiting の問い〔lib/judge_accept.py::baseline_local_checks〕と、報告の人が確かめる物〔lib/outcome.py::residue〕と直す前のテストの行〔lib/runreport.py::_base_word〕に載る。人が確かめて続ける道は結末 fixed_needs_check と次の依頼の answers。一部だけ走った base・書式の誤り・任せ先の役の awaiting_human は今の works と同じく止めない。起こした段が 1 つも走らなかった base の 2 つの形〔宣言の段が全部起こせないか JUnit を宣言した段が全部試験を走らせなかった base〔試験が全部 error の段は除く。判定へ進む〕と、test_cmd を起こせなかった by role の base〕は素材が not_run で、ok を偽にして止める〔lib/declared_checks.py::checks_reply〕。#122）
-- tail.md T70: bin/_lib/launcher.py::check_test_cmd（殻が新しい run の --input test_cmd= を Archon を起こす前に照らす）・bin/_lib/testcmd_check.py::main（元の決まりのまま。#495）
+- tail.md T70: workflows/line/scripts/testcmd.py::check（メイングラフの頭のノードが入力 test_cmd を AI を起こす前に照らし、止める形なら testcmd-stop が cancel で止める。#678）・lib/testcmd_check.py::findings
 - tail.md T71: lib/carry.py::carry_ci
 - tail.md E1: workflows/eyes/works-factory-eyes.yaml::r1-comments ほかAI ノード 7 つ（`mutates_checkout: false`。r4-scope と r4-scope-fix 以外は `context: fresh`。r4-scope は r4-loop の 1 周目で新しい会話、workflows/eyes/works-factory-eyes.yaml::r4-scope-fix は拒まれた後にその会話の続き）
 - tail.md E2: workflows/eyes/works-factory-eyes.yaml::r1-comments・workflows/eyes/works-factory-eyes.yaml::r1-minimality・workflows/eyes/works-factory-eyes.yaml::r2-compare・workflows/eyes/works-factory-eyes.yaml::premise-check・workflows/eyes/works-factory-eyes.yaml::r3-coherence・workflows/eyes/works-factory-eyes.yaml::r4-scope
@@ -4061,7 +4061,7 @@
 - tail.md E40: lib/eyeverdict.py::NO_CONSTRAINTS・lib/eyeverdict.py::NO_REQUEST・lib/eyeverdict.py::premise_section
 - tail.md E41: lib/eyeverdict.py::_MD_FENCE・lib/eyeverdict.py::_md_lines・lib/eyeverdict.py::_md_slugs・lib/eyeverdict.py::_MD_RULES
 - tail.md E42: lib/eyeverdict.py::premise_section
-- tail.md E43: workflows/eyes/scripts/prep.py::premises・workflows/eyes/scripts/prep.py::constraints（判定の隣の premises.json の constraints を読む）、lib/eyeverdict.py::_constraint_rows・lib/eyeverdict.py::constraints_text。再審が走った run も、判定のサブグラフが再審の置き場に premises.json を写す（lib/judge_accept.py::verdict。tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment）
+- tail.md E43: workflows/eyes/scripts/prep.py::premises・workflows/eyes/scripts/prep.py::constraints（判定の出力の欄 premises の先〔premises.json〕の constraints を入力 premises で読む）、lib/eyeverdict.py::_constraint_rows・lib/eyeverdict.py::constraints_text。再審が走った run も、判定のサブグラフが再審の置き場に premises.json を写す（lib/judge_accept.py::verdict。tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment）
 - tail.md E44: lib/eyeverdict.py::R2_PREMISES・lib/eyeverdict.py::premise_section（返す控え r2_ledger を workflows/eyes/scripts/prep.py が eyes/r2-premises.json に書く）
 - tail.md E45: eyes の出力 notes（premise-inputs.json）を lib/eyeverdict.py::r2_input_lines で最後の承認ノード（ask_final の `eye_notes`）と報告（runreport の `_eye_lines`）が R2 の行の下に並べる
 - tail.md E46: lib/eyeverdict.py::prompt_texts
@@ -4173,10 +4173,10 @@
 - tail.md R74: lib/runreport.py::_depth_lines（redepth の出力を lib/depth.lines の形で）
 - tail.md R75: lib/runreport.py::_policy_lines（事前審査の出力 review の隣の policy.json と今の文書を boardview.policy_change で比べ、change_row の 1 行）
 - tail.md R76: lib/runreport.py::rejudge_lines（rejudge-exit.json の verdicts の並びと往復の数）・lib/runreport.py::rejudge_exit
-- tail.md R77: lib/gatemarks.py::answer_ties・lib/gatemarks.py::ties_of・lib/gatemarks.py::answer_tie_lines・lib/gatemarks.py::returned_lines（判定が単位に結んだ答えの行）。報告は lib/runreport.py::ledger が 1 回目の判定の隣の answer-ties.json を読む。fix は prep が判定の隣から写す
+- tail.md R77: lib/gatemarks.py::answer_ties・lib/gatemarks.py::ties_of・lib/gatemarks.py::answer_tie_lines・lib/gatemarks.py::returned_lines（判定が単位に結んだ答えの行）。報告は lib/runreport.py::ledger が判定の出力の欄 answer_ties の先を読む。fix は prep が入力 answer_ties の先を自分の名で写す
 - tail.md R78: lib/rolekit.py::last_reject（段の置き場の下の rejects-*.json の最後の行と、前の版の run の reject-*.md・reject-*.txt（読み替えの期限まで）の一番新しい物）→ lib/runreport.py::_last_reject（止めた段の前の失敗の行の文）
 - tail.md R79: lib/runreport.py::_world_lines（world-state.json の reason・classes・dropped）
-- tail.md R80: lib/runreport.py::_pr_draft_lines（判定の隣の pr-downgrades.json。material-pr-check.json の reply.conflicts[].note を judge_accept.prcheck_drafts が写した物）
+- tail.md R80: lib/runreport.py::_pr_draft_lines（判定の出力の欄 pr_drafts の先。pr-downgrades.json。material-pr-check.json の reply.conflicts[].note を judge_accept.prcheck_drafts が写した物）
 - tail.md R81: lib/runreport.py::stamp（報告のグラフのファイルの版と、始めの記録の versions.line の頭 12 字。読めた記録に無ければ「始めの記録に無い（versions.line）」、始めの記録が読めなければ「読めない（始めの記録が読めない）」）
 - tail.md R82: 各サブグラフ（judge・plan・fix）の出力ノードの with: optional（サブグラフの中のノードの宣言）とメイングラフの YAML の collect の with: optional（include 丸ごとの宣言）→ workflows/line/scripts/collect.py::absorbed（include の id の頭を付けて合わせる）→ report の入力 optional → lib/runreport.py::transcript_facts（optional=）・lib/runreport.py::_declared（宣言の外の落ちは failed）
 - tail.md M1: workflows/merge/scripts/merge.py::main → lib/green_cert.py::diff_bytes

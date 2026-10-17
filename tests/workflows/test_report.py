@@ -54,7 +54,7 @@ NODES = {n["id"]: n for n in WORKFLOW["nodes"]}
 BODY = {n["id"]: n for n in NODES["write-loop"]["loop_group"]["nodes"]}
 INPUTS = ("start", "before-tests", "judge", "rejudge", "plan", "plan-review", "replan", "replan-review-result", "fix", "final-tests",
           "eyes", "sealed-diff", "applied-diff", "start-answer", "before-fix-answer", "replan-answer", "final-answer", "stops",
-          "prior-failures", "deferred", "widened", "final-reasons", "spec-changed", "spec-unchecked", "redepth", "optional", "stages")
+          "prior-failures", "deferred", "widened", "final-reasons", "spec-changed", "spec-unchecked", "redepth", "optional", "stages", "notices")
 RETURN_FIELDS = {"outcome", "stop_reason", "report", "report_ai", "next_request", "prior_failures", "ok"}
 TOP_KEYS_DROPPED_ON_INCLUDE = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 SANDBOX = {"enabled": True, "allowUnsandboxedCommands": False}

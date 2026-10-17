@@ -74,32 +74,32 @@ inputs:
     default: ""
     description: >-
       差分を置いた出力。JSON のオブジェクト {mode, ok, hash, diff, reason}（diff は置いた先を指すポインタ {type, run_id, path} か null、
-      ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちた・最後の承認ノードが止めて置かなかったこと
+      ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちた・最後の承認の関所が止めて置かなかったこと
   start-answer:
     default: ""
     description: >-
-      始めの承認ノードの答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      空か null はその承認ノードが開かなかったこと
+      始めの承認の関所の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      空か null はその承認の関所が開かなかったこと
   before-fix-answer:
     default: ""
     description: >-
-      修正前の承認ノードの答え。JSON のオブジェクト {decision, text, asked}（asked は承認ノードに載せた問いの文の配列。無人の run が推しで進んだ
-      答えは欄 pushed も持つ）。空か null はその承認ノードが開かなかったこと
+      修正前の承認の関所の答え。JSON のオブジェクト {decision, text, asked}（asked は承認の関所に載せた問いの文の配列。無人の run が推しで進んだ
+      答えは欄 pushed も持つ）。空か null はその承認の関所が開かなかったこと
   replan-answer:
     default: ""
     description: >-
-      案の直しの承認ノードの答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      空か null はその承認ノードが開かなかったこと
+      案の直しの承認の関所の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      空か null はその承認の関所が開かなかったこと
   final-answer:
     default: ""
     description: >-
-      最後の承認ノードの答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      decision が止める語で text が request: で始まれば止め札。空か null はその承認ノードが開かなかったこと
+      最後の承認の関所の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      decision が止める語で text が request: で始まれば止め札。空か null はその承認の関所が開かなかったこと
   stops:
     default: ""
     description: >-
-      止めの語の表。JSON のオブジェクト {ノードの名: 止めの語}（空の語のノードは載せない）。語は入口の拒み・無人の承認ノードの止め・script の例外・
-      人の止めを言う。空のオブジェクトか空は止めたノードが無いこと
+      止めの語の表。JSON のオブジェクト {段の id: 止めの語}（空の語の段は載せない）。語は入口の拒み・無人の承認の関所の止め・script の例外・
+      人の止めを言う。空のオブジェクトか空は止めた段が無いこと
   prior-failures:
     default: ""
     description: >-
@@ -107,7 +107,7 @@ inputs:
   deferred:
     default: ""
     description: >-
-      無人の run で承認ノードに載せずに回した問いの文の JSON の配列。空の配列か空は無いこと
+      無人の run で承認の関所に載せずに回した問いの文の JSON の配列。空の配列か空は無いこと
   widened:
     default: ""
     description: >-
@@ -115,7 +115,7 @@ inputs:
   final-reasons:
     default: ""
     description: >-
-      最後の承認ノードを開ける理由の文の JSON の配列。空の配列か空は無いこと
+      最後の承認の関所を開ける理由の文の JSON の配列。空の配列か空は無いこと
   spec-changed:
     default: ""
     description: >-
@@ -132,14 +132,18 @@ inputs:
   optional:
     default: ""
     description: >-
-      落ちても先へ進めてよい段の宣言。JSON の字の配列で、各行は区切り（__ か -）で終わるノードの id の頭かノードの id そのもの。
+      落ちても先へ進めてよい段の宣言。JSON の字の配列で、各行は区切り（__ か -）で終わる段の id の頭か段の id そのもの。
       空の配列か空は宣言が無いこと（落ちを全部途中で終わったと数える）
   stages:
     default: ""
     description: >-
-      段の表。JSON のオブジェクト {nodes: {役の名: ノードの名}, links: [{before, flag, after, text, held?, needs?}]}。nodes はノードの名が役の名と
+      段の表。JSON のオブジェクト {nodes: {役の名: 段の id}, links: [{before, flag, after, text, held?, needs?}]}。nodes は段の id が役の名と
       違う役だけを写す。links は出力の続きで、before の出力の欄 flag（null は出力が在るだけ）が真なのに after の出力が無ければ text の切れ目。
       held は before の出力のその欄が偽なら数えず、needs はその役の出力が無い周は数えない。届かなければ空（結果を名乗れない）
+  notices:
+    default: ""
+    description: >-
+      run を止めずに進めた起こす前の注意の行の文の JSON の配列。報告の冒頭の 3 行と人が決める物の下に 1 行ずつ載る。空の配列か空は無いこと
 
 returns: report
 outcome_field: ok

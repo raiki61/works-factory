@@ -2,8 +2,9 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""返す節: 判定か再審の結果を、線との約束（docs/design.md の「judge の出力」）の欄で返す（lib/judge_accept.verdict）。run の頭の深さの
-欄 depth・depth_why は控え judge/depth-head.json から読む（lib/headdepth。再審と控えの無い run は標準）。
+"""返す節: 判定か再審の結果を、線との約束（docs/design.md の「judge の出力」）の欄で返す（lib/judge_accept.verdict）。ほかのブロックが
+読む置き場のファイルは欄のポインタで返す（lib/judge_accept.PORTS）。run の頭の深さの欄 depth・depth_why は控え judge/depth-head.json
+から読む（lib/headdepth。再審と控えの無い run は標準）。
 決して落ちない: 境の口と lib を読む所から中の誤りを全部捕まえて標準エラーに書き、判定と目的の指し札の先を空の形で置いて
 ready: false と止めの理由を返す（線は落ちた返す節の先へ進めない）。
 返りの全部（約束の形も）に欄 optional を載せる: 入力（with:）optional の、このブロックが落ちても線が先へ進めてよい節の宣言
@@ -12,6 +13,11 @@ import json
 import os
 import sys
 from pathlib import Path
+
+
+# lib/judge_accept.PORTS・FIRST_PORTS の欄（lib を読めない時に null で返す。名の照らしは tests/workflows/test_judge.py）
+PORTS = ("premises", "verify", "pr_excluded", "materials", "purpose_review", "depth_record", "rejudge_exit", "rejudge_diff",
+         "purpose_means", "world_state", "decisions", "answer_ties", "review_lenses", "pr_drafts")
 
 
 def fallen(objection: str) -> dict:
@@ -32,7 +38,7 @@ def fallen(objection: str) -> dict:
     return {"ready": False, "stop_reason": "works:rejudge" if objection.strip() else "works:judge", "units": [],
             "judgment": ptr("judgment.json"), "purpose": ptr("purpose.json"),
             "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None,
-            "depth": "標準", "depth_why": "判定の出力ノードが lib を読めない"}
+            **dict.fromkeys(PORTS), "depth": "標準", "depth_why": "判定の出力ノードが lib を読めない"}
 
 
 objection = os.environ.get("INPUTS_OBJECTION", "")

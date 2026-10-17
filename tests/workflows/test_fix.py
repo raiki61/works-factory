@@ -42,8 +42,8 @@ import runreport  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason"}
-CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "plan", "ripple", "depth", "head_depth", "answers", "prior_conflicts",
-                   "plan_review", "notes"}
+CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "answer_ties", "materials", "depth_record", "plan", "ripple", "depth",
+                   "head_depth", "answers", "prior_conflicts", "plan_review", "notes"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
 CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
                  "path_changed"}
@@ -380,7 +380,7 @@ class RolesCase(unittest.TestCase):
         blk-refix.yaml:64,332。seat.SKILL_NODES と同じ役）。下請けを起こす修正役は Agent を持つ"""
         import seat
         got = {nid: n["skills"] for nid, n in self.nodes.items() if "skills" in n}
-        want = {nid: [seat.skill_of(seat.load_seams()[seat.SEATS[nid]])] for nid in seat.SKILL_NODES}
+        want = {nid: [seat.skill_of(seat.spseam.load_seams()[seat.SEATS[nid]])] for nid in seat.SKILL_NODES}
         self.assertEqual(got, want)
         for nid in got:
             self.assertIn("Skill", self.nodes[nid]["allowed_tools"], nid)
@@ -1363,15 +1363,14 @@ class BlockScriptsCase(unittest.TestCase):
     def test_prep_writes_only_copies_the_children_adopt(self):
         """prep が置き場に書く入力の写しは、組の子が親から写す一覧 fixboard.ADOPTED に全部載る（載らない写しは子で黙って空になる）"""
         import fixboard
-        import gatemarks
         import planmarks
         _blk_write(self.art / "in" / "ripple.json", [{"path": "stats.py"}])
         _blk_write(self.art / "in" / "baseline.json", {"cases": [], "exit": 0, "suite": "", "test_cmd": "", "rev": "HEAD"})
         inputs = self.prep_inputs()
-        judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
-        _blk_write(judgment_dir / gatemarks.BESIDE[0], {"rounds": {"1": []}})   # 判定の隣の結びと素材の状態
-        _blk_write(judgment_dir / gatemarks.BESIDE[1], {"ci": {"status": "not_run"}})
-        inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "baseline": _blk_ptr("in/baseline.json"),
+        _blk_write(self.art / "in" / "answer-ties.json", {"rounds": {"1": []}})   # 判定の結びと素材の状態
+        _blk_write(self.art / "in" / "materials.json", {"ci": {"status": "not_run"}})
+        inputs = {**inputs, "answer_ties": _blk_ptr("in/answer-ties.json"), "materials": _blk_ptr("in/materials.json"),
+                  "ripple": _blk_ptr("in/ripple.json"), "baseline": _blk_ptr("in/baseline.json"),
                   "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]', "head_depth": "軽量",
                   "answers": '{"decision": "approve", "text": "stats.py の外は触らない"}', "units": '["A"]',
                   "only_items": '["1"]', "plan_review": _blk_ptr("in/review.json"), "notes": "## 直した項目 1 の事前審査の穴"}
@@ -1384,35 +1383,32 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(written - own, set(fixboard.ADOPTED))
         self.assertEqual(fixboard.read_json(self.place / fixboard.HEAD_DEPTH_FILE), "軽量")
 
-    def test_prep_copies_the_head_depth_record_beside_the_judgment(self):
-        """判定の記録の隣に頭の深さの控え（headdepth.RECORD）が在れば、prep が修正の親の置き場に字のまま写す（fixboard.redepth が
-        引用した where のファイルを読む）。無ければ置き場の古い写しを消す。組の子は読まないので fixboard.ADOPTED には載せない"""
+    def test_prep_copies_the_head_depth_record_from_its_input(self):
+        """入力 depth_record の先に頭の深さの控えが在れば、prep が修正の親の置き場に自分の名（fixboard.HEAD_RECORD_FILE）で字のまま
+        写す（fixboard.redepth が引用した where のファイルを読む）。入力が null・先が無ければ置き場の古い写しを消す。組の子は読まない
+        ので fixboard.ADOPTED には載せない。判定の記録の隣に置いた控えは、入力で渡さなければ読まない"""
         import fixboard
-        import headdepth
-        inputs = self.prep_inputs()
-        judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
+        inputs = {**self.prep_inputs(), "depth_record": _blk_ptr("in/depth-head.json")}
         text = '{"depth": "軽量",   "why": "易しい", "items": [{"item": 1, "unknown": "無し", "where": "stats.py:9"}], "facts": {}}\n'
-        (judgment_dir / headdepth.RECORD).write_text(text, encoding="utf-8")
+        (self.art / "in" / "depth-head.json").write_text(text, encoding="utf-8")
         code, _, err = _blk_run("prep", self.repo, self.art, inputs, "fix__prep")
         self.assertEqual(code, 0, err)
-        self.assertEqual((self.place / headdepth.RECORD).read_text(encoding="utf-8"), text, "字のまま写す")
-        self.assertNotIn(headdepth.RECORD, fixboard.ADOPTED)
-        (judgment_dir / headdepth.RECORD).unlink()
-        code, _, err = _blk_run("prep", self.repo, self.art, inputs, "fix__prep")
+        self.assertEqual((self.place / fixboard.HEAD_RECORD_FILE).read_text(encoding="utf-8"), text, "字のまま写す")
+        self.assertNotIn(fixboard.HEAD_RECORD_FILE, fixboard.ADOPTED)
+        code, _, err = _blk_run("prep", self.repo, self.art, {**inputs, "depth_record": "null"}, "fix__prep")
         self.assertEqual(code, 0, err)
-        self.assertFalse((self.place / headdepth.RECORD).exists(), "判定の隣に無ければ古い写しを消す")
+        self.assertFalse((self.place / fixboard.HEAD_RECORD_FILE).exists(), "入力が null なら古い写しを消す")
 
-    def test_prep_stops_on_a_broken_answer_ties_beside_the_judgment(self):
-        """判定の隣の結び（gatemarks.BESIDE）が JSON として読めなければ prep が落ちる。修正の段の読み手は壊れた結びを無いと読み、
+    def test_prep_stops_on_broken_answer_ties(self):
+        """入力 answer_ties の先の結びが JSON として読めなければ prep が落ちる。修正の段の読み手は壊れた結びを無いと読み、
         人の答えを問いに結ぶ行が黙って消えるため（no-silent-loosen）"""
-        import gatemarks
-        inputs = self.prep_inputs()
-        judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
-        (judgment_dir / gatemarks.BESIDE[0]).write_text('{"rounds": {"1": [', encoding="utf-8")
+        import fixboard
+        inputs = {**self.prep_inputs(), "answer_ties": _blk_ptr("in/answer-ties.json")}
+        (self.art / "in" / "answer-ties.json").write_text('{"rounds": {"1": [', encoding="utf-8")
         code, _, err = _blk_run("prep", self.repo, self.art, inputs, "fix__prep")
         self.assertNotEqual(code, 0)
-        self.assertIn(gatemarks.BESIDE[0], err)
-        self.assertFalse((self.place / gatemarks.BESIDE[0]).exists())
+        self.assertIn("answer_ties", err)
+        self.assertFalse((self.place / fixboard.TIES_FILE).exists())
 
     def test_prep_takes_the_gate_answers_into_the_duty(self):
         """修正前の関所で答えた問いの単位は直す義務に戻り、答えていない問いの単位は外れる（gatemarks.returned・withheld_by）。

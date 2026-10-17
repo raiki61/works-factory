@@ -43,7 +43,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 ```text
 works-factory/
 ├── bin/                         入口（AGENTS.md が E15）。起動の殻 works-factory（人は Archon の命令をそのまま打つ）と、差分を当てる apply
-│   └── _lib/                    入口の中身。Archon の源の取り寄せと起こし方・起動の認証と隔離・プラグインの選び・run の作業ツリーの起点・test_cmd の形の確かめ（E15）
+│   └── _lib/                    入口の中身。Archon の源の取り寄せと起こし方・起動の認証と隔離・プラグインの選び・run の作業ツリーの起点（E15）
 ├── workflows/                   グラフ（エッセンス。AGENTS.md がグラフの決まり）。置かずに --workflow-source で Archon に読ませる（E1）
 │   ├── line/
 │   │   ├── works-factory-line.yaml   メイングラフ。サブグラフを並べ、承認ノードを置く
@@ -60,6 +60,7 @@ works-factory/
 │   │   └── fixtures/            Archon の筋書きの試験
 │   └── .shared/                 境。Archon との出入りの口 1 つと埋め（E2）
 ├── lib/                         助け手（AGENTS.md が E3）。Archon を知らない Python（E3）
+│   ├── borrow/                  借りた superpowers の写しと固定（borrow.json）・継ぎ目の表（seams.json）・無人の読み替え（unattended.md）。読み口は lib/spseam.py
 │   ├── graphloops/engine/       lib の部品が頼る graphloops の小道具（持ち主の決め lib-port-as-is）
 │   └── tests/                   lib/ の試験
 ├── tests/                       lib/ 以外の試験（AGENTS.md が試験の決まり）
@@ -124,6 +125,7 @@ works-factory/
 - 役の指示書（`workflows/*/commands/`）と `lib/` に、特定の言語・テストの実行器の名を書かない。事実上の標準の形式（JUnit XML など）は名指してよい。持ち主の決め `lang-neutral`。
 - `lib/` は Python で書くので、`lib/tests/`（lib 自身の試験）と `lib/AGENTS.md` は照らさず、語の表に `python` を入れない。
 - 例外: 拡張子と言語の対応・テストのファイルの名の慣習の表と、その表を作る標準ライブラリの import は、`lib/impact.py`・`lib/changemap.py`・`lib/tddloop.py`・`lib/fixrules.py`・`lib/libdocs.py`・`lib/libdocs_local.py` に限って書いてよい。機械の表 `tests/layers/scan.py` の `ALLOWED["E13"]` には、そのファイルを入れる PR が 1 行ずつ足す。機械はファイルごとに外すので、表の外に言語の名が無いことは人が見る。
+- 借りた superpowers の写し（`lib/borrow/superpowers/`）は照らさない。上流の字のままの写しで、固定（`lib/borrow/borrow.json` の pin の sha256）が 1 字も変えさせない。フォルダに固定のファイルと台帳 `COPIED_FROM` のほかが無いことは `tests/layers/test_lang_neutral.py` が見る。
 - 機械: `tests/layers/test_lang_neutral.py`（言語と実行器の名の語の表に当たる字が無い。表は `tests/layers/scan.py` の中）。
 
 ## E14 既定の道は普通の利用者の環境でそのまま動く
@@ -144,7 +146,7 @@ works-factory/
 
 - 層の地図は `docs/layers.json` の 1 か所。層は起動の殻 `bin/`・メイングラフと周の鎖 `workflows/line/`・`workflows/chain/`・サブグラフ `workflows/<名>/`（サブグラフ同士は互いに独立）・サブグラフの共通の部品 `workflows/.shared/`・共通の lib `lib/` の 5 つで、層ごとに頼ってよい層（`may_use`）を書く。形は import-linter の layers・forbidden・independence の契約に倣う。`lib/` の E3 の import の向きと、`workflows/` の E4 のサブグラフの名は、この地図から読む。
 - グラフ（`workflows/`）と `lib/` は `bin/` の物を import しない。Archon の上で動く物は、Archon の外の起動の殻に頼らない。殻の事実（Archon の起こし方など）が要る時は、殻が組んだ物を env で渡し、その名は読む側の埋めが持つ（殻は `bin/_lib/place.py` の `shared` で埋めを読んで名を取る。`workflows/.shared/childsweep.py` の `CLI_ENV`）。
-- 地図に反する頼りは 5 つの照らしで見る: 1 つ目は import の向き（`.py` と、YAML に直に書いた script の行。上の `bin/` の import を含む）・ほかのサブグラフが隣に書くファイルの名（サブグラフごとの名は地図の `beside`。1 つの名が複数のサブグラフの隣に在ってよく、`<k>` の形の段は名の 1 段に当たる。名の集まりは `docs/design.md` の「サブグラフの出力の約束」の、ほかのサブグラフも名で開く隣のファイルと等しい）・`lib/` とサブグラフの中のメイングラフのノードの id（メイングラフと周の鎖の YAML の `-` を含む id から作る）・メイングラフと周の鎖の字の中の、サブグラフの中のノードの id とその頭（上のグラフの `include` を持つノードの id のすぐ後に `__` と id の字が続く形と、サブグラフの YAML の `-` を含むノードの id の素の形。上のグラフ自身の id と同じ字・サブグラフの名・`world-judge.json` のような隣のファイルの名は除く）・指示書（`commands/`）と入力の説明の中のほかのサブグラフの名（`works-factory-` の頭つき）と役の名（ほかのサブグラフの AI のノードの `-` を含む id と、古い名 `blk-*`）。
+- 地図に反する頼りは 5 つの照らしで見る: 1 つ目は import の向き（`.py` と、YAML に直に書いた script の行。上の `bin/` の import を含む）・ほかのサブグラフが隣に書くファイルの名（サブグラフごとの名は地図の `beside`。1 つの名が複数のサブグラフの隣に在ってよく、`<k>` の形の段は名の 1 段に当たる。judge の外の名の集まりは `docs/design.md` の「サブグラフの出力の約束」の、まだ出力の欄に直していないのでほかのサブグラフも名で開く隣のファイルと等しく、judge の名は「judge の出力」の欄の先の名の中に在る。サブグラフの YAML の `inputs:` の `description:` は数えない。ポインタの入力の説明は先のファイルの名を書く決まり（`workflows/AGENTS.md` の E4）で、名を書いても名で開かない）・`lib/` とサブグラフの中のメイングラフのノードの id（メイングラフと周の鎖の YAML の `-` を含む id から作る）・メイングラフと周の鎖の字の中の、サブグラフの中のノードの id とその頭（上のグラフの `include` を持つノードの id のすぐ後に `__` と id の字が続く形と、サブグラフの YAML の `-` を含むノードの id の素の形。上のグラフ自身の id と同じ字・サブグラフの名・`world-judge.json` のような隣のファイルの名は除く）・指示書（`commands/`）と入力の説明の中のほかのサブグラフの名（`works-factory-` の頭つきと、指示書の中のパス `workflows/<名>/`）と役の名（ほかのサブグラフの AI のノードの id。backtick で囲んだ物は `-` の有無に依らず、素の語は `-` を含む物だけ。自分の YAML の字の値と同じ字は除く。と、古い名 `blk-*`）。役が読む借りた読み替え `lib/borrow/unattended.md` も同じ形で、どのサブグラフの名も役の名も持たない。
 - 今ある漏れは地図の `known` に、照らしごとにファイルと当たりの数（1 行に 2 つ当たれば 2）と訳（直す issue）で載せる。表は減らす向きにだけ変える。直したら表から消す（当たりの数が表と違えば、増えても減っても赤）。地図そのもの（`outside`・`may_use`・`paths`・`independent`・`names`・`beside`、層の足しと並び）を緩める時は、地図の `loosened` に `{"<鍵>": "<訳>"}` の新しい行を足す（鍵は赤の文が名指す。考えの住処の柵の `loosened` と同じ形）。
 - 関門は CI に置き、pre-commit は足さない（どの道の変更も同じ機械の関門を CI で通す）。手元で先に見る時は `uv run --isolated python3 -m unittest tests.layers.test_layer_map` の 1 つで同じ照らしを回す（`NotAboveMain` が `origin/main` を要るので、先に `git fetch origin main`）。
-- 機械: `tests/layers/test_layer_map.py`（5 つの照らし（`tests/layers/scan.py` の `layer_hits`）の当たりが、ファイルごとの当たりの数で `known` とちょうど揃う。`known` は HEAD と `origin/main` の分かれ目の地図より、照らしごとの和も、ファイルごとの当たりの数も増えず、分かれ目に無いファイルも出ない。地図の緩めは `loosened` に新しい訳の行が無ければ赤（`NotAboveMain`。分かれ目に地図が無ければ比べない）。地図の `beside` の名の集まりが `docs/design.md` の約束の文の名の集まりと等しい。`bin/`・`workflows/`・`lib/` のファイルは地図の `outside` の外ならどれかの層に入る）。字の形で見るので、組んで作る名（`include` の id と中の id を継いで作る名を含む）・`importlib` の読み込み・日本語の役の呼び名（「修正役」など）・素のサブグラフの名と `-` の無い id（サブグラフの中の `-` の無い id の素の形を含む）・`include` の頭の無い素の `<輪の id>.<節の id>` の入口は人が見る。
+- 機械: `tests/layers/test_layer_map.py`（5 つの照らし（`tests/layers/scan.py` の `layer_hits`）の当たりが、ファイルごとの当たりの数で `known` とちょうど揃う。`known` は HEAD と `origin/main` の分かれ目の地図より、照らしごとの和も、ファイルごとの当たりの数も増えず、分かれ目に無いファイルも出ない。地図の緩めは `loosened` に新しい訳の行が無ければ赤（`NotAboveMain`。分かれ目に地図が無ければ比べない）。地図の `beside` の名の集まりが `docs/design.md` の約束の文と「judge の出力」の欄の先の名から読める。`bin/`・`workflows/`・`lib/` のファイルは地図の `outside` の外ならどれかの層に入る）。字の形で見るので、組んで作る名（`include` の id と中の id を継いで作る名を含む）・`importlib` の読み込み・日本語の役の呼び名（「修正役」など）・素のサブグラフの名と素の語の `-` の無い id（サブグラフの中の `-` の無い id の素の形を含む）・`include` の頭の無い素の `<輪の id>.<節の id>` の入口は人が見る。

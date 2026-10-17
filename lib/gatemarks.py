@@ -117,7 +117,7 @@ import structmark  # 構造の目の行（汚れる・人に上げる）
 import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
 
 MARKS_FILE = marks.KINDS["gate"].file
-MATERIALS_FILE = "materials.json"   # 判定の隣の素材の状態（素材の名 → {status, …}。材料の支度が組み、判定と報告が読む）
+MATERIALS_FILE = "materials.json"   # 判定の隣の素材の状態（素材の名 → {status, …}。材料の支度が組み、判定の出力の欄 materials が指す）
 PLAN_GATE_FILE = "gate.json"   # 事前審査の差し込みの関所の項目と往復の報告の行 converge（boardview が書き、報告が読む）
 RECOMMEND = "recommend"   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
@@ -239,7 +239,6 @@ ROW_FIELDS = ("kind", "text")         # 事前審査の返り questions の 1 �
 ASKING = ("held", "escalate")         # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）
 UNMEASURED = ("not_run", "awaiting_human")   # 素材の状態のうち今の周に測れていない物（写しの検証器の STATUS で阻害になる物）
 PASSES_FILE = "gate-passes.json"     # 事前審査の返り review の隣の、決め手で通した行と人が通したので聞き直さなかった行（passes の並び）
-BESIDE = (marks.KINDS["answers"].file, MATERIALS_FILE)   # ledger_beside が判定の隣から読む結びと素材の状態
 _NO_FIX = "修正に進まない（continue で修正へ進む・stop で報告へ。判定・修正案・事前審査・独立設計は報告の見る所に並ぶ）"
 DESIGN_ONLY_ITEM = "設計だけの run: " + _NO_FIX
 STUCK_ITEM = "事前審査の壁打ちが止まった案: " + _NO_FIX   # 設計だけでない run の止まり（設計だけの run と名乗らない）
@@ -602,7 +601,7 @@ def _design_rows(b) -> list:
 
 def _world_rows(b) -> dict | None:
     """{類の id: 世界の解の行}（段が行を出した run だけ。控えが無い・落ちた・読めない run は None＝今どおりの軸）"""
-    got = worldmark.stage_rows(b.dir)
+    got = worldmark.stage_rows(b.dir, worldmark.COPY_STATE)
     return None if got is None else {r["class_id"]: r for r in got}
 
 
@@ -638,7 +637,7 @@ def _cite_check(b):
     roots = conflict.cite_roots(b.dir, pathlib.Path(b.dir).parent)
     def cite_ok(text):
         return cite.sources_problem(text, repo, roots, quoted)
-    return cite_ok, req, worldmark.means_of(b.dir), repo
+    return cite_ok, req, worldmark.means_of(b.dir, worldmark.COPY_MEANS), repo
 
 
 def world_items(b) -> list:
@@ -1340,26 +1339,22 @@ def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_pu
                   takes_push=bool(takes_push))
 
 
-def ledger_beside(judgment_dir, judgment, *, answers=(), gate=None, ties_dir=None, takes_push=False) -> Ledger:
-    """ledger の結びの行と素材の状態を、判定の隣のファイル（answer-ties.json・materials.json。docs/design.md の隣のファイル）から読んだ物。
-    結びは ties_dir（渡せば。再審の判定の隣には結びが無いので 1 回目の判定の置き場）から読む。フォルダが None か、ファイルが無い・
-    読めなければ結び無し・素材無し（字の一致だけ。今の works の結びの無い run と同じ）"""
-    ties_dir = judgment_dir if ties_dir is None else ties_dir
-    ties = ties_of(marks.load(pathlib.Path(ties_dir) / BESIDE[0])) if ties_dir is not None else []
-    materials = marks.load(pathlib.Path(judgment_dir) / MATERIALS_FILE) if judgment_dir is not None else None
+def ledger_files(judgment, *, ties_file=None, materials_file=None, answers=(), gate=None, takes_push=False) -> Ledger:
+    """ledger の結びの行と素材の状態を、ファイルから読んだ物: ties_file は判定の結び（answer-ties.json の形）、materials_file は素材の
+    状態（materials.json の形）。None か、ファイルが無い・読めなければ結び無し・素材無し（字の一致だけ。今の works の結びの無い run と同じ）"""
+    ties = ties_of(marks.load(pathlib.Path(ties_file))) if ties_file is not None else []
+    materials = marks.load(pathlib.Path(materials_file)) if materials_file is not None else None
     return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials, takes_push=takes_push)
 
 
-def ledger_at(judgment_path, start, gate=None, ties_path=None) -> Ledger:
-    """ledger_beside をファイルから: 判定 judgment_path（judgment.json）・始めの記録 start（startrec.load で読んだ dict。answers を
-    読む。無人の run なら判定の推しを答えに採る。None は記録の無い run）・修正前の関所の答え gate・結びを読む判定 ties_path（再審の判定の隣には結びが無いので 1 回目の判定。
-    None なら judgment_path の隣）。読めなければ OSError・ValueError・AttributeError（読み手が訳を名指す）"""
-    path = pathlib.Path(judgment_path)
-    doc = json.loads(path.read_text(encoding="utf-8"))
+def ledger_at(judgment_path, start, gate=None, *, ties_file=None, materials_file=None) -> Ledger:
+    """ledger_files を判定のファイルから: 判定 judgment_path（judgment.json）・始めの記録 start（startrec.load で読んだ dict。answers を
+    読む。無人の run なら判定の推しを答えに採る。None は記録の無い run）・修正前の関所の答え gate・結び ties_file と素材の状態
+    materials_file（ledger_files）。読めなければ OSError・ValueError・AttributeError（読み手が訳を名指す）"""
+    doc = json.loads(pathlib.Path(judgment_path).read_text(encoding="utf-8"))
     answers = (start or {}).get("answers") or []
-    return ledger_beside(path.parent, doc if isinstance(doc, dict) else {}, answers=answers if isinstance(answers, list) else [],
-                         gate=gate, ties_dir=pathlib.Path(ties_path).parent if ties_path is not None else path.parent,
-                         takes_push=gatepolicy.unattended_of(start))
+    return ledger_files(doc if isinstance(doc, dict) else {}, ties_file=ties_file, materials_file=materials_file,
+                        answers=answers if isinstance(answers, list) else [], gate=gate, takes_push=gatepolicy.unattended_of(start))
 
 
 def passes_of(folder) -> list:

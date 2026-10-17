@@ -50,7 +50,7 @@ import policy  # noqa: E402
 import promptsection  # noqa: E402
 import purpose as _purpose  # noqa: E402
 import querytest  # noqa: E402
-import report  # noqa: E402  （約束の隣のファイルの名 REJUDGE_DIFF・REJUDGE_EXIT の住処）
+import report  # noqa: E402  （再審の置き場のファイルの名 REJUDGE_DIFF・REJUDGE_EXIT の住処）
 import rolekit  # noqa: E402
 import specblk  # noqa: E402
 import startrec  # noqa: E402
@@ -798,7 +798,7 @@ def claims_premise_three(because) -> bool:
 
 def _recorded(jdir) -> list:
     """判定の置き場の記録された方針の行（始めの記録と決定記録の突合の返答から。承認ノードの答えは判定に渡っていない）"""
-    return policy.recorded(_start_of(jdir), jdir)
+    return policy.recorded(_start_of(jdir), pathlib.Path(jdir) / policy.PRIOR_DECISIONS_FILE)
 
 
 def recorded_question_problems(out, rows) -> list:
@@ -2821,7 +2821,7 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> 
                                                           "body": pr.get("body") or ""}}).rstrip("\n") + "\n\n" + pr_file_text(pr)
     answers = answers_section(start.get("answers"))
     prior = carry.prior_section(j)
-    recorded = policy.recorded_text(_start_of(j), j)
+    recorded = policy.recorded_text(_start_of(j), j / policy.PRIOR_DECISIONS_FILE)
     pol = policy_text(start)
     p = j / DIAGNOSE_BRIEF_FILE
     tmp = p.with_name(p.name + ".tmp")
@@ -3219,7 +3219,7 @@ REJUDGE_UNIT_FIELDS = ("key", "label", "disposition", "reason", "reopen_evidence
 REJUDGE_BRIEF = "brief.md"
 REJUDGE_BEFORE = "units-before.json"          # 元 rejudge-units-before-<役>.json
 REJUDGE_SNAPSHOT = "rejudge-snapshot.json"    # 元 rejudge.SNAPSHOT_NAME（役を起こす前の作業ツリーの姿）
-REJUDGE_DIFF = report.REJUDGE_DIFF            # 元 rejudge.DIFF_NAME（名の住処は報告の定数。線の judged と報告が読む約束の隣のファイル）
+REJUDGE_DIFF = report.REJUDGE_DIFF            # 元 rejudge.DIFF_NAME（名の住処は報告の定数。返す節の欄 rejudge_diff が指す）
 REJUDGE_EXIT = report.REJUDGE_EXIT            # 元 rejudge.EXIT_NAME（再審のブロックの出口の形）
 REJUDGE_REPLY = "rejudge-reply.json"          # 受けた再審の返答の並び（元 writes の append to: process.rejudge）
 # 元 rejudge.py:77。修正役に貼った番号の書き方（no N・No.N・#N・N 番）。全角の数字も \d に当たる
@@ -3874,7 +3874,24 @@ EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "sour
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
 PURPOSE_REVIEW_FILE = _purpose.PURPOSE_REVIEW_FILE
 PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE, PURPOSE_REVIEW_FILE,
-                headdepth.RECORD)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
+                headdepth.RECORD)   # 判定の指し札の隣に必ず置く（下の PORTS の欄が指す）
+# 返す節の出力の欄 → 置き場のファイル。ほかのブロックはこの欄のポインタで受け、名で開かない（docs/design.md の「judge の出力」）。
+# PORTS は判定の指し札の隣（再審なら再審の置き場）。FIRST_PORTS は 1 回目の判定でしか書かない物（目的の段・素材の役・並行 PR の照らし）で、
+# 再審の時も 1 回目の判定の置き場を指す。先が無い run の欄は null
+PORTS = {"premises": PREMISES_FILE, "verify": VERIFY_FILE, "pr_excluded": PR_EXCLUDED_FILE, "materials": MATERIALS_FILE,
+         "purpose_review": PURPOSE_REVIEW_FILE, "depth_record": headdepth.RECORD,
+         "rejudge_exit": report.REJUDGE_EXIT, "rejudge_diff": report.REJUDGE_DIFF}
+FIRST_PORTS = {"purpose_means": MEANS_FILE, "world_state": worldmark.STATE_FILE, "decisions": policy.PRIOR_DECISIONS_FILE,
+               "answer_ties": marks.KINDS["answers"].file, "review_lenses": diverted.LENS_FILE, "pr_drafts": prcheck.DRAFTS}
+PRIOR_VERSION = "前の版の判定の出力。workflow run で最初から起こし直す"
+
+
+def require_ports(got: dict | None) -> None:
+    """判定（再審）の返りを受けた受け皿の got が、出力の欄 PORTS・FIRST_PORTS の鍵を全部持つか照らす（飛んだ受け皿の None は照らさない）。
+    今の判定は先の無い欄も null で返すので、鍵の無い got はこの版より前に走った判定の控えを resume で受けた物。欄を空と読むと
+    測れていない素材を無いと数えるので、ValueError で止める（script は works:line-script の止め方に倒す）"""
+    if got is not None and any(field not in got for field in (*PORTS, *FIRST_PORTS)):
+        raise ValueError(PRIOR_VERSION)
 
 
 def _empty_public(name: str):
@@ -3962,6 +3979,7 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
 
     units = structure_units(judgment, repo, record=here / STRUCTURE_DROPPED_FILE) if stop is None else []
     rel = lambda p: None if p is None else ptr(f"{p.parent.name}/{p.name}")   # noqa: E731
+    ports = {**{field: here / name for field, name in PORTS.items()}, **{field: jdir / name for field, name in FIRST_PORTS.items()}}
     return {
         "ready": stop is None and bool(units),
         "stop_reason": stop["stop_reason"] if stop else "",
@@ -3972,6 +3990,7 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
         "spec": rel(spec),
         "out_of_purpose": rel(outside),
         "rejudge_verdict": rejudge_verdict(rdir) if rejudging and stop is None else None,
+        **{field: rel(p if p.is_file() else None) for field, p in ports.items()},
     }
 
 
@@ -3995,4 +4014,5 @@ def verdict_fallback(jdir, rdir, objection: str, ptr) -> dict:
         pass
     return {"ready": False, "stop_reason": stopby.REJUDGE if objection.strip() else JUDGE_STOP, "units": [],
             "judgment": ptr(f"{here.name}/{JUDGMENT_FILE}"), "purpose": ptr(f"{here.name}/{PURPOSE_FILE}"),
-            "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None}
+            "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None,
+            **dict.fromkeys((*PORTS, *FIRST_PORTS))}

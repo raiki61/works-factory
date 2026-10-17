@@ -69,8 +69,8 @@ INTERRUPTED_HEAD = "run が途中で終わった"
 RETRIED_HEAD = "前の試みで落ち、続きで済んだノード"
 ABSORBED_HEAD = "落ちたが、メイングラフが宣言のとおり受け止めたノード"
 REJUDGE_WHERE = "判定（再審の結果）"           # 次の run の依頼の再審の結果の行の where
-# 再審の judgment の隣の約束のファイル（書き手は判定のブロックの lib/judge_accept.rejudge_take・rejudge_collect。線の judged と
-# 報告は読むだけで、再審の前後を自分で数えない）
+# 再審の judgment の隣のファイル（書き手は判定のブロックの lib/judge_accept.rejudge_take・rejudge_collect。再審の判定の出力の欄
+# rejudge_diff・rejudge_exit が指し、線の judged と報告はその欄から読むだけで、再審の前後を自分で数えない）
 REJUDGE_DIFF = "rejudge-diff.json"             # 往復ごとの単位の前後の差 [{round, pass, verdict, changed, unnamed_changed, lowered}]
 REJUDGE_EXIT = "rejudge-exit.json"             # 再審の出口 {ok, reason, passes, verdicts, unsettled, objection, new_open_units, lowered, unnamed_changed, …}
 # 直しが対象に書く文に混じってはいけない works の内側の語と run の中の事情の言い方（修正役の共通の決まり writerules/common.md の
@@ -93,10 +93,12 @@ def _first_error(x: dict) -> str:
     return (str(x.get("error") or "").strip().splitlines() or ["（誤りの文が無い）"])[0]
 
 
-def rejudge_exit(folder) -> tuple:
-    """(再審の出口 rejudge-exit.json の中身, 読めなかった訳)。folder は再審の judgment の在るフォルダ。無い・読めない・形が違えば
-    (None, 訳)"""
-    path = pathlib.Path(folder) / REJUDGE_EXIT
+def rejudge_exit(path) -> tuple:
+    """(再審の出口 rejudge-exit.json の中身, 読めなかった訳)。path は出口のファイル（再審の判定の出力の欄 rejudge_exit。None は再審が
+    出口を書かなかった）。無い・読めない・形が違えば (None, 訳)"""
+    if path is None:
+        return None, f"再審の出口 {REJUDGE_EXIT} が無い（再審の判定の出力の rejudge_exit が null）"
+    path = pathlib.Path(path)
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:

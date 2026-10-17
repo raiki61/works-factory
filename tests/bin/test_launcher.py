@@ -4,9 +4,7 @@
 security と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
 試験の出力に出さない）。
 """
-import contextlib
 import hashlib
-import io
 import json
 import os
 import pathlib
@@ -110,6 +108,17 @@ class LauncherTest(unittest.TestCase):
     def default_home(self, target) -> pathlib.Path:
         return self.home / ".local" / "state" / "works-factory" / "targets" / short(target)
 
+    def layer(self, argv) -> dict:
+        """殻が Archon に --config で渡した run の層"""
+        return json.loads(pathlib.Path(argv[argv.index("--config") + 1]).read_text(encoding="utf-8"))
+
+    def factory_layer(self, home=None) -> dict:
+        """利用者の --config の無い新しい run に殻が渡す層"""
+        head = ["env", f"WORKS_FACTORY_HOME={home or self.default_home(self.target)}", str(self.repo / "bin" / "works-factory"),
+                "workflow", "respond", "--cwd", str(self.target)]
+        return {"env": {"WORKS_FACTORY_ROOT": str(self.repo), answer.ENV: shlex.join(head)},
+                "workflows": {"autoResumeOnQuotaReset": False}, "aliases": place.group_presets()}
+
     def test_run_gets_cwd_and_workflow_source_before_user_args(self):
         got = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x", cwd=self.target / "sub"))
         argv = got["argv"]
@@ -120,7 +129,7 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(argv[7], "--workflow-source")
         self.assertEqual((pathlib.Path(argv[8]) / ".archon" / "workflows" / "works-factory").resolve(), self.repo / "workflows")
         self.assertEqual(argv[9], "--config")
-        self.assertEqual(json.loads(pathlib.Path(argv[10]).read_text(encoding="utf-8")), {"aliases": place.group_presets()})
+        self.assertEqual(self.layer(argv), self.factory_layer())
         self.assertEqual(argv[11:], ["works-factory-line", "--input", "request=x"])
         with self.subTest("利用者の --cwd は対象に使い、二重に足さない"):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--cwd", str(self.target / "sub"),
@@ -175,54 +184,15 @@ class LauncherTest(unittest.TestCase):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--from", "x", "--input", "request=x"))["argv"]
             self.assertEqual(argv[11:], ["works-factory-line", "--from", "x", "--input", "request=x"])
 
-    def test_test_cmd_running_the_checkout_stops_before_archon(self):
-        """#495: test_cmd が対象の手元を絶対パスで指すと、Archon を起こさずに止める（run の試験が直しでなく手元を試す偽の緑）。
-        WORKS_FACTORY_ALLOW_TESTCMD=1 なら知らせて起こす。git が無視する物を相対で指す形は注意だけで起こす"""
+    def test_test_cmd_running_the_checkout_reaches_archon(self):
+        """#678: test_cmd の形はメイングラフの頭のノード testcmd が確かめる。殻は対象の手元を絶対パスで指す test_cmd も照らさずに Archon
+        へ渡し、確かめの部品も持たない"""
         self.commit_target()
-        (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
-        runner = self.target / ".venv" / "bin" / "run-tests"
-        runner.parent.mkdir(parents=True)
-        runner.write_text("#!/bin/sh\n", encoding="utf-8")
-        git(self.target, "add", ".gitignore")
-        git(self.target, "commit", "-q", "-m", "ignore")
-        run = ("workflow", "run", "works-factory-line", "--input", "request=x")
-        err = self.stopped(self.launch(*run, "--input", f"test_cmd={runner} -q"))
-        self.assertIn("止める（test_cmd）", err)
-        self.assertIn(f"test_cmd が対象の手元（{self.target}）を走らせる形", err)
-        self.assertIn(launcher.ALLOW_TESTCMD_ENV, err)
-        done = self.launch(*run, f"--input=test_cmd={runner} -q", **{launcher.ALLOW_TESTCMD_ENV: "1"})
-        self.reached(done)
-        self.assertIn("注意（test_cmd）", done.stderr)
-        self.assertIn("=1 なので止めずに起こす", done.stderr)
-        done = self.launch(*run, "--input", "test_cmd=.venv/bin/run-tests -q")
-        self.reached(done)
-        self.assertIn("注意（test_cmd）", done.stderr)
-
-    def test_test_cmd_through_home_always_stops_unless_allowed(self):
-        """PR #503 の見直し: 対象のコマンドは利用者の HOME で走る（旗は無い）ので、~・$HOME で手元を指す test_cmd も run の中で
-        手元を指す。いつも止め、WORKS_FACTORY_ALLOW_TESTCMD=1 なら起こす"""
-        self.commit_target()
-        (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
-        runner = self.target / ".venv" / "bin" / "run-tests"
-        runner.parent.mkdir(parents=True)
-        runner.write_text("#!/bin/sh\n", encoding="utf-8")
-        git(self.target, "add", ".gitignore")
-        git(self.target, "commit", "-q", "-m", "ignore")
-        run = ("workflow", "run", "works-factory-line", "--input", "request=x")
-        via_home = f"~/{os.path.relpath(runner, self.home)} -q"
-        err = self.stopped(self.launch(*run, "--input", f"test_cmd={via_home}"))
-        self.assertIn("止める（test_cmd）", err)
-        self.reached(self.launch(*run, "--input", f"test_cmd={via_home}", **{launcher.ALLOW_TESTCMD_ENV: "1"}))
-
-    def test_test_cmd_check_that_fails_stops_unless_allowed(self):
-        def failing(*_, **__):
-            return subprocess.CompletedProcess([], 1, stdout="")
-        with self.assertRaises(launcher.Stop):
-            launcher.check_test_cmd({}, self.target, ["make test"], run=failing)
-        with contextlib.redirect_stderr(io.StringIO()) as said:
-            launcher.check_test_cmd({launcher.ALLOW_TESTCMD_ENV: "1"}, self.target, ["make test"], run=failing)
-        self.assertIn("終了の値 1", said.getvalue())
-        launcher.check_test_cmd({}, self.target, ["", "  "], run=failing)
+        runner = self.target / "run-tests"
+        done = self.launch("workflow", "run", "works-factory-line", "--input", "request=x", "--input", f"test_cmd={runner} -q")
+        self.assertIn(f"test_cmd={runner} -q", self.reached(done)["argv"])
+        self.assertNotIn("test_cmd）", done.stderr)
+        self.assertFalse((launcher.LIB / "testcmd_check.py").exists())
 
     def test_flag_values_reads_both_forms_in_order(self):
         self.assertEqual(launcher.flag_values(["--input", "test_cmd=a b", "--input=test_cmd=c", "--input", "request=x"], "--input"),
@@ -235,7 +205,7 @@ class LauncherTest(unittest.TestCase):
 
     def test_users_run_config_is_merged_under_the_factory_groups(self):
         """利用者の --config は殻の層に合わせて 1 つで渡る: env などは効き、同じ名の群の別名は工場の値に替わる。相対のパスは対象から引く。
-        合わせた物（env の秘密が入りうる）は取り置き cache に置かず対象の家に置き、群の別名だけの層は cache に置く"""
+        合わせた物（env の秘密が入りうる）は取り置き cache に置かず対象の家に置き、工場の値だけの層は cache に置く"""
         if shutil.which("bun") is None:
             self.skipTest("bun が無い（利用者の --config は Archon と同じ Bun.YAML.parse で読む）")
         self.bun.write_text(read_with_real_bun(shutil.which("bun")), encoding="utf-8")
@@ -251,25 +221,35 @@ class LauncherTest(unittest.TestCase):
                 merged = pathlib.Path(argv[argv.index("--config") + 1])
                 self.assertTrue(merged.is_relative_to(self.default_home(self.target)), merged)
                 self.assertFalse(merged.is_relative_to(self.cache_home), merged)
-                layer = json.loads(merged.read_text(encoding="utf-8"))
-                self.assertEqual(layer, {"env": {"MINE": "1"}, "aliases": place.group_presets()})
+                factory = self.factory_layer()
+                self.assertEqual(self.layer(argv), {**factory, "env": {"MINE": "1", **factory["env"]}})
                 self.assertIn(group, done.stderr)
                 self.assertEqual(argv[11:], ["works-factory-line", "--input", "request=x"])
-        with self.subTest("利用者の --config が無ければ群の別名だけの層を cache に置く"):
+        with self.subTest("利用者の --config が無ければ工場の値だけの層を cache に置く"):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line"))["argv"]
             self.assertTrue(pathlib.Path(argv[argv.index("--config") + 1]).is_relative_to(self.cache_home))
-        self.assertEqual([json.loads(p.read_text(encoding="utf-8")) for p in self.cache_home.rglob("run-config/*.json")],
-                         [{"aliases": place.group_presets()}])
+        cached = [json.loads(p.read_text(encoding="utf-8")) for p in self.cache_home.rglob("run-config/*.json")]
+        self.assertEqual([layer for layer in cached if layer["env"] == self.factory_layer()["env"]], [self.factory_layer()])
         with self.subTest("読めない --config は起こさずに止める"):
             self.assertIn("none.yaml", self.stopped(self.launch("workflow", "run", "works-factory-line", "--config", "none.yaml")))
 
-    def test_adopt_gets_no_run_config(self):
-        """--adopt は記録した AI の設定を受け継ぐ。Archon は aliases を持つ --config の層をその時に拒むので、殻は足さず、利用者の物も触らない"""
-        for args in (["--adopt", "run-1"], ["--adopt=run-1", "--config", "mine.yaml"]):
+    def test_adopt_gets_the_run_config_without_groups(self):
+        """--adopt は記録した AI の設定を受け継ぐ。Archon は aliases を持つ --config の層をその時に拒むので、殻は群の別名を除いた層を渡す。
+        利用者の --config はその層に合わせる"""
+        if shutil.which("bun") is None:
+            self.skipTest("bun が無い（利用者の --config は Archon と同じ Bun.YAML.parse で読む）")
+        self.bun.write_text(read_with_real_bun(shutil.which("bun")), encoding="utf-8")
+        (self.target / "mine.yaml").write_text("env:\n  MINE: '1'\n", encoding="utf-8")
+        factory = {k: v for k, v in self.factory_layer().items() if k != "aliases"}
+        for args, rest, layer in ((["--adopt", "run-1"], ["--adopt", "run-1"], factory),
+                                  (["--adopt=run-1", "--config", "mine.yaml"], ["--adopt=run-1"],
+                                   {**factory, "env": {"MINE": "1", **factory["env"]}})):
             with self.subTest(args=args):
                 argv = self.reached(self.launch("workflow", "run", "works-factory-line", *args))["argv"]
                 self.assertEqual(argv[3:9], ["workflow", "run", "--cwd", str(self.target), "--workflow-source", argv[8]])
-                self.assertEqual(argv[9:], ["works-factory-line", *args])
+                self.assertEqual(argv[9], "--config")
+                self.assertEqual(self.layer(argv), layer)
+                self.assertEqual(argv[11:], ["works-factory-line", *rest])
 
     def test_unknown_group_in_model_is_refused_with_the_known_groups(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--model", "@wf-judge-cor=haiku"))
@@ -399,20 +379,28 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(json.loads(env[userenv.RECORD])["HOME"], str(self.home))   # 対象のコマンドにだけ利用者の HOME・XDG を戻す控え（持ち主の決め target-user-env）
         self.assertEqual(env["ARCHON_TELEMETRY_DISABLED"], "1")
         self.assertEqual(env["DO_NOT_TRACK"], "1")
-        self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
-        self.assertIn("defaultAssistant: claude", (pathlib.Path(env["ARCHON_HOME"]) / "config.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(env[place.PROVIDER_ENV], "claude")
+        self.assertNotIn("WORKS_FACTORY_ROOT", env, "run のノードへは --config の層で渡す")
 
-    def test_rebuilt_home_gets_the_factory_settings_and_users_archon_is_untouched(self):
-        """工場の Archon の家を消して作り直しても家の config.yaml に工場の決める値が入り、利用者の ~/.archon には書かない"""
+    def test_continuing_commands_keep_the_root_for_runs_sealed_without_it(self):
+        """#679 より前に始めた run の封じた層には WORKS_FACTORY_ROOT が無い。前の run を続ける命令の時だけ子の環境に置き、そうした run の
+        script ノードも lib/ を見つける（層を持つ run では層の値が勝つ）。新しい run・run を走らせない命令には置かない"""
+        continuing = [["workflow", verb, "run-1"] for verb in sorted(launcher.RESUMING | launcher.CONTINUING)]
+        for args in [*continuing, ["workflow", "run", "works-factory-line", "--resume"]]:
+            with self.subTest(args=args):
+                env = self.reached(self.launch(*args, WORKS_FACTORY_HOME=str(self.tmp / "home-of" / args[1])))["env"]
+                self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
+        for args in (["workflow", "run", "works-factory-line"], ["workflow", "status"]):
+            with self.subTest(args=args):
+                self.assertNotIn("WORKS_FACTORY_ROOT", self.reached(self.launch(*args))["env"])
+
+    def test_factory_writes_nothing_in_either_archon_home(self):
+        """工場の値は run の層と環境変数で渡し、工場の Archon の家にも利用者の ~/.archon にも書かない"""
         users = put(self.home / ".archon" / "config.yaml", "workflows:\n  autoResumeOnQuotaReset: true\n")
         before = users.read_bytes()
-        for attempt in ("new", "rebuilt"):
-            with self.subTest(attempt):
-                archon_home = pathlib.Path(self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]["ARCHON_HOME"])
-                self.assertNotEqual(archon_home.resolve(), (self.home / ".archon").resolve())
-                self.assertEqual((archon_home / "config.yaml").read_text(encoding="utf-8"),
-                                 "defaultAssistant: claude\nworkflows:\n  autoResumeOnQuotaReset: false\n")
-                shutil.rmtree(self.default_home(self.target))
+        archon_home = pathlib.Path(self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]["ARCHON_HOME"])
+        self.assertNotEqual(archon_home.resolve(), (self.home / ".archon").resolve())
+        self.assertFalse((archon_home / "config.yaml").exists())
         self.assertEqual(users.read_bytes(), before)
         self.assertEqual(sorted(p.name for p in (self.home / ".archon").iterdir()), ["config.yaml"])
 
@@ -458,14 +446,15 @@ class LauncherTest(unittest.TestCase):
         for word in ("`setup`", ".review-checks.json", "`suite`", ".gitignore", "`test_cmd` だけの対象"):
             self.assertIn(word, section)
 
-    def test_child_env_carries_answer_head(self):
-        """関所の答えの行の頭は家を名指して殻を通す respond。利用者の値より殻の値"""
+    def test_run_layer_carries_answer_head(self):
+        """関所の答えの行の頭は家を名指して殻を通す respond。新しい run の層で渡り、利用者の値より殻の値"""
         chosen = self.tmp / "chosen-home"
         for user_value, home in (({}, self.default_home(self.target)),
                                  ({answer.ENV: "sh use.sh answer x", "WORKS_FACTORY_HOME": str(chosen)}, chosen)):
             with self.subTest(user=user_value):
-                env = self.reached(self.launch("workflow", "status", cwd=self.target / "sub", **user_value))["env"]
-                head = shlex.split(env[answer.ENV])
+                argv = self.reached(self.launch("workflow", "run", "works-factory-line", cwd=self.target / "sub",
+                                                **user_value))["argv"]
+                head = shlex.split(self.layer(argv)["env"][answer.ENV])
                 self.assertEqual(head, ["env", f"WORKS_FACTORY_HOME={home}", str(self.repo / "bin" / "works-factory"),
                                         "workflow", "respond", "--cwd", os.path.realpath(self.target)])
                 self.assertIn(shlex.join(["bin/works-factory", *head[3:-1]]), answer.HOLE)
@@ -479,7 +468,7 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(chooses=chooses):
                 got = self.reached(self.launch("workflow", "run", "works-factory-line", **chooses))
                 self.assertEqual(got["env"]["HOME"], str(home / "home"))
-                line = answer.line("run-1", "continue", "x", env=got["env"])
+                line = answer.line("run-1", "continue", "x", env=self.layer(got["argv"])["env"])
                 self.bun_log.unlink()
                 argv = shlex.split(line)
                 done = subprocess.run([shutil.which(argv[0]), *argv[1:]], env=self.env, cwd=self.tmp,
@@ -872,10 +861,10 @@ class ReadmeUsageTest(unittest.TestCase):
         self.assertEqual(entry.request_problems(parts[carry.FINDINGS]), [])
 
     def test_test_cmd_and_start_point_are_documented(self):
-        from bin._lib import testcmd_check
+        from lib import testcmd_check
         self.assertIn("「test_cmd と作業ツリー」", testcmd_check.HOW)
         test_cmd = self.section("test_cmd と作業ツリー")
-        for word in ("--input test_cmd=", launcher.ALLOW_TESTCMD_ENV, "止める（test_cmd）", "注意（test_cmd）"):
+        for word in ("--input test_cmd=", testcmd_check.ALLOW_ENV, "止める（test_cmd）", "注意（test_cmd）"):
             self.assertIn(word, test_cmd)
         start = self.section("作業ツリーの起点")
         for flag in ("--from", "--from-branch", "--base", "--branch", "--no-worktree", "--adopt"):
