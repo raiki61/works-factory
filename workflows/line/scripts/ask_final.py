@@ -65,6 +65,12 @@ FINAL_GATE_FILE = "gates/final-gate.md"   # 開いた関所の文の控え（元
 HANDOFF_REASON = "修正役が人に回した物が在る"
 MISMATCH_REASON = "直したという申告と機械の数え直しが合わない単位が在る"
 NO_AFTER = "直した後の構造の実測: 無い（独立の目の structure_after が null——実測のノードが落ちたか走らなかった。メイングラフは止めずに進めた）"
+# 読む欄の名（with: の tests・eyes・seal は返りまるごとで届き、口 boundary.picked にこの名の並びを渡す。名は返す節の output_format の欄）
+TESTS = ("ok", "green", "red_cause", "ran_steps", "by", "suites_line", "log", "baseline_line", "reason")
+EYES = ("r1", "r2", "r3", "r4", "premise_check", "questions", "notes", "structure_after")
+SEAL = ("ok", "reason", "hash", "protected_hits", "diff")
+# 封じの節が飛んだ（差分が無い周）時の既定。差分が無いので封じず、守りのパスの当たりも無い
+SEAL_SKIPPED = boundary.Picked({"ok": True, "reason": "", "hash": "", "protected_hits": [], "diff": None})
 
 
 def tests_word(got: dict) -> str:
@@ -517,51 +523,50 @@ def start_doc(ptr) -> tuple:
         return None, f"始めの記録を読めない（保留の問いと起点の版を読んでいない。{type(error).__name__}: {error}）"
 
 
-def env(name: str):
-    return boundary.value(os.environ.get(f"INPUTS_{name}"))
-
-
-def final_tests() -> dict:
-    """最後のテストの返りの欄（with: の by・suites_line・log・baseline_line・tests_reason）を declared_checks.gate_values で見せる値にし、
-    関門が返さなかった（飛ばされた節）時は unread にその旨"""
-    ret = {k: boundary.field(k, os.environ.get(f"INPUTS_{k.upper()}")) for k in ("by", "suites_line", "log", "baseline_line")}
-    ret["reason"] = boundary.field("reason", os.environ.get("INPUTS_TESTS_REASON"))
-    return {**declared_checks.gate_values(ret), "unread": "" if ret["by"] is not None else "最後のテストの証拠が無い（試験の関門が返さなかった）"}
+def final_tests(tests) -> dict:
+    """最後のテストの返り tests（試験の関門の返りまるごと）の by・suites_line・log・baseline_line・reason を declared_checks.gate_values で
+    見せる値にし、関門が返さなかった（tests が None＝飛ばされた節）時だけ unread にその旨（by の空の字は返った形のまま）"""
+    return {**declared_checks.gate_values(tests), "unread": "" if tests is not None else "最後のテストの証拠が無い（試験の関門が返さなかった）"}
 
 
 def got_of_env() -> dict:
-    start, start_unread = start_doc(env("START"))
-    b, ledger_notes = ledger(env("JUDGMENT"), start, env("BEFORE_FIX_ANSWER"), env("TIES_JUDGMENT"))
-    fenced, after, after_unread = after_rows(env("STRUCTURE_AFTER"))
+    tests = boundary.picked(os.environ.get("INPUTS_TESTS"), TESTS)
+    eyes = boundary.picked(os.environ.get("INPUTS_EYES"), EYES)
+    seal = boundary.picked(os.environ.get("INPUTS_SEAL"), SEAL)
+    gate = boundary.Picked(dict.fromkeys(TESTS)) if tests is None else tests
+    eye = boundary.Picked(dict.fromkeys(EYES)) if eyes is None else eyes
+    closing = SEAL_SKIPPED if seal is None else seal
+    judgment, ties = boundary.value(os.environ.get("INPUTS_JUDGMENT")), boundary.value(os.environ.get("INPUTS_TIES_JUDGMENT"))
+    start, start_unread = start_doc(boundary.value(os.environ.get("INPUTS_START")))
+    b, ledger_notes = ledger(judgment, start, boundary.value(os.environ.get("INPUTS_BEFORE_FIX_ANSWER")), ties)
+    fenced, after, after_unread = after_rows(eye["structure_after"])
     asked, conflicts_unread = asked_conflicts(boundary.items(os.environ.get("INPUTS_CONFLICTS")))
-    passes, rounds, review_unread = review_rows((env("PLAN_REVIEW"), env("REPLAN_REVIEW")))
-    deleted, deleted_unread = deleted_files(env("SEALED_DIFF"))
+    passes, rounds, review_unread = review_rows((boundary.value(os.environ.get("INPUTS_PLAN_REVIEW")),
+                                                 boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW"))))
+    deleted, deleted_unread = deleted_files(closing["diff"])
     beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_DIFFS")))
-    noted = eye_notes(env("EYE_NOTES"))
+    noted = eye_notes(eye["notes"])
     raw = {"units": boundary.items(os.environ.get("INPUTS_UNITS")), "first_units": boundary.items(os.environ.get("INPUTS_FIRST_UNITS")),
-           "judgment": env("JUDGMENT"), "ties_judgment": env("TIES_JUDGMENT"), "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
+           "judgment": judgment, "ties_judgment": ties, "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
            "rejudge_verdict": boundary.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
            "objection": boundary.text(os.environ.get("INPUTS_OBJECTION")),
            "fix_units": boundary.items(os.environ.get("INPUTS_FIX_UNITS")), "groups": boundary.items(os.environ.get("INPUTS_GROUPS"))}
     returns = judged_returns(raw)
     return {
-        "tests_ok": boundary.flag(os.environ.get("INPUTS_TESTS_OK")),
-        "green": boundary.flag(os.environ.get("INPUTS_GREEN")),
-        "red_cause": boundary.text(os.environ.get("INPUTS_RED_CAUSE")),
-        "ran_steps": env("RAN_STEPS"),
-        "tests": final_tests(),
+        "tests_ok": boundary.as_flag(gate["ok"]),
+        "green": boundary.as_flag(gate["green"]),
+        "red_cause": boundary.as_text(gate["red_cause"]),
+        "ran_steps": gate["ran_steps"],
+        "tests": final_tests(tests),
         "worktree": str(Path.cwd().resolve()),
         "base_rev": str((start or {}).get("base_rev") or ""),
-        "protected_hits": boundary.items(os.environ.get("INPUTS_PROTECTED_HITS")),
+        "protected_hits": boundary.as_items(closing["protected_hits"]),
         "asked": asked,
         "conflicts_unread": conflicts_unread,
         "handoffs": [x for x in boundary.items(os.environ.get("INPUTS_HANDOFFS")) if isinstance(x, str)],
         "mismatched": [x for x in boundary.items(os.environ.get("INPUTS_MISMATCHED")) if isinstance(x, str)],
-        "eyes": {
-            "r1": env("R1"), "r2": env("R2"), "r3": env("R3"), "r4": env("R4"),
-            "premise_check": env("PREMISE_CHECK"),
-        },
-        "questions": [q for q in boundary.items(os.environ.get("INPUTS_QUESTIONS")) if isinstance(q, str)],
+        "eyes": {name: eye[name] for name in ("r1", "r2", "r3", "r4", "premise_check")},
+        "questions": [q for q in boundary.as_items(eye["questions"]) if isinstance(q, str)],
         "spec_changed": [q for q in boundary.items(os.environ.get("INPUTS_SPEC_CHANGED")) if isinstance(q, str)],
         "spec_unchecked": boundary.flag(os.environ.get("INPUTS_SPEC_UNCHECKED")),
         "objection": raw["objection"],
@@ -570,16 +575,17 @@ def got_of_env() -> dict:
         "split": runreport.split_line(returns),
         "unproven": [x.removeprefix("  - ") for x in runreport.unproven_lines(returns)[1:]],
         "amend": replan.amend_lines(boundary.items(os.environ.get("INPUTS_REPLAN_ITEMS")),
-                                    refixed=boundary.flag(os.environ.get("INPUTS_REFIXED")), answer=env("REPLAN_ANSWER"),
+                                    refixed=boundary.flag(os.environ.get("INPUTS_REFIXED")),
+                                    answer=boundary.value(os.environ.get("INPUTS_REPLAN_ANSWER")),
                                     widened=boundary.items(os.environ.get("INPUTS_WIDENED"))),
-        "delta_review": env("DELTA_REVIEW"),
+        "delta_review": boundary.value(os.environ.get("INPUTS_DELTA_REVIEW")),
         **beside,
-        "structure_missing": structure_missing(env("STRUCTURE")),
-        "sealed": boundary.flag(os.environ.get("INPUTS_SEALED")),
-        "seal_reason": boundary.text(os.environ.get("INPUTS_SEAL_REASON")),
-        "hash": boundary.text(os.environ.get("INPUTS_HASH")),
+        "structure_missing": structure_missing(boundary.value(os.environ.get("INPUTS_STRUCTURE"))),
+        "sealed": boundary.as_flag(closing["ok"]),
+        "seal_reason": boundary.as_text(closing["reason"]),
+        "hash": boundary.as_text(closing["hash"]),
         "deleted": deleted,
-        "sealed_diff": path_of(env("SEALED_DIFF")),
+        "sealed_diff": path_of(closing["diff"]),
         "fenced": fenced,
         "after": after,
         "passes": [*passes, *noted["eye_passes"]],

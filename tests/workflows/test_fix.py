@@ -35,6 +35,7 @@ if str(LIB / "graphloops") not in sys.path:
 from engine.schema import validate_schema  # noqa: E402  （output_format の照らし。jsonschema に頼らない lib の小道具）
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
+import launchgroups  # noqa: E402
 import rolekit  # noqa: E402
 import ruling  # noqa: E402
 import runreport  # noqa: E402
@@ -345,8 +346,8 @@ class RolesCase(unittest.TestCase):
     def test_roles_keep_the_original_model_and_session_settings(self):
         for nid, (model, effort, context, sources, sandbox) in ORIGINAL_ROLES.items():
             node = self.nodes[nid]
-            self.assertEqual((node.get("model"), node.get("effort"), node.get("context"), node.get("settingSources"),
-                              node.get("sandbox")), (model, effort, context, sources, sandbox), nid)
+            self.assertEqual((launchgroups.default_of(node["model"]), node.get("context"), node.get("settingSources"), node.get("sandbox")),
+                             ((model, effort), context, sources, sandbox), nid)
 
     def test_borrowed_skills_sit_on_the_seat_roles(self):
         """借りた superpowers の技: TDD の役に test-driven-development、手直しの役に receiving-code-review（元 blk-fix.yaml:188・

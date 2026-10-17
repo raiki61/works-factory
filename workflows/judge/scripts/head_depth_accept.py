@@ -3,7 +3,9 @@
 # dependencies = []
 # ///
 """run の頭の深さの役の返答を受け付ける（lib/headdepth.check）。受ければ控え judge/depth-head.json を答えで書き、拒めば標準と訳で
-書き直す（拒否は judge/rejects-head-depth.json に積み、3 回目で done。通らないまま終われば標準のまま）。落ちずに {ok, done, reason}"""
+書き直す（拒否は judge/rejects-head-depth.json に積み、3 回目で done。通らないまま終われば標準のまま）。受ければ役の群の選び（返答の
+groups）も住処の口（launchgroups.choices）で照らして控えの groups に書く（外れた行は既定に戻って訳を持つだけで、段は落とさない。
+この run では効かず記録だけ）。拒む時と支度の控えの groups は空（既定のまま）。落ちずに {ok, done, reason}"""
 import os
 import sys
 from pathlib import Path
@@ -14,6 +16,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import headdepth  # noqa: E402
 import judge_accept as ja  # noqa: E402
+import launchgroups  # noqa: E402
 import rolekit  # noqa: E402
 
 ROLE = "head-depth"
@@ -36,7 +39,8 @@ def take(reply: dict) -> dict:
         role_why = reply.get("why") if isinstance(reply, dict) else ""
         return refuse("／".join(gaps), role_why.strip() if isinstance(role_why, str) else "")
     items = reply.get("items") or []
-    headdepth.write(jdir, headdepth.record(headdepth.tier_of(items), reply["why"].strip(), items=items, facts_doc=facts))
+    groups = launchgroups.choices(reply.get("groups"))
+    headdepth.write(jdir, headdepth.record(headdepth.tier_of(items), reply["why"].strip(), items=items, facts_doc=facts, groups=groups))
     return {"ok": True, "reason": ""}
 
 

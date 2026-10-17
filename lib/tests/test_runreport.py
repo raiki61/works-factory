@@ -27,6 +27,8 @@ import depth  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import fixture  # noqa: E402
+import headdepth  # noqa: E402
+import launchgroups  # noqa: E402
 import outcome  # noqa: E402
 import outpurpose  # noqa: E402
 import planfile  # noqa: E402
@@ -66,12 +68,14 @@ def start(step, ts):
     return {"type": "node_start", "step": step, "ts": ts, "workflow_id": RUN}
 
 
-def done(step, ts, cost=None, accounting="node", model=None, kind="node_complete"):
+def done(step, ts, cost=None, accounting="node", model=None, kind="node_complete", effort=None):
     row = {"type": kind, "step": step, "ts": ts, "workflow_id": RUN, "execution": {"accounting": accounting}}
     if cost is not None:
         row["cost_usd"] = cost
     if model:
         row["execution"]["binding"] = {"model": {"resolved": {"source": "provider", "value": model}}}
+    if effort:
+        row["execution"].setdefault("binding", {})["effort"] = effort
     return row
 
 
@@ -470,6 +474,63 @@ class TranscriptCase(Base):
         self.assertIn(f"{report.RETRIED_HEAD}: fix__write（落ちた回 1。最後の誤り: （誤りの文が無い））", text)
         self.assertIn("費用の欄が無い行 1 件", text)
         self.assertIn("- judge__diagnose: sonnet", self.section(text, report.MODEL_HEADING))
+
+    def test_model_section_lists_groups_node_efforts_and_outcome(self):
+        jdir = self.dir / "judge"
+        chosen = launchgroups.choices([{"group": "@wf-fix-writers", "model": "opus", "effort": "high", "why": "広い書き換え"},
+                                       {"group": "@wf-nothing", "model": "opus", "effort": "high", "why": "x"}])
+        headdepth.write(jdir, headdepth.record("重厚", "設計の選び", groups=chosen))
+        judged = {**fixed_run()["judge"], "judgment": str(jdir / "judgment.json")}
+        facts = runreport.transcript_facts(rows_of(
+            start("judge__diagnose", "2026-10-12T00:00:00Z"),
+            done("judge__diagnose", "2026-10-12T00:03:00Z", cost=0.5, model="opus", effort="high"),
+            done("fix__write", "2026-10-12T00:05:00Z", cost=0.25, model="sonnet", effort="medium"),
+            done("fix__write", "2026-10-12T00:06:00Z", cost=0.25, model="sonnet", effort="high"),
+            done("test-gate-final__run", "2026-10-12T00:07:00Z", cost=0.1, model="haiku"),
+        ), exclude_prefix="report__")
+        self.assertEqual(facts["efforts"], {"judge__diagnose": ["high"], "fix__write": ["medium", "high"]})
+        self.assertEqual(runreport.transcript_facts(None)["efforts"], {}, "出来事の行が無い返りも efforts を持つ")
+        gates = {"gate-final": {"decision": "approve", "text": "これで良い", "asked": []}}
+        eyes = {**fixed_run()["eyes"], "r2": None}
+        given_up = {**fixed_run()["fix"], "units": [{"unit_id": "u2", "status": "given_up", "reason": "直せなかった"}]}
+        _, text, decided = self.build(fixed_run(judge=judged, eyes=eyes, fix=given_up), gates=gates, transcript=facts,
+                                      line={"redepth": {"skip_optional": ""}})
+        section = self.section(text, report.MODEL_HEADING)
+        self.assertEqual(section.splitlines()[:3], [
+            "- @wf-fix-writers: 既定 sonnet・high → 役の選び opus・high（上げ。訳: 広い書き換え）",
+            "- @wf-nothing: 表に無い群を既定に戻した（訳: 群 '@wf-nothing' が表に無い）",
+            f"- {launchgroups.RECORD_ONLY}"])
+        self.assertIn("- judge__diagnose: opus（effort: high）\n", section)
+        self.assertIn("- fix__write: sonnet（effort: medium, high）\n", section)
+        self.assertIn("- test-gate-final__run: haiku\n", section, "effort の無い行は今の字のまま")
+        want = self.section(text, report.DECISIONS_HEADING)
+        carried = int(want.split("次の run に渡す物: ")[1].split(" 件")[0])
+        outcome_line = next(x for x in section.splitlines() if x.startswith("- 結末: "))
+        self.assertIn(f"結末: {report.OUTCOME_WORDS[decided[0]]}（{decided[0]}）", outcome_line)
+        self.assertIn(f"最後の承認ノード gate-final: {runreport._gate_line(gates['gate-final'])}", outcome_line)
+        self.assertIn(f"次の run に渡す物: {carried} 件", outcome_line)
+        self.assertIn("持ち越した失敗: 1 件", outcome_line)
+        self.assertIn(runreport.DATA_PLACES, outcome_line)
+        for place in ("depth-head.json", "groups", "$LOG_DIR/<run の id>.jsonl", "execution.binding", "result", "outcome", "stop_reason"):
+            self.assertIn(place, runreport.DATA_PLACES)
+        self.assertNotIn("同じ run の置き場", runreport.DATA_PLACES)
+        for skip, said in (("", "結果が無い——再実行の要あり（深さは標準で、省いていない）"), ("軽量で省いた", "深さで省いた")):
+            with self.subTest(skip=skip):
+                _, text, _ = self.build(fixed_run(judge=judged, eyes=eyes), line={"redepth": {"skip_optional": skip}}, transcript=facts)
+                eye_section = self.section(text, runreport.EYES_HEADING).splitlines()
+                outcome_line = next(x for x in self.section(text, report.MODEL_HEADING).splitlines() if x.startswith("- 結末: "))
+                self.assertIn(f"- R2: {said}", eye_section)
+                for name in outcome.EYE_NAMES:
+                    word = next(x for x in eye_section if x.startswith(f"- {name.upper()}: ")).removeprefix("- ")
+                    self.assertIn(word, outcome_line)
+        _, text, _ = self.build(fixed_run(judge=judged, eyes=None), transcript=facts)
+        self.assertIn(f"独立の目: {runreport.NO_EYES}", self.section(text, report.MODEL_HEADING))
+        self.assertIn(f"- {runreport.NO_EYES}\n", self.section(text, runreport.EYES_HEADING) + "\n")
+        _, text, _ = self.build(fixed_run(judge=None), transcript=facts)
+        section = self.section(text, report.MODEL_HEADING)
+        self.assertEqual(section.splitlines()[:2], [f"- {headdepth.NO_CHOICE}", f"- {launchgroups.RECORD_ONLY}"])
+        self.assertNotIn("既定のまま", section)
+        self.assertIn("- test-gate-final__run: haiku\n", section)
 
 
     @staticmethod
@@ -985,7 +1046,8 @@ class DraftsCase(Base):
         """#510: 承認の後に受け入れ条件のテストが変わった問いは、結末を人待ちにし、冒頭（止めの語の意味と人が決めることの件数）と
         次の依頼の下書き（答えの空の行）に載る"""
         q = "承認の後に受け入れ条件のテストが変わった（spec_changed）: t.txt（sha256 aaaaaaaaaaaa → 消えた）——承認し直すか"
-        got, text, decided = self.build(line={"spec_changed": [q], "stops": {"spec-check": stopby.SPEC_CHANGED}})
+        got, text, decided = self.build(line={"spec_changed": [q], "spec_unchecked": False,
+                                              "stops": {"spec-check": stopby.SPEC_CHANGED}})
         self.assertEqual(decided, ("needs_human", f"spec-check:{stopby.SPEC_CHANGED}"))
         head = "\n".join(text.splitlines()[2:5])
         self.assertIn(stopby.REASONS["spec-changed"], head)
@@ -994,9 +1056,11 @@ class DraftsCase(Base):
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
         self.assertEqual([(a["question"], a["text"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, "", True)])
         self.assertTrue(doc[carry.ANSWERS][0]["source"].startswith(gatemarks.SPEC_CHANGED_LABEL))
+        self.assertEqual(doc[carry.ANSWERS][0]["note"], gatemarks.spec_words(False).note)
 
     def test_spec_unchecked_says_could_not_check(self):
-        """#550: 照らせなかった時は、結末と止めは変わった時と同じで、冒頭の見出しと下書きの source が「照らせなかった」と言う"""
+        """#550: 照らせなかった時は、結末と止めは変わった時と同じで、冒頭の見出しと下書きの source と注 note が「照らせなかった」と言い、
+        注は変更を確かめろとは言わない"""
         q = "照らしが落ちた——承認済みの受け入れ条件のテストが変わったかを確かめられない（ValueError: x）"
         got, text, decided = self.build(line={"spec_changed": [q], "spec_unchecked": True,
                                               "stops": {"spec-check": stopby.SPEC_CHANGED}})
@@ -1008,6 +1072,20 @@ class DraftsCase(Base):
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
         self.assertEqual([(a["question"], a["draft"]) for a in doc[carry.ANSWERS]], [(q, True)])
         self.assertTrue(doc[carry.ANSWERS][0]["source"].startswith(gatemarks.SPEC_UNCHECKED))
+        self.assertEqual(doc[carry.ANSWERS][0]["note"], gatemarks.spec_words(True).note)
+        self.assertNotIn("変更を確かめ", doc[carry.ANSWERS][0]["note"])
+
+    def test_spec_unchecked_unknown_says_could_not_check(self):
+        """判らない（線の値に spec_unchecked が無い）時は、照らせなかった側に倒す: 冒頭の見出し・下書きの source・注が「照らせなかった」と言う"""
+        q = "照らしが落ちた——承認済みの受け入れ条件のテストが変わったかを確かめられない（ValueError: x）"
+        got, text, _ = self.build(line={"spec_changed": [q], "stops": {"spec-check": stopby.SPEC_CHANGED}})
+        head = "\n".join(text.splitlines()[2:5])
+        self.assertIn(f"{gatemarks.SPEC_UNCHECKED_HEAD} 1 件", head)
+        self.assertNotIn(gatemarks.SPEC_CHANGED_HEAD, text)
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        self.assertTrue(doc[carry.ANSWERS][0]["source"].startswith(gatemarks.SPEC_UNCHECKED))
+        self.assertEqual(doc[carry.ANSWERS][0]["note"], gatemarks.spec_words(True).note)
+        self.assertNotIn("変更を確かめ", doc[carry.ANSWERS][0]["note"])
 
 
 class GlossaryCase(unittest.TestCase):

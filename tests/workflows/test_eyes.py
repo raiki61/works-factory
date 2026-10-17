@@ -37,6 +37,7 @@ import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import launchgroups  # noqa: E402
 import policy  # noqa: E402
 import rolekit  # noqa: E402
 import seal  # noqa: E402
@@ -419,7 +420,7 @@ class ShapeCase(unittest.TestCase):
                 self.assertEqual(ROLES[nid]["allowed_tools"], WORKS_TOOLS[role] + WORKS_NODE_TOOLS.get(nid, []))
 
     def test_role_model_and_effort_match_the_works_table(self):
-        self.assertEqual({nid: (node.get("model"), node.get("effort")) for nid, node in ROLES.items()}, WORKS_MODEL)
+        self.assertEqual({nid: launchgroups.default_of(node["model"]) for nid, node in ROLES.items()}, WORKS_MODEL)
 
     def test_eyes_run_side_by_side(self):
         """R1 の前段・比較役・前提の検算・R3 は互いを待たず、支度の後に並んで走る（元 works/blk-eyes/lib/eyes.py:26-27）"""
