@@ -12,20 +12,22 @@ Archon の家（$ARCHON_HOME）には、工場が決める値（home_config）�
 AI ノードの群の別名（'@wf-<群>'）は家に書かず、新しい run に run 1 本ぶんの設定の層（run_config）で渡す。
 """
 import hashlib
+import importlib.util
 import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from types import ModuleType
 
 from lib import launchgroups
 
 ENTRY = "packages/cli/src/cli.ts"
+SHARED = Path(__file__).resolve().parents[2] / "workflows" / ".shared"
 WORKFLOW_FOLDER = ".archon/workflows"
-# 入口の殻が run に渡す、起こした源のパス。run の中のノードはこれで殻を入れ子にせず同じ Archon を起こす（bin/_lib/childsweep.py）
-SOURCE_ENV = "WORKS_FACTORY_ARCHON_SOURCE"
 # Archon は既定の provider の無い run を始めで拒む（packages/provider-contract/src/registration.ts の NO_DEFAULT_PROVIDER_MESSAGE）。
 # 工場の役は claude で書いてあり、Archon の文書の口は家の config.yaml の defaultAssistant（docs-web の reference/configuration.md）。
 # グラフごとの provider: では、手を加えない ASF のグラフに届かない
@@ -213,6 +215,22 @@ def archon(bun: str, source: Path) -> list[str]:
     bun は打った場所の bunfig.toml の preload を走らせる。対象の物を Archon の中で走らせないよう、源の物を名指す。
     """
     return [bun, f"--config={source / 'bunfig.toml'}", str(source / ENTRY)]
+
+
+def shared(name: str) -> ModuleType:
+    """グラフの境の workflows/.shared/<name>.py を読んだモジュール。2 度目からは読んだ物を返す。.shared は import の名にならず、
+    Archon が置き場をバイトで照らすので __pycache__ を作らない"""
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, SHARED / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = saved
+    sys.modules[name] = module
+    return module
 
 
 def workflow_run(source: Path, workflow_dir: Path, config: Path | None, cwd: Path, name: str, *args: str) -> list[str]:

@@ -54,7 +54,6 @@ STOP_WORDS = answer.STOP_WORDS
 PASS_WORDS = answer.GO_WORDS
 WAIT_WORDS = stopby.WAITING
 NOT_CLOSED = "直したと申告したが、機械が判定の問いで数え直すと閉じていない"   # 元 report._closed_units が残りから外さなかった単位
-EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
 EYE_NAMES = tuple(e.lower() for e in report.EYES)
 MISSING_EYE = "の結果が無い——再実行の要あり（深さは標準で、省いていない）"   # 元 rest_outside_validator の missing の行
 GIVE_UP = "give-up"
@@ -265,7 +264,8 @@ def _is_material_row(row: dict) -> bool:
 
 
 def _eye_rows(returns: dict, eyes_skip=None) -> list:
-    """独立の目の残り（元 rest_outside_validator の目の行と exit_problem）: 目ごとの阻害と確かめられない目と、直した後の深さが標準
+    """独立の目の残り（元 rest_outside_validator の目の行と exit_problem）: 目ごとの通さなかった札（直しが要る・作り直しが要る・確かめられない。
+    seal.PASSED でない札）と、直した後の深さが標準
     （eyes_skip が空の字。線の redepth の skip_optional）なのに返りの無い目（元 eye_counts の missing。深さで省いた目は数えない。深さの
     返りが届かない run（eyes_skip が None）は省いた目と分けられないので数えない）。目のブロックが ok でないのに数えた目が 1 つも
     無ければ、ok でないことを 1 行（深さで省いた目は数えないので、省かれた目だけの ok: false を黙らせない）"""
@@ -276,14 +276,14 @@ def _eye_rows(returns: dict, eyes_skip=None) -> list:
     for name in EYE_NAMES:
         e = eyes.get(name)
         label = name.upper()
-        if isinstance(e, dict) and e.get("status") in EYE_STATUS_LEFT:
+        if isinstance(e, dict) and e.get("status") != seal.PASSED:
             rows.append({"where": f"{report.EYES_WHERE} {label}",
                          "text": f"{label} が {e['status']}: {oneline.one_line(e.get('reason') or '理由なし')}"})
         elif e is None and eyes_skip == "":
             rows.append({"where": f"{report.EYES_WHERE} {label}", "text": f"{label} {MISSING_EYE}"})
     if eyes.get("ok") is False and not rows:
         rows.append({"where": report.EYES_WHERE,
-                     "text": "独立の目のサブグラフが ok でない: 目ごとの出力（r1〜r4）に阻害も確かめられない目も無い"})
+                     "text": "独立の目のサブグラフが ok でない: 目ごとの出力（r1〜r4）に通さなかった目が無い（結果の無い目は深さで省いた目と分けられないので数えていない）"})
     return rows
 
 

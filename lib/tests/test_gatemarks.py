@@ -19,6 +19,7 @@ import answer  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import planfile  # noqa: E402
+import seal  # noqa: E402
 import startrec  # noqa: E402
 
 FORK = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "depends": ["B"], "options": ["x", "y"], "reason": "割れる"}
@@ -205,6 +206,16 @@ class PushRecCase(unittest.TestCase):
         self.assertNotIn("人が通した", pushed)
         self.assertIn("人が通した", human)
 
+
+
+class EyeWordsCase(unittest.TestCase):
+    def test_eye_words_come_from_seal(self):
+        got = gatemarks.eye_named("R1", "fix-needed")
+        self.assertIn("直しが要る（fix-needed）", got)
+        self.assertNotIn("作り直し", got)
+        for word in seal.STATUSES:
+            with self.subTest(word):
+                self.assertEqual(gatemarks.REVIEW_WORDS[word], seal.STATUS_WORDS[word])
 
 
 class SpecWordsCase(unittest.TestCase):
