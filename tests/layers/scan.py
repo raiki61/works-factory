@@ -403,7 +403,13 @@ def _block_paths(root: Path) -> list[str]:
 
 
 MAIN_GRAPH_WORD = "メイングラフ"
+NODE_WORD = "ノード"
 OUTPUT_OF_NODE = re.compile(r"\$([\w-]+)\.output")
+# ブロックの和名（docs/design.md の「## サブグラフ」の `### <名>（<和名>）`）。試験の小さな木にも、このリポジトリの和名を当てる。
+# 和名は中身の語（判定のポインタ・修正案）と重なるので、作り手として書く形（`<和名>役`・`<和名>が`・`<和名>の段`）だけを数える
+BLOCK_TITLE = re.compile(r"^### ([a-z-]+)（([^）\n]+)）$", re.M)
+BLOCK_TITLES = dict(BLOCK_TITLE.findall(
+    (REPO / "docs/design.md").read_text(encoding="utf-8").partition("\n## サブグラフ\n")[2].partition("\n## ")[0]))
 
 
 def _node_ids(document) -> set[str]:
@@ -424,8 +430,9 @@ def _top_hyphen_ids(root: Path) -> set[str]:
 def _input_producers(root: Path) -> list[str]:
     """ブロック（一番上のグラフ line・chain を除く）の inputs: の description が、値の作り手を名指さない。
 
-    名指しに数えるのは、`$<id>.output`（そのブロック自身の YAML の節の id は兄弟の参照なので数えない）・語「メイングラフ」・ほかのブロックの名
-    （`works-factory-` の頭が付いてもよい）・一番上のグラフの節の id のうち `-` を含む物。結びはメイングラフの with: だけが持つ。
+    名指しに数えるのは、`$<id>.output`（そのブロック自身の YAML の節の id は兄弟の参照なので数えない）・語「メイングラフ」と「ノード」・ほかのブロックの名
+    （`works-factory-` の頭が付いてもよい）・ほかのブロックの和名を作り手として書く形（BLOCK_TITLES）・一番上のグラフの節の id のうち `-` を含む物。
+    結びはメイングラフの with: だけが持つ。
     description は YAML の値として読むので、flow の形も `>-`・`|` の複数行の形も 1 つの字になる。
     説明の無い入力は名指す字も無いので見ない。字でない（mapping の）説明は中に字を隠せるので、問題の行にする
     """
@@ -442,6 +449,8 @@ def _input_producers(root: Path) -> list[str]:
         own_ids = _node_ids(document)
         others = (set(BLOCKS) | {p.name for p in folders}) - {folder.name}
         names = word(rf"(?:{re.escape(OURS_PREFIX)})?(?:" + "|".join(re.escape(n) for n in sorted(others, key=len, reverse=True)) + ")")
+        titles = [BLOCK_TITLES[n] for n in sorted(others) if n in BLOCK_TITLES and n not in TOP_FOLDERS]
+        makers = re.compile("(?:" + "|".join(re.escape(n) for n in sorted(titles, key=len, reverse=True)) + ")(?:役|が|の段)")
         for key, spec in _pairs(_top(document, "inputs")):
             description = _top(spec, "description")
             if description is None:
@@ -452,6 +461,8 @@ def _input_producers(root: Path) -> list[str]:
             text = description.value
             found = [m[0] for m in OUTPUT_OF_NODE.finditer(text) if m[1] not in own_ids]
             found += [MAIN_GRAPH_WORD] * (MAIN_GRAPH_WORD in text)
+            found += [NODE_WORD] * (NODE_WORD in text)
+            found += [m[0] for m in makers.finditer(text)]
             found += [m[0] for m in names.finditer(text)]
             found += [m[0] for m in ids.finditer(text)] if ids else []
             for hit in found:
