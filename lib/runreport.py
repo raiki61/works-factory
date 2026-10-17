@@ -1948,9 +1948,14 @@ def handoff_part(out_dir) -> str:
 
 def accept(reply, cold, *, out_dir) -> dict:
     """書き手の返答を受け付ける（元 report_roles.accept を、盤面の代わりに out_dir の控えで書き直した物）。{done, ok, reason, kind,
-    reason_file, prev_file}。拒んだ回の返答の本文 text・terms と、返答の handoff（読んだ所・決めた訳・退けた案・迷い）を周の順に積んだ
-    並び handoffs は、前の答えの控え PREV_ANSWER_FILE に書き、まだ諦めていない拒否の回の prev_file がそのパスを指す（受け取った回・
+    reason_file, prev_file}。拒んだ回の返答の本文 text・terms は、rolekit の前の答えの控え rolekit.candidate_path(out_dir, REPORT_NODE)
     に書き、まだ諦めていない拒否の回の prev_file がそのパスを指す（受け取った回・諦めた回・控えの無い回は空の字）。返答の handoff（読んだ所・
+    決めた訳・退けた案・迷い）は、その回の周のフォルダ out_dir/NOTE_ROUND（n は輪の今の回）に handoff.save で置く（handoff の無い回は
+    フォルダを作らない）。handoff は AI_FILE にも初見の読み手に貼る本文（cold_body）にも載らない。前の周のメモが読めない時は何も書かずに、
+    前の答えの控えかその回のメモに書けない時は（メモが書けない時は前の答えの控えはもう書けている）、take の拒否に give_up を付けて口に
+    1 回目で止めさせる。受け付けの回は rolekit.accept_round
+    （out_dir、節 REPORT_NODE）が持つ。順: 読む（読めない返答・本文の無い返答は kind answer）
+    → terms の型 → 表のセルの書式 → 初見の読み手の判定。通らなければ口が拒否の行
     （kind つき）を rolekit の控え rejects-report.json に積み、reason_file は拒否の全部の rejects-report.md（rolekit.reject_file）。
     拒否が rolekit.GIVE_UP_AFTER 回に達した時か、控え rejects-report.json が読めない・書けない時は、口の後の 1 か所で AI_FILE に
     受け取れなかった訳（accepted: False）を書く（rejects-report.md が書けない時は OSError が上がる）。初見の読み手だけが通さない時は rolekit.is_last_attempt の回に受け取り、NOT_PASSED の印を AI_FILE に残す。
