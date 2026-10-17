@@ -509,12 +509,12 @@
   - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_unattended_design_only_stops（部分 B1）・tests/workflows/test_plan_review.py::DesignOnlyCase.test_design_only_opens_even_when_unattended
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
-- L-G28 壁打ちが止まった案（同じ block が続いた・開いた block が減らなかった・往復の安全の上限の周に届いた）は必ず関所に載る（止まった理由つき）
+- L-G28 壁打ちが止まった案（同じ block が続いた・往復の安全の上限の周に届いた）は必ず関所に載る（止まった理由つき）
   - 元: works/.shared/core/gatemarks.py:649-655 `design_item`（`converge.stuck_reason`）
   - 今: 表
   - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_reasons_that_open_the_gate、tests/workflows/test_plan_review.py::ConvergeGateCase.test_stuck_opens_design_item_with_reason
   - 本物の run: 筋書き plan-stalled・plan-unsettled
-  - 狭め: 無し
+  - 狭め: #662 で数の比べの止め（開いた block が前の往復より減らなかった）を外した（持ち主の決め slim と #662。止め時は穴の中央・端の札が持つ）
 - L-G29 定石から外れた項目と、構造の目が上げた設計の問いは関所で 1 度だけ聞き、人が continue した同じ文は聞き直さない
   - 元: works/.shared/core/gatemarks.py:546-563 `world_items`・:604-622 `design_items`・`_continued`
   - 今: 表
@@ -1290,7 +1290,7 @@
   - 今: 表
   - 証: tests/workflows/test_line.py::FixedCase.test_replan_without_the_second_fix_is_not_done は狭めた形を縛る
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（本文に振る舞いとして書いたが「狭めた物」に無い。不可でない → 持ち主へ）
+  - 狭め: #74（本文に振る舞いとして書いたが「狭めた物」に無い。不可でない → 持ち主へ）。#662 で計画と事前審査の受け付けの諦めを、回数（3 回）から届かない大きさの網 NET_AFTER（20 回。届けば工場の不具合）に替えた（持ち主の決め slim と #662）
 - L-D34 2 度目の修正に、修正前の関所の条件と案の直しの一言を条件が先の順で渡す（L-G47 と同じ能力）
   - 元: works/.shared/core/replan.py:677 `_notes`（頭の 2 つ）
   - 今: 表

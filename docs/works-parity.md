@@ -3324,7 +3324,7 @@
 - gaps-plan.md P114: P74 works-factory-line.yaml の `max_iterations: 20` と、plan-out・plan-review-run の `with:` の `round_limit: 20`（正本はメイングラフ。lib/boardview.py::_at_cap は入力の round_limit で converge.record_pass の at_cap を決め、数を持たない）
 - gaps-plan.md P118: lib/planfile.py::write_brief（形 plan の材料に独立設計のセクションは元から無い。2 周目は会話が新しいので planmarks.HEAD を含む頭を貼り直す）
 - gaps-plan.md P120: lib/boardview.py::_pass_rejects（受け付けが往復を控えた後、converge.stash_rejects でその往復の計画の周の rejects-plan.json と事前審査の拒否の行を往復の行の rejects に残す。拒否の控えは周・挟んだ回ごと）（#120）
-- gaps-plan.md P121: lib/boardview.py::take_review（accept.guard が例外を拒否にし、3 回で give_up → 出力ノードが pass: false・stalled: true と訳を questions に載せる）
+- gaps-plan.md P121: lib/boardview.py::take_review（accept.guard が例外を拒否にし、網 NET_AFTER 回で give_up → 出力ノードが pass: false・stalled: true と訳を questions に載せる。#662 で 3 回の諦めを網に替えた）
 - gaps-plan.md P126: lib/planfile.py::item_brief・lib/planfile.py::replan_section（承認済みの項目と判定から planbrief.render で plan/r<k>/item-brief-<no>.md を組み、「この項目の brief: <パス>」で名指す）（#120）
 - gaps-plan.md P134: WF workflows/plan/scripts/plan_accept.py（rolekit.accept_round）、lib/planfile.py::why_not_ready
 - gaps-plan.md P135: lib/planfile.py::collect_reads（形 replan は reads-replan-<役>.json と reads-replan-block.json を周のフォルダに書く）（#120）
@@ -3792,7 +3792,7 @@
 - plan.md P099: lib/conceptfence.py（`changed`・`scan_change` が skip_prefix を受ける形に変わった）
 - plan.md P100: docs/concepts.md・docs/concepts.json と、それを照らす tests/layers/test_concept_fences.py（CI の `tests` の check。checkout は全履歴を取り、main の表を引けなければ赤）
 - plan.md P101: lib/judge_accept.py::_unit_file_paths（judge の持ち物）
-- plan.md P102: lib/converge.py::decide・lib/converge.py::not_fewer（古い works 0.2.65 の e9a82061 の写し）。計画の側の写し lib/planfile.py::converge_record も同じ add_pass → decide を呼ぶ
+- plan.md P102: lib/converge.py::decide・lib/converge.py::central_keys（古い works 0.2.65 の e9a82061 の写しから、#662 で数の比べの止めを外し、中央の穴の札で止める形に替えた）。計画の側の写し lib/planfile.py::converge_record も同じ add_pass → decide を呼ぶ
 - plan.md P103: lib/converge.py::_item_states（写し）。計画の側は lib/planfile.py::converge_record が lib/converge.py::add_pass を呼び、add_pass が _item_states を呼ぶ
 - plan.md P104: lib/boardview.py::_take が converge.record_pass を呼ぶ。写すのは指示書（prompt.md）と木の下請けのファイルだけ（案・欄は計画のサブグラフの plan/r<k>/ に、審査は plan-review/pass-<k>/review.json に別に残る）
 - plan.md P105: lib/converge.py::revise_section（共有ボードの代わりに控えを受ける）を lib/planfile.py::_prior_section が 2 周目の材料に貼る
@@ -3811,7 +3811,7 @@
 - plan.md P118: lib/planfile.py::write_brief（形 plan の材料に独立設計のセクションは元から無い。2 周目は会話が新しいので planmarks.HEAD を含む頭を貼り直す）
 - plan.md P119: lib/runreport.py::_converge_lines（lib/gatemarks.py::converge_of。最後の承認ノードの ask_final.review_rows も同じ口）
 - plan.md P120: lib/boardview.py::_pass_rejects（受け付けが往復を控えた後、converge.stash_rejects でその往復の計画の周の rejects-plan.json と事前審査の拒否の行を往復の行の rejects に残す。拒否の控えは周・挟んだ回ごと）（#120）
-- plan.md P121: lib/boardview.py::take_review（accept.guard が例外を拒否にし、3 回で give_up → 出力ノードが pass: false・stalled: true と訳を questions に載せる）
+- plan.md P121: lib/boardview.py::take_review（accept.guard が例外を拒否にし、網 NET_AFTER 回で give_up → 出力ノードが pass: false・stalled: true と訳を questions に載せる。#662 で 3 回の諦めを網に替えた）
 - plan.md P122: 無し（共有ボードが無い。往復はメイングラフの loop_group）
 - plan.md P123: lib/planmarks.py::handed・lib/planfile.py::open_round（ruling が空でなければ mode replan）、workflows/line/works-factory-line.yaml::replan（ruling: $fix.output.replan_items・conflicts: $fix.output.conflicts）
 - plan.md P124: lib/planmarks.py::handed・lib/planfile.py::open_round（go: false・why）
@@ -3899,7 +3899,7 @@
 - plan.md P206: lib/planblk.py::check_item・lib/planblk.py::item_answer_gaps・lib/planblk.py::_errors_part
 - plan.md P207: lib/planblk.py
 - plan.md P208: lib/planblk.py::_diff_part・lib/planblk.py::_carried_part・lib/planblk.py::carried_hits
-- plan.md P258: lib/planblk.py::_diff_part・lib/planblk.py::_changed_chars、lib/planmarks.py::joined（lib/boardview.py::open_pass が往復の控えの行に同じ番号の works の欄を重ね、allowed_paths などの変化も比べと差分に出す）
+- plan.md P258: lib/planblk.py::_diff_part・lib/converge.py::sentence_diff（#662 で全体を読み直させる決まりを外し、場所つきの文の差分だけにした）、lib/planmarks.py::joined（lib/boardview.py::open_pass が往復の控えの行に同じ番号の works の欄を重ね、allowed_paths などの変化も比べと差分に出す）
 - plan.md P209: lib/planblk.py::precedent_checks・lib/planblk.py::precedent_plan・lib/planblk.py::_precedent_part・lib/planblk.py::_precedent_gaps・lib/planblk.py::save_precedents
 - plan.md P210: lib/planblk.py::_surplus・lib/planblk.py::SURPLUS_OP
 - plan.md P211: lib/reads.py::collect・lib/boardview.py::collect_reads・workflows/plan-review/scripts/review_reads.py（ノード review-reads）・bin/_lib/record-read.py・bin/_lib/toolset.py（隔離した設定にフックを置く）（#120）

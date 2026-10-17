@@ -1199,7 +1199,7 @@ class AskBeforeFixCase(unittest.TestCase):
                             (planned(**{"pass": False, "stalled": True, "round": ROUND_LIMIT, "ask_human": True,
                                         "questions": [f"{gatemarks.STUCK_ITEM}。理由: " + converge.CAP_WHY.format(
                                             n=ROUND_LIMIT, counts="1 往復目 2 → 20 往復目 1")]}),
-                             "仕組みの異常として止めた")):
+                             "工場の不具合として止めた")):
             with self.subTest(words=words):
                 got = self.ask(plan)
                 self.assertEqual((got["open"], got["go"]), (True, True))
@@ -2145,7 +2145,7 @@ class PlanOutCase(unittest.TestCase):
         for kw in ({"ready": False}, {"pass": True}, {"stalled": True}, {"round": ROUND_LIMIT}):
             with self.subTest(kw=kw):
                 self.assertTrue(self.got(**kw)["done"])
-        self.assertFalse(self.got(round=3)["done"], "往復は数でなく開いた block の減り方で止まる（converge.decide）")
+        self.assertFalse(self.got(round=3)["done"], "往復は数でなく中央の穴の有無で止まる（converge.decide）")
 
     def test_every_field_is_returned(self):
         self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"nothing_owed", "done", "stop_reason"})
