@@ -132,10 +132,10 @@ ALLOWED = {
         "lib/tests/test_fix_rules.py#$LOOP_PREV",
     ),
     "E4": (
-        # judge_accept の照らしの部品（置き場の名でない物）を使う。名を開く関数を呼ばないかは人が見る
-        "lib/recount.py#judge_accept",  # 閉鎖の状態・先行例・指しの数え直し
-        "workflows/line/scripts/ask_final.py#judge_accept",  # 再審の採りの語 ADOPTED
-        "workflows/line/scripts/spec_check.py#judge_accept",  # 受けた J/spec.json のポインタを照らす spec_questions
+        # judge_accept の照らしの部品（置き場の名でない物）を使う import の行だけ。名の表を引く形は外さない。名を開く関数を呼ばないかは人が見る
+        "lib/recount.py#import judge_accept",  # 閉鎖の状態・先行例・指しの数え直し
+        "workflows/line/scripts/ask_final.py#import judge_accept",  # 再審の採りの語 ADOPTED
+        "workflows/line/scripts/spec_check.py#import judge_accept",  # 受けた J/spec.json のポインタを照らす spec_questions
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
@@ -506,6 +506,8 @@ def _script_names(root: Path) -> list[str]:
 
 JUDGE_FOLDER = "judge"
 WRITER = "judge_accept"
+# 書き手の欄 → 名の表。鍵で引けば名を持つので、書き手の import を許した所でも名指しに数える
+WRITER_TABLES = frozenset({(WRITER, "PORTS"), (WRITER, "FIRST_PORTS")})
 # lib の下で判定の外の読み手に数えない所（試験は名を字で持って照らす）
 JUDGE_NAME_UNREAD = ("lib/tests/",)
 # 判定の置き場のファイルの名（lib/judge_accept.py の PORTS・FIRST_PORTS の値）の住処。書き手の judge_accept と、名を定数で持つモジュール
@@ -587,11 +589,13 @@ def _judge_names(root: Path) -> list[str]:
     """判定の外（住処でない lib・workflows/.shared/・ほかのブロックの script）が、判定の置き場のファイルを名指さない。名指しに数えるのは、
     名の字そのもの（長い文の一部は数えない）・住処の定数（`<モジュール>.<名>`・`from <モジュール> import <名>`・getattr で名で引く形）・
     その名の marks の種（`marks.KINDS[<種>]`・`marks.path_of(<種>, …)`）・住処の開く関数に判定のポインタの隣（_beside）を渡す呼び出し・
-    書き手 judge_accept の import（PORTS の鍵を引く形を塞ぐ）。住処の中の関数が判定の置き場を名で開くかは人が見る"""
+    書き手 judge_accept の import と、その名の表（`PORTS`・`FIRST_PORTS`）を引く形（import とは別の当たりなので、import を許した所でも
+    鳴る）。住処の中の関数が判定の置き場を名で開くかは人が見る"""
     import marks
     names = judge_port_files()
     kinds = frozenset(k for k, kind in marks.KINDS.items() if kind.file in names)
     consts, kind_consts, openers = _home_constants(root, names, kinds)
+    consts |= WRITER_TABLES
     homes = set(JUDGE_NAME_HOMES)
     paths = [q for q in _files(root, "lib") if q.suffix == ".py" and _rel(root, q) not in homes
              and not _rel(root, q).startswith(JUDGE_NAME_UNREAD)]
@@ -637,10 +641,9 @@ def _judge_names(root: Path) -> list[str]:
                 hit = node.value
             elif isinstance(node, ast.Attribute):
                 hit = const_of(node, consts)
-            elif isinstance(node, ast.ImportFrom) and node.module == WRITER:
-                hit = f"from {WRITER} import"
             elif isinstance(node, ast.ImportFrom) and node.module:
                 hit = next((f"{node.module}.{a.name}" for a in node.names if (node.module, a.name) in consts), None)
+                hit = hit or node.module == WRITER and f"from {WRITER} import"
             elif isinstance(node, ast.Import):
                 hit = next((f"import {WRITER}" for a in node.names if a.name == WRITER), None)
             elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr" and len(node.args) >= 2:
@@ -1570,7 +1573,9 @@ def _imports_against_map(root: Path, files) -> list[str]:
 
 
 def _beside_names(root: Path, files) -> list[str]:
-    """名は複数のブロックの隣に在ってよい。名の `<k>` の形の段は、名の 1 段の字に当てる（`tdd-<k>/state.json`）"""
+    """名は複数のブロックの隣に在ってよい。名の `<k>` の形の段は、名の 1 段の字に当てる（`tdd-<k>/state.json`）。
+    ブロックの YAML の `inputs:` の `description:` は見ない。ポインタの入力の説明は先のファイルの名を書く決まり（workflows/AGENTS.md の E4）で、
+    名を書いても名で開かない"""
     owners = collections.defaultdict(set)
     for block, names in LAYER_MAP["beside"].items():
         for name in names:
@@ -1580,15 +1585,32 @@ def _beside_names(root: Path, files) -> list[str]:
         f"(?P<n{i}>" + re.sub(r"<[^>]*>", r"[^/\\s'\"`]+", re.escape(name)) + ")" for i, name in enumerate(names))
                          + r")(?!(?a:[\w\-]|\.\w))")
     out = []
-    for path, rel, _, place in files:
+    for path, rel, layer, place in files:
         lines, broken = _lines(root, path)
         out += broken
+        if layer == "block" and path.suffix in (".yaml", ".yml"):
+            lines = _blank_input_descriptions(lines)
         for number, line in enumerate(lines, 1):
             for match in pattern.finditer(line):
                 name = names[int(match.lastgroup[1:])]
                 if place not in {f"workflows/{block}/" for block in owners[name]}:
                     out.append(f"{rel}:{number}: ブロック {'・'.join(sorted(owners[name]))} の隣のファイル {name} を名指す")
     return out
+
+
+def _blank_input_descriptions(lines: list[str]) -> list[str]:
+    """YAML の行の、頭の `inputs:` の `description:` の値を空白に替えた行（行の数と位置は保つ）。読めない YAML はそのまま"""
+    text = "\n".join(lines)
+    try:
+        document = yaml.compose(text, Loader=yaml.SafeLoader)
+    except yaml.YAMLError:
+        return lines
+    chars = list(text)
+    for _, spec in _pairs(_top(document, "inputs")):
+        if (description := _top(spec, "description")) is not None:
+            for i in range(description.start_mark.index, description.end_mark.index):
+                chars[i] = chars[i] if chars[i] == "\n" else " "
+    return "".join(chars).split("\n")
 
 
 def _main_ids(root: Path, files) -> list[str]:

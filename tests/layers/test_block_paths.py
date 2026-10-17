@@ -255,11 +255,26 @@ class JudgeNamesTest(unittest.TestCase):
 
     def test_importing_the_writer_or_getattr_of_a_name_is_red(self):
         """判定の外は書き手の judge_accept を import しない（PORTS の鍵を引く形も塞ぐ）。住処の定数を getattr で名で引くのも赤"""
-        for body in ("import judge_accept\nX = judge_accept.PORTS['decisions']\n", "from judge_accept import PORTS\n",
+        for body in ("import judge_accept\n", "from judge_accept import PORTS\n",
                      'import gatemarks\nX = getattr(gatemarks, "MATERIALS_FILE")\n'):
             with self.subTest(body=body):
                 got = self.judge_names({"workflows/plan/scripts/a.py": body})
                 self.assertEqual(len(got), 1, got)
+
+    def test_allowed_writer_import_does_not_allow_its_name_tables(self):
+        """ALLOWED["E4"] は書き手の import の行だけを外す。許した所でも名の表（PORTS・FIRST_PORTS）を引けば赤"""
+        for path in ("lib/recount.py", "workflows/line/scripts/ask_final.py", "workflows/line/scripts/spec_check.py"):
+            for body, table in (("import judge_accept\nX = judge_accept.PORTS['decisions']\n", "judge_accept.PORTS"),
+                                ("import judge_accept as ja\nX = ja.FIRST_PORTS['answer_ties']\n", "judge_accept.FIRST_PORTS"),
+                                ("from judge_accept import FIRST_PORTS\n", "judge_accept.FIRST_PORTS"),
+                                ('import judge_accept\nX = getattr(judge_accept, "PORTS")\n', "getattr(judge_accept, 'PORTS')")):
+                with self.subTest(path=path, body=body):
+                    got = self.judge_names({path: body})
+                    self.assertEqual(len(got), 1, got)
+                    self.assertIn(f"{path}:", got[0])
+                    self.assertIn(table, got[0])
+            with self.subTest(path=path, body="clean"):
+                self.assertEqual(self.judge_names({path: "import judge_accept\nX = judge_accept.ADOPTED\n"}), [])
 
     def test_lib_subfolders_and_shared_are_read(self):
         """lib の下のフォルダと workflows/.shared/ も判定の外。lib の試験は名を字で持って照らすので見ない"""
