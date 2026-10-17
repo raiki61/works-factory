@@ -113,7 +113,7 @@ AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、�
 根には、この工場の物と、ASF の取り付け命令が置いた物が並ぶ。名前で見分けられる。
 
 - この工場の物: `bin/`・`workflows/`・`lib/`・`tests/`・`docs/`・`pack.json`・`MISSION.md`・`AGENTS.md`（各階層）・`engineering.md`（ASF の役が読む入口。`AGENTS.md` を指すだけ）・`README.md`・`.github/`。グラフの名は `works-factory-` で始まる。
-- ASF の物: 名前が `factory`・`FACTORY`・`harness`・`.factory` で始まる物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`harness/`・`.factory/`）。ASF がこのリポジトリを作る時に使う。ASF の命令がこの場所と名前を決め打ちで読むので、動かさず名前も変えない。中身も手を加えず、ASF が書けと言うファイル（`harness/END-TO-END.md` など）だけを書く。
+- ASF の物: 名前が `factory`・`FACTORY`・`.factory` で始まる物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）。ASF がこのリポジトリを作る時に使う。ASF の命令がこの場所と名前を決め打ちで読むので、動かさず名前も変えない。中身も手を加えず、ASF が書けと言うファイル（`.factory/holdout/HOLDOUT.md` など）だけを書く。起こす物の無くなった取り付け物は外した（持ち主の決め `asf-installer-in-repo`）。
 - Archon に読ませるグラフ: この工場の物はこのリポジトリの `workflows/`、ASF の物は Archon の源の `.archon/workflows/sdlc/`（名前は `archon-` で始まる）。どちらも Archon の家には置かず、`--workflow-source` で読ませる。
 - 置き場の木の全部と、名前の決まりは根の `AGENTS.md` の「リポジトリの形」と E18。
 

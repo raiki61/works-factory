@@ -1,6 +1,6 @@
 # 通しの筋書き（runtime の確かめ）
 
-機械が読む正本は `harness/runtime.scenario.json`。この文書は人が読む要約で、命令は JSON の側に 1 か所だけ書く（ここに写さない）。
+機械が読む正本は `tests/e2e/scenario.json`。この文書は人が読む要約で、命令は JSON の側に 1 か所だけ書く（ここに写さない）。
 
 works-factory は修正の工場で、人は入口の殻 `bin/works-factory` で Archon の命令をそのまま打ち（`workflow run works-factory-line` で依頼を渡して run を始め、`workflow respond` で止まった所で答え、`workflow wait`・`workflow get` で今どこか・報告を見る）、`bin/apply` で封じた差分を当てる。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。工場の工程は、判定・計画・修正・報告などの部品（ブロック。各々が `workflows/<名>/` のフォルダ）を順に並べた線。
 

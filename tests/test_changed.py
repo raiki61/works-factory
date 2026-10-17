@@ -8,9 +8,8 @@ unittest の最後の数え（Ran N tests）で何が回ったかを見る。木
 - 選んだ物が 0 本でも層の柵は回り、選んだ試験の赤は殻の赤
 - 頭で読み込めない試験のパッケージの下を変えると赤（パッケージ名の 1 件を選ぶ）
 - 集め方の正本（tests/shard.py の PATTERN）を変えると、殻の選び（変わった lib を import する試験も）と CI の分けの両方が変わる
-- 出力の最後は unittest の数えで、harness の unit_count_pattern が最初に当たるのもその行
+- 出力の最後は unittest の数え（Ran N tests）で、数えの形 COUNT が最初に当たるのもその行
 """
-import json
 import pathlib
 import re
 import shutil
@@ -24,7 +23,7 @@ from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 IN_CI = "全部の試験は CI に寄せる（持ち主の決め full-suite-in-ci）"
-COUNT = re.compile(json.loads((ROOT / "harness" / "harness.config.json").read_text(encoding="utf-8"))["unit_count_pattern"])
+COUNT = re.compile(r"Ran (\d+) tests?")
 COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py", "tests/shard.py", "tests/bin/hermetic.py",
           "workflows/.shared/boundary.py")
 ONE_TEST = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_one(self):\n        pass\n"
