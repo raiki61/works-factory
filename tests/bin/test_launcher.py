@@ -469,11 +469,12 @@ class LauncherTest(unittest.TestCase):
                 self.assertEqual(answered["argv"][3:], ["workflow", "respond", "--cwd", str(self.target), "run-1",
                                                         "continue", "x"])
 
-    def test_child_gets_the_archon_source_it_runs(self):
-        """線の節が殻を入れ子にせず同じ Archon を起こせるよう、殻が起こした源のパスを子に渡す"""
+    def test_child_gets_the_archon_head_it_runs(self):
+        """線の節が殻を入れ子にせず同じ Archon を起こせるよう、殻が自分を起こした命令の頭を子に渡す"""
         reached = self.reached(self.launch("workflow", "status"))
-        source = reached["env"][place.SOURCE_ENV]
-        self.assertIn(str(pathlib.Path(source) / ENTRY), reached["argv"])
+        head = json.loads(reached["env"][place.shared("childsweep").CLI_ENV])
+        self.assertEqual(head, [str(self.bun), f"--config={self.source / 'bunfig.toml'}", str(self.source / ENTRY)])
+        self.assertEqual(reached["argv"][:len(head)], head)
 
     def test_user_values_are_taken_before_isolation(self):
         """利用者の HOME と生の CLAUDE_CONFIG_DIR（相対なら打った場所から絶対に直した物）で認証を引き、埋めた値でプラグインを探す"""

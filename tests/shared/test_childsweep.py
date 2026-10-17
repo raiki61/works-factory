@@ -1,4 +1,4 @@
-"""線の後始末の部品 bin/_lib/childsweep.py の試験。Archon は起こさず、起こす口 run に偽を差して、起こした引数と環境を照らす。"""
+"""線の後始末の埋め P7（workflows/.shared/childsweep.py）の試験。Archon は起こさず、起こす口 run に偽を差して、起こした引数と環境を照らす。"""
 import inspect
 import json
 import pathlib
@@ -9,13 +9,15 @@ import unittest
 
 import yaml
 
-from bin._lib import childsweep, place
+from bin._lib import place
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
 import fixboard  # noqa: E402  （join の写しの鎖を縛る試験が adopt_returned の本文を読む）
+
+childsweep = place.shared("childsweep")
 
 RUN = "1a2b3c4d-0000-4000-8000-000000000001"
 OTHER = "9f8e7d6c-0000-4000-8000-000000000002"
@@ -74,13 +76,8 @@ class ChildSweepTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.tmp = pathlib.Path(tmp.name)
-        self.source = self.tmp / "archon"
-        bin_dir = self.tmp / "bin"
-        bin_dir.mkdir()
-        self.bun = bin_dir / "bun"
-        self.bun.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-        self.bun.chmod(0o755)
-        self.env = {"PATH": str(bin_dir), place.SOURCE_ENV: str(self.source), "ARTIFACTS_DIR": str(self.tmp)}
+        self.head = place.archon("/usr/local/bin/bun", self.tmp / "archon")
+        self.env = {childsweep.CLI_ENV: json.dumps(self.head), "ARTIFACTS_DIR": str(self.tmp)}
 
     def sweep(self, archon: FakeArchon, env: dict | None = None) -> dict:
         return childsweep.sweep(RUN, CHECKOUT, self.env if env is None else env, run=archon)
@@ -225,10 +222,10 @@ class ChildSweepTest(unittest.TestCase):
                 self.assertEqual((got["cleaned"], got["left"]), ([], []))
                 self.assertTrue(got["error"])
 
-    def test_runs_the_pinned_archon_without_prompts(self):
+    def test_runs_the_head_the_launcher_put_without_prompts(self):
         archon = FakeArchon({"runs": [child(0), row(RUN, "running")]})
         self.sweep(archon)
-        head = [str(self.bun), f"--config={self.source / 'bunfig.toml'}", str(self.source / place.ENTRY)]
+        head = self.head
         listing, states, complete = archon.calls
         self.assertEqual(listing["argv"], [*head, "workflow", "runs", "--json", "--all", "--limit",
                                            str(childsweep.LIST_LIMIT), "--cwd", CHECKOUT])
@@ -244,19 +241,17 @@ class ChildSweepTest(unittest.TestCase):
         self.sweep(archon, {**self.env, "GIT_SSH_COMMAND": "ssh -i key"})
         self.assertEqual(archon.calls[0]["env"]["GIT_SSH_COMMAND"], "ssh -i key")
 
-    def test_without_source_runs_nothing(self):
-        env = {k: v for k, v in self.env.items() if k != place.SOURCE_ENV}
-        archon = FakeArchon({"runs": []})
-        got = self.sweep(archon, env)
-        self.assertEqual(archon.calls, [])
-        self.assertIn(place.SOURCE_ENV, got["error"])
-
-    def test_without_bun_runs_nothing(self):
-        archon = FakeArchon({"runs": []})
-        got = self.sweep(archon, {**self.env, "PATH": str(self.tmp / "empty")})
-        self.assertEqual(archon.calls, [])
-        self.assertIn("bun", got["error"])
-
+    def test_without_a_head_runs_nothing(self):
+        for value in (None, "", "not json", "[]", '"bun"', '["bun", 1]'):
+            with self.subTest(value=value):
+                env = {k: v for k, v in self.env.items() if k != childsweep.CLI_ENV}
+                if value is not None:
+                    env[childsweep.CLI_ENV] = value
+                archon = FakeArchon({"runs": []})
+                got = self.sweep(archon, env)
+                self.assertEqual(archon.calls, [])
+                self.assertEqual((got["cleaned"], got["left"]), ([], []))
+                self.assertIn(childsweep.CLI_ENV, got["error"])
 
 if __name__ == "__main__":
     unittest.main()

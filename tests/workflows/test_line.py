@@ -22,6 +22,7 @@ from unittest import mock
 
 import yaml
 
+from bin._lib.place import shared
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.bin.linescripts import SCRIPTS, load
@@ -2964,7 +2965,7 @@ class CollectAndResultCase(unittest.TestCase):
 
 class SweepChildrenCase(unittest.TestCase):
     """線の後始末の節 sweep-children（issue #113）: 報告の後・線の返す節の前に在り、落ちずに {cleaned, left, error} を返し、
-    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/bin/test_childsweep.py"""
+    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/shared/test_childsweep.py"""
 
     def test_runs_after_the_report_and_feeds_only_the_result(self):
         nodes = line_nodes()
@@ -3011,12 +3012,13 @@ class SweepChildrenCase(unittest.TestCase):
         return json.loads(done.stdout)
 
     def test_run_without_children_does_not_fail(self):
-        self.assertEqual(self.run_node({"WORKS_FACTORY_ARCHON_SOURCE": "<tmp>/archon"}), {"cleaned": [], "left": [], "error": ""})
+        head = {shared("childsweep").CLI_ENV: json.dumps(["<tmp>/bin/bun"])}
+        self.assertEqual(self.run_node(head), {"cleaned": [], "left": [], "error": ""})
 
     def test_run_outside_the_launcher_does_not_fail(self):
         got = self.run_node({})
         self.assertEqual((got["cleaned"], got["left"]), ([], []))
-        self.assertIn("WORKS_FACTORY_ARCHON_SOURCE", got["error"])
+        self.assertIn(shared("childsweep").CLI_ENV, got["error"])
 
 
 class BoundaryRunCase(unittest.TestCase):
