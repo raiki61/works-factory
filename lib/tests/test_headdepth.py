@@ -326,6 +326,9 @@ class ReportLineTest(unittest.TestCase):
         same = launchgroups.choices([{"group": "@wf-report", "model": "sonnet", "effort": "medium", "why": ""}])
         self.assertEqual(headdepth.groups_lines({"groups": same})[0],
                          "@wf-report: 既定 sonnet・medium → 役の選び sonnet・medium（同じ。訳: 訳の記録が無い）")
+        no_effort = [{**same[0], "default": {"model": "sonnet"}, "fallback": "x"}]
+        self.assertEqual(headdepth.groups_lines({"groups": no_effort})[0], "@wf-report: 役の選びを既定 sonnet に戻した（訳: x）",
+                         "控えの既定に effort が無ければ出さない")
 
 
 if __name__ == "__main__":

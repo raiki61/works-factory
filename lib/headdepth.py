@@ -242,7 +242,7 @@ def _group_line(row: dict) -> str:
     pair = row.get("default") if isinstance(row.get("default"), dict) else {}
     if not pair.get("model"):
         return f"{group}: 表に無い群を既定に戻した（訳: {why}）"
-    default = f"{pair['model']}・{pair.get('effort')}"
+    default = "・".join(filter(None, [pair["model"], pair.get("effort")]))
     if row.get("fallback"):
         return f"{group}: 役の選びを既定 {default} に戻した（訳: {why}）"
     return f"{group}: 既定 {default} → 役の選び {row.get('model')}・{row.get('effort')}（{row.get('direction')}。訳: {why}）"
