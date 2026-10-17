@@ -202,5 +202,53 @@ class BlockPathsTest(unittest.TestCase):
         self.assertIn("collect.py:2: 同じ scripts/ の script b", got[0])
         self.assertIn("new.py:1: 同じ scripts/ の script place", got[1])
 
+
+class JudgeNamesTest(unittest.TestCase):
+    """判定の置き場のファイルを、判定の外（住処でない lib とほかのブロックの script）が名指さず、判定の出力の欄のポインタで受ける
+    （issue #680。workflows/AGENTS.md の E4）"""
+
+    HOMES = {"lib/gatemarks.py": 'MATERIALS_FILE = "materials.json"\n',
+             "lib/marks.py": 'KINDS = {"answers": Kind({}, "answer-ties.json", ROOT)}\n',
+             "lib/prcheck.py": 'EXCLUDED = marks.KINDS["pr"].file\n'}
+
+    def judge_names(self, files: dict) -> list:
+        with tree({**self.HOMES, **files}) as root:
+            return [line for line in scan.problems("E4", root) if "判定の置き場のファイル" in line]
+
+    def test_names_come_from_the_judge_ports(self):
+        import judge_accept
+        self.assertEqual(scan.judge_port_files(), {*judge_accept.PORTS.values(), *judge_accept.PURPOSE_PORTS.values()})
+        self.assertIn("materials.json", scan.judge_port_files())
+
+    def test_every_port_file_has_a_home(self):
+        """判定の出力の欄のファイルの名は、どれも住処のモジュールが字か定数で持つ（住処の表が欄の足しに遅れていない）"""
+        text = "".join((ROOT / home).read_text(encoding="utf-8") for home in scan.JUDGE_NAME_HOMES)
+        for name in scan.judge_port_files():
+            with self.subTest(name=name):
+                self.assertIn(f'"{name}"', text)
+
+    def test_other_block_script_opening_a_judge_file_by_name_is_red(self):
+        for body in ('import os\nX = os.path.join(d, "materials.json")\n', "import gatemarks\nX = d / gatemarks.MATERIALS_FILE\n",
+                     "import gatemarks as g\nX = d.with_name(g.MATERIALS_FILE)\n", "from gatemarks import MATERIALS_FILE\n",
+                     'import marks\nX = marks.path_of("answers", d)\n', 'import marks\nX = marks.KINDS["answers"].file\n',
+                     "import prcheck\nX = d / prcheck.EXCLUDED\n"):
+            with self.subTest(body=body):
+                got = self.judge_names({"workflows/plan/scripts/a.py": body})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("workflows/plan/scripts/a.py:", got[0])
+
+    def test_main_graph_script_and_lib_reader_are_red(self):
+        got = self.judge_names({"workflows/line/scripts/a.py": 'X = "rejudge-exit.json"\n',
+                                "lib/reader.py": "import gatemarks\nX = gatemarks.MATERIALS_FILE\n"})
+        self.assertEqual(sorted(line.split(":")[0] for line in got), ["lib/reader.py", "workflows/line/scripts/a.py"], got)
+
+    def test_judge_and_homes_and_prose_are_clean(self):
+        """判定の script・書き手の judge_accept・住処は名を持ってよい。長い文の中の名は名指しに数えない"""
+        files = {"workflows/judge/scripts/a.py": 'X = "materials.json"\n',
+                 "lib/judge_accept.py": "import gatemarks\nX = gatemarks.MATERIALS_FILE\n",
+                 "workflows/plan/scripts/b.py": 'X = "判定の materials.json の先"\nY = "judge-materials.json"\n'}
+        self.assertEqual(self.judge_names(files), [])
+
+
 if __name__ == "__main__":
     unittest.main()

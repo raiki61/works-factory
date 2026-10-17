@@ -2,7 +2,7 @@
 
 字の形でしか見ないので、次は人が見る:
 - E3: 節の id（字の形で見分けられない）
-- E4: `pathlib` などで部品を継いで組むパス
+- E4: `pathlib` などで部品を継いで組むパス。判定の置き場のファイルの名の住処（JUDGE_NAME_HOMES）の中の関数が、判定の置き場を名で開くか
 - E12: script の中で置く期限
 """
 import ast
@@ -361,7 +361,7 @@ def _block_paths(root: Path) -> list[str]:
     script は同じ `scripts/` の別の script を import せず（K8）、script の名は lib のモジュールの名と重ならない（script のフォルダが
     sys.path の頭に来るので、`import <名>` が lib の物でなく script を読む。K19）。
     """
-    out = _script_imports(root) + _script_names(root) + _input_producers(root)
+    out = _script_imports(root) + _script_names(root) + _input_producers(root) + _judge_names(root)
     blocks = [p.name for p in _blocks(root)]
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
@@ -484,6 +484,118 @@ def _script_names(root: Path) -> list[str]:
         for path in sorted(scripts.glob("*.py")) if scripts.is_dir() else []:
             if path.stem in modules:
                 out.append(f"{_rel(root, path)}:1: script の名 {path.stem} が lib/{path.stem}.py と同じ")
+    return out
+
+
+JUDGE_FOLDER = "judge"
+# 判定の置き場のファイルの名（lib/judge_accept.py の PORTS・PURPOSE_PORTS の値）の住処。書き手の judge_accept と、名を定数で持つモジュール
+# だけが名を持ってよい。ほかの lib とほかのブロックの script は判定の出力の欄（ポインタ）で受ける（workflows/AGENTS.md の E4）
+JUDGE_NAME_HOMES = ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py", "lib/gatemarks.py",
+                    "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py", "lib/worldmark.py",
+                    "lib/report.py")
+
+
+@functools.cache
+def judge_port_files() -> frozenset:
+    """判定の出力の欄が指す置き場のファイルの名（judge_accept の表から引く）"""
+    import judge_accept
+    return frozenset((*judge_accept.PORTS.values(), *judge_accept.PURPOSE_PORTS.values()))
+
+
+def _home_constants(root: Path, names: frozenset, kinds: frozenset) -> tuple[set, set]:
+    """住処のモジュールが module の頭で置く定数 ({(モジュール, 名)} 値が判定の置き場のファイルの名を持つ物, 値が marks の種の物)。
+    ファイルの名を持つ値は、名の字・その名の種の `marks.KINDS[<種>].file`・知っている定数（同じモジュールの素の名か `<モジュール>.<名>`）と、
+    それらを並べた tuple・list"""
+    files, kind_consts, bodies = set(), set(), []
+    for home in JUDGE_NAME_HOMES:
+        path = root / home
+        if path.is_file():
+            bodies.append((path.stem, ast.parse(path.read_text(encoding="utf-8")).body))
+
+    def known(node, module: str, table: set) -> bool:
+        if isinstance(node, ast.Name):
+            return (module, node.id) in table
+        return isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and (node.value.id, node.attr) in table
+
+    def names_file(node, module: str) -> bool:
+        if isinstance(node, ast.Constant):
+            return node.value in names
+        if isinstance(node, (ast.Tuple, ast.List)):
+            return any(names_file(e, module) for e in node.elts)
+        if isinstance(node, ast.Attribute) and node.attr == "file" and isinstance(node.value, ast.Subscript):
+            sub = node.value
+            return (isinstance(sub.value, ast.Attribute) and sub.value.attr == "KINDS"
+                    and (isinstance(sub.slice, ast.Constant) and sub.slice.value in kinds or known(sub.slice, module, kind_consts)))
+        return known(node, module, files)
+
+    grown = True
+    while grown:
+        grown = False
+        for module, body in bodies:
+            for node in body:
+                if not isinstance(node, ast.Assign):
+                    continue
+                for target in (t for t in node.targets if isinstance(t, ast.Name)):
+                    pair = (module, target.id)
+                    if pair not in kind_consts and isinstance(node.value, ast.Constant) and node.value.value in kinds:
+                        kind_consts.add(pair)
+                        grown = True
+                    if pair not in files and names_file(node.value, module):
+                        files.add(pair)
+                        grown = True
+    return files, kind_consts
+
+
+def _judge_names(root: Path) -> list[str]:
+    """判定の外（住処でない lib とほかのブロックの script）が、判定の置き場のファイルを名指さない。名指しに数えるのは、名の字そのもの
+    （長い文の一部は数えない）・住処の定数（`<モジュール>.<名>`・`from <モジュール> import <名>`）・その名の marks の種
+    （`marks.KINDS[<種>]`・`marks.path_of(<種>, …)`）。住処の中の関数が判定の置き場を名で開くかは人が見る"""
+    import marks
+    names = judge_port_files()
+    kinds = frozenset(k for k, kind in marks.KINDS.items() if kind.file in names)
+    consts, kind_consts = _home_constants(root, names, kinds)
+    homes = set(JUDGE_NAME_HOMES)
+    paths = [q for q in sorted((root / "lib").glob("*.py")) if _rel(root, q) not in homes] if (root / "lib").is_dir() else []
+    paths += [q for folder in _blocks(root) if folder.name != JUDGE_FOLDER for q in _files(root, "workflows", folder.name, "scripts")
+              if q.suffix == ".py"]
+    out = []
+    for path in paths:
+        rel = _rel(root, path)
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError) as e:
+            out.append(f"{rel}:1: 読めない（{type(e).__name__}）")
+            continue
+        alias = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                alias |= {a.asname or a.name: a.name for a in node.names}
+
+        def const_of(node, table):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                pair = (alias.get(node.value.id, node.value.id), node.attr)
+                return f"{pair[0]}.{pair[1]}" if pair in table else None
+            return None
+
+        def kind_of(node):
+            if isinstance(node, ast.Constant) and node.value in kinds:
+                return repr(node.value)
+            return const_of(node, kind_consts)
+
+        for node in ast.walk(tree):
+            hit = None
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in names:
+                hit = node.value
+            elif isinstance(node, ast.Attribute):
+                hit = const_of(node, consts)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                hit = next((f"{node.module}.{a.name}" for a in node.names if (node.module, a.name) in consts), None)
+            elif isinstance(node, ast.Subscript) and const_of(node.value, {("marks", "KINDS")}):
+                hit = kind_of(node.slice) and f"marks.KINDS[{kind_of(node.slice)}]"
+            elif isinstance(node, ast.Call) and const_of(node.func, {("marks", "path_of")}) and node.args:
+                hit = kind_of(node.args[0]) and f"marks.path_of({kind_of(node.args[0])}, …)"
+            if hit:
+                out.append(f"{rel}:{node.lineno}: 判定の置き場のファイルを名指す（{hit}）。判定の出力の欄のポインタを入力で受ける")
     return out
 
 
