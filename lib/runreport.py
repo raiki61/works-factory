@@ -830,7 +830,7 @@ def prior_failures(returns: dict, left: list, facts: dict) -> list:
     if gave_up and not items:
         sr = oc.planned(returns).get("stop_reason")
         rows.append({"where": PLAN_GAVE_UP_WHERE,
-                     "text": "計画が直す単位を受けたのに修正案を出せなかった（受け付けが 3 回とも拒んだか、行き止まりの単位が在る）"
+                     "text": "計画が直す単位を受けたのに修正案を出せなかった（受け付けが網の回まで拒み続けたか、行き止まりの単位が在る）"
                              + (f": {sr}" if isinstance(sr, str) and sr else "")})
     rows += [{"where": f"{STOPPED_WHERE} {oc.node_of(as_dict(facts).get('stages'), rid)}",
               "text": f"{sr}（{stopby.REASONS.get(sr.removeprefix(stopby.HEAD), '語の意味の記録が無い')}）。{_last_reject(returns, rid)}"}

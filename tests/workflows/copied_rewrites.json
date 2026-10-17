@@ -1822,6 +1822,21 @@
    "copied": "作業ツリーは直しの途中でありうる"
   },
   {
+   "why": "2 往復目からは開いた項目の差分と波及の一覧だけを渡し、穴に中央・端の札 reach を付けさせ、中央の穴が無くなれば端の block を申し送って修正へ進む（issue #662。持ち主の決め reuse-results・slim）",
+   "original": "前の往復の block と答えの要る suggest（2 往復目から）、",
+   "copied": "前の往復の block と答えの要る suggest と、開いた項目の案の差分と波及の一覧（2 往復目から。変わっていない文は載らない）、"
+  },
+  {
+   "why": "2 往復目からは開いた項目の差分と波及の一覧だけを渡し、穴に中央・端の札 reach を付けさせ、中央の穴が無くなれば端の block を申し送って修正へ進む（issue #662。持ち主の決め reuse-results・slim）",
+   "original": "（kind=contract_drift。severity は block）",
+   "copied": "（kind=contract_drift。severity は block・reach は peripheral）"
+  },
+  {
+   "why": "2 往復目からは開いた項目の差分と波及の一覧だけを渡し、穴に中央・端の札 reach を付けさせ、中央の穴が無くなれば端の block を申し送って修正へ進む（issue #662。持ち主の決め reuse-results・slim）",
+   "original": "  `severity`: 書けば次の周に [block] になる穴は block、それ以外は suggest。\n",
+   "copied": "  `severity`: 書けば次の周に [block] になる穴は block、それ以外は suggest。\n  `reach`: 直さずに修正へ進むと当たる害。`breaks_fix`（直しが壊れる）・`loses_behavior`（今ある振る舞いを失う）・`against_policy`（記録された方針に背く）・`forces_redesign`（やり直しを迫る設計の選び。柵が一類の入口を丸ごと見逃す物を含む）のどれかに当たる穴（中央）はその値、どれにも当たらない穴（古い説明文の取り残し・書き換えの一覧の漏れ・試験の材料。直す時に答えが求められ、直さずに残せば、深さが軽量の run でも省かずに回す直した後の審査に申し送られる端）は `peripheral`。`why` の頭の 1 文に、その定義に当たる具体の害（`peripheral` ならどの定義にも当たらない訳）を書け。2 往復目からは、開いた block に中央の値が無くなれば案は修正へ進み、`peripheral` の block は直す時へ申し送られる。\n"
+  },
+  {
    "why": "ほかのサブグラフの役を和名（判定役・修正役・審査役・事前審査・修正の段）で書かず、中身か役の種類で書く（#698）",
    "original": "を修正の段で答えることを求められる",
    "copied": "を、直す時に答えることを求められる"
