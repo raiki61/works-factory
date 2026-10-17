@@ -42,4 +42,5 @@ fix:
   delta_review: {rounds: 0, pass: true}
   handoffs: []
   mismatched: []
+  plan_declared: []
   stop_reason: ""

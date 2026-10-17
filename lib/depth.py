@@ -25,8 +25,8 @@ graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持�
   標準へ上げる（raise_doc の run）
 - outside_cited(items, keys, touched, cited): 修正の差分 touched のうち、頭の深さの役が引用した where のファイル cited の外に出たパス
   （テストのファイルは run_wide と同じ除き _code_touched で除く。cited が空なら空）
-- late_signals(*, outside, refused, consulted): 修正の後の 3 つの事実（引用の外の差分・TDD のループで修正役が拒まれた単位・範囲の相談をした
-  単位）の run の理由の並び。空の欄からは理由を出さない。呼ぶのは修正のブロックの fixboard.depth_signals・redepth と、線の redepth
+- late_signals(*, outside, refused, consulted, declared): 修正の後の 4 つの事実（引用の外の差分・TDD のループで修正役が拒まれた単位・範囲の相談をした
+  単位・直す側が直さずに残すと答えた案の審査の block）の run の理由の並び。空の欄からは理由を出さない。呼ぶのは修正のブロックの fixboard.depth_signals・redepth と、線の redepth
   （raise_doc の run に足す。上げるだけで下げない）
 - run_depth(doc): 切った後の単位の深さの全体（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
 - omits(head): 段 head が省く確かめの名の並び（TIERS の omits。知らない語・空は標準の段の物）。空でない段だけが単位の軽量で
@@ -125,14 +125,16 @@ def outside_cited(items, keys, touched, cited) -> list:
     return [p for p in _code_touched(items, keys, touched) if posixpath.normpath(p) not in named]
 
 
-def late_signals(*, outside=(), refused=(), consulted=()) -> list:
-    """修正の後に標準へ上げる 3 つの事実の run の理由（raise_doc の run）。outside は outside_cited の返り、refused は TDD のループで
-    修正役が拒まれた単位の名（tddloop.refused_units）、consulted は範囲の相談をした単位の名（consult.consulted_units）。空の欄からは
-    理由を出さない。上げる先は標準で、下げない（raise_doc）"""
+def late_signals(*, outside=(), refused=(), consulted=(), declared=()) -> list:
+    """修正の後に標準へ上げる 4 つの事実の run の理由（raise_doc の run）。outside は outside_cited の返り、refused は TDD のループで
+    修正役が拒まれた単位の名（tddloop.refused_units）、consulted は範囲の相談をした単位の名（consult.consulted_units）、declared は
+    修正役が直さずに残すと答えた事前審査の block の行（fixboard.declared_lines。その block を読むのは差分の審査と目の R4 だけなので、
+    軽量で両方を省くと誰にも届かない）。空の欄からは理由を出さない。上げる先は標準で、下げない（raise_doc）"""
     out = []
     for names, head in ((outside, "修正の差分が頭の深さの引用した where の外に出た"),
                         (refused, "TDD のループで修正役が拒まれた"),
-                        (consulted, "修正役が範囲の相談をした")):
+                        (consulted, "修正役が範囲の相談をした"),
+                        (declared, "修正役が直さずに残すと答えた事前審査の block が在る")):
         names = list(dict.fromkeys(str(n) for n in names or []))
         if names:
             out.append(f"{head}（{', '.join(names)}）")

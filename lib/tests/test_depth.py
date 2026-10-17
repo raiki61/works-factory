@@ -137,10 +137,10 @@ class RaiseCase(unittest.TestCase):
         self.assertEqual(depth.run_depth(got), depth.LIGHT)
 
     def test_late_signals_name_each_fact(self):
-        """修正の後の 3 つの事実（引用の外の差分・TDD の拒否・範囲の相談）がそれぞれ run の理由 1 つになり、空の欄は理由を出さない。
+        """修正の後の 4 つの事実（引用の外の差分・TDD の拒否・範囲の相談・直さずに残した案の審査の block）がそれぞれ run の理由 1 つになり、空の欄は理由を出さない。
         raise_doc に渡すと軽量の単位が標準へ上がり、下がらない"""
         self.assertEqual(depth.late_signals(), [])
-        self.assertEqual(depth.late_signals(outside=[], refused=[], consulted=[]), [])
+        self.assertEqual(depth.late_signals(outside=[], refused=[], consulted=[], declared=[]), [])
         got = depth.late_signals(outside=["x.py", "y.py"])
         self.assertEqual(len(got), 1)
         self.assertIn("修正の差分が頭の深さの引用した where の外に出た", got[0])
@@ -155,8 +155,12 @@ class RaiseCase(unittest.TestCase):
         self.assertEqual(len(got), 1)
         self.assertIn("修正役が範囲の相談をした", got[0])
         self.assertIn("項目 2", got[0])
-        every = depth.late_signals(outside=["x.py"], refused=[U1], consulted=[U2])
-        self.assertEqual(len(every), 3)
+        got = depth.late_signals(declared=["b1: 古い説明文が残る（直す側の答え: 別の issue で直す）"])
+        self.assertEqual(len(got), 1)
+        self.assertIn("直さずに残すと答えた事前審査の block が在る", got[0])
+        self.assertIn("b1", got[0])
+        every = depth.late_signals(outside=["x.py"], refused=[U1], consulted=[U2], declared=["b1: 訳"])
+        self.assertEqual(len(every), 4)
         for run in ([r] for r in every):
             raised = depth.raise_doc(self.doc, units={}, run=run)
             self.assertEqual({v["depth"] for v in raised["units"].values()}, {depth.STANDARD}, run)

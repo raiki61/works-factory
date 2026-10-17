@@ -59,6 +59,7 @@ prep:
   constraints_text: （無い）
   premises_text: '### 記録の制約'
   carried: ''
+  plan_declared: ''
   r4_context: '- 波及の一覧: /tmp/ripple.json'
   green_line: ''
   measured_text: '- 比べた結果（test_outcomes）が渡っていない'
