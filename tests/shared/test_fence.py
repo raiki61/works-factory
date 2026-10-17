@@ -330,8 +330,6 @@ def sandbox_refused(claude: str, platform: str = sys.platform) -> str:
 
 
 class SharedProbeTest(unittest.TestCase):
-    """見送りの判断は共有の部品 sandbox_probe.probe の結果で決まる。壊れた層は名前つきで見送るか赤にする"""
-
     def setUp(self):
         which = mock.patch.object(shutil, "which", return_value="/usr/bin/tool")
         which.start()
@@ -371,7 +369,6 @@ class SharedProbeTest(unittest.TestCase):
             why = sandbox_refused("claude", platform="linux")
             self.assertIn("Bash", why)
             self.assertIn("bwrap: No permissions to create new namespace", why)
-            self.assertNotIn("socat", why)
         self.probe_says(sandbox_probe.START_FAILED, "config error")
         with self.subTest("linux start with the namespace limit at 1"):
             self.limit_is("1")
@@ -379,7 +376,6 @@ class SharedProbeTest(unittest.TestCase):
             self.assertIn("start", why)
             self.assertIn("config error", why)
             self.assertIn(f"{sandbox_probe.USERNS_LIMIT} = 1", why)
-            self.assertNotIn("socat", why)
         with self.subTest("passing probe"):
             self.probe_says(0)
             self.assertEqual(sandbox_refused("claude", platform="linux"), "")

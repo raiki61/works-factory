@@ -23,7 +23,7 @@ UNCONFINED = 6     # Bash は通ったが、拒まれるはずの書き込みが
 
 # docker を回す kernel の、利用者の名前空間の制限（1 なら sandbox が立たない）。無い kernel もある
 USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
-GATE = "works-factory-test-gate"   # 確かめに使う役の sandbox を持つ工程
+GATE = "works-factory-test-gate"
 ROLE_NODE = "ci"
 MARK = "sandbox-probe-mark"
 WROTE, BLOCKED = "WROTE", "BLOCKED"

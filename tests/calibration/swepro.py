@@ -286,14 +286,12 @@ LIMIT_IS = "docker を回す kernel の制限: "   # 文の後ろに USERNS_LIMI
 USERNS_FIX = ("docker を回す kernel（x86_64 の機械ならそのホスト、VM ならその VM）の制限が 1 なら kernel（その側で sysctl "
               "kernel.apparmor_restrict_unprivileged_userns=0 にし、起こし直しても効く設定に入れる）")
 
-# Bash が落ちた段。Claude Code の sandbox が立たない層は 4 つ。直前の行の bwrap の文と docker を回す kernel の制限の値で見分ける
 SANDBOX_REFUSED = (
     "Claude Code の sandbox の Bash が通らない（コンテナで sandbox が立たない）。直前の行の bwrap の文で止めた層を見分ける: "
     f"{USERNS_FIX}。0 か無いなら、No permissions to create new namespace は seccomp、Can't mount proc は docker が伏せた /proc"
     "（systempaths=unconfined で外す）、Failed to make / slave など他の mount の落ちは apparmor（どれも harbor run に"
     f" -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。{LIMIT_IS}")
 
-# Bash が落ちた段で、sandbox の seccomp の helper が落ちた場合の見分け
 SECCOMP_REFUSED = (
     "Claude Code の sandbox の seccomp の helper（apply-seccomp）が立たない場合は、直前の行の helper の文で層を見分ける:"
     " prctl(PR_SET_SECCOMP) の Invalid argument は kernel が x86_64 でない台（命令の翻訳で amd64 を動かす台）の seccomp の登録の"
@@ -301,18 +299,15 @@ SECCOMP_REFUSED = (
     "真似る VM の中の docker で回す）。unshare(CLONE_NEWUSER) の Invalid argument は"
     " helper 自身の糸の競り合いで台の問題でない（setup を打ち直し、続くなら Claude Code の版の問題として報告する）")
 
-# Bash は通ったが、役の Grep・Glob が 0 件を返した段
 RG_REFUSED = (
     "Claude Code の sandbox の Bash は通ったが、Grep が印のファイルを 0 件と返した（Glob も同じ rg を使う）。同梱の rg を argv0 が rg の形で"
     "起こせないことが多い。命令の翻訳で amd64 を動かす台の binfmt の登録に P フラグが無いと起きる（x86_64 の機械の上の docker か、"
     "kernel ごと x86_64 を真似る VM の中の docker で回す）")
 
-# Bash は通ったが、役の設定が拒むはずの書き込みが通った段
 UNCONFINED_REFUSED = (
     "Claude Code の sandbox の Bash は通ったが、役の設定の denyWrite の置き場への書き込みが通った。sandbox が実際には閉じ込めて"
     "いない台で、柵を弱めて通さない。直前の行は Bash の結果。Claude Code の版か、台の sandbox の立て方を見直す")
 
-# claude が偽の API に 1 度も要求を送らなかった段。層は言い切らない
 START_REFUSED = (
     "claude が偽の Anthropic API に要求を 1 度も送らずに終わった。層は言い切れない: claude の欠け・権限、設定や plugin の読みの落ち、"
     "Claude Code が起動の時に sandbox を立てられず終わった（役の設定の failIfUnavailable: true は、立たなければ要求の前に拒む）の"
@@ -341,7 +336,6 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
             sandbox_probe.UNCONFINED: f"echo {shlex.quote(UNCONFINED_REFUSED)} >&2"}
     said[sandbox_probe.START_FAILED] = f"echo {shlex.quote(START_REFUSED)}{limit} >&2"
     cases = "".join(f"{code}) {say}; exit 1;; " for code, say in said.items())
-    # 想定の外の値は、口自身が落ちた段。claude に要求を送らせた段とは分ける
     crashed = f"echo {shlex.quote(PROBE_CRASHED)} >&2; exit 1"
     return [
         # 測る物と来歴の factory_commit、コンテナとホストの Claude Code の版を一致させる
@@ -352,9 +346,8 @@ def setup_commands(factory_commit: str, claude_version: str, place: str = PLACE)
 
 
 def sandbox_check(claude: str, sandbox: dict) -> int:
-    """課題のコンテナの中で setup が打つ口。claude に sandbox の Bash と Grep を踏ませ、要の行を標準エラーに出して終わりの値
-    （sandbox_probe の 0・START_FAILED・BASH_FAILED・GREP_EMPTY・UNCONFINED）を返す。claude の環境は、役の環境と同じ QUIET_ENV で
-    網に出ない"""
+    """課題のコンテナの中で setup が打つ口。claude に sandbox の Bash と Grep を踏ませ、要の行を標準エラーに出して sandbox_probe.probe の
+    終わりの値を返す。claude の環境は、役の環境と同じ QUIET_ENV で網に出ない"""
     with tempfile.TemporaryDirectory(prefix="works-sandbox-") as tmp:
         code, clues = sandbox_probe.probe(claude, sandbox, tmp, {**os.environ, **QUIET_ENV})
     for line in clues:
