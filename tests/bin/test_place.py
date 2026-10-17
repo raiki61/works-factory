@@ -251,86 +251,49 @@ class CacheDirTest(unittest.TestCase):
                 self.assertEqual(place.cache_dir(env), pathlib.Path("/h/.cache/works-factory"))
 
 
-class HomeConfigTest(unittest.TestCase):
-    """工場の Archon の家の config.yaml に、Archon の既定に従わない値を書く。Archon は既定の provider の無い run を拒むので
-    defaultAssistant を、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道を残すので
-    workflows.autoResumeOnQuotaReset: false を"""
-
-    WRITTEN = "defaultAssistant: claude\nworkflows:\n  autoResumeOnQuotaReset: false\n"
-
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.home = pathlib.Path(tmp.name) / "archon-home"
-        self.config = self.home / "config.yaml"
-
-    def test_new_home_gets_both_values(self):
-        place.home_config(self.home)
-        self.assertEqual(self.config.read_text(encoding="utf-8"), self.WRITTEN)
-
-    def test_archon_template_keeps_its_notes_and_gains_the_lines(self):
-        template = "# Default AI assistant\n# defaultAssistant: claude\n# workflows:\n# botName: Archon"
-        write(self.config, template.encode())
-        place.home_config(self.home)
-        place.home_config(self.home)
-        self.assertEqual(self.config.read_text(encoding="utf-8"), f"{template}\n{self.WRITTEN}")
-
-    def test_chosen_values_are_kept(self):
-        chosen = b"botName: x\ndefaultAssistant: codex\nworkflows:\n    autoResumeOnQuotaReset: true\n"
-        write(self.config, chosen)
-        place.home_config(self.home)
-        self.assertEqual(self.config.read_bytes(), chosen)
-
-    def test_existing_workflows_block_gains_the_key_without_a_second_block(self):
-        cases = {
-            "between": ("workflows:  # 方針\n    toolCallAttentionMs: 0\nbotName: x\n",
-                        "workflows:  # 方針\n    autoResumeOnQuotaReset: false\n    toolCallAttentionMs: 0\nbotName: x\n"),
-            "last": ("botName: x\nworkflows:\n  # 注\n  toolCallAttentionMs: 0",
-                     "botName: x\nworkflows:\n  autoResumeOnQuotaReset: false\n  # 注\n  toolCallAttentionMs: 0"),
-            "empty": ("workflows:", "workflows:\n  autoResumeOnQuotaReset: false\n"),
-        }
-        for name, (before, after) in cases.items():
-            with self.subTest(name):
-                write(self.config, f"defaultAssistant: claude\n{before}".encode())
-                place.home_config(self.home)
-                self.assertEqual(self.config.read_text(encoding="utf-8"), f"defaultAssistant: claude\n{after}")
-
-    def test_one_line_workflows_is_refused_unchanged(self):
-        flow = b"defaultAssistant: claude\nworkflows: { toolCallAttentionMs: 0 }\n"
-        write(self.config, flow)
-        with self.assertRaisesRegex(RuntimeError, "1 行の形"):
-            place.home_config(self.home)
-        self.assertEqual(self.config.read_bytes(), flow)
-
-
 class RunConfigTest(unittest.TestCase):
-    """新しい run に --config で渡す層は群の表の既定だけを持ち、中身が同じなら同じファイル。壊れた中身は書き直す"""
+    """新しい run に --config で渡す層は、run のノードへの環境変数・群の表の既定・使用枠の方針を持ち、中身が同じなら同じファイル。
+    壊れた中身は書き直す"""
 
-    def test_layer_holds_the_group_aliases_and_heals(self):
+    ENV = {"WORKS_FACTORY_ROOT": "/factory", "WORKS_ANSWER_CMD": "respond"}
+
+    def test_layer_holds_env_groups_and_quota_policy_and_heals(self):
         with tempfile.TemporaryDirectory() as tmp:
             cache = pathlib.Path(tmp)
-            path = place.run_config(cache)
-            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"aliases": place.group_presets()})
+            path = place.run_config(cache, self.ENV)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
+                             {"env": self.ENV, "workflows": {"autoResumeOnQuotaReset": False}, "aliases": place.group_presets()})
             self.assertEqual(list(place.group_presets()), list(launchgroups.GROUPS))
             for name, preset in place.group_presets().items():
                 self.assertEqual((preset["model"], preset["effort"]), launchgroups.default_of(name))
             written = path.read_bytes()
             path.write_text('{"aliases": {}}\n', encoding="utf-8")
-            self.assertEqual(place.run_config(cache), path)
+            self.assertEqual(place.run_config(cache, self.ENV), path)
             self.assertEqual(path.read_bytes(), written)
             self.assertEqual(sorted(p.name for p in path.parent.iterdir()), [path.name])
 
-    def test_users_layer_is_kept_and_factory_groups_win(self):
-        """利用者の --config の層はそのまま渡り、同じ名の群の別名だけ工場の値に替わる。env の値も入りうるので持ち主だけが読める"""
+    def test_users_layer_is_kept_factory_env_and_groups_win_and_users_quota_policy_wins(self):
+        """利用者の --config の層はそのまま渡り、同じ名の env と群の別名だけ工場の値に替わる。使用枠の方針は利用者の値が勝つ。
+        env の値も入りうるので持ち主だけが読める"""
         group = next(iter(launchgroups.GROUPS))
-        mine = {"env": {"A": "1"}, "assistant": "claude",
+        mine = {"env": {"A": "1", "WORKS_FACTORY_ROOT": "/mine"}, "assistant": "claude",
+                "workflows": {"autoResumeOnQuotaReset": True, "toolCallAttentionMs": 0},
                 "aliases": {group: {"provider": "claude", "model": "haiku"}, "mine": {"provider": "claude", "model": "opus"}}}
         with tempfile.TemporaryDirectory() as tmp:
-            path = place.run_config(pathlib.Path(tmp), mine)
+            path = place.run_config(pathlib.Path(tmp), self.ENV, mine)
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
-                             {"env": {"A": "1"}, "assistant": "claude",
+                             {"env": {"A": "1", **self.ENV}, "assistant": "claude",
+                              "workflows": {"autoResumeOnQuotaReset": True, "toolCallAttentionMs": 0},
                               "aliases": {"mine": {"provider": "claude", "model": "opus"}, **place.group_presets()}})
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_layer_without_aliases_leaves_the_users_aliases_alone(self):
+        """--adopt の層は群の別名を足さない（Archon が記録した AI の設定の上書きとして拒む）"""
+        mine = {"aliases": {"mine": {"provider": "claude", "model": "opus"}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = place.run_config(pathlib.Path(tmp), self.ENV, mine, aliases=False)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
+                             {**mine, "env": self.ENV, "workflows": {"autoResumeOnQuotaReset": False}})
 
 
 @unittest.skipIf(shutil.which("bun") is None, "bun が無い")
@@ -350,7 +313,7 @@ class ReadRunConfigTest(unittest.TestCase):
         self.assertEqual(self.read(""), {})
 
     def test_unreadable_or_misshapen_layer_stops(self):
-        for text in ("a: [", "- 1\n", "aliases: [1]\n"):
+        for text in ("a: [", "- 1\n", "aliases: [1]\n", "env: [1]\n", "workflows: 1\n"):
             with self.subTest(text=text), self.assertRaisesRegex(RuntimeError, "--config"):
                 self.read(text)
         with self.assertRaisesRegex(RuntimeError, "読めない"):
