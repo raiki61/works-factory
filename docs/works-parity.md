@@ -2064,7 +2064,7 @@
 - U059 承認ノードの文の答えの行の頭を、殻が env WORKS_ANSWER_CMD に置く
   - 元: use.sh:73・266-268
   - 印: `WORKS_ANSWER_CMD`
-  - 今: `bin/_lib/launcher.py::answer_head`・`lib/answer.py::ENV`・`lib/answer.py::head`
+  - 今: `bin/_lib/launcher.py::answer_head`・`bin/_lib/launcher.py::run_env`（新しい run の `--config` の層の `env:`）・`lib/answer.py::ENV`・`lib/answer.py::head`
   - 状態: 在る
   - 旧棚卸し: L-E50・L-G08
 
