@@ -41,7 +41,6 @@ fixed = load("fixed")
 redepth = load("redepth")
 spec_check = load("spec_check")
 returned = load("returned")
-returned_fields = load("returned_fields")
 collect = load("collect")
 result = load("result")
 sweep_children = load("sweep_children")
@@ -770,18 +769,15 @@ LINE_TEXT = (ROOT / LINE_REL).read_text(encoding="utf-8")
 FIX_IN_TEXT = (ROOT / FIX_IN_REL).read_text(encoding="utf-8")
 
 
-RECEIVERS = ("returned", "returned_fields")   # 受け皿の script（ブロックの返りまるごとを受ける物と、計画の往復を欄ごとに受ける物）
-
-
 def carried_shape(line_text: str, fix_in_text: str) -> dict:
     """固定材料の運ぶ値の形: fix_in.received_live の鍵と、fix-in が受け皿（script returned）から受ける入力ごとの got の欄（受け皿の
-    with: の names か、got_<欄> の鍵）"""
+    with: の names か、分かれ目の版が持つ got_<欄> の鍵）"""
     nodes = line_nodes(yaml.safe_load(line_text)["nodes"])
     live = next(n for n in ast.walk(ast.parse(fix_in_text)) if isinstance(n, ast.FunctionDef) and n.name == "received_live")
     got = {}
     for name, source in nodes["fix-in"]["with"].items():
         node = nodes.get((source.get("from") if isinstance(source, dict) else source).removeprefix("$").removesuffix(".output"))
-        if node is not None and node.get("script") in RECEIVERS:
+        if node is not None and node.get("script") == "returned":
             names = node["with"].get("names")
             got[name] = sorted(names.split() if names else (key.removeprefix("got_") for key in node["with"] if key.startswith("got_")))
     return {"received": sorted(k.value for r in ast.walk(live) if isinstance(r, ast.Return) for k in r.value.keys), "got": got}
@@ -2748,7 +2744,7 @@ class ReturnedCase(unittest.TestCase):
         self.assertEqual((got["got"]["hash"], got["got"]["reason"], got["got"]["diff"]), ("123", "", None))
 
     def test_fields_outside_the_declaration_stop_the_script(self):
-        """前の目の反例（返りを名で引き直す・globals・getattr・locals で引く）は、どれも宣言の外の欄を値として持たないので KeyError で止まる"""
+        """returned の got は宣言した名だけを持ち、.get・globals・getattr・locals で読み直しても、宣言の外の欄は KeyError になる"""
         env = {"INPUTS_GOT": json.dumps({"ok": True, "stall": True}), "INPUTS_NAMES": "ok"}
         reads = {
             "返りの欄を .get": 'returned()["got"].get("stall")',
@@ -2771,29 +2767,6 @@ class ReturnedCase(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.returned(env)
         self.assertEqual(returned.fallback("x"), {"got": None, "stop_reason": "works:line-script"})
-
-
-class ReturnedFieldsCase(unittest.TestCase):
-    def test_fields_are_gathered_and_strings_stay_strings(self):
-        """計画の往復の受け皿は、got_<欄> の欄を boundary.value で JSON の値として読む（"" は None、数の字は数。計画の往復の欄に字の欄は
-        無い）。字を字のまま保つのはまるごとの got の形（ReturnedCase.test_whole_output_gives_the_declared_fields）"""
-        env = {"INPUTS_GOT_OK": "true", "INPUTS_GOT_ROUND": "2", "INPUTS_GOT_PLAN": "null", "INPUTS_GOT_QUESTIONS": "[]",
-               "INPUTS_GOT_READY": ""}
-        self.assertEqual(returned_fields.returned_fields(env),
-                         {"got": {"ok": True, "round": 2, "plan": None, "questions": [], "ready": None}, "stop_reason": ""})
-
-    def test_no_field_is_a_fallback_not_an_empty_got(self):
-        """got_<欄> の入力が 1 つも無い（線の inputs: だけ届く）時は、空の got の成功にせず例外にして fallback に落とす"""
-        line_inputs = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]}
-        for case, env in {"無い": {}, "線の入力だけ": line_inputs, "まるごとの got だけ": {"INPUTS_GOT": "{}"}}.items():
-            with self.subTest(case), self.assertRaises(ValueError):
-                returned_fields.returned_fields(env)
-        self.assertEqual(returned_fields.fallback("x"), {"got": None, "stop_reason": "works:line-script"})
-
-    def test_line_inputs_are_not_fields(self):
-        """Archon は線の inputs: も INPUTS_<名> で渡す。受け皿は got_ の付いた with: の鍵だけを欄にする"""
-        env = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]} | {"INPUTS_GOT_OK": "true"}
-        self.assertEqual(returned_fields.returned_fields(env)["got"], {"ok": True})
 
 
 class CollectAndResultCase(unittest.TestCase):
@@ -2876,7 +2849,7 @@ class CollectAndResultCase(unittest.TestCase):
         nodes = line_nodes()
         inside = {node["id"] for node in nodes["plan-rounds"]["loop_group"]["nodes"]}
         stopping = {key for key, node in script_nodes().items() if "stop_reason" in node["output_format"]["properties"]
-                    and node["script"] not in (*RECEIVERS, "collect", "result") and key not in inside}
+                    and node["script"] not in ("returned", "collect", "result") and key not in inside}
         self.assertLessEqual({"start", "ask-before-fix", "ask-replan", "ask-final", "judged", "fixed", "redepth", "after-fix"}, stopping)
         with_ = nodes["collect"]["with"]
         self.assertEqual({k for k in with_ if k.startswith("stop_")}, {f"stop_{k.replace('-', '_')}" for k in stopping})
@@ -3192,10 +3165,10 @@ class LineWiringCase(unittest.TestCase):
     """返しの節の with: の鍵と、その script が読む INPUTS_<名> が同じ（片方だけ欄を足すと、欄が黙って報告から落ちる）"""
 
     def test_with_keys_are_what_the_script_reads(self):
-        """with: を持つ線の script の節の全部（計画の往復の受け皿 returned_fields は下の試験）を、with: の鍵の全部を "null" にして走らせ、
+        """with: を持つ線の script の節の全部を、with: の鍵の全部を "null" にして走らせ、
         読んだ INPUTS_<名> を控える"""
         nodes = {key: node for key, node in line_nodes().items()
-                 if "script" in node and node.get("with") and node["script"] != "returned_fields"}
+                 if "script" in node and node.get("with")}
         self.assertIn("judge-out", nodes)
         self.assertIn("ask-before-fix", nodes)
         for key, node in nodes.items():
@@ -3207,20 +3180,13 @@ class LineWiringCase(unittest.TestCase):
                                  {f"INPUTS_{name.upper()}" for name in node["with"]})
 
     def test_receivers_return_every_with_key_and_nothing_else(self):
-        """受け皿（returned）の with: は、ちょうど {got, names}（返りまるごとと、運ぶ欄の名）で、got は names の欄だけを持つ。計画の往復の
-        2 本だけは plan-out の 1 つの返りを PLAN と REVIEW の 2 つの got に分けて受けるので、with: の鍵が全部 got_<欄>。どちらも Archon が
+        """受け皿（returned）の with: は、ちょうど {got, names}（返りまるごとと、運ぶ欄の名）で、got は names の欄だけを持つ。Archon が
         同じく INPUTS_<名> で渡す線の inputs: は欄にしない"""
         run_inputs = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]}
         for key, node in line_nodes().items():
-            if node.get("script") not in RECEIVERS:
+            if node.get("script") != "returned":
                 continue
             with self.subTest(node=key):
-                self.assertEqual(node["script"] == "returned_fields", key in self.ROUNDS)
-                if key in self.ROUNDS:
-                    self.assertTrue(all(name.startswith("got_") for name in node["with"]), node["with"])
-                    env = run_inputs | {f"INPUTS_{name.upper()}": "null" for name in node["with"]}
-                    self.assertEqual(set(returned_fields.returned_fields(env)["got"]), {name.removeprefix("got_") for name in node["with"]})
-                    continue
                 self.assertEqual(set(node["with"]), {"got", "names"})
                 env = run_inputs | {"INPUTS_GOT": json.dumps({"a": 1}), "INPUTS_NAMES": node["with"]["names"]}
                 with mock.patch.dict(os.environ, env):
@@ -3229,29 +3195,25 @@ class LineWiringCase(unittest.TestCase):
     ROUNDS = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
 
     def test_receiver_body_is_written_once(self):
-        """受け皿の本体（script・runtime・timeout・output_format）は YAML の字に 1 度だけ在り、ほかの受け皿はアンカーで受ける（計画の
-        往復の 2 本は script だけを替える）"""
+        """受け皿の本体（script・runtime・timeout・output_format）は YAML の字に 1 度だけ在り、ほかの受け皿はアンカーで受ける"""
         self.assertEqual(len(re.findall(r"^\s*script: returned\s*$", LINE_TEXT, re.M)), 1)
-        self.assertEqual(collections.Counter(node["script"] for node in line_nodes().values() if node.get("script") in RECEIVERS),
-                         {"returned": 11, "returned_fields": 2})
+        self.assertEqual(sum(node.get("script") == "returned" for node in line_nodes().values()), 13)
 
     def test_receivers_take_every_field_of_what_they_receive(self):
         """受け皿は、受ける節の出力をまるごとの got: $<dep>.output で受け、運ぶ欄の names の組はブロックの返す節の output_format の
-        欄と同じ。計画の往復の 2 本は got_<欄> が受ける節の同じ欄を指し、欄の組は plan_out の PLAN と REVIEW と同じ（names の名を消すか
-        受け皿の鍵を向け違えると、その欄が黙って報告から落ちる）"""
+        欄と同じ。計画の往復の 2 本の names の組は plan_out の PLAN と REVIEW と同じ（names の名を消すか受け皿の鍵を向け違えると、その欄が
+        黙って報告から落ちる）"""
         nodes = line_nodes()
         for key, node in nodes.items():
-            if node.get("script") not in RECEIVERS:
+            if node.get("script") != "returned":
                 continue
             with self.subTest(node=key):
                 dep = node["depends_on"][0]
+                self.assertEqual(node["with"]["got"], f"${dep}.output")
                 if key in self.ROUNDS:
-                    fields = {name.removeprefix("got_") for name in node["with"]}
-                    self.assertEqual(node["with"], {f"got_{name}": f"${dep}.output.{name}" for name in fields})
-                    self.assertEqual(fields, set(self.ROUNDS[key]))
+                    self.assertEqual(node["with"]["names"].split(), list(self.ROUNDS[key]))
                     continue
                 self.assertIn("include", nodes[dep])
-                self.assertEqual(node["with"]["got"], f"${dep}.output")
                 doc = block_doc(nodes[dep]["include"])
                 returns = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
                 self.assertEqual(sorted(node["with"]["names"].split()), sorted(returns["output_format"]["properties"]))
@@ -3274,7 +3236,7 @@ class LineWiringCase(unittest.TestCase):
                 with self.subTest(node=key, receiver=name):
                     receiver = nodes.get(name)
                     self.assertIsNotNone(receiver)
-                    self.assertIn(receiver["script"], RECEIVERS)
+                    self.assertEqual(receiver["script"], "returned")
                     self.assertEqual((receiver["depends_on"], receiver.get("trigger_rule")), ([key], None))
                     self.assertIn(name, nodes["collect"]["depends_on"])
                     self.assertIn(f"${name}.output", reads)
