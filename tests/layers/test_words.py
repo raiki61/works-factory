@@ -27,7 +27,7 @@ BANNED = ("節", "線", "輪", "関所", "指し札", "盤面", "工程", "ワ�
 YAML_TEXT_KEYS = frozenset({"description", "prompt", "systemPrompt", "message"})
 ASF_DIRS = ("factory", ".factory")
 ROOT_DOCS = ("README.md", "MISSION.md", "engineering.md")
-BORROWED_PROMPT = "lib/borrow/unattended.md"   # 局所レビューの役の指示書の末尾に全文で載る
+BORROWED_PROMPT = "lib/borrow/unattended.md"   # 役の指示書の末尾に、役の種類の節と共通の文が載る
 BIN_PY = ("bin/works-factory", "bin/apply", "bin/_lib/*.py", "bin/_lib/no-post-bin/works-gh")
 
 _SECTION_NUMBER = "依頼が設計書のセクションを番号で名指す書き方（「`<path>` 3 節」）。依頼の字を読むので変えない"

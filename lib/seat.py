@@ -4,7 +4,7 @@
 語:
 - 節（seam）: seams.json の 1 項目。use_as が skill（スキル 1 本を Skill の道具で読ませる）か prompt（部品の型の穴を埋めて指示書に置く）
 - 座: 節を役に載せる口。SEATS（役の名 → 節の名）が表で持つ
-- 読み替え: skill_overlay（lib/borrow/unattended.md の頭の 1 行と全文）。座の末尾にいつも載る
+- 読み替え: skill_overlay（lib/borrow/unattended.md の頭の 1 行と、役の種類 OVERLAY_KINDS の節と共通の文）。座の末尾にいつも載る
 
 口:
 - carries(node)・SKILL_NODES: 座が載る役・座が skill の役（YAML の skills: と一致）
@@ -15,13 +15,15 @@
   判定の語の欄の表（words_table）、語に conflict.WORD を持つ節（implementer）の後ろには申し出の種類の手引き DIVERGENCE_HINT
 - g1_prompt(seam_id, values)・g1_section(rows)・g1_diff_cmd(base, patch): 修正役（fix・fix-ruled）が直す単位の項目ごとに Agent の
   新しい会話で起こす下請け（実装役・審査役）のファイルの中身と、修正役の指示書の節と、審査役に渡す差分のファイルを書くコマンド
-- skill_overlay()・query_rule(): 読み替えの段と、下請けのファイルに字のまま載せる検索語の規律の塊（lib/agents/judge.md）
+- skill_overlay(node)・overlay_body(kinds)・query_rule(): 読み替えの段と、読み替えの種類の節と共通の文だけを残した字と、
+  下請けのファイルに字のまま載せる検索語の規律の塊（lib/agents/judge.md）
 
 写しと節の表は spseam の置き場 BORROW_DIR のファイルを読む（起動の bin/_lib/toolset.py が同じ写しを run の隔離した設定へ
 写す。写しを変えるのは toolset の vendor だけ）。食い違い・型の穴の埋め残りは ValueError で名指す。
 """
 import json
 import pathlib
+import re
 import shlex
 import sys
 
@@ -40,6 +42,13 @@ SEATS = {"tdd": "tdd", "tdd-new": "tdd", "fix": "implementer", "fix-ruled": "imp
          "refix": "receiving-review", "refix2": "receiving-review"}
 SKILL_NODES = frozenset({"tdd", "tdd-new", "refix", "refix2"})   # 座が skill の役（YAML の skills: を持つ節。試験が一致を縛る。
 # tdd と tdd-new は TDD の輪の同じ役を同じ単位の続きと新しい単位に分けた 2 つの節。元も tdd・tdd-rest・tdd-lane-<n> を並べた）
+# 読み替え（unattended.md）の役の種類。`###` の見出しが `・` で並べる名で、見出しの外の文は全部の役に共通
+FIX, TDD, REFIX, REVIEW, READER = "修正の役", "TDD の役", "手直しの役", "審査の役", "読むだけの役"
+KINDS = (FIX, TDD, REFIX, REVIEW, READER)
+# 読み替えを載せる役 → 受ける種類。TDD の輪の役は修正の役の決まりを返答の欄の読み替え（指示書の tdd-remap）つきで受ける。
+# local-review は素材集めの局所レビュー（指示書の末尾に overlay_body の字を置く。tests/workflows/test_judge.py が照らす）
+OVERLAY_KINDS = {"tdd": (FIX, TDD), "tdd-new": (FIX, TDD), "fix": (FIX,), "fix-ruled": (FIX,), "review": (REVIEW, READER),
+                 "refix": (REFIX,), "refix2": (REFIX,), "local-review": (READER,)}
 NONE = "（無し）"   # 型の穴に入れる物が無い時の値（人の方針の文書が無い run の [GLOBAL_CONSTRAINTS] など）
 # 差分の審査役の型（task-review）の出口の語（216 の works の語）→ 差分の審査の返答の 2 判定の欄（deltamarks.KEYS）と欄の語
 # （deltamarks.COMPLIANCE・QUALITY）。審査役の座の型の後ろに words_table の表で載り、役は型の語をこの欄に書く
@@ -125,7 +134,7 @@ G1_STEPS = (
     "機械の関門は返答の後にメイングラフが当てる: 受け入れのテストの赤→緑と既存のテストの凍結は修正の受け付けの束、変更に当たる試験は"
     "受け付け、test_cmd はメイングラフの最後のテストの段。下請けの「commit」「人に聞く」は下請けのファイルの末尾の works の決まりに従う。",
 )
-G1_OVERRIDES = ("下の読み替えの DISPATCH（下請けを起こさない・ほかの役の道具に Agent は無い）と DELEGATE の「役がほかの"
+G1_OVERRIDES = ("下の読み替えの DISPATCH（下請けを起こさない）と DELEGATE の「役がほかの"
                 "エージェントに仕事を任せることは無い」は、この修正役には効かない: このセクションの手順のとおり Agent で"
                 "下請けを起こす。下請けがさらに下請けを起こすことは無い（どちらの型も禁じる）。読み替えの頭の行の「その prompt に、"
                 "このファイル … を Read せよと書け」も下請けには書かない: 下請けのファイルの末尾の works の決まりが、その代わりに"
@@ -193,11 +202,30 @@ def fill(seam_id: str, values: dict[str, str]) -> str:
     return spseam.fill(seam_id, values, src, item)
 
 
-def skill_overlay() -> str:
-    """借りたスキルを読める役の指示書に足す段: 頭の 1 行と、読み替えの正本の全文（字のまま。写しを持たない）。superpowers の
-    using-superpowers は、直の指示がスキルに勝つと定める。元 works/.shared/core/rolekit.py:74"""
+def skill_overlay(node: str) -> str:
+    """借りたスキルを読める役 node の指示書に足す段: 頭の 1 行と、読み替えの正本の node の種類（OVERLAY_KINDS）の節と共通の文
+    （overlay_body）。superpowers の using-superpowers は、直の指示がスキルに勝つと定める。元 works/.shared/core/rolekit.py:74"""
     path = spseam.BORROW_DIR / spseam.OVERLAY_FILE
-    return OVERLAY_HEAD.format(path=path) + "\n\n" + path.read_text(encoding="utf-8")
+    return OVERLAY_HEAD.format(path=path) + "\n\n" + overlay_body(OVERLAY_KINDS[node])
+
+
+def overlay_body(kinds) -> str:
+    """読み替えの正本の字から、種類の節（`###` の見出し）のうち kinds のどれかを名指す物と、種類の見出しの外の文だけを残した字。
+    残る物が見出しだけになった決まり（`##`）は見出しごと落とす。見出しが KINDS の外の名を名指せば ValueError"""
+    path = spseam.BORROW_DIR / spseam.OVERLAY_FILE
+    groups = []   # 見出しの外の塊（頭の文か決まり 1 つ）ごとに、その塊と残す種類の節
+    for block in re.split(r"(?m)^(?=##+ )", path.read_text(encoding="utf-8")):
+        head = block.partition("\n")[0]
+        if not head.startswith("### "):
+            groups.append([block])
+            continue
+        named = set(head.removeprefix("### ").split("・"))
+        if named - set(KINDS):
+            raise ValueError(f"{path} の種類の見出し {head!r} が知らない種類 {sorted(named - set(KINDS))} を名指す")
+        if named & set(kinds):
+            groups[-1].append(block)
+    bare = [g for g in groups if len(g) == 1 and g[0].startswith("## ") and not g[0].partition("\n")[2].strip()]
+    return "".join("".join(g) for g in groups if g not in bare).rstrip("\n") + "\n"
 
 
 def query_rule() -> str:
@@ -249,7 +277,7 @@ def section(node: str, values: dict[str, str] | None = None) -> str:
         body = [WINS_OF.get(node, WINS), PROMPT_HEAD.format(file=sec["files"][0]), fill(sid, values).rstrip("\n"),
                 *([words_table(sid)] if sid == VERDICT_SEAM else []),
                 *([DIVERGENCE_HINT] if conflict.WORD in (sec.get("words") or {}).values() else [])]
-    return "\n\n".join([HEAD, *body, skill_overlay().rstrip("\n")]) + "\n"
+    return "\n\n".join([HEAD, *body, skill_overlay(node).rstrip("\n")]) + "\n"
 
 
 def g1_prompt(seam_id: str, values: dict[str, str]) -> str:
@@ -271,7 +299,7 @@ def g1_section(rows: list[dict]) -> str:
     steps = "\n".join(f"{n}. {t}" for n, t in enumerate(G1_STEPS, 1))
     files = _bullets(_g1_row(r) for r in rows)
     return "\n\n".join([G1_HEAD, steps, G1_LOOP_NOTE, files, DIVERGENCE_HINT, G1_OVERRIDES,
-                        skill_overlay().rstrip("\n")]) + "\n"
+                        skill_overlay("fix").rstrip("\n")]) + "\n"
 
 
 def g1_diff_cmd(base: str, patch: str) -> str:

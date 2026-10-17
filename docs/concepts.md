@@ -137,7 +137,7 @@
 - 住処: `lib/conflict.py`（申し出の形 `ITEM_SCHEMA`・`CONFLICTS_SCHEMA`、欄の名 `FIELDS`（`WHY_FIELD`・`WHICH_FIELD`・`KIND_FIELD` を含む）、申し出の種類 `DIV_KINDS`、機械の確かめ `problems`、止めた単位の積み `park`、出どころの語 `SOURCES`（組どうしの合わせの申し出 `JOIN_SOURCE` を含む）、裁定の語 `DECISIONS`（判定のやり直し `REJUDGE` を含む）・`FIX_DECISIONS`、直す義務から外す単位 `held_by_rulings`）
 - 約束: 住処の定数の表（申し出の欄と裁定の語）と、修正役の返答の欄 `conflicts` の形（`workflows/fix/works-factory-fix.yaml` の `output_format` に字で書く）
 - 知ってよい所: 住処と、申し出を書いて裁く修正のサブグラフ（`workflows/fix/`・修正の受け付けの申し出の取り込み `lib/fixboard.py`・TDD のループ `lib/tddloop.py`・裁定のループ `lib/ruling.py`・組の合わせの直し `lib/clash.py`（組どうしの合わせの申し出を積む。欄の名は住処の `clash_claims` で組み、字を写さない））
-- 今: 外の当たりは、案の直しの事前審査と項目のセクションに申し出を貼る `lib/boardview.py`・`lib/planfile.py` と、`lib/querytest.py` の docstring と、修正役の申し出の返し方を述べる素材集めの局所の審査の指示書 `workflows/judge/commands/material-local-review.md` の 4 ファイル 7 行
+- 今: 外の当たりは、案の直しの事前審査と項目のセクションに申し出を貼る `lib/boardview.py`・`lib/planfile.py` と、`lib/querytest.py` の docstring の 3 ファイル 5 行
 
 ### `lanes` 並べの組
 
@@ -256,7 +256,7 @@
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
 
 - 状態: 散らばり
-- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 13 ファイル 74 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行・道具を字で述べる指示書 1 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
+- 今: 模型と effort の既定だけが `lib/launchgroups.py` の群の表（`GROUPS`）に住み、グラフの YAML の AI のノードは `model:` に群の名 `'@wf-<群>'` を書くだけ（`effort:` は書かない。run ごとの付け替えは `run-model-choice`）。道具 `allowed_tools:` の行と隔離と役の定義の前付け（`lib/agents/`）は散らばりのまま（役の定義の前付けは模型と effort の行を今も持つ）: YAML の行は役の定義の前付けと結ばれておらず、試験（`tests/workflows/test_judge.py` ほか）はノードごとに自分の表で群の既定を縛るだけ。数の歯止めは表の `known` の 12 ファイル 73 行（`workflows/*/works-factory-*.yaml` の 7 ファイル 63 行・役の定義の前付けの 5 ファイル 10 行）。前の works の run の明示の模型 `WORKS_DEV_MODEL`・隔離の旗 `isolated` は今の木に無い
 - 計画: まだ無い
 
 ### `prompt-assembly` 指示書の組み立て

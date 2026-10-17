@@ -23,8 +23,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 PLUGIN = "pr-review-toolkit"
 NAMES = sorted(BORROWED_SKILLS | BUILTIN_SKILLS | {PLUGIN})
 NAMED = re.compile(r"(?<![\w-])(" + "|".join(map(re.escape, NAMES)) + r")(?![\w-])")
-OVERLAY = ("元の unattended.md（借りた superpowers を無人の役で読む時の読み替え）の写しで、K9 により元の字のまま（手直しは写しの台帳 lib/borrow/COPIED_FROM の物だけ）。"
-           "借りる skill を読める役の一覧と読み替えを述べるだけで、local-review に借りる skill を使えとは言わない。"
+OVERLAY = ("元の unattended.md（借りた superpowers を無人の役で読む時の読み替え）の写しのうち局所レビューの役の種類の節と共通の文（seat.overlay_body）で、K9 により元の字のまま（手直しは写しの台帳 lib/borrow/COPIED_FROM の物だけ）。"
+           "借りる skill の読み替えを述べるだけで、local-review に借りる skill を使えとは言わない。"
            "写しを載せる所（借りる skill を名指す役の指示書の末尾）を直す。区分 J。区分の issue で外す")
 
 # 元 works/.shared/borrow/unattended.md（写しの台帳 lib/borrow/COPIED_FROM の 1 行目の commit）の sha256
@@ -40,12 +40,10 @@ ALLOWED = {
     ("workflows/fix/commands/delta-review.md", 11, PLUGIN):
         "入力の材料 `lens` の出どころ（修正の後のレンズの節が起こした agent）の説明で、この役は agent を起こさない",
     ("workflows/judge/commands/material-local-review.md", 100, "systematic-debugging"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 116, "receiving-code-review"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 117, "test-driven-development"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 143, "requesting-code-review"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 167, "receiving-code-review"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 167, "systematic-debugging"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 175, "systematic-debugging"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 104, "receiving-code-review"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 134, "requesting-code-review"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 158, "systematic-debugging"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 166, "systematic-debugging"): OVERLAY,
 }
 
 

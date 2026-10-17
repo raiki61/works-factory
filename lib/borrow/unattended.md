@@ -2,47 +2,74 @@
 
 対象は、works に写した superpowers（`lib/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 5 本（`lib/borrow/borrow.json` の `skills`。`bin/_lib/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `bin/_lib/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（セクションごとの使い道・錨・穴・出口の語）は、包むセクションの表 `lib/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`workflows/*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの `output_format` は、このファイルより勝つ。
 
-このファイルは、借りたスキルを読める役（道具に Skill を持つ役。素材集めの局所レビューと、TDD の役・手直しの役）の指示書の末尾と、借りた型を骨にする座（修正役（下請けを起こす項目が無い周）と 1 回目の差分の審査役。`lib/seat.py` の `section`）と、下請けを回す修正役のセクション（`seat.g1_section`）の末尾に、機械が全文を載せる（`lib/seat.py` の `skill_overlay`。superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載ることは `lib/tests/test_seat.py` と `tests/workflows/test_judge.py` が見張る。
+この読み替えは、役の種類ごとのセクション（`###` の見出しが種類の名を `・` で並べる）と、種類の見出しの外の全部の役に共通の文から成る。機械（`lib/seat.py` の `skill_overlay`）が、役の側が宣言した種類のセクションと共通の文だけを、借りたスキルを読める役と借りた型を骨にする役の指示書の末尾に載せる（superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載るセクションは `lib/tests/test_seat.py` と `tests/workflows/test_judge.py` が見張る。
 
 ## 読み方
 
 - 下の見出しが読み替えの決まり。行の番号やスキルの文そのものには結び付けない（版を上げると文が変わりうる。決まりと写しの原文の結び付き（錨）は `seams.json` が持ち、試験が写しに当てて縛る）。当てはまる言い回しを見たら、その決まりで読む。
 - `systematic-debugging/` の `.ts` と `.sh` はコードの例で、役への指示ではない。
 
-## 義務の単位の行き先（修正役。どの決まりもこれに従う）
+## 義務の単位の行き先（どの決まりもこれに従う）
 
-修正の決まりの正本 [`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md)（機械が修正役・TDD のループの役・手直しの役の指示書に組み込む）と同じ行。受け付け（`fix_covers_open_units`）は、直す義務の単位が `changes` に無ければ、`not_done` に理由を書いても拒む。
+### 修正の役
 
-- **義務の単位の行き先**: 直す義務の単位（[block] と do-now）は、必ず直して `changes` に 1 行で載せる（人の答えが無いと直し方が決まらない単位だけは、直さずに「食い違いの申し出」で返す）。判定の前提・直し方に疑いが残っても、方針に反しない範囲で一番ましな直しを載せ（根を塞げなければ `root_or_symptom` を symptom にして why に理由を書く）、それが判定のフレーミングへの異議なら `rejudge_requested` に書く（判定役が次に読み直す）。`not_done` に書けるのは、受け付けが免除する単位（問いの台帳で、修正の前にまだ答えていない（人の答えも無人の run が採った推しも無い）fork の出どころか depends に挙がった単位。status が escalate の問いも同じ。答えた問いの出どころ・depends は免除されない）と、義務の外の単位だけ。
+修正の決まりの正本（機械がこの役の指示書に組み込む）と同じ行。受け付け（`fix_covers_open_units`）は、直す義務の単位が `changes` に無ければ、`not_done` に理由を書いても拒む。
+
+- **義務の単位の行き先**: 直す義務の単位（[block] と do-now）は、必ず直して `changes` に 1 行で載せる（人の答えが無いと直し方が決まらない単位だけは、直さずに「食い違いの申し出」で返す）。判定の前提・直し方に疑いが残っても、方針に反しない範囲で一番ましな直しを載せ（根を塞げなければ `root_or_symptom` を symptom にして why に理由を書く）、それが判定のフレーミングへの異議なら `rejudge_requested` に書く（次の判定で読み直される）。`not_done` に書けるのは、受け付けが免除する単位（問いの台帳で、修正の前にまだ答えていない（人の答えも無人の run が採った推しも無い）fork の出どころか depends に挙がった単位。status が escalate の問いも同じ。答えた問いの出どころ・depends は免除されない）と、義務の外の単位だけ。
 
 ## ASK 人に聞く・確かめてもらう・許しを得る
 
-無人の役には聞く相手が居ない。止まって答えを待たない（待っても答えは来ず、受け付けのループが上限まで回って run が落ちる）。
+無人の役には聞く相手が居ない。止まって答えを待たない（待っても答えは来ず、受け付けのループが上限まで回って run が落ちる）。分からない項目があるうちは実装を始めない、という原則（receiving-code-review）はそのまま効く。分からない項目は下のとおり返答に書き、分かった項目だけを直す。
 
-- 修正役は、上の「義務の単位の行き先」に従う。直す義務の単位は、分かる範囲で一番ましな直しを `changes` に載せる。人の答えが無いと直し方が決まらない単位は、直さずに食い違いの申し出（`conflicts`。`which_is_right` は unknown・`kind` は `needs_context`）で返す——裁定役が人に回し、最後の承認ノードに届く（正本 [`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md) の「食い違いの申し出」）。`rejudge_requested` は判定のフレーミングへの異議だけで、人への問いを書かない（読むのは判定役）。義務の外の単位は `not_done` に理由を書いてよい（`unit_key`・`why`）。
-- 差分の審査への手直しの役は、その穴を `declared` で残し、`how` に何が分からないかを書く。
-- 読むだけの役（判定・審査）は、分からないまま置いた前提を、返答の型の中の理由の欄に書く。
-- TDD の例外（使い捨ての試作・生成したコード・設定のファイル）に当たるかどうかは、役は決めない。役は先のテストを省かない。省いてよい単位はメイングラフの側（修正案の route と機械の決まり。TDD のノードが入ったら元の graphloops の fix-tdd の `route: direct`）が決める。
-- 分からない項目があるうちは実装を始めない、という原則（receiving-code-review）はそのまま効く。分からない項目は上のとおり返答に書き、分かった項目だけを直す。
+### 修正の役
+
+- 上の「義務の単位の行き先」に従う。直す義務の単位は、分かる範囲で一番ましな直しを `changes` に載せる。人の答えが無いと直し方が決まらない単位は、直さずに食い違いの申し出（`conflicts`。`which_is_right` は unknown・`kind` は `needs_context`）で返す——人に回り、最後の承認ノードに届く（修正の決まりの正本の「食い違いの申し出」）。`rejudge_requested` は判定のフレーミングへの異議だけで、人への問いを書かない。義務の外の単位は `not_done` に理由を書いてよい（`unit_key`・`why`）。
+
+### 修正の役・TDD の役
+
 - test-driven-development の「Ask your human partner」と、部品の実装役の型の「Ask them now」「ask questions」は、止まらずに食い違いの申し出で返す。状態の語「NEEDS_CONTEXT」・「BLOCKED」も申し出に当たる（`seams.json` の `words`）。
+
+### TDD の役
+
+- TDD の例外（使い捨ての試作・生成したコード・設定のファイル）に当たるかどうかは、役は決めない。役は先のテストを省かない。省いてよい単位はメイングラフの側（修正案の route と機械の決まり。TDD のノードが入ったら元の graphloops の fix-tdd の `route: direct`）が決める。
+
+### 手直しの役
+
+- 分からない穴は `declared` で残し、`how` に何が分からないかを書く。
+
+### 読むだけの役
+
+- 分からないまま置いた前提を、返答の型の中の理由の欄に書く。
 
 ## THREE-FAILS 3 回直して効かなければ、人と構成を話す
 
-4 回目の直しを打たない。「義務の単位の行き先」に従い、試した 3 つのうち一番ましな直しを残して `changes` に載せ（根を塞げていなければ `root_or_symptom` を symptom にする）、試した 3 つの直し、それぞれがどこに新しい症状を出したか、構成を疑う理由を `rejudge_requested` に書く。義務の外の単位なら、同じ理由を `not_done` に書いて直しを打ち切ってよい。ここで数えるのは 1 つの会話の中の直しの試み。受け付けのループ（`loop_group` の `max_iterations: 3`）の出し直しとは別に数える。
+4 回目の直しを打たない。ここで数えるのは 1 つの会話の中の直しの試み。受け付けのループ（`loop_group` の `max_iterations: 3`）の出し直しとは別に数える。
+
+### 修正の役
+
+「義務の単位の行き先」に従い、試した 3 つのうち一番ましな直しを残して `changes` に載せ（根を塞げていなければ `root_or_symptom` を symptom にする）、試した 3 つの直し、それぞれがどこに新しい症状を出したか、構成を疑う理由を `rejudge_requested` に書く。義務の外の単位なら、同じ理由を `not_done` に書いて直しを打ち切ってよい。
 
 ## POLICY 人の決めたこと・方針とぶつかる
 
-自分の判断で通さない。修正役は「義務の単位の行き先」に従う: 直す義務の単位は、方針に反しない範囲の直しで閉じるならそれを `changes` に載せ、閉じないなら直さずに食い違いの申し出（`between` に方針の文書の行を含め、`which_is_right` は unknown・`kind` は `needs_context`）で人に回す。義務の外の単位なら `not_done` に書く。手直しは `declared` の `how` に書く。方針の文書は書き換えない（正本 [`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md) と、手直しの決まり [`workflows/fix/commands/fix-rules/refix.md`](../../workflows/fix/commands/fix-rules/refix.md) の読み替えと同じ）。
+自分の判断で通さない。方針の文書は書き換えない。
+
+### 修正の役
+
+「義務の単位の行き先」に従う: 直す義務の単位は、方針に反しない範囲の直しで閉じるならそれを `changes` に載せ、閉じないなら直さずに食い違いの申し出（`between` に方針の文書の行を含め、`which_is_right` は unknown・`kind` は `needs_context`）で人に回す。義務の外の単位なら `not_done` に書く。
+
+### 手直しの役
+
+`declared` の `how` に書く。
 
 ## COMMIT commit・push・PR・merge
 
-修正役は commit しない。`git add`・`git commit`・`git stash`・`git reset`・`git checkout` で作業ツリーや履歴を動かさず、差分は作業ツリーに残したまま返す（正本 [`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md) と同じ）。push・PR・merge は役の仕事ではない（メイングラフの後ろのサブグラフと承認ノードが持つ）。「commit の前に確かめる」は「返答を返す前に確かめる」と読む。
+役は commit しない。`git add`・`git commit`・`git stash`・`git reset`・`git checkout` で作業ツリーや履歴を動かさず、差分は作業ツリーに残したまま返す。push・PR・merge は役の仕事ではない（メイングラフの後ろのサブグラフと承認ノードが持つ）。「commit の前に確かめる」は「返答を返す前に確かめる」と読む。
 
 部品の型の「Commit your work」と worktree を作る指示はメイングラフが持つ。役は差分を作業ツリーに残して返す。
 
 ## SUITE 一式（project's suite・full suite）を回せと言われる
 
-役は一式を回さない。一式はメイングラフが渡す `test_cmd`（速い段）を機械が関門として回す。重い段・変異テストは CI だけが回す。役が回すのは、変えたファイルに当たる試験だけ（絞る手が無い時だけ、返答の直前に一式を 1 回だけ回す）。正本 [`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md) の一式の行と同じ行き先。
+役は一式を回さない。一式はメイングラフが渡す `test_cmd`（速い段）を機械が関門として回す。重い段・変異テストは CI だけが回す。役が回すのは、変えたファイルに当たる試験だけ（絞る手が無い時だけ、返答の直前に一式を 1 回だけ回す）。
 
 ## SP-REF `superpowers:` の名前での参照
 
@@ -50,7 +77,7 @@
 
 ## DISPATCH 下請けの AI を起こす・調整役として振る舞う
 
-スキルの文に従って下請けを起こさない。Agent を持つ役（素材集めの局所レビュー）が起こすのは、指示書が名指すレンズだけ。ほかの役の道具に Agent は無い。別の目の審査は、メイングラフの別のノード（差分の審査役など）が新しい会話で受け持つ。`requesting-code-review/code-reviewer.md` をテストの審査役の手引きに使うときは、`Subagent (general-purpose):` の枠と `description:` の行を読み飛ばし、`prompt: |` の中身だけを手引きとして読む。「DESCRIPTION」などの角括弧の埋め草は、engine が渡す材料で埋まる。
+スキルの文に従って下請けを起こさない。Agent を持つ役が起こすのは、指示書が名指す物だけ。別の目の審査は、メイングラフの別のノードが新しい会話で受け持つ。`requesting-code-review/code-reviewer.md` をテストの審査役の手引きに使うときは、`Subagent (general-purpose):` の枠と `description:` の行を読み飛ばし、`prompt: |` の中身だけを手引きとして読む。「DESCRIPTION」などの角括弧の埋め草は、engine が渡す材料で埋まる。
 
 ## DELEGATE エージェントの報告を信じない
 
@@ -58,11 +85,19 @@
 
 ## GIT-RANGE git で審査の範囲を取る・差分を出す
 
-審査役は Bash を持たない（`allowed_tools` は Read・Grep・Glob）。範囲の版と差分は engine が切ってファイルで渡すので、そのパスを Read する。`git worktree add` もしない。修正役は git で読む（`git diff`・`git log`・`git show`）のはよいが、HEAD・index・枝は動かさない（決まり COMMIT）。
+`git worktree add` はしない。Bash を持つ役は git で読む（`git diff`・`git log`・`git show`）のはよいが、HEAD・index・枝は動かさない（決まり COMMIT）。
+
+### 審査の役
+
+Bash を持たない（`allowed_tools` は Read・Grep・Glob）。範囲の版と差分は engine が切ってファイルで渡すので、そのパスを Read する。
 
 ## CRAWL 差分の外を読むな・変わったファイルを別に読むなと言われる
 
-部品の審査役の型（`task-reviewer-prompt.md`）の「Do not crawl the broader codebase」と「do not Read a changed file separately」は、役の指示書が読む義務を定める役には効かない。差分の審査役は、差分を起点に、変わったファイルの今の姿と、読む側・呼び元まで Read・Grep で読む（指示書の読む義務が勝つ）。指示書が読む義務を定めない役（修正役が起こす下請けの審査役）は型のとおり。
+部品の審査役の型（`task-reviewer-prompt.md`）の「Do not crawl the broader codebase」と「do not Read a changed file separately」は、役の指示書が読む義務を定める役には効かない（指示書の読む義務が勝つ）。指示書が読む義務を定めない役（下請けの審査役）は型のとおり。
+
+### 審査の役
+
+差分を起点に、変わったファイルの今の姿と、読む側・呼び元まで Read・Grep で読む。
 
 ## GITHUB GitHub のスレッドに返信する
 
@@ -70,11 +105,23 @@
 
 ## PUSHBACK 審査の指摘に反論する
 
-相手に話しかけない。反論は返答の欄に書く。差分の審査への手直しなら、穴の key ごとに `declared` と、`how` に技術的な理由を書く。修正役は「義務の単位の行き先」に従う: 直す義務の単位への反論は `rejudge_requested` に書き、その単位は `changes` に載せる。義務の外の単位なら `not_done` に書く。理由には確かめた事実（ファイルと行・走らせた試験）を書く。
+相手に話しかけない。反論は返答の欄に書く。理由には確かめた事実（ファイルと行・走らせた試験）を書く。
+
+### 手直しの役
+
+穴の key ごとに `declared` と、`how` に技術的な理由を書く。
+
+### 修正の役
+
+「義務の単位の行き先」に従う: 直す義務の単位への反論は `rejudge_requested` に書き、その単位は `changes` に載せる。義務の外の単位なら `not_done` に書く。
 
 ## QUOTE 人の言葉の引用・人との会話の例
 
-引用と例に込めた原則（分からない項目があれば実装を始めない・外の審査は確かめてから直す・要らない物は作らない・モックでなく本物の振る舞いを試す）はそのまま効く。会話の相手は居ないので、例の「聞き返す」は決まり ASK で読み替える。receiving-code-review の「From your human partner」は、works では判定役が出して受け付けが通した単位に当たり、「From External Reviewers」は差分の審査役の指摘に当たる。systematic-debugging の「your human partner's Signals」に当たるのは、受け付けが拒んだ理由のファイル（`reason_file`）。
+引用と例に込めた原則（分からない項目があれば実装を始めない・外の審査は確かめてから直す・要らない物は作らない・モックでなく本物の振る舞いを試す）はそのまま効く。会話の相手は居ないので、例の「聞き返す」は決まり ASK で読み替える。systematic-debugging の「your human partner's Signals」に当たるのは、受け付けが拒んだ理由のファイル（`reason_file`）。
+
+### 手直しの役
+
+receiving-code-review の「From your human partner」は、works では判定が出して受け付けが通した単位に当たり、「From External Reviewers」は差分の審査の指摘に当たる。
 
 ## OUTPUT 返答の形
 
