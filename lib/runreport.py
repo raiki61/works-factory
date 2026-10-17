@@ -372,7 +372,7 @@ def head_cost(facts: dict, why: str = "") -> list:
             *cost_rows(facts), *resubmit_rows(facts)]
 
 
-DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 判定の出力の欄 depth_record の先の groups／"
+DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 判定の出力の欄 depth_record の先（depth-head.json）の groups／"
                "実際の値 = $LOG_DIR/<run の id>.jsonl の行の execution.binding／"
                "結末 = メイングラフの出力 result の outcome・stop_reason")
 
