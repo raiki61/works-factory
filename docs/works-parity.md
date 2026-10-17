@@ -1480,7 +1480,7 @@
 - S195 run の worktree・枝・控えと、修正の段が切った単位の worktree・守りの参照（`refs/works/units/`）は自動で片付く
   - 元: SKILL.md:140
   - 印: 無し
-  - 今: `workflows/line/scripts/sweep_children.py::sweep`・`bin/_lib/childsweep.py::sweep`（fix の組の子の run の作業ツリーと枝を `complete --force` で消す）
+  - 今: `workflows/line/scripts/sweep_children.py::sweep`・`workflows/.shared/childsweep.py::sweep`（fix の組の子の run の作業ツリーと枝を `complete --force` で消す）
   - 状態: 形を変えて在る（自動で消すのは completed の組の子だけ。メイングラフの run の作業ツリーと枝は残り、Archon の `complete`・`isolation cleanup` で消す）
   - 処置: 要らない: Archon が作業ツリーの片付けを持ち（on-archon-only）、差分は置き場に残るので片付けの後も `bin/apply` で当たる（前の棚卸し M41）
   - 旧棚卸し: M41
@@ -1496,7 +1496,7 @@
 - S197 差分を書けなかった run と、走っている・承認ノードで待つ run は残す
   - 元: SKILL.md:140
   - 印: 無し
-  - 今: `bin/_lib/childsweep.py::select`（completed でない子と、fan_out・join が済んでいない子を残す）
+  - 今: `workflows/.shared/childsweep.py::select`（completed でない子と、fan_out・join が済んでいない子を残す）
   - 状態: 形を変えて在る（組の子の run の範囲だけ）
   - 処置: 要らない: S195 と同じ（Archon が作業ツリーの片付けを持つ。on-archon-only）
   - 旧棚卸し: 無し
@@ -2750,7 +2750,7 @@
 - U152 run の worktree から切った単位の worktree と守りの参照も先に片付ける
   - 元: use.sh:585-596
   - 印: `clean`
-  - 今: `workflows/line/scripts/sweep_children.py::main`・`bin/_lib/childsweep.py::sweep`（fix の並べの子の worktree と枝を run の終わりに消す）
+  - 今: `workflows/line/scripts/sweep_children.py::main`・`workflows/.shared/childsweep.py::sweep`（fix の並べの子の worktree と枝を run の終わりに消す）
   - 状態: 形を変えて在る（clean でなくメイングラフの後始末のノードが自動で）
   - 旧棚卸し: 無し
 
@@ -3681,7 +3681,7 @@
 - line.md L-D45: lib/judge_accept.py::diff_units・lib/judge_accept.py::rejudge_collect が再審の出口 rejudge-exit.json に書き、workflows/line/scripts/judged.py::compared と報告の lib/runreport.py::rejudge_opened・lib/runreport.py::rejudge_lowered は読むだけ（書いた時は報告が自分でも比べ直す 2 か所だった）
 - line.md L-D46: workflows/line/scripts/judged.py::compared の unread（報告への入口が無い）
 - line.md L-D47: lib/runreport.py::rejudge_opened・lib/runreport.py::next_request
-- line.md L-D48: workflows/line/scripts/judged.py::judged（rejudge_stop_reason を stop_reason で返す）→ 試験の関門（final）の when が `$judged.output.stop_reason == ''` を読む（部分 A で閉じ、部分 D1 で再審を 2 度目の修正の後に移したので fixed の held から試験の関門の when へ移した）
+- line.md L-D48: workflows/line/scripts/judged.py::judged（rejudge の出力の stop_reason を stop_reason で返す）→ 試験の関門（final）の when が `$judged.output.stop_reason == ''` を読む（部分 A で閉じ、部分 D1 で再審を 2 度目の修正の後に移したので fixed の held から試験の関門の when へ移した）
 - line.md L-D49: workflows/line/scripts/ask_final.py::needs・workflows/line/scripts/ask_final.py::left_objection
 - line.md L-D50: workflows/line/scripts/start.py::start、workflows/line/works-factory-line.yaml::judge・workflows/line/works-factory-line.yaml::plan・workflows/line/works-factory-line.yaml::rejudge-run・workflows/line/works-factory-line.yaml::replan
 - line.md L-D51: lib/carry.py::_prior_failures（start が parts を呼ぶ）（部分 A で閉じた）

@@ -494,24 +494,22 @@ def _ask_draft(q: dict, key: str) -> dict:
     return gatemarks._draft(key, "", f"{gatemarks.ASK_HEAD} {key} の選択肢", f"推しを判定の役が書いていない。選択肢から人が答えを text に書く: {opts}")
 
 
-SPEC_CHANGED_NOTE = ("機械は承認し直さない。変更を確かめ、承認し直すなら次の run で仕様の段（spec=on）を回して承認し、戻すならテストを承認の版に"
-                     "戻して直す依頼にする。採らないなら行を消す")
-
-
 def spec_changed_of(line: dict | None) -> list:
     """線の値の承認し直すかの問い（線の spec-check の questions。字の行だけ）"""
     return [q for q in _list(as_dict(line).get("spec_changed")) if isinstance(q, str) and q.strip()]
 
 
 def spec_unchecked_of(line: dict | None) -> bool:
-    """線の値の、受け入れ条件のテストが変わったかを照らせなかったか（線の spec-check の unchecked）"""
-    return as_dict(line).get("spec_unchecked") is True
+    """線の値の、受け入れ条件のテストが変わったかを照らせなかったか（線の spec-check の unchecked）。判らない時（spec_changed の行が在り、
+    値 spec_unchecked が False でない）も照らせなかった（source と注 note が照らせなかったと言う）側に倒す。変わったと言い過ぎない"""
+    line = as_dict(line)
+    return bool(spec_changed_of(line)) and line.get("spec_unchecked") is not False
 
 
 def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=(), spec_unchecked=False) -> list:
     """人の判断を待つ項目への答えの下書き [{question, text, draft, source, note?}]（元 gatemarks.answer_drafts）:
-    ⓪承認の後に受け入れ条件のテストが変わった問い（線の spec-check の questions）ごとに 1 行。照らせなかった（spec_unchecked）時は
-    source が「照らせなかった」と言う。機械は承認し直さない
+    ⓪承認の後に受け入れ条件のテストが変わった問い（線の spec-check の questions）ごとに 1 行。照らせなかった（判らない時も。spec_unchecked）時は
+    source と注 note が「照らせなかった」と言う。機械は承認し直さない
     ①無人の run で修正前の関所が通さなかった事前審査の問いと、人の居る run でも無人の run でも R4 が人に回した問い（元
     report.next_items の pending_human）ごとに 1 行。項目の文が修正案の狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手
     （推し recommend・狭めない案 no_narrow・世界の解 world）を使う
@@ -522,8 +520,8 @@ def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=(), spec
     asked = oc.eye_questions(returns)
     if gatepolicy.unattended_of(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
         asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
-    source = gatemarks.spec_words(spec_unchecked).source
-    out = [gatemarks._draft(q, "", source, SPEC_CHANGED_NOTE) for q in spec_changed if isinstance(q, str) and q.strip()]
+    words = gatemarks.spec_words(spec_unchecked)
+    out = [gatemarks._draft(q, "", words.source, words.note) for q in spec_changed if isinstance(q, str) and q.strip()]
     out += [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
     out += [_ask_draft(q, key) for q, key in ledger_state(returns, gates, start)["drafts"]]
