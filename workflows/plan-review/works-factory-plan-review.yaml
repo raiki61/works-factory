@@ -44,10 +44,10 @@ inputs:
     description: 修正案のポインタ（plan-fields.json）
   fix_plan:
     default: "null"
-    description: 修正案の役の返答のポインタ（p2.fix_plan.json。項目の並びと、人に聞く項目の決め手の欄）。修正案を審査する時は要り、null なら落ちる
+    description: 修正案のポインタ（先は項目の並びを 1 つの欄に持つ JSON の object。項目は人に聞く決め手の欄も持つ）。修正案を審査する時は要り、null なら落ちる
   plan_rejects:
     default: "[]"
-    description: 修正案の受け付けがこの周に拒んだ行の並び（{at, reason, kind?}。往復の行に残す）。空は拒否が無い
+    description: 拒否の行 {at, reason, kind?} の並び（往復の行に残す）。空は拒否が無い
   structure:
     required: true
     description: 構造の目の控えのポインタ（structure-state.json。設計の行は控えの design_file が指す）

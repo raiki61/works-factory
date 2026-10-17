@@ -34,7 +34,7 @@ inputs:
     description: 修正案のポインタ（plan-fields.json）。空は修正案の無い run
   fix_plan:
     default: "null"
-    description: 修正案の役の返答のポインタ（p2.fix_plan.json。承認済みの項目の unit_keys の出どころ）。置き場へ自分の名で写す。null は返答の無い run
+    description: 修正案のポインタ（先は項目の並びを 1 つの欄に持つ JSON の object。項目の unit_keys が承認済みの項目の出どころ）。置き場へ自分の名で写す。null は修正案の無い run
   ripple:
     default: ""
     description: 波及の一覧のポインタ
