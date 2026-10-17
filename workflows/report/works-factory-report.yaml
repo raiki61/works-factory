@@ -77,8 +77,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason, prev]
-            properties: {reason: {type: string}, prev: {type: string}}
+            required: [reason, prev, handoff]
+            properties: {reason: {type: string}, prev: {type: string}, handoff: {type: string}}
 
         - id: write
           command: report
@@ -108,13 +108,34 @@ nodes:
                     definition: {type: string, minLength: 1}
               handoff:
                 type: object
-                required: [read, decided, rejected, doubts]
                 additionalProperties: false
+                required: [read, decided, rejected, doubts]
                 properties:
-                  read: {type: array, items: {type: string}}
-                  decided: {type: array, items: {type: string}}
-                  rejected: {type: array, items: {type: string}}
-                  doubts: {type: array, items: {type: string}}
+                  read:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [path, lines, why]
+                      properties:
+                        path: {type: string, minLength: 1}
+                        lines: {type: string, minLength: 1}
+                        why: {type: string, minLength: 1}
+                  decided:
+                    type: array
+                    items: {type: string, minLength: 1}
+                  rejected:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [option, why]
+                      properties:
+                        option: {type: string, minLength: 1}
+                        why: {type: string, minLength: 1}
+                  doubts:
+                    type: array
+                    items: {type: string, minLength: 1}
 
         - id: cold-prep
           script: cold_prep

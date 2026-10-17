@@ -48,7 +48,9 @@ import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import green_cert  # noqa: E402
+import handoff  # noqa: E402
 import headdepth  # noqa: E402
+import jsonfile  # noqa: E402
 import judgeverify  # noqa: E402
 import marks  # noqa: E402
 import oneline  # noqa: E402
@@ -79,7 +81,7 @@ OUT_DIR = "report"                      # run の置き場の中の報告の置�
 UNWRITTEN = "report-unwritten.md"       # 報告を組めない時の機械の報告（fallback_report。facts の report.md を上書きしない名）
 AI_FILE = "ai.json"                     # 受け付けた書き手の返答と初見の判定（collect が読む）
 AI_REPORT_FILE = "report-ai.md"         # AI の報告（元 report_roles.REPORT_NAME）
-PREV_ANSWER_FILE = "prev-answer.json"   # 拒んだ回の書き手の本文と、周ごとの引き継ぎのメモ（次の周の書き手が読む）
+NOTE_ROUND = "r{n}"                     # 周ごとのフォルダ（拒んだ回の書き手の引き継ぎのメモを置く。n は輪の今の回 rolekit.attempt）
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
 # 初見の読み手（report.cold_check）の返答の型。型の正本は工程の cold の節の output_format で、これと同じかを試験が縛る
 COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
@@ -1753,37 +1755,58 @@ def _reject_count(out_dir: pathlib.Path) -> dict:
     return report_roles.count_rejects([{**r, "node": REPORT_NODE} for r in rows])
 
 
-def _keep_rejected(out_dir: pathlib.Path, reply: dict, refused: dict) -> dict:
+def _give_up(refused: dict, what: str) -> dict:
+    """拒否 refused に、前の周の引き継ぎのメモを次の周へ渡せない訳 what を足し、1 回目で諦めさせる（give_up。出し直させても直らない）"""
+    return {**refused, "give_up": True, "reason": f"{refused['reason']}\n{what}"}
+
+
+def _carry_rejected(out_dir: pathlib.Path, reply: dict, refused: dict) -> dict:
+    """拒んだ回の返答を次の周の書き手へ渡せる形に置く。本文 text・terms は rolekit の前の答えの控え candidate_path に、引き継ぎのメモは
+    周のフォルダ NOTE_ROUND の handoff.save に置く（返答の handoff が無ければ周のフォルダを作らない）。本文が文字列でない・空白だけの回は
+    何も置かずに拒否を返す。前の周のメモが読めなければ、何も置かずに諦めさせる。控えに書けなければ同じく諦めさせる"""
     text = reply.get("text")
     if not isinstance(text, str) or not text.strip():
         return refused
-    path = out_dir / PREV_ANSWER_FILE
-    stuck = None
-    try:
-        old = fixboard.read_json(path, {"handoffs": []})   # 無い時の既定を None にしない（中身が null の控えを『在るのに使えない』に入れる）
-        if not isinstance(old, dict):
-            stuck = "が JSON のオブジェクトでない"
-        elif not isinstance(old.get("handoffs"), list):
-            stuck = "の handoffs が並びでない"
-        else:
-            handoffs = old["handoffs"] + ([reply["handoff"]] if isinstance(reply.get("handoff"), dict) else [])
-            carry.write(path, {"text": text, "terms": _list(reply.get("terms")), "handoffs": handoffs})
-    except ValueError as e:
-        stuck = f"が読めない（{type(e).__name__}）"
-    except OSError as e:
-        stuck = f"に書けない（{type(e).__name__}）"
-    if stuck is None:
+    n, unusable = rolekit.current_round(out_dir, REPORT_NODE)
+    if unusable:
         return refused
-    return {**refused, "give_up": True,
-            "reason": f"{refused['reason']}\n前の答えの控え {path} {stuck}ので、前の周の引き継ぎのメモを次の周へ渡せない"}
+    broken = handoff.unreadable(_prior_rounds(out_dir, n))
+    if broken:
+        return _give_up(refused, f"前の周の引き継ぎのメモ {'・'.join(str(p) for p in broken)} が読めないので、次の周へ渡せない")
+    candidate = rolekit.candidate_path(out_dir, REPORT_NODE)
+    note = reply.get(handoff.FIELD)
+    folder = out_dir / NOTE_ROUND.format(n=n)
+    where = candidate
+    try:
+        jsonfile.write(candidate, {"text": text, "terms": _list(reply.get("terms"))}, indent=2)
+        where = handoff.path_of(folder)
+        handoff.save(folder, note if isinstance(note, dict) else None)
+    except OSError as e:
+        return _give_up(refused, f"前の答えの控え {where} に書けない（{type(e).__name__}）ので、前の周の引き継ぎのメモを次の周へ渡せない")
+    return refused
+
+
+def _prior_rounds(out_dir: pathlib.Path, n: int) -> list:
+    """輪の今の回 n（rolekit.attempt）の前までの周のフォルダ（古い順。フォルダがまだ無い周も含む）"""
+    return [out_dir / NOTE_ROUND.format(n=i) for i in range(1, n)]
+
+
+def handoff_part(out_dir) -> str:
+    """輪の頭の節が書き手の指示書に差し込む字: 引き継ぎのメモを書けという頼み handoff.ASK と、今の周の前までの周ごとのメモの節
+    （handoff.section）。今の回は rolekit.current_round で、拒否の控えが読めない時（回 0）は前の周を名指さず頼みだけ返す"""
+    out_dir = pathlib.Path(out_dir)
+    n, _ = rolekit.current_round(out_dir, REPORT_NODE)
+    return "\n\n".join(x for x in (handoff.ASK, handoff.section(_prior_rounds(out_dir, n))) if x)
 
 
 def accept(reply, cold, *, out_dir) -> dict:
     """書き手の返答を受け付ける（元 report_roles.accept を、盤面の代わりに out_dir の控えで書き直した物）。{done, ok, reason, kind,
-    reason_file, prev_file}。拒んだ回の返答の本文 text・terms と、返答の handoff（読んだ所・決めた訳・退けた案・迷い）を周の順に積んだ
-    並び handoffs は、前の答えの控え PREV_ANSWER_FILE に書き、まだ諦めていない拒否の回の prev_file がそのパスを指す（受け取った回・
-    諦めた回・控えの無い回は空の字）。handoff は AI_FILE にも初見の読み手に貼る本文（cold_body）にも載らない。控えが読めない・書けない
-    時は上書きせず、take の拒否に give_up を付けて口に止めさせる。受け付けの回は rolekit.accept_round（out_dir、節 REPORT_NODE）が持つ。順: 読む（読めない返答・本文の無い返答は kind answer）
+    reason_file, prev_file}。拒んだ回の返答の本文 text・terms は、rolekit の前の答えの控え rolekit.candidate_path(out_dir, REPORT_NODE)
+    に書き、まだ諦めていない拒否の回の prev_file がそのパスを指す（受け取った回・諦めた回・控えの無い回は空の字）。返答の handoff（読んだ所・
+    決めた訳・退けた案・迷い）は、その回の周のフォルダ out_dir/NOTE_ROUND（n は輪の今の回）に handoff.save で置く（handoff の無い回は
+    フォルダを作らない）。handoff は AI_FILE にも初見の読み手に貼る本文（cold_body）にも載らない。前の周のメモが読めない時、
+    前の答えの控えに書けない時は、何も上書きせずに take の拒否に give_up を付けて口に 1 回目で止めさせる。受け付けの回は rolekit.accept_round
+    （out_dir、節 REPORT_NODE）が持つ。順: 読む（読めない返答・本文の無い返答は kind answer）
     → terms の型 → 表のセルの書式 → 機械の報告の冒頭の HEAD_NOTES の句が頭に在るか → 初見の読み手の判定。通らなければ口が拒否の行
     （kind つき）を rolekit の控え rejects-report.json に積み、reason_file は拒否の全部の rejects-report.md（rolekit.reject_file）。
     拒否が rolekit.GIVE_UP_AFTER 回に達した時か、控え rejects-report.json が読めない・書けない時は、口の後の 1 か所で AI_FILE に
@@ -1818,7 +1841,7 @@ def accept(reply, cold, *, out_dir) -> dict:
 
     def kept(got: dict) -> dict:
         out = take(got)
-        return out if out.get("ok") is True else _keep_rejected(out_dir, got, out)
+        return out if out.get("ok") is True else _carry_rejected(out_dir, got, out)
 
     out = rolekit.accept_round(out_dir, REPORT_NODE, reply, kept, reject=lambda why: _refused(why, "answer"))
     if out["ok"]:
@@ -1832,7 +1855,7 @@ def accept(reply, cold, *, out_dir) -> dict:
             why = ""
         carry.write(out_dir / AI_FILE, {"accepted": False, "reason": why or out["reason"], "cold": c,
                                         "rejects": _reject_count(out_dir)})
-    answer = out_dir / PREV_ANSWER_FILE
+    answer = rolekit.candidate_path(out_dir, REPORT_NODE)
     return {"done": out["done"], "ok": False, "reason": out["reason"], "kind": out.get("kind") or "answer",
             "reason_file": rolekit.reject_file_or_blank(out_dir, REPORT_NODE),
             "prev_file": str(answer) if not out["done"] and answer.is_file() else ""}
