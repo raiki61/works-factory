@@ -2,7 +2,8 @@
 
 - ScriptMainCase: 役の返答の読み（parse_reply）
 - PointedLangLineCase: 始めの記録の指し札の字から言語の 1 行（pointed_lang_line。読めなくても落ちない）
-- GivenUpCase: 回数で諦めた時と出し直させずに諦めた時の 1 行の文（with_done・given_up_reason。回数は GIVE_UP_AFTER の 1 つ）
+- GivenUpCase: 回数で諦めた時と出し直させずに諦めた時の 1 行の文（with_done・given_up_reason。回数は GIVE_UP_AFTER か、方針 net の
+  受け付けの網 NET_AFTER。網の受け付けは 3 回の拒否で諦めず、網に届けば NET_WHY を添える）
 - RejectWordsCase: 役に返る拒みの文に古い「done し直す」を残さない
 - RejectLedgerCase: 拒否の控え rejects-<名>.json の今の回（attempt）と、拒否の全部のファイル（reject_file）
 - AcceptRoundCase: 受け付けの回の口 accept_round（読む・take・積む・上限で諦める・count: false と kind・控えの誤りは done 真の拒否）、
@@ -68,6 +69,23 @@ class GivenUpCase(Base):
         out = rolekit.with_done(self.tmp, "b", {"ok": False, "reason": "無い"}, give_up=True)
         self.assertTrue(out["done"])
         self.assertEqual(rolekit.given_up_reason(self.tmp, "b"), "b の返答を受け付けが出し直させずに諦めた（拒否: 無い）")
+
+
+    def test_net_gives_up_only_at_the_net(self):
+        """方針 net の拒否は GIVE_UP_AFTER 回では done にならず、控えの行に after: NET_AFTER を残す。given_up_reason は行の after で
+        諦めを判じ（3 件の拒否の後は諦めと読まない）、NET_AFTER 回目の拒否で done になった時だけ NET_WHY を添えた諦めの文を返す"""
+        for n in range(1, rolekit.NET_AFTER + 1):
+            got = rolekit.with_done(self.tmp, "n", {"ok": False, "reason": f"拒否 {n}"}, net=True)
+            self.assertEqual(got["done"], n == rolekit.NET_AFTER, n)
+            if n == rolekit.GIVE_UP_AFTER:
+                self.assertEqual(rolekit.given_up_reason(self.tmp, "n"), "")
+        rows = json.loads(rolekit.rejects_path(self.tmp, "n").read_text(encoding="utf-8"))
+        self.assertEqual({r["after"] for r in rows}, {rolekit.NET_AFTER})
+        why = rolekit.given_up_reason(self.tmp, "n")
+        self.assertIn(f"n の返答が {rolekit.NET_AFTER} 回とも受け付けで拒まれた（最後の拒否: 拒否 {rolekit.NET_AFTER}）", why)
+        self.assertTrue(why.endswith(rolekit.NET_WHY.format(n=rolekit.NET_AFTER)), why)
+        got = rolekit.accept_round(self.tmp, "m", None, lambda _: {"ok": False, "reason": "欠け"}, net=True)
+        self.assertFalse(got["done"])
 
 
 class RejectWordsCase(unittest.TestCase):

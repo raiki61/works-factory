@@ -1722,7 +1722,8 @@ class DeltaSeamCase(TempCase):
         raised("食い違いの控えが読めない")
 
     def test_redepth_raises_on_the_late_signals(self):
-        """修正の後に上げる 3 つの信号（頭の深さの引用した where の外の差分・TDD のループでの修正役の拒否・範囲の相談）で、頭が軽量で
+        """修正の後に上げる 4 つの信号（頭の深さの引用した where の外の差分・TDD のループでの修正役の拒否・範囲の相談・直さずに残した
+        事前審査の block）で、頭が軽量で
         単位が全部軽量の置き場も省く理由を空にして標準へ上げる。TDD の輪の状態が読めない時も線の redepth と同じく上げる。
         runner の call だけ・テストのファイルだけが外に出た時・関所の条件の相談だけの時・引用の無い控えは上げずに省く"""
         import conflict
@@ -1789,6 +1790,15 @@ class DeltaSeamCase(TempCase):
         (self.place / "trace.jsonl").unlink()
         fixboard.trace(self.place, conflict.ASKED_OP, item=1, unit_keys=["a"], origin=None)
         raised("修正役が範囲の相談をした", "a")
+        (self.place / "trace.jsonl").unlink()
+        kept()
+        # (4) 修正役が直さずに残すと答えた事前審査の block（軽量で差分の審査と R4 を省くと、その block が誰にも届かない）
+        fixboard.write_json(self.place / fixboard.PLAN_REVIEW_FILE, {"faces": [
+            {"key": "b1", "severity": "block", "why": "古い説明文が残る"}, {"key": "s1", "severity": "suggest", "why": "名が長い"}]})
+        fixboard.write_json(self.place / fixboard.FIX_REPLY_FILE, {"plan_faces": [{"key": "s1", "handled": "declared", "how": "残す"}]})
+        kept()   # 残したのが suggest だけなら上げない
+        fixboard.write_json(self.place / fixboard.FIX_REPLY_FILE, {"plan_faces": [{"key": "b1", "handled": "declared", "how": "別の issue"}]})
+        raised("直さずに残すと答えた事前審査の block が在る", "b1")
 
     def test_refix_prompt_names_the_policy_and_ends_with_the_language_line(self):
         """手直しの役の指示書の並び: 1 行目の機械の頭 → 前の回の拒否の 1 行 → 始めの記録の 2 行 → 役の頭（人の方針の文書の置き場を

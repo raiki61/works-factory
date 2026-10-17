@@ -307,9 +307,9 @@
 - P134〔試〕案の直しの役も 3 回拒まれたら諦めて ready: false（諦めは run を止めず、後の段が読む）
   - 元: works/.shared/core/replan.py:544 `accept_reply`（GIVE_UP_AFTER）・:625 `gate`（PLAN_GAVE_UP_WHY で項目を諦める）
   - 今: 表
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_three_rejections_give_up_without_amending（#120 で足した。消すと赤: 形 replan の輪が 3 回で諦めないと赤）
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_net_rejections_give_up_without_amending（#120 で足した。消すと赤: 形 replan の輪が網の回で諦めないと赤）
   - 本物の run: 筋書きでのみ
-  - 狭め: 下の P142（諦めた項目を人への行に載せる）を参照
+  - 狭め: 下の P142（諦めた項目を人への行に載せる）を参照。#662 で計画と事前審査の受け付けの諦めを、回数（3 回）から届かない大きさの網 NET_AFTER（20 回。届けば工場の不具合）に替えた（持ち主の決め slim と #662）
 - P135〔無〕案の直しの役が読んだ証拠（reads-replan-<役>.json の索引。1 回目の reads-plan-block.json を上書きしない）
   - 元: works/.shared/core/replan.py:114 `READS_INDEX`・:115 `READS_PREFIX`、works/tests/test_replan.py:650
   - 今: 表
@@ -337,7 +337,7 @@
 - P142〔試〕案の直しを終えられなかった項目（計画の役の諦め・事前審査の諦め・関所の答えが無い）は、項目ごとに諦めの訳をつけ、裁定の文を字のまま人への行（最後の関所と次の run の依頼）に載せる。ほかの項目は採れる
   - 元: works/.shared/core/replan.py:625 `gate`・:583 `_give_up`（PLAN_GAVE_UP_WHY・REVIEW_GAVE_UP_WHY・NO_GATE_WHY）・:256 `_sync_closed`、works/tests/test_replan.py:1032 `test_gave_up_paths_reach_ask_human_verbatim`
   - 今: 表
-  - 証: tests/workflows/test_report.py::ReplanGiveUpCase.test_gave_up_replan_names_ruling_text_and_reason（ほか tests/workflows/test_plan.py::ReplanCase.test_three_rejections_give_up_without_amending・tests/workflows/test_plan_review.py::ReplanCase.test_replan_review_gave_up_names_each_item）（#120 で足した。消すと赤: prior_failures が項目ごとの行を足さないと赤）
+  - 証: tests/workflows/test_report.py::ReplanGiveUpCase.test_gave_up_replan_names_ruling_text_and_reason（ほか tests/workflows/test_plan.py::ReplanCase.test_net_rejections_give_up_without_amending・tests/workflows/test_plan_review.py::ReplanCase.test_replan_review_gave_up_names_each_item）（#120 で足した。消すと赤: prior_failures が項目ごとの行を足さないと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: #75・#74 に記載無し。項目ごとに採る/諦めるは Archon で不可でない → 持ち主へ（全部か無しかに倒したかの確認） 決め: 人の答えは今の works と同じく 1 つの語（works/.shared/core/replan.py:699-744）。機械の側の項目ごとの諦めは戻すと決めた。区分 P の issue（線の配線の文書の「この文書の外」の「決めた物」）
 - P169〔試〕独立設計の返答は JSON として読み、役の型（YAML の役の節の output_format を差し込みの頭が控えた物）で照らす。読めない・型に合わない返答は拒む

@@ -1,13 +1,15 @@
 """事前審査の壁打ち（依頼 231）の決まりと往復の控え。
 
 事前審査（p2.plan_review）が修正案に block（直しへ進めない穴）を挙げたら、同じ会話の修正案の役に返して案を直させ、
-直した案を新しい会話の事前審査に掛け直す。block の無い案だけが直しへ進む。同じ block が残れば（前のどの往復かの block と
-重なれば）直しへ進まずに人の関所で止まる。止め時は decide（その docstring が正本）。往復の数を数える定数は持たない
-（輪が回せる往復の静的な上限は呼び手が record_pass の at_cap で渡す）。
+直した案を新しい会話の事前審査に掛け直す。block には審査が中央（CENTRAL。直さずに修正へ進むと直しが壊れる・今ある振る舞いを
+失う・方針に背く・やり直しを迫る）か端（PERIPHERAL）かの札 REACH を付ける。2 往復目から、開いた block に中央が無くなれば、端の
+block を修正の段へ申し送って直しへ進む（SETTLED）。中央の block が前のどの往復かの block と重なれば直しへ進まずに人の関所で止まる。
+止め時は decide（その docstring が正本）。往復の数・block の数で止める決まりは持たない（輪が回せる往復の静的な上限は呼び手が
+record_pass の at_cap で渡す、届かない大きさの網。届けば工場の不具合として止める）。
 
 控えは盤面の今の周の作業ファイル plan-converge.json（読み書きはこの口だけ）:
 {"round": n, "passes": [往復の行], "outcome": 語 | None, "open": {"answers": [...]}}
-往復の行: {"pass": k, "blocks": [key], "faces": [{key, kind, where, why}], "suggests": [key],
+往復の行: {"pass": k, "blocks": [key], "faces": [{key, kind, where, why, reach?}], "suggests": [key],
           "answers": [{key, handled, how}], "resolved": [key], "persists": [key], "outcome": 語,
           "origins": {key: 出自の語}, "origins_claimed": [採らなかった申告の行],
           "files": {名: 写した先}, "rejects": [{role, at, reason}（その往復の計画と事前審査の拒否の行。stash_rejects）]}
@@ -16,8 +18,9 @@
 k 往復目の行の answers と resolved は、k-1 往復目の答えの要る穴（block と開いた項目の suggest。owed_faces）への修正案の役の答えと、
 直した案を読んだ審査の言い分。
 origins は 2 往復目からの新しい block（前のどの往復の block の key とも違う物）ごとの出自で、審査の申告を控えの事実（項目の行の
-hash・前の往復の項目の id・resolved）で照らして機械が決めた語（ORIGIN_MISSED・ORIGIN_INTRODUCED・ORIGIN_REPHRASED・
-ORIGIN_UNSPLIT）。lines の頭の行の数は origins だけから数え、採らなかった申告（origins_claimed）は数えない。見落としを数えるのは
+hash・前の往復の項目の id・resolved と、変わった項目の中では申告の引用が当たる文（変わっていない文か足した文か））で照らして
+機械が決めた語（ORIGIN_MISSED・ORIGIN_INTRODUCED・ORIGIN_REPHRASED・ORIGIN_UNSPLIT。決まりは _origins）。lines の頭の行の数は
+origins だけから数え、採らなかった申告（origins_claimed）は数えない。見落としを数えるのは
 後の往復が審査した所だけで、閉じて後の往復が見ない項目の取りこぼしは数に出ない（1 回目に出た割合はその上限）。run の後で
 見つかった穴は割合に入らない。
 
@@ -25,12 +28,17 @@ ORIGIN_UNSPLIT）。lines の頭の行の数は origins だけから数え、採
 "plan"（[{id, unit_keys, hash}]。id は unit_keys の組・hash は名前に戻した項目の行の sha256）に置くと、往復の行に
 "items"（[{n, id, unit_keys, hash, state, blocks, reopened}]）・"synergy"（相乗りの審査が挙げた key）・"face_units"
 （{key: unit_keys}）が付く。face は unit_keys が重なる項目の物（どの項目とも重ならない face は審査した全部の項目の物）。
-項目の state: block の無い項目は CLOSED（次の往復で審査も直しもしない）・block が前のどれかの往復の block と重なれば HELD
-（保留。後の往復でも保留）・ほかは OPEN。閉じた項目は block に名指されれば開き直す（相乗りの審査の道）。抜け方は全部の項目が
-閉じれば CLEAN、ほかは decide の決まりを開いた項目の block で読む（docstring が正本）。
+項目の state: block の無い項目は CLOSED（次の往復で審査も直しもしない）・中央の block が前のどれかの往復の block と重なれば
+HELD（保留。後の往復でも保留）・ほかは OPEN（端の block が続いても開いたまま）。閉じた項目は block に名指されれば開き直す
+（相乗りの審査の道）。抜け方は全部の項目が閉じれば CLEAN、ほかは decide の決まりを開いた項目の block で読む（docstring が正本）。
 note_plan の無い控え（行に items が無い）は今までどおり全体で 1 つ。
 
-- block_faces(review)・decide(passes): block の face と、続けるか止めるかの語（CLEAN・AGAIN・PERSISTED・UNSETTLED）
+- block_faces(review)・decide(passes)・proceeds(outcome): block の face と、続けるか止めるかの語（CLEAN・SETTLED・AGAIN・PERSISTED・
+  UNSETTLED）と、その語で直しへ進むか
+- REACH・CENTRAL・PERIPHERAL・REACH_SCHEMA・central(face)・central_keys(passes, keys): 穴の中央・端の札の欄と値と型（役の型の
+  faces の reach はこの写し）、札の読み（札の無い face と faces の無い古い行は中央と読む）
+- sentences(row)・sentence_diff(old, new): 項目の行を (場所, 文) の組に分ける口と、前後の行の組の差（消した・足した・残った）。
+  後の回の審査の材料の差分（planblk）と、新しい block の出自の文の照らし（_origins）が同じ組を引く
 - read(b)・pass_no(b)・note_answers(b, answers)・record_pass(b, review, ...)・stash_rejects(b, rows)・held(doc):
   控えの読み書き
 - held・filled_units・splice・answer_gaps・revise_section は盤面でなく控え（read の形の dict）を取る（盤面を持つ呼び手は
@@ -46,7 +54,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - owed_faces(doc, p): 往復の行 p の、次の往復で答えと照らしが要る穴（block と、開いた項目に付いた suggest）。項目の在る控えでは
   今の開いた項目の分だけ。この絞りの住処はここ 1 つ（止め時は decide）
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（owed_faces の
-  穴の分）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
+  穴の分。resolved_gaps は relabel_gaps〔中央の block を訳なしで端に付け替えた行〕も持つ。下請けの答えの受け付けも引く）。fixed_unchanged(doc, rows, answers): fixed と答えて block の項目を変えていない答え
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
   対応表）・出自 ORIGINS・一番上の止まった時の推し STUCK_PUSH は tree_split が外す。下請けの答えのファイルの当たりの答えの型は
   HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
@@ -54,8 +62,9 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - stuck_keys(doc)・uncited(note, doc)・stuck_faces(doc): 止まった壁打ちの止めた block の key（stuck_reason も同じ式）・止まった時の
   推しの note が引いていない key と『項目 n』・保留の項目の前の往復の block を review.json の faces に足す行（印 HELD_MARK つき。
   block_faces は審査の挙げた block に数えない）
-- carried_refs(b, opened): 今の往復が見ない項目が前の往復の答えの対応表（DESIGN_MAP）で受けた独立設計の要素の id（往復の行の items の refs。
-  要素の網羅は全部の項目の答えを合わせて数える）
+- carried_refs(b, opened)・last_refs(b, n): 今の往復が見ない項目が前の往復の答えの対応表（DESIGN_MAP）で受けた独立設計の要素の id
+  （往復の行の items の refs。要素の網羅は全部の項目の答えを合わせて数える）と、項目 n を最後に審査した往復の refs（2 往復目からの
+  開いた項目は変わっていない files の鍵の行を書き直さないので、前の往復の要素を引き継ぐ）
 - item_blocks(b, n): 項目 n が答える前の往復の答えの要る穴の key（求める側。受け付けが下請けの答えの resolved か同じ key の face を求める）
 - resolvable_keys(doc, n=None)・stray_resolved(doc, resolved, n=None): resolved に書いてよい key の集合（どの往復かの block と suggest の
   key。n で項目 n の範囲に絞る）の唯一の持ち主と、それに無い key の拒否の行（resolved_gaps と下請けの答えの受け付けが引く）
@@ -67,8 +76,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   前の往復の block を審査が suggest に下げた key も名指し、disputed と答えた穴の key と根拠を 1 行ずつ後ろに足す）
 
 役の型に欄を足す・返答から外す手順は住処 marks（種 converge）に任せる。外した欄は足し欄の控えでなく、この往復の控えに置く。
-盤面の b のうち round・dir・work・trace だけを使い、標準ライブラリと住処 marks（L1）だけを import する（gatemarks がこのモジュールを
-読み、entry が gatemarks を読むので、entry・rolekit・gatemarks を import すると輪になる）。
+盤面の b のうち round・dir・work・trace だけを使い、標準ライブラリと住処 marks・promptsection・cite（L1）だけを import する
+（gatemarks がこのモジュールを読み、entry が gatemarks を読むので、entry・rolekit・gatemarks を import すると輪になる）。
 """
 from __future__ import annotations
 
@@ -79,6 +88,7 @@ import os
 import re
 import shutil
 
+import cite
 import marks
 import promptsection
 
@@ -87,6 +97,7 @@ PASS_DIR = "plan-converge"
 OP = "plan_converge"
 DROPPED_OP = "plan_converge_dropped"
 CLEAN = "clean"   # 抜け方の語（控えの outcome）
+SETTLED = "settled"
 AGAIN = "again"
 PERSISTED = "persisted"
 UNSETTLED = "unsettled"
@@ -98,29 +109,39 @@ ANSWERS = "block_answers"
 RESOLVED = "resolved"
 HANDLED = ("fixed", "disputed")
 FACE_KEYS = ("key", "kind", "where", "why")
+# 穴の中央・端の札（block の face の欄 REACH。役の型の faces の reach はこの写し）。中央の値は、直さずに修正へ進むと当たる害の
+# 定義の名（直しが壊れる・今ある振る舞いを失う・記録された方針に背く・やり直しを迫る設計の選び）。端はどれにも当たらない穴
+# （古い説明文の取り残し・書き換えの一覧の漏れ・試験の材料）で、修正の段で修正役が答え、直さずに残せば直しの後の目の R4 に
+# 申し送られる（fixboard.declared_lines）。定義と訳は docs/design.md
+REACH = "reach"
+CENTRAL = ("breaks_fix", "loses_behavior", "against_policy", "forces_redesign")
+PERIPHERAL = "peripheral"
+REACH_SCHEMA = {"type": "string", "enum": [*CENTRAL, PERIPHERAL]}
 
 REVISE_ASK = ("事前審査（別の目）が、修正案に下の block（直しへ進めない穴）を挙げた。block ごとに、案を直したなら handled に fixed、"
               "how に直した所を、直さずに異を唱えるなら handled に disputed、how に根拠を、block_answers に 1 行ずつ書け（key は下の key を"
               "一字も変えずに写す）。そのうえで変えた項目の行だけを plan に返せ（前の案と同じ型の行。閉じた項目は書くな。変えない開いた項目と"
               "保留の項目も書かなくてよく、機械が前の往復の行を差し込む。fixed と答えた block の項目は変えた行を返せ）。下の答えの要る suggest（開いた項目に付いた物）にも、block と同じく key ごとに"
               " block_answers に 1 行書け。suggest は止め時には数えない。直した案は新しい会話の事前審査に掛かり、"
-              "同じ block が残るか、開いた block の数が前の往復より減らなければ直しへ進まずに承認ノードで止まる。")
-REREVIEW_ASK = ("下は前の往復で挙がった block と答えの要る suggest と、修正案の役の答え（fixed＝直した・disputed＝異を唱えた）。今の案を読み、"
-                "前の block と答えの要る suggest の key ごとに、穴が消えたなら resolved にその key を入れ、残っていれば同じ key のまま faces に"
-                "挙げ直せ（block の見出しの物は severity block、答えの要る suggest の見出しの物は severity suggest のままで、block に上げない。"
-                "同じ穴に別の key を付けない。key は一字も変えずに写す）。新しい穴は新しい key で挙げよ。前の block が 1 つでも block のまま"
-                "残ると、案は直しへ進まず承認ノードで止まる（suggest は止め時に数えない）。")
+              "中央（reach が peripheral でない）の block が残れば直しへ進まずに承認ノードで止まる。開いた block が端（peripheral）"
+              "だけになれば直しへ進み、端の block は修正の段へ申し送られる。")
+REREVIEW_ASK = ("下は前の往復で挙がった block と答えの要る suggest と、修正案の役の答え（fixed＝直した・disputed＝異を唱えた）。下の差分と"
+                "波及の一覧を読み、前の block と答えの要る suggest の key ごとに、穴が消えたなら resolved にその key を入れ、残っていれば同じ key"
+                "のまま faces に挙げ直せ（block の見出しの物は severity block、答えの要る suggest の見出しの物は severity suggest のままで、"
+                "block に上げない。reach も前の往復と同じ値にする。前に中央の値だった block を peripheral に付け替えるなら、why の頭の 1 文に、"
+                "前の定義に当たらなくなった訳を書け。同じ穴に別の key を付けない。key は一字も変えずに写す）。新しい穴は新しい key で挙げよ。"
+                "前の中央の block が 1 つでも残ると、案は直しへ進まず承認ノードで止まる（peripheral の block と suggest は止め時に数えない）。")
 ORIGIN_ASK = ("今の往復で新しく挙げた block（前のどの往復の block の key とも違う物）が在れば、origins に 1 件ずつ {key, origin} で"
               "出自を書け。origin は missed（前に審査した案の行に既に在ったのに、前の審査が見落とした穴）・introduced（直しが"
               "持ち込んだ穴）・rephrased（前の block の言い換え。of に言い換えた前の block の key を書き、その key は resolved に"
-              "入れる）のどれか。分けられない時と、前の block を挙げ直すだけの時は書かない。")
+              "入れる）のどれか。quote に、穴が指す案の文を 1 つ字のまま引け（差分の行の場所と - / + の印は除き、文の字だけ。"
+              "『〜が案に無い』のような欠けの穴は空にする）。分けられない時と、前の block を挙げ直すだけの時は書かない。")
 PERSISTED_WHY = ("事前審査（記録の名 p2.plan_review）の同じ block が、案を直した後も残った（{keys}。壁打ち {n} 往復。"
                  "往復ごとの案と審査: {path}）")
 UNSETTLED_WHY = ("事前審査（記録の名 p2.plan_review）の block が、壁打ち {n} 往復でも消えない（往復ごとに別の穴が出た。"
                  "最後の block: {keys}。往復ごとの案と審査: {path}）")
-COUNTS_WHY = "開いた block の数: {counts}（前の往復より減らなかった）"
-CAP_WHY = ("壁打ちのループの安全の上限 {n} 往復に届いた（減り続ける往復は普通は届かないので、仕組みの異常として止めた）。"
-           "開いた block は減り続けていた（往復ごとの開いた数: {counts}）")
+CAP_WHY = ("壁打ちのループの安全の上限 {n} 往復に届いた（中央の新しい穴が出続ける往復は普通は届かないので、工場の不具合として"
+           "止めた）。往復ごとの開いた数: {counts}")
 LINE_HEAD = ("事前審査の壁打ち: {n} 往復・抜け方は{word}（記録の名 {outcome}）・続いた block: {persists}・{share}"
              "（往復ごとの案と審査: {path}）")
 # 1 回目の割合の分母に言い換えを入れないのは、言い換えが 1 回目の block の言い直しで新しい穴でないから。持ち込みを 1 回目の割合の
@@ -130,7 +151,7 @@ LINE_SHARE = ("1 回目の block {first} 件・後の回の新しい block: 見�
               "数えない上限。run の後で見つかった穴は割合に入らない）、止めた全部のうちでは {total}")
 LINE_NO_BLOCK = "止めた block なし"
 LINE_PASS = ("  - {k} 往復目: block {keys}・答えの要る穴（block と suggest）への答え fixed {f} 件・disputed {d} 件・審査が消えたと言った key {resolved}"
-             "・審査が suggest に下げた key {down}")
+             "・審査が suggest か peripheral に下げた key {down}")
 CLOSED_ASK = "下の項目は前の往復で事前審査が block を挙げずに閉じた。plan に書くな（機械が前の往復の行のまま差し込む）:"
 NOTES_HEAD = ("参考: 答えの要らない suggest の穴（閉じた・保留の項目に付いた物と、審査が消えたと言った物。答えなくてよく、採っても"
               "採らなくてもよい。項目を開き直さない。修正の段にも事前審査の返答として渡る）:")
@@ -138,7 +159,8 @@ HELD_NOTE = "下の項目は同じ block が続いたので保留にした（直
 ITEMS_WHY = "固まった項目: {closed}。保留の項目: {held}。開いたままの項目: {open}"
 LINE_DISPUTED = "    退けた答え {key}: {how}"
 LINE_ITEMS = "    項目: 閉じた {closed}・開いた {open}・保留 {held}・相乗りの審査の block {synergy}"
-WORDS = {CLEAN: "block が消えた", PERSISTED: "同じ block が続いた", UNSETTLED: "開いた block が残ったまま止めた", AGAIN: "途中"}
+WORDS = {CLEAN: "block が消えた", SETTLED: "中央の穴が無くなった（端の block を申し送った）", PERSISTED: "同じ block が続いた",
+         UNSETTLED: "開いた block が残ったまま止めた", AGAIN: "途中"}
 NONE = "無い"
 
 ANSWER_SCHEMA = {"type": "array", "items": {
@@ -183,10 +205,11 @@ ORIGIN_REPHRASED = "rephrased"
 ORIGIN_UNSPLIT = "unsplit"
 ORIGIN_WORDS = (ORIGIN_MISSED, ORIGIN_INTRODUCED, ORIGIN_REPHRASED, ORIGIN_UNSPLIT)
 CLAIMED = (ORIGIN_MISSED, ORIGIN_INTRODUCED, ORIGIN_REPHRASED)   # 審査が申告してよい語
+QUOTE = "quote"   # 申告の欄: 穴が指す案の文の字のままの引用（欠けの穴は空。_origins が変わった項目の中の文で照らす）
 ORIGIN_SCHEMA = {"type": "array", "items": {
     "type": "object", "additionalProperties": False, "required": ["key", "origin"],
     "properties": {"key": {"type": "string"}, "origin": {"type": "string", "enum": list(CLAIMED)},
-                   "of": {"type": "string"}}}}
+                   "of": {"type": "string"}, QUOTE: {"type": "string"}}}}
 # 壁打ちが止まる往復の推し（事前審査の返答の一番上の欄。形は gatemarks.MARK_SCHEMA[RECOMMEND] の {answer, note, why}。値を往復の行の
 # 欄 push に置くだけで、形の持ち主は gatemarks）。無人の run が、止まった案を推しで修正へ進める口（gatemarks.stuck_push。
 # 越えてよいかは pushable）
@@ -216,37 +239,55 @@ def block_faces(review: dict) -> list[dict]:
     return list(out.values())
 
 
+def central(face) -> bool:
+    """穴の行 face が中央か（札 REACH が PERIPHERAL でない。札の無い face は中央と読む）"""
+    return not isinstance(face, dict) or face.get(REACH) != PERIPHERAL
+
+
+def central_keys(passes: list[dict], keys) -> list:
+    """keys のうち中央の key（出た順）。key ごとの札は、その key を最後に挙げた往復の faces の行から引き、faces に行の無い key
+    （faces の無い古い控えの行を含む）は中央と読む"""
+    out = []
+    for key in keys:
+        face = next((f for p in reversed(passes) for f in p.get("faces") or [] if f.get("key") == key), None)
+        if face is None or central(face):
+            out.append(key)
+    return out
+
+
 def decide(passes: list[dict]) -> str:
-    """往復の止め時の決まりの正本。最後の往復の block が無ければ CLEAN、前のどれかの往復の block と重なれば PERSISTED、
-    2 往復目から、開いた block の数が前の往復より減らなければ UNSETTLED、ほかは AGAIN（開いた block が減り続ける限り、往復の
-    数では止めない）。最後の行に items が在れば項目ごと（_decide_items）: 開いた項目が無ければ、保留の項目が在れば PERSISTED・
-    無ければ CLEAN。開いた項目の block の数が減らなければ、保留の項目が在れば PERSISTED・無ければ UNSETTLED。ほかは AGAIN。
+    """往復の止め時の決まりの正本。最後の往復の block が無ければ CLEAN。最後の往復の中央の block（central_keys）が前のどれかの
+    往復の block と重なれば PERSISTED。2 往復目から、最後の往復の開いた block に中央が無ければ SETTLED（端の block は直しへ進めない
+    穴でなく、review.json の faces に載ったまま修正の段へ申し送る。1 往復目の端の block は一度は修正案の役に返して答えさせる）。
+    ほかは往復の数と block の数に依らず AGAIN（中央の新しい block が出続ける間は続ける）。
+    最後の行に items が在れば項目ごと（_decide_items）: 開いた項目が無ければ、保留の項目が在れば PERSISTED・無ければ CLEAN。
+    2 往復目から開いた項目の block に中央が無ければ、保留の項目が在れば PERSISTED・無ければ SETTLED。ほかは AGAIN（保留の項目は
+    中央の block が続いた項目だけ。_item_states）。
     輪が回せる往復の静的な上限は決まりに入れない（add_pass の at_cap が、AGAIN の往復をその周で止める）。
     止め時が数えるのは block だけ: 開いた項目の suggest（答えは要る。owed_faces）に disputed と答え、審査が suggest のまま挙げ直しても、
     block が無ければ CLEAN（残った suggest は carried_notes が修正の段へ運ぶ）"""
-    stop = not_fewer(passes)
-    if passes[-1].get("items") is not None:
-        return _decide_items(passes, stop)
-    last = set(passes[-1]["blocks"])
-    if not last:
+    last = passes[-1]
+    if last.get("items") is not None:
+        return _decide_items(passes)
+    if not last["blocks"]:
         return CLEAN
-    if any(last & set(p["blocks"]) for p in passes[:-1]):
+    hard = set(central_keys(passes, last["blocks"]))
+    if any(hard & set(p["blocks"]) for p in passes[:-1]):
         return PERSISTED
-    return UNSETTLED if stop else AGAIN
+    return SETTLED if len(passes) >= 2 and not hard else AGAIN
 
 
-def not_fewer(passes: list[dict]) -> bool:
-    """2 往復目から、最後の往復の開いた block の数が前の往復より減っていない（decide の止める式。関所の理由の数の句も
-    これで読む）"""
-    return len(passes) >= 2 and len(_open_blocks(passes[-1])) >= len(_open_blocks(passes[-2]))
+def proceeds(outcome) -> bool:
+    """抜け方の語 outcome で案が直しへ進むか（CLEAN と SETTLED）。事前審査の通否（boardview.verdict）はこれだけを読む"""
+    return outcome in (CLEAN, SETTLED)
 
 
-def _decide_items(passes: list[dict], stop: bool) -> str:
+def _decide_items(passes: list[dict]) -> str:
     states = [it.get("state") for it in passes[-1]["items"]]
     if OPEN not in states:
         return PERSISTED if HELD in states else CLEAN
-    if stop:
-        return PERSISTED if HELD in states else UNSETTLED
+    if len(passes) >= 2 and not central_keys(passes, _open_blocks(passes[-1])):
+        return PERSISTED if HELD in states else SETTLED
     return AGAIN
 
 
@@ -272,31 +313,34 @@ def _attributed(units: list, items: list) -> list[int]:
 
 def _origins(new: list, claimed: list, *, rows: list, prev: list, face_units: dict, earlier: set, earlier_units: dict,
              resolved: list) -> tuple[dict, list]:
-    """（新しい block の key ごとの出自の語, 採らなかった申告の行）。審査の申告は、その block の項目の控えの事実が申告の語の
-    条件を満たす時だけ採る（mine＝face の単位が重なる項目。重ならなければ全部の項目）:
-    missed は mine の項目の行が前の往復と全部同じ時。introduced は今の往復でどれかの項目の行が変わった時（前の往復に無い項目も
-    変わった物に数える。ほかの項目の行が変わって mine の項目に穴ができる、項目どうしの関わりの持ち込みを含む）。rephrased は
-    of が前の往復の block で今の往復の resolved に在り、かつ of の前の往復の単位（earlier_units）が今の block の単位と重なる時。
-    同じ key に食い違う申告が在れば、どれも採らない。
-    採らない申告と申告の無い block は既定に落とす: mine の項目の id が全部前の往復の案に無ければ introduced・mine の項目の
-    行が前の往復と全部同じなら missed・ほかは unsplit。項目の控えが前の往復と今の往復の両方に無ければ（mine が空）、どの
-    申告も採らずに unsplit"""
+    """（新しい block の key ごとの出自の語, 採らなかった申告の行）。mine＝face の単位が重なる項目（重ならなければ全部の項目）。
+    項目が変わったかは項目の行の hash で決める（前の往復に無い項目も変わった物に数える）。
+    既定: mine の項目の id が全部前の往復の案に無ければ introduced・mine の項目の hash が全部前と同じなら missed。ほかは、変わった
+    mine の項目の中の文で照らす（_quoted）: 申告の引用 quote（QUOTE。穴が指す案の文の字のまま）が、残った文（sentence_diff。
+    hash の同じ mine の項目の文も残った文）だけに当たれば missed、足した文だけに当たれば introduced、ほか（2 つ以上に当たる・消した
+    文に当たる・どれにも当たらない・引用が無いか QUOTE_MIN 字より短い・変わった項目のどれかの文の組が前と同じで変化が並びだけ）は
+    unsplit。
+    申告: introduced は今の往復でどれかの項目の行が変わった時に採る（引用は見ない。ほかの項目の行が変わって mine の項目に穴が
+    できる、項目どうしの関わりの持ち込みを含む）。rephrased は of が前の往復の block で今の往復の resolved に在り、かつ of の前の
+    往復の単位（earlier_units）が今の block の単位と重なる時に採る。missed の申告は既定と同じ時だけ採る（引用で照らした既定）。
+    同じ key に (origin, of, quote) の違う申告が 2 つ以上在れば、どれも採らず、引用の無い既定に落とす。項目の控えが前の往復と
+    今の往復の両方に無ければ（mine が空）、どの申告も採らずに unsplit"""
     said = {}
     for c in claimed:
-        said.setdefault(c["key"], set()).add((c["origin"], c.get("of")))
+        said.setdefault(c["key"], set()).add((c["origin"], c.get("of"), c.get(QUOTE) or ""))
     conflicted = {key for key, claims in said.items() if len(claims) > 1}
-    before = {it["id"]: it["hash"] for it in prev}
-    changed = {r["id"] for r in rows if before.get(r["id"]) != r["hash"]}   # 前の往復に無い項目も変わった物に数える
+    before = {it["id"]: it for it in prev}
+    changed = {r["id"] for r in rows if (before.get(r["id"]) or {}).get("hash") != r["hash"]}
     out = {}
     for key in new:
         mine = [rows[i] for i in _attributed(face_units.get(key) or [], rows)] if rows and prev else []
         if not mine:
             out[key] = ORIGIN_UNSPLIT
             continue
+        origin, of, quote = next(iter(said[key])) if key in said and key not in conflicted else (None, None, "")
         ids = {r["id"] for r in mine}
         out[key] = (ORIGIN_INTRODUCED if all(i not in before for i in ids)
-                    else ORIGIN_MISSED if not ids & changed else ORIGIN_UNSPLIT)
-        origin, of = next(iter(said[key])) if key in said and key not in conflicted else (None, None)
+                    else ORIGIN_MISSED if not ids & changed else _quoted(quote, mine, before, changed))
         if origin == ORIGIN_INTRODUCED and changed:
             out[key] = ORIGIN_INTRODUCED
         elif (origin == ORIGIN_REPHRASED and of in earlier and of in resolved
@@ -305,10 +349,31 @@ def _origins(new: list, claimed: list, *, rows: list, prev: list, face_units: di
     return out, [copy.deepcopy(c) for c in claimed if c["key"] in conflicted or out.get(c["key"]) != c["origin"]]
 
 
+def _quoted(quote: str, mine: list, before: dict, changed: set) -> str:
+    """変わった項目を含む mine の出自を、引用 quote が当たる文で決める（_origins の既定の最後の段）。前の往復に無い項目は前の行を
+    空として全部の文を足した文に数える"""
+    if len(quote.strip()) < cite.QUOTE_MIN:
+        return ORIGIN_UNSPLIT
+    kept, added, removed = [], [], []
+    for r in mine:
+        if r["id"] not in changed:
+            kept += sentences(r.get("row") or {})
+            continue
+        gone, came, stayed = sentence_diff((before.get(r["id"]) or {}).get("row") or {}, r.get("row") or {})
+        if r["id"] in before and not gone and not came:   # 変化が並びだけ: 文から見えない
+            return ORIGIN_UNSPLIT
+        added += came
+        removed += gone
+        kept += stayed
+    hit = [any(cite.quoted_in(quote, text, norm=cite.fold) for _, text in pairs) for pairs in (kept, added, removed)]
+    return {(True, False, False): ORIGIN_MISSED, (False, True, False): ORIGIN_INTRODUCED}.get(tuple(hit), ORIGIN_UNSPLIT)
+
+
 def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier: set) -> list[dict]:
     before = {it["id"]: it for it in prev}
     rows = [{"n": n, "id": it["id"], "unit_keys": list(it["unit_keys"]), "hash": it["hash"], "state": OPEN, "blocks": [],
              "reopened": False, **({"row": copy.deepcopy(it["row"])} if "row" in it else {})} for n, it in enumerate(plan, 1)]
+    hard = {f.get("key") for f in faces if central(f)}
     for f in faces:
         for i in _attributed(face_units.get(f.get("key")) or [], rows):
             rows[i]["blocks"].append(f.get("key"))
@@ -318,7 +383,7 @@ def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier:
             r["state"], r["blocks"] = HELD, (before[r["id"]].get("blocks") or [])
         elif not r["blocks"]:
             r["state"] = CLOSED
-        elif set(r["blocks"]) & earlier:
+        elif set(r["blocks"]) & hard & earlier:   # 端の block が続いても保留にしない（2 往復目から開いた block が端だけなら SETTLED）
             r["state"] = HELD
         r["reopened"] = was == CLOSED and r["state"] != CLOSED
     return rows
@@ -416,19 +481,63 @@ def open_items(b) -> list[int]:
 
 def carried_refs(b, opened) -> set:
     """今の案の項目のうち opened（今の往復が審査する項目の番号）でない項目が、前の往復の答えの対応表で受けた独立設計の要素の id の集まり
-    （項目ごとに、その項目を最後に審査した往復の行の refs。要素の網羅は全部の項目の答えを合わせて数えるので、今の往復が見ない
-    項目の物は控えから足す）。控えに項目の行・refs の無い項目は足さない"""
+    （項目ごとの last_refs。要素の網羅は全部の項目の答えを合わせて数えるので、今の往復が見ない項目の物は控えから足す）。控えに
+    項目の行・refs の無い項目は足さない"""
+    plan = read(b).get("plan") or []
+    return {r for n in range(1, len(plan) + 1) if n not in set(opened) for r in last_refs(b, n)}
+
+
+def last_refs(b, n: int) -> list:
+    """項目 n（今の案の項目の控え）を最後に審査した往復のその項目の行の refs（同じ id で refs を持つ行。無ければ []）"""
     doc = read(b)
-    out = set()
-    for n, item in enumerate(doc.get("plan") or [], 1):
-        if n in set(opened):
-            continue
-        for p in reversed(doc["passes"]):
-            row = next((x for x in p.get("items") or [] if x.get("id") == item["id"] and isinstance(x.get("refs"), list)), None)
-            if row is not None:
-                out.update(r for r in row["refs"] if isinstance(r, str))
-                break
-    return out
+    plan = doc.get("plan") or []
+    if not 1 <= n <= len(plan):
+        return []
+    for p in reversed(doc["passes"]):
+        row = next((x for x in p.get("items") or [] if x.get("id") == plan[n - 1]["id"] and isinstance(x.get("refs"), list)), None)
+        if row is not None:
+            return [r for r in row["refs"] if isinstance(r, str)]
+    return []
+
+
+# 項目の行の並びの行を見分ける欄（sentences の場所の [見分け]。files は path・symbols は name・tests は id・narrows は what・
+# out_of_scope は glob・depends_on は unit・structure は row か prescription か world）
+_ROW_IDS = ("path", "name", "id", "what", "glob", "unit", "row", "prescription", "world")
+_SENTENCE_END = re.compile(r"(?<=。)|\n")
+
+
+def sentences(row) -> list[tuple[str, str]]:
+    """項目の行 row の値を全部歩いた (場所, 文) の組の並び（出た順・重なりは 1 つ）。文は字の値を『。』の後と改行で切った物（前後の
+    空白を除き、空は捨てる）。字でない値（真偽・数・null）は JSON の字 1 つを文にする。場所は欄の名を . で繋ぎ、並びの dict の行は
+    [見分け]（_ROW_IDS の最初の字の欄の値。無ければ並びの中の番号）を添える。字の並び（allowed_paths・unit_keys など）の要素は
+    場所を欄の名だけにするので、行を 1 つ足しても後ろの行の場所はずれない"""
+    out = {}
+
+    def walk(value, at: str) -> None:
+        if isinstance(value, dict):
+            for k, v in value.items():
+                walk(v, f"{at}.{k}" if at else str(k))
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                tag = next((v[k] for k in _ROW_IDS if isinstance(v.get(k), str)), i) if isinstance(v, dict) else None
+                walk(v, at if tag is None else f"{at}[{tag}]")
+        elif isinstance(value, str):
+            for text in _SENTENCE_END.split(value):
+                if text.strip():
+                    out[(at, text.strip())] = None
+        else:
+            out[(at, json.dumps(value, ensure_ascii=False))] = None
+    walk(row, "")
+    return list(out)
+
+
+def sentence_diff(old, new) -> tuple[list, list, list]:
+    """前の行 old と今の行 new の (場所, 文) の組（sentences）の差: (消した組, 足した組, 残った組)。並びは前の行（消した）と今の行
+    （足した・残った）の出た順。後の回の審査の材料の差分（planblk._diff_part）と新しい block の出自の照らし（_origins）が同じ比べを
+    引く"""
+    before, after = sentences(old), sentences(new)
+    was, now = set(before), set(after)
+    return [x for x in before if x not in now], [x for x in after if x not in was], [x for x in after if x in was]
 
 
 def prev_row(b, n: int) -> dict | None:
@@ -585,7 +694,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
     blocks = [f.get("key") for f in faces]
     earlier = {key for p in passes for key in p.get("blocks", [])}
     suggests = [f.get("key") for f in _faces(review) if f.get("severity") != "block"]
-    row = {"pass": k, "blocks": blocks, "faces": [{n: f.get(n, "") for n in FACE_KEYS} for f in faces],
+    row = {"pass": k, "blocks": blocks, "faces": [_face_row(f) for f in faces],
            "suggests": list(dict.fromkeys(suggests)), "answers": answers,
            "notes": list({f.get("key"): copy.deepcopy(f) for f in _faces(review) if f.get("severity") != "block"}.values()),
            "resolved": list(resolved), "persists": [key for key in blocks if key in earlier], "outcome": None,
@@ -670,17 +779,22 @@ def _touches(units, mine: set, every: set) -> bool:
     return bool(got & mine) or not got & every
 
 
+def _face_row(f: dict) -> dict:
+    """穴の行の FACE_KEYS と、札 REACH（在る時だけ。札の無い行は今までの形のまま）"""
+    return {**{n: f.get(n, "") for n in FACE_KEYS}, **({REACH: f[REACH]} if REACH in f else {})}
+
+
 def _pass_faces(p: dict) -> list[dict]:
-    """往復の行 p の穴の行 [{FACE_KEYS, severity, unit_keys}]（絞らない）。p の block（face は p の faces、unit_keys は p の
+    """往復の行 p の穴の行 [{FACE_KEYS, reach?, severity, unit_keys}]（絞らない）。p の block（face は p の faces、unit_keys は p の
     face_units）と、p の notes の suggest（block と同じ key は除く）。unit_keys は str。owed_faces と resolvable_keys が引く歩き"""
     units_of = p.get("face_units") or {}
     out = {}
     for f in p.get("faces", []):
         units = [str(k) for k in units_of.get(f.get("key")) or []]
-        out[f.get("key")] = {**{n: f.get(n, "") for n in FACE_KEYS}, "severity": "block", "unit_keys": units}
+        out[f.get("key")] = {**_face_row(f), "severity": "block", "unit_keys": units}
     for f in p.get("notes") or []:
         if f.get("key") not in out:
-            out[f.get("key")] = {**{n: f.get(n, "") for n in FACE_KEYS}, "severity": f.get("severity") or "suggest",
+            out[f.get("key")] = {**_face_row(f), "severity": f.get("severity") or "suggest",
                                  "unit_keys": [str(k) for k in f.get("unit_keys") or []]}
     return list(out.values())
 
@@ -774,6 +888,20 @@ def resolved_gaps(b, faces: list, resolved: list) -> list[str]:
     gaps += stray_resolved(doc, resolved)
     gaps += [f"{key} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つにせよ）"
              for key in resolved if key in block_keys]
+    return gaps + relabel_gaps(doc, faces)
+
+
+def relabel_gaps(doc: dict, faces: list) -> list[str]:
+    """前の往復で中央だった block の key を今の往復の block で PERIPHERAL に付け替えたのに、why が前の往復と同じ字の行の拒否の行
+    （付け替えの訳が無い。端へ移せば止め時 decide が通すので、訳なしの付け替えを受けない）。前の行は key を最後に挙げた往復の faces"""
+    gaps = []
+    for f in block_faces({"faces": faces}):
+        if f.get(REACH) != PERIPHERAL:
+            continue
+        prev = next((q for p in reversed(doc.get("passes") or []) for q in p.get("faces") or [] if q.get("key") == f.get("key")), None)
+        if prev is not None and central(prev) and str(f.get("why") or "").strip() == str(prev.get("why") or "").strip():
+            gaps.append(f"{f.get('key')} を前の往復の中央（{prev.get(REACH) or '札なし'}）から {PERIPHERAL} に付け替えたのに why が前の往復と"
+                        "同じ字（why の頭の 1 文に、前の定義に当たらなくなった訳を書け）")
     return gaps
 
 
@@ -804,7 +932,8 @@ OWED_HEAD = promptsection.Section("## {n} 往復目の答えの要る suggest", 
 
 
 def _face_text(f: dict) -> str:
-    return "\n".join([FACE_HEAD.format(key=f['key']), *(f"- {n}: {f[n]}" for n in FACE_KEYS[1:])])
+    return "\n".join([FACE_HEAD.format(key=f['key']), *(f"- {n}: {f[n]}" for n in FACE_KEYS[1:]),
+                      *([f"- {REACH}: {f[REACH]}"] if REACH in f else [])])
 
 
 def _owed_suggest_text(owed: list, n: int) -> list[str]:
@@ -892,7 +1021,7 @@ def uncited(note: str, doc: dict) -> list[str]:
 
 def stuck_faces(doc: dict) -> list[dict]:
     """止まった壁打ちの stuck_keys のうち、最後の往復の faces に無い key（保留の項目の前の往復の block）を、その key を最後に挙げた
-    往復の faces と face_units から owed_faces と同じ形 {key, kind, where, why, severity: block, unit_keys} に印 HELD_MARK を足して
+    往復の faces と face_units から owed_faces と同じ形 {key, kind, where, why, reach?, severity: block, unit_keys} に印 HELD_MARK を足して
     返す（stuck_keys の順。挙げた往復が控えに無い key は返さない）。review.json の faces に足すと、修正役が事前審査の穴に key ごとに
     答える道（fixboard.plan_face_rows）に、保留の項目の block も義務として乗る"""
     keys = stuck_keys(doc)
@@ -907,7 +1036,7 @@ def stuck_faces(doc: dict) -> list[dict]:
         for p in reversed(passes):
             f = next((x for x in p["faces"] if x.get("key") == key), None)
             if f is not None:
-                out.append({**{n: f.get(n, "") for n in FACE_KEYS}, "severity": "block",
+                out.append({**_face_row(f), "severity": "block",
                             "unit_keys": [str(k) for k in (p.get("face_units") or {}).get(key) or []], HELD_MARK: True})
                 break
     return out
@@ -916,7 +1045,8 @@ def stuck_faces(doc: dict) -> list[dict]:
 def pushable(doc: dict) -> bool:
     """止まった壁打ちを、事前審査の役の推し（STUCK_PUSH）で越えてよいか: 抜け方が止まり（STUCK）で、最後の往復が輪の安全の上限の
     周で止めた物（capped）でない時だけ真。UNSETTLED か PERSISTED かでは絞らない（保留の項目が在る上限の止まりは PERSISTED になる）。
-    capped を外す訳: 減り続ける往復はふつう上限に届かないので、上限での止まりは仕組みの異常（CAP_WHY）で、役の推しでなく人が見る物。
+    capped を外す訳: 中央の新しい穴が出続ける往復もふつう上限に届かないので、上限での止まりは工場の不具合（CAP_WHY）で、役の推しで
+    なく人が見る物。
     capped を立てるのは add_pass で、止める往復の行だけなので、最後の行を見れば足りる"""
     return doc["outcome"] in STUCK and not doc["passes"][-1].get("capped")
 
@@ -932,13 +1062,8 @@ def stuck_reason(b) -> str:
     keys = stuck_keys(doc)
     why = text.format(keys=_keys(keys), n=len(passes), path=b.work(PASS_DIR))
     why += "。" + _items_text(last["items"]) if last.get("items") is not None else ""
-    # 同じ block が続いて止めた PERSISTED は数の比べで止めたのでないから、数の句を付けない
-    stopped_open = doc["outcome"] == UNSETTLED or any(it.get("state") == OPEN for it in last.get("items") or [])
-    counts = " → ".join(f"{p['pass']} 往復目 {len(_open_blocks(p))}" for p in passes)
-    if last.get("capped"):   # 輪の安全の上限の周で止めた往復は減り続けていた: 減らなかったと言わず、上限に届いた異常を言う
-        why += "。" + CAP_WHY.format(n=len(passes), counts=counts)
-    elif stopped_open and not_fewer(passes):
-        why += "。" + COUNTS_WHY.format(counts=counts)
+    if last.get("capped"):
+        why += "。" + CAP_WHY.format(n=len(passes), counts=" → ".join(f"{p['pass']} 往復目 {len(_open_blocks(p))}" for p in passes))
     return why
 
 
@@ -976,10 +1101,12 @@ def lines(b) -> list[str]:
     persists = list(dict.fromkeys(key for p in passes for key in p.get("persists", [])))
     out = [LINE_HEAD.format(n=len(passes), word=WORDS.get(doc["outcome"], doc["outcome"]), outcome=doc["outcome"],
                             persists=_keys(persists), share=_share_text(passes), path=b.work(PASS_DIR))]
-    earlier = set()
+    earlier, hard = set(), set()
     for p in passes:
         handled = [a.get("handled") for a in p.get("answers", []) if isinstance(a, dict)]
-        down = [key for key in p.get("suggests", []) if key in earlier]   # 前の往復の block を suggest に下げた key
+        # 前の往復の block を suggest に下げた key と、前の往復で中央だった block を peripheral に付け替えた key
+        down = [key for key in p.get("suggests", []) if key in earlier]
+        down += [f.get("key") for f in p.get("faces") or [] if f.get("key") in hard and not central(f)]
         out.append(LINE_PASS.format(k=p["pass"], keys=_keys(p["blocks"]), f=handled.count("fixed"),
                                     d=handled.count("disputed"), resolved=_keys(p.get("resolved", [])), down=_keys(down)))
         out += [LINE_DISPUTED.format(key=a.get("key"), how=a.get("how")) for a in p.get("answers", [])
@@ -989,4 +1116,5 @@ def lines(b) -> list[str]:
             out.append(LINE_ITEMS.format(closed=_keys(count[CLOSED]), open=_keys(count[OPEN]), held=_keys(count[HELD]),
                                          synergy=_keys(p.get("synergy") or [])))
         earlier.update(p.get("blocks", []))
+        hard.update(central_keys([p], p.get("blocks", [])))
     return out

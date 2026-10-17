@@ -27,6 +27,10 @@ $prep.output.carried
 
 ---
 
+$prep.output.plan_declared
+
+---
+
 この役は inspector。R4 見えてないスコープ——diff の中でなく、diff が解こうとしている領域に潜む、変更が手を付けていない横断リスクを探す（SRE・セキュリティ・データガバナンスの複数レンズ）。
 
 累積差分: `$prep.output.diff_file`（Read せよ。入口の差分の根 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　変更ファイル: $prep.output.changed_files　リポジトリ: `$prep.output.cwd`
