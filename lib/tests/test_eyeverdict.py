@@ -359,6 +359,80 @@ class CollectCase(unittest.TestCase):
                 self.put(eye, {"status": "redesign-needed", "reason": "直しが要る"})
                 self.assertFalse(self.collect()["ok"])
 
+    def r1_doc(self, status, **extra):
+        return {"status": status, "reason": "冗長な写しが在る", "deletions": [{"where": "a.py:3", "why": "b.py:9 に同じ内容"}],
+                "ledger_audit": [], "increments": [], **extra}
+
+    def test_r1_redesign_without_points_falls_to_fix_needed(self):
+        """零処方で閉じる所見だけの R1 は、redesign-needed と書いても組み直す設計の点の名指しが無ければ fix-needed に倒れる（reason の頭は
+        倒した訳。ok は偽のまま）。R3 は redesign-needed のまま。fix-needed は R1 だけの語で、R3 が返せば約束の外の unverifiable"""
+        from lib.tests import test_plan_gate as plan_gate
+        from tests.workflows import test_gate_head as gate_head
+        self.all_pass()
+        for label, points in (("欄が無い", {}), ("空の配列", {"redesign_points": []})):
+            with self.subTest(label):
+                self.put("r1", self.r1_doc(seal.REDESIGN, **points))
+                got = self.collect()["r1"]
+                self.assertEqual(got["status"], seal.FIX_NEEDED)
+                self.assertEqual(got["reason"], eyeverdict.UNNAMED_REDESIGN + "冗長な写しが在る")
+                self.assertFalse(self.collect()["ok"])
+        for word in (seal.REDESIGN, seal.FIX_NEEDED):
+            self.assertIn(f"（{word}）", eyeverdict.UNNAMED_REDESIGN)
+        self.assertIn(seal.STATUS_WORDS[seal.REDESIGN], eyeverdict.UNNAMED_REDESIGN)
+        self.assertIn(seal.STATUS_WORDS[seal.FIX_NEEDED], eyeverdict.UNNAMED_REDESIGN)
+        for guard in (plan_gate.internal_subjects, gate_head.internal_subjects):
+            self.assertEqual(guard(eyeverdict.UNNAMED_REDESIGN + "冗長な写しが在る"), [])
+            self.assertEqual(guard(eyeverdict.RAISED_BY_POINTS + "冗長な写しが在る"), [])
+            self.assertEqual(guard(eyeverdict.BROKEN_POINTS + "冗長な写しが在る"), [])
+        self.all_pass()
+        self.put("r3", {"status": seal.REDESIGN, "reason": "筋が合わない", "seen": [], "unseen": []})
+        self.assertEqual(self.collect()["r3"], {"status": seal.REDESIGN, "reason": "筋が合わない"})
+        self.put("r3", {"status": seal.FIX_NEEDED, "reason": "筋が合わない", "seen": [], "unseen": []})
+        got = self.collect()["r3"]
+        self.assertEqual(got["status"], seal.UNVERIFIABLE)
+        self.assertIn("約束の外", got["reason"])
+
+    def test_r1_malformed_points_are_unverifiable_not_unnamed(self):
+        """redesign_points の欄が在るのに配列でない・読める項が無い R1 は、名指しが無いのと区別して確かめられない（unverifiable）に落ち、
+        reason の頭は BROKEN_POINTS。目が redesign-needed でも fix-needed でも pass でも同じ。ok は偽。読める項が 1 つ在れば壊れた項は無視する"""
+        self.all_pass()
+        for status in (seal.REDESIGN, seal.FIX_NEEDED, seal.PASSED):
+            for label, points in (("空白だけ", ["", "  "]), ("配列でない", "設計の点"), ("項が文字列でない", [3, None]), ("オブジェクト", {"a": 1})):
+                with self.subTest(status=status, label=label):
+                    self.put("r1", self.r1_doc(status, redesign_points=points))
+                    got = self.collect()
+                    self.assertEqual(got["r1"], {"status": seal.UNVERIFIABLE, "reason": eyeverdict.BROKEN_POINTS + "冗長な写しが在る"})
+                    self.assertFalse(got["ok"])
+        self.put("r1", self.r1_doc(seal.REDESIGN, redesign_points=["  ", "返りの型を作り替える", 3]))
+        self.assertEqual(self.collect()["r1"], {"status": seal.REDESIGN, "reason": "冗長な写しが在る（組み直す設計の点: 返りの型を作り替える）"})
+
+    def test_r1_points_make_redesign_whatever_the_eye_wrote(self):
+        """redesign_points に空でない 1 行が在る R1 は、目の札が pass・fix-needed・redesign-needed のどれでも redesign-needed。reason の末尾に
+        名指した点を添え、目の札が redesign-needed でなかった時は頭に RAISED_BY_POINTS を付ける。unverifiable は動かさない。R3 の
+        redesign_points は読まない"""
+        points = ["返りの型を作り替える", "他の消費者が読む契約を替える"]
+        tail = "（組み直す設計の点: 返りの型を作り替える／他の消費者が読む契約を替える）"
+        self.all_pass()
+        for status in (seal.FIX_NEEDED, seal.PASSED):
+            with self.subTest(status):
+                self.put("r1", self.r1_doc(status, redesign_points=[*points, ""]))
+                got = self.collect()
+                self.assertEqual(got["r1"], {"status": seal.REDESIGN, "reason": eyeverdict.RAISED_BY_POINTS + "冗長な写しが在る" + tail})
+                self.assertFalse(got["ok"])
+        with self.subTest(seal.REDESIGN):
+            self.put("r1", self.r1_doc(seal.REDESIGN, redesign_points=points))
+            self.assertEqual(self.collect()["r1"], {"status": seal.REDESIGN, "reason": "冗長な写しが在る" + tail})
+        with self.subTest(seal.UNVERIFIABLE):
+            self.put("r1", self.r1_doc(seal.UNVERIFIABLE, redesign_points=points))
+            self.assertEqual(self.collect()["r1"], {"status": seal.UNVERIFIABLE, "reason": "冗長な写しが在る"})
+        with self.subTest("名指しの無い fix-needed は動かさない"):
+            self.put("r1", self.r1_doc(seal.FIX_NEEDED))
+            self.assertEqual(self.collect()["r1"], {"status": seal.FIX_NEEDED, "reason": "冗長な写しが在る"})
+        with self.subTest("R3 は読まない"):
+            self.all_pass()
+            self.put("r3", {"status": seal.PASSED, "reason": "整合", "seen": [], "unseen": [], "redesign_points": points})
+            self.assertEqual(self.collect()["r3"], {"status": seal.PASSED, "reason": "整合"})
+
     def test_missing_eye_file_is_unverifiable_and_named(self):
         self.all_pass()
         (self.dir / "r1.json").unlink()

@@ -152,8 +152,16 @@
 - 状態: 住処あり
 - 住処: `lib/marks.py`（標準ライブラリだけ。種の表 `KINDS`＝ノードか役 → 行の在り処・共有ボードの控えの名・置き場、と手順の口 `add`（役の型に足す）・`rows`・`split`（受け付けが共有ボードへ渡す前に外す）・`path_of`・`write`・`load`（控えに置く・読み戻す））
 - 約束: 種の表 `KINDS` の控えの名（欄を持つモジュールは `marks.KINDS[種].file` で引く）と、控えのパスを組む `path_of`
-- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` と引き継ぎのメモ `handoff` の `lib/planfile.py`）が持ち、手順は住処を呼ぶ
+- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` の `lib/planfile.py`・引き継ぎのメモ `handoff` の `lib/handoff.py`）が持ち、手順は住処を呼ぶ
 - 今: 控えの名を字で持ち直す所（`lib/judge_accept.py`・`workflows/plan/scripts/plan_collect.py`）、控えのパスを `path_of` を通さずに組む所（`lib/judge_accept.py`・`lib/planfile.py`・`lib/refix.py`）、欄を手で外す所（修正役の欄 `lib/fixboard.py`・並行 PR の `lib/judge_accept.py`・手直しの `bash_writes` の `lib/writes.py`）が残る（柵の表の既知の漏れ）。`lib/judgeverify.py` は自分で組む裏取りの型で、同じ字の形の別の物
+
+### `handoff` 引き継ぎのメモ（次の周の自分への書き置き）
+
+- 状態: 住処あり
+- 住処: `lib/handoff.py`（欄の名 `FIELD`・欄の並び `KEYS`・型 `SCHEMA`・書けという頼み `ASK`・前の周のセクションの見出し `HEAD`・使い方 `USE`・メモが無い周の文 `NONE`・読めない周の文 `UNREADABLE`・控えのパス `path_of`・控えを置く `save`・読めない控えを返す `unreadable`・前の周のセクションを組む `section`）
+- 約束: 役の返答の欄 `handoff`（4 つの欄 `read`・`decided`・`rejected`・`doubts`）と、周のフォルダの控え `handoff.json`（控えの名と置き場は `lib/marks.py` の種 `handoff`）
+- 知ってよい所: 住処だけ。計画の受け付け `lib/planfile.py` と報告の受け付け `lib/runreport.py` は住処の `FIELD`・`path_of`・`save`・`unreadable`・`section`・`ASK` を使い、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report/works-factory-report.yaml`）は `SCHEMA` の写しで、`tests/workflows/test_plan.py`・`tests/workflows/test_report.py` が住処と等しいことを縛る（表の bound）
+- 今: 外の当たりは 0 件
 
 ### `plan-scope` 修正案の項目の範囲の照らし
 

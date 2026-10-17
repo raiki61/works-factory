@@ -61,7 +61,7 @@ KINDS = {
     "writes": Kind({"refix": (), "refix2": ()}, None, WORK),
     # 修正案の出し直しの役だけが持つ印 whole_plan（planfile。控えは受け付けが合わせた答えの控え candidate-<名>.json に置く）
     "resubmit": Kind({"plan-revise": ()}, None, WORK),
-    # 修正案の役が次の周の自分へ運ぶ引き継ぎのメモ handoff（planfile。控えは周のフォルダを board に渡して置く）
+    # 役が次の周の自分へ運ぶ引き継ぎのメモ handoff（型・頼み・節・控えの書き読みの持ち主は lib/handoff。控えは周のフォルダを board に渡して置く）
     "handoff": Kind({"plan-revise": ()}, "handoff.json", ROOT),
 }
 
