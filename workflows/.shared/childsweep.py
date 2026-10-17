@@ -18,22 +18,19 @@ finishes」）。この部品はメイングラフの最後のノードから呼
   complete は終了の値で成否を言わないので、標準出力の「  Completed: <枝>」の行で読む（packages/cli/src/commands/isolation.ts）。
   作業ツリーを消した後に手元か遠くの枝を消せなかった時も Completed: を出し、標準エラーの「  Warning: 」の行でだけ言う
   （packages/isolation/src/providers/worktree.ts の deleteBranchTracked）ので、その時は警告を理由に残した物へ入れる。
-- 起こし方: 入口の殻を入れ子にすると別の ARCHON_HOME を開き源を取り直しに行くので、殻が渡す源のパス（SOURCE_ENV）の
-  CLI を bun で直に起こす。Archon の CLI は git の木の中でしか動かない（packages/cli/src/cli.ts の requiresGitRepo）ので
+- 起こし方: 入口の殻を入れ子にすると別の ARCHON_HOME を開き源を取り直しに行くので、殻が組んで渡す止めた Archon の本体を起こす
+  命令の頭（CLI_ENV）で直に起こす。Archon の CLI は git の木の中でしか動かない（packages/cli/src/cli.ts の requiresGitRepo）ので
   --cwd に run の作業ツリーを渡し、打つ場所は ARTIFACTS_DIR にする（Archon は打った場所の .archon/.env を読む。
   packages/cli/src/load-cli-env.ts）。complete は遠くの枝も消しにいく（子の枝は push されないので遠くは変わらない）ため、git の資格の
   問い合わせで止まらないよう GIT_TERMINAL_PROMPT=0 と ssh の BatchMode を付ける。
 """
 import json
-import shutil
 import subprocess
 from collections.abc import Callable, Mapping
-from pathlib import Path
 
-# 起動の殻の bin/_lib/place.py の SOURCE_ENV・ENTRY と archon の頭の組み方の写し。グラフは bin を読まない（workflows/AGENTS.md の E4）。
-# 試験（tests/shared/test_childsweep.py）が突き合わせる
-SOURCE_ENV = "WORKS_FACTORY_ARCHON_SOURCE"
-ENTRY = "packages/cli/src/cli.ts"
+# 入口の殻（bin/_lib/launcher.py）が run に置く、止めた Archon の本体を起こす命令の頭（文字列の list の JSON）。名の持ち主はこの埋めで、
+# 殻はこのファイルを読んで名を取る（グラフは bin を読まない。workflows/AGENTS.md の E4）
+CLI_ENV = "WORKS_FACTORY_ARCHON_CLI"
 BRANCH_HEAD = "archon/task-"
 RUN_HEAD = 8
 BRANCH_KEY = "branch_name"
@@ -113,18 +110,13 @@ def outcome(branch: str, stdout: str, stderr: str) -> str | None:
 def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subprocess.run) -> dict:
     """この run の completed の子の作業ツリーと枝を消し、{cleaned, left, error} を返す。checkout は run の作業ツリー（ノードの cwd）"""
     result = {"cleaned": [], "left": [], "error": ""}
-    source = env.get(SOURCE_ENV)
-    if not source:
-        result["error"] = f"{SOURCE_ENV} が無い（入口の殻 bin/works-factory から起こした run でない）"
-        return result
-    bun = shutil.which("bun", path=env.get("PATH"))
-    if not bun:
-        result["error"] = "bun が PATH に無い。Archon を起こせない"
+    head = _head(env.get(CLI_ENV))
+    if head is None:
+        result["error"] = f"{CLI_ENV} が無いか、文字列の list の JSON でない（入口の殻 bin/works-factory から起こした run でない）"
         return result
     child_env = {**env, "GIT_TERMINAL_PROMPT": "0"}
     if "GIT_SSH_COMMAND" not in env and "GIT_SSH" not in env:
         child_env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
-    head = archon_head(bun, Path(source))
 
     def archon(*args: str) -> subprocess.CompletedProcess:
         return run([*head, *args, "--cwd", checkout], env=child_env, cwd=env.get("ARTIFACTS_DIR") or None,
@@ -154,9 +146,13 @@ def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subproc
     return result
 
 
-def archon_head(bun: str, source: Path) -> list[str]:
-    """源の Archon の本体を起こす命令の頭（bin/_lib/place.archon と同じ形）。bun が打った場所の bunfig.toml を読まないよう源の物を名指す"""
-    return [bun, f"--config={source / 'bunfig.toml'}", str(source / ENTRY)]
+def _head(value: str | None) -> list[str] | None:
+    """CLI_ENV の値を命令の頭に読む。無い・JSON でない・空か文字列でない物を含む list なら None"""
+    try:
+        head = json.loads(value or "")
+    except json.JSONDecodeError:
+        return None
+    return head if isinstance(head, list) and head and all(isinstance(part, str) for part in head) else None
 
 
 def _last_json(stdout: str) -> object:

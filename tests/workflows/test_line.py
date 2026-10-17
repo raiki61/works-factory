@@ -22,6 +22,7 @@ from unittest import mock
 
 import yaml
 
+from bin._lib.place import shared
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.bin.linescripts import SCRIPTS, load
@@ -3011,12 +3012,13 @@ class SweepChildrenCase(unittest.TestCase):
         return json.loads(done.stdout)
 
     def test_run_without_children_does_not_fail(self):
-        self.assertEqual(self.run_node({"WORKS_FACTORY_ARCHON_SOURCE": "<tmp>/archon"}), {"cleaned": [], "left": [], "error": ""})
+        head = {shared("childsweep").CLI_ENV: json.dumps(["<tmp>/bin/bun"])}
+        self.assertEqual(self.run_node(head), {"cleaned": [], "left": [], "error": ""})
 
     def test_run_outside_the_launcher_does_not_fail(self):
         got = self.run_node({})
         self.assertEqual((got["cleaned"], got["left"]), ([], []))
-        self.assertIn("WORKS_FACTORY_ARCHON_SOURCE", got["error"])
+        self.assertIn(shared("childsweep").CLI_ENV, got["error"])
 
 
 class BoundaryRunCase(unittest.TestCase):

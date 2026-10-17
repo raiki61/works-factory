@@ -30,7 +30,6 @@ from tests.bin.gitkit import git
 from tests.layers import scan
 from tests.shared.test_boundary import boundary
 from tests.shared.test_fence import fence
-from tests.shared import shared_module
 from tests.workflows import test_uv_scripts
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -38,7 +37,7 @@ if str(ROOT / "lib") not in sys.path:   # 後ろに足す（頭に入れると l
     sys.path.append(str(ROOT / "lib"))
 import runreport  # noqa: E402
 
-childsweep = shared_module.load("childsweep")
+childsweep = place.shared("childsweep")
 
 
 class Row(NamedTuple):

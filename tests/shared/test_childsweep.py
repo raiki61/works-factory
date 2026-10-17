@@ -10,7 +10,6 @@ import unittest
 import yaml
 
 from bin._lib import place
-from tests.shared import shared_module
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT / "lib") not in sys.path:
@@ -18,7 +17,7 @@ if str(ROOT / "lib") not in sys.path:
 
 import fixboard  # noqa: E402  （join の写しの鎖を縛る試験が adopt_returned の本文を読む）
 
-childsweep = shared_module.load("childsweep")
+childsweep = place.shared("childsweep")
 
 RUN = "1a2b3c4d-0000-4000-8000-000000000001"
 OTHER = "9f8e7d6c-0000-4000-8000-000000000002"
@@ -77,13 +76,8 @@ class ChildSweepTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.tmp = pathlib.Path(tmp.name)
-        self.source = self.tmp / "archon"
-        bin_dir = self.tmp / "bin"
-        bin_dir.mkdir()
-        self.bun = bin_dir / "bun"
-        self.bun.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-        self.bun.chmod(0o755)
-        self.env = {"PATH": str(bin_dir), place.SOURCE_ENV: str(self.source), "ARTIFACTS_DIR": str(self.tmp)}
+        self.head = place.archon("/usr/local/bin/bun", self.tmp / "archon")
+        self.env = {childsweep.CLI_ENV: json.dumps(self.head), "ARTIFACTS_DIR": str(self.tmp)}
 
     def sweep(self, archon: FakeArchon, env: dict | None = None) -> dict:
         return childsweep.sweep(RUN, CHECKOUT, self.env if env is None else env, run=archon)
@@ -228,10 +222,10 @@ class ChildSweepTest(unittest.TestCase):
                 self.assertEqual((got["cleaned"], got["left"]), ([], []))
                 self.assertTrue(got["error"])
 
-    def test_runs_the_pinned_archon_without_prompts(self):
+    def test_runs_the_head_the_launcher_put_without_prompts(self):
         archon = FakeArchon({"runs": [child(0), row(RUN, "running")]})
         self.sweep(archon)
-        head = place.archon(str(self.bun), self.source)
+        head = self.head
         listing, states, complete = archon.calls
         self.assertEqual(listing["argv"], [*head, "workflow", "runs", "--json", "--all", "--limit",
                                            str(childsweep.LIST_LIMIT), "--cwd", CHECKOUT])
@@ -242,30 +236,22 @@ class ChildSweepTest(unittest.TestCase):
             self.assertEqual(call["env"]["GIT_SSH_COMMAND"], "ssh -o BatchMode=yes")
             self.assertEqual(call["cwd"], str(self.tmp))
 
-    def test_launcher_facts_are_copied_as_is(self):
-        """グラフは bin を読まないので、殻が run に渡す源の変数の名と起こす命令の頭を写す。写しが殻とずれると源を見失う"""
-        self.assertEqual(childsweep.SOURCE_ENV, place.SOURCE_ENV)
-        self.assertEqual(childsweep.ENTRY, place.ENTRY)
-        self.assertEqual(childsweep.archon_head("bun", self.source), place.archon("bun", self.source))
-
     def test_own_ssh_command_is_kept(self):
         archon = FakeArchon({"runs": [row(RUN, "running")]})
         self.sweep(archon, {**self.env, "GIT_SSH_COMMAND": "ssh -i key"})
         self.assertEqual(archon.calls[0]["env"]["GIT_SSH_COMMAND"], "ssh -i key")
 
-    def test_without_source_runs_nothing(self):
-        env = {k: v for k, v in self.env.items() if k != place.SOURCE_ENV}
-        archon = FakeArchon({"runs": []})
-        got = self.sweep(archon, env)
-        self.assertEqual(archon.calls, [])
-        self.assertIn(place.SOURCE_ENV, got["error"])
-
-    def test_without_bun_runs_nothing(self):
-        archon = FakeArchon({"runs": []})
-        got = self.sweep(archon, {**self.env, "PATH": str(self.tmp / "empty")})
-        self.assertEqual(archon.calls, [])
-        self.assertIn("bun", got["error"])
-
+    def test_without_a_head_runs_nothing(self):
+        for value in (None, "", "not json", "[]", '"bun"', '["bun", 1]'):
+            with self.subTest(value=value):
+                env = {k: v for k, v in self.env.items() if k != childsweep.CLI_ENV}
+                if value is not None:
+                    env[childsweep.CLI_ENV] = value
+                archon = FakeArchon({"runs": []})
+                got = self.sweep(archon, env)
+                self.assertEqual(archon.calls, [])
+                self.assertEqual((got["cleaned"], got["left"]), ([], []))
+                self.assertIn(childsweep.CLI_ENV, got["error"])
 
 if __name__ == "__main__":
     unittest.main()
