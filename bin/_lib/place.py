@@ -118,18 +118,19 @@ def read_run_config(bun: str, source: Path, path: Path) -> dict:
     return layer
 
 
-def run_config(cache: Path, mine: dict | None = None) -> Path:
-    """新しい run に --config で渡す、run 1 本ぶんの設定の層のファイル <cache>/run-config/<中身の hash>.json を書いて返す。中身は利用者の
+def run_config(where: Path, mine: dict | None = None) -> Path:
+    """新しい run に --config で渡す、run 1 本ぶんの設定の層のファイル <where>/run-config/<中身の hash>.json を書いて返す。中身は利用者の
     --config の層 mine（read_run_config）に群の別名を aliases: で重ねた物で、同じ名の群の別名は工場の値が勝つ（群の付け替えは --model だけ）。
+    起動の後はファイルは要らない。
 
     この層は対象のリポジトリの .archon/config.yaml を含む持続の設定より強く、呼ぶ人の --model だけがその上に立つ。Archon は起動の時に
     層を封じて run に記録し、workflow: の子の run が受け継ぎ、resume はその記録を戻す（止めた Archon の docs-web の reference/cli.md の
     --config の行）。Archon は --config を 1 つしか読まないので、利用者の層もここで合わせる。名を中身の hash にするのは、版の違う工場の木が
-    同じ取り置きを使っても互いの層を書き換えないため。利用者の env の値も入りうるので、ファイルは持ち主だけが読める"""
+    同じ置き場を使っても互いの層を書き換えないため。利用者の env の値も入りうるので、ファイルは持ち主だけが読める"""
     mine = mine or {}
     layer = {**mine, "aliases": {**mine.get("aliases", {}), **group_presets()}}
     text = json.dumps(layer, ensure_ascii=False, indent=2) + "\n"
-    path = cache / "run-config" / f"{hashlib.sha256(text.encode()).hexdigest()[:16]}.json"
+    path = where / "run-config" / f"{hashlib.sha256(text.encode()).hexdigest()[:16]}.json"
     if not (path.is_file() and path.read_text(encoding="utf-8") == text):
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False) as tmp:

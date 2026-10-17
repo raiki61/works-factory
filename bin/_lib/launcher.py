@@ -157,7 +157,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         rest = without_flag(argv[3:], "--cwd")
         config = None
         if not adopting(flags):
-            config = run_config(bun, source, cache, target, flags)
+            config = run_config(bun, source, cache, home, target, flags)
             rest = without_flag(rest, "--config")
         check_test_cmd(user, target, [v.removeprefix("test_cmd=") for v in flag_values(flags, "--input")
                                      if v.startswith("test_cmd=")], home=user.get("HOME") if userenv.opted(child) else None)
@@ -210,9 +210,10 @@ def adopting(flags: list[str]) -> bool:
     return any(a == "--adopt" or a.startswith("--adopt=") for a in flags)
 
 
-def run_config(bun: str, source: Path, cache: Path, target: Path, flags: list[str]) -> Path:
+def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, flags: list[str]) -> Path:
     """新しい run に渡す設定の層（place.run_config）。利用者の --config があれば合わせる。Archon は --config を 1 つしか読まず後ろの物を
-    採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む"""
+    採り、相対のパスは対象（--cwd）から引くので、ここも同じに読む。群の別名だけの層は秘密を持たないので取り置き cache に、利用者の層を
+    合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を解く鍵の置き場）に置き、家と一緒に消える"""
     mine = (flag_values(flags, "--config") or [None])[-1]
     if not mine:
         return place.run_config(cache)
@@ -224,7 +225,7 @@ def run_config(bun: str, source: Path, cache: Path, target: Path, flags: list[st
     if replaced:
         print(f"{NAME}: --config の群の別名 {'・'.join(replaced)} は工場の値で上書きした。群の値の付け替えは --model @wf-<群>=<模型>",
               file=sys.stderr)
-    return place.run_config(cache, layer)
+    return place.run_config(home, layer)
 
 
 def refuse_unknown_groups(flags: list[str]) -> None:

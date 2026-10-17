@@ -244,7 +244,8 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("--workflow-source", err)
 
     def test_users_run_config_is_merged_under_the_factory_groups(self):
-        """利用者の --config は殻の層に合わせて 1 つで渡る: env などは効き、同じ名の群の別名は工場の値に替わる。相対のパスは対象から引く"""
+        """利用者の --config は殻の層に合わせて 1 つで渡る: env などは効き、同じ名の群の別名は工場の値に替わる。相対のパスは対象から引く。
+        合わせた物（env の秘密が入りうる）は取り置き cache に置かず対象の家に置き、群の別名だけの層は cache に置く"""
         if shutil.which("bun") is None:
             self.skipTest("bun が無い（利用者の --config は Archon と同じ Bun.YAML.parse で読む）")
         self.bun.write_text(read_with_real_bun(shutil.which("bun")), encoding="utf-8")
@@ -257,10 +258,18 @@ class LauncherTest(unittest.TestCase):
                 argv = self.reached(done)["argv"]
                 self.assertEqual(argv.count("--config"), 1)
                 self.assertNotIn(flag[-1], argv)
-                layer = json.loads(pathlib.Path(argv[argv.index("--config") + 1]).read_text(encoding="utf-8"))
+                merged = pathlib.Path(argv[argv.index("--config") + 1])
+                self.assertTrue(merged.is_relative_to(self.default_home(self.target)), merged)
+                self.assertFalse(merged.is_relative_to(self.cache_home), merged)
+                layer = json.loads(merged.read_text(encoding="utf-8"))
                 self.assertEqual(layer, {"env": {"MINE": "1"}, "aliases": place.group_presets()})
                 self.assertIn(group, done.stderr)
                 self.assertEqual(argv[11:], ["works-factory-line", "--input", "request=x"])
+        with self.subTest("利用者の --config が無ければ群の別名だけの層を cache に置く"):
+            argv = self.reached(self.launch("workflow", "run", "works-factory-line"))["argv"]
+            self.assertTrue(pathlib.Path(argv[argv.index("--config") + 1]).is_relative_to(self.cache_home))
+        self.assertEqual([json.loads(p.read_text(encoding="utf-8")) for p in self.cache_home.rglob("run-config/*.json")],
+                         [{"aliases": place.group_presets()}])
         with self.subTest("読めない --config は起こさずに止める"):
             self.assertIn("none.yaml", self.stopped(self.launch("workflow", "run", "works-factory-line", "--config", "none.yaml")))
 
