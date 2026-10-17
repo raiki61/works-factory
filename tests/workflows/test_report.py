@@ -47,14 +47,14 @@ import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
-from lib.tests.test_outcome import fixed_run  # noqa: E402
+from lib.tests.test_outcome import STAGES, fixed_run  # noqa: E402
 
 WORKFLOW = yaml.safe_load((BLOCK / "works-factory-report.yaml").read_text(encoding="utf-8"))
 NODES = {n["id"]: n for n in WORKFLOW["nodes"]}
 BODY = {n["id"]: n for n in NODES["write-loop"]["loop_group"]["nodes"]}
-INPUTS = ("start", "test-gate-base", "judge", "rejudge", "plan", "plan-review", "replan", "replan-review", "fix", "test-gate-final",
-          "eyes", "merge-seal", "merge-apply", "gate-start", "gate-before-fix", "gate-replan", "gate-final", "stops", "prior-failures",
-          "deferred", "widened", "final-reasons", "spec-changed", "spec-unchecked", "redepth", "optional")
+INPUTS = ("start", "before-tests", "judge", "rejudge", "plan", "plan-review", "replan", "replan-review-result", "fix", "final-tests",
+          "eyes", "sealed-diff", "applied-diff", "start-answer", "before-fix-answer", "replan-answer", "final-answer", "stops",
+          "prior-failures", "deferred", "widened", "final-reasons", "spec-changed", "spec-unchecked", "redepth", "optional", "stages")
 RETURN_FIELDS = {"outcome", "stop_reason", "report", "report_ai", "next_request", "prior_failures", "ok"}
 TOP_KEYS_DROPPED_ON_INCLUDE = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 SANDBOX = {"enabled": True, "allowUnsandboxedCommands": False}
@@ -207,13 +207,25 @@ class ShapeCase(unittest.TestCase):
 
     def test_inputs_are_the_contract(self):
         self.assertEqual(tuple(WORKFLOW["inputs"]), INPUTS)
-        self.assertTrue(all(v == {"default": ""} for v in WORKFLOW["inputs"].values()))
+        self.assertTrue(all(set(v) == {"default", "description"} and v["default"] == "" and str(v["description"]).strip()
+                            for v in WORKFLOW["inputs"].values()))
+
+    def test_every_input_describes_its_value_and_no_name_is_a_main_node(self):
+        """入力のポートの名は値の形の名で、メイングラフの節の id の字を借りない（結びは線の with: だけが持つ）。どのポートも値の形の説明を持つ
+        （型・欄・空や null の時の意味）。段の表を運ぶポート stages が在る"""
+        line = yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))
+        main_ids = {n["id"] for n in line["nodes"]}
+        for name, spec in WORKFLOW["inputs"].items():
+            with self.subTest(name):
+                self.assertNotIn(name, {i for i in main_ids if "-" in i}, "メイングラフの節の id と同じ字のポートの名")
+                self.assertTrue(isinstance(spec.get("description"), str) and spec["description"].strip(), "値の形の説明が無い")
+        self.assertIn("stages", WORKFLOW["inputs"])
 
     def test_facts_reads_every_input_by_its_own_name(self):
-        """facts の読む入力が YAML の inputs と同じで、どれも自分の名の環境変数から読む。outcome の関所の並びは inputs の gate-*"""
+        """facts の読む入力が YAML の inputs と同じで、どれも自分の名の環境変数から読む。outcome の関所の並びは inputs の -answer"""
         reads = env_reads("facts")
         self.assertEqual(reads, {name: f"INPUTS_{name.upper().replace('-', '_')}" for name in WORKFLOW["inputs"]})
-        self.assertEqual(outcome.GATES, tuple(name for name in WORKFLOW["inputs"] if name.startswith("gate-")))
+        self.assertEqual(outcome.GATES, tuple(name for name in WORKFLOW["inputs"] if name.endswith("-answer")))
 
     def test_no_top_keys_dropped_on_include(self):
         for key in TOP_KEYS_DROPPED_ON_INCLUDE:
@@ -374,7 +386,8 @@ class Run(unittest.TestCase):
 
     def run_script(self, name: str, **env) -> tuple[int, dict]:
         base = hermetic.child_env(**{"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "TYPED_ARTIFACTS_FILE": "", "LOG_DIR": "",
-                                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1", **env})
+                                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1",
+                                     "INPUTS_STAGES": json.dumps(STAGES, ensure_ascii=False), **env})
         done = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], env=base, capture_output=True, text=True,
                               encoding="utf-8")
         lines = [line for line in done.stdout.splitlines() if line.strip()]
@@ -423,7 +436,7 @@ class FactsCase(Run):
 
     def test_broken_inputs_and_missing_pointer_do_not_fall(self):
         code, out = self.run_script("facts", INPUTS_START=json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "start/none.json"}),
-                                    INPUTS_JUDGE="{壊れた", INPUTS_PLAN="[1, 2]", INPUTS_FIX="null", INPUTS_GATE_FINAL="",
+                                    INPUTS_JUDGE="{壊れた", INPUTS_PLAN="[1, 2]", INPUTS_FIX="null", INPUTS_FINAL_ANSWER="",
                                     WORKFLOW_ID=RUN, LOG_DIR=str(self.dir))
         self.assertEqual(code, 0)
         self.assertEqual(out["outcome"], "record_invalid")
@@ -433,6 +446,14 @@ class FactsCase(Run):
         self.assertIn("始めの記録を開けない", text)
         self.assertTrue(out["stamp"].endswith(" / メイングラフの版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn(f"run の記録 {self.dir / RUN}.jsonl が読めない", text)
+        # 段の表（入力 stages）が空・JSON でない・表の形でない時も、ほかの JSON の入力が壊れた時と同じく結果を名乗らせない。表の無い第 2 の道は置かない
+        start = self.pointer("start/start.json", {"run_id": RUN})
+        for name, raw, why in (("空", "", "入力 stages が届いていない"), ("JSON でない", "{壊れた", "入力 stages が JSON でない"),
+                               ("表の形でない", json.dumps({"nodes": []}), "入力 stages が段の表 {nodes, links} の形でない")):
+            with self.subTest(name):
+                code, out = self.run_script("facts", INPUTS_START=start, INPUTS_STAGES=raw)
+                self.assertEqual((code, out["outcome"], out["stop_reason"]), (0, "record_invalid", "report:record-invalid"))
+                self.assertIn(f"結果を名乗れない訳: {why}", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
 
     def test_unexpected_error_still_returns(self):
         """思わぬ誤り（ここでは run の置き場がファイル）でも 0 で終わり、record_invalid と誤りの 1 行を返す"""
@@ -461,14 +482,14 @@ class FactsCase(Run):
 
     def test_request_stop_with_dry_run_environment(self):
         start = self.pointer("start/start.json", {"run_id": RUN})
-        code, out = self.run_script("facts", INPUTS_START=start, INPUTS_GATE_FINAL='{"decision":"stop","text":"request: 止め札"}',
+        code, out = self.run_script("facts", INPUTS_START=start, INPUTS_FINAL_ANSWER='{"decision":"stop","text":"request: 止め札"}',
                                     WORKFLOW_ID="dry-run")
         self.assertEqual(code, 0)
         self.assertEqual((out["outcome"], out["stop_reason"], out["ok"]), ("stopped_by_request", "gate-final:stop", False))
 
     def test_unknown_answer_word_is_record_invalid_with_its_reason(self):
         start = self.pointer("start/start.json", {"run_id": RUN})
-        code, out = self.run_script("facts", INPUTS_START=start, INPUTS_GATE_FINAL='{"decision":"maybe","text":""}')
+        code, out = self.run_script("facts", INPUTS_START=start, INPUTS_FINAL_ANSWER='{"decision":"maybe","text":""}')
         self.assertEqual(code, 0)
         self.assertEqual((out["outcome"], out["stop_reason"], out["ok"]), ("record_invalid", "report:record-invalid", False))
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
@@ -499,7 +520,7 @@ class FactsCase(Run):
         judge = {"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)}
         env = {"INPUTS_START": start, "INPUTS_JUDGE": json.dumps(judge), "INPUTS_PLAN": '{"ready": true, "round": 1}',
                "INPUTS_REPLAN": '{"ready": true, "round": 2}', "INPUTS_FIX": json.dumps({"done": True, "units": []}),
-               "INPUTS_TEST_GATE_FINAL": '{"ok": true, "green": true}', "INPUTS_MERGE_SEAL": '{"ok": true}'}
+               "INPUTS_FINAL_TESTS": '{"ok": true, "green": true}', "INPUTS_SEALED_DIFF": '{"ok": true}'}
         code, out = self.run_script("facts", **env)
         self.assertEqual(code, 0)
         self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
@@ -517,8 +538,8 @@ class FactsCase(Run):
         rows = result.evidence("final", out, run, None, f"落ちた:\n{how}偽").splitlines()
         self.assertEqual([r for r in rows if r.startswith((log, how))], [f"{how}engine・一式", f"{log}/tmp/test.log"])
         self.assertIn(f"- ok: false（訳: {log}偽）", rows)
-        returns = {"test-gate-final": out}
-        got = runreport._evidence_lines(returns)
+        returns = {"final-tests": out}
+        got = runreport._evidence_lines(returns, STAGES)
         self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
         self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
         base = next(x for x in got if x.startswith("最後のテスト（test-gate-final）の修正前のテスト: "))
@@ -534,7 +555,7 @@ class FactsCase(Run):
                            "by": "engine", "suites_line": "", "log": "", "baseline_line": "", "reason": "", **fields})
 
     def green_section(self, final: str) -> str:
-        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}), INPUTS_TEST_GATE_FINAL=final)
+        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}), INPUTS_FINAL_TESTS=final)
         self.assertEqual(code, 0)
         return (self.artifacts / out["facts_file"]).read_text(encoding="utf-8").split(f"{runreport.GREEN_HEADING}\n\n", 1)[1]
 
@@ -584,7 +605,7 @@ class FactsCase(Run):
         start = self.pointer("start/start.json", {"run_id": RUN})
         env = {"INPUTS_START": start, "INPUTS_JUDGE": json.dumps({"ready": True, "stop_reason": "", "units": [{"id": "u1"}]}),
                "INPUTS_PLAN": '{"ready": true, "round": 1}', "INPUTS_FIX": json.dumps({"done": True, "units": []}),
-               "INPUTS_TEST_GATE_FINAL": '{"ok": true, "green": true}', "INPUTS_MERGE_SEAL": '{"ok": true}',
+               "INPUTS_FINAL_TESTS": '{"ok": true, "green": true}', "INPUTS_SEALED_DIFF": '{"ok": true}',
                "INPUTS_EYES": json.dumps({"ok": True, "r1": {"status": "pass", "reason": ""}, "r2": None, "r3": None, "r4": None})}
         standard = {"depth": [], "skip_optional": "", "raised": [], "counted": "", "stop_reason": ""}
         self.assertEqual(self.run_script("facts", **env, INPUTS_REDEPTH=json.dumps(standard))[1]["outcome"], "round_limit")
@@ -755,7 +776,7 @@ class CollectScriptCase(Run):
 
     def facts(self) -> dict:
         code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
-                                    INPUTS_GATE_FINAL='{"decision":"stop","text":"止める"}')
+                                    INPUTS_FINAL_ANSWER='{"decision":"stop","text":"止める"}')
         self.assertEqual(code, 0)
         return out
 

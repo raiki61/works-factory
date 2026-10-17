@@ -1,4 +1,4 @@
-# 最後の関所で stop。merge-apply が飛び、関所の答え stop が collect を通って report の gate-final に届く。
+# 最後の関所で stop。merge-apply が飛び、関所の答え stop が collect を通って report の入力 final-answer に届く。
 # 線の返り result の apply が null で sealed が在ること（bin/apply が読む欄）は tests/e2e/test_line_scenarios.py の LineReturnsTest が
 # 同じ stub の dry-run の trace で照らす。
 fixture:

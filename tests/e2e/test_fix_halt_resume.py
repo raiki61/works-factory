@@ -2,7 +2,7 @@
 続きが回ることを、止めた Archon で照らす。
 
 fix ブロックの配線（組の節の fan_out の join・join の節と柵 nodes-ok と落ちの後ろの節の trigger_rule・レンズの段の結び）を
-works-factory-fix.yaml から、修正の後ろの節 fixed の trigger_rule と受け止める段の宣言を works-factory-line.yaml から読んで、
+works-factory-fix.yaml から（受け止める段の宣言も、返す節 fix の with: の optional から）、修正の後ろの節 fixed の trigger_rule を works-factory-line.yaml から読んで、
 AI の無い節の使い捨ての工程に組む。写しの柵 nodes-ok の依存は、実物と同じ決まり（guarded）で写しの節から組む。
 - 組の子: 子 → 組の節 → join → 柵・落ちの後ろの節 → 返す節 all_done → メイングラフの後ろ。子は項目 b の 1 回目だけ落ちる
   （使用枠の切れの代わり）
@@ -221,9 +221,9 @@ print(json.dumps({"reply": os.environ.get("INPUTS_REPLY")}))
 
 
 def absorbed(ids) -> set:
-    """ids のうち、線が fix の include の中で受け止めると宣言した節（落ちても止めない段）"""
-    line = {n["id"]: n for n in yaml.safe_load(LINE_YAML.read_text(encoding="utf-8"))["nodes"]}
-    declared = json.loads(line["collect"]["with"]["optional"])
+    """ids のうち、fix 自身が返す節の with: の optional で受け止めると宣言した節（落ちても止めない段。線は include の id の頭を付けて受ける）"""
+    fix = {n["id"]: n for n in yaml.safe_load(FIX_YAML.read_text(encoding="utf-8"))["nodes"]}
+    declared = [f"fix__{row['node']}" for row in json.loads(fix["fix"]["with"]["optional"])]
     return {nid for nid in ids if runreport._declared(f"fix__{nid}", declared)}
 
 

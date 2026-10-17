@@ -61,16 +61,8 @@
       "workflows/plan-review/works-factory-plan-review.yaml": [5, "サブグラフ plan-review が名指す: judge の隣の materials.json・premises.json・purpose-review.json（#680）、plan の隣の design.jsonl・p2.fix_plan.json（#681）"],
       "workflows/plan/works-factory-plan.yaml": [3, "サブグラフ plan が名指す: judge の隣の depth-head.json・judge-verify.json・pr-excluded.json（#680）"]
     },
-    "main-id": {
-      "lib/answer.py": [1, "#682: メイングラフのノードの id（gate-final）を決め打ちする"],
-      "lib/boardview.py": [4, "#682: メイングラフのノードの id（answer-before-fix・design-only・gate-start）を決め打ちする"],
-      "lib/eyeverdict.py": [1, "#682: メイングラフのノードの id（gate-start）を決め打ちする"],
-      "lib/outcome.py": [17, "#682: メイングラフのノードの id（design-only・gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-final）を決め打ちする"],
-      "lib/replan.py": [3, "#682: メイングラフのノードの id（ask-final・ask-replan・gate-replan）を決め打ちする"],
-      "lib/runreport.py": [40, "#682: メイングラフのノードの id（ask-before-fix・ask-final・ask-replan・gate-before-fix・gate-final・gate-replan・merge-apply・merge-seal・replan-review・spec-check・test-gate-base・test-gate-final）を決め打ちする"],
-      "workflows/report/scripts/facts.py": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"],
-      "workflows/report/works-factory-report.yaml": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"]
-    },
+    "main-id": {},
+    "inner-id": {},
     "role": {
       "workflows/judge/commands/material-local-review.md": [5, "#683: 指示書がほかのサブグラフの役の古い名（blk-delta・blk-fix・blk-refix）と振る舞いを書く"]
     }

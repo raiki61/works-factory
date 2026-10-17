@@ -19,6 +19,7 @@ import answer  # noqa: E402
 import boardview  # noqa: E402
 import conflict  # noqa: E402
 import converge  # noqa: E402
+import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
 import marks  # noqa: E402
@@ -151,8 +152,17 @@ class OpenCase(Base):
         self.open(answers={"decision": "approve", "text": "例外のままにする"})
         b = self.view()
         self.assertEqual(b.record["process"]["human_items"],
-                         [{"round": 1, "node": "gate-start", "kinds": [], "answer": "approve", "note": "例外のままにする"}])
+                         [{"round": 1, "node": gatemarks.START_GATE_NODE, "kinds": [], "answer": "approve", "note": "例外のままにする"}])
         self.assertEqual(boardview.human_items(None), [])
+
+    def test_start_gate_label_is_the_shared_lib_mark(self):
+        """始めの承認の答えの行の札は gatemarks の 1 か所の札で、boardview と eyeverdict の両方が同じ字を引く（線のノードの id でない）"""
+        want = getattr(gatemarks, "START_GATE_NODE", None)
+        self.assertEqual(want, "始めの承認ノード")
+        got = boardview.human_items({"decision": "approve", "text": "x"})
+        self.assertEqual([row["node"] for row in got], [want])
+        again = eyeverdict.human_items({"decision": "approve", "text": "x"}, None)
+        self.assertEqual([row["node"] for row in again], [want])
 
     def test_defaults_are_named(self):
         """線が渡さない入力（start・answers が null）は既定で読み、その事実を材料に残す"""

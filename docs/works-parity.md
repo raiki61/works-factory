@@ -4103,7 +4103,7 @@
 - tail.md R5: lib/outcome.py::_waits・lib/outcome.py::asked_conflicts
 - tail.md R5b: lib/stopby.py の表の start-refused・needs-human・line-script と、メイングラフの collect（workflows/line/scripts/collect.py::STOPS・stop_<ノード> の with:）→ report の入力 stops → workflows/report/scripts/facts.py → lib/outcome.py::stop_reasons（returns, facts）・lib/outcome.py::WAIT_WORDS（needs-human は needs_human）
 - tail.md R6: lib/outcome.py::decide_outcome・lib/outcome.py::record_problems・lib/outcome.py::unknown_answers、workflows/report/scripts/facts.py::main
-- tail.md R7: lib/outcome.py::cut_at・lib/outcome.py::CHAIN
+- tail.md R7: lib/outcome.py::cut_at・workflows/line/scripts/collect.py::STAGES
 - tail.md R8: lib/outcome.py::_no_fix
 - tail.md R9: lib/outcome.py::decide_outcome
 - tail.md R10: lib/outcome.py::decide_outcome
@@ -4178,7 +4178,7 @@
 - tail.md R79: lib/runreport.py::_world_lines（world-state.json の reason・classes・dropped）
 - tail.md R80: lib/runreport.py::_pr_draft_lines（判定の隣の pr-downgrades.json。material-pr-check.json の reply.conflicts[].note を judge_accept.prcheck_drafts が写した物）
 - tail.md R81: lib/runreport.py::stamp（報告のグラフのファイルの版と、始めの記録の versions.line の頭 12 字。読めた記録に無ければ「始めの記録に無い（versions.line）」、始めの記録が読めなければ「読めない（始めの記録が読めない）」）
-- tail.md R82: メイングラフの YAML の collect の with: optional（宣言の 1 か所）→ report の入力 optional → lib/runreport.py::transcript_facts（optional=）・lib/runreport.py::_declared（宣言の外の落ちは failed）
+- tail.md R82: 各サブグラフ（judge・plan・fix）の出力ノードの with: optional（サブグラフの中のノードの宣言）とメイングラフの YAML の collect の with: optional（include 丸ごとの宣言）→ workflows/line/scripts/collect.py::absorbed（include の id の頭を付けて合わせる）→ report の入力 optional → lib/runreport.py::transcript_facts（optional=）・lib/runreport.py::_declared（宣言の外の落ちは failed）
 - tail.md M1: workflows/merge/scripts/merge.py::main → lib/green_cert.py::diff_bytes
 - tail.md M2: workflows/line/scripts/start.py::start（始めの記録の base_rev）→ workflows/merge/scripts/merge.py::main
 - tail.md M3: lib/seal.py::write_readback・workflows/merge/scripts/merge.py::main

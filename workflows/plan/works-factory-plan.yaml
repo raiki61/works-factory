@@ -684,13 +684,19 @@ nodes:
     timeout: 1728000000
     depends_on: [round, structure-state, ripple-items]
     trigger_rule: all_done
+    # optional は、この計画のブロックが落ちても線が先へ進めてよい節の宣言（構造の実測と構造の目。落ちても修正案は進む）。[{node, bare}] の
+    # JSON の字で、node は自分の中の節の id かその頭（区切り - で終わる物は頭）、bare はループの中の節で、記録の step に include の
+    # 前付けの無い素の id で載るか。線は返りの欄 optional を往復の返しの節と受け皿で受け、include の id の頭を付けて報告へ渡す。
+    # 案の直しも同じブロックの差し込みなので同じ宣言を使う
     with:
       dir: $round.output.dir
+      optional: '[{"node": "structure-", "bare": false}, {"node": "structure-eye", "bare": true}, {"node": "structure-eye-", "bare": true}]'
     output_format:
       type: object
       additionalProperties: false
       required: [ready, plan, structure, ripple, depth, round]
       properties:
+        optional: {type: array}
         ready: {type: boolean}
         plan: &pointer
           type: object

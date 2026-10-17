@@ -121,6 +121,19 @@ class PushedCase(unittest.TestCase):
         self.assertNotIn(answer.PUSHED, got["answer"])
         self.assertEqual(got["stop_reason"], "human:gate-before-fix")
 
+    def test_final_note_comes_from_the_caller_not_the_place(self):
+        """止める答えの一言が空の時、最後の承認の既定の一言は呼び手が渡す印 final が真の時だけ（place の字では選ばない）"""
+        stop = {"decision": "stop", "text": " "}
+        for place, final, want in (("gate-final", False, answer.STOP_NOTE), ("gate-elsewhere", True, answer.FINAL_STOP_NOTE),
+                                   ("gate-final", True, answer.FINAL_STOP_NOTE), ("gate-start", False, answer.STOP_NOTE)):
+            with self.subTest(place=place, final=final):
+                got = answer.taken(dict(stop), go=True, stop_reason="", place=place, folder=self.folder, final=final)
+                self.assertEqual(got["answer"]["text"], want)
+                kept = json.loads((self.folder / answer.ANSWERS / f"{place}.json").read_text(encoding="utf-8"))
+                self.assertEqual(kept["text"], want)
+        self.assertEqual(answer.taken(dict(stop), go=True, stop_reason="", place="gate-final", folder=self.folder)["answer"]["text"],
+                         answer.STOP_NOTE)
+
     def test_no_push_keeps_the_skipped_answer(self):
         self.assertEqual(answer.taken(None, go=False, stop_reason="works:needs-human", place="gate-before-fix", folder=self.folder),
                          {"go": False, "answer": None, "stop_reason": "works:needs-human"})
