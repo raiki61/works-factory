@@ -1258,14 +1258,20 @@ def _tests_head_lines(returns: dict) -> list:
     return out
 
 
+def _seal_state(returns: dict) -> tuple[bool, bool]:
+    """(差分を封じたか, 封じた差分を対象に置いたか)。_apply_lines と apply_said が同じ読み方で bin/apply の打ち方を決める"""
+    sealed = as_dict(returns.get("merge-seal"))
+    return sealed.get("ok") is True and bool(sealed.get("diff")), as_dict(returns.get("merge-apply")).get("ok") is True
+
+
 def _apply_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run_id: str) -> list:
     """差分を対象に当てる 1 行（M37。bin/apply <run-id>。元 works/dev/lib.sh:633-644）。止まった run には止まりの 1 行（結末の語・止めた
     所・人の一言。無人の run が推しで通した承認ノードの一言は人の一言でないので引かない）と --allow-stopped の要ることを出す。
     生の git apply の行は出さない（止まった run の拒みを素通りさせない）"""
-    sealed = as_dict(returns.get("merge-seal"))
-    if not (sealed.get("ok") is True and sealed.get("diff")):
+    sealed, placed = _seal_state(returns)
+    if not sealed:
         return [f"{APPLY_HEAD}: 無い（差分を封じていない）"]
-    if as_dict(returns.get("merge-apply")).get("ok") is True:
+    if placed:
         return [f"{APPLY_HEAD}: bin/apply {run_id}（置いた差分の hash を封じた hash と照らしてから当てる）"]
     said = next((g.get("text") for g in (gates.get(k) for k in ("gate-final", *oc.GATES))
                  if isinstance(g, dict) and g.get("text") and not answer.by_push(g)), "") or "一言なし"
@@ -1280,10 +1286,9 @@ def _apply_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run
 def apply_said(returns: dict, outcome: str, run_id: str, decisions: int) -> str:
     """冒頭の 2 行目の「差分を当ててよいか」の答え（_apply_lines と同じ道で bin/apply の打ち方を決め、結末と人が決めることの件数で
     当ててよいかを言う）"""
-    sealed = as_dict(returns.get("merge-seal"))
-    if not (sealed.get("ok") is True and sealed.get("diff")):
+    sealed, placed = _seal_state(returns)
+    if not sealed:
         return "当てる差分が無い（差分を封じていない）"
-    placed = as_dict(returns.get("merge-apply")).get("ok") is True
     if not placed and as_dict(as_dict(returns.get("eyes")).get("r2")).get("status") == seallib.REDESIGN:
         return f"当てない（R2 が {seallib.REDESIGN} を言った run の差分は bin/apply も当てない）"
     command = f"bin/apply {run_id}" + ("" if placed else " --allow-stopped")
