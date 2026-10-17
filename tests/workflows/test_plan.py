@@ -59,7 +59,8 @@ from engine.schema import validate_schema  # noqa: E402
 RUN_ID = "run-plan"
 NO_DEADLINE = 1728000000
 INPUTS = {"start": "", "units": "[]", "judgment": "", "world": "null", "spec": "null", "review": "", "ruling": "[]",
-          "conflicts": "null", "prior_failures": "null"}
+          "conflicts": "null", "prior_failures": "null", "verify": "null", "pr_excluded": "null", "depth_record": "null",
+          "answer_ties": "null", "materials": "null", "decisions": "null"}
 RETURNED = ["ready", "plan", "structure", "ripple", "depth", "round"]
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
@@ -1937,7 +1938,7 @@ class BriefCase(unittest.TestCase):
         run.include()
         self.assertNotIn(planblk.EXCLUDED_HEAD, self.brief(run))
         run = Run(self)
-        run.pointer("judge/pr-excluded.json", {"paths": ["other.py"]})
+        run.inputs["pr_excluded"] = run.pointer("judge/pr-excluded.json", {"paths": ["other.py"]})
         run.include()
         self.assertIn(f"{planblk.EXCLUDED_HEAD}: {run.art / 'judge' / 'pr-excluded.json'}", self.brief(run))
 

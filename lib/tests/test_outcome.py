@@ -360,9 +360,9 @@ class ReadingCase(unittest.TestCase):
 
     def test_unmeasured_materials_only_is_fixed_needs_check(self):
         judgment = self.put("judge/judgment.json", {})
-        self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}, "ci": {"status": "awaiting_human"},
-                                          "lint": {"status": "done"}})
-        judge = {**fixed_run()["judge"], "judgment": judgment}
+        materials = self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}, "ci": {"status": "awaiting_human"},
+                                                      "lint": {"status": "done"}})
+        judge = {**fixed_run()["judge"], "judgment": judgment, "materials": materials}
         self.assertEqual(decide(fixed_run(judge=judge)), ("fixed_needs_check", ""))
         red = {"ok": False, "green": False, "red_cause": "introduced"}
         self.assertEqual(decide(fixed_run(judge=judge, **{"test-gate-final": red}))[0], "round_limit")
@@ -371,9 +371,9 @@ class ReadingCase(unittest.TestCase):
         """#495: 直す前のテストで一部の系統を走らせられなかった（local_checks が awaiting_human）run も、最後のテストと封じが通れば
         fixed_needs_check で、残りの行が走らせられなかった系統（素材の reason）を名指す"""
         judgment = self.put("judge/judgment.json", {})
-        self.put("judge/materials.json", {"local_checks": {"status": "awaiting_human",
-                                                           "reason": "実機の要る系統は回せない\nlint は緑"}})
-        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
+        materials = self.put("judge/materials.json", {"local_checks": {"status": "awaiting_human",
+                                                                       "reason": "実機の要る系統は回せない\nlint は緑"}})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "materials": materials})
         self.assertEqual(decide(returns), ("fixed_needs_check", ""))
         [row] = outcome.residue(returns)
         self.assertEqual(row["where"], f"{outcome.MATERIAL_WHERE} local_checks")
@@ -384,16 +384,16 @@ class ReadingCase(unittest.TestCase):
         命令か出力の欠けた答え・2 つの問いに当たる答えは測りの代わりにしない"""
         judgment = self.put("judge/judgment.json", {"questions": [
             {"key": "q1", "origin": "ci", "status": "held"}, {"key": "q2", "origin": "ci", "status": "escalate"}]})
-        self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}, "ci": {"status": "awaiting_human"}})
-        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
+        materials = self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}, "ci": {"status": "awaiting_human"}})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "materials": materials})
         measured = {"question": "parallel_pr", "text": "重ならない", "command": "gh pr list", "output": "0 件"}
         facts = {**OK_FACTS, "answers": [measured, {"question": "ci", "text": "緑", "command": "make ci", "output": "ok"}]}
         self.assertEqual([r["where"] for r in outcome.residue(returns, facts)], [f"{outcome.MATERIAL_WHERE} ci"])
         self.assertEqual(outcome.measured_materials(returns, facts["answers"]), {"parallel_pr"})
         self.assertEqual(decide(returns, facts=facts), ("fixed_needs_check", ""))
         self.assertEqual(outcome.measured_materials(returns, [{**measured, "output": ""}]), set())
-        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": self.put("judge/judgment.json", {})})
-        self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": self.put("judge/judgment.json", {}),
+                                   "materials": self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}})})
         self.assertEqual(decide(returns, facts={**OK_FACTS, "answers": [measured]}), ("fixed", ""))
 
     def test_after_rows_are_left(self):
@@ -421,7 +421,7 @@ class ReadingCase(unittest.TestCase):
 
     def test_empty_or_missing_materials_count_zero(self):
         judgment = self.put("judge/judgment.json", {})
-        judge = {**fixed_run()["judge"], "judgment": judgment}
+        judge = {**fixed_run()["judge"], "judgment": judgment, "materials": str(self.dir / "judge" / "materials.json")}
         self.assertEqual(decide(fixed_run(judge=judge))[0], "fixed")
         self.put("judge/materials.json", {})
         self.assertEqual(decide(fixed_run(judge=judge))[0], "fixed")

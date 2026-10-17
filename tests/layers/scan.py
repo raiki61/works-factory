@@ -2,7 +2,8 @@
 
 字の形でしか見ないので、次は人が見る:
 - E3: 節の id（字の形で見分けられない。`-` を含むメイングラフの id は E22 が見る）
-- E4: `pathlib` などで部品を継いで組むパス
+- E4: `pathlib` などで部品を継いで組むパス。判定の置き場のファイルの名の住処（JUDGE_NAME_HOMES）の中の関数が、判定の置き場を名で開くか。
+  判定の置き場のファイルの名を f 文字列や字の連結で組む形と、判定のポインタの `.parent` を一度変数に置いてから住処の関数に渡す形
 - E12: script の中で置く期限
 - E22: 組んで作る名・`importlib` の読み込み・日本語の役の呼び名・素のブロックの名
 """
@@ -128,6 +129,14 @@ ALLOWED = {
         # 借りたスキルを無人の役で読む時の読み替え（役が読む文）。役の skills: の宣言と受け付けのループを、役に名指して説く
         "lib/borrow/unattended.md#Archon",
         "lib/borrow/unattended.md#loop_group",
+    ),
+    "E4": (
+        # judge_accept の照らしの部品（置き場の名でない物）を使う import の行だけ。名の表を引く形は外さない。名を開く関数を呼ばないかは人が見る
+        "lib/recount.py#import judge_accept",  # 閉鎖の状態・先行例・指しの数え直し
+        "workflows/line/scripts/ask_final.py#import judge_accept",  # 再審の採りの語 ADOPTED
+        "workflows/line/scripts/spec_check.py#import judge_accept",  # 受けた J/spec.json のポインタを照らす spec_questions
+        "workflows/line/scripts/fix_in.py#import judge_accept",  # 前の版の判定の出力を止める require_ports
+        "workflows/line/scripts/collect.py#import judge_accept",  # 前の版の判定・再審の出力を止める require_ports
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
@@ -371,7 +380,7 @@ def _block_paths(root: Path) -> list[str]:
     script は同じ `scripts/` の別の script を import せず（K8）、script の名は lib のモジュールの名と重ならない（script のフォルダが
     sys.path の頭に来るので、`import <名>` が lib の物でなく script を読む。K19）。
     """
-    out = _script_imports(root) + _script_names(root) + _input_producers(root)
+    out = _script_imports(root) + _script_names(root) + _input_producers(root) + _judge_names(root)
     blocks = [p.name for p in _blocks(root)]
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
@@ -402,7 +411,13 @@ def _block_paths(root: Path) -> list[str]:
 
 
 MAIN_GRAPH_WORD = "メイングラフ"
+NODE_WORD = "ノード"
 OUTPUT_OF_NODE = re.compile(r"\$([\w-]+)\.output")
+# ブロックの和名（docs/design.md の「## サブグラフ」の `### <名>（<和名>）`）。試験の小さな木にも、このリポジトリの和名を当てる。
+# 和名は中身の語（判定のポインタ・修正案）と重なるので、作り手として書く形（`<和名>役`・`<和名>が`・`<和名>の段`）だけを数える
+BLOCK_TITLE = re.compile(r"^### ([a-z-]+)（([^）\n]+)）$", re.M)
+BLOCK_TITLES = dict(BLOCK_TITLE.findall(
+    (REPO / "docs/design.md").read_text(encoding="utf-8").partition("\n## サブグラフ\n")[2].partition("\n## ")[0]))
 
 
 def _node_ids(document) -> set[str]:
@@ -423,8 +438,9 @@ def _top_hyphen_ids(root: Path) -> set[str]:
 def _input_producers(root: Path) -> list[str]:
     """ブロック（一番上のグラフ line・chain を除く）の inputs: の description が、値の作り手を名指さない。
 
-    名指しに数えるのは、`$<id>.output`（そのブロック自身の YAML の節の id は兄弟の参照なので数えない）・語「メイングラフ」・ほかのブロックの名
-    （`works-factory-` の頭が付いてもよい）・一番上のグラフの節の id のうち `-` を含む物。結びはメイングラフの with: だけが持つ。
+    名指しに数えるのは、`$<id>.output`（そのブロック自身の YAML の節の id は兄弟の参照なので数えない）・語「メイングラフ」と「ノード」・ほかのブロックの名
+    （`works-factory-` の頭が付いてもよい）・ほかのブロックの和名を作り手として書く形（BLOCK_TITLES）・一番上のグラフの節の id のうち `-` を含む物。
+    結びはメイングラフの with: だけが持つ。
     description は YAML の値として読むので、flow の形も `>-`・`|` の複数行の形も 1 つの字になる。
     説明の無い入力は名指す字も無いので見ない。字でない（mapping の）説明は中に字を隠せるので、問題の行にする
     """
@@ -441,6 +457,8 @@ def _input_producers(root: Path) -> list[str]:
         own_ids = _node_ids(document)
         others = (set(BLOCKS) | {p.name for p in folders}) - {folder.name}
         names = word(rf"(?:{re.escape(OURS_PREFIX)})?(?:" + "|".join(re.escape(n) for n in sorted(others, key=len, reverse=True)) + ")")
+        titles = [BLOCK_TITLES[n] for n in sorted(others) if n in BLOCK_TITLES and n not in TOP_FOLDERS]
+        makers = re.compile("(?:" + "|".join(re.escape(n) for n in sorted(titles, key=len, reverse=True)) + ")(?:役|が|の段)")
         for key, spec in _pairs(_top(document, "inputs")):
             description = _top(spec, "description")
             if description is None:
@@ -451,6 +469,8 @@ def _input_producers(root: Path) -> list[str]:
             text = description.value
             found = [m[0] for m in OUTPUT_OF_NODE.finditer(text) if m[1] not in own_ids]
             found += [MAIN_GRAPH_WORD] * (MAIN_GRAPH_WORD in text)
+            found += [NODE_WORD] * (NODE_WORD in text)
+            found += [m[0] for m in makers.finditer(text)]
             found += [m[0] for m in names.finditer(text)]
             found += [m[0] for m in ids.finditer(text)] if ids else []
             for hit in found:
@@ -495,6 +515,169 @@ def _script_names(root: Path) -> list[str]:
             if path.stem in modules:
                 out.append(f"{_rel(root, path)}:1: script の名 {path.stem} が lib/{path.stem}.py と同じ")
     return out
+
+
+JUDGE_FOLDER = "judge"
+WRITER = "judge_accept"
+# 書き手の欄 → 名の表。鍵で引けば名を持つので、書き手の import を許した所でも名指しに数える
+WRITER_TABLES = frozenset({(WRITER, "PORTS"), (WRITER, "FIRST_PORTS")})
+# lib の下で判定の外の読み手に数えない所（試験は名を字で持って照らす）
+JUDGE_NAME_UNREAD = ("lib/tests/",)
+# 判定の置き場のファイルの名（lib/judge_accept.py の PORTS・FIRST_PORTS の値）の住処。書き手の judge_accept と、名を定数で持つモジュール
+# だけが名を持ってよい。ほかの lib とほかのブロックの script は判定の出力の欄（ポインタ）で受ける（workflows/AGENTS.md の E4）
+JUDGE_NAME_HOMES = ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py", "lib/gatemarks.py",
+                    "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py", "lib/worldmark.py",
+                    "lib/report.py")
+
+
+@functools.cache
+def judge_port_files() -> frozenset:
+    """判定の出力の欄が指す置き場のファイルの名（judge_accept の表から引く）"""
+    import judge_accept
+    return frozenset((*judge_accept.PORTS.values(), *judge_accept.FIRST_PORTS.values()))
+
+
+def _home_constants(root: Path, names: frozenset, kinds: frozenset) -> tuple[set, set, set]:
+    """住処のモジュールが module の頭で置く定数と関数 ({(モジュール, 名)} 値が判定の置き場のファイルの名を持つ定数, 値が marks の種の
+    定数, 判定の置き場を名で開く関数)。ファイルの名を持つ値は、名の字・その名の種の `marks.KINDS[<種>].file`・知っている定数（同じ
+    モジュールの素の名か `<モジュール>.<名>`）と、それらを並べた tuple・list。開く関数は、中にそれらの値・その種の
+    `marks.path_of(<種>, …)`・開く関数の呼び出しを持つ物"""
+    files, kind_consts, bodies = set(), set(), []
+    for home in JUDGE_NAME_HOMES:
+        path = root / home
+        if path.is_file():
+            bodies.append((path.stem, ast.parse(path.read_text(encoding="utf-8")).body))
+
+    def known(node, module: str, table: set) -> bool:
+        if isinstance(node, ast.Name):
+            return (module, node.id) in table
+        return isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and (node.value.id, node.attr) in table
+
+    def names_file(node, module: str) -> bool:
+        if isinstance(node, ast.Constant):
+            return node.value in names
+        if isinstance(node, (ast.Tuple, ast.List)):
+            return any(names_file(e, module) for e in node.elts)
+        if isinstance(node, ast.Attribute) and node.attr == "file" and isinstance(node.value, ast.Subscript):
+            sub = node.value
+            return (isinstance(sub.value, ast.Attribute) and sub.value.attr == "KINDS"
+                    and (isinstance(sub.slice, ast.Constant) and sub.slice.value in kinds or known(sub.slice, module, kind_consts)))
+        return known(node, module, files)
+
+    grown = True
+    while grown:
+        grown = False
+        for module, body in bodies:
+            for node in body:
+                if not isinstance(node, ast.Assign):
+                    continue
+                for target in (t for t in node.targets if isinstance(t, ast.Name)):
+                    pair = (module, target.id)
+                    if pair not in kind_consts and isinstance(node.value, ast.Constant) and node.value.value in kinds:
+                        kind_consts.add(pair)
+                        grown = True
+                    if pair not in files and names_file(node.value, module):
+                        files.add(pair)
+                        grown = True
+
+    def opens(node, module: str) -> bool:
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "path_of" and node.args:
+            kind = node.args[0]
+            return isinstance(kind, ast.Constant) and kind.value in kinds or known(kind, module, kind_consts)
+        return isinstance(node, ast.Call) and known(node.func, module, openers) or names_file(node, module)
+
+    openers, grown = set(), True
+    while grown:
+        grown = False
+        for module, body in bodies:
+            for node in body:
+                if (isinstance(node, ast.FunctionDef) and (module, node.name) not in openers
+                        and any(opens(n, module) for n in ast.walk(node))):
+                    openers.add((module, node.name))
+                    grown = True
+    return files, kind_consts, openers
+
+
+def _judge_names(root: Path) -> list[str]:
+    """判定の外（住処でない lib・workflows/.shared/・ほかのブロックの script）が、判定の置き場のファイルを名指さない。名指しに数えるのは、
+    名の字そのもの（長い文の一部は数えない）・住処の定数（`<モジュール>.<名>`・`from <モジュール> import <名>`・getattr で名で引く形）・
+    その名の marks の種（`marks.KINDS[<種>]`・`marks.path_of(<種>, …)`）・住処の開く関数に判定のポインタの隣（_beside）を渡す呼び出し・
+    書き手 judge_accept の import と、その名の表（`PORTS`・`FIRST_PORTS`）を引く形（import とは別の当たりなので、import を許した所でも
+    鳴る）。住処の中の関数が判定の置き場を名で開くかは人が見る"""
+    import marks
+    names = judge_port_files()
+    kinds = frozenset(k for k, kind in marks.KINDS.items() if kind.file in names)
+    consts, kind_consts, openers = _home_constants(root, names, kinds)
+    consts |= WRITER_TABLES
+    homes = set(JUDGE_NAME_HOMES)
+    paths = [q for q in _files(root, "lib") if q.suffix == ".py" and _rel(root, q) not in homes
+             and not _rel(root, q).startswith(JUDGE_NAME_UNREAD)]
+    paths += [q for q in _files(root, "workflows", ".shared") if q.suffix == ".py"]
+    paths += [q for folder in _blocks(root) if folder.name != JUDGE_FOLDER for q in _files(root, "workflows", folder.name, "scripts")
+              if q.suffix == ".py"]
+    out = []
+    for path in paths:
+        rel = _rel(root, path)
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError) as e:
+            out.append(f"{rel}:1: 読めない（{type(e).__name__}）")
+            continue
+        alias, imported = {}, {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                alias |= {a.asname or a.name: a.name for a in node.names}
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported |= {a.asname or a.name: (node.module, a.name) for a in node.names}
+
+        def opener(func):
+            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+                pair = (alias.get(func.value.id, func.value.id), func.attr)
+            else:
+                pair = imported.get(func.id) if isinstance(func, ast.Name) else None
+            return f"{pair[0]}.{pair[1]}" if pair in openers else None
+
+        def const_of(node, table):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                pair = (alias.get(node.value.id, node.value.id), node.attr)
+                return f"{pair[0]}.{pair[1]}" if pair in table else None
+            return None
+
+        def kind_of(node):
+            if isinstance(node, ast.Constant) and node.value in kinds:
+                return repr(node.value)
+            return const_of(node, kind_consts)
+
+        for node in ast.walk(tree):
+            hit = None
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in names:
+                hit = node.value
+            elif isinstance(node, ast.Attribute):
+                hit = const_of(node, consts)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                hit = next((f"{node.module}.{a.name}" for a in node.names if (node.module, a.name) in consts), None)
+                hit = hit or node.module == WRITER and f"from {WRITER} import"
+            elif isinstance(node, ast.Import):
+                hit = next((f"import {WRITER}" for a in node.names if a.name == WRITER), None)
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr" and len(node.args) >= 2:
+                module = alias.get(node.args[0].id, "") if isinstance(node.args[0], ast.Name) else ""
+                name = node.args[1].value if isinstance(node.args[1], ast.Constant) else None
+                hit = (module, name) in consts and f"getattr({module}, {name!r})"
+            elif isinstance(node, ast.Call) and opener(node.func) and any(map(_beside, (*node.args, *node.keywords))):
+                hit = f"{opener(node.func)}(<判定のポインタの隣>)"
+            elif isinstance(node, ast.Subscript) and const_of(node.value, {("marks", "KINDS")}):
+                hit = kind_of(node.slice) and f"marks.KINDS[{kind_of(node.slice)}]"
+            elif isinstance(node, ast.Call) and const_of(node.func, {("marks", "path_of")}) and node.args:
+                hit = kind_of(node.args[0]) and f"marks.path_of({kind_of(node.args[0])}, …)"
+            if hit:
+                out.append(f"{rel}:{node.lineno}: {hit} で判定の置き場のファイルを名指す。判定の出力の欄のポインタを入力で受ける")
+    return out
+
+
+def _beside(arg) -> bool:
+    """判定のポインタから隣を引く値（`.parent`・`.with_name(…)` を含む）"""
+    return any(isinstance(n, ast.Attribute) and n.attr == "parent"
+               or isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "with_name" for n in ast.walk(arg))
 
 
 def _pointed_block(target: str) -> str:
@@ -1334,7 +1517,9 @@ def _depth_when(root: Path) -> list[str]:
 
 # E22 の照らしの名（docs/layers.json の known の鍵）
 LAYER_CHECKS = ("import", "beside", "main-id", "role")
-OLD_ROLE = re.compile(r"(?<!(?a:[\w\-/.]))blk-[a-z][a-z0-9_-]*")
+OLD_ROLE = r"blk-[a-z][a-z0-9_-]*"
+# 借りた読み替え（lib/seat.py の skill_overlay が役の種類の節と共通の文を役の指示書に載せる）。どのブロックの名も役の名も書かない
+OVERLAY_COPY = "lib/borrow/unattended.md"
 
 
 def place_match(pattern: str, rel: str) -> bool:
@@ -1403,7 +1588,9 @@ def _imports_against_map(root: Path, files) -> list[str]:
 
 
 def _beside_names(root: Path, files) -> list[str]:
-    """名は複数のブロックの隣に在ってよい。名の `<k>` の形の段は、名の 1 段の字に当てる（`tdd-<k>/state.json`）"""
+    """名は複数のブロックの隣に在ってよい。名の `<k>` の形の段は、名の 1 段の字に当てる（`tdd-<k>/state.json`）。
+    ブロックの YAML の `inputs:` の `description:` は見ない。ポインタの入力の説明は先のファイルの名を書く決まり（workflows/AGENTS.md の E4）で、
+    名を書いても名で開かない"""
     owners = collections.defaultdict(set)
     for block, names in LAYER_MAP["beside"].items():
         for name in names:
@@ -1413,15 +1600,32 @@ def _beside_names(root: Path, files) -> list[str]:
         f"(?P<n{i}>" + re.sub(r"<[^>]*>", r"[^/\\s'\"`]+", re.escape(name)) + ")" for i, name in enumerate(names))
                          + r")(?!(?a:[\w\-]|\.\w))")
     out = []
-    for path, rel, _, place in files:
+    for path, rel, layer, place in files:
         lines, broken = _lines(root, path)
         out += broken
+        if layer == "block" and path.suffix in (".yaml", ".yml"):
+            lines = _blank_input_descriptions(lines)
         for number, line in enumerate(lines, 1):
             for match in pattern.finditer(line):
                 name = names[int(match.lastgroup[1:])]
                 if place not in {f"workflows/{block}/" for block in owners[name]}:
                     out.append(f"{rel}:{number}: ブロック {'・'.join(sorted(owners[name]))} の隣のファイル {name} を名指す")
     return out
+
+
+def _blank_input_descriptions(lines: list[str]) -> list[str]:
+    """YAML の行の、頭の `inputs:` の `description:` の値を空白に替えた行（行の数と位置は保つ）。読めない YAML はそのまま"""
+    text = "\n".join(lines)
+    try:
+        document = yaml.compose(text, Loader=yaml.SafeLoader)
+    except yaml.YAMLError:
+        return lines
+    chars = list(text)
+    for _, spec in _pairs(_top(document, "inputs")):
+        if (description := _top(spec, "description")) is not None:
+            for i in range(description.start_mark.index, description.end_mark.index):
+                chars[i] = chars[i] if chars[i] == "\n" else " "
+    return "".join(chars).split("\n")
 
 
 def _main_ids(root: Path, files) -> list[str]:
@@ -1452,41 +1656,60 @@ def _own_ids(root: Path, place: str) -> set[str]:
 
 
 def _roles(document) -> set[str]:
-    """グラフの YAML の役（AI の節）の id のうち `-` を含む物"""
-    return {ident for node in _nodes(document) if any(_top(node, k) is not None for k in ("prompt", "command", "loop"))
-            and isinstance(i := _top(node, "id"), yaml.ScalarNode) and "-" in (ident := i.value)}
+    """グラフの YAML の役（AI の節）の id"""
+    return {i.value for node in _nodes(document) if any(_top(node, k) is not None for k in ("prompt", "command", "loop"))
+            and isinstance(i := _top(node, "id"), yaml.ScalarNode)}
+
+
+def _naming(roles: set[str], blocks: set[str]) -> re.Pattern:
+    """役 roles とブロック blocks の名指しの式: backtick で囲んだ役の id（`fixer`）・素の語の `-` を含む役の id と古い名 `blk-*`・
+    `works-factory-` の頭つきのブロックの名・パス `workflows/<名>/`。素の `-` の無い id と素のブロックの名（judge・fix・merge）は
+    普通の語と重なり見分けられないので数えない"""
+    def alt(names):
+        return "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+    bare = [alt(r for r in roles if "-" in r)]
+    if blocks:
+        bare.append(re.escape(OURS_PREFIX) + f"(?:{alt(blocks)})")
+    # 古い名は前だけを見る。後ろに / や . が続く形（`blk-delta/commands/x.md`・blk-fix.yaml）も名指しに数える
+    parts = [word("|".join(filter(None, bare))).pattern, r"(?<!(?a:[\w\-/.]))" + OLD_ROLE]
+    if roles:
+        parts.append(f"`(?:{alt(roles)})`")
+    if blocks:
+        parts.append(rf"workflows/(?:{re.escape(OURS_PACK)}/)?(?:{alt(blocks)})/")
+    return re.compile("|".join(parts))
 
 
 def _role_names(root: Path) -> list[str]:
-    """ブロックの指示書（commands/）が、ほかのブロックの名と役の名（今の `-` を含む id と、古い名 `blk-*`）を書かない。入力の説明は
-    ほかのブロックの役の名を書かない（ブロックの名は E4 が見る）。指示書のブロックの名は `works-factory-` の頭つきだけを数える。素の名
-    （judge・fix・merge・plan・report）は普通の語と重なり、`-` の無い id と同じく語として見分けられない"""
+    """ブロックの指示書（commands/）と入力の説明は、ほかのブロックの名と役の名を書かない（_naming の形）。自分の YAML の節の id と、
+    自分の YAML の字の値そのもの（返答の enum の語 `rejudge` など。ほかのブロックの役の id と同じ字でも自分の語）は数えない。
+    借りた読み替え OVERLAY_COPY は、どのブロックの名も役の名も書かない"""
     folders = [f for f in _blocks(root) if f.name not in TOP_FOLDERS]
     docs = {f.name: _workflow_doc(f) for f in folders}
     roles = {name: _roles(doc) for name, (_, doc) in docs.items() if doc is not None}
+    every_block = set(BLOCKS) | {f.name for f in _blocks(root)}
     out = []
+
+    def lines_naming(path: Path, pattern: re.Pattern) -> list[str]:
+        lines, broken = _lines(root, path)
+        return broken + [f"{_rel(root, path)}:{number}: ほかのブロックか役の名 {m[0]} を書く"
+                         for number, line in enumerate(lines, 1) for m in pattern.finditer(line)]
+
     for folder in folders:
         path, document = docs[folder.name]
-        own = (_node_ids(document) if document is not None else set()) | {folder.name}
+        own = {folder.name} | ((_node_ids(document) | {value for _, value in _scalars(document)}) if document is not None else set())
         other_roles = set().union(*(r for n, r in roles.items() if n != folder.name)) - own
-        other_blocks = (set(BLOCKS) | {f.name for f in _blocks(root)}) - {folder.name}
-        block_word = re.escape(OURS_PREFIX) + "(?:" + "|".join(re.escape(n) for n in sorted(other_blocks, key=len, reverse=True)) + ")"
-        role_word = "|".join(re.escape(r) for r in sorted(other_roles, key=len, reverse=True))
-        in_commands = word("|".join(filter(None, (role_word, block_word))))
-        in_inputs = word(role_word) if role_word else None
+        in_commands = _naming(other_roles, every_block - {folder.name})
         for command in _files(folder, "commands"):
-            lines, broken = _lines(root, command)
-            out += broken
-            for number, line in enumerate(lines, 1):
-                out += [f"{_rel(root, command)}:{number}: ほかのブロックか役の名 {m[0]} を書く" for m in in_commands.finditer(line)]
-                out += [f"{_rel(root, command)}:{number}: 古い役の名 {m[0]} を書く" for m in OLD_ROLE.finditer(line)]
+            out += lines_naming(command, in_commands)
+        in_inputs = _naming(other_roles, set())
         for key, spec in _pairs(_top(document, "inputs")) if document is not None else ():
             description = _top(spec, "description")
             if not isinstance(description, yaml.ScalarNode):
                 continue   # 字でない説明は E4 が赤にする
-            hits = [m[0] for m in in_inputs.finditer(description.value)] if in_inputs else []
-            hits += [m[0] for m in OLD_ROLE.finditer(description.value)]
-            out += [f"{_rel(root, path)}:{_line(description)}: 入力 {key} の説明がほかのブロックの役 {h} を名指す" for h in hits]
+            out += [f"{_rel(root, path)}:{_line(description)}: 入力 {key} の説明がほかのブロックの役 {m[0]} を名指す"
+                    for m in in_inputs.finditer(description.value)]
+    if (root / OVERLAY_COPY).is_file():
+        out += lines_naming(root / OVERLAY_COPY, _naming(set().union(*roles.values()), every_block))
     return out
 
 

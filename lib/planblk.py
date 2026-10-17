@@ -326,7 +326,7 @@ def design_section(b) -> str:
     """事前審査の指示書の頭に貼る節: 独立設計の節（design_only）と、修正案の項目の works の欄の節（planmarks.review_section。
     控えが無ければ無し）。欄の控えが凍結の印と食い違えば控えを名指す理由の BoardGap（盤面を止めるのは呼ぶブロックの script）"""
     try:
-        fields = planmarks.review_section(b, worldmark.challenges(worldmark.stage_rows(b.dir) or []))
+        fields = planmarks.review_section(b, worldmark.challenges(worldmark.stage_rows(b.dir, worldmark.COPY_STATE) or []))
     except planmarks.FieldsBroken as e:   # 受け付けの後に欄の控えを書き換えた: 書き換えた欄を審査に見せない
         why = f"修正案の項目の works の欄の控え {planmarks.FIELDS_FILE} が凍結と食い違う: {oneline.one_line(e)}"
         raise BoardGap(why) from None

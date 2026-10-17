@@ -9,19 +9,19 @@ inputs:
     description: 始めの記録のポインタ（base_rev を読む）
   fingerprint:
     default: ""
-    description: 最後のテストの段の緑の認証の指紋 {head, diff_hash}
+    description: 修正の後のテストの緑の認証の指紋 {head, diff_hash}
   green_ok:
     default: ""
-    description: 最後のテストの段が通ったか（ok）
+    description: 修正の後のテストが通ったか（ok）
   eyes_ok:
     default: ""
-    description: 独立の目が通したか（ok）
+    description: 修正の後の独立の確かめが通ったか（ok）
   sealed_hash:
     default: ""
     description: seal が封じた差分の hash（apply だけ）
   answer:
     default: ""
-    description: 最後の承認ノードの答え {decision, text}。承認ノードが開かなければ null（apply だけ）
+    description: 最後に人が返した答え {decision, text}。人に聞かなければ null（apply だけ）
   r2:
     default: ""
     description: 独立設計との比較（R2）の {status, reason}。省いた・走らなければ null（apply だけ）
