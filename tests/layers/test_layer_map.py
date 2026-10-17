@@ -254,11 +254,16 @@ class RoleCase(unittest.TestCase):
 
     def test_command_naming_another_role_or_block_is_red(self):
         for text, said in (("r2-compare の答えを読む\n", "r2-compare"), ("works-factory-eyes が読む\n", "works-factory-eyes"),
-                           ("blk-fix の fix が直す\n", "blk-fix")):
+                           ("blk-fix の fix が直す\n", "blk-fix"), ("`blk-delta/commands/delta-review.md` を読む\n", "blk-delta"),
+                           ("blk-fix.yaml の節\n", "blk-fix")):
             with self.subTest(said=said):
                 got = hits({"workflows/eyes/works-factory-eyes.yaml": self.EYES, "workflows/judge/commands/a.md": text}, "role")
                 self.assertEqual(len(got), 1, got)
                 self.assertTrue(got[0].startswith("workflows/judge/commands/a.md:1:") and said in got[0], got)
+
+    def test_old_name_followed_by_path_is_red_in_overlay(self):
+        got = hits({"workflows/eyes/works-factory-eyes.yaml": self.EYES, scan.OVERLAY_COPY: "`blk-delta/commands/x.md` の決まり\n"}, "role")
+        self.assertEqual(len(got), 1, got)
 
     def test_own_role_script_node_bare_name_and_old_path_are_clean(self):
         files = {"workflows/eyes/works-factory-eyes.yaml": self.EYES,

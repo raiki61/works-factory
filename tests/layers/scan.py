@@ -1477,10 +1477,11 @@ def _naming(roles: set[str], blocks: set[str]) -> re.Pattern:
     普通の語と重なり見分けられないので数えない"""
     def alt(names):
         return "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
-    bare = [alt(r for r in roles if "-" in r), OLD_ROLE]
+    bare = [alt(r for r in roles if "-" in r)]
     if blocks:
         bare.append(re.escape(OURS_PREFIX) + f"(?:{alt(blocks)})")
-    parts = [word("|".join(filter(None, bare))).pattern]
+    # 古い名は前だけを見る。後ろに / や . が続く形（`blk-delta/commands/x.md`・blk-fix.yaml）も名指しに数える
+    parts = [word("|".join(filter(None, bare))).pattern, r"(?<!(?a:[\w\-/.]))" + OLD_ROLE]
     if roles:
         parts.append(f"`(?:{alt(roles)})`")
     if blocks:
