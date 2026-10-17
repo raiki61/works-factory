@@ -3890,7 +3890,7 @@
 - plan.md P197: lib/planblk.py::READONLY_MOVED・lib/planfile.py::moved・lib/boardview.py::_take・pass-<k>/tree.json
 - plan.md P198: lib/boardview.py::_take
 - plan.md P199: lib/planblk.py::RECOMMEND_REJECT・lib/boardview.py::_take
-- plan.md P200: lib/boardview.py::plan_review_output・lib/boardview.py::_keys_once・lib/boardview.py::blank
+- plan.md P200: lib/boardview.py::plan_review_output・lib/boardview.py::_keys_once・lib/boardview.py::blank・lib/planblk.py::face_row_gaps（穴の行ごとの照らしの束。no_add を含む）
 - plan.md P201: lib/boardview.py::take_review・lib/boardview.py::GIVEN_UP_FACES・lib/boardview.py::collect
 - plan.md P202: lib/planblk.py::TREE_AUTO_MIN・lib/boardview.py::tree_word・lib/boardview.py::_tree_on・workflows/line/scripts/start.py::words（features の語の照らし）
 - plan.md P203: lib/planblk.py::tree_part・lib/planblk.py::SUBAGENT_TYPE・lib/planblk.py::AGG_ASK
