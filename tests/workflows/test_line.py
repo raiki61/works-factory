@@ -2783,12 +2783,13 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual(collect.fallback("x").keys(), got.keys())
 
     def test_lists_are_the_lists_report_reads(self):
-        """collect が並びに倒す入力（LISTS）は、report の facts が並びと読む入力（無ければ黙って [] になる）と、collect の節が
-        配列と申告する欄と同じ"""
+        """collect が並びに倒す入力（LISTS と、字を行に割る TEXT_LINES）は、report の facts が並びと読む入力（無ければ黙って [] に
+        なる）と、collect の節が配列と申告する欄と同じ"""
         from tests.workflows.test_report import facts_script
-        self.assertEqual(set(collect.LISTS), {name.replace("-", "_") for name in facts_script.LISTS})
+        lists = {*collect.LISTS, *collect.TEXT_LINES}
+        self.assertEqual(lists, {name.replace("-", "_") for name in facts_script.LISTS})
         shape = line_nodes()["collect"]["output_format"]["properties"]
-        self.assertEqual({key for key, rule in shape.items() if rule.get("type") == "array"}, set(collect.LISTS))
+        self.assertEqual({key for key, rule in shape.items() if rule.get("type") == "array"}, lists)
 
     def test_skipped_receiver_is_null(self):
         seal = {"got": {"mode": "seal", "ok": True, "hash": "123"}, "stop_reason": ""}
@@ -2888,6 +2889,23 @@ class CollectAndResultCase(unittest.TestCase):
             with self.subTest(input=key):
                 self.assertEqual(report_with[key], f"$collect.output.{key.replace('-', '_')}")
 
+    def test_notices_of_the_head_reach_report_by_the_line_only(self):
+        """#678: 頭のノードが run を止めずに進めた注意の行（reason）を、collect が入力のポートで受けて行の並びにし、report の入力に
+        渡す。どのノードから来るかはメイングラフの YAML だけが書き、報告のブロックは頭のノードの名を知らない"""
+        nodes = line_nodes()
+        self.assertEqual(nodes["collect"]["with"]["notices"], {"from": "$testcmd.output.reason", "if_skipped": None})
+        self.assertIn("testcmd", nodes["collect"]["depends_on"])
+        self.assertEqual(nodes["report"]["with"]["notices"], "$collect.output.notices")
+        got = collect.collect({}, self.line(notices="注意（test_cmd）: a\nWORKS_FACTORY_ALLOW_TESTCMD=1 なので止めずに進める"))
+        self.assertEqual(got["notices"], ["注意（test_cmd）: a", "WORKS_FACTORY_ALLOW_TESTCMD=1 なので止めずに進める"])
+        for skipped in (None, "", "null"):
+            with self.subTest(skipped=skipped):
+                self.assertEqual(collect.collect({}, self.line(notices=skipped))["notices"], [])
+        block = SCRIPTS.parents[1] / "report"
+        for path in [block / "works-factory-report.yaml", *sorted((block / "scripts").glob("*.py"))]:
+            with self.subTest(path=path.name):
+                self.assertNotIn("testcmd", path.read_text(encoding="utf-8"))
+
     def test_absorbed_stages_are_declared_once_in_the_line(self):
         """R82: 受け止める段（落ちても線が先へ進めてよい段。元は線の YAML の節の description の [optional]）の宣言は線の YAML の 1 か所
         （collect の with: の optional）で、report の入力 optional に届く。元の宣言は世界の解・構造の実測・レンズ・直した後の構造・独立の目
@@ -2975,7 +2993,8 @@ class SweepChildrenCase(unittest.TestCase):
         self.assertIn("sweep-children", nodes["result"]["depends_on"])
         self.assertEqual(nodes["result"]["with"]["children"], {"from": "$sweep-children.output", "if_skipped": None})
         top = {node["id"]: node for node in LINE["nodes"]}
-        self.assertEqual({key for key in top if not any(key in other.get("depends_on", []) for other in top.values())}, {"result"})
+        ends = {key for key in top if not any(key in other.get("depends_on", []) for other in top.values())}
+        self.assertEqual({key for key in ends if "cancel" not in top[key]}, {"result"})   # cancel のノードは run をそこで終える
 
     def test_result_carries_the_sweep(self):
         swept = {"cleaned": [{"branch": "b0", "run_id": "c0", "node": "fix__groups-par"}],
@@ -3060,6 +3079,9 @@ class FallbackCase(unittest.TestCase):
                     self.assertIsNone(got["start"])
                 elif key == "sweep-children":   # 報告の後の後始末。止める段が無く、訳は error に書く
                     self.assertEqual(got["error"], "boom")
+                elif key == "testcmd":   # 頭のノードは止めの理由でなく、cancel のノードが読む stop と reason で止める
+                    self.assertIs(got["stop"], True)
+                    self.assertIn("boom", got["reason"])
                 else:
                     self.assertEqual(got["stop_reason"], stopby.LINE_SCRIPT)
                 self.assertIsNot(got.get("go"), True)
@@ -3082,7 +3104,11 @@ class BrokenLibCase(unittest.TestCase):
                     done = subprocess.run([sys.executable, str(SCRIPTS / f"{node['script']}.py")], cwd=tmp, env=env,
                                           capture_output=True, text=True)
                     self.assertEqual(done.returncode, 0, done.stderr)
-                    self.assertEqual(json.loads(done.stdout)["stop_reason"], stopby.LINE_SCRIPT)
+                    got = json.loads(done.stdout)
+                    if node["script"] == "testcmd":   # 頭のノードは cancel のノードが読む stop で止める
+                        self.assertIs(got["stop"], True)
+                    else:
+                        self.assertEqual(got["stop_reason"], stopby.LINE_SCRIPT)
                     self.assertIn("ModuleNotFoundError", done.stderr)
 
 

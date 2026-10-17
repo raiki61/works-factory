@@ -24,13 +24,15 @@ fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（
   最後の承認ノードを開ける理由・承認の後に受け入れ条件のテストが変わった問い（spec-check の questions）（飛ばされたノードは []）
 - prior_failures: 依頼の前の失敗のポインタ（start の出力）・redepth: 直した後の深さの上げ直しの出力・spec_unchecked: 受け入れ条件の
   テストを照らせなかったか（spec-check の unchecked）（飛ばされたノードは null）
+- notices: run を止めずに進めた起こす前の注意の行の並び（メイングラフの YAML の collect の with: が、どのノードの出力の字かを決める。
+  行ごとに割る。飛ばされたノードと空の字は []）
 - optional: 受け止める段の宣言（メイングラフの YAML の collect の with: の 1 か所。落ちても先へ進めてよい段の、区切りで終わるノードの id の頭かノードの id の並び。runreport._declared）
 
 result が $collect.output を読むので、このノードは落ちない: 境の口を読めない時も、標準ライブラリだけで fallback の出力を書く（止めの
 理由は LINE_SCRIPT。境の口の LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。
 
 入力（with:）: <include の id>（受け皿の出力）・plan・plan_review・design_only（計画の往復と直す物が無い周の受け皿の出力）・start・
-fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・spec_unchecked・optional
+fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・spec_unchecked・optional・notices
 """
 import json
 import os
@@ -52,6 +54,7 @@ STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in
          "spec-check", "redepth", "ask-final", "answer-final")
 LISTS = ("deferred", "widened", "final_reasons", "spec_changed", "optional")
 VALUES = ("prior_failures", "redepth", "spec_unchecked")
+TEXT_LINES = ("notices",)   # 字を行ごとの並びに割る入力
 LINE_SCRIPT = "works:line-script"
 
 
@@ -81,6 +84,7 @@ def collect(received: dict, line: dict) -> dict:
         "stops": {node: word for node, word in stops.items() if word},
         **{name: boundary.items(line.get(name)) for name in LISTS},
         **{name: boundary.value(line.get(name)) for name in VALUES},
+        **{name: boundary.text(line.get(name)).splitlines() for name in TEXT_LINES},
     }
     return {**out, **{name: value for name, value in carried(line.get("fix_in")).items() if name in out and not out[name]}}
 
@@ -100,13 +104,13 @@ def line_of_env() -> dict:
         "fix_in": os.environ.get("INPUTS_FIX_IN"),
         "gates": {name: os.environ.get(f"INPUTS_{name.upper()}") for name in GATES},
         "stops": {node: os.environ.get(f"INPUTS_{stop_key(node).upper()}") for node in STOPS},
-        **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*LISTS, *VALUES)},
+        **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*LISTS, *VALUES, *TEXT_LINES)},
     }
 
 
 def fallback(reason: str) -> dict:
     return {**{name: None for name in (*RECEIVED, *ROUNDS)}, "start": None, **{name: None for name in GATES},
-            "stops": {"collect": LINE_SCRIPT}, **{name: [] for name in LISTS}, **{name: None for name in VALUES}}
+            "stops": {"collect": LINE_SCRIPT}, **{name: [] for name in LISTS}, **{name: None for name in VALUES}, **{name: [] for name in TEXT_LINES}}
 
 
 def main() -> None:

@@ -935,10 +935,11 @@ nodes:
         redepth: {}
         spec_changed: { type: array }
         spec_unchecked: {}
+        notices: { type: array }
       required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
-                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked]
+                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, notices]
     mutates_checkout: false
-    depends_on: [start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
+    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
                  fixed, spec-check, redepth, test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
@@ -985,6 +986,7 @@ nodes:
       spec_unchecked: { from: "$spec-check.output.unchecked", if_skipped: null }
       prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
       redepth: { from: "$redepth.output", if_skipped: null }
+      notices: { from: "$testcmd.output.reason", if_skipped: null }
       # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の、区切り（__・-）で終わる節の id の頭か、節の id そのもの。
       # 宣言の外の落ちは途中で終わった run に数える。元は線の YAML の節の description の [optional]: 世界の解・構造の実測・レンズ・
       # 直した後の構造・独立の目。レンズはレンズの節とその返りの中継だけで、支度と集め役は止める段。run の頭の深さの段は
@@ -1023,6 +1025,7 @@ nodes:
       spec-unchecked: "$collect.output.spec_unchecked"
       redepth: "$collect.output.redepth"
       optional: "$collect.output.optional"
+      notices: "$collect.output.notices"
 
   # 後始末。fix の並べ（groups-par）の子の run が残した作業ツリーと枝を消す（issue #113）。消すのはこの run の子で status が
   # completed の物で、子を起こした fan_out の節と join が済んだ物だけ（再開が join を走らせ直しうる間は残す）。落ちない（返りの error に畳む）ので run の結末を変えず、返り {cleaned, left, error} は result が線の返りに載せる

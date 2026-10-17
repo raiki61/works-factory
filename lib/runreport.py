@@ -1739,7 +1739,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     検証器の関所を踏んだ）。書き手に渡す事実のファイルは機械の報告そのもの（元の facts_text が線 A の機械の報告を字のまま使った形）。
     transcript は transcript_facts の返り、typed は型つきの成果物の読み {by_type, warnings}、repo は直しの内側の語を直す前の版と
     比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, spec_changed,
-    spec_unchecked, prior_failures（開けたファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）、user_env は対象のコマンドを利用者の
+    spec_unchecked, prior_failures（開けたファイルのパスの字か None）, redepth, notices}（線の collect が report の入力で渡す物。無ければ空。
+    notices は run を止めずに進めた起こす前の注意の行で、冒頭の下に 1 行ずつ載せる）、user_env は対象のコマンドを利用者の
     HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1798,7 +1799,9 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (report.COST_HEADING, head_cost(tfacts, transcript_why)),
         (NOTES_HEADING, [oneline.one_line(n) for n in notes] or ["無い"]),
     ]
+    notices = [oneline.one_line(n) for n in _list(as_dict(line).get("notices"))]
     text = "\n\n".join([report.TITLE_HEADING.format(run=run_id or "—") + "\n\n" + "\n".join(head),
+                        *(["\n".join(notices)] if notices else []),
                         *(f"{h}\n\n" + "\n".join(_bullets(lines)) for h, lines in sections if lines)]) + "\n"
     paths = {"report": _write_text(out_dir / report_name, text), "next_request": None, "prior_failures": None}
     doc = carry.compose(findings, prior, drafts, constraints)

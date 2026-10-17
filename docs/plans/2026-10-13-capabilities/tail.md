@@ -523,9 +523,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - T70 入口が test_cmd を Archon に渡す前に、worktree で効かない形を分けて知らせる。対象の手元を絶対パスで指す・対象を editable で入れた外の仮想環境を使う形は、黙った偽の緑になるので止める。git が無視する物を相対で指す形は注意だけ。確かめの殻が落ちたら止める。WORKS_USE_ALLOW_TESTCMD（今は WORKS_FACTORY_ALLOW_TESTCMD）で通せる。
   - 元: works/dev/testcmd_check.py・works/dev/use.sh:1020-1044・works/tests/test_testcmd_check.py（24 本）
   - 今: 表
-  - 証: lib/tests/test_testcmd_check.py::TestCmdCheck.test_absolute_reference_to_the_checkout_stops・lib/tests/test_testcmd_check.py::TestCmdCheck.test_relative_ignored_path_is_left_to_the_base_tests・lib/tests/test_testcmd_check.py::TestCmdCheck.test_activated_virtualenv_with_editable_target_is_named_unless_uv_run（元の 24 本の写し）・tests/workflows/test_testcmd_head.py::TestCmdHeadDryRunTest.test_command_running_the_checkout_cancels_the_run_at_the_head・tests/workflows/test_testcmd_head.py::TestCmdNodeTest.test_a_check_that_fails_stops_unless_allowed
+  - 証: lib/tests/test_testcmd_check.py::TestCmdCheck.test_absolute_reference_to_the_checkout_stops・lib/tests/test_testcmd_check.py::TestCmdCheck.test_relative_ignored_path_is_a_notice・lib/tests/test_testcmd_check.py::TestCmdCheck.test_activated_virtualenv_with_editable_target_is_named_unless_uv_run（元の 24 本の写し）・tests/workflows/test_testcmd_head.py::TestCmdHeadDryRunTest.test_command_running_the_checkout_cancels_the_run_at_the_head・tests/workflows/test_testcmd_head.py::TestCmdNodeTest.test_a_check_that_fails_stops_unless_allowed
   - 本物の run: 筋書きでのみ（入口の出力。種の test_cmd は相対で手元を指さない）
-  - 狭め: どの PR も挙げていない（黙って落ちた）。Archon で不可でない → #495 で戻した（入口 bin/ の住処） 決め: 住処は bin/_lib/testcmd_check.py（元の名と中身。殻が Archon を起こす前に照らす）。#678 でメイングラフの頭のノード testcmd（lib/testcmd_check.py）へ移し、止める時は cancel にした。git が無視する物を相対で指す形の注意は、修正の前の試験の止め（#666）に 1 つにした。E13 の例外は要らない。L-E50・L-G08 と同じ bin の issue（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: どの PR も挙げていない（黙って落ちた）。Archon で不可でない → #495 で戻した（入口 bin/ の住処） 決め: 住処は bin/_lib/testcmd_check.py（元の名と中身。殻が Archon を起こす前に照らす）。#678 でメイングラフの頭のノード testcmd（lib/testcmd_check.py）へ移し、止める時は cancel にした。git が無視する物を相対で指す形の注意の行は頭のノードが出し、報告の冒頭に載る（最初の語は修正の前の試験の止め #666 も止める）。E13 の例外は要らない。L-E50・L-G08 と同じ bin の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
 - T71 run の後の CI の赤（run が見ない重い試験）を、次の run の依頼の prior_failures の行に載せる。
   - 元: works/.shared/core/carry.py:265 `carry_ci`

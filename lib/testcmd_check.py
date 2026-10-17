@@ -2,13 +2,17 @@
 
 run の作業ツリー（対象の今の姿の commit から切る）と単位の作業ツリー（修正の段が run の作業ツリーの今の姿の commit から切る）には、
 対象の git が無視する物（.venv・ビルドの出力・.env など）が無い。そこで run の試験が対象の手元を走らせると、直しの正誤に関わらず
-緑になり得る（黙った偽の緑）。その形を止める形と呼び、文を 1 つずつ返す（stops）。走らない形（相対の語が作業ツリーに無い物を
-指す）は見ない: 修正の前の試験が走らずに止まり、道具の誤りの文を見せる（lib/declared_checks.py）。
+緑になり得る（黙った偽の緑）。その形を止める形と呼ぶ。相対の語が作業ツリーに無い物（対象の git が無視する物）を指す形は走らずに
+落ちるので止めず、注意の文にする（最初の語ならさらに lib/tree_run.prove_launchable が起こす前に止める）。
 
-- stops(root, cmd, environ) -> list[str]: 止める形の文の並び（無ければ空）。root は対象の手元の根、environ は対象のコマンドが run
-  の中で走る環境（HOME で ~・$HOME を展開し、VIRTUAL_ENV・PATH で立てた環境を見る）
-- primary_checkout(cwd) -> str: cwd の git の主の作業ツリー（git worktree list の頭。run の作業ツリーを切った元の clone）
+- findings(root, cmd, environ) -> (list[str], list[str]): (止める形の文の並び, 注意の文の並び)。root は対象の手元の根、environ は
+  対象のコマンドが run の中で走る環境（HOME で ~・$HOME を展開し、VIRTUAL_ENV・PATH で立てた環境を見る）
+- checkouts(cwd) -> list[str]: cwd の git の作業ツリーのうち cwd の外の全部（git worktree list。主の作業ツリーも、git worktree add
+  で作った作業ツリーも、対象の手元になり得る。run の作業ツリー cwd 自身は除く）
 - ALLOW_ENV: 1 なら止める形でも止めない（形を知った上で回す人の許し）
+
+注意の形: 根から読む相対の語（相対の cd の後はその先から読む。見る語と所を変える形は下と同じ）のうち、対象に今在り git が無視する物
+（git check-ignore。パスか、その上のどれかの段が無視されていれば無視）。最初の段だけを見る
 
 止める形:
   - 手元を絶対パスで指す語: どの段でも（手元の絶対パスは前の段が worktree の中に作ることが無い。殻の -c の中の段も）、見る語（下）の
@@ -26,7 +30,7 @@ run の作業ツリー（対象の今の姿の commit から切る）と単位�
     uv sync は project の .venv を使い VIRTUAL_ENV を見ない。uv run --active・uv run --no-project・uv pip は立てた環境を使う）。対象の入っていない環境（依存だけの
     環境・uv run の使い捨ての環境）は知らせない
 見る語: 段（&&・||・;・|・& と改行で割る。改行は ; と同じ。&& などの後ろの改行と \\ と改行は続き。# の注は行の終わりまで）の語（shlex で割る。割れなければ空白で割る）のうち、`/` を含み - で始まらない物と、= を含む語
-（NAME=値・--旗=値）の値を : で割った絶対パス。絶対パスの cd の後の相対の語は最初の段だけを見る（後ろの段は前の段が作業ツリーの
+（NAME=値・--旗=値）の値を : で割った絶対パス。相対の語（絶対パスの cd の後も）は最初の段だけを見る（後ろの段は前の段が作業ツリーの
 中で作った物を使える）。
 所を変える形は辿る:
 - 前の段が `cd <先>`・`pushd <先>`（旗 -P・-L などは除く。後ろが && か ;）だけなら、所を変えるだけの段で、その次の段を最初の段とし、
@@ -408,23 +412,27 @@ def _inside_or_root(root, word):
 
 
 def path_notes(root, cmd):
-    """手元を指す語の文の並び: 対象の手元を絶対パスで指す語（根そのもの・追跡する物も）と、絶対パスの cd の後で git が無視する
-    相対の語"""
+    """(止める形の文の並び, 注意の文の並び)。止める形は対象の手元を絶対パスで指す語（根そのもの・追跡する物も）と、絶対パスの cd の
+    後で git が無視する相対の語。注意は根から（相対の cd の後はその先から）読む相対の語のうち git が無視する物"""
     found = []
     for w in _absolute_words(root, cmd):   # どの段でも、対象の手元の在る物を指す（無視するかを問わない）
         rel = _inside_or_root(root, w)
         if rel is not None and os.path.lexists(os.path.join(root, rel)):
-            found.append((w, None))
+            found.append((w, True, None))
     for w, (at, base) in _path_words(root, cmd):
-        if os.path.isabs(w) or at is None or not base:   # 絶対の語は上で見た。読めない cd の後と根から読む相対の語は見ない
+        if os.path.isabs(w) or at is None:   # 絶対の語は上で見た。読めない cd の後の相対は見ない
             continue
         rel = _inside(root, os.path.join(at, w))
-        if rel is not None and os.path.lexists(os.path.join(root, rel)):
-            found.append((f"{w}（cd の後の {os.path.normpath(os.path.join(base, w))}）", _prefixes(root, rel)))
-    hit = _ignored(root, sorted({p for _, ps in found if ps for p in ps}))
-    return [f"test_cmd の {w} は対象の手元（{root}）を絶対パスで指す: run・単位の worktree からも手元の物を"
-            f"使い、worktree の直しでなく対象の手元のコードを試し得る（直しの正誤に関わらず緑になる）。{HOW}"
-            for w, ps in found if ps is None or hit.intersection(ps)]
+        if rel is None or not os.path.lexists(os.path.join(root, rel)):
+            continue
+        shown = os.path.normpath(os.path.join(base or at, w))
+        found.append((w if shown == os.path.normpath(w) else f"{w}（cd の後の {shown}）", bool(base), _prefixes(root, rel)))
+    hit = _ignored(root, sorted({p for _, _, ps in found if ps for p in ps}))
+    named = [(w, stop) for w, stop, ps in found if ps is None or hit.intersection(ps)]
+    return ([f"test_cmd の {w} は対象の手元（{root}）を絶対パスで指す: run・単位の worktree からも手元の物を使い、worktree の"
+             f"直しでなく対象の手元のコードを試し得る（直しの正誤に関わらず緑になる）。{HOW}" for w, stop in named if stop],
+            [f"test_cmd の {w} は対象の git が無視するパスで、run・単位の worktree に無い（commit から切るので写らない。前の段で"
+             f"作らない限り走らない）。{HOW}" for w, stop in named if not stop])
 
 
 def _editable_target(venv, root):
@@ -524,16 +532,18 @@ def expand_home(cmd, home):
     return re.sub(r"(?<![^\s=:;&|(])~(?=/|$|[\s;&|)])", lambda _: home, cmd)
 
 
-def stops(root, cmd, environ):
+def findings(root, cmd, environ):
     root, cmd = os.path.realpath(root), cmd.strip()
     if not cmd:
-        return []
+        return [], []
     if environ.get("HOME"):
         cmd = expand_home(cmd, environ["HOME"])
-    return path_notes(root, cmd) + venv_notes(root, cmd, environ)
+    stops, notices = path_notes(root, cmd)
+    return stops + venv_notes(root, cmd, environ), notices
 
 
-def primary_checkout(cwd):
+def checkouts(cwd):
     listed = subprocess.run(["git", "-C", str(cwd), "worktree", "list", "--porcelain"], capture_output=True, text=True,
                             encoding="utf-8", check=True).stdout
-    return listed.split("\n", 1)[0].removeprefix("worktree ")
+    trees = [line.removeprefix("worktree ") for line in listed.splitlines() if line.startswith("worktree ")]
+    return [t for t in trees if os.path.realpath(t) != os.path.realpath(cwd) and os.path.isdir(t)]

@@ -2,7 +2,7 @@
 
 run の作業ツリーと単位の作業ツリーは commit から切るので、対象の git が無視する物（.venv・node_modules など）は無い。test_cmd が
 対象の手元を絶対パスで指すか、対象を editable で入れた対象の外の環境を使えば、作業ツリーの直しでなく手元のコードを試す（止める形）。
-相対の語が作業ツリーに無い物を指す形は走らずに修正の前の試験で止まるので、見ない。
+相対の語が作業ツリーに無い物（git が無視する物）を指す形は走らずに落ちるので、止めずに注意にする。
 種の git は gitkit の型の写し。子のプロセスは git check-ignore と git worktree だけ。
 """
 import json
@@ -32,11 +32,17 @@ class TestCmdCheck(unittest.TestCase):
         (self.repo / "node_modules" / ".bin").mkdir(parents=True)
         (self.repo / "node_modules" / ".bin" / "jest").write_text("#!/bin/sh\n")
 
-    def check(self, cmd, **env_kw):
-        """止める形の文の並び。環境は試験の場の物（VIRTUAL_ENV は外す）に env_kw を重ねた物"""
+    def findings(self, cmd, **env_kw):
+        """(止める形の文の並び, 注意の文の並び)。環境は試験の場の物（VIRTUAL_ENV は外す）に env_kw を重ねた物"""
         env = {k: v for k, v in hermetic.child_env().items() if k != "VIRTUAL_ENV"}
         env.update(env_kw)
-        return testcmd_check.stops(self.repo, cmd, env)
+        return testcmd_check.findings(self.repo, cmd, env)
+
+    def check(self, cmd, **env_kw):
+        return self.findings(cmd, **env_kw)[0]
+
+    def notices(self, cmd, **env_kw):
+        return self.findings(cmd, **env_kw)[1]
 
     def stops(self, cmd, **env_kw):
         lines = self.check(cmd, **env_kw)
@@ -51,19 +57,24 @@ class TestCmdCheck(unittest.TestCase):
         self.assertTrue(any(ln.startswith(root) for ln in lines), lines)
         return [ln for ln in lines if not ln.startswith(root)]
 
-    def test_relative_ignored_path_is_left_to_the_base_tests(self):
-        """根から読む相対の語が git の無視する物を指す形は、作業ツリーで走らずに修正の前の試験が止めるので、止める形にしない。
-        絶対パスの cd の後なら同じ語が手元を指すので止める"""
+    def test_relative_ignored_path_is_a_notice(self):
+        """根から読む相対の語が git の無視する物を指す形は、作業ツリーで走らずに落ちるので、止めずに注意にする。絶対パスの cd の後
+        なら同じ語が手元を指すので止める"""
         for cmd, path in ((".venv/bin/python -m pytest -q", ".venv/bin/python"),
                           ("./node_modules/.bin/jest --ci", "./node_modules/.bin/jest"),
                           ("PYTHONPATH=src .venv/bin/python -m pytest", ".venv/bin/python"),
                           (".venv/bin/python -m pytest && echo done", ".venv/bin/python")):
             with self.subTest(cmd):
                 self.assertEqual(self.check(cmd), [])
+                notices = self.notices(cmd)
+                self.assertEqual(len(notices), 1, notices)
+                self.assertTrue(notices[0].startswith(f"test_cmd の {path} は対象の git が無視するパス"), notices)
+                self.assertIn("worktree に無い", notices[0])
                 lines = self.after_cd(cmd)
                 self.assertEqual(len(lines), 1, lines)
                 self.assertIn(f"{path}（cd の後の {self.repo}/", lines[0])
                 self.assertIn("対象の手元", lines[0])
+                self.assertEqual(self.findings(f"cd {self.repo} && {cmd}")[1], [])
 
     def test_path_through_symlink_and_outside_word_do_not_hide_others(self):
         """リンクの先のパス（git check-ignore が 128 で落ちる形）と根の外のパスが、同じ行のほかの知らせを消さない"""
@@ -123,6 +134,9 @@ class TestCmdCheck(unittest.TestCase):
         for cmd in ("cd sub && .venv/bin/pytest -q", "cd sub; .venv/bin/pytest -q", "cd ./sub && cd . && .venv/bin/pytest"):
             with self.subTest(cmd):
                 self.assertEqual(self.check(cmd), [])
+                notices = self.notices(cmd)
+                self.assertEqual(len(notices), 1, notices)
+                self.assertIn("（cd の後の sub/.venv/bin/pytest）", notices[0])
                 lines = self.after_cd(cmd)
                 self.assertEqual(len(lines), 1, lines)
                 self.assertIn(f"（cd の後の {self.repo}/sub/.venv/bin/pytest）", lines[0])
@@ -293,16 +307,18 @@ class TestCmdCheck(unittest.TestCase):
             with self.subTest(cmd):
                 self.assertEqual(len(self.stops(cmd, **env)), 1)
 
-    def test_relative_word_beside_an_activated_virtualenv_names_only_the_environment(self):
-        """根から読む相対の語（走らない形）と立てた環境が並べば、立てた環境だけを名指す"""
+    def test_relative_word_beside_an_activated_virtualenv_stops_for_the_environment(self):
+        """根から読む相対の語（走らない形）と立てた環境が並べば、立てた環境で止め、相対の語は注意のまま"""
         venv = self.repo.parent / "venvs" / "proj"
         info = self._site(venv) / "stats-0.1.dist-info"
         info.mkdir()
         (info / "direct_url.json").write_text(json.dumps({"url": self.repo.as_uri(), "dir_info": {"editable": True}}))
         path = f"{venv}/bin{os.pathsep}{os.environ.get('PATH', '')}"
-        lines = self.stops(".venv/bin/python -m pytest", VIRTUAL_ENV=str(venv), PATH=path)
+        lines, notices = self.findings(".venv/bin/python -m pytest", VIRTUAL_ENV=str(venv), PATH=path)
         self.assertEqual(len(lines), 1, lines)
         self.assertIn(f"VIRTUAL_ENV（{venv}）", lines[0])
+        self.assertEqual(len(notices), 1, notices)
+        self.assertIn(".venv/bin/python", notices[0])
 
     def _editable_venv(self, venv, marker="pyvenv.cfg"):
         """対象を editable で入れた環境（印は pyvenv.cfg か、conda の環境の conda-meta）"""
@@ -421,13 +437,14 @@ class TestCmdCheck(unittest.TestCase):
             with self.subTest(cmd):
                 self.assertEqual(self.check(cmd, HOME=home), [])
 
-    def test_primary_checkout_is_the_clone_a_linked_worktree_was_cut_from(self):
-        """run の作業ツリー（linked worktree）からも、主の作業ツリー（元の clone）を手元の根として引く"""
-        linked = self.repo.parent / "run-tree"
-        gitkit.git(self.repo, "worktree", "add", "-q", "--detach", str(linked))
-        for cwd in (self.repo, linked):
+    def test_checkouts_are_every_worktree_but_the_run_tree(self):
+        """run の作業ツリー（linked worktree）から、主の作業ツリーと、利用者が git worktree add で作ったほかの作業ツリーを全部引く"""
+        run_tree, mine = self.repo.parent / "run-tree", self.repo.parent / "mine"
+        for tree in (run_tree, mine):
+            gitkit.git(self.repo, "worktree", "add", "-q", "--detach", str(tree))
+        for cwd, others in ((run_tree, (self.repo, mine)), (self.repo, (run_tree, mine))):
             with self.subTest(cwd=str(cwd)):
-                self.assertEqual(os.path.realpath(testcmd_check.primary_checkout(cwd)), str(self.repo))
+                self.assertEqual(sorted(os.path.realpath(t) for t in testcmd_check.checkouts(cwd)), sorted(map(str, others)))
 
     def test_empty_command_is_quiet(self):
         self.assertEqual(self.check(""), [])
