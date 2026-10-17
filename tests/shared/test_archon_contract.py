@@ -293,6 +293,18 @@ ARCHON_ROWS = (
         r"context\.resume source '\$\{sourceId\}' is not an upstream dependency of the loop_group", lambda m: None),
     Row("節の設定は object のまま SDK へ渡す（SDK が JSON の字にする）", lambda: None,
         "packages/providers/src/claude/provider.ts", r"^\s*options\.settings = buildClaudePluginSettings\(", lambda m: None),
+    # toolset の guard は一覧の外のプラグイン（enabledPlugins・installed_plugins.json）を名指さない。その保証は下の 4 行の源の形が持つ
+    Row("ワークフローの Claude の節は plugins: を書かない節も、入れた物を全部切る", lambda: None,
+        "packages/providers/src/claude/provider.ts", r"^\s*const namedPlugins = nodeConfig\.plugins \?\? \[\];$", lambda m: None),
+    Row("ワークフローの Claude の節は全部、system/init で読み込まれたプラグインを照らす", lambda: None,
+        "packages/providers/src/claude/provider.ts",
+        r"isWorkflowNode\(nodeConfig\)\n\s*\? withPluginScopeCheck\(rawEvents, nodeConfig\.plugins \?\? \[\]\)", lambda m: None),
+    Row("入れたプラグインは全部 false にし、名指した物だけ true にする", lambda: None,
+        "packages/providers/src/claude/plugins.ts", r"^\s*for \(const id of installedIds\) enabledPlugins\[id\] = false;$",
+        lambda m: None),
+    Row("名指さない読み込まれたプラグインがあれば、最初の turn の前に節を落とす", lambda: None,
+        "packages/providers/src/claude/plugins.ts",
+        r"if \(!id\.endsWith\('@builtin'\) && !named\.has\(id\)\) unexpected\.push\(id\);", lambda m: None),
     Row("SDK は sandbox を設定の JSON の字の鍵に入れて --settings で渡す。設定のパスとは併せず、object の設定も JSON の字にする（包みが読む形）",
         lambda: (fence.SETTINGS, fence.DENY_WRITE[0]), SDK,
         r"function qje\(e\)\{let t=e\.trim\(\);return t\.startsWith\(\"\{\"\)&&t\.endsWith\(\"\}\"\)\}"
