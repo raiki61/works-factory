@@ -34,6 +34,7 @@ inputs:
   spec-unchecked: {default: ""}
   redepth: {default: ""}
   optional: {default: ""}
+  notices: {default: ""}
 
 returns: report
 outcome_field: ok

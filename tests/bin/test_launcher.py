@@ -4,9 +4,7 @@
 security と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
 試験の出力に出さない）。
 """
-import contextlib
 import hashlib
-import io
 import json
 import os
 import pathlib
@@ -186,54 +184,15 @@ class LauncherTest(unittest.TestCase):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--from", "x", "--input", "request=x"))["argv"]
             self.assertEqual(argv[11:], ["works-factory-line", "--from", "x", "--input", "request=x"])
 
-    def test_test_cmd_running_the_checkout_stops_before_archon(self):
-        """#495: test_cmd が対象の手元を絶対パスで指すと、Archon を起こさずに止める（run の試験が直しでなく手元を試す偽の緑）。
-        WORKS_FACTORY_ALLOW_TESTCMD=1 なら知らせて起こす。git が無視する物を相対で指す形は注意だけで起こす"""
+    def test_test_cmd_running_the_checkout_reaches_archon(self):
+        """#678: test_cmd の形はメイングラフの頭のノード testcmd が確かめる。殻は対象の手元を絶対パスで指す test_cmd も照らさずに Archon
+        へ渡し、確かめの部品も持たない"""
         self.commit_target()
-        (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
-        runner = self.target / ".venv" / "bin" / "run-tests"
-        runner.parent.mkdir(parents=True)
-        runner.write_text("#!/bin/sh\n", encoding="utf-8")
-        git(self.target, "add", ".gitignore")
-        git(self.target, "commit", "-q", "-m", "ignore")
-        run = ("workflow", "run", "works-factory-line", "--input", "request=x")
-        err = self.stopped(self.launch(*run, "--input", f"test_cmd={runner} -q"))
-        self.assertIn("止める（test_cmd）", err)
-        self.assertIn(f"test_cmd が対象の手元（{self.target}）を走らせる形", err)
-        self.assertIn(launcher.ALLOW_TESTCMD_ENV, err)
-        done = self.launch(*run, f"--input=test_cmd={runner} -q", **{launcher.ALLOW_TESTCMD_ENV: "1"})
-        self.reached(done)
-        self.assertIn("注意（test_cmd）", done.stderr)
-        self.assertIn("=1 なので止めずに起こす", done.stderr)
-        done = self.launch(*run, "--input", "test_cmd=.venv/bin/run-tests -q")
-        self.reached(done)
-        self.assertIn("注意（test_cmd）", done.stderr)
-
-    def test_test_cmd_through_home_always_stops_unless_allowed(self):
-        """PR #503 の見直し: 対象のコマンドは利用者の HOME で走る（旗は無い）ので、~・$HOME で手元を指す test_cmd も run の中で
-        手元を指す。いつも止め、WORKS_FACTORY_ALLOW_TESTCMD=1 なら起こす"""
-        self.commit_target()
-        (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
-        runner = self.target / ".venv" / "bin" / "run-tests"
-        runner.parent.mkdir(parents=True)
-        runner.write_text("#!/bin/sh\n", encoding="utf-8")
-        git(self.target, "add", ".gitignore")
-        git(self.target, "commit", "-q", "-m", "ignore")
-        run = ("workflow", "run", "works-factory-line", "--input", "request=x")
-        via_home = f"~/{os.path.relpath(runner, self.home)} -q"
-        err = self.stopped(self.launch(*run, "--input", f"test_cmd={via_home}"))
-        self.assertIn("止める（test_cmd）", err)
-        self.reached(self.launch(*run, "--input", f"test_cmd={via_home}", **{launcher.ALLOW_TESTCMD_ENV: "1"}))
-
-    def test_test_cmd_check_that_fails_stops_unless_allowed(self):
-        def failing(*_, **__):
-            return subprocess.CompletedProcess([], 1, stdout="")
-        with self.assertRaises(launcher.Stop):
-            launcher.check_test_cmd({}, self.target, ["make test"], run=failing)
-        with contextlib.redirect_stderr(io.StringIO()) as said:
-            launcher.check_test_cmd({launcher.ALLOW_TESTCMD_ENV: "1"}, self.target, ["make test"], run=failing)
-        self.assertIn("終了の値 1", said.getvalue())
-        launcher.check_test_cmd({}, self.target, ["", "  "], run=failing)
+        runner = self.target / "run-tests"
+        done = self.launch("workflow", "run", "works-factory-line", "--input", "request=x", "--input", f"test_cmd={runner} -q")
+        self.assertIn(f"test_cmd={runner} -q", self.reached(done)["argv"])
+        self.assertNotIn("test_cmd）", done.stderr)
+        self.assertFalse((launcher.LIB / "testcmd_check.py").exists())
 
     def test_flag_values_reads_both_forms_in_order(self):
         self.assertEqual(launcher.flag_values(["--input", "test_cmd=a b", "--input=test_cmd=c", "--input", "request=x"], "--input"),
@@ -902,10 +861,10 @@ class ReadmeUsageTest(unittest.TestCase):
         self.assertEqual(entry.request_problems(parts[carry.FINDINGS]), [])
 
     def test_test_cmd_and_start_point_are_documented(self):
-        from bin._lib import testcmd_check
+        from lib import testcmd_check
         self.assertIn("「test_cmd と作業ツリー」", testcmd_check.HOW)
         test_cmd = self.section("test_cmd と作業ツリー")
-        for word in ("--input test_cmd=", launcher.ALLOW_TESTCMD_ENV, "止める（test_cmd）", "注意（test_cmd）"):
+        for word in ("--input test_cmd=", testcmd_check.ALLOW_ENV, "止める（test_cmd）", "注意（test_cmd）"):
             self.assertIn(word, test_cmd)
         start = self.section("作業ツリーの起点")
         for flag in ("--from", "--from-branch", "--base", "--branch", "--no-worktree", "--adopt"):
