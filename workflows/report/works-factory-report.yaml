@@ -74,31 +74,31 @@ inputs:
     default: ""
     description: >-
       差分を置いた出力。JSON のオブジェクト {mode, ok, hash, diff, reason}（diff は置いた先を指すポインタ {type, run_id, path} か null、
-      ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちた・最後の承認の関所が止めて置かなかったこと
+      ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちた・最後の承認が止めて置かなかったこと
   start-answer:
     default: ""
     description: >-
-      始めの承認の関所の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      空か null はその承認の関所が開かなかったこと
+      始めの承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      空か null はその承認が開かなかったこと
   before-fix-answer:
     default: ""
     description: >-
-      修正前の承認の関所の答え。JSON のオブジェクト {decision, text, asked}（asked は承認の関所に載せた問いの文の配列。無人の run が推しで進んだ
-      答えは欄 pushed も持つ）。空か null はその承認の関所が開かなかったこと
+      修正前の承認の答え。JSON のオブジェクト {decision, text, asked}（asked は承認に載せた問いの文の配列。無人の run が推しで進んだ
+      答えは欄 pushed も持つ）。空か null はその承認が開かなかったこと
   replan-answer:
     default: ""
     description: >-
-      案の直しの承認の関所の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      空か null はその承認の関所が開かなかったこと
+      案の直しの承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      空か null はその承認が開かなかったこと
   final-answer:
     default: ""
     description: >-
-      最後の承認の関所の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
-      decision が止める語で text が request: で始まれば止め札。空か null はその承認の関所が開かなかったこと
+      最後の承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      decision が止める語で text が request: で始まれば止め札。空か null はその承認が開かなかったこと
   stops:
     default: ""
     description: >-
-      止めの語の表。JSON のオブジェクト {段の id: 止めの語}（空の語の段は載せない）。語は入口の拒み・無人の承認の関所の止め・script の例外・
+      止めの語の表。JSON のオブジェクト {段の id: 止めの語}（空の語の段は載せない）。語は入口の拒み・無人の承認の止め・script の例外・
       人の止めを言う。空のオブジェクトか空は止めた段が無いこと
   prior-failures:
     default: ""
@@ -107,7 +107,7 @@ inputs:
   deferred:
     default: ""
     description: >-
-      無人の run で承認の関所に載せずに回した問いの文の JSON の配列。空の配列か空は無いこと
+      無人の run で承認に載せずに回した問いの文の JSON の配列。空の配列か空は無いこと
   widened:
     default: ""
     description: >-
@@ -115,7 +115,7 @@ inputs:
   final-reasons:
     default: ""
     description: >-
-      最後の承認の関所を開ける理由の文の JSON の配列。空の配列か空は無いこと
+      最後の承認を開ける理由の文の JSON の配列。空の配列か空は無いこと
   spec-changed:
     default: ""
     description: >-
