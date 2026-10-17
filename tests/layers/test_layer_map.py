@@ -317,6 +317,20 @@ class RoleCase(unittest.TestCase):
                  "workflows/judge/commands/a.md": "`refix` を選ぶ\n"}
         self.assertEqual(hits(files, "role"), [])
 
+    def test_command_naming_another_block_by_title_is_red(self):
+        """#698: 指示書の中の、ほかのブロックの和名に「役」「の段」が続く形は赤"""
+        for text, said in (("修正役が覆せない\n", "修正役"), ("修正の段で答える\n", "修正の段"), ("独立の目役が読む\n", "独立の目役")):
+            with self.subTest(said=said):
+                got = hits({"workflows/judge/commands/a.md": text}, "role")
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith("workflows/judge/commands/a.md:1:") and said in got[0], got)
+
+    def test_command_title_as_content_or_own_title_is_clean(self):
+        """中身の語の主語（修正が・判定が）と、自分のブロックの和名（judge の 判定役）は数えない"""
+        files = {"workflows/judge/commands/a.md": "この役は判定役。修正が露呈させた欠陥。報告があれば読む\n",
+                 "workflows/fix/commands/a.md": "判定が正本で、判定の問いを数え直す\n"}
+        self.assertEqual(hits(files, "role"), [])
+
     def test_input_description_naming_another_role_is_red(self):
         judge = "name: works-factory-judge\ninputs:\n  objection: {default: '', description: r2-compare の異議}\n"
         got = hits({"workflows/eyes/works-factory-eyes.yaml": self.EYES, "workflows/judge/works-factory-judge.yaml": judge}, "role")
