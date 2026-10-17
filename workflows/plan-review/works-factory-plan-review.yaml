@@ -207,7 +207,6 @@ nodes:
               brief: {type: string}
               resubmit: {type: boolean}
               tree: {type: boolean}
-        # 模型・道具・設定は 4 つの役の節（plan-review・plan-review-fix・plan-review-tree・plan-review-tree-fix）が同じ（merge key の錨 review_launch）
         - id: plan-review
           command: plan-review
           depends_on: [review-prep]
@@ -224,8 +223,7 @@ nodes:
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
           # resolved・design_map（行の型は converge.DESIGN_MAP_SCHEMA の写し）・origins は converge の壁打ちと出自の欄、
           # stuck_recommend（converge.STUCK_PUSH）は壁打ちが止まる往復の一番上の推し（型は gatemarks.MARK_SCHEMA の recommend の写し。
-          # 受け付けが tree_split で外して往復の行の push に置く。無人の run が止まった案を推しで修正へ進める）。
-          # 単独の型は items を持たない（items は束ね役の型 plan-review-tree の欄）
+          # 受け付けが tree_split で外して往復の行の push に置く。無人の run が止まった案を推しで修正へ進める）
           output_format: &review_reply {
                 "type": "object",
                 "additionalProperties": false,
@@ -381,8 +379,6 @@ nodes:
                   }
                 }
               }
-        # 束ね役の組の出し直しの役（plan-review-tree の会話の続き）。prompt は plan-review-fix と同じ（錨 review_fix_prompt）。型は
-        # plan-review-tree の型から required を外した物
         - id: plan-review-tree-fix
           prompt: *review_fix_prompt
           depends_on: [review-prep, plan-review-tree]

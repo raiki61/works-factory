@@ -181,7 +181,6 @@ class RecordedCase(unittest.TestCase):
 
     @staticmethod
     def example_faces(text) -> list:
-        """face_example の字の中の JSON の行を、受け付けが読む faces の 1 行（key だけ足す）にする"""
         return [{"key": "example", **json.loads(x)} for x in text.splitlines() if x.startswith("{")]
 
     def test_face_example_passes_face_gaps_for_each_source(self):

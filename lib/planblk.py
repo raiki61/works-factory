@@ -83,8 +83,7 @@ RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOM
 NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
 RESOLVED_REJECT = "前の往復の答えの要る穴の行き先が書かれていない（下の行を全部直して出し直せ）:"
 ANSWERS_REJECT = "答えの要る穴への答えに誤りが在る（下の行を全部直して出し直せ）:"
-FACE_REJECT = (f"穴の行に誤りが在る（kind policy の穴と fences の policy_doc は{policy.RECORDED_TERM}の行を名指す時だけ・入口の穴は no_add・"
-               "機械の足した欄を名指す block は不可。下の行を全部直して出し直せ）:")
+FACE_REJECT = "穴の行に誤りが在る（下の行を全部直して出し直せ）:"
 TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 works/.shared/core/entry.py:1228
@@ -185,7 +184,7 @@ DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何�
               "独立設計が立つ run では、項目の答え（項目ごとの下請けの答えのファイル。下請けを起こさない往復と案の直しの事前審査では"
               "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote（独立設計に"
               "対がある時はその行を字のまま引く。対が無ければ null）, why} の 2 つの向き。案→設計: 項目の files の (path, symbol) ごとに"
-              "ちょうど 1 行——その鍵は、項目の節（下請けのファイル）か材料の頭の design_map の節に一覧で貼った（一覧に無い鍵の行は書かない）。"
+              "ちょうど 1 行——その鍵は、項目のセクション（下請けのファイル）か材料の頭の design_map のセクションに一覧で貼った（一覧に無い鍵の行は書かない）。"
               "design_ref は対の要素の id（独立設計の後ろの要素の一覧の D1 など。対が無ければ null）。"
               "設計→案: 案のどの行にも対の無い要素は、item・path・symbol を null にして design_ref だけを書いた行にする。独立設計の"
               "要素の id は全部、どれかの行の design_ref に出す（漏れは受け付けが拒む）。"
@@ -660,14 +659,12 @@ def face_row_gaps(faces, rows) -> list[str]:
     （item_answer_gaps と相乗りの審査の答え）、単独の往復はまとめた返答の faces に（boardview._take）1 度当てる。返答の全体の照らし
     （key の重複・案に無い単位・faces_none）は含まない（rules.plan_review_output）"""
     faces = faces or []
-    # 入口の穴の no_add。空同然の判定は recount.blank（planblk に写しを持たない）
     entrance = [f"faces[{j}]（{str(f.get('key'))[:40]}）: entrance に no_add（柵や入口を足さずに閉じる形。無理なら無理な理由）が無い"
                 for j, f in enumerate(faces) if isinstance(f, dict) and f.get("kind") == "entrance" and recount.blank(f.get("no_add"), 20)]
     return policy.face_gaps(faces, rows) + entrance + planmarks.machine_face_gaps([f if isinstance(f, dict) else {} for f in faces])
 
 
 def _recorded_rows(b) -> list:
-    """記録された方針の一覧の行（事前審査の見え方 b の record の process。policy.RECORDED_KEY）"""
     return (b.record.get("process") or {}).get(policy.RECORDED_KEY) or []
 
 

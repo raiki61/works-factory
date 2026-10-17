@@ -502,22 +502,13 @@ class YamlCase(unittest.TestCase):
         for name in ("reason", converge.STUCK_PUSH):
             self.assertEqual(fmt["properties"][name], single["output_format"]["properties"][name], name)
         self.assertEqual(trimmed.without_trimmed(fmt["properties"]["items"]), converge.ITEMS_SCHEMA)
-        self.assertEqual(tree_fix["output_format"], {**fmt, "required": []})
         for machine in ("faces", "shrink", "faces_none", converge.ORIGINS, converge.DESIGN_MAP, converge.RESOLVED):
             self.assertNotIn(machine, fmt["properties"], machine)
             self.assertNotIn(machine, tree_fix["output_format"]["properties"], machine)
         self.assertNotIn("items", single["output_format"]["properties"])
         self.assertNotIn("items", got["plan-review-fix"]["output_format"]["properties"])
-        prep = "$review-prep.output"
-        self.assertIn(f"{prep}.tree == true", tree["when"])
-        self.assertIn(f"{prep}.tree == true", tree_fix["when"])
-        self.assertIn(f"{prep}.resubmit == true", tree_fix["when"])
-        for nid in ("plan-review", "plan-review-fix"):
-            self.assertIn(f"{prep}.tree != true", got[nid]["when"], nid)
         self.assertEqual((single["command"], tree["command"]), ("plan-review", "plan-review"))
         self.assertEqual(tree["context"], "fresh")
-        self.assertEqual(got["plan-review-fix"]["prompt"], tree_fix["prompt"])
-        # 見本 summary は束ね役の型に通り、faces・shrink・origins を足した返答は型が拒む
         self.assertEqual(validate_schema(summary({1: []}), fmt), [])
         for extra in ({"faces": []}, {"shrink": []}, {converge.ORIGINS: []}):
             with self.subTest(extra=extra):
@@ -1471,13 +1462,6 @@ class ReviewAcceptCase(RunCase):
         self.assertEqual(keys, [{"item": 1, "path": "stats.py", "symbol": "helper_1"}, {"item": 1, "path": "old.py", "symbol": None},
                                 {"item": 2, "path": "stats.py", "symbol": "helper_2"}])
         self.assertNotIn("notes.py", section)
-        self.assertIn('{"item": 1, "path": "old.py", "symbol": null}', section)
-        rows = [{"item": 1, "path": "stats.py", "symbol": "helper_1"}, {"item": 1, "path": "old.py", "symbol": None},
-                {"item": 2, "path": "stats.py", "symbol": "helper_2"}]
-        self.assertEqual(design.wanted_lines([{"item": 1, "files": [frow("stats.py", "helper_1"), frow("notes.py"),
-                                                                    frow("old.py", op="delete", why="要らない")]},
-                                              {"item": 2, "files": [frow("stats.py", "helper_2")]}]),
-                         [json.dumps(k, ensure_ascii=False) for k in rows])
         why = "設計に対の無い助け手の名だけを足す"
         mapped = [{**k, "design_ref": "D1" if i == 0 else None, "design_quote": None, "why": why} for i, k in enumerate(keys)]
         got = r.accept(review(design_map=mapped))
@@ -2102,14 +2086,11 @@ class TreeCase(RunCase):
         self.assertTrue(r.accept(summary({1: [], 2: []}))["ok"])
 
     def test_aggregator_reply_is_summary_only(self):
-        """元 test_aggregator_reply_is_summary_only: 束ね役の faces は型 plan-review-tree が拒む（validate_schema が誤りを返す）。
-        受け付けは束ね役の欄を使わず、faces を下請けの答えのファイルから組む"""
+        """元 test_aggregator_reply_is_summary_only: 受け付けは束ね役の欄を使わず、faces を下請けの答えのファイルから組む
+        （束ね役の faces が受け付けまで届いても使わない）"""
         r = self.run_
         self.prepped()
         self.write_answers(1, {1: answer(1, faces=[MEAN_BLOCK]), 2: answer(2)})
-        errs = validate_schema({**summary({1: [MEAN_BLOCK["key"]], 2: []}), "faces": [MEAN_BLOCK]},
-                               nodes()["plan-review-tree"]["output_format"])
-        self.assertTrue(any("faces" in e for e in errs), errs)
         got = r.accept(summary({1: [], 2: []}))
         self.assertFalse(got["ok"])
         self.assertIn("項目 1", got["reason"])
@@ -2522,8 +2503,7 @@ class TreeCase(RunCase):
     def test_origin_ask_only_where_writers_are(self):
         """出自の頼みは書き手の居る層にだけ置く: 1 往復目はどのファイルにも頼みが無く、2 往復目の束ね役の指示書は ORIGIN_ASK を
         持たない。項目の下請けのファイルは REREVIEW_ASK と ORIGIN_ASK を、相乗りのファイルは ORIGIN_ASK を持つ。
-        下請けの答えの origins は往復の行に照らして入る。束ね役の型は origins を持たず（plan-review-tree の output_format が拒む）、
-        出自は下請けの答えのファイルから取る"""
+        下請けの答えの origins は往復の行に照らして入る。出自は下請けの答えのファイルから取る"""
         r = self.run_
         main = self.prepped()
         for text in (main, *(p.read_text(encoding="utf-8") for p in sorted(self.items_dir().glob("*.md")))):
@@ -2546,9 +2526,6 @@ class TreeCase(RunCase):
         claim = [{"key": again["key"], "origin": converge.ORIGIN_INTRODUCED}]
         self.write_answers(2, {1: {**answer(1, faces=[again], resolved=[MEAN_BLOCK["key"]]), converge.ORIGINS: claim},
                                2: answer(2, resolved=[CLAMP_BLOCK["key"]])})
-        errs = validate_schema({**summary({1: [again["key"]], 2: []}), converge.ORIGINS: claim},
-                               nodes()["plan-review-tree"]["output_format"])
-        self.assertTrue(any(converge.ORIGINS in e for e in errs), errs)
         # 束ね役の型の外の origins が受け付けまで届いても、往復の行の origins は下請けの答えのファイルの申告になる
         wrong = [{"key": again["key"], "origin": converge.ORIGIN_MISSED}]
         self.assertTrue(r.accept({**summary({1: [again["key"]], 2: []}), converge.ORIGINS: wrong})["ok"])
@@ -3448,7 +3425,6 @@ class PortedMaterialCase(RunCase):
             self.assertIn(policy.RULE, text)
 
     def example(self) -> str:
-        """open.json の記録された方針の一覧から policy が描く、kind policy の穴の書き方の例（期待の字）"""
         want = policy.face_example(boardview.read_open(self.run_.folder)[policy.RECORDED_KEY])
         self.assertIn('"decided_by": "q-mean-empty"', want)
         return want

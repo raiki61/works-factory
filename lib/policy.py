@@ -163,7 +163,7 @@ RECORDED_RULE = ("記録された方針は、人か対象の持ち主が「決�
                  "docstring・テストの説明文は、下の行に当たらない限り「対象の文」——コードの今の姿の説明で、持ち主の決めではない。"
                  "対象の文が綺麗な形と食い違うなら、方針とのぶつかりにせず、直しの一部としてその文を書き換えよ。方針とぶつかると言う時は、"
                  "下の行の名指しを字のまま写せ（機械が一覧に当たるかを照らし、当たらなければ拒む）。")
-DOC_FENCE_ONLY = f"{POLICY_DOC_FENCE} は方針の文書の行を書き換える時だけ立てる"   # face_gaps の拒みと face_example と HANDOFF_REVIEW が引く
+DOC_FENCE_ONLY = f"{POLICY_DOC_FENCE} は方針の文書の行を書き換える時だけ立てる"
 FACE_NONE = f"名指せる行が無い: kind {POLICY_KIND} の穴は挙げない"
 FACE_EXAMPLE_HEAD = (f"kind {POLICY_KIND} の穴の書き方の例（この run の一覧の最初の名指しで作った。decided_by には一覧の名指しを"
                      "字のまま 1 つ入れる）:")
