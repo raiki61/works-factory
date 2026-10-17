@@ -363,7 +363,6 @@ class RunEngineCase(RepoCase):
                     self.assertIn("基準の検査が走らなかった", m["reason"])
                     self.assertIn(want, m["reason"])
                     self.assertNotIn("count", m)
-        # 起こした段が 1 つも走らなかった形は、理由に段の誤り（起こせない OSError の文）と、起こせた段のログの末尾（道具が出した誤り）を載せる
         noisy = {"name": "suite", "argv": [PY, "-c", "import sys; print('config missing', file=sys.stderr); sys.exit(3)"],
                  "junit": "report.xml"}
         missing = {"name": "gone", "argv": [str(self.tmp / "no-such-command")]}
@@ -383,7 +382,6 @@ class RunEngineCase(RepoCase):
                 m = self.run_ci(after_judge=after_judge)["material"]
                 self.assertEqual(m["status"], "not_run", m)
                 self.assertIn("config missing", m["reason"])
-        # 一部だけ走った形（起こせない段・走らなかった段と並べて、走った段が在る）は今どおり、判定の前は awaiting_human・後は not_run
         partly = [("起こせない段と緑の段", [missing, GREEN[0]]), ("走らなかった段と緑の段", [self.reported_step("", 0, "empty"), GREEN[0]])]
         for after_judge, status in ((False, "awaiting_human"), (True, "not_run")):
             for name, steps in partly:

@@ -287,7 +287,6 @@ class RanNoteCase(unittest.TestCase):
         self.assertIn(declared_checks.declared.SETUP_HINT, green_cert.RAN_GUIDE)
         self.assertIn("工場の外の手元", green_cert.RAN_GUIDE)
         self.assertNotIn("WORKS_FACTORY_TARGET_USER_ENV", green_cert.RAN_GUIDE)
-        # base の認証は、起こした段が 1 つも走らなかった素材（not_run）を認めず、素材の reason と案内を理由に載せる
         ok, reason = green_cert.certify(mode="base", material_status="not_run", green=False, before=None, after=None, now=None,
                                         material_reason="宣言の語を起こせない: suite: config missing")
         self.assertFalse(ok)

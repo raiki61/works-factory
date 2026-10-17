@@ -451,7 +451,6 @@ class LauncherTest(unittest.TestCase):
         quiet = self.launch("workflow", "status")
         self.reached(quiet)
         self.assertNotIn("AI が書いた試験のコード", quiet.stderr)
-        # README は同じ告知を書き（旗は無い）、準備の宣言 setup の書き方を test_cmd の節に書く
         readme = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
         self.assertIn(launcher.TARGET_ENV_NOTICE, readme)
         self.assertNotIn("WORKS_FACTORY_TARGET_USER_ENV", readme)

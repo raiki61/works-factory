@@ -80,7 +80,7 @@ MARK_FAILED = "利用者の HOME・XDG で走らせる印を置けない（コ�
 # 対象の準備（宣言の setup）が済まなかった時の OSError の頭。準備の無いまま対象のコマンドを起こすと、新しい作業ツリーを信頼しない道具が
 # 試験に入る前に落ちて偽の赤になるので、起こさない
 SETUP_FAILED = "対象の準備（宣言の setup）が済まなかった（対象のコマンドは起こさない）"
-SETUP_DONE = "works-setup-done"   # 作業ツリー自身の git dir に置く、済んだ setup の argv の並びの sha を書いたファイル
+SETUP_DONE = "works-setup-done"
 SETUP_TAIL = 1500   # 落ちた準備の出力のうち、誤りの文に載せる末尾のバイト数
 LINGER = 1.0      # 止める信号で木を止めた後、抜ける前に待つ秒数（試し P17 の Ctrl-C の穴。モジュールの説明に上限の勘定）
 # 全プロセスの表を読む ps。期限を置かず（E12）、止まらない形を命令の選びで持つ: 絶対パスで名指して PATH の替え玉（対象の道具・
@@ -421,8 +421,7 @@ def _prepare(cwd, popen_kw):
     setup の argv だけが popen_kw の env（戻した利用者の HOME・XDG と印）で、根を cwd に _launch で起こされ、標準入力は空・出力は
     誤りの文のために控える。全部が 0 で終われば、git dir の SETUP_DONE に argv の並びの sha を書く（同じ sha なら次から走らせない）。
     落ちた・起こせない・宣言の setup の形が誤り（declared.read_setup。宣言を parse しない呼び手の分）なら、SETUP_DONE を書かずに
-    SETUP_FAILED を頭にした OSError。準備が作業ツリーに書いた物は、呼び手からは最初の対象のコマンドが書いた物に見える
-    （書き込みを照らす呼び手の前後の木に入る）ので、準備は作業ツリーの外か .gitignore の下にだけ書く"""
+    SETUP_FAILED を頭にした OSError"""
     try:
         root, git_dir = unittrees._out(cwd, "rev-parse", "--show-toplevel", "--absolute-git-dir").splitlines()
     except unittrees.UnitTreeError:

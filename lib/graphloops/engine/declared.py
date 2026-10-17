@@ -33,8 +33,8 @@ import pathlib
 
 DECL_NAME = ".review-checks.json"
 DECL_KEYS = ("suite",)   # 宣言の最上位の必須の鍵。知らない鍵は拒む（効かない鍵を書いても黙って無視しない）
-SETUP_KEY = "setup"   # 対象のコマンドの前の準備（argv の並び）。suite の横にだけ置ける任意の鍵
-OPTIONAL_KEYS = ("mutation", SETUP_KEY)   # 任意の鍵。mutation は engine は走らせず、役が読む名指し（変異の実行器と腕の一覧）。setup は suite の横の準備
+SETUP_KEY = "setup"
+OPTIONAL_KEYS = ("mutation", SETUP_KEY)   # 任意の鍵。engine は走らせない
 STEP_KEYS = ("name", "argv")
 STEP_OPTIONAL_KEYS = ("junit",)   # 段の任意の鍵: 段が書く試験の報告（JUnit XML）の、リポジトリのルートからの相対パス。段が走ったかを件数で見る
 MUTATION_KEYS = ("argv", "arms")   # argv＝実行器の呼び方の頭（口の旗は付けない——口の綴りは実行器の --help）・arms＝腕の一覧のパス

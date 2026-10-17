@@ -1082,7 +1082,7 @@ class SpecFreezeTest(unittest.TestCase):
         home = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, home, True)
         out = r.returned("spec_freeze", answer={"decision": "approve", "text": ""},
-                         env={userenv.RECORD: userenv.record({"HOME": str(home)})})   # 旗の無い控え（殻はいつも置く）
+                         env={userenv.RECORD: userenv.record({"HOME": str(home)})})
         self.assertTrue(out["go"], out)
         spec = json.loads((r.judge / "spec.json").read_text(encoding="utf-8"))
         self.assertEqual(spec["acceptance"][0]["exit_at_approval"], 0)

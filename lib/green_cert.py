@@ -5,7 +5,7 @@
 - fingerprint(repo) -> {"head", "diff_hash"}: HEAD と、HEAD に対する diff_bytes の sha256
 - matches(cert_fingerprint, repo) -> bool: 認証の指紋が今の作業ツリーと同じか
 - classify(...) -> (red_cause, summary): 事実だけで赤の原因を分ける
-- certify(...) -> (ok, reason): 認証してよいか（base は、起こした段が 1 つも走らなかった素材 not_run を認証せず、理由に素材の reason と案内 RAN_GUIDE を載せる）
+- certify(...) -> (ok, reason): 認証してよいか
 - ran_steps(runs, junit_unran) -> {"ran", "unran"}: 起こした段と、起こせない・試験を走らせなかった段の名（ran_note の steps）
 - ran_note(*, green, red_cause, by, steps=None) -> str: 試験が走ったかの、報告と関所の冒頭に出す句（RAN_NOTES のどれかと案内か ""）
 

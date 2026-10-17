@@ -58,11 +58,11 @@ class ParseCase(unittest.TestCase):
                     argvs, read_err = declared.read_setup(tmp)
                     self.assertEqual(argvs, [])
                     self.assertIn("setup", read_err)
-                    self.assertIn("setup", declared.read(tmp)["error"])   # 宣言の読みは書式の誤りとして返す
-        with tempfile.TemporaryDirectory() as tmp:   # 準備が無い形は read_setup が ([], "") を返す
+                    self.assertIn("setup", declared.read(tmp)["error"])
+        with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
-            self.assertEqual(declared.read_setup(root), ([], ""))   # 宣言が無い
-            for text in ("{", "[]", json.dumps({"suite": [STEP]}), json.dumps({"setup": [["x"]]})):   # 読めない・setup の鍵が無い・suite が無い
+            self.assertEqual(declared.read_setup(root), ([], ""))
+            for text in ("{", "[]", json.dumps({"suite": [STEP]}), json.dumps({"setup": [["x"]]})):
                 with self.subTest(text=text):
                     (root / declared.DECL_NAME).write_text(text, encoding="utf-8")
                     self.assertEqual(declared.read_setup(root), ([], ""))
