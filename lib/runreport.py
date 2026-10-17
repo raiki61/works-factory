@@ -11,18 +11,24 @@
 - next_request(returns, left, closed, *, beside, exit_doc)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
 - ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
 - answer_drafts(returns, gates, start, spec_changed, spec_unchecked): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts。承認し直すかの問いも）
-- glossary_section(text, terms, pack)・pack_terms(): 本文と機械の事実に現れる語だけの定義の節（元 report_roles.py の glossary_section）
+- pack_terms()・plain_words(text)・swapped_line(counts): 語の表（lib/glossary.json の記録の名と人に向けた言い方の対）と、人に向けた文の
+  言い換えと、言い換えた語と回数の 1 行
+- glossary_section(text, terms): 書き手の terms のうち本文に現れる語だけの定義の節（元 report_roles.py の glossary_section）
+- head_lines(happened, apply, asks, other)・apply_said(returns, outcome, run_id, decisions): 報告の冒頭（起きたこと・差分を当ててよいか・
+  人が決めることの 3 行と 1 件 1 行）
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name, line) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000。line は線の値）
 - fallback_report(out_dir, why, name, *, user_env): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
-- cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start): 書き手の
-  返答の受け付けと AI の報告（元 report_roles.py の write_cold_prep・accept・collect・stamp）
+- cold_body(raw, *, out_dir)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start):
+  書き手の返答の受け付けと、人に向けた報告（AI_REPORT_FILE）と詳細のファイル（DETAIL_FILE。元 report_roles.py の write_cold_prep・
+  accept・collect・stamp）。line_budget(decisions): 人に向けた報告の行の上限
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -78,7 +84,8 @@ PACK_TERMS = _HERE / "glossary.json"
 OUT_DIR = "report"                      # run の置き場の中の報告の置き場（報告のサブグラフの script が run の置き場に足す）
 UNWRITTEN = "report-unwritten.md"       # 報告を組めない時の機械の報告（fallback_report。facts の report.md を上書きしない名）
 AI_FILE = "ai.json"                     # 受け付けた書き手の返答と初見の判定（collect が読む）
-AI_REPORT_FILE = "report-ai.md"         # AI の報告（元 report_roles.REPORT_NAME）
+AI_REPORT_FILE = "report-ai.md"         # 人に向けた報告（元 report_roles.REPORT_NAME の AI の報告）
+DETAIL_FILE = "report-detail.md"        # 人に向けた報告から外した詳しい中身（書き手の本文の字のまま・言い換えた語・機械の事実）
 PREV_ANSWER_FILE = "prev-answer.json"   # 拒んだ回の書き手の本文と、周ごとの引き継ぎのメモ（次の周の書き手が読む）
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
 # 初見の読み手（report.cold_check）の返答の型。型の正本は工程の cold の節の output_format で、これと同じかを試験が縛る
@@ -114,8 +121,6 @@ NOTES_HEADING = promptsection.Section("## 注意（読めなかった物）", hu
 # AI の報告に機械の事実を付ける時の、機械の「人が決めること」の見出しの言い換え（判断は書き手の頭の 1 か所に集める）
 MACHINE_DECISIONS = promptsection.Section("## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）", human=report.FOR_READERS)
 RED_KEPT = (green_cert.INHERITED, green_cert.ENVIRONMENT)   # 認証が通した赤（元から赤・環境の赤）
-# 機械の報告の冒頭に在れば、書き手の頭にもそのまま要る句（accept が照らす）
-HEAD_NOTES = (*green_cert.RAN_NOTES, userenv.NOTE)
 GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "最後のテスト"))
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
@@ -147,6 +152,16 @@ APPLY_HEAD = "差分を対象に当てる"
 BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した組"   # 組の合わせの意味の食い違い（持ち主の決め clash-goes-to-ruling）
 REPAIRED_HEAD = "合わせ役が直して当てた組"   # 確かめ直しが赤で戻した組か字で当たらなかった組を、合わせのループが組の変えたファイルの中だけで直した（fix.groups の clash.outcome repaired）
 UNRESTORED_GROUP_HEAD = "戻せず親の作業ツリーに当たったままの組（人が確かめる）"   # fixboard.UNRESTORED。線は先へ進めずに止めた
+# 人に向けた報告（collect）の形。行の上限の数え方の根拠は docs/design.md の「報告の行数」
+HEAD_LINES = 20            # 人が決める物の件数に依らない行（題・冒頭の 3 行・初見の読み手の 1 行・書き手の要約・語の定義・置き場の 1 行と来歴）
+LINES_PER_DECISION = 8     # 人が決める物 1 件の行（冒頭の 1 行と、書き手の人が決めることのセクションの 1 件の段）
+POINTER_LINE = "詳しい中身（書き手の本文の全部と、機械が組んだ事実——照らし・裏取り・数え直し・消したファイルなど）: 同じフォルダの {file}"
+CUT_LINE = "（書き手の本文のここから先 {n} 行は {file} の「{heading}」に在る）"
+DETAIL_TITLE = promptsection.Section("# 報告の詳しい中身（人に向けた報告から外した物。機械と、経緯を追う人のため）", human=report.FOR_READERS)
+RAW_HEADING = promptsection.Section("## 書き手の本文（字のまま。人に向けた報告では語の表で言い換えた）", human=report.FOR_READERS)
+SWAPPED_HEAD = "人に向けた報告で語の表（lib/glossary.json）から言い換えた語と回数"
+APPLY_ASK = "差分を当ててよいか: "   # 報告の冒頭 2 行目の頭（head_lines）
+DECIDE_HEAD = "人が決めること: "      # 報告の冒頭 3 行目の頭（head_lines。件数の後ろに 1 件 1 行）
 STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "needs_human")   # 止まった run の結末（bin/apply が拒む）
 
 POINTERS = (("judge", "judgment", "判定"), ("judge", "purpose", "目的"), ("judge", "world", "定石"),
@@ -795,22 +810,56 @@ def prior_failures(returns: dict, left: list, facts: dict) -> list:
     return rows
 
 
-# ---------------------------------------------------------------- 語の定義
+# ---------------------------------------------------------------- 語の表と語の定義
 def pack_terms() -> list:
-    """pack の語の定義の一覧（元 report_roles._pack_terms。無ければ空、在って読めなければ ValueError）"""
+    """語の表（lib/glossary.json の terms。記録の名 term と人に向けた言い方 plain の対）。無ければ空、在って読めなければ ValueError"""
     if not PACK_TERMS.is_file():
         return []
     try:
-        return list(as_dict(oc.read_json(PACK_TERMS)).get("terms") or [])
+        rows = list(as_dict(oc.read_json(PACK_TERMS)).get("terms") or [])
     except (OSError, ValueError) as e:
         raise ValueError(f"{PACK_TERMS} を読めない: {e}") from None
+    return [r for r in rows if isinstance(r, dict) and isinstance(r.get("term"), str) and r["term"]
+            and isinstance(r.get("plain"), str) and r["plain"]]
 
 
-def glossary_section(text, terms=(), pack=None) -> str:
-    """pack の一覧と terms（同じ語は pack を採る）のうち text に現れる語だけを並べた語の定義の節。無ければ空の字
-    （元 works/blk-report/lib/report_roles.py の glossary_section。元は pack の一覧を盤面の置き場から読んだ）"""
+CODE_SPAN = re.compile(r"```.*?(?:```|\Z)|~~~.*?(?:~~~|\Z)|`[^`\n]*`", re.S)   # 言い換えない所（コードの囲みと `…`）
+
+
+def plain_words(text: str, pack=None) -> tuple[str, dict]:
+    """人に向けた文の、語の表の記録の名を人に向けた言い方に置き換えた字と、置き換えた語ごとの回数 {term: 回数}（長い語から当てる。
+    コードの囲みと `…` の中は識別子とパスなので置き換えない）"""
+    text = str(text or "")
+    rows = sorted(pack_terms() if pack is None else pack, key=lambda r: -len(r["term"]))
+    if not rows:
+        return text, {}
+    to = {r["term"]: r["plain"] for r in rows}
+    word = re.compile("|".join(re.escape(r["term"]) for r in rows))
+    counts = {}
+
+    def swap(m):
+        counts[m.group(0)] = counts.get(m.group(0), 0) + 1
+        return to[m.group(0)]
+
+    out, at = [], 0
+    for code in CODE_SPAN.finditer(text):
+        out += [word.sub(swap, text[at:code.start()]), code.group(0)]
+        at = code.end()
+    out.append(word.sub(swap, text[at:]))
+    return "".join(out), counts
+
+
+def swapped_line(counts: dict) -> str:
+    """詳細のファイルに残す、人の報告で置き換えた語と回数の 1 行"""
+    to = {r["term"]: r["plain"] for r in pack_terms()}
+    return f"{SWAPPED_HEAD}: " + ("・".join(f"{t}→{to.get(t)} {n} 回" for t, n in counts.items()) or "無い")
+
+
+def glossary_section(text, terms=()) -> str:
+    """書き手の terms のうち text に現れる語だけを並べた語の定義の節。無ければ空の字（元 works/blk-report/lib/report_roles.py の
+    glossary_section。元は pack の語の定義も並べた。pack の語は人に向けた文で言い換える〔plain_words〕ので定義しない）"""
     seen, rows = set(), []
-    for t in list(pack_terms() if pack is None else pack) + list(terms or []):
+    for t in list(terms or []):
         term = t.get("term") if isinstance(t, dict) else None
         if not term or term in seen:
             continue
@@ -1021,14 +1070,18 @@ def _plan_questions(returns: dict, gates: dict, start: dict) -> tuple[list, list
 
 
 def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, beside: dict, exit_: tuple,
-               repo=None, line: dict | None = None) -> tuple[list, str]:
-    """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
-    直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
+               repo=None, line: dict | None = None) -> tuple[list, list]:
+    """人が決めることの節の行と、人が決める物 [(種, 1 件の文)]（冒頭が 1 件 1 行に並べる。保留の問いの文は台帳の選択肢を尾に持つ）。
+    数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは直す義務に戻せなかった単位の行を重ねて数えない。closed は
+    途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs, plan_done = _plan_questions(returns, gates, start)
     eye_qs = oc.eye_questions(returns)
     spec_qs = spec_changed_of(line)
     ledger = ledger_state(returns, gates, start)
-    held_ = [line for q, line in ledger["held"] if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
+    held_pairs = [(q, line) for q, line in ledger["held"]
+                  if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
+    held_ = [line for _, line in held_pairs]
+    choices = {line: _choices(q) for q, line in held_pairs}
     done = ledger["answered"] + [oneline.one_line(x) for x in plan_done]
     asked = oc.asked_conflicts(returns, closed)
     tests = [t for t in _list(as_dict(returns.get("fix")).get("allowed_test_changes")) if isinstance(t, str)]
@@ -1045,7 +1098,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
              ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate), (report.CHECKS_LEFT, checks),
              ("直しきれずに残った物", rest), ("記録が通らないこと", [outcome] if outcome == "record_invalid" else [])]
-    lines = []
+    lines, asks = [], []
     for word, items in parts:
         if not items:
             continue
@@ -1053,6 +1106,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
         for x in items:
             text = x if isinstance(x, str) else (f"{x.get('where')}: {x.get('text')}" if "where" in x else json.dumps(x, ensure_ascii=False))
             lines.append(f"  - {oneline.one_line(text)}")
+            asks.append((word, oneline.one_line(text) + (choices.get(x, "") if isinstance(x, str) else "")))
     if held_:
         lines.append(f"  {gatemarks.ANSWER_HOW}")
     if done:
@@ -1061,9 +1115,6 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += ledger["unmatched"]
     lines += ledger["unread_holds"]
     lines += ledger["ties"]
-    counted = [(w, len(i)) for w, i in parts if i]
-    decide = (f"{sum(n for _, n in counted)} 件——" + "・".join(f"{w} {n} 件" for w, n in counted) + f"（下の「{report.DECISIONS_HEADING.lstrip('# ')}」）"
-              if counted else "")
     rev = as_dict(start).get("base_rev")
     lines.append(_conflict_line(returns))
     lines += unproven_lines(returns)
@@ -1084,7 +1135,25 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += _counted(querytest.CLOSURE_HEAD, fixbeside.closure_lines(beside))
     lines += fixbeside.branch_rows(beside)
     lines += [f"修正の控え: {x}" for x in beside["unread"]]
-    return lines + _gate_passes(returns) + _converge_lines(returns) + _amend_lines(returns, gates, line, closed) + _line_lines(line), decide
+    return lines + _gate_passes(returns) + _converge_lines(returns) + _amend_lines(returns, gates, line, closed) + _line_lines(line), asks
+
+
+def _choices(q) -> str:
+    """台帳の問いの選択肢の尾（判定の役が書いた options。無ければ空）"""
+    opts = [str(o) for o in _list(as_dict(q).get("options")) if str(o).strip()]
+    return f"／選択肢: {'・'.join(opts)}" if opts else ""
+
+
+def head_lines(happened: str, apply: str, asks: list, other: str) -> list:
+    """報告の冒頭（機械が組む）: 起きたこと・差分を当ててよいか・人が決めること（件数と種ごとの内訳）の 3 行と、その下に人が決める物を
+    1 件 1 行（推しは判定の役が書いた物だけ。文に無ければ NO_PUSH を尾に）。決める物が無ければ 3 行目に other（次に大事な事実）を置く
+    （「無い」と断る決まり文句は書かない）"""
+    counted = list(dict.fromkeys(w for w, _ in asks))
+    decide = (DECIDE_HEAD + f"{len(asks)} 件——" + "・".join(f"{w} {sum(1 for x, _ in asks if x == w)} 件" for w in counted)
+              + f"（1 件ずつ下の行。詳しくは見出しに「{report_roles.DECISIONS_HEAD}」を持つセクション）" if asks else other)
+    items = [f"- {w}: {text}" + ("" if gatemarks.PUSH_IN.search(text) else f"——{gatemarks.PUSH}{gatemarks.NO_PUSH}")
+             for w, text in asks]
+    return [gatemarks.HAPPENED + happened, APPLY_ASK + apply, decide, *items]
 
 
 def _design_lines(returns: dict) -> list:
@@ -1141,6 +1210,25 @@ def _apply_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run
     if as_dict(as_dict(returns.get("eyes")).get("r2")).get("status") == seallib.REDESIGN:
         return [*out, f"{APPLY_HEAD}: しない（R2 が {seallib.REDESIGN} を言った run の差分は bin/apply も当てない）"]
     return [*out, f"{APPLY_HEAD}: bin/apply {run_id} --allow-stopped（差分を置かずに止まった run。止めの訳を確かめてから当てる）"]
+
+
+def apply_said(returns: dict, outcome: str, run_id: str, decisions: int) -> str:
+    """冒頭の 2 行目の「差分を当ててよいか」の答え（_apply_lines と同じ道で bin/apply の打ち方を決め、結末と人が決めることの件数で
+    当ててよいかを言う）"""
+    sealed = as_dict(returns.get("merge-seal"))
+    if not (sealed.get("ok") is True and sealed.get("diff")):
+        return "当てる差分が無い（差分を封じていない）"
+    placed = as_dict(returns.get("merge-apply")).get("ok") is True
+    if not placed and as_dict(as_dict(returns.get("eyes")).get("r2")).get("status") == seallib.REDESIGN:
+        return f"当てない（R2 が {seallib.REDESIGN} を言った run の差分は bin/apply も当てない）"
+    command = f"bin/apply {run_id}" + ("" if placed else " --allow-stopped")
+    if decisions:
+        return f"人が決めること {decisions} 件を決めてから当てる（{command}）"
+    if not placed:
+        return f"差分を置かずに止まった run。止めた訳を確かめてから当てる（{command}）"
+    if outcome in oc.OK_OUTCOMES:   # 人の確かめが残る結末は、その残りを人が決める物に数えて上で返る
+        return f"当ててよい（{command}）"
+    return f"確かめてから当てる（結末が「{report.OUTCOME_WORDS.get(outcome, outcome)}」。{command}）"
 
 
 def _tdd_stages(typed: dict) -> tuple[list, list]:
@@ -1583,8 +1671,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     drafts = answer_drafts(returns, gates, start, spec_changed_of(line), spec_unchecked_of(line))
     notes_at = eye_notes_dir(returns)   # E37: 前提の検算が偽と示した仮定の実測を次の run の制約に運ぶ
     constraints = carry.carried_constraints(eyeverdict.premise_facts(notes_at)["facts"] if notes_at is not None else [], run_id)
-    decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, beside=beside, exit_=exit_,
-                                  repo=repo, line=line)
+    decisions, asks = _decisions(returns, gates, start, outcome, left, closed=closed, beside=beside, exit_=exit_,
+                                 repo=repo, line=line)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
     eye_lines, eye_notes = _eye_lines(returns, typed, skip)
     _, material_note = oc.materials(returns)
@@ -1600,11 +1688,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                           *([pushed] if pushed else []),
                           *(_stopped_why(returns, line) if stopped else []), *_ran_notes(returns),
                           *([userenv.NOTE] if user_env else [])])
-    if stopped:
-        decide = "。".join(x for x in (decide, apply[-1]) if x)
-    asked_texts = [*spec_changed_of(line), *_plan_questions(returns, gates, start)[0],
-                   *oc.eye_questions(returns)]
-    head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
+    head = head_lines(happened, apply_said(returns, outcome, run_id or "—", len(asks)), asks,
+                      other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
         (report.DECISIONS_HEADING, [*_pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns), *decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
@@ -1708,36 +1793,27 @@ def _cold_reason(c: dict) -> str:
             "直した本文を丸ごと出し直せ:\n" + "\n".join(f"- {x}" for x in _cold_lines(c) or [COLD_EMPTY]))
 
 
-def cold_body(raw) -> str:
-    """初見の読み手に貼る本文: 書き手の返答の頭（report_roles.head_of）と、その後ろに付く語の定義の節（元 report_roles の
-    write_cold_prep の本文。頭は見出しの付いた節を落とすので、書き手が本文に書いた定義は届かない）。読めなければ読めない事実"""
+def machine_head(machine_text: str) -> str:
+    """機械の報告の冒頭（題・冒頭の 3 行・人が決める物の 1 件 1 行。最初のセクションの見出しより前）"""
+    return str(machine_text or "").split("\n## ", 1)[0].strip()
+
+
+def cold_body(raw, *, out_dir) -> str:
+    """初見の読み手に貼る本文: 人に向けた報告の頭と同じ物——機械の報告（out_dir の report.REPORT_FILE）の冒頭・書き手の返答の頭
+    （report_roles.head_of）・その後ろに付く語の定義の節を、語の表で言い換えた物（元 report_roles の write_cold_prep の本文。頭は
+    見出しの付いたセクションを落とすので、書き手が本文に書いた定義は届かない）。書き手の返答を読めなければ読めない事実"""
     got, why = _parse(raw)
     text = got.get("text") if got else None
     if not (isinstance(text, str) and text.strip()):
         return f"（書き手の返答を読めない: {why or '本文が無い'}）"
     terms = _list(got.get("terms")) if not report_roles._terms_problems(got) else []
+    try:
+        machine = machine_head((pathlib.Path(out_dir) / report.REPORT_FILE).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as e:
+        machine = f"（機械の報告の冒頭を読めない: {type(e).__name__}）"
     head = report_roles.head_of(text)
     sec = glossary_section(head, terms)
-    return f"{head.rstrip()}\n\n{sec}" if sec else head
-
-
-def _machine_head_notes(out_dir: pathlib.Path) -> list:
-    """機械の報告（out_dir の report.REPORT_FILE）の冒頭に在る、HEAD_NOTES の句。green_cert.PARTLY_RAN は段を名指す括弧まで
-    （名を落とした頭を通さない）。読めなければ求めない（事実の節に別の落ち方が在る）"""
-    try:
-        text = (out_dir / report.REPORT_FILE).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return []
-    head = text.split("\n## ", 1)[0]
-    return [_named_note(head, note) for note in HEAD_NOTES if note in head]
-
-
-def _named_note(head: str, note: str) -> str:
-    if note != green_cert.PARTLY_RAN:
-        return note
-    start = head.index(note)
-    end = head.find("）", start)
-    return head[start:end + 1] if end >= 0 else note
+    return plain_words("\n\n".join(x.strip() for x in (machine, head, sec) if x.strip()) + "\n")[0]
 
 
 def _refused(reason: str, kind: str) -> dict:
@@ -1784,7 +1860,7 @@ def accept(reply, cold, *, out_dir) -> dict:
     並び handoffs は、前の答えの控え PREV_ANSWER_FILE に書き、まだ諦めていない拒否の回の prev_file がそのパスを指す（受け取った回・
     諦めた回・控えの無い回は空の字）。handoff は AI_FILE にも初見の読み手に貼る本文（cold_body）にも載らない。控えが読めない・書けない
     時は上書きせず、take の拒否に give_up を付けて口に止めさせる。受け付けの回は rolekit.accept_round（out_dir、節 REPORT_NODE）が持つ。順: 読む（読めない返答・本文の無い返答は kind answer）
-    → terms の型 → 表のセルの書式 → 機械の報告の冒頭の HEAD_NOTES の句が頭に在るか → 初見の読み手の判定。通らなければ口が拒否の行
+    → terms の型 → 表のセルの書式 → 初見の読み手の判定。通らなければ口が拒否の行
     （kind つき）を rolekit の控え rejects-report.json に積み、reason_file は拒否の全部の rejects-report.md（rolekit.reject_file）。
     拒否が rolekit.GIVE_UP_AFTER 回に達した時か、控え rejects-report.json が読めない・書けない時は、口の後の 1 か所で AI_FILE に
     受け取れなかった訳（accepted: False）を書く（rejects-report.md が書けない時は OSError が上がる）。初見の読み手だけが通さない時は rolekit.is_last_attempt の回に受け取り、NOT_PASSED の印を AI_FILE に残す。
@@ -1804,10 +1880,6 @@ def accept(reply, cold, *, out_dir) -> dict:
         bad = report_roles.format_problems(got["text"])
         if bad:
             return _refused(report_roles.CELL_REASON + "\n".join(f"- {x}" for x in bad), "format")
-        head = report_roles.head_of(got["text"])
-        for note in _machine_head_notes(out_dir):
-            if note not in head:
-                return _refused(f"機械の事実の冒頭が「{note}」と言うのに、報告の頭に無い。冒頭 3 行の 1 行目にこの句をそのまま入れる", "answer")
         not_passed = ""
         if c["verdict"] != "pass":
             if not rolekit.is_last_attempt(rolekit.attempt(out_dir, REPORT_NODE)):
@@ -1857,7 +1929,7 @@ def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:
 
 
 def embedded(machine_text: str) -> str:
-    """AI の報告に付ける機械の事実: 見出しを 1 段下げて機械の事実の見出しの下に入れ、機械の「人が決めること」の見出しを
+    """詳細のファイルに付ける機械の事実: 見出しを 1 段下げて機械の事実の見出しの下に入れ、機械の「人が決めること」の見出しを
     MACHINE_DECISIONS に言い換える（人が決めることの節は書き手の頭の 1 か所だけ）"""
     out = []
     for line in machine_text.splitlines():
@@ -1868,17 +1940,39 @@ def embedded(machine_text: str) -> str:
 
 
 def _not_passed_note(ai: dict) -> str:
-    """初見の読み手が通さないまま受け取った時の、拒みの数の行の尾（通っていれば空）"""
+    """初見の読み手が通さないまま受け取った時の句（「。」で始まる。詳細のファイルの拒みの数の行の尾と、人に向けた報告の冒頭の
+    1 行。通っていれば空）"""
     if ai.get("accepted") is not True or not ai.get("not_passed"):
         return ""
     return f"。{report_roles.NOT_PASSED}（上限の {rolekit.GIVE_UP_AFTER} 回目で受け取った。{oneline.one_line(ai['not_passed'])}）"
 
 
+def line_budget(decisions: int) -> int:
+    """人に向けた報告の行の上限（docs/design.md の「報告の行数」）: 件数に依らない HEAD_LINES と、人が決める物 1 件ごとの
+    LINES_PER_DECISION"""
+    return HEAD_LINES + LINES_PER_DECISION * decisions
+
+
+def _cut(block: str, room: int) -> str:
+    """書き手の頭を room 行に切る（超えれば room - 1 行と、残りの行の置き場の 1 行。切った所がコードの囲みの中なら閉じる）"""
+    lines = block.splitlines()
+    if len(lines) <= room:
+        return block
+    shown = room - 1
+    fences = [x.strip()[:3] for x in lines[:shown] if x.strip().startswith(("```", "~~~"))]
+    if len(fences) % 2:
+        shown -= 1
+    kept = [*lines[:shown], *([fences[-1]] if len(fences) % 2 else [])]
+    return "\n".join([*kept, CUT_LINE.format(n=len(lines) - shown, file=DETAIL_FILE, heading=RAW_HEADING.lstrip("# "))])
+
+
 def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
-    """AI の報告（元 report_roles.collect）。AI_FILE が無ければ None（書き手の輪が落ちた・飛ばされた）。受け取っていれば 来歴の 1 行＋
-    本文＋語の定義の節＋機械の事実（embedded）、受け取れなかった時は訳と機械の事実を書く。初見の読み手が通さないまま受け取った時は、
-    拒みの文を本文の頭に置かず、機械の事実の拒みの数の行（COLD_REJECTS_LINE）の尾に NOT_PASSED と通らなかった所（AI_FILE の
-    not_passed）を 1 行で足す"""
+    """人に向けた報告（AI_REPORT_FILE）と詳細のファイル（DETAIL_FILE）を書き、人に向けた報告のパスを返す（元 report_roles.collect）。
+    AI_FILE が無ければ None（書き手の輪が落ちた・飛ばされた）。
+    人に向けた報告: 機械の報告の冒頭（machine_head）→ 初見の読み手が通さないまま受け取った時はその 1 行 → 書き手の頭（平易な要約と
+    人が決めることのセクション。report_roles.head_of）と語の定義の節 → 詳細のファイルを指す 1 行と来歴。全体を語の表で言い換え
+    （plain_words）、行は line_budget（人が決める物の件数）までに書き手の頭を切る（_cut）。受け取れなかった時は書き手の頭の所に訳。
+    詳細のファイル: 来歴・言い換えた語と回数の 1 行・書き手の本文の字のまま・語の定義・機械の事実（拒みの数の行と embedded）"""
     out_dir = pathlib.Path(out_dir)
     try:
         ai = oc.read_json(out_dir / AI_FILE)
@@ -1889,11 +1983,22 @@ def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     ai = as_dict(ai)
     if ai.get("accepted") is True:
         body = str(ai.get("text") or "").strip()
+        writer = report_roles.head_of(body)
     else:
-        body = f"{report_roles.FAILED_TITLE}\n\n{ai.get('reason') or '書き手の返答を受け取れなかった'}"
+        body = writer = f"{report_roles.FAILED_TITLE}\n\n{ai.get('reason') or '書き手の返答を受け取れなかった'}"
+    terms = ai.get("terms") or []
     note = _not_passed_note(ai)
-    sec = glossary_section(f"{body}\n{note}\n{machine_text}", ai.get("terms") or [])
+    head = machine_head(machine_text)
+    if note:
+        head += f"\n{note.removeprefix('。')}"
+    tail = f"{POINTER_LINE.format(file=DETAIL_FILE)}\n{stamp}"
+    sec = glossary_section(writer, terms)
+    room = line_budget(sum(1 for x in head.splitlines() if x.startswith("- "))) - len(head.splitlines()) - len(tail.splitlines()) - 2
+    human, counts = plain_words("\n\n".join([head, _cut(writer + (f"\n\n{sec.rstrip()}" if sec else ""), room), tail]) + "\n")
     colds = sum(c.get("cold", 0) for c in as_dict(ai.get("rejects")).values() if isinstance(c, dict))
-    text = (f"{stamp}\n\n{body}\n\n" + (f"{sec}\n" if sec else "")
-            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回{note}\n\n{embedded(machine_text)}")
-    return _write_text(out_dir / AI_REPORT_FILE, text)
+    whole = glossary_section(f"{body}\n{note}", terms)
+    detail = (f"{stamp}\n\n{DETAIL_TITLE}\n\n- {swapped_line(counts)}\n\n{RAW_HEADING}\n\n{body}\n\n"
+              + (f"{whole}\n" if whole else "")
+              + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回{note}\n\n{embedded(machine_text)}")
+    _write_text(out_dir / DETAIL_FILE, detail)
+    return _write_text(out_dir / AI_REPORT_FILE, human)

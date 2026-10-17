@@ -1520,8 +1520,8 @@
 - S200 report_file: 報告のノードまで届いた run では AI が書き初見の読み手が確かめた `report-ai.md`（末尾に機械の報告が字のまま）、そうでなければ機械の `report.md`。機械の報告はいつも machine_report_file
   - 元: SKILL.md:141
   - 印: 無し
-  - 今: `workflows/report/works-factory-report.yaml::report`（出力の report＝機械の報告・report_ai＝AI の報告か null）・`lib/runreport.py::AI_REPORT_FILE`
-  - 状態: 形を変えて在る（1 つを選んだ report_file の欄は無く、2 つの欄を並べる。AI の報告は record_invalid でない run なら回す）
+  - 今: `workflows/report/works-factory-report.yaml::report`（出力の report＝機械の報告・report_ai＝人に向けた報告か null）・`lib/runreport.py::AI_REPORT_FILE`・`lib/runreport.py::DETAIL_FILE`
+  - 状態: 形を変えて在る（1 つを選んだ report_file の欄は無く、2 つの欄を並べる。AI の報告は record_invalid でない run なら回す。#660 で人に向けた報告の末尾に機械の報告を付けず、隣の詳細のファイル report-detail.md に移して 1 行で指す）
   - 旧棚卸し: R60・R63・R66・R68
 
 - S201 依頼者に聞く・伝える時は、初見で決められるように書き、決めてほしい事を最初に置く
@@ -4161,7 +4161,7 @@
 - tail.md R62: lib/report_roles.py::head_of・lib/runreport.py::cold_body、workflows/report/commands/cold-check.md
 - tail.md R63: lib/runreport.py::collect・lib/runreport.py::embedded
 - tail.md R64: lib/runreport.py::stamp
-- tail.md R65: lib/runreport.py::glossary_section・lib/runreport.py::pack_terms、lib/glossary.json（バイト一致）
+- tail.md R65: lib/runreport.py::glossary_section・lib/runreport.py::pack_terms・lib/runreport.py::plain_words、lib/glossary.json
 - tail.md R66: lib/runreport.py::build、workflows/report/works-factory-report.yaml::write-loop
 - tail.md R67: workflows/report/works-factory-report.yaml::report、workflows/report/scripts/facts.py::fallen・workflows/report/scripts/collect.py::fallen・workflows/report/scripts/facts.py::unwritten・workflows/report/scripts/collect.py::unwritten、workflows/line/works-factory-line.yaml::report（trigger_rule: all_done）
 - tail.md R68: workflows/report/works-factory-report.yaml（グラフの入力の 17 の名）・workflows/report/works-factory-report.yaml::report（出力ノードの 7 欄）
