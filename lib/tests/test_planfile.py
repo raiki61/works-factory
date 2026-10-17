@@ -607,11 +607,14 @@ class HeadDepthNeighborCase(TmpCase):
         jdir = self.tmp / "judge"
         text = self.brief(jdir / "judgment.json", root="no-record")
         self.assertIn(f"{headdepth.UNKNOWN_HEAD}\n\n行ごとの未知の種類は決まっていない（訳: {headdepth.NO_RECORD}）", text)
-        items = [{"item": 1, "unknown": "範囲", "cause_quote": "設定の鍵に響く", "where": "a.py:3", "code_quote": "KEY = 1"}]
-        headdepth.write(jdir, headdepth.record("重厚", "設計の選び", items=items))
+        items = [{"item": 1, "unknown": "範囲", "cause_quote": "設定の鍵に響く", "where": "a.py:3", "code_quote": "KEY = 1"},
+                 {"item": 2, "unknown": "形", "cause_quote": "二通りの直し方", "where": "a.py:5", "code_quote": "def pick():"}]
+        headdepth.write(jdir, headdepth.record(headdepth.tier_of(items), "設計の選び", items=items))
         text = self.brief(jdir / "judgment.json")
         self.assertIn(f"{headdepth.UNKNOWN_HEAD}\n\n- 行 1（範囲）: 依頼の字「設定の鍵に響く」・番地 a.py:3「KEY = 1」"
                       f"・指示: {headdepth.ASKS['範囲']}", text)
+        self.assertIn("- 行 2（形）: 依頼の字「二通りの直し方」・番地 a.py:5「def pick():」"
+                      f"・指示: {headdepth.ASKS['形']}", text)
         self.assertNotIn(headdepth.UNKNOWN_HEAD, self.brief(None, root="no-judgment"))
 
 

@@ -62,7 +62,7 @@ NOT_ACCEPTED = "役の返答が受け付けを通らない（{why}）"
 WHERE_SPAN = 30   # 軽量の根拠の where の行の範囲の幅の上限。直す所を 1 画面で名指せない範囲はファイルを指すのと変わらない
 NO_ROWS = "依頼の行が無い（行ごとの未知の種類を引けない）"
 NONE, CAUSE, SHAPE, SCOPE = "無し", "原因", "形", "範囲"
-UNKNOWNS = {NONE: depth.LIGHT, CAUSE: depth.STANDARD, SHAPE: depth.HEAVY, SCOPE: depth.HEAVY}
+UNKNOWNS = {NONE: depth.LIGHT, CAUSE: depth.STANDARD, SHAPE: depth.STANDARD, SCOPE: depth.HEAVY}
 
 
 def _squash(text) -> str:
@@ -206,11 +206,12 @@ def cited_files(doc) -> list:
 
 
 UNKNOWN_HEAD = promptsection.Section("## 頭の深さの行ごとの未知の種類と指示（依頼の行ごと。機械が頭の深さの控えから貼った）", source="fn:headdepth.section")
+CHOOSE = "形を 2 つ以上並べ、選んだ訳と退けた訳を書け。"
 ASKS = {
     NONE: "引用した番地が本当に直す所かを先に確かめよ。外れていれば黙って広げず、外れた訳と本当の直す所を引用で返答に名指せ。",
     CAUSE: "症状の行から原因の行まで引用で辿って原因を探せ。",
-    SHAPE: "形を 2 つ以上並べ、選んだ訳と退けた訳を書け。",
-    SCOPE: "触る約束（型・設定の鍵・入出力の形・サブグラフ）を並べ、それぞれへの響きを名指せ。",
+    SHAPE: CHOOSE,
+    SCOPE: "触る約束（型・設定の鍵・入出力の形・サブグラフ）を並べ、それぞれへの響きを名指せ。選びが要る時は、" + CHOOSE,
 }
 NO_KINDS = "行ごとの未知の種類は決まっていない（訳: {why}）"
 
