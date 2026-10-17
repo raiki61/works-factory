@@ -23,7 +23,7 @@
   当たる柵ごとの行の数・住処（allowed）か・その考えを知る場所の数（持ち主のフォルダの中で exclude の外の全部。住処を含む）
 - scan_change(repo, base_rev, table, base="", *, skip_prefix) -> [{concept, what, path, before, after}]: base_rev と今の作業ツリーの間で変わった
   ファイル（持ち主のフォルダの中だけ）を各柵で数え、住処の外で行の数が増えた物（path は repo からの相対）
-- fork_ref(root, ref=MAIN_REF) -> 分かれ目の commit か None・main_table(root, ref=MAIN_REF, rel=TABLE)・growth(main, now): 散らばり（住処の無い考え）の柵は知ってよい所が空で、今の知る場所を全部
+- fork_ref(root, ref=MAIN_REF) -> 分かれ目の commit か None・main_table(root, ref=MAIN_REF, rel=TABLE)・growth(main, now)・unexplained(main, now, loosened): 散らばり（住処の無い考え）の柵は知ってよい所が空で、今の知る場所を全部
   既知の漏れに置く数の歯止め。表そのものも増えない: main の表（ref の同じパス）と比べ、考えごとの既知の漏れの件数の和が増えた・
   main に無いパスが出た所と、考え・柵を消した・allowed・exclude・bound を広げた・pattern を変えた所を growth が名指す（緩めは
   表の loosened に新しい理由の行が在れば通す。main で柵を持たない考えは比べない。main の版に表が無ければ main_table は空の表を返す）
@@ -129,8 +129,7 @@ def _loosened(main, now) -> list[tuple[str, str]]:
 def growth(main, now):
     """main の表より増えた・緩めた所の文の一覧（空なら増えていない）: 考えごとの既知の漏れの件数の和が増えた・main に無いパスが
     出た・考えの中で柵の what が重なった・_loosened の緩め。main で柵を持たない（考えが無い・柵が空の）考えは、初めて柵を掛ける
-    差分なので比べない。緩めは、今の表の loosened に鍵と空でない理由の行が在り、その行が main に無いか理由が main と違う時だけ
-    通す（main に入った行で同じ緩めを何度も通さない）"""
+    差分なので比べない。緩めは unexplained が通す物を除く"""
     out = []
     for k, v in now["concepts"].items():
         whats = [f["what"] for f in v.get("fences") or []]
@@ -143,8 +142,15 @@ def growth(main, now):
         if sum(new.values()) > sum(old.values()):
             out.append(f"{k}: 既知の漏れの件数が main の {sum(old.values())} から {sum(new.values())} に増えた")
         out += [f"{k}: main の表に無い既知の漏れ {p}" for p in new if p not in old]
+    return out + unexplained(main, now, _loosened(main, now))
+
+
+def unexplained(main, now, loosened) -> list[str]:
+    """緩め (鍵, 文) の並びのうち、今の表の loosened に鍵と空でない理由の行が無いか、その行が main に在る物の文（main に入った
+    行で同じ緩めを何度も通さない）。層の地図の柵（tests/layers/test_layer_map.py）も同じ形で使う"""
     said, merged = now.get("loosened") or {}, main.get("loosened") or {}
-    for key, text in _loosened(main, now):
+    out = []
+    for key, text in loosened:
         why = said.get(key)
         if not (isinstance(why, str) and why.strip() and merged.get(key) != why):
             out.append(f"{text}（意図した緩めなら表の loosened に \"{key}\": \"<理由>\" を足す。main に在る行は通さない）")
