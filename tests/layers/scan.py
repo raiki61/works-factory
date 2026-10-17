@@ -414,10 +414,18 @@ MAIN_GRAPH_WORD = "メイングラフ"
 NODE_WORD = "ノード"
 OUTPUT_OF_NODE = re.compile(r"\$([\w-]+)\.output")
 # ブロックの和名（docs/design.md の「## サブグラフ」の `### <名>（<和名>）`）。試験の小さな木にも、このリポジトリの和名を当てる。
-# 和名は中身の語（判定のポインタ・修正案）と重なるので、作り手として書く形（`<和名>役`・`<和名>が`・`<和名>の段`）だけを数える
+# 和名は中身の語（判定のポインタ・修正案）と重なるので、作り手として書く形（`<和名>役`・`<和名>が`・`<和名>の段`）だけを数える。
+# 指示書では `<和名>が` も数えない。長い文の中で中身の語の主語（判定が正本・修正が露呈させた・報告があれば）と重なる
 BLOCK_TITLE = re.compile(r"^### ([a-z-]+)（([^）\n]+)）$", re.M)
 BLOCK_TITLES = dict(BLOCK_TITLE.findall(
     (REPO / "docs/design.md").read_text(encoding="utf-8").partition("\n## サブグラフ\n")[2].partition("\n## ")[0]))
+
+
+def _title_makers(blocks: set[str], tails: tuple[str, ...]) -> re.Pattern:
+    """ブロック blocks（一番上のグラフを除く）の和名に tails のどれかが続く形の式"""
+    titles = [BLOCK_TITLES[n] for n in blocks if n in BLOCK_TITLES and n not in TOP_FOLDERS]
+    return re.compile("(?:" + "|".join(re.escape(n) for n in sorted(titles, key=len, reverse=True)) + ")"
+                      + "(?:" + "|".join(map(re.escape, tails)) + ")")
 
 
 def _node_ids(document) -> set[str]:
@@ -457,8 +465,7 @@ def _input_producers(root: Path) -> list[str]:
         own_ids = _node_ids(document)
         others = (set(BLOCKS) | {p.name for p in folders}) - {folder.name}
         names = word(rf"(?:{re.escape(OURS_PREFIX)})?(?:" + "|".join(re.escape(n) for n in sorted(others, key=len, reverse=True)) + ")")
-        titles = [BLOCK_TITLES[n] for n in sorted(others) if n in BLOCK_TITLES and n not in TOP_FOLDERS]
-        makers = re.compile("(?:" + "|".join(re.escape(n) for n in sorted(titles, key=len, reverse=True)) + ")(?:役|が|の段)")
+        makers = _title_makers(others, ("役", "が", "の段"))
         for key, spec in _pairs(_top(document, "inputs")):
             description = _top(spec, "description")
             if description is None:
@@ -1680,7 +1687,8 @@ def _naming(roles: set[str], blocks: set[str]) -> re.Pattern:
 
 
 def _role_names(root: Path) -> list[str]:
-    """ブロックの指示書（commands/）と入力の説明は、ほかのブロックの名と役の名を書かない（_naming の形）。自分の YAML の節の id と、
+    """ブロックの指示書（commands/）と入力の説明は、ほかのブロックの名と役の名を書かない（_naming の形）。指示書は、ほかのブロックの
+    和名に「役」「の役」「の段」が続く形（修正役・判定の役・修正の段）も書かない。自分の YAML の節の id と、
     自分の YAML の字の値そのもの（返答の enum の語 `rejudge` など。ほかのブロックの役の id と同じ字でも自分の語）は数えない。
     借りた読み替え OVERLAY_COPY は、どのブロックの名も役の名も書かない"""
     folders = [f for f in _blocks(root) if f.name not in TOP_FOLDERS]
@@ -1689,18 +1697,19 @@ def _role_names(root: Path) -> list[str]:
     every_block = set(BLOCKS) | {f.name for f in _blocks(root)}
     out = []
 
-    def lines_naming(path: Path, pattern: re.Pattern) -> list[str]:
+    def lines_naming(path: Path, *patterns: re.Pattern) -> list[str]:
         lines, broken = _lines(root, path)
         return broken + [f"{_rel(root, path)}:{number}: ほかのブロックか役の名 {m[0]} を書く"
-                         for number, line in enumerate(lines, 1) for m in pattern.finditer(line)]
+                         for number, line in enumerate(lines, 1) for pattern in patterns for m in pattern.finditer(line)]
 
     for folder in folders:
         path, document = docs[folder.name]
         own = {folder.name} | ((_node_ids(document) | {value for _, value in _scalars(document)}) if document is not None else set())
         other_roles = set().union(*(r for n, r in roles.items() if n != folder.name)) - own
         in_commands = _naming(other_roles, every_block - {folder.name})
+        titles = _title_makers(every_block - {folder.name}, ("役", "の役", "の段"))
         for command in _files(folder, "commands"):
-            out += lines_naming(command, in_commands)
+            out += lines_naming(command, in_commands, titles)
         in_inputs = _naming(other_roles, set())
         for key, spec in _pairs(_top(document, "inputs")) if document is not None else ():
             description = _top(spec, "description")
