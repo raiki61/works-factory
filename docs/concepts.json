@@ -221,10 +221,6 @@
       "lib/querytest.py": [
        1,
        "docstring が try_query の照らしを申し出の欄 which_is_right で述べる"
-      ],
-      "workflows/judge/commands/material-local-review.md": [
-       2,
-       "素材集めの局所の審査の指示書が、修正役の食い違いの申し出の欄 which_is_right を字で書いて返し方を述べる"
       ]
      }
     }
@@ -717,10 +713,6 @@
       "workflows/fix/works-factory-fix.yaml": [
        14,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
-      ],
-      "workflows/judge/commands/material-local-review.md": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 素材集めの局所の審査の指示書が、審査役の道具 allowed_tools を字で述べる"
       ],
       "workflows/judge/works-factory-judge.yaml": [
        23,

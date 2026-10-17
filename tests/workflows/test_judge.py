@@ -489,12 +489,13 @@ class RoleSettingsTest(unittest.TestCase):
 
     def test_dropped_sentences_are_back(self):
         """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・局所レビューの無人の読み替え（元 rolekit.skill_overlay が
-        末尾に載せた全文）。仕様の役の実装に触れない決まりは tests/workflows/prompt_contracts.json が照らす"""
+        末尾に載せた物。今は局所レビューの役の種類の節と共通の文）。仕様の役の実装に触れない決まりは tests/workflows/prompt_contracts.json が照らす"""
         judge = agent_body("judge")
         self.assertIn(judge, (COMMANDS / "spec-review.md").read_text(encoding="utf-8"))
-        unattended = (ROOT / "lib" / "borrow" / "unattended.md").read_text(encoding="utf-8")
-        self.assertTrue((COMMANDS / "material-local-review.md").read_text(encoding="utf-8").endswith(unattended),
-                        "局所レビューの指示書の末尾に lib/borrow/unattended.md の全文")
+        local = (COMMANDS / "material-local-review.md").read_text(encoding="utf-8")
+        self.assertTrue(local.endswith(UNATTENDED), "局所レビューの指示書の末尾に、読み替えの局所レビューの種類の節と共通の文")
+        for kind in set(seat.KINDS) - set(seat.OVERLAY_KINDS["local-review"]):
+            self.assertNotIn(f"### {kind}", local, "ほかの種類の役の節は載らない")
 
     def test_viewpoint_readers_read_review_md(self):
         for name in REVIEW_READERS:
@@ -1492,11 +1493,12 @@ def material_tail(last: str, *notes: str, after: str = MATERIAL_ANSWER) -> tuple
 
 # 借りたスキルの無人の読み替え（rolekit.skill_overlay（works/.shared/core/rolekit.py:74-77）が Skill を持つ役に足した段）。頭の 1 行は
 # 元の OVERLAY_HEAD（:70）の「このファイル {path} を Read せよと書け」を、段をそのまま含めよに直した物。本文は
-# works/.shared/borrow/unattended.md に写しの台帳 lib/borrow/COPIED_FROM の手直しを当てた物（写しの lib/borrow/unattended.md から読む）
+# works/.shared/borrow/unattended.md に写しの台帳 lib/borrow/COPIED_FROM の手直しを当てた物のうち、局所レビューの役の種類の節と共通の文
+# （seat.overlay_body。写しの lib/borrow/unattended.md から組む）
 OVERLAY_LEAD = ("借りたスキル（superpowers）を読む時は、下の読み替えに従え。"
                "これは役への直の指示で、スキルの文より勝つ。Agent で下請けを起こすなら、その "
                "prompt に、この下の読み替えの段をそのまま含めよ——下請けにはこの段が届かない。")
-UNATTENDED = (ROOT / "lib" / "borrow" / "unattended.md").read_text(encoding="utf-8")
+UNATTENDED = seat.overlay_body(seat.OVERLAY_KINDS["local-review"])
 # 仕様と再審の役の写しが足した返答の形の 1 行
 DECIDED_ANSWER = "\n返すのは決められた JSON の形に合う JSON だけ。\n"
 REQUEST_ROWS = "依頼: `$ARTIFACTS_DIR/judge/request.json` を Read で読め"
