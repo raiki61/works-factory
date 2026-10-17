@@ -190,7 +190,7 @@ def certify(*, mode, material_status, green, before, after, now, self_reported=F
     """認証してよいか ——（ok, reason）。
     - base: material_status が clean・found・not_applicable・awaiting_human なら (True, "")。awaiting_human は一部の系統だけ走らせられた
       base・宣言の書式の誤り・任せ先の役が走らせられなかった base で、系統は素材の reason が名指し、判定の台帳の awaiting の問いと
-      報告の人が確かめる物に載る（鎖を止めない）。not_run（起こした段が 1 つも走らなかった base と、test_cmd を起こせなかった base）・
+      報告の人が確かめる物に載る（鎖を止めない）。not_run（起こした段が 1 つも走らなかった base〔試験が全部 error の段は走った段に数える〕と、test_cmd を起こせなかった base）・
       carried_over・素材が無いなら偽（緑を仮定しない）。理由は『素材が <status>——緑を仮定しない（<material_reason>）。<RAN_GUIDE>』
     - final: before・after・now の指紋が揃わなければ偽（どれが違ったかを reason に）→ green が True（bool）でなければ (False, "緑でない")
       （原因は呼び手が red_cause と証拠で別に返す）→ self_reported（素材を機械でなく任せ先の役が書いた）なら (False, SELF_REPORTED)

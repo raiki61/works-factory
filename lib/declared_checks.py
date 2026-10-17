@@ -317,24 +317,25 @@ def checks_plan(root) -> dict:
 
 
 def _junit_unran(root, step, row):
-    """宣言の段が試験の報告（junit）を持つとき、段が試験を走らせなかった理由（走ったなら None）。見るのは報告の有無・鮮度・件数だけ
-    ——実行器の名も終了コードの数値の意味も読まない（ある実行器の終了の値 5 はその実行器だけの意味）
+    """宣言の段が試験の報告（junit）を持つとき、段が試験を走らせなかった (理由, 全部 error か)（走ったなら None）。全部 error は
+    試験が始まって全部が収集などで error になった形で、報告が無い・古い・読めない・0 件の始まらなかった形と分ける。見るのは報告の
+    有無・鮮度・件数だけ——実行器の名も終了コードの数値の意味も読まない（ある実行器の終了の値 5 はその実行器だけの意味）
     （元 works/.shared/core/graphloops/rules/review-loop.py:2215-2233）"""
     import xml.etree.ElementTree as ET
     rel = step["junit"]
     path = pathlib.Path(root) / rel if root else None
     if path is None or not path.is_file():
-        return f"報告 {rel} が無い"
+        return f"報告 {rel} が無い", False
     if row.get("started") is None or path.stat().st_mtime < row["started"]:
-        return f"報告 {rel} が今の段の起動より古い（前の報告は数えない）"
+        return f"報告 {rel} が今の段の起動より古い（前の報告は数えない）", False
     try:
         cases = list(ET.parse(path).getroot().iter("testcase"))
     except (ET.ParseError, OSError) as e:
-        return f"報告 {rel} が XML として読めない（{type(e).__name__}）"
+        return f"報告 {rel} が XML として読めない（{type(e).__name__}）", False
     if not cases:
-        return f"報告 {rel} の試験が 0 件"
+        return f"報告 {rel} の試験が 0 件", False
     if all(c.find("error") is not None for c in cases):
-        return f"報告 {rel} の試験 {len(cases)} 件が全部 error（走って落ちた failure でなく、走り始める前に壊れた形）"
+        return f"報告 {rel} の試験 {len(cases)} 件が全部 error（走って落ちた failure でなく、走り始める前に壊れた形）", True
     return None
 
 
@@ -347,7 +348,7 @@ def ran_reds(runs, unran) -> list:
 def checks_reply(launch, runs, root, *, after_judge) -> dict:
     """走らせた結果から素材 {status, count?, detail?, checked?, reason?} を組む。走らせられないときは、判定の前（after_judge が偽）なら
     awaiting_human、判定の後なら not_run（人待ちを新しく立てない規則）。ただし起こした段が 1 つも走らなかった時（全部が起こせない段か、
-    試験を走らせなかった段〔下〕しか無い）は、判定の前でも後でも not_run（修正前の基準を測れないまま判定・計画・修正へ進まない）で、
+    試験を走らせなかった段〔下〕しか無い。ただし試験が全部 error の段は、試験が始まったので走った段に数え、判定へ進む）は、判定の前でも後でも not_run（修正前の基準を測れないまま判定・計画・修正へ進まない）で、
     理由に段の誤り（起こせない OSError の文。対象の準備 setup の誤りも）と各段のログの末尾を載せる。一部だけ走った時と宣言の書式の誤り
     （blocked）は、判定の前は awaiting_human のまま。
     試験の報告（junit）を宣言した段は、報告の件数で走ったかを見て、走らなかった段を起こせない段と同じに扱う。
@@ -361,8 +362,9 @@ def checks_reply(launch, runs, root, *, after_judge) -> dict:
     broken = [r for r in runs if r["exit"] is None]
     decl = {s["name"]: s for s in launch.get("steps") or []}
     unran = {r["name"]: _junit_unran(root, decl[r["name"]], r) for r in runs if r["exit"] is not None and decl.get(r["name"], {}).get("junit")}
-    unran = {n: why for n, why in unran.items() if why}
-    none_ran = bool(runs) and not any(r["exit"] is not None and r["name"] not in unran for r in runs)
+    unstarted = {n for n, got in unran.items() if got and not got[1]}
+    unran = {n: got[0] for n, got in unran.items() if got}
+    none_ran = bool(runs) and not any(r["exit"] is not None and r["name"] not in unstarted for r in runs)
     unrun = CANT[True] if none_ran else cant
     tails = " ／ ".join(f"{r['name']} の末尾: {r['tail'][-600:]}" for r in runs if r["exit"] is not None and r.get("tail")) if none_ran else ""
     if broken:
@@ -447,7 +449,7 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
       変更が全部その下に在る段は回さず skipped_steps に名と範囲で残す。宣言の段の後に test_cmd の段を足し（宣言の段と同じ
       コマンドなら足さず same_as にその段の名）、素材は全部の段から組む——宣言の一式と test_cmd の両方が緑の時だけ clean。
       宣言の書式の誤りは走らせずに走らせられない素材（判定の前は awaiting_human・後は not_run）。起こした段が 1 つも走らなかった
-      時は、判定の前でも後でも not_run（checks_reply）
+      時は、判定の前でも後でも not_run（checks_reply。試験が全部 error の段は走った段に数える）
     - 走らせた段が宣言を書き換えた（走らせた後の宣言の sha が計画の sha と違う）なら、計画から 1 度だけやり直す（ログは
       log_dir/replan）。やり直しの後も変わっていれば CiRefused
     - engine の素材が素材の欄の決まり（material_problems）に外れれば任せ先に落とし、fell_back に訳を置く: engine が同じ呼び出しで

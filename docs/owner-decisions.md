@@ -328,7 +328,7 @@
 - 決め:
   - 対象のコマンドだけ、隔離の前の HOME・XDG に戻して走らせる。旗（`WORKS_FACTORY_TARGET_USER_ENV`）は消し、殻は隔離の前の値をいつも控える。`isolate.DIRS` は変えず、役の Bash・Archon・工場の script の隔離と柵の印・`auth-middleware` は今のまま。
   - 起動の 1 行（実行する run のたび）と README で、AI が書いた試験のコードを利用者の権限で走らせ、書く物も利用者の家に入る事と、守りが要るなら工場ごとコンテナか VM の中で回す道を告げる。コマンドごとの守りは工場が作らない。
-  - 修正前の試験が 1 段も走らなかった base の 2 つの形（段が全部起こせないか試験を走らせなかった base と、`test_cmd` を起こせなかった by role の base。準備が落ちた base も含む）は止め、道具の誤りの文と準備の案内を見せる。
+  - 修正前の試験が 1 段も走らなかった base の 2 つの形（段が全部起こせないか試験を走らせなかった base と、`test_cmd` を起こせなかった by role の base。準備が落ちた base も含む。試験が全部 error の段は除く（試験は始まったので判定へ進む））は止め、道具の誤りの文と準備の案内を見せる。
   - 場所ごとの信頼など新しい作業ツリーで要る準備は、対象の宣言の `setup` で述べる（`docs/design.md` の「対象のコマンドの環境と準備」）。
 - 当て方: `lib/userenv.py`（控えは旗なしでいつも置く）・`bin/_lib/isolate.py`・`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・`bin/AGENTS.md` の E15・`lib/tree_run.py` の `outside_env` と `run`・`lib/declared_checks.py` の `checks_reply`・`lib/graphloops/engine/declared.py` の `setup`。
 
