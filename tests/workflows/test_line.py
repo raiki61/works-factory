@@ -2874,7 +2874,7 @@ class CollectAndResultCase(unittest.TestCase):
 
     def test_plan_rounds_without_a_review_have_no_plan_review(self):
         """plan-review が飛ばされた周で抜けた往復は、plan-review の欄が全部 null の受け皿を null に倒す"""
-        plan = {key: None for key in plan_out.PLAN} | {"ready": False, "round": 1}
+        plan = {key: None for key in plan_out.PLAN} | {"ready": False, "round": 1, "rejects": [], "nothing_owed": False}
         review = {key: None for key in plan_out.REVIEW}
         got = collect.collect({"plan": json.dumps({"got": plan, "stop_reason": ""}),
                                "plan_review": json.dumps({"got": review, "stop_reason": ""})}, self.line())
@@ -2914,12 +2914,28 @@ class CollectAndResultCase(unittest.TestCase):
             with self.subTest(name=name):
                 with self.assertRaisesRegex(ValueError, planfile.PRIOR_VERSION):
                     collect.collect({name: json.dumps({"got": {"ready": True}, "stop_reason": ""})}, self.line())
+                for field in ("rejects", "nothing_owed"):
+                    with self.assertRaisesRegex(ValueError, planfile.PRIOR_VERSION):
+                        collect.collect({name: json.dumps({"got": {**plan, field: None}, "stop_reason": ""})}, self.line())
                 self.assertEqual(collect.collect({name: json.dumps({"got": plan, "stop_reason": ""})}, self.line())[name], plan)
+        fell = {key: plan_out.fallback("x")[key] for key in plan_out.PLAN}
+        self.assertEqual(collect.collect({"plan": json.dumps({"got": fell, "stop_reason": ""})}, self.line())["plan"], fell)
         fix = {"done": True, **FixedCase.fix(FixedCase())}
         with self.assertRaisesRegex(ValueError, fixbeside.PRIOR_VERSION):
             collect.collect({"fix": json.dumps({"got": {**fix, "tdd_refused": None}, "stop_reason": ""})}, self.line())
         with self.assertRaisesRegex(ValueError, fixbeside.PRIOR_VERSION):
             collect.collect({"fix": json.dumps({"got": fix, "stop_reason": ""})}, self.line(fixed=json.dumps({"done": True, "diffs": []})))
+
+    def test_fallback_keeps_the_user_env_dir(self):
+        """集めが落ちた時（前の版の返りの照らしで止まる道と、境の口を読めない道）も、利用者の環境で起こした印の置き場は報告に届く"""
+        env = {"INPUTS_USER_ENV_DIR": "/art/user-env", "INPUTS_PLAN": json.dumps({"got": {"ready": True}, "stop_reason": ""})}
+        unread = mock.patch.multiple(collect, boundary=None, unread=ImportError("x"))
+        for case, patched in (("照らしで止まる", contextlib.nullcontext()), ("境の口を読めない", unread)):
+            with self.subTest(case), patched, mock.patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()) as out, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                collect.main()
+            got = json.loads(out.getvalue())
+            self.assertEqual((got["stops"], got["user_env_dir"]), ({"collect": collect.LINE_SCRIPT}, "/art/user-env"))
 
     def test_no_fix_design_is_the_plan_review(self):
         """L-W07: 直す物が無い周（計画の往復が飛んだ）は、report の plan-review の欄に design-only の受け皿の返りを置く"""
@@ -3310,7 +3326,7 @@ class SharedPlacesWiringCase(unittest.TestCase):
         self.assertEqual(fix_in.FLAT["fix_plan"], ("plan", "fix_plan"))
         for key in ("plan-rounds-out", "replan-out"):
             with self.subTest(receiver=key):
-                self.assertLessEqual({*planfile.PORTS, *planfile.FROM, planfile.GAVE_UP}, set(nodes[key]["with"]["names"].split()))
+                self.assertLessEqual({*planfile.PORTS, *planfile.FROM}, set(nodes[key]["with"]["names"].split()))
         for key in ("replan-review-out", "design-only-out"):
             with self.subTest(receiver=key):
                 self.assertIn("gave_up", nodes[key]["with"]["names"].split())

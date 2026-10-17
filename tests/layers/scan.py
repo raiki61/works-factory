@@ -142,6 +142,8 @@ ALLOWED = {
         # 止めた段の受け付けの最後の拒否を、計画の外の段（判定・修正・試験の関門ほか）の置き場から探す。計画は返りの欄 rejects を読み
         # （runreport.PLAN_RETURNS）、ここへは来ない。ほかの段の拒否の控えを欄で返すのは区分の issue
         "lib/runreport.py#rolekit.last_reject(<計画に届く値>)",
+        # plan-review の書き手が、自分の置き場（review.json の隣）に計画と同じ名で諦めの行を置く。計画の置き場は開かない
+        "lib/boardview.py#planblk.REPLAN_GAVE_UP_FILE",
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
@@ -550,7 +552,7 @@ NAME_HOMES = {
                       ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py", "lib/gatemarks.py",
                        "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py", "lib/worldmark.py",
                        "lib/report.py"), writer="judge_accept"),
-    "plan": NameHome("計画", "計画の置き場のファイルを名指す", "計画の出力の欄を入力で受ける", (("planfile", "PORTS"), ("planfile", "FROM")), ("lib/planfile.py", "lib/eye.py"),
+    "plan": NameHome("計画", "計画の置き場のファイルを名指す", "計画の出力の欄を入力で受ける", (("planfile", "PORTS"), ("planfile", "FROM")), ("lib/planfile.py", "lib/planblk.py", "lib/eye.py"),
                      openers=("lib/rolekit.py",)),
     "fix": NameHome("修正", "修正の置き場のファイルを名指す", "修正の出力の欄を入力で受ける", (("fixbeside", "PORTS"), ("fixbeside", "FROM")),
                     ("lib/fixbeside.py", "lib/fixboard.py", "lib/leftovers.py", "lib/tddloop.py")),

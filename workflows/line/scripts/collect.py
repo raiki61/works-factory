@@ -31,8 +31,8 @@ planfile.require_ports・fixbeside.require_ports と、fixed の段の並び rec
 - optional: 受け止める段の宣言（メイングラフの YAML の collect の with: の 1 か所。落ちても先へ進めてよい段の、区切りで終わるノードの id の頭かノードの id の並び。runreport._declared）
 - user_env_dir: 利用者の HOME・XDG に戻して起こした印の置き場（start の出力の字。飛ばされたら ""）
 
-result が $collect.output を読むので、このノードは落ちない: 境の口を読めない時も、標準ライブラリだけで fallback の出力を書く（止めの
-理由は LINE_SCRIPT。境の口の LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。
+result が $collect.output を読むので、このノードは落ちない: 境の口を読めない時も、標準ライブラリだけで fallback の出力を書く（字の入力 TEXTS は
+そのまま運ぶ。止めの理由は LINE_SCRIPT。境の口の LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。
 
 入力（with:）: <include の id>（受け皿の出力）・plan・plan_review・design_only（計画の往復と直す物が無い周の受け皿の出力）・start・
 fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・spec_unchecked・optional・notices・
@@ -129,7 +129,7 @@ def line_of_env() -> dict:
 def fallback(reason: str) -> dict:
     return {**{name: None for name in (*RECEIVED, *ROUNDS)}, "start": None, **{name: None for name in GATES},
             "stops": {"collect": LINE_SCRIPT}, **{name: [] for name in LISTS}, **{name: None for name in VALUES}, **{name: [] for name in TEXT_LINES},
-            **{name: "" for name in TEXTS}}
+            **{name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in TEXTS}}
 
 
 def main() -> None:

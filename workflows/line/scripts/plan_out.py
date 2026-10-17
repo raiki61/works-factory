@@ -13,7 +13,7 @@ lib の converge.decide）・plan の round が往復の安全の上限 round_li
 nothing_owed は計画ができなかった周のうち、直す義務の単位が 0 件で役を起こさなかった周か（plan の欄 nothing_owed を、計画が
 できなかった周に限って運ぶ）。真なら design-only が走り、今の works の空の修正（works/darkfactory/lib/line_edge.py:1109-1114
 の plan_edge）と同じく最後のテストと独立の目で周を締める（#291）。
-例外の時は計画ができなかった形（ready: false・done: true・nothing_owed: false）と止めの理由 works:line-script を返す。
+例外の時は計画ができなかった形（ready: false・done: true・rejects: []・nothing_owed: false）と止めの理由 works:line-script を返す。
 
 入力（with:）: plan の 10 の欄と plan-review の 7 つの欄（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit
 """
@@ -40,7 +40,7 @@ def from_env() -> tuple:
 
 
 def fallback(reason: str) -> dict:
-    return {**{key: None for key in PLAN + REVIEW}, "ready": False, "nothing_owed": False, "done": True,
+    return {**{key: None for key in PLAN + REVIEW}, "ready": False, "rejects": [], "nothing_owed": False, "done": True,
             "stop_reason": boundary.LINE_SCRIPT}
 
 

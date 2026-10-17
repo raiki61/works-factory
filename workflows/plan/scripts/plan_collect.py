@@ -54,7 +54,7 @@ def collected() -> dict:
     pointer = lambda p: None if p is None else boundary.pointer(p.relative_to(art).as_posix())  # noqa: E731
     return {"ready": got["ready"], **{k: pointer(p) for k, p in paths.items()}, "depth": got["depth"], "round": rnd["round"],
             **{k: pointer(v) for k, v in ports.items() if k in planfile.PORTS},
-            **{k: v for k, v in ports.items() if k not in planfile.PORTS}, planfile.GAVE_UP: gave_up}
+            **{k: v for k, v in ports.items() if k not in planfile.PORTS}, "gave_up": gave_up}
 
 
 def _filled(path: Path) -> bool:

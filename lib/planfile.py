@@ -107,8 +107,8 @@ KEY_LEN = 12
 # 返す節の出力の欄 → 周のフォルダの控え。ほかのブロックとメイングラフはこの欄で受け、名で開かない（docs/design.md の「plan の出力」）。
 # PORTS はポインタの欄（先が無ければ null）、FROM は中身の欄とその元の控え。欄 gave_up（諦めの行）は note_gave_up の返り
 PORTS = {"fix_plan": FIX_PLAN_FILE}
-FROM = {"nothing_owed": ROUND_FILE, "rejects": rolekit.rejects_path(pathlib.Path(), ROLE).name}
-GAVE_UP = "gave_up"
+FROM = {"nothing_owed": ROUND_FILE, "rejects": rolekit.rejects_path(pathlib.Path(), ROLE).name,
+        "gave_up": planblk.REPLAN_GAVE_UP_FILE}
 PRIOR_VERSION = "前の版の計画の出力。workflow run で最初から起こし直す"
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}（元 writes.py:52）
 
@@ -1087,17 +1087,19 @@ def nothing_owed(round_dir) -> bool:
 
 
 def returned(round_dir) -> dict:
-    """返す節の欄のうち周のフォルダの控えから組む物: PORTS の欄（先のフルパス。無ければ None）と FROM の中身（nothing_owed・rejects）"""
+    """返す節の欄のうち周のフォルダの控えから組む物: PORTS の欄（先のフルパス。無ければ None）と FROM の中身のうち nothing_owed・rejects（gave_up は note_gave_up の返り）"""
     round_dir = pathlib.Path(round_dir)
     return {**{field: round_dir / name if (round_dir / name).is_file() else None for field, name in PORTS.items()},
             "nothing_owed": nothing_owed(round_dir), "rejects": rolekit.reject_rows(round_dir, ROLE)}
 
 
 def require_ports(got: dict | None) -> None:
-    """計画（案の直し）の返りを受けた受け皿の got が、出力の欄 PORTS・FROM・GAVE_UP の鍵を全部持つか照らす（飛んだ受け皿の None は
-    照らさない）。鍵の無い got はこの版より前に走った計画の控えを resume で受けた物で、欄を空と読むと修正案の返答の無い修正を黙って
-    走らせるので、ValueError で止める（script は works:line-script の止め方に倒す）"""
-    if got is not None and any(field not in got for field in (*PORTS, *FROM, GAVE_UP)):
+    """計画（案の直し）の返りを受けた受け皿の got が、出力の欄 PORTS・FROM の鍵を全部持つか照らす（飛んだ受け皿の None は
+    照らさない）。鍵の無い got か、いつも値の在る rejects・nothing_owed が null（受け皿は欠けた欄を null で埋める）の got は、この版より
+    前に走った計画の控えを resume で受けた物で、欄を空と読むと修正案の返答の無い修正を黙って走らせるので、ValueError で止める
+    （script は works:line-script の止め方に倒す）"""
+    if got is not None and (any(field not in got for field in (*PORTS, *FROM))
+                            or any(got[field] is None for field in ("rejects", "nothing_owed"))):
         raise ValueError(PRIOR_VERSION)
 
 

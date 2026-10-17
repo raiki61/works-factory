@@ -326,6 +326,7 @@ class PortNamesTest(unittest.TestCase):
     PLAN_HOMES = {"lib/planfile.py": 'FIX_PLAN_FILE = "p2.fix_plan.json"\nROUND_FILE = "round.json"\n'
                                      "def nothing_owed(d):\n    return (d / ROUND_FILE).is_file()\n"
                                      "def require_ports(got):\n    return got\n",
+                  "lib/planblk.py": 'REPLAN_GAVE_UP_FILE = "replan-gave-up.json"\n',
                   "lib/rolekit.py": "def reject_rows(board, name):\n    return []\ndef last_reject(folder):\n    return ''\n"}
     FIX_HOMES = {"lib/fixboard.py": 'ALLOWED_TESTS_FILE = "allowed-tests.json"\nACCEPT_TRACE_FILE = "accept-trace.json"\n',
                  "lib/fixbeside.py": 'CLOSURE_FILE = "closure.json"\n'
@@ -377,6 +378,7 @@ class PortNamesTest(unittest.TestCase):
         """計画の置き場のファイルを、名の字・住処の定数・名の表・開く関数（rolekit は頭の関数の全部）に計画のポインタの隣で名指すと赤"""
         self.assert_red("plan", self.PLAN_HOMES, "workflows/line/scripts/a.py", (
             'X = "p2.fix_plan.json"\n', "import planfile\nX = d / planfile.FIX_PLAN_FILE\n",
+            "import planblk\nX = review.with_name(planblk.REPLAN_GAVE_UP_FILE)\n",
             "import planfile\nX = planfile.PORTS['fix_plan']\n", "from planfile import FROM\n",
             "import pathlib, planfile\nX = planfile.nothing_owed(pathlib.Path(p).parent)\n",
             "import pathlib, rolekit, planfile\nX = rolekit.reject_rows(pathlib.Path(p).parent, 'plan')\n",
