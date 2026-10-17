@@ -254,16 +254,50 @@ class RoleCase(unittest.TestCase):
 
     def test_command_naming_another_role_or_block_is_red(self):
         for text, said in (("r2-compare の答えを読む\n", "r2-compare"), ("works-factory-eyes が読む\n", "works-factory-eyes"),
-                           ("blk-fix の fix が直す\n", "blk-fix")):
+                           ("blk-fix の fix が直す\n", "blk-fix"), ("`blk-delta/commands/delta-review.md` を読む\n", "blk-delta"),
+                           ("blk-fix.yaml の節\n", "blk-fix")):
             with self.subTest(said=said):
                 got = hits({"workflows/eyes/works-factory-eyes.yaml": self.EYES, "workflows/judge/commands/a.md": text}, "role")
                 self.assertEqual(len(got), 1, got)
                 self.assertTrue(got[0].startswith("workflows/judge/commands/a.md:1:") and said in got[0], got)
 
+    def test_old_name_followed_by_path_is_red_in_overlay(self):
+        got = hits({"workflows/eyes/works-factory-eyes.yaml": self.EYES, scan.OVERLAY_COPY: "`blk-delta/commands/x.md` の決まり\n"}, "role")
+        self.assertEqual(len(got), 1, got)
+
     def test_own_role_script_node_bare_name_and_old_path_are_clean(self):
         files = {"workflows/eyes/works-factory-eyes.yaml": self.EYES,
                  "workflows/eyes/commands/a.md": "r2-compare の役\n",
                  "workflows/judge/commands/a.md": "r2-prep と eyes の fix。元 works/blk-fix/lib/a.py\n"}
+        self.assertEqual(hits(files, "role"), [])
+
+    FIX = ("name: works-factory-fix\nnodes:\n  - id: tdd\n    prompt: x\n  - id: refix\n    prompt: x\n  - id: refix2\n    prompt: x\n"
+           "  - id: prep\n    script: x\n")
+    OLD_SENTENCE = "借りたスキルを読める役（素材集めの局所レビューと、TDD の役・手直しの役（`tdd`・`refix`・`refix2`））\n"
+
+    def test_quoted_role_without_hyphen_is_red(self):
+        """`-` の無い役の id も backtick で囲めば名指しに数える（素の語の tdd・refix は普通の語と重なるので数えない）"""
+        for rel in ("workflows/judge/commands/a.md", scan.OVERLAY_COPY):
+            with self.subTest(rel=rel):
+                got = hits({"workflows/fix/works-factory-fix.yaml": self.FIX, rel: self.OLD_SENTENCE}, "role")
+                self.assertEqual([line.rsplit(" ", 2)[1] for line in got], ["`tdd`", "`refix`", "`refix2`"], got)
+        clean = {"workflows/fix/works-factory-fix.yaml": self.FIX, "workflows/judge/commands/a.md": "tdd の役と refix の役\n",
+                 "workflows/fix/commands/a.md": "`refix2` と `tdd`\n", scan.OVERLAY_COPY: "TDD の役・手直しの役\n"}
+        self.assertEqual(hits(clean, "role"), [])
+
+    def test_path_into_another_block_is_red(self):
+        files = {"workflows/fix/works-factory-fix.yaml": self.FIX,
+                 "workflows/judge/commands/a.md": "正本 `workflows/fix/commands/fix-rules/common.md` と同じ\n",
+                 scan.OVERLAY_COPY: "[正本](../../workflows/fix/commands/fix-rules/common.md)\n",
+                 "workflows/fix/commands/a.md": "`workflows/fix/commands/b.md` を読め\n"}
+        got = hits(files, "role")
+        self.assertEqual(sorted(line.split(":", 1)[0] for line in got), [scan.OVERLAY_COPY, "workflows/judge/commands/a.md"], got)
+
+    def test_own_yaml_word_equal_to_another_role_is_clean(self):
+        """自分の YAML の字の値（返答の enum の語）と同じ字は、ほかのブロックの役の id と同じでも自分の語"""
+        judge = "name: works-factory-judge\nnodes:\n  - id: verdict\n    prompt: x\n    output_format: {enum: [refix]}\n"
+        files = {"workflows/fix/works-factory-fix.yaml": self.FIX, "workflows/judge/works-factory-judge.yaml": judge,
+                 "workflows/judge/commands/a.md": "`refix` を選ぶ\n"}
         self.assertEqual(hits(files, "role"), [])
 
     def test_input_description_naming_another_role_is_red(self):

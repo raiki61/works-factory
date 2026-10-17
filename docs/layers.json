@@ -71,8 +71,6 @@
       "workflows/report/scripts/facts.py": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"],
       "workflows/report/works-factory-report.yaml": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"]
     },
-    "role": {
-      "workflows/judge/commands/material-local-review.md": [2, "#683: 借りた読み替えが fix の役の名（fix-ruled・delta-review）を書く"]
-    }
+    "role": {}
   }
 }
