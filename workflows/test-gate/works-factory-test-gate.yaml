@@ -141,8 +141,7 @@ nodes:
           depends_on: [ci-prep]
           when: "$ci-prep.output.resubmit != true"
           <<: &ci_launch
-            model: sonnet       # 今の works の stage-models.json の blk-ci/ci（light）
-            effort: medium
+            model: '@wf-test-gate'   # 既定は今の works の stage-models.json の blk-ci/ci（light）の値（lib/launchgroups.py の群の表）
             mutates_checkout: false
             settingSources: [user]
             allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため

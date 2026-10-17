@@ -13,6 +13,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -20,6 +21,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import headdepth  # noqa: E402
+import launchgroups  # noqa: E402
 
 ROWS = [{"where": "stats.py:2", "text": "空の列の mean が 0 割りで落ちる"}]
 START = {"test_cmd": "make test", "input": {"spec": False}}
@@ -74,6 +76,19 @@ class GateTest(Repo):
         self.assertEqual([(it["path_ok"], it["lines_ok"]) for it in f["items"]],
                          [(True, True), (True, False), (False, False), (False, False)])
         self.assertIn("行 3: y", headdepth.brief(f))
+
+    def test_brief_lists_the_groups_and_allowed_words(self):
+        text = headdepth.brief(headdepth.facts(ROWS, START, self.repo))
+        for name, spec in launchgroups.GROUPS.items():
+            self.assertIn(name, text)
+            self.assertIn(spec["what"], text)
+            self.assertIn(f"{spec['model']}・{spec['effort']}", text)
+        self.assertIn("355f1867", launchgroups.RECORD_ONLY)
+        self.assertIn("haiku・sonnet・opus", text)
+        self.assertIn("low・medium・high・max", text)
+        self.assertIn("sonnet・medium", text)
+        self.assertIn(launchgroups.RECORD_ONLY, text)
+        self.assertTrue(text.endswith(launchgroups.brief_section()), text)
 
 
 class CheckTest(Repo):
@@ -201,6 +216,17 @@ class RecordTest(unittest.TestCase):
             headdepth.write(tmp, headdepth.record("軽量", "根拠"))
             self.assertEqual(headdepth.read(tmp)["depth"], "軽量")
 
+    def test_record_keeps_the_checked_groups(self):
+        groups = launchgroups.choices([{"group": "@wf-judge-core", "model": "opus", "effort": "max", "why": "多段の根拠"},
+                                       {"group": "@wf-nope", "model": "opus", "effort": "high", "why": "x"}])
+        self.assertEqual(len(groups), 2)
+        with tempfile.TemporaryDirectory() as tmp:
+            headdepth.write(tmp, headdepth.record("標準", "根拠", groups=groups))
+            self.assertEqual(headdepth.read(tmp)["groups"], groups)
+            headdepth.write(tmp, headdepth.record("標準", "根拠"))
+            self.assertEqual(headdepth.read(tmp)["groups"], [])
+        self.assertEqual(headdepth.record("軽量", "根拠")["groups"], [])
+
 
 class SectionTest(unittest.TestCase):
     ITEMS = [{"item": 1, "unknown": "無し", "cause_quote": "mean が 0 割り", "where": "stats.py:1-2",
@@ -268,6 +294,41 @@ class ReportLineTest(unittest.TestCase):
                          "足した物: judge_verify（名指しで切った）・review_tree")
         self.assertEqual(headdepth.report_line("", ""), "run の頭の深さ: 標準／省く物: 無い／足した物: 無い")
         self.assertEqual(headdepth.report_line("極厚", "x"), "run の頭の深さ: 標準（根拠: x）／省く物: 無い／足した物: 無い")
+
+    def test_groups_lines_show_only_changed_groups_or_one_line(self):
+        none = [headdepth.NO_CHOICE, launchgroups.RECORD_ONLY]
+        self.assertEqual(none[0], "役の選びは無い（呼ぶ人の名指しと層の付け替えの後の値は下のノードごとの行）")
+        for name, doc in (("no groups", headdepth.record("標準", "x")), ("empty groups", {"groups": []}), ("no record", None),
+                          ("groups not a list", {"groups": "x"}), ("rows not objects", {"groups": ["x", 3]})):
+            with self.subTest(name):
+                got = headdepth.groups_lines(doc)
+                self.assertEqual(got, none)
+                self.assertNotIn("既定のまま", "".join(got))
+        rows = launchgroups.choices([
+            {"group": "@wf-fix-writers", "model": "opus", "effort": "high", "why": "広い書き換え"},
+            {"group": "@wf-eyes-core", "model": "gpt", "effort": "high", "why": "強く"},
+            {"group": "@wf-nothing", "model": "opus", "effort": "high", "why": "x"},
+        ])
+        doc = headdepth.record("重厚", "設計の選び", groups=rows)
+        self.assertEqual(headdepth.groups_lines(doc), [
+            "@wf-fix-writers: 既定 sonnet・high → 役の選び opus・high（上げ。訳: 広い書き換え）",
+            "@wf-eyes-core: 役の選びを既定 opus・high に戻した（訳: 許さない語（model 'gpt'・effort 'high'。許すのは "
+            "haiku・sonnet・opus と low・medium・high・max））",
+            "@wf-nothing: 表に無い群を既定に戻した（訳: 群 '@wf-nothing' が表に無い）",
+            launchgroups.RECORD_ONLY])
+        lines = "".join(headdepth.groups_lines(doc))
+        for group in launchgroups.GROUPS:
+            if group not in ("@wf-fix-writers", "@wf-eyes-core"):
+                self.assertNotIn(group, lines, "選ばれていない群の行は出ない")
+        with mock.patch.dict(launchgroups.GROUPS, {"@wf-fix-writers": {"model": "haiku", "effort": "low", "what": "替えた表"}}):
+            self.assertEqual(headdepth.groups_lines(doc)[0], "@wf-fix-writers: 既定 sonnet・high → 役の選び opus・high（上げ。訳: 広い書き換え）",
+                             "控えた時の既定を出し、後で替えた表から引き直さない")
+        same = launchgroups.choices([{"group": "@wf-report", "model": "sonnet", "effort": "medium", "why": ""}])
+        self.assertEqual(headdepth.groups_lines({"groups": same})[0],
+                         "@wf-report: 既定 sonnet・medium → 役の選び sonnet・medium（同じ。訳: 訳の記録が無い）")
+        no_effort = [{**same[0], "default": {"model": "sonnet"}, "fallback": "x"}]
+        self.assertEqual(headdepth.groups_lines({"groups": no_effort})[0], "@wf-report: 役の選びを既定 sonnet に戻した（訳: x）",
+                         "控えの既定に effort が無ければ出さない")
 
 
 if __name__ == "__main__":

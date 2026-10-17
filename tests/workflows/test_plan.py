@@ -40,6 +40,7 @@ import carry  # noqa: E402
 import converge  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
+import launchgroups  # noqa: E402
 import libdocs  # noqa: E402
 import outcome  # noqa: E402
 import planblk  # noqa: E402
@@ -377,11 +378,12 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual(n["settingSources"], ["user"], n["id"])
             self.assertEqual(n["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False}, n["id"])
             self.assertNotIn("context", n, n["id"])
-            self.assertEqual(n["model"], "opus", n["id"])
+            self.assertEqual(launchgroups.default_of(n["model"])[0], "opus", n["id"])
         eye_node, writer, fix = roles
-        self.assertEqual((eye_node["allowed_tools"], eye_node["effort"]), ([], "high"))
-        self.assertEqual((writer["allowed_tools"], writer["effort"]), (["Read", "Grep", "Glob", "WebSearch", "WebFetch"], "medium"))
-        launch = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
+        self.assertEqual((eye_node["allowed_tools"], launchgroups.default_of(eye_node["model"])[1]), ([], "high"))
+        self.assertEqual((writer["allowed_tools"], launchgroups.default_of(writer["model"])[1]),
+                         (["Read", "Grep", "Glob", "WebSearch", "WebFetch"], "medium"))
+        launch = ("model", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
         self.assertEqual({k: fix[k] for k in launch}, {k: writer[k] for k in launch}, "出し直しの役は修正案の役と同じ起こし方")
 
     def test_resubmit_role_continues_the_writer_conversation(self):

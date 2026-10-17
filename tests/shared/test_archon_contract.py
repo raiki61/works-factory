@@ -112,7 +112,10 @@ def _asf_folder_key() -> str:
 
 
 def _workflow_run_shape() -> list[str]:
-    argv = place.workflow_run(pathlib.Path("/S"), pathlib.Path("/W"), pathlib.Path("/C"), "NAME", "ARG")
+    """殻が工程を起こす引数の並び。群の別名の層（--config）は工場だけが足す物で consumer に無いので、並べ比べから抜く"""
+    argv = place.workflow_run(pathlib.Path("/S"), pathlib.Path("/W"), pathlib.Path("/R"), pathlib.Path("/C"), "NAME", "ARG")
+    config = argv.index("--config")
+    del argv[config:config + 2]
     placeholders = {"/S/" + place.ENTRY: "<source>/ENTRY", "/C": "<cwd>", "/W": "<workflow-source>"}
     shape = [placeholders.get(arg, arg) for arg in argv]
     if shape[-2:] == ["NAME", "ARG"]:

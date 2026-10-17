@@ -9,14 +9,18 @@
   pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
 Archon の家（$ARCHON_HOME）には、工場が決める値（home_config）を書いた config.yaml のほかは何も置かない（$ARCHON_HOME/workflows など）。
+AI ノードの群の別名（'@wf-<群>'）は家に書かず、新しい run に run 1 本ぶんの設定の層（run_config）で渡す。
 """
 import hashlib
+import json
 import re
 import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable, Mapping
 from pathlib import Path
+
+from lib import launchgroups
 
 ENTRY = "packages/cli/src/cli.ts"
 WORKFLOW_FOLDER = ".archon/workflows"
@@ -87,6 +91,52 @@ def with_quota_policy(text: str, config: Path) -> str:
         return text
     indent = re.match(r"\s*", children[0]).group() if children else "  "
     return f"{head}\n{indent}{QUOTA_KEY}: {QUOTA_VALUE}" + (rest or "\n")
+
+
+def group_presets() -> dict[str, dict[str, str]]:
+    """群の別名（群の名 → {provider, model, effort}）。値は lib/launchgroups.py の表の既定と DEFAULT_PROVIDER から組む"""
+    return {name: {"provider": DEFAULT_PROVIDER, "model": model, "effort": effort}
+            for name in launchgroups.GROUPS for model, effort in [launchgroups.default_of(name)]}
+
+
+# 利用者の --config のファイルを Archon と同じ Bun.YAML.parse で読み、JSON で出す（packages/core/src/config/run-config.ts の
+# loadWorkflowRunConfigFile。空のファイルは {}）
+READ_YAML = ("try { console.log(JSON.stringify(Bun.YAML.parse(await Bun.file(process.argv.at(-1)).text()) ?? {})) }"
+             " catch (error) { console.error(error.message); process.exit(1) }")
+
+
+def read_run_config(bun: str, source: Path, path: Path) -> dict:
+    """利用者の --config のファイル（YAML）を読む。読めない・object でない・aliases が object でない時は RuntimeError。
+    鍵の照らしは Archon に任せる"""
+    done = subprocess.run([bun, f"--config={source / 'bunfig.toml'}", "-e", READ_YAML, str(path)], cwd=source,
+                          capture_output=True, text=True, encoding="utf-8")
+    if done.returncode != 0:
+        raise RuntimeError(f"--config の {path} が読めない: {' '.join(done.stderr.split())}")
+    layer = json.loads(done.stdout)
+    if not isinstance(layer, dict) or not isinstance(layer.get("aliases", {}), dict):
+        raise RuntimeError(f"--config の {path} は object にし、aliases も object にする")
+    return layer
+
+
+def run_config(where: Path, mine: dict | None = None) -> Path:
+    """新しい run に --config で渡す、run 1 本ぶんの設定の層のファイル <where>/run-config/<中身の hash>.json を書いて返す。中身は利用者の
+    --config の層 mine（read_run_config）に群の別名を aliases: で重ねた物で、同じ名の群の別名は工場の値が勝つ（群の付け替えは --model だけ）。
+    起動の後はファイルは要らない。
+
+    この層は対象のリポジトリの .archon/config.yaml を含む持続の設定より強く、呼ぶ人の --model だけがその上に立つ。Archon は起動の時に
+    層を封じて run に記録し、workflow: の子の run が受け継ぎ、resume はその記録を戻す（止めた Archon の docs-web の reference/cli.md の
+    --config の行）。Archon は --config を 1 つしか読まないので、利用者の層もここで合わせる。名を中身の hash にするのは、版の違う工場の木が
+    同じ置き場を使っても互いの層を書き換えないため。利用者の env の値も入りうるので、ファイルは持ち主だけが読める"""
+    mine = mine or {}
+    layer = {**mine, "aliases": {**mine.get("aliases", {}), **group_presets()}}
+    text = json.dumps(layer, ensure_ascii=False, indent=2) + "\n"
+    path = where / "run-config" / f"{hashlib.sha256(text.encode()).hexdigest()[:16]}.json"
+    if not (path.is_file() and path.read_text(encoding="utf-8") == text):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False) as tmp:
+            tmp.write(text)
+        Path(tmp.name).replace(path)
+    return path
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:
@@ -165,16 +215,16 @@ def archon(bun: str, source: Path) -> list[str]:
     return [bun, f"--config={source / 'bunfig.toml'}", str(source / ENTRY)]
 
 
-def workflow_run(source: Path, workflow_dir: Path, cwd: Path, name: str, *args: str) -> list[str]:
-    """グラフ name を workflow_dir から読み、cwd に対して回す命令。
+def workflow_run(source: Path, workflow_dir: Path, config: Path | None, cwd: Path, name: str, *args: str) -> list[str]:
+    """グラフ name を workflow_dir から読み、run 1 本ぶんの設定の層 config（run_config。None なら付けない）をつけて cwd に対して回す命令。
 
-    --cwd と --workflow-source は利用者の引数より前に置く。利用者の -- の後ろに付くと、文として渡り、
+    --cwd と --workflow-source と --config は利用者の引数より前に置く。利用者の -- の後ろに付くと、文として渡り、
     Archon が cwd のグラフを探す元の動きに黙って戻る（ASF の factory/consumer.py と同じ並べ）。
     """
     return [
         "bun", str(source / ENTRY),
         "workflow", "run", "--cwd", str(cwd), "--workflow-source", str(workflow_dir),
-        name, *args,
+        *(["--config", str(config)] if config else []), name, *args,
     ]
 
 

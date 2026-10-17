@@ -97,87 +97,100 @@ nodes:
     mutates_checkout: false
 
   # 周ごとの 4 つのノード。5 組は番号と前の決め（1 周目は chain-start、ほかは前の周の round-<k-1>-decide）のほかは同じ形。
-  # 縛るのは tests/workflows/test_chain.py。前の周が飛ぶと、既定の trigger_rule で後ろの周も全部飛ぶ
+  # 同じ物は 1 周目の定義のアンカーが持ち、2〜5 周目は <<: * で受ける。アンカーが共有するのは commit・facts・decide の本体（script・
+  # runtime・timeout・output_format と、facts・decide の mutates_checkout）と、子の workflow（round_line）と、子へ渡す入力（line_inputs）と facts・decide の入力
+  # （facts_inputs・decide_inputs）。周ごとに残すのは id・depends_on・when・前の決めから受ける request・base・pr・spec・rows・child と
+  # round-k の参照（outcome・apply・r2_status・spec_questions・facts・commit・next_request）。縛るのは tests/workflows/test_chain.py。
+  # 前の周が飛ぶと、既定の trigger_rule で後ろの周も全部飛ぶ
   - id: round-1
-    workflow: works-factory-line
+    <<: &round_line
+      workflow: works-factory-line
     depends_on: [chain-start]
     when: "$chain-start.output.act == 'launch'"
     with:
+      <<: &line_inputs
+        test_cmd: "$INPUTS.test_cmd"
+        tdd_suite: "$INPUTS.tdd_suite"
+        final_gate: "$INPUTS.final_gate"
+        unattended: "$INPUTS.unattended"
+        design_only: "$INPUTS.design_only"
+        thickness: "$INPUTS.thickness"
+        features_off: "$INPUTS.features_off"
+        features_on: "$INPUTS.features_on"
+        policy_md: "$INPUTS.policy_md"
+        fix_fixture: "$INPUTS.fix_fixture"
+        lang: "$INPUTS.lang"
       request: "$chain-start.output.request"
       base: "$chain-start.output.base"
       pr: "$chain-start.output.pr"
       spec: "$chain-start.output.spec"
-      test_cmd: "$INPUTS.test_cmd"
-      tdd_suite: "$INPUTS.tdd_suite"
-      final_gate: "$INPUTS.final_gate"
-      unattended: "$INPUTS.unattended"
-      design_only: "$INPUTS.design_only"
-      thickness: "$INPUTS.thickness"
-      features_off: "$INPUTS.features_off"
-      features_on: "$INPUTS.features_on"
-      policy_md: "$INPUTS.policy_md"
-      fix_fixture: "$INPUTS.fix_fixture"
-      lang: "$INPUTS.lang"
 
   - id: round-1-commit
-    script: round_commit
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        changed: { type: [boolean, "null"] }
-        head: { type: string }
-        reason: { type: string }
-      required: [ok, changed, head, reason]
+    <<: &round_commit
+      script: round_commit
+      runtime: uv
+      timeout: 1728000000
+      output_format:
+        type: object
+        properties:
+          ok: { type: boolean }
+          changed: { type: [boolean, "null"] }
+          head: { type: string }
+          reason: { type: string }
+        required: [ok, changed, head, reason]
     depends_on: [round-1]
 
   - id: round-1-facts
-    script: round_facts
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        error: { type: string }
-        run: { type: string }
-        keys: { type: array, items: { type: string } }
-        held_rows: { type: array, items: { type: object } }
-        request: { type: string }
-        source: { type: string }
-        cost: { type: [number, "null"] }
-        cost_read: { type: boolean }
-        minutes: { type: [number, "null"] }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
-    mutates_checkout: false
+    <<: &round_facts
+      script: round_facts
+      runtime: uv
+      timeout: 1728000000
+      output_format:
+        type: object
+        properties:
+          ok: { type: boolean }
+          error: { type: string }
+          run: { type: string }
+          keys: { type: array, items: { type: string } }
+          held_rows: { type: array, items: { type: object } }
+          request: { type: string }
+          source: { type: string }
+          cost: { type: [number, "null"] }
+          cost_read: { type: boolean }
+          minutes: { type: [number, "null"] }
+        required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
+      mutates_checkout: false
     depends_on: [round-1-commit]
     with:
+      <<: &facts_inputs
+        first_request: "$chain-start.output.first_request"
+        first_pr: "$chain-start.output.first_pr"
       next_request: "$round-1.output.next_request"
       child: round-1
-      first_request: "$chain-start.output.first_request"
-      first_pr: "$chain-start.output.first_pr"
 
   - id: round-1-decide
-    script: decide
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        act: { type: string }
-        word: { type: string }
-        text: { type: string }
-        request: { type: string }
-        base: { type: string }
-        pr: { type: string }
-        spec: { type: string }
-        rows: { type: array, items: { type: object } }
-      required: [act, word, text, request, base, pr, spec, rows]
-    mutates_checkout: false
+    <<: &round_decide
+      script: decide
+      runtime: uv
+      timeout: 1728000000
+      output_format:
+        type: object
+        properties:
+          act: { type: string }
+          word: { type: string }
+          text: { type: string }
+          request: { type: string }
+          base: { type: string }
+          pr: { type: string }
+          spec: { type: string }
+          rows: { type: array, items: { type: object } }
+        required: [act, word, text, request, base, pr, spec, rows]
+      mutates_checkout: false
     depends_on: [round-1-facts]
     with:
+      <<: &decide_inputs
+        rounds_max: "$chain-start.output.rounds"
+        budget: "$chain-start.output.budget"
       rows: "$chain-start.output.rows"
       outcome: "$round-1.output.outcome"
       apply: "$round-1.output.apply"
@@ -185,89 +198,35 @@ nodes:
       spec_questions: "$round-1.output.spec_questions"
       facts: "$round-1-facts.output"
       commit: "$round-1-commit.output"
-      rounds_max: "$chain-start.output.rounds"
-      budget: "$chain-start.output.budget"
 
   - id: round-2
-    workflow: works-factory-line
+    <<: *round_line
     depends_on: [round-1-decide]
     when: "$round-1-decide.output.act == 'launch'"
     with:
+      <<: *line_inputs
       request: "$round-1-decide.output.request"
       base: "$round-1-decide.output.base"
       pr: "$round-1-decide.output.pr"
       spec: "$round-1-decide.output.spec"
-      test_cmd: "$INPUTS.test_cmd"
-      tdd_suite: "$INPUTS.tdd_suite"
-      final_gate: "$INPUTS.final_gate"
-      unattended: "$INPUTS.unattended"
-      design_only: "$INPUTS.design_only"
-      thickness: "$INPUTS.thickness"
-      features_off: "$INPUTS.features_off"
-      features_on: "$INPUTS.features_on"
-      policy_md: "$INPUTS.policy_md"
-      fix_fixture: "$INPUTS.fix_fixture"
-      lang: "$INPUTS.lang"
 
   - id: round-2-commit
-    script: round_commit
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        changed: { type: [boolean, "null"] }
-        head: { type: string }
-        reason: { type: string }
-      required: [ok, changed, head, reason]
+    <<: *round_commit
     depends_on: [round-2]
 
   - id: round-2-facts
-    script: round_facts
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        error: { type: string }
-        run: { type: string }
-        keys: { type: array, items: { type: string } }
-        held_rows: { type: array, items: { type: object } }
-        request: { type: string }
-        source: { type: string }
-        cost: { type: [number, "null"] }
-        cost_read: { type: boolean }
-        minutes: { type: [number, "null"] }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
-    mutates_checkout: false
+    <<: *round_facts
     depends_on: [round-2-commit]
     with:
+      <<: *facts_inputs
       next_request: "$round-2.output.next_request"
       child: round-2
-      first_request: "$chain-start.output.first_request"
-      first_pr: "$chain-start.output.first_pr"
 
   - id: round-2-decide
-    script: decide
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        act: { type: string }
-        word: { type: string }
-        text: { type: string }
-        request: { type: string }
-        base: { type: string }
-        pr: { type: string }
-        spec: { type: string }
-        rows: { type: array, items: { type: object } }
-      required: [act, word, text, request, base, pr, spec, rows]
-    mutates_checkout: false
+    <<: *round_decide
     depends_on: [round-2-facts]
     with:
+      <<: *decide_inputs
       rows: "$round-1-decide.output.rows"
       outcome: "$round-2.output.outcome"
       apply: "$round-2.output.apply"
@@ -275,89 +234,35 @@ nodes:
       spec_questions: "$round-2.output.spec_questions"
       facts: "$round-2-facts.output"
       commit: "$round-2-commit.output"
-      rounds_max: "$chain-start.output.rounds"
-      budget: "$chain-start.output.budget"
 
   - id: round-3
-    workflow: works-factory-line
+    <<: *round_line
     depends_on: [round-2-decide]
     when: "$round-2-decide.output.act == 'launch'"
     with:
+      <<: *line_inputs
       request: "$round-2-decide.output.request"
       base: "$round-2-decide.output.base"
       pr: "$round-2-decide.output.pr"
       spec: "$round-2-decide.output.spec"
-      test_cmd: "$INPUTS.test_cmd"
-      tdd_suite: "$INPUTS.tdd_suite"
-      final_gate: "$INPUTS.final_gate"
-      unattended: "$INPUTS.unattended"
-      design_only: "$INPUTS.design_only"
-      thickness: "$INPUTS.thickness"
-      features_off: "$INPUTS.features_off"
-      features_on: "$INPUTS.features_on"
-      policy_md: "$INPUTS.policy_md"
-      fix_fixture: "$INPUTS.fix_fixture"
-      lang: "$INPUTS.lang"
 
   - id: round-3-commit
-    script: round_commit
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        changed: { type: [boolean, "null"] }
-        head: { type: string }
-        reason: { type: string }
-      required: [ok, changed, head, reason]
+    <<: *round_commit
     depends_on: [round-3]
 
   - id: round-3-facts
-    script: round_facts
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        error: { type: string }
-        run: { type: string }
-        keys: { type: array, items: { type: string } }
-        held_rows: { type: array, items: { type: object } }
-        request: { type: string }
-        source: { type: string }
-        cost: { type: [number, "null"] }
-        cost_read: { type: boolean }
-        minutes: { type: [number, "null"] }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
-    mutates_checkout: false
+    <<: *round_facts
     depends_on: [round-3-commit]
     with:
+      <<: *facts_inputs
       next_request: "$round-3.output.next_request"
       child: round-3
-      first_request: "$chain-start.output.first_request"
-      first_pr: "$chain-start.output.first_pr"
 
   - id: round-3-decide
-    script: decide
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        act: { type: string }
-        word: { type: string }
-        text: { type: string }
-        request: { type: string }
-        base: { type: string }
-        pr: { type: string }
-        spec: { type: string }
-        rows: { type: array, items: { type: object } }
-      required: [act, word, text, request, base, pr, spec, rows]
-    mutates_checkout: false
+    <<: *round_decide
     depends_on: [round-3-facts]
     with:
+      <<: *decide_inputs
       rows: "$round-2-decide.output.rows"
       outcome: "$round-3.output.outcome"
       apply: "$round-3.output.apply"
@@ -365,89 +270,35 @@ nodes:
       spec_questions: "$round-3.output.spec_questions"
       facts: "$round-3-facts.output"
       commit: "$round-3-commit.output"
-      rounds_max: "$chain-start.output.rounds"
-      budget: "$chain-start.output.budget"
 
   - id: round-4
-    workflow: works-factory-line
+    <<: *round_line
     depends_on: [round-3-decide]
     when: "$round-3-decide.output.act == 'launch'"
     with:
+      <<: *line_inputs
       request: "$round-3-decide.output.request"
       base: "$round-3-decide.output.base"
       pr: "$round-3-decide.output.pr"
       spec: "$round-3-decide.output.spec"
-      test_cmd: "$INPUTS.test_cmd"
-      tdd_suite: "$INPUTS.tdd_suite"
-      final_gate: "$INPUTS.final_gate"
-      unattended: "$INPUTS.unattended"
-      design_only: "$INPUTS.design_only"
-      thickness: "$INPUTS.thickness"
-      features_off: "$INPUTS.features_off"
-      features_on: "$INPUTS.features_on"
-      policy_md: "$INPUTS.policy_md"
-      fix_fixture: "$INPUTS.fix_fixture"
-      lang: "$INPUTS.lang"
 
   - id: round-4-commit
-    script: round_commit
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        changed: { type: [boolean, "null"] }
-        head: { type: string }
-        reason: { type: string }
-      required: [ok, changed, head, reason]
+    <<: *round_commit
     depends_on: [round-4]
 
   - id: round-4-facts
-    script: round_facts
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        error: { type: string }
-        run: { type: string }
-        keys: { type: array, items: { type: string } }
-        held_rows: { type: array, items: { type: object } }
-        request: { type: string }
-        source: { type: string }
-        cost: { type: [number, "null"] }
-        cost_read: { type: boolean }
-        minutes: { type: [number, "null"] }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
-    mutates_checkout: false
+    <<: *round_facts
     depends_on: [round-4-commit]
     with:
+      <<: *facts_inputs
       next_request: "$round-4.output.next_request"
       child: round-4
-      first_request: "$chain-start.output.first_request"
-      first_pr: "$chain-start.output.first_pr"
 
   - id: round-4-decide
-    script: decide
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        act: { type: string }
-        word: { type: string }
-        text: { type: string }
-        request: { type: string }
-        base: { type: string }
-        pr: { type: string }
-        spec: { type: string }
-        rows: { type: array, items: { type: object } }
-      required: [act, word, text, request, base, pr, spec, rows]
-    mutates_checkout: false
+    <<: *round_decide
     depends_on: [round-4-facts]
     with:
+      <<: *decide_inputs
       rows: "$round-3-decide.output.rows"
       outcome: "$round-4.output.outcome"
       apply: "$round-4.output.apply"
@@ -455,89 +306,35 @@ nodes:
       spec_questions: "$round-4.output.spec_questions"
       facts: "$round-4-facts.output"
       commit: "$round-4-commit.output"
-      rounds_max: "$chain-start.output.rounds"
-      budget: "$chain-start.output.budget"
 
   - id: round-5
-    workflow: works-factory-line
+    <<: *round_line
     depends_on: [round-4-decide]
     when: "$round-4-decide.output.act == 'launch'"
     with:
+      <<: *line_inputs
       request: "$round-4-decide.output.request"
       base: "$round-4-decide.output.base"
       pr: "$round-4-decide.output.pr"
       spec: "$round-4-decide.output.spec"
-      test_cmd: "$INPUTS.test_cmd"
-      tdd_suite: "$INPUTS.tdd_suite"
-      final_gate: "$INPUTS.final_gate"
-      unattended: "$INPUTS.unattended"
-      design_only: "$INPUTS.design_only"
-      thickness: "$INPUTS.thickness"
-      features_off: "$INPUTS.features_off"
-      features_on: "$INPUTS.features_on"
-      policy_md: "$INPUTS.policy_md"
-      fix_fixture: "$INPUTS.fix_fixture"
-      lang: "$INPUTS.lang"
 
   - id: round-5-commit
-    script: round_commit
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        changed: { type: [boolean, "null"] }
-        head: { type: string }
-        reason: { type: string }
-      required: [ok, changed, head, reason]
+    <<: *round_commit
     depends_on: [round-5]
 
   - id: round-5-facts
-    script: round_facts
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        ok: { type: boolean }
-        error: { type: string }
-        run: { type: string }
-        keys: { type: array, items: { type: string } }
-        held_rows: { type: array, items: { type: object } }
-        request: { type: string }
-        source: { type: string }
-        cost: { type: [number, "null"] }
-        cost_read: { type: boolean }
-        minutes: { type: [number, "null"] }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
-    mutates_checkout: false
+    <<: *round_facts
     depends_on: [round-5-commit]
     with:
+      <<: *facts_inputs
       next_request: "$round-5.output.next_request"
       child: round-5
-      first_request: "$chain-start.output.first_request"
-      first_pr: "$chain-start.output.first_pr"
 
   - id: round-5-decide
-    script: decide
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        act: { type: string }
-        word: { type: string }
-        text: { type: string }
-        request: { type: string }
-        base: { type: string }
-        pr: { type: string }
-        spec: { type: string }
-        rows: { type: array, items: { type: object } }
-      required: [act, word, text, request, base, pr, spec, rows]
-    mutates_checkout: false
+    <<: *round_decide
     depends_on: [round-5-facts]
     with:
+      <<: *decide_inputs
       rows: "$round-4-decide.output.rows"
       outcome: "$round-5.output.outcome"
       apply: "$round-5.output.apply"
@@ -545,8 +342,6 @@ nodes:
       spec_questions: "$round-5.output.spec_questions"
       facts: "$round-5-facts.output"
       commit: "$round-5-commit.output"
-      rounds_max: "$chain-start.output.rounds"
-      budget: "$chain-start.output.budget"
 
   # 最後の差分と chain.md。周の子かその周のノードが落ちて後ろが飛んでも走る（resume のたびに走り直す）
   - id: final-diff

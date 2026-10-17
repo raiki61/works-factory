@@ -307,16 +307,21 @@ class HeadDepthTest(unittest.TestCase):
 
 
 def bound(trace: dict, value):
-    """線の節の with: の 1 つの値を、dry-run の trace の出力で結ぶ（`$<id>.output.<欄>` と `{from, if_skipped}`。差し込んだブロックの
-    返りは trace に include の id の行が無いので、受け皿 `<id>-out` の got から読む）"""
+    """線の節の with: の 1 つの値を、dry-run の trace の出力で結ぶ（`$<id>.output.<欄>`・まるごとの参照 `$<id>.output` と `{from, if_skipped}`。
+    差し込んだブロックの返りは trace に include の id の行が無いので、受け皿 `<id>-out` の got から読む）"""
     if isinstance(value, dict) and "from" in value:
         node = value["from"].split(".", 1)[0].lstrip("$")
         node = node if node in trace else f"{node}-out"   # 差し込んだブロックは受け皿の行で見る
         if node not in trace or trace[node]["state"] == "skipped":
             return value.get("if_skipped")
         value = value["from"]
-    if isinstance(value, str) and value.startswith("$") and value.endswith(".output") and value[1:-len(".output")] in trace:
-        return trace[value[1:-len(".output")]].get("output")   # 節の出力の丸ごと（関所の答えの字）
+    if isinstance(value, str) and value.startswith("$") and value.endswith(".output"):
+        node = value[1:-len(".output")]
+        if node in trace:
+            return trace[node].get("output")   # 節の出力の丸ごと（関所の答えの字）
+        if f"{node}-out" in trace:   # 差し込んだブロックの返りのまるごと（受け皿の got。飛んだ受け皿は null）
+            out = trace[f"{node}-out"].get("output")
+            return json.loads(out)["got"] if out else None
     if not (isinstance(value, str) and value.startswith("$") and ".output." in value):
         return value
     node, field = value[1:].split(".output.", 1)
