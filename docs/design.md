@@ -631,8 +631,8 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - 型つきの成果物は、ノードの id と繰り返しの道（`loopGroupPath`）で鍵が付き、`$TYPED_ARTIFACTS_FILE` の一覧（`{runId, artifactsByType, errors}`）で引く（`artifacts-index.ts` 44-57 行・366-377 行）。
 - `loop:` の出力は最後の回の出力。`output_format` を書いた `loop:` では、それが照らした JSON になる（`dag-executor.ts` 5322 行の `executeLoopNode` の `lastIterationOutput`・文書 `guides/loop-nodes.md` 338-341 行）。
 - `if_skipped` は include の入力を通して運べない（埋め P2）。
-- `355f1867` では、`plugins:` は名指した物が入っていないとノードを落とし、入っていれば載せる任意の形（`mcp:` の `optional: true` の類）が無い（`packages/providers/src/claude/plugins.ts` 164-177 行。埋め P10）。
-- `355f1867` では、`denied_tools` は literal で、run の設定の層にも道具の鍵が無い（`schemas/dag-node.ts` 223 行・`schemas/run-config.ts` 32-42 行。埋め P11）。
+- `355f1867` では、`plugins:` は名指した物が入っていないとノードを落とし、入っていれば載せる任意の形（`mcp:` の `optional: true` の類）が無い（`packages/providers/src/claude/plugins.ts` の `buildClaudePluginSettings`。埋め P11）。
+- `355f1867` では、`denied_tools` は literal で、run の設定の層にも道具の鍵が無い（`schemas/dag-node.ts` の `denied_tools`・`schemas/run-config.ts` の `workflowRunConfigLayerSchema`。埋め P12）。
 - ポインタは同じ run の中だけ。パスは相対で、在って空でない普通のファイルだけ（`artifact-pointer.ts` 15-20 行・101 行・146-153 行）。
 - `script:` のノードの `output_format` は標準出力の約束で、Archon が照らす（`d97d00ef` の文書 `guides/script-nodes.md` 124 行「JSON Schema the node's stdout must satisfy」）。だからサブグラフの出力の型を自前で照らす口は要らない。
 - `workflow:` の `fan_out:` の子が承認ノードで止まると、その子は取り消される（親は承認ノードを 1 つしか持てない。承認ノードを外して resume すればその子からやり直す。`dag-executor.ts` 7716-7719 行・7771-7790 行）。`include:` の `fan_out:` の中の承認ノードと待ちは、読み込みの時に誤りになる（`include-expander.ts` 1148-1157 行）。承認ノードは fan_out の前か後に置く。

@@ -36,7 +36,7 @@ AI ノードは全部 settingSources: [user] で、bin/ の起動が隔離した
   同じ）。
 - kind "plugin" で borrow の hooks を持つ物（coldwrite。書く散文の初見検査のフック）: プラグインとしては入れず、入れた置き場の
   hooks/hooks.json の hooks の表をそのまま隔離した設定の settings.json の hooks に足す（hooked）。Archon で表せない形で、
-  docs/polyfills.md の P10 が穴と外す条件を持つ。settingSources: [user] のノードは利用者の設定のフックを読むので、全部の役で効く。
+  docs/polyfills.md の P11 が穴と外す条件を持つ。settingSources: [user] のノードは利用者の設定のフックを読むので、全部の役で効く。
   表がプラグインの置き場を指す字（PLUGIN_PLACE）を持てば、置かずに名指して止まる。前の版が
   プラグインとして入れた物は、CLI を呼ぶ道で外す。
 - 書き込みの記録のフック: 同じ置き場の record-write.py を PostToolUse:Edit|Write|NotebookEdit（WRITE_MATCHER）で settings.json の
@@ -118,7 +118,7 @@ SETTINGS_KEYS = frozenset({"enabledPlugins", "extraKnownMarketplaces", "hooks"})
 # 出さない柵（今の works の adapter.NO_POST_DENY の git の側。gh の側は読むだけの口 no-post-bin/works-gh）
 DENY_PUSH = "Bash(git push:*)"
 # 公開ベンチの run で役が網から正解の議論を引かないように拒む道具（tests/calibration/run.py が env で頼む）。run ごとに拒む部分は
-# Archon で表せない形で、docs/polyfills.md の P11 が穴と外す条件を持つ。この一覧はベンチの素の Claude Code も使う
+# Archon で表せない形で、docs/polyfills.md の P12 が穴と外す条件を持つ。この一覧はベンチの素の Claude Code も使う
 DENY_WEB = {"deny": ["WebFetch", "WebSearch"]}
 DENY_WEB_ENV = "WORKS_FACTORY_DENY_WEB"
 RECORDER = pathlib.Path(__file__).resolve().parent / "record-write.py"

@@ -3,8 +3,8 @@
 # dependencies = []
 # ///
 """書き手の返答と初見の読み手の判定を受け付ける（輪の until_bash が done を読む）。受け取った物は run の置き場の report/ に書く。
-拒否の訳のファイル reason_file と、前の答えの控え prev_file（まだ諦めていない拒否の回だけ。無ければ空）は、機械の事実のファイル
-（facts の facts_file）と同じく run の置き場からの相対で返す。"""
+拒否の訳のファイル reason_file と、前の答えの控え prev_file（まだ諦めていない拒否の回だけ。無ければ空。先は rolekit の前の答えの控え
+candidate-report.json）は、機械の事実のファイル（facts の facts_file）と同じく run の置き場からの相対で返す。"""
 import os
 import sys
 from pathlib import Path
