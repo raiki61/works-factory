@@ -280,8 +280,8 @@ def dockerfile(base_image: str, claude_version: str, factory_commit: str, place:
 
 
 # setup の sandbox の確かめ（tests/bin/sandbox_probe.py。本物の Claude Code に Bash と Grep を踏ませる）が落ちた段ごとの文。
-# 段は終わりの値で見分け、段の文の前に、probe が拾った要の行（Bash の結果と claude の標準エラーの最後の行。claude を起こせなければ
-# 起こせなかったパス）が 2 行まで並ぶ。壊れの機構はここに寄せる
+# 段は終わりの値で見分け、段の文の前に、probe が拾った要の行（claude の標準エラーと Bash の結果の最後の行をこの順に。claude を
+# 起こせなければ起こせなかったパス）が 2 行まで並ぶ。壊れの機構はここに寄せる
 LIMIT_IS = "docker を回す kernel の制限: "   # 文の後ろに USERNS_LIMIT の値を足す
 USERNS_FIX = ("docker を回す kernel（x86_64 の機械ならそのホスト、VM ならその VM）の制限が 1 なら kernel（その側で sysctl "
               "kernel.apparmor_restrict_unprivileged_userns=0 にし、起こし直しても効く設定に入れる）")
@@ -293,7 +293,7 @@ SANDBOX_REFUSED = (
     f" -e {ENVIRONMENT} が渡っていれば主のコンテナに緩めが入る）。{LIMIT_IS}")
 
 SECCOMP_REFUSED = (
-    "Claude Code の sandbox の seccomp の helper（apply-seccomp）が立たない場合は、直前の行の helper の文で層を見分ける:"
+    "Claude Code の sandbox の seccomp の helper（apply-seccomp）が立たない場合は、上の Bash の結果の行の helper の文で層を見分ける:"
     " prctl(PR_SET_SECCOMP) の Invalid argument は kernel が x86_64 でない台（命令の翻訳で amd64 を動かす台）の seccomp の登録の"
     "拒みで、seccomp の写しを緩めても docker の seccomp を外しても直らない（x86_64 の機械の上の docker か、kernel ごと x86_64 を"
     "真似る VM の中の docker で回す）。unshare(CLONE_NEWUSER) の Invalid argument は"
@@ -314,8 +314,8 @@ START_REFUSED = (
     "どれか。直前の行（起こせなかったパスか、claude の標準エラーの最後の行）で読む。起動の時の sandbox の拒みなら、"
     f"{USERNS_FIX}。{LIMIT_IS}")
 
-# 確かめの口が終わりの値を返さずに終わった段（捕まえない例外の 1・使い方の誤りの 2・python3.12 を起こせない 126/127 など）。
-# claude や台の層は、まだ何も言えない
+# 確かめの口が段の終わりの値を返さずに終わった段（捕まえない例外の 1・使い方の誤りの 2・python3.12 を起こせない 126/127、
+# 偽の API が tool_result を 1 つも受けなかった sandbox_probe.NO_TOOL_RESULT など）。claude や台の層は、まだ何も言えない
 PROBE_CRASHED = (
     "sandbox の確かめの口そのものが終わりの値を返さずに落ちた（claude や台の層の判定に届いていない）。直前の行の Traceback や"
     "起こせなかったパスで読む。確かめの部品や設定の不具合を疑う")

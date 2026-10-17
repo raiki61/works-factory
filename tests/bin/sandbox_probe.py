@@ -5,12 +5,13 @@
 標準ライブラリだけで動く（課題のコンテナの python3.12 は PyYAML を持たない）。環境は呼び手が引数で渡し、os.environ は読まない。
 期限を持たない。claude が偽の API で待ち続けると、この部品も終わらない。
 
-probe の終わりの値は 0（通った）と下の 4 つ。Python の捕まえない例外の 1 と argparse の誤りの 2 とは重ならない。
+probe の終わりの値は 0（通った）と下の 5 つ。Python の捕まえない例外の 1 と argparse の誤りの 2 とは重ならない。
 """
 import http.server
 import json
 import os
 import pathlib
+import re
 import shlex
 import subprocess
 import threading
@@ -20,6 +21,7 @@ START_FAILED = 3   # 偽の API に要求が 1 度も届かなかった（claude
 BASH_FAILED = 4    # 要求は届いたが、sandbox の Bash が印を返さなかった
 GREP_EMPTY = 5     # Bash は通ったが、Grep が印のファイルを 0 件と返した
 UNCONFINED = 6     # Bash は通ったが、拒まれるはずの書き込みが通った（sandbox が閉じ込めていない）
+NO_TOOL_RESULT = 7  # 要求は届いたが、tool_result が 1 つも返らなかった（claude が道具を使わず終えた・Bash の許可を拒んだ・要求の形が変わった）
 
 # docker を回す kernel の、利用者の名前空間の制限（1 なら sandbox が立たない）。無い kernel もある
 USERNS_LIMIT = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
@@ -28,6 +30,8 @@ ROLE_NODE = "ci"
 MARK = "sandbox-probe-mark"
 WROTE, BLOCKED = "WROTE", "BLOCKED"
 MODEL = "claude-haiku-4-5-20251001"
+# 本物の claude が tool_result の後ろに付ける塊。要の行を選ぶ前に除く
+REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
 PROXY_NAMES = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy")
 
 
@@ -173,7 +177,7 @@ def text_of(block: dict) -> str:
 
 
 def _last(text: str) -> str:
-    lines = [line for line in text.splitlines() if line.strip()]
+    lines = [line for line in REMINDER.sub("", text).splitlines() if line.strip()]
     return lines[-1] if lines else ""
 
 
@@ -184,8 +188,8 @@ def _clues(*texts: str) -> list[str]:
 def probe(claude: str, settings: dict, place, env: dict) -> tuple[int, list[str]]:
     """(終わりの値, 要の行 2 つまで)。place の下に HOME にする場所と作業の場所を作り、作業の場所に印のファイルを置く。
     settings は役の sandbox の設定で、filesystem.denyWrite の最初の置き場（~ は作った HOME で解く）を、Bash の書き込みの試しの
-    先にする（sandbox が閉じ込めていれば BLOCKED）。要の行は、claude を起こせなかった時はその例外の文、ほかは Bash の tool_result
-    の最後の行と claude の標準エラーの最後の行"""
+    先にする（sandbox が閉じ込めていれば BLOCKED）。要の行は、claude を起こせなかった時はその例外の文、ほかは claude の標準エラーの
+    最後の行と、Bash の tool_result の最後の行（system-reminder の塊を除く）をこの順に。Bash の行が呼び手の段の文のすぐ上に来る"""
     deny = ((settings.get("filesystem") or {}).get("denyWrite") or [None])[0]
     if not deny:
         raise ValueError("settings の filesystem.denyWrite に置き場が無い（書き込みを拒む置き場が無いと閉じ込めを確かめられない）")
@@ -206,13 +210,15 @@ def probe(claude: str, settings: dict, place, env: dict) -> tuple[int, list[str]
         return START_FAILED, [talk.error]
     if not talk.requests:
         return START_FAILED, _clues(talk.stderr)
-    bash = text_of(talk.results[0]) if talk.results else ""
+    if not talk.results:
+        return NO_TOOL_RESULT, _clues(talk.stderr)
+    bash = text_of(talk.results[0])
     said = bash.splitlines()
     if WROTE in said:
-        return UNCONFINED, _clues(bash, talk.stderr)
+        return UNCONFINED, _clues(talk.stderr, bash)
     if MARK not in said or BLOCKED not in said:
-        return BASH_FAILED, _clues(bash, talk.stderr)
+        return BASH_FAILED, _clues(talk.stderr, bash)
     grep = text_of(talk.results[1]) if len(talk.results) > 1 else ""
     if f"{MARK}.txt" not in grep:
-        return GREP_EMPTY, _clues(bash, talk.stderr)
+        return GREP_EMPTY, _clues(talk.stderr, bash)
     return 0, []

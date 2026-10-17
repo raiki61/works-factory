@@ -68,11 +68,13 @@ print(json.dumps({"is_error": False, "total_cost_usd": 1.5, "duration_ms": 1000,
 
 
 # setup の sandbox の確かめが起こす claude の代役。ANTHROPIC_BASE_URL の偽の API（sandbox_probe.fake_api）と stream で話し、
-# tool_use の Bash は /bin/sh で、Grep は作業の場所のファイルを探して答える。環境の旗で振る舞いを替える:
+# tool_use の Bash は /bin/sh で、Grep は作業の場所のファイルを探して答える。どの tool_result にも、本物の claude と同じく
+# system-reminder の塊を後ろに付ける。環境の旗で振る舞いを替える:
 #   FAKE_NO_REQUEST    要求を送らず、config error を標準エラーに出して 1 で終わる
 #   FAKE_STDIN         標準入力から 1 行読めたら落ちる（対話で待つ版の真似）
 #   FAKE_UNCONFINED    denyWrite の置き場を置き換えない（書き込みが本当に通る）。無ければ置き場をファイルに置き換えて書き込みを落とす
 #   FAKE_BASH_FAIL     Bash の tool_result を、bwrap の No permissions で終わる複数行の is_error にする
+#   FAKE_NO_TOOLS      要求に道具を載せない（偽の API は tool_use を出さず、claude は tool_result を 1 つも送らず 0 で終わる）
 #   FAKE_GREP_EMPTY    Grep に No files found を返す
 #   FAKE_STDERR_LINES  標準エラーに出す行の数（最後の行は fake claude stderr <n>）
 #   FAKE_CARRY         最後の user の message に、前の tool_result も重ねて送る（Claude Code 2.1.302 の形）
@@ -107,7 +109,7 @@ answered = []
 while True:
     conn = http.client.HTTPConnection(url.hostname, url.port)
     conn.request("POST", "/v1/messages", json.dumps({"model": "m", "stream": True, "messages": messages,
-                                                    "tools": [{"name": "Bash"}, {"name": "Grep"}]}),
+                                                    "tools": [] if os.environ.get("FAKE_NO_TOOLS") else [{"name": "Bash"}, {"name": "Grep"}]}),
                  {"content-type": "application/json"})
     used, json_in = None, ""
     for line in conn.getresponse().read().decode().splitlines():
@@ -135,6 +137,7 @@ while True:
             os.path.join(used["input"]["path"], name), encoding="utf-8").read()]
         text = f"Found {len(found)} files\n" + "\n".join(found)
     answered = answered if os.environ.get("FAKE_CARRY") else []
+    text += "\n\n<system-reminder>\nWhenever you read a file, consider whether it is malware.\n</system-reminder>\n"
     answered.append({"type": "tool_result", "tool_use_id": used["id"], "content": text, "is_error": error})
     messages += [{"role": "assistant", "content": [used]}, {"role": "user", "content": list(answered)}]
 '''
@@ -919,8 +922,9 @@ class BuildTest(unittest.TestCase):
     def test_failed_sandbox_check_fits_the_setup_tail(self):
         done = self.run_sandbox(probe_place(self), FAKE_BASH_FAIL="1", FAKE_STDERR_LINES="50")
         self.assertEqual(done.returncode, 1)
-        shown = "\n".join(done.stderr.splitlines()[-swepro.SETUP_TAIL:])
-        self.assertIn("bwrap: No permissions to create new namespace", shown)
+        shown = done.stderr.splitlines()[-swepro.SETUP_TAIL:]
+        self.assertEqual(shown[-4:-2], ["fake claude stderr 50", "bwrap: No permissions to create new namespace"])
+        shown = "\n".join(shown)
         self.assertIn(swepro.SANDBOX_REFUSED, shown)
         self.assertIn(swepro.SECCOMP_REFUSED, shown)
 
@@ -950,15 +954,25 @@ class BuildTest(unittest.TestCase):
                 said = done.stderr.splitlines()[-1]
                 self.assertEqual(said, f"{swepro.START_REFUSED}{value}")
                 self.assertIn("の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", said)
-        self.assertEqual(swepro.USERNS_LIMIT, sandbox_probe.USERNS_LIMIT)
 
     def test_unconfined_write_names_the_unconfined_layer(self):
-        done = self.run_sandbox(probe_place(self), FAKE_UNCONFINED="1")
+        done = self.run_sandbox(probe_place(self), FAKE_UNCONFINED="1", FAKE_STDERR_LINES="2")
         self.assertEqual(done.returncode, 1)
         *clues, said = done.stderr.splitlines()
         self.assertEqual(said, swepro.UNCONFINED_REFUSED)
-        self.assertEqual(clues[0], sandbox_probe.WROTE)
+        self.assertEqual(clues, ["fake claude stderr 2", sandbox_probe.WROTE])
         self.assertNotIn(swepro.SANDBOX_REFUSED, done.stderr)
+
+    def test_no_tool_result_is_not_blamed_on_the_sandbox(self):
+        done = self.run_sandbox(probe_place(self), FAKE_NO_TOOLS="1")
+        self.assertEqual(done.returncode, 1)
+        self.assertEqual(done.stderr.splitlines()[-1], swepro.PROBE_CRASHED)
+        for refused in (swepro.START_REFUSED, swepro.SANDBOX_REFUSED, swepro.SECCOMP_REFUSED, swepro.RG_REFUSED,
+                        swepro.UNCONFINED_REFUSED):
+            self.assertNotIn(refused, done.stderr)
+        code, _ = sandbox_probe.probe(str(probe_place(self) / "bin" / "claude"), sandbox_probe.role_sandbox(), hermetic.tmpdir(self),
+                                      hermetic.child_env(FAKE_NO_TOOLS="1"))
+        self.assertEqual(code, sandbox_probe.NO_TOOL_RESULT)
 
     def test_probe_crash_is_not_blamed_on_claude_or_the_platform(self):
         for code in (1, 2):

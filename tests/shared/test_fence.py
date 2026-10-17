@@ -302,14 +302,14 @@ class FencedSinceTest(unittest.TestCase):
 
 NO_TOOLS = "sandbox が立たない（macOS の sandbox-exec か、Linux の bwrap と socat が要る）"
 LAYERS = {sandbox_probe.START_FAILED: "start", sandbox_probe.BASH_FAILED: "Bash", sandbox_probe.GREP_EMPTY: "Grep",
-          sandbox_probe.UNCONFINED: "unconfined"}
+          sandbox_probe.UNCONFINED: "unconfined", sandbox_probe.NO_TOOL_RESULT: "tool_result"}
 
 
 def sandbox_refused(claude: str, platform: str = sys.platform) -> str:
     """本物の claude の sandbox の柵の試験を見送る訳（見送らないなら空）。道具が無い時（macOS は sandbox-exec、Linux は bwrap と
     socat）と、Linux で名前空間が立たず Bash が落ちた時（kernel の制限に依る台の問題）、Linux で claude が要求を送らず終わり、
     kernel の名前空間の制限の値が 1 の時（役の設定の failIfUnavailable が起動の時に拒む。層は start）は見送りの訳を返す。道具が在るのに
-    ほかの層（start・Grep・unconfined、macOS の Bash）が壊れている時は、層と要の行を添えた AssertionError で赤にする"""
+    ほかの層（start・Grep・unconfined・tool_result が返らない、macOS の Bash）が壊れている時は、層と要の行を添えた AssertionError で赤にする"""
     if platform == "darwin":
         if shutil.which("sandbox-exec") is None:
             return NO_TOOLS
@@ -389,9 +389,11 @@ class SharedProbeTest(unittest.TestCase):
                 ("grep on macos", "darwin", sandbox_probe.GREP_EMPTY, None),
                 ("unconfined on linux", "linux", sandbox_probe.UNCONFINED, "1"),
                 ("unconfined on macos", "darwin", sandbox_probe.UNCONFINED, None),
-                ("bash on macos", "darwin", sandbox_probe.BASH_FAILED, "1")):
+                ("bash on macos", "darwin", sandbox_probe.BASH_FAILED, "1"),
+                ("no tool_result on linux", "linux", sandbox_probe.NO_TOOL_RESULT, "1"),
+                ("no tool_result on macos", "darwin", sandbox_probe.NO_TOOL_RESULT, None)):
             with self.subTest(name):
-                self.probe_says(code, "the key line", "the stderr line")
+                self.probe_says(code, "the stderr line", "the key line")
                 self.limit_is(limit)
                 with self.assertRaises(AssertionError) as caught:
                     sandbox_refused("claude", platform=platform)
