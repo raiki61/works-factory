@@ -1107,7 +1107,8 @@ def _plan_questions(returns: dict, gates: dict, start: dict) -> tuple[list, list
 def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, beside: dict, exit_: tuple,
                repo=None, line: dict | None = None) -> tuple[list, list]:
     """人が決めることの節の行と、人が決める物 [(種, 1 件の文)]（冒頭が 1 件 1 行に並べる。問いの文だけが、保留の問いは台帳の選択肢を、
-    判定の役が推しを書いていなければ NO_PUSH を尾に持つ。確かめ直しで戻した組・戻せず当たったままの組も 1 組 1 件）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは直す義務に戻せなかった単位の行を重ねて数えない。closed は
+    判定の役が推しを書いていなければ NO_PUSH を尾に持つ。確かめ直しで戻した組・戻せず当たったままの組も 1 組 1 件）。数える物は
+    元 head3 と head_decisions の人が決める物。round_limit の残りは直す義務に戻せなかった単位の行を重ねて数えない。closed は
     途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs, plan_done = _plan_questions(returns, gates, start)
     eye_qs = oc.eye_questions(returns)
