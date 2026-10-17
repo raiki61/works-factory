@@ -62,11 +62,31 @@ returns: result
 outcome_field: fixed
 
 nodes:
+  # 0 test_cmd の形の確かめ。対象の手元を試す形なら testcmd-stop が理由の文で run を止める（AI を起こす前）
+  - id: testcmd
+    script: testcmd
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        stop: { type: boolean }
+        reason: { type: string }
+      required: [stop, reason]
+    mutates_checkout: false
+
+  - id: testcmd-stop
+    cancel: "$testcmd.output.reason"
+    depends_on: [testcmd]
+    when: "$testcmd.output.stop == true"
+
   # 1 始め。入力をそろえ、始めの記録を書く。受けなければ ok: false で、後ろは when: で飛ぶ（AI を起こす前に止める）
   - id: start
     script: start
     runtime: uv
     timeout: 1728000000
+    depends_on: [testcmd]
+    when: "$testcmd.output.stop == false"
     output_format:
       type: object
       properties:

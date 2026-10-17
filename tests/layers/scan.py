@@ -119,7 +119,6 @@ ALLOWED = {
         "bin/_lib/pack.py",
         "bin/_lib/spseam.py",
         "bin/_lib/startpoint.py",
-        "bin/_lib/testcmd_check.py",
         "bin/_lib/borrow/",
         "bin/_lib/no-post-bin/",
     ),

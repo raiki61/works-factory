@@ -1,11 +1,16 @@
-"""起動の殻（bin/_lib/launcher.py）が test_cmd を Archon に渡す前に、run の worktree と単位の worktree で効かない形を分けて知らせる。
+"""test_cmd が run の作業ツリーの直しでなく対象の手元（元の clone）を試す形の見分け（元 works/dev/testcmd_check.py）。
 
-python3 -I bin/_lib/testcmd_check.py [--allow-checkout] [--home <利用者の HOME>] <対象の根> <test_cmd>
+run の作業ツリー（Archon が commit から切る）と単位の作業ツリー（修正の段が run の作業ツリーの今の姿の commit から切る）には、
+対象の git が無視する物（.venv・ビルドの出力・.env など）が無い。そこで run の試験が対象の手元を走らせると、直しの正誤に関わらず
+緑になり得る（黙った偽の緑）。その形を止める形と呼び、文を 1 つずつ返す（stops）。走らない形（相対の語が作業ツリーに無い物を
+指す）は見ない: 修正の前の試験が走らずに止まり、道具の誤りの文を見せる（lib/declared_checks.py）。
 
-run の worktree（Archon が --from の commit から切る）と単位の worktree（修正の段が run の worktree の今の姿の commit から切る）には、
-対象の git が無視する物（.venv・node_modules・ビルドの出力・.env など）が無い。形は 2 つに分け、1 行ずつ標準出力へ出す:
-- 止める形（行の頭「止める（test_cmd）」。--allow-checkout なら「注意（test_cmd）」）: run の試験が worktree の直しでなく対象の手元
-  （元の clone）を走らせ、直しの正誤に関わらず緑になり得る（黙った偽の緑）。
+- stops(root, cmd, environ) -> list[str]: 止める形の文の並び（無ければ空）。root は対象の手元の根、environ は対象のコマンドが run
+  の中で走る環境（HOME で ~・$HOME を展開し、VIRTUAL_ENV・PATH で立てた環境を見る）
+- primary_checkout(cwd) -> str: cwd の git の主の作業ツリー（git worktree list の頭。run の作業ツリーを切った元の clone）
+- ALLOW_ENV: 1 なら止める形でも止めない（形を知った上で回す人の許し）
+
+止める形:
   - 手元を絶対パスで指す語: どの段でも（手元の絶対パスは前の段が worktree の中に作ることが無い。殻の -c の中の段も）、見る語（下）の
     うち絶対パスで、対象の根そのものか根の中の今在る物を指す物（git が無視するかを問わない。cd /手元 && uv run <試験>・
     uv sync && /手元/.venv/bin/<試験>・<試験> /手元/tests・PYTHONPATH=/手元/src）と、最初の段の前の絶対パスの cd の後の相対の
@@ -20,11 +25,9 @@ run の worktree（Archon が --from の commit から切る）と単位の work
     --active も --no-project も無い段（uv run・uv sync など）でもない。run の中の python と試験の実行器は PATH のその環境を掴む（uv run・
     uv sync は project の .venv を使い VIRTUAL_ENV を見ない。uv run --active・uv run --no-project・uv pip は立てた環境を使う）。対象の入っていない環境（依存だけの
     環境・uv run の使い捨ての環境）は知らせない
-- 注意の形（行の頭「注意（test_cmd）」）: 相対の語が、対象に今在り git が無視する物（git check-ignore。パスか、その上のどれかの段が
-  無視されていれば無視）を指す。worktree に無いので走らない（落ちて分かる）
 見る語: 段（&&・||・;・|・& と改行で割る。改行は ; と同じ。&& などの後ろの改行と \\ と改行は続き。# の注は行の終わりまで）の語（shlex で割る。割れなければ空白で割る）のうち、`/` を含み - で始まらない物と、= を含む語
-（NAME=値・--旗=値）の値を : で割った絶対パス。注意の形（相対の語）は最初の段だけを見る（後ろの段は前の段が worktree の中で作った
-物を使える）。
+（NAME=値・--旗=値）の値を : で割った絶対パス。絶対パスの cd の後の相対の語は最初の段だけを見る（後ろの段は前の段が作業ツリーの
+中で作った物を使える）。
 所を変える形は辿る:
 - 前の段が `cd <先>`・`pushd <先>`（旗 -P・-L などは除く。後ろが && か ;）だけなら、所を変えるだけの段で、その次の段を最初の段とし、
   相対の語を cd の先から読む（cd sub && .venv/bin/<試験> は sub/.venv/bin/<試験>）。cd の先もパスとして見る（/ が無くても）。
@@ -36,23 +39,22 @@ run の worktree（Archon が --from の commit から切る）と単位の work
   パスとして見て、同じ段の後ろの語をそこから読む
 書き先（リダイレクト >・>>・>|・&>・&>>・>&・<> の後ろの語と、OUTPUT_FLAGS の旗の後ろの語・= の値）はコマンドが作るので、
 手元に前の出力が在っても見ない。
-終了コード: 止める形が在れば 3（--allow-checkout でも 3。行の頭だけが替わる）、無ければ 0、引数の誤りは 2。git が効かなければ
-git が無視するかは見ない（止める形の手元を絶対パスで指す語は見る）。標準ライブラリだけ。
+git が効かなければ git が無視するかは見ない（手元を絶対パスで指す語は見る）。標準ライブラリだけ。
 
-漏れ（知っていて塞がない物。止める形の漏れは run を止めずに偽の緑を通し、注意の形の漏れは知らせが多すぎるか少なすぎる）:
-- 書き先を空白で分けた値に取る旗のうち OUTPUT_FLAGS に無い物（-o build/x・道具ごとの旗）は、その値が手元に前の出力として在り
-  git が無視すれば名指す（旗が値を取るかは道具ごとに違い、一般には決まらない）。値が手元を指す絶対パスなら止める
-- 変数・~・$(…)・` は展開しない（cd の先がこれらなら後ろの相対の語は見ない）。ただし --home を渡した時は、~（語の頭か = と : の
-  後ろ）・$HOME・${HOME} をその値に展開してから読む（引用符の中の ~ も展開するので、殻より多めに止める）。殻はいつも渡す:
-  対象のコマンドは利用者の HOME で走る（lib/userenv.py）ので、~・$HOME で手元を指す形は run の中でも手元を指す
-- 中のコマンドを隠す形は読まない: make（-C の無い）・npm test・tox・nox・just などの台本・試験の殻のファイルの中身・
+漏れ（知っていて塞がない物。run を止めずに偽の緑を通す）:
+- 書き先を空白で分けた値に取る旗のうち OUTPUT_FLAGS に無い物（-o build/x・道具ごとの旗）は、値が手元を指す絶対パスなら止める
+  （旗が値を取るかは道具ごとに違い、一般には決まらない）
+- 変数・$(…)・` は展開しない（cd の先がこれらなら後ろの相対の語は見ない）。ただし ~（語の頭か = と : の後ろ）・$HOME・${HOME}
+  は environ の HOME に展開してから読む（引用符の中の ~ も展開するので、殻より多めに止める）。対象のコマンドは利用者の HOME で
+  走る（lib/userenv.py）ので、~・$HOME で手元を指す形は run の中でも手元を指す
+- 中のコマンドを隠す形は読まない: make（-C の無い）・パッケージの道具の台本・試験の殻のファイルの中身・
   sh <ファイル>・eval・xargs・find -exec。その中で手元を絶対パスで指しても見えない
 - 所を変える形のうち CHDIR_FLAGS の外の旗（uv run --project・cargo --manifest-path など）は、値が絶対パスで手元を指す時だけ
   見る（相対の値は / が無ければ見ず、後ろの語も根から読む）。相対の語は最初の段より後ろの段では見ない（前の段が作った物か読めない）
 - 根の外への絶対パスの cd の後の相対の語（cd /手元の親 && 手元/.venv/bin/<試験>）は読めない所として見ない。docker run -v /手元:/w
   のように = でなく : で繋いだ値の中の手元は、語が在るパスでないので見ない
 - 立てた環境の判定で、uvx の段は uv の段として数えない（止める）。組み込みでない段は python を起こさなくても
-  止める（npm ci && uv run <試験> も立てた環境で editable なら止める。止めを外せば今どおり起こす）
+  止める（npm ci && uv run <試験> も立てた環境で editable なら止める）
 - 対象が editable でなく普通に入った（写しを入れた）仮想環境は、絶対パスで指しても立てても editable の印が無いので、
   絶対パスの語としてだけ見る（立てた環境は知らせない）
 - 根の印（pyvenv.cfg・conda-meta）の無い入れ先（pip install --target の所・利用者の site-packages（pip install --user -e）・
@@ -68,11 +70,9 @@ import os
 import re
 import shlex
 import subprocess
-import sys
 from urllib.parse import unquote, urlparse
 
-USAGE = "usage: testcmd_check.py [--allow-checkout] [--home <利用者の HOME>] <対象の根> <test_cmd>"
-STOP_EXIT = 3   # 止める形が在る時の終了コード（--allow-checkout でも同じ。行の頭だけが「注意」になる）
+ALLOW_ENV = "WORKS_FACTORY_ALLOW_TESTCMD"
 HOW = "worktree の中で環境を作るコマンド（例: 依存を入れてから試験を走らせる 1 行）にする（README.md の「test_cmd と作業ツリー」）"
 SEPARATORS = ("&&", "||", ";", "|", "&")
 REDIRECTS = (">", ">>", ">|", "&>", "&>>", ">&", "<>")   # 後ろの語が書き先のリダイレクト（< の先は読むので見る）
@@ -408,40 +408,23 @@ def _inside_or_root(root, word):
 
 
 def path_notes(root, cmd):
-    """パスの知らせ (止める形か, 文) の並び。対象の手元を絶対パスで指す語（根そのもの・追跡する物も。絶対パスの cd の後で git が
-    無視する相対の語も）は止める形、git が無視するパスを相対で指す語は注意の形"""
+    """手元を指す語の文の並び: 対象の手元を絶対パスで指す語（根そのもの・追跡する物も）と、絶対パスの cd の後で git が無視する
+    相対の語"""
     found = []
     for w in _absolute_words(root, cmd):   # どの段でも、対象の手元の在る物を指す（無視するかを問わない）
         rel = _inside_or_root(root, w)
         if rel is not None and os.path.lexists(os.path.join(root, rel)):
-            found.append((w, True, None))
+            found.append((w, None))
     for w, (at, base) in _path_words(root, cmd):
-        if os.path.isabs(w):   # 上で見た
+        if os.path.isabs(w) or at is None or not base:   # 絶対の語は上で見た。読めない cd の後と根から読む相対の語は見ない
             continue
-        if at is None:   # 読めない cd の後の相対は見ない
-            continue
-        if base:   # 絶対パスの cd の後の相対は、対象の手元を絶対パスで指す
-            rel, absolute = _inside(root, os.path.join(at, w)), True
-            shown = f"{w}（cd の後の {os.path.normpath(os.path.join(base, w))}）"
-        elif at == "":
-            rel, shown, absolute = _inside(root, w), w, False
-        else:
-            rel, absolute = _inside(root, os.path.join(at, w)), False
-            shown = f"{w}（cd の後の {os.path.normpath(os.path.join(at, w))}）"
+        rel = _inside(root, os.path.join(at, w))
         if rel is not None and os.path.lexists(os.path.join(root, rel)):
-            found.append((shown, absolute, _prefixes(root, rel)))
-    hit = _ignored(root, sorted({p for _, _, ps in found if ps for p in ps}))
-    notes = []
-    for w, absolute, ps in found:
-        if ps is not None and not hit.intersection(ps):
-            continue
-        if absolute:
-            notes.append((True, f"test_cmd の {w} は対象の手元（{root}）を絶対パスで指す: run・単位の worktree からも手元の物を"
-                                f"使い、worktree の直しでなく対象の手元のコードを試し得る（直しの正誤に関わらず緑になる）。{HOW}"))
-        else:
-            notes.append((False, f"test_cmd の {w} は対象の git が無視するパスで、run・単位の worktree に無い（commit から切るので"
-                                 f"写らない。前の段で作らない限り走らない）。{HOW}"))
-    return notes
+            found.append((f"{w}（cd の後の {os.path.normpath(os.path.join(base, w))}）", _prefixes(root, rel)))
+    hit = _ignored(root, sorted({p for _, ps in found if ps for p in ps}))
+    return [f"test_cmd の {w} は対象の手元（{root}）を絶対パスで指す: run・単位の worktree からも手元の物を"
+            f"使い、worktree の直しでなく対象の手元のコードを試し得る（直しの正誤に関わらず緑になる）。{HOW}"
+            for w, ps in found if ps is None or hit.intersection(ps)]
 
 
 def _editable_target(venv, root):
@@ -509,9 +492,9 @@ def venv_notes(root, cmd, environ):
             continue
         seen.add(venv)
         if _editable_target(venv, root):
-            notes.append((True, f"test_cmd の {w} は対象の外の仮想環境（{venv}）を指し、対象がそこへ editable で入っている: run の中の"
-                                f" test_cmd はその環境の python と試験の実行器 で、worktree の直しでなく対象の手元のコードを試す（直しの正誤に"
-                                f"関わらず緑になる）。{HOW}"))
+            notes.append(f"test_cmd の {w} は対象の外の仮想環境（{venv}）を指し、対象がそこへ editable で入っている: run の中の"
+                         f" test_cmd はその環境の python と試験の実行器 で、worktree の直しでなく対象の手元のコードを試す（直しの正誤に"
+                         f"関わらず緑になる）。{HOW}")
     if all(_venv_free(_strip_env(words)) for words in _all_segments(cmd)):
         return notes
     entries = [os.path.normpath(p) for p in environ.get("PATH", "").split(os.pathsep) if os.path.isabs(p)]
@@ -520,18 +503,18 @@ def venv_notes(root, cmd, environ):
         venv = os.path.normpath(venv)
         seen.add(venv)
         if _editable_target(venv, root):
-            notes.append((True, f"VIRTUAL_ENV（{venv}）を立てたまま起こし、対象がそこへ editable で入っている: run の中の test_cmd の"
-                                f" python と試験の実行器 はその環境を PATH から掴み、worktree の直しでなく対象の手元のコードを試す（直しの正誤に"
-                                f"関わらず緑になる）。{HOW}"))
+            notes.append(f"VIRTUAL_ENV（{venv}）を立てたまま起こし、対象がそこへ editable で入っている: run の中の test_cmd の"
+                         f" python と試験の実行器 はその環境を PATH から掴み、worktree の直しでなく対象の手元のコードを試す（直しの正誤に"
+                         f"関わらず緑になる）。{HOW}")
     for entry in entries:
         venv = _venv_root(entry)
         if venv is None or venv in seen:
             continue
         seen.add(venv)
         if _editable_target(venv, root):
-            notes.append((True, f"起こした殻の PATH の {entry} は仮想環境（{venv}）の中で、対象がそこへ editable で入っている: run の中の"
-                                f" test_cmd の python と試験の実行器 はその環境を PATH から掴み、worktree の直しでなく対象の手元のコードを試す"
-                                f"（直しの正誤に関わらず緑になる）。{HOW}"))
+            notes.append(f"起こした殻の PATH の {entry} は仮想環境（{venv}）の中で、対象がそこへ editable で入っている: run の中の"
+                         f" test_cmd の python と試験の実行器 はその環境を PATH から掴み、worktree の直しでなく対象の手元のコードを試す"
+                         f"（直しの正誤に関わらず緑になる）。{HOW}")
     return notes
 
 
@@ -541,29 +524,16 @@ def expand_home(cmd, home):
     return re.sub(r"(?<![^\s=:;&|(])~(?=/|$|[\s;&|)])", lambda _: home, cmd)
 
 
-def main(argv):
-    allow, home = False, None
-    while argv[:1] == ["--allow-checkout"] or (argv[:1] == ["--home"] and len(argv) > 1):
-        if argv[0] == "--home":
-            home, argv = argv[1], argv[2:]
-        else:
-            allow, argv = True, argv[1:]
-    if len(argv) != 2 or home == "":
-        print(USAGE, file=sys.stderr)
-        return 2
-    root, cmd = os.path.realpath(argv[0]), argv[1].strip()
+def stops(root, cmd, environ):
+    root, cmd = os.path.realpath(root), cmd.strip()
     if not cmd:
-        return 0
-    if home is not None:
-        cmd = expand_home(cmd, home)
-    notes = path_notes(root, cmd) + venv_notes(root, cmd, os.environ)
-    for stop, line in notes:
-        print(f"{'止める' if stop and not allow else '注意'}（test_cmd）: {line}")
-    return STOP_EXIT if any(stop for stop, _ in notes) else 0
+        return []
+    if environ.get("HOME"):
+        cmd = expand_home(cmd, environ["HOME"])
+    return path_notes(root, cmd) + venv_notes(root, cmd, environ)
 
 
-if __name__ == "__main__":
-    for _s in (sys.stdout, sys.stderr):
-        if hasattr(_s, "reconfigure"):
-            _s.reconfigure(encoding="utf-8")
-    sys.exit(main(sys.argv[1:]))
+def primary_checkout(cwd):
+    listed = subprocess.run(["git", "-C", str(cwd), "worktree", "list", "--porcelain"], capture_output=True, text=True,
+                            encoding="utf-8", check=True).stdout
+    return listed.split("\n", 1)[0].removeprefix("worktree ")

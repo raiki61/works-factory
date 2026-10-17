@@ -1,7 +1,7 @@
 """入口の殻 bin/works-factory の中身: 利用者の環境から認証と隔離を整え、止めた Archon を bun で起こし、引数をそのまま渡す。
 
 Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せ・
-run の作業ツリーの起点・test_cmd の形の確かめは bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
+run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
 B の「約束」1〜11。約束 7 の後半——道具の信頼を子の環境に足す当て物——は消した。場所ごとの信頼は対象の宣言の setup で取り戻す）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import fnmatch
@@ -16,7 +16,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place, startpoint, testcmd_check
+from bin._lib import hostgh, isolate, pack, place, startpoint
 from lib import answer, launchgroups, reads, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,7 +31,6 @@ EXECUTING = frozenset({"run"}) | RESUMING | CONTINUING
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
 NO_AUTH_ENV = "WORKS_FACTORY_NO_AUTH"   # 認証の要らない起動（lib/entryshape.py の NO_AUTH_ENV と同じ名）
-ALLOW_TESTCMD_ENV = "WORKS_FACTORY_ALLOW_TESTCMD"   # 1 なら、対象の手元を走らせる形の test_cmd でも止めずに起こす
 HOST_GH_DIR = "host-gh"
 FENCE_DIR = "claude-fence"
 FENCE = ROOT / "workflows" / ".shared" / "fence.py"
@@ -157,8 +156,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         if not adopting(flags):
             config = run_config(bun, source, cache, home, target, flags)
             rest = without_flag(rest, "--config")
-        check_test_cmd(user, target, [v.removeprefix("test_cmd=") for v in flag_values(flags, "--input")
-                                     if v.startswith("test_cmd=")])
         try:
             start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
         except RuntimeError as error:
@@ -234,36 +231,6 @@ def refuse_unknown_groups(flags: list[str]) -> None:
     unknown = [name for name in named if name.startswith("@wf-") and name not in launchgroups.GROUPS]
     if unknown:
         raise Stop(f"--model の群 {'・'.join(unknown)} は群の表（lib/launchgroups.py）に無い。知っている群: {'・'.join(launchgroups.GROUPS)}")
-
-
-def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], run=subprocess.run) -> None:
-    """test_cmd の形を Archon を起こす前に確かめる（bin/_lib/testcmd_check.py。決まりはそちら）。対象の手元を走らせる形（終了の値 3）と、
-    確かめそのものが落ちた時（0 と STOP_EXIT の外。手元を走らせる形を除けない）は止める。ALLOW_TESTCMD_ENV が 1 なら知らせて起こす。
-    注意の形（作業ツリーで走らない。走れば落ちて分かる）は行を出すだけ。対象のコマンドは run の中で利用者の HOME を見る
-    （lib/userenv.py）ので、~・$HOME で手元を指す形も、いつも user の HOME へ展開して確かめる（user に HOME が無ければ展開しない）"""
-    allowed = user.get(ALLOW_TESTCMD_ENV) == "1"
-    home = user.get("HOME")
-    flags = [*(["--allow-checkout"] if allowed else []), *(["--home", home] if home else [])]
-    for cmd in filter(str.strip, commands):
-        done = run([sys.executable, "-I", str(LIB / "testcmd_check.py"), *flags, str(target), cmd],
-                   env=user, stdout=subprocess.PIPE, text=True, encoding="utf-8")
-        if done.stdout.strip():
-            print(done.stdout.rstrip("\n"), file=sys.stderr)
-        if done.returncode == 0:
-            continue
-        if done.returncode == testcmd_check.STOP_EXIT:
-            if not allowed:
-                raise Stop(f"test_cmd が対象の手元（{target}）を走らせる形なので、Archon を起こさずに止めた（run の試験が直しでなく手元の"
-                           "コードを試し、直しの正誤に関わらず緑になりうる）。作業ツリーの中で環境を作る形にして打ち直す。形を知った上で"
-                           f"回すなら {ALLOW_TESTCMD_ENV}=1 を前に付ける（README.md の「test_cmd と作業ツリー」）")
-            print(f"{NAME}: {ALLOW_TESTCMD_ENV}=1 なので止めずに起こす（上の形は作業ツリーの直しでなく対象の手元を試しうる）",
-                  file=sys.stderr)
-        elif not allowed:
-            raise Stop(f"test_cmd の形の確かめ（testcmd_check.py）が終了の値 {done.returncode} で落ち、対象の手元を走らせる形かを"
-                       f"確かめられないので、Archon を起こさずに止めた。確かめずに回すなら {ALLOW_TESTCMD_ENV}=1 を前に付ける")
-        else:
-            print(f"{NAME}: test_cmd の形の確かめ（testcmd_check.py）が終了の値 {done.returncode} で落ちた。{ALLOW_TESTCMD_ENV}=1 なので"
-                  "確かめずに起こす", file=sys.stderr)
 
 
 def absolute(value: str, here: Path) -> str:
