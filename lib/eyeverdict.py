@@ -19,7 +19,9 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   在れば、訳の行と、外れの源の修正案 plan を審査した事前審査の最後の往復が外れを認めたか）
 - read_design(path)・read_json(path): 独立設計の控え（無ければ {"missing": 訳}）と、置き場の JSON（無い・読めなければ None）
 - premise_reason(design): 独立設計が問いが立たないとした訳
-- fell_text(fell, ran)・collect(...)・unverified(reason, protected): ブロックの返り
+- fell_text(fell, ran)・collect(...)・unverified(reason, protected): ブロックの返り。R1 の作り直しが要るかは目の札でなく
+  redesign_points の名指しで決める（名指しが在れば作り直し・無ければ直しが要るに倒す。欄が在るのに配列でない・読める項が無ければ確かめられない。
+  頭の字は RAISED_BY_POINTS・UNNAMED_REDESIGN・BROKEN_POINTS）
 - write_notes(eyes_dir, ...): 返りの欄の外で最後の関所に出す材料（R2 に渡した前提の控えと『渡されていない』の照らし・人が
   通したので R4 の問いから外した行）を置き場に書く（返りの notes が PREMISE_INPUTS を指し、隣の GATE_PASSES・PREMISE_FILE も約束）
 - r2_input_lines・gate_pass_rows・premise_facts・premise_fact_lines: 最後の関所と報告がその隣のファイルを読む口
@@ -67,6 +69,12 @@ R4_NODE = "r4-scope"   # R4 の受け付けの拒否の控えの名（置き場�
 R4_REJECT = (f"policy_conflicts の次の行は{policy.RECORDED_TERM}のどの行も名指さない。{policy.RECORDED_REF}の行の名指しを字のまま"
              "写して書き直すか、一覧に無いコードのコメント・docstring・テストの説明文（対象の文で、方針ではない）なら policy_conflicts "
              "から外せ。下の行を全部直して、返答を丸ごと出し直せ:")
+# R1 の作り直しが要るの導き（_row）の頭の字。最後の承認ノードと報告の冒頭に平易な主語で出る
+_FIX, _REDESIGN = map(gatemarks.status_named, (seal.FIX_NEEDED, seal.REDESIGN))
+UNNAMED_REDESIGN = f"目は{_REDESIGN}と書いたが、組み直す設計の点（redesign_points）の名指しが無いので{_FIX}に倒した: "
+RAISED_BY_POINTS = f"組み直す設計の点（redesign_points）の名指しが在るので{_REDESIGN}にした: "
+BROKEN_POINTS = (f"組み直す設計の点（redesign_points）の欄が配列でないか読める項が無く、名指しの有無を決められないので"
+                 f"{gatemarks.status_named(seal.UNVERIFIABLE)}にした: ")
 R4_GAVE_UP = "（R4 の方針とのぶつかりの名指しが受け付けを通らなかったので、名指さない行も人に聞く: {why}）"
 PREP_FILE = "prep.json"   # 支度の節が書く、目の指示書に差し込んだ値と記録された方針の一覧（policy.RECORDED_KEY）
 X_SCALAR = re.compile(r"^x_[a-z0-9_]+$")   # 元 graphs/review-loop.json の p3.fix の x_scalars の patternProperties
@@ -626,6 +634,19 @@ def _off_contract(eye: str) -> dict:
 
 
 def _row(eye: str, doc: dict | None, fell: dict | None, *, ran: str) -> dict:
-    if doc is None or doc.get("status") not in seal.STATUSES:
+    """目の返りの行。許す語は目ごと（seal.eye_statuses）"""
+    if doc is None or doc.get("status") not in seal.eye_statuses(eye):
         return {"status": seal.UNVERIFIABLE, "reason": fell_text([fell or _off_contract(eye)], ran)}
-    return {"status": doc["status"], "reason": str(doc.get("reason"))}
+    status, reason = doc["status"], str(doc.get("reason"))
+    if seal.FIX_NEEDED not in seal.eye_statuses(eye) or status == seal.UNVERIFIABLE:
+        return {"status": status, "reason": reason}
+    named = doc.get("redesign_points")
+    points = [p.strip() for p in named if isinstance(p, str) and p.strip()] if isinstance(named, list) else []
+    if not points and named not in (None, []):
+        return {"status": seal.UNVERIFIABLE, "reason": BROKEN_POINTS + reason}
+    if points:
+        head = "" if status == seal.REDESIGN else RAISED_BY_POINTS
+        return {"status": seal.REDESIGN, "reason": f"{head}{reason}（組み直す設計の点: {'／'.join(points)}）"}
+    if status == seal.REDESIGN:
+        return {"status": seal.FIX_NEEDED, "reason": UNNAMED_REDESIGN + reason}
+    return {"status": status, "reason": reason}

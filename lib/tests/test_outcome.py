@@ -148,6 +148,21 @@ class TableCase(unittest.TestCase):
         eyes = {**eyes, "r3": {"status": "redesign-needed", "reason": "崩れる"}}
         self.assertEqual([r["where"] for r in outcome.residue(fixed_run(eyes=eyes))], [f"{report.EYES_WHERE} R3"], "目の行が在れば重ねない")
 
+    def test_fix_needed_eye_is_left_in_the_residue(self):
+        """直しが要る（fix-needed）目も、通さなかった目として残りに入る（語の並びでなく pass との比べで選ぶ）。結末は round_limit で、
+        目の行が在れば ok でないことだけの 1 行は重ねない。r1 が null で ok が偽の 1 行は、通さなかった目が無いことと、結果の無い目は
+        数えていないことだけを言う"""
+        eyes = {**fixed_run()["eyes"], "ok": False, "r1": {"status": "fix-needed", "reason": "名前が揃っていない"}}
+        returns = fixed_run(eyes=eyes)
+        self.assertEqual(decide(returns), ("round_limit", ""))
+        self.assertEqual(outcome.residue(returns), [{"where": f"{report.EYES_WHERE} R1", "text": "R1 が fix-needed: 名前が揃っていない"}])
+        none = fixed_run(eyes={**eyes, "r1": None})
+        (row,) = outcome.residue(none)
+        self.assertEqual(row["where"], report.EYES_WHERE)
+        self.assertIn("通さなかった目が無い", row["text"])
+        self.assertIn("数えていない", row["text"])
+        self.assertNotIn("結果の無い目も無い", row["text"])
+
     def test_seal_without_ok_is_left(self):
         """封じの ok が真でない run は fixed を名乗らない（_proved。ok: false は線の止め _line_stop が先に拾い、訳は報告の
         _stop_lines が出す）。残りの行には重ねない"""
