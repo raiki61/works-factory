@@ -2,6 +2,7 @@ name: works-factory-fix
 nodes:
   - id: fixer
     prompt: 直す
+    model: '@wf-fix-writers'
     idle_timeout: 1728000000
     settingSources: [user]
     allowed_tools: [Read, Edit, Write, Bash]
