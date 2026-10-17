@@ -221,9 +221,9 @@ def _keys_once(rows, label):
 
 
 def plan_review_output(b, nid, out, item):
-    """事前審査の穴は案の単位を指し、key は一意。穴も別案も無いなら faces_none を書く。入口の穴は no_add を併記する
-    （元 review-loop.py:3096。out の unit_keys は単位の名に戻した物）。where で機械の足した欄を名指す block は拒む
-    （planmarks.machine_face_gaps。元に無い）"""
+    """事前審査の穴は案の単位を指し、key は一意。穴も別案も無いなら faces_none を書く（元 review-loop.py:3096。out の unit_keys は単位の名に
+    戻した物）。持つのは返答の全体の照らし（key の重複・案に無い単位・faces_none）だけ。穴の行ごとの照らし（方針の名指し・入口の穴の no_add・機械の欄を名指す block）は
+    planblk.face_row_gaps"""
     planned = converge.planned_units((b.output_of_round(PLAN_NODE, b.round) or {}).get("plan"))
     rows = (out.get("faces") or []) + (out.get("shrink") or [])
     errs = _keys_once(rows, "faces・shrink")
@@ -233,9 +233,6 @@ def plan_review_output(b, nid, out, item):
             errs.append(f"{r['key'][:40]}: unit_keys {[str(k)[:40] for k in stray]} は修正案に無い")
     if not rows and blank(out.get("faces_none"), 20):
         errs.append("穴も別案も挙げないなら faces_none に何を確かめて無いと言えるかを書け")
-    errs += [f"faces の '{f['key'][:40]}'（entrance）に no_add（柵や入口を足さずに閉じる形。無理なら無理な理由）が無い"
-             for f in out.get("faces") or [] if f["kind"] == "entrance" and blank(f.get("no_add"), 20)]
-    errs += planmarks.machine_face_gaps(out.get("faces") or [])
     if errs:
         raise Reject(f"{nid}: " + "; ".join(errs))
 
@@ -899,7 +896,8 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
 
 def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, command_text: str, review_md, shared) -> pathlib.Path:
     rev, base = inputs.get("rev") or "HEAD", inputs.get("base") or ""
-    recorded = policy.recorded_section(inputs.get(policy.RECORDED_KEY) or [])
+    rows = inputs.get(policy.RECORDED_KEY) or []
+    recorded = policy.recorded_section(rows) + "\n\n" + policy.face_example(rows)
     inputs = {**inputs, "review_body": review_body(command_text, repo=repo, rev=rev, base=base, review_md=review_md,
                                                    policy_md=inputs.get("policy_copy") or "", recorded=recorded)}
     b = view(d, inputs)
@@ -983,8 +981,10 @@ def _lines(head: str, gaps: list) -> str:
 def take_review(folder, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None) -> dict:
     """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。reply は 1 回目の役の返答、fix_reply は拒まれた後の
     出し直しの役の返答（拒まれた欄だけ）で、どちらも JSON に戻した値（起きなかった役は None）。出し直しは前の答えの控えと
-    rolekit.merge_fields で合わせ（rolekit.resubmitted）、合わせた答えの全体を照らす。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 木なら下請けの
-    答えのまとめ（planblk.tree_merge）→ 記録された方針（policy.face_gaps）→ 木でなければ独立設計の引用と design_map
+    rolekit.merge_fields で合わせ（rolekit.resubmitted）、合わせた答えの全体を照らす。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → open の tree が真（形 review の木の往復）なら下請けの
+    答えのまとめ（planblk.tree_merge。reply・fix_reply は束ね役の組の返答で、束ね役の型の欄だけを持つ。項目ごとの照らし item_answer_gaps → 穴の行ごとの
+    照らし face_row_gaps を答えのファイルごとに当て、拒みはその答えのファイルを名指す）→ 木でなければ穴の行ごとの照らし（planblk.face_row_gaps。方針の
+    名指し・入口の穴の no_add・機械の欄。木の往復はまとめた後の faces に当て直さない）→ 木でなければ独立設計の引用と design_map
     （planblk.design_gaps）→ 前の往復の答えの要る穴（block と開いた項目の suggest）の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
     往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める。
@@ -1013,16 +1013,18 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
     b = view(d, inputs)
     bare, resolved = converge.split("plan-review", reply)
     bare, tree = converge.tree_split(bare)
-    merged = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "origins": [], "files": {}, "gaps": [], "off": True}
-    if inputs["form"] == "review":
+    # 木にしない往復は審査役 1 つの返答のまま（出自の申告 origins は役の型が確かめた返答の欄）。木の分かれ目は open の tree 1 つ
+    merged = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "origins": list(tree.get(converge.ORIGINS) or []),
+              "files": {}, "gaps": [], "off": True}
+    if inputs["form"] == "review" and inputs.get("tree"):
         merged = planblk.tree_merge(b, bare, tree, resolved)
         if merged["gaps"]:
             raise Reject(_lines(planblk.TREE_REJECT, merged["gaps"]))
-    gaps = policy.face_gaps(merged["review"].get("faces") or [], inputs.get(policy.RECORDED_KEY) or [])
-    if gaps:
-        raise Reject(_lines(planblk.RECORDED_REJECT, gaps))
     refs = {}
     if merged.get("off"):
+        gaps = planblk.face_row_gaps(merged["review"].get("faces") or [], inputs.get(policy.RECORDED_KEY) or [])
+        if gaps:
+            raise Reject(_lines(planblk.FACE_REJECT, gaps))
         items = _map_items(b, inputs)
         dmap = tree.get(converge.DESIGN_MAP) or []
         gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, dmap)

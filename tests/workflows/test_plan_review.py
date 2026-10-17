@@ -362,8 +362,9 @@ def fetch_ids(brief: str) -> list:
 
 
 def summary(verdicts) -> dict:
-    """束ね役の返答（項目ごとの判定の要約だけ。verdicts は {項目: [block の key]}）"""
-    return {"faces": [], "shrink": [], "reason": SUMMARY_REASON,
+    """束ね役の返答（項目ごとの判定の要約だけ。verdicts は {項目: [block の key]}）。型 plan-review-tree が持つ reason・items だけで、
+    faces・shrink・faces_none は受け付けが下請けの答えのファイルから組む"""
+    return {"reason": SUMMARY_REASON,
             "items": [{"item": n, "verdict": "block" if keys else "clean",
                        "blocks": [{"key": k, "why": "下請けが挙げた穴"} for k in keys]} for n, keys in verdicts.items()]}
 
@@ -379,8 +380,9 @@ class YamlCase(unittest.TestCase):
         """読んだ証拠の節が名指す役は YAML の役の節と同じ: 道具を持つ役は review_reads.ROLE、持たない役は planblk.DESIGN_ROLE
         （役が道具を得たのに null と書く黙った緩みを赤にする）"""
         roles = [n for n in nodes().values() if any(k in n for k in scan.ROLE_KINDS)]
-        # 出し直しの役は事前審査の役の会話の続きなので、読んだ証拠は同じ役に数える
-        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")} - {"plan-review-fix"}, {load_script("review_reads").ROLE})
+        # 出し直しの役は事前審査の役の会話の続き、束ね役の対は同じ材料 prompt.md を読む同じ役なので、読んだ証拠は同じ役に数える
+        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")} - {"plan-review-fix", "plan-review-tree", "plan-review-tree-fix"},
+                         {load_script("review_reads").ROLE})
         self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, {planblk.DESIGN_ROLE})
 
     def test_returns_review_and_outcome_pass(self):
@@ -449,28 +451,70 @@ class YamlCase(unittest.TestCase):
     def test_resubmit_role_continues_the_review_conversation(self):
         """#571: 事前審査の役は周ごとに新しい会話（輪の 1 周目と context: fresh）で、受け付けに拒まれた後は plan-review-fix が同じ会話の
         続きで拒まれた欄だけを返す。振り分けは review-prep の resubmit（拒まれた周の値 $LOOP_PREV.review-accept.output.ok を受ける）。
-        plan-review-fix は plan-review の後ろの層に置き、context を書かず、起こし方は plan-review と同じ。型は required を外しただけ"""
+        plan-review-fix は plan-review の後ろの層に置き、context を書かず、起こし方は plan-review と同じ。型は required を外しただけ。
+        事前審査の役は単独の組（plan-review／plan-review-fix）と束ね役の組（plan-review-tree／plan-review-tree-fix）の 4 節の一本の鎖で、
+        review-prep の tree と resubmit で振り分け、各組の出し直しは同じ組の 1 回目の後ろの層に置く。受け付けは 4 つの返答を受ける"""
         got = nodes()
         body = [n["id"] for n in got["review-loop"]["loop_group"]["nodes"]]
-        self.assertEqual(body, ["review-prep", "plan-review", "plan-review-fix", "review-accept"])
+        self.assertEqual(body, ["review-prep", "plan-review", "plan-review-fix", "plan-review-tree", "plan-review-tree-fix",
+                                "review-accept"])
         self.assertEqual(got["review-prep"]["with"], {"prev": "$LOOP_PREV.review-accept.output.ok"})
         self.assertEqual(got["review-prep"]["output_format"]["properties"]["resubmit"], {"type": "boolean"})
-        self.assertEqual(got["plan-review"]["when"], "$review-prep.output.resubmit != true")
-        fix, first = got["plan-review-fix"], got["plan-review"]
-        self.assertEqual(fix["when"], "$review-prep.output.resubmit == true")
-        self.assertEqual((fix["depends_on"], fix["trigger_rule"]), (["review-prep", "plan-review"], "none_failed_min_one_success"))
-        self.assertNotIn("context", fix)
-        self.assertIn("$review-prep.output.brief", fix["prompt"])
+        self.assertEqual(got["review-prep"]["output_format"]["properties"]["tree"], {"type": "boolean"})
+        prep = "$review-prep.output"
+        self.assertEqual(got["plan-review"]["when"], f"{prep}.resubmit != true && {prep}.tree != true")
+        self.assertEqual(got["plan-review-tree"]["when"], f"{prep}.resubmit != true && {prep}.tree == true")
         launch = ("model", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
-        self.assertEqual({k: fix[k] for k in launch}, {k: first[k] for k in launch})
-        self.assertEqual(fix["output_format"]["required"], [])
-        self.assertEqual({**fix["output_format"], "required": first["output_format"]["required"]}, first["output_format"])
+        for first_id, fix_id, tree in (("plan-review", "plan-review-fix", "!="), ("plan-review-tree", "plan-review-tree-fix", "==")):
+            with self.subTest(fix_id):
+                fix, first = got[fix_id], got[first_id]
+                self.assertEqual(fix["when"], f"{prep}.resubmit == true && {prep}.tree {tree} true")
+                self.assertEqual((fix["depends_on"], fix["trigger_rule"]), (["review-prep", first_id], "none_failed_min_one_success"))
+                self.assertNotIn("context", fix)
+                self.assertIn("$review-prep.output.brief", fix["prompt"])
+                self.assertEqual({k: fix[k] for k in launch}, {k: first[k] for k in launch})
+                self.assertEqual(fix["output_format"]["required"], [])
+                self.assertEqual({**fix["output_format"], "required": first["output_format"]["required"]}, first["output_format"])
+        self.assertEqual(got["plan-review"]["depends_on"], ["review-prep"])
+        self.assertEqual((got["plan-review-tree"]["depends_on"], got["plan-review-tree"]["trigger_rule"]),
+                         (["review-prep", "plan-review-fix"], "none_failed_min_one_success"))
         accept = got["review-accept"]
         self.assertEqual((accept["depends_on"], accept["trigger_rule"]),
-                         (["plan-review", "plan-review-fix"], "none_failed_min_one_success"))
-        self.assertEqual((accept["with"]["reply"], accept["with"]["fix_reply"]),
-                         ({"from": "$plan-review.output", "if_skipped": None},
-                          {"from": "$plan-review-fix.output", "if_skipped": None}))
+                         (["plan-review", "plan-review-fix", "plan-review-tree", "plan-review-tree-fix"], "none_failed_min_one_success"))
+        self.assertEqual({k: accept["with"][k] for k in ("reply", "fix_reply", "tree_reply", "tree_fix_reply")},
+                         {"reply": {"from": "$plan-review.output", "if_skipped": None},
+                          "fix_reply": {"from": "$plan-review-fix.output", "if_skipped": None},
+                          "tree_reply": {"from": "$plan-review-tree.output", "if_skipped": None},
+                          "tree_fix_reply": {"from": "$plan-review-tree-fix.output", "if_skipped": None}})
+
+    def test_tree_bundler_nodes_carry_only_the_bundler_fields(self):
+        """束ね役の組（plan-review-tree／plan-review-tree-fix）の返答の型は、束ね役が書く欄（reason・items・stuck_recommend）だけを持つ。
+        faces・shrink・origins などの機械がまとめる欄は型に無く、写すと型が拒む（受け付けが下請けの答えのファイルから組む）。
+        型の分け方の根拠は同じ YAML の plan-review／plan-review-fix が when で節と型を分ける前例。reason・stuck_recommend は
+        plan-review の型の写し（pass_open.node_schema が plan-review の型を JSON として読むので、型の中に錨を置けない）で、等しさをここで縛る"""
+        got = nodes()
+        for nid in ("plan-review-tree", "plan-review-tree-fix"):
+            self.assertTrue(nid in got, f"review-loop に節 {nid} が無い")
+        single, tree, tree_fix = got["plan-review"], got["plan-review-tree"], got["plan-review-tree-fix"]
+        fmt = tree["output_format"]
+        self.assertEqual(sorted(fmt["properties"]), sorted(["reason", "items", converge.STUCK_PUSH]))
+        self.assertEqual(sorted(fmt["required"]), ["items", "reason"])
+        self.assertIs(fmt["additionalProperties"], False)
+        for name in ("reason", converge.STUCK_PUSH):
+            self.assertEqual(fmt["properties"][name], single["output_format"]["properties"][name], name)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["items"]), converge.ITEMS_SCHEMA)
+        for machine in ("faces", "shrink", "faces_none", converge.ORIGINS, converge.DESIGN_MAP, converge.RESOLVED):
+            self.assertNotIn(machine, fmt["properties"], machine)
+            self.assertNotIn(machine, tree_fix["output_format"]["properties"], machine)
+        self.assertNotIn("items", single["output_format"]["properties"])
+        self.assertNotIn("items", got["plan-review-fix"]["output_format"]["properties"])
+        self.assertEqual((single["command"], tree["command"]), ("plan-review", "plan-review"))
+        self.assertEqual(tree["context"], "fresh")
+        self.assertEqual(validate_schema(summary({1: []}), fmt), [])
+        for extra in ({"faces": []}, {"shrink": []}, {converge.ORIGINS: []}):
+            with self.subTest(extra=extra):
+                errs = validate_schema({**summary({1: []}), **extra}, fmt)
+                self.assertTrue(any(next(iter(extra)) in e for e in errs), errs)
 
     def test_role_prefaces_are_the_ported_role_bodies(self):
         """事前審査の指示書の頭は役 judge の本文、独立設計の systemPrompt は役 blind-judge の本文と字が同じ（今の works の
@@ -496,7 +540,8 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(got["review"]["trigger_rule"], "all_done")
 
     def test_role_formats_are_mainline_plus_marks(self):
-        """事前審査の役の型は、写しの p2.plan_review の型に、関所の決め手の欄（gatemarks）と壁打ちと束ね役の欄（converge）を足した物"""
+        """事前審査の単独の役の型は、写しの p2.plan_review の型に、関所の決め手の欄（gatemarks）と壁打ちと出自の欄（converge）を足した物。
+        items は束ね役の型 plan-review-tree の欄で、単独の型は持たない"""
         fmt = nodes()["plan-review"]["output_format"]
         row = fmt["properties"]["faces"]["items"]["properties"]
         strip = lambda d: {k: v for k, v in d.items() if k != "note"}  # noqa: E731
@@ -508,7 +553,8 @@ class YamlCase(unittest.TestCase):
                     want = {**want, "properties": schema["properties"]}
                 self.assertEqual(got, want)
         self.assertEqual(trimmed.without_trimmed(fmt["properties"]["resolved"]), converge.RESOLVED_SCHEMA)
-        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["items"]), converge.ITEMS_SCHEMA)
+        self.assertNotIn("items", fmt["properties"])
+        self.assertEqual(trimmed.without_trimmed(nodes()["plan-review-tree"]["output_format"]["properties"]["items"]), converge.ITEMS_SCHEMA)
         self.assertEqual(trimmed.without_trimmed(fmt["properties"]["design_map"]), converge.DESIGN_MAP_SCHEMA)
         self.assertEqual(trimmed.without_trimmed(fmt["properties"]["origins"]), converge.ORIGIN_SCHEMA)
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
@@ -548,7 +594,7 @@ class YamlCase(unittest.TestCase):
     def test_trimmed_min_length_kept_by_pattern(self):
         """事前審査と独立設計の返答の型は節の output_format だけが持ち、前後の空白を除いた長さの下限は pattern が持つ"""
         got = nodes()
-        for nid in ("plan-review", "r2-design"):
+        for nid in ("plan-review", "plan-review-tree", "r2-design"):
             with self.subTest(nid):
                 self.assertEqual(trimmed.missing_patterns(got[nid]["output_format"]), [])
 
@@ -1401,6 +1447,27 @@ class ReviewAcceptCase(RunCase):
         return [{"item": n, "path": "stats.py", "symbol": f"helper_{n}", "design_ref": "D1" if n == 1 else None,
                  "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"} for n in (1, 2)]
 
+    def test_map_section_lists_the_wanted_keys(self):
+        """独立設計が立つ木にしない往復の材料の MAP_ITEMS_HEAD の節に、案→設計で要る鍵（design.wanted_lines）の全部の行が載る。
+        op=modify で symbol の無い files の行は鍵に出ない。載った鍵ごとに 1 行の案→設計の行と、独立設計の要素ごとの設計→案の行だけで
+        書いた design_map を受け付けが通す"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1, files=[frow("stats.py", "helper_1"), frow("notes.py"),
+                                          frow("old.py", op="delete", why="呼び手は stats に寄せたので要らない")]),
+                item(UNIT_CLAMP, 2)])
+        r.open()
+        DesignCase.designed(self)
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        section = text[text.index(planblk.MAP_ITEMS_HEAD):].split("\n\n## ")[0]
+        keys = [json.loads(x) for x in section.splitlines() if x.startswith('{"item"')]
+        self.assertEqual(keys, [{"item": 1, "path": "stats.py", "symbol": "helper_1"}, {"item": 1, "path": "old.py", "symbol": None},
+                                {"item": 2, "path": "stats.py", "symbol": "helper_2"}])
+        self.assertNotIn("notes.py", section)
+        why = "設計に対の無い助け手の名だけを足す"
+        mapped = [{**k, "design_ref": "D1" if i == 0 else None, "design_quote": None, "why": why} for i, k in enumerate(keys)]
+        got = r.accept(review(design_map=mapped))
+        self.assertTrue(got["ok"], got)
+
     def test_design_map_must_cover_every_added_name(self):
         """元 ConvergeReviewCase.test_design_map_must_cover_every_added_name: 対応表が files の足す symbol の (項目, path, symbol) を欠く・
         2 行書く・設計に無い字を引く返答は拒み、全部を 1 行ずつ持つ返答は受ける。行は {item, path, symbol, design_ref, design_quote, why}。
@@ -1797,6 +1864,29 @@ class TreeCase(RunCase):
         self.assertTrue(item1)
         self.assertEqual(head1, head2)
 
+    def test_item_brief_lists_only_its_wanted_keys(self):
+        """独立設計が立つ木の往復: item-1.md には項目 1 の鍵（helper_1）だけが、item-2.md には項目 2 の鍵（clamp）だけが design_map の
+        鍵の一覧として載る。一覧は項目の節（ITEM_HEAD の後・ITEM_UNITS_HEAD の節の後）に在り、ITEM_HEAD より前の頭は 2 つのファイルで
+        同じバイトのまま"""
+        r = self.run_
+        r.open()
+        DesignCase.designed(self)
+        self.prepped()
+        one, two = ((self.items_dir() / f"item-{n}.md").read_text(encoding="utf-8") for n in (1, 2))
+        key1 = '{"item": 1, "path": "stats.py", "symbol": "helper_1"}'
+        key2 = '{"item": 2, "path": "stats.py", "symbol": "clamp"}'
+        for text, mine, other, n in ((one, key1, key2, 1), (two, key2, key1, 2)):
+            self.assertEqual(text.count(planblk.MAP_ITEMS_HEAD), 1)
+            self.assertEqual(text.count(mine), 1)
+            self.assertNotIn(other, text)
+            self.assertGreater(text.index(planblk.MAP_ITEMS_HEAD), text.index(planblk.ITEM_UNITS_HEAD.format(n=n)))
+            self.assertGreater(text.index(planblk.MAP_ITEMS_HEAD), text.index(planblk.ITEM_HEAD.format(n=n)))
+            self.assertGreater(text.index(mine), text.index(planblk.MAP_ITEMS_HEAD))
+        head1, _, _ = one.partition(planblk.ITEM_HEAD.format(n=1))
+        head2, _, _ = two.partition(planblk.ITEM_HEAD.format(n=2))
+        self.assertEqual(head1, head2)
+        self.assertNotIn(planblk.MAP_ITEMS_HEAD, head1)
+
     def test_machine_merges_item_answers_into_review(self):
         """元 test_machine_merges_item_answers_into_review"""
         r = self.run_
@@ -1834,6 +1924,63 @@ class TreeCase(RunCase):
         self.assertEqual(errs["item"], 2)
         self.write_answers(1, {2: answer(2)})
         self.assertTrue(r.accept(summary({1: [], 2: []}))["ok"])
+
+    def test_tree_policy_face_names_its_answer_file(self):
+        """木の往復: 項目 2 の答えのファイルに名指しの無い kind policy の穴が在ると、拒みは TREE_REJECT で始まり、その項目の答えのファイルと
+        $.faces[0] の番号を名指す（まとめた並びの番号の faces[N] でも、項目 1 でもない）。輪の中の出し直し（INPUTS_PREV='false' の
+        review_prep）の指示書は、その拒みの行を字のまま貼る。prev 無しの支度（resume）は、項目 2 の下請けのファイルの ERRORS_HEAD に
+        その行を載せ、項目 1 は済んだ下請けに並べる"""
+        r = self.run_
+        self.prepped()
+        stray = face("item2-policy-without-row", UNIT_CLAMP, kind="policy", severity="suggest")
+        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[stray])}, syn=synergy())
+        got = r.accept(summary({1: [], 2: []}))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
+        line = f"項目 2（{planblk.answer_file(r.view(), 1, 2)}）: $.faces[0]（{stray['key']}）"
+        self.assertIn(line, got["reason"])
+        self.assertNotIn("項目 1（", got["reason"])
+        self.assertNotIn(planblk.FACE_REJECT, got["reason"])
+        redo = pathlib.Path(r.out("review_prep", INPUTS_PREV="false")["brief"]).read_text(encoding="utf-8")
+        self.assertIn(line, redo)
+        self.assertIn(got["reason"], redo)
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(str(self.items_dir() / "item-2.md"), text[text.index(planblk.REDO_HEAD):])
+        self.assertIn(str(self.items_dir() / "item-1.md"), text[text.index(planblk.DONE_HEAD):text.index(planblk.REDO_HEAD)])
+        brief = (self.items_dir() / "item-2.md").read_text(encoding="utf-8")
+        errs = json.loads(brief[brief.index(planblk.ERRORS_HEAD):].split("```json\n", 1)[1].split("\n```", 1)[0])
+        self.assertIn(f"$.faces[0]（{stray['key']}）", "\n".join(map(str, errs["errors"])))
+        # 相乗りの審査の答えの穴にも同じ照らしが当たり、拒みは相乗りの答えのファイルを名指す
+        stray_syn = face("synergy-policy-without-row", UNIT_MEAN, kind="policy", severity="suggest")
+        self.write_answers(1, {2: answer(2)}, syn=synergy([stray_syn]))
+        got = r.accept(summary({1: [], 2: []}))
+        self.assertFalse(got["ok"], got)
+        self.assertIn(f"相乗りの審査（{planblk.synergy_file(r.view(), 1)}）: $.faces[0]（{stray_syn['key']}）", got["reason"])
+
+    def test_tree_carried_policy_note_is_not_rechecked(self):
+        """木の往復: 1 往復目の項目 1 の答えが、依頼の answers の名指しを decided_by に書いた kind policy の suggest を挙げて通る。2 往復目
+        （項目 2 だけ開く）は、持ち越しの写し（往復の控えの notes は decided_by を外した写し）を方針の照らしで拒まずに通し、写しは
+        返答の faces に残る"""
+        r = self.run_
+        r.start(features_on=["review_tree"], answers=[{"question": "q-mean-empty", "text": "空の列の平均は例外にする"}])
+        self.prepped()
+        note = face("item1-policy-note", UNIT_MEAN, kind="policy", severity="suggest", decided_by="q-mean-empty")
+        self.write_answers(1, {1: answer(1, faces=[note]), 2: answer(2, faces=[CLAMP_BLOCK])})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        r.out("result")
+        two = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
+                   approach="clamp の上限の枝で hi を返し、上限ちょうどの値はそのまま返す（定義どおり）")
+        r.plan([item(UNIT_MEAN, 1), two], rnd=2,
+               answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
+        r.open()
+        r.out("review_prep")
+        self.write_answers(2, {2: {**answer(2, resolved=[CLAMP_BLOCK["key"]]), "hits": []}}, syn=synergy())
+        got = r.accept(summary({2: []}))
+        self.assertTrue(got["ok"], got)
+        saved = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        carried = [f for f in saved["faces"] if f["key"] == note["key"]]
+        self.assertEqual(len(carried), 1)
+        self.assertNotIn("decided_by", carried[0])
 
     def test_item_design_quotes_reopen_only_that_item(self):
         """元 test_item_design_quotes_reopen_only_that_item"""
@@ -1940,18 +2087,18 @@ class TreeCase(RunCase):
         self.assertTrue(r.accept(summary({1: [], 2: []}))["ok"])
 
     def test_aggregator_reply_is_summary_only(self):
-        """元 test_aggregator_reply_is_summary_only"""
+        """元 test_aggregator_reply_is_summary_only: 受け付けは束ね役の欄を使わず、faces を下請けの答えのファイルから組む
+        （束ね役の faces が受け付けまで届いても使わない）"""
         r = self.run_
         self.prepped()
         self.write_answers(1, {1: answer(1, faces=[MEAN_BLOCK]), 2: answer(2)})
-        got = r.accept({**summary({1: [MEAN_BLOCK["key"]], 2: []}), "faces": [MEAN_BLOCK]})
-        self.assertFalse(got["ok"])
-        self.assertIn("faces", got["reason"])
         got = r.accept(summary({1: [], 2: []}))
         self.assertFalse(got["ok"])
         self.assertIn("項目 1", got["reason"])
-        got = r.accept(summary({1: [MEAN_BLOCK["key"]], 2: []}))
+        got = r.accept({**summary({1: [MEAN_BLOCK["key"]], 2: []}), "faces": []})   # 型が拒む欄は、受け付けまで届いても使わない
         self.assertTrue(got["ok"], got)
+        saved = json.loads((r.folder / "pass-1" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([f["key"] for f in saved["faces"]], [MEAN_BLOCK["key"]], "faces は下請けの答えのファイルの物")
         self.assertEqual(converge.read(r.view())["outcome"], converge.AGAIN)
 
     def test_bundler_stuck_push_rides_on_the_pass_row(self):
@@ -2357,7 +2504,7 @@ class TreeCase(RunCase):
     def test_origin_ask_only_where_writers_are(self):
         """出自の頼みは書き手の居る層にだけ置く: 1 往復目はどのファイルにも頼みが無く、2 往復目の束ね役の指示書は ORIGIN_ASK を
         持たない。項目の下請けのファイルは REREVIEW_ASK と ORIGIN_ASK を、相乗りのファイルは ORIGIN_ASK を持つ。
-        下請けの答えの origins は往復の行に照らして入り、束ね役の返答の origins は拒む"""
+        下請けの答えの origins は往復の行に照らして入る。出自は下請けの答えのファイルから取る"""
         r = self.run_
         main = self.prepped()
         for text in (main, *(p.read_text(encoding="utf-8") for p in sorted(self.items_dir().glob("*.md")))):
@@ -2380,12 +2527,9 @@ class TreeCase(RunCase):
         claim = [{"key": again["key"], "origin": converge.ORIGIN_INTRODUCED}]
         self.write_answers(2, {1: {**answer(1, faces=[again], resolved=[MEAN_BLOCK["key"]]), converge.ORIGINS: claim},
                                2: answer(2, resolved=[CLAMP_BLOCK["key"]])})
-        got = r.accept({**summary({1: [again["key"]], 2: []}), converge.ORIGINS: claim})
-        self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
-        self.assertIn("origins", got["reason"])
-        self.assertEqual(len(converge.read(r.view())["passes"]), 1)
-        self.assertTrue(r.accept(summary({1: [again["key"]], 2: []}))["ok"])
+        # 束ね役の型の外の origins が受け付けまで届いても、往復の行の origins は下請けの答えのファイルの申告になる
+        wrong = [{"key": again["key"], "origin": converge.ORIGIN_MISSED}]
+        self.assertTrue(r.accept({**summary({1: [again["key"]], 2: []}), converge.ORIGINS: wrong})["ok"])
         row = converge.read(r.view())["passes"][-1]
         self.assertEqual((row["outcome"], row["origins"], row["origins_claimed"]),
                          (converge.AGAIN, {again["key"]: converge.ORIGIN_INTRODUCED}, []))   # 開いた block は 2 → 1 に減る
@@ -2435,6 +2579,42 @@ class TreeCase(RunCase):
         r.start(features_on=["review_tree"])
         r.plan([item(UNIT_MEAN, 1)])
         self.assertTrue(r.open()["tree"])
+
+    def test_tree_on_one_item_without_answer_file_is_rejected(self):
+        """open の tree が真の往復は、1 項目・覆っていない当たり無しでも答えのファイルが無ければ『答えのファイルが無い』で拒む
+        （束ね役の返答を単独の審査として通さない。型から faces を外した束ね役の返答が穴の無い審査として素通りする道を塞ぐ）"""
+        r = self.run_
+        r.start(features_on=["review_tree"])
+        r.plan([item(UNIT_MEAN, 1)])
+        r.ripple({"items": [], "overlaps": []})
+        self.prepped()
+        got = r.accept(summary({1: []}))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
+        self.assertIn("答えのファイルが無い", got["reason"])
+        self.assertEqual(converge.read(r.view())["passes"], [])
+        self.write_answers(1, {1: answer(1)})
+        self.assertTrue(r.accept(summary({1: []}))["ok"])
+
+    def test_prep_returns_the_open_tree(self):
+        """支度の節 review_prep の返りの tree は、材料の枝でも出し直しの枝（受け付けが拒んだ後に INPUTS_PREV='false' で回した
+        review_prep）でも open の tree と同じ値（木の往復で真、features_off の往復で偽）。review-prep の返りが束ね役の組と単独の組を
+        振り分ける（plan-review-tree-fix の when は resubmit と tree の両方が真の時だけなので、出し直しの枝が tree を返さないと死んだ道）"""
+        r = self.run_
+        self.assertIs(r.open()["tree"], True)
+        self.assertIs(r.out("review_prep").get("tree"), True)
+        self.assertFalse(r.accept(summary({1: [], 2: []}))["ok"])
+        again = r.out("review_prep", INPUTS_PREV="false")
+        self.assertIs(again["resubmit"], True)
+        self.assertIs(again.get("tree"), True)
+        r.start(features_off=["review_tree"])
+        self.assertIs(r.open()["tree"], False)
+        self.assertIs(r.out("review_prep").get("tree"), False)
+        stray = face("stray-policy-face-001", kind="policy")
+        self.assertFalse(r.accept(review(stray))["ok"])
+        again = r.out("review_prep", INPUTS_PREV="false")
+        self.assertIs(again["resubmit"], True)
+        self.assertIs(again.get("tree"), False)
 
     def test_heavy_head_depth_makes_the_tree(self):
         """入力 head_depth=重厚 で開いた項目が 1 つの往復は、review_tree を名指していなくても木。軽量・標準・空は auto のまま
@@ -3245,6 +3425,30 @@ class PortedMaterialCase(RunCase):
             self.assertIn("POLICY-MARK-8080", text)
             self.assertIn(policy.RULE, text)
 
+    def example(self) -> str:
+        want = policy.face_example(boardview.read_open(self.run_.folder)[policy.RECORDED_KEY])
+        self.assertIn('"decided_by": "q-mean-empty"', want)
+        return want
+
+    def test_policy_face_example_reaches_prompt_and_item_briefs(self):
+        """依頼の answers を持つ run の、記録された方針の一覧から描いた kind policy の穴の例が、事前審査の材料 prompt.md（木にしない
+        往復）と、木の往復の下請けの item-<n>.md の全部にそのまま載る（受け付けが照らす名指しの形を指示書に貼る。#570）"""
+        r = self.run_
+        answers = [{"question": "q-mean-empty", "text": "空の列の平均は例外にする"}]
+        r.start(features_off=["review_tree"], answers=answers)
+        r.open()
+        want = self.example()
+        self.assertIn(want, pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8"))
+        r.ripple(RIPPLE)
+        r.start(answers=answers)
+        self.assertTrue(r.open()["tree"])
+        r.out("review_prep")
+        briefs = sorted((r.folder / planblk.ITEMS_DIR.format(k=1)).glob("item-*.md"))
+        self.assertTrue(briefs)
+        for path in briefs:
+            with self.subTest(brief=path.name):
+                self.assertIn(self.example(), path.read_text(encoding="utf-8"))
+
     def test_design_prompt_gets_the_policy(self):
         r = self.run_
         r.start(policy_md=str(self.policy()))
@@ -3289,7 +3493,7 @@ class FixtureCase(unittest.TestCase):
         names = sorted(p.name for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
         self.assertEqual(names, sorted(f"{n}.stubs.yaml" for n in (
             "pass", "block", "stalled", "ask-human", "target-text-drift", "r2-skipped", "r2-give-up", "review-give-up",
-            "open-failed", "resubmit")))
+            "open-failed", "resubmit", "tree")))
         with archon.tree([BLOCK.name]) as tree:
             done = archon.archon(tree, "workflow", "test", "works-factory-plan-review", "--cwd", str(tree))
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)

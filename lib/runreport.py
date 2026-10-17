@@ -1428,15 +1428,18 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
 
 
 def _base_word(base: dict) -> str:
-    """直す前のテストの語。red_cause が incomplete で認証されなかった（ok 偽）base は、素材が測った結果でないか、素材が無いか、
-    返す節の中の誤り（workflows/test-gate/scripts/result.py）なので「走らせられなかった」。認証された incomplete の base は、
-    素材が not_applicable か awaiting_human（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの
-    素材の語で言い、awaiting_human は走らせられなかった系統を名指す素材の reason を添える"""
+    """直す前のテストの語。認証されなかった（ok 偽）base の赤の原因が走らなかった事を言う句（green_cert.RAN_BY_CAUSE が NOT_RAN:
+    environment・incomplete）なら、素材が測った結果でない・1 段も走らなかった・素材が無い・返す節の中の誤り（workflows/test-gate/scripts/
+    result.py）なので「走らせられなかった」。返りの reason（認証しなかった訳。declared_checks.gate_values）が在れば 1 行にして添える。
+    認証された incomplete の base は、素材が not_applicable か awaiting_human（green_cert.certify が認証し classify が incomplete に畳む）
+    なら元の結末のファイルの素材の語で言い、awaiting_human は走らせられなかった系統を名指す素材の reason を添える"""
     if base.get("green"):
         return "緑"
-    if base.get("red_cause") == green_cert.INCOMPLETE:
-        if base.get("ok") is not True:
-            return f"走らせられなかった（{green_cert.INCOMPLETE}）——{gatemarks.BASELINE_NOT_RUN}"
+    cause = base.get("red_cause")
+    if green_cert.RAN_BY_CAUSE.get(cause) == green_cert.NOT_RAN and base.get("ok") is not True:
+        why = oneline.one_line(declared_checks.gate_values(base)["reason"])
+        return f"走らせられなかった（{cause}）——{gatemarks.BASELINE_NOT_RUN}" + (f"——{why}" if why else "")
+    if cause == green_cert.INCOMPLETE:
         material = _base_material(base)
         status = material.get("status")
         if status in (green_cert.NOT_APPLICABLE, green_cert.AWAITING_HUMAN):

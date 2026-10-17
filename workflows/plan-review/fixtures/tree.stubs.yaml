@@ -1,0 +1,35 @@
+# open の tree が真の往復（review-prep が tree: true・resubmit: false を返す）。束ね役の組の 1 回目 plan-review-tree が起き、単独の組の
+# plan-review は when（tree != true）で飛ぶ。plan-review の stub は置かない（飛ぶはずの節が起きれば、stub の無い節に届いた赤になる）。
+# 出し直しの 2 節も飛び、受け付けと返す節に届く（配線だけを見る。faces・shrink を下請けの答えのファイルから組む中身は
+# tests/workflows/test_plan_review.py が script を子のプロセスで回して見る。束ね役の返答は型 plan-review-tree の欄の reason・items だけ）
+open: { ok: true, r2_go: true, tree: true, k: 1, form: review, reason: "" }
+r2-prep: { prompt: "stub: 元の目的と実測した制約" }
+r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解", elements: [{ id: D1, adds: ["stub: 入口の 1 本化"], removes: [] }] }
+r2-accept: { ok: true, done: true, give_up: false, reason: "" }
+review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md", resubmit: false, tree: true }
+plan-review-tree:
+  reason: "stub: 項目ごとの下請けの答えのファイルを受け、項目ごとの判定をまとめた"
+  items:
+    - { item: 1, verdict: clean, blocks: [] }
+    - { item: 2, verdict: clean, blocks: [] }
+review-accept: { ok: true, done: true, give_up: false, reason: "" }
+review-reads: { ok: true, missing: [], index_file: plan-review/pass-1/reads-plan-review-block.json, reason: "" }
+review:
+  pass: true
+  stalled: false
+  review: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/review.json" }
+  design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
+  gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
+  ask_human: false
+  questions: []
+fixture:
+  inputs:
+    units: "[]"
+    judgment: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/judgment.json\"}"
+    purpose: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/purpose.json\"}"
+    world: "null"
+    plan: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/r1/plan-fields.json\"}"
+    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/structure/structure-state.json\"}"
+    ripple: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/ripple.json\"}"
+  expect: completed
+  reached: [r2-design, plan-review-tree, review-accept, review]

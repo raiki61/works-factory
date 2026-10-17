@@ -23,6 +23,8 @@
   事前審査の受け付けが拒む穴の行
 - PRIOR_DECISIONS_FILE・POLICY_KIND・POLICY_DOC_FENCE: 決定記録の突合の返答のファイル名・方針の穴の kind・方針の文書の柵の語の
   持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
+- face_example(rows): 事前審査の役に recorded_section の後ろへ添える、kind policy の穴の書き方の例（一覧の最初の名指せる行で作った
+  JSON の 1 行と、この run の事実。名指せる行が無ければ FACE_NONE）。face_gaps を通る行だけを描く
 - recorded_section(rows): 役に貼る「記録された方針」のセクション（名指せる行が無ければ RECORDED_NONE）
 - recorded_text(start, decisions_file, human_items): 一覧を組んでセクションにした物（human_items が None の役には承認ノードの答えが
   渡っていないと書く）
@@ -161,6 +163,10 @@ RECORDED_RULE = ("記録された方針は、人か対象の持ち主が「決�
                  "docstring・テストの説明文は、下の行に当たらない限り「対象の文」——コードの今の姿の説明で、持ち主の決めではない。"
                  "対象の文が綺麗な形と食い違うなら、方針とのぶつかりにせず、直しの一部としてその文を書き換えよ。方針とぶつかると言う時は、"
                  "下の行の名指しを字のまま写せ（機械が一覧に当たるかを照らし、当たらなければ拒む）。")
+DOC_FENCE_ONLY = f"{POLICY_DOC_FENCE} は方針の文書の行を書き換える時だけ立てる"
+FACE_NONE = f"名指せる行が無い: kind {POLICY_KIND} の穴は挙げない"
+FACE_EXAMPLE_HEAD = (f"kind {POLICY_KIND} の穴の書き方の例（この run の一覧の最初の名指しで作った。decided_by には一覧の名指しを"
+                     "字のまま 1 つ入れる）:")
 _CAP = 120   # セクションに並べる答え・論点の頭の字数
 _GATE_ID = 6   # 承認ノードの答えの名指しの印（一言の sha256 の頭の 16 進の字数）
 
@@ -231,10 +237,34 @@ def unrecorded(face, mark, rows) -> bool:
     return face.get("kind") == POLICY_KIND and not hits(rows, face.get("where"), mark.get("decided_by"))
 
 
+def _has_doc(rows) -> bool:
+    return any(r.get("source") == "doc" for r in rows or [] if isinstance(r, dict))
+
+
+def face_example(rows) -> str:
+    """組んだ一覧 rows から、役に貼る kind policy の穴の書き方の例（recorded_section の後ろに添える。見出しは足さない）。例の 1 行は
+    rows の最初の名指せる行で作る——方針の文書の行は <写し>:1、ほかは名指しの字のまま。名指せるかは face_gaps が照らす _hit に通して
+    決める（行数 0 の方針の文書の行は当たらないので採らない）ので、描いた行は face_gaps を通る。決まりの文は RECORDED_RULE と
+    face_gaps が持ち、ここは run ごとに変わる事実（方針の文書の行が在るか・名指せる行が在るか）と例の形だけを描く。
+    eyes の R4 の役は recorded_section だけを貼る（R4 の kind policy の行は decided_by を持つ穴でなく字の行で、例の JSON の形が合わない）"""
+    rows = [r for r in rows or [] if isinstance(r, dict)]
+    named = [(r, f"{r['name']}:1" if r.get("source") == "doc" and r.get("name") else r.get("name")) for r in rows]
+    mark = next((by for r, by in named if by and _hit(r, by)), None)
+    out = []
+    if mark is None:
+        out.append(FACE_NONE)
+    else:
+        row = {"kind": POLICY_KIND, "severity": "suggest", "decided_by": mark}
+        out += [FACE_EXAMPLE_HEAD, json.dumps(row, ensure_ascii=False)]
+    if _has_doc(rows):
+        out.append(f"この run には方針の文書の行が在る: fences の {DOC_FENCE_ONLY}")
+    return "\n".join(out)
+
+
 def face_gaps(faces, rows) -> list:
     """事前審査の受け付けが拒む穴の行（1 穴 1 文）: 一覧の行を名指さない kind policy の穴と、方針の文書の行の無い run で fences に
     policy_doc を立てた穴"""
-    has_doc = any(r.get("source") == "doc" for r in rows if isinstance(r, dict))
+    has_doc = _has_doc(rows)
     out = []
     for j, f in enumerate(faces or []):
         if not isinstance(f, dict):
@@ -245,8 +275,7 @@ def face_gaps(faces, rows) -> list:
                        f"無い——一覧に無いコードのコメント・docstring・テストの説明文は対象の文で、方針ではない。対象の文は kind "
                        "contract_drift で挙げ、案にその文の書き換えを入れさせよ。一覧の行とぶつかるなら、その名指しを decided_by に字のまま写せ")
         if not has_doc and POLICY_DOC_FENCE in (f.get("fences") or []):
-            out.append(head + f"方針の文書の無い run で fences に {POLICY_DOC_FENCE} を立てた——{POLICY_DOC_FENCE} は方針の文書の行を書き換える"
-                       "時だけ立てる")
+            out.append(head + f"方針の文書の無い run で fences に {POLICY_DOC_FENCE} を立てた——{DOC_FENCE_ONLY}")
     return out
 
 

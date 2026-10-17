@@ -774,15 +774,14 @@ FIX_IN_TEXT = (ROOT / FIX_IN_REL).read_text(encoding="utf-8")
 
 def carried_shape(line_text: str, fix_in_text: str) -> dict:
     """固定材料の運ぶ値の形: fix_in.received_live の鍵と、fix-in が受け皿（script returned）から受ける入力ごとの got の欄（受け皿の
-    with: の names か、分かれ目の版が持つ got_<欄> の鍵）"""
+    with: の names）"""
     nodes = line_nodes(yaml.safe_load(line_text)["nodes"])
     live = next(n for n in ast.walk(ast.parse(fix_in_text)) if isinstance(n, ast.FunctionDef) and n.name == "received_live")
     got = {}
     for name, source in nodes["fix-in"]["with"].items():
         node = nodes.get((source.get("from") if isinstance(source, dict) else source).removeprefix("$").removesuffix(".output"))
         if node is not None and node.get("script") == "returned":
-            names = node["with"].get("names")
-            got[name] = sorted(names.split() if names else (key.removeprefix("got_") for key in node["with"] if key.startswith("got_")))
+            got[name] = sorted(node["with"]["names"].split())
     return {"received": sorted(k.value for r in ast.walk(live) if isinstance(r, ast.Return) for k in r.value.keys), "got": got}
 
 

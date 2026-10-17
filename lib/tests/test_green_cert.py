@@ -23,7 +23,6 @@ if str(LIB) not in sys.path:
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
-import userenv  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 
 
@@ -283,9 +282,17 @@ class RanNoteCase(unittest.TestCase):
         self.assertEqual(set(green_cert.RED_CAUSES), {"introduced", "inherited", "environment", "interaction", "incomplete", ""})
         self.assertLessEqual(set(green_cert.RAN_BY_CAUSE.values()) - {""}, set(green_cert.RAN_NOTES))
 
-    def test_guide_names_the_switch_and_the_local_run(self):
-        self.assertIn(f"{userenv.OPT_IN}=1", green_cert.RAN_GUIDE)
+    def test_guide_names_the_setup_declaration_and_the_local_run(self):
+        """案内は準備の宣言（declared.SETUP_HINT）と工場の外の手元の 2 つで、旗の名は無い"""
+        self.assertIn(declared_checks.declared.SETUP_HINT, green_cert.RAN_GUIDE)
         self.assertIn("工場の外の手元", green_cert.RAN_GUIDE)
+        self.assertNotIn("WORKS_FACTORY_TARGET_USER_ENV", green_cert.RAN_GUIDE)
+        ok, reason = green_cert.certify(mode="base", material_status="not_run", green=False, before=None, after=None, now=None,
+                                        material_reason="宣言の語を起こせない: suite: config missing")
+        self.assertFalse(ok)
+        self.assertEqual(reason, "素材が not_run——緑を仮定しない（宣言の語を起こせない: suite: config missing）。" + green_cert.RAN_GUIDE)
+        ok, reason = green_cert.certify(mode="base", material_status=None, green=False, before=None, after=None, now=None)
+        self.assertEqual(reason, "素材が 無い——緑を仮定しない。" + green_cert.RAN_GUIDE)
 
     def test_unknown_cause_is_not_read_as_ran(self):
         self.assertTrue(self.note(cause="someday").startswith(green_cert.UNVERIFIED_RUN))

@@ -46,6 +46,7 @@
 - 決め: ASF の取り付け命令（`factory.py init`）が置いた物を、出どころの断り書きを足さずにこのリポジトリに入れる。ASF にライセンスが付いたら、それに従う。
 - 当て方: 置いた物は 4 つの層の外に、手を加えずに置く（`AGENTS.md` の E8）。ASF の版を進める時と、ASF のリポジトリにライセンスのファイルが付いた時に、その中身を読み、従い方をこのセクションに書き足す。
 - 運び役の補足（判断は変えない）: 著作権の法では、ライセンスが無い物は既定で作者が権利を全部持つ扱いになる。作者が嫌がれば消すよう求められる余地は残る。
+- 運び役の決め（2026-10-17、issue #676。持ち主の言葉「さっきのはそれでおどうぞ。」は運び役の案への答え）: PR #637（下の `asf-follows-dev`）の後に起こす物の無くなった取り付け物は外し、置き直さない。外した物は `factory/runtime_host.py`（入口の `serve`・`setup`・`start`・`describe`・`identity`・`teardown`）・`factory/runtime_process.py`・`factory/runtime_resource.py`（入口の `prepare`・`start`）・`factory/RUNTIME_HOST.md`・`factory/MIGRATION.md`・`harness/` の全部（`ci.py`・`appproc.py`・`mutations/`（`run.py` と `defects.json`）・`harness.config.json`・`runtime.inputs.json`）。要れば git の履歴から戻す。通しの筋書きは `tests/e2e/scenario.json`・`scenario.md` へ移し、試験が `harness.config.json` から読んでいた値は読む試験の定数にした。`factory/consumer.py`・`factory/pack.json` は上流のまま置く（`consumer.py` の `--runtime-host` の道は遅延 import なので、使えば import の誤りで止まる。工場はこの旗を使わない）。版を上げて取り付け命令が外した物を置き直したら、同じ一覧で消し直す。
 
 ### `io-in-output-format` サブグラフの間で渡す物の型は Archon の output の構造体で表す
 
@@ -189,8 +190,8 @@
 ### `full-suite-in-ci` 全部の試験は CI に寄せ、run の中では回さない
 
 - 持ち主の言葉: 「全部回すのはCIに寄せて」（2026-10-12）
-- 決め: 作業中の試験（`harness/harness.config.json` の `unit` が呼ぶ `tests/changed.py`）は、変更から試験を選べない時も全部の試験を回さない。選べた範囲と層の柵（`tests/layers/`）だけを回し、全部の試験は CI に寄せると選べなかった訳を出して終える。全部の試験は CI（`.github/workflows/tests.yml` の 4 つの分け）が必ず回し、main へのマージは CI の緑を待つので、確かめの網は減らない。
-- 当て方: ASF から取り付けた `harness/ci.py` の段の上限には手を加えない（`AGENTS.md` の E8）。前の決め「手元の重いのはやめます」（2026-10-06。下の `light-in-loop`）と同じ向き。
+- 決め: 作業中の試験（run の中の確かめの全体の命令が呼ぶ `tests/changed.py`）は、変更から試験を選べない時も全部の試験を回さない。選べた範囲と層の柵（`tests/layers/`）だけを回し、全部の試験は CI に寄せると選べなかった訳を出して終える。全部の試験は CI（`.github/workflows/tests.yml` の 4 つの分け）が必ず回し、main へのマージは CI の緑を待つので、確かめの網は減らない。
+- 当て方: 前の決め「手元の重いのはやめます」（2026-10-06。下の `light-in-loop`）と同じ向き。
 - 出典: PR #196 の運び役のコメント（2026-10-12 の 1 回目の修理）。issue #184 の受け入れ「全部を回す場合も TIMEOUT で落ちない」を「全部を回す場合に倒れず、CI に寄せる」に読み替えた。
 
 ### `on-archon-only` Archon の上に載るだけ。ASF は手本で、Archon の役を自分で覆わない
@@ -304,7 +305,7 @@
 
 - 持ち主の言葉（2026-10-16、PR #637）: 「asfは他人のものなので、勝手にあがったらそれを使えばいいのでは？今の版に固執する意味はどこにある？」
 - 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
-- 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（`harness/harness.config.json` の `required_checks`・`protected_paths`）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
+- 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（必須の check・守りのパス）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
 - 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分の家の設定で決める物がある（`defaultAssistant: claude`・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方: `bin/_lib/place.py` の `home_config`。群の別名（`@wf-<群>`）は家の設定に書かず、新しい run の `--config` の層で渡す（`run-model-choice`）。
 
 ### `run-model-choice` run ごとにノード群の模型と effort を替えられる
@@ -316,6 +317,22 @@
   - 下げる向きは、過去の run の数え直しと並べて回した測りで質が落ちないと分かるまで、既定にしない。
   - 群の値を替えうる層は強い順に、呼ぶ人の `--model` > `--config`（run 1 本ぶんの設定の層）> 利用者の AI の好み > 対象の repo の `.archon/config.yaml` > 家の設定。群の別名は殻が新しい run の `--config` で渡すので、対象の repo の `.archon/config.yaml` が工場の群と同じ名の alias を書いても群の値は替わらない（審査される側の repo が審査する役の模型と effort を下げられない。PR #658 の修理の依頼 1）。
 - 当て方: 群の既定は `lib/launchgroups.py` の `GROUPS` が持ち、`bin/_lib/place.py` の `run_config` がその表から run 1 本ぶんの設定の層を書き、`bin/_lib/launcher.py` が新しい run にだけ `--config` で渡す。利用者の `--config` はその層に合わせ、同じ名の群の別名は工場の値が勝つ。`--adopt` の run には足さない（Archon が記録した run の AI の設定を受け継ぎ、`aliases` を持つ層を拒む）。resume は Archon が起動の時に封じた層を戻し、`workflow:` の子の run は親の記録を受け継ぐ。`--model` の `@wf-` の名が表に無ければ殻が起こす前に止める。ノードは `model: '@wf-<群>'` だけを書き、役にもグラフの頭にも effort を書かない（`workflows/AGENTS.md` の E7。柵は `tests/layers/scan.py`）。役の選びの照らしは `lib/launchgroups.py` の `choices` で、控えは `judge/depth-head.json` の `groups`。報告は `## 模型` のセクション（`lib/headdepth.py` の `groups_lines`）。
+
+### `target-user-env` 対象のコマンドだけ利用者の HOME・XDG で走らせる。旗は持たない
+
+- 覆した決着済みの論点（2026-10-17）: `bin/AGENTS.md の E15（#492・PR #496 のコメント）と lib/userenv.py の冒頭の docstring。…`——対象のコマンド（試験・受け入れ・TDD の試験）も既定は隔離のまま走らせ、利用者が旗で明示した時だけ隔離の前の HOME・XDG を戻す、という運び役の決め（持ち主の答え待ちのまま置いてあった）。
+- 覆した答え（2026-10-17。出どころは人〔依頼者〕の答えで、無人の run が採った推しではない。答えの字のまま。持ち主の言葉は道具の名を写さず、性質で書く）:
+  - A5 にあたる、名指し `bin/_lib/isolate.py::DIRS — …` の B: 「B: 対象のコマンドだけ利用者の HOME・XDG に戻す。役の Bash の隔離と柵の印・auth-middleware は今のまま（持ち主が 2026-10-17 に承認した #666 の設計で、隔離を続けるのは ARCHON_HOME と CLAUDE_CONFIG_DIR の側）。」
+  - A1 にあたる、修正案 2 の狭めの答え（名指し `修正案 2 が狭める能力: 旗を立てない既定の run で、…`）: 「continue: 旗を消し、対象のコマンドだけ利用者の HOME・XDG に戻す。起動の 1 行と README でコンテナ・VM の道を告げ、owner-decisions.md に A1・A5 を字のまま記録する（推す理由: 持ち主が A1・A5 で同じ境と代償を通している。資格に届く道が広がるので柵に当たるが、答えの条件をそのまま満たす）」
+  - 書く側の代償（修正案 4 の狭めの答え。名指し `修正案 4 が狭める能力: 旗を立てない既定の run で、対象の試験・受け入れ・TDD の試験のコマンドが隔離した HOME・XDG で走る、部分的な守りが消える。…`）: 「continue: 通す。条件: 起動の 1 行と README.md:43 に、書き込みも利用者の家に入る事を添える（推す理由: A5・A1 が対象のコマンドを利用者の家で走らせる事を決め済みで、書く側の代償はその帰結。告げずに通すと『守ったふりをしない』目的の文が、読む側だけを言って欠ける）」
+  - 修正前の基準を測れない base（名指し `修正案 2 が狭める能力: 修正前の試験が 1 段も走らなかった base の 2 つの形が…`）: 「continue: 段を起こして 1 つも走らなかった base と、test_cmd を起こせなかった base だけを止め、道具の誤りの文・準備の誤りの文・準備の宣言の案内を見せる。書式の誤り・任せ先の役の run・一部だけ走った base・JUnit の無い赤は今どおり進める」
+- 決め:
+  - 対象のコマンドだけ、隔離の前の HOME・XDG に戻して走らせる。旗（`WORKS_FACTORY_TARGET_USER_ENV`）は消し、殻は隔離の前の値をいつも控える。`isolate.DIRS` は変えず、役の Bash・Archon・工場の script の隔離と柵の印・`auth-middleware` は今のまま。
+  - 起動の 1 行（実行する run のたび）と README で、AI が書いた試験のコードを利用者の権限で走らせ、書く物も利用者の家に入る事と、守りが要るなら工場ごとコンテナか VM の中で回す道を告げる。コマンドごとの守りは工場が作らない。
+  - 修正前の試験が 1 段も走らなかった base の 2 つの形（段が全部起こせないか試験を走らせなかった base と、`test_cmd` を起こせなかった by role の base。準備が落ちた base も含む）は止め、道具の誤りの文と準備の案内を見せる。
+  - 場所ごとの信頼など新しい作業ツリーで要る準備は、対象の宣言の `setup` で述べる（`docs/design.md` の「対象のコマンドの環境と準備」）。
+  - 試験の報告が全部 error の段は、実行器が試験を集めた形として走った段に数え、止めずに判定へ進める。これは持ち主の決めでなく、`keep-essence` の 2（元から赤の区別）と main の振る舞いを落とさない決まりから導いた運び役の決め（持ち主の答えはこの形を名指していない。2026-10-17）。
+- 当て方: `lib/userenv.py`（控えは旗なしでいつも置く）・`bin/_lib/isolate.py`・`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・`bin/AGENTS.md` の E15・`lib/tree_run.py` の `outside_env` と `run`・`lib/declared_checks.py` の `checks_reply`・`lib/graphloops/engine/declared.py` の `setup`。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
