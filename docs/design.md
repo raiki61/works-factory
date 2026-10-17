@@ -393,7 +393,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `outcome`（string）: 結末の語。enum は今の works の `report.py` の `OUTCOMES` の 10 語 `fixed`・`fixed_needs_check`・`no_fix_needed`・`round_limit`・`stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`・`record_invalid`・`interrupted` → メイングラフの出力（周の鎖 `works-factory-chain` の決めのノードが `lib/report.py` の `OUTCOME_KINDS` で種を引く）
   - `stop_reason`（string）: 止めた段と理由の語（`lib/stop_reasons`）。止まらなければ `""` → メイングラフの出力
   - `report`（ポインタ）: 機械の報告（今の works の `report.md`）→ メイングラフの出力
-  - `report_ai`（ポインタ・null 可）: AI の報告（今の works の `report-ai.md`）→ メイングラフの出力
+  - `report_ai`（ポインタ・null 可）: 人に向けた報告（今の works の `report-ai.md`。下の「報告の形」）→ メイングラフの出力
   - `next_request`（ポインタ・null 可）: 次の依頼（`lib/carry`。今の works の `next-request.json`）→ メイングラフの出力。欄 `constraints`（部分 D2。E37・S14）は前提の検算が仮定を偽と示した時の実測 `[{text, measured_how, kind: "実測"}]`（今の works が共有ボードの制約に足した行の形 `review-loop.py:253-257`。書き手は report〔`carry.carried_constraints`〕、読み手は次の run の `start`〔`carry.parts` の鍵。`findings`・`answers`・`prior_failures` と同じ 1 つの口〕と judge〔入口が置き場の `carried-constraints.json` に置き、前提の実測の受け付けが `premises.json` の `constraints` に足す。`judge_accept.with_carried`〕と eyes〔R2 を省かない〕。直す穴 `findings` にも前の失敗 `prior_failures` にも混ぜない。約束は `lib/next-request.schema.json`）
   - `prior_failures`（ポインタ・null 可）: 前の失敗の行（`lib/carry`。今の works の `prior-failures.json`）→ メイングラフの出力
 
@@ -485,6 +485,13 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - ASF で読む物: `W/ship/scripts/outcome.ts`（どの道でも 1 つの出力）と `W/.shared/report.ts`（型つきの成果物の `errors` を注意として出す）。
 - 入力: 全サブグラフの出力（飛ばされた物は `null`）とメイングラフの値（止めの語・無人の run で回した問い・最後の承認ノードを開ける理由・深さの上げ直し・受け止める段の宣言ほか。「report の出力」）。
 - 役（`commands/`）: `report`・`cold-check`。
+- 報告の形（#660）: 置き場 `report/` に 3 つ書く。
+  - `report.md`（機械の報告。書き手が読む事実のファイルで、書き手のループが走らない run では人もこれを読む）
+  - `report-ai.md`（人に向けた報告。出力の `report_ai`）: 機械の冒頭 → 初見の読み手が通さないまま受け取った時はその 1 行 → 書き手の頭（平易な要約と「人が決めること」のセクション）と語の定義 → 詳細のファイルを指す 1 行と来歴
+  - `report-detail.md`（詳細のファイル）: 書き手の本文の字のまま・言い換えた語と回数の 1 行・機械の事実（照らし・裏取り・数え直し・消したファイルなど）
+- 冒頭は `report.md` と `report-ai.md` で同じ物を `lib/runreport.py` の `build` が記録から組む（`head_lines`）。1 行目は起きたこと（結末の語と、試験が走っていないなどの句）、2 行目は差分を当ててよいか（`apply_said`。bin/apply の打ち方と、結末と人が決める物の件数）、3 行目は人が決めることの件数と種ごとの内訳で、その下に人が決める物を 1 件 1 行（確かめ直しで戻した組と、戻せず当たったままの組も 1 組 1 件。問いの種だけが推しの尾を持ち、推しは判定の役が書いた物だけ。保留の問いは台帳の選択肢つき）。人が決める物が無ければ 3 行目に次に大事な事実（次の run に渡す物の件数）を置き、「無い」と断る行は書かない。
+- 語の表: `lib/glossary.json` の記録の名 `term` と人に向けた言い方 `plain` の対。人に向けた報告と初見の読み手に貼る本文だけを機械が言い換える（`plain_words`。長い語から当て、コードの囲みと `…` の中は識別子とパスなので、問いの key と答えの鍵は人が次の run の依頼の answers に字のまま写すので言い換えない。片仮名の語は長い片仮名語の一部には当てない。漢字 1 字の語（周・柵）は熟語の一部には当てない。来歴は言い換えない）。言い方は元の定義の意味を保つ（例: 守りのパスは対象のリポジトリが `.works-protected.json` で守ると宣言したファイルも含む）。書き手を言い換えで拒まない。
+- 報告の行数: 人に向けた報告は `line_budget(n) = HEAD_LINES + LINES_PER_DECISION × n`（n は冒頭の人が決める物の行の数）行までに、書き手の頭を切って収める（切った残りの行数と置き場を 1 行で言う。全文は詳細のファイル）。`HEAD_LINES` 20 は件数に依らない行の数え: 題と空行で 2・冒頭の 3・初見の読み手の 1・書き手の要約 3 ほど・人が決めることの見出し 1・語の定義の見出しと数語で 4 ほど・置き場の 1 行と来歴の 1 行で 2・書き手の頭を切った訳の 1 行・まとまりの間の空行 3 ほど。`LINES_PER_DECISION` 8 は 1 件ごとの行の数え: 冒頭の 1 行と、書き手の指示書が 1 件に求める 6 つ（何を決めるか・背景・選択肢ごとに起きること・推し・答えの後に起きること・決めないと止まる物）と空行 1。1,000 行級だった中身（機械の事実の全部と書き手の構成 2〜10）は詳細のファイルだけに在る。
 - lib: `outcome`・`carry`・`runreport`。下げている所の宣言（並行 PR を投稿しない形と独立設計を 1 度だけ作る形。今の works の `darkfactory/downgrades.json`）は `lib/downgrades.json` で、`lib/prcheck.downgrades` が読み報告の入口のノードに出す。結末の 10 語は report の出力ノードの `output_format` の enum が正本で、`lib/outcome` は決め方だけを持つ。次の依頼と前の失敗の行の形（run をまたぐ控え）は `lib/carry` が持つ。
 - 埋め: 無し。
 

@@ -644,7 +644,7 @@
 - F144 借りた superpowers の座（implementer・task-review・tdd・receiving-code-review）を、固定した写し（pin）と照らして指示書に埋め、無人の読み替え（unattended.md）を足す。写しが固定と違えば止める
   - 元: works/.shared/core/seat.py・works/.shared/core/spseam.py `pin_problems`・`fill`
   - 今: 表
-  - 証: lib/tests/test_seat.py::SeatCase.test_copy_that_differs_from_the_pin_is_named、lib/tests/test_seat.py::SeatCase.test_fill_names_missing_holes、tests/bin/test_seat_borrow.py::SeatBorrowCase.test_pin_problems_match_the_launchers（lib の写しと起動の口が同じ行を返す）
+  - 証: lib/tests/test_seat.py::SeatCase.test_copy_that_differs_from_the_pin_is_named、lib/tests/test_seat.py::SeatCase.test_fill_names_missing_holes、tests/bin/test_toolset.py::CliCase.test_cli_contract_on_the_vendored_copy_is_0（座と起動が同じ lib/spseam.py で写しを固定と照らす）
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 修正役・TDD の役の指示書の座の節、run の隔離した設定の skills）
   - 狭め: 無し
 
