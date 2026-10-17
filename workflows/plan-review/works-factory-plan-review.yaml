@@ -175,9 +175,11 @@ nodes:
               reason: {type: string}
 
   # 事前審査（役 1 つか、項目ごとの下請けを並べる束ね役）。輪の中の節は輪の前の節の出力に結ばず、plan-review/ のファイルを読む。
-  # 事前審査の役は周ごとに新しい会話（輪の 1 周目と plan-review の context: fresh）で、合わせた後の案の全体を見る。受け付けに拒まれた
-  # 後は、出し直しの役 plan-review-fix が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと合わせる（振り分けは review-prep の
-  # resubmit。並んだ層は会話を切るので plan-review-fix は plan-review の後ろの層に置く。#571）
+  # 事前審査の役は周ごとに新しい会話（輪の 1 周目と plan-review・plan-review-tree の context: fresh）で、合わせた後の案の全体を見る。
+  # 役の節は単独の組（plan-review／plan-review-fix）と束ね役の組（plan-review-tree／plan-review-tree-fix）の 4 つで、review-prep の
+  # tree と resubmit で振り分ける（型が組ごとに違う。同じ YAML の plan-review／plan-review-fix が when で節と型を分ける前例と同じ形）。
+  # 受け付けに拒まれた後は、組の出し直しの役が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと合わせる。各組の出し直しは
+  # 同じ組の 1 回目の後ろの層に置く（並んだ層は会話を切る。#571）
   - id: review-loop
     depends_on: [open, r2-design-loop]
     trigger_rule: all_done
@@ -195,7 +197,8 @@ nodes:
           mutates_checkout: false
           with:
             prev: "$LOOP_PREV.review-accept.output.ok"
-          # resubmit・brief は任意の欄（無ければ 1 回目の役が起きる。メイングラフの筋書きの stub がこの節を resubmit 無しで差し替える）
+          # resubmit・brief・tree は任意の欄（resubmit が無ければ 1 回目の役が、tree が無ければ単独の組が起きる。メイングラフの筋書きの
+          # stub がこの節を resubmit・tree 無しで差し替える）。tree は open の tree（木の往復か）を輪の中へ運ぶ
           output_format:
             type: object
             additionalProperties: false
@@ -204,11 +207,12 @@ nodes:
               prompt_file: {type: string}
               brief: {type: string}
               resubmit: {type: boolean}
-        # 模型・道具・設定は出し直しの役 plan-review-fix と同じ（merge key の錨 review_launch）
+              tree: {type: boolean}
+        # 模型・道具・設定は 4 つの役の節（plan-review・plan-review-fix・plan-review-tree・plan-review-tree-fix）が同じ（merge key の錨 review_launch）
         - id: plan-review
           command: plan-review
           depends_on: [review-prep]
-          when: "$review-prep.output.resubmit != true"
+          when: "$review-prep.output.resubmit != true && $review-prep.output.tree != true"
           context: fresh
           <<: &review_launch
             model: opus
@@ -220,9 +224,10 @@ nodes:
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
-          # resolved・items・design_map（行の型は converge.DESIGN_MAP_SCHEMA の写し）・origins は converge の壁打ちと束ね役と出自の欄、
+          # resolved・design_map（行の型は converge.DESIGN_MAP_SCHEMA の写し）・origins は converge の壁打ちと出自の欄、
           # stuck_recommend（converge.STUCK_PUSH）は壁打ちが止まる往復の一番上の推し（型は gatemarks.MARK_SCHEMA の recommend の写し。
-          # 受け付けが tree_split で外して往復の行の push に置く。無人の run が止まった案を推しで修正へ進める）
+          # 受け付けが tree_split で外して往復の行の push に置く。無人の run が止まった案を推しで修正へ進める）。
+          # 単独の型は items を持たない（items は束ね役の型 plan-review-tree の欄）
           output_format: &review_reply {
                 "type": "object",
                 "additionalProperties": false,
@@ -287,27 +292,6 @@ nodes:
                       "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
                     }
                   },
-                  "items": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["item", "verdict", "blocks"],
-                      "properties": {
-                        "item": {"type": "integer", "minimum": 1},
-                        "verdict": {"type": "string", "enum": ["clean", "block"]},
-                        "blocks": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "required": ["key", "why"],
-                            "properties": {"key": {"type": "string"}, "why": {"type": "string"}}
-                          }
-                        }
-                      }
-                    }
-                  },
                   "design_map": {
                     "type": "array",
                     "items": {
@@ -341,25 +325,88 @@ nodes:
               }
         # 拒まれた後の出し直しの役（plan-review の会話の続き）。型は plan-review の型から required を外した物
         - id: plan-review-fix
-          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$review-prep.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          prompt: &review_fix_prompt 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$review-prep.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
           depends_on: [review-prep, plan-review]
           trigger_rule: none_failed_min_one_success
-          when: "$review-prep.output.resubmit == true"
+          when: "$review-prep.output.resubmit == true && $review-prep.output.tree != true"
           <<: *review_launch
           output_format:
             <<: *review_reply
+            required: []
+        # 束ね役の組（open の tree が真の往復）。同じ指示書 plan-review.md を読み、束ね役の頼みで下請けを並べて起こす。型は束ね役が書く
+        # 欄だけ: reason・items・stuck_recommend（faces・shrink・origins は tree_merge が下請けの答えのファイルから組むので持たない。
+        # 写すと型が拒む）。reason・stuck_recommend は plan-review の型の写し（pass_open.node_schema が plan-review の型を JSON として
+        # 読むので、型の中に錨を置けない。等しさは試験が縛る）
+        - id: plan-review-tree
+          command: plan-review
+          depends_on: [review-prep, plan-review-fix]
+          trigger_rule: none_failed_min_one_success
+          when: "$review-prep.output.resubmit != true && $review-prep.output.tree == true"
+          context: fresh
+          <<: *review_launch
+          output_format: &review_tree_reply {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["reason", "items"],
+                "properties": {
+                  "reason": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "verdict", "blocks"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "verdict": {"type": "string", "enum": ["clean", "block"]},
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["key", "why"],
+                            "properties": {"key": {"type": "string"}, "why": {"type": "string"}}
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "stuck_recommend": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["answer", "note", "why"],
+                    "properties": {
+                      "answer": {"type": "string", "enum": ["continue", "stop"]},
+                      "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                      "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                    }
+                  }
+                }
+              }
+        # 束ね役の組の出し直しの役（plan-review-tree の会話の続き）。prompt は plan-review-fix と同じ（錨 review_fix_prompt）。型は
+        # plan-review-tree の型から required を外した物
+        - id: plan-review-tree-fix
+          prompt: *review_fix_prompt
+          depends_on: [review-prep, plan-review-tree]
+          trigger_rule: none_failed_min_one_success
+          when: "$review-prep.output.resubmit == true && $review-prep.output.tree == true"
+          <<: *review_launch
+          output_format:
+            <<: *review_tree_reply
             required: []
         - id: review-accept
           script: review_accept
           runtime: uv
           timeout: 1728000000
-          depends_on: [plan-review, plan-review-fix]
+          depends_on: [plan-review, plan-review-fix, plan-review-tree, plan-review-tree-fix]
           trigger_rule: none_failed_min_one_success
           mutates_checkout: false
           with:
             status_guarded: true
             reply: {from: "$plan-review.output", if_skipped: null}
             fix_reply: {from: "$plan-review-fix.output", if_skipped: null}
+            tree_reply: {from: "$plan-review-tree.output", if_skipped: null}
+            tree_fix_reply: {from: "$plan-review-tree-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false

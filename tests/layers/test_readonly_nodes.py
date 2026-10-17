@@ -95,9 +95,10 @@ class ReadonlyNodesTest(unittest.TestCase):
         block, ident = "plan-review", "plan-review"
         self.assertIn((block, ident), scan.KEEP_CHECKOUT)
         path = f"workflows/{block}/works-factory-{block}.yaml"
-        fix = role("plan-review-fix", "[Read, Write]", True)   # 同じブロックの表の行（無ければ表の行が木に無い赤）
-        self.assertEqual(self.problems({path: workflow(block, role(ident, "[Read, Write]", True) + fix)}), [])
-        got = self.problems({path: workflow(block, role(ident, "[Read, Write]", False) + fix)})
+        # 同じブロックの表の行（無ければ表の行が木に無い赤）。束ね役の組も単独の組と同じ表に在る
+        rest = "".join(role(name, "[Read, Write]", True) for name in ("plan-review-fix", "plan-review-tree", "plan-review-tree-fix"))
+        self.assertEqual(self.problems({path: workflow(block, role(ident, "[Read, Write]", True) + rest)}), [])
+        got = self.problems({path: workflow(block, role(ident, "[Read, Write]", False) + rest)})
         self.assertEqual(len(got), 1, got)
 
     def test_keep_checkout_row_missing_from_its_workflow_is_red(self):

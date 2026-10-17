@@ -12,7 +12,8 @@ fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1
 - 周をまたぐ時の新しい会話は、輪の 1 周目がいつも新しい会話であること（上の契約の行）で決まり、この試験では縛らない
 - 拒まれた所だけを出し直す輪（RESUBMIT）は、頭の節の resubmit で 1 回目の役と出し直しの役（<役>-fix）を振り分け、出し直しの役は
   1 回目の役の後ろの層で同じ起こし方・同じ型（required を外しただけ）・同じ prompt（FIX_PROMPT）で起き、受け付けは両方の返答を
-  if_skipped: null で受ける
+  if_skipped: null で受ける。plan-review の輪は単独の組（plan-review／plan-review-fix）と束ね役の組（plan-review-tree／
+  plan-review-tree-fix）の 2 組で、組ごとに頭の節の tree の条件が when に重なり、受け付けは 4 つの返答を if_skipped: null で受ける
 """
 import pathlib
 import unittest
@@ -32,18 +33,22 @@ FRESH_BY_DESIGN = {
 }
 
 
-# (ブロック, 輪) → (頭の節, 1 回目の役, 出し直しの役, 受け付け)
+# (ブロック, 輪) → (頭の節, 組の並び, 受け付け)。組は (1 回目の役, 出し直しの役, 頭の節の返りで振り分ける条件, 受け付けへの返答の名 2 つ)。
+# 組が 1 つの輪は条件が空で、返答の名は reply・fix_reply
+ONE = ("", ("reply", "fix_reply"))
 RESUBMIT = {
-    ("plan", "plan-loop"): ("plan-prep", "plan-writer", "plan-writer-fix", "plan-accept"),
-    ("plan-review", "review-loop"): ("review-prep", "plan-review", "plan-review-fix", "review-accept"),
-    ("judge", "spec-loop"): ("spec-reject", "spec", "spec-fix", "spec-accept"),
-    ("judge", "spec-review-loop"): ("spec-review-reject", "spec-review", "spec-review-fix", "spec-review-accept"),
-    ("judge", "spec-revise-loop"): ("spec-revise-reject", "spec-revise", "spec-revise-fix", "spec-revise-accept"),
-    ("judge", "rejudge-loop"): ("rejudge-reject", "rejudge", "rejudge-fix", "rejudge-accept"),
-    ("eyes", "r4-loop"): ("r4-reject", "r4-scope", "r4-scope-fix", "r4-accept"),
-    ("test-gate", "ci-loop"): ("ci-prep", "ci", "ci-fix", "ci-accept"),
+    ("plan", "plan-loop"): ("plan-prep", (("plan-writer", "plan-writer-fix", *ONE),), "plan-accept"),
+    ("plan-review", "review-loop"): ("review-prep", (
+        ("plan-review", "plan-review-fix", "tree != true", ("reply", "fix_reply")),
+        ("plan-review-tree", "plan-review-tree-fix", "tree == true", ("tree_reply", "tree_fix_reply"))), "review-accept"),
+    ("judge", "spec-loop"): ("spec-reject", (("spec", "spec-fix", *ONE),), "spec-accept"),
+    ("judge", "spec-review-loop"): ("spec-review-reject", (("spec-review", "spec-review-fix", *ONE),), "spec-review-accept"),
+    ("judge", "spec-revise-loop"): ("spec-revise-reject", (("spec-revise", "spec-revise-fix", *ONE),), "spec-revise-accept"),
+    ("judge", "rejudge-loop"): ("rejudge-reject", (("rejudge", "rejudge-fix", *ONE),), "rejudge-accept"),
+    ("eyes", "r4-loop"): ("r4-reject", (("r4-scope", "r4-scope-fix", *ONE),), "r4-accept"),
+    ("test-gate", "ci-loop"): ("ci-prep", (("ci", "ci-fix", *ONE),), "ci-accept"),
 }
-# 出し直しの役の prompt（YAML はブロックをまたいで文を共にできないので、8 つの節の字をこの 1 つに縛る）。brief は頭の節の指示書のパスの欄
+# 出し直しの役の prompt（YAML はブロックをまたいで文を共にできないので、9 つの節の字をこの 1 つに縛る）。brief は頭の節の指示書のパスの欄
 FIX_PROMPT = ("前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `{brief}` を Read で全部読み、その指示に従え。"
               "返すのは指示書の返し方の形の JSON だけ。")
 LAUNCH = ("model", "effort", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
@@ -115,30 +120,34 @@ class LoopSessionsTest(unittest.TestCase):
 
     def test_resubmit_loops_route_to_a_fix_role(self):
         """#571: 拒まれた周の次は、頭の節の resubmit が真なら 1 回目の役を飛ばし、出し直しの役が 1 回目の役の会話の続きで拒まれた所
-        だけを返す。受け付けはどちらの返答も受ける（起きなかった役は null）"""
+        だけを返す。受け付けはどの組の返答も受ける（起きなかった役は null）。plan-review の輪は単独と束ね役の 2 組を持ち、組ごとに
+        when に tree の条件が重なる。組の出し直しは、同じ組の 1 回目の後ろの層で、同じ起こし方・同じ型（required を外しただけ）・
+        同じ FIX_PROMPT で起きる"""
         found = {(block, n["id"]): n for block, n in loops()}
-        for (block, lid), (head, role, fix, accept) in RESUBMIT.items():
+        for (block, lid), (head, pairs, accept) in RESUBMIT.items():
             with self.subTest(block=block, loop=lid):
                 body = {n["id"]: n for n in found[(block, lid)]["loop_group"]["nodes"]}
                 self.assertEqual(found[(block, lid)]["loop_group"]["fresh_context"], False)
                 self.assertEqual(body[head]["with"]["prev"], f"$LOOP_PREV.{accept}.output.ok")
                 self.assertEqual(body[head]["output_format"]["properties"]["resubmit"], {"type": "boolean"})
-                first, again = body[role], body[fix]
-                self.assertEqual((first["when"], again["when"]),
-                                 (f"${head}.output.resubmit != true", f"${head}.output.resubmit == true"))
-                self.assertEqual((again["depends_on"], again["trigger_rule"]), ([head, role], "none_failed_min_one_success"))
-                self.assertNotIn("context", again)
-                self.assertEqual(again["prompt"], FIX_PROMPT.format(brief=f"${head}.output.brief"))
-                self.assertEqual({k: again.get(k) for k in LAUNCH}, {k: first.get(k) for k in LAUNCH})
-                shape, fixed = first["output_format"], dict(again["output_format"])
-                self.assertEqual(fixed.pop("required"), [])
-                extra = set(fixed["properties"]) - set(shape["properties"])
-                self.assertEqual({**fixed, "properties": {k: v for k, v in fixed["properties"].items() if k not in extra}},
-                                 {k: v for k, v in shape.items() if k != "required"})
+                for role, fix, cond, (reply_name, fix_name) in pairs:
+                    tail = f" && ${head}.output.{cond}" if cond else ""
+                    first, again = body[role], body[fix]
+                    self.assertEqual((first["when"], again["when"]),
+                                     (f"${head}.output.resubmit != true{tail}", f"${head}.output.resubmit == true{tail}"))
+                    self.assertEqual((again["depends_on"], again["trigger_rule"]), ([head, role], "none_failed_min_one_success"))
+                    self.assertNotIn("context", again)
+                    self.assertEqual(again["prompt"], FIX_PROMPT.format(brief=f"${head}.output.brief"))
+                    self.assertEqual({k: again.get(k) for k in LAUNCH}, {k: first.get(k) for k in LAUNCH})
+                    shape, fixed = first["output_format"], dict(again["output_format"])
+                    self.assertEqual(fixed.pop("required"), [])
+                    extra = set(fixed["properties"]) - set(shape["properties"])
+                    self.assertEqual({**fixed, "properties": {k: v for k, v in fixed["properties"].items() if k not in extra}},
+                                     {k: v for k, v in shape.items() if k != "required"})
+                    self.assertEqual((body[accept]["with"][reply_name], body[accept]["with"][fix_name]),
+                                     ({"from": f"${role}.output", "if_skipped": None}, {"from": f"${fix}.output", "if_skipped": None}))
                 self.assertEqual((body[accept]["depends_on"], body[accept]["trigger_rule"]),
-                                 ([role, fix], "none_failed_min_one_success"))
-                self.assertEqual((body[accept]["with"]["reply"], body[accept]["with"]["fix_reply"]),
-                                 ({"from": f"${role}.output", "if_skipped": None}, {"from": f"${fix}.output", "if_skipped": None}))
+                                 ([x for pair in pairs for x in pair[:2]], "none_failed_min_one_success"))
 
     def test_parallel_head_is_caught(self):
         """見本: 頭に依存の無い節が 2 つ在る輪は赤"""
