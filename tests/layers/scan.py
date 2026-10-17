@@ -7,6 +7,7 @@
 - E22: 組んで作る名・`importlib` の読み込み・YAML に直に書いた script の import・日本語の役の呼び名・素のブロックの名
 """
 import ast
+import collections
 import functools
 import json
 import posixpath
@@ -40,7 +41,6 @@ ARCHON_WORDS = re.compile(
     r"(?i:archon)|ARTIFACTS_DIR|TYPED_ARTIFACTS_FILE|output_type|(?<![A-Za-z0-9_])INPUTS_[A-Z0-9_]+|WORKFLOW_ID|\$LOOP_PREV"
     r"|loop_group|\$[A-Za-z_][\w-]*\.output\b"
 )
-BIN_IMPORT = re.compile(r"^\s*(from|import)\s+bin\b")
 
 REPO = Path(__file__).resolve().parents[2]
 # 層の地図（根の AGENTS.md の E22）。試験の小さな木にも、このリポジトリの地図を当てる
@@ -371,7 +371,7 @@ def _block_paths(root: Path) -> list[str]:
     script は同じ `scripts/` の別の script を import せず（K8）、script の名は lib のモジュールの名と重ならない（script のフォルダが
     sys.path の頭に来るので、`import <名>` が lib の物でなく script を読む。K19）。
     """
-    out = _script_imports(root) + _script_names(root) + _input_producers(root) + _graph_bin_imports(root)
+    out = _script_imports(root) + _script_names(root) + _input_producers(root)
     blocks = [p.name for p in _blocks(root)]
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
@@ -399,12 +399,6 @@ def _block_paths(root: Path) -> list[str]:
                     elif is_script and not resolved.startswith(allowed):
                         out.append(f"{rel}:{number}: 相対パス {target} が lib/・workflows/.shared/・自分のブロックの外を指す")
     return out
-
-
-def _graph_bin_imports(root: Path) -> list[str]:
-    """グラフ（script・境・YAML に直に書いた script）は起動の殻の bin を import しない。Archon の上で動く物が Archon の外の殻に頼らない"""
-    code = (p for p in _files(root, "workflows") if p.suffix in (".py", ".yaml", ".yml"))
-    return _grep(root, code, (BIN_IMPORT, lambda m: "bin の中の物を import する"))
 
 
 MAIN_GRAPH_WORD = "メイングラフ"
@@ -1384,9 +1378,10 @@ def _module_layer(root: Path, name: str) -> tuple[str, str] | None:
 
 
 def _imports_against_map(root: Path, files) -> list[str]:
+    """.py と、YAML の行（直に書いた script の import。YAML の字の中の import の形の行を script と見分けずに数える）"""
     out = []
     for path, rel, layer, place in files:
-        if path.suffix != ".py":
+        if path.suffix not in (".py", ".yaml", ".yml"):
             continue
         lines, _ = _lines(root, path)
         for number, line in enumerate(lines, 1):
@@ -1405,8 +1400,14 @@ def _imports_against_map(root: Path, files) -> list[str]:
 
 
 def _beside_names(root: Path, files) -> list[str]:
-    owner = {name: block for block, names in LAYER_MAP["beside"].items() for name in names}
-    pattern = re.compile(r"(?<!(?a:[\w\-.]))(" + "|".join(re.escape(n) for n in sorted(owner, key=len, reverse=True))
+    """名は複数のブロックの隣に在ってよい。名の `<k>` の形の段は、名の 1 段の字に当てる（`tdd-<k>/state.json`）"""
+    owners = collections.defaultdict(set)
+    for block, names in LAYER_MAP["beside"].items():
+        for name in names:
+            owners[name].add(block)
+    names = sorted(owners, key=len, reverse=True)
+    pattern = re.compile(r"(?<!(?a:[\w\-.]))(?:" + "|".join(
+        f"(?P<n{i}>" + re.sub(r"<[^>]*>", r"[^/\\s'\"`]+", re.escape(name)) + ")" for i, name in enumerate(names))
                          + r")(?!(?a:[\w\-]|\.\w))")
     out = []
     for path, rel, _, place in files:
@@ -1414,8 +1415,9 @@ def _beside_names(root: Path, files) -> list[str]:
         out += broken
         for number, line in enumerate(lines, 1):
             for match in pattern.finditer(line):
-                if place != f"workflows/{owner[match[1]]}/":
-                    out.append(f"{rel}:{number}: ブロック {owner[match[1]]} の隣のファイル {match[1]} を名指す")
+                name = names[int(match.lastgroup[1:])]
+                if place not in {f"workflows/{block}/" for block in owners[name]}:
+                    out.append(f"{rel}:{number}: ブロック {'・'.join(sorted(owners[name]))} の隣のファイル {name} を名指す")
     return out
 
 

@@ -1,13 +1,16 @@
 """層の地図 docs/layers.json に反する頼りが、地図の既知の漏れの表（known）とちょうど揃う（根の AGENTS.md の E22 の機械の行）。
 
 照らしは 4 つ（tests/layers/scan.py の layer_hits）: Python の import の向き・ほかのブロックの隣のファイルの名・lib とブロックの中の
-メイングラフのノードの id・指示書と入力の説明の中のほかのブロックと役の名。ファイルごとの行の数が表より増えても・減っても・表に無い
-ファイルが出ても赤（直したら表から消す）。表そのものも、HEAD と origin/main の分かれ目の表より、照らしごとの行の数の和が増えず、
-分かれ目の表に無いファイルも、分かれ目より多い行の数も出ない（考えの住処の柵の NotAboveMain と同じ歯止め）。分かれ目に地図が無ければ
+メイングラフのノードの id・指示書と入力の説明の中のほかのブロックと役の名。ファイルごとの当たりの数が表より増えても・減っても・表に
+無いファイルが出ても赤（直したら表から消す）。表そのものも、HEAD と origin/main の分かれ目の表より、照らしごとの当たりの数の和が増えず、
+分かれ目の表に無いファイルも、分かれ目より多い当たりの数も出ない。地図を緩めた所は、地図の loosened に新しい訳の行が無ければ赤
+（考えの住処の柵の NotAboveMain と loosened と同じ歯止め）。分かれ目に地図が無ければ
 比べない（柵を初めて入れる差分）。分かれ目を引けなければ見送らずに赤（CI は全履歴を取る）。
 """
 import collections
+import copy
 import pathlib
+import re
 import sys
 import unittest
 
@@ -30,20 +33,45 @@ def verdict(hits: dict, known: dict) -> list[str]:
         for path in sorted(set(found) | set(rows)):
             if found[path] != rows.get(path, 0):
                 lines = [line for line in hits[check] if line.startswith(f"{path}:")]
-                out.append(f"{check}: {path} は表 {rows.get(path, 0)} 行、木 {found[path]} 行 {lines}")
+                out.append(f"{check}: {path} は表 {rows.get(path, 0)}、木 {found[path]} {lines}")
     return out
 
 
 def growth(main: dict, now: dict) -> list[str]:
-    """main の表より増えた所（照らしごとの行の数の和・main に無いファイル・ファイルごとの行の数）"""
+    """main の地図より増えた・緩めた所: known の照らしごとの当たりの数の和・main に無いファイル・ファイルごとの当たりの数と、
+    loosened の緩めのうち地図の loosened に新しい訳の行が無い物"""
     out = []
     for check in scan.LAYER_CHECKS:
-        before = {path: n for path, (n, _why) in main.get(check, {}).items()}
-        after = {path: n for path, (n, _why) in now.get(check, {}).items()}
+        before = {path: n for path, (n, _why) in main["known"].get(check, {}).items()}
+        after = {path: n for path, (n, _why) in now["known"].get(check, {}).items()}
         if sum(after.values()) > sum(before.values()):
-            out.append(f"{check}: 行の数の和が {sum(before.values())} から {sum(after.values())} に増えた")
-        out += [f"{check}: {path} が {before.get(path, 0)} 行から {n} 行に増えた" for path, n in sorted(after.items())
+            out.append(f"{check}: 当たりの数の和が {sum(before.values())} から {sum(after.values())} に増えた")
+        out += [f"{check}: {path} が {before.get(path, 0)} から {n} に増えた" for path, n in sorted(after.items())
                 if n > before.get(path, 0)]
+    return out + cf.unexplained(main, now, loosened(main, now))
+
+
+def loosened(main: dict, now: dict) -> list[tuple[str, str]]:
+    """main の地図より緩めた所の (鍵, 文): 層が消えた・層の paths が変わった・may_use が増えた・independent が外れた・names が減った、
+    outside が増えた、beside の名が減った。known を減らさずに地図の側で違反を通す道を塞ぐ"""
+    layers = {layer["id"]: layer for layer in now["layers"]}
+    out = []
+    for old in main["layers"]:
+        lid = old["id"]
+        new = layers.get(lid)
+        if new is None:
+            out.append((f"layer:{lid}", f"層 {lid} が地図から消えた"))
+            continue
+        if new["paths"] != old["paths"]:
+            out.append((f"paths:{lid}", f"層 {lid} の paths が {old['paths']} から {new['paths']} に変わった"))
+        out += [(f"may_use:{lid}:{u}", f"層 {lid} の may_use に {u} が増えた") for u in new["may_use"] if u not in old["may_use"]]
+        if old.get("independent") and not new.get("independent"):
+            out.append((f"independent:{lid}", f"層 {lid} の independent が外れた"))
+        out += [(f"names:{lid}:{n}", f"層 {lid} の names から {n} が減った") for n in old.get("names", [])
+                if n not in new.get("names", [])]
+    out += [(f"outside:{p}", f"outside に {p} が増えた") for p in now["outside"] if p not in main["outside"]]
+    out += [(f"beside:{block}:{n}", f"beside の {block} から {n} が減った") for block, names in main["beside"].items()
+            for n in names if n not in now["beside"].get(block, [])]
     return out
 
 
@@ -90,6 +118,15 @@ class MapCase(unittest.TestCase):
     def test_beside_owners_are_blocks(self):
         self.assertLessEqual(set(scan.LAYER_MAP["beside"]), set(scan.LAYERS["block"]["names"]))
 
+    def test_beside_names_match_the_design_promise(self):
+        """地図の beside の名の集まりは、docs/design.md の「サブグラフの出力の約束」の、ほかのサブグラフも名で開く隣のファイルの
+        名の集まりと等しい。約束の文の字の名（`*.json`・`*.jsonl`）から、欄の指す先（`<欄>`（`<ファイル>`）の形）を除いて読む"""
+        line = next(line for line in (ROOT / "docs/design.md").read_text(encoding="utf-8").splitlines()
+                    if "ほかのサブグラフもこの名で開く" in line)
+        named = set(re.findall(r"`([^`\s]+\.jsonl?)`", line))
+        pointed = set(re.findall(r"`[\w-]+`（`([^`\s]+\.jsonl?)`）", line))
+        self.assertEqual({n for names in scan.LAYER_MAP["beside"].values() for n in names}, named - pointed)
+
     def test_known_rows_have_count_and_reason(self):
         self.assertEqual(set(scan.LAYER_MAP["known"]), set(scan.LAYER_CHECKS))
         for check, rows in scan.LAYER_MAP["known"].items():
@@ -121,11 +158,16 @@ class ImportCase(unittest.TestCase):
     """Python の import の向き"""
 
     def test_graph_importing_the_shell_is_red(self):
-        for rel in ("workflows/line/scripts/a.py", "workflows/judge/scripts/a.py", "workflows/.shared/a.py", "lib/a.py"):
+        """script・境・lib と、YAML に直に書いた script のどれから bin を読んでも赤"""
+        for rel in ("workflows/line/scripts/a.py", "workflows/judge/scripts/a.py", "workflows/.shared/a.py", "lib/a.py",
+                    "workflows/judge/works-factory-judge.yaml"):
             with self.subTest(rel=rel):
                 got = hits({rel: "def f():\n    from bin._lib import childsweep\n"}, "import")
                 self.assertEqual(len(got), 1, got)
                 self.assertTrue(got[0].startswith(f"{rel}:2:") and "層 shell" in got[0], got)
+        yaml = "name: works-factory-judge\nnodes:\n  - id: a\n    script: |\n      import bin._lib.place\n"
+        got = hits({"workflows/judge/works-factory-judge.yaml": yaml}, "import")
+        self.assertEqual(len(got), 1, got)
 
     def test_block_importing_another_block_is_red(self):
         got = hits({"workflows/judge/scripts/a.py": "from workflows.plan.scripts import b\n"}, "import")
@@ -138,7 +180,8 @@ class ImportCase(unittest.TestCase):
         self.assertIn("層 shared", got[0])
 
     def test_downward_imports_are_clean(self):
-        files = {"workflows/judge/scripts/a.py": "import boundary\nimport startrec\nimport os\n", "workflows/.shared/boundary.py": "",
+        files = {"workflows/judge/scripts/a.py": "import boundary\nimport startrec\nimport os\nimport binascii\n",
+                 "workflows/.shared/boundary.py": "",
                  "lib/startrec.py": "import json\n", "bin/_lib/x.py": "from lib import startrec\n"}
         self.assertEqual(hits(files, "import"), [])
 
@@ -157,6 +200,23 @@ class BesideCase(unittest.TestCase):
         files = {"workflows/judge/scripts/a.py": 'X = "premises.json"\n',
                  "workflows/plan/scripts/a.py": 'X = "rejects-premises.json"\nY = "premises.jsonl"\n'}
         self.assertEqual(hits(files, "beside"), [])
+
+    def test_name_beside_two_blocks_is_clean_in_both(self):
+        files = {"workflows/plan/scripts/a.py": 'X = "replan-gave-up.json"\n',
+                 "workflows/plan-review/scripts/a.py": 'X = "replan-gave-up.json"\n'}
+        self.assertEqual(hits(files, "beside"), [])
+        got = hits({"lib/a.py": 'X = "replan-gave-up.json"\n'}, "beside")
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("ブロック plan・plan-review の隣のファイル replan-gave-up.json", got[0])
+
+    def test_name_with_a_step_matches_any_step(self):
+        for text in ('"tdd-<k>/state.json"', 'f"tdd-{k}/state.json"', "tdd-g1/state.json"):
+            with self.subTest(text=text):
+                got = hits({"lib/a.py": f"X = {text}\n"}, "beside")
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("tdd-<k>/state.json", got[0])
+        self.assertEqual(hits({"workflows/fix/scripts/a.py": 'X = "tdd-g1/state.json"\n', "lib/a.py": 'X = "state.json"\n'},
+                              "beside"), [])
 
     def test_path_into_another_place_still_counts(self):
         got = hits({"workflows/line/scripts/a.py": "# R/rejudge-exit.json を読む\n"}, "beside")
@@ -219,15 +279,48 @@ class NotAboveMain(unittest.TestCase):
             self.fail(f"分かれ目 {fork} の層の地図を引けない: {why}")
         if "known" not in main:
             return
-        self.assertEqual(growth(main["known"], scan.LAYER_MAP["known"]), [])
+        self.assertEqual(growth(main, scan.LAYER_MAP), [])
 
     def test_growth_is_red(self):
-        main = {"import": {"a.py": [1, "訳"]}, "role": {"b.md": [2, "訳"]}}
-        self.assertEqual(growth(main, {"role": {"b.md": [1, "訳"]}}), [])
-        self.assertTrue(growth(main, {"import": {"a.py": [2, "訳"]}}))
-        self.assertTrue(growth(main, {"import": {"c.py": [1, "訳"]}, "role": {"b.md": [1, "訳"]}}),
+        main = self.map({"import": {"a.py": [1, "訳"]}, "role": {"b.md": [2, "訳"]}})
+        self.assertEqual(growth(main, self.map({"role": {"b.md": [1, "訳"]}})), [])
+        self.assertTrue(growth(main, self.map({"import": {"a.py": [2, "訳"]}})))
+        self.assertTrue(growth(main, self.map({"import": {"c.py": [1, "訳"]}, "role": {"b.md": [1, "訳"]}})),
                         "和が増えなくても main に無いファイルは赤")
 
+    def test_loosening_the_map_is_red_without_a_new_reason(self):
+        """地図を緩めて known を減らす道（outside に足して表の行を消す、など）も赤。地図の loosened に新しい訳が在れば通す"""
+        main = self.map({})
+        cases = {
+            "outside:lib/answer.py": lambda m: m["outside"].append("lib/answer.py"),
+            "may_use:lib:shell": lambda m: m["layers"][-1]["may_use"].append("shell"),
+            "paths:lib": lambda m: m["layers"][-1]["paths"].append("bin/x/"),
+            "independent:block": lambda m: m["layers"][0].pop("independent"),
+            "names:block:plan": lambda m: m["layers"][0]["names"].remove("plan"),
+            "layer:lib": lambda m: m["layers"].pop(),
+            "beside:fix:tdd-unit.json": lambda m: m["beside"]["fix"].remove("tdd-unit.json"),
+        }
+        for key, loosen in cases.items():
+            with self.subTest(key=key):
+                now = copy.deepcopy(main)
+                loosen(now)
+                got = growth(main, now)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(key, got[0])
+                now["loosened"] = {key: "訳"}
+                self.assertEqual(growth(main, now), [])
+                self.assertTrue(growth(main | {"loosened": {key: "訳"}}, now), "main に在る訳の行では通さない")
+        tightened = copy.deepcopy(main)
+        tightened["outside"].clear()
+        tightened["layers"][0]["names"].append("new")
+        self.assertEqual(growth(main, tightened), [])
+
+    @staticmethod
+    def map(known: dict) -> dict:
+        return {"layers": [{"id": "block", "paths": ["workflows/*/"], "may_use": ["lib"], "independent": True,
+                            "names": ["plan", "fix"]},
+                           {"id": "lib", "paths": ["lib/"], "may_use": []}],
+                "outside": ["lib/tests/"], "beside": {"fix": ["tdd-unit.json"]}, "known": known}
 
 if __name__ == "__main__":
     unittest.main()
