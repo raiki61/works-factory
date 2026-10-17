@@ -517,21 +517,6 @@ class RunScriptCase(ScriptCase):
         self.assertEqual(self.ok("run", mode="final", start=self.start)["by"], declared_checks.ROLE_NEEDED)
         self.assertFalse(userenv.ran(self.artifacts))
 
-    def test_declared_setup_makes_a_place_trusting_tool_run(self):
-        """場所ごとに信頼する道具（利用者の HOME の下の信頼の一覧に cwd の実パスが在る時だけ 0 で抜ける）は、宣言の setup が一覧に cwd を
-        書けば、殻の隔離を通した base の段が 0 で走る。setup が無ければ同じ道具は 3 で落ちる"""
-        self.as_user()
-        tool = self.tmp / "bin" / "trusting"
-        tool.write_text('#!/bin/sh\ngrep -qxF "$(pwd -P)" "$HOME/.config/trust/list" 2>/dev/null && exit 0\n'
-                        'echo "untrusted: $(pwd -P)" >&2\nexit 3\n', encoding="utf-8")
-        tool.chmod(0o755)
-        trust = [PY, "-c", "import os, pathlib; p = pathlib.Path(os.environ['HOME'], '.config', 'trust', 'list'); "
-                           "p.parent.mkdir(parents=True, exist_ok=True); open(p, 'a').write(os.path.realpath(os.getcwd()) + chr(10))"]
-        self.decl([{"name": "suite", "argv": [str(tool)]}])
-        self.assertEqual([r["exit"] for r in self.ok("run", mode="base", start=self.start)["runs"]], [3])
-        self.decl([{"name": "suite", "argv": [str(tool)]}], setup=[trust])
-        self.assertEqual([r["exit"] for r in self.ok("run", mode="base", start=self.start)["runs"]], [0])
-
     def scoped(self):
         """種に far・near の宣言と、far が works/ を見ない範囲の宣言を commit する"""
         (self.repo / ".works-checks.json").write_text('{"far": {"paths_ignore": ["works/"]}}', encoding="utf-8")
@@ -1149,6 +1134,29 @@ class ResultScriptCase(ScriptCase):
         self.assertIn("no-such-tool", out["reason"])
         self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
         self.assertIn(declared_checks.declared.SETUP_HINT, self.pointed(out["evidence"]).read_text(encoding="utf-8"))
+
+    def test_place_trusting_tool_stops_the_base_until_setup_trusts_the_place(self):
+        """場所ごとに信頼する道具（利用者の HOME の下の信頼の一覧に cwd の実パスが在る時だけ試験の報告を書いて 0 で抜ける）は、準備を
+        宣言しなければ試験に入る前に 3 で落ち、base は ok が false で止まる。reason に道具の誤りの文と準備の案（SETUP_HINT）が載る。
+        宣言の setup が一覧に cwd を書けば、殻の隔離を通した base の段が 0 で走り、ok が true"""
+        self.as_user()
+        tool = self.tmp / "bin" / "trusting"
+        tool.write_text('#!/bin/sh\nif grep -qxF "$(pwd -P)" "$HOME/.config/trust/list" 2>/dev/null; then\n'
+                        "  mkdir -p out && echo '<testsuite><testcase classname=\"m\" name=\"a\"/></testsuite>' > out/r.xml && exit 0\n"
+                        'fi\necho "untrusted: $(pwd -P)" >&2\nexit 3\n', encoding="utf-8")
+        tool.chmod(0o755)
+        trust = [PY, "-c", "import os, pathlib; p = pathlib.Path(os.environ['HOME'], '.config', 'trust', 'list'); "
+                           "p.parent.mkdir(parents=True, exist_ok=True); open(p, 'a').write(os.path.realpath(os.getcwd()) + chr(10))"]
+        step = {"name": "suite", "argv": [str(tool)], "junit": "out/r.xml"}
+        self.decl([step])
+        run, out = self.stopped_base()
+        self.assertEqual(([r["exit"] for r in run["runs"]], run["material"]["status"]), ([3], "not_run"))
+        self.assertIn("untrusted: ", out["reason"])
+        self.assertIn(declared_checks.declared.SETUP_HINT, out["reason"])
+        self.decl([step], setup=[trust])
+        run = self.ok("run", mode="base", start=self.start)
+        self.assertEqual(([r["exit"] for r in run["runs"]], run["material"]["status"]), ([0], "clean"))
+        self.assertTrue(self.result("base")["ok"])
 
     def test_base_whose_test_cmd_cannot_start_stops(self):
         """宣言が無く test_cmd を起こせない（無いコマンド）base は、by が role・素材が not_run で、返す節の ok が false"""
