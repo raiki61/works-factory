@@ -21,7 +21,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 PLUGIN = "pr-review-toolkit"
 NAMES = sorted(BORROWED_SKILLS | BUILTIN_SKILLS | {PLUGIN})
 NAMED = re.compile(r"(?<![\w-])(" + "|".join(map(re.escape, NAMES)) + r")(?![\w-])")
-OVERLAY = ("元の unattended.md（借りた superpowers を無人の役で読む時の読み替え）の写しで、K9 により元の字のまま。"
+OVERLAY = ("元の unattended.md（借りた superpowers を無人の役で読む時の読み替え）の写しで、K9 により元の字のまま（手直しは写しの台帳 lib/borrow/COPIED_FROM の物だけ）。"
            "借りる skill を読める役の一覧と読み替えを述べるだけで、local-review に借りる skill を使えとは言わない。"
            "写しを載せる所（借りる skill を名指す役の指示書の末尾）を直す。区分 J。区分の issue で外す")
 

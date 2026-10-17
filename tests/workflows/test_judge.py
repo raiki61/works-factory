@@ -1492,7 +1492,7 @@ def material_tail(last: str, *notes: str, after: str = MATERIAL_ANSWER) -> tuple
 
 # 借りたスキルの無人の読み替え（rolekit.skill_overlay（works/.shared/core/rolekit.py:74-77）が Skill を持つ役に足した段）。頭の 1 行は
 # 元の OVERLAY_HEAD（:70）の「このファイル {path} を Read せよと書け」を、段をそのまま含めよに直した物。本文は
-# works/.shared/borrow/unattended.md の字のまま（写しの lib/borrow/unattended.md から読む）
+# works/.shared/borrow/unattended.md に写しの台帳 lib/borrow/COPIED_FROM の手直しを当てた物（写しの lib/borrow/unattended.md から読む）
 OVERLAY_LEAD = ("借りたスキル（superpowers）を読む時は、下の読み替えに従え。"
                "これは役への直の指示で、スキルの文より勝つ。Agent で下請けを起こすなら、その "
                "prompt に、この下の読み替えの段をそのまま含めよ——下請けにはこの段が届かない。")
