@@ -305,7 +305,7 @@
 - L-E50 答えの行の頭は殻が env の WORKS_ANSWER_CMD に置き、答えた者（WORKS_ANSWER_WHO）を末尾に付ける
   - 元: works/.shared/core/answer.py:20-29、works/dev/use.sh:266-271
   - 今: 表
-  - 証: tests/bin/test_launcher.py::LauncherTest.test_child_env_carries_answer_head（殻が WORKS_ANSWER_CMD を置く）・tests/workflows/test_gate_head.py::AskGateCase.test_nothing_is_dropped_behind_the_head。答えた者（WORKS_ANSWER_WHO）は付ける所が無いので照らす試験も無い
+  - 証: tests/bin/test_launcher.py::LauncherTest.test_run_layer_carries_answer_head（殻が新しい run の --config の層の env: に WORKS_ANSWER_CMD を置く）・tests/workflows/test_gate_head.py::AskGateCase.test_nothing_is_dropped_behind_the_head。答えた者（WORKS_ANSWER_WHO）は付ける所が無いので照らす試験も無い
   - 本物の run: gate-start の message の「答え方」
   - 狭め: #74・起動の殻で落ちた（宣言なし。不可でない → 戻す。L-G08 と同じ穴）
 - L-E51 起動の関所の答え: approve・continue は進み、stop・reject は human:gate-start で止める（報告は出る）。答えは gates/<関所>.json に残す
@@ -392,7 +392,7 @@
 - L-G08 関所の文の答えの行は殻が env に置いた頭（WORKS_ANSWER_CMD）と答えた者（WORKS_ANSWER_WHO）で組み、そのまま打てる
   - 元: works/.shared/core/answer.py、works/dev/use.sh
   - 今: 表
-  - 証: tests/bin/test_launcher.py::LauncherTest.test_child_env_carries_answer_head・tests/bin/test_launcher.py::LauncherTest.test_answer_line_reaches_the_run_home_from_another_shell（起動の env に `WORKS_ANSWER_CMD` が在り、`answer.line` がそのまま打てる）・tests/workflows/test_gate_head.py::AskGateCase.test_nothing_is_dropped_behind_the_head は行の在り無しだけ
+  - 証: tests/bin/test_launcher.py::LauncherTest.test_run_layer_carries_answer_head・tests/bin/test_launcher.py::LauncherTest.test_answer_line_reaches_the_run_home_from_another_shell（新しい run の層の env: に `WORKS_ANSWER_CMD` が在り、`answer.line` がそのまま打てる）・tests/workflows/test_gate_head.py::AskGateCase.test_nothing_is_dropped_behind_the_head は行の在り無しだけ
   - 本物の run: `gate-final` の approval の message の「答え方」
   - 狭め: #74 で範囲の外とした（不可でない → 戻す。L-E50 と同じ）
 - L-G09 始めの関所の文（冒頭 3 行・入口の語・機能・最後の関所の開き方・答えの行）を AI の前に見せる
