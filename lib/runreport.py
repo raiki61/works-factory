@@ -94,7 +94,7 @@ DETAIL_FILE = "report-detail.md"        # 人に向けた報告から外した�
 # 書き手のループが落ちて AI の本文が無い訳の 1 行（note_writer_fell。行の頭で前の周に置いた行を見分ける）
 WRITER_FELL = "AI が書く報告の本文は無い。書き手のノードが落ちた（{error}）。この機械の報告が報告の全部"
 WRITER_QUOTA = ("。使用枠が切れて落ちたので、別のアカウントで run を resume すれば本文を書き直して報告に載せる"
-                "（WORKS_FACTORY_KEYCHAIN_ITEM=<keychain の項目名> bin/works-factory workflow resume {run_id}）")
+                "（{command}。周の鎖 works-factory-chain が起こした run なら、この run でなく鎖の run を resume する）")
 QUOTA_CLASS = "quota_exhausted"         # 実行基盤の provider の落ちの種のうち、使用枠が切れた物
 NOTE_ROUND = "r{n}"                     # 周ごとのフォルダ（拒んだ回の書き手の引き継ぎのメモを置く。n は輪の今の回 rolekit.attempt）
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
@@ -2057,13 +2057,14 @@ def writer_fell(rows, step: str) -> dict | None:
 
 def note_writer_fell(machine, fell: dict | None, *, run_id: str) -> None:
     """機械の報告のファイル machine の冒頭（machine_head と同じ所）の終わりに、書き手のループが落ちた訳 fell（writer_fell の返り）の
-    1 行を置く。前の周（resume の前）に置いた行は外す（facts は resume で走り直さないので、書き直した run に古い訳を残さない）"""
+    1 行を置く。前の周（resume の前）に置いた行は外す（facts は resume で走り直さないので、書き直した run に古い訳を残さない）。
+    fell が None なら外すだけで、何度呼んでも同じ（書き手のループの頭の節が、書き手より前に呼ぶ）"""
     path = pathlib.Path(machine)
     text = path.read_text(encoding="utf-8")
     head, sep, rest = text.partition("\n## ")
     mark = WRITER_FELL.partition("{error}")[0]
     kept = "\n".join(x for x in head.splitlines() if not x.startswith(mark)).rstrip()
-    line = (WRITER_FELL.format(error=fell["error"]) + (WRITER_QUOTA.format(run_id=run_id) if fell["quota"] else "")
+    line = (WRITER_FELL.format(error=fell["error"]) + (WRITER_QUOTA.format(command=answer.resume(run_id)) if fell["quota"] else "")
             if fell else "")
     new = kept + (f"\n\n{line}" if line else "") + "\n" + (f"\n## {rest}" if sep else "")
     if new != text:

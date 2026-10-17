@@ -35,6 +35,7 @@ if str(LIB) not in sys.path:
 if str(LIB / "graphloops") not in sys.path:
     sys.path.append(str(LIB / "graphloops"))
 
+import answer  # noqa: E402
 import converge  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
@@ -274,7 +275,7 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(NODES["report"]["depends_on"], ["facts", "write-loop"])
 
     def test_return_node_names_the_writer_loop_of_this_graph(self):
-        self.assertEqual(NODES[load_script("collect").WRITER]["loop_group"]["nodes"][1]["id"], "write")
+        self.assertIn("write", [n["id"] for n in NODES[load_script("collect").WRITER]["loop_group"]["nodes"]])
 
     def test_cold_reader_is_told_the_machine_heading(self):
         """初見の読み手の決まりが名指す機械の事実の見出しは、AI の報告が付ける見出しの字そのまま"""
@@ -706,6 +707,25 @@ class AcceptScriptCase(Run):
 
 
 class RejectScriptCase(Run):
+    FELL = runreport.WRITER_FELL.format(error="used up")
+
+    def setUp(self):
+        """書き手のループは facts が機械の報告を書いた run でだけ走る（when: ai_go）"""
+        super().setUp()
+        self.machine = self.artifacts / runreport.OUT_DIR / report.REPORT_FILE
+        self.machine.parent.mkdir()
+        self.machine.write_text(f"# 報告（run {RUN}）\n\n起きたこと\n\n## 1. 結末\n\n本文\n", encoding="utf-8")
+
+    def test_old_fallen_writer_note_is_dropped_before_the_writer(self):
+        """#702: resume で走り直す輪の頭の節は、前の run の返す節が置いた「本文は無い」の行を書き手と初見の読み手より前に外す"""
+        before = self.machine.read_text(encoding="utf-8")
+        runreport.note_writer_fell(self.machine, {"error": "used up", "quota": True}, run_id=RUN)
+        self.assertIn(self.FELL, self.machine.read_text(encoding="utf-8"))
+        for _ in range(2):
+            code, _ = self.run_script("reject", INPUTS_REASON="", INPUTS_PREV="")
+            self.assertEqual(code, 0)
+            self.assertEqual(self.machine.read_text(encoding="utf-8"), before)
+
     def test_previous_answer_passes_through(self):
         for reason, prev in (("", ""), ("2 行目", "report/candidate-report.json")):
             with self.subTest(prev=prev):
@@ -822,7 +842,7 @@ class CollectScriptCase(Run):
         self.assertIsNone(out["report_ai"])
         head = runreport.machine_head((self.artifacts / out["report"]["path"]).read_text(encoding="utf-8"))
         self.assertIn(runreport.WRITER_FELL.format(error=error), head)
-        self.assertIn(f"workflow resume {RUN}", head)
+        self.assertIn(answer.resume(RUN, env={}), head)
         with log.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"type": "node_complete", "step": "report__write-loop"}) + "\n")
         runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / runreport.OUT_DIR)
@@ -1093,9 +1113,12 @@ class WriterRunCase(unittest.TestCase):
         """(run の行, 節の出来事 (種, 節) の並び)"""
         runs = json.loads(archon.archon(tree, "workflow", "runs", "--json", "--cwd", str(tree)).stdout)["runs"]
         self.assertEqual(len(runs), 1, said)
-        got = json.loads(archon.archon(tree, "workflow", "get", runs[0]["id"], "--json", "--verbose", "--events",
-                                       "--cwd", str(tree)).stdout)
-        return runs[0], [(e["event_type"], e["step_name"]) for e in got["events"] if e["event_type"].startswith("node_")]
+        return runs[0], [(e["event_type"], e["step_name"]) for e in self.events(tree, runs[0]["id"])
+                         if e["event_type"].startswith("node_")]
+
+    def events(self, tree, run_id) -> list:
+        return json.loads(archon.archon(tree, "workflow", "get", run_id, "--json", "--verbose", "--events",
+                                        "--cwd", str(tree)).stdout)["events"]
 
     def written(self, tree, run_id) -> dict:
         """run の置き場の report/ のファイルの名 → 中身"""
@@ -1118,18 +1141,22 @@ class WriterRunCase(unittest.TestCase):
             resumed = self.drive(tree, "resume", run["id"], token="FRESH")
             again, both = self.state(tree, f"{resumed.stdout}{resumed.stderr}")
             files = self.written(tree, run["id"])
+            prepped = [json.loads(e["data"]["node_output"])["body"] for e in self.events(tree, run["id"])
+                       if (e["event_type"], e["step_name"]) == ("node_completed", "report__write-loop.cold-prep")]
         self.assertEqual(run["status"], "failed", first)
         self.assertIn(("node_failed", "report__write-loop"), first)
         self.assertIn(("node_completed", "report__report"), first, "返す節は書き手が落ちても走る")
         self.assertNotIn(runreport.AI_REPORT_FILE, fallen)
         head = runreport.machine_head(fallen[report.REPORT_FILE])
         self.assertIn("AI が書く報告の本文は無い。書き手のノードが落ちた（Loop-group node 'report__write-loop' failed", head)
-        self.assertIn(f"workflow resume {run['id']}", head)
+        self.assertIn(answer.resume(run["id"], env={}), head)
         self.assertEqual(again["status"], "completed", f"{resumed.stdout}{resumed.stderr}")
         later = both[len(first):]
         for ran in ("report__write-loop", "report__report", "after"):
             self.assertIn(("node_completed", ran), later)
         self.assertNotIn(("node_completed", "report__facts"), later, "facts は走り直さない")
+        self.assertEqual(len(prepped), 1, both)
+        self.assertNotIn("AI が書く報告の本文は無い", prepped[0], "初見の読み手に貼る本文に前の run の訳を残さない")
         self.assertIn(runreport.AI_REPORT_FILE, files)
         for name in (report.REPORT_FILE, runreport.AI_REPORT_FILE):
             self.assertNotIn("AI が書く報告の本文は無い", files[name], name)

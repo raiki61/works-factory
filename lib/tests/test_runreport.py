@@ -16,6 +16,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import answer  # noqa: E402
 import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import declared_checks  # noqa: E402
@@ -732,7 +733,8 @@ class WriterFellCase(unittest.TestCase):
         lines = [x for x in self.head().splitlines() if x.startswith("AI が書く報告の本文は無い")]
         self.assertEqual(len(lines), 1, "前の周の訳を置き換える")
         self.assertIn("used up", lines[0])
-        self.assertIn("bin/works-factory workflow resume run-1", lines[0])
+        self.assertIn(answer.resume("run-1"), lines[0])
+        self.assertIn("鎖の run を resume する", lines[0])
 
     def test_rewritten_run_drops_the_note_and_untouched_report_stays(self):
         runreport.note_writer_fell(self.machine, None, run_id="run-1")
