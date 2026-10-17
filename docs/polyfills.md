@@ -31,6 +31,10 @@
 - remote（`origin`）の無い対象のリポジトリでは、子の作業ツリーが切れない（`no git remote is configured`。親の run そのものも remote が無いと作業ツリーを切れない）。fix は remote が在る時だけ組を並べ、無い時は親の作業ツリーで 1 つずつ回す（`groups-seq`）。埋めは要らない。
 - 2026-10-06 の判断「fan_out は子ごとに作業ツリー（cwd）を決められない」は、ノードの `fan_out:` だけを見ていたかもしれない。U8 で読み直す。
 
+### 候補（まだ埋めでない）: run の中で後のノードの模型と effort を付け替える口
+
+- 穴: Archon 355f1867 に、run の中で後のノードの模型と effort を付け替える口が無い。`--model` は run を起こす時だけで続きの run には渡せず、`workflow:` のノードにも付け替えの欄が無い。証拠: `model-validation.ts:447-483`（`--model` は run を起こす時だけ）・`executor.ts:2057`・`dispatch-guards.ts:32-41`・`dag-node.ts:1112-1122`。run の頭の深さの役の群の選び（`groups`）は、今は控えに残すだけで効かない（`lib/headdepth.py`・`lib/launchgroups.py`）。上流に issue は出さない。
+
 ### P1 持ち主が居なくなった running の run を再開できない
 
 - 穴: Archon を動かしていた process が落ちると、run は `running` のまま残り、`resume` できない。
@@ -128,8 +132,8 @@
 - 証拠:
   - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）
 - 上流（`355f1867` の後の dev（2026-10-17 まで））: 一部が動いた。upstream の #4328（`8c741d891`）で、終わった（`completed`）run は自分で作った作業ツリーを、変更が無く commit が全部 remote に在り枝を公開していない時だけ外す（枝は残す）。fix の子は push しないので、子の作業ツリーはたぶん残る（実測はまだ）。証拠の文は dev でも同じ。
-- 埋め: `bin/_lib/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。
-- 使うサブグラフ: メイングラフ（入口）
+- 埋め: `workflows/.shared/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。試験は `tests/shared/test_childsweep.py`。
+- 使うサブグラフ: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
 ### P9 鍵を書かないノードにも既定の期限が当たる

@@ -1,7 +1,7 @@
 """公開ベンチのランナー tests/calibration/run.py の試験。合成の作り手と手元の mirror だけで回し、本物の Archon・claude・判定役・網を
 使わない。
 
-ランナーは自分の在る checkout から make_target.py・evidence.py・lib/・bin/_lib/ を読むので、それらを一時の checkout に写して走らせる。
+ランナーは自分の在る checkout から make_target.py・evidence.py・lib/・bin/_lib/・workflows/.shared/childsweep.py を読むので、それらを一時の checkout に写して走らせる。
 偽の works-factory の殻（差し替え口 WORKS_CALIBRATION_SHELL で渡す）と、偽の今の works（WORKS_FACTORY_OLD_WORKS で渡す。
 dev/use.sh・continue.sh・archon.sh を commit した git の置き場で、写した pack.json の works.commit をその commit に替える）と、
 PATH の頭の偽の claude・npm は、受けた引数と環境を FAKE_LOG に 1 行ずつ残し、FAKE_PLAN の JSON どおりに run の記録・置き場・
@@ -32,7 +32,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 MODULES = [HERE / name for name in ("run.py", "reviewbench.py", "nodes.py")]
 COPIED = ["pack.json", "factory/pack.json", "tests/__init__.py", "tests/calibration/__init__.py", "tests/calibration/run.py",
           "tests/calibration/reviewbench.py", "tests/calibration/nodes.py", "tests/e2e/__init__.py",
-          "tests/e2e/make_target.py", "tests/e2e/evidence.py"]
+          "tests/e2e/make_target.py", "tests/e2e/evidence.py", "workflows/.shared/childsweep.py"]
 ITEMS = {"WORKS_FACTORY_KEYCHAIN_ITEM": "item-of-works-factory-zq7", "WORKS_KEYCHAIN_ITEM": "item-of-old-works-zq7"}
 GH = {"GH_TOKEN": "gh-token-zq7"}
 WATCHED = [*ITEMS, *GH, "WORKS_FACTORY_HOME", "WORKS_USE_HOME", "WORKS_USE_UNATTENDED", "WORKS_USE_FINAL_GATE",

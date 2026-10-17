@@ -103,8 +103,7 @@ nodes:
     command: r1-comments
     depends_on: [prep]
     when: "$prep.output.run_eyes == true"
-    model: sonnet
-    effort: medium
+    model: '@wf-eyes-read'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -160,8 +159,7 @@ nodes:
     depends_on: [prep, r1-comments-save]
     trigger_rule: all_done
     when: "$prep.output.run_eyes == true"
-    model: opus
-    effort: high
+    model: '@wf-eyes-core'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -196,8 +194,7 @@ nodes:
     command: r2-compare
     depends_on: [prep]
     when: "$prep.output.run_eyes == true && $prep.output.compare_due == true"
-    model: opus
-    effort: high
+    model: '@wf-eyes-core'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -228,8 +225,7 @@ nodes:
     command: premise-check
     depends_on: [prep]
     when: "$prep.output.run_eyes == true && $prep.output.premise_due == true"
-    model: opus
-    effort: high
+    model: '@wf-eyes-core'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -256,8 +252,7 @@ nodes:
     command: r3-coherence
     depends_on: [prep]
     when: "$prep.output.run_eyes == true"
-    model: sonnet
-    effort: medium
+    model: '@wf-eyes-scope'
     context: fresh
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -305,8 +300,7 @@ nodes:
           depends_on: [r4-reject]
           when: "$r4-reject.output.resubmit != true"
           <<: &r4_launch
-            model: sonnet
-            effort: medium
+            model: '@wf-eyes-scope'
             settingSources: [user]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
             allowed_tools: [Read, Grep, Glob]
