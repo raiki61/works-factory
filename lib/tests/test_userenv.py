@@ -13,16 +13,18 @@ import userenv  # noqa: E402
 
 
 class RecordCase(unittest.TestCase):
-    def test_only_an_explicit_switch_records(self):
-        """既定は控えない（対象のコマンドも隔離のまま）。"1" のほかの値も明示と読まない"""
-        for value in (None, "", "0", "true"):
-            with self.subTest(value=value):
-                env = {"HOME": "/u"} if value is None else {"HOME": "/u", userenv.OPT_IN: value}
-                self.assertIsNone(userenv.record(env))
+    def test_record_ignores_any_switch_and_always_records(self):
+        """どの env でも NAMES の値（無い名は null）の JSON を返す。旗を見ない（控えの有無を分ける旗とその問いは無い）"""
+        self.assertFalse(hasattr(userenv, "OPT_IN"))
+        self.assertFalse(hasattr(userenv, "opted"))
+        for env in ({}, {"HOME": "/u"}, {"HOME": "/u", "WORKS_FACTORY_TARGET_USER_ENV": "0"}):
+            with self.subTest(env=env):
+                got = json.loads(userenv.record(env))
+                self.assertEqual(set(got), set(userenv.NAMES))
+                self.assertEqual(got["HOME"], env.get("HOME"))
 
-    def test_switch_records_home_and_xdg_with_null_for_unset(self):
-        got = json.loads(userenv.record({"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c",
-                                         userenv.OPT_IN: "1"}))
+    def test_record_holds_home_and_xdg_with_null_for_unset(self):
+        got = json.loads(userenv.record({"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c"}))
         self.assertEqual(got, {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "XDG_DATA_HOME": None, "XDG_CACHE_HOME": None,
                                "XDG_STATE_HOME": None})
 
@@ -33,12 +35,10 @@ class RecordCase(unittest.TestCase):
 
     def test_record_round_trips_through_restore(self):
         env = {"HOME": "/run/home", "XDG_DATA_HOME": "/run/data", userenv.RAN_DIR_ENV: str(self.top),
-               userenv.RECORD: userenv.record({"HOME": "/u", userenv.OPT_IN: "1"})}
-        self.assertTrue(userenv.opted(env))
+               userenv.RECORD: userenv.record({"HOME": "/u"})}
         self.assertFalse(userenv.ran(self.top))
         userenv.restore(env)
         self.assertEqual(env, {"HOME": "/u", userenv.MARK: str(self.top / userenv.RAN_FILE)})
-        self.assertFalse(userenv.opted(env))
         self.assertFalse(userenv.ran(self.top))   # 印は起こす側が子を起こす直前に置く
         self.assertTrue(userenv.mark(env[userenv.MARK]))
         self.assertTrue(userenv.ran(self.top))
@@ -46,7 +46,7 @@ class RecordCase(unittest.TestCase):
 
     def test_restore_without_the_marker_place_gives_nothing_back(self):
         """#504: 戻した印を置けない時は戻さない（利用者の HOME・XDG で走ったのを報告が言い漏らさない）"""
-        env = {"HOME": "/run/home", userenv.RECORD: userenv.record({"HOME": "/u", userenv.OPT_IN: "1"})}
+        env = {"HOME": "/run/home", userenv.RECORD: userenv.record({"HOME": "/u"})}
         with self.assertRaises(ValueError):
             userenv.restore(env)
         self.assertEqual(env["HOME"], "/run/home")

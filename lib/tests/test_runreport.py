@@ -328,6 +328,21 @@ class BuildCase(Base):
         self.assertIn(f"直す前のテスト: 走らせられなかった（incomplete）——{gatemarks.BASELINE_NOT_RUN}", entry)
         self.assertNotIn("直す前のテスト: 赤", entry)
 
+    def test_unrun_base_says_why_it_could_not_run(self):
+        """走らせられなかった直す前のテスト（ok false・green false・red_cause environment）の行は、認証しなかった訳（返りの reason。素材が
+        not_run の訳と準備の案内）を 1 行にして添え、「赤」と書かない。訳が空なら添えない"""
+        why = "素材が not_run——緑を仮定しない（宣言の語を起こせない: suite: 準備が落ちた）。\n準備が要る道具は 宣言に setup を足す"
+        base = {"mode": "base", "ok": False, "green": False, "red_cause": green_cert.ENVIRONMENT, "reason": why}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"直す前のテスト: 走らせられなかった（environment）——{gatemarks.BASELINE_NOT_RUN}——"
+                      "素材が not_run——緑を仮定しない（宣言の語を起こせない: suite: 準備が落ちた）。 準備が要る道具は 宣言に setup を足す", entry)
+        self.assertNotIn("直す前のテスト: 赤", entry)
+        bare = {**base, "reason": ""}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": bare}))
+        self.assertIn(f"直す前のテスト: 走らせられなかった（environment）——{gatemarks.BASELINE_NOT_RUN}\n",
+                      self.section(text, report.ENTRY_HEADING) + "\n")
+
     def test_not_applicable_base_is_not_called_unrun(self):
         """素材が not_applicable の直す前のテストは認証され（ok 真）incomplete に畳まれるが、「走らせられなかった」とも「赤」とも書かない"""
         pointed = str(self.dir / "test-gate" / "base" / "baseline.json")

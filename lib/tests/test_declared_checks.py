@@ -346,22 +346,51 @@ class RunEngineCase(RepoCase):
         self.assertEqual(got["runs"], [{"name": "suite", "exit": 3, "how": "direct"}])
 
     def test_unran_step_is_not_found(self):
-        """元 test_unran_step_is_not_found: 報告を宣言した段が試験を走らせていない形は、赤でなく走らせられない status
-        （判定の前は awaiting_human・後は not_run）。終了コードの数値でなく件数で分ける"""
+        """元 test_unran_step_is_not_found: 報告を宣言した段が試験を走らせていない形は、赤でなく走らせられない status。唯一の段の
+        試験が始まらなかった形は 1 段も走らなかった base なので、判定の前も後も not_run（理由に走らなかった訳）。試験が全部 error の
+        段は報告に試験が並んだ（実行器が試験を集めた）形（直したいコードの import の誤りなど）なので、判定の前は awaiting_human で止めずに判定へ進む。終了コードの
+        数値でなく件数で分ける"""
         stale = "<testsuite><testcase name='t'><failure/></testcase></testsuite>"
-        cases = [(self.reported_step("", 5), None, "試験が 0 件"),
-                 (self.reported_step("<testcase name='t'><error/></testcase>", 1), None, "全部 error"),
-                 (self.reported_step(None, 4), None, "report.xml が無い"),
-                 (self.reported_step(None, 1), (stale, 3600), "段の起動より古い"),
-                 (self.reported_step("<testcase", 2), None, "XML として読めない")]
-        for after_judge, status in ((False, "awaiting_human"), (True, "not_run")):
-            for step, before, want in cases:
+        cases = [(self.reported_step("", 5), None, "試験が 0 件", "not_run"),
+                 (self.reported_step("<testcase name='t'><error/></testcase>", 1), None, "全部 error", "awaiting_human"),
+                 (self.reported_step(None, 4), None, "report.xml が無い", "not_run"),
+                 (self.reported_step(None, 1), (stale, 3600), "段の起動より古い", "not_run"),
+                 (self.reported_step("<testcase", 2), None, "XML として読めない", "not_run")]
+        for after_judge in (False, True):
+            for step, before, want, base_status in cases:
                 with self.subTest(want, after_judge=after_judge):
                     m = self.material_for(step, before, after_judge)
-                    self.assertEqual(m["status"], status, m)
+                    self.assertEqual(m["status"], "not_run" if after_judge else base_status, m)
                     self.assertIn("基準の検査が走らなかった", m["reason"])
                     self.assertIn(want, m["reason"])
                     self.assertNotIn("count", m)
+        noisy = {"name": "suite", "argv": [PY, "-c", "import sys; print('config missing', file=sys.stderr); sys.exit(3)"],
+                 "junit": "report.xml"}
+        missing = {"name": "gone", "argv": [str(self.tmp / "no-such-command")]}
+        for after_judge in (False, True):
+            with self.subTest("唯一の JUnit の段が道具の誤りで落ちた", after_judge=after_judge):
+                m = self.material_for(noisy, None, after_judge)
+                self.assertEqual(m["status"], "not_run", m)
+                self.assertIn("config missing", m["reason"])
+            with self.subTest("全部が起こせない", after_judge=after_judge):
+                self.decl([missing, {**missing, "name": "gone2"}])
+                m = self.run_ci(after_judge=after_judge)["material"]
+                self.assertEqual(m["status"], "not_run", m)
+                self.assertIn("宣言の語を起こせない", m["reason"])
+                self.assertIn("gone2", m["reason"])
+            with self.subTest("起こせない段と試験を走らせなかった段しか無い", after_judge=after_judge):
+                self.decl([missing, {**noisy, "name": "reported"}])
+                m = self.run_ci(after_judge=after_judge)["material"]
+                self.assertEqual(m["status"], "not_run", m)
+                self.assertIn("config missing", m["reason"])
+        partly = [("起こせない段と緑の段", [missing, GREEN[0]]), ("走らなかった段と緑の段", [self.reported_step("", 0, "empty"), GREEN[0]])]
+        for after_judge, status in ((False, "awaiting_human"), (True, "not_run")):
+            for name, steps in partly:
+                with self.subTest(name, after_judge=after_judge):
+                    self.decl(steps)
+                    (self.repo / "report.xml").unlink(missing_ok=True)
+                    m = self.run_ci(after_judge=after_judge)["material"]
+                    self.assertEqual(m["status"], status, m)
 
     def test_ran_red_wins_over_unran_step(self):
         """#370: 走った段の赤は、ほかの段が走らなかったことに隠されない。found にし、走らなかった段の訳を detail に添える"""
@@ -796,9 +825,14 @@ class MaterialProblemsCase(unittest.TestCase):
                 self.assertEqual(self.problems(m, mode), [])
 
     def test_base_not_run_is_refused_for_awaiting_human(self):
-        got = self.problems({"status": "not_run", "reason": "r"}, "base")
+        """material_problems は base の not_run を通す（機械が走らせて 1 段も走らなかった素材。止めるのは green_cert）。base の任せ先の役の
+        素材は role_material_problems が not_run を awaiting_human を名指して拒む"""
+        material = {"status": "not_run", "reason": "r"}
+        self.assertEqual(self.problems(material, "base"), [])
+        got = dc.role_material_problems(material, mode="base")
         self.assertEqual(len(got), 1)
         self.assertIn("awaiting_human", got[0])
+        self.assertEqual(dc.role_material_problems({"status": "awaiting_human", "reason": "r"}, mode="base"), [])
 
     def test_final_awaiting_human_is_refused_for_not_run(self):
         got = self.problems({"status": "awaiting_human", "reason": "r"}, "final")

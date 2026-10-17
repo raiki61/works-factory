@@ -18,7 +18,6 @@ import declared_checks
 import gatemarks
 import tree_run
 import unittrees
-import userenv
 
 MEASURED = ("clean", "found")
 # 素材の語の持ち主は gatemarks.MATERIAL_WORDS。測った結果でない語は全部未了で、落ちた先の分けで黙って認証しない
@@ -41,8 +40,7 @@ RAN_BY_CAUSE = {INTRODUCED: "", INHERITED: "", ENVIRONMENT: NOT_RAN, INTERACTION
 RED_CAUSES = tuple(RAN_BY_CAUSE)
 RAN_NOTES = (NOT_RAN, PARTLY_RAN, UNVERIFIED_RUN, GATE_BROKE)
 GATE_BROKE_BY = ""   # 返す節の中の誤り（workflows/test-gate/scripts/result.py の failed）か、関門が返さなかった時の返りの by
-RAN_GUIDE = (f"利用者の HOME・XDG で走らせるなら、起こす env に {userenv.OPT_IN}=1 を置く（AI が書いた試験のコードが利用者の資格に"
-             "届く）か、工場の外の手元で試験を回す")
+RAN_GUIDE = f"準備が要る道具は {declared_checks.declared.SETUP_HINT}、か工場の外の手元で試験を回す"
 HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 
@@ -162,7 +160,7 @@ def ran_note(*, green, red_cause, by, steps=None) -> str:
     """試験が走ったかを、道具の名に依らず test-gate の返りだけで言う句（#492）。緑は ""。by が GATE_BROKE_BY なら GATE_BROKE
     （試験の前か後かを問わず工場の不具合で、走らなかったとは言わない）。ほかは RAN_BY_CAUSE で、知らない赤の原因は走ったと読まずに
     UNVERIFIED_RUN。NOT_RAN の時は steps（ran_steps の形）で言い直す（_not_ran）。走っていない・確かめられていない句には、
-    利用者の環境で回す 2 つの道（RAN_GUIDE）を添える"""
+    準備を宣言する道と工場の外の手元で回す道（RAN_GUIDE）を添える"""
     if green is True:
         return ""
     if by == GATE_BROKE_BY:
@@ -188,11 +186,12 @@ def _not_ran(steps, by) -> str:
 SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない）"
 
 
-def certify(*, mode, material_status, green, before, after, now, self_reported=False) -> tuple:
+def certify(*, mode, material_status, green, before, after, now, self_reported=False, material_reason="") -> tuple:
     """認証してよいか ——（ok, reason）。
-    - base: material_status が clean・found・not_applicable・awaiting_human なら (True, "")。awaiting_human は走らせられない系統が在る
-      base で、系統は素材の reason が名指し、判定の台帳の awaiting の問いと報告の人が確かめる物に載る（今の works と同じく、一部でも
-      全部でも鎖を止めない）。not_run・carried_over・素材が無いなら偽（緑を仮定しない）
+    - base: material_status が clean・found・not_applicable・awaiting_human なら (True, "")。awaiting_human は一部の系統だけ走らせられた
+      base・宣言の書式の誤り・任せ先の役が走らせられなかった base で、系統は素材の reason が名指し、判定の台帳の awaiting の問いと
+      報告の人が確かめる物に載る（鎖を止めない）。not_run（起こした段が 1 つも走らなかった base〔試験が全部 error の段は、報告に試験が並んだ（実行器が試験を集めた）ので走った段に数える〕と、test_cmd を起こせなかった base）・
+      carried_over・素材が無いなら偽（緑を仮定しない）。理由は『素材が <status>——緑を仮定しない（<material_reason>）。<RAN_GUIDE>』
     - final: before・after・now の指紋が揃わなければ偽（どれが違ったかを reason に）→ green が True（bool）でなければ (False, "緑でない")
       （原因は呼び手が red_cause と証拠で別に返す）→ self_reported（素材を機械でなく任せ先の役が書いた）なら (False, SELF_REPORTED)
       → ほかは (True, "")。赤は原因が何でも認証しない。任せ先の緑は走り切る前に読んだ緑と見分けられない（今の works の
@@ -200,7 +199,8 @@ def certify(*, mode, material_status, green, before, after, now, self_reported=F
     if mode == "base":
         if material_status in BASE_OK:
             return True, ""
-        return False, f"素材が {material_status or '無い'}——緑を仮定しない"
+        told = f"（{material_reason}）" if material_reason else ""
+        return False, f"素材が {material_status or '無い'}——緑を仮定しない{told}。{RAN_GUIDE}"
     if mode != "final":
         raise ValueError(f"mode は base か final: {mode!r}")
     fps = {"before": _fp(before), "after": _fp(after), "now": _fp(now)}
