@@ -759,7 +759,7 @@ class HeadDepthTest(unittest.TestCase):
         out = r.returned("head_depth_accept", reply=reply)
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         doc = self.record(r)
-        self.assertEqual((doc["depth"], doc["why"]), ("重厚", reply["why"]))
+        self.assertEqual((doc["depth"], doc["why"]), ("標準", reply["why"]))
         self.assertEqual([(it["item"], it["unknown"]) for it in doc["items"]], [(1, "無し"), (2, "形")])
         bad = {**reply, "items": [self.LIGHT["items"][0], {**shape, "cause_quote": "書いていない字"}]}
         out = r.returned("head_depth_accept", reply=bad)
@@ -815,7 +815,7 @@ class HeadDepthTest(unittest.TestCase):
         self.assertEqual(r.returned("verdict")["depth"], "重厚")
         self.assertNotIn(cut, r.returned("verify", stage="prep")["reason"])
         named = self.opened(features_off=["judge_verify"], features_cut=["judge_verify"])
-        headdepth.write(named.judge, headdepth.record("重厚", "設計の選びが要る"))
+        headdepth.write(named.judge, headdepth.record("重厚", "公開の約束を変える"))
         self.assertIn(cut, named.returned("verify", stage="prep")["reason"])
         light = self.opened()
         headdepth.write(light.judge, headdepth.record("軽量", "x"))
