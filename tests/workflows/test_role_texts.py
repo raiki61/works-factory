@@ -15,7 +15,9 @@ import unittest
 import yaml
 
 from tests.archon import BORROWED_SKILLS, BUILTIN_SKILLS
+from tests.bin import copyledger
 from tests.layers import scan
+from tests.workflows.copied import assert_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PLUGIN = "pr-review-toolkit"
@@ -24,6 +26,9 @@ NAMED = re.compile(r"(?<![\w-])(" + "|".join(map(re.escape, NAMES)) + r")(?![\w-
 OVERLAY = ("元の unattended.md（借りた superpowers を無人の役で読む時の読み替え）の写しで、K9 により元の字のまま（手直しは写しの台帳 lib/borrow/COPIED_FROM の物だけ）。"
            "借りる skill を読める役の一覧と読み替えを述べるだけで、local-review に借りる skill を使えとは言わない。"
            "写しを載せる所（借りる skill を名指す役の指示書の末尾）を直す。区分 J。区分の issue で外す")
+
+# 元 works/.shared/borrow/unattended.md（写しの台帳 lib/borrow/COPIED_FROM の 1 行目の commit）の sha256
+UNATTENDED_SHA256 = "ded1185ce93af8fee06fcf1b09121780468c197e033dfdc346c2dc5fab9db82c"
 
 # (指示書, 行, 名) -> 訳
 ALLOWED = {
@@ -77,6 +82,14 @@ def undeclared(root: pathlib.Path) -> set[tuple[str, int, str]]:
                     if not declares(node, hit.group(1)):
                         found.add((where, number, hit.group(1)))
     return found
+
+
+class OverlayCopyCase(unittest.TestCase):
+    def test_overlay_is_the_original_with_only_the_ledger_edits(self):
+        """読み替え lib/borrow/unattended.md は、台帳の手直しを後ろから逆に当てると元のバイトに戻る（K9）"""
+        borrow = ROOT / "lib" / "borrow"
+        edits = [(old.decode(), new.decode(), why) for old, new, why in copyledger.read(borrow / "COPIED_FROM").deviations["unattended.md"]]
+        assert_is_original(self, borrow / "unattended.md", UNATTENDED_SHA256, edits)
 
 
 class RoleSkillsCase(unittest.TestCase):

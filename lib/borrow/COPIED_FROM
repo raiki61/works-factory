@@ -8,9 +8,9 @@ unattended.md  works/.shared/borrow/unattended.md
 ! {"path": "unattended.md", "old": "節ごとの使い道", "new": "セクションごとの使い道", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
 ! {"path": "unattended.md", "old": "包む節の表 `.shared/borrow/seams.json", "new": "包むセクションの表 `lib/borrow/seams.json", "why": "グラフの語にそろえ（持ち主の決め graph-words）、今の works の置き場の名を works-factory の今の名に（#674）"}
 ! {"path": "unattended.md", "old": "blk-*/commands/*.md` と、支度の節が組んで役に読ませる指示書）と節の", "new": "workflows/*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの", "why": "グラフの語にそろえ（持ち主の決め graph-words）、今の works の置き場の名を works-factory の今の名に（#674）"}
-! {"path": "unattended.md", "old": ".shared/core/seat.py", "new": "lib/seat.py", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
+! {"path": "unattended.md", "old": "`.shared/core/seat.py` の `section`", "new": "`lib/seat.py` の `section`", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
 ! {"path": "unattended.md", "old": "下請けを回す修正役の節", "new": "下請けを回す修正役のセクション", "why": "グラフの語にそろえる（持ち主の決め graph-words）"}
-! {"path": "unattended.md", "old": ".shared/core/rolekit.py", "new": "lib/seat.py", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
+! {"path": "unattended.md", "old": "`.shared/core/rolekit.py` の `skill_overlay`", "new": "`lib/seat.py` の `skill_overlay`", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
 ! {"path": "unattended.md", "old": "tests/test_sp_skills.py` の `OverlayDeliveryCase", "new": "lib/tests/test_seat.py` と `tests/workflows/test_judge.py", "why": "今の works の置き場の名を works-factory の今の名に（#674）"}
 ! {"path": "unattended.md", "old": "[`.shared/core/writerules/common.md`](../core/writerules/common.md)（機械が修正役・TDD の輪の役", "new": "[`workflows/fix/commands/fix-rules/common.md`](../../workflows/fix/commands/fix-rules/common.md)（機械が修正役・TDD のループの役", "why": "グラフの語にそろえ（持ち主の決め graph-words）、今の works の置き場の名を works-factory の今の名に（#674）"}
 ! {"path": "unattended.md", "old": "修正の前に人がまだ答えていない fork", "new": "修正の前にまだ答えていない（人の答えも無人の run が採った推しも無い）fork", "why": "無人の run が採った推しも答えに数える（持ち主の決め unattended の 2026-10-15。修正の決まりの正本 common.md の同じ行に合わせる）"}
