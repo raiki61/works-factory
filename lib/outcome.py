@@ -53,7 +53,7 @@ import stopby  # noqa: E402
 import structmark  # noqa: E402
 
 OK_OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed")   # 返す節の ok が true になる結末（docs/design.md の report の返り）
-GATES = ("start-answer", "before-fix-answer", "replan-answer", "final-answer")   # 関所の答えの役の名（報告の入力のポートの名）
+GATES = ("start-answer", "before-fix-answer", "replan-answer", "final-answer")
 STOP_WORDS = answer.STOP_WORDS
 PASS_WORDS = answer.GO_WORDS
 WAIT_WORDS = stopby.WAITING
@@ -87,7 +87,7 @@ def read_json(path) -> object:
     return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
 
 
-LATER = {"judge": "rejudge", "plan": "replan", "plan-review": "replan-review-result"}   # 後の段の返り（線は後の段で先に読む）。組の住処はここの 1 か所
+LATER = {"judge": "rejudge", "plan": "replan", "plan-review": "replan-review-result"}   # 後の段の返り（線は後の段で先に読む）
 
 
 def node_of(stages, role: str) -> str:
@@ -97,7 +97,6 @@ def node_of(stages, role: str) -> str:
 
 
 def _links(stages) -> list:
-    """段の表の返りの続きの行（行でない物は読まない）"""
     rows = as_dict(stages).get("links")
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
@@ -461,12 +460,13 @@ def _chain_cuts(returns: dict, stages) -> list:
 
 def cut_at(returns: dict, failed, stages) -> str:
     """5. 途中で終わった所の「<段>:<語>」（終わっていなければ ""）: 記録で落ちて線が進まなかった節 failed が在るか、返りの続きが
-    切れている。判定の返りが無い run は、段の表の最初の続きの前の段で切れている"""
+    切れている。段の表の最初の続きの前の段の返りが無い run は、そこで切れている"""
     if isinstance(failed, list) and failed:
         return f"{failed[0]}:{NODE_ERROR}"
     links = _links(stages)
-    if judged(returns) is None:
-        return f"{node_of(stages, links[0].get('before') if links else 'judge')}:{CHAIN_CUT}"
+    first = links[0].get("before") if links else None
+    if first and latest(returns, first) is None:
+        return f"{node_of(stages, first)}:{CHAIN_CUT}"
     cuts = _chain_cuts(returns, stages)
     return f"{node_of(stages, cuts[0][0])}:{CHAIN_CUT}" if cuts else ""
 

@@ -163,7 +163,6 @@ class OpenCase(Base):
         self.assertEqual(boardview.human_items(None), [])
 
     def test_start_gate_label_is_the_shared_lib_mark(self):
-        """始めの承認の答えの行の札は gatemarks の 1 か所の札で、boardview と eyeverdict の両方が同じ字を引く（線のノードの id でない）"""
         want = getattr(gatemarks, "START_GATE_NODE", None)
         self.assertEqual(want, "始めの承認ノード")
         got = boardview.human_items({"decision": "approve", "text": "x"})

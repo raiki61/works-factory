@@ -122,7 +122,6 @@ class PushedCase(unittest.TestCase):
         self.assertEqual(got["stop_reason"], "human:gate-before-fix")
 
     def test_final_note_comes_from_the_caller_not_the_place(self):
-        """止める答えの一言が空の時、最後の承認の既定の一言は呼び手が渡す印 final が真の時だけ（place の字では選ばない）"""
         stop = {"decision": "stop", "text": " "}
         for place, final, want in (("gate-final", False, answer.STOP_NOTE), ("gate-elsewhere", True, answer.FINAL_STOP_NOTE),
                                    ("gate-final", True, answer.FINAL_STOP_NOTE), ("gate-start", False, answer.STOP_NOTE)):

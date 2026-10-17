@@ -228,8 +228,6 @@ class ConflictNamesCase(unittest.TestCase):
 
 class OrderCase(unittest.TestCase):
     def test_chain_and_node_ids_come_from_the_stages_table(self):
-        """続きの切れ目と stop_reason の段の名は facts の stages の表で決める（lib は段の順もノードの id も決め打たない）: 表が最後のテストを
-        x-final に写せば x-final:chain-cut、続きの行が空なら同じ返りでも切れ目にならない。承認ノードの答えの止めも表の id で描く"""
         table = {**STAGES, "nodes": {**STAGES["nodes"], "final-tests": "x-final", "final-answer": "x-gate", "sealed-diff": "x-seal"}}
         cut = fixed_run(**{"final-tests": None})
         self.assertEqual(decide(cut, facts={**OK_FACTS, "stages": table}), ("interrupted", "x-final:chain-cut"))

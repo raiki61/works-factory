@@ -199,8 +199,6 @@ class BuildCase(Base):
                       self.section(text, report.ENTRY_HEADING))
 
     def test_report_names_nodes_from_the_stages_table(self):
-        """報告の文の段の名（ノードの id）は line の stages の表が名指す物で描く（lib は id を決め打たない）: 表が最後のテストを x-final、
-        封じた差分を x-seal、最後の承認の答えを x-gate に写せば、緑の認証の節・止めた段の節・模型の節・走った段の並びがその id を言う"""
         table = {**STAGES, "nodes": {**STAGES["nodes"], "final-tests": "x-final", "sealed-diff": "x-seal", "final-answer": "x-gate",
                                      "before-tests": "x-base"}}
         final = {**fixed_run()["final-tests"], "by": "engine", "suites_line": "一式", "log": "/tmp/x/test.log", "baseline_line": "修正前のテスト: 赤",

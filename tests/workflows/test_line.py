@@ -124,7 +124,6 @@ RETURNING = {"judge": "judge", "rejudge": "judge", "plan": "plan", "replan": "pl
 
 
 def block_optional(block: str) -> list:
-    """ブロックの返す節の with: の optional（落ちても止めない節の宣言。[{node, bare}] の JSON の字）を読んだ並び"""
     doc = block_doc(f"works-factory-{block}")
     return json.loads(next(n for n in doc["nodes"] if n["id"] == doc["returns"])["with"]["optional"])
 
@@ -3028,10 +3027,6 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
 
     def test_optional_is_built_from_each_blocks_declaration(self):
-        """collect は受け皿の got の各欄の optional に、INNER の include の id と childsweep.INCLUDE_SEP で頭を付け（ループの中で素の id に
-        載る bare の行は素のまま）、メイングラフ自身の並びと重ねずに optional を組む。組んだ並びは前の宣言（メイングラフの 18 個）に再審の
-        頭の深さの頭を足した 19 個。report へ渡す欄からは optional が外れる（固定材料の写しで埋めた欄も）。メイングラフの宣言は
-        include 丸ごとの物だけで、中の節の名を持たない。宣言が無い（差し替えの返りに optional が無い）ブロックは宣言を持たない物と読む"""
         before = ["judge__world-", "rejudge-run__world-", "world-classes", "world-classes-", "world-judge", "world-judge-",
                   "plan__structure-", "replan__structure-", "structure-eye", "structure-eye-", "fix__lens", "fix__lens-reply",
                   "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-"]

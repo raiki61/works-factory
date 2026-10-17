@@ -262,10 +262,6 @@ class GroupsCase(unittest.TestCase):
         self.assertEqual([nid for nid, n in self.nodes.items() if "nodes-ok" in (n.get("depends_on") or [])], [])
 
     def test_fix_declares_its_absorbed_nodes_in_its_return(self):
-        """落ちても止めない節の宣言はブロックの境に在る: 返す節 fix の with: の optional（[{node, bare}] の JSON の字）がレンズ lens と
-        中継 lens-reply を宣言し（ループの中の節ではないので bare は偽）、その節はブロックの中に在って柵 nodes-ok に結ばれない。
-        output_format の properties に optional が在り、required に無い（差し替えの返りに無くても落ちない）。返す script は宣言を
-        返りの欄 optional に写す（宣言を渡されない呼び手は []）。メイングラフを読まない"""
         with_ = self.nodes["fix"].get("with") or {}
         self.assertIn("optional", with_, "返す節 fix の with: に宣言 optional が無い")
         declared = with_["optional"]
@@ -514,7 +510,6 @@ class FilesCase(unittest.TestCase):
         """落ちうる前の節の返りを with: で束ねない（落ちた節への束ねは if_skipped が在っても投げる）"""
         for nid in ("join", "tdd-unit"):
             self.assertNotIn("with", self.nodes[nid], nid)
-        # 返す節 fix の with: は宣言（optional）の定数だけで、上流の出力を結ばない
         for key, value in self.nodes["fix"].get("with", {}).items():
             self.assertFalse(str(value).startswith("$"), f"fix の with: {key} が上流の出力を結ぶ")
 

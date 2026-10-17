@@ -90,8 +90,6 @@ def failed(error: BaseException) -> dict:
 
 
 def declared() -> list:
-    """このブロックが落ちても線が先へ進めてよい節の宣言（入力 optional。[{node, bare}] の JSON の字）を境の口 boundary.items で読んだ並び。
-    境の口を読めない時だけ []（約束の形の返りにも載せる）"""
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
         import boundary

@@ -62,7 +62,7 @@ try:
 except Exception as e:  # noqa: BLE001  境の口か lib を読めない
     print(f"verdict: {type(e).__name__}: {e}", file=sys.stderr)
     out = fallen(objection)
-noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []   # 境の口を読めない時だけ []
+noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []
 try:
     print(json.dumps({**out, "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)
 except ValueError as e:

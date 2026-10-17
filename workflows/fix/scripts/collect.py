@@ -224,7 +224,7 @@ if __name__ == "__main__":
         print(f"collect: {why}", file=sys.stderr)
         out = fallback(why)
     lenses_file()
-    noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []   # 境の口を読めない時だけ []
+    noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []
     try:
         print(json.dumps({**out, "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)
     except ValueError as e:
