@@ -5,7 +5,7 @@ description: |
   書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳を書き、受け付けが機械で照らし、波及の一覧（変える名の
   呼び出し元と試験）を機械で出す。案の直し（fix の裁定の後の 1 度）は同じサブグラフを ruling の入力つきで include する（形 replan）。
   事前審査との往復はメイングラフが持ち、このサブグラフは 1 回の案を作って返す。2 往復目からは受けた review を周のフォルダに写し、
-  前の周の案と指摘と、役が書く引き継ぎのメモ（handoff.json）も材料のファイルで渡して新しい会話で直させる（周をまたいで会話を続ける仕組みは止めた Archon に無い）。
+  前の周の案と指摘と、役が書く引き継ぎのメモ（handoff.json）も材料のファイルで渡して新しい会話で直させる（穴と外す条件は docs/polyfills.md の P10）。
   同じ周の中で受け付けに拒まれた後の出し直しは、修正案の役の会話の続きで拒まれた所だけを返させ、受け付けが前の答えと合わせる。
   置き場は run の置き場の plan/ の下だけ（周ごとの plan/r<k>/ と、使い回す構造の実測の plan/structure/<鍵>/）。
   出力ノード plan は落ちない（中の誤りを捕まえて ready: false と、在って空でないポインタを返す）。
@@ -111,8 +111,7 @@ nodes:
         - id: structure-eye
           command: structure-eye
           depends_on: [structure-eye-prep]
-          model: opus
-          effort: high
+          model: '@wf-plan-structure'
           allowed_tools: []
           settingSources: [user]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -243,8 +242,7 @@ nodes:
           depends_on: [plan-prep]
           when: "$plan-prep.output.resubmit != true"
           <<: &writer_launch
-            model: opus
-            effort: medium
+            model: '@wf-plan-writer'
             allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
             settingSources: [user]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -253,7 +251,7 @@ nodes:
             retry: {max_attempts: 2, on_error: all}
           # 今の works の blk-plan.yaml の修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の関所の決め手の欄）。
           # 2 往復目からの答えの要る穴（block と開いた項目の suggest）への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。
-          # 次の周の自分へ運ぶ引き継ぎのメモ handoff も任意の欄（planfile.HANDOFF_SCHEMA の写し。受け付けが外して周のフォルダに置く）。欄の型は planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA（files）・
+          # 次の周の自分へ運ぶ引き継ぎのメモ handoff も任意の欄（handoff.SCHEMA の写し。受け付けが外して周のフォルダに置く）。欄の型は planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA（files）・
           # gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
           output_format: &plan_reply
             type: object
@@ -576,7 +574,7 @@ nodes:
               handoff:
                 type: object
                 additionalProperties: false
-                required: [read, decided, rejected, open]
+                required: [read, decided, rejected, doubts]
                 properties:
                   read:
                     type: array
@@ -600,7 +598,7 @@ nodes:
                       properties:
                         option: {type: string, minLength: 1}
                         why: {type: string, minLength: 1}
-                  open:
+                  doubts:
                     type: array
                     items: {type: string, minLength: 1}
         # 拒まれた後の出し直しの役（plan-writer の会話の続き）。型は plan-writer の型から required を外し、whole_plan を足した物

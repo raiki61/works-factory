@@ -73,7 +73,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - push_rec(text)・pushed_answer(texts): 項目の推しの尾の読み戻しと、無人の run が関所を推しで通る答え（項目の全部が通す推しを持つ
   時だけ。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
-- spec_words(unchecked) -> SpecWords(said, source, head): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
+- spec_words(unchecked) -> SpecWords(said, source, head, note): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
   （最後の承認ノードの 1 行目の句・次の依頼の下書きの source の頭・最後の承認ノードと報告の人が決めることの節の頭）
 - draft_line(drafts, next_file): 答えの下書き（draft: true・source つき。報告が next-request.json の answers に置き、依頼の入口
   carry.parts が拒む）の報告の冒頭 1 の行
@@ -292,17 +292,24 @@ SPEC_UNCHECKED = "承認済みの受け入れ条件のテストが変わった�
 SPEC_UNCHECKED_HEAD = f"承認し直すかの問い（{SPEC_UNCHECKED}）"   # 照らせなかった時の、最後の承認ノードと報告の人が決めることの節の頭
 
 
+SPEC_CHANGED_NOTE = ("機械は承認し直さない。変更を確かめ、承認し直すなら次の run で仕様の段（spec=on）を回して承認し、戻すならテストを承認の版に"
+                     "戻して直す依頼にする。採らないなら行を消す")   # 変わった時の次の依頼の下書きの注
+SPEC_UNCHECKED_NOTE = (f"機械は承認し直さない。{SPEC_UNCHECKED}ので、照らせなかった訳（問いの文の例外）を直して次の run で照らし直すか、"
+                       "承認し直すなら次の run で仕様の段（spec=on）を回して承認する。採らないなら行を消す")   # 照らせなかった時の次の依頼の下書きの注
+
+
 class SpecWords(NamedTuple):
     said: str     # 最後の承認ノードの開ける理由の句
     source: str   # 次の依頼の下書きの source の頭
     head: str     # 最後の承認ノードと報告の人が決めることの節の頭
+    note: str     # 次の依頼の下書きの注
 
 
 def spec_words(unchecked: bool) -> SpecWords:
     """承認し直すかの問いの語。照らせなかった（unchecked）時は「変わった」でなく「照らせなかった」と言う"""
     if unchecked:
-        return SpecWords(SPEC_UNCHECKED, SPEC_UNCHECKED, SPEC_UNCHECKED_HEAD)
-    return SpecWords(KIND_WORDS[SPEC_CHANGED_KIND], SPEC_CHANGED_LABEL, SPEC_CHANGED_HEAD)
+        return SpecWords(SPEC_UNCHECKED, SPEC_UNCHECKED, SPEC_UNCHECKED_HEAD, SPEC_UNCHECKED_NOTE)
+    return SpecWords(KIND_WORDS[SPEC_CHANGED_KIND], SPEC_CHANGED_LABEL, SPEC_CHANGED_HEAD, SPEC_CHANGED_NOTE)
 
 
 def question_row(kind: str, text: str) -> dict:

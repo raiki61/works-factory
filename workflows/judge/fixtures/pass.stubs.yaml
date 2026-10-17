@@ -10,6 +10,7 @@ head-depth:
   why: 筋書きの役は原因が残る行を返す（段は標準）
   items:
     - {item: 1, unknown: 原因, cause_quote: 筋書きの依頼の行の字}
+  groups: []
 head-depth-accept: &id001 {ok: true, done: true, reason: ''}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:

@@ -30,7 +30,8 @@ with boundary.guarded_imports():
 FLAT = {"baseline": ("test_gate_base", "baseline"),
         **{name: ("judge", name) for name in ("units", "judgment", "purpose", "world", "spec", "rejudge_verdict")},
         "head_depth": ("judge", "depth"),
-        **{name: ("plan", name) for name in ("plan", "ripple", "depth", "structure")},
+        **{name: ("plan", name) for name in ("plan", "ripple", "structure")},
+        "depth": ("plan", "depth"),
         **{name: ("plan_review", name) for name in ("review", "design", "questions")}}
 
 

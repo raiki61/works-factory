@@ -30,6 +30,7 @@ import answer  # noqa: E402
 import depth  # noqa: E402
 import headdepth  # noqa: E402
 import judge_accept as ja  # noqa: E402
+import launchgroups  # noqa: E402
 import prcheck  # noqa: E402
 import reads  # noqa: E402
 import rolekit  # noqa: E402
@@ -456,7 +457,7 @@ class RoleSettingsTest(unittest.TestCase):
         for nid, (model, effort, tools, sandbox, read_only, context, skills, plugins) in ROLES.items():
             n = by[nid]
             with self.subTest(role=nid):
-                self.assertEqual((n["model"], n["effort"]), (model, effort))
+                self.assertEqual(launchgroups.default_of(n["model"]), (model, effort))
                 self.assertEqual(n["settingSources"], ["user"])
                 self.assertEqual(n["allowed_tools"], tools)
                 self.assertEqual(n["sandbox"], sandbox)
@@ -499,6 +500,48 @@ class RoleSettingsTest(unittest.TestCase):
         for name in REVIEW_READERS:
             with self.subTest(command=name):
                 self.assertIn(".output.review_md", (COMMANDS / f"{name}.md").read_text(encoding="utf-8"))
+
+
+class ModelGroupsRunTest(unittest.TestCase):
+    """役のノードは `model: '@wf-<群>'` で群を指し、呼ぶ人の `--model @wf-<群>=<別名>` はその群のノードだけの模型と effort を替える。
+    止めた Archon の `workflow run --dry-run` の trace が、ノードごとに解いた模型と effort を言う。源か bun が無ければ見送る"""
+
+    GROUP = "@wf-judge-core"
+    TO = "@wf-judge-materials"
+
+    @classmethod
+    def resolved(cls, *extra: str) -> dict:
+        fixture = yaml.safe_load((BLOCK / "fixtures" / "spec-on.stubs.yaml").read_text(encoding="utf-8"))
+        with archon.tree(["judge"]) as tree:
+            stubs = tree.parent / "spec-on.stubs.yaml"
+            stubs.write_text(yaml.safe_dump({k: v for k, v in fixture.items() if k not in ("fixture", "exec-code")}, allow_unicode=True),
+                             encoding="utf-8")
+            done = archon.archon(tree, "workflow", "run", NAME, "--dry-run", "--exec-code", "--stubs", str(stubs), "--json", *extra,
+                                 "--cwd", str(tree))
+        trace = json.JSONDecoder().raw_decode(done.stdout.lstrip())[0]["trace"]
+        return {n["nodeId"]: (n["resolution"].get("model"), n["resolution"].get("effort")) for n in trace if "resolution" in n}
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.default = cls.resolved()
+            cls.rebound = cls.resolved("--model", f"{cls.GROUP}={cls.TO}")
+        except unittest.SkipTest as skip:
+            cls.skipped = str(skip)
+            return
+        cls.skipped = ""
+
+    def test_named_group_rebinds_only_its_nodes(self):
+        if self.skipped:
+            self.skipTest(self.skipped)
+        group_of = {nid: n["model"] for nid, n in nodes().items() if "model" in n}
+        reached = {nid: group for nid, group in group_of.items() if nid in self.default}
+        self.assertIn(self.GROUP, reached.values())
+        self.assertGreaterEqual(len(set(reached.values())), 3, reached)
+        for nid, group in reached.items():
+            with self.subTest(node=nid, group=group):
+                self.assertEqual(self.default[nid], launchgroups.default_of(group))
+                self.assertEqual(self.rebound[nid], launchgroups.default_of(self.TO if group == self.GROUP else group))
 
 
 class FixtureTest(unittest.TestCase):
@@ -766,6 +809,35 @@ class HeadDepthTest(unittest.TestCase):
         self.assertEqual((out["ok"], out["done"]), (False, False), out)
         self.assertIn("cause_quote", out["reason"])
         self.assertEqual(self.record(r)["depth"], "標準")
+
+    def test_accept_records_group_choices_without_changing_the_tier(self):
+        r = self.opened()
+        r.returned("head_depth_prep")
+        up = {"group": "@wf-judge-core", "model": "opus", "effort": "max", "why": "多段の根拠を読む"}
+        stray = {"group": "@wf-nope", "model": "opus", "effort": "high", "why": "表に無い群"}
+        down = {"group": "@wf-fix-writers", "model": "sonnet", "effort": "low", "why": "直す所が一行で見える"}
+        out = r.returned("head_depth_accept", reply={**self.LIGHT, "groups": [up, stray, down]})
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+        doc = self.record(r)
+        self.assertEqual(doc["depth"], "軽量")
+        by_group = {g["group"]: g for g in doc["groups"]}
+        self.assertEqual(len(doc["groups"]), 3)
+        self.assertEqual((by_group["@wf-judge-core"]["direction"], by_group["@wf-judge-core"]["fallback"]), ("上げ", ""))
+        self.assertEqual((by_group["@wf-fix-writers"]["direction"], by_group["@wf-fix-writers"]["effort"]), ("下げ", "low"))
+        self.assertEqual(by_group["@wf-fix-writers"]["default"], {"model": "sonnet", "effort": "high"})
+        self.assertTrue(by_group["@wf-nope"]["fallback"])
+        self.assertEqual(by_group["@wf-nope"]["why"], "表に無い群")
+        out = r.returned("head_depth_accept", reply={**self.LIGHT, "groups": []})
+        self.assertEqual((self.record(r)["depth"], self.record(r)["groups"], out["ok"]), ("軽量", [], True))
+        out = r.returned("head_depth_accept", reply={**self.LIGHT, "groups": [up],
+                                                    "items": [{**self.LIGHT["items"][0], "code_quote": "return 0"}]})
+        self.assertFalse(out["ok"], out)
+        doc = self.record(r)
+        self.assertEqual((doc["depth"], doc["groups"]), ("標準", []))
+        fmt = nodes()["head-depth"]["output_format"]
+        self.assertEqual(fmt["required"], ["why", "items", "groups"])
+        self.assertFalse(fmt["additionalProperties"])
+        self.assertEqual(fmt["properties"]["groups"]["items"]["required"], ["group", "model", "effort", "why"])
 
     def test_role_kinds_are_the_lib_kinds(self):
         """役の出力の型の unknown の enum が lib/headdepth.py の UNKNOWNS で、head-depth の出力に depth の欄が無い

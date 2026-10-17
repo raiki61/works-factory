@@ -4,6 +4,7 @@
 入口の拒み・返りの合わせ方はここで照らす。種の git は gitkit の型の写し。
 """
 import ast
+import collections
 import contextlib
 import importlib.util
 import io
@@ -21,6 +22,7 @@ from unittest import mock
 
 import yaml
 
+from bin._lib.place import shared
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.bin.linescripts import SCRIPTS, load
@@ -735,6 +737,31 @@ class FixInCase(Artifacts):
         with self.assertRaises(KeyError):
             fix_in.flat({"judge": {"units": []}})
 
+    def test_flat_keys_do_not_overlap_and_depth_is_the_plan_depth(self):
+        """修正の段へ渡す depth は計画の depth。FLAT の辞書の表示の鍵（字の鍵と、全部の内包の名の並び）が重ならないので、辞書の
+        表示の後勝ちは結果に効かず、並びに依らない"""
+        flat_dict = next(n.value for n in ast.walk(ast.parse(FIX_IN_TEXT)) if isinstance(n, ast.Assign) and
+                         any(isinstance(t, ast.Name) and t.id == "FLAT" for t in n.targets))
+        shown, literal = [], {}
+        for key, value in zip(flat_dict.keys, flat_dict.values):
+            if key is None:
+                # 数えられる形は「字の並びを回し、鍵が生成の名そのものの内包」だけ。名の ** や並びが字でない内包は数え損ねるので赤にする
+                self.assertIsInstance(value, ast.DictComp, "FLAT の ** は内包だけ（名の ** は鍵を数えられない）")
+                self.assertEqual(len(value.generators), 1)
+                target = value.generators[0].target
+                self.assertTrue(isinstance(value.key, ast.Name) and isinstance(target, ast.Name) and value.key.id == target.id,
+                                "内包の鍵は生成の名そのもの")
+                shown += list(ast.literal_eval(value.generators[0].iter))
+            else:
+                shown.append(ast.literal_eval(key))
+                literal[ast.literal_eval(key)] = ast.literal_eval(value)
+        self.assertEqual([k for k, n in collections.Counter(shown).items() if n > 1], [], "FLAT の辞書の表示の鍵が重なる")
+        self.assertEqual(literal.get("depth"), ("plan", "depth"), "depth は字の 1 行で計画の depth を引く")
+        self.assertEqual(fix_in.FLAT["depth"], ("plan", "depth"))
+        self.assertEqual(fix_in.FLAT["head_depth"], ("judge", "depth"))
+        got = fix_in.flat({"judge": {**self.JUDGE, "depth": "軽量"}, "plan": {**self.PLAN, "depth": []}})
+        self.assertEqual((got["depth"], got["head_depth"]), ([], "軽量"), "返りの depth は計画の depth、head_depth は判定の depth")
+
 
 LINE_REL = "workflows/line/works-factory-line.yaml"
 FIX_IN_REL = "workflows/line/scripts/fix_in.py"
@@ -744,14 +771,16 @@ FIX_IN_TEXT = (ROOT / FIX_IN_REL).read_text(encoding="utf-8")
 
 
 def carried_shape(line_text: str, fix_in_text: str) -> dict:
-    """固定材料の運ぶ値の形: fix_in.received_live の鍵と、fix-in が受け皿（script returned）から受ける入力ごとの got の欄"""
+    """固定材料の運ぶ値の形: fix_in.received_live の鍵と、fix-in が受け皿（script returned）から受ける入力ごとの got の欄（受け皿の
+    with: の names か、分かれ目の版が持つ got_<欄> の鍵）"""
     nodes = line_nodes(yaml.safe_load(line_text)["nodes"])
     live = next(n for n in ast.walk(ast.parse(fix_in_text)) if isinstance(n, ast.FunctionDef) and n.name == "received_live")
     got = {}
     for name, source in nodes["fix-in"]["with"].items():
         node = nodes.get((source.get("from") if isinstance(source, dict) else source).removeprefix("$").removesuffix(".output"))
         if node is not None and node.get("script") == "returned":
-            got[name] = sorted(key.removeprefix("got_") for key in node["with"] if key.startswith("got_"))
+            names = node["with"].get("names")
+            got[name] = sorted(names.split() if names else (key.removeprefix("got_") for key in node["with"] if key.startswith("got_")))
     return {"received": sorted(k.value for r in ast.walk(live) if isinstance(r, ast.Return) for k in r.value.keys), "got": got}
 
 
@@ -782,7 +811,7 @@ class CarriedShapeCase(unittest.TestCase):
                                 f"運ぶ値の形が分かれ目 {fork[:12]} と違うのに lib/fixture.py の FORMAT が同じ")
 
     def test_shape_and_format_read_the_texts(self):
-        renamed = LINE_TEXT.replace("got_purpose: ", "got_purposex: ", 1)
+        renamed = LINE_TEXT.replace(" judgment purpose ", " judgment purposex ", 1)
         self.assertNotEqual(carried_shape(renamed, FIX_IN_TEXT), carried_shape(LINE_TEXT, FIX_IN_TEXT))
         self.assertEqual(fixture_format((ROOT / FIXTURE_REL).read_text(encoding="utf-8")), fixture.FORMAT)
 
@@ -1583,6 +1612,14 @@ class AskFinalReadsCase(Artifacts):
 
     FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
 
+    @staticmethod
+    def null_env(**kw) -> dict:
+        """ask-final の with: の鍵の全部を "null"（飛ばされた節）にした環境に、kw の入力を JSON の字（字はそのまま）で重ねた物"""
+        env = {f"INPUTS_{name.upper()}": "null" for name in line_nodes()["ask-final"]["with"]}
+        env.update({f"INPUTS_{key.upper()}": value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+                    for key, value in kw.items()})
+        return env
+
     def test_held_questions_are_every_asking_question_not_answered(self):
         """元 gatemarks.held_lines: 人に聞く状態（held・escalate）の問いは kind を問わず並べ、答えた（answered）問いは並べない"""
         other = {**self.FORK, "key": "q3", "kind": "field", "status": "held"}
@@ -1695,21 +1732,17 @@ class AskFinalReadsCase(Artifacts):
         最後の承認ノードの文に「構造のブロック: …」の行が届く（with: の鍵を読むかだけでなく、文まで）"""
         ptr = self.place("plan/structure/structure-state.json", {"status": "failed", "reason": "構造の目の役が落ちた",
                                                                   "design_file": "", "wall_s": 0})
-        env = {f"INPUTS_{name.upper()}": "null" for name in line_nodes()["ask-final"]["with"]}
-        env.update({"INPUTS_STRUCTURE": json.dumps(ptr), "INPUTS_FINAL_GATE": "always", "INPUTS_UNATTENDED": "false",
-                    "INPUTS_TESTS_OK": "true", "INPUTS_GREEN": "true", "INPUTS_SEALED": "true"})
+        env = self.null_env(structure=ptr, final_gate="always", unattended="false", tests={"ok": True, "green": True}, seal={"ok": True})
         with mock.patch.dict(os.environ, env):
             out = ask_final.ask(**ask_final.from_env())
         self.assertTrue(out["open"], out)
         self.assertIn("- 構造のサブグラフ: 構造の目の行なしで計画した（理由: 構造の目の役が落ちた）", out["text"])
 
     def test_partly_started_steps_reach_the_gate_text_from_the_with_keys(self):
-        """#514: 最後の関所は with: の ran_steps（$test-gate-final.output.ran_steps）を JSON の形で読み、起こした段と起こせなかった段を
+        """#514: 最後の関所は with: の tests（$test-gate-final.output のまるごと）の ran_steps を JSON の形で読み、起こした段と起こせなかった段を
         名指し、走っていないと言わない（with: の鍵を読むかだけでなく、文まで）"""
-        env = {f"INPUTS_{name.upper()}": "null" for name in line_nodes()["ask-final"]["with"]}
-        env.update({"INPUTS_RAN_STEPS": json.dumps({"ran": ["unit"], "unran": ["lint"]}), "INPUTS_RED_CAUSE": "incomplete",
-                    "INPUTS_BY": "engine", "INPUTS_FINAL_GATE": "always", "INPUTS_UNATTENDED": "false",
-                    "INPUTS_TESTS_OK": "false", "INPUTS_GREEN": "false", "INPUTS_SEALED": "true"})
+        tests = {"ran_steps": {"ran": ["unit"], "unran": ["lint"]}, "red_cause": "incomplete", "by": "engine", "ok": False, "green": False}
+        env = self.null_env(final_gate="always", unattended="false", tests=tests, seal={"ok": True})
         with mock.patch.dict(os.environ, env):
             out = ask_final.ask(**ask_final.from_env())
         self.assertIn(green_cert.PARTLY_RAN, out["text"])
@@ -1814,8 +1847,9 @@ class AskFinalReadsCase(Artifacts):
         self.assertLess(text.index("（R2）: 上限が渡されていない"), text.index("R3"))
         self.assertEqual(ask_final.eye_notes(None)["r2_inputs"],
                          ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の出力 notes が null）"])
-        self.assertEqual(line_nodes()["ask-final"]["with"]["eye_notes"], "$eyes.output.notes")
-        self.assertEqual(line_nodes()["eyes-out"]["with"]["got_notes"], "$eyes.output.notes")
+        self.assertEqual(line_nodes()["ask-final"]["with"]["eyes"], {"from": "$eyes.output", "if_skipped": None})
+        self.assertEqual(line_nodes()["eyes-out"]["with"]["got"], "$eyes.output")
+        self.assertIn("notes", ask_final.EYES)
 
     def test_allowed_tests_come_from_beside_both_diffs(self):
         """許したテストの変更は fix と refix-run の差分の隣の allowed-tests.json を読み、許しの id と出どころつきで並べる（重ねない）。
@@ -1919,31 +1953,65 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn("決め手で通した行（決め手: x.md:1）", ask_final.final_text(final_got(passes=passes), [], RUN))
 
     def test_final_text_lists_suites_baseline_and_left_tests(self):
-        """L-W28・T35: 最後のテストの返りの欄（with: の by・suites_line・log・baseline_line・tests_reason）から、一式・修正前のテスト・
-        ログ・認証しなかった訳を字のまま出し、作業ツリーと並べる（証拠の文は開かない）。関門が返さなかった（飛ばされた節の null）時は
-        その旨と「取れない」。返す節の中の誤り（by の空の字）は返らなかった形と分ける。手元で回さなかった試験（ci_left・final_left・
-        final_far）は修正の返りに控えが無い（F013。部分 D2）"""
-        with_ = line_nodes()["ask-final"]["with"]
-        self.assertEqual({k: with_[k] for k in ("by", "suites_line", "log", "baseline_line", "tests_reason")},
-                         {"by": "$test-gate-final.output.by", "suites_line": "$test-gate-final.output.suites_line",
-                          "log": "$test-gate-final.output.log", "baseline_line": "$test-gate-final.output.baseline_line",
-                          "tests_reason": "$test-gate-final.output.reason"})
-        returned = {"INPUTS_BY": "role_needed", "INPUTS_SUITES_LINE": "一式 X", "INPUTS_LOG": "test-gate/final/logs/checks.log",
-                    "INPUTS_BASELINE_LINE": "修正前のテスト: 緑（元の結末）", "INPUTS_TESTS_REASON": "任せ先の自己申告の緑"}
-        with mock.patch.dict(os.environ, returned):
-            got = ask_final.final_tests()
+        """L-W28・T35: 最後のテストの返りの欄（with: の tests＝試験の関門の返りまるごとの by・suites_line・log・baseline_line・reason）から、
+        一式・修正前のテスト・ログ・認証しなかった訳を字のまま出し、作業ツリーと並べる（証拠の文は開かない）。関門が返さなかった
+        （飛ばされた節の null）時はその旨と「取れない」。返す節の中の誤り（by の空の字）は返らなかった形と分ける。手元で回さなかった
+        試験（ci_left・final_left・final_far）は修正の返りに控えが無い（F013。部分 D2）"""
+        self.assertEqual(line_nodes()["ask-final"]["with"]["tests"], {"from": "$test-gate-final.output", "if_skipped": None})
+        returned = {"by": "role_needed", "suites_line": "一式 X", "log": "test-gate/final/logs/checks.log",
+                    "baseline_line": "修正前のテスト: 緑（元の結末）", "reason": "任せ先の自己申告の緑"}
+        with mock.patch.dict(os.environ, self.null_env(tests=returned)):
+            got = ask_final.got_of_env()["tests"]
         text = ask_final.final_text(final_got(tests=got, tests_ok=False), [], RUN)
         for want in ("- テストの一式: role_needed・一式 X", "- 修正前のテスト: 緑（元の結末）", "- ログ: test-gate/final/logs/checks.log",
                      "- 走れなかった・認証しなかった理由: 任せ先の自己申告の緑", "- run の作業ツリー: /tmp/tree"):
             self.assertIn(want, text)
-        with mock.patch.dict(os.environ, {k: "null" for k in returned}):
-            got = ask_final.final_tests()
+        with mock.patch.dict(os.environ, self.null_env(tests="null")):
+            got = ask_final.got_of_env()["tests"]
         missing = ask_final.declared_checks.GATE_MISSING
         self.assertEqual((got["suites"], got["log"], got["baseline"], got["reason"]), (missing, missing, f"修正前のテスト: {missing}", ""))
         self.assertIn(f"- {got['unread']}", ask_final.final_text(final_got(tests=got, tests_ok=False), [], RUN))
         self.assertTrue(got["unread"])
-        with mock.patch.dict(os.environ, {k: "" for k in returned}):
-            self.assertEqual(ask_final.final_tests()["unread"], "")
+        with mock.patch.dict(os.environ, self.null_env(tests={k: "" for k in returned})):
+            self.assertEqual(ask_final.got_of_env()["tests"]["unread"], "")
+
+    def test_final_tests_read_the_whole_gate_output(self):
+        """最後のテストの欄は INPUTS_TESTS（試験の関門の返りまるごと）から読む。by が空の字なら返った形（unread は空）、tests が null なら
+        『試験の関門が返さなかった』の unread。ok・green・red_cause・ran_steps も同じ値から読む"""
+        gate = {"mode": "final", "ok": True, "green": True, "red_cause": "", "ran_steps": {"ran": ["unit"], "unran": []}, "baseline": None,
+                "fingerprint": "f", "test_outcomes": None, "evidence": None, "by": "", "suites_line": "", "log": "", "baseline_line": "",
+                "reason": ""}
+        with mock.patch.dict(os.environ, self.null_env(tests=gate)):
+            got = ask_final.got_of_env()
+        self.assertEqual((got["tests"]["unread"], got["tests"]["by"]), ("", ""))
+        self.assertEqual((got["tests_ok"], got["green"], got["red_cause"], got["ran_steps"]), (True, True, "", gate["ran_steps"]))
+        with mock.patch.dict(os.environ, self.null_env(tests="null")):
+            got = ask_final.got_of_env()
+        self.assertIn("試験の関門が返さなかった", got["tests"]["unread"])
+        self.assertEqual((got["tests_ok"], got["green"], got["red_cause"], got["ran_steps"]), (False, False, "", None))
+
+    def test_skipped_seal_falls_to_the_script_defaults(self):
+        """封じの節が飛んだ（seal が null）時、最後の関所は sealed を真、seal_reason と hash を空の字、protected_hits を空の並びとして
+        読む（YAML の if_skipped にあった既定と同じ）。封じる差分も無い"""
+        with mock.patch.dict(os.environ, self.null_env()):
+            got = ask_final.got_of_env()
+        self.assertEqual((got["sealed"], got["seal_reason"], got["hash"], got["protected_hits"], got["deleted"]), (True, "", "", [], []))
+        self.assertEqual(ask_final.SEAL_SKIPPED, {"ok": True, "reason": "", "hash": "", "protected_hits": [], "diff": None})
+        self.assertEqual(set(ask_final.SEAL_SKIPPED), set(ask_final.SEAL))
+
+    def test_skipped_whole_outputs_stop_on_undeclared_names(self):
+        """飛ばされた封じの既定も、宣言の外の名を .get で引くと黙って None にならず KeyError で止まる"""
+        with self.assertRaises(KeyError):
+            ask_final.SEAL_SKIPPED.get("fingerprint")
+
+    def test_seal_without_hits_still_names_why_it_did_not_seal(self):
+        """走った封じが protected_hits: null（merge の差分が空・中の誤りの返り）を返しても、最後の関所は落ちない。protected_hits を [] と
+        読み、sealed 偽と封じなかった理由を出す"""
+        seal = {"ok": False, "reason": "封じる差分が空", "hash": "", "protected_hits": None, "diff": None}
+        with mock.patch.dict(os.environ, self.null_env(seal=seal)):
+            got = ask_final.got_of_env()
+        self.assertEqual((got["sealed"], got["seal_reason"], got["protected_hits"]), (False, "封じる差分が空", []))
+        self.assertIn("差分を封じられなかった（封じる差分が空）", ask_final.final_needs(got))
 
     def test_deleted_files_named(self):
         """M38: 封じた差分の中で消えるファイルを、当てる前に SHOWN 件までは 1 本ずつ名指し（「取り込むと消えるファイル: <パス>」）、
@@ -1957,15 +2025,13 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn("封じた差分を読めない", ask_final.deleted_files({"type": "archon_artifact", "run_id": "x", "path": "d"})[1])
 
     def test_many_deleted_files_are_cut(self):
-        """封じた差分が 20,000 本を消しても、最後の承認ノードの文は本数に依らず短く、末尾の答え方の行まで在る。with: の鍵（sealed_diff の
-        指し札）から文まで本物で通し、先頭 SHOWN 件と、残りの件数と封じた差分の実のパスの 1 行だけを出す"""
+        """封じた差分が 20,000 本を消しても、最後の承認ノードの文は本数に依らず短く、末尾の答え方の行まで在る。with: の鍵（封じの返りまるごとの
+        diff の指し札）から文まで本物で通し、先頭 SHOWN 件と、残りの件数と封じた差分の実のパスの 1 行だけを出す"""
         names = [f"gen/{i}.o" for i in range(20000)]
         ptr = self.place("merge/sealed.diff", {})
         (self.artifacts / "merge/sealed.diff").write_text(
             "".join(f"diff --git a/{n} b/{n}\ndeleted file mode 100644\n--- a/{n}\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n" for n in names), encoding="utf-8")
-        env = {f"INPUTS_{name.upper()}": "null" for name in line_nodes()["ask-final"]["with"]}
-        env.update({"INPUTS_SEALED_DIFF": json.dumps(ptr), "INPUTS_FINAL_GATE": "always", "INPUTS_UNATTENDED": "false",
-                    "INPUTS_TESTS_OK": "true", "INPUTS_GREEN": "true", "INPUTS_SEALED": "true"})
+        env = self.null_env(final_gate="always", unattended="false", tests={"ok": True, "green": True}, seal={"ok": True, "diff": ptr})
         with mock.patch.dict(os.environ, env):
             out = ask_final.ask(**ask_final.from_env())
         text, lines = out["text"], out["text"].splitlines()
@@ -2231,11 +2297,26 @@ class AfterFixAndJudgedCase(Artifacts):
         self.assertEqual(judged.judged(judge, self.returned(judge["judgment"], "採る"), "異議", "")["stop_reason"], "")
         self.assertEqual(judged.judged(judge, None, "", "works:rejudge")["stop_reason"], "", "再審が走らなければ止めの理由は無い")
         nodes = line_nodes()
-        self.assertEqual(nodes["judged"]["with"]["rejudge_stop_reason"], {"from": "$rejudge-run.output.stop_reason", "if_skipped": None})
+        self.assertEqual(nodes["judged"]["with"]["rejudge"], {"from": "$rejudge-run.output", "if_skipped": None})
         # 再審は 2 度目の修正の後（L-D42）なので、judged の止めは fixed でなく試験の関門（final）の when が読む。独立の目・merge はその後ろ
         self.assertIn("$judged.output.stop_reason == ''", nodes["test-gate-final"]["when"])
         self.assertIn("$fixed.output.go == true", nodes["test-gate-final"]["when"])
         self.assertEqual(nodes["redepth"]["depends_on"], ["judged"])
+
+    def test_judged_reads_the_whole_rejudge_output(self):
+        """judged は INPUTS_REJUDGE（再審の返りまるごと）から、再審の単位と止めの理由 stop_reason を読む。judge_ の欄（fix-in の欄つきの
+        参照）は 5 欄とも値に戻す。再審の節が飛んだ（null）時は再審なし"""
+        judge = self.returned(self.judgment("judge/judgment.json", []), "採る")
+        again = {**self.returned(self.judgment("rejudge/judgment.json", []), "一部採る"), "units": [],
+                 "ready": False, "stop_reason": "works:rejudge", "depth": [], "depth_why": ""}
+        env = {f"INPUTS_JUDGE_{key.upper()}": value if isinstance(value, str) else json.dumps(value) for key, value in judge.items()}
+        with mock.patch.dict(os.environ, {**env, "INPUTS_REJUDGE": json.dumps(again), "INPUTS_OBJECTION": "異議"}, clear=True):
+            took = judged.judged(*judged.from_env())
+        self.assertEqual((took["rejudged"], took["stop_reason"], took["units"], took["rejudge_verdict"]), (True, "works:rejudge", [], "一部採る"))
+        with mock.patch.dict(os.environ, {**env, "INPUTS_REJUDGE": "null", "INPUTS_OBJECTION": ""}, clear=True):
+            took = judged.judged(*judged.from_env())
+        self.assertEqual((took["rejudged"], took["stop_reason"], took["rejudge_verdict"]), (False, "", "採る"))
+        self.assertEqual(judged.REJUDGE, (*judged.FIELDS, "stop_reason"))
 
     def test_unreadable_judgments_are_said(self):
         judge = self.returned({"type": "archon_artifact", "run_id": "another", "path": "judge/judgment.json"})
@@ -2387,21 +2468,53 @@ class FixedCase(unittest.TestCase):
         self.assertEqual(fixed.fixed(self.fix(x_scalars={"x_a": 1}), None, replan=False, stops=("",))["x_scalars"], {"x_a": 1})
         nodes = line_nodes()
         self.assertEqual(nodes["eyes"]["with"]["x_scalars"], "$fixed.output.x_scalars")
-        self.assertEqual(nodes["fixed"]["with"]["refix_x_scalars"], {"from": "$refix-run.output.x_scalars", "if_skipped": None})
+        self.assertEqual(nodes["fixed"]["with"]["refix"], {"from": "$refix-run.output", "if_skipped": None})
+        self.assertIn("x_scalars", fixed.FIELDS)
         self.assertIn("x_scalars", block_doc("works-factory-fix")["nodes"][-1]["output_format"]["required"])
 
-
     def test_fields_are_every_field_fix_returns_and_fixed_takes_them_all(self):
-        """fixed.FIELDS は fix の返す節の output_format の欄の組と同じで、fixed は 1 回目（fix）と 2 度目（refix-run）の欄の全部を
-        fix_<欄>・refix_<欄> で受ける（片側だけ変えると欄が黙って落ちる。stop_reason は refix-run から fixed を通ってだけ報告に届く）"""
+        """fixed.FIELDS は fix の返す節の output_format の欄の組と同じで、fixed は 1 回目（fix）と 2 度目（refix-run）の出力をまるごとで
+        受け、読む欄は口 picked に渡す FIELDS（片側だけ変えると欄が黙って落ちる。stop_reason は refix-run から fixed を通ってだけ
+        報告に届く）"""
         doc = block_doc("works-factory-fix")
         returns = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
         self.assertEqual(set(fixed.FIELDS), set(returns["output_format"]["properties"]))
         took = line_nodes()["fixed"]["with"]
-        for prefix, node in (("fix", "fix"), ("refix", "refix-run")):
-            with self.subTest(node=node):
-                self.assertEqual({f: took.get(f"{prefix}_{f}") for f in fixed.FIELDS},
-                                 {f: {"from": f"${node}.output.{f}", "if_skipped": None} for f in fixed.FIELDS})
+        self.assertEqual({key: took[key] for key in ("fix", "refix")},
+                         {"fix": {"from": "$fix.output", "if_skipped": None}, "refix": {"from": "$refix-run.output", "if_skipped": None}})
+        self.assertFalse([key for key in took if key.startswith(("fix_", "refix_"))], "欄ごとの書き写しは残さない")
+
+    def test_whole_outputs_of_both_passes_are_read(self):
+        """fixed は INPUTS_FIX・INPUTS_REFIX（返りまるごと）を読む。refix が null なら 2 度目は走らなかったと見分け、fix も refix も
+        null なら直す物の無い周の形に倒す。fix だけ null で refix が在っても落ちない"""
+        first = self.fix(stop_reason="")
+        second = self.fix(units=[{"unit_id": "u2", "status": "fixed"}], diff={"path": "refix/diff"}, stop_reason="")
+        base = {"INPUTS_REPLAN": "false", "INPUTS_STOP_AFTER_FIX": ""}
+
+        def run(**inputs):
+            env = {**base, **{f"INPUTS_{k.upper()}": json.dumps(v) for k, v in inputs.items()}}
+            with mock.patch.dict(os.environ, env, clear=True):
+                return fixed.fixed(**fixed.from_env())
+
+        got = run(fix=first, refix=None)
+        self.assertEqual((got["done"], got["refixed"], got["no_fix"], got["units"]), (True, False, False, first["units"]))
+        both = run(fix=first, refix=second)
+        self.assertEqual((both["done"], both["refixed"], both["no_fix"], both["diff"]), (True, True, False, {"path": "refix/diff"}))
+        self.assertEqual([u["unit_id"] for u in both["units"]], ["u1", "u2"])
+        self.assertTrue(run(fix=None, refix=None)["no_fix"])
+        self.assertEqual(run(fix=None, refix=second)["refixed"], True)
+        with mock.patch.dict(os.environ, {**base, "INPUTS_FIX": json.dumps(first), "INPUTS_REFIX": "null"}, clear=True):
+            took = fixed.from_env()
+        self.assertEqual((set(took["fix"]), took["refix"]), (set(fixed.FIELDS), None))
+        with self.assertRaises(KeyError):
+            took["fix"]["typo"]
+        with self.assertRaises(KeyError):
+            took["fix"].get("typo")
+        with mock.patch.dict(os.environ, {**base, "INPUTS_FIX": "null", "INPUTS_REFIX": "null"}, clear=True):
+            skipped = fixed.from_env()["fix"]
+        self.assertEqual(skipped, dict.fromkeys(fixed.FIELDS))
+        with self.assertRaises(KeyError, msg="飛ばされた fix の既定も宣言の外の名で止まる"):
+            skipped.get("typo")
 
 
 class RedepthCase(Artifacts):
@@ -2619,17 +2732,42 @@ class RedepthCase(Artifacts):
 
 
 class ReturnedCase(unittest.TestCase):
-    def test_fields_are_gathered_and_strings_stay_strings(self):
-        env = {"INPUTS_GOT_OK": "true", "INPUTS_GOT_HASH": "123", "INPUTS_GOT_MODE": "seal", "INPUTS_GOT_DIFF": "null",
-               "INPUTS_GOT_PROTECTED_HITS": "[]", "INPUTS_GOT_REASON": ""}
-        self.assertEqual(returned.returned(env),
-                         {"got": {"mode": "seal", "ok": True, "hash": "123", "diff": None, "protected_hits": [], "reason": ""},
-                          "stop_reason": ""})
+    def returned(self, env: dict) -> dict:
+        with mock.patch.dict(os.environ, env, clear=True):
+            return returned.returned()
 
-    def test_line_inputs_are_not_fields(self):
-        """Archon は線の inputs: も INPUTS_<名> で渡す。受け皿は got_ の付いた with: の鍵だけを欄にする"""
-        env = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]} | {"INPUTS_GOT_OK": "true"}
-        self.assertEqual(returned.returned(env)["got"], {"ok": True})
+    def test_whole_output_gives_the_declared_fields(self):
+        """受け皿は INPUTS_GOT（受ける節の返りまるごと）の、INPUTS_NAMES（with: の names）で宣言した欄だけを、型を保ったまま got にする
+        （hash "123" は字、reason "" は字、diff null は None。返りに無い宣言の名は None、宣言の外の欄は運ばない）"""
+        whole = {"mode": "seal", "ok": True, "hash": "123", "diff": None, "protected_hits": [], "reason": "", "extra": 1}
+        got = self.returned({"INPUTS_GOT": json.dumps(whole), "INPUTS_NAMES": "mode ok hash diff protected_hits reason missing"})
+        self.assertEqual(got, {"got": {**{k: v for k, v in whole.items() if k != "extra"}, "missing": None}, "stop_reason": ""})
+        self.assertEqual((got["got"]["hash"], got["got"]["reason"], got["got"]["diff"]), ("123", "", None))
+
+    def test_fields_outside_the_declaration_stop_the_script(self):
+        """returned の got は宣言した名だけを持ち、.get・globals・getattr・locals で読み直しても、宣言の外の欄は KeyError になる"""
+        env = {"INPUTS_GOT": json.dumps({"ok": True, "stall": True}), "INPUTS_NAMES": "ok"}
+        reads = {
+            "返りの欄を .get": 'returned()["got"].get("stall")',
+            "globals": 'globals()["returned"]()["got"].get("stall")',
+            "getattr": 'getattr(sys.modules[__name__], "returned")()["got"]["stall"]',
+            "locals": '(lambda whole: locals()["whole"].get("stall"))(returned()["got"])',
+        }
+        for name, read in reads.items():
+            with self.subTest(name), mock.patch.dict(os.environ, env), self.assertRaises(KeyError):
+                eval(read, {**vars(returned), "sys": sys})
+
+    def test_unreadable_got_is_a_fallback_not_an_empty_got(self):
+        """受ける返りが読めない（INPUTS_GOT が無い・空・null・object でない・運ぶ欄の名 names が無い）時は、空の got の成功にせず
+        例外にして、boundary.run が fallback（got が None、stop_reason が works:line-script）に落とす"""
+        line_inputs = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]}
+        for case, env in {"無い": {}, "空": {"INPUTS_GOT": ""}, "null": {"INPUTS_GOT": "null"}, "字": {"INPUTS_GOT": "abc"},
+                          "配列": {"INPUTS_GOT": "[]"}, "names が無い": {"INPUTS_GOT": "{}"}, "線の入力だけ": line_inputs,
+                          "欄ごとの入力だけ": {"INPUTS_GOT_OK": "true"}}.items():
+            with self.subTest(case):
+                with self.assertRaises(ValueError):
+                    self.returned(env)
+        self.assertEqual(returned.fallback("x"), {"got": None, "stop_reason": "works:line-script"})
 
 
 class CollectAndResultCase(unittest.TestCase):
@@ -2827,7 +2965,7 @@ class CollectAndResultCase(unittest.TestCase):
 
 class SweepChildrenCase(unittest.TestCase):
     """線の後始末の節 sweep-children（issue #113）: 報告の後・線の返す節の前に在り、落ちずに {cleaned, left, error} を返し、
-    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/bin/test_childsweep.py"""
+    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/shared/test_childsweep.py"""
 
     def test_runs_after_the_report_and_feeds_only_the_result(self):
         nodes = line_nodes()
@@ -2874,12 +3012,13 @@ class SweepChildrenCase(unittest.TestCase):
         return json.loads(done.stdout)
 
     def test_run_without_children_does_not_fail(self):
-        self.assertEqual(self.run_node({"WORKS_FACTORY_ARCHON_SOURCE": "<tmp>/archon"}), {"cleaned": [], "left": [], "error": ""})
+        head = {shared("childsweep").CLI_ENV: json.dumps(["<tmp>/bin/bun"])}
+        self.assertEqual(self.run_node(head), {"cleaned": [], "left": [], "error": ""})
 
     def test_run_outside_the_launcher_does_not_fail(self):
         got = self.run_node({})
         self.assertEqual((got["cleaned"], got["left"]), ([], []))
-        self.assertIn("WORKS_FACTORY_ARCHON_SOURCE", got["error"])
+        self.assertIn(shared("childsweep").CLI_ENV, got["error"])
 
 
 class BoundaryRunCase(unittest.TestCase):
@@ -2979,9 +3118,11 @@ class NoFixWiringCase(unittest.TestCase):
         self.assertEqual((only["include"], only["when"], only["with"]["mode"], only["with"]["plan"]),
                          ("works-factory-plan-review", NO_FIX_WHEN, "design", "null"))
         self.assertIn("design-only", nodes["fixed"]["depends_on"])
-        for key in ("fix_done", "fix_units", "plan", "ripple", "replan", "stop_after_fix", "design", "no_fix_design",
+        for key in ("fix", "refix", "plan", "ripple", "replan", "stop_after_fix", "design", "no_fix_design",
                     "plan_questions", "answer"):
             self.assertIsInstance(nodes["fixed"]["with"][key], dict, key)
+        self.assertEqual({key: nodes["fixed"]["with"][key] for key in ("fix", "refix")},
+                         {"fix": {"from": "$fix.output", "if_skipped": None}, "refix": {"from": "$refix-run.output", "if_skipped": None}})
         self.assertEqual(nodes["eyes"]["with"]["design"], "$fixed.output.design")
         self.assertEqual(nodes["eyes"]["with"]["plan_questions"], "$fixed.output.plan_questions")
         self.assertEqual(nodes["eyes"]["with"]["answers"], "$fixed.output.answer")
@@ -2989,8 +3130,9 @@ class NoFixWiringCase(unittest.TestCase):
         self.assertIn("$fixed.output.no_fix == false", nodes["merge-apply"]["when"])
         self.assertEqual((nodes["ask-final"]["depends_on"], nodes["ask-final"]["trigger_rule"]),
                          (["eyes", "merge-seal"], "none_failed_min_one_success"))
-        for key in ("protected_hits", "sealed", "seal_reason", "hash", "sealed_diff", "plan_review", "structure", "before_fix_answer"):
+        for key in ("seal", "plan_review", "structure", "before_fix_answer"):
             self.assertIsInstance(nodes["ask-final"]["with"][key], dict, key)
+        self.assertEqual(nodes["ask-final"]["with"]["seal"], {"from": "$merge-seal.output", "if_skipped": None})
         for key in ("depth", "answer", "replanned"):
             self.assertIsInstance(nodes["redepth"]["with"][key], dict, key)
 
@@ -3025,48 +3167,58 @@ class LineWiringCase(unittest.TestCase):
     """返しの節の with: の鍵と、その script が読む INPUTS_<名> が同じ（片方だけ欄を足すと、欄が黙って報告から落ちる）"""
 
     def test_with_keys_are_what_the_script_reads(self):
-        """with: を持つ線の script の節の全部（受け皿 returned は下の 2 本）を、with: の鍵の全部を "null" にして走らせ、読んだ
-        INPUTS_<名> を控える"""
+        """with: を持つ線の script の節の全部を、with: の鍵の全部を "null" にして走らせ、
+        読んだ INPUTS_<名> を控える"""
         nodes = {key: node for key, node in line_nodes().items()
-                 if "script" in node and node.get("with") and node["script"] != "returned"}
+                 if "script" in node and node.get("with")}
+        self.assertIn("judge-out", nodes)
         self.assertIn("ask-before-fix", nodes)
         for key, node in nodes.items():
             with self.subTest(node=key), tempfile.TemporaryDirectory() as tmp:
                 env = Recorded(WORKFLOW_ID=RUN, ARTIFACTS_DIR=tmp, **{f"INPUTS_{name.upper()}": "null" for name in node["with"]})
-                with mock.patch.object(os, "environ", env), contextlib.redirect_stdout(io.StringIO()):
+                with mock.patch.object(os, "environ", env), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                     runpy.run_path(str(SCRIPTS / f"{node['script']}.py"), run_name="__main__")
                 self.assertEqual({name for name in env.read if name.startswith("INPUTS_")},
                                  {f"INPUTS_{name.upper()}" for name in node["with"]})
 
     def test_receivers_return_every_with_key_and_nothing_else(self):
-        """受け皿（returned）は with: の鍵 got_<欄> の全部を欄にし、Archon が同じく INPUTS_<名> で渡す線の inputs: は欄にしない"""
+        """受け皿（returned）の with: は、ちょうど {got, names}（返りまるごとと、運ぶ欄の名）で、got は names の欄だけを持つ。Archon が
+        同じく INPUTS_<名> で渡す線の inputs: は欄にしない"""
         run_inputs = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]}
         for key, node in line_nodes().items():
             if node.get("script") != "returned":
                 continue
             with self.subTest(node=key):
-                self.assertTrue(all(name.startswith("got_") for name in node["with"]), node["with"])
-                env = run_inputs | {f"INPUTS_{name.upper()}": "null" for name in node["with"]}
-                self.assertEqual(set(returned.returned(env)["got"]), {name.removeprefix("got_") for name in node["with"]})
+                self.assertEqual(set(node["with"]), {"got", "names"})
+                env = run_inputs | {"INPUTS_GOT": json.dumps({"a": 1}), "INPUTS_NAMES": node["with"]["names"]}
+                with mock.patch.dict(os.environ, env):
+                    self.assertEqual(list(returned.returned()["got"]), node["with"]["names"].split())
+
+    ROUNDS = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
+
+    def test_receiver_body_is_written_once(self):
+        """受け皿の本体（script・runtime・timeout・output_format）は YAML の字に 1 度だけ在り、ほかの受け皿はアンカーで受ける"""
+        self.assertEqual(len(re.findall(r"^\s*script: returned\s*$", LINE_TEXT, re.M)), 1)
+        self.assertEqual(sum(node.get("script") == "returned" for node in line_nodes().values()), 13)
 
     def test_receivers_take_every_field_of_what_they_receive(self):
-        """受け皿の got_<欄> は受ける節の同じ欄を指し、欄の組はブロックの返す節の output_format（計画の往復は plan_out の
-        PLAN と REVIEW）と同じ（受け皿の鍵を消すか向け違えると、その欄が黙って報告から落ちる）"""
+        """受け皿は、受ける節の出力をまるごとの got: $<dep>.output で受け、運ぶ欄の names の組はブロックの返す節の output_format の
+        欄と同じ。計画の往復の 2 本の names の組は plan_out の PLAN と REVIEW と同じ（names の名を消すか受け皿の鍵を向け違えると、その欄が
+        黙って報告から落ちる）"""
         nodes = line_nodes()
-        rounds = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
         for key, node in nodes.items():
             if node.get("script") != "returned":
                 continue
             with self.subTest(node=key):
                 dep = node["depends_on"][0]
-                fields = {name.removeprefix("got_") for name in node["with"]}
-                self.assertEqual(node["with"], {f"got_{name}": f"${dep}.output.{name}" for name in fields})
-                if key in rounds:
-                    self.assertEqual(fields, set(rounds[key]))
+                self.assertEqual(node["with"]["got"], f"${dep}.output")
+                if key in self.ROUNDS:
+                    self.assertEqual(node["with"]["names"].split(), list(self.ROUNDS[key]))
                     continue
+                self.assertIn("include", nodes[dep])
                 doc = block_doc(nodes[dep]["include"])
                 returns = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
-                self.assertEqual(fields, set(returns["output_format"]["properties"]))
+                self.assertEqual(sorted(node["with"]["names"].split()), sorted(returns["output_format"]["properties"]))
 
     def test_every_include_and_the_plan_rounds_have_a_receiver_that_collect_reads(self):
         """ブロックの返す節が落ちても報告が出るように、collect は返りを受け皿 <id>-out からだけ読む。2 度目の修正 refix-run は、
@@ -3086,7 +3238,8 @@ class LineWiringCase(unittest.TestCase):
                 with self.subTest(node=key, receiver=name):
                     receiver = nodes.get(name)
                     self.assertIsNotNone(receiver)
-                    self.assertEqual((receiver["script"], receiver["depends_on"], receiver.get("trigger_rule")), ("returned", [key], None))
+                    self.assertEqual(receiver["script"], "returned")
+                    self.assertEqual((receiver["depends_on"], receiver.get("trigger_rule")), ([key], None))
                     self.assertIn(name, nodes["collect"]["depends_on"])
                     self.assertIn(f"${name}.output", reads)
             self.assertFalse(any(f"${key}.output" in v for v in reads), "collect がブロックの返りを直に読む")
@@ -3457,8 +3610,7 @@ class LineWiringCase(unittest.TestCase):
         self.assertNotIn("plan-review-due", nodes["plan-review-run"]["depends_on"])
         self.assertNotIn("depth_skip", json.dumps(nodes))
         self.assertNotIn("review_skipped", json.dumps(nodes))
-        self.assertEqual((nodes["judge-out"]["with"]["got_depth"], nodes["judge-out"]["with"]["got_depth_why"]),
-                         ("$judge.output.depth", "$judge.output.depth_why"))
+        self.assertEqual(nodes["judge-out"]["with"]["got"], "$judge.output")
 
     def test_include_ids_are_not_loop_body_ids(self):
         """展開した後の節の id が重ならない: Archon は差し込んだブロックの頭の段の節にだけ `<include の id>__` を付け、輪の中の節の id は
