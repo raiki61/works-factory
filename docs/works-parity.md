@@ -3453,10 +3453,10 @@
 - judge.md J106: workflows/judge/works-factory-judge.yaml
 - judge.md J107: 13 本の workflows/judge/commands/*.md の頭
 - judge.md J108: 読み手は在る。materials.json → lib/runreport.py・lib/outcome.py・lib/boardview.py・lib/outcome.py::materials・workflows/plan-review/works-factory-plan-review.yaml の入力 judgment（隣の materials.json を名で開くと書く）、judge-verify.json → workflows/plan/works-factory-plan.yaml・lib/planfile.py・lib/runreport.py::verify_lines、pr-excluded.json → lib/planfile.py・lib/runreport.py::pr_lines、premises.json → workflows/eyes/scripts/prep.py・workflows/plan-review/scripts/r2_prep.py・lib/runreport.py::premise_lines
-- judge.md J109: lib/runreport.py の ledger・ledger_state（gatemarks.unmatched_answer_lines・answer_tie_lines を 1 回目の判定の隣の answer-ties.json で引き、人が決めることのセクションに並べる）
-- judge.md J110: lib/diverted.py の report_lines（判定の隣の local-review-lenses.json）→ lib/runreport.py の _unseen_lens_lines（報告の「未確認のレンズ」のセクション report.UNSEEN_LENS_HEADING）
-- judge.md J111: lib/prcheck.py の DRAFTS・draft_lines（判定の隣の pr-downgrades.json）→ lib/runreport.py の _pr_draft_lines（人が決めることのセクション）
-- judge.md J112: lib/runreport.py の _world_lines（1 回目の判定の隣の world-state.json を worldmark.read で。段が落ちた訳・類・落とした抜き書きの数）
+- judge.md J109: lib/runreport.py の ledger・ledger_state（gatemarks.unmatched_answer_lines・answer_tie_lines を判定の出力の欄 answer_ties の先（1 回目の判定の物。answer-ties.json）で引き、人が決めることのセクションに並べる）
+- judge.md J110: lib/diverted.py の report_lines（判定の出力の欄 review_lenses の先。local-review-lenses.json）→ lib/runreport.py の _unseen_lens_lines（報告の「未確認のレンズ」のセクション report.UNSEEN_LENS_HEADING）
+- judge.md J111: lib/prcheck.py の DRAFTS・draft_lines（判定の出力の欄 pr_drafts の先。pr-downgrades.json）→ lib/runreport.py の _pr_draft_lines（人が決めることのセクション）
+- judge.md J112: lib/runreport.py の _world_lines（判定の出力の欄 world_state の先〔1 回目の判定の物。world-state.json〕を worldmark.read で。段が落ちた訳・類・落とした抜き書きの数）
 - judge.md J113: 書くのは lib/judge_accept.py::rejudge_collect。読み手はメイングラフ（workflows/line/scripts/judged.py::compared が rejudge-exit.json を lib/report.py::rejudge_exit で開く）と報告（lib/runreport.py::rejudge_exit・lib/runreport.py::rejudge_lowered・lib/runreport.py::rejudge_changes が rejudge-diff.json を開く・lib/runreport.py::rejudge_lines）
 - line.md L-E01: workflows/line/scripts/start.py::request、lib/entry.py::request_problems
 - line.md L-E02: workflows/line/scripts/start.py::request（読めない・JSON として読めない・形の 3 つを別の文で拒む）（部分 A で閉じた）
@@ -3576,7 +3576,7 @@
 - line.md L-W07: メイングラフの design-only（plan-review の形 design。lib/boardview.py::open_design・lib/boardview.py::_collect_design）→ workflows/line/scripts/fixed.py::no_fix（独立設計・go・差分無し）→ judged・redepth・test-gate-final・eyes（設計は $fixed.output.design）→ ask-final（封じのノードが飛んでも開く）。merge-seal・merge-apply は no_fix で飛ぶ。結末は lib/outcome.py（残りが無ければ no_fix_needed、封じの出力が無いのを切れ目と読まない）。計画の直す義務 0 件の周も workflows/line/scripts/plan_out.py::round_owes_nothing が真なら plan-out の nothing_owed で design-only に入る（#291。結末は round_limit）
 - line.md L-W08: lib/judge_accept.py::structure_units（record に {units, paths} を書く）・`verdict` が判定の置き場の `structure-units-dropped.json`（`STRUCTURE_DROPPED_FILE`）に書く
 - line.md L-W09: workflows/line/scripts/ask_final.py::structure_missing（計画の出力 `structure` の先の structure-state.json を `structmark.note` で読む。メイングラフの `ask-final` の `structure` ← `$fix-in.output.structure`）
-- line.md L-W10: lib/planfile.py::write_brief（`planblk.verify_part` が判定の隣の judge-verify.json を貼る）
+- line.md L-W10: lib/planfile.py::write_brief（`planblk.verify_part` が判定の出力の欄 verify の先〔judge-verify.json〕を貼る）
 - line.md L-W11: workflows/line/works-factory-line.yaml::fix（fix の plan・ripple・depth は `$fix-in.output.*`）
 - line.md L-W12: workflows/line/works-factory-line.yaml::plan-rounds（loop_group。`review: $LOOP_PREV.plan-out.output.review` は workflows/line/works-factory-line.yaml::plan）、workflows/line/scripts/plan_out.py::plan_out
 - line.md L-W13: workflows/line/works-factory-line.yaml::plan-out・workflows/line/works-factory-line.yaml::plan-rounds-out
@@ -3851,7 +3851,7 @@
 - plan.md P158: workflows/plan-review/fixtures/
 - plan.md P159: lib/boardview.py::r2_due・workflows/plan-review/works-factory-plan-review.yaml::r2-design-loop `when: "$open.output.r2_go == true"`
 - plan.md P160: lib/boardview.py::purpose_unusable・lib/design.py::UNUSABLE
-- plan.md P161: judge が判定の隣に purpose-review.json を置き（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が名で開く（名は lib/purpose.py::PURPOSE_REVIEW_FILE の 1 か所）
+- plan.md P161: judge が判定の隣に purpose-review.json を置いて出力の欄 purpose_review で返し（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が入力 purpose_review の先を読む（名は lib/purpose.py::PURPOSE_REVIEW_FILE の 1 か所）
 - plan.md P162: workflows/plan-review/works-factory-plan-review.yaml::r2-design（systemPrompt。Archon の packages/providers/src/claude/provider.ts がノードの systemPrompt で既定の system prompt を置き換える）
 - plan.md P163: lib/boardview.py::r2_prompt・workflows/plan-review/scripts/r2_prep.py
 - plan.md P164: lib/boardview.py::r2_prompt（purpose.json の purpose_text だけを読む）
@@ -4061,7 +4061,7 @@
 - tail.md E40: lib/eyeverdict.py::NO_CONSTRAINTS・lib/eyeverdict.py::NO_REQUEST・lib/eyeverdict.py::premise_section
 - tail.md E41: lib/eyeverdict.py::_MD_FENCE・lib/eyeverdict.py::_md_lines・lib/eyeverdict.py::_md_slugs・lib/eyeverdict.py::_MD_RULES
 - tail.md E42: lib/eyeverdict.py::premise_section
-- tail.md E43: workflows/eyes/scripts/prep.py::premises・workflows/eyes/scripts/prep.py::constraints（判定の隣の premises.json の constraints を読む）、lib/eyeverdict.py::_constraint_rows・lib/eyeverdict.py::constraints_text。再審が走った run も、判定のサブグラフが再審の置き場に premises.json を写す（lib/judge_accept.py::verdict。tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment）
+- tail.md E43: workflows/eyes/scripts/prep.py::premises・workflows/eyes/scripts/prep.py::constraints（判定の出力の欄 premises の先〔premises.json〕の constraints を入力 premises で読む）、lib/eyeverdict.py::_constraint_rows・lib/eyeverdict.py::constraints_text。再審が走った run も、判定のサブグラフが再審の置き場に premises.json を写す（lib/judge_accept.py::verdict。tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment）
 - tail.md E44: lib/eyeverdict.py::R2_PREMISES・lib/eyeverdict.py::premise_section（返す控え r2_ledger を workflows/eyes/scripts/prep.py が eyes/r2-premises.json に書く）
 - tail.md E45: eyes の出力 notes（premise-inputs.json）を lib/eyeverdict.py::r2_input_lines で最後の承認ノード（ask_final の `eye_notes`）と報告（runreport の `_eye_lines`）が R2 の行の下に並べる
 - tail.md E46: lib/eyeverdict.py::prompt_texts
@@ -4176,7 +4176,7 @@
 - tail.md R77: lib/gatemarks.py::answer_ties・lib/gatemarks.py::ties_of・lib/gatemarks.py::answer_tie_lines・lib/gatemarks.py::returned_lines（判定が単位に結んだ答えの行）。報告は lib/runreport.py::ledger が判定の出力の欄 answer_ties の先を読む。fix は prep が入力 answer_ties の先を自分の名で写す
 - tail.md R78: lib/rolekit.py::last_reject（段の置き場の下の rejects-*.json の最後の行と、前の版の run の reject-*.md・reject-*.txt（読み替えの期限まで）の一番新しい物）→ lib/runreport.py::_last_reject（止めた段の前の失敗の行の文）
 - tail.md R79: lib/runreport.py::_world_lines（world-state.json の reason・classes・dropped）
-- tail.md R80: lib/runreport.py::_pr_draft_lines（判定の隣の pr-downgrades.json。material-pr-check.json の reply.conflicts[].note を judge_accept.prcheck_drafts が写した物）
+- tail.md R80: lib/runreport.py::_pr_draft_lines（判定の出力の欄 pr_drafts の先。pr-downgrades.json。material-pr-check.json の reply.conflicts[].note を judge_accept.prcheck_drafts が写した物）
 - tail.md R81: lib/runreport.py::stamp（報告のグラフのファイルの版と、始めの記録の versions.line の頭 12 字。読めた記録に無ければ「始めの記録に無い（versions.line）」、始めの記録が読めなければ「読めない（始めの記録が読めない）」）
 - tail.md R82: メイングラフの YAML の collect の with: optional（宣言の 1 か所）→ report の入力 optional → lib/runreport.py::transcript_facts（optional=）・lib/runreport.py::_declared（宣言の外の落ちは failed）
 - tail.md M1: workflows/merge/scripts/merge.py::main → lib/green_cert.py::diff_bytes
