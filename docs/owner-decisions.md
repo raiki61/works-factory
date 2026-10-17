@@ -307,6 +307,21 @@
 - 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（`harness/harness.config.json` の `required_checks`・`protected_paths`）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
 - 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分の家の設定で決める物がある（`defaultAssistant: claude`・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方: `bin/_lib/place.py` の `home_config`。
 
+### `target-user-env` 対象のコマンドだけ利用者の HOME・XDG で走らせる。旗は持たない
+
+- 覆した決着済みの論点（2026-10-17）: `bin/AGENTS.md の E15（#492・PR #496 のコメント）と lib/userenv.py の冒頭の docstring。…`——対象のコマンド（試験・受け入れ・TDD の試験）も既定は隔離のまま走らせ、利用者が旗で明示した時だけ隔離の前の HOME・XDG を戻す、という運び役の決め（持ち主の答え待ちのまま置いてあった）。
+- 覆した答え（2026-10-17。出どころは人〔依頼者〕の答えで、無人の run が採った推しではない。答えの字のまま。持ち主の言葉は道具の名を写さず、性質で書く）:
+  - A5 にあたる、名指し `bin/_lib/isolate.py::DIRS — …` の B: 「B: 対象のコマンドだけ利用者の HOME・XDG に戻す。役の Bash の隔離と柵の印・auth-middleware は今のまま（持ち主が 2026-10-17 に承認した #666 の設計で、隔離を続けるのは ARCHON_HOME と CLAUDE_CONFIG_DIR の側）。」
+  - A1 にあたる、修正案 2 の狭めの答え（名指し `修正案 2 が狭める能力: 旗を立てない既定の run で、…`）: 「continue: 旗を消し、対象のコマンドだけ利用者の HOME・XDG に戻す。起動の 1 行と README でコンテナ・VM の道を告げ、owner-decisions.md に A1・A5 を字のまま記録する（推す理由: 持ち主が A1・A5 で同じ境と代償を通している。資格に届く道が広がるので柵に当たるが、答えの条件をそのまま満たす）」
+  - 書く側の代償（修正案 4 の狭めの答え。名指し `修正案 4 が狭める能力: 旗を立てない既定の run で、対象の試験・受け入れ・TDD の試験のコマンドが隔離した HOME・XDG で走る、部分的な守りが消える。…`）: 「continue: 通す。条件: 起動の 1 行と README.md:43 に、書き込みも利用者の家に入る事を添える（推す理由: A5・A1 が対象のコマンドを利用者の家で走らせる事を決め済みで、書く側の代償はその帰結。告げずに通すと『守ったふりをしない』目的の文が、読む側だけを言って欠ける）」
+  - 修正前の基準を測れない base（名指し `修正案 2 が狭める能力: 修正前の試験が 1 段も走らなかった base の 2 つの形が…`）: 「continue: 段を起こして 1 つも走らなかった base と、test_cmd を起こせなかった base だけを止め、道具の誤りの文・準備の誤りの文・準備の宣言の案内を見せる。書式の誤り・任せ先の役の run・一部だけ走った base・JUnit の無い赤は今どおり進める」
+- 決め:
+  - 対象のコマンドだけ、隔離の前の HOME・XDG に戻して走らせる。旗（`WORKS_FACTORY_TARGET_USER_ENV`）は消し、殻は隔離の前の値をいつも控える。`isolate.DIRS` は変えず、役の Bash・Archon・工場の script の隔離と柵の印・`auth-middleware` は今のまま。
+  - 起動の 1 行（実行する run のたび）と README で、AI が書いた試験のコードを利用者の権限で走らせ、書く物も利用者の家に入る事と、守りが要るなら工場ごとコンテナか VM の中で回す道を告げる。コマンドごとの守りは工場が作らない。
+  - 修正前の試験が 1 段も走らなかった base の 2 つの形（段が全部起こせないか試験を走らせなかった base と、`test_cmd` を起こせなかった by role の base。準備が落ちた base も含む）は止め、道具の誤りの文と準備の案内を見せる。
+  - 場所ごとの信頼など新しい作業ツリーで要る準備は、対象の宣言の `setup` で述べる（`docs/design.md` の「対象のコマンドの環境と準備」）。
+- 当て方: `lib/userenv.py`（控えは旗なしでいつも置く）・`bin/_lib/isolate.py`・`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・`bin/AGENTS.md` の E15・`lib/tree_run.py` の `outside_env` と `run`・`lib/declared_checks.py` の `checks_reply`・`lib/graphloops/engine/declared.py` の `setup`。
+
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
 - 置き換えの条件: 今の works と同じ能力に届いたら置き換え、claude-plugins には `/works` の薄い入口だけを残す。根拠: 下の `superset` と `own-graph-alongside`。

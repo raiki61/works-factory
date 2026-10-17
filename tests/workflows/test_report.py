@@ -397,9 +397,9 @@ class FactsCase(Run):
         self.assertIn("LOG_DIR", text)
 
     def test_users_env_sentence_only_with_the_marker(self):
-        """#504: 利用者が明示した run でも、対象のコマンドを利用者の HOME・XDG に戻して起こした印（メイングラフの run の置き場の
-        userenv.RAN_FILE）が無ければ、報告の冒頭は利用者の環境で走らせたと言わない（対象のコマンドの前に止まった run）"""
-        opted = {userenv.RECORD: userenv.record({"HOME": "/u", userenv.OPT_IN: "1"})}
+        """#504: 起動の殻を通った run（いつも控えが在る）でも、対象のコマンドを利用者の HOME・XDG に戻して起こした印（メイングラフの run の
+        置き場の userenv.RAN_FILE）が無ければ、報告の冒頭は利用者の環境で走らせたと言わない（対象のコマンドの前に止まった run）"""
+        opted = {userenv.RECORD: userenv.record({"HOME": "/u"})}   # 旗の無い控え（殻はいつも置く）
         text = (self.artifacts / self.run_script("facts", **opted)[1]["facts_file"]).read_text(encoding="utf-8")
         self.assertNotIn(userenv.NOTE, text)
         (self.artifacts / userenv.RAN_FILE).touch()

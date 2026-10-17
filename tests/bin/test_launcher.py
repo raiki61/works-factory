@@ -1,7 +1,7 @@
 """入口の殻 bin/works-factory（bin/_lib/launcher.py）の試験。
 
 殻を子のプロセスとして、tests/bin/fakelaunch.py の使い捨ての木（偽の Archon の源）で走らせる。PATH には偽の bun・claude・gh・
-security（と mise）と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
+security と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
 試験の出力に出さない）。
 """
 import contextlib
@@ -29,8 +29,7 @@ API_KEY = "sk-ant-api03-fake-for-launcher"
 GH_FAKE = "ghp_fake-for-launcher"
 GITHUB_TOKENS = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")
 # 利用者の場から漏れると照らしが揺れる名（hermetic が外さない物）
-USER_SPECIFIC = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", *GITHUB_TOKENS,
-                 "MISE_TRUSTED_CONFIG_PATHS")
+USER_SPECIFIC = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", *GITHUB_TOKENS)
 
 FAKE_GH = "#!/bin/sh\nexit 0\n"
 # 名指した項目を、名指した HOME で引いた時だけトークンを返す（ほかは本物の security の「無い」と同じ 44）
@@ -43,15 +42,6 @@ if service and service == os.environ.get("FAKE_SECURITY_SERVICE") and os.environ
     print(os.environ["FAKE_SECURITY_VALUE"])
     sys.exit(0)
 sys.exit(44)
-"""
-# 本物の mise と同じく、HOME の下のパスは ~/… と出す
-FAKE_MISE = """#!/bin/sh
-case "$FAKE_MISE_TRUSTED" in
-  "$HOME"/*) shown="~${FAKE_MISE_TRUSTED#"$HOME"}" ;;
-  *) shown="$FAKE_MISE_TRUSTED" ;;
-esac
-[ "$1 $2" = "trust --show" ] && echo "$shown: trusted"
-exit 0
 """
 
 
@@ -200,9 +190,9 @@ class LauncherTest(unittest.TestCase):
         self.reached(done)
         self.assertIn("注意（test_cmd）", done.stderr)
 
-    def test_test_cmd_through_home_stops_only_when_target_commands_get_the_users_home(self):
-        """PR #503 の見直し: 対象のコマンドを利用者の HOME で走らせる run（userenv.OPT_IN）では、~・$HOME で手元を指す test_cmd も
-        run の中で手元を指すので止める。隔離した HOME で走らせる run では別の所を指して落ちるので止めない"""
+    def test_test_cmd_through_home_always_stops_unless_allowed(self):
+        """PR #503 の見直し: 対象のコマンドは利用者の HOME で走る（旗は無い）ので、~・$HOME で手元を指す test_cmd も run の中で
+        手元を指す。いつも止め、WORKS_FACTORY_ALLOW_TESTCMD=1 なら起こす"""
         self.commit_target()
         (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
         runner = self.target / ".venv" / "bin" / "run-tests"
@@ -212,9 +202,9 @@ class LauncherTest(unittest.TestCase):
         git(self.target, "commit", "-q", "-m", "ignore")
         run = ("workflow", "run", "works-factory-line", "--input", "request=x")
         via_home = f"~/{os.path.relpath(runner, self.home)} -q"
-        err = self.stopped(self.launch(*run, "--input", f"test_cmd={via_home}", **{userenv.OPT_IN: "1"}))
+        err = self.stopped(self.launch(*run, "--input", f"test_cmd={via_home}"))
         self.assertIn("止める（test_cmd）", err)
-        self.reached(self.launch(*run, "--input", f"test_cmd={via_home}"))
+        self.reached(self.launch(*run, "--input", f"test_cmd={via_home}", **{launcher.ALLOW_TESTCMD_ENV: "1"}))
 
     def test_test_cmd_check_that_fails_stops_unless_allowed(self):
         def failing(*_, **__):
@@ -350,7 +340,7 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertTrue(pathlib.Path(env[name]).is_relative_to(home), env[name])
         self.assertNotIn(str(self.home), [env[n] for n in ("HOME", "CLAUDE_CONFIG_DIR", "XDG_CACHE_HOME")])
-        self.assertNotIn(userenv.RECORD, env)   # 既定は対象のコマンドも隔離のまま（#492）
+        self.assertEqual(json.loads(env[userenv.RECORD])["HOME"], str(self.home))   # 対象のコマンドにだけ利用者の HOME・XDG を戻す控え（持ち主の決め target-user-env）
         self.assertEqual(env["ARCHON_TELEMETRY_DISABLED"], "1")
         self.assertEqual(env["DO_NOT_TRACK"], "1")
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
@@ -370,17 +360,48 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(users.read_bytes(), before)
         self.assertEqual(sorted(p.name for p in (self.home / ".archon").iterdir()), ["config.yaml"])
 
-    def test_users_home_reaches_target_commands_only_when_asked(self):
-        """#492: OPT_IN=1 の起動だけが、対象のコマンドに戻す利用者の HOME を控え、明示したことと AI の試験のコードが資格に届きうることを起動の 1 行で言う。
-        役と Archon の HOME は隔離のまま"""
-        done = self.launch("workflow", "run", "works-factory-line", **{userenv.OPT_IN: "1"})
-        env = self.reached(done)["env"]
+    def test_users_home_reaches_target_commands_whether_or_not_a_switch_is_set(self):
+        """旗に依らず、起動はいつも対象のコマンドに戻す利用者の HOME を控え、AI が書いた試験のコードを利用者の権限で走らせる告知の 1 行を
+        言う。役と Archon の HOME は隔離のまま。旗の名は出力に出ない"""
+        for switch in ({}, {"WORKS_FACTORY_TARGET_USER_ENV": "1"}):
+            with self.subTest(switch=switch):
+                done = self.launch("workflow", "run", "works-factory-line", **switch)
+                env = self.reached(done)["env"]
+                self.assertEqual(json.loads(env[userenv.RECORD])["HOME"], str(self.home))
+                self.assertTrue(pathlib.Path(env["HOME"]).is_relative_to(self.default_home(self.target)), env["HOME"])
+                self.assertIn(launcher.TARGET_ENV_NOTICE, done.stderr)
+                self.assertNotIn("WORKS_FACTORY_TARGET_USER_ENV", done.stderr)
+
+    def test_target_commands_get_the_users_home_without_a_switch(self):
+        """旗を置かない起動の子の env に userenv.RECORD が在り、その HOME が利用者の HOME。子の HOME・ARCHON_HOME・CLAUDE_CONFIG_DIR は
+        家の下に隔離したまま"""
+        env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
+        self.assertIn(userenv.RECORD, env)
         self.assertEqual(json.loads(env[userenv.RECORD])["HOME"], str(self.home))
-        self.assertTrue(pathlib.Path(env["HOME"]).is_relative_to(self.default_home(self.target)), env["HOME"])
-        self.assertIn(f"{userenv.OPT_IN}=1", done.stderr)
-        self.assertIn(f"{userenv.OPT_IN}=1 を明示した", done.stderr)
-        self.assertIn("AI が書いた試験のコードが利用者の資格", done.stderr)
-        self.assertNotIn(userenv.OPT_IN, self.launch("workflow", "run", "works-factory-line").stderr)
+        home = self.default_home(self.target)
+        for name in ("HOME", "ARCHON_HOME", "CLAUDE_CONFIG_DIR"):
+            with self.subTest(name=name):
+                self.assertTrue(pathlib.Path(env[name]).is_relative_to(home), env[name])
+
+    def test_executing_run_says_ai_test_code_runs_with_the_users_rights(self):
+        """旗を置かない workflow run の標準エラーに、AI が書いた試験のコードを利用者の権限で走らせる・書く物も利用者の家に入る・コンテナか
+        VM で回す道の 1 行が出る。走らせない命令（workflow status）には出ない"""
+        done = self.launch("workflow", "run", "works-factory-line")
+        self.reached(done)
+        self.assertIn(launcher.TARGET_ENV_NOTICE, done.stderr)
+        for word in ("AI が書いた試験のコード", "権限", "利用者の家", "コンテナ", "VM"):
+            self.assertIn(word, launcher.TARGET_ENV_NOTICE)
+        self.assertEqual(done.stderr.count(launcher.TARGET_ENV_NOTICE), 1)
+        quiet = self.launch("workflow", "status")
+        self.reached(quiet)
+        self.assertNotIn("AI が書いた試験のコード", quiet.stderr)
+        # README は同じ告知を書き（旗は無い）、準備の宣言 setup の書き方を test_cmd の節に書く
+        readme = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+        self.assertIn(launcher.TARGET_ENV_NOTICE, readme)
+        self.assertNotIn("WORKS_FACTORY_TARGET_USER_ENV", readme)
+        section = readme.split("### test_cmd と作業ツリー\n", 1)[1].split("\n#", 1)[0]
+        for word in ("`setup`", ".review-checks.json", "`suite`", ".gitignore", "`test_cmd` だけの対象"):
+            self.assertIn(word, section)
 
     def test_child_env_carries_answer_head(self):
         """関所の答えの行の頭は家を名指して殻を通す respond。利用者の値より殻の値"""
@@ -679,26 +700,6 @@ class LauncherTest(unittest.TestCase):
                                        WORKS_FACTORY_NO_AUTH="1"))
         self.assertEqual(len(err.strip().splitlines()), 1, err)
         self.assertIn("CLAUDE_BIN_PATH", err)
-
-    def test_mise_trust_only_when_user_trusts_target(self):
-        put(self.fake / "mise", FAKE_MISE)
-        workspaces = os.path.realpath(self.default_home(self.target) / "archon-home" / "workspaces")
-        env = self.reached(self.launch("workflow", "status", FAKE_MISE_TRUSTED=str(self.target),
-                                       MISE_TRUSTED_CONFIG_PATHS="/before"))["env"]
-        self.assertEqual(env["MISE_TRUSTED_CONFIG_PATHS"], f"/before:{workspaces}")
-        env = self.reached(self.launch("workflow", "status", FAKE_MISE_TRUSTED=str(self.tmp)))["env"]
-        self.assertNotIn("MISE_TRUSTED_CONFIG_PATHS", list(env))
-        env = self.reached(self.launch("workflow", "status", FAKE_MISE_TRUSTED=str(self.target),
-                                       WORKS_FACTORY_NO_AUTH="1"))["env"]
-        self.assertNotIn("MISE_TRUSTED_CONFIG_PATHS", list(env))
-        with self.subTest("HOME の下の対象（mise は ~/… と出す）"):
-            under_home = self.home / "proj"
-            under_home.mkdir()
-            git(under_home, "init", "-q")
-            workspaces = os.path.realpath(self.default_home(under_home) / "archon-home" / "workspaces")
-            env = self.reached(self.launch("workflow", "status", cwd=under_home,
-                                           FAKE_MISE_TRUSTED=str(under_home)))["env"]
-            self.assertEqual(env.get("MISE_TRUSTED_CONFIG_PATHS"), workspaces)
 
     def test_toolset_failure_stops_before_archon(self):
         shutil.rmtree(self.home / ".claude")

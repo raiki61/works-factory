@@ -9,7 +9,7 @@
   _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
 - 元の盤面の部分を盤面なしで組み直した物: _planned_run・_declaration_moved（宣言の照合）・_fall_back（任せ先へ落とす）
-- 新しい関数: material_problems・role_material_problems・drop_copy・_cant_status
+- 新しい関数: material_problems・role_material_problems・drop_copy
 """
 import contextlib
 import json
@@ -346,8 +346,11 @@ def ran_reds(runs, unran) -> list:
 
 def checks_reply(launch, runs, root, *, after_judge) -> dict:
     """走らせた結果から素材 {status, count?, detail?, checked?, reason?} を組む。走らせられないときは、判定の前（after_judge が偽）なら
-    awaiting_human、判定の後なら not_run（人待ちを新しく立てない規則）。
-    試験の報告（junit）を宣言した段は、報告の件数で走ったかを見て、走らなかった段を起こせない段と同じ status に落とす。
+    awaiting_human、判定の後なら not_run（人待ちを新しく立てない規則）。ただし起こした段が 1 つも走らなかった時（全部が起こせない段か、
+    試験を走らせなかった段〔下〕しか無い）は、判定の前でも後でも not_run（修正前の基準を測れないまま判定・計画・修正へ進まない）で、
+    理由に段の誤り（起こせない OSError の文。対象の準備 setup の誤りも）と各段のログの末尾を載せる。一部だけ走った時と宣言の書式の誤り
+    （blocked）は、判定の前は awaiting_human のまま。
+    試験の報告（junit）を宣言した段は、報告の件数で走ったかを見て、走らなかった段を起こせない段と同じに扱う。
     ただし走った段の赤が在れば found を勝たせ、走らなかった段の訳は detail に添える（#370。元は走らなかった段を先に見ていた）。
     報告を宣言していない段の赤は found のまま、走ったかは確かめていないと detail に添える
     （元 works/.shared/core/graphloops/rules/review-loop.py:2236-2271。記録への控え _checks_note と台帳の人待ち _awaiting_origins を外した）"""
@@ -359,8 +362,12 @@ def checks_reply(launch, runs, root, *, after_judge) -> dict:
     decl = {s["name"]: s for s in launch.get("steps") or []}
     unran = {r["name"]: _junit_unran(root, decl[r["name"]], r) for r in runs if r["exit"] is not None and decl.get(r["name"], {}).get("junit")}
     unran = {n: why for n, why in unran.items() if why}
+    none_ran = bool(runs) and not any(r["exit"] is not None and r["name"] not in unran for r in runs)
+    unrun = CANT[True] if none_ran else cant
+    tails = " ／ ".join(f"{r['name']} の末尾: {r['tail'][-600:]}" for r in runs if r["exit"] is not None and r.get("tail")) if none_ran else ""
     if broken:
-        return {"status": cant, "reason": "宣言の語を起こせない: " + "; ".join(f"{r['name']}: {r.get('error')}" for r in broken)}
+        return {"status": unrun, "reason": "宣言の語を起こせない: " + "; ".join(f"{r['name']}: {r.get('error')}" for r in broken)
+                                           + (f" ／ {tails}" if tails else "")}
     unran_text = "基準の検査が走らなかった段（コードの赤ではない）: " + "; ".join(f"{n}: {why}" for n, why in unran.items())
     red_ran = ran_reds(runs, unran)
     if red_ran:
@@ -370,7 +377,7 @@ def checks_reply(launch, runs, root, *, after_judge) -> dict:
                           + (f" ／ 走ったかは確かめていない（試験の報告の宣言が無い段: {', '.join(unverified)}）" if unverified else "")
                           + (f" ／ {unran_text}" if unran else "")}
     if unran:
-        return {"status": cant, "reason": f"{unran_text} ／ 走らせた結果: {summary}"}
+        return {"status": unrun, "reason": f"{unran_text} ／ 走らせた結果: {summary}" + (f" ／ {tails}" if tails else "")}
     return {"status": "clean", "checked": f"engine が宣言 {DECL_NAME}（sha {launch['sha'][:12]}）の {len(runs)} 段を走らせた: {summary}"}
 
 
@@ -431,13 +438,6 @@ def _no_runs() -> dict:
             "junit_steps": [], "junit_unran": []}
 
 
-def _cant_status(material: dict, after_judge: bool) -> dict:
-    """走らせられない素材の status を形に合わせる（判定の前は awaiting_human・後は not_run）。test_cmd の素材は起こせない時に
-    形を問わず not_run を返すので、判定の前の素材の決まり（material_problems）に外れないように置き換える"""
-    cant = CANT[bool(after_judge)]
-    return {**material, "status": cant} if material.get("status") in CANT.values() else material
-
-
 def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_dir=None, reuse: dict | None = None) -> dict:
     """CI の節を走らせる。返り {by, material, runs, skipped_steps, same_as, test_cmd_how, log, cases, junit_steps, junit_unran, fell_back?}。
     - 範囲の宣言（checkscope.SCOPE_DECL）が在るのに対象の宣言（DECL_NAME）が無い・範囲の宣言の誤り・宣言に無い段の名は、
@@ -446,7 +446,8 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
     - 宣言が在れば by engine: 範囲の宣言の paths_ignore を changed（変更のパスを返す口。範囲を持つ段が在る時だけ呼ぶ）と照らし、
       変更が全部その下に在る段は回さず skipped_steps に名と範囲で残す。宣言の段の後に test_cmd の段を足し（宣言の段と同じ
       コマンドなら足さず same_as にその段の名）、素材は全部の段から組む——宣言の一式と test_cmd の両方が緑の時だけ clean。
-      宣言の書式の誤りは走らせずに走らせられない素材（判定の前は awaiting_human・後は not_run）
+      宣言の書式の誤りは走らせずに走らせられない素材（判定の前は awaiting_human・後は not_run）。起こした段が 1 つも走らなかった
+      時は、判定の前でも後でも not_run（checks_reply）
     - 走らせた段が宣言を書き換えた（走らせた後の宣言の sha が計画の sha と違う）なら、計画から 1 度だけやり直す（ログは
       log_dir/replan）。やり直しの後も変わっていれば CiRefused
     - engine の素材が素材の欄の決まり（material_problems）に外れれば任せ先に落とし、fell_back に訳を置く: engine が同じ呼び出しで
@@ -454,7 +455,8 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
       走らせて by role。test_cmd が無ければ by role_needed
     - 宣言が無く test_cmd が在れば by role: test_cmd だけを走らせた素材と、起こす前に決めた起こし方 test_cmd_how（direct・shell）
     - どちらも無ければ by role_needed: 素材は None（任せ先の CI の役が渡す。前の結果を使ってよい、ではない）
-    by role の素材の走らせられない status は形に合わせる（_cant_status）。
+    by role の素材は、test_cmd を起こせなければ not_run のまま返す（判定の前の素材の決まり material_problems も通す。任せ先の役が
+    書く素材は role_material_problems が awaiting_human を求める）。
     reuse（tree_run.reuse_place の返り）を渡せば、宣言の一式と test_cmd を同じ run の中の控えから使い回し・控える（tree_runner・
     local_checks_material）。使い回した段の出どころは素材の checked と段の行の reused に、使い回さなかった理由は段の行の reuse_off に出る。
     最後のテストの呼び手は渡さない（最後のテストは省かない）。
@@ -480,7 +482,7 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
     if not problems:
         return got
     why = "engine が組んだ素材が素材の欄の決まりに外れた: " + "；".join(problems)
-    return _fall_back(root, test_cmd, log_dir, after_judge, ran, got["same_as"], why, reuse)
+    return _fall_back(root, test_cmd, log_dir, ran, got["same_as"], why, reuse)
 
 
 def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, changed, after_judge: bool, report_dir, reuse) -> tuple:
@@ -492,7 +494,7 @@ def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, chang
             return {**out, "by": ROLE_NEEDED}, [], ""
         log = log_dir / f"{TEST_CMD_STEP}.log"
         launched = {}
-        material = _cant_status(local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"], after_judge)
+        material = local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"]
         return {**out, "by": ROLE, "material": material, "log": str(log), "test_cmd_how": launched.get("how")}, [], ""
     steps = plan.get("steps") or []
     if any(s["name"] == TEST_CMD_STEP for s in steps):
@@ -535,8 +537,7 @@ def _declaration_moved(root: pathlib.Path, sha: str) -> str:
     return f"宣言 {DECL_NAME} が計画の後に変わった（sha {sha[:12]} → {after[:12] if after else (now or {}).get('error') or '無い'}）"
 
 
-def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, after_judge: bool, runs: list, same_as, why: str,
-               reuse) -> dict:
+def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, runs: list, same_as, why: str, reuse) -> dict:
     """engine の結果を使えない CI の節を任せ先へ落とす。test_cmd の素材は、engine が同じ呼び出しで走らせた test_cmd の段（名
     TEST_CMD_STEP か same_as の段で、起こせた物）が在ればその終了コードと標準出力・標準エラーと、走った行の argv・how から組み、
     無ければ test_cmd を走らせる（元 works/.shared/core/board.py:1413 _fall_back と works/.shared/core/entry.py:925 _ci_by_cmd。
@@ -554,7 +555,7 @@ def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, after_j
     else:
         launched = {}
         material = local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"]
-    return {**out, "by": ROLE, "material": _cant_status(material, after_judge), "log": str(log),
+    return {**out, "by": ROLE, "material": material, "log": str(log),
             "test_cmd_how": launched.get("how")}
 
 
@@ -582,8 +583,9 @@ def material_problems(material, *, mode: str) -> list:
       from_round を外した物。YAML の役の節 ci の output_format と同じ物であることは試験が縛る）
     - status ごとに要る欄（検証器の素材の表 review-record.py:140-151 の STATUS）: found は count と detail、clean は checked、
       ほかは reason。要る文の欄は空でない
-    - 形（mode）ごとの走らせられない時の status（写しの指示書 p0.local_checks.md・p4.ci.md と、判定の後の工程は人待ちを新しく
-      立てない規則 review-loop.py の check_record）: base は awaiting_human（not_run は拒む）、final は not_run（awaiting_human は拒む）
+    - 形（mode）ごとの走らせられない時の status（判定の後の工程は人待ちを新しく立てない規則 review-loop.py の check_record）:
+      base は awaiting_human と not_run の両方（機械が走らせて 1 段も走らなかった素材は not_run、一部だけ走った素材は awaiting_human）、
+      final は not_run（awaiting_human は拒む）。任せ先の役の base は role_material_problems が not_run を拒む
     mode が base・final でなければ ValueError"""
     if mode not in MODES:
         raise ValueError(f"mode は {'・'.join(MODES)} のどれか: {mode!r}")
@@ -596,19 +598,21 @@ def material_problems(material, *, mode: str) -> list:
             probs.append(f"素材は {status} なので '{k}' が要る")
         elif k not in NUMERIC_FIELDS and isinstance(material[k], str) and not material[k].strip():
             probs.append(f"素材は {status} なので '{k}' に何を見たかを書け（空）")
-    cant = CANT[mode == "final"]
-    if status in CANT.values() and status != cant:
-        probs.append(f"{mode} の形は走らせられなければ {cant} で書け（{status} は使わない。修正前は緑を仮定せず人待ち、"
-                     "修正後は人待ちを新しく立てない）")
+    if mode == "final" and status == CANT[False]:
+        probs.append(f"final の形は走らせられなければ {CANT[True]} で書け（{status} は使わない。修正後は人待ちを新しく立てない）")
     return probs
 
 
 def role_material_problems(material, *, mode: str) -> list:
-    """任せ先の CI の役の素材の material_problems に、final の not_run の系統の名の分け（SYSTEMS。走らせられなかった系統が 1 つ
-    以上）が要る決まりを足した物（#514）。役の run は段の行を持たないので、一部の系統だけ走らせた時に冒頭の句が「走っていない」と
-    言わずに系統を名指すには、役が名を分けて書くほかない。engine の素材は段の行から分けるので要らない。どの形でも、同じ系統の名を
-    ran と unran の両方に書いた素材は拒む（冒頭の句が同じ名を走らせた側と走らせられなかった側の両方に出す。#538）"""
+    """任せ先の CI の役の素材の material_problems に、決まりを足した物。base の任せ先の役は、走らせられなければ awaiting_human で書く
+    （not_run は拒む。修正前は緑を仮定せず人待ちにする。1 段も走らなかった not_run で止めるのは機械が走らせた素材だけ）。final の
+    not_run には系統の名の分け（SYSTEMS。走らせられなかった系統が 1 つ以上）が要る（#514）。役の run は段の行を持たないので、一部の
+    系統だけ走らせた時に冒頭の句が「走っていない」と言わずに系統を名指すには、役が名を分けて書くほかない。engine の素材は段の行から
+    分けるので要らない。どの形でも、同じ系統の名を ran と unran の両方に書いた素材は拒む（冒頭の句が同じ名を走らせた側と走らせられなかった
+    側の両方に出す。#538）"""
     probs = material_problems(material, mode=mode)
+    if mode == "base" and isinstance(material, dict) and material.get("status") == CANT[True]:
+        probs.append(f"base の形は走らせられなければ {CANT[False]} で書け（{CANT[True]} は使わない。修正前は緑を仮定せず人待ち）")
     systems = material.get(SYSTEMS) if isinstance(material, dict) else None
     if isinstance(systems, dict) and isinstance(systems.get("ran"), list) and isinstance(systems.get("unran"), list):
         if both := sorted(set(map(str, systems["ran"])) & set(map(str, systems["unran"]))):

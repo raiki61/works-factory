@@ -208,7 +208,7 @@ def line_place() -> Path | None:
 
 def aim_user_env() -> None:
     """対象のコマンドを利用者の HOME・XDG に戻した印を、メイングラフの run の置き場（line_place）に置かせる（USER_ENV_RAN_DIR）。置き場が
-    引けなければ古い値も外す（利用者が明示した run では lib/userenv.restore が戻さずに止まる）"""
+    引けなければ古い値も外す（起動の殻を通った run では lib/userenv.restore が戻さずに止まる）"""
     top = line_place()
     if top is None:
         os.environ.pop(USER_ENV_RAN_DIR, None)
