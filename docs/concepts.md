@@ -160,7 +160,7 @@
 - 状態: 住処あり
 - 住処: `lib/handoff.py`（欄の名 `FIELD`・欄の並び `KEYS`・型 `SCHEMA`・書けという頼み `ASK`・前の周のセクションの見出し `HEAD`・使い方 `USE`・メモが無い周の文 `NONE`・読めない周の文 `UNREADABLE`・控えのパス `path_of`・控えを置く `save`・読めない控えを返す `unreadable`・前の周のセクションを組む `section`）
 - 約束: 役の返答の欄 `handoff`（4 つの欄 `read`・`decided`・`rejected`・`doubts`）と、周のフォルダの控え `handoff.json`（控えの名と置き場は `lib/marks.py` の種 `handoff`）
-- 知ってよい所: 住処だけ。計画の受け付け `lib/planfile.py` と報告の受け付け `lib/runreport.py` は住処の `save`・`section`・`ASK` を呼び、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report/works-factory-report.yaml`）は `SCHEMA` の写しで、`tests/workflows/test_plan.py`・`tests/workflows/test_report.py` が住処と等しいことを縛る（表の bound）
+- 知ってよい所: 住処だけ。計画の受け付け `lib/planfile.py` と報告の受け付け `lib/runreport.py` は住処の `FIELD`・`path_of`・`save`・`unreadable`・`section`・`ASK` を使い、型・頼み・セクションを写さない。役の返答の型の YAML の写し（`workflows/plan/works-factory-plan.yaml`・`workflows/report/works-factory-report.yaml`）は `SCHEMA` の写しで、`tests/workflows/test_plan.py`・`tests/workflows/test_report.py` が住処と等しいことを縛る（表の bound）
 - 今: 外の当たりは 0 件
 
 ### `plan-scope` 修正案の項目の範囲の照らし

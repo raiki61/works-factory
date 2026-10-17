@@ -1200,7 +1200,8 @@ class AcceptCase(Base):
         self.assertEqual((got["done"], got["ok"], got["prev_file"]), (True, False, ""))
         rows = json.loads(rolekit.rejects_path(blocked, runreport.REPORT_NODE).read_text(encoding="utf-8"))
         self.assertIs(rows[-1]["give_up"], True)
-        self.assertIn("前の周の引き継ぎのメモを次の周へ渡せない", rows[-1]["reason"])
+        self.assertIn(f"前の周の引き継ぎのメモ {handoff.path_of(folder)} に書けない", rows[-1]["reason"])
+        self.assertNotIn("前の答えの控え", rows[-1]["reason"])
 
 
 class ReportGiveUpCase(Base):

@@ -123,7 +123,7 @@
 - 使うサブグラフ: plan・report
 - 外す条件: 場合に分ける。
   - 計画（plan）: `include` をまたぐか、CLI の別の run で同じノードの会話を続けられる版が出たら。外す前に、`docs/owner-decisions.md` の「計画の往復の周をまたぐ書き直し（#571。2026-10-15）」の行（前の周の会話を続けず新しい会話で始めると持ち主が選んだ）と、同じ文書の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の行の訳（`d97d00ef` の `authoring-workflows.md` 285 行に頼っていて、`355f1867` の 288 行とはもう合わない）を持ち主に戻す。`docs/owner-decisions.md` はこの名簿からは書き換えない。
-  - 報告（report）の `write-loop`: `355f1867` では、ループの前に書き手の AI のノードを置けば（今の `write-loop` の前は `facts` の script だけ）書き手の会話をループの中で続けられるので、既に外せる候補。作り直し（`write-loop` を名指しの持ち主の会話に替えて報告の引き継ぎのメモを外すか）は、持ち主の答えを待つ。答えが出たらこの行に書く。
+  - 報告（report）の `write-loop`: `355f1867` では、ループの前に書き手の AI のノードを置けば（今の `write-loop` の前は `facts` の script だけ）書き手の会話をループの中で続けられるので、既に外せる候補。作り直し（`write-loop` を名指しの持ち主の会話に替えて報告の引き継ぎのメモを外すか）は #671 で確かめる。
 - 外す手順: 外す条件を満たしたら次を全部消し、役の会話を続ける形に替える。`lib/handoff.py` を import する物の全部（`grep -rn "import handoff" lib workflows tests`）も、取りこぼしの入口にする。
   - `lib/handoff.py` の全体。
   - `lib/planfile.py::write_brief`・`_save`・`take_plan`・`take_replan` の handoff の呼びと、`RESUBMIT_RULES`・`REPLAN_RESUBMIT_RULES` の `handoff.FIELD` の行（`accepted_rounds` は `latest` の絞りとして残す）。

@@ -81,10 +81,10 @@ class HandoffCase(unittest.TestCase):
         handoff.path_of(r3).write_text("null", encoding="utf-8")
         r4.mkdir()
         self.assertEqual(handoff.unreadable([r1, r2, r3, r4]), [handoff.path_of(r2), handoff.path_of(r3)])
-        r5b = self.dir / "r6"
-        r5b.mkdir()
-        handoff.path_of(r5b).write_text("[]", encoding="utf-8")
-        self.assertEqual(handoff.unreadable([r5b]), [handoff.path_of(r5b)], "オブジェクトでない控えも読めない")
+        r6 = self.dir / "r6"
+        r6.mkdir()
+        handoff.path_of(r6).write_text("[]", encoding="utf-8")
+        self.assertEqual(handoff.unreadable([r6]), [handoff.path_of(r6)], "オブジェクトでない控えも読めない")
         handoff.save(r5, {})
         self.assertFalse(r5.exists(), "メモが空なら周のフォルダを作らない")
         handoff.save(r1, {})

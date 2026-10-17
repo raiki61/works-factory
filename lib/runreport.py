@@ -1773,13 +1773,14 @@ def _carry_rejected(out_dir: pathlib.Path, reply: dict, refused: dict) -> dict:
     candidate = rolekit.candidate_path(out_dir, REPORT_NODE)
     note = reply.get(handoff.FIELD)
     folder = out_dir / NOTE_ROUND.format(n=n)
-    where = candidate
     try:
         jsonfile.write(candidate, {"text": text, "terms": _list(reply.get("terms"))}, indent=2)
-        where = handoff.path_of(folder)
+    except OSError as e:
+        return _give_up(refused, f"前の答えの控え {candidate} に書けない（{type(e).__name__}）ので、前の周の引き継ぎのメモを次の周へ渡せない")
+    try:
         handoff.save(folder, note if isinstance(note, dict) else None)
     except OSError as e:
-        return _give_up(refused, f"前の答えの控え {where} に書けない（{type(e).__name__}）ので、前の周の引き継ぎのメモを次の周へ渡せない")
+        return _give_up(refused, f"前の周の引き継ぎのメモ {handoff.path_of(folder)} に書けない（{type(e).__name__}）ので、次の周へ渡せない")
     return refused
 
 
@@ -1801,8 +1802,9 @@ def accept(reply, cold, *, out_dir) -> dict:
     reason_file, prev_file}。拒んだ回の返答の本文 text・terms は、rolekit の前の答えの控え rolekit.candidate_path(out_dir, REPORT_NODE)
     に書き、まだ諦めていない拒否の回の prev_file がそのパスを指す（受け取った回・諦めた回・控えの無い回は空の字）。返答の handoff（読んだ所・
     決めた訳・退けた案・迷い）は、その回の周のフォルダ out_dir/NOTE_ROUND（n は輪の今の回）に handoff.save で置く（handoff の無い回は
-    フォルダを作らない）。handoff は AI_FILE にも初見の読み手に貼る本文（cold_body）にも載らない。前の周のメモが読めない時、
-    前の答えの控えに書けない時は、何も上書きせずに take の拒否に give_up を付けて口に 1 回目で止めさせる。受け付けの回は rolekit.accept_round
+    フォルダを作らない）。handoff は AI_FILE にも初見の読み手に貼る本文（cold_body）にも載らない。前の周のメモが読めない時は何も書かずに、
+    前の答えの控えかその回のメモに書けない時は（メモが書けない時は前の答えの控えはもう書けている）、take の拒否に give_up を付けて口に
+    1 回目で止めさせる。受け付けの回は rolekit.accept_round
     （out_dir、節 REPORT_NODE）が持つ。順: 読む（読めない返答・本文の無い返答は kind answer）
     → terms の型 → 表のセルの書式 → 機械の報告の冒頭の HEAD_NOTES の句が頭に在るか → 初見の読み手の判定。通らなければ口が拒否の行
     （kind つき）を rolekit の控え rejects-report.json に積み、reason_file は拒否の全部の rejects-report.md（rolekit.reject_file）。
