@@ -712,36 +712,36 @@
        "散らばり（まとめる計画はまだ無い）: 役の定義の前付けが模型と effort の正本を持つ（YAML の AI のノードの行とは結ばれていない）"
       ],
       "workflows/eyes/works-factory-eyes.yaml": [
-       18,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       12,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/fix/works-factory-fix.yaml": [
-       21,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       14,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/judge/commands/material-local-review.md": [
        1,
        "散らばり（まとめる計画はまだ無い）: 素材集めの局所の審査の指示書が、審査役の道具 allowed_tools を字で述べる"
       ],
       "workflows/judge/works-factory-judge.yaml": [
-       34,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       23,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/plan-review/works-factory-plan-review.yaml": [
-       6,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       4,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/plan/works-factory-plan.yaml": [
-       6,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       4,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/report/works-factory-report.yaml": [
-       6,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       4,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/test-gate/works-factory-test-gate.yaml": [
-       3,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
+       2,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ]
      }
     }

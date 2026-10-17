@@ -6029,12 +6029,16 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#head-depth"
       ],
-      "output_format_sha256": "03394a1ead21682429753cf6ef5f0469f3357ffe3acf88587fb261edb0a503fe",
+      "output_format_sha256": "7b9fe38d7b4e73ad302fa230418a576166e94e88d1af832784b5bd75db7c832e",
       "json_keys": [
         "cause_quote",
         "code_quote",
+        "effort",
+        "group",
+        "groups",
         "item",
         "items",
+        "model",
         "unknown",
         "where",
         "why"

@@ -111,8 +111,7 @@ nodes:
         - id: structure-eye
           command: structure-eye
           depends_on: [structure-eye-prep]
-          model: opus
-          effort: high
+          model: '@wf-plan-structure'
           allowed_tools: []
           settingSources: [user]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -243,8 +242,7 @@ nodes:
           depends_on: [plan-prep]
           when: "$plan-prep.output.resubmit != true"
           <<: &writer_launch
-            model: opus
-            effort: medium
+            model: '@wf-plan-writer'
             allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
             settingSources: [user]
             sandbox: {enabled: true, allowUnsandboxedCommands: false}

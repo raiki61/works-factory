@@ -83,8 +83,7 @@ nodes:
         - id: write
           command: report
           depends_on: [write-reject]
-          model: sonnet
-          effort: medium
+          model: '@wf-report'
           allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
           settingSources: [user]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
@@ -156,8 +155,7 @@ nodes:
           command: cold-check
           depends_on: [cold-prep]
           context: fresh
-          model: sonnet
-          effort: medium
+          model: '@wf-report'
           allowed_tools: []
           settingSources: [user]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}

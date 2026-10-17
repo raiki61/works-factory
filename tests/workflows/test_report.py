@@ -39,6 +39,7 @@ import converge  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import handoff  # noqa: E402
+import launchgroups  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
@@ -233,7 +234,7 @@ class ShapeCase(unittest.TestCase):
         for node in (write, cold):
             self.assertEqual(node["settingSources"], ["user"])
             self.assertEqual(node["sandbox"], SANDBOX)
-            self.assertEqual((node["model"], node["effort"]), ("sonnet", "medium"))
+            self.assertEqual(launchgroups.default_of(node["model"]), ("sonnet", "medium"))
         self.assertEqual(write["output_format"], {k: v for k, v in report_roles.TEXT_SCHEMA.items()})
         self.assertEqual(cold["output_format"], runreport.COLD_SCHEMA)
 

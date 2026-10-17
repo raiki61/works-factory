@@ -5,8 +5,11 @@
 開けたファイルのパスの字にして渡す（開けなければ None）。指し札の隣のファイル（docs/design.md の「書き方の決め」の名指しの
 隣のファイル）は指し札の先と同じフォルダから読む。
 
-- transcript_facts(rows, *, exclude_prefix, optional) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models, calls, resubmits}
-  （run の記録の行の読み。resubmits はループごとの {count: until が通らなかった回, minutes: 回り直しにかかった分}）
+- transcript_facts(rows, *, exclude_prefix, optional) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models, efforts, calls, resubmits}
+  （run の記録の行の読み。efforts は models と同じ形の、行の execution.binding.effort。resubmits はループごとの {count: until が通らなかった回,
+  minutes: 回り直しにかかった分}）
+- 報告の ## 模型 のセクション（_model_lines）: 群ごとの選びの行（headdepth.groups_lines）・ノードごとの実際に走った模型と effort・結末の行
+  （_outcome_line。結末の語・最後の承認ノードの答え・目ごとの語・次の run に渡す物と持ち越した失敗の件数・DATA_PLACES）
 - cost_rows(facts)・resubmit_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行・ループの回り直しの行と、費用の節の行（元 report.py:1769・1806）
 - next_request(returns, left, closed, *, beside, exit_doc)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
 - ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
@@ -239,12 +242,12 @@ def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
     exclude_prefix で始まるループは数えない"""
     if rows is None:
         return {"ok": False, "failed": [], "absorbed": [], "errors": {}, "retried": [], "cost": {}, "uncosted": {}, "minutes": {},
-                "models": {}, "calls": {}, "resubmits": {}}
+                "models": {}, "efforts": {}, "calls": {}, "resubmits": {}}
 
     def ours(step):
         return bool(exclude_prefix) and step.startswith(exclude_prefix)
     last, falls, errors, began, ended = {}, {}, {}, {}, {}
-    cost, uncosted, models, calls = {}, {}, {}, {}
+    cost, uncosted, models, efforts, calls = {}, {}, {}, {}, {}
     untils = {}
     for r in rows:
         if not isinstance(r, dict) or not isinstance(r.get("step"), str):
@@ -276,6 +279,9 @@ def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
                 or as_dict(as_dict(execution.get("binding")).get("model")).get("requested")
             if isinstance(model, str) and model and model not in models.setdefault(step, []):
                 models[step].append(model)
+            effort = as_dict(execution.get("binding")).get("effort")
+            if isinstance(effort, str) and effort and effort not in efforts.setdefault(step, []):
+                efforts[step].append(effort)
 
     minutes = {s: round((ended[s] - began[s]).total_seconds() / 60, 1) for s in ended
                if began.get(s) is not None and ended[s] is not None}
@@ -285,7 +291,7 @@ def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
             "errors": {s: errors.get(s, "") for s in fell},
             "retried": [{"node": s, "failures": n, "error": errors.get(s, "")} for s, n in falls.items()
                         if last.get(s) in DONE_ROWS and not ours(s)],
-            "cost": cost, "uncosted": uncosted, "minutes": minutes, "models": models, "calls": calls,
+            "cost": cost, "uncosted": uncosted, "minutes": minutes, "models": models, "efforts": efforts, "calls": calls,
             "resubmits": {loop: _resubmit(got) for loop, got in untils.items()}}
 
 
@@ -357,13 +363,31 @@ def head_cost(facts: dict, why: str = "") -> list:
             *cost_rows(facts), *resubmit_rows(facts)]
 
 
-def _model_lines(facts: dict) -> list:
-    models = facts.get("models") or {}
+DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 判定の置き場の隣の depth-head.json の groups／"
+               "実際の値 = $LOG_DIR/<run の id>.jsonl の行の execution.binding／"
+               "結末 = メイングラフの出力 result の outcome・stop_reason")
+
+
+def _outcome_line(outcome: str, gates: dict, returns: dict, carried: int, prior: list, eyes_skip=None) -> str:
+    eyes = returns.get("eyes")
+    seen = NO_EYES if eyes is None else "・".join(f"{name.upper()}: {_eye_word(eyes, name, eyes_skip)}" for name in oc.EYE_NAMES)
+    return "／".join([f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）",
+                     f"最後の承認ノード gate-final: {_gate_line(gates.get('gate-final'))}", f"独立の目: {seen}",
+                     f"次の run に渡す物: {carried} 件", f"持ち越した失敗: {len(prior)} 件", DATA_PLACES])
+
+
+def _model_lines(facts: dict, head_doc, outcome_line: str) -> list:
+    """## 模型 のセクション: 群ごとの役の選び（headdepth.groups_lines。head_doc は判定の隣の控え）・ノードごとの実際に走った模型と
+    effort（呼ぶ人の名指しも層の付け替えも解いた後の値）・結末の行（_outcome_line）"""
+    models, efforts = facts.get("models") or {}, facts.get("efforts") or {}
     if not facts.get("ok"):
-        return ["run の記録が読めない"]
-    if not models:
-        return ["記録に模型の欄が無い"]
-    return [f"{s}: {', '.join(ms)}{'（run の途中で替わった）' if len(ms) > 1 else ''}" for s, ms in sorted(models.items())]
+        nodes = ["run の記録が読めない"]
+    elif not models:
+        nodes = ["記録に模型の欄が無い"]
+    else:
+        nodes = [f"{s}: {', '.join(ms)}{'（run の途中で替わった）' if len(ms) > 1 else ''}"
+                 + (f"（effort: {', '.join(efforts[s])}）" if efforts.get(s) else "") for s, ms in sorted(models.items())]
+    return [*headdepth.groups_lines(head_doc), *nodes, outcome_line]
 
 
 # ---------------------------------------------------------------- 問いの台帳（判定の judgment.json の questions）
@@ -1204,19 +1228,29 @@ def _green_lines(typed: dict, returns: dict) -> list:
     return (out or ["型つきの成果物 green-cert が一覧に無い"]) + _evidence_lines(returns)
 
 
+NO_EYES = "独立の目のサブグラフの出力が無い（飛ばされた・落ちた）"
+
+
+def _eye_word(eyes, name: str, eyes_skip=None) -> str:
+    """目 1 つの語。出力の在る目は status と理由。出力の無い目は、直した後の深さが標準（eyes_skip が空の字）なら結果が無い目、
+    ほかは深さで省いた目。『独立の目』のセクションの目ごとの行と、## 模型 のセクションの結末の行が同じ字を言う（_eye_lines・_outcome_line）"""
+    e = as_dict(eyes).get(name)
+    if isinstance(e, dict):
+        return f"{e.get('status')}（{oneline.one_line(e.get('reason') or '理由なし')}）"
+    return oc.MISSING_EYE.removeprefix("の") if eyes_skip == "" else "深さで省いた"
+
+
 def _eye_lines(returns: dict, typed: dict, eyes_skip=None) -> tuple[list, list]:
-    """目ごとの行と注意の行。返りの無い目は、直した後の深さが標準（eyes_skip が空の字）なら結果が無い目、ほかは深さで省いた目"""
+    """目ごとの行と注意の行。目 1 つの語は _eye_word"""
     eyes = returns.get("eyes")
     out, notes = [], []
     if eyes is None:
-        out.append("独立の目のサブグラフの出力が無い（飛ばされた・落ちた）")
+        out.append(NO_EYES)
     at = eye_notes_dir(returns)
     for name in oc.EYE_NAMES:
         e = as_dict(eyes).get(name)
         if eyes is not None:
-            out.append(f"{name.upper()}: " + (f"{e.get('status')}（{oneline.one_line(e.get('reason') or '理由なし')}）"
-                                             if isinstance(e, dict) else oc.MISSING_EYE.removeprefix("の") if eyes_skip == ""
-                                             else "深さで省いた"))
+            out.append(f"{name.upper()}: {_eye_word(eyes, name, eyes_skip)}")
             if name == "r2" and isinstance(e, dict):   # E45: R2 に渡した前提と『渡されていない』と言われた物（元 line_edge._r2_inputs）
                 out += [f"  - {x}" for x in (eyeverdict.r2_input_lines(at) if at is not None
                                              else ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の出力 notes が無い）"])]
@@ -1606,10 +1640,13 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         decide = "。".join(x for x in (decide, apply[-1]) if x)
     asked_texts = [*spec_changed_of(line), *_plan_questions(returns, gates, start)[0],
                    *oc.eye_questions(returns)]
-    head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
+    carried = len(findings) + len(drafts) + len(constraints)
+    head_at = _first_beside(returns, headdepth.RECORD)
+    head_doc = headdepth.read(head_at.parent) if head_at is not None else None
+    head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {carried} 件")
     sections = [
         (report.DECISIONS_HEADING, [*_pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns), *decisions,
-                                    f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
+                                    f"次の run に渡す物: {carried} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
                                     *([draft] if draft else []), *apply]),
@@ -1625,7 +1662,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (report.UNSEEN_LENS_HEADING, _unseen_lens_lines(returns, beside)),
         (report.OUTSIDE_HEADING, outside),
         (report.PRIOR_HEADING, report.prior_lines(prior, next_file)),
-        (report.MODEL_HEADING, _model_lines(tfacts)),
+        (report.MODEL_HEADING, _model_lines(tfacts, head_doc, _outcome_line(outcome, gates, returns, carried, prior, skip))),
         (report.COST_HEADING, head_cost(tfacts, transcript_why)),
         (NOTES_HEADING, [oneline.one_line(n) for n in notes] or ["無い"]),
     ]
