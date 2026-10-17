@@ -43,7 +43,7 @@ inputs:
     description: run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら差分の審査を省く。空は標準
   answers:
     default: ""
-    description: 修正前の承認ノードの答え（飛ばされれば null）
+    description: 修正の前に人が返した答え（人に聞かなければ null）
   prior_conflicts:
     default: "null"
     description: 前の修正の段の申し出と裁定のポインタ（前の段の出力 conflicts。2 度目の修正の段だけに渡す）。その先のフォルダの申し出と裁定と TDD のループの状態を写し、この段が前の段の裁定と凍結を見る。null は 1 回目の段

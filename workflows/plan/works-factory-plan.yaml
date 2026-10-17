@@ -46,7 +46,7 @@ inputs:
     description: 仕様のポインタ。無ければ null
   review:
     default: ""
-    description: 事前審査の指摘のポインタ（往復の 2 回目から。空の字と null は事前審査がまだ無い）
+    description: 事前審査の指摘のポインタ（往復の 2 回目から。空の字と null は指摘がまだ無い）
   ruling:
     default: "[]"
     description: 案の直しで直す項目の番号の字の並び。空でなければ形 replan

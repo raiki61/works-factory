@@ -3,7 +3,7 @@ description: '判定のサブグラフ（メイングラフが include する部
 inputs:
   start: {default: 'null', description: 始めの記録のポインタ（JSON の字）}
   baseline: {default: 'null', description: 直す前の結末のポインタ（JSON の字）}
-  objection: {default: '', description: 修正役の異議。空でなければ再審の道}
+  objection: {default: '', description: 判定のフレーミングへの異議の文。空でなければ再審の道}
   prior_failures: {default: 'null', description: 前の run の持ち越しの前の失敗の行のポインタ（JSON の字。今の works の prior-failures-in.json）。約束に無い入力}
 returns: verdict
 outcome_field: ready

@@ -117,6 +117,27 @@ class BlockPathsTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertTrue(any(f"入力 {name} " in line and said in line for line in got), got)
 
+    def test_input_description_naming_a_maker_in_words_is_red(self):
+        """#683: 語「ノード」と、ほかのブロックの和名を作り手として書く形（修正役・独立の目が・修正の段）は赤。中身の語としての和名
+        （判定のポインタ）と、自分のブロックの和名（merge の 取り込みが）は数えない"""
+        yaml = ("name: works-factory-merge\ninputs:\n"
+                "  answer: {default: '', description: 最後の承認ノードの答え}\n"
+                "  objection: {default: '', description: 修正役の異議}\n"
+                "  eyes_ok: {default: '', description: 独立の目が通したか}\n"
+                "  diffs: {default: '', description: 修正の段ごとの diff}\n"
+                "  judgment: {default: '', description: 判定のポインタ。取り込みが読む}\n")
+        with tree({"workflows/merge/works-factory-merge.yaml": yaml}) as root:
+            got = scan.problems("E4", root)
+        for number, (name, said) in enumerate((("answer", "ノード"), ("objection", "修正役"), ("eyes_ok", "独立の目が"),
+                                               ("diffs", "修正の段")), 3):
+            with self.subTest(name=name):
+                self.assertTrue(any(f"works-factory-merge.yaml:{number}: 入力 {name} " in line and said in line for line in got), got)
+        self.assertFalse(any("入力 judgment " in line for line in got), got)
+
+    def test_block_titles_are_read_from_the_design(self):
+        self.assertEqual(scan.BLOCK_TITLES["fix"], "修正")
+        self.assertEqual(set(scan.BLOCK_TITLES) - set(scan.TOP_FOLDERS), set(scan.LAYERS["block"]["names"]))
+
     def test_input_description_naming_a_prefixed_block_is_red(self):
         yaml = "name: works-factory-eyes\ninputs:\n  plan: {default: 'null', description: works-factory-plan の出力}\n"
         with tree({"workflows/eyes/works-factory-eyes.yaml": yaml}) as root:

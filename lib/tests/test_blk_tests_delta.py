@@ -69,7 +69,7 @@ class TestDeltaPlace(RF.DeltaPlaceCase):
         for w in (seat.HEAD, got["brief_file"], d["file"], d["rev"], self.base, str(reply), seat.NONE,
                   seat.words_table("task-review")):
             self.assertIn(w, text)
-        self.assertNotRegex(text.split(seat.skill_overlay().strip())[0], r"\[[A-Z][A-Z_]+\]", "型の穴が残らない")
+        self.assertNotRegex(text.split(seat.skill_overlay("review").strip())[0], r"\[[A-Z][A-Z_]+\]", "型の穴が残らない")
         RF.apply_refix(self.repo)
         refix.accept_review(RF.review_none(), self.place, self.base, self.repo, n=1)
         self.assertTrue(refix.accept_fix(RF.fix_ok(), self.place, self.base, self.repo, n=1)["ok"])
