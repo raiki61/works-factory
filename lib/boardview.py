@@ -12,7 +12,7 @@
 - open_pass: 差し込みの頭（元 planblk.snap と design.due・design.snap。works/blk-plan/lib/planblk.py:1062・
   works/.shared/core/design.py:492）。形 replan の項目（replan_items。元 works/.shared/core/replan.py:291 の material）と、
   修正前の関所の答えの控え（take_gate_answers。元 graphloops/rules/review-loop.py:4134 の human_gate_answered）と、それを受けた後の
-  方針の文書の版（passed_version。線の節 answer-before-fix が呼ぶ）
+  方針の文書の版（passed_version。線の修正前の承認の後の節が呼ぶ）
 - 方針の文書: 固めた版（始めの記録の欄 policy。置き場と写しは policy.locate・snapshot）・変化（policy_change・change_row。元
   graphloops/rules/policy_input.py）。役に貼る節は固めた版の写しの policy.section
 - r2_prompt・check_design: 独立設計の支度と受け付け（元 works/.shared/core/design.py:528 の prep・:586 の check_design・
@@ -377,7 +377,7 @@ def reads_place(folder) -> tuple:
 def human_items(answers) -> list:
     """人の関所の答え（承認の節の返り {decision, text} か、その並び）を design.human_answers が読む行 {round, node, kinds, answer, note}
     に。null・形の違う値は無い"""
-    return [{"round": 1, "node": "gate-start", "kinds": [], "answer": a["decision"], "note": a.get("text") or ""}
+    return [{"round": 1, "node": gatemarks.START_GATE_NODE, "kinds": [], "answer": a["decision"], "note": a.get("text") or ""}
             for a in _answer_rows(answers)]
 
 
@@ -419,7 +419,7 @@ def take_gate_answers(folder, gate_answers) -> list:
 
 def passed_version(folder, gate_answers) -> dict | None:
     """修正前の関所の答えを受けた後の方針の文書の版 {named, path, sha256, copy}。答えを take_gate_answers で控えに積み（通した方針の
-    変化はここで固め直す）、置き場の POLICY_FILE を読む。この run の差し込みが版を置いていなければ None（線の節 answer-before-fix
+    変化はここで固め直す）、置き場の POLICY_FILE を読む。この run の差し込みが版を置いていなければ None（線の修正前の承認の後の節
     が始めの記録の欄 policy をこの版で書き直す）"""
     d = pathlib.Path(folder)
     if not (d / POLICY_FILE).is_file():
@@ -533,7 +533,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
 
 DESIGN_FORM = "design"   # 直す物が無い周の差し込みの形（修正案を読まずに独立設計だけを作る。元 line_edge.plan_edge 1107-1119）
 FORMS = ("review", "replan", DESIGN_FORM)   # open_pass と open_design が材料に書く形
-DESIGN_ONLY_DIR = "design-only"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
+DESIGN_ONLY_DIR = f"{DESIGN_FORM}-form"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
 DESIGN_ONLY_WHY = "直す物が無い周（判定が直す単位を出さなかったか、計画の直す義務が 0 件だった）——修正案も事前審査も無く、最後の R2 が要る独立設計だけを作った"
 
 

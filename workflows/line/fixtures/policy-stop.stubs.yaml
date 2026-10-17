@@ -1,4 +1,4 @@
-# 修正前の関所で stop。fix から後が飛び、関所の答え stop が collect を通って report の gate-before-fix に届く。
+# 修正前の関所で stop。fix から後が飛び、関所の答え stop が collect を通って report の入力 before-fix-answer に届く。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}

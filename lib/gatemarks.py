@@ -200,6 +200,7 @@ PASSED_BY = "decided"
 PASSED_BY_HUMAN = "human"               # 修正の後の関所で、修正前の関所で人が通した行と同じなので聞き直さなかった
 PASSED_BY_PUSH = "push"                 # 同じく、修正前の関所を無人の run が推しで通した行と同じなので聞き直さなかった
 GATE_NODE = "p2.human_gate"
+START_GATE_NODE = "始めの承認ノード"   # 始めの承認の答えの行の札（lib の語。始めの承認は review-graph の節に当たらないので p0.* の形にしない）
 R4_GATE_NODE = "r4.human_gate"
 # 修正前の関所の行の頭（plan_gate_items と写しの _plan_gate_items が組む形）。r4_gate_items が種類と本文に分ける
 NARROW_HEAD = re.compile(r"修正案 \d+ が狭める能力: ")

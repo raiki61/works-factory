@@ -5,7 +5,7 @@
 - E4: `pathlib` などで部品を継いで組むパス。判定の置き場のファイルの名の住処（JUDGE_NAME_HOMES）の中の関数が、判定の置き場を名で開くか。
   判定の置き場のファイルの名を f 文字列や字の連結で組む形と、判定のポインタの `.parent` を一度変数に置いてから住処の関数に渡す形
 - E12: script の中で置く期限
-- E22: 組んで作る名・`importlib` の読み込み・日本語の役の呼び名・素のブロックの名
+- E22: 根の AGENTS.md の E22 の「人が見る」の並び
 """
 import ast
 import collections
@@ -1523,7 +1523,7 @@ def _depth_when(root: Path) -> list[str]:
 
 
 # E22 の照らしの名（docs/layers.json の known の鍵）
-LAYER_CHECKS = ("import", "beside", "main-id", "role")
+LAYER_CHECKS = ("import", "beside", "main-id", "inner-id", "role")
 OLD_ROLE = r"blk-[a-z][a-z0-9_-]*"
 # 借りた読み替え（lib/seat.py の skill_overlay が役の種類の節と共通の文を役の指示書に載せる）。どのブロックの名も役の名も書かない
 OVERLAY_COPY = "lib/borrow/unattended.md"
@@ -1662,6 +1662,41 @@ def _own_ids(root: Path, place: str) -> set[str]:
     return _node_ids(document) if document is not None else set()
 
 
+def _inner_ids(root: Path, files) -> list[str]:
+    """メイングラフと周の鎖（層 top）の字の中の、ブロックの中のノードの id とその頭。中の id と include の名の対応は組まない（名の付け方を写さない）。
+    (a) 上のグラフの YAML の include を持つ節の id の後に `__` と id の字が 1 つ続く形（`judge__world-judge`・`judge__world-`）。左の境は word() と同じ
+    で右の境は問わない。include 丸ごとの宣言 `judge__` は `__` の後が空なので当たらない。
+    (b) ブロックの YAML の節の id のうち `-` を含む物の素の形（`world-judge`・その頭 `world-judge-`）。上のグラフ自身の id と同じ字・ブロックの名は除く。
+    右の境は word() の `-` だけを外した形で、`.` は外さない（隣のファイルの名 `world-judge.json` と重ねない）"""
+    include_ids, top_ids = set(), set()
+    for name in TOP_FOLDERS:
+        _, top = _workflow_doc(root / "workflows" / name)
+        if top is not None:
+            top_ids |= _node_ids(top)
+            include_ids |= {i.value for node in _nodes(top) if _top(node, "include") is not None
+                            and isinstance(i := _top(node, "id"), yaml.ScalarNode)}
+    blocks = [p for p in _blocks(root) if p.name not in TOP_FOLDERS]
+    inner = {i for p in blocks for i in _own_ids(root, f"workflows/{p.name}/") if "-" in i}
+    inner -= top_ids | set(BLOCKS) | {p.name for p in blocks}
+    patterns = []
+    if include_ids:
+        heads = "|".join(re.escape(i) for i in sorted(include_ids, key=len, reverse=True))
+        patterns.append(re.compile(rf"(?<!(?a:[\w\-/.]))(?:{heads})__(?a:[A-Za-z0-9])[\w\-]*"))
+    if inner:
+        names = "|".join(re.escape(i) for i in sorted(inner, key=len, reverse=True))
+        patterns.append(re.compile(rf"(?<!(?a:[\w\-/.]))(?:{names})(?!(?a:[\w/.]))"))
+    out = []
+    for path, rel, layer, _ in files:
+        if layer != "top" or not patterns:
+            continue
+        lines, broken = _lines(root, path)
+        out += broken
+        for number, line in enumerate(lines, 1):
+            for pattern in patterns:
+                out += [f"{rel}:{number}: ブロックの中のノードの id {m[0]} を名指す" for m in pattern.finditer(line)]
+    return out
+
+
 def _roles(document) -> set[str]:
     """グラフの YAML の役（AI の節）の id"""
     return {i.value for node in _nodes(document) if any(_top(node, k) is not None for k in ("prompt", "command", "loop"))
@@ -1727,7 +1762,7 @@ def layer_hits(root: Path) -> dict[str, list[str]]:
     root = Path(root)
     files = list(_layer_files(root))
     return {"import": _imports_against_map(root, files), "beside": _beside_names(root, files),
-            "main-id": _main_ids(root, files), "role": _role_names(root)}
+            "main-id": _main_ids(root, files), "inner-id": _inner_ids(root, files), "role": _role_names(root)}
 
 
 def _layer_map(root: Path) -> list[str]:

@@ -221,6 +221,8 @@ class Run:
         する（字はそのまま・ほかは JSON。$LOOP_PREV は輪の 1 周目は空の字）"""
         if not isinstance(ref, (str, dict)):
             return json.dumps(ref)
+        if isinstance(ref, str) and not ref.startswith("$"):
+            return ref
         prev = re.fullmatch(r"\$LOOP_PREV\.([\w-]+)\.output\.(\w+)", ref) if isinstance(ref, str) else None
         if prev:
             got = self.loop_prev.get(prev.group(1), {}).get(prev.group(2), "")
@@ -353,7 +355,8 @@ class ShapeCase(unittest.TestCase):
     def test_return_node_carries_exactly_the_contract(self):
         fmt = node(load(), "plan")["output_format"]
         self.assertEqual(fmt["required"], RETURNED)
-        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNED))
+        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNED + ["optional"]), "optional は required に無い欄（差し替えの返りに無くても落ちない）")
+        self.assertEqual(fmt["properties"]["optional"]["type"], "array")
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["ready"], {"type": "boolean"})
         self.assertEqual(fmt["properties"]["round"]["type"], "integer")
@@ -1420,6 +1423,18 @@ class CollectCase(unittest.TestCase):
             run.file(out[key])
         out = run.script("plan_collect", {"dir": "壊れた"})
         self.assertEqual(validate_schema(out, fmt), [])
+
+    def test_return_echoes_the_declared_optional(self):
+        self.assertIn("optional", node(load(), "plan")["with"], "返す節 plan の with: に宣言 optional が無い")
+        declared = node(load(), "plan")["with"]["optional"]
+        want = json.loads(declared)
+        self.assertEqual(sorted((row["node"], row["bare"]) for row in want),
+                         [("structure-", False), ("structure-eye", True), ("structure-eye-", True)])
+        run = Run(self)
+        self.assertEqual(run.include()["optional"], want, "ブロックを通した返す節の返り")
+        self.assertEqual(run.script("plan_collect", {"dir": "plan/r1", "optional": declared})["optional"], want)
+        self.assertEqual(run.script("plan_collect", {"dir": "壊れた", "optional": declared})["optional"], want, "失敗の形")
+        self.assertEqual(run.script("plan_collect", {"dir": "plan/r1"})["optional"], [], "宣言を渡されない呼び手")
 
     def test_first_round_reads_empty_and_null_review_alike(self):
         for review in ("", "null"):

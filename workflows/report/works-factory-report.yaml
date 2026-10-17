@@ -8,33 +8,142 @@ description: |
   with: でなく facts が $TYPED_ARTIFACTS_FILE から読む（workflows/AGENTS.md の E5）。
 
 inputs:
-  start: {default: ""}
-  test-gate-base: {default: ""}
-  judge: {default: ""}
-  rejudge: {default: ""}
-  plan: {default: ""}
-  plan-review: {default: ""}
-  replan: {default: ""}
-  replan-review: {default: ""}
-  fix: {default: ""}
-  test-gate-final: {default: ""}
-  eyes: {default: ""}
-  merge-seal: {default: ""}
-  merge-apply: {default: ""}
-  gate-start: {default: ""}
-  gate-before-fix: {default: ""}
-  gate-replan: {default: ""}
-  gate-final: {default: ""}
-  stops: {default: ""}
-  prior-failures: {default: ""}
-  deferred: {default: ""}
-  widened: {default: ""}
-  final-reasons: {default: ""}
-  spec-changed: {default: ""}
-  spec-unchecked: {default: ""}
-  redepth: {default: ""}
-  optional: {default: ""}
-  notices: {default: ""}
+  start:
+    default: ""
+    description: >-
+      始めの記録の JSON ファイルを指すポインタ {type, run_id, path}（path は run の置き場からの相対）。
+      空か null は始めの記録が届いていないこと（結果を名乗れない run）
+  before-tests:
+    default: ""
+    description: >-
+      直す前のテストの出力。JSON のオブジェクト {mode, ok, green, red_cause, baseline, evidence, by, suites_line, log, reason など}
+      （baseline・evidence はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちたこと
+  judge:
+    default: ""
+    description: >-
+      判定の出力。JSON のオブジェクト {ready, stop_reason, units, judgment, purpose, world, spec, out_of_purpose, depth, depth_why など}
+      （judgment 以下の文書の欄はポインタ {type, run_id, path} か null、units は単位の配列）。空か null はその段が飛ばされた・落ちたこと
+  rejudge:
+    default: ""
+    description: >-
+      {ready, stop_reason, units, judgment, purpose, world, spec, out_of_purpose, depth, depth_why など} の形の JSON のオブジェクト
+      （文書の欄はポインタか null）。同じ形の前の出力より新しい出力。在ればこちらを先に読む。空か null は走らなかったこと
+  plan:
+    default: ""
+    description: >-
+      計画の出力。JSON のオブジェクト {ready, stop_reason, round, depth など}（修正案・構造の目・波及の文書の欄はポインタ {type, run_id, path}
+      か null、depth は単位ごとの {unit_id, depth, why} の配列、round は何回目の案か）。空か null はその段が飛ばされた・落ちたこと
+  plan-review:
+    default: ""
+    description: >-
+      事前審査の出力。JSON のオブジェクト {pass, stalled, ask_human, questions, gate_axes など}（questions は {kind, text} の配列、
+      指摘と独立設計の文書の欄はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちた・欄が全部 null だったこと
+  replan:
+    default: ""
+    description: >-
+      {ready, stop_reason, round, depth など} の形の JSON のオブジェクト（文書の欄はポインタか null）。同じ形の前の出力より新しい出力。
+      在ればこちらを先に読む。空か null は走らなかったこと
+  replan-review-result:
+    default: ""
+    description: >-
+      {pass, stalled, ask_human, questions, gate_axes など} の形の JSON のオブジェクト（文書の欄はポインタか null）。
+      同じ形の前の出力より新しい出力。在ればこちらを先に読む。空か null は走らなかったこと
+  fix:
+    default: ""
+    description: >-
+      修正の出力。JSON のオブジェクト {done, go, units, conflicts, replan_items, objection, refixed, delta_review, allowed_test_changes, handoffs,
+      stop_reason, diff, diffs など}（units は {unit_id, status, reason} の配列、conflicts と diffs はポインタの配列でもよく、diff などの文書の欄は
+      ポインタか null）。空か null はその段が飛ばされた・落ちた・走らなかったこと
+  final-tests:
+    default: ""
+    description: >-
+      最後のテストの出力。JSON のオブジェクト {mode, ok, green, red_cause, ran_steps, baseline, evidence, by, suites_line, log, baseline_line,
+      reason など}（baseline・evidence はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちたこと
+  eyes:
+    default: ""
+    description: >-
+      独立の目の出力。JSON のオブジェクト {ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits, notes など}
+      （r1〜r4 は {status, reason} か null で、null は深さで省いた目か結果が無い目。questions は問いの文の配列、structure_after と notes は
+      ポインタか null）。空か null はその段が飛ばされた・落ちたこと
+  sealed-diff:
+    default: ""
+    description: >-
+      差分を封じた出力。JSON のオブジェクト {mode, ok, hash, diff, protected_hits, reason}（diff は封じた差分を指すポインタ {type, run_id, path}
+      か null、protected_hits は守りのパスの字の配列、ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちたこと
+  applied-diff:
+    default: ""
+    description: >-
+      差分を置いた出力。JSON のオブジェクト {mode, ok, hash, diff, reason}（diff は置いた先を指すポインタ {type, run_id, path} か null、
+      ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちた・最後の承認が止めて置かなかったこと
+  start-answer:
+    default: ""
+    description: >-
+      始めの承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      空か null はその承認が開かなかったこと
+  before-fix-answer:
+    default: ""
+    description: >-
+      修正前の承認の答え。JSON のオブジェクト {decision, text, asked}（asked は承認に載せた問いの文の配列。無人の run が推しで進んだ
+      答えは欄 pushed も持つ）。空か null はその承認が開かなかったこと
+  replan-answer:
+    default: ""
+    description: >-
+      案の直しの承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      空か null はその承認が開かなかったこと
+  final-answer:
+    default: ""
+    description: >-
+      最後の承認の答え。JSON のオブジェクト {decision, text, asked}（無人の run が推しで進んだ答えは欄 pushed も持つ）。
+      decision が止める語で text が request: で始まれば止め札。空か null はその承認が開かなかったこと
+  stops:
+    default: ""
+    description: >-
+      止めの語の表。JSON のオブジェクト {段の id: 止めの語}（空の語の段は載せない）。語は入口の拒み・無人の承認の止め・script の例外・
+      人の止めを言う。空のオブジェクトか空は止めた段が無いこと
+  prior-failures:
+    default: ""
+    description: >-
+      依頼が運んだ前の run の失敗の行のファイルを指すポインタ {type, run_id, path}（中身は {where, text} の配列）。空か null は運ばれていないこと
+  deferred:
+    default: ""
+    description: >-
+      無人の run で承認に載せずに回した問いの文の JSON の配列。空の配列か空は無いこと
+  widened:
+    default: ""
+    description: >-
+      聞かずに通した範囲を広げるだけの直しの 1 件 1 行の文の JSON の配列。空の配列か空は無いこと
+  final-reasons:
+    default: ""
+    description: >-
+      最後の承認を開ける理由の文の JSON の配列。空の配列か空は無いこと
+  spec-changed:
+    default: ""
+    description: >-
+      承認の後に受け入れ条件のテストが変わった問いの文の JSON の配列。空の配列か空は無いこと
+  spec-unchecked:
+    default: ""
+    description: >-
+      受け入れ条件のテストが変わったかを照らせなかったかの JSON の真偽値。true は照らせなかった。空か null は判らないこと
+  redepth:
+    default: ""
+    description: >-
+      直した後の深さの上げ直しの出力。JSON のオブジェクト {depth, skip_optional, raised, counted, stop_reason}（depth は単位ごとの
+      {unit_id, depth, why} の配列、skip_optional は省く理由の字で空の字は標準）。空か null は上げ直しが走らなかったこと
+  optional:
+    default: ""
+    description: >-
+      落ちても先へ進めてよい段の宣言。JSON の字の配列で、各行は区切り（__ か -）で終わる段の id の頭か段の id そのもの。
+      空の配列か空は宣言が無いこと（落ちを全部途中で終わったと数える）
+  stages:
+    default: ""
+    description: >-
+      段の表。JSON のオブジェクト {nodes: {役の名: 段の id}, links: [{before, flag, after, text, held?, needs?}]}。nodes は段の id が役の名と
+      違う役だけを写す。links は出力の続きで、before の出力の欄 flag（null は出力が在るだけ）が真なのに after の出力が無ければ text の切れ目。
+      held は before の出力のその欄が偽なら数えず、needs はその役の出力が無い周は数えない。届かなければ空（結果を名乗れない）
+  notices:
+    default: ""
+    description: >-
+      run を止めずに進めた起こす前の注意の行の文の JSON の配列。報告の冒頭の 3 行と人が決める物の下に 1 行ずつ載る。空の配列か空は無いこと
 
 returns: report
 outcome_field: ok

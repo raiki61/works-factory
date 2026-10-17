@@ -50,6 +50,7 @@ fix_in = load("fix_in")
 import answer  # noqa: E402  （線の script が lib/ と境の口の置き場を sys.path に足した後に読む）
 import boardview  # noqa: E402
 import boundary  # noqa: E402
+import childsweep  # noqa: E402
 import conceptfence  # noqa: E402
 import conflict  # noqa: E402
 import consult  # noqa: E402
@@ -62,6 +63,7 @@ import fixture  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
 import judge_accept  # noqa: E402
+import outcome  # noqa: E402
 import planfile  # noqa: E402
 import policy  # noqa: E402
 import querytest  # noqa: E402
@@ -116,6 +118,24 @@ def line_nodes(nodes=None) -> dict:
         got[node["id"]] = node
         got.update(line_nodes(node["loop_group"]["nodes"]) if "loop_group" in node else {})
     return got
+
+
+RETURNING = {"judge": "judge", "rejudge": "judge", "plan": "plan", "replan": "plan", "fix": "fix"}   # collect の欄 → その返りを返すブロック
+
+
+def block_optional(block: str) -> list:
+    doc = block_doc(f"works-factory-{block}")
+    return json.loads(next(n for n in doc["nodes"] if n["id"] == doc["returns"])["with"]["optional"])
+
+
+def received_with_declarations() -> dict:
+    """受け皿が collect へ運ぶ got の形（collect の欄 → 返りの欄）。各ブロックの返す節の宣言を optional に載せる"""
+    return {field: {"ready": True, "optional": block_optional(block)} for field, block in RETURNING.items()}
+
+
+def declared_by_blocks() -> list:
+    """メイングラフ自身の宣言に、各ブロックの宣言を collect.absorbed で重ねた、受け止める段の並び（collect が report へ渡す物）"""
+    return collect.absorbed(received_with_declarations(), json.loads(line_nodes()["collect"]["with"]["optional"]))
 
 
 ROOT = SCRIPTS.parents[2]
@@ -1125,13 +1145,21 @@ class GateAnswerCase(Artifacts):
     def test_empty_stop_note_gets_the_default_reason(self):
         """L-G07: stop・reject の一言が空なら既定の文を止めの理由にする（元 line_edge.py 98・104 行の GATE_STOP_NOTE・
         FINAL_GATE_STOP_NOTE）。一言が在れば字のまま。通す答えの空の一言は空のまま"""
-        for place, word, want in (("gate-final", "stop", answer.FINAL_STOP_NOTE), ("gate-before-fix", "reject", answer.STOP_NOTE),
-                                  ("gate-start", "stop", answer.STOP_NOTE)):
+        for place, word, want, final in (("gate-final", "stop", answer.FINAL_STOP_NOTE, True),
+                                         ("gate-before-fix", "reject", answer.STOP_NOTE, False),
+                                         ("gate-start", "stop", answer.STOP_NOTE, False)):
             with self.subTest(place=place, word=word):
-                got = gate_answer.take(json.dumps({"decision": word, "text": " "}), "true", "", place, self.artifacts)
+                got = gate_answer.take(json.dumps({"decision": word, "text": " "}), "true", "", place, self.artifacts,
+                                       **({"final": True} if final else {}))
                 self.assertEqual(got["answer"]["text"], want)
                 self.assertEqual(json.loads((self.artifacts / "gates" / f"{place}.json").read_text(encoding="utf-8"))["text"], want)
         self.assertEqual((answer.STOP_NOTE, answer.FINAL_STOP_NOTE), ("承認ノードで止めた", "最後の承認ノードで止めた"))
+        nodes = line_nodes()
+        self.assertEqual([nodes[n]["with"]["final"] for n in ("answer-start", "answer-final")], ["false", "true"])
+        with mock.patch.dict(os.environ, {"INPUTS_FINAL": "true"}):
+            self.assertIs(gate_answer.from_env()["final"], True)
+        with mock.patch.dict(os.environ, {"INPUTS_FINAL": "false"}):
+            self.assertIs(gate_answer.from_env()["final"], False)
         got = gate_answer.take(json.dumps({"decision": "stop", "text": "範囲が違う"}), "true", "", "gate-final", self.artifacts)
         self.assertEqual(got["answer"]["text"], "範囲が違う")
         got = gate_answer.take(json.dumps({"decision": "continue", "text": ""}), "true", "", "gate-final", self.artifacts)
@@ -1628,6 +1656,20 @@ class AskFinalReadsCase(Artifacts):
         env.update({f"INPUTS_{key.upper()}": value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
                     for key, value in kw.items()})
         return env
+
+    def test_replan_stop_line_names_the_gate_the_line_gives(self):
+        """案の直しの承認で止めた答えの行は、承認ノードの名を線の with: の replan_gate から受けて描く（lib は名を持たない）。ask-final の
+        replan_gate は answer-replan の place と同じ字"""
+        nodes = line_nodes()
+        self.assertEqual(nodes["ask-final"]["with"].get("replan_gate"), nodes["answer-replan"]["with"]["place"])
+        stop = {"decision": "stop", "text": "範囲が違う", "asked": []}
+        env = self.null_env(replan_items=["5"], refixed=False, replan_answer=stop, replan_gate=nodes["answer-replan"]["with"]["place"])
+        with mock.patch.dict(os.environ, env):
+            got = ask_final.got_of_env()
+        self.assertEqual(got["amend"], ["案の項目 5: 直さずに諦めた: 人が承認ノード gate-replan で run を止めた: 範囲が違う"])
+        with mock.patch.dict(os.environ, {**env, "INPUTS_REPLAN_GATE": "null"}):
+            self.assertEqual(ask_final.got_of_env()["amend"],
+                             ["案の項目 5: 直さずに諦めた: 人が承認ノードで run を止めた: 範囲が違う"])
 
     def test_held_questions_are_every_asking_question_not_answered(self):
         """元 gatemarks.held_lines: 人に聞く状態（held・escalate）の問いは kind を問わず並べ、答えた（answered）問いは並べない"""
@@ -2511,7 +2553,9 @@ class FixedCase(unittest.TestCase):
         報告に届く）"""
         doc = block_doc("works-factory-fix")
         returns = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
-        self.assertEqual(set(fixed.FIELDS), set(returns["output_format"]["properties"]))
+        self.assertEqual(set(fixed.FIELDS), set(returns["output_format"]["properties"]) - {"optional"})
+        self.assertIn("optional", returns["output_format"]["properties"], "宣言の欄は返す節が持つ（fixed は運ばない）")
+        self.assertNotIn("optional", returns["output_format"]["required"])
         took = line_nodes()["fixed"]["with"]
         self.assertEqual({key: took[key] for key in ("fix", "refix")},
                          {"fix": {"from": "$fix.output", "if_skipped": None}, "refix": {"from": "$refix-run.output", "if_skipped": None}})
@@ -2832,10 +2876,31 @@ class CollectAndResultCase(unittest.TestCase):
         return got
 
     def test_fields_are_the_inputs_report_declares(self):
+        """collect の欄と report のポートの結びは名の一致でなく、線の report の with: が持つ: with: の鍵の集まりは report の inputs、
+        with: の値 $collect.output.<欄> の欄の集まりは collect の欄（段の表 stages を含む）。fallback の鍵も同じ"""
         declared = yaml.safe_load((SCRIPTS.parents[1] / "report" / "works-factory-report.yaml").read_text(encoding="utf-8"))["inputs"]
+        wired = line_nodes()["report"]["with"]
+        self.assertEqual(set(wired), set(declared))
+        fields = {re.fullmatch(r"\$collect\.output\.(\w+)", value)[1] for value in wired.values()}
         got = collect.collect({}, self.line())
-        self.assertEqual(set(got), {name.replace("-", "_") for name in declared})
+        self.assertEqual(fields, set(got))
         self.assertEqual(collect.fallback("x").keys(), got.keys())
+
+    def test_stages_table_reaches_report(self):
+        """段の表 STAGES（役の名 → 線の節の id と返りの続き）は collect と fallback の出力の欄 stages になり、collect の節の出力の宣言と
+        report の with: が運ぶ。表の nodes の値と、続きの行が引く id（outcome.node_of で描く物）は線の節の id に在る"""
+        stages = collect.STAGES
+        self.assertEqual(collect.collect({}, self.line())["stages"], stages)
+        self.assertEqual(collect.fallback("x")["stages"], stages)
+        nodes = line_nodes()
+        shape = nodes["collect"]["output_format"]
+        self.assertIn("stages", shape["properties"])
+        self.assertIn("stages", shape["required"])
+        self.assertEqual(nodes["report"]["with"]["stages"], "$collect.output.stages")
+        self.assertLessEqual(set(stages["nodes"].values()), set(nodes))
+        drawn = {outcome.node_of(stages, role) for row in stages["links"] for role in (row["before"], row["after"], row.get("needs")) if role}
+        self.assertLessEqual(drawn, set(nodes))
+        self.assertTrue(all(set(row) <= {"before", "flag", "after", "text", "held", "needs"} for row in stages["links"]))
 
     def test_lists_are_the_lists_report_reads(self):
         """collect が並びに倒す入力（LISTS と、字を行に割る TEXT_LINES）は、report の facts が並びと読む入力（無ければ黙って [] に
@@ -2859,7 +2924,8 @@ class CollectAndResultCase(unittest.TestCase):
         review = {key: None for key in plan_out.REVIEW}
         got = collect.collect({"plan": json.dumps({"got": plan, "stop_reason": ""}),
                                "plan_review": json.dumps({"got": review, "stop_reason": ""})}, self.line())
-        self.assertEqual(got["plan"], plan)
+        self.assertNotIn("optional", got["plan"], "宣言の欄は report への欄から外れる")
+        self.assertEqual(got["plan"], {key: value for key, value in plan.items() if key != "optional"})
         self.assertIsNone(got["plan_review"])
 
     def test_fixture_run_fills_the_skipped_stages_from_the_copy(self):
@@ -2974,22 +3040,65 @@ class CollectAndResultCase(unittest.TestCase):
             with self.subTest(path=path.name):
                 self.assertNotIn("testcmd", path.read_text(encoding="utf-8"))
 
-    def test_absorbed_stages_are_declared_once_in_the_line(self):
-        """R82: 受け止める段（落ちても線が先へ進めてよい段。元は線の YAML の節の description の [optional]）の宣言は線の YAML の 1 か所
-        （collect の with: の optional）で、report の入力 optional に届く。元の宣言は世界の解・構造の実測・レンズ・直した後の構造・独立の目
-        （works/darkfactory/darkfactory.yaml 347・445・946・1124・1196 行）"""
-        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
-        self.assertEqual(collect.collect({}, self.line(optional=json.dumps(declared)))["optional"], declared)
+    def test_absorbed_stages_are_declared_by_each_block(self):
+        """R82: 受け止める段（落ちても線が先へ進めてよい段。元は線の YAML の節の description の [optional]）の宣言の置き場は、ブロック
+        （judge・plan・fix）が返す節の with: の optional と、メイングラフの collect の with: の optional（include 丸ごとの宣言だけ）。
+        collect が include の id の頭を付けて合わせた並びが report の入力 optional に届く。元の宣言は世界の解・構造の実測・レンズ・
+        直した後の構造・独立の目（works/darkfactory/darkfactory.yaml 347・445・946・1124・1196 行）"""
+        own = json.loads(line_nodes()["collect"]["with"]["optional"])
+        self.assertEqual(own, ["eyes__"])
+        self.assertEqual(collect.collect({}, self.line(optional=json.dumps(own)))["optional"], own)
+        declared = declared_by_blocks()
         for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
 
+    def test_optional_is_built_from_each_blocks_declaration(self):
+        before = ["judge__world-", "rejudge-run__world-", "world-classes", "world-classes-", "world-judge", "world-judge-",
+                  "plan__structure-", "replan__structure-", "structure-eye", "structure-eye-", "fix__lens", "fix__lens-reply",
+                  "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-"]
+        own = line_nodes()["collect"]["with"]["optional"]
+        self.assertEqual(json.loads(own), ["eyes__"])
+        self.assertTrue(all(head.endswith(childsweep.INCLUDE_SEP) for head in json.loads(own)), "メイングラフの宣言に中の節の名が在る")
+        ports = {**dict.fromkeys(judge_accept.PORTS), **dict.fromkeys(judge_accept.FIRST_PORTS)}
+        returned = {field: {"ready": True, "units": [], **(ports if field in ("judge", "rejudge") else {})} for field in RETURNING}
+        receipts = {field: json.dumps({"got": {**returned[field], "optional": block_optional(block)}, "stop_reason": ""})
+                    for field, block in RETURNING.items()}
+        got = collect.collect(receipts, self.line(optional=own))
+        self.assertEqual(sorted(got["optional"]), sorted(set(before) | {"rejudge-run__head-depth-"}))
+        self.assertEqual(len(got["optional"]), len(set(got["optional"])), "重ねない")
+        self.assertEqual(got["optional"], declared_by_blocks())
+        for field in RETURNING:
+            with self.subTest(field=field):
+                self.assertEqual(got[field], returned[field], "report へ渡す欄に optional を載せない")
+        judge = {n["id"]: n for n in block_doc("works-factory-judge")["nodes"]}
+        self.assertIn("$intake.output.mode == 'judge'", judge["head-depth-prep"]["when"])
+        # 固定材料の run: 飛んだ judge の欄を fix-in の写しで埋める。写しに optional が載っていても外し、宣言としては読まない
+        copy = json.dumps({"received": {"judge": {"ready": True, "optional": [{"node": "carried-", "bare": False}]}}})
+        got = collect.collect({"judge": "null"}, self.line(optional=own, fix_in=copy))
+        self.assertEqual((got["judge"], got["optional"]), ({"ready": True}, ["eyes__"]))
+        # 宣言の届かないブロック: 受け皿が null・返りに optional が無い・読めない行は、そのブロックの宣言を無い物と読む
+        mixed = {"judge": json.dumps({"got": {"ready": True, **ports, "optional": None}, "stop_reason": ""}), "rejudge": "null",
+                 "plan": json.dumps({"got": {"ready": True, "optional": [{"node": 5, "bare": False}, "x", {"bare": True}]},
+                                     "stop_reason": ""}),
+                 "fix": json.dumps({"got": {"done": True, "optional": [{"node": "lens", "bare": False}]}, "stop_reason": ""})}
+        self.assertEqual(collect.collect(mixed, self.line(optional=own))["optional"], ["eyes__", "fix__lens", "refix-run__lens"])
+        # 届かない宣言の先の落ちは、受け止めた落ち(absorbed)でなく途中で終わった落ち(failed)に数え、報告は節そのものを名指す
+        fell = [r for i, step in enumerate(("judge__world-intake", "fix__lens")) for r in (
+            {"step": step, "type": "node_start", "ts": f"2026-10-14T00:{i:02d}:00Z"},
+            {"step": step, "type": "node_error", "ts": f"2026-10-14T00:{i:02d}:30Z", "error": "落ちた"})]
+        unreached = collect.collect({"fix": "null", "judge": "null"}, self.line(optional=own))["optional"]
+        facts = runreport.transcript_facts(fell, optional=unreached)
+        self.assertEqual((facts["failed"], facts["absorbed"]), (["judge__world-intake", "fix__lens"], []))
+        facts = runreport.transcript_facts(fell, optional=declared_by_blocks())
+        self.assertEqual((facts["failed"], [a["node"] for a in facts["absorbed"]]), ([], ["judge__world-intake", "fix__lens"]))
+
     def test_stopping_stages_beside_an_absorbed_one_are_not_absorbed(self):
         """#599: 宣言はレンズの節とその中継だけを受け止め、名の頭が同じ止める段（支度 lens-prep・集め役 lens-collect）の落ちは
         途中で終わった落ちに数える（止まった run の報告がレンズを受け止めた落ちに載せ、止めたかの節を誤らない）。世界の解の段は
         ループの中の節（記録の step では素の id）まで受け止める"""
-        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
+        declared = declared_by_blocks()
         fell = ["fix__lens", "fix__lens-reply", "refix-run__lens", "fix__lens-prep", "fix__lens-collect", "refix-run__lens-collect",
                 "world-judge-accept", "eyes__r1"]
         rows = [r for i, s in enumerate(fell) for r in (
@@ -3005,11 +3114,18 @@ class CollectAndResultCase(unittest.TestCase):
         ループの中の節（記録の step では素の id）を含むほかの節の受け止めは前の宣言（区切りの無い頭の一致）と変わらない"""
         before = ["judge__world", "rejudge-run__world", "world-classes", "world-judge", "plan__structure", "replan__structure",
                   "structure-eye", "fix__lens", "refix-run__lens", "eyes__", "judge__head-depth", "head-depth"]
-        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
+        declared = declared_by_blocks()
         steps = record_steps()
         self.assertIn("world-judge-accept", steps)
         moved = {s for s in steps if any(s.startswith(head) for head in before) != runreport._declared(s, declared)}
-        self.assertEqual(moved, {"fix__lens-prep", "fix__lens-collect", "refix-run__lens-prep", "refix-run__lens-collect"})
+        late = {"rejudge-run__head-depth-prep", "rejudge-run__head-depth-loop"}
+        self.assertEqual(moved, {"fix__lens-prep", "fix__lens-collect", "refix-run__lens-prep", "refix-run__lens-collect"} | late)
+        # judge の宣言は judge と rejudge-run の両方に当たるので、再審の頭の深さの 2 節も数に入る。この 2 節は再審では走らない:
+        # head-depth-prep は when が mode == 'judge' で飛び、head-depth-loop はその後ろで飛ぶ（落ちが無いので受け止めも変わらない）
+        judge = {n["id"]: n for n in block_doc("works-factory-judge")["nodes"]}
+        self.assertIn("$intake.output.mode == 'judge'", judge["head-depth-prep"]["when"])
+        self.assertEqual(judge["head-depth-loop"]["depends_on"], ["head-depth-prep"])
+        self.assertEqual({s for s in moved if "head-depth" in s}, late)
 
     def test_head_depth_fall_is_absorbed(self):
         """頭の深さの役が落ちても判定は標準で進む（judge_accept.head_depth）ので、報告は run を途中で終わった物と数えない"""
@@ -3017,7 +3133,7 @@ class CollectAndResultCase(unittest.TestCase):
                 {"step": "judge__head-depth-loop", "type": "node_error", "ts": "2026-10-14T00:01:00Z", "error": "役が落ちた"},
                 {"step": "judge__verdict", "type": "node_start", "ts": "2026-10-14T00:02:00Z"},
                 {"step": "judge__verdict", "type": "node_complete", "ts": "2026-10-14T00:03:00Z"}]
-        facts = runreport.transcript_facts(rows, optional=json.loads(line_nodes()["collect"]["with"]["optional"]))
+        facts = runreport.transcript_facts(rows, optional=declared_by_blocks())
         self.assertEqual((facts["failed"], facts["absorbed"]), ([], [{"node": "judge__head-depth-loop", "error": "役が落ちた"}]))
 
     def test_result_carries_what_apply_reads(self):

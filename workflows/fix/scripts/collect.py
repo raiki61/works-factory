@@ -29,6 +29,8 @@ plan_declared は修正役が直さずに残すと答えた事前審査の block
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0
 （diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []、accept-trace.json は無ければ []。
 closure.json・delta-holes.json は置かず、読み手が「無い」と名指す）。
+返りの全部（fallback も）に欄 optional を載せる: 入力（with:）optional の、このブロックが落ちても線が先へ進めてよい節の宣言
+（[{node, bare}] の JSON の字）を境の口 boundary.items で読んだ並び。境の口を読めない時だけ []。
 """
 import functools
 import json
@@ -226,9 +228,10 @@ if __name__ == "__main__":
         print(f"collect: {why}", file=sys.stderr)
         out = fallback(why)
     lenses_file()
+    noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []
     try:
-        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+        print(json.dumps({**out, "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)
     except ValueError as e:
-        print(json.dumps(fallback(f"fix の出力を書けない（{type(e).__name__}: {e}）"), ensure_ascii=False, allow_nan=False),
-              flush=True)
+        print(json.dumps({**fallback(f"fix の出力を書けない（{type(e).__name__}: {e}）"), "optional": noted},
+                         ensure_ascii=False, allow_nan=False), flush=True)
     sys.exit(0)

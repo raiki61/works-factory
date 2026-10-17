@@ -1,4 +1,4 @@
-# 案の直しの関所で stop。2 度目の修正が飛び、fixed は 1 回目の修正を done にせず、試験の関門から merge-apply までが飛ぶ（stub が無いので、走れば入力を受けない本物のブロックの節が落ちて筋書きが赤になる）。関所の答え stop が collect を通って report の gate-replan に届く。
+# 案の直しの関所で stop。2 度目の修正が飛び、fixed は 1 回目の修正を done にせず、試験の関門から merge-apply までが飛ぶ（stub が無いので、走れば入力を受けない本物のブロックの節が落ちて筋書きが赤になる）。関所の答え stop が collect を通って report の入力 replan-answer に届く。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
