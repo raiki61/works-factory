@@ -914,8 +914,11 @@ def rereview_part(b) -> str:
 
 def _cross_part(rows: list, opened: list, rip: dict) -> str:
     """単独の審査役が項目どうしの食い違いを見る節（木の道では相乗りの審査が持つ）: 波及の一覧の重なりのうち開いた項目に当たる行と、
-    開いた項目から見たほかの項目の unit_keys・allowed_paths・files の path。案の文は貼らない"""
+    開いた項目から見たほかの項目の unit_keys・allowed_paths・files の path。案の文は貼らない。波及の一覧が誤りなら重なりは
+    「無い」でなく、一覧が無い訳を書く（重なりが無いと読ませない）"""
     over = [f"- {o['at']}: 項目 {', '.join(map(str, o['items']))}" for o in rip.get("overlaps") or [] if set(o["items"]) & set(opened)]
+    if rip.get("error"):
+        over = [f"- 波及の一覧が無い（{rip['error']}）"]
     others = [m for m in range(1, len(rows) + 1) if any(m != n for n in opened)]
     scope = []
     for m in others:

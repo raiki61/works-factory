@@ -1871,6 +1871,18 @@ class ConvergeCase(RunCase):
         for unchanged in (f"{PLAN_MARK} 項目 2 の直し", "helper_2"):
             self.assertNotIn(unchanged, text, unchanged)
 
+    def test_cross_section_without_ripple_says_the_list_is_missing(self):
+        """波及の一覧が誤り（error）の時、項目どうしの節の重なりは「無い」と言わず、一覧が無い訳を書く"""
+        r = self.run_
+        self.first()
+        r.plan([item(UNIT_MEAN, 1, approach="mean の分母を直す"), item(UNIT_CLAMP, 2)], rnd=2, answers=self.ANSWERS)
+        r.ripple({"error": "RIPPLE-ERR-4410"})
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        cross = text[text.index(planblk.CROSS_HEAD):]
+        self.assertIn("重なり:\n- 波及の一覧が無い（RIPPLE-ERR-4410", cross)
+        self.assertNotIn("重なり:\n- 無い", cross)
+
     def test_second_pass_material_of_one_item_has_no_cross_section(self):
         """項目が 1 つの案には項目どうしの節を足さない"""
         r = self.run_
@@ -2431,6 +2443,29 @@ class TreeCase(RunCase):
         self.assertEqual([(f["key"], f["unit_keys"]) for f in converge.carried_notes(r.view())],
                          [(both["key"], [UNIT_MEAN, median]), (only["key"], [median])],
                          "後の案が戻した単位は、2 往復目に絞って控えた写しでなく審査役の書いた穴の単位から戻る")
+
+    def test_tree_item_answer_relabel_to_peripheral_needs_a_new_why(self):
+        """木の受け付け: 項目の下請けの答え（planblk.item_answer_gaps）でも、前の往復で中央だった block の key を peripheral に付け
+        替えて why が前の往復と同じ字なら拒む（converge.relabel_gaps）。why を書き直せば受ける"""
+        r = self.run_
+        r.start(features_on=["review_tree"])
+        self.prepped()
+        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK])})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")], approach="clamp の上限の枝で hi を返す")],
+               rnd=2, answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝で hi を返す"}])
+        r.open()
+        r.out("review_prep")
+        same = {**CLAMP_BLOCK, converge.REACH: converge.PERIPHERAL}
+        self.write_answers(2, {2: {**answer(2, faces=[same]), "hits": []}})
+        got = r.accept(summary({2: [same["key"]]}))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
+        self.assertIn(f"{CLAMP_BLOCK['key']} を前の往復の中央", got["reason"])
+        moved = {**same, "why": "直しの後は上限の扱いが試験の材料の言い回しだけに残り、どの害の定義にも当たらない"}
+        self.write_answers(2, {2: {**answer(2, faces=[moved]), "hits": []}})
+        self.assertTrue(r.accept(summary({2: [moved["key"]]}))["ok"])
 
     def test_resolved_suggest_not_owed_again_in_tree(self):
         """木の受け付け: 開いた項目 2 に挙げた suggest s を 2 往復目の審査が resolved に入れた往復は通り（resolved の s を『前の往復の
