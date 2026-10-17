@@ -20,6 +20,7 @@ import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
+import handoff  # noqa: E402
 import green_cert  # noqa: E402
 import worldmark  # noqa: E402
 import conflict  # noqa: E402
@@ -1166,60 +1167,134 @@ class AcceptCase(Base):
 
 
     def kept_answer(self, out=None) -> dict:
-        return json.loads(((out or self.out) / runreport.PREV_ANSWER_FILE).read_text(encoding="utf-8"))
+        return json.loads(rolekit.candidate_path(out or self.out, runreport.REPORT_NODE).read_text(encoding="utf-8"))
+
+    def kept_note(self, n: int, out=None) -> dict:
+        return json.loads(handoff.path_of((out or self.out) / runreport.NOTE_ROUND.format(n=n)).read_text(encoding="utf-8"))
 
     @staticmethod
     def with_handoff(text: str, tag: str) -> str:
-        return json.dumps({"text": text, "terms": [], "handoff": {"read": [f"{tag}.py:1"], "decided": [f"{tag}の訳"],
-                                                                  "rejected": [f"{tag}の退けた案"], "doubts": [f"{tag}の迷い"]}},
+        return json.dumps({"text": text, "terms": [], "handoff": {
+            "read": [{"path": f"{tag}.py", "lines": "1", "why": f"{tag}を読んだ"}], "decided": [f"{tag}の訳"],
+            "rejected": [{"option": f"{tag}の退けた案", "why": f"{tag}の退けた訳"}], "doubts": [f"{tag}の迷い"]}},
                           ensure_ascii=False)
 
     def test_rejected_reply_is_kept_for_the_next_round(self):
-        """拒んだ回の返答の本文と handoff は控え PREV_ANSWER_FILE に残り、prev_file がそれを指す。handoff は初見の読み手に貼る本文に
-        入らない。handoff の無い返答の回は本文だけ新しくなり、handoffs は前のまま。受け取った回の prev_file は空"""
-        first = self.with_handoff("一回目の本文。\n\n## 1. 人が決めること\n\n無い", "a")
+        """拒んだ回の返答の本文 text・terms は rolekit の前の答えの控え candidate-report.json に残り、prev_file がそれを指す。handoff は
+        その周のフォルダ report/r<n>/ の handoff.json に置かれ、自前の控えのファイルは作らず、どの控えにも欄 handoffs が無い。handoff は
+        初見の読み手に貼る本文に入らない。handoff の無い返答の回は本文だけ新しくなり、その周のフォルダは作らない。受け取った回の prev_file は空"""
+        terms = [{"term": "語", "definition": "定義"}]
+        first = json.dumps({**json.loads(self.with_handoff("一回目の本文。\n\n## 1. 人が決めること\n\n無い", "a")), "terms": terms},
+                           ensure_ascii=False)
         got = runreport.accept(first, self.REDESIGN, out_dir=self.out)
         self.assertEqual((got["done"], got["ok"]), (False, False))
-        self.assertEqual(got["prev_file"], str(self.out / runreport.PREV_ANSWER_FILE))
-        kept = self.kept_answer()
-        self.assertEqual(kept["text"], json.loads(first)["text"])
-        self.assertEqual(kept["handoffs"], [json.loads(first)["handoff"]])
-        self.assertNotIn("a.py:1", runreport.cold_body(first))
+        candidate = rolekit.candidate_path(self.out, runreport.REPORT_NODE)
+        self.assertEqual(candidate.name, "candidate-report.json")
+        self.assertEqual(got["prev_file"], str(candidate))
+        self.assertEqual(self.kept_answer(), {"text": json.loads(first)["text"], "terms": terms})
+        self.assertEqual(self.kept_note(1), json.loads(first)["handoff"], "メモは前もって作っていない report/r1/ に置かれる")
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()),
+                         ["candidate-report.json", "r1", "rejects-report.json", "rejects-report.md"], "自前の控えのファイルは作らない")
+        self.assertNotIn("a.py", runreport.cold_body(first))
         self.assertNotIn("handoff", json.loads((self.out / "rejects-report.json").read_text(encoding="utf-8"))[-1])
         second = runreport.accept(self.REPLY, self.REDESIGN, out_dir=self.out)
         self.assertEqual(second["prev_file"], got["prev_file"])
-        self.assertEqual(self.kept_answer(), {"text": json.loads(self.REPLY)["text"], "terms": [], "handoffs": kept["handoffs"]})
+        self.assertEqual(self.kept_answer(), {"text": json.loads(self.REPLY)["text"], "terms": []})
+        self.assertFalse((self.out / runreport.NOTE_ROUND.format(n=2)).exists(), "メモの無い回は周のフォルダを作らない")
+        self.assertEqual(self.kept_note(1), json.loads(first)["handoff"], "前の周のメモは変わらない")
         taken = runreport.accept(self.REPLY, self.PASS, out_dir=self.out)
         self.assertEqual((taken["ok"], taken["prev_file"]), (True, ""))
-        self.assertNotIn("handoffs", self.ai())
+        for path in self.out.rglob("*.json"):
+            self.assertNotIn("handoffs", path.read_text(encoding="utf-8"), path.name)
+        # 本文が文字列でない・空白だけの回は拒否をそのまま返し、前の答えの控えもメモも書かない（前の回の控えを上書きしない）
+        for n, text in enumerate(("  \n", 3, None)):
+            with self.subTest(text=text):
+                out = self.out / f"blank-{n}"
+                runreport.accept(first, self.REDESIGN, out_dir=out)
+                before = self.kept_answer(out)
+                reply = json.dumps({"text": text, "terms": [], "handoff": json.loads(self.with_handoff("x", "z"))["handoff"]})
+                got = runreport.accept(reply, self.PASS, out_dir=out)
+                self.assertEqual((got["ok"], got["kind"], got["done"]), (False, "answer", False))
+                self.assertEqual(self.kept_answer(out), before)
+                self.assertFalse((out / runreport.NOTE_ROUND.format(n=2)).exists())
+                self.assertEqual(self.kept_note(1, out), json.loads(first)["handoff"])
+                # メモを置かなかった周は、次の周の節で「書かなかった」と断らず、置かれていないと名指す
+                part = runreport.handoff_part(out)
+                line = next(x for x in part.splitlines() if x.startswith("- r2"))
+                self.assertIn(handoff.NONE, line)
+                self.assertIn("置かれていない", handoff.NONE)
+                self.assertIn("受け付けがメモを置かなかった", handoff.NONE)
 
     def test_second_rejection_keeps_the_first_handoff(self):
+        """2 回拒んだ時、メモは並びに積まれず周ごとのファイルに 1 つずつ残る。前の答えの控えの本文は 2 回目"""
         first = self.with_handoff("一回目の本文", "a")
         second = self.with_handoff("二回目の本文", "b")
         runreport.accept(first, self.REDESIGN, out_dir=self.out)
         runreport.accept(second, self.REDESIGN, out_dir=self.out)
-        kept = self.kept_answer()
-        self.assertEqual(kept["text"], "二回目の本文")
-        self.assertEqual(kept["handoffs"], [json.loads(first)["handoff"], json.loads(second)["handoff"]])
+        self.assertEqual(self.kept_answer()["text"], "二回目の本文")
+        self.assertEqual(self.kept_note(1), json.loads(first)["handoff"])
+        self.assertEqual(self.kept_note(2), json.loads(second)["handoff"])
+        # 書き手の指示書に差し込む字は、頼みと、今の周の前までの周ごとのメモ（古い順）。控えが読めない時は頼みだけ
+        part = runreport.handoff_part(self.out)
+        self.assertTrue(part.startswith(handoff.ASK))
+        self.assertIn(handoff.USE, part)
+        self.assertLess(part.index(str(handoff.path_of(self.out / "r1"))), part.index(str(handoff.path_of(self.out / "r2"))))
+        self.assertNotIn("r3", part, "今の周の前までだけ")
+        rolekit.rejects_path(self.out, runreport.REPORT_NODE).write_text("{壊れた", encoding="utf-8")
+        self.assertEqual(runreport.handoff_part(self.out), handoff.ASK)
 
     def test_unreadable_previous_answer_stops_without_overwrite(self):
-        for n, broken in enumerate(("{壊れた", "null", "[]", '{"handoffs": "x"}', '{"text": "x"}')):
+        """前の周のメモ report/r1/handoff.json が壊れていれば、上書きも次の周のメモ・前の答えの控えも書かず、1 回目で諦める"""
+        for n, broken in enumerate(("{壊れた", "null", "[]")):
             with self.subTest(broken=broken):
                 out = self.out / f"broken-{n}"
-                out.mkdir(parents=True)
-                (out / runreport.PREV_ANSWER_FILE).write_text(broken, encoding="utf-8")
+                prev = handoff.path_of(out / runreport.NOTE_ROUND.format(n=1))
+                prev.parent.mkdir(parents=True)
+                prev.write_text(broken, encoding="utf-8")
+                rolekit.rejects_path(out, runreport.REPORT_NODE).write_text(
+                    json.dumps([{"at": "x", "reason": "前", "kind": "cold"}]), encoding="utf-8")
                 got = runreport.accept(self.with_handoff("本文", "a"), self.REDESIGN, out_dir=out)
-                self.assertEqual((out / runreport.PREV_ANSWER_FILE).read_text(encoding="utf-8"), broken, "上書きしない")
+                self.assertEqual(prev.read_text(encoding="utf-8"), broken, "上書きしない")
+                self.assertFalse((out / runreport.NOTE_ROUND.format(n=2)).exists())
+                self.assertFalse(rolekit.candidate_path(out, runreport.REPORT_NODE).exists())
                 self.assertEqual((got["done"], got["ok"], got["prev_file"]), (True, False, ""))
                 rows = json.loads(rolekit.rejects_path(out, runreport.REPORT_NODE).read_text(encoding="utf-8"))
-                self.assertEqual(len(rows), 1)
+                self.assertEqual(len(rows), 2)
                 self.assertIs(rows[-1]["give_up"], True)
-                self.assertIn("前の答えの控え", rows[-1]["reason"])
+                self.assertIn("前の周の引き継ぎのメモ", rows[-1]["reason"])
+                self.assertIn(str(prev), rows[-1]["reason"])
                 ai = json.loads((out / runreport.AI_FILE).read_text(encoding="utf-8"))
                 self.assertIs(ai["accepted"], False)
-                self.assertEqual(ai["reason"], rolekit.gave_up_text(runreport.REPORT_NODE, 1, rows[-1]["reason"], at_once=True))
-                self.assertIn("前の答えの控え", ai["reason"])
-                self.assertIn("前の答えの控え", pathlib.Path(got["reason_file"]).read_text(encoding="utf-8"))
+                self.assertEqual(ai["reason"], rolekit.gave_up_text(runreport.REPORT_NODE, 2, rows[-1]["reason"], at_once=True))
+                self.assertIn("前の周の引き継ぎのメモ", ai["reason"])
+                self.assertIn("前の周の引き継ぎのメモ", pathlib.Path(got["reason_file"]).read_text(encoding="utf-8"))
+
+    def test_unwritable_candidate_gives_up_at_once(self):
+        """前の答えの控え（candidate-report.json）に書けない時は、1 回目の拒否で諦めの行（give_up: true）を積む。AI_FILE には
+        accepted: False と『前の答えの控え』を含む訳が残る。メモは置かない"""
+        self.out.mkdir(parents=True)
+        rolekit.candidate_path(self.out, runreport.REPORT_NODE).mkdir()
+        got = runreport.accept(self.with_handoff("本文", "a"), self.REDESIGN, out_dir=self.out)
+        self.assertEqual((got["done"], got["ok"], got["prev_file"]), (True, False, ""))
+        rows = json.loads(rolekit.rejects_path(self.out, runreport.REPORT_NODE).read_text(encoding="utf-8"))
+        self.assertEqual(len(rows), 1)
+        self.assertIs(rows[-1]["give_up"], True)
+        self.assertIn("前の答えの控え", rows[-1]["reason"])
+        ai = json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))
+        self.assertIs(ai["accepted"], False)
+        self.assertIn("前の答えの控え", ai["reason"])
+        self.assertFalse((self.out / runreport.NOTE_ROUND.format(n=1)).exists())
+        # メモの控えに書けない時も同じく 1 回目で諦める（前の周のメモを次の周へ渡せない）
+        blocked = self.out / "note-blocked"
+        folder = blocked / runreport.NOTE_ROUND.format(n=1)
+        folder.mkdir(parents=True)
+        handoff.path_of(folder).with_name("handoff.json.tmp").mkdir()
+        got = runreport.accept(self.with_handoff("本文", "a"), self.REDESIGN, out_dir=blocked)
+        self.assertEqual((got["done"], got["ok"], got["prev_file"]), (True, False, ""))
+        rows = json.loads(rolekit.rejects_path(blocked, runreport.REPORT_NODE).read_text(encoding="utf-8"))
+        self.assertIs(rows[-1]["give_up"], True)
+        self.assertIn(f"前の周の引き継ぎのメモ {handoff.path_of(folder)} に書けない", rows[-1]["reason"])
+        self.assertNotIn("前の答えの控え", rows[-1]["reason"])
 
 
 class ReportGiveUpCase(Base):
@@ -1245,7 +1320,8 @@ class ReportGiveUpCase(Base):
         self.assertEqual([(first["kind"], first["done"]), (second["kind"], second["done"])], [("format", False), ("answer", False)])
         rows = rolekit.reject_rows(self.out, runreport.REPORT_NODE)
         self.assertEqual([r["kind"] for r in rows], ["format", "answer"])
-        self.assertEqual(sorted(p.name for p in self.out.iterdir()), sorted(["rejects-report.json", "rejects-report.md", runreport.PREV_ANSWER_FILE]))
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()), sorted(["rejects-report.json", "rejects-report.md", "candidate-report.json"]),
+                         "メモの無い返答なので周のフォルダ r<n>/ は作られない")
         self.assertEqual(second["reason_file"], str(self.out / "rejects-report.md"))
         text = pathlib.Path(second["reason_file"]).read_text(encoding="utf-8")
         self.assertLess(text.index(first["reason"]), text.index(second["reason"]), "それまでの拒否を古い順に全部持つ")
@@ -1258,7 +1334,8 @@ class ReportGiveUpCase(Base):
                 got = runreport.accept(raw, AcceptCase.PASS, out_dir=out)
                 self.assertEqual(set(got), {"done", "ok", "reason", "kind", "reason_file", "prev_file"})
                 self.assertEqual(got["prev_file"], "")
-                self.assertFalse((out / runreport.PREV_ANSWER_FILE).exists())
+                self.assertFalse(rolekit.candidate_path(out, runreport.REPORT_NODE).exists())
+                self.assertEqual(sorted(p.name for p in out.iterdir()), ["rejects-report.json", "rejects-report.md"])
                 self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
                 self.assertEqual(got["reason_file"], str(out / "rejects-report.md"))
                 self.assertEqual([r["kind"] for r in rolekit.reject_rows(out, runreport.REPORT_NODE)], ["answer"])

@@ -17,6 +17,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import conceptfence as cf  # noqa: E402
+from tests.layers.trees import tree  # noqa: E402
 
 MD = (ROOT / "docs" / "concepts.md").read_text(encoding="utf-8")
 PATH_HEADS = ("lib/", "workflows/", "bin/", "tests/", ".github/")   # 地図の行のパスの頭（このリポジトリの並べ方）
@@ -86,6 +87,30 @@ class FencesHold(unittest.TestCase):
                 with self.subTest(concept=k, what=f["what"]):
                     found = cf.scan(ROOT, paths, f, table["exclude"])
                     self.assertEqual(cf.verdict(found, f["known"]), [], f"{k}: {f['what']}")
+
+
+    def test_handoff_fence_catches_a_copy_on_each_side(self):
+        """考え handoff の柵は、計画側（lib/planfile.py）・報告側（lib/report_roles.py）・YAML 側（workflows/report/works-factory-report.yaml）に
+        1 本ずつ注入した型の写しを、それぞれ漏れとして数える。住処 lib/handoff.py の宣言と、結んだ写し（YAML の本物の required の行）は数えない"""
+        table = cf.load(ROOT)
+        fences = table["concepts"]["handoff"]["fences"]
+        bound = " " * 16 + "required: [read, decided, rejected, doubts]"
+        files = {
+            "lib/handoff.py": 'KEYS = ("read", "decided", "rejected", "doubts")\nSCHEMA = {}\n',
+            "lib/planfile.py": "HANDOFF_SCHEMA = {'type': 'object'}\n",
+            "lib/report_roles.py": 'HANDOFF_KEYS = ("read", "decided", "rejected", "doubts")\n',
+            "workflows/plan/works-factory-plan.yaml": bound.replace("doubts", "open") + "\n",
+            "workflows/report/works-factory-report.yaml": f"{bound}\n" + " " * 8 + "required: [read, decided, rejected, doubts]\n",
+        }
+        with tree(files) as root:
+            found: dict = {}
+            for fence in fences:
+                for path, n in cf.scan(root, sorted(files), fence, table["exclude"]).items():
+                    found[path] = found.get(path, 0) + n
+        self.assertEqual(found, {"lib/planfile.py": 1, "lib/report_roles.py": 1, "workflows/plan/works-factory-plan.yaml": 1,
+                                 "workflows/report/works-factory-report.yaml": 1})
+        self.assertEqual(table["concepts"]["handoff"]["status"], "住処あり")
+        self.assertTrue(all(f["allowed"] == ["lib/handoff.py"] for f in fences))
 
 
 class NotAboveMain(unittest.TestCase):
