@@ -876,7 +876,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E43 記録の制約（判定の隣の premises.json の constraints）を、比較役の頭と前提の検算に同じ字で渡す。
   - 元: works/blk-eyes/lib/eyes.py:396-397（record.process.constraints）
   - 今: 表
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_prep_reads_constraints_next_to_the_judgment、lib/tests/test_eyeverdict.py::PremiseSectionCase.test_constraints_read_the_same_in_the_compare_head_and_the_premise_check
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_prep_reads_constraints_from_the_premises_input、lib/tests/test_eyeverdict.py::PremiseSectionCase.test_constraints_read_the_same_in_the_compare_head_and_the_premise_check
   - 本物の run: eyes/prep.json の constraints_text（judge/premises.json から。再審の run は rejudge/premises.json から）
   - 狭め: 無し
 

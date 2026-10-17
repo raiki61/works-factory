@@ -16,6 +16,7 @@ fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（
 固定材料から始めた run（fix-in の received が在る）は直す前のテスト・判定・計画の往復・修正前の承認が飛ぶので、その受け皿と
 承認の答え・載せなかった問いの空の所を、fix-in が運んだ写しの値（received）で埋める（報告の結末の決めは判定と計画の出力が無いと
 途中で終わった run と読む）。
+判定・再審の受け皿の got がこの版より前に走った判定の返り（judge_accept.require_ports）なら、欄を空と読んで結末を作らず fallback で止める。
 
 メイングラフのノードの値（docs/design.md の report の出力の「メイングラフの値」）:
 - stops: メイングラフの script のノード（STOPS）の止めの語 {ノード: 語}（入口の拒み・無人の承認ノードの止め・script の例外・人の止め。
@@ -43,6 +44,9 @@ try:
     unread = None
 except Exception as error:   # result が読むノードは落ちない（上の docstring）
     boundary, unread = None, error
+if boundary is not None:
+    with boundary.guarded_imports():
+        import judge_accept
 
 RECEIVED = ("test_gate_base", "judge", "rejudge", "replan", "replan_review", "fix", "test_gate_final", "eyes", "merge_seal",
             "merge_apply")
@@ -69,6 +73,8 @@ def carried(fix_in) -> dict:
 def collect(received: dict, line: dict) -> dict:
     got = {name: (boundary.value(received.get(name)) or {}).get("got") for name in (*RECEIVED, *ROUNDS, "design_only")}
     design_only = got.pop("design_only")
+    for name in ("judge", "rejudge"):
+        judge_accept.require_ports(got[name])
     fixed = boundary.value(line["fixed"])
     stops = {node: boundary.text((line.get("stops") or {}).get(node)) for node in STOPS}
     out = {

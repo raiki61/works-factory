@@ -37,7 +37,8 @@ def main() -> None:
         merge = planfile.merge_replan_resubmit
         take = functools.partial(planfile.take_replan, round_dir, plan_dir, items=rnd["items"], **common)
     else:
-        judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
+        judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed,
+                                       ties=os.environ.get("INPUTS_ANSWER_TIES", ""), materials=os.environ.get("INPUTS_MATERIALS", ""))
         merge = functools.partial(planfile.merge_resubmit, slot_list=planfile.round_slots(round_dir, judgment))
         take = functools.partial(planfile.take_plan, round_dir, plan_dir, judgment=judgment, **common)
     n, stopped = rolekit.current_round(round_dir, planfile.ROLE)

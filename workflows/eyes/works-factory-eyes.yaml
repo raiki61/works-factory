@@ -17,15 +17,18 @@ inputs:
   design: {required: true, description: "design.json のポインタ"}
   changed: {required: true, description: "修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む"}
   fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}
-  green_ok: {required: true, description: "最後のテストの段が通ったか。真偽の値"}
+  green_ok: {required: true, description: "修正の後のテストが通ったか。真偽の値"}
   test_outcomes: {required: true, description: "テストごとの base と最後の結末 {rows, unmeasured}。比較役に貼る"}
-  diffs: {required: true, description: "修正の段ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む"}
+  diffs: {required: true, description: "直しの回ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む"}
   start: {default: "null", description: "始めの記録のポインタ"}
-  plan_questions: {default: "null", description: "修正前の承認ノードの項目 {kind, text}"}
-  answers: {default: "null", description: "修正前の承認ノードの答え"}
-  start_answers: {default: "null", description: "始めの承認ノードの答え（独立設計に貼られる人の答えと同じ物）"}
-  ties_judgment: {default: "null", description: "判定の結び（answer-ties.json）を隣から読む 1 回目の判定のポインタ。null なら judgment の隣"}
-  x_scalars: {default: "null", description: "修正役が足した x_ の規模の数値。JSON の object"}
+  plan_questions: {default: "null", description: "修正の前に人に聞いた項目 {kind, text}"}
+  answers: {default: "null", description: "修正の前に人が返した答え"}
+  start_answers: {default: "null", description: "始めに人が返した答え（独立設計に貼られる物と同じ）"}
+  answer_ties: {default: "null", description: "依頼の答えを判定の問い・単位に結んだ行のポインタ（answer-ties.json）。null は結びが無い（字の一致だけ）"}
+  materials: {default: "null", description: "判定の素材の状態のポインタ（materials.json）。null は素材の状態が無い"}
+  premises: {default: "null", description: "実測した制約のポインタ（premises.json。{constraints}）。null は制約が渡っていない"}
+  decisions: {default: "null", description: "決定記録の突合の返答のポインタ（material-prior-decisions.json）。null は突合が無い"}
+  x_scalars: {default: "null", description: "直しの規模の数値の欄（名は x_ で始まる）。JSON の object"}
 
 returns: verdict
 outcome_field: ok

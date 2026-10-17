@@ -14,10 +14,28 @@ inputs:
     description: 単位の目録（配列）。判定の単位は judgment のポインタの先から読む
   judgment:
     required: true
-    description: 判定のポインタ（judgment.json。隣の premises.json・materials.json・purpose-review.json を名で開く）
+    description: 判定のポインタ（judgment.json）
   purpose:
     required: true
     description: 目的の固定のポインタ（purpose.json）
+  premises:
+    default: "null"
+    description: 実測した制約のポインタ（premises.json。{constraints}）。独立設計に貼る。null は制約のファイルが無い
+  materials:
+    default: "null"
+    description: 判定の素材の状態のポインタ（materials.json。素材の名 → {status, …}）。null は素材の状態が無い
+  pr_excluded:
+    default: "null"
+    description: 並行 PR と重なるので外した範囲のポインタ（pr-excluded.json）。在れば写して役の頭に名指す。null は外した範囲が無い
+  purpose_review:
+    default: "null"
+    description: 目的の監査の受けた返答のポインタ（purpose-review.json。{verdict, reason, findings} か {}）。裏取りを通った「狭めている」なら独立設計を回さない。null は監査が読めないとして読む
+  decisions:
+    default: "null"
+    description: 決定記録の突合の返答のポインタ（material-prior-decisions.json。reply.settled が決着済みの論点）。null は突合が無い
+  purpose_means:
+    default: "null"
+    description: 目的の役が目的の文から分けた依頼の解き方の控えのポインタ（purpose-means.json。{means}）。null は控えが無い
   world:
     required: true
     description: 世界の解の行のポインタか null
@@ -35,23 +53,23 @@ inputs:
     description: 始めの記録のポインタ（無人の印・設計だけ・依頼のファイル・方針の文書・事前審査の木・固めた版）
   answers:
     default: "null"
-    description: 始めの承認ノードの答え（独立設計に貼る）
+    description: 始めに人が返した答え（独立設計に貼る）
   ruling:
     default: "[]"
-    description: 裁かれた計画の項目の番号の字の並び（修正の段が返した直し直しの項目の番号。承認済みの修正案の 1 から数えた番号。番号でない行と案の外の番号は拒む）。案の直しの事前審査の時だけ空でない
+    description: 裁かれた計画の項目の番号の字の並び（直し直しを求められた項目の番号。承認済みの修正案の 1 から数えた番号。番号でない行と案の外の番号は拒む）。案の直しの事前審査の時だけ空でない
   conflicts:
     default: "null"
-    description: 修正の段の申し出と裁定のポインタ（conflicts.json。案の直しの事前審査の時だけ。項目ごとの申し出と裁定の文を貼る）か null
+    description: 申し出と裁定のポインタ（conflicts.json。案の直しの事前審査の時だけ。項目ごとの申し出と裁定の文を貼る）か null
   mode:
     default: ""
     description: >-
-      include の形。空は事前審査、design は直す物が無い周（判定が直す単位を出さなかったか、計画の直す義務が 0 件だった）の
+      include の形。空は事前審査、design は直す物が無い周（直す単位が無かったか、計画の直す義務が 0 件だった）の
       include で、修正案・構造の目の控え・波及の一覧の 3 つの入力は null で、これらを読まずに独立設計だけを作り、事前審査を回さず、通った形と独立設計 design
       を返す（最後の R2 が要る設計）
   gate_answers:
     default: "null"
     description: >-
-      修正前の承認ノードの答え {decision, text, asked: [通した行の文…]} か、その並びか null（通した行を聞き直さず、方針の変化を通したら
+      修正の前に人が返した答え {decision, text, asked: [通した行の文…]} か、その並びか null（通した行を聞き直さず、方針の変化を通したら
       その版を固め直す）
   head_depth:
     default: ""

@@ -114,10 +114,22 @@ class Place:
 
 def judgment(p: Place) -> str:
     unit = {"key": "stats.py mean: 分母", "label": "block", "disposition": "do-now", "reason": "分母が 1 少ない"}
-    p.put("judge/premises.json", {"constraints": []})
-    p.put("judge/materials.json", {})
     return p.put("judge/judgment.json", {"units": [unit], "questions": [], "framing": "分母の誤り", "one_shot": "分母を直す",
                                          "precedents": []})
+
+
+# 判定の出力の欄が指す置き場のファイル（入力の名 → (置き場のパス, 中身)）
+JUDGE_FILES = {"premises": ("judge/premises.json", {"constraints": []}), "materials": ("judge/materials.json", {}),
+               "answer_ties": ("judge/answer-ties.json", {"rounds": {"1": []}}),
+               "verify": ("judge/judge-verify.json", {"units": [], "synergy": {}}),
+               "pr_excluded": ("judge/pr-excluded.json", {"node": "p0.parallel_pr", "excluded": []}),
+               "depth_record": ("judge/depth-head.json", {"depth": "標準", "why": "x", "items": [], "facts": {}, "groups": []}),
+               "decisions": ("judge/material-prior-decisions.json", {"reply": {"settled": []}}),
+               "purpose_review": ("judge/purpose-review.json", {}), "purpose_means": ("judge/purpose-means.json", {"means": []})}
+
+
+def judge_files(p: Place, *names: str) -> dict:
+    return {name: p.put(*JUDGE_FILES[name]) for name in names}
 
 
 def units() -> str:
@@ -150,7 +162,8 @@ def eyes(p: Place) -> dict:
             "changed": json.dumps({"premise_drift": False}), "fix_units": "[]", "green_ok": "true",
             "test_outcomes": json.dumps({"rows": [], "unmeasured": ""}),
             "diffs": json.dumps([json.loads(p.put("fix/fix/tdd-unit.json", []))]),
-            "start": p.start(), "plan_questions": "null", "answers": "null", "start_answers": "null", "x_scalars": "null"}
+            "start": p.start(), "plan_questions": "null", "answers": "null", "start_answers": "null", "x_scalars": "null",
+            **judge_files(p, "answer_ties", "materials", "premises", "decisions")}
 
 
 def fix(p: Place) -> dict:
@@ -160,7 +173,7 @@ def fix(p: Place) -> dict:
             "ripple": p.put("plan/ripple.json", {"items": [], "overlaps": []}), "depth": "[]", "answers": "null",
             "only_items": "", "mode": "",
             "group": json.dumps({"group_id": "g1", "unit_ids": ["stats.py mean: 分母"], "items": []}, ensure_ascii=False),
-            "from_tree": "", "out_dir": ""}
+            "from_tree": "", "out_dir": "", **judge_files(p, "answer_ties", "materials", "depth_record")}
 
 
 def judge(p: Place) -> dict:
@@ -188,7 +201,8 @@ def plan(p: Place) -> dict:
             "spec": p.put("judge/spec.json", {"requirements": [], "tests": []}),
             "review": p.put("plan-review/pass-1/review.json", {"faces": [], "shrink": [], "reason": "穴が無い"}),
             "ruling": "[]", "conflicts": p.put("fix/conflicts.json", {"items": []}),
-            "prior_failures": p.put("prior.json", [{"where": "受け付け", "text": "前の失敗"}])}
+            "prior_failures": p.put("prior.json", [{"where": "受け付け", "text": "前の失敗"}]),
+            **judge_files(p, "verify", "pr_excluded", "depth_record", "answer_ties", "materials", "decisions")}
 
 
 def plan_review(p: Place) -> dict:
@@ -198,7 +212,9 @@ def plan_review(p: Place) -> dict:
             "structure": p.put("plan/structure/structure-state.json",
                                {"status": "ok", "reason": "", "design_file": "x", "wall_s": 0}),
             "ripple": p.put("plan/ripple.json", {"items": [], "overlaps": []}), "start": p.start(), "answers": "null",
-            "ruling": "[]", "conflicts": p.put("fix/conflicts.json", {"items": []}), "gate_answers": "null"}
+            "ruling": "[]", "conflicts": p.put("fix/conflicts.json", {"items": []}), "gate_answers": "null", "round_limit": "null",
+            "mode": "", "head_depth": "",
+            **judge_files(p, "premises", "materials", "pr_excluded", "purpose_review", "decisions", "purpose_means")}
 
 
 def test_gate(p: Place) -> dict:
@@ -223,8 +239,10 @@ PATH_ONLY = "先のパスを役の材料に貼るだけで、先が無くても�
 
 # (ブロック, 入力) -> 訳。壊れた先を名指さない入力
 UNNAMED = {
-    ("eyes", "judgment"): "prep は判定のパスを返りに載せるだけで、先が無くても黙って進み、隣の premises.json も「制約なし」と読む。"
-                          "区分 E。区分の issue で外す",
+    ("eyes", "judgment"): "prep は判定のパスを返りに載せるだけで、先が無くても黙って進む。区分 E。区分の issue で外す",
+    **{("eyes", name): "prep が先の無い判定の欄（結び・素材の状態・制約・決定記録の突合）を null と同じに「無い」と読み、入力の名を言わない"
+                       "（判定の隣を名で開いていた時と同じ読み）。区分 E。区分の issue で外す"
+       for name in ("answer_ties", "materials", "premises", "decisions")},
     ("eyes", "purpose"): f"prep が{FELL}。区分 E。区分の issue で外す",
     ("eyes", "world"): f"prep が{PATH_ONLY}。区分 E。区分の issue で外す",
     ("eyes", "plan"): RENAMED.format(words="structure-after の「修正案の外れの訳が読めない」") + "。区分 E。区分の issue で外す",
@@ -237,6 +255,9 @@ UNNAMED = {
     ("fix", "plan"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "ripple"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "plan_review"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。ほかの fix のポインタの入力と同じ。区分 F。区分の issue で外す",
+    **{("fix", name): f"prep と group-start（単独の run の組の子の頭）が{FELL}（入力の名と先を言う例外で止まるが標準エラーだけ）。"
+                      "ほかの fix のポインタの入力と同じ。区分 F。区分の issue で外す"
+       for name in ("answer_ties", "materials", "depth_record")},
     ("fix", "prior_conflicts"): f"prep と group-start（単独の run の組の子の頭）が{FELL}（先が無いと黙って写さずに進めず、入力の名を言って止まる）。"
                                 "区分 F。区分の issue で外す",
     ("judge", "start"): RENAMED.format(words="intake の「始めの記録か前の失敗の行が読めない」。2 つの入力のどちらかを言わない")

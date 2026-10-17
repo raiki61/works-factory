@@ -569,7 +569,7 @@ class PriorFailuresCase(TmpCase):
 
 
 class VerifyNeighborCase(TmpCase):
-    """L-W10: 判定の単位の裏取りの申し送り（判定の隣の judge-verify.json）を修正案の役の材料に貼る（元 line_edge._verify_file と
+    """L-W10: 判定の単位の裏取りの申し送り（判定の出力の欄 verify の先）を修正案の役の材料に貼る（元 line_edge._verify_file と
     works/tests/test_edge.py::PlanEdgeCase.test_plan_hands_verify_notes :1194）"""
 
     def test_verify_notes_reach_the_prompt(self):
@@ -583,23 +583,23 @@ class VerifyNeighborCase(TmpCase):
         rd.mkdir(parents=True)
         path, _ = planfile.write_brief(rd, self.tmp / "plan", mode="plan", judgment=judgment, judgment_file=jdir / "judgment.json", units=[],
                                        structure_dir_=self.tmp / "s", world_rows=None, spec=None, repo=self.tmp, review_rev="", base="",
-                                       review_md="", lang_line=rolekit.lang_line({}))
+                                       review_md="", lang_line=rolekit.lang_line({}), verify_file=jdir / "judge-verify.json")
         text = path.read_text(encoding="utf-8")
         self.assertIn(f"{planblk.VERIFY_HEAD}\n\n{planblk.VERIFY_ASK}", text)
         self.assertIn("- 単位 1 `a.py 分母`: ", text)
 
 
 class HeadDepthNeighborCase(TmpCase):
-    """判定の隣の頭の深さの控え（depth-head.json）の行ごとの未知の種類と指示を、形 plan の修正案の役の材料に貼る"""
+    """判定の出力の欄 depth_record の先の頭の深さの控えの行ごとの未知の種類と指示を、形 plan の修正案の役の材料に貼る"""
 
     JUDGMENT = {"units": [{"key": "a.py 分母", "label": "block", "disposition": "do-now", "reason": "r"}], "questions": []}
 
-    def brief(self, judgment_file, root="run"):
+    def brief(self, judgment_file, root="run", depth_file=None):
         rd = self.tmp / root / "plan" / "r1"
         rd.mkdir(parents=True)
         path, _ = planfile.write_brief(rd, self.tmp / root / "plan", mode="plan", judgment=self.JUDGMENT, judgment_file=judgment_file, units=[],
                                        structure_dir_=self.tmp / "s", world_rows=None, spec=None, repo=self.tmp, review_rev="", base="",
-                                       review_md="", lang_line=rolekit.lang_line({}))
+                                       review_md="", lang_line=rolekit.lang_line({}), depth_file=depth_file)
         return path.read_text(encoding="utf-8")
 
     def test_head_depth_kinds_reach_the_prompt(self):
@@ -610,8 +610,8 @@ class HeadDepthNeighborCase(TmpCase):
         self.assertIn(f"{headdepth.UNKNOWN_HEAD}\n\n行ごとの未知の種類は決まっていない（訳: {headdepth.NO_RECORD}）", text)
         items = [{"item": 1, "unknown": "範囲", "cause_quote": "設定の鍵に響く", "where": "a.py:3", "code_quote": "KEY = 1"},
                  {"item": 2, "unknown": "形", "cause_quote": "二通りの直し方", "where": "a.py:5", "code_quote": "def pick():"}]
-        headdepth.write(jdir, headdepth.record(headdepth.tier_of(items), "設計の選び", items=items))
-        text = self.brief(jdir / "judgment.json")
+        record = headdepth.write(jdir, headdepth.record(headdepth.tier_of(items), "設計の選び", items=items))
+        text = self.brief(jdir / "judgment.json", depth_file=record)
         self.assertIn(f"{headdepth.UNKNOWN_HEAD}\n\n- 行 1（範囲）: 依頼の字「設定の鍵に響く」・番地 a.py:3「KEY = 1」"
                       f"・指示: {headdepth.ASKS['範囲']}", text)
         self.assertIn("- 行 2（形）: 依頼の字「二通りの直し方」・番地 a.py:5「def pick():」"

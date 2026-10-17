@@ -21,10 +21,11 @@ entry に在る。
   指すこと・各行の unknown が UNKNOWNS に在ることを求め、行を種類で照らす: 無しは cause_quote と where の行の範囲が WHERE_SPAN 行
   までの code_quote、形・範囲は範囲の幅を問わない同じ照らし、原因は cause_quote を必ず照らし、where を書いた行だけ where と
   code_quote も範囲の幅を問わず照らす
-- write(jdir, doc)・read(jdir): 控え RECORD の読み書き。read は無い・読めない時に標準の控え
+- write(jdir, doc)・read(jdir): 判定の置き場の控え RECORD の読み書き。read_file(path): 控えのファイルの読み（判定の外の読み手は
+  判定の出力の欄 depth_record のパスで読む）。どちらの読みも無い・読めない時に標準の控え
 - cited_files(doc): 控えの items の where が指すファイル（cite.CITE で読む）。修正の後に差分が引用の外に出たかを数える口
-  （depth.outside_cited の cited）。使うのは修正のブロック（fixboard.redepth。prep が判定の隣から親の置き場へ RECORD を写す）と
-  線の redepth（ties_judgment の隣の控え。workflows/line/scripts/redepth.py の fix_signals）
+  （depth.outside_cited の cited）。使うのは修正のブロック（fixboard.redepth。prep が入力 depth_record の先を親の置き場へ写す）と
+  線の redepth（入力 depth_record。workflows/line/scripts/redepth.py の fix_signals）
 - record(depth, why, *, items, facts, groups): 控えの形。groups は役の群の選びを launchgroups.choices で照らした行（既定のまま・
   拒んだ時は空）。この run では効かず記録だけで、段の check には混ぜない
 - report_line(depth_word, why, cut=()): 報告の冒頭 2 の 1 行。段の名・根拠と、その段の省く物（単位がどれも軽量の時だけ省く。実際に
@@ -176,7 +177,7 @@ def write(jdir, doc: dict) -> pathlib.Path:
     return jsonfile.write(pathlib.Path(jdir) / RECORD, doc, parents=True)
 
 
-def _read_file(path) -> dict:
+def read_file(path) -> dict:
     try:
         doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -187,7 +188,7 @@ def _read_file(path) -> dict:
 
 
 def read(jdir) -> dict:
-    return _read_file(pathlib.Path(jdir) / RECORD)
+    return read_file(pathlib.Path(jdir) / RECORD)
 
 
 def cited_files(doc) -> list:
@@ -226,7 +227,7 @@ def section(record_file) -> str:
     """判定と修正案の役の材料に貼る、依頼の行ごとの未知の種類と番地と指示の節。入力 record_file は頭の深さの控え RECORD のパス
     （在ればパス・無ければ空の字）。控えが無い・行に種類が無い run（機械の止め・名指しの thickness・受け付けを通らなかった・
     止めの道の空の控え）は、黙って空にせず見出しと訳の 1 行"""
-    doc = _read_file(record_file) if record_file else record(STANDARD, NO_RECORD)
+    doc = read_file(record_file) if record_file else record(STANDARD, NO_RECORD)
     rows = [_row(it) for it in doc.get("items") or [] if isinstance(it, dict) and _known(it.get("unknown"))]
     if not rows:
         return f"{UNKNOWN_HEAD}\n\n{NO_KINDS.format(why=str(doc.get('why') or NO_RECORD))}\n"
