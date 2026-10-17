@@ -124,7 +124,7 @@ works-factory/
 - 役の指示書（`workflows/*/commands/`）と `lib/` に、特定の言語・テストの実行器の名を書かない。事実上の標準の形式（JUnit XML など）は名指してよい。持ち主の決め `lang-neutral`。
 - `lib/` は Python で書くので、`lib/tests/`（lib 自身の試験）と `lib/AGENTS.md` は照らさず、語の表に `python` を入れない。
 - 例外: 拡張子と言語の対応・テストのファイルの名の慣習の表と、その表を作る標準ライブラリの import は、`lib/impact.py`・`lib/changemap.py`・`lib/tddloop.py`・`lib/fixrules.py`・`lib/libdocs.py`・`lib/libdocs_local.py` に限って書いてよい。機械の表 `tests/layers/scan.py` の `ALLOWED["E13"]` には、そのファイルを入れる PR が 1 行ずつ足す。機械はファイルごとに外すので、表の外に言語の名が無いことは人が見る。
-- 借りた superpowers の写し（`lib/borrow/superpowers/`）は照らさない。上流の字のままの写しで、固定（`lib/borrow/borrow.json` の pin の sha256）が 1 字も変えさせない。
+- 借りた superpowers の写し（`lib/borrow/superpowers/`）は照らさない。上流の字のままの写しで、固定（`lib/borrow/borrow.json` の pin の sha256）が 1 字も変えさせない。フォルダに固定のファイルと台帳 `COPIED_FROM` のほかが無いことは `tests/layers/test_lang_neutral.py` が見る。
 - 機械: `tests/layers/test_lang_neutral.py`（言語と実行器の名の語の表に当たる字が無い。表は `tests/layers/scan.py` の中）。
 
 ## E14 既定の道は普通の利用者の環境でそのまま動く
