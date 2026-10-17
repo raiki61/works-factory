@@ -18,7 +18,7 @@ import tempfile
 import unittest
 
 from bin._lib import launcher, place, toolset
-from lib import answer, reads, userenv, writelog
+from lib import answer, launchgroups, reads, userenv, writelog
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
 from tests.bin.gitkit import git
@@ -53,6 +53,12 @@ esac
 [ "$1 $2" = "trust --show" ] && echo "$shown: trusted"
 exit 0
 """
+
+
+# 利用者の --config を読む bun -e だけ本物の bun に回し、ほかは FAKE_BUN と同じに記録する
+def read_with_real_bun(bun: str) -> str:
+    return (f"#!/usr/bin/env python3\nimport os, sys\nif '-e' in sys.argv:\n    os.execv({bun!r}, [{bun!r}, *sys.argv[1:]])\n"
+            + FAKE_BUN.split("\n", 1)[1])
 
 
 def short(path) -> str:
@@ -123,13 +129,15 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(argv[3:7], ["workflow", "run", "--cwd", str(self.target)])
         self.assertEqual(argv[7], "--workflow-source")
         self.assertEqual((pathlib.Path(argv[8]) / ".archon" / "workflows" / "works-factory").resolve(), self.repo / "workflows")
-        self.assertEqual(argv[9:], ["works-factory-line", "--input", "request=x"])
+        self.assertEqual(argv[9], "--config")
+        self.assertEqual(json.loads(pathlib.Path(argv[10]).read_text(encoding="utf-8")), {"aliases": place.group_presets()})
+        self.assertEqual(argv[11:], ["works-factory-line", "--input", "request=x"])
         with self.subTest("利用者の --cwd は対象に使い、二重に足さない"):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--cwd", str(self.target / "sub"),
                                             "--input", "request=x", cwd=self.tmp))["argv"]
             self.assertEqual(argv.count("--cwd"), 1)
             self.assertEqual(argv[3:7], ["workflow", "run", "--cwd", str(self.target)])
-            self.assertEqual(argv[9:], ["works-factory-line", "--input", "request=x"])
+            self.assertEqual(argv[11:], ["works-factory-line", "--input", "request=x"])
 
     def test_run_without_workflow_name_stops(self):
         err = self.stopped(self.launch("workflow", "run", "--input", "request=x"))
@@ -164,18 +172,18 @@ class LauncherTest(unittest.TestCase):
         head = self.commit_target()
         with self.subTest("汚れていない対象は HEAD から"):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))["argv"]
-            self.assertEqual(argv[9:], ["works-factory-line", "--from", head, "--input", "request=x"])
+            self.assertEqual(argv[11:], ["works-factory-line", "--from", head, "--input", "request=x"])
         with self.subTest("未追跡のファイルは HEAD を親に包んだ commit から"):
             (self.target / "untracked.txt").write_text("u\n", encoding="utf-8")
             done = self.launch("workflow", "run", "works-factory-line", "--input", "request=x")
             argv = self.reached(done)["argv"]
-            self.assertEqual(argv[10], "--from")
-            self.assertNotEqual(argv[11], head)
-            self.assertEqual(git(self.target, "rev-parse", f"{argv[11]}^"), head)
-            self.assertIn(argv[11][:12], done.stderr)
+            self.assertEqual(argv[12], "--from")
+            self.assertNotEqual(argv[13], head)
+            self.assertEqual(git(self.target, "rev-parse", f"{argv[13]}^"), head)
+            self.assertIn(argv[13][:12], done.stderr)
         with self.subTest("利用者の --from が勝ち、殻は足さない"):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--from", "x", "--input", "request=x"))["argv"]
-            self.assertEqual(argv[9:], ["works-factory-line", "--from", "x", "--input", "request=x"])
+            self.assertEqual(argv[11:], ["works-factory-line", "--from", "x", "--input", "request=x"])
 
     def test_test_cmd_running_the_checkout_stops_before_archon(self):
         """#495: test_cmd が対象の手元を絶対パスで指すと、Archon を起こさずに止める（run の試験が直しでなく手元を試す偽の緑）。
@@ -234,6 +242,54 @@ class LauncherTest(unittest.TestCase):
     def test_user_workflow_source_is_refused(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--workflow-source", str(self.tmp)))
         self.assertIn("--workflow-source", err)
+
+    def test_users_run_config_is_merged_under_the_factory_groups(self):
+        """利用者の --config は殻の層に合わせて 1 つで渡る: env などは効き、同じ名の群の別名は工場の値に替わる。相対のパスは対象から引く。
+        合わせた物（env の秘密が入りうる）は取り置き cache に置かず対象の家に置き、群の別名だけの層は cache に置く"""
+        if shutil.which("bun") is None:
+            self.skipTest("bun が無い（利用者の --config は Archon と同じ Bun.YAML.parse で読む）")
+        self.bun.write_text(read_with_real_bun(shutil.which("bun")), encoding="utf-8")
+        group = next(iter(launchgroups.GROUPS))
+        (self.target / "mine.yaml").write_text(f"env:\n  MINE: '1'\naliases:\n  '{group}': {{provider: claude, model: haiku}}\n",
+                                               encoding="utf-8")
+        for flag in (["--config", "mine.yaml"], [f"--config={self.target / 'mine.yaml'}"]):
+            with self.subTest(flag=flag):
+                done = self.launch("workflow", "run", "works-factory-line", *flag, "--input", "request=x")
+                argv = self.reached(done)["argv"]
+                self.assertEqual(argv.count("--config"), 1)
+                self.assertNotIn(flag[-1], argv)
+                merged = pathlib.Path(argv[argv.index("--config") + 1])
+                self.assertTrue(merged.is_relative_to(self.default_home(self.target)), merged)
+                self.assertFalse(merged.is_relative_to(self.cache_home), merged)
+                layer = json.loads(merged.read_text(encoding="utf-8"))
+                self.assertEqual(layer, {"env": {"MINE": "1"}, "aliases": place.group_presets()})
+                self.assertIn(group, done.stderr)
+                self.assertEqual(argv[11:], ["works-factory-line", "--input", "request=x"])
+        with self.subTest("利用者の --config が無ければ群の別名だけの層を cache に置く"):
+            argv = self.reached(self.launch("workflow", "run", "works-factory-line"))["argv"]
+            self.assertTrue(pathlib.Path(argv[argv.index("--config") + 1]).is_relative_to(self.cache_home))
+        self.assertEqual([json.loads(p.read_text(encoding="utf-8")) for p in self.cache_home.rglob("run-config/*.json")],
+                         [{"aliases": place.group_presets()}])
+        with self.subTest("読めない --config は起こさずに止める"):
+            self.assertIn("none.yaml", self.stopped(self.launch("workflow", "run", "works-factory-line", "--config", "none.yaml")))
+
+    def test_adopt_gets_no_run_config(self):
+        """--adopt は記録した AI の設定を受け継ぐ。Archon は aliases を持つ --config の層をその時に拒むので、殻は足さず、利用者の物も触らない"""
+        for args in (["--adopt", "run-1"], ["--adopt=run-1", "--config", "mine.yaml"]):
+            with self.subTest(args=args):
+                argv = self.reached(self.launch("workflow", "run", "works-factory-line", *args))["argv"]
+                self.assertEqual(argv[3:9], ["workflow", "run", "--cwd", str(self.target), "--workflow-source", argv[8]])
+                self.assertEqual(argv[9:], ["works-factory-line", *args])
+
+    def test_unknown_group_in_model_is_refused_with_the_known_groups(self):
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--model", "@wf-judge-cor=haiku"))
+        self.assertIn("@wf-judge-cor", err)
+        for name in launchgroups.GROUPS:
+            self.assertIn(name, err)
+        with self.subTest("表に在る群と、工場の接頭辞でない名は通す"):
+            argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--model=@wf-judge-core=haiku",
+                                            "--model", "large=opus"))["argv"]
+            self.assertEqual(argv[-3:], ["--model=@wf-judge-core=haiku", "--model", "large=opus"])
 
     def test_home_is_stable_per_target(self):
         def home_of(**kw):

@@ -3,7 +3,8 @@
 全部のブロックと線の役の節（`prompt:`・`command:`。輪の中も）の印は道具から導く: `allowed_tools` に Bash・Edit・Write（scan.TREE_CHANGERS）
 が無い役は書き、在る役は書かない（外れは表 scan.KEEP_CHECKOUT の役だけ）。script・bash の節は表 scan.CHANGE_CHECKOUT の節の外が書く。
 `loop:` の節は作らない（Archon は loop: の節の mutates_checkout を無視する）。役の節は settingSources: [user]・閉じた sandbox・
-表 scan.ROLE_TOOLS の中の allowed_tools を持つ（K18）。Bash を持ち Edit・Write を持たない役は sandbox の denyWrite に
+表 scan.ROLE_TOOLS の中の allowed_tools を持つ（K18）。役の model は表 launchgroups.GROUPS の群の名で、役にも工程の根にも effort を書かない
+（ノードの effort は群の別名の effort より先に採られ、run ごとの付け替えが効かなくなる）。Bash を持ち Edit・Write を持たない役は sandbox の denyWrite に
 scan.NO_TREE_WRITE を書く（#293）。
 """
 import os
@@ -20,7 +21,8 @@ SEEDS = pathlib.Path(__file__).resolve().parent / "seeds"
 PLAN = "workflows/plan/works-factory-plan.yaml"
 FIX = "workflows/fix/works-factory-fix.yaml"
 LINE = "workflows/line/works-factory-line.yaml"
-SETTINGS = "settingSources: [user]\nsandbox: {enabled: true, allowUnsandboxedCommands: false}\nidle_timeout: 1728000000\n"
+GROUP = "@wf-plan-review"
+SETTINGS = f"model: '{GROUP}'\n" + "settingSources: [user]\nsandbox: {enabled: true, allowUnsandboxedCommands: false}\nidle_timeout: 1728000000\n"
 NO_TREE_SETTINGS = SETTINGS.replace("false}", f"false, filesystem: {{denyWrite: ['{scan.NO_TREE_WRITE}']}}}}")
 
 
@@ -133,6 +135,27 @@ class ReadonlyNodesTest(unittest.TestCase):
         got = self.problems({FIX: workflow("fix", role("r", "[Read, mcp__x]", True))})
         self.assertEqual(len(got), 1, got)
         self.assertIn("ROLE_TOOLS の外", got[0])
+
+    def test_role_model_names_a_group_without_effort(self):
+        nodes = role("r", "[Read]", True)
+        loop = "  - id: g\n    loop_group:\n      nodes:\n" + role("again", "[Read]", True, indent=8)
+        self.assertEqual(self.problems({FIX: workflow("fix", nodes + loop)}), [])
+        for name, settings, words in (("a group not in the table", SETTINGS.replace(GROUP, "@wf-nope"), "model"),
+                                      ("a literal model", SETTINGS.replace(f"'{GROUP}'", "opus"), "model"),
+                                      ("no model", SETTINGS.replace(f"model: '{GROUP}'\n", ""), "model"),
+                                      ("effort on the role", SETTINGS + "effort: high\n", "effort")):
+            with self.subTest(name):
+                for body in (role("r", "[Read]", True, settings=settings),
+                             "  - id: g\n    loop_group:\n      nodes:\n" + role("r", "[Read]", True, indent=8, settings=settings)):
+                    got = self.problems({FIX: workflow("fix", body)})
+                    self.assertEqual(len(got), 1, got)
+                    self.assertIn(words, got[0])
+        for key in scan.ROOT_EFFORT_KEYS:
+            with self.subTest(root=key):
+                got = self.problems({FIX: workflow("fix", nodes).replace("nodes:\n", f"{key}: high\nnodes:\n", 1)})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(f"工程の根に {key}", got[0])
+                self.assertIn(f"{FIX}:2:", got[0])
 
     def test_role_rule_seeds_are_one_violation_each(self):
         """違反の見本（tests/layers/seeds/k18-*）は 1 本 1 違反（元 works/tests/yaml_bad/ の形）"""
