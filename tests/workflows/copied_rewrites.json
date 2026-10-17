@@ -1077,7 +1077,7 @@
   {
    "why": "R1 の札を直しが要ると作り直しが要るに書き分ける（issue #663）",
    "original": "1 つでも見つかれば redesign-needed にし、見つけた物を deletions・ledger_audit・increments の当たる欄に書いて、要点を reason に書く。",
-   "copied": "見つけた物は deletions・ledger_audit・increments の当たる欄に書き、要点を reason に書く。見つけた物がどれも零処方（観点の正本の「処方の最小性」）で閉じるなら fix-needed。零処方で閉じない設計の点（同じ節が「修正でなく設計作業」と呼ぶ物）は redesign_points に 1 行ずつ名指す。作り直しかは機械が redesign_points の有無で決める。名指しが在れば redesign-needed、無ければ redesign-needed と書いても fix-needed になる。"
+   "copied": "見つけた物は deletions・ledger_audit・increments の当たる欄に書き、要点を reason に書く。見つけた物がどれも零処方（観点の正本の「処方の最小性」）で閉じるなら fix-needed。零処方で閉じない設計の点（同じ見出しが「修正でなく設計作業」と呼ぶ物）は redesign_points に 1 行ずつ名指す。作り直しかは機械が redesign_points の有無で決める。名指しが在れば redesign-needed、無ければ redesign-needed と書いても fix-needed になる。"
   },
   {
    "why": "redesign_points の欄が壊れていると機械が unverifiable にすることを目に知らせる（issue #663）",
