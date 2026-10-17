@@ -75,6 +75,7 @@ print(json.dumps({"is_error": False, "total_cost_usd": 1.5, "duration_ms": 1000,
 #   FAKE_BASH_FAIL     Bash の tool_result を、bwrap の No permissions で終わる複数行の is_error にする
 #   FAKE_GREP_EMPTY    Grep に No files found を返す
 #   FAKE_STDERR_LINES  標準エラーに出す行の数（最後の行は fake claude stderr <n>）
+#   FAKE_CARRY         最後の user の message に、前の tool_result も重ねて送る（Claude Code 2.1.302 の形）
 #   FAKE_LOG           起こされた時の CLAUDE_ の環境と、標準入力から読めた行を JSON で書く
 FAKE_CLIENT = r'''#!PYTHON
 import http.client, json, os, subprocess, sys, urllib.parse
@@ -102,6 +103,7 @@ if not os.environ.get("FAKE_UNCONFINED"):
     open(deny, "w").close()
 url = urllib.parse.urlsplit(os.environ["ANTHROPIC_BASE_URL"])
 messages = [{"role": "user", "content": "hi"}]
+answered = []
 while True:
     conn = http.client.HTTPConnection(url.hostname, url.port)
     conn.request("POST", "/v1/messages", json.dumps({"model": "m", "stream": True, "messages": messages,
@@ -132,9 +134,9 @@ while True:
         found = [name for name in os.listdir(used["input"]["path"]) if used["input"]["pattern"] in open(
             os.path.join(used["input"]["path"], name), encoding="utf-8").read()]
         text = f"Found {len(found)} files\n" + "\n".join(found)
-    messages += [{"role": "assistant", "content": [used]},
-                 {"role": "user", "content": [{"type": "tool_result", "tool_use_id": used["id"], "content": text,
-                                              "is_error": error}]}]
+    answered = answered if os.environ.get("FAKE_CARRY") else []
+    answered.append({"type": "tool_result", "tool_use_id": used["id"], "content": text, "is_error": error})
+    messages += [{"role": "assistant", "content": [used]}, {"role": "user", "content": list(answered)}]
 '''
 
 
@@ -890,6 +892,10 @@ class BuildTest(unittest.TestCase):
 
     def test_sandbox_check_passes_when_bash_and_grep_answer(self):
         done = self.run_sandbox(probe_place(self))
+        self.assertEqual((done.returncode, done.stderr), (0, ""))
+
+    def test_carried_tool_result_is_counted_once(self):
+        done = self.run_sandbox(probe_place(self), FAKE_CARRY="1")
         self.assertEqual((done.returncode, done.stderr), (0, ""))
 
     def test_sandbox_check_closes_stdin_of_claude(self):

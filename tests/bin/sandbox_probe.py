@@ -50,10 +50,12 @@ def userns_limit() -> str | None:
 
 
 def fake_api(calls: list, results: list) -> http.server.ThreadingHTTPServer:
-    """calls（(tool の名, input) の並び）を、messages の要求ごとに 1 つずつ tool_use で返し、受けた tool_result を results に
-    足す偽の Anthropic API。calls を使い切れば文で終える。立てた server の requests に、届いた messages の要求を 1 つずつ足す"""
+    """calls（(tool の名, input) の並び）を、新しい tool_result が届くごとに 1 つずつ tool_use で返し、受けた tool_result を
+    results に足す偽の Anthropic API。calls を使い切れば文で終える。立てた server の requests に、届いた messages の要求を
+    1 つずつ足す。claude は前の tool_result も最後の message に重ねて送るので、tool_result は tool_use_id ごとに 1 度だけ数える"""
     lock = threading.Lock()
     issued = [0]
+    seen = set()
 
     def sse(w, event, data):
         w.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode())
@@ -70,6 +72,8 @@ def fake_api(calls: list, results: list) -> http.server.ThreadingHTTPServer:
             tools = [t.get("name") for t in body.get("tools", [])]
             with lock:
                 server.requests.append(self.path)
+                got = [c for c in got if c.get("tool_use_id") not in seen]
+                seen.update(c.get("tool_use_id") for c in got)
                 results.extend(got)
                 first = not issued[0] and body.get("stream") and calls and calls[0][0] in tools
                 use = calls[issued[0]] if (got or first) and issued[0] < len(calls) else None
