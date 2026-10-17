@@ -179,6 +179,38 @@ class RecordedCase(unittest.TestCase):
         self.assertTrue(got[1].startswith("faces[1]（fenced）") and "policy_doc" in got[1], got)
         self.assertEqual(policy.face_gaps([fenced, named], self.rows), [])
 
+    @staticmethod
+    def example_faces(text) -> list:
+        return [{"key": "example", **json.loads(x)} for x in text.splitlines() if x.startswith("{")]
+
+    def test_face_example_passes_face_gaps_for_each_source(self):
+        """出どころごとの 1 行だけの一覧から描いた例の JSON の行は、policy.face_gaps を通る。方針の文書の行が在る時だけ policy_doc の句が
+        載る。lines=0 の方針の文書の行（写しが空）は名指しが当たらないので例に採らず、次の名指せる行で描く"""
+        by = {s: next(r for r in self.rows if r["source"] == s and r["name"]) for s in ("doc", "answer", "gate", "settled")}
+        by["push"] = policy.recorded({}, pushes=["この条件で進める"])[0]
+        empty_doc = {"source": "doc", "name": str(self.tmp / "empty.md"), "text": "", "lines": 0, "alias": ""}
+        for source, rows, want in (*((s, [r], r["name"] + ":1" if s == "doc" else r["name"]) for s, r in by.items()),
+                                   ("empty-doc-then-answer", [empty_doc, by["answer"]], "q-mean-empty")):
+            with self.subTest(source):
+                text = policy.face_example(rows)
+                faces = self.example_faces(text)
+                self.assertEqual([f["decided_by"] for f in faces], [want], text)
+                self.assertEqual([(f["kind"], f["severity"]) for f in faces], [("policy", "suggest")])
+                self.assertEqual(policy.face_gaps(faces, rows), [])
+                self.assertEqual(policy.POLICY_DOC_FENCE in text, any(r["source"] == "doc" for r in rows), text)
+
+    def test_face_example_without_names_says_no_policy_face(self):
+        """名指せる行が無い一覧（空・where の無い論点だけ・写しが空の方針の文書だけ）では例の JSON を描かず、kind policy の穴は挙げないと
+        書く。対象の文を contract_drift で挙げる決まりは RECORDED_RULE・HANDOFF_REVIEW・face_gaps が持ち、ここでは言い直さない"""
+        empty_doc = {"source": "doc", "name": str(self.tmp / "empty.md"), "text": "", "lines": 0, "alias": ""}
+        for name, rows in (("empty", []), ("settled-without-where", [r for r in self.rows if r["source"] == "settled" and not r["name"]]),
+                           ("empty-doc", [empty_doc])):
+            with self.subTest(name):
+                text = policy.face_example(rows)
+                self.assertEqual(self.example_faces(text), [], text)
+                self.assertIn(policy.FACE_NONE, text)
+                self.assertNotIn("contract_drift", text)
+
     def test_section_says_none_when_nothing_can_be_named(self):
         got = policy.recorded_text({})
         self.assertTrue(got.startswith(policy.RECORDED_HEAD), got)

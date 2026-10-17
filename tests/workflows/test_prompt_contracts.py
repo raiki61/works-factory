@@ -80,14 +80,14 @@ def users(root, key):
 
 
 def shape_sha(nodes):
-    """ノードの `output_format` の正規の JSON の sha256。ノードが無ければ None、ノードで形が違えば形の数を字で"""
-    shapes = {json.dumps(n.get("output_format"), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-              for n in nodes.values()}
-    if not shapes:
+    """ノードの `output_format` の正規の JSON の sha256。ノードが無ければ None、形が違えば節ごとの sha の dict を返す
+    （形の違う節が並ぶ時も、どの節の形が変わったかを節ごとに縛る）"""
+    sha = {key: hashlib.sha256(json.dumps(n.get("output_format"), sort_keys=True, separators=(",", ":"),
+                                          ensure_ascii=False).encode("utf-8")).hexdigest()
+           for key, n in nodes.items()}
+    if not sha:
         return None
-    if len(shapes) > 1:
-        return f"{len(shapes)} 通りの形"
-    return hashlib.sha256(shapes.pop().encode("utf-8")).hexdigest()
+    return next(iter(sha.values())) if len(set(sha.values())) == 1 else sha
 
 
 def measured(root, key, text):
@@ -195,6 +195,20 @@ class PromptContractsTest(unittest.TestCase):
         nodes = users(ROOT, "workflows/plan/commands/fix-plan.md")
         self.assertEqual(sorted(nodes), ["workflows/plan/works-factory-plan.yaml#plan-writer"])
         self.assertRegex(shape_sha(nodes), r"^[0-9a-f]{64}$")
+
+    def test_mixed_shapes_are_pinned_per_node(self):
+        """形の違う節が同じ指示書を使う時、shape_sha は {節: その節の output_format の sha} を返し、片方の形を変えるとその節の sha だけが
+        変わる。同じ形の節だけなら今のとおり 1 つの sha"""
+        def sha(shape):
+            return hashlib.sha256(json.dumps(shape, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+        single, bundler = {"type": "object", "required": ["faces"]}, {"type": "object", "required": ["items"]}
+        got = shape_sha({"a.yaml#single": {"output_format": single}, "a.yaml#bundler": {"output_format": bundler}})
+        self.assertEqual(got, {"a.yaml#single": sha(single), "a.yaml#bundler": sha(bundler)})
+        changed = shape_sha({"a.yaml#single": {"output_format": single}, "a.yaml#bundler": {"output_format": {**bundler, "required": []}}})
+        self.assertEqual(changed["a.yaml#single"], got["a.yaml#single"])
+        self.assertNotEqual(changed["a.yaml#bundler"], got["a.yaml#bundler"])
+        same = shape_sha({"a.yaml#one": {"output_format": single}, "a.yaml#two": {"output_format": single}})
+        self.assertEqual(same, sha(single))
 
     def test_new_and_stale_keys_are_red(self):
         contracts = json.loads(CONTRACTS.read_text(encoding="utf-8"))

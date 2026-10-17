@@ -232,8 +232,8 @@ class OpenCase(Base):
 
 class RulesCase(Base):
     def test_plan_review_output(self):
-        """元 rules/review-loop.py の plan_review_output: 案に無い単位・重複の key・穴も別案も無いのに faces_none が無い・入口の穴の
-        no_add の欠けを拒む（元 tests/test_blk_plan.py の ScriptCase.test_plan_review_entrance_needs_no_add）"""
+        """元 rules/review-loop.py の plan_review_output: 案に無い単位・重複の key・穴も別案も無いのに faces_none が無いを拒む（返答の全体の
+        照らし）。穴の行ごとの照らし（入口の穴の no_add の欠け・方針の名指し・機械の欄）は planblk.face_row_gaps が持つので、ここでは拒まない"""
         self.open()
         b = self.view()
         good = {"faces": [], "shrink": [], "faces_none": "写しと入口と契約のずれを確かめて穴が無い"}
@@ -241,15 +241,34 @@ class RulesCase(Base):
         face = {"key": "entrance-key", "unit_keys": [UNIT], "kind": "entrance", "where": "stats.py", "why": "w" * 20,
                 "severity": "block"}
         for bad, word in (({"faces": [], "shrink": []}, "faces_none"),
-                          ({"faces": [face]}, "no_add"),
                           ({"faces": [{**face, "kind": "copy"}, {**face, "kind": "copy"}]}, "重複"),
                           ({"faces": [{**face, "kind": "copy", "unit_keys": ["判定に無い単位"]}]}, "修正案に無い")):
             with self.subTest(word=word):
                 with self.assertRaises(Reject) as cm:
                     boardview.rules.plan_review_output(b, "p2.plan_review", bad, None)
                 self.assertIn(word, str(cm.exception))
-        boardview.rules.plan_review_output(b, "p2.plan_review", {"faces": [{**face, "no_add": "柵を足さずに 2 つの入口を 1 つの口にまとめる形"}]},
-                                           None)
+        # no_add の欠けは返答の全体の照らしでは拒まない（face_row_gaps が行ごとに返す）
+        boardview.rules.plan_review_output(b, "p2.plan_review", {"faces": [face]}, None)
+
+    def test_face_row_gaps_bundles_policy_no_add_and_machine(self):
+        """穴の行ごとの照らしの束: 名指しの無い kind policy の穴・no_add の無い entrance の穴・機械の欄を名指す block の穴を、それぞれ
+        『faces[j]（key）』の行で返す。名指しのある policy と no_add のある entrance は通す"""
+        rows = [{"source": "answer", "name": "q-mean-empty", "text": "空の列の平均は例外にする"}]
+        base = {"unit_keys": [UNIT], "where": "stats.py", "why": "w" * 20, "severity": "block"}
+        faces = [{**base, "key": "ok-policy", "kind": "policy", "decided_by": "q-mean-empty"},
+                 {**base, "key": "bare-policy", "kind": "policy"},
+                 {**base, "key": "ok-entrance", "kind": "entrance", "no_add": "柵を足さずに 2 つの入口を 1 つの口にまとめる形"},
+                 {**base, "key": "bare-entrance", "kind": "entrance", "no_add": "なし"},
+                 {**base, "key": "machine", "kind": "regression", "where": "項目 1 の removes_tests が広い"}]
+        got = planblk.face_row_gaps(faces, rows)
+        self.assertEqual(len(got), 3, got)
+        for line, head, word in zip(got, ("faces[1]（bare-policy）", "faces[3]（bare-entrance）", "faces[4]（machine）"),
+                                    ("記録された方針", "no_add", "removes_tests")):
+            with self.subTest(head=head):
+                self.assertTrue(line.startswith(head + ":"), line)
+                self.assertIn(word, line)
+        self.assertEqual(planblk.face_row_gaps(faces[:1] + faces[2:3], rows), [])
+        self.assertEqual(planblk.face_row_gaps([], rows), [])
 
     def test_validator_tables(self):
         self.assertEqual(boardview.rules.validator_module(None).ASKING, ("held", "escalate"))
