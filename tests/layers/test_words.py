@@ -26,7 +26,7 @@ import copyledger  # noqa: E402
 
 BANNED = ("節", "線", "輪", "関所", "指し札", "盤面", "工程", "ワークフロー", "ブロック", "返り", "差し込み", "依る", "お前")
 YAML_TEXT_KEYS = frozenset({"description", "prompt", "systemPrompt", "message"})
-ASF_DIRS = ("factory", "harness", ".factory")
+ASF_DIRS = ("factory", ".factory")
 ROOT_DOCS = ("README.md", "MISSION.md", "engineering.md")
 BORROWED_PROMPT = "bin/_lib/borrow/unattended.md"   # 局所レビューの役の指示書の末尾に全文で載る
 BIN_PY = ("bin/works-factory", "bin/apply", "bin/_lib/*.py", "bin/_lib/no-post-bin/works-gh")
