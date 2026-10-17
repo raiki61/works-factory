@@ -90,7 +90,7 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS) -> Iterator[
 
 def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str) -> subprocess.CompletedProcess:
     """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。子の環境は hermetic.child_env で
-    作る（入口の殻が渡す源のパス・包みの宣言・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
+    作る（入口の殻が渡す Archon の頭・包みの宣言・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
     起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しする"""
     entry = source() / place.ENTRY
     bun = shutil.which("bun")
