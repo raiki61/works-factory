@@ -45,7 +45,7 @@ class PolyfillsListedTest(unittest.TestCase):
         self.assertEqual(got, [])
 
     def test_entry_part_allowance_is_not_red(self):
-        with tree({"bin/_lib/pack.py": "", "bin/_lib/borrow/x.json": ""}) as root:
+        with tree({"bin/_lib/pack.py": "", "bin/_lib/no-post-bin/x": ""}) as root:
             got = scan.problems("E2", root)
         self.assertEqual(got, [])
 

@@ -189,7 +189,7 @@
 - S018 superpowers は works に写した固定の版を使い、利用者が入れた版は使わない
   - 元: SKILL.md:17
   - 印: 無し
-  - 今: `bin/_lib/toolset.py::installed_sources`・`bin/_lib/toolset.py::VENDORED`（`bin/_lib/borrow/borrow.json` の pin）
+  - 今: `bin/_lib/toolset.py::installed_sources`・`bin/_lib/toolset.py::VENDORED`（`lib/borrow/borrow.json` の pin）
   - 状態: 在る
   - 旧棚卸し: F033
 
@@ -218,7 +218,7 @@
 - S022 superpowers の写しが borrow.json の pin と合わない時、その行を出して止まる
   - 元: SKILL.md:31
   - 印: 無し
-  - 今: `bin/_lib/toolset.py::installed_sources`・`bin/_lib/spseam.py::pin_problems`
+  - 今: `bin/_lib/toolset.py::installed_sources`・`lib/spseam.py::pin_problems`
   - 状態: 形を変えて在る（直し方の案内が works を入れ直す道でなく、リポジトリの写しを toolset.py vendor で取り直す道）
   - 旧棚卸し: 無し
 
@@ -3126,7 +3126,7 @@
 - fix.md F141: lib/planbrief.py::cut（置き場の briefs.json）
 - fix.md F142: workflows/fix/scripts/fix_prep.py、workflows/fix/works-factory-fix.yaml::fixer の `when: "$fix-prep.output.go == true"`
 - fix.md F143: lib/fixrules.py::g1_values（下請けのファイルの名 `G1_IMPL`・`G1_REVIEW`）と lib/fixrules.py::prep（ループが緑にしていない単位が在れば seat.g1_section）、lib/seat.py::g1_prompt・lib/seat.py::g1_section・lib/seat.py::g1_diff_cmd。修正役に Agent の道具（workflows/fix/works-factory-fix.yaml::fixer の allowed_tools）
-- fix.md F144: lib/seat.py（spseam の写し。lib は bin を import しない）、bin/_lib/spseam.py
+- fix.md F144: lib/seat.py（照らしと埋めは lib/spseam.py）、lib/spseam.py
 - fix.md F145: workflows/fix/works-factory-fix.yaml::tdd・workflows/fix/works-factory-fix.yaml::refix・workflows/fix/works-factory-fix.yaml::refix2 の `skills:`
 - fix.md F146: workflows/fix/works-factory-fix.yaml の各役
 - fix.md F147: lib/fixboard.py::collect_reads・lib/fixboard.py::read_stages（lib/reads.collect の上。修正役 fix と裁定の後の修正役 fix-ruled の段ごとに、指示書・判定の写し・brief を渡したパスにし、段の頭の印から後の、指示書を読んだ session の行で切る）、workflows/fix/scripts/fix_reads.py（ノード fix-reads。受け付けの条件にしない。出力ノードに結ばない。落ちない）

@@ -1,4 +1,4 @@
-"""写しの台帳（COPIED_FROM・COPIED_FROM.<名>）の読み口。写し直しの道具と、写しの一致を見る試験が同じここから読む。
+"""写しの台帳（COPIED_FROM・COPIED_FROM.<名>）の読み口。写しの一致を見る試験がここから読む。
 
 台帳の形:
 - 1 行目: 写した commit（頭の語）と、写し元の系統・版の説明
@@ -9,7 +9,6 @@ works の物を何も知らない（標準ライブラリだけ）。
 """
 import json
 import pathlib
-import subprocess
 from dataclasses import dataclass, field
 
 MARK = "! "
@@ -68,8 +67,3 @@ def apply(led: Ledger, rel: str, src: bytes) -> bytes:
         src = src.replace(old, new)
     return src
 
-
-def show(repo, rev: str, path: str):
-    """git show <rev>:<path> のバイト（無ければ None）"""
-    r = subprocess.run(["git", "-C", str(repo), "show", f"{rev}:{path}"], capture_output=True)
-    return r.stdout if r.returncode == 0 else None

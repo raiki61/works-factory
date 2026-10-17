@@ -25,8 +25,9 @@ class ScanRulesTest(unittest.TestCase):
         self.assertEqual(scan.stale_allowances(ROOT), [])
 
     def test_e13_allowances_are_only_the_named_tables(self):
-        """E13 の外しは lib/ 自身の決まりの物と、根の AGENTS.md の E13 の「例外」が名指すファイル（scan.E13_TABLES）だけ"""
-        extra = set(scan.ALLOWED["E13"]) - {"lib/AGENTS.md", "lib/tests/"}
+        """E13 の外しは lib/ 自身の決まりの物と、借りた superpowers の写しと、根の AGENTS.md の E13 の「例外」が名指すファイル
+        （scan.E13_TABLES）だけ"""
+        extra = set(scan.ALLOWED["E13"]) - {"lib/AGENTS.md", "lib/tests/", "lib/borrow/superpowers/"}
         self.assertEqual(sorted(extra - set(scan.E13_TABLES)), [])
 
     def test_e13_tables_match_the_root_rule(self):

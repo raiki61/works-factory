@@ -104,14 +104,11 @@ ALLOWED = {
         # bin/_lib/ の埋めでない物（起動の認証と隔離を今の works から持ってきた入口の部品。bin/AGENTS.md の E15）。埋めは名簿の行が持つ
         "bin/_lib/auth_launch.py",
         "bin/_lib/claude_auth.py",
-        "bin/_lib/copyledger.py",
         "bin/_lib/hostgh.py",
         "bin/_lib/isolate.py",
         "bin/_lib/pack.py",
-        "bin/_lib/spseam.py",
         "bin/_lib/startpoint.py",
         "bin/_lib/testcmd_check.py",
-        "bin/_lib/borrow/",
         "bin/_lib/no-post-bin/",
     ),
     "E3": (
@@ -120,6 +117,9 @@ ALLOWED = {
         "lib/tests/test_blk_fix.py#$LOOP_PREV",
         "lib/tests/test_blk_plan.py#$LOOP_PREV",
         "lib/tests/test_fix_rules.py#$LOOP_PREV",
+        # 借りたスキルを無人の役で読む時の読み替え（役が読む文）。役の skills: の宣言と受け付けのループを、役に名指して説く
+        "lib/borrow/unattended.md#Archon",
+        "lib/borrow/unattended.md#loop_group",
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
@@ -152,6 +152,7 @@ ALLOWED = {
         "lib/fixrules.py",
         "lib/libdocs.py",
         "lib/libdocs_local.py",
+        "lib/borrow/superpowers/",
     ),
 }
 

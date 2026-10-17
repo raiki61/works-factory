@@ -2,7 +2,7 @@
 の契約を確かめ、部品の型を埋める部品。
 
 言葉:
-- 版のフォルダ: superpowers の 1 つの版の中身（bin/_lib/borrow/superpowers/<版> の写し、または利用者のキャッシュの版の置き場）
+- 版のフォルダ: superpowers の 1 つの版の中身（lib/borrow/superpowers/<版> の写し、または利用者のキャッシュの版の置き場）
 - 包むファイル: 版のフォルダのうち works が使う物。借りるスキルの skills/<名>/ の下の全ファイル・部品（parts）・LICENSE
 - 固定（pin）: borrow.json の superpowers.pin。{version, commit, checked, files: {相対パス: sha256}}
 - 錨（anchor）: 読み替えの決まりの根拠になる原文の引用。引用を含む行がちょうど 1 行で、その段落の sha256 が固定の時と同じこと
