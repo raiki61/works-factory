@@ -258,7 +258,7 @@
   - #214 の結果は `docs/calibration-214.md` に残した。
   - 今の works は WebFetch・WebSearch を隔離した設定で塞げない（版を止めた toolset の柵が `permissions` の鍵を拒み、今の works は変えない）。変換の控えの `leak_guard` に書き、今の works の採点は塞いだ 2 つの作り手と同じ重みで読まない。
 - 2026-10-16（出典は PR #639 の持ち主のコメント）: ベンチの台は、docker を回す Linux の kernel そのものが x86_64 であること（x86_64 の機械か、kernel ごと x86_64 を真似る VM）。命令を訳して amd64 を動かす台は起動前に止める。sandbox の柵は弱めない。台の要件は道具の名でなく性質で書く。期限は足さない。
-  - 当て方: `tests/calibration/swepro.py` の docstring の「台に要る物」と setup_commands の確かめ・prepare の版の照らし。台の要件の中身はそこに置き、ここに写さない。
+  - 当て方: `tests/calibration/swepro.py` の docstring の「台に要る物」と setup_commands の確かめ。台の要件の中身はそこに置き、ここに写さない。
 
 ### `swap-is-the-value` 価値は、簡単に入れ替え・作り変えられることだけに置く
 
