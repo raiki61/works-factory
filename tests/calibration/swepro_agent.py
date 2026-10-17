@@ -28,8 +28,6 @@ from harbor.models.agent.context import AgentContext  # noqa: E402
 from bin._lib import auth_launch  # noqa: E402
 from tests.calibration import swepro  # noqa: E402
 
-TAIL = 5
-
 
 class WorksBenchDocker(DockerEnvironment):
     """Harbor の docker の環境。課題の主のコンテナに Claude Code の sandbox の要る緩め（swepro.SANDBOX の compose の重ねと
@@ -96,7 +94,7 @@ class WorksBench(BaseAgent):
         for name, command in swepro.setup_commands(self.version(), self.claude_version):
             done = await environment.exec(command, user="root", timeout_sec=None)
             if done.return_code != 0:
-                tail = "\n".join((done.stderr or done.stdout or "").strip().splitlines()[-TAIL:])
+                tail = "\n".join((done.stderr or done.stdout or "").strip().splitlines()[-swepro.SETUP_TAIL:])
                 raise RuntimeError(f"setup の {name} が終了の値 {done.return_code} で落ちた:\n{tail}")
 
     def _auth(self) -> tuple[dict, str]:

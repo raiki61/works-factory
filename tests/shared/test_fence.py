@@ -1,10 +1,11 @@
 """読むだけの役の claude の包み（workflows/.shared/fence.py。埋め P5）を確かめる。
 
 一覧の組み方・argv の書き換え・main は使い捨ての git の木と偽の claude で確かめる。RealClaudeTest は本物の claude を偽の API で起こし、
-sandbox が包みの足した一覧への書き込みを本当に止めることを確かめる（本物の claude か sandbox が無い所では名前つきで見送る）。
+sandbox が包みの足した一覧への書き込みを本当に止めることを確かめる。起こす前に、共有の部品 tests/bin/sandbox_probe.py で sandbox の
+Bash と Grep が立つかを 1 回確かめる（sandbox_refused）。本物の claude か sandbox の道具が無い所と、Linux で名前空間が立たない所は名前つきで
+見送り、ほかの層の壊れは赤にする。
 """
 import datetime
-import http.server
 import importlib.util
 import json
 import os
@@ -13,15 +14,14 @@ import shlex
 import shutil
 import subprocess
 import sys
-import threading
+import tempfile
 import unittest
 from unittest import mock
 
 from bin._lib import isolate, launcher
-from tests.bin import hermetic
+from tests.bin import hermetic, sandbox_probe
 from tests.bin.gitkit import git
 from tests.layers import scan
-from tests.workflows import test_test_gate
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FENCE = ROOT / "workflows" / ".shared" / "fence.py"
@@ -300,90 +300,107 @@ class FencedSinceTest(unittest.TestCase):
         self.assertEqual(fence.RECORDS_ENV, launcher.FENCE_RECORDS_ENV)
 
 
-def sandbox_available() -> bool:
-    if sys.platform == "darwin":
-        return shutil.which("sandbox-exec") is not None
-    if shutil.which("bwrap") is None or shutil.which("socat") is None:
-        return False
-    try:
-        probe = subprocess.run(["bwrap", "--ro-bind", "/", "/", "--unshare-user", "--unshare-net", "true"],
-                               capture_output=True, timeout=30, env=hermetic.child_env())
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return probe.returncode == 0
+NO_TOOLS = "sandbox が立たない（macOS の sandbox-exec か、Linux の bwrap と socat が要る）"
+LAYERS = {sandbox_probe.START_FAILED: "start", sandbox_probe.BASH_FAILED: "Bash", sandbox_probe.GREP_EMPTY: "Grep",
+          sandbox_probe.UNCONFINED: "unconfined"}
 
 
-def fake_api(command: str, results: list):
-    """1 回目の stream の要求に Bash の tool_use を 1 つ返し、受けた tool_result を results に足して終える偽の Anthropic API"""
-    asked = threading.Event()
+def sandbox_refused(claude: str, platform: str = sys.platform) -> str:
+    """本物の claude の sandbox の柵の試験を見送る訳（見送らないなら空）。道具が無い時（macOS は sandbox-exec、Linux は bwrap と
+    socat）と、Linux で名前空間が立たず Bash が落ちた時（kernel の制限に依る台の問題）、Linux で claude が要求を送らず終わり、
+    kernel の名前空間の制限の値が 1 の時（役の設定の failIfUnavailable が起動の時に拒む。層は start）は見送りの訳を返す。道具が在るのに
+    ほかの層（start・Grep・unconfined、macOS の Bash）が壊れている時は、層と要の行を添えた AssertionError で赤にする"""
+    if platform == "darwin":
+        if shutil.which("sandbox-exec") is None:
+            return NO_TOOLS
+    elif shutil.which("bwrap") is None or shutil.which("socat") is None:
+        return NO_TOOLS
+    with tempfile.TemporaryDirectory(prefix="works-fence-probe-") as tmp:
+        code, clues = sandbox_probe.probe(claude, sandbox_probe.role_sandbox(), tmp, hermetic.child_env())
+    if code == 0:
+        return ""
+    said = f"sandbox の {LAYERS.get(code, f'終わりの値 {code}')} の層が立たない: {' / '.join(clues)}"
+    if platform != "darwin":
+        if code == sandbox_probe.BASH_FAILED:
+            return said
+        limit = sandbox_probe.userns_limit()
+        if code == sandbox_probe.START_FAILED and limit == "1":
+            return f"{said}（kernel の名前空間の制限 {sandbox_probe.USERNS_LIMIT} = {limit}）"
+    raise AssertionError(said)
 
-    def sse(w, event, data):
-        w.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode())
 
-    class Handler(http.server.BaseHTTPRequestHandler):
-        protocol_version = "HTTP/1.1"
+class SharedProbeTest(unittest.TestCase):
+    """見送りの判断は共有の部品 sandbox_probe.probe の結果で決まる。壊れた層は名前つきで見送るか赤にする"""
 
-        def do_POST(self):
-            body = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
-            if not self.path.startswith("/v1/messages") or "count_tokens" in self.path:
-                return self.reply_json({"input_tokens": 1})
-            last = (body.get("messages") or [{}])[-1].get("content")
-            got = [c for c in last if isinstance(c, dict) and c.get("type") == "tool_result"] if isinstance(last, list) else []
-            tools = [t.get("name") for t in body.get("tools", [])]
-            if got:
-                results.extend(got)
-                blocks, stop = [{"type": "text", "text": "done"}], "end_turn"
-            elif "Bash" in tools and body.get("stream") and not asked.is_set():
-                asked.set()
-                blocks = [{"type": "tool_use", "id": "toolu_01", "name": "Bash",
-                           "input": {"command": command, "description": "probe"}}]
-                stop = "tool_use"
-            else:
-                blocks, stop = [{"type": "text", "text": "ok"}], "end_turn"
-            message = {"id": "msg_x", "type": "message", "role": "assistant", "model": body.get("model"),
-                       "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 1}}
-            if not body.get("stream"):
-                return self.reply_json({**message, "content": blocks, "stop_reason": stop})
-            self.send_response(200)
-            self.send_header("content-type", "text/event-stream")
-            self.send_header("connection", "close")
-            self.end_headers()
-            w = self.wfile
-            sse(w, "message_start", {"type": "message_start", "message": {**message, "content": [], "stop_reason": None}})
-            for i, block in enumerate(blocks):
-                if block["type"] == "text":
-                    sse(w, "content_block_start", {"type": "content_block_start", "index": i,
-                                                   "content_block": {"type": "text", "text": ""}})
-                    delta = {"type": "text_delta", "text": block["text"]}
-                else:
-                    sse(w, "content_block_start", {"type": "content_block_start", "index": i,
-                                                   "content_block": {**block, "input": {}}})
-                    delta = {"type": "input_json_delta", "partial_json": json.dumps(block["input"])}
-                sse(w, "content_block_delta", {"type": "content_block_delta", "index": i, "delta": delta})
-                sse(w, "content_block_stop", {"type": "content_block_stop", "index": i})
-            sse(w, "message_delta", {"type": "message_delta", "delta": {"stop_reason": stop, "stop_sequence": None},
-                                     "usage": {"output_tokens": 1}})
-            sse(w, "message_stop", {"type": "message_stop"})
-            w.flush()
-            self.close_connection = True
+    def setUp(self):
+        which = mock.patch.object(shutil, "which", return_value="/usr/bin/tool")
+        which.start()
+        self.addCleanup(which.stop)
 
-        def reply_json(self, data):
-            raw = json.dumps(data).encode()
-            self.send_response(200)
-            self.send_header("content-type", "application/json")
-            self.send_header("content-length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+    def probe_says(self, code, *clues):
+        patcher = mock.patch.object(sandbox_probe, "probe", return_value=(code, list(clues)))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
-        def do_GET(self):
-            self.send_response(404)
-            self.send_header("content-length", "0")
-            self.end_headers()
+    def limit_is(self, value):
+        patcher = mock.patch.object(sandbox_probe, "userns_limit", return_value=value)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
-        def log_message(self, *args):
+    def test_fence_check_runs_the_shared_probe(self):
+        seen = []
+
+        class Reached(Exception):
             pass
 
-    return http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        def spy(claude, settings, place, env):
+            seen.append((claude, settings))
+            raise Reached
+
+        with mock.patch.object(sandbox_probe, "probe", spy), self.assertRaises(Reached):
+            sandbox_refused("/path/claude")
+        self.assertEqual(seen, [("/path/claude", sandbox_probe.role_sandbox())])
+
+    def test_skip_reason_names_the_failed_layer(self):
+        with self.subTest("tools missing"):
+            with mock.patch.object(shutil, "which", return_value=None):
+                for platform in ("darwin", "linux"):
+                    self.assertEqual(sandbox_refused("claude", platform=platform), NO_TOOLS)
+        self.probe_says(sandbox_probe.BASH_FAILED, "bwrap: No permissions to create new namespace")
+        with self.subTest("linux bash"):
+            why = sandbox_refused("claude", platform="linux")
+            self.assertIn("Bash", why)
+            self.assertIn("bwrap: No permissions to create new namespace", why)
+            self.assertNotIn("socat", why)
+        self.probe_says(sandbox_probe.START_FAILED, "config error")
+        with self.subTest("linux start with the namespace limit at 1"):
+            self.limit_is("1")
+            why = sandbox_refused("claude", platform="linux")
+            self.assertIn("start", why)
+            self.assertIn("config error", why)
+            self.assertIn(f"{sandbox_probe.USERNS_LIMIT} = 1", why)
+            self.assertNotIn("socat", why)
+        with self.subTest("passing probe"):
+            self.probe_says(0)
+            self.assertEqual(sandbox_refused("claude", platform="linux"), "")
+
+    def test_broken_sandbox_with_tools_present_is_red(self):
+        for name, platform, code, limit in (
+                ("start without a limit", "linux", sandbox_probe.START_FAILED, None),
+                ("start with the limit at 0", "linux", sandbox_probe.START_FAILED, "0"),
+                ("start on macos even with 1", "darwin", sandbox_probe.START_FAILED, "1"),
+                ("grep on linux", "linux", sandbox_probe.GREP_EMPTY, "1"),
+                ("grep on macos", "darwin", sandbox_probe.GREP_EMPTY, None),
+                ("unconfined on linux", "linux", sandbox_probe.UNCONFINED, "1"),
+                ("unconfined on macos", "darwin", sandbox_probe.UNCONFINED, None),
+                ("bash on macos", "darwin", sandbox_probe.BASH_FAILED, "1")):
+            with self.subTest(name):
+                self.probe_says(code, "the key line", "the stderr line")
+                self.limit_is(limit)
+                with self.assertRaises(AssertionError) as caught:
+                    sandbox_refused("claude", platform=platform)
+                self.assertIn(LAYERS[code], str(caught.exception))
+                self.assertIn("the key line", str(caught.exception))
 
 
 class RealClaudeTest(unittest.TestCase):
@@ -395,8 +412,9 @@ class RealClaudeTest(unittest.TestCase):
         cls.claude = shutil.which("claude")
         if cls.claude is None:
             raise unittest.SkipTest("本物の claude が無い")
-        if not sandbox_available():
-            raise unittest.SkipTest("sandbox が立たない（macOS の sandbox-exec か、Linux の bwrap と socat が要る）")
+        why = sandbox_refused(cls.claude)
+        if why:
+            raise unittest.SkipTest(why)
 
     def setUp(self):
         self.tmp = hermetic.tmpdir(self)
@@ -419,36 +437,24 @@ class RealClaudeTest(unittest.TestCase):
             "テストのキャッシュの置き場（cwd の下）": self.tree["linked"] / ".pytest_cache",
         }
         self.blocked["テストのキャッシュの置き場（cwd の下）"].mkdir()
-        self.settings = json.dumps({"sandbox": test_test_gate.node("ci")["sandbox"]})
+        self.settings = {"sandbox": sandbox_probe.role_sandbox()}
 
     def probe(self, launcher: list[str]) -> dict[str, str]:
         """launcher で claude を起こし、Bash で各置き場に書かせた結果（置き場 → WROTE か BLOCKED）"""
         places = [*self.blocked.values(), self.outside]
-        command = "; ".join(f"if (echo x > {shlex.quote(str(p / 'fence-probe'))}) 2>/dev/null; then echo WROTE {i}; "
-                            f"else echo BLOCKED {i}; fi" for i, p in enumerate(places))
-        results = []
-        server = fake_api(command, results)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        self.addCleanup(server.server_close)
-        self.addCleanup(server.shutdown)
+        wrote, blocked = sandbox_probe.WROTE, sandbox_probe.BLOCKED
+        command = "; ".join(f"if (echo x > {shlex.quote(str(p / 'fence-probe'))}) 2>/dev/null; then echo {wrote} {i}; "
+                            f"else echo {blocked} {i}; fi" for i, p in enumerate(places))
         child = self.tree["child"]
-        env = hermetic.child_env(HOME=child["HOME"], CLAUDE_CONFIG_DIR=child["CLAUDE_CONFIG_DIR"], NO_PROXY="*",
-                                 ANTHROPIC_API_KEY="dummy",
-                                 ANTHROPIC_BASE_URL=f"http://127.0.0.1:{server.server_address[1]}")
-        for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"):
-            env.pop(name, None)
-        argv = ["-p", "hi", "--model", "claude-haiku-4-5-20251001", "--settings", self.settings,
-                "--allowedTools", "Bash", "--permission-mode", "dontAsk"]
-        done = subprocess.run([*launcher, *argv], cwd=self.tree["linked"], env=env, stdin=subprocess.DEVNULL,
-                              capture_output=True, text=True, encoding="utf-8", timeout=180)
-        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        text = "".join(r["content"] if isinstance(r["content"], str) else "".join(c.get("text", "") for c in r["content"])
-                       for r in results)
+        env = hermetic.child_env(HOME=child["HOME"], CLAUDE_CONFIG_DIR=child["CLAUDE_CONFIG_DIR"])
+        talk = sandbox_probe.converse(launcher, self.settings, ("Bash",), [("Bash", {"command": command, "description": "probe"})],
+                                      self.tree["linked"], env)
+        self.assertEqual(talk.returncode, 0, talk.error or talk.stdout + talk.stderr)
+        text = "".join(sandbox_probe.text_of(r) for r in talk.results)
         said = {}
         for line in text.splitlines():
             verdict, _, index = line.partition(" ")
-            if verdict in ("WROTE", "BLOCKED"):
+            if verdict in (wrote, blocked):
                 said[index] = verdict
         self.assertEqual(len(said), len(places), text)
         return {str(p): said[str(i)] for i, p in enumerate(places)}

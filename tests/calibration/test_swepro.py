@@ -16,6 +16,7 @@ import math
 import os
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -27,7 +28,7 @@ from unittest import mock
 
 import yaml
 
-from tests.bin import hermetic
+from tests.bin import fakelaunch, hermetic, sandbox_probe
 from tests.bin.gitkit import git
 from tests.calibration import run as runner
 from tests.calibration import swepro, test_run
@@ -64,6 +65,87 @@ with open("a.py", "w", encoding="utf-8") as f:
     f.write("x = 3\\n")
 print(json.dumps({"is_error": False, "total_cost_usd": 1.5, "duration_ms": 1000, "session_id": "s"}))
 """
+
+
+# setup の sandbox の確かめが起こす claude の代役。ANTHROPIC_BASE_URL の偽の API（sandbox_probe.fake_api）と stream で話し、
+# tool_use の Bash は /bin/sh で、Grep は作業の場所のファイルを探して答える。環境の旗で振る舞いを替える:
+#   FAKE_NO_REQUEST    要求を送らず、config error を標準エラーに出して 1 で終わる
+#   FAKE_STDIN         標準入力から 1 行読めたら落ちる（対話で待つ版の真似）
+#   FAKE_UNCONFINED    denyWrite の置き場を置き換えない（書き込みが本当に通る）。無ければ置き場をファイルに置き換えて書き込みを落とす
+#   FAKE_BASH_FAIL     Bash の tool_result を、bwrap の No permissions で終わる複数行の is_error にする
+#   FAKE_GREP_EMPTY    Grep に No files found を返す
+#   FAKE_STDERR_LINES  標準エラーに出す行の数（最後の行は fake claude stderr <n>）
+#   FAKE_LOG           起こされた時の CLAUDE_ の環境と、標準入力から読めた行を JSON で書く
+FAKE_CLIENT = r'''#!PYTHON
+import http.client, json, os, subprocess, sys, urllib.parse
+args = sys.argv[1:]
+read = None
+if os.environ.get("FAKE_STDIN"):
+    read = sys.stdin.readline() or None
+if os.environ.get("FAKE_LOG"):
+    with open(os.environ["FAKE_LOG"], "w", encoding="utf-8") as f:
+        json.dump({"env": {k: os.environ[k] for k in os.environ if k.startswith("CLAUDE_")}, "stdin": read, "args": args}, f)
+for i in range(int(os.environ.get("FAKE_STDERR_LINES", "0"))):
+    print(f"fake claude stderr {i + 1}", file=sys.stderr)
+if read is not None:
+    print("claude が標準入力を読んだ: " + read.strip(), file=sys.stderr)
+    sys.exit(1)
+if os.environ.get("FAKE_NO_REQUEST"):
+    print("config error", file=sys.stderr)
+    sys.exit(1)
+settings = json.loads(args[args.index("--settings") + 1])
+deny = settings["sandbox"]["filesystem"]["denyWrite"][0]
+if deny.startswith("~"):
+    deny = os.path.normpath(os.environ["HOME"] + deny[1:])
+if not os.environ.get("FAKE_UNCONFINED"):
+    os.rmdir(deny)
+    open(deny, "w").close()
+url = urllib.parse.urlsplit(os.environ["ANTHROPIC_BASE_URL"])
+messages = [{"role": "user", "content": "hi"}]
+while True:
+    conn = http.client.HTTPConnection(url.hostname, url.port)
+    conn.request("POST", "/v1/messages", json.dumps({"model": "m", "stream": True, "messages": messages,
+                                                    "tools": [{"name": "Bash"}, {"name": "Grep"}]}),
+                 {"content-type": "application/json"})
+    used, json_in = None, ""
+    for line in conn.getresponse().read().decode().splitlines():
+        if not line.startswith("data: "):
+            continue
+        event = json.loads(line[len("data: "):])
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "tool_use":
+            used = {"type": "tool_use", "id": event["content_block"]["id"], "name": event["content_block"]["name"]}
+        if event["type"] == "content_block_delta" and event["delta"]["type"] == "input_json_delta":
+            json_in += event["delta"]["partial_json"]
+    conn.close()
+    if used is None:
+        break
+    used["input"] = json.loads(json_in)
+    error = False
+    if used["name"] == "Bash" and os.environ.get("FAKE_BASH_FAIL"):
+        text, error = "bubblewrap failed\nbwrap: No permissions to create new namespace", True
+    elif used["name"] == "Bash":
+        done = subprocess.run(["/bin/sh", "-c", used["input"]["command"]], capture_output=True, text=True)
+        text = done.stdout + done.stderr
+    elif os.environ.get("FAKE_GREP_EMPTY"):
+        text = "No files found"
+    else:
+        found = [name for name in os.listdir(used["input"]["path"]) if used["input"]["pattern"] in open(
+            os.path.join(used["input"]["path"], name), encoding="utf-8").read()]
+        text = f"Found {len(found)} files\n" + "\n".join(found)
+    messages += [{"role": "assistant", "content": [used]},
+                 {"role": "user", "content": [{"type": "tool_result", "tool_use_id": used["id"], "content": text,
+                                              "is_error": error}]}]
+'''
+
+
+def probe_place(case, claude: bool = True) -> pathlib.Path:
+    """setup_commands が打つ場所の代役: claude は FAKE_CLIENT、python3.12 はこの試験の python、repo はこのリポジトリの根"""
+    place = hermetic.tmpdir(case)
+    if claude:
+        fakelaunch.put(place / "bin" / "claude", FAKE_CLIENT.replace("PYTHON", sys.executable))
+    fakelaunch.put(place / "bin" / "python3.12", f"#!/bin/sh\nexec {shlex.quote(sys.executable)} \"$@\"\n")
+    (place / "repo").symlink_to(ROOT)
+    return place
 
 
 def fixture_inputs() -> dict:
@@ -725,6 +807,7 @@ with open(os.environ["FAKE_DOCKER_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps(entry) + "\\n")
 sys.exit(int(os.environ.get("FAKE_DOCKER_CODE", "0")))
 """
+HOST_VERSION = "9.9.9"   # prepare がコンテナに焼く、ホストの claude --version の版（何の版でもよい）
 NETWORK = ("curl", "apt-get", "http", "git clone", "plugin marketplace", "works-factory version", "uv python install", "bun.sh")
 
 
@@ -760,7 +843,7 @@ class BuildTest(unittest.TestCase):
     def test_setup_does_not_touch_the_network(self):
         place = hermetic.tmpdir(self)
         planned = swepro.setup_commands("f", "9.9.9", str(place))
-        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox", "seccomp", "rg"])
+        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox"])
         for name, command in planned:
             for word in NETWORK:
                 self.assertNotIn(word, command, name)
@@ -775,124 +858,132 @@ class BuildTest(unittest.TestCase):
                 if code:
                     self.assertIn("prepare", done.stderr)
 
+    def run_sandbox(self, place, input=None, **flags) -> subprocess.CompletedProcess:
+        """setup の sandbox の命令を /bin/sh -c で打つ（本物の swepro.py の sandbox の口と本物の部品を通る）。flags は FAKE_CLIENT の旗"""
+        command = dict(swepro.setup_commands("f", "9.9.9", str(place)))["sandbox"]
+        return subprocess.run(["/bin/sh", "-c", command], input=input, capture_output=True, text=True, encoding="utf-8",
+                              env=hermetic.child_env(**flags))
+
     def test_failed_sandbox_check_names_the_layers_in_one_line(self):
-        fake = hermetic.tmpdir(self)
-        (fake / "bwrap").write_text("#!/bin/sh\necho 'bwrap: No permissions to create new namespace' >&2\nexit 1\n")
-        (fake / "bwrap").chmod(0o755)
-        check = dict(swepro.setup_commands("f", "9.9.9"))["sandbox"]
-        done = subprocess.run(["bash", "-c", check], capture_output=True, text=True, encoding="utf-8",
-                              env=hermetic.child_env(PATH=f"{fake}{os.pathsep}{os.environ['PATH']}"))
+        done = self.run_sandbox(probe_place(self), FAKE_BASH_FAIL="1")
         self.assertEqual(done.returncode, 1)
-        bwrap, said = done.stderr.splitlines()
+        bwrap, sandbox_said, seccomp_said = done.stderr.splitlines()
         self.assertIn("No permissions", bwrap)
-        self.assertTrue(said.startswith(swepro.SANDBOX_REFUSED), said)
-        self.assertTrue(said.removeprefix(swepro.SANDBOX_REFUSED))
+        self.assertTrue(sandbox_said.startswith(swepro.SANDBOX_REFUSED), sandbox_said)
+        self.assertTrue(sandbox_said.removeprefix(swepro.SANDBOX_REFUSED))
         for word in ("の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", "x86_64 の機械ならそのホスト", "seccomp",
                      "apparmor", "Can't mount proc", "systempaths=unconfined", f"-e {swepro.ENVIRONMENT}"):
-            self.assertIn(word, said)
+            self.assertIn(word, sandbox_said)
+        self.assertEqual(seccomp_said, swepro.SECCOMP_REFUSED)
+        for word in ("prctl(PR_SET_SECCOMP)", "unshare(CLONE_NEWUSER)", "命令の翻訳", "kernel ごと x86_64", "競り合い", "setup を打ち直し"):
+            self.assertIn(word, seccomp_said)
 
-    def helper_place(self, **claude_env) -> tuple[pathlib.Path, dict]:
-        """偽の bwrap（--proc /proc の後ろの命令を起こす）を PATH の先に、偽の claude を <place>/bin に置く"""
-        fake, place = hermetic.tmpdir(self), hermetic.tmpdir(self)
-        (fake / "bwrap").write_text('#!/bin/sh\nwhile [ "$1" != /proc ]; do shift; done\nshift\nexec "$@"\n', encoding="utf-8")
-        (fake / "bwrap").chmod(0o755)
-        (place / "bin").mkdir()
-        (place / "bin" / "claude").write_text(
-            '#!/bin/sh\n'
-            # FAKE_STDIN が在れば、標準入力から 1 行読めた時に落ちる（対話で待つ版の真似）
-            'if [ -n "$FAKE_STDIN" ] && read -r line; then echo "claude が標準入力を読んだ: $line" >&2; exit 1; fi\n'
-            'if [ "$ARGV0" = apply-seccomp ]; then\n'
-            '  [ -z "$FAKE_SECCOMP_ERROR" ] && exit 0\n'
-            '  echo "$FAKE_SECCOMP_ERROR" >&2; exit 1\n'
-            'fi\n'
-            'if [ "$1 $2" = "--no-config --version" ] && [ -n "$FAKE_RG" ]; then echo "ripgrep 14.1.1"; exit 0; fi\n'
-            # FAKE_RG_OUTPUT（標準出力）・FAKE_RG_STDERR（標準エラー）・FAKE_RG_CODE（終わりの値）のどれかが在れば、その字を出して
-            # その値で終わる（空の字も「在る」。改行は printf '%s\n' が壊さない）
-            'if [ "$1 $2" = "--no-config --version" ] && [ -n "${FAKE_RG_OUTPUT+x}${FAKE_RG_STDERR+x}${FAKE_RG_CODE+x}" ]; then\n'
-            '  [ -z "${FAKE_RG_OUTPUT+x}" ] || printf \'%s\\n\' "$FAKE_RG_OUTPUT"\n'
-            '  [ -z "${FAKE_RG_STDERR+x}" ] || printf \'%s\\n\' "$FAKE_RG_STDERR" >&2\n'
-            '  exit "${FAKE_RG_CODE:-0}"\n'
-            'fi\n'
-            'echo "2.1.300 (Claude Code)"; exit 1\n', encoding="utf-8")
-        (place / "bin" / "claude").chmod(0o755)
-        return place, hermetic.child_env(PATH=f"{fake}{os.pathsep}{os.environ['PATH']}", **claude_env)
-
-    def test_failed_seccomp_check_names_the_layers_in_one_line(self):
-        place, env = self.helper_place()
-        planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
-        check = planned["seccomp"]
-        bwrap = planned["sandbox"].partition(" true ")[0]
-        self.assertTrue(check.startswith(f"{bwrap} env ARGV0=apply-seccomp {place}/bin/claude /bin/true "), check)
-        for helper, words in (("apply-seccomp: prctl(PR_SET_SECCOMP): Invalid argument", ("命令の翻訳", "kernel ごと x86_64")),
-                              ("apply-seccomp: unshare(CLONE_NEWUSER): Invalid argument", ("競り合い", "setup を打ち直し"))):
-            with self.subTest(helper=helper):
-                done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8",
-                                      env={**env, "FAKE_SECCOMP_ERROR": helper})
-                self.assertEqual(done.returncode, 1)
-                said_by_helper, said = done.stderr.splitlines()
-                self.assertEqual(said_by_helper, helper)
-                self.assertTrue(said.startswith(swepro.SECCOMP_REFUSED), said)
-                for word in ("prctl(PR_SET_SECCOMP)", "unshare(CLONE_NEWUSER)", *words):
-                    self.assertIn(word, said)
-
-    def test_failed_rg_check_names_the_binfmt_p_flag(self):
-        place, env = self.helper_place()
-        check = dict(swepro.setup_commands("f", "9.9.9", str(place)))["rg"]
-        self.assertIn("bash -c", check)
-        self.assertIn(f"exec -a rg {place}/bin/claude --no-config --version", check)
-        done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8", env=env)
+    def test_empty_grep_names_the_rg_layer(self):
+        done = self.run_sandbox(probe_place(self), FAKE_GREP_EMPTY="1")
         self.assertEqual(done.returncode, 1)
-        self.assertTrue(done.stderr.splitlines()[-1].startswith(swepro.RG_REFUSED), done.stderr)
+        *clues, said = done.stderr.splitlines()
+        self.assertEqual(said, swepro.RG_REFUSED)
         for word in ("Grep", "Glob", "0 件", "P フラグ", "kernel ごと x86_64"):
-            self.assertIn(word, done.stderr.splitlines()[-1])
-        self.assertEqual(done.stderr.splitlines()[:-1], ["2.1.300 (Claude Code)"])
+            self.assertIn(word, said)
+        self.assertNotIn(swepro.SANDBOX_REFUSED, done.stderr)
+        self.assertNotIn(swepro.SECCOMP_REFUSED, done.stderr)
 
-    def test_failed_rg_check_keeps_the_error_when_the_tool_is_missing(self):
-        place, env = self.helper_place()
-        (place / "bin" / "claude").unlink()
-        check = dict(swepro.setup_commands("f", "9.9.9", str(place)))["rg"]
-        done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8", env=env)
+    def test_sandbox_check_passes_when_bash_and_grep_answer(self):
+        done = self.run_sandbox(probe_place(self))
+        self.assertEqual((done.returncode, done.stderr), (0, ""))
+
+    def test_sandbox_check_closes_stdin_of_claude(self):
+        log = hermetic.tmpdir(self) / "claude.json"
+        done = self.run_sandbox(probe_place(self), input="y\n", FAKE_STDIN="1", FAKE_LOG=str(log))
+        self.assertEqual((done.returncode, done.stderr), (0, ""))
+        self.assertIsNone(json.loads(log.read_text(encoding="utf-8"))["stdin"])
+
+    def test_sandbox_check_keeps_claude_off_the_network(self):
+        place = probe_place(self)
+        log = hermetic.tmpdir(self) / "claude.json"
+        done = self.run_sandbox(place, FAKE_LOG=str(log))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        seen = json.loads(log.read_text(encoding="utf-8"))["env"]
+        role = swepro.child_env(str(place), {}, {})
+        self.assertTrue(swepro.QUIET_ENV)
+        for name, value in swepro.QUIET_ENV.items():
+            self.assertEqual((seen.get(name), role.get(name)), (value, value), name)
+        self.assertEqual(seen.get("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"), "1")
+
+    def test_failed_sandbox_check_fits_the_setup_tail(self):
+        done = self.run_sandbox(probe_place(self), FAKE_BASH_FAIL="1", FAKE_STDERR_LINES="50")
         self.assertEqual(done.returncode, 1)
-        *said_by_shell, said = done.stderr.splitlines()
-        self.assertTrue(said.startswith(swepro.RG_REFUSED), done.stderr)
-        self.assertIn(f"{place}/bin/claude", "\n".join(said_by_shell))
+        shown = "\n".join(done.stderr.splitlines()[-swepro.SETUP_TAIL:])
+        self.assertIn("bwrap: No permissions to create new namespace", shown)
+        self.assertIn(swepro.SANDBOX_REFUSED, shown)
+        self.assertIn(swepro.SECCOMP_REFUSED, shown)
 
-    def test_rg_check_refuses_anything_but_a_ripgrep_version_line_on_stdout(self):
-        place, env = self.helper_place()
-        check = dict(swepro.setup_commands("f", "9.9.9", str(place)))["rg"]
-        for name, fake in (
-                ("version in the middle of a sentence", {"FAKE_RG_OUTPUT": "error: ripgrep 14.1.1 を起こせない", "FAKE_RG_CODE": "0"}),
-                ("colon after the name", {"FAKE_RG_OUTPUT": "ripgrep: 14.1.1", "FAKE_RG_CODE": "0"}),
-                ("name without a version", {"FAKE_RG_OUTPUT": "ripgrep could not start", "FAKE_RG_CODE": "0"}),
-                ("version only on stderr", {"FAKE_RG_OUTPUT": "", "FAKE_RG_STDERR": "ripgrep 14.1.1", "FAKE_RG_CODE": "0"}),
-                ("version line but a failing exit", {"FAKE_RG_OUTPUT": "ripgrep 14.1.1", "FAKE_RG_CODE": "1"}),
-                ("version on the second line", {"FAKE_RG_OUTPUT": "warning: something\nripgrep 14.1.1", "FAKE_RG_CODE": "0"})):
+    def test_claude_that_never_reaches_the_api_names_the_start_layer(self):
+        absent = hermetic.tmpdir(self) / "no-userns-limit"
+        for name, claude, flags, clue in (("config error", True, {"FAKE_NO_REQUEST": "1"}, "config error"),
+                                         ("claude missing", False, {}, None)):
             with self.subTest(name):
-                done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8", env={**env, **fake})
-                self.assertEqual(done.returncode, 1, done.stderr)
-                self.assertTrue(done.stderr.splitlines()[-1].startswith(swepro.RG_REFUSED), done.stderr)
-        with self.subTest("version line on stdout, notes on stderr"):
-            done = subprocess.run(["/bin/sh", "-c", check], capture_output=True, text=True, encoding="utf-8",
-                                  env={**env, "FAKE_RG_OUTPUT": "ripgrep 14.1.1", "FAKE_RG_STDERR": "a note", "FAKE_RG_CODE": "0"})
-            self.assertEqual(done.returncode, 0, done.stderr)
-            self.assertEqual(done.stderr, "a note\n")
+                place = probe_place(self, claude=claude)
+                clue = clue or f"{place}/bin/claude"
+                with mock.patch.object(swepro, "USERNS_LIMIT", str(absent)):
+                    done = self.run_sandbox(place, **flags)
+                self.assertEqual(done.returncode, 1)
+                *clues, said = done.stderr.splitlines()
+                self.assertEqual(said, f"{swepro.START_REFUSED}無い")
+                self.assertIn(clue, "\n".join(clues))
+                self.assertIn("failIfUnavailable", said)
+                self.assertNotIn(swepro.SANDBOX_REFUSED, done.stderr)
+                self.assertNotIn(swepro.SECCOMP_REFUSED, done.stderr)
+        # 起動の時に sandbox を立てられず終わった claude も要求を送らない。台の外れはここに来るので、kernel の制限の値を添える
+        limit = hermetic.tmpdir(self) / "limit"
+        for value in ("1", "0"):
+            with self.subTest(limit=value):
+                limit.write_text(f"{value}\n", encoding="utf-8")
+                with mock.patch.object(swepro, "USERNS_LIMIT", str(limit)):
+                    done = self.run_sandbox(probe_place(self), FAKE_NO_REQUEST="1")
+                said = done.stderr.splitlines()[-1]
+                self.assertEqual(said, f"{swepro.START_REFUSED}{value}")
+                self.assertIn("の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", said)
+        self.assertEqual(swepro.USERNS_LIMIT, sandbox_probe.USERNS_LIMIT)
 
-    def test_seccomp_and_rg_checks_pass_under_sh(self):
-        place, env = self.helper_place(FAKE_RG="1")
-        planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
-        for name in ("seccomp", "rg"):
-            with self.subTest(check=name):
-                done = subprocess.run(["/bin/sh", "-c", planned[name]], capture_output=True, text=True, encoding="utf-8", env=env)
-                self.assertEqual(done.returncode, 0, done.stderr)
+    def test_unconfined_write_names_the_unconfined_layer(self):
+        done = self.run_sandbox(probe_place(self), FAKE_UNCONFINED="1")
+        self.assertEqual(done.returncode, 1)
+        *clues, said = done.stderr.splitlines()
+        self.assertEqual(said, swepro.UNCONFINED_REFUSED)
+        self.assertEqual(clues[0], sandbox_probe.WROTE)
+        self.assertNotIn(swepro.SANDBOX_REFUSED, done.stderr)
 
-    def test_seccomp_and_rg_checks_close_stdin_of_claude(self):
-        place, env = self.helper_place(FAKE_RG="1", FAKE_STDIN="1")
-        planned = dict(swepro.setup_commands("f", "9.9.9", str(place)))
-        for name in ("seccomp", "rg"):
-            with self.subTest(check=name):
-                done = subprocess.run(["/bin/sh", "-c", planned[name]], input="y\n", capture_output=True, text=True,
-                                      encoding="utf-8", env=env)
-                self.assertEqual(done.returncode, 0, done.stderr)
+    def test_probe_crash_is_not_blamed_on_claude_or_the_platform(self):
+        for code in (1, 2):
+            with self.subTest(code=code):
+                place = probe_place(self)
+                fakelaunch.put(place / "bin" / "python3.12", f"#!/bin/sh\necho 'Traceback (most recent call last):' >&2\nexit {code}\n")
+                done = self.run_sandbox(place)
+                self.assertEqual(done.returncode, 1)
+                lines = done.stderr.splitlines()
+                self.assertEqual(lines[0], "Traceback (most recent call last):")
+                self.assertEqual(lines[-1], swepro.PROBE_CRASHED)
+                for refused in (swepro.START_REFUSED, swepro.SANDBOX_REFUSED, swepro.SECCOMP_REFUSED, swepro.RG_REFUSED):
+                    self.assertNotIn(refused, done.stderr)
+
+    def test_setup_sandbox_runs_the_shared_probe(self):
+        command = dict(swepro.setup_commands("f", "9.9.9", "/p"))["sandbox"]
+        role = sandbox_probe.role_sandbox()
+        self.assertIn(shlex.join(["/p/bin/python3.12", "/p/repo/tests/calibration/swepro.py", "sandbox", "/p/bin/claude",
+                                  json.dumps(role)]), command)
+        seen = []
+
+        class Reached(Exception):
+            pass
+
+        def spy(claude, settings, place, env):
+            seen.append((claude, settings))
+            raise Reached
+
+        with mock.patch.object(sandbox_probe, "probe", spy), self.assertRaises(Reached):
+            swepro.main(["sandbox", "/p/bin/claude", json.dumps(role)])
+        self.assertEqual(seen, [("/p/bin/claude", role)])
 
     def test_rewrite_image_needs_exactly_one_line(self):
         self.assertEqual(swepro.rewrite_image('a = 1\ndocker_image = "x:1"\n', "x:1", "y:1"), 'a = 1\ndocker_image = "y:1"\n')
@@ -914,7 +1005,7 @@ class PrepareTest(unittest.TestCase):
         self.env = {k: v for k, v in hermetic.child_env(FAKE_DOCKER_LOG=str(self.log)).items()
                     if k != "CLAUDE_BIN_PATH" and k not in swepro.PROXY_ENV}
         self.env["PATH"] = os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])
-        self.env["FAKE_CLAUDE_VERSION"] = swepro.BWRAP_FROM
+        self.env["FAKE_CLAUDE_VERSION"] = HOST_VERSION
 
     def prepare(self, *instances, **env):
         return subprocess.run([sys.executable, str(HERE / "swepro.py"), "prepare", str(self.tasks), str(self.out), *instances],
@@ -934,7 +1025,7 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(pull["args"], ["pull", "--platform", "linux/amd64", image])
         self.assertEqual(build["args"][:-1], ["build", "--platform", "linux/amd64", "-t", derived])
         self.assertEqual(build["files"], ["Dockerfile", swepro.REPO_TAR])
-        self.assertEqual(build["dockerfile"], swepro.dockerfile(image, swepro.BWRAP_FROM, swepro.head_commit()))
+        self.assertEqual(build["dockerfile"], swepro.dockerfile(image, HOST_VERSION, swepro.head_commit()))
         copied = tomllib.loads((self.out / OPENLIBRARY / "task.toml").read_text(encoding="utf-8"))
         before = tomllib.loads(original)
         self.assertEqual(copied["environment"].pop("docker_image"), derived)
@@ -958,23 +1049,16 @@ class PrepareTest(unittest.TestCase):
         for text in (self.log.read_text(encoding="utf-8"), done.stdout, done.stderr):
             self.assertNotIn(secret, text)
 
-    def test_host_claude_other_than_the_bwrap_copy_stops_before_docker(self):
-        done = self.prepare(OPENLIBRARY, FAKE_CLAUDE_VERSION="9.9.9")
-        self.assertEqual(done.returncode, 1)
-        self.assertIn("ホストの Claude Code 9.9.9 が", done.stderr)
-        self.assertIn(f"写した版 {swepro.BWRAP_FROM} と違う", done.stderr)
-        self.assertEqual(self.docker_calls(), [])
-        self.assertFalse((self.out / OPENLIBRARY).exists())
-
-    def test_host_claude_other_than_the_bwrap_copy_names_every_check_to_recheck(self):
-        done = self.prepare(OPENLIBRARY, FAKE_CLAUDE_VERSION="9.9.9")
-        for covered in swepro.BWRAP_FROM_COVERS.values():
-            with self.subTest(covered=covered):
-                self.assertIn(covered, done.stderr)
-        self.assertIn("swepro.py の BWRAP_FROM を上げる", done.stderr)
-        # 一覧は setup の確かめのうち版に依る物（焼き印の stamp は版の一致を見る側）と同じ名で揃う。確かめを足したら一覧にも足す
-        checks = [name for name, _ in swepro.setup_commands("f", "9.9.9") if name != "stamp"]
-        self.assertEqual(list(swepro.BWRAP_FROM_COVERS), checks)
+    def test_host_claude_of_any_version_reaches_docker(self):
+        for version in (HOST_VERSION, "2.1.302", "0.0.1"):
+            with self.subTest(version):
+                self.log.unlink(missing_ok=True)
+                done = self.prepare(OPENLIBRARY, FAKE_CLAUDE_VERSION=version)
+                self.assertEqual(done.returncode, 0, done.stderr)
+                pull, build = self.docker_calls()
+                self.assertEqual(pull["args"][0], "pull")
+                self.assertEqual(build["args"][0], "build")
+                self.assertEqual(build["dockerfile"], swepro.dockerfile(IMAGE.format(OPENLIBRARY), version, swepro.head_commit()))
 
     def test_failed_docker_names_the_instance(self):
         done = self.prepare(OPENLIBRARY, FAKE_DOCKER_CODE="1")
@@ -1245,7 +1329,12 @@ class UsageTest(unittest.TestCase):
         self.assertNotIn("-e docker ", usage)
         self.assertNotIn("proxy_refused", usage)
         self.assertIn("命令の翻訳で amd64 のプロセスを arm64 の kernel の上に動かす台", usage)
-        self.assertIn("kernel.apparmor_restrict_unprivileged_userns=1 を\n  0 に", usage)
+        self.assertIn("kernel.apparmor_restrict_unprivileged_userns が 1 なら 0 に", usage)
+
+    def test_platform_needs_are_written_as_properties(self):
+        usage = swepro.__doc__
+        self.assertNotIn("Ubuntu", usage)
+        self.assertIn("kernel.apparmor_restrict_unprivileged_userns", usage)
 
 
 # ---------------------------------------------------------------- Harbor の殻
@@ -1401,12 +1490,12 @@ class AgentTest(unittest.TestCase):
         self.go()
         setup = self.environment.calls[:self.environment.calls_after_setup]
         planned = swepro.setup_commands(swepro.head_commit(), "9.9.9")
-        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox", "seccomp", "rg"])
+        self.assertEqual([name for name, _ in planned], ["stamp", "sandbox"])
         self.assertEqual([c["command"] for c in setup], [command for _, command in planned])
         self.assertEqual({c["kind"] for c in setup}, {"exec"})
         self.assertEqual({c["user"] for c in setup}, {"root"})
         self.assertTrue(dict(planned)["sandbox"].startswith(
-            "bwrap --ro-bind / / --dev /dev --unshare-user --unshare-net --unshare-pid --proc /proc true"))
+            f"{swepro.PLACE}/bin/python3.12 {swepro.PLACE}/repo/tests/calibration/swepro.py sandbox {swepro.PLACE}/bin/claude"))
         for _, command in planned:
             self.assertNotIn(" /app", command)
             self.assertNotIn("/logs", command)
