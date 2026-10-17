@@ -305,7 +305,7 @@
 - 持ち主の言葉（2026-10-16、PR #637）: 「asfは他人のものなので、勝手にあがったらそれを使えばいいのでは？今の版に固執する意味はどこにある？」
 - 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
 - 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（`harness/harness.config.json` の `required_checks`・`protected_paths`）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
-- 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分の家の設定で決める物がある（`defaultAssistant: claude`・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方: `bin/_lib/place.py` の `home_config`。群の別名（aliases の `@wf-` の行）も同じ `home_config` が呼ぶたびに `lib/launchgroups.py` の表から揃える（`run-model-choice`）。
+- 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分の家の設定で決める物がある（`defaultAssistant: claude`・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方: `bin/_lib/place.py` の `home_config`。群の別名（`@wf-<群>`）は家の設定に書かず、新しい run の `--config` の層で渡す（`run-model-choice`）。
 
 ### `run-model-choice` run ごとにノード群の模型と effort を替えられる
 
@@ -314,8 +314,8 @@
   - run ごとにノード群の模型と effort を替えられる。何も選ばなければ群の既定の値で走り、呼ぶ人の `--model @wf-<群>=<spec>` が何よりも勝つ。
   - 頭の深さの役 `head-depth` の選びは、照らしを通った行だけを控え、外れた行は群の既定に戻す。今の Archon は run の中で後のノードの模型を付け替える口を持たないので、役の選びは記録だけにして効かせない（`docs/polyfills.md` の「候補（まだ埋めでない）: run の中で後のノードの模型と effort を付け替える口」）。
   - 下げる向きは、過去の run の数え直しと並べて回した測りで質が落ちないと分かるまで、既定にしない。
-  - 群の値を替えうる層は強い順に、呼ぶ人の `--model` > 利用者の AI の好み・`--config` > 対象の repo の `.archon/config.yaml` > 家の設定。対象の repo の層は、対象の repo の `.archon/config.yaml` が工場の群と同じ名の alias を書くと、その群の模型と effort（下げも含む）が名指しなしに替わる。BASE（字の模型を書いていた前の版）は字の模型なので替わらなかった。
-- 当て方: 群の既定は `lib/launchgroups.py` の `GROUPS` が持ち、家の設定の aliases の `@wf-` の行は `bin/_lib/place.py` の `home_config` が毎回揃える。ノードは `model: '@wf-<群>'` だけを書き、役にもグラフの頭にも effort を書かない（`workflows/AGENTS.md` の E7。柵は `tests/layers/scan.py`）。役の選びの照らしは `lib/launchgroups.py` の `choices` で、控えは `judge/depth-head.json` の `groups`。報告は `## 模型` のセクション（`lib/headdepth.py` の `groups_lines`）。
+  - 群の値を替えうる層は強い順に、呼ぶ人の `--model` > `--config`（run 1 本ぶんの設定の層）> 利用者の AI の好み > 対象の repo の `.archon/config.yaml` > 家の設定。群の別名は殻が新しい run の `--config` で渡すので、対象の repo の `.archon/config.yaml` が工場の群と同じ名の alias を書いても群の値は替わらない（審査される側の repo が審査する役の模型と effort を下げられない。PR #658 の修理の依頼 1）。利用者の `--config` は殻が新しい run で断る。
+- 当て方: 群の既定は `lib/launchgroups.py` の `GROUPS` が持ち、`bin/_lib/place.py` の `run_config` がその表から run 1 本ぶんの設定の層を書き、`bin/_lib/launcher.py` が新しい run にだけ `--config` で渡す（resume は Archon が起動の時に封じた層を戻す。`workflow:` の子の run は親の記録を受け継ぐ）。`--model` の `@wf-` の名が表に無ければ殻が起こす前に止める。ノードは `model: '@wf-<群>'` だけを書き、役にもグラフの頭にも effort を書かない（`workflows/AGENTS.md` の E7。柵は `tests/layers/scan.py`）。役の選びの照らしは `lib/launchgroups.py` の `choices` で、控えは `judge/depth-head.json` の `groups`。報告は `## 模型` のセクション（`lib/headdepth.py` の `groups_lines`）。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 

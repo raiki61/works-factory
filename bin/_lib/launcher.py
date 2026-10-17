@@ -16,7 +16,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from bin._lib import hostgh, isolate, pack, place, startpoint, testcmd_check
-from lib import answer, reads, userenv, writelog
+from lib import answer, launchgroups, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
@@ -74,6 +74,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         raise Stop("--workflow-source は渡さない。自分のグラフの置き場は殻が渡す")
     require_command_first(argv)
     workflow = fresh_run_workflow(argv, flags)
+    if workflow is not None:
+        refuse_run_config(flags)
+        refuse_unknown_groups(flags)
     no_auth = user.get(NO_AUTH_ENV) == "1"
     user_home = user.get("HOME")
     if not user_home:
@@ -159,7 +162,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             raise Stop(str(error)) from None
         if said:
             print(f"{NAME}: {said}", file=sys.stderr)
-        args = place.workflow_run(source, workflows, target, workflow, *start, *without_flag(argv[3:], "--cwd"))[2:]
+        args = place.workflow_run(source, workflows, place.run_config(cache), target, workflow, *start,
+                                  *without_flag(argv[3:], "--cwd"))[2:]
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     command = [*place.archon(bun, source), *args]
     if not reads_only(argv):
@@ -194,6 +198,21 @@ def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
     if len(argv) < 3 or argv[2].startswith("-"):
         raise Stop("使い方: works-factory workflow run <グラフの名> [Archon の旗…]")
     return argv[2]
+
+
+def refuse_run_config(flags: list[str]) -> None:
+    """新しい run の --config は殻が渡す（群の別名の層。place.run_config）。Archon は --config を 1 つしか読まず後ろの物が勝つので、
+    利用者の物を通すと群の値が対象のリポジトリの別名に落ちる"""
+    if any(a == "--config" or a.startswith("--config=") for a in flags):
+        raise Stop("workflow run に --config は渡さない。AI ノードの群の値の層は殻が渡す。群の値の付け替えは --model @wf-<群>=<模型>")
+
+
+def refuse_unknown_groups(flags: list[str]) -> None:
+    """--model @wf-<群>=… の群の名が lib/launchgroups.py の表に無ければ止める。工場の接頭辞 @wf- でない名は Archon に任せる"""
+    named = [value.split("=", 1)[0] for value in flag_values(flags, "--model")]
+    unknown = [name for name in named if name.startswith("@wf-") and name not in launchgroups.GROUPS]
+    if unknown:
+        raise Stop(f"--model の群 {'・'.join(unknown)} は群の表（lib/launchgroups.py）に無い。知っている群: {'・'.join(launchgroups.GROUPS)}")
 
 
 def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], home: str | None = None,

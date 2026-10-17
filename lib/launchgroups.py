@@ -1,7 +1,7 @@
 """AI ノードの群ごとの既定の模型と effort の表。
 
 グラフの AI ノードは `model: '@wf-<群>'` と群の名だけを書き、模型の字も effort も書かない。群の既定の値はここ 1 か所に置く。
-工場の家の設定は、起動のたびにこの表の値を群の別名の行として書き揃える（bin/_lib/place.py の group_aliases）。呼ぶ人は run を
+入口の殻は新しい run に、この表の値を群の別名にした run 1 本ぶんの設定の層を渡す（bin/_lib/place.py の run_config）。呼ぶ人は run を
 起こす時に群の名を指して値を付け替えられる。ノードに effort を書くと別名の effort より先に採られて付け替えが効かないので、
 ノードにも工程の根にも effort を書かない（柵は workflows/AGENTS.md の E7）。
 

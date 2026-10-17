@@ -2033,7 +2033,7 @@
 - U055 WORKS_DEV_MODEL で模型を明示する（未設定なら既定。包みが前付けの無い役の段に効かせる）
   - 元: use.sh:80-81・186
   - 印: `WORKS_DEV_MODEL`
-  - 今: `lib/launchgroups.py::GROUPS`・`bin/_lib/place.py::home_config` と Archon の `workflow run --model`
+  - 今: `lib/launchgroups.py::GROUPS`・`bin/_lib/place.py::run_config`（`workflow run --config` の層）と Archon の `workflow run --model`
   - 状態: 形を変えて在る（ノードは群の名 @wf-<群> を指し、run 単位の付け替えは Archon の --model。run-model-choice）
   - 旧棚卸し: F146・J106
 

@@ -2,13 +2,10 @@
 import copy
 import json
 import pathlib
-import re
 import shutil
 import tempfile
 import unittest
 from unittest import mock
-
-import yaml
 
 from bin._lib import pack, place
 from lib import launchgroups
@@ -255,15 +252,11 @@ class CacheDirTest(unittest.TestCase):
 
 
 class HomeConfigTest(unittest.TestCase):
-    """工場の Archon の家の config.yaml に、工場が決める値を書く。Archon は既定の provider の無い run を拒むので
+    """工場の Archon の家の config.yaml に、Archon の既定に従わない値を書く。Archon は既定の provider の無い run を拒むので
     defaultAssistant を、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道を残すので
-    workflows.autoResumeOnQuotaReset: false を、AI ノードが指す群の別名（'@wf-<群>'）の行を aliases: に、毎回表
-    （lib/launchgroups.py）の値へ書き揃える。利用者が選んだ値と @wf- でない別名は変えない"""
+    workflows.autoResumeOnQuotaReset: false を"""
 
     WRITTEN = "defaultAssistant: claude\nworkflows:\n  autoResumeOnQuotaReset: false\n"
-    ALIASES = "aliases:\n" + "".join(
-        f"  '{name}': {{provider: claude, model: {model}, effort: {effort}}}\n"
-        for name in launchgroups.GROUPS for model, effort in [launchgroups.default_of(name)])
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -273,34 +266,34 @@ class HomeConfigTest(unittest.TestCase):
 
     def test_new_home_gets_both_values(self):
         place.home_config(self.home)
-        self.assertEqual(self.config.read_text(encoding="utf-8"), self.WRITTEN + self.ALIASES)
+        self.assertEqual(self.config.read_text(encoding="utf-8"), self.WRITTEN)
 
     def test_archon_template_keeps_its_notes_and_gains_the_lines(self):
         template = "# Default AI assistant\n# defaultAssistant: claude\n# workflows:\n# botName: Archon"
         write(self.config, template.encode())
         place.home_config(self.home)
         place.home_config(self.home)
-        self.assertEqual(self.config.read_text(encoding="utf-8"), f"{template}\n{self.WRITTEN}{self.ALIASES}")
+        self.assertEqual(self.config.read_text(encoding="utf-8"), f"{template}\n{self.WRITTEN}")
 
     def test_chosen_values_are_kept(self):
         chosen = b"botName: x\ndefaultAssistant: codex\nworkflows:\n    autoResumeOnQuotaReset: true\n"
         write(self.config, chosen)
         place.home_config(self.home)
-        self.assertEqual(self.config.read_text(encoding="utf-8"), chosen.decode() + self.ALIASES)
+        self.assertEqual(self.config.read_bytes(), chosen)
 
     def test_existing_workflows_block_gains_the_key_without_a_second_block(self):
         cases = {
             "between": ("workflows:  # 方針\n    toolCallAttentionMs: 0\nbotName: x\n",
                         "workflows:  # 方針\n    autoResumeOnQuotaReset: false\n    toolCallAttentionMs: 0\nbotName: x\n"),
             "last": ("botName: x\nworkflows:\n  # 注\n  toolCallAttentionMs: 0",
-                     "botName: x\nworkflows:\n  autoResumeOnQuotaReset: false\n  # 注\n  toolCallAttentionMs: 0\n"),
+                     "botName: x\nworkflows:\n  autoResumeOnQuotaReset: false\n  # 注\n  toolCallAttentionMs: 0"),
             "empty": ("workflows:", "workflows:\n  autoResumeOnQuotaReset: false\n"),
         }
         for name, (before, after) in cases.items():
             with self.subTest(name):
                 write(self.config, f"defaultAssistant: claude\n{before}".encode())
                 place.home_config(self.home)
-                self.assertEqual(self.config.read_text(encoding="utf-8"), f"defaultAssistant: claude\n{after}{self.ALIASES}")
+                self.assertEqual(self.config.read_text(encoding="utf-8"), f"defaultAssistant: claude\n{after}")
 
     def test_one_line_workflows_is_refused_unchanged(self):
         flow = b"defaultAssistant: claude\nworkflows: { toolCallAttentionMs: 0 }\n"
@@ -309,44 +302,33 @@ class HomeConfigTest(unittest.TestCase):
             place.home_config(self.home)
         self.assertEqual(self.config.read_bytes(), flow)
 
-    def test_group_aliases_follow_the_table_and_other_aliases_stay(self):
-        got = place.group_aliases()
-        self.assertEqual(list(got), list(launchgroups.GROUPS))
-        for name, flow in got.items():
-            model, effort = launchgroups.default_of(name)
-            self.assertEqual(yaml.safe_load(flow), {"provider": place.DEFAULT_PROVIDER, "model": model, "effort": effort})
-            self.assertNotIn("\n", flow)
-        mine = "  mine: {provider: claude, model: haiku}"
-        stale = "'@wf-judge-core': {provider: claude, model: haiku, effort: low}"
-        block_form = "'@wf-report':\n    provider: claude\n    model: haiku\n    effort: low"
-        write(self.config, (f"defaultAssistant: claude\naliases:\n{mine}\n  # 注\n  {stale}\n  {block_form}\nbotName: x\n").encode())
-        place.home_config(self.home)
-        once = self.config.read_text(encoding="utf-8")
-        place.home_config(self.home)
-        self.assertEqual(self.config.read_text(encoding="utf-8"), once)
-        self.assertIn(f"{mine}\n  # 注\n", once)
-        self.assertEqual(once.count("aliases:"), 1)
-        self.assertIn("botName: x\n", once)
-        aliases = yaml.safe_load(once)["aliases"]
-        want = {name: yaml.safe_load(flow) for name, flow in place.group_aliases().items()}
-        self.assertEqual(aliases, {"mine": {"provider": "claude", "model": "haiku"}, **want})
-        for name in launchgroups.GROUPS:
-            self.assertEqual(len(re.findall(rf"^\s+'{name}'\s*:", once, re.MULTILINE)), 1, name)
-        flow = b"defaultAssistant: claude\naliases: { mine: { provider: claude, model: haiku } }\n"
-        write(self.config, flow)
-        with self.assertRaisesRegex(RuntimeError, "1 行の形"):
-            place.home_config(self.home)
-        self.assertEqual(self.config.read_bytes(), flow)
+
+class RunConfigTest(unittest.TestCase):
+    """新しい run に --config で渡す層は群の表の既定だけを持ち、中身が同じなら同じファイル。壊れた中身は書き直す"""
+
+    def test_layer_holds_the_group_aliases_and_heals(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = pathlib.Path(tmp)
+            path = place.run_config(cache)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"aliases": place.group_presets()})
+            self.assertEqual(list(place.group_presets()), list(launchgroups.GROUPS))
+            for name, preset in place.group_presets().items():
+                self.assertEqual((preset["model"], preset["effort"]), launchgroups.default_of(name))
+            written = path.read_bytes()
+            path.write_text('{"aliases": {}}\n', encoding="utf-8")
+            self.assertEqual(place.run_config(cache), path)
+            self.assertEqual(path.read_bytes(), written)
+            self.assertEqual(sorted(p.name for p in path.parent.iterdir()), [path.name])
 
 
 class WorkflowRunTest(unittest.TestCase):
     def test_source_flags_come_before_caller_arguments(self):
-        source, shim, cwd = pathlib.Path("/src"), pathlib.Path("/shim"), pathlib.Path("/target")
+        source, shim, config, cwd = pathlib.Path("/src"), pathlib.Path("/shim"), pathlib.Path("/run.json"), pathlib.Path("/target")
         self.assertEqual(
-            place.workflow_run(source, shim, cwd, "works-factory-line", "--", "--workflow-source", "x"),
+            place.workflow_run(source, shim, config, cwd, "works-factory-line", "--", "--workflow-source", "x"),
             [
                 "bun", str(source / place.ENTRY),
-                "workflow", "run", "--cwd", str(cwd), "--workflow-source", str(shim),
+                "workflow", "run", "--cwd", str(cwd), "--workflow-source", str(shim), "--config", str(config),
                 "works-factory-line", "--", "--workflow-source", "x",
             ],
         )
