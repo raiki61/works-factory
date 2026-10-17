@@ -25,7 +25,7 @@ if str(_CORE) not in sys.path:
 import marks  # noqa: E402
 import promptsection  # noqa: E402
 
-FIELD = "handoff"                 # 役の返答の頭の任意の欄。受け付けが外して周のフォルダに置く
+FIELD = "handoff"
 KEYS = ("read", "decided", "rejected", "doubts")
 _TEXT = {"type": "string", "minLength": 1}
 SCHEMA = {"type": "object", "additionalProperties": False, "required": list(KEYS),

@@ -1761,9 +1761,6 @@ def _give_up(refused: dict, what: str) -> dict:
 
 
 def _carry_rejected(out_dir: pathlib.Path, reply: dict, refused: dict) -> dict:
-    """拒んだ回の返答を次の周の書き手へ渡せる形に置く。本文 text・terms は rolekit の前の答えの控え candidate_path に、引き継ぎのメモは
-    周のフォルダ NOTE_ROUND の handoff.save に置く（返答の handoff が無ければ周のフォルダを作らない）。本文が文字列でない・空白だけの回は
-    何も置かずに拒否を返す。前の周のメモが読めなければ、何も置かずに諦めさせる。控えに書けなければ同じく諦めさせる"""
     text = reply.get("text")
     if not isinstance(text, str) or not text.strip():
         return refused

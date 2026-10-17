@@ -125,7 +125,7 @@
   - 計画（plan）: `include` をまたぐか、CLI の別の run で同じノードの会話を続けられる版が出たら。外す前に、`docs/owner-decisions.md` の「計画の往復の周をまたぐ書き直し（#571。2026-10-15）」の行（前の周の会話を続けず新しい会話で始めると持ち主が選んだ）と、同じ文書の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の行の訳（`d97d00ef` の `authoring-workflows.md` 285 行に頼っていて、`355f1867` の 288 行とはもう合わない）を持ち主に戻す。`docs/owner-decisions.md` はこの名簿からは書き換えない。
   - 報告（report）の `write-loop`: `355f1867` では、ループの前に書き手の AI のノードを置けば（今の `write-loop` の前は `facts` の script だけ）書き手の会話をループの中で続けられるので、既に外せる候補。作り直し（`write-loop` を名指しの持ち主の会話に替えて報告の引き継ぎのメモを外すか）は、持ち主の答えを待つ。答えが出たらこの行に書く。
 - 外す手順: 外す条件を満たしたら次を全部消し、役の会話を続ける形に替える。`lib/handoff.py` を import する物の全部（`grep -rn "import handoff" lib workflows tests`）も、取りこぼしの入口にする。
-  - `lib/handoff.py` の全体（`FIELD`・`KEYS`・`SCHEMA`・`ASK`・`HEAD`・`USE`・`NONE`・`UNREADABLE`・`path_of`・`save`・`unreadable`・`section`）。
+  - `lib/handoff.py` の全体。
   - `lib/planfile.py::write_brief`・`_save`・`take_plan`・`take_replan` の handoff の呼びと、`RESUBMIT_RULES`・`REPLAN_RESUBMIT_RULES` の `handoff.FIELD` の行（`accepted_rounds` は `latest` の絞りとして残す）。
   - `lib/report_roles.py::TEXT_SCHEMA` の handoff の欄。
   - `lib/runreport.py::NOTE_ROUND`・`handoff_part`・`_prior_rounds` と、`_carry_rejected` の前の周のメモの読み・置き（前の答えの控えに本文を置く所は残す）。
@@ -135,13 +135,7 @@
   - 指示書の約束の台帳 `tests/workflows/prompt_contracts.json` の `workflows/report/commands/report.md` の行と、写しの手直しの台帳 `tests/workflows/copied_rewrites.json` の `#589` の 2 行。
   - `docs/concepts.json`・`docs/concepts.md` の handoff の行と、`docs/concepts.md` の `marks` の行の持ち主の記述。
   - `lib/marks.py::KINDS` の種 `handoff`。
-  - 試験（残りの試験は import で赤になるので、黙っては残らない）:
-    - `lib/tests/test_handoff.py` の全体と、`tests/layers/test_concept_fences.py::FencesHold::test_handoff_fence_catches_a_copy_on_each_side`。
-    - `lib/tests/test_planfile.py::TakePlanCase::test_note_is_saved_through_the_home`・`lib/tests/test_planfile.py::TakePlanCase::test_handoff_is_kept_beside_the_plan_not_in_it`。
-    - `lib/tests/test_runreport.py::AcceptCase` の handoff の分（`test_rejected_reply_is_kept_for_the_next_round`・`test_rejected_text_lives_in_the_rolekit_candidate`・`test_second_rejection_keeps_the_first_handoff`・`test_unreadable_previous_answer_stops_without_overwrite`・`test_unwritable_candidate_gives_up_at_once`）。
-    - `tests/workflows/test_plan.py` の型の等しさの照らし（`ShapeCase::test_role_schemas_match_their_lib_owners` の handoff の 2 行）と、周をまたぐメモの筋書き（`AcceptCase::test_unsavable_handoff_halts_without_counting_a_rejection`・`ReplanCase::test_replan_brief_names_the_handoff_of_the_plan_it_revises`・`CollectCase` の `test_second_round_brief_names_the_prior_handoff`・`test_third_round_brief_names_every_prior_handoff_oldest_first`・`test_second_round_brief_says_when_the_prior_round_left_no_handoff`・`test_resubmit_without_handoff_keeps_the_first_handoff`・`test_accepted_reply_without_handoff_removes_a_stale_handoff`）。
-    - `tests/workflows/test_report.py` の型の照らし（`ShapeCase::test_roles` の `write` の型の handoff の欄）と筋書き（`ShapeCase::test_writer_receives_the_reject_file_through_the_reject_node`・`AcceptScriptCase::test_rejected_round_names_the_previous_answer_relative`・`RejectScriptCase::test_previous_answer_passes_through`・`RejectScriptCase::test_reject_hands_the_ask_and_every_prior_note`）。
-    - `lib/tests/test_marks.py` の種 `handoff` の行。
+  - `lib/tests/test_handoff.py` の全体と、ほかの試験の handoff の分（残りの試験は import で赤になるので、黙っては残らない）。
 
 ## Archon の決めに合わせた形
 

@@ -1467,7 +1467,6 @@ class CollectCase(unittest.TestCase):
         self.assertNotIn(HANDOFF_NOTE["decided"][0], brief)
 
     def test_third_round_brief_names_every_prior_handoff_oldest_first(self):
-        """3 往復目の材料は、1 往復目と 2 往復目の handoff.json のパスを古い順に名指し、中身は貼らない"""
         run = Run(self)
         again = {**HANDOFF_NOTE, "decided": ["二往復目で決めた訳"]}
         self.assertIs(run.include(writer=writer_of({"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}))["ready"], True)
