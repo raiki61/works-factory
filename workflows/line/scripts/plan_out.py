@@ -15,7 +15,8 @@ plan_nothing_owed と同じファイルを読む）。真なら design-only が�
 の plan_edge）と同じく最後のテストと独立の目で周を締める（#291）。
 例外の時は計画ができなかった形（ready: false・done: true・nothing_owed: false）と止めの理由 works:line-script を返す。
 
-入力（with:）: plan の 6 つの欄と plan-review の 7 つの欄（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit
+入力（with:）: plan の 7 つの欄（6 つの返りの欄と、plan が落ちても線が先へ進めてよい節の宣言 optional）と plan-review の 7 つの欄
+（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit。宣言 optional はそのまま外へ運ぶ（受け皿 plan-rounds-out が collect へ運ぶ）
 """
 import os
 import sys
@@ -27,7 +28,7 @@ import boundary  # noqa: E402
 with boundary.guarded_imports():
     import planfile
 
-PLAN = ("ready", "plan", "structure", "ripple", "depth", "round")
+PLAN = ("ready", "plan", "structure", "ripple", "depth", "round", "optional")
 REVIEW = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 
 

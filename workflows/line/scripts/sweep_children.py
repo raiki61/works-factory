@@ -4,7 +4,7 @@
 # ///
 """線の後始末の節 sweep-children（報告の後、線の返す節 result の前。issue #113）。
 
-fix の並べ（groups-par）の子の run が残した作業ツリーと枝を消し、{cleaned, left, error} を返す。result がこれを線の返りの欄
+fix の並べの子の run が残した作業ツリーと枝を消し、{cleaned, left, error} を返す。result がこれを線の返りの欄
 children に載せる。この run の子で status が completed の物を、子を起こした fan_out の節と join が済んだ時だけ選ぶことと、止めた
 Archon の起こし方は境の埋め workflows/.shared/childsweep.py（埋め P7）。
 今の works は run の中で切った worktree を自分で消していた（works/.shared/core/unittrees.py:275 の sweep）。

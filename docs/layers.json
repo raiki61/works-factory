@@ -55,16 +55,8 @@
       "workflows/line/scripts/fixed.py": [1, "メイングラフが名指す: fix の隣の allowed-tests.json（#681）"],
       "workflows/line/scripts/redepth.py": [2, "メイングラフが名指す: fix の隣の accept-trace.json・tdd-<k>/state.json（#681）"]
     },
-    "main-id": {
-      "lib/answer.py": [1, "#682: メイングラフのノードの id（gate-final）を決め打ちする"],
-      "lib/boardview.py": [4, "#682: メイングラフのノードの id（answer-before-fix・design-only・gate-start）を決め打ちする"],
-      "lib/eyeverdict.py": [1, "#682: メイングラフのノードの id（gate-start）を決め打ちする"],
-      "lib/outcome.py": [17, "#682: メイングラフのノードの id（design-only・gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-final）を決め打ちする"],
-      "lib/replan.py": [3, "#682: メイングラフのノードの id（ask-final・ask-replan・gate-replan）を決め打ちする"],
-      "lib/runreport.py": [40, "#682: メイングラフのノードの id（ask-before-fix・ask-final・ask-replan・gate-before-fix・gate-final・gate-replan・merge-apply・merge-seal・replan-review・spec-check・test-gate-base・test-gate-final）を決め打ちする"],
-      "workflows/report/scripts/facts.py": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"],
-      "workflows/report/works-factory-report.yaml": [9, "#682: メイングラフのノードの id（gate-before-fix・gate-final・gate-replan・gate-start・merge-apply・merge-seal・replan-review・test-gate-base・test-gate-final）を決め打ちする"]
-    },
+    "main-id": {},
+    "inner-id": {},
     "role": {}
   }
 }

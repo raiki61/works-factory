@@ -4230,12 +4230,14 @@ class ConvergeGateCase(GateBase):
         self.assertIsNotNone(got["pushed"])
         self.assertIn("a-key-001", got["pushed"]["text"])
         self.assertTrue(got["asked"][0].startswith(gatemarks.STUCK_ITEM))
-        place = "gate-before-fix"
-        self.assertIn(place, outcome.GATES, "報告の _pushed は outcome.GATES の置き場の名だけを読む（鍵を GATE_NODE にすると空になる）")
+        stages = load_line_script("collect").STAGES
+        place, role = "gate-before-fix", "before-fix-answer"
+        self.assertIn(role, outcome.GATES, "報告の _pushed は outcome.GATES の役の名だけを読む（鍵を GATE_NODE にすると空になる）")
+        self.assertEqual(stages["nodes"][role], place, "報告の文の承認ノードの名は線の段の表が名指す")
         taken = gate_answer.taken(None, go=got["go"], stop_reason=got["stop_reason"], place=place, folder=self.tmp,
                                   asked=got["asked"], pushed=got["pushed"])
         self.assertEqual((taken["go"], taken["stop_reason"]), (True, ""))
-        lines = runreport._pushed_lines({place: taken["answer"]})
+        lines = runreport._pushed_lines({role: taken["answer"]}, stages=stages)
         self.assertEqual(len(lines), 1, lines)
         self.assertTrue(lines[0].startswith(f"無人の run で推しを採って通した（承認ノード {place}）: {gatemarks.STUCK_ITEM}"), lines)
         self.assertIn(self.PUSH["note"], lines[0])

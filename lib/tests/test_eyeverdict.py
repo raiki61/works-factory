@@ -794,7 +794,7 @@ class PremiseSectionCase(unittest.TestCase):
         _, ledger = self.section()
         self.assertEqual([g["what"] for g in ledger["given"] if g["kind"] == "human_answer"], rows)
         self.assertEqual(seen["count"], 2)
-        self.assertEqual([i["node"] for i in items], [eyeverdict.START_GATE_NODE, gatemarks.GATE_NODE])
+        self.assertEqual([i["node"] for i in items], [gatemarks.START_GATE_NODE, gatemarks.GATE_NODE])
 
     def test_pushed_gate_answer_is_not_pasted_as_a_human_answer(self):
         """無人の run が推しで通した修正前の関所の答え（欄 answer.PUSHED）は行に印を写し、R2 に人の答えとして貼らず控えの withheld に回し、

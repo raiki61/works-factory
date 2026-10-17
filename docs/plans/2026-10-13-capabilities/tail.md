@@ -1768,7 +1768,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - R82 受け止めた落ちの決め方（元は線の YAML の [optional] の宣言と出口の印。今は落ちた後にほかの節が始まったか）
   - 元: works/.shared/core/report.py:533 `_optional`・:545 `split_fallen`（宣言の外の落ちと、出口の印が欠けた run の落ちは全部中断）
   - 今: 表
-  - 証: lib/tests/test_runreport.py::TranscriptCase.test_fall_outside_declared_optional_stays_interrupted・lib/tests/test_runreport.py::TranscriptCase.test_fall_the_line_went_past_is_absorbed_not_interrupted・tests/workflows/test_line.py::CollectAndResultCase.test_absorbed_stages_are_declared_once_in_the_line・tests/workflows/test_report.py::RealRunCase
+  - 証: lib/tests/test_runreport.py::TranscriptCase.test_fall_outside_declared_optional_stays_interrupted・lib/tests/test_runreport.py::TranscriptCase.test_fall_the_line_went_past_is_absorbed_not_interrupted・tests/workflows/test_line.py::CollectAndResultCase.test_absorbed_stages_are_declared_by_each_block・tests/workflows/test_report.py::RealRunCase
   - 本物の run: `$LOG_DIR/<run>.jsonl`
   - 狭め: 判定: 狭め（#68 が書いたとおり）。今の決め方は Archon が依存の無い枝を先へ進めただけでも「受け止めた」と数え、宣言していない段の落ちを残り（round_limit）に回して interrupted を名乗らない。Archon で不可でない（線の節の description か報告の inputs に受け止める段の名を宣言すれば元の決め方になる）→ 持ち主の確かめ待ち（戻すなら宣言の置き場を線の issue で決める） 決め: 戻すと決めた。部分 C のやる事 8（線の配線の文書の「この文書の外」の「決めた物」） → 部分 C で戻した（出口の印: 報告は線の出口の後に走るので在るものと読む）
 
