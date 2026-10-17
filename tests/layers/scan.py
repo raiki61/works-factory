@@ -4,7 +4,7 @@
 - E3: 節の id（字の形で見分けられない。`-` を含むメイングラフの id は E22 が見る）
 - E4: `pathlib` などで部品を継いで組むパス
 - E12: script の中で置く期限
-- E22: 組んで作る名・`importlib` の読み込み・YAML に直に書いた script の import・日本語の役の呼び名・素のブロックの名
+- E22: 組んで作る名・`importlib` の読み込み・日本語の役の呼び名・素のブロックの名
 """
 import ast
 import collections

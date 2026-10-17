@@ -52,10 +52,14 @@ def growth(main: dict, now: dict) -> list[str]:
 
 
 def loosened(main: dict, now: dict) -> list[tuple[str, str]]:
-    """main の地図より緩めた所の (鍵, 文): 層が消えた・層の paths が変わった・may_use が増えた・independent が外れた・names が減った、
-    outside が増えた、beside の名が減った。known を減らさずに地図の側で違反を通す道を塞ぐ"""
+    """main の地図より緩めた所の (鍵, 文): 層が足された・消えた・並びが変わった（最初に当たる層がそのファイルの層）、
+    層の paths が変わった・may_use が増えた・independent が外れた・names が減った、outside が増えた、
+    beside の名が減った・main に在った名に持ち主が増えた。known を減らさずに地図の側で違反を通す道を塞ぐ"""
     layers = {layer["id"]: layer for layer in now["layers"]}
-    out = []
+    old_ids = [layer["id"] for layer in main["layers"]]
+    out = [(f"layer-new:{lid}", f"層 {lid} が地図に足された") for lid in layers if lid not in old_ids]
+    if [lid for lid in layers if lid in old_ids] != [lid for lid in old_ids if lid in layers]:
+        out.append(("layer-order", "層の並びが変わった"))
     for old in main["layers"]:
         lid = old["id"]
         new = layers.get(lid)
@@ -72,6 +76,9 @@ def loosened(main: dict, now: dict) -> list[tuple[str, str]]:
     out += [(f"outside:{p}", f"outside に {p} が増えた") for p in now["outside"] if p not in main["outside"]]
     out += [(f"beside:{block}:{n}", f"beside の {block} から {n} が減った") for block, names in main["beside"].items()
             for n in names if n not in now["beside"].get(block, [])]
+    old_names = {n for names in main["beside"].values() for n in names}
+    out += [(f"beside-owner:{block}:{n}", f"beside の {n} に持ち主 {block} が増えた") for block, names in now["beside"].items()
+            for n in names if n in old_names and n not in main["beside"].get(block, [])]
     return out
 
 
@@ -299,6 +306,10 @@ class NotAboveMain(unittest.TestCase):
             "names:block:plan": lambda m: m["layers"][0]["names"].remove("plan"),
             "layer:lib": lambda m: m["layers"].pop(),
             "beside:fix:tdd-unit.json": lambda m: m["beside"]["fix"].remove("tdd-unit.json"),
+            "beside-owner:plan:tdd-unit.json": lambda m: m["beside"].update(plan=["tdd-unit.json"]),
+            "beside-owner:report:tdd-unit.json": lambda m: m["beside"].update(report=["tdd-unit.json"]),
+            "layer-new:any": lambda m: m["layers"].insert(0, {"id": "any", "paths": ["lib/"], "may_use": ["block", "lib"]}),
+            "layer-order": lambda m: m["layers"].reverse(),
         }
         for key, loosen in cases.items():
             with self.subTest(key=key):
@@ -313,6 +324,7 @@ class NotAboveMain(unittest.TestCase):
         tightened = copy.deepcopy(main)
         tightened["outside"].clear()
         tightened["layers"][0]["names"].append("new")
+        tightened["beside"]["plan"] = ["new.json"]
         self.assertEqual(growth(main, tightened), [])
 
     @staticmethod
