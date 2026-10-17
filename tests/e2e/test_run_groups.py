@@ -53,7 +53,7 @@ class RunGroupsCase(unittest.TestCase):
                 (root / ".archon" / "config.yaml").write_text(
                     f"aliases:\n  '{GROUP}': {{provider: claude, model: haiku, effort: low}}\n", encoding="utf-8")
                 mine = {"env": {"WF_MINE": "1"}, "aliases": {GROUP: {"provider": "claude", "model": "haiku", "effort": "low"}}}
-                argv = place.workflow_run(archon.source(), root, place.run_config(pathlib.Path(tmp), mine), root,
+                argv = place.workflow_run(archon.source(), root, place.run_config(pathlib.Path(tmp), {}, mine), root,
                                           "works-factory-groups-parent", "--no-worktree", "--model", f"{GROUP}=sonnet")
                 paused = archon.archon(root, *argv[2:], aliases=False)
                 self.assertEqual(paused.returncode, 0, paused.stdout + paused.stderr)

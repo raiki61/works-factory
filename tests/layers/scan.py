@@ -118,7 +118,6 @@ ALLOWED = {
         "bin/_lib/isolate.py",
         "bin/_lib/pack.py",
         "bin/_lib/startpoint.py",
-        "bin/_lib/testcmd_check.py",
         "bin/_lib/no-post-bin/",
     ),
     "E3": (

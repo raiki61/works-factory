@@ -108,6 +108,8 @@
   "fix/fix": "修正のサブグラフの出力ノード",
   "eyes/structure-after": "直した後の構造の実測（plan の構造の目の続き。review-graph のノードに当たらない新しい能力）",
   "eyes/eyes-complete": "目が落ちても出口へ進む柵のノード",
+  "line/testcmd": "入力 test_cmd が対象の手元を試す形かを AI を起こす前に確かめる頭のノード（review-graph のノードに当たらない。今の works の入口 use.sh の test_cmd の確かめ。#678）",
+  "line/testcmd-stop": "頭のノードが止める形を見つけた時に、その文を理由に run を止める cancel のノード（#678）",
   "line/gate-start": "始めの承認ノード（依頼を受ける前に人に聞く。review-graph のノードに当たらない）",
   "line/answer-start": "始めの承認ノードの答えを読むノード",
   "line/judge": "判定のサブグラフを include するノード",
