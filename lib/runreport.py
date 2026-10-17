@@ -145,7 +145,7 @@ REJECT_PLACES = {"judge": "judgment", "rejudge": "judgment", "plan": "plan", "re
                  "replan-review": "review", "fix": "diff", "test-gate-base": "evidence", "test-gate-final": "evidence",
                  "eyes": "structure_after", "merge-seal": "diff", "merge-apply": "diff"}
 RESIDUE_HEAD = "残り"   # 元 always_rows の残りの件数の行（結末に依らず 0 件も）
-MISSING_EYE_NOTE = "結果が無い目は阻害 0 件でなく判定が無い（再実行の要あり。深さで省いた目は数えない）"   # 元 MISSING_GATE_NOTE
+MISSING_EYE_NOTE = "結果が無い目は通さなかった目 0 件でなく判定が無い（再実行の要あり。深さで省いた目は数えない）"   # 元 MISSING_GATE_NOTE
 FORGE_HEAD = "PR を持つホスト（forge）"   # 元 report.FORGE_HEAD
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 APPLY_HEAD = "差分を対象に当てる"
@@ -1099,7 +1099,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += premise_lines(returns, start)
     lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: _target_uses(repo, rev, w))
     lines += _design_lines(returns)
-    lines.append(f"{RESIDUE_HEAD}: {len(left)} 件（最後のテストが緑でない・独立の目の阻害と結果が無い目・修正の段の残り・直しの後の実測が"
+    lines.append(f"{RESIDUE_HEAD}: {len(left)} 件（最後のテストが緑でない・独立の目が通さなかった目と結果が無い目・修正の段の残り・直しの後の実測が"
                  "見た住処の外の知る場所の増え・測れていない素材・落ちたがメイングラフが受け止めたノード）" + (f"。{MISSING_EYE_NOTE}" if left else ""))
     lines += fixbeside.always_rows(beside)
     lines += _tests_head_lines(returns)
@@ -1455,12 +1455,12 @@ def _stop_words(line: dict | None) -> list:
 
 
 def _stopped_why(returns: dict, line: dict | None) -> list:
-    """止まった run の冒頭 1 行目に足す訳: 止めの語・最後の承認ノードを開ける理由・阻害を返した目（どれも本文の節と同じ字）"""
+    """止まった run の冒頭 1 行目に足す訳: 止めの語・最後の承認ノードを開ける理由・通さなかった目（直しが要ると作り直しが要るは eye_named が書き分ける。どれも本文の節と同じ字）"""
     reasons = [str(x) for x in _list(as_dict(line).get("final_reasons"))]
     eyes = as_dict(returns.get("eyes"))
-    blocked = [f"{gatemarks.eye_named(name.upper(), e.get('status'))}——{oneline.one_line(e.get('reason') or '理由なし')}"
-               for name in oc.EYE_NAMES if isinstance(e := eyes.get(name), dict) and e.get("status") in oc.EYE_STATUS_LEFT]
-    return [*_stop_words(line), *(["開けた理由: " + "・".join(reasons)] if reasons else []), *blocked]
+    unpassed = [f"{gatemarks.eye_named(name.upper(), e.get('status'))}——{oneline.one_line(e.get('reason') or '理由なし')}"
+                for name in oc.EYE_NAMES if isinstance(e := eyes.get(name), dict) and e.get("status") != seallib.PASSED]
+    return [*_stop_words(line), *(["開けた理由: " + "・".join(reasons)] if reasons else []), *unpassed]
 
 
 def _pushed(gates: dict) -> list:

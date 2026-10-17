@@ -172,8 +172,10 @@ nodes:
       required: [status, reason, deletions, ledger_audit, increments]
       additionalProperties: false
       properties:
-        status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+        status: {type: string, enum: [pass, fix-needed, redesign-needed, unverifiable]}
         reason: {type: string, minLength: 1}
+        # 零処方で閉じない設計の点の名指し。在れば機械が redesign-needed にし、無い redesign-needed は fix-needed に倒す（lib/eyeverdict.py の _row）
+        redesign_points: {type: array, items: {type: string, minLength: 1}}
         deletions:
           type: array
           items:
@@ -386,7 +388,7 @@ nodes:
       required: [eye, status, reason]
       properties:
         eye: {type: string, enum: [r1, r2, r3, r4, premise-check]}
-        status: {type: string, enum: [pass, redesign-needed, unverifiable, resolved, escalate]}
+        status: {type: string, enum: [pass, fix-needed, redesign-needed, unverifiable, resolved, escalate]}
         reason: {type: string}
 
   - id: r2-compare-verdict
@@ -480,7 +482,7 @@ nodes:
           additionalProperties: false
           required: [status, reason]
           properties:
-            status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+            status: {type: string, enum: [pass, fix-needed, redesign-needed, unverifiable]}
             reason: {type: string}
         r2: *eye_row
         r3: *eye_row
