@@ -718,6 +718,19 @@ class PrepCase(unittest.TestCase):
         for key in ("穴-分母の空の列", "穴-別の組の単位", "別案-len を直に使う"):
             self.assertIn(f"`{key}`", ruled)
 
+    def test_prompt_pastes_how_the_base_tests_ran(self):
+        """#687: 修正役の指示書に、直す前のテストの段が走らせた形（置き場の baseline.json の how の行）を字のまま貼る。行の無い
+        置き場（直す前のテストの無い run・前の版の控え）では節を置かない"""
+        self.assertNotIn(fixboard.TESTS_HOW_HEAD, pathlib.Path(self.prep()["prompt_file"]).read_text(encoding="utf-8"))
+        rows = ["作業ツリーの根: `/w/run`（命令はこの根で起こした。自分の作業ツリーでは、その根で同じ命令を起こす）",
+                "test_cmd: `make check`（シェルを通さずに起こした。`make` は /usr/bin/make）"]
+        (self.place / fixboard.BASELINE_FILE).write_text(json.dumps({"cases": [], "exit": 0, "how": rows}, ensure_ascii=False),
+                                                         encoding="utf-8")
+        text = pathlib.Path(self.prep()["prompt_file"]).read_text(encoding="utf-8")
+        section = text.split(fixboard.TESTS_HOW_HEAD, 1)[1]
+        for row in rows:
+            self.assertIn(f"- {row}", section)
+
     def test_prompt_pastes_the_scope_the_accept_checks(self):
         """#570: 修正役の指示書に、受け付けが照らす項目の変えてよいパス・テストのファイル・out_of_scope が字のまま在る"""
         import planrange

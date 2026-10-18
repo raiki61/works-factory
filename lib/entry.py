@@ -30,14 +30,15 @@ FEATURES = {
                  "サブグラフへは写さず、包みが start の控えを読む）",
     "judge_verify": "判定の裏取り（単位ごとの裏取りと単位どうしの相乗りの下請け。切ると申し送りを作らない。既定は off）",
     "review_tree": "事前審査の項目ごとの木（項目ごとの下請けと相乗りの審査。切ると審査役 1 つが案の全体を審査する。既定は auto＝"
-                   "開いた項目が 2 つ以上の往復だけ木）",
+                   "開いた項目が 2 つ以上の往復だけ木。run の頭の深さが軽量なら off）",
     "tdd_lanes": "TDD のループの並べの周（枝ごとの worktree で枝の単位を同時に直す。切ると単位を順に回す）",
     WORLD_FEATURE: "世界の解の段（目的の後・判定の前に 1 回、依頼の行を問題の類に言い直して世の中の定石を集め、依頼の解き方と比べる。"
              "切ると段を回さず、判定・修正案・承認ノードは世界の解の行なしで進む。サブグラフへは写さず、境のノードが始めの記録を読む）",
 }
 # 名指さない機能の既定（持ち主の決め 2026-10-08。測り: 判定の裏取りは 27 単位の 11 run で後の段を 1 度も変えず 1 run に
 # 0.6〜3 USD と 1〜2 分、事前審査の木は審査役 1 つの 2〜3 倍の費用で審査役 1 つが見逃した本物の穴を出さなかった）。ほかの機能は on。
-# auto はブロックが自分の材料で決める語（事前審査の木: 開いた項目が 2 つ以上の往復だけ木）。名指した語（features_on・features_off）は既定に勝つ
+# auto はブロックが自分の材料で決める語（事前審査の木: 開いた項目が 2 つ以上の往復だけ木。run の頭の深さの段が auto を別の語に読む
+# こともある: depth.tier_auto）。名指した語（features_on・features_off）は既定に勝つ
 FEATURE_DEFAULTS = {"judge_verify": SWITCH_OFF, "review_tree": SWITCH_AUTO}
 FEATURES_KEY = "features_off"   # start の控えの欄（語の順の配列）
 FEATURES_ON_KEY = "features_on"   # 同じく入れる機能の欄（欄の無い控えは前の版の run。features_on_of が読む）
@@ -73,21 +74,21 @@ def features_on(word: str) -> list:
     return _feature_list(word, FEATURES_ON_KEY)
 
 
-def feature_words(off, on=(), adds=()) -> dict:
+def feature_words(off, on=(), adds=(), auto=SWITCH_AUTO) -> dict:
     """start の出口の機能ごとの欄 {<機能>: on | off | auto}（線がブロックの切り替えの入力へ写す）。名指した語が足しに、足しが既定に勝つ:
     features_on の語は on・features_off の語は off・adds（run の頭の深さの段が足す機能。depth.tier_adds）の語は on・どれにも無ければ
-    FEATURE_DEFAULTS（無ければ on）。features_on と features_off の両方に在る語と、名指した段の足しを features_off で切る組は入口の
+    FEATURE_DEFAULTS（無ければ on。既定が auto の機能は auto の語。run の頭の深さの段の読み depth.tier_auto）。features_on と features_off の両方に在る語と、名指した段の足しを features_off で切る組は入口の
     節（start）が拒むので届かない（features_off が足しに勝つのは、入口の後に head-depth が選んだ段の足しだけ）"""
     off, on, adds = set(off or ()), set(on or ()), set(adds or ())
     return {name: SWITCH_ON if name in on else SWITCH_OFF if name in off else SWITCH_ON if name in adds
-            else FEATURE_DEFAULTS.get(name, SWITCH_ON) for name in FEATURES}
+            else auto if FEATURE_DEFAULTS.get(name) == SWITCH_AUTO else FEATURE_DEFAULTS.get(name, SWITCH_ON) for name in FEATURES}
 
 
-def switch(doc, name: str, adds=()) -> str:
+def switch(doc, name: str, adds=(), auto=SWITCH_AUTO) -> str:
     """始めの記録 doc の機能 name の語（on・off・auto）を feature_words と同じ式で返す。doc の欄 features_off・features_on の名指しと
-    adds だけを読み、記録が無い・欄が無ければ名指し無しとして FEATURE_DEFAULTS を返す"""
+    adds・auto だけを読み、記録が無い・欄が無ければ名指し無しとして FEATURE_DEFAULTS を返す"""
     doc = doc if isinstance(doc, dict) else {}
-    return feature_words(doc.get(FEATURES_KEY) or [], doc.get(FEATURES_ON_KEY) or [], adds)[name]
+    return feature_words(doc.get(FEATURES_KEY) or [], doc.get(FEATURES_ON_KEY) or [], adds, auto)[name]
 
 
 def features_cut(off, on=(), adds=()) -> list:
@@ -111,9 +112,9 @@ def features_on_of(doc: dict) -> list:
     return sorted(k for k in FEATURE_DEFAULTS if k not in off)
 
 
-def features_part(off, on=(), adds=()) -> str:
+def features_part(off, on=(), adds=(), auto=SWITCH_AUTO) -> str:
     """頭の行と報告の冒頭 2 の機能の語: on でない機能を語の順に「<機能> <off|auto>」で並べる（全部 on なら「機能: 全部 on」）"""
-    rest = [f"{k} {v}" for k, v in feature_words(off, on, adds).items() if v != SWITCH_ON]
+    rest = [f"{k} {v}" for k, v in feature_words(off, on, adds, auto).items() if v != SWITCH_ON]
     return f"機能: {'・'.join(rest)}" if rest else "機能: 全部 on"
 
 

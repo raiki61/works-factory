@@ -546,7 +546,8 @@ def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=Non
     got_scope = planrange.fix_scope(b, pass_, items=items)[0]
     scope = planrange.scope_text(got_scope)
     tests = planrange.tests_text(got_scope, conflict.edit_permits(b, pass_), frozen)
-    before = tuple(x for x in (*before, head, faces, scope, tests) if x)   # ruled の裁定の文の行は見出しの次の 1 行のまま（R44）。brief はその後
+    how = fixboard.tests_how_text(b)
+    before = tuple(x for x in (*before, head, faces, scope, tests, how) if x)   # ruled の裁定の文の行は見出しの次の 1 行のまま（R44）。brief はその後
     before += tuple(start_lines(values))
     ask, ask_sub = ask_config(b, repo, values, pass_, items=items)
     mark = "fix" if pass_ == PASSES[0] else "fix-ruled"
