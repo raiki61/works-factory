@@ -5,13 +5,19 @@
 - (c) 分けの秒数の最大と最小の差が、表の 1 モジュールの最大より小さい
 - (d) 新しい試験のファイルを足すと、どれかの分けに入る
 - (e) --paths の選び（pick）は、名指しのファイルと、名指しのフォルダの下のモジュールだけを取る。何も取らなければ全部に広げず赤（終了の値 5）
+- (f) 並べる子の数は CPU の数を SHARING で割った数（1 以上）で、環境変数 WORKERS_ENV が上書きする
+- (g) 並べた子: 試験を回す親だけを SIGKILL しても子は残らない。子が途中で落ちたら、そのモジュールを名指しの赤にして最後の数えまで出す。止められたら待ち行列のモジュールは回さない（子へ渡す管に既に入った物は回り切る）
 """
 import contextlib
 import io
 import json
 import os
 import pathlib
+import signal
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -120,7 +126,7 @@ def tree(root: pathlib.Path, pkg: str, files: dict[str, str]) -> None:
 
 def run_quietly(suites: dict, record: pathlib.Path | None = None) -> int:
     with contextlib.redirect_stderr(io.StringIO()):
-        return shard.run(suites, record)
+        return shard.run(suites, record, 2)
 
 
 class SameAsDiscoverTest(unittest.TestCase):
@@ -171,6 +177,107 @@ class RunExitTest(unittest.TestCase):
     def test_paths_that_pick_nothing_are_red_not_everything(self):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), mock.patch.dict(os.environ):
             self.assertEqual(shard.main(["--paths", "no/such/dir"]), 5)
+
+
+def gone(pid: int, within: float) -> bool:
+    end = time.monotonic() + within
+    while True:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        if time.monotonic() >= end:
+            return False
+        time.sleep(0.05)
+
+
+def kill(pid: int, kill_pid=os.kill) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        kill_pid(pid, signal.SIGKILL)
+
+
+def written(path: pathlib.Path, within: float = 10) -> str:
+    end = time.monotonic() + within
+    while time.monotonic() < end:
+        if path.exists() and (text := path.read_text(encoding="utf-8")):
+            return text
+        time.sleep(0.05)
+    raise AssertionError(f"{path} が書かれない")
+
+
+class WorkerTest(unittest.TestCase):
+    def test_child_ends_when_only_the_parent_is_killed(self):
+        pkg = "shard_orphan_pkg"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            pidf = root / "pid"
+            tree(root, pkg, {"test_slow.py": "import os, time, unittest\n\n\nclass T(unittest.TestCase):\n"
+                                             "    def test_slow(self):\n"
+                                             f"        open({str(pidf)!r}, 'w').write(str(os.getpid()))\n"
+                                             "        time.sleep(600)\n"})
+            parent = ("import pathlib, sys\n"
+                      f"sys.path.insert(0, {str(ROOT)!r})\n"
+                      "from tests import shard\n"
+                      f"shard.run(shard.suites(pathlib.Path({tmp!r})), None, 1)\n")
+            p = subprocess.Popen([sys.executable, "-c", parent], env=hermetic.child_env(), stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            self.addCleanup(kill, p.pid, os.killpg)
+            child = int(written(pidf))
+            self.addCleanup(kill, child)
+            p.kill()
+            p.wait()
+            self.assertTrue(gone(child, 5), "親だけを SIGKILL した後に子が残った")
+
+    def test_a_child_that_dies_names_its_module_and_the_count_still_prints(self):
+        pkg = "shard_dies_pkg"
+        dies = "import os, unittest\n\n\nclass T(unittest.TestCase):\n    def test_dies(self):\n        os._exit(3)\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_dies.py": dies})
+            found = shard.suites(root)
+            stream = io.StringIO()
+            with contextlib.redirect_stderr(stream):
+                self.assertEqual(shard.run(found, None, 2), 1)
+        out = stream.getvalue()
+        self.assertIn(f"{pkg}.test_dies {shard.BROKEN}", out)
+        self.assertIn("BrokenProcessPool", out)
+        self.assertRegex(out, r"Ran \d+ tests?")
+        self.assertIn("FAILED", out)
+
+    def test_an_interrupt_drops_the_queued_modules(self):
+        pkg = "shard_interrupt_pkg"
+        names = "bcdefgh"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            ran = root / "ran"
+            ran.mkdir()
+            marks = "import pathlib, unittest\n\n\nclass T(unittest.TestCase):\n    def test_mark(self):\n" \
+                    f"        pathlib.Path({str(ran)!r}, __name__).touch()\n"
+            interrupts = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_stop(self):\n" \
+                         "        raise KeyboardInterrupt\n"
+            tree(root, pkg, {"test_a.py": interrupts, **{f"test_{n}.py": marks for n in names}})
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(KeyboardInterrupt):
+                shard.run(shard.suites(root), None, 1)
+            # 子へ渡し済みの数件（待ち行列の先頭）だけが回り、残りは回らない
+            self.assertLess(len(list(ran.iterdir())), len(names))
+
+
+class WorkersTest(unittest.TestCase):
+    def test_default_divides_the_cpus_among_the_runs_sharing_the_machine(self):
+        with mock.patch.dict(os.environ), mock.patch("os.cpu_count", return_value=24):
+            os.environ.pop(shard.WORKERS_ENV, None)
+            self.assertEqual(shard.workers(), 24 // shard.SHARING)
+        with mock.patch.dict(os.environ), mock.patch("os.cpu_count", return_value=4):
+            os.environ.pop(shard.WORKERS_ENV, None)
+            self.assertEqual(shard.workers(), 1)
+
+    def test_the_environment_overrides_the_default(self):
+        with mock.patch.dict(os.environ, {shard.WORKERS_ENV: "7"}):
+            self.assertEqual(shard.workers(), 7)
+        for value in ("0", "x", "-2", ""):
+            with self.subTest(value=value), mock.patch.dict(os.environ, {shard.WORKERS_ENV: value}):
+                with self.assertRaises(SystemExit):
+                    shard.workers()
 
 
 class ScrubTest(unittest.TestCase):
