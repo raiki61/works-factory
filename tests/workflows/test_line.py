@@ -2786,7 +2786,9 @@ class RedepthCase(Artifacts):
     def test_fix_and_line_read_missing_and_broken_records_alike(self):
         """#654: 修正のブロックの中の上げ直し（fixboard.redepth）と線の redepth は、同じ置き場の修正の後の信号の控えを
         latedepth.signals の 1 つの決まりで読む。範囲の相談の行を運ぶ控え（fix では戻せた組の子の結果、線では欄 accept_trace の先）が
-        無ければどちらも上げずに counted に訳を添え、在るのに読めなければどちらも上げる側へ倒す。TDD の輪の状態も同じ"""
+        無ければどちらも上げずに counted に訳を添え、在るのに読めなければどちらも上げる側へ倒す。TDD の輪の状態も同じ。片方の控えだけが
+        崩れた時は、その控えを読む側だけが同じ決まりで動く（子の結果は fix だけが読む。置き場の受け付けの行は fix も
+        fixboard.accept_trace_rows で読むので、壊れれば両方が上げる。無いのは fix には行が 0 の置き場で、線には null の欄）"""
         import tddloop
         place = self.artifacts / "fix"
         diff = self.put("fix/diff.patch", "")
@@ -2819,13 +2821,18 @@ class RedepthCase(Artifacts):
                     (line["depth"][0]["depth"] == "標準", no_record in line["counted"]))
 
         passed = {"calls": [{"n": 1, "phase": "fix", "unit_key": "u1", "ok": True}]}
-        for case, kw, want in (("揃った控え", {"result_doc": {"group_id": "g1"}, "trace": [], "state": passed}, (False, False)),
-                               ("輪の状態が無い", {"result_doc": {"group_id": "g1"}, "trace": [], "state": None}, (False, False)),
-                               ("相談の行の控えが無い", {"result_doc": None, "trace": None, "state": passed}, (False, True)),
-                               ("相談の行の控えが壊れた", {"result_doc": "{壊れた", "trace": "{壊れた", "state": passed}, (True, False)),
-                               ("輪の状態が壊れた", {"result_doc": {"group_id": "g1"}, "trace": [], "state": "{壊れた"}, (True, False))):
+        whole, kept, noted, raised = {"group_id": "g1"}, (False, False), (False, True), (True, False)
+        for case, kw, want in (("揃った控え", {"result_doc": whole, "trace": [], "state": passed}, (kept, kept)),
+                               ("輪の状態が無い", {"result_doc": whole, "trace": [], "state": None}, (kept, kept)),
+                               ("相談の行の控えが無い", {"result_doc": None, "trace": None, "state": passed}, (noted, noted)),
+                               ("相談の行の控えが壊れた", {"result_doc": "{壊れた", "trace": "{壊れた", "state": passed}, (raised, raised)),
+                               ("子の結果だけが無い", {"result_doc": None, "trace": [], "state": passed}, (noted, kept)),
+                               ("欄 accept_trace の先だけが無い", {"result_doc": whole, "trace": None, "state": passed}, (kept, noted)),
+                               ("子の結果だけが壊れた", {"result_doc": "{壊れた", "trace": [], "state": passed}, (raised, kept)),
+                               ("欄 accept_trace の先だけが壊れた", {"result_doc": whole, "trace": "{壊れた", "state": passed}, (raised, raised)),
+                               ("輪の状態が壊れた", {"result_doc": whole, "trace": [], "state": "{壊れた"}, (raised, raised))):
             with self.subTest(case):
-                self.assertEqual(outcome(**kw), (want, want))
+                self.assertEqual(outcome(**kw), want)
 
     def test_late_signals_come_from_the_stage_ports(self):
         """修正の後の 3 つの事実: diff の触るファイルが 1 回目の判定の頭の深さの控え（入力 depth_record）の where の外（テストのファイルを除く）・最後の
