@@ -1991,29 +1991,45 @@ class AskFinalReadsCase(Artifacts):
         """L-W32: 修正前の関所で通した項目（gatemarks.pass_lines。事前審査の返り gate_passes の先）と事前審査の往復（返り gate の先の
         converge）を最後の関所の文に並べる。案の直しの事前審査の物も足す"""
         row = {"node": gatemarks.GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY, "item": "修正案 1 が狭める能力: x", "decided_by": "docs/adr.md:3"}
-        review = (self.place("plan-review/pass-1/gate-passes.json", [row]),
-                  self.place("plan-review/pass-1/gate.json", {"items": [], "converge": ["壁打ち: 2 往復で clean", "  - 往復 1: …"]}), True)
-        passes, rounds, unread = ask_final.review_rows((review, (None, None, False)))
+        review = (self.place("plan-review/pass-1/review.json", {}), self.place("plan-review/pass-1/gate-passes.json", [row]),
+                  self.place("plan-review/pass-1/gate.json", {"items": [], "converge": ["壁打ち: 2 往復で clean", "  - 往復 1: …"]}))
+        passes, rounds, unread = ask_final.review_rows((review, (None, None, None)))
         self.assertEqual((passes, rounds, unread), ([gatemarks.pass_lines([row])[0]], ["壁打ち: 2 往復で clean", "  - 往復 1: …"], []))
         text = ask_final.final_text(final_got(passes=passes, converge=rounds), [], RUN)
         self.assertIn(f"  - {gatemarks.named(gatemarks.GATE_NODE)}（周 1）で決め手が在るので聞かずに通した: 修正案 1 が狭める能力: x", text)
         self.assertIn("- 壁打ち: 2 往復で clean\n  - 往復 1: …", text)
         gone = {"type": "archon_artifact", "run_id": RUN, "path": "gone/gate-passes.json"}
-        _, _, unread = ask_final.review_rows(((gone, {**gone, "path": "gone/gate.json"}, True),))
+        _, _, unread = ask_final.review_rows((({**gone, "path": "gone/review.json"}, gone, {**gone, "path": "gone/gate.json"}),))
         self.assertIn("事前審査の隣の控え（通した行・往復）を読めない", unread[0])
 
     def test_review_fields_missing_from_a_review_that_ran_is_said(self):
-        """事前審査が走ったのに出力の欄 gate_passes・gate がどちらも無い（欄の無い版の run を再開した時）は、黙って飛ばさず読めなかった
-        訳の 1 行にする。走ったと分からない（飛ばされたのと見分けられない）対は今までどおり黙って飛ばす"""
-        self.assertEqual(ask_final.review_rows(((None, None, True), (None, None, False))), ([], [], [ask_final.REVIEW_FIELDS_MISSING]))
-        self.assertEqual(ask_final.review_rows(((None, None, False),)), ([], [], []))
+        """事前審査が走った（出力の欄 review が在る）のに欄 gate_passes・gate がどちらも無い（欄の無い版の run を再開した時）は、黙って
+        飛ばさず読めなかった訳の 1 行にする。計画の往復の物も案の直しの事前審査の物も同じ。review も null（飛ばされた）なら黙って飛ばす"""
+        ran = self.place("plan-review/pass-1/review.json", {})
+        for env in (self.null_env(review=ran), self.null_env(replan_review=ran)):
+            with mock.patch.dict(os.environ, env):
+                got = ask_final.got_of_env()
+            self.assertIn(ask_final.REVIEW_FIELDS_MISSING, got["unread"])
+            self.assertIn(ask_final.REVIEW_FIELDS_MISSING, ask_final.final_text(got, [], RUN))
+        self.assertEqual(ask_final.review_rows(((ran, None, None), (None, None, None))), ([], [], [ask_final.REVIEW_FIELDS_MISSING]))
+
+    def test_skipped_review_is_not_said_missing(self):
+        """直す物の無い周（no-fix）と直す義務が 0 件の周（nothing_owed）は、判定が在っても計画の出力の ready が偽で事前審査が飛ぶので、
+        事前審査の出力の欄はどれも null で来る。欄の無い版の行を出さない"""
+        judgment = self.place("judge/judgment.json", {})
+        with mock.patch.dict(os.environ, self.null_env(first_judgment=judgment, judgment=judgment)):
+            got = ask_final.got_of_env()
+        self.assertNotIn(ask_final.REVIEW_FIELDS_MISSING, got["unread"])
+        self.assertNotIn(ask_final.REVIEW_FIELDS_MISSING, ask_final.final_text(got, [], RUN))
+        self.assertEqual(ask_final.review_rows(((None, None, None),)), ([], [], []))
 
     def test_final_gate_lists_gate_passes(self):
         """P255: 事前審査の返り gate_passes の先に 1 行在る時、最後の関所の文にその行が在る（元 works/tests/test_plan_gate.py:397・
         :515・:575 の final_text の断言の、決め手で通した行の分）"""
         row = {"node": gatemarks.GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY, "item": "決め手で通した行", "decided_by": "x.md:1"}
-        passes, _, _ = ask_final.review_rows(((self.place("plan-review/pass-1/gate-passes.json", [row]),
-                                                self.place("plan-review/pass-1/gate.json", {"items": [], "converge": []}), True),))
+        passes, _, _ = ask_final.review_rows(((self.place("plan-review/pass-1/review.json", {}),
+                                                self.place("plan-review/pass-1/gate-passes.json", [row]),
+                                                self.place("plan-review/pass-1/gate.json", {"items": [], "converge": []})),))
         self.assertIn("決め手で通した行（決め手: x.md:1）", ask_final.final_text(final_got(passes=passes), [], RUN))
 
     def test_final_text_lists_suites_baseline_and_left_tests(self):
@@ -3470,7 +3486,7 @@ class NoFixWiringCase(unittest.TestCase):
         self.assertIn("$fixed.output.no_fix == false", nodes["merge-apply"]["when"])
         self.assertEqual((nodes["ask-final"]["depends_on"], nodes["ask-final"]["trigger_rule"]),
                          (["eyes", "merge-seal"], "none_failed_min_one_success"))
-        for key in ("seal", "review_passes", "review_gate", "structure", "before_fix_answer"):
+        for key in ("seal", "review", "review_passes", "review_gate", "replan_review", "structure", "before_fix_answer"):
             self.assertIsInstance(nodes["ask-final"]["with"][key], dict, key)
         self.assertEqual(nodes["ask-final"]["with"]["seal"], {"from": "$merge-seal.output", "if_skipped": None})
         for key in ("depth", "answer", "replanned"):

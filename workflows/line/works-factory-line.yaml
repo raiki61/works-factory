@@ -938,8 +938,10 @@ nodes:
       replan_answer: { from: "$answer-replan.output.answer", if_skipped: null }
       replan_gate: gate-replan
       widened: { from: "$ask-replan.output.widened", if_skipped: null }
+      review: { from: "$fix-in.output.review", if_skipped: null }
       review_passes: { from: "$fix-in.output.gate_passes", if_skipped: null }
       review_gate: { from: "$fix-in.output.gate", if_skipped: null }
+      replan_review: { from: "$replan-review.output.review", if_skipped: null }
       replan_review_passes: { from: "$replan-review.output.gate_passes", if_skipped: null }
       replan_review_gate: { from: "$replan-review.output.gate", if_skipped: null }
       start: "$start.output.record"

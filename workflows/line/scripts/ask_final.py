@@ -452,13 +452,13 @@ def eye_notes(eye) -> dict:
 
 def review_rows(reviews) -> tuple:
     """(修正前の関所で通した行, 壁打ちの往復の行, 読めなかった訳)。reviews は事前審査（計画の往復と案の直しの事前審査）の返りの欄
-    (gate_passes, gate, ran) の組の並びで、gate_passes の先の行と gate の先の converge から。ran は事前審査が走ったと分かっているか:
-    走ったのに 2 つの欄がどちらも無い（欄の無い版の run を再開した時）は訳の 1 行にする。案の直しの事前審査は飛ばされた時も null で来て
-    見分けられないので ran を偽で渡す"""
+    (review, gate_passes, gate) の組の並びで、gate_passes の先の行と gate の先の converge から。review が null なら事前審査は飛ばされた
+    （直す物の無い周・直す義務が 0 件の周）ので黙って飛ばす。review の欄は欄 gate_passes・gate の無い版にも在るので、review が在るのに
+    2 つの欄がどちらも無い（欄の無い版の run を再開した時）は訳の 1 行にする"""
     passes, rounds, unread = [], [], []
-    for passed, gate, ran in reviews:
+    for review, passed, gate in reviews:
         if passed is None and gate is None:
-            if ran:
+            if review is not None:
                 unread.append(REVIEW_FIELDS_MISSING)
             continue
         try:
@@ -531,16 +531,16 @@ def got_of_env() -> dict:
                              boundary.value(os.environ.get("INPUTS_ANSWER_TIES")), boundary.value(os.environ.get("INPUTS_MATERIALS")))
     fenced, after, after_unread = after_rows(eye["structure_after"])
     asked, conflicts_unread = asked_conflicts(boundary.items(os.environ.get("INPUTS_CONFLICTS")))
-    first_judgment = boundary.value(os.environ.get("INPUTS_FIRST_JUDGMENT"))
     passes, rounds, review_unread = review_rows(
-        ((boundary.value(os.environ.get("INPUTS_REVIEW_PASSES")), boundary.value(os.environ.get("INPUTS_REVIEW_GATE")),
-          first_judgment is not None),
-         (boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_PASSES")), boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_GATE")), False)))
+        ((boundary.value(os.environ.get("INPUTS_REVIEW")), boundary.value(os.environ.get("INPUTS_REVIEW_PASSES")),
+          boundary.value(os.environ.get("INPUTS_REVIEW_GATE"))),
+         (boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW")), boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_PASSES")),
+          boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_GATE")))))
     deleted, deleted_unread = deleted_files(closing["diff"])
     beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_RECORDS")))
     noted = eye_notes(eye)
     raw = {"units": boundary.items(os.environ.get("INPUTS_UNITS")), "first_units": boundary.items(os.environ.get("INPUTS_FIRST_UNITS")),
-           "judgment": judgment, "first_judgment": first_judgment,
+           "judgment": judgment, "first_judgment": boundary.value(os.environ.get("INPUTS_FIRST_JUDGMENT")),
            "rejudge_exit": boundary.value(os.environ.get("INPUTS_REJUDGE_EXIT")),
            "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
            "rejudge_verdict": boundary.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
