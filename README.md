@@ -82,17 +82,22 @@ You choose the approval nodes with run inputs (`--input <name>=<value>` on `work
 1. Start: before any AI work, it shows what the run will do. It opens in every run that a human answers.
 2. Before fixing: after plan review. It opens only when there is something to ask: the plan reviewer left a question for you, one of its 4 checks failed, or the plan review got stuck. `--input design_only=true` always opens it (use it to see the plan before any fix is made).
 3. Plan change: during fixing, when a unit's plan has to change. It opens when the change alters what you approved (such as the files the unit may touch or its acceptance tests) or the reviewer of the new plan asks you. In an unattended run (below), a change that only lets the unit touch more files goes ahead without asking.
-4. Last: after the test gate and the independent eyes, before the diff is sealed. `--input final_gate=<value>` sets when it opens:
+4. Last: after the test gate and the independent eyes, once the diff is sealed (and before the run places it for `bin/apply`). `--input final_gate=<value>` sets when it opens:
    - `always` (the default when a human answers the run): every time.
    - `when_needed` (the default in an unattended run, below): only when there is a reason (in a run a human answers, the start node still opens), such as final tests that are not green or a question a role left for you. Otherwise the reasons are only listed at the top of the report.
    - `protected_only`: only when the fix touched a protected path. A protected path is a file the target lists in `.works-protected.json` at its root, or that file itself. The file has the same shape as the factory's own list, `lib/protected.json`.
 
-   Whatever you choose, some reasons always open the last node, for example: the fix touched a protected path (or this could not be checked), a role passed a disagreement to you, or the acceptance tests changed after you approved them.
+   Whatever you choose, the last node always opens for these reasons (this is the full list; the code is `needs` in `workflows/line/scripts/ask_final.py`):
+   - The fix touched a protected path, or whether it did could not be checked.
+   - The fix changed a test that it had been given permission to rewrite.
+   - A role passed a disagreement to you, or the record of disagreements could not be read.
+   - The fix stage's side records could not be read, so the run cannot count what a fixer handed to you or where a fixer's claim and the machine's recount disagree.
+   - The acceptance tests changed after you approved them (only with `--input spec=on`), or this could not be checked.
 
 `--input unattended=true` is a run nobody answers. The start node is skipped. At the other nodes:
 
 - Each point a node would ask you about can carry a recommendation from the role that raised it (go ahead, or stop). If every point recommends going ahead, the run takes that as the answer and goes on without opening the node.
-- Otherwise the run stops without asking, with the stop reason `needs-human`.
+- Otherwise the run stops without asking, with the stop reason `needs-human`. What the stopped run leaves depends on the node; see "What a stopped run leaves" under "Stopping a run".
 - At the last node there is no recommendation, so if it would open, the run stops there with `needs-human` and nothing is applied. That is why an unattended run leaves `final_gate` at `when_needed` when you do not set it: a run with no reason to ask goes on to the end. If you set `final_gate=always` yourself, every unattended run stops at the last node.
 - It cannot be combined with `--input spec=on` (an optional stage that writes a spec for you to approve before judging).
 
@@ -108,6 +113,12 @@ Which to choose:
 - At an approval node: answer `workflow respond <run> stop <note>` (`workflow reject <run>` does the same). The main graph skips the rest and still writes the report.
 - Between approval nodes: `bin/works-factory workflow cancel <run> --cwd <target>`. No report is written. `<run>` is the id of the root run; for a round chain, the chain run.
 - After a cancel, the run ends up failed. To continue it, `workflow resume <run> --cwd <target>`; to give it up, `workflow abandon <run> --cwd <target>`.
+
+What a stopped run leaves (whether you answered `stop` or an unattended run stopped with `needs-human`):
+
+- At the start node or the before-fixing node: nothing has been fixed yet.
+- At the plan change node: the units fixed before the plan change stay in the run's worktree as uncommitted changes, but they go no further: no test gate, no independent eyes, no seal. `bin/apply` refuses them, and its refusal line gives a command that applies them without any of those checks (`git -C <run's worktree> diff <start commit> | git -C <target> apply`). A new run starts from your target as it is (see "Worktree start point"), so it does not build on these changes unless you apply them first.
+- At the last node: the diff is already sealed but is not applied. `bin/apply <run> --allow-stopped` applies it, unless the independent eyes' R2 said the fix needs a redesign (`redesign-needed`); then `bin/apply` refuses it.
 
 Archon's cancel does not stop the processes of the AI nodes (each node's Claude Code and what it started), so the script stops them itself:
 
