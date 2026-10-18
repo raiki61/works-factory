@@ -89,6 +89,12 @@ def protected(got: dict) -> tuple:
     return unknown, [row for row in rows if row not in unknown]
 
 
+def protected_count(closing: dict) -> int:
+    """守りのパスの当たりの全件の数。前の版の merge-seal の返り（resume で受けた物）は protected_count を持たないので、その時は当たった行の数"""
+    count = closing["protected_count"]
+    return count if isinstance(count, int) else len(protected({"protected_hits": boundary.as_items(closing["protected_hits"])})[1])
+
+
 def unpassed_eyes(got: dict) -> list:
     """pass でない目を『R1: 直しが要る』の形で（目の順）。言い方は gatemarks.REVIEW_WORDS（seal.STATUS_WORDS）から引き、表に無い語は
     字のまま出す（表に無い語も pass でないので数える）。知るのは seal.PASSED だけで、語ごとの重さは持たない"""
@@ -541,7 +547,7 @@ def got_of_env() -> dict:
         "worktree": str(Path.cwd().resolve()),
         "base_rev": str((start or {}).get("base_rev") or ""),
         "protected_hits": boundary.as_items(closing["protected_hits"]),
-        "protected_count": closing["protected_count"] or 0,
+        "protected_count": protected_count(closing),
         "asked": asked,
         "conflicts_unread": conflicts_unread,
         "handoffs": [x for x in boundary.items(os.environ.get("INPUTS_HANDOFFS")) if isinstance(x, str)],

@@ -2109,6 +2109,14 @@ class AskFinalReadsCase(Artifacts):
         self.assertEqual((got["sealed"], got["seal_reason"], got["protected_hits"]), (False, "封じる差分が空", []))
         self.assertIn("差分を封じられなかった（封じる差分が空）", ask_final.final_needs(got))
 
+    def test_seal_without_count_counts_the_hit_rows(self):
+        """前の版の merge-seal の返り（protected_count が無い）を resume で受けても、件数は 0 件でなく当たった行の数で言う"""
+        seal = {"ok": True, "reason": "", "hash": "h", "protected_hits": ["ci/a.yml（+1 −0）", "ci/b.yml（+1 −0）"], "diff": None}
+        with mock.patch.dict(os.environ, self.null_env(seal=seal)):
+            got = ask_final.got_of_env()
+        self.assertEqual(got["protected_count"], 2)
+        self.assertIn(f"{ask_final.PROTECTED_HEAD}（2 件。人の確かめが要る）", ask_final.final_needs(got))
+
     def test_deleted_files_named(self):
         """M38: 封じた差分の中で消えるファイルを、当てる前に SHOWN 件までは 1 本ずつ名指し（「取り込むと消えるファイル: <パス>」）、
         超える分は件数と封じた差分のパスで指す"""
