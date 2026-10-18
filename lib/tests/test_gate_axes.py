@@ -35,7 +35,7 @@ class AxesBase(unittest.TestCase):
         """構造の目の行（元 FourAxesCase.put_rows）"""
         design = self.tmp / "design.jsonl"
         design.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-        structmark.write(self.tmp, status="ok", reason="", design_file=str(design), wall_s=0)
+        structmark.write(self.tmp / structmark.COPY_FILE, status="ok", reason="", design_file=str(design), wall_s=0)
 
     def check(self, mark, units=("u",), **view):
         """(軸ごとの {ok, note}, gatemarks.axes の訳)。2 か所が食い違えば赤。決め手の欄が揃う行では、axes の訳が

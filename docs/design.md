@@ -99,7 +99,8 @@ flowchart TB
   start["始め（入力の形・始めの記録）"] --> g1{{"起動の承認ノード"}}
   g1 --> tb["test-gate（base）"]
   tb --> judge
-  judge --> loopP
+  judge --> structure["structure（構造の目）"]
+  structure --> loopP
   subgraph loopP["計画の往復（中央の穴が出る間。安全の網 20 往復）"]
     plan --> pr["plan-review"]
   end
@@ -120,9 +121,10 @@ flowchart TB
 2. 起動の承認ノード（人）: 何を始めるかを見せて止まる。
 3. test-gate（base）: テストの走らせ方を見つけ、直す前の結末（元から赤のテスト）を控える。
 4. judge: run の頭の深さ・前提・目的・定石・素材・判定。`--spec` の時は中に仕様の承認ノード（人）を持つ。run の頭の深さは、入口の直後の役（`head-depth`）が依頼の行ごとに残っている未知の種類（無し・原因・形・範囲）を依頼の字とリポジトリの行の引用で返し、受け付けが引用の実在を照らして、一番重い種類の段（`lib/headdepth.py` の `UNKNOWNS`・`tier_of`）を控えに書く（照らしが通らなければ標準。下の「深さの段の表」）。役は同じ返答で、材料に貼られたノード群（`lib/launchgroups.py` の `GROUPS`）のうち既定の模型か effort を替えるべき群だけを訳つきで選ぶ（`groups`）。受け付けは段の照らしが通った後に `launchgroups.choices` で照らし、表に無い群・許さない語・同じ群の 2 行目の行だけを既定に戻して訳を残し、向き（上げ・下げ・同じ・混ざる）と一緒に控えの `groups` に書く。Archon 64ec0c2e に run の中で後のノードの模型を付け替える口が無いので、この選びは記録だけで今の run では効かない（`docs/polyfills.md` の候補）。段の判定には混ざらず、照らしが外れても段は落とさない。
+4'. structure（構造の目）: judge が直す単位を出した run で 1 回だけ走る。単位が名指すファイルを機械で実測し（段 A）、構造の目（道具なしの別の会話）が直しが構造を汚すかを単位ごとに判定して、構造の目の控えを返す。単位が変わるのは再審の後だけで、その後に計画は走らないので測り直さない。計画の往復（5）・案の直し・事前審査は同じ控えを入力 `structure` で受ける（今の works では別のブロック `blk-structure`）。
 5. 計画の往復: plan → plan-review を、事前審査が中央の穴（下の「事前審査の止め時」）を挙げる間くり返す。計画の壁打ち（plan と plan-review の往復）は run の頭の深さのどの段でも省かない。run の頭の深さ（judge の `depth`）はメイングラフの `plan-review-run` が平の入力 `head_depth` で受け、事前審査の木にするかを決める時だけ読む（段の足しと、軽量の段が名指しの無い木を off に読むことは「深さの段の表」。名指しが勝つ）。同じ中央の穴で 2 度続けて止められたら止める。2 往復目から開いた block に中央の穴が無くなれば、端の穴を修正の段へ申し送って修正へ進む（止め時の正本は `lib/converge.py` の `decide`）。安全の網 20 往復に届けば、工場の不具合として止めて修正前の承認ノードへ回す。直す物が無い周（judge が ready: false で止めの語も無い）は計画の往復・修正前の承認ノード・fix を飛ばし、plan-review を形 design（入力 `mode: design`。修正案は null）で 1 度include して（`design-only`）最後の R2 が要る独立設計だけを作る。メイングラフのノード `fixed` が直す物の無い形（`no_fix`・`go`・差分も申し出も無い・設計は `design-only` の物）で受けて、最後のテスト（8）と独立の目（9）で周を締め、差分が無いので封じも当てもしない（`merge-seal`・`merge-apply` の `when` が `no_fix` を読む。最後の承認ノードは封じのノードが飛んでも開く: `ask-final` は `depends_on: [eyes, merge-seal]`・`none_failed_min_one_success`）。結末は残りが無ければ `no_fix_needed`（R2 が直す物が在ると言えば残りに数える）。今の works の `line_edge.plan_edge`（1107-1119 行）。計画の往復が直す義務 0 件で修正案を作らなかった周（開いた単位が全部人の答え待ちの問いの出どころ。`plan-out` の `nothing_owed`）も、修正前の承認ノードと fix を飛ばしたまま同じ尾（`design-only` → `fixed` の `no_fix` → 最後のテスト・独立の目）を通る（今の works の `line_edge.plan_edge` 1109-1114 行の空の修正。#291）。judge は単位を出したので、この周の結末は `no_fix_needed` でなく残りの決め（`round_limit`）で、独立の目が通さなかった札は残りに載る。飛びうるノードを後ろのノードが結ぶ所は `{from, if_skipped}`（Archon は飛んだノードの出力を直に結んだノードを落とす: `output-ref.ts` 272・344 行）
 6. 修正前の承認ノード（人）: 事前審査の 4 つの軸（自明・世界の解・汚くない・やりすぎでない）で人に聞く物がある時だけ開く。承認ノードの項目は事前審査の出力 `questions` の行（種類と文。揃わない軸の訳は行の尾に 1 度）で、メイングラフは軸の行を項目の無い時だけ足し、事前審査が設計だけの行・止まりの行（止まった理由つき）を返していれば足し直さない（1 件 1 行）。無人の run では、事前審査の項目のうち台帳の問い（種類 `fork`・`escalate`）だけは承認ノードに載せずに報告へ回し（問いの出どころは直す義務から外れたまま修正へ進む。ただし判定の役が選択肢を名指す推し（推しの頭と選択肢の短い方が切れ目まで揃う）を書き、出どころが今の周の単位に在り、出どころ・depends が開いた単位の fork・held の問いは、問いの台帳の読み（`lib/gatemarks.py` の `answered`・`run_push`）が推しを答えとして採り、出どころ・depends を直す義務に戻す。計画・修正・報告が同じ口で数え、報告は冒頭 1 行目と「人が決めること」に採った推しを並べ、修正役への行は承認ノードの推しと同じく `answer.said` の形（直前の行に `answer.PUSHED_NOTE`）で人の答えと読み分け、R4 の「記録された方針」にも推しの行が並ぶ。issue #593。採れる推しの無い問いと escalate は今どおり外し、報告の冒頭 2 行目の「保留にしたままの問い」に数える）、ほかの種類（狭め・事前審査の穴・方針の文書の変化・事前審査の諦め・設計の問い・世界の解の外れ・設計だけの行）が在れば、承認ノードに載るはずの項目の全部が通す推しを持てばその推しで進み（答えの欄 `pushed`。決めは `lib/gatepolicy.py` の `passage`。持ち主の決め `unattended`）、そうでなければ開かずに止める（`works:needs-human`）。事前審査の壁打ちが止まった行（`STUCK_ITEM`）も、事前審査の役が返答の一番上に書いた止まった時の推し（`stuck_recommend`。`lib/converge.py` の `STUCK_PUSH`。往復の行の `push`）の尾を持ちうる（付く条件は `lib/gatepolicy.py` の `stuck_pushable`。尾を組むのは `lib/gatemarks.py` の `stuck_push`）。尾の無い行は今どおり止まる。保留の項目の前の往復の block は、推しが付く止まりでは機械が印 `held` つきで `review.json` の faces に足し、修正役が事前審査の穴に key ごとに答える義務に乗る（`block_faces` は審査が挙げた block に数えない）。持ち主の決め `unattended`・issue #552。推しで通った周は報告の冒頭と run の記録だけが読み口で、鎖の次の周へ渡す要約には載らない。
-7. fix: 修正の段へ運ぶ値（直す前のテストの控え・判定・計画の往復・修正前の承認ノードの答えと載せなかった問い）は中継のノード `fix-in` が 1 か所に集め、fix から後ろのノードはそこからだけ読む（`$fix-in.output.<欄>`）。`fix-in` はどの run でも走る（`answer-start` に結ぶ）ので、固定材料の run で飛んだノードを後ろが直に結んで落ちることが無い。通常の run は受け皿（`test-gate-base-out`・`judge-out`・`plan-rounds-out`・`plan-rounds-review-out`）の `got` から組み、修正に入る時（修正前の承認を通った時）に 1 度だけ run の置き場を固定材料 `<run の置き場>/fix-fixture/` に写す（`lib/fixture.py` の `noted_capture`。写せなくても止めない。写したフォルダか写せなかった訳は始めの記録の `fixture_captured` に置き、報告の入口のセクションが読む。今の works の `line_edge._capture_fixture`）。固定材料の run は取り込んだ写しの値を運び、`collect` は飛んだ段の欄をその値で埋める。組ごとの並べ（`fan_out:`）・TDD のループ・修正役・裁定・差分の審査と手直し。修正のサブグラフのノードが 1 つでも落ちれば（組の子の run が使用枠の切れなどで落ちて組のノードが落ちた時も、裁定や審査のループなど組でないノードが落ちた時も。諦めた子は結果を書いて済む）run は failed で終わり、fix の中では柵のノード `nodes-ok`（サブグラフの sink で、`fix` と落ちても止めない段のほかの全部のノードに結ぶ）と、落ちたノードより後ろの作業のノード（`clean` から `delta-loop` まで。組のノードが落ちた時は `join` も）が飛び、返すノード `fix`（`all_done`）は `done: false` で済む。1 回目の修正（`fix`）では、sink が飛んだので `depends_on: [fix]` のメイングラフのノード（`after-fix`・`fix-out`）が飛び、その後ろ（`fixed` から先）も飛ぶ。2 度目の修正（`refix-run`）では、`fixed` も飛ぶ（`none_failed_min_one_success` は、前が落ちたので飛んだ依存を落ちと数える）ので、試験の関門（final）と `rejudge-run` から先は走らない。run を resume すれば、落ちたノードとその後ろの飛んだノードを同じ run・同じ作業ツリーで続きから回す（続きはノード単位で、落ちたループ（`loop_group`）は 1 周目からやり直す。止めた Archon の `dag-executor.ts` 4363-4364 行。組の子なら落ちた子を続きから回し、順の組の後ろの子は、前の子が使える結果を残すまで頭で止まる。issue #576・#594）。落ちても止めない段はレンズ（`lens` とその出力の中継 `lens-reply`）だけで、レンズが落ちても集め役 `lens-collect` がレンズの行を理由つきの failed で残して差分の審査へ進む（run は落ちたノードを持つので failed で終わり、報告は受け止めた落ちに載せる。宣言は `fix` 自身の出力ノードの `with:` の `optional`（出力の欄 `optional` で受け皿が `collect` へ運び、`collect` が include の id の頭を付けて合わせる）。Archon は落ちたノードの出力を `if_skipped` の結びでも読ませないので、集め役は飛んだ中継を `if_skipped: null` で受ける）。レンズの支度 `lens-prep` と集め役が落ちれば run を止める。裁定が計画の項目の誤りとした時は、1 run に 1 度だけ plan と plan-review をもう一度 include し、案の直しの承認ノード（人）を通る（文は聞く項目ごとに約束の欄の変化・その項目を誤りとした申し出の文と裁定の文〔`ask-replan` の入力 `conflicts` ← `$fix.output.conflicts`〕・前と後の項目の JSON。今の works の `replan._gate_section`）。無人の run で案の直しの承認ノードを開くはずの時は、6 と同じく聞く項目の全部が通す推しを持てばその推しで進み（答えの欄 `pushed`）、そうでなければ開かずに止める（約束の欄が変わった項目の行は推しを持たないので止まる）。2 度目の修正が走らなかった時（承認ノードの stop・無人の止め・直した案ができなかった）は、1 回目の修正の差分も試験の関門から先へ進めない。差分の審査が 2 往復で通らなかった run は、今の works の最後のテスト（`p4.ci` は手直しの段が済むのを待つだけで、審査の通りを待たない）と同じく試験の関門・独立の目・最後の承認ノードへ進め、通らなかった審査は報告の残りに載る（メイングラフのノード `fixed` の `go`）。修正役の異議（1 回目と 2 度目の修正の両方。メイングラフのノード `fixed` の `objection` がつなぐ）は、2 度目の修正の後に judge を再審の入力でもう一度 include する（1 度。`fixed` の `rejudge`。今の works の `h-rejudge` が refit の後に走った形。`works/darkfactory/darkfactory.yaml:827`）。再審が採らなかった異議は再審されずに残った異議として最後の承認ノードを開け（11）、報告と次の依頼に載る。再審の止め（`judged` の `stop_reason`）は試験の関門（final）の `when` が読み、後ろへ進めない。2 度目の修正は 1 回目の申し出と裁定（`prior_conflicts`）・案の直しの事前審査の出力（`plan_review`）・機械の申し送り（`notes`。`answer-replan` の `fix_notes`）を受ける（fix の出力のノード）。`fixed` の後のメイングラフのノード `spec-check`（`workflows/line/scripts/spec_check.py`）は、仕様の段（`--spec`）が承認の時に `J/spec.json` へ固めた受け入れ条件のテストの sha256 を今の作業ツリーと照らし（ポインタは `$fix-in.output.spec`。固定材料の run は `spec=on` と組めず、仕様の段の run の写しは入力の欄 `spec` が違うので取り込まないため、ポインタは null で問いも止めも無い）（`lib/judge_accept.py` の `spec_questions`。テストの凍結 `lib/tddloop.py` の `frozen_problems` と別に置く: 基準が人の承認の時で、許しを持たない）、変わっていればファイルごとに承認し直すかの問いを返し、止めの語 `works:spec-changed`（人待ち）を返す。在るが測れないファイル（読めない・通常のファイルでない・上限超え）は「消えた」と言わずにその訳を問いに載せ、`J/spec.json` が無い・読めない・形が違う時も黙らずに「読めない」の問いを 1 行返して人待ちにする。照らし自体が落ちた時は「照らしが落ちた」の問いを 1 行と止めの語 `works:line-script` を返す（0 件は最後の承認ノードが「変わっていない」と読み、問わずに通るので）。今の works はここで差分の審査・最後のテスト・独立の目を回さずに終えたが、それは元の engine が問いで共有ボードを止めた制約なので、ここでは回したまま最後の承認ノード（11）で問いを見せる（#510）。仕様の段を挟んだ run（`start` の出力 `spec` を `spec_on` で受ける）なのに判定が `J/spec.json` の指しを返さなかった時も、黙って通さずに問いを 1 行と `works:spec-changed` を返す。照らせなかった時（読めない・指しが無い・落ちた）は出力の `unchecked` が真で、最後の承認ノードの 1 行目と見出し・報告の人が決めることの見出し・次の依頼の下書きの source は「変わった」でなく「照らせなかった」と言う（止めの語と結末は同じ）。最後の承認ノードはこの問いの並びに「承認すると差分は承認し直しを待たずに当たる」の 1 行を足し、`bin/apply` はこの問いを残した run（メイングラフと周の鎖の出力の `spec_questions`。止めの語は別の待ちが先に立つことが在るので読まない）を断らずに当て、当てた後に標準エラーへ 1 行で知らせる（`bin/_lib/apply.py` の `respec_note`。今の works の `apply_checked` も断らなかった）（#550）。
+7. fix: 修正の段へ運ぶ値（直す前のテストの控え・判定・計画の往復・修正前の承認ノードの答えと載せなかった問い）は中継のノード `fix-in` が 1 か所に集め、fix から後ろのノードはそこからだけ読む（`$fix-in.output.<欄>`）。`fix-in` はどの run でも走る（`answer-start` に結ぶ）ので、固定材料の run で飛んだノードを後ろが直に結んで落ちることが無い。通常の run は受け皿（`test-gate-base-out`・`judge-out`・`structure-out`・`plan-rounds-out`・`plan-rounds-review-out`）の `got` から組み、修正に入る時（修正前の承認を通った時）に 1 度だけ run の置き場を固定材料 `<run の置き場>/fix-fixture/` に写す（`lib/fixture.py` の `noted_capture`。写せなくても止めない。写したフォルダか写せなかった訳は始めの記録の `fixture_captured` に置き、報告の入口のセクションが読む。今の works の `line_edge._capture_fixture`）。固定材料の run は取り込んだ写しの値を運び、`collect` は飛んだ段の欄をその値で埋める。組ごとの並べ（`fan_out:`）・TDD のループ・修正役・裁定・差分の審査と手直し。修正のサブグラフのノードが 1 つでも落ちれば（組の子の run が使用枠の切れなどで落ちて組のノードが落ちた時も、裁定や審査のループなど組でないノードが落ちた時も。諦めた子は結果を書いて済む）run は failed で終わり、fix の中では柵のノード `nodes-ok`（サブグラフの sink で、`fix` と落ちても止めない段のほかの全部のノードに結ぶ）と、落ちたノードより後ろの作業のノード（`clean` から `delta-loop` まで。組のノードが落ちた時は `join` も）が飛び、返すノード `fix`（`all_done`）は `done: false` で済む。1 回目の修正（`fix`）では、sink が飛んだので `depends_on: [fix]` のメイングラフのノード（`after-fix`・`fix-out`）が飛び、その後ろ（`fixed` から先）も飛ぶ。2 度目の修正（`refix-run`）では、`fixed` も飛ぶ（`none_failed_min_one_success` は、前が落ちたので飛んだ依存を落ちと数える）ので、試験の関門（final）と `rejudge-run` から先は走らない。run を resume すれば、落ちたノードとその後ろの飛んだノードを同じ run・同じ作業ツリーで続きから回す（続きはノード単位で、落ちたループ（`loop_group`）は 1 周目からやり直す。止めた Archon の `dag-executor.ts` 4363-4364 行。組の子なら落ちた子を続きから回し、順の組の後ろの子は、前の子が使える結果を残すまで頭で止まる。issue #576・#594）。落ちても止めない段はレンズ（`lens` とその出力の中継 `lens-reply`）だけで、レンズが落ちても集め役 `lens-collect` がレンズの行を理由つきの failed で残して差分の審査へ進む（run は落ちたノードを持つので failed で終わり、報告は受け止めた落ちに載せる。宣言は `fix` 自身の出力ノードの `with:` の `optional`（出力の欄 `optional` で受け皿が `collect` へ運び、`collect` が include の id の頭を付けて合わせる）。Archon は落ちたノードの出力を `if_skipped` の結びでも読ませないので、集め役は飛んだ中継を `if_skipped: null` で受ける）。レンズの支度 `lens-prep` と集め役が落ちれば run を止める。裁定が計画の項目の誤りとした時は、1 run に 1 度だけ plan と plan-review をもう一度 include し、案の直しの承認ノード（人）を通る（文は聞く項目ごとに約束の欄の変化・その項目を誤りとした申し出の文と裁定の文〔`ask-replan` の入力 `conflicts` ← `$fix.output.conflicts`〕・前と後の項目の JSON。今の works の `replan._gate_section`）。無人の run で案の直しの承認ノードを開くはずの時は、6 と同じく聞く項目の全部が通す推しを持てばその推しで進み（答えの欄 `pushed`）、そうでなければ開かずに止める（約束の欄が変わった項目の行は推しを持たないので止まる）。2 度目の修正が走らなかった時（承認ノードの stop・無人の止め・直した案ができなかった）は、1 回目の修正の差分も試験の関門から先へ進めない。差分の審査が 2 往復で通らなかった run は、今の works の最後のテスト（`p4.ci` は手直しの段が済むのを待つだけで、審査の通りを待たない）と同じく試験の関門・独立の目・最後の承認ノードへ進め、通らなかった審査は報告の残りに載る（メイングラフのノード `fixed` の `go`）。修正役の異議（1 回目と 2 度目の修正の両方。メイングラフのノード `fixed` の `objection` がつなぐ）は、2 度目の修正の後に judge を再審の入力でもう一度 include する（1 度。`fixed` の `rejudge`。今の works の `h-rejudge` が refit の後に走った形。`works/darkfactory/darkfactory.yaml:827`）。再審が採らなかった異議は再審されずに残った異議として最後の承認ノードを開け（11）、報告と次の依頼に載る。再審の止め（`judged` の `stop_reason`）は試験の関門（final）の `when` が読み、後ろへ進めない。2 度目の修正は 1 回目の申し出と裁定（`prior_conflicts`）・案の直しの事前審査の出力（`plan_review`）・機械の申し送り（`notes`。`answer-replan` の `fix_notes`）を受ける（fix の出力のノード）。`fixed` の後のメイングラフのノード `spec-check`（`workflows/line/scripts/spec_check.py`）は、仕様の段（`--spec`）が承認の時に `J/spec.json` へ固めた受け入れ条件のテストの sha256 を今の作業ツリーと照らし（ポインタは `$fix-in.output.spec`。固定材料の run は `spec=on` と組めず、仕様の段の run の写しは入力の欄 `spec` が違うので取り込まないため、ポインタは null で問いも止めも無い）（`lib/judge_accept.py` の `spec_questions`。テストの凍結 `lib/tddloop.py` の `frozen_problems` と別に置く: 基準が人の承認の時で、許しを持たない）、変わっていればファイルごとに承認し直すかの問いを返し、止めの語 `works:spec-changed`（人待ち）を返す。在るが測れないファイル（読めない・通常のファイルでない・上限超え）は「消えた」と言わずにその訳を問いに載せ、`J/spec.json` が無い・読めない・形が違う時も黙らずに「読めない」の問いを 1 行返して人待ちにする。照らし自体が落ちた時は「照らしが落ちた」の問いを 1 行と止めの語 `works:line-script` を返す（0 件は最後の承認ノードが「変わっていない」と読み、問わずに通るので）。今の works はここで差分の審査・最後のテスト・独立の目を回さずに終えたが、それは元の engine が問いで共有ボードを止めた制約なので、ここでは回したまま最後の承認ノード（11）で問いを見せる（#510）。仕様の段を挟んだ run（`start` の出力 `spec` を `spec_on` で受ける）なのに判定が `J/spec.json` の指しを返さなかった時も、黙って通さずに問いを 1 行と `works:spec-changed` を返す。照らせなかった時（読めない・指しが無い・落ちた）は出力の `unchecked` が真で、最後の承認ノードの 1 行目と見出し・報告の人が決めることの見出し・次の依頼の下書きの source は「変わった」でなく「照らせなかった」と言う（止めの語と結末は同じ）。最後の承認ノードはこの問いの並びに「承認すると差分は承認し直しを待たずに当たる」の 1 行を足し、`bin/apply` はこの問いを残した run（メイングラフと周の鎖の出力の `spec_questions`。止めの語は別の待ちが先に立つことが在るので読まない）を断らずに当て、当てた後に標準エラーへ 1 行で知らせる（`bin/_lib/apply.py` の `respec_note`。今の works の `apply_checked` も断らなかった）（#550）。
 8. test-gate（final）: テスト一式と CI。緑を作業ツリーの指紋つきで認証する。
 9. eyes: 独立の目 R1〜R4 と、直した後の構造の実測、守りのパスの当たり。R1〜R4 を回すかは run の頭の深さと単位の深さに従う（頭の深さが軽量で、全部の単位が軽量なら省く）。固定材料の run は判定も計画の往復も回さないので、写した run の判定・計画の値（頭の深さと単位の深さを含む）を `fix-in` が写しのまま運ぶ（標準に倒さない）。
 10. merge（seal）: 人に見せる差分を封じる（hash）。
@@ -141,7 +143,8 @@ flowchart TB
 
 - 始めの記録（入口の入力の形を含む）: メイングラフの始めのノードが出す → 全部（script が `INPUTS_<名>` を字のまま読む）
 - 直す前の結末: test-gate（base）→ fix・test-gate（final）
-- 判定（単位の目録・判定のポインタ・定石の行のポインタ）: judge → plan・plan-review・fix・eyes
+- 判定（単位の目録・判定のポインタ・定石の行のポインタ）: judge → structure・plan・plan-review・fix・eyes
+- 構造の目の控えのポインタ: structure → plan・plan-review・メイングラフ（`fix-in` が運び、案の直しと最後の承認ノードが読む）・report
 - 計画（修正案のポインタ・波及のポインタ・単位ごとの深さ）: plan → plan-review・fix・eyes
 - 事前審査（止めか通しか・4 つの軸・人への問い）: plan-review → メイングラフ（承認ノードと往復）・plan
 - 修正（単位ごとの結末・申し出・諦めた単位・差分のポインタ。組ごとの結果は `fan_out:` が入力の順に集めた `$<id>.output`）と型つきの成果物 `tdd-unit`: fix → test-gate・eyes・report
@@ -149,7 +152,7 @@ flowchart TB
 - 独立の目と型つきの成果物 `eye-verdict`: eyes → merge・report
 - 封じた差分（hash・守りのパスの当たり）: merge（seal）→ 最後の承認ノード・merge（apply）
 - 報告（結末の語・報告のポインタ・持ち越しのポインタ）: report → メイングラフの出力（人は `bin/works-factory workflow get <run>` で見る）
-- 修正の段へ運ぶ値（直す前の結末・判定・計画・事前審査・修正前の承認ノードの答え・載せなかった問い）: メイングラフの `fix-in` → fix から後ろの全部。固定材料はこの値（`received`。欄の名は `collect` の欄と同じ）と run の置き場の写しを持つ
+- 修正の段へ運ぶ値（直す前の結末・判定・構造の目・計画・事前審査・修正前の承認ノードの答え・載せなかった問い）: メイングラフの `fix-in` → fix から後ろの全部。固定材料はこの値（`received`。欄の名は `collect` の欄と同じ）と run の置き場の写しを持つ
 
 受け渡しの決まりは `workflows/AGENTS.md` の E4・E5。
 
@@ -199,7 +202,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 
 ## サブグラフの出力の約束
 
-8 つのサブグラフを並べて移すための、メイングラフとの約束。サブグラフごとに、出力ノード（`returns:`）・`outcome_field`・出力の欄・受ける入力（`with:`）を先に決める。欄の名は今の works（`blk-*/schemas/`・review-graph のノードの schema・`report.py`）から採り、E5・E17 と持ち主の決めが求める所だけ変えた。
+9 つのサブグラフを並べて移すための、メイングラフとの約束。サブグラフごとに、出力ノード（`returns:`）・`outcome_field`・出力の欄・受ける入力（`with:`）を先に決める。欄の名は今の works（`blk-*/schemas/`・review-graph のノードの schema・`report.py`）から採り、E5・E17 と持ち主の決めが求める所だけ変えた。
 
 - 正本: YAML が書けたら、型の正本は出力ノードの `output_format` とメイングラフの `with:`（持ち主の決め `io-in-output-format`）。このセクションは並べて書く間に名・型・読み手を揃えるための約束。YAML と食い違ったら、どちらが正しいかを決めて両方を合わせる。
 - 機械: メイングラフの `with:` が読む `$<include の id>.output.<欄>` が、そのサブグラフの出力ノードの `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`）が見る。まるごとの参照 `$<include の id>.output` を受ける script が読む欄の名（`boundary.picked` の名の並び）は validate が見られないので、`output_format` に在るかも E5 の機械が見る。`outcome_field` が `required` に在るかと、読み手の無い欄が無いかも E5 の機械（`tests/layers/test_block_returns.py`）が見る。下の「→」の読み手は、その試験を赤にしないための目録。
@@ -208,7 +211,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - ポインタは `{type: "archon_artifact", run_id, path}`（E5）。下では型を「ポインタ」と書く。
   - 2 つの形を持つサブグラフ（test-gate・merge）は、出力ノードを 1 つのまま `mode` の欄で形を返す。形に当たらない欄は null。
   - 「→ メイングラフ N」は「メイングラフ」の「順と承認ノード」の N 番の段（承認ノードの文か `when:`）が読む。「→ サブグラフ名」はそのサブグラフが `with:` で受ける。「→ メイングラフの出力」はメイングラフの出力ノード `result`（メイングラフの `returns: result`。report の出力を受けて返し直す）を通して、人（`bin/works-factory workflow get`）と、周の鎖 `works-factory-chain` の決めのノード（`outcome`・`next_request`）が読む。
-  - ポインタの先のファイルの中身は、欄が名指す今の works の同じ名のファイルの形のまま（新しい入れ物の形を作らない）。今の works が別のファイルに持っていた物は、同じフォルダの隣のファイルに置く。隣のファイルを名で開くのは、それを作ったサブグラフの中だけ。ほかのサブグラフとメイングラフが読む物は、作ったサブグラフが出力の型（`output_format`）の欄（中身か、ポインタ）として返し、メイングラフが `with:` で配線し、読む側はその形を入力（ポート）で受ける。読む側の入力の説明は形だけを書き、作り手を名指さない（E4）。読む側が自分の置き場へ写す時は自分の名で写す。judge・plan・fix の隣のファイルはそれぞれの「出力」の欄で返す。メイングラフの run の共有の置き場（試験の結果の控えと、利用者の HOME・XDG に戻して起こした印）は、メイングラフの始めのノード `start` が作って出力の欄で返し、メイングラフが入力でサブグラフへ渡す（サブグラフは自分の置き場の形から辿らない）。機械: `tests/layers/test_block_paths.py`（E4。`tests/layers/scan.py` の表 `NAME_HOMES` のサブグラフの置き場のファイルとメイングラフの共有の置き場を、持ち主の外が名指さない）。
+  - ポインタの先のファイルの中身は、欄が名指す今の works の同じ名のファイルの形のまま（新しい入れ物の形を作らない）。今の works が別のファイルに持っていた物は、同じフォルダの隣のファイルに置く。隣のファイルを名で開くのは、それを作ったサブグラフの中だけ。ほかのサブグラフとメイングラフが読む物は、作ったサブグラフが出力の型（`output_format`）の欄（中身か、ポインタ）として返し、メイングラフが `with:` で配線し、読む側はその形を入力（ポート）で受ける。読む側の入力の説明は形だけを書き、作り手を名指さない（E4）。読む側が自分の置き場へ写す時は自分の名で写す。judge・structure・plan・fix の隣のファイルはそれぞれの「出力」の欄で返す。メイングラフの run の共有の置き場（試験の結果の控えと、利用者の HOME・XDG に戻して起こした印）は、メイングラフの始めのノード `start` が作って出力の欄で返し、メイングラフが入力でサブグラフへ渡す（サブグラフは自分の置き場の形から辿らない）。機械: `tests/layers/test_block_paths.py`（E4。`tests/layers/scan.py` の表 `NAME_HOMES` のサブグラフの置き場のファイルとメイングラフの共有の置き場を、持ち主の外が名指さない）。
   - 次の隣のファイルは、まだ出力の欄に直していないので、ほかのサブグラフとメイングラフもこの名で開く: `review` の隣の `gate-passes.json`（修正前の承認ノードが聞かずに通した行。`lib/gatemarks.py` の `PASSES_FILE`）・`gate.json`（承認ノードの項目 `{kind, text}` の `items` と事前審査の壁打ちの往復の行 `converge`。`PLAN_GATE_FILE`。最後の承認ノードと報告が `gatemarks.converge_of` で開く）、eyes の `notes`（`premise-inputs.json`）の隣の `r4-gate-passes.json`（人が通したので R4 の問いから外した行。`lib/eyeverdict.py` の `GATE_PASSES`）・`premise-check.json`（名と形は eyes の出力の `notes`）、`design`（`design.json`）の隣の `design-premises.json`（独立設計の役に貼った物の控え `{node, given, withheld, seen, claims?}`。eyes が R2 の頭に独立設計の後に来た答えを分けて貼る）。
   - 直す前の結末のファイル（test-gate の `baseline` の先）は必須の欄 `{suite, test_cmd, rev, exit, cases}`。`suite` は始めの記録の `tdd_suite` の実行ファイル（無ければ `""`）、`cases` は JUnit の 1 件ごとの結末の並び。読み書きは `lib/baseline_red.py` の口だけ。test-gate は自分の欄（`junit_steps` ほか）を足してよい。base は走らせた形の行 `how`（根・宣言の準備と段・test_cmd の命令と頭の語の解けた先。`declared_checks.run_how`）も足し、fix が置き場に写して修正役と TDD の役の指示書に貼る（`fixboard.tests_how_text`。issue #687）。
   - 同じメイングラフの run の中の試験の結果の控えは、メイングラフの始めのノード `start` が run の成果物の置き場の直下に決めた置き場（`lib/tree_run.py` の `reuse_dir`。名は `REUSE_SUB`）に置く。置き場は `start` の出力 `reuse_dir` で、メイングラフが test-gate（base）と fix へ入力 `reuse_dir` で渡し、fix は組の子の run へ同じ値を渡す。鍵の run は始めの記録の `run_id`。test-gate の base が置いて引き、fix の組の子の run の TDD のループの頭が引いて置く。入力が空なら使い回さない（自分の置き場へ黙って倒さない）。最後のテスト（test-gate の final）は引かない。別のメイングラフの run の控えは引かない（持ち主の決め `reuse-results`）。
@@ -222,7 +225,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - メイングラフの中の id（`$<id>.output` の `<id>`。メイングラフを書く人とサブグラフを書く人がこの名で合わせる）:
   - メイングラフのノード: `start`（始めのノード）・`answer-start`・`answer-before-fix`・`answer-replan`・`answer-final`（承認ノードの答えの返しのノード。`{go, answer, stop_reason}`。`answer` はどの承認ノードも同じ形 `{decision, text, asked}`（承認ノードが開かず、推しでも進まなかったら null）で、`asked` は承認ノードが人に見せた項目の行（項目を持たない承認ノードは `[]`。読み手は `asked` の無い答えを別に読まない）。無人の run が承認ノードを開かずに推しで進んだ答えは、同じ形に欄 `pushed`（採った推しの並び `{item, answer, note, why}`。`lib/answer.py` の `PUSHED`）を足して持ち、`asked` は承認ノードに載るはずだった項目の行になる。欄 `pushed` の在る答えは人の答えでない（答えを別の形に写す読み手は `answer.origin` で欄を写し、人の答えと名乗る読み手は `answer.by_push` で分ける）。`answer-before-fix`（script `before_fix_answer`）の `asked` は `ask-before-fix` の出力 `asked`（承認ノードに載せた項目の文）で、承認ノードを通した答えなら始めの記録の欄 `policy` を事前審査が固め直した版（人が方針の文書の変化を通した時だけ変わる）で書き直し、`answer-replan`（script `replan_answer`）の `asked` は `ask-replan` の出力 `asked`（案の直しの承認ノードに見せた「項目 <id>: …」と事前審査の問いの行。報告と最後の承認ノードが項目ごとに人が承認したかを読む `lib/replan.amend_lines`）で、2 度目の修正に渡す `fix_answers` も返す）・`ask-before-fix`・`ask-replan`・`ask-final`（承認ノードを開くかと文を決める）・`plan-rounds`（計画の往復の `loop_group`）・`plan-out`（往復の終わりの返しのノード）・`<include の id>-out` と `plan-rounds-out`・`plan-rounds-review-out`（受け皿。サブグラフと往復の出力を `{got, stop_reason}` に受け直す。`collect` だけが読む。2 度目の修正 `refix-run` は受け皿を持たず、`collect` は `fixed` を通して読む）・`fix-in`（修正の段へ運ぶ値の中継。順の 7）・`after-fix`（案の直しと再審をinclude するか）・`judged`（judge か rejudge-run の単位と判定）・`fixed`（fix と refix-run の出力を合わせた物。`go` は試験の関門（final）へ進めるか）・`spec-check`（承認済みの受け入れ条件のテストが変わったかの照らし）・`redepth`（直した後の深さの上げ直し）・`collect`（報告へ渡す物を集める返しのノード）・`sweep-children`（後始末）・`result`（メイングラフの出力ノード）
   - 承認ノード: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（仕様の承認ノードは judge の中）。`decisions` は `approve`・`continue`・`stop`・`reject`（`reject` は `stop` と同じ。`decisions` に無いと、Archon は `reject` の答えを run の取り消しとして扱い、報告が出ない。止めた Archon の `packages/core/src/operations/workflow-operations.ts` 1633-1641 行）
-  - include: `test-gate-base`・`judge`・`plan`・`plan-review-run`・`design-only`（直す物が無い周の独立設計。plan-review を形 design で include する）・`fix`・`rejudge-run`（judge の再審）・`replan`・`replan-review`（案の直し）・`refix-run`（案の直しの後の 2 回目の修正。fix のサブグラフを 1 度だけ include する）・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`。include の名は、include する全サブグラフのループの中のノードの名と重ねない（Archon はループの中のノードの id に頭を付けず、メイングラフのinclude の名をループの中の `$<名>.output` までサブグラフの出力ノードへ書き換える。`include-expander.ts` の `renameIncludeRef`）。plan-review・fix・judge のループの中に `plan-review`・`refix`・`rejudge` のノードが在るので、メイングラフの側に `-run` を付ける。機械: `tests/workflows/test_line.py` の `test_include_ids_are_not_loop_body_ids`
+  - include: `test-gate-base`・`judge`・`structure`（構造の目。judge の後に 1 度）・`plan`・`plan-review-run`・`design-only`（直す物が無い周の独立設計。plan-review を形 design で include する）・`fix`・`rejudge-run`（judge の再審）・`replan`・`replan-review`（案の直し）・`refix-run`（案の直しの後の 2 回目の修正。fix のサブグラフを 1 度だけ include する）・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`。include の名は、include する全サブグラフのループの中のノードの名と重ねない（Archon はループの中のノードの id に頭を付けず、メイングラフのinclude の名をループの中の `$<名>.output` までサブグラフの出力ノードへ書き換える。`include-expander.ts` の `renameIncludeRef`）。plan-review・fix・judge のループの中に `plan-review`・`refix`・`rejudge` のノードが在るので、メイングラフの側に `-run` を付ける。機械: `tests/workflows/test_line.py` の `test_include_ids_are_not_loop_body_ids`
   - 同じサブグラフを 2 度 include する所の出力は include の id ごとに分かれる（U2）。`rejudge-run`・`replan`・`replan-review`・`refix-run`・`design-only` の出力は include したサブグラフと同じ形。後の段が fix の出力を読む所は `$fixed.output.<欄>`、judge の単位と判定を読む所は `$judged.output.<欄>`、plan と plan-review の出力を往復の外から読む所は `$plan-rounds.output.<欄>` を読む。ただし fix から後ろのノードは、直す前のテスト・1 回目の判定・計画の往復・修正前の承認ノードの答えを中継のノード `fix-in` の `$fix-in.output.<欄>` から読む（順と承認ノードの 7）。
 - メイングラフの始めのノード `start` の出力のうち、サブグラフが読むのは 4 つ:
   - `prior_failures`（ポインタ・null 可）: 前の run の持ち越しの前の失敗の行（始めのノードが依頼から `lib/carry` で置く、今の works の `prior-failures-in.json`）。無ければ null → judge・plan
@@ -242,7 +245,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - 出力:
   - `ready`（boolean）: 判定を受け付け、直す単位が 1 つ以上在る。false も正しい終わり → メイングラフ 5・report
   - `stop_reason`（string）: ready が false の訳（止めの理由の語 `lib/stop_reasons`）。ready なら `""` → report
-  - `units`（array）: 単位の目録。項目は `{id, paths, summary}`（今の works の `structure-units`）→ plan・plan-review・fix・eyes
+  - `units`（array）: 単位の目録。項目は `{id, paths, summary}`（今の works の `structure-units`）→ structure・plan・plan-review・fix・eyes
   - `judgment`（ポインタ）: 受け付けた判定の全体（今の works の `judgment.json`。review-graph の `p2.diagnose` の `units`・`questions`・`framing`・`one_shot`・`precedents` ほか）→ plan・plan-review・fix・eyes・メイングラフ 7（再審の前後の単位の比べ）・メイングラフ 11（保留にしたままの問い）
   - `purpose`（ポインタ）: 目的の固定（今の works の `purpose.json` と `purpose-means.json`）→ plan-review（R2 は目的の文だけから設計する）・eyes
   - `world`（ポインタ・null 可）: 定石の行（今の works の `world-row` の行の並び）。取れなかった時は null → plan・plan-review・eyes
@@ -268,6 +271,17 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
     - `rejudge_diff`: 往復ごとの単位の前後の差（`rejudge-diff.json`。`[{round, pass, verdict, changed, unnamed_changed, lowered}]`。`REJUDGE_DIFF`）。再審でない時は null → report（再審で変わった単位の行）
   - `optional`（array・required に入れない）: このサブグラフが落ちてもメイングラフが先へ進めてよいノード（世界の解の段・run の頭の深さの段）の宣言。項目は `{node, bare}`（`node` は judge の中のノードの id か、区切り `-` で終わる頭。`bare` はループの中のノードで、run の記録の step に include の前付けの無い素の id で載るか）。値は出力ノード `verdict` の `with:` の `optional`（JSON の字）を境の口 `boundary.items` で読んだ並びで、どの出力（約束の形のものも）にも載る。受け皿 `judge-out`・`rejudge-run-out` が運び、`collect` が include の id の頭を付けて report の入力 `optional` に合わせる（再審 `rejudge-run` も同じサブグラフなので同じ宣言）→ メイングラフの `collect`
 
+### structure の出力
+
+- 出力ノード `structure`・`outcome_field: ok`（今の works の `blk-structure` の出口 `collect`）。名と置き場の住処は `lib/structfile.py`（`PORTS`）
+- 入力（`with:`）:
+  - `start` ← `$start.output.record`（固めた方針の文書の写しを読む）
+  - `units` ← `$judge.output.units`（paths が空の単位は測らない）
+- 出力:
+  - `ok`（boolean）: 構造の目の控えの `status` が `ok`。false も正しい終わりで、計画は構造の目の行なしで進む（実測が落ちた・目が 3 回拒まれた・目の会話が落ちた。訳は控えの `reason`）→ report
+  - `structure`（ポインタ）: 構造の目の控え（`structure-state.json`。`{status, reason, design_file, wall_s, skipped}`。欄 `design_file` が構造の目の行 `design.jsonl`〔今の works の `design-row` の形〕を指し、`skipped` は paths が空で測らなかった単位の id。読み手は `design_file` と `skipped` から読み〔`lib/structmark.py` の口〕、隣を名で開かない）→ plan（`plan`・`replan`）・plan-review（構造の目が「人に上げる」とした行が修正前の承認ノードの問いになる。今の works と同じ）・メイングラフ 11・report
+  - `optional`（array・required に入れない）: このサブグラフの中のノード（構造の実測と構造の目）が落ちてもメイングラフが先へ進めてよい宣言。項目は `{node, bare}`（`node` は structure の中のノードの id か、区切り `-` で終わる頭。`bare` はループの中のノードで、run の記録の step に include の前付けの無い素の id で載るか）。値は出力ノード `structure` の `with:` の `optional`（JSON の字）を境の口 `boundary.items` で読んだ並びで、どの出力にも載る。受け皿 `structure-out` が運び、`collect` が include の id の頭を付けて report の入力 `optional` に合わせる → メイングラフの `collect`
+
 ### plan の出力
 
 - 出力ノード `plan`・`outcome_field: ready`（ASF の `W/plan/archon-plan.yaml`。ready が false も正しい終わり）
@@ -275,14 +289,14 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `start` ← `$start.output.record`
   - `units`・`judgment`・`world`・`spec` ← `$judge.output.<同じ名>`（`replan` は `$fix-in.output.<同じ名>`）
   - `verify`・`pr_excluded`・`depth_record`・`answer_ties`・`materials`・`decisions` ← `$judge.output.<同じ名>`（`replan` は `$fix-in.output.<同じ名>`。既定 `"null"`）: 修正案の材料（裏取りの申し送り・並行 PR の外した範囲・頭の深さの控え・記録された方針の決着済みの論点）と、直す義務の数えが読む問いの台帳の結びと素材の状態
+  - `structure` ← `$structure.output.structure`（`replan` は `$fix-in.output.structure`。既定 `"null"`）: 構造の目の控え。修正案の材料に構造の目の行と測らなかった単位を貼り、受け付けが汚れると見た行への答えを照らす。案の直しも同じ控えを受ける（構造は run に 1 回だけ測る）
   - `review` ← `$LOOP_PREV.plan-out.output.review`（往復の 2 回目から、前の周の plan-review の指摘。1 回目は空の字 `''`。Archon の `$LOOP_PREV` は 1 回目に空の字を渡す。`replan` では `''`）
   - `ruling` ← `$fix.output.replan_items`（`replan` の時だけ。`plan` では `[]`。形は `replan_items` の項目の番号の字）
   - `conflicts` ← `$fix.output.conflicts`（`replan` の時だけ。`plan` では null。裁定の文を案の直しの役に渡す）
   - `prior_failures` ← `$start.output.prior_failures`（judge と同じ前の失敗の行のポインタ。`plan`・`replan` の両方）
 - 出力:
-  - `ready`（boolean）: 修正案ができた（受け付けを通った）。false は 3 つ: 受け付けが網の回（`rolekit.NET_AFTER` の 20 回）まで拒み続けた時・直す義務の単位が無い時・行き止まりの単位が在る時。構造の目が「人に上げる」とした行は false にせず、`structure` で plan-review に渡り修正前の承認ノードの問いになる（今の works と同じ）。出力に false の訳を分ける語は持たない（欄を足さない）: 網の回の拒否と行き止まりは report がどちらも `stopped_by_line` にする。義務の単位が無い時は、メイングラフの `plan-out` と report がどちらも欄 `nothing_owed` を読み、直す物が無い周の尾（最後のテストと独立の目）へ進め、諦めに数えない（judge が単位を出したので結末は `round_limit`） → メイングラフ 5・report
+  - `ready`（boolean）: 修正案ができた（受け付けを通った）。false は 3 つ: 受け付けが網の回（`rolekit.NET_AFTER` の 20 回）まで拒み続けた時・直す義務の単位が無い時・行き止まりの単位が在る時。構造の目が「人に上げる」とした行は false にせず、structure の出力の `structure` で plan-review に渡り修正前の承認ノードの問いになる（今の works と同じ）。出力に false の訳を分ける語は持たない（欄を足さない）: 網の回の拒否と行き止まりは report がどちらも `stopped_by_line` にする。義務の単位が無い時は、メイングラフの `plan-out` と report がどちらも欄 `nothing_owed` を読み、直す物が無い周の尾（最後のテストと独立の目）へ進め、諦めに数えない（judge が単位を出したので結末は `round_limit`） → メイングラフ 5・report
   - `plan`（ポインタ）: 修正案。項目ごとの書いてよい範囲・受け入れテスト・定石と構造の行ごとの従うか外れの訳（今の works の `plan-fields.json`）→ plan-review・fix・eyes
-  - `structure`（ポインタ）: 構造の目の控え（`structure-state.json`。欄 `design_file` が構造の目の行 `design.jsonl`〔今の works の `design-row` の形〕を指す。読み手は `design_file` から辿り、隣を名で開かない）→ plan-review・メイングラフ 11・report
   - `ripple`（ポインタ）: 波及の一覧（今の works の `ripple.json`）→ plan-review・fix・eyes
   - `depth`（array）: 単位ごとの深さ。項目は `{unit_id, depth, why}`、depth は `軽量`・`標準`（今の works の `lib/depth`）→ メイングラフ（深さの決め）・fix
   - `round`（integer）: 何回目の案か（往復と案の直しを通して数える）→ report
@@ -290,7 +304,6 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `rejects`（array）: この周の受け付けが拒んだ行 `{at, reason, kind?}`（`rejects-plan.json` の行。`rolekit.reject_rows`）→ plan-review（`plan_rejects`。往復の行の rejects に写す。P120）・report（止めた段の最後の拒否）
   - `nothing_owed`（boolean）: 直す義務の単位が 0 件で役を起こさなかった周か（`round.json` の `why` が `planfile.NOTHING_OWED`）→ メイングラフの `plan-out`（`design-only` の `when`）・report
   - `gave_up`（array・null 可）: 案の直しの周で役が受け付けの網の回（`rolekit.NET_AFTER`）まで拒まれ続けた時の、渡した項目ごとの諦めの行 `{item, why, ruling}`（`replan-gave-up.json` と同じ中身。`planfile.note_gave_up`）。諦めていなければ null → report（P142）
-  - `optional`（array・required に入れない）: このサブグラフが落ちてもメイングラフが先へ進めてよいノード（構造の実測と構造の目）の宣言。項目は `{node, bare}`（`node` は plan の中のノードの id か、区切り `-` で終わる頭。`bare` はループの中のノードで、run の記録の step に include の前付けの無い素の id で載るか）。値は出力ノード `plan` の `with:` の `optional`（JSON の字）を境の口 `boundary.items` で読んだ並びで、どの出力（約束の形のものも）にも載る。計画の往復の中の `plan` の宣言は `plan-out` が外へ運び、受け皿 `plan-rounds-out`・`replan-out` が `collect` へ運ぶ。`collect` が include の id の頭を付けて report の入力 `optional` に合わせる → メイングラフの `collect`
 
 ### plan-review の出力
 
@@ -298,7 +311,8 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - 入力（`with:`）:
   - `units`・`judgment`・`purpose`・`world` ← `$judge.output.<同じ名>`（`replan-review` は `$fix-in.output.<同じ名>`）
   - `premises`・`materials`・`pr_excluded`・`purpose_review`・`decisions`・`purpose_means` ← `$judge.output.<同じ名>`（`replan-review` は `$fix-in.output.<同じ名>`。`design-only` は `premises`・`purpose_review`・`decisions` だけ。既定 `"null"`）
-  - `plan`・`structure`・`ripple` ← `$plan.output.<同じ名>`
+  - `plan`・`ripple` ← `$plan.output.<同じ名>`
+  - `structure` ← `$structure.output.structure`（`replan-review` は `$fix-in.output.structure`）: 構造の目の控え
   - `fix_plan` ← `$plan.output.fix_plan`・`plan_rejects` ← `$plan.output.rejects`（`replan-review` は `$replan.output.<同じ欄>`。`design-only` は渡さない。既定 `"null"`・`"[]"`）: 修正案の役の返答（形 review・replan では要り、null なら入力の名を挙げて落ちる）と、この周の受け付けの拒否の行（往復の行に残す）
   - `start` ← `$start.output.record`（無人の印・設計だけ・依頼のファイル・方針の文書・事前審査の木の既定・固めた版。承認ノードの材料と R2 の名指しのセクションが読む）
   - `answers` ← `$answer-start.output.answer`（R2 に貼る承認ノードの答え `{decision, text, asked}`。起動の承認ノードが開かなかった run は null）
@@ -441,9 +455,9 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 ### report の出力
 
 - 出力ノード `report`・`outcome_field: ok`（Archon の `outcome_field` は `required` の boolean だけを受けるので、結末の語 `outcome` とは別の欄にする。メイングラフは自分の出力ノード `result` で report の出力を受けて返す）
-- 入力（`with:`）: report の YAML の `inputs:` の 29 個（#682 で名を付け直した 8 つ〔直す前のテスト・最後のテスト・封じた差分・置いた差分と、承認の答え 4 つ〕は値の形の名で、メイングラフのノードの id ではない。どれも既定値 `""` と値の形の説明を持つ）。値はメイングラフの report の `with:` が `$collect.output.<collect の欄>` と結ぶ（メイングラフの返しのノード `collect` が、飛ばされうる全部の出力を `{from, if_skipped: null}` で受けて組み直した物。飛ばされた段は null。欄の名は collect の側の名で、ポートの名と同じ字とは限らない）:
+- 入力（`with:`）: report の YAML の `inputs:` の 30 個（#682 で名を付け直した 8 つ〔直す前のテスト・最後のテスト・封じた差分・置いた差分と、承認の答え 4 つ〕は値の形の名で、メイングラフのノードの id ではない。どれも既定値 `""` と値の形の説明を持つ）。値はメイングラフの report の `with:` が `$collect.output.<collect の欄>` と結ぶ（メイングラフの返しのノード `collect` が、飛ばされうる全部の出力を `{from, if_skipped: null}` で受けて組み直した物。飛ばされた段は null。欄の名は collect の側の名で、ポートの名と同じ字とは限らない）:
   - `start`（始めの記録のポインタ）
-  - サブグラフの出力（出力の欄の object か null）: `before-tests`（直す前のテスト）・`judge`・`rejudge`・`plan`・`plan-review`・`replan`・`replan-review-result`（案の直しの事前審査）・`fix`・`final-tests`（最後のテスト）・`eyes`・`sealed-diff`（差分を封じた出力）・`applied-diff`（差分を置いた出力）。`plan`・`plan-review` は計画の往復の受け皿 `plan-rounds-out`・`plan-rounds-review-out` の物（plan-review の欄が全部 null なら null。直す物が無い周は `plan-review` に `design-only` の受け皿 `design-only-out` の出力）。`fix` は 1 回目と 2 度目の修正を合わせたメイングラフのノード `fixed` の出力（段ごとの出力の控えの欄の並び `records`〔fix の出力の `diff` と控えの欄〕を報告は両方読む。`records` の無い出力〔`fixed` が飛ばされた時の 1 回目の出力〕は、その欄を 1 段として読む。申し出 `conflicts` はポインタの配列で、2 度目の修正が走れば 1 回目の行を写して持つ 2 度目の控え 1 つ。`objection` は 1 回目と 2 度目の修正役の異議をつないだ文で、再審は両方を受ける。再審が無いか答えの無い run の異議を report は再審されずに残った異議として読む）で、`fixed` が飛ばされた時は 1 回目の出力
+  - サブグラフの出力（出力の欄の object か null）: `before-tests`（直す前のテスト）・`judge`・`rejudge`・`structure`・`plan`・`plan-review`・`replan`・`replan-review-result`（案の直しの事前審査）・`fix`・`final-tests`（最後のテスト）・`eyes`・`sealed-diff`（差分を封じた出力）・`applied-diff`（差分を置いた出力）。`plan`・`plan-review` は計画の往復の受け皿 `plan-rounds-out`・`plan-rounds-review-out` の物（plan-review の欄が全部 null なら null。直す物が無い周は `plan-review` に `design-only` の受け皿 `design-only-out` の出力）。`fix` は 1 回目と 2 度目の修正を合わせたメイングラフのノード `fixed` の出力（段ごとの出力の控えの欄の並び `records`〔fix の出力の `diff` と控えの欄〕を報告は両方読む。`records` の無い出力〔`fixed` が飛ばされた時の 1 回目の出力〕は、その欄を 1 段として読む。申し出 `conflicts` はポインタの配列で、2 度目の修正が走れば 1 回目の行を写して持つ 2 度目の控え 1 つ。`objection` は 1 回目と 2 度目の修正役の異議をつないだ文で、再審は両方を受ける。再審が無いか答えの無い run の異議を report は再審されずに残った異議として読む）で、`fixed` が飛ばされた時は 1 回目の出力
   - 承認ノードの答え `{decision, text, asked}`（無人の run が推しで進んだ答えは欄 `pushed` も持つ）か null: `start-answer`・`before-fix-answer`・`replan-answer`・`final-answer`（`before-fix-answer` の `asked` で、報告は承認ノードが聞いた台帳の問いを答えたと読む）
   - メイングラフの値（部分 C。メイングラフの `collect` がメイングラフのノードの出力を `{from, if_skipped: null}` で受けて渡す）: `stops`（メイングラフの script のノードの止めの語 `{節: 語}`。入口の拒み `works:start-refused`・無人の run の `works:needs-human`・承認の後に受け入れ条件のテストが変わった `works:spec-changed`・メイングラフの script の例外 `works:line-script`・人の止め `human:<関所>`。語の住処は `lib/stopby.py` の表。`lib/outcome` が結末に入れる: `works:start-refused`・`works:line-script` は `stopped_by_line`、`works:needs-human`・`works:spec-changed` は `needs_human`、`human:` は `stopped_by_human`）・`prior-failures`（依頼の前の失敗のポインタ `$start.output.prior_failures`。報告の入口のノードに行を出す）・`deferred`（`ask-before-fix` の無人の run で承認ノードに載せなかった問い）・`widened`（`ask-replan` の聞かずに通した範囲を広げるだけの直し。字は `lib/replan.widen_text`）・`final-reasons`（`ask-final` の `reasons`）・`spec-changed`（`spec-check` の `questions`。報告の人が決めることの頭と次の依頼の下書きの行）・`spec-unchecked`（`spec-check` の `unchecked`。真なら頭と下書きの source が「照らせなかった」と言う）・`redepth`（`redepth` の出力。報告の入口のノードの深さの行 `lib/depth.lines`）・`optional`（受け止める段の宣言。include 丸ごと受け止める段はメイングラフの YAML の `collect` の `with:` の `optional` に、サブグラフの中のノード（judge・plan・fix の中の、世界の解・構造の実測・レンズ・頭の深さ）は各サブグラフの出力ノードの `with:` の `optional`（`[{node, bare}]` の JSON の字。`bare` はループの中のノードで、記録の step に include の前付けの無い素の id で載るか）に書き、出力の欄 `optional` で受け皿（`judge-out`・`rejudge-run-out`・`plan-rounds-out`・`replan-out`・`fix-out`）が `collect` へ運び、`collect` が include の id の頭（`judge`・`rejudge-run`・`plan`・`replan`・`fix`・`refix-run`。継ぎの字は `childsweep.INCLUDE_SEP`）を付けてメイングラフの宣言と重ねずに合わせる。report の入力には、区切り（`__`・`-`）で終わるノードの id の頭か、ノードの id そのもの（そのループの中のノードも含む）の並びで届き（区切りの無い頭は、名の頭が同じ止める段まで受け止めてしまう。`lib/runreport.py` の `_declared`）、宣言の外で落ちたノードは後にメイングラフが進んでも途中で終わった落ち `interrupted` に数える。サブグラフの宣言が届かない run〔受け皿が null・境の口を読めずに約束の形だけを返した出力・差し替えの出力に `optional` が無い〕では、そのサブグラフの中の受け止める段の落ちも宣言の外として途中で終わった落ち `failed` に数え、報告は落ちたノードそのものを名指す。受け止めの狭めは人が受け入れた（#682。結末の語は変わらず、stop_reason の先頭のノードの名と、報告の落ちたノードの並びは変わりうる。落ちたノードは報告に名指されるので黙って落ちない）。元 `report.split_fallen`）・`notices`（run を止めずに進めた起こす前の注意の行の並び。どのノードの出力かはメイングラフの YAML の `collect` の `with:` だけが書き（今は頭のノード `testcmd` の `reason`）、`collect` が行に割る。報告の冒頭の 3 行と人が決める物の下に 1 行ずつ載る）。2 度目の修正の段の行は `fix`（メイングラフのノード `fixed` の出力）が運ぶ
   - `stages`（段の表。メイングラフの `collect` が script `collect.py` の `STAGES` を値で渡す。`{nodes: {役の名: ノードの名}, links: [{before, flag, after, text, held?, needs?}]}`。`nodes` はノードの名が役の名と違う役だけを写し〔`final-tests` → `test-gate-final` など〕、報告の文と止めの語の「<段のノードの名>:<語>」はこの表で描く。`links` は出力の続きで、`before` の出力の欄 `flag`（null は出力が在るだけ）が真なのに `after` の出力が無い run を途中で終わった `interrupted` と読む。`held` は `before` の出力のその欄が偽なら数えず〔メイングラフが意図して後の段を飛ばした周〕、`needs` はその役の出力が無い周は数えない。lib は段の順もノードの名も持たない。届かない・表の形でなければ、facts は結果を名乗らせない〔`record_invalid`〕）
@@ -495,12 +509,21 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - lib: `judge_accept`・`premises`・`purpose`・`world`（定石の行の形も持つ）・`webget`・`parallel_pr`・`class_query`・`out_of_purpose`・`cite`・`reads`・`headdepth`・`launchgroups`（頭の深さの役の群の選びの照らし）。
 - 埋め: 無し。
 
+### structure（構造）
+
+- 目的: 構造の目。単位が名指すファイルを実測し（段 A）、道具なしの別の会話が直し方が構造を汚すかを単位ごとに判定する。judge の後に run に 1 回だけ走り、計画の往復・案の直し・事前審査が同じ控えを受ける。
+- ASF で読む物: 無し（今の works の `blk-structure` を移す）。
+- 入力: 始めの記録・単位の目録。
+- 役（`commands/`）: `structure-eye`。
+- lib: `structfile`（置き場の名の住処と段 A の実測・控えの書き手）・`stage_a`・`context`・`eye`・`structmark`（控えの形と読み口）。
+- 埋め: 無し。
+
 ### plan（計画）
 
-- 目的: 構造の目（単位が名指すファイルを実測し、直し方が構造を汚すか）と修正案（項目ごとの書いてよい範囲・受け入れテスト・定石と構造の行ごとに従うか外れの訳）と波及の一覧。案の直し（裁定の後の 1 度）も同じサブグラフを include する。
+- 目的: 修正案（項目ごとの書いてよい範囲・受け入れテスト・定石と構造の目の行ごとに従うか外れの訳）と波及の一覧。案の直し（裁定の後の 1 度）も同じサブグラフを include する。
 - ASF で読む物: `W/plan/archon-plan.yaml`（`returns: plan`・`outcome_field: ready`・`ready: false` も正しい終わり）。
-- 入力: 判定・事前審査の指摘（往復の 2 回目から）。
-- 役（`commands/`）: `structure-eye`・`fix-plan`。
+- 入力: 判定・構造の目の控え・事前審査の指摘（往復の 2 回目から）。
+- 役（`commands/`）: `fix-plan`。
 - lib: `plan_fields`（修正案の項目の欄の照らし）・`impact`・`depth`（機械の確かめが在るか）。
 - 埋め: 無し。
 
@@ -614,7 +637,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 
 ### plan・plan-review
 
-- 構造の目: `blk-structure`・`structmark.py`・`concepthome.py` → plan・`commands/structure-eye`
+- 構造の目: `blk-structure`・`structmark.py`・`concepthome.py` → structure・`commands/structure-eye`
 - 修正案: `blk-plan`・`planmarks.py` → plan・`commands/fix-plan`・`lib/plan_fields`
 - 波及の一覧: `blk-plan/lib/ripple.py`・`impact.py` → plan・`lib/impact`
 - 案の直し: `replan.py` → plan（裁定の後の 1 度）
@@ -796,7 +819,8 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 個別:
 
 - `judge`: 前提・目的・定石・素材集め（`commands/material-*`）・診断・裏取り・再審・仕様の段が動く。受け付けが拒めば 3 回まで出し直す。定石の抜き書きが出どころに在ることを機械が照らす。目的の外の所見が持ち越しの行になる。
-- `plan`: 構造の目と修正案と波及の一覧。項目ごとに書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳が無ければ受け付けが拒む。案の直しの入力で 2 度目を include できる。
+- `structure`: 構造の目。judge の後に 1 回だけ走り、目の返答を 3 回まで出し直させ、落ちても計画は構造の目の行なしで進む。
+- `plan`: 修正案と波及の一覧。項目ごとに書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳が無ければ受け付けが拒む。案の直しの入力で 2 度目を include できる。
 - `plan-review`: R2 の独立設計は道具なしで目的の文だけを受ける（禁じた入力が届かないことを試験で縛る）。4 つの軸と人への問いを返す。往復の止め（同じ中央の block が続けば止め、2 往復目から開いた block に中央の穴が無ければ端の穴を申し送って通す。往復の数と block の数では止めず、安全の網 20 周の周は工場の不具合として止める）が働く。
 - `fix`: 赤緑の機械の判定・元から赤の区別・凍結・範囲の照らしと相談・書き込みの出どころ・3 回で諦める・申し出と裁定・差分の審査と手直し 2 往復。組は `fan_out:` で並べ、幅は計画（組の数）から決まり、組は分けない。並べの数の上限は持つが、固定の枝の数・待ちの列・錠は持たない。
 - `test-gate`: base と final の 2 つの形。赤の原因を 3 つに分け、今回入れた赤と原因の無い赤を拒む。緑の認証に作業ツリーの指紋が入り、木が変われば認証が使えない。

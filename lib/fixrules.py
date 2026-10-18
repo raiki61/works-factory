@@ -343,7 +343,7 @@ def brief_halt(err) -> str:
 
 def briefs_or_halt(b, **sources) -> list:
     """置き場 b の brief（planbrief.cut。修正案の欄の控えが無い run は []）。sources は planbrief.cut の材料（plan・judgment・
-    purpose・structure_dir・round_）。控えが壊れていれば理由の ValueError（黙って brief の無い指示書にしない）"""
+    purpose・structure・round_）。控えが壊れていれば理由の ValueError（黙って brief の無い指示書にしない）"""
     try:
         return planbrief.cut(b, **sources)
     except planbrief.LedgerBroken as e:

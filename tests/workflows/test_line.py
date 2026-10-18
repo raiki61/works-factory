@@ -79,7 +79,7 @@ import structmark  # noqa: E402
 SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
-BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
+BLOCKS = ("judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
 ROUND_LIMIT = 20
 
 
@@ -123,7 +123,7 @@ def line_nodes(nodes=None) -> dict:
     return got
 
 
-RETURNING = {"judge": "judge", "rejudge": "judge", "plan": "plan", "replan": "plan", "fix": "fix"}   # collect の欄 → その返りを返すブロック
+RETURNING = {"judge": "judge", "rejudge": "judge", "structure": "structure", "fix": "fix"}   # collect の欄 → その返りを返すブロック
 
 
 def block_optional(block: str) -> list:
@@ -704,7 +704,8 @@ class FixInCase(Artifacts):
     JUDGE = {"units": [{"id": "u1"}], "judgment": {"path": "judge/judgment.json"}, "purpose": None, "world": None, "spec": None,
              "rejudge_verdict": "", "depth": "軽量", **dict.fromkeys(judge_accept.PORTS), **dict.fromkeys(judge_accept.FIRST_PORTS),
              "materials": {"path": "judge/materials.json"}}
-    PLAN = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "depth": [], "structure": None,
+    STRUCTURE = {"ok": True, "structure": {"path": "structure/structure-state.json"}}
+    PLAN = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "depth": [],
             "fix_plan": {"path": "plan/p2.fix_plan.json"}, "rejects": [], "nothing_owed": False, "gave_up": None}
     REVIEW = {"review": {"path": "plan-review/review.json"}, "design": {"path": "plan-review/design.json"}, "questions": []}
     ANSWER = {"decision": "continue", "text": "q1 は a", "asked": []}
@@ -718,6 +719,7 @@ class FixInCase(Artifacts):
         got = {f"INPUTS_{name.upper()}": "null" for name in line_nodes()["fix-in"]["with"]}
         got.update({"INPUTS_TEST_GATE_BASE": json.dumps({"got": self.BASE, "stop_reason": ""}),
                     "INPUTS_JUDGE": json.dumps({"got": self.JUDGE, "stop_reason": ""}),
+                    "INPUTS_STRUCTURE": json.dumps({"got": self.STRUCTURE, "stop_reason": ""}),
                     "INPUTS_PLAN": json.dumps({"got": self.PLAN, "stop_reason": ""}),
                     "INPUTS_PLAN_REVIEW": json.dumps({"got": self.REVIEW, "stop_reason": ""}),
                     "INPUTS_BEFORE_FIX_ANSWER": json.dumps(self.ANSWER), "INPUTS_DEFERRED": json.dumps([{"key": "q9"}]),
@@ -731,12 +733,14 @@ class FixInCase(Artifacts):
     def test_live_run_flattens_the_receivers_and_captures_once_it_goes(self):
         got = self.run_in(before_fix_go="true")
         self.assertEqual((got["go"], got["received"]), (True, None))
-        self.assertEqual((got["baseline"], got["units"], got["plan"], got["review"], got["answer"], got["deferred"], got["head_depth"]),
-                         (self.BASE["baseline"], self.JUDGE["units"], self.PLAN["plan"], self.REVIEW["review"], self.ANSWER,
-                          [{"key": "q9"}], "軽量"))
+        self.assertEqual((got["baseline"], got["units"], got["structure"], got["plan"], got["review"], got["answer"], got["deferred"],
+                          got["head_depth"]),
+                         (self.BASE["baseline"], self.JUDGE["units"], self.STRUCTURE["structure"], self.PLAN["plan"],
+                          self.REVIEW["review"], self.ANSWER, [{"key": "q9"}], "軽量"))
         man = json.loads((self.artifacts / fixture.DIR / fixture.MANIFEST).read_text(encoding="utf-8"))
-        self.assertEqual(man["carried"], {"test_gate_base": self.BASE, "judge": self.JUDGE, "plan": self.PLAN,
-                                          "plan_review": self.REVIEW, "gate_before_fix": self.ANSWER, "deferred": [{"key": "q9"}]})
+        self.assertEqual(man["carried"], {"test_gate_base": self.BASE, "judge": self.JUDGE, "structure": self.STRUCTURE,
+                                          "plan": self.PLAN, "plan_review": self.REVIEW, "gate_before_fix": self.ANSWER,
+                                          "deferred": [{"key": "q9"}]})
 
     def test_live_run_that_does_not_go_does_not_capture(self):
         got = self.run_in(before_fix_go="false")
@@ -744,8 +748,8 @@ class FixInCase(Artifacts):
         self.assertFalse((self.artifacts / fixture.DIR).exists())
 
     def test_fixture_run_carries_the_copy_and_goes_on_the_start_gate(self):
-        received = {"test_gate_base": self.BASE, "judge": self.JUDGE, "plan": self.PLAN, "plan_review": self.REVIEW,
-                    "gate_before_fix": self.ANSWER, "deferred": []}
+        received = {"test_gate_base": self.BASE, "judge": self.JUDGE, "structure": self.STRUCTURE, "plan": self.PLAN,
+                    "plan_review": self.REVIEW, "gate_before_fix": self.ANSWER, "deferred": []}
         (self.artifacts / fixture.CARRIED).write_text(json.dumps(received), encoding="utf-8")
         pointer = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": fixture.CARRIED})
         got = self.run_in(fixture=pointer, start_go="true", before_fix_go="null", test_gate_base="null", judge="null")
@@ -1808,21 +1812,21 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn("考えの住処の柵の数が増えた（1 件", text.splitlines()[0])
 
     def test_failed_structure_is_marked(self):
-        """L-W09: 計画の構造の目が落ちた周（計画の返り structure の先の structure-state.json が status: failed）は、計画を止めずに
+        """L-W09: 構造の目が落ちた run（構造のブロックの返り structure の先の structure-state.json が status: failed）は、計画を止めずに
         進め、最後の関所に「構造のブロック: 構造の目の行なしで計画した（理由: …）」を出す"""
-        ptr = self.place("plan/structure/structure-state.json", {"status": "failed", "reason": "構造の目の役が落ちた",
+        ptr = self.place("structure/structure-state.json", {"status": "failed", "reason": "構造の目の役が落ちた",
                                                                   "design_file": "", "wall_s": 0})
         missing = ask_final.structure_missing(ptr)
         self.assertEqual(missing, "構造の目の行なしで計画した（理由: 構造の目の役が落ちた）")
         self.assertIn(f"- 構造のサブグラフ: {missing}", ask_final.final_text(final_got(structure_missing=missing), [], RUN))
-        ok = self.place("plan/structure/structure-state.json", {"status": "ok", "reason": "", "design_file": "", "wall_s": 0})
+        ok = self.place("structure/structure-state.json", {"status": "ok", "reason": "", "design_file": "", "wall_s": 0})
         self.assertEqual(ask_final.structure_missing(ok), "")
         self.assertEqual(line_nodes()["ask-final"]["with"]["structure"], {"from": "$fix-in.output.structure", "if_skipped": None})
 
     def test_failed_structure_reaches_the_gate_text_from_the_with_keys(self):
-        """L-W09: 計画の構造の目が落ちた周は、ノード ask-final が with: の structure（$plan-rounds.output.structure）の先を読み、開いた
+        """L-W09: 構造の目が落ちた run は、ノード ask-final が with: の structure（$fix-in.output.structure）の先を読み、開いた
         最後の承認ノードの文に「構造のブロック: …」の行が届く（with: の鍵を読むかだけでなく、文まで）"""
-        ptr = self.place("plan/structure/structure-state.json", {"status": "failed", "reason": "構造の目の役が落ちた",
+        ptr = self.place("structure/structure-state.json", {"status": "failed", "reason": "構造の目の役が落ちた",
                                                                   "design_file": "", "wall_s": 0})
         env = self.null_env(structure=ptr, final_gate="always", unattended="false", tests={"ok": True, "green": True}, seal={"ok": True})
         with mock.patch.dict(os.environ, env):
@@ -3016,8 +3020,7 @@ class CollectAndResultCase(unittest.TestCase):
         review = {key: None for key in plan_out.REVIEW}
         got = collect.collect({"plan": json.dumps({"got": plan, "stop_reason": ""}),
                                "plan_review": json.dumps({"got": review, "stop_reason": ""})}, self.line())
-        self.assertNotIn("optional", got["plan"], "宣言の欄は report への欄から外れる")
-        self.assertEqual(got["plan"], {key: value for key, value in plan.items() if key != "optional"})
+        self.assertEqual(got["plan"], plan)
         self.assertIsNone(got["plan_review"])
 
     def test_fixture_run_fills_the_skipped_stages_from_the_copy(self):
@@ -3057,7 +3060,7 @@ class CollectAndResultCase(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, planfile.PRIOR_VERSION):
                         collect.collect({name: json.dumps({"got": {**plan, field: None}, "stop_reason": ""})}, self.line())
                 self.assertEqual(collect.collect({name: json.dumps({"got": plan, "stop_reason": ""})}, self.line())[name], plan)
-        fell = {key: plan_out.fallback("x")[key] for key in plan_out.PLAN if key != "optional"}
+        fell = {key: plan_out.fallback("x")[key] for key in plan_out.PLAN}
         self.assertEqual(collect.collect({"plan": json.dumps({"got": fell, "stop_reason": ""})}, self.line())["plan"], fell)
         fix = {"done": True, **FixedCase.fix(FixedCase())}
         with self.assertRaisesRegex(ValueError, fixbeside.PRIOR_VERSION):
@@ -3172,14 +3175,14 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual(own, ["eyes__"])
         self.assertEqual(collect.collect({}, self.line(optional=json.dumps(own)))["optional"], own)
         declared = declared_by_blocks()
-        for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth"):
+        for stage in ("judge__world-", "structure__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
 
     def test_optional_is_built_from_each_blocks_declaration(self):
         before = ["judge__world-", "rejudge-run__world-", "world-classes", "world-classes-", "world-judge", "world-judge-",
-                  "plan__structure-", "replan__structure-", "structure-eye", "structure-eye-", "fix__lens", "fix__lens-reply",
+                  "structure__structure-", "structure-eye", "structure-eye-", "fix__lens", "fix__lens-reply",
                   "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-"]
         own = line_nodes()["collect"]["with"]["optional"]
         self.assertEqual(json.loads(own), ["eyes__"])
@@ -3187,7 +3190,7 @@ class CollectAndResultCase(unittest.TestCase):
         ports = {**dict.fromkeys(judge_accept.PORTS), **dict.fromkeys(judge_accept.FIRST_PORTS)}
         plan_ports = {"fix_plan": None, "rejects": [], "nothing_owed": False, "gave_up": None}
         fix_ports = {**dict.fromkeys(fixbeside.PORTS), "removed": [], "tdd_refused": {"refused": [], "unread": []}}
-        block_ports = {"judge": ports, "rejudge": ports, "plan": plan_ports, "replan": plan_ports, "fix": fix_ports}
+        block_ports = {"judge": ports, "rejudge": ports, "structure": {}, "fix": fix_ports}
         returned = {field: {"ready": True, "units": [], **block_ports[field]} for field in RETURNING}
         receipts = {field: json.dumps({"got": {**returned[field], "optional": block_optional(block)}, "stop_reason": ""})
                     for field, block in RETURNING.items()}
@@ -3238,7 +3241,7 @@ class CollectAndResultCase(unittest.TestCase):
     def test_declared_range_moved_only_off_the_lens_prep_and_collect(self):
         """#599: 宣言を区切りつきの頭か名そのものに改めた時、受け止める範囲から外れたのは止める段のレンズの支度と集め役だけで、
         ループの中の節（記録の step では素の id）を含むほかの節の受け止めは前の宣言（区切りの無い頭の一致）と変わらない"""
-        before = ["judge__world", "rejudge-run__world", "world-classes", "world-judge", "plan__structure", "replan__structure",
+        before = ["judge__world", "rejudge-run__world", "world-classes", "world-judge", "structure__structure-",
                   "structure-eye", "fix__lens", "refix-run__lens", "eyes__", "judge__head-depth", "head-depth"]
         declared = declared_by_blocks()
         steps = record_steps()
@@ -3576,7 +3579,7 @@ class LineWiringCase(unittest.TestCase):
     def test_receiver_body_is_written_once(self):
         """受け皿の本体（script・runtime・timeout・output_format）は YAML の字に 1 度だけ在り、ほかの受け皿はアンカーで受ける"""
         self.assertEqual(len(re.findall(r"^\s*script: returned\s*$", LINE_TEXT, re.M)), 1)
-        self.assertEqual(sum(node.get("script") == "returned" for node in line_nodes().values()), 13)
+        self.assertEqual(sum(node.get("script") == "returned" for node in line_nodes().values()), 14)
 
     def test_receivers_take_every_field_of_what_they_receive(self):
         """受け皿は、受ける節の出力をまるごとの got: $<dep>.output で受け、運ぶ欄の names の組はブロックの返す節の output_format の
@@ -3621,8 +3624,8 @@ class LineWiringCase(unittest.TestCase):
                     self.assertIn(f"${name}.output", reads)
             self.assertFalse(any(f"${key}.output" in v for v in reads), "collect がブロックの返りを直に読む")
 
-    def test_line_includes_the_eight_blocks(self):
-        """線が差し込むのは 8 つのブロックで、どれも workflows/ に在る（無ければ block_doc が落ちて赤）"""
+    def test_line_includes_the_nine_blocks(self):
+        """線が差し込むのは 9 つのブロックで、どれも workflows/ に在る（無ければ block_doc が落ちて赤）"""
         includes = {node["include"] for node in line_nodes().values() if "include" in node}
         self.assertEqual(includes, {f"works-factory-{name}" for name in BLOCKS})
         for name in sorted(includes):
@@ -3829,7 +3832,7 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual([node["with"]["ruling"] for node in includes], [[], "$fix.output.replan_items"])
         with tempfile.TemporaryDirectory() as tmp:
             tmp = pathlib.Path(tmp)
-            return [planfile.open_round(tmp / "plan", ruling=ruling, judgment=None, review=None, units=[], repo=tmp, why="試験")["dir"]
+            return [planfile.open_round(tmp / "plan", ruling=ruling, judgment=None, review=None, why="試験")["dir"]
                     for ruling in ([], ["1"])]
 
     def fix_places(self, includes, keys) -> list:
@@ -3965,7 +3968,7 @@ class LineWiringCase(unittest.TestCase):
             return got
 
         includes = {key for key, node in line_nodes().items() if "include" in node}
-        self.assertEqual(len(includes), 15)
+        self.assertEqual(len(includes), 16)
         self.assertEqual(includes & body_ids(LINE["nodes"]), set())
 
     def test_report_reruns_on_resume(self):
@@ -4088,6 +4091,36 @@ class HandoffCase(unittest.TestCase):
         """元 works/tests/test_line_a.py:503 の「判定と修正案の役にだけ」: 前の失敗を渡す差し込みは HANDOFFS の 4 つだけ"""
         given = {key for key, node in line_nodes().items() if "include" in node and PRIOR in (node.get("with") or {}).values()}
         self.assertEqual(given, {key for _, key, name, want in self.HANDOFFS if name == "prior_failures" and want == PRIOR})
+
+
+class StructureOnceCase(unittest.TestCase):
+    """構造のブロックは judge の後に 1 回だけ差し込み、計画の往復・案の直し・事前審査は同じ控えを入力 structure で受ける（#560。
+    元 works/darkfactory/darkfactory.yaml:443-466 の「構造は run で 1 度、planning の前」）"""
+
+    def test_structure_runs_once_and_every_plan_reads_it(self):
+        nodes = line_nodes()
+        once = [nid for nid, n in nodes.items() if n.get("include") == "works-factory-structure"]
+        self.assertEqual(once, ["structure"])
+        self.assertEqual((nodes["structure"]["depends_on"], nodes["structure"]["when"]), (["judge"], "$judge.output.ready == true"))
+        self.assertNotIn("loop_group", nodes["structure"])
+        rounds = {n["id"] for n in nodes["plan-rounds"]["loop_group"]["nodes"]}
+        self.assertNotIn("structure", rounds, "往復の中で測り直さない")
+        self.assertEqual(nodes["plan"]["with"]["structure"], "$structure.output.structure")
+        self.assertEqual(nodes["plan-review-run"]["with"]["structure"], "$structure.output.structure")
+        self.assertEqual(nodes["replan"]["with"]["structure"], "$fix-in.output.structure")
+        self.assertEqual(nodes["replan-review"]["with"]["structure"], "$fix-in.output.structure")
+        self.assertEqual(nodes["fix-in"]["with"]["structure"], {"from": "$structure-out.output", "if_skipped": None})
+        self.assertEqual(fix_in.FLAT["structure"], ("structure", "structure"))
+
+    def test_plan_waits_for_the_structure_output(self):
+        """構造のブロックの返す節そのものが落ちた run は、計画の落ちと同じく計画なしで修正へ進まない（往復は既定の trigger_rule で
+        構造のブロックに頼る。中の節の落ちは返す節が失敗の控えに替えるので往復を止めない）"""
+        rounds = line_nodes()["plan-rounds"]
+        self.assertIn("structure", rounds["depends_on"])
+        self.assertNotIn("trigger_rule", rounds)
+        self.assertEqual(block_doc("works-factory-structure")["returns"], "structure")
+        returned = next(n for n in block_doc("works-factory-structure")["nodes"] if n["id"] == "structure")
+        self.assertEqual(returned["trigger_rule"], "all_done")
 
 
 if __name__ == "__main__":

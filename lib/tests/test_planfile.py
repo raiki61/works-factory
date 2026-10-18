@@ -22,7 +22,6 @@ from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import carry  # noqa: E402
 import conflict  # noqa: E402
 import converge  # noqa: E402
-import eye  # noqa: E402
 import handoff  # noqa: E402
 import planblk  # noqa: E402
 import rolekit  # noqa: E402
@@ -519,26 +518,6 @@ class ReplanInputsCase(TmpCase):
             self.assertEqual([c["id"] for c in planfile.conflict_rows({"items": rows}, 1, item(MEAN))], ["c1"])
         self.assertFalse(hasattr(planfile, "REPLAN_DECISION"))
 
-    def test_replan_structure_is_the_source_rounds(self):
-        """直す元の周の round.json の structure を使う（後から書いたほかの鍵の控えに倒れない）"""
-        plan = self.tmp / "plan"
-        self.write("plan/r1/round.json", {"round": 1, "mode": "plan", "structure": "structure/aaa"})
-        self.write("plan/structure/aaa/structure-state.json", {"status": "ok"})
-        self.write("plan/structure/bbb/structure-state.json", {"status": "ok"})
-        self.assertEqual(planfile.structure_dir(plan, [], self.tmp, plan / "r1"), plan / "structure" / "aaa")
-
-    def test_round_without_role_gets_its_own_structure_folder(self):
-        plan = self.tmp / "plan"
-        got = planfile.open_round(plan, ruling=[], judgment=None, review=None, units=[], repo=self.tmp)
-        self.assertEqual((got["go"], got["structure"]), (False, "r1/structure"))
-        state = planfile.write_state(plan / got["structure"], skipped=got["why"])
-        doc = json.loads(state.read_text(encoding="utf-8"))
-        self.assertEqual(doc["status"], "failed")
-        self.assertIn("判定が読めない", doc["reason"])
-        self.assertEqual((plan / "r1" / "structure" / planfile.DESIGN_FILE).stat().st_size, 0)
-        self.assertFalse((plan / planfile.STRUCTURE_DIR / "unread").exists())
-
-
 class WorldRowsCase(TmpCase):
     def test_world_of_two_rows_is_read_as_json_lines(self):
         """#295: 判定の world.jsonl は行ごとの JSON。2 行を 1 つの JSON として読む読み手はここで落ちる"""
@@ -582,7 +561,7 @@ class VerifyNeighborCase(TmpCase):
         rd = self.tmp / "plan" / "r1"
         rd.mkdir(parents=True)
         path, _ = planfile.write_brief(rd, self.tmp / "plan", mode="plan", judgment=judgment, judgment_file=jdir / "judgment.json", units=[],
-                                       structure_dir_=self.tmp / "s", world_rows=None, spec=None, repo=self.tmp, review_rev="", base="",
+                                       structure=None, world_rows=None, spec=None, repo=self.tmp, review_rev="", base="",
                                        review_md="", lang_line=rolekit.lang_line({}), verify_file=jdir / "judge-verify.json")
         text = path.read_text(encoding="utf-8")
         self.assertIn(f"{planblk.VERIFY_HEAD}\n\n{planblk.VERIFY_ASK}", text)
@@ -598,7 +577,7 @@ class HeadDepthNeighborCase(TmpCase):
         rd = self.tmp / root / "plan" / "r1"
         rd.mkdir(parents=True)
         path, _ = planfile.write_brief(rd, self.tmp / root / "plan", mode="plan", judgment=self.JUDGMENT, judgment_file=judgment_file, units=[],
-                                       structure_dir_=self.tmp / "s", world_rows=None, spec=None, repo=self.tmp, review_rev="", base="",
+                                       structure=None, world_rows=None, spec=None, repo=self.tmp, review_rev="", base="",
                                        review_md="", lang_line=rolekit.lang_line({}), depth_file=depth_file)
         return path.read_text(encoding="utf-8")
 
@@ -635,12 +614,12 @@ class RevisedFieldsCase(TmpCase):
 
 
 class RoundCase(TmpCase):
-    """ブロックの名の小道具: 周の番号・一番新しい案の周・構造の実測の使い回しの鍵"""
+    """ブロックの名の小道具: 周の番号・一番新しい案の周"""
 
     def test_next_round_counts_round_folders(self):
         self.assertEqual(planfile.next_round(self.tmp / "plan"), 1)
         (self.tmp / "plan" / "r1").mkdir(parents=True)
-        (self.tmp / "plan" / "structure").mkdir()
+        (self.tmp / "plan" / "ripple").mkdir()
         self.assertEqual(planfile.next_round(self.tmp / "plan"), 2)
 
     def test_latest_is_newest_round_with_accepted_plan(self):
@@ -649,15 +628,6 @@ class RoundCase(TmpCase):
         self.write("r10/" + planfile.REPLY_FILE, {"plan": []})
         self.assertEqual(planfile.latest(self.tmp), self.tmp / "r10")
         self.assertIsNone(planfile.latest(self.tmp / "none"))
-
-    def test_structure_key_follows_units_and_head(self):
-        units = [{"id": "u", "paths": ["stats.py"], "summary": ""}]
-        key = planfile.structure_key(units, "a" * 40)
-        self.assertEqual(len(key), 12)
-        self.assertEqual(key, planfile.structure_key(json.loads(json.dumps(units)), "a" * 40))
-        self.assertNotEqual(key, planfile.structure_key(units, "b" * 40))
-        self.assertNotEqual(key, planfile.structure_key([], "a" * 40))
-
 
 class TakePlanCase(TmpCase):
     """修正案の役の返答の受け付け（元 planblk.take・with_plan_fields。元 tests/test_blk_plan.py の test_take_malformed_plan_resubmits_not_raises・
@@ -670,8 +640,7 @@ class TakePlanCase(TmpCase):
         self.base = git(self.repo, "rev-parse", "HEAD")
         self.plan_dir = self.tmp / "plan"
         self.round = self.plan_dir / "r1"
-        self.write("plan/r1/round.json", {"round": 1, "mode": "plan", "go": True, "why": "", "items": [],
-                                          "structure": "structure/k"})
+        self.write("plan/r1/round.json", {"round": 1, "mode": "plan", "go": True, "why": "", "items": []})
         self.write("plan/r1/slots.json", planfile.slots(judgment()))
         planfile.snap_tree(self.round / planfile.TREE_FILE, self.repo)
 
@@ -758,7 +727,7 @@ class WholePlanTakeCase(TmpCase):
         self.write("plan/r1/round.json", {"round": 1, "mode": "plan"})
         self.write("plan/r1/reply.json", {"plan": [item(MEAN, CLAMP), item(ASKED)]})
         self.round = self.plan_dir / "r2"
-        self.write("plan/r2/round.json", {"round": 2, "mode": "plan", "go": True, "why": "", "items": [], "structure": "structure/k"})
+        self.write("plan/r2/round.json", {"round": 2, "mode": "plan", "go": True, "why": "", "items": []})
         self.write(f"plan/r2/{planfile.REVIEW_FILE}", {"faces": [face("key-a1", [MEAN]), face("key-b1", [ASKED])], "resolved": []})
         self.write("plan/r2/slots.json", planfile.slots(judgment()))
         planfile.snap_tree(self.round / planfile.TREE_FILE, self.repo)
@@ -784,41 +753,6 @@ class WholePlanTakeCase(TmpCase):
         self.assertEqual([it["unit_keys"] for it in got["plan"]], [[MEAN, CLAMP], [ASKED]])
         kept = json.loads(rolekit.candidate_path(self.round, planfile.ROLE).read_text(encoding="utf-8"))
         self.assertEqual(kept, {**reply, "plan": got["plan"]}, "控えは機械が前の往復の行を差し込んだ案の全体")
-
-class StateCase(TmpCase):
-    """構造の目の控え structure-state.json（元 tests/test_structure_eye.py の CollectCase。元 blk-structure/scripts/collect.py）"""
-
-    MEASURED = {"status": "ok", "reason": "", "units": [{"id": "u-1", "status": "measured", "measure": {"churn": 3}}],
-                "timing": {"wall_s": 0.5}}
-
-    def state(self, structure, kept=None, rejects=()):
-        d = self.tmp / f"s{len(list(self.tmp.iterdir()))}"
-        d.mkdir()
-        (d / planfile.STRUCTURE_FILE).write_text(json.dumps(structure, ensure_ascii=False), encoding="utf-8")
-        if kept is not None:
-            (d / eye.EYE_FILE).write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
-        for why in rejects:
-            rolekit.with_done(d, eye.NAME, {"ok": False, "reason": why})
-        return json.loads(planfile.write_state(d).read_text(encoding="utf-8"))
-
-    def test_each_failure_names_the_reason(self):
-        """3 回拒まれた周の回の数と最後の拒否の文は、目の拒否の控え（rolekit の rejects-<eye.NAME>.json）から読む"""
-        cases = {
-            "目が通った": (self.MEASURED, {"status": "ok"}, (), "ok", ""),
-            "目を起こさない周": ({**self.MEASURED, "units": []}, None, (), "ok", ""),
-            "会話が落ちた": (self.MEASURED, None, (), "failed", "構造の目の会話が落ちたか走らなかった（目の受け付けの控えが無いか途中のまま）"),
-            "3 回拒まれた": (self.MEASURED, {"status": "gave_up"}, ("欠け", "型", "行が無い"), "failed",
-                         "構造の目の返答が 3 回とも受け付けで拒まれた: 行が無い"),
-            "実測が落ちた": ({**self.MEASURED, "status": "failed", "reason": "git が無い"}, None, (), "failed", "実測が落ちた: git が無い"),
-        }
-        for name, (structure, kept, rejects, status, reason) in cases.items():
-            with self.subTest(name):
-                got = self.state(structure, kept, rejects)
-                self.assertEqual((got["status"], got["reason"]), (status, reason))
-
-    def test_wall_adds_the_eye_time(self):
-        self.assertEqual(self.state(self.MEASURED, {"status": "ok", "wall_s": 2.25})["wall_s"], 2.75)
-
 
 class ReplanModuleCase(unittest.TestCase):
     """持ってきた replan.py の残り（盤面を受けない項目の小道具）"""

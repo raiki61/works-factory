@@ -591,7 +591,7 @@ def _item(text: str, mark: dict, why=()) -> str:
 
 def _design_rows(b) -> list:
     """構造の目の行（控えが無い・落ちた周は []）"""
-    state = structmark.read(b.dir)
+    state = structmark.read(b.dir / structmark.COPY_FILE)
     if not state or state.get("status") != "ok":
         return []
     try:
@@ -695,7 +695,7 @@ def axis_reasons(b, mark: dict, units) -> dict:
     hit = sorted(set(units) & ups)
     if hit:
         out["clean"].append(f"構造の目が人に上げた単位（{'・'.join(hit)}）に当たる")
-    dirty = structmark.dirty(b.dir)
+    dirty = structmark.dirty(b.dir / structmark.COPY_FILE)
     answered = _answered_rows(b)
     if answered is not None:
         miss = sorted(k for k in units if k in dirty and k not in answered)

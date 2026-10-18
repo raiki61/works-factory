@@ -2343,26 +2343,26 @@ class LinesCase(Base):
             prcheck.downgrades(pathlib.Path(bad))
 
     def test_structure_rows_and_after(self):
-        design = self.put("plan/design.jsonl", json.dumps({"unit_id": "u1", "verdict": "汚れる", "faces": [], "evidence": [],
-                                                           "reason": "責務が割れる"}, ensure_ascii=False))
-        state = self.put("plan/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
+        design = self.put("structure/design.jsonl", json.dumps({"unit_id": "u1", "verdict": "汚れる", "faces": [], "evidence": [],
+                                                                "reason": "責務が割れる"}, ensure_ascii=False))
+        state = self.put("structure/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
         after = self.put("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
                                                        "after": {"changed": ["a.py"], "tables": [], "new_names": []}})
-        _, text, _ = self.build(fixed_run(plan={**fixed_run()["plan"], "structure": state},
+        _, text, _ = self.build(fixed_run(structure={"ok": True, "structure": state},
                                           eyes={**fixed_run()["eyes"], "structure_after": after}))
         body = self.section(text, report.STRUCTURE_HEADING)
         self.assertIn("u1: 汚れる", body)
         self.assertIn("直しの後の実測", body)
 
     def test_structure_time_adds_the_stage_b_seconds(self):
-        """#227: 構造の実測と目で増えた時間は、段 A と目の秒（計画の structure-state.json）に直しの後の実測（段 B）の秒
+        """#227: 構造の実測と目で増えた時間は、段 A と目の秒（構造のブロックの structure-state.json）に直しの後の実測（段 B）の秒
         （structure-after.json の after.timing）を足す（元 works/blk-structure/scripts/collect.py:83）"""
-        design = self.put("plan/design.jsonl", "")
-        state = self.put("plan/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
+        design = self.put("structure/design.jsonl", "")
+        state = self.put("structure/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
         after = self.put("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
                                                        "after": {"changed": [], "tables": [], "new_names": [],
                                                                  "timing": {"wall_s": 1.5}}})
-        _, text, _ = self.build(fixed_run(plan={**fixed_run()["plan"], "structure": state},
+        _, text, _ = self.build(fixed_run(structure={"ok": True, "structure": state},
                                           eyes={**fixed_run()["eyes"], "structure_after": after}))
         self.assertIn("- 構造の実測と目で増えた時間: 4.5 秒\n", self.section(text, report.STRUCTURE_HEADING))
 

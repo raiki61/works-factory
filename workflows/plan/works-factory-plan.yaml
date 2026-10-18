@@ -1,13 +1,12 @@
 name: works-factory-plan
 description: |
-  計画のサブグラフ（メイングラフが include する部品。単独では回さない）。判定（judge）が切った単位を、直す前に設計として固める:
-  単位が名指すファイルを機械で実測して構造の目（道具なしの別の会話）が直しが構造を汚すかを判定し、修正案の役が項目ごとに
-  書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳を書き、受け付けが機械で照らし、波及の一覧（変える名の
-  呼び出し元と試験）を機械で出す。案の直し（fix の裁定の後の 1 度）は同じサブグラフを ruling の入力つきで include する（形 replan）。
+  計画のサブグラフ（メイングラフが include する部品。単独では回さない）。判定が切った単位を、直す前に設計として固める:
+  修正案の役が項目ごとに書いてよい範囲・受け入れテスト・定石と構造の目の行（入力 structure）への従うか外れの訳を書き、受け付けが
+  機械で照らし、波及の一覧（変える名の呼び出し元と試験）を機械で出す。案の直し（fix の裁定の後の 1 度）は同じサブグラフを ruling の入力つきで include する（形 replan）。
   事前審査との往復はメイングラフが持ち、このサブグラフは 1 回の案を作って返す。2 往復目からは受けた review を周のフォルダに写し、
   前の周の案と指摘と、役が書く引き継ぎのメモ（handoff.json）も材料のファイルで渡して新しい会話で直させる（穴と外す条件は docs/polyfills.md の P10）。
   同じ周の中で受け付けに拒まれた後の出し直しは、修正案の役の会話の続きで拒まれた所だけを返させ、受け付けが前の答えと合わせる。
-  置き場は run の置き場の plan/ の下だけ（周ごとの plan/r<k>/ と、使い回す構造の実測の plan/structure/<鍵>/）。
+  置き場は run の置き場の plan/ の下だけ（周ごとの plan/r<k>/）。
   出力ノード plan は落ちない（中の誤りを捕まえて ready: false と、在って空でないポインタを返す）。
 
 inputs:
@@ -41,6 +40,11 @@ inputs:
   world:
     default: "null"
     description: 定石の行のポインタ（world-row の行の並び）。無ければ null
+  structure:
+    default: "null"
+    description: >-
+      構造の目の控えのポインタ（structure-state.json。{status, reason, design_file, wall_s, skipped}。design_file は構造の目の行
+      （design-row の形の JSON Lines）のパス、skipped は実測しなかった単位の id）。null は構造の目の行が無い
   spec:
     default: "null"
     description: 仕様のポインタ。無ければ null
@@ -78,129 +82,6 @@ nodes:
         dir: {type: string}
         go: {type: boolean}
 
-  # 段 A の実測。paths の在る単位だけを plan/structure/<鍵>/ で測る（鍵は単位の目録と HEAD）。同じ鍵の控えが在れば測らず目も
-  # 起こさない（reused）。案の直しは直す元の周の実測と目の行をそのまま使う。役を起こさない周（go: false）は測らず、目も起こさない
-  - id: structure-measure
-    script: structure_measure
-    runtime: uv
-    mutates_checkout: false
-    depends_on: [round]
-    when: "$round.output.go == true"
-    with:
-      dir: $round.output.dir
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [structure_file, design_file, eye, reused]
-      properties:
-        structure_file: {type: string}
-        design_file: {type: string}
-        eye: {type: boolean}
-        reused: {type: boolean}
-
-  # 構造の目の輪。拒否の後は同じ会話で出し直させ、3 回目の拒否で受け付けが done（give_up）を出して輪を抜ける
-  # （max_iterations で落とさない）
-  - id: structure-eye-loop
-    depends_on: [structure-measure]
-    when: "$structure-measure.output.eye == true"
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: 'done=$structure-eye-accept.output.done; test "$done" = true'
-      nodes:
-        - id: structure-eye-prep
-          script: eye_prep
-          runtime: uv
-          mutates_checkout: false
-          with:
-            structure_file: $structure-measure.output.structure_file
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [prompt, prompt_file, attempt]
-            properties:
-              prompt: {type: string}
-              prompt_file: {type: string}
-              attempt: {type: integer}
-        - id: structure-eye
-          command: structure-eye
-          depends_on: [structure-eye-prep]
-          model: '@wf-plan-structure'
-          allowed_tools: []
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          # 行の形は lib/design-row.schema.json から route_reason（受け付けが足す）と precedents を除き、route を任意にした物
-          # （今の works の structure-eye の型。持ち主との一致は試験が見る）
-          output_format:
-            type: object
-            required: [rows]
-            additionalProperties: false
-            properties:
-              rows:
-                type: array
-                items:
-                  type: object
-                  required: [unit_id, verdict, faces, evidence, reason]
-                  additionalProperties: false
-                  properties:
-                    unit_id: {type: string, minLength: 1, pattern: '\S'}
-                    verdict: {type: string, enum: [汚れる, 汚れない]}
-                    faces: {type: array, items: {type: integer, minimum: 1, maximum: 6}}
-                    evidence: {type: array, items: {type: string}}
-                    reason: {type: string, minLength: 1, pattern: '\S'}
-                    chosen: {type: string}
-                    rejected:
-                      type: array
-                      items:
-                        type: object
-                        required: [option, cost]
-                        additionalProperties: false
-                        properties:
-                          option: {type: string}
-                          cost: {type: string}
-                    chosen_reason: {type: string}
-                    route: {type: string, enum: [自分で決める, 人に上げる]}
-                    undecided_because: {type: string}
-        - id: structure-eye-accept
-          script: eye_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [structure-eye]
-          with:
-            structure_file: $structure-measure.output.structure_file
-            design_file: $structure-measure.output.design_file
-            reply: $structure-eye.output
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, give_up, reason, attempt]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              give_up: {type: boolean}
-              reason: {type: string}
-              attempt: {type: integer}
-
-  # 構造の目の控え structure-state.json（返り structure の指し札の先）。目が飛んだ・落ちた・3 回拒まれた周も書く
-  # （実測が落ちた・目を起こす周なのに目の受け付けが済んでいない周・役を起こさない周は status: failed）。使い回しの周は書き直さない
-  - id: structure-state
-    script: structure_state
-    runtime: uv
-    mutates_checkout: false
-    depends_on: [round, structure-measure, structure-eye-loop]
-    trigger_rule: all_done
-    with:
-      dir: $round.output.dir
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [state_file]
-      properties:
-        state_file: {type: string}
-
   # 修正案の役が案を書く前に読む、単位の名の波及の一覧（形 replan では作らない）
   - id: ripple-units
     script: ripple_units
@@ -223,7 +104,7 @@ nodes:
   # rolekit.NET_AFTER。輪の max_iterations と同じ数で、届けば工場の不具合）の回の拒否で受け付けが done（give_up）を出して輪を抜ける
   # （max_iterations で落とさない）
   - id: plan-loop
-    depends_on: [round, structure-state, ripple-units]
+    depends_on: [round, ripple-units]
     trigger_rule: none_failed_min_one_success
     when: "$round.output.go == true"
     loop_group:
@@ -688,21 +569,15 @@ nodes:
     script: plan_collect
     runtime: uv
     mutates_checkout: false
-    depends_on: [round, structure-state, ripple-items]
+    depends_on: [round, ripple-items]
     trigger_rule: all_done
-    # optional は、この計画のブロックが落ちても線が先へ進めてよい節の宣言（構造の実測と構造の目。落ちても修正案は進む）。[{node, bare}] の
-    # JSON の字で、node は自分の中の節の id かその頭（区切り - で終わる物は頭）、bare はループの中の節で、記録の step に include の
-    # 前付けの無い素の id で載るか。線は返りの欄 optional を往復の返しの節と受け皿で受け、include の id の頭を付けて報告へ渡す。
-    # 案の直しも同じブロックの差し込みなので同じ宣言を使う
     with:
       dir: $round.output.dir
-      optional: '[{"node": "structure-", "bare": false}, {"node": "structure-eye", "bare": true}, {"node": "structure-eye-", "bare": true}]'
     output_format:
       type: object
       additionalProperties: false
-      required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, nothing_owed, gave_up]
+      required: [ready, plan, ripple, depth, round, fix_plan, rejects, nothing_owed, gave_up]
       properties:
-        optional: {type: array}
         ready: {type: boolean}
         plan: &pointer
           type: object
@@ -712,7 +587,6 @@ nodes:
             type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
-        structure: *pointer
         ripple: *pointer
         depth:
           type: array

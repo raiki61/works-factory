@@ -30,7 +30,7 @@ fixture:
     purpose: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/purpose.json\"}"
     world: "null"
     plan: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/r1/plan-fields.json\"}"
-    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/structure/structure-state.json\"}"
+    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"structure/structure-state.json\"}"
     ripple: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/ripple.json\"}"
   expect: completed
   reached: [r2-design, plan-review-tree, review-accept, review]

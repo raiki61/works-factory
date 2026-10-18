@@ -36,7 +36,7 @@ OUT_OF_REAL_RUN_MARK = "本物の通しの照らしの外"
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 OUTSIDE = "この文書の外"
 # 線の中のブロック（置き場の parent/ の次のフォルダ）と線そのもの。fix の組の子の run の置き場は fix
-BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "merge", "report")
+BLOCKS = ("judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes", "merge", "report")
 LINE_ITSELF = "line"
 WRITERS = ("lib", "workflows", "bin")
 # 名を組んで書く・名の表から引いて書くので字で引けない置き場 → 名を組む関数・表の定数（`path::名`）
@@ -54,7 +54,7 @@ NAMED_BY_PATTERN = {
     "parent/judge/material-pr-check.json": "lib/judge_accept.py::material_file",
     "parent/judge/material-purpose-review.json": "lib/judge_accept.py::material_file",
     "parent/plan/r1/brief-1.md": "lib/planfile.py::BRIEF_FILE",
-    "parent/plan/structure/*/eye-prompt-1.md": "lib/eye.py::PROMPT_FILE",
+    "parent/structure/eye-prompt-1.md": "lib/eye.py::PROMPT_FILE",
     "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py::tree_part",
     "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py::ANSWER_FILE",
     "parent/fix/fix/review1-brief.json": "lib/refix.py::cut",
@@ -62,7 +62,7 @@ NAMED_BY_PATTERN = {
     "parent/judge/query-examples.json": "lib/marks.py::KINDS",
     "parent/plan/r1/rejects-plan.json": "lib/rolekit.py::rejects_path",
     "parent/plan/r1/rejects-plan.md": "lib/rolekit.py::rejects_text_path",
-    "parent/plan/structure/*/design.jsonl": "lib/planfile.py::DESIGN_FILE",
+    "parent/structure/design.jsonl": "lib/eye.py::DESIGN_FILE",
     "parent/plan-review/gate-marks.json": "lib/marks.py::KINDS",
 }
 
@@ -408,7 +408,7 @@ class EvidenceTableCase(unittest.TestCase):
                      "writer": "workflows/eyes/works-factory-eyes.yaml::structure-after"}):
             with self.subTest(row=row):
                 self.assertNotEqual(seen_writer_problems([{"id": "J1", **row}], code), [])
-        for where, writer in (("parent/plan/r1/brief-1.md", "lib/planfile.py::DESIGN_FILE"),
+        for where, writer in (("parent/plan/r1/brief-1.md", "lib/eye.py::DESIGN_FILE"),
                               ("parent/eyes/r1.json", "workflows/eyes/works-factory-eyes.yaml::prep"),
                               ("parent/eyes/r1-comments.json", "workflows/eyes/works-factory-eyes.yaml::structure-after"),
                               ("parent/plan/r1/rejects-plan.json", "lib/rolekit.py::lang_line")):

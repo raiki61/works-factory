@@ -1,6 +1,6 @@
 name: works-factory-line
 description: |
-  works-factory のメイングラフ。修正依頼か差分を受け、8 つのサブグラフ（judge・plan・plan-review・fix・test-gate・eyes・report・merge）を
+  works-factory のメイングラフ。修正依頼か差分を受け、9 つのサブグラフ（judge・structure・plan・plan-review・fix・test-gate・eyes・report・merge）を
   include: で並べ、承認ノード・計画の往復・一度だけの include（案の直しと 2 度目の修正・再審）・深さの上げ直し・無人の方針を持ち、
   どの道でも報告を出す。順と承認ノードは docs/design.md の「メイングラフ」、サブグラフとの受け渡しは同じ文書の「サブグラフの出力の約束」。
   YAML は配線だけで、決めはメイングラフの script（workflows/line/scripts/）、確かめは lib/ が持つ。
@@ -187,6 +187,23 @@ nodes:
         pr_excluded materials purpose_review depth_record decisions answer_ties review_lenses pr_drafts rejudge_exit rejudge_diff
         purpose_means world_state optional"
 
+  # 4' 構造の目。判定が切った単位を run に 1 回だけ測って見る（単位が変わるのは再審の後だけで、その後に計画は走らない）。
+  # 計画の往復・案の直し・事前審査は同じ控えを入力 structure で受ける
+  - id: structure
+    include: works-factory-structure
+    depends_on: [judge]
+    when: "$judge.output.ready == true"
+    with:
+      start: "$start.output.record"
+      units: "$judge.output.units"
+
+  - id: structure-out
+    <<: *receiver
+    depends_on: [structure]
+    with:
+      got: "$structure.output"
+      names: "ok structure optional"
+
   # 5' 直す物が無い周（判定が直す単位を出さず、止めてもいない）は修正案を作らず、最後の R2 が要る独立設計だけを作る（元
   # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める。
   # 計画の直す義務が 0 件の周（plan-out の nothing_owed。元 line_edge.py:1109-1114 の空の修正）も同じ尾を通る。判定は単位を出したので
@@ -220,7 +237,7 @@ nodes:
 
   # 5 計画の往復。中の節は外から見えないので、本体の終わりの返しの節 plan-out が返りを欄ごとに受けて返す
   - id: plan-rounds
-    depends_on: [judge]
+    depends_on: [judge, structure]
     when: "$judge.output.ready == true"
     loop_group:
       max_iterations: 20
@@ -240,6 +257,7 @@ nodes:
             decisions: "$judge.output.decisions"
             world: "$judge.output.world"
             spec: "$judge.output.spec"
+            structure: "$structure.output.structure"
             review: "$LOOP_PREV.plan-out.output.review"
             ruling: []
             conflicts: null
@@ -264,7 +282,7 @@ nodes:
             plan: "$plan.output.plan"
             fix_plan: "$plan.output.fix_plan"
             plan_rejects: "$plan.output.rejects"
-            structure: "$plan.output.structure"
+            structure: "$structure.output.structure"
             ripple: "$plan.output.ripple"
             answers: "$answer-start.output.answer"
             ruling: []
@@ -279,14 +297,12 @@ nodes:
             properties:
               ready: {}
               plan: {}
-              structure: {}
               ripple: {}
               depth: {}
               round: {}
               fix_plan: {}
               rejects: {}
               gave_up: {}
-              optional: {}
               pass: {}
               stalled: {}
               review: {}
@@ -297,7 +313,7 @@ nodes:
               nothing_owed: { type: boolean }
               done: { type: boolean }
               stop_reason: { type: string }
-            required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, gave_up, optional, pass, stalled, review, design,
+            required: [ready, plan, ripple, depth, round, fix_plan, rejects, gave_up, pass, stalled, review, design,
                        gate_axes, ask_human, questions, nothing_owed, done, stop_reason]
           mutates_checkout: false
           depends_on: [plan, plan-review-run]
@@ -306,7 +322,6 @@ nodes:
             round_limit: 20
             ready: "$plan.output.ready"
             plan: "$plan.output.plan"
-            structure: "$plan.output.structure"
             ripple: "$plan.output.ripple"
             depth: "$plan.output.depth"
             round: "$plan.output.round"
@@ -314,7 +329,6 @@ nodes:
             rejects: "$plan.output.rejects"
             nothing_owed: "$plan.output.nothing_owed"
             gave_up: "$plan.output.gave_up"
-            optional: "$plan.output.optional"
             pass: { from: "$plan-review-run.output.pass", if_skipped: null }
             stalled: { from: "$plan-review-run.output.stalled", if_skipped: null }
             review: { from: "$plan-review-run.output.review", if_skipped: null }
@@ -328,7 +342,7 @@ nodes:
     depends_on: [plan-rounds]
     with:
       got: "$plan-rounds.output"
-      names: "ready plan structure ripple depth round fix_plan rejects nothing_owed gave_up optional"
+      names: "ready plan ripple depth round fix_plan rejects nothing_owed gave_up"
 
   - id: plan-rounds-review-out
     <<: *receiver
@@ -436,7 +450,7 @@ nodes:
                  purpose_review, depth_record, decisions, answer_ties, purpose_means, plan, ripple, depth, head_depth, structure,
                  fix_plan, review, design, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
-    depends_on: [answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
+    depends_on: [answer-start, test-gate-base-out, judge-out, structure-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
@@ -444,6 +458,7 @@ nodes:
       start_go: "$answer-start.output.go"
       test_gate_base: { from: "$test-gate-base-out.output", if_skipped: null }
       judge: { from: "$judge-out.output", if_skipped: null }
+      structure: { from: "$structure-out.output", if_skipped: null }
       plan: { from: "$plan-rounds-out.output", if_skipped: null }
       plan_review: { from: "$plan-rounds-review-out.output", if_skipped: null }
       before_fix_go: { from: "$answer-before-fix.output.go", if_skipped: null }
@@ -511,6 +526,7 @@ nodes:
       decisions: "$fix-in.output.decisions"
       world: "$fix-in.output.world"
       spec: "$fix-in.output.spec"
+      structure: "$fix-in.output.structure"
       review: ""
       ruling: "$fix.output.replan_items"
       conflicts: "$fix.output.conflicts"
@@ -521,7 +537,7 @@ nodes:
     depends_on: [replan]
     with:
       got: "$replan.output"
-      names: "ready plan structure ripple depth round fix_plan rejects nothing_owed gave_up optional"
+      names: "ready plan ripple depth round fix_plan rejects nothing_owed gave_up"
 
   - id: replan-review
     include: works-factory-plan-review
@@ -542,7 +558,7 @@ nodes:
       plan: "$replan.output.plan"
       fix_plan: "$replan.output.fix_plan"
       plan_rejects: "$replan.output.rejects"
-      structure: "$replan.output.structure"
+      structure: "$fix-in.output.structure"
       ripple: "$replan.output.ripple"
       answers: "$answer-start.output.answer"
       ruling: "$fix.output.replan_items"
@@ -994,6 +1010,7 @@ nodes:
         test_gate_base: {}
         judge: {}
         rejudge: {}
+        structure: {}
         plan: {}
         plan_review: {}
         replan: {}
@@ -1019,11 +1036,11 @@ nodes:
         stages: { type: object }
         notices: { type: array }
         user_env_dir: {}
-      required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
+      required: [start, test_gate_base, judge, rejudge, structure, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
                  stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, stages, notices,
                  user_env_dir]
     mutates_checkout: false
-    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
+    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, structure-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
                  fixed, spec-check, redepth, test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
@@ -1038,6 +1055,7 @@ nodes:
       test_gate_base: { from: "$test-gate-base-out.output", if_skipped: null }
       judge: { from: "$judge-out.output", if_skipped: null }
       rejudge: { from: "$rejudge-run-out.output", if_skipped: null }
+      structure: { from: "$structure-out.output", if_skipped: null }
       plan: { from: "$plan-rounds-out.output", if_skipped: null }
       plan_review: { from: "$plan-rounds-review-out.output", if_skipped: null }
       design_only: { from: "$design-only-out.output", if_skipped: null }
@@ -1085,6 +1103,7 @@ nodes:
       before-tests: "$collect.output.test_gate_base"
       judge: "$collect.output.judge"
       rejudge: "$collect.output.rejudge"
+      structure: "$collect.output.structure"
       plan: "$collect.output.plan"
       plan-review: "$collect.output.plan_review"
       replan: "$collect.output.replan"

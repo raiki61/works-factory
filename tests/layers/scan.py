@@ -4,7 +4,7 @@
 - E3: 節の id（字の形で見分けられない。`-` を含むメイングラフの id は E22 が見る）
 - E4: `pathlib` などで部品を継いで組むパス。表 NAME_HOMES の住処の中の関数が、持ち主の置き場を名で開くか。置き場のファイルの名を
   f 文字列や字の連結で組む形。ポインタを通らずに ARTIFACTS_DIR の読みや境の口の返り（`boundary.place`・`boundary.inside_artifacts`）から
-  ほかのブロックの置き場を組む形（判定・計画・修正の行は ARTIFACTS_DIR を届く値に数えない）
+  ほかのブロックの置き場を組む形（判定・構造・計画・修正の行は ARTIFACTS_DIR を届く値に数えない）
 - E12: script の中で置く期限
 - E22: 根の AGENTS.md の E22 の「人が見る」の並び
 """
@@ -553,6 +553,8 @@ NAME_HOMES = {
                       ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py", "lib/gatemarks.py",
                        "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py", "lib/worldmark.py",
                        "lib/report.py"), writer="judge_accept"),
+    "structure": NameHome("構造", "構造の置き場のファイルを名指す", "構造の出力の欄を入力で受ける", (("structfile", "PORTS"),),
+                          ("lib/structfile.py",)),
     "plan": NameHome("計画", "計画の置き場のファイルを名指す", "計画の出力の欄を入力で受ける", (("planfile", "PORTS"), ("planfile", "FROM")), ("lib/planfile.py", "lib/planblk.py", "lib/eye.py"),
                      openers=("lib/rolekit.py",)),
     "fix": NameHome("修正", "修正の置き場のファイルを名指す", "修正の出力の欄を入力で受ける", (("fixbeside", "PORTS"), ("fixbeside", "FROM")),
@@ -572,9 +574,10 @@ def _table_modules() -> dict:
     import fixbeside
     import judge_accept
     import planfile
+    import structfile
     import tree_run
     import userenv
-    return {m.__name__: m for m in (fixbeside, judge_accept, planfile, tree_run, userenv)}
+    return {m.__name__: m for m in (fixbeside, judge_accept, planfile, structfile, tree_run, userenv)}
 
 
 def _table_value(module: str, name: str):

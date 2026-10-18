@@ -5,7 +5,7 @@
 """修正の段へ運ぶ値を 1 か所に集める中継のノード fix-in（docs/design.md の「順と承認ノード」の 7）。
 
 fix から後ろのノードは、直す前のテスト・判定・計画の往復・修正前の承認の答えを、ここの返りの欄（$fix-in.output.<欄>）からだけ読む。
-- 通常の run: 受け皿（test-gate-base-out・judge-out・plan-rounds-out・plan-rounds-review-out）の got と修正前の承認の答え・載せなかった
+- 通常の run: 受け皿（test-gate-base-out・judge-out・structure-out・plan-rounds-out・plan-rounds-review-out）の got と修正前の承認の答え・載せなかった
   問いを received に組み、平らな欄にする。go は修正前の承認を通ったか。go が真なら、修正の前に 1 度だけ run の置き場を固定材料に写す
   （lib/fixture.py の noted_capture。received を運ぶ値として控えに入れる。写せなくても止めない）
 - 固定材料の run（start が取り込んだ）: start が置いた書き換え済みの運ぶ値を received にし、同じ式で平らな欄にする。go は起動の承認を
@@ -13,7 +13,7 @@ fix から後ろのノードは、直す前のテスト・判定・計画の往�
 落ちない（boundary.run）。この版より前に走った判定・計画の返り（judge_accept.require_ports・planfile.require_ports）を resume で受けた
 通常の run は fallback で止める。
 
-入力（with:）: fixture（start の fixture）・start_go・test_gate_base・judge・plan・plan_review（受け皿の出力）・before_fix_go・
+入力（with:）: fixture（start の fixture）・start_go・test_gate_base・judge・structure・plan・plan_review（受け皿の出力）・before_fix_go・
 before_fix_answer・deferred
 """
 import json
@@ -35,7 +35,8 @@ FLAT = {"baseline": ("test_gate_base", "baseline"),
                                               "pr_excluded", "materials", "purpose_review", "depth_record", "decisions", "answer_ties",
                                               "purpose_means")},
         "head_depth": ("judge", "depth"),
-        **{name: ("plan", name) for name in ("plan", "ripple", "structure", "fix_plan")},
+        "structure": ("structure", "structure"),
+        **{name: ("plan", name) for name in ("plan", "ripple", "fix_plan")},
         "depth": ("plan", "depth"),
         **{name: ("plan_review", name) for name in ("review", "design", "questions")}}
 
@@ -50,7 +51,7 @@ def received_live(env) -> dict:
     """運ぶ値。鍵は collect の欄の名（collect はこの鍵で埋める）。欄か受け皿の got の欄を変える時は lib/fixture.py の FORMAT を
     上げる（tests/workflows/test_line.py の CarriedShapeCase が main との分かれ目と比べる）"""
     return {"test_gate_base": got(env.get("INPUTS_TEST_GATE_BASE")), "judge": got(env.get("INPUTS_JUDGE")),
-            "plan": got(env.get("INPUTS_PLAN")), "plan_review": got(env.get("INPUTS_PLAN_REVIEW")),
+            "structure": got(env.get("INPUTS_STRUCTURE")), "plan": got(env.get("INPUTS_PLAN")), "plan_review": got(env.get("INPUTS_PLAN_REVIEW")),
             "gate_before_fix": boundary.value(env.get("INPUTS_BEFORE_FIX_ANSWER")),
             "deferred": boundary.items(env.get("INPUTS_DEFERRED"))}
 

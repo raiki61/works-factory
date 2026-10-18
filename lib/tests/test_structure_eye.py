@@ -14,7 +14,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import eye  # noqa: E402
 import listcut  # noqa: E402
-import planfile  # noqa: E402
+import structfile  # noqa: E402
 
 DOC = {"status": "ok", "reason": "", "units": [
     {"id": "u-1", "summary": "直す所", "paths": ["a.txt"], "status": "measured", "reason": "", "measure": {"churn": 3}},
@@ -208,11 +208,11 @@ class EyeAcceptCase(unittest.TestCase):
                              [(False, False, False), (False, False, False), (False, True, True)])
             self.assertEqual(eye.state(d)["status"], "gave_up")
             self.assertEqual(design.stat().st_size, 0)
-            self.assertEqual(json.loads(planfile.write_state(d).read_text(encoding="utf-8"))["reason"],
+            self.assertEqual(json.loads(structfile.write_state(d).read_text(encoding="utf-8"))["reason"],
                              f"構造の目の返答が 3 回とも受け付けで拒まれた: {got[-1]['reason']}", "諦めの文は拒否の控えから読む")
 
     def test_remeasure_counts_from_the_first_attempt(self):
-        """段 A の測り直し（planfile.measure）は構造の目の拒否の控えを消し、次の目は 1 回目から数える"""
+        """段 A の測り直し（structfile.measure）は構造の目の拒否の控えを消し、次の目は 1 回目から数える"""
         with tempfile.TemporaryDirectory() as d:
             s = pathlib.Path(d) / "structure.json"
             s.write_text(json.dumps(DOC, ensure_ascii=False), encoding="utf-8")
@@ -222,7 +222,7 @@ class EyeAcceptCase(unittest.TestCase):
                 eye.prep(s)
                 eye.accept(s, design, {"rows": []})
             self.assertEqual(eye.prep(s)["attempt"], 3)
-            planfile.measure(d, [], d, "")
+            structfile.measure(d, [], d, "")
             self.assertEqual(eye.rolekit.rejected(d, eye.NAME), [])
             self.assertEqual(eye.prep(s)["attempt"], 1)
 

@@ -57,6 +57,7 @@ LIBLESS_EXITS = {
     "workflows/line/scripts/collect.py": "線の返す節が $collect.output で結ぶ",
     "workflows/line/scripts/sweep_children.py": "線の返す節が $sweep-children.output で結ぶ",
     "workflows/judge/scripts/verdict.py": "judge の返す節",
+    "workflows/structure/scripts/structure_collect.py": "structure の返す節",
     "workflows/plan/scripts/plan_collect.py": "plan の返す節",
     "workflows/plan/scripts/round.py": "plan の返す節が $round.output.dir で結ぶ",
     "workflows/plan/scripts/plan_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（線を止めない）",
@@ -284,8 +285,8 @@ class ReturnScriptCase(unittest.TestCase):
                 cls.bound[(block, nid)] = (n, done, artifacts)
 
     def test_every_returns_script_runs_alone_and_fits_its_output_format(self):
-        self.assertGreaterEqual(set(self.returns), {"line", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "merge",
-                                                    "report"})
+        self.assertGreaterEqual(set(self.returns), {"line", "judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes",
+                                                    "merge", "report"})
         for block, (n, done, _) in self.returns.items():
             with self.subTest(block):
                 self.assertIn("output_format", n)

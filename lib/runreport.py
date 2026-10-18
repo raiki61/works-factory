@@ -175,7 +175,7 @@ STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "n
 
 POINTERS = (("judge", "judgment", "判定"), ("judge", "purpose", "目的"), ("judge", "world", "定石"),
             ("judge", "spec", "仕様"), ("judge", "out_of_purpose", "目的の外の所見"),
-            ("plan", "plan", "計画"), ("plan", "structure", "構造の目"), ("plan", "ripple", "波及"),
+            ("plan", "plan", "計画"), ("structure", "structure", "構造の目"), ("plan", "ripple", "波及"),
             ("plan-review", "review", "事前審査"), ("plan-review", "design", "独立設計"),
             ("fix", "diff", "差分"), ("fix", "conflicts", "申し出と裁定"),
             ("before-tests", "baseline", "直す前の結末"), ("before-tests", "evidence", "試験の記録（直す前）"),
@@ -1448,12 +1448,10 @@ def _downgrade_lines() -> list:
 
 
 def _structure_lines(returns: dict) -> list:
-    """構造の目の行（計画の structure の先の控えの design_file が指す設計の行）と、直した後の構造の実測（eyes の structure_after。元 structmark.report_lines）"""
-    sp, ap = _ret(returns, "plan").get("structure"), as_dict(returns.get("eyes")).get("structure_after")
+    """構造の目の行（構造のブロックの structure の先の控えの design_file が指す設計の行）と、直した後の構造の実測（eyes の structure_after。元 structmark.report_lines）"""
+    sp, ap = _ret(returns, "structure").get("structure"), as_dict(returns.get("eyes")).get("structure_after")
     after_dir = pathlib.Path(ap).parent if isinstance(ap, str) and ap else None
-    if isinstance(sp, str) and sp:
-        return structmark.report_lines(pathlib.Path(sp).parent, after_dir)
-    return structmark.after_lines(after_dir) if after_dir is not None else []
+    return structmark.report_lines(sp if isinstance(sp, str) and sp else None, after_dir)
 
 
 def _cmd_skipped(typed: dict) -> int:

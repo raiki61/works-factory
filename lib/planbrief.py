@@ -23,7 +23,7 @@
   重ねた物。planmarks には fixboard.plan_view で渡す）。項目の並びは控え plan-fields.json と同じ
 - 項目の works の欄: planmarks.frozen（置き場の plan-fields.json。凍結の印と食い違えば LedgerBroken に替えて止める）
 - 判定の単位（引数 judgment＝judgment.json の dict の units）・凍結した目的の文（引数 purpose）・構造の目の行
-  （structmark.plan_section(structure_dir)。structure_dir を渡さなければ無し）
+  （structmark.plan_section(structure)。structure（構造の目の控えのパス）を渡さなければ無し）
 - 周は引数 round_（既定 1。fix の 1 回の差し込みが 1 周）
 
 同じ入力からはバイト単位で同じ文を書く（時刻を書かない。辞書は書いた順）。
@@ -262,7 +262,7 @@ def _drawn(b, src: dict) -> list[tuple[list, str]] | None:
     units = {u["key"]: {**u, "prescriptions": given.get(u["key"]) or u.get("prescriptions")}
              for u in (src["judgment"] or {}).get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)}
     purpose = src["purpose"] or ""
-    structure = structmark.plan_section(src["structure_dir"]) if src["structure_dir"] else ""
+    structure = structmark.plan_section(src["structure"]) if src["structure"] else ""
     out = []
     for n, (item, f) in enumerate(pairs, 1):
         out.append(([k for k in item.get("unit_keys") or [] if isinstance(k, str)],
@@ -412,19 +412,19 @@ def _recut(b, rows: list, items: list[int], src: dict) -> list:
     return rows
 
 
-def _sources(plan, judgment, purpose, structure_dir, round_) -> dict:
-    """cut が読む物の束（修正案の役の返答・判定・目的の文・構造の目の置き場・周）"""
-    return {"plan": plan, "judgment": judgment, "purpose": purpose, "structure_dir": structure_dir, "round_": round_}
+def _sources(plan, judgment, purpose, structure, round_) -> dict:
+    """cut が読む物の束（修正案の役の返答・判定・目的の文・構造の目の控え・周）"""
+    return {"plan": plan, "judgment": judgment, "purpose": purpose, "structure": structure, "round_": round_}
 
 
-def cut(b, *, plan=None, judgment=None, purpose: str = "", structure_dir=None, round_: int = 1) -> list[dict]:
+def cut(b, *, plan=None, judgment=None, purpose: str = "", structure=None, round_: int = 1) -> list[dict]:
     """今の周の brief を返す。b は置き場（控えと brief と plan-fields.json・trace.jsonl の在るフォルダ）。控えが無ければ、修正案
     （plan＝修正案の役の返答 {"plan": [...]} に差し替えた核の欄を重ねた planmarks.plan_items）と置き場の凍結した欄
     （planmarks.frozen）が両方在る時だけ項目ごとに render して書き、控えを書く（どちらか無ければ [] で何も書かない。欄の控えが
     凍結の印と食い違えば LedgerBroken）。控えが在れば作り直さず、最後の切った印の後に差し替えの印が在る時だけ差し替えた項目を
     切り直し（_recut）、控えと違うファイルを書き戻す。judgment は判定（judgment.json の dict。units と処方を読む）、purpose は
-    凍結した目的の文、structure_dir は構造の目の置き場（structmark.plan_section に渡す。無ければ構造の目の行は無し）"""
-    src = _sources(plan, judgment, purpose, structure_dir, round_)
+    凍結した目的の文、structure は構造の目の控えのパス（structmark.plan_section に渡す。無ければ構造の目の行は無し）"""
+    src = _sources(plan, judgment, purpose, structure, round_)
     rows = _ledger(b, round_)
     if rows is not None:
         items = _amended_since_cut(b, round_)

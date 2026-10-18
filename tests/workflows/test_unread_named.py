@@ -208,14 +208,25 @@ def plan(p: Place) -> dict:
             "review": p.put("plan-review/pass-1/review.json", {"faces": [], "shrink": [], "reason": "穴が無い"}),
             "ruling": "[]", "conflicts": p.put("fix/conflicts.json", {"items": []}),
             "prior_failures": p.put("prior.json", [{"where": "受け付け", "text": "前の失敗"}]),
+            "structure": structure_state(p),
             **judge_files(p, "verify", "pr_excluded", "depth_record", "answer_ties", "materials", "decisions")}
 
 
+def structure_state(p: Place) -> str:
+    p.put("structure/design.jsonl", "")
+    return p.put("structure/structure-state.json", {"status": "ok", "reason": "", "design_file": str(p.art / "structure/design.jsonl"),
+                                                    "wall_s": 0, "skipped": []})
+
+
+def structure(p: Place) -> dict:
+    return {"start": p.start(), "units": units()}
+
+
 def plan_review(p: Place) -> dict:
-    p.put("plan/structure/design.jsonl", "")
+    p.put("structure/design.jsonl", "")
     return {"units": units(), "judgment": judgment(p), "purpose": p.put("judge/purpose.json", {"purpose_text": "平均が正しい"}),
             "world": world(p), "plan": plan_fields(p), "fix_plan": fix_plan(p), "plan_rejects": "[]",
-            "structure": p.put("plan/structure/structure-state.json",
+            "structure": p.put("structure/structure-state.json",
                                {"status": "ok", "reason": "", "design_file": "x", "wall_s": 0}),
             "ripple": p.put("plan/ripple.json", {"items": [], "overlaps": []}), "start": p.start(), "answers": "null",
             "ruling": "[]", "conflicts": p.put("fix/conflicts.json", {"items": []}), "gate_answers": "null", "round_limit": "null",
@@ -235,6 +246,7 @@ SETUPS = {
     "judge": (judge, ("intake",)),
     "merge": (merge, ()),
     "plan": (plan, ("round",)),
+    "structure": (structure, ()),
     "plan-review": (plan_review, ()),
     "test-gate": (test_gate, ()),
 }

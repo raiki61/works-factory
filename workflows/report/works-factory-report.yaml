@@ -30,10 +30,15 @@ inputs:
     description: >-
       {ready, stop_reason, units, judgment, purpose, world, spec, out_of_purpose, depth, depth_why など} の形の JSON のオブジェクト
       （文書の欄はポインタか null）。同じ形の前の出力より新しい出力。在ればこちらを先に読む。空か null は走らなかったこと
+  structure:
+    default: ""
+    description: >-
+      構造の目の出力。JSON のオブジェクト（ok は控えの status が ok か、もう 1 つの欄は構造の目の控えのポインタ {type, run_id, path} で、
+      控えの design_file が構造の目の行のファイルを指す）。空か null はその段が飛ばされた・落ちたこと
   plan:
     default: ""
     description: >-
-      計画の出力。JSON のオブジェクト {ready, stop_reason, round, depth など}（修正案・構造の目・波及の文書の欄はポインタ {type, run_id, path}
+      計画の出力。JSON のオブジェクト {ready, stop_reason, round, depth など}（修正案・波及の文書の欄はポインタ {type, run_id, path}
       か null、depth は単位ごとの {unit_id, depth, why} の配列、round は何回目の案か）。空か null はその段が飛ばされた・落ちたこと
   plan-review:
     default: ""

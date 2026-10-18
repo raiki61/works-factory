@@ -7,10 +7,8 @@
 0 件の周か nothing_owed）。案の直しの周で役が諦めた時は、項目ごとの諦めの行を plan-fields.json の隣に置き、欄 gave_up でも返す
 （planfile.note_gave_up。諦めていなければ null）。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、標準ライブラリだけで ready: false と訳を周のフォルダの collect-error.txt に
-書き、指し札の先（plan-fields.json・structure-state.json・ripple.json）が在って空でない形で返す（線は落ちた返す節の先へ進めない）。
-その時の控えの欄は無い形（fix_plan: null・rejects: []・nothing_owed: false・gave_up: null）。
-返りの全部（failed も）に欄 optional を載せる: 入力（with:）optional の、このブロックが落ちても線が先へ進めてよい節の宣言
-（[{node, bare}] の JSON の字）を境の口 boundary.items で読んだ並び。境の口を読めない時だけ []"""
+書き、指し札の先（plan-fields.json・ripple.json）が在って空でない形で返す（線は落ちた返す節の先へ進めない）。
+その時の控えの欄は無い形（fix_plan: null・rejects: []・nothing_owed: false・gave_up: null）。"""
 import json
 import os
 import sys
@@ -18,16 +16,11 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 
-# lib/planfile.py の PLAN_DIR・ROUND_FILE・RIPPLE_FILE・DESIGN_FILE・UNREAD_STRUCTURE、planmarks.FIELDS_FILE、structmark.STATE_FILE と
-# 同じ字。試験が突き合わせる
+# lib/planfile.py の ROUND_FILE・RIPPLE_FILE、planmarks.FIELDS_FILE と同じ字。試験が突き合わせる
 ROUND_FILE = "round.json"
 COLLECT_ERROR_FILE = "collect-error.txt"
 FIELDS_FILE = "plan-fields.json"
-STATE_FILE = "structure-state.json"
-DESIGN_FILE = "design.jsonl"
 RIPPLE_FILE = "ripple.json"
-PLAN_DIR = "plan"
-UNREAD_STRUCTURE = "structure/unread"
 
 
 def collected() -> dict:
@@ -51,7 +44,7 @@ def collected() -> dict:
         conflicts, _ = planfile.read_pointed(os.environ["INPUTS_CONFLICTS"], boundary.pointed)
         gave_up = planfile.note_gave_up(round_dir, art / planfile.PLAN_DIR, conflicts)
     reason = "" if got["ready"] else planfile.why_not_ready(round_dir)
-    paths = planfile.placeholders(round_dir, art / planfile.PLAN_DIR / rnd["structure"], reason)
+    paths = planfile.placeholders(round_dir, reason)
     ports = planfile.returned(round_dir)
     pointer = lambda p: None if p is None else boundary.pointer(p.relative_to(art).as_posix())  # noqa: E731
     return {"ready": got["ready"], **{k: pointer(p) for k, p in paths.items()}, "depth": got["depth"], "round": rnd["round"],
@@ -80,29 +73,14 @@ def failed(error: BaseException) -> dict:
         rnd = {}
     rnd = rnd if isinstance(rnd, dict) else {}
     k = rnd.get("round") if isinstance(rnd.get("round"), int) and rnd["round"] >= 1 else 1
-    structure = art / PLAN_DIR / (rnd["structure"] if isinstance(rnd.get("structure"), str) else UNREAD_STRUCTURE)
     round_dir.mkdir(parents=True, exist_ok=True)
-    structure.mkdir(parents=True, exist_ok=True)
     (round_dir / COLLECT_ERROR_FILE).write_text(reason + "\n", encoding="utf-8")
     _write(round_dir / FIELDS_FILE, {"round": k, "fields": []})
-    if not (structure / DESIGN_FILE).is_file():
-        (structure / DESIGN_FILE).write_bytes(b"")
-    _write(structure / STATE_FILE, {"status": "failed", "reason": reason, "design_file": str(structure / DESIGN_FILE), "wall_s": 0})
     _write(round_dir / RIPPLE_FILE, {"items": [], "error": reason})
     run_id = os.environ.get("WORKFLOW_ID", "")
     return {"ready": False, **{k: {"type": "archon_artifact", "run_id": run_id, "path": p.relative_to(art).as_posix()}
-                               for k, p in (("plan", round_dir / FIELDS_FILE), ("structure", structure / STATE_FILE),
-                                            ("ripple", round_dir / RIPPLE_FILE))},
+                               for k, p in (("plan", round_dir / FIELDS_FILE), ("ripple", round_dir / RIPPLE_FILE))},
             "depth": [], "round": k, "fix_plan": None, "rejects": [], "nothing_owed": False, "gave_up": None}
-
-
-def declared() -> list:
-    try:
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-        import boundary
-        return boundary.items(os.environ.get("INPUTS_OPTIONAL"))
-    except Exception:  # noqa: BLE001  返す節は落ちない
-        return []
 
 
 def main() -> int:
@@ -110,7 +88,7 @@ def main() -> int:
         out = collected()
     except Exception as e:  # noqa: BLE001  返す節は落ちない（誤りは訳に残して ready: false）
         out = failed(e)
-    print(json.dumps({**out, "optional": declared()}, ensure_ascii=False, allow_nan=False), flush=True)
+    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

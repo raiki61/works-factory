@@ -3287,7 +3287,7 @@
 - gaps-plan.md P024: lib/planmarks.py::save（trace を渡さないので周のフォルダの trace.jsonl に直に書く）・lib/planfile.py::_save
 - gaps-plan.md P025: lib/planfile.py::_save（置けなければ置いた控えを消し、round.json の why に控えの名。出力 halt で plan_accept が拒否に数えずループを止める）（#120）
 - gaps-plan.md P027: lib/planfile.py::write_brief（write_brief の structmark.plan_section）
-- gaps-plan.md P028: lib/structmark.py::MISSING・lib/structmark.py::plan_section・lib/planfile.py::write_state・lib/planfile.py::write_brief
+- gaps-plan.md P028: lib/structmark.py::MISSING・lib/structmark.py::plan_section・lib/structfile.py::write_state・lib/planfile.py::write_brief
 - gaps-plan.md P031: lib/planfile.py::prescriptions・lib/planfile.py::prescription_section・lib/planfile.py::write_brief
 - gaps-plan.md P033: lib/planblk.py::HEAD・lib/planblk.py::head（前提の部品）・lib/planfile.py::write_brief（write_brief が頭に置く）
 - gaps-plan.md P034: lib/planfile.py::units_section
@@ -3302,23 +3302,23 @@
 - gaps-plan.md P056: lib/planfile.py::ripple_units・lib/planfile.py::write_brief・workflows/plan/scripts/ripple_units.py::main（skip_dirs は workflows/.shared/boundary.py::RUNTIME_COPY_DIRS で .archon）
 - gaps-plan.md P057: lib/reads.py・lib/planfile.py::collect_reads・workflows/plan/scripts/plan_reads.py（ノード plan-reads）・bin/_lib/record-read.py・bin/_lib/toolset.py（隔離した設定にフックを置く）（#120）
 - gaps-plan.md P059: lib/planfile.py::collect・lib/planfile.py::owed_order・workflows/plan/scripts/plan_collect.py::collected
-- gaps-plan.md P064: lib/planfile.py::measure（design.jsonl の置き直し）・lib/eye.py::reset（eye.json を消す）
+- gaps-plan.md P064: lib/structfile.py::measure（design.jsonl の置き直し）・lib/eye.py::reset（eye.json を消す）
 - gaps-plan.md P065: lib/context.py::concepts・lib/context.py::find（字のまま）
 - gaps-plan.md P066: lib/context.py::find・lib/context.py::concepts
-- gaps-plan.md P067: lib/context.py::rules・lib/planfile.py::measure（policy_path は start.policy_md。workflows/plan/scripts/structure_measure.py::main）
-- gaps-plan.md P068: lib/planfile.py::measure（`eye.stamp`）・lib/eye.py::stamp
-- gaps-plan.md P069: lib/eye.py::due・workflows/plan/works-factory-plan.yaml::structure-eye-loop の `when: "$structure-measure.output.eye == true"`
+- gaps-plan.md P067: lib/context.py::rules・lib/structfile.py::measure（policy_path は start の方針の固めた写し。workflows/structure/scripts/structure_measure.py::main）
+- gaps-plan.md P068: lib/structfile.py::measure（`eye.stamp`）・lib/eye.py::stamp
+- gaps-plan.md P069: lib/eye.py::due・workflows/structure/works-factory-structure.yaml::structure-eye-loop の `when: "$structure-measure.output.eye == true"`
 - gaps-plan.md P072: lib/eye.py::render（字のまま）
 - gaps-plan.md P073: lib/eye.py::FORMS（試験 lib/tests/test_structure_eye.py が今の works の設計書の一覧を字で持って照らす）（#120）
-- gaps-plan.md P076: workflows/plan/works-factory-plan.yaml::structure-eye・workflows/plan/commands/structure-eye.md（元と字のまま）
+- gaps-plan.md P076: workflows/structure/works-factory-structure.yaml::structure-eye・workflows/structure/commands/structure-eye.md（元と字のまま）
 - gaps-plan.md P080: lib/eye.py::problems（route の照らし）
 - gaps-plan.md P081: lib/eye.py::accept
-- gaps-plan.md P083: lib/planfile.py::_outcome・lib/planfile.py::write_state・workflows/plan/works-factory-plan.yaml::structure-state（trigger_rule: all_done）
-- gaps-plan.md P084: lib/planfile.py::write_state
-- gaps-plan.md P085: workflows/plan/works-factory-plan.yaml::structure-state（all_done）とplan-loop（none_failed_min_one_success）・lib/structmark.py::plan_section
-- gaps-plan.md P086: lib/planfile.py::keep_state（workflows/plan/scripts/structure_state.py。書けない周は周のフォルダに「構造の控えを書けない」の訳で failed を置き、round.json の structure を替えて計画へ進む）（#120）
-- gaps-plan.md P087: workflows/plan/works-factory-plan.yaml::plan-loop（structure-state が落ちれば plan-loop は none_failed_min_one_success で飛ぶ）・出力ノード plan は ready: false
-- gaps-plan.md P088: lib/structmark.py::plan_section・lib/planfile.py::write_brief `structmark.plan_section(structure_dir_)`
+- gaps-plan.md P083: lib/structfile.py::_outcome・lib/structfile.py::write_state・workflows/structure/works-factory-structure.yaml::structure（trigger_rule: all_done）
+- gaps-plan.md P084: lib/structfile.py::write_state
+- gaps-plan.md P085: workflows/structure/works-factory-structure.yaml::structure（all_done。中の節が落ちても失敗の控えを返す）・lib/structmark.py::plan_section
+- gaps-plan.md P086: lib/structfile.py::keep_state（workflows/structure/scripts/structure_collect.py。置き場に控えを書けない run は lib/structfile.py::SPARE_DIR に「構造の控えを書けない」の訳で failed を置いて返し、計画へ進む）（#120・#560）
+- gaps-plan.md P087: workflows/line/works-factory-line.yaml::plan-rounds（depends_on に構造のブロック structure。返す節が落ちれば計画の往復は飛ぶ）
+- gaps-plan.md P088: lib/structmark.py::plan_section・lib/planfile.py::write_brief `structmark.plan_section(structure)`
 - gaps-plan.md P109: lib/converge.py::splice（planfile の写しは消え、converge のを直に使う）、lib/planfile.py::take_plan（DROPPED_OP は converge.DROPPED_OP を直に使う）
 - gaps-plan.md P110: lib/planfile.py::take_plan（`extra = {block_answers}`）→ lib/boardview.py::open_pass（`converge.split("plan-revise", fix_plan)` → `converge.note_answers`）
 - gaps-plan.md P114: P74 works-factory-line.yaml の `max_iterations: 20` と、plan-out・plan-review-run の `with:` の `round_limit: 20`（正本はメイングラフ。lib/boardview.py::_at_cap は入力の round_limit で converge.record_pass の at_cap を決め、数を持たない）
@@ -3575,7 +3575,7 @@
 - line.md L-W06: judge の出力ノードが ready:false と stop_reason を返し、judge-out（workflows/line/works-factory-line.yaml::judge-out）が受けて collect に届く
 - line.md L-W07: メイングラフの design-only（plan-review の形 design。lib/boardview.py::open_design・lib/boardview.py::_collect_design）→ workflows/line/scripts/fixed.py::no_fix（独立設計・go・差分無し）→ judged・redepth・test-gate-final・eyes（設計は $fixed.output.design）→ ask-final（封じのノードが飛んでも開く）。merge-seal・merge-apply は no_fix で飛ぶ。結末は lib/outcome.py（残りが無ければ no_fix_needed、封じの出力が無いのを切れ目と読まない）。計画の直す義務 0 件の周も workflows/line/scripts/plan_out.py::plan_out が計画の欄 nothing_owed を運べば plan-out の nothing_owed で design-only に入る（#291。結末は round_limit）
 - line.md L-W08: lib/judge_accept.py::structure_units（record に {units, paths} を書く）・`verdict` が判定の置き場の `structure-units-dropped.json`（`STRUCTURE_DROPPED_FILE`）に書く
-- line.md L-W09: workflows/line/scripts/ask_final.py::structure_missing（計画の出力 `structure` の先の structure-state.json を `structmark.note` で読む。メイングラフの `ask-final` の `structure` ← `$fix-in.output.structure`）
+- line.md L-W09: workflows/line/scripts/ask_final.py::structure_missing（構造のブロックの出力 `structure` の先の structure-state.json を `structmark.note` で読む。メイングラフの `ask-final` の `structure` ← `$fix-in.output.structure`）
 - line.md L-W10: lib/planfile.py::write_brief（`planblk.verify_part` が判定の出力の欄 verify の先〔judge-verify.json〕を貼る）
 - line.md L-W11: workflows/line/works-factory-line.yaml::fix（fix の plan・ripple・depth は `$fix-in.output.*`）
 - line.md L-W12: workflows/line/works-factory-line.yaml::plan-rounds（loop_group。`review: $LOOP_PREV.plan-out.output.review` は workflows/line/works-factory-line.yaml::plan）、workflows/line/scripts/plan_out.py::plan_out
@@ -3702,7 +3702,7 @@
 - plan.md P008: lib/planfile.py::not_allowed・lib/planfile.py::take_plan（lib/planblk.py::NOT_OWED_REJECT）
 - plan.md P009: lib/planfile.py::plan_slots・lib/planfile.py::units_section（「入れてもよい（人の答え待ちの…）」）
 - plan.md P010: lib/planfile.py::stuck_reason・lib/planfile.py::open_round（直す義務 lib/gatemarks.py::duty が依頼の答えで開いていない単位を戻すと起きる）
-- plan.md P011: lib/planfile.py::open_round（lib/planfile.py::NOTHING_OWED）・workflows/plan/works-factory-plan.yaml::structure-measure・workflows/plan/works-factory-plan.yaml::plan-loop の when
+- plan.md P011: lib/planfile.py::open_round（lib/planfile.py::NOTHING_OWED）・workflows/plan/works-factory-plan.yaml::plan-loop の when（構造の実測は計画の外の構造のブロックが judge の後に 1 回走るので、直す義務 0 件の run でも測る。#560）
 - plan.md P012: lib/planfile.py::take_plan（lib/planfile.py::MALFORMED_REJECT）、lib/replan.py::_malformed
 - plan.md P013: lib/planfile.py::take_plan（reasons の並び）
 - plan.md P014: lib/planfile.py::take_plan（lib/planblk.py::NO_NARROW_REJECT）・役の型の required に no_narrow（workflows/plan/works-factory-plan.yaml::plan-writer）
@@ -3719,8 +3719,8 @@
 - plan.md P025: lib/planfile.py::_save（置けなければ置いた控えを消し、round.json の why に控えの名。出力 halt で plan_accept が拒否に数えずループを止める）（#120）
 - plan.md P026: lib/planfile.py::answer_tables・lib/planfile.py::take_plan・lib/planmarks.py::structure_gaps
 - plan.md P027: lib/planfile.py::write_brief（write_brief の structmark.plan_section）
-- plan.md P028: lib/structmark.py::MISSING・lib/structmark.py::plan_section・lib/planfile.py::write_state・lib/planfile.py::write_brief
-- plan.md P029: lib/planfile.py::_measured_units・lib/planfile.py::units_section
+- plan.md P028: lib/structmark.py::MISSING・lib/structmark.py::plan_section・lib/structfile.py::write_state・lib/planfile.py::write_brief
+- plan.md P029: lib/structfile.py::_measured_units・lib/structmark.py::skipped・lib/planfile.py::units_section
 - plan.md P030: lib/planfile.py::write_brief（worldmark.section・PLAN_ASK）・lib/planfile.py::answer_tables
 - plan.md P031: lib/planfile.py::prescriptions・lib/planfile.py::prescription_section・lib/planfile.py::write_brief
 - plan.md P032: workflows/plan/commands/fix-plan.md
@@ -3744,42 +3744,42 @@
 - plan.md P050: lib/planfile.py::open_round（review/p2.plan_review.json）
 - plan.md P051: lib/planfile.py::next_round・lib/planfile.py::open_round
 - plan.md P052: workflows/plan/scripts/round.py::failed・workflows/plan/scripts/round.py::main
-- plan.md P053: workflows/plan/scripts/plan_collect.py::failed・workflows/plan/scripts/plan_collect.py::main・lib/planfile.py::placeholders
+- plan.md P053: workflows/plan/scripts/plan_collect.py::failed・workflows/plan/scripts/plan_collect.py::main・lib/planfile.py::placeholders（構造の目の控えは workflows/structure/scripts/structure_collect.py::failed）
 - plan.md P054: workflows/plan/works-factory-plan.yaml::plan
 - plan.md P055: lib/planfile.py::ripple_items・lib/ripple.py::build・workflows/plan/scripts/ripple_items.py
 - plan.md P056: lib/planfile.py::ripple_units・lib/planfile.py::write_brief（ripple.units_section を貼る。lib/ripple.py::units_section）・workflows/plan/scripts/ripple_units.py（境の boundary.RUNTIME_COPY_DIRS）
 - plan.md P057: lib/reads.py・lib/planfile.py::collect_reads・workflows/plan/scripts/plan_reads.py（ノード plan-reads）・bin/_lib/record-read.py・bin/_lib/toolset.py（隔離した設定にフックを置く）（#120）
 - plan.md P059: lib/planfile.py::collect・lib/planfile.py::owed_order・lib/depth.py::decide_doc・lib/depth.py::unit_depth・workflows/plan/scripts/plan_collect.py::collected（共有ボードを読む lib/depth.py の `decide` は届かなかったので #232 で消した）
-- plan.md P060: lib/planfile.py::measure・lib/stage_a.py::measure_unit・workflows/plan/scripts/structure_measure.py::main
-- plan.md P061: lib/planfile.py::_measured_units・lib/planfile.py::measure（units.json と skipped-units.json）・lib/planfile.py::units_section
-- plan.md P062: lib/stage_a.py::measure_unit・lib/planfile.py::measure
-- plan.md P063: lib/stage_a.py::read_units・lib/planfile.py::measure
-- plan.md P064: lib/planfile.py::measure
+- plan.md P060: lib/structfile.py::measure・lib/stage_a.py::measure_unit・workflows/structure/scripts/structure_measure.py::main
+- plan.md P061: lib/structfile.py::_measured_units・lib/structfile.py::measure（units.json と skipped-units.json）・lib/structmark.py::skipped・lib/planfile.py::units_section
+- plan.md P062: lib/stage_a.py::measure_unit・lib/structfile.py::measure
+- plan.md P063: lib/stage_a.py::read_units・lib/structfile.py::measure
+- plan.md P064: lib/structfile.py::measure
 - plan.md P065: lib/context.py::concepts・lib/context.py::find（字のまま）
 - plan.md P066: lib/context.py::find・lib/context.py::concepts
-- plan.md P067: lib/context.py::rules・lib/planfile.py::measure（policy_path は start の方針。workflows/plan/scripts/structure_measure.py::main が lib/policy.py::frozen_copy で渡す）
-- plan.md P068: lib/eye.py::stamp（lib/planfile.py::measure が呼ぶ）
-- plan.md P069: lib/eye.py::due・workflows/plan/works-factory-plan.yaml::structure-eye-loop `when: "$structure-measure.output.eye == true"`
-- plan.md P070: lib/planfile.py::structure_key・lib/planfile.py::structure_dir・lib/planfile.py::measure（reused）
-- plan.md P071: lib/planfile.py::open_round（why の在る周の structure は `r<k>/structure`）・lib/planfile.py::write_state `write_state(skipped=…)`・workflows/plan/scripts/structure_state.py
+- plan.md P067: lib/context.py::rules・lib/structfile.py::measure（policy_path は start の方針。workflows/structure/scripts/structure_measure.py::main が lib/policy.py::frozen_copy で渡す）
+- plan.md P068: lib/eye.py::stamp（lib/structfile.py::measure が呼ぶ）
+- plan.md P069: lib/eye.py::due・workflows/structure/works-factory-structure.yaml::structure-eye-loop `when: "$structure-measure.output.eye == true"`
+- plan.md P070: workflows/line/works-factory-line.yaml::structure（judge の後に 1 回だけ include。計画の往復・案の直し・事前審査は同じ控えを入力 structure で受け、測り直さない。#560 で鍵 structure_key の使い回しを替えた）
+- plan.md P071: workflows/structure/works-factory-structure.yaml::structure（構造の目の控えは構造のブロックが run に 1 回書く。計画の周は役を起こすかに依らず控えに触らない。#560）・lib/structfile.py::write_state
 - plan.md P072: lib/eye.py::render（字のまま）
 - plan.md P073: lib/eye.py::FORMS（試験の lib/tests/test_structure_eye.py が今の works の設計書の一覧を字で持って照らす）（#120）
 - plan.md P074: lib/eye.py::prep
 - plan.md P075: lib/eye.py::_cut
-- plan.md P076: workflows/plan/works-factory-plan.yaml::structure-eye・workflows/plan/commands/structure-eye.md（元と字のまま）
-- plan.md P077: workflows/plan/works-factory-plan.yaml::structure-eye・lib/design-row.schema.json
+- plan.md P076: workflows/structure/works-factory-structure.yaml::structure-eye・workflows/structure/commands/structure-eye.md（元と字のまま）
+- plan.md P077: workflows/structure/works-factory-structure.yaml::structure-eye・lib/design-row.schema.json
 - plan.md P078: lib/eye.py::problems・lib/eye.py::_pointer
 - plan.md P079: lib/eye.py::problems
 - plan.md P080: lib/eye.py::problems・lib/eye.py::MIN_UNDECIDED
 - plan.md P081: lib/eye.py::accept・lib/eye.py::ROUTE_REASON
-- plan.md P082: lib/eye.py::accept・workflows/plan/works-factory-plan.yaml::structure-eye-loop
-- plan.md P083: lib/planfile.py::_outcome・lib/planfile.py::write_state・workflows/plan/works-factory-plan.yaml::structure-state（trigger_rule: all_done）
-- plan.md P084: lib/planfile.py::write_state（wall_s = 実測の秒＋目の秒）・lib/eye.py::wall
-- plan.md P085: workflows/plan/works-factory-plan.yaml::structure-state（structure-state は all_done）・workflows/plan/works-factory-plan.yaml::plan-loop（plan-loop は none_failed_min_one_success）・lib/structmark.py::plan_section
-- plan.md P086: lib/planfile.py::keep_state（workflows/plan/scripts/structure_state.py。書けない周は周のフォルダに「構造の控えを書けない」の訳で failed を置き、round.json の structure を替えて計画へ進む）（#120）
-- plan.md P087: workflows/plan/works-factory-plan.yaml::plan-loop（structure-state が落ちれば plan-loop は none_failed_min_one_success で飛ぶ）・出力ノード plan は ready: false
-- plan.md P088: lib/structmark.py::plan_section・lib/planfile.py::write_brief（`structmark.plan_section(structure_dir_)`）
-- plan.md P089: workflows/plan/scripts/plan_collect.py::collected・lib/planfile.py::placeholders
+- plan.md P082: lib/eye.py::accept・workflows/structure/works-factory-structure.yaml::structure-eye-loop
+- plan.md P083: lib/structfile.py::_outcome・lib/structfile.py::write_state・workflows/structure/works-factory-structure.yaml::structure（trigger_rule: all_done）
+- plan.md P084: lib/structfile.py::write_state（wall_s = 実測の秒＋目の秒）・lib/eye.py::wall
+- plan.md P085: workflows/structure/works-factory-structure.yaml::structure（返す節は all_done）・lib/structmark.py::plan_section
+- plan.md P086: lib/structfile.py::keep_state（workflows/structure/scripts/structure_collect.py。置き場に控えを書けない run は lib/structfile.py::SPARE_DIR に「構造の控えを書けない」の訳で failed を置いて返し、計画へ進む）（#120・#560）
+- plan.md P087: workflows/line/works-factory-line.yaml::plan-rounds（depends_on に構造のブロック structure。返す節が落ちれば計画の往復は飛ぶ）
+- plan.md P088: lib/structmark.py::plan_section・lib/planfile.py::write_brief（`structmark.plan_section(structure)`）
+- plan.md P089: workflows/structure/scripts/structure_collect.py::collected・lib/structmark.py::read（読み手は控えの design_file から辿る）
 - plan.md P090: lib/measure.py（字のまま）
 - plan.md P091: lib/measure.py
 - plan.md P092: lib/measure.py
@@ -3822,7 +3822,7 @@
 - plan.md P129: lib/planfile.py::take_replan、lib/replan.py::new_item
 - plan.md P130: lib/planfile.py::take_replan（amended つき plan-fields.json と trace の `plan_amended`。lib/planfile.py::_save・lib/planmarks.py::AMEND_OP）・lib/planfile.py::revised_fields（受け付けで差し替える。採るかはメイングラフの承認ノード。届かなかった lib/planmarks.py の `amend` は #232 で消した）
 - plan.md P131: lib/planfile.py::ripple_items（その周の案で作る）、WF workflows/plan/works-factory-plan.yaml::ripple-units（ripple-units は mode plan だけ）
-- plan.md P132: lib/planfile.py::structure_dir（`structure_dir(… source=prev)`）・lib/planfile.py::open_round
+- plan.md P132: workflows/line/works-factory-line.yaml::replan（`structure: $fix-in.output.structure`。1 回目と同じ構造の目の控え）・lib/planfile.py::open_round
 - plan.md P133: lib/planfile.py::collect（その周の案で depth）、workflows/line/works-factory-line.yaml::refix-run（`depth: $replan.output.depth`）・workflows/line/works-factory-line.yaml::redepth（`replan_depth: $replan.output.depth`）
 - plan.md P134: WF workflows/plan/scripts/plan_accept.py::main（rolekit.accept_round）、lib/planfile.py::why_not_ready
 - plan.md P135: lib/planfile.py::collect_reads（形 replan は reads-replan-<役>.json と reads-replan-block.json を周のフォルダに書く）（#120）
