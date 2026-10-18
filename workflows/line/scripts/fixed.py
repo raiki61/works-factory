@@ -23,12 +23,14 @@ held の時は 1 回目の修正の差分を試験の関門から先へ進めな
 plan・ripple は独立の目が照らす修正案と波及: 2 度目の修正が走った run は案の直し（replan）の物、ほかは計画の往復の物
 （元 works/darkfactory/lib/line_edge.py 1058-1064 行。案の直しの後は承認済みの案を差し替えた）。
 
-design・plan_questions・answer は独立の目へ渡す計画の往復の設計と修正前の関所の問いと答え（そのまま渡す）。直す物が無い周（fix が
+design・design_premises・plan_questions・answer は独立の目へ渡す計画の往復の設計とその役に貼った物の控えと修正前の関所の問いと
+答え（そのまま渡す）。直す物が無い周（fix が
 走らず design-only が走った。fix の欄が null）は no_fix の形（no_fix）を返す（L-W07）。
 
 入力（with:）: fix（fix の返りまるごと。止めの語 stop_reason も）・refix（refix-run の返りまるごと。読む欄の名は FIELDS で、口 boundary.picked に渡す。
 refix が走らなかったかは値が null かで見分ける）・replan（after-fix の返り）・stop_after_fix（after-fix の止めの理由）・
-plan・ripple・design・plan_questions（計画の往復の返り）・answer（修正前の関所の答え）・no_fix_design（design-only の design）・replanned
+plan・ripple・design・design_premises・plan_questions（計画の往復の返り）・answer（修正前の関所の答え）・no_fix_design・
+no_fix_design_premises（design-only の design・design_premises）・replanned
 （案の直しの返りの受け皿 replan-out の got。案の直しの返す節が落ちても fixed が落ちないように、replan を直に読まない）。直す物が
 無い周に飛ぶ節を結ぶので、どれも `{from, if_skipped: null}`
 """
@@ -56,7 +58,8 @@ def no_fix(plans: dict) -> dict:
     return {"done": True, "go": True, "units": [], "groups": [], "conflicts": [], "replan_items": [], "objection": "", "diff": None,
             "records": [], "allowed_test_changes": [], "handoffs": [], "mismatched": [], "plan_declared": [], "changed": {}, "x_scalars": {},
             "delta_review": None, "refixed": False,
-            "rejudge": False, "plan": None, "ripple": None, "design": plans.get("no_fix_design"), "plan_questions": [],
+            "rejudge": False, "plan": None, "ripple": None, "design": plans.get("no_fix_design"),
+            "design_premises": plans.get("no_fix_design_premises"), "plan_questions": [],
             "answer": None, "no_fix": True, "stop_reason": ""}
 
 
@@ -116,6 +119,7 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         "refixed": refix is not None,
         **{key: (again or plans).get(key) for key in PLANS},
         "design": plans.get("design"),
+        "design_premises": plans.get("design_premises"),
         "plan_questions": plans.get("plan_questions") or [],
         "answer": plans.get("answer"),
         "no_fix": False,
@@ -131,9 +135,11 @@ def from_env() -> dict:
             "plans": {"plan": boundary.value(os.environ.get("INPUTS_PLAN")), "ripple": boundary.value(os.environ.get("INPUTS_RIPPLE")),
                       "replanned": boundary.value(os.environ.get("INPUTS_REPLANNED")),
                       "design": boundary.value(os.environ.get("INPUTS_DESIGN")),
+                      "design_premises": boundary.value(os.environ.get("INPUTS_DESIGN_PREMISES")),
                       "plan_questions": boundary.value(os.environ.get("INPUTS_PLAN_QUESTIONS")),
                       "answer": boundary.value(os.environ.get("INPUTS_ANSWER")),
-                      "no_fix_design": boundary.value(os.environ.get("INPUTS_NO_FIX_DESIGN"))},
+                      "no_fix_design": boundary.value(os.environ.get("INPUTS_NO_FIX_DESIGN")),
+                      "no_fix_design_premises": boundary.value(os.environ.get("INPUTS_NO_FIX_DESIGN_PREMISES"))},
             "stops": (boundary.text(os.environ.get("INPUTS_STOP_AFTER_FIX")),)}
 
 
@@ -142,7 +148,7 @@ def fallback(reason: str) -> dict:
             "changed": None, "delta_review": None,
             "handoffs": [], "mismatched": [], "plan_declared": [],
             "objection": "", "rejudge": False, "allowed_test_changes": [], "x_scalars": {}, "refixed": False, "plan": None, "ripple": None,
-            "design": None, "plan_questions": [], "answer": None, "no_fix": False,
+            "design": None, "design_premises": None, "plan_questions": [], "answer": None, "no_fix": False,
             "stop_reason": boundary.LINE_SCRIPT}
 
 

@@ -25,8 +25,10 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   redesign_points の名指しで決める（名指しが在れば作り直し・無ければ直しが要るに倒す。欄が在るのに配列でない・読める項が無ければ確かめられない。
   頭の字は RAISED_BY_POINTS・UNNAMED_REDESIGN・BROKEN_POINTS）
 - write_notes(eyes_dir, ...): 返りの欄の外で最後の関所に出す材料（R2 に渡した前提の控えと『渡されていない』の照らし・人が
-  通したので R4 の問いから外した行）を置き場に書く（返りの notes が PREMISE_INPUTS を指し、隣の GATE_PASSES・PREMISE_FILE も約束）
-- r2_input_lines・gate_pass_rows・premise_facts・premise_fact_lines: 最後の関所と報告がその隣のファイルを読む口
+  通したので R4 の問いから外した行）を置き場に書く（返りの notes が PREMISE_INPUTS を、r4_passes が人が通した行を指す。前提の検算の
+  役の返りは premise_reply が指す。名は目の名の住処 lib/eyesbeside.py）
+- r2_input_lines・gate_pass_rows・premise_facts・premise_fact_lines: 最後の関所と報告が目の出力の欄 notes・r4_passes・premise_reply の
+  先を読む口
 """
 from __future__ import annotations
 
@@ -40,6 +42,7 @@ import boardview
 import changemap
 from answer import GO_WORDS, by_push, origin
 import design
+import eyesbeside
 import gatemarks
 import jsonfile
 import oneline
@@ -82,7 +85,8 @@ X_SCALAR = re.compile(r"^x_[a-z0-9_]+$")   # 元 graphs/review-loop.json の p3.
 EYES = ("r1", "r2", "r3", "r4")
 PREMISE = "premise-check"
 LANE = {"r1": "R1", "r2": "R2", PREMISE: "R2", "r3": "R3", "r4": "R4"}
-RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "protected_hits", "notes")
+NOTES = ("notes", "r4_passes", "premise_reply")   # 返りの欄の外の材料を指す欄（write_notes の返り。書けなかった道は null）
+RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "protected_hits", *NOTES)
 VERDICTS = ("resolved", "escalate")
 NO_FILE = "出力のファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
@@ -95,10 +99,10 @@ REVIEW_NO_PLAN = "事前審査は直す物の無い周（形 design）で、案�
 REVIEW_UNREAD = "  事前審査の最後の往復の返答を読めない（外れを認めたかは分からない）: {why}"
 GREEN_LINE = "最後のテストの認証が通っていない（赤は最後の承認ノードで人が見る）"
 DOC_SUFFIXES = (".md",)
-DESIGN_PREMISES = "design-premises.json"   # 独立設計の役に貼った物の控え（design.json の隣。元 design.PREMISES_FILE）
 R2_PREMISES = "r2-premises.json"           # 比較役に貼った物の控え（置き場。元 eyes.PREMISES_NAME）
 PREMISE_INPUTS = "premise-inputs.json"     # 最後の関所に出す R2 の前提の材料（元 eyes-exit.json の premise_inputs）
-GATE_PASSES = "r4-gate-passes.json"        # 人が通したので R4 の問いから外した行（元 state.works.gate_passes。事前審査の gatemarks.PASSES_FILE とは別の物）
+GATE_PASSES = eyesbeside.R4_PASSES_FILE   # 人が通したので R4 の問いから外した行（元 state.works.gate_passes。事前審査の聞かずに通した行とは別の物）
+PREMISE_NO_REPLY = "前提の検算の役の出力が無い（目の出力の欄 premise_reply が null か無い）: 偽と分かった仮定と次の run の制約に足す実測は読んでいない"
 # まとめた役 eyes-one が 1 つの会話で見る観点（観点ごとの役の指示書の名と、平易な名。並びは読む順）
 ONE_VIEWS = (("r3-coherence", "R3 全体の整合"), ("r4-scope", "R4 見えていない範囲"))
 ONE_DIR = "one"   # 観点ごとの指示書の置き場（eyes/one/<役の指示書の名>.md）
@@ -535,7 +539,7 @@ def unverified(reason: str, protected: dict | None) -> dict:
     """目を数えられない時の返り（r1〜r4 は unverifiable、ok は false）。protected は collect と同じ"""
     row = {"status": seal.UNVERIFIABLE, "reason": reason}
     return {"ok": False, **{e: dict(row) for e in EYES}, "questions": [], "premise_check": None, "structure_after": None,
-            "protected_hits": _protected(protected)[0], "notes": None}
+            "protected_hits": _protected(protected)[0], **dict.fromkeys(NOTES)}
 
 
 def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, design: dict, after_ptr,
@@ -546,7 +550,7 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
     eyes_dir = pathlib.Path(eyes_dir)
     hits, guarded = _protected(protected)
     out = {"ok": False, **{e: None for e in EYES}, "questions": [], "premise_check": None, "structure_after": after_ptr,
-           "protected_hits": hits, "notes": None}
+           "protected_hits": hits, **dict.fromkeys(NOTES)}
     if not run_eyes:
         out["ok"] = guarded
         return out
@@ -581,11 +585,12 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
     return out
 
 
-def write_notes(eyes_dir, *, design_ledger, passed: dict, by: str = gatemarks.PASSED_BY_HUMAN) -> None:
+def write_notes(eyes_dir, *, design_ledger, passed: dict, by: str = gatemarks.PASSED_BY_HUMAN) -> dict:
     """元 blk-eyes/lib/eyes.py:525-534 の premise_inputs と gatemarks.r4_gate_items の gate_passes。返りの欄の外で最後の関所に
     出す材料を eyes_dir に書く: PREMISE_INPUTS に R2 の 2 つの役へ渡した前提の控え（design は独立設計の控え design_ledger、
     compare は prep が書いた R2_PREMISES）と、比較役の返りの『渡されていない』の文（claims）と、そのうち compare の given に
-    当たる物（compare.claims_given）。拒まない・判定を書き換えない。GATE_PASSES に人が通したので R4 の問いから外した行"""
+    当たる物（compare.claims_given）。拒まない・判定を書き換えない。GATE_PASSES に人が通したので R4 の問いから外した行。
+    返りは目の出力のポインタの欄の先 {notes, r4_passes, premise_reply}（premise_reply は前提の検算の役の返りで、無ければ None）"""
     eyes_dir = pathlib.Path(eyes_dir)
     compare = read_json(eyes_dir / R2_PREMISES)
     claims = design.claims_unpassed(_read_eye(eyes_dir, "r2")[0])
@@ -595,17 +600,18 @@ def write_notes(eyes_dir, *, design_ledger, passed: dict, by: str = gatemarks.PA
              GATE_PASSES: gate_passes(_read_eye(eyes_dir, "r4")[0], passed, by)}
     for name, doc in notes.items():
         (eyes_dir / name).write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    premise = eyes_dir / eyesbeside.PREMISE_FILE
+    return {"notes": eyes_dir / PREMISE_INPUTS, "r4_passes": eyes_dir / GATE_PASSES, "premise_reply": premise if premise.is_file() else None}
 
 
 ROLE_WORDS = {"design": "独立の設計を作る役", "compare": "独立の設計と差分を比べる役"}   # R2 の 2 つの役の平易な名（元 line_edge.ROLE_WORDS）
-PREMISE_FILE = "premise-check.json"   # 前提の検算（PREMISE）の役の返り（置き場。key・resolution・facts_to_add を持つ）
 
 
-def r2_input_lines(eyes_dir) -> list:
+def r2_input_lines(notes) -> list:
     """元 works/darkfactory/lib/line_edge.py:529-557 の _r2_inputs。最後の関所と報告の R2 の行の下に並べる行: 比較役が『渡されていない』
-    と書いた文と、そのうち渡していた物（compare の claims_given）と、R2 の 2 つの役へ渡した前提の入力の控え（PREMISE_INPUTS）と、
-    独立設計の後に来た人の答え（compare の after_design）。控えが無ければその 1 行"""
-    pi = read_json(pathlib.Path(eyes_dir) / PREMISE_INPUTS)
+    と書いた文と、そのうち渡していた物（compare の claims_given）と、R2 の 2 つの役へ渡した前提の入力の控え（目の出力の欄 notes の先
+    notes。PREMISE_INPUTS）と、独立設計の後に来た人の答え（compare の after_design）。控えが無ければその 1 行"""
+    pi = read_json(notes)
     if not isinstance(pi, dict):
         return ["独立の設計と比べる目に渡した入力の控えが無い（R2）"]
     out = [f"独立の設計と比べる目が渡されていないと書いた（R2）: {c}" for c in pi.get("claims") or []]
@@ -628,26 +634,29 @@ def r2_input_lines(eyes_dir) -> list:
     return out
 
 
-def gate_pass_rows(eyes_dir) -> list | None:
-    """人が通したので R4 の問いから外した行（GATE_PASSES。gate_passes の形）。控えが無い・読めなければ None"""
-    rows = read_json(pathlib.Path(eyes_dir) / GATE_PASSES)
+def gate_pass_rows(path) -> list | None:
+    """人が通したので R4 の問いから外した行（目の出力の欄 r4_passes の先 path。gate_passes の形）。控えが無い・読めなければ None"""
+    rows = read_json(path)
     return rows if isinstance(rows, list) else None
 
 
-def premise_facts(eyes_dir) -> dict:
+def premise_facts(path) -> dict:
     """前提の検算で仮定が偽（resolved）と分かった時の {key, resolution, facts}（元 review-loop.py:1310-1331 の premise_question と
-    :3751-3755 の finalize。問いの key は台帳に held で残り、実測 facts_to_add は次の run の制約に足す）。resolved でない・返りが無ければ
-    facts が空の物"""
-    doc = read_json(pathlib.Path(eyes_dir) / PREMISE_FILE)
+    :3751-3755 の finalize。問いの key は台帳に held で残り、実測 facts_to_add は次の run の制約に足す）。path は前提の検算の役の返り
+    （目の出力の欄 premise_reply の先。None は返りが無い）。resolved でない・返りが無ければ facts が空の物"""
+    doc = read_json(path)
     if not (isinstance(doc, dict) and doc.get("verdict") == "resolved"):
         return {"key": "", "resolution": "", "facts": []}
     return {"key": str(doc.get("key") or ""), "resolution": str(doc.get("resolution") or ""),
             "facts": [f for f in doc.get("facts_to_add") or [] if isinstance(f, str) and f.strip()]}
 
 
-def premise_fact_lines(eyes_dir) -> list:
-    """最後の関所と報告の前提の検算の行の下に並べる行（仮定が偽と分かった問いの key と、次の run の制約に足す実測）"""
-    got = premise_facts(eyes_dir)
+def premise_fact_lines(path) -> list:
+    """最後の関所と報告の前提の検算の行の下に並べる行（仮定が偽と分かった問いの key と、次の run の制約に足す実測。path は premise_facts。
+    None は役の出力が無いと 1 行で言う。欄 premise_reply の無い版の run を再開した時も None で来る）"""
+    if path is None:
+        return [PREMISE_NO_REPLY]
+    got = premise_facts(path)
     if not got["key"]:
         return []
     return [f"仮定は偽と検算した——問い「{got['key']}」は保留（held）のまま残す（次の run の判定が回し直した R2 を見て決める）"
