@@ -377,14 +377,14 @@ def map_items_section(b, items: list, others: str, *, carried: bool, kept=()) ->
     if design.stands(b.dir, b.design_schema) is None:
         return ""
     names = "・".join(str(n) for n in sorted(items or [])) or "無し"
-    text = f"{MAP_ITEMS_HEAD}\n\nこの往復で design_map を書く項目: 項目 {names}。{others}の行は要らない（書いても照らさない）。"
+    text = f"{MAP_ITEMS_HEAD}\n\nこの往復で design_map を書く項目: 項目 {names}。{others}の行は要らない（書いても照らさず、その design_ref も網羅に数えない）。"
     refs = sorted(converge.carried_refs(b, items or [])) if carried else []
     if refs:
         text += f"{others}が前の往復で受けた要素（{'・'.join(refs)}）は網羅に数え済み。設計→案の行に書かなくてよい。"
     keys = design.wanted_lines(_map_rows(b, items or []), kept)
     if keys:
         text += ("\n\n案→設計の行は、下の鍵ごとにちょうど 1 行（item・path・symbol をこの鍵のとおりに書く）。ほかの鍵の行は要らない"
-                 "（書いても照らさない）:\n" + "\n".join(keys))
+                 "（書いても照らさず、その design_ref も網羅に数えない）:\n" + "\n".join(keys))
     return text
 
 
@@ -651,7 +651,8 @@ def _map_rows(b, items: list) -> list:
 
 
 def bound_map(b, items: list, design_map) -> list:
-    """項目 items の答えの対応表を、照らす案の行（_map_rows）の要る鍵に結び直した写し（design.rebound）。受け付けは照らしと refs の前に当てる"""
+    """項目 items の答えの対応表を、照らす案の行（_map_rows）の要る鍵に結び直し、余りの行を落とした写し（design.rebound）。受け付けは
+    照らしと refs と網羅の数えの前に当てる"""
     return design.rebound(_map_rows(b, items), design_map or [])
 
 

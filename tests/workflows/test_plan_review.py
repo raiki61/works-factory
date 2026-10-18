@@ -2239,6 +2239,36 @@ class TreeCase(RunCase):
         self.assertTrue(got["ok"], got)
         self.assertEqual(converge.read(r.view())["passes"][-1]["items"][0]["refs"], ["D1"])
 
+    def test_untree_design_ref_only_on_a_row_off_the_keys_is_not_coverage(self):
+        """#687: 木にしない往復で、独立設計の要素 D1 を要る鍵に無い行（項目 1 の案の files に無い docs/notes.md）にだけ書いた design_map は、
+        余りの行を照らさないのと同じく網羅にも数えず、D1 の漏れで拒む"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        DesignCase.designed(self)
+        self.assertFalse(r.open()["tree"])
+        r.out("review_prep")
+        notes = {"item": 1, "path": "docs/notes.md", "symbol": None, "design_ref": "D1", "design_quote": None,
+                 "why": "設計の上限の入口を文書に書く"}
+        got = r.accept(review(design_map=[self.map_row(1, "helper_1"), self.map_row(2, "clamp"), notes]))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("独立設計の要素 D1", got["reason"])
+
+    def test_tree_design_ref_only_on_a_row_off_the_keys_is_not_coverage(self):
+        """#687: 木の往復で、項目の答えが要素 D1 を自分の鍵に無い行（案の files に無い docs/notes.md）にだけ書いても網羅に数えず、
+        D1 の漏れで拒む"""
+        r = self.run_
+        r.open()
+        DesignCase.designed(self)
+        self.prepped()
+        notes = {"item": 1, "path": "docs/notes.md", "symbol": None, "design_ref": "D1", "design_quote": None,
+                 "why": "設計の上限の入口を文書に書く"}
+        self.write_answers(1, {1: {**answer(1), converge.DESIGN_MAP: [self.map_row(1, "helper_1"), notes]},
+                               2: {**answer(2), converge.DESIGN_MAP: [self.map_row(2, "clamp")]}}, syn=synergy())
+        got = r.accept(summary({1: [], 2: []}))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("独立設計の要素 D1", got["reason"])
+
     def test_synergy_design_quotes_checked_against_named_items(self):
         """元 test_synergy_design_quotes_checked_against_named_items"""
         r = self.run_

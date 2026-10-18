@@ -34,7 +34,7 @@
                  同じ集合）を、指示書に貼る行 {item, path, symbol} の JSON にした並び（planblk.map_items_section が貼る）と、前の往復の行 before にも
                  在った鍵（2 往復目からの審査は変わっていない鍵の行を書き直さない。呼び手 planblk が kept に渡す）
 - rebound(rows, design_map): 対応表の写しで、要る鍵に無い案→設計の行のうち (path, symbol) が要る鍵のちょうど 1 つと同じ行を、その鍵の
-                 項目の番号に結び直した物（受け付けが照らしと refs の前に当てる。planblk.bound_map）
+                 項目の番号に結び直し、結び直せない余りの行を落とした物（受け付けが照らしと refs と網羅の数えの前に当てる。planblk.bound_map）
 - element_gaps(reply)・element_lines(got): 立つ設計の elements（{id, adds, removes}）の空と id の重なりの誤り（boardview.check_design が呼ぶ）と、
                  要素を 1 行ずつ描く文（planblk.design_only が貼る）
 """
@@ -617,14 +617,16 @@ def _wanted(rows) -> list:
 
 def rebound(rows, design_map) -> list:
     """対応表 design_map の写し。案→設計の行のうち、鍵 (item, path, symbol) が案の行 rows の要る鍵（_wanted）に無く、(path, symbol) が
-    要る鍵のちょうど 1 つと同じ行は、その鍵の項目の番号に結び直す（項目の番号だけの取り違えで拒まない。#687）"""
+    要る鍵のちょうど 1 つと同じ行は、その鍵の項目の番号に結び直す（項目の番号だけの取り違えで拒まない。#687）。結び直しても要る鍵に
+    無い行は落とす（余りの行は照らさず、その design_ref も要素の網羅に数えない）"""
     want = _wanted(rows)
     out = []
     for e in design_map if isinstance(design_map, list) else []:
         if isinstance(e, dict) and e.get("item") is not None and (e.get("item"), e.get("path"), e.get("symbol")) not in want:
             hits = [k for k in want if k[1:] == (e.get("path"), e.get("symbol"))]
-            if len(hits) == 1:
-                e = {**e, "item": hits[0][0]}
+            if len(hits) != 1:
+                continue
+            e = {**e, "item": hits[0][0]}
         out.append(e)
     return out
 
@@ -668,8 +670,8 @@ def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
     """design_map の誤りの行。行は {item, path, symbol, design_ref, design_quote, why} の 2 つの向き:
     - 案→設計: 案の行 rows の files の (項目, path, symbol) ごとにちょうど 1 行（対象は change=add の symbol・change=remove の symbol・
       op が create・delete・rename の行（symbol は null）。kept の鍵は行を求めない（書けば照らす）。要る鍵に無い行（rows の項目の外の項目の行・
-      項目の files の add・remove でない記号の行）は余りとして鍵の数えに入れず拒まない（項目の番号の取り違えは呼び手が rebound で
-      結び直す）。design_ref は指す要素の id（対が無ければ null）
+      項目の files の add・remove でない記号の行）は余りとして鍵の数えに入れず拒まない（受け付けは rebound で、項目の番号の取り違えを
+      結び直し、残りの余りの行を照らす前に落とす）。design_ref は指す要素の id（対が無ければ null）
     - 設計→案: item・path・symbol が null で design_ref が必須（案のどの行にも対の無い要素を挙げる）
     design_ref は elements（独立設計の要素）に在る id だけ。同じ鍵の行の重なりは誤り。design_quote が在れば独立設計の文に字のまま
     在る（null は対が無い）。要素の網羅はここで照らさない（一部の項目の答えでは、ほかの項目が受ける要素を「どの項目も受けない」と
