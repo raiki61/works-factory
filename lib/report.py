@@ -82,8 +82,16 @@ REJUDGE_EXIT = "rejudge-exit.json"             # 再審の出口 {ok, reason, pa
 # workflows/fix/commands/fix-rules/common.md の「対象に書く文」。利用者の run 8cb2ee00 の差分が Terraform のコメントに「この単位」
 # 「作業ツリー」を書いた）。報告では拒まず並べ、差分の審査では手直しの義務の穴になる
 INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "共有ボード", "盤面", "この周", "この run", "判定役", "修正役", "独立の目",
-               "承認ノード", "関所")
-INNER_WORD = re.compile("|".join(re.escape(w) + ("(?!辺)" if w == "この周" else "") for w in INNER_WORDS))   # 「この周辺」は除く
+               "承認ノード", "関所", "世界の解", "定石")
+
+
+def _inner_word_pattern(word: str) -> str:
+    """語 word の正規表現。末尾が漢字なら後ろに漢字が、英字なら英数字か _ が続く所（「この周期」「この runner」）には当てない"""
+    tail = "(?![一-龥])" if re.match("[一-龥]", word[-1]) else "(?![A-Za-z0-9_])" if re.match("[A-Za-z]", word[-1]) else ""
+    return re.escape(word) + tail
+
+
+INNER_WORD = re.compile("|".join(_inner_word_pattern(w) for w in INNER_WORDS))
 INNER_WORDS_HEAD = "直しが対象に足した行に works の内側の語（対象の読み手に通じない。当てる前に言い換えるかを決める）"
 INNER_FACE_KIND = "inner_word"
 
@@ -93,10 +101,12 @@ def target_uses(repo, rev: str, word: str) -> bool:
     if not (repo and rev):
         return False
     try:
-        got = subprocess.run(["git", "-C", str(repo), "grep", "-q", "-F", "-e", word, str(rev), "--"], capture_output=True)
+        got = subprocess.run(["git", "-C", str(repo), "grep", "-h", "-F", "-e", word, str(rev), "--"],
+                             capture_output=True, encoding="utf-8", errors="replace")
     except OSError:
         return False
-    return got.returncode == 0
+    word_re = re.compile(_inner_word_pattern(word))   # git grep -F は語の区切りを見ないので、当たった行を同じ正規表現で選び直す
+    return got.returncode == 0 and any(word_re.search(ln) for ln in got.stdout.splitlines())
 
 
 def inner_word_hits(diff_text: str, known) -> list:
