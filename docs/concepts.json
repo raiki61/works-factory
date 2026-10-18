@@ -143,6 +143,14 @@
        "計画のサブグラフの出力ノードが、出力 depth を depth.decide_doc で作る（元はメイングラフの h-depth）"
       ]
      }
+    },
+    {
+     "what": "修正の後の上げ直しの控えの扱いの字（読めない控えで上げる信号 LATE_UNREAD と、無い控えの訳 NO_LATE_RECORD）",
+     "pattern": "\\b(LATE_UNREAD|NO_LATE_RECORD)\\b",
+     "allowed": [
+      "lib/latedepth.py"
+     ],
+     "known": {}
     }
    ]
   },

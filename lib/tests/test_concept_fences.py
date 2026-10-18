@@ -203,7 +203,7 @@ class FenceCase(unittest.TestCase):
         "cite": ["from cite import quoted_in", "ok = cite.fold(a) in cite.fold(b)"],
         "prompt-sections": ["class Section:"],
         "outcome": ['return "no_fix_needed", ""'],
-        "depth": ["doc = depth.decide_doc(fields, unit_ids)"],
+        "depth": ["doc = depth.decide_doc(fields, unit_ids)", 'LATE_UNREAD = "修正の後の信号の控えが読めない（{why}）"'],
         "features": ['"judge_verify": "判定の裏取り",'],
         "reads": ['return f"reads-{role}.json"'],
         "conflict": ['WHY_FIELD = "why_both_cannot_hold"'],
