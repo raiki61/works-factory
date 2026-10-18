@@ -187,6 +187,10 @@ class PushRecCase(unittest.TestCase):
             with self.subTest(rows=rows):
                 self.assertIsNone(gatemarks.gatepolicy.passage(rows, gatemarks.row_push).pushed)
 
+    def test_the_go_push_word_is_the_go_answer_word(self):
+        """#733: 通す推しの字（row_push の go）と、推しで進んだ時に口が答えに書く字（gatepolicy.passage の decision）は同じ"""
+        self.assertEqual(gatemarks.RECOMMEND_ANSWERS[0], answer.VERBS[0])
+
     def test_scenario_rows_are_read(self):
         """筋書き unattended-push・unattended-push-stop の項目の字は push_rec で読める（字の形のずれを赤にする）"""
         fixtures = pathlib.Path(__file__).resolve().parents[2] / "workflows" / "line" / "fixtures"
