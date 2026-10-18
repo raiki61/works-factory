@@ -1586,8 +1586,8 @@ class DeltaSeamCase(TempCase):
             fixboard.redepth(self.place, self.repo)
 
     def test_redepth_raises_on_the_signals_after_the_fix(self):
-        """修正の後の信号（申し出の在る単位・2 回目の修正・修正役の異議・広い実際の差分）で軽量の単位を標準へ上げ、審査を省かない
-        （元 depth.raise_）"""
+        """修正の後の信号（申し出の在る単位・2 回目の修正・修正役の異議）で軽量の単位を標準へ上げ、審査を省かない。広い実際の差分は
+        本数だけでは上げず、数えた数を counted に残す（issue #760。元 depth.raise_ は本数でも上げた）"""
         import conflict
         import depth
         light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}]
@@ -1607,10 +1607,14 @@ class DeltaSeamCase(TempCase):
         fixboard.write_json(self.place / fixboard.RULED_REPLY_FILE, {"rejudge_requested": "単位の見立てが違う"})
         raised("異議")
         (self.place / fixboard.RULED_REPLY_FILE).unlink()
-        for n in range(depth.MAX_PATHS + 1):
+        for n in range(11):   # issue #760: 本数だけでは上げない（引用の控えの無い置き場なので where の外も数えない）
             (self.repo / f"wide{n}.py").write_text("X = 1\n", encoding="utf-8")
-        raised("触るファイル")
-        for n in range(depth.MAX_PATHS + 1):
+        fixboard.write_json(self.place / fixboard.DEPTH_FILE, light)
+        self.assertTrue(fixboard.redepth(self.place, self.repo).startswith("軽量で省いた"))
+        doc = fixboard.read_json(self.place / fixboard.DEPTH_RAISED_FILE)
+        self.assertEqual((doc["units"]["a"]["depth"], doc["raised"]), (depth.LIGHT, []), doc)
+        self.assertTrue(doc["counted"].startswith("触るファイル 11 個"), doc["counted"])
+        for n in range(11):
             (self.repo / f"wide{n}.py").unlink()
         conflict.park(self.place, [{"unit_key": "a", "between": ["stats.py:9", "test_stats.py:8"],
                                     "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",

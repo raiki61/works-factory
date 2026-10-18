@@ -8,9 +8,10 @@
   TDD のループでの修正役の拒否・範囲の相談）。
 
 見る物:
-- 決め 3 の 5 つの条件を全部満たす単位だけが軽量で、1 つ外れれば標準と理由
+- 決め 3 の 3 つの条件（glob が無い・約束の形のファイルが無い・機械の確かめが在る）を全部満たす単位だけが軽量で、1 つ外れれば標準と
+  理由。触るファイルとテストの本数は単位の深さにも上げ直しにも数えない（issue #760）
 - thickness の名指しで全部の単位を固定する（自動と空は機械が決める）
-- 信号で上げる（単位に結べる物はその単位、結べない物は全部）・下げない。修正の後の 3 つの事実の理由の文と、引用の外のパスの拾い方
+- 信号で上げる（単位に結べる物はその単位、結べない物は全部）・下げない。修正の後の事実の理由の文と、引用の外のパスの拾い方
 - run の深さは全部が軽量の時だけ軽量（単位が無ければ標準）
 - 省く理由と報告の行（軽量で省いた物を名指す）
 - 控えの書き読み
@@ -18,6 +19,7 @@
 import json
 import pathlib
 import sys
+import tempfile
 import unittest
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように
@@ -26,6 +28,8 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import depth  # noqa: E402
+import headdepth  # noqa: E402
+import latedepth  # noqa: E402
 import tddloop  # noqa: E402
 
 U1, U2 = "u1: 一つ目の根本", "u2: 二つ目の根本"
@@ -46,9 +50,7 @@ class UnitDepthCase(unittest.TestCase):
     def test_each_condition_falls_to_standard_with_reason(self):
         cases = {
             "項目": ([item([U2])], True),
-            "4 個": ([item([U1], paths=("a.py", "b.py", "c.py", "d.py"))], True),
             "glob": ([item([U1], paths=("tests/*.json",))], True),
-            "3 本": ([item([U1], tests=2, rewrites=1)], True),
             "約束の形": ([item([U1], paths=("blk-x/schemas/a.schema.json",))], True),
             ".yml": ([item([U1], paths=(".github/workflows/test.yml",))], True),
             "darkfactory.yaml": ([item([U1], paths=("a.py", "darkfactory/darkfactory.yaml"))], True),   # 配線とコードを一緒に触る
@@ -71,8 +73,6 @@ class UnitDepthCase(unittest.TestCase):
 
     def test_wiring_only_still_needs_the_other_conditions(self):
         for word, (items, checked) in {
-            "4 個": ([item([U1], paths=("a/a.yaml", "b/b.yaml", "c/c.yaml", "d/manifest.json"))], True),
-            "3 本": ([item([U1], paths=("a/a.yaml",), tests=3)], True),
             "機械の確かめ": ([item([U1], paths=("a/a.yaml",))], False),
             "約束の形": ([item([U1], paths=("a/a.yaml", "a/schemas/x.yaml"))], True),   # schemas/ の下は配線でない
             "nodes.json": ([item([U1], paths=("a/a.yaml", "a/nodes.json"))], True),     # 表は配線でない
@@ -82,13 +82,22 @@ class UnitDepthCase(unittest.TestCase):
                 self.assertEqual(got, depth.STANDARD)
                 self.assertTrue(any(word in w for w in why), why)
 
+    def test_many_files_and_tests_alone_stay_light(self):
+        """issue #760: 触るファイルとテストの本数は直しの量で、難しさや危うさではない。本数だけが多い単位（配線だけの単位も）は軽量で、
+        理由に本数を記録として残す"""
+        for paths in ([f"pkg/m{n}.py" for n in range(11)], ["a/a.yaml", "b/b.yaml", "c/c.yaml", "d/manifest.json"]):
+            with self.subTest(paths=paths):
+                got, why = depth.unit_depth([item([U1], paths=paths, tests=2, rewrites=2)], U1, checked=True)
+                self.assertEqual(got, depth.LIGHT, why)
+                self.assertTrue(any(f"触るファイル {len(paths)} 個・テスト 4 本" in w for w in why), why)
+
     def test_no_items_is_standard(self):
         self.assertEqual(depth.unit_depth(None, U1, checked=True)[0], depth.STANDARD)
 
 
 class DecideCase(unittest.TestCase):
     def test_auto_decides_per_unit(self):
-        doc = depth.decide_doc([item([U1]), item([U2], paths=("a", "b", "c", "d"))], [U1, U2], forced="自動", checked=True)
+        doc = depth.decide_doc([item([U1]), item([U2], paths=("a.py", "b.json"))], [U1, U2], forced="自動", checked=True)
         self.assertEqual({k: v["depth"] for k, v in doc["units"].items()}, {U1: depth.LIGHT, U2: depth.STANDARD})
         self.assertEqual(depth.run_depth(doc), depth.STANDARD)
 
@@ -170,7 +179,7 @@ class RaiseCase(unittest.TestCase):
 
     def test_outside_cited_skips_test_files(self):
         """cited の外のコードのファイルだけを返し（慣習の名と項目の tests で宣言したテストのファイルは除く）、cited が空なら空。
-        run_wide と同じ除きで数える"""
+        run_paths と同じ除きで数える"""
         items = [item([U1], paths=("a/b.py",), tests=0)]
         items[0]["tests"] = [{"id": "checks/odd.py::T::t0"}]
         touched = ["a/b.py", "c/d.py", "tests/test_d.py", "checks/odd.py", "e/f.py", "c/d.py"]
@@ -179,10 +188,55 @@ class RaiseCase(unittest.TestCase):
         self.assertEqual(depth.outside_cited(items, [U1], ["tests/test_d.py", "checks/odd.py"], {"a/b.py"}), [])
         self.assertEqual(depth.outside_cited(items, [U1], touched, set()), [], "引用した where の無い run は外を持たない")
         self.assertEqual(depth.outside_cited(items, [U1], touched, ["./a/b.py", "c/d.py"]), ["e/f.py"])
-        paths, _ = depth._wide(items, [U1], touched)
-        self.assertEqual(paths, {"a/b.py", "c/d.py", "e/f.py"}, "run_wide の数えが除くテストのファイルと同じ")
-        wide, count = depth.run_wide(items, [U1], touched)
-        self.assertEqual(count, 3)
+        self.assertEqual(depth.run_paths(items, [U1], touched), 3, "run_paths の数えが除くテストのファイルと同じ（a/b.py・c/d.py・e/f.py）")
+
+
+class LateCase(unittest.TestCase):
+    """issue #760 の受け入れ: 修正の後の上げ直し（latedepth.signals）は run 全体の本数で上げず、中身を見る信号でだけ上げる"""
+    PATHS = [f"pkg/m{n}.py" for n in range(11)]
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        cited = [{"item": n + 1, "unknown": headdepth.NONE, "where": f"{p}:1", "cause_quote": "x", "code_quote": "y"}
+                 for n, p in enumerate(self.PATHS)]
+        self.head = pathlib.Path(tmp.name) / "depth-head.json"
+        self.head.write_text(json.dumps(headdepth.record(depth.LIGHT, "易しい", items=cited)), encoding="utf-8")
+        self.items = [item([U1], paths=self.PATHS[:6], tests=2, rewrites=1), item([U2], paths=self.PATHS[6:], tests=1, rewrites=0)]
+        self.doc = depth.decide_doc(self.items, [U1, U2], forced="", checked=True)
+        self.quiet = {"refused": [], "trace": [], "missing": [], "unread": []}
+
+    def signals(self, touched=(), late=None, declared=()):
+        return latedepth.signals(self.items, [U1, U2], [*self.PATHS, *touched], origin="修正の差分 x", head_record=self.head,
+                                 late=late or self.quiet, declared=declared)
+
+    def test_wide_run_inside_where_stays_light(self):
+        """触るファイル 11 個・受け入れと書き換えのテスト 4 本で、どれも頭の深さの控えの where の中・ほかの信号も無い run は、単位の深さも
+        修正の後の深さも軽量のまま。数えた数は counted に記録として残る"""
+        self.assertEqual({v["depth"] for v in self.doc["units"].values()}, {depth.LIGHT})
+        run, counted = self.signals(touched=["tests/test_m0.py"])
+        self.assertEqual(run, [])
+        self.assertEqual(counted, "触るファイル 11 個（起点: 修正の差分 x）")
+        raised = depth.raise_doc(self.doc, units={}, run=run)
+        self.assertEqual(depth.run_depth(raised), depth.LIGHT)
+        self.assertEqual(depth.skip_reason(raised, depth.LIGHT)[:6], "軽量で省いた")
+
+    def test_content_signals_still_raise(self):
+        """中身を見る信号（where の外の差分・TDD の拒否・範囲の相談・残した block・読めない控え）は、どれか 1 つで今どおり標準へ上げる"""
+        import conflict
+        cases = {"where の外に出た": {"touched": ["other.py"]},
+                 "TDD のループで修正役が拒まれた": {"late": {**self.quiet, "refused": [U1]}},
+                 "範囲の相談をした": {"late": {**self.quiet, "trace": [{"op": conflict.ASKED_OP, "item": 1, "unit_keys": [U1], "origin": None}]}},
+                 "直さずに残すと答えた": {"declared": ["b1: 訳"]},
+                 "控えが読めない": {"late": {**self.quiet, "unread": ["accept-trace.json"]}}}
+        for why, kw in cases.items():
+            with self.subTest(why=why):
+                run, _ = self.signals(**kw)
+                self.assertEqual(len(run), 1, run)
+                self.assertIn(why, run[0])
+                raised = depth.raise_doc(self.doc, units={}, run=run)
+                self.assertEqual({v["depth"] for v in raised["units"].values()}, {depth.STANDARD})
+                self.assertEqual(depth.skip_reason(raised, depth.LIGHT), "")
 
 
 class LinesCase(unittest.TestCase):
@@ -198,7 +252,7 @@ class LinesCase(unittest.TestCase):
         self.assertNotIn("AI の報告", text, "AI の報告は省かない（計画の決め 10）")
 
     def test_standard_run_skips_nothing(self):
-        doc = depth.decide_doc([item([U1], tests=4)], [U1], forced="", checked=True)
+        doc = depth.decide_doc([item([U1], paths=("a.json",))], [U1], forced="", checked=True)
         self.assertEqual(depth.skip_reason(doc, depth.LIGHT), "")
         text = "\n".join(depth.lines(doc, depth.LIGHT, cmd_skipped=0))
         self.assertNotIn("軽量で省いた", text)
@@ -222,7 +276,7 @@ class LinesCase(unittest.TestCase):
     def test_light_head_names_test_cmd_skip_of_light_units(self):
         """issue #561: 頭が軽量で軽量と標準の単位が混ざる run は、差分の審査と目は省かず、軽量の単位の test_cmd の省きだけを名指す。
         頭が標準・重厚なら test_cmd も省かない（fixboard.unit_depths が空）ので何も言わない"""
-        doc = depth.decide_doc([item([U1]), item([U2], tests=4)], [U1, U2], forced="", checked=True)
+        doc = depth.decide_doc([item([U1]), item([U2], paths=("a.json",))], [U1, U2], forced="", checked=True)
         self.assertEqual(depth.skip_reason(doc, depth.LIGHT), "")
         self.assertIn(f"軽量の単位 1 個で省いた: {depth.UNIT_OMIT}", depth.lines(doc, depth.LIGHT, cmd_skipped=1))
         for head in (depth.STANDARD, depth.HEAVY, ""):
@@ -234,7 +288,7 @@ class LinesCase(unittest.TestCase):
         """PR #597: test_cmd が空・関門が off で TDD の輪が何も省かなかった run は、頭が軽量で単位が軽量でも test_cmd の省きを言わない。
         省いた数は輪の記録（cmd_skipped）で、上げ直しの後の深さからは数えない"""
         light = depth.decide_doc([item([U1])], [U1], forced="", checked=True)
-        mixed = depth.decide_doc([item([U1]), item([U2], tests=4)], [U1, U2], forced="", checked=True)
+        mixed = depth.decide_doc([item([U1]), item([U2], paths=("a.json",))], [U1, U2], forced="", checked=True)
         skipped = [x for x in depth.lines(light, depth.LIGHT, cmd_skipped=0) if x.startswith("軽量で省いた: ")]
         self.assertEqual(len(skipped), 1)
         self.assertNotIn("test_cmd", skipped[0])

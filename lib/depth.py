@@ -9,8 +9,9 @@ graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持�
 省くかを決めるのはこのモジュールだけで、呼ぶのは差分の審査が修正のブロックの delta-cut（fixboard.redepth）、R1〜R4 とコメントの
 削除候補が目のブロックの prep（skip_reason）、test_cmd が修正のブロックの TDD の輪と組の当て（fixboard.unit_depths）。
 
-- unit_depth(items, key, *, checked): 単位 1 つの (深さ, 理由の並び)。決め 3 の 5 つの条件を全部満たす時だけ軽量。
-  配線だけの単位（触るファイルが全部 wiring の物）は条件 4（約束の形のファイル）に数えない（決め 3 の補い）
+- unit_depth(items, key, *, checked): 単位 1 つの (深さ, 理由の並び)。決め 3 の条件（glob が無い・約束の形のファイルが無い・機械の
+  確かめが在る）を全部満たす時だけ軽量。触るファイルとテストの本数は直しの量で難しさや危うさではないので条件にしない（issue #760）。
+  配線だけの単位（触るファイルが全部 wiring の物）は約束の形のファイルに数えない（決め 3 の補い）
 - wiring(path): 配線のファイルか（線とブロックの YAML＝<名>/<名>.yaml・.yml と manifest.json。schemas/ の下は除く）
 - decide_doc(items, open_units, *, forced, checked): 直す義務の単位の全部の深さ（控えの形）。forced は入力 thickness の語
   （空・自動は機械が決める。軽量・標準は全部をその深さに固定。重厚は単位では標準に固定する——重厚は単位でなく run に足す物）
@@ -23,12 +24,10 @@ graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持�
 - merges(head): 段 head の頭の run で、目を省かずに回す時に 1 つの役にまとめる独立の目の名の並び（TIERS の merges。OMITS の名。知らない語・
   空は空）。目のブロックの prep が読み、R3・R4 を 1 つの会話で見る役 eyes-one を起こす
 - raise_doc(doc, *, units, run): 信号で標準へ上げた控え。units は {単位: 理由}（その単位だけ）、run は理由の並び（全部の単位）。下げない
-- run_wide(items, keys, touched=()): 控えの単位 keys を合わせた run 全体の広さ（触るファイルの和集合と、受け入れと書き換えの
-  テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並びと、触るファイルの数。触るファイルは計画の allowed_paths に、修正の実際の差分
-  （touched。呼び手が渡す）のうちテストのファイルを除いた物を足して数える。呼び手が run の信号に足し、単位ごとには軽量の集まりも
-  標準へ上げる（raise_doc の run）
+- run_paths(items, keys, touched=()): 控えの単位 keys を合わせた run 全体で触るファイルの数（計画の allowed_paths と、修正の実際の
+  差分 touched のうちテストのファイルを除いた物の和集合）。報告の counted に残す記録で、上げる信号にはしない（issue #760）
 - outside_cited(items, keys, touched, cited): 修正の差分 touched のうち、頭の深さの役が引用した where のファイル cited の外に出たパス
-  （テストのファイルは run_wide と同じ除き _code_touched で除く。cited が空なら空）
+  （テストのファイルは run_paths と同じ除き _code_touched で除く。cited が空なら空）
 - late_signals(*, outside, refused, consulted, declared): 修正の後の 4 つの事実（引用の外の差分・TDD のループで修正役が拒まれた単位・範囲の相談をした
   単位・直す側が直さずに残すと答えた案の審査の block）の run の理由の並び。空の欄からは理由を出さない。呼ぶのは修正の後の上げ直し latedepth.signals
   （raise_doc の run に足す。上げるだけで下げない）
@@ -59,8 +58,6 @@ import planmarks  # noqa: E402
 LIGHT = "軽量"
 STANDARD = "標準"
 HEAVY = "重厚"
-MAX_PATHS = 3         # 測り: 何も見つけなかった単位は allowed_paths 1〜3 個、見つけた単位は 4 個（MAX_PATHS を超える）
-MAX_TESTS = 2         # 測り: 同じく受け入れのテストと書き換える既存のテストが合わせて 1 本、見つけた単位は 4 本（MAX_TESTS を超える）
 CONTRACT_SUFFIXES = (".json", ".yaml", ".yml", ".toml")
 CONTRACT_DIR = "schemas/"
 GLOB_CHARS = ("*", "?", "[")
@@ -113,16 +110,15 @@ def _mine(items, keys) -> list:
 def _code_touched(items, keys, touched) -> list:
     """touched のうち、テストのファイルでない物（現れた順・重なりは 1 つ）。テストのファイルの見分けは impact.is_test_file
     （宣言＝keys の単位を載せる項目の tests・rewrite_tests の id のファイルか、名の慣習。TDD の輪が凍らせるテストのファイルの見分けと
-    同じ口）。_wide と outside_cited が同じ除きを引く 1 か所"""
+    同じ口）。run_paths と outside_cited が同じ除きを引く 1 か所"""
     declared = {p for it in _mine(items, keys) for p in planmarks.test_paths(it)}
     return list(dict.fromkeys(p for p in touched if isinstance(p, str) and not impact.is_test_file(p, declared)))
 
 
-def _wide(items, keys, touched=()) -> tuple:
-    """(run 全体で触るファイルの集合, 受け入れと書き換えのテストの本数)。keys の単位を載せる項目を重ねずにまとめ、触るファイルは
-    計画の allowed_paths と touched（テストのファイルを除く。_code_touched）の和集合（重なりは 1 個）"""
-    mine = _mine(items, keys)
-    return set(_paths(mine)) | set(_code_touched(items, keys, touched)), _tests(mine)
+def run_paths(items, keys, touched=()) -> int:
+    """run 全体で触るファイルの数。keys の単位を載せる項目の allowed_paths と touched（テストのファイルを除く。_code_touched）の
+    和集合（重なりは 1 個）"""
+    return len(set(_paths(_mine(items, keys))) | set(_code_touched(items, keys, touched)))
 
 
 def outside_cited(items, keys, touched, cited) -> list:
@@ -150,18 +146,6 @@ def late_signals(*, outside=(), refused=(), consulted=(), declared=()) -> list:
     return out
 
 
-def run_wide(items, keys, touched=()) -> tuple:
-    """(_wide の広さが単位ごとの上限を超えた理由の並び, 触るファイルの数)。理由は単位ごとには軽量の集まりを標準へ上げる信号"""
-    paths, tests = _wide(items, keys, touched)
-    paths = len(paths)
-    out = []
-    if paths > MAX_PATHS:
-        out.append(f"run 全体で触るファイル {paths} 個（{MAX_PATHS} 個まで）")
-    if tests > MAX_TESTS:
-        out.append(f"run 全体の受け入れと書き換えのテストが {tests} 本（{MAX_TESTS} 本まで）")
-    return out, paths
-
-
 def _contract(path: str) -> bool:
     return path.endswith(CONTRACT_SUFFIXES) or CONTRACT_DIR in path
 
@@ -182,13 +166,9 @@ def unit_depth(items, key: str, *, checked: bool) -> tuple:
         return STANDARD, ["単位を載せる修正案の項目が無い（形が分からない）"]
     paths, tests = _paths(mine), _tests(mine)
     out = []
-    if len(paths) > MAX_PATHS:
-        out.append(f"触るファイルが {len(paths)} 個（{MAX_PATHS} 個まで）")
     globs = [p for p in paths if any(c in p for c in GLOB_CHARS)]
     if globs:
         out.append(f"触るファイルに glob が在る（{', '.join(globs)}）")
-    if tests > MAX_TESTS:
-        out.append(f"受け入れと書き換えのテストが {tests} 本（{MAX_TESTS} 本まで）")
     wired = bool(paths) and all(wiring(p) for p in paths)
     contracts = [] if wired else [p for p in paths if _contract(p)]
     if contracts:

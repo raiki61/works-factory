@@ -1251,7 +1251,7 @@ def depth_signals(place, results) -> tuple:
     在る単位（conflict.items）・受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末
     given_up）。run: 答えていない修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が
     空でない 2 回目の修正）・修正役が判定に異議を出した（読めた組の子の結果 results と裁定の後の返答の objection）。線の redepth と
-    同じ数えの信号（run の広さ・引用の外の差分・TDD の拒否・範囲の相談・残した block）は redepth が latedepth.signals で数える。
+    同じ数えの信号（引用の外の差分・TDD の拒否・範囲の相談・残した block）は redepth が latedepth.signals で数える。
     食い違いの控えが読めなければ上げる側へ倒す。元 works/darkfactory/lib/depth.py:268 の signals と、線の h-redepth が渡した replanned・rejudged"""
     import conflict
     import gatemarks
