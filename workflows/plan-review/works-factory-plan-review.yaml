@@ -93,7 +93,6 @@ nodes:
   - id: open
     script: pass_open
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     output_format:
       type: object
@@ -111,7 +110,6 @@ nodes:
   - id: r2-design-loop
     depends_on: [open]
     when: "$open.output.r2_go == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -120,7 +118,6 @@ nodes:
         - id: r2-prep
           script: r2_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           output_format:
             type: object
@@ -176,7 +173,6 @@ nodes:
         - id: r2-accept
           script: r2_accept
           runtime: uv
-          timeout: 1728000000
           depends_on: [r2-design]
           mutates_checkout: false
           with:
@@ -204,7 +200,6 @@ nodes:
     depends_on: [open, r2-design-loop]
     trigger_rule: all_done
     when: "$open.output.ok == true && $open.output.form != 'design'"
-    timeout: 1728000000
     loop_group:
       max_iterations: 20
       fresh_context: false
@@ -213,7 +208,6 @@ nodes:
         - id: review-prep
           script: review_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with:
             prev: "$LOOP_PREV.review-accept.output.ok"
@@ -414,7 +408,6 @@ nodes:
         - id: review-accept
           script: review_accept
           runtime: uv
-          timeout: 1728000000
           depends_on: [plan-review, plan-review-fix, plan-review-tree, plan-review-tree-fix]
           trigger_rule: none_failed_min_one_success
           mutates_checkout: false
@@ -439,7 +432,6 @@ nodes:
   - id: review-reads
     script: review_reads
     runtime: uv
-    timeout: 1728000000
     depends_on: [open, review-loop]
     trigger_rule: all_done
     mutates_checkout: false
@@ -457,7 +449,6 @@ nodes:
   - id: review
     script: result
     runtime: uv
-    timeout: 1728000000
     depends_on: [review-loop]
     trigger_rule: all_done
     mutates_checkout: false

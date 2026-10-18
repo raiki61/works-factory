@@ -5,4 +5,3 @@ nodes:
       prompt: 直す
       until: DONE
     idle_timeout: 1728000000
-    timeout: 1728000000

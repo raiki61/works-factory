@@ -79,12 +79,12 @@ NO_DEADLINE = "1728000000"
 # ここに無い種類の節は赤にする。鍵は tests/shared/test_archon_contract.py が Archon の源に照らす（種類が足されたら赤になる）。
 # 足す時は期限を持つかを確かめてから足す。
 NODE_KINDS = {
-    "script": ("timeout",),
-    "bash": ("timeout",),
+    "script": (),
+    "bash": (),
     "prompt": ("idle_timeout",),
     "command": ("idle_timeout",),
-    "loop": ("idle_timeout", "timeout"),
-    "loop_group": ("timeout",),
+    "loop": ("idle_timeout",),
+    "loop_group": (),
     "approval": ("idle_timeout",),
     "wait": (),
     "cancel": (),
@@ -92,6 +92,8 @@ NODE_KINDS = {
     "workflow": (),
 }
 DEADLINE_KEYS = frozenset(key for keys in NODE_KINDS.values() for key in keys)
+# 書かなければ期限の無い鍵（script・bash の節と until_bash の確かめ）。書けば期限になる
+UNSET_DEADLINE_KEY = "timeout"
 WAIT_DEADLINE_KEY = "deadline_ms"
 YAML_INT = "tag:yaml.org,2002:int"
 
@@ -748,6 +750,8 @@ def _no_timeouts(root: Path) -> list[str]:
                     out.append(f"{rel}:{_line(node)}: 節の種類が {'・'.join(NODE_KINDS)} のどれでもない")
                 set_deadlines = [(key, keys[key]) for key in sorted(DEADLINE_KEYS & keys.keys())]
                 set_deadlines += [(key, value) for key, value in _pairs(keys.get("wait")) if key == WAIT_DEADLINE_KEY]
+                if UNSET_DEADLINE_KEY in keys:
+                    out.append(f"{rel}:{_line(keys[UNSET_DEADLINE_KEY])}: {UNSET_DEADLINE_KEY} を書かない（書かなければ期限が無い）")
                 for key, value in set_deadlines:
                     if not (isinstance(value, yaml.ScalarNode) and value.tag == YAML_INT and value.value == NO_DEADLINE):
                         out.append(f"{rel}:{_line(value)}: {key} が {NO_DEADLINE} でない")

@@ -353,7 +353,7 @@
 - P048 修正案の役は読むだけで、道具を絞り（Read・Grep・Glob・WebSearch・WebFetch）、利用者の設定だけを読み、sandbox の中で、opus・effort medium で走る。期限を足さない（20 日）。
   - 元: works/blk-plan/blk-plan.yaml:260-275（model・effort・settingSources・allowed_tools・mutates_checkout・sandbox・idle_timeout）、試験 works/tests/test_tool_parity.py・test_blk_plan.py:237
   - 今: 表
-  - 証: tests/workflows/test_plan.py::ShapeCase.test_role_nodes_are_read_only_and_isolated・tests/workflows/test_plan.py::ShapeCase.test_deadlines_are_all_twenty_days
+  - 証: tests/workflows/test_plan.py::ShapeCase.test_role_nodes_are_read_only_and_isolated・tests/workflows/test_plan.py::ShapeCase.test_ai_deadlines_are_twenty_days_and_others_have_none
   - 本物の run: run の記録の plan-writer の節の設定
   - 狭め: 無し
 

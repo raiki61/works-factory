@@ -55,7 +55,7 @@ class ReadonlyNodesTest(unittest.TestCase):
     def test_role_nodes_with_the_mark_are_clean(self):
         nodes = (role("diagnose", "[Read, Grep]", True)
                  + "  - id: g\n    loop_group:\n      nodes:\n" + role("again", "[Read]", True, indent=8)
-                 + "  - id: take\n    script: take\n    timeout: 1728000000\n    mutates_checkout: false\n")
+                 + "  - id: take\n    script: take\n    mutates_checkout: false\n")
         self.assertEqual(self.problems({PLAN: workflow("plan", nodes)}), [])
 
     def test_nested_role_node_without_the_mark_is_red(self):

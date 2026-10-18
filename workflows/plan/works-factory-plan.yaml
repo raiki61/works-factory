@@ -68,7 +68,6 @@ nodes:
     script: round
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -85,7 +84,6 @@ nodes:
     script: structure_measure
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     depends_on: [round]
     when: "$round.output.go == true"
     with:
@@ -105,7 +103,6 @@ nodes:
   - id: structure-eye-loop
     depends_on: [structure-measure]
     when: "$structure-measure.output.eye == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -115,7 +112,6 @@ nodes:
           script: eye_prep
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           with:
             structure_file: $structure-measure.output.structure_file
           output_format:
@@ -172,7 +168,6 @@ nodes:
           script: eye_accept
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           depends_on: [structure-eye]
           with:
             structure_file: $structure-measure.output.structure_file
@@ -195,7 +190,6 @@ nodes:
     script: structure_state
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     depends_on: [round, structure-measure, structure-eye-loop]
     trigger_rule: all_done
     with:
@@ -212,7 +206,6 @@ nodes:
     script: ripple_units
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     depends_on: [round]
     when: "$round.output.mode == 'plan' && $round.output.go == true"
     with:
@@ -233,7 +226,6 @@ nodes:
     depends_on: [round, structure-state, ripple-units]
     trigger_rule: none_failed_min_one_success
     when: "$round.output.go == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 20
       fresh_context: false
@@ -243,7 +235,6 @@ nodes:
           script: plan_prep
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           with:
             dir: $round.output.dir
             prev: "$LOOP_PREV.plan-accept.output.ok"
@@ -637,7 +628,6 @@ nodes:
           script: plan_accept
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           depends_on: [plan-writer, plan-writer-fix]
           trigger_rule: none_failed_min_one_success
           with:
@@ -661,7 +651,6 @@ nodes:
     script: ripple_items
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     depends_on: [round, plan-loop]
     trigger_rule: all_done
     with:
@@ -680,7 +669,6 @@ nodes:
     script: plan_reads
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     depends_on: [round, plan-loop]
     trigger_rule: one_success
     with:
@@ -700,7 +688,6 @@ nodes:
     script: plan_collect
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     depends_on: [round, structure-state, ripple-items]
     trigger_rule: all_done
     # optional は、この計画のブロックが落ちても線が先へ進めてよい節の宣言（構造の実測と構造の目。落ちても修正案は進む）。[{node, bare}] の

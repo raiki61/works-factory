@@ -325,7 +325,7 @@ class LoopTest(unittest.TestCase):
                 self.assertTrue(accept.endswith("-accept"), accept)
                 self.assertEqual(body["max_iterations"], 3)
                 self.assertEqual(body["until_bash"], f'done=${accept}.output.done; test "$done" = true')
-                self.assertEqual(loop["timeout"], NO_DEADLINE)
+                self.assertNotIn("timeout", loop)
                 self.assertIs(body["fresh_context"], False)
 
     def test_roles_receive_the_reject_reason_through_the_loop_head(self):
@@ -348,16 +348,16 @@ class LoopTest(unittest.TestCase):
                     if material:
                         self.assertNotIn(f"{role['id']}-reject", body)
                         node = body[reject]
-                        self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
-                                         ("material_prep", "uv", NO_DEADLINE, False))
+                        self.assertEqual((node["script"], node["runtime"], node.get("timeout"), node["mutates_checkout"]),
+                                         ("material_prep", "uv", None, False))
                         self.assertEqual(node["with"], {"role": role["id"], "reason": f"$LOOP_PREV.{accept}.output.reason"})
                         self.assertEqual(node["output_format"]["required"],
                                          ["brief_file", "brief", "review_md", "repo_review_md", "reason", "lang_line"])
                         self.assertEqual(role["depends_on"], [reject])
                     else:
                         node = body[reject]
-                        self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
-                                         ("rejects" if lid in LEDGER_REJECTS else "reject", "uv", NO_DEADLINE, False))
+                        self.assertEqual((node["script"], node["runtime"], node.get("timeout"), node["mutates_checkout"]),
+                                         ("rejects" if lid in LEDGER_REJECTS else "reject", "uv", None, False))
                         want = ({**LEDGER_REJECTS[lid], "prev": f"$LOOP_PREV.{accept}.output.ok"} if lid in LEDGER_REJECTS
                                 else {"reason": f"$LOOP_PREV.{accept}.output.reason"})
                         self.assertEqual(node["with"], want)

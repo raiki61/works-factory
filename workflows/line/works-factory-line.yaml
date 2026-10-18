@@ -66,7 +66,6 @@ nodes:
   - id: testcmd
     script: testcmd
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -84,7 +83,6 @@ nodes:
   - id: start
     script: start
     runtime: uv
-    timeout: 1728000000
     depends_on: [testcmd]
     when: "$testcmd.output.stop == false"
     output_format:
@@ -118,7 +116,6 @@ nodes:
   - id: answer-start
     script: gate_answer
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -153,7 +150,6 @@ nodes:
     <<: &receiver
       script: returned
       runtime: uv
-      timeout: 1728000000
       output_format:
         type: object
         properties:
@@ -221,7 +217,6 @@ nodes:
   - id: plan-rounds
     depends_on: [judge]
     when: "$judge.output.ready == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 20
       until_bash: 'done=$plan-out.output.done; [ "$done" = "true" ]'
@@ -272,7 +267,6 @@ nodes:
         - id: plan-out
           script: plan_out
           runtime: uv
-          timeout: 1728000000
           output_format:
             type: object
             properties:
@@ -333,7 +327,6 @@ nodes:
   - id: ask-before-fix
     script: ask_before_fix
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -368,7 +361,6 @@ nodes:
   - id: answer-before-fix
     script: before_fix_answer
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -393,7 +385,6 @@ nodes:
   - id: fix-in
     script: fix_in
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -474,7 +465,6 @@ nodes:
   - id: after-fix
     script: after_fix
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -548,7 +538,6 @@ nodes:
   - id: ask-replan
     script: ask_replan
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -582,7 +571,6 @@ nodes:
   - id: answer-replan
     script: replan_answer
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -635,7 +623,6 @@ nodes:
   - id: fixed
     script: fixed
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -687,7 +674,6 @@ nodes:
   - id: spec-check
     script: spec_check
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -724,7 +710,6 @@ nodes:
   - id: judged
     script: judged
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -765,7 +750,6 @@ nodes:
   - id: redepth
     script: redepth
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -872,7 +856,6 @@ nodes:
   - id: ask-final
     script: ask_final
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -932,7 +915,6 @@ nodes:
   - id: answer-final
     script: gate_answer
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -977,7 +959,6 @@ nodes:
   - id: collect
     script: collect
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -1103,7 +1084,6 @@ nodes:
   - id: sweep-children
     script: sweep_children
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -1119,7 +1099,6 @@ nodes:
   - id: result
     script: result
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:

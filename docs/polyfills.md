@@ -146,15 +146,16 @@
 - 使うサブグラフ: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
-### P9 鍵を書かないノードにも既定の期限が当たる
+### P13 AI のノードに既定の無言の期限が当たる
 
-- 穴: `timeout` を書かない `script:`・`bash:` のノードにも、Archon が既定の期限で打ち切りを当てる。
+- 穴: `idle_timeout` を書かない `prompt:`・`command:` のノードと `loop:` の 1 周に、Archon が provider から何も届かない 30 分で打ち切りを当てる。
 - 証拠:
-  - `packages/docs-web/src/content/docs/guides/script-nodes.md` の「Hard kill after this many milliseconds. Default: `120000` (2 min)」（`timeout` の欄）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がった（upstream の #4355、`1e2d8acc0`。止めた版に入っている。`timeout` を書かない `bash:`・`script:` のノードと `until_bash` に期限を当てない）。埋めは別の変更で外す。その前の #4307（`7c287f52e`）は期限の来たノードの process の木ごと止める変更。
-- 埋め: 期限を持つノードの鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。
-- 使うサブグラフ: 全部
-- 外す条件: グラフの既定で期限を無しにできる版が出たら
+  - `packages/workflows/src/utils/idle-timeout.ts` の「export const STEP_IDLE_TIMEOUT_MS = 30 * 60 * 1000;」
+  - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「`idle_timeout` — per-iteration timeout (default: 30 minutes)」
+- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。#4355 が期限を外したのは `bash:`・`script:` と `until_bash` だけ）。
+- 埋め: 既定の期限が当たる鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。もとは P9 の埋めの一部。
+- 使うサブグラフ: AI の役を持つ全部
+- 外す条件: `idle_timeout` を書かない AI のノードに期限を当てない版が出たら
 
 ### P10 周をまたいで同じ役の会話を続けられない
 
@@ -222,4 +223,12 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 
 ## 外した
 
-（まだ無い）
+### P9 鍵を書かないノードにも既定の期限が当たる
+
+- 穴: `timeout` を書かない `script:`・`bash:` のノードにも、Archon が既定の期限で打ち切りを当てる。
+- 証拠:
+  - `packages/docs-web/src/content/docs/guides/script-nodes.md` の「Hard kill after this many milliseconds. Default: `120000` (2 min)」（`timeout` の欄）
+- 上流（`355f1867` の後の dev の `f906471c4` まで）: 塞がった（upstream の #4355、`1e2d8acc0`。`timeout` を書かない `bash:`・`script:` のノードと `until_bash` に期限を当てない）。その前の #4307（`7c287f52e`）は期限の来たノードの process の木ごと止める変更。
+- 外した埋め: `script:`・`bash:` の `timeout` と、`loop:`・`loop_group:` の `timeout`（`until_bash` の確かめ）に置いていた実質無しの値 `1728000000`。2026-10-18 に止めた版を `64ec0c2e` に上げた時に外した。その版で `timeout` を書かない `bash:`・`script:`・`loop_group:` の `until_bash` を 130 秒走らせ、どれも打ち切られずに終わった。今は E12 が `timeout` を書かせない（`tests/layers/scan.py` の `UNSET_DEADLINE_KEY`）。AI のノードの `idle_timeout` の値は P13 に残した。
+- 使うサブグラフ: 全部
+- 外す条件: グラフの既定で期限を無しにできる版が出たら

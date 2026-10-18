@@ -11,7 +11,6 @@ nodes:
   - id: intake
     script: intake
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     output_format:
       type: object
@@ -31,7 +30,6 @@ nodes:
   - id: head-depth-prep
     script: head_depth_prep
     runtime: uv
-    timeout: 1728000000
     depends_on: [intake]
     when: $intake.output.go == true && $intake.output.mode == 'judge'
     mutates_checkout: false
@@ -46,7 +44,6 @@ nodes:
   - id: head-depth-loop
     depends_on: [head-depth-prep]
     when: $head-depth-prep.output.go == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -55,7 +52,6 @@ nodes:
         - id: head-depth-reject
           script: reject
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.head-depth-accept.output.reason"}
           output_format:
@@ -101,7 +97,6 @@ nodes:
         - id: head-depth-accept
           script: head_depth_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [head-depth]
           with: {reply: $head-depth.output}
@@ -119,7 +114,6 @@ nodes:
   - id: spec-loop
     depends_on: [intake]
     when: $intake.output.spec == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -128,7 +122,6 @@ nodes:
         - id: spec-reject
           script: rejects
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {board: judge, accept: spec-write, prev: "$LOOP_PREV.spec-accept.output.ok"}
           output_format:
@@ -191,7 +184,6 @@ nodes:
         - id: spec-accept
           script: spec_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [spec, spec-fix]
           trigger_rule: none_failed_min_one_success
@@ -212,7 +204,6 @@ nodes:
   - id: spec-review-loop
     depends_on: [spec-loop]
     when: $spec-loop.output.ok == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -221,7 +212,6 @@ nodes:
         - id: spec-review-reject
           script: rejects
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {board: judge, accept: spec-review, prev: "$LOOP_PREV.spec-review-accept.output.ok"}
           output_format:
@@ -275,7 +265,6 @@ nodes:
         - id: spec-review-accept
           script: spec_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [spec-review, spec-review-fix]
           trigger_rule: none_failed_min_one_success
@@ -296,7 +285,6 @@ nodes:
   - id: spec-revise-loop
     depends_on: [spec-review-loop]
     when: $spec-review-loop.output.revise == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -305,7 +293,6 @@ nodes:
         - id: spec-revise-reject
           script: rejects
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {board: judge, accept: spec-revise, prev: "$LOOP_PREV.spec-revise-accept.output.ok"}
           output_format:
@@ -380,7 +367,6 @@ nodes:
         - id: spec-revise-accept
           script: spec_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [spec-revise, spec-revise-fix]
           trigger_rule: none_failed_min_one_success
@@ -401,7 +387,6 @@ nodes:
   - id: spec-ask
     script: spec_ask
     runtime: uv
-    timeout: 1728000000
     depends_on: [intake, spec-loop, spec-review-loop, spec-revise-loop]
     trigger_rule: all_done
     when: $intake.output.spec == true
@@ -427,7 +412,6 @@ nodes:
   - id: spec-freeze
     script: spec_freeze
     runtime: uv
-    timeout: 1728000000
     depends_on: [spec-ask, spec-gate]
     trigger_rule: all_done
     when: $intake.output.spec == true
@@ -443,7 +427,6 @@ nodes:
   - id: pr-scan
     script: pr_check
     runtime: uv
-    timeout: 1728000000
     depends_on: [intake, spec-freeze]
     trigger_rule: all_done
     when: $intake.output.go == true && $intake.output.mode == 'judge'
@@ -459,7 +442,6 @@ nodes:
   - id: pr-check-loop
     depends_on: [pr-scan]
     when: $pr-scan.output.go_role == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -468,7 +450,6 @@ nodes:
         - id: pr-check-reject
           script: reject
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.pr-check-accept.output.reason"}
           output_format:
@@ -546,7 +527,6 @@ nodes:
         - id: pr-check-accept
           script: pr_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [pr-check]
           with: {reply: $pr-check.output}
@@ -564,7 +544,6 @@ nodes:
   - id: pr-check-reads
     script: pr_reads
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [pr-scan, pr-check-loop]
     trigger_rule: one_success
@@ -582,7 +561,6 @@ nodes:
     depends_on: [pr-scan, pr-check-loop]
     trigger_rule: none_failed_min_one_success
     when: $pr-scan.output.go == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -591,7 +569,6 @@ nodes:
         - id: premises-reject
           script: reject
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.premises-accept.output.reason"}
           output_format:
@@ -634,7 +611,6 @@ nodes:
         - id: premises-accept
           script: premises_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [premises]
           with: {reply: $premises.output}
@@ -649,7 +625,6 @@ nodes:
   - id: purpose-prep
     script: purpose_prep
     runtime: uv
-    timeout: 1728000000
     depends_on: [premises-loop]
     mutates_checkout: false
     output_format:
@@ -663,7 +638,6 @@ nodes:
   - id: purpose-loop
     depends_on: [purpose-prep]
     when: $purpose-prep.output.go == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -672,7 +646,6 @@ nodes:
         - id: purpose-reject
           script: reject
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.purpose-accept.output.reason"}
           output_format:
@@ -711,7 +684,6 @@ nodes:
         - id: purpose-accept
           script: purpose_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [purpose]
           with: {status_guarded: true, reply: $purpose.output}
@@ -726,7 +698,6 @@ nodes:
   - id: world-intake
     script: world_intake
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [purpose-loop]
     when: $intake.output.world == true
@@ -741,7 +712,6 @@ nodes:
   - id: world-classes-loop
     depends_on: [world-intake]
     when: $world-intake.output.due == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -750,7 +720,6 @@ nodes:
         - id: world-classes-reject
           script: reject
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.world-classes-accept.output.reason"}
           output_format:
@@ -790,7 +759,6 @@ nodes:
         - id: world-classes-accept
           script: world_classes_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [world-classes]
           with: {reply: $world-classes.output}
@@ -805,7 +773,6 @@ nodes:
   - id: world-plan
     script: world_plan
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [world-intake, world-classes-loop]
     trigger_rule: all_done
@@ -821,7 +788,6 @@ nodes:
   - id: world-judge-loop
     depends_on: [world-plan]
     when: $world-plan.output.due == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -830,7 +796,6 @@ nodes:
         - id: world-judge-reject
           script: reject
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.world-judge-accept.output.reason"}
           output_format:
@@ -884,7 +849,6 @@ nodes:
         - id: world-judge-accept
           script: world_judge_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [world-judge]
           with: {reply: $world-judge.output}
@@ -899,7 +863,6 @@ nodes:
   - id: world-finish
     script: world_finish
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [world-plan, world-judge-loop]
     trigger_rule: all_done
@@ -917,7 +880,6 @@ nodes:
   - id: material-route
     script: material_route
     runtime: uv
-    timeout: 1728000000
     depends_on: [purpose-loop, world-finish]
     trigger_rule: none_failed_min_one_success
     mutates_checkout: false
@@ -942,7 +904,6 @@ nodes:
   - id: prior-decisions-loop
     depends_on: [material-route]
     when: $material-route.output.prior_decisions == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -951,7 +912,6 @@ nodes:
         - id: prior-decisions-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: prior-decisions, reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
           output_format:
@@ -1007,7 +967,6 @@ nodes:
         - id: prior-decisions-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [prior-decisions]
           with: {status_guarded: false, role: prior-decisions, reply: $prior-decisions.output}
@@ -1022,7 +981,6 @@ nodes:
   - id: purpose-review-loop
     depends_on: [material-route]
     when: $material-route.output.purpose_review == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1031,7 +989,6 @@ nodes:
         - id: purpose-review-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: purpose-review, reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
           output_format:
@@ -1073,7 +1030,6 @@ nodes:
         - id: purpose-review-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [purpose-review]
           with: {status_guarded: true, role: purpose-review, reply: $purpose-review.output}
@@ -1088,7 +1044,6 @@ nodes:
   - id: local-review-loop
     depends_on: [material-route]
     when: $material-route.output.local_review == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1097,7 +1052,6 @@ nodes:
         - id: local-review-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: local-review, reason: "$LOOP_PREV.local-review-accept.output.reason"}
           output_format:
@@ -1163,7 +1117,6 @@ nodes:
         - id: local-review-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [local-review]
           with: {status_guarded: false, role: local-review, reply: $local-review.output}
@@ -1178,7 +1131,6 @@ nodes:
   - id: consistency-bypass-loop
     depends_on: [material-route]
     when: $material-route.output.consistency_bypass == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1187,7 +1139,6 @@ nodes:
         - id: consistency-bypass-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: consistency-bypass, reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
           output_format:
@@ -1267,7 +1218,6 @@ nodes:
         - id: consistency-bypass-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [consistency-bypass]
           with: {status_guarded: true, role: consistency-bypass, reply: $consistency-bypass.output}
@@ -1282,7 +1232,6 @@ nodes:
   - id: hygiene-loop
     depends_on: [material-route]
     when: $material-route.output.hygiene == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1291,7 +1240,6 @@ nodes:
         - id: hygiene-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: hygiene, reason: "$LOOP_PREV.hygiene-accept.output.reason"}
           output_format:
@@ -1336,7 +1284,6 @@ nodes:
         - id: hygiene-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [hygiene]
           with: {status_guarded: true, role: hygiene, reply: $hygiene.output}
@@ -1351,7 +1298,6 @@ nodes:
   - id: external-standards-loop
     depends_on: [material-route]
     when: $material-route.output.external_standards == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1360,7 +1306,6 @@ nodes:
         - id: external-standards-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: external-standards, reason: "$LOOP_PREV.external-standards-accept.output.reason"}
           output_format:
@@ -1431,7 +1376,6 @@ nodes:
         - id: external-standards-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [external-standards]
           with: {status_guarded: false, role: external-standards, reply: $external-standards.output}
@@ -1446,7 +1390,6 @@ nodes:
   - id: procedure-trace-loop
     depends_on: [material-route]
     when: $material-route.output.procedure_trace == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1455,7 +1398,6 @@ nodes:
         - id: procedure-trace-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: procedure-trace, reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
           output_format:
@@ -1510,7 +1452,6 @@ nodes:
         - id: procedure-trace-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [procedure-trace]
           with: {status_guarded: false, role: procedure-trace, reply: $procedure-trace.output}
@@ -1525,7 +1466,6 @@ nodes:
   - id: gate-efficacy-loop
     depends_on: [material-route]
     when: $material-route.output.gate_efficacy == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1534,7 +1474,6 @@ nodes:
         - id: gate-efficacy-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: gate-efficacy, reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
           output_format:
@@ -1603,7 +1542,6 @@ nodes:
         - id: gate-efficacy-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [gate-efficacy]
           with: {status_guarded: false, role: gate-efficacy, reply: $gate-efficacy.output}
@@ -1618,7 +1556,6 @@ nodes:
   - id: test-double-fidelity-loop
     depends_on: [material-route]
     when: $material-route.output.test_double_fidelity == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1627,7 +1564,6 @@ nodes:
         - id: test-double-fidelity-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: test-double-fidelity, reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
           output_format:
@@ -1679,7 +1615,6 @@ nodes:
         - id: test-double-fidelity-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [test-double-fidelity]
           with: {status_guarded: false, role: test-double-fidelity, reply: $test-double-fidelity.output}
@@ -1694,7 +1629,6 @@ nodes:
   - id: main-path-observation-loop
     depends_on: [material-route]
     when: $material-route.output.main_path_observation == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1703,7 +1637,6 @@ nodes:
         - id: main-path-observation-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: main-path-observation, reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
           output_format:
@@ -1752,7 +1685,6 @@ nodes:
         - id: main-path-observation-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [main-path-observation]
           with: {status_guarded: false, role: main-path-observation, reply: $main-path-observation.output}
@@ -1767,7 +1699,6 @@ nodes:
   - id: provenance-loop
     depends_on: [material-route]
     when: $material-route.output.provenance == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1776,7 +1707,6 @@ nodes:
         - id: provenance-prep
           script: material_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {role: provenance, reason: "$LOOP_PREV.provenance-accept.output.reason"}
           output_format:
@@ -1826,7 +1756,6 @@ nodes:
         - id: provenance-accept
           script: material_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [provenance]
           with: {status_guarded: false, role: provenance, reply: $provenance.output}
@@ -1841,7 +1770,6 @@ nodes:
   - id: diagnose-prep
     script: diagnose_prep
     runtime: uv
-    timeout: 1728000000
     depends_on: [material-route, prior-decisions-loop, purpose-review-loop, local-review-loop, consistency-bypass-loop, hygiene-loop, external-standards-loop, procedure-trace-loop, gate-efficacy-loop, test-double-fidelity-loop,
       main-path-observation-loop, provenance-loop, head-depth-loop]
     trigger_rule: all_done
@@ -1860,7 +1788,6 @@ nodes:
   - id: diagnose-loop
     depends_on: [diagnose-prep]
     when: $diagnose-prep.output.go == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1869,7 +1796,6 @@ nodes:
         - id: diagnose-reject
           script: reject
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.diagnose-accept.output.reason"}
           output_format:
@@ -2060,7 +1986,6 @@ nodes:
         - id: diagnose-accept
           script: diagnose_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [diagnose]
           with: {status_guarded: true, reply: $diagnose.output}
@@ -2075,7 +2000,6 @@ nodes:
   - id: verify-prep
     script: verify
     runtime: uv
-    timeout: 1728000000
     depends_on: [diagnose-loop]
     mutates_checkout: false
     with: {status_guarded: false, stage: prep}
@@ -2109,7 +2033,6 @@ nodes:
   - id: verify-merge
     script: verify
     runtime: uv
-    timeout: 1728000000
     depends_on: [verify-prep, judge-verify]
     trigger_rule: all_done
     when: $intake.output.mode == 'judge'
@@ -2125,7 +2048,6 @@ nodes:
   - id: rejudge-prep
     script: rejudge_prep
     runtime: uv
-    timeout: 1728000000
     depends_on: [intake]
     when: $intake.output.go == true && $intake.output.mode == 'rejudge'
     mutates_checkout: false
@@ -2140,7 +2062,6 @@ nodes:
   - id: rejudge-loop
     depends_on: [rejudge-prep]
     when: $rejudge-prep.output.go == true
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -2149,7 +2070,6 @@ nodes:
         - id: rejudge-reject
           script: rejects
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {board: rejudge, accept: rejudge, prev: "$LOOP_PREV.rejudge-accept.output.ok"}
           output_format:
@@ -2254,7 +2174,6 @@ nodes:
         - id: rejudge-accept
           script: rejudge_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [rejudge, rejudge-fix]
           trigger_rule: none_failed_min_one_success
@@ -2277,7 +2196,6 @@ nodes:
   - id: verdict
     script: verdict
     runtime: uv
-    timeout: 1728000000
     depends_on: [intake, spec-freeze, diagnose-loop, verify-merge, rejudge-loop, pr-check-reads, head-depth-loop]
     trigger_rule: all_done
     mutates_checkout: false
