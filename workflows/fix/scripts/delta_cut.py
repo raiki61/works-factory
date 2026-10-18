@@ -5,8 +5,8 @@
 """差分の審査の支度（節 delta-cut）: 修正だけの差分（run の始めの木 → 今の作業ツリー）を切り、審査役の材料を置き場に書く（refix.cut）。
 
 戻せず親の作業ツリーに当たったままの組が在る run（fixboard.held）と、変更の確かめ（置き場の assert-changed.json）が ok でない run は go: false で審査を回さない（審査は走らなかったので collect は
-{rounds: 0, pass: false} を返す）。先に修正の後の信号（申し出・止めた単位・答えていない問い・案の直し・修正役の異議・実際の差分の
-広さ）で深さを標準へ上げ（fixboard.redepth。元の線の h-redepth。上げた控えは置き場の depth-raised.json）、run の頭の深さが軽量で、
+{rounds: 0, pass: false} を返す）。先に修正の後の信号（申し出・止めた単位・答えていない問い・案の直し・修正役の異議・引用の外の
+差分・TDD の拒否・範囲の相談・残した block）で深さを標準へ上げ（fixboard.redepth。元の線の h-redepth。上げた控えは置き場の depth-raised.json）、run の頭の深さが軽量で、
 それでも全部の単位が軽量の run（持ち主の決め dynamic-depth）は、置き場の delta/skipped.json に {reason} を書いて go: false で審査を飛ばす。
 作業ツリーが修正前の版と同じ（.archon/ の下は数えない）で、修正が塞いだと言う事前審査の穴も無い run も、同じ印に訳を書いて
 go: false で審査役を起こさない（fixboard.delta_review_due。元 review-loop.py:604 fix_delta_nonempty・:617 delta_review_due）。

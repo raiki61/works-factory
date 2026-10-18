@@ -587,7 +587,7 @@ class DeltaScriptsCase(unittest.TestCase):
         self._json("groups.json", {"groups": [{"group_id": "g1", "unit_ids": [_RV_KEY], "items": [1]}], "count": 1,
                                    "par": False, "start_tree": start, "out_dir": str(self.place / "groups")})
         self._json("assert-changed.json", {"ok": True, "reason": ""})
-        self._json("depth.json", [{"unit_id": _RV_KEY, "depth": "標準", "why": "触るファイルが 4 個"}])
+        self._json("depth.json", [{"unit_id": _RV_KEY, "depth": "標準", "why": "約束の形のファイルを触る（schemas/a.json）"}])
         self._json(fixboard.PLAN_REPLY_FILE, {"plan": [{"unit_keys": [_RV_KEY], "approach": "分母を len(xs) にする"}]})
         planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": "",
                                         "allowed_paths": ["stats.py"],

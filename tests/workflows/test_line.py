@@ -2789,37 +2789,39 @@ class RedepthCase(Artifacts):
                 start = self.put("r1/start.json", record)
                 self.assertEqual(redepth.pending_signals(judgment, start, None, None, None), want)
 
-    def test_wide_run_raises_to_standard(self):
-        """L-D10: run 全体の広さ（計画の allowed_paths と修正の実際の差分のファイルの和集合・受け入れと書き換えのテストの本数。
-        depth.run_wide）が単位ごとの上限を超えれば、軽量の名指しでも全部の単位を標準へ上げ、数えた数と起点を counted に残す
-        （元 depth.raise_ :302-313）"""
+    def test_wide_run_stays_light(self):
+        """L-D10・issue #760: run 全体の広さ（計画の allowed_paths と修正の実際の差分のファイルの和集合。depth.run_paths）は上げる信号に
+        せず、数えた数と起点を counted に記録として残す。引用の外・拒否・相談・残した block の無い広い run は軽量のまま"""
         plan = self.put("plan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "tests": [], "rewrite_tests": []}]})
-        diff = "".join(f"diff --git a/w{n}.py b/w{n}.py\n--- a/w{n}.py\n+++ b/w{n}.py\n@@ -1 +1 @@\n-x\n+y\n" for n in range(4))
+        diff = "".join(f"diff --git a/w{n}.py b/w{n}.py\n--- a/w{n}.py\n+++ b/w{n}.py\n@@ -1 +1 @@\n-x\n+y\n" for n in range(10))
         ptr = self.put("fix/diff.patch", diff)
         stage = fixbeside.stage({"diff": ptr, **dict.fromkeys(fixbeside.PORTS), "removed": [], "tdd_refused": {"refused": [], "unread": []}})
         signals, counted = redepth.fix_signals(plan, ptr, [stage], None, ["u1"])
-        self.assertEqual(signals, ["run 全体で触るファイル 5 個（3 個まで）"])
-        self.assertTrue(counted.startswith("触るファイル 5 個（起点: 修正の差分 fix/diff.patch）／"), counted)
+        self.assertEqual(signals, [])
+        self.assertTrue(counted.startswith("触るファイル 11 個（起点: 修正の差分 fix/diff.patch）／"), counted)
         got = self.redepth(signals=signals, counted=counted)
-        self.assertEqual((got["depth"][0]["depth"], got["counted"]), ("標準", counted))
+        self.assertEqual((got["depth"][0]["depth"], got["counted"]), ("軽量", counted))
         signals, counted = redepth.fix_signals(plan, None, [], None, ["u1"])
         self.assertEqual(signals, [])
         self.assertTrue(counted.startswith(f"触るファイル 1 個（起点: {latedepth.PLAN_ORIGIN}"), counted)
 
     def test_the_node_joins_the_question_and_width_signals(self):
         """L-D08・L-D10: ノード redepth は with: の判定・始めの記録・修正前の承認ノードの答え・結びの判定から答えていない問いの信号を、
-        計画と修正の差分から run の広さの信号を組み、どちらも上げる理由に載せ、数えた数を counted に返す（from_env で信号を合わせる所を
-        外すと、片方の信号が上げる理由から落ちて赤）"""
+        計画と修正の差分と頭の深さの控えから引用の外の差分の信号を組み、どちらも上げる理由に載せ、数えた数を counted に返す（from_env で
+        信号を合わせる所を外すと、片方の信号が上げる理由から落ちて赤）"""
+        import headdepth
         questions = [{"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "reason": "a か b か"}]
         judgment = self.put("judge/judgment.json", {"units": [], "questions": questions})
         start = self.put("r1/start.json", {"answers": []})
         plan = self.put("plan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "tests": [], "rewrite_tests": []}]})
         diff = self.put("fix/diff.patch", "".join(f"diff --git a/w{n}.py b/w{n}.py\n--- a/w{n}.py\n+++ b/w{n}.py\n@@ -1 +1 @@\n-x\n+y\n"
                                                 for n in range(4)))
+        depth_record = self.put("judge/depth-head.json", headdepth.record("軽量", "易しい", items=[
+            {"item": 1, "unknown": "無し", "where": f"w{n}.py:1", "cause_quote": "分母が違う", "code_quote": "return"} for n in range(3)]))
         env = {"INPUTS_DEPTH": json.dumps(self.LIGHT, ensure_ascii=False), "INPUTS_REPLAN_DEPTH": "null", "INPUTS_UNITS": "[]",
                "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": json.dumps(plan), "INPUTS_DIFF": json.dumps(diff),
                "INPUTS_JUDGMENT": json.dumps(judgment), "INPUTS_START": json.dumps(start), "INPUTS_ANSWER": "null",
-               "INPUTS_ANSWER_TIES": "null", "INPUTS_MATERIALS": "null", "INPUTS_DEPTH_RECORD": "null",
+               "INPUTS_ANSWER_TIES": "null", "INPUTS_MATERIALS": "null", "INPUTS_DEPTH_RECORD": json.dumps(depth_record),
                "INPUTS_REPLANNED": "false", "INPUTS_REJUDGED": "false", "INPUTS_HEAD_DEPTH": "軽量",
                "INPUTS_RECORDS": json.dumps([fixbeside.stage({"diff": diff, **dict.fromkeys(fixbeside.PORTS), "removed": [],
                                                               "tdd_refused": {"refused": [], "unread": []}})])}
@@ -2828,7 +2830,7 @@ class RedepthCase(Artifacts):
             got = redepth.compute()
         self.assertEqual(got["depth"][0]["depth"], "標準")
         self.assertIn("答えていない問い q1", got["raised"])
-        self.assertIn("run 全体で触るファイル 5 個（3 個まで）", got["raised"])
+        self.assertTrue(any("引用した where の外に出た" in r and "w3.py" in r and "w0.py" not in r for r in got["raised"]), got["raised"])
         self.assertTrue(got["counted"].startswith("触るファイル 5 個（起点: 修正の差分 fix/diff.patch）"), got["counted"])
         self.assertIn("修正の後の信号の控えが無い", got["counted"])
 

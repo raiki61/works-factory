@@ -1150,7 +1150,7 @@
 - L-D10 run 全体の広さで上げる（計画の allowed_paths と実際の差分のファイルの和集合とテストの本数。数えた数と起点を counted に残す。軽量の名指しでも上げる）
   - 元: works/darkfactory/lib/depth.py:97 `run_wide`・:289 `_actual_diff`・:312-313
   - 今: 表
-  - 証: tests/workflows/test_line.py::RedepthCase.test_wide_run_raises_to_standard・lib/tests/test_fix_seams.py::DeltaSeamCase.test_redepth_raises_on_the_signals_after_the_fix（test_fixboard.py の RedepthCase.test_actual_diff_beyond_plan_raises の名を変えた。既に在った）
+  - 証: tests/workflows/test_line.py::RedepthCase.test_wide_run_stays_light（#760 で本数で上げる道を外し、counted の記録だけを残した。前の名は test_wide_run_raises_to_standard）・lib/tests/test_fix_seams.py::DeltaSeamCase.test_redepth_raises_on_the_signals_after_the_fix（test_fixboard.py の RedepthCase.test_actual_diff_beyond_plan_raises の名を変えた。既に在った）
   - 本物の run: fix の置き場の depth-raised.json の counted。線では観測できない
   - 狭め: #74（線が持たない）と #94（試験が落ちた）。不可でない → 戻す → 部分 C で戻した
 - L-D11 全部の単位が軽量のままの run は、独立の目の削除候補と R1〜R4 を省く
