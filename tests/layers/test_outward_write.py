@@ -29,16 +29,16 @@ class OutwardWriteTest(unittest.TestCase):
 
     def test_one_writing_node_is_clean(self):
         yaml = (
-            "name: works-factory-merge\nnodes:\n  - id: apply\n    script: apply\n    runtime: uv\n    timeout: 1728000000\n"
-            "  - id: read\n    bash: git log -1\n    timeout: 1728000000\n"
+            "name: works-factory-merge\nnodes:\n  - id: apply\n    script: apply\n    runtime: uv\n"
+            "  - id: read\n    bash: git log -1\n"
         )
         files = {BLOCK: yaml, "workflows/merge/scripts/apply.py": 'run(["git", "push", "origin", "HEAD"])\n'}
         self.assertEqual(self.problems(files), [])
 
     def test_named_scripts_are_read(self):
         yaml = (
-            "name: works-factory-merge\nnodes:\n  - id: a\n    script: a\n    runtime: uv\n    timeout: 1728000000\n"
-            "  - id: b\n    script: b\n    runtime: uv\n    timeout: 1728000000\n"
+            "name: works-factory-merge\nnodes:\n  - id: a\n    script: a\n    runtime: uv\n"
+            "  - id: b\n    script: b\n    runtime: uv\n"
         )
         files = {BLOCK: yaml, "workflows/merge/scripts/a.py": 'run(["gh", "pr", "create"])\n',
                  "workflows/merge/scripts/b.py": 'run(["git", "merge", "--ff-only", "x"])\n'}
@@ -55,8 +55,8 @@ class OutwardWriteTest(unittest.TestCase):
 
     def test_words_that_only_contain_gh_are_clean(self):
         yaml = (
-            "name: works-factory-merge\nnodes:\n  - id: a\n    bash: echo high ghost gh-pages\n    timeout: 1728000000\n"
-            "  - id: b\n    bash: git log --merges\n    timeout: 1728000000\n"
+            "name: works-factory-merge\nnodes:\n  - id: a\n    bash: echo high ghost gh-pages\n"
+            "  - id: b\n    bash: git log --merges\n"
         )
         self.assertEqual(self.problems({BLOCK: yaml}), [])
 
