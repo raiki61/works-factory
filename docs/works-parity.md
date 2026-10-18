@@ -2941,7 +2941,7 @@
 - K8 依頼・テスト・コードが食い違う時に役が申し出て、読むだけの裁定役が決める
   - 元: keep-essence.md:17
   - 印: `keep-essence.md:17`
-  - 今: `lib/conflict.py::ITEM_SCHEMA`（申し出の形）・`workflows/fix/works-factory-fix.yaml::rule-loop`・`workflows/fix/works-factory-fix.yaml::ruler`（allowed_tools は Read・Grep・Glob・WebSearch・WebFetch、mutates_checkout: false、sandbox 有効）・`workflows/fix/works-factory-fix.yaml::rule-accept`
+  - 今: `lib/conflict.py::ITEM_SCHEMA`（申し出の形）・`workflows/fix/works-factory-fix.yaml::rule-loop`・`workflows/fix/works-factory-fix.yaml::ruler`（allowed_tools は Read・Grep・Glob・WebSearch・WebFetch、mutates_checkout: false、sandbox 有効）・`workflows/fix/works-factory-fix.yaml::rule-accept`・`lib/ruling.py::ask_why_problems`（人に回すのは直しの向きか範囲が変わる申し出だけ）
   - 状態: 在る
   - 旧棚卸し: F200・F201・F209・F210・F211
 

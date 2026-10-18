@@ -522,6 +522,17 @@ class ScopeTextSeamCase(TempCase):
         self.assertIn("`conf.ini`", pr.scope_text(pr.fix_scope(self.place, "ruled", items=self.ITEMS)[0]))
         self.assertEqual(planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="ruled", items=self.ITEMS)[0], [])
 
+    def test_ruled_paths_waive_the_name_check_after_ruling(self):
+        """直す裁定が limits に挙げたパス（conf.ini）の同じ言語の同名の定義は、裁定の後の照らしで足す行の path の外に数えない"""
+        import planscope
+        items = [{**self.ITEMS[0], "allowed_paths": ["stats.py", "app.ini"],
+                  "files": [{"path": "app.ini", "op": "create", "symbols": [{"name": "LIMIT", "change": "add"}]}]}]
+        for path, text in (("app.ini", "LIMIT = 1\n"), ("conf.ini", "LIMIT = 2\n")):
+            (self.repo / path).write_text(text, encoding="utf-8")
+        rows = [{"unit_key": KEY_A, "files": ["app.ini", "conf.ini"]}]
+        lines, _ = planscope.check(rows, self.place, self.repo, self.rev, ["app.ini", "conf.ini"], pass_="ruled", items=items)
+        self.assertEqual(lines, [])
+
     def test_each_stage_pastes_the_out_of_scope_rule_its_check_applies(self):
         """修正の段は申告した単位の項目が明示に許したパスをその項目の out_of_scope だけで照らし、手直しの段は全部の項目で照らす。
         節の決まりの文は段ごとに照らしと同じ決まりを言う"""
@@ -974,8 +985,11 @@ class RulingSeamCase(TempCase):
 
     VALUES = {"judgment_file": "/home/x/j.json", "policy_path": ""}
 
+    ASK_WHY = {"ask_why": {"changes": "direction", "line": "上限を超えた値を hi と lo のどちらに倒すかで直しの向きが変わる"}}
+
     def reply(self, **extra):
-        return {"rulings": [{"id": "c1-1", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": [], **extra}]}
+        return {"rulings": [{"id": "c1-1", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": [],
+                             **self.ASK_WHY, **extra}]}
 
     def test_prep_writes_prompt_and_tree_in_the_place(self):
         r = self.ruling
@@ -1051,6 +1065,42 @@ class RulingSeamCase(TempCase):
         accept_rule と同じ roots）"""
         return self.ruling.problems({"rulings": [{"id": "c1-1", **row}]}, {"c1-1": {"id": "c1-1", **item}}, self.repo, "",
                                     (str(self.place),), briefs=briefs)
+
+    def test_ask_human_states_what_the_answer_changes(self):
+        """#664: ask_human は人の答えで変わる物（直しの向きか範囲）と 1 行の訳を持つ。訳の無い ask_human と、訳を ask_human
+        でない裁定に書いた物は拒む。直しの向きが変わる申し出は今どおり人に回る（keep-essence の人に回す能力）"""
+        ask = self.reply()["rulings"][0]
+        self.assertEqual(self._rule_errs(ask, CLAIM), [])
+        self.assertTrue(any("ask_why" in e for e in self._rule_errs({k: v for k, v in ask.items() if k != "ask_why"}, CLAIM)))
+        code_as = {"decision": "fix_code_as", "text": "コードの返り値を hi に直せ", "limits": [], **self.ASK_WHY}
+        self.assertTrue(any("ask_why は ask_human の裁定だけ" in e for e in self._rule_errs(code_as, CLAIM)))
+        self.ruling.prep(self.place, self.repo, self.VALUES)
+        got = self.ruling.accept_rule(self.reply(), self.place, self.rev, self.repo)
+        self.assertTrue(got["ok"], got)
+        line, = self.conflict.human_lines(self.place)
+        self.assertIn(f"人に回す訳（直しの向き） {self.ASK_WHY['ask_why']['line']}", line)
+
+    def test_name_overlap_is_ruled_without_the_human(self):
+        """#664: 訳が名の重なりだけ（name_only）の ask_human は拒み、人に回さない。別の物と裁く fix_code_as（もう一方の在り処を
+        limits に）と、衝突を避けた改名で項目の path を変える fix_plan_item は通る"""
+        name_only = {"decision": "ask_human", "text": "同じ名の定義が 2 つのファイルに在るので人に決めてもらう", "limits": [],
+                     "ask_why": {"changes": "name_only", "line": "足す名と同じ字の定義が別のファイルに在る"}}
+        self.assertEqual(self._rule_errs(name_only, CLAIM), [f"申し出 c1-1: {self.ruling.NAME_ONLY_REJECT}"])
+        brief = self.place / "brief-1.md"
+        brief.write_text("# brief 1\n新しいテストのファイル tests/test_notice.py を作る\n", encoding="utf-8")
+        rename = {"decision": self.conflict.REPLAN, "text": "テストのファイルの名がほかの物と衝突するので、項目の path を改名した名に直す",
+                  "limits": [], "grounds": [f"{brief}:2"]}
+        self.assertEqual(self._rule_errs(rename, CLAIM, {KEY_A: [{"item": 1, "file": str(brief)}]}), [])
+        self.ruling.prep(self.place, self.repo, self.VALUES)
+        got = self.ruling.accept_rule({"rulings": [{"id": "c1-1", **name_only}]}, self.place, self.rev, self.repo)
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn(self.ruling.NAME_ONLY_REJECT, got["reason"])
+        self.assertEqual(self.conflict.asked(self.place), [], "名の重なりだけでは人に回さない")
+        other = {"decision": "fix_code_as", "text": "test_stats.py の同名は別の物。そのまま残して直しを続けよ",
+                 "limits": ["test_stats.py"]}
+        got = self.ruling.accept_rule({"rulings": [{"id": "c1-1", **other}]}, self.place, self.rev, self.repo)
+        self.assertTrue(got["ok"], got)
+        self.assertEqual((self.conflict.asked(self.place), self.conflict.ruled_paths(self.place)), ([], ["test_stats.py"]))
 
     def test_replace_query_is_tried_on_hits_misses_and_correct_lines(self):
         """F212: 裁定 replace_query の新しい問いは、hits に全部当たり、misses にも申し出の correct_lines にも当たらない時だけ通る
