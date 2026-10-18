@@ -168,7 +168,7 @@ class MakeTargetTest(unittest.TestCase):
         done = self.make_target("stop", str(self.tmp / "mine"))
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual([c["args"][:3] for c in self.calls()],
-                         [["workflow", "status", "--all"], ["workflow", "cancel", "run-a"]])
+                         [["workflow", "status", "--all"], ["workflow", "get", "run-a"], ["workflow", "runs", "--all"], ["workflow", "cancel", "run-a"]])
         self.assertTrue(all(pathlib.Path(c["archon_home"]).is_relative_to(mine["home"]) for c in self.calls()))
         self.assertEqual(self.ledger(self.repo).read_text(encoding="utf-8"), f"{theirs['home']}\t{theirs['target']}\n")
 
@@ -213,7 +213,7 @@ class MakeTargetTest(unittest.TestCase):
             with self.subTest(home=one["home"]):
                 mine = [c["args"] for c in calls if pathlib.Path(c["archon_home"]).is_relative_to(one["home"])]
                 self.assertEqual([args[:3] for args in mine],
-                                 [["workflow", "status", "--all"], ["workflow", "cancel", "run-a"]])
+                                 [["workflow", "status", "--all"], ["workflow", "get", "run-a"], ["workflow", "runs", "--all"], ["workflow", "cancel", "run-a"]])
                 self.assertTrue(all(args[-2:] == ["--cwd", str(one["target"])] for args in mine), mine)
         self.assertEqual(self.ledger(self.repo).read_text(encoding="utf-8"), "")
 
@@ -237,7 +237,7 @@ class MakeTargetTest(unittest.TestCase):
         done = self.make_target("teardown", FAKE_FAILS="cancel")
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual([c["args"][:3] for c in self.calls()],
-                         [["workflow", "status", "--all"], ["workflow", "cancel", "run-a"],
+                         [["workflow", "status", "--all"], ["workflow", "get", "run-a"], ["workflow", "runs", "--all"], ["workflow", "cancel", "run-a"],
                           ["workflow", "abandon", "run-a"]])
         self.assertTrue(all(pathlib.Path(c["archon_home"]).is_relative_to(home) for c in self.calls()))
 

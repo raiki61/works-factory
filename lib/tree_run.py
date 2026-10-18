@@ -281,6 +281,9 @@ def _ps_all():
     return rows, None
 
 
+ps_all = _ps_all   # 外（bin/_lib/runstop.py）から呼ぶ名。元の名は本線の写しのまま残す
+
+
 def _tree_members(pgid, known=None, born=None):
     """木の仲間を数え上げる ——({pid: _Proc}, 理由)。表が読めなければ (None, 理由)。本線 role_run._tree_members の写し。
     拾う印は 3 つ: pgid が長の番号・セッションの番号が長の番号（長は setsid で起こしてある）・その 2 つと known（前の回に

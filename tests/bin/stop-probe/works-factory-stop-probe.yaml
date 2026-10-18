@@ -1,0 +1,16 @@
+name: works-factory-stop-probe
+description: |
+  殻の workflow cancel（bin/_lib/runstop.py。docs/polyfills.md の P13）の試験 tests/bin/test_runstop.py の使い捨てのグラフ。
+  AI のノード ai（試験が CLAUDE_BIN_PATH に置く偽の claude が、自分の子と別のセッションの子を起こして眠る）・子の run の
+  AI のノード kid・持ち主のグループで眠る bash のノード shell を並べて走らせ、走っている間に止める。
+
+nodes:
+  - id: ai
+    prompt: 親の run の AI のノード
+    idle_timeout: 1728000000
+  - id: kid
+    workflow: works-factory-stop-kid
+    isolation: worktree
+  - id: shell
+    bash: echo "$$ $PWD" >> "$STOP_PROBE_SHELLS"; exec python3 -c 'import signal; signal.pause()'
+    timeout: 1728000000

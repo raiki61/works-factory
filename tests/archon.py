@@ -93,6 +93,12 @@ def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | Non
     """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。子の環境は hermetic.child_env で
     作る（入口の殻が渡す Archon の頭・包みの宣言・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
     起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しし、値を None にした名は置かない"""
+    head, child = command(cwd, aliases=aliases, **env)
+    return subprocess.run([*head, *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")
+
+
+def command(cwd: pathlib.Path, aliases: bool = True, **env: str | None) -> tuple[list[str], dict]:
+    """archon が cwd で起こす命令の頭と子の環境（試験が自分で Popen する時や、頭を受ける部品に渡す時に使う）"""
     entry = source() / place.ENTRY
     bun = shutil.which("bun")
     if bun is None:
@@ -104,5 +110,4 @@ def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | Non
                                                                 for name, preset in place.group_presets().items()),
                                           encoding="utf-8")
     named = {"WORKS_FACTORY_ROOT": str(ROOT), **env, "ARCHON_HOME": str(home), place.PROVIDER_ENV: place.DEFAULT_PROVIDER}
-    child = hermetic.child_env(**{name: value for name, value in named.items() if value is not None})
-    return subprocess.run([bun, str(entry), *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")
+    return [bun, str(entry)], hermetic.child_env(**{name: value for name, value in named.items() if value is not None})
