@@ -1,9 +1,8 @@
 name: works-factory-structure
 description: |
   構造のサブグラフ（メイングラフが include する部品。単独では回さない）。判定が切った単位が名指すファイルを機械で実測し（段 A）、
-  構造の目（道具なしの別の会話）が直しが構造を汚すかを単位ごとに判定して、構造の目の控えを 1 つ返す。run に 1 回だけ走る
-  （単位が変わるのは再審の後だけで、その後に計画は走らない。元の works の blk-structure）。
-  置き場は run の置き場の structure/ の下だけ（名の住処は lib/structfile.py）。
+  構造の目（道具なしの別の会話）が直しが構造を汚すかを単位ごとに判定して、構造の目の控えを 1 つ返す（元の works の blk-structure）。
+  置き場は run の置き場の structure/ の下だけ（出力の欄が指すファイルの名の住処は lib/structbeside.py、置き場の書き手は lib/structfile.py）。
   出力ノード structure は落ちない（中の誤りを捕まえて ok: false と、在って空でない控えのポインタを返す）。
 
 inputs:

@@ -20,7 +20,9 @@ import copy
 import json
 import pathlib
 
-LENS_FILE = "local-review-lenses.json"     # 周の作業ファイル（board/r<N>/）。受け付けが毎回書き直す
+import judgebeside
+
+LENS_FILE = judgebeside.REVIEW_LENSES_FILE     # 周の作業ファイル（board/r<N>/）。受け付けが毎回書き直す
 # fork で走り、返答が親に届かないと実測したレンズ。空の行は「所見なし」に数えない
 # （/simplify・/security-review は親の会話の中で走る。実測の Skill の所要 14 ミリ秒・256 ミリ秒）
 FORK_LENSES = ("/code-review",)

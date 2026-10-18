@@ -1674,7 +1674,7 @@
   - 元: works/.shared/core/gatemarks.py:576 `axes`・`_answered_rows`
   - 今: 表
   - 証: tests/workflows/test_plan_review.py::FourAxesCase.test_clean_route_rows_do_not_block・lib/tests/test_gate_axes.py::SplitCase.test_route_up_unit_is_not_clean・lib/tests/test_gate_axes.py::SplitCase.test_dirty_unit_without_answer_is_not_clean
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `gate_axes.clean`、`plan-review/structure-state.json` の design_file（計画の design.jsonl の写し `plan-review/structure/design.jsonl` を指す。構造の目が行を書かない run では写しは 0 バイト））
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `gate_axes.clean`、`plan-review/structure-state.json` の design_file（構造の目の設計の行の写し `plan-review/structure/design-rows.jsonl` を指す。構造の目が行を書かない run では写しは 0 バイト））
   - 狭め: 無し
 
 - P231 軸「やりすぎでない」: 柵の印が無く、行が修正案の単位の外を名指さない

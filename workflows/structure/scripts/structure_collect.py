@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 
-# lib/structfile.py の DIR・STATE_FILE と eye.DESIGN_FILE と同じ字。試験が突き合わせる
+# lib/structfile.py の DIR・STATE_FILE・DESIGN_FILE と同じ字。試験が突き合わせる
 DIR = "structure"
 STATE_FILE = "structure-state.json"
 DESIGN_FILE = "design.jsonl"

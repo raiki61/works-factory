@@ -1,6 +1,6 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
- "title": "design.jsonl の 1 行（設計書 structure-block-design のセクション 4・5・6）",
+ "title": "設計の行のファイル（構造の目の受け付けが書く）の 1 行（設計書 structure-block-design のセクション 4・5・6）",
  "type": "object",
  "required": ["unit_id", "verdict", "faces", "evidence", "reason", "route", "route_reason"],
  "additionalProperties": false,

@@ -147,7 +147,7 @@ class ShapeCase(unittest.TestCase):
     def test_fallback_names_match_lib(self):
         """落ちない返す節は lib を読めない時に標準ライブラリだけで同じ置き場に書く。その字が lib と同じ"""
         col = loaded("structure_collect")
-        self.assertEqual((col.DIR, col.STATE_FILE, col.DESIGN_FILE), (structfile.DIR, structfile.STATE_FILE, eye.DESIGN_FILE))
+        self.assertEqual((col.DIR, col.STATE_FILE, col.DESIGN_FILE), (structfile.DIR, structfile.STATE_FILE, structfile.DESIGN_FILE))
 
 
 class EyeTypeCase(unittest.TestCase):
@@ -253,7 +253,7 @@ class StageACase(unittest.TestCase):
         out = run.art / structfile.DIR
         out.mkdir(parents=True)
         (out / eye.EYE_FILE).write_text('{"status": "gave_up"}', encoding="utf-8")
-        (out / eye.DESIGN_FILE).write_text('{"unit_id": "前の行"}\n', encoding="utf-8")
+        (out / structfile.DESIGN_FILE).write_text('{"unit_id": "前の行"}\n', encoding="utf-8")
         got = self.measure(run)
         self.assertFalse((out / eye.EYE_FILE).exists())
         self.assertEqual(pathlib.Path(got["design_file"]).read_bytes(), b"")

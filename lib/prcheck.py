@@ -3,7 +3,7 @@
 
 役は担当の PR へ投稿せず、申し送りの下書きを conflicts[].note に書き handed_over を false で返す。review-graph の 6 段の「衝突した
 箇所を本ループのスコープから外す」は保つ: 役は外す hunk（PR・ファイル・今の作業ツリーでの行の範囲）を excluded に並べ、受け付けが
-確かめて pr-excluded.json に置く（後の役に触らせないため）。
+確かめて置き場の EXCLUDED に置く（後の役に触らせないため）。
 
 - NODE・ROLE: 節の名前と役の名前
 - EXCLUDED_FIELD・EXCLUDED: 外す hunk の欄・置き場のファイルの名
@@ -24,11 +24,12 @@ CORE = pathlib.Path(__file__).resolve().parent
 if str(CORE) not in sys.path:
     sys.path.insert(0, str(CORE))
 
+import judgebeside  # noqa: E402
 import marks  # noqa: E402
 
 NODE = "p0.parallel_pr"
 ROLE = "pr-check"
-DRAFTS = "pr-downgrades.json"   # 申し送りの下書き [{pr, files, note}]（判定の隣。GitHub に投稿しない。判定の出力の欄 pr_drafts が指す）
+DRAFTS = judgebeside.PR_DRAFTS_FILE   # 申し送りの下書き [{pr, files, note}]（判定の隣。GitHub に投稿しない。判定の出力の欄 pr_drafts が指す）
 DOWNGRADES = "downgrades.json"
 DOWNGRADE_KEYS = ("node", "what", "versus")
 # 本ループのスコープから外す hunk（works だけの欄。写しの schema の conflicts[] は additionalProperties: false で足せないので、

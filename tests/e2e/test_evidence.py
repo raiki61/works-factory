@@ -62,7 +62,7 @@ NAMED_BY_PATTERN = {
     "parent/judge/query-examples.json": "lib/marks.py::KINDS",
     "parent/plan/r1/rejects-plan.json": "lib/rolekit.py::rejects_path",
     "parent/plan/r1/rejects-plan.md": "lib/rolekit.py::rejects_text_path",
-    "parent/structure/design.jsonl": "lib/eye.py::DESIGN_FILE",
+    "parent/structure/design.jsonl": "lib/structbeside.py::DESIGN_FILE",
     "parent/plan-review/gate-marks.json": "lib/marks.py::KINDS",
 }
 
@@ -408,7 +408,7 @@ class EvidenceTableCase(unittest.TestCase):
                      "writer": "workflows/eyes/works-factory-eyes.yaml::structure-after"}):
             with self.subTest(row=row):
                 self.assertNotEqual(seen_writer_problems([{"id": "J1", **row}], code), [])
-        for where, writer in (("parent/plan/r1/brief-1.md", "lib/eye.py::DESIGN_FILE"),
+        for where, writer in (("parent/plan/r1/brief-1.md", "lib/structbeside.py::DESIGN_FILE"),
                               ("parent/eyes/r1.json", "workflows/eyes/works-factory-eyes.yaml::prep"),
                               ("parent/eyes/r1-comments.json", "workflows/eyes/works-factory-eyes.yaml::structure-after"),
                               ("parent/plan/r1/rejects-plan.json", "lib/rolekit.py::lang_line")):

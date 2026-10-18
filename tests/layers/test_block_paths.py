@@ -228,7 +228,7 @@ class JudgeNamesTest(unittest.TestCase):
     """判定の置き場のファイルを、判定の外（住処でない lib とほかのブロックの script）が名指さず、判定の出力の欄のポインタで受ける
     （issue #680。workflows/AGENTS.md の E4）"""
 
-    HOMES = {"lib/gatemarks.py": 'MATERIALS_FILE = "materials.json"\n',
+    HOMES = {"lib/judgebeside.py": 'MATERIALS_FILE = "materials.json"\n',
              "lib/marks.py": 'KINDS = {"answers": Kind({}, "answer-ties.json", ROOT)}\n',
              "lib/prcheck.py": 'EXCLUDED = marks.KINDS["pr"].file\n'}
 
@@ -249,8 +249,8 @@ class JudgeNamesTest(unittest.TestCase):
                 self.assertIn(f'"{name}"', text)
 
     def test_other_block_script_opening_a_judge_file_by_name_is_red(self):
-        for body in ('import os\nX = os.path.join(d, "materials.json")\n', "import gatemarks\nX = d / gatemarks.MATERIALS_FILE\n",
-                     "import gatemarks as g\nX = d.with_name(g.MATERIALS_FILE)\n", "from gatemarks import MATERIALS_FILE\n",
+        for body in ('import os\nX = os.path.join(d, "materials.json")\n', "import judgebeside\nX = d / judgebeside.MATERIALS_FILE\n",
+                     "import judgebeside as g\nX = d.with_name(g.MATERIALS_FILE)\n", "from judgebeside import MATERIALS_FILE\n",
                      'import marks\nX = marks.path_of("answers", d)\n', 'import marks\nX = marks.KINDS["answers"].file\n',
                      "import prcheck\nX = d / prcheck.EXCLUDED\n"):
             with self.subTest(body=body):
@@ -277,7 +277,7 @@ class JudgeNamesTest(unittest.TestCase):
     def test_importing_the_writer_or_getattr_of_a_name_is_red(self):
         """判定の外は書き手の judge_accept を import しない（PORTS の鍵を引く形も塞ぐ）。住処の定数を getattr で名で引くのも赤"""
         for body in ("import judge_accept\n", "from judge_accept import PORTS\n",
-                     'import gatemarks\nX = getattr(gatemarks, "MATERIALS_FILE")\n'):
+                     'import judgebeside\nX = getattr(judgebeside, "MATERIALS_FILE")\n'):
             with self.subTest(body=body):
                 got = self.judge_names({"workflows/plan/scripts/a.py": body})
                 self.assertEqual(len(got), 1, got)
@@ -306,13 +306,13 @@ class JudgeNamesTest(unittest.TestCase):
 
     def test_main_graph_script_and_lib_reader_are_red(self):
         got = self.judge_names({"workflows/line/scripts/a.py": 'X = "rejudge-exit.json"\n',
-                                "lib/reader.py": "import gatemarks\nX = gatemarks.MATERIALS_FILE\n"})
+                                "lib/reader.py": "import judgebeside\nX = judgebeside.MATERIALS_FILE\n"})
         self.assertEqual(sorted(line.split(":")[0] for line in got), ["lib/reader.py", "workflows/line/scripts/a.py"], got)
 
     def test_judge_and_homes_and_prose_are_clean(self):
         """判定の script・書き手の judge_accept・住処は名を持ってよい。長い文の中の名は名指しに数えない"""
         files = {"workflows/judge/scripts/a.py": 'X = "materials.json"\n',
-                 "lib/judge_accept.py": "import gatemarks\nX = gatemarks.MATERIALS_FILE\n",
+                 "lib/judge_accept.py": "import judgebeside\nX = judgebeside.MATERIALS_FILE\n",
                  "workflows/plan/scripts/b.py": 'X = "判定の materials.json の先"\nY = "judge-materials.json"\n'}
         self.assertEqual(self.judge_names(files), [])
 

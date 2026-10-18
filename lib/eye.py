@@ -6,10 +6,10 @@
 行き先（route）は「自分で決める」か「人に上げる」。人に上げるのは決め手（人の前の決定・方針・対象の同じ場面・世界の解）を
 当たっても 1 つに決まらない汚れる行だけで、決まらない訳（undecided_because）と捨てた案と代償（rejected）が要る。受け付けは
 訳の無い「人に上げる」を拒む。上げた行は線の側が修正前の関所の項目にする（このブロックは関所を持たない）。
-受け付けは返答を機械で確かめ、通れば design-row.schema.json の形の行を設計の行のファイル DESIGN_FILE に書く。拒めば理由を返し、同じ会話で
+受け付けは返答を機械で確かめ、通れば design-row.schema.json の形の行を設計の行のファイル（引数 design_file）に書く。拒めば理由を返し、同じ会話で
 出し直させる（輪の max_iterations は 3。3 回目の拒否は give_up で輪を抜け、線を落とさない）。
 
-控え eye.json（design.jsonl の隣。段 A が置き直す）: {started_at, status: pending|ok|gave_up, wall_s}。回の数えと拒否の文は
+控え eye.json（設計の行のファイルの隣。段 A が置き直す）: {started_at, status: pending|ok|gave_up, wall_s}。回の数えと拒否の文は
 rolekit の拒否の控え rejects-structure-eye.json だけが持つ（同じ置き場。resume を跨いで数える）。
 目の秒は 1 回目の支度から最後の受け付けまでの壁時計の秒。
 ブロックの時間の欄の名 WALL（秒）はこのモジュールが持つ: 段 A・段 B の timing は stamp で書き、出口（collect）は wall で読んで足す。
@@ -36,7 +36,6 @@ import promptsection  # noqa: E402
 import rolekit  # noqa: E402  （拒否の控えと輪の回の数え）
 
 EYE_FILE = "eye.json"
-DESIGN_FILE = "design.jsonl"   # 設計の行のファイル（段 A が 0 バイトで置き、受け付けが書く。読み手は控えの design_file から辿る）
 PROMPT_FILE = "eye-prompt-{n}.md"
 NAME = "structure-eye"   # 拒否の控え rejects-structure-eye.json の名（rolekit）
 WALL = "wall_s"   # ブロックの時間の欄の名（壁時計の秒。段 A・段 B の timing・目の控え・出口が同じ名で持つ）

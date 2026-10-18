@@ -2,7 +2,7 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""段 A の実測（設計書 structure-block-design の 2 節・8 節）の部品。structure.json と design.jsonl を書くのも、構造の目を起こすかを
+"""段 A の実測（設計書 structure-block-design の 2 節・8 節）の部品。structure.json と設計の行のファイルを書くのも、構造の目を起こすかを
 決めるのもブロックの script で、ここは単位の読みと 1 単位の実測だけを出す。
 
 - read_units(path): 入力の契約の単位のファイル（JSON の配列で、各行は {id, paths, summary}）を読み、形を確かめて返す。読めない・
