@@ -204,6 +204,19 @@ def world_rows(raw: str, locate) -> tuple:
         return [], str(e)
 
 
+def round_inputs(locate, *, start: str, judgment: str, world: str, ties: str = "", materials: str = "", review: str = "",
+                 replan: bool = False) -> tuple:
+    """周を開く口（open_round）に渡す入力を指し札の字から読む: (判定, 事前審査の指摘, 読めない入力の訳)。訳は読めない
+    入力ごとの訳を「。」で繋いだ字（全部読めれば空）で、open_round の why に渡す。判定の読めなさは形 replan（replan）では数えない。
+    計画の 1 回目の周が役を起こすかを前もって決める呼び手も、周と同じ入力の同じ並びで決めるようにこの関数を引く"""
+    start_doc, bad_start = read_pointed(start, locate)
+    judgment_doc, bad_judgment = read_judgment(judgment, start_doc, locate, ties=ties, materials=materials)
+    review_doc, bad_review = read_pointed(review, locate)
+    _, bad_world = world_rows(world, locate)
+    bad = [("start が", bad_start), ("review が", bad_review), ("world が", bad_world), ("判定が", "" if replan else bad_judgment)]
+    return judgment_doc, review_doc, "。".join(f"{name}読めない（{b}）" for name, b in bad if b)
+
+
 def units_of(raw: str):
     """単位の目録の字を値に（JSON でなければ字のまま。段 A の読みが形の誤りを言う）"""
     try:

@@ -28,6 +28,8 @@ diff の隣（置き場）に許したテストの変更の訳 allowed-tests.jso
 機械の数え直しが合わない単位（子の結果の mismatched と親の置き場の閉鎖の表。fixboard.mismatched_lines）。形 group は自分の結果の行だけ。
 plan_declared は修正役が直さずに残すと答えた事前審査の block の行（fixboard.declared_lines。独立の目へ申し送る）。形 group は [] で、
 組の子の答えは親の置き場の fix-reply.json に集まってから数える。
+item_claims は出口の語 pr の run が差分を修正案の項目ごとの commit に分ける記録（lib/itemcommits.py の record。承認済みの項目と、
+戻せた組の子と裁定の後の修正役の返答の changes[].files・子の TDD の輪の単位の test_files）。形 group と組めない時は null。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0
 （diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []、accept-trace.json は無ければ []。
 closure.json・delta-holes.json は置かず、読み手が「無い」と名指す）。控えの欄は fixbeside.returned で組み、lib を読めない時だけ
@@ -71,10 +73,11 @@ def diff_pointer(fixboard, place: Path) -> dict:
     return boundary.pointer(rel(place, path.name))
 
 
-def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final, results, stop="", declared=()) -> dict:
+def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final, results, stop="", declared=(),
+           claims=None) -> dict:
     """返りの欄（組と単位の行は rows_groups = (組の行, 単位の行)。groups は組の分け、extras は子の結果と修正役の返答、final は
     最後の関所を開ける理由の行 (handoffs, mismatched)、results は受け付けの行を親の置き場に集める組の子の結果、stop は止めの語、
-    declared は修正役が直さずに残すと答えた事前審査の block の行）"""
+    declared は修正役が直さずに残すと答えた事前審査の block の行、claims は項目ごとの commit の記録 item_claims）"""
     rows = conflict.items(place)
     groups_rows, units_rows = rows_groups
     fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.allowed_test_rows(place, extras))
@@ -86,7 +89,30 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
             "objection": "\n".join(dict.fromkeys(x for x in objection if x)), "diff": diff_pointer(fixboard, place),
             "allowed_test_changes": fixboard.allowed_tests(place, extras),
             "changed": fixboard.changed_marks(extras), "x_scalars": fixboard.x_scalars(extras), "delta_review": review,
-            "handoffs": final[0], "mismatched": final[1], "plan_declared": list(declared), "stop_reason": stop}
+            "handoffs": final[0], "mismatched": final[1], "plan_declared": list(declared), "stop_reason": stop,
+            "item_claims": claims}
+
+
+def item_claims(fixboard, place: Path, results, ruled) -> dict:
+    """項目ごとの commit の記録（itemcommits.record）: 承認済みの修正案の項目と、戻せた組の子が受け付けた修正役の返答（result.json の
+    reply_file）・裁定の後の修正役の返答・子の TDD の輪の単位の test_files。読めない控えは unread に訳（項目ごとに分けない）"""
+    import itemcommits
+    unread, replies = [], [ruled]
+    try:
+        items = fixboard.place_items(place)
+    except ValueError as e:
+        items, unread = None, [f"承認済みの修正案の項目を読めない（{' '.join(str(e).split())}）"]
+    for r in results:
+        named = r.get("reply_file")
+        try:
+            reply = fixboard.read_json(named) if named else None
+        except ValueError:
+            reply = None
+        if named and reply is None:
+            unread.append(f"組 {r.get('group_id')} の修正役の返答 {named} を読めない")
+        replies.append(reply)
+    tdd = [{"unit_key": u.get("unit_key"), "test_files": fixboard.unit_test_files(u)} for r in results for u in fixboard.child_tdd_units(r)]
+    return itemcommits.record(items, replies, tdd, boundary.work_tree(), unread)
 
 
 def block(fixboard, conflict) -> dict:
@@ -121,7 +147,7 @@ def block(fixboard, conflict) -> dict:
     final = (fixboard.final_lines(results, "handoffs", fixboard.handoff_lines([ruled])),
              fixboard.final_lines(results, "mismatched", fixboard.mismatched_lines(place)))
     return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results, stop,
-                  fixboard.declared_lines(place))
+                  fixboard.declared_lines(place), item_claims(fixboard, place, results, ruled))
 
 
 def group(fixboard, conflict) -> dict:
@@ -226,7 +252,7 @@ def fallback(why: str) -> dict:
     return {"done": False, "units": units_rows, "groups": groups_rows, "conflicts": None, "replan_items": [],
             "objection": "", "diff": error_pointer(why), "allowed_test_changes": [],
             "changed": {**{k: False for k in CHANGED_MARKS}, DRIFT_NOTE: ""}, "x_scalars": {}, "delta_review": dict(NO_REVIEW),
-            "handoffs": [], "mismatched": [], "plan_declared": [], "stop_reason": stop}
+            "handoffs": [], "mismatched": [], "plan_declared": [], "stop_reason": stop, "item_claims": None}
 
 
 def main() -> dict:

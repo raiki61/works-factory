@@ -2707,6 +2707,26 @@ class LinesCase(Base):
                 _, text, _ = self.build(returns)
                 self.assertEqual(text.splitlines()[3], runreport.APPLY_ASK + said)
 
+    def test_pr_commits_are_listed_or_why_they_were_not_split(self):
+        """#569: 出口の語 pr の run は、人が決めることのセクションに積んだ commit を出す。修正案の項目ごとに積めば本数と項目と commit の対、
+        1 つの commit に倒せばその訳。出口の語が空の run は行を出さない"""
+        seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
+        applied = fixed_run()["applied-diff"]
+        made = {"act": "pr", "pr": {"number": 7, "url": "https://github.com/o/r/pull/7", "is_draft": True}, "reason": ""}
+        commits = [{"item": 2, "subject": "項目 2: 足す", "head": "e" * 40}, {"item": 1, "subject": "項目 1: 使う", "head": "c" * 40}]
+        for handed, lines in (({**made, "commits": commits, "split": ""},
+                               [f"- {runreport.PR_COMMITS}修正案の項目ごとに 2 本（依存の順。", f"- 項目 2: {'e' * 12}（項目 2: 足す）",
+                                f"- 項目 1: {'c' * 12}（項目 1: 使う）"]),
+                              ({**made, "commits": [], "split": "差分のパスを 1 つの項目に決められない（x）"},
+                               [f"- {runreport.PR_COMMITS}項目ごとに分けなかった（差分のパスを 1 つの項目に決められない（x））"])):
+            with self.subTest(lines=lines[0]):
+                _, text, _ = self.build(fixed_run(**{"sealed-diff": seal_ok, "applied-diff": {**applied, "deliver": handed}}))
+                body = self.section(text, report.DECISIONS_HEADING)
+                for line in lines:
+                    self.assertIn(line, body)
+        _, text, _ = self.build(fixed_run(**{"sealed-diff": seal_ok}))
+        self.assertNotIn(runreport.PR_COMMITS, text)
+
     def test_tests_head_lines_and_deleted_files(self):
         """T35・T41・M38（部分 B2 の申し送り。最後の関所と同じ行を報告の冒頭に）: 人が決めることの節に最後のテストの一式の行と修正前のテストの
         行（test-gate の返りの欄のまま）、任せ先の申告の緑なら走らせる語の宣言の仕方、封じた差分が消すファイルを SHOWN 件までは 1 本ずつ、

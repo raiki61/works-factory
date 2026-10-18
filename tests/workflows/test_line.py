@@ -2534,6 +2534,20 @@ class FixedCase(unittest.TestCase):
                          (False, {"path": "pr/design.json"}, {"path": "pr/design-premises.json"}, [{"kind": "fork", "text": "q"}],
                           {"decision": "continue"}))
 
+    def test_item_claims_take_the_later_items_and_all_claims(self):
+        """#569: 出口の語 pr が差分を項目ごとの commit に分ける記録は、項目が後の段（案の直しの後は直した案）の物、単位の触った
+        ファイルは両方の段の和（lib/itemcommits.py の merged）"""
+        def claims(approach, unit, files):
+            return {"items": [{"item": 1, "unit_keys": ["u1"], "approach": approach, "after": []}],
+                    "claims": [{"unit_key": unit, "files": files}], "unread": []}
+        first = fixed.fixed(self.fix(item_claims=claims("前の案", "u1", ["a.py"])), None, replan=False, stops=("", ""))
+        self.assertEqual(first["item_claims"], claims("前の案", "u1", ["a.py"]))
+        both = fixed.fixed(self.fix(item_claims=claims("前の案", "u1", ["a.py"])),
+                           self.fix(diff={"path": "refix/diff"}, item_claims=claims("直した案", "u1", ["b.py"])), replan=False, stops=("", ""))
+        self.assertEqual(both["item_claims"]["items"][0]["approach"], "直した案")
+        self.assertEqual(both["item_claims"]["claims"], [{"unit_key": "u1", "files": ["a.py"]}, {"unit_key": "u1", "files": ["b.py"]}])
+        self.assertIsNone(fixed.fixed(self.fix(), None, replan=False, stops=("", ""))["item_claims"])
+
     def test_records_line_up_the_stage_ports(self):
         """部分 D2・#681: fixed は段ごとの diff と控えの欄の並び records（1 回目・2 度目の順。fixbeside.stage）を返し、最後の
         承認ノード・深さの上げ直し・独立の目・報告が段ごとに読む。2 度目が走らなければ 1 回目だけ。控えの欄の無い返り（この版より前に
@@ -3741,6 +3755,7 @@ class LineWiringCase(unittest.TestCase):
         ("merge-seal", "sealed_hash"): APPLY_ONLY,
         ("merge-seal", "deliver"): APPLY_ONLY,
         ("merge-seal", "request"): APPLY_ONLY,
+        ("merge-seal", "items"): APPLY_ONLY,
         ("merge-seal", "base_rev"): CHECK_ONLY,
         ("merge-apply", "base_rev"): CHECK_ONLY,
         ("fix", "mode"): GROUP_ONLY,
@@ -4188,15 +4203,25 @@ class OwedCase(Artifacts):
                 self.assertIn(want, got["why"])
 
     def test_owed_matches_the_first_plan_round(self):
-        """同じ判定で、節 owed の真偽は計画の 1 回目の周の go と同じ"""
-        for units in ([self.unit(self.MEAN)], [self.unit(self.NIT, "nit", None)], [self.unit(self.MEAN), self.unit(self.MEAN, "nit", None)]):
-            with self.subTest(units=units):
-                got = self.owed(units)
-                judgment, _ = planfile.read_judgment(self.place("judge/judgment.json", {"units": units, "questions": []}), {},
-                                                     boundary.pointed)
-                plan_dir = self.artifacts / f"plan-{len(units)}-{units[0]['label']}"
-                opened = planfile.open_round(plan_dir, ruling=[], judgment=judgment, review=None)
-                self.assertEqual((got["owed"], got["why"]), (opened["go"], opened["why"]))
+        """同じ入力で、節 owed の真偽と訳は計画の 1 回目の周（plan の round の script）の go と訳に同じ。読めない入力の時も"""
+        missing = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "nowhere/x.json"})
+        round_script = load_block_script("plan", "round")
+        cases = [(f"単位 {[u['label'] for u in units]}", units, {}) for units in (
+            [self.unit(self.MEAN)], [self.unit(self.NIT, "nit", None)], [self.unit(self.MEAN), self.unit(self.MEAN, "nit", None)])]
+        cases += [(f"{name} が読めない", [self.unit(self.MEAN)], {name: missing}) for name in ("start", "judgment", "world")]
+        for name, units, broken in cases:
+            with self.subTest(name):
+                given = {"start": self.place("start.json", {}),
+                         "judgment": self.place("judge/judgment.json", {"units": units, "questions": []}),
+                         "world": "null", **broken}
+                got = load("owed").owed(given["start"], given["judgment"], "null", "null", given["world"])
+                env = {f"INPUTS_{k.upper()}": v for k, v in given.items()}
+                with mock.patch.dict(os.environ, {**env, "INPUTS_ANSWER_TIES": "null", "INPUTS_MATERIALS": "null",
+                                                  "INPUTS_REVIEW": "", "INPUTS_RULING": "[]"}):
+                    opened = round_script.opened()
+                doc = json.loads((self.artifacts / opened["dir"] / planfile.ROUND_FILE).read_text(encoding="utf-8"))
+                self.assertEqual((got["owed"], got["why"]), (opened["go"], doc["why"]))
+                self.assertEqual(got["owed"], name == "単位 ['block']")
 
     def test_skipped_structure_relays_null(self):
         relay = load("structure_in")
