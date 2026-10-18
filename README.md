@@ -84,7 +84,7 @@ You choose the approval nodes with run inputs (`--input <name>=<value>` on `work
 3. Plan change: during fixing, when a unit's plan has to change. It opens when the change alters what you approved (such as the files the unit may touch or its acceptance tests) or the reviewer of the new plan asks you. In an unattended run (below), a change that only lets the unit touch more files goes ahead without asking.
 4. Last: after the test gate and the independent eyes, before the diff is sealed. `--input final_gate=<value>` sets when it opens:
    - `always` (the default when a human answers the run): every time.
-   - `when_needed` (the default in an unattended run, below): only when there is a reason (the start node still opens), such as final tests that are not green or a question a role left for you. Otherwise the reasons are only listed at the top of the report.
+   - `when_needed` (the default in an unattended run, below): only when there is a reason (in a run a human answers, the start node still opens), such as final tests that are not green or a question a role left for you. Otherwise the reasons are only listed at the top of the report.
    - `protected_only`: only when the fix touched a protected path. A protected path is a file the target lists in `.works-protected.json` at its root, or that file itself. The file has the same shape as the factory's own list, `lib/protected.json`.
 
    Whatever you choose, some reasons always open the last node, for example: the fix touched a protected path (or this could not be checked), a role passed a disagreement to you, or the acceptance tests changed after you approved them.
@@ -93,7 +93,7 @@ You choose the approval nodes with run inputs (`--input <name>=<value>` on `work
 
 - Each point a node would ask you about can carry a recommendation from the role that raised it (go ahead, or stop). If every point recommends going ahead, the run takes that as the answer and goes on without opening the node.
 - Otherwise the run stops without asking, with the stop reason `needs-human`.
-- At the last node there is no recommendation, so if it would open, the run stops there and nothing is applied. That is why an unattended run leaves `final_gate` at `when_needed` when you do not set it: a run with no reason to ask goes on to the end. If you set `final_gate=always` yourself, every unattended run stops at the last node.
+- At the last node there is no recommendation, so if it would open, the run stops there with `needs-human` and nothing is applied. That is why an unattended run leaves `final_gate` at `when_needed` when you do not set it: a run with no reason to ask goes on to the end. If you set `final_gate=always` yourself, every unattended run stops at the last node.
 - It cannot be combined with `--input spec=on` (an optional stage that writes a spec for you to approve before judging).
 
 
@@ -101,7 +101,7 @@ Which to choose:
 
 - First runs, or a target you do not know well: the default.
 - You trust the checks and want to be asked only when something went wrong: `final_gate=when_needed`.
-- Runs while you are away (overnight, or many rounds of the round chain): `unattended=true` (its default is `final_gate=when_needed`; with `final_gate=protected_only` it stops only for the reasons that always open the last node), and expect some runs to end with `needs-human`. Read the report, then answer in the next run, either attended or with the answers in the request's `answers` (see "Request file").
+- Runs while you are away (overnight, or many rounds of the round chain): `unattended=true` (its default is `final_gate=when_needed`; with `final_gate=protected_only` it stops at the last node only for the reasons that always open it), and expect some runs to end with `needs-human`. Read the report, then answer in the next run, either attended or with the answers in the request's `answers` (see "Request file").
 
 ### Stopping a run
 
