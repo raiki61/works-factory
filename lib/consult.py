@@ -38,7 +38,7 @@
 - judge(answer, paths, tests): 答えの 1 件の確かめ（(行の欄 | None, 注記)）
 - question(items, asks): 答えの節の指示書の本文
 - gate_notes(b, human_items, round_)・gate_asks(b, items, human_items, round_): 人の関所の条件の頼み
-- consulted_units(rows): 受け付けの行（accept-trace.json）のうち、範囲の相談を頼んだ行の単位の名（関所の条件の相談は除く。unit_keys の
+- consulted_units(rows): 受け付けの行（fixboard.accept_trace_rows）のうち、範囲の相談を頼んだ行の単位の名（関所の条件の相談は除く。unit_keys の
   無い行は『項目 n』）。読むのは修正の後の深さの上げ直し（fixboard.depth_signals と線の redepth）
 - carry_agreed(place, results): 戻せた組の子の結果の置き場の合意の行を、group_id つきで親の置き場 place の trace に足す
 - settle(b, answer, pass_, node, round_=1): 確かめの節の中身。返り {consulted, turn, answer_file, counts}
@@ -509,7 +509,7 @@ def _trace_rows(b, st: dict, answer, by_n: dict, turn: int, pass_: str, node: st
 
 
 def consulted_units(rows) -> list:
-    """受け付けの行 rows（fixboard.accept_trace_rows。diff の隣の accept-trace.json の行）のうち、修正役か受け付けが範囲の相談を
+    """受け付けの行 rows（fixboard.accept_trace_rows。修正の出力の欄 accept_trace の先の行）のうち、修正役か受け付けが範囲の相談を
     頼んだ行（op が conflict.ASKED_OP。人の関所の条件の相談 ORIGIN_GATE は機械が立てた物なので除く）の単位の名（unit_keys。
     現れた順・重なりは 1 つ）。unit_keys の無い行は『項目 n』（n は行の item）。修正の後に深さを標準へ上げる信号
     （depth.late_signals の consulted）の元"""

@@ -15,12 +15,14 @@
 2 回目の修正の段（conflict.second_pass）は、段を抜ける前に案の直しを待つ行（この段で新しく fix_plan_item と裁いた行）を諦めた行にする
 （replan.close と CLOSE_WHY。案の段に戻るのは 1 run に 1 回。元 works/darkfactory/lib/line_edge.py:1159 の replan.settle）。
 形 group（組の子）: 自分の組の結果（out_dir/<group_id>/result.json。out_dir が空なら自分の置き場の groups/ の下）の行だけを同じ形で返す。
-レンズの集め役の事実は diff の隣の lenses.json（{collector: {ok, reason}}。集め役が書かずに落ちた・走らなかった時は ok: false）。
+レンズの集め役の事実は diff の隣の lenses.json（{collector: {ok, reason}}。集め役が書かずに落ちた・走らなかった時は ok: false。返りを
+返す節の終わりに置き、控えの欄はその後に組む）。
 累積差分（修正前の版 fixboard.base_rev_of から。未追跡を含み .archon/ の下は除く）は置き場の fix.diff に書いて指し札にする（空なら理由のファイルを指す）。
 diff の隣（置き場）に許したテストの変更の訳 allowed-tests.json = [{path, permit, source}]（fixboard.allowed_test_rows）と、
 受け付けの行 accept-trace.json（戻せた組の子の結果の行と親の置き場の行。fixboard.accept_trace_rows）と、閉鎖の数え直しと差分の審査の
 穴の名札と手直しの結果（lib/fixbeside.py の closure.json・delta-holes.json。戻せた組の子の結果が運んだ分と、裁定の後の修正の段の分を
-合わせる）を置く。
+合わせる）を置く。ほかが読む控えは欄で返す（fixbeside.returned。PORTS の欄は先のポインタか null、removed は clean が消したパスの
+控えのポインタの並び、tdd_refused は TDD の輪の拒否 {refused, unread}）。
 最後の関所を開ける理由の 2 欄（元 works/darkfactory/lib/line_edge.py:800 _final_needs）: handoffs は修正役が人に回した物
 （子の結果の handoffs と裁定の後の返答の changes[].breaks.accepted。fixboard.handoff_lines）、mismatched は直したという申告と
 機械の数え直しが合わない単位（子の結果の mismatched と親の置き場の閉鎖の表。fixboard.mismatched_lines）。形 group は自分の結果の行だけ。
@@ -28,7 +30,8 @@ plan_declared は修正役が直さずに残すと答えた事前審査の block
 組の子の答えは親の置き場の fix-reply.json に集まってから数える。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0
 （diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []、accept-trace.json は無ければ []。
-closure.json・delta-holes.json は置かず、読み手が「無い」と名指す）。
+closure.json・delta-holes.json は置かず、読み手が「無い」と名指す）。控えの欄は fixbeside.returned で組み、lib を読めない時だけ
+標準ライブラリで allowed_tests・accept_trace・lenses のポインタを組み、ほかは null（removed も null、tdd_refused は訳つきの空）。
 返りの全部（fallback も）に欄 optional を載せる: 入力（with:）optional の、このブロックが落ちても線が先へ進めてよい節の宣言
 （[{node, bare}] の JSON の字）を境の口 boundary.items で読んだ並び。境の口を読めない時だけ []。
 """
@@ -48,11 +51,17 @@ NO_COLLECTOR = "レンズの集め役が終わらなかった: 集め役の出�
 GROUP_LENSES = "組の子の run はレンズを起こさない（差分の審査は親の run が回す）"
 ALLOWED_TESTS = "allowed-tests.json"   # fixboard.ALLOWED_TESTS_FILE と同じ名（lib を読めない時も diff の隣に [] を置く）
 ACCEPT_TRACE = "accept-trace.json"     # fixboard.ACCEPT_TRACE_FILE と同じ名（lib を読めない時も diff の隣に無ければ [] を置く）
+# fixbeside.PORTS・FROM の欄（lib を読めない時に null で返す。名の照らしは tests/workflows/test_fix.py）
+PORT_FIELDS = ("allowed_tests", "accept_trace", "lenses", "closure", "delta_holes", "tdd_unit", "removed", "tdd_refused")
 boundary = fixbeside = None   # 境の口と隣の約束のファイルの口。読めない時は fallback が stdlib だけで返す
 
 
 def rel(place: Path, name: str) -> str:
     return (place / name).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix()
+
+
+def pointer_of(path: Path) -> dict:
+    return boundary.pointer(path.relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix())
 
 
 def diff_pointer(fixboard, place: Path) -> dict:
@@ -175,6 +184,22 @@ def lenses_file() -> None:
         print(f"collect: {LENSES_FILE} を書けない（{path}: {type(e).__name__}: {' '.join(str(e).split())}）", file=sys.stderr)
 
 
+def ports() -> dict:
+    """控えの欄（fixbeside.returned。lenses_file の後に組む）。lib か境の口を読めない・組めない時は、error_pointer と lenses_file が
+    置いたファイルのポインタを字で組み、ほかは null（removed も null、tdd_refused は訳つきの空）"""
+    try:
+        return fixbeside.returned(boundary.place("fix"), pointer_of)
+    except Exception as e:   # 返す節は落ちない。組めない訳を tdd_refused の unread に残す
+        why = f"控えの欄を組めない（{type(e).__name__}: {' '.join(str(e).split())[:500]}）"
+        print(f"collect: {why}", file=sys.stderr)
+    folder = Path(os.environ.get("ARTIFACTS_DIR", ".")) / place_rel()
+    run_id = os.environ.get("WORKFLOW_ID", "")
+    ptr = lambda name: ({"type": "archon_artifact", "run_id": run_id, "path": f"{place_rel()}/{name}"}  # noqa: E731
+                        if (folder / name).is_file() else None)
+    return {**{field: None for field in PORT_FIELDS}, "allowed_tests": ptr(ALLOWED_TESTS), "accept_trace": ptr(ACCEPT_TRACE),
+            "lenses": ptr(LENSES_FILE), "removed": None, "tdd_refused": {"refused": [], "unread": [why]}}
+
+
 def fallback(why: str) -> dict:
     """誤りの時の約束の形の返り（done: false と理由。ほかは空の値。join.json の当たったままの組は、行に当たったままのパスを
     残して止めの語 stopby.UNRESTORED で返す）"""
@@ -228,10 +253,11 @@ if __name__ == "__main__":
         print(f"collect: {why}", file=sys.stderr)
         out = fallback(why)
     lenses_file()
+    out = {**out, **ports()}
     noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []
     try:
         print(json.dumps({**out, "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)
     except ValueError as e:
-        print(json.dumps({**fallback(f"fix の出力を書けない（{type(e).__name__}: {e}）"), "optional": noted},
+        print(json.dumps({**fallback(f"fix の出力を書けない（{type(e).__name__}: {e}）"), **ports(), "optional": noted},
                          ensure_ascii=False, allow_nan=False), flush=True)
     sys.exit(0)

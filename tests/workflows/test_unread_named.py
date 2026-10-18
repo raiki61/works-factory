@@ -149,8 +149,11 @@ def world(p: Place) -> str:
 
 
 def plan_fields(p: Place) -> str:
-    p.put("plan/r1/p2.fix_plan.json", {"plan": []})
     return p.put("plan/r1/plan-fields.json", {"round": 1, "fields": []})
+
+
+def fix_plan(p: Place) -> str:
+    return p.put("plan/r1/p2.fix_plan.json", {"plan": []})
 
 
 def eyes(p: Place) -> dict:
@@ -161,7 +164,8 @@ def eyes(p: Place) -> dict:
             "diff": p.put("fix/diff.patch", "diff --git a/stats.py b/stats.py\n--- a/stats.py\n+++ b/stats.py\n@@ -1 +1 @@\n-a\n+b\n"),
             "changed": json.dumps({"premise_drift": False}), "fix_units": "[]", "green_ok": "true",
             "test_outcomes": json.dumps({"rows": [], "unmeasured": ""}),
-            "diffs": json.dumps([json.loads(p.put("fix/fix/tdd-unit.json", []))]),
+            "records": json.dumps([{"diff": json.loads(p.put("fix/fix/fix.diff", "")),
+                                    "tdd_unit": json.loads(p.put("fix/fix/tdd-unit.json", []))}]),
             "start": p.start(), "plan_questions": "null", "answers": "null", "start_answers": "null", "x_scalars": "null",
             "plan_declared": "null",
             **judge_files(p, "answer_ties", "materials", "premises", "decisions")}
@@ -170,7 +174,7 @@ def eyes(p: Place) -> dict:
 def fix(p: Place) -> dict:
     return {"start": p.start(), "baseline": p.put("test-gate/base/baseline.json",
                                                   {"suite": "", "test_cmd": "", "rev": p.head, "exit": 0, "cases": []}),
-            "units": units(), "judgment": judgment(p), "plan": plan_fields(p),
+            "units": units(), "judgment": judgment(p), "plan": plan_fields(p), "fix_plan": fix_plan(p),
             "ripple": p.put("plan/ripple.json", {"items": [], "overlaps": []}), "depth": "[]", "answers": "null",
             "only_items": "", "mode": "",
             "group": json.dumps({"group_id": "g1", "unit_ids": ["stats.py mean: 分母"], "items": []}, ensure_ascii=False),
@@ -209,7 +213,7 @@ def plan(p: Place) -> dict:
 def plan_review(p: Place) -> dict:
     p.put("plan/structure/design.jsonl", "")
     return {"units": units(), "judgment": judgment(p), "purpose": p.put("judge/purpose.json", {"purpose_text": "平均が正しい"}),
-            "world": world(p), "plan": plan_fields(p),
+            "world": world(p), "plan": plan_fields(p), "fix_plan": fix_plan(p), "plan_rejects": "[]",
             "structure": p.put("plan/structure/structure-state.json",
                                {"status": "ok", "reason": "", "design_file": "x", "wall_s": 0}),
             "ripple": p.put("plan/ripple.json", {"items": [], "overlaps": []}), "start": p.start(), "answers": "null",
@@ -258,7 +262,7 @@ UNNAMED = {
     ("fix", "plan_review"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。ほかの fix のポインタの入力と同じ。区分 F。区分の issue で外す",
     **{("fix", name): f"prep と group-start（単独の run の組の子の頭）が{FELL}（入力の名と先を言う例外で止まるが標準エラーだけ）。"
                       "ほかの fix のポインタの入力と同じ。区分 F。区分の issue で外す"
-       for name in ("answer_ties", "materials", "depth_record")},
+       for name in ("answer_ties", "materials", "depth_record", "fix_plan")},
     ("fix", "prior_conflicts"): f"prep と group-start（単独の run の組の子の頭）が{FELL}（先が無いと黙って写さずに進めず、入力の名を言って止まる）。"
                                 "区分 F。区分の issue で外す",
     ("judge", "start"): RENAMED.format(words="intake の「始めの記録か前の失敗の行が読めない」。2 つの入力のどちらかを言わない")

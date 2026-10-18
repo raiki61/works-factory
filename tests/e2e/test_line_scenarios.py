@@ -22,8 +22,6 @@ from tests.layers import scan
 if str(archon.ROOT / "lib") not in sys.path:
     sys.path.append(str(archon.ROOT / "lib"))
 import depth  # noqa: E402
-import fixbeside  # noqa: E402  （diff の隣の控えの名の持ち主）
-import fixboard  # noqa: E402
 import planfile  # noqa: E402
 
 SCENARIOS = (
@@ -346,15 +344,14 @@ def rerun(trace: dict, node: str, artifacts: pathlib.Path, run_id: str) -> dict:
 LINE = archon.WORKFLOWS / "line" / "works-factory-line.yaml"
 
 
-def place_beside(artifacts: pathlib.Path, diff: dict) -> None:
-    """修正の段の diff のポインタ diff の隣に、何も残っていない段の控え（閉鎖の表・差分の審査の穴・受け付けの行・レンズの集め役・許した
-    テストの変更の訳。lib/fixbeside.py の FILES と fixboard の名）を置く。dry-run の置き場には無いので、走らせ直す試験が置く"""
-    folder = (artifacts / diff["path"]).parent
-    folder.mkdir(parents=True, exist_ok=True)
-    for name, doc in ((fixbeside.CLOSURE_FILE, {"rows": [], "claimed": []}), (fixbeside.DELTA_HOLES_FILE, {}),
-                      (fixboard.ACCEPT_TRACE_FILE, []), (fixboard.LENSES_FILE, {"collector": {"ok": True, "reason": ""}}),
-                      (fixboard.ALLOWED_TESTS_FILE, [])):
-        (folder / name).write_text(json.dumps(doc), encoding="utf-8")
+def place_beside(artifacts: pathlib.Path, stage: dict) -> None:
+    """修正の段（fixed の records の 1 つ）の控えの欄の先に、何も残っていない段の控え（閉鎖の表・差分の審査の穴・受け付けの行・
+    レンズの集め役・許したテストの変更の訳）を置く。dry-run の置き場には無いので、走らせ直す試験が置く"""
+    for field, doc in (("closure", {"rows": [], "claimed": []}), ("delta_holes", {}), ("accept_trace", []),
+                       ("lenses", {"collector": {"ok": True, "reason": ""}}), ("allowed_tests", [])):
+        path = artifacts / stage[field]["path"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc), encoding="utf-8")
 
 
 class ConflictGateTest(unittest.TestCase):
@@ -377,8 +374,8 @@ class ConflictGateTest(unittest.TestCase):
             path = pathlib.Path(tmp) / ptr["path"]
             path.parent.mkdir(parents=True)
             path.write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
-            for diff in bound(self.trace, "$fixed.output.diffs"):
-                place_beside(pathlib.Path(tmp), diff)
+            for stage in bound(self.trace, "$fixed.output.records"):
+                place_beside(pathlib.Path(tmp), stage)
             return rerun(self.trace, "ask-final", pathlib.Path(tmp), ptr["run_id"])
 
     def test_unreadable_conflicts_open_and_are_named_in_the_scenario(self):
@@ -413,16 +410,16 @@ class RefixHandoffTest(unittest.TestCase):
     def test_scenario_opens_with_both_stages_rows(self):
         got = json.loads(self.trace["ask-final"]["output"])
         self.assertTrue(got["open"], got)
-        self.assertEqual(len(bound(self.trace, "$fixed.output.diffs")), 2, "1 回目と 2 度目の修正の diff")
+        self.assertEqual(len(bound(self.trace, "$fixed.output.records")), 2, "1 回目と 2 度目の修正の段")
         self.assertIn("修正役が人に回した物が在る（2 件）", got["text"].splitlines()[0])
         self.assertIn(self.ROWS, got["text"])
 
     def test_accepted_breaks_alone_open_the_gate(self):
-        diffs = bound(self.trace, "$fixed.output.diffs")
+        stages = bound(self.trace, "$fixed.output.records")
         with tempfile.TemporaryDirectory() as tmp:
-            for ptr in diffs:
-                place_beside(pathlib.Path(tmp), ptr)
-            got = rerun(self.trace, "ask-final", pathlib.Path(tmp), diffs[0]["run_id"])
+            for stage in stages:
+                place_beside(pathlib.Path(tmp), stage)
+            got = rerun(self.trace, "ask-final", pathlib.Path(tmp), stages[0]["diff"]["run_id"])
         self.assertEqual((got["open"], got["reasons"]), (True, ["修正役が人に回した物が在る（2 件）"]), got)
         self.assertIn(self.ROWS, got["text"])
 
@@ -528,16 +525,15 @@ class RefixInputsTest(unittest.TestCase):
     def test_refix_notes_carry_the_replan_review_faces(self):
         trace = self.traces["replan"]
         review = bound(trace, self.nodes["answer-replan"]["with"]["review"])
-        plan = bound(trace, self.nodes["answer-replan"]["with"]["plan"])
+        fix_plan = bound(trace, self.nodes["answer-replan"]["with"]["fix_plan"])
         with tempfile.TemporaryDirectory() as tmp:
             art = pathlib.Path(tmp)
             (art / review["path"]).parent.mkdir(parents=True, exist_ok=True)
             (art / review["path"]).write_text(json.dumps({"faces": [
                 {"key": "穴-空の列", "kind": "contract_drift", "where": "stats.py", "why": "空の列で割れる", "unit_keys": ["u1"]}]},
                 ensure_ascii=False), encoding="utf-8")
-            (art / plan["path"]).parent.mkdir(parents=True, exist_ok=True)
-            (art / plan["path"]).parent.joinpath("p2.fix_plan.json").write_text(json.dumps({"plan": [{"unit_keys": ["u1"]}]}),
-                                                                                encoding="utf-8")
+            (art / fix_plan["path"]).parent.mkdir(parents=True, exist_ok=True)
+            (art / fix_plan["path"]).write_text(json.dumps({"plan": [{"unit_keys": ["u1"]}]}), encoding="utf-8")
             got = rerun(trace, "answer-replan", art, review["run_id"])
         self.assertIn("## 直した項目 1（単位 u1）の事前審査の穴\n\n- [contract_drift] 穴-空の列（stats.py）: 空の列で割れる",
                       got["fix_notes"])

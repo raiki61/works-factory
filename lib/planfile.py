@@ -35,7 +35,9 @@
   rolekit.resubmitted に渡す）・round_slots（形 plan の周の単位の名の並び）
 - 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）・
   keep_state（書けない周の控え）
-- 周と出口: next_round・accepted_rounds・latest・structure_key・open_round・ripple_units・ripple_items・owed_order・collect・placeholders
+- 周と出口: next_round・accepted_rounds・latest・structure_key・open_round・ripple_units・ripple_items・owed_order・collect・placeholders・
+  PORTS・FROM・returned（返す節の出力の欄のうち、ほかのブロックが読む周のフォルダの控え。ほかは欄で受け、名で開かない）・
+  require_ports（この版より前に走った計画の返りを resume で受けたか）
 """
 from __future__ import annotations
 
@@ -102,6 +104,12 @@ SKIPPED_FILE = "skipped-units.json"
 STRUCTURE_FILE = "structure.json"
 DESIGN_FILE = "design.jsonl"
 KEY_LEN = 12
+# 返す節の出力の欄 → 周のフォルダの控え。ほかのブロックとメイングラフはこの欄で受け、名で開かない（docs/design.md の「plan の出力」）。
+# PORTS はポインタの欄（先が無ければ null）、FROM は中身の欄とその元の控え。欄 gave_up（諦めの行）は note_gave_up の返り
+PORTS = {"fix_plan": FIX_PLAN_FILE}
+FROM = {"nothing_owed": ROUND_FILE, "rejects": rolekit.rejects_path(pathlib.Path(), ROLE).name,
+        "gave_up": planblk.REPLAN_GAVE_UP_FILE}
+PRIOR_VERSION = "前の版の計画の出力。workflow run で最初から起こし直す"
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}（元 writes.py:52）
 
 COVERS_REJECT = "単位の網羅に誤りが在る（直す義務の単位は全部、どれか 1 つの項目にちょうど 1 度入れる）。案に入れてよい no は"
@@ -1055,26 +1063,44 @@ def ripple_units(round_dir, judgment, repo, *, skip_dirs) -> pathlib.Path:
     return _write_json(pathlib.Path(round_dir) / RIPPLE_UNITS_FILE, doc)
 
 
-def note_gave_up(round_dir, plan_dir, conflicts) -> None:
+def note_gave_up(round_dir, plan_dir, conflicts) -> list | None:
     """形 replan の周で修正案の役が受け付けの網（rolekit.NET_AFTER）の回まで拒まれ続けたら、渡した項目ごとの諦めの行 {item,
-    why（planblk.PLAN_GAVE_UP_WHY）, ruling（裁定の文を字のまま）} を planblk.REPLAN_GAVE_UP_FILE に置く（元
-    works/.shared/core/replan.py:625 の gate の _give_up。ほかの項目は承認済みの案のまま採れる）"""
+    why（planblk.PLAN_GAVE_UP_WHY）, ruling（裁定の文を字のまま）} を planblk.REPLAN_GAVE_UP_FILE に置いて返す（元
+    works/.shared/core/replan.py:625 の gate の _give_up。ほかの項目は承認済みの案のまま採れる）。諦めていなければ None"""
     round_dir = pathlib.Path(round_dir)
     rnd = read_round(round_dir)
     reason = rolekit.given_up_reason(round_dir, ROLE)
     if rnd["mode"] != "replan" or not reason or (round_dir / REPLY_FILE).is_file():
-        return
+        return None
     prev = latest(plan_dir, before=round_dir)
     old = _rows(jsonfile.read_or(prev / REPLY_FILE), "plan") if prev else []
     why = planblk.PLAN_GAVE_UP_WHY.format(reason=reason)
-    _write_json(round_dir / planblk.REPLAN_GAVE_UP_FILE,
-                [{"item": n, "why": why, "ruling": ruling_text(conflict_rows(conflicts, n, old[n - 1]))}
-                 for n in rnd["items"] if 1 <= n <= len(old)])
+    rows = [{"item": n, "why": why, "ruling": ruling_text(conflict_rows(conflicts, n, old[n - 1]))}
+            for n in rnd["items"] if 1 <= n <= len(old)]
+    _write_json(round_dir / planblk.REPLAN_GAVE_UP_FILE, rows)
+    return rows
 
 
 def nothing_owed(round_dir) -> bool:
     """形 plan の周が直す義務の単位 0 件で役を起こさなかったか（開いた単位が全部人の答え待ちの問いの出どころ。round.json の why）"""
     return read_round(round_dir)["why"] == NOTHING_OWED
+
+
+def returned(round_dir) -> dict:
+    """返す節の欄のうち周のフォルダの控えから組む物: PORTS の欄（先のフルパス。無ければ None）と FROM の中身のうち nothing_owed・rejects（gave_up は note_gave_up の返り）"""
+    round_dir = pathlib.Path(round_dir)
+    return {**{field: round_dir / name if (round_dir / name).is_file() else None for field, name in PORTS.items()},
+            "nothing_owed": nothing_owed(round_dir), "rejects": rolekit.reject_rows(round_dir, ROLE)}
+
+
+def require_ports(got: dict | None) -> None:
+    """計画（案の直し）の返りを受けた受け皿の got が、出力の欄 PORTS・FROM の鍵を全部持つか照らす（飛んだ受け皿の None は
+    照らさない）。鍵の無い got か、いつも値の在る rejects・nothing_owed が null（受け皿は欠けた欄を null で埋める）の got は、この版より
+    前に走った計画の控えを resume で受けた物で、欄を空と読むと修正案の返答の無い修正を黙って走らせるので、ValueError で止める
+    （script は works:line-script の止め方に倒す）"""
+    if got is not None and (any(field not in got for field in (*PORTS, *FROM))
+                            or any(got[field] is None for field in ("rejects", "nothing_owed"))):
+        raise ValueError(PRIOR_VERSION)
 
 
 def why_not_ready(round_dir) -> str:

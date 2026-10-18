@@ -19,7 +19,7 @@ inputs:
   fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}
   green_ok: {required: true, description: "修正の後のテストが通ったか。真偽の値"}
   test_outcomes: {required: true, description: "テストごとの base と最後の結末 {rows, unmeasured}。比較役に貼る"}
-  diffs: {required: true, description: "直しの回ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む"}
+  records: {required: true, description: "直しの回ごとの出力の控えの欄の配列（{diff, tdd_unit, …} の object。ポインタのまま）。tdd_unit の先（tdd-unit.json）の TDD の記録を比較役に貼る"}
   start: {default: "null", description: "始めの記録のポインタ"}
   plan_questions: {default: "null", description: "修正の前に人に聞いた項目 {kind, text}"}
   plan_declared: {default: "null", description: "直さずに残すと答えた事前審査の block の行（key・訳・残す答え）。JSON の文字列の配列。R4 に貼る"}

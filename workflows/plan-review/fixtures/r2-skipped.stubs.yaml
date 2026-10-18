@@ -12,6 +12,7 @@ review:
   gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
   ask_human: false
   questions: []
+  gave_up: null
 fixture:
   inputs:
     units: "[]"
