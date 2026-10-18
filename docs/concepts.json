@@ -596,7 +596,6 @@
      "what": "無人の run が承認ノードを推しで進むか止まるかを、住処の外で項目の推しの尾の読み（push_rec・row_push の呼び）から組む。推しの尾の字の形の持ち主 gatemarks は読みを gatepolicy.Push にして住処の口 passage・stuck_pushable に渡すだけ",
      "pattern": "\\b(push_rec|row_push)\\(",
      "allowed": [
-      "lib/gatepolicy.py",
       "lib/gatemarks.py"
      ],
      "known": {}
