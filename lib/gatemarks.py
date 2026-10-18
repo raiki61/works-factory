@@ -34,7 +34,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 止まった事実＝converge.stuck_reason）。行は design_item の 1 か所で組む（設計だけでない run の止まりは頭を STUCK_ITEM にし、
 設計だけの run と名乗らない。種類の kinds は同じ design_only）。止まりの行は、事前審査の役が返答の一番上に書いた止まった時の推し
 （converge.STUCK_PUSH）の尾を持ちうる（付く条件は stuck_push。持ち主 2026-10-15「人がいないときは推しの答え。」・issue #552）。
-尾の無い行は pushed_answer が None を返して今どおり止まる。
+尾の無い行は無人の方針の口 gatepolicy.passage が今どおり止める。
 - reason_push(q)・run_push(b, q)・taken_pushes(b)・PUSH_TAKEN: 問いの理由に判定の役が書いた推し・無人の run が答えとして採る推し
   （fork・held だけ。依頼の answers と関所の continue が先）・推しで答えた問いと戻した単位の並び（報告が冒頭と人が決めることに並べる）・
   答えた行の印
@@ -63,15 +63,16 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・命令と出力つきで答えた素材（報告が検証器の阻害から外す。
   HAND_CHECKED と名乗る）・答えた行に足す素材の行（利用者の声 10-09 の C2）
 - design_only(b)・design_item(b)・stuck_push(b): 設計だけの run か・関所に載せる設計だけの行（載せなければ空）・止まりの行に付ける
-  事前審査の役の推しの尾（付けなければ空。boardview の受け付けも同じ条件で、保留の項目の穴を review.json に足すかを決める）
+  事前審査の役の推しの尾（付けなければ空。付けてよいかの決めは gatepolicy.stuck_pushable。boardview の受け付けも同じ条件で、
+  保留の項目の穴を review.json に足すかを決める）
 - PLAIN・named(node)・status_named(status)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・specblk・境の節・報告が使う）
 - quote(question)・QUOTE_NOTE: 盤面の問いの文を引用として載せる行と、関所で添える答え方の読み替えの 1 行
 - head3(happened, decide, push)・pushes(texts)・push_of(texts): 関所の文と報告の冒頭 3 行（起きたこと・決めてほしいこと・推し）と、推しを記録から拾う口
 - gate_text(asking, *, run_id, node, record_name): 答えを受ける関所の文（修正前の関所と仕様の関所が呼ぶ 1 つの組み立て）
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
   形の誤り（受け付けが拒む。事前審査の返答は一番上の止まった時の推し converge.STUCK_PUSH も同じ形で照らす）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしの _human_passed はこの尾を外す）
-- push_rec(text)・pushed_answer(texts): 項目の推しの尾の読み戻しと、無人の run が関所を推しで通る答え（項目の全部が通す推しを持つ
-  時だけ。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
+- push_rec(text)・row_push(text): 項目の推しの尾の読み戻しと、その無人の方針の読み（gatepolicy.Push。無人の run が関所を推しで
+  通るかの決めは gatepolicy.passage。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
 - spec_words(unchecked) -> SpecWords(said, source, head, note): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
   （最後の承認ノードの 1 行目の句・次の依頼の下書きの source の頭・最後の承認ノードと報告の人が決めることの節の頭）
@@ -104,7 +105,7 @@ import answer
 from answer import GO_WORDS
 import carry   # 下書きの印の付け方（次の run への持ち越しの形の住処）
 import cite    # 決め手の出どころが現物に在るかの照らし（食い違いの申し出の引用の照らしと同じ住処）
-import gatepolicy   # 無人の run か（人の関所と無人の方針の住処）
+import gatepolicy   # 無人の run か・推しで進むかの決め（人の関所と無人の方針の住処）
 import converge
 import marks
 import oneline
@@ -548,14 +549,14 @@ def push_rec(text) -> dict | None:
             RECOMMEND_KEYS[2]: got.group(4)}
 
 
-def pushed_answer(texts) -> dict | None:
-    """無人の run が関所を推しで通る答え {decision, text, answer.PUSHED}。関所に載る項目の全部が推しの尾を持ち、全部が通す時だけ。
-    一言 text は推しの note を「；」で繋いだ物（修正役に人の一言と同じ道で届く）。ほかは None（機械は推しを作らない）"""
-    recs = [push_rec(t) for t in texts or []]
-    if not recs or any(r is None or r[RECOMMEND_KEYS[0]] != RECOMMEND_ANSWERS[0] for r in recs):
-        return None
-    note = "；".join(dict.fromkeys(r[RECOMMEND_KEYS[1]] for r in recs))
-    return {"decision": RECOMMEND_ANSWERS[0], "text": note, answer.PUSHED: recs}
+def row_push(text) -> gatepolicy.Push | None:
+    """関所の項目の文の推しの尾（push_rec）の、無人の方針の読み（gatepolicy.passage に渡す。尾が無ければ None）"""
+    rec = push_rec(text)
+    return None if rec is None else _as_push(rec, rec[RECOMMEND_KEYS[1]])
+
+
+def _as_push(rec: dict, note: str) -> gatepolicy.Push:
+    return gatepolicy.Push(rec[RECOMMEND_KEYS[0]] == RECOMMEND_ANSWERS[0], note, rec)
 
 
 def _gate_rows(b) -> list:
@@ -760,20 +761,15 @@ def design_only(b) -> bool:
 
 
 def stuck_push(b) -> str:
-    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。往復の行の push）の尾 _push。4 つが全部揃う時
-    だけ: 無人の run（gatepolicy.unattended）・設計だけの run でない・壁打ちが推しで越えてよい止まり（converge.pushable）・
-    最後の往復の push が recommend_of で読めて通す（continue）推しで、その note が止まった key と保留・開いた項目の番号の全部を
-    字のまま引く（converge.uncited が空。修正役に届くのは note だけ）。ほかは空（推しが無い・止める・崩れた・引用が欠ける時は
-    pushed_answer が None を返して今どおり止まる。止める推しは往復の行の push に残る）。
+    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。最後の往復の行の push）の尾 _push。付けてよいかは
+    gatepolicy.stuck_pushable（note は尾の字で照らす。修正役に届くのは尾の note だけ）。ほかは空（推しが無い・止める・崩れた・引用が
+    欠ける時は gatepolicy.passage が今どおり止める。止める推しは往復の行の push に残る）。
     boardview（review.json に保留の項目の穴を足す）と design_item が同じこの 1 つの条件を読む"""
-    if not gatepolicy.unattended(b.dir) or design_only(b):
-        return ""
     doc = converge.read(b)
-    if not converge.pushable(doc):
-        return ""
-    mark = {RECOMMEND: doc["passes"][-1].get("push")}
+    mark = {RECOMMEND: doc["passes"][-1].get("push") if doc["passes"] else None}
     rec = recommend_of(mark)
-    if rec is None or rec[RECOMMEND_KEYS[0]] != RECOMMEND_ANSWERS[0] or converge.uncited(_tail_text(rec[RECOMMEND_KEYS[1]]), doc):
+    push = None if rec is None else _as_push(rec, _tail_text(rec[RECOMMEND_KEYS[1]]))
+    if not gatepolicy.stuck_pushable(b.dir, doc, push, design_only=design_only(b)):
         return ""
     return _push(mark)
 
