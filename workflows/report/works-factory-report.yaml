@@ -39,7 +39,7 @@ inputs:
     default: ""
     description: >-
       事前審査の出力。JSON のオブジェクト {pass, stalled, ask_human, questions, gate_axes など}（questions は {kind, text} の配列、
-      指摘・聞かずに通した行・関所の項目と壁打ちの行・独立設計の文書の欄はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちた・欄が全部 null だったこと
+      指摘・聞かずに通した行・承認の項目と壁打ちの行・独立設計の文書の欄はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちた・欄が全部 null だったこと
   replan:
     default: ""
     description: >-
