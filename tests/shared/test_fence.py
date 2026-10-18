@@ -170,6 +170,8 @@ with open(os.environ["FAKE_REAL_LOG"], "w", encoding="utf-8") as f:
     json.dump(sys.argv[1:], f)
 with open(os.environ["FAKE_REAL_LOG"] + ".env", "w", encoding="utf-8") as f:
     json.dump({{k: v for k, v in os.environ.items() if k.startswith("GRAPHLOOPS_")}}, f)
+with open(os.environ["FAKE_REAL_LOG"] + ".path", "w", encoding="utf-8") as f:
+    f.write(os.environ.get("PATH", ""))
 """
 
 
@@ -183,12 +185,13 @@ class MainTest(unittest.TestCase):
         self.log = self.tmp / "argv.json"
         self.records = self.tmp / "run-home" / launcher.FENCE_DIR / "launches.jsonl"
 
-    def run_fence(self, *argv, path=None, records=None):
+    def run_fence(self, *argv, path=None, records=None, heads=()):
         child = self.tree["child"]
         env = hermetic.child_env(HOME=child["HOME"], FAKE_REAL_LOG=str(self.log), **({"PATH": path} if path else {}))
         return subprocess.run([sys.executable, str(FENCE), "--real", str(self.real), "--archon-home", child["ARCHON_HOME"],
                                "--claude-config", child["CLAUDE_CONFIG_DIR"], "--own", self.tree["own"][0],
-                               "--records", str(records or self.records), "--", *argv],
+                               "--records", str(records or self.records), *(a for h in heads for a in ("--path-head", h)),
+                               "--", *argv],
                               cwd=self.tree["linked"], env=env, capture_output=True, text=True, encoding="utf-8",
                               timeout=60)
 
@@ -216,6 +219,15 @@ class MainTest(unittest.TestCase):
                 self.assertEqual(self.run_fence(*argv).returncode, 0)
                 got = json.loads(pathlib.Path(f"{self.log}.env").read_text(encoding="utf-8"))
                 self.assertEqual(got, {fence.ENGINE_CHILD_ENV: "1"})
+
+    def test_path_heads_lead_the_path_of_claude_only(self):
+        """役の claude の PATH の頭には --path-head の置き場（読むだけの gh の口）が来る。包みの外（script のノード）の PATH は変えない"""
+        heads = [str(self.tmp / "read-only"), str(self.tmp / "second")]
+        for argv in (["-p", "x"], ["--settings", settings_with([scan.NO_TREE_WRITE])]):
+            with self.subTest(argv=argv):
+                self.assertEqual(self.run_fence(*argv, path="/usr/bin:/bin", heads=heads).returncode, 0)
+                path = pathlib.Path(f"{self.log}.path").read_text(encoding="utf-8").split(os.pathsep)
+                self.assertEqual(path, [*heads, "/usr/bin", "/bin"])
 
     def test_unmarked_launch_reaches_claude_unchanged(self):
         argv = ["-p", "x", "--settings", json.dumps({"sandbox": {"enabled": True}})]
@@ -459,7 +471,7 @@ class RealClaudeTest(unittest.TestCase):
 
     def test_fenced_role_cannot_write_the_listed_places(self):
         home = self.tmp / "run-home"
-        got = self.probe([launcher.write_fence(home, self.claude, self.tree["child"], self.cache)])
+        got = self.probe([launcher.write_fence(home, self.claude, self.tree["child"], self.cache, [])])
         for what, place in self.blocked.items():
             with self.subTest(what=what):
                 self.assertEqual(got[str(place)], "BLOCKED")

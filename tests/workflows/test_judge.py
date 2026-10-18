@@ -133,8 +133,8 @@ def loops() -> dict:
 
 
 class ParallelPrThroughReadOnlyGhTest(unittest.TestCase):
-    """run の中の素の gh は起動が PATH の頭に置く読むだけの口（bin/_lib/no-post-bin/）。並行 PR の数えの gh の打ち方が口の許可の表に
-    合うことを縛る（片側だけ変えると、試験は緑のまま run の中だけで口が拒み、人待ちになる）"""
+    """役の claude の PATH の頭には読むだけの口（bin/_lib/no-post-bin/）が在る。並行 PR の数えの gh の打ち方が口の許可の表に
+    合うことを縛る（script のノードは利用者のログインを継ぐ口を直に打つが、打ち方は読むだけの口の前でも通る形に保つ）"""
 
     def test_parallel_pr_scan_passes_the_read_only_gh(self):
         with tempfile.TemporaryDirectory(prefix="works-judge-gh-") as tmp:

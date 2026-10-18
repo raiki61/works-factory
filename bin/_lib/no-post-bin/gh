@@ -1,3 +1,3 @@
 #!/bin/sh
-# 起動（bin/_lib/launcher.py）が Archon の子の PATH の頭に置く gh（works-gh へ回す。説明は works-gh の頭）
+# 書き込みの柵の包み（workflows/.shared/fence.py。起動 bin/_lib/launcher.py が書く）が役の claude の PATH の頭に置く gh（works-gh へ回す。説明は works-gh の頭）
 exec "${0%/*}/works-gh" "$@"

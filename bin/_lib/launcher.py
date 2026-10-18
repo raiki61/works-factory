@@ -106,16 +106,18 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
 
     child = isolate.isolate(user, home)
     # GitHub の資格は AI の役に渡さない（持ち主の決め auth-middleware）。run の中の gh は、利用者の gh 自身の置き場のログインを
-    # hostgh の口が継ぎ、役にはその前に置く読むだけの口 works-gh（no-post-bin/）だけが見える（持ち主の決め roles-read-only-gh）。
-    # 環境変数だけでログインする利用者の値は、gh の読まない名（hostgh.RELAY）で口へ渡す
+    # hostgh の口が継ぐ。script のノード（出口の語 pr の時に push と PR の作成をする archon-pr の publish も）は PATH の頭の
+    # この口を打ち、役の claude には書き込みの柵の包みが PATH の頭に読むだけの口 works-gh（no-post-bin/）を足すので、役には
+    # works-gh だけが見える（持ち主の決め roles-read-only-gh。write_fence の path_heads）。環境変数だけでログインする利用者の値は、
+    # gh の読まない名（hostgh.RELAY）で口へ渡す
     for name in hostgh.TOKENS:
         child.pop(name, None)
     shim = hostgh.write(home / HOST_GH_DIR, user.get("PATH", ""), user_home, hostgh.config_dir(user))
     if shim:
         child.update(hostgh.relay(user))
     # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
-    heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
-    child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
+    child["PATH"] = os.pathsep.join(filter(None, [str(Path(shim).parent) if shim else "", user.get("PATH")]))
+    role_heads = [str(hostgh.NO_POST_BIN)] if shim else []
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", **{place.PROVIDER_ENV: place.DEFAULT_PROVIDER})
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
@@ -142,7 +144,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         install_toolset(child, target, filled_config, claude=real if not no_auth else None)
     if executing:
         sweep_logs(child["CLAUDE_CONFIG_DIR"])
-        child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache)
+        child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache, role_heads)
         child[FENCE_RECORDS_ENV] = str(fence_records(home))
 
     if workflow is None:
@@ -366,14 +368,15 @@ def names_key(path: Path, key: str) -> bool:
     return any(re.match(rf"\s*(?:export\s+)?{re.escape(key)}\s*[=:]", line) for line in text.splitlines())
 
 
-def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path) -> str:
+def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, path_heads: list[str]) -> str:
     """Archon が役を起こす claude の前に置く包み（埋め P5。workflows/.shared/fence.py）の殻を書き、そのパスを返す。値は env でなく
     殻に焼く（Archon は claude に渡す env を掃除する）。-B は Archon がバイトで照らす workflows/ に __pycache__ を作らないため。
     --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude）と、
     次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・工場の checkout の根 ROOT 全体）。根は丸ごと禁じる。bin/works-factory は
     ROOT を import の先頭に置くので、根に新しく置いた shlex.py や bin.py が次の起動の import に勝つ。
     本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）。
-    --records は印の在る起動の記録（fence_records。--own の top の下なので役は書き換えられない）"""
+    --records は印の在る起動の記録（fence_records。--own の top の下なので役は書き換えられない）。
+    --path-head は役の claude の PATH の頭に足す置き場（path_heads。読むだけの gh の口の置き場）"""
     top = home / FENCE_DIR
     real = os.path.realpath(real)
     own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache, ROOT]
@@ -383,7 +386,8 @@ def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path) ->
             + "exec " + shlex.join([sys.executable, "-I", "-B", str(FENCE), "--real", real,
                                     "--archon-home", child["ARCHON_HOME"], "--claude-config", child["CLAUDE_CONFIG_DIR"],
                                     *(arg for path in dict.fromkeys(map(str, own)) for arg in ("--own", path)),
-                                    "--records", str(fence_records(home))])
+                                    "--records", str(fence_records(home)),
+                                    *(arg for head in path_heads for arg in ("--path-head", head))])
             + ' -- "$@"\n')
     return hostgh.place_shim(top, "claude", body)
 

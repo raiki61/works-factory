@@ -503,19 +503,26 @@ class LauncherTest(unittest.TestCase):
         self.assertTrue(pathlib.Path(env["CLAUDE_CONFIG_DIR"]).is_relative_to(self.default_home(self.target)))
         self.assertTrue((pathlib.Path(env["CLAUDE_CONFIG_DIR"]) / ".works-toolset.json").is_file())
 
-    def test_gh_shim_follows_read_only_gh(self):
+    def test_gh_shim_heads_the_path_of_script_nodes(self):
+        """script のノード（archon-pr の publish も）が打つ gh は、利用者のログインを継ぐ口"""
         env = self.reached(self.launch("workflow", "status"))["env"]
-        head = pathlib.Path(env["PATH"].split(os.pathsep)[1])
+        head = pathlib.Path(env["PATH"].split(os.pathsep)[0])
+        self.assertEqual(pathlib.Path(shutil.which("gh", path=env["PATH"])).parent, head)
         self.assertTrue(head.is_relative_to(self.default_home(self.target)), head)
         shim = (head / "gh").read_text(encoding="utf-8")
         self.assertIn(str(self.gh), shim)
         self.assertIn(str(self.home), shim)
 
-    def test_child_path_starts_with_read_only_gh(self):
-        """役が打つ gh は読むだけの口 works-gh: 書く命令とトークンの読み出しを拒み、読む命令は利用者の gh を継ぐ口へ渡す"""
+    def test_role_path_starts_with_read_only_gh(self):
+        """役が打つ gh は読むだけの口 works-gh（役の claude を起こす包みが PATH の頭に足す）: 書く命令とトークンの読み出しを拒み、
+        読む命令は利用者の gh を継ぐ口へ渡す"""
         gh_log = self.tmp / "gh.txt"
         put(self.gh, f'#!/bin/sh\nprintf \'%s\\n\' "$*" >> "{gh_log}"\n')
-        env = self.reached(self.launch("workflow", "status"))["env"]
+        env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
+        argv = self.fence_of(env)
+        heads = [argv[i + 1] for i, a in enumerate(argv) if a == "--path-head"]
+        self.assertEqual(heads, [str(self.repo / "bin" / "_lib" / "no-post-bin")])
+        env = {**env, "PATH": os.pathsep.join([*heads, env["PATH"]])}
         first = shutil.which("gh", path=env["PATH"])
         self.assertEqual(pathlib.Path(first).parent, self.repo / "bin" / "_lib" / "no-post-bin")
         for args in (["pr", "create", "-R", "o/r"], ["api", "-X", "POST", "repos/o/r/issues"], ["auth", "token"]):
@@ -555,7 +562,8 @@ class LauncherTest(unittest.TestCase):
         return log
 
     def test_env_only_login_reaches_the_users_gh(self):
-        """環境変数だけで gh にログインする利用者: 役が打つ読む gh が、利用者の gh に GH_TOKEN 付きで届く（#132）"""
+        """環境変数だけで gh にログインする利用者: run の中の gh（script のノードが打つ口。役の読むだけの口もこの口へ渡す）が、
+        利用者の gh に GH_TOKEN 付きで届く（#132）"""
         log = self.token_probe()
         for name in ("GH_TOKEN", "GITHUB_TOKEN"):
             with self.subTest(name=name):
@@ -566,8 +574,9 @@ class LauncherTest(unittest.TestCase):
                 self.assertEqual(log.read_text(encoding="utf-8").splitlines()[-1], "token-ok")
 
     def test_token_readout_is_refused_without_the_value(self):
-        """役の gh の auth token は拒まれ、トークンの値は出ない"""
+        """役の gh（包みが PATH の頭に読むだけの口を足す）の auth token は拒まれ、トークンの値は出ない"""
         env = self.reached(self.launch("workflow", "status", GH_TOKEN=GH_FAKE))["env"]
+        env = {**env, "PATH": os.pathsep.join([str(self.repo / "bin" / "_lib" / "no-post-bin"), env["PATH"]])}
         done = subprocess.run(["gh", "auth", "token"], env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual(done.returncode, 2, done.stderr)
         self.assertNotIn(GH_FAKE, done.stdout + done.stderr)
