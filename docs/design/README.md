@@ -16,6 +16,11 @@
 - 元の works: `~/src/claude-plugins/works/`。工場の移植元で、参照するだけ（作り直しの目標ではない）。
 - graphloops: `~/src/claude-plugins/graphloops/`。工場の形の元（`prompts/review-loop/p*.md` がノードごとに 1 本、`blocks/review-loop/<名>/block.json` と `exit.schema.json` が差し替えられる block）。
 - Archon の源: `~/.local/state/works-factory/archon-src/d97d00ef…/`（`factory/pack.json` が止めた版）。以下 `A/` と書く。
+- pack: Archon が workflow を読む置き場のフォルダ 1 つ（3 節）。
+- 柵: `tests/layers/` の、置き場・名前・層の決まりを縛る CI の検査（layer check）。
+- 埋め: Archon に無い物を外から補う部品（polyfill。今の `workflows/.shared/` の `fence.py`・`childsweep.py`・`child_pointer.py`・`skip_value.py`。名簿は `docs/polyfills.md`）。
+- E1〜E22: 今の AGENTS.md の決まりの番号（置き場の表は根の `AGENTS.md` の「決まりの置き場」）。K の番号は今の落とし穴の一覧（`docs/plans/2026-10-13-capabilities/pitfalls.md`）。
+- 持ち主: リポジトリの owner（決めを下す人）。10 節で仕組みを担う block は「担う block」と書く。
 
 ## 1 根拠から導く形（変更の種類と、変更が閉じる 1 か所）
 
@@ -54,7 +59,7 @@
 - N 観点を足す → 新しい block のフォルダ 1 つ。graph の配線の数行と、報告は block の出力の `report` の欄で済む（report の block は触らない）。
 - P 入力を足す → 受け手の block の `inputs:` と `schemas/`（1 つの block）。graph の `with:` の 1 行は配線として必ず要る（ブロックはほかの block を名指さない、という持ち主の決めの代わりに払う物）。作り手は出力の欄を足すだけで、ほかの読み手の数だけ入力が増える形（drift-audit の 4 節）は、作り手ごとに出力を pointer 1 つで渡すことで止める。
 - R 報告に 1 行足す → 事実を持つ block の `report` の欄だけ。`lib/runreport.py` が `gatemarks`・`fixboard`・`judge_accept`・`boardview` と連動して変わる形は、この置き方で無くなる。
-- U 承認ノードと無人の方針 → line（graph）の `src/` だけ。承認ノードを持つのは line だけなので、方針の決め（今の `lib/gatepolicy.py`・`lib/gatemarks.py` の決めの部分）も line に置く。block は承認ノードの材料になる事実（欠陥・定石からの外れ・問い）を出力で返し、承認ノードを通すかは決めない。
+- U 承認ノードと無人の方針 → line（graph）の `src/` だけ。修正の前と後の承認ノードを持つのは line だけなので（例外は仕様の承認ノードで、spec の block の中に置く。8.1）、方針の決め（今の `lib/gatepolicy.py`・`lib/gatemarks.py` の決めの部分）も line に置く。block は承認ノードの材料になる事実（欠陥・定石からの外れ・問い）を出力で返し、承認ノードを通すかは決めない。
 - D 深さと往復の制御 → 深さの表（今の `lib/depth.py` の `TIERS`）と line の `src/`。block は「深さ」を知らず、line が表から引いた真偽（例 plan-review の `tree`・diagnose の `verify`）を port で受ける。往復の止め時（今の `lib/converge.py` の止めの部分）は、往復の loop を持つ line に置く。モデルと effort の群（`d0b086a2` の形）は、群の表 `lib/launchgroups.py` 1 つで、node の YAML は群の名を書くだけ（今のまま）。
 - O 1 か所への寄せ → 種類そのものが減る。1 つの block だけの決めは block の `src/` に初めから 1 つ在り、2 つ以上の block の決めは `lib/` の 1 モジュールに置く（2 節の 4）。
 - G 柵の保守・F run directory のファイル名 → 種類そのものが減る。名の住処と名の字の柵は消え（9 節）、形の検査は `tests/layers/test_block_shape.py` 1 本の yes/no（7 節）。place のファイルの名は block の `src/` だけが持つ。
@@ -62,7 +67,8 @@
 - `docs/design.md` の連動 → block ごとの設計書 `docs/design/<block>.md` 1 本。
 - 1 か所に閉じない物（残る散らばり）:
   - S sandbox の node の鍵と V の全 node の鍵の足し（例 `8bb804fd` の retry）: Archon は鍵を node ごとに YAML に書くので、全部の block の YAML に及ぶ。7.1 の yes/no の検査が付け忘れを止める。共通の値を 1 か所に置く口は Archon に無い（（未確認）。Archon の workflow の頭の既定値で済む鍵があれば寄せる）。
-  - C 較正は `tests/calibration/` の中で閉じていて、形に関わらない。
+  - C 較正は `tests/calibration/` の中で、T 試験だけの変更は `tests/` の中で閉じていて、形に関わらない。
+  - V の版の上げそのものは `factory/pack.json` の版と `blocks/.shared/`・埋め・`tests/shared/test_archon_contract.py` で閉じる。block の中には届かない。
 
 ### 1.3 変更の歩かせ
 
@@ -170,7 +176,7 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
   - md と validation が同じ字を持つべき値（返答の欄の名・語・上限の数・目印の字）。定数は block の `src/` か `lib/` に 1 つだけ置き、md には `{name}` で入れる。
   - 段落を差し込むかの真偽。
   - 人に見せる欄の言語の値（port `lang`）。
-- accept（Python）: 却下の理由の文。どの決まりに落ちたかで文が変わるので、Python に残す（#764 の求め 3）。却下の理由はloop を諦めた時に報告に載るので、人に見せる文として日本語のまま書く（#764 の「日本語に残す物」）。次の回の指示には `{shared:rejected}` の中の `{rejection}` として入る。
+- accept（Python）: 却下の理由の文。どの決まりに落ちたかで文が変わるので、Python に残す（#764 の求め 3）。憲法の 2 の「指示の文」は run によらない決まった文のことで、返答ごとに変わる却下の理由はそれに当たらない。却下の理由はloop を諦めた時に報告に載るので、人に見せる文として日本語のまま書く（#764 の「日本語に残す物」）。次の回の指示には `{shared:rejected}` の中の `{rejection}` として入る。
 - 人に見せる欄の言語: md の中で、その node の人に見せる欄を名指し、`{lang}` で書けと言う。`lang` は port で受け、空なら今の既定（`lib/rolekit.py` の `LANG_DEFAULT`「依頼文の言語」）と同じ意味の英語の文を入れる。言語を自動で選ぶ仕組みは作らない（持ち主の決め）。
 
 ## 6 ノードごとの設計シートの型
@@ -234,7 +240,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - structure（構造の目）: 直しの単位を測り、直しが設計の考えを知る場所を増やすかを見る。今の見方（周りのコードと比べる）から、対象のリポジトリの書いた意図（憲法・決まり・設計の文書）と比べる見方に変える（持ち主の 2026-10-19 の追加。8.6 の 3 つの時の 2 つ目）。入力 `units` json・`intent` json（対象の書いた意図の文書のパスの一覧。空なら決まった名で探す）。出力 `structure`（pointer）。
 - independent-design（R2 の独立設計）: 目的の文だけから別の役が設計する。入力 `purpose` text。出力 `design`（pointer）。
 - plan（修正案）: 修正案を書き、事前審査の指摘で書き直す。入力 `judgment` file・`purpose`・`structure` file・`world_rows` file・`policy` file・`prior` file（前の周の案と指摘。1 周目は空）・`ruling` file（案の直しの時）。出力 `plan`（pointer）。
-- plan-review（事前審査）: 案の欠陥を探す。`proposal` を案の構造（項目・ファイル）か、方針の文だけ（text）のどちらでも受ける。text だけの時は、案の構造を前提にする確かめを飛ばし、8 種の確かめと欠陥の重さの定義だけを当てる（入口の workflow のため。棚卸しの 5 節）。入力 `proposal` file か text・`purpose`・`design` file・`world_rows` file・`structure` file・`policy` file・`tree` flag（項目ごとの下請けで木にするか。line が深さの表から引く）。出力 `holes`・`deviations`（定石や独立設計からの外れと、その出どころ）。承認ノードを聞かずに通してよいかは line が決める（1.2 の U）。
+- plan-review（事前審査）: 案の欠陥を探す。`proposal` を案の構造（項目・ファイル）か、方針の文だけ（text）のどちらでも受ける。text だけの時は、案の構造を前提にする確かめを飛ばし、今の事前審査の md（`workflows/plan-review/commands/plan-review.md`）が持つ 8 種の確かめと欠陥の重さの定義だけを当てる（入口の workflow のため。棚卸しの 5 節）。入力 `proposal` file か text・`purpose`・`design` file・`world_rows` file・`structure` file・`policy` file・`tree` flag（項目ごとの下請けで木にするか。line が深さの表から引く）。出力 `holes`・`deviations`（定石や独立設計からの外れと、その出どころ）。承認ノードを聞かずに通してよいかは line が決める（1.2 の U）。
 
 ### 8.3 修正
 
@@ -353,18 +359,18 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 
 元の works の `works/docs/keep-essence.md` の 12 の仕組み。block の試験の欄の「（作る）」は、今の守りが lib の中の関数を直に呼ぶ試験で、その中身を割ると試験ごと消えるので、block の振る舞いの試験として作り直す物。今の守りの名は、作り直しの元として書く。
 
-1. 赤緑の機械の判定 → 持ち主 tdd（loop の中）と fix（受け付けの後の確かめ直し）。読み手 report。今の守り `lib/tests/test_blk_fix_tdd.py::TestRedCheck`・`lib/tests/test_fix_gates.py::TestRedGreen`・`tests/workflows/test_test_gate.py::SuiteLoopCase.test_written_runner_feeds_the_red_green_check`。新しい守り `tests/blocks/tdd/` の standalone の赤緑の試験（作る）。
-2. 元から赤のテストの区別 → 持ち主 test-gate。読み手 tdd・fix。今の守り `lib/tests/test_baseline_red.py`・`tests/workflows/test_test_gate.py::ResultScriptCase`。新しい守り `tests/blocks/test-gate/`（作る）と `lib/tests/test_baseline_red.py`（KEEP）。
-3. テストの凍結と、許す道は 1 本 → 持ち主 tdd（hash を取る）と fix（受け付けで確かめる）。許しを出すのは fix の裁定・plan・案の直し・範囲の相談。今は `lib/conflict.py::test_permits` の 1 つの関数が「1 本」を担う。block に割ると崩れる余地があるので、許しを 1 つの port（fix と tdd の入力 `permits`）にまとめ、許しの出どころを数える試験を作る（作る）。今の守り `lib/tests/test_tdd_frozen.py::FrozenRuledScopeCase`・`lib/tests/test_conflict_kinds.py::TestReplanState.test_permit_sources_are_read_in_one_place`。
-4. 3 回拒まれたら諦める → 持ち主 tdd と fix（loop の数え `lib/rolekit.py` は KEEP）。今の守り `tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit` ほか。新しい守り `tests/blocks/fix/`・`tests/blocks/tdd/`（作る）。
-5. 書き込みの出どころの突き合わせ → 持ち主 fix・tdd・delta-review（`lib/writes.py` は KEEP）。フックを置くのは `bin/`。今の守り `lib/tests/test_writes.py::TestProvenance`・`tests/bin/test_record_write.py`（どちらも KEEP）。
-6. 当たる試験を選んで回し、回さなかった試験を名で残す → 持ち主 fix。読み手 test-gate・line の最後の承認ノード・report。今の守り `lib/tests/test_impact.py`（KEEP）・`lib/tests/test_tdd_outside.py`（MOVE tdd）・`tests/workflows/test_line.py::AskFinalReadsCase.test_final_text_lists_suites_baseline_and_left_tests`（新しい line へ）。
-7. class_query の数え直し → 探し方を作るのは diagnose、数え直すのは fix。今の守り `lib/tests/test_judge_accept.py::JudgeTakeCase`（MOVE diagnose）・`lib/tests/test_fix_units.py`（MOVE fix）・`lib/tests/test_fix_seams.py::RecountSeamCase`（KEEP。中の継ぎ目の試験なので、fix の振る舞いの試験に作り直す）。e2e の `tests/e2e/evidence.json` の J70・J71・F122・F123 は本物の run で見えている。
-8. 食い違いの申し出と、読むだけの裁定役 → 持ち主 fix（tdd も申し出を出す）。読み手 line の最後の承認ノード・plan-review・report。今の守り `lib/tests/test_conflict_kinds.py`・`lib/tests/test_fix_seams.py` の 3 本・`tests/layers/test_readonly_nodes.py`（裁定役が読むだけ）・筋書き `workflows/line/fixtures/conflict-ask.stubs.yaml`。fix の振る舞いの試験（作る）。
-9. 独立設計と R1〜R4 → 持ち主 independent-design（目的だけを受ける port の形そのものが独立の守りになる）。読み手 plan-review・r2。R1〜R4 は r1〜r4。今の守り `tests/workflows/test_plan_review.py::IsolationCase.test_r2_prep_reads_only_the_allowed_names`・`tests/workflows/test_eyes.py::ShapeCase`。新しい守りは `tests/blocks/independent-design/` の「入力は `purpose` だけ」の yes/no（作る）。
-10. 守りのファイルに触れたら最後の承認ノードを開く → 当たりを見るのは merge（今は eyes の中。13 節）。読み手 line の最後の承認ノードと `bin/apply`。今の守り `tests/workflows/test_merge.py::ApplyTest.test_no_answer_and_protected_hit_refuses`・`lib/tests/test_protect.py`（KEEP）・筋書き `workflows/line/fixtures/eyes-failed-protected.stubs.yaml`。e2e の種は守りのパスに当たらないので、本物の run では通っていない。
+1. 赤緑の機械の判定 → 担う block tdd（loop の中）と fix（受け付けの後の確かめ直し）。読み手 report。今の守り `lib/tests/test_blk_fix_tdd.py::TestRedCheck`・`lib/tests/test_fix_gates.py::TestRedGreen`・`tests/workflows/test_test_gate.py::SuiteLoopCase.test_written_runner_feeds_the_red_green_check`。新しい守り `tests/blocks/tdd/` の standalone の赤緑の試験（作る）。
+2. 元から赤のテストの区別 → 担う block test-gate。読み手 tdd・fix。今の守り `lib/tests/test_baseline_red.py`・`tests/workflows/test_test_gate.py::ResultScriptCase`。新しい守り `tests/blocks/test-gate/`（作る）と `lib/tests/test_baseline_red.py`（KEEP）。
+3. テストの凍結と、許す道は 1 本 → 担う block tdd（hash を取る）と fix（受け付けで確かめる）。許しを出すのは fix の裁定・plan・案の直し・範囲の相談。今は `lib/conflict.py::test_permits` の 1 つの関数が「1 本」を担う。block に割ると崩れる余地があるので、許しを 1 つの port（fix と tdd の入力 `permits`）にまとめ、許しの出どころを数える試験を作る（作る）。今の守り `lib/tests/test_tdd_frozen.py::FrozenRuledScopeCase`・`lib/tests/test_conflict_kinds.py::TestReplanState.test_permit_sources_are_read_in_one_place`。
+4. 3 回拒まれたら諦める → 担う block tdd と fix（loop の数え `lib/rolekit.py` は KEEP）。今の守り `tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit` ほか。新しい守り `tests/blocks/fix/`・`tests/blocks/tdd/`（作る）。
+5. 書き込みの出どころの突き合わせ → 担う block fix・tdd・delta-review（`lib/writes.py` は KEEP）。フックを置くのは `bin/`。今の守り `lib/tests/test_writes.py::TestProvenance`・`tests/bin/test_record_write.py`（どちらも KEEP）。
+6. 当たる試験を選んで回し、回さなかった試験を名で残す → 担う block fix。読み手 test-gate・line の最後の承認ノード・report。今の守り `lib/tests/test_impact.py`（KEEP）・`lib/tests/test_tdd_outside.py`（MOVE tdd）・`tests/workflows/test_line.py::AskFinalReadsCase.test_final_text_lists_suites_baseline_and_left_tests`（新しい line へ）。
+7. class_query の数え直し（判定役が欠陥ごとに書く探し方〔grep の型と対象のパス〕で、修正の前と後の件数を機械が数え直す）→ 探し方を作るのは diagnose、数え直すのは fix。今の守り `lib/tests/test_judge_accept.py::JudgeTakeCase`（MOVE diagnose）・`lib/tests/test_fix_units.py`（MOVE fix）・`lib/tests/test_fix_seams.py::RecountSeamCase`（KEEP。中の継ぎ目の試験なので、fix の振る舞いの試験に作り直す）。通しの run の記録の照らしの表 `tests/e2e/evidence.json` の J70・J71・F122・F123 の行で、本物の run の記録に印が見えている。
+8. 食い違いの申し出と、読むだけの裁定役 → 担う block fix（tdd も申し出を出す）。読み手 line の最後の承認ノード・plan-review・report。今の守り `lib/tests/test_conflict_kinds.py`・`lib/tests/test_fix_seams.py` の 3 本・`tests/layers/test_readonly_nodes.py`（裁定役が読むだけ）・筋書き `workflows/line/fixtures/conflict-ask.stubs.yaml`。fix の振る舞いの試験（作る）。
+9. 独立設計と R1〜R4 → 担う block independent-design（目的だけを受ける port の形そのものが独立の守りになる）。読み手 plan-review・r2。R1〜R4 は r1〜r4。今の守り `tests/workflows/test_plan_review.py::IsolationCase.test_r2_prep_reads_only_the_allowed_names`・`tests/workflows/test_eyes.py::ShapeCase`。新しい守りは `tests/blocks/independent-design/` の「入力は `purpose` だけ」の yes/no（作る）。
+10. 守りのファイルに触れたら最後の承認ノードを開く → 当たりを見るのは merge（今は eyes の中。13 節）。読み手 line の最後の承認ノードと `bin/apply`。今の守り `tests/workflows/test_merge.py::ApplyTest.test_no_answer_and_protected_hit_refuses`・`lib/tests/test_protect.py`（KEEP）・筋書き `workflows/line/fixtures/eyes-failed-protected.stubs.yaml`。通しの試験の小さな対象のリポジトリ（`tests/e2e/target-seed/`）は守りのファイルに触れない作りなので、この仕組みは本物の run ではまだ一度も通っていない。
 11. 直す単位ごとの記録が報告と最後の承認ノードに届く → 書くのは tdd と fix、読むのは report と line。block をまたぐので、tdd の出力 `units` の形を試す試験と、report が `sections` で受ける試験を作る（作る）。今の守り `lib/tests/test_runreport.py::TddCase`・`tests/workflows/test_line.py::AskFinalReadsCase.test_fix_beside_files_reach_the_final_gate`。
-12. 世界の解に照らす → 持ち主 world。読み手 diagnose・plan（行ごとに答えさせる）・plan-review（依頼を出どころにした外れを人に回す）・line の修正前の承認ノード。今の守り `lib/tests/test_world_check.py::Verify`・`lib/tests/test_blk_world.py::Classes`（MOVE world）・`tests/workflows/test_plan.py::AcceptCase.test_world_row_needs_answer`・`tests/workflows/test_plan_review.py::WorldGateCase.test_deviation_cited_to_request_goes_to_human`・筋書き `workflows/judge/fixtures/world-offline.stubs.yaml`。詳しくは [world.md](world.md) の 8 節。
+12. 世界の解に照らす → 担う block world。読み手 diagnose・plan（行ごとに答えさせる）・plan-review（依頼を出どころにした外れを人に回す）・line の修正前の承認ノード。今の守り `lib/tests/test_world_check.py::Verify`・`lib/tests/test_blk_world.py::Classes`（MOVE world）・`tests/workflows/test_plan.py::AcceptCase.test_world_row_needs_answer`・`tests/workflows/test_plan_review.py::WorldGateCase.test_deviation_cited_to_request_goes_to_human`・筋書き `workflows/judge/fixtures/world-offline.stubs.yaml`。詳しくは [world.md](world.md) の 8 節。
 
 ## 11 作る順・並べ方・組み込み・確かめ
 
@@ -429,4 +435,4 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - `prompt:` に大きい指示（数十 KB）を `$<id>.output.prompt` で入れた時に、Archon の出力の大きさの上限に当たらないか。
 - `graphloops/engine/validator.py` を消せるか（判定の受け付けが頼る所）。
 - `lib/downgrades.json` と `lib/design-row.schema.json` の使い手。
-- 1 節の変更の種類の数と、1.1 の変更の歩かせ（別の作業が書く）。
+- 1.3 の変更の歩かせ（別の作業が書く。埋まるまで 1.2 の割り当ては暫定）。
