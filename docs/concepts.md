@@ -110,10 +110,10 @@
 ### `depth` 単位ごとの深さ
 
 - 状態: 住処あり
-- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・修正の後に上げる信号 `outside_cited`（引用の外の差分）・`late_signals`（引用の外の差分・TDD の拒否・範囲の相談の理由）・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの段の省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）
+- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・修正の後に上げる信号 `outside_cited`（引用の外の差分）・`late_signals`（引用の外の差分・TDD の拒否・範囲の相談の理由）・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの段の省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）と、修正の後の上げ直しの数え `lib/latedepth.py` の `signals`（修正のサブグラフの中の上げ直しとメイングラフの `redepth` が呼ぶ 1 か所。控えが無い時の訳 `NO_LATE_RECORD` と、読めない控えを上げる側へ倒す信号 `LATE_UNREAD`）
 - 約束: 計画の出力 `depth`（`[{unit_id, depth, why}]`。depth は `軽量`・`標準`）と、修正と目のサブグラフへ渡す run の頭の深さの語（平の入力 `head_depth`）。run の頭の深さの語（`軽量`・`標準`・`重厚`）は判定の出力 `depth` で、表 `TIERS` が定義する
 - 知ってよい所: 住処と、メイングラフ `workflows/line/`（始めのノードの入力 `thickness` の確かめと、直した後の上げ直しのノード `redepth`）
-- 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所
+- 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所。控えの扱いの字の柵は、`lib/latedepth.py` の外に字が無いことを見る（漏れ無し）
 
 ### `features` 機能の切り替え
 
@@ -168,7 +168,7 @@
 - 状態: 住処あり
 - 住処: `lib/planrange.py`（項目の範囲の glob の並び `item_globs`・項目の範囲 `inside`・`out_of_scope` の当たり `oos_hit`・`oos_hit_for`・範囲の相談の合意 `with_agreed`・パスを結ぶ項目 `owner`・許しのパス `permit_paths`・単位に結べないパスの外れ `outside`・共有ボードで照らす `check_paths`）
 - 約束: 修正案の項目の欄 `allowed_paths`・`out_of_scope`・`files`（ファイル構成の行。行の型 `FILES_SCHEMA`）・`depends_on`（欄の型と読みは `lib/planmarks.py`）
-- 知ってよい所: 住処と、glob の当て方の下回りと項目の欄の読みを持つ `lib/planmarks.py`（`glob_match`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `lib/planscope.py`・手直しの受け付け `lib/refix.py`・波及の照らし `lib/ripple.py` の `_covered`・穴の名札の path の規則 `lib/holeties.py`（`inside`）・修正の組分け `lib/fixboard.py` の `fix_groups`（`item_globs`）・役の brief の範囲の欄を組む `lib/fixboard.py` の `scope_brief` で、どれも住処を呼ぶ
+- 知ってよい所: 住処と、glob の当て方の下回り `lib/globs.py`（`glob_match`・`glob_problem`・`globs_meet`）と、項目の欄の読みを持つ `lib/planmarks.py`（`glob_match` を呼ぶ `gaps`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `lib/planscope.py`・手直しの受け付け `lib/refix.py`・波及の照らし `lib/ripple.py` の `_covered`・穴の名札の path の規則 `lib/holeties.py`（`inside`）・修正の組分け `lib/fixboard.py` の `fix_groups`（`item_globs`）・役の brief の範囲の欄を組む `lib/fixboard.py` の `scope_brief` で、どれも住処を呼ぶ
 - 今: 同じ当て方を手で書く所が残る（`lib/consult.py`。`out_of_scope` に当たるパスを範囲から除く別の決まりで、`inside` に寄せると振る舞いが変わる。柵の表の既知の漏れ）。`lib/protect.py` は守りのファイルの型を同じ下回りで当てる別の考え
 
 ### `test-files` テストのファイルの見分け

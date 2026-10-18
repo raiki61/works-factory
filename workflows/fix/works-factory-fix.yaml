@@ -368,6 +368,15 @@ nodes:
                       type: array
                       items: {type: string, minLength: 3, pattern: '\S[\s\S]{1,}\S'}
                     request_searched: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+                    ask_why:
+                      type: object
+                      additionalProperties: false
+                      required: [changes, line]
+                      properties:
+                        changes:
+                          type: string
+                          enum: [direction, scope, name_only]
+                        line: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
                     query:
                       type: object
                       additionalProperties: false

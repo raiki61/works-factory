@@ -700,83 +700,21 @@ class ScopeFieldsCase(PlanFieldsCase):
                 self.assertTrue(any(x.startswith("plan[0].allowed_paths[0]") for x in got), got)
         self.assertEqual(planmarks.gaps({"plan": [item(allowed_paths=["stats.py", "docs/**/*.md"])]}, self.repo), [])
 
-    def test_glob_without_a_literal_character_is_a_whole_tree_allowance(self):
-        """字の無い glob（* と ? と [..] と / と . だけ）は全部に当たり得る丸ごとの許しなので拒む（**/?* は全部の段が * か ** でないが
-        全部のファイルに当たる。無人の run は範囲を広げるだけの案の直しを関所なしに通すので、ここで止める）。字の在る glob は通す"""
+    def test_gaps_reject_whole_tree_allowance(self):
+        """字の無い glob（丸ごとの許し。読みは test_globs）を allowed_paths に書いた案は拒む（無人の run は範囲を広げるだけの案の直しを
+        関所なしに通すので、ここで止める）"""
         for g in ("**/?*", "?*", "?", "*/?", "**/[a-z]*", "[!.]*", "**/*?", "*/**/*", "[]]*",
-                  "**/*.*", "*.*", "**/.*"):   # 字が . だけの glob も拡張子を持つ全部・隠しの全部に当たる
+                  "**/*.*", "*.*", "**/.*", "**/", "*/"):
             with self.subTest(g):
-                self.assertIn("丸ごと", planmarks.glob_problem(g) or "")
                 got = planmarks.gaps({"plan": [item(allowed_paths=[g])]}, self.repo)
                 self.assertTrue(any(x.startswith("plan[0].allowed_paths[0]") for x in got), got)
-        for g in ("*.py", "**/*.md", "src/**", "a?.py", "[ab].py", "docs/*", "**/test_*.py", "x", ".github/**"):
-            with self.subTest(g):
-                self.assertIsNone(planmarks.glob_problem(g))
 
-    def test_globs_meet_only_says_no_when_no_path_can_match_both(self):
-        for a, b in (("stats.py", "stats.py"), ("lib/a.py", "lib/*.py"), ("lib/**", "lib/x/y.py"), ("**/x.py", "a/x.py"),
-                     ("tests/test_*.py", "tests/test_a*.py")):
-            with self.subTest(a=a, b=b):
-                self.assertTrue(planmarks.globs_meet(a, b))
-                self.assertTrue(planmarks.globs_meet(b, a))
-        for a, b in (("lib/a.py", "lib/b.py"), ("lib/*.py", "lib/*.md"), ("docs/**", "lib/**"), ("lib/*.py", "lib/x/a.py")):
-            with self.subTest(a=a, b=b):
-                self.assertFalse(planmarks.globs_meet(a, b))
-                self.assertFalse(planmarks.globs_meet(b, a))
-
-    def test_globs_meet_is_true_when_an_argument_is_not_a_string(self):
-        """文字列でない引数は言い切れない時なので、交わると見る（組分けの保守側）"""
-        for a, b in ((None, "a"), ("a", None), ("a", 1), (1, "a")):
-            with self.subTest(a=a, b=b):
-                self.assertTrue(planmarks.globs_meet(a, b))
-
-    def test_globs_meet_reads_trailing_slash_like_glob_match(self):
-        """末尾 / はその下の全部（glob_match と同じ _dir_glob の 1 か所から引く）と読む: 'a/' は 'a' と交わらず、a/x・a/** と交わり、
-        同じパスに当たる glob の対は交わる"""
-        self.assertFalse(planmarks.globs_meet("a/", "a"))
-        self.assertFalse(planmarks.globs_meet("a", "a/"))
-        self.assertTrue(planmarks.globs_meet("a/", "a/x"))
-        self.assertTrue(planmarks.globs_meet("a/", "a/**"))
-        globs = ["a/", "a", "a/*", "a/**", "lib/*.py", "lib/a.py"]
-        paths = ["a/", "a", "a/x", "a/x/y", "lib/a.py"]
-        for x in globs:
-            for y in globs:
-                for p in paths:
-                    if planmarks.glob_match(p, x) and planmarks.glob_match(p, y):
-                        with self.subTest(x=x, y=y, path=p):
-                            self.assertTrue(planmarks.globs_meet(x, y))
-        for g in ("a/", "a/**/", "lib/*/"):
-            for p in ("a", "a/x", "a/x/y", "lib", "lib/a", "lib/a/x.py"):
-                with self.subTest(glob=g, path=p):
-                    self.assertEqual(planmarks.glob_match(p, g), planmarks.globs_meet(g, p))
-
-    def test_glob_problem_reads_trailing_slash_as_dir_and_rejects_doubled_slash(self):
-        """末尾 / はその下の全部（'/**' と同じ）と読む: 'lib/'・'a/**/'・'lib/*/' は通し、整えない綴り 'lib//'・'a//' と丸ごとの許し
-        '**/'・'*/' は拒む"""
-        for g in ("lib/", "a/**/", "lib/*/"):
-            with self.subTest(g):
-                self.assertIsNone(planmarks.glob_problem(g))
-        for g in ("lib//", "a//"):
-            with self.subTest(g):
-                self.assertIn("整えた形でない", planmarks.glob_problem(g) or "")
-        for g in ("**/", "*/"):
-            with self.subTest(g):
-                self.assertIn("丸ごと", planmarks.glob_problem(g) or "")
+    def test_gaps_read_trailing_slash_as_dir_and_reject_doubled_slash(self):
         got = planmarks.gaps({"plan": [item(allowed_paths=["lib//"])]}, self.repo)
         self.assertTrue(any(x.startswith("plan[0].allowed_paths[0]") for x in got), got)
         got = planmarks.gaps({"plan": [item(allowed_paths=["lib/"])]}, self.repo)
         self.assertFalse(any(x.startswith("plan[0].allowed_paths[0]") for x in got), got)
 
-    def test_glob_match_reads_trailing_slash_as_everything_underneath(self):
-        """末尾 / の glob は根からの相対の 'lib/**' と読む: その下のどの深さにも当たり、'lib' そのもの・名の似た別のディレクトリ・
-        深い所の同じ名には当たらない"""
-        for p in ("lib/planmarks.py", "lib/a/x.py", "lib/"):
-            with self.subTest(p):
-                self.assertTrue(planmarks.glob_match(p, "lib/"))
-        self.assertTrue(planmarks.glob_match("lib/t/x.py", "lib/*/"))
-        for p in ("lib", "libx/a.py", "docs/lib/a.py"):
-            with self.subTest(p):
-                self.assertFalse(planmarks.glob_match(p, "lib/"))
 
     def test_gaps_out_of_scope_rows(self):
         bad = [{"glob": "../x.py", "why": "根の外は触らない（試験の材料）"}]

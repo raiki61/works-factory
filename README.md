@@ -1,142 +1,202 @@
 # works-factory
 
-works-factory は、どのリポジトリにも使える修正の工場。直してほしい事（修正依頼か GitHub の issue）を渡すと、確かめ済みの変更と報告を返す。工場は、まず何が問題かを判定し、直し方を計画し、その計画を別の目に審査させる。直す前には、落ちるテストで欠陥を示す（赤の証明）。前から落ちていたテストと今回の欠陥を分ける。互いに触らない直しは別々の作業ツリーで並べて進める。対象のプロジェクト自身の確かめ（テストや CI）を走らせる。最後に、直しの経緯を知らない別の審査役が、目的だけから白紙で作った設計と突き合わせて判定する。人に聞くのは、決めた承認ノードの所だけ。
+> **Status: under construction.** The whole flow already runs with real AI roles on a request (stage 1, the first stage of the build order, issue [#154](https://github.com/raiki61/works-factory/issues/154)), but the factory has not yet caught up with the tool it replaces, the current works (see "Related projects"), and known failures remain: for example, the part of the report that an AI writes currently fails (issue [#712](https://github.com/raiki61/works-factory/issues/712)). Everything except this README is in Japanese. If you need a fix factory you can rely on today, use the current works. More in "Current status".
+>
+> Before trying it, check "Requirements". Words such as run, node, and approval node are explained in "Terms" at the end.
 
-GitHub の About: A dev factory on Archon that turns a fix request into a verified change for any repository: plans are reviewed before code is written, red tests are proven before fixes, every agent claim is checked against quoted evidence, and independent reviewers judge blind. Japanese only for now.
+works-factory is a fix factory you can point at any repository. Hand it what you want fixed (a fix request or a GitHub issue) and it returns a verified change and a report. The factory first works out what the problem is, plans the fix, and has the plan reviewed by a separate reviewer. Before fixing anything, it shows the defect with a failing test (the red proof). It separates tests that were already failing from the defect at hand. Fixes that do not overlap proceed side by side in separate worktrees. It runs the target project's own checks (its tests or CI). At the end, a separate reviewer who knows nothing about how the fix was made judges it against a design they drew up from scratch, given only the goal. A human is asked only at the approval nodes you chose (the points where a run pauses for a human). The factory runs on Archon, and borrows build patterns from ASF; both are described in "Related projects".
 
-今は日本語だけ。
+GitHub About: A dev factory on Archon that turns a fix request into a verified change for any repository: plans are reviewed before code is written, red tests are proven before fixes, every agent claim is checked against quoted evidence, and independent reviewers judge blind. Japanese only for now.
 
-## 約束すること
+For now the factory works in Japanese only: its role prompts, its messages and its reports are in Japanese, and so is every other document in this repository (`AGENTS.md`, `MISSION.md`, `docs/`). This README is the one English document.
 
-- 事実は機械が確かめる。テストが落ちたか・通ったか、何件か、どのファイルが変わったかは、AI の申告でなく機械が見る（テストの結末の JUnit XML・git の差分など）。
-- 判断には引用の証拠を要る。AI が「この理由で落ちた」「ここが原因」と言う時は、根拠の文を引かせ、その引用が実物に在るかを機械が照らす。判断の正しさは別の目が見る。
-- 持ち主の決めは言葉のまま記録し、工場に戻す。人が承認ノードで答えた事・方針として決めた事は `docs/owner-decisions.md` に言葉のまま残り、次の判断と次の run の材料になる。同じ事を二度聞かない。
-- 承認ノードを通らなかった物は取り込まない。人が最後の承認ノードで見た差分は封じられ（hash）、取り込む時に照らす。違えば止まる。
+## What it promises
 
-## 流れ
+- Facts are checked by machine. Whether a test failed or passed, how many, and which files changed are read by the machine (the tests' JUnit XML results, the git diff, and so on), not taken from what the AI reports.
+- Judgments need quoted evidence. When the AI says "it failed for this reason" or "this is the cause", it has to quote the text it relies on, and the machine checks that the quote exists in the real thing. Whether the judgment is right is checked by a separate reviewer.
+- The owner's decisions are recorded word for word and fed back into the factory. What a human answered at an approval node, and what was decided as policy, stay word for word in `docs/owner-decisions.md` and become input to the next judgment and the next run. The same question is not asked twice.
+- Nothing is applied unless it passed the approval nodes. The diff a human saw at the last approval node is sealed (hashed) and checked when it is applied. If it differs, the factory stops.
 
-1. 判定: 依頼の前提を実測し、目的を 1 文に固め、同じ種類の問題を世の中がどう解いているか（定石）を当たり、根本の欠陥を単位に切る。
-2. 計画: 単位ごとに直し方・触ってよい範囲・受け入れのテストを決める。
-3. 事前審査: 書く前に計画を叩く。別の役が目的の文だけから独立に設計し、計画と比べる。
-4. 修正: TDD（先に落ちるテストを書き、直して通す）。互いに触らない単位の組を、別の作業ツリーで並べて直す（Archon の `fan_out:`）。
-5. 試験の関門: 対象のプロジェクトの確かめを走らせ、赤の原因（今回入れた・元から・環境）を分け、緑を作業ツリーの指紋つきで認証する。
-6. 独立の目: 4 つの観点（最小か・独立設計と合うか・全体の整合・見えていない範囲）を、経緯を知らない別の会話の審査役が判定する。
-7. 報告: 結末・単位ごとの記録・人への問い・次に回す事。
+## Flow
 
-承認ノードは、始める時・直す前（聞く必要がある時）・最後の 3 か所が基本。無人で回す方針も選べる。
+1. Judge: verify the request's assumptions by measuring them, state the goal in one sentence, look up how this kind of problem is usually solved (the established practice), and split the problem into root-cause defects ("units").
+2. Plan: for each unit, decide how to fix it, what it may touch, and the acceptance tests.
+3. Plan review: attack the plan before writing code. A separate role designs independently from the goal sentence alone and compares with the plan.
+4. Fix: TDD (write a failing test first, then fix and make it pass). Groups of units that do not overlap are fixed side by side in separate worktrees (Archon's `fan_out:`).
+5. Test gate: run the target project's checks, sort the causes of red (introduced this time, already there, environment), and certify green together with a fingerprint of the worktree it was measured on.
+6. Independent eyes: reviewers in separate conversations who know nothing of the history judge from 4 viewpoints (is it minimal, does it match the independent design, is the whole consistent, what is out of view).
+7. Report: the outcome, a record per unit, questions for the human, and follow-up work to hand on to the next run.
 
-## 使い方
+By default the approval nodes are in 3 places: at the start, before fixing (when something needs asking), and at the end. You can also choose a policy that runs unattended.
 
-入口は殻 1 本 `bin/works-factory` で、人は Archon の命令をそのまま打つ（`bin/works-factory <Archon の CLI の引数>`。旗は命令の後ろに置く）。殻は認証と置き場の隔離を整え、ASF の止め（`factory/pack.json`）の版の Archon の源を取り、そこから `bun` で起こす。グラフは Archon の家に置かない。メイングラフ `works-factory-line`（`workflows/line/`）が 8 つのサブグラフ（`workflows/<名>/`）を順に include する（作りの順は `docs/design.md`）。
+## Requirements
 
-1. 入れる: Python 3.12 以上と git の在る機械で、このリポジトリを clone して `bun` を入れ、借りるプラグイン（`lib/borrow/borrow.json` の物）を Claude Code に入れる。足りなければ、殻が入れる命令を 1 行ずつ出して止まる。
-2. 始める: `bin/works-factory workflow run works-factory-line --cwd <対象> --input request=<依頼のファイル> [--input test_cmd='<1 行>']`。依頼のファイルの形は下の「依頼のファイル」、`test_cmd` は「test_cmd と作業ツリー」、run の作業ツリーがどこから切られるかは「作業ツリーの起点」。
-3. 答える: `bin/works-factory workflow respond <run> approve|stop [一言] --cwd <対象>`。家（Archon の DB）は対象ごとなので、対象の外から打つ時は `--cwd` が要る。`WORKS_FACTORY_HOME` で始めた run は、答える時も同じ値を付ける（承認ノードの文の答えの行がその形で出る）。
-4. 見る: `bin/works-factory workflow status --cwd <対象>`・`workflow get <run> --cwd <対象>`。
-5. 当てる: `bin/apply <run> --cwd <対象>`（中身は `bin/_lib/apply.py`）。封じた hash を照らしてから対象へ当てる。最後の承認ノードで止めた run は `--allow-stopped`、封じた後のノードが落ちてメイングラフの出力が読めない run は `--allow-failed`（封じのノードの出力から照らす）を付ける。
-6. CI の赤を次の依頼へ運ぶ: run の外の CI が赤と言った試験の id（1 行に 1 つ。`-` なら標準入力）を、前の run の報告が書いた次の依頼の下書きの `prior_failures` に足す: `python3 -I lib/carry.py carry-ci --request <next-request.json> --failed <試験の id のファイル> --out <next-request.json>`（同じ行は 2 度足さず、依頼の形が違えば何も書かずに終了の値 2）。
+The entry script checks Python, `bun`, Claude Code and the plugins when it starts; if one is missing, it prints what to install (one line each) and stops.
 
-- 周をつなぐ（周の鎖 `works-factory-chain`、`workflows/chain/`）: `bin/works-factory workflow run works-factory-chain --cwd <対象> --input rounds=<1〜5> [--input budget_usd=<USD>] --input request=<依頼>`。1 周がメイングラフの子の run 1 本で、残りが在れば次の依頼にして次の周を起こし、止めの語（`lib/chain.py` の `STOPS`）で止まる。`budget_usd` を付けると、次の周で上限を越えうる時と費用が読めない周が在る時に止まる。周の中の承認ノードは子の run で止まるので、答える `<run>` は子の run の id（`workflow status` で見る）で、答えると親が続く。`--no-worktree` では起こせない（周の結果を run の作業ツリーの枝へ commit するため）。当てる時は `bin/apply <鎖の run>` で、元の基から採る周（最後の周から戻って止まっていない最初の周）までの最後の差分を当てる。止まった周の差分は採らずに鎖の run の置き場に残し、周ごとの表と合計と一緒に置き場の `chain.md` に名指す。
-- 止める: 承認ノードで `workflow respond <run> stop <一言>` と打つと、メイングラフが後ろを飛ばして報告を出す（`workflow reject <run>` も同じ）。承認ノードの間で走っている run は `bin/works-factory workflow cancel <run> --cwd <対象>` で止まるが、報告は出ない。`<run>` は根の run（周の鎖なら鎖の run）の id。Archon の cancel は AI のノードのプロセス（ノードごとの Claude Code と、それが起こしたプロセス）を止めないので、殻が cancel の後に、その run と子の run のプロセス（env の `WORKFLOW_ID` が run の id の物とその子孫、走っている run なら持ち主から辿れる物）を止め、止めた物と、それでも残った物（pid とコマンドの名）を 1 行ずつ出す（`docs/polyfills.md` の P13）。持ち主から辿らなかった時（run が走っていない・子の run・持ち主が別の機械に居るなど）はその訳を、env を読めない時は手で探す命令を 1 行で出す。前で起こした run（`--detach` の無い `workflow run`）は Archon の cancel が拒むが、殻が持ち主ごと止めて 0 で抜ける（Archon の拒みの文の割り込みは要らない）。その run は failed になる。続けるなら `workflow resume <run>`、続けないなら `workflow abandon <run>` で手放す。前の命令を Ctrl-C で止めた run も AI のノードのプロセスが残るので、cancel を打つと殻がそれを止める。子の run の id だけを cancel すると、その子の run（と孫の run）のプロセスだけを止める。
-- 自分のグラフ（`workflows/`）を Archon に渡すのは `workflow run` の時だけ。`trigger`・`chat` には渡らない。
-- run は始めに `workflows/` だけを写し取るので、走っている間にこのリポジトリの `lib/` を変えると、その run に効く。
-- 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス。家・対象・Archon の源の取り置き（`XDG_CACHE_HOME`）が実パスで `/tmp/claude-*` の下なら、役の sandbox が書ける置き場なので拒む。家がこの checkout の下でも、読むだけの役の書き込みの柵が checkout を丸ごと禁じて役が家に書けないので拒む。checkout の外を選ぶ）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れ、役を起こす本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す。殻は役との間に書き込みの柵の包みを置く。殻を起こす env に置く。起こす場所・`--cwd`・対象の根の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env` が名指すと、包みが外れるので殻は止まる。同じファイルが包みの記録 `WORKS_FACTORY_FENCE_RECORDS` を名指しても止まる）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）・`WORKS_FACTORY_ALLOW_TESTCMD=1`（対象の手元を走らせる形の `test_cmd` でも run を止めずに進める。下の「test_cmd と作業ツリー」）。
-- 対象の試験・受け入れ・TDD の試験のコマンドは、いつも利用者の HOME・XDG で走る（隔離した置き場ではない。道具が設定・信頼・キャッシュ・認証を見失わないため。Archon・役の Bash・工場の script 自身は隔離のまま）。AI が書いた試験のコードを、あなたの権限（利用者の HOME・XDG）で走らせる。書く物も利用者の家に入る。守りが要るなら工場ごとコンテナか VM の中で回す。実行する run を起こすたびに、殻が標準エラーへ同じ告知を 1 行出す。
-- 対象のリポジトリが頼れる印: 役の claude と、その子（役の Bash が起こす対象のテストなど）には `GRAPHLOOPS_ENGINE_CHILD=1` が立つ。対象の重い一式（e2e など）はこの値で AI の役からの起動を見分けて拒める。メイングラフの最後のテストなど script ノードが走らせる物には立たない。
-- ログインの資格は数時間で切れるので、長い run は `claude setup-token` で作ったトークンを `CLAUDE_CODE_OAUTH_TOKEN` に置いて殻を起こす。
+- Python 3.12 or later (the entry script `bin/works-factory` refuses older versions).
+- git.
+- `bun` (https://bun.sh). The script uses it to start Archon.
+- A clone of this repository: `git clone https://github.com/raiki61/works-factory`.
+- Network access to GitHub on the first start: the script clones the Archon source at the pinned commit (`factory/pack.json`) into a cache and reuses it after that.
+- Claude Code (the `claude` command), logged in. Your normal login is used; for long runs see `CLAUDE_CODE_OAUTH_TOKEN` under "Usage".
+- The Claude Code plugin `pr-review-toolkit` from the `claude-plugins-official` marketplace (`anthropics/claude-plugins-official`), installed in your normal Claude Code: `claude plugin marketplace add anthropics/claude-plugins-official`, then `claude plugin install pr-review-toolkit@claude-plugins-official`. The script copies it from there into the isolated settings the roles use.
+- Optional: the GitHub CLI `gh`, logged in. Needed when a request names a PR or an issue (the run reads them with `gh`). Without it, the run cannot read them and records them as not read; the check for other open PRs is then left to an AI role.
+- Optional: the Claude Code plugin coldwrite (a document check from raiki61/claude-plugins; you can skip it). It is used only when you set `WORKS_FACTORY_COLDWRITE_MARKETPLACE` and `WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`; otherwise the script prints one line and goes on without it.
+- A target repository that is a git repository with at least one commit and a remote (Archon refuses a target without a remote; see "Worktree start point").
+- Budget for the model usage. For scale: the stage 1 runs on a small target cost about 7 to 10 US dollars each and took about 15 minutes, not counting time waiting at approval nodes ("作りの順" (build order) in `docs/design.md`).
+- Be aware that test code the AI wrote runs with your own rights (your HOME and XDG). If you need protection, run the whole factory inside a container or VM (details under "Usage").
 
-Claude Code からは `/works`（raiki61/claude-plugins の works プラグイン）で同じ事ができるようになる。
+You do not install superpowers yourself: the factory carries a pinned copy of the skills it uses (`lib/borrow/superpowers/`). The list of what is borrowed is `lib/borrow/borrow.json`. Running this repository's own tests (not needed to use the factory) also needs `uv` (see `tests/AGENTS.md`).
 
-### 依頼のファイル
+## Usage
 
-`--input request=<パス>` は、直してほしい事を書いた JSON のファイルのパス。相対のパスは run の作業ツリーの根から読む（並びは対象の根と同じ）。対象の中に置いた commit していないファイルも、下の「作業ツリーの起点」の包みで run の作業ツリーに入るが、run の起点の commit に依頼が混ざらないよう、対象の外に置いて絶対パスで渡すとよい。
+The entry point is a single shell script, `bin/works-factory`, and you type Archon's commands as they are (`bin/works-factory <Archon CLI arguments>`; put flags after the command). The script sets up authentication and an isolated home (a separate state directory), fetches the Archon source at the version pinned by ASF (`factory/pack.json`), and starts it from there with `bun`. The graphs are not placed in Archon's home (its state directory). The main graph `works-factory-line` (`workflows/line/`) includes the 8 subgraphs (`workflows/<name>/`) in order (the build order is in `docs/design.md`).
 
-形は 2 つのどちらか。
+1. Install: clone this repository and install what "Requirements" lists. If anything is missing, the script prints the install commands one per line and stops.
+2. Start: `bin/works-factory workflow run works-factory-line --cwd <target> --input request=<request file> [--input test_cmd='<one line>']`. The request file format is in "Request file" below, `test_cmd` in "test_cmd and worktrees", and where the run's worktree is created from in "Worktree start point".
+3. Answer: `bin/works-factory workflow respond <run> approve|stop [a short note] --cwd <target>`. Archon's home (its DB) is per target, so you need `--cwd` when typing from outside the target. A run started with `WORKS_FACTORY_HOME` needs the same value when you answer (the answer line in the approval node's text comes out in that form).
+4. Watch: `bin/works-factory workflow status --cwd <target>` and `workflow get <run> --cwd <target>`.
+5. Apply: `bin/apply <run> --cwd <target>` (the implementation is `bin/_lib/apply.py`). It checks the sealed hash, then applies the change to the target. For a run stopped at the last approval node add `--allow-stopped`; for a run whose main-graph output cannot be read because a node after the seal failed, add `--allow-failed` (it checks against the sealing node's output).
+6. Carry CI failures into the next request: add the test ids that CI outside the run reported as failing (one per line; `-` reads standard input) to `prior_failures` in the next-request draft the previous run's report wrote: `python3 -I lib/carry.py carry-ci --request <next-request.json> --failed <test-ids-file> --out <next-request.json>` (the same line is never added twice; if the request has the wrong shape it writes nothing and exits with 2).
 
-- 所見（findings）の配列だけ
-- `findings`・`pr`・`issue`・`answers`・`prior_failures`・`constraints` を鍵に持つ object（どの鍵も省ける。知らない鍵は拒む）
+- Chaining rounds (the round chain `works-factory-chain`, `workflows/chain/`): `bin/works-factory workflow run works-factory-chain --cwd <target> --input rounds=<1-5> [--input budget_usd=<USD>] --input request=<request>`. Each round is one child run of the main graph; if anything remains, it becomes the next request and starts the next round, and the chain stops on a stop word (`STOPS` in `lib/chain.py`). With `budget_usd`, it stops when the next round could go over the limit and when a round's cost cannot be read. Approval nodes inside a round stop in the child run, so the `<run>` you answer is the child run's id (see it with `workflow status`); once you answer, the parent continues. It cannot be started with `--no-worktree` (it commits each round's result onto the branch of the run's worktree). To apply, use `bin/apply <chain run>`; it applies the cumulative diff from the original base through the round it takes, which is the last round that did not stop (searching back from the final round). Diffs of stopped rounds are not taken; they are left in the chain run's directory and named in that directory's `chain.md` together with a per-round table and the totals.
+- Stopping: answering an approval node with `workflow respond <run> stop <note>` makes the main graph skip the rest and write the report (`workflow reject <run>` does the same). A run that is running between approval nodes stops with `bin/works-factory workflow cancel <run> --cwd <target>`, but then no report is written. `<run>` is the id of the root run (for a round chain, the chain run). Archon's cancel does not stop the AI nodes' processes (the Claude Code of each node and the processes it started), so after the cancel the script stops the processes of that run and its child runs (those whose env `WORKFLOW_ID` is the run id and their descendants, and, for a running run, those reachable from the run's owner process), and prints what it stopped and what still remains (pid and command name), one per line (P13 in `docs/polyfills.md`). When it did not trace from the owner process (the run is not running, it is a child run, the owner process is on another machine, and so on) it prints the reason, and when it cannot read the env it prints a one-line command to search by hand. A run started in the foreground (`workflow run` without `--detach`) is refused by Archon's cancel, but the script stops it together with its owner process and exits 0 (no need to intercept Archon's refusal text). That run ends up failed. To continue, `workflow resume <run>`; to give it up, `workflow abandon <run>`. A run whose foreground command you stopped with Ctrl-C also leaves AI-node processes behind, so typing cancel makes the script stop them. Cancelling only a child run's id stops only the processes of that child run (and its grandchild runs).
+- This factory's graphs (`workflows/`) are passed to Archon only for `workflow run`. They do not reach `trigger` or `chat`.
+- A run copies only `workflows/` at its start, so changing this repository's `lib/` while it runs affects that run.
+- Optional settings are environment variables (with none set, it runs on your existing Claude Code and gh logins):
+  - `WORKS_FACTORY_HOME`: where Archon's home lives; an absolute path. If the home, the target, or the cache of the Archon source (`XDG_CACHE_HOME`) resolves under `/tmp/claude-*`, that is a place the roles' sandbox can write to, so it is refused. A home under this checkout is also refused: the write fence of the read-only roles forbids the whole checkout, so the roles could not write to the home. Choose a place outside the checkout.
+  - `WORKS_FACTORY_KEYCHAIN_ITEM`: choose the Claude account by keychain item name.
+  - `WORKS_FACTORY_NO_AUTH=1`: skip the authentication setup.
+  - `CLAUDE_BIN_PATH`: the absolute path of the real claude that installs the plugins into the isolated settings and starts the roles; if unset, it is searched for in the absolute entries of `PATH`. The script puts a write-fence wrapper between itself and the roles. Set this variable in the env that starts the script. If it is set in the `.env` of the directory you start from or of `--cwd`, in the target root's `.env`, `.env.local`, `.env.development`, `.env.production` or `.archon/.env`, or in the `.env` in Archon's home, the wrapper would be bypassed, so the script stops. It also stops if the same files set the wrapper's record `WORKS_FACTORY_FENCE_RECORDS`.
+  - `WORKS_FACTORY_COLDWRITE_MARKETPLACE` and `WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`: when borrowing coldwrite.
+  - `WORKS_FACTORY_ALLOW_TESTCMD=1`: go ahead without stopping the run even when `test_cmd` runs the target's local checkout; see "test_cmd and worktrees" below.
+- The target's test, acceptance, and TDD test commands always run with your HOME and XDG (not the isolated home, so that tools do not lose their settings, trust, caches, or credentials; Archon, the roles' Bash, and the factory's own scripts stay isolated). Test code the AI wrote runs with your privileges (your HOME and XDG), and whatever it writes goes into your own home directory. If you need protection, run the whole factory inside a container or VM. Every time it starts a run that executes such commands, the script prints the same notice once to standard error. It is in Japanese and says the two sentences above: `AI が書いた試験のコードを、あなたの権限（利用者の HOME・XDG）で走らせる。書く物も利用者の家に入る。守りが要るなら工場ごとコンテナか VM の中で回す`
+- A marker the target repository can rely on: the role's claude and its children (such as the target's tests started by the role's Bash) get `GRAPHLOOPS_ENGINE_CHILD=1`. A target's heavy suites (such as e2e) can use this value to recognize a start from an AI role and refuse. It is not set for what script nodes run, such as the main graph's final tests.
+- Login credentials expire after a few hours, so for long runs put a token made with `claude setup-token` in `CLAUDE_CODE_OAUTH_TOKEN` when starting the script.
 
-所見の行は `where`（どこか）と `text`（何が起きているか）が要り、`mechanism`（なぜ起きるか）・`measured`（どう測ったか）・`false_positive_if`（どうなら誤報か）を足せる。`pr`・`issue` は番号の配列。`answers` は前の run が聞いた問い（問いの key か、測れていない確かめの名。例: CI の `local_checks`）への答えで、行は `question`・`text`（命令と出力で答える時は `command` と `output` を両方）。`prior_failures`・`constraints` は前の run の報告が書いた次の依頼の下書き（`next-request.json`）が運ぶ物で、手で書く事は少ない。
+From Claude Code, the same will be possible with `/works` (the works plugin of raiki61/claude-plugins).
+
+### Request file
+
+`--input request=<path>` is the path of a JSON file describing what you want fixed. A relative path is read from the root of the run's worktree (laid out the same as the target's root). An uncommitted file placed inside the target also reaches the run's worktree through the wrapping described in "Worktree start point" below, but to keep the request out of the run's starting commit, it is better to put it outside the target and pass an absolute path.
+
+It takes one of 2 shapes.
+
+- An array of findings only
+- An object whose keys are `findings`, `pr`, `issue`, `answers`, `prior_failures`, and `constraints` (every key is optional; unknown keys are refused)
+
+A finding row needs `where` (where) and `text` (what is happening), and can add `mechanism` (why it happens), `measured` (how it was measured), and `false_positive_if` (when it would be a false alarm). `pr` and `issue` are arrays of numbers. `answers` are answers to questions the previous run asked (the question's key, or the name of a check that could not be measured, such as CI's `local_checks`); each row has `question` and `text` (when answering with a command and its output, both `command` and `output`). `prior_failures` and `constraints` are carried by the next-request draft (`next-request.json`) the previous run's report wrote; you rarely write them by hand.
 
 ```json
 {
   "findings": [
-    {"where": "stats.py", "text": "mean([1, 2, 3]) が 2 でなく 3 を返す", "measured": "手元で mean([1, 2, 3]) を呼んで 3 を見た"},
-    {"where": "stats.py", "text": "clamp(15, 0, 10) が 10 でなく 0 を返す"}
+    {"where": "stats.py", "text": "mean([1, 2, 3]) returns 3 instead of 2", "measured": "called mean([1, 2, 3]) locally and saw 3"},
+    {"where": "stats.py", "text": "clamp(15, 0, 10) returns 0 instead of 10"}
   ],
   "answers": [
-    {"question": "local_checks", "text": "手元で CI の一式を走らせ、全部通った", "command": "make ci", "output": "ok"}
+    {"question": "local_checks", "text": "ran the whole CI suite locally and it all passed", "command": "make ci", "output": "ok"}
   ]
 }
 ```
 
-### test_cmd と作業ツリー
+### test_cmd and worktrees
 
-`--input test_cmd='<1 行>'` は、対象のテストを走らせる 1 行。run の作業ツリーの根で走る。run の作業ツリー（と、修正の段が並べて直す単位の作業ツリー）は commit から切るので、git が無視する物（依存の置き場・仮想環境・ビルドの出力・`.env` など）が無い。作業ツリーの中で環境を作ってから試験を走らせる 1 行にし、元の clone を絶対パスで指さない。対象のコマンドは利用者の HOME で走るので、`~`・`$HOME` で元の clone を指す形も同じ（run の中でも元の clone を指す）。
+`--input test_cmd='<one line>'` is one line that runs the target's tests. It runs at the root of the run's worktree. The run's worktree (and the unit worktrees in which the fix stage fixes things side by side) is created from a commit, so it lacks everything git ignores (dependency folders, virtual environments, build output, `.env`, and so on). Make it one line that sets up the environment inside the worktree and then runs the tests, and do not point at the original clone with an absolute path. The target's commands run with your HOME, so pointing at the original clone with `~` or `$HOME` is the same thing (it points at the original clone even inside the run).
 
-メイングラフの頭のノード（`testcmd`。`lib/testcmd_check.py`）が、AI を起こす前に `test_cmd` の形を確かめる。
+The main graph's head node (`testcmd`, `lib/testcmd_check.py`) checks the shape of `test_cmd` before starting any AI.
 
-- 止める形（行の頭「止める（test_cmd）」）: 対象の手元（元の clone と、`git worktree add` で作ったほかの作業ツリー）を絶対パスか `~`・`$HOME`・`${HOME}`（利用者の HOME に展開してから見る）で指す・対象を editable で入れた外の仮想環境を絶対パスか `~` などで指すか立てたまま起こす。run の試験が直しでなく手元のコードを走らせ、直しの正誤に関わらず緑になりうる。run は頭で止まり（Archon の cancel。`workflow status` に止めの理由の行が出る）、AI は起きない。止める時は run と作業ツリーを作ってから cancel するので、作業ツリーは残る。形を知った上で回すなら `WORKS_FACTORY_ALLOW_TESTCMD=1` を殻を起こす env に置く（行の頭が「注意（test_cmd）」になり、止めずに進める）。確かめそのものが落ちた時も同じに止める。
-- 注意の形（行の頭「注意（test_cmd）」）: git が無視する物を相対のパスで指す（`cd sub && .venv/bin/<試験>` など）。作業ツリーに無いので走らないが、頭では止めずに注意の行を残す。その語が `test_cmd` の最初の語なら、試験を起こす前の確かめ（`lib/tree_run.py` の `prove_launchable`）が起こさずに止め、修正の前の試験が 1 段も走らずに判定の前で止まって道具の誤りの文を見せる（下の `setup` の段落と同じ止め）。最初の語より後ろの語はその確かめが見ないので、試験は起きて落ち、赤として判定へ進む。
-- 止めずに進めた run の注意の行（許しの時の行と、注意の形の行）は、報告の冒頭（3 行と人が決める物の下）に 1 行ずつ載る。
+- Shapes that stop (lines starting with `止める（test_cmd）`, "stop"): pointing at the target's local checkout (the original clone and other worktrees made with `git worktree add`) with an absolute path or with `~`, `$HOME`, or `${HOME}` (checked after expanding to your HOME), or pointing at, or starting with activated, an outside virtual environment into which the target was installed editable, by absolute path, `~`, and so on. The run's tests would then exercise the local code instead of the fix, and could go green whether the fix is right or not. The run stops at the head (Archon's cancel; `workflow status` shows a line with the reason), and no AI is started. Because it stops by cancelling after the run and its worktree are created, the worktree remains. To run anyway knowing the shape, put `WORKS_FACTORY_ALLOW_TESTCMD=1` in the env that starts the script (the line then starts with `注意（test_cmd）` and it goes ahead without stopping). It also stops in the same way when the check itself fails.
+- Shapes that warn (lines starting with `注意（test_cmd）`, "warning"): pointing at something git ignores by a relative path (`cd sub && .venv/bin/<tests>`, and so on). It is not in the worktree, so it will not run, but the head node does not stop and leaves a warning line. If that ignored path is the first word of `test_cmd`, the check before starting the tests (`prove_launchable` in `lib/tree_run.py`) stops without starting it: not a single stage of the pre-fix tests runs, the run stops before judging, and it shows the tool-error text (the same stop as in the `setup` paragraph below). That check does not look at words after the first one, so the tests start, fail, and go on to judging as red.
+- For a run that went ahead without stopping, its warning lines (the line when allowed, and the lines for warning shapes) appear one each at the top of the report (below the report's 3-line summary and the decisions needed from you).
 
-`test_cmd` を省けば、対象の宣言 `.review-checks.json` で走らせ、それも無ければ CI の任せ先の役が対象の CI の定義から走らせ方を探す（役の緑は自己申告なので、緑の認証には数えない）。
+If you leave out `test_cmd`, the target's declaration `.review-checks.json` is used, and if that is missing too, the CI delegate role looks for how to run things from the target's CI definition (the role's green is self-reported, so it does not count toward certifying green).
 
-準備が要る道具（新しい作業ツリーを信頼しない道具など）は、宣言 `.review-checks.json` の `suite` の横に `setup`（argv の並び。例: `"setup": [["<準備のコマンド>", "<引数>"]]`）を足す。作業ツリーごとに最初の対象のコマンドの前に 1 度、利用者の HOME・XDG で走る。書く物は作業ツリーの外か `.gitignore` の下にだけ（作業ツリーに書いた物は、最初の対象のコマンドが書いた物として数えられる）。落ちたら対象のコマンドは起こさず、修正前の試験が 1 段も走らなかった run は、その誤りの文と案内を出して判定の前で止まる。`test_cmd` だけの対象も、`suite` に同じ argv を書けば `setup` を使える。
+For tools that need preparation (such as tools that do not trust a new worktree), add `setup` (a list of argv; for example `"setup": [["<prep command>", "<arg>"]]`) next to `suite` in the `.review-checks.json` declaration. It runs once per worktree before the first target command, with your HOME and XDG. It may write only outside the worktree or under `.gitignore` (anything written into the worktree is counted as written by the first target command). If it fails, the target command is not started, and a run in which not a single stage of the pre-fix tests ran stops before judging and shows the error text and guidance. A target with only `test_cmd` can also use `setup` by writing the same argv in `suite`.
 
-### 作業ツリーの起点
+### Worktree start point
 
-自分のグラフの新しい run では、殻が対象の今の姿を Archon に `--from <commit>` で渡し、Archon がそこから run の作業ツリーを切る（`bin/_lib/startpoint.py`）。
+For a new run of this factory's graphs, the script passes the target's current state to Archon as `--from <commit>`, and Archon creates the run's worktree from there (`bin/_lib/startpoint.py`).
 
-- 汚れていない対象は `HEAD`。PR の枝を checkout して頼めば、その枝から始まる。
-- commit していない変更か未追跡のファイル（git が無視する物は除く）が在れば、それを包んだ commit（親は `HEAD`）。包みは一時の index で作り、対象の作業ツリー・index・枝は動かさず、ref も付けない。殻は包んだファイルを 1 行で出す。
-- `--from <版>`・`--from-branch <枝>` を名指せば、それが勝つ。`--base <枝>`（作業ツリーの切り元と PR の基）か `--branch <枝>`（`-b`。run の枝の名）を名指した時も足さず、切り元は Archon が決める（既に在る枝の名は、切り元へ戻さずにその枝の頭のまま使い、在る作業ツリーもそのまま使う。remote にだけ在る枝は remote の頭で取り出し、手元が remote より遅れていれば進める。手元と remote が食い違うと、取り出す前に止まる）。名指した枝を対象の今の姿から切るなら `--from` も一緒に名指す。`--no-worktree`・`--folder`・`--container`・`--adopt`・`--dry-run` を付けた時と、git の木でない・commit の無い対象にも足さない。
-- remote の無い対象は Archon が直し方の 1 行を出して拒む。
-- 依頼が `pr` を名指す時は、その PR の head を checkout し、汚さずに頼む（包んだ commit は PR の head と違うので、run の始めで拒まれる）。
+- A clean target: `HEAD`. If you check out a PR's branch and make the request, it starts from that branch.
+- If there are uncommitted changes or untracked files (excluding what git ignores): a commit that wraps them (its parent is `HEAD`). The wrap is made with a temporary index; it does not move the target's worktree, index, or branch, and no ref is attached. The script prints the wrapped files in one line.
+- If you name `--from <revision>` or `--from-branch <branch>`, that wins. It also adds nothing when you name `--base <branch>` (the branch the worktree is created from and the PR's base) or `--branch <branch>` (`-b`; the run's branch name), and Archon decides where to create it from (an existing branch name is used at that branch's head without resetting it to the start point, and an existing worktree is used as it is; a branch that exists only on the remote is checked out at the remote head, and is fast-forwarded if the local one is behind the remote; if local and remote disagree, it stops before checking out). To create the named branch from the target's current state, name `--from` as well. It also adds nothing with `--no-worktree`, `--folder`, `--container`, `--adopt`, or `--dry-run`, nor for a target that is not a git tree or has no commits.
+- A target without a remote is refused by Archon with a one-line fix.
+- When the request names a `pr`, check out that PR's head and make the request without any local changes (a wrapped commit differs from the PR's head, so it is refused at the start of the run).
 
-## 作り
+## Design
 
 ```mermaid
 flowchart TB
-  entry["入口 bin/"] --> wf["グラフ workflows/"]
-  wf --> shared["境 workflows/.shared/"]
-  wf --> lib["助け手 lib/"]
+  entry["entry bin/"] --> wf["graphs workflows/"]
+  wf --> shared["boundary workflows/.shared/"]
+  wf --> lib["helpers lib/"]
 ```
 
-- 入口 `bin/`: 人が打つ口。止めた版の Archon の源を取り寄せ、そこから Archon を起こす。
-- グラフ `workflows/`: この工場のエッセンス。どの確かめと役が在り、各々が何をし、どの順でつながり、どこで人に聞くかを、Archon の書き方で書く。メイングラフ（サブグラフを並べた 1 本の流れ）と、判定・計画・事前審査・修正・試験の関門・独立の目・報告・取り込みのサブグラフ。各サブグラフは YAML・役の指示書・ノードの script を持ち、サブグラフの間で渡す物の型は Archon の `output_format` で表す。YAML は手で書き、変換せずに Archon に渡す。
-- 境 `workflows/.shared/`: Archon との出入りの口と、Archon に無い物を補う小さな部品だけ（`docs/polyfills.md` に全部載る）。
-- 助け手 `lib/`: script ノードが呼ぶ Python のモジュール（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。Archon を知らない。
+- Entry `bin/`: what humans type. It fetches the pinned version of the Archon source and starts Archon from it.
+- Graphs `workflows/`: the essence of this factory. In Archon's format, they say which checks and roles exist, what each does, in what order they connect, and where a human is asked. The main graph (one flow that lines up the subgraphs), and the subgraphs for judge, plan, plan review, fix, test gate, independent eyes, report, and merge. Each subgraph has its YAML, its role prompts, and its node scripts, and the types passed between subgraphs are expressed with Archon's `output_format`. The YAML is written by hand and given to Archon without conversion.
+- Boundary `workflows/.shared/`: only the in/out port to Archon and small parts that fill in what Archon lacks (all listed in `docs/polyfills.md`).
+- Helpers `lib/`: Python modules called by script nodes (checking quotes, judging TDD red, telling pre-existing red apart, checking scope, and so on). They know nothing of Archon.
 
-グラフを回すのは止めた Archon（ASF と同じ開発中の源。`docs/design.md` の「語」）。ASF のグラフはその源の `.archon/workflows/sdlc/` に在り、グラフの名で選び分けて見比べられる。別の実行の道具へ移る時は、グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書と `lib/` はそのまま持っていける。
+The graphs are run by the pinned Archon (the same in-development source as ASF; see "語" (terms) in `docs/design.md`). ASF's graphs live in that source's `.archon/workflows/sdlc/` and can be told apart and compared by graph name. When moving to another execution tool, rewrite the graphs from `docs/design.md` in that tool's format. The role prompts and `lib/` can be taken along as they are.
 
-AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、設計は `docs/design.md`。
+The rules for AI are in each level's `AGENTS.md` (follow them from the root one), and the design is in `docs/design.md`.
 
-## リポジトリの中の見方
+## Finding your way around the repository
 
-根には、この工場の物と、ASF の取り付け命令が置いた物が並ぶ。名前で見分けられる。
+The root holds this factory's own things side by side with what ASF's install command put there. You can tell them apart by name.
 
-- この工場の物: `bin/`・`workflows/`・`lib/`・`tests/`・`docs/`・`pack.json`・`MISSION.md`・`AGENTS.md`（各階層）・`engineering.md`（ASF の役が読む入口。`AGENTS.md` を指すだけ）・`README.md`・`.github/`。グラフの名は `works-factory-` で始まる。
-- ASF の物: 名前が `factory`・`FACTORY`・`.factory` で始まる物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）。ASF がこのリポジトリを作る時に使う。ASF の命令がこの場所と名前を決め打ちで読むので、動かさず名前も変えない。中身も手を加えず、ASF が書けと言うファイル（`.factory/holdout/HOLDOUT.md` など）だけを書く。起こす物の無くなった取り付け物は外した（持ち主の決め `asf-installer-in-repo`）。
-- Archon に読ませるグラフ: この工場の物はこのリポジトリの `workflows/`、ASF の物は Archon の源の `.archon/workflows/sdlc/`（名前は `archon-` で始まる）。どちらも Archon の家には置かず、`--workflow-source` で読ませる。
-- 置き場の木の全部と、名前の決まりは根の `AGENTS.md` の「リポジトリの形」と E18。
+- This factory's own: `bin/`, `workflows/`, `lib/`, `tests/`, `docs/`, `pack.json`, `MISSION.md`, `AGENTS.md` (at each level), `engineering.md` (the entry point ASF's roles read; it only points at `AGENTS.md`), `README.md`, `.github/`. Graph names start with `works-factory-`.
+- ASF's: things whose names start with `factory`, `FACTORY`, or `.factory` (`factory/`, `FACTORY.md`, `FACTORY_RULES.md`, `.factory/`). ASF uses them when it builds this repository. ASF's commands read this location and these names hard-coded, so they are not moved or renamed. Their contents are not modified either; only the files ASF says to write (such as `.factory/holdout/HOLDOUT.md`) are written. Installed files that nothing uses any more were removed (owner decision `asf-installer-in-repo`).
+- Graphs given to Archon: this factory's are in this repository's `workflows/`, ASF's in the Archon source's `.archon/workflows/sdlc/` (names start with `archon-`). Neither is placed in Archon's home; they are read via `--workflow-source`.
+- The full tree of locations and the naming rules are in "リポジトリの形" (repository layout) and E18 of the root `AGENTS.md`.
 
-## 関係
+## Related projects
 
-- Archon: AI の処理をグラフにして YAML で書き、機械が順に回す道具。作者は coleam00（[coleam00/Archon](https://github.com/coleam00/Archon)）。works-factory はその上で動く。
-- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までのグラフの束。作りの型（出力の形・緑の認証・取り込みの計画の封印・守りのパスなど）を読んで学んだ。学んだ型と違いは `docs/asf-notes.md`。この工場の層（`bin/`・`workflows/`・`lib/`）には ASF のコードを写さない。ASF の取り付け命令が置いた物は、ASF がこのリポジトリを作るために置いたまま使う（上の「リポジトリの中の見方」）。
-- 今の works（raiki61/claude-plugins の `works/`）: この工場の前の形。graphloops プラグインのレビューと修正のループ（review-graph）から育った。works-factory は今の works の能力を 1 つも落とさずに作り直した物で、同じ能力に届いたら置き換える。置き換えた後、claude-plugins には `/works` の薄い入口だけが残る。
+- Archon: a tool that turns AI processing into a graph written in YAML and has a machine run it in order. Its author is coleam00 ([coleam00/Archon](https://github.com/coleam00/Archon)). works-factory runs on top of it.
+- ASF (AI software factory): a bundle of graphs by Archon's author that goes from taking in work to merge. We read and learned from its build patterns (output shapes, certifying green, sealing the merge plan, protected paths, and so on). The patterns learned and the differences are in `docs/asf-notes.md`. ASF's code is not copied into this factory's layers (`bin/`, `workflows/`, `lib/`). What ASF's install command put here is used as ASF placed it, for ASF to build this repository (see "Finding your way around the repository" above).
+- The current works (`works/` in raiki61/claude-plugins): the previous form of this factory. It grew out of the review-and-fix loop (review-graph) of the graphloops plugin. works-factory rebuilds the current works without dropping a single capability, and will replace it once it reaches the same capabilities. After the replacement, only a thin `/works` entry point will remain in claude-plugins.
 
-## 文書
+## Documents
 
-- `MISSION.md`: 目的と範囲の外
-- `AGENTS.md`（各階層）: AI 向けの作りの決まり（コードを書く前と審査の前に読む）。`engineering.md` は ASF の役のためにそこを指すだけ
-- `docs/design.md`: 層・メイングラフ・サブグラフ・能力の棚卸し・作りの順
-- `docs/owner-decisions.md`: 持ち主の決め（言葉のまま）
-- `docs/polyfills.md`: Archon に無い物を補う部品の名簿
-- `docs/asf-notes.md`: ASF から学んだ型
-- `docs/plans/`: 実装の計画
+- `MISSION.md`: the goal and what is out of scope
+- `AGENTS.md` (at each level): the build rules for AI (read before writing code and before reviewing). `engineering.md` only points there, for ASF's roles
+- `docs/design.md`: layers, the main graph, subgraphs, the capability inventory, the build order
+- `docs/owner-decisions.md`: the owner's decisions (word for word)
+- `docs/polyfills.md`: the list of parts that fill in what Archon lacks
+- `docs/asf-notes.md`: patterns learned from ASF
+- `docs/plans/`: implementation plans
 
-## 今の状態
+## Current status
 
-作っている途中。入口の殻 `bin/works-factory`・メイングラフ `workflows/line/`・8 つのサブグラフ・周の鎖 `workflows/chain/`・`lib/`・層の試験が在り、メイングラフは本物のサブグラフと組んだ筋書き（Archon の `workflow test`。役は起こさない）で確かめている。小さな対象のリポジトリに 1 つの依頼を本物の役で通す段 1 の歩く骨組みはまだ。土台は ASF に作らせている。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。
+Under construction. The entry script `bin/works-factory`, the main graph `workflows/line/`, the 8 subgraphs, the round chain `workflows/chain/`, `lib/`, and the layer tests exist. The main graph is checked with scenarios composed with the real subgraphs (Archon's `workflow test`; no roles are started). Stage 1, the walking skeleton, is done: one request was taken through a small target repository with real roles, and the sealed diff was applied (issue [#154](https://github.com/raiki61/works-factory/issues/154); the run records are in "作りの順" (build order) in `docs/design.md`). The foundation is being built by ASF. What is left:
+
+- Catching up with the current works. Each user-visible capability of the current works is matched to where works-factory does the same in `docs/works-parity.md`; until the factory has them all, the current works (the works plugin of raiki61/claude-plugins) is the fix factory to use.
+- Known failures, tracked as open issues. For example, the node that writes the report's body is stopped by the model provider's safety check, so reports currently carry only the parts the machine builds (issue [#712](https://github.com/raiki61/works-factory/issues/712)).
+- The build order and progress are in "作りの順" (build order) in `docs/design.md`.
+
+## Terms
+
+- Archon: the tool that runs this factory. It runs AI work as a graph written in YAML (see "Related projects").
+- ASF (AI software factory): a set of Archon graphs by Archon's author. ASF is used to build this repository (its install command put the `factory`-named files here), and this factory learns build patterns from it, but ASF's code is not copied into the factory itself.
+- Graph: a flow of steps written in Archon's YAML. The main graph `works-factory-line` lines up the subgraphs; a subgraph (judge, plan, and so on) is one stage, included into the main graph.
+- Node: one step of a graph. An AI node starts an AI role (a Claude Code session with its own instructions); a script node runs a Python script.
+- Role: the job an AI node is given, such as the judge, the fixer, or a reviewer. Its instructions are in `workflows/<subgraph>/commands/`.
+- Approval node: a node where the run pauses and waits for your answer (`workflow respond`).
+- Run: one execution of a graph by Archon, with its own id. A child run is a run started by another run (the round chain starts one child run of the main graph per round).
+- Target: the repository you want fixed (`--cwd <target>`).
+- Worktree: a separate checkout made with `git worktree`. Each run works in its own worktree, so your checkout of the target is not changed until you apply.
+- Unit: one root-cause defect found by the judge stage. Fixes, refusals, and give-ups are counted per unit.
+- Red proof: a test that fails before the fix and passes after it, showing the defect is real.
+- Test gate: the stage that runs the target's own checks and records "green" together with a fingerprint (a hash of the worktree's state) of the worktree it was measured on, so that green measured on other files does not count.
+- Independent eyes: reviewers in separate sessions that see only what they are given, not how the fix was made. R1 to R4 are their 4 viewpoints, in the order of "Flow" step 6: R1 is the fix minimal, R2 does it match the independent design, R3 is the whole consistent, R4 what is out of view.
+- Seal: the hash of the diff a human saw at the last approval node. `bin/apply` refuses a diff that does not match it.
+- Round chain: the graph `works-factory-chain`, which repeats the main graph up to 5 times, turning what is left into the next request.
+- Archon's home: the directory where Archon keeps its database and run files. The script gives each target its own home (`WORKS_FACTORY_HOME` overrides it).
+- Isolated home: the separate `HOME` and Claude Code settings that the script sets up for Archon and the roles. The roles see only the plugins and skills in `lib/borrow/borrow.json`, not your own settings.
+- Write fence: a wrapper the script puts in front of the roles' `claude`. For roles that only read, it adds the target's worktrees and this checkout to the paths Claude Code's sandbox may not write (P5 in `docs/polyfills.md`).
+- Polyfill: a small part in `workflows/.shared/` that fills in something Archon lacks (listed in `docs/polyfills.md`).
+- The current works: the works plugin in raiki61/claude-plugins, the earlier form of this factory. It does the same job (review and fix a change, from Claude Code with `/works`) and is the one to use today.
+- Stage, walking skeleton: the build is done in stages ("作りの順" (build order) in `docs/design.md`). Stage 1, the walking skeleton, was the first run of the whole flow end to end with real roles.
+- Layers: the 4 parts this repository is split into (`bin/`, `workflows/`, `workflows/.shared/`, `lib/`; see "Design"). Layer tests check that each part depends only on what it may.
+- superpowers: a published set of Claude Code skills (obra/superpowers). The roles use a pinned copy of some of them, such as test-driven development.
+- The owner: the owner of this repository (raiki61). "Owner decisions" are their decisions, kept word for word in `docs/owner-decisions.md`.

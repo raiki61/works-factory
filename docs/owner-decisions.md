@@ -113,7 +113,7 @@
 
 - 持ち主の言葉: 「とってきたものはどれでじぶんのやつがどれでとかちゃんとわかるようにした命名とかを意識したいよね」「今のリポジトリみても少しわかりにくい」
 - 決め: 取ってきた物（ASF の取り付け命令が置いた物・Archon の家に置く ASF のグラフ）と自分の物を、名前と置き場で見分けられるようにする。
-- 当て方: `AGENTS.md` の E18 と「リポジトリの形」、README の「リポジトリの中の見方」。ASF の物は ASF の命令が場所と名前を決め打ちで読む（`factory/consumer.py`:16-20・231）ので、動かさず名前も変えない。自分の物の側で、それらの名前を使わない。
+- 当て方: `AGENTS.md` の E18 と「リポジトリの形」、README の「Finding your way around the repository」。ASF の物は ASF の命令が場所と名前を決め打ちで読む（`factory/consumer.py`:16-20・231）ので、動かさず名前も変えない。自分の物の側で、それらの名前を使わない。
 
 ### `read-original-works` 今の works を見れば分かる物は元を見る
 
@@ -353,6 +353,12 @@
   - 提供元の安全の判定の誤りで落ちた時は failed のままでよい（同じモデルでは resume しても通らない）。
   - 書き手を fan_out の `join: all_done` で包んで落ちを run に数えない案は採らない（止めた Archon `355f1867` の `all_done` は落ちの印 providerFailure を落とすので、resume のやり直しが消える）。
 - 当て方: `docs/design.md` の「書き手のループが落ちた run（#702）」の行・`lib/runreport.py` の `writer_fell`・`note_writer_fell`・`lib/answer.py` の `resume`。筋書きは `tests/workflows/test_report.py` の `WriterRunCase`。
+
+### `readme-english` 根の README.md は英語の 1 版だけにする
+
+- 持ち主の言葉（2026-10-18、claude-plugins の窓口の会話）: 「うん。いいよ。英語にしましょう。」（works-factory の README.md を英語だけの 1 版にし、日本語の版は並べない案への答え。もとは raiki61/claude-plugins の根の README を英語の 1 版にした決め〔claude-plugins の `docs/readme-language.md`〕）
+- 決め: 根の `README.md` は英語だけで書く。日本語の訳の版（`README.ja.md` など）は持たない。ほかの文書（各階層の `AGENTS.md`・`MISSION.md`・`docs/`）と、工場が人や役に見せる字（役の指示書・殻の案内・報告）は日本語のまま。
+- 当て方: 根の `AGENTS.md` の「文書は日本語。」の例外の 1 文。`README.md` の見出しは英語なので、見出しを名指す所（`lib/testcmd_check.py` の `HOW`・`docs/works-parity.md` の「今」の欄の `README.md「…」`）は英語の見出しの名で指す。殻や工場が出す日本語の字（`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・試験の行の頭「止める（test_cmd）」「注意（test_cmd）」）は、README に字のまま引く。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
