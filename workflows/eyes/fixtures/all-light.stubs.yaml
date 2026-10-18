@@ -79,3 +79,5 @@ verdict:
   structure_after: *id001
   protected_hits: []
   notes: null
+  r4_passes: null
+  premise_reply: null

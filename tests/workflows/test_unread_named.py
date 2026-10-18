@@ -161,6 +161,7 @@ def eyes(p: Place) -> dict:
             "world": world(p), "plan": plan_fields(p), "ripple": p.put("plan/ripple.json", {"items": [], "overlaps": []}),
             "depth": json.dumps([{"unit_id": "stats.py mean: 分母", "depth": "標準", "why": ["測った"]}], ensure_ascii=False),
             "design": p.put("plan-review/design.json", {"question_stands": True, "reason": "立つ", "design": "設計"}),
+            "design_premises": p.put("plan-review/design-premises.json", {"given": [], "withheld": [], "seen": {"count": 0}}),
             "diff": p.put("fix/diff.patch", "diff --git a/stats.py b/stats.py\n--- a/stats.py\n+++ b/stats.py\n@@ -1 +1 @@\n-a\n+b\n"),
             "changed": json.dumps({"premise_drift": False}), "fix_units": "[]", "green_ok": "true",
             "test_outcomes": json.dumps({"rows": [], "unmeasured": ""}),
@@ -254,6 +255,8 @@ UNNAMED = {
     ("eyes", "plan"): RENAMED.format(words="structure-after の「修正案の外れの訳が読めない」") + "。区分 E。区分の issue で外す",
     ("eyes", "ripple"): f"prep が{PATH_ONLY}。区分 E。区分の issue で外す",
     ("eyes", "design"): RENAMED.format(words="prep と verdict の「独立設計の控えが読めない」") + "。区分 E。区分の issue で外す",
+    ("eyes", "design_premises"): "prep と verdict が先の無い独立設計の役に貼った物の控えを null と同じに「無い」と読み、入力の名を言わない"
+                                 "（設計の隣を名で開いていた時と同じ読み）。区分 E。区分の issue で外す",
     ("eyes", "start"): f"prep が{FELL}。protected・structure-after は例外の字だけを返す。区分 E。区分の issue で外す",
     ("fix", "start"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "baseline"): f"prep と group-start（単独の run の組の子の頭）が{FELL}（「元の結末が読めない」も標準エラーだけ）。区分 F。区分の issue で外す",
