@@ -2,7 +2,7 @@
 # workflow test は型に合わない stub の節を落ちた節にする）。往復が落ち、受け皿 plan-rounds-out から後ろが飛び、collect・report・result は走る。
 fixture:
   expect: "failed"
-  fail-node: ["plan-rounds", "plan__round", "plan__structure-state", "plan__ripple-items", "plan__plan"]
+  fail-node: ["plan-rounds", "plan__round", "plan__ripple-items", "plan__plan"]
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["collect", "report__report", "result"]
 exec-code: true
@@ -11,6 +11,9 @@ test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause":
 judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "reason": ""}
 judge__verify-merge: {"ok": true, "reason": ""}
 judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null, "depth": "標準", "depth_why": "筋書きの stub", "premises": null, "verify": null, "pr_excluded": null, "materials": null, "purpose_review": null, "depth_record": null, "decisions": null, "answer_ties": null, "review_lenses": null, "pr_drafts": null, "rejudge_exit": null, "rejudge_diff": null, "purpose_means": null, "world_state": null}
+owed: {"owed": true, "why": "", "stop_reason": ""}
+structure__structure-measure: {"structure_file": "structure/structure.json", "design_file": "structure/design.jsonl", "eye": false}
+structure__structure: {"ok": true, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "structure/structure-state.json"}}
 plan__round: {"round": 0}
 report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": false, "outcome": "stopped_by_line", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}

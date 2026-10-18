@@ -556,6 +556,8 @@ NAME_HOMES = {
                       ("lib/judgebeside.py", "lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py",
                        "lib/gatemarks.py", "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py",
                        "lib/worldmark.py"), writer="judge_accept"),
+    "structure": NameHome("構造", "構造の置き場のファイルを名指す", "構造の出力の欄を入力で受ける", (("structfile", "PORTS"),),
+                          ("lib/structbeside.py", "lib/structfile.py")),
     "plan": NameHome("計画", "計画の置き場のファイルを名指す", "計画の出力の欄を入力で受ける", (("planfile", "PORTS"), ("planfile", "FROM")), ("lib/planfile.py", "lib/planblk.py", "lib/eye.py"),
                      openers=("lib/rolekit.py",)),
     "fix": NameHome("修正", "修正の置き場のファイルを名指す", "修正の出力の欄を入力で受ける", (("fixbeside", "PORTS"), ("fixbeside", "FROM")),
@@ -582,9 +584,10 @@ def _table_modules() -> dict:
     import judge_accept
     import planfile
     import planreviewbeside
+    import structfile
     import tree_run
     import userenv
-    return {m.__name__: m for m in (eyesbeside, fixbeside, judge_accept, planfile, planreviewbeside, tree_run, userenv)}
+    return {m.__name__: m for m in (eyesbeside, fixbeside, judge_accept, planfile, planreviewbeside, structfile, tree_run, userenv)}
 
 
 def _table_value(module: str, name: str):

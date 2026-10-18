@@ -60,11 +60,11 @@ if boundary is not None:
         import judge_accept
         import planfile
 
-RECEIVED = ("test_gate_base", "judge", "rejudge", "replan", "replan_review", "fix", "test_gate_final", "eyes", "merge_seal",
+RECEIVED = ("test_gate_base", "judge", "rejudge", "structure", "replan", "replan_review", "fix", "test_gate_final", "eyes", "merge_seal",
             "merge_apply")
 ROUNDS = ("plan", "plan_review")
 GATES = ("gate_start", "gate_before_fix", "gate_replan", "gate_final")
-STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in", "after-fix", "judged", "ask-replan", "answer-replan", "fixed",
+STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in", "after-fix", "judged", "owed", "structure-in", "ask-replan", "answer-replan", "fixed",
          "spec-check", "redepth", "ask-final", "answer-final")
 LISTS = ("deferred", "widened", "final_reasons", "spec_changed", "optional")
 VALUES = ("prior_failures", "redepth", "spec_unchecked")
@@ -74,7 +74,7 @@ LINE_SCRIPT = "works:line-script"
 # 受け皿が運んだブロックの返りの宣言（欄 optional）を、記録の step の頭にする対応: collect の欄 → その返りを返す include の id の並び。
 # 欄の名と include の id は字が違う物（rejudge は rejudge-run）があり、2 度目の修正 refix-run は受け皿が無く 1 回目の修正 fix と同じブロックの
 # 宣言を使う（refix-run は fix の後にしか走らない）
-INNER = {"test_gate_base": ("test-gate-base",), "judge": ("judge",), "rejudge": ("rejudge-run",), "plan": ("plan",), "replan": ("replan",),
+INNER = {"test_gate_base": ("test-gate-base",), "judge": ("judge",), "rejudge": ("rejudge-run",), "structure": ("structure",),
          "fix": ("fix", "refix-run"), "merge_apply": ("merge-apply",)}
 # 段の表（メイングラフの段の名と順を持つ 1 か所。report へ値で渡し、lib はこの表で段の名と返りの続きの切れ目を決める）。
 # nodes: 報告の入力の役の名 → この線の節の id（名の替わった物だけ。承認の答えの役は承認ノードの id を指す。載っていない役は名がそのまま節の id）。

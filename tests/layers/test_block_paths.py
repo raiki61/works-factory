@@ -319,7 +319,7 @@ class JudgeNamesTest(unittest.TestCase):
 
 
 class PortNamesTest(unittest.TestCase):
-    """表 NAME_HOMES の計画・修正・メイングラフの置き場の行（issue #681）と事前審査・目の行（#723）: 持ち主の置き場のファイルとメイングラフの run の共有の置き場を、
+    """表 NAME_HOMES の構造（issue #560）・計画・修正・メイングラフの置き場の行（issue #681）と事前審査・目の行（#723）: 持ち主の置き場のファイルとメイングラフの run の共有の置き場を、
     持ち主の外が名の字・住処の定数・名の表・開く関数に届く値（直・名に置いた値・助け手の返り・ARTIFACTS_DIR の読み）・印の環境変数で
     名指すと赤。返りのままの段と resolve を住処の読み手の口に渡す形・入力の字を渡す形は通る"""
 
@@ -362,17 +362,20 @@ class PortNamesTest(unittest.TestCase):
         import yaml
         import fixbeside
         import planfile
+        import structfile
         import tree_run
         import userenv
         self.assertEqual(scan.port_files("plan"), {*planfile.PORTS.values(), *planfile.FROM.values()})
+        self.assertEqual(scan.port_files("structure"), set(structfile.PORTS.values()))
         self.assertEqual(scan.port_files("fix"), {*fixbeside.PORTS.values(), *fixbeside.FROM.values()})
         self.assertEqual(scan.port_files("line"), {tree_run.REUSE_SUB, userenv.RAN_FILE})
-        for block, tables in (("plan", (planfile.PORTS, planfile.FROM)), ("fix", (fixbeside.PORTS, fixbeside.FROM))):
+        for block, tables in (("structure", (structfile.PORTS,)), ("plan", (planfile.PORTS, planfile.FROM)),
+                              ("fix", (fixbeside.PORTS, fixbeside.FROM))):
             doc = yaml.safe_load((ROOT / "workflows" / block / f"works-factory-{block}.yaml").read_text(encoding="utf-8"))
             returned = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
             with self.subTest(block=block):
                 self.assertLessEqual({k for table in tables for k in table}, set(returned["output_format"]["required"]))
-        self.assertEqual(set(scan.NAME_HOMES), {"judge", "plan", "fix", "line", "plan-review", "eyes"})
+        self.assertEqual(set(scan.NAME_HOMES), {"judge", "structure", "plan", "fix", "line", "plan-review", "eyes"})
 
     def test_plan_file_through_a_home_constant_or_opener_is_red(self):
         """計画の置き場のファイルを、名の字・住処の定数・名の表・開く関数（rolekit は頭の関数の全部）に計画のポインタの隣で名指すと赤"""
@@ -396,6 +399,21 @@ class PortNamesTest(unittest.TestCase):
                         mark="修正")
         clean = "import boundary, fixbeside\nX = fixbeside.read(records, boundary.resolve)\nY = fixbeside.stage(got)\n"
         self.assertEqual(self.names("fix", self.FIX_HOMES, {"workflows/line/scripts/a.py": clean}), [])
+
+    def test_structure_file_through_a_home_constant_or_opener_is_red(self):
+        """構造の目の控えを、名の字・住処の定数・名の表・開く関数に構造のポインタの隣で名指すと赤。控えの指し札の先のパスをそのまま
+        読み口に渡す形は通る（設計の行は控えの design_file から辿る）"""
+        homes = {"lib/structfile.py": 'STATE_FILE = "structure-state.json"\nPORTS = {"structure": STATE_FILE}\n'
+                                      "def write_state(d):\n    return d / STATE_FILE\n"}
+        self.assert_red("structure", homes, "workflows/plan/scripts/a.py", (
+            'X = "structure-state.json"\n', "import structfile\nX = d / structfile.STATE_FILE\n",
+            "import structfile\nX = structfile.PORTS['structure']\n",
+            "import pathlib, structfile\nX = structfile.write_state(pathlib.Path(p).parent)\n"), mark="構造")
+        clean = "import boundary, structmark\nX = structmark.dirty(boundary.resolve(ptr))\n"
+        self.assertEqual(self.names("structure", homes, {"workflows/plan/scripts/a.py": clean}), [])
+        own = 'X = "structure-state.json"\n'
+        self.assertEqual(self.names("structure", homes, {"workflows/structure/scripts/a.py": own}), [], "構造の script は持ち主")
+
 
     def test_plan_review_and_eyes_files_through_a_home_constant_are_red(self):
         """事前審査と目の置き場のファイルを、名の字・名の住処の定数・書き手の定数で持ち主の外が名指すと赤（#723）。出力の欄で受ける形と、
