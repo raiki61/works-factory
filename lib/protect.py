@@ -22,7 +22,9 @@ works 自身の試験・柵を書き換えられる（run 24 の修正役は Bas
 - touched(repo, rev, doc=None): 数える版 rev から今の作業ツリーまで（commit・消した物・未追跡を含む）の差分のうち一覧に当たる物と
                        行数 [{path, id, glob, why, added, deleted}]（added・deleted はバイナリ・入れ子の git なら None）
 - lines(rows):         関所の文と盤面の問いに載せる 1 行ずつの文
-標準ライブラリと core の accept・planmarks だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
+- shown(rows, key, where): ノードの出力に載せる行（先頭 listcut.SHOWN 行と、超える時は残りの 1 行）。key は全件を残した置き場のファイル
+                       where の中の欄の名で、残りの行が一覧の名（LIST）とその欄を言う。当たりが何万本でも出力の行は増えない
+標準ライブラリと core の accept・listcut・planmarks だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
 """
 import json
 import os
@@ -37,6 +39,7 @@ if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
 import accept  # noqa: E402
+import listcut  # noqa: E402
 import planmarks  # noqa: E402   glob の当て方の正本
 
 MANIFEST = _CORE / "protected.json"
@@ -46,6 +49,7 @@ TARGET_SELF = {"id": TARGET_ID + TARGET_FILE, "glob": TARGET_FILE,
                "why": "対象のリポジトリの守りの宣言そのもの（書き換えると守りが緩む）"}
 RULE_KEYS = {"id", "glob", "why"}
 COPY_KEYS = RULE_KEYS | {"made_by"}
+LIST = "守りのファイルに当たった物"   # 残りの行の頭の一覧の名（shown）
 
 
 class Broken(Exception):
@@ -211,3 +215,7 @@ def lines(rows) -> list:
         stat = f"+{r['added']} −{r['deleted']}" if r.get("added") is not None else "行数なし（バイナリ・フォルダ）"
         out.append(f"{r['path']}（{stat}）: 規則 {r['id']}（{r['glob']}）——{r['why']}")
     return out
+
+
+def shown(rows, key: str, where) -> list:
+    return listcut.lines(rows, name=f"{LIST}（{key}）", where=str(where), prefix="")

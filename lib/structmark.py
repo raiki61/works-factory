@@ -21,7 +21,7 @@
 - after_rows(board_dir): 結末を fixed にしない残りの行 [{where, text}]（柵の表を持つ対象で、住処の外の知る場所が増えた所。
   text は「考えの住処: 」で始まる。表の無い対象・控えが無い run は []）
 - after_lines(board_dir): 最後の関所と報告に並べる行（実測の数・増えた所・新しい名・外れの訳。控えが無い run は []）。増えた所と新しい名は
-  それぞれ listcut.SHOWN 件までは 1 件ずつ、超える分は件数と structure-after.json のパス。数の行（after_counts）は全件の数
+  それぞれ listcut.SHOWN 件までは 1 件ずつ、超える分は一覧の名（FENCE_UP_LIST・NEW_NAMES_LIST）と件数と structure-after.json のパス。数の行（after_counts）は全件の数
 - after_counts(board_dir): 独立の目の頭に渡す数の 1 文（控えが無い run は ""）
 - deviation_lines(board_dir): after_lines の末尾の修正案の外れの訳の行（独立の目の頭も同じ行を引く。訳が無い・控えが無い run は []）
 """
@@ -36,6 +36,9 @@ import promptsection
 
 STATE_FILE = "structure-state.json"
 AFTER_FILE = "structure-after.json"
+# after_lines の 2 本の一覧の名（残りの行の頭。全件を持つ AFTER_FILE の欄の名つき）
+FENCE_UP_LIST = "住処の外の知る場所の増え（after.fence_up）"
+NEW_NAMES_LIST = "新しい名（after.new_names）"
 MISSING = "構造の目の行なしで計画した"
 PLAN_HEAD = promptsection.Section("## 構造の目の行（設計を知らない次の人が足す形が増えないかを別の目が見た判定。機械が貼った）", source="fn:structmark.plan_section")
 DIRTY = "汚れる"           # 設計の行の verdict の語（約束は構造のブロックの設計の行の型の enum）
@@ -201,9 +204,9 @@ def after_lines(board_dir) -> list:
         return []
     where = str(pathlib.Path(board_dir) / AFTER_FILE)
     out = [after_counts(board_dir)]
-    out += listcut.lines((r["text"] for r in after_rows(board_dir)), where=where)
+    out += listcut.lines((r["text"] for r in after_rows(board_dir)), name=FENCE_UP_LIST, where=where)
     out += listcut.lines((f"新しい名 {n.get('name')}（現れる所 {n.get('sites')} か所）" for n in doc["after"].get("new_names") or []
-                          if isinstance(n, dict)), where=where)
+                          if isinstance(n, dict)), name=NEW_NAMES_LIST, where=where)
     return out + deviation_lines(board_dir)
 
 
