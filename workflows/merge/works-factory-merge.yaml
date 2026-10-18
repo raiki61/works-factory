@@ -38,6 +38,9 @@ inputs:
   request:
     default: ""
     description: 依頼のファイルのパス（相対なら対象の根から。空は無し）。pr の時に、PR の文へ依頼が名指した issue を渡す
+  user_env_dir:
+    default: ""
+    description: 利用者の HOME・XDG に戻して起こした印（user-env-ran）を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）。pr の commit の hooks だけが読む
   items:
     default: ""
     description: >-
@@ -104,6 +107,7 @@ nodes:
       base_rev: "$place.output.base_rev"
       sealed_hash: "$place.output.hash"
       request: $INPUTS.request
+      user_env_dir: $INPUTS.user_env_dir
       items: $INPUTS.items
     output_format:
       type: object
