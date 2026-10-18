@@ -1,5 +1,5 @@
 # 差分が空か組めない時: diff が null・hash が空で output_format に通る
-merge:
+place:
   mode: seal
   ok: false
   hash: ""
@@ -7,9 +7,12 @@ merge:
   protected_hits: null
   protected_count: null
   reason: 差分が空
+  base_rev: ""
+  deliver: ""
 fixture:
   expect: completed
-  reached: [merge]
+  reached: [place, merge]
   inputs:
     mode: seal
     start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
+exec-code: true

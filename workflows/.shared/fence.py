@@ -14,6 +14,9 @@ CLAUDE_BIN_PATH で替えられる（packages/providers/src/claude/binary-resolv
 足し、書けなければ起こさない。記録は --own の下に置かれ、柵の中の役は書き換えられない。受け付け（test-gate の ci-accept）は
 fenced_since で、役を起こす前の時刻より後にその作業ツリーで柵の掛かった起動が在ったかを見る（今の works の ci_role.take の
 「包みの起動の記録を見て止める」と同じ所。棚卸しの T49）。
+起こす claude の PATH の頭には、起動の殻が --path-head で名指した置き場（読むだけの gh の口 works-gh の置き場）を足す。Archon は
+script のノードと役の claude に同じ環境を渡すので、gh を書き込みのできる口（script のノードが通す hostgh の口）と読むだけの口に
+分けられるのは、役の claude を起こすこの包みだけ（持ち主の決め roles-read-only-gh）。
 起こす claude には ENGINE_CHILD_ENV=1 を立てる。対象の重い一式（e2e など）がこの名で AI の役からの起動を見分けて拒む、今の works の
 約束の名（skills/works/SKILL.md）。最後のテストは script のノードが走らせて包みを通らないので立たない（今の works と同じ）。
 標準ライブラリだけを使う（起動の殻が `python -I -B` で起こす）。
@@ -174,6 +177,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--claude-config", required=True)
     ap.add_argument("--own", action="append", default=[])
     ap.add_argument("--records", required=True)
+    ap.add_argument("--path-head", action="append", default=[])
     opts = ap.parse_args(argv[:cut])
     rest = argv[cut + 1:]
 
@@ -188,6 +192,7 @@ def main(argv: list[str]) -> int:
         print(f"works-factory fence: {refused}", file=sys.stderr)
         return REFUSED_EXIT
     os.environ[ENGINE_CHILD_ENV] = "1"
+    os.environ["PATH"] = os.pathsep.join(filter(None, [*opts.path_head, os.environ.get("PATH")]))
     os.execv(opts.real, [opts.real, *rest])
 
 

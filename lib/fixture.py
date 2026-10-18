@@ -48,8 +48,8 @@ KEY = "fixture"                  # 始めの記録の鍵 {source_run, manifest_s
 CAPTURED_KEY = "fixture_captured"  # 始めの記録の鍵 {dir, error}（写した run の印）
 # 取り込みで今の値にする入力の欄（ほかの入力の欄は写した始めの記録と今の入力が同じでなければ拒む）。request は名指しの字が違っても
 # よい（中身は request_sha256 で照らす）。features_off・features_on は同じ所から替えて比べる欄（判定・修正案の側の機能は写しの物の
-# ままで、修正の段から後ろの機能だけが効く）
-CURRENT = ("fix_fixture", "request", "features_off", "features_on")
+# ままで、修正の段から後ろの機能だけが効く）。deliver は封じた後の渡し方だけを変え、写しの中身に効かない
+CURRENT = ("fix_fixture", "request", "features_off", "features_on", "deliver")
 _STR_KEYS = ("source_run", "head", "tree", "place_root", "repo_root", "request_sha256")
 _MAP_KEYS = ("commits", "files")
 HEX40 = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")   # 写しの字の中の commit の名の候補

@@ -268,6 +268,21 @@ class ProtectedNotAppliedTest(unittest.TestCase):
         self.assertIsNone(json.loads(trace["result"]["output"])["apply"])
 
 
+class DefaultDeliverTest(unittest.TestCase):
+    """#555: 出口の語を名指さない（既定の空の）run は、差分を置いて止まり、run の枝に積む節と PR を作る子の run の節が走らない"""
+
+    def test_default_run_places_without_the_pr_path(self):
+        trace = line_traces(("standard",))["standard"]
+        ran = UnattendedGateTest.ran
+        self.assertTrue(ran(trace, "merge-apply__place"))
+        self.assertTrue(ran(trace, "merge-apply__merge"))
+        for node in ("merge-apply__pr-commit", "merge-apply__pr-open", "merge-apply__pr-read",
+                     "merge-seal__pr-commit", "merge-seal__pr-open", "merge-seal__pr-read"):
+            self.assertFalse(ran(trace, node), node)
+        got = json.loads(trace["merge-apply-out"]["output"])["got"]
+        self.assertEqual(got["deliver"], {"act": "placed", "pr": None, "reason": ""})
+
+
 class HeadDepthTest(unittest.TestCase):
     """run の頭の深さ（issue #441）: 計画の壁打ち（plan と plan-review の往復）はどの深さでも省かない。頭が軽量・重厚・標準のどの筋書きでも
     事前審査の輪が走って報告まで届き、事前審査の輪を飛ばす節（plan-review-due）は線に無い。筋書きの宣言は節が走らなかったことを

@@ -76,6 +76,7 @@ def raw_inputs() -> dict:
         "policy_md": os.environ.get("INPUTS_POLICY_MD", ""),
         "fix_fixture": os.environ.get("INPUTS_FIX_FIXTURE", ""),
         "lang": os.environ.get("INPUTS_LANG", ""),
+        "deliver": os.environ.get("INPUTS_DELIVER", ""),
     }
 
 
@@ -87,6 +88,7 @@ def words(raw: dict, repo: Path) -> dict:
     try:
         gate = gatepolicy.check(raw["final_gate"], raw["unattended"], spec=bool(spec))
         off, on = entry.features_off(raw["features_off"]), entry.features_on(raw["features_on"])
+        entry.deliver_word(raw["deliver"])
     except (gatepolicy.Refused, entry.InputRefused) as error:
         raise Refused(str(error)) from None
     both = sorted(set(off) & set(on))

@@ -166,8 +166,11 @@ ALLOWED = {
         "tests/bin/fakelaunch.py",
         # 偽の script の字の中の os.environ で、子の環境を組む口ではない
         "tests/shared/test_fence.py#os.environ.items()",
+        # 偽の script の字の中の os.environ。起動の殻が組んだ子の環境から、対象のコマンドの環境の作り手が組む物を確かめる
+        "tests/bin/test_launcher.py#outside_env(os.environ)",
         # この表の上の行の字そのもの（許しの行が名指す字は、走査器自身の字として当たる）
         "tests/layers/scan.py#os.environ.items()",
+        "tests/layers/scan.py#outside_env(os.environ)",
     ),
     "E13": (
         "lib/AGENTS.md",
@@ -945,6 +948,17 @@ def _pointed_block(target: str) -> str:
     return parts[0] if parts else ""
 
 
+# E8 の外し: Archon 同梱のグラフを workflow: で呼んでよい節（サブグラフのフォルダ, 節の id）→ 呼ぶグラフの名（持ち主の決め deliver-via-archon-pr）
+ARCHON_CALLS = {("merge", "pr-open"): "archon-pr"}
+
+
+def _archon_call(path: Path, node, key: str, value: str) -> bool:
+    """節 node の workflow: の値 value が、E8 の外しの表 ARCHON_CALLS の節（YAML の置き場のフォルダと節の id）に当たるか"""
+    ident = dict(_pairs(node)).get("id")
+    name = ident.value if isinstance(ident, yaml.ScalarNode) else None
+    return key == "workflow" and ARCHON_CALLS.get((path.parent.name, name)) == value
+
+
 def _no_asf(root: Path) -> list[str]:
     out = []
     for path in _workflow_yamls(root):
@@ -958,7 +972,7 @@ def _no_asf(root: Path) -> list[str]:
                         continue
                     if not isinstance(value, yaml.ScalarNode):
                         out.append(f"{rel}:{_line(value)}: {key}: の形が読めない")
-                    elif not value.value.startswith(OURS_PREFIX):
+                    elif not value.value.startswith(OURS_PREFIX) and not _archon_call(path, node, key, value.value):
                         out.append(f"{rel}:{_line(value)}: {key}: の値 {value.value} が {OURS_PREFIX} で始まらない")
     return out
 
@@ -1513,6 +1527,7 @@ CHANGE_CHECKOUT = {
     ("fix", "refix-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("fix", "refix2-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("test-gate", "run"): "対象のテストを作業ツリーで走らせる（declared_checks.run_ci）",
+    ("merge", "pr-commit"): "出口の語 pr の時に、照らした差分を run の枝へ 1 つの commit で積む（index と HEAD を変える。runbranch.commit）",
     **{("chain", f"round-{k}-commit"): "周の結果を親の run の枝へ commit する（index と HEAD を変える）" for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 # 役の節に要る鍵（K18。元 works/tests/test_yaml_rules.py の決まり）: settingSources: [user]・閉じた sandbox・道具の表の中の allowed_tools

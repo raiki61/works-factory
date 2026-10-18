@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from bin._lib import hostgh, isolate, pack, place, runstop, startpoint
-from lib import answer, launchgroups, reads, writelog
+from lib import answer, launchgroups, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
@@ -109,7 +109,10 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
 
     child = isolate.isolate(user, home)
     # GitHub の資格は AI の役に渡さない（持ち主の決め auth-middleware）。run の中の gh は、利用者の gh 自身の置き場のログインを
-    # hostgh の口が継ぎ、役にはその前に置く読むだけの口 works-gh（no-post-bin/）だけが見える（持ち主の決め roles-read-only-gh）。
+    # hostgh の口が継ぐ。script のノード（出口の語 pr の時に push と PR の作成をする archon-pr の publish も）は PATH の頭の
+    # この口を打つ。役の claude には書き込みの柵の包みが PATH の頭に読むだけの口 works-gh（no-post-bin/）を足し（write_fence の
+    # path_heads）、script のノードが起こす対象のコマンド（AI が書いた試験のコードも走る）には tree_run.outside_env が同じ口を
+    # PATH の頭に足す（置き場は userenv.READ_GH_ENV で渡す）ので、どちらにも works-gh が先に見える（持ち主の決め roles-read-only-gh）。
     # 環境変数だけでログインする利用者の値は、gh の読まない名（hostgh.RELAY）で口へ渡す
     for name in hostgh.TOKENS:
         child.pop(name, None)
@@ -117,8 +120,10 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     if shim:
         child.update(hostgh.relay(user))
     # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
-    heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
-    child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
+    child["PATH"] = os.pathsep.join(filter(None, [str(Path(shim).parent) if shim else "", user.get("PATH")]))
+    role_heads = [str(hostgh.NO_POST_BIN)] if shim else []
+    if shim:
+        child[userenv.READ_GH_ENV] = str(hostgh.NO_POST_BIN)
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", **{place.PROVIDER_ENV: place.DEFAULT_PROVIDER})
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
@@ -148,7 +153,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         keep = suite_keep(user)
         keep.mkdir(parents=True, exist_ok=True)
         child[SUITE_KEEP_ENV] = str(keep)
-        child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache, keep)
+        child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache, keep, role_heads)
         child[FENCE_RECORDS_ENV] = str(fence_records(home))
 
     if workflow is None:
@@ -386,14 +391,15 @@ def names_key(path: Path, key: str) -> bool:
     return any(re.match(rf"\s*(?:export\s+)?{re.escape(key)}\s*[=:]", line) for line in text.splitlines())
 
 
-def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, keep: Path) -> str:
+def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, keep: Path, path_heads: list[str]) -> str:
     """Archon が役を起こす claude の前に置く包み（埋め P5。workflows/.shared/fence.py）の殻を書き、そのパスを返す。値は env でなく
     殻に焼く（Archon は claude に渡す env を掃除する）。-B は Archon がバイトで照らす workflows/ に __pycache__ を作らないため。
     --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude）と、
     次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・TDD の実行器の取り置き keep・工場の checkout の根 ROOT 全体）。根は丸ごと禁じる。bin/works-factory は
     ROOT を import の先頭に置くので、根に新しく置いた shlex.py や bin.py が次の起動の import に勝つ。
     本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）。
-    --records は印の在る起動の記録（fence_records。--own の top の下なので役は書き換えられない）"""
+    --records は印の在る起動の記録（fence_records。--own の top の下なので役は書き換えられない）。
+    --path-head は役の claude の PATH の頭に足す置き場（path_heads。読むだけの gh の口の置き場）"""
     top = home / FENCE_DIR
     real = os.path.realpath(real)
     own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache, keep, ROOT]
@@ -403,7 +409,8 @@ def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, ke
             + "exec " + shlex.join([sys.executable, "-I", "-B", str(FENCE), "--real", real,
                                     "--archon-home", child["ARCHON_HOME"], "--claude-config", child["CLAUDE_CONFIG_DIR"],
                                     *(arg for path in dict.fromkeys(map(str, own)) for arg in ("--own", path)),
-                                    "--records", str(fence_records(home))])
+                                    "--records", str(fence_records(home)),
+                                    *(arg for head in path_heads for arg in ("--path-head", head))])
             + ' -- "$@"\n')
     return hostgh.place_shim(top, "claude", body)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""読むだけの gh（bin/ の起動が Archon の子の PATH の頭に置く口。今の works では包みが印のある起動の全部に渡した。標準ライブラリだけ・Python 3.9 でも動く形）。
+"""読むだけの gh（bin/ の起動が書く書き込みの柵の包みが、役の claude の PATH の頭に置く口。script のノードの PATH には置かない。今の works では包みが印のある起動の全部に渡した。標準ライブラリだけ・Python 3.9 でも動く形）。
 
 通すのは次の形だけで、ほかは本物の gh を起こさずに 1 行を出して終了コード 2:
 - `pr list -R <OWNER/REPO> …`・`pr view <番号か枝> -R <OWNER/REPO> …`・`pr diff <番号か枝> -R <OWNER/REPO> …`・
@@ -14,7 +14,7 @@ api の外の形では `-w`・`--web`（ブラウザを開く）を拒む。書�
 それが利用者のログインを継ぐ口（bin/_lib/hostgh.py が書く）。本物の gh のパスを env に置かない・断りの文に出さない（役がその値で本物の gh を
 打つ道を作らない。事故の柵で、堅い境ではない）。
 
-今の works の包み（.shared/core/adapter.py）はこの口を PATH の頭に 2 つの名で置く（bin/ の起動も同じ置き場を PATH の頭に置く）: `works-gh`（役が素の名で呼ぶ名。sandbox の除外に当たる。
+今の works の包み（.shared/core/adapter.py）はこの口を PATH の頭に 2 つの名で置く（bin/ の起動の包みも同じ置き場を役の PATH の頭に置く）: `works-gh`（役が素の名で呼ぶ名。sandbox の除外に当たる。
 今の works の adapter の RO_GH）と `gh`
 （`command gh`・`xargs gh`・`sh -c "gh …"` など、permissions.deny の `Bash(gh:*)` の前方一致をすり抜ける呼び方の受け皿）。
 """

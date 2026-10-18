@@ -108,6 +108,7 @@ def outside_env(environ):
       頭だけを見て、同じフォルダは 1 度だけ外す（元の PATH に同じフォルダが在っても後ろの物は残る）
     - UV_RUN_RECURSION_DEPTH と、sys.prefix を指す VIRTUAL_ENV（uv が起こした環境。対象の .venv もここ）
     uv run の外で起こされた（UV_RUN_RECURSION_DEPTH が無い）ときは、下の UV_NO_CONFIG のほかは外さない。
+    外した後、起動の殻が渡した読むだけの gh の置き場を PATH の頭に置く（userenv.read_gh_first。script のノードの PATH の頭は書ける gh の口）。
     - UV_NO_CONFIG はいつも外す。利用者が実行基盤の環境に立てていても、テストのコマンド（`uv run <試験の実行器>` など）には対象の
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
     - userenv.RECORD（起動の殻がいつも控えた、隔離の前の HOME・XDG_*）・userenv.RAN_DIR_ENV・継いだ userenv.MARK はいつも外し、
@@ -120,8 +121,13 @@ def outside_env(environ):
     userenv.restore(env)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env.pop("UV_NO_CONFIG", None)
-    if env.pop("UV_RUN_RECURSION_DEPTH", None) is None:
-        return env
+    if env.pop("UV_RUN_RECURSION_DEPTH", None) is not None:
+        _drop_uv(env)
+    userenv.read_gh_first(env)
+    return env
+
+
+def _drop_uv(env) -> None:
     ours = {os.path.realpath(d) for d in (os.path.dirname(sys.executable), os.path.join(sys.prefix, "bin"))}
     parts = env.get("PATH", "").split(os.pathsep)
     while parts and parts[0] and os.path.realpath(parts[0]) in ours:
@@ -130,7 +136,6 @@ def outside_env(environ):
     venv = env.get("VIRTUAL_ENV")
     if venv and os.path.realpath(venv) == os.path.realpath(sys.prefix):
         del env["VIRTUAL_ENV"]
-    return env
 
 
 _ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")

@@ -7,7 +7,7 @@ Claude Code 自身の keychain の項目の名と、macOS 以外の保存済み�
 --xdg-config-home は、呼ぶ側が隔離の前の env から取る。そのために env は変えずに写しを返す。auth_launch.py はこの子の環境に認証の
 変数だけを足すので、どの認証の道でも子の CLAUDE_CONFIG_DIR は隔離した置き場のまま。
 隔離の前の HOME・XDG_* は、いつも子の userenv.RECORD に控える（対象のコマンドにだけ戻す。決めと訳は userenv）。工場の制御の変数
-（userenv.CONTROL: 控え・戻した印の置き場・印のパス）は、利用者の env から継いだ値を子に残さない（控えは毎回作り直す。印はメイングラフの
+（userenv.CONTROL: 控え・戻した印の置き場・印のパス）と読むだけの gh の置き場（userenv.READ_GH_ENV）は、利用者の env から継いだ値を子に残さない（控えは毎回作り直す。印はメイングラフの
 run の置き場にだけ置き、継いだ値が印を書かせない）。
 並べて走る子の run が工場の家の .gitconfig のロックにぶつからないことも、この向け直しに懸かる（#727）。止めた Archon は、子の
 作業場の親のフォルダを自分で作り、root でない利用者なら、まだ無い作業場のパスのいちばん近い在る親が自分の利用者の物になるので、
@@ -38,7 +38,7 @@ def isolate(env: Mapping[str, str], run_home: Path) -> dict[str, str]:
     if not run_home.is_absolute():
         raise ValueError(f"run の置き場は絶対パスにする（受けた値: {run_home}）")
     child = dict(env)
-    for name in userenv.CONTROL:
+    for name in (*userenv.CONTROL, userenv.READ_GH_ENV):
         child.pop(name, None)
     child[userenv.RECORD] = userenv.record(env)
     for name, sub in DIRS.items():

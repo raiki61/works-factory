@@ -16,6 +16,7 @@
 - deleted_paths(text) -> list: 封じた差分の字が消すファイル（DELETED_HEAD）
 - deleted_lines(paths, where) -> list: 取り込むと消えるファイルの行（承認ノードの文と報告が共に引く）。listcut.SHOWN 件までは取り込む前に
   1 本ずつ名指し、超える分は件数と where（封じた差分の実のパス）で指す
+- hash_refusal(sealed_hash, current_hash) -> str: 封じた hash と今の差分の hash が合わない訳（合えば空）
 - apply_refusal(*, ...) -> str: 置いてよいかの理由（空なら置く）。決まりは関数の doc
 """
 import hashlib
@@ -143,6 +144,15 @@ def _answer_refusal(answer: dict) -> str:
     return f"最後の承認ノードで {word or '語なし'} と答えた{kind}"
 
 
+def hash_refusal(sealed_hash, current_hash) -> str:
+    """封じた hash と今の差分の hash が合わない訳（合えば空）"""
+    if not sealed_hash:
+        return "封じた hash が無い（seal が走っていない）"
+    if current_hash != sealed_hash:
+        return f"封じた差分と今の差分が違う（封じた {sealed_hash}・今 {current_hash}）"
+    return ""
+
+
 def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, fingerprint_ok, protected) -> str:
     """置いてよいかの理由（空なら置く）。上から順に見て最初の理由を返す:
     1. sealed_hash が空（seal が走っていない）
@@ -152,10 +162,9 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
     5. 答えが無い（関所が開かなかった）のに、green_ok・eyes_ok・fingerprint_ok のどれかが真でないか、protected（守りの当たりの行。
        unknown_row の行は「確かめられない」として書き分けるが、当たりと同じく拒む）が空でない。守りのパスは人の通しの答えだけが通す
     答えが通す語なら、赤でも・R2 の作り直しのほかの目が通さなかった札（fix-needed を含む）でも置く"""
-    if not sealed_hash:
-        return "封じた hash が無い（seal が走っていない）"
-    if current_hash != sealed_hash:
-        return f"封じた差分と今の差分が違う（封じた {sealed_hash}・今 {current_hash}）"
+    why = hash_refusal(sealed_hash, current_hash)
+    if why:
+        return why
     if answer is not None:
         why = _answer_refusal(answer)
         if why:

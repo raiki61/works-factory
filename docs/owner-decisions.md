@@ -376,6 +376,20 @@
   - 足すのは小さい AI の手番 1 回だけで、重い模型・長い探索は使わない。その費用は報告の「## 費用」にほかの段と同じ形で出る。
 - 当て方: test-gate の `suite-loop`（`suite-prep`・`suite-write`・`suite-place`・`suite-try`）と `lib/suitewrite.py`。取り置きの根は起動の殻が利用者ごとに決め（`bin/_lib/launcher.py` の `suite_keep`）、`WORKS_FACTORY_SUITE_KEEP` で script のノードへ渡す（境の口の `suite_keep`）。`WORKS_FACTORY_HOME` を渡した起動ではその下の `suites/`、渡さない既定の起動では隔離の前の `XDG_STATE_HOME`（無ければ `~/.local/state`）の下 `works-factory/suites/`（対象ごとの家 `targets/` の兄弟）で、どちらも対象をまたいで 1 つ。取り置いた実行器は次の run が sandbox の外で走らせるので、殻は根を読むだけの役の書き込みの柵（`write_fence` の `--own`）に入れる。書き手は試験の関門の CI の役と同じ群・道具・砂場で起こす（軽い群 `@wf-test-gate`。起こし方の行を増やさない）。今の works の S100・U074（`docs/works-parity.md`）を、`superset` と `lang-neutral` の両方を満たす形で戻した。
 
+### `deliver-via-archon-pr` PR を作る道は Archon に同梱の archon-pr に任せる
+
+- 持ち主の言葉: なし（issue #555 の 2026-10-17 のコメント「向きを変える（持ち主 2026-10-17 承認）」の要約）
+- 決め:
+  - 出口の語 `pr` の道は 2 つだけにする: 封じた差分の hash を照らした後に run の枝へ 1 つの commit を積む小さな自前の段と、Archon に同梱の `archon-pr` の子の run を起こす `workflow:` のノード。`archon-pr` は push・PR の作成・読み戻しの確かめ・既に在る PR の使い回しまで持つ（`asf-follows-dev`）。
+  - 自前の push と PR の道（gh を探す仕組みの写し・gh の旗の自前の解釈・push のフックを飛ばす処理）は作らない（`no-tool-quirks`・`concept-home`）。
+  - `archon-pr` の AI のノード prepare（どこへ出すか・題・本文を決めるだけ）には、今どおり読むだけの gh しか渡さない。書き込みの資格は script のノード publish が、入口の殻の `hostgh` の口で使う（`roles-read-only-gh`）。
+- 導いた事（実装の run、2026-10-18。止めた `64ec0c2e` の `archon-pr` を源で確かめた）:
+  - push の先の枝は `archon-pr` の入力 `branch` で呼び手が決める（`publish-pr.ts` は `branch` を prepare の `head` より採る）。`pr-open` は `pr-commit` が積んだ枝を渡す。`workflow:` のノードの `with:` は `input:` と一緒に書けないので、子の run へ渡す文（照らしの要約・封じた hash・run の id・報告の在りか・名指した issue）は積んだ commit の文に載せる。
+  - issue #555 の本文の「commit の題と本文を報告の冒頭から作る」「PR の本文に報告の冒頭と報告の在りかを載せる」のうち、報告の冒頭は外す。報告は merge の後のサブグラフ report が書くので、commit と PR の時にはまだ無い。commit の題は run の id から、本文は照らしの結果の要約と報告の在りか（run の id から組める `workflow get <run>` の出力の report）で満たす。PR の題と本文は prepare（AI）が決めるので、commit の文から何を載せるかは縛れない。
+  - PR の向け先の repo と base も prepare が決めるので縛れない。読み戻し `pr-read` が repo・head の repo（origin の URL から決めた物）・head の枝・base の枝（origin の既定の枝）・head の版を照らし、違えば・子の run が落ちれば、報告は「PR を作ったと確かめられなかった」と言う（push や PR の作成は済んでいるかもしれないので、作らなかったとは言わない）。
+  - `pr-commit` は対象の commit のフックを飛ばさない（#575 で push のフックを飛ばす処理を退けたのと同じ向き）。フックは対象のコマンドなので、PATH の頭に読むだけの gh の口を置いて走らせ、落ちれば積まずに止める。
+- 当て方: 根の `AGENTS.md` の E8 の外し（`workflow:` で呼んでよい Archon 同梱のグラフは `archon-pr` だけ）・`workflows/AGENTS.md` の E17・`workflows/merge/` の `pr-commit`・`pr-open`・`pr-read`・`bin/_lib/launcher.py` と `workflows/.shared/fence.py` の役の PATH の頭・`lib/tree_run.py` の `outside_env` の対象のコマンドの PATH の頭。形が版の上げで崩れたら `tests/shared/test_archon_contract.py` の `ArchonPrTest` が赤。
+
 ### `readme-english` 根の README.md は英語の 1 版だけにする
 
 - 持ち主の言葉（2026-10-18、claude-plugins の窓口の会話）: 「うん。いいよ。英語にしましょう。」（works-factory の README.md を英語だけの 1 版にし、日本語の版は並べない案への答え。もとは raiki61/claude-plugins の根の README を英語の 1 版にした決め〔claude-plugins の `docs/readme-language.md`〕）

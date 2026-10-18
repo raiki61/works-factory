@@ -197,7 +197,7 @@ class Artifacts(unittest.TestCase):
 
 def raw(**kw) -> dict:
     got = {key: "" for key in ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_only",
-                               "thickness", "features_off", "features_on", "policy_md", "fix_fixture", "lang")}
+                               "thickness", "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver")}
     got.update(kw)
     return got
 
@@ -318,6 +318,7 @@ class StartCase(Artifacts):
                           ({"request": "request_ok.json", "spec": "on", "unattended": "true"}, "組めない"),
                           ({"request": "request_ok.json", "thickness": "xx"}, "知らない値"),
                           ({"request": "request_ok.json", "features_off": "nope"}, "nope"),
+                          ({"request": "request_ok.json", "deliver": "merge"}, "deliver='merge' は知らない語"),
                           ({"request": "request_ok.json", "features_off": "judge_verify", "features_on": "judge_verify"}, "両方"),
                           ({"request": "no-such.json"}, "no-such.json"),
                           ({"request": "request_ok.json", "design_only": "yes"}, "design_only"),
@@ -3672,11 +3673,16 @@ class LineWiringCase(unittest.TestCase):
                     self.assertEqual(node["with"].get(name), from_the_start[name])
 
     APPLY_ONLY = "apply だけの入力（merge は seal と apply の 2 つの形で、seal には渡さない）"
+    CHECK_ONLY = "check だけの入力（差分の根の版。線の seal と apply は始めの記録の base_rev を読む）"
     GROUP_ONLY = "組の子の run だけの入力（fix が組ごとの並べのために自分を子の run として起こす時に渡す）"
     UNPASSED = {
         ("merge-seal", "answer"): APPLY_ONLY,
         ("merge-seal", "r2"): APPLY_ONLY,
         ("merge-seal", "sealed_hash"): APPLY_ONLY,
+        ("merge-seal", "deliver"): APPLY_ONLY,
+        ("merge-seal", "request"): APPLY_ONLY,
+        ("merge-seal", "base_rev"): CHECK_ONLY,
+        ("merge-apply", "base_rev"): CHECK_ONLY,
         ("fix", "mode"): GROUP_ONLY,
         ("fix", "group"): GROUP_ONLY,
         ("fix", "from_tree"): GROUP_ONLY,

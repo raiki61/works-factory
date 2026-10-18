@@ -1,0 +1,14 @@
+# 出口の語 pr の鎖: 周の子は出口の語を空で受け（PR を作らない）、1 周目の子が fixed で closed に止まった後、親が最後の差分を封じて
+# ブロック merge を check で 1 度 include し、PR を 1 本作る。result の deliver が PR の在りかを返す（tests/workflows/test_chain.py が trace で照らす）
+fixture:
+  expect: "completed"
+  inputs: {"rounds": "2", "request": "request.json", "deliver": "pr"}
+  reached: ["chain-start", "round-1", "round-1-commit", "round-1-facts", "round-1-decide", "final-diff", "hand__place", "hand__pr-commit", "hand__pr-open", "hand__pr-read", "hand__merge", "result"]
+exec-code: true
+round-1: {"fixed": true, "ok": true, "outcome": "fixed", "stop_reason": "", "report": null, "report_ai": null, "next_request": null, "prior_failures": null, "apply": {"ok": true, "hash": "abababababababababababababababababababababababababababababababab", "diff": {"type": "archon_artifact", "run_id": "child-1", "path": "merge/apply.diff"}, "reason": ""}, "sealed": null, "r2_status": null, "final_answer": null, "spec_questions": 0, "children": null}
+round-1-commit: {"ok": true, "changed": true, "head": "1111111111111111111111111111111111111111", "reason": ""}
+round-1-facts: {"ok": true, "error": "", "run": "child-1", "keys": [], "held_rows": [], "request": "", "source": "", "cost": 1.5, "cost_read": true, "minutes": 12.0}
+final-diff: {"ok": true, "reason": "", "apply": {"ok": true, "hash": "abababababababababababababababababababababababababababababababab", "diff": {"type": "archon_artifact", "run_id": "parent", "path": "chain/final.diff"}, "reason": ""}, "sealed": {"ok": true, "hash": "abababababababababababababababababababababababababababababababab", "diff": {"type": "archon_artifact", "run_id": "parent", "path": "chain/final.diff"}}, "report": {"type": "archon_artifact", "run_id": "parent", "path": "chain.md"}, "kept": 1, "skipped": [], "outcome": "fixed", "r2_status": null, "spec_questions": 0, "placed": true}
+hand__place: {"mode": "check", "ok": true, "hash": "abababababababababababababababababababababababababababababababab", "diff": {"type": "archon_artifact", "run_id": "parent", "path": "merge/apply.diff"}, "protected_hits": null, "protected_count": null, "reason": "", "base_rev": "0000000000000000000000000000000000000000", "deliver": "pr"}
+hand__pr-commit: {"go": true, "head": "1111111111111111111111111111111111111111", "branch": "archon/task-chain", "base": "main", "repo": {"host": "github.com", "path": "owner/repo"}, "reason": ""}
+hand__pr-open: {"schemaVersion": 1, "repo": {"host": "github.com", "path": "owner/repo"}, "number": 9, "url": "https://github.com/owner/repo/pull/9", "head": "archon/task-chain", "base": "main", "is_draft": true, "state": "open", "head_repo": {"host": "github.com", "path": "owner/repo"}, "head_revision": "1111111111111111111111111111111111111111", "base_revision": "0000000000000000000000000000000000000000", "maintainer_can_modify": null}
