@@ -22,6 +22,7 @@ if str(LIB) not in sys.path:
 
 import answer  # noqa: E402
 import design  # noqa: E402
+import eyesbeside  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
@@ -899,9 +900,12 @@ class WriteNotesCase(unittest.TestCase):
             (eyes / "r4.json").write_text(json.dumps({"capability_inventory": {"fired": True, "lost": [BODY]}}, ensure_ascii=False),
                                           encoding="utf-8")
             design_ledger = {"given": [], "withheld": [], "seen": {"count": 0}}
-            eyeverdict.write_notes(eyes, design_ledger=design_ledger, passed=PASSED)
-            notes = json.loads((eyes / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))
-            passes = json.loads((eyes / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
+            (eyes / eyesbeside.PREMISE_FILE).write_text(json.dumps({"verdict": "escalate", "reason": "x"}), encoding="utf-8")
+            got = eyeverdict.write_notes(eyes, design_ledger=design_ledger, passed=PASSED)
+            notes = json.loads(got["notes"].read_text(encoding="utf-8"))
+            passes = json.loads(got["r4_passes"].read_text(encoding="utf-8"))
+        self.assertEqual(set(got), set(eyeverdict.NOTES))
+        self.assertEqual(got["premise_reply"], eyes / eyesbeside.PREMISE_FILE)
         self.assertEqual(notes["design"], design_ledger)
         self.assertEqual(notes["claims"], ["地図が渡されていない"])
         self.assertEqual(notes["compare"]["claims_given"],
@@ -911,10 +915,15 @@ class WriteNotesCase(unittest.TestCase):
     def test_missing_files_leave_empty_notes(self):
         with tempfile.TemporaryDirectory() as tmp:
             eyes = pathlib.Path(tmp)
-            eyeverdict.write_notes(eyes, design_ledger=None, passed={})
+            got = eyeverdict.write_notes(eyes, design_ledger=None, passed={})
             notes = json.loads((eyes / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))
             self.assertEqual(notes, {"design": None, "compare": None, "claims": []})
             self.assertEqual(json.loads((eyes / eyeverdict.GATE_PASSES).read_text(encoding="utf-8")), [])
+            self.assertIsNone(got["premise_reply"], "前提の検算が走らなかった run は返りの欄が null")
+
+    def test_premise_reply_is_the_premise_eye_file(self):
+        """名の住処の前提の検算の返りの名は、目の返りの置き場の名 <目>.json（eye_verdict が書く）の前提の検算の物と同じ"""
+        self.assertEqual(eyesbeside.PREMISE_FILE, f"{eyeverdict.PREMISE}.json")
 
 
 class PassedByCase(unittest.TestCase):

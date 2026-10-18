@@ -39,7 +39,7 @@ inputs:
     default: ""
     description: >-
       事前審査の出力。JSON のオブジェクト {pass, stalled, ask_human, questions, gate_axes など}（questions は {kind, text} の配列、
-      指摘と独立設計の文書の欄はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちた・欄が全部 null だったこと
+      指摘・聞かずに通した行・関所の項目と壁打ちの行・独立設計の文書の欄はポインタ {type, run_id, path} か null）。空か null はその段が飛ばされた・落ちた・欄が全部 null だったこと
   replan:
     default: ""
     description: >-
@@ -64,9 +64,9 @@ inputs:
   eyes:
     default: ""
     description: >-
-      独立の目の出力。JSON のオブジェクト {ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits, notes など}
-      （r1〜r4 は {status, reason} か null で、null は深さで省いた目か結果が無い目。questions は問いの文の配列、structure_after と notes は
-      ポインタか null）。空か null はその段が飛ばされた・落ちたこと
+      独立の目の出力。JSON のオブジェクト {ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits, notes, r4_passes,
+      premise_reply など}（r1〜r4 は {status, reason} か null で、null は深さで省いた目か結果が無い目。questions は問いの文の配列、
+      structure_after・notes・r4_passes・premise_reply はポインタか null）。空か null はその段が飛ばされた・落ちたこと
   sealed-diff:
     default: ""
     description: >-

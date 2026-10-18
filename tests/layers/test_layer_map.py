@@ -140,16 +140,10 @@ class MapCase(unittest.TestCase):
                 self.assertEqual(scan.layer_of(home), ("lib", "lib/"))
 
     def test_beside_names_match_the_design_promise(self):
-        """地図の beside の名は docs/design.md の「サブグラフの出力の約束」から読める: まだ出力の欄に直していないのでほかのサブグラフも
-        名で開く隣のファイルの文の名（`*.json`・`*.jsonl`。欄の指す先 `<欄>`（`<ファイル>`）の形は除く）は全部どこかのブロックの
-        beside に在り、ブロックの beside の名は、その文の名か「<ブロック> の出力」のセクションの欄の行（`- `<欄>`` で始まる行）に
-        書いた名のどれか（欄で返した名。地図に残すのは柵のため）"""
+        """地図の beside の名は docs/design.md の「サブグラフの出力の約束」から読める: ブロックの beside の名は、「<ブロック> の出力」の
+        セクションの欄の行（`- `<欄>`` で始まる行）に書いた名のどれか（欄で返した名。地図に残すのは柵のため）"""
         lines = (ROOT / "docs/design.md").read_text(encoding="utf-8").splitlines()
-        line = next(line for line in lines if "ほかのサブグラフとメイングラフもこの名で開く" in line)
-        named = set(re.findall(r"`([^`\s]+\.jsonl?)`", line))
-        pointed = set(re.findall(r"`[\w-]+`（`([^`\s]+\.jsonl?)`）", line))
         beside = scan.LAYER_MAP["beside"]
-        self.assertLessEqual(named - pointed, {n for names in beside.values() for n in names})
 
         def ported(block: str) -> set:
             if f"### {block} の出力" not in lines:
@@ -159,7 +153,7 @@ class MapCase(unittest.TestCase):
             return {n for row in section if re.match(r"\s+- `\w+`", row) for n in re.findall(r"`([^`\s]+\.jsonl?)`", row)}
         for block, names in beside.items():
             with self.subTest(block=block):
-                self.assertLessEqual(set(names), (named - pointed) | ported(block))
+                self.assertLessEqual(set(names), ported(block))
 
     def test_known_rows_have_count_and_reason(self):
         self.assertEqual(set(scan.LAYER_MAP["known"]), set(scan.LAYER_CHECKS))

@@ -923,14 +923,14 @@ class ConvergeLinesCase(unittest.TestCase):
         self.dir = pathlib.Path(os.path.realpath(tmp.name))
 
     def test_head_carries_plan_converge_lines(self):
-        """plan-review の返りの review の隣の gate.json の converge の行（1 回目に出た割合の句を含む頭の行）が、報告の冒頭の決めの節に
+        """plan-review の返りの gate の先の converge の行（1 回目に出た割合の句を含む頭の行）が、報告の冒頭の決めの節に
         載る。事前審査のブロックの script を本当に回して返りを作る"""
         r = plan_review.Run(self.dir / "plan-review")
         r.start(features_off=["review_tree"])
         got = r.pass_(plan_review.review(plan_review.MEAN_BLOCK))
         lines = converge.lines(r.view())
         self.assertIn("1 回目の block 1 件", lines[0])
-        returns = fixed_run(**{"plan-review": {**got, "review": str(r.pointed(got["review"]))}})
+        returns = fixed_run(**{"plan-review": {**got, **{name: str(r.pointed(got[name])) for name in ("review", "gate_passes", "gate")}}})
         decided = outcome.decide_outcome(returns, {}, {"start_ok": True, "record_problems": [], "failed": []})
         built = runreport.build(returns, {}, {}, None, *decided, out_dir=self.dir / runreport.OUT_DIR, start={"run_id": RUN}, run_id=RUN)
         text = pathlib.Path(built["report"]).read_text(encoding="utf-8")

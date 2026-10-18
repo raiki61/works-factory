@@ -38,6 +38,7 @@ import answer  # noqa: E402
 import boardview  # noqa: E402
 import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
+import eyesbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import launchgroups  # noqa: E402
@@ -48,7 +49,8 @@ import rolekit  # noqa: E402
 import seal  # noqa: E402
 import structmark  # noqa: E402
 
-RETURN_FIELDS = ["ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits", "notes"]
+RETURN_FIELDS = ["ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits", "notes", "r4_passes",
+                 "premise_reply"]
 RUN_ID = "run-eyes-test"
 # pr-review-toolkit:comment-analyzer の定義の本文（anthropics/claude-plugins-official の ce721c1f1d5da2c281588818e072ae01a05d2e73 の
 # plugins/pr-review-toolkit/agents/comment-analyzer.md。Apache-2.0。今の works の run が読んだ物と同じ版）の sha256
@@ -1128,8 +1130,7 @@ class ScriptCase(unittest.TestCase):
     def test_verdict_writes_the_notes_for_the_final_gate(self):
         self.prep_file()
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
-        (self.artifacts / "plan-review" / eyeverdict.DESIGN_PREMISES).write_text(
-            json.dumps({"given": [], "withheld": [], "seen": {"count": 0}}), encoding="utf-8")
+        self.inputs["design_premises"] = self.pointer("plan-review/design-premises.json", {"given": [], "withheld": [], "seen": {"count": 0}})
         self.passing_eyes(r4_lost=("古い入口——使う人がいない",))
         self.eye_file("r2", {"status": "pass", "reason": "人の答えが渡されていない", "differences": []})
         self.eye_file(eyeverdict.R2_PREMISES.removesuffix(".json"), {"node": "r2.compare", "given": [{"kind": "human_answer", "what": "修正前の関所: continue"}]})
@@ -1144,6 +1145,8 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual([c["kind"] for c in notes["compare"]["claims_given"]], ["human_answer"])
         passes = json.loads((self.artifacts / "eyes" / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
         self.assertEqual([p["by"] for p in passes], ["human"])
+        self.assertEqual(got["r4_passes"], {"type": "archon_artifact", "run_id": RUN_ID, "path": f"eyes/{eyesbeside.R4_PASSES_FILE}"})
+        self.assertIsNone(got["premise_reply"], "前提の検算が走らなかった run")
 
     def test_verdict_marks_the_lines_an_unattended_run_passed_by_push(self):
         """修正前の関所を無人の run が推しで通した答え（欄 answer.PUSHED）なら、R4 から外した行の控えは「人が通した」でなく推しの印"""
@@ -1160,7 +1163,7 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual([p["by"] for p in passes], [gatemarks.PASSED_BY_PUSH])
 
     def test_premise_facts_reach_the_report(self):
-        """E37: 前提の検算が仮定を偽（resolved）と示したら、返り notes の隣の premise-check.json の問いの key と実測 facts_to_add を、
+        """E37: 前提の検算が仮定を偽（resolved）と示したら、返り premise_reply の先の問いの key と実測 facts_to_add を、
         最後の関所と報告が読み（問いは held のまま残すと言い、実測を並べる）、報告は実測を次の依頼の constraints（{text, measured_how,
         kind: 実測}。carry.parts が読む）に運ぶ。次の run の判定は前提の実測の制約に足し（judge_accept.with_carried）、目の支度は
         運ばれた制約の在る run では深さで目を省かない"""
@@ -1175,12 +1178,14 @@ class ScriptCase(unittest.TestCase):
                                         "resolution": "config.py:3 に上限 10", "facts_to_add": ["上限は config.py:3 の 10"]})
         got = self.run_script("verdict")
         self.assertEqual(got["notes"], {"type": "archon_artifact", "run_id": RUN_ID, "path": f"eyes/{eyeverdict.PREMISE_INPUTS}"})
+        self.assertEqual(got["premise_reply"], {"type": "archon_artifact", "run_id": RUN_ID, "path": f"eyes/{eyesbeside.PREMISE_FILE}"})
         folder = self.artifacts / "eyes"
-        self.assertEqual(eyeverdict.premise_fact_lines(folder),
+        self.assertEqual(eyeverdict.premise_fact_lines(folder / eyesbeside.PREMISE_FILE),
                          ["仮定は偽と検算した——問い「上限を呼び手ごとに持つか」は保留（held）のまま残す（次の run の判定が回し直した R2 を見て決める）"
                           ": config.py:3 に上限 10", "次の run の制約に足す実測: 上限は config.py:3 の 10"])
         out = self.tmp / "report"
-        eyes = {**{k: got[k] for k in got}, "notes": str(folder / eyeverdict.PREMISE_INPUTS)}
+        eyes = {**{k: got[k] for k in got}, "notes": str(folder / eyeverdict.PREMISE_INPUTS),
+                "premise_reply": str(folder / eyesbeside.PREMISE_FILE)}
         built = runreport.build({"eyes": eyes}, {}, {}, None, "needs_human", "", out_dir=out, run_id="run-9")
         text = pathlib.Path(built["report"]).read_text(encoding="utf-8")
         self.assertIn("  - 次の run の制約に足す実測: 上限は config.py:3 の 10", text)
@@ -1402,8 +1407,8 @@ class ScriptCase(unittest.TestCase):
         self.start(policy_md="", request_file=str(request), lang="English")
         self.inputs["answers"] = json.dumps({"decision": "continue", "text": "古い入口は消してよい"}, ensure_ascii=False)
         self.inputs["start_answers"] = json.dumps({"decision": "continue", "text": "入口は 1 つに絞る"}, ensure_ascii=False)
-        (self.artifacts / "plan-review" / eyeverdict.DESIGN_PREMISES).write_text(
-            json.dumps({"given": [], "withheld": [], "seen": {"count": 1, "last_round": 1}}), encoding="utf-8")
+        self.inputs["design_premises"] = self.pointer("plan-review/design-premises.json",
+                                                      {"given": [], "withheld": [], "seen": {"count": 1, "last_round": 1}})
         self.inputs["changed"] = json.dumps({"premise_drift": True, "premise_drift_note": "入口は 2 つあった"}, ensure_ascii=False)
         self.inputs["x_scalars"] = json.dumps({"x_endpoints": 2})
         got = self.run_script("prep")

@@ -18,6 +18,7 @@ inputs:
   depth: {required: true, description: "単位ごとの深さ。JSON の配列"}
   head_depth: {default: "", description: "run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら R1〜R4 を省く。省かずに回す時、段がまとめる目（TIERS の merges）を持てば R3・R4 を 1 つの役で見る。空は標準"}
   design: {required: true, description: "design.json のポインタ"}
+  design_premises: {default: "null", description: "独立設計の役に貼った物の控え {node, given, withheld, seen, claims?} のポインタか null。seen の数より後の人の答えを、比較役に独立設計の後に来た答えとして分けて貼る"}
   changed: {required: true, description: "修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む"}
   fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}
   green_ok: {required: true, description: "修正の後のテストが通ったか。真偽の値"}
@@ -515,7 +516,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits, notes]
+      required: [ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits, notes, r4_passes, premise_reply]
       properties:
         ok: {type: boolean}
         r1: &eye_row
@@ -545,7 +546,7 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         protected_hits: {type: array, items: {type: string}}
-        notes:
+        notes: &notes_pointer
           type: [object, "null"]
           additionalProperties: false
           required: [type, run_id, path]
@@ -553,3 +554,6 @@ nodes:
             type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
+        # 人が通したので R4 の問いから外した行と、前提の検算の役の返り（検算が走らなかった run は null）
+        r4_passes: *notes_pointer
+        premise_reply: *notes_pointer

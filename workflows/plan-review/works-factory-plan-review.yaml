@@ -461,11 +461,11 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [pass, stalled, review, design, gate_axes, ask_human, questions, gave_up]
+      required: [pass, stalled, review, gate_passes, gate, design, design_premises, gate_axes, ask_human, questions, gave_up]
       properties:
         pass: {type: boolean}
         stalled: {type: boolean}
-        review:
+        review: &pointer
           type: object
           additionalProperties: false
           required: [type, run_id, path]
@@ -473,14 +473,15 @@ nodes:
             type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
-        design:
-          type: object
-          additionalProperties: false
-          required: [type, run_id, path]
-          properties:
-            type: {type: string, enum: [archon_artifact]}
-            run_id: {type: string}
-            path: {type: string}
+        # review の隣の、聞かずに通した行と、承認ノードの項目と壁打ちの往復の行
+        gate_passes: *pointer
+        gate: *pointer
+        design: *pointer
+        # design の隣の、独立設計の役に貼った物の控え。設計が無い訳の控えの隣には無いので null
+        design_premises:
+          anyOf:
+            - *pointer
+            - {type: 'null'}
         gate_axes:
           type: object
           additionalProperties: false

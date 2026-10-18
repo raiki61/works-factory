@@ -66,7 +66,7 @@ MISMATCH_REASON = "直したという申告と機械の数え直しが合わな�
 NO_AFTER = "直した後の構造の実測: 無い（独立の目の structure_after が null——実測のノードが落ちたか走らなかった。メイングラフは止めずに進めた）"
 # 読む欄の名（with: の tests・eyes・seal は返りまるごとで届き、口 boundary.picked にこの名の並びを渡す。名は返す節の output_format の欄）
 TESTS = ("ok", "green", "red_cause", "ran_steps", "by", "suites_line", "log", "baseline_line", "reason")
-EYES = ("r1", "r2", "r3", "r4", "premise_check", "questions", "notes", "structure_after")
+EYES = ("r1", "r2", "r3", "r4", "premise_check", "questions", "notes", "r4_passes", "premise_reply", "structure_after")
 SEAL = ("ok", "reason", "hash", "protected_hits", "protected_count", "diff")
 # 封じの節が飛んだ（差分が無い周）時の既定。差分が無いので封じず、守りのパスの当たりも無い
 SEAL_SKIPPED = boundary.Picked({"ok": True, "reason": "", "hash": "", "protected_hits": [], "protected_count": 0, "diff": None})
@@ -428,36 +428,36 @@ def fix_beside(records) -> dict:
             "beside_unread": got["unread"]}
 
 
-def eye_notes(notes) -> dict:
-    """独立の目の返り notes（premise-inputs.json の指し札）の隣の材料: R2 の行の下の前提の入力と『渡されていない』の照らし
-    （eyeverdict.r2_input_lines。元 line_edge._r2_inputs）・人が通したので R4 で聞き直さなかった行（r4-gate-passes.json。元
-    _final_text の gatemarks.lines）・前提の検算で偽と分かった仮定の問いと次の run の制約に足す実測（premise-check.json）。null は
-    目のブロックが材料を書けなかった道（訳の 1 行）"""
-    if notes is None:
+def eye_notes(eye) -> dict:
+    """独立の目の返り eye の欄の先の材料: notes の先の R2 の行の下の前提の入力と『渡されていない』の照らし
+    （eyeverdict.r2_input_lines。元 line_edge._r2_inputs）・r4_passes の先の人が通したので R4 で聞き直さなかった行（元 _final_text の
+    gatemarks.lines）・premise_reply の先の前提の検算で偽と分かった仮定の問いと次の run の制約に足す実測。notes が null は目のブロックが
+    材料を書けなかった道（訳の 1 行）"""
+    if eye["notes"] is None:
         return {"r2_inputs": ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の出力 notes が null）"], "eye_passes": [],
                 "premise_facts": [], "notes_unread": []}
     try:
-        folder = boundary.resolve(notes).parent
+        notes, passes = boundary.resolve(eye["notes"]), boundary.resolve(eye["r4_passes"])
+        premise = None if eye["premise_reply"] is None else boundary.resolve(eye["premise_reply"])
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return {"r2_inputs": [], "eye_passes": [], "premise_facts": [],
                 "notes_unread": [f"独立の目の材料のポインタを読めない（R2 の前提・人が通した行を並べていない。{type(error).__name__}: {error}）"]}
-    rows = eyeverdict.gate_pass_rows(folder)
-    return {"r2_inputs": eyeverdict.r2_input_lines(folder), "eye_passes": gatemarks.pass_lines(rows or []),
-            "premise_facts": eyeverdict.premise_fact_lines(folder),
-            "notes_unread": [] if rows is not None else [f"独立の目の {eyeverdict.GATE_PASSES} を読めない（人が通した行を並べていない）"]}
+    rows = eyeverdict.gate_pass_rows(passes)
+    return {"r2_inputs": eyeverdict.r2_input_lines(notes), "eye_passes": gatemarks.pass_lines(rows or []),
+            "premise_facts": eyeverdict.premise_fact_lines(premise),
+            "notes_unread": [] if rows is not None else ["独立の目の人が通した行の控え（出力の欄 r4_passes の先）を読めない（人が通した行を並べていない）"]}
 
 
 def review_rows(reviews) -> tuple:
-    """(修正前の関所で通した行, 壁打ちの往復の行, 読めなかった訳)。事前審査の返り review（計画の往復と案の直しの事前審査）の隣の
-    gatemarks.PASSES_FILE と PLAN_GATE_FILE の converge から"""
+    """(修正前の関所で通した行, 壁打ちの往復の行, 読めなかった訳)。reviews は事前審査（計画の往復と案の直しの事前審査）の返りの欄
+    (gate_passes, gate) の対の並びで、gate_passes の先の行と gate の先の converge から"""
     passes, rounds, unread = [], [], []
-    for ptr in reviews:
-        if ptr is None:
+    for passed, gate in reviews:
+        if passed is None and gate is None:
             continue
         try:
-            folder = boundary.resolve(ptr).parent
-            passes += gatemarks.passes_of(folder)
-            rounds += gatemarks.converge_of(folder)
+            passes += gatemarks.passes_of(boundary.resolve(passed))
+            rounds += gatemarks.converge_of(boundary.resolve(gate))
         except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
             unread.append(f"事前審査の隣の控え（通した行・往復）を読めない（{type(error).__name__}: {oneline.one_line(error)}）")
     return passes, rounds, unread
@@ -525,11 +525,12 @@ def got_of_env() -> dict:
                              boundary.value(os.environ.get("INPUTS_ANSWER_TIES")), boundary.value(os.environ.get("INPUTS_MATERIALS")))
     fenced, after, after_unread = after_rows(eye["structure_after"])
     asked, conflicts_unread = asked_conflicts(boundary.items(os.environ.get("INPUTS_CONFLICTS")))
-    passes, rounds, review_unread = review_rows((boundary.value(os.environ.get("INPUTS_PLAN_REVIEW")),
-                                                 boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW"))))
+    passes, rounds, review_unread = review_rows(
+        ((boundary.value(os.environ.get("INPUTS_REVIEW_PASSES")), boundary.value(os.environ.get("INPUTS_REVIEW_GATE"))),
+         (boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_PASSES")), boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_GATE")))))
     deleted, deleted_unread = deleted_files(closing["diff"])
     beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_RECORDS")))
-    noted = eye_notes(eye["notes"])
+    noted = eye_notes(eye)
     raw = {"units": boundary.items(os.environ.get("INPUTS_UNITS")), "first_units": boundary.items(os.environ.get("INPUTS_FIRST_UNITS")),
            "judgment": judgment, "first_judgment": boundary.value(os.environ.get("INPUTS_FIRST_JUDGMENT")),
            "rejudge_exit": boundary.value(os.environ.get("INPUTS_REJUDGE_EXIT")),
