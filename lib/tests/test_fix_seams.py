@@ -521,6 +521,17 @@ class ScopeTextSeamCase(TempCase):
         self.assertIn("`conf.ini`", pr.scope_text(pr.fix_scope(self.place, "ruled", items=self.ITEMS)[0]))
         self.assertEqual(planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="ruled", items=self.ITEMS)[0], [])
 
+    def test_ruled_paths_waive_the_name_check_after_ruling(self):
+        """直す裁定が limits に挙げたパス（conf.ini）の同じ言語の同名の定義は、裁定の後の照らしで足す行の path の外に数えない"""
+        import planscope
+        items = [{**self.ITEMS[0], "allowed_paths": ["stats.py", "app.ini"],
+                  "files": [{"path": "app.ini", "op": "create", "symbols": [{"name": "LIMIT", "change": "add"}]}]}]
+        for path, text in (("app.ini", "LIMIT = 1\n"), ("conf.ini", "LIMIT = 2\n")):
+            (self.repo / path).write_text(text, encoding="utf-8")
+        rows = [{"unit_key": KEY_A, "files": ["app.ini", "conf.ini"]}]
+        lines, _ = planscope.check(rows, self.place, self.repo, self.rev, ["app.ini", "conf.ini"], pass_="ruled", items=items)
+        self.assertEqual(lines, [])
+
     def test_each_stage_pastes_the_out_of_scope_rule_its_check_applies(self):
         """修正の段は申告した単位の項目が明示に許したパスをその項目の out_of_scope だけで照らし、手直しの段は全部の項目で照らす。
         節の決まりの文は段ごとに照らしと同じ決まりを言う"""

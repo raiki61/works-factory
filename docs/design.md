@@ -519,7 +519,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - ASF で読む物: `W/implement/archon-implement.yaml`（`loop:` と `until_field: done`・`assert-changed` が `checkoutStart` と比べて本当に変わったかを見る・`outcome_field: green`）と `W/deliver/archon-deliver.yaml`（review → correct のループ）。
 - 入力: 判定・計画・直す前の結末。型つきの成果物 `tdd-unit` も出す。
 - 役（`commands/`）: `delta-review`・`lens-silent-failure-hunter`・`review2`・`fix-rules/`。`fix-rules/` は script が組んで渡す指示書の置き場で、役 `tdd`・`fix`（修正の決まり）・`ruler`・`clash`（合わせ役。並べた組を親の木で合わせて試験が赤になった組と、字で当たらず食い違いの印つきで当て直した組を、その組の変えたファイルの中だけで直す。直せなければ組を外して組どうしの合わせの申し出を裁定役へ回し、裁定役は直し方の指示・テストの範囲・案の直し・判定のやり直しのどれかで解き、どれでも解けない時だけ人に回す。持ち主の決め `clash-goes-to-ruling`）・`refix` の決まりを持つ。
-- 名の重なりは人に回さない（#664）: 修正案の範囲の照らし（`lib/planscope.py`）は、足す名と同名の定義が足す行の path の外に在るか・消す名が残るかを、言語とテストかの種類（`_kind`）が同じファイルだけで見る（設定の値と env の見本の同じ名の環境変数・言語の違う同じ名の型・テストと実装の同じ名は別の物）。種類の同じ別のファイルの同名は、裁定役が別の物と裁いて `limits` に挙げたパスなら数えない。裁定役の `ask_human` は、人の答えで直しの向きか範囲のどちらが変わるかと 1 行の訳（欄 `ask_why`）を持ち、訳が名の重なりだけ（`name_only`）なら受け付け（`lib/ruling.py`）が拒んで裁き直させる。訳は最後の承認ノードの行に出る。
+- 名の重なりは人に回さない（#664）: 修正案の範囲の照らし（`lib/planscope.py`）は、足す名と同名の定義が足す行の path の外に在るか・消す名が残るかを、言語（`_kind`）が同じファイルだけで見る（設定の値と env の見本の同じ名の環境変数・言語の違う同じ名の型は別の物）。テストと本体は分けない（消す名をテストのファイルに足し直して古いテストを緑に残すのを拒む）。言語の同じ別のファイルの同名は、裁定役が別の物と裁いて直す裁定の `limits` に挙げたパス（`conflict.ruled_paths`）なら数えない。案の `rewrite_tests`・相談の合意のテストなど、ほかの許しでは外さない。裁定役の `ask_human` は、人の答えで直しの向きか範囲のどちらが変わるかと 1 行の訳（欄 `ask_why`）を持ち、訳が名の重なりだけ（`name_only`）なら受け付け（`lib/ruling.py`）が拒んで裁き直させる。訳は最後の承認ノードの行に出る。
 - lib: `red_check`・`baseline_red`・`test_freeze`・`plan_scope`・`write_provenance`・`impact`・`test_files`・`give_up`・`groups`（組の作り）・`cite`・`conflict`（申し出の形）・`clash`（組の合わせの直し）。
 - 埋め: 無し。組ごとの作業ツリーは未決 U8。
 
