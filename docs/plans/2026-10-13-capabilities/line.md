@@ -1093,10 +1093,10 @@
 
 ## L-D 深さ・計画の往復・案の直し・再審・前の失敗・周の鎖
 
-- L-D01 単位ごとの深さを修正案の欄の形で機械が決める。軽量は「触るファイル 3 個まで・glob 無し・テスト 2 本まで・約束の形のファイル無し・機械の確かめ在り」を全部満たす時だけで、外れた条件は全部理由に並べる
+- L-D01 単位ごとの深さを修正案の欄の形で機械が決める。軽量は「glob 無し・約束の形のファイル無し・機械の確かめ在り」を全部満たす時だけで、外れた条件は全部理由に並べる（触るファイルとテストの本数は数えない。issue #760）
   - 元: works/darkfactory/lib/depth.py:122 `unit_depth`（h-depth は works/darkfactory/darkfactory.yaml:596）
   - 今: 表
-  - 証: lib/tests/test_depth.py::UnitDepthCase.test_each_condition_falls_to_standard_with_reason
+  - 証: lib/tests/test_depth.py::UnitDepthCase.test_each_condition_falls_to_standard_with_reason・lib/tests/test_depth.py::UnitDepthCase.test_many_files_and_tests_alone_stay_light
   - 本物の run: plan-rounds の出力 depth `[{unit_id, depth, why}]`（種は thickness 標準なので全部 標準）
   - 狭め: 無し
 - L-D02 配線だけの単位（線とブロックの YAML と manifest.json）は約束の形のファイルに数えない
@@ -1147,7 +1147,7 @@
   - 証: tests/workflows/test_line.py::RedepthCase.test_signals_raise_to_standard（subTest replanned・rejudged）
   - 本物の run: 節 after-fix の出力 replan・rejudge
   - 狭め: 無し
-- L-D10 run 全体の広さで上げる（計画の allowed_paths と実際の差分のファイルの和集合とテストの本数。数えた数と起点を counted に残す。軽量の名指しでも上げる）
+- L-D10 run 全体の広さを counted に記録する（計画の allowed_paths と実際の差分のファイルの和集合の数と起点。上げる信号にはしない。issue #760）
   - 元: works/darkfactory/lib/depth.py:97 `run_wide`・:289 `_actual_diff`・:312-313
   - 今: 表
   - 証: tests/workflows/test_line.py::RedepthCase.test_wide_run_stays_light（#760 で本数で上げる道を外し、counted の記録だけを残した。前の名は test_wide_run_raises_to_standard）・lib/tests/test_fix_seams.py::DeltaSeamCase.test_redepth_raises_on_the_signals_after_the_fix（test_fixboard.py の RedepthCase.test_actual_diff_beyond_plan_raises の名を変えた。既に在った）
