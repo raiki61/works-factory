@@ -2,7 +2,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""報告のブロックの返す節。facts の返りに人に向けた報告（在れば。隣に詳細のファイルも書く）を足して約束の欄を返す。落ちない: lib/ を読めない時も含めて
+"""報告のブロックの返す節。facts の返りに人に向けた報告（在れば。隣に詳細のファイルも書く）を足して約束の欄を返す。書き手のループ
+（WRITER）が落ちた run では、run の記録から読んだその訳を機械の報告の冒頭に置く（resume で書き直した run では外す）。落ちない: lib/ を読めない時も含めて
 中の誤りを全部捕まえ、ok: false・outcome: record_invalid と訳を、返す節の output_format に合う形で返す（線は落ちた返す節の
 先へ進めない）。lib/ は main の中で読む。境の口を読めない時も、標準ライブラリだけで同じ形を返す。"""
 import json
@@ -20,6 +21,7 @@ except Exception as error:  # noqa: BLE001 — 返す節は落ちない（下の
     boundary, unread = None, error
 
 FACTS = os.environ.get("INPUTS_FACTS", "")
+WRITER = "write-loop"   # このブロックの書き手のループの節の id
 CARRIED = ("next_request", "prior_failures")
 
 
@@ -60,6 +62,9 @@ def main() -> dict:
     if not isinstance(facts, dict) or not isinstance(facts.get("report"), dict):
         raise ValueError("facts の出力が無いか、機械の報告のポインタを持たない")
     machine = boundary.resolve(facts["report"])
+    rows, _ = boundary.transcript()
+    writer = boundary.own_prefix(os.environ.get("ARCHON_NODE_EXECUTION", "")) + WRITER
+    runreport.note_writer_fell(machine, runreport.writer_fell(rows, writer), run_id=os.environ.get("WORKFLOW_ID", ""))
     ai = runreport.collect(machine.read_text(encoding="utf-8"), out_dir=out_dir(), stamp=facts["stamp"])
     return {"outcome": facts["outcome"], "ok": facts["ok"], "stop_reason": facts["stop_reason"], "report": rel(machine),
             "report_ai": rel(ai) if ai else None, **{k: facts[k] for k in CARRIED}}
