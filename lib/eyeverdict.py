@@ -61,7 +61,7 @@ LATE_ASK = ("上の承認ノードの答えのうち、次の物は独立設計�
             "答えに照らした目的で突き合わせよ。")
 DRIFT_HEAD = "### 前提のずれ（修正の中の申告）"     # 元 同 :118
 CONSTRAINT_HEAD = "### 記録の制約"                 # 元 同 :119
-NO_CONSTRAINTS = "（記録の制約 premises.json が渡っていない）"
+NO_CONSTRAINTS = "（記録の制約が渡っていない）"
 NO_REQUEST = "依頼のファイルが渡っていない"
 # 元 .shared/core/graphloops/rules/review-loop.py:4103 の R4_ROWS（種類・R4 の返りの欄・行の頭）
 R4_ROWS = (("regression", "lost", "R4 が BASE から消えたと見た能力: "),
@@ -293,7 +293,7 @@ def _constraint_rows(constraints) -> list[str]:
 
 
 def constraints_text(constraints) -> str:
-    """記録の制約（premises.json の constraints。読めなければ None）の行の並び"""
+    """記録の制約（判定の出力の欄 premises の先の constraints。読めなければ None）の行の並び"""
     return _lines(_constraint_rows(constraints)) if constraints is not None else NO_CONSTRAINTS
 
 

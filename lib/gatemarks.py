@@ -55,8 +55,8 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   判定が結べないと訳つきで名乗った。報告の冒頭と最後の関所が名指す。保留の件数に数えない）。
 - answer_binds(b, a, questions=None, answer_rows=None)・split_answer_ties(reply)・answer_ties(b)・save_answer_ties(board, rnd, rows)・
   answer_tie_lines(b): 依頼の答えが当たる問いを決める 1 つの式（受け付けは返答の問いに、報告は台帳に当てる）と、判定の返答の足し欄
-  answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。受け付けが外して確かめ、通れば控え
-  answer-ties.json に置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
+  answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。受け付けが外して確かめ、通れば種 answers の
+  控えに置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
   ANSWERED_HEAD は答えた行の見出し、ANSWER_HOW は保留の行の下に出す答え方の 1 行
 - unmeasured(b)・origin_of(b, q)・material_answer(b, name)・measured_materials(b)・material_lines(b): 今の周に測れていない素材
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
@@ -118,7 +118,6 @@ import structmark  # 構造の目の行（汚れる・人に上げる）
 import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
 
 MARKS_FILE = marks.KINDS["gate"].file
-MATERIALS_FILE = "materials.json"   # 判定の隣の素材の状態（素材の名 → {status, …}。材料の支度が組み、判定の出力の欄 materials が指す）
 PLAN_GATE_FILE = "gate.json"   # 事前審査の差し込みの関所の項目と往復の報告の行 converge（boardview が書き、報告が読む）
 RECOMMEND = "recommend"   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
@@ -898,7 +897,7 @@ def unmeasured(b) -> dict:
 
 
 def unmeasured_of(materials) -> dict:
-    """素材の状態 materials（materials.json の値）のうち今の周に測れていない素材 {名: status}（UNMEASURED。盤面の無い読み手の口。判定の受け付けと報告の読みもこれを呼ぶ）"""
+    """素材の状態 materials（判定の出力の欄 materials の先の値）のうち今の周に測れていない素材 {名: status}（UNMEASURED。盤面の無い読み手の口。判定の受け付けと報告の読みもこれを呼ぶ）"""
     if not isinstance(materials, dict):
         return {}
     return {n: m["status"] for n, m in materials.items() if isinstance(m, dict) and m.get("status") in UNMEASURED}
@@ -917,7 +916,7 @@ def origin(q, missing) -> str:
 
 def binds(a, questions, *, ties=(), missing=()) -> list:
     """依頼の答え a が当たる問い（値で受ける 1 つの式。判定の受け付け・修正前の関所・最後の関所・報告が引く）: 判定が結びの行 ties
-    （answer-ties.json の行）で a をこの問いの key に結んでいればその問い、結んだ key が questions に無い（再審で問いが変わった）か結びが
+    （判定の出力の欄 answer_ties の先の行）で a をこの問いの key に結んでいればその問い、結んだ key が questions に無い（再審で問いが変わった）か結びが
     無ければ question と key が字のまま等しい問い、それも無ければ出どころ（origin。missing は測れていない素材の名）が等しい問いの全部
     （同じ単位の fork と escalate のように複数に当たることがある）"""
     qs = [q for q in questions if isinstance(q, dict)]
@@ -964,14 +963,14 @@ def split_answer_ties(reply) -> tuple:
 
 
 def answer_ties(b) -> list:
-    """控え answer-ties.json の最後の周の結びの行（値の見え方 Ledger はその値。無い・読めない・形が違えば空）"""
+    """種 answers の控えの最後の周の結びの行（値の見え方 Ledger はその値。無い・読めない・形が違えば空）"""
     if isinstance(b, Ledger):
         return list(b.ties)
     return ties_of(marks.load(marks.path_of("answers", b)))
 
 
 def ties_of(doc) -> list:
-    """控え answer-ties.json の中身 doc の最後の周の結びの行（形が違えば空）"""
+    """種 answers の控えの中身 doc の最後の周の結びの行（形が違えば空）"""
     rounds = doc.get("rounds") if isinstance(doc, dict) else None
     if not isinstance(rounds, dict) or not rounds:
         return []
@@ -980,7 +979,7 @@ def ties_of(doc) -> list:
 
 
 def save_answer_ties(board, rnd: int, rows: list) -> None:
-    """周 rnd の結びの行を控え answer-ties.json に置く（その周の分を置き換える）。行が無く控えも無ければ書かない"""
+    """周 rnd の結びの行を種 answers の控えに置く（その周の分を置き換える）。行が無く控えも無ければ書かない"""
     p = marks.path_of("answers", board)
     doc = marks.load(p)
     if not (isinstance(doc, dict) and isinstance(doc.get("rounds"), dict)):
@@ -1320,8 +1319,8 @@ class Ledger(types.SimpleNamespace):
 
 def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_push=False) -> Ledger:
     """問いの台帳の値の見え方: judgment は判定の dict（units・questions）、answers は依頼の answers（始めの記録の欄）、gate は修正前の
-    関所の答え {decision, text, asked}（か、その並び。無ければ None）、ties は判定の結びの行（answer-ties.json の最後の周）、materials は
-    素材の状態（materials.json）、takes_push は無人の run か（判定の推しを答えに採る。run_push）。人に聞く状態の語は ASKING、測れていない
+    関所の答え {decision, text, asked}（か、その並び。無ければ None）、ties は判定の結びの行（判定の出力の欄 answer_ties の先の最後の周）、materials は
+    素材の状態（判定の出力の欄 materials の先）、takes_push は無人の run か（判定の推しを答えに採る。run_push）。人に聞く状態の語は ASKING、測れていない
     素材の状態は UNMEASURED"""
     doc = judgment if isinstance(judgment, dict) else {}
     status = {k: types.SimpleNamespace(blocks=True) for k in UNMEASURED}
@@ -1336,8 +1335,8 @@ def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_pu
 
 
 def ledger_files(judgment, *, ties_file=None, materials_file=None, answers=(), gate=None, takes_push=False) -> Ledger:
-    """ledger の結びの行と素材の状態を、ファイルから読んだ物: ties_file は判定の結び（answer-ties.json の形）、materials_file は素材の
-    状態（materials.json の形）。None か、ファイルが無い・読めなければ結び無し・素材無し（字の一致だけ。今の works の結びの無い run と同じ）"""
+    """ledger の結びの行と素材の状態を、ファイルから読んだ物: ties_file は判定の結び（判定の出力の欄 answer_ties の先）、materials_file は素材の
+    状態（判定の出力の欄 materials の先）。None か、ファイルが無い・読めなければ結び無し・素材無し（字の一致だけ。今の works の結びの無い run と同じ）"""
     ties = ties_of(marks.load(pathlib.Path(ties_file))) if ties_file is not None else []
     materials = marks.load(pathlib.Path(materials_file)) if materials_file is not None else None
     return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials, takes_push=takes_push)
