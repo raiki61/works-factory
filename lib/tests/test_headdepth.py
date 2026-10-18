@@ -332,9 +332,8 @@ class ReportLineTest(unittest.TestCase):
 
     def test_groups_lines_say_up_and_down_are_record_only_with_the_launch_switch(self):
         self.assertEqual(headdepth.RUN_SWITCH,
-                         "上げる向きも下げる向きも、役の選びは控えに残すだけで、この run にも子の run にも次の周にも効かない"
-                         "（止めた版 64ec0c2e は run の中で後のノードの模型を付け替えられず、子の run は親の模型の設定を受け継ぐ）。"
-                         "走りの模型と effort を替えるには、run を起こす時の --model か --config を使う。")
+                         "役の選びは記録だけで、この run にも子の run にも次の周にも効かない。走りの模型を替えるには、run を起こす時に "
+                         "--model @wf-<群>=<模型> を渡す（effort も替えるなら <模型> の代わりに effort を持つ別名 @<名> を書く）。")
         for want, row in ((launchgroups.UP, {"group": "@wf-fix-writers", "model": "opus", "effort": "max", "why": "x"}),
                           (launchgroups.DOWN, {"group": "@wf-fix-writers", "model": "haiku", "effort": "low", "why": "x"})):
             with self.subTest(want):

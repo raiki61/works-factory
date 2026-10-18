@@ -38,7 +38,7 @@
 
 ### 候補（まだ埋めでない）: run の中で後のノードの模型と effort を付け替える口
 
-- 穴: Archon 64ec0c2e に、run の中で後のノードの模型と effort を付け替える口が無い。`--model` は run を起こす時だけで続きの run には渡せず、`workflow:` のノードにも付け替えの欄が無い。run の頭の深さの役の群の選び（`groups`）は、上げる向きも下げる向きも控えに残すだけで、その run にも子の run にも周の鎖の次の周にも効かない（持ち主の決め `head-choice-record-only`。`lib/headdepth.py`・`lib/launchgroups.py`）。走りの模型を替えるのは、呼ぶ人が run を起こす時の `--model` か `--config` だけ。上流に issue は出さない。
+- 穴: Archon 64ec0c2e に、run の中で後のノードの模型と effort を付け替える口が無い。`--model` は run を起こす時だけで続きの run には渡せず、`workflow:` のノードにも付け替えの欄が無い。run の頭の深さの役の群の選び（`groups`）は、上げる向きも下げる向きも控えに残すだけで、その run にも子の run にも周の鎖の次の周にも効かない（持ち主の決め `head-choice-record-only`。`lib/headdepth.py`・`lib/launchgroups.py`）。走りの模型を替えるのは、呼ぶ人が run を起こす時の `--model @wf-<群>=<spec>` だけ（`--config` に書いた群の別名は殻が工場の値で上書きする。effort も替えるには `<spec>` に effort を持つ別名 `@<名>` を書く）。上流に issue は出さない。
 - 証拠:
   - `packages/workflows/src/model-validation.ts` の「Parse repeated CLI `name=spec` mappings into the shared transport shape.」（`--model` は run を起こす命令の字を受けるだけ）
   - `packages/workflows/src/executor.ts` の「Cannot supply model overrides when resuming an existing workflow run.」（続きの run は付け替えを拒む）

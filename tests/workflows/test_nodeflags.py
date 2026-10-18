@@ -112,7 +112,7 @@ def guarded_mismatches(doc, block: str) -> list:
 
 # 子の run の節が持つと、子の模型か effort を run の中から替えうる欄と、頭の深さの控えを指す字
 CHILD_MODEL_KEYS = ("model", "effort", "provider", "config", "aliases")
-HEAD_RECORD_WORDS = ("depth_record", "depth-head", "groups")
+HEAD_RECORD_WORDS = ("depth_record", "depth-head")
 
 
 def child_model_leaks(doc) -> list:
