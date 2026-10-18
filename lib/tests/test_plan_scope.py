@@ -656,6 +656,55 @@ class AgreedOverridesOutOfScopeCase(unittest.TestCase):
         self.assertTrue(any("CHANGELOG.md" in p and "項目 1 の out_of_scope" in p for p in got), got)
 
 
+class NameOverlapCase(unittest.TestCase):
+    """名が字で同じでも、言語・テストかの種類と在り処の違う物は別の物と読み、人に回る申し出を作らない（#664。本物の run で人に
+    回った 3 件と、無関係な局所の助け手の改名を強いた 1 件の形）。種類の同じ別のファイルの同名は今どおり拒み、裁定が許したパスなら通す"""
+    UNIT = [{"unit_key": MEAN, "files": ["deploy/values.yaml", ".env.sample"]}]
+
+    def test_env_var_in_deploy_values_and_local_sample_is_not_outside_add_paths(self):
+        it = item(allowed_paths=["deploy/values.yaml", ".env.sample"], files=[frow("deploy/values.yaml", add("APP_NOTICE_FILE"))])
+        ch = {"deploy/values.yaml": ("env:\n", "env:\n  APP_NOTICE_FILE: /data/notice.json\n"),
+              ".env.sample": ("", "APP_NOTICE_FILE=./notice.json\n")}
+        self.assertEqual(planscope.problems([it], self.UNIT, ch)[0], [])
+
+    def test_same_type_name_in_other_language_is_not_outside_add_paths(self):
+        model, iface = ("api/models.py", "class Notice(BaseModel):\n    title: str\n"), \
+            ("web/src/notice.ts", "export interface Notice {\n  title: string\n}\n")
+        for (path, _), (other, text) in ((model, iface), (iface, model)):
+            with self.subTest(add=path):
+                it = item(allowed_paths=["api/**", "web/**"], files=[frow(path, add("Notice"))])
+                ch = {model[0]: ("", model[1]), iface[0]: ("", iface[1])}
+                rows = [{"unit_key": MEAN, "files": sorted(ch)}]
+                self.assertEqual(planscope.problems([it], rows, ch)[0], [], other)
+
+    def test_test_function_named_like_product_function_is_another_thing(self):
+        it = item(allowed_paths=["stats.py", "test_stats.py"], files=[frow("stats.py", add("median"))])
+        ch = {"stats.py": ("", "def median(xs):\n    pass\n"), "test_stats.py": ("", "def median():\n    pass\n")}
+        self.assertEqual(planscope.problems([it], [{"unit_key": MEAN, "files": sorted(ch)}], ch)[0], [])
+
+    def test_same_kind_other_file_still_rejected_until_ruled(self):
+        """種類の同じ別のファイルの同名の定義は拒み、裁定が許したパス（permits）なら別の物と裁いた物として通す"""
+        it = item(allowed_paths=["*.py"], files=[frow("stats.py", add("median"))])
+        ch = {"stats.py": ("", "def median(xs):\n    pass\n"), "util.py": ("", "def median(xs):\n    pass\n")}
+        rows = [{"unit_key": MEAN, "files": ["stats.py", "util.py"]}]
+        self.assertTrue(any("util.py" in p and "足す行の path" in p for p in planscope.problems([it], rows, ch)[0]))
+        self.assertEqual(planscope.problems([it], rows, ch, permits=("util.py",))[0], [])
+
+    def test_unrelated_local_helper_with_removed_name(self):
+        """消す名と同じ字の局所の助け手を別のファイルに足した: 種類の同じファイルは拒み、裁定が許せば通す。種類の違う文書の
+        字下げのコード例は残りに数えない。行の path に残る名は許しがあっても拒む"""
+        it = item(allowed_paths=["*.py", "docs/**"], files=[frow("stats.py", rm("_entry"))])
+        gone = ("def _entry():\n    pass\n", "def mean():\n    pass\n")
+        ch = {"stats.py": gone, "report.py": (None, "def _entry(row):\n    return row\n")}
+        rows = [{"unit_key": MEAN, "files": sorted(ch)}]
+        self.assertTrue(any("_entry" in p for p in planscope.problems([it], rows, ch)[0]))
+        self.assertEqual(planscope.problems([it], rows, ch, permits=("report.py",))[0], [])
+        doc = {"stats.py": gone, "docs/howto.md": (None, "例:\n\n    def _entry():\n        pass\n")}
+        self.assertEqual(planscope.problems([it], [{"unit_key": MEAN, "files": sorted(doc)}], doc)[0], [])
+        kept = {"stats.py": ("def _entry():\n    pass\n", "def _entry():\n    return 1\n")}
+        self.assertTrue(any("_entry" in p for p in planscope.problems([it], [ROW], kept, permits=("stats.py",))[0]))
+
+
 class RejectHeadCase(unittest.TestCase):
     """拒否の行の頭（reject_head）: 範囲の相談がその段に在れば、範囲の外が要る時の先の道を相談と言い、申し出は聞けない・
     許されない・out_of_scope の時の道に下げる（run 249・249b は相談の控えが在ったのに、拒否の文が申し出の道だけを言った）"""

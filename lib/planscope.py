@@ -34,7 +34,11 @@
   加えて、その前の段の def・class（名がそのファイルのモジュールならモジュール）が行の path の差分で docstring を得たかを ast で見る
   （_doc_added。docstring の字は __doc__ を書かないので、語だけでは正しい直しを拒む。run 35ad1c2a）。名の解き方は remove と同じ
   （最後の段の前が最上位のクラスならクラス.名、ほかは最上位の素の名）
-- 残った（remove）: 修正の後の .py を ast で読み、名がまだ定義されている（名を消した行か定義を足した行を持つファイルで）。
+- ファイルの種類（_kind）: 言語（changemap.fence_lang）と、テストのモジュールか（impact.is_test）の組。名が字で同じでも、種類の違う
+  ファイルの物（設定の値と手元の env の見本の同じ名の環境変数・画面の型と backend の型・テストの関数と実装の関数）は別の物と読み、
+  足す行の path の外の定義にも、消す名の残りにも数えない。種類の同じ別のファイルの同名は、裁定が許したパス（permits）なら数えない
+  （裁定役が別の物と裁いた。人に回さない）
+- 残った（remove）: 修正の後の .py を ast で読み、名がまだ定義されている（名を消した行か定義を足した行を持つ、行の path と種類の同じファイルで）。
   . か :: の修飾子は、そのファイルの最上位のクラスなら クラス.名、モジュール名か :: の前のパスなら最上位の素の名で照らす。.py でない・構文が読めないファイルは、足した行に定義の行（def・class・代入・関数の形）が在れば
   残る。名を挙げるだけの行（消えたことを確かめる hasattr・変更の記録の注記）は残ったと見ない
 
@@ -62,6 +66,8 @@ import sys
 
 sys.dont_write_bytecode = True
 
+import changemap  # noqa: E402   ファイルの言語の名（fence_lang）
+import impact  # noqa: E402   テストのファイルの名の慣習（is_test）
 import leftovers  # noqa: E402
 import planmarks  # noqa: E402
 import planrange  # noqa: E402   範囲の読みと単位に結べないパスの照らし（手直しの受け付けと同じ決まりの 1 か所。.shared/core）
@@ -142,11 +148,16 @@ def _who(it: dict) -> str:
 def _definition(name: str):
     """行 1 本が名 name の定義かを search で照らす型。3 本の枝は全部行の頭に錨で止める: `def`・`class`（字下げと、小文字の語の
     修飾子の並び async・export・declare・abstract・public・data などは許す）、`<名> =`、`[function ]<名>()`。行が `"` や `-` など
-    語でない字で始まる文書・表の中の文字列（JSON の `"pattern": "def <名>|..."`）は定義と数えない。言語やファイルの種類では分けない。
-    残る限界: 文書の中の字下げしたコード例の `    def <名>(` や、小文字の語で始まる散文の `the class <名>` は行の頭の型に当たるので
-    定義と数える"""
+    語でない字で始まる文書・表の中の文字列（JSON の `"pattern": "def <名>|..."`）は定義と数えない。型は言語やファイルの種類で
+    分けず、読み手が種類（_kind）の同じファイルの行だけに当てる。残る限界: 種類の同じファイルの中の、字下げしたコード例の
+    `    def <名>(` や、小文字の語で始まる散文の `the class <名>` は行の頭の型に当たるので定義と数える"""
     n = re.escape(name)
     return re.compile(rf"^[ \t]*(?:[a-z]+[ \t]+)*(?:def|class)[ \t]+{n}\b|^{n}\s*=|^(?:function\s+)?{n}\s*\(\)")
+
+
+def _kind(path: str) -> tuple[str, bool]:
+    """ファイルの種類 (言語の名, テストのモジュールか)。種類の違うファイルの同じ字の名は別の物"""
+    return changemap.fence_lang(path), impact.is_test(path) == "module"
 
 
 def _defined_names(src: str | None):
@@ -236,7 +247,8 @@ def _owns(qual: str, raw: str, path: str, classes: set) -> str | None:
 
 
 def _remains(raw: str, name: str, changes: dict, diffs: dict) -> bool:
-    """files の change=remove の symbol の名が修正の後も残っているか（呼び手が、同じ名を移した先の path を changes から除いて渡す）。変わった .py は今の中身を ast で読み、その名を消した行か定義を足した行を持つファイルで、
+    """files の change=remove の symbol の名が修正の後も残っているか（呼び手が、同じ名を移した先の path・行の path と種類（_kind）の
+    違うファイル・行の path でない許しのパス（permits）を changes から除いて渡す）。変わった .py は今の中身を ast で読み、その名を消した行か定義を足した行を持つファイルで、
     名がまだ定義されていれば残る。修飾子の無い名は最上位の素の名で照らし、修飾子の在る名はファイルごとに解く（_owns: クラスなら
     クラス.名、モジュールなら最上位の素の名、どちらでもないファイルは見ない）。.py でない・構文が読めないファイルは、足した行に
     定義の行（_definition）が在れば残る"""
@@ -297,10 +309,11 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     3. 生きた項目の範囲の中に変わったパスが 1 つも無ければ Missing
     4. files の add（change=add の symbol）: 探す語（planmarks.search_word）が、生きた項目なら行の path の足した行に語の境で現れる
        （無ければ Missing。語が __doc__ なら、名の def・class の docstring を差分で足していても在る。_doc_added）。同じ名を足すと言った
-       行の path（その項目の files の add の同名の行）の外に、凍った後に修正役が足した同名の定義が在れば Extra（見る項目の全部）。
+       行の path（その項目の files の add の同名の行）の外の、そのどれかと種類（_kind）の同じファイルに、凍った後に修正役が足した
+       同名の定義が在れば Extra（見る項目の全部。permits のパスは除く）。
        op=create・delete・rename・modify の行は path の新設・消し・移し・変更（_op_problems）を見る
     5. files の remove（change=remove の symbol）: 生きた項目なら、探す語が行の path の消した行に現れ、どの足した行にも定義として
-       現れない（同じ名を移した先の path の定義は残りに数えない）
+       現れない（同じ名を移した先の path・行の path と種類の違うファイル・行の path でない permits のパスの定義は残りに数えない）
     6. tests: 新しく現れたテストのうち、どの項目の tests にも無い物は Extra（範囲の相談の合意で項目に入った物は tests に在る）。
        生きた項目の tests の各 id は、そのパスが変わり、今の中身に定義の行が在る
     裁定で外れた単位の項目も範囲を与える（依頼 241。外れた単位を直させない守りは受け付けの check_excused_units）。
@@ -384,13 +397,15 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
                         out.append(f"{who}: files の {path} の add {raw} が差分の {path} の足した行に無い"
                                    + ("（その def・class の docstring も差分で足されていない）" if name == DOC else ""))
                     add_paths = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}
-                    define = _definition(name)
-                    for p in sorted({p for p, line in fixer_added if p not in add_paths and define.search(line)}):
+                    kinds, define = {_kind(p) for p in add_paths}, _definition(name)
+                    for p in sorted({p for p, line in fixer_added if p not in add_paths | permits and _kind(p) in kinds
+                                     and define.search(line)}):
                         out.append(f"{who}: files の {path} の add {raw} の足す行の path（{'・'.join(sorted(add_paths))}）の外に同名の定義（{p}）")
                 elif sym.get("change") == "remove" and not skip:
                     word = planmarks.word_re(name)
                     moved = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}   # 移した先の定義は残りに数えない
-                    kept = {p: pair for p, pair in changes.items() if p not in moved}
+                    kept = {p: pair for p, pair in changes.items()
+                            if p not in moved and (p == path or (p not in permits and _kind(p) == _kind(path)))}
                     if not any(word.search(line) for line in diffs.get(path, ([], []))[1]) or _remains(raw, name, kept, diffs):
                         out.append(f"{who}: files の {path} の remove {raw} が差分で消えていない（{path} の消した行に無いか、足した行に定義が残る）")
         for row in [] if skip else it.get("tests") or []:
