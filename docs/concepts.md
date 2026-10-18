@@ -110,10 +110,10 @@
 ### `depth` 単位ごとの深さ
 
 - 状態: 住処あり
-- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・修正の後に上げる信号 `outside_cited`（引用の外の差分）・`late_signals`（引用の外の差分・TDD の拒否・範囲の相談の理由）・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの段の省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）
+- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・修正の後に上げる信号 `outside_cited`（引用の外の差分）・`late_signals`（引用の外の差分・TDD の拒否・範囲の相談の理由）・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの段の省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）と、修正の後の上げ直しの数え `lib/latedepth.py` の `signals`（修正のサブグラフの中の上げ直しとメイングラフの `redepth` が呼ぶ 1 か所。控えが無い時の訳 `NO_LATE_RECORD` と、読めない控えを上げる側へ倒す信号 `LATE_UNREAD`）
 - 約束: 計画の出力 `depth`（`[{unit_id, depth, why}]`。depth は `軽量`・`標準`）と、修正と目のサブグラフへ渡す run の頭の深さの語（平の入力 `head_depth`）。run の頭の深さの語（`軽量`・`標準`・`重厚`）は判定の出力 `depth` で、表 `TIERS` が定義する
 - 知ってよい所: 住処と、メイングラフ `workflows/line/`（始めのノードの入力 `thickness` の確かめと、直した後の上げ直しのノード `redepth`）
-- 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所
+- 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所。控えの扱いの字の柵は、`lib/latedepth.py` の外に字が無いことを見る（漏れ無し）
 
 ### `features` 機能の切り替え
 
@@ -150,9 +150,9 @@
 ### `marks` 返答の足し欄
 
 - 状態: 住処あり
-- 住処: `lib/marks.py`（標準ライブラリだけ。種の表 `KINDS`＝ノードか役 → 行の在り処・共有ボードの控えの名・置き場、と手順の口 `add`（役の型に足す）・`rows`・`split`（受け付けが共有ボードへ渡す前に外す）・`path_of`・`write`・`load`（控えに置く・読み戻す））
+- 住処: `lib/marks.py`（標準ライブラリと判定の隣のファイルの名の住処 `lib/judgebeside.py` だけ。種の表 `KINDS`＝ノードか役 → 行の在り処・共有ボードの控えの名（判定の隣のファイルでもある種 `answers`・`pr` の名は `lib/judgebeside.py` の定数を引く）・置き場、と手順の口 `add`（役の型に足す）・`rows`・`split`（受け付けが共有ボードへ渡す前に外す）・`path_of`・`write`・`load`（控えに置く・読み戻す））
 - 約束: 種の表 `KINDS` の控えの名（欄を持つモジュールは `marks.KINDS[種].file` で引く）と、控えのパスを組む `path_of`
-- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` の `lib/planfile.py`・引き継ぎのメモ `handoff` の `lib/handoff.py`）が持ち、手順は住処を呼ぶ
+- 知ってよい所: 住処だけが控えの名を書き（判定の隣のファイルでもある名は `lib/judgebeside.py` が書く）、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` の `lib/planfile.py`・引き継ぎのメモ `handoff` の `lib/handoff.py`）が持ち、手順は住処を呼ぶ
 - 今: 控えの名を字で持ち直す所（`lib/judge_accept.py`・`workflows/plan/scripts/plan_collect.py`）、控えのパスを `path_of` を通さずに組む所（`lib/judge_accept.py`・`lib/planfile.py`・`lib/refix.py`）、欄を手で外す所（修正役の欄 `lib/fixboard.py`・並行 PR の `lib/judge_accept.py`・手直しの `bash_writes` の `lib/writes.py`）が残る（柵の表の既知の漏れ）。`lib/judgeverify.py` は自分で組む裏取りの型で、同じ字の形の別の物
 
 ### `handoff` 引き継ぎのメモ（次の周の自分への書き置き）
@@ -198,9 +198,9 @@
 ### `world` 世界の解（問題の類ごとの定石と、依頼の解き方との比べ）
 
 - 状態: 住処あり
-- 住処: `lib/worldmark.py`（行の欄の名 `FIELDS`・行のファイルの名 `WORLD_FILE`・控えの名 `STATE_FILE`・語 `VERDICTS`・`BASES`・名指しの句 `NOT_WEB`・先例の出どころの頭の字 `SOURCE_PREFIX`・読み書き `rows`・`read`・`write`・`stage_rows`・頭のセクション `section`・答えの要る行 `needs`・`need`・`unanswered`・依頼の解き方との比べの文 `challenges`・承認ノードの軸 `world_ok`・承認ノードの行 `gate_line`・報告の行 `report_lines`・先例の出どころの照らし `ref_problems`・依頼の解き方の足し欄 `MEANS` と `split_means`・`write_means`・`means_of`）
+- 住処: `lib/worldmark.py`（行の欄の名 `FIELDS`・行のファイルの名 `WORLD_FILE`・控えの名 `STATE_FILE`（判定の隣のファイルなので字は `lib/judgebeside.py` の `WORLD_STATE_FILE` を引く）・語 `VERDICTS`・`BASES`・名指しの句 `NOT_WEB`・先例の出どころの頭の字 `SOURCE_PREFIX`・読み書き `rows`・`read`・`write`・`stage_rows`・頭のセクション `section`・答えの要る行 `needs`・`need`・`unanswered`・依頼の解き方との比べの文 `challenges`・承認ノードの軸 `world_ok`・承認ノードの行 `gate_line`・報告の行 `report_lines`・先例の出どころの照らし `ref_problems`・依頼の解き方の足し欄 `MEANS` と `split_means`・`write_means`・`means_of`）
 - 約束: 行の欄と語は住処の定数 `FIELDS`・`VERDICTS`・`BASES`（試験 `lib/tests/test_worldmark.py` が縛る）。住処の docstring が名指す行の型 world-row.schema.json は works-factory に無い
-- 知ってよい所: 住処と、世界の解の段のサブグラフの中身 `lib/worldblk.py` とノードの口 `workflows/judge/scripts/world_*.py`（行と控えを書く出口 world_finish を含む）。読み手（`lib/judge_accept.py`・`lib/planblk.py`・`lib/planfile.py`・`lib/planmarks.py`・`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口を引く
+- 知ってよい所: 住処と、判定の隣のファイルの名の住処 `lib/judgebeside.py`（控えの名の字だけ）と、世界の解の段のサブグラフの中身 `lib/worldblk.py` とノードの口 `workflows/judge/scripts/world_*.py`（行と控えを書く出口 world_finish を含む）。読み手（`lib/judge_accept.py`・`lib/planblk.py`・`lib/planfile.py`・`lib/planmarks.py`・`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口を引く
 - 今: 柵は行のファイルと控えの名の字。住処の外の当たりは、判定のノードの中身 `lib/judge_accept.py` の docstring 2 行と報告 `lib/runreport.py` の docstring 1 行が置き場の名を字で説明する所で、既知の漏れに置く（コードは住処の定数を引く）
 
 ### `stop-reasons` 止めの理由
@@ -225,7 +225,10 @@
 - 住処: `lib/gatepolicy.py`（標準ライブラリと始めの記録・答えの行・止めの語と、事前審査の壁打ちの控えの読みだけ。メイングラフの入力と始めの記録の欄の名 `FINAL_KEY`・`UNATTENDED_KEY`、最後の承認ノードの開き方の語 `FINAL_GATES`（既定 `ALWAYS`）と無人の語 `UNATTENDED`、入口の語の確かめ `check`（仕様の段と無人の組みも拒む）、始めの記録からの読み `final_mode`・`unattended`、最後の承認ノードを開くかの決め `opens`、報告の頭の行の句 `head_words`、無人の run が承認ノードを推しで進むか止まるかの口 `passage`（項目を受けて進むか・止める理由・推しの答えを返す）と、止まった事前審査の壁打ちの行に推しの尾を付けてよいかの決め `stuck_pushable`、推しの読みの形 `Push`）
 - 約束: 始めの記録（`lib/startrec.py` の start.json の形）の 2 つの欄。書き手はメイングラフの始めのノードの 1 か所
 - 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）と、周の鎖の親のグラフ `workflows/chain/works-factory-chain.yaml`（メイングラフと同じ名の入力を宣言し、周の子へ写して渡すだけ）。読み手（`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口で始めの記録を読む。推しの尾の字の形の持ち主 `lib/gatemarks.py` は、項目の尾と止まった時の推しの読みを `Push` にして住処の口に渡すだけで、推しで進むかを決めない。修正前と案の直しの承認ノードの script は `passage` を呼ぶだけ
-- 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形と、推しの尾の読み（`push_rec`・`row_push`）を住処と gatemarks の外で呼ぶ形（推しで進むかの決めの写し）の 3 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
+- 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形と、推しの尾の読み（`push_rec`・`row_push`）を gatemarks の外で呼ぶ形（推しで進むかの決めの写し。住処は推しの読みを `Push` で受けるだけで、尾の読みを呼ばない）の 3 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
+- 寄せ残し: 無人の run の決めのうち、次の 2 つは住処の口の外に置く。始めの承認ノード（`workflows/line/scripts/start.py`）は無人かの読みを口 `unattended_of` で引き、無人なら開かないだけなので残しではない
+  - 最後の承認ノード（`workflows/line/scripts/ask_final.py` の `ask`）の、開くはずの時に無人の run なら needs-human で止める分かれ道。開ける理由（テストが緑でない・守りのファイルを触った…）は機械が読める推しの尾を持たないので、`passage` に渡すと理由を推しの無い項目として渡す形でしか書けず、「いつも止める」を口の中の推しの読みに隠すだけで簡潔にならない。開くかの決めはもう口 `opens` に在る
+  - 判定が保留にした分かれ道の問いの推しを、無人の run が答えに採るか（`lib/gatemarks.py` の `run_push`）。無人かの読みは口（`gatepolicy.unattended`）を引くが、採る条件の残り（問いの種類と状態・推しが選択肢を名指すか・出どころと depends が開いた単位か）は問いの台帳の形の決めで、口へ移すと方針の住処が判定の問いと計画の単位の形を知る
 
 ### `gate-evidence` 試験の関門の証拠の文の行の頭
 

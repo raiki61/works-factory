@@ -1582,7 +1582,7 @@
 - S208 すぐ止めたい時は「取り消す」の行（`cancel <run-id>`）で、報告のノードまで届かない
   - 元: SKILL.md:165
   - 印: 無し
-  - 今: Archon の `workflow cancel`（README.md「Usage」）
+  - 今: Archon の `workflow cancel`（README.md「Stopping a run」）
   - 状態: 在る
   - 旧棚卸し: L-G55
 
@@ -2606,7 +2606,7 @@
 - U132 stop で、承認ノードで待つ run は respond stop で止めて報告へ進める
   - 元: use.sh:18・use.sh:943-946
   - 印: `stop`
-  - 今: Archon の `workflow respond` に stop と一言・`lib/answer.py::taken`（README.md「Usage」の 止める）
+  - 今: Archon の `workflow respond` に stop と一言・`lib/answer.py::taken`（README.md「Stopping a run」）
   - 状態: 在る
   - 旧棚卸し: L-G06・L-G07
 
@@ -3183,8 +3183,8 @@
 - fix.md F316: lib/fixboard.py::delta_review、workflows/fix/scripts/collect.py
 - fix.md F317: workflows/fix/scripts/collect.py の組の形、YAML の delta-cut・lens-collect・delta-loop の `when: "$route.output.group == false ..."`
 - fix.md F318: workflows/fix/scripts/delta_cut.py::main、lib/depth.py::skip_reason
-- fix.md F319: lib/fixboard.py::depth_signals・lib/fixboard.py::redepth、workflows/fix/scripts/delta_cut.py::main
-- fix.md F320: 報告（lib/runreport.py::_entry_lines）は計画の深さ（plan の出力 depth）だけを出す。fix の置き場の `depth-raised.json`・`delta/skipped.json` は出力に載らない（出力は delta_review {0, true} だけ）。メイングラフの redepth（workflows/line/scripts/redepth.py）も同じ信号で上げ直すが、fix の中の上げ直しとは別に数える
+- fix.md F319: lib/fixboard.py::depth_signals・lib/fixboard.py::redepth・lib/latedepth.py::signals、workflows/fix/scripts/delta_cut.py::main
+- fix.md F320: 報告（lib/runreport.py::_entry_lines）は計画の深さ（plan の出力 depth）だけを出す。fix の置き場の `depth-raised.json`・`delta/skipped.json` は出力に載らない（出力は delta_review {0, true} だけ）。メイングラフの redepth（workflows/line/scripts/redepth.py）も同じ数え（lib/latedepth.py::signals）で上げ直すが、fix の中の上げ直しとは別に数える
 - fix.md F321: lib/fixboard.py::delta_review_due、workflows/fix/scripts/delta_cut.py（修正前の版からの累積差分が空（.archon/ の下を除く）で 1 回目の claimed_closed も無ければ go: false、訳は delta/skipped.json）（#121）
 - fix.md F322: lib/refix.py::_drop_stale
 - fix.md F323: lib/refix.py::cut（conflict.fields_broken）
@@ -3264,7 +3264,7 @@
 - gaps-fix.md F306: lib/deltamarks.py、lib/refix.py::accept_review、YAML の delta-review の output_format の required（workflows/fix/works-factory-fix.yaml::delta-review）
 - gaps-fix.md F313: workflows/fix/scripts/cut2.py::main、lib/refix.py::cut の n=2、lib/fixboard.py::claimed_closed（2 回目の claimed_closed は 1 回目の手直しの fixed）
 - gaps-fix.md F317: workflows/fix/scripts/collect.py の組の形、YAML の delta-cut・lens-collect・delta-loop の `when: "$route.output.group == false ..."`
-- gaps-fix.md F319: lib/fixboard.py::depth_signals・lib/fixboard.py::redepth、workflows/fix/scripts/delta_cut.py::main
+- gaps-fix.md F319: lib/fixboard.py::depth_signals・lib/fixboard.py::redepth・lib/latedepth.py::signals、workflows/fix/scripts/delta_cut.py::main
 - gaps-fix.md F321: lib/fixboard.py::delta_review_due、workflows/fix/scripts/delta_cut.py（修正前の版からの累積差分が空（.archon/ の下を除く）で 1 回目の claimed_closed も無ければ go: false、訳は delta/skipped.json）（#121）
 - gaps-fix.md F324: lib/refix.py::cut（seat.section）、workflows/fix/commands/delta-review.md の seat_file の行
 - gaps-fix.md F325: lib/fixboard.py::refix_prompt、lib/refixrules.py、workflows/fix/commands/fix-rules/refix.md
@@ -3608,7 +3608,7 @@
 - line.md L-W39: workflows/line/scripts/ask_before_fix.py・ask_replan.py・ask_final.py が止め（needs-human）と deferred・widened・reasons を返し、collect が report の入力 stops・deferred・widened・final-reasons に渡す。lib/runreport.py::_line_lines・lib/runreport.py::_stop_lines
 - line.md L-W40: 再審は 2 度目の修正の後（部分 D1）: fixed が 1 回目と 2 度目の修正役の異議をつないで rejudge を決め（workflows/line/scripts/fixed.py::fixed）、yaml の rejudge-run は `depends_on: [fixed]`・`when: $fixed.output.rejudge == true`、judged は fixed と rejudge-run の後、試験の関門（final）は judged の止めを読む（`when` に `$judged.output.stop_reason == ''`）
 - line.md L-W41: 無し。judge を新しく挟み、異議を入力で渡す（workflows/line/works-factory-line.yaml::rejudge-run）
-- line.md L-W42: 判定のサブグラフが再審の judgment の隣に rejudge-exit.json・rejudge-diff.json を書き（lib/judge_accept.rejudge_collect）、メイングラフの workflows/line/scripts/judged.py::compared と lib/runreport.py::rejudge_lines・lib/runreport.py::rejudge_opened・lib/runreport.py::rejudge_lowered・lib/runreport.py::rejudge_changes はそれを読むだけ（名は lib/report.py::REJUDGE_EXIT・lib/report.py::REJUDGE_DIFF。報告は report の入力 rejudge の judgment の隣を読む）
+- line.md L-W42: 判定のサブグラフが再審の judgment の隣に rejudge-exit.json・rejudge-diff.json を書き（lib/judge_accept.rejudge_collect）、メイングラフの workflows/line/scripts/judged.py::compared と lib/runreport.py::rejudge_lines・lib/runreport.py::rejudge_opened・lib/runreport.py::rejudge_lowered・lib/runreport.py::rejudge_changes はそれを読むだけ（名は lib/judgebeside.py::REJUDGE_EXIT_FILE・lib/judgebeside.py::REJUDGE_DIFF_FILE。報告は report の入力 rejudge の judgment の隣を読む）
 - line.md L-W43: workflows/line/works-factory-line.yaml::eyes（eyes の units・judgment・purpose・world ＝ `$judged.output.*`）・workflows/line/works-factory-line.yaml::ask-final（ask-final の judgment）
 - line.md L-W44: workflows/line/scripts/after_fix.py::decide、workflows/line/works-factory-line.yaml::replan（ruling・conflicts）
 - line.md L-W45: メイングラフの replan-review の with: の conflicts・gate_answers（申し出と裁定・修正前の承認ノードの答え）。往復の中の plan-review-run には渡さない（修正前の承認ノードより前）
@@ -3643,7 +3643,7 @@
 - line.md L-D07: workflows/line/scripts/redepth.py::redepth
 - line.md L-D08: workflows/line/scripts/redepth.py::pending_signals（gatemarks.ledger_at・gatemarks.pending。入力 answer_ties・materials のポインタの先。判定の問いの台帳と依頼の answers と修正前の承認ノードの答え。台帳が読めなければ上げる側）
 - line.md L-D09: workflows/line/scripts/redepth.py::redepth、workflows/line/works-factory-line.yaml::redepth
-- line.md L-D10: workflows/line/scripts/redepth.py::wide_signals（depth.run_wide。計画の欄と fixed の差分。counted を返し報告の深さの行に出る）と fix の中の lib/fixboard.py::redepth
+- line.md L-D10: workflows/line/scripts/redepth.py::fix_signals（lib/latedepth.py::signals の depth.run_wide。計画の欄と fixed の差分。counted を返し報告の深さの行に出る）と fix の中の lib/fixboard.py::redepth
 - line.md L-D11: yaml の eyes.depth（$redepth.output.depth）→ workflows/eyes/scripts/prep.py::out の run_eyes（depth.skip_reason）
 - line.md L-D12: workflows/fix/scripts/delta_cut.py（fixboard.redepth の skip_reason で delta/skipped.json を書いて go: false。後ろのレンズ・手直しも飛ぶ）
 - line.md L-D13: lib/runreport.py::_depth_lines（redepth の出力 {depth, raised, counted} を lib/depth.lines の形で。単位ごとの数・上げた信号・run の広さの数え・軽量で省いた物）
@@ -3851,7 +3851,7 @@
 - plan.md P158: workflows/plan-review/fixtures/
 - plan.md P159: lib/boardview.py::r2_due・workflows/plan-review/works-factory-plan-review.yaml::r2-design-loop `when: "$open.output.r2_go == true"`
 - plan.md P160: lib/boardview.py::purpose_unusable・lib/design.py::UNUSABLE
-- plan.md P161: judge が判定の隣に purpose-review.json を置いて出力の欄 purpose_review で返し（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が入力 purpose_review の先を読む（名は lib/purpose.py::PURPOSE_REVIEW_FILE の 1 か所）
+- plan.md P161: judge が判定の隣に purpose-review.json を置いて出力の欄 purpose_review で返し（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が入力 purpose_review の先を読む（名は lib/judgebeside.py::PURPOSE_REVIEW_FILE の 1 か所）
 - plan.md P162: workflows/plan-review/works-factory-plan-review.yaml::r2-design（systemPrompt。Archon の packages/providers/src/claude/provider.ts がノードの systemPrompt で既定の system prompt を置き換える）
 - plan.md P163: lib/boardview.py::r2_prompt・workflows/plan-review/scripts/r2_prep.py
 - plan.md P164: lib/boardview.py::r2_prompt（purpose.json の purpose_text だけを読む）
