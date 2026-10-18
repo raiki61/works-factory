@@ -110,10 +110,10 @@
 ### `depth` 単位ごとの深さ
 
 - 状態: 住処あり
-- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・修正の後に上げる信号 `outside_cited`（引用の外の差分）・`late_signals`（引用の外の差分・TDD の拒否・範囲の相談の理由）・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの段の省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）
+- 住処: `lib/depth.py`（単位 1 つの深さ `unit_depth`・控えの形 `decide_doc`・信号での上げ `raise_doc`・修正の後に上げる信号 `outside_cited`（引用の外の差分）・`late_signals`（引用の外の差分・TDD の拒否・範囲の相談の理由）・run 全体の深さ `run_depth`・省く理由の文 `skip_reason`（頭の深さの段の省く物と単位の深さから）・報告の行 `lines`。run の頭の深さの段の定義 `TIERS`・語 `HEADS`・段の足し `tier_adds`）と、修正の後の上げ直しの数え `lib/latedepth.py` の `signals`（修正のサブグラフの中の上げ直しとメイングラフの `redepth` が呼ぶ 1 か所。控えが無い時の訳 `NO_LATE_RECORD` と、読めない控えを上げる側へ倒す信号 `LATE_UNREAD`）
 - 約束: 計画の出力 `depth`（`[{unit_id, depth, why}]`。depth は `軽量`・`標準`）と、修正と目のサブグラフへ渡す run の頭の深さの語（平の入力 `head_depth`）。run の頭の深さの語（`軽量`・`標準`・`重厚`）は判定の出力 `depth` で、表 `TIERS` が定義する
 - 知ってよい所: 住処と、メイングラフ `workflows/line/`（始めのノードの入力 `thickness` の確かめと、直した後の上げ直しのノード `redepth`）
-- 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所
+- 今: 既知の漏れは、計画のサブグラフの出力ノード（`lib/planfile.py` が `depth.decide_doc` で出力 depth を作る）と、修正のサブグラフの置き場（`lib/fixboard.py` の `depth.json` の写しと `redepth` が呼ぶ `depth.raise_doc`）の 2 ファイル 6 行。元はメイングラフの境のノードが持っていた所。控えの扱いの字の柵は、`lib/latedepth.py` の外に字が無いことを見る（漏れ無し）
 
 ### `features` 機能の切り替え
 
