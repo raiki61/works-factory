@@ -10,12 +10,14 @@ PR を作る子の run に渡す枝を返す。
 hash と違う。
 分け方は lib/itemcommits.py の split: 修正の段の記録（入力 items。単位ごとの触ったファイルと承認済みの項目）で差分のパスを項目に
 決め、依存（depends_on）の位相順に 1 項目 1 commit で積む。決められない時（記録が無い・読めない、どの項目も申告していないか複数の
-項目が触ったパスが在る）は 1 つの commit に倒し、訳を split に返して commit の文にも書く。各 commit の時点で試験が通るかは確かめない
-（確かめるのは積み終えた木の差分の hash だけ）。
+項目が触ったパスが在る）は 1 つの commit に倒し、訳を split に返して commit の文にも書く。項目ごとの commit のどれかで hooks が
+落ちた時も（runbranch.commit_parts が積み始める前の HEAD に戻す）、最後の木で hooks が通れば届くように 1 つの commit に積み直し、
+何本目で落ちたかと hooks の言葉を split に返す。各 commit の時点で試験が通るかは確かめない（確かめるのは積み終えた木の差分の hash
+だけ）。
 commit は対象の commit の hooks を飛ばさずに走らせ（hooks は対象のコマンドなので、PATH の頭に読むだけの gh の口を置く。
-lib/userenv.py の read_gh_first）、hooks が落ちれば go: false と hooks の言葉（積み始める前の HEAD に戻し、積まない）。積んだ後に、
-差分の根から積んだ最後の commit までの差分の hash を封じた hash と照らし、違えば go: false（積んだ commit は run の枝に残るが、push は
-されない）。作業ツリーに変更が無く、封じた差分が既に枝の commit に在る時は積まずに進む。push・PR の作成はこの節でしない。
+lib/userenv.py の read_gh_first）、1 つの commit で hooks が落ちれば go: false と hooks の言葉（積み始める前の HEAD に戻し、積まない）。
+積んだ後に、差分の根から積んだ最後の commit までの差分の hash を封じた hash と照らし、違えば go: false（積んだ commit は run の
+枝に残るが、push はされない）。作業ツリーに変更が無く、封じた差分が既に枝の commit に在る時は積まずに進む。push・PR の作成はこの節でしない。
 commit の文が PR を作る子の run への渡し物（子の run には枝しか入力で渡せないので）: 項目の commit の題は項目の番号と approach の
 頭、本文は approach・依存する前の項目・積んだパス。最後の commit（1 つに倒した時はその 1 つ）の本文に、照らしの要約・封じた hash・
 run の id・報告の在りか（報告は merge の後に書かれるので、run の id から組める在りかだけ）・向け先の既定の枝・項目と commit の対
@@ -104,13 +106,16 @@ def stack(repo: Path, record, mode: str, run_id: str, sealed: str, name: str, ba
     if not paths:
         return [], NOTHING
     parts, split = itemcommits.split(record, paths)
-    if not parts:
-        runbranch.commit(repo, message(mode, run_id, sealed, name, base, issues, split), boundary.RUNTIME_COPY, hook_env=hook_env())
-        return [], split
-    tail = handoff(mode, run_id, sealed, name, base)
-    heads = runbranch.commit_parts(repo, [p.paths for p in parts],
-                                   lambda i, done: item_message(parts, i, done, run_id, tail, issues), hook_env())
-    return [{"item": p.item, "subject": subject(p), "head": h} for p, h in zip(parts, heads)], ""
+    if parts:
+        tail = handoff(mode, run_id, sealed, name, base)
+        try:
+            heads = runbranch.commit_parts(repo, [p.paths for p in parts],
+                                           lambda i, done: item_message(parts, i, done, run_id, tail, issues), hook_env())
+            return [{"item": p.item, "subject": subject(p), "head": h} for p, h in zip(parts, heads)], ""
+        except runbranch.PartFailed as error:
+            split = f"項目ごとの {error.index + 1} 本目で hooks が落ちた: {error}"
+    runbranch.commit(repo, message(mode, run_id, sealed, name, base, issues, split), boundary.RUNTIME_COPY, hook_env=hook_env())
+    return [], split
 
 
 def origin_repo(repo: Path):

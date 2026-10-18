@@ -15,10 +15,9 @@ changes[].files と、TDD の輪の単位の test_files）。unread は記録を
 from __future__ import annotations
 
 import graphlib
-import os
-import posixpath
 from typing import NamedTuple
 
+import factchecks
 import planmarks
 
 SHOWN = 5   # 訳に名指すパスの数（残りは件数）
@@ -42,12 +41,8 @@ def record(items, replies, tdd_units, root, unread=()) -> dict:
 
 
 def _files(files, root) -> list:
-    out = []
-    for f in files if isinstance(files, list) else []:
-        if isinstance(f, str) and f.strip():
-            f = f.strip()
-            out.append(posixpath.normpath(os.path.relpath(os.path.realpath(f), os.path.realpath(root)) if os.path.isabs(f) else f))
-    return sorted(set(out))
+    # 受け付け（factchecks.check_plan_scope）が返答の files を読んだのと同じ規則で揃える
+    return sorted(factchecks.declared_files([{"files": files if isinstance(files, list) else []}], root))
 
 
 def _item_rows(items) -> list:

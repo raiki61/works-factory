@@ -10,8 +10,9 @@ HEAD に積んだ commit は枝に残らない。呼び手が exclude に名指�
   無ければ積まない。hook_env が None なら対象の commit の hooks を飛ばし、在ればその環境で commit して hooks を走らせる
 - staged(repo, exclude) -> list: 今の変更を index に載せ、HEAD から変わったパスの並び（名の変更は消すパスと足すパスの 2 つに数える）
 - commit_parts(repo, parts, message, hook_env) -> heads: staged の後に呼び、パスの並びの並び parts を順に 1 つずつの commit に積み、
-  積んだ commit の並び。i 本目の文は message(i, 前に積んだ commit の並び)。どれかが通らなければ、積み始める前の HEAD に枝と index を
-  戻して（作業ツリーは触らない）GitFailed を投げ直す
+  積んだ commit の並び。i 本目の文は message(i, 前に積んだ commit の並び)。どれかが通らなければ（git の誤りに限らず、hooks の
+  言葉を読めない時などの例外でも）、積み始める前の HEAD に枝と index を戻して（作業ツリーは触らない）例外を投げ直す。git の誤りは
+  何本目（0 から）で落ちたかを載せた PartFailed（GitFailed の子）にする
 - branch(repo) -> str: HEAD が指す枝の短い名
 - default_branch(repo, remote) -> str: remote の既定の枝（remote の HEAD が指す枝）の短い名。git ls-remote --symref で読む
 - pr_branches(repo, remote) -> (branch, base, reason): PR の push 先の run の枝と向け先の既定の枝。積めない・既定の枝を読めない・
@@ -35,6 +36,14 @@ ORIGIN = "origin"   # PR を出す remote（merge が積む前に照らし、最
 
 class GitFailed(RuntimeError):
     """git が 0 でない終了の値で終わった（文は 1 行）"""
+
+
+class PartFailed(GitFailed):
+    """commit_parts の index 本目（0 から）の git が落ちた"""
+
+    def __init__(self, message: str, index: int):
+        super().__init__(message)
+        self.index = index
 
 
 def git(repo: Path, *args: str, environ: Mapping[str, str] | None = None, stdin: str | None = None) -> str:
@@ -76,10 +85,15 @@ def commit_parts(repo: Path, parts, message: Callable[[int, list], str], hook_en
     try:
         git(repo, "reset", "-q")
         for i, paths in enumerate(parts):
-            git(repo, "add", "-A", "--", *(f":(literal){p}" for p in paths))
-            _commit(repo, message(i, list(heads)), hook_env)
+            try:
+                # パスは標準入力で渡す（多くても引数の長さの上限に当たらない）
+                git(repo, "add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul",
+                    stdin="".join(f":(literal){p}\0" for p in paths))
+                _commit(repo, message(i, list(heads)), hook_env)
+            except GitFailed as error:
+                raise PartFailed(str(error), i) from error
             heads.append(git(repo, "rev-parse", "HEAD"))
-    except GitFailed:
+    except BaseException:
         git(repo, "reset", "-q", start)
         raise
     return heads

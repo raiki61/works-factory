@@ -5,7 +5,7 @@
   claims にする（files は根からの相対）
 - merged: 項目は後の段の物、claims と unread は和
 - split: 差分のパスを項目ごとに分け、依存の位相順に並べる。どの項目も申告していないパス・複数の項目が触ったパス・記録の無い run・
-  読めない記録は分けずに訳を返す
+  読めない記録・依存の循環は分けずに訳を返す
 """
 import pathlib
 import sys
@@ -81,6 +81,11 @@ class Split(unittest.TestCase):
                 parts, why = itemcommits.split(record, ["a.py"])
                 self.assertEqual(parts, [])
                 self.assertIn(words, why)
+
+    def test_cyclic_dependencies_are_not_split(self):
+        record = self.record(("A", ["use.py"]), ("B", ["rows.py"]))
+        record["items"][1]["after"] = [1]
+        self.assertEqual(itemcommits.split(record, ["rows.py", "use.py"]), ([], "修正案の項目の依存が循環している"))
 
     def test_many_unclaimed_paths_are_counted(self):
         _, why = itemcommits.split(self.record(), [f"p{i}" for i in range(7)])

@@ -542,22 +542,32 @@ class PrCommitTest(unittest.TestCase):
 
     def test_stacked_tree_is_checked_against_the_sealed_hash_as_a_whole(self):
         """項目の commit を積み終えた木の差分を封じた hash と照らす（hooks が途中の commit の中身を変えれば push しない）"""
-        hook = self.tmp / "hooks" / "pre-commit"
-        hook.parent.mkdir()
-        hook.write_text("#!/bin/sh\ngit diff --cached --name-only | grep -q new.txt && { echo more >> new.txt; git add new.txt; }\nexit 0\n",
-                        encoding="utf-8")
-        hook.chmod(0o755)
-        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        self.hook("git diff --cached --name-only | grep -q new.txt && { echo more >> new.txt; git add new.txt; }\nexit 0\n")
         got = self.commit(items=self.record([("u1", ["a.txt"]), ("u2", ["new.txt"])]))
         self.assertStopped(got, "差分が封じた差分と違う")
 
-    def test_failing_hook_on_a_later_item_leaves_no_commit(self):
+    def hook(self, script: str) -> None:
         hook = self.tmp / "hooks" / "pre-commit"
         hook.parent.mkdir()
-        hook.write_text("#!/bin/sh\ngit diff --cached --name-only | grep -q a.txt && { echo 'a の誤り' >&2; exit 1; }\nexit 0\n",
-                        encoding="utf-8")
+        hook.write_text("#!/bin/sh\n" + script, encoding="utf-8")
         hook.chmod(0o755)
         git(self.main, "config", "core.hooksPath", str(hook.parent))
+
+    def test_failing_hook_on_a_later_item_is_restacked_as_one_commit_with_the_reason(self):
+        """項目ごとの commit の途中で hooks が落ちても、最後の木で hooks が通れば 1 つの commit に積み直して進む"""
+        self.hook("staged=$(git diff --cached --name-only)\necho \"$staged\" | grep -q new.txt && exit 0\n"
+                  "echo \"$staged\" | grep -q a.txt && { echo 'a だけの誤り' >&2; exit 1; }\nexit 0\n")
+        got = self.commit(items=self.record([("u1", ["a.txt"]), ("u2", ["new.txt"])]))
+        self.assertEqual((got["go"], got["commits"]), (True, []), got)
+        self.assertIn("項目ごとの 2 本目で hooks が落ちた: ", got["split"])
+        self.assertIn("a だけの誤り", got["split"])
+        self.assertEqual(git(self.run_tree, "rev-list", "--count", f"{self.base}..HEAD"), "1", "途中まで積んだ commit は残さない")
+        self.assertEqual(got["head"], git(self.run_tree, "rev-parse", "HEAD"))
+        self.assertIn(f"1 つの commit にまとめた訳: {got['split']}", git(self.run_tree, "log", "-1", "--format=%b"))
+        self.assertEqual(seal.digest(green_cert.diff_between(self.run_tree, self.base, got["head"], skip=(".archon/",))), self.sealed)
+
+    def test_hook_failing_on_the_restacked_commit_too_leaves_no_commit(self):
+        self.hook("git diff --cached --name-only | grep -q a.txt && { echo 'a の誤り' >&2; exit 1; }\nexit 0\n")
         got = self.commit(items=self.record([("u1", ["a.txt"]), ("u2", ["new.txt"])]))
         self.assertStopped(got, "a の誤り")
         self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base, "積み始める前の HEAD に戻す")
@@ -600,11 +610,7 @@ class PrCommitTest(unittest.TestCase):
 
     def test_failing_commit_hook_stops_without_a_commit(self):
         """対象の commit の hooks は飛ばさない。落ちれば積まずに止め、hooks の言葉を訳に載せる"""
-        hook = self.tmp / "hooks" / "pre-commit"
-        hook.parent.mkdir()
-        hook.write_text("#!/bin/sh\necho 'lint の誤り' >&2\nexit 1\n", encoding="utf-8")
-        hook.chmod(0o755)
-        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        self.hook("echo 'lint の誤り' >&2\nexit 1\n")
         got = self.commit()
         self.assertStopped(got, "hooks")
         self.assertIn("lint の誤り", got["reason"])
@@ -613,11 +619,7 @@ class PrCommitTest(unittest.TestCase):
     def test_commit_hook_sees_the_read_only_gh_first(self):
         """hooks は対象のコマンドなので、起動の殻が渡した読むだけの gh の置き場が PATH の頭に在る"""
         seen = self.tmp / "path.txt"
-        hook = self.tmp / "hooks" / "pre-commit"
-        hook.parent.mkdir()
-        hook.write_text(f"#!/bin/sh\nprintf '%s' \"$PATH\" > '{seen}'\n", encoding="utf-8")
-        hook.chmod(0o755)
-        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        self.hook(f"printf '%s' \"$PATH\" > '{seen}'\n")
         read_gh = self.tmp / "read-gh"
         self.assertIs(self.commit(env={userenv.READ_GH_ENV: str(read_gh)})["go"], True)
         entries = [p for p in seen.read_text(encoding="utf-8").split(os.pathsep) if p != git(self.tmp, "--exec-path")]
