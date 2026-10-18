@@ -1637,27 +1637,35 @@ class AskFinalDeliverCase(unittest.TestCase):
         self.run_tree = self.tmp / "run"
         git(self.main, "worktree", "add", "-q", "-b", "archon/task-run", str(self.run_tree))
 
-    def text(self, deliver: str, tree: pathlib.Path) -> str:
+    def text(self, deliver: str, tree: pathlib.Path, **kw) -> str:
         with contextlib.chdir(tree):
-            got = final_got(pr_branches=ask_final.pr_branches({"inputs": {"deliver": deliver}}))
-        return ask_final.final_text(got, [], RUN)
+            return ask_final.final_text(final_got(deliver_pr=ask_final.delivers_pr({"inputs": {"deliver": deliver}}), **kw), [], RUN)
 
     def test_pr_run_names_the_push_and_target_branches(self):
         lines = self.text("pr", self.run_tree).splitlines()
-        row = ("- 承認すると（出口 deliver=pr）: 報告の前に run の枝 archon/task-run へ commit を積んで push し、main へ向けた PR を"
-               "作る（merge はしない）。止めれば対象の repo に何も書かない")
+        row = ("- 報告へ進める（continue）と（出口 deliver=pr）: 報告の前に run の枝 archon/task-run へ commit を積んで push し、main へ"
+               "向けた PR を作る（merge はしない）。止めれば対象の repo に何も書かない")
         self.assertIn(row, lines)
         self.assertLess(lines.index(row), lines.index("答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:"))
 
     def test_pr_run_that_would_stop_before_the_commit_says_why(self):
         text = self.text("pr", self.main)
-        self.assertIn("- 承認すると（出口 deliver=pr）: run の枝へ commit を積んで push し PR を作るはずだが、今の作業ツリーでは積む前に"
-                      "止まる（本体の作業ツリーでは commit しない", text)
+        self.assertIn("- 報告へ進める（continue）と（出口 deliver=pr）: run の枝へ commit を積んで push し PR を作るはずだが、今の作業ツリーの"
+                      "読みでは積む前に止まる見込み（本体の作業ツリーでは commit しない", text)
         self.assertIn("。止めれば対象の repo に何も書かない", text)
 
+    def test_pr_run_without_a_sealed_diff_makes_no_pr(self):
+        """直す物が無い run（merge-seal が飛ばされ hash が空）と差分を封じられなかった run では merge-apply が積まない"""
+        row = "- 報告へ進める（continue）と（出口 deliver=pr）: 封じた差分が無いので、承認しても積まず PR も作らない"
+        for kw in ({"hash": ""}, {"sealed": False, "seal_reason": "試験が赤い", "hash": ""}, {"sealed": False, "seal_reason": "試験が赤い"}):
+            with self.subTest(**kw):
+                lines = self.text("pr", self.run_tree, **kw).splitlines()
+                self.assertIn(row, lines)
+                self.assertFalse([x for x in lines if "PR を作る" in x])
+
     def test_placing_run_says_nothing_of_a_pr(self):
-        self.assertIsNone(ask_final.pr_branches({"inputs": {"deliver": ""}}))
-        self.assertIsNone(ask_final.pr_branches(None))
+        self.assertFalse(ask_final.delivers_pr({"inputs": {"deliver": ""}}))
+        self.assertFalse(ask_final.delivers_pr(None))
         self.assertNotIn("出口 deliver", self.text("", self.run_tree))
 
 
