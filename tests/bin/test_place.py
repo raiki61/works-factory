@@ -1,4 +1,5 @@
 """版の取り寄せと置かずに起こす形（bin/_lib/pack.py・place.py）の試験。網には出ない（偽の fetch・install を渡す）。"""
+import ast
 import copy
 import json
 import pathlib
@@ -8,7 +9,7 @@ import unittest
 from unittest import mock
 
 from bin._lib import pack, place
-from lib import launchgroups
+from lib import headdepth, launchgroups
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -18,6 +19,18 @@ ASF_YAML = ".archon/workflows/sdlc/archon-a.yaml"
 def files(root):
     """root の下のファイルを、root からの相対パス → 中身のバイトで返す"""
     return {p.relative_to(root).as_posix(): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def imported(tree) -> set:
+    """モジュールの木 tree が import する名。from a import b は a と a.b の両方"""
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module)
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return names
 
 
 def write(path, data):
@@ -271,6 +284,19 @@ class RunConfigTest(unittest.TestCase):
             self.assertEqual(place.run_config(cache, self.ENV), path)
             self.assertEqual(path.read_bytes(), written)
             self.assertEqual(sorted(p.name for p in path.parent.iterdir()), [path.name])
+
+    def test_launcher_never_reads_the_head_depth_record(self):
+        """頭の深さの役の選びは記録だけ（持ち主の決め head-choice-record-only）。起動の層は殻が組むので、bin/ の下のどのファイルも
+        lib.headdepth を import せず、控えのファイルの名 headdepth.RECORD の字も持たない。子の run と次の周は起動の層を受け継ぐので、
+        そちらにも選びは届かない"""
+        files = [ROOT / name for name in git(ROOT, "ls-files", "bin").splitlines()]
+        self.assertIn(ROOT / "bin" / "_lib" / "launcher.py", files)
+        for path in files:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(str(path.relative_to(ROOT))):
+                self.assertNotIn(headdepth.RECORD, text)
+                if path.suffix == ".py" or text.startswith("#!/usr/bin/env python3"):
+                    self.assertNotIn("lib.headdepth", imported(ast.parse(text)))
 
     def test_users_layer_is_kept_factory_env_and_groups_win_and_users_quota_policy_wins(self):
         """利用者の --config の層はそのまま渡り、同じ名の env と群の別名だけ工場の値に替わる。使用枠の方針は利用者の値が勝つ。
