@@ -423,9 +423,9 @@ def passed_version(folder, gate_answers) -> dict | None:
 
 
 def tree_word(start: dict | None, head: str = "") -> str:
-    """事前審査の木の語（on・off・auto）。始めの記録の名指し、無ければ頭の深さの段の足し（depth.tier_adds）、無ければ auto
-    （head の既定の空は足し無し）"""
-    return entry.switch(start, TREE_FEATURE, depth.tier_adds(head))
+    """事前審査の木の語（on・off・auto）。始めの記録の名指し、無ければ頭の深さの段の足し（depth.tier_adds）、無ければ段の auto の読み
+    （depth.tier_auto。軽量は off。head の既定の空は足し無しの auto）"""
+    return entry.switch(start, TREE_FEATURE, depth.tier_adds(head), depth.tier_auto(head))
 
 
 def _request(start: dict | None) -> tuple:

@@ -2812,8 +2812,8 @@ class TreeCase(RunCase):
         self.assertIs(again.get("tree"), False)
 
     def test_heavy_head_depth_makes_the_tree(self):
-        """入力 head_depth=重厚 で開いた項目が 1 つの往復は、review_tree を名指していなくても木。軽量・標準・空は auto のまま
-        （1 項目は審査役 1 つ）。review_tree を features_off で名指して切った run は重厚でも木にしない"""
+        """入力 head_depth=重厚 で開いた項目が 1 つの往復は、review_tree を名指していなくても木。軽量（off）・標準・空（auto）は
+        審査役 1 つ。review_tree を features_off で名指して切った run は重厚でも木にしない"""
         r = self.run_
         r.plan([item(UNIT_MEAN, 1)])
         r.ripple({"items": [], "overlaps": []})
@@ -2825,6 +2825,21 @@ class TreeCase(RunCase):
         self.assertTrue(r.out("pass_open", INPUTS_HEAD_DEPTH="重厚")["tree"])
         r.start(features_off=["review_tree"])
         self.assertFalse(r.out("pass_open", INPUTS_HEAD_DEPTH="重厚")["tree"])
+
+    def test_light_head_depth_keeps_one_reviewer_unless_named(self):
+        """#687: 入力 head_depth=軽量 の run は、開いた項目が 2 つでも事前審査を木にせず（段の表の軽量の足す物は無し）、審査役 1 つの
+        返答で往復が通る。標準と空は今どおり auto（2 項目は木）。features_on で review_tree を名指した run は軽量でも木"""
+        r = self.run_
+        for word, tree in (("標準", True), ("", True), ("軽量", False)):
+            with self.subTest(head_depth=word):
+                got = r.out("pass_open", INPUTS_HEAD_DEPTH=word)
+                self.assertTrue(got["ok"], got)
+                self.assertIs(got["tree"], tree)
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertNotIn(planblk.AGG_HEAD, text)
+        self.assertTrue(r.accept(review())["ok"])
+        r.start(features_on=["review_tree"])
+        self.assertIs(r.out("pass_open", INPUTS_HEAD_DEPTH="軽量")["tree"], True)
 
     def test_review_tree_auto_one_item_plan_is_one_reviewer(self):
         """元 test_review_tree_auto_one_item_plan_is_one_reviewer・test_single_item_plan_needs_no_synergy"""

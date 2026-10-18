@@ -846,7 +846,7 @@
   - 状態: 形を変えて在る（`--input features_off=…`。語に world が足された。知らない語は拒む）
   - 旧棚卸し: L-E31・L-E32
 
-- S110 既定は judge_verify が off・review_tree が auto（開いた項目が 2 つ以上の往復だけ木）・ほかは on で、名指した語が既定に勝つ
+- S110 既定は judge_verify が off・review_tree が auto（開いた項目が 2 つ以上の往復だけ木。run の頭の深さが軽量なら off）・ほかは on で、名指した語が既定に勝つ
   - 元: SKILL.md:93
   - 印: `judge_verify`・`review_tree`・`WORKS_USE_FEATURES_ON`
   - 今: `lib/entry.py::FEATURE_DEFAULTS`・`lib/entry.py::feature_words`

@@ -1534,9 +1534,10 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     gate_words = gatepolicy.head_words(s)
     if gate_words:
         out.append(gate_words)
-    adds = depthlib.tier_adds(as_dict(returns.get("judge")).get("depth"))
-    feats = (f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s), adds)}"
-             if entrylib.FEATURES_KEY in s else "")
+    head = as_dict(returns.get("judge")).get("depth")
+    part = entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s), depthlib.tier_adds(head),
+                                  depthlib.tier_auto(head))
+    feats = f"・{part}" if entrylib.FEATURES_KEY in s else ""
     out.append(f"段: {s.get('thickness') or '自動（機械が単位ごとに決めた）'}{feats}")
     answered = [g for g in as_dict(gates).values() if isinstance(g, dict)]
     pushed = sum(1 for g in answered if answer.by_push(g))

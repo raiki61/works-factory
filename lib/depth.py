@@ -18,6 +18,8 @@ graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持�
 - named(thickness): 入力 thickness が名指す深さの段（HEADS の語。ほかの語・空は空）。訳は named_why(深さ)
 - tier_adds(head): 段 head が足す機能の語の並び（TIERS の足す物。知らない語・空は空）。機能の名と切り替えの式は entry
   （entry.feature_words・entry.switch の adds に渡す）
+- tier_auto(head): 段 head で、名指しの無い auto の機能（事前審査の木）を読む語（TIERS の auto。軽量は off、ほかと知らない語・空は auto。
+  entry.feature_words・entry.switch の auto に渡す）
 - raise_doc(doc, *, units, run): 信号で標準へ上げた控え。units は {単位: 理由}（その単位だけ）、run は理由の並び（全部の単位）。下げない
 - run_wide(items, keys, touched=()): 控えの単位 keys を合わせた run 全体の広さ（触るファイルの和集合と、受け入れと書き換えの
   テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並びと、触るファイルの数。触るファイルは計画の allowed_paths に、修正の実際の差分
@@ -76,11 +78,11 @@ UNCHECKED = "機械の確かめが無い（tdd_suite も test_cmd も空）"
 # run 全体の深さの段の定義（ただ 1 つの表。docs/design.md の「深さの段の表」はこの写しで、tests/layers の E20 が一致を縛る）。
 # omits は段の頭の run で単位がどれも軽量の時に省く確かめ（OMITS の名）。標準・重厚の頭の run は単位の深さに依らず全部を通す
 # （issue #561 の承認ノードの答え。記録された方針 dynamic-depth の当て方）。adds は段が足す機能の語（字を持たず
-# entry.FEATURE_DEFAULTS の名で引く）
+# entry.FEATURE_DEFAULTS の名で引く）。auto は名指しの無い auto の機能を読む語で、軽量は足す物が無いので事前審査の木も off（#687）。
 TIERS = {
-    LIGHT: {"omits": tuple(OMITS), "adds": ()},
-    STANDARD: {"omits": (), "adds": ()},
-    HEAVY: {"omits": (), "adds": tuple(entry.FEATURE_DEFAULTS)},
+    LIGHT: {"omits": tuple(OMITS), "adds": (), "auto": entry.SWITCH_OFF},
+    STANDARD: {"omits": (), "adds": (), "auto": entry.SWITCH_AUTO},
+    HEAVY: {"omits": (), "adds": tuple(entry.FEATURE_DEFAULTS), "auto": entry.SWITCH_AUTO},
 }
 HEADS = tuple(TIERS)
 
@@ -205,6 +207,10 @@ def named(thickness) -> str:
 def tier_adds(head) -> tuple:
     """段 head が足す機能の語の並び（知らない語・空は空）"""
     return tuple((TIERS.get(head) or {}).get("adds") or ())
+
+
+def tier_auto(head) -> str:
+    return (TIERS.get(head) or {}).get("auto") or entry.SWITCH_AUTO
 
 
 def named_why(word: str) -> str:
