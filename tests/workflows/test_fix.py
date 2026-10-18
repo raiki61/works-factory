@@ -627,6 +627,19 @@ class DeltaScriptsCase(unittest.TestCase):
         brief = json.loads(pathlib.Path(out["brief_file"]).read_text(encoding="utf-8"))
         self.assertEqual(brief["reads"]["out.p2.plan_review"]["faces"], review["faces"])
 
+    def test_delta_accept_fails_the_pass_on_an_inner_word(self):
+        """修正の差分の足した行に works の内側の語（この単位）が在れば、穴の無い審査でも delta/review-1.json の pass は false・owed は 1 以上"""
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8") + "# この単位の分母を直した\n", encoding="utf-8")
+        self._cut()
+        review = {**_RV_REVIEW, "faces": [], "faces_none": "差分の stats.py の mean を全部読み、新しい穴は無かった（検算も開いていない）",
+                  "quality": {"verdict": "pass", "why": "新しい品質の穴は無く、開いている検算も無い"}}
+        got = self._run("delta_accept", "delta-accept", reply=json.dumps(review, ensure_ascii=False))
+        self.assertTrue(got["ok"], got)
+        rec = json.loads((self.place / "delta" / "review-1.json").read_text(encoding="utf-8"))
+        self.assertFalse(rec["pass"], rec)
+        self.assertGreaterEqual(rec["owed"], 1)
+
     def test_refix_preps_tie_holes_through_the_plan_review(self):
         """F302: 1 回目と 2 回目の手直しの支度も、置き場の事前審査の返答の写し（p2.plan_review.json）を穴の名札の材料に渡す。修正役が
         塞いだと言った事前審査の穴（plan_faces の absorbed）の検算が開いたままなら、その穴の unit_keys の項目の枝に結ぶ（via check）。
@@ -841,6 +854,14 @@ class DeltaScriptsCase(unittest.TestCase):
         text = pathlib.Path(self._run("refix_prep", "refix2-prep", n="2")["prompt_file"]).read_text(encoding="utf-8")
         for path in ("stats.py", "vendored/**"):
             self.assertIn(f"`{path}`", text, "2 回目の brief に plan_items が無くても指示書に貼る")
+
+    def test_refix_prompt_carries_the_target_text_rule(self):
+        """手直しの役の指示書にも、対象に書く文の決まり（識別子の名・文字列、ファイルとフォルダの名、判断の出どころを理由にしない）が在る"""
+        self._cut()
+        self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))
+        text = pathlib.Path(self._run("refix_prep", "refix-prep", n="1")["prompt_file"]).read_text(encoding="utf-8")
+        for phrase in ("識別子の名・文字列", "ファイルとフォルダの名", "直しを作った時の判断の出どころ"):
+            self.assertIn(phrase, text)
 
     def test_refix_undeclared_write_is_rejected(self):
         """記録の無い run の書き込みの出どころ（U6 の狭め）: 手直しの段の頭の木からの変更が handled[].files にも bash_writes にも無ければ拒む"""

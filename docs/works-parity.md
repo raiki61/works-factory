@@ -3171,7 +3171,7 @@
 - fix.md F304: lib/fixboard.py::HUMAN_FACE_KINDS・lib/fixboard.py::PLAN_ONLY_FACE_KINDS・lib/fixboard.py::delta_review_problems
 - fix.md F305: lib/fixboard.py::tree_moved_since・lib/fixboard.py::take、lib/refix.py::accept_review
 - fix.md F306: lib/deltamarks.py、lib/refix.py::accept_review、YAML の delta-review の output_format の required（workflows/fix/works-factory-fix.yaml::delta-review）
-- fix.md F307: lib/fixboard.py::_owed_rows、workflows/fix/scripts/refix_prep.py（go: false）
+- fix.md F307: lib/fixboard.py::_owed_rows、lib/refix.py::inner_faces（accept_review が受けた返答の faces に足す機械の内側の語の穴）、workflows/fix/scripts/refix_prep.py（go: false）
 - fix.md F308: lib/fixboard.py::delta_fix_problems、workflows/fix/scripts/refix_accept.py::main（n=1・2）
 - fix.md F309: lib/refix.py::accept_fix（planrange.check_paths）
 - fix.md F310: lib/refix.py::accept_fix（writes.check）、lib/fixboard.py::undeclared_refix、workflows/fix/scripts/refix_accept.py（段の頭の木 refix1-head.json）

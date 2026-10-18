@@ -16,7 +16,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
-from tests.bin.gitkit import committed_copy  # noqa: E402
+from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import deltamarks  # noqa: E402
 import fixboard  # noqa: E402
 import refix  # noqa: E402
@@ -328,6 +328,42 @@ class RefixCase(DeltaPlaceCase):
         ties = fixboard.hole_ties(self.place, 2, items=ITEMS, plan_review=plan_review_reply(), fix_reply=fix_reply())
         self.assertEqual([t["key"] for t in ties], [F2])
         self.assertEqual(deltamarks.read(self.place)["quality"]["verdict"], "fail")   # 2 判定の控えは 1 回目の審査の物のまま
+
+    def test_inner_word_in_an_added_line_is_owed(self):
+        """修正の差分が足した行に works の内側の語（この単位）が在れば、穴の無い審査を受けても義務は 1 件。run の始めの版で
+        対象が既に使う語（作業ツリー）と、表の語にならない「この周辺」は義務にならない"""
+        (self.repo / "notes.txt").write_text("作業ツリーの写しを取る\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "notes")
+        self.base = git(self.repo, "rev-parse", "HEAD")
+
+        def add_lines(repo):
+            p = repo / "stats.py"
+            p.write_text(p.read_text(encoding="utf-8") + "# この単位の分母を直した\n# 作業ツリーで確かめた\n# この周辺も読んだ\n",
+                         encoding="utf-8")
+        got = self.reviewed(review_none(), before_fix=add_lines)
+        self.assertEqual(got["owed"], 1)
+        rows = fixboard._owed_rows(self.place, 1)
+        self.assertEqual(len(rows), 1, rows)
+        self.assertEqual(rows[0]["from"], "p3.delta_review")
+        self.assertIn("この単位", rows[0]["text"])
+        self.assertTrue(rows[0]["key"].startswith("inner_word stats.py:"), rows[0])
+        for word in ("作業ツリー", "この周辺"):
+            self.assertNotIn(word, rows[0]["text"].split("——", 1)[1])
+
+    def test_inner_word_added_by_the_first_refix_is_owed_in_review2(self):
+        """1 回目の手直しが足した行の内側の語（この run）は、2 回目の審査の受け付けが穴に足し、2 回目の義務に入る"""
+        self.refixed()
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8") + "# この run で直した\n", encoding="utf-8")
+        self.cut(2)
+        got = refix.accept_review(review2_faces(), self.place, self.base, self.repo, n=2)
+        self.assertTrue(got["ok"], got)
+        keys = [r["key"] for r in fixboard._owed_rows(self.place, 2)]
+        self.assertEqual(got["owed"], 2)
+        self.assertEqual(keys[0], F2)
+        self.assertEqual(len(keys), 2)
+        self.assertTrue(keys[1].startswith("inner_word stats.py:"), keys)
 
     def test_no_third_pass(self):
         self.assertEqual(sorted(refix.passes()), [1, 2])

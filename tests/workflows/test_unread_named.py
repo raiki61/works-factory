@@ -164,6 +164,7 @@ def eyes(p: Place) -> dict:
             "diffs": json.dumps([json.loads(p.put("fix/fix/tdd-unit.json", []))]),
             "start": p.start(), "plan_questions": "null", "answers": "null", "start_answers": "null", "x_scalars": "null",
             "plan_declared": "null",
+            "checks": p.put("test-gate/final/evidence.md", "# test-gate（final）\n\n- 走らせ方: engine（一式 unit）\n- ログ: test-gate/final/log.txt\n"),
             **judge_files(p, "answer_ties", "materials", "premises", "decisions")}
 
 
