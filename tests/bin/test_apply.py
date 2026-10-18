@@ -11,6 +11,7 @@ import io
 import json
 import os
 import pathlib
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -151,7 +152,7 @@ class ApplyTest(TargetCase):
 
     def by_hand(self) -> str:
         """封じる前に止まった run の作業ツリーの差分を、確かめずに当てる道"""
-        return f"git -C {self.worktree} diff {BASE} | git -C {self.target} apply"
+        return shlex.join(["sh", "-c", apply.BY_HAND, "sh", str(self.worktree), BASE, str(self.target)])
 
     def test_apply_applies_sealed_diff(self):
         out = self.assert_applied(self.run_apply(self.record()))
@@ -212,6 +213,27 @@ class ApplyTest(TargetCase):
             err = self.assert_refused(self.run_apply(self.record(value), "--allow-stopped"), 1, "置いた差分が無い")
             self.assertNotIn(str(self.worktree), err)
             self.assertNotIn("git -C", err)
+
+    def test_by_hand_carries_new_files(self):
+        """封じる前に止まった run の拒む行の命令を打つと、修正の段が index 無しで当てた変更（追跡外のまま残る新しいファイル・
+        バイナリ・消したファイル）も対象に当たり、run の作業ツリーの本物の index は動かない"""
+        git(self.tmp, "clone", "-q", str(self.target), str(self.worktree))
+        base = git(self.worktree, "rev-parse", "HEAD")
+        (self.worktree / "stats.py").write_text(FIXED, encoding="utf-8")
+        (self.worktree / "new.txt").write_text("new\n", encoding="utf-8")
+        (self.worktree / "blob.bin").write_bytes(bytes(range(256)))
+        (self.worktree / "old.txt").unlink()
+        before = git(self.worktree, "status", "--porcelain")
+        record = self.record(self.value(apply=None, sealed=None, outcome="stopped_by_line"))
+        record["checkout_baseline"]["commit"] = base
+        err = self.assert_refused(self.run_apply(record), 1, "置いた差分が無い")
+        command = err.strip().split("当てるなら ", 1)[1]
+        subprocess.run(command, shell=True, check=True, capture_output=True, env=hermetic.child_env())
+        self.assertEqual((self.target / "stats.py").read_text(encoding="utf-8"), FIXED)
+        self.assertEqual((self.target / "new.txt").read_text(encoding="utf-8"), "new\n")
+        self.assertEqual((self.target / "blob.bin").read_bytes(), bytes(range(256)))
+        self.assertFalse((self.target / "old.txt").exists())
+        self.assertEqual(git(self.worktree, "status", "--porcelain"), before, "run の作業ツリーの index が動いた")
 
     def test_apply_stopped_run_needs_flag(self):
         value = self.value(apply=None, outcome="stopped_by_human", stop_reason="human:gate-final",
