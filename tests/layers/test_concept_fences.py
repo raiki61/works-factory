@@ -94,13 +94,13 @@ class FencesHold(unittest.TestCase):
         1 本ずつ注入した型の写しを、それぞれ漏れとして数える。住処 lib/handoff.py の宣言と、結んだ写し（YAML の本物の required の行）は数えない"""
         table = cf.load(ROOT)
         fences = table["concepts"]["handoff"]["fences"]
-        bound = " " * 16 + "required: [read, decided, rejected, doubts]"
+        bound = " " * 16 + "required: [read, kept, set_aside, open]"
         files = {
-            "lib/handoff.py": 'KEYS = ("read", "decided", "rejected", "doubts")\nSCHEMA = {}\n',
+            "lib/handoff.py": 'KEYS = ("read", "kept", "set_aside", "open")\nSCHEMA = {}\n',
             "lib/planfile.py": "HANDOFF_SCHEMA = {'type': 'object'}\n",
-            "lib/report_roles.py": 'HANDOFF_KEYS = ("read", "decided", "rejected", "doubts")\n',
-            "workflows/plan/works-factory-plan.yaml": bound.replace("doubts", "open") + "\n",
-            "workflows/report/works-factory-report.yaml": f"{bound}\n" + " " * 8 + "required: [read, decided, rejected, doubts]\n",
+            "lib/report_roles.py": 'HANDOFF_KEYS = ("read", "kept", "set_aside", "open")\n',
+            "workflows/plan/works-factory-plan.yaml": bound.replace("open]", "open ]") + "\n",
+            "workflows/report/works-factory-report.yaml": f"{bound}\n" + " " * 8 + "required: [read, kept, set_aside, open]\n",
         }
         with tree(files) as root:
             found: dict = {}

@@ -222,7 +222,7 @@ class FenceCase(unittest.TestCase):
         "gate-evidence": ['RUN_ROW, LOG_ROW = "- 走らせ方: ", "- ログ: "'],
         "accept-round": ["out = rolekit.with_done(d, name, got)", "if iteration >= GIVE_UP_AFTER:",
                          'REJECTS_FILE = "report-rejects.json"', "GIVE_UP_AFTER = 3"],
-        "handoff": ['HANDOFF_SCHEMA = {"type": "object", "required": ["read", "decided", "rejected", "open"],'],
+        "handoff": ['HANDOFF_SCHEMA = {"type": "object", "required": ["read", "kept", "set_aside", "open"],'],
     }
 
     def test_every_home_fence_hits_its_line(self):

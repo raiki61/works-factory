@@ -1968,7 +1968,7 @@ def accept(reply, cold, *, out_dir) -> dict:
     """書き手の返答を受け付ける（元 report_roles.accept を、盤面の代わりに out_dir の控えで書き直した物）。{done, ok, reason, kind,
     reason_file, prev_file}。拒んだ回の返答の本文 text・terms は、rolekit の前の答えの控え rolekit.candidate_path(out_dir, REPORT_NODE)
     に書き、まだ諦めていない拒否の回の prev_file がそのパスを指す（受け取った回・諦めた回・控えの無い回は空の字）。返答の handoff（読んだ所・
-    決めた訳・退けた案・迷い）は、その回の周のフォルダ out_dir/NOTE_ROUND（n は輪の今の回）に handoff.save で置く（handoff の無い回は
+    保つと決めた事・脇に置いた案・まだ決まっていない所）は、その回の周のフォルダ out_dir/NOTE_ROUND（n は輪の今の回）に handoff.save で置く（handoff の無い回は
     フォルダを作らない）。handoff は AI_FILE にも初見の読み手に貼る本文（cold_body）にも載らない。前の周のメモが読めない時は何も書かずに、
     前の答えの控えかその回のメモに書けない時は（メモが書けない時は前の答えの控えはもう書けている）、take の拒否に give_up を付けて口に
     1 回目で止めさせる。受け付けの回は rolekit.accept_round
