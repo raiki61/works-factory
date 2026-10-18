@@ -843,6 +843,7 @@ nodes:
       fix_units: "$fixed.output.units"
       green_ok: "$test-gate-final.output.ok"
       test_outcomes: "$test-gate-final.output.test_outcomes"
+      checks: "$test-gate-final.output.evidence"
       records: "$fixed.output.records"
       plan_declared: "$fixed.output.plan_declared"
       plan_questions: "$fixed.output.plan_questions"

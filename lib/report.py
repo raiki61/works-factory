@@ -1,7 +1,8 @@
 """報告の定型（P1 計画 Task 27・〔線A計〕T15。仕様 6 節・裁定 TA12・TA15）。AI は書かない。文は機械の定型だけ。
 
 元は works/.shared/core/report.py。盤面（b）を読んだ関数は、ブロックの返りを引数で受ける形で lib/outcome（結末の語の決め方）と
-lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移した。ここに残るのは両方と報告のブロックが読む語と小さな組み立て:
+lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移した。ここに残るのは両方と報告のブロック、差分の審査の受け付け（lib/refix）が
+読む語と小さな組み立て:
 - OUTCOMES・OUTCOME_WORDS: 結末の語（報告のブロックの返す節の enum と同じ 10 語）と、冒頭 3 行の 1 行目の平易な言い方
 - OUTCOME_KINDS: 結末の語 → 周の鎖（lib/chain.py）が見る種
 - 報告の見出し（TITLE_HEADING・HEADINGS の冒頭 1〜5・PRIOR_HEADING・OUTSIDE_HEADING・WORLD_HEADING・TDD_HEADING・
@@ -9,7 +10,9 @@ lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移�
 - prior_lines(rows, next_file): 次の run に運んだ落ちた理由の節の行
 - tdd_lines(stages)・freeze_lines(stages): 修正の段ごとの TDD の輪の単位の結末の行（keep-essence の 11）と、輪を回していない段で
   テストの凍結が効いていないと言う冒頭 2 の行（keep-essence の 3）
-- INNER_WORDS・INNER_WORD・INNER_WORDS_HEAD: 直しが対象に書く文に混じってはいけない works の内側の語の照らし
+- INNER_WORDS・INNER_WORD・INNER_WORDS_HEAD: 直しが対象に書く文に混じってはいけない works の内側の語の表と見出し
+- inner_word_hits(diff_text, known)・target_uses(repo, rev, word)・INNER_FACE_KIND: 差分の足した行への表の照らし（読み手は
+  lib/runreport の報告の一覧と lib/refix の差分の審査の受け付け）と、対象が直す前の版で既に使う語か、機械の穴の kind の語
 
 書き手のモジュール（ライン・ブロック）を import せずに名前で読む（層 L3 は上の層を import しない。裁定 R59）。
 """
@@ -18,6 +21,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import sys
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように
@@ -29,6 +33,7 @@ if str(CORE) not in sys.path:
 import answer  # noqa: E402
 import carry  # noqa: E402  （L1。次の run への持ち越しの形の住処: ファイルの名・欄の名・約束の Schema）
 import chain  # noqa: E402
+import changemap  # noqa: E402
 import oneline  # noqa: E402
 import promptsection  # noqa: E402
 import stopby  # noqa: E402
@@ -73,12 +78,48 @@ REJUDGE_WHERE = "判定（再審の結果）"           # 次の run の依頼�
 # rejudge_diff・rejudge_exit が指し、線の judged と報告はその欄から読むだけで、再審の前後を自分で数えない）
 REJUDGE_DIFF = "rejudge-diff.json"             # 往復ごとの単位の前後の差 [{round, pass, verdict, changed, unnamed_changed, lowered}]
 REJUDGE_EXIT = "rejudge-exit.json"             # 再審の出口 {ok, reason, passes, verdicts, unsettled, objection, new_open_units, lowered, unnamed_changed, …}
-# 直しが対象に書く文に混じってはいけない works の内側の語と run の中の事情の言い方（修正役の共通の決まり writerules/common.md の
-# 「対象に書く文」。利用者の run 8cb2ee00 の差分が Terraform のコメントに「この単位」「作業ツリー」を書いた）。拒まず報告に並べる
+# 直しが対象に書く文に混じってはいけない works の内側の語と run の中の事情の言い方（修正役の共通の決まり
+# workflows/fix/commands/fix-rules/common.md の「対象に書く文」。利用者の run 8cb2ee00 の差分が Terraform のコメントに「この単位」
+# 「作業ツリー」を書いた）。報告では拒まず並べ、差分の審査では手直しの義務の穴になる
 INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "共有ボード", "盤面", "この周", "この run", "判定役", "修正役", "独立の目",
-               "承認ノード", "関所")
-INNER_WORD = re.compile("|".join(re.escape(w) + ("(?!辺)" if w == "この周" else "") for w in INNER_WORDS))   # 「この周辺」は除く
+               "承認ノード", "関所", "世界の解", "定石")
+
+
+def _inner_word_pattern(word: str) -> str:
+    """語 word の正規表現。末尾が漢字なら後ろに漢字が、英字なら英数字か _ が続く所（「この周期」「この runner」）には当てない"""
+    tail = "(?![一-龥])" if re.match("[一-龥]", word[-1]) else "(?![A-Za-z0-9_])" if re.match("[A-Za-z]", word[-1]) else ""
+    return re.escape(word) + tail
+
+
+INNER_WORD = re.compile("|".join(_inner_word_pattern(w) for w in INNER_WORDS))
 INNER_WORDS_HEAD = "直しが対象に足した行に works の内側の語（対象の読み手に通じない。当てる前に言い換えるかを決める）"
+INNER_FACE_KIND = "inner_word"
+
+
+def target_uses(repo, rev: str, word: str) -> bool:
+    """対象が直す前の版 rev で既にその語を使うか（版か置き場が無い・git が落ちれば偽＝並べる側）"""
+    if not (repo and rev):
+        return False
+    try:
+        got = subprocess.run(["git", "-C", str(repo), "grep", "-h", "-F", "-e", word, str(rev), "--"],
+                             capture_output=True, encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    word_re = re.compile(_inner_word_pattern(word))   # git grep -F は語の区切りを見ないので、当たった行を同じ正規表現で選び直す
+    return got.returncode == 0 and any(word_re.search(ln) for ln in got.stdout.splitlines())
+
+
+def inner_word_hits(diff_text: str, known) -> list:
+    """直しの差分 diff_text が足した行のうち内側の語（INNER_WORD）を含む行 [{path, line（新しい側の行番号）, words, text}]。対象が
+    直す前の版で既に使う語 known(語) は数えない（語ごとに 1 度だけ引く）。当たりが無ければ空"""
+    seen, hits = {}, []
+    for path, lines in changemap.split_diff(diff_text)[0].items():
+        for n, ln in changemap.new_side(lines):
+            words = list(dict.fromkeys(INNER_WORD.findall(ln))) if ln.startswith("+") else []
+            words = [w for w in words if not seen.setdefault(w, known(w))]
+            if words:
+                hits.append({"path": path, "line": n, "words": words, "text": oneline.one_line(ln[1:].strip())})
+    return hits
 
 
 # ---------------------------------------------------------------- 小道具

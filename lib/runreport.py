@@ -34,7 +34,6 @@ import hashlib
 import json
 import pathlib
 import re
-import subprocess
 import sys
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -44,7 +43,6 @@ if str(_HERE) not in sys.path:
 import answer  # noqa: E402
 import baseline_red  # noqa: E402
 import carry  # noqa: E402
-import changemap  # noqa: E402
 import conflict  # noqa: E402
 import depth as depthlib  # noqa: E402
 import declared_checks  # noqa: E402
@@ -956,17 +954,6 @@ def _conflict_line(returns: dict) -> str:
             f"{swap}{plan_n}・裁定なし {c['unruled']}）。種類の内訳: " + "・".join(kinds))
 
 
-def _target_uses(repo, rev: str, word: str) -> bool:
-    """対象が直す前の版で既にその語を使うか（元 report._target_uses。版か置き場が無い・git が落ちれば偽＝並べる側）"""
-    if not (repo and rev):
-        return False
-    try:
-        got = subprocess.run(["git", "-C", str(repo), "grep", "-q", "-F", "-e", word, str(rev), "--"], capture_output=True)
-    except OSError:
-        return False
-    return got.returncode == 0
-
-
 def inner_word_lines(diff_path, known) -> list:
     """直しの差分が足した行のうち works の内側の語（report.INNER_WORDS）を含む行（元 report.inner_word_lines。対象が直す前の版で
     既に使う語 known(語) は数えない）。差分が無い・当たりが無ければ空。差分が読めなければその行"""
@@ -976,13 +963,7 @@ def inner_word_lines(diff_path, known) -> list:
         text = pathlib.Path(diff_path).read_text(encoding="utf-8", errors="replace")
     except OSError as e:
         return [f"差分 {diff_path} が読めない（{type(e).__name__}）——内側の語を確かめていない"]
-    seen, rows = {}, []
-    for path, lines in changemap.split_diff(text)[0].items():
-        for n, ln in changemap.new_side(lines):
-            words = list(dict.fromkeys(report.INNER_WORD.findall(ln))) if ln.startswith("+") else []
-            words = [w for w in words if not seen.setdefault(w, known(w))]
-            if words:
-                rows.append(f"{path}:{n}（{'・'.join(words)}）: {oneline.one_line(ln[1:].strip())}")
+    rows = [f"{h['path']}:{h['line']}（{'・'.join(h['words'])}）: {h['text']}" for h in report.inner_word_hits(text, known)]
     return [f"{report.INNER_WORDS_HEAD}: {len(rows)} 件", *[f"  - {r}" for r in rows]] if rows else []
 
 
@@ -1179,7 +1160,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += _pr_draft_lines(returns)
     lines += pr_lines(returns)
     lines += premise_lines(returns, start)
-    lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: _target_uses(repo, rev, w))
+    lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: report.target_uses(repo, rev, w))
     lines += _design_lines(returns)
     lines.append(f"{RESIDUE_HEAD}: {len(left)} 件（最後のテストが緑でない・独立の目が通さなかった目と結果が無い目・修正の段の残り・直しの後の実測が"
                  "見た住処の外の知る場所の増え・測れていない素材・落ちたがメイングラフが受け止めたノード）" + (f"。{MISSING_EYE_NOTE}" if left else ""))
