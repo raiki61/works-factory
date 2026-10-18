@@ -354,6 +354,18 @@
   - 書き手を fan_out の `join: all_done` で包んで落ちを run に数えない案は採らない（止めた Archon `355f1867` の `all_done` は落ちの印 providerFailure を落とすので、resume のやり直しが消える）。
 - 当て方: `docs/design.md` の「書き手のループが落ちた run（#702）」の行・`lib/runreport.py` の `writer_fell`・`note_writer_fell`・`lib/answer.py` の `resume`。筋書きは `tests/workflows/test_report.py` の `WriterRunCase`。
 
+### `suite-by-ai` tdd_suite を省いた run は、取り置きか AI が書いた実行器を機械が照らして使う
+
+- 持ち主の言葉（2026-10-15、issue #516 のコメント）: 「おしの実行器を書くのがそんなにコストかからないならいいよ」。運び役の推し「`tdd_suite` が無い run では、run の頭の AI が `test_cmd` と CI の定義を読んで実行器を書き、機械は事実（JUnit XML ができたか・テストが 1 件以上か）だけを照らす」への答え。
+- 持ち主の言葉（2026-10-15、同じ issue のコメント）: 「実行器のやつは、デフォルトとか一度対応した言語の分は兼ね備えていて、知らない言語とか対応してない言語はその場で書くみたいなのでもいいかもね。」
+- 決め:
+  - `tdd_suite` が空の run では、実行器（JUnit XML の書き先を第 1 引数に受け、リポジトリの根で走る実行ファイル。人が渡す `tdd_suite` と同じ約束）を用意する。道具の知識は AI の判断の側に置き、`lib/` と役の指示書に特定の言語・テストの実行器の名を書かない（`lang-neutral`。名指すのは JUnit XML だけ）。工場の中に言語ごとの既定の実行器は持たない。「デフォルト」に当たる物は、使う人ごとの取り置きが育って担う。
+  - 一度書いて照らしが通った実行器は、利用者の工場の家（`WORKS_FACTORY_HOME` の下）に取り置き、次から使い回す。対象のリポジトリには書かない（`diff-only-to-target`）。鍵は `test_cmd` の字（前後の空白を除く）で、対象をまたいで使い回す。取り置きを使った run は実行器を書く AI の手番を起こさない（費用 0）。
+  - 使い回す時も毎回、機械が事実を照らす: 修正の前のテストの一式の回としてその実行器を 1 回走らせ、JUnit XML ができて試験が 1 件以上なら使う（照らしのためにテストを余分に走らせない）。通らなければ取り置きを捨て、その場で AI が書き直す。書き直したのも照らしが通った時だけ取り置く。
+  - 照らしが通らなければ、今どおり TDD のループを飛ばして直に直す。報告の頭の 1 行に、取り置きを使った・書いた・書けなかったのどれかを出す（書けなかった時は訳も）。
+  - 足すのは小さい AI の手番 1 回だけで、重い模型・長い探索は使わない。その費用は報告の「## 費用」にほかの段と同じ形で出る。
+- 当て方: test-gate の `suite-loop`（`suite-prep`・`suite-write`・`suite-place`・`suite-try`）と `lib/suitewrite.py`。取り置きの根は境の口の `suite_keep`（起動の殻が家の下へ向ける `XDG_STATE_HOME` の下 `works-factory/suites/`）。家を対象ごとに分ける既定の起動（`WORKS_FACTORY_HOME` を渡さない run）では、取り置きはその対象の家の中で育つ。書き手は試験の関門の CI の役と同じ群・道具・砂場で起こす（軽い群 `@wf-test-gate`。起こし方の行を増やさない）。今の works の S100・U074（`docs/works-parity.md`）を、`superset` と `lang-neutral` の両方を満たす形で戻した。
+
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
 - 置き換えの条件: 今の works と同じ能力に届いたら置き換え、claude-plugins には `/works` の薄い入口だけを残す。根拠: 下の `superset` と `own-graph-alongside`。
