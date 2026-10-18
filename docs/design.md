@@ -691,47 +691,47 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 
 ### 受け入れの一覧（review-graph と同じ能力）
 
-持ち主の決め（`docs/owner-decisions.md` の `superset`）: works は review-graph の能力を 1 つも落とさない。works-factory も同じ。下の行は全部、置き換えの前に試験か筋書き（fixture）の名で証を書く。今の works は graph の全部のノードを表 `darkfactory/nodes.json` で `by`（役・機械・Archon・無し）に当て、`absent` は理由を持つ。同じ表をこのリポジトリでも持つ（段 3）。
+持ち主の決め（`docs/owner-decisions.md` の `superset`）: works は review-graph の能力を 1 つも落とさない。works-factory も同じ。下の行は全部、置き換えの前に試験か筋書き（fixture）の名で証を書く。今の works は graph の全部のノードを表 `darkfactory/nodes.json` で `by`（役・機械・Archon・無し）に当て、`absent` は理由を持つ。このリポジトリの同じ表は `docs/nodes.json`（graph の 60 のノードのうち 53 が試験か筋書きの名の証を持ち、7 が `absent` で理由を持つ。review-graph より下げた所は `downgrades`）。下の行の印は、行のノードが全部この表で証を持つか、持ち主の決めで `absent` と決まった時に付ける（2026-10-19 に表に合わせた）。印の無い行が、review-graph に比べて足りない所。
 
-- [ ] `p0.base` 差分の根を決める。未追跡は載せる
-- [ ] `p0.local_checks` CI を手元で走らせる。走らなければ人待ち（緑を仮定しない）
-- [ ] `p0.premises` 目的と制約の数値を実測する
-- [ ] `p0.purpose` 出典の優先順で目的を決め、最初の修正の前に固定する
-- [ ] `p0.purpose_review` 目的を都合よく狭めていないか審査する
-- [ ] `p0.parallel_pr` 並行 PR との交差を申し送る（今は報告に載せる形に下げている）
-- [ ] `p0.prior_decisions` 決着済みの論点の一覧（禁: 局所の所見・ほかの採点の素材）
-- [ ] `p1.worktree_before`・`p1.worktree_after` 作業ツリーの前後を機械が突き合わせる
-- [ ] `p1.local_review` 所見を集めるだけで採点しない
-- [ ] `p1.consistency_bypass` 横断の整合と標準の仕組みの迂回（禁: 局所の所見・固有規約・決着済みの論点）
-- [ ] `p1.hygiene` 用途を知らない目で衛生違反（禁: 元の目的・機能名・説明・近傍のコード）
-- [ ] `p1.external_standards` 問題の類を web の一次情報で裏取り（禁: 局所の所見）
-- [ ] `p1.procedure_trace` 動かして確かめる。確かめられない所は未実測の仮説（禁: 局所の所見）
-- [ ] `p1.gate_efficacy` 腕ごとに退行を入れて赤、壊さない写しで緑（対照）
-- [ ] `p1.test_double_fidelity` テストの代役を実物の値で照らす
-- [ ] `p1.main_path_observation` 主経路を 1 回動かして観測する
-- [ ] `p1.provenance` 「正本は X」の X が差分の内側に無いか
-- [ ] `p2.diagnose` 反証・出自・上へ 3 段・処方の木（書き手は覆せない。禁: 履歴・前の周の台帳と判定）
+- [x] `p0.base` 差分の根を決める。未追跡は載せる
+- [x] `p0.local_checks` CI を手元で走らせる。走らなければ人待ち（緑を仮定しない）（下げ: 機械全体の試験の枠を通さない。持ち主の決め no-queue）
+- [x] `p0.premises` 目的と制約の数値を実測する
+- [x] `p0.purpose` 出典の優先順で目的を決め、最初の修正の前に固定する
+- [x] `p0.purpose_review` 目的を都合よく狭めていないか審査する
+- [x] `p0.parallel_pr` 並行 PR との交差を申し送る（今は報告に載せる形に下げている）
+- [x] `p0.prior_decisions` 決着済みの論点の一覧（禁: 局所の所見・ほかの採点の素材）
+- [x] `p1.worktree_before`・`p1.worktree_after` 作業ツリーの前後を機械が突き合わせる
+- [x] `p1.local_review` 所見を集めるだけで採点しない
+- [x] `p1.consistency_bypass` 横断の整合と標準の仕組みの迂回（禁: 局所の所見・固有規約・決着済みの論点）
+- [x] `p1.hygiene` 用途を知らない目で衛生違反（禁: 元の目的・機能名・説明・近傍のコード）
+- [x] `p1.external_standards` 問題の類を web の一次情報で裏取り（禁: 局所の所見）
+- [x] `p1.procedure_trace` 動かして確かめる。確かめられない所は未実測の仮説（禁: 局所の所見）
+- [x] `p1.gate_efficacy` 腕ごとに退行を入れて赤、壊さない写しで緑（対照）
+- [x] `p1.test_double_fidelity` テストの代役を実物の値で照らす
+- [x] `p1.main_path_observation` 主経路を 1 回動かして観測する
+- [x] `p1.provenance` 「正本は X」の X が差分の内側に無いか
+- [x] `p2.diagnose` 反証・出自・上へ 3 段・処方の木（書き手は覆せない。禁: 履歴・前の周の台帳と判定）
 - [x] `p2.history` 台帳の再燃・問いの再審・膨張（absent。周の鎖は前の周と残りが同じかを決めのノードの出力の鍵で比べるだけ。持ち主の決め `no-history-for-now` の 2026-10-14 の答えで、鎖を入れた後も戻さない）
-- [ ] `p2.fix_plan` 全部の単位を案に入れ、生まれる物・消す物・狭める能力を先に書く
-- [ ] `p2.plan_review` 写し・塞がない入口・契約のずれ・後退・方針とのぶつかりを予測する
-- [ ] `p2.human_gate` 狭め・後退・方針の穴があれば直す前に人に聞く
-- [ ] `p2.rejudge` 判定役が新しい事実を自分で確かめ、採るか退けるか
-- [ ] `p3.lane_merge` 枝の差分を重ね、当たらない物は次に見せる
-- [ ] `p3.fix` 単位ごとに直す。不変条件を共にする箇所を全部挙げ、1 か所ずつ赤 → 緑。仕組みを新しく作ることになったら止める
-- [ ] `p3.fix_delta`・`p3.delta_review`・`p3.delta_owed`・`p3.delta_fix` 修正だけの差分の審査と手直し
-- [ ] `p3.fix_delta2`・`p3.delta_review2`・`p3.delta_owed2`・`p3.delta_fix2` 2 回目
-- [ ] `p3.gates_cut` 周の版を固める
+- [x] `p2.fix_plan` 全部の単位を案に入れ、生まれる物・消す物・狭める能力を先に書く
+- [x] `p2.plan_review` 写し・塞がない入口・契約のずれ・後退・方針とのぶつかりを予測する
+- [x] `p2.human_gate` 狭め・後退・方針の穴があれば直す前に人に聞く
+- [x] `p2.rejudge` 判定役が新しい事実を自分で確かめ、採るか退けるか（下げ: 判定役の会話を継がず、保存した返答を読む新しい会話で回す）
+- [x] `p3.lane_merge` 枝の差分を重ね、当たらない物は次に見せる
+- [x] `p3.fix` 単位ごとに直す。不変条件を共にする箇所を全部挙げ、1 か所ずつ赤 → 緑。仕組みを新しく作ることになったら止める
+- [x] `p3.fix_delta`・`p3.delta_review`・`p3.delta_owed`・`p3.delta_fix` 修正だけの差分の審査と手直し
+- [x] `p3.fix_delta2`・`p3.delta_review2`・`p3.delta_owed2`・`p3.delta_fix2` 2 回目
+- [x] `p3.gates_cut` 周の版を固める
 - [x] `p3.delta_gates`・`p4.final_gates` 変異の検算（今の works は absent と宣言して落としている。持ち主の決め `no-mutation-in-graph`（2026-10-13）でグラフに戻さない。変異試験は CI などで別に回す）
-- [ ] `p4.ci` CI を走らせ直す。赤なら戻る（今は次の run の下書き）
-- [ ] `p4.scalars`・`p4.assemble` 規模の数値と R1・R2 の再発火を機械が数える
-- [ ] `p4.record`・`converge` 周の記録と検証器。阻害が 2 周続けて無く CI が緑の時だけ収束、上限 5 周
-- [ ] `r1.comment_candidates`・`r1.minimality` R1
-- [ ] `r2.design`（禁: 実装・リポジトリ・履歴・累積差分・決着済みの論点）・`r2.compare`（禁: 調査の経緯・判定の一覧）R2
-- [ ] `r3.coherence` R3
-- [ ] `r4.hidden_scope`・`r4.human_gate` R4
-- [ ] `stop.premise_check` 前提の検算
-- [ ] `report.human_items`・`report.cold_check`（禁: 周の経緯・記録・差分）・`report`
-- [ ] `spec.write`・`spec.review`・`spec.revise`・`spec.approve`・`spec.freeze`・`spec.check` 受け入れテストを承認の時点で固め、後で hash を照らす
+- [x] `p4.ci` CI を走らせ直す。赤なら戻る（今は次の run の下書き）
+- [ ] `p4.scalars`・`p4.assemble` 規模の数値と R1・R2 の再発火を機械が数える（未: p4.assemble が absent。run が 1 周で、R1・R2 の再発火を数えない。p4.scalars は証が在り、コメントの比は数えない〔持ち主の決め no-comment-ratio〕）
+- [ ] `p4.record`・`converge` 周の記録と検証器。阻害が 2 周続けて無く CI が緑の時だけ収束、上限 5 周（未: どちらも absent。run が 1 周で周の記録を持たない〔戻すかは持ち主に聞く〕。周を重ねるのは周の鎖 works-factory-chain〔上限 5 周〕で、阻害が 2 周続けて無いかの収束は見ない）
+- [x] `r1.comment_candidates`・`r1.minimality` R1
+- [x] `r2.design`（禁: 実装・リポジトリ・履歴・累積差分・決着済みの論点）・`r2.compare`（禁: 調査の経緯・判定の一覧）R2（下げ: 独立設計は修正の前に 1 度だけ作り、作り直さない）
+- [x] `r3.coherence` R3
+- [x] `r4.hidden_scope`・`r4.human_gate` R4
+- [x] `stop.premise_check` 前提の検算（下げ: escalate でも止めず、最後の承認ノードで聞く）
+- [x] `report.human_items`・`report.cold_check`（禁: 周の経緯・記録・差分）・`report`
+- [x] `spec.write`・`spec.review`・`spec.revise`・`spec.approve`・`spec.freeze`・`spec.check` 受け入れテストを承認の時点で固め、後で hash を照らす
 
 今の works の強みの 12（works `docs/keep-essence.md`）も同じ扱い: 赤緑の機械の判定・元から赤の区別・テストの凍結・3 回で諦める・書き込みの出どころ・当たる試験の選び・欠陥の探し方の数え直し・食い違いの申し出・独立設計・守りのファイルで最後の承認ノード・単位ごとの記録が報告に届く・世界の解。
 
