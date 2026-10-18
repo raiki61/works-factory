@@ -546,6 +546,16 @@ class OutsideEnvCase(unittest.TestCase):
         env = tree_run.outside_env({"PATH": ours, "VIRTUAL_ENV": sys.prefix, "UV_NO_CONFIG": "1"})
         self.assertEqual(env, {"PATH": ours, "VIRTUAL_ENV": sys.prefix, "PYTHONDONTWRITEBYTECODE": "1"})
 
+    def test_read_only_gh_heads_the_path(self):
+        """起動の殻が渡した読むだけの gh の置き場（userenv.READ_GH_ENV）は、uv の物を外した後の PATH の頭に置く（script のノードの
+        PATH の頭の書ける gh の口より前）。無ければ PATH は触らない"""
+        ours = os.path.dirname(sys.executable)
+        for uv in ({}, {"UV_RUN_RECURSION_DEPTH": "1"}):
+            with self.subTest(uv=uv):
+                env = tree_run.outside_env({"PATH": os.pathsep.join([ours, "/rw-gh"]), userenv.READ_GH_ENV: "/ro-gh", **uv})
+                rest = ["/rw-gh"] if uv else [ours, "/rw-gh"]
+                self.assertEqual(env["PATH"], os.pathsep.join(["/ro-gh", *rest]))
+
     def test_does_not_touch_given_mapping(self):
         src = {"UV_RUN_RECURSION_DEPTH": "1", "PATH": ""}
         tree_run.outside_env(src)

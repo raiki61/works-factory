@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from bin._lib import hostgh, isolate, pack, place, runstop, startpoint
-from lib import answer, launchgroups, reads, writelog
+from lib import answer, launchgroups, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
@@ -107,9 +107,10 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     child = isolate.isolate(user, home)
     # GitHub の資格は AI の役に渡さない（持ち主の決め auth-middleware）。run の中の gh は、利用者の gh 自身の置き場のログインを
     # hostgh の口が継ぐ。script のノード（出口の語 pr の時に push と PR の作成をする archon-pr の publish も）は PATH の頭の
-    # この口を打ち、役の claude には書き込みの柵の包みが PATH の頭に読むだけの口 works-gh（no-post-bin/）を足すので、役には
-    # works-gh だけが見える（持ち主の決め roles-read-only-gh。write_fence の path_heads）。環境変数だけでログインする利用者の値は、
-    # gh の読まない名（hostgh.RELAY）で口へ渡す
+    # この口を打つ。役の claude には書き込みの柵の包みが PATH の頭に読むだけの口 works-gh（no-post-bin/）を足し（write_fence の
+    # path_heads）、script のノードが起こす対象のコマンド（AI が書いた試験のコードも走る）には tree_run.outside_env が同じ口を
+    # PATH の頭に足す（置き場は userenv.READ_GH_ENV で渡す）ので、どちらにも works-gh が先に見える（持ち主の決め roles-read-only-gh）。
+    # 環境変数だけでログインする利用者の値は、gh の読まない名（hostgh.RELAY）で口へ渡す
     for name in hostgh.TOKENS:
         child.pop(name, None)
     shim = hostgh.write(home / HOST_GH_DIR, user.get("PATH", ""), user_home, hostgh.config_dir(user))
@@ -118,6 +119,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
     child["PATH"] = os.pathsep.join(filter(None, [str(Path(shim).parent) if shim else "", user.get("PATH")]))
     role_heads = [str(hostgh.NO_POST_BIN)] if shim else []
+    if shim:
+        child[userenv.READ_GH_ENV] = str(hostgh.NO_POST_BIN)
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", **{place.PROVIDER_ENV: place.DEFAULT_PROVIDER})
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))

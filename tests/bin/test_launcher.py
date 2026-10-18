@@ -537,6 +537,25 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view 1 -R o/r"])
 
+    def test_target_commands_hit_the_read_only_gh(self):
+        """script のノードが起こす対象のコマンド（AI が書いた試験のコードも走る。環境は tree_run.outside_env）が打つ gh は、PATH の頭の
+        書ける口でなく読むだけの口 works-gh: 書く命令を拒み、読む命令は利用者の gh を継ぐ口へ渡す"""
+        gh_log = self.tmp / "gh.txt"
+        put(self.gh, f'#!/bin/sh\nprintf \'%s\\n\' "$*" >> "{gh_log}"\n')
+        env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
+        self.assertEqual(env[userenv.READ_GH_ENV], str(self.repo / "bin" / "_lib" / "no-post-bin"))
+        probe = ("import os, subprocess, sys\n"
+                 f"sys.path.append({str(self.repo / 'lib')!r})\n"
+                 "import tree_run\n"
+                 "env = tree_run.outside_env(os.environ)\n"
+                 "for args in (['pr', 'create', '-R', 'o/r'], ['pr', 'view', '1', '-R', 'o/r']):\n"
+                 "    print(subprocess.run(['gh', *args], env=env, capture_output=True).returncode)\n")
+        done = subprocess.run([sys.executable, "-c", probe], env={**env, userenv.RAN_DIR_ENV: str(self.tmp / "ran")},
+                              capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.split(), ["2", "0"], "書く命令は読むだけの口が拒み、読む命令は通る")
+        self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view 1 -R o/r"])
+
     def test_no_gh_without_a_real_gh(self):
         """gh の無い利用者の子に読むだけの口も置かない（並行 PR の確かめの「gh が無い → 役に任せる」を、口の拒否の人待ちに変えない）。
         トークンを読む口も無いので、トークンも渡さない"""

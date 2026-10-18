@@ -11,8 +11,12 @@
 - mark(path) -> bool: 印を置き、新しく置いたかを返す（置けなければ OSError）。起こす側（tree_run.run）が MARK を env から外し、子を
   起こす直前に呼ぶ（置けなければ起こさない。起こせなければ新しく置いた印を消す）
 - ran(top) -> bool: 置き場 top に印 RAN_FILE が在るか（対象のコマンドを利用者の HOME・XDG に戻して起こした run か。報告の冒頭が言う）
+- read_gh_first(env) -> None: 起動の殻が READ_GH_ENV で渡した読むだけの gh の置き場を env の PATH の頭に置く（無ければ何もしない）。
+  script のノードの PATH の頭は利用者のログインを継ぐ書ける gh の口なので、対象のコマンド（AI が書いた試験のコードも走る）には
+  役と同じ読むだけの口を先に見せる（持ち主の決め roles-read-only-gh。事故の柵で、堅い境ではない）
 """
 import json
+import os
 import pathlib
 
 RECORD = "WORKS_FACTORY_USER_ENV"
@@ -20,6 +24,7 @@ NAMES = ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STAT
 RAN_DIR_ENV = "WORKS_FACTORY_USER_ENV_RAN_DIR"
 RAN_FILE = "user-env-ran"
 MARK = "WORKS_FACTORY_USER_ENV_MARK"   # 戻した env にだけ在る、印のパス。子には渡さない
+READ_GH_ENV = "WORKS_FACTORY_READ_GH"   # 読むだけの gh の置き場（起動の殻が置く）
 CONTROL = (RECORD, RAN_DIR_ENV, MARK)   # 工場が置く制御の変数。継いだ値は起動の殻（bin/_lib/isolate.py）と restore が外す
 NOTE = "AI が書いた試験のコードを、利用者の資格に届く環境（利用者の HOME・XDG）で走らせた"
 
@@ -61,3 +66,9 @@ def mark(path) -> bool:
 
 def ran(top) -> bool:
     return top is not None and (pathlib.Path(top) / RAN_FILE).is_file()
+
+
+def read_gh_first(env) -> None:
+    head = env.get(READ_GH_ENV)
+    if head:
+        env["PATH"] = os.pathsep.join(filter(None, [head, env.get("PATH")]))

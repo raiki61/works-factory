@@ -166,8 +166,11 @@ ALLOWED = {
         "tests/bin/fakelaunch.py",
         # 偽の script の字の中の os.environ で、子の環境を組む口ではない
         "tests/shared/test_fence.py#os.environ.items()",
+        # 偽の script の字の中の os.environ。起動の殻が組んだ子の環境から、対象のコマンドの環境の作り手が組む物を確かめる
+        "tests/bin/test_launcher.py#outside_env(os.environ)",
         # この表の上の行の字そのもの（許しの行が名指す字は、走査器自身の字として当たる）
         "tests/layers/scan.py#os.environ.items()",
+        "tests/layers/scan.py#outside_env(os.environ)",
     ),
     "E13": (
         "lib/AGENTS.md",
