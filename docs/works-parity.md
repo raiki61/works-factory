@@ -877,7 +877,7 @@
 - S114 無人の run は起動の承認ノードを越え、人が決める承認ノードに着いたら開かずに止めて報告へ進む（狭める・方針とぶつかる修正は通さない）
   - 元: SKILL.md:94
   - 印: `policy-gate`
-  - 今: `workflows/line/scripts/start.py::start`（ask: not unattended）・`workflows/line/scripts/ask_before_fix.py::ask`・`lib/gatepolicy.py::unattended`・`lib/gatemarks.py::pushed_answer`
+  - 今: `workflows/line/scripts/start.py::start`（ask: not unattended）・`workflows/line/scripts/ask_before_fix.py::ask`・`lib/gatepolicy.py::unattended`・`lib/gatepolicy.py::passage`
   - 状態: 形を変えて在る（承認ノードに載る項目の全部が通す推しを持てば、止まらずに推しで進む。持ち主の決め `unattended` の 2026-10-15）
   - 旧棚卸し: L-G10・L-G39・L-G40・L-W39
 
@@ -3550,7 +3550,7 @@
 - line.md L-G37: 報告は lib/runreport.py::_decisions。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.answered_lines・unmatched_answer_lines）→ question_lines
 - line.md L-G38: workflows/line/scripts/ask_before_fix.py::ask（無人の run は種類 fork・escalate の行だけを deferred にする）
 - line.md L-G39: workflows/line/scripts/ask_before_fix.py::ask・workflows/line/scripts/ask_replan.py::ask・workflows/line/scripts/ask_final.py::ask の `works:needs-human`
-- line.md L-G40: workflows/line/scripts/ask_before_fix.py::ask: 事前審査の出力 questions の行 {kind, text}（plan-review が種類を残す。lib/boardview.py::collect）のうち fork・escalate でない行（方針の文書の変化・事前審査の諦め given_up・狭め・穴・世界の解の外れ・設計）は無人の run で止める（全部が通す推しを持てば lib/gatemarks.py::pushed_answer で推しで進む）
+- line.md L-G40: workflows/line/scripts/ask_before_fix.py::ask: 事前審査の出力 questions の行 {kind, text}（plan-review が種類を残す。lib/boardview.py::collect）のうち fork・escalate でない行（方針の文書の変化・事前審査の諦め given_up・狭め・穴・世界の解の外れ・設計）は無人の run で止める（全部が通す推しを持てば lib/gatepolicy.py::passage で推しで進む）
 - line.md L-G41: lib/runreport.py::answer_drafts・lib/runreport.py::build
 - line.md L-G42: lib/gatemarks.py::recommend_gaps
 - line.md L-G43: workflows/line/scripts/ask_replan.py::ask

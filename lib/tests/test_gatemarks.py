@@ -175,14 +175,17 @@ class PushRecCase(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIsNone(gatemarks.push_rec(text))
 
-    def test_pushed_answer_only_when_every_row_pushes_continue(self):
+    def test_row_push_is_the_policy_reading_of_the_tail(self):
+        """#653: 推しの尾の読みを無人の方針の口（gatepolicy.passage）に渡す形にする。通すかと note は尾の字のまま、答えに残す読みは push_rec"""
         rows = [self.row(), self.row(), gatemarks._item("修正案 2 が狭める能力: y", {gatemarks.RECOMMEND: {**self.REC, "note": "y で通す"}})]
-        got = gatemarks.pushed_answer(rows)
+        got = gatemarks.gatepolicy.passage(rows, gatemarks.row_push).pushed
         self.assertEqual((got["decision"], got["text"]), ("continue", "空の列は 0 を返す・形で通す；y で通す"))
         self.assertEqual(got[gatemarks.answer.PUSHED], [gatemarks.push_rec(r) for r in rows])
+        self.assertEqual(gatemarks.row_push(self.row(answer="stop")).go, False)
+        self.assertIsNone(gatemarks.row_push(self.BODY))
         for rows in ([], [self.row(), self.BODY], [self.row(), self.row(answer="stop")]):
             with self.subTest(rows=rows):
-                self.assertIsNone(gatemarks.pushed_answer(rows))
+                self.assertIsNone(gatemarks.gatepolicy.passage(rows, gatemarks.row_push).pushed)
 
     def test_scenario_rows_are_read(self):
         """筋書き unattended-push・unattended-push-stop の項目の字は push_rec で読める（字の形のずれを赤にする）"""
@@ -195,7 +198,7 @@ class PushRecCase(unittest.TestCase):
 
     def test_gate_items_keep_the_push_origin(self):
         """推しで通した答えを human_items の行にしても欄 answer.PUSHED を落とさない（人の答えの行は持たない）"""
-        pushed = gatemarks.pushed_answer([self.row()])
+        pushed = gatemarks.gatepolicy.passage([self.row()], gatemarks.row_push).pushed
         self.assertEqual(gatemarks.gate_items(pushed)[0][gatemarks.answer.PUSHED], pushed[gatemarks.answer.PUSHED])
         self.assertNotIn(gatemarks.answer.PUSHED, gatemarks.gate_items({"decision": "continue", "text": "人"})[0])
 

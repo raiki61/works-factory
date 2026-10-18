@@ -367,7 +367,8 @@ class TextCase(BoardCase):
         self.assertNotIn("capped", row)
         self.assertNotIn(converge.CAP_WHY.split("（")[0].format(n=2), converge.stuck_reason(b))
 
-    def test_pushable_excludes_capped_stop(self):
+    def test_capped_marks_only_the_stop_at_the_cap(self):
+        """止まった壁打ちを推しで越えてよいかの決め（gatepolicy.stuck_pushable）が読む、上限の周で止めたかの事実"""
         def doc(rnd, passes, plan=()):
             b = self.board(rnd)
             if plan:
@@ -378,23 +379,24 @@ class TextCase(BoardCase):
             return converge.read(b)
         again = doc(2, [(["key-a1"], False)])
         self.assertEqual(again["outcome"], converge.AGAIN)
-        self.assertFalse(converge.pushable(again))
+        self.assertFalse(converge.capped(again))
         clean = doc(3, [([], False)])
         self.assertEqual(clean["outcome"], converge.CLEAN)
-        self.assertFalse(converge.pushable(clean))
+        self.assertFalse(converge.capped(clean))
         again = doc(4, [(["key-a1"], False), (["key-b1"], False)])
         self.assertEqual(again["outcome"], converge.AGAIN, "中央の新しい block の往復は止まらない（数で止めない）")
-        self.assertFalse(converge.pushable(again))
+        self.assertFalse(converge.capped(again))
         persisted = doc(5, [(["key-a1"], False), (["key-a1", "key-b1"], False)])
         self.assertEqual(persisted["outcome"], converge.PERSISTED)
-        self.assertTrue(converge.pushable(persisted))
+        self.assertFalse(converge.capped(persisted))
         capped = doc(6, [(["key-a1", "key-a2"], False), (["key-b1"], True)])
         self.assertEqual((capped["outcome"], capped["passes"][-1]["capped"]), (converge.UNSETTLED, True))
-        self.assertFalse(converge.pushable(capped))
+        self.assertTrue(converge.capped(capped))
         held_passes = [(["key-a1", "key-b1", "key-b2", "key-b3"], False), (["key-a1", "key-b4", "key-b5"], False), (["key-b6"], True)]
         held = doc(7, held_passes, plan=("u1", "u2"))
         self.assertEqual((held["outcome"], held["passes"][-1]["capped"]), (converge.PERSISTED, True))
-        self.assertFalse(converge.pushable(held), "保留の項目が在る上限の止まりも、outcome が PERSISTED でも偽")
+        self.assertTrue(converge.capped(held), "保留の項目が在る上限の止まりは outcome が PERSISTED でも上限の止まり")
+        self.assertFalse(converge.capped({"outcome": None, "passes": []}))
 
     def test_capped_stop_names_open_counts_per_pass(self):
         """輪の上限の周で止めた時は、上限に届いた句に往復ごとの開いた数を添える（数の比べで止める句は無い）"""

@@ -61,6 +61,7 @@ import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import fixture  # noqa: E402
 import gatemarks  # noqa: E402
+import gatepolicy  # noqa: E402
 import green_cert  # noqa: E402
 import judge_accept  # noqa: E402
 import outcome  # noqa: E402
@@ -1228,6 +1229,17 @@ def planned(**kw) -> dict:
     return got
 
 
+class UnattendedPolicyCallCase(unittest.TestCase):
+    def test_gate_scripts_leave_the_unattended_choice_to_the_policy(self):
+        """#653: 修正前と案の直しの承認ノードの script は、無人の run の進むか止まるかを gatepolicy.passage に渡すだけで、止めの語を
+        自分で組まない（分かれ道の写しを持たない）"""
+        for name in ("ask_before_fix", "ask_replan"):
+            with self.subTest(name=name):
+                text = (SCRIPTS / f"{name}.py").read_text(encoding="utf-8")
+                self.assertIn("gatepolicy.passage(", text)
+                self.assertNotIn("NEEDS_HUMAN", text)
+
+
 class AskBeforeFixCase(unittest.TestCase):
     def ask(self, plan, unattended=False, design_only=False):
         return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, run_id=RUN)
@@ -1283,7 +1295,7 @@ class AskBeforeFixCase(unittest.TestCase):
                        unattended=True)
         self.assertEqual((got["open"], got["go"], got["stop_reason"], got["deferred"], got["asked"]),
                          (False, True, "", ["0 を返すか"], rows))
-        self.assertEqual(got["pushed"], gatemarks.pushed_answer(rows))
+        self.assertEqual(got["pushed"], gatepolicy.passage(rows, gatemarks.row_push).pushed)
         self.assertEqual(got["pushed"]["text"], "a で通す；b で通す")
 
     def test_unattended_stops_when_a_push_stops_or_is_missing(self):

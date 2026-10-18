@@ -11,8 +11,11 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import answer  # noqa: E402
+import converge  # noqa: E402
 import gatepolicy as gp  # noqa: E402
 import startrec  # noqa: E402
+import stopby  # noqa: E402
 
 
 def record(d, **fields):
@@ -96,3 +99,65 @@ class OpensCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def push(word, note):
+    rec = {"item": "x", "answer": word, "note": note, "why": "推す理由"}
+    return gp.Push(word == "continue", note, rec)
+
+
+class PassageCase(unittest.TestCase):
+    """#653: 無人の run で開くはずの承認ノードの抜け方（今の筋書きの結果を縛る）"""
+    PUSHES = {"a": push("continue", "a で通す"), "b": push("continue", "b で通す"), "a2": push("continue", "a で通す"),
+              "s": push("stop", "止める訳"), "none": None}
+
+    def passage(self, rows):
+        return gp.passage(rows, self.PUSHES.get)
+
+    def test_every_row_pushes_continue_goes_with_the_push(self):
+        got = self.passage(["a", "b", "a2"])
+        self.assertEqual((got.go, got.stop_reason, got.asked), (True, "", ["a", "b", "a2"]))
+        self.assertEqual(got.pushed, {"decision": "continue", "text": "a で通す；b で通す",
+                                      answer.PUSHED: [self.PUSHES[k].rec for k in ("a", "b", "a2")]})
+        self.assertIn(got.pushed["decision"], answer.GO_WORDS)
+
+    def test_a_row_without_a_push_or_with_a_stop_push_stops(self):
+        for rows in (["a", "none"], ["a", "s"], ["none"], []):
+            with self.subTest(rows=rows):
+                self.assertEqual(self.passage(rows), gp.Passage(False, stopby.NEEDS_HUMAN, [], None))
+
+
+class StuckPushableCase(unittest.TestCase):
+    """#653: 止まった事前審査の壁打ちの行に推しの尾を付けてよいか（上限に届いた止まりは付けない＝止める）"""
+    KEY = "a-key-001"
+
+    def folder(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return pathlib.Path(tmp.name)
+
+    def setUp(self):
+        self.dir = self.folder()
+        record(self.dir, **{gp.UNATTENDED_KEY: gp.UNATTENDED})
+
+    def doc(self, outcome=converge.PERSISTED, capped=False):
+        last = {"blocks": [self.KEY], "persists": [self.KEY], **({"capped": True} if capped else {})}
+        return {"outcome": outcome, "passes": [last]}
+
+    def test_stuck_with_a_citing_continue_push_takes_it(self):
+        for outcome in converge.STUCK:
+            with self.subTest(outcome=outcome):
+                self.assertTrue(gp.stuck_pushable(self.dir, self.doc(outcome), push("continue", f"{self.KEY} を直す"), design_only=False))
+
+    def test_everything_else_is_not_pushed(self):
+        good = push("continue", f"{self.KEY} を直す")
+        attended = self.folder()
+        for why, args, design_only in (("上限に届いた止まり", (self.dir, self.doc(capped=True), good), False),
+                                       ("止まっていない", (self.dir, self.doc(converge.AGAIN), good), False),
+                                       ("人のいる run", (attended, self.doc(), good), False),
+                                       ("設計だけの run", (self.dir, self.doc(), good), True),
+                                       ("推しが無い", (self.dir, self.doc(), None), False),
+                                       ("止める推し", (self.dir, self.doc(), push("stop", f"{self.KEY} を直す")), False),
+                                       ("key を引かない", (self.dir, self.doc(), push("continue", "直す")), False)):
+            with self.subTest(why):
+                self.assertFalse(gp.stuck_pushable(*args, design_only=design_only))
