@@ -1050,6 +1050,7 @@ nodes:
       r2: "$eyes.output.r2"
       deliver: "$INPUTS.deliver"
       request: "$INPUTS.request"
+      user_env_dir: "$start.output.user_env_dir"
       items: "$fixed.output.item_claims"
 
   - id: merge-apply-out

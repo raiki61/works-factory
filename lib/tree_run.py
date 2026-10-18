@@ -112,8 +112,9 @@ def outside_env(environ):
     - UV_NO_CONFIG はいつも外す。利用者が実行基盤の環境に立てていても、テストのコマンド（`uv run <試験の実行器>` など）には対象の
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
     - userenv.RECORD（起動の殻がいつも控えた、隔離の前の HOME・XDG_*）・userenv.RAN_DIR_ENV・継いだ userenv.MARK はいつも外し、
-      RECORD が在れば中の値に戻して、印のパスを MARK に置く（userenv.restore。印を置くのは run が子を起こす直前。RECORD の
-      形が違う・RAN_DIR_ENV が無ければ ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身の git は隔離のまま
+      RECORD が在れば中の値に戻して、印のパスを MARK に置く（userenv.restore。印を置くのは、この写しで子を起こす側が起こす
+      直前。RECORD の形が違う・RAN_DIR_ENV が無ければ ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身は隔離の
+      まま（この写しで起こす対象のコマンドの子を除く。数え上げは docs/design.md の「対象のコマンドの環境と準備」）
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
     限界: 節に deps: を足すと uv は --with の層の bin も足し、それは外れない（今の節は deps を持たない）"""
@@ -417,7 +418,15 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
     return None   # 届かない（最後の回は必ず返す）
 
 
-def _place_mark(mark) -> bool:
+def split_mark(env) -> tuple:
+    """outside_env の写し env から印のパス userenv.MARK を外す ——(MARK を外した写し, 印のパスか None)。印は子に渡さず、起こす直前に
+    place_mark で置く（outside_env の写しで子を起こす側が呼ぶ）"""
+    mark = env.get(userenv.MARK)
+    return {k: v for k, v in env.items() if k != userenv.MARK}, mark
+
+
+def place_mark(mark) -> bool:
+    """印を置き、新しく置いたかを返す。置けなければ MARK_FAILED を頭にした OSError（起こさない）"""
     try:
         return userenv.mark(mark)
     except OSError as e:
@@ -470,8 +479,9 @@ def run(argv, **popen_kw):
     最初の対象のコマンドが書いた物として数えられる）。続けて _launch で argv を起こす:
     新しいプロセスグループで起こして終わりを待ち、終了コード（信号で死んだら 128+信号）を返す。bash -c の argv は起こす前に
     prove_launchable で中の先頭の語を引き、引けなければ起こさずに OSError。env に userenv.MARK（outside_env が利用者の HOME・XDG に
-    戻した印）が在れば、子に渡さず、起こす直前に印を置く。置けなければ起こさずに MARK_FAILED を頭にした OSError（利用者の環境で
-    走らせて報告が言い漏らす事が無い。起きた子は印のために止めない）。起こせなければ、誤りの型に依らず新しく置いた印を消す（報告が言い過ぎない）。
+    戻した印）が在れば、split_mark で外して子に渡さず、起こす直前に place_mark で印を置く。置けなければ起こさずに MARK_FAILED を
+    頭にした OSError（利用者の環境で走らせて報告が言い漏らす事が無い。起きた子は印のために止めない）。起こせなければ、誤りの型に
+    依らず新しく置いた印を消す（報告が言い過ぎない）。
     待つ間（後始末の間も）に STOP_SIGNALS を受けたか直下の親が替わったら、木ごと止め、LINGER 秒待ってから Stopped を投げる。
     起きた時に既に孤児（親が 1）なら起こさずに Stopped(SIGHUP)。どの道で抜けても木を止めに行き、止め切れなければ
     標準エラーに名指しする（抜け道はモジュールの説明）"""
@@ -507,16 +517,17 @@ def _launch(argv, **popen_kw):
         return signal.SIGHUP if os.getppid() != ppid else None
 
     env = popen_kw.get("env")
-    mark = env.get(userenv.MARK) if env is not None else None
-    if mark is not None:
-        popen_kw = {**popen_kw, "env": {k: v for k, v in env.items() if k != userenv.MARK}}
+    mark = None
+    if env is not None:
+        env, mark = split_mark(env)
+        popen_kw = {**popen_kw, "env": env}
     try:
         if ppid == 1:
             raise Stopped(signal.SIGHUP)
         prove_launchable(argv, popen_kw.get("cwd"), popen_kw.get("env"), lambda: stop_signal() is not None)
         if (signum := stop_signal()) is not None:   # 証明の間に止められたら起こさない
             raise stopped_by(signum)
-        placed = _place_mark(mark) if mark is not None else False
+        placed = place_mark(mark) if mark is not None else False
         born = time.time()   # 長の番号の再利用の目印（_tree_members の born）
         try:
             p = subprocess.Popen(argv, start_new_session=True, **popen_kw)
