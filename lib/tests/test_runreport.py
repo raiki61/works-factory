@@ -31,9 +31,11 @@ import fixboard  # noqa: E402
 import fixture  # noqa: E402
 import headdepth  # noqa: E402
 import launchgroups  # noqa: E402
+import listcut  # noqa: E402
 import outcome  # noqa: E402
 import outpurpose  # noqa: E402
 import planfile  # noqa: E402
+import protect  # noqa: E402
 import querytest  # noqa: E402
 import reads  # noqa: E402
 import report  # noqa: E402
@@ -936,6 +938,19 @@ class DecisionsCase(Base):
         self.assertIn("    - （根）: 1999 本", body)
         self.assertIn("    - dist: 4998 本", body)
         self.assertNotIn("    - r10.log", body)
+
+    def test_removed_top_folders_are_counted_per_scope(self):
+        """上位のフォルダごとの本数は scope ごとに数える。scope の gen/ と盤面の直下の gen/ を 1 つの「gen」に混ぜない"""
+        diff = self.fix_place("fix")
+        folder = pathlib.Path(diff).parent
+        fixboard.write_json(folder / "fix-removed.json", {"removed": [f"gen/{i}.o" for i in range(3)] + ["a.log"]})
+        (folder / "sub").mkdir()
+        fixboard.write_json(folder / "sub" / "fix-removed.json", {"removed": [f"gen/{i}.o" for i in range(4)]})
+        _, text, _ = self.build(self.with_fix(diff))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("    - sub の gen: 4 本", body)
+        self.assertIn("    - gen: 3 本", body)
+        self.assertIn("    - （根）: 1 本", body)
 
     def test_nothing_to_decide_puts_next_items(self):
         """元 ReportHeadCase.test_nothing_to_decide_puts_next_items: 決めることが無い run は 2 行目に次の run に渡す物の件数"""
@@ -2102,7 +2117,7 @@ class LedgerCase(Base):
         returns = self.returns(FORK)
         state = runreport.ledger_state(returns, {"before-fix-answer": gate}, {"run_id": RUN})
         self.assertEqual(state["held"], [])
-        lines, _ = runreport._decisions(returns, {"before-fix-answer": gate}, {"run_id": RUN}, "fixed", [], closed=True,
+        lines, _, _ = runreport._decisions(returns, {"before-fix-answer": gate}, {"run_id": RUN}, "fixed", [], closed=True,
                                           beside=runreport.fix_beside(returns), exit_=runreport.rejudge_exit(returns))
         row = next(x for x in lines if "読めなかった保留" in x)
         self.assertIn("「保留: q-typo」", row)
@@ -2233,6 +2248,21 @@ class LinesCase(Base):
         _, text, _ = self.build(fixed_run(eyes=eyes))
         self.assertIn("守りのパスに当たった差分 1 件", text.splitlines()[4])
         self.assertIn("ci/deploy.yml", self.section(text, report.DECISIONS_HEADING))
+
+    def test_many_protected_hits_are_counted_in_full(self):
+        """封じた差分の当たりが listcut.SHOWN を超えると、行は先頭の数行と残りの 1 行だけだが、件数は全件の数 protected_count で言い、
+        独立の目の切った行を重ねない"""
+        many = 20_000
+        rows = [f"ci/f{i}.yml（+1 −0）" for i in range(many)]
+        seal = {"mode": "seal", "ok": True, "protected_hits": protect.shown(rows, "protected_hits", "merge/protected-all.json"),
+                "protected_count": many}
+        eyes = {**fixed_run()["eyes"], "protected_hits": protect.shown(rows, "hits", "eyes/protected-all.json")}
+        _, text, _ = self.build(fixed_run(eyes=eyes, **{"sealed-diff": seal}))
+        self.assertIn(f"{runreport.PROTECTED_HITS_HEAD} {many} 件", text.splitlines()[4])
+        self.assertTrue(text.splitlines()[4].startswith(f"{runreport.DECIDE_HEAD}{many} 件——"), text.splitlines()[4])
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(f"{runreport.PROTECTED_HITS_HEAD}: {many} 件", body)
+        self.assertEqual(body.count(listcut.REST.format(n=many - listcut.SHOWN)), 1, body)
 
     def test_seal_not_ok_says_why(self):
         seal = {"mode": "seal", "ok": False, "reason": "指紋が今の作業ツリーと違う"}

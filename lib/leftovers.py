@@ -11,7 +11,7 @@
 - found:              盤面の根とその直下の scope の根に clean が書いた消した物のファイルのパスの並び（修正の出力ノードが欄 removed の
                       ポインタにする）。探せなければ Unreadable
 - read_removed:       渡された消した物のファイル（欄 removed の先。最後の関所と報告が fixbeside の読み手の口から渡す）を全部読み、
-                      件数・全パスを返す。ファイルが 1 つも無ければ走らせていない（0 本と分ける）。読めなければ投げずに読めないと
+                      件数・全パスと scope ごとのパス（scope はファイルの在る所で決まる）を返す。ファイルが 1 つも無ければ走らせていない（0 本と分ける）。読めなければ投げずに読めないと
                       理由を返す
 控えと消した物のファイルの名は呼ぶ側が渡せる（before_name・removed_name。既定は IGNORED_BEFORE_FILE・REMOVED_FILE）。控えと消した物のファイルは
 呼び手が渡す置き場のフォルダ board に置く（fix と refix の分けは置き場の名で付く）。
@@ -182,11 +182,13 @@ def found(board, removed_name: str = REMOVED_FILE) -> list:
         raise Unreadable(f"共有ボードの {removed_name} を探せない（{e}）") from None
 
 
-def read_removed(files) -> dict:
-    """消した物のファイル files（found の並び）を全部読む。投げない。返り {ran, readable, reason, count, paths, files}: ran はファイルが
-    1 つでも在る（clean が走った）。readable が偽なら reason に読めないファイルと理由（0 本に見せない）。paths は消したパスを
-    ファイルの順につないだ物、count はその数、files は読んだファイルのパス（全件の置き場）"""
-    out = {"ran": bool(files), "readable": True, "reason": "", "count": 0, "paths": [], "files": [str(p) for p in files]}
+def read_removed(files, board=None) -> dict:
+    """消した物のファイル files（盤面 board の found の並び）を全部読む。投げない。返り {ran, readable, reason, count, paths, by_scope,
+    files}: ran はファイルが 1 つでも在る（clean が走った）。readable が偽なら reason に読めないファイルと理由（0 本に見せない）。paths は
+    消したパスをファイルの順につないだ物、count はその数、files は読んだファイルのパス（全件の置き場）。by_scope は {scope の名: [消した
+    パス]}で、scope はファイルの在る所で決まる（board の根は ""、その直下のフォルダはその名。board が None なら全部を ""）"""
+    out = {"ran": bool(files), "readable": True, "reason": "", "count": 0, "paths": [], "by_scope": {},
+           "files": [str(p) for p in files]}
     bad = []
     for p in files:
         try:
@@ -198,6 +200,8 @@ def read_removed(files) -> dict:
             bad.append(f"{p}: removed が文字列の配列でない")
             continue
         out["paths"] += names
+        scope = "" if board is None or pathlib.Path(p).parent == pathlib.Path(board) else pathlib.Path(p).parent.name
+        out["by_scope"].setdefault(scope, []).extend(names)
     out["count"] = len(out["paths"])
     if bad:
         out.update(readable=False, reason="消したファイルの控えが読めない（" + "／".join(bad) + "）")

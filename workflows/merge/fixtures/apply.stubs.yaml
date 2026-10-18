@@ -5,6 +5,7 @@ merge:
   hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   diff: { type: archon_artifact, run_id: fixture-run, path: merge/apply.diff }
   protected_hits: null
+  protected_count: null
   reason: ""
 fixture:
   expect: completed

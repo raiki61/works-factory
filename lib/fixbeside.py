@@ -232,17 +232,17 @@ def _port(stage: dict, field: str, resolve, unread: list) -> pathlib.Path | None
         return None
 
 
-def _label(stage: dict, resolve, n: int) -> str:
-    """段の名（diff の先のフォルダの名。戻せなければ段の番号）"""
+def _place(stage: dict, resolve) -> pathlib.Path | None:
+    """段の置き場（diff の先のフォルダ。戻せなければ None）"""
     try:
-        return pathlib.Path(resolve(stage.get("diff"))).parent.name
+        return pathlib.Path(resolve(stage.get("diff"))).parent
     except READ_ERRORS:
-        return f"段 {n}"
+        return None
 
 
-def _removed(stage: dict, resolve) -> dict:
+def _removed(stage: dict, resolve, place: pathlib.Path | None) -> dict:
     """段の欄 removed（clean が消したパスの控えのポインタの並び）を leftovers.read_removed で読む。[] は走らせていない、null と戻せない
-    ポインタは読めない（訳つき）"""
+    ポインタは読めない（訳つき）。scope は各ファイルが段の置き場 place の根か直下のフォルダかで決まる"""
     ptrs = stage.get("removed")
     if ptrs is None:
         return {**leftovers.read_removed([]), "ran": True, "readable": False, "reason": REMOVED_UNRETURNED}
@@ -252,7 +252,7 @@ def _removed(stage: dict, resolve) -> dict:
             files.append(pathlib.Path(resolve(ptr)))
         except READ_ERRORS as e:
             bad.append(f"{type(e).__name__}: {oneline.one_line(e)}")
-    got = leftovers.read_removed(files)
+    got = leftovers.read_removed(files, place)
     if bad:
         got.update(ran=True, readable=False, reason="・".join([*([got["reason"]] if got["reason"] else []),
                                                                f"消したファイルの控えのポインタを読めない（{'／'.join(bad)}）"]))
@@ -286,7 +286,8 @@ def read(stages, resolve) -> dict:
         if not isinstance(stage, dict):
             got["unread"].append("修正の段の出力が dict でない")
             continue
-        label = _label(stage, resolve, n)
+        place = _place(stage, resolve)
+        label = place.name if place is not None else f"段 {n}"
         closure_unread: list = []
         path = _port(stage, "closure", resolve, closure_unread)
         closure = (_load(path, closure_unread) if path is not None else None) or {}
@@ -308,7 +309,7 @@ def read(stages, resolve) -> dict:
         doc = (_load(path, got["unread"]) if path is not None else None) or {}
         got["lenses"].append((label, {"summary": doc.get("summary"), "lines": doc.get("lines") or [],
                                       "collector": doc.get("collector") if isinstance(doc.get("collector"), dict) else None}))
-        got["removed"].append((label, _removed(stage, resolve)))
+        got["removed"].append((label, _removed(stage, resolve, place)))
         _allowed(_port(stage, "allowed_tests", resolve, got["unread"]), got["allowed"], got["unread"])
     got["closure"] = list(got["closure"].values())
     return got
@@ -493,9 +494,16 @@ def lens_lines(got: dict) -> list:
     return out
 
 
+def _top(scope: str, path: str) -> str:
+    """上位のフォルダごとの本数の区分: パスの頭の 1 段。根に直に在るファイル（区切りの / が無い名）はファイル名ごとに数えず 1 つの区分に
+    まとめる。include の scope の分は scope の名を頭に付け、盤面の直下の分の同じ名のフォルダと混ぜない"""
+    top = path.split("/", 1)[0] if "/" in path else "（根）"
+    return f"{scope} の {top}" if scope else top
+
+
 def always_rows(got: dict) -> list:
     """clean が消したファイル・レンズ・仕組みの異常の行（0 件でも、走らせていない・読めないを 0 件と分ける。元 report.always_rows の
-    頭の 3 つ。残りの行は呼び手が持つ）。字下げの行は内訳で、先頭 listcut.SHOWN 本と（それを超える時は）上位のフォルダごとの本数。
+    頭の 3 つ。残りの行は呼び手が持つ）。字下げの行は内訳で、先頭 listcut.SHOWN 本と（それを超える時は）上位のフォルダごとの本数（scope ごと）。
     全件は欄 removed の先のファイルに在る（残りの行がその置き場を指す）"""
     rows = []
     for label, gone in got["removed"]:
@@ -508,8 +516,7 @@ def always_rows(got: dict) -> list:
             rows.append(f"clean が消したファイル{where}: {gone['count']} 本")
             rows += listcut.lines(gone["paths"], where="、".join(gone["files"]))
             if len(gone["paths"]) > listcut.SHOWN:
-                # パスの頭の 1 段で数える。根に直に在るファイル（区切りの / が無い名）はファイル名ごとに数えず 1 つの区分にまとめる
-                tops = collections.Counter(n.split("/", 1)[0] if "/" in n else "（根）" for n in gone["paths"])
+                tops = collections.Counter(_top(scope, n) for scope, names in gone["by_scope"].items() for n in names)
                 rows += ["  - 上位のフォルダごとの本数:", *listcut.lines((f"{k}: {v} 本" for k, v in tops.most_common()), prefix="    - ")]
     if not got["removed"]:
         rows.append("clean が消したファイル: 走らせていない（修正の段が無い run）")

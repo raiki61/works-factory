@@ -67,9 +67,9 @@ NO_AFTER = "直した後の構造の実測: 無い（独立の目の structure_a
 # 読む欄の名（with: の tests・eyes・seal は返りまるごとで届き、口 boundary.picked にこの名の並びを渡す。名は返す節の output_format の欄）
 TESTS = ("ok", "green", "red_cause", "ran_steps", "by", "suites_line", "log", "baseline_line", "reason")
 EYES = ("r1", "r2", "r3", "r4", "premise_check", "questions", "notes", "structure_after")
-SEAL = ("ok", "reason", "hash", "protected_hits", "diff")
+SEAL = ("ok", "reason", "hash", "protected_hits", "protected_count", "diff")
 # 封じの節が飛んだ（差分が無い周）時の既定。差分が無いので封じず、守りのパスの当たりも無い
-SEAL_SKIPPED = boundary.Picked({"ok": True, "reason": "", "hash": "", "protected_hits": [], "diff": None})
+SEAL_SKIPPED = boundary.Picked({"ok": True, "reason": "", "hash": "", "protected_hits": [], "protected_count": 0, "diff": None})
 
 
 def tests_word(got: dict) -> str:
@@ -82,10 +82,17 @@ def tests_word(got: dict) -> str:
 
 
 def protected(got: dict) -> tuple:
-    """守りのパスの行を (確かめられなかった行, 当たった行) に分ける"""
+    """守りのパスの行を (確かめられなかった行, 当たった行) に分ける。当たった行は merge が先頭の数行と残りの 1 行に切った物で、
+    全件の数は protected_count"""
     rows = got["protected_hits"]
     unknown = [row for row in rows if str(row).startswith(seal.UNKNOWN_HEAD)]
     return unknown, [row for row in rows if row not in unknown]
+
+
+def protected_count(closing: dict) -> int:
+    """守りのパスの当たりの全件の数。前の版の merge-seal の返り（resume で受けた物）は protected_count を持たないので、その時は当たった行の数"""
+    count = closing["protected_count"]
+    return count if isinstance(count, int) else len(protected({"protected_hits": boundary.as_items(closing["protected_hits"])})[1])
 
 
 def unpassed_eyes(got: dict) -> list:
@@ -105,7 +112,7 @@ def needs(got: dict) -> list:
     if unknown:
         why.append((f"{PROTECTED_UNKNOWN}（人の確かめが要る）", True))
     if hits:
-        why.append((f"{PROTECTED_HEAD}（{len(hits)} 件。人の確かめが要る）", True))
+        why.append((f"{PROTECTED_HEAD}（{got['protected_count']} 件。人の確かめが要る）", True))
     if got["allowed_tests"]:
         why.append((f"{ALLOWED_TESTS_HEAD}（{len(got['allowed_tests'])} 件。人の確かめが要る）", True))
     word = tests_word(got)
@@ -170,7 +177,7 @@ def protected_section(got: dict) -> list:
         lines += [f"## {PROTECTED_UNKNOWN}（差分が一覧に触れていないとは言えない）", "",
                   *[f"- 理由: {str(row).removeprefix(seal.UNKNOWN_HEAD)}" for row in unknown], f"- 一覧: {protect.MANIFEST}", ""]
     if hits:
-        lines += [f"## {PROTECTED_HEAD}（{len(hits)} 件。works 自身の試験・柵・受け付けの口。通すのは人の答えだけ）", "",
+        lines += [f"## {PROTECTED_HEAD}（{got['protected_count']} 件。works 自身の試験・柵・受け付けの口。通すのは人の答えだけ）", "",
                   *[f"- {p}" for p in hits],
                   f"- 差分: git -C {got['worktree']} diff {got['base_rev'][:12] or '<起点の版が記録に無い>'} -- <パス>（未追跡は新しいファイル）",
                   f"- 一覧: {protect.MANIFEST}", ""]
@@ -540,6 +547,7 @@ def got_of_env() -> dict:
         "worktree": str(Path.cwd().resolve()),
         "base_rev": str((start or {}).get("base_rev") or ""),
         "protected_hits": boundary.as_items(closing["protected_hits"]),
+        "protected_count": protected_count(closing),
         "asked": asked,
         "conflicts_unread": conflicts_unread,
         "handoffs": [x for x in boundary.items(os.environ.get("INPUTS_HANDOFFS")) if isinstance(x, str)],
