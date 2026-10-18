@@ -33,7 +33,7 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 2. 始める: `bin/works-factory workflow run works-factory-line --cwd <対象> --input request=<依頼のファイル> [--input test_cmd='<1 行>']`。依頼のファイルの形は下の「依頼のファイル」、`test_cmd` は「test_cmd と作業ツリー」、run の作業ツリーがどこから切られるかは「作業ツリーの起点」。
 3. 答える: `bin/works-factory workflow respond <run> approve|stop [一言] --cwd <対象>`。家（Archon の DB）は対象ごとなので、対象の外から打つ時は `--cwd` が要る。`WORKS_FACTORY_HOME` で始めた run は、答える時も同じ値を付ける（承認ノードの文の答えの行がその形で出る）。
 4. 見る: `bin/works-factory workflow status --cwd <対象>`・`workflow get <run> --cwd <対象>`。
-5. 当てる: `bin/apply <run> --cwd <対象>`（中身は `bin/_lib/apply.py`）。封じた hash を照らしてから対象へ当てる。
+5. 当てる: `bin/apply <run> --cwd <対象>`（中身は `bin/_lib/apply.py`）。封じた hash を照らしてから対象へ当てる。最後の承認ノードで止めた run は `--allow-stopped`、封じた後のノードが落ちてメイングラフの出力が読めない run は `--allow-failed`（封じのノードの出力から照らす）を付ける。
 6. CI の赤を次の依頼へ運ぶ: run の外の CI が赤と言った試験の id（1 行に 1 つ。`-` なら標準入力）を、前の run の報告が書いた次の依頼の下書きの `prior_failures` に足す: `python3 -I lib/carry.py carry-ci --request <next-request.json> --failed <試験の id のファイル> --out <next-request.json>`（同じ行は 2 度足さず、依頼の形が違えば何も書かずに終了の値 2）。
 
 - 周をつなぐ（周の鎖 `works-factory-chain`、`workflows/chain/`）: `bin/works-factory workflow run works-factory-chain --cwd <対象> --input rounds=<1〜5> [--input budget_usd=<USD>] --input request=<依頼>`。1 周がメイングラフの子の run 1 本で、残りが在れば次の依頼にして次の周を起こし、止めの語（`lib/chain.py` の `STOPS`）で止まる。`budget_usd` を付けると、次の周で上限を越えうる時と費用が読めない周が在る時に止まる。周の中の承認ノードは子の run で止まるので、答える `<run>` は子の run の id（`workflow status` で見る）で、答えると親が続く。`--no-worktree` では起こせない（周の結果を run の作業ツリーの枝へ commit するため）。当てる時は `bin/apply <鎖の run>` で、元の基から採る周（最後の周から戻って止まっていない最初の周）までの最後の差分を当てる。止まった周の差分は採らずに鎖の run の置き場に残し、周ごとの表と合計と一緒に置き場の `chain.md` に名指す。
