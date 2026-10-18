@@ -32,7 +32,7 @@ inputs:
     description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら修正の段の TDD のループを飛ばす
   final_gate:
     default: ""
-    description: 最後の承認ノードの開き方。always（空の既定）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
+    description: 最後の承認ノードの開き方。always（空の既定。無人の run の空の既定は when_needed）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
   unattended:
     default: ""
     description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず（判定の推しつきの分かれ道の問いは推しを答えに採って直す義務に戻し）、承認ノードを開くはずの時は項目の全部の推しが通すならその推しで進み、そうでなければ開かずに止める（needs-human）
