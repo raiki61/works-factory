@@ -1,7 +1,7 @@
 """返す節と、返す節が結ぶ節は落ちない（落とし穴 K1・K13・K16。docs/plans/2026-10-13-capabilities/pitfalls.md）。
 
-止めた Archon は、落ちた節の出力を結んだ節を trigger_rule: all_done でも落とす（packages/workflows/src/dag-executor.ts 495-533 行
-resolveBindingDirective・output-ref.ts 590-597 行）。返りの指し札の先が無い・空でも節を落とす（artifact-pointer.ts 141-153 行）。
+止めた Archon は、落ちた節の出力を結んだ節を trigger_rule: all_done でも落とす（packages/workflows/src/dag-executor.ts の
+resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProducerNotFailed）。返りの指し札の先が無い・空でも節を落とす（artifact-pointer.ts の checkPointer）。
 返りは JSON.parse で読むので NaN・Infinity を書けない。
 - 線と全ブロックの返す節の script を、境の口（.shared）も lib も隣の script も無い一時のフォルダへ単独で写し、入力無しで走らせる。
   終了の値 0 で、標準出力の JSON が節の output_format に合う

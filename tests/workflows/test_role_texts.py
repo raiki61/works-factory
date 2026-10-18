@@ -1,7 +1,7 @@
 """役の指示書が名指す skill・agent と、節の skills:・plugins: の宣言の照らし（落とし穴 K4）。
 
 Archon は工程の節に、節が名指した skill とプラグインしか渡さない（止めた Archon の packages/providers/src/claude/provider.ts
-627-638 行。`options.skills = nodeConfig.skills ?? []`）。指示書が使えと書いた skill を節が名指さないと、役は黙ってそれを持たない。
+の applyNodeConfig。`options.skills = nodeConfig.skills ?? []`）。指示書が使えと書いた skill を節が名指さないと、役は黙ってそれを持たない。
 - 役の節（`prompt:`・`command:`。`loop_group` の中も）の指示書（直に書いた `prompt:` か `workflows/<ブロック>/commands/<名>.md`）
   の行に、借りる skill（BORROWED_SKILLS）・同梱の skill（BUILTIN_SKILLS）・`pr-review-toolkit` の名が在れば、節の `skills:`
   （skill の名）か `plugins:`（`pr-review-toolkit@…`）が名指す

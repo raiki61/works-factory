@@ -2,7 +2,7 @@
 # 制約で筋書きでは照らせず、tests/workflows/test_line.py が線の with: で照らす。docs/design.md の U3）。
 # 線の返り result の apply.ok が真で sealed.hash と apply.hash が同じこと（bin/apply が読む欄）は tests/e2e/test_line_scenarios.py の
 # LineReturnsTest が同じ stub の dry-run の trace で照らす。
-# dry-run の置き場には修正の diff の隣の控えが無い（dry-run.ts 614・798 行）ので、最後の関所は読めない控えを開けた理由に名指す
+# dry-run の置き場には修正の diff の隣の控えが無い（dry-run.ts の executeCodeNode。置き場は模擬ごとの一時の物）ので、最後の関所は読めない控えを開けた理由に名指す
 # （ほかに開けた理由の無い時の「いつも開く設定」の文は tests/workflows/test_line.py の AskFinalCase が照らす）。
 fixture:
   expect: "completed"

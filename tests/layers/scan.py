@@ -1417,7 +1417,7 @@ def _inputs_read(root: Path) -> list[str]:
 
 def _loop_roles(root: Path) -> list[str]:
     """輪（loop_group）の中の役の節は自分の with: を結ばない。前の周の値は輪の頭の script の節が $LOOP_PREV で結んで返し、役はその
-    出力を読む（PR #100。Archon の include-expander.ts 566・579・596・627 行: 役の with: は include の時に既定の字で固まる）"""
+    出力を読む（PR #100。Archon の include-expander.ts の applyInputsMacro: 役の with: は include の時に既定の字で固まる）"""
     out = []
     for path in _workflow_yamls(root):
         documents, broken = _documents(root, path)

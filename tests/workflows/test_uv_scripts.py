@@ -4,8 +4,8 @@ Archon は script の節（runtime: uv）を対象の作業ツリーを cwd に 
 pyproject.toml を拾い、作業ツリーに .venv と uv.lock を作る（作業ツリーを変えない約束が破れる）。
 - どの script も頭の 4 行が同じ宣言
 - Archon が探す所（scripts/ と、その 1 段下のフォルダ）の .py が全部同じ宣言を持ち、YAML の `script:` の名が全部探した
-  ファイルに当たり、`script:` に本体を直に書かない（止めた Archon の packages/workflows/src/script-discovery.ts 71・107-111 行、
-  executor-shared.ts 851 行の isInlineScript）
+  ファイルに当たり、`script:` に本体を直に書かない（止めた Archon の packages/workflows/src/script-discovery.ts の
+  MAX_SCRIPT_DISCOVERY_DEPTH・scanScriptDir、executor-shared.ts の isInlineScript）
 - pyproject.toml を置いた種の写しを cwd に `uv run` で起こしても、`git status --porcelain --ignored` が前後で同じ
 """
 import pathlib
