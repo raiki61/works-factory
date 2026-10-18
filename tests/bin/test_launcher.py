@@ -776,8 +776,8 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(done.returncode, 3, done.stderr)
         entry = str(self.source / ENTRY)
         got = [argv[argv.index(entry) + 1:] for argv in map(json.loads, calls.read_text(encoding="utf-8").splitlines())]
-        self.assertEqual(got, [["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
-                               ["workflow", "get", "run-1", "--json", "--cwd", str(self.target)],
+        self.assertEqual(got, [["workflow", "get", "run-1", "--json", "--cwd", str(self.target)],
+                               ["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
                                ["workflow", "cancel", "run-1", "--json", "--cwd", str(self.target)]])
 
     def test_no_auth_runs_without_auth_check_or_plugins(self):
