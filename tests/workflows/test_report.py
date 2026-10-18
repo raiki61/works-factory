@@ -1085,7 +1085,6 @@ nodes:
     bash: echo after
     depends_on: [report]
     trigger_rule: all_done
-    timeout: 1728000000
     mutates_checkout: false
 """
 

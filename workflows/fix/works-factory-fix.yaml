@@ -87,7 +87,6 @@ nodes:
     script: route
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -104,7 +103,6 @@ nodes:
     depends_on: [route]
     when: "$route.output.group == false"
     mutates_checkout: false
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -191,7 +189,6 @@ nodes:
     depends_on: [route, groups-par, groups-seq]
     trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -209,7 +206,6 @@ nodes:
     depends_on: [route, prep, groups-par, groups-seq, join, clash-loop, tdd-unit, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-prep, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: none_failed_min_one_success
     mutates_checkout: false
-    timeout: 1728000000
 
   # 合わせのループ（持ち主の決め clash-goes-to-ruling）。join が確かめ直しの赤で戻した組と字で当たらなかった組を 1 つずつ当て直し（字の
   # 食い違いは印つき）、合わせ役がその組の変えたファイルの中だけで直す。受け付けは修正役と同じ軸。直せなければ当て直す前の木へ戻し、組どうしの合わせの申し出を裁定役へ回す。
@@ -219,7 +215,6 @@ nodes:
   - id: clash-loop
     depends_on: [join]
     when: "$prep.output.par == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 9
       fresh_context: true
@@ -228,7 +223,6 @@ nodes:
         - id: clash-prep
           script: clash_prep
           runtime: uv
-          timeout: 1728000000
           with:
             pass: first
           output_format: &clash_prep_out
@@ -279,7 +273,6 @@ nodes:
           runtime: uv
           depends_on: [clash-prep, clash-fix]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             reply: {from: "$clash-fix.output", if_skipped: null}
             iteration: $clash-prep.output.iteration
@@ -302,7 +295,6 @@ nodes:
     depends_on: [join]
     output_type: tdd-unit
     mutates_checkout: false
-    timeout: 1728000000
 
   # 子と join が集めた食い違いの申し出の名指し（<パス>:<行>）を現物で照らし、在る申し出を置き場の conflicts.json に残す
   - id: conflict-check
@@ -311,7 +303,6 @@ nodes:
     mutates_checkout: false
     depends_on: [join, clash-loop]
     trigger_rule: none_failed_min_one_success
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -324,7 +315,6 @@ nodes:
   - id: rule-loop
     depends_on: [conflict-check]
     when: "$conflict-check.output.go == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -334,7 +324,6 @@ nodes:
           script: rule_prep
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           output_format:
             type: object
             additionalProperties: false
@@ -403,7 +392,6 @@ nodes:
           runtime: uv
           mutates_checkout: false
           depends_on: [ruler]
-          timeout: 1728000000
           with:
             status_guarded: true
             reply: $ruler.output
@@ -422,7 +410,6 @@ nodes:
   - id: clash-ruled-loop
     depends_on: [conflict-check, rule-loop]
     when: "$conflict-check.output.go == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 9
       fresh_context: true
@@ -431,7 +418,6 @@ nodes:
         - id: clash-ruled-prep
           script: clash_prep
           runtime: uv
-          timeout: 1728000000
           with:
             pass: ruled
           output_format: *clash_prep_out
@@ -449,7 +435,6 @@ nodes:
           runtime: uv
           depends_on: [clash-ruled-prep, clash-ruled]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             reply: {from: "$clash-ruled.output", if_skipped: null}
             iteration: $clash-ruled-prep.output.iteration
@@ -462,7 +447,6 @@ nodes:
   - id: fix-ruled-loop
     depends_on: [conflict-check, rule-loop, clash-ruled-loop]
     when: "$conflict-check.output.go == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 12
       fresh_context: false
@@ -472,7 +456,6 @@ nodes:
           script: fix_ruled_prep
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           output_format:
             type: object
             additionalProperties: false
@@ -758,7 +741,6 @@ nodes:
           runtime: uv
           mutates_checkout: false
           depends_on: [fix-ruled]
-          timeout: 1728000000
           with:
             reply: $fix-ruled.output
             pass: ruled
@@ -827,7 +809,6 @@ nodes:
           mutates_checkout: false
           depends_on: [ruled-consult-check, ruled-consult-answer]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             answer: {from: "$ruled-consult-answer.output", if_skipped: null}
             pass: ruled
@@ -844,7 +825,6 @@ nodes:
           runtime: uv
           depends_on: [fix-ruled-prep, ruled-consult-accept]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             reply: {from: "$fix-ruled.output", if_skipped: null}
             consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}
@@ -858,7 +838,6 @@ nodes:
     depends_on: [route, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
     trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -875,7 +854,6 @@ nodes:
     trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
     mutates_checkout: false
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -893,7 +871,6 @@ nodes:
     trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false"
     mutates_checkout: false
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -911,7 +888,6 @@ nodes:
     depends_on: [delta-cut]
     when: "$delta-cut.output.go == true"
     mutates_checkout: false
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -958,7 +934,6 @@ nodes:
     runtime: uv
     depends_on: [lens]
     mutates_checkout: false
-    timeout: 1728000000
     with:
       reply: "$lens.output"
     output_format: *lens_out
@@ -972,7 +947,6 @@ nodes:
     trigger_rule: one_success
     when: "$route.output.group == false && $delta-cut.output.go == true"
     mutates_checkout: false
-    timeout: 1728000000
     with:
       reply: {from: "$lens-reply.output", if_skipped: null}
     output_format:
@@ -987,7 +961,6 @@ nodes:
     depends_on: [route, delta-cut, lens-collect]
     trigger_rule: none_failed_min_one_success
     when: "$route.output.group == false && $delta-cut.output.go == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1066,7 +1039,6 @@ nodes:
           runtime: uv
           mutates_checkout: false
           depends_on: [delta-review]
-          timeout: 1728000000
           with:
             status_guarded: true
             reply: $delta-review.output
@@ -1075,7 +1047,6 @@ nodes:
   # 審査が直す義務を出した時だけ手直しの役を起こす（義務が無ければ支度が go: false）
   - id: refix-loop
     depends_on: [delta-loop]
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1085,7 +1056,6 @@ nodes:
           script: refix_prep
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           with:
             n: 1
           output_format: &refix_prep_out
@@ -1146,7 +1116,6 @@ nodes:
           runtime: uv
           depends_on: [refix-prep, refix]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             reply: {from: "$refix.output", if_skipped: null}
             iteration: $refix-prep.output.iteration
@@ -1156,7 +1125,6 @@ nodes:
   # 2 回目の審査（1 回目の手直しが走った時だけ。走らなければ切りの節が go: false）
   - id: review2-loop
     depends_on: [refix-loop]
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1166,7 +1134,6 @@ nodes:
           script: cut2
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           output_format:
             type: object
             additionalProperties: false
@@ -1222,7 +1189,6 @@ nodes:
           mutates_checkout: false
           depends_on: [cut2, review2]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             status_guarded: true
             reply: {from: "$review2.output", if_skipped: null}
@@ -1230,7 +1196,6 @@ nodes:
 
   - id: refix2-loop
     depends_on: [review2-loop]
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -1240,7 +1205,6 @@ nodes:
           script: refix_prep
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           with:
             n: 2
           output_format: *refix_prep_out
@@ -1287,7 +1251,6 @@ nodes:
           runtime: uv
           depends_on: [refix2-prep, refix2]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             reply: {from: "$refix2.output", if_skipped: null}
             iteration: $refix2-prep.output.iteration
@@ -1302,7 +1265,6 @@ nodes:
     runtime: uv
     depends_on: [route]
     when: "$route.output.group == true"
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -1321,7 +1283,6 @@ nodes:
   - id: tdd-loop
     depends_on: [group-start]
     when: "$group-start.output.tdd == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 40
       fresh_context: false
@@ -1331,7 +1292,6 @@ nodes:
           script: tdd_prep
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           output_format:
             type: object
             additionalProperties: false
@@ -1443,7 +1403,6 @@ nodes:
           runtime: uv
           depends_on: [tdd-prep, tdd, tdd-new]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             reply: {from: "$tdd.output", if_skipped: null}
             reply_new: {from: "$tdd-new.output", if_skipped: null}
@@ -1463,7 +1422,6 @@ nodes:
   - id: fix-loop
     depends_on: [group-start, tdd-loop]
     trigger_rule: none_failed_min_one_success
-    timeout: 1728000000
     loop_group:
       max_iterations: 12
       fresh_context: false
@@ -1473,7 +1431,6 @@ nodes:
           script: fix_prep
           runtime: uv
           mutates_checkout: false
-          timeout: 1728000000
           output_format:
             type: object
             additionalProperties: false
@@ -1496,7 +1453,6 @@ nodes:
           runtime: uv
           mutates_checkout: false
           depends_on: [fixer]
-          timeout: 1728000000
           with:
             reply: $fixer.output
             pass: first
@@ -1517,7 +1473,6 @@ nodes:
           mutates_checkout: false
           depends_on: [consult-check, consult-answer]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             answer: {from: "$consult-answer.output", if_skipped: null}
             pass: first
@@ -1528,7 +1483,6 @@ nodes:
           runtime: uv
           depends_on: [fix-prep, consult-accept]
           trigger_rule: none_failed_min_one_success
-          timeout: 1728000000
           with:
             reply: {from: "$fixer.output", if_skipped: null}
             consulted: {from: "$consult-accept.output.consulted", if_skipped: false}
@@ -1541,7 +1495,6 @@ nodes:
     mutates_checkout: false
     depends_on: [group-start, tdd-loop, fix-loop]
     trigger_rule: none_failed_min_one_success
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -1558,7 +1511,6 @@ nodes:
     mutates_checkout: false
     depends_on: [fix-loop, fix-ruled-loop]
     trigger_rule: all_done
-    timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
@@ -1579,7 +1531,6 @@ nodes:
     mutates_checkout: false
     depends_on: [route, prep, join, clash-loop, tdd-unit, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: all_done
-    timeout: 1728000000
     # optional は、この修正のブロックが落ちても線が先へ進めてよい節の宣言（レンズの節 lens とその中継 lens-reply。柵 nodes-ok に結ばない
     # 節と同じ集まり）。[{node, bare}] の JSON の字で、node は自分の中の節の id かその頭、bare はループの中の節で、記録の step に include
     # の前付けの無い素の id で載るか。線は返りの欄 optional を受け皿で受け、include の id の頭を付けて報告へ渡す。2 度目の修正も

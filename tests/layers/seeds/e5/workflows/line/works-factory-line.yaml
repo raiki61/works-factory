@@ -5,6 +5,5 @@ nodes:
   - id: after
     script: stub
     runtime: uv
-    timeout: 1728000000
     depends_on: [judge]
     when: "$judge.output.ready == true"

@@ -5,7 +5,6 @@ nodes:
   - id: verdict
     script: stub
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:

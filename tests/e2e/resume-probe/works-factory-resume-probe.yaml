@@ -6,7 +6,6 @@ description: |
 nodes:
   - id: first
     bash: echo first
-    timeout: 1728000000
     mutates_checkout: false
   - id: gate
     wait:
@@ -16,6 +15,5 @@ nodes:
     depends_on: [first]
   - id: after
     bash: echo after
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [gate]

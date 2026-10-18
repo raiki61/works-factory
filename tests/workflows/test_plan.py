@@ -434,14 +434,9 @@ class ShapeCase(unittest.TestCase):
         """構造の目の指示書は元の blk-structure/commands/structure-eye.md の字のまま（台帳の直しは無く、書き直しは copied_rewrites.json の件だけ）"""
         self.assertEqual(copied.restore_problems(COMMANDS / "structure-eye.md", *COPIED["structure-eye.md"]), [])
 
-    def test_deadlines_are_all_twenty_days(self):
-        keys = ("timeout", "idle_timeout")
+    def test_ai_deadlines_are_twenty_days_and_others_have_none(self):
         for n in nodes(load()):
-            for key in keys:
-                if key in n:
-                    self.assertEqual(n[key], NO_DEADLINE, f"{n['id']}.{key}")
-            if "script" in n or "loop_group" in n:
-                self.assertEqual(n.get("timeout"), NO_DEADLINE, n["id"])
+            self.assertNotIn("timeout", n, n["id"])
             if "command" in n or "prompt" in n:
                 self.assertEqual(n.get("idle_timeout"), NO_DEADLINE, n["id"])
 

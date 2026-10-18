@@ -9,4 +9,3 @@ nodes:
           prompt: 前の理由は $INPUTS.reason
           with: { reason: $LOOP_PREV.take.output.reason }
           idle_timeout: 1728000000
-    timeout: 1728000000

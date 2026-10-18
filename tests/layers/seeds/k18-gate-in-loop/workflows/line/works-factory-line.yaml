@@ -10,4 +10,3 @@ nodes:
             attention: m
             form: select
             options: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
-    timeout: 1728000000
