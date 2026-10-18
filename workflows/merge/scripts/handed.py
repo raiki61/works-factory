@@ -6,7 +6,9 @@
 
 deliver は seal の時 null。apply・check の時 {act, pr, reason}:
 - 出口の語が空: act は placed（差分を run の置き場に置いた）か none（置かなかった）。対象には何も書かない
-- 出口の語 pr: act は pr（PR を作って読み戻した。pr が {number, url, is_draft}）か stopped（作らずに止めた。reason が訳）
+- 出口の語 pr: act は pr（PR を作って読み戻した。pr が {number, url, is_draft}）・stopped（commit の節より前で止めた。push も PR の
+  作成もしていない。reason が訳）・unconfirmed（PR を作る子の run が落ちたか、読み戻しが合わなかった。push や PR の作成は済んで
+  いるかもしれないので、作ったとも作らなかったとも言わない。reason が訳）
 PR を作る子の run が落ちると読み戻しの節が飛ばされ、子の記録が読めないので、そのことを訳にする（子の run は Archon の記録に残る）。
 optional は PR を作る子の run の節（落ちても報告まで進めてよい）。
 落ちない: 照らしの節の返りが読めない時も、ok: false と訳を返す。
@@ -39,20 +41,26 @@ def deliver(place, commit, read) -> dict | None:
     if place.get("deliver") != PR:
         return {"act": "placed" if place.get("ok") is True else "none", "pr": None, "reason": ""}
     if place.get("ok") is not True:
-        why = f"差分を置かなかった: {place.get('reason') or '訳の記録が無い'}"
-    elif commit is None:
-        why = "commit のノードの出力が無い"
-    elif commit.get("go") is not True:
-        why = commit.get("reason") or "commit のノードが進めなかった（訳の記録が無い）"
-    elif read is None:
-        why = (f"枝 {commit.get('branch')} の commit {commit.get('head')} を積んだが、PR を作る子の run が落ちたか返らなかった"
-               "（push と PR の作成が済んだかは子の run の記録で確かめる）")
-    elif read.get("ok") is not True:
-        why = read.get("reason") or "PR の読み戻しが通らなかった（訳の記録が無い）"
-    else:
-        made = {"number": read.get("number"), "url": read.get("url"), "is_draft": read.get("is_draft") is True}
-        return {"act": "pr", "pr": made, "reason": ""}
-    return {"act": "stopped", "pr": None, "reason": why}
+        return stopped(f"差分を置かなかった: {place.get('reason') or '訳の記録が無い'}")
+    if commit is None:
+        return stopped("commit のノードの出力が無い")
+    if commit.get("go") is not True:
+        return stopped(commit.get("reason") or "commit のノードが進めなかった（訳の記録が無い）")
+    pushed = f"枝 {commit.get('branch')} の commit {commit.get('head')} を積んだ後"
+    if read is None:
+        return unconfirmed(f"{pushed}、PR を作る子の run が落ちたか返らなかった（push と PR の作成が済んだかは子の run の記録で確かめる）")
+    if read.get("ok") is not True:
+        return unconfirmed(f"{pushed}、PR の読み戻しが合わなかった: {read.get('reason') or '訳の記録が無い'}")
+    made = {"number": read.get("number"), "url": read.get("url"), "is_draft": read.get("is_draft") is True}
+    return {"act": "pr", "pr": made, "reason": ""}
+
+
+def stopped(reason: str) -> dict:
+    return {"act": "stopped", "pr": None, "reason": reason}
+
+
+def unconfirmed(reason: str) -> dict:
+    return {"act": "unconfirmed", "pr": None, "reason": reason}
 
 
 def handed() -> dict:

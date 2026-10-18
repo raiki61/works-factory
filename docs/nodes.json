@@ -178,7 +178,7 @@
   "merge/merge": "merge の出力ノード。照らしの出力に渡し方 deliver と落ちてよいノードの宣言を足す",
   "merge/pr-commit": "出口の語 pr の時に、照らした差分を run の枝へ 1 つの commit で積む（既定の枝と同じ名の枝では止める。review-graph の外の新しい能力。issue #555）",
   "merge/pr-open": "出口の語 pr の時に、Archon に同梱の archon-pr を子の run で起こし、push と PR の作成を任せる（issue #555）",
-  "merge/pr-read": "出口の語 pr の時に、子の run が返した PR の記録を積んだ commit と照らす読み戻し（issue #555）"
+  "merge/pr-read": "出口の語 pr の時に、子の run が返した PR の記録を積んだ commit・枝・向け先の repo と base と照らす読み戻し（issue #555）"
  },
  "downgrades": [
   {"node": "p0.parallel_pr", "what": "担当の PR へ申し送りを投稿しない（下書きを報告に載せる）。役の gh は読むだけ（docs/owner-decisions.md の 2026-10-12 の決め）", "versus": "review-graph は任せ先の役が gh で投稿する"},

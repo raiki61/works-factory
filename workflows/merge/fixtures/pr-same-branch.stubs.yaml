@@ -14,7 +14,7 @@ pr-commit:
   head: ""
   branch: ""
   base: ""
-  context: ""
+  repo: null
   reason: run の枝 main が対象の既定の枝と同じ名（既定の枝へは push しない）
 fixture:
   expect: completed

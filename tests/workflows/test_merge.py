@@ -35,6 +35,7 @@ import listcut  # noqa: E402
 from graphloops.engine.schema import validate_schema  # noqa: E402
 import protect  # noqa: E402
 import seal  # noqa: E402
+import userenv  # noqa: E402
 
 BLOCK = ROOT / "workflows" / "merge"
 YAML = BLOCK / "works-factory-merge.yaml"
@@ -48,6 +49,7 @@ RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "r
 PLACE_RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "base_rev", "deliver")
 PROTECTED_FILE = "merge/protected-all.json"
 PASS = json.dumps({"decision": "continue", "text": ""})
+URL = "https://github.com/o/r.git"
 SCENARIOS = ("apply", "apply-refused", "empty-diff", "pr", "pr-child-failed", "pr-same-branch", "seal")
 
 
@@ -103,11 +105,16 @@ class ShapeTest(unittest.TestCase):
     def test_pr_path_runs_only_after_the_check_for_the_word_pr(self):
         """出口の語 pr で照らしが通った時だけ commit し、commit が進めた時だけ PR を作る子の run を起こす（既定の空の語は対象に書かない）"""
         commit, opened, read = self.nodes["pr-commit"], self.nodes["pr-open"], self.nodes["pr-read"]
-        self.assertEqual(commit["when"], f"$place.output.ok == true && $place.output.deliver == '{entry.DELIVER_PR}'")
-        self.assertEqual((commit["with"]["base_rev"], commit["with"]["sealed_hash"]), ("$place.output.base_rev", "$place.output.hash"))
-        self.assertEqual((opened["workflow"], opened["when"], opened["input"]),
-                         ("archon-pr", "$pr-commit.output.go == true", "$pr-commit.output.context"))
+        self.assertEqual(commit["when"], f"$place.output.ok == true && $place.output.deliver == '{entry.DELIVER_PR}'"
+                                         " && $place.output.mode != 'seal'")
+        self.assertEqual(commit["with"], {"mode": "$place.output.mode", "base_rev": "$place.output.base_rev",
+                                          "sealed_hash": "$place.output.hash", "request": "$INPUTS.request"})
+        self.assertEqual((opened["workflow"], opened["when"]), ("archon-pr", "$pr-commit.output.go == true"))
+        self.assertEqual(opened["with"], {"branch": "$pr-commit.output.branch"}, "push の先の枝は commit の節が積んだ枝（AI に決めさせない）")
+        self.assertNotIn("input", opened)
         self.assertEqual(read["depends_on"], ["pr-open"])
+        self.assertEqual(read["with"], {"got": "$pr-open.output", "head": "$pr-commit.output.head", "branch": "$pr-commit.output.branch",
+                                        "base_branch": "$pr-commit.output.base", "repo": "$pr-commit.output.repo"})
         self.assertNotIn("trigger_rule", read, "子の run が落ちたら読み戻しの節は飛ぶ（返す節が落ちない）")
         handed = self.nodes["merge"]
         self.assertEqual(handed["trigger_rule"], "all_done")
@@ -139,7 +146,7 @@ class ShapeTest(unittest.TestCase):
                 self.assertEqual(sorted(props["diff"]["properties"]["path"]["enum"]),
                                  sorted(["merge/sealed.diff", "merge/apply.diff", "merge/refused.diff"]))
         self.assertEqual(self.nodes["merge"]["output_format"]["properties"]["deliver"]["properties"]["act"]["enum"],
-                         ["placed", "none", "pr", "stopped"])
+                         ["placed", "none", "pr", "stopped", "unconfirmed"])
 
 
 class ScriptCase(unittest.TestCase):
@@ -444,6 +451,9 @@ class PrCommitTest(unittest.TestCase):
         self.base = git(self.main, "rev-parse", "HEAD")
         self.run_tree = self.tmp / "run"
         git(self.main, "worktree", "add", "-q", "-b", "archon/task-run", str(self.run_tree))
+        # commit の節は repo を remote.origin.url の字から決め、git は insteadOf で置き換えた先（ローカルの origin）を読む
+        git(self.main, "config", "remote.origin.url", URL)
+        git(self.main, "config", f"url.{self.origin}.insteadOf", URL)
         (self.run_tree / "a.txt").write_text("two\n", encoding="utf-8")
         (self.run_tree / "new.txt").write_text("new\n", encoding="utf-8")
         copy = self.run_tree / ".archon" / "workflows" / "x.yaml"
@@ -453,9 +463,9 @@ class PrCommitTest(unittest.TestCase):
         self.artifacts = self.tmp / "artifacts"
         self.artifacts.mkdir()
 
-    def commit(self, cwd=None, **over) -> dict:
-        inputs = {"base_rev": self.base, "sealed_hash": self.sealed, "request": "", **over}
-        env = {"ARTIFACTS_DIR": str(self.artifacts), **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
+    def commit(self, cwd=None, env=None, **over) -> dict:
+        inputs = {"mode": "apply", "base_rev": self.base, "sealed_hash": self.sealed, "request": "", **over}
+        env = {"ARTIFACTS_DIR": str(self.artifacts), **(env or {}), **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
         return run_node("pr_commit", env, self.run_tree if cwd is None else cwd, "pr-commit")
 
     def remote_heads(self) -> str:
@@ -464,17 +474,19 @@ class PrCommitTest(unittest.TestCase):
     def assertStopped(self, got, words: str):
         self.assertIs(got["go"], False, got)
         self.assertIn(words, got["reason"])
-        self.assertEqual(got["context"], "")
+        self.assertIsNone(got["repo"])
 
     def test_checked_diff_is_one_commit_on_the_run_branch_without_the_runtime_copy(self):
         got = self.commit()
-        self.assertEqual((got["go"], got["branch"], got["base"], got["reason"]), (True, "archon/task-run", "main", ""), got)
+        self.assertEqual((got["go"], got["branch"], got["base"], got["repo"], got["reason"]),
+                         (True, "archon/task-run", "main", {"host": "github.com", "path": "o/r"}, ""), got)
         self.assertEqual(got["head"], git(self.run_tree, "rev-parse", "HEAD"))
         self.assertEqual(git(self.run_tree, "rev-list", "--count", f"{self.base}..HEAD"), "1")
         self.assertEqual(git(self.run_tree, "diff", "--name-only", self.base, "HEAD").split(), ["a.txt", "new.txt"])
-        self.assertIn(self.sealed, git(self.run_tree, "log", "-1", "--format=%B"))
-        self.assertIn(RUN, got["context"])
-        self.assertIn(self.sealed, got["context"])
+        subject, body = git(self.run_tree, "log", "-1", "--format=%s"), git(self.run_tree, "log", "-1", "--format=%b")
+        self.assertIn(RUN, subject)
+        for words in (self.sealed, f"run: {RUN}", f"workflow get {RUN}", "対象の既定の枝 main", "merge の apply"):
+            self.assertIn(words, body)
         self.assertEqual(git(self.main, "rev-parse", "main"), self.base, "利用者の枝は動かさない")
         self.assertEqual(self.remote_heads(), "refs/heads/main", "commit の節は push しない")
 
@@ -506,11 +518,45 @@ class PrCommitTest(unittest.TestCase):
         git(self.run_tree, "checkout", "-q", "--detach")
         self.assertStopped(self.commit(), "切り離された HEAD")
 
-    def test_issue_named_by_the_request_reaches_the_context(self):
+    def test_issue_named_by_the_request_is_a_non_closing_reference_in_the_commit(self):
         request = self.tmp / "request.json"
         request.write_text(json.dumps({"findings": [{"where": "a.txt", "text": "x"}], "issue": [555]}), encoding="utf-8")
-        got = self.commit(request=str(request))
-        self.assertIn("#555", got["context"])
+        self.assertIs(self.commit(request=str(request))["go"], True)
+        self.assertIn("Refs #555", git(self.run_tree, "log", "-1", "--format=%b").splitlines())
+
+    def test_failing_commit_hook_stops_without_a_commit(self):
+        """対象の commit の hooks は飛ばさない。落ちれば積まずに止め、hooks の言葉を訳に載せる"""
+        hook = self.tmp / "hooks" / "pre-commit"
+        hook.parent.mkdir()
+        hook.write_text("#!/bin/sh\necho 'lint の誤り' >&2\nexit 1\n", encoding="utf-8")
+        hook.chmod(0o755)
+        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        got = self.commit()
+        self.assertStopped(got, "hooks")
+        self.assertIn("lint の誤り", got["reason"])
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+
+    def test_commit_hook_sees_the_read_only_gh_first(self):
+        """hooks は対象のコマンドなので、起動の殻が渡した読むだけの gh の置き場が PATH の頭に在る"""
+        seen = self.tmp / "path.txt"
+        hook = self.tmp / "hooks" / "pre-commit"
+        hook.parent.mkdir()
+        hook.write_text(f"#!/bin/sh\nprintf '%s' \"$PATH\" > '{seen}'\n", encoding="utf-8")
+        hook.chmod(0o755)
+        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        read_gh = self.tmp / "read-gh"
+        self.assertIs(self.commit(env={userenv.READ_GH_ENV: str(read_gh)})["go"], True)
+        entries = [p for p in seen.read_text(encoding="utf-8").split(os.pathsep) if p != git(self.tmp, "--exec-path")]
+        self.assertEqual(entries[0], str(read_gh), "git が頭に足す自分の置き場の後ろは読むだけの gh の置き場")
+
+    def test_origin_without_a_forge_repo_stops(self):
+        git(self.main, "config", "remote.origin.url", str(self.origin))
+        self.assertStopped(self.commit(), "PR を出す repo")
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+
+    def test_seal_is_not_committed(self):
+        self.assertStopped(self.commit(mode="seal"), "照らしの形")
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
 
     def test_already_committed_diff_goes_without_a_new_commit(self):
         git(self.run_tree, "add", "-A", "--", ".", ":(exclude).archon")
@@ -528,21 +574,27 @@ class PrCommitTest(unittest.TestCase):
 
 class PrReadTest(unittest.TestCase):
     HEAD = "c" * 40
+    REPO = {"host": "github.com", "path": "o/r"}
     RECORD = {"schemaVersion": 1, "number": 7, "url": "https://github.com/o/r/pull/7", "state": "open", "head_revision": HEAD,
-              "is_draft": True, "head": "archon/task-run", "base": "main"}
+              "is_draft": True, "head": "archon/task-run", "base": "main", "repo": REPO, "head_repo": REPO}
 
     def read(self, got) -> dict:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        env = {"INPUTS_GOT": json.dumps(got), "INPUTS_HEAD": self.HEAD}
+        env = {"INPUTS_GOT": json.dumps(got), "INPUTS_HEAD": self.HEAD, "INPUTS_BRANCH": "archon/task-run", "INPUTS_BASE_BRANCH": "main",
+               "INPUTS_REPO": json.dumps(self.REPO)}
         return run_node("pr_read", env, pathlib.Path(tmp.name), "pr-read")
 
     def test_open_pr_at_the_committed_head_is_made(self):
         self.assertEqual(self.read(self.RECORD), {"ok": True, "number": 7, "url": self.RECORD["url"], "is_draft": True, "reason": ""})
+        self.assertIs(self.read({**self.RECORD, "repo": {"host": "GitHub.com", "path": "O/R"}})["ok"], True, "repo の名は大小を区別しない")
 
-    def test_other_head_or_closed_pr_is_not_made(self):
+    def test_pr_other_than_the_committed_one_is_not_made(self):
+        """開いていて、repo・head の repo・head の枝・base の枝・head の版が積んだ物と全部同じ時だけ作ったと言う"""
+        fork = {"host": "github.com", "path": "someone/r"}
         for over, words in (({"head_revision": "d" * 40}, "積んだ commit"), ({"state": "closed"}, "開いていない"),
-                            ({"url": ""}, "在りかが無い")):
+                            ({"url": ""}, "在りかが無い"), ({"head": "other"}, "積んだ枝"), ({"base": "dev"}, "既定の枝"),
+                            ({"repo": fork}, "repo"), ({"head_repo": fork}, "head_repo"), ({"head_repo": None}, "head_repo")):
             with self.subTest(over=over):
                 got = self.read({**self.RECORD, **over})
                 self.assertIs(got["ok"], False)
@@ -551,12 +603,19 @@ class PrReadTest(unittest.TestCase):
     def test_unreadable_record_is_not_made(self):
         self.assertIs(self.read("x")["ok"], False)
 
+    def test_import_fallback_keeps_its_own_name(self):
+        """境の口の import が落ちた時の控えの名と、読めない時の返りを組む関数の名は別（同じ名だと関数が控えを上書きする）"""
+        script = (SCRIPTS / "pr_read.py").read_text(encoding="utf-8")
+        self.assertIn("boundary, unread = None, error", script)
+        self.assertNotIn("def unread(", script)
+
 
 class HandedTest(unittest.TestCase):
     """返す節: 照らしの返りに渡し方 deliver を足す。既定の空の語は置くだけで、PR の節の返りを読まない"""
     PLACE = {"mode": "apply", "ok": True, "hash": "a" * 64, "diff": {"type": "archon_artifact", "run_id": RUN, "path": "merge/apply.diff"},
              "protected_hits": None, "protected_count": None, "reason": "", "base_rev": "b" * 40, "deliver": ""}
-    COMMIT = {"go": True, "head": "c" * 40, "branch": "archon/task-run", "base": "main", "context": "x", "reason": ""}
+    COMMIT = {"go": True, "head": "c" * 40, "branch": "archon/task-run", "base": "main", "repo": {"host": "github.com", "path": "o/r"},
+              "reason": ""}
 
     def handed(self, place, commit=None, read=None) -> dict:
         tmp = tempfile.TemporaryDirectory()
@@ -577,18 +636,18 @@ class HandedTest(unittest.TestCase):
     def test_seal_has_no_delivery(self):
         self.assertIsNone(self.handed({**self.PLACE, "mode": "seal"})["deliver"])
 
-    def test_pr_word_names_the_pr_or_why_it_stopped(self):
+    def test_pr_word_names_the_pr_or_why_it_stopped_or_was_unconfirmed(self):
         place = {**self.PLACE, "deliver": "pr"}
         made = {"ok": True, "number": 7, "url": "https://github.com/o/r/pull/7", "is_draft": True, "reason": ""}
         self.assertEqual(self.handed(place, self.COMMIT, made)["deliver"],
                          {"act": "pr", "pr": {"number": 7, "url": made["url"], "is_draft": True}, "reason": ""})
-        for args, words in (((None, None), "commit のノードの出力が無い"),
-                            (({**self.COMMIT, "go": False, "reason": "同じ名"}, None), "同じ名"),
-                            ((self.COMMIT, None), "PR を作る子の run が落ちたか返らなかった"),
-                            ((self.COMMIT, {**made, "ok": False, "reason": "開いていない"}), "開いていない")):
+        for args, act, words in (((None, None), "stopped", "commit のノードの出力が無い"),
+                                 (({**self.COMMIT, "go": False, "reason": "同じ名"}, None), "stopped", "同じ名"),
+                                 ((self.COMMIT, None), "unconfirmed", "PR を作る子の run が落ちたか返らなかった"),
+                                 ((self.COMMIT, {**made, "ok": False, "reason": "開いていない"}), "unconfirmed", "開いていない")):
             with self.subTest(words=words):
                 got = self.handed(place, *args)["deliver"]
-                self.assertEqual((got["act"], got["pr"]), ("stopped", None))
+                self.assertEqual((got["act"], got["pr"]), (act, None))
                 self.assertIn(words, got["reason"])
         refused = self.handed({**place, "ok": False, "reason": "封じた差分と今の差分が違う"})["deliver"]
         self.assertEqual(refused["act"], "stopped")
@@ -687,9 +746,9 @@ class FixturesTest(unittest.TestCase):
         self.assertEqual(got["act"], "stopped")
         self.assertIn("既定の枝と同じ名", got["reason"])
 
-    def test_failed_child_is_a_stop_reason_not_a_failed_return(self):
+    def test_failed_child_is_unconfirmed_not_a_failed_return(self):
         got = self.deliver("pr-child-failed")
-        self.assertEqual(got["act"], "stopped")
+        self.assertEqual(got["act"], "unconfirmed")
         self.assertIn("PR を作る子の run が落ちた", got["reason"])
         self.assertEqual(self.deliver("apply-refused")["act"], "stopped")
 

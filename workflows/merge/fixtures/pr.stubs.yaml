@@ -15,7 +15,7 @@ pr-commit:
   head: "cccccccccccccccccccccccccccccccccccccccc"
   branch: archon/task-fixture
   base: main
-  context: works-factory の run fixture-run が確かめて封じた差分を積んだ
+  repo: { host: github.com, path: owner/repo }
   reason: ""
 pr-open:
   schemaVersion: 1

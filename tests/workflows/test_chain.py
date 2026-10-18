@@ -491,6 +491,7 @@ class ResultCase(Tree):
         self.assertEqual((got["act"], got["pr"]), ("stopped", None))
         self.assertIn("採れる周が無い", got["reason"])
         got = self.result(start, decided, final={**unplaced, "ok": True, "placed": True})["deliver"]
+        self.assertEqual(got["act"], "unconfirmed", "差分を置いた後の hand の中で push や PR の作成が済んだかもしれない")
         self.assertIn("出力が無い", got["reason"])
 
     def test_pr_word_is_the_entry_word(self):

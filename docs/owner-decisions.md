@@ -352,7 +352,12 @@
   - 出口の語 `pr` の道は 2 つだけにする: 封じた差分の hash を照らした後に run の枝へ 1 つの commit を積む小さな自前の段と、Archon に同梱の `archon-pr` の子の run を起こす `workflow:` のノード。`archon-pr` は push・PR の作成・読み戻しの確かめ・既に在る PR の使い回しまで持つ（`asf-follows-dev`）。
   - 自前の push と PR の道（gh を探す仕組みの写し・gh の旗の自前の解釈・push のフックを飛ばす処理）は作らない（`no-tool-quirks`・`concept-home`）。
   - `archon-pr` の AI のノード prepare（どこへ出すか・題・本文を決めるだけ）には、今どおり読むだけの gh しか渡さない。書き込みの資格は script のノード publish が、入口の殻の `hostgh` の口で使う（`roles-read-only-gh`）。
-- 当て方: 根の `AGENTS.md` の E8 の外し（`workflow:` で呼んでよい Archon 同梱のグラフは `archon-pr` だけ）・`workflows/AGENTS.md` の E17・`workflows/merge/` の `pr-commit`・`pr-open`・`bin/_lib/launcher.py` と `workflows/.shared/fence.py` の役の PATH の頭。
+- 導いた事（実装の run、2026-10-18。止めた `64ec0c2e` の `archon-pr` を源で確かめた）:
+  - push の先の枝は `archon-pr` の入力 `branch` で呼び手が決める（`publish-pr.ts` は `branch` を prepare の `head` より採る）。`pr-open` は `pr-commit` が積んだ枝を渡す。`workflow:` のノードの `with:` は `input:` と一緒に書けないので、子の run へ渡す文（照らしの要約・封じた hash・run の id・報告の在りか・名指した issue）は積んだ commit の文に載せる。
+  - issue #555 の本文の「commit の題と本文を報告の冒頭から作る」「PR の本文に報告の冒頭と報告の在りかを載せる」のうち、報告の冒頭は外す。報告は merge の後のサブグラフ report が書くので、commit と PR の時にはまだ無い。commit の題は run の id から、本文は照らしの結果の要約と報告の在りか（run の id から組める `workflow get <run>` の出力の report）で満たす。PR の題と本文は prepare（AI）が決めるので、commit の文から何を載せるかは縛れない。
+  - PR の向け先の repo と base も prepare が決めるので縛れない。読み戻し `pr-read` が repo・head の repo（origin の URL から決めた物）・head の枝・base の枝（origin の既定の枝）・head の版を照らし、違えば・子の run が落ちれば、報告は「PR を作ったと確かめられなかった」と言う（push や PR の作成は済んでいるかもしれないので、作らなかったとは言わない）。
+  - `pr-commit` は対象の commit のフックを飛ばさない（#575 で push のフックを飛ばす処理を退けたのと同じ向き）。フックは対象のコマンドなので、PATH の頭に読むだけの gh の口を置いて走らせ、落ちれば積まずに止める。
+- 当て方: 根の `AGENTS.md` の E8 の外し（`workflow:` で呼んでよい Archon 同梱のグラフは `archon-pr` だけ）・`workflows/AGENTS.md` の E17・`workflows/merge/` の `pr-commit`・`pr-open`・`pr-read`・`bin/_lib/launcher.py` と `workflows/.shared/fence.py` の役の PATH の頭・`lib/tree_run.py` の `outside_env` の対象のコマンドの PATH の頭。形が版の上げで崩れたら `tests/shared/test_archon_contract.py` の `ArchonPrTest` が赤。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 

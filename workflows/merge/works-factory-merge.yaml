@@ -2,8 +2,8 @@ name: works-factory-merge
 description: |
   取り込みと渡し方。seal は run の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして run の置き場に置き、
   check は封じた hash を今の差分と照らすだけで置く。apply・check の後の渡し方は出口の語で決まる: 空は置くだけ（対象のリポジトリへ
-  当てるのは人）、pr は照らした差分を run の枝に 1 つの commit で積み、Archon に同梱の archon-pr の子の run が push と PR の作成をする
-  （対象の既定の枝と同じ名の枝では止める。merge はしない）
+  当てるのは人）、pr は照らした差分を run の枝に 1 つの commit で積み、Archon に同梱の archon-pr の子の run がその枝への push と PR の
+  作成をする（対象の既定の枝と同じ名の枝では止める。merge はしない）
 inputs:
   mode:
     required: true
@@ -88,13 +88,14 @@ nodes:
       required: [mode, ok, hash, diff, protected_hits, protected_count, reason, base_rev, deliver]
       additionalProperties: false
 
-  # 出口の語 pr だけ。照らした差分を run の枝に 1 つの commit で積む（作業ツリーの HEAD と index を変える）
+  # 出口の語 pr だけ。照らした差分を run の枝に 1 つの commit で積む（作業ツリーの HEAD と index を変える）。seal は差分を封じるだけ
   - id: pr-commit
     script: pr_commit
     runtime: uv
     depends_on: [place]
-    when: "$place.output.ok == true && $place.output.deliver == 'pr'"
+    when: "$place.output.ok == true && $place.output.deliver == 'pr' && $place.output.mode != 'seal'"
     with:
+      mode: "$place.output.mode"
       base_rev: "$place.output.base_rev"
       sealed_hash: "$place.output.hash"
       request: $INPUTS.request
@@ -105,18 +106,25 @@ nodes:
         head: { type: string }
         branch: { type: string }
         base: { type: string }
-        context: { type: string }
+        repo:
+          type: [object, "null"]
+          properties:
+            host: { type: string }
+            path: { type: string }
+          required: [host, path]
         reason: { type: string }
-      required: [go, head, branch, base, context, reason]
+      required: [go, head, branch, base, repo, reason]
       additionalProperties: false
 
-  # push と PR の作成は Archon に同梱の archon-pr（題と本文を決める AI のノードは書き込みをせず、script のノード publish が push して
-  # PR を作り、読み戻す）。子の run は同じ作業ツリーで走る
+  # push と PR の作成は Archon に同梱の archon-pr。題と本文を決める AI のノード prepare は書き込みをせず、script のノード publish が
+  # push して PR を作り、読み戻す。push の先の枝は入力 branch が決め（publish は prepare の返す head より branch を採る）、prepare には
+  # 決めさせない。子の run への渡し物は積んだ commit の文（with: と input: は一緒に書けない）。子の run は同じ作業ツリーで走る
   - id: pr-open
     workflow: archon-pr
     depends_on: [pr-commit]
     when: "$pr-commit.output.go == true"
-    input: "$pr-commit.output.context"
+    with:
+      branch: "$pr-commit.output.branch"
 
   # 子の run が落ちればこの節は飛ばされ、返す節が飛ばされたことを訳にする
   - id: pr-read
@@ -127,6 +135,9 @@ nodes:
     with:
       got: "$pr-open.output"
       head: "$pr-commit.output.head"
+      branch: "$pr-commit.output.branch"
+      base_branch: "$pr-commit.output.base"
+      repo: "$pr-commit.output.repo"
     output_format:
       type: object
       properties:
@@ -179,7 +190,7 @@ nodes:
         deliver:
           type: [object, "null"]
           properties:
-            act: { type: string, enum: [placed, none, pr, stopped] }
+            act: { type: string, enum: [placed, none, pr, stopped, unconfirmed] }
             pr:
               type: [object, "null"]
               properties:

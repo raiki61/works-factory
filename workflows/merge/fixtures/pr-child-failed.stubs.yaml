@@ -1,5 +1,5 @@
 # 出口の語 pr で、PR を作る子の run が落ちた時: pr-open に stub を置かない（dry-run は stub の無い workflow: のノードを落とす）。
-# 読み戻しの節は飛び、返す節は落ちずに作らずに止めた訳を返す
+# 読み戻しの節は飛び、返す節は落ちずに、作ったと確かめられなかった訳を返す（push や PR の作成は済んだかもしれない）
 place:
   mode: apply
   ok: true
@@ -15,7 +15,7 @@ pr-commit:
   head: "cccccccccccccccccccccccccccccccccccccccc"
   branch: archon/task-fixture
   base: main
-  context: works-factory の run fixture-run が確かめて封じた差分を積んだ
+  repo: { host: github.com, path: owner/repo }
   reason: ""
 fixture:
   expect: "failed"
