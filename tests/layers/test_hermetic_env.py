@@ -56,6 +56,14 @@ class HermeticEnvTest(unittest.TestCase):
                 got = scan.problems("E21", root)
             self.assertTrue(any(line.startswith("tests/x/test_a.py:2:") for line in got), (sig, got))
 
+    def test_a_nested_function_is_judged_by_its_own_parameters(self):
+        text = ("def outer(cmd, env):\n    def inner(cmd, env=None):\n        return subprocess.run(cmd, env=env)\n"
+                "    return inner(cmd)\n\n\ndef wrap(cmd, env=None):\n    def go(cmd, env):\n"
+                "        return subprocess.run(cmd, env=env)\n    return go(cmd, hermetic.child_env())\n")
+        with tree({"tests/x/test_a.py": text}) as root:
+            got = scan.problems("E21", root)
+        self.assertEqual([line.partition(": ")[0] for line in got], ["tests/x/test_a.py:3"], got)
+
     def test_an_env_parameter_resolved_before_the_child_is_not_caught(self):
         text = ("def run(cmd, env=None):\n    env = hermetic.child_env(**(env or {}))\n"
                 "    return subprocess.run(cmd, env=env)\n\n\ndef go(cmd, env):\n    return subprocess.run(cmd, env=env)\n")
