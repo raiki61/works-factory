@@ -708,6 +708,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 - `loop:` の出力は最後の回の出力。`output_format` を書いた `loop:` では、それが照らした JSON になる（`dag-executor.ts` 5322 行の `executeLoopNode` の `lastIterationOutput`・文書 `guides/loop-nodes.md` 338-341 行）。
 - `if_skipped` は include の入力を通して運べない（埋め P2）。
 - `64ec0c2e` では、`plugins:` は名指した物が入っていないとノードを落とし、入っていれば載せる任意の形（`mcp:` の `optional: true` の類）が無い（`packages/providers/src/claude/plugins.ts` の `buildClaudePluginSettings`。埋め P11）。
+- `64ec0c2e` では、作業場を作る時の git の全体の設定への `safe.directory` の書き込み（`packages/git/src/repo.ts` の `addSafeDirectory`）を、まだ無いパスで、いちばん近い在る親が root でない自分の利用者の物なら省く（upstream の #4390。`newPathOwnedByCurrentUser`）。在るパス・root・Windows では今までどおり `git config --global` で書き、ほかが `.gitconfig.lock` を持っていれば待たずに落ちる。`355f1867` は省かず、並べて走る子の run がぶつかって落ちた（#727）。殻は作業場の置き場 `ARCHON_HOME` を利用者の物として作るので、子の新しい作業場は省く側に入る（`bin/_lib/isolate.py`。試験は `tests/bin/test_isolate.py` の `ParallelWorktreeGrantCase`）。子の run は 1 つのプロセスの中で走るので子ごとの環境変数は無く、`workflow:` のノードは `retry:` を拒む（`schemas/dag-node.ts`）。
 - `64ec0c2e` では、`denied_tools` は literal で、run の設定の層にも道具の鍵が無い（`schemas/dag-node.ts` の `denied_tools`・`schemas/run-config.ts` の `workflowRunConfigLayerSchema`。埋め P12）。
 - ポインタは同じ run の中だけ。パスは相対で、在って空でない普通のファイルだけ（`artifact-pointer.ts` 15-20 行・101 行・146-153 行）。
 - `script:` のノードの `output_format` は標準出力の約束で、Archon が照らす（`d97d00ef` の文書 `guides/script-nodes.md` 124 行「JSON Schema the node's stdout must satisfy」）。だからサブグラフの出力の型を自前で照らす口は要らない。
