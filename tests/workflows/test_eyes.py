@@ -478,7 +478,7 @@ class ShapeCase(unittest.TestCase):
         self.assertIn("checks_file", NODES["prep"]["output_format"]["properties"])
         self.assertNotIn("checks_file", NODES["prep"]["output_format"]["required"])
         self.assertEqual(DOC["inputs"]["checks"]["default"], "null")
-        for want in ("最後の試験の証拠: `$prep.output.checks_file`（Read せよ。", "「走らせ方」と「ログ」の行の置き場も Read せよ",
+        for want in ("最後の試験の証拠: `$prep.output.checks_file`（Read せよ。", "証拠の文が指すログの置き場も Read せよ",
                      "値が括弧の訳の文なら証拠は無い", "どこからも使われていない物", "deletions に場所つきで名指せ",
                      "名で Grep して", "reason にそうと書け"):
             with self.subTest(want):
@@ -1334,12 +1334,10 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(pathlib.Path(self.run_script("prep")["candidates_file"]).name,
                          NODES["r1-comments-save"]["with"]["name"] + ".json")
 
-    GATE_EVIDENCE = "# test-gate（final）\n\n- 走らせ方: engine（一式 unit・lint）\n- ログ: /tmp/run/test-gate/final/log.txt\n"
-
     def test_prep_names_the_final_gate_evidence_for_r1(self):
         """R1 の材料: 最後の試験の関門の証拠の文（入力 checks のポインタ）の置き場のパスを checks_file で渡す。by の読み直しはしない"""
         self.prep_inputs()
-        self.inputs["checks"] = self.pointer("test-gate/final/evidence.md", self.GATE_EVIDENCE)
+        self.inputs["checks"] = self.pointer("test-gate/final/evidence.md", "# test-gate（final）\n")
         got = self.run_script("prep")
         self.assertEqual(got.get("checks_file"), str(self.artifacts / "test-gate" / "final" / "evidence.md"))
 
