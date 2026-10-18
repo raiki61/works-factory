@@ -70,8 +70,9 @@ inputs:
   sealed-diff:
     default: ""
     description: >-
-      差分を封じた出力。JSON のオブジェクト {mode, ok, hash, diff, protected_hits, reason}（diff は封じた差分を指すポインタ {type, run_id, path}
-      か null、protected_hits は守りのパスの字の配列、ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちたこと
+      差分を封じた出力。JSON のオブジェクト {mode, ok, hash, diff, protected_hits, protected_count, reason}（diff は封じた差分を指すポインタ
+      {type, run_id, path} か null、protected_hits は守りのパスの字の配列で先頭の数行と残りの 1 行、全件の数は protected_count、ok が偽の時
+      reason が訳）。空か null はその段が飛ばされた・落ちたこと
   applied-diff:
     default: ""
     description: >-
