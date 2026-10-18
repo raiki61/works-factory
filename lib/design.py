@@ -662,17 +662,18 @@ def coverage_gaps(elements, refs) -> list:
     今の往復の全部の項目の答えの対応表の design_ref と、閉じた項目の控えに残した design_ref を合わせた物（呼び手が集める。1 つの答え
     だけでは、ほかの項目が受ける要素を『どの項目も受けない』と見分けられない）"""
     have = set(refs)
-    return [f"独立設計の要素 {i} が、どの行の design_ref にも出ない（受ける案の行の design_ref に {i} を書くか、案に対が無いなら item・path・"
-            f"symbol を null にした行に design_ref {i} を書け）" for i in element_ids(elements) if i not in have]
+    return [f"独立設計の要素 {i} が、どの行の design_ref にも出ない（受ける鍵の行の design_ref に {i} を書くか、鍵の一覧に対の行が無いなら item・"
+            f"path・symbol を null にした行に design_ref {i} を書け）" for i in element_ids(elements) if i not in have]
 
 
 def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
     """design_map の誤りの行。行は {item, path, symbol, design_ref, design_quote, why} の 2 つの向き:
     - 案→設計: 案の行 rows の files の (項目, path, symbol) ごとにちょうど 1 行（対象は change=add の symbol・change=remove の symbol・
       op が create・delete・rename の行（symbol は null）。kept の鍵は行を求めない（書けば照らす）。要る鍵に無い行（rows の項目の外の項目の行・
-      項目の files の add・remove でない記号の行）は余りとして鍵の数えに入れず拒まない（受け付けは rebound で、項目の番号の取り違えを
+      項目の files の add・remove でない記号の行・op が modify の行を symbol null で指す行）は余りとして鍵の数えに入れず拒まない（受け付けは rebound で、項目の番号の取り違えを
       結び直し、残りの余りの行を照らす前に落とす）。design_ref は指す要素の id（対が無ければ null）
-    - 設計→案: item・path・symbol が null で design_ref が必須（案のどの行にも対の無い要素を挙げる）
+    - 設計→案: item・path・symbol が null で design_ref が必須（要る鍵のどの行にも対の無い要素を挙げる。対が鍵の無い files の行——
+      op が modify で add・remove の無い行——にだけ在る要素も）
     design_ref は elements（独立設計の要素）に在る id だけ。同じ鍵の行の重なりは誤り。design_quote が在れば独立設計の文に字のまま
     在る（null は対が無い）。要素の網羅はここで照らさない（一部の項目の答えでは、ほかの項目が受ける要素を「どの項目も受けない」と
     見分けられない。呼び手が全部の答えを合わせて coverage_gaps を当てる）"""
