@@ -8,6 +8,9 @@
   そのブロックの作業ツリーを比べる受け付けの script の全部になる）
 - 役の output_format は JSON Schema の決まった鍵だけで書く（tests/e2e の工程も同じ）。Claude Code は役を起こす時に output_format を strict で照らし、
   知らない鍵（例: 訳の文を入れた note:）が 1 つでも在ると節が起動で落ちる（#282）。訳は YAML のコメントに書く
+- 子の run を起こす節（workflow:。周の鎖の次の周と、修正の組）は模型・effort・設定の欄を持たず、頭の深さの控えを子へ渡さない。
+  子の run は親の起動の時の模型の設定を受け継ぐだけで、頭の深さの役の選びは上げる向きも下げる向きも子の走りに効かない（持ち主の決め
+  `head-choice-record-only`。#659）
 """
 import pathlib
 import unittest
@@ -107,7 +110,30 @@ def guarded_mismatches(doc, block: str) -> list:
     return out
 
 
+# 子の run の節が持つと、子の模型か effort を run の中から替えうる欄と、頭の深さの控えを指す字
+CHILD_MODEL_KEYS = ("model", "effort", "provider", "config", "aliases")
+HEAD_RECORD_WORDS = ("depth_record", "depth-head", "groups")
+
+
+def child_model_leaks(doc) -> list:
+    out = []
+    for n in (n for n in doc.get("nodes") or [] if "workflow" in n):
+        out += [f"{n['id']}: 欄 {key}" for key in CHILD_MODEL_KEYS if key in n]
+        out += [f"{n['id']}: with の {name} が {word} を指す" for name, value in (n.get("with") or {}).items()
+                for word in HEAD_RECORD_WORDS if word in f"{name} {value}"]
+    return out
+
+
 class NodeFlagsCase(unittest.TestCase):
+
+    def test_child_runs_take_no_model_from_the_head_choice(self):
+        children = [n for doc in DOCS.values() for n in doc.get("nodes") or [] if "workflow" in n]
+        self.assertTrue(children, "子の run を起こす節が無ければ下の照らしは空回りする")
+        for block, doc in DOCS.items():
+            with self.subTest(block):
+                self.assertEqual(child_model_leaks(doc), [])
+        bad = {"nodes": [{"id": "round-x", "workflow": "w", "model": "@wf-report", "with": {"pick": "$judge.output.depth_record"}}]}
+        self.assertEqual(child_model_leaks(bad), ["round-x: 欄 model", "round-x: with の pick が depth_record を指す"])
 
     def test_no_node_names_coldwrite(self):
         for block, doc in DOCS.items():

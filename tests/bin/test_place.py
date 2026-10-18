@@ -8,7 +8,7 @@ import unittest
 from unittest import mock
 
 from bin._lib import pack, place
-from lib import launchgroups
+from lib import headdepth, launchgroups
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -271,6 +271,21 @@ class RunConfigTest(unittest.TestCase):
             self.assertEqual(place.run_config(cache, self.ENV), path)
             self.assertEqual(path.read_bytes(), written)
             self.assertEqual(sorted(p.name for p in path.parent.iterdir()), [path.name])
+
+    def test_head_choice_up_or_down_leaves_the_groups_at_the_table_defaults(self):
+        """頭の深さの役の選びは記録だけ（持ち主の決め head-choice-record-only）。上げる向きの控えも下げる向きの控えも、起動の層の
+        群の値を替えない。子の run と次の周はこの層を受け継ぐので、そちらも替わらない"""
+        rows = ({"group": "@wf-fix-writers", "model": "opus", "effort": "max", "why": "上げ"},
+                {"group": "@wf-fix-writers", "model": "haiku", "effort": "low", "why": "下げ"})
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = pathlib.Path(tmp)
+            plain = place.run_config(cache, self.ENV).read_bytes()
+            for row, way in zip(rows, (launchgroups.UP, launchgroups.DOWN)):
+                with self.subTest(way):
+                    chosen = launchgroups.choices([row])
+                    self.assertEqual(chosen[0]["direction"], way)
+                    headdepth.write(cache / "judge", headdepth.record("標準", "x", groups=chosen))
+                    self.assertEqual(place.run_config(cache, self.ENV).read_bytes(), plain)
 
     def test_users_layer_is_kept_factory_env_and_groups_win_and_users_quota_policy_wins(self):
         """利用者の --config の層はそのまま渡り、同じ名の env と群の別名だけ工場の値に替わる。使用枠の方針は利用者の値が勝つ。

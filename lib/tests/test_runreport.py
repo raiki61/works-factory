@@ -554,7 +554,7 @@ class TranscriptCase(Base):
         self.assertEqual(section.splitlines()[:3], [
             "- @wf-fix-writers: 既定 sonnet・high → 役の選び opus・high（上げ。訳: 広い書き換え）",
             "- @wf-nothing: 表に無い群を既定に戻した（訳: 群 '@wf-nothing' が表に無い）",
-            f"- {launchgroups.RECORD_ONLY}"])
+            f"- {headdepth.RUN_SWITCH}"])
         self.assertIn("- judge__diagnose: opus（effort: high）\n", section)
         self.assertIn("- fix__write: sonnet（effort: medium, high）\n", section)
         self.assertIn("- test-gate-final__run: haiku\n", section, "effort の無い行は今の字のまま")
@@ -583,7 +583,7 @@ class TranscriptCase(Base):
         self.assertIn(f"- {runreport.NO_EYES}\n", self.section(text, runreport.EYES_HEADING) + "\n")
         _, text, _ = self.build(fixed_run(judge=None), transcript=facts)
         section = self.section(text, report.MODEL_HEADING)
-        self.assertEqual(section.splitlines()[:2], [f"- {headdepth.NO_CHOICE}", f"- {launchgroups.RECORD_ONLY}"])
+        self.assertEqual(section.splitlines()[:2], [f"- {headdepth.NO_CHOICE}", f"- {headdepth.RUN_SWITCH}"])
         self.assertNotIn("既定のまま", section)
         self.assertIn("- test-gate-final__run: haiku\n", section)
 
