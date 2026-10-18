@@ -40,6 +40,7 @@ import gatemarks  # noqa: E402
 import ghreads  # noqa: E402
 import headdepth  # noqa: E402
 import jsonfile  # noqa: E402
+import judgebeside  # noqa: E402
 import judgeverify as jv  # noqa: E402
 import marks  # noqa: E402
 import oneline  # noqa: E402
@@ -50,7 +51,6 @@ import policy  # noqa: E402
 import promptsection  # noqa: E402
 import purpose as _purpose  # noqa: E402
 import querytest  # noqa: E402
-import report  # noqa: E402  （再審の置き場のファイルの名 REJUDGE_DIFF・REJUDGE_EXIT の住処）
 import rolekit  # noqa: E402
 import specblk  # noqa: E402
 import startrec  # noqa: E402
@@ -317,12 +317,12 @@ REQUEST_STOP = stopby.declare("request", "依頼の型が通らない・始め�
 DIAGNOSE_NODE = "p2.diagnose"                # 判定役の節の写しの graph の名（querytest・outpurpose・gatemarks の足し欄の表の鍵）
 DIAGNOSE_ROLE = "diagnose"                   # 拒否の控え rejects-<役>.json の名（rolekit.accept_round）
 JUDGMENT_FILE = "judgment.json"              # 元 accept.py:57 の JUDGMENT_FILE（受けた判定。judge_output が整えた返答に例と目的の外の行を戻した物）
-MATERIALS_FILE = gatemarks.MATERIALS_FILE
-# 置き場のファイルの名は書くモジュールの物を引く
+# 判定の隣のファイルの名は住処 judgebeside の物を、ほかの置き場のファイルの名は書くモジュールの物を引く
+MATERIALS_FILE = judgebeside.MATERIALS_FILE
 PURPOSE_FILE = _purpose.PURPOSE_FILE
-PREMISES_FILE = _premises.PREMISES_FILE
-VERIFY_FILE = jv.VERIFY_FILE
-PR_EXCLUDED_FILE = prcheck.EXCLUDED
+PREMISES_FILE = judgebeside.PREMISES_FILE
+VERIFY_FILE = judgebeside.VERIFY_FILE
+PR_EXCLUDED_FILE = judgebeside.PR_EXCLUDED_FILE
 SPEC_FILE = specblk.SPEC_FILE
 WORLD_FILE = worldmark.WORLD_FILE
 MEANS_FILE = marks.KINDS[worldmark.MEANS].file
@@ -659,7 +659,7 @@ def judge_output(out, jdir, root, rev, materials, *, prev_deletions=None, prev_q
 
 
 def _materials(jdir) -> dict:
-    """置き場の素材の状態（materials.json。無ければ空）"""
+    """置き場の素材の状態（MATERIALS_FILE。無ければ空）"""
     doc = read_json(pathlib.Path(jdir) / MATERIALS_FILE, {})
     return doc if isinstance(doc, dict) else {}
 
@@ -820,7 +820,7 @@ def take(jdir, reply, repo, base_rev: str = "", *, prev_deletions=None, prev_que
     judge_output → 目的の外の所見の行を材料の行に当てる（outpurpose）→ 依頼の答えと作り直しの行の結び（answer_ties）→ ③ を名乗る
     人へ回す問いが記録された方針の行を名指す（recorded_question_problems）。
     返答の型は判定役の節の output_format だけが持つ。例・目的の外の行・結びは judge_output の前に外す。通れば例を query-examples.json に、
-    目的の外の行を当たった材料の行ごと out-of-purpose.json（周は 1）に、結びを answer-ties.json に置き、judge_output が整えた返答に
+    目的の外の行を当たった材料の行ごと out-of-purpose.json（周は 1）に、結びを judgebeside.ANSWER_TIES_FILE に置き、judge_output が整えた返答に
     例と目的の外の行を戻して judgment.json に書く（元 judgetake.finish）。
     keys は作業ツリーの写しと比べる欄（_judge_tree_unchanged）。返り {ok, reason, open_units, judgment_file}。拒否の時は judgment.json
     を書かない"""
@@ -911,7 +911,7 @@ def structure_units(judgment, repo, record=None) -> list:
 
 # ---------------------------------------------------------------- 判定の裏取り
 def verify_not_run(jdir, reason: str) -> pathlib.Path:
-    """裏取りを回さなかった時の judge-verify.json（元 blk-judge/schemas/judge-verify.schema.json の形の空: 単位の行は無く、相乗りは
+    """裏取りを回さなかった時の VERIFY_FILE（元 blk-judge/schemas/judge-verify.schema.json の形の空: 単位の行は無く、相乗りは
     確かめられなかった・訳は errors の 1 行。元の works は回さない周にファイルを置かず、読み手は無い時を空として読んだ。
     このブロックは返る時に必ず置くので、読み手（planblk.verify_part）が「確かめられなかった（訳）」と読む形にした）。置いたパスを返す"""
     return write_json(pathlib.Path(jdir) / jv.VERIFY_FILE,
@@ -1007,7 +1007,7 @@ def _check_synergy(answers, keys: dict) -> dict:
 def merge_on(jdir, repo, *, keys=core_accept.TREE_KEYS) -> dict:
     """元 works/blk-judge/lib/judgeverify.py:285。裏取りのまとめ。返り {ok, reason}。番号の控えが無ければ（支度が go 偽・支度が
     走らなかった）回さなかった形の申し送りを置いて ok。在れば単位ごとに答えのファイルを確かめ（型・番号・not_root の本当の根）、
-    相乗りの番号を単位の key に戻して judge-verify.json に書く（単位は消さない）。束ね役か下請けが作業ツリーを変えていれば
+    相乗りの番号を単位の key に戻して VERIFY_FILE に書く（単位は消さない）。束ね役か下請けが作業ツリーを変えていれば
     止めの控え（VERIFY_STOP）を置いて ok 偽（元は盤面を止めた）。keys は作業ツリーの写しと比べる欄（_moved_since）"""
     jdir = pathlib.Path(jdir)
     plan = jsonfile.read_or(jdir / jv.PLAN_FILE)
@@ -1194,7 +1194,7 @@ def with_carried(reply: dict, jdir) -> dict:
 
 def check_premises(reply: dict, jdir, repo, items: list) -> dict:
     """元 works/.shared/core/premises.py:125（と blk-premises/scripts/accept.py:32 の accept_premises）。実測役の返答を受け付ける:
-    依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く（依頼が運んだ前の run の
+    依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged）→ post_check（measured_needs_output）。通れば置き場の PREMISES_FILE に返答を書く（依頼が運んだ前の run の
     実測を制約に足す。with_carried）。
     items は依頼の行（judge/request.json）。{ok, reason}"""
     def run():
@@ -1258,7 +1258,7 @@ def check_purpose(reply: dict, jdir, repo, *, keys=core_accept.TREE_KEYS) -> dic
 def purpose_prep(jdir, repo, start: dict) -> dict:
     """元 works/blk-purpose/scripts/intake.py の書き直し。目的の役の材料を置く: 依頼から前の run の判断（prior_failures）を外した
     写しを purpose-request.json に（carry.without_prior。目的の文は前の run の判断を知らない別の目の入力になるので、指示書の頼みで
-    なく機械で外す）、それと PR の説明・前提の実測（premises.json）を purpose-brief.md に。前の run の判定・前の失敗の行は書かない。
+    なく機械で外す）、それと PR の説明・前提の実測（PREMISES_FILE）を purpose-brief.md に。前の run の判定・前の失敗の行は書かない。
     役を起こす前の作業ツリーの姿を purpose-tree.json に置く。凍った目的が在れば go 偽。{go, brief_file, reason}"""
     j = pathlib.Path(jdir)
     try:
@@ -1276,7 +1276,7 @@ def purpose_prep(jdir, repo, start: dict) -> dict:
     parts = ["# 目的の役の材料（機械が組んだ物。前の run の判断は外してある）",
              f"## 依頼（{req_path}）\n\n```json\n{json.dumps(copy_, ensure_ascii=False, indent=1)}\n```",
              "## PR の説明\n\n" + (pr_file_text(pr) if pr else "（PR の無い run）"),
-             "## 前提の実測（premises.json の constraints）\n\n"
+             f"## 前提の実測（{PREMISES_FILE} の constraints）\n\n"
              + (f"```json\n{json.dumps(cons, ensure_ascii=False, indent=1)}\n```" if cons else "（前提の実測は無い）")]
     p = j / PURPOSE_BRIEF_FILE
     p.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
@@ -2652,7 +2652,7 @@ def baseline_local_checks(path) -> dict:
 
 
 def fill_materials(jdir, local_checks=None) -> dict:
-    """元 rules:1705 の fill_materials の書き直し。素材の 15 欄（MATERIALS）を全部そろえて materials.json に書いて返す:
+    """元 rules:1705 の fill_materials の書き直し。素材の 15 欄（MATERIALS）を全部そろえて MATERIALS_FILE に書いて返す:
     受けた役の素材（material-<役>.json の materials）→ local_checks は渡された修正前の CI の素材（baseline_local_checks）→ 回さないと決めた役は material-route.json の埋め（入口なら not_applicable と
     入口の理由・条件外なら not_applicable・ほかは not_run）→ 回すと決めたのに受けた返答が無い役は not_run（受け付けが 3 回とも
     拒んだならその理由、ほかは走っていない）→ base_determination は基準点の決め（元 board.py:536 の base_output と同じ形）→
@@ -2799,13 +2799,13 @@ RECEIVES = [promptsection.Receive(DIAGNOSE_ROLE, headdepth.UNKNOWN_HEAD)]   # �
 
 def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> str:
     """元 works/blk-judge/lib/judgebrief.py:86 の brief の書き直し。判定役の材料を diagnose-brief.md に組み、パスを返す。節の並び:
-    1 頭 BRIEF_HEAD・2 世界の解の行（worldmark.section。置き場の world-state.json が行を指す時）・3 頭の深さの行ごとの未知の種類と
-    指示（headdepth.section。置き場の depth-head.json。決まっていない run は訳の 1 行）・4 p2.diagnose の「## 入力」の節を
+    1 頭 BRIEF_HEAD・2 世界の解の行（worldmark.section。置き場の世界の解の段の控えが行を指す時）・3 頭の深さの行ごとの未知の種類と
+    指示（headdepth.section。置き場の頭の深さの控え。決まっていない run は訳の 1 行）・4 p2.diagnose の「## 入力」の節を
     置き場の値で埋めた物・5 問いの台帳の段（LEDGER_HEAD。{{validator.*}} は PROMPT_TABLES）・6 依頼と PR の題と本文（始めの記録に
     input.pr が在る時。request_text と pr_file_text）・7 依頼の answers（answers_section）・8 前の run の行（入口が置いた
     prior-failures-in.json。carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・9 記録された方針
     （policy.recorded_text。受け付けの _recorded と同じ置き場から組む。行が無い run も RECORDED_NONE と載る）・10 人の方針（POLICY_HEAD。文書が在る時。policy_text）。
-    素材の状態は materials.json（無ければ fill_materials）。
+    素材の状態は MATERIALS_FILE（無ければ fill_materials）。
     対象差分は material-view.json（無ければ取る）"""
     j = pathlib.Path(jdir)
     doc = _material_view(j, repo, start)
@@ -2843,7 +2843,7 @@ def prior_of(doc) -> list:
 def diagnose_prep(jdir, repo, start: dict, review_md: str, repo_review_md: str = "", baseline=None) -> dict:
     """判定役を起こす前の支度（元 judgebrief.brief の入口と、元 blk-material の collect の止め）。返り
     {go, brief_file, review_md, repo_review_md, reason}。止めの控えが在れば組まずに go 偽。
-    対象差分を取り直して diff.patch に、素材の 15 欄を materials.json に書き（baseline は入力 baseline の先のパス。在れば素材
+    対象差分を取り直して diff.patch に、素材の 15 欄を MATERIALS_FILE に書き（baseline は入力 baseline の先のパス。在れば素材
     local_checks をそこから写す。baseline_local_checks）、材料を組み、役を起こす前の作業ツリーの姿を
     diagnose-tree.json に置く。素材の役が 1 本でも諦めていれば、
     残りの素材で材料を組んだ上で止めの控え（MATERIAL_STOP）を置いて go 偽（今の works の素材集めの諦めが判定の前で線を止めたのと同じ）"""
@@ -3219,8 +3219,8 @@ REJUDGE_UNIT_FIELDS = ("key", "label", "disposition", "reason", "reopen_evidence
 REJUDGE_BRIEF = "brief.md"
 REJUDGE_BEFORE = "units-before.json"          # 元 rejudge-units-before-<役>.json
 REJUDGE_SNAPSHOT = "rejudge-snapshot.json"    # 元 rejudge.SNAPSHOT_NAME（役を起こす前の作業ツリーの姿）
-REJUDGE_DIFF = report.REJUDGE_DIFF            # 元 rejudge.DIFF_NAME（名の住処は報告の定数。返す節の欄 rejudge_diff が指す）
-REJUDGE_EXIT = report.REJUDGE_EXIT            # 元 rejudge.EXIT_NAME（再審のブロックの出口の形）
+REJUDGE_DIFF = judgebeside.REJUDGE_DIFF_FILE  # 元 rejudge.DIFF_NAME（返す節の欄 rejudge_diff が指す）
+REJUDGE_EXIT = judgebeside.REJUDGE_EXIT_FILE  # 元 rejudge.EXIT_NAME（再審のブロックの出口の形）
 REJUDGE_REPLY = "rejudge-reply.json"          # 受けた再審の返答の並び（元 writes の append to: process.rejudge）
 # 元 rejudge.py:77。修正役に貼った番号の書き方（no N・No.N・#N・N 番）。全角の数字も \d に当たる
 _NUMBERS = (re.compile(r"(?<![A-Za-z])no\.?\s*(\d+)", re.IGNORECASE), re.compile(r"[#＃]\s*(\d+)"), re.compile(r"(\d+)\s*番"))
@@ -3351,7 +3351,7 @@ def rejudge_take(jdir, rdir, reply, root, *, keys=core_accept.TREE_KEYS) -> dict
     R/query-examples.json に足す）→ rejudge_output。拒否は {ok: False, reason}（置き場を変えない）。通れば:
     - R/judgment.json: 1 回目の判定（J/judgment.json）の units を返答の units（writes の pick: REJUDGE_UNIT_FIELDS）で置き換えた物。
       1 回目の物は上書きしない
-    - R/rejudge-reply.json に受けた返答を足し（元 writes の append to: process.rejudge）、R/rejudge-diff.json に単位の前後の差を 1 行
+    - R/rejudge-reply.json に受けた返答を足し（元 writes の append to: process.rejudge）、R/REJUDGE_DIFF に単位の前後の差を 1 行
     返答の形の誤り・支度の欠けも拒否として返す（投げない）。keys は作業ツリーの写しと比べる欄（_moved_since）"""
     jdir, rdir = pathlib.Path(jdir), pathlib.Path(rdir)
     no = {"ok": False, "verdict": ""}
@@ -3389,7 +3389,7 @@ def rejudge_take(jdir, rdir, reply, root, *, keys=core_accept.TREE_KEYS) -> dict
 
 
 def rejudge_collect(rdir) -> dict:
-    """再審の出口（元 works/.shared/core/rejudge.py:525 の collect と :513 の unsettled の 0.21.0 の形）。R/rejudge-exit.json（今の works の
+    """再審の出口（元 works/.shared/core/rejudge.py:525 の collect と :513 の unsettled の 0.21.0 の形）。R/REJUDGE_EXIT（今の works の
     blk-rejudge/schemas/rejudge-exit.schema.json の形 {ok, reason, passes, verdicts, unsettled, objection, new_open_units, lowered,
     unnamed_changed, diff_file, reads_file}）を書いて返す。
     - 受けた再審の判定（R/judgment.json）が無く、止めの控えも無い（輪が 3 回とも拒まれた）: ok false・最後の拒否の文で works:rejudge で止める
@@ -3427,7 +3427,7 @@ def rejudge_collect(rdir) -> dict:
 
 
 def rejudge_verdict(rdir):
-    """再審の答えの語（採る・退ける・一部採る）。R/rejudge-exit.json の最後の verdicts（受けた再審が無い・出口が読めなければ None）"""
+    """再審の答えの語（採る・退ける・一部採る）。R/REJUDGE_EXIT の最後の verdicts（受けた再審が無い・出口が読めなければ None）"""
     try:
         doc = read_json(pathlib.Path(rdir) / REJUDGE_EXIT)
     except ValueError:
@@ -3439,7 +3439,7 @@ def rejudge_verdict(rdir):
 # ================================================================ 並行 PR と世界の解
 
 
-PR_DOWNGRADES_FILE = prcheck.DRAFTS              # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
+PR_DOWNGRADES_FILE = judgebeside.PR_DRAFTS_FILE  # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
 MATERIAL_PR_FILE = material_file(prcheck.ROLE)   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
 PR_LIMIT = 100   # 元 works/.shared/core/graphloops/scripts/parallel-pr.py:16 の LIMIT（gh pr list の --limit）
 # 元 works/.shared/core/graphloops/rules/review-loop.py:2278
@@ -3548,7 +3548,7 @@ def pr_scan(jdir, repo, *, gh=None, which=None) -> dict:
     """節 pr-scan の中身。元 works/.shared/core/prcheck.py:104 の run_helper（engine の 1〜5 段を走らせ、済んだか役が要るか）と、
     元 works/.shared/core/entry.py:170-193 の forge の組み手（remote が forge でない run は素材を not_applicable（no_forge: …）で埋め、
     役を起こさない）の書き直し。返り {go, go_role, reason}: go は後の段へ進むか（仕様の段が止めた run は偽）、go_role は
-    機械で決められず役 pr-check が要るか。機械が決めた時は素材のファイルと外す hunk の空の一覧（judge/pr-excluded.json）を書き、
+    機械で決められず役 pr-check が要るか。機械が決めた時は素材のファイルと外す hunk の空の一覧（judge/PR_EXCLUDED_FILE）を書き、
     役に任せる時は渡し物（judge/pr-brief.json。元 prcheck.snapshot の brief の形）を書く"""
     jdir, repo = pathlib.Path(jdir), pathlib.Path(repo)
     stop = read_stop(jdir)
@@ -3601,8 +3601,8 @@ def prcheck_drafts(reply) -> list:
 def prcheck_take(jdir, reply, repo) -> dict:
     """元 works/.shared/core/prcheck.py:199 の take と works/blk-pr/scripts/accept.py:34 の take の書き直し。返り {ok, reason}。
     順: 投稿していない（check_no_post）→ 読むだけの役が作業ツリーを変えていない（入口か仕様の承認の後の写し judge/judge-tree.json と比べる）→
-    素材の形 → 外す hunk（prcheck.check_excluded）。通れば外す hunk を中身の印つきで judge/pr-excluded.json に、申し送りの
-    下書きを judge/pr-downgrades.json に、素材を judge/material-pr-check.json に書く。拒めば何も書かない。
+    素材の形 → 外す hunk（prcheck.check_excluded）。通れば外す hunk を中身の印つきで judge/PR_EXCLUDED_FILE に、申し送りの
+    下書きを judge/PR_DOWNGRADES_FILE に、素材を judge/material-pr-check.json に書く。拒めば何も書かない。
     写しの schema は実行基盤が役の節の型で照らすので、ここでは素材の status だけを見る"""
     jdir, repo = pathlib.Path(jdir), pathlib.Path(repo)
     if not isinstance(reply, dict):
@@ -3736,7 +3736,7 @@ def world_plan(jdir) -> dict:
 
 def world_finish(jdir) -> dict:
     """節 world-finish の中身（元 works/blk-world/scripts/collect.py の worldblk.finish と、線の境 h-world が出口を盤面の根に写した
-    worldmark.write の書き直し）。行を judge/world.jsonl に、段の控えを judge/world-state.json に書く。返り {ok, status, reason}。
+    worldmark.write の書き直し）。行を judge/world.jsonl に、段の控え（judgebeside.WORLD_STATE_FILE）を judge/ に書く。返り {ok, status, reason}。
     落ちた段・網に出られなかった段も run を止めない（持ち主の決め world。status: failed と reason）"""
     jdir = pathlib.Path(jdir)
     stop = read_stop(jdir)
@@ -3872,17 +3872,18 @@ EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "
                   "one_shot_closes": [], "precedents": []}
 EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
-PURPOSE_REVIEW_FILE = _purpose.PURPOSE_REVIEW_FILE
+PURPOSE_REVIEW_FILE = judgebeside.PURPOSE_REVIEW_FILE
 PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE, PURPOSE_REVIEW_FILE,
-                headdepth.RECORD)   # 判定の指し札の隣に必ず置く（下の PORTS の欄が指す）
+                judgebeside.DEPTH_FILE)   # 判定の指し札の隣に必ず置く（下の PORTS の欄が指す）
 # 返す節の出力の欄 → 置き場のファイル。ほかのブロックはこの欄のポインタで受け、名で開かない（docs/design.md の「judge の出力」）。
 # PORTS は判定の指し札の隣（再審なら再審の置き場）。FIRST_PORTS は 1 回目の判定でしか書かない物（目的の段・素材の役・並行 PR の照らし）で、
 # 再審の時も 1 回目の判定の置き場を指す。先が無い run の欄は null
 PORTS = {"premises": PREMISES_FILE, "verify": VERIFY_FILE, "pr_excluded": PR_EXCLUDED_FILE, "materials": MATERIALS_FILE,
-         "purpose_review": PURPOSE_REVIEW_FILE, "depth_record": headdepth.RECORD,
-         "rejudge_exit": report.REJUDGE_EXIT, "rejudge_diff": report.REJUDGE_DIFF}
-FIRST_PORTS = {"purpose_means": MEANS_FILE, "world_state": worldmark.STATE_FILE, "decisions": policy.PRIOR_DECISIONS_FILE,
-               "answer_ties": marks.KINDS["answers"].file, "review_lenses": diverted.LENS_FILE, "pr_drafts": prcheck.DRAFTS}
+         "purpose_review": PURPOSE_REVIEW_FILE, "depth_record": judgebeside.DEPTH_FILE,
+         "rejudge_exit": REJUDGE_EXIT, "rejudge_diff": REJUDGE_DIFF}
+FIRST_PORTS = {"purpose_means": MEANS_FILE, "world_state": judgebeside.WORLD_STATE_FILE, "decisions": policy.PRIOR_DECISIONS_FILE,
+               "answer_ties": judgebeside.ANSWER_TIES_FILE, "review_lenses": judgebeside.REVIEW_LENSES_FILE,
+               "pr_drafts": PR_DOWNGRADES_FILE}
 PRIOR_VERSION = "前の版の判定の出力。workflow run で最初から起こし直す"
 
 
@@ -3900,7 +3901,7 @@ def _empty_public(name: str):
             PR_EXCLUDED_FILE: lambda: {"node": prcheck.NODE, "excluded": []},
             MATERIALS_FILE: lambda: {},
             PURPOSE_REVIEW_FILE: lambda: {},
-            headdepth.RECORD: lambda: headdepth.record(headdepth.STANDARD, headdepth.NO_RECORD)}[name]()
+            judgebeside.DEPTH_FILE: lambda: headdepth.record(headdepth.STANDARD, headdepth.NO_RECORD)}[name]()
 
 
 def _fill(path: pathlib.Path, empty) -> pathlib.Path:
