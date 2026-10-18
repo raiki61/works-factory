@@ -15,7 +15,9 @@ CORE = pathlib.Path(__file__).resolve().parent
 if str(CORE) not in sys.path:
     sys.path.insert(0, str(CORE))
 
-PREMISES_FILE = "premises.json"                     # 受け付けた実測役の返答 {"constraints": [...]}
+import judgebeside  # noqa: E402
+
+PREMISES_FILE = judgebeside.PREMISES_FILE
 
 PREMISES_REQUEST_FILE = "premises-request.json"     # intake が型を確かめた依頼の行（JSON の配列）
 

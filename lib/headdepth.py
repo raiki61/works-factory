@@ -24,8 +24,8 @@ entry に在る。
 - write(jdir, doc)・read(jdir): 判定の置き場の控え RECORD の読み書き。read_file(path): 控えのファイルの読み（判定の外の読み手は
   判定の出力の欄 depth_record のパスで読む）。どちらの読みも無い・読めない時に標準の控え
 - cited_files(doc): 控えの items の where が指すファイル（cite.CITE で読む）。修正の後に差分が引用の外に出たかを数える口
-  （depth.outside_cited の cited）。使うのは修正のブロック（fixboard.redepth。prep が入力 depth_record の先を親の置き場へ写す）と
-  線の redepth（入力 depth_record。workflows/line/scripts/redepth.py の fix_signals）
+  （depth.outside_cited の cited）。使うのは修正の後の上げ直し latedepth.signals（修正のブロックの fixboard.redepth は prep が入力
+  depth_record の先を親の置き場へ写した物を、線の redepth は入力 depth_record を渡す）
 - record(depth, why, *, items, facts, groups): 控えの形。groups は役の群の選びを launchgroups.choices で照らした行（既定のまま・
   拒んだ時は空）。この run では効かず記録だけで、段の check には混ぜない
 - report_line(depth_word, why, cut=()): 報告の冒頭 2 の 1 行。段の名・根拠と、その段の省く物（単位がどれも軽量の時だけ省く。実際に
@@ -47,6 +47,7 @@ import cite  # noqa: E402
 import depth  # noqa: E402
 import gatemarks  # noqa: E402
 import jsonfile  # noqa: E402
+import judgebeside  # noqa: E402
 import launchgroups  # noqa: E402
 import oneline  # noqa: E402
 import promptsection  # noqa: E402
@@ -54,7 +55,7 @@ import startrec  # noqa: E402
 
 LIGHT = depth.LIGHT
 STANDARD = depth.STANDARD
-RECORD = "depth-head.json"
+RECORD = judgebeside.DEPTH_FILE
 BRIEF = "depth-head-brief.md"
 NO_RECORD = "run の頭の深さの控えが無い"
 NO_REPLY = "役の返答が受け付けに届いていない（役が走らなかったか落ちた）"
