@@ -24,6 +24,10 @@ IN_LOOP_REFUSED = {
         "fix は組の子の run を workflow: の節で起こす。Archon は loop_group の本体に workflow: の節を置けない（止めた Archon の "
         "packages/workflows/src/loader.ts 1302-1311 行）。Archon で不可の形で、線は fix を輪の外でだけ include するので、"
         "線の能力は落ちない（狭めでない）"),
+    f"{scan.OURS_PREFIX}probe-merge": (
+        ["error: loop_group 'rounds' body: 'workflow' (sub-run) is not supported inside a loop_group body"],
+        "merge は出口の語 pr の時に PR を作る子の run（archon-pr）を workflow: の節で起こす。Archon は loop_group の本体に workflow: の"
+        "節を置けない（fix と同じ）。線と周の鎖は merge を輪の外でだけ include するので、能力は落ちない（狭めでない）"),
     f"{scan.OURS_PREFIX}probe-judge": (
         ["error: loop_group 'rounds' body: wait node 'block__spec-gate' must be the body's sole terminal sink"],
         "judge の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に置けない（止めた Archon の "

@@ -1984,7 +1984,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M24 置くと決めた差分は `merge/apply.diff` に書いて読み戻し、hash は封じた hash と同じ。merge は対象のリポジトリにも run の作業ツリーにも当てない（当てるのは人）
   - 元: works/dev/use.sh:950-971（run の差分は家の diffs/run-<id>.diff に書き、人が apply で当てた）
   - 今: 表
-  - 証: tests/workflows/test_merge.py::ApplyTest.test_same_tree_applies_the_sealed_diff・tests/workflows/test_merge.py::ShapeTest.test_one_script_node・tests/workflows/test_merge.py::ScriptCase.run_script（全部の走りで作業ツリーの status が前後で同じ）
+  - 証: tests/workflows/test_merge.py::ApplyTest.test_same_tree_applies_the_sealed_diff・tests/workflows/test_merge.py::ShapeTest.test_nodes_are_place_the_pr_path_and_the_return・tests/workflows/test_merge.py::ScriptCase.run_script（全部の走りで作業ツリーの status が前後で同じ）
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば run の置き場の `merge/apply.diff` と `merge-apply.output.hash`）
   - 狭め: 無し
 

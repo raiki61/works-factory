@@ -345,6 +345,15 @@
   - 書き手を fan_out の `join: all_done` で包んで落ちを run に数えない案は採らない（止めた Archon `355f1867` の `all_done` は落ちの印 providerFailure を落とすので、resume のやり直しが消える）。
 - 当て方: `docs/design.md` の「書き手のループが落ちた run（#702）」の行・`lib/runreport.py` の `writer_fell`・`note_writer_fell`・`lib/answer.py` の `resume`。筋書きは `tests/workflows/test_report.py` の `WriterRunCase`。
 
+### `deliver-via-archon-pr` PR を作る道は Archon に同梱の archon-pr に任せる
+
+- 持ち主の言葉: なし（issue #555 の 2026-10-17 のコメント「向きを変える（持ち主 2026-10-17 承認）」の要約）
+- 決め:
+  - 出口の語 `pr` の道は 2 つだけにする: 封じた差分の hash を照らした後に run の枝へ 1 つの commit を積む小さな自前の段と、Archon に同梱の `archon-pr` の子の run を起こす `workflow:` のノード。`archon-pr` は push・PR の作成・読み戻しの確かめ・既に在る PR の使い回しまで持つ（`asf-follows-dev`）。
+  - 自前の push と PR の道（gh を探す仕組みの写し・gh の旗の自前の解釈・push のフックを飛ばす処理）は作らない（`no-tool-quirks`・`concept-home`）。
+  - `archon-pr` の AI のノード prepare（どこへ出すか・題・本文を決めるだけ）には、今どおり読むだけの gh しか渡さない。書き込みの資格は script のノード publish が、入口の殻の `hostgh` の口で使う（`roles-read-only-gh`）。
+- 当て方: 根の `AGENTS.md` の E8 の外し（`workflow:` で呼んでよい Archon 同梱のグラフは `archon-pr` だけ）・`workflows/AGENTS.md` の E17・`workflows/merge/` の `pr-commit`・`pr-open`・`bin/_lib/launcher.py` と `workflows/.shared/fence.py` の役の PATH の頭。
+
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
 - 置き換えの条件: 今の works と同じ能力に届いたら置き換え、claude-plugins には `/works` の薄い入口だけを残す。根拠: 下の `superset` と `own-graph-alongside`。

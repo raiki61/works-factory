@@ -169,6 +169,8 @@ DETAIL_TITLE = promptsection.Section("# 報告の詳しい中身（人に向け�
 RAW_HEADING = promptsection.Section("## 書き手の本文（字のまま。人に向けた報告では語の表で言い換えた）", human=report.FOR_READERS)
 SWAPPED_HEAD = "人に向けた報告で語の表（lib/glossary.json）から言い換えた語と回数"
 APPLY_ASK = "差分を当ててよいか: "   # 報告の冒頭 2 行目の頭（head_lines）
+PR_MADE = "PR を作った: "              # 出口の語 pr の run の冒頭 2 行目（apply_said）
+PR_STOPPED = "PR を作らずに止めた: "
 PROTECTED_HITS_HEAD = "守りのパスに当たった差分"   # 行は先頭の数行と残りの 1 行（_hits）。件数は全件の数
 DECIDE_HEAD = "人が決めること: "      # 報告の冒頭 3 行目の頭（head_lines。件数の後ろに 1 件 1 行）
 STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "needs_human")   # 止まった run の結末（bin/apply が拒む）
@@ -1285,7 +1287,19 @@ def _apply_lines(returns: dict, gates: dict, outcome: str, stop_reason: str, run
 
 def apply_said(returns: dict, outcome: str, run_id: str, decisions: int) -> str:
     """冒頭の 2 行目の「差分を当ててよいか」の答え（_apply_lines と同じ道で bin/apply の打ち方を決め、結末と人が決めることの件数で
-    当ててよいかを言う）"""
+    当ててよいかを言う）。出口の語 pr の run は、頭に PR を作ったか・作らずに止めた訳を言う"""
+    handed = as_dict(as_dict(returns.get("applied-diff")).get("deliver"))
+    if handed.get("act") == "pr":
+        pr = as_dict(handed.get("pr"))
+        kind = "下書きの PR" if pr.get("is_draft") else "PR"
+        return f"{PR_MADE}{pr.get('url')}（{kind} #{pr.get('number')}。merge は対象のレビューと決まりに任せる）"
+    said = _apply_answer(returns, outcome, run_id, decisions)
+    if handed.get("act") == "stopped":
+        return f"{PR_STOPPED}{oneline.one_line(handed.get('reason') or '訳の記録が無い')}。{said}"
+    return said
+
+
+def _apply_answer(returns: dict, outcome: str, run_id: str, decisions: int) -> str:
     sealed, placed = _seal_state(returns)
     if not sealed:
         return "当てる差分が無い（差分を封じていない）"

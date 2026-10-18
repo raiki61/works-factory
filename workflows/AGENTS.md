@@ -71,8 +71,11 @@
 ## E17 対象のリポジトリには差分を置くだけ
 
 - merge サブグラフの既定は、封じた差分を run の置き場に置くだけ。対象のリポジトリに当てるのは人で、`bin/apply` が封じた hash を照らしてから当てる。PR を作る・merge する動きは、使う人が選んだ時だけ働く道にする。対象のリポジトリごとにレビューと merge の決まりと権限が違うため（持ち主の決め `diff-only-to-target`・`others-may-use`）。
-- ASF が PR を merge するのは、ASF がこのリポジトリ（works-factory）を作る時だけ。
-- 人が見る。
+- 選べる道は出口の語で選ぶ（入力 `deliver`。語の一覧は `lib/entry.py` の `DELIVERS` の 1 か所で、メイングラフと周の鎖の始めのノードが知らない語を AI の前で止める）。今の語は空（差分を置くだけ）と `pr`（PR まで）だけ。
+- `pr` の道は merge の中の 2 つだけで作る: 封じた hash を照らした後に run の枝へ 1 つの commit を積むノード `pr-commit`（積む所の照らしは周の commit と同じ `lib/runbranch.py`）と、Archon に同梱の `archon-pr` の子の run を起こす `workflow:` のノード `pr-open`。push と PR の作成と読み戻しは `archon-pr` の script のノード publish がし、題と本文を決める AI のノード prepare は書き込みをしない。自前の push・PR の道（gh を探す仕組み・gh の旗の解釈・push のフックの扱い）は作らない。
+- 工場は対象の既定の枝へは push しない: run の枝の名が対象の既定の枝（origin の HEAD が指す枝）と同じなら、commit も push もせずに止め、報告の冒頭に訳を出す。merge はしない（PR の merge は対象のレビューと決まりに任せる）。周の鎖の子の run は出口の語を空で受けて PR を作らず、PR は鎖の親が最後の差分を封じた後に 1 本だけ作る。
+- ASF が PR を merge するのは、ASF がこのリポジトリ（works-factory）を作る時だけ。運び役が works-factory 自身で順番待ちに積むのは、持ち主がこのリポジトリに限って許した運用で、工場の機能にはしない。
+- 機械: `tests/workflows/test_merge.py`（既定の空の語では commit と PR のノードが走らず渡し方は置いただけ・既定の枝と同じ名の run の枝では積まず push しない・PR の子の run が落ちても出力ノードは落ちずに訳を返す）・`tests/workflows/test_chain.py`（周の子は空の語・PR は親が 1 度だけ）。対象が守るほかの枝（既定の枝の外）は工場が forge を読まないので照らせない。そこは publish が force で push しないことに頼り、人が見る。
 
 ## E19 AI ノードの出し直しは Archon の retry で持つ
 

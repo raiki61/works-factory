@@ -1,4 +1,5 @@
-"""機能の切り替え（入力 features_off・features_on）の語と読み。元は今の works の works/.shared/core/entry.py の 420-514 行の塊。
+"""機能の切り替え（入力 features_off・features_on）の語と読み（元は今の works の works/.shared/core/entry.py の 420-514 行の塊）と、
+出口の語（入力 deliver）の一覧と読み。
 
 線の入口の節（workflows/line/scripts/start.py）が入力の語を確かめ、始めの記録に置き、ブロックへ渡す機能ごとの on・off・auto を作る。
 依頼の行の型（REQUEST_SCHEMA・request_problems）も入口の節が依頼のファイルを読む時に当てる。
@@ -115,6 +116,20 @@ def features_part(off, on=(), adds=()) -> str:
     """頭の行と報告の冒頭 2 の機能の語: on でない機能を語の順に「<機能> <off|auto>」で並べる（全部 on なら「機能: 全部 on」）"""
     rest = [f"{k} {v}" for k, v in feature_words(off, on, adds).items() if v != SWITCH_ON]
     return f"機能: {'・'.join(rest)}" if rest else "機能: 全部 on"
+
+
+# 出口の語（入力 deliver。対象へどう渡すか）。空は封じた差分を run の置き場に置くだけ（既定。持ち主の決め diff-only-to-target）、
+# pr は run の枝に積んで PR まで作る（対象の既定の枝へは push しない・merge しない）。メイングラフと周の鎖の始めのノードと merge が読む
+DELIVER_DIFF, DELIVER_PR = "", "pr"
+DELIVERS = (DELIVER_DIFF, DELIVER_PR)
+
+
+def deliver_word(word: str) -> str:
+    """入力 deliver の語（前後の空白を除く）。DELIVERS の外の語は InputRefused"""
+    word = (word or "").strip()
+    if word not in DELIVERS:
+        raise InputRefused(f"deliver={word!r} は知らない語（空か {DELIVER_PR}）")
+    return word
 
 
 # 元 works/.shared/core/graphloops/rules/review-loop.py 90-96 行（依頼の周ごとのバッチの一覧の型。字は元のまま）

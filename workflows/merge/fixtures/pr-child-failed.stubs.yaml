@@ -1,0 +1,30 @@
+# 出口の語 pr で、PR を作る子の run が落ちた時: pr-open に stub を置かない（dry-run は stub の無い workflow: のノードを落とす）。
+# 読み戻しの節は飛び、返す節は落ちずに作らずに止めた訳を返す
+place:
+  mode: apply
+  ok: true
+  hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  diff: { type: archon_artifact, run_id: fixture-run, path: merge/apply.diff }
+  protected_hits: null
+  protected_count: null
+  reason: ""
+  base_rev: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  deliver: pr
+pr-commit:
+  go: true
+  head: "cccccccccccccccccccccccccccccccccccccccc"
+  branch: archon/task-fixture
+  base: main
+  context: works-factory の run fixture-run が確かめて封じた差分を積んだ
+  reason: ""
+fixture:
+  expect: "failed"
+  fail-node: "pr-open"
+  reached: [place, pr-commit, merge]
+  inputs:
+    mode: apply
+    start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
+    sealed_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    answer: '{"decision":"approve","text":""}'
+    deliver: pr
+exec-code: true

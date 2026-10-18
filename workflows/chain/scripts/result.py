@@ -13,11 +13,13 @@ request・決めの act・word・text）を返す。closed は止めの語が cl
 表 chain.md のポインタ。
 final-diff が落ちた・飛ばされた時は、どれも null（outcome は空・spec_questions は 0）。stop_reason は最後の差分を置いていない訳（final-diff の
 reason か apply の reason。落ちた・飛ばされた時はそう書く）で、bin/apply が拒む時に名指す。
+deliver は出口の語 pr の時だけ、PR を作った（act: pr と pr の在りか）か作らずに止めた訳（act: stopped）。渡しのブロック hand の返りの
+欄 deliver をそのまま載せ、hand が走らなかった時は訳を組む（最後の差分を置いていない訳など）。出口の語が空なら null。
 最後の決めが launch なのに次の決めが無い時は、次の周の子の run が落ちた（親の周のノードが落ち、後ろが飛んだ）ので act: wait と
 続け方を返す。
 lib を読まない。落ちない: 境の口を読めない時も、標準ライブラリだけで返す。
 
-入力（with:）: start（chain-start の出力）・final（final-diff の出力）・d1〜d<周の数の上限>（round-k-decide の出力。番号の順に読む。どれも `{from, if_skipped: null}`）
+入力（with:）: start（chain-start の出力）・final（final-diff の出力）・hand（渡しのブロックの返りの欄 deliver。`{from, if_skipped: null}`）・d1〜d<周の数の上限>（round-k-decide の出力。番号の順に読む。どれも `{from, if_skipped: null}`）
 """
 import json
 import os
@@ -33,6 +35,7 @@ except Exception as error:   # 出力ノードは落ちない（上の docstring
     boundary, unread = None, error
 
 CLOSED = "closed"
+PR = "pr"   # 出口の語（lib/entry.py の DELIVER_PR。result は lib を読まないので字で持ち、試験が同じことを縛る）
 FINAL = ("apply", "sealed", "report", "r2_status")
 DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ。final_diff.py も同じ読み（試験が縛る）
 
@@ -50,7 +53,20 @@ def from_final(final) -> dict:
             **{key: got.get(key) for key in FINAL}}
 
 
-def result(start, final, decisions: list) -> dict:
+def delivered(start: dict, final, hand):
+    if start.get("deliver") != PR:
+        return None
+    if isinstance(hand, dict):
+        return hand
+    got = final if isinstance(final, dict) else {}
+    if got.get("placed") is not True:
+        why = f"最後の差分を置いていない（{from_final(final)['stop_reason'] or '訳の記録が無い'}）"
+    else:
+        why = "PR を作る渡しのサブグラフ hand の出力が無い（落ちたか飛ばされた）"
+    return {"act": "stopped", "pr": None, "reason": why}
+
+
+def result(start, final, decisions: list, hand=None) -> dict:
     if not isinstance(start, dict) or start.get("ok") is not True:
         reason = start.get("reason") if isinstance(start, dict) else "chain-start の出力が無い"
         return fallback(reason or "chain-start が鎖を受けなかった")
@@ -63,12 +79,13 @@ def result(start, final, decisions: list) -> dict:
         text = (f"{len(made) + 1} 周目の子の run か、その周のノードが落ちた。親の run を resume すると Archon が落ちた子を 1 度"
                 "起こし直す")
     return {"closed": word == CLOSED, "ok": True, "reason": "", "act": act, "word": word, "text": text,
-            "request": rows[-1].get("request") or "" if rows else "", "rounds": rows, **from_final(final)}
+            "request": rows[-1].get("request") or "" if rows else "", "rounds": rows, **from_final(final),
+            "deliver": delivered(start, final, hand)}
 
 
 def fallback(reason: str) -> dict:
     return {"closed": False, "ok": False, "reason": reason, "act": "refused", "word": "", "text": reason, "request": "",
-            "rounds": [], **from_final(None)}
+            "rounds": [], **from_final(None), "deliver": None}
 
 
 def main() -> None:
@@ -80,7 +97,7 @@ def main() -> None:
         names = sorted(filter(DECISION.fullmatch, os.environ), key=lambda name: int(name[len("INPUTS_D"):]))
         decisions = [os.environ[name] for name in names]
         boundary.run(lambda: result(boundary.value(os.environ.get("INPUTS_START")), boundary.value(os.environ.get("INPUTS_FINAL")),
-                                    [boundary.value(d) for d in decisions]), fallback)
+                                    [boundary.value(d) for d in decisions], boundary.value(os.environ.get("INPUTS_HAND"))), fallback)
 
 
 if __name__ == "__main__":
