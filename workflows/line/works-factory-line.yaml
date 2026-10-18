@@ -219,7 +219,7 @@ nodes:
     depends_on: [design-only]
     with:
       got: "$design-only.output"
-      names: "pass stalled review design gate_axes ask_human questions gave_up"
+      names: "pass stalled review gate_passes gate design design_premises gate_axes ask_human questions gave_up"
 
   # 5 計画の往復。中の節は外から見えないので、本体の終わりの返しの節 plan-out が返りを欄ごとに受けて返す
   - id: plan-rounds
@@ -293,15 +293,18 @@ nodes:
               pass: {}
               stalled: {}
               review: {}
+              gate_passes: {}
+              gate: {}
               design: {}
+              design_premises: {}
               gate_axes: {}
               ask_human: {}
               questions: {}
               nothing_owed: { type: boolean }
               done: { type: boolean }
               stop_reason: { type: string }
-            required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, gave_up, optional, pass, stalled, review, design,
-                       gate_axes, ask_human, questions, nothing_owed, done, stop_reason]
+            required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, gave_up, optional, pass, stalled, review, gate_passes,
+                       gate, design, design_premises, gate_axes, ask_human, questions, nothing_owed, done, stop_reason]
           mutates_checkout: false
           depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success
@@ -321,7 +324,10 @@ nodes:
             pass: { from: "$plan-review-run.output.pass", if_skipped: null }
             stalled: { from: "$plan-review-run.output.stalled", if_skipped: null }
             review: { from: "$plan-review-run.output.review", if_skipped: null }
+            gate_passes: { from: "$plan-review-run.output.gate_passes", if_skipped: null }
+            gate: { from: "$plan-review-run.output.gate", if_skipped: null }
             design: { from: "$plan-review-run.output.design", if_skipped: null }
+            design_premises: { from: "$plan-review-run.output.design_premises", if_skipped: null }
             gate_axes: { from: "$plan-review-run.output.gate_axes", if_skipped: null }
             ask_human: { from: "$plan-review-run.output.ask_human", if_skipped: null }
             questions: { from: "$plan-review-run.output.questions", if_skipped: null }
@@ -338,7 +344,7 @@ nodes:
     depends_on: [plan-rounds]
     with:
       got: "$plan-rounds.output"
-      names: "pass stalled review design gate_axes ask_human questions"
+      names: "pass stalled review gate_passes gate design design_premises gate_axes ask_human questions"
 
   # 6 修正前の関所
   - id: ask-before-fix
@@ -429,7 +435,10 @@ nodes:
         structure: {}
         fix_plan: {}
         review: {}
+        gate_passes: {}
+        gate: {}
         design: {}
+        design_premises: {}
         questions: {}
         answer: {}
         deferred: { type: array }
@@ -437,7 +446,7 @@ nodes:
         stop_reason: { type: string }
       required: [go, baseline, units, judgment, purpose, world, spec, rejudge_verdict, premises, verify, pr_excluded, materials,
                  purpose_review, depth_record, decisions, answer_ties, purpose_means, plan, ripple, depth, head_depth, structure,
-                 fix_plan, review, design, questions, answer, deferred, received, stop_reason]
+                 fix_plan, review, gate_passes, gate, design, design_premises, questions, answer, deferred, received, stop_reason]
     mutates_checkout: false
     depends_on: [answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix]
@@ -557,7 +566,7 @@ nodes:
     depends_on: [replan-review]
     with:
       got: "$replan-review.output"
-      names: "pass stalled review design gate_axes ask_human questions gave_up"
+      names: "pass stalled review gate_passes gate design design_premises gate_axes ask_human questions gave_up"
 
   - id: ask-replan
     script: ask_replan
@@ -674,13 +683,14 @@ nodes:
         plan: {}
         ripple: {}
         design: {}
+        design_premises: {}
         plan_questions: {}
         answer: {}
         no_fix: { type: boolean }
         stop_reason: { type: string }
       required: [units, groups, conflicts, replan_items, objection, diff, records, allowed_test_changes, changed, x_scalars, delta_review,
                  handoffs, mismatched, plan_declared,
-                 done, go, rejudge, refixed, plan, ripple, design, plan_questions, answer, no_fix, stop_reason]
+                 done, go, rejudge, refixed, plan, ripple, design, design_premises, plan_questions, answer, no_fix, stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, refix-run, replan-out, design-only]
     trigger_rule: none_failed_min_one_success
@@ -693,9 +703,11 @@ nodes:
       ripple: { from: "$fix-in.output.ripple", if_skipped: null }
       replanned: { from: "$replan-out.output.got", if_skipped: null }
       design: { from: "$fix-in.output.design", if_skipped: null }
+      design_premises: { from: "$fix-in.output.design_premises", if_skipped: null }
       plan_questions: { from: "$fix-in.output.questions", if_skipped: null }
       answer: { from: "$fix-in.output.answer", if_skipped: null }
       no_fix_design: { from: "$design-only.output.design", if_skipped: null }
+      no_fix_design_premises: { from: "$design-only.output.design_premises", if_skipped: null }
 
   # 7b 承認済みの受け入れ条件のテストの照らし（spec=on の run だけ中身が在る。spec=on なのに判定の指しが無ければ問う）
   - id: spec-check
@@ -841,6 +853,7 @@ nodes:
       depth: "$redepth.output.depth"
       head_depth: "$fix-in.output.head_depth"
       design: "$fixed.output.design"
+      design_premises: "$fixed.output.design_premises"
       changed: "$fixed.output.changed"
       x_scalars: "$fixed.output.x_scalars"
       fix_units: "$fixed.output.units"
@@ -862,7 +875,7 @@ nodes:
     depends_on: [eyes]
     with:
       got: "$eyes.output"
-      names: "ok r1 r2 r3 r4 questions premise_check structure_after protected_hits notes"
+      names: "ok r1 r2 r3 r4 questions premise_check structure_after protected_hits notes r4_passes premise_reply"
 
   # 10 封じる
   - id: merge-seal
@@ -928,8 +941,12 @@ nodes:
       replan_answer: { from: "$answer-replan.output.answer", if_skipped: null }
       replan_gate: gate-replan
       widened: { from: "$ask-replan.output.widened", if_skipped: null }
-      plan_review: { from: "$fix-in.output.review", if_skipped: null }
+      review: { from: "$fix-in.output.review", if_skipped: null }
+      review_passes: { from: "$fix-in.output.gate_passes", if_skipped: null }
+      review_gate: { from: "$fix-in.output.gate", if_skipped: null }
       replan_review: { from: "$replan-review.output.review", if_skipped: null }
+      replan_review_passes: { from: "$replan-review.output.gate_passes", if_skipped: null }
+      replan_review_gate: { from: "$replan-review.output.gate", if_skipped: null }
       start: "$start.output.record"
       before_fix_answer: { from: "$fix-in.output.answer", if_skipped: null }
       spec_changed: { from: "$spec-check.output.questions", if_skipped: [] }

@@ -151,3 +151,5 @@ verdict:
   protected_hits:
   - lib/protect.py
   notes: null
+  r4_passes: null
+  premise_reply: null

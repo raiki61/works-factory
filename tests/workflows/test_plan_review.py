@@ -84,7 +84,9 @@ ORIGINAL_UNITS_LINE = ("直す単位（各行の `no` は engine が振った番
 ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null",
                 "round_limit": "null", "mode": "", "head_depth": "", "premises": "null", "materials": "null", "pr_excluded": "null",
                 "purpose_review": "null", "decisions": "null", "purpose_means": "null", "fix_plan": "null", "plan_rejects": "[]"}
-RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions", "gave_up")
+RETURN_FIELDS = ("pass", "stalled", "review", "gate_passes", "gate", "design", "design_premises", "gate_axes", "ask_human", "questions",
+                 "gave_up")
+POINTED = ("review", "gate_passes", "gate", "design")   # 返りの必ず在るポインタの欄（design_premises は null が在る）
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
 
@@ -404,9 +406,10 @@ class YamlCase(unittest.TestCase):
             self.assertEqual(props[name], {"type": "boolean"})
         self.assertEqual(props["questions"], {"type": "array", "items": {"type": "object", "additionalProperties": False, "required": ["kind", "text"],
                                                            "properties": {"kind": {"type": "string"}, "text": {"type": "string"}}}})
-        for name in ("review", "design"):
+        for name in POINTED:
             self.assertEqual(props[name]["properties"]["type"]["enum"], ["archon_artifact"])
             self.assertEqual(sorted(props[name]["required"]), ["path", "run_id", "type"])
+        self.assertEqual(props["design_premises"], {"anyOf": [props["design"], {"type": "null"}]})
         axes = props["gate_axes"]
         self.assertEqual(sorted(axes["required"]), sorted(boardview.gate_axes.AXES))
         for axis in boardview.gate_axes.AXES:
@@ -946,6 +949,7 @@ class DesignCase(RunCase):
         self.assertTrue(got["pass"], got)
         missing = json.loads(r.pointed(got["design"]).read_text(encoding="utf-8"))
         self.assertIn("拒まれた", missing["missing"])
+        self.assertIsNone(got["design_premises"], "設計が無い訳の控えの隣には貼った物の控えが無い")
 
     def test_off_schema_reply_names_the_type_error(self):
         """独立設計の返答の型は節 r2-design の output_format だけが持ち（Claude Code が節の中で照らして出し直させる）、型の誤りは
@@ -1059,7 +1063,10 @@ class NoFixDesignCase(RunCase):
         out = r.out("result")
         self.assertEqual((out["pass"], out["stalled"], out["ask_human"], out["questions"]), (True, False, False, []), out)
         self.assertEqual(json.loads(r.pointed(out["design"]).read_text(encoding="utf-8")), DESIGN_OK)
+        self.assertEqual(r.pointed(out["design_premises"]), r.pointed(out["design"]).with_name(boardview.PREMISES_FILE))
         self.assertEqual(json.loads(r.pointed(out["review"]).read_text(encoding="utf-8"))["faces"], [])
+        self.assertEqual(json.loads(r.pointed(out["gate_passes"]).read_text(encoding="utf-8")), [])
+        self.assertEqual(json.loads(r.pointed(out["gate"]).read_text(encoding="utf-8")), {"items": [], "converge": []})
         self.assertTrue(all(axis["ok"] for axis in out["gate_axes"].values()), out["gate_axes"])
         self.assertEqual(workflow()["inputs"]["mode"]["default"], "")
 
@@ -3319,7 +3326,7 @@ class GateFromPlanCase(RunCase):
         got = r.pass_(review())
         self.assertFalse(got["ask_human"], got)
         self.assertEqual(got["gate_axes"], {a: {"ok": True, "note": ""} for a in boardview.gate_axes.AXES})
-        passes = json.loads((r.pointed(got["review"]).parent / boardview.PASSES_FILE).read_text(encoding="utf-8"))
+        passes = json.loads(r.pointed(got["gate_passes"]).read_text(encoding="utf-8"))
         self.assertEqual([(p["by"], p["decided_by"]) for p in passes], [(gatemarks.PASSED_BY, decided["decided_by"])])
         r.plan([item(UNIT_MEAN, 1, narrows=[{**decided, "undecided_because": "世界の解が 2 つに割れる"}]), item(UNIT_CLAMP, 2)],
                rnd=2)
@@ -3374,7 +3381,7 @@ class ResultCase(RunCase):
 
     def check(self, got):
         self.assertEqual(validate_schema(got, nodes()["review"]["output_format"]), [], got)
-        for name in ("review", "design"):
+        for name in POINTED:
             self.run_.assert_pointer(got[name])
 
     def test_result_matches_the_output_format(self):
@@ -3389,7 +3396,7 @@ class ResultCase(RunCase):
         self.run_.start(features_off=["review_tree"])
         got = self.run_.pass_(review(face("regression-face-ask", kind="regression", severity="suggest")))
         self.assertEqual([q["kind"] for q in got["questions"]], ["regression"], got["questions"])
-        gate = json.loads((self.run_.pointed(got["review"]).parent / boardview.GATE_FILE).read_text(encoding="utf-8"))
+        gate = json.loads(self.run_.pointed(got["gate"]).read_text(encoding="utf-8"))
         self.assertEqual(got["questions"], [gatemarks.question_row(i["kind"], i["text"]) for i in gate["items"]])
 
     def test_tampered_fields_reason_reaches_the_return(self):
@@ -3417,7 +3424,7 @@ class ResultCase(RunCase):
         r.open()
         pol.write_text("# 方針\n- 公開の口を減らさない\n- 足した\n", encoding="utf-8")
         got = r.pass_(review())
-        gate = json.loads((r.pointed(got["review"]).parent / gatemarks.PLAN_GATE_FILE).read_text(encoding="utf-8"))
+        gate = json.loads(r.pointed(got["gate"]).read_text(encoding="utf-8"))
         self.assertEqual([x["kind"] for x in gate["items"]], ["regression", boardview.POLICY_CHANGED])
         self.assertEqual([x["text"] for x in gate["items"]], texts(got))
         self.assertIn("converge", gate)
@@ -3512,9 +3519,11 @@ class FailSafeCase(RunCase):
         self.assertEqual(validate_schema(got, nodes()["review"]["output_format"]), [], got)
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
         self.assertTrue(texts(got)[0].startswith("出力ノードが落ちた: "), texts(got))
-        for name in ("review", "design"):
+        for name in POINTED:
             r.assert_pointer(got[name])
-        passes = r.pointed(got["review"]).with_name(boardview.PASSES_FILE)
+        self.assertIsNone(got["design_premises"])
+        passes = r.pointed(got["gate_passes"])
+        self.assertEqual(passes, r.pointed(got["review"]).with_name(boardview.PASSES_FILE))
         self.assertEqual(json.loads(passes.read_text(encoding="utf-8")), [])
 
     def test_failed_return_writes_the_passes_beside_the_review(self):
