@@ -323,10 +323,20 @@
 - 持ち主の言葉（2026-10-16、issue #628）: 「柔軟に変えれるようにして私もいいと思うよ。sakanaのように。」
 - 決め:
   - run ごとにノード群の模型と effort を替えられる。何も選ばなければ群の既定の値で走り、呼ぶ人の `--model @wf-<群>=<spec>` が何よりも勝つ。
-  - 頭の深さの役 `head-depth` の選びは、照らしを通った行だけを控え、外れた行は群の既定に戻す。今の Archon は run の中で後のノードの模型を付け替える口を持たないので、役の選びは記録だけにして効かせない（`docs/polyfills.md` の「候補（まだ埋めでない）: run の中で後のノードの模型と effort を付け替える口」）。
+  - 頭の深さの役 `head-depth` の選びは、照らしを通った行だけを控え、外れた行は群の既定に戻す。今の Archon は run の中で後のノードの模型を付け替える口を持たないので、役の選びは記録だけにして効かせない（`docs/polyfills.md` の「候補（まだ埋めでない）: run の中で後のノードの模型と effort を付け替える口」）。#628 の「上げる向きはすぐ選べてよい」も、子の run と次の周を含めて記録だけに留める（下の `head-choice-record-only`）。
   - 下げる向きは、過去の run の数え直しと並べて回した測りで質が落ちないと分かるまで、既定にしない。
   - 群の値を替えうる層は強い順に、呼ぶ人の `--model` > `--config`（run 1 本ぶんの設定の層）> 利用者の AI の好み > 対象の repo の `.archon/config.yaml` > 家の設定。群の別名は殻が新しい run の `--config` で渡すので、対象の repo の `.archon/config.yaml` が工場の群と同じ名の alias を書いても群の値は替わらない（審査される側の repo が審査する役の模型と effort を下げられない。PR #658 の修理の依頼 1）。
 - 当て方: 群の既定は `lib/launchgroups.py` の `GROUPS` が持ち、`bin/_lib/place.py` の `run_config` がその表から run 1 本ぶんの設定の層を書き、`bin/_lib/launcher.py` が新しい run にだけ `--config` で渡す。利用者の `--config` はその層に合わせ、同じ名の群の別名は工場の値が勝つ。`--adopt` の run の層には群の別名を足さない（Archon が記録した run の AI の設定を受け継ぎ、`aliases` を持つ層を拒む）。resume は Archon が起動の時に封じた層を戻し、`workflow:` の子の run は親の記録を受け継ぐ。`--model` の `@wf-` の名が表に無ければ殻が起こす前に止める。ノードは `model: '@wf-<群>'` だけを書き、役にもグラフの頭にも effort を書かない（`workflows/AGENTS.md` の E7。柵は `tests/layers/scan.py`）。役の選びの照らしは `lib/launchgroups.py` の `choices` で、控えは `judge/depth-head.json` の `groups`。報告は `## 模型` のセクション（`lib/headdepth.py` の `groups_lines`）。
+
+### `head-choice-record-only` 頭の深さの役の模型と effort の選びは、上げる向きも下げる向きも記録だけにし、走りには効かせない
+
+- 持ち主の言葉: 「おしで」（2026-10-18。issue #659 の扱いで、推しの案 A〔上げる向きも下げる向きも記録だけ〕を選んだ）
+- 決め:
+  - 頭の深さの役 `head-depth` が選ぶ模型と effort は、上げる向きも下げる向きも控えと報告に残すだけで、その run にも、子の run にも、周の鎖の次の周にも効かせない。#628 の決め「上げる向きはすぐ選べてよい」（`run-model-choice`）を、この形に狭める。
+  - 訳: Archon には子の run ごとに模型を替える口が無い。子の run を起こすノード（`workflow:`）に、子の模型・effort・設定の欄が無く、子は親が起動の時に取った設定の写しを受け継ぐ（#659 のコメント。止めた版 `64ec0c2e` にも upstream の dev の頭 `a972888a` にも無いと、#636 の計画〔#636 の枝の `docs/plans/2026-10-18-archon-upstream.md` の (a)〕が確かめた）。
+  - 工場の script が周ごとに別の run を `--config` 付きで起こす道は取らない。今の鎖が Archon に任せている子の待ち・承認・resume・費用の合計の 4 つを落とすため。
+  - 走りの模型と effort を替えるのは、呼ぶ人が run を起こす時の `--model @wf-<群>=<spec>` だけ。`--config` に書いた群の別名は殻が工場の値で上書きする（`bin/_lib/launcher.py` の `run_config`）。`<spec>` に模型の名だけを書くと、群の effort は外れる（止めた版の `resolveRunOverrideSpec` は provider と模型だけの組を作る）。effort も替えるには、effort を持つ別名 `@<名>`（工場の別の群か、利用者の `--config` に書いた工場の群でない別名）を `<spec>` に書く。
+- 当て方: 報告の `## 模型` のセクションの 1 行（`lib/headdepth.py` の `RUN_SWITCH`。役の材料に貼る記録だけの 1 文は `lib/launchgroups.py` の `RECORD_ONLY`）。試験は `lib/tests/test_headdepth.py`（上げ・下げの両方で報告の 1 行）・`tests/bin/test_place.py`（起動の層を組む `bin/` の下のどのファイルも `lib.headdepth` を import せず、控えのファイルの名を持たない）・`tests/workflows/test_nodeflags.py`（子の run を起こすノードが模型・effort・設定の欄を持たず、頭の深さの控えを子へ渡さない）。Archon に子の run ごとに模型を替える口が入れば、この決めを見直す（`docs/polyfills.md` の候補）。
 
 ### `target-user-env` 対象のコマンドだけ利用者の HOME・XDG で走らせる。旗は持たない
 
