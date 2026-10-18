@@ -39,6 +39,9 @@ FENCE = ROOT / "workflows" / ".shared" / "fence.py"
 # 包みが印の在る起動を書く記録（fence.py の RECORDS_ENV と同じ名）。子の env に置くと、run が包みを通ると script のノードに宣言する
 FENCE_RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"
 FENCE_RECORDS = "launches.jsonl"
+# TDD の実行器の取り置きの根を script のノードに渡す名（workflows/.shared/boundary.py の SUITE_KEEP_ENV と同じ名）
+SUITE_KEEP_ENV = "WORKS_FACTORY_SUITE_KEEP"
+SUITE_KEEP = "suites"
 # run の中のノードが殻を入れ子にせず同じ Archon を起こす命令の頭を置く名（名の持ち主は読む側の埋め P7）
 ARCHON_CLI_ENV = place.shared("childsweep").CLI_ENV
 CLAUDE_BIN_ENV = "CLAUDE_BIN_PATH"   # Archon が起こす claude の実行ファイル（packages/providers/src/claude/binary-resolver.ts）
@@ -142,7 +145,10 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         install_toolset(child, target, filled_config, claude=real if not no_auth else None)
     if executing:
         sweep_logs(child["CLAUDE_CONFIG_DIR"])
-        child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache)
+        keep = suite_keep(user)
+        keep.mkdir(parents=True, exist_ok=True)
+        child[SUITE_KEEP_ENV] = str(keep)
+        child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache, keep)
         child[FENCE_RECORDS_ENV] = str(fence_records(home))
 
     if workflow is None:
@@ -305,12 +311,26 @@ def run_home(user: Mapping[str, str], target: Path) -> Path:
         refuse_sandbox_writable(HOME_ENV, chosen)
         refuse_in_factory(HOME_ENV, chosen)
         return Path(chosen)
-    state = user.get("XDG_STATE_HOME") or str(Path(user["HOME"]) / ".local" / "state")
-    home = Path(state) / NAME / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
+    home = factory_state(user) / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
     what = "XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME"
     refuse_sandbox_writable(what, home)
     refuse_in_factory(what, home)
     return home
+
+
+def factory_state(user: Mapping[str, str]) -> Path:
+    """家を選ばない起動の、利用者ごとの工場の置き場（隔離の前の XDG_STATE_HOME の下）"""
+    return Path(user.get("XDG_STATE_HOME") or str(Path(user["HOME"]) / ".local" / "state")) / NAME
+
+
+def suite_keep(user: Mapping[str, str]) -> Path:
+    """TDD の実行器の取り置きの根（持ち主の決め suite-by-ai）。利用者ごとに 1 つで、対象をまたいで使い回す。選んだ家の下か、
+    家を選ばない起動では対象ごとの家（targets/）の兄弟"""
+    chosen = user.get(HOME_ENV)
+    keep = (Path(chosen) if chosen else factory_state(user)) / SUITE_KEEP
+    refuse_sandbox_writable("TDD の実行器の取り置き", keep)
+    refuse_in_factory("TDD の実行器の取り置き", keep)
+    return keep
 
 
 def sandbox_writable(path) -> bool:
@@ -366,17 +386,17 @@ def names_key(path: Path, key: str) -> bool:
     return any(re.match(rf"\s*(?:export\s+)?{re.escape(key)}\s*[=:]", line) for line in text.splitlines())
 
 
-def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path) -> str:
+def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, keep: Path) -> str:
     """Archon が役を起こす claude の前に置く包み（埋め P5。workflows/.shared/fence.py）の殻を書き、そのパスを返す。値は env でなく
     殻に焼く（Archon は claude に渡す env を掃除する）。-B は Archon がバイトで照らす workflows/ に __pycache__ を作らないため。
     --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude）と、
-    次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・工場の checkout の根 ROOT 全体）。根は丸ごと禁じる。bin/works-factory は
+    次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・TDD の実行器の取り置き keep・工場の checkout の根 ROOT 全体）。根は丸ごと禁じる。bin/works-factory は
     ROOT を import の先頭に置くので、根に新しく置いた shlex.py や bin.py が次の起動の import に勝つ。
     本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）。
     --records は印の在る起動の記録（fence_records。--own の top の下なので役は書き換えられない）"""
     top = home / FENCE_DIR
     real = os.path.realpath(real)
-    own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache, ROOT]
+    own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache, keep, ROOT]
     body = ("#!/bin/sh\n"
             "# works-factory の起動（bin/_lib/launcher.py）が書いた包み: 読むだけの役の claude の sandbox に、起こす直前に組んだ\n"
             "# 書き込みを禁じるパスの一覧を足す\n"

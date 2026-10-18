@@ -4,6 +4,7 @@
 # ///
 """節 run: 走らせる前の指紋を取り、走らせ方を機械で決めて走らせ（declared_checks.run_ci）、tdd_suite が在れば一式を 1 回走らせて
 1 件ごとの結末を足し、走らせた後の指紋を取る。結果の全部は test-gate/<mode>/run.json に書き、節の返りは output_format の欄だけ。
+返りの suite_owed は、この後に TDD の実行器を用意するか（suitewrite.need。tdd_suite を省いた run の base）。
 base は同じ run の中の試験の結果の控え（入力 reuse_dir。run の名は始めの記録の run_id）を引いて置く。
 fix の TDD の輪の頭が同じ控えを引く。final は引かず置かない（最後のテストは省かない）。旗 tree_run.RERUN_ENV が立てば引かない。
 テストを起こす前に Archon の変数を落とす（対象のテストに継がせず、節ごとに違う値で控えの指紋を割らない）。利用者の HOME・XDG に戻して
@@ -27,6 +28,7 @@ import checkscope  # noqa: E402
 import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
 import startrec  # noqa: E402
+import suitewrite  # noqa: E402
 import tree_run  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
@@ -112,7 +114,7 @@ def main() -> int:
         return 1
     doc = {"mode": mode, "base_rev": base_rev, **ci, "suite": ran, "fingerprint_before": before, "fingerprint_after": after}
     (gate / declared_checks.RUN_FILE).write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    boundary.returns({k: doc[k] for k in OUTPUT})
+    boundary.returns({**{k: doc[k] for k in OUTPUT}, "suite_owed": suitewrite.need(start, mode)})
     return 0
 
 
