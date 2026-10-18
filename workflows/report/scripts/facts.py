@@ -107,18 +107,6 @@ def _include(node_id: str) -> str:
     return head if sep else ""
 
 
-def own_prefix(execution: str) -> str:
-    """自分の節の実行の記録（ARCHON_NODE_EXECUTION の JSON）の path から、自分の include の名前空間の節の id の頭（節の id の
-    最後の __ まで。入れ子の include の節の id は outer__inner__node なので outer__inner__。include の外の節なら空）"""
-    try:
-        doc = json.loads(execution) if execution else {}
-    except ValueError:
-        return ""
-    path = doc.get("path") if isinstance(doc, dict) else None
-    head = path.rsplit(".", 1)[-1].rpartition("__")[0] if isinstance(path, str) else ""
-    return f"{head}__" if head else ""
-
-
 def listing(listing_file: str, artifacts_dir: str, run_id: str, execution: str = "") -> dict:
     """{by_type: {型: [{include, loop, node, path, produced_at, body}]}, warnings: [文]}。body は中身の JSON（読めなければ None と
     注意）。ほかの run の行と自分の include の名前空間の行は数えない。一覧の errors は 1 件ずつ warnings に入れる"""
@@ -150,7 +138,7 @@ def listing(listing_file: str, artifacts_dir: str, run_id: str, execution: str =
     if not isinstance(by_type, dict):
         warn(f"型つきの成果物の一覧 {listing_file} の artifactsByType がオブジェクトでない")
         return out
-    own = own_prefix(execution)
+    own = boundary.own_prefix(execution)
     for kind, entries in by_type.items():
         if not isinstance(entries, list):
             warn(f"型つきの成果物の一覧の artifactsByType['{kind}'] が配列でない")
@@ -288,7 +276,7 @@ def main() -> dict:
     rows, transcript_why = boundary.transcript()
     typed_listing = read_listing()
     typed_listing["warnings"] = [*notes, *typed_listing["warnings"], *([transcript_why] if transcript_why else [])]
-    facts = runreport.transcript_facts(rows, exclude_prefix=own_prefix(os.environ.get("ARCHON_NODE_EXECUTION", "")),
+    facts = runreport.transcript_facts(rows, exclude_prefix=boundary.own_prefix(os.environ.get("ARCHON_NODE_EXECUTION", "")),
                                        optional=[x for x in line["optional"] if isinstance(x, str)])
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
                                                       "failed": facts["failed"], **runreport.outcome_facts(start, facts, line)})

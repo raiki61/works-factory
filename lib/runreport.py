@@ -25,6 +25,8 @@
 - cold_body(raw, *, out_dir)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start):
   書き手の返答の受け付けと、人に向けた報告（AI_REPORT_FILE）と詳細のファイル（DETAIL_FILE。元 report_roles.py の write_cold_prep・
   accept・collect・stamp）。line_budget(decisions): 人に向けた報告の行の上限
+- writer_fell(rows, step)・note_writer_fell(machine, fell, *, run_id): 書き手のループが落ちたか（run の記録の行から）と、その訳を
+  機械の報告の冒頭に置く 1 行
 """
 from __future__ import annotations
 
@@ -88,6 +90,11 @@ UNWRITTEN = "report-unwritten.md"       # 報告を組めない時の機械の�
 AI_FILE = "ai.json"                     # 受け付けた書き手の返答と初見の判定（collect が読む）
 AI_REPORT_FILE = "report-ai.md"         # 人に向けた報告（元 report_roles.REPORT_NAME の AI の報告）
 DETAIL_FILE = "report-detail.md"        # 人に向けた報告から外した詳しい中身（書き手の本文の字のまま・言い換えた語・機械の事実）
+# 書き手のループが落ちて AI の本文が無い訳の 1 行（note_writer_fell。行の頭で前の周に置いた行を見分ける）
+WRITER_FELL = "AI が書く報告の本文は無い。書き手のノードが落ちた（{error}）。この機械の報告が報告の全部"
+WRITER_QUOTA = ("。使用枠が切れて落ちたので、別のアカウントで run を resume すれば本文を書き直して報告に載せる"
+                "（{command}。周の鎖 works-factory-chain が起こした run なら、この run でなく鎖の run を resume する）")
+QUOTA_CLASS = "quota_exhausted"         # 実行基盤の provider の落ちの種のうち、使用枠が切れた物
 NOTE_ROUND = "r{n}"                     # 周ごとのフォルダ（拒んだ回の書き手の引き継ぎのメモを置く。n は輪の今の回 rolekit.attempt）
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
 # 初見の読み手（report.cold_check）の返答の型。型の正本は工程の cold の節の output_format で、これと同じかを試験が縛る
@@ -2019,6 +2026,37 @@ def accept(reply, cold, *, out_dir) -> dict:
     return {"done": out["done"], "ok": False, "reason": out["reason"], "kind": out.get("kind") or "answer",
             "reason_file": rolekit.reject_file_or_blank(out_dir, REPORT_NODE),
             "prev_file": str(answer) if not out["done"] and answer.is_file() else ""}
+
+
+def writer_fell(rows, step: str) -> dict | None:
+    """run の記録の行（transcript_facts と同じ行）で、書き手のループの節 step の最後の行が node_error なら
+    {error: 誤りの文の 1 行目, quota: 使用枠が切れて落ちたか（行の execution.lifecycle.providerFailure の種）}。済んだ・飛ばされた・
+    行が無い・記録が読めない（rows が None）なら None。resume で書き直した run は最後の行が済んだ行なので None"""
+    last = None
+    for r in rows or ():
+        if isinstance(r, dict) and r.get("step") == step and r.get("type") in (*COST_ROWS, "node_skipped"):
+            last = r
+    if last is None or last.get("type") != "node_error":
+        return None
+    failure = as_dict(as_dict(as_dict(last.get("execution")).get("lifecycle")).get("providerFailure"))
+    first = (str(last.get("error") or "").strip().splitlines() or [""])[0]
+    return {"error": oneline.one_line(first) or "誤りの文が無い", "quota": failure.get("class") == QUOTA_CLASS}
+
+
+def note_writer_fell(machine, fell: dict | None, *, run_id: str) -> None:
+    """機械の報告のファイル machine の冒頭（machine_head と同じ所）の終わりに、書き手のループが落ちた訳 fell（writer_fell の返り）の
+    1 行を置く。前の周（resume の前）に置いた行は外す（facts は resume で走り直さないので、書き直した run に古い訳を残さない）。
+    fell が None なら外すだけで、何度呼んでも同じ（書き手のループの頭の節が、書き手より前に呼ぶ）"""
+    path = pathlib.Path(machine)
+    text = path.read_text(encoding="utf-8")
+    head, sep, rest = text.partition("\n## ")
+    mark = WRITER_FELL.partition("{error}")[0]
+    kept = "\n".join(x for x in head.splitlines() if not x.startswith(mark)).rstrip()
+    line = (WRITER_FELL.format(error=fell["error"]) + (WRITER_QUOTA.format(command=answer.resume(run_id)) if fell["quota"] else "")
+            if fell else "")
+    new = kept + (f"\n\n{line}" if line else "") + "\n" + (f"\n## {rest}" if sep else "")
+    if new != text:
+        _write_text(path, new)
 
 
 def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:

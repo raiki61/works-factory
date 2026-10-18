@@ -153,6 +153,13 @@ class BlockPlaceTest(FakeRunTest):
                 self.assertEqual(got, self.artifacts / "fix" / want)
                 self.assertTrue(got.is_dir(), "無ければ作る")
 
+    def test_own_prefix_is_the_full_namespace(self):
+        """入れ子の include の節の id は outer__inner__node（Archon の include-expander の名前空間）"""
+        for path, want in (("outer__report__facts", "outer__report__"), ("report__facts", "report__"), ("facts", "")):
+            with self.subTest(path=path):
+                self.assertEqual(boundary.own_prefix(json.dumps({"path": path})), want)
+        self.assertEqual((boundary.own_prefix("{"), boundary.own_prefix("")), ("", ""))
+
     def test_work_tree_is_the_git_top(self):
         repo = self.artifacts / "repo"
         (repo / "sub").mkdir(parents=True)

@@ -1434,16 +1434,16 @@
 - S189 記録が止まりを示す run（最後の承認ノードの stop・止め札・メイングラフの止め）の差分は、止まった結末と一言を 1 行で出して止まり、`WORKS_USE_ALLOW_STOPPED=1` で当てる
   - 元: SKILL.md:139
   - 印: `apply`・`WORKS_USE_ALLOW_STOPPED`
-  - 今: `bin/_lib/apply.py::choose`・`bin/_lib/apply.py::stopped_why`（`--allow-stopped`。R2 の作り直しは許しでも当てない）
+  - 今: `bin/_lib/apply.py::choose`・`bin/_lib/apply.py::stopped_why`（`--allow-stopped`。R2 の作り直しは許しでも当てない）・`bin/_lib/apply.py::final_answer`（止めた後に落ちてメイングラフの出力が読めない run も `--allow-stopped` を要る。#665）
   - 状態: 形を変えて在る（環境変数でなく旗）
   - 旧棚卸し: M43・M44・M50
 
 - S190 止まりかを記録で確かめられない run（途中で終わった・承認ノードで待つ）は、その 1 行を出して当てる
   - 元: SKILL.md:139
   - 印: `apply`
-  - 今: `bin/_lib/apply.py::read_run`（拒んで終了 2）・`bin/_lib/apply.py::unchecked`（素の git apply の行を出す）
-  - 状態: 形を変えて在る（当てずに拒み、素の git apply の行を出す）
-  - 処置: 要らない: 前の棚卸し M45 の決め（#101。新しい旗は足さず、拒む 1 行に道を書く）
+  - 今: `bin/_lib/apply.py::read_run`（終わっていない run は拒んで終了 2）・`bin/_lib/apply.py::from_seal`（メイングラフの出力が読めない run は、`--allow-failed` の時だけ封じのノードの出力から照らして当てる。#665）・`bin/_lib/apply.py::unchecked`（封じのノードの出力から当てられなければ、素の git apply の行を出す）
+  - 状態: 形を変えて在る（封じた hash で照らせる時は旗で当て、照らせなければ当てずに拒み、素の git apply の行を出す）
+  - 処置: 要らない: 前の棚卸し M45 の決め（#101。拒む 1 行に道を書く）。封じた後のノードが落ちた run は #665 で旗 `--allow-failed` を足した
   - 旧棚卸し: M45
 
 - S191 鎖の差分は鎖の id を渡すと、最後の差分 `final.diff`（元の基から止まりと言われていない最後の周まで）を同じ確かめで当てる
@@ -2664,7 +2664,7 @@
 - U140 記録が止まりを示す run は、止めた run を当てる許しが無い限り、止まった訳（結末・止めた者・一言）と許し方で拒む
   - 元: use.sh:21・use.sh:405-426
   - 印: `WORKS_USE_ALLOW_STOPPED`・`apply`・`use.sh:425`
-  - 今: `bin/_lib/apply.py::choose`・`bin/_lib/apply.py::stopped_why`（旗 --allow-stopped）
+  - 今: `bin/_lib/apply.py::choose`・`bin/_lib/apply.py::stopped_why`（旗 --allow-stopped）・`bin/_lib/apply.py::final_answer`（止めた後に落ちてメイングラフの出力が読めない run も同じ。#665）
   - 状態: 形を変えて在る（旗 --allow-stopped。R2 の作り直しは許しが在っても当てない）
   - 旧棚卸し: M43・M44
 
@@ -2678,9 +2678,9 @@
 - U142 止まりかを記録で確かめられない run は、1 行出して当てる
   - 元: use.sh:414-417・use.sh:429
   - 印: `apply`
-  - 今: `bin/_lib/apply.py::read_run`・`bin/_lib/apply.py::unchecked`（メイングラフの出力が読めなければ当てず、素の git apply の行を出す）
-  - 状態: 形を変えて在る（当てずに拒む）
-  - 処置: 要らない: 封じた hash で確かめられない差分は当てない決め（`bin/_lib/apply.py` の docstring。docs/plans/2026-10-13-line-wiring.md の M45・M46）
+  - 今: `bin/_lib/apply.py::from_seal`（メイングラフの出力が読めなければ、`--allow-failed` の時だけ封じのノードの出力から照らして当てる。#665）・`bin/_lib/apply.py::unchecked`（照らせなければ当てず、素の git apply の行を出す）
+  - 状態: 形を変えて在る（封じた hash で照らせる時は旗で当て、照らせなければ当てずに拒み、素の git apply の行を出す）
+  - 処置: 要らない: 封じた hash で確かめられない差分は当てない決め（`bin/_lib/apply.py` の docstring。docs/plans/2026-10-13-line-wiring.md の M45・M46）。封じた後のノードが落ちた run は #665 で旗 `--allow-failed` を足した
   - 旧棚卸し: M45・M46
 
 - U143 git apply --check が通らなければ、対象の手元の変更とぶつかっていないかを見ると言って拒む
@@ -4222,8 +4222,8 @@
 - tail.md M41: bin/_lib/apply.py::pointed（置き場の根 artifacts.root の下の差分だけを読み、run の作業ツリーを読まない）
 - tail.md M42: bin/_lib/apply.py::put（`--allow-delete`）
 - tail.md M43: bin/_lib/apply.py::choose・bin/_lib/apply.py::stopped_why（結末の語・止めた所・人の一言。人の一言はメイングラフの result の final_answer: workflows/line/scripts/result.py::main）
-- tail.md M44: bin/_lib/apply.py::choose（`--allow-stopped`。R2 が redesign-needed なら旗でも拒む）・bin/_lib/apply.py::main（「--allow-stopped が在るので当てた」の 1 行）
-- tail.md M45: bin/_lib/apply.py::read_run（記録が無い・returns が読めない run は 2 で拒む）・bin/_lib/apply.py::unchecked（拒む 1 行に置き場の差分を素の git apply で当てる道）
+- tail.md M44: bin/_lib/apply.py::choose（`--allow-stopped`。R2 が redesign-needed なら旗でも拒む）・bin/_lib/apply.py::main（「--allow-stopped が在るので当てた」の 1 行）・bin/_lib/apply.py::final_answer（止めた後に落ちてメイングラフの出力が読めない run も `--allow-stopped` を要る。#665）
+- tail.md M45: bin/_lib/apply.py::read_run（記録が無い run は 2 で拒む）・bin/_lib/apply.py::from_seal（returns が読めない run は、封じのノードが無い・済んでいない・その出力や出来事が読めなければ 2 で拒む。#665）・bin/_lib/apply.py::unchecked（拒む 1 行に置き場の差分を素の git apply で当てる道）
 - tail.md M46: bin/_lib/apply.py::choose（封じていない差分は `--allow-stopped` でも当てない）・bin/_lib/apply.py::from_worktree（拒む 1 行に作業ツリーの差分を素の git apply で当てる道。R2 の作り直しには書かない）
 - tail.md M47: bin/_lib/apply.py::put（`git apply --check`）
 - tail.md M48: bin/_lib/apply.py::put（`git apply -R --check`）

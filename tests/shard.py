@@ -10,6 +10,10 @@
   置いた後で、どの分けにも入らないモジュールと 2 つの分けに入ったモジュールが 0 かを確かめ、0 でなければ落ちる。
   表が古くても分けが偏るだけで、試験は漏れない。
 - 試験を集める前に、この過程の環境から試験の子へ渡さない名（tests/bin/hermetic.dropped）を外す（hermetic.scrub）。
+- 並べ方: 選んだモジュールを fork した子 WORKERS_ENV（既定は SHARING の注記）個に 1 つずつ配って並べる。子は集めた試験と
+  scrub の後の環境を受け継ぐ。出力は unittest のまま（進みの印・落ちた試験の名と traceback をモジュールの名の順に・最後の Ran N tests と
+  OK / FAILED）。1 つのモジュールの試験は同じ子で順に走るので、モジュールの中で置き場を分け合う試験はそのまま走る。
+  子は直下の親が替わったら（親だけが止められた）終わり、子が途中で落ちたら、終わらなかったモジュールを赤にして最後の数えまで出す。
 - 名指しのパスだけを走らせる: `python3 -m tests.shard --paths PATH...`（tests/changed.py が使う）。
   同じ集め方で見つけたモジュールのうち、名指しのファイルか名指しのフォルダの下に在る物だけを走らせる。
   頭（__init__.py）で読めないパッケージ（discover がパッケージ名の 1 件にする物）は、その下のパスでも選ぶ。
@@ -18,18 +22,31 @@
   `python3 -m tests.shard --merge <置き場>...` で表を作り直して、PR で入れる。
 """
 import argparse
+import io
 import json
+import multiprocessing
+import os
 import pathlib
 import statistics
 import sys
+import threading
 import time
 import unittest
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 
 from tests.bin import hermetic
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TABLE = ROOT / "tests" / "shard-seconds.json"
 PATTERN = "test*.py"
+WORKERS_ENV = "WORKS_FACTORY_TEST_WORKERS"
+# 並べる子の数の既定は、機械の CPU の数を、同じ機械で同時にこの口を回しうる数で割った数。工場は同じ機械で run を 2〜3 本回し、
+# run の中でも修正の段が組ごとの子の run を並べ、子もそれぞれこの口を回す。3 本 × 2 組で 6 とし、CPU が 12 に満たない機械
+# （CI の 4 CPU の機械など）では 1 つの子で順に回す
+SHARING = 6
+POLL = 0.2   # 子が親の替わりを見る間隔（秒。lib/tree_run.py の POLL と同じ）。見張りは親が替わるまで続き、期限は無い
+BROKEN = "（子が途中で終わった）"
 
 
 class ModuleLoader(unittest.TestLoader):
@@ -107,28 +124,109 @@ def merge(paths: list[pathlib.Path]) -> dict[str, float]:
     return {name: round(joined[name], 1) for name in sorted(joined)}
 
 
-class TimedModule(unittest.TestSuite):
-    def __init__(self, name: str, tests: unittest.TestSuite, seconds: dict[str, float]):
-        super().__init__([tests])
-        self.name = name
-        self.seconds = seconds
+class Recorded:
+    """子で走った 1 件の試験の、結果の印字（TextTestResult.printErrors）に要る形だけの写し"""
 
-    def run(self, result, debug=False):
-        start = time.perf_counter()
-        super().run(result, debug)
-        self.seconds[self.name] = time.perf_counter() - start
+    def __init__(self, description: str):
+        self.description = description
+
+    def __str__(self) -> str:
+        return self.description
+
+    def shortDescription(self) -> None:
+        return None   # 説明の 2 行目は子の getDescription が description に入れ済み
+
+
+_FOUND: dict[str, unittest.TestSuite] = {}   # fork した子が親から受け継ぐ、集めた試験
+
+
+def watch_parent(ppid: int) -> None:
+    """子の起こし（initializer）。直下の親が替わったら（親だけが SIGKILL・OOM で消え、子が pid 1 の下に移った）子を終える。
+    ProcessPoolExecutor の子は仕事の待ちで止まったまま残り、親が消えても気づかない"""
+    def watch() -> None:
+        while os.getppid() == ppid:
+            time.sleep(POLL)
+        os._exit(1)
+
+    threading.Thread(target=watch, daemon=True).start()
+
+
+def run_module(name: str) -> dict:
+    """子の中で 1 モジュールを走らせ、結果を親へ渡せる形（字と数）で返す"""
+    stream = io.StringIO()
+    result = unittest.TextTestResult(stream, descriptions=True, verbosity=1)
+    start = time.perf_counter()
+    _FOUND[name].run(result)
+
+    def described(pairs):
+        return [(result.getDescription(test), text) for test, text in pairs]
+
+    return {"seconds": time.perf_counter() - start, "dots": stream.getvalue(), "run": result.testsRun,
+            "errors": described(result.errors), "failures": described(result.failures),
+            "skipped": described(result.skipped), "expectedFailures": described(result.expectedFailures),
+            "unexpectedSuccesses": [result.getDescription(test) for test in result.unexpectedSuccesses]}
+
+
+class Parallel:
+    """TextTestRunner に渡す試験（呼ぶと結果へ足す）。モジュールを fork した子 n 個に 1 つずつ配り、終わった順に進みの印を出し、
+    結末はモジュールの名の順に親の結果へ写す（落ちた試験の名と traceback・最後の数えの形は unittest のまま）。
+    子は fork で集めた試験と hermetic.scrub の後の環境（外した値の inherited も）を受け継ぎ、親が替わったら終わる（watch_parent）。
+    子が途中で落ちたら、終わらなかったモジュールを BROKEN の名で errors に入れて赤にし、最後の数えまで出す。
+    止められたら（Ctrl-C など）待ち行列のモジュールは回さずに終える。子へ渡す管に既に入った物（走っている物と次の 1 件）は
+    cancel_futures では取り消せず、回り切ってから終わる（tests/changed.py から回す時は、子過程ごと止められ親の替わりで子が終わる）"""
+
+    def __init__(self, found: dict[str, unittest.TestSuite], n: int, seconds: dict[str, float]):
+        self.found, self.n, self.seconds = found, n, seconds
+
+    def __call__(self, result: unittest.TextTestResult) -> unittest.TextTestResult:
+        _FOUND.update(self.found)
+        sys.stdout.flush()
+        sys.stderr.flush()   # fork の前に吐く（子が受け継いだ書きかけを二度出さない）
+        done, broken = {}, {}
+        with ProcessPoolExecutor(self.n, mp_context=multiprocessing.get_context("fork"),
+                                 initializer=watch_parent, initargs=(os.getpid(),)) as pool:
+            futures = {pool.submit(run_module, name): name for name in self.found}
+            try:
+                for future in as_completed(futures):
+                    try:
+                        done[futures[future]] = outcome = future.result()
+                    except BrokenProcessPool as e:
+                        broken[futures[future]] = f"{type(e).__name__}: {e}\n"
+                        continue
+                    result.stream.write(outcome["dots"])
+                    result.stream.flush()
+            except BaseException:
+                pool.shutdown(cancel_futures=True)
+                raise
+        result.errors.extend((Recorded(f"{name} {BROKEN}"), text) for name, text in sorted(broken.items()))
+        for name in sorted(done):
+            outcome = done[name]
+            self.seconds[name] = outcome["seconds"]
+            result.testsRun += outcome["run"]
+            for kind in ("errors", "failures", "skipped", "expectedFailures"):
+                getattr(result, kind).extend((Recorded(test), text) for test, text in outcome[kind])
+            result.unexpectedSuccesses.extend(Recorded(test) for test in outcome["unexpectedSuccesses"])
         return result
 
 
-def run(found: dict[str, unittest.TestSuite], record: pathlib.Path | None) -> int:
+def run(found: dict[str, unittest.TestSuite], record: pathlib.Path | None, n: int) -> int:
     seconds: dict[str, float] = {}
-    suite = unittest.TestSuite(TimedModule(name, tests, seconds) for name, tests in found.items())
-    result = unittest.TextTestRunner().run(suite)
+    result = unittest.TextTestRunner().run(Parallel(found, n, seconds))
     if record is not None:
         record.write_text(json.dumps(seconds, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if not result.testsRun:
-        return 5   # unittest と同じく、1 件も走らない分けを緑にしない
+    if not result.testsRun and result.wasSuccessful():
+        return 5   # unittest と同じく、1 件も走らない分けを緑にしない（子が落ちて 1 件も数えられなかった分けは 1）
     return 0 if result.wasSuccessful() else 1
+
+
+def workers() -> int:
+    """並べる子の数。環境変数 WORKERS_ENV が在ればその数、無ければ CPU の数を SHARING で割った数（1 以上）"""
+    value = os.environ.get(WORKERS_ENV)
+    if value is None:
+        return max(1, (os.cpu_count() or 1) // SHARING)
+    if not value.isdigit() or int(value) < 1:
+        sys.exit(f"{WORKERS_ENV} は 1 以上の整数: {value!r}")
+    return int(value)
 
 
 def shard_arg(value: str) -> tuple[int, int]:
@@ -149,6 +247,7 @@ def main(argv: list[str]) -> int:
     if args.merge:
         TABLE.write_text(json.dumps(merge(args.merge), indent=2) + "\n", encoding="utf-8")
         return 0
+    n = workers()   # 名は WORKS_FACTORY_ で始まり scrub が外すので、外す前に読む
     hermetic.scrub()
     found = suites(ROOT)
     if args.paths:
@@ -157,12 +256,12 @@ def main(argv: list[str]) -> int:
               f"全部は CI が回す）:")
         print("\n".join(f"  {name}" for name in names))
         sys.stdout.flush()
-        return run({name: found[name] for name in names}, args.record)
+        return run({name: found[name] for name in names}, args.record, n)
     index, count = args.shard
     names = sorted(found)
     shards = plan(names, load_seconds(TABLE), count)
     check(names, shards)
-    return run({name: found[name] for name in shards[index - 1]}, args.record)
+    return run({name: found[name] for name in shards[index - 1]}, args.record, n)
 
 
 if __name__ == "__main__":
