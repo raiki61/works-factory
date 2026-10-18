@@ -254,7 +254,8 @@
      "what": "足し欄の共有ボードの控えの名",
      "pattern": "\"(gate-marks|plan-fields|delta-verdicts|query-examples|out-of-purpose|answer-ties|pr-excluded|report-terms|purpose-means|handoff)\\.json\"",
      "allowed": [
-      "lib/marks.py"
+      "lib/marks.py",
+      "lib/judgebeside.py"
      ],
      "known": {
       "lib/judge_accept.py": [
@@ -464,12 +465,13 @@
      "allowed": [
       "lib/worldmark.py",
       "lib/worldblk.py",
+      "lib/judgebeside.py",
       "workflows/judge/scripts/world_*.py"
      ],
      "known": {
       "lib/judge_accept.py": [
-       2,
-       "判定のノードの中身が docstring で世界の解の出口の書き先と頭のセクションの出どころを置き場の名で説明する（コードは worldmark.WORLD_FILE・worldmark.write を引く）"
+       1,
+       "判定のノードの中身が docstring で世界の解の出口の書き先を置き場の名で説明する（コードは worldmark.WORLD_FILE・worldmark.write を引く）"
       ]
      }
     }
@@ -890,6 +892,8 @@
   }
  },
  "loosened": {
+  "allowed:marks:足し欄の共有ボードの控えの名:lib/judgebeside.py": "#723 で judge の隣のファイルの名の字を名の住処 lib/judgebeside.py に集めた。種 answers・pr の控えの名 answer-ties.json・pr-excluded.json は judge の隣のファイルでもあるので住処が字を持ち、marks の種の表 KINDS はその定数を引く。手順（add・split・path_of）は marks のまま",
+  "allowed:world:世界の解の行のファイルと控えの名（world.jsonl・world-state.json）:lib/judgebeside.py": "#723 で judge の隣のファイルの名の字を名の住処 lib/judgebeside.py に集めた。世界の解の段の控えの名 world-state.json は judge の隣のファイルなので住処が字を持ち、worldmark の STATE_FILE はその定数を引く。読み書きの口は worldmark のまま",
   "allowed:plan-scope:修正案の項目の範囲（allowed_paths・out_of_scope の glob）を手で当てる形:lib/globs.py": "#655 で glob の下回り（glob_match・glob_problem・globs_meet）を planmarks から lib/globs.py へ移した。読みも当て方も前の planmarks の物と同じで、範囲の照らしの住処 planrange の外で範囲を当てる所は増えていない",
   "exclude:lib/borrow/**": "#674 で借りた物の置き場を bin/_lib/borrow/ から lib/borrow/ へ移した。外す中身（借りた superpowers の写し・継ぎ目の表・無人の読み替え）は前の bin/_lib/borrow/** と同じ",
   "allowed:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形:workflows/chain/scripts/chain_start.py": "周の鎖（#380）の始めのノードが、一番上のグラフとして受けた入力 base・pr を 1 周目の子（メイングラフ）へ写して渡し、1 周目に名指した PR の番号を次の周の依頼の pr の欄で運ぶ。入口の種類の決めはメイングラフの start のまま",

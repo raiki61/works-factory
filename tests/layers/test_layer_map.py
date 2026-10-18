@@ -54,7 +54,8 @@ def growth(main: dict, now: dict) -> list[str]:
 def loosened(main: dict, now: dict) -> list[tuple[str, str]]:
     """main の地図より緩めた所の (鍵, 文): 層が足された・消えた・並びが変わった（最初に当たる層がそのファイルの層）、
     層の paths が変わった・may_use が増えた・independent が外れた・names が減った、outside が増えた、
-    beside の名が減った・main に在った名に持ち主が増えた。known を減らさずに地図の側で違反を通す道を塞ぐ"""
+    beside の名が減った・main に在った名に持ち主が増えた、homes の住処が増えた・変わった。known を減らさずに地図の側で違反を通す道を
+    塞ぐ"""
     layers = {layer["id"]: layer for layer in now["layers"]}
     old_ids = [layer["id"] for layer in main["layers"]]
     out = [(f"layer-new:{lid}", f"層 {lid} が地図に足された") for lid in layers if lid not in old_ids]
@@ -79,6 +80,9 @@ def loosened(main: dict, now: dict) -> list[tuple[str, str]]:
     old_names = {n for names in main["beside"].values() for n in names}
     out += [(f"beside-owner:{block}:{n}", f"beside の {n} に持ち主 {block} が増えた") for block, names in now["beside"].items()
             for n in names if n in old_names and n not in main["beside"].get(block, [])]
+    old_homes = main.get("homes", {})
+    out += [(f"home:{block}", f"homes の {block} の住処が {old_homes.get(block)} から {home} に変わった")
+            for block, home in now["homes"].items() if home != old_homes.get(block)]
     return out
 
 
@@ -124,6 +128,16 @@ class MapCase(unittest.TestCase):
 
     def test_beside_owners_are_blocks(self):
         self.assertLessEqual(set(scan.LAYER_MAP["beside"]), set(scan.LAYERS["block"]["names"]))
+
+    def test_homes_are_lib_files_of_beside_blocks(self):
+        """名の住処は beside を持つブロックに 1 つずつで、木に在る lib の層のファイル"""
+        homes = scan.LAYER_MAP["homes"]
+        self.assertLessEqual(set(homes), set(scan.LAYER_MAP["beside"]))
+        self.assertEqual(len(set(homes.values())), len(homes))
+        for block, home in homes.items():
+            with self.subTest(block=block):
+                self.assertTrue((ROOT / home).is_file(), home)
+                self.assertEqual(scan.layer_of(home), ("lib", "lib/"))
 
     def test_beside_names_match_the_design_promise(self):
         """地図の beside の名は docs/design.md の「サブグラフの出力の約束」から読める: まだ出力の欄に直していないのでほかのサブグラフも
@@ -237,6 +251,12 @@ class BesideCase(unittest.TestCase):
                 self.assertIn("tdd-<k>/state.json", got[0])
         self.assertEqual(hits({"workflows/fix/scripts/a.py": 'X = "tdd-g1/state.json"\n', "lib/a.py": 'X = "state.json"\n'},
                               "beside"), [])
+
+    def test_home_holds_only_its_own_block_names(self):
+        """名の住処（地図の homes）の中の持ち主のブロックの名は数えない。住処の中のほかのブロックの名と、住処でない lib の名は数える"""
+        home = scan.LAYER_MAP["homes"]["judge"]
+        got = hits({home: 'X = "premises.json"\nY = "gate.json"\n', "lib/other.py": 'X = "premises.json"\n'}, "beside")
+        self.assertEqual(sorted(line.split(": ", 1)[0] for line in got), sorted(["lib/other.py:1", f"{home}:2"]), got)
 
     def test_path_into_another_place_still_counts(self):
         got = hits({"workflows/line/scripts/a.py": "# R/rejudge-exit.json を読む\n"}, "beside")
@@ -421,6 +441,8 @@ class NotAboveMain(unittest.TestCase):
             "beside-owner:report:tdd-unit.json": lambda m: m["beside"].update(report=["tdd-unit.json"]),
             "layer-new:any": lambda m: m["layers"].insert(0, {"id": "any", "paths": ["lib/"], "may_use": ["block", "lib"]}),
             "layer-order": lambda m: m["layers"].reverse(),
+            "home:fix": lambda m: m["homes"].update(fix="lib/fixbeside.py"),
+            "home:plan": lambda m: m["homes"].update(plan="lib/planblk.py"),
         }
         for key, loosen in cases.items():
             with self.subTest(key=key):
@@ -436,6 +458,7 @@ class NotAboveMain(unittest.TestCase):
         tightened["outside"].clear()
         tightened["layers"][0]["names"].append("new")
         tightened["beside"]["plan"] = ["new.json"]
+        tightened["homes"].clear()
         self.assertEqual(growth(main, tightened), [])
 
     @staticmethod
@@ -443,7 +466,7 @@ class NotAboveMain(unittest.TestCase):
         return {"layers": [{"id": "block", "paths": ["workflows/*/"], "may_use": ["lib"], "independent": True,
                             "names": ["plan", "fix"]},
                            {"id": "lib", "paths": ["lib/"], "may_use": []}],
-                "outside": ["lib/tests/"], "beside": {"fix": ["tdd-unit.json"]}, "known": known}
+                "outside": ["lib/tests/"], "beside": {"fix": ["tdd-unit.json"]}, "homes": {"plan": "lib/planfile.py"}, "known": known}
 
 if __name__ == "__main__":
     unittest.main()

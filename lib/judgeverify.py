@@ -24,12 +24,13 @@ if str(_CORE) not in sys.path:
 
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
+import judgebeside  # noqa: E402
 import promptsection  # noqa: E402
 import oneline  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （board が写しの engine を sys.path に足した後）
 
 ROLE = "judge-verify"                  # 束ね役の節の id と印の名
-VERIFY_FILE = "judge-verify.json"      # 申し送り（今の周。manifest の produces。判定の出力の欄 verify が指す）
+VERIFY_FILE = judgebeside.VERIFY_FILE  # 申し送り（今の周。manifest の produces。判定の出力の欄 verify が指す）
 BRIEF_DIR = "verify"                   # 下請けのファイルと束ね役の指示書の置き場（scope の根の今の周）
 PLAN_FILE = "verify/plan.json"         # 番号の控え {units: [{n, key}], answers}（支度が書き、まとめが読む）
 TREE_FILE = "verify-tree.json"         # 束ね役を起こす前の作業ツリーの姿（accept.tree_state）

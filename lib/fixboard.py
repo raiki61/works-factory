@@ -1165,8 +1165,8 @@ PLAN_REPLY_FILE = "fix-plan-reply.json"   # 修正案の役の返答の写し（
 PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（faces・shrink。修正役の plan_faces と差分の審査の材料 out.p2.plan_review が読む。
                                            # 修正役の指示書は修正案 PLAN_REPLY_FILE と同じフォルダに在ると書く）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
-TIES_FILE = "judge-ties.json"          # 判定の結びの写し（入力 answer_ties の先。answer-ties.json の形）
-MATERIALS_FILE = "judge-materials.json"   # 判定の素材の状態の写し（入力 materials の先。materials.json の形）
+TIES_FILE = "judge-ties.json"          # 判定の結びの写し（入力 answer_ties の先）
+MATERIALS_FILE = "judge-materials.json"   # 判定の素材の状態の写し（入力 materials の先）
 HEAD_RECORD_FILE = "judge-depth-head.json"   # run の頭の深さの控えの写し（入力 depth_record の先。headdepth.record の形）
 JUDGE_COPIES = {"answer_ties": TIES_FILE, "materials": MATERIALS_FILE, "depth_record": HEAD_RECORD_FILE}   # prep が写す入力 → 写しの名
 CHECKED_COPIES = (TIES_FILE, MATERIALS_FILE)   # 読み手が壊れた JSON を無いと読むので、写す前に読めるかを確かめる写し

@@ -3608,7 +3608,7 @@
 - line.md L-W39: workflows/line/scripts/ask_before_fix.py・ask_replan.py・ask_final.py が止め（needs-human）と deferred・widened・reasons を返し、collect が report の入力 stops・deferred・widened・final-reasons に渡す。lib/runreport.py::_line_lines・lib/runreport.py::_stop_lines
 - line.md L-W40: 再審は 2 度目の修正の後（部分 D1）: fixed が 1 回目と 2 度目の修正役の異議をつないで rejudge を決め（workflows/line/scripts/fixed.py::fixed）、yaml の rejudge-run は `depends_on: [fixed]`・`when: $fixed.output.rejudge == true`、judged は fixed と rejudge-run の後、試験の関門（final）は judged の止めを読む（`when` に `$judged.output.stop_reason == ''`）
 - line.md L-W41: 無し。judge を新しく挟み、異議を入力で渡す（workflows/line/works-factory-line.yaml::rejudge-run）
-- line.md L-W42: 判定のサブグラフが再審の judgment の隣に rejudge-exit.json・rejudge-diff.json を書き（lib/judge_accept.rejudge_collect）、メイングラフの workflows/line/scripts/judged.py::compared と lib/runreport.py::rejudge_lines・lib/runreport.py::rejudge_opened・lib/runreport.py::rejudge_lowered・lib/runreport.py::rejudge_changes はそれを読むだけ（名は lib/report.py::REJUDGE_EXIT・lib/report.py::REJUDGE_DIFF。報告は report の入力 rejudge の judgment の隣を読む）
+- line.md L-W42: 判定のサブグラフが再審の judgment の隣に rejudge-exit.json・rejudge-diff.json を書き（lib/judge_accept.rejudge_collect）、メイングラフの workflows/line/scripts/judged.py::compared と lib/runreport.py::rejudge_lines・lib/runreport.py::rejudge_opened・lib/runreport.py::rejudge_lowered・lib/runreport.py::rejudge_changes はそれを読むだけ（名は lib/judgebeside.py::REJUDGE_EXIT_FILE・lib/judgebeside.py::REJUDGE_DIFF_FILE。報告は report の入力 rejudge の judgment の隣を読む）
 - line.md L-W43: workflows/line/works-factory-line.yaml::eyes（eyes の units・judgment・purpose・world ＝ `$judged.output.*`）・workflows/line/works-factory-line.yaml::ask-final（ask-final の judgment）
 - line.md L-W44: workflows/line/scripts/after_fix.py::decide、workflows/line/works-factory-line.yaml::replan（ruling・conflicts）
 - line.md L-W45: メイングラフの replan-review の with: の conflicts・gate_answers（申し出と裁定・修正前の承認ノードの答え）。往復の中の plan-review-run には渡さない（修正前の承認ノードより前）
@@ -3851,7 +3851,7 @@
 - plan.md P158: workflows/plan-review/fixtures/
 - plan.md P159: lib/boardview.py::r2_due・workflows/plan-review/works-factory-plan-review.yaml::r2-design-loop `when: "$open.output.r2_go == true"`
 - plan.md P160: lib/boardview.py::purpose_unusable・lib/design.py::UNUSABLE
-- plan.md P161: judge が判定の隣に purpose-review.json を置いて出力の欄 purpose_review で返し（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が入力 purpose_review の先を読む（名は lib/purpose.py::PURPOSE_REVIEW_FILE の 1 か所）
+- plan.md P161: judge が判定の隣に purpose-review.json を置いて出力の欄 purpose_review で返し（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が入力 purpose_review の先を読む（名は lib/judgebeside.py::PURPOSE_REVIEW_FILE の 1 か所）
 - plan.md P162: workflows/plan-review/works-factory-plan-review.yaml::r2-design（systemPrompt。Archon の packages/providers/src/claude/provider.ts がノードの systemPrompt で既定の system prompt を置き換える）
 - plan.md P163: lib/boardview.py::r2_prompt・workflows/plan-review/scripts/r2_prep.py
 - plan.md P164: lib/boardview.py::r2_prompt（purpose.json の purpose_text だけを読む）
