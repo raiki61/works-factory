@@ -105,7 +105,7 @@ class ScreenCase(unittest.TestCase):
         self.assertIsNone(consult.screen(ITEMS, "3", [], ["works/README.md:3"], WHY))
 
     def test_trailing_slash_scope_globs_cover_paths_underneath(self):
-        """consult が範囲の当て方を planmarks.glob_match から引く柵"""
+        """consult が範囲の当て方を globs.glob_match から引く柵"""
         items = {"3": {**ITEMS["3"], "allowed_paths": ["works/.shared/core/"],
                        "out_of_scope": [{"glob": "works/docs/", "why": OOS_WHY}]}}
         self.assertIn("範囲の中", consult.screen(items, "3", ["works/.shared/core/lens.py"], [], WHY))
