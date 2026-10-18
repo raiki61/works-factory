@@ -128,6 +128,28 @@ class RunCiTestCmdRulesCase(RepoCase):
         self.assertIn("cmd", pathlib.Path(got["log"]).read_text(encoding="utf-8"))
 
 
+class RunHowCase(RepoCase):
+    """#687: 直す前のテストの走らせ方の行（run_how。修正役の材料）は、根と、実際に走った宣言の段と test_cmd の命令を字のまま言う"""
+
+    def test_engine_steps_and_test_cmd(self):
+        self.decl([{"name": "suite", "argv": [PY, "-c", "print('decl')"]}])
+        cmd = f"{PY} -c \"print('cmd')\""
+        got = self.run_ci(cmd)
+        rows = dc.run_how(self.repo, got, test_cmd=cmd, material=got["material"])
+        self.assertIn(f"`{self.repo}`", rows[0])
+        self.assertTrue(any(r.startswith("宣言") and "段 suite" in r and f"`{PY} -c " in r for r in rows), rows)
+        self.assertTrue(any(r.startswith(f"test_cmd: `{cmd}`") for r in rows), rows)
+
+    def test_test_cmd_alone_and_the_ci_role(self):
+        got = self.run_ci("echo 走った")
+        rows = dc.run_how(self.repo, got, test_cmd="echo 走った", material=got["material"])
+        self.assertEqual(len(rows), 2, rows)
+        self.assertTrue(rows[1].startswith("test_cmd: `echo 走った`"), rows)
+        role = {"by": dc.ROLE_NEEDED, "runs": []}
+        rows = dc.run_how(self.repo, role, test_cmd="", material={"status": "clean", "checked": "make test（終了コード 0）"})
+        self.assertEqual(rows[1], "任せ先の CI の役が走らせた物: make test（終了コード 0）")
+
+
 class LaunchHowRecordedCase(RepoCase):
     """元 test_ci_test_cmd.py の LaunchHowRecordedCase: 起こし方 how は起こす所で 1 度だけ決めて走った行に載せ、読む所は規則で作り直さない"""
 

@@ -2152,8 +2152,8 @@ class TreeCase(RunCase):
     def test_tree_off_second_pass_names_the_design_map_items(self):
         """2 項目の案で、独立設計が立つ run の 1 往復目（木）に項目 1 が閉じ、項目 2 に block が残った後の 2 往復目（開いた項目 1 つで
         木にしない）: 材料の MAP_ITEMS_HEAD の節が項目 2 だけを design_map を書く項目として名指し、項目 1 が前の往復で受けた要素 D1 を
-        数え済みと言う。項目 2 の行と設計→案の行だけの design_map は受かり、閉じた項目 1 の行を足した design_map は『照らしの項目の外』と
-        拒まれる（『項目の files に無い』とは言わない）"""
+        数え済みと言う。項目 2 の行と設計→案の行だけの design_map も、閉じた項目 1 の行を足した design_map も 1 回目で受かる
+        （照らしの項目の外の行は余りとして照らさない。#687）"""
         r = self.run_
         elements = [{"id": "D1", "adds": ["上限の入口"], "removes": []}, {"id": "D2", "adds": ["丸めの口"], "removes": []}]
         r.open()
@@ -2170,17 +2170,13 @@ class TreeCase(RunCase):
         body = text[text.index(planblk.MAP_ITEMS_HEAD):].split("\n\n")[1]
         self.assertIn("項目 2。", body)
         self.assertNotIn("項目 1", body)
-        self.assertIn("閉じた・保留の項目の行は書かない", body)
+        self.assertIn("閉じた・保留の項目の行は要らない", body)
         self.assertIn("閉じた・保留の項目が前の往復で受けた要素（D1）は網羅に数え済み", body)
         mine = [self.map_row(2, "clamp"), {"item": None, "path": None, "symbol": None, "design_ref": "D2", "design_quote": None,
                                            "why": "設計の丸めの口は案のどの行にも対が無い"}]
         fixed = [CLAMP_BLOCK["key"]]
         got = r.accept(review(design_map=[*mine, self.map_row(1, "helper_1", "D1")], resolved=fixed))
-        self.assertFalse(got["ok"], got)
-        self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
-        self.assertIn("この照らしの項目（2）の外", got["reason"])
-        self.assertNotIn("項目の files に無い", got["reason"])
-        self.assertTrue(r.accept(review(design_map=mine, resolved=fixed))["ok"])
+        self.assertTrue(got["ok"], got)
 
     def test_tree_off_second_pass_asks_map_only_for_new_keys(self):
         """2 往復目（木にしない）の design_map は、開いた項目の files の鍵のうち前の往復の行にも在った鍵（clamp）を求めず、足した鍵
@@ -2209,20 +2205,69 @@ class TreeCase(RunCase):
         self.assertTrue(r.accept(review(design_map=[self.map_row(2, "clamp_guard")], resolved=fixed))["ok"])
         self.assertEqual(converge.read(r.view())["passes"][-1]["items"][1]["refs"], ["D2"])
 
-    def test_tree_item_answer_other_open_item_row_says_outside_not_closed(self):
+    def test_tree_item_answer_rows_off_its_keys_pass_first_time(self):
+        """#687: 木の往復で、項目 1 の答えが自分の鍵に無い行（ほかの開いた項目の鍵の行・files の add でない記号の行）と、項目の番号を
+        取り違えた自分の鍵の行を持っても 1 回目で通る。取り違えた行は項目 1 に結び直し、その design_ref は項目 1 の refs に残る"""
         r = self.run_
         r.open()
         DesignCase.designed(self)
         self.prepped()
-        self.write_answers(1, {1: {**answer(1), converge.DESIGN_MAP: [self.map_row(1, "helper_1", "D1"), self.map_row(2, "clamp")]},
-                               2: {**answer(2), converge.DESIGN_MAP: [self.map_row(2, "clamp")]}})
+        self.write_answers(1, {1: {**answer(1), converge.DESIGN_MAP: [self.map_row(2, "helper_1", "D1"), self.map_row(2, "clamp"),
+                                                                      self.map_row(1, "not_in_files")]},
+                               2: {**answer(2), converge.DESIGN_MAP: [self.map_row(2, "clamp")]}}, syn=synergy())
+        got = r.accept(summary({1: [], 2: []}))
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(converge.read(r.view())["passes"][-1]["items"][0]["refs"], ["D1"])
+
+    def test_untree_design_map_rows_off_the_keys_pass_first_time(self):
+        """#687: 木にしない往復（審査役 1 つ）の design_map で、項目の番号を取り違えた行は鍵の項目に結び直し、要る鍵に無い行（files の
+        add・remove でない記号・案の files に無いファイル）は余りとして照らさない——1 回目で通り、結び直した行の design_ref は鍵の項目の
+        refs に残る。要る鍵の行が無い時は今どおり拒む"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        DesignCase.designed(self)
+        self.assertFalse(r.open()["tree"])
+        r.out("review_prep")
+        stray = {"item": 2, "path": "docs/notes.md", "symbol": None, "design_ref": None, "design_quote": None,
+                 "why": "設計に対の無い文書の書き換え"}
+        got = r.accept(review(design_map=[self.map_row(2, "clamp")]))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("helper_1", got["reason"])
+        got = r.accept(review(design_map=[self.map_row(2, "helper_1", "D1"), self.map_row(2, "clamp"), self.map_row(1, "not_in_files"),
+                                          stray]))
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(converge.read(r.view())["passes"][-1]["items"][0]["refs"], ["D1"])
+
+    def test_untree_design_ref_only_on_a_row_off_the_keys_is_not_coverage(self):
+        """#687: 木にしない往復で、独立設計の要素 D1 を要る鍵に無い行（項目 1 の案の files に無い docs/notes.md）にだけ書いた design_map は、
+        余りの行を照らさないのと同じく網羅にも数えず、D1 の漏れで拒む"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        DesignCase.designed(self)
+        self.assertFalse(r.open()["tree"])
+        r.out("review_prep")
+        notes = {"item": 1, "path": "docs/notes.md", "symbol": None, "design_ref": "D1", "design_quote": None,
+                 "why": "設計の上限の入口を文書に書く"}
+        got = r.accept(review(design_map=[self.map_row(1, "helper_1"), self.map_row(2, "clamp"), notes]))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("独立設計の要素 D1", got["reason"])
+
+    def test_tree_design_ref_only_on_a_row_off_the_keys_is_not_coverage(self):
+        """#687: 木の往復で、項目の答えが要素 D1 を自分の鍵に無い行（案の files に無い docs/notes.md）にだけ書いても網羅に数えず、
+        D1 の漏れで拒む"""
+        r = self.run_
+        r.open()
+        DesignCase.designed(self)
+        self.prepped()
+        notes = {"item": 1, "path": "docs/notes.md", "symbol": None, "design_ref": "D1", "design_quote": None,
+                 "why": "設計の上限の入口を文書に書く"}
+        self.write_answers(1, {1: {**answer(1), converge.DESIGN_MAP: [self.map_row(1, "helper_1"), notes]},
+                               2: {**answer(2), converge.DESIGN_MAP: [self.map_row(2, "clamp")]}}, syn=synergy())
         got = r.accept(summary({1: [], 2: []}))
         self.assertFalse(got["ok"], got)
-        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
-        self.assertIn("項目 1", got["reason"])
-        self.assertIn("この照らしの項目（1）の外", got["reason"])
-        for word in ("閉じた", "保留", "項目の files に無い"):
-            self.assertNotIn(word, got["reason"])
+        self.assertIn("独立設計の要素 D1", got["reason"])
 
     def test_synergy_design_quotes_checked_against_named_items(self):
         """元 test_synergy_design_quotes_checked_against_named_items"""
@@ -2812,8 +2857,8 @@ class TreeCase(RunCase):
         self.assertIs(again.get("tree"), False)
 
     def test_heavy_head_depth_makes_the_tree(self):
-        """入力 head_depth=重厚 で開いた項目が 1 つの往復は、review_tree を名指していなくても木。軽量・標準・空は auto のまま
-        （1 項目は審査役 1 つ）。review_tree を features_off で名指して切った run は重厚でも木にしない"""
+        """入力 head_depth=重厚 で開いた項目が 1 つの往復は、review_tree を名指していなくても木。軽量（off）・標準・空（auto）は
+        審査役 1 つ。review_tree を features_off で名指して切った run は重厚でも木にしない"""
         r = self.run_
         r.plan([item(UNIT_MEAN, 1)])
         r.ripple({"items": [], "overlaps": []})
@@ -2825,6 +2870,21 @@ class TreeCase(RunCase):
         self.assertTrue(r.out("pass_open", INPUTS_HEAD_DEPTH="重厚")["tree"])
         r.start(features_off=["review_tree"])
         self.assertFalse(r.out("pass_open", INPUTS_HEAD_DEPTH="重厚")["tree"])
+
+    def test_light_head_depth_keeps_one_reviewer_unless_named(self):
+        """#687: 入力 head_depth=軽量 の run は、開いた項目が 2 つでも事前審査を木にせず（段の表の軽量の足す物は無し）、審査役 1 つの
+        返答で往復が通る。標準と空は今どおり auto（2 項目は木）。features_on で review_tree を名指した run は軽量でも木"""
+        r = self.run_
+        for word, tree in (("標準", True), ("", True), ("軽量", False)):
+            with self.subTest(head_depth=word):
+                got = r.out("pass_open", INPUTS_HEAD_DEPTH=word)
+                self.assertTrue(got["ok"], got)
+                self.assertIs(got["tree"], tree)
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertNotIn(planblk.AGG_HEAD, text)
+        self.assertTrue(r.accept(review())["ok"])
+        r.start(features_on=["review_tree"])
+        self.assertIs(r.out("pass_open", INPUTS_HEAD_DEPTH="軽量")["tree"], True)
 
     def test_review_tree_auto_one_item_plan_is_one_reviewer(self):
         """元 test_review_tree_auto_one_item_plan_is_one_reviewer・test_single_item_plan_needs_no_synergy"""
