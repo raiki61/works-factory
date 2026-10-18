@@ -58,8 +58,9 @@ import answer  # noqa: E402
 import conflict  # noqa: E402   範囲の相談の trace の行（ASKED_OP）と頼みの欄（CONSULT_FIELD）
 import fixboard  # noqa: E402   置き場の trace.jsonl への 1 行
 import gatemarks  # noqa: E402   直す前の人の関所の節の名（GATE_NODE。関所の条件の相談の一言を引く）
+import globs  # noqa: E402   glob の当て方の正本
 import jsonfile  # noqa: E402
-import planmarks  # noqa: E402   glob の当て方の正本・承認済みの修正案の項目
+import planmarks  # noqa: E402   承認済みの修正案の項目
 import promptsection  # noqa: E402
 
 STATE = "consult-{pass_}.json"
@@ -247,10 +248,10 @@ def requests(reply):
 def _inside(path: str, it: dict) -> bool:
     """path が項目の範囲（tests のファイル・allowed_paths）に入り、その項目の out_of_scope に当たらない（当たれば受け付けが拒むので、
     範囲の中に数えない）"""
-    if any(planmarks.glob_match(path, g) for g, _ in _oos_rows(it)):
+    if any(globs.glob_match(path, g) for g, _ in _oos_rows(it)):
         return False
     return path in [_norm(t.split("::")[0]) for t in it.get("tests") or []] or \
-        any(planmarks.glob_match(path, g) for g in it.get("allowed_paths") or [])
+        any(globs.glob_match(path, g) for g in it.get("allowed_paths") or [])
 
 
 def _test_file(test_id: str) -> str:
@@ -271,7 +272,7 @@ def screen(items: dict, item: str, paths: list, tests: list, why: str = "x" * MI
     if len((why or "").strip()) < MIN_WHY:
         return f"理由（why）が無いか {MIN_WHY} 字に満たない（相手が仕様として判断できる理由を書け）"
     for p in [_norm(x) for x in paths] + [_limit_path(x) for x in tests] + [_test_file(x) for x in new_tests]:
-        if planmarks.climbs(p) or p.startswith("/"):
+        if globs.climbs(p) or p.startswith("/"):
             return f"{p} はリポジトリの根の外（根からの相対パスで頼め）"
     inside = [p for p in (_norm(x) for x in paths) if _inside(p, it)]
     if inside and not tests and not new_tests and len(inside) == len(paths):
@@ -292,7 +293,7 @@ def oos_hits(items: dict, item: str, paths: list, tests: list) -> list:
     out = []
     for p in _asked_paths(paths, tests):
         for k in order:
-            hit = next(((g, w) for g, w in _oos_rows(items.get(k) or {}) if planmarks.glob_match(p, g)), None)
+            hit = next(((g, w) for g, w in _oos_rows(items.get(k) or {}) if globs.glob_match(p, g)), None)
             if hit:
                 out.append({"path": p, "item": k, "glob": hit[0], "why": hit[1]})
     return out
@@ -323,7 +324,7 @@ def _hits_text(hits: list, item: str) -> str:
 
 def _safe(path: str) -> bool:
     """リポジトリの根の中の相対パスか"""
-    return bool(path) and not planmarks.climbs(path) and not path.startswith("/")
+    return bool(path) and not globs.climbs(path) and not path.startswith("/")
 
 
 def judge(answer, paths: list, tests: list, new_tests=(), open_ended: bool = False):
