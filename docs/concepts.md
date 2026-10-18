@@ -225,7 +225,10 @@
 - 住処: `lib/gatepolicy.py`（標準ライブラリと始めの記録・答えの行・止めの語と、事前審査の壁打ちの控えの読みだけ。メイングラフの入力と始めの記録の欄の名 `FINAL_KEY`・`UNATTENDED_KEY`、最後の承認ノードの開き方の語 `FINAL_GATES`（既定 `ALWAYS`）と無人の語 `UNATTENDED`、入口の語の確かめ `check`（仕様の段と無人の組みも拒む）、始めの記録からの読み `final_mode`・`unattended`、最後の承認ノードを開くかの決め `opens`、報告の頭の行の句 `head_words`、無人の run が承認ノードを推しで進むか止まるかの口 `passage`（項目を受けて進むか・止める理由・推しの答えを返す）と、止まった事前審査の壁打ちの行に推しの尾を付けてよいかの決め `stuck_pushable`、推しの読みの形 `Push`）
 - 約束: 始めの記録（`lib/startrec.py` の start.json の形）の 2 つの欄。書き手はメイングラフの始めのノードの 1 か所
 - 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）と、周の鎖の親のグラフ `workflows/chain/works-factory-chain.yaml`（メイングラフと同じ名の入力を宣言し、周の子へ写して渡すだけ）。読み手（`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口で始めの記録を読む。推しの尾の字の形の持ち主 `lib/gatemarks.py` は、項目の尾と止まった時の推しの読みを `Push` にして住処の口に渡すだけで、推しで進むかを決めない。修正前と案の直しの承認ノードの script は `passage` を呼ぶだけ
-- 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形と、推しの尾の読み（`push_rec`・`row_push`）を住処と gatemarks の外で呼ぶ形（推しで進むかの決めの写し）の 3 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
+- 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形と、推しの尾の読み（`push_rec`・`row_push`）を gatemarks の外で呼ぶ形（推しで進むかの決めの写し。住処は推しの読みを `Push` で受けるだけで、尾の読みを呼ばない）の 3 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
+- 寄せ残し: 無人の run の決めのうち、次の 2 つは住処の口の外に置く。始めの承認ノード（`workflows/line/scripts/start.py`）は無人かの読みを口 `unattended_of` で引き、無人なら開かないだけなので残しではない
+  - 最後の承認ノード（`workflows/line/scripts/ask_final.py` の `ask`）の、開くはずの時に無人の run なら needs-human で止める分かれ道。開ける理由（テストが緑でない・守りのファイルを触った…）は機械が読める推しの尾を持たないので、`passage` に渡すと理由を推しの無い項目として渡す形でしか書けず、「いつも止める」を口の中の推しの読みに隠すだけで簡潔にならない。開くかの決めはもう口 `opens` に在る
+  - 判定が保留にした分かれ道の問いの推しを、無人の run が答えに採るか（`lib/gatemarks.py` の `run_push`）。無人かの読みは口（`gatepolicy.unattended`）を引くが、採る条件の残り（問いの種類と状態・推しが選択肢を名指すか・出どころと depends が開いた単位か）は問いの台帳の形の決めで、口へ移すと方針の住処が判定の問いと計画の単位の形を知る
 
 ### `gate-evidence` 試験の関門の証拠の文の行の頭
 
