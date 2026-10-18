@@ -150,9 +150,9 @@
 ### `marks` 返答の足し欄
 
 - 状態: 住処あり
-- 住処: `lib/marks.py`（標準ライブラリだけ。種の表 `KINDS`＝ノードか役 → 行の在り処・共有ボードの控えの名・置き場、と手順の口 `add`（役の型に足す）・`rows`・`split`（受け付けが共有ボードへ渡す前に外す）・`path_of`・`write`・`load`（控えに置く・読み戻す））
+- 住処: `lib/marks.py`（標準ライブラリと判定の隣のファイルの名の住処 `lib/judgebeside.py` だけ。種の表 `KINDS`＝ノードか役 → 行の在り処・共有ボードの控えの名（判定の隣のファイルでもある種 `answers`・`pr` の名は `lib/judgebeside.py` の定数を引く）・置き場、と手順の口 `add`（役の型に足す）・`rows`・`split`（受け付けが共有ボードへ渡す前に外す）・`path_of`・`write`・`load`（控えに置く・読み戻す））
 - 約束: 種の表 `KINDS` の控えの名（欄を持つモジュールは `marks.KINDS[種].file` で引く）と、控えのパスを組む `path_of`
-- 知ってよい所: 住処だけが控えの名を書き、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` の `lib/planfile.py`・引き継ぎのメモ `handoff` の `lib/handoff.py`）が持ち、手順は住処を呼ぶ
+- 知ってよい所: 住処だけが控えの名を書き（判定の隣のファイルでもある名は `lib/judgebeside.py` が書く）、欄を手で足す・外す。欄の意味（欄の型・欠けと誤りの検査・控えの中身の形・読んだ後の使い方）は欄を持つモジュール（`lib/gatemarks.py`・`lib/planmarks.py`・`lib/deltamarks.py`・`lib/converge.py`・`lib/querytest.py`・`lib/outpurpose.py`・`lib/prcheck.py`・依頼の解き方 `means` の `lib/worldmark.py`・修正案の出し直しの印 `resubmit` の `lib/planfile.py`・引き継ぎのメモ `handoff` の `lib/handoff.py`）が持ち、手順は住処を呼ぶ
 - 今: 控えの名を字で持ち直す所（`lib/judge_accept.py`・`workflows/plan/scripts/plan_collect.py`）、控えのパスを `path_of` を通さずに組む所（`lib/judge_accept.py`・`lib/planfile.py`・`lib/refix.py`）、欄を手で外す所（修正役の欄 `lib/fixboard.py`・並行 PR の `lib/judge_accept.py`・手直しの `bash_writes` の `lib/writes.py`）が残る（柵の表の既知の漏れ）。`lib/judgeverify.py` は自分で組む裏取りの型で、同じ字の形の別の物
 
 ### `handoff` 引き継ぎのメモ（次の周の自分への書き置き）
@@ -168,7 +168,7 @@
 - 状態: 住処あり
 - 住処: `lib/planrange.py`（項目の範囲の glob の並び `item_globs`・項目の範囲 `inside`・`out_of_scope` の当たり `oos_hit`・`oos_hit_for`・範囲の相談の合意 `with_agreed`・パスを結ぶ項目 `owner`・許しのパス `permit_paths`・単位に結べないパスの外れ `outside`・共有ボードで照らす `check_paths`）
 - 約束: 修正案の項目の欄 `allowed_paths`・`out_of_scope`・`files`（ファイル構成の行。行の型 `FILES_SCHEMA`）・`depends_on`（欄の型と読みは `lib/planmarks.py`）
-- 知ってよい所: 住処と、glob の当て方の下回りと項目の欄の読みを持つ `lib/planmarks.py`（`glob_match`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `lib/planscope.py`・手直しの受け付け `lib/refix.py`・波及の照らし `lib/ripple.py` の `_covered`・穴の名札の path の規則 `lib/holeties.py`（`inside`）・修正の組分け `lib/fixboard.py` の `fix_groups`（`item_globs`）・役の brief の範囲の欄を組む `lib/fixboard.py` の `scope_brief` で、どれも住処を呼ぶ
+- 知ってよい所: 住処と、glob の当て方の下回り `lib/globs.py`（`glob_match`・`glob_problem`・`globs_meet`）と、項目の欄の読みを持つ `lib/planmarks.py`（`glob_match` を呼ぶ `gaps`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `lib/planscope.py`・手直しの受け付け `lib/refix.py`・波及の照らし `lib/ripple.py` の `_covered`・穴の名札の path の規則 `lib/holeties.py`（`inside`）・修正の組分け `lib/fixboard.py` の `fix_groups`（`item_globs`）・役の brief の範囲の欄を組む `lib/fixboard.py` の `scope_brief` で、どれも住処を呼ぶ
 - 今: 同じ当て方を手で書く所が残る（`lib/consult.py`。`out_of_scope` に当たるパスを範囲から除く別の決まりで、`inside` に寄せると振る舞いが変わる。柵の表の既知の漏れ）。`lib/protect.py` は守りのファイルの型を同じ下回りで当てる別の考え
 
 ### `test-files` テストのファイルの見分け
@@ -198,9 +198,9 @@
 ### `world` 世界の解（問題の類ごとの定石と、依頼の解き方との比べ）
 
 - 状態: 住処あり
-- 住処: `lib/worldmark.py`（行の欄の名 `FIELDS`・行のファイルの名 `WORLD_FILE`・控えの名 `STATE_FILE`・語 `VERDICTS`・`BASES`・名指しの句 `NOT_WEB`・先例の出どころの頭の字 `SOURCE_PREFIX`・読み書き `rows`・`read`・`write`・`stage_rows`・頭のセクション `section`・答えの要る行 `needs`・`need`・`unanswered`・依頼の解き方との比べの文 `challenges`・承認ノードの軸 `world_ok`・承認ノードの行 `gate_line`・報告の行 `report_lines`・先例の出どころの照らし `ref_problems`・依頼の解き方の足し欄 `MEANS` と `split_means`・`write_means`・`means_of`）
+- 住処: `lib/worldmark.py`（行の欄の名 `FIELDS`・行のファイルの名 `WORLD_FILE`・控えの名 `STATE_FILE`（判定の隣のファイルなので字は `lib/judgebeside.py` の `WORLD_STATE_FILE` を引く）・語 `VERDICTS`・`BASES`・名指しの句 `NOT_WEB`・先例の出どころの頭の字 `SOURCE_PREFIX`・読み書き `rows`・`read`・`write`・`stage_rows`・頭のセクション `section`・答えの要る行 `needs`・`need`・`unanswered`・依頼の解き方との比べの文 `challenges`・承認ノードの軸 `world_ok`・承認ノードの行 `gate_line`・報告の行 `report_lines`・先例の出どころの照らし `ref_problems`・依頼の解き方の足し欄 `MEANS` と `split_means`・`write_means`・`means_of`）
 - 約束: 行の欄と語は住処の定数 `FIELDS`・`VERDICTS`・`BASES`（試験 `lib/tests/test_worldmark.py` が縛る）。住処の docstring が名指す行の型 world-row.schema.json は works-factory に無い
-- 知ってよい所: 住処と、世界の解の段のサブグラフの中身 `lib/worldblk.py` とノードの口 `workflows/judge/scripts/world_*.py`（行と控えを書く出口 world_finish を含む）。読み手（`lib/judge_accept.py`・`lib/planblk.py`・`lib/planfile.py`・`lib/planmarks.py`・`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口を引く
+- 知ってよい所: 住処と、判定の隣のファイルの名の住処 `lib/judgebeside.py`（控えの名の字だけ）と、世界の解の段のサブグラフの中身 `lib/worldblk.py` とノードの口 `workflows/judge/scripts/world_*.py`（行と控えを書く出口 world_finish を含む）。読み手（`lib/judge_accept.py`・`lib/planblk.py`・`lib/planfile.py`・`lib/planmarks.py`・`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口を引く
 - 今: 柵は行のファイルと控えの名の字。住処の外の当たりは、判定のノードの中身 `lib/judge_accept.py` の docstring 2 行と報告 `lib/runreport.py` の docstring 1 行が置き場の名を字で説明する所で、既知の漏れに置く（コードは住処の定数を引く）
 
 ### `stop-reasons` 止めの理由

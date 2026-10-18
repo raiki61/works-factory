@@ -5,7 +5,7 @@
 """判定の単位と判定を後の段へ渡す節 judged。
 
 再審（rejudge-run）が走ればその返りから、走らなければ判定（judge）の返りから返す。後の段は単位と判定をここから読む。
-再審が走った時は、再審の判定の出力の欄 rejudge_exit が指す再審の出口（lib/report.REJUDGE_EXIT の形。書き手は
+再審が走った時は、再審の判定の出力の欄 rejudge_exit が指す再審の出口（書き手は
 lib/judge_accept.rejudge_collect。元 works/.shared/core/rejudge.py の collect 552-563 行と diff_units 474-509 行）の比べを返す
 （自分では数えない。報告も同じファイルを読む。出口のポインタは欄 rejudge_exit で最後の関所へ返す）:
 - new_open_units: 再審の後に開いた単位（再審の前は無いか開いていなかった）

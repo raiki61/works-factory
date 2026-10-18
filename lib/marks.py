@@ -16,7 +16,7 @@ output_format）にだけ足し、受け付けが返答から外してから盤�
 - path_of(kind, board)・write(path, doc)・load(path): 控えの置き場・一時のファイルから置き換える書き方（リンクの先へ書かない。
   置いたバイトを返す）・読み方（無い・読めない・JSON でなければ None）
 
-標準ライブラリだけ（works のほかの物を import しない）。
+標準ライブラリと、判定の隣のファイルの名の住処 judgebeside だけ（works のほかの物を import しない）。
 """
 from __future__ import annotations
 
@@ -25,6 +25,8 @@ import json
 import os
 import pathlib
 from typing import NamedTuple
+
+import judgebeside
 
 EACH = "[]"
 ROOT = "root"
@@ -52,11 +54,11 @@ KINDS = {
     # 判定が凍結した目的の外の所見（outpurpose）
     "purpose": Kind({"p2.diagnose": ()}, "out-of-purpose.json", ROOT),
     # 判定が依頼の答えと前の周の作り直しの行を問い・単位に結んだ行（gatemarks の answer_ties）
-    "answers": Kind({"p2.diagnose": ()}, "answer-ties.json", ROOT),
+    "answers": Kind({"p2.diagnose": ()}, judgebeside.ANSWER_TIES_FILE, ROOT),
     # 目的の役が目的の文から分けた依頼の解き方 means（worldmark。世界の解の段が定石と比べる案）
     "means": Kind({"p0.purpose": ()}, "purpose-means.json", ROOT),
     # 並行 PR の任せ先が外す hunk（prcheck）
-    "pr": Kind({"p0.parallel_pr": ()}, "pr-excluded.json", WORK),
+    "pr": Kind({"p0.parallel_pr": ()}, judgebeside.PR_EXCLUDED_FILE, WORK),
     # 手直しの役の Bash で書いたファイルの申告 bash_writes（refix。外すのは writes.check、控えは書き込みの記録 trace に置く）
     "writes": Kind({"refix": (), "refix2": ()}, None, WORK),
     # 修正案の出し直しの役だけが持つ印 whole_plan（planfile。控えは受け付けが合わせた答えの控え candidate-<名>.json に置く）

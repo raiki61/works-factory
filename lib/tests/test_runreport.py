@@ -22,6 +22,7 @@ import carry  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import handoff  # noqa: E402
+import judgebeside  # noqa: E402
 import green_cert  # noqa: E402
 import worldmark  # noqa: E402
 import conflict  # noqa: E402
@@ -580,7 +581,7 @@ class TranscriptCase(Base):
         self.assertIn(f"次の run に渡す物: {carried} 件", outcome_line)
         self.assertIn("持ち越した失敗: 1 件", outcome_line)
         self.assertIn(runreport.DATA_PLACES, outcome_line)
-        for place in ("depth-head.json", "groups", "$LOG_DIR/<run の id>.jsonl", "execution.binding", "result", "outcome", "stop_reason"):
+        for place in ("depth_record", "groups", "$LOG_DIR/<run の id>.jsonl", "execution.binding", "result", "outcome", "stop_reason"):
             self.assertIn(place, runreport.DATA_PLACES)
         self.assertNotIn("同じ run の置き場", runreport.DATA_PLACES)
         for skip, said in (("", "結果が無い——再実行の要あり（深さは標準で、省いていない）"), ("軽量で省いた", "深さで省いた")):
@@ -1829,9 +1830,9 @@ class CarryCase(Base):
         fix = {**fixed_run()["fix"], "objection": "a は違う"}
         lines = self.rejudge_lines(fixed_run(judge=judge, rejudge=rejudge, fix=fix))
         self.assertEqual(lines[0], "再審の結果（2 往復）: 一部採る・退ける（異議: a は違う）")
-        (self.dir / "rejudge" / report.REJUDGE_EXIT).unlink()
+        (self.dir / "rejudge" / judgebeside.REJUDGE_EXIT_FILE).unlink()
         lines = self.rejudge_lines(fixed_run(judge=judge, rejudge=rejudge, fix=fix))
-        self.assertTrue(lines[0].startswith(f"再審の記録が読めない（再審の出口 {report.REJUDGE_EXIT} が無い"), lines)
+        self.assertTrue(lines[0].startswith(f"再審の記録が読めない（再審の出口 {judgebeside.REJUDGE_EXIT_FILE} が無い"), lines)
 
     def test_asked_conflicts_parked_groups_and_rejudge_reach_next_request(self):
         rows = [{"unit_key": "u1", "between": ["brief", "判定"], "ruling": {"decision": "ask_human", "text": "人が決める"}},

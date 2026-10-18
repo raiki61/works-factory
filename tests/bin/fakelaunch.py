@@ -7,6 +7,7 @@ import json
 import pathlib
 import shutil
 import sys
+import uuid
 from dataclasses import dataclass
 
 from tests.bin.gitkit import git
@@ -27,6 +28,12 @@ class Tree:
     cache_home: pathlib.Path   # XDG_CACHE_HOME に渡す置き場
     source: pathlib.Path       # 偽の Archon の源
     tools: pathlib.Path        # python3 と git だけを置いた PATH の置き場
+
+
+def unique_run_id() -> str:
+    """殻の workflow cancel は、env の WORKFLOW_ID がこの id のプロセスを、この機械のこの利用者のプロセスの中から探して止める。
+    殻に本物の ps の上で cancel を打たせる試験は、並べて回す別の試験のプロセス（run-1 などを使う）を止めないよう、この字を使う"""
+    return f"test-run-{uuid.uuid4().hex}"
 
 
 def put(path: pathlib.Path, body: str) -> pathlib.Path:

@@ -612,7 +612,7 @@ def _in_order(judgment, keys) -> list:
 def fix_groups(owed, items, only_items=()) -> list:
     """直す義務の単位 owed（順）を、承認済みの修正案の項目 items（planmarks.approved_items の形 [{item, unit_keys, …}] か None）を
     共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の並びは owed の順）。範囲（allowed_paths の glob と
-    tests・rewrite_tests のファイル。planrange.item_globs）が交わり得る項目（planmarks.globs_meet）もつなぐ: 別の組の子が同じ
+    tests・rewrite_tests のファイル。planrange.item_globs）が交わり得る項目（globs.globs_meet）もつなぐ: 別の組の子が同じ
     ファイルを変えると、締めの節で後の組の差分が字で当たらない。範囲の無い項目は項目の番号だけでつなぐ。項目の間の依存（works の欄
     depends_on）は組の分け方にも組の中の並びにも入れる: only_items・owed で単位 keys を絞った後に、planmarks.depends_pairs(items, among=keys)
     （絞りの外の項目を通る依存は、中の端どうしの対に縮めた物）を lanekit.groups の after に渡す——前の項目の単位は後の項目の単位と
@@ -620,6 +620,7 @@ def fix_groups(owed, items, only_items=()) -> list:
     項目を別の組にしない）。依存の無い組の中は owed の順。only_items（項目の番号かその字の並び）が空でなければ、その項目に載る単位
     だけを残し、残した単位の項目の範囲だけを照らす。返り [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
     元 works/blk-fix/lib/tddlanes.py:126・131 の items_of・groups（項目の番号を盤面の brief の行から引いた所を items の値で受ける）"""
+    import globs
     import lanekit
     import planmarks
     import planrange
@@ -638,7 +639,7 @@ def fix_groups(owed, items, only_items=()) -> list:
         keys = [k for k in keys if any(str(n) in only for n in by.get(k, []))]
     kept = [n for n in dict.fromkeys(n for k in keys for n in by.get(k, [])) if n in ranges]
     meets = [(a, b) for i, a in enumerate(kept) for b in kept[i + 1:]
-             if any(planmarks.globs_meet(x, y) for x in ranges[a] for y in ranges[b])]
+             if any(globs.globs_meet(x, y) for x in ranges[a] for y in ranges[b])]
     rows = [(k, by.get(k, []) + [p for p in meets if set(p) & set(by.get(k, []))]) for k in keys]
     after = planmarks.depends_pairs(items, among=keys)
     return [{"group_id": f"g{i}", "unit_ids": list(g), "items": sorted({n for k in g for n in by.get(k, [])})}
@@ -1164,8 +1165,8 @@ PLAN_REPLY_FILE = "fix-plan-reply.json"   # 修正案の役の返答の写し（
 PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（faces・shrink。修正役の plan_faces と差分の審査の材料 out.p2.plan_review が読む。
                                            # 修正役の指示書は修正案 PLAN_REPLY_FILE と同じフォルダに在ると書く）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
-TIES_FILE = "judge-ties.json"          # 判定の結びの写し（入力 answer_ties の先。answer-ties.json の形）
-MATERIALS_FILE = "judge-materials.json"   # 判定の素材の状態の写し（入力 materials の先。materials.json の形）
+TIES_FILE = "judge-ties.json"          # 判定の結びの写し（入力 answer_ties の先）
+MATERIALS_FILE = "judge-materials.json"   # 判定の素材の状態の写し（入力 materials の先）
 HEAD_RECORD_FILE = "judge-depth-head.json"   # run の頭の深さの控えの写し（入力 depth_record の先。headdepth.record の形）
 JUDGE_COPIES = {"answer_ties": TIES_FILE, "materials": MATERIALS_FILE, "depth_record": HEAD_RECORD_FILE}   # prep が写す入力 → 写しの名
 CHECKED_COPIES = (TIES_FILE, MATERIALS_FILE)   # 読み手が壊れた JSON を無いと読むので、写す前に読めるかを確かめる写し

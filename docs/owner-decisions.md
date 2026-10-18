@@ -113,7 +113,7 @@
 
 - 持ち主の言葉: 「とってきたものはどれでじぶんのやつがどれでとかちゃんとわかるようにした命名とかを意識したいよね」「今のリポジトリみても少しわかりにくい」
 - 決め: 取ってきた物（ASF の取り付け命令が置いた物・Archon の家に置く ASF のグラフ）と自分の物を、名前と置き場で見分けられるようにする。
-- 当て方: `AGENTS.md` の E18 と「リポジトリの形」、README の「リポジトリの中の見方」。ASF の物は ASF の命令が場所と名前を決め打ちで読む（`factory/consumer.py`:16-20・231）ので、動かさず名前も変えない。自分の物の側で、それらの名前を使わない。
+- 当て方: `AGENTS.md` の E18 と「リポジトリの形」、README の「Finding your way around the repository」。ASF の物は ASF の命令が場所と名前を決め打ちで読む（`factory/consumer.py`:16-20・231）ので、動かさず名前も変えない。自分の物の側で、それらの名前を使わない。
 
 ### `read-original-works` 今の works を見れば分かる物は元を見る
 
@@ -365,6 +365,12 @@
   - 照らしが通らなければ、今どおり TDD のループを飛ばして直に直す。報告の頭の 1 行に、取り置きを使った・書いた・書けなかったのどれかを出す（書けなかった時は訳も）。
   - 足すのは小さい AI の手番 1 回だけで、重い模型・長い探索は使わない。その費用は報告の「## 費用」にほかの段と同じ形で出る。
 - 当て方: test-gate の `suite-loop`（`suite-prep`・`suite-write`・`suite-place`・`suite-try`）と `lib/suitewrite.py`。取り置きの根は起動の殻が利用者ごとに決め（`bin/_lib/launcher.py` の `suite_keep`）、`WORKS_FACTORY_SUITE_KEEP` で script のノードへ渡す（境の口の `suite_keep`）。`WORKS_FACTORY_HOME` を渡した起動ではその下の `suites/`、渡さない既定の起動では隔離の前の `XDG_STATE_HOME`（無ければ `~/.local/state`）の下 `works-factory/suites/`（対象ごとの家 `targets/` の兄弟）で、どちらも対象をまたいで 1 つ。取り置いた実行器は次の run が sandbox の外で走らせるので、殻は根を読むだけの役の書き込みの柵（`write_fence` の `--own`）に入れる。書き手は試験の関門の CI の役と同じ群・道具・砂場で起こす（軽い群 `@wf-test-gate`。起こし方の行を増やさない）。今の works の S100・U074（`docs/works-parity.md`）を、`superset` と `lang-neutral` の両方を満たす形で戻した。
+
+### `readme-english` 根の README.md は英語の 1 版だけにする
+
+- 持ち主の言葉（2026-10-18、claude-plugins の窓口の会話）: 「うん。いいよ。英語にしましょう。」（works-factory の README.md を英語だけの 1 版にし、日本語の版は並べない案への答え。もとは raiki61/claude-plugins の根の README を英語の 1 版にした決め〔claude-plugins の `docs/readme-language.md`〕）
+- 決め: 根の `README.md` は英語だけで書く。日本語の訳の版（`README.ja.md` など）は持たない。ほかの文書（各階層の `AGENTS.md`・`MISSION.md`・`docs/`）と、工場が人や役に見せる字（役の指示書・殻の案内・報告）は日本語のまま。
+- 当て方: 根の `AGENTS.md` の「文書は日本語。」の例外の 1 文。`README.md` の見出しは英語なので、見出しを名指す所（`lib/testcmd_check.py` の `HOW`・`docs/works-parity.md` の「今」の欄の `README.md「…」`）は英語の見出しの名で指す。殻や工場が出す日本語の字（`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・試験の行の頭「止める（test_cmd）」「注意（test_cmd）」）は、README に字のまま引く。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
