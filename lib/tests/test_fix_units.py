@@ -507,8 +507,10 @@ class GroundsCase(unittest.TestCase):
         self.request.write_text("# 依頼\n- 分母は len(xs)\n", encoding="utf-8")
         self.todo = {"c1-1": {"id": "c1-1", "unit_key": KEY, "which_is_right": "unknown"}}
 
+    WHY = {"ask_why": {"changes": "direction", "line": "分母を len(xs) と len(xs) - 1 のどちらにするかで直しの向きが変わる"}}
+
     def errs(self, **extra):
-        reply = {"rulings": [{"id": "c1-1", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": [], **extra}]}
+        reply = {"rulings": [{"id": "c1-1", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": [], **self.WHY, **extra}]}
         return ruling.problems(reply, self.todo, self.repo, str(self.request), (str(self.request),))
 
     def test_ask_human_needs_request_line_or_search(self):
@@ -522,7 +524,7 @@ class GroundsCase(unittest.TestCase):
         self.assertTrue(self.errs(grounds=["nope.py:1"], request_searched="依頼に分母の答えを探したが無い"))
 
     def test_run_without_request_does_not_bind(self):
-        reply = {"rulings": [{"id": "c1-1", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
+        reply = {"rulings": [{"id": "c1-1", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": [], **self.WHY}]}
         self.assertEqual(ruling.problems(reply, self.todo, self.repo), [])
 
 
