@@ -114,7 +114,8 @@ Which to choose:
 
 - At an approval node: answer `workflow respond <run> stop <note>` (`workflow reject <run>` does the same). The main graph skips the rest and still writes the report.
 - Between approval nodes: `bin/works-factory workflow cancel <run> --cwd <target>`. No report is written. `<run>` is the id of the run you started (not one of its child runs); for a round chain, the chain run (cancelling it also stops its round runs). `bin/works-factory workflow runs --cwd <target>` lists runs one per line as the first 8 characters of the id, the status, and the graph name; take the 8 characters on the `works-factory-chain` line (if there are several, the running one; the age is at the end of the line). Cancel accepts those 8 characters as well as the full id (`workflow status` shows the full `ID:` of running runs).
-- After a cancel, the run ends up failed. To continue it, `workflow resume <run> --cwd <target>`; to give it up, `workflow abandon <run> --cwd <target>`.
+- After a cancel, a run started with `--detach` is `cancelled`. Archon does not resume a cancelled run (`workflow resume` takes only failed or paused runs); to do the work again, start a new run. `workflow abandon <run> --cwd <target>` on it only removes the worktrees Archon made for the run and its child runs (Archon refuses it for a cancelled run that has no such worktree).
+- A run started in the foreground (`workflow run` without `--detach`) is refused by Archon's cancel, so the script stops the process that started it (see below). Archon records that interrupted run as `failed`, not `cancelled`. To continue it, `workflow resume <run> --cwd <target>`; to give it up, `workflow abandon <run> --cwd <target>`.
 
 What a stopped run leaves (whether you answered `stop` or an unattended run stopped with `needs-human`):
 
