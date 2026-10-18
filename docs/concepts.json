@@ -151,6 +151,14 @@
       "lib/latedepth.py"
      ],
      "known": {}
+    },
+    {
+     "what": "修正の後の上げ直しの数えの中身（数えの部品 run_wide・outside_cited・late_signals・consulted_units の呼び・import と、counted の「触るファイル {n} 個（起点: …）」の形）。呼び手は latedepth.signals を呼ぶ",
+     "pattern": "\\.(run_wide|outside_cited|late_signals|consulted_units)\\(|^\\s*from (depth|consult) import\\b[^#\\n]*\\b(run_wide|outside_cited|late_signals|consulted_units)\\b|触るファイル \\{[^}]*\\} 個（起点",
+     "allowed": [
+      "lib/latedepth.py"
+     ],
+     "known": {}
     }
    ]
   },

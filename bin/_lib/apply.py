@@ -287,15 +287,23 @@ def respec_note(value: dict) -> str:
             "（承認し直すかは次の run の仕様の段で答える）")
 
 
+# 封じる前に止まった run の作業ツリーの差分を当てる sh の本文（$1 run の作業ツリー・$2 始めの commit・$3 対象）。修正の段は単位の変更を
+# 作業ツリーへ index 無しの git apply で当てる（lib/unittrees.py の apply）ので、新しく作ったファイルは追跡外のまま残り、素の git diff に
+# 出ない。一時の index に本物の index を写して add -A し（lib/unittrees.py の _tree_now と同じ。run の作業ツリーの本物の index は動かさない）、
+# 始めの commit との差分を --binary で出す。.gitignore に当たる新しいファイルは、修正の段の木（add -A）と同じく入らない
+BY_HAND = ('i=$(mktemp) && cp "$(git -C "$1" rev-parse --path-format=absolute --git-path index)" "$i" && '
+           'GIT_INDEX_FILE="$i" git -C "$1" add -A -- :/ && '
+           'GIT_INDEX_FILE="$i" git -C "$1" diff --cached --binary "$2" | git -C "$3" apply; s=$?; rm -f "$i"; exit $s')
+
+
 def from_worktree(run: dict, target: Path) -> str:
-    """封じる前に止まった run の作業ツリーの差分を確かめずに当てる道（作業ツリーか始めの commit が記録に無ければ空）。
+    """封じる前に止まった run の作業ツリーの差分（追跡外の新しいファイルも）を確かめずに当てる道（作業ツリーか始めの commit が記録に無ければ空）。
     始めの commit は、メイングラフの始めの記録の base_rev（始めのノードが読む HEAD）と同じ、Archon が最初のノードの前に見た checkout"""
     path, start = run.get("working_path"), run.get("checkout_baseline") or {}
     base = start.get("commit") if start.get("kind") == "git" else None
     if not (isinstance(path, str) and path and isinstance(base, str) and base):
         return ""
-    return (f"。run の作業ツリーの差分を確かめずに当てるなら {shlex.join(['git', '-C', path, 'diff', base])} | "
-            f"{shlex.join(['git', '-C', str(target), 'apply'])}")
+    return f"。run の作業ツリーの差分を確かめずに当てるなら {shlex.join(['sh', '-c', BY_HAND, 'sh', path, base, str(target)])}"
 
 
 def pointed(record: dict, ptr) -> Path:
