@@ -5,7 +5,7 @@
 """作業中の試験の選び（run の中の確かめの全体の命令。テストのモジュールではない。test_*.py に当たらない）。
 
 変更（origin/main との merge-base からの差と、未追跡を含む作業ツリーの差）に直に当たる試験のモジュールと、層の柵
-（tests/layers/）だけを unittest で回す。全部の試験は CI（.github/workflows/tests.yml）が回す。持ち主の決め 2026-10-12（#130）。
+（tests/layers/）だけを unittest で回す（モジュールを子に並べる。並べる数は tests/shard.py の WORKERS_ENV と SHARING）。全部の試験は CI（.github/workflows/tests.yml）が回す。持ち主の決め 2026-10-12（#130）。
 - 選び: lib/impact.py の map が変更に直に当てたファイル（direct。起点か深さ 1）・変わったファイル・層の柵のフォルダを候補にし、
   どれが試験のモジュールかは tests/shard.py --paths が CI と同じ集め方（discover の規則）で決める。
   impact の select_tests は選べたかとその訳だけに使う（impact の試験の名の規則で候補を絞らない）
