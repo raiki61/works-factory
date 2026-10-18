@@ -49,6 +49,20 @@ class LineCase(unittest.TestCase):
         self.assertNotIn("use.sh", answer.HOLE)
 
 
+class ResumeCase(unittest.TestCase):
+    def test_shell_head_makes_a_typeable_resume_with_the_keychain_item(self):
+        """答えの行と同じ頭（家と対象を名指して殻を通す）で、respond を resume に替え、keychain の項目名の穴を前に置く"""
+        env = {answer.ENV: shlex.join(["env", "WORKS_FACTORY_HOME=/h", SHELL, "workflow", "respond", "--cwd", TARGET])}
+        self.assertEqual(shlex.split(answer.resume("run-1", env=env)),
+                         [f"{answer.KEYCHAIN_ENV}={answer.KEYCHAIN_HOLE}", "env", "WORKS_FACTORY_HOME=/h", SHELL, "workflow",
+                          "resume", "--cwd", TARGET, "run-1"])
+
+    def test_outside_the_shell_the_hole_says_resume(self):
+        got = answer.resume("run-1", env={})
+        self.assertIn("bin/works-factory workflow resume --cwd", got)
+        self.assertTrue(got.endswith(" run-1"), got)
+
+
 def _named(node):
     """名で引いた物の名（VERBS・answer.VERBS・getattr(answer, "VERBS") の VERBS）。名で引いていなければ None"""
     if isinstance(node, ast.Name):
