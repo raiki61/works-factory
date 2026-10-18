@@ -470,6 +470,24 @@ class ShapeCase(unittest.TestCase):
     def test_minimality_knows_where_handoffs_go(self):
         self.assertIn(HANDOFFS.rstrip("\n"), (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8"))
 
+    def test_r1_reads_the_gate_evidence_and_names_unused_additions(self):
+        """R1 は最後の試験の関門の証拠（入力 checks → prep の checks_file）を Read し、差分が足してどこからも使われない公開の名・関数を
+        最小性の所見として deletions に場所つきで名指す。メイングラフは eyes の with: で欄つきの参照 1 本で証拠のポインタを渡す"""
+        text = (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8")
+        self.assertIn("checks_file", prep_reads(text))
+        self.assertIn("checks_file", NODES["prep"]["output_format"]["properties"])
+        self.assertNotIn("checks_file", NODES["prep"]["output_format"]["required"])
+        self.assertEqual(DOC["inputs"]["checks"]["default"], "null")
+        for want in ("最後の試験の証拠: `$prep.output.checks_file`（Read せよ。", "証拠の文が指すログの置き場も Read せよ",
+                     "値が括弧の訳の文なら証拠は無い", "どこからも使われていない物", "deletions に場所つきで名指せ",
+                     "名で Grep して", "reason にそうと書け"):
+            with self.subTest(want):
+                self.assertIn(want, text)
+        line = yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))
+        eyes = next(n for n in line["nodes"] if n["id"] == "eyes")
+        self.assertEqual(eyes["with"]["checks"], "$test-gate-final.output.evidence")
+        self.assertIn("test-gate-final", eyes["depends_on"])
+
     def test_concept_map_only_on_r1_and_r3(self):
         """考えの地図の節と住処の観点は R1（最小性）と R3 にだけ貼る（元 works/blk-eyes/lib/eyes.py:91-92 CONCEPT_HEADS・CONCEPT_FLAG）"""
         readers = {path.stem: prep_reads(path.read_text(encoding="utf-8")) for path in (BLOCK / "commands").glob("*.md")}
@@ -1315,6 +1333,31 @@ class ScriptCase(unittest.TestCase):
         self.prep_inputs()
         self.assertEqual(pathlib.Path(self.run_script("prep")["candidates_file"]).name,
                          NODES["r1-comments-save"]["with"]["name"] + ".json")
+
+    def test_prep_names_the_final_gate_evidence_for_r1(self):
+        """R1 の材料: 最後の試験の関門の証拠の文（入力 checks のポインタ）の置き場のパスを checks_file で渡す。by の読み直しはしない"""
+        self.prep_inputs()
+        self.inputs["checks"] = self.pointer("test-gate/final/evidence.md", "# test-gate（final）\n")
+        got = self.run_script("prep")
+        self.assertEqual(got.get("checks_file"), str(self.artifacts / "test-gate" / "final" / "evidence.md"))
+
+    def test_prep_says_when_no_gate_evidence_came(self):
+        """入力 checks が渡っていない（null）なら、checks_file は空でなく、証拠が渡っていないと書く"""
+        self.prep_inputs()
+        got = self.run_script("prep").get("checks_file")
+        self.assertTrue(got, got)
+        self.assertIn("最後の試験の関門の証拠が渡っていない", got)
+
+    def test_prep_names_an_unreadable_gate_evidence(self):
+        """入力 checks の先が読めない時は、パスだけを貼らず、入力の名・読めないこと・先のパスを書く（渡っていない時の字とは分ける）"""
+        self.prep_inputs()
+        none = self.run_script("prep").get("checks_file")
+        self.inputs["checks"] = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "gone/evidence.md"})
+        got = self.run_script("prep").get("checks_file")
+        self.assertTrue(got, got)
+        self.assertNotEqual(got, none)
+        for want in ("checks", "読めない", str(self.artifacts / "gone" / "evidence.md")):
+            self.assertIn(want, got)
 
     def test_prep_all_light_turns_eyes_off(self):
         self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])

@@ -35,7 +35,7 @@ ALLOWED = {
     ("workflows/eyes/commands/r1-comments.md", 4, PLUGIN):
         "役の定義の出どころ（pr-review-toolkit:comment-analyzer の文を字のまま写した）を見出しで述べるだけ。"
         "agent は起こさず、写した定義を役自身が読む",
-    ("workflows/eyes/commands/r1-minimality.md", 50, "simplify"):
+    ("workflows/eyes/commands/r1-minimality.md", 51, "simplify"):
         "「simplify は制約付き」は単純にする直しの考え方を言う語で、skill の呼び出しではない",
     ("workflows/fix/commands/delta-review.md", 11, PLUGIN):
         "入力の材料 `lens` の出どころ（修正の後のレンズの節が起こした agent）の説明で、この役は agent を起こさない",

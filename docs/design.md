@@ -379,7 +379,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `baseline`（ポインタ・null 可）: 直す前の結末（テストの走らせ方と元から赤のテスト）。base だけ → judge・fix・test-gate（final）
   - `fingerprint`（object・null 可）: 作業ツリーの指紋 `{head, diff_hash}`。final だけ → merge（seal が照らす）
   - `test_outcomes`（object・null 可）: テストごとの base と最後の結末 `{rows: [{key, base, final, fail_message}], unmeasured}`（赤→緑・緑→緑・緑→赤・赤→赤を全部。`base`・`final` は片側に居なければ `""`、`fail_message` は最後が赤なら最後の、でなければ base の物）。赤の原因の照らし（`green_cert.classify`）と同じ決めで base と最後の 1 件ごとの結末を比べ、比べない時は `rows` が空で `unmeasured` に訳。final だけ → eyes
-  - `evidence`（ポインタ）: 走らせた記録（人が読む `evidence.md`。下の 5 つの欄と同じ値の行を含む）→ report
+  - `evidence`（ポインタ）: 走らせた記録（人が読む `evidence.md`。下の 5 つの欄と同じ値の行を含む）→ report・eyes（R1 が走らせ方とログの置き場を読み、差分が足して使われない物を名指す材料にする）
   - `by`（string）: 走らせ方の語 `engine`・`role`・`role_needed`（出力ノードの中の誤りなら `""`）→ report・メイングラフ 11
   - `suites_line`（string）: 走らせた一式・走らせなかった物の 1 行（誤りなら `""`）→ report・メイングラフ 11
   - `log`（string）: ログの置き場（無ければ `""`）→ report・メイングラフ 11
@@ -400,6 +400,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `diff`・`changed`・`x_scalars` ← `$fixed.output.<同じ名>`（`changed` の `premise_drift_note` を比較役の頭に貼り、`x_scalars` を規模の数値に足す）、`fix_units` ← `$fixed.output.units`
   - `green_ok` ← `$test-gate-final.output.ok`
   - `test_outcomes` ← `$test-gate-final.output.test_outcomes`（試験の関門が比べたテストごとの base と最後の結末）、`records` ← `$fixed.output.records`（修正の段ごとの出力の控えの欄。欄 `tdd_unit` の先を `lib/fixbeside.py` の `tdd` で読む）。R2 の比較役に、テストごとの base と最後の結末（移り方ごとに全部。赤の無い run でも緑→緑のテストの名が載る）と段ごとの TDD のループの記録（報告と同じ行）を機械の実測として貼る。累積差分の起点の訳（起点が PR の根か修正前の HEAD か・PR の差分と直しの差分の分かれ・空の時に打ち消し合ったか何も変えていないか）も貼る。比較役の道具は Read と累積差分のファイルのまま（issue #384）
+  - `checks` ← `$test-gate-final.output.evidence`（最後の試験の関門の証拠の文 `evidence.md` のポインタ。既定 `"null"`。R1 が読む。prep の `checks_file` が置き場のパスを R1 の指示書に渡し、渡っていない時と先が読めない時は、そう書いた括弧の訳の文にする（黙った空にしない）。`by`・`suites_line`・`log` は eyes に渡さず、走らせ方とログの置き場は証拠の文の行を R1 が読む）
   - `start` ← `$start.output.record`（直した後の実測の数える版・守りのパスの当たり・方針の文書の置き場）
   - `plan_questions` ← `$fixed.output.plan_questions`（修正前の承認ノードの項目 `{kind, text}`。fixed が計画の往復の `questions` をそのまま渡す。直す物が無い周は `[]`）、`answers` ← `$fixed.output.answer`（fixed が修正前の承認ノードの答えをそのまま渡す。直す物が無い周は null。修正前の承認ノードで人が通した行を R4 に渡し、同じ行を聞き直さない。持ち主の決め `decision-records`）
   - `plan_declared` ← `$fixed.output.plan_declared`（修正役が直さずに残すと答えた事前審査の block の行。直す物が無い周は `[]`。prep が R4 の頭にセクション `eyeverdict.DECLARED_HEAD` で貼り、R4 が累積差分の後も残るかを読んで redesign-needed か surfaced で扱う）
