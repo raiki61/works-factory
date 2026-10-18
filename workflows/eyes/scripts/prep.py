@@ -119,7 +119,7 @@ out = {
     "judgment_file": str(judgment_file or ""),
     "premises_text": premises_text,
     "measured_text": eyeverdict.measured_section(boundary.parsed(os.environ["INPUTS_TEST_OUTCOMES"]),
-                                                 eyeverdict.tdd_stages(boundary.parsed(os.environ["INPUTS_DIFFS"]), boundary.resolve)),
+                                                 eyeverdict.tdd_stages(boundary.parsed(os.environ["INPUTS_RECORDS"]), boundary.resolve)),
     "origin_text": eyeverdict.origin_section(Path.cwd(), base_rev, startrec.head_rev(start), startrec.diff_base_label(start),
                                              cumulative_empty=not diff_text and not diff_why, skip=boundary.SKIP),
     **eyeverdict.prompt_texts(

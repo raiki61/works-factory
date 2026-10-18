@@ -36,8 +36,9 @@ engine/role_run.py（_tree_members・_stop_tree。本線 9f91687 = graphloops 0.
 決まりを 1 か所に置くのは、線の CI と engine_run の CI で同じ宣言が片方だけ偽の赤になるのを防ぐため）。
 
 同じ run の中の試験の結果の使い回し（reuse_run・replay_group・keep_group。今の works の tree_run.py:425-836 を元の名で写し、機械全体の
-試験の枠 slotwrap.sh を外した物）: 同じ作業ツリーの木・同じ argv・同じ環境・同じ道具の緑の結果を、run の置き場の直下 REUSE_SUB に
-控え、同じ run の中の次の呼びで子を起こさずに使う。置き場・run の名・旗 RERUN_ENV は呼び手が reuse_place に渡す。
+試験の枠 slotwrap.sh を外した物）: 同じ作業ツリーの木・同じ argv・同じ環境・同じ道具の緑の結果を、メイングラフの run の置き場の直下
+REUSE_SUB（reuse_dir。メイングラフが作って入力で渡す）に控え、同じ run の中の次の呼びで子を起こさずに使う。置き場・run の名・旗
+RERUN_ENV は呼び手が reuse_place に渡す。
 """
 import base64
 import collections
@@ -558,14 +559,19 @@ def file_clock() -> float:
         return os.fstat(f.fileno()).st_mtime
 
 
-def reuse_place(top, run: str, *, rerun: bool) -> dict | None:
-    """使い回しの置き場 {dir, run, skip}: 控えは top（run の置き場）の直下の REUSE_SUB、run は控えに書いて引く時に照らす run の名、
-    skip は引かずに走らせる理由（rerun が真なら旗 RERUN_ENV の文。置くのは続ける）。top か run が空なら None（控えを読まず書かない）。
-    置き場・run の名・旗は呼び手が渡す（元 works/.shared/core/tree_run.py:542 `_plan` が環境変数から引いた分と、:661 `_no_reuse_reason`
-    の旗の読み）"""
-    if not top or not run:
+def reuse_dir(top) -> pathlib.Path:
+    """run の置き場 top の直下の試験の結果の控えの置き場（REUSE_SUB）"""
+    return pathlib.Path(top) / REUSE_SUB
+
+
+def reuse_place(place, run: str, *, rerun: bool) -> dict | None:
+    """使い回しの置き場 {dir, run, skip}: 控えは place（reuse_dir の字。入力で受けた物）にそのまま置き、run は控えに書いて引く時に照らす
+    run の名、skip は引かずに走らせる理由（rerun が真なら旗 RERUN_ENV の文。置くのは続ける）。place か run が空なら None（控えを読まず
+    書かない）。置き場・run の名・旗は呼び手が渡す（元 works/.shared/core/tree_run.py:542 `_plan` が環境変数から引いた分と、:661
+    `_no_reuse_reason` の旗の読み）"""
+    if not str(place or "").strip() or not run:
         return None
-    return {"dir": pathlib.Path(top) / REUSE_SUB, "run": run,
+    return {"dir": pathlib.Path(str(place).strip()), "run": run,
             "skip": f"旗 {RERUN_ENV} が立っている（引かずに回す。書くのは続ける）" if rerun else ""}
 
 

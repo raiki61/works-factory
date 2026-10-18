@@ -73,6 +73,11 @@ def out_dir() -> Path:
     return Path(os.environ["ARTIFACTS_DIR"]) / runreport.OUT_DIR
 
 
+def marked_place() -> str | None:
+    """利用者の HOME・XDG に戻して起こした印の置き場（入力 user-env-dir。空は印を読まない）"""
+    return os.environ.get("INPUTS_USER_ENV_DIR", "").strip() or None
+
+
 def rel(path) -> dict | None:
     """置き場の中のパスを、run の置き場からの相対の指し札に（None は None）"""
     return None if path is None else boundary.pointer(boundary.rel_of(path))
@@ -277,7 +282,7 @@ def main() -> dict:
                                                       "failed": facts["failed"], **runreport.outcome_facts(start, facts, line)})
     built = runreport.build(returns, gates, typed_listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
                             run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd(), line=line,
-                            user_env=userenv.ran(boundary.line_place()))
+                            user_env=userenv.ran(marked_place()))
     report = rel(built["report"])
     run_id = os.environ.get("WORKFLOW_ID", "")
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],
@@ -300,7 +305,7 @@ def fallen(error: BaseException) -> dict:
         import runreport
         import userenv
         out["report"] = rel(runreport.fallback_report(out_dir(), why, runreport.UNWRITTEN,
-                                                      user_env=userenv.ran(boundary.line_place())))
+                                                      user_env=userenv.ran(marked_place())))
     except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る
         out["report"] = unwritten(why)
     out["facts_file"] = out["report"]["path"]

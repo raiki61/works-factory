@@ -17,8 +17,8 @@
   start_tree, out_dir}）
 - TDD の輪（tddloop.start）: 実行器は始めの記録の tdd_suite（空は実行器の無い run）。輪の頭で一式を 1 回走らせて元の結末を取る
   （今の works のまま。親の baseline.json は写して受け付けと join の確かめ直しが読む）。返りを置き場の tdd-start.json に控える。
-  輪の頭の test_cmd は、線の run の置き場（boundary.line_place）の控えから同じ run の中の緑を使い回す（run の名は始めの記録の run_id。
-  旗 tree_run.RERUN_ENV が立てば引かない）
+  輪の頭の test_cmd は、入力 reuse_dir の控えから同じ run の中の緑を使い回す（run の名は始めの記録の run_id。入力が空か旗
+  tree_run.RERUN_ENV が立てば引かない）。利用者の HOME・XDG に戻して起こした印は入力 user_env_dir の置き場に置かせる
 置き場に書く物: 上の写し・fix-ignored-before.json・groups.json・tdd-start.json・tdd-<k>/（輪の状態）。組の置き場
 （fixboard.group_dir）に group-start.json（{group, from_tree, out_dir, start_tree}。group-end と drop_unreturned が読む）。
 返り {tdd: 輪を回すか, units: 組の単位の数, reason: 回さない理由}。入力が読めない・前の組が止まっている・git が効かない・
@@ -90,9 +90,9 @@ def main() -> dict:
     if not keys:
         out = {"go": False, "reason": NO_UNITS, "suite": suite, "state_file": "", "summary_file": ""}
     else:
-        reuse = tree_run.reuse_place(boundary.line_place(), str(start.get("run_id") or ""),
+        reuse = tree_run.reuse_place(os.environ.get("INPUTS_REUSE_DIR", ""), str(start.get("run_id") or ""),
                                      rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
-        boundary.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
+        boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
         out = tddloop.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),
                             test_cmd=str(start.get("test_cmd") or ""), unit_depths=depths, owed=set(keys), reuse=reuse)
     fixboard.write_json(place / fixboard.TDD_START_FILE, out)

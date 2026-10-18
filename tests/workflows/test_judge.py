@@ -53,7 +53,7 @@ RUN_ID = "run-judge"
 # 返す節の欄（docs/design.md の「サブグラフの出力の約束」の judge の返り）
 RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict", "depth",
            "depth_why", *ja.PORTS, *ja.FIRST_PORTS)
-INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
+INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null", "user_env_dir": ""}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
 MATERIALS = tuple(ja.MATERIAL_ROLES)
 PUBLIC = ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "purpose-review.json", "depth-head.json")
@@ -1109,13 +1109,14 @@ class SpecFreezeTest(unittest.TestCase):
         self.assertEqual(row["exit_at_approval"], 0)
 
     def test_approval_in_users_env_leaves_the_marker(self):
-        """#504: 起動の殻を通った run（いつも控えが在る）では、受け入れ条件のコマンドを利用者の HOME・XDG に戻して走らせ、メイングラフの
-        run の置き場に印（userenv.RAN_FILE）を残す（印の置き場を立てずに戻すと、戻さずに止まって仕様を固められない）"""
+        """#504: 起動の殻を通った run（いつも控えが在る）では、受け入れ条件のコマンドを利用者の HOME・XDG に戻して走らせ、入力
+        user_env_dir の置き場（メイングラフの run の置き場）に印（userenv.RAN_FILE）を残す（印の置き場を立てずに戻すと、戻さずに止まって
+        仕様を固められない）"""
         r = self.spec_run()
         home = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, home, True)
         out = r.returned("spec_freeze", answer={"decision": "approve", "text": ""},
-                         env={userenv.RECORD: userenv.record({"HOME": str(home)})})
+                         env={userenv.RECORD: userenv.record({"HOME": str(home)}), "INPUTS_USER_ENV_DIR": str(r.artifacts)})
         self.assertTrue(out["go"], out)
         spec = json.loads((r.judge / "spec.json").read_text(encoding="utf-8"))
         self.assertEqual(spec["acceptance"][0]["exit_at_approval"], 0)

@@ -54,8 +54,8 @@ inputs:
     default: ""
     description: >-
       修正の出力。JSON のオブジェクト {done, go, units, conflicts, replan_items, objection, refixed, delta_review, allowed_test_changes, handoffs,
-      stop_reason, diff, diffs など}（units は {unit_id, status, reason} の配列、conflicts と diffs はポインタの配列でもよく、diff などの文書の欄は
-      ポインタか null）。空か null はその段が飛ばされた・落ちた・走らなかったこと
+      stop_reason, diff, records など}（units は {unit_id, status, reason} の配列、conflicts はポインタの配列でもよく、records は段ごとの
+      {diff, 控えの欄} の配列、diff などの文書の欄はポインタか null）。空か null はその段が飛ばされた・落ちた・走らなかったこと
   final-tests:
     default: ""
     description: >-
@@ -146,6 +146,10 @@ inputs:
     default: ""
     description: >-
       run を止めずに進めた起こす前の注意の行の文の JSON の配列。報告の冒頭の 3 行と人が決める物の下に 1 行ずつ載る。空の配列か空は無いこと
+  user-env-dir:
+    default: ""
+    description: >-
+      利用者の HOME・XDG に戻して起こした印を置いたフォルダの絶対パスの字。空は印を置かずに起こしたこと（印を読まない）
 
 returns: report
 outcome_field: ok
