@@ -2758,7 +2758,9 @@ class ClashScenarioCase(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn(rows[0]["id"], pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8"))
         ruled = {"rulings": [{"id": rows[0]["id"], "decision": decision, "limits": [],
-                              "text": "b.py の triple を、前の組が変えた E1 = 10 の上でも triple(2) が 6 になるように直せ"}]}
+                              "text": "b.py の triple を、前の組が変えた E1 = 10 の上でも triple(2) が 6 になるように直せ",
+                              **({"ask_why": {"changes": "direction", "line": "E1 と triple のどちらを正とするかで直しの向きが変わる"}}
+                                 if decision == conflict.ASK else {})}]}
         code, out, err = _blk_run("rule_accept", self.repo, self.art, {"reply": json.dumps(ruled, ensure_ascii=False), "iteration": "1"})
         self.assertEqual((code, out["ok"]), (0, True), (err, out))
         return rows[0]["id"]
