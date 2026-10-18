@@ -133,6 +133,7 @@ def final_got(**kw) -> dict:
            "gates": [], "always": [], "structure_missing": "", "r2_inputs": [], "premise_facts": [], "sealed": True, "seal_reason": "", "hash": "a" * 64, "deleted": [], "sealed_diff": "", "fenced": [],
            "after": [], "passes": [], "converge": [], "held": [], "answered": [], "unmatched": [], "unread_holds": [], "unread": []}
     got.update(kw)
+    got.setdefault("protected_count", sum(1 for row in got["protected_hits"] if not str(row).startswith(seal.UNKNOWN_HEAD)))
     return got
 
 

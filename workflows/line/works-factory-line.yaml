@@ -866,7 +866,7 @@ nodes:
     depends_on: [merge-seal]
     with:
       got: "$merge-seal.output"
-      names: "mode ok hash diff protected_hits reason"
+      names: "mode ok hash diff protected_hits protected_count reason"
 
   # 11 最後の関所
   - id: ask-final
@@ -970,7 +970,7 @@ nodes:
     depends_on: [merge-apply]
     with:
       got: "$merge-apply.output"
-      names: "mode ok hash diff protected_hits reason"
+      names: "mode ok hash diff protected_hits protected_count reason"
 
   # 13 報告。前の段が落ちても飛ばされても走る。resume でも collect と result は回し直す（always_run。report は include で、Archon は
   # include の always_run を捨てるので、回し直した collect の返りが変われば Archon が report の中の控えを捨てて回し直す）

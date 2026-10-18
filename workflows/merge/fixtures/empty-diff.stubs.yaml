@@ -5,6 +5,7 @@ merge:
   hash: ""
   diff: null
   protected_hits: null
+  protected_count: null
   reason: 差分が空
 fixture:
   expect: completed

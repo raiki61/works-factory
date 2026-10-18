@@ -17,7 +17,7 @@ import yaml
 
 from tests import archon
 from tests.bin import hermetic
-from tests.bin.gitkit import git
+from tests.bin.gitkit import commit_absent, git
 from tests.layers import scan
 from tests.workflows import copied
 from tests.workflows.copied import assert_is_original, rewritten, role_definition
@@ -38,7 +38,9 @@ import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import launchgroups  # noqa: E402
+import listcut  # noqa: E402
 import policy  # noqa: E402
+import protect  # noqa: E402
 import rolekit  # noqa: E402
 import seal  # noqa: E402
 import structmark  # noqa: E402
@@ -976,6 +978,28 @@ class ScriptCase(unittest.TestCase):
         got = self.run_script("protected")
         self.assertEqual((got["hits"], got["broken"]), (["lib/protect.py"], ""))
         self.assertTrue(json.loads((self.artifacts / "eyes" / "protected.json").read_text(encoding="utf-8"))["lines"])
+
+    def test_many_protected_hits_keep_the_output_short(self):
+        """守りのファイルに当たった物が 20,000 本でも、守りのパスのノードの返りと控え eyes/protected.json と目の出力の protected_hits は
+        先頭 SHOWN 行と残りの 1 行だけで、全件は eyes/protected-all.json に残る"""
+        (self.repo / ".works-protected.json").write_text(
+            json.dumps({"rules": [{"id": "gen", "glob": "gen/**", "why": "生成物"}]}), encoding="utf-8")
+        git(self.repo, "add", ".works-protected.json")
+        self.base = commit_absent(self.repo, [f"gen/{i}.o" for i in range(20000)])
+        self.start()
+        self.prep_file()
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        self.passing_eyes()
+        got = self.run_script("protected")
+        whole = self.artifacts / "eyes" / "protected-all.json"
+        full = json.loads(whole.read_text(encoding="utf-8"))
+        self.assertEqual((len(full["hits"]), len(full["lines"]), got["broken"]), (20000, 20000, ""))
+        for key in ("hits", "lines"):
+            self.assertEqual(got[key][:listcut.SHOWN], full[key][:listcut.SHOWN])
+            self.assertEqual(got[key][listcut.SHOWN:],
+                             [f"{protect.LIST}（{key}）の" + listcut.REST.format(n=20000 - listcut.SHOWN) + f"（全件: {whole}）"])
+        self.assertEqual(json.loads((self.artifacts / "eyes" / "protected.json").read_text(encoding="utf-8")), got)
+        self.assertEqual(self.run_script("verdict")["protected_hits"], got["hits"])
 
     def test_protected_hits_include_target_rules(self):
         (self.repo / ".works-protected.json").write_text(

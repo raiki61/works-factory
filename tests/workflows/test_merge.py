@@ -20,7 +20,7 @@ import yaml
 
 from tests import archon
 from tests.bin import hermetic
-from tests.bin.gitkit import git
+from tests.bin.gitkit import commit_absent, git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LIB = ROOT / "lib"
@@ -28,6 +28,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import green_cert  # noqa: E402
+import listcut  # noqa: E402
 from graphloops.engine.schema import validate_schema  # noqa: E402
 import protect  # noqa: E402
 import seal  # noqa: E402
@@ -38,7 +39,8 @@ SCRIPT = BLOCK / "scripts" / "merge.py"
 NAME = "works-factory-merge"
 RUN = "run-merge"
 INPUTS = ("mode", "start", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2")
-RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "reason")
+RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason")
+PROTECTED_FILE = "merge/protected.json"
 NO_DEADLINE = 1728000000
 PASS = json.dumps({"decision": "continue", "text": ""})
 
@@ -89,6 +91,7 @@ class ShapeTest(unittest.TestCase):
         self.assertEqual(props["ok"]["type"], "boolean")
         self.assertIn("null", props["diff"]["type"])
         self.assertIn("null", props["protected_hits"]["type"])
+        self.assertEqual(props["protected_count"]["type"], ["integer", "null"])
         self.assertEqual(sorted(props["diff"]["properties"]["path"]["enum"]),
                          sorted(["merge/sealed.diff", "merge/apply.diff", "merge/refused.diff"]))
 
@@ -178,7 +181,7 @@ class SealTest(ScriptCase):
         written = self.artifact("merge/sealed.diff").read_bytes()
         self.assertEqual(got["hash"], hashlib.sha256(written).hexdigest())
         self.assertEqual(written, green_cert.diff_bytes(self.repo, self.base))
-        self.assertEqual(got["protected_hits"], [])
+        self.assertEqual((got["protected_hits"], got["protected_count"]), ([], 0))
 
     def test_changed_fingerprint_refuses_but_writes(self):
         moved = json.dumps({**green_cert.fingerprint(self.repo), "diff_hash": "0" * 64})
@@ -192,6 +195,23 @@ class SealTest(ScriptCase):
         got = self.seal()
         self.assertEqual(len(got["protected_hits"]), 1, got)
         self.assertTrue(got["protected_hits"][0].startswith(glob))
+
+    def test_many_protected_hits_keep_the_return_short(self):
+        """守りのファイルに当たった物が何本でも、返りの protected_hits は先頭 SHOWN 行と残りの 1 行だけで、全件の数は
+        protected_count、全件は置き場の merge/protected.json に残る（20,000 本の時の最後の承認ノードの文は test_line が見る）"""
+        many = listcut.SHOWN * 40
+        (self.repo / ".works-protected.json").write_text(
+            json.dumps({"rules": [{"id": "gen", "glob": "gen/**", "why": "生成物"}]}), encoding="utf-8")
+        git(self.repo, "add", ".works-protected.json")
+        self.base = commit_absent(self.repo, [f"gen/{i}.o" for i in range(many)])
+        self.start = self.place("start.json", json.dumps({"base_rev": self.base}))
+        got = self.seal(fingerprint=self.fingerprint())
+        whole = json.loads(self.artifact(PROTECTED_FILE).read_text(encoding="utf-8"))["protected_hits"]
+        self.assertEqual((got["protected_count"], len(whole)), (many, many))
+        self.assertEqual(got["protected_hits"][:listcut.SHOWN], whole[:listcut.SHOWN])
+        self.assertEqual(got["protected_hits"][listcut.SHOWN:], [
+            f"{protect.LIST}（protected_hits）の" + listcut.REST.format(n=many - listcut.SHOWN)
+            + f"（全件: {self.artifact(PROTECTED_FILE)}）"])
 
     def test_index_marks_do_not_hide_a_protected_hit(self):
         for mark in ("--assume-unchanged", "--skip-worktree"):

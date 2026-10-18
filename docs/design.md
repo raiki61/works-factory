@@ -390,7 +390,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `questions`（array of string）: R4 の人への問い → メイングラフ 11
   - `premise_check`（object・null 可）: 前提の検算 `{verdict, reason}`、verdict は `resolved`・`escalate`（review-graph の `stop.premise_check`）。走らなければ null → メイングラフ 11・report
   - `structure_after`（ポインタ・null 可）: 直した後の構造の実測（今の works の `structure-after.json`）→ メイングラフ 11（考えの住処の柵の数が増えた）・report
-  - `protected_hits`（array of string）: 差分が当たった守りのパス → report
+  - `protected_hits`（array of string）: 差分が当たった守りのパス。先頭 `listcut.SHOWN` 行と、超える時は残りの 1 行（`protect.shown`。全件は置き場の `eyes/protected-all.json`）→ report
   - `notes`（ポインタ・null 可。部分 D2。S12・S14）: 最後の承認ノードに出す R2 の前提の材料 `premise-inputs.json`（`{design, compare, claims}`。R2 の 2 つの役に渡した前提の控えと、比較役が「渡されていない」と書いた文と、そのうち渡していた物 `compare.claims_given`。今の works の `eyes-exit.json` の `premise_inputs`。`lib/eyeverdict.py` の `write_notes`）。隣の約束のファイルは `r4-gate-passes.json`（人が通したので R4 の問いから外した行。`eyeverdict.GATE_PASSES`。plan-review の `review` の隣の同じ名の `gate-passes.json`〔修正前の承認ノードが聞かずに通した行〕とは別物）と `premise-check.json`（前提の検算の役の出力 `{key, verdict, reason, resolution?, facts_to_add?}`。`eyeverdict.PREMISE_FILE`）。出力ノードが材料を書けなかった道（支度が落ちた・lib が読めない）は null → メイングラフ 11（`ask-final` の `eyes` の `notes`。R2 の行の下・人が通した行・前提の検算の行の下に並べる。`eyeverdict.r2_input_lines`・`gate_pass_rows`・`premise_fact_lines`）・report（同じ口。前提の検算が仮定を偽〔resolved〕と示した時の `facts_to_add` は、次の依頼 `next-request.json` の `constraints` に運ぶ）
 - 前の run の前提の検算が運んだ実測（入力 `premises` の先の制約のうち `measured_how` が `lib/carry.py` の `CARRIED_HOW_HEAD` で始まる行）が在る run は、支度が深さで目を省かない（`run_eyes` を真に。今の works の `r2_refire_forced`）
 - 型つきの成果物: 目ごとに `output_type: eye-verdict`
@@ -412,7 +412,8 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `ok`（boolean）: seal は差分を封じた。apply は封じた hash と今の差分が合い、置いて読み戻せた → メイングラフ 11（seal）・report
   - `hash`（string）: seal は封じた差分の sha256。apply は読み戻した差分の sha256 → メイングラフ 11・merge（apply が照らす）
   - `diff`（ポインタ・null 可）: seal は封じた差分。apply は置いた先（人が `bin/apply` で当てる物）。差分が空か組めない時は null（`ok` は false、`reason` に訳）→ report
-  - `protected_hits`（array of string・null 可）: 守りのパスの当たり。seal だけ → メイングラフ 11
+  - `protected_hits`（array of string・null 可）: 守りのパスの当たり。seal だけ。先頭 `listcut.SHOWN` 行と、超える時は残りの 1 行（`protect.shown`。全件は置き場の `merge/protected.json`）→ メイングラフ 11
+  - `protected_count`（integer・null 可）: 守りのパスの当たりの全件の数（確かめられなかった時は 0）。seal だけ → メイングラフ 11
   - `reason`（string）: ok が false の訳（hash の食い違いなど）。ok なら `""` → report
 
 ### report の出力

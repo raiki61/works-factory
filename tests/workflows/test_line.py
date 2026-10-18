@@ -66,6 +66,7 @@ import judge_accept  # noqa: E402
 import outcome  # noqa: E402
 import planfile  # noqa: E402
 import policy  # noqa: E402
+import protect  # noqa: E402
 import querytest  # noqa: E402
 import replan  # noqa: E402
 import runreport  # noqa: E402
@@ -2049,7 +2050,7 @@ class AskFinalReadsCase(Artifacts):
         with mock.patch.dict(os.environ, self.null_env()):
             got = ask_final.got_of_env()
         self.assertEqual((got["sealed"], got["seal_reason"], got["hash"], got["protected_hits"], got["deleted"]), (True, "", "", [], []))
-        self.assertEqual(ask_final.SEAL_SKIPPED, {"ok": True, "reason": "", "hash": "", "protected_hits": [], "diff": None})
+        self.assertEqual(ask_final.SEAL_SKIPPED, {"ok": True, "reason": "", "hash": "", "protected_hits": [], "protected_count": 0, "diff": None})
         self.assertEqual(set(ask_final.SEAL_SKIPPED), set(ask_final.SEAL))
 
     def test_skipped_whole_outputs_stop_on_undeclared_names(self):
@@ -2093,6 +2094,27 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn(f"- {seal.DELETED_HEAD}: {names[0]}", lines)
         self.assertNotIn(f"- {seal.DELETED_HEAD}: {names[100]}", lines)
         self.assertIn(f"- {seal.DELETED_HEAD}: ほか 19995 件（全件: {boundary.resolve(ptr)}）", lines)
+        self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
+        self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)
+
+    def test_many_protected_hits_are_cut(self):
+        """守りのファイルに当たった物が 20,000 本でも、最後の承認ノードの文は本数に依らず短く、末尾の答え方の行まで在る。封じの返り
+        （merge が protect.shown で切った行と全件の数 protected_count）から文まで通し、件数は全件の数で言う"""
+        rows = protect.lines([{"path": f"gen/{i}.o", "id": "target:gen", "glob": "gen/**", "why": "生成物", "added": 0, "deleted": 1}
+                              for i in range(20000)])
+        whole = self.artifacts / "merge" / "protected.json"
+        seal_out = {"ok": True, "protected_hits": protect.shown(rows, "protected_hits", whole), "protected_count": len(rows)}
+        env = self.null_env(final_gate="always", unattended="false", tests={"ok": True, "green": True}, seal=seal_out)
+        with mock.patch.dict(os.environ, env):
+            out = ask_final.ask(**ask_final.from_env())
+        text, lines = out["text"], out["text"].splitlines()
+        self.assertTrue(out["open"], out)
+        self.assertLessEqual(len(lines), 120, text[:3000])
+        self.assertIn(f"{ask_final.PROTECTED_HEAD}（20000 件。人の確かめが要る）", lines[0])
+        self.assertTrue(any(x.startswith(f"## {ask_final.PROTECTED_HEAD}（20000 件。") for x in lines), text[:3000])
+        self.assertIn(f"- {rows[0]}", lines)
+        self.assertNotIn(f"- {rows[100]}", lines)
+        self.assertIn(f"- {protect.LIST}（protected_hits）のほか 19995 件（全件: {whole}）", lines)
         self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
         self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)
 

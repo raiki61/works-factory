@@ -63,7 +63,9 @@ nodes:
           type: [array, "null"]
           items:
             type: string
+        protected_count:
+          type: [integer, "null"]
         reason:
           type: string
-      required: [mode, ok, hash, diff, protected_hits, reason]
+      required: [mode, ok, hash, diff, protected_hits, protected_count, reason]
       additionalProperties: false
