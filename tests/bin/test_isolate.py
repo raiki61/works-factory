@@ -102,8 +102,9 @@ class ParallelWorktreeGrantCase(unittest.TestCase):
 
     Archon の子の run は 1 つのプロセスの中で走り、git の全体の設定は殻が渡す HOME（工場の家）の .gitconfig 1 つを分け合う。git は
     設定を書く間 .gitconfig.lock を作り、ほかが持っていれば待たずに落ちる。ここではロックを持ったまま子 2 本ぶんの書きを同時に回す。
-    止めた Archon は、まだ無いパスで、いちばん近い在る親がそのプロセスの利用者の物なら書かずに済ませる。殻が作業場の置き場
-    （ARCHON_HOME）を利用者の物として作るので、子の作業場はいつもこれに当たる。
+    止めた Archon は、まだ無いパスで、いちばん近い在る親がそのプロセスの利用者の物なら書かずに済ませる。本番では Archon 自身が
+    作業場の親のフォルダを作るので、子の新しい作業場はこれに当たる。この試験は GRANT_TS が親の mkdir を省くので、isolate() が作った
+    ARCHON_HOME をいちばん近い在る親にして、同じ条件を作っている。
     """
 
     def setUp(self):
