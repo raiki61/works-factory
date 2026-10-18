@@ -1,5 +1,5 @@
 {
-  "about": "層の地図（根の AGENTS.md の E22）。layers は層ごとの置き場と頼ってよい層（may_use。自分の層の中は頼ってよい）で、independent の層の中の置き場どうしは互いに頼らない。import-linter の layers・forbidden・independence の契約の形に倣う。置き場の paths の * はパスの 1 段。最初に当たる層が、そのファイルの層。outside は層の照らしの外（試験と決まりの文。/ で終わる物はフォルダ）。beside はサブグラフごとの、そのサブグラフが隣に書くファイルの名（docs/design.md の「サブグラフの出力の約束」の隣のファイル）。名は複数のサブグラフの隣に在ってよく、<k> の形の段は名の 1 段に当たる。known は照らしごとの既知の漏れ {パス: [当たりの数, 訳]} で、減らす向きにだけ動かす。loosened は地図を緩めた所の訳 {鍵: 訳}（tests/layers/test_layer_map.py の NotAboveMain）",
+  "about": "層の地図（根の AGENTS.md の E22）。layers は層ごとの置き場と頼ってよい層（may_use。自分の層の中は頼ってよい）で、independent の層の中の置き場どうしは互いに頼らない。import-linter の layers・forbidden・independence の契約の形に倣う。置き場の paths の * はパスの 1 段。最初に当たる層が、そのファイルの層。outside は層の照らしの外（試験と決まりの文。/ で終わる物はフォルダ）。beside はサブグラフごとの、そのサブグラフが隣に書くファイルの名（docs/design.md の「サブグラフの出力の約束」の隣のファイル）。名は複数のサブグラフの隣に在ってよく、<k> の形の段は名の 1 段に当たる。homes はサブグラフごとの、そのサブグラフの隣のファイルの名の字をただ 1 つ持つ lib のファイル（名の住処。書き手と受け付けはその定数を import して引く）で、照らし beside は住処の中のそのサブグラフの名を数えない。known は照らしごとの既知の漏れ {パス: [当たりの数, 訳]} で、減らす向きにだけ動かす。loosened は地図を緩めた所の訳 {鍵: 訳}（tests/layers/test_layer_map.py の NotAboveMain）",
   "layers": [
     {"id": "shell", "what": "起動の殻", "paths": ["bin/"], "may_use": ["shared", "lib"]},
     {"id": "top", "what": "メイングラフと周の鎖", "paths": ["workflows/line/", "workflows/chain/"], "may_use": ["shared", "lib"]},
@@ -19,35 +19,28 @@
             "tdd-unit.json", "tdd-<k>/state.json"],
     "eyes": ["r4-gate-passes.json", "premise-check.json"]
   },
-  "loosened": {},
+  "homes": {"judge": "lib/judgebeside.py"},
+  "loosened": {
+    "home:judge": "#723 で judge の隣のファイルの名の字を lib/judgebeside.py の 1 か所に集めた。照らし beside が数えないのはそのファイルの中の judge の名だけで、書き手と受け付けは住処の定数を引き、ほかの読み手は判定の出力の欄のポインタで受ける"
+  },
   "known": {
     "import": {},
     "beside": {
-      "lib/boardview.py": [3, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（構造の目の控えの写しの名。読みは欄 structure の先の design_file から辿る）、plan-review の隣の design-premises.json・gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "lib/boardview.py": [3, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（構造の目の控えの写しの名。読みは欄 structure の先の design_file から辿る）、plan-review の隣の design-premises.json・gate-passes.json（#723。#680 の約束に沿う）"],
       "lib/design-row.schema.json": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（plan の中の構造の目の部品。ほかのサブグラフは欄 structure の先の design_file から辿る）"],
-      "lib/diverted.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の local-review-lenses.json（#680）"],
       "lib/eye.py": [2, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（plan の中の構造の目の部品。ほかのサブグラフは欄 structure の先の design_file から辿る）"],
-      "lib/eyeverdict.py": [5, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の premises.json（#680）、plan-review の隣の design-premises.json（issue 無し。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "lib/eyeverdict.py": [3, "lib がサブグラフの隣のファイルの名を持つ: plan-review の隣の design-premises.json（#723。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（#723。#680 の約束に沿う）"],
       "lib/fixbeside.py": [3, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の closure.json・delta-holes.json・lenses.json（fix の名の住処。表 PORTS・FROM が欄の先として引く。#681）"],
-      "lib/fixboard.py": [8, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・materials.json（#680）、fix の隣の accept-trace.json・allowed-tests.json・lenses.json・tdd-unit.json（fix の名の住処 fixbeside の表が引く元の定数。#681）"],
-      "lib/gatemarks.py": [13, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・materials.json（#680）、plan-review の隣の gate-passes.json・gate.json（issue 無し。#680 の約束に沿う）"],
-      "lib/headdepth.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の depth-head.json（#680）"],
-      "lib/judge_accept.py": [19, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・depth-head.json・judge-verify.json・materials.json・pr-downgrades.json・pr-excluded.json・premises.json・rejudge-diff.json・rejudge-exit.json・world-state.json（#680）"],
-      "lib/judgeverify.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の judge-verify.json（#680）"],
+      "lib/fixboard.py": [6, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の accept-trace.json・allowed-tests.json・lenses.json・tdd-unit.json（fix の名の住処 fixbeside の表が引く元の定数。#681）"],
+      "lib/gatemarks.py": [2, "lib がサブグラフの隣のファイルの名を持つ: plan-review の隣の gate-passes.json・gate.json（#723。#680 の約束に沿う）"],
       "lib/leftovers.py": [3, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の fix-removed.json（fix の名の住処 fixbeside の表が引く元の定数。#681）"],
-      "lib/marks.py": [2, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の answer-ties.json・pr-excluded.json（#680）"],
       "lib/planblk.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan と plan-review の隣の replan-gave-up.json（書き手の定数。読み手は欄 gave_up で受ける。#681）"],
       "lib/planfile.py": [8, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl・p2.fix_plan.json・rejects-plan.json（plan の名の住処。表 PORTS・FROM が欄の先と元として引く。#681）"],
-      "lib/prcheck.py": [2, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の pr-downgrades.json・pr-excluded.json（#680）"],
-      "lib/premises.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の premises.json（#680）"],
-      "lib/purpose.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の purpose-review.json（#680）"],
-      "lib/report.py": [3, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の rejudge-diff.json・rejudge-exit.json（#680）"],
-      "lib/runreport.py": [6, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の depth-head.json・materials.json・rejudge-exit.json（判定の出力の欄の先を説く文の中の名。読むのは欄のポインタ。#680）、plan-review の隣の gate.json（issue 無し。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"],
+      "lib/runreport.py": [3, "lib がサブグラフの隣のファイルの名を持つ: plan-review の隣の gate.json（#723。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（#723。#680 の約束に沿う）"],
       "lib/stage_a.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（plan の中の構造の目の部品。ほかのサブグラフは欄 structure の先の design_file から辿る）"],
       "lib/structmark.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の design.jsonl（plan の中の構造の目の部品。ほかのサブグラフは欄 structure の先の design_file から辿る）"],
       "lib/tddloop.py": [1, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の tdd-<k>/state.json（fix の名の住処 fixbeside の表が引く元の定数。#681）"],
-      "lib/worldmark.py": [1, "lib がサブグラフの隣のファイルの名を持つ: judge の隣の world-state.json（#680）"],
-      "workflows/line/scripts/ask_final.py": [2, "メイングラフが名指す: eyes の隣の premise-check.json・r4-gate-passes.json（issue 無し。#680 の約束に沿う）"]
+      "workflows/line/scripts/ask_final.py": [2, "メイングラフが名指す: eyes の隣の premise-check.json・r4-gate-passes.json（#723。#680 の約束に沿う）"]
     },
     "main-id": {},
     "inner-id": {},
