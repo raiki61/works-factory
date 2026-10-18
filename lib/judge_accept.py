@@ -344,7 +344,7 @@ def material_brief_file(role: str) -> str:
     return f"{MATERIAL_PREFIX}{role}-brief.md"
 
 
-PRIOR_DECISIONS_ROLE = material_role(policy.PRIOR_DECISIONS_FILE)   # 決定記録の突合の役の名（ファイル名の持ち主は policy）
+PRIOR_DECISIONS_ROLE = material_role(policy.PRIOR_DECISIONS_FILE)   # 決定記録の突合の役の名（ファイル名の字は judgebeside）
 MATERIAL_GLOB = material_file("*")           # 素材の役が書く {role, reply, materials}。固定の控え（view・route・tree）にも当たる
 
 
@@ -1234,7 +1234,7 @@ def check_purpose(reply: dict, jdir, repo, *, keys=core_accept.TREE_KEYS) -> dic
     """元 works/.shared/core/purpose.py:102。目的の役の返答を受け付ける。凍結（once）→ 作業ツリー（役は読むだけ。purpose-tree.json と
     比べる）→ 足し欄 means を外す（worldmark.split_means）→ source_files（_source_files_errors）。
     写しの graph の p0.purpose は post_check を持たない。通れば置き場の purpose.json に書き、外した依頼の解き方を
-    purpose-means.json に置く。keys は作業ツリーの写しと比べる欄（_tree_unchanged）。{ok, reason}"""
+    MEANS_FILE に置く。keys は作業ツリーの写しと比べる欄（_tree_unchanged）。{ok, reason}"""
     def run():
         repo_p = pathlib.Path(repo)
         with core_accept.in_repo(repo_p):
@@ -3663,7 +3663,7 @@ def world_dir(jdir) -> pathlib.Path:
 
 def _world_due(jdir) -> dict:
     """元 works/darkfactory/lib/line_edge.py:1026 の _world_due の書き直し。{world_go, world_purpose_file, reason}: 凍った目的の文
-    （judge/purpose.json）が読めれば、目的の文と目的の役が分けた依頼の解き方（worldmark.means_of。judge/purpose-means.json）を
+    （judge/purpose.json）が読めれば、目的の文と目的の役が分けた依頼の解き方（worldmark.means_of。judge/ の MEANS_FILE）を
     段の入力の形 {purpose_text, means} にして judge/world-purpose.json に書く。読めなければ回さない（理由を返す）。
     機能の切り替え（features_cut の world）は入口が見るので、ここでは見ない"""
     jdir = pathlib.Path(jdir)

@@ -29,9 +29,9 @@ FALLBACKS = {
     ("workflows/plan/scripts/plan_collect.py", "RIPPLE_FILE"): FALLBACK + "（planfile.RIPPLE_FILE）",
     ("workflows/plan/scripts/round.py", "ROUND_FILE"): FALLBACK + "（planfile.ROUND_FILE）",
     ("workflows/structure/scripts/structure_collect.py", "STATE_FILE"): FALLBACK + "（structfile.STATE_FILE）",
-    ("workflows/fix/scripts/collect.py", "ALLOWED_TESTS"): FALLBACK + "（fixboard.ALLOWED_TESTS_FILE）",
-    ("workflows/fix/scripts/collect.py", "ACCEPT_TRACE"): FALLBACK + "（fixboard.ACCEPT_TRACE_FILE）",
-    ("workflows/fix/scripts/collect.py", "LENSES_FILE"): FALLBACK + "（fixboard.LENSES_FILE）",
+    ("workflows/fix/scripts/collect.py", "ALLOWED_TESTS"): FALLBACK + "（fixnames.ALLOWED_TESTS_FILE）",
+    ("workflows/fix/scripts/collect.py", "ACCEPT_TRACE"): FALLBACK + "（fixnames.ACCEPT_TRACE_FILE）",
+    ("workflows/fix/scripts/collect.py", "LENSES_FILE"): FALLBACK + "（fixnames.LENSES_FILE）",
 }
 
 # (定義の在る所, 名) -> 訳。住処は訳の頭に書いた方

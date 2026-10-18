@@ -89,11 +89,14 @@ ITEM_BRIEF_FILE = "item-brief-{no}.md"   # 案の直しで直す項目の brief�
 TREE_FILE = "tree.json"            # 修正案の役を起こす前の作業ツリーの姿（accept.tree_state。支度の節が回ごとに置き直す）
 RIPPLE_UNITS_FILE = "ripple-units.json"
 RIPPLE_FILE = "ripple.json"
+# 案の直しを終えられなかった項目の諦めの行 [{item, why, ruling}]（計画の返り plan と事前審査の返り review の指し札の先と同じフォルダ。
+# 書き手は note_gave_up と事前審査の boardview.collect。報告が前の失敗の行に読む）
+REPLAN_GAVE_UP_FILE = "replan-gave-up.json"
 # 返す節の出力の欄 → 周のフォルダの控え。ほかのブロックとメイングラフはこの欄で受け、名で開かない（docs/design.md の「plan の出力」）。
 # PORTS はポインタの欄（先が無ければ null）、FROM は中身の欄とその元の控え。欄 gave_up（諦めの行）は note_gave_up の返り
 PORTS = {"fix_plan": FIX_PLAN_FILE}
 FROM = {"nothing_owed": ROUND_FILE, "rejects": rolekit.rejects_path(pathlib.Path(), ROLE).name,
-        "gave_up": planblk.REPLAN_GAVE_UP_FILE}
+        "gave_up": REPLAN_GAVE_UP_FILE}
 PRIOR_VERSION = "前の版の計画の出力。workflow run で最初から起こし直す"
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}（元 writes.py:52）
 
@@ -926,7 +929,7 @@ def ripple_units(round_dir, judgment, repo, *, skip_dirs) -> pathlib.Path:
 
 def note_gave_up(round_dir, plan_dir, conflicts) -> list | None:
     """形 replan の周で修正案の役が受け付けの網（rolekit.NET_AFTER）の回まで拒まれ続けたら、渡した項目ごとの諦めの行 {item,
-    why（planblk.PLAN_GAVE_UP_WHY）, ruling（裁定の文を字のまま）} を planblk.REPLAN_GAVE_UP_FILE に置いて返す（元
+    why（planblk.PLAN_GAVE_UP_WHY）, ruling（裁定の文を字のまま）} を REPLAN_GAVE_UP_FILE に置いて返す（元
     works/.shared/core/replan.py:625 の gate の _give_up。ほかの項目は承認済みの案のまま採れる）。諦めていなければ None"""
     round_dir = pathlib.Path(round_dir)
     rnd = read_round(round_dir)
@@ -938,7 +941,7 @@ def note_gave_up(round_dir, plan_dir, conflicts) -> list | None:
     why = planblk.PLAN_GAVE_UP_WHY.format(reason=reason)
     rows = [{"item": n, "why": why, "ruling": ruling_text(conflict_rows(conflicts, n, old[n - 1]))}
             for n in rnd["items"] if 1 <= n <= len(old)]
-    _write_json(round_dir / planblk.REPLAN_GAVE_UP_FILE, rows)
+    _write_json(round_dir / REPLAN_GAVE_UP_FILE, rows)
     return rows
 
 

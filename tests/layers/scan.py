@@ -145,7 +145,7 @@ ALLOWED = {
         # （runreport.PLAN_RETURNS）、ここへは来ない。ほかの段の拒否の控えを欄で返すのは区分の issue
         "lib/runreport.py#rolekit.last_reject(<計画に届く値>)",
         # plan-review の書き手が、自分の置き場（review.json の隣）に計画と同じ名で諦めの行を置く。計画の置き場は開かない
-        "lib/boardview.py#planblk.REPLAN_GAVE_UP_FILE",
+        "lib/boardview.py#planfile.REPLAN_GAVE_UP_FILE",
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
@@ -558,10 +558,10 @@ NAME_HOMES = {
                        "lib/worldmark.py"), writer="judge_accept"),
     "structure": NameHome("構造", "構造の置き場のファイルを名指す", "構造の出力の欄を入力で受ける", (("structfile", "PORTS"),),
                           ("lib/structbeside.py", "lib/structfile.py")),
-    "plan": NameHome("計画", "計画の置き場のファイルを名指す", "計画の出力の欄を入力で受ける", (("planfile", "PORTS"), ("planfile", "FROM")), ("lib/planfile.py", "lib/planblk.py", "lib/eye.py"),
+    "plan": NameHome("計画", "計画の置き場のファイルを名指す", "計画の出力の欄を入力で受ける", (("planfile", "PORTS"), ("planfile", "FROM")), ("lib/planfile.py", "lib/eye.py"),
                      openers=("lib/rolekit.py",)),
     "fix": NameHome("修正", "修正の置き場のファイルを名指す", "修正の出力の欄を入力で受ける", (("fixbeside", "PORTS"), ("fixbeside", "FROM")),
-                    ("lib/fixbeside.py", "lib/fixboard.py", "lib/leftovers.py", "lib/tddloop.py")),
+                    ("lib/fixnames.py", "lib/fixbeside.py", "lib/fixboard.py", "lib/leftovers.py", "lib/tddloop.py")),
     "plan-review": NameHome("事前審査", "事前審査の置き場のファイルを名指す", "事前審査の出力の欄（gate_passes・gate・design_premises）を入力で受ける",
                             (("planreviewbeside", "GATE_PASSES_FILE"), ("planreviewbeside", "GATE_FILE"),
                              ("planreviewbeside", "DESIGN_PREMISES_FILE")), ("lib/planreviewbeside.py", "lib/boardview.py")),
