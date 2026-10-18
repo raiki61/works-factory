@@ -45,8 +45,9 @@ BY_GIVE_UP = stopby.declare("rule-give-up", "裁定の by: 裁定役の返答が
 GIVE_UP_TEXT = f"裁定役の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
 READONLY = "裁定役は読むだけで、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない: "
 NAME_ONLY_REJECT = (f"人に回す訳が名の重なりだけ（{conflict.NAME_ONLY}）——人が答えても直しは変わらないので人に回さず、自分で裁け。"
-                    "字が同じでも言語・ファイルの種類・役割（環境変数・テスト・型）と在り処が違えば別の物と読み、もう一方の在り処を "
-                    "limits に挙げて fix_code_as に、項目の path や名そのものを変える要り（衝突を避けた改名など）なら fix_plan_item に裁け")
+                    "字が同じでも、言語・在り処・役割（環境変数・型など）が違い、消す名の生き残りでもない時だけ別の物と読み、もう一方の在り処を "
+                    "limits に挙げて fix_code_as に、案が消すと決めた名を古いテストを緑に残すために別のファイルに定義し直したのは同じ物で "
+                    "limits に挙げず、項目の path や名そのものを変える要り（衝突を避けた改名など）なら fix_plan_item に裁け")
 RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", conflict.ASK_WHY, "query")   # 置き場の控えに積む裁定の欄
 
 
