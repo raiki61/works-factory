@@ -12,6 +12,8 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   理由に諦めた訳を足す）。r4_rejects(eyes_dir) は出し直す役に渡す拒否の全部
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
+- one_briefs(eyes_dir, texts): まとめた役 eyes-one（run の頭の深さの段が目をまとめる run。depth.merges）が読む観点ごとの指示書
+  （観点ごとの役の指示書に支度の値を差し込んだ本文）を置き場に書き、その並びの行を返す
 - tdd_stages(stages, resolve)・measured_section(test_outcomes, stages): R2 の比較役に貼る機械の実測（試験の関門が返したテストごとの
   base と最後の結末を移り方ごとに全部と、修正の段ごとの TDD のループの記録。測っていない物はそう書く）
 - origin_section(repo, base, head, label, ...): R2 の比較役に貼る累積差分の起点の訳（PR の根か修正前の HEAD か・PR の差分と直しの差分）
@@ -97,6 +99,11 @@ DESIGN_PREMISES = "design-premises.json"   # 独立設計の役に貼った物�
 R2_PREMISES = "r2-premises.json"           # 比較役に貼った物の控え（置き場。元 eyes.PREMISES_NAME）
 PREMISE_INPUTS = "premise-inputs.json"     # 最後の関所に出す R2 の前提の材料（元 eyes-exit.json の premise_inputs）
 GATE_PASSES = "r4-gate-passes.json"        # 人が通したので R4 の問いから外した行（元 state.works.gate_passes。事前審査の gatemarks.PASSES_FILE とは別の物）
+# まとめた役 eyes-one が 1 つの会話で見る観点（観点ごとの役の指示書の名と、平易な名。並びは読む順）
+ONE_VIEWS = (("r3-coherence", "R3 全体の整合"), ("r4-scope", "R4 見えていない範囲"))
+ONE_DIR = "one"   # 観点ごとの指示書の置き場（eyes/one/<役の指示書の名>.md）
+# 観点ごとの指示書の、ほかの会話の物を指す差し込みの代わりの字（R4 の受け付けの拒否は、この会話の中に在る）
+ONE_REJECTS = "（この会話の指示書の頭の「前の回の受け付けが拒んだ理由」のセクションを見よ）"
 FIX_DIFF_ROW = "この run の直しの差分"   # 起点の訳の行の名（前提の検算の指示書 premise-check.md がこの名で行を指す）
 
 
@@ -316,6 +323,20 @@ def premise_section(*, human_items, request_text, repo, changed, constraints, de
     parts.append(f"{DRIFT_HEAD}\n\n" + (_lines(drift) if drift_flag is not None else "（修正の印が渡っていない）"))
     parts.append(f"{CONSTRAINT_HEAD}\n\n{constraints_text(constraints)}")
     return "\n\n".join(parts), {"node": "r2.compare", **ledger}
+
+
+def one_briefs(eyes_dir, texts: dict) -> str:
+    """まとめた役が読む観点ごとの指示書（ONE_VIEWS の順）を eyes_dir/ONE_DIR/<名>.md に書き、「- <平易な名>: `<パス>`」の行の並びを返す。
+    texts は {観点ごとの役の指示書の名: 支度の値を差し込んだ本文}（差し込みは目のブロックの prep。R4 の拒否の理由は、観点ごとの役なら
+    輪の頭の節から届く物なので ONE_REJECTS の字に替える）"""
+    d = pathlib.Path(eyes_dir) / ONE_DIR
+    d.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for name, view in ONE_VIEWS:
+        path = d / f"{name}.md"
+        path.write_text(texts[name], encoding="utf-8")
+        rows.append(f"- {view}: `{path}`")
+    return "\n".join(rows)
 
 
 def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_file: str, world_file: str, passed: dict,

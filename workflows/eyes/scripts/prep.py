@@ -9,9 +9,12 @@ eyes/r2-premises.json に書く。目が読む累積差分は、入口の base�
 （直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
 （試験の関門が比べた入力 test_outcomes）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（入力 premises の先の制約のうち measured_how が
 carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に）。R1 には最後の試験の関門の証拠の文（入力 checks。走らせ方・ログの置き場が書いてある）の
-置き場 checks_file を名指す（渡っていない・読めない時は、そう書いた訳の文）"""
+置き場 checks_file を名指す（渡っていない・読めない時は、そう書いた訳の文）。目を回す run で、run の頭の深さの段が目を
+まとめる（depth.merges）なら one_eye を真にし、まとめた役が読む観点ごとの指示書を eyes/one/ に書いてその並びを one_briefs に置く
+（eyeverdict.one_briefs）"""
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -52,6 +55,14 @@ def taken_pushes() -> tuple:
     return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(b)], []
 
 
+def one_text(name: str) -> str:
+    """観点ごとの役の指示書 commands/<name>.md に、この節の出力の欄 out を差し込んだ本文（まとめた役が読む。R4 の拒否の理由は、
+    まとめた役の会話の中の物を指す字）"""
+    text = (Path(__file__).resolve().parents[1] / "commands" / f"{name}.md").read_text(encoding="utf-8")
+    text = re.sub(r"\$prep\.output\.([A-Za-z0-9_]+)", lambda m: str(out[m.group(1)]), text)
+    return text.replace("$r4-reject.output.reason", eyeverdict.ONE_REJECTS)
+
+
 def read(raw):
     path = boundary.pointed(raw)
     return json.loads(path.read_text(encoding="utf-8")) if path else None
@@ -79,6 +90,7 @@ elif not gate_evidence.is_file():
 else:
     checks_file = str(gate_evidence)
 depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
+head = os.environ.get("INPUTS_HEAD_DEPTH", "")
 purpose_text = purpose.get("purpose_text") or ""
 after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
 human_items = eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer)
@@ -92,8 +104,7 @@ premises_text, r2_ledger = eyeverdict.premise_section(
 
 out = {
     # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）
-    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}},
-                                  os.environ.get("INPUTS_HEAD_DEPTH", "")) == ""
+    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}}, head) == ""
     or any(isinstance(c, dict) and str(c.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD) for c in constraints or []),
     "compare_due": eyeverdict.r2_compare_due(design, purpose_text),
     "premise_due": eyeverdict.r2_premise_invalid(design),
@@ -134,6 +145,8 @@ out = {
         declared=boundary.parsed(os.environ["INPUTS_PLAN_DECLARED"])),
 }
 EYES.mkdir(parents=True, exist_ok=True)
+out["one_eye"] = out["run_eyes"] and bool(depth.merges(head))
+out["one_briefs"] = eyeverdict.one_briefs(EYES, {name: one_text(name) for name, _ in eyeverdict.ONE_VIEWS}) if out["one_eye"] else ""
 (EYES / eyeverdict.R2_PREMISES).write_text(json.dumps(r2_ledger, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 (EYES / eyeverdict.PREP_FILE).write_text(json.dumps({**out, policy.RECORDED_KEY: recorded}, ensure_ascii=False), encoding="utf-8")
 boundary.returns(out)

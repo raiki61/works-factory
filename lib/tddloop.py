@@ -816,10 +816,12 @@ def prep(state_file, values: dict | None = None, repo=None, *, lang: str = "", s
         left = [q for q in st["queue"][st["cur"] + 1:] if q not in both]
         if left:
             lines += ["この後の tdd の単位（今は手を付けるな）: " + " / ".join(left), ""]
+    how = fixboard.tests_how_text(path.parent.parent)
     lines += [RUN_HEAD, "",
               f"リポジトリの根で `{st['exe']} <JUnit XML の書き先>`（書き先は /tmp の下など作業ツリーの外に）。"
               "機械は名指しを実行器の後ろに絶対パスの node id で足して回す（実行器の既定の一覧の外に書いたテストも載る）。"
               "自分で回す時も同じ形で足せる。", "",
+              *([how, ""] if how else []),
               REPLY_HEAD, "", RETURN[phase], "", RETURN_CONFLICT]
     vals = {**{k: "" for k in fixrules.TDD_VALUES}, **(values or {}),
             "open_units": json.dumps(_owed(st), ensure_ascii=False)}

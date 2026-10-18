@@ -846,7 +846,7 @@
   - 状態: 形を変えて在る（`--input features_off=…`。語に world が足された。知らない語は拒む）
   - 旧棚卸し: L-E31・L-E32
 
-- S110 既定は judge_verify が off・review_tree が auto（開いた項目が 2 つ以上の往復だけ木）・ほかは on で、名指した語が既定に勝つ
+- S110 既定は judge_verify が off・review_tree が auto（開いた項目が 2 つ以上の往復だけ木。run の頭の深さが軽量なら off）・ほかは on で、名指した語が既定に勝つ
   - 元: SKILL.md:93
   - 印: `judge_verify`・`review_tree`・`WORKS_USE_FEATURES_ON`
   - 今: `lib/entry.py::FEATURE_DEFAULTS`・`lib/entry.py::feature_words`
@@ -2959,11 +2959,11 @@
   - 状態: 在る
   - 旧棚卸し: P159・P162・P163・P175・P177・E5・E6・L-W55
 
-- K9b R1〜R4 の 4 つの観点の審査（最小性・設計の比較・整合・隠れた範囲）
+- K9b R1〜R4 の 4 つの観点（最小性・設計の比較・整合・隠れた範囲）を、どれも審査の指示に残して見る。観点ごとに別の役にするのは標準と重厚の run で、軽量の run で目を省かずに回す時は、整合・隠れた範囲を 1 つの役が 1 つの会話の観点として見て、最小性（R1）と設計の比較（R2）はそれぞれ別の役に分ける（issue #687 の持ち主の決め 3）
   - 元: keep-essence.md:18
   - 印: 無し
-  - 今: `workflows/eyes/works-factory-eyes.yaml::r1-minimality`・`workflows/eyes/works-factory-eyes.yaml::r1-minimality-verdict`・`workflows/eyes/works-factory-eyes.yaml::r2-compare`・`workflows/eyes/works-factory-eyes.yaml::r2-compare-verdict`・`workflows/eyes/works-factory-eyes.yaml::r3-coherence`・`workflows/eyes/works-factory-eyes.yaml::r3-coherence-verdict`・`workflows/eyes/works-factory-eyes.yaml::r4-loop`・`workflows/eyes/works-factory-eyes.yaml::r4-scope-verdict`
-  - 状態: 在る
+  - 今: `workflows/eyes/works-factory-eyes.yaml::eyes-one`（軽量の run のまとめた役）・`workflows/eyes/works-factory-eyes.yaml::r3-one-verdict`・`workflows/eyes/works-factory-eyes.yaml::r1-minimality`・`workflows/eyes/works-factory-eyes.yaml::r1-minimality-verdict`・`workflows/eyes/works-factory-eyes.yaml::r2-compare`・`workflows/eyes/works-factory-eyes.yaml::r2-compare-verdict`・`workflows/eyes/works-factory-eyes.yaml::r3-coherence`・`workflows/eyes/works-factory-eyes.yaml::r3-coherence-verdict`・`workflows/eyes/works-factory-eyes.yaml::r4-loop`・`workflows/eyes/works-factory-eyes.yaml::r4-scope-verdict`
+  - 状態: 形を変えて在る（軽量の run では R3・R4 の観点を 1 つの役で見る）
   - 旧棚卸し: E2・E3・E8・E9
 
 - K10 対象のリポジトリが守ると宣言したファイルに触れたら、開き方（protected_only・when_needed・always）に関わらず最後の人の承認ノードを開き、答えが無ければ差分を当てない
@@ -3025,8 +3025,8 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 180
-- 状態 形を変えて在る: 178
+- 状態 在る: 179
+- 状態 形を変えて在る: 179
 - 状態 無い: 47
 - 処置 #516: 4
 - 処置 戻した: 10
