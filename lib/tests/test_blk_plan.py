@@ -74,6 +74,8 @@ class ScriptCase(unittest.TestCase):
         self.assertIn("「」を独立設計と案の行の引用だけに使い", ask)
         self.assertIn("単位を閉じるのに要る実装の細部は挙げない", ask)
         self.assertIn("REUSE_REVIEW", ask)
+        for name in (design.QUOTE_FROM, design.QUOTE_FROM_ELEMENTS, "修正案の行の字"):
+            self.assertIn(name, ask, "design_quote の引き元（本文）と、貼らない字（要素の一覧の行・案の行）を名指す")
         self.assertNotIn("設計が触れていない所は食い違いでない", ask, "引用の決まりと食い違う除外の文は残さない")
         self.assertNotIn("kind scope_creep", ask, "対の無い仕組みは suggest に回さず contract_drift・block で挙げる")
 
