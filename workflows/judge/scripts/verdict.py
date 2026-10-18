@@ -6,7 +6,9 @@
 読む置き場のファイルは欄のポインタで返す（lib/judge_accept.PORTS）。run の頭の深さの欄 depth・depth_why は控え judge/depth-head.json
 から読む（lib/headdepth。再審と控えの無い run は標準）。
 決して落ちない: 境の口と lib を読む所から中の誤りを全部捕まえて標準エラーに書き、判定と目的の指し札の先を空の形で置いて
-ready: false と止めの理由を返す（線は落ちた返す節の先へ進めない）"""
+ready: false と止めの理由を返す（線は落ちた返す節の先へ進めない）。
+返りの全部（約束の形も）に欄 optional を載せる: 入力（with:）optional の、このブロックが落ちても線が先へ進めてよい節の宣言
+（[{node, bare}] の JSON の字）を境の口 boundary.items で読んだ並び。境の口を読めない時だけ []"""
 import json
 import os
 import sys
@@ -40,7 +42,7 @@ def fallen(objection: str) -> dict:
 
 
 objection = os.environ.get("INPUTS_OBJECTION", "")
-ja = None
+ja = boundary = None
 try:
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
@@ -60,8 +62,9 @@ try:
 except Exception as e:  # noqa: BLE001  境の口か lib を読めない
     print(f"verdict: {type(e).__name__}: {e}", file=sys.stderr)
     out = fallen(objection)
+noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []
 try:
-    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+    print(json.dumps({**out, "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)
 except ValueError as e:
     print(f"verdict: 出力が JSON に書けない: {e}", file=sys.stderr)
-    print(json.dumps(fallen(objection), ensure_ascii=False, allow_nan=False), flush=True)
+    print(json.dumps({**fallen(objection), "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)

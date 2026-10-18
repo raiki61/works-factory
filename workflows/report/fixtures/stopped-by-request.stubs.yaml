@@ -4,7 +4,7 @@ fixture:
   expect: completed
   reached: [facts, write, cold-prep, cold, accept, report]
   inputs:
-    gate-final: '{"decision":"stop","text":"request: 止め札"}'
+    final-answer: '{"decision":"stop","text":"request: 止め札"}'
   resolved-text-contains:
     write: "結末の語は **stopped_by_request**"
 exec-code: true

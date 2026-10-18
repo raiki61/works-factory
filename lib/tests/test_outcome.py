@@ -1,4 +1,5 @@
 """結末の語の決め方（lib/outcome.py）の検査。決め方の表の 8 行を 1 行ずつ、各行の最小の入力で縛り、行の順と読み方の場面を足す。"""
+import importlib.util
 import json
 import pathlib
 import sys
@@ -17,24 +18,39 @@ import planfile  # noqa: E402
 import report  # noqa: E402
 import stopby  # noqa: E402
 
-OK_FACTS = {"start_ok": True, "record_problems": [], "failed": []}
+
+def _stages_table() -> dict:
+    """段の表（役の名 → ノードの id と返りの続き）の正本はメイングラフの collect の STAGES の 1 か所。lib の試験はそれを読み、写しを置かない"""
+    path = LIB.parent / "workflows" / "line" / "scripts" / "collect.py"
+    spec = importlib.util.spec_from_file_location("line_collect_stages", path)
+    module = importlib.util.module_from_spec(spec)
+    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = saved
+    return module.STAGES
+
+
+STAGES = _stages_table()
+OK_FACTS = {"start_ok": True, "record_problems": [], "failed": [], "stages": STAGES}
 UNIT = {"id": "u1", "paths": ["a"], "summary": "直す"}
 
 
 def fixed_run(**over) -> dict:
     """直して最後のテストまで通った run の返り（over で段ごとに差し替える）"""
     returns = {
-        "test-gate-base": {"mode": "base", "ok": True, "green": False, "red_cause": "introduced"},
+        "before-tests": {"mode": "base", "ok": True, "green": False, "red_cause": "introduced"},
         "judge": {"ready": True, "stop_reason": "", "units": [UNIT], "judgment": None},
         "plan": {"ready": True, "depth": []},
         "plan-review": {"pass": True, "stalled": False, "ask_human": False, "questions": []},
         "fix": {"done": True, "units": [{"unit_id": "u1", "status": "fixed", "reason": ""}], "conflicts": None,
                 "delta_review": {"rounds": 1, "pass": True}},
-        "test-gate-final": {"mode": "final", "ok": True, "green": True, "red_cause": ""},
+        "final-tests": {"mode": "final", "ok": True, "green": True, "red_cause": ""},
         "eyes": {"ok": True, "r1": {"status": "pass", "reason": ""}, "r2": None, "r3": None, "r4": None, "premise_check": None,
                  "questions": []},
-        "merge-seal": {"mode": "seal", "ok": True}, "merge-apply": {"mode": "apply", "ok": True},
-        "rejudge": None, "replan": None, "replan-review": None,
+        "sealed-diff": {"mode": "seal", "ok": True}, "applied-diff": {"mode": "apply", "ok": True},
+        "rejudge": None, "replan": None, "replan-review-result": None,
     }
     returns.update(over)
     return returns
@@ -54,9 +70,9 @@ class TableCase(unittest.TestCase):
     """表の 8 行（元 works/.shared/core/report.py:672-686 の順）"""
 
     def test_1_request_stop_and_human_stop(self):
-        self.assertEqual(decide(gates={"gate-final": {"decision": "stop", "text": "request: 止め札"}}),
+        self.assertEqual(decide(gates={"final-answer": {"decision": "stop", "text": "request: 止め札"}}),
                          ("stopped_by_request", "gate-final:stop"))
-        self.assertEqual(decide(gates={"gate-before-fix": {"decision": "reject", "text": "やめる"}}),
+        self.assertEqual(decide(gates={"before-fix-answer": {"decision": "reject", "text": "やめる"}}),
                          ("stopped_by_human", "gate-before-fix:reject"))
         judge = {"ready": False, "stop_reason": "human:spec", "units": []}
         self.assertEqual(decide(fixed_run(judge=judge)), ("stopped_by_human", "judge:human:spec"))
@@ -65,7 +81,7 @@ class TableCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(fix={**fixed_run()["fix"], "stop_reason": stopby.DELTA}))[0], "stopped_by_line")
         self.assertEqual(decide(fixed_run(**{"plan-review": {"stalled": True}})),
                          ("stopped_by_line", f"plan-review:{stopby.PLAN_CONVERGE}"))
-        self.assertEqual(decide(fixed_run(**{"merge-seal": {"ok": False}})), ("stopped_by_line", "merge-seal:not-ok"))
+        self.assertEqual(decide(fixed_run(**{"sealed-diff": {"ok": False}})), ("stopped_by_line", "merge-seal:not-ok"))
 
     def test_3_needs_human(self):
         self.assertEqual(decide(fixed_run(fix={**fixed_run()["fix"], "stop_reason": stopby.REPLAN}))[0], "needs_human")
@@ -74,13 +90,13 @@ class TableCase(unittest.TestCase):
         eyes = {**fixed_run()["eyes"], "questions": ["[消えた能力] 旧い口を消してよいか"]}
         self.assertEqual(decide(fixed_run(eyes=eyes)), ("needs_human", "eyes:r4-ask"),
                          "R4 が人に回した問いは人待ち（元 report.decide_outcome の pending_human）")
-        self.assertEqual(decide(fixed_run(eyes=eyes), gates={"gate-final": {"decision": "continue", "text": ""}}),
+        self.assertEqual(decide(fixed_run(eyes=eyes), gates={"final-answer": {"decision": "continue", "text": ""}}),
                          ("needs_human", "eyes:r4-ask"), "最後の承認ノードを通しても問いには答えていない（元 SKILL.md:119）")
         eyes = {**fixed_run()["eyes"], "questions": ["  ", 3]}
         self.assertNotEqual(decide(fixed_run(eyes=eyes))[1], "eyes:r4-ask", "空白だけ・文でない行は問いに数えない")
         self.assertEqual(outcome.eye_questions({"eyes": {"questions": ["  ", 3, "旧い口を消してよいか"]}}), ["旧い口を消してよいか"])
         review = {"pass": True, "ask_human": True, "questions": ["どちらに寄せるか"]}
-        self.assertEqual(decide(fixed_run(**{"plan-review": review}, fix=None, **{"test-gate-final": None})),
+        self.assertEqual(decide(fixed_run(**{"plan-review": review}, fix=None, **{"final-tests": None})),
                          ("needs_human", "plan-review:ask-human"))
 
     def test_4_record_invalid(self):
@@ -90,7 +106,7 @@ class TableCase(unittest.TestCase):
     def test_5_interrupted(self):
         self.assertEqual(decide(facts={**OK_FACTS, "failed": ["fix__write"]}), ("interrupted", "fix__write:node-error"))
         self.assertEqual(decide(fixed_run(plan=None))[0], "interrupted")
-        self.assertEqual(decide(fixed_run(**{"test-gate-final": None}), facts={**OK_FACTS, "failed": None})[0], "interrupted")
+        self.assertEqual(decide(fixed_run(**{"final-tests": None}), facts={**OK_FACTS, "failed": None})[0], "interrupted")
         self.assertEqual(decide(fixed_run(judge=None, rejudge=None), facts={**OK_FACTS, "failed": None}), ("interrupted", "judge:chain-cut"))
 
     def test_6_no_fix_needed(self):
@@ -98,7 +114,7 @@ class TableCase(unittest.TestCase):
                          ("no_fix_needed", ""))
 
     def test_7_residue(self):
-        self.assertEqual(decide(fixed_run(**{"test-gate-final": {"ok": False, "green": False, "red_cause": "introduced"}})),
+        self.assertEqual(decide(fixed_run(**{"final-tests": {"ok": False, "green": False, "red_cause": "introduced"}})),
                          ("round_limit", ""))
         eyes = {**fixed_run()["eyes"], "r3": {"status": "redesign-needed", "reason": "崩れる"}}
         self.assertEqual(decide(fixed_run(eyes=eyes))[0], "round_limit")
@@ -114,22 +130,22 @@ class TableCase(unittest.TestCase):
 
     def test_nothing_fixed_is_not_fixed(self):
         """判定と計画が ready なのに修正も最後のテストも無い run は直したと名乗らない"""
-        returns = fixed_run(fix=None, **{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None})
+        returns = fixed_run(fix=None, **{"final-tests": None, "eyes": None, "sealed-diff": None, "applied-diff": None})
         self.assertEqual(decide(returns, facts={**OK_FACTS, "failed": None}), ("interrupted", "fix:chain-cut"))
-        self.assertIn("計画が修正案を出したのに修正の出力が無い", outcome.chain_notes(returns))
+        self.assertIn("計画が修正案を出したのに修正の出力が無い", outcome.chain_notes(returns, STAGES))
 
     def test_fix_without_final_test_or_seal_is_not_fixed(self):
-        self.assertEqual(decide(fixed_run(**{"test-gate-final": None})), ("interrupted", "test-gate-final:chain-cut"))
-        self.assertEqual(decide(fixed_run(**{"merge-seal": None, "merge-apply": None})), ("interrupted", "merge-seal:chain-cut"))
+        self.assertEqual(decide(fixed_run(**{"final-tests": None})), ("interrupted", "test-gate-final:chain-cut"))
+        self.assertEqual(decide(fixed_run(**{"sealed-diff": None, "applied-diff": None})), ("interrupted", "merge-seal:chain-cut"))
 
     def test_deliberate_stop_before_final_test_follows_works(self):
         """依頼 290: 線が最後のテストを意図して飛ばした周（fixed の go が偽）は続きの切れ目でなく、元 works の decide_outcome と同じく
         残りで round_limit（人に回した申し出が在れば needs_human。ReadingCase）。go の無い fix は今までどおり切れ目"""
         fix = {**fixed_run()["fix"], "done": False, "go": False,
                "units": [{"unit_id": "u1", "status": "given_up", "reason": "通らない"}]}
-        skipped = {"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None}
+        skipped = {"final-tests": None, "eyes": None, "sealed-diff": None, "applied-diff": None}
         self.assertEqual(decide(fixed_run(fix=fix, **skipped)), ("round_limit", ""))
-        self.assertNotIn("修正の段が走ったのに最後のテストの出力が無い", outcome.chain_notes(fixed_run(fix=fix, **skipped)))
+        self.assertNotIn("修正の段が走ったのに最後のテストの出力が無い", outcome.chain_notes(fixed_run(fix=fix, **skipped), STAGES))
         for go in ({}, {"go": True}):
             with self.subTest(go=go):
                 cut = {**{k: v for k, v in fix.items() if k != "go"}, **go}
@@ -172,8 +188,8 @@ class TableCase(unittest.TestCase):
     def test_seal_without_ok_is_left(self):
         """封じの ok が真でない run は fixed を名乗らない（_proved。ok: false は線の止め _line_stop が先に拾い、訳は報告の
         _stop_lines が出す）。残りの行には重ねない"""
-        self.assertEqual(decide(fixed_run(**{"merge-seal": {"mode": "seal"}})), ("round_limit", ""))
-        self.assertEqual(outcome.residue(fixed_run(**{"merge-seal": {"mode": "seal"}})), [])
+        self.assertEqual(decide(fixed_run(**{"sealed-diff": {"mode": "seal"}})), ("round_limit", ""))
+        self.assertEqual(outcome.residue(fixed_run(**{"sealed-diff": {"mode": "seal"}})), [])
 
 
 class LineStopCase(unittest.TestCase):
@@ -185,16 +201,16 @@ class LineStopCase(unittest.TestCase):
         refused = {"start_ok": False, "record_problems": [], "failed": [], "stops": [("start", stopby.START_REFUSED)]}
         self.assertEqual(decide(fixed_run(judge=None, plan=None, fix=None), facts=refused), ("stopped_by_line", f"start:{stopby.START_REFUSED}"))
         broken = {**OK_FACTS, "stops": [("redepth", stopby.LINE_SCRIPT)]}
-        self.assertEqual(decide(fixed_run(**{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None}),
+        self.assertEqual(decide(fixed_run(**{"final-tests": None, "eyes": None, "sealed-diff": None, "applied-diff": None}),
                                 facts=broken), ("stopped_by_line", f"redepth:{stopby.LINE_SCRIPT}"))
         waiting = {**OK_FACTS, "stops": [("ask-final", stopby.NEEDS_HUMAN)]}
-        self.assertEqual(decide(fixed_run(**{"merge-apply": None}), facts=waiting), ("needs_human", f"ask-final:{stopby.NEEDS_HUMAN}"))
+        self.assertEqual(decide(fixed_run(**{"applied-diff": None}), facts=waiting), ("needs_human", f"ask-final:{stopby.NEEDS_HUMAN}"))
         stuck = {**OK_FACTS, "stops": [("fixed", stopby.UNRESTORED)]}   # #403: 戻せず当たったままの組の止めは人待ち
         held = {**fixed_run()["fix"], "done": False, "go": False, "stop_reason": stopby.UNRESTORED}
-        self.assertEqual(decide(fixed_run(fix=held, **{"test-gate-final": None, "eyes": None, "merge-apply": None}), facts=stuck),
+        self.assertEqual(decide(fixed_run(fix=held, **{"final-tests": None, "eyes": None, "applied-diff": None}), facts=stuck),
                          ("needs_human", f"fix:{stopby.UNRESTORED}"))
         human = {**OK_FACTS, "stops": [("answer-final", "human:gate-final")]}
-        self.assertEqual(decide(fixed_run(**{"merge-apply": None}), facts=human), ("stopped_by_human", "answer-final:human:gate-final"))
+        self.assertEqual(decide(fixed_run(**{"applied-diff": None}), facts=human), ("stopped_by_human", "answer-final:human:gate-final"))
 
     def test_line_words_are_the_stopby_words(self):
         self.assertEqual((stopby.START_REFUSED, stopby.NEEDS_HUMAN, stopby.LINE_SCRIPT),
@@ -217,12 +233,27 @@ class ConflictNamesCase(unittest.TestCase):
 
 
 class OrderCase(unittest.TestCase):
+    def test_chain_and_node_ids_come_from_the_stages_table(self):
+        table = {**STAGES, "nodes": {**STAGES["nodes"], "final-tests": "x-final", "final-answer": "x-gate", "sealed-diff": "x-seal"}}
+        cut = fixed_run(**{"final-tests": None})
+        self.assertEqual(decide(cut, facts={**OK_FACTS, "stages": table}), ("interrupted", "x-final:chain-cut"))
+        self.assertEqual(outcome.chain_notes(cut, table), ["修正の段が走ったのに最後のテストの出力が無い"])
+        self.assertEqual(decide(cut, facts={**OK_FACTS, "stages": {**STAGES, "links": []}}), ("round_limit", ""))
+        self.assertEqual(outcome.chain_notes(cut, {**STAGES, "links": []}), [])
+        stop = {"final-answer": {"decision": "stop", "text": "止める"}}
+        self.assertEqual(decide(gates=stop, facts={**OK_FACTS, "stages": table}), ("stopped_by_human", "x-gate:stop"))
+        self.assertEqual(decide(fixed_run(**{"sealed-diff": {"ok": False}}), facts={**OK_FACTS, "stages": table}),
+                         ("stopped_by_line", "x-seal:not-ok"))
+        self.assertEqual(outcome.node_of(table, "final-tests"), "x-final")
+        self.assertEqual(outcome.node_of(table, "judge"), "judge", "表に無い役は役の名のまま")
+        self.assertEqual(outcome.node_of(None, "judge"), "judge")
+
     def test_request_before_line_stop(self):
-        returns = fixed_run(**{"merge-seal": {"ok": False}})
-        self.assertEqual(decide(returns, gates={"gate-final": {"decision": "stop", "text": "request: 止め札"}})[0], "stopped_by_request")
+        returns = fixed_run(**{"sealed-diff": {"ok": False}})
+        self.assertEqual(decide(returns, gates={"final-answer": {"decision": "stop", "text": "request: 止め札"}})[0], "stopped_by_request")
 
     def test_human_stop_before_interrupted(self):
-        got = decide(gates={"gate-start": {"decision": "stop", "text": "やめる"}}, facts={**OK_FACTS, "failed": ["plan__write"]})
+        got = decide(gates={"start-answer": {"decision": "stop", "text": "やめる"}}, facts={**OK_FACTS, "failed": ["plan__write"]})
         self.assertEqual(got[0], "stopped_by_human")
 
     def test_record_invalid_before_interrupted(self):
@@ -241,14 +272,14 @@ class OrderCase(unittest.TestCase):
         self.assertEqual(got, ("needs_human", f"fix:{stopby.CONFLICT}"))
 
     def test_unknown_answer_word_is_a_record_problem(self):
-        gates = {"gate-final": {"decision": "maybe", "text": ""}}
+        gates = {"final-answer": {"decision": "maybe", "text": ""}}
         problems = outcome.unknown_answers(gates)
         self.assertEqual(len(problems), 1)
         self.assertIn("'maybe'", problems[0])
         self.assertEqual(decide(gates=gates, facts={**OK_FACTS, "record_problems": problems}), ("record_invalid", "report:record-invalid"))
         for word in ("approve", "continue"):
             with self.subTest(word):
-                gates = {"gate-final": {"decision": word, "text": ""}}
+                gates = {"final-answer": {"decision": word, "text": ""}}
                 self.assertEqual(outcome.unknown_answers(gates), [])
                 self.assertEqual(decide(gates=gates)[0], "fixed")
 
@@ -305,7 +336,7 @@ class ReadingCase(unittest.TestCase):
         """L-W07: 直す物が無い周（判定が ready でなく止めの語も無い。修正は走らず封じもしない）は、最後のテストと独立の目が済んでも
         no_fix_needed。封じた返りが無いのを途中で切れたと読まない。R2 が直す物が在ると言えば（残りが在れば）直す物が無いと名乗らない"""
         judge = {"ready": False, "stop_reason": "", "units": [], "judgment": None}
-        run = {**fixed_run(judge=judge), "plan": None, "plan-review": None, "fix": None, "merge-seal": None, "merge-apply": None}
+        run = {**fixed_run(judge=judge), "plan": None, "plan-review": None, "fix": None, "sealed-diff": None, "applied-diff": None}
         self.assertEqual(decide(run), ("no_fix_needed", ""))
         eyes = {**run["eyes"], "r2": {"status": "redesign-needed", "reason": "直す物が在る"}}
         self.assertNotEqual(decide({**run, "eyes": eyes})[0], "no_fix_needed")
@@ -346,7 +377,7 @@ class ReadingCase(unittest.TestCase):
         """依頼 290: 線が最後のテストを意図して飛ばした周でも、人に回した申し出が在れば元 works と同じく needs_human"""
         asked = {"unit_key": "u1", "ruling": {"decision": "ask_human"}}
         fix = {**fixed_run()["fix"], "done": False, "go": False, "conflicts": self.put("fix/conflicts.json", {"items": [asked]})}
-        returns = fixed_run(fix=fix, **{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None})
+        returns = fixed_run(fix=fix, **{"final-tests": None, "eyes": None, "sealed-diff": None, "applied-diff": None})
         self.assertEqual(decide(returns), ("needs_human", f"fix:{stopby.CONFLICT}"))
 
     def test_unreadable_conflicts_are_record_problems(self):
@@ -371,7 +402,7 @@ class ReadingCase(unittest.TestCase):
         judge = {**fixed_run()["judge"], "judgment": judgment, "materials": materials}
         self.assertEqual(decide(fixed_run(judge=judge)), ("fixed_needs_check", ""))
         red = {"ok": False, "green": False, "red_cause": "introduced"}
-        self.assertEqual(decide(fixed_run(judge=judge, **{"test-gate-final": red}))[0], "round_limit")
+        self.assertEqual(decide(fixed_run(judge=judge, **{"final-tests": red}))[0], "round_limit")
 
     def test_base_with_unrunnable_ci_reaches_fixed_needs_check_naming_the_reason(self):
         """#495: 直す前のテストで一部の系統を走らせられなかった（local_checks が awaiting_human）run も、最後のテストと封じが通れば
@@ -441,7 +472,7 @@ class ReadingCase(unittest.TestCase):
     def test_nothing_owed_plan_is_not_give_up(self):
         """#283: 開いた単位が全部人の答え待ちで直す義務 0 件の周（計画の返りの欄 nothing_owed が真）は計画の諦めでなく、今の works
         （works/.shared/core/report.py:670-695）と同じく round_limit に落ちる。欄が偽・無い周は諦め"""
-        base = fixed_run(fix=None, eyes=None, **{"plan-review": None, "test-gate-final": None, "merge-seal": None, "merge-apply": None})
+        base = fixed_run(fix=None, eyes=None, **{"plan-review": None, "final-tests": None, "sealed-diff": None, "applied-diff": None})
         for plan, want in (({"ready": False, "nothing_owed": True}, ("round_limit", "")),
                            ({"ready": False, "nothing_owed": False}, ("stopped_by_line", "plan:give-up")),
                            ({"ready": False}, ("stopped_by_line", "plan:give-up"))):
@@ -453,7 +484,7 @@ class ReadingCase(unittest.TestCase):
         """#291: 直す義務 0 件の周も今の works（works/darkfactory/lib/line_edge.py:1109-1114 の空の修正）と同じく最後のテストと独立の目
         まで回り、結末は round_limit のまま。目の阻害の行（works の [block] の行）は残りに載る"""
         returns = fixed_run(plan={"ready": False, "nothing_owed": True}, fix=None,
-                            **{"plan-review": None, "merge-seal": None, "merge-apply": None})
+                            **{"plan-review": None, "sealed-diff": None, "applied-diff": None})
         self.assertEqual(decide(returns), ("round_limit", ""))
         eyes = {**returns["eyes"], "ok": False, "r2": {"status": "redesign-needed", "reason": "直す物が在る"}}
         blocked = {**returns, "eyes": eyes}
@@ -468,7 +499,7 @@ class ReadingCase(unittest.TestCase):
     def test_record_problems_split_must_open_from_notes(self):
         """開けないと結果を名乗れない指し札（fix の conflicts）だけを訳に、ほかの開けなかった指し札は注意に"""
         unopened = [("fix", "conflicts", "指し札の先 a が無い"), ("judge", "world", "指し札の先 b が無い")]
-        gates = {"gate-final": {"decision": "maybe", "text": ""}}
+        gates = {"final-answer": {"decision": "maybe", "text": ""}}
         problems, notes = outcome.record_problems({}, gates, unread=["入力 plan が JSON でない"], unopened=unopened)
         self.assertEqual(problems[:2], ["入力 plan が JSON でない", "指し札の先 a が無い"])
         self.assertIn("'maybe'", problems[2])

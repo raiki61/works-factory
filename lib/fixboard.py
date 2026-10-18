@@ -1043,6 +1043,27 @@ def closure_table(place) -> list:
     return querytest.closure_rows(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1))
 
 
+def declared_lines(place) -> list:
+    """修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block の 1 件 1 行「key: why（直す側の答え: how）」。問いは
+    置き場の事前審査の返答の写し PLAN_REVIEW_FILE の severity block の faces、答えは組の返答の和 FIX_REPLY_FILE（裁定の後の返答
+    RULED_REPLY_FILE が同じ key に答えていればそちら）。写しが無ければ []（事前審査の無い run）"""
+    p = pathlib.Path(place)
+    rv = read_json(p / PLAN_REVIEW_FILE)
+    if not isinstance(rv, dict):
+        return []
+    said = {}
+    for name in (FIX_REPLY_FILE, RULED_REPLY_FILE):
+        doc = read_json(p / name)
+        rows = doc.get("plan_faces") if isinstance(doc, dict) else None
+        said.update({r.get("key"): r for r in rows or [] if isinstance(r, dict)})
+    out = []
+    for f in rv.get("faces") or []:
+        a = said.get(f.get("key")) if isinstance(f, dict) and f.get("severity") == "block" else None
+        if a is not None and a.get("handled") == "declared":
+            out.append(f"{f['key']}: {oneline.one_line(f.get('why') or '')}（直す側の答え: {oneline.one_line(a.get('how') or '')}）")
+    return out
+
+
 def final_lines(results, field: str, more=()) -> list:
     """組の子の結果 results の欄 field（handoffs・mismatched の行の並び）と more を、重ねずに現れた順でつないだ並び"""
     out: list = []
@@ -1219,7 +1240,8 @@ def depth_signals(place) -> tuple:
     修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が空でない 2 回目の修正）・
     修正役が判定に異議を出した（組の子の結果と裁定の後の返答の objection）・TDD のループで修正役が拒まれた（置き場の tdd-<k>/
     state.json の calls。返す節が欄 tdd_refused で線の redepth へ返すのと同じ読みの fixbeside.tdd_refused）・修正役が範囲の相談をした（受け付けの行
-    accept_trace_rows。consult.consulted_units）。後ろの 2 つの理由の文は depth.late_signals が持つ（頭の深さの引用した where の
+    accept_trace_rows。consult.consulted_units）・修正役が直さずに残すと答えた事前審査の block が在る（declared_lines）。後ろの 3 つの理由の文は
+    depth.late_signals が持つ（頭の深さの引用した where の
     外の差分は run の広さと同じく redepth が数える）。控えが読めなければ上げる側へ倒す（TDD の輪の状態は fixbeside.LATE_UNREAD）。
     元 works/darkfactory/lib/depth.py:268 の signals と、線の h-redepth が渡した replanned・rejudged"""
     import conflict
@@ -1254,7 +1276,8 @@ def depth_signals(place) -> tuple:
         run.append("修正役が判定に異議を出した")
     unread = []
     refused = fixbeside.tdd_refused(place, unread)
-    run += depth.late_signals(refused=refused, consulted=consult.consulted_units(accept_trace_rows(place, results)))
+    run += depth.late_signals(refused=refused, consulted=consult.consulted_units(accept_trace_rows(place, results)),
+                              declared=declared_lines(place))
     run += [fixbeside.LATE_UNREAD.format(why=why) for why in unread]
     return units, run
 

@@ -221,6 +221,8 @@ class Run:
         する（字はそのまま・ほかは JSON。$LOOP_PREV は輪の 1 周目は空の字）"""
         if not isinstance(ref, (str, dict)):
             return json.dumps(ref)
+        if isinstance(ref, str) and not ref.startswith("$"):
+            return ref
         prev = re.fullmatch(r"\$LOOP_PREV\.([\w-]+)\.output\.(\w+)", ref) if isinstance(ref, str) else None
         if prev:
             got = self.loop_prev.get(prev.group(1), {}).get(prev.group(2), "")
@@ -353,7 +355,8 @@ class ShapeCase(unittest.TestCase):
     def test_return_node_carries_exactly_the_contract(self):
         fmt = node(load(), "plan")["output_format"]
         self.assertEqual(fmt["required"], RETURNED)
-        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNED))
+        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNED + ["optional"]), "optional は required に無い欄（差し替えの返りに無くても落ちない）")
+        self.assertEqual(fmt["properties"]["optional"]["type"], "array")
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["ready"], {"type": "boolean"})
         self.assertEqual(fmt["properties"]["round"]["type"], "integer")
@@ -443,10 +446,13 @@ class ShapeCase(unittest.TestCase):
                 self.assertEqual(n.get("idle_timeout"), NO_DEADLINE, n["id"])
 
     def test_loops_give_up_in_the_body_before_max_iterations(self):
+        """構造の目の輪は諦めの数 GIVE_UP_AFTER、修正案の輪は受け付けの網 NET_AFTER（回数で諦める数でなく、届けば工場の不具合）と同じ
+        max_iterations で、受け付けの done で抜ける"""
         doc = load()
-        for nid, accept, fresh in (("structure-eye-loop", "structure-eye-accept", False), ("plan-loop", "plan-accept", False)):
+        for nid, accept, fresh, limit in (("structure-eye-loop", "structure-eye-accept", False, rolekit.GIVE_UP_AFTER),
+                                          ("plan-loop", "plan-accept", False, rolekit.NET_AFTER)):
             lg = node(doc, nid)["loop_group"]
-            self.assertEqual(lg["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
+            self.assertEqual(lg["max_iterations"], limit, nid)
             self.assertIs(lg["fresh_context"], fresh, nid)
             self.assertEqual(lg["until_bash"], f'done=${accept}.output.done; test "$done" = true', nid)
 
@@ -731,7 +737,7 @@ class StageACase(unittest.TestCase):
 
 
 class AcceptCase(unittest.TestCase):
-    """受け付け（欠けごとに名指して拒む・3 回目で諦める・通った案の置き方）"""
+    """受け付け（欠けごとに名指して拒む・受け付けの網の回で諦める・通った案の置き方）"""
 
     def reasons(self, run):
         return [r for r in rolekit.rejected(run.art / "plan" / "r1", "plan")]
@@ -891,7 +897,7 @@ class AcceptCase(unittest.TestCase):
         rnd = run.art / "plan" / "r1"
         reasons = rolekit.rejected(rnd, planfile.ROLE)
         got = run.script("plan_prep", {"dir": "plan/r1", "prev": ""})
-        self.assertEqual((got["resubmit"], got["attempt"]), (False, 4))
+        self.assertEqual((got["resubmit"], got["attempt"]), (False, rolekit.NET_AFTER + 1))
         brief = pathlib.Path(got["brief"]).read_text(encoding="utf-8")
         rejects = rolekit.rejects_text_path(rnd, planfile.ROLE)
         self.assertTrue(brief.startswith(rolekit.REJECT_LINE.format(path=rejects)), brief[:200])
@@ -1112,16 +1118,18 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(doc["items"][0]["unit_keys"], [MEAN, CLAMP])
         self.assertIn("request_ok.json:8", [h["at"] for h in doc["items"][0]["uncovered"]])
 
-    def test_three_rejections_give_up_with_every_pointer(self):
-        """元 tests/test_blk_plan.py の test_give_up_ends_loop: 3 回目の拒否で done・give_up。until_bash で輪を抜ける"""
+    def test_net_rejections_give_up_with_every_pointer(self):
+        """元 tests/test_blk_plan.py の test_give_up_ends_loop の後継: 拒否の回数（GIVE_UP_AFTER）では諦めず、受け付けの網
+        rolekit.NET_AFTER 回目の拒否で done・give_up（工場の不具合として NET_WHY を添える）。until_bash で輪を抜ける"""
         run = Run(self)
         out = run.include(writer=writer_of({"plan": [item(1)]}))
         self.assertEqual({k: run.out["plan-accept"][k] for k in ("ok", "done", "give_up", "attempt")},
-                         {"ok": False, "done": True, "give_up": True, "attempt": 3})
+                         {"ok": False, "done": True, "give_up": True, "attempt": rolekit.NET_AFTER})
         self.assertIs(out["ready"], False)
         self.assertEqual(run.json(out["plan"]), {"round": 1, "fields": []})
         self.assertEqual(run.json(out["ripple"])["items"], [])
-        self.assertIn("3 回とも受け付けで拒まれた", run.json(out["ripple"])["error"])
+        self.assertIn(f"{rolekit.NET_AFTER} 回とも受け付けで拒まれた", run.json(out["ripple"])["error"])
+        self.assertIn(rolekit.NET_WHY.format(n=rolekit.NET_AFTER), run.json(out["ripple"])["error"])
         run.file(out["structure"])
         self.assertEqual(out["depth"], [])
 
@@ -1180,24 +1188,24 @@ class ReplanCase(unittest.TestCase):
         self.assertNotIn("request_ok.json:8", after, "波及の一覧が直した項目で作り直される")
 
 
-    def test_three_rejections_give_up_without_amending(self):
-        """案の直しの役も 3 回拒まれたら諦めて ready: false。承認済みの案（前の周の控え）は書き換えない"""
+    def test_net_rejections_give_up_without_amending(self):
+        """案の直しの役も受け付けの網の回まで拒まれ続けたら諦めて ready: false。承認済みの案（前の周の控え）は書き換えない"""
         run = self.run_
         before = (run.art / "plan" / "r1" / planmarks.FIELDS_FILE).read_bytes()
         out = run.include(ruling='["1"]', conflicts=self.conflicts, writer=writer_of({"plan": [item(1, 2)]}))
         self.assertEqual({k: run.out["plan-accept"][k] for k in ("ok", "done", "give_up", "attempt")},
-                         {"ok": False, "done": True, "give_up": True, "attempt": 3})
+                         {"ok": False, "done": True, "give_up": True, "attempt": rolekit.NET_AFTER})
         self.assertIs(out["ready"], False)
         self.assertEqual((run.art / "plan" / "r1" / planmarks.FIELDS_FILE).read_bytes(), before)
         self.assertEqual(run.json(out["plan"]), {"round": 2, "fields": []})
         error = run.json(out["ripple"])["error"]
-        self.assertIn("3 回とも受け付けで拒まれた", error)
+        self.assertIn(f"{rolekit.NET_AFTER} 回とも受け付けで拒まれた", error)
         self.assertIn(replan.REPLAN_REJECT, error)
         rows = json.loads((run.file(out["plan"]).parent / planblk.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(r["item"], r["ruling"]) for r in rows], [(1, "項目 1 の allowed_paths に request_ok.json を足せ")])
         self.assertTrue(rows[0]["why"].startswith(planblk.PLAN_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])
         self.assertEqual(out["gave_up"], rows, "諦めの行は欄 gave_up でも返す（報告は置き場の控えを開かない）")
-        self.assertEqual(len(out["rejects"]), 3)
+        self.assertEqual(len(out["rejects"]), rolekit.NET_AFTER)
         self.assertIsNone(out["fix_plan"], "受け付けを通った返答が無い周の欄 fix_plan は null")
 
     def test_replan_writer_that_moved_the_tree_is_refused(self):
@@ -1213,7 +1221,7 @@ class ReplanCase(unittest.TestCase):
         self.assertIs(out["ready"], False)
         rnd = run.art / "plan" / "r2"
         why = rolekit.rejected(rnd, "plan")
-        self.assertEqual(len(why), 3, why)
+        self.assertEqual(len(why), rolekit.NET_AFTER, why)
         for w in why:
             self.assertTrue(w.startswith(planblk.READONLY_MOVED), w)
         for name in (planfile.REPLY_FILE, replan.TRIP_FILE):
@@ -1421,6 +1429,18 @@ class CollectCase(unittest.TestCase):
         out = run.script("plan_collect", {"dir": "壊れた"})
         self.assertEqual(validate_schema(out, fmt), [])
 
+    def test_return_echoes_the_declared_optional(self):
+        self.assertIn("optional", node(load(), "plan")["with"], "返す節 plan の with: に宣言 optional が無い")
+        declared = node(load(), "plan")["with"]["optional"]
+        want = json.loads(declared)
+        self.assertEqual(sorted((row["node"], row["bare"]) for row in want),
+                         [("structure-", False), ("structure-eye", True), ("structure-eye-", True)])
+        run = Run(self)
+        self.assertEqual(run.include()["optional"], want, "ブロックを通した返す節の返り")
+        self.assertEqual(run.script("plan_collect", {"dir": "plan/r1", "optional": declared})["optional"], want)
+        self.assertEqual(run.script("plan_collect", {"dir": "壊れた", "optional": declared})["optional"], want, "失敗の形")
+        self.assertEqual(run.script("plan_collect", {"dir": "plan/r1"})["optional"], [], "宣言を渡されない呼び手")
+
     def test_first_round_reads_empty_and_null_review_alike(self):
         for review in ("", "null"):
             with self.subTest(review=review):
@@ -1587,7 +1607,7 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(kept["plan"], got, "出し直しの役が読む控えは、機械が前の往復の行を差し込んだ案の全体")
 
     def test_second_round_counts_its_own_rejections(self):
-        """拒否の控えは周ごと: 1 周目に 2 回拒まれても、2 周目は 0 から数えて 3 回まで出し直せる"""
+        """拒否の控えは周ごと: 1 周目に 2 回拒まれても、2 周目は 0 から数えて受け付けの網の回まで出し直せる"""
         run = Run(self)
         bad = {"plan": [item(1)]}
         self.assertIs(run.include(writer=writer_of(bad, bad, {"plan": [item(1, 2)]}))["ready"], True)

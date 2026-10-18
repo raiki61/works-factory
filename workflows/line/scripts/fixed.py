@@ -6,7 +6,7 @@
 
 done・diff・changed・delta_review は refix-run が走ればその物（diff はどちらも run の始めからの累積）。units は unit_id ごとに後の物、
 groups・allowed_test_changes と、最後の承認ノードを開ける理由の行 handoffs（修正役が人に回した物）・mismatched（申告と
-数え直しが合わない単位）は和、x_scalars（修正役が足した規模の数値）は名ごとに 2 度目の値を優先して合わせる。申し出 conflicts は
+数え直しが合わない単位）と、修正役が直さずに残すと答えた事前審査の block の行 plan_declared（独立の目の R4 へ申し送る）は和、x_scalars（修正役が足した規模の数値）は名ごとに 2 度目の値を優先して合わせる。申し出 conflicts は
 指し札の配列: refix-run が返した控えは 1 回目の段の行を写して持つ（fix の入力 prior_conflicts。元は 1 つの盤面）ので、在ればそれ 1 つ、
 無ければ 1 回目の物（1 回目の申し出が最後の関所と報告から消えず、同じ行を 2 度数えない）。records は段ごとの diff と控えの欄
 （lib/fixbeside.py の PORTS・FROM）の並び（1 回目・2 度目の順。最後の承認ノード・深さの上げ直し・独立の目・報告が段ごとに読む）。
@@ -44,8 +44,8 @@ with boundary.guarded_imports():
     import fixbeside
 
 FIELDS = ("done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes", "changed",
-          "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason", "allowed_tests", "accept_trace", "lenses", "closure",
-          "delta_holes", "tdd_unit", "removed", "tdd_refused")
+          "x_scalars", "delta_review", "handoffs", "mismatched", "plan_declared", "stop_reason", "allowed_tests", "accept_trace", "lenses",
+          "closure", "delta_holes", "tdd_unit", "removed", "tdd_refused")
 PLANS = ("plan", "ripple")
 
 
@@ -54,7 +54,8 @@ def no_fix(plans: dict) -> dict:
     の plan_edge）の形: 直す物も差分も申し出も無く、最後のテストと独立の目へ進める（go）。独立の目の設計は design-only の物、
     修正前の関所は開いていない（問い []・答え null）。差分が無いので封じず当てない（線の merge-seal・merge-apply の when が no_fix を読む）"""
     return {"done": True, "go": True, "units": [], "groups": [], "conflicts": [], "replan_items": [], "objection": "", "diff": None,
-            "records": [], "allowed_test_changes": [], "handoffs": [], "mismatched": [], "changed": {}, "x_scalars": {}, "delta_review": None, "refixed": False,
+            "records": [], "allowed_test_changes": [], "handoffs": [], "mismatched": [], "plan_declared": [], "changed": {}, "x_scalars": {},
+            "delta_review": None, "refixed": False,
             "rejudge": False, "plan": None, "ripple": None, "design": plans.get("no_fix_design"), "plan_questions": [],
             "answer": None, "no_fix": True, "stop_reason": ""}
 
@@ -108,6 +109,7 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         "allowed_test_changes": union(fix.get("allowed_test_changes"), (refix or {}).get("allowed_test_changes")),
         "handoffs": union(fix.get("handoffs"), (refix or {}).get("handoffs")),
         "mismatched": union(fix.get("mismatched"), (refix or {}).get("mismatched")),
+        "plan_declared": union(fix.get("plan_declared"), (refix or {}).get("plan_declared")),
         "changed": last.get("changed"),
         "x_scalars": scalars,
         "delta_review": last.get("delta_review"),
@@ -138,7 +140,7 @@ def from_env() -> dict:
 def fallback(reason: str) -> dict:
     return {"done": False, "go": False, "units": [], "groups": [], "conflicts": [], "diff": None, "records": [], "replan_items": [],
             "changed": None, "delta_review": None,
-            "handoffs": [], "mismatched": [],
+            "handoffs": [], "mismatched": [], "plan_declared": [],
             "objection": "", "rejudge": False, "allowed_test_changes": [], "x_scalars": {}, "refixed": False, "plan": None, "ripple": None,
             "design": None, "plan_questions": [], "answer": None, "no_fix": False,
             "stop_reason": boundary.LINE_SCRIPT}

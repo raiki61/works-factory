@@ -11,20 +11,23 @@
 - compose:        役に読ませる材料の組み立て: 空でない部分を空行 1 つで繋ぎ、拒否の理由のファイルが在れば 1 行目で REJECT_LINE で名指す
 - with_reject:    道具ゼロの役の指示書の頭に前の拒否の文を貼る（ファイルを名指さない。裁定 R44）
 - accept_round:   受け付けの回の住処（返答を読む→take→拒否を控えに積む→GIVE_UP_AFTER 回目で諦める→最後の回かを答える）。呼び手は
-                  口を引き、控えの名も回数も自分で持たない。take の返りの欄 ok・reason・give_up（1 回目から諦める）・count（false なら
+                  口を引き、控えの名も回数も自分で持たない。方針 net（計画と事前審査の受け付け）は GIVE_UP_AFTER の代わりに、届かない
+                  大きさの網 NET_AFTER 回目で諦める（届けば工場の不具合。NET_WHY）。take の返りの欄 ok・reason・give_up（1 回目から諦める）・count（false なら
                   積まない）・kind（控えの行に残す）を口が読む。控え rejects-<名>.json が読めない・書けなければ、落ちずに done 真の拒否
                   （口の外の reject_file が書く rejects-<名>.md が書けない時は OSError が呼び手まで上がる）
 - accept_parsed:  accept_round の本体。読んだ返答の (返答, 読めない訳)（parse_reply か resubmitted の返り）を受ける。拒まれた後の
                   出し直しを合わせる受け付けは、resubmitted で合わせた答えをここに渡す（合わせは take の前段、数えは口の 1 か所）
 - with_done:      拒否の控え rejects-<名>.json の唯一の書き手（accept_round が呼ぶ 1 段）。通れば done。拒否は盤面の根の控えに積み、
-                  GIVE_UP_AFTER 回目の拒否で done（出し直しても直らない拒みは 1 回目で）。控えは run の間消さず resume を跨いで数える。
+                  GIVE_UP_AFTER 回目（方針 net なら NET_AFTER 回目。その行は after に NET_AFTER を残す）の拒否で done（出し直しても
+                  直らない拒みは 1 回目で）。控えは run の間消さず resume を跨いで数える。
                   消すのは構造の目の段 A が測り直す周の eye.reset だけ
 - is_last_attempt: 輪の今の回が諦める回（GIVE_UP_AFTER 回目）か。rolekit の外の受け付けは回の比べをこれに任せる（TDD の段の自前の数え
                   tddloop の tries は別のサブシステムで、ここを通らない）
 - rejected:       盤面の節でない受け付けの拒否の文の並び（古い順。指示書の番号と、輪が落ちた周の最後の拒否の文に使う）
 - reject_rows:    控えの行 {at, reason, kind}（kind は行に在る時だけ）
 - gave_up_text:   役の返答を諦めた理由の 1 行の文（回数で諦めた時と、出し直させずに諦めた時）
-- given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く
+- given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く（諦めの回の数は控えの最後の行の after。無ければ
+                  GIVE_UP_AFTER。網で諦めた時は NET_WHY を添える）
 - attempt:        盤面の節でない受け付けの輪の今の回（控えの拒否の数 + 1）
 - current_round:  輪の今の回を、控えの誤りで落ちずに読む（読めなければ accept_round と同じ done 真の拒否）。take の前に回が要る受け付けが引く
 - round_outcome:  accept_round の返りの、輪の until が読む 4 つの欄 {ok, done, give_up, reason}
@@ -71,6 +74,10 @@ class BoardGap(Exception):
 
 
 GIVE_UP_AFTER = 3                       # 輪の max_iterations と同じ数（ブロックの試験が YAML と突き合わせる）
+# 計画と事前審査の受け付けの網（方針 net）。回数の上限で諦めない受け付けの輪に置く、届かない大きさの数（輪の max_iterations と
+# 同じ数。線の計画の往復の網と同じ 20。ブロックの試験が YAML と突き合わせる）
+NET_AFTER = 20
+NET_WHY = "受け付けの網 {n} 回に届いた。工場の不具合として止めた"
 
 
 # 役の文は関所と報告に機械が字のまま載せるので、書き手に言語を縛る（元 works/.shared/core/rolekit.py 67-68 行。機械で訳さない）
@@ -240,9 +247,10 @@ def _rows(board: pathlib.Path, name: str) -> list:
     return _read_json(path, [])
 
 
-def with_done(board: pathlib.Path, name: str, out: dict, *, give_up: bool = False) -> dict:
+def with_done(board: pathlib.Path, name: str, out: dict, *, give_up: bool = False, net: bool = False) -> dict:
     """拒否の控えの唯一の書き手（accept_round が呼ぶ 1 段）: 通れば done。拒否は控えに積み、GIVE_UP_AFTER 回目で done（輪はそこで抜け、
-    出口が諦めを扱う）。give_up 真の拒否は回数を待たずに done（出し直しても直らない拒み）。out の kind が空でない字なら行に写す。
+    出口が諦めを扱う）。net が真なら NET_AFTER 回目で done にし、積む行に after: NET_AFTER を残す（given_up_reason が読む）。
+    give_up 真の拒否は回数を待たずに done（出し直しても直らない拒み）。out の kind が空でない字なら行に写す。
     前の版の形の控えしか無ければ、その行を引き継いで rejects-<name>.json に書く（_legacy_rows）"""
     if out.get("ok") is True:
         return {**out, "done": True}
@@ -251,9 +259,11 @@ def with_done(board: pathlib.Path, name: str, out: dict, *, give_up: bool = Fals
     row = {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "reason": str(out.get("reason", ""))}
     if isinstance(out.get("kind"), str) and out["kind"]:
         row["kind"] = out["kind"]
+    if net:
+        row["after"] = NET_AFTER
     rows.append({**row, "give_up": True} if give_up else row)
     jsonfile.write(path, rows, indent=2)
-    return {**out, "done": give_up or len(rows) >= GIVE_UP_AFTER}
+    return {**out, "done": give_up or len(rows) >= (NET_AFTER if net else GIVE_UP_AFTER)}
 
 
 def is_last_attempt(attempt: int) -> bool:
@@ -262,18 +272,19 @@ def is_last_attempt(attempt: int) -> bool:
     return attempt >= GIVE_UP_AFTER
 
 
-def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None) -> dict:
+def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None, net: bool = False) -> dict:
     """受け付けの輪の 1 回（受け付けの回の住処。元 rolekit.main_accept）。役の返答の字 raw を読み（parse_reply）、accept_parsed に通す。
     raw が None なら読まずに take(None) を呼ぶ（返答の無い回と、受けるかを呼び手が先に決めた回）"""
-    return accept_parsed(board, name, None if raw is None else parse_reply(raw), take, reject=reject, on_give_up=on_give_up)
+    return accept_parsed(board, name, None if raw is None else parse_reply(raw), take, reject=reject, on_give_up=on_give_up,
+                         net=net)
 
 
-def accept_parsed(board, name: str, got, take, *, reject=None, on_give_up=None) -> dict:
+def accept_parsed(board, name: str, got, take, *, reject=None, on_give_up=None, net: bool = False) -> dict:
     """受け付けの輪の 1 回の本体。got は (読めた返答, 読めない訳)（parse_reply か、拒まれた後の出し直しを前の答えと合わせる
     resubmitted の返り）で、返答を take(reply) に通す。got が None なら take(None)。読めない返答と take の中の例外は
     reject(理由) で拒否にする（既定は {ok: False, reason}。受け付けは落ちない）。
     受け付けの輪の 1 回の拒否の定義はここにだけ在り（TDD の段の自前の数え tddloop の tries は別）、take の返りの欄を読む: ok でなければ
-    board/rejects-<name>.json に積み（with_done）、GIVE_UP_AFTER 回目で done。give_up が真なら 1 回目でも done。count が false なら控えに積まず（done は give_up が真の時だけ真）、
+    board/rejects-<name>.json に積み（with_done）、GIVE_UP_AFTER 回目（net が真なら網の NET_AFTER 回目）で done。give_up が真なら 1 回目でも done。count が false なら控えに積まず（done は give_up が真の時だけ真）、
     kind が空でない字なら控えの行に kind として残す。諦めた時（done 真・ok 偽）は on_give_up() を呼ぶ。
     返り take の返りに done を足した物。拒否の控え rejects-<name>.json が読めない・書けなければ、落ちずに done 真の拒否（理由に
     『拒否の控えが扱えない』。on_give_up は呼ばない）。口は rejects-<name>.md を書かない（reject_file が口の後に書き、書けなければ
@@ -294,7 +305,7 @@ def accept_parsed(board, name: str, got, take, *, reject=None, on_give_up=None) 
         else:
             kind = {"kind": got["kind"]} if got.get("kind") else {}
             out = {**got, **with_done(board, name, {"ok": got.get("ok") is True, "reason": str(got.get("reason") or ""), **kind},
-                                      give_up=give_up)}
+                                      give_up=give_up, net=net)}
     except Exception as e:  # noqa: BLE001
         return {**got, **_unusable(e)}
     if out["done"] and out.get("ok") is not True and on_give_up:
@@ -347,13 +358,16 @@ def attempt(board: pathlib.Path, name: str) -> int:
 
 
 def given_up_reason(board: pathlib.Path, name: str) -> str:
-    """控えの拒否が GIVE_UP_AFTER 件あるか、出し直さずに諦めた拒否（give_up 真の行）が在れば、諦めた理由の 1 行（最後の拒否の文）。
-    届いていなければ空"""
+    """控えの拒否が諦めの回の数（最後の行の after。無い行は GIVE_UP_AFTER）件あるか、出し直さずに諦めた拒否（give_up 真の行）が在れば、
+    諦めた理由の 1 行（最後の拒否の文。網 NET_AFTER で諦めた時は NET_WHY を添える）。届いていなければ空（網の受け付けは、
+    3 件の拒否の後に通った往復を諦めと読まない）"""
     rows = _reject_rows(board, name)
     at_once = any(r.get("give_up") is True for r in rows)
-    if not rows or not (at_once or len(rows) >= GIVE_UP_AFTER):
+    after = rows[-1].get("after") if rows and isinstance(rows[-1].get("after"), int) else GIVE_UP_AFTER
+    if not rows or not (at_once or len(rows) >= after):
         return ""
-    return gave_up_text(name, len(rows), str(rows[-1].get("reason", "")), at_once=at_once)
+    text = gave_up_text(name, len(rows), str(rows[-1].get("reason", "")), at_once=at_once)
+    return text + "。" + NET_WHY.format(n=after) if after == NET_AFTER and not at_once else text
 
 
 def last_reject(folder) -> str:

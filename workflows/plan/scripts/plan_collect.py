@@ -8,7 +8,9 @@
 （planfile.note_gave_up。諦めていなければ null）。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、標準ライブラリだけで ready: false と訳を周のフォルダの collect-error.txt に
 書き、指し札の先（plan-fields.json・structure-state.json・ripple.json）が在って空でない形で返す（線は落ちた返す節の先へ進めない）。
-その時の控えの欄は無い形（fix_plan: null・rejects: []・nothing_owed: false・gave_up: null）"""
+その時の控えの欄は無い形（fix_plan: null・rejects: []・nothing_owed: false・gave_up: null）。
+返りの全部（failed も）に欄 optional を載せる: 入力（with:）optional の、このブロックが落ちても線が先へ進めてよい節の宣言
+（[{node, bare}] の JSON の字）を境の口 boundary.items で読んだ並び。境の口を読めない時だけ []"""
 import json
 import os
 import sys
@@ -94,12 +96,21 @@ def failed(error: BaseException) -> dict:
             "depth": [], "round": k, "fix_plan": None, "rejects": [], "nothing_owed": False, "gave_up": None}
 
 
+def declared() -> list:
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+        import boundary
+        return boundary.items(os.environ.get("INPUTS_OPTIONAL"))
+    except Exception:  # noqa: BLE001  返す節は落ちない
+        return []
+
+
 def main() -> int:
     try:
         out = collected()
     except Exception as e:  # noqa: BLE001  返す節は落ちない（誤りは訳に残して ready: false）
         out = failed(e)
-    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+    print(json.dumps({**out, "optional": declared()}, ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

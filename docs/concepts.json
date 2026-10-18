@@ -614,7 +614,7 @@
     },
     {
      "what": "諦める回の数 GIVE_UP_AFTER との大小の比べ（最後の回かは rolekit.is_last_attempt が答える）",
-     "pattern": "(<=?|>=?)\\s*(\\w+\\.)*GIVE_UP_AFTER\\b|\\bGIVE_UP_AFTER\\b\\s*(-\\s*\\d+\\s*)?(<=?|>=?)",
+     "pattern": "(<=?|>=?)\\s*(\\w+\\.)*(GIVE_UP_AFTER|NET_AFTER)\\b|\\b(GIVE_UP_AFTER|NET_AFTER)\\b\\s*(-\\s*\\d+\\s*)?(<=?|>=?)",
      "allowed": [
       "lib/rolekit.py"
      ],
@@ -630,7 +630,7 @@
     },
     {
      "what": "諦める回の数の定義 GIVE_UP_AFTER = <数> と、前の回の受け付けが拒んだ理由の見出しの Section の宣言",
-     "pattern": "^\\s*GIVE_UP_AFTER\\s*=\\s*\\d|Section\\(\\s*[\"']## 前の回の受け付けが拒んだ理由",
+     "pattern": "^\\s*(GIVE_UP_AFTER|NET_AFTER)\\s*=\\s*\\d|Section\\(\\s*[\"']## 前の回の受け付けが拒んだ理由",
      "allowed": [
       "lib/rolekit.py"
      ],
@@ -877,6 +877,8 @@
   "allowed:human-gates:人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない:workflows/chain/works-factory-chain.yaml": "周の鎖（#380）の親のグラフが、メイングラフの入力 final_gate・unattended を同じ名で宣言し、5 組の周の子へ写して渡す。方針の語の読みはメイングラフの start と gatepolicy のまま",
   "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/works-factory-fix.yaml": "TDD の役の返答の型（output_format の &tdd_reply）に赤の引用の欄 red_quotes を足した（#290）。型の正本は output_format だけ（持ち主の決め io-in-output-format）なので、欄の名がこの YAML に在るのは住処の外の漏れでなく型の宣言",
   "bound:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形:bin/_lib/startpoint.py:^SKIP_FLAGS = \\(": "issue #495 の見直し: 利用者が Archon の --base で名指した切り元を、殻の --from が黙って上書きしないよう、--from を足さない旗の並びに --base を入れた。Archon の旗の名の写しで、入口の種類（差分の根の名指し）は読まない",
-  "pattern:marks:足し欄の共有ボードの控えの名": "修正案の役の引き継ぎのメモの控えの名 handoff を marks の種の表に足したので、柵の選びにも足した"
+  "pattern:marks:足し欄の共有ボードの控えの名": "修正案の役の引き継ぎのメモの控えの名 handoff を marks の種の表に足したので、柵の選びにも足した",
+  "pattern:accept-round:諦める回の数 GIVE_UP_AFTER との大小の比べ（最後の回かは rolekit.is_last_attempt が答える）": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）",
+  "pattern:accept-round:諦める回の数の定義 GIVE_UP_AFTER = <数> と、前の回の受け付けが拒んだ理由の見出しの Section の宣言": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）"
  }
 }

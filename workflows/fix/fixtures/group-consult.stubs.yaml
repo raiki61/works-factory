@@ -45,6 +45,7 @@ fix:
   delta_review: {rounds: 0, pass: true}
   handoffs: []
   mismatched: []
+  plan_declared: []
   stop_reason: ""
   allowed_tests: {type: archon_artifact, run_id: r, path: fix/fix/allowed-tests.json}
   accept_trace: {type: archon_artifact, run_id: r, path: fix/fix/accept-trace.json}

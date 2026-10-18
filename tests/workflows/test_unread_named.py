@@ -167,6 +167,7 @@ def eyes(p: Place) -> dict:
             "records": json.dumps([{"diff": json.loads(p.put("fix/fix/fix.diff", "")),
                                     "tdd_unit": json.loads(p.put("fix/fix/tdd-unit.json", []))}]),
             "start": p.start(), "plan_questions": "null", "answers": "null", "start_answers": "null", "x_scalars": "null",
+            "plan_declared": "null",
             **judge_files(p, "answer_ties", "materials", "premises", "decisions")}
 
 

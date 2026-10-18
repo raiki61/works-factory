@@ -1064,9 +1064,9 @@ def ripple_units(round_dir, judgment, repo, *, skip_dirs) -> pathlib.Path:
 
 
 def note_gave_up(round_dir, plan_dir, conflicts) -> list | None:
-    """形 replan の周で修正案の役が 3 回とも拒まれたら、渡した項目ごとの諦めの行 {item, why（planblk.PLAN_GAVE_UP_WHY）, ruling（裁定の
-    文を字のまま）} を planblk.REPLAN_GAVE_UP_FILE に置いて返す（元 works/.shared/core/replan.py:625 の gate の _give_up。ほかの項目は
-    承認済みの案のまま採れる）。諦めていなければ None"""
+    """形 replan の周で修正案の役が受け付けの網（rolekit.NET_AFTER）の回まで拒まれ続けたら、渡した項目ごとの諦めの行 {item,
+    why（planblk.PLAN_GAVE_UP_WHY）, ruling（裁定の文を字のまま）} を planblk.REPLAN_GAVE_UP_FILE に置いて返す（元
+    works/.shared/core/replan.py:625 の gate の _give_up。ほかの項目は承認済みの案のまま採れる）。諦めていなければ None"""
     round_dir = pathlib.Path(round_dir)
     rnd = read_round(round_dir)
     reason = rolekit.given_up_reason(round_dir, ROLE)
@@ -1104,7 +1104,7 @@ def require_ports(got: dict | None) -> None:
 
 
 def why_not_ready(round_dir) -> str:
-    """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・拒否の控えが読めない・輪が回らなかった）。控えが読めない周は
+    """この周に案が無い訳（役を起こさなかった訳・網の回まで続いた拒否の最後の理由・拒否の控えが読めない・輪が回らなかった）。控えが読めない周は
     plan_accept が返答を照らさずに抜けた周で、その訳を返す（落ちない）"""
     why = read_round(round_dir)["why"]
     if why:

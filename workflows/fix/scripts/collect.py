@@ -26,10 +26,14 @@ diff の隣（置き場）に許したテストの変更の訳 allowed-tests.jso
 最後の関所を開ける理由の 2 欄（元 works/darkfactory/lib/line_edge.py:800 _final_needs）: handoffs は修正役が人に回した物
 （子の結果の handoffs と裁定の後の返答の changes[].breaks.accepted。fixboard.handoff_lines）、mismatched は直したという申告と
 機械の数え直しが合わない単位（子の結果の mismatched と親の置き場の閉鎖の表。fixboard.mismatched_lines）。形 group は自分の結果の行だけ。
+plan_declared は修正役が直さずに残すと答えた事前審査の block の行（fixboard.declared_lines。独立の目へ申し送る）。形 group は [] で、
+組の子の答えは親の置き場の fix-reply.json に集まってから数える。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0
 （diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []、accept-trace.json は無ければ []。
 closure.json・delta-holes.json は置かず、読み手が「無い」と名指す）。控えの欄は fixbeside.returned で組み、lib を読めない時だけ
 標準ライブラリで allowed_tests・accept_trace・lenses のポインタを組み、ほかは null（removed も null、tdd_refused は訳つきの空）。
+返りの全部（fallback も）に欄 optional を載せる: 入力（with:）optional の、このブロックが落ちても線が先へ進めてよい節の宣言
+（[{node, bare}] の JSON の字）を境の口 boundary.items で読んだ並び。境の口を読めない時だけ []。
 """
 import functools
 import json
@@ -67,9 +71,10 @@ def diff_pointer(fixboard, place: Path) -> dict:
     return boundary.pointer(rel(place, path.name))
 
 
-def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final, results, stop="") -> dict:
+def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final, results, stop="", declared=()) -> dict:
     """返りの欄（組と単位の行は rows_groups = (組の行, 単位の行)。groups は組の分け、extras は子の結果と修正役の返答、final は
-    最後の関所を開ける理由の行 (handoffs, mismatched)、results は受け付けの行を親の置き場に集める組の子の結果、stop は止めの語）"""
+    最後の関所を開ける理由の行 (handoffs, mismatched)、results は受け付けの行を親の置き場に集める組の子の結果、stop は止めの語、
+    declared は修正役が直さずに残すと答えた事前審査の block の行）"""
     rows = conflict.items(place)
     groups_rows, units_rows = rows_groups
     fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.allowed_test_rows(place, extras))
@@ -81,7 +86,7 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
             "objection": "\n".join(dict.fromkeys(x for x in objection if x)), "diff": diff_pointer(fixboard, place),
             "allowed_test_changes": fixboard.allowed_tests(place, extras),
             "changed": fixboard.changed_marks(extras), "x_scalars": fixboard.x_scalars(extras), "delta_review": review,
-            "handoffs": final[0], "mismatched": final[1], "stop_reason": stop}
+            "handoffs": final[0], "mismatched": final[1], "plan_declared": list(declared), "stop_reason": stop}
 
 
 def block(fixboard, conflict) -> dict:
@@ -115,7 +120,8 @@ def block(fixboard, conflict) -> dict:
                     fix_reply=reply if reply.is_file() else None)
     final = (fixboard.final_lines(results, "handoffs", fixboard.handoff_lines([ruled])),
              fixboard.final_lines(results, "mismatched", fixboard.mismatched_lines(place)))
-    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results, stop)
+    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results, stop,
+                  fixboard.declared_lines(place))
 
 
 def group(fixboard, conflict) -> dict:
@@ -220,7 +226,7 @@ def fallback(why: str) -> dict:
     return {"done": False, "units": units_rows, "groups": groups_rows, "conflicts": None, "replan_items": [],
             "objection": "", "diff": error_pointer(why), "allowed_test_changes": [],
             "changed": {**{k: False for k in CHANGED_MARKS}, DRIFT_NOTE: ""}, "x_scalars": {}, "delta_review": dict(NO_REVIEW),
-            "handoffs": [], "mismatched": [], "stop_reason": stop}
+            "handoffs": [], "mismatched": [], "plan_declared": [], "stop_reason": stop}
 
 
 def main() -> dict:
@@ -248,9 +254,10 @@ if __name__ == "__main__":
         out = fallback(why)
     lenses_file()
     out = {**out, **ports()}
+    noted = boundary.items(os.environ.get("INPUTS_OPTIONAL")) if boundary is not None else []
     try:
-        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+        print(json.dumps({**out, "optional": noted}, ensure_ascii=False, allow_nan=False), flush=True)
     except ValueError as e:
-        print(json.dumps({**fallback(f"fix の出力を書けない（{type(e).__name__}: {e}）"), **ports()}, ensure_ascii=False,
-                         allow_nan=False), flush=True)
+        print(json.dumps({**fallback(f"fix の出力を書けない（{type(e).__name__}: {e}）"), **ports(), "optional": noted},
+                         ensure_ascii=False, allow_nan=False), flush=True)
     sys.exit(0)

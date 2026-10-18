@@ -56,6 +56,7 @@ import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import policy  # noqa: E402
 import reads  # noqa: E402
+import ripple  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import startrec  # noqa: E402
@@ -185,9 +186,10 @@ def fields(unit) -> dict:
             "allowed_paths": ["stats.py"], "out_of_scope": [], "structure": []}
 
 
-def face(key, unit=UNIT_MEAN, kind="contract_drift", severity="block", **extra) -> dict:
+def face(key, unit=UNIT_MEAN, kind="contract_drift", severity="block", reach=converge.CENTRAL[0], **extra) -> dict:
+    """事前審査の穴の行（札 reach の既定は中央の頭の値。役の型が reach を求める）"""
     return {"key": key, "unit_keys": [unit], "kind": kind, "where": "stats.py mean",
-            "why": f"{key} の穴になる筋道を 20 字以上で書いた行", "severity": severity, **extra}
+            "why": f"{key} の穴になる筋道を 20 字以上で書いた行", "severity": severity, converge.REACH: reach, **extra}
 
 
 def review(*faces, **extra) -> dict:
@@ -527,13 +529,15 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(text[:text.index("\n\n# 修正案の事前審査")], body("judge"))
         self.assertEqual(nodes()["r2-design"]["systemPrompt"], body("blind-judge"))
 
-    def test_loops_are_three_and_end_on_accept_done(self):
-        """出し直しの輪は 3 回（諦めの数 rolekit.GIVE_UP_AFTER と同じ）で、until_bash は同じ輪の受け付けの done"""
+    def test_loops_end_on_accept_done(self):
+        """独立設計の出し直しの輪は 3 回（諦めの数 rolekit.GIVE_UP_AFTER と同じ）、事前審査の出し直しの輪は受け付けの網
+        rolekit.NET_AFTER（回数で諦める数でなく、届けば工場の不具合の網）と同じ数で、until_bash はどちらも同じ輪の受け付けの done"""
         got = nodes()
-        for loop, accept_id, fresh in (("r2-design-loop", "r2-accept", False), ("review-loop", "review-accept", False)):
+        for loop, accept_id, fresh, limit in (("r2-design-loop", "r2-accept", False, boardview.rolekit.GIVE_UP_AFTER),
+                                              ("review-loop", "review-accept", False, boardview.rolekit.NET_AFTER)):
             with self.subTest(loop):
                 group = got[loop]["loop_group"]
-                self.assertEqual(group["max_iterations"], boardview.rolekit.GIVE_UP_AFTER)
+                self.assertEqual(group["max_iterations"], limit)
                 self.assertIn(f"${accept_id}.output.done", group["until_bash"])
                 self.assertIs(group["fresh_context"], fresh)
                 self.assertEqual(got[loop]["timeout"], DEADLINE)
@@ -561,6 +565,14 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(trimmed.without_trimmed(fmt["properties"]["origins"]), converge.ORIGIN_SCHEMA)
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
         self.assertLessEqual(set(boardview.HUMAN_FACE_KINDS), set(row["kind"]["enum"]), "人の関所に回す穴の種類が役の返りの kind に無い")
+
+    def test_face_reach_is_the_converge_schema(self):
+        """事前審査の役の型の faces の reach は converge.REACH_SCHEMA の写しで必須（札の無い face は役の型が拒む）。下請けの答えのファイルの
+        型も同じ faces を引く"""
+        row = nodes()["plan-review"]["output_format"]["properties"]["faces"]["items"]
+        self.assertEqual(trimmed.without_trimmed(row["properties"][converge.REACH]), converge.REACH_SCHEMA)
+        self.assertIn(converge.REACH, row["required"])
+        self.assertEqual(nodes()["plan-review-fix"]["output_format"]["properties"]["faces"], nodes()["plan-review"]["output_format"]["properties"]["faces"])
 
     def test_stuck_recommend_has_the_recommend_shape(self):
         """事前審査の役の型の一番上の止まった時の推し（converge.STUCK_PUSH）は gatemarks.MARK_SCHEMA[RECOMMEND]（note を除く）の写しで、
@@ -1222,18 +1234,31 @@ class ReviewAcceptCase(RunCase):
         self.assertEqual((got["ok"], got["done"]), (False, False))
         self.assertIn("JSON", got["reason"])
 
-    def test_give_up_on_the_third_reject(self):
-        """3 回とも拒まれたら done・give_up で輪を抜け、返す節は止めた（stalled）と諦めた訳を返す"""
+    def test_give_up_at_the_net_reject(self):
+        """網の回まで拒まれ続けたら done・give_up で輪を抜け、返す節は止めた（stalled）と、網に届いた工場の不具合の訳を返す"""
         r = self.run_
         self.prepped()
-        rows = [r.accept(review(face("entrance-without-no-add", kind="entrance"))) for _ in range(3)]
-        self.assertEqual([(g["ok"], g["done"], g["give_up"]) for g in rows], [(False, False, False)] * 2 + [(False, True, True)])
+        rows = [r.accept(review(face("entrance-without-no-add", kind="entrance"))) for _ in range(boardview.rolekit.NET_AFTER)]
+        self.assertEqual([(g["ok"], g["done"], g["give_up"]) for g in rows],
+                         [(False, False, False)] * (boardview.rolekit.NET_AFTER - 1) + [(False, True, True)])
         got = r.out("result")
         self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, True, True))
         self.assertTrue(any(q.startswith(boardview.GIVEN_UP_FACES) for q in texts(got)), texts(got))
+        self.assertTrue(any(boardview.rolekit.NET_WHY.format(n=boardview.rolekit.NET_AFTER) in q for q in texts(got)), texts(got))
         saved = json.loads(r.pointed(got["review"]).read_text(encoding="utf-8"))
         self.assertEqual((saved["faces"], saved["shrink"]), ([], []))
         self.assertIn("no_add", saved["reason"])
+
+    def test_pass_after_three_rejects_is_not_given_up(self):
+        """3 回拒まれた後の 4 回目に通った返答は諦めと読まない（拒否の回数で諦める決まりは計画と事前審査の受け付けに無い）"""
+        r = self.run_
+        self.prepped()
+        for _ in range(boardview.rolekit.GIVE_UP_AFTER):
+            self.assertFalse(r.accept(review(face("entrance-without-no-add", kind="entrance")))["done"])
+        self.assertTrue(r.accept(review())["ok"])
+        got = r.out("result")
+        self.assertTrue(got["pass"], got)
+        self.assertFalse(any(q.startswith(boardview.GIVEN_UP_FACES) for q in texts(got)), texts(got))
 
     def test_reject_reason_pasted_in_the_next_material(self):
         r = self.run_
@@ -1752,8 +1777,8 @@ class ConvergeCase(RunCase):
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
         self.assertNotIn(converge.REREVIEW_ASK, text)
 
-    def test_other_block_not_fewer_is_unsettled(self):
-        """2 往復目に別の block が 1 つ残る → 開いた block が 1 → 1 で減らないので止めた（UNSETTLED）"""
+    def test_other_central_block_goes_again(self):
+        """2 往復目に別の中央の block が 1 つ残る（開いた block が 1 → 1 で減らない）往復も、止めずに修正案の役へ返す（AGAIN）"""
         r = self.run_
         keys = ["mean-block-first-000", "mean-block-second-00"]
         for n, key in enumerate(keys, 1):
@@ -1761,8 +1786,115 @@ class ConvergeCase(RunCase):
                 r.plan([item(UNIT_MEAN, 1, approach=f"mean の直し {n} 回目"), item(UNIT_CLAMP, 2)], rnd=n,
                        answers=[{"key": keys[n - 2], "handled": "fixed", "how": "前の穴を直した形に案を書き直した"}])
             got = r.pass_(review(face(key), resolved=keys[:n - 1]))
-        self.assertEqual((got["pass"], got["stalled"]), (False, True), got)
-        self.assertEqual(converge.read(r.view())["outcome"], converge.UNSETTLED)
+        self.assertEqual((got["pass"], got["stalled"]), (False, False), got)
+        self.assertEqual(converge.read(r.view())["outcome"], converge.AGAIN)
+
+    def test_new_central_blocks_go_again_at_the_fifth_pass(self):
+        """中央の新しい block が出続ける間は、往復の数に依らず続く: 5 往復目も止めた（stalled）と返さない"""
+        r = self.run_
+        keys = [f"mean-block-pass-{n:03d}" for n in range(1, 6)]
+        for n, key in enumerate(keys, 1):
+            if n > 1:
+                r.plan([item(UNIT_MEAN, 1, approach=f"mean の直し {n} 回目"), item(UNIT_CLAMP, 2)], rnd=n,
+                       answers=[{"key": keys[n - 2], "handled": "fixed", "how": "前の穴を直した形に案を書き直した"}])
+            got = r.pass_(review(face(key), resolved=keys[:n - 1]))
+            self.assertEqual((got["pass"], got["stalled"]), (False, False), (n, got))
+        self.assertEqual([p["outcome"] for p in converge.read(r.view())["passes"]], [converge.AGAIN] * 5)
+
+    def test_peripheral_only_pass_settles_and_hands_blocks_on(self):
+        """2 往復目に開いた block が端（peripheral）だけなら、止めずに修正へ進む（pass 真・stalled 偽。抜け方は SETTLED）。残った端の
+        block は review.json の faces に載ったまま修正の段へ申し送られ（修正役が key ごとに答える道）、報告の頭の行に抜け方が出る"""
+        r = self.run_
+        self.first()
+        left = face("stale-docstring-left", reach=converge.PERIPHERAL)
+        got = r.pass_(review(left, resolved=[MEAN_BLOCK["key"]]))
+        self.assertEqual((got["pass"], got["stalled"]), (True, False), got)
+        doc = converge.read(r.view())
+        self.assertEqual(doc["outcome"], converge.SETTLED)
+        saved = json.loads(r.pointed(got["review"]).read_text(encoding="utf-8"))
+        self.assertEqual([(f["key"], f["severity"], f[converge.REACH]) for f in saved["faces"]],
+                         [(left["key"], "block", converge.PERIPHERAL)])
+        self.assertIn(converge.WORDS[converge.SETTLED], converge.lines(r.view())[0])
+
+    def test_relabel_to_peripheral_needs_a_new_why(self):
+        """前の往復で中央だった block の key を peripheral に付け替える時、why が前の往復と同じ字なら受け付けが拒む（付け替えの訳が
+        無い）。why を書き直せば受ける"""
+        r = self.run_
+        self.first()
+        r.open()
+        r.out("review_prep")
+        same = {**MEAN_BLOCK, converge.REACH: converge.PERIPHERAL}
+        got = r.accept(review(same))
+        self.assertFalse(got["ok"], got)
+        self.assertIn(f"{MEAN_BLOCK['key']} を前の往復の中央", got["reason"])
+        moved = {**same, "why": "直しの後は空の列の扱いが試験の材料の言い回しだけに残り、どの害の定義にも当たらない"}
+        self.assertTrue(r.accept(review(moved))["ok"])
+
+    def test_peripheral_only_first_pass_goes_again(self):
+        """1 往復目の block が端だけでも、一度は修正案の役へ返して答えさせる（AGAIN）"""
+        got = self.run_.pass_(review(face("stale-docstring-left", reach=converge.PERIPHERAL)))
+        self.assertEqual((got["pass"], got["stalled"]), (False, False), got)
+        self.assertEqual(converge.read(self.run_.view())["outcome"], converge.AGAIN)
+
+    def test_second_pass_material_has_only_changed_sentences(self):
+        """木にしない 2 往復目の材料は、修正案の全体の代わりに開いた項目の案の文の差分（足した文・消した文と場所）と波及の一覧だけを
+        持つ。変わっていない文・閉じた項目の案・項目の works の欄の節は載らない"""
+        r = self.run_
+        self.first()
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertNotIn("修正役の案: ", text)
+        self.assertIn(planblk.REREVIEW_HEAD.format(n=1, units=UNIT_MEAN), text)
+        self.assertIn("+ approach: mean は空の列を先に弾いて分母を直す", text)
+        self.assertIn(f"- approach: {PLAN_MARK} 項目 1 の直し: {UNIT_MEAN} を直す", text)
+        self.assertIn(planblk.DIFF_ASK, text)
+        self.assertIn(ripple.HEAD, text)
+        for unchanged in (f"{PLAN_MARK} 項目 2 の直し", "1 行の直しで済む", "helper_2", planmarks.REVIEW_HEAD):
+            self.assertNotIn(unchanged, text, unchanged)
+        first = pathlib.Path(r.folder / boardview.PASS_DIR.format(k=1) / boardview.PROMPT_FILE).read_text(encoding="utf-8")
+        self.assertIn("修正役の案: ", first, "1 往復目は案の全体")
+
+    def test_second_pass_material_shows_other_items_scope(self):
+        """木にしない 2 往復目でも、開いた項目の直しが閉じた項目と食い違うのが見える: 項目が 2 つ以上なら、波及の一覧の重なりの
+        うち開いた項目に当たる行と、ほかの項目の unit_keys・allowed_paths・files の path を貼る（閉じた項目の案の文は貼らない）"""
+        r = self.run_
+        self.first()
+        r.plan([item(UNIT_MEAN, 1, approach="mean の分母を直し、clamp の上限の枝も同じ関数で包む",
+                     files=[frow("stats.py", "helper_1", "clamp")]), item(UNIT_CLAMP, 2)], rnd=2, answers=self.ANSWERS)
+        r.ripple(RIPPLE)
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        cross = text[text.index(planblk.CROSS_HEAD):]
+        for w in (planblk.CROSS_ASK, "- stats.py: 項目 1, 2", f"- 項目 2（{UNIT_CLAMP}）", "  - allowed_paths: stats.py",
+                  "  - files: stats.py"):
+            self.assertIn(w, cross, w)
+        self.assertNotIn(f"- 項目 1（{UNIT_MEAN}）", cross, "開いた項目が 1 つなら自分の範囲は差分の側に在る")
+        self.assertIn("+ files[stats.py].symbols[clamp].name: clamp", text, "閉じた項目 2 の名に触る直しの文")
+        for unchanged in (f"{PLAN_MARK} 項目 2 の直し", "helper_2"):
+            self.assertNotIn(unchanged, text, unchanged)
+
+    def test_cross_section_without_ripple_says_the_list_is_missing(self):
+        """波及の一覧が誤り（error）の時、項目どうしの節の重なりは「無い」と言わず、一覧が無い訳を書く"""
+        r = self.run_
+        self.first()
+        r.plan([item(UNIT_MEAN, 1, approach="mean の分母を直す"), item(UNIT_CLAMP, 2)], rnd=2, answers=self.ANSWERS)
+        r.ripple({"error": "RIPPLE-ERR-4410"})
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        cross = text[text.index(planblk.CROSS_HEAD):]
+        self.assertIn("重なり:\n- 波及の一覧が無い（RIPPLE-ERR-4410", cross)
+        self.assertNotIn("重なり:\n- 無い", cross)
+
+    def test_second_pass_material_of_one_item_has_no_cross_section(self):
+        """項目が 1 つの案には項目どうしの節を足さない"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1)])
+        r.pass_(review(MEAN_BLOCK))
+        r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾いて分母を直す")], rnd=2, answers=self.ANSWERS)
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(planblk.REREVIEW_HEAD.format(n=1, units=UNIT_MEAN), text)
+        self.assertNotIn(planblk.CROSS_HEAD, text)
 
     def decay(self, rnd):
         """1 往復目に 2 項目へ block を 1 つずつ、計画の周 rnd の 2 往復目に項目 1 へ新しい block を 1 つ（開いた block が 2 → 1）"""
@@ -1784,7 +1916,7 @@ class ConvergeCase(RunCase):
 
     def test_capped_decay_stops_at_loop_max(self):
         """開いた block が 2 → 1 と減り続けていても、線の往復の輪の上限の周（計画の周が入力 round_limit）の往復は止まる: 抜け方は
-        again → unsettled で、最後の行に capped が在る。関所の止まりの行の理由は上限に届いた事実を仕組みの異常として言う"""
+        again → unsettled で、最後の行に capped が在る。関所の止まりの行の理由は上限に届いた事実を工場の不具合として言う"""
         got = self.decay(ROUND_LIMIT)
         self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, True, True), got)
         doc = converge.read(self.run_.view())
@@ -1794,7 +1926,7 @@ class ConvergeCase(RunCase):
         stuck = [q for q in texts(got) if q.startswith(gatemarks.STUCK_ITEM + "。理由: ")]
         self.assertEqual(len(stuck), 1, got["questions"])
         self.assertIn(converge.CAP_WHY.split("（")[0].format(n=2), stuck[0])
-        self.assertIn("仕組みの異常として止めた", stuck[0])
+        self.assertIn("工場の不具合として止めた", stuck[0])
 
 
 class TreeCase(RunCase):
@@ -2050,6 +2182,33 @@ class TreeCase(RunCase):
         self.assertNotIn("項目の files に無い", got["reason"])
         self.assertTrue(r.accept(review(design_map=mine, resolved=fixed))["ok"])
 
+    def test_tree_off_second_pass_asks_map_only_for_new_keys(self):
+        """2 往復目（木にしない）の design_map は、開いた項目の files の鍵のうち前の往復の行にも在った鍵（clamp）を求めず、足した鍵
+        （clamp_guard）だけを鍵の一覧に貼って求める。書き直さなかった鍵の行が前の往復で受けた要素（D2）は網羅に引き継ぎ、往復の控えの
+        refs にも残す。足した鍵の行の無い design_map は拒む"""
+        r = self.run_
+        elements = [{"id": "D1", "adds": ["上限の入口"], "removes": []}, {"id": "D2", "adds": ["丸めの口"], "removes": []}]
+        r.open()
+        DesignCase.designed(self, {**DESIGN_OK, "elements": elements})
+        self.prepped()
+        self.write_answers(1, {1: {**answer(1), converge.DESIGN_MAP: [self.map_row(1, "helper_1", "D1")]},
+                               2: {**answer(2, faces=[CLAMP_BLOCK]), converge.DESIGN_MAP: [self.map_row(2, "clamp", "D2")]}})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp", "clamp_guard")])], rnd=2,
+               answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を守る助け手 clamp_guard を足した"}])
+        self.assertFalse(r.open()["tree"])
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        keys = text[text.index(planblk.MAP_ITEMS_HEAD):].split("\n\n")[2]
+        self.assertIn('"symbol": "clamp_guard"', keys)
+        self.assertNotIn('"symbol": "clamp"', keys)
+        self.assertIn(planblk.DESIGN_DIFF_ASK, text)
+        fixed = [CLAMP_BLOCK["key"]]
+        got = r.accept(review(design_map=[], resolved=fixed))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("clamp_guard", got["reason"])
+        self.assertTrue(r.accept(review(design_map=[self.map_row(2, "clamp_guard")], resolved=fixed))["ok"])
+        self.assertEqual(converge.read(r.view())["passes"][-1]["items"][1]["refs"], ["D2"])
+
     def test_tree_item_answer_other_open_item_row_says_outside_not_closed(self):
         r = self.run_
         r.open()
@@ -2201,7 +2360,7 @@ class TreeCase(RunCase):
         diff = brief[brief.index(planblk.DIFF_HEAD):]
         self.assertIn("上限ちょうどの値はそのまま返す", diff)
         self.assertIn(planblk.DIFF_ASK, brief)
-        self.assertNotIn(planblk.DIFF_FULL_ASK, brief)
+        self.assertNotIn(planblk.ITEM_PLAN_HEAD.format(n=2), brief, "2 往復目は項目の全体を貼らない")
         self.assertIn(CLAMP_BLOCK["key"], brief)
         self.assertIn(planblk.CARRIED_HEAD, brief)
         self.assertFalse((self.items_dir(2) / "item-1.md").exists(), "閉じた項目は審査しない")
@@ -2286,6 +2445,29 @@ class TreeCase(RunCase):
         self.assertEqual([(f["key"], f["unit_keys"]) for f in converge.carried_notes(r.view())],
                          [(both["key"], [UNIT_MEAN, median]), (only["key"], [median])],
                          "後の案が戻した単位は、2 往復目に絞って控えた写しでなく審査役の書いた穴の単位から戻る")
+
+    def test_tree_item_answer_relabel_to_peripheral_needs_a_new_why(self):
+        """木の受け付け: 項目の下請けの答え（planblk.item_answer_gaps）でも、前の往復で中央だった block の key を peripheral に付け
+        替えて why が前の往復と同じ字なら拒む（converge.relabel_gaps）。why を書き直せば受ける"""
+        r = self.run_
+        r.start(features_on=["review_tree"])
+        self.prepped()
+        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK])})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")], approach="clamp の上限の枝で hi を返す")],
+               rnd=2, answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝で hi を返す"}])
+        r.open()
+        r.out("review_prep")
+        same = {**CLAMP_BLOCK, converge.REACH: converge.PERIPHERAL}
+        self.write_answers(2, {2: {**answer(2, faces=[same]), "hits": []}})
+        got = r.accept(summary({2: [same["key"]]}))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
+        self.assertIn(f"{CLAMP_BLOCK['key']} を前の往復の中央", got["reason"])
+        moved = {**same, "why": "直しの後は上限の扱いが試験の材料の言い回しだけに残り、どの害の定義にも当たらない"}
+        self.write_answers(2, {2: {**answer(2, faces=[moved]), "hits": []}})
+        self.assertTrue(r.accept(summary({2: [moved["key"]]}))["ok"])
 
     def test_resolved_suggest_not_owed_again_in_tree(self):
         """木の受け付け: 開いた項目 2 に挙げた suggest s を 2 往復目の審査が resolved に入れた往復は通り（resolved の s を『前の往復の
@@ -2388,24 +2570,34 @@ class TreeCase(RunCase):
         self.assertIn(f"- 1 往復目の suggest {note['key']}: {note['why']}（{note['where']}）", history)
         self.assertIn(f"  - 修正案の役の答え {note['key']}: fixed（", history)
 
-    def test_tree_item_contract_change_is_reviewed_whole(self):
-        """元 test_tree_item_contract_change_is_reviewed_whole・test_contract_field_change_is_reviewed_whole: 2 往復目、約束の欄
-        （allowed_paths）に 1 行足しただけの開いた項目の下請けのファイルは、差分に絞らず全部を審査せよと頼み、変わった欄の名を言う。
-        字の割合は小さくても、直しが触れる物が変わるので差分の外の読み直しが要る"""
+    def test_tree_item_contract_change_names_fields_without_the_whole(self):
+        """元 test_tree_item_contract_change_is_reviewed_whole・test_contract_field_change_is_reviewed_whole の後継: 2 往復目、約束の欄
+        （allowed_paths）に 1 行足しただけの開いた項目の下請けのファイルは、変わった欄の名を言い、足した行を差分に載せる。項目の案の
+        全体は貼らない（全体を読み直させる頼みは無い。#662）"""
         brief = self.second_pass_brief(edit_fields=lambda row: row["allowed_paths"].append("README.md"))
-        self.assertIn("約束の欄（allowed_paths）が変わった。" + planblk.DIFF_FULL_ASK, brief)
-        self.assertIn("README.md", brief[brief.index(planblk.DIFF_HEAD):])
-        self.assertNotIn(planblk.DIFF_ASK, brief)
+        self.assertIn("約束の欄（allowed_paths）が変わった。" + planblk.DIFF_ASK, brief)
+        self.assertIn("+ allowed_paths: README.md", brief[brief.index(planblk.DIFF_HEAD):])
+        self.assertNotIn(planblk.ITEM_PLAN_HEAD.format(n=2), brief)
 
-    def test_large_item_change_is_reviewed_whole(self):
-        """元 test_large_item_change_is_reviewed_whole: 開いた項目の approach を丸ごと書き直し、前の行の字の DIFF_FULL_SHARE を
-        超えて変えた直しの後は、差分に絞らず全部を審査せよと頼む（約束の欄は変わっていないので欄の名は言わない）"""
-        big = "".join(f"手順 {i}: {c} の入口で空の列を弾き、{c} の出口で分母を {i} 倍に直さず len(xs) に揃える。"
-                      for i, c in enumerate("甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥", 1))
-        brief = self.second_pass_brief(edit=lambda row: row.update(approach=big))
-        self.assertIn(f"{planblk.DIFF_HEAD}\n\n{planblk.DIFF_FULL_ASK}", brief)
-        self.assertNotIn(planblk.DIFF_ASK, brief)
-        self.assertNotIn("約束の欄（", brief)
+    def test_second_pass_item_brief_has_only_changed_sentences(self):
+        """元 test_large_item_change_is_reviewed_whole の後継: 開いた項目の approach の 1 文を書き換え、files の頭に行を 1 つ足した
+        2 往復目の下請けのファイルは、足した文と消した文を場所つきで持ち、変わっていない文（残した文・後ろの files の行・works の欄）と
+        閉じた項目の案を持たない。頼みは SUB_ITEM_DIFF_ASK"""
+        kept, gone, came = "clamp は lo より小さい値を lo に寄せる。", "上限の枝はそのまま。", "上限の枝で hi を返す。"
+
+        def edit(row):
+            row["approach"] = kept + came
+            row["files"] = [frow("stats.py", "clamp_guard"), *row["files"]]
+        brief = self.second_pass_brief(first=[item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
+                                                                        approach=kept + gone)], edit=edit)
+        diff = brief[brief.index(planblk.DIFF_HEAD):]
+        self.assertIn(f"- approach: {gone}", diff)
+        self.assertIn(f"+ approach: {came}", diff)
+        self.assertIn("clamp_guard", diff)
+        self.assertIn(planblk.SUB_ITEM_DIFF_ASK.format(n=2, answer=planblk.answer_file(self.run_.view(), 2, 2)), brief)
+        for unchanged in (kept, "1 行の直しで済む", f"{PLAN_MARK} 項目 1 の直し"):
+            self.assertNotIn(unchanged, brief, unchanged)
+        self.assertNotIn(planblk.ITEM_PLAN_HEAD.format(n=2), brief)
 
     def test_narrows_gate_marks_only_change_stays_diff(self):
         """元 test_narrows_gate_marks_only_change_stays_diff: narrows の行の関所の決め手の欄（world・recommend）の長い文を丸ごと
@@ -2427,7 +2619,8 @@ class TreeCase(RunCase):
 
         brief = self.second_pass_brief(first=first, edit=reword)
         self.assertIn(planblk.DIFF_ASK, brief)
-        self.assertNotIn(planblk.DIFF_FULL_ASK, brief)
+        self.assertNotIn("約束の欄（", brief)
+        self.assertNotIn(long_world[:30], brief, "関所の決め手の欄は差分に載らない")
 
     def test_precedent_sources_are_fetched_once_per_run(self):
         """元 test_precedent_sources_are_fetched_once_per_run"""
@@ -2980,10 +3173,10 @@ class ReplanCase(RunCase):
         self.assertTrue(r.accept(review(design_map=fresh))["ok"])
 
     def test_replan_review_gave_up_names_each_item(self):
-        """形 replan の事前審査が 3 回とも拒まれたら、裁かれた項目ごとの諦めの訳と裁定の文（字のまま）を review.json の隣に置く"""
+        """形 replan の事前審査が網の回まで拒まれ続けたら、裁かれた項目ごとの諦めの訳と裁定の文（字のまま）を review.json の隣に置く"""
         r = self.run_
         self.replan()
-        for _ in range(rolekit.GIVE_UP_AFTER):
+        for _ in range(rolekit.NET_AFTER):
             got = r.accept({"faces": "x"})
         self.assertTrue(got["give_up"], got)
         out = r.out("result")
@@ -3241,14 +3434,14 @@ class FailSafeCase(RunCase):
         self.assertEqual(json.loads(r.pointed(got["review"]).with_name(boardview.PASSES_FILE).read_text(encoding="utf-8")), [])
 
     def test_unwritable_converge_record_is_named(self):
-        """往復の控えを書けない往復は黙って進めない: 受け付けが拒みに数え、3 回目で諦め、返りの questions が控えの名を持ち pass は偽
+        """往復の控えを書けない往復は黙って進めない: 受け付けが拒みに数え、網の回で諦め、返りの questions が控えの名を持ち pass は偽
         （元 tests/test_blk_plan.py の with_converge の halt_unsaved）"""
         r = self.run_
         r.start(features_off=["review_tree"])
         r.open()
         r.out("review_prep")
         (r.folder / (converge.RECORD + ".tmp")).mkdir()
-        for _ in range(rolekit.GIVE_UP_AFTER):
+        for _ in range(rolekit.NET_AFTER):
             got = r.accept(review())
         self.assertEqual((got["ok"], got["give_up"]), (False, True), got)
         self.assertIn(converge.RECORD, got["reason"])
@@ -4232,12 +4425,14 @@ class ConvergeGateCase(GateBase):
         self.assertIsNotNone(got["pushed"])
         self.assertIn("a-key-001", got["pushed"]["text"])
         self.assertTrue(got["asked"][0].startswith(gatemarks.STUCK_ITEM))
-        place = "gate-before-fix"
-        self.assertIn(place, outcome.GATES, "報告の _pushed は outcome.GATES の置き場の名だけを読む（鍵を GATE_NODE にすると空になる）")
+        stages = load_line_script("collect").STAGES
+        place, role = "gate-before-fix", "before-fix-answer"
+        self.assertIn(role, outcome.GATES, "報告の _pushed は outcome.GATES の役の名だけを読む（鍵を GATE_NODE にすると空になる）")
+        self.assertEqual(stages["nodes"][role], place, "報告の文の承認ノードの名は線の段の表が名指す")
         taken = gate_answer.taken(None, go=got["go"], stop_reason=got["stop_reason"], place=place, folder=self.tmp,
                                   asked=got["asked"], pushed=got["pushed"])
         self.assertEqual((taken["go"], taken["stop_reason"]), (True, ""))
-        lines = runreport._pushed_lines({place: taken["answer"]})
+        lines = runreport._pushed_lines({role: taken["answer"]}, stages=stages)
         self.assertEqual(len(lines), 1, lines)
         self.assertTrue(lines[0].startswith(f"無人の run で推しを採って通した（承認ノード {place}）: {gatemarks.STUCK_ITEM}"), lines)
         self.assertIn(self.PUSH["note"], lines[0])

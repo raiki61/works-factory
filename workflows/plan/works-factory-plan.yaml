@@ -226,15 +226,16 @@ nodes:
 
   # 修正案の輪。1 回目は修正案の役 plan-writer が新しい会話で全部の材料から案を書く。拒否の後は出し直しの役 plan-writer-fix が
   # 同じ会話の続きで拒まれた所だけを返し、受け付けが前の答えの控えと合わせてから全体を照らす（振り分けは plan-prep の resubmit。
-  # 並んだ層は会話を切るので plan-writer-fix は plan-writer の後ろの層に置く）。3 回目の拒否で受け付けが done（give_up）を出して
-  # 輪を抜ける（max_iterations で落とさない）
+  # 並んだ層は会話を切るので plan-writer-fix は plan-writer の後ろの層に置く）。拒否の回数では諦めず、受け付けの網（lib の
+  # rolekit.NET_AFTER。輪の max_iterations と同じ数で、届けば工場の不具合）の回の拒否で受け付けが done（give_up）を出して輪を抜ける
+  # （max_iterations で落とさない）
   - id: plan-loop
     depends_on: [round, structure-state, ripple-units]
     trigger_rule: none_failed_min_one_success
     when: "$round.output.go == true"
     timeout: 1728000000
     loop_group:
-      max_iterations: 3
+      max_iterations: 20
       fresh_context: false
       until_bash: 'done=$plan-accept.output.done; test "$done" = true'
       nodes:
@@ -702,13 +703,19 @@ nodes:
     timeout: 1728000000
     depends_on: [round, structure-state, ripple-items]
     trigger_rule: all_done
+    # optional は、この計画のブロックが落ちても線が先へ進めてよい節の宣言（構造の実測と構造の目。落ちても修正案は進む）。[{node, bare}] の
+    # JSON の字で、node は自分の中の節の id かその頭（区切り - で終わる物は頭）、bare はループの中の節で、記録の step に include の
+    # 前付けの無い素の id で載るか。線は返りの欄 optional を往復の返しの節と受け皿で受け、include の id の頭を付けて報告へ渡す。
+    # 案の直しも同じブロックの差し込みなので同じ宣言を使う
     with:
       dir: $round.output.dir
+      optional: '[{"node": "structure-", "bare": false}, {"node": "structure-eye", "bare": true}, {"node": "structure-eye-", "bare": true}]'
     output_format:
       type: object
       additionalProperties: false
       required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, nothing_owed, gave_up]
       properties:
+        optional: {type: array}
         ready: {type: boolean}
         plan: &pointer
           type: object

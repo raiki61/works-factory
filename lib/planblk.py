@@ -26,13 +26,15 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
             木にするかは open の tree（boardview._tree_on。受け付け boardview._take が見る）の 1 つで決まり、tree_merge は木の往復
             （束ね役の組）でだけ呼ばれる。木にしない往復（単独の組）は審査役 1 つの返答をそのまま受ける（出自の申告 origins は役の型が
             確かめた返答の欄のまま）。木の往復で開いた項目の答えのファイルが無ければ、その項目の下請けを起こせと拒む
+- 後の回の材料: 2 往復目からの形 review は、開いた項目ごとの案の文の差分（_diff_part。converge.sentence_diff）と波及の一覧だけを
+            貼る（rereview_part・木の下請けのファイル。変わっていない文は載せない。単独の審査役には、項目が 2 つ以上なら項目どうしの
+            重なりとほかの項目の範囲の節 _cross_part も貼る。木の道では相乗りの審査が持つ）。design_map は前の往復の行にも在った鍵（kept_keys）を
+            求めず、その行が受けた要素を item_refs で網羅に引き継ぐ
 - 単位の名: unit_name（返答の no → 単位の名。boardview・planfile も引く）
 - RECEIVES: 役ごとに貼る節の見出しの表（promptsection）
 """
 import copy
-import difflib
 import json
-import os
 import pathlib
 import sys
 
@@ -90,8 +92,8 @@ READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 wo
 NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
 # 案の直しを終えられなかった項目の諦めの訳（元 works/.shared/core/replan.py:139-140）と、その行 [{item, why, ruling}] を置く隣のファイル
 # （計画の返り plan と事前審査の返り review の指し札の先と同じフォルダ。報告が前の失敗の行に読む）
-PLAN_GAVE_UP_WHY = "修正案の役の直しが 3 回とも拒まれた: {reason}"
-REVIEW_GAVE_UP_WHY = "事前審査の役の返答が 3 回とも拒まれた: {reason}"
+PLAN_GAVE_UP_WHY = f"修正案の役の直しが受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
+REVIEW_GAVE_UP_WHY = f"事前審査の役の返答が受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
 REPLAN_GAVE_UP_FILE = "replan-gave-up.json"
 DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（下の行を全部直して出し直せ。「」は独立設計と案の行の引用だけに使い、"
                        "ほかの引用は『』か `…` で書く）:")
@@ -136,14 +138,18 @@ SUB_FORMAT = promptsection.Section("## 答え方（全部の下請けで同じ�
                                    "メッセージに 1 行だけ返す（答えの中身を写さない）。\n\n```json\n{schema}\n```", source="fn:planblk.brief_head")
 ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句
 DIFF_HEAD = promptsection.Section("## 前の往復からのこの項目の案の差分", source="fn:planblk._diff_part")
-DIFF_ASK = ("前の往復でこの項目を見た審査は、下の前の block と答えの要る suggest のほかに直しへ進めない穴を挙げなかった。今の往復で見るのは (1) 前の答えの要る穴が"
-            "消えたか（消えたなら resolved、残れば同じ key で faces に同じ重さで）と (2) 下の差分（- が前・+ が今）が作る新しい穴だけ。"
-            "差分の外の所を見直して新しい穴を探さない。穴の重さの決まり（block か suggest か）は変えない。")
-# 差分に絞らず全部を審査する、前の往復の行から違う字の割合の境（決まりと字の数え方の正本は _diff_part の docstring）
-DIFF_FULL_SHARE = 0.25
-DIFF_FULL_ASK = ("この項目は前の往復から大きく変わった（下の差分は変わった所の目安）。差分に絞らず、この項目の案の全部を審査せよ。前の"
-                 "答えの要る穴が消えたかも見る（消えたなら resolved、残れば同じ key で faces に同じ重さで）。穴の重さの決まり（block か "
-                 "suggest か）は変えない。")
+DIFF_ASK = ("前の往復でこの項目を見た審査は、前の block と答えの要る suggest のほかに直しへ進めない穴を挙げなかった。今の往復で見るのは (1) 前の答えの要る穴が"
+            "消えたか（消えたなら resolved、残れば同じ key で faces に同じ重さと同じ reach で）と (2) 下の差分と波及の一覧が作る新しい穴だけ。"
+            "差分の行は『印 場所: 文』で、- は前の往復にだけ在った文・+ は今の往復で足した文（変わっていない文は載せない）。"
+            "差分の外の所を見直して新しい穴を探さない。穴の重さの決まり（block か suggest か）と reach の決まりは変えない（前に中央の"
+            "値だった block を peripheral に付け替えるなら、why の頭の 1 文に前の定義に当たらなくなった訳を書く）。")
+REREVIEW_HEAD = promptsection.Section("## 開いた項目 {n}（{units}）の差分と波及の一覧", source="fn:planblk.rereview_part")
+CROSS_HEAD = promptsection.Section("## 項目どうしの重なりと、ほかの項目の範囲（機械が範囲と波及の一覧から引いた）", source="fn:planblk.rereview_part")
+CROSS_ASK = ("開いた項目の差分が、下のほかの項目（閉じた項目も含む）の単位・範囲・触るファイルと食い違えば、その食い違いも穴に挙げよ"
+             "（ほかの項目の案の文はここに無い。要れば作業ツリーのファイルを読め）。")
+# 2 往復目からの独立設計の突き合わせ（design_map の鍵の一覧と網羅の引き継ぎは map_items_section・coverage_gaps）
+DESIGN_DIFF_ASK = ("2 往復目からは、差分の足した文・消した文と、design_map の鍵の一覧の鍵だけを設計と突き合わせよ。変わっていない"
+                   "行の突き合わせは前の往復の物を機械が引き継ぐ（鍵の一覧に無い行は書かない）。")
 CARRIED_HEAD = promptsection.Section("## 前の往復で答えた当たり（機械が答えを引き継ぐ。hits に入れなくてよい。差分で答えが変わる物だけ入れ直せ）", source="fn:planblk._carried_part")
 # 先行例の出典の確かめ（見ること 8）は run の中で 1 度だけ: 開く下請けを出典ごとに 1 つに決め、受け付けがその答えの確かめを
 # scope の根の PRECEDENT_CACHE に控え、後の往復・後の周の下請けには控えを貼って開かせない（run 68f35d6b は同じ 2 つの出典を
@@ -158,6 +164,10 @@ ERRORS_HEAD = promptsection.Section("## 前の答えの誤り（機械の確か�
 SUB_ITEM_ASK = ("見るのは下の項目 {n} だけ。この項目が固まる（直しへ進めない穴が無い）まで深く見よ。ほかの項目の穴は挙げない"
                 "（項目どうしの関わりは別の下請けが見る）。答えは頭の『答え方』の型で、" + ANSWER_AT + "。書いたら最後のメッセージに"
                 " 1 行だけ返せ: `項目 {n}: clean` か `項目 {n}: block <key>、<key>`。")
+SUB_ITEM_DIFF_ASK = ("見るのは下の項目 {n} の前の往復の穴と、前の往復からの差分と波及の一覧だけ（変わっていない文は載せていない）。"
+                     "差分の外の所を見直して新しい穴を探さない。ほかの項目の穴は挙げない（項目どうしの関わりは別の下請けが見る）。"
+                     "答えは頭の『答え方』の型で、" + ANSWER_AT + "。書いたら最後のメッセージに 1 行だけ返せ: `項目 {n}: clean` か "
+                     "`項目 {n}: block <key>、<key>`。")
 SUB_SYNERGY_ASK = ("この役は相乗りの審査の下請け。項目どうしの関わりだけを見る（1 つの項目の中の穴は挙げない。頭の『答え方』の当たりの"
                    "答えは要らない）: 同じ行・同じ塊への食い違う変更・順番の依存・重複した作業・同じ根なのに別の項目に分かれた所。"
                    "同じファイルの別の所（別の関数・別のクラス・別のクラスに足すテスト）を触るだけの項目は穴でない（まとめさせない）。"
@@ -322,10 +332,14 @@ def prescription_section(b) -> str:
     return f"{PRESCRIPTION_HEAD}\n\n{PRESCRIPTION_ASK}\n\n" + "\n\n".join(rows) if rows else ""
 
 
-def design_section(b) -> str:
+def design_section(b, *, whole: bool = True) -> str:
     """事前審査の指示書の頭に貼る節: 独立設計の節（design_only）と、修正案の項目の works の欄の節（planmarks.review_section。
-    控えが無ければ無し）。欄の控えが凍結の印と食い違えば控えを名指す理由の BoardGap（盤面を止めるのは呼ぶブロックの script）"""
+    控えが無ければ無し）。whole が偽（2 往復目からの形 review。欄の変化は rereview_part の差分に在る）なら欄の節を貼らず、独立設計の
+    節に DESIGN_DIFF_ASK を添える。欄の控えが凍結の印と食い違えば控えを名指す理由の BoardGap（盤面を止めるのは呼ぶブロックの script）"""
     try:
+        if not whole:
+            planmarks.frozen(b)
+            return design_only(b, diff=True)
         fields = planmarks.review_section(b, worldmark.challenges(worldmark.stage_rows(b.dir, worldmark.COPY_STATE) or []))
     except planmarks.FieldsBroken as e:   # 受け付けの後に欄の控えを書き換えた: 書き換えた欄を審査に見せない
         why = f"修正案の項目の works の欄の控え {planmarks.FIELDS_FILE} が凍結と食い違う: {oneline.one_line(e)}"
@@ -333,9 +347,9 @@ def design_section(b) -> str:
     return design_only(b) + fields
 
 
-def design_only(b) -> str:
+def design_only(b, *, diff: bool = False) -> str:
     """独立設計の節だけ（項目の works の欄の節は入れない）。設計が問いは立たないと返した・設計が無い時は、突き合わせない旨と理由。
-    同じ run の中の案の直しの事前審査の指示書にも貼る"""
+    同じ run の中の案の直しの事前審査の指示書にも貼る。diff が真（2 往復目からの形 review）なら DESIGN_ASK の後に DESIGN_DIFF_ASK"""
     got, _ = design.made(b.dir, b.design_schema)
     if got is None:
         return f"{DESIGN_HEAD}\n\n" + DESIGN_NONE.format(why=design.missing(b))
@@ -343,7 +357,8 @@ def design_only(b) -> str:
         r = got.get("premise_invalid_reason") or got["reason"]
         return f"{DESIGN_HEAD}\n\n" + DESIGN_NOT_STANDS.format(reason=r + design.anchor_note(r))
     elements = design.element_lines(got)
-    return (f"{DESIGN_HEAD}\n\n{DESIGN_ASK}\n\n設計の役の理由: {got['reason']}\n\n=====独立設計ここから=====\n"
+    ask = f"{DESIGN_ASK}\n\n{DESIGN_DIFF_ASK}" if diff else DESIGN_ASK
+    return (f"{DESIGN_HEAD}\n\n{ask}\n\n設計の役の理由: {got['reason']}\n\n=====独立設計ここから=====\n"
             f"{got['design']}\n=====独立設計ここまで=====" + (f"\n\n{elements}" if elements else ""))
 
 
@@ -353,12 +368,12 @@ MAP_ITEMS_HEAD = promptsection.Section("## この往復で design_map を書く�
 ITEM_MAP_OTHERS = "ほかの項目"   # 木の下請けのファイルの項目の節が言う、その項目の外（項目の境は形によらない）
 
 
-def map_items_section(b, items: list, others: str, *, carried: bool) -> str:
+def map_items_section(b, items: list, others: str, *, carried: bool, kept=()) -> str:
     """木にしない往復の材料の頭と、木の下請けのファイルの項目の節に貼る、design_map を書く項目の節（独立設計が立たない run では ""）。
     items は受け付けが design_map を照らす項目の番号、others はそれ以外の項目を言う句（呼び手が渡す: boardview._map_items と
     boardview.MAP_OTHERS、または tree_part の [n] と ITEM_MAP_OTHERS）。carried が真なら、others が前の往復で受けた独立設計の要素
     （converge.carried_refs。受け付けの coverage_gaps と同じ呼び）は網羅に数え済みと言い添える。節は案→設計の行の鍵の一覧
-    （design.wanted_lines。受け付けが照らすのと同じ集合を、受け付けと同じ案の行 _map_rows から組む）を持つ"""
+    （design.wanted_lines。受け付けが照らすのと同じ集合を、受け付けと同じ案の行 _map_rows と同じ kept（kept_keys）から組む）を持つ"""
     if design.stands(b.dir, b.design_schema) is None:
         return ""
     names = "・".join(str(n) for n in sorted(items or [])) or "無し"
@@ -366,7 +381,7 @@ def map_items_section(b, items: list, others: str, *, carried: bool) -> str:
     refs = sorted(converge.carried_refs(b, items or [])) if carried else []
     if refs:
         text += f"{others}が前の往復で受けた要素（{'・'.join(refs)}）は網羅に数え済み。設計→案の行に書かなくてよい。"
-    keys = design.wanted_lines(_map_rows(b, items or []))
+    keys = design.wanted_lines(_map_rows(b, items or []), kept)
     if keys:
         text += ("\n\n案→設計の行は、下の鍵ごとにちょうど 1 行（item・path・symbol をこの鍵のとおりに書く）。ほかの鍵の行は書かない"
                  "（受け付けが拒む）:\n" + "\n".join(keys))
@@ -635,14 +650,35 @@ def _map_rows(b, items: list) -> list:
     return [{**plan[n - 1].get("row", {}), "item": n} for n in items if 1 <= n <= len(plan)]
 
 
-def design_gaps(b, faces, items: list, design_map=None) -> list[str]:
+def design_gaps(b, faces, items: list, design_map=None, kept=()) -> list[str]:
     """独立設計の引用の誤りの行（design.quote_gaps。設計が立たない run では空）。faces の unit_keys は単位の名に戻して重ね、案の行は
-    壁打ちの控えの項目 items の行。design_map を渡す（None でない）と items の files の (path, symbol) ごとの対応表も求める。
+    壁打ちの控えの項目 items の行。design_map を渡す（None でない）と items の files の (path, symbol) ごとの対応表も求める（kept の
+    鍵は求めない。kept_keys）。
     独立設計の要素の網羅は照らさない（全部の項目の答えを合わせて coverage_gaps で当てる）"""
     names = _names(b, NODE_OF["plan-review"])
     rows = _map_rows(b, items)
     named = [{**f, "unit_keys": [unit_name(names, k) for k in f.get("unit_keys") or []]} for f in faces if isinstance(f, dict)]
-    return design.quote_gaps(b.dir, b.design_schema, named, rows, design_map)
+    return design.quote_gaps(b.dir, b.design_schema, named, rows, design_map, kept)
+
+
+def kept_keys(b, items: list) -> set:
+    """2 往復目からの形 review で、項目 items の design_map の鍵のうち、前の往復のその項目の行（converge.prev_row）にも在った鍵
+    （design.kept_keys。変わっていない行の突き合わせは書き直させない。前の行の無い項目と 1 往復目は空）"""
+    out = set()
+    for n in items:
+        old = converge.prev_row(b, n)
+        if old is not None:
+            out |= design.kept_keys([{**old, "item": n}], _map_rows(b, [n]))
+    return out
+
+
+def item_refs(b, n: int, refs: list, kept, design_map) -> list:
+    """往復の控えに置く項目 n の design_ref の並び: 今の答えの refs と、kept の項目 n の鍵のうち design_map に行の無い鍵が在れば前の
+    往復の項目 n の refs（converge.last_refs。書き直さなかった行が受けた要素を網羅に引き継ぐ。kept の鍵を全部書き直した答えは
+    書いた行だけで数える）"""
+    written = {(e.get("item"), e.get("path"), e.get("symbol")) for e in design_map or [] if isinstance(e, dict)}
+    carried = converge.last_refs(b, n) if any(k[0] == n and k not in written for k in kept) else []
+    return list(dict.fromkeys([*refs, *carried]))
 
 
 def coverage_gaps(b, refs, items) -> list[str]:
@@ -699,8 +735,10 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     errs += [f"$.resolved: {line}" for line in converge.stray_resolved(converge.read(b), got["resolved"], n)]
     errs += [f"$.resolved: {k} が resolved と block の face の両方に在る（消えたか残ったかのどちらか 1 つ）"
              for k in got["resolved"] if k in block_keys]
+    errs += [f"$.faces: {line}" for line in converge.relabel_gaps(converge.read(b), got["faces"])]
     errs += [f"$.{e}" for e in face_row_gaps(got["faces"], _recorded_rows(b))]
-    return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [])]
+    return errs + [f"$.faces・design_map: {e}" for e in design_gaps(b, got["faces"], [n], got.get(converge.DESIGN_MAP) or [],
+                                                                     kept_keys(b, [n]))]
 
 
 def check_item(b, k: int, n: int, rip: dict, pre: list | None = None) -> tuple:
@@ -747,7 +785,8 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
         gaps += [f"{where}: {e}" for e in errs]
         if got is not None:
             answers[n] = got
-    refs = {n: design.refs_of(a.get(converge.DESIGN_MAP)) for n, a in answers.items()}
+    refs = {n: item_refs(b, n, design.refs_of(a.get(converge.DESIGN_MAP)), kept_keys(b, [n]), a.get(converge.DESIGN_MAP))
+            for n, a in answers.items()}
     if len(answers) == len(opened):   # 独立設計の要素の網羅は、全部の項目の答えと閉じた項目の控えを合わせて数える
         gaps += [f"独立設計の要素（項目の答え {'・'.join(str(n) for n in opened)} を合わせて数えた）: {e}"
                  for e in coverage_gaps(b, [r for rs in refs.values() for r in rs], opened)]
@@ -824,7 +863,8 @@ def brief_head(b, main_prompt) -> str:
     return "\n\n".join(x for x in (
         BRIEF_TITLE, SUB_HEAD, gatemarks.HEAD[NODE_OF["plan-review"]], REUSE_REVIEW, HANDOFF_REVIEW, concepthome.REVIEW_ASK,
         _review_rules(b, main_prompt),
-        f"判定者の見立て: {json.dumps(framing, ensure_ascii=False, indent=1)}" if framing else "", design_only(b),
+        f"判定者の見立て: {json.dumps(framing, ensure_ascii=False, indent=1)}" if framing else "",
+        design_only(b, diff=converge.pass_no(b) > 1),
         SUB_FORMAT.format(schema=json.dumps(item_schema(b), ensure_ascii=False))) if x)
 
 
@@ -835,35 +875,58 @@ def _item_units(b, unit_keys) -> list:
 
 
 def _diff_part(b, n: int) -> str:
-    """2 往復目から: 前の往復のこの項目の案の行と今の行の差分（unified diff）と DIFF_ASK。行は往復の控えの物（関所の決め手の欄を
-    外し、works の欄を重ねた物。boardview.open_pass）。約束の欄（planmarks.contract_diff。直しが触れる物や確かめる物を変え、行の
-    差分に現れない読み直しを要る）が変わった項目（変わった欄の名を DIFF_FULL_ASK の前に言う）と、変わった字の割合が
-    DIFF_FULL_SHARE を超えた項目は、差分に絞らず DIFF_FULL_ASK。字の数えは行の単位の比べで、置き換えた行の組は共通の頭と尾を
-    除いた字、足した・消した行は全部の字を、前と今の字数の和で割る。前の行が無ければ空（全部を見る）
-    （元 今の works の commit d51cc183 の works/blk-plan/lib/planblk.py:982 _diff_part）"""
+    """2 往復目から: 前の往復のこの項目の案の行と今の行の文の差（converge.sentence_diff。消した文を - で、足した文を + で、場所を
+    添えて並べる。変わっていない文は載せない）と DIFF_ASK。行は往復の控えの物（関所の決め手の欄を外し、works の欄を重ねた物。
+    boardview.open_pass）。約束の欄（planmarks.contract_diff）が変わった項目は、変わった欄の名を DIFF_ASK の前に言う（全体は
+    貼らない）。前の行が無ければ空（呼び手が項目の全体を貼る）"""
     old = converge.prev_row(b, n)
     plan = converge.read(b).get("plan") or []
     new = plan[n - 1].get("row") if 1 <= n <= len(plan) else None
     if old is None or new is None:
         return ""
-    before, after = (json.dumps(row, ensure_ascii=False, indent=1, sort_keys=True).splitlines() for row in (old, new))
-    lines = list(difflib.unified_diff(before, after, "前の往復", "今の往復", lineterm="", n=2))
+    gone, came, _ = converge.sentence_diff(old, new)
+    lines = [f"- {at}: {text}" for at, text in gone] + [f"+ {at}: {text}" for at, text in came]
     fields = planmarks.contract_diff(old, new)
-    if fields or _changed_chars(before, after) > DIFF_FULL_SHARE * (len("\n".join(before)) + len("\n".join(after))):
-        ask = (f"約束の欄（{'・'.join(fields)}）が変わった。" if fields else "") + DIFF_FULL_ASK
-    else:
-        ask = DIFF_ASK
+    ask = (f"約束の欄（{'・'.join(fields)}）が変わった。" if fields else "") + DIFF_ASK
     return f"{DIFF_HEAD}\n\n{ask}\n\n```diff\n" + ("\n".join(lines) or "（変わっていない）") + "\n```"
 
 
-def _changed_chars(before: list, after: list) -> int:
-    changed = 0
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, before, after, autojunk=False).get_opcodes():
-        gone, came = "\n".join(before[i1:i2]), "\n".join(after[j1:j2])
-        head = len(os.path.commonprefix([gone, came]))
-        tail = len(os.path.commonprefix([gone[head:][::-1], came[head:][::-1]]))
-        changed += 0 if tag == "equal" else len(gone) + len(came) - 2 * (head + tail)
-    return changed
+def _item_plan_part(b, n: int, it: dict) -> str:
+    """項目 n の案の節: 前の往復の行が在れば差分（_diff_part）、無ければ（1 往復目・組み替えた新しい項目）行の全体"""
+    return _diff_part(b, n) or f"{ITEM_PLAN_HEAD.format(n=n)}\n\n```json\n{json.dumps(it, ensure_ascii=False, indent=1)}\n```"
+
+
+def rereview_part(b) -> str:
+    """木にしない 2 往復目からの形 review の材料で、修正案の全体の代わりに貼る節: 開いた項目（converge.open_items）ごとに、案の
+    差分（前の行の無い項目は全体。_item_plan_part）と波及の一覧（ripple.section）。項目が 2 つ以上なら項目どうしの節（_cross_part）を
+    足す。閉じた・保留の項目の案と変わっていない文は載せない"""
+    rows = _item_rows(b)
+    rip = _ripple_of(b, converge.pass_no(b)) or {"error": "波及の一覧のノードがこの往復の一覧を置いていない"}
+    opened = _opened(b, rows)
+    parts = []
+    for n in opened:
+        units = "、".join(str(k) for k in rows[n - 1].get("unit_keys") or [])
+        parts += [REREVIEW_HEAD.format(n=n, units=units), _item_plan_part(b, n, rows[n - 1]), ripple.section(rip, n)]
+    if len(rows) >= 2 and opened:
+        parts.append(_cross_part(rows, opened, rip))
+    return "\n\n".join(parts)
+
+
+def _cross_part(rows: list, opened: list, rip: dict) -> str:
+    """単独の審査役が項目どうしの食い違いを見る節（木の道では相乗りの審査が持つ）: 波及の一覧の重なりのうち開いた項目に当たる行と、
+    開いた項目から見たほかの項目の unit_keys・allowed_paths・files の path。案の文は貼らない。波及の一覧が誤りなら重なりは
+    「無い」でなく、一覧が無い訳を書く（重なりが無いと読ませない）"""
+    over = [f"- {o['at']}: 項目 {', '.join(map(str, o['items']))}" for o in rip.get("overlaps") or [] if set(o["items"]) & set(opened)]
+    if rip.get("error"):
+        over = [f"- 波及の一覧が無い（{rip['error']}）"]
+    others = [m for m in range(1, len(rows) + 1) if any(m != n for n in opened)]
+    scope = []
+    for m in others:
+        it = rows[m - 1]
+        scope += [f"- 項目 {m}（{'、'.join(str(k) for k in it.get('unit_keys') or [])}）",
+                  f"  - allowed_paths: {'、'.join(str(x) for x in it.get('allowed_paths') or []) or '無い'}",
+                  f"  - files: {'、'.join(str(f.get('path')) for f in it.get('files') or [] if isinstance(f, dict)) or '無い'}"]
+    return "\n".join([CROSS_HEAD, "", CROSS_ASK, "", "重なり:", *(over or ["- 無い"]), "", "ほかの項目:", *scope])
 
 
 def _carried_part(b, n: int, rip: dict) -> str:
@@ -894,8 +957,8 @@ OVERLAPS_HEAD = promptsection.Section("### 項目どうしの重なり（機械�
 def tree_part(b, main_prompt: pathlib.Path) -> str:
     """束ね役の頼みの節。開いた項目ごとの下請けのファイルと（項目が 2 つ以上なら）相乗りの審査のファイルを今の往復の
     ITEMS_DIR に書き、その置き場を並べる（下請けの答えの置き場 answers_dir も作る）。下請けのファイルは共通の頭（brief_head）と
-    その項目の節（案・単位・design_map の鍵の節（map_items_section。独立設計が立たない run では無い）・波及の一覧・前の往復の block と
-    答えの要る suggest）を字のまま持つ。出し直しでは、答えのファイルが確かめを通った項目を
+    その項目の節（案（前の往復の行が在れば差分だけ。_item_plan_part）・単位・design_map の鍵の節（map_items_section。独立設計が立たない
+    run では無い）・波及の一覧・前の往復の block と答えの要る suggest）を字のまま持つ。相乗りの審査のファイルは全部の項目の行を持つ。出し直しでは、答えのファイルが確かめを通った項目を
     済んだ下請けに並べて起こし直させず、通らなかった項目の下請けのファイルに機械の読める誤りの一覧を貼る。項目の控えが無ければ空"""
     rows = _item_rows(b)
     if not rows:
@@ -918,13 +981,13 @@ def tree_part(b, main_prompt: pathlib.Path) -> str:
             continue
         retry = retry or not missing
         it = rows[n - 1]
+        ask = SUB_ITEM_DIFF_ASK if converge.prev_row(b, n) is not None else SUB_ITEM_ASK
         body = "\n\n".join(x for x in (
-            head, ITEM_HEAD.format(n=n), SUB_ITEM_ASK.format(n=n, answer=answer_file(b, k, n)),
-            f"{ITEM_PLAN_HEAD.format(n=n)}\n\n```json\n{json.dumps(it, ensure_ascii=False, indent=1)}\n```",
+            head, ITEM_HEAD.format(n=n), ask.format(n=n, answer=answer_file(b, k, n)), _item_plan_part(b, n, it),
             f"{ITEM_UNITS_HEAD.format(n=n)}\n\n```json\n{json.dumps(_item_units(b, it.get('unit_keys')), ensure_ascii=False, indent=1)}\n```",
-            map_items_section(b, [n], ITEM_MAP_OTHERS, carried=False),
+            map_items_section(b, [n], ITEM_MAP_OTHERS, carried=False, kept=kept_keys(b, [n])),
             _precedent_part(pre.get(n) or [], n), ripple.section(doc, n), _carried_part(b, n, doc), _item_history(b, it.get("unit_keys") or []),
-            _diff_part(b, n), _errors_part(n, answer_file(b, k, n), errs) if errs else "") if x)
+            _errors_part(n, answer_file(b, k, n), errs) if errs else "") if x)
         path.write_text(body + "\n", encoding="utf-8")
         todo.append(f"- 項目 {n}: {path}")
     last = {it["n"]: it for it in (converge.read(b)["passes"][-1].get("items") or [])} if converge.read(b)["passes"] else {}
@@ -966,7 +1029,7 @@ RECEIVES = [
     *(promptsection.Receive("plan-review", head) for head in (
         DESIGN_HEAD, MAP_ITEMS_HEAD, planmarks.REVIEW_HEAD, planmarks.FIELDS_ITEM_HEAD, planmarks.DEVIATION_HEAD, AGG_HEAD, ITEM_HEAD, SYNERGY_HEAD,
         ITEM_PLAN_HEAD, ITEM_UNITS_HEAD, ALL_ITEMS_HEAD, OVERLAPS_HEAD, BRIEF_TITLE, SUB_FORMAT, DIFF_HEAD, CARRIED_HEAD, PRECEDENT_HEAD,
-        ERRORS_HEAD, HISTORY_HEAD, ripple.HEAD, ripple.ITEM_HEAD, ripple.ITEM_KEYS_HEAD, converge.PASS_HEAD, converge.OWED_HEAD, converge.FACE_HEAD)),
+        ERRORS_HEAD, HISTORY_HEAD, REREVIEW_HEAD, CROSS_HEAD, ripple.HEAD, ripple.ITEM_HEAD, ripple.ITEM_KEYS_HEAD, converge.PASS_HEAD, converge.OWED_HEAD, converge.FACE_HEAD)),
     *(promptsection.Receive(role, head) for role in ("plan", "plan-review")
       for head in (libdocs.TITLE, libdocs.DOC_TITLE, libdocs.FRAGMENT_HEAD, libdocs.LIB_HEAD)),
     *(promptsection.Receive(DESIGN_ROLE, head) for head in (

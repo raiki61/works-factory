@@ -136,6 +136,7 @@ nodes:
       go: "$start.output.ok"
       stop_reason: "$start.output.stop_reason"
       place: gate-start
+      final: "false"
 
   # 3 直す前の結末
   - id: test-gate-base
@@ -188,7 +189,7 @@ nodes:
       got: "$judge.output"
       names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why premises verify
         pr_excluded materials purpose_review depth_record decisions answer_ties review_lenses pr_drafts rejudge_exit rejudge_diff
-        purpose_means world_state"
+        purpose_means world_state optional"
 
   # 5' 直す物が無い周（判定が直す単位を出さず、止めてもいない）は修正案を作らず、最後の R2 が要る独立設計だけを作る（元
   # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める。
@@ -291,6 +292,7 @@ nodes:
               fix_plan: {}
               rejects: {}
               gave_up: {}
+              optional: {}
               pass: {}
               stalled: {}
               review: {}
@@ -301,8 +303,8 @@ nodes:
               nothing_owed: { type: boolean }
               done: { type: boolean }
               stop_reason: { type: string }
-            required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, gave_up, pass, stalled, review, design, gate_axes,
-                       ask_human, questions, nothing_owed, done, stop_reason]
+            required: [ready, plan, structure, ripple, depth, round, fix_plan, rejects, gave_up, optional, pass, stalled, review, design,
+                       gate_axes, ask_human, questions, nothing_owed, done, stop_reason]
           mutates_checkout: false
           depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success
@@ -318,6 +320,7 @@ nodes:
             rejects: "$plan.output.rejects"
             nothing_owed: "$plan.output.nothing_owed"
             gave_up: "$plan.output.gave_up"
+            optional: "$plan.output.optional"
             pass: { from: "$plan-review-run.output.pass", if_skipped: null }
             stalled: { from: "$plan-review-run.output.stalled", if_skipped: null }
             review: { from: "$plan-review-run.output.review", if_skipped: null }
@@ -331,7 +334,7 @@ nodes:
     depends_on: [plan-rounds]
     with:
       got: "$plan-rounds.output"
-      names: "ready plan structure ripple depth round fix_plan rejects nothing_owed gave_up"
+      names: "ready plan structure ripple depth round fix_plan rejects nothing_owed gave_up optional"
 
   - id: plan-rounds-review-out
     <<: *receiver
@@ -484,8 +487,8 @@ nodes:
     depends_on: [fix]
     with:
       got: "$fix.output"
-      names: "done units groups conflicts replan_items objection diff allowed_test_changes changed x_scalars delta_review handoffs mismatched stop_reason
-        allowed_tests accept_trace lenses closure delta_holes tdd_unit removed tdd_refused"
+      names: "done units groups conflicts replan_items objection diff allowed_test_changes changed x_scalars delta_review handoffs mismatched plan_declared
+        stop_reason allowed_tests accept_trace lenses closure delta_holes tdd_unit removed tdd_refused optional"
 
   - id: after-fix
     script: after_fix
@@ -528,7 +531,7 @@ nodes:
     depends_on: [replan]
     with:
       got: "$replan.output"
-      names: "ready plan structure ripple depth round fix_plan rejects nothing_owed gave_up"
+      names: "ready plan structure ripple depth round fix_plan rejects nothing_owed gave_up optional"
 
   - id: replan-review
     include: works-factory-plan-review
@@ -673,6 +676,7 @@ nodes:
         delta_review: {}
         handoffs: { type: array }
         mismatched: { type: array }
+        plan_declared: { type: array }
         done: { type: boolean }
         go: { type: boolean }
         rejudge: { type: boolean }
@@ -685,7 +689,7 @@ nodes:
         no_fix: { type: boolean }
         stop_reason: { type: string }
       required: [units, groups, conflicts, replan_items, objection, diff, records, allowed_test_changes, changed, x_scalars, delta_review,
-                 handoffs, mismatched,
+                 handoffs, mismatched, plan_declared,
                  done, go, rejudge, refixed, plan, ripple, design, plan_questions, answer, no_fix, stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, refix-run, replan-out, design-only]
@@ -740,7 +744,7 @@ nodes:
       got: "$rejudge-run.output"
       names: "ready stop_reason units judgment purpose world spec out_of_purpose rejudge_verdict depth depth_why premises verify
         pr_excluded materials purpose_review depth_record decisions answer_ties review_lenses pr_drafts rejudge_exit rejudge_diff
-        purpose_means world_state"
+        purpose_means world_state optional"
 
   - id: judged
     script: judged
@@ -815,6 +819,7 @@ nodes:
       materials: "$judged.output.materials"
       replanned: { from: "$after-fix.output.replan", if_skipped: null }
       rejudged: "$fixed.output.rejudge"
+      plan_declared: "$fixed.output.plan_declared"
 
   # 8 試験の関門（final）
   - id: test-gate-final
@@ -855,6 +860,7 @@ nodes:
       green_ok: "$test-gate-final.output.ok"
       test_outcomes: "$test-gate-final.output.test_outcomes"
       records: "$fixed.output.records"
+      plan_declared: "$fixed.output.plan_declared"
       plan_questions: "$fixed.output.plan_questions"
       answers: "$fixed.output.answer"
       start_answers: "$answer-start.output.answer"
@@ -933,6 +939,7 @@ nodes:
       replan_items: "$fixed.output.replan_items"
       refixed: "$fixed.output.refixed"
       replan_answer: { from: "$answer-replan.output.answer", if_skipped: null }
+      replan_gate: gate-replan
       widened: { from: "$ask-replan.output.widened", if_skipped: null }
       plan_review: { from: "$fix-in.output.review", if_skipped: null }
       replan_review: { from: "$replan-review.output.review", if_skipped: null }
@@ -968,6 +975,7 @@ nodes:
       go: "$ask-final.output.go"
       stop_reason: "$ask-final.output.stop_reason"
       place: gate-final
+      final: "true"
 
   # 12 外へ 1 度だけ書く（既定は差分を run の置き場に置くだけ。E17）
   - id: merge-apply
@@ -1026,10 +1034,12 @@ nodes:
         redepth: {}
         spec_changed: { type: array }
         spec_unchecked: {}
+        stages: { type: object }
         notices: { type: array }
         user_env_dir: {}
       required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
-                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, notices, user_env_dir]
+                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, stages, notices,
+                 user_env_dir]
     mutates_checkout: false
     depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
@@ -1080,12 +1090,9 @@ nodes:
       redepth: { from: "$redepth.output", if_skipped: null }
       notices: { from: "$testcmd.output.reason", if_skipped: null }
       user_env_dir: { from: "$start.output.user_env_dir", if_skipped: null }
-      # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の、区切り（__・-）で終わる節の id の頭か、節の id そのもの。
-      # 宣言の外の落ちは途中で終わった run に数える。元は線の YAML の節の description の [optional]: 世界の解・構造の実測・レンズ・
-      # 直した後の構造・独立の目。レンズはレンズの節とその返りの中継だけで、支度と集め役は止める段。run の頭の深さの段は
-      # 落ちても判定が標準で進む。ループの中の節は run の記録の step に include の前付けの無い素の id で載るので、ループの中の節の
-      # 頭（world-judge- など）も宣言する）
-      optional: '["judge__world-", "rejudge-run__world-", "world-classes", "world-classes-", "world-judge", "world-judge-", "plan__structure-", "replan__structure-", "structure-eye", "structure-eye-", "fix__lens", "fix__lens-reply", "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-"]'
+      # 受け止める段の宣言: include 丸ごと受け止める段だけをここに書く。ブロックの中の節は各ブロックが返りの欄 optional で宣言し、
+      # collect が include の頭を付けて合わせる。宣言の外の落ちは途中で終わった run に数える
+      optional: '["eyes__"]'
 
   - id: report
     include: works-factory-report
@@ -1093,22 +1100,22 @@ nodes:
     trigger_rule: all_done
     with:
       start: "$collect.output.start"
-      test-gate-base: "$collect.output.test_gate_base"
+      before-tests: "$collect.output.test_gate_base"
       judge: "$collect.output.judge"
       rejudge: "$collect.output.rejudge"
       plan: "$collect.output.plan"
       plan-review: "$collect.output.plan_review"
       replan: "$collect.output.replan"
-      replan-review: "$collect.output.replan_review"
+      replan-review-result: "$collect.output.replan_review"
       fix: "$collect.output.fix"
-      test-gate-final: "$collect.output.test_gate_final"
+      final-tests: "$collect.output.test_gate_final"
       eyes: "$collect.output.eyes"
-      merge-seal: "$collect.output.merge_seal"
-      merge-apply: "$collect.output.merge_apply"
-      gate-start: "$collect.output.gate_start"
-      gate-before-fix: "$collect.output.gate_before_fix"
-      gate-replan: "$collect.output.gate_replan"
-      gate-final: "$collect.output.gate_final"
+      sealed-diff: "$collect.output.merge_seal"
+      applied-diff: "$collect.output.merge_apply"
+      start-answer: "$collect.output.gate_start"
+      before-fix-answer: "$collect.output.gate_before_fix"
+      replan-answer: "$collect.output.gate_replan"
+      final-answer: "$collect.output.gate_final"
       stops: "$collect.output.stops"
       prior-failures: "$collect.output.prior_failures"
       deferred: "$collect.output.deferred"
@@ -1118,10 +1125,11 @@ nodes:
       spec-unchecked: "$collect.output.spec_unchecked"
       redepth: "$collect.output.redepth"
       optional: "$collect.output.optional"
+      stages: "$collect.output.stages"
       notices: "$collect.output.notices"
       user-env-dir: "$collect.output.user_env_dir"
 
-  # 後始末。fix の並べ（groups-par）の子の run が残した作業ツリーと枝を消す（issue #113）。消すのはこの run の子で status が
+  # 後始末。fix の並べの子の run が残した作業ツリーと枝を消す（issue #113）。消すのはこの run の子で status が
   # completed の物で、子を起こした fan_out の節と join が済んだ物だけ（再開が join を走らせ直しうる間は残す）。落ちない（返りの error に畳む）ので run の結末を変えず、返り {cleaned, left, error} は result が線の返りに載せる
   - id: sweep-children
     script: sweep_children

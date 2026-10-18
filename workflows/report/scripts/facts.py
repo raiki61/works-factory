@@ -30,28 +30,29 @@ except Exception as error:  # noqa: BLE001 — 返す節が結ぶので落ちな
     boundary, unread = None, error
 
 RETURNS = {
-    "test-gate-base": os.environ.get("INPUTS_TEST_GATE_BASE", ""),
+    "before-tests": os.environ.get("INPUTS_BEFORE_TESTS", ""),
     "judge": os.environ.get("INPUTS_JUDGE", ""),
     "rejudge": os.environ.get("INPUTS_REJUDGE", ""),
     "plan": os.environ.get("INPUTS_PLAN", ""),
     "plan-review": os.environ.get("INPUTS_PLAN_REVIEW", ""),
     "replan": os.environ.get("INPUTS_REPLAN", ""),
-    "replan-review": os.environ.get("INPUTS_REPLAN_REVIEW", ""),
+    "replan-review-result": os.environ.get("INPUTS_REPLAN_REVIEW_RESULT", ""),
     "fix": os.environ.get("INPUTS_FIX", ""),
-    "test-gate-final": os.environ.get("INPUTS_TEST_GATE_FINAL", ""),
+    "final-tests": os.environ.get("INPUTS_FINAL_TESTS", ""),
     "eyes": os.environ.get("INPUTS_EYES", ""),
-    "merge-seal": os.environ.get("INPUTS_MERGE_SEAL", ""),
-    "merge-apply": os.environ.get("INPUTS_MERGE_APPLY", ""),
+    "sealed-diff": os.environ.get("INPUTS_SEALED_DIFF", ""),
+    "applied-diff": os.environ.get("INPUTS_APPLIED_DIFF", ""),
 }
 GATES = {
-    "gate-start": os.environ.get("INPUTS_GATE_START", ""),
-    "gate-before-fix": os.environ.get("INPUTS_GATE_BEFORE_FIX", ""),
-    "gate-replan": os.environ.get("INPUTS_GATE_REPLAN", ""),
-    "gate-final": os.environ.get("INPUTS_GATE_FINAL", ""),
+    "start-answer": os.environ.get("INPUTS_START_ANSWER", ""),
+    "before-fix-answer": os.environ.get("INPUTS_BEFORE_FIX_ANSWER", ""),
+    "replan-answer": os.environ.get("INPUTS_REPLAN_ANSWER", ""),
+    "final-answer": os.environ.get("INPUTS_FINAL_ANSWER", ""),
 }
 START = os.environ.get("INPUTS_START", "")
 LINE = {   # 線の値（線の collect が渡す。docs/design.md の report の返り）
     "stops": os.environ.get("INPUTS_STOPS", ""),
+    "stages": os.environ.get("INPUTS_STAGES", ""),
     "prior-failures": os.environ.get("INPUTS_PRIOR_FAILURES", ""),
     "deferred": os.environ.get("INPUTS_DEFERRED", ""),
     "widened": os.environ.get("INPUTS_WIDENED", ""),
@@ -212,21 +213,36 @@ def opened(value, unopened: list, rid: str, field: str = ""):
     return value
 
 
+def stages_unread(value) -> str:
+    """段の表（入力 stages）が表の形でない訳（形が合えば ""）。表は {nodes: {役の名: 節の名}, links: [行]}。届かない・形が違う表は
+    段の名も続きの切れ目も決められないので、第 2 の道を置かず読めない入力に数える"""
+    if value is None:
+        return "入力 stages が届いていない（段の名と出力の続きの切れ目を決められない）"
+    if not (isinstance(value, dict) and isinstance(value.get("nodes"), dict) and isinstance(value.get("links"), list)):
+        return "入力 stages が段の表 {nodes, links} の形でない（段の名と出力の続きの切れ目を決められない）"
+    return ""
+
+
 def line_values(unread: list, unopened: list) -> dict:
-    """線の値を {stops, prior_failures, deferred, widened, final_reasons, spec_changed, spec_unchecked, redepth, optional, notices} に（欄の名は
-    - を _ に）。並びの入力は配列でなければ空にし、JSON でない入力は訳を unread に積む（黙って空にしない）。依頼の前の失敗の指し札は
-    開けたパスの字にする"""
+    """線の値を {stops, stages, prior_failures, deferred, widened, final_reasons, spec_changed, spec_unchecked, redepth, optional,
+    notices} に（欄の名は - を _ に）。並びの入力は配列でなければ空にし、JSON でない入力は訳を unread に積む（黙って空にしない）。段の表は
+    表の形でなければ空にして訳を unread に積む。依頼の前の失敗の指し札は開けたパスの字にする"""
     out = {}
     for name, raw in LINE.items():
         key = name.replace("-", "_")
         try:
             value = boundary.parsed(raw)
+            broken = False
         except ValueError as e:
             unread.append(f"入力 {name} が JSON でない（{e}）")
-            value = None
+            value, broken = None, True
         if name in LISTS and not isinstance(value, list):
             unread += [f"入力 {name} が配列でない"] if value is not None else []
             value = []
+        if name == "stages":
+            why = "" if broken else stages_unread(value)
+            unread += [why] if why else []
+            value = value if not why and not broken else {}
         out[key] = value
     out["stops"] = out["stops"] if isinstance(out["stops"], dict) else {}
     out["prior_failures"] = opened(out["prior_failures"], unopened, "prior-failures")
@@ -266,7 +282,7 @@ def main() -> dict:
         gates[gid], why = parse(gid, raw)
         unread += [why] if why else []
     line = line_values(unread, unopened)
-    problems, notes = outcome.record_problems(returns, gates, unread=unread, unopened=unopened)
+    problems, notes = outcome.record_problems(returns, gates, unread=unread, unopened=unopened, stages=line["stages"])
     record = start_record(problems)
     start = record or {}
     rows, transcript_why = boundary.transcript()

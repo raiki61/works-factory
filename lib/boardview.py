@@ -12,7 +12,7 @@
 - open_pass: 差し込みの頭（元 planblk.snap と design.due・design.snap。works/blk-plan/lib/planblk.py:1062・
   works/.shared/core/design.py:492）。形 replan の項目（replan_items。元 works/.shared/core/replan.py:291 の material）と、
   修正前の関所の答えの控え（take_gate_answers。元 graphloops/rules/review-loop.py:4134 の human_gate_answered）と、それを受けた後の
-  方針の文書の版（passed_version。線の節 answer-before-fix が呼ぶ）
+  方針の文書の版（passed_version。線の修正前の承認の後の節が呼ぶ）
 - 方針の文書: 固めた版（始めの記録の欄 policy。置き場と写しは policy.locate・snapshot）・変化（policy_change・change_row。元
   graphloops/rules/policy_input.py）。役に貼る節は固めた版の写しの policy.section
 - r2_prompt・check_design: 独立設計の支度と受け付け（元 works/.shared/core/design.py:528 の prep・:586 の check_design・
@@ -371,7 +371,7 @@ def reads_place(folder) -> tuple:
 def human_items(answers) -> list:
     """人の関所の答え（承認の節の返り {decision, text} か、その並び）を design.human_answers が読む行 {round, node, kinds, answer, note}
     に。null・形の違う値は無い"""
-    return [{"round": 1, "node": "gate-start", "kinds": [], "answer": a["decision"], "note": a.get("text") or ""}
+    return [{"round": 1, "node": gatemarks.START_GATE_NODE, "kinds": [], "answer": a["decision"], "note": a.get("text") or ""}
             for a in _answer_rows(answers)]
 
 
@@ -413,7 +413,7 @@ def take_gate_answers(folder, gate_answers) -> list:
 
 def passed_version(folder, gate_answers) -> dict | None:
     """修正前の関所の答えを受けた後の方針の文書の版 {named, path, sha256, copy}。答えを take_gate_answers で控えに積み（通した方針の
-    変化はここで固め直す）、置き場の POLICY_FILE を読む。この run の差し込みが版を置いていなければ None（線の節 answer-before-fix
+    変化はここで固め直す）、置き場の POLICY_FILE を読む。この run の差し込みが版を置いていなければ None（線の修正前の承認の後の節
     が始めの記録の欄 policy をこの版で書き直す）"""
     d = pathlib.Path(folder)
     if not (d / POLICY_FILE).is_file():
@@ -528,7 +528,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, fix_plan, structure, ripp
 
 DESIGN_FORM = "design"   # 直す物が無い周の差し込みの形（修正案を読まずに独立設計だけを作る。元 line_edge.plan_edge 1107-1119）
 FORMS = ("review", "replan", DESIGN_FORM)   # open_pass と open_design が材料に書く形
-DESIGN_ONLY_DIR = "design-only"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
+DESIGN_ONLY_DIR = f"{DESIGN_FORM}-form"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
 DESIGN_ONLY_WHY = "直す物が無い周（判定が直す単位を出さなかったか、計画の直す義務が 0 件だった）——修正案も事前審査も無く、最後の R2 が要る独立設計だけを作った"
 
 
@@ -899,21 +899,23 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
     b = view(d, inputs)
     main = p / PROMPT_FILE
     form = inputs["form"]
+    later = _later(b, inputs)
     # design_map を書く項目の節は、木にしない往復だけに貼る（木の往復は下請けが自分の項目だけを見て書き、束ね役は書かない）
+    items = _map_items(b, inputs)
     mapped = "" if inputs.get("tree") else planblk.map_items_section(
-        b, _map_items(b, inputs), MAP_OTHERS[form], carried=_counts_coverage(inputs))
+        b, items, MAP_OTHERS[form], carried=_counts_coverage(inputs), kept=planblk.kept_keys(b, items) if later else ())
     if form == "replan":
         part = "\n\n".join(x for x in (planblk.design_only(b), mapped, REVIEW_ASK_REPLAN, planmarks.REVIEW_ASK,
                                        *(_replan_section(r) for r in inputs.get("replan_items") or [])) if x)
     else:
-        part = "\n\n".join(x for x in (planblk.design_section(b), mapped, converge.review_section(b), _origin_ask(b, inputs),
-                                       planblk.tree_part(b, main) if inputs.get("tree") else "") if x)
+        part = "\n\n".join(x for x in (planblk.design_section(b, whole=not later), mapped, converge.review_section(b),
+                                       _origin_ask(b, inputs), planblk.tree_part(b, main) if inputs.get("tree") else "") if x)
     head = planblk.head("plan-review", excluded_file=inputs.get("excluded_file") or "",
                         lib_docs=planblk.lib_section(b, pathlib.Path(repo), shared), design_part=part)
     diag = (b.record["process"].get("diagnosis") or {})
     body = "\n\n".join(x for x in (
         _defaults_line(inputs), head, "## 機械が貼った材料",
-        "修正役の案: " + json.dumps(_shown_plan(inputs), ensure_ascii=False, indent=1),
+        planblk.rereview_part(b) if later else "修正役の案: " + json.dumps(_shown_plan(inputs), ensure_ascii=False, indent=1),
         UNITS_LINE + _units_text(b),
         "判定者の見立て: " + json.dumps(diag, ensure_ascii=False),
         ("判定者の先行例（世界の解）: " + json.dumps(b.record["process"]["precedents"], ensure_ascii=False))
@@ -926,6 +928,11 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
     main.write_text(body + "\n", encoding="utf-8")
     planfile.snap_tree(p / TREE_FILE, repo)
     return main
+
+
+def _later(b, inputs: dict) -> bool:
+    """2 往復目からの形 review か（材料は開いた項目の差分と波及の一覧だけにし、design_map は変わっていない鍵を求めない）"""
+    return inputs["form"] == "review" and bool(converge.read(b)["passes"])
 
 
 def _map_items(b, inputs: dict) -> list:
@@ -951,8 +958,9 @@ def _origin_ask(b, inputs: dict) -> str:
 
 
 def _shown_plan(inputs: dict) -> list:
-    """材料に貼る修正案の項目: 形 review は全部、形 replan は裁かれた項目だけ（直していない項目の案を見せない。元
-    works/.shared/core/replan.py:410 の prep は事前審査の役に裁かれた項目の節だけを渡した）"""
+    """材料に貼る修正案の項目（1 往復目の形 review と形 replan。2 往復目からの形 review は planblk.rereview_part）: 形 review は全部、
+    形 replan は裁かれた項目だけ（直していない項目の案を見せない。元 works/.shared/core/replan.py:410 の prep は事前審査の役に
+    裁かれた項目の節だけを渡した）"""
     rows = (inputs.get("plan") or {}).get("plan") or []
     if inputs["form"] != "replan":
         return rows
@@ -986,14 +994,17 @@ def take_review(folder, reply, repo, *, keys=accept.TREE_KEYS, fix_reply=None) -
     往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める。
     返答の一番上の止まった時の推し converge.STUCK_PUSH は外して往復の行の push に置く）、
     返答を pass-<k>/review.json に書く（壁打ちの欄 resolved も持つ。推しが付く止まり＝gatemarks.stuck_push が空でない時は、機械が足した
-    保留の項目の前の往復の block も印 converge.HELD_MARK つきで faces に持ち、修正役の答える義務に乗る）。拒みは pass-<k>/ の控えに積み、rolekit.GIVE_UP_AFTER 回目で
-    done・give_up（その時は最後の拒みの訳を reason に置いた空の返答を review.json に書く）。返り {ok, done, give_up, reason}"""
+    保留の項目の前の往復の block も印 converge.HELD_MARK つきで faces に持ち、修正役の答える義務に乗る。端の block だけを残して
+    SETTLED で通った往復も、その block を faces に持ったまま修正の段へ申し送る）。拒みは pass-<k>/ の控えに積み、受け付けの網
+    rolekit.NET_AFTER 回目（方針 net）で done・give_up（工場の不具合。その時は最後の拒みの訳を reason に置いた空の返答を review.json に
+    書く）。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
     p.mkdir(parents=True, exist_ok=True)
     got = rolekit.round_outcome(rolekit.accept_parsed(p, REVIEW_NODE, rolekit.resubmitted(p, REVIEW_NODE, reply, fix_reply, rolekit.merge_fields),
-                                                     lambda merged: accept.guard(lambda: _take(d, p, inputs, merged, repo, keys))))
+                                                     lambda merged: accept.guard(lambda: _take(d, p, inputs, merged, repo, keys)),
+                                                     net=True))
     if got["give_up"]:
         _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": GIVEN_UP_FACES + got["reason"]})
     return got
@@ -1022,15 +1033,16 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
         if gaps:
             raise Reject(_lines(planblk.FACE_REJECT, gaps))
         items = _map_items(b, inputs)
+        kept = planblk.kept_keys(b, items or []) if _later(b, inputs) else set()
         dmap = tree.get(converge.DESIGN_MAP) or []
-        gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, dmap)
+        refs = {n: planblk.item_refs(b, n, [*design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") == n]),
+                                            *design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") is None])], kept, dmap)
+                for n in items or []}
+        gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, dmap, kept)
         if _counts_coverage(inputs):
-            gaps += planblk.coverage_gaps(b, design.refs_of(dmap), items)
+            gaps += planblk.coverage_gaps(b, [*design.refs_of(dmap), *(r for rs in refs.values() for r in rs)], items)
         if gaps:
             raise Reject(_lines(planblk.DESIGN_QUOTE_REJECT, gaps))
-        refs = {n: list(dict.fromkeys([*design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") == n]),
-                                       *design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") is None])]))
-                for n in items or []}
     review = named(b, merged["review"])
     if inputs["form"] == "review":
         gaps = converge.resolved_gaps(b, review["faces"], merged["resolved"])
@@ -1151,7 +1163,8 @@ def _note_asked(d: pathlib.Path, items: list, changed: dict | None) -> None:
 def verdict(d: pathlib.Path, inputs: dict) -> types.SimpleNamespace:
     """置き場 d の最後に開いた往復（inputs は read_open の返り。形 design でない物）の通否。collect の pass・stalled と、独立の目の
     頭の事前審査の結論の持ち主。抜け方は形 review なら往復の控えの converge.decide（record_pass が決めた語）、形 replan なら block の
-    有無（stalled はいつも偽）。受け付けが諦めた往復は ok 偽・stalled 真。返り: pass_dir・review（返答）・gave（諦めた訳。無ければ空）・
+    有無（stalled はいつも偽）。形 review の ok は converge.proceeds（CLEAN と、端の block だけを申し送る SETTLED）。受け付けが諦めた
+    往復は ok 偽・stalled 真。返り: pass_dir・review（返答）・gave（諦めた訳。無ければ空）・
     board（見え方）・blocks（審査が挙げた block。機械が足した保留の項目の block は数えない。converge.block_faces）・
     outcome（形 review の控えの語。ほかは None）・ok・stalled。返答が無ければ Missing"""
     p = pass_dir(d, inputs["k"])
@@ -1167,7 +1180,7 @@ def verdict(d: pathlib.Path, inputs: dict) -> types.SimpleNamespace:
     if gave:
         ok, stalled = False, True
     elif inputs["form"] == "review":
-        ok, stalled = outcome == converge.CLEAN, outcome in converge.STUCK
+        ok, stalled = converge.proceeds(outcome), outcome in converge.STUCK
     else:
         ok, stalled = not blocks, False
     return types.SimpleNamespace(pass_dir=p, review=review, gave=gave, board=b, blocks=blocks, outcome=outcome,

@@ -9,13 +9,14 @@ plan-review の返りを欄ごとに受けて返す。外の節は $plan-rounds.
 （`{from, if_skipped: null}`）。
 done は往復を抜けるかで、until_bash が読む: 計画ができなかった・通った・事前審査の壁打ちが止まった（stalled。止め時は
 lib の converge.decide）・plan の round が往復の安全の上限 round_limit 以上。上限は max_iterations と同じ数（試験が
-突き合わせる）で、減り続ける往復は普通は届かない。上限の周の終わりで必ず真になるので、往復は上限に当たって落ちない。
+突き合わせる）で、届かない大きさの網（中央の新しい穴が出続ける往復も普通は届かず、届けば工場の不具合）。上限の周の終わりで必ず真になるので、往復は上限に当たって落ちない。
 nothing_owed は計画ができなかった周のうち、直す義務の単位が 0 件で役を起こさなかった周か（plan の欄 nothing_owed を、計画が
 できなかった周に限って運ぶ）。真なら design-only が走り、今の works の空の修正（works/darkfactory/lib/line_edge.py:1109-1114
 の plan_edge）と同じく最後のテストと独立の目で周を締める（#291）。
 例外の時は計画ができなかった形（ready: false・done: true・rejects: []・nothing_owed: false）と止めの理由 works:line-script を返す。
 
-入力（with:）: plan の 10 の欄と plan-review の 7 つの欄（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit
+入力（with:）: plan の 11 の欄（10 の返りの欄と、plan が落ちても線が先へ進めてよい節の宣言 optional）と plan-review の 7 つの欄
+（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit。宣言 optional はそのまま外へ運ぶ（受け皿 plan-rounds-out が collect へ運ぶ）
 """
 import os
 import sys
@@ -24,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
-PLAN = ("ready", "plan", "structure", "ripple", "depth", "round", "fix_plan", "rejects", "nothing_owed", "gave_up")
+PLAN = ("ready", "plan", "structure", "ripple", "depth", "round", "fix_plan", "rejects", "nothing_owed", "gave_up", "optional")
 REVIEW = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 
 

@@ -2,8 +2,9 @@ name: works-factory-plan-review
 description: >-
   事前審査のサブグラフ。書く前に修正案を叩く。目的の文だけから作る独立設計（R2）を 1 度だけ作り、修正案と構造で突き合わせ、
   写し・塞がない入口・契約のずれ・死んだ道・範囲の膨張と最小性・後退（能力の棚卸し）・方針とのぶつかり・先行例の出典の当たりを、書かれる前に予測する。
-  1 回の include がメイングラフの計画の往復（plan → plan-review）の 1 往復で、block（直しへ進めない穴）が無ければ通し、同じ block が続くか
-  開いた block が前の往復より減らないか往復の安全の上限の周に届いたら止めた（stalled）と返す。修正前の承認ノード（メイングラフの 6）の 4 つの軸と人への問いを返す。共有ボードは持たず、入力のポインタの先を run の
+  1 回の include がメイングラフの計画の往復（plan → plan-review）の 1 往復で、block（直しへ進めない穴）が無いか、2 往復目から開いた block に
+  中央の穴が無ければ（端の block は修正の段へ申し送る）通し、同じ中央の block が続くか往復の安全の網の周に届いたら（工場の不具合）止めた
+  （stalled）と返す。修正前の承認ノード（メイングラフの 6）の 4 つの軸と人への問いを返す。共有ボードは持たず、入力のポインタの先を run の
   置き場の plan-review/ に写して lib/boardview.py の見え方で今の works の部品に渡す。
 
 # 値は線の with: が渡す JSON の字（指し札と配列は JSON の字）。start・answers・ruling・conflicts・gate_answers は約束に足した入力で、
@@ -85,8 +86,8 @@ inputs:
   round_limit:
     default: "null"
     description: >-
-      計画の往復のループの安全の上限（ループの max_iterations と同じ数）か null（ループの外の案の直しの事前審査）。計画の周 round がこの数の
-      往復は、ループがもう 1 周回せないので開いた block が減っていても止める
+      計画の往復のループの安全の上限（ループの max_iterations と同じ数で、届かない大きさの網）か null（ループの外の案の直しの事前審査）。
+      計画の周 round がこの数の往復は、ループがもう 1 周回せないので中央の新しい block が出ていても止める（工場の不具合）
 
 returns: review
 outcome_field: pass
@@ -198,7 +199,9 @@ nodes:
               reason: {type: string}
 
   # 事前審査（役 1 つか、項目ごとの下請けを並べる束ね役）。輪の中の節は輪の前の節の出力に結ばず、plan-review/ のファイルを読む。
-  # 事前審査の役は周ごとに新しい会話（輪の 1 周目と plan-review・plan-review-tree の context: fresh）で、合わせた後の案の全体を見る。
+  # 事前審査の役は周ごとに新しい会話（輪の 1 周目と plan-review・plan-review-tree の context: fresh）で、1 往復目は合わせた後の案の全体を、
+  # 2 往復目からは開いた項目の案の差分と波及の一覧を見る。受け付けの拒否の回数では諦めず、受け付けの網（lib の rolekit.NET_AFTER。輪の
+  # max_iterations と同じ数で、届けば工場の不具合）の回の拒否で受け付けが done（give_up）を出して輪を抜ける。
   # 役の節は単独の組（plan-review／plan-review-fix）と束ね役の組（plan-review-tree／plan-review-tree-fix）の 4 つで、review-prep の
   # tree と resubmit で振り分ける（型が組ごとに違う。同じ YAML の plan-review／plan-review-fix が when で節と型を分ける前例と同じ形）。
   # 受け付けに拒まれた後は、組の出し直しの役が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと合わせる。各組の出し直しは
@@ -209,7 +212,7 @@ nodes:
     when: "$open.output.ok == true && $open.output.form != 'design'"
     timeout: 1728000000
     loop_group:
-      max_iterations: 3
+      max_iterations: 20
       fresh_context: false
       until_bash: done=$review-accept.output.done; test "$done" = true
       nodes:
@@ -258,7 +261,7 @@ nodes:
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["key", "unit_keys", "kind", "where", "why", "severity"],
+                      "required": ["key", "unit_keys", "kind", "where", "why", "severity", "reach"],
                       "properties": {
                         "key": {"type": "string", "minLength": 8, "pattern": "\\S[\\s\\S]{6,}\\S"},
                         "unit_keys": {"type": "array", "minItems": 1, "items": {"type": ["integer", "string"], "minLength": 1, "pattern": "\\S", "minimum": 1}},
@@ -266,6 +269,7 @@ nodes:
                         "where": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
                         "why": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
                         "severity": {"type": "string", "enum": ["block", "suggest"]},
+                        "reach": {"type": "string", "enum": ["breaks_fix", "loses_behavior", "against_policy", "forces_redesign", "peripheral"]},
                         "no_add": {"type": "string"},
                         "decided_by": {"type": "string"},
                         "undecided_because": {"type": "string"},
@@ -337,7 +341,8 @@ nodes:
                       "properties": {
                         "key": {"type": "string"},
                         "origin": {"type": "string", "enum": ["missed", "introduced", "rephrased"]},
-                        "of": {"type": "string"}
+                        "of": {"type": "string"},
+                        "quote": {"type": "string"}
                       }
                     }
                   }

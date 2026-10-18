@@ -42,7 +42,7 @@ import runreport  # noqa: E402
 
 PORT_FIELDS = {"allowed_tests", "accept_trace", "lenses", "closure", "delta_holes", "tdd_unit", "removed", "tdd_refused"}
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
-                   "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason", *PORT_FIELDS}
+                   "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "plan_declared", "stop_reason", *PORT_FIELDS}
 CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "answer_ties", "materials", "depth_record", "plan", "fix_plan", "ripple",
                    "depth", "head_depth", "answers", "prior_conflicts", "plan_review", "notes", "reuse_dir", "user_env_dir"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
@@ -127,7 +127,8 @@ def refs(text: str) -> set:
 
 
 class ContractCase(unittest.TestCase):
-    """返す節 fix の output_format が約束の 12 欄をちょうど持つ（10 欄と、最後の関所を開ける理由の 2 欄 handoffs・mismatched）"""
+    """返す節 fix の output_format が約束の欄をちょうど持つ（最後の関所を開ける理由の 2 欄 handoffs・mismatched と、独立の目への
+    申し送り plan_declared を含む）"""
 
     def setUp(self):
         self.doc = load()
@@ -140,7 +141,7 @@ class ContractCase(unittest.TestCase):
         self.assertEqual(self.doc["outcome_field"], "done")
 
     def test_exact_fields_all_required_and_closed(self):
-        self.assertEqual(set(self.fmt["properties"]), CONTRACT_FIELDS)
+        self.assertEqual(set(self.fmt["properties"]), CONTRACT_FIELDS | {"optional"}, "optional は required に無い欄（差し替えの返りに無くても落ちない）")
         self.assertEqual(set(self.fmt["required"]), CONTRACT_FIELDS)
         self.assertIs(self.fmt["additionalProperties"], False)
         self.assertEqual(self.fmt["properties"]["done"], {"type": "boolean"})
@@ -163,7 +164,7 @@ class ContractCase(unittest.TestCase):
         self.assertEqual(props["changed"]["properties"]["premise_drift_note"], {"type": "string"})
         self.assertEqual(props["x_scalars"], {"type": "object"})
         self.assertEqual(set(props["delta_review"]["required"]), {"rounds", "pass"})
-        for name in ("replan_items", "allowed_test_changes", "handoffs", "mismatched"):
+        for name in ("replan_items", "allowed_test_changes", "handoffs", "mismatched", "plan_declared"):
             self.assertEqual(props[name]["items"], {"type": "string"})
         self.assertEqual(props["objection"], {"type": "string"})
         pointer = props["diff"]
@@ -245,24 +246,46 @@ class GroupsCase(unittest.TestCase):
     def test_a_failed_node_halts_the_block_for_resume(self):
         """#576・#594: 子が 1 つでも落ちれば組の節が落ち（resume が落ちた子を続きから回すのは、組の節が済んでいない時だけ）、join は
         走らない。サブグラフのどの節が落ちても、返す節 fix と落ちても止めない段のほかの全部の節に結ぶブロックの sink の柵
-        nodes-ok が飛ぶ。止めない段は線が報告で受け止めると宣言した節（レンズとその中継）とちょうど同じ"""
+        nodes-ok が飛ぶ。止めない段は fix 自身が返す節の with: の optional で受け止めると宣言した節（レンズとその中継）とちょうど同じ"""
         for nid in ("groups-par", "groups-seq"):
             self.assertEqual(self.nodes[nid]["fan_out"]["join"], "all_success", nid)
         self.assertEqual(self.nodes["join"]["trigger_rule"], "none_failed_min_one_success")
         top = [n["id"] for n in self.doc["nodes"]]
         guard = self.nodes["nodes-ok"]
         self.assertEqual(guard["bash"], "true")
-        line = {n["id"]: n for n in yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(
-            encoding="utf-8"))["nodes"]}
-        declared = json.loads(line["collect"]["with"]["optional"])
+        declared = [row["node"] for row in json.loads(self.nodes["fix"]["with"]["optional"])]
         for include in ("fix", "refix-run"):
             with self.subTest(include=include):
-                absorbed = {nid for nid in top if runreport._declared(f"{include}__{nid}", declared)}
+                absorbed = {nid for nid in top if runreport._declared(f"{include}__{nid}", [f"{include}__{d}" for d in declared])}
                 self.assertEqual(absorbed, {"lens", "lens-reply"})
                 self.assertEqual(set(guard["depends_on"]), set(top) - {"fix", "nodes-ok"} - absorbed)
         self.assertEqual(guard["trigger_rule"], "none_failed_min_one_success")
         self.assertNotIn("when", guard, "柵が飛ぶのはどれかの節が落ちた時だけ（when で飛ぶ節は落ちと数えない）")
         self.assertEqual([nid for nid, n in self.nodes.items() if "nodes-ok" in (n.get("depends_on") or [])], [])
+
+    def test_fix_declares_its_absorbed_nodes_in_its_return(self):
+        with_ = self.nodes["fix"].get("with") or {}
+        self.assertIn("optional", with_, "返す節 fix の with: に宣言 optional が無い")
+        declared = with_["optional"]
+        want = json.loads(declared)
+        self.assertEqual(sorted((row["node"], row["bare"]) for row in want), [("lens", False), ("lens-reply", False)])
+        self.assertTrue({row["node"] for row in want} <= {n["id"] for n in self.doc["nodes"]})
+        self.assertFalse({row["node"] for row in want} & set(self.nodes["nodes-ok"]["depends_on"]))
+        fmt = self.nodes["fix"]["output_format"]
+        self.assertEqual(fmt["properties"]["optional"]["type"], "array")
+        self.assertNotIn("optional", fmt["required"])
+        from tests.bin.gitkit import committed_copy
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="works-fix-declared-"))
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        repo, art = tmp / "repo", tmp / "art"
+        committed_copy(repo, ROOT / "tests" / "e2e" / "target-seed")
+        art.mkdir()
+        for given, expected in ((declared, want), (None, [])):
+            with self.subTest(declared=given is not None):
+                code, out, err = _blk_run("collect", repo, art, {} if given is None else {"optional": given})
+                self.assertEqual(code, 0, err)
+                self.assertEqual(validate_schema(out, fmt), [], out)
+                self.assertEqual(out["optional"], expected)
 
     def test_only_the_returning_node_and_reads_run_after_a_failure(self):
         """#594: 落ちた節の後ろの節は飛ぶ（済んだ控えを残さず、resume で作り直される）。all_done で走るのは返す節と、
@@ -487,8 +510,10 @@ class FilesCase(unittest.TestCase):
 
     def test_collectors_read_files_not_bindings(self):
         """落ちうる前の節の返りを with: で束ねない（落ちた節への束ねは if_skipped が在っても投げる）"""
-        for nid in ("join", "tdd-unit", "fix"):
+        for nid in ("join", "tdd-unit"):
             self.assertNotIn("with", self.nodes[nid], nid)
+        for key, value in self.nodes["fix"].get("with", {}).items():
+            self.assertFalse(str(value).startswith("$"), f"fix の with: {key} が上流の出力を結ぶ")
 
     def test_named_scripts_and_commands_exist(self):
         scripts = {n["script"] for n in self.nodes.values() if "script" in n}
@@ -1254,7 +1279,7 @@ class BlockScriptsCase(unittest.TestCase):
 
     def assert_contract(self, out):
         self.assertEqual(validate_schema(out, self.fmt), [], out)
-        self.assertEqual(set(out), CONTRACT_FIELDS, "返す節は required に無い欄も全部返す")
+        self.assertEqual(set(out), set(self.fmt["properties"]), "返す節は required に無い欄も全部返す")
 
     # ---- fix_reads.py
     def read_hook(self, cfg, path, session="s-1"):
@@ -2459,6 +2484,29 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertEqual(code, 0, err)
             self.assert_contract(out)
             self.assertEqual((out["done"], out["handoffs"], out["mismatched"]), (False, [], []))
+
+    def test_collect_returns_declared_plan_blocks(self):
+        """修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block は、key・why・修正役の答えの 1 行で plan_declared に
+        載る（独立の目へ申し送る）。取り込んだ（absorbed）block と suggest は載らず、裁定の後の返答の答えが組の答えに勝つ"""
+        import fixboard
+        self.collect_place()
+        why = "古い docstring が直しの後の戻り値を説明しないまま残る"
+        _blk_write(self.place / fixboard.PLAN_REVIEW_FILE, {"faces": [
+            {"key": "stale-docstring-left", "severity": "block", "why": why},
+            {"key": "absorbed-block-0001", "severity": "block", "why": "取り込んだ穴"},
+            {"key": "suggest-left-000001", "severity": "suggest", "why": "参考の穴"},
+            {"key": "ruled-block-000001", "severity": "block", "why": "裁定の後に答え直した穴"}], "shrink": []})
+        _blk_write(self.place / fixboard.FIX_REPLY_FILE, {"changes": [], "not_done": [], "plan_faces": [
+            {"key": "stale-docstring-left", "handled": "declared", "how": "範囲の外のファイルなので直さずに残す"},
+            {"key": "absorbed-block-0001", "handled": "absorbed", "how": "直しに取り込んだ"},
+            {"key": "suggest-left-000001", "handled": "declared", "how": "参考なので残す"},
+            {"key": "ruled-block-000001", "handled": "declared", "how": "組では残すと答えた"}]})
+        _blk_write(self.place / fixboard.RULED_REPLY_FILE, {"changes": [], "plan_faces": [
+            {"key": "ruled-block-000001", "handled": "absorbed", "how": "裁定の後の修正で取り込んだ"}]})
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual(out["plan_declared"], [f"stale-docstring-left: {why}（直す側の答え: 範囲の外のファイルなので直さずに残す）"])
 
     def test_collect_diff_holds_every_returned_group(self):
         """F424: 返りの diff は run の始めの版（prep が控えた base-rev.json）から今の作業ツリーへの累積差分の指し札で、戻せた組の

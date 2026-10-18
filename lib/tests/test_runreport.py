@@ -42,7 +42,7 @@ import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
 import tddloop  # noqa: E402
-from lib.tests.test_outcome import fixed_run, stage_of  # noqa: E402
+from lib.tests.test_outcome import STAGES, fixed_run, stage_of  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 from lib.tests.test_plan_gate import DECIDED, FACE, FORK, FORK_UNIT, NARROW, WORLD_ROW  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
@@ -96,10 +96,12 @@ class Base(unittest.TestCase):
     def build(self, returns=None, gates=None, typed=None, transcript=None, start=None, problems=(), line=None, user_env=False):
         returns = fixed_run() if returns is None else returns
         gates = gates or {}
+        line = {"stages": STAGES, **(line or {})}
         decided = outcome.decide_outcome(returns, gates, {"start_ok": True, "record_problems": list(problems),
                                                           "failed": (transcript or {}).get("failed", []),
-                                                          "stops": list(((line or {}).get("stops") or {}).items()),
-                                                          "eyes_skip": ((line or {}).get("redepth") or {}).get("skip_optional")})
+                                                          "stops": list((line.get("stops") or {}).items()),
+                                                          "eyes_skip": (line.get("redepth") or {}).get("skip_optional"),
+                                                          "stages": line["stages"]})
         got = runreport.build(returns, gates, typed or {}, transcript, *decided, out_dir=self.out, start=start or {"run_id": RUN},
                               problems=problems, run_id=RUN, line=line, user_env=user_env)
         return got, pathlib.Path(got["report"]).read_text(encoding="utf-8"), decided
@@ -161,7 +163,7 @@ class BuildCase(Base):
         self.assertTrue(any("受け付けが 3 回拒んだ" in r["text"] for r in prior))
 
     def first_line(self, final=None, **kw) -> str:
-        returns = fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], **final}}) if final else None
+        returns = fixed_run(**{"final-tests": {**fixed_run()["final-tests"], **final}}) if final else None
         _, text, _ = self.build(returns, **kw)
         first = text.split("\n\n", 2)[1].splitlines()[0]
         self.assertTrue(first.startswith(gatemarks.HAPPENED), first)
@@ -172,14 +174,14 @@ class BuildCase(Base):
         人の答えでは言わない"""
         rec = {"item": "修正案 1 が狭める能力: 空の列で例外", "answer": "continue", "note": "0 を返す形で通す", "why": "呼び手が前提"}
         pushed = {"decision": "continue", "text": "0 を返す形で通す", "asked": [], "pushed": [rec]}
-        _, text, _ = self.build(gates={"gate-before-fix": pushed})
+        _, text, _ = self.build(gates={"before-fix-answer": pushed})
         first = text.split("\n\n", 2)[1].splitlines()[0]
         self.assertIn("無人の run で推しを採って通した承認ノード: gate-before-fix（推し 1 件", first)
         self.assertIn("無人の run で推しを採って通した（承認ノード gate-before-fix）: 修正案 1 が狭める能力: 空の列で例外——通す（continue）: "
                       "0 を返す形で通す（推す理由: 呼び手が前提）", self.section(text, report.DECISIONS_HEADING))
         self.assertIn("承認ノード gate-before-fix: continue（推しで通した: 0 を返す形で通す）", self.section(text, report.STOP_HEADING))
         human = {k: v for k, v in pushed.items() if k != "pushed"}
-        _, text, _ = self.build(gates={"gate-before-fix": human})
+        _, text, _ = self.build(gates={"before-fix-answer": human})
         self.assertNotIn("推しを採って通した", text)
         self.assertIn("承認ノード gate-before-fix: continue（0 を返す形で通す）", self.section(text, report.STOP_HEADING))
 
@@ -187,15 +189,37 @@ class BuildCase(Base):
         """#552: 修正の前を推しで通し、最後の承認ノードで無人ゆえに止まった run は、止まりの行に推しの一言を人の一言として引かず、
         決めた人の数に推しを数えない"""
         rec = {"item": "修正案 1 が狭める能力: 空の列で例外", "answer": "continue", "note": "0 を返す形で通す", "why": "呼び手が前提"}
-        gates = {"gate-before-fix": {"decision": "continue", "text": "0 を返す形で通す", "asked": [], "pushed": [rec]}}
+        gates = {"before-fix-answer": {"decision": "continue", "text": "0 を返す形で通す", "asked": [], "pushed": [rec]}}
         seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
-        _, text, decided = self.build(fixed_run(**{"merge-seal": seal_ok, "merge-apply": None}), gates=gates,
+        _, text, decided = self.build(fixed_run(**{"sealed-diff": seal_ok, "applied-diff": None}), gates=gates,
                                       line={"stops": {"ask-final": stopby.HEAD + "needs-human"}})
         stopped = [x for x in self.section(text, report.DECISIONS_HEADING).splitlines() if x.startswith("- 止まった run: ")]
         self.assertEqual(len(stopped), 1, decided)
         self.assertTrue(stopped[0].endswith("「一言なし」"), stopped)
         self.assertIn("- 決めた人: 承認ノードの答え 0 件（ほかに無人の run が推しで通した承認ノード 1 件）\n",
                       self.section(text, report.ENTRY_HEADING))
+
+    def test_report_names_nodes_from_the_stages_table(self):
+        table = {**STAGES, "nodes": {**STAGES["nodes"], "final-tests": "x-final", "sealed-diff": "x-seal", "final-answer": "x-gate",
+                                     "before-tests": "x-base"}}
+        final = {**fixed_run()["final-tests"], "by": "engine", "suites_line": "一式", "log": "/tmp/x/test.log", "baseline_line": "修正前のテスト: 赤",
+                 "reason": "", "evidence": str(self.dir / "nowhere.md")}
+        sealed = self.put("merge/sealed.diff", "")
+        seal = {"mode": "seal", "ok": False, "reason": "hash が食い違う", "diff": sealed}
+        gates = {"final-answer": {"decision": "approve", "text": "これで良い", "asked": []}}
+        _, text, decided = self.build(fixed_run(**{"final-tests": final, "sealed-diff": seal}), gates=gates, line={"stages": table})
+        self.assertEqual(decided, ("stopped_by_line", "x-seal:not-ok"))
+        self.assertIn("- 最後のテスト（x-final）の走らせ方: engine・一式\n", self.section(text, runreport.GREEN_HEADING))
+        self.assertIn("- 直す前のテスト（x-base）のログ: ", self.section(text, runreport.GREEN_HEADING))
+        stop = self.section(text, report.STOP_HEADING)
+        self.assertIn("承認ノード x-gate: approve（これで良い）", stop)
+        self.assertIn("x-seal が ok でない: hash が食い違う", stop)
+        self.assertIn("止めた段と理由の語: x-seal:not-ok", stop)
+        self.assertIn("最後の承認ノード x-gate: ", self.section(text, report.MODEL_HEADING))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 走った段: x-base・judge・plan・plan-review・fix・x-final・eyes・x-seal・merge-apply\n", entry)
+        self.assertIn("- 飛ばされた・出力の無い段: rejudge・replan・replan-review\n", entry)
+        self.assertIn(f"封じた差分（x-seal.diff）: {sealed}", self.section(text, report.WHERE_HEADING))
 
     def test_final_tests_that_did_not_run_are_named_in_the_head(self):
         """#492: 最後のテストが incomplete の run は、冒頭の 1 行目（起きたこと）が試験は走っていないと言い、利用者の環境で回す道を
@@ -267,7 +291,7 @@ class BuildCase(Base):
 
     def test_stopped_by_request_still_writes_report(self):
         """持ち主の決め report-on-stop: 止め札で止めた run も報告を出す"""
-        gates = {"gate-final": {"decision": "stop", "text": "request: 止め札"}}
+        gates = {"final-answer": {"decision": "stop", "text": "request: 止め札"}}
         _, text, decided = self.build(gates=gates)
         self.assertEqual(decided[0], "stopped_by_request")
         self.assertIn(report.OUTCOME_WORDS["stopped_by_request"], text)
@@ -335,7 +359,7 @@ class BuildCase(Base):
     def test_unrun_base_is_not_called_red(self):
         """走らせられなかった直す前のテスト（ok false・green false・red_cause incomplete）を「赤」と書かない（棚卸し T68）"""
         base = {"mode": "base", "ok": False, "green": False, "red_cause": green_cert.INCOMPLETE}
-        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        _, text, _ = self.build(fixed_run(**{"before-tests": base}))
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn(f"直す前のテスト: 走らせられなかった（incomplete）——{gatemarks.BASELINE_NOT_RUN}", entry)
         self.assertNotIn("直す前のテスト: 赤", entry)
@@ -345,13 +369,13 @@ class BuildCase(Base):
         not_run の訳と準備の案内）を 1 行にして添え、「赤」と書かない。訳が空なら添えない"""
         why = "素材が not_run——緑を仮定しない（宣言の語を起こせない: suite: 準備が落ちた）。\n準備が要る道具は 宣言に setup を足す"
         base = {"mode": "base", "ok": False, "green": False, "red_cause": green_cert.ENVIRONMENT, "reason": why}
-        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        _, text, _ = self.build(fixed_run(**{"before-tests": base}))
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn(f"直す前のテスト: 走らせられなかった（environment）——{gatemarks.BASELINE_NOT_RUN}——"
                       "素材が not_run——緑を仮定しない（宣言の語を起こせない: suite: 準備が落ちた）。 準備が要る道具は 宣言に setup を足す", entry)
         self.assertNotIn("直す前のテスト: 赤", entry)
         bare = {**base, "reason": ""}
-        _, text, _ = self.build(fixed_run(**{"test-gate-base": bare}))
+        _, text, _ = self.build(fixed_run(**{"before-tests": bare}))
         self.assertIn(f"直す前のテスト: 走らせられなかった（environment）——{gatemarks.BASELINE_NOT_RUN}\n",
                       self.section(text, report.ENTRY_HEADING) + "\n")
 
@@ -361,7 +385,7 @@ class BuildCase(Base):
         baseline_red.write_baseline(pointed, suite="", test_cmd="", rev="r", exit=None, cases=[],
                                     material={"status": green_cert.NOT_APPLICABLE, "reason": "検査の宣言が無い"})
         base = {"mode": "base", "ok": True, "green": False, "red_cause": green_cert.INCOMPLETE, "baseline": pointed}
-        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        _, text, _ = self.build(fixed_run(**{"before-tests": base}))
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['not_applicable']}（not_applicable）", entry)
         self.assertNotIn("走らせられなかった", entry)
@@ -373,7 +397,7 @@ class BuildCase(Base):
         baseline_red.write_baseline(pointed, suite="", test_cmd="", rev="r", exit=None, cases=[],
                                     material={"status": "awaiting_human", "reason": "実機の要る系統は回せない。\nlint は緑"})
         base = {"mode": "base", "ok": True, "green": False, "red_cause": green_cert.INCOMPLETE, "baseline": pointed}
-        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        _, text, _ = self.build(fixed_run(**{"before-tests": base}))
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['awaiting_human']}（awaiting_human）——"
                       "実機の要る系統は回せない。 lint は緑", entry)
@@ -444,9 +468,9 @@ class TypedCase(Base):
         """元 report.py:1042-1050 の最後のテストの一式の行とログ: test-gate の返りの欄 by・suites_line・log から（証拠の文は開かない）。
         取れなければ黙らずにその旨"""
         suites = "一式: run-tests（make test）"
-        final = {**fixed_run()["test-gate-final"], "by": "engine", "suites_line": suites, "log": "/tmp/x/test.log",
+        final = {**fixed_run()["final-tests"], "by": "engine", "suites_line": suites, "log": "/tmp/x/test.log",
                  "baseline_line": "修正前のテスト: 赤", "reason": "", "evidence": str(self.dir / "nowhere.md")}
-        _, text, _ = self.build(fixed_run(**{"test-gate-final": final}))
+        _, text, _ = self.build(fixed_run(**{"final-tests": final}))
         green = self.section(text, runreport.GREEN_HEADING)
         self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
         self.assertIn("- 最後のテスト（test-gate-final）のログ: /tmp/x/test.log\n", green)
@@ -455,13 +479,13 @@ class TypedCase(Base):
         self.assertIn(f"- 直す前のテスト（test-gate-base）のログ: {declared_checks.GATE_MISSING}\n", green)
 
         fell = {**final, "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": "出力ノードの中の誤り"}
-        _, text, _ = self.build(fixed_run(**{"test-gate-final": fell}))
+        _, text, _ = self.build(fixed_run(**{"final-tests": fell}))
         green = self.section(text, runreport.GREEN_HEADING)
         self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: {declared_checks.GATE_MISSING}\n", green)
         self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {declared_checks.GATE_MISSING}\n", green)
         self.assertIn(f"- 最後のテスト（test-gate-final）の修正前のテスト: {declared_checks.GATE_MISSING}\n", green)
 
-        _, text, _ = self.build(fixed_run(**{"test-gate-base": None, "test-gate-final": None}))
+        _, text, _ = self.build(fixed_run(**{"before-tests": None, "final-tests": None}))
         self.assertNotIn("走らせ方", self.section(text, runreport.GREEN_HEADING))
 
 
@@ -518,7 +542,7 @@ class TranscriptCase(Base):
         ), exclude_prefix="report__")
         self.assertEqual(facts["efforts"], {"judge__diagnose": ["high"], "fix__write": ["medium", "high"]})
         self.assertEqual(runreport.transcript_facts(None)["efforts"], {}, "出来事の行が無い返りも efforts を持つ")
-        gates = {"gate-final": {"decision": "approve", "text": "これで良い", "asked": []}}
+        gates = {"final-answer": {"decision": "approve", "text": "これで良い", "asked": []}}
         eyes = {**fixed_run()["eyes"], "r2": None}
         given_up = {**fixed_run()["fix"], "units": [{"unit_id": "u2", "status": "given_up", "reason": "直せなかった"}]}
         _, text, decided = self.build(fixed_run(judge=judged, eyes=eyes, fix=given_up), gates=gates, transcript=facts,
@@ -535,7 +559,7 @@ class TranscriptCase(Base):
         carried = int(want.split("次の run に渡す物: ")[1].split(" 件")[0])
         outcome_line = next(x for x in section.splitlines() if x.startswith("- 結末: "))
         self.assertIn(f"結末: {report.OUTCOME_WORDS[decided[0]]}（{decided[0]}）", outcome_line)
-        self.assertIn(f"最後の承認ノード gate-final: {runreport._gate_line(gates['gate-final'])}", outcome_line)
+        self.assertIn(f"最後の承認ノード gate-final: {runreport._gate_line(gates['final-answer'])}", outcome_line)
         self.assertIn(f"次の run に渡す物: {carried} 件", outcome_line)
         self.assertIn("持ち越した失敗: 1 件", outcome_line)
         self.assertIn(runreport.DATA_PLACES, outcome_line)
@@ -670,7 +694,7 @@ class DecisionsCase(Base):
         eyes = {**fixed_run()["eyes"], "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
         line = {"stops": {"ask-final": stopby.NEEDS_HUMAN}, "final_reasons": ["独立の目が通さなかった（R2: 作り直しが要る）"]}
         seal = {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"}
-        _, text, decided = self.build(fixed_run(eyes=eyes, **{"merge-seal": seal, "merge-apply": None}), line=line)
+        _, text, decided = self.build(fixed_run(eyes=eyes, **{"sealed-diff": seal, "applied-diff": None}), line=line)
         self.assertEqual(decided[0], "needs_human")
         head = text.splitlines()[2:5]
         self.assertIn(f"ask-final が {stopby.NEEDS_HUMAN}（{stopby.REASONS['needs-human']}）", head[0])
@@ -689,7 +713,7 @@ class DecisionsCase(Base):
                 "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
         line = {"stops": {"ask-final": stopby.NEEDS_HUMAN}, "final_reasons": []}
         seal = {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"}
-        _, text, _ = self.build(fixed_run(eyes=eyes, **{"merge-seal": seal, "merge-apply": None}), line=line)
+        _, text, _ = self.build(fixed_run(eyes=eyes, **{"sealed-diff": seal, "applied-diff": None}), line=line)
         first = text.splitlines()[2]
         fix_said, redesign_said = gatemarks.eye_named("R1", "fix-needed"), gatemarks.eye_named("R2", "redesign-needed")
         self.assertIn(f"{fix_said}——名前が揃っていない", first)
@@ -871,7 +895,7 @@ class DecisionsCase(Base):
         """元 ReportHeadCase.test_decisions_are_counted"""
         review = {"pass": True, "ask_human": True, "questions": [gatemarks.question_row("fork", "どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）")]}
         eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか"]}
-        _, text, _ = self.build(fixed_run(eyes=eyes, **{"plan-review": review}), gates={"gate-before-fix": {"decision": "approve", "text": ""}})
+        _, text, _ = self.build(fixed_run(eyes=eyes, **{"plan-review": review}), gates={"before-fix-answer": {"decision": "approve", "text": ""}})
         third = text.splitlines()[4]
         self.assertTrue(third.startswith(runreport.DECIDE_HEAD + "2 件"), third)
         self.assertEqual(text.splitlines()[5:7], ["- 修正前の問い: どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）",
@@ -885,14 +909,14 @@ class DecisionsCase(Base):
         review = {"pass": True, "ask_human": True, "questions": [gatemarks.question_row("fork", text_q)]}
         eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか"]}
         returns = fixed_run(eyes=eyes, **{"plan-review": review})
-        _, text, _ = self.build(returns, gates={"gate-before-fix": {"decision": "approve", "text": "", "asked": [text_q]}})
+        _, text, _ = self.build(returns, gates={"before-fix-answer": {"decision": "approve", "text": "", "asked": [text_q]}})
         head = text.splitlines()
         self.assertTrue(head[4].startswith(runreport.DECIDE_HEAD + "1 件——独立の目 R4 の問い 1 件"), head[4])
         self.assertNotIn("小さい方", "\n".join(head[5:7]))
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertNotIn("- 修正前の問い:", body)   # 0 件の種は出さない（#383 の項目 9）。答えた問いは数えない
         self.assertIn(f"- {gatemarks.ANSWERED_HEAD}（1 件。保留と人が決めることの件数には数えない）:\n  - {text_q}", body)
-        for gates in ({}, {"gate-before-fix": {"decision": "stop", "text": "止める", "asked": [text_q]}}):
+        for gates in ({}, {"before-fix-answer": {"decision": "stop", "text": "止める", "asked": [text_q]}}):
             with self.subTest(gates=gates):
                 _, text, _ = self.build(returns, gates=gates)
                 self.assertTrue(text.splitlines()[4].startswith(runreport.DECIDE_HEAD + "2 件——修正前の問い 1 件"), text.splitlines()[4])
@@ -1000,11 +1024,11 @@ class DraftsCase(Base):
         returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
         drafts = runreport.answer_drafts(returns, {}, {"run_id": RUN})
         self.assertEqual([(d["question"], d["text"]) for d in drafts], [(FORK["key"], "例外——呼び手が既に例外を捕まえている")])
-        passed = {"gate-before-fix": {"decision": "continue", "text": ""}}
+        passed = {"before-fix-answer": {"decision": "continue", "text": ""}}
         self.assertEqual(len(runreport.answer_drafts(returns, passed, {"run_id": RUN})), 1, "関所が聞いていない問いは答えていない")
-        passed = {"gate-before-fix": {"decision": "continue", "text": "", "asked": [gatemarks.ask_text(FORK)]}}
+        passed = {"before-fix-answer": {"decision": "continue", "text": "", "asked": [gatemarks.ask_text(FORK)]}}
         self.assertEqual(runreport.answer_drafts(returns, passed, {"run_id": RUN}), [])
-        held = {"gate-before-fix": {"decision": "continue", "text": f"保留: {FORK['key']}", "asked": [gatemarks.ask_text(FORK)]}}
+        held = {"before-fix-answer": {"decision": "continue", "text": f"保留: {FORK['key']}", "asked": [gatemarks.ask_text(FORK)]}}
         self.assertEqual(len(runreport.answer_drafts(returns, held, {"run_id": RUN})), 1)
         returns = fixed_run(judge=returns["judge"])
         _, text, _ = self.build(returns)
@@ -1018,7 +1042,7 @@ class DraftsCase(Base):
         fields = self.put(f"plan/r1/{planfile.planmarks.FIELDS_FILE}", {"round": 1, "fields": []})
         returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}, plan={"ready": False, "plan": fields, "nothing_owed": True},
                             fix=None,
-                            eyes=None, **{"plan-review": None, "test-gate-final": None, "merge-seal": None, "merge-apply": None})
+                            eyes=None, **{"plan-review": None, "final-tests": None, "sealed-diff": None, "applied-diff": None})
         _, text, decided = self.build(returns, start=UNATTENDED)
         self.assertEqual(decided, ("round_limit", ""))
         self.assertIn("保留にしたままの問い 1 件", text.splitlines()[4])
@@ -1063,9 +1087,9 @@ class DraftsCase(Base):
     def test_attended_run_gets_no_gate_item_drafts(self):
         """元 DraftsCase の人の居る run: 関所に人が答えた run は下書きを作らない"""
         returns = fixed_run(**{"plan-review": {"questions": [gatemarks.question_row("regression", "どうするか")]}})
-        self.assertEqual(runreport.answer_drafts(returns, {"gate-before-fix": {"decision": "approve", "text": ""}},
+        self.assertEqual(runreport.answer_drafts(returns, {"before-fix-answer": {"decision": "approve", "text": ""}},
                                                  {"run_id": RUN}), [])
-        self.assertEqual(runreport.answer_drafts(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, UNATTENDED), [])
+        self.assertEqual(runreport.answer_drafts(returns, {"before-fix-answer": {"decision": "continue", "text": ""}}, UNATTENDED), [])
 
     def test_no_narrow_and_face_rows_give_their_marks(self):
         """元 gatemarks._gate_draft: 推しの無い修正案の狭める行は狭めない案（no_narrow）を、事前審査の人に回す種類の穴は穴の行の
@@ -1095,7 +1119,7 @@ class DraftsCase(Base):
         self.assertEqual([(d["question"], d["text"]) for d in drafts], [("守りを触ってよいか", "通す（continue）——触らない（理由: 守りは別の PR）")])
         for start in (UNATTENDED, {"run_id": RUN}):
             with self.subTest(start=start):
-                self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "continue", "text": ""}}, start), drafts)
+                self.assertEqual(runreport.answer_drafts(returns, {"final-answer": {"decision": "continue", "text": ""}}, start), drafts)
 
     def test_drafts_reach_next_request(self):
         returns = fixed_run(**{"plan-review": {"questions": [gatemarks.question_row("regression", "どうするか")]}})
@@ -1509,8 +1533,8 @@ class CollectCase(Base):
                   "questions": [gatemarks.question_row("fork", "どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）")]}
         eyes = {**fixed_run()["eyes"], "questions": ["守りのパスを触ってよいか"], "protected_hits": ["ci/deploy.yml"]}
         seal = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
-        _, machine, _ = self.build(fixed_run(eyes=eyes, **{"plan-review": review, "merge-seal": seal}),
-                                   gates={"gate-before-fix": {"decision": "approve", "text": ""}})
+        _, machine, _ = self.build(fixed_run(eyes=eyes, **{"plan-review": review, "sealed-diff": seal}),
+                                   gates={"before-fix-answer": {"decision": "approve", "text": ""}})
         parts = ["レンズ 2 本の指摘を直し、根本の単位 1 つを残した。", "", "## 1. 人が決めること", ""]
         for n in range(3):
             parts += [f"### {n + 1}. 問い {n + 1}", "- 何を決めるか: x", "- 背景: 単位 a の柵", "- 選択肢: A か B", "- 推し: A",
@@ -1905,7 +1929,7 @@ class CarryCase(Base):
         """案の直しを終えられなかった項目の行は、案の直しと、その事前審査の返りの欄 gave_up から読む（置き場の控えを開かない）"""
         rows = [{"item": 2, "why": "修正案の役の直しが 3 回とも拒まれた: 網羅", "ruling": "案を直す"}]
         review = [{"item": 3, "why": "事前審査の役の返答が 3 回とも拒まれた: 形", "ruling": "裁定なし"}]
-        returns = fixed_run(replan={"ready": False, "gave_up": rows}, **{"replan-review": {"gave_up": review}})
+        returns = fixed_run(replan={"ready": False, "gave_up": rows}, **{"replan-review-result": {"gave_up": review}})
         self.assertEqual(runreport.replan_gave_up(returns), [
             {"where": runreport.REPLAN_GAVE_UP_WHERE.format(item=2), "text": "修正案の役の直しが 3 回とも拒まれた: 網羅。裁定の文: 案を直す"},
             {"where": runreport.REPLAN_GAVE_UP_WHERE.format(item=3), "text": "事前審査の役の返答が 3 回とも拒まれた: 形。裁定の文: 裁定なし"}])
@@ -1971,7 +1995,7 @@ class LedgerCase(Base):
         returns = self.returns(FORK, other, units=[{"id": FORK_UNIT}, {"id": "x"}], review=[gatemarks.ask_text(other)])
         answers = [{"question": FORK["key"], "text": "例外", "command": "pytest -k mean", "output": "1 passed"}]
         gate = {"decision": "continue", "text": "", "asked": [gatemarks.ask_text(other)]}
-        state = runreport.ledger_state(returns, {"gate-before-fix": gate}, {"answers": answers})
+        state = runreport.ledger_state(returns, {"before-fix-answer": gate}, {"answers": answers})
         self.assertEqual(state["held"], [])
         self.assertEqual(state["answered"], [
             gatemarks._ledger_line(FORK, "・" + gatemarks.answer_note(answers[0])),
@@ -1995,7 +2019,7 @@ class LedgerCase(Base):
         for decision in ("continue", "approve"):
             with self.subTest(decision=decision):
                 gate = {"decision": decision, "text": f"保留: {FORK['key']}", "asked": [gatemarks.ask_text(FORK)]}
-                _, text, _ = self.build(returns, gates={"gate-before-fix": gate})
+                _, text, _ = self.build(returns, gates={"before-fix-answer": gate})
                 self.assertIn("修正前の問い 1 件", text.splitlines()[4])
                 body = self.section(text, report.DECISIONS_HEADING)
                 self.assertIn("- 修正前の問い: 1 件\n", body)
@@ -2005,7 +2029,7 @@ class LedgerCase(Base):
         """通す語の答えが asked に載せた台帳の問いは、答えた問いの行に台帳の 1 行だけで出し、事前審査の行として重ねない"""
         returns = self.returns(FORK, review=[gatemarks.ask_text(FORK)])
         gate = {"decision": "approve", "text": "", "asked": [gatemarks.ask_text(FORK)]}
-        _, text, _ = self.build(returns, gates={"gate-before-fix": gate})
+        _, text, _ = self.build(returns, gates={"before-fix-answer": gate})
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertNotIn("- 修正前の問い:", body)   # 0 件の種は出さない（#383 の項目 9）。答えた問いは数えない
         self.assertEqual(body.count(gatemarks.ANSWERED_HEAD), 1, body)
@@ -2017,9 +2041,9 @@ class LedgerCase(Base):
         在り、問いは答えたものとして扱う（直す義務は変えない）"""
         gate = {"decision": "continue", "text": "保留: q-typo", "asked": [gatemarks.ask_text(FORK)]}
         returns = self.returns(FORK)
-        state = runreport.ledger_state(returns, {"gate-before-fix": gate}, {"run_id": RUN})
+        state = runreport.ledger_state(returns, {"before-fix-answer": gate}, {"run_id": RUN})
         self.assertEqual(state["held"], [])
-        lines, _ = runreport._decisions(returns, {"gate-before-fix": gate}, {"run_id": RUN}, "fixed", [], closed=True,
+        lines, _ = runreport._decisions(returns, {"before-fix-answer": gate}, {"run_id": RUN}, "fixed", [], closed=True,
                                           beside=runreport.fix_beside(returns), exit_=runreport.rejudge_exit(returns))
         row = next(x for x in lines if "読めなかった保留" in x)
         self.assertIn("「保留: q-typo」", row)
@@ -2064,7 +2088,7 @@ class LedgerCase(Base):
     def test_answered_but_unit_gone_is_held(self):
         returns = self.returns(FORK, units=[], review=[gatemarks.ask_text(FORK)])
         gate = {"decision": "continue", "text": "", "asked": [gatemarks.ask_text(FORK)]}
-        state = runreport.ledger_state(returns, {"gate-before-fix": gate}, {"run_id": RUN})
+        state = runreport.ledger_state(returns, {"before-fix-answer": gate}, {"run_id": RUN})
         self.assertEqual(state["held"], [(None, gatemarks.unreturned_line(FORK["key"], FORK_UNIT))])
 
     def test_material_answer_lines(self):
@@ -2139,7 +2163,7 @@ class LinesCase(Base):
         eyes = {**fixed_run()["eyes"], "protected_hits": ["ci/deploy.yml"]}
         seal = {"mode": "seal", "ok": True, "protected_hits": ["ci/deploy.yml"]}
         apply_ = {"mode": "apply", "ok": False, "reason": "hash が封じた物と違う"}
-        _, text, decided = self.build(fixed_run(eyes=eyes, **{"merge-seal": seal, "merge-apply": apply_}))
+        _, text, decided = self.build(fixed_run(eyes=eyes, **{"sealed-diff": seal, "applied-diff": apply_}))
         self.assertEqual(decided, ("stopped_by_line", "merge-apply:not-ok"))
         self.assertIn("守りのパスに当たった差分 1 件", text.splitlines()[4])
         self.assertIn("merge-apply が ok でない: hash が封じた物と違う", self.section(text, report.STOP_HEADING))
@@ -2153,15 +2177,15 @@ class LinesCase(Base):
 
     def test_seal_not_ok_says_why(self):
         seal = {"mode": "seal", "ok": False, "reason": "指紋が今の作業ツリーと違う"}
-        _, text, decided = self.build(fixed_run(**{"merge-seal": seal, "merge-apply": None}))
+        _, text, decided = self.build(fixed_run(**{"sealed-diff": seal, "applied-diff": None}))
         self.assertEqual(decided, ("stopped_by_line", "merge-seal:not-ok"))
         self.assertIn("merge-seal が ok でない: 指紋が今の作業ツリーと違う", self.section(text, report.STOP_HEADING))
-        _, text, _ = self.build(fixed_run(**{"merge-seal": {"mode": "seal", "ok": False}, "merge-apply": None}))
+        _, text, _ = self.build(fixed_run(**{"sealed-diff": {"mode": "seal", "ok": False}, "applied-diff": None}))
         self.assertIn("merge-seal が ok でない: 訳の記録が無い", self.section(text, report.STOP_HEADING))
 
     def test_where_lists_sealed_and_applied_diff(self):
-        merge = {"merge-seal": {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"},
-                 "merge-apply": {"mode": "apply", "ok": True, "diff": "merge/apply.diff"}}
+        merge = {"sealed-diff": {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"},
+                 "applied-diff": {"mode": "apply", "ok": True, "diff": "merge/apply.diff"}}
         _, text, _ = self.build(fixed_run(**merge))
         body = self.section(text, report.WHERE_HEADING)
         self.assertIn("- 封じた差分（merge-seal.diff）: merge/sealed.diff", body)
@@ -2270,14 +2294,14 @@ class LinesCase(Base):
     def test_entry_lists_ran_and_skipped_stages_and_baseline(self):
         """入口の節に走った段・飛ばされた段・直す前のテストの色と赤の原因（元 report.py の入口の行）"""
         base = {"mode": "base", "ok": True, "green": False, "red_cause": "inherited"}
-        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        _, text, _ = self.build(fixed_run(**{"before-tests": base}))
         body = self.section(text, report.ENTRY_HEADING)
         self.assertIn("- 走った段: test-gate-base・judge・plan・", body)
         self.assertIn("- 飛ばされた・出力の無い段: rejudge・replan・replan-review\n", body)
         self.assertIn("直す前のテスト: 赤", body)
         self.assertIn("赤の原因 inherited", body)
 
-        _, text, _ = self.build(fixed_run(**{"test-gate-base": None}))
+        _, text, _ = self.build(fixed_run(**{"before-tests": None}))
         body = self.section(text, report.ENTRY_HEADING)
         self.assertNotIn("直す前のテスト", body)
         self.assertIn("- 飛ばされた・出力の無い段: test-gate-base・rejudge・replan・replan-review", body)
@@ -2313,7 +2337,7 @@ class LinesCase(Base):
                 "final_reasons": ["守りのパスに当たった差分が在る"], "prior_failures": prior,
                 "stops": {"ask-final": stopby.NEEDS_HUMAN}}
         fix = {**fixed_run()["fix"], "replan_items": ["1"], "refixed": True}
-        _, text, decided = self.build(fixed_run(fix=fix, **{"merge-apply": None}), line=line)
+        _, text, decided = self.build(fixed_run(fix=fix, **{"applied-diff": None}), line=line)
         self.assertEqual(decided, ("needs_human", f"ask-final:{stopby.NEEDS_HUMAN}"))
         decisions = self.section(text, report.DECISIONS_HEADING)
         self.assertIn(f"- {runreport.DEFERRED_HEAD}: 1 件\n  - [fork] u1: どちらに寄せるか\n", decisions)
@@ -2429,7 +2453,7 @@ class LinesCase(Base):
         again = self.put("replan-review/review.json", {})
         self.put(f"replan-review/{gatemarks.PLAN_GATE_FILE}", {"items": [], "converge": ["事前審査の壁打ち: 1 往復・抜け方は block が消えた"]})
         returns = fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review},
-                               "replan-review": {**fixed_run()["plan-review"], "review": again}})
+                               "replan-review-result": {**fixed_run()["plan-review"], "review": again}})
         _, text, _ = self.build(returns)
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn("\n".join([f"- {head}", *rounds[1:]]) + "\n", body)
@@ -2450,7 +2474,7 @@ class LinesCase(Base):
                "conflicts": self.put("fix/conflicts.json", {"items": []})}
         gate = {"decision": "continue", "text": "", "asked": ["項目 1: 約束の欄が変わった（allowed_paths）"]}
         widened = ["項目 4: " + replan.widen_text({"allowed_paths": ["b.py"]})]
-        _, text, _ = self.build(fixed_run(fix=fix), gates={"gate-replan": gate}, line={"widened": widened})
+        _, text, _ = self.build(fixed_run(fix=fix), gates={"replan-answer": gate}, line={"widened": widened})
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn(f"- {replan.AMEND_HEAD}: 3 件\n  - 案の項目 1: 直した——人が承認した\n"
                       "  - 案の項目 2: 直した——聞かずに通した（手段の欄だけ）\n"
@@ -2461,7 +2485,7 @@ class LinesCase(Base):
         stop = {"decision": "stop", "text": "範囲が違う", "asked": []}
         fix = {**fix, "replan_items": ["5"]}
         self.assertIn("  - 案の項目 5: 直さずに諦めた: 人が承認ノード gate-replan で run を止めた: 範囲が違う\n",
-                      self.section(self.build(fixed_run(fix=fix), gates={"gate-replan": stop})[1], report.DECISIONS_HEADING))
+                      self.section(self.build(fixed_run(fix=fix), gates={"replan-answer": stop})[1], report.DECISIONS_HEADING))
         self.assertEqual(replan.amend_lines(["5"], refixed=False, pending=True), [f"案の項目 5: {outcome.PENDING_WHY}"])
         self.assertNotIn(replan.AMEND_HEAD, self.build()[1])
 
@@ -2491,7 +2515,7 @@ class LinesCase(Base):
         決めた人（関所の答えの数）と、forge の無い対象では並行 PR の確かめが条件外の 1 行"""
         import entry
         start = {"run_id": RUN, "thickness": "軽量", entry.FEATURES_KEY: ["world"], entry.FEATURES_ON_KEY: []}
-        gates = {"gate-start": {"decision": "approve", "text": "", "asked": []}}
+        gates = {"start-answer": {"decision": "approve", "text": "", "asked": []}}
         _, text, _ = self.build(start=start, gates=gates)
         body = self.section(text, report.ENTRY_HEADING)
         self.assertIn(f"- 段: 軽量・{entry.features_part(['world'], [])}\n", body)
@@ -2528,32 +2552,32 @@ class LinesCase(Base):
         報告に bin/apply <run-id> の行を出し、関所で止めた run には止まりの 1 行（結末の語・止めた所・人の一言）と --allow-stopped の
         要ることを出す。どちらも生の git apply の行を出さない"""
         seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
-        _, text, _ = self.build(fixed_run(**{"merge-seal": seal_ok}))
+        _, text, _ = self.build(fixed_run(**{"sealed-diff": seal_ok}))
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn(f"- {runreport.APPLY_HEAD}: bin/apply {RUN}（", body)
         self.assertNotIn("git apply", text)
         stop = {"decision": "stop", "text": "範囲が広すぎる", "asked": []}
-        _, text, _ = self.build(fixed_run(**{"merge-seal": seal_ok, "merge-apply": None}), gates={"gate-final": stop})
+        _, text, _ = self.build(fixed_run(**{"sealed-diff": seal_ok, "applied-diff": None}), gates={"final-answer": stop})
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn("- 止まった run: 人が承認ノードで止めた（gate-final:stop）で止まった: 「範囲が広すぎる」", body)
         self.assertIn(f"- {runreport.APPLY_HEAD}: bin/apply {RUN} --allow-stopped（", body)
         self.assertNotIn("git apply", text)
-        _, text, _ = self.build(fixed_run(**{"merge-seal": None, "merge-apply": None, "eyes": None}))
+        _, text, _ = self.build(fixed_run(**{"sealed-diff": None, "applied-diff": None, "eyes": None}))
         self.assertIn(f"- {runreport.APPLY_HEAD}: 無い（差分を封じていない）", self.section(text, report.DECISIONS_HEADING))
 
     def test_head_says_whether_to_apply(self):
         """#660: 冒頭の 2 行目は差分を当ててよいかを、bin/apply の打ち方（apply_said が _apply_lines と同じ道で決める）と結末・人が決める
         物の件数で言う"""
         seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
-        cases = ((fixed_run(**{"merge-seal": seal_ok}), {}, f"当ててよい（bin/apply {RUN}）"),
-                 (fixed_run(**{"merge-seal": seal_ok, "merge-apply": None}), {"gate-final": {"decision": "stop", "text": "x"}},
+        cases = ((fixed_run(**{"sealed-diff": seal_ok}), {}, f"当ててよい（bin/apply {RUN}）"),
+                 (fixed_run(**{"sealed-diff": seal_ok, "applied-diff": None}), {"final-answer": {"decision": "stop", "text": "x"}},
                   f"差分を置かずに止まった run。止めた訳を確かめてから当てる（bin/apply {RUN} --allow-stopped）"),
-                 (fixed_run(**{"merge-seal": None, "merge-apply": None}), {}, "当てる差分が無い（差分を封じていない）"))
+                 (fixed_run(**{"sealed-diff": None, "applied-diff": None}), {}, "当てる差分が無い（差分を封じていない）"))
         for returns, gates, said in cases:
             with self.subTest(said=said):
                 _, text, _ = self.build(returns, gates=gates)
                 self.assertEqual(text.splitlines()[3], runreport.APPLY_ASK + said)
-        self.assertEqual(runreport.apply_said(fixed_run(**{"merge-seal": seal_ok}), "round_limit", RUN, 0),
+        self.assertEqual(runreport.apply_said(fixed_run(**{"sealed-diff": seal_ok}), "round_limit", RUN, 0),
                          f"確かめてから当てる（結末が「{report.OUTCOME_WORDS['round_limit']}」。bin/apply {RUN}）")
 
     def test_tests_head_lines_and_deleted_files(self):
@@ -2562,11 +2586,11 @@ class LinesCase(Base):
         超える分は件数と封じた差分のパスで出す"""
         import declared_checks
         import seal
-        final = {**fixed_run()["test-gate-final"], "by": "role_needed", "suites_line": "一式: 任せ先の申告", "log": "/tmp/ci.log",
+        final = {**fixed_run()["final-tests"], "by": "role_needed", "suites_line": "一式: 任せ先の申告", "log": "/tmp/ci.log",
                  "baseline_line": "修正前のテスト: 赤（段ごとの終了コード {\"suite\": 1}）——最後のテストの赤は修正前から在りうる", "reason": ""}
         diff = self.put("merge/sealed.diff", "diff --git a/old.py b/old.py\ndeleted file mode 100644\n--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n")
-        returns = fixed_run(**{"test-gate-final": final,
-                               "merge-seal": {"mode": "seal", "ok": True, "diff": diff}})
+        returns = fixed_run(**{"final-tests": final,
+                               "sealed-diff": {"mode": "seal", "ok": True, "diff": diff}})
         _, text, _ = self.build(returns)
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn("- 最後のテストの一式: role_needed・一式: 任せ先の申告・ログ /tmp/ci.log\n", body)
@@ -2581,7 +2605,7 @@ class LinesCase(Base):
         names = [f"gen/{i}.o" for i in range(20000)]
         diff = self.put("merge/sealed.diff", "".join(f"diff --git a/{n} b/{n}\ndeleted file mode 100644\n--- a/{n}\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n"
                                                       for n in names))
-        _, text, _ = self.build(fixed_run(**{"merge-seal": {"mode": "seal", "ok": True, "diff": diff}}))
+        _, text, _ = self.build(fixed_run(**{"sealed-diff": {"mode": "seal", "ok": True, "diff": diff}}))
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertLessEqual(len(body.splitlines()), 40, body[:2000])
         self.assertLess(len(body), 6000)

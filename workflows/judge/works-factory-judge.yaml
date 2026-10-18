@@ -2271,6 +2271,10 @@ nodes:
               ok: {type: boolean}
               done: {type: boolean}
               reason: {type: string}
+  # with: の optional は、この判定のブロックが落ちても線が先へ進めてよい節の宣言（世界の解の段・run の頭の深さの段。落ちても判定は標準で進む）。
+  # [{node, bare}] の JSON の字で、node は自分の中の節の id かその頭（区切り - で終わる物は頭）、bare はループの中の節で、記録の step に
+  # include の前付けの無い素の id で載るか。線は返りの欄 optional を受け皿で受け、include の id の頭を付けて報告へ渡す。
+  # 再審も同じブロックの差し込みなので同じ宣言を使う（head-depth-prep は when で再審では飛ぶ）
   - id: verdict
     script: verdict
     runtime: uv
@@ -2278,6 +2282,8 @@ nodes:
     depends_on: [intake, spec-freeze, diagnose-loop, verify-merge, rejudge-loop, pr-check-reads, head-depth-loop]
     trigger_rule: all_done
     mutates_checkout: false
+    with:
+      optional: '[{"node": "world-", "bare": false}, {"node": "world-classes", "bare": true}, {"node": "world-classes-", "bare": true}, {"node": "world-judge", "bare": true}, {"node": "world-judge-", "bare": true}, {"node": "head-depth-", "bare": false}, {"node": "head-depth", "bare": true}, {"node": "head-depth-", "bare": true}]'
     output_format:
       type: object
       additionalProperties: false
@@ -2285,6 +2291,7 @@ nodes:
                  premises, verify, pr_excluded, materials, purpose_review, depth_record, decisions, answer_ties, review_lenses,
                  pr_drafts, rejudge_exit, rejudge_diff, purpose_means, world_state]
       properties:
+        optional: {type: array}
         depth:
           type: string
           enum: [軽量, 標準, 重厚]
