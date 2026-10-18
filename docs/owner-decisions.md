@@ -388,6 +388,7 @@
   - issue #555 の本文の「commit の題と本文を報告の冒頭から作る」「PR の本文に報告の冒頭と報告の在りかを載せる」のうち、報告の冒頭は外す。報告は merge の後のサブグラフ report が書くので、commit と PR の時にはまだ無い。commit の題は run の id から、本文は照らしの結果の要約と報告の在りか（run の id から組める `workflow get <run>` の出力の report）で満たす。PR の題と本文は prepare（AI）が決めるので、commit の文から何を載せるかは縛れない。
   - PR の向け先の repo と base も prepare が決めるので縛れない。読み戻し `pr-read` が repo・head の repo（origin の URL から決めた物）・head の枝・base の枝（origin の既定の枝）・head の版を照らし、違えば・子の run が落ちれば、報告は「PR を作ったと確かめられなかった」と言う（push や PR の作成は済んでいるかもしれないので、作らなかったとは言わない）。
   - `pr-commit` は対象の commit のフックを飛ばさない（#575 で push のフックを飛ばす処理を退けたのと同じ向き）。フックは対象のコマンドなので、PATH の頭に読むだけの gh の口を置いて走らせ、落ちれば積まずに止める。
+  - #569 で、`pr-commit` は 1 つの commit でなく修正案の項目ごとの commit を依存の順で積む（分けられない時と、項目ごとの commit でフックが落ちた時は 1 つの commit に積み直し、その訳を報告に出す。1 つでも落ちれば止める）。
 - 当て方: 根の `AGENTS.md` の E8 の外し（`workflow:` で呼んでよい Archon 同梱のグラフは `archon-pr` だけ）・`workflows/AGENTS.md` の E17・`workflows/merge/` の `pr-commit`・`pr-open`・`pr-read`・`bin/_lib/launcher.py` と `workflows/.shared/fence.py` の役の PATH の頭・`lib/tree_run.py` の `outside_env` の対象のコマンドの PATH の頭。形が版の上げで崩れたら `tests/shared/test_archon_contract.py` の `ArchonPrTest` が赤。
 
 ### `readme-english` 根の README.md は英語の 1 版だけにする

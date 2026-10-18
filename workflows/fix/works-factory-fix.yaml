@@ -1551,7 +1551,7 @@ nodes:
       additionalProperties: false
       required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, x_scalars, delta_review,
                  handoffs, mismatched, plan_declared, stop_reason, allowed_tests, accept_trace, lenses, closure, delta_holes, tdd_unit,
-                 removed, tdd_refused]
+                 removed, tdd_refused, item_claims]
       properties:
         optional: {type: array}
         done: {type: boolean}
@@ -1662,4 +1662,31 @@ nodes:
           required: [refused, unread]
           properties:
             refused: {type: array, items: {type: string}}
+            unread: {type: array, items: {type: string}}
+        # 出口の語 pr の run が差分を修正案の項目ごとの commit に分ける記録（lib/itemcommits.py の record。組の子の形は null）
+        item_claims:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [items, claims, unread]
+          properties:
+            items:
+              type: [array, "null"]
+              items:
+                type: object
+                additionalProperties: false
+                required: [item, unit_keys, approach, after]
+                properties:
+                  item: {type: integer}
+                  unit_keys: {type: array, items: {type: string}}
+                  approach: {type: string}
+                  after: {type: array, items: {type: integer}}
+            claims:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [unit_key, files]
+                properties:
+                  unit_key: {type: string}
+                  files: {type: array, items: {type: string}}
             unread: {type: array, items: {type: string}}

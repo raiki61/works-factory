@@ -664,7 +664,9 @@ class ChainScenariosTest(unittest.TestCase):
         trace = self.traces["deliver-pr"]
         self.assertEqual(bound(trace, NODES["round-1"]["with"]["deliver"]), "", "周の子は PR を作らない")
         self.assertEqual(self.out("deliver-pr", "result")["deliver"],
-                         {"act": "pr", "pr": {"number": 9, "url": "https://github.com/owner/repo/pull/9", "is_draft": True}, "reason": ""})
+                         {"act": "pr", "pr": {"number": 9, "url": "https://github.com/owner/repo/pull/9", "is_draft": True}, "reason": "",
+                          "commits": [], "split": "作業ツリーに積む変更が無い（封じた差分は既に枝の commit に在る）"},
+                         "周の commit が積んだ枝は、項目ごとに積み直さない")
 
     def test_rounds_reached_skips_the_next_round(self):
         self.assertEqual(self.out("rounds-reached", "round-2-decide")["word"], "rounds_reached")

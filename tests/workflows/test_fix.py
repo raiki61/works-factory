@@ -42,7 +42,8 @@ import runreport  # noqa: E402
 
 PORT_FIELDS = {"allowed_tests", "accept_trace", "lenses", "closure", "delta_holes", "tdd_unit", "removed", "tdd_refused"}
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
-                   "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "plan_declared", "stop_reason", *PORT_FIELDS}
+                   "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "plan_declared", "stop_reason", "item_claims",
+                   *PORT_FIELDS}
 CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "answer_ties", "materials", "depth_record", "plan", "fix_plan", "ripple",
                    "depth", "head_depth", "answers", "prior_conflicts", "plan_review", "notes", "reuse_dir", "user_env_dir"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
@@ -164,6 +165,10 @@ class ContractCase(unittest.TestCase):
         self.assertEqual(props["changed"]["properties"]["premise_drift_note"], {"type": "string"})
         self.assertEqual(props["x_scalars"], {"type": "object"})
         self.assertEqual(set(props["delta_review"]["required"]), {"rounds", "pass"})
+        claims = props["item_claims"]
+        self.assertEqual((claims["type"], set(claims["required"])), (["object", "null"], {"items", "claims", "unread"}))
+        self.assertEqual(set(claims["properties"]["items"]["items"]["required"]), {"item", "unit_keys", "approach", "after"})
+        self.assertEqual(set(claims["properties"]["claims"]["items"]["required"]), {"unit_key", "files"})
         for name in ("replan_items", "allowed_test_changes", "handoffs", "mismatched", "plan_declared"):
             self.assertEqual(props[name]["items"], {"type": "string"})
         self.assertEqual(props["objection"], {"type": "string"})
@@ -2004,6 +2009,24 @@ class BlockScriptsCase(unittest.TestCase):
         diff = self.art / out["diff"]["path"]
         self.assertIn("stats.py", diff.read_text(encoding="utf-8"))
         self.assertEqual(out["diff"]["run_id"], _BLK_RUN)
+
+    def test_collect_returns_the_item_claims_of_the_returned_groups(self):
+        """#569: 返す節の欄 item_claims は、戻せた組の子の修正役の返答の changes[].files と TDD の輪の単位の test_files を単位ごとに
+        並べる（出口の語 pr が項目ごとの commit に分ける記録。承認済みの修正案の無い置き場は items が null）。返答を読めなければ訳"""
+        reply = self.tmp / "g1-reply.json"
+        _blk_write(reply, {"changes": [{"unit_key": "A", "files": [str(self.repo / "stats.py")]}]})
+        tdd = {"ran": True, "reason": "", "suite": "run.sh", "units": [{"unit_key": "A", "test_files": ["test_stats.py"]}]}
+        self.collect_place(result_extra={"reply_file": str(reply), "tdd": tdd})
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual(out["item_claims"], {"items": None, "unread": [],
+                                              "claims": [{"unit_key": "A", "files": ["stats.py"]},
+                                                         {"unit_key": "A", "files": ["test_stats.py"]}]})
+        reply.unlink()
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertIn("組 g1 の修正役の返答", out["item_claims"]["unread"][0])
 
     def test_collect_returns_the_beside_records_as_ports(self):
         """#681: 返す節は、ほかのブロックとメイングラフが読む diff の隣の控えを欄で返す（fixbeside.PORTS の欄は先のポインタ、先が

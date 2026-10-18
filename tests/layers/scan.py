@@ -1530,7 +1530,7 @@ CHANGE_CHECKOUT = {
     ("fix", "refix-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("fix", "refix2-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("test-gate", "run"): "対象のテストを作業ツリーで走らせる（declared_checks.run_ci）",
-    ("merge", "pr-commit"): "出口の語 pr の時に、照らした差分を run の枝へ 1 つの commit で積む（index と HEAD を変える。runbranch.commit）",
+    ("merge", "pr-commit"): "出口の語 pr の時に、照らした差分を run の枝へ修正案の項目ごとの commit で積む（index と HEAD を変える。runbranch.commit・commit_parts）",
     **{("chain", f"round-{k}-commit"): "周の結果を親の run の枝へ commit する（index と HEAD を変える）" for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 # 役の節に要る鍵（K18。元 works/tests/test_yaml_rules.py の決まり）: settingSources: [user]・閉じた sandbox・道具の表の中の allowed_tools
