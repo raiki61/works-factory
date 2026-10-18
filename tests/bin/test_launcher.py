@@ -442,8 +442,8 @@ class LauncherTest(unittest.TestCase):
         readme = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
         self.assertIn(launcher.TARGET_ENV_NOTICE, readme)
         self.assertNotIn("WORKS_FACTORY_TARGET_USER_ENV", readme)
-        section = readme.split("### test_cmd と作業ツリー\n", 1)[1].split("\n#", 1)[0]
-        for word in ("`setup`", ".review-checks.json", "`suite`", ".gitignore", "`test_cmd` だけの対象"):
+        section = readme.split("### test_cmd and worktrees\n", 1)[1].split("\n#", 1)[0]
+        for word in ("`setup`", ".review-checks.json", "`suite`", ".gitignore", "target with only `test_cmd`"):
             self.assertIn(word, section)
 
     def test_run_layer_carries_answer_head(self):
@@ -856,7 +856,7 @@ class LauncherTest(unittest.TestCase):
 
 
 class ReadmeUsageTest(unittest.TestCase):
-    """#495: README の「使い方」が、依頼のファイルの形（例が入口の照らしを通る）・test_cmd・作業ツリーの起点を書き、殻の案内が
+    """#495: README の「Usage」が、依頼のファイルの形（例が入口の照らしを通る）・test_cmd・作業ツリーの起点を書き、殻の案内が
     指すセクションの名が見出しに在る"""
     README = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
 
@@ -871,7 +871,7 @@ class ReadmeUsageTest(unittest.TestCase):
             sys.path.append(lib)
         import carry
         import entry
-        [example] = [block.split("\n", 1)[1] for block in self.section("依頼のファイル").split("```")[1::2]
+        [example] = [block.split("\n", 1)[1] for block in self.section("Request file").split("```")[1::2]
                      if block.startswith("json\n")]
         parts = carry.parts(json.loads(example))
         self.assertTrue(parts[carry.FINDINGS])
@@ -879,11 +879,11 @@ class ReadmeUsageTest(unittest.TestCase):
 
     def test_test_cmd_and_start_point_are_documented(self):
         from lib import testcmd_check
-        self.assertIn("「test_cmd と作業ツリー」", testcmd_check.HOW)
-        test_cmd = self.section("test_cmd と作業ツリー")
+        self.assertIn("「test_cmd and worktrees」", testcmd_check.HOW)
+        test_cmd = self.section("test_cmd and worktrees")
         for word in ("--input test_cmd=", testcmd_check.ALLOW_ENV, "止める（test_cmd）", "注意（test_cmd）"):
             self.assertIn(word, test_cmd)
-        start = self.section("作業ツリーの起点")
+        start = self.section("Worktree start point")
         for flag in ("--from", "--from-branch", "--base", "--branch", "--no-worktree", "--adopt"):
             self.assertIn(f"`{flag}", start)
 
