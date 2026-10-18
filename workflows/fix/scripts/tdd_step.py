@@ -52,7 +52,7 @@ def main() -> dict:
     state = started["state_file"]
     hits = fixboard.judge_query(place)
     log = writelog.log_here()
-    boundary.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
+    boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
     out = tddloop.step(state, reply, repo, try_query=hits, log=log)
     tddloop.flush_unsent(state, lambda rows: conflict.park_claims(place, rows))
     reason_file = ""

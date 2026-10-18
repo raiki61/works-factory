@@ -16,7 +16,7 @@ import judge_accept as ja  # noqa: E402
 
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 jdir.mkdir(parents=True, exist_ok=True)
-boundary.aim_user_env()   # 受け入れ条件のコマンドを利用者の HOME・XDG に戻せば、メイングラフの run の置き場に印が残る
+boundary.aim_user_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 受け入れ条件のコマンドを利用者の HOME・XDG に戻せば、入力の置き場に印が残る
 try:
     got = ja.spec_answer(jdir, Path.cwd(), boundary.value(os.environ.get("INPUTS_ANSWER")))
 except Exception as e:  # 固められない誤りは仕様の止めにする

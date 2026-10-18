@@ -309,12 +309,6 @@ def _write_json(path, doc) -> pathlib.Path:
     return jsonfile.write(path, doc, parents=True)
 
 
-def _sibling(pointed, name: str):
-    """指し札の先のファイルの横の name（無ければ None）"""
-    p = pathlib.Path(pointed).parent / name
-    return p if p.is_file() else None
-
-
 def _existing(path):
     """在るファイルのパス（None・無ければ None）"""
     return pathlib.Path(path) if path is not None and pathlib.Path(path).is_file() else None
@@ -447,12 +441,13 @@ def _request(start: dict | None) -> tuple:
 
 
 # ---------------------------------------------------------------- 差し込みの頭
-def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=None, start=None, answers=None,
+def open_pass(folder, *, cwd, judgment, purpose, plan, fix_plan, structure, ripple, world=None, start=None, answers=None,
               ruling=(), conflicts=None, gate_answers=None, round_limit: int | None = None, review_schema: dict,
               design_schema: dict, head_depth: str = "", materials=None, pr_excluded=None, purpose_review=None,
-              decisions=None, purpose_means=None, unread=()) -> dict:
-    """入力の指し札の先を置き場に写し、見え方の材料 OPEN_FILE を置く。judgment・purpose・plan・structure・ripple・world・start・
-    conflicts は指し札の先のパス（world・start・conflicts は null 可）、answers は始めの人の関所の答え・gate_answers は修正前の
+              decisions=None, purpose_means=None, plan_rejects=(), unread=()) -> dict:
+    """入力の指し札の先を置き場に写し、見え方の材料 OPEN_FILE を置く。judgment・purpose・plan・fix_plan（修正案の役の返答）・structure・
+    ripple・world・start・conflicts は指し札の先のパス（world・start・conflicts は null 可）、plan_rejects は計画の周の拒否の行
+    {at, reason, kind?}（往復の行に残す）、answers は始めの人の関所の答え・gate_answers は修正前の
     関所の答え（JSON の値。take_gate_answers）、round_limit は線の往復の輪の安全の上限（max_iterations と同じ数。輪の外で
     回す時は None。止め時の決まりではない: converge.decide）、ruling は裁かれた項目の番号の字（planmarks.handed。番号でない行と
     案の外の番号は訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
@@ -476,7 +471,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     if excluded is not None:
         shutil.copyfile(excluded, d / EXCLUDED_FILE)
     fields = _read_json(plan)
-    fix_plan = _read_json(pathlib.Path(plan).parent / "p2.fix_plan.json")
+    fix_plan = _read_json(fix_plan)
     k = fields["round"]
     form = "replan" if ruling else "review"
     approved = _approved(d) if form == "replan" else None
@@ -520,7 +515,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
         policy.RECORDED_KEY: _recorded(start_doc, frozen, decisions, human_items(answers) + gate_rows),
         "review_schema": review_schema, "design_schema": design_schema,
         "defaults": defaults,
-        "plan_rejects": rolekit.reject_rows(pathlib.Path(plan).parent, planfile.ROLE),
+        "plan_rejects": [r for r in plan_rejects or [] if isinstance(r, dict)],
     }
     b = view(d, inputs)
     if form == "replan":
@@ -576,7 +571,8 @@ def _collect_design(d: pathlib.Path, inputs: dict) -> dict:
     got, _ = design.made(d, b.design_schema)
     design_file = d / design.DESIGN_FILE if got is not None else _write_json(p / design.DESIGN_FILE, {"missing": design.missing(b)})
     return {"pass": True, "stalled": False, "review": review, "design": design_file,
-            "gate_axes": {axis: {"ok": True, "note": ""} for axis in gatemarks.AXES}, "ask_human": False, "questions": []}
+            "gate_axes": {axis: {"ok": True, "note": ""} for axis in gatemarks.AXES}, "ask_human": False, "questions": [],
+            "gave_up": None}
 
 
 def _approved(d: pathlib.Path) -> list | None:
@@ -679,9 +675,9 @@ def _copy_world(d: pathlib.Path, world) -> None:
 
 
 def _copy_structure(d: pathlib.Path, structure) -> None:
-    """構造の目の控えの写し（design_file は写した隣の design.jsonl を指す）"""
+    """構造の目の控えの写し（控えの design_file が指す設計の行を写し、写しの design_file は写した物を指す）"""
     doc = _read_json(structure)
-    rows = _sibling(structure, "design.jsonl")
+    rows = _existing(doc.get("design_file") or None) if isinstance(doc, dict) else None
     dest = d / STRUCTURE_ROWS
     if rows is not None:
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -1080,7 +1076,7 @@ def _at_cap(inputs: dict) -> bool:
 
 
 def _pass_rejects(inputs: dict, p: pathlib.Path) -> list:
-    """往復の行に残す、この往復の拒否の行 {role, at, reason}: 計画の周の拒否（open_pass が plan-fields.json の隣の控えから写した物）と、
+    """往復の行に残す、この往復の拒否の行 {role, at, reason}: 計画の周の拒否（open_pass が入力 plan_rejects から写した物）と、
     この差し込みの事前審査の拒否。拒否の控えは周・差し込みごとに分かれるので、往復ごとに 0 から数え直す（元 planblk.with_converge の
     converge.stash_rejects と rolekit.take_rejects）"""
     return ([{"role": planfile.ROLE, **r} for r in inputs.get("plan_rejects") or []]
@@ -1192,13 +1188,13 @@ def verdict(d: pathlib.Path, inputs: dict) -> types.SimpleNamespace:
 
 
 def collect(folder) -> dict:
-    """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, design, gate_axes, ask_human, questions}。questions の行は
+    """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, design, gate_axes, ask_human, questions, gave_up}。questions の行は
     関所の項目の種類と文 {kind, text}（gatemarks.question_row。線が無人の run で台帳の問いだけを報告へ回し、ほかの種類で止まる）。
     pass・stalled は verdict。受け付けが諦めた往復は諦めた訳を questions に載せる。関所の項目は、形 review なら
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
     文書の変化を足す。聞かずに通した行は pass-<k>/gate-passes.json、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
     GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 replan で受け付けが諦めた時は、裁かれた項目
-    ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置く。返り design に設計の控えを渡したか・無いまま進んだかを
+    ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置き、返りの gave_up にも入れる（ほかの時は None）。返り design に設計の控えを渡したか・無いまま進んだかを
     trace に design.HANDED_OP・MISSING_OP で残す（元 works/.shared/core/design.py の hand）。形 design（直す物が無い周）は _collect_design"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
@@ -1208,15 +1204,16 @@ def collect(folder) -> dict:
     p, review, gave, b = v.pass_dir, v.review, v.gave, v.board
     items = gatemarks.plan_gate_items(b) if inputs["form"] == "review" else replan_asks(d, p, inputs, review)
     questions = _asked(d, inputs, items)
+    gave_up = None
     if gave:
         questions.append(gatemarks.question_row(gatemarks.GIVEN_UP_KIND, GIVEN_UP_FACES + gave))
         if inputs["form"] == "replan":
             why = planblk.REVIEW_GAVE_UP_WHY.format(reason=gave)
-            _write_json(p / planblk.REPLAN_GAVE_UP_FILE,
-                        [{"item": r["item"], "why": why, "ruling": planfile.ruling_text(r.get("rows") or [])}
-                         for r in inputs.get("replan_items") or []])
+            gave_up = [{"item": r["item"], "why": why, "ruling": planfile.ruling_text(r.get("rows") or [])}
+                       for r in inputs.get("replan_items") or []]
+            _write_json(p / planblk.REPLAN_GAVE_UP_FILE, gave_up)
     return {"pass": v.ok, "stalled": v.stalled, "review": p / REVIEW_FILE, "design": _settled(d, p, b, items),
-            "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions}
+            "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions, "gave_up": gave_up}
 
 
 def _asked(d: pathlib.Path, inputs: dict, items: list) -> list:

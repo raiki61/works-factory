@@ -66,7 +66,6 @@ import marks  # noqa: E402
 import oneline  # noqa: E402
 import outcome as oc  # noqa: E402
 import outpurpose  # noqa: E402
-import planblk  # noqa: E402
 import planmarks  # noqa: E402
 import prcheck  # noqa: E402
 import promptsection  # noqa: E402
@@ -137,7 +136,6 @@ GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
 REPLAN_GAVE_UP_WHERE = "案の直しを終えられなかった項目 {item}"
 STOPPED_WHERE = "止めた段"                     # 前の失敗の、止めの語で止めた段の行（元 accept-last.json の ok でない行の代わり）
-FIX_PLAN = "p2.fix_plan.json"                 # 計画の隣の修正案の役の返答（関所の決め手の欄つき）
 HYPOTHESIS = "仮説"                           # 前提の役が実測でなく仮説で書いた制約の kind
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
@@ -150,8 +148,10 @@ FINAL_REASONS_HEAD = "最後の承認ノードを開ける理由（無人の run
 PRIOR_IN_HEAD = "依頼が運んだ前の run の失敗（prior_failures）"
 NO_REDEPTH = "直した後の深さの上げ直しの出力が無い（上げ直しのノードが走っていない）。計画の深さのまま"
 NO_REJECT = "受け付けの最後の拒否の控えが置き場に無い"
-# 止めた段の拒否の控えを探す置き場（段の返りの指し札の欄。指し札の先と同じフォルダの下に受け付けが拒否を残す）
-REJECT_PLACES = {"judge": "judgment", "rejudge": "judgment", "plan": "plan", "replan": "plan", "plan-review": "review",
+# 止めた段の拒否の控えを探す置き場（段の返りの指し札の欄。指し札の先と同じフォルダの下に受け付けが拒否を残す）。計画（PLAN_RETURNS）は
+# 返りの欄 rejects で拒否の行を返す
+PLAN_RETURNS = ("plan", "replan")
+REJECT_PLACES = {"judge": "judgment", "rejudge": "judgment", "plan-review": "review",
                  "replan-review-result": "review", "fix": "diff", "before-tests": "evidence", "final-tests": "evidence",
                  "eyes": "structure_after", "sealed-diff": "diff", "applied-diff": "diff"}
 RESIDUE_HEAD = "残り"   # 元 always_rows の残りの件数の行（結末に依らず 0 件も）
@@ -198,12 +198,6 @@ def _ret(returns: dict, rid: str) -> dict:
     return as_dict(oc.latest(returns, rid))
 
 
-def _beside(returns: dict, rid: str, field: str, name: str) -> pathlib.Path | None:
-    """段の返りの指し札の先と同じフォルダの name（指し札が無ければ None）"""
-    p = _ret(returns, rid).get(field)
-    return pathlib.Path(p).with_name(name) if isinstance(p, str) and p else None
-
-
 def _port(returns: dict, rid: str, field: str) -> pathlib.Path | None:
     """段の返り（後の段の返りが在ればそちら）の欄 field の指し札の先（開けたファイルのパス。null・開けなければ None）"""
     p = _ret(returns, rid).get(field)
@@ -235,19 +229,14 @@ def eyes_skip(line):
 
 
 def fix_beside(returns: dict) -> dict:
-    """修正の段ごとの diff の隣の約束のファイルの見え方（fixbeside.read。fix の返りの diffs の先のフォルダ。1 回目と 2 度目の修正）"""
-    return fixbeside.read(oc.fix_folders(returns))
+    """修正の段ごとの返りの控えの欄の見え方（fixbeside.read。fix の返りの records の欄の先。1 回目と 2 度目の修正）"""
+    return fixbeside.read(oc.fix_records(returns), pathlib.Path)
 
 
 def eye_notes_dir(returns: dict) -> pathlib.Path | None:
     """独立の目の返り notes（premise-inputs.json）のフォルダ（隣の r4-gate-passes.json・premise-check.json と一緒の約束）。無ければ None"""
     p = as_dict(returns.get("eyes")).get("notes")
     return pathlib.Path(p).parent if isinstance(p, str) and p else None
-
-
-def _read_beside(returns: dict, rid: str, field: str, name: str):
-    """(中身, 読めなかった訳)。指し札が無い・隣のファイルが無ければ (None, "")"""
-    return _read_port(_beside(returns, rid, field, name))
 
 
 # ---------------------------------------------------------------- run の記録
@@ -465,8 +454,8 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
 
 # ---------------------------------------------------------------- 答えの下書き
 def _fix_plan_rows(returns: dict) -> list:
-    """修正案の狭める行 [(文, 決め手の欄の形, 節)]（計画の隣の p2.fix_plan.json の plan[].narrows）"""
-    doc, _ = _read_beside(returns, "plan", "plan", FIX_PLAN)
+    """修正案の狭める行 [(文, 決め手の欄の形, 節)]（計画の返りの欄 fix_plan の先の修正案の役の返答の plan[].narrows）"""
+    doc, _ = _read_port(_port(returns, "plan", "fix_plan"))
     return [(f"修正案 {i + 1} が狭める能力: {n.get('what')}——{n.get('why')}", n, "p2.fix_plan")
             for i, p in enumerate(_list(as_dict(doc).get("plan"))) if isinstance(p, dict)
             for n in _list(p.get("narrows")) if isinstance(n, dict)]
@@ -795,31 +784,30 @@ def next_request(returns: dict, left: list, closed: bool = True, *, beside: dict
 
 
 def _last_reject(returns: dict, rid: str) -> str:
-    """止めた段の受け付けの最後の拒否の本文の 1 句（元 accept-last.json の reason_file の本文。段の返りの指し札の先のフォルダの下を
-    rolekit.last_reject で探す）。無ければ NO_REJECT"""
-    p = as_dict(returns.get(rid)).get(REJECT_PLACES.get(rid, ""))
-    last = rolekit.last_reject(pathlib.Path(p).parent) if isinstance(p, str) and p else ""
+    """止めた段の受け付けの最後の拒否の本文の 1 句（元 accept-last.json の reason_file の本文。計画は返りの欄 rejects の最後の行、ほかの段は
+    段の返りの指し札の先のフォルダの下を rolekit.last_reject で探す）。無ければ NO_REJECT"""
+    got = as_dict(returns.get(rid))
+    if rid in PLAN_RETURNS:
+        rows = [r for r in _list(got.get("rejects")) if isinstance(r, dict)]
+        last = oneline.one_line(rows[-1].get("reason") or "") if rows else ""
+    else:
+        p = got.get(REJECT_PLACES.get(rid, ""))
+        last = rolekit.last_reject(pathlib.Path(p).parent) if isinstance(p, str) and p else ""
     return f"受け付けの最後の拒否: {last}" if last else NO_REJECT
 
 
 def replan_gave_up(returns: dict) -> list:
-    """案の直しを終えられなかった項目ごとの前の失敗の行（計画と事前審査の返りの指し札の隣の planblk.REPLAN_GAVE_UP_FILE。
-    元 works/.shared/core/replan.py の _give_up が待つ行に書いた諦めの訳と、裁定の文を字のまま）。読めない控えはその訳の行"""
-    rows = []
-    for rid, field in (("replan", "plan"), ("replan-review-result", "review")):
-        got, why = _read_beside(returns, rid, field, planblk.REPLAN_GAVE_UP_FILE)
-        if why:
-            rows.append({"where": REPLAN_GAVE_UP_WHERE.format(item="?"), "text": why})
-        rows += [{"where": REPLAN_GAVE_UP_WHERE.format(item=r.get("item")),
-                  "text": oneline.one_line(f"{r.get('why')}。裁定の文: {r.get('ruling')}")}
-                 for r in _list(got) if isinstance(r, dict)]
-    return rows
+    """案の直しを終えられなかった項目ごとの前の失敗の行（案の直しと、その事前審査の返りの欄 gave_up。元 works/.shared/core/replan.py の
+    _give_up が待つ行に書いた諦めの訳と、裁定の文を字のまま）"""
+    return [{"where": REPLAN_GAVE_UP_WHERE.format(item=r.get("item")),
+             "text": oneline.one_line(f"{r.get('why')}。裁定の文: {r.get('ruling')}")}
+            for rid in ("replan", "replan-review-result") for r in _list(as_dict(returns.get(rid)).get("gave_up")) if isinstance(r, dict)]
 
 
 def outcome_facts(start: dict | None, transcript: dict | None, line: dict | None, beside: dict | None = None) -> dict:
     """結末と残りを決める lib/outcome の facts のうち、報告の入力から組む物（1 か所で組み、facts の節の decide_outcome と build の
     residue・前の失敗が同じ物を読む）: 依頼の answers・受け止めた落ち absorbed・メイングラフのノードの止めの語 stops・省いてよい目
-    eyes_skip・段の表 stages と、修正の diff の隣の控え beside（渡せば。無ければ residue が読む）"""
+    eyes_skip・段の表 stages と、修正の段の控えの見え方 beside（渡せば。無ければ residue が読む）"""
     line = as_dict(line)
     out = {"answers": _request_answers(start or {}), "absorbed": as_dict(transcript).get("absorbed"),
            "stops": list(as_dict(line.get("stops")).items()), "eyes_skip": eyes_skip(line), "stages": line.get("stages")}
@@ -1440,7 +1428,7 @@ def _world_lines(returns: dict) -> list:
 
 def _unseen_lens_lines(returns: dict, beside: dict) -> list:
     """未確認のレンズの節（元 report.py:2069-2073: 局所レビューの戻した・見ていないレンズ diverted.report_lines を先に、修正の後の
-    レンズ lens.report_lines を後に。判定の出力の欄 review_lenses の先と、修正の diff の隣の lenses.json）"""
+    レンズ lens.report_lines を後に。判定の出力の欄 review_lenses の先と、修正の段の欄 lenses の先）"""
     at = _first_port(returns, "review_lenses")
     return [*(diverted.report_lines(at) if at is not None else []), *fixbeside.lens_lines(beside)] or ["無い"]
 
@@ -1466,7 +1454,7 @@ def _downgrade_lines() -> list:
 
 
 def _structure_lines(returns: dict) -> list:
-    """構造の目の行（計画の structure の隣の design.jsonl）と、直した後の構造の実測（eyes の structure_after。元 structmark.report_lines）"""
+    """構造の目の行（計画の structure の先の控えの design_file が指す設計の行）と、直した後の構造の実測（eyes の structure_after。元 structmark.report_lines）"""
     sp, ap = _ret(returns, "plan").get("structure"), as_dict(returns.get("eyes")).get("structure_after")
     after_dir = pathlib.Path(ap).parent if isinstance(ap, str) and ap else None
     if isinstance(sp, str) and sp:

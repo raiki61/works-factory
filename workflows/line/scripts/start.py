@@ -14,6 +14,9 @@ fixture.adopt。拒みは AI の前）、始めの記録は写しの物を今の
 fixture.CARRIED（修正の段へ運ぶ値）のポインタ。後ろは直す前のテスト・判定・計画を飛ばし、fix-in がそれを受けて修正から始める。
 
 入力は線の inputs:（環境変数 INPUTS_<名>）。対象のリポジトリは節の作業の置き場（cwd）。
+返りの reuse_dir・user_env_dir はメイングラフの run の共有の置き場（同じ run の中の試験の結果の控え tree_run.reuse_dir と、利用者の
+HOME・XDG に戻して起こした印の置き場＝run の置き場）の絶対パスで、メイングラフが入力でブロックへ渡す。拒んだ run と落ちた返りの
+reuse_dir は空（後ろの節は飛ぶ）。
 """
 import json
 import os
@@ -38,6 +41,7 @@ with boundary.guarded_imports():
     import startrec
     import stopby
     import tddloop
+    import tree_run
     import versions
 
     DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
@@ -226,7 +230,8 @@ def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Pa
             "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
             "final_gate": record[gatepolicy.FINAL_KEY], "spec": bool(record["spec"]),
-            "from_fixture": carried is not None, "fixture": carried}
+            "from_fixture": carried is not None, "fixture": carried, "reuse_dir": str(tree_run.reuse_dir(artifacts)),
+            "user_env_dir": str(artifacts)}
 
 
 def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
@@ -253,7 +258,8 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         record["refused"] = str(error)
         return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
-                "unattended": False, "design_only": False, "final_gate": "", "spec": False, "from_fixture": False, "fixture": None}
+                "unattended": False, "design_only": False, "final_gate": "", "spec": False, "from_fixture": False, "fixture": None,
+                "reuse_dir": "", "user_env_dir": str(artifacts)}
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
@@ -275,7 +281,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
 def fallback(reason: str) -> dict:
     return {"ok": False, "stop_reason": boundary.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
             "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": "", "spec": False, "from_fixture": False,
-            "fixture": None}
+            "fixture": None, "reuse_dir": "", "user_env_dir": os.environ.get("ARTIFACTS_DIR", "")}
 
 
 if __name__ == "__main__":

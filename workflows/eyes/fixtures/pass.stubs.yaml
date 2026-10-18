@@ -15,7 +15,7 @@ fixture:
     fix_units: '[]'
     green_ok: 'true'
     test_outcomes: '{"rows": [{"key": "tests.test_a::test_entry", "base": "failure", "final": "passed", "fail_message": "AssertionError"}], "unmeasured": ""}'
-    diffs: '[{"type": "archon_artifact", "run_id": "dry-run", "path": "fix/fix/fix.diff"}]'
+    records: '[{"diff": {"type": "archon_artifact", "run_id": "dry-run", "path": "fix/fix/fix.diff"}, "tdd_unit": {"type": "archon_artifact", "run_id": "dry-run", "path": "fix/fix/tdd-unit.json"}}]'
   reached:
   - structure-after
   - prep

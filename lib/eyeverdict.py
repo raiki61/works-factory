@@ -12,7 +12,7 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   理由に諦めた訳を足す）。r4_rejects(eyes_dir) は出し直す役に渡す拒否の全部
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
-- tdd_stages(diffs, resolve)・measured_section(test_outcomes, stages): R2 の比較役に貼る機械の実測（試験の関門が返したテストごとの
+- tdd_stages(stages, resolve)・measured_section(test_outcomes, stages): R2 の比較役に貼る機械の実測（試験の関門が返したテストごとの
   base と最後の結末を移り方ごとに全部と、修正の段ごとの TDD のループの記録。測っていない物はそう書く）
 - origin_section(repo, base, head, label, ...): R2 の比較役に貼る累積差分の起点の訳（PR の根か修正前の HEAD か・PR の差分と直しの差分）
 - after_section(eyes_dir, review_folder, plan)・plan_review_line(review_folder, plan): R1・R3 の頭に貼る直しの後の実測の節（外れの訳が
@@ -344,23 +344,15 @@ OUTCOMES_HEAD = "### テストごとの base と最後の結末（試験の関�
 TDD_PROVED_HEAD = "### TDD のループの記録（修正の段ごと。赤→緑を確かめた単位は名指しのテストつき）"
 
 
-def tdd_stages(diffs, resolve) -> list:
-    """修正の段ごとの TDD の記録（fixboard.tdd_units の本文）か読めない訳の並び。diffs は段ごとの diff のポインタの並び（無ければ None）、
-    resolve はポインタを置き場の中のパスに戻す関数（戻せなければ ValueError）。記録の読み手は fixbeside.tdd"""
+def tdd_stages(stages, resolve) -> list:
+    """修正の段ごとの TDD の記録（fixboard.tdd_units の本文）か読めない訳の並び。stages は段ごとの返りの控えの欄の並び（無ければ None）、
+    resolve はポインタを置き場の中のパスに戻す関数。記録の読み手は fixbeside.tdd"""
     import fixbeside
-    if diffs is None:
+    if stages is None:
         return []
-    if not isinstance(diffs, list):
-        return [f"修正の段の diff（diffs）が並びでない（{type(diffs).__name__}）"]
-    out = []
-    for ptr in diffs:
-        try:
-            folder = pathlib.Path(resolve(ptr)).parent
-        except ValueError as e:
-            out.append(f"修正の段の diff（diffs）のポインタが読めない（{oneline.one_line(e)}）")
-            continue
-        out.append(fixbeside.tdd(folder))
-    return out
+    if not isinstance(stages, list):
+        return [f"修正の段の控え（records）が並びでない（{type(stages).__name__}）"]
+    return [fixbeside.tdd(stage, resolve) for stage in stages]
 
 
 def measured_section(test_outcomes, stages: list) -> str:
