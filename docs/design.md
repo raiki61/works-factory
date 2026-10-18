@@ -83,7 +83,7 @@ flowchart TB
 版の止めの正本。ただし Archon の版は書かない。
 
 - Archon の版: ASF の取り付け命令が置いた `factory/pack.json` の `repository`・`integration_revision_required`（40 字の hash）・`source_directory`（源の中の ASF のグラフのフォルダ）が正本。`bin/_lib/pack.py` の `load` がこれを読み、`archon.repo`・`archon.commit`・`asf.folder` として渡す。ASF の取り付け命令が `factory/pack.json` の版を進めれば、自分のグラフを回す Archon も同じ版になる（持ち主の決め `archon-same-as-asf`）。Archon の本体と ASF のグラフの両方をこの源から取る。ただし ASF の consumer（`factory/consumer.py`）が走らせて照らすのはこの値ではなく、`factory init --revision` が `.factory/consumer.json`（git に入れない）に書いた `revision` で、2 つを照らし合わせる物は無い。2026-10-11 にはどちらも `d97d00ef`。
-- `asf`: `committed_here: false` は、ASF のグラフをこのリポジトリに入れないこと（LICENSE が無い）。
+- `asf`: `committed_here: false` は、ASF のグラフをこのリポジトリに入れないこと（字は写さず型だけ採る。`AGENTS.md` の E8）。
 - `ours`: 自分のグラフのフォルダ・Archon に読ませる pack の名（`works-factory`）・名の頭（`works-factory-`）・メイングラフの名。
 
 `bin/`（`bin/_lib/place.py`）は run の時に次を行う。Archon の家（`$ARCHON_HOME/workflows` など）には何も置かない。

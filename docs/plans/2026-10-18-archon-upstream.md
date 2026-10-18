@@ -3,7 +3,7 @@
 ## 冒頭
 
 - 何の話か: works-factory が止めて使う Archon（今は `64ec0c2e`）の後に、upstream（`coleam00/Archon`）の既定の枝 dev は 2026-10-18 の `a972888a` まで 24 commit 進んだ。その 24 commit が埋め・頼っている振る舞い・ASF の型に何をするかを調べ、#659（子の run ごとのモデル）と #671（名指しの会話）の前提を Archon の源で確かめた。issue #636 の本文が挙げた変化（#3961・#4029・#4218・#4220・#4129・#4221・#4179・#4235・#4189・#4188）は、どれも既に止めた版に入っている。
-- 分かったこと: 24 commit は Archon の中のファイルの分け直し（振る舞いを変えない）と ASF の merge queue・審査の直しで、埋め P1〜P14 は塞がらず、壊れもしない。上げると赤になるのは約束の試験の 2 行だけ。#659 が要る「子の run ごとにモデル・effort・設定を替える口」は止めた版にも upstream の頭にも無い。#671 の名指しの会話は、1 つの run の中ではループの周をまたいで続き、待ちで止まった run の resume でも続くが、落ちた run の resume では前の会話を捨てて元のノードから分かれ直し、run をまたいでは（周の鎖の次の周も）続かない。
+- 分かったこと: 24 commit は Archon の中のファイルの分け直し（本文が振る舞いを変えない移しと言う物）と ASF の merge queue・審査の直しで、埋め P1〜P14 は塞がらず、壊れもしない。上げると赤になるのは約束の試験の 2 行だけ。#659 が要る「子の run ごとにモデル・effort・設定を替える口」は止めた版にも upstream の頭にも無い。#671 の名指しの会話は、1 つの run の中ではループの周をまたいで続き、待ちで止まった run の resume でも続くが、落ちた run の resume では前の会話を捨てて元のノードから分かれ直し、run をまたいでは（周の鎖の次の周も）続かない。
 - 読者に求める物: 持ち主に 1 点。推し「`asf-follows-dev` のとおり、別の issue で dev の頭へ上げる（下の手順）。#659 は Archon に口が無いので、周の鎖の作りを変えるかを決め直す」を採るか。
 
 ## 語
@@ -18,7 +18,7 @@
 - 比べた元は止めた版 `64ec0c2e`。本文の `d97d00ef` からの 186 commit は、2026-10-16 の `355f1867` への上げ（#637）と 2026-10-18 の `64ec0c2e` への上げ（#716）で読み、名簿と `docs/design.md` に反映済み（`git log d97d00ef..64ec0c2e` は 273 commit）。本文の挙げた 10 の PR の commit は、どれも `git merge-base --is-ancestor <commit> 64ec0c2e` が真（#3961 `52eb18be8`・#4029 `ca501e324`・#4218 `355f1867a`・#4220 `54ec4fb7b`・#4129 `6e4f2a60a`・#4221 `c187c8fce`・#4179 `5744bdf79`・#4235 `f38d8a39b`・#4189 `4bb58d6ea`・#4188 `fcfeac400`）。
 - 調べ方は `docs/polyfills.md` の「上流の確かめ方」の 4 段。`git log 64ec0c2e..a972888a -- <証拠のファイル>` を名簿の証拠のファイルの全部に当て、名簿の「」の引用 47 個が pin と head の両方でちょうど 1 か所に在ることを照らした。
 - 24 commit の分け（題と本文を全部読んだ）:
-  - Archon の中の分け直し（本文が「No behavior change」か「Function bodies are unchanged」と言う物）: `14de72582`（#4487。`dag-executor.ts` から `dag/` の 5 ファイルへ）・`1472899c3`（#4491。CLI の `workflow.ts` から `workflow-list.ts`・`workflow-node-summaries.ts` へ）・`b24e39328`（#4473。`workflow-shared.ts` へ）・`7bd009122`（#4477）・`d710c428a`（#4493）・`50a9e0848`（#4509。`core/src/db/workflows.ts` を `workflow-run-*.ts` へ）・`07ee6c251`・`294f1f237`・`cbc231d08`（server の `api.ts` の分け）・`50f016b03`（#4483）・`144ee9395`・`cb3f0cd7a`・`19eeb7f59`（setup の分け）。
+  - Archon の中の分け直し（本文が振る舞いを変えない移しと言う物。字のとおり「No behavior change」か「Function bodies are unchanged」と書くのは `14de72582`・`d710c428a`・`50a9e0848` で、ほかは中身を「verbatim」に移す・順は前と同じ・呼び手の import は変わらない、と書く）: `14de72582`（#4487。`dag-executor.ts` から `dag/` の 5 ファイルへ）・`1472899c3`（#4491。CLI の `workflow.ts` から `workflow-list.ts`・`workflow-node-summaries.ts` へ）・`b24e39328`（#4473。`workflow-shared.ts` へ）・`7bd009122`（#4477）・`d710c428a`（#4493）・`50a9e0848`（#4509。`core/src/db/workflows.ts` を `workflow-run-*.ts` へ）・`07ee6c251`・`294f1f237`・`cbc231d08`（server の `api.ts` の分け）・`50f016b03`（#4483）・`144ee9395`・`cb3f0cd7a`・`19eeb7f59`（setup の分け）。
   - 試験の置き場と CI だけ: `1ad5e34fc`・`f9a324fe2`・`336d13f60`・`675e10eab`。
   - Archon の振る舞いの直し: `32baacecd`（#4513。file-store の錠の作業ファイルが、持ち主の落ちた後に空でも片付く）・`23338cfc2`（#4508。project の名の変更が大小文字違いの重なりを拒む）・`3909b402f`（#4506。会話の題を作る記録に本文を載せない）。どれも works-factory が頼る振る舞いに触れない。
   - ASF の直し: `55c249688`（#4500）・`bfe20c416`（#4488）・`a972888a7`（#4518）は merge queue、`37d19c953`（#4517）は審査の行き先。
@@ -35,6 +35,7 @@
 | P6 | いいえ | いいえ |
 | P7 | いいえ | いいえ |
 | P8 | いいえ | いいえ |
+| P9 | 既に外した（`docs/polyfills.md` の「外した」） | — |
 | P10 | いいえ | いいえ |
 | P11 | いいえ | いいえ |
 | P12 | いいえ | いいえ |
@@ -64,7 +65,7 @@
 
 ## 求め 3: ASF から採れる型
 
-ASF（`.archon/workflows/sdlc/`）の変化のうち、works-factory の役の指示書とグラフに型として採れる物。ASF には LICENSE が無いので字は写さず、型だけ採る（`AGENTS.md` の E8）。どれも採るかは別の issue で決める。
+ASF（`.archon/workflows/sdlc/`）の変化のうち、works-factory の役の指示書とグラフに型として採れる物。根の `AGENTS.md` の E8 のとおり、字は写さず型だけ採る。どれも採るかは別の issue で決める。
 
 - 周ごとの新しい会話と、commit と `Next session` の引き継ぎ（#4218、`355f1867a`。pin に在る）
   - ASF: `.archon/workflows/sdlc/implement/archon-implement.yaml`:31-38（`loop:` の `fresh_context: true`・`max_iterations: 5`）と `implement/commands/implement.md`:58-73。区切り（seam）でだけ会話を終え、`implementation.md` の `Next session` に「済んだ物・残り・決めとその訳・逸れ・次に読むファイル・回した確かめ」を書く。62 行「Where the handoff and the committed code disagree, the code decides.」。仕事を終える会話が `Next session` を消す（73 行）。
@@ -92,7 +93,7 @@ ASF（`.archon/workflows/sdlc/`）の変化のうち、works-factory の役の�
 - 子を起こす引数そのものに AI の欄が無い: `RunChildWorkflowArgs`（pin の `dag-executor.ts`:855・head の `dag/child-run.ts`:33）。`fan_out:` の子も同じ写しを受ける。
 - `with:` の入力でモデルを選べない: 置き換えの効く欄の一覧 `template-walker.ts`:77 の `SLOT_SPEC` に `model`・`effort` が無い。`effort:` は enum（`schemas/dag-node.ts`:255）なので `$INPUTS` を書けば読み込みで落ちる。
 - 続きの run も付け替えを拒む: 「Cannot supply model overrides when resuming an existing workflow run.」「Cannot supply a run config when resuming an existing workflow run.」（`executor.ts` pin:2097-2103・head:2098-2104）。
-- 子の YAML のノードが字のまま書いた `model:`・`effort:` は、継いだ写しより勝つ（`include-expander.ts`:368-376 の `NODE_AFFECTING_WORKFLOW_FIELDS`）。ただし works-factory のノードは `model: '@wf-<群>'` の別名だけを書き（`workflows/AGENTS.md` の E7）、別名は親の写しで解ける。
+- 子の YAML のノードが書いた `model:`・`effort:` は、継いだ写しの既定より先に効く（`model:` は `node-model-resolution.ts`:104-127 の `resolveNodeModel` がノードの字を先に読み、写しの `aiProfile` の別名の表で解く。`effort:` は `dag-executor.ts` pin:2193・head:1986 の `nodeConfig.effort ?? assistantEffort`）。ただし works-factory のノードは `model: '@wf-<群>'` の別名だけを書き（`workflows/AGENTS.md` の E7）、別名は親の写しで解ける。
 
 #659 の求め 1（次の周の子の run に `--config` か `--model` で渡す）は、今の周の鎖の形（Archon の `workflow:` のノードで子を起こす）では Archon の口が無くて書けない。残る道は 3 つで、どれも持ち主の決めが要る。
 
@@ -114,8 +115,8 @@ ASF（`.archon/workflows/sdlc/`）の変化のうち、works-factory の役の�
 2. resume の後: 止まり方で分かれる。
    - 2a. ループの中の待ち（`wait:`・承認ノード）で止まった run の resume: 続く。止まる時に会話の位置を run の metadata（`bodySessionCursors`・`bodySessionCursorAncestry`。位置の形は `schemas/workflow-run.ts`:134 の `sessionCursorSchema`）に置き、resume が戻して止まった周の次から続ける（pin:4669-4741・head:4326-4392）。位置が読めなければ「cannot restore named owner sessions」で落ち（pin:4698・4724、head:4355・4381）、黙って新しい会話にしない。試験: `dag-executor.test.ts` pin:29111「restores private ownership from serialized interactive pause state in a new execution」・pin:29173・head:29172「snapshots and restores the owner at a terminal ${boundary}, including repeated suspension」。
    - 2b. 落ちた run の resume: 続かない。`loop_group` は 1 周目からやり直し、名指しの会話は元のノードの会話（DB の `remote_agent_workflow_run_node_sessions` から戻した物）から分かれ直す。前の試みの周で積んだ会話は捨てる（`guides/loop-nodes.md`:853-855「Failure resume … the loop_group node restarts from **iteration 1**」・`guides/authoring-workflows.md`:321「Failure resume still restarts the group at iteration 1」）。これを直に縛る試験は見つからなかった（コードの道筋と文書からの読み）。
-   - 2c. `--adopt`（新しい run）: 続かない。ほかの run の会話の行は拒む（`executor.ts` pin:2120-2129・head:2121-2130「Cannot resume workflow run … with session state from run …」）。
-3. 子の run の中: 続く。子の run は自分の YAML を自分で読み込む別の run で、子の中のループの前のノードと `loop_group` の間では 1・2a と同じに効く。`include:` の中の名指しは `<include の id>__` の頭ごと付け替わる（`include-expander.ts`:536-537）。入れ子の `loop_group` は呼びごとに別の位置を持つ（`dag-executor.test.ts` pin:29516「scopes nested sources and owner cursors to each enclosing invocation」）。
+   - 2c. `--adopt`（新しい run）: 続かない。`--adopt` は新しい id の run を起こし、前の run から継ぐのは作業ツリー・枝・成果物だけ（`packages/cli/src/help.ts`:804「Start a new run adopting a terminal run's worktree/branch + artifacts」、`docs/design.md` の U1）。ノードの会話の行を読み込むのは同じ run を resume する時だけ（`executor.ts` pin:1261-1263・head:1262-1264 の `listWorkflowRunNodeSessions(candidate.id)`。`candidate` は resume する run）。
+3. 子の run の中: 続く。子の run は自分の YAML を自分で読み込む別の run で、子の中のループの前のノードと `loop_group` の間では 1・2a と同じに効く。`include:` の中の名指しは `<include の id>__` の頭ごと付け替わる（`include-expander.ts`:536-537）。入れ子の `loop_group` は呼びごとに別の位置を持つ（`dag-executor.test.ts` pin:29516「scopes nested sources and owner cursors to each enclosing invocation」）。子の run の中で続くことを直に縛る試験は見つからなかった。子の run も親と同じ実行の道を通る（`executor.ts` pin:3539・head:3540 の `runChildWorkflow` が pin:1701・head:1702 で `executeWorkflow` に入り直す）ことからの読み。
 4. run をまたぐ（周の鎖の前の周の子の run、親の run のノード）: 続かない。名指せるのは同じ YAML のループの前のノードだけで（`loader.ts`:1309-1324。ループの前でなければ「is not an upstream dependency of the loop_group」、ほかの run の名は「references unknown node」）、ループの体は run をまたいで会話を持たない（pin:5155-5158・head:4812-4815 の `persistScope: undefined`・`workflowPersistSessions: false`、`guides/authoring-workflows.md`:1234「Cross-run persistence isn't wired for them in this release」）。
 
 #671 への含み:
@@ -136,7 +137,7 @@ ASF（`.archon/workflows/sdlc/`）の変化のうち、works-factory の役の�
 1. `factory/pack.json` の `integration_revision_required` を読んだ dev の頭に替える。CI・試験・`bin/_lib/place.py` はここから源を読むので、版の字を替える所はここだけ。
 2. 試験の段: まず `tests/changed.py` と層の柵、次に `tests/shared/test_archon_contract.py`。`ARCHON_ROWS` の「節が済んだ状態」と「節の一覧の行の id と状態の鍵」の 2 行の在り処を `packages/cli/src/commands/workflow.ts` から `packages/cli/src/commands/workflow-node-summaries.ts` に替える。最後に CI の全部の試験と、本物の Archon で回す試験（`tests/e2e/`）。
 3. 埋めの外し: 今の dev の頭までに外せる埋めは無い。上げる日の dev で `docs/polyfills.md` の「上流の確かめ方」をやり直し、塞がった物が在れば名簿の決まり（「外した」へ移す）で外す。
-4. 柵と文書の更新: 名簿の各行の「上流（`<止めた版>` の後の dev の `<読んだ dev>` まで）」の頭 8 字を新しい版に替える（替えないと `tests/layers/test_polyfill_evidence.py` が赤）。`docs/design.md` の「語」の止めた Archon の版の字と、U6 の `listRunEvents` の在り処、`docs/asf-notes.md` の見る版の字を替える。
+4. 柵と文書の更新: 名簿の各行の「上流（`<止めた版>` の後の dev の `<読んだ dev>` まで）」の頭 8 字を新しい版に替える（替えないと `tests/layers/test_polyfill_evidence.py` が赤）。`docs/design.md` の「語」の止めた Archon の版の字と、U6 の `listRunEvents` の在り処、`docs/asf-notes.md` の見る版の字を替える。`docs/design.md` の `workflow:` の子の結果の読みの項（727 行）は、在り処を `dag-executor.ts` から `dag/child-run.ts` に替える。同じ文書の `dag-executor.ts` の行番号（125 行の 4363-4364、708 行の 5322、714 行の 7716-7719・7771-7790）は pin でも既に合っていない（例: 708 行の `executeLoopNode` は pin:5704・head:5361）ので、head の在り処で書き直す。
 5. ASF の型を読み直す: `docs/asf-notes.md` の決まり（版を進めたら各セクションを読み直す）に従い、#4517 で変わった審査の行き先を確かめる。
 
 ## issue の本文と食い違った所
