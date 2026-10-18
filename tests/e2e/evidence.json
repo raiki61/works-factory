@@ -549,7 +549,7 @@
 {"id": "P198", "kind": "scenario-only", "why": "筋書きでのみ（返答を拒む道は、種の役が型の合う返答を返すと通らない。在れば節 `review-accept` の reason）"},
 {"id": "P199", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "P200", "kind": "scenario-only", "why": "筋書きでのみ（穴の向きを拒む道は種で通らず、受けた返答の faces_none の中身は照らしで言えない。在れば `plan-review/pass-1/review.json` の faces_none か faces）"},
-{"id": "P201", "kind": "seed-cannot", "why": "事前審査の受け付けが 3 回とも拒んだ時だけ諦めの訳が review.json に載る（健全な種では拒みが続かない）", "check": "text-contains", "where": "parent/plan-review/pass-*/review.json", "text": "事前審査の受け付けが諦めた: "},
+{"id": "P201", "kind": "seed-cannot", "why": "事前審査の受け付けが網の回まで拒み続けた時だけ諦めの訳が review.json に載る（健全な種では拒みが続かない）", "check": "text-contains", "where": "parent/plan-review/pass-*/review.json", "text": "事前審査の受け付けが諦めた: "},
 {"id": "P202", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
 {"id": "P203", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
 {"id": "P204", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},

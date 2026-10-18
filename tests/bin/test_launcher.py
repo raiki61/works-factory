@@ -15,7 +15,7 @@ import sys
 import tempfile
 import unittest
 
-from bin._lib import launcher, place, toolset
+from bin._lib import auth_launch, launcher, place, toolset
 from lib import answer, launchgroups, reads, userenv, writelog
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
@@ -458,6 +458,9 @@ class LauncherTest(unittest.TestCase):
                 self.assertEqual(head, ["env", f"WORKS_FACTORY_HOME={home}", str(self.repo / "bin" / "works-factory"),
                                         "workflow", "respond", "--cwd", os.path.realpath(self.target)])
                 self.assertIn(shlex.join(["bin/works-factory", *head[3:-1]]), answer.HOLE)
+                resume = shlex.split(answer.resume("RUN", env=self.layer(argv)["env"]))
+                self.assertEqual(resume, [f"{auth_launch.ITEM_ENV}={answer.KEYCHAIN_HOLE}", *head[:4], "resume", *head[5:], "RUN"],
+                                 "resume の行は同じ頭の respond を resume に替え、殻が認証に読む keychain の項目名を前に置く")
 
     def test_answer_line_reaches_the_run_home_from_another_shell(self):
         """一度だけ選んだ家（WORKS_FACTORY_HOME・XDG_STATE_HOME）で起こした run の答えの行は、その値の無いシェルで打っても同じ家に届く"""

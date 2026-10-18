@@ -346,9 +346,9 @@
 - P047 拒否の後は同じ役の会話の続きで拒まれた項目だけを出し直し（plan-writer-fix。受け付けが前の答えと合わせてから全体を照らす。#571）、3 回目の拒否で受け付けが done・give_up を出して輪を抜ける（max_iterations で落とさない）。返りは ready: false、訳は「3 回とも受け付けで拒まれた」。
   - 元: works/blk-plan/blk-plan.yaml:231 plan-loop（fresh_context: true・until_bash）・planblk.py:1441 `collect`（盤面を止める STOP_BY works:plan、gave_up・reason_file）、試験 works/tests/test_blk_plan.py:1024 test_give_up_ends_loop
   - 今: 表
-  - 証: tests/workflows/test_plan.py::AcceptCase.test_three_rejections_give_up_with_every_pointer・tests/workflows/test_plan.py::ShapeCase.test_loops_give_up_in_the_body_before_max_iterations・筋書き workflows/plan/fixtures/give-up.stubs.yaml（tests/workflows/test_plan.py::FixtureCase）
+  - 証: tests/workflows/test_plan.py::AcceptCase.test_net_rejections_give_up_with_every_pointer・tests/workflows/test_plan.py::ShapeCase.test_loops_give_up_in_the_body_before_max_iterations・筋書き workflows/plan/fixtures/give-up.stubs.yaml（tests/workflows/test_plan.py::FixtureCase）
   - 本物の run: plan-accept の節の出力 {ok, done, give_up, attempt}・plan/r1/rejects-plan.json・ripple.json の error（諦めた時だけ。健全な種では筋書きでのみ）
-  - 狭め: 結末の形を変えた（元は盤面を止め、返りに gave_up と reason_file。今は ready: false と ripple.json の error の字だけ）。docs/design.md:206 の決め。P011 と同じ持ち主への問い
+  - 狭め: 結末の形を変えた（元は盤面を止め、返りに gave_up と reason_file。今は ready: false と ripple.json の error の字だけ）。docs/design.md:206 の決め。P011 と同じ持ち主への問い。#662 で計画と事前審査の受け付けの諦めを、回数（3 回）から届かない大きさの網 NET_AFTER（20 回。届けば工場の不具合）に替えた（持ち主の決め slim と #662）
 
 - P048 修正案の役は読むだけで、道具を絞り（Read・Grep・Glob・WebSearch・WebFetch）、利用者の設定だけを読み、sandbox の中で、opus・effort medium で走る。期限を足さない（20 日）。
   - 元: works/blk-plan/blk-plan.yaml:260-275（model・effort・settingSources・allowed_tools・mutates_checkout・sandbox・idle_timeout）、試験 works/tests/test_tool_parity.py・test_blk_plan.py:237
@@ -402,7 +402,7 @@
 - P055 受け付けた案の項目ごとに、変える名の呼び出し元と試験の当たり（覆っていない当たりを含む）と、消す名（removes）の残る名指し（kind removed・removed_test。docs/plans も数える）を波及の一覧 ripple.json に作って返す。案が無い周は {items: [], error: <訳>}。
   - 元: works/blk-plan/lib/planblk.py:478 `make_ripple`（stage items・RIPPLE_LATEST）・works/blk-plan/lib/ripple.py:171 `build`
   - 今: 表
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends・tests/workflows/test_plan.py::AcceptCase.test_three_rejections_give_up_with_every_pointer・lib/tests/test_ripple.py::RippleCase.test_literal_test_not_in_rewrite_is_uncovered・lib/tests/test_ripple.py::RippleCase.test_caller_outside_scope_is_uncovered。消す名は lib/tests/test_ripple.py::RippleCase.test_removes_names_hits_are_uncovered ほか removed の 7 本と lib/tests/test_planfile.py::RippleItemsCase.test_ripple_items_sees_removes（planmarks.split が removes を欄に写す）。1 回目の差し込みで中身を見る試験は tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_files の error が空だけで弱かったので、#120 で tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_has_item_ripple を足した（種の 1 回目の ripple.json の items[0] の uncovered に request_ok.json:8 が在る。消すと赤: ripple_items が当たりを引かないと赤）
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends・tests/workflows/test_plan.py::AcceptCase.test_net_rejections_give_up_with_every_pointer・lib/tests/test_ripple.py::RippleCase.test_literal_test_not_in_rewrite_is_uncovered・lib/tests/test_ripple.py::RippleCase.test_caller_outside_scope_is_uncovered。消す名は lib/tests/test_ripple.py::RippleCase.test_removes_names_hits_are_uncovered ほか removed の 7 本と lib/tests/test_planfile.py::RippleItemsCase.test_ripple_items_sees_removes（planmarks.split が removes を欄に写す）。1 回目の差し込みで中身を見る試験は tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_files の error が空だけで弱かったので、#120 で tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_has_item_ripple を足した（種の 1 回目の ripple.json の items[0] の uncovered に request_ok.json:8 が在る。消すと赤: ripple_items が当たりを引かないと赤）
   - 本物の run: plan/r1/ripple.json の items[].uncovered（返りの ripple の指し札の先）
   - 狭め: 無し
 
@@ -742,9 +742,9 @@
 - P102 往復の決め: 最後の往復に block（直しへ進めない穴）が無ければ clean、前のどれかの往復と同じ block が残れば persisted、2 往復目から開いた block の数が前の往復より減らなければ unsettled、ほかは again（往復の数では止めない）。数の定数をモジュールに持たない
   - 元: works/.shared/core/converge.py:148 `decide`・:161 `_decide_items`
   - 今: 表
-  - 証: lib/tests/test_converge.py::DecideCase.test_no_block_is_clean・lib/tests/test_converge.py::DecideCase.test_block_from_any_earlier_pass_persists・lib/tests/test_converge.py::DecideCase.test_new_blocks_stop_before_fence_when_not_fewer・lib/tests/test_converge.py::DecideCase.test_open_blocks_not_fewer_than_last_pass_is_unsettled・lib/tests/test_converge.py::DecideCase.test_decreasing_blocks_go_on_regardless_of_pass_count・lib/tests/test_converge.py::DecideCase.test_module_has_no_count_constant
+  - 証: lib/tests/test_converge.py::DecideCase.test_no_block_is_clean・lib/tests/test_converge.py::DecideCase.test_block_from_any_earlier_pass_persists・lib/tests/test_converge.py::DecideCase.test_new_central_blocks_go_again_without_counting・lib/tests/test_converge.py::DecideCase.test_peripheral_only_blocks_settle・lib/tests/test_converge.py::DecideCase.test_peripheral_block_that_persists_does_not_stop・lib/tests/test_converge.py::DecideCase.test_decreasing_blocks_go_on_regardless_of_pass_count・lib/tests/test_converge.py::DecideCase.test_module_has_no_count_constant
   - 本物の run: plan-review/plan-converge.json の `outcome`（種の run では `clean`）
-  - 狭め: 無し
+  - 狭め: #662 で、開いた block の数が前の往復より減らなければ止める決まり（not_fewer）を外した。止め時は穴の中央・端の札が持ち、2 往復目から開いた block に中央が無ければ端の block を申し送って通す（持ち主の決め slim・stop-by-rate の読みと #662。読みは docs/design.md の「事前審査の止め時」）
 
 - P103 項目ごとの壁打ち: block の無い項目は閉じ（次の往復で審査も直しもしない）、前の往復と同じ block の項目は保留、閉じた項目でも block に名指されれば開き直す。どの項目にも重ならない穴は審査した全部の項目の物と数える
   - 元: works/.shared/core/converge.py:190 `_item_states`・:184 `_attributed`
@@ -819,9 +819,9 @@
 - P113 again（開いた block が前の往復より減った往復）では止めず関所も決めず、計画に返す。同じ block が 2 度続いた（persisted）・開いた block が減らない（unsettled）・安全の上限の周（capped）の時は止めて、修正前の関所に止まりの行（STUCK_ITEM と理由）と block の穴を載せる
   - 元: works/blk-plan/lib/planblk.py:1178 `with_converge`（again は rewind_roles）・:1341 `converge_check`、works/.shared/core/converge.py:571 `stuck_reason`
   - 今: 表
-  - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_first_block_is_not_stalled・tests/workflows/test_plan_review.py::ConvergeCase.test_same_block_again_stalls_with_a_design_item・tests/workflows/test_plan_review.py::ConvergeCase.test_other_block_not_fewer_is_unsettled・tests/workflows/test_plan_review.py::ConvergeCase.test_decreasing_blocks_go_again・tests/workflows/test_plan_review.py::ConvergeCase.test_capped_decay_stops_at_loop_max。線の側 tests/workflows/test_line.py::PlanOutCase.test_done_rules・tests/workflows/test_line.py::LineWiringCase.test_round_limit_is_the_loop_limit・筋書き workflows/line/fixtures/plan-stalled.stubs.yaml・workflows/line/fixtures/plan-unsettled.stubs.yaml
+  - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_first_block_is_not_stalled・tests/workflows/test_plan_review.py::ConvergeCase.test_same_block_again_stalls_with_a_design_item・tests/workflows/test_plan_review.py::ConvergeCase.test_other_central_block_goes_again・tests/workflows/test_plan_review.py::ConvergeCase.test_peripheral_only_pass_settles_and_hands_blocks_on・tests/workflows/test_plan_review.py::ConvergeCase.test_decreasing_blocks_go_again・tests/workflows/test_plan_review.py::ConvergeCase.test_capped_decay_stops_at_loop_max。線の側 tests/workflows/test_line.py::PlanOutCase.test_done_rules・tests/workflows/test_line.py::LineWiringCase.test_round_limit_is_the_loop_limit・筋書き workflows/line/fixtures/plan-stalled.stubs.yaml・workflows/line/fixtures/plan-unsettled.stubs.yaml
   - 本物の run: `$plan-rounds.output.stalled`・plan-review の返り `stalled`（種の run では false）
-  - 狭め: 無し
+  - 狭め: #662 で、開いた block が減らなかった往復を止める決まりを外した（同じ中央の block が続いた往復と網の周だけが止める。持ち主の決め slim と #662）
 
 - P114 往復の安全の上限（20）を、事前審査が上限の周を知る数と線の loop_group の上限の両方で同じ数に縛る。止め時は数でなく converge.decide。上限に当たって落ちずに抜ける
   - 元: works/blk-plan/blk-plan.yaml:543（converge-loop の max_iterations 3）と works/tests/test_blk_plan.py::YamlCase.test_converge_loop_wraps_revise_and_review（GIVE_UP_AFTER と突き合わせ）
@@ -968,9 +968,9 @@
 - P134 案の直しの役も 3 回拒まれたら諦めて ready: false（諦めは run を止めず、後の段が読む）
   - 元: works/.shared/core/replan.py:544 `accept_reply`（GIVE_UP_AFTER）・:625 `gate`（PLAN_GAVE_UP_WHY で項目を諦める）
   - 今: 表
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_three_rejections_give_up_without_amending（#120 で足した。消すと赤: 形 replan の輪が 3 回で諦めないと赤）
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_net_rejections_give_up_without_amending（#120 で足した。消すと赤: 形 replan の輪が網の回で諦めないと赤）
   - 本物の run: 筋書きでのみ
-  - 狭め: 下の P142（諦めた項目を人への行に載せる）を参照
+  - 狭め: 下の P142（諦めた項目を人への行に載せる）を参照。#662 で計画と事前審査の受け付けの諦めを、回数（3 回）から届かない大きさの網 NET_AFTER（20 回。届けば工場の不具合）に替えた（持ち主の決め slim と #662）
 
 - P135 案の直しの役が読んだ証拠（reads-replan-<役>.json の索引。1 回目の reads-plan-block.json を上書きしない）
   - 元: works/.shared/core/replan.py:114 `READS_INDEX`・:115 `READS_PREFIX`、works/tests/test_replan.py:650
@@ -1026,7 +1026,7 @@
 - P142 案の直しを終えられなかった項目（計画の役の諦め・事前審査の諦め・関所の答えが無い）は、項目ごとに諦めの訳をつけ、裁定の文を字のまま人への行（最後の関所と次の run の依頼）に載せる。ほかの項目は採れる
   - 元: works/.shared/core/replan.py:625 `gate`・:583 `_give_up`（PLAN_GAVE_UP_WHY・REVIEW_GAVE_UP_WHY・NO_GATE_WHY）・:256 `_sync_closed`、works/tests/test_replan.py:1032 `test_gave_up_paths_reach_ask_human_verbatim`
   - 今: 表
-  - 証: tests/workflows/test_report.py::ReplanGiveUpCase.test_gave_up_replan_names_ruling_text_and_reason（ほか tests/workflows/test_plan.py::ReplanCase.test_three_rejections_give_up_without_amending・tests/workflows/test_plan_review.py::ReplanCase.test_replan_review_gave_up_names_each_item）（#120 で足した。消すと赤: prior_failures が項目ごとの行を足さないと赤）
+  - 証: tests/workflows/test_report.py::ReplanGiveUpCase.test_gave_up_replan_names_ruling_text_and_reason（ほか tests/workflows/test_plan.py::ReplanCase.test_net_rejections_give_up_without_amending・tests/workflows/test_plan_review.py::ReplanCase.test_replan_review_gave_up_names_each_item）（#120 で足した。消すと赤: prior_failures が項目ごとの行を足さないと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: #75・#74 に記載無し。項目ごとに採る/諦めるは Archon で不可でない → 持ち主へ（全部か無しかに倒したかの確認） 決め: 人の答えは今の works と同じく 1 つの語（works/.shared/core/replan.py:699-744）。機械の側の項目ごとの諦めは戻すと決めた。区分 P の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
@@ -1131,9 +1131,9 @@
 - P156 出し直しの輪は 3 回（rolekit.GIVE_UP_AFTER）で、until_bash は同じ輪の受け付けの done。独立設計の輪も事前審査の輪も fresh_context: false（拒まれた後は同じ会話。事前審査の役は周ごとに新しい会話で起き、拒まれた後は plan-review-fix が同じ会話の続きで拒まれた欄だけを返す。#571）。輪の後の節は all_done
   - 元: works/blk-plan/blk-plan.yaml:79-190（r2-design-loop）・:701（plan-review-loop）。works/tests/test_blk_plan.py:215 `test_design_loop_first_and_tool_less`・:237 `test_loops_fresh_single_ai_and_give_up`
   - 今: 表
-  - 証: tests/workflows/test_plan_review.py::YamlCase.test_loops_are_three_and_end_on_accept_done
+  - 証: tests/workflows/test_plan_review.py::YamlCase.test_loops_end_on_accept_done
   - 本物の run: 節 `r2-accept`・`review-accept` の出力 `done`
-  - 狭め: 無し
+  - 狭め: #662 で事前審査の輪の max_iterations を受け付けの網 NET_AFTER（20）にした（独立設計の輪は 3 回のまま。持ち主の決め slim と #662）
 
 - P157 役に届く文に $LOOP_PREV が無く、役の指示書は自分の支度の出力だけを読み、{{…}} の差し込みを使わない。輪の中の id はほかのブロック・線と重ならない。script が読む INPUTS_* は宣言した物だけ
   - 元: works/tests/test_blk_plan.py:291 `test_no_loop_prev_reaches_a_prompt`・:305 `test_loop_ids_unique_across_blocks`・:271 `test_script_inputs_match_with`
@@ -1452,9 +1452,9 @@
 - P201 3 回とも拒まれたら done・give_up で輪を抜け、review.json に空の穴と最後の拒みの訳を書き、返す節は pass: false・stalled: true・ask_human: true と「事前審査の受け付けが諦めた: …」を questions に返す
   - 元: works/blk-plan/lib/planblk.py の main_accept（rolekit.with_done）・works/tests/test_blk_plan.py:1024 `test_give_up_ends_loop`
   - 今: 表
-  - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_give_up_on_the_third_reject
+  - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_give_up_at_the_net_reject・tests/workflows/test_plan_review.py::ReviewAcceptCase.test_pass_after_three_rejects_is_not_given_up
   - 本物の run: `plan-review/pass-1/rejects-p2.plan_review.json`・返り stalled
-  - 狭め: 無し
+  - 狭め: #662 で計画と事前審査の受け付けの諦めを、回数（3 回）から届かない大きさの網 NET_AFTER（20 回。届けば工場の不具合）に替えた（持ち主の決め slim と #662）
 
 ### 項目ごとの木の事前審査
 
@@ -1510,9 +1510,9 @@
 - P258 2 往復目に約束の欄（planmarks.contract_diff）が変わった項目は、変わった欄の名を言って差分に絞らず全部を審査させる。変わった字の割合が DIFF_FULL_SHARE（0.25）を超えた項目も全部を審査させる。関所の決め手の欄だけの変化は数えない
   - 元: raiki61/claude-plugins @d51cc183 の works/blk-plan/lib/planblk.py:982 `_diff_part`（DIFF_FULL_SHARE・DIFF_FULL_ASK :180-184）、試験 works/tests/test_blk_plan.py:2992 test_large_item_change_is_reviewed_whole・:3006 test_contract_field_change_is_reviewed_whole・:3015 test_tree_item_contract_change_is_reviewed_whole・:3036 test_narrows_gate_marks_only_change_stays_diff
   - 今: 表
-  - 証: tests/workflows/test_plan_review.py::TreeCase.test_tree_item_contract_change_is_reviewed_whole（#207。消すと赤: contract_diff を空にするか、控えの行に欄を重ねないと赤）・tests/workflows/test_plan_review.py::TreeCase.test_large_item_change_is_reviewed_whole（消すと赤: 字の割合の比べを外すと赤）・tests/workflows/test_plan_review.py::TreeCase.test_narrows_gate_marks_only_change_stays_diff・tests/workflows/test_plan_review.py::TreeCase.test_second_pass_reviews_diff_and_carries_answers_and_notes（小さい直しは差分のまま）
+  - 証: tests/workflows/test_plan_review.py::TreeCase.test_tree_item_contract_change_names_fields_without_the_whole（#207。消すと赤: contract_diff を空にするか、控えの行に欄を重ねないと赤）・tests/workflows/test_plan_review.py::TreeCase.test_second_pass_item_brief_has_only_changed_sentences・tests/workflows/test_plan_review.py::ConvergeCase.test_second_pass_material_has_only_changed_sentences・tests/workflows/test_plan_review.py::TreeCase.test_narrows_gate_marks_only_change_stays_diff・tests/workflows/test_plan_review.py::TreeCase.test_second_pass_reviews_diff_and_carries_answers_and_notes（小さい直しは差分のまま）
   - 本物の run: 往復が 2 回の run だけ `plan-review/plan-review-items/pass-2/item-<n>.md` の「前の往復からのこの項目の案の差分」の頼みの文
-  - 狭め: 無し。審査役 1 つの往復（木にしない往復）は今も 2 往復目に案の全部を審査する（元の single_part の差分への絞りは速さの差で、写していない。#207）。貼る差分は関所の決め手の欄を外した行（元は決め手の欄も含む生の行）
+  - 狭め: 貼る差分は関所の決め手の欄を外した行（元は決め手の欄も含む生の行）。#662 で、約束の欄が変わった項目と字の割合が DIFF_FULL_SHARE を超えた項目を全部審査させる決まりを外し、2 往復目からは木の往復も木にしない往復も、開いた項目の場所つきの文の差分と波及の一覧だけを渡す（約束の欄の変化は欄の名を言う。持ち主の決め reuse-results と #662）
 
 - P209 判定者の先行例（adopt・adapt）の出典は run で 1 度だけ、1 つの項目の下請けが WebFetch で開いて確かめ、控え precedent-checks.json に置く。後の往復・ほかの項目には控えを貼って開かせない。確かめの行の欠けは拒む
   - 元: works/blk-plan/lib/planblk.py:660-742（precedent_checks・precedent_plan・save_precedents）
@@ -1862,9 +1862,9 @@
 - P257 事前審査の受け付けを 3 回拒んで諦めた往復は、pass: false・stalled: true で、諦めた訳を「事前審査の受け付けが諦めた: …」として questions に載せ、関所に回す
   - 元: 盤面の give_up で輪を抜けた後、h-gate が止まりの行を聞いた（works/blk-plan/blk-plan.yaml の plan-review-loop）
   - 今: 表
-  - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_give_up_on_the_third_reject
+  - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_give_up_at_the_net_reject
   - 本物の run: 筋書きでのみ
-  - 狭め: 無し
+  - 狭め: #662 で計画と事前審査の受け付けの諦めを、回数（3 回）から届かない大きさの網 NET_AFTER（20 回。届けば工場の不具合）に替えた（持ち主の決め slim と #662）
 
 
 ## 穴の要約

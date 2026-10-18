@@ -6,7 +6,7 @@ r2-accept: { ok: true, done: true, give_up: false, reason: "" }
 review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md", resubmit: false }
 plan-review:
   faces:
-    - { key: "stub-stale-docstring", unit_keys: [1], kind: contract_drift, where: "test_stats.py:1", why: "stub: 案の後もテストの説明文が『わざと試験しない』と言い続ける。案にその文の書き換えが入っている", severity: suggest }
+    - { key: "stub-stale-docstring", unit_keys: [1], kind: contract_drift, where: "test_stats.py:1", why: "stub: 案の後もテストの説明文が『わざと試験しない』と言い続ける。案にその文の書き換えが入っている", severity: suggest, reach: peripheral }
   shrink: []
   reason: "stub: 対象の文の食い違いを契約のずれで 1 つ挙げ、ほかの見ることは穴が無い"
 review-accept: { ok: true, done: true, give_up: false, reason: "" }

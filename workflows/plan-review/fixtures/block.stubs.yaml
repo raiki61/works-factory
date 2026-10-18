@@ -6,7 +6,7 @@ r2-accept: { ok: true, done: true, give_up: false, reason: "" }
 review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md", resubmit: false }
 plan-review:
   faces:
-    - { key: "stub-block-001", unit_keys: [1], kind: contract_drift, where: "stats.py mean", why: "stub: 読み手が追従しないまま残る契約のずれ", severity: block }
+    - { key: "stub-block-001", unit_keys: [1], kind: contract_drift, where: "stats.py mean", why: "stub: 読み手が追従しないまま残る契約のずれ", severity: block, reach: breaks_fix }
   shrink: []
   reason: "stub: 契約のずれを 1 つ挙げ、ほかの見ることは穴が無い"
 review-accept: { ok: true, done: true, give_up: false, reason: "" }

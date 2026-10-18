@@ -121,7 +121,8 @@ out = {
         green_ok=boundary.parsed(os.environ["INPUTS_GREEN_OK"]),
         ripple_file=str(boundary.pointed(os.environ["INPUTS_RIPPLE"]) or ""),
         world_file=str(boundary.pointed(os.environ["INPUTS_WORLD"]) or ""),
-        passed=eyeverdict._human_passed(boundary.parsed(os.environ["INPUTS_PLAN_QUESTIONS"]), answer)),
+        passed=eyeverdict._human_passed(boundary.parsed(os.environ["INPUTS_PLAN_QUESTIONS"]), answer),
+        declared=boundary.parsed(os.environ["INPUTS_PLAN_DECLARED"])),
 }
 EYES.mkdir(parents=True, exist_ok=True)
 (EYES / eyeverdict.R2_PREMISES).write_text(json.dumps(r2_ledger, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
