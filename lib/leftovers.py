@@ -8,9 +8,11 @@
 - remove_new_ignored: 控えに無かった無視されるファイルだけを消す。前から在った丸ごと無視されるフォルダ（.venv など）と、除くパスの頭
                       skip（既定 ()。呼び手の script が実行基盤の工程の写しの置き場を渡す）の下は触らない。
                       消した全件は置き場の fix-removed.json に書き、件数とそのパスだけを返す（節 clean）
-- removed:            scope の環境の無い所（報告・最後の関所）から、盤面の根とその直下の scope の根の fix-removed.json を全部読み、
-                      件数・全パス・scope ごとのパスを返す。ファイルが 1 つも無ければ走らせていない（0 本と分ける）。読めなければ
-                      投げずに読めないと理由を返す
+- found:              盤面の根とその直下の scope の根に clean が書いた消した物のファイルのパスの並び（修正の出力ノードが欄 removed の
+                      ポインタにする）。探せなければ Unreadable
+- read_removed:       渡された消した物のファイル（欄 removed の先。最後の関所と報告が fixbeside の読み手の口から渡す）を全部読み、
+                      件数・全パスと scope ごとのパス（scope はファイルの在る所で決まる）を返す。ファイルが 1 つも無ければ走らせていない（0 本と分ける）。読めなければ投げずに読めないと
+                      理由を返す
 控えと消した物のファイルの名は呼ぶ側が渡せる（before_name・removed_name。既定は IGNORED_BEFORE_FILE・REMOVED_FILE）。控えと消した物のファイルは
 呼び手が渡す置き場のフォルダ board に置く（fix と refix の分けは置き場の名で付く）。
 失敗は Unreadable を投げる。git は全部 repo を cwd にして呼ぶ。標準ライブラリだけ（lib のほかのモジュールは読まない）。
@@ -170,32 +172,37 @@ def remove_new_ignored(board, repo, before_name: str = IGNORED_BEFORE_FILE, remo
     return {"ok": True, "count": len(removed), "file": _write_json(_board_path(board, removed_name), {"removed": removed})}
 
 
-def removed(board, removed_name: str = REMOVED_FILE) -> dict:
-    """盤面 board の根とその直下のフォルダ（include の scope の根）に clean が書いた removed_name を全部読む。投げない。
-    返り {ran, readable, reason, count, paths, by_scope, files}: ran はファイルが 1 つでも在る（clean が走った）。readable が偽なら
-    reason に読めないファイルと理由（0 本に見せない）。by_scope は {scope の名（盤面の直下は ""）: [消したパス]}（名前の順）、
-    paths はその全部をつないだ物、count はその数、files は見つけた removed_name のパス（全件の置き場）。scope ごとに最後に
-    clean が走った周の分だけ（前の周の分は上書きで残らない）"""
-    out = {"ran": False, "readable": True, "reason": "", "count": 0, "paths": [], "by_scope": {}, "files": []}
+def found(board, removed_name: str = REMOVED_FILE) -> list:
+    """盤面 board の根とその直下のフォルダ（include の scope の根）に clean が書いた removed_name のパスの並び（名前の順）。scope ごとに
+    最後に clean が走った周の分だけ（前の周の分は上書きで残らない）。探せなければ Unreadable"""
     board = pathlib.Path(board)
     try:
-        found = sorted(p for p in [board / removed_name, *board.glob(f"*/{removed_name}")] if p.is_file())
+        return sorted(p for p in [board / removed_name, *board.glob(f"*/{removed_name}")] if p.is_file())
     except OSError as e:
-        return {**out, "ran": True, "readable": False, "reason": f"共有ボードの {removed_name} を探せない（{e}）"}
+        raise Unreadable(f"共有ボードの {removed_name} を探せない（{e}）") from None
+
+
+def read_removed(files, board=None) -> dict:
+    """消した物のファイル files（盤面 board の found の並び）を全部読む。投げない。返り {ran, readable, reason, count, paths, by_scope,
+    files}: ran はファイルが 1 つでも在る（clean が走った）。readable が偽なら reason に読めないファイルと理由（0 本に見せない）。paths は
+    消したパスをファイルの順につないだ物、count はその数、files は読んだファイルのパス（全件の置き場）。by_scope は {scope の名: [消した
+    パス]}で、scope はファイルの在る所で決まる（board の根は ""、その直下のフォルダはその名。board が None なら全部を ""）"""
+    out = {"ran": bool(files), "readable": True, "reason": "", "count": 0, "paths": [], "by_scope": {},
+           "files": [str(p) for p in files]}
     bad = []
-    for p in found:
-        scope = "" if p.parent == board else p.parent.name
+    for p in files:
         try:
-            names = json.loads(p.read_text(encoding="utf-8")).get("removed")
+            names = json.loads(pathlib.Path(p).read_text(encoding="utf-8")).get("removed")
         except (OSError, ValueError, AttributeError) as e:
             bad.append(f"{p}: {type(e).__name__}: {e}")
             continue
         if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
             bad.append(f"{p}: removed が文字列の配列でない")
             continue
-        out["by_scope"][scope] = names
-    paths = [n for names in out["by_scope"].values() for n in names]
-    out.update(ran=bool(found), count=len(paths), paths=paths, files=[str(p) for p in found])
+        out["paths"] += names
+        scope = "" if board is None or pathlib.Path(p).parent == pathlib.Path(board) else pathlib.Path(p).parent.name
+        out["by_scope"].setdefault(scope, []).extend(names)
+    out["count"] = len(out["paths"])
     if bad:
-        out.update(readable=False, reason=f"{removed_name} が読めない（" + "／".join(bad) + "）")
+        out.update(readable=False, reason="消したファイルの控えが読めない（" + "／".join(bad) + "）")
     return out

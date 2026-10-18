@@ -46,7 +46,7 @@ def main(pass_: str, limit: int) -> dict:
     if not staged:
         raise ValueError("当て直し中の組が無い（支度が go: true を返したのに控えが当て直し中でない）")
     gid, name = staged[0], f"{ACCEPT[pass_]}-{staged[0]}"
-    boundary.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
+    boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
     if reply.get("handled") == clash.CANNOT:
         out = {"ok": False, "done": True, "reason": clash.SAID_CANNOT.format(how=oneline.one_line(reply.get("how") or "")),
                "reason_file": ""}

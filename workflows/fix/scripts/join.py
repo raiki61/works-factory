@@ -27,6 +27,7 @@ clash-goes-to-ruling）。字で当たらない組も控える（合わせのル
 変えずに同じく 1（子が落ちた run は組の節が落ちてこの節が走らず、諦めた子も group-end が結果を書くので、結果の無い組は壊れた結果。
 持ち越しにして済んだ子の変更を失わず、この節が落ちて run を止める。issue #576）。
 """
+import os
 import sys
 from pathlib import Path
 
@@ -61,7 +62,7 @@ def main() -> dict:
         log = writelog.log_here()
         start = startrec.read(place)
         cases = (fixboard.read_json(place / fixboard.BASELINE_FILE, {}) or {}).get("cases") or []
-        boundary.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
+        boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
         verified = []   # 戻せた組が赤 → 緑を確かめた名指し（後の組の確かめ直しで一緒に走らせる）
         red, clashes = {}, []   # 組ごとの確かめ直しの赤の文と、赤で戻した組・字で当たらない組（合わせのループが直す。clash.record）
 

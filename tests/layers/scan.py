@@ -2,13 +2,15 @@
 
 字の形でしか見ないので、次は人が見る:
 - E3: 節の id（字の形で見分けられない。`-` を含むメイングラフの id は E22 が見る）
-- E4: `pathlib` などで部品を継いで組むパス。判定の置き場のファイルの名の住処（JUDGE_NAME_HOMES）の中の関数が、判定の置き場を名で開くか。
-  判定の置き場のファイルの名を f 文字列や字の連結で組む形と、判定のポインタの `.parent` を一度変数に置いてから住処の関数に渡す形
+- E4: `pathlib` などで部品を継いで組むパス。表 NAME_HOMES の住処の中の関数が、持ち主の置き場を名で開くか。置き場のファイルの名を
+  f 文字列や字の連結で組む形。ポインタを通らずに ARTIFACTS_DIR の読みや境の口の返り（`boundary.place`・`boundary.inside_artifacts`）から
+  ほかのブロックの置き場を組む形（判定・計画・修正の行は ARTIFACTS_DIR を届く値に数えない）
 - E12: script の中で置く期限
 - E22: 根の AGENTS.md の E22 の「人が見る」の並び
 """
 import ast
 import collections
+import dataclasses
 import functools
 import json
 import posixpath
@@ -137,6 +139,11 @@ ALLOWED = {
         "workflows/line/scripts/spec_check.py#import judge_accept",  # 受けた J/spec.json のポインタを照らす spec_questions
         "workflows/line/scripts/fix_in.py#import judge_accept",  # 前の版の判定の出力を止める require_ports
         "workflows/line/scripts/collect.py#import judge_accept",  # 前の版の判定・再審の出力を止める require_ports
+        # 止めた段の受け付けの最後の拒否を、計画の外の段（判定・修正・試験の関門ほか）の置き場から探す。計画は返りの欄 rejects を読み
+        # （runreport.PLAN_RETURNS）、ここへは来ない。ほかの段の拒否の控えを欄で返すのは区分の issue
+        "lib/runreport.py#rolekit.last_reject(<計画に届く値>)",
+        # plan-review の書き手が、自分の置き場（review.json の隣）に計画と同じ名で諦めの行を置く。計画の置き場は開かない
+        "lib/boardview.py#planblk.REPLAN_GAVE_UP_FILE",
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
@@ -197,12 +204,11 @@ def problems(rule: str, root: Path) -> list[str]:
 def stale_allowances(root: Path) -> list[str]:
     """`ALLOWED` の行のうち、木の何にも当たらない物"""
     root = Path(root)
-    found = {}
+    found = {rule: RULES[rule](root) for rule, entries in ALLOWED.items() if any("#" in entry for entry in entries)}
 
     def hits(rule: str, entry: str) -> bool:
         path, _, word = entry.partition("#")
         if word:
-            found.setdefault(rule, RULES[rule](root))
             return any(_matches(entry, line) for line in found[rule])
         return any(_files(root, path)) if path.endswith("/") else (root / path).is_file()
 
@@ -380,7 +386,7 @@ def _block_paths(root: Path) -> list[str]:
     script は同じ `scripts/` の別の script を import せず（K8）、script の名は lib のモジュールの名と重ならない（script のフォルダが
     sys.path の頭に来るので、`import <名>` が lib の物でなく script を読む。K19）。
     """
-    out = _script_imports(root) + _script_names(root) + _input_producers(root) + _judge_names(root)
+    out = _script_imports(root) + _script_names(root) + _input_producers(root) + _port_names(root)
     blocks = [p.name for p in _blocks(root)]
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
@@ -524,33 +530,72 @@ def _script_names(root: Path) -> list[str]:
     return out
 
 
-JUDGE_FOLDER = "judge"
-WRITER = "judge_accept"
-# 書き手の欄 → 名の表。鍵で引けば名を持つので、書き手の import を許した所でも名指しに数える
-WRITER_TABLES = frozenset({(WRITER, "PORTS"), (WRITER, "FIRST_PORTS")})
-# lib の下で判定の外の読み手に数えない所（試験は名を字で持って照らす）
-JUDGE_NAME_UNREAD = ("lib/tests/",)
-# 判定の置き場のファイルの名（lib/judge_accept.py の PORTS・FIRST_PORTS の値）の住処。書き手の judge_accept と、名を定数で持つモジュール
-# だけが名を持ってよい。ほかの lib とほかのブロックの script は判定の出力の欄（ポインタ）で受ける（workflows/AGENTS.md の E4）
-JUDGE_NAME_HOMES = ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py", "lib/gatemarks.py",
-                    "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py", "lib/worldmark.py",
-                    "lib/report.py")
+@dataclasses.dataclass(frozen=True)
+class NameHome:
+    """表 NAME_HOMES の 1 行（鍵は持ち主のブロックのフォルダの名）: 持ち主の置き場のファイルの名の出どころと住処と、名指しの数え方"""
+    word: str                    # 誤りの文の語（届く値の印 <語に届く値>）
+    said: str                    # 誤りの文の当たりの言い方
+    fix: str                     # 誤りの文の直し方
+    tables: tuple                # 名の出どころ ((モジュール, 欄), …)。dict の欄は値の全部、字の欄はその字。引く形も名指しに数える
+    homes: tuple                 # 名を持ってよいモジュール（住処。書き手と、名を定数で持つモジュール）
+    writer: str = ""             # 持ち主の外が import しない書き手（照らしの部品だけを使う所は ALLOWED["E4"] に 1 行ずつ）
+    openers: tuple = ()          # 頭の関数の全部を開く口に数えるモジュール（置き場を受ける口。名を持たずに置き場を開く）
+    env: tuple = ()              # 持ち主の置き場へ印を書かせる環境変数の名の出どころ ((モジュール, 定数), …)
+    artifacts: bool = False      # 環境の ARTIFACTS_DIR の読みも置き場に届く値に数える
+
+
+# 持ち主の置き場のファイルとメイングラフの共有の置き場の、名の住処の表。持ち主の外（ほかのブロックとメイングラフの script・
+# workflows/.shared/・住処でない lib/）は名を持たず、出力の欄・入力で受ける（workflows/AGENTS.md の E4）
+NAME_HOMES = {
+    "judge": NameHome("判定", "判定の置き場のファイルを名指す", "判定の出力の欄のポインタを入力で受ける", (("judge_accept", "PORTS"), ("judge_accept", "FIRST_PORTS")),
+                      ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py", "lib/gatemarks.py",
+                       "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py", "lib/worldmark.py",
+                       "lib/report.py"), writer="judge_accept"),
+    "plan": NameHome("計画", "計画の置き場のファイルを名指す", "計画の出力の欄を入力で受ける", (("planfile", "PORTS"), ("planfile", "FROM")), ("lib/planfile.py", "lib/planblk.py", "lib/eye.py"),
+                     openers=("lib/rolekit.py",)),
+    "fix": NameHome("修正", "修正の置き場のファイルを名指す", "修正の出力の欄を入力で受ける", (("fixbeside", "PORTS"), ("fixbeside", "FROM")),
+                    ("lib/fixbeside.py", "lib/fixboard.py", "lib/leftovers.py", "lib/tddloop.py")),
+    "line": NameHome("メイングラフの置き場", "メイングラフの run の共有の置き場に届く", "メイングラフが渡す入力（reuse_dir・user_env_dir）で受ける",
+                     (("tree_run", "REUSE_SUB"), ("userenv", "RAN_FILE")), ("lib/tree_run.py", "lib/userenv.py"),
+                     openers=("lib/tree_run.py", "lib/userenv.py"), env=(("userenv", "RAN_DIR_ENV"),), artifacts=True),
+}
+# lib の下で持ち主の外の読み手に数えない所（試験は名を字で持って照らす）
+NAME_UNREAD = ("lib/tests/",)
+ARTIFACTS_ENV = "ARTIFACTS_DIR"
 
 
 @functools.cache
-def judge_port_files() -> frozenset:
-    """判定の出力の欄が指す置き場のファイルの名（judge_accept の表から引く）"""
+def _table_modules() -> dict:
+    """表 NAME_HOMES の名の出どころのモジュール（照らす時に読む。lib の重い部品を scan の読み込みで読まない）"""
+    import fixbeside
     import judge_accept
-    return frozenset((*judge_accept.PORTS.values(), *judge_accept.FIRST_PORTS.values()))
+    import planfile
+    import tree_run
+    import userenv
+    return {m.__name__: m for m in (fixbeside, judge_accept, planfile, tree_run, userenv)}
 
 
-def _home_constants(root: Path, names: frozenset, kinds: frozenset) -> tuple[set, set, set]:
-    """住処のモジュールが module の頭で置く定数と関数 ({(モジュール, 名)} 値が判定の置き場のファイルの名を持つ定数, 値が marks の種の
-    定数, 判定の置き場を名で開く関数)。ファイルの名を持つ値は、名の字・その名の種の `marks.KINDS[<種>].file`・知っている定数（同じ
-    モジュールの素の名か `<モジュール>.<名>`）と、それらを並べた tuple・list。開く関数は、中にそれらの値・その種の
-    `marks.path_of(<種>, …)`・開く関数の呼び出しを持つ物"""
+def _table_value(module: str, name: str):
+    return getattr(_table_modules()[module], name)
+
+
+@functools.cache
+def port_files(block: str) -> frozenset:
+    """持ち主のブロック block の置き場のファイルの名（表 NAME_HOMES の行の名の出どころから引く。字を写さない）"""
+    names = set()
+    for module, name in NAME_HOMES[block].tables:
+        value = _table_value(module, name)
+        names |= set(value.values()) if isinstance(value, dict) else {value}
+    return frozenset(names)
+
+
+def _home_constants(root: Path, homes, names: frozenset, kinds: frozenset, everything=()) -> tuple[set, set, set]:
+    """住処のモジュール homes が module の頭で置く定数と関数 ({(モジュール, 名)} 値が置き場のファイルの名を持つ定数, 値が marks の種の
+    定数, 置き場を名で開く関数)。ファイルの名を持つ値は、名の字・その名の種の `marks.KINDS[<種>].file`・知っている定数（同じ
+    モジュールの素の名か `<モジュール>.<名>`）と、それらを並べた tuple・list。tuple の代入（`A, B = "a", "b"`）は 1 つずつの定数。
+    開く関数は、中にそれらの値・その種の `marks.path_of(<種>, …)`・開く関数の呼び出しを持つ物と、everything のモジュールの頭の関数の全部"""
     files, kind_consts, bodies = set(), set(), []
-    for home in JUDGE_NAME_HOMES:
+    for home in (*homes, *everything):
         path = root / home
         if path.is_file():
             bodies.append((path.stem, ast.parse(path.read_text(encoding="utf-8")).body))
@@ -571,6 +616,13 @@ def _home_constants(root: Path, names: frozenset, kinds: frozenset) -> tuple[set
                     and (isinstance(sub.slice, ast.Constant) and sub.slice.value in kinds or known(sub.slice, module, kind_consts)))
         return known(node, module, files)
 
+    def pairs(node):
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                yield target, node.value
+            elif isinstance(target, ast.Tuple) and isinstance(node.value, ast.Tuple) and len(target.elts) == len(node.value.elts):
+                yield from ((t, v) for t, v in zip(target.elts, node.value.elts) if isinstance(t, ast.Name))
+
     grown = True
     while grown:
         grown = False
@@ -578,12 +630,12 @@ def _home_constants(root: Path, names: frozenset, kinds: frozenset) -> tuple[set
             for node in body:
                 if not isinstance(node, ast.Assign):
                     continue
-                for target in (t for t in node.targets if isinstance(t, ast.Name)):
+                for target, value in pairs(node):
                     pair = (module, target.id)
-                    if pair not in kind_consts and isinstance(node.value, ast.Constant) and node.value.value in kinds:
+                    if pair not in kind_consts and isinstance(value, ast.Constant) and value.value in kinds:
                         kind_consts.add(pair)
                         grown = True
-                    if pair not in files and names_file(node.value, module):
+                    if pair not in files and names_file(value, module):
                         files.add(pair)
                         grown = True
 
@@ -593,7 +645,9 @@ def _home_constants(root: Path, names: frozenset, kinds: frozenset) -> tuple[set
             return isinstance(kind, ast.Constant) and kind.value in kinds or known(kind, module, kind_consts)
         return isinstance(node, ast.Call) and known(node.func, module, openers) or names_file(node, module)
 
-    openers, grown = set(), True
+    whole = {Path(home).stem for home in everything}
+    openers = {(module, node.name) for module, body in bodies if module in whole for node in body if isinstance(node, ast.FunctionDef)}
+    grown = True
     while grown:
         grown = False
         for module, body in bodies:
@@ -605,86 +659,272 @@ def _home_constants(root: Path, names: frozenset, kinds: frozenset) -> tuple[set
     return files, kind_consts, openers
 
 
-def _judge_names(root: Path) -> list[str]:
-    """判定の外（住処でない lib・workflows/.shared/・ほかのブロックの script）が、判定の置き場のファイルを名指さない。名指しに数えるのは、
-    名の字そのもの（長い文の一部は数えない）・住処の定数（`<モジュール>.<名>`・`from <モジュール> import <名>`・getattr で名で引く形）・
-    その名の marks の種（`marks.KINDS[<種>]`・`marks.path_of(<種>, …)`）・住処の開く関数に判定のポインタの隣（_beside）を渡す呼び出し・
-    書き手 judge_accept の import と、その名の表（`PORTS`・`FIRST_PORTS`）を引く形（import とは別の当たりなので、import を許した所でも
-    鳴る）。住処の中の関数が判定の置き場を名で開くかは人が見る"""
-    import marks
-    names = judge_port_files()
-    kinds = frozenset(k for k, kind in marks.KINDS.items() if kind.file in names)
-    consts, kind_consts, openers = _home_constants(root, names, kinds)
-    consts |= WRITER_TABLES
-    homes = set(JUDGE_NAME_HOMES)
-    paths = [q for q in _files(root, "lib") if q.suffix == ".py" and _rel(root, q) not in homes
-             and not _rel(root, q).startswith(JUDGE_NAME_UNREAD)]
-    paths += [q for q in _files(root, "workflows", ".shared") if q.suffix == ".py"]
-    paths += [q for folder in _blocks(root) if folder.name != JUDGE_FOLDER for q in _files(root, "workflows", folder.name, "scripts")
-              if q.suffix == ".py"]
-    out = []
-    for path in paths:
-        rel = _rel(root, path)
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError) as e:
-            out.append(f"{rel}:1: 読めない（{type(e).__name__}）")
-            continue
-        alias, imported = {}, {}
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                alias |= {a.asname or a.name: a.name for a in node.names}
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported |= {a.asname or a.name: (node.module, a.name) for a in node.names}
+def _artifacts_read(node) -> bool:
+    """環境の ARTIFACTS_DIR の読み（`os.environ["ARTIFACTS_DIR"]`・`os.environ.get("ARTIFACTS_DIR")`・`os.getenv("ARTIFACTS_DIR")`）"""
+    if isinstance(node, ast.Subscript):
+        return _is_environ(node.value) and isinstance(node.slice, ast.Constant) and node.slice.value == ARTIFACTS_ENV
+    if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == ARTIFACTS_ENV:
+        func = node.func
+        return (isinstance(func, ast.Attribute) and (func.attr == "get" and _is_environ(func.value)
+                                                     or func.attr == "getenv" and isinstance(func.value, ast.Name)))
+    return False
 
-        def opener(func):
-            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-                pair = (alias.get(func.value.id, func.value.id), func.attr)
-            else:
-                pair = imported.get(func.id) if isinstance(func, ast.Name) else None
-            return f"{pair[0]}.{pair[1]}" if pair in openers else None
 
-        def const_of(node, table):
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-                pair = (alias.get(node.value.id, node.value.id), node.attr)
-                return f"{pair[0]}.{pair[1]}" if pair in table else None
-            return None
+def _is_environ(node) -> bool:
+    return isinstance(node, ast.Attribute) and node.attr == "environ" and isinstance(node.value, ast.Name)
 
-        def kind_of(node):
-            if isinstance(node, ast.Constant) and node.value in kinds:
-                return repr(node.value)
-            return const_of(node, kind_consts)
 
-        for node in ast.walk(tree):
-            hit = None
-            if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in names:
-                hit = node.value
-            elif isinstance(node, ast.Attribute):
-                hit = const_of(node, consts)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                hit = next((f"{node.module}.{a.name}" for a in node.names if (node.module, a.name) in consts), None)
-                hit = hit or node.module == WRITER and f"from {WRITER} import"
-            elif isinstance(node, ast.Import):
-                hit = next((f"import {WRITER}" for a in node.names if a.name == WRITER), None)
-            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr" and len(node.args) >= 2:
-                module = alias.get(node.args[0].id, "") if isinstance(node.args[0], ast.Name) else ""
-                name = node.args[1].value if isinstance(node.args[1], ast.Constant) else None
-                hit = (module, name) in consts and f"getattr({module}, {name!r})"
-            elif isinstance(node, ast.Call) and opener(node.func) and any(map(_beside, (*node.args, *node.keywords))):
-                hit = f"{opener(node.func)}(<判定のポインタの隣>)"
-            elif isinstance(node, ast.Subscript) and const_of(node.value, {("marks", "KINDS")}):
-                hit = kind_of(node.slice) and f"marks.KINDS[{kind_of(node.slice)}]"
-            elif isinstance(node, ast.Call) and const_of(node.func, {("marks", "path_of")}) and node.args:
-                hit = kind_of(node.args[0]) and f"marks.path_of({kind_of(node.args[0])}, …)"
-            if hit:
-                out.append(f"{rel}:{node.lineno}: {hit} で判定の置き場のファイルを名指す。判定の出力の欄のポインタを入力で受ける")
+PATH_METHODS = ("resolve", "absolute", "expanduser")   # パスを受けてパスを返す pathlib の口（値が届く先を替えない）
+PATH_MAKERS = ("Path", "PurePath", "PosixPath")
+
+
+def _beside(arg, local=frozenset(), returning=frozenset(), artifacts: bool = False) -> bool:
+    """置き場に届くパスの値か: ポインタから隣を引く `.parent`・`.parents[…]`・`.with_name(…)`（`__file__` に根を持つ物は数えない）、
+    そういう値を置いた名 local、そういう値を返す関数 returning の呼び、artifacts なら環境の ARTIFACTS_DIR の読みと、それらを
+    `/` で継いだ・`Path(…)` に包んだ・`.resolve()` した・並べた値。値から読んだ中身（`str(…)`・`.get(…)`・`.read_text()`）は数えない"""
+    def walk(n) -> bool:
+        if isinstance(n, ast.Attribute):
+            return n.attr in ("parent", "parents") and not _from_file(n.value)
+        if isinstance(n, ast.Subscript):
+            return artifacts and _artifacts_read(n) or walk(n.value)
+        if isinstance(n, ast.Name):
+            return n.id in local
+        if isinstance(n, ast.BinOp):
+            return isinstance(n.op, ast.Div) and walk(n.left)
+        if isinstance(n, (ast.List, ast.Tuple, ast.Set)):
+            return any(map(walk, n.elts))
+        if isinstance(n, (ast.ListComp, ast.GeneratorExp, ast.SetComp)):
+            return walk(n.elt)
+        if isinstance(n, ast.Starred):
+            return walk(n.value)
+        if isinstance(n, ast.Call):
+            func = n.func
+            if isinstance(func, ast.Attribute) and func.attr == "with_name":
+                return not _from_file(func.value)
+            if isinstance(func, ast.Attribute) and func.attr in PATH_METHODS:
+                return walk(func.value)
+            if _callee(func).rsplit(".", 1)[-1] in PATH_MAKERS:
+                return any(map(walk, n.args))
+            return _callee(func) in returning or artifacts and _artifacts_read(n)
+        return False
+    return walk(arg)
+
+
+def _from_file(node) -> bool:
+    return any(isinstance(n, ast.Name) and n.id == "__file__" for n in ast.walk(node))
+
+
+def _callee(func) -> str:
+    """呼びの名（`f` か `<モジュール>.f`）"""
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        return f"{func.value.id}.{func.attr}"
+    return ""
+
+
+def _own_nodes(fn):
+    """関数（か module）の節のうち、中の関数・class の中でない物"""
+    todo = list(ast.iter_child_nodes(fn))
+    while todo:
+        node = todo.pop()
+        yield node
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            todo.extend(ast.iter_child_nodes(node))
+
+
+def _reached_names(fn, returning, artifacts: bool) -> frozenset:
+    """関数（か module の頭）fn の中で、置き場に届くパスの値（_beside）を置いた名（代入・for の的・`.append(…)` の並び）"""
+    nodes = list(_own_nodes(fn))
+    local: set = set()
+    grown = True
+    while grown:
+        grown = False
+        for node in nodes:
+            targets, value = [], None
+            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) and node.value is not None:
+                targets, value = (node.targets if isinstance(node, ast.Assign) else [node.target]), node.value
+            elif isinstance(node, (ast.For, ast.comprehension)):
+                targets, value = [node.target], ast.Subscript(value=node.iter, slice=ast.Constant(0))
+            elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "append"
+                  and isinstance(node.func.value, ast.Name) and node.args):
+                targets, value = [node.func.value], node.args[0]
+            if value is None or not _beside(value, local, returning, artifacts):
+                continue
+            for name in (t.id for t in targets if isinstance(t, ast.Name)):
+                if name not in local:
+                    local.add(name)
+                    grown = True
+    return frozenset(local)
+
+
+def _scopes(tree, returning, artifacts: bool) -> dict:
+    """木の各節 → その節の居る関数（無ければ module の頭）で置き場に届くパスの値を置いた名"""
+    out = {}
+    for fn in [tree, *(n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))]:
+        local = _reached_names(fn, returning, artifacts)
+        for node in _own_nodes(fn):
+            out[node] = local
     return out
 
 
-def _beside(arg) -> bool:
-    """判定のポインタから隣を引く値（`.parent`・`.with_name(…)` を含む）"""
-    return any(isinstance(n, ast.Attribute) and n.attr == "parent"
-               or isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "with_name" for n in ast.walk(arg))
+def _returning(trees, artifacts: bool) -> frozenset:
+    """木の中の、置き場に届くパスの値を返す関数の名（素の名と `<モジュール>.<名>`）"""
+    found: set = set()
+    grown = True
+    while grown:
+        grown = False
+        for module, tree in trees:
+            for fn in (n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))):
+                names = {fn.name, f"{module}.{fn.name}"}
+                if names <= found:
+                    continue
+                local = _reached_names(fn, frozenset(found), artifacts)
+                if any(isinstance(n, ast.Return) and n.value is not None and _beside(n.value, local, frozenset(found), artifacts)
+                       for n in _own_nodes(fn)):
+                    found |= names
+                    grown = True
+    return frozenset(found)
+
+
+def _env_names(row: NameHome) -> frozenset:
+    return frozenset(_table_value(module, name) for module, name in row.env)
+
+
+def _env_aim(node, row: NameHome, env_consts: set, alias: dict) -> ast.AST | None:
+    """行の環境変数（row.env の値か、それを値に持つ定数）を鍵に環境へ置く値（`os.environ[…] = 値`・`os.environ.update/setdefault`・
+    `os.putenv`）。置く形でなければ None"""
+    names = _env_names(row)
+
+    def is_key(key) -> bool:
+        if isinstance(key, ast.Constant):
+            return key.value in names
+        if isinstance(key, ast.Name):
+            return key.id in env_consts
+        return isinstance(key, ast.Attribute) and isinstance(key.value, ast.Name) and (
+            alias.get(key.value.id, key.value.id), key.attr) in {*row.env, *(("boundary", c) for c in env_consts)}
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            if isinstance(target, ast.Subscript) and _is_environ(target.value) and is_key(target.slice):
+                return _unstr(node.value)
+        return None
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+        return None
+    func = node.func
+    if func.attr == "putenv" and len(node.args) >= 2 and is_key(node.args[0]):
+        return _unstr(node.args[1])
+    if func.attr == "setdefault" and _is_environ(func.value) and len(node.args) >= 2 and is_key(node.args[0]):
+        return _unstr(node.args[1])
+    if func.attr == "update" and _is_environ(func.value):
+        for arg in (*node.args, *(k.value for k in node.keywords)):
+            if isinstance(arg, ast.Dict):
+                return next((_unstr(v) for k, v in zip(arg.keys, arg.values) if k is not None and is_key(k)), None)
+    return None
+
+
+def _unstr(node):
+    """環境へ置く値の `str(…)`・`os.fspath(…)` の包みを外した中身（環境の値は字なので、パスを字にして置く）"""
+    while isinstance(node, ast.Call) and _callee(node.func) in ("str", "os.fspath") and len(node.args) == 1:
+        node = node.args[0]
+    return node
+
+
+def _port_names(root: Path) -> list[str]:
+    """表 NAME_HOMES の行ごとに、持ち主の外（住処でない lib・workflows/.shared/・持ち主でないブロックとメイングラフの script）が
+    持ち主の置き場のファイルを名指さない。名指しに数えるのは、名の字そのもの（長い文の一部は数えない）・住処の定数
+    （`<モジュール>.<名>`・`from <モジュール> import <名>`・getattr で名で引く形）と名の出どころの表（引く形は import を許した所でも
+    鳴る）・その名の marks の種（`marks.KINDS[<種>]`・`marks.path_of(<種>, …)`）・住処の開く関数（行の openers は頭の関数の全部）に
+    置き場に届く値（_beside。名に置いた値・それを返す関数の呼びも）を渡す呼び出し・行の環境変数に置き場に届く値を置く形・書き手の
+    import。住処の中の関数が置き場を名で開くかは人が見る"""
+    import marks
+    out = []
+    lib_paths = [q for q in _files(root, "lib") if q.suffix == ".py" and not _rel(root, q).startswith(NAME_UNREAD)]
+    shared = [q for q in _files(root, "workflows", ".shared") if q.suffix == ".py"]
+    scripts = {folder.name: [q for q in _files(root, "workflows", folder.name, "scripts") if q.suffix == ".py"] for folder in _blocks(root)}
+    trees, broken = {}, set()
+    for path in [*lib_paths, *shared, *(q for qs in scripts.values() for q in qs)]:
+        try:
+            trees[path] = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError) as e:
+            out.append(f"{_rel(root, path)}:1: 読めない（{type(e).__name__}）")
+            broken.add(path)
+    for owner, row in NAME_HOMES.items():
+        names = port_files(owner)
+        kinds = frozenset(k for k, kind in marks.KINDS.items() if kind.file in names)
+        consts, kind_consts, openers = _home_constants(root, row.homes, names, kinds, row.openers)
+        consts |= set(row.tables)
+        homes = {*row.homes, *row.openers}
+        writer = row.writer
+        paths = [q for q in lib_paths if _rel(root, q) not in homes]
+        paths += shared + [q for block, qs in scripts.items() if block != owner for q in qs]
+        paths = [q for q in paths if q not in broken]
+        returning = _returning([(Path(_rel(root, q)).stem, trees[q]) for q in paths], row.artifacts)
+        boundary_consts = {t.id for q in shared if q not in broken for n in ast.walk(trees[q]) if isinstance(n, ast.Assign)
+                           for t in n.targets
+                           if isinstance(t, ast.Name) and isinstance(n.value, ast.Constant) and n.value.value in _env_names(row)}
+        for path in paths:
+            rel = _rel(root, path)
+            tree = trees[path]
+            alias, imported = {}, {}
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    alias |= {a.asname or a.name: a.name for a in node.names}
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported |= {a.asname or a.name: (node.module, a.name) for a in node.names}
+
+            def opener(func):
+                if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+                    pair = (alias.get(func.value.id, func.value.id), func.attr)
+                else:
+                    pair = imported.get(func.id) if isinstance(func, ast.Name) else None
+                return f"{pair[0]}.{pair[1]}" if pair in openers else None
+
+            def const_of(node, table):
+                if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                    pair = (alias.get(node.value.id, node.value.id), node.attr)
+                    return f"{pair[0]}.{pair[1]}" if pair in table else None
+                return None
+
+            def kind_of(node):
+                if isinstance(node, ast.Constant) and node.value in kinds:
+                    return repr(node.value)
+                return const_of(node, kind_consts)
+
+            scope_of = _scopes(tree, returning, row.artifacts)
+            env_consts = {t.id for n in ast.walk(tree) if isinstance(n, ast.Assign) for t in n.targets
+                          if isinstance(t, ast.Name) and isinstance(n.value, ast.Constant) and n.value.value in _env_names(row)}
+            env_consts |= boundary_consts
+            reach = f"<{row.word}に届く値>"
+            for node in ast.walk(tree):
+                hit = None
+                if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in names:
+                    hit = node.value
+                elif isinstance(node, ast.Attribute):
+                    hit = const_of(node, consts)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    hit = next((f"{node.module}.{a.name}" for a in node.names if (node.module, a.name) in consts), None)
+                    hit = hit or (writer and node.module == writer and f"from {writer} import")
+                elif isinstance(node, ast.Import):
+                    hit = next((f"import {writer}" for a in node.names if writer and a.name == writer), None)
+                elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr" and len(node.args) >= 2:
+                    module = alias.get(node.args[0].id, "") if isinstance(node.args[0], ast.Name) else ""
+                    name = node.args[1].value if isinstance(node.args[1], ast.Constant) else None
+                    hit = (module, name) in consts and f"getattr({module}, {name!r})"
+                elif isinstance(node, ast.Call) and opener(node.func) and any(
+                        _beside(a, scope_of.get(node, frozenset()), returning, row.artifacts)
+                        for a in (*node.args, *(k.value for k in node.keywords))):
+                    hit = f"{opener(node.func)}({reach})"
+                elif isinstance(node, ast.Subscript) and const_of(node.value, {("marks", "KINDS")}):
+                    hit = kind_of(node.slice) and f"marks.KINDS[{kind_of(node.slice)}]"
+                elif isinstance(node, ast.Call) and const_of(node.func, {("marks", "path_of")}) and node.args:
+                    hit = kind_of(node.args[0]) and f"marks.path_of({kind_of(node.args[0])}, …)"
+                if not hit and row.env and isinstance(node, (ast.Assign, ast.Call)):
+                    value = _env_aim(node, row, env_consts, alias)
+                    hit = (value is not None and _beside(value, scope_of.get(node, frozenset()), returning, row.artifacts)
+                           and f"環境の印の置き場 = {reach}")
+                if hit:
+                    out.append(f"{rel}:{node.lineno}: {hit} で{row.said}。{row.fix}")
+    return out
 
 
 def _pointed_block(target: str) -> str:
@@ -790,8 +1030,11 @@ def _envless_spawns(root: Path, path: Path) -> list[str]:
     except (SyntaxError, UnicodeDecodeError):
         return []   # 読めない字は _grep が UTF-8 の行で出す。構文の誤りは試験そのものが落ちる
     # 既定が None の引数を差し替えずに env へ渡す形も、呼び手が渡さなければ env の無い子になる
-    unset = {id(call): _none_default_params(fn) for fn in ast.walk(tree)
-             if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) for call in ast.walk(fn)}
+    # 入れ子の関数の中の呼び出しは、いちばん内の関数の引数で見る（ast.walk は外の関数を先に訪ねるので、内の関数が上書きする）
+    unset = {}
+    for fn in ast.walk(tree):
+        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            unset.update(dict.fromkeys(map(id, ast.walk(fn)), _none_default_params(fn)))
     out = []
     for node in ast.walk(tree):
         func = getattr(node, "func", None)
@@ -1766,7 +2009,8 @@ def layer_hits(root: Path) -> dict[str, list[str]]:
 
 
 def _layer_map(root: Path) -> list[str]:
-    return [line for check in LAYER_CHECKS for line in layer_hits(root)[check]]
+    hits = layer_hits(root)
+    return [line for check in LAYER_CHECKS for line in hits[check]]
 
 
 def _scalar(value) -> str:

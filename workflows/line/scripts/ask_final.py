@@ -16,8 +16,8 @@ line_edge.py:1184-1197）。無人の run で開くはずの時は開かずに�
 文に訳を出す。判定の役が人に聞くと保留にしたままの問い（held）は冒頭と本文に見せるが、開ける理由には数えない（元 _final_head）。
 「修正役が人に回した物が在る」（元 report.handoff_lines）と「直したという申告と機械の数え直しが合わない単位が在る」（元
 querytest.closure_lines の mismatched_only）は、fix の出力の handoffs・mismatched（fixed が 1 回目と 2 度目の修正の分を合わせた物）を読む。
-許したテストの変更は、修正の段ごとの diff（fixed の diffs）の隣の allowed-tests.json（[{path, permit, source}]）を読んで、許しの id と
-出どころつきで並べる。ほかの段の控え（閉鎖の表・穴の名札と手直し・受け付けの trace・レンズ）は同じ diff の隣から lib/fixbeside.py で読む。
+許したテストの変更（[{path, permit, source}]）は許しの id と出どころつきで並べる。それとほかの段の控え（閉鎖の表・穴の名札と手直し・
+受け付けの trace・レンズ）は、修正の段ごとの返りの控えの欄（fixed の records）を lib/fixbeside.py の read で読む。
 
 文は冒頭 3 行（final_head。lib/gatemarks.py の head3）で始め、元 line_edge.final_edge・_final_text の節の並びに戻す: 守りのパス
 （差分の見方と一覧）・食い違いの申し出・修正役が人に回した物・減っていない単位・例で試していない単位・閉鎖の数え直し・同じ run で
@@ -26,7 +26,6 @@ querytest.closure_lines の mismatched_only）は、fix の出力の handoffs・
 通した行と往復・許したテストの変更・取り込むと消えるファイル・独立の目・clean とレンズと仕組みの異常・残り・承認し直すかの問い・
 人に聞いている問い（記録のまま引く）・保留の問いと答えた問いと当たらなかった依頼の答えと読めなかった保留。開いた文は run の置き場の FINAL_GATE_FILE にも残す（元 line_edge.py:887 の final-gate.md）。
 """
-import json
 import os
 import sys
 from pathlib import Path
@@ -412,39 +411,15 @@ def structure_missing(structure) -> str:
     return structmark.note(structmark.read(folder))
 
 
-def fix_beside(pointers) -> dict:
-    """修正の段ごとの diff の隣の控え（fixed の diffs の先のフォルダ。lib/fixbeside.py と許したテストの変更の訳）から関所に並べる行:
+def fix_beside(records) -> dict:
+    """修正の段ごとの返りの控えの欄（fixed の records。lib/fixbeside.py の read が段の欄のポインタを戻して読む）から関所に並べる行:
     減っていない単位・閉鎖の数え直し・回さなかった試験・赤緑を確かめずに受けた回・差分の審査の穴の名札と手直しの結果・clean と
     レンズと仕組みの異常・許したテストの変更、と読めなかった訳（beside_unread。開ける理由になる）"""
-    folders, unread = [], []
-    for ptr in pointers or []:
-        try:
-            folders.append(boundary.resolve(ptr).parent)
-        except (ValueError, TypeError, AttributeError, KeyError) as error:
-            unread.append(f"修正の差分のポインタを読めない（隣の控えを読んでいない。{type(error).__name__}: {error}）")
-    got = fixbeside.read(folders)
-    allowed, allowed_unread = allowed_tests(folders)
+    got = fixbeside.read(records, boundary.resolve)
     return {"stuck": fixbeside.closure_lines(got, stuck_only=True), "closure": fixbeside.closure_lines(got),
             "tests_left": fixbeside.tests_left_lines(got), "gates": fixbeside.gates_lines(got),
-            "branch_rows": fixbeside.branch_rows(got), "always": fixbeside.always_rows(got), "allowed_tests": allowed,
-            "beside_unread": [*unread, *got["unread"], *allowed_unread]}
-
-
-def allowed_tests(folders) -> tuple:
-    """(許したテストの変更の訳の行 {path, permit, source}, 読めなかった訳)。fix の collect が差分の隣に置く
-    fixboard.ALLOWED_TESTS_FILE を段の順に読む。collect は落ちた道でも [] を置くので、無い・読めない・行の配列でないファイルは訳を
-    返す（黙って空にしない）"""
-    rows, unread = [], []
-    for folder in folders:
-        try:
-            doc = json.loads((folder / fixboard.ALLOWED_TESTS_FILE).read_text(encoding="utf-8"))
-            if not isinstance(doc, list) or not all(isinstance(row, dict) for row in doc):
-                raise ValueError("行の配列でない")
-        except (OSError, ValueError) as error:
-            unread.append(f"許したテストの変更の訳 {folder / fixboard.ALLOWED_TESTS_FILE} を読めない（{type(error).__name__}: {error}）")
-            continue
-        rows += [row for row in doc if row not in rows]
-    return rows, unread
+            "branch_rows": fixbeside.branch_rows(got), "always": fixbeside.always_rows(got), "allowed_tests": got["allowed"],
+            "beside_unread": got["unread"]}
 
 
 def eye_notes(notes) -> dict:
@@ -547,7 +522,7 @@ def got_of_env() -> dict:
     passes, rounds, review_unread = review_rows((boundary.value(os.environ.get("INPUTS_PLAN_REVIEW")),
                                                  boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW"))))
     deleted, deleted_unread = deleted_files(closing["diff"])
-    beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_DIFFS")))
+    beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_RECORDS")))
     noted = eye_notes(eye["notes"])
     raw = {"units": boundary.items(os.environ.get("INPUTS_UNITS")), "first_units": boundary.items(os.environ.get("INPUTS_FIRST_UNITS")),
            "judgment": judgment, "first_judgment": boundary.value(os.environ.get("INPUTS_FIRST_JUDGMENT")),

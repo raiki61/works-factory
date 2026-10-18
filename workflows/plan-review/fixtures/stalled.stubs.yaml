@@ -16,6 +16,7 @@ review:
   gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
   ask_human: true
   questions: [{"kind": "design_only", "text": "事前審査の壁打ちが止まった案: 修正に進まない。理由: stub-block-001 が続いた"}]
+  gave_up: null
 fixture:
   inputs:
     units: "[]"

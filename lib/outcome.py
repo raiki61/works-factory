@@ -45,7 +45,6 @@ import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import oneline  # noqa: E402
-import planfile  # noqa: E402
 import replan  # noqa: E402
 import report  # noqa: E402
 import seal  # noqa: E402
@@ -134,10 +133,13 @@ def paths(v) -> list:
     return []
 
 
-def fix_folders(returns: dict) -> list:
-    """修正の段ごとの置き場（fix の返りの diffs の先のフォルダ。1 回目と 2 度目の修正の順。diffs の無い返りは diff の先）"""
+def fix_records(returns: dict) -> list:
+    """修正の段ごとの返りの控えの欄（fix の返りの records。1 回目と 2 度目の修正の順。指し札は開けたパスの字）。records の無い返り
+    （1 回目の修正の返りだけを受けた報告）は diff が在ればその返りの欄を 1 段として読み、無ければ []"""
     fix = as_dict(returns.get("fix"))
-    return [pathlib.Path(p).parent for p in paths(fix.get("diffs") if "diffs" in fix else fix.get("diff"))]
+    if isinstance(fix.get("records"), list):
+        return fix["records"]
+    return [fix] if fix.get("diff") else []
 
 
 def record_problems(returns: dict, gates: dict, *, unread=(), unopened=(), stages=None) -> tuple[list, list]:
@@ -319,7 +321,7 @@ def residue(returns: dict, facts: dict | None = None) -> list:
     """fixed を名乗らせない残りの行 [{where, text}]（元 rest_outside_validator の行の形）。R4 の questions は残りでない
     （人が決めることの節に出す）。深さで省いた目（null）は数えない。facts の answers が命令と出力つきで答えた測れていない素材は
     数えず（元 residue の measured_materials）、facts の absorbed（受け止めた落ち）を数え、facts の eyes_skip（直した後の深さの
-    省く理由。標準なら空）が空なら返りの無い目を数える。facts の beside（修正の diff の隣のファイルの fixbeside.read の返り）が
+    省く理由。標準なら空）が空なら返りの無い目を数える。facts の beside（修正の段の控えの欄の fixbeside.read の返り）が
     在れば読み直さない。封じの ok は残りに数えない（読み手は _proved の docstring）"""
     facts = facts or {}
     rows = []
@@ -335,7 +337,7 @@ def residue(returns: dict, facts: dict | None = None) -> list:
                 rows.append({"where": f"修正 {u.get('unit_id')}",
                              "text": f"単位 {u.get('unit_id')} が {u['status']}: {oneline.one_line(u.get('reason') or '理由なし')}"})
         left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT}
-        beside = facts.get("beside") or fixbeside.read(fix_folders(returns))
+        beside = facts.get("beside") or fixbeside.read(fix_records(returns), pathlib.Path)
         for k in fixbeside.not_closed(beside):   # 元 report._closed_units: 申告しても表で閉じていない
             if k not in left:
                 rows.append({"where": f"修正 {k}", "text": f"単位 {k} が閉鎖の表で閉じていない（{NOT_CLOSED}）"})
@@ -411,10 +413,8 @@ def plan_gave_up(returns: dict) -> bool:
 
 
 def plan_nothing_owed(returns: dict) -> bool:
-    """計画の返りの指し札 plan（plan-fields.json）の隣の round.json が、直す義務 0 件で役を起こさなかった周と言うか（指し札が無い・
-    読めなければ偽で、諦めに倒す）"""
-    p = as_dict(planned(returns)).get("plan")
-    return isinstance(p, str) and bool(p) and planfile.nothing_owed(pathlib.Path(p).parent)
+    """計画の返りの欄 nothing_owed が、直す義務 0 件で役を起こさなかった周と言うか（欄が無い・真でなければ偽で、諦めに倒す）"""
+    return as_dict(planned(returns)).get("nothing_owed") is True
 
 
 def eye_questions(returns: dict) -> list:

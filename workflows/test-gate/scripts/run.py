@@ -4,9 +4,10 @@
 # ///
 """節 run: 走らせる前の指紋を取り、走らせ方を機械で決めて走らせ（declared_checks.run_ci）、tdd_suite が在れば一式を 1 回走らせて
 1 件ごとの結末を足し、走らせた後の指紋を取る。結果の全部は test-gate/<mode>/run.json に書き、節の返りは output_format の欄だけ。
-base は同じ run の中の試験の結果の控え（run の置き場の直下の tree_run.REUSE_SUB。run の名は始めの記録の run_id）を引いて置く。
+base は同じ run の中の試験の結果の控え（入力 reuse_dir。run の名は始めの記録の run_id）を引いて置く。
 fix の TDD の輪の頭が同じ控えを引く。final は引かず置かない（最後のテストは省かない）。旗 tree_run.RERUN_ENV が立てば引かない。
-テストを起こす前に Archon の変数を落とす（対象のテストに継がせず、節ごとに違う値で控えの指紋を割らない）。
+テストを起こす前に Archon の変数を落とす（対象のテストに継がせず、節ごとに違う値で控えの指紋を割らない）。利用者の HOME・XDG に戻して
+起こした印は入力 user_env_dir の置き場に置かせる。
 止められたら木を止め終えてから返りを出さずに 128+信号で抜ける。走らせられない（範囲の宣言の誤りなど）は 1 で、理由を標準エラーに 1 行"""
 import json
 import os
@@ -85,9 +86,10 @@ def main() -> int:
     artifacts = Path(os.environ["ARTIFACTS_DIR"])
     gate = artifacts / "test-gate" / mode
     log_dir = fresh_gate(gate)
-    reuse = (tree_run.reuse_place(artifacts, start.get("run_id") or "", rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
+    reuse = (tree_run.reuse_place(os.environ.get("INPUTS_REUSE_DIR", ""), start.get("run_id") or "",
+                                  rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
              if mode == "base" else None)
-    boundary.drop_runner_env()
+    boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))
     base_rev = start.get("base_rev") or ""
     suite = start.get("tdd_suite") or ""
     wheres = request_wheres(start, mode)
