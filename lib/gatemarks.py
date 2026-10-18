@@ -118,7 +118,6 @@ import structmark  # 構造の目の行（汚れる・人に上げる）
 import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
 
 MARKS_FILE = marks.KINDS["gate"].file
-PLAN_GATE_FILE = "gate.json"   # 事前審査の差し込みの関所の項目と往復の報告の行 converge（boardview が書き、報告が読む）
 RECOMMEND = "recommend"   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
 RECOMMEND_KEYS = ("answer", "note", "why")   # 頭が答え、残りが RECOMMEND_MIN 字以上の文
@@ -238,7 +237,6 @@ SPEC_CHANGED_KIND = "spec_changed"    # 関所の項目の kinds（修正の後�
 ROW_FIELDS = ("kind", "text")         # 事前審査の返り questions の 1 行 {kind, text}（関所の項目の種類と文）
 ASKING = ("held", "escalate")         # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）
 UNMEASURED = ("not_run", "awaiting_human")   # 素材の状態のうち今の周に測れていない物（写しの検証器の STATUS で阻害になる物）
-PASSES_FILE = "gate-passes.json"     # 事前審査の返り review の隣の、決め手で通した行と人が通したので聞き直さなかった行（passes の並び）
 _NO_FIX = "修正に進まない（continue で修正へ進む・stop で報告へ。判定・修正案・事前審査・独立設計は報告の見る所に並ぶ）"
 DESIGN_ONLY_ITEM = "設計だけの run: " + _NO_FIX
 STUCK_ITEM = "事前審査の壁打ちが止まった案: " + _NO_FIX   # 設計だけでない run の止まり（設計だけの run と名乗らない）
@@ -1352,17 +1350,17 @@ def ledger_at(judgment_path, start, gate=None, *, ties_file=None, materials_file
                         answers=answers if isinstance(answers, list) else [], gate=gate, takes_push=gatepolicy.unattended_of(start))
 
 
-def passes_of(folder) -> list:
-    """事前審査の返り review の隣の PASSES_FILE の行（pass_lines。最後の関所と報告が同じ行を出す）。無い・読めなければ OSError・
-    ValueError（読み手が訳を名指す）"""
-    rows = json.loads((pathlib.Path(folder) / PASSES_FILE).read_text(encoding="utf-8"))
+def passes_of(path) -> list:
+    """事前審査の出力の欄 gate_passes の先 path の、決め手で通した行と人が通したので聞き直さなかった行（pass_lines。最後の関所と
+    報告が同じ行を出す）。無い・読めなければ OSError・ValueError（読み手が訳を名指す）"""
+    rows = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     return pass_lines(rows if isinstance(rows, list) else [rows])
 
 
-def converge_of(folder) -> list:
-    """事前審査の返り review の隣の PLAN_GATE_FILE の壁打ちの往復の行（converge.lines。字でない行は捨てる）。無い・読めなければ
-    OSError・ValueError（読み手が訳を名指す）"""
-    doc = json.loads((pathlib.Path(folder) / PLAN_GATE_FILE).read_text(encoding="utf-8"))
+def converge_of(path) -> list:
+    """事前審査の出力の欄 gate の先 path の壁打ちの往復の行（converge.lines。字でない行は捨てる）。無い・読めなければ OSError・
+    ValueError（読み手が訳を名指す）"""
+    doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     return [x for x in (doc.get("converge") if isinstance(doc, dict) else None) or [] if isinstance(x, str)]
 
 
@@ -1509,6 +1507,6 @@ def lines(b) -> list:
 
 
 def pass_lines(rows) -> list:
-    """passes の行の並び（事前審査の隣の PASSES_FILE の中身）を lines の行に（形の違う行は字のまま 1 行に）"""
+    """passes の行の並び（事前審査の出力の欄 gate_passes の先の中身）を lines の行に（形の違う行は字のまま 1 行に）"""
     return [_pass_line(p) if isinstance(p, dict) and {"node", "round", "item"} <= set(p) else json.dumps(p, ensure_ascii=False)
             for p in rows or []]

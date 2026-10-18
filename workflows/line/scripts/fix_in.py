@@ -38,7 +38,7 @@ FLAT = {"baseline": ("test_gate_base", "baseline"),
         "structure": ("structure", "structure"),
         **{name: ("plan", name) for name in ("plan", "ripple", "fix_plan")},
         "depth": ("plan", "depth"),
-        **{name: ("plan_review", name) for name in ("review", "design", "questions")}}
+        **{name: ("plan_review", name) for name in ("review", "gate_passes", "gate", "design", "design_premises", "questions")}}
 
 
 def got(raw) -> dict | None:

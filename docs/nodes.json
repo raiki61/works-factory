@@ -63,7 +63,7 @@
   "spec.check": {"by": "machine", "where": ["line/spec-check"], "proof": ["lib/tests/test_judge_accept.py::SpecCheckCase.test_changed_acceptance_file_is_a_question", "workflows/line/fixtures/spec-changed.stubs.yaml"], "reason": "修正の後（fixed の後）に J/spec.json の sha256 と作業ツリーを照らし、変わっていれば最後の承認ノードを必ず開いて問いを載せ、結末を人待ちにする。今の works と違い、差分の審査・最後のテスト・独立の目は回す（止めたのは元の engine の制約）"}
  },
  "keep": {
-  "1": {"name": "赤緑の機械の判定", "where": ["fix/tdd-step"], "proof": ["lib/tests/test_blk_fix_tdd.py::TestRedCheck.test_error_and_missing_are_not_red_and_carry_facts_only", "lib/tests/test_blk_fix_tdd.py::TestRedCheck.test_quote_absent_from_failure_is_rejected"]},
+  "1": {"name": "赤緑の機械の判定", "where": ["fix/tdd-step", "test-gate/suite-try"], "proof": ["lib/tests/test_blk_fix_tdd.py::TestRedCheck.test_error_and_missing_are_not_red_and_carry_facts_only", "lib/tests/test_blk_fix_tdd.py::TestRedCheck.test_quote_absent_from_failure_is_rejected", "tests/workflows/test_test_gate.py::SuiteLoopCase.test_written_runner_feeds_the_red_green_check"]},
   "2": {"name": "元から赤のテストの区別", "where": ["test-gate/run", "test-gate/result"], "proof": ["lib/tests/test_baseline_red.py::JudgeCase.test_red_problems_reads_others_against_baseline", "tests/workflows/test_test_gate.py::ResultScriptCase.test_final_inherited_red_is_not_certified"]},
   "3": {"name": "テストの凍結", "where": ["fix/tdd-step", "fix/fix-accept"], "proof": ["lib/tests/test_tdd_frozen.py::FrozenRuledScopeCase.test_change_outside_ruled_lines_is_rejected"]},
   "4": {"name": "3 回拒まれたら諦める", "where": ["fix/fix-accept", "fix/tdd-step"], "proof": ["tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit", "tests/workflows/test_fix.py::GroupChildScriptsCase.test_tdd_step_takes_the_red_and_gives_up_on_the_third_refusal"]},
@@ -84,6 +84,10 @@
   "judge/head-depth-reject": "run の頭の深さの役に前の回の拒みの訳を渡す（review-graph のノードに当たらない新しい能力。issue #441）",
   "judge/head-depth": "run の頭の深さの役。依頼の行ごとの未知の種類を引用で返し、既定を替えるノード群の模型と effort の選びを訳つきで返す（段は受け付けが引く。選びは記録だけ。review-graph のノードに当たらない新しい能力。issue #441）",
   "judge/head-depth-accept": "run の頭の深さの役の引用を照らし、行の未知の種類の一番重い物から段を引いて控え、群の選びを群の表で照らして外れた行だけ既定に戻して控える（review-graph のノードに当たらない新しい能力。issue #441）",
+  "test-gate/suite-loop": "tdd_suite を省いた run の base で TDD の実行器を用意するループ。取り置きが照らしを通らなかった時だけ書き直しの周を回す（review-graph のノードに当たらない新しい能力。持ち主の決め suite-by-ai。issue #516）",
+  "test-gate/suite-prep": "TDD の実行器を用意するループの支度。同じ test_cmd の取り置きが在れば写し、無ければ書き手の材料を置く（review-graph のノードに当たらない新しい能力。issue #516）",
+  "test-gate/suite-write": "TDD の実行器の書き手の役。test_cmd と CI の定義から実行器の本文を返す（review-graph のノードに当たらない新しい能力。issue #516）",
+  "test-gate/suite-place": "書き手の返した本文を実行器のファイルに置き、照らす印を始めの記録に置く（review-graph のノードに当たらない新しい能力。issue #516）",
   "plan/round": "計画の include の周の番号と形を決め、置き場を作る支度のノード",
   "structure/structure-measure": "単位が名指すファイルの構造の実測（works-factory の新しい能力の構造の目。review-graph のノードに当たらない）",
   "structure/structure-eye-loop": "構造の目のループ（review-graph のノードに当たらない新しい能力）",

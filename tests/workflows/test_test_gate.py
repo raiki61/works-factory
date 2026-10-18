@@ -8,6 +8,7 @@
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` を fixtures/ の全部に走らせる（Archon の源が無ければ見送る）
 """
 import datetime
+import hashlib
 import importlib.util
 import json
 import os
@@ -41,6 +42,8 @@ import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
 import launchgroups  # noqa: E402
 import rolekit  # noqa: E402
+import suitewrite  # noqa: E402
+import tddloop  # noqa: E402
 import tree_run  # noqa: E402
 import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
@@ -250,7 +253,7 @@ class YamlCase(unittest.TestCase):
     def test_result_output_format_is_the_contract(self):
         result = node("result")
         fmt = result["output_format"]
-        self.assertEqual(sorted(fmt["required"]), sorted(fmt["properties"]))
+        self.assertEqual(sorted(fmt["required"]), sorted(set(fmt["properties"]) - {"optional"}))
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
         self.assertEqual(fmt["properties"]["red_cause"]["enum"], list(green_cert.RED_CAUSES))
@@ -259,9 +262,9 @@ class YamlCase(unittest.TestCase):
             self.assertEqual(compared["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
         self.assertEqual(fmt["properties"]["ok"]["type"], "boolean")
         self.assertEqual(result["output_type"], "green-cert")
-        self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "ci-loop"]))
-        self.assertEqual(set(result["with"]), {"mode", "start", "baseline"})
-        self.assertTrue(all(v.startswith("$INPUTS.") for v in result["with"].values()),
+        self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "ci-loop", "suite-loop"]))
+        self.assertEqual(set(result["with"]), {"mode", "start", "baseline", "optional"})
+        self.assertTrue(all(v.startswith("$INPUTS.") for k, v in result["with"].items() if k != "optional"),
                         "落ちうる節の返り（$run.output など）を束ねない")
 
     def test_role_node_reads_only(self):
@@ -272,6 +275,29 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(launchgroups.default_of(ci["model"]), ("sonnet", "medium"))   # 今の works の stage-models.json の blk-ci/ci（light）
         self.assertEqual(ci["command"], "ci")
         self.assertTrue((BLOCK / "commands" / "ci.md").is_file())
+
+    def test_runner_writer_is_launched_like_the_ci_role_and_its_fall_is_declared(self):
+        """#516: TDD の実行器の書き手は CI の役と同じ群・道具・砂場で起き（試験の関門の読むだけの役の起こし方は 1 組）、書き手と輪が
+        落ちても線が先へ進める（返す節の宣言 optional。落ちれば実行器の無い run の道を通る）"""
+        writer, ci = node("suite-write"), node("ci")
+        for key in ("model", "allowed_tools", "sandbox", "settingSources", "mutates_checkout", "idle_timeout", "retry"):
+            with self.subTest(key):
+                self.assertEqual(writer[key], ci[key])
+        self.assertEqual((writer["command"], writer["when"]), ("suite-write", "$suite-prep.output.write == true"))
+        self.assertTrue((BLOCK / "commands" / "suite-write.md").is_file())
+        self.assertEqual(json.loads(node("result")["with"]["optional"]),
+                         [{"node": "suite-loop", "bare": False}, {"node": "suite-write", "bare": True}])
+
+    def test_runner_loop_rewrites_only_after_a_kept_runner_fails(self):
+        """#516: 輪は修正前のテストの後に、用意が要る時（run の返り suite_owed）だけ回る。2 周目は取り置きが照らしを通らなかった時の
+        書き直しだけ。照らしの 1 回（suite-try）は書き手が飛んでも落ちても走る"""
+        loop = node("suite-loop")
+        self.assertEqual((loop["when"], loop["depends_on"]), ("$run.output.suite_owed == true", ["run", "ci-loop"]))
+        self.assertEqual(loop["loop_group"]["max_iterations"], 2)
+        self.assertIn("$suite-try.output.done", loop["loop_group"]["until_bash"])
+        self.assertEqual([n["id"] for n in loop["loop_group"]["nodes"]], ["suite-prep", "suite-write", "suite-place", "suite-try"])
+        self.assertEqual(node("suite-try")["trigger_rule"], "all_done")
+        self.assertNotIn("suite_owed", node("run")["output_format"]["required"])
 
     def test_ci_command_keeps_the_rules(self):
         """元 test_blk_ci.py の test_command_is_thin_and_prompts_keep_the_rules: 役の指示書が今の works の決まりを持つ——走らせられなければ
@@ -334,7 +360,7 @@ class YamlCase(unittest.TestCase):
                 self.assertEqual((n["runtime"], n.get("timeout")), ("uv", None))
 
     def test_readonly_nodes(self):
-        for nid in ("ci-prep", "ci", "ci-accept", "result"):
+        for nid in ("ci-prep", "ci", "ci-accept", "suite-prep", "suite-write", "suite-place", "suite-try", "result"):
             with self.subTest(nid):
                 self.assertIs(node(nid)["mutates_checkout"], False)
 
@@ -494,7 +520,7 @@ class RunScriptCase(ScriptCase):
         self.assertEqual((out["fingerprint_before"], out["fingerprint_after"]), (before, before))
         self.assertEqual(green_cert.fingerprint(self.repo), before)
         self.assertEqual((out["by"], out["material"]["status"], out["junit_steps"]), ("engine", "clean", ["suite"]))
-        self.assertEqual(sorted(out), sorted(node("run")["output_format"]["required"]))
+        self.assertEqual(sorted(out), sorted(node("run")["output_format"]["properties"]))
 
     def test_target_command_reads_the_users_global_config_without_a_switch(self):
         """起動の殻が HOME・XDG を隔離した run でも、対象のコマンドは旗を置かずに利用者の HOME の下の全体の設定を読める
@@ -1326,10 +1352,120 @@ class ResultScriptCase(ScriptCase):
         self.assertIn("ModuleNotFoundError", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
 
+class SuiteLoopCase(ScriptCase):
+    """#516: tdd_suite を省いた run の base で TDD の実行器を用意する輪の script（suite-prep → 書き手の返り → suite-place → suite-try）。
+    取り置きの根（起動の殻が渡す launcher.SUITE_KEEP_ENV。境の口 suite_keep）は一時の置き場に向ける"""
+    CMD = "true"
+    # 名 test_x が failure（赤）、test_y が通る JUnit XML を第 1 引数に書いて 1 で抜ける実行器
+    RED = ("#!/bin/sh\nprintf '%s' \"<testsuite><testcase classname='test_a.TestA' name='test_x'><failure message='0 != 10'/>"
+           "</testcase><testcase classname='test_a.TestA' name='test_y'/></testsuite>\" > \"$1\"\nexit 1\n")
+    EMPTY = "#!/bin/sh\nprintf '%s' '<testsuite/>' > \"$1\"\n"
+
+    def setUp(self):
+        super().setUp()
+        self.declared = {launcher.SUITE_KEEP_ENV: str(self.tmp / "suites")}
+        self.write_start(test_cmd=f" {self.CMD} ")
+
+    def kept(self) -> pathlib.Path:
+        return self.tmp / "suites" / hashlib.sha256(self.CMD.encode("utf-8")).hexdigest()
+
+    def put_kept(self, body: str) -> None:
+        self.kept().parent.mkdir(parents=True)
+        self.kept().write_text(body, encoding="utf-8")
+
+    def record(self) -> dict:
+        return json.loads((self.artifacts / "start" / "record.json").read_text(encoding="utf-8"))
+
+    def run_doc(self) -> dict:
+        return json.loads((self.artifacts / "test-gate" / "base" / declared_checks.RUN_FILE).read_text(encoding="utf-8"))
+
+    def round(self, body=None) -> tuple:
+        """輪の 1 周（prep が書くと言えば、書き手の返りとして body を置く。None は書き手が落ちた周）。(prep の返り, try の返り)"""
+        prep = self.ok("suite_prep", start=self.start)
+        if prep["write"] and body is not None:
+            self.ok("suite_place", start=self.start, reply=json.dumps({"made": True, "body": body, "why": ""}))
+        return prep, self.ok("suite_try", mode="base", start=self.start)
+
+    def test_run_owes_a_runner_only_in_the_base_without_tdd_suite(self):
+        self.assertIs(self.ok("run", mode="base", start=self.start)["suite_owed"], True)
+        self.assertIs(self.ok("run", mode="final", start=self.start)["suite_owed"], False)
+        self.write_start(test_cmd=self.CMD, tdd_suite="run-tests.sh")
+        self.assertIs(self.ok("run", mode="base", start=self.start)["suite_owed"], False)
+
+    def test_written_runner_feeds_the_red_green_check(self):
+        """keep-essence 1（赤緑の機械の判定）は tdd_suite を省いた run でも効く: 書いた実行器を 1 回走らせた結末が照らしを通れば
+        始めの記録の tdd_suite に結び、元の結末に 1 件ごとの結末が載り、修正の段の TDD のループがその実行器で名指しの赤を判じる。
+        照らしを通った実行器は test_cmd の字で取り置く"""
+        self.assertEqual(tddloop.start(self.tmp / "fix", self.repo, self.record()["tdd_suite"], "[]")["reason"], tddloop.NO_SUITE)
+        self.ok("run", mode="base", start=self.start)
+        prep, tried = self.round(self.RED)
+        self.assertTrue(prep["write"])
+        self.assertEqual(tried, {"done": True, "ok": True, "why": ""})
+        suite = self.record()["tdd_suite"]
+        self.assertTrue(pathlib.Path(suite).is_absolute())
+        self.assertEqual(self.kept().read_text(encoding="utf-8"), self.RED)
+        self.assertEqual((self.run_doc()["suite"]["exe"], self.run_doc()["suite"]["count"]), (suite, 2))
+        out = self.ok("result", mode="base", start=self.start, baseline="")
+        doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
+        self.assertEqual((doc["suite"], doc["exit"]), (suite, 1))
+        self.assertEqual(baseline_red.outcomes(doc["cases"]), {"test_a.TestA::test_x": "failure", "test_a.TestA::test_y": "passed"})
+        self.assertTrue(tddloop.start(self.tmp / "fix", self.repo, suite, "[]")["go"])
+        work = self.tmp / "tdd"
+        work.mkdir()
+        cases, code, why = tddloop.run_suite(suite, self.repo, work, "red")
+        self.assertEqual(why, [])
+        self.assertEqual(tddloop.red_check(["test_a.py::TestA::test_x"], cases, code, {}), ([], []))
+        probs, _ = tddloop.red_check(["test_a.py::TestA::test_y"], cases, code, {})
+        self.assertTrue(any("もう通る" in p for p in probs), probs)
+        self.assertIn(suitewrite.WROTE, suitewrite.head_note(self.record()))
+
+    def test_kept_runner_is_used_without_the_writer(self):
+        self.put_kept(self.RED)
+        self.ok("run", mode="base", start=self.start)
+        prep, tried = self.round()
+        self.assertEqual((prep["write"], tried["ok"]), (False, True))
+        self.assertTrue(self.record()["tdd_suite"])
+        self.assertEqual(self.record()[suitewrite.KEY]["from"], suitewrite.FROM_KEEP)
+        self.assertIn(suitewrite.USED, suitewrite.head_note(self.record()))
+
+    def test_kept_runner_that_fails_the_check_is_dropped_and_rewritten(self):
+        """取り置きが照らしを通らなければ捨てて 2 周目で書き直し、書き直した物が通った時だけ取り置き直す。捨てた取り置きのログは残す"""
+        self.put_kept(self.EMPTY)
+        self.ok("run", mode="base", start=self.start)
+        prep, tried = self.round()
+        self.assertEqual((prep["write"], tried), (False, {"done": False, "ok": False, "why": suitewrite.NO_CASES}))
+        self.assertFalse(self.kept().exists())
+        prep, tried = self.round(self.RED)
+        self.assertEqual((prep["write"], tried["ok"]), (True, True))
+        self.assertEqual(self.kept().read_text(encoding="utf-8"), self.RED)
+        self.assertEqual(self.record()[suitewrite.KEY]["dropped"], suitewrite.NO_CASES)
+        gate = self.artifacts / "test-gate" / "base"
+        self.assertTrue((gate / "suite-suite.log").is_file() and (gate / "suite-suite-again.log").is_file())
+
+    def test_runner_without_cases_is_not_bound_and_the_base_has_no_suite(self):
+        """照らしが落ちた実行器は結ばず取り置かず、元の結末は実行器の無い run と同じ形（suite が空・1 件ごとの結末を取らない）"""
+        self.ok("run", mode="base", start=self.start)
+        _, tried = self.round(self.EMPTY)
+        self.assertEqual(tried, {"done": True, "ok": False, "why": suitewrite.NO_CASES})
+        self.assertEqual(self.record()["tdd_suite"], "")
+        self.assertFalse(self.kept().exists())
+        self.assertIsNone(self.run_doc()["suite"])
+        out = self.ok("result", mode="base", start=self.start, baseline="")
+        self.assertTrue(out["ok"])
+        self.assertEqual(baseline_red.read_baseline(self.pointed(out["baseline"]))["suite"], "")
+        self.assertTrue(suitewrite.head_note(self.record()).startswith(suitewrite.NOT_MADE))
+
+    def test_fallen_writer_leaves_the_not_made_mark(self):
+        self.ok("run", mode="base", start=self.start)
+        _, tried = self.round()
+        self.assertEqual(tried, {"done": True, "ok": False, "why": suitewrite.NO_REPLY})
+        self.assertIn(suitewrite.NO_REPLY, suitewrite.head_note(self.record()))
+
+
 class FixtureCase(unittest.TestCase):
     """筋書き（fixtures/）を止めた Archon の `workflow test` で回す。base と final の形が 1 つの返す節で返る"""
-    AUTHORED = {"base-engine": "succeeded", "base-role": "succeeded", "base-resubmit": "succeeded", "final-green": "succeeded",
-                "final-red": "failed"}
+    AUTHORED = {"base-engine": "succeeded", "base-role": "succeeded", "base-resubmit": "succeeded", "base-suite-written": "succeeded",
+                "base-suite-kept": "succeeded", "final-green": "succeeded", "final-red": "failed"}
 
     def test_fixtures_pass_in_archon(self):
         with archon.tree(["test-gate"]) as tree:

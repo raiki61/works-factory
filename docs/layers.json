@@ -20,9 +20,11 @@
             "tdd-unit.json", "tdd-<k>/state.json"],
     "eyes": ["r4-gate-passes.json", "premise-check.json"]
   },
-  "homes": {"judge": "lib/judgebeside.py", "structure": "lib/structbeside.py"},
+  "homes": {"judge": "lib/judgebeside.py", "plan-review": "lib/planreviewbeside.py", "eyes": "lib/eyesbeside.py", "structure": "lib/structbeside.py"},
   "loosened": {
     "home:judge": "#723 で judge の隣のファイルの名の字を lib/judgebeside.py の 1 か所に集めた。照らし beside が数えないのはそのファイルの中の judge の名だけで、書き手と受け付けは住処の定数を引き、ほかの読み手は判定の出力の欄のポインタで受ける",
+    "home:plan-review": "#723 で plan-review の隣のファイル（gate-passes.json・gate.json・design-premises.json）の名の字を lib/planreviewbeside.py の 1 か所に集めた。照らし beside が数えないのはそのファイルの中の plan-review の名だけで、書き手 boardview は住処の定数を引き、ほかの読み手は事前審査の出力の欄 gate_passes・gate・design_premises のポインタで受ける",
+    "home:eyes": "#723 で eyes の隣のファイル（r4-gate-passes.json・premise-check.json）の名の字を lib/eyesbeside.py の 1 か所に集めた。照らし beside が数えないのはそのファイルの中の eyes の名だけで、書き手 eyeverdict は住処の定数を引き、ほかの読み手は目の出力の欄 r4_passes・premise_reply のポインタで受ける",
     "home:structure": "構造のサブグラフ structure の置き場のファイルの名の字を lib/structbeside.py の 1 か所に集めた（#560）。照らし beside が数えないのはそのファイルの中の structure の名だけで、書き手（structfile・eye）は住処の定数を引き、ほかの読み手は出力の欄 structure の先の控えの design_file から辿る",
     "beside:plan:design.jsonl": "構造の目を plan から構造のサブグラフ structure に分けた（#560）。design.jsonl の書き手が structure に移ったので、隣の名の持ち主を plan から structure に替えた（名を柵の外に出してはいない）",
     "beside-owner:structure:design.jsonl": "同じ替え（#560）。design.jsonl は構造のサブグラフの隣のファイルで、ほかのサブグラフは欄 structure の先の控えの design_file から辿る"
@@ -30,17 +32,12 @@
   "known": {
     "import": {},
     "beside": {
-      "lib/boardview.py": [2, "lib がサブグラフの隣のファイルの名を持つ: plan-review の隣の design-premises.json・gate-passes.json（#723。#680 の約束に沿う）"],
-      "lib/eyeverdict.py": [3, "lib がサブグラフの隣のファイルの名を持つ: plan-review の隣の design-premises.json（#723。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（#723。#680 の約束に沿う）"],
       "lib/fixbeside.py": [3, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の closure.json・delta-holes.json・lenses.json（fix の名の住処。表 PORTS・FROM が欄の先として引く。#681）"],
       "lib/fixboard.py": [6, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の accept-trace.json・allowed-tests.json・lenses.json・tdd-unit.json（fix の名の住処 fixbeside の表が引く元の定数。#681）"],
-      "lib/gatemarks.py": [2, "lib がサブグラフの隣のファイルの名を持つ: plan-review の隣の gate-passes.json・gate.json（#723。#680 の約束に沿う）"],
       "lib/leftovers.py": [3, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の fix-removed.json（fix の名の住処 fixbeside の表が引く元の定数。#681）"],
       "lib/planblk.py": [1, "lib がサブグラフの隣のファイルの名を持つ: plan と plan-review の隣の replan-gave-up.json（書き手の定数。読み手は欄 gave_up で受ける。#681）"],
       "lib/planfile.py": [5, "lib がサブグラフの隣のファイルの名を持つ: plan の隣の p2.fix_plan.json・rejects-plan.json（plan の名の住処。表 PORTS・FROM が欄の先と元として引く。#681）"],
-      "lib/runreport.py": [3, "lib がサブグラフの隣のファイルの名を持つ: plan-review の隣の gate.json（#723。#680 の約束に沿う）、eyes の隣の premise-check.json・r4-gate-passes.json（#723。#680 の約束に沿う）"],
-      "lib/tddloop.py": [1, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の tdd-<k>/state.json（fix の名の住処 fixbeside の表が引く元の定数。#681）"],
-      "workflows/line/scripts/ask_final.py": [2, "メイングラフが名指す: eyes の隣の premise-check.json・r4-gate-passes.json（#723。#680 の約束に沿う）"]
+      "lib/tddloop.py": [1, "lib がサブグラフの隣のファイルの名を持つ: fix の隣の tdd-<k>/state.json（fix の名の住処 fixbeside の表が引く元の定数。#681）"]
     },
     "main-id": {},
     "inner-id": {},

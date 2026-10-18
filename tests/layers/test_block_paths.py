@@ -319,7 +319,7 @@ class JudgeNamesTest(unittest.TestCase):
 
 
 class PortNamesTest(unittest.TestCase):
-    """表 NAME_HOMES の構造（issue #560）・計画・修正・メイングラフの置き場の行（issue #681）: 持ち主の置き場のファイルとメイングラフの run の共有の置き場を、
+    """表 NAME_HOMES の構造（issue #560）・計画・修正・メイングラフの置き場の行（issue #681）と事前審査・目の行（#723）: 持ち主の置き場のファイルとメイングラフの run の共有の置き場を、
     持ち主の外が名の字・住処の定数・名の表・開く関数に届く値（直・名に置いた値・助け手の返り・ARTIFACTS_DIR の読み）・印の環境変数で
     名指すと赤。返りのままの段と resolve を住処の読み手の口に渡す形・入力の字を渡す形は通る"""
 
@@ -375,7 +375,7 @@ class PortNamesTest(unittest.TestCase):
             returned = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
             with self.subTest(block=block):
                 self.assertLessEqual({k for table in tables for k in table}, set(returned["output_format"]["required"]))
-        self.assertEqual(set(scan.NAME_HOMES), {"judge", "structure", "plan", "fix", "line"})
+        self.assertEqual(set(scan.NAME_HOMES), {"judge", "structure", "plan", "fix", "line", "plan-review", "eyes"})
 
     def test_plan_file_through_a_home_constant_or_opener_is_red(self):
         """計画の置き場のファイルを、名の字・住処の定数・名の表・開く関数（rolekit は頭の関数の全部）に計画のポインタの隣で名指すと赤"""
@@ -413,6 +413,30 @@ class PortNamesTest(unittest.TestCase):
         self.assertEqual(self.names("structure", homes, {"workflows/plan/scripts/a.py": clean}), [])
         own = 'X = "structure-state.json"\n'
         self.assertEqual(self.names("structure", homes, {"workflows/structure/scripts/a.py": own}), [], "構造の script は持ち主")
+
+
+    def test_plan_review_and_eyes_files_through_a_home_constant_are_red(self):
+        """事前審査と目の置き場のファイルを、名の字・名の住処の定数・書き手の定数で持ち主の外が名指すと赤（#723）。出力の欄で受ける形と、
+        持ち主の返す節が字を写して持つ形は通る"""
+        import eyesbeside
+        import planreviewbeside
+        self.assertEqual(scan.port_files("plan-review"), {planreviewbeside.GATE_PASSES_FILE, planreviewbeside.GATE_FILE,
+                                                          planreviewbeside.DESIGN_PREMISES_FILE})
+        self.assertEqual(scan.port_files("eyes"), {eyesbeside.R4_PASSES_FILE, eyesbeside.PREMISE_FILE})
+        review = {"lib/planreviewbeside.py": 'GATE_PASSES_FILE = "gate-passes.json"\nGATE_FILE = "gate.json"\n'
+                                             'DESIGN_PREMISES_FILE = "design-premises.json"\n',
+                  "lib/boardview.py": "import planreviewbeside\nPASSES_FILE = planreviewbeside.GATE_PASSES_FILE\n"}
+        self.assert_red("plan-review", review, "lib/runreport.py", (
+            'X = "gate.json"\n', "import planreviewbeside\nX = d / planreviewbeside.GATE_FILE\n",
+            "from planreviewbeside import DESIGN_PREMISES_FILE\n", "import boardview\nX = d / boardview.PASSES_FILE\n"), mark="事前審査")
+        self.assertEqual(self.names("plan-review", review, {"lib/runreport.py": "X = got['gate_passes']\n",
+                                                            "workflows/plan-review/scripts/result.py": 'GATE_FILE = "gate.json"\n'}), [])
+        eyes = {"lib/eyesbeside.py": 'R4_PASSES_FILE = "r4-gate-passes.json"\nPREMISE_FILE = "premise-check.json"\n',
+                "lib/eyeverdict.py": "import eyesbeside\nGATE_PASSES = eyesbeside.R4_PASSES_FILE\n"}
+        self.assert_red("eyes", eyes, "workflows/line/scripts/ask_final.py", (
+            'X = "premise-check.json"\n', "import eyesbeside\nX = eyesbeside.PREMISE_FILE\n",
+            "import eyeverdict\nX = d / eyeverdict.GATE_PASSES\n"), mark="目")
+        self.assertEqual(self.names("eyes", eyes, {"workflows/line/scripts/ask_final.py": "X = got['r4_passes']\n"}), [])
 
     def test_beside_kept_in_a_name_or_a_helper_is_red(self):
         """ポインタの隣は、名に置いた値（代入・for の的・`.append(…)` の並び）と、照らす木の中でそういう値を返す助け手の呼びも数える。

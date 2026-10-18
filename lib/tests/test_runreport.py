@@ -20,6 +20,8 @@ import answer  # noqa: E402
 import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import declared_checks  # noqa: E402
+import eyesbeside  # noqa: E402
+import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
 import handoff  # noqa: E402
 import judgebeside  # noqa: E402
@@ -36,6 +38,7 @@ import listcut  # noqa: E402
 import outcome  # noqa: E402
 import outpurpose  # noqa: E402
 import planfile  # noqa: E402
+import planreviewbeside  # noqa: E402
 import protect  # noqa: E402
 import querytest  # noqa: E402
 import reads  # noqa: E402
@@ -45,6 +48,7 @@ import report_roles  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
+import suitewrite  # noqa: E402
 import tddloop  # noqa: E402
 from lib.tests.test_outcome import STAGES, fixed_run, stage_of  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
@@ -247,6 +251,19 @@ class BuildCase(Base):
         self.assertIn("unit", first)
         self.assertIn("lint", first)
         self.assertNotIn(green_cert.NOT_RAN, first)
+
+    def test_runner_preparation_is_named_in_the_head(self):
+        """#516: tdd_suite を省いた run は、冒頭の 1 行目が TDD の実行器を取り置きから使った・AI が書いた・作れなかったのどれかを言う。
+        人が実行器を渡した run（記録に欄が無い）は言わない"""
+        def first(**mark):
+            whole = {"from": suitewrite.FROM_AI, "path": "/a/runner", "ok": True, "why": "", "dropped": "", "stored": True, **mark}
+            return self.first_line(start={"run_id": RUN, "tdd_suite": "/a/runner", suitewrite.KEY: whole})
+        self.assertIn(suitewrite.USED, first(**{"from": suitewrite.FROM_KEEP}))
+        self.assertIn(suitewrite.WROTE, first())
+        self.assertIn(f"{suitewrite.NOT_MADE}（w）", first(ok=False, why="w", path=""))
+        plain = self.first_line()
+        for note in (suitewrite.USED, suitewrite.WROTE, suitewrite.NOT_MADE):
+            self.assertNotIn(note, plain)
 
     def test_users_environment_for_target_commands_is_named_in_the_head(self):
         """#492: 対象のコマンドを利用者の HOME・XDG で走らせた run だけ、冒頭の 1 行目が AI の試験のコードが資格に届いたと言う"""
@@ -826,6 +843,7 @@ class DecisionsCase(Base):
         self.assertIn("- 直す義務に戻せなかった単位: 単位 u9: 赤のまま", head)
         self.assertIn("- 前提の検算が人に上げた物: 検算の判定 escalate: 仮定が偽", head)
         self.assertFalse([x for x in head if "{" in x], head)
+        self.assertIn(f"  - {eyeverdict.PREMISE_NO_REPLY}\n", text, "欄 premise_reply の無い目の出力は黙らず 1 行で言う（E37 の運びも空）")
 
     def test_parked_clash_names_its_requests_and_patch(self):
         """#382: 合わせ役が直せず組どうしの合わせの申し出にした組（欄 clash の outcome parked）は、3 行目で申し出の id と控えの差分を
@@ -1018,33 +1036,34 @@ class DecisionsCase(Base):
         self.assertNotIn("直しきれず", "\n".join(text.splitlines()[2:5]), "冒頭 3 行は直しきれずと呼ばない")
 
     def test_gate_passes_follow_decisions(self):
-        review = self.put("plan-review/review.json", {})
-        self.put("plan-review/gate-passes.json", [{"item": "小さい直し", "why": "自明"}])
-        _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review}}))
+        passes = self.put(f"plan-review/{planreviewbeside.GATE_PASSES_FILE}", [{"item": "小さい直し", "why": "自明"}])
+        _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "gate_passes": passes}}))
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn("修正前の承認ノードが聞かずに通した行（plan-review）: 1 件", body)
         self.assertIn("小さい直し", body)
 
     def test_gate_passes_missing_or_broken_is_one_line(self):
+        nowhere = str(self.dir / "nowhere" / planreviewbeside.GATE_PASSES_FILE)
         for name, returns in (("出力が無い", fixed_run(**{"plan-review": None})),
-                              ("事前審査のポインタが無い", fixed_run()),
-                              ("が読めない", fixed_run(**{"plan-review": {"review": str(self.dir / "nowhere" / "review.json")}}))):
+                              ("事前審査の出力の欄 gate_passes が無い", fixed_run()),
+                              ("事前審査の出力の欄 gate_passes が無い", fixed_run(**{"plan-review": {"review": self.put("old/review.json", {})}})),
+                              ("が読めない", fixed_run(**{"plan-review": {"gate_passes": nowhere}}))):
             with self.subTest(name):
                 _, text, _ = self.build(returns)
                 self.assertIn(name, self.section(text, report.DECISIONS_HEADING))
-        review = self.put("broken/review.json", {})
-        self.put("broken/gate-passes.json", "{壊れた")
-        _, text, _ = self.build(fixed_run(**{"plan-review": {"review": review}}))
+        broken = self.put(f"broken/{planreviewbeside.GATE_PASSES_FILE}", "{壊れた")
+        _, text, _ = self.build(fixed_run(**{"plan-review": {"gate_passes": broken}}))
         self.assertIn("が読めない", self.section(text, report.DECISIONS_HEADING))
 
 
     def test_converge_lines_missing_is_quiet_and_broken_is_one_line(self):
-        review = self.put("plan-review/review.json", {})
-        self.put("plan-review/gate-passes.json", [])
-        _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review}}))
+        passes = self.put(f"plan-review/{planreviewbeside.GATE_PASSES_FILE}", [])
+        gate = str(self.dir / "plan-review" / planreviewbeside.GATE_FILE)
+        returns = fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "gate_passes": passes, "gate": gate}})
+        _, text, _ = self.build(returns)
         self.assertNotIn("事前審査の壁打ち", text)
-        self.put("plan-review/gate.json", "{壊れた")
-        _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review}}))
+        self.put(f"plan-review/{planreviewbeside.GATE_FILE}", "{壊れた")
+        _, text, _ = self.build(returns)
         self.assertIn("事前審査の壁打ちの行（plan-review）: 無い（", self.section(text, report.DECISIONS_HEADING))
 
 
@@ -2530,7 +2549,7 @@ class LinesCase(Base):
 
     def test_converge_lines_reach_the_report(self):
         """L-D22・P119・R35: 事前審査の壁打ちの往復の行（何往復・抜け方・続いた block と、往復ごとの block・fixed・disputed・suggest に
-        下げた key・項目の閉じた/開いた/保留・相乗りの block。converge.lines）を、事前審査の返り review の隣の gate.json の converge から
+        下げた key・項目の閉じた/開いた/保留・相乗りの block。converge.lines）を、事前審査の出力の欄 gate の先の converge から
         人が決めることの節に出す（元 report.head_decisions の converge.lines(b)。計画の往復と案の直しの事前審査の両方）"""
         import converge
         head = converge.LINE_HEAD.format(n=2, word="同じ block が続いた", outcome="persisted", persists="k1", share="",
@@ -2538,17 +2557,15 @@ class LinesCase(Base):
         rounds = [head, converge.LINE_PASS.format(k=1, keys="k1", f=0, d=0, resolved="無い", down="無い"),
                   converge.LINE_ITEMS.format(closed="1", open="2", held="無い", synergy="無い"),
                   converge.LINE_PASS.format(k=2, keys="k1", f=1, d=1, resolved="無い", down="k2")]
-        review = self.put("plan-review/review.json", {})
-        self.put(f"plan-review/{gatemarks.PLAN_GATE_FILE}", {"items": [], "converge": rounds})
-        again = self.put("replan-review/review.json", {})
-        self.put(f"replan-review/{gatemarks.PLAN_GATE_FILE}", {"items": [], "converge": ["事前審査の壁打ち: 1 往復・抜け方は block が消えた"]})
-        returns = fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review},
-                               "replan-review-result": {**fixed_run()["plan-review"], "review": again}})
+        gate = self.put(f"plan-review/{planreviewbeside.GATE_FILE}", {"items": [], "converge": rounds})
+        again = self.put(f"replan-review/{planreviewbeside.GATE_FILE}", {"items": [], "converge": ["事前審査の壁打ち: 1 往復・抜け方は block が消えた"]})
+        returns = fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "gate": gate},
+                               "replan-review-result": {**fixed_run()["plan-review"], "gate": again}})
         _, text, _ = self.build(returns)
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn("\n".join([f"- {head}", *rounds[1:]]) + "\n", body)
         self.assertIn("- 事前審査の壁打ち: 1 往復・抜け方は block が消えた\n", body)
-        self.put(f"plan-review/{gatemarks.PLAN_GATE_FILE}", "{壊れた")
+        self.put(f"plan-review/{planreviewbeside.GATE_FILE}", "{壊れた")
         _, text, _ = self.build(returns)
         self.assertIn("事前審査の壁打ちの行（plan-review）: 無い（", self.section(text, report.DECISIONS_HEADING))
 
@@ -2717,22 +2734,22 @@ class FixBesideLinesCase(Base):
     """修正の diff の隣の約束のファイル（lib/fixbeside.py）から報告に出す行"""
 
     def test_eyes_gate_passes_are_listed(self):
-        """E66・E45: 独立の目の返り notes の隣の r4-gate-passes.json（人が通したので R4 の問いから外した行）を報告の「人が通した行」に並べ、
+        """E66・E45: 独立の目の返り r4_passes の先（人が通したので R4 の問いから外した行）を報告の「人が通した行」に並べ、
         R2 の行の下に R2 に渡した前提と渡されていないと言われた物を並べる。読めなければ読めないと言う"""
         import eyeverdict
         notes = self.put(f"eyes/{eyeverdict.PREMISE_INPUTS}", {"design": {"given": [], "withheld": []}, "compare": {"given": []},
                                                               "claims": ["上限が渡されていない"]})
-        self.put(f"eyes/{eyeverdict.GATE_PASSES}", [{"node": gatemarks.R4_GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY_HUMAN,
+        passes = self.put(f"eyes/{eyesbeside.R4_PASSES_FILE}", [{"node": gatemarks.R4_GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY_HUMAN,
                                                      "item": "R4 が BASE から消えたと見た能力: 古い入口",
                                                      "passed_at": {"node": gatemarks.GATE_NODE, "round": 1}}])
-        eyes = {**fixed_run()["eyes"], "r2": {"status": "pass", "reason": "同じ"}, "notes": notes}
+        eyes = {**fixed_run()["eyes"], "r2": {"status": "pass", "reason": "同じ"}, "notes": notes, "r4_passes": passes}
         _, text, _ = self.build(fixed_run(eyes=eyes))
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn(f"- {runreport.EYE_PASSES_HEAD}: 1 件\n  - ", body)
         self.assertIn("R4 が BASE から消えたと見た能力: 古い入口", body)
         self.assertIn("R2: pass（同じ）\n  - 独立の設計と比べる目が渡されていないと書いた（R2）: 上限が渡されていない",
                       self.section(text, runreport.EYES_HEADING))
-        (self.dir / "eyes" / eyeverdict.GATE_PASSES).unlink()
+        (self.dir / "eyes" / eyesbeside.R4_PASSES_FILE).unlink()
         _, text, _ = self.build(fixed_run(eyes=eyes))
         self.assertIn(f"- {runreport.EYE_PASSES_HEAD}: 読めない", self.section(text, report.DECISIONS_HEADING))
 

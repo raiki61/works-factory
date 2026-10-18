@@ -4,7 +4,7 @@
 - E3: 節の id（字の形で見分けられない。`-` を含むメイングラフの id は E22 が見る）
 - E4: `pathlib` などで部品を継いで組むパス。表 NAME_HOMES の住処の中の関数が、持ち主の置き場を名で開くか。置き場のファイルの名を
   f 文字列や字の連結で組む形。ポインタを通らずに ARTIFACTS_DIR の読みや境の口の返り（`boundary.place`・`boundary.inside_artifacts`）から
-  ほかのブロックの置き場を組む形（判定・構造・計画・修正の行は ARTIFACTS_DIR を届く値に数えない）
+  ほかのブロックの置き場を組む形（サブグラフの行は ARTIFACTS_DIR を届く値に数えない）
 - E12: script の中で置く期限
 - E22: 根の AGENTS.md の E22 の「人が見る」の並び
 """
@@ -559,6 +559,11 @@ NAME_HOMES = {
                      openers=("lib/rolekit.py",)),
     "fix": NameHome("修正", "修正の置き場のファイルを名指す", "修正の出力の欄を入力で受ける", (("fixbeside", "PORTS"), ("fixbeside", "FROM")),
                     ("lib/fixbeside.py", "lib/fixboard.py", "lib/leftovers.py", "lib/tddloop.py")),
+    "plan-review": NameHome("事前審査", "事前審査の置き場のファイルを名指す", "事前審査の出力の欄（gate_passes・gate・design_premises）を入力で受ける",
+                            (("planreviewbeside", "GATE_PASSES_FILE"), ("planreviewbeside", "GATE_FILE"),
+                             ("planreviewbeside", "DESIGN_PREMISES_FILE")), ("lib/planreviewbeside.py", "lib/boardview.py")),
+    "eyes": NameHome("目", "目の置き場のファイルを名指す", "目の出力の欄（r4_passes・premise_reply）を入力で受ける",
+                     (("eyesbeside", "R4_PASSES_FILE"), ("eyesbeside", "PREMISE_FILE")), ("lib/eyesbeside.py", "lib/eyeverdict.py")),
     "line": NameHome("メイングラフの置き場", "メイングラフの run の共有の置き場に届く", "メイングラフが渡す入力（reuse_dir・user_env_dir）で受ける",
                      (("tree_run", "REUSE_SUB"), ("userenv", "RAN_FILE")), ("lib/tree_run.py", "lib/userenv.py"),
                      openers=("lib/tree_run.py", "lib/userenv.py"), env=(("userenv", "RAN_DIR_ENV"),), artifacts=True),
@@ -571,13 +576,15 @@ ARTIFACTS_ENV = "ARTIFACTS_DIR"
 @functools.cache
 def _table_modules() -> dict:
     """表 NAME_HOMES の名の出どころのモジュール（照らす時に読む。lib の重い部品を scan の読み込みで読まない）"""
+    import eyesbeside
     import fixbeside
     import judge_accept
     import planfile
+    import planreviewbeside
     import structfile
     import tree_run
     import userenv
-    return {m.__name__: m for m in (fixbeside, judge_accept, planfile, structfile, tree_run, userenv)}
+    return {m.__name__: m for m in (eyesbeside, fixbeside, judge_accept, planfile, planreviewbeside, structfile, tree_run, userenv)}
 
 
 def _table_value(module: str, name: str):
@@ -1490,6 +1497,8 @@ KEEP_CHECKOUT = {
     ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。sandbox の denyWrite が書き込みを止め、false と ci-accept の"
                          "作業ツリーの比べが重ねて守る（#69・#293）",
     ("test-gate", "ci-fix"): "ci の会話の続きの出し直しの役。Bash でテストを走らせるが作業ツリーは書かない（ci と同じ起こし方・同じ守り）",
+    ("test-gate", "suite-write"): "TDD の実行器の書き手。ci と同じ起こし方で Bash を持つが、使い方の表示を読むだけで作業ツリーは書かない"
+                                  "（sandbox の denyWrite と false が守る。#516）",
 }
 CHANGE_CHECKOUT = {
     ("line", "start"): "始めの記録を run の置き場に書くだけだが、今の線は印を持たない。足すと Archon の照らしが増えて振る舞いが変わるので部分 0 では足さない",

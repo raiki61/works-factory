@@ -5,6 +5,9 @@ description: |
   証拠と一緒に返し、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。赤は原因が何でも認証しない。
   走らせ方は機械が決める（対象の宣言 .review-checks.json の段と test_cmd）。どちらも無ければ任せ先の CI の役が CI の定義を読み、
   作業ツリーの写しの上で走らせる。出力は 1 つのノード result で、mode で形が分かれる（docs/design.md の「test-gate の出力」）。
+  入力 tdd_suite を省いた run の base は、走らせた後に TDD の実行器を用意する（suite-loop）: 同じ test_cmd で前に照らしを通った取り置きが
+  在れば使い、無ければ書き手の役 suite-write が test_cmd と CI の定義から書く。その実行器を 1 回走らせた結末を機械が照らし（JUnit XML が
+  出て試験が 1 件以上）、通れば始めの記録の tdd_suite に結ぶ。取り置きが通らなければ捨てて書き直す（持ち主の決め suite-by-ai）。
 
 inputs:
   mode:
@@ -106,6 +109,7 @@ nodes:
           properties:
             head: {type: string}
             diff_hash: {type: string}
+        suite_owed: {type: boolean}   # TDD の実行器を用意するか（required に入れない。無ければ用意しない）
 
   # 任せ先の CI の役の出し直しの輪（今の works の blk-ci）。諦めは ci-accept の done・give_up で抜け、max_iterations で落とさない。
   # 役は 1 回目は新しい会話で起き、拒まれた後は出し直しの役 ci-fix が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと
@@ -210,19 +214,96 @@ nodes:
               give_up: {type: boolean}
               reason: {type: string}
 
+  # TDD の実行器を用意する輪。1 周目は取り置きを使うか書き、取り置きが照らしを通らなかった時だけ 2 周目で書き直す（書いた物の周は
+  # 照らしの結末に依らず終わる）。走らせるのは輪の終わりの suite-try の 1 回で、修正前のテストの一式の回を兼ねる。任せ先の CI の役が
+  # 本物の作業ツリーの外でテストを走らせ終えてから回す
+  - id: suite-loop
+    depends_on: [run, ci-loop]
+    trigger_rule: none_failed_min_one_success
+    when: "$run.output.suite_owed == true"
+    loop_group:
+      max_iterations: 2
+      fresh_context: true
+      until_bash: done=$suite-try.output.done; test "$done" = true
+      nodes:
+        - id: suite-prep
+          script: suite_prep
+          runtime: uv
+          mutates_checkout: false
+          with:
+            start: $INPUTS.start
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [write, brief_file]
+            properties:
+              write: {type: boolean}
+              brief_file: {type: string}
+        - id: suite-write
+          description: 'TDD の実行器の書き手: test_cmd と CI の定義を読み、JUnit XML を第 1 引数に書く実行器の本文を返す（置くのも走らせるのも機械）'
+          command: suite-write
+          depends_on: [suite-prep]
+          when: "$suite-prep.output.write == true"
+          <<: *ci_launch
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [made, body, why]
+            properties:
+              made: {type: boolean}
+              body: {type: string}
+              why: {type: string}
+        - id: suite-place
+          script: suite_place
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [suite-write]
+          with:
+            start: $INPUTS.start
+            reply: {from: "$suite-write.output", if_skipped: null}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [made, why]
+            properties:
+              made: {type: boolean}
+              why: {type: string}
+        # 書き手が飛ばされても（取り置きを使う周）落ちても（記録には suite-prep の悲観の印が残る）走る
+        - id: suite-try
+          script: suite_try
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [suite-prep, suite-place]
+          trigger_rule: all_done
+          with:
+            mode: $INPUTS.mode
+            start: $INPUTS.start
+            user_env_dir: $INPUTS.user_env_dir
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [done, ok, why]
+            properties:
+              done: {type: boolean}
+              ok: {type: boolean}
+              why: {type: string}
+
   # 返す節。前の節の結果はファイル（run.json・ci-material.json）で読み、$run.output・$ci-accept.output を束ねない
-  # （落ちた節への束ねは if_skipped が在っても誤りになる）。run が落ちても届くように all_done
+  # （落ちた節への束ねは if_skipped が在っても誤りになる）。run が落ちても届くように all_done。TDD の実行器の輪の後の始めの記録を読む。
+  # with: の optional は、落ちても線が先へ進めてよい節の宣言（TDD の実行器の輪と書き手。落ちれば実行器の無い run の道を通る）。
+  # [{node, bare}] の JSON の字で、bare はループの中の節で、記録の step に include の前付けの無い素の id で載るか
   - id: result
     script: result
     runtime: uv
     mutates_checkout: false
-    depends_on: [run, ci-loop]
+    depends_on: [run, ci-loop, suite-loop]
     trigger_rule: all_done
     output_type: green-cert
     with:
       mode: $INPUTS.mode
       start: $INPUTS.start
       baseline: $INPUTS.baseline
+      optional: '[{"node": "suite-loop", "bare": false}, {"node": "suite-write", "bare": true}]'
     output_format:
       type: object
       additionalProperties: false
@@ -286,3 +367,4 @@ nodes:
         log: {type: string}
         baseline_line: {type: string}
         reason: {type: string}
+        optional: {type: array}

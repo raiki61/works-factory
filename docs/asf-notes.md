@@ -3,7 +3,7 @@
 
 - ASF（AI software factory）: Archon の作者が `coleam00/Archon` の `.archon/workflows/sdlc/` に置く、SDLC（作業の受け付けから PR まで）のグラフの束。下の行の多くが引く `d97d00ef` は枝 `factory/sdlc-on-dev` の commit で、upstream の dev から消えたグラフ（lifecycle・merge-queue・verify-runtime など 8 本）を含む。
 - コードは写さず、型（なぜその形か）だけを採る（`AGENTS.md` の E8）。Archon のリポジトリの根には MIT の `LICENSE` が在る（`05a564a74` から）が、写さないのは E8 の決め。
-- 見る版は止めた Archon（`docs/design.md` の「語」）（Archon の本体と同じ源。持ち主の決め `archon-same-as-asf`）。今は upstream の dev の `64ec0c2e25df1306b4692b4e4851079a32bccd9f`（持ち主の決め `asf-follows-dev`）。`bin/` が取ったその源の `.archon/workflows/sdlc/` を横に並べて読む。下の行の commit は、その型を採った時の版。
+- 見る版は止めた Archon（`docs/design.md` の「語」）（Archon の本体と同じ源。持ち主の決め `archon-same-as-asf`）。今は upstream の dev の `a972888a7a30a669a3a771e7caef512197de6ac4`（持ち主の決め `asf-follows-dev`）。`bin/` が取ったその源の `.archon/workflows/sdlc/` を横に並べて読む。下の行の commit は、その型を採った時の版。
 - 下のパスは ASF のリポジトリの根からの相対。`W` は `.archon/workflows/sdlc` の略。
 
 ## 書き方
@@ -105,3 +105,10 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - なぜその形か: 易しい依頼に重い段を通さない。飛ばすのは Archon の `when` で、飛ばしたノードは run の記録に skipped で残る。
 - 採った先: judge の `head-depth-*`（run の頭の深さを決める役と受け付け）。
 - 違い: ノードは深さの `when` で飛ばさない（E20）。頭の決めは軽量・標準・重厚の 3 段で、役の引用を機械が照らし、通らなければ標準。段が足す機能は `docs/design.md` の「深さの段の表」（`lib/depth.py` の `TIERS`）に置く。計画の壁打ちはどの段でも省かない。
+
+### A13 走らせ方を見つけるのは AI、走らせるのは script
+
+- ASF: d97d00ef の `W/validate/archon-validate.yaml`:106-154（走らせ方を見つけるのは判断なので役 `discover` が argv の並びを返し、走らせるのは計算なので script `run` が走らせて終了コードを控える）。
+- なぜその形か: 対象ごとの道具の知識は役の判断に置き、走らせと事実の照らしは機械が持つ。役の申告を走らせた結末で確かめられる。
+- 採った先: test-gate の `suite-loop`（tdd_suite を省いた run の base で、`suite-write` が TDD の実行器の本文を返し、`suite-place` が置き、`suite-try` が走らせて照らす）。
+- 違い: argv でなく実行器の本文を返す（JUnit XML の 1 件ごとの結末を第 1 引数の書き先に書く約束が要るため）。照らしは別に走らせず、修正前のテストの一式の回を兼ねる 1 回の結末（JUnit XML が出たか・試験が 1 件以上か）を読む。照らしを通った本文は test_cmd の字を鍵に利用者ごとの取り置きに置き、次の run は役を起こさずに使う（使う時も同じ照らしを通す。持ち主の決め `suite-by-ai`）。

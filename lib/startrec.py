@@ -13,6 +13,7 @@
 - load(file): 始めの記録のファイル file（指し札の先）の dict。無い・読めなければ OSError・ValueError、dict でなければ ValueError
   （読めないことを訳にする読み手の口。read はこれを {} に落とす）
 - write(board_dir, doc): 始めの記録を path(board_dir) に置いてパスを返す
+- save(file, doc): 始めの記録を指し札の先のファイル file に置く（run の途中で欄を書き直す読み手の口。write も中はこれ）
 - adopt(board_dir, src): 線の始めの記録のファイル src を path(board_dir) へ字のまま写し、その dict を返す（欄を足さず・既定で
   埋めない。写しが元と食い違って機能の切り替えが黙って変わらないように。JSON のオブジェクトでなければ ValueError）
 - shape(doc): 入口の入力の形（欄 input の dict）。無い前の版の控え（入口の入力の形を持つ前の固定材料）は None
@@ -63,8 +64,13 @@ def load(file) -> dict:
 
 
 def write(board_dir, doc: dict) -> pathlib.Path:
-    """始めの記録 doc を path(board_dir) に置く（一時のファイルから置き換える）"""
-    p = path(board_dir)
+    """始めの記録 doc を path(board_dir) に置く"""
+    return save(path(board_dir), doc)
+
+
+def save(file, doc: dict) -> pathlib.Path:
+    """始めの記録 doc をファイル file に置く（一時のファイルから置き換える）"""
+    p = pathlib.Path(file)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

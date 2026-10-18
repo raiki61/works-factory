@@ -775,15 +775,15 @@
 - S100 tdd_suite を省き test_cmd が pytest の 1 コマンドなら、`--junitxml` を足す実行器を書いて TDD のループに渡す
   - 元: SKILL.md:89
   - 印: 無し
-  - 今: 無し（`lib/tddloop.py::NO_SUITE` の道で TDD のループを飛ばし、`workflows/line/scripts/start.py::test_notes` が起動の承認ノードの文でそう言う。test_cmd から特定の実行器の旗を足す知識は `lib/` に置けず（AGENTS.md の E13・持ち主の決め `lang-neutral`）、持ち主の決め `superset` とのどちらを取るかは持ち主が決める）
-  - 状態: 無い
-  - 処置: #516
+  - 今: `workflows/test-gate/works-factory-test-gate.yaml::suite-loop`・`lib/suitewrite.py::prepare`・`lib/suitewrite.py::settle`
+  - 状態: 形を変えて在る（どの言語でも回る形に広げた: tdd_suite を省いた run は、修正前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ AI の手番 1 回が test_cmd と CI の定義から実行器を書く。機械がその実行器を 1 回走らせ、JUnit XML と試験の 1 件以上を照らす。test_cmd の形を問わない）
+  - 処置: 戻した: `lib/suitewrite.py::settle`
   - 旧棚卸し: 無し
 
 - S101 実行器が無ければ TDD のループを飛ばして直に直し、どちらにしたかを 1 行出す
   - 元: SKILL.md:89
   - 印: 無し
-  - 今: `lib/tddloop.py::SUITE_SKIPPED`・`workflows/line/scripts/start.py::test_notes`（起動の承認ノードの文に 1 行）・`lib/report.py::freeze_lines`
+  - 今: `lib/suitewrite.py::GATE_NOTE`・`lib/suitewrite.py::head_note`（報告の冒頭の 1 行目が、取り置きを使った・書いた・作れなかったのどれかを言う）・`workflows/line/scripts/start.py::test_notes`（起動の承認ノードの文に 1 行）・`lib/report.py::freeze_lines`
   - 状態: 在る
   - 旧棚卸し: F027
 
@@ -1089,7 +1089,7 @@
 - S142 決め手が揃い、答えが割れず、柵（外への書き込み・取り消せない操作・方針の文書の変更・守りを広げる・web の新しい疑い）に当たらない狭めと穴の行は、承認ノードに出さずに通す
   - 元: SKILL.md:114
   - 印: 無し
-  - 今: `lib/gatemarks.py::FENCES`・`lib/gatemarks.py::PASSES_FILE`（gate-passes.json）
+  - 今: `lib/gatemarks.py::FENCES`・`lib/planreviewbeside.py::GATE_PASSES_FILE`（事前審査の出力の欄 gate_passes の先）
   - 状態: 在る
   - 旧棚卸し: L-G18
 
@@ -2177,17 +2177,17 @@
 - U074 tdd_suite を省き test_cmd が pytest の 1 コマンド（前に uv run・poetry run・python3 -m を許し、; & | < > $ ` を含まない）なら、JUnit XML を書く実行器を書いて渡す
   - 元: use.sh:55-57・1069-1082
   - 印: 無し
-  - 今: 無し（`lib/tddloop.py::NO_SUITE` の道で TDD のループを飛ばす。`superset` と `lang-neutral` のどちらを取るかは S100 と同じく持ち主が決める）
-  - 状態: 無い
-  - 処置: #516
+  - 今: `workflows/test-gate/works-factory-test-gate.yaml::suite-loop`・`lib/suitewrite.py::prepare`・`lib/suitewrite.py::settle`
+  - 状態: 形を変えて在る（どの言語でも回る形に広げた: tdd_suite を省いた run は、修正前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ AI の手番 1 回が test_cmd と CI の定義から実行器を書く。機械がその実行器を 1 回走らせ、JUnit XML と試験の 1 件以上を照らす。test_cmd の形を問わない）
+  - 処置: 戻した: `lib/suitewrite.py::settle`
   - 旧棚卸し: L-E38・F027
 
 - U075 test_cmd が pytest の 1 コマンドでなければ、「TDD のループを飛ばす」と最後の引数 <tdd_suite> の渡し方を 1 行で知らせる
   - 元: use.sh:57・1086-1089
   - 印: 無し
-  - 今: `workflows/line/scripts/start.py::test_notes`・`lib/tddloop.py::SUITE_SKIPPED`
-  - 状態: 形を変えて在る（殻の出力でなく起動の承認ノードの文に出る。渡し方は `--input tdd_suite=<実行器>`。tdd_suite を省いた run では test_cmd の形を問わず出る）
-  - 処置: 戻した: `workflows/line/scripts/start.py::test_notes`・`lib/tddloop.py::SUITE_SKIPPED`
+  - 今: `workflows/line/scripts/start.py::test_notes`・`lib/suitewrite.py::GATE_NOTE`・`lib/suitewrite.py::head_note`
+  - 状態: 形を変えて在る（殻の出力でなく、起動の承認ノードの文が実行器を取り置きから使うか AI が書き、照らしが通らなければループを飛ばすと言い、通らなかった run は報告の冒頭が訳と `--input tdd_suite=<実行器>` の渡し方を言う。tdd_suite を省いた run では test_cmd の形を問わず出る）
+  - 処置: 戻した: `workflows/line/scripts/start.py::test_notes`・`lib/suitewrite.py::head_note`
   - 旧棚卸し: F027
 
 - U076 test_cmd を省けばメイングラフの既定（対象の .review-checks.json の宣言か CI）で回すと知らせる
@@ -2827,17 +2827,17 @@
 - K1 直す前の名指しのテストが failure（error・一式に居ない・もう通る・飛ばされた、は拒む）で落ちることを、JUnit の結末から機械が見る（pytest の対象では tdd_suite を省いても既定で効く）
   - 元: keep-essence.md:10
   - 印: `keep-essence.md:10`
-  - 今: `lib/baseline_red.py::red_problems`・`lib/tddloop.py::red_check`（TDD のループの test の段 `workflows/fix/works-factory-fix.yaml::tdd-step`）・`workflows/line/scripts/start.py::test_notes`（tdd_suite が無ければ `lib/tddloop.py::NO_SUITE` の道でループを飛ばし、始めの注に残す）
-  - 状態: 形を変えて在る（tdd_suite を渡した run でだけ効く。省いた run で test_cmd から実行器を書く道は無い）
-  - 処置: #516
+  - 今: `lib/baseline_red.py::red_problems`・`lib/tddloop.py::red_check`（TDD のループの test の段 `workflows/fix/works-factory-fix.yaml::tdd-step`）・`lib/suitewrite.py::settle`（tdd_suite を省いた run は取り置きか AI の書いた実行器を照らして結び、通らなければ `lib/tddloop.py::NO_SUITE` の道でループを飛ばす）
+  - 状態: 形を変えて在る（tdd_suite を渡した run と、省いた run で用意した実行器が照らしを通った run で効く）
+  - 処置: 戻した: `lib/suitewrite.py::settle`
   - 旧棚卸し: F001・F008
 
 - K1b 直した後に名指しのテストが通り、元で通っていた試験が赤にならず、一式が 0 で終わることを JUnit から機械が見る（pytest の対象では既定で効く）
   - 元: keep-essence.md:10
   - 印: 無し
   - 今: `lib/baseline_red.py::green_problems`・`lib/tddloop.py::_green`
-  - 状態: 形を変えて在る（tdd_suite を渡した run でだけ効く）
-  - 処置: #516
+  - 状態: 形を変えて在る（tdd_suite を渡した run と、省いた run で用意した実行器が照らしを通った run で効く）
+  - 処置: 戻した: `lib/suitewrite.py::settle`
   - 旧棚卸し: F004
 
 - K1c 受け付けの最後に、修正前の版とループの赤の木で赤 → 緑を機械が確かめ直す（役の申告に頼らない事後の関門）
@@ -3026,12 +3026,11 @@
 
 - 行: 405
 - 状態 在る: 179
-- 状態 形を変えて在る: 179
-- 状態 無い: 47
-- 処置 #516: 4
-- 処置 戻した: 10
+- 状態 形を変えて在る: 181
+- 状態 無い: 45
+- 処置 戻した: 14
 - 処置 要らない: 107
-- 無い行: S001・S008・S023・S080・S100・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U040・U046・U056・U057・U058・U060・U064・U074・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
+- 無い行: S001・S008・S023・S080・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U040・U046・U056・U057・U058・U060・U064・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
 
 ## 前の棚卸しの今
 
@@ -3528,8 +3527,8 @@
 - line.md L-G15: workflows/line/works-factory-line.yaml::ask-final（`final_gate: $start.output.final_gate`）。workflows/line/scripts/ask_final.py::ask は `mode or ALWAYS` で読み、知らない語を確かめない
 - line.md L-G16: lib/gatepolicy.py::head_words、workflows/line/scripts/start.py::gate_text、workflows/line/scripts/ask_final.py::final_head
 - line.md L-G17: workflows/line/scripts/ask_before_fix.py::ask、main lib/boardview.py::collect
-- line.md L-G18: lib/gatemarks.py::plan_gate_items・lib/gatemarks.py::_record、main lib/boardview.py::collect（gate-passes.json）、main lib/gate_axes.py::gather
-- line.md L-G19: 報告は lib/runreport.py の `_gate_passes`。最後の承認ノードは workflows/line/scripts/ask_final.py の `review_rows`（事前審査の review の隣の gatemarks.PASSES_FILE を gatemarks.pass_lines で）と `final_text` の「直す前の承認ノードで通した項目」
+- line.md L-G18: lib/gatemarks.py::plan_gate_items・lib/gatemarks.py::_record、main lib/boardview.py::collect（出力の欄 gate_passes の先）、main lib/gate_axes.py::gather
+- line.md L-G19: 報告は lib/runreport.py の `_gate_passes`。最後の承認ノードは workflows/line/scripts/ask_final.py の `review_rows`（事前審査の出力の欄 gate_passes の先を gatemarks.passes_of で）と `final_text` の「直す前の承認ノードで通した項目」
 - line.md L-G20: lib/gatemarks.py::_item → workflows/line/scripts/ask_before_fix.py::ask
 - line.md L-G21: workflows/line/scripts/ask_before_fix.py::ask は plan-review の questions の行 {kind, text} の種類のまま承認ノードの文の頭に並べ（gatemarks.gate_text の KIND_WORDS）、ASK_GATE_HEAD は台帳の問い（fork・escalate）が在る時だけ（部分 B1）
 - line.md L-G22: lib/gatemarks.py::ask_text → workflows/line/scripts/ask_before_fix.py::ask
@@ -3598,7 +3597,7 @@
 - line.md L-W29: workflows/line/scripts/ask_final.py::delta_lines（fix の delta_review の回数と通ったか）。穴の数と枝の名札・手直しの結果は got の branch_rows（今は空）で「取れない」と書く
 - line.md L-W30: workflows/line/scripts/ask_final.py::judged_returns・workflows/line/scripts/ask_final.py::rejudge_rows（lib/runreport.py::rejudge_lines。ask-final の入力 units・rejudged・first_units・fix_units）
 - line.md L-W31: workflows/line/scripts/ask_final.py::after_rows（structmark.after_lines: 数・柵の増え・新しい名・修正案の外れの訳）
-- line.md L-W32: workflows/line/scripts/ask_final.py::review_rows（plan-rounds と replan-review の review の隣の gate-passes.json と gate.json の converge）
+- line.md L-W32: workflows/line/scripts/ask_final.py::review_rows（plan-rounds と replan-review の出力の欄 gate_passes の先と、欄 gate の先の converge）
 - line.md L-W33: workflows/line/scripts/ask_final.py::eye_lines（平易な名の目の行・前提の検算の語・残りの数え）
 - line.md L-W34: workflows/line/scripts/ask_final.py::final_text: 例で証明できない判定の問い（runreport.unproven_lines）・同じ run で直した修正案の項目（amend_rows・AMEND_HEAD）・持ち越した単位（runreport.split_line を 1 行目に）・残りの数え（eye_lines）
 - line.md L-W35: workflows/line/scripts/ask_final.py::question_lines（gatemarks.quote で引き、この承認ノードの答えは問いに答えないと添える）
@@ -3655,7 +3654,7 @@
 - line.md L-D19: workflows/line/scripts/ask_before_fix.py::ask: 事前審査が設計だけの行（種類 design_only。止まった理由つき）を返していれば STUCK_ITEM・DESIGN_ONLY_ITEM を足し直さない
 - line.md L-D20: メイングラフが plan-review-run に `with:` の `round_limit: 20` を渡し、lib/boardview.py::_take が上限の周（計画の周 ≥ round_limit）に converge の at_cap を渡し、plan-review は stalled と理由の行（converge の CAP_WHY）を questions で返す。workflows/line/scripts/ask_before_fix.py::ask の stalled の枝が承認ノードを開ける
 - line.md L-D21: workflows/line/scripts/ask_before_fix.py::ask
-- line.md L-D22: lib/runreport.py::_converge_lines（事前審査の出力 review の隣の gate.json の converge を lib/gatemarks.converge_of で。計画の往復と案の直しの事前審査）
+- line.md L-D22: lib/runreport.py::_converge_lines（事前審査の出力の欄 gate の先の converge を lib/gatemarks.converge_of で。計画の往復と案の直しの事前審査）
 - line.md L-D23: workflows/line/scripts/after_fix.py::decide、workflows/line/works-factory-line.yaml::replan
 - line.md L-D24: メイングラフ workflows/line/works-factory-line.yaml の replan の with:（ruling: $fix.output.replan_items・conflicts: $fix.output.conflicts）
 - line.md L-D25: メイングラフの replan-review の with: の conflicts: $fix.output.conflicts（boardview.open_pass が項目ごとの申し出と裁定の行を貼る）
@@ -3914,7 +3913,7 @@
 - plan.md P220: lib/gatemarks.py::split・lib/gatemarks.py::save・lib/boardview.py::open_pass（修正案の側）・lib/boardview.py::_take（事前審査の側）
 - plan.md P221: lib/gatemarks.py::recommend_gaps・lib/boardview.py::_take（RECOMMEND_REJECT）
 - plan.md P222: lib/gatemarks.py::_gate_rows・lib/boardview.py::HUMAN_FACE_KINDS
-- plan.md P223: lib/gatemarks.py::plan_gate_items・lib/gatemarks.py::_record・lib/boardview.py::collect（PASSES_FILE）・lib/runreport.py::_gate_passes（隣の gate-passes.json を読む）
+- plan.md P223: lib/gatemarks.py::plan_gate_items・lib/gatemarks.py::_record・lib/boardview.py::collect（PASSES_FILE）・lib/runreport.py::_gate_passes（出力の欄 gate_passes の先を読む）
 - plan.md P224: lib/gatemarks.py::FENCES・lib/gatemarks.py::decided
 - plan.md P225: lib/gatemarks.py::plan_gate_items
 - plan.md P226: lib/gatemarks.py::_world・lib/gatemarks.py::_no_narrow・lib/gatemarks.py::_item
@@ -3936,7 +3935,7 @@
 - plan.md P242: lib/gatemarks.py::request_answer・lib/gatemarks.py::answer_binds・lib/gatemarks.py::unmatched_answer_lines・lib/boardview.py::open_pass（始めの記録の写しから読む）・lib/runreport.py::ledger_state（報告の側の写し）
 - plan.md P243: lib/gatemarks.py::material_answer・lib/gatemarks.py::measured_materials・lib/gatemarks.py::origin（値で受ける式）。報告は lib/runreport.py::ledger_state が gatemarks の見え方で引く
 - plan.md P244: lib/boardview.py::take_gate_answers・lib/boardview.py::_note_asked・workflows/plan-review/scripts/pass_open.py（入力 gate_answers）。メイングラフの workflows/line/works-factory-line.yaml::replan-review の with: に gate_answers: $answer-before-fix.output.answer
-- plan.md P245: lib/boardview.py::_note_asked・lib/boardview.py::collect（gatemarks.PLAN_GATE_FILE）
+- plan.md P245: lib/boardview.py::_note_asked・lib/boardview.py::collect（planreviewbeside.GATE_FILE）
 - plan.md P246: lib/boardview.py::policy_change・lib/boardview.py::change_row・lib/boardview.py::collect（collect が行を足す）・lib/boardview.py::take_gate_answers（固め直し）
 - plan.md P247: lib/gatemarks.py::design_item・lib/gatemarks.py::_design_only_answered・lib/boardview.py::open_pass（始めの記録の写し）
 - plan.md P248: lib/gatemarks.py::design_item・lib/boardview.py::collect（stalled）
@@ -3946,7 +3945,7 @@
 - plan.md P252: lib/boardview.py::collect・workflows/plan-review/scripts/result.py
 - plan.md P253: workflows/line/works-factory-line.yaml::plan-review-run（plan-review は plan の ready でだけ走る）・workflows/line/scripts/ask_before_fix.py::ask（plan の ready が偽なら承認ノードを開かない）・workflows/line/scripts/plan_out.py::plan_out（計画の欄 nothing_owed）→ workflows/line/works-factory-line.yaml::design-only → workflows/line/scripts/fixed.py::no_fix → test-gate-final・eyes
 - plan.md P254: lib/eyeverdict.py::r4_gate_items・lib/eyeverdict.py::_human_passed（eyes の持ち物。plan-review の questions とメイングラフの answer-before-fix の答えを読む）
-- plan.md P255: 報告は lib/runreport.py::ledger_state・lib/runreport.py::_gate_passes。最後の承認ノードは workflows/line/scripts/ask_final.py::review_rows（gate-passes.json）・workflows/line/scripts/ask_final.py::ledger_rows・workflows/line/scripts/ask_final.py::question_lines
+- plan.md P255: 報告は lib/runreport.py::ledger_state・lib/runreport.py::_gate_passes。最後の承認ノードは workflows/line/scripts/ask_final.py::review_rows（出力の欄 gate_passes の先）・workflows/line/scripts/ask_final.py::ledger_rows・workflows/line/scripts/ask_final.py::question_lines
 - plan.md P256: lib/runreport.py::answer_drafts（報告の持ち物。plan-review の questions と計画の欄 fix_plan の先を読む）
 - plan.md P257: lib/boardview.py::collect・lib/boardview.py::GIVEN_UP_FACES
 - tail.md T1: lib/declared_checks.py::checks_reply・lib/declared_checks.py::run_ci
@@ -4055,7 +4054,7 @@
 - tail.md E34: lib/eyeverdict.py::premise_reason・lib/eyeverdict.py::collect
 - tail.md E35: lib/eyeverdict.py::collect
 - tail.md E36: workflows/line/scripts/ask_final.py::needs・workflows/line/scripts/ask_final.py::final_needs（「前提の検算が人に上げた」を承認ノードを開ける理由に足す）
-- tail.md E37: eyes の出力 notes の隣の premise-check.json（lib/eyeverdict.py::premise_facts・lib/eyeverdict.py::premise_fact_lines）→ 最後の承認ノードと報告。報告が次の依頼の constraints に運び（lib/carry.py::carried_constraints・lib/carry.py::KEYS の CONSTRAINTS。lib/next-request.schema.json）、次の run の judge が premises.json の制約に足し（lib/judge_accept.py::with_carried・lib/judge_accept.py::CARRIED_FILE）、eyes の支度が目を省かない（workflows/eyes/scripts/prep.py::out の run_eyes）
+- tail.md E37: eyes の出力の欄 premise_reply の先（lib/eyeverdict.py::premise_facts・lib/eyeverdict.py::premise_fact_lines）→ 最後の承認ノードと報告。報告が次の依頼の constraints に運び（lib/carry.py::carried_constraints・lib/carry.py::KEYS の CONSTRAINTS。lib/next-request.schema.json）、次の run の judge が premises.json の制約に足し（lib/judge_accept.py::with_carried・lib/judge_accept.py::CARRIED_FILE）、eyes の支度が目を省かない（workflows/eyes/scripts/prep.py::out の run_eyes）
 - tail.md E38: lib/eyeverdict.py::premise_section、workflows/eyes/commands/r2-compare.md
 - tail.md E39: lib/eyeverdict.py::human_items、lib/eyeverdict.py::premise_section
 - tail.md E40: lib/eyeverdict.py::NO_CONSTRAINTS・lib/eyeverdict.py::NO_REQUEST・lib/eyeverdict.py::premise_section
@@ -4084,7 +4083,7 @@
 - tail.md E63: lib/eyeverdict.py::_human_passed・lib/eyeverdict.py::r4_gate_items
 - tail.md E64: lib/eyeverdict.py::_human_passed
 - tail.md E65: lib/eyeverdict.py::carried_section・lib/eyeverdict.py::prompt_texts、workflows/eyes/commands/r4-scope.md
-- tail.md E66: eyes の出力 notes の隣の gate-passes.json（eyeverdict.gate_pass_rows）を最後の承認ノード（修正前の承認ノードで通した項目の行）と報告（runreport `_gate_passes` の EYE_PASSES_HEAD）が並べる
+- tail.md E66: eyes の出力の欄 r4_passes の先（eyeverdict.gate_pass_rows）を最後の承認ノード（修正前の承認ノードで通した項目の行）と報告（runreport `_gate_passes` の EYE_PASSES_HEAD）が並べる
 - tail.md E67: 無し（main の lib と #74 の head のメイングラフの scripts に方針の版の照らしが無い。lib/gatemarks.py::KIND_WORDS に語だけが在る）
 - tail.md E68: lib/stage_b.py::run、workflows/eyes/works-factory-eyes.yaml::structure-after（ノードの script workflows/eyes/scripts/structure_after.py が `.archon/` の下を除いて呼ぶ）
 - tail.md E69: workflows/eyes/works-factory-eyes.yaml::structure-after（ノードの script workflows/eyes/scripts/structure_after.py が測れない訳を problems に集め status: failed で返す。最上位の関数は無い）
@@ -4131,7 +4130,7 @@
 - tail.md R32: lib/runreport.py::inner_word_lines
 - tail.md R33: lib/runreport.py::_hits
 - tail.md R34: lib/runreport.py::_gate_passes
-- tail.md R35: lib/runreport.py::_converge_lines（converge.lines の行が review の隣の gate.json に在る）
+- tail.md R35: lib/runreport.py::_converge_lines（converge.lines の行が事前審査の出力の欄 gate の先に在る）
 - tail.md R36: lib/runreport.py::_design_lines（事前審査の出力の design の先 design.json。design.anchor_note・UNANCHORED）
 - tail.md R37: lib/runreport.py::_decisions（fixbeside.gates_lines・plan_ask_lines・tests_left_lines。fix の段ごとの欄 accept_trace の先）
 - tail.md R38: lib/runreport.py::_decisions（fixbeside.always_rows: clean が消したファイル〔fix の段ごとの欄 removed の先〕・レンズ〔欄 lenses の先〕・仕組みの異常は取れない〔U6〕）

@@ -78,6 +78,7 @@ import seal as seallib  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
 import structmark  # noqa: E402
+import suitewrite  # noqa: E402
 import userenv  # noqa: E402
 import worldmark  # noqa: E402
 
@@ -232,10 +233,10 @@ def fix_beside(returns: dict) -> dict:
     return fixbeside.read(oc.fix_records(returns), pathlib.Path)
 
 
-def eye_notes_dir(returns: dict) -> pathlib.Path | None:
-    """独立の目の返り notes（premise-inputs.json）のフォルダ（隣の r4-gate-passes.json・premise-check.json と一緒の約束）。無ければ None"""
-    p = as_dict(returns.get("eyes")).get("notes")
-    return pathlib.Path(p).parent if isinstance(p, str) and p else None
+def eye_file(returns: dict, field: str) -> pathlib.Path | None:
+    """独立の目の返りの欄 field（notes・r4_passes・premise_reply）の先のファイル。無ければ None"""
+    p = as_dict(returns.get("eyes")).get(field)
+    return pathlib.Path(p) if isinstance(p, str) and p else None
 
 
 # ---------------------------------------------------------------- run の記録
@@ -923,23 +924,22 @@ def _gate_passes(returns: dict, stages=None) -> list:
         if rid == "replan-review-result" and r is None:
             continue
         node = oc.node_of(stages, rid)
-        p = as_dict(r).get("review")
+        p = as_dict(r).get("gate_passes")
         if not (isinstance(p, str) and p):
-            out.append(f"修正前の承認ノードが聞かずに通した行（{node}）: 無い（{'出力が無い' if r is None else '事前審査のポインタが無い'}）")
+            out.append(f"修正前の承認ノードが聞かずに通した行（{node}）: 無い（{'出力が無い' if r is None else '事前審査の出力の欄 gate_passes が無い'}）")
             continue
         try:
-            rows = gatemarks.passes_of(pathlib.Path(p).parent)
+            rows = gatemarks.passes_of(p)
         except (OSError, ValueError) as e:
-            out.append(f"修正前の承認ノードが聞かずに通した行（{node}）: 無い（{pathlib.Path(p).with_name(gatemarks.PASSES_FILE)} が読めない: "
-                       f"{oneline.one_line(e)}）")
+            out.append(f"修正前の承認ノードが聞かずに通した行（{node}）: 無い（{p} が読めない: {oneline.one_line(e)}）")
             continue
         out.append(f"修正前の承認ノードが聞かずに通した行（{node}）: {len(rows)} 件")
         out += [f"  - {oneline.one_line(x)}" for x in rows]
-    at = eye_notes_dir(returns)
-    if at is not None:   # E66: 人が通したので R4 の問いから外した行（元 gatemarks.lines の by human の行）
+    if eye_file(returns, "notes") is not None:   # E66: 人が通したので R4 の問いから外した行（元 gatemarks.lines の by human の行）
+        at = eye_file(returns, "r4_passes")
         rows = eyeverdict.gate_pass_rows(at)
         out += ([f"{EYE_PASSES_HEAD}: {len(rows)} 件", *[f"  - {x}" for x in gatemarks.pass_lines(rows)]] if rows is not None
-                else [f"{EYE_PASSES_HEAD}: 読めない（{at / eyeverdict.GATE_PASSES}）"])
+                else [f"{EYE_PASSES_HEAD}: 読めない（{at or '独立の目の出力の欄 r4_passes が無い'}）"])
     return out
 
 
@@ -1077,20 +1077,17 @@ def _amend_lines(returns: dict, gates: dict, line: dict, closed: bool) -> list:
 
 
 def _converge_lines(returns: dict, stages=None) -> list:
-    """事前審査の壁打ちの往復の行（元 report.head_decisions の converge.lines。返り review の隣の gate.json の converge。計画の往復と
+    """事前審査の壁打ちの往復の行（元 report.head_decisions の converge.lines。返りの欄 gate の先の converge。計画の往復と
     案の直しの事前審査）。控えが無ければ空、読めなければその 1 行"""
     out = []
     for rid in ("plan-review", "replan-review-result"):
-        p = as_dict(returns.get(rid)).get("review")
-        if not (isinstance(p, str) and p):
-            continue
-        if not (pathlib.Path(p).parent / gatemarks.PLAN_GATE_FILE).is_file():
+        p = as_dict(returns.get(rid)).get("gate")
+        if not (isinstance(p, str) and p and pathlib.Path(p).is_file()):
             continue   # 控えが無いことは _gate_passes の行が言う
         try:
-            out += gatemarks.converge_of(pathlib.Path(p).parent)
+            out += gatemarks.converge_of(p)
         except (OSError, ValueError) as e:
-            out.append(f"事前審査の壁打ちの行（{oc.node_of(stages, rid)}）: 無い（{pathlib.Path(p).with_name(gatemarks.PLAN_GATE_FILE)} が読めない: "
-                       f"{oneline.one_line(e)}）")
+            out.append(f"事前審査の壁打ちの行（{oc.node_of(stages, rid)}）: 無い（{p} が読めない: {oneline.one_line(e)}）")
     return out
 
 
@@ -1378,7 +1375,7 @@ def _eye_lines(returns: dict, typed: dict, eyes_skip=None) -> tuple[list, list]:
     out, notes = [], []
     if eyes is None:
         out.append(NO_EYES)
-    at = eye_notes_dir(returns)
+    at = eye_file(returns, "notes")
     for name in oc.EYE_NAMES:
         e = as_dict(eyes).get(name)
         if eyes is not None:
@@ -1389,7 +1386,7 @@ def _eye_lines(returns: dict, typed: dict, eyes_skip=None) -> tuple[list, list]:
     premise = as_dict(as_dict(eyes).get("premise_check"))
     if premise:
         out.append(f"前提の検算: {premise.get('verdict') or '語が無い'}（{oneline.one_line(premise.get('reason') or '')}）")
-        out += [f"  - {x}" for x in (eyeverdict.premise_fact_lines(at) if at is not None else [])]
+        out += [f"  - {x}" for x in eyeverdict.premise_fact_lines(eye_file(returns, "premise_reply"))]
     for v in _list(as_dict(as_dict(typed).get("by_type")).get("eye-verdict")):
         b = v.get("body")
         if not (isinstance(b, dict) and set(b) == set(EYE_KEYS)):
@@ -1742,7 +1739,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, spec_changed,
     spec_unchecked, prior_failures（開けたファイルのパスの字か None）, redepth, notices}（線の collect が report の入力で渡す物。無ければ空。
     notices は run を止めずに進めた起こす前の注意の行で、冒頭の下に 1 行ずつ載せる）、user_env は対象のコマンドを利用者の
-    HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
+    HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）。tdd_suite を省いた run は、冒頭の 1 行目が
+    TDD の実行器を取り置きから使った・書いた・作れなかったのどれかを言う（始めの記録の欄。suitewrite.head_note）"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}
@@ -1755,8 +1753,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     findings = next_request(returns, left, closed, beside=beside, exit_doc=exit_[0])
     prior = prior_failures(returns, left, facts)
     drafts = answer_drafts(returns, gates, start, spec_changed_of(line), spec_unchecked_of(line))
-    notes_at = eye_notes_dir(returns)   # E37: 前提の検算が偽と示した仮定の実測を次の run の制約に運ぶ
-    constraints = carry.carried_constraints(eyeverdict.premise_facts(notes_at)["facts"] if notes_at is not None else [], run_id)
+    # E37: 前提の検算が偽と示した仮定の実測を次の run の制約に運ぶ
+    constraints = carry.carried_constraints(eyeverdict.premise_facts(eye_file(returns, "premise_reply"))["facts"], run_id)
     decisions, asks, tallied = _decisions(returns, gates, start, outcome, left, closed=closed, beside=beside, exit_=exit_,
                                  repo=repo, line=line)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
@@ -1773,6 +1771,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
                           *([pushed] if pushed else []),
                           *(_stopped_why(returns, line) if stopped else []), *_ran_notes(returns),
+                          *([suite] if (suite := suitewrite.head_note(start)) else []),
                           *([userenv.NOTE] if user_env else [])])
     carried = len(findings) + len(drafts) + len(constraints)
     head_at = _first_port(returns, "depth_record")

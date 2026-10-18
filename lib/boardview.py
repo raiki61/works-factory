@@ -52,6 +52,7 @@ import jsonfile
 import planblk
 import planfile
 import planmarks
+import planreviewbeside
 import policy
 import promptsection
 import reads
@@ -82,15 +83,15 @@ GATE_ANSWERS_FILE = "gate-answers.json"  # 入力 gate_answers を写した人�
 WORLD_COPY = f"world/{worldmark.WORLD_FILE}"
 STRUCTURE_ROWS = "structure/design-rows.jsonl"   # 構造の目の控えが指す設計の行の写し（自分の名で写す）
 PASS_DIR = "pass-{k}"
-PREMISES_FILE = "design-premises.json"  # R2 に貼った物の控え {node, given, withheld, seen, claims?}
+PREMISES_FILE = planreviewbeside.DESIGN_PREMISES_FILE
 R2_TREE = "r2-tree.json"                # 独立設計の役を起こす前の作業ツリーの姿
 R2_PROMPT = "r2-prompt.md"
 TREE_FILE = planfile.TREE_FILE           # 事前審査の役を起こす前の作業ツリーの姿（pass-<k>/ の中）
 PROMPT_FILE = "prompt.md"
 RESUBMIT_FILE = "resubmit-{n}.md"       # 拒まれた後の出し直しの役の指示書（pass-<k>/ の中。n は受け付けの回）
 REVIEW_FILE = "review.json"
-PASSES_FILE = gatemarks.PASSES_FILE
-GATE_FILE = gatemarks.PLAN_GATE_FILE
+PASSES_FILE = planreviewbeside.GATE_PASSES_FILE
+GATE_FILE = planreviewbeside.GATE_FILE
 TREE_FEATURE = "review_tree"
 # 元 works/.shared/core/design.py:104
 PREMISE_MISS = "premise_invalid_reason の名指しが固めた版の実物に当たらない（追跡されたファイルと、その行の範囲を名指せ）: "
@@ -565,12 +566,12 @@ def _collect_design(d: pathlib.Path, inputs: dict) -> dict:
     返答の代わりに faces の無い控えを DESIGN_ONLY_DIR に置き、隣に聞かずに通した行（空）と関所の控えを置く"""
     p = d / DESIGN_ONLY_DIR
     b = view(d, inputs)
-    review = _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": DESIGN_ONLY_WHY})
+    _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": DESIGN_ONLY_WHY})
     _write_json(p / PASSES_FILE, [])
     _write_json(p / GATE_FILE, {"items": [], "converge": []})
     got, _ = design.made(d, b.design_schema)
     design_file = d / design.DESIGN_FILE if got is not None else _write_json(p / design.DESIGN_FILE, {"missing": design.missing(b)})
-    return {"pass": True, "stalled": False, "review": review, "design": design_file,
+    return {"pass": True, "stalled": False, **_beside(p, design_file),
             "gate_axes": {axis: {"ok": True, "note": ""} for axis in gatemarks.AXES}, "ask_human": False, "questions": [],
             "gave_up": None}
 
@@ -1188,11 +1189,12 @@ def verdict(d: pathlib.Path, inputs: dict) -> types.SimpleNamespace:
 
 
 def collect(folder) -> dict:
-    """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, design, gate_axes, ask_human, questions, gave_up}。questions の行は
+    """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, gate_passes, gate, design, design_premises, gate_axes, ask_human,
+    questions, gave_up}（design_premises は None が在る）。questions の行は
     関所の項目の種類と文 {kind, text}（gatemarks.question_row。線が無人の run で台帳の問いだけを報告へ回し、ほかの種類で止まる）。
     pass・stalled は verdict。受け付けが諦めた往復は諦めた訳を questions に載せる。関所の項目は、形 review なら
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
-    文書の変化を足す。聞かずに通した行は pass-<k>/gate-passes.json、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
+    文書の変化を足す。聞かずに通した行は pass-<k>/ の PASSES_FILE、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
     GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 replan で受け付けが諦めた時は、裁かれた項目
     ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置き、返りの gave_up にも入れる（ほかの時は None）。返り design に設計の控えを渡したか・無いまま進んだかを
     trace に design.HANDED_OP・MISSING_OP で残す（元 works/.shared/core/design.py の hand）。形 design（直す物が無い周）は _collect_design"""
@@ -1212,8 +1214,16 @@ def collect(folder) -> dict:
             gave_up = [{"item": r["item"], "why": why, "ruling": planfile.ruling_text(r.get("rows") or [])}
                        for r in inputs.get("replan_items") or []]
             _write_json(p / planblk.REPLAN_GAVE_UP_FILE, gave_up)
-    return {"pass": v.ok, "stalled": v.stalled, "review": p / REVIEW_FILE, "design": _settled(d, p, b, items),
+    return {"pass": v.ok, "stalled": v.stalled, **_beside(p, _settled(d, p, b, items)),
             "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions, "gave_up": gave_up}
+
+
+def _beside(p: pathlib.Path, design_file: pathlib.Path) -> dict:
+    """返りのポインタの欄の先（置き場の中の実物）: 往復の p の事前審査の返答と、その隣の聞かずに通した行と関所の控え、設計の控え
+    design_file と、その隣に在れば独立設計の役に貼った物の控え（設計が無い訳の控えの隣には無いので None）"""
+    premises = design_file.with_name(PREMISES_FILE)
+    return {"review": p / REVIEW_FILE, "gate_passes": p / PASSES_FILE, "gate": p / GATE_FILE, "design": design_file,
+            "design_premises": premises if premises.is_file() else None}
 
 
 def _asked(d: pathlib.Path, inputs: dict, items: list) -> list:
@@ -1229,7 +1239,7 @@ def _settled(d: pathlib.Path, p: pathlib.Path, b, items: list) -> pathlib.Path:
     """往復の pass-<k>/ に聞かずに通した行と関所の控えを置き、返す設計の控えのパス（無ければ訳の控え）を返す"""
     out = place(d)
     _write_json(p / PASSES_FILE, gatemarks.passes(b))
-    _write_json(p / gatemarks.PLAN_GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
+    _write_json(p / GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
     got, _ = design.made(d, b.design_schema)
     if got is not None:
         design_file = d / design.DESIGN_FILE

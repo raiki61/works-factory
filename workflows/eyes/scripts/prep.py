@@ -73,6 +73,7 @@ judgment_file = boundary.pointed(os.environ["INPUTS_JUDGMENT"])
 purpose = read(os.environ["INPUTS_PURPOSE"]) or {}
 design_file = boundary.pointed(os.environ["INPUTS_DESIGN"])
 design = eyeverdict.read_design(design_file)
+design_premises = boundary.pointed(os.environ["INPUTS_DESIGN_PREMISES"])
 base_rev = startrec.diff_base(start)
 diff_file, diff_text, diff_why = fixboard.diff_file(Path.cwd(), entry_base, EYES, "run.diff", "run-diff-none.txt", boundary.SKIP)
 answer = boundary.parsed(os.environ["INPUTS_ANSWERS"])
@@ -100,7 +101,7 @@ premises_text, r2_ledger = eyeverdict.premise_section(
     human_items=human_items,
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),
     changed=changed, constraints=constraints,
-    design_seen=(eyeverdict.read_json(design_file.with_name(eyeverdict.DESIGN_PREMISES)) or {}).get("seen") if design_file else None)
+    design_seen=(eyeverdict.read_json(design_premises) or {}).get("seen"))
 
 out = {
     # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）
