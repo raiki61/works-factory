@@ -14,9 +14,9 @@ import planfile  # noqa: E402
 import report_roles  # noqa: E402
 
 NOTE = {"read": [{"path": "stats.py", "lines": "1-20", "why": "mean の分母を確かめた"}],
-        "decided": ["分母は len(xs) にする"],
-        "rejected": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
-        "doubts": ["空の列の扱い"]}
+        "kept": ["分母は len(xs) にする"],
+        "set_aside": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
+        "open": ["空の列の扱い"]}
 
 
 class HandoffCase(unittest.TestCase):
@@ -27,13 +27,14 @@ class HandoffCase(unittest.TestCase):
 
     def test_plan_and_report_take_the_one_schema(self):
         """計画も報告もメモの型・欄の名・頼みを自前で持たず、報告の書き手の返答の型の handoff は handoff.SCHEMA と同じで、
-        4 つ目の欄は doubts。頼みは役の名を含まず、メモは本文・案に入らないと言う"""
+        4 つ目の欄は open。欄の名に decided・rejected・doubts を使わない（#712: 返答の型の欄にこの名が並ぶと、報告の書き手がモデルの提供元の安全の判定 reasoning_extraction に止められた）。頼みは役の名を含まず、メモは本文・案に入らないと言う"""
         for module in (planfile, report_roles):
             for name in ("HANDOFF", "HANDOFF_KEYS", "HANDOFF_SCHEMA", "HANDOFF_HEAD", "HANDOFF_ASK", "NO_HANDOFF", "handoff_section"):
                 with self.subTest(module=module.__name__, name=name):
                     self.assertFalse(hasattr(module, name), f"{module.__name__}.{name} がまだ在る")
         self.assertEqual(handoff.FIELD, "handoff")
-        self.assertEqual(handoff.KEYS, ("read", "decided", "rejected", "doubts"))
+        self.assertEqual(handoff.KEYS, ("read", "kept", "set_aside", "open"))
+        self.assertFalse({"decided", "rejected", "doubts"} & set(handoff.KEYS))
         self.assertEqual(list(handoff.SCHEMA["properties"]), list(handoff.KEYS))
         self.assertEqual(handoff.SCHEMA["required"], list(handoff.KEYS))
         self.assertEqual(report_roles.TEXT_SCHEMA["properties"][handoff.FIELD], handoff.SCHEMA)
@@ -57,7 +58,7 @@ class HandoffCase(unittest.TestCase):
         self.assertEqual(handoff.HEAD.source, "fn:handoff.section")
         self.assertLess(text.index(handoff.HEAD), text.index(handoff.USE))
         self.assertLess(text.index(handoff.USE), text.index(str(handoff.path_of(rounds[0]))))
-        for word in ("read", "decided", "rejected", "doubts"):
+        for word in ("read", "kept", "set_aside", "open"):
             self.assertIn(word, handoff.USE)
         lines = [line for line in text.splitlines() if line.startswith("- ")]
         self.assertEqual(len(lines), 3, "1 周 1 行")
@@ -68,7 +69,7 @@ class HandoffCase(unittest.TestCase):
         self.assertNotIn(str(handoff.path_of(rounds[1])), lines[1])
         self.assertIn(handoff.UNREADABLE, lines[2])
         self.assertIn("r3", lines[2])
-        self.assertNotIn(NOTE["decided"][0], text, "中身は貼らずパスで名指す")
+        self.assertNotIn(NOTE["kept"][0], text, "中身は貼らずパスで名指す")
         self.assertEqual(handoff.section([]), "", "並びが空なら節ごと出さない")
 
     def test_unreadable_names_only_broken_prior_notes(self):

@@ -156,9 +156,9 @@ def narrow(**more):
 
 
 HANDOFF_NOTE = {"read": [{"path": "stats.py", "lines": "1-20", "why": "mean と clamp の枝を確かめた"}],
-                "decided": ["分母は len(xs) にする"],
-                "rejected": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
-                "doubts": ["空の列の扱い"]}
+                "kept": ["分母は len(xs) にする"],
+                "set_aside": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
+                "open": ["空の列の扱い"]}
 
 
 class _NodeFailed(Exception):
@@ -1256,7 +1256,7 @@ class ReplanCase(unittest.TestCase):
              "why_both_cannot_hold": "試験を直さないと上限の枝を直した証が立たない", "which_is_right": "plan",
              "ruling": {"decision": "fix_plan_item", "text": "項目 1 の allowed_paths に request_ok.json を足せ", "limits": [],
                         "plan_items": [1]}}]})
-        again = {**HANDOFF_NOTE, "decided": ["項目 1 の allowed_paths に request_ok.json を足した"]}
+        again = {**HANDOFF_NOTE, "kept": ["項目 1 の allowed_paths に request_ok.json を足した"]}
         out = run.include(ruling='["1"]', conflicts=conflicts, writer=writer_of({"plan": [self.fixed()], "handoff": again}))
         self.assertIs(out["ready"], True, out)
         first, second = run.art / "plan" / "r1", run.art / "plan" / "r2"
@@ -1487,11 +1487,11 @@ class CollectCase(unittest.TestCase):
         self.assertIn(handoff.HEAD, brief)
         self.assertIn(handoff.USE, brief, "前の周のメモの使い方の案内も届く")
         self.assertIn(str(first / "handoff.json"), brief)
-        self.assertNotIn(HANDOFF_NOTE["decided"][0], brief)
+        self.assertNotIn(HANDOFF_NOTE["kept"][0], brief)
 
     def test_third_round_brief_names_every_prior_handoff_oldest_first(self):
         run = Run(self)
-        again = {**HANDOFF_NOTE, "decided": ["二往復目で決めた訳"]}
+        again = {**HANDOFF_NOTE, "kept": ["二往復目で決めた訳"]}
         self.assertIs(run.include(writer=writer_of({"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}))["ready"], True)
         review = run.pointer("review/p2.plan_review.json", {"faces": []})
         self.assertIs(run.include(review=review, writer=writer_of({"plan": [item(1, 2)], "handoff": again}))["ready"], True)
@@ -1503,7 +1503,7 @@ class CollectCase(unittest.TestCase):
         self.assertLess(brief.index(str(first / "handoff.json")), brief.index(str(second / "handoff.json")))
         self.assertLess(brief.index(handoff.HEAD), brief.index(str(first / "handoff.json")))
         for note in (HANDOFF_NOTE, again):
-            self.assertNotIn(note["decided"][0], brief)
+            self.assertNotIn(note["kept"][0], brief)
 
     def test_second_round_brief_says_when_the_prior_round_left_no_handoff(self):
         """前の周の役がメモを書かなかった時は、2 往復目の材料がメモの無いことを名指す（黙って落とさない）。前の周そのものが無い

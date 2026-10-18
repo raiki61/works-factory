@@ -17,7 +17,7 @@ write-reject: {reason: '', prev: '', handoff: ''}
 write:
   text: "直して、最後のテストまで通った。\n直した単位は 1 つ。\n次の run に渡す物は無い。"
   terms: []
-  handoff: {read: [], decided: [], rejected: [], doubts: []}
+  handoff: {read: [], kept: [], set_aside: [], open: []}
 cold-prep:
   body: "直して、最後のテストまで通った。"
 cold: {verdict: pass, stops: [], guessed: [], decidable: true}

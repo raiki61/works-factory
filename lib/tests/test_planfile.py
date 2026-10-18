@@ -710,9 +710,9 @@ class TakePlanCase(TmpCase):
         """返答の頭の欄 handoff は案から外れ、周のフォルダの引き継ぎのメモの控えに字のまま置かれる。案の控え（p2.fix_plan.json・
         plan-fields.json・reply.json）には入らない"""
         note = {"read": [{"path": "stats.py", "lines": "1-20", "why": "mean の分母を確かめた"}],
-                "decided": ["分母は len(xs) にする"],
-                "rejected": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
-                "doubts": ["空の列の扱い"]}
+                "kept": ["分母は len(xs) にする"],
+                "set_aside": [{"option": "新しい助け手を足す", "why": "stats.py に clamp の枝が在る"}],
+                "open": ["空の列の扱い"]}
         self.assertEqual(self.take({"plan": [item(MEAN, CLAMP)], "handoff": note}), {"ok": True, "reason": ""})
         kept = self.round / "handoff.json"
         self.assertTrue(kept.is_file(), "引き継ぎのメモの控えが無い")
@@ -722,7 +722,7 @@ class TakePlanCase(TmpCase):
 
     def test_note_is_saved_through_the_home(self):
         """メモは住処の handoff.save で周のフォルダに置く（受け付けは自前の書き口を持たない）。空のメモでは周に残る前のメモを消す"""
-        note = {"read": [], "decided": ["分母は len(xs) にする"], "rejected": [], "doubts": []}
+        note = {"read": [], "kept": ["分母は len(xs) にする"], "set_aside": [], "open": []}
         with mock.patch.object(handoff, "save", wraps=handoff.save) as save:
             self.assertEqual(self.take({"plan": [item(MEAN, CLAMP)], "handoff": note}), {"ok": True, "reason": ""})
         save.assert_called_once_with(self.round, note)
