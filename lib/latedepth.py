@@ -32,17 +32,17 @@ NO_LATE_RECORD = "修正の後の信号の控えが無い（{name}）——範�
 
 
 def signals(items, keys, touched, *, origin: str, head_record, late, declared=()) -> tuple:
-    """(run の信号の並び, counted の 1 行)。信号は run 全体の広さ（depth.run_wide。計画の欄 items の keys の単位と修正の差分の
-    触るファイル touched）・touched が頭の深さの控え head_record（パス。None・無い・読めない控えは where を持たない）の引用した
-    where の外に出た（depth.outside_cited）・TDD のループで修正役が拒まれた・範囲の相談をした（consult.consulted_units）・
-    直さずに残すと答えた事前審査の block（declared）の理由（depth.late_signals）と、late の unread の LATE_UNREAD。counted は
-    数えたファイルの数と起点 origin に、late の missing の NO_LATE_RECORD を「／」で継いだ 1 行。late が None（修正の段が無い）なら
-    拒否・相談・控えの訳を数えない"""
+    """(run の信号の並び, counted の 1 行)。信号は修正の差分の触るファイル touched が頭の深さの控え head_record（パス。None・無い・
+    読めない控えは where を持たない）の引用した where の外に出た（depth.outside_cited）・TDD のループで修正役が拒まれた・範囲の相談を
+    した（consult.consulted_units）・直さずに残すと答えた事前審査の block（declared）の理由（depth.late_signals）と、late の unread の
+    LATE_UNREAD。run 全体で触るファイルとテストの本数は信号にしない（issue #760）。counted は計画の欄 items の keys の単位と touched
+    から数えたファイルの数（depth.run_paths。記録だけ）と起点 origin に、late の missing の NO_LATE_RECORD を「／」で継いだ 1 行。
+    late が None（修正の段が無い）なら拒否・相談・控えの訳を数えない"""
     late = late or {"refused": [], "trace": None, "missing": [], "unread": []}
-    wide, paths = depth.run_wide(items, keys, touched)
     cited = headdepth.cited_files(headdepth.read_file(head_record)) if head_record is not None else []
-    out = [*wide, *depth.late_signals(outside=depth.outside_cited(items, keys, touched, cited), refused=late["refused"],
-                                      consulted=consult.consulted_units(late["trace"] or []), declared=declared),
+    out = [*depth.late_signals(outside=depth.outside_cited(items, keys, touched, cited), refused=late["refused"],
+                               consulted=consult.consulted_units(late["trace"] or []), declared=declared),
            *(LATE_UNREAD.format(why=why) for why in late["unread"])]
-    counted = f"触るファイル {paths} 個（起点: {origin}）" + "".join(f"／{NO_LATE_RECORD.format(name=name)}" for name in late["missing"])
+    counted = (f"触るファイル {depth.run_paths(items, keys, touched)} 個（起点: {origin}）"
+               + "".join(f"／{NO_LATE_RECORD.format(name=name)}" for name in late["missing"]))
     return out, counted
