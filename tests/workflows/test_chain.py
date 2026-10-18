@@ -258,6 +258,11 @@ class ChainStartCase(Tree):
         self.assertEqual((got["ok"], got["act"]), (False, "refused"), got)
         self.assertIn("fix_fixture", got["text"])
 
+    def test_user_env_dir_is_the_chain_run_place(self):
+        """hand の pr-commit が印を置く置き場は、鎖の run の置き場（ARTIFACTS_DIR）。拒んだ時は空"""
+        self.assertEqual(self.start(rounds="2").get("user_env_dir"), str(self.tmp))
+        self.assertEqual(self.start(rounds="0").get("user_env_dir"), "")
+
     def test_accepted_inputs_are_the_first_round(self):
         got = self.start(rounds="3", budget_usd="2.5", request="req.json", pr="7")
         self.assertEqual((got["ok"], got["act"], got["rounds"], got["budget"], got["rows"]), (True, "launch", 3, 2.5, []))
@@ -553,7 +558,8 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(hand["when"], "$chain-start.output.deliver == 'pr' && $final-diff.output.placed == true")
         self.assertEqual(hand["with"], {"mode": "check", "base_rev": "$chain-start.output.origin",
                                         "sealed_hash": "$final-diff.output.sealed.hash", "deliver": "$chain-start.output.deliver",
-                                        "request": "$chain-start.output.first_request"})
+                                        "request": "$chain-start.output.first_request",
+                                        "user_env_dir": "$chain-start.output.user_env_dir"})
         self.assertEqual(NODES["result"]["with"]["hand"], {"from": "$hand.output.deliver", "if_skipped": None})
 
     def test_round_groups_differ_only_by_number_and_previous_decision(self):

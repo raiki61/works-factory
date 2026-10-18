@@ -3535,6 +3535,10 @@ class SharedPlacesWiringCase(unittest.TestCase):
                  for k, v in node["with"].items() if k in both}
         self.assertEqual(group, {"reuse_dir": "$INPUTS.reuse_dir", "user_env_dir": "$INPUTS.user_env_dir"})
 
+    def test_merge_apply_gets_the_user_env_dir(self):
+        """pr-commit の commit の hooks を利用者の環境に戻して印を置く置き場は、メイングラフの始めのノードの出力から merge-apply へ渡す"""
+        self.assertEqual(line_nodes()["merge-apply"]["with"].get("user_env_dir"), "$start.output.user_env_dir")
+
     def test_plan_ports_are_wired_to_their_readers(self):
         """#681: 計画の出力の欄（修正案の役の返答 fix_plan・拒否の行 rejects・直す義務 0 件の周 nothing_owed・諦めの行 gave_up）を、
         事前審査・修正・案の直しの答えの返し・往復の終わりの返し・受け皿が受ける（隣の控えを名で開かない）"""
@@ -3681,6 +3685,7 @@ class LineWiringCase(unittest.TestCase):
         ("merge-seal", "sealed_hash"): APPLY_ONLY,
         ("merge-seal", "deliver"): APPLY_ONLY,
         ("merge-seal", "request"): APPLY_ONLY,
+        ("merge-seal", "user_env_dir"): "apply・check だけの入力（seal は commit の節を通らない）",
         ("merge-seal", "base_rev"): CHECK_ONLY,
         ("merge-apply", "base_rev"): CHECK_ONLY,
         ("fix", "mode"): GROUP_ONLY,

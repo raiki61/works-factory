@@ -43,7 +43,8 @@ SCRIPTS = BLOCK / "scripts"
 SCRIPT = SCRIPTS / "merge.py"
 NAME = "works-factory-merge"
 RUN = "run-merge"
-INPUTS = ("mode", "start", "base_rev", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "request")
+INPUTS = ("mode", "start", "base_rev", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "request",
+          "user_env_dir")
 PLACE_INPUTS = ("mode", "start", "base_rev", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver")
 RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "deliver", "optional")
 PLACE_RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "base_rev", "deliver")
@@ -108,7 +109,8 @@ class ShapeTest(unittest.TestCase):
         self.assertEqual(commit["when"], f"$place.output.ok == true && $place.output.deliver == '{entry.DELIVER_PR}'"
                                          " && $place.output.mode != 'seal'")
         self.assertEqual(commit["with"], {"mode": "$place.output.mode", "base_rev": "$place.output.base_rev",
-                                          "sealed_hash": "$place.output.hash", "request": "$INPUTS.request"})
+                                          "sealed_hash": "$place.output.hash", "request": "$INPUTS.request",
+                                          "user_env_dir": "$INPUTS.user_env_dir"})
         self.assertEqual((opened["workflow"], opened["when"]), ("archon-pr", "$pr-commit.output.go == true"))
         self.assertEqual(opened["with"], {"branch": "$pr-commit.output.branch"}, "push の先の枝は commit の節が積んだ枝（AI に決めさせない）")
         self.assertNotIn("input", opened)
@@ -548,6 +550,53 @@ class PrCommitTest(unittest.TestCase):
         self.assertIs(self.commit(env={userenv.READ_GH_ENV: str(read_gh)})["go"], True)
         entries = [p for p in seen.read_text(encoding="utf-8").split(os.pathsep) if p != git(self.tmp, "--exec-path")]
         self.assertEqual(entries[0], str(read_gh), "git が頭に足す自分の置き場の後ろは読むだけの gh の置き場")
+
+    def shell_env(self, ran_dir) -> dict:
+        """起動の殻を通った run の節の環境: 控えた利用者の HOME・入力 user_env_dir・読むだけの gh の置き場・uv の足した物"""
+        self.user_home = self.tmp / "user-home"
+        self.read_gh = self.tmp / "read-gh"
+        return {userenv.RECORD: userenv.record({"HOME": str(self.user_home)}), "INPUTS_USER_ENV_DIR": str(ran_dir),
+                userenv.READ_GH_ENV: str(self.read_gh), "UV_RUN_RECURSION_DEPTH": "1",
+                "PATH": os.pathsep.join([os.path.dirname(sys.executable), os.environ["PATH"]])}
+
+    def test_commit_hook_runs_in_the_target_command_env(self):
+        """hooks は対象のコマンドの環境で走る: 利用者の HOME・uv の足した物の無い PATH の頭に読むだけの gh・MARK 無し。印は置き場に残る"""
+        seen = self.tmp / "env.txt"
+        hook = self.tmp / "hooks" / "pre-commit"
+        hook.parent.mkdir()
+        hook.write_text(f"#!/bin/sh\nenv > '{seen}'\n", encoding="utf-8")
+        hook.chmod(0o755)
+        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        ran_dir = self.tmp / "ran"
+        self.assertIs(self.commit(env=self.shell_env(ran_dir))["go"], True)
+        hooked = dict(line.split("=", 1) for line in seen.read_text(encoding="utf-8").splitlines() if "=" in line)
+        self.assertEqual(hooked["HOME"], str(self.user_home))
+        entries = [p for p in hooked["PATH"].split(os.pathsep) if p != git(self.tmp, "--exec-path")]
+        self.assertEqual(entries[0], str(self.read_gh), "git が頭に足す自分の置き場の後ろは読むだけの gh の置き場で、この python の bin はその先に無い")
+        self.assertNotIn(userenv.MARK, hooked)
+        self.assertNotIn("UV_RUN_RECURSION_DEPTH", hooked)
+        self.assertIs(userenv.ran(ran_dir), True)
+
+    def test_record_without_the_user_env_dir_stops_without_a_commit(self):
+        """控えが在るのに印の置き場の入力が空なら、利用者の環境に戻さず・隔離のまま積まずに止まる"""
+        got = self.commit(env=self.shell_env(""))
+        self.assertStopped(got, userenv.RAN_DIR_ENV)
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+
+    def test_mark_stays_only_when_a_commit_ran_the_hooks(self):
+        """印は、commit を積んでフックを走らせた時だけ残る。封じた差分が既に枝の commit に在って積まない回は、置いた印を消す"""
+        ran_dir = self.tmp / "ran"
+        git(self.run_tree, "add", "-A", "--", ".", ":(exclude).archon")
+        git(self.run_tree, "commit", "-q", "-m", "round")
+        got = self.commit(env=self.shell_env(ran_dir))
+        self.assertIs(got["go"], True, got)
+        self.assertIs(userenv.ran(ran_dir), False, "積まなかった回に印は残らない")
+        (self.run_tree / "a.txt").write_text("three\n", encoding="utf-8")
+        sealed = seal.digest(green_cert.diff_bytes(self.run_tree, self.base, skip=(".archon/",)))
+        got = self.commit(env=self.shell_env(ran_dir), sealed_hash=sealed)
+        self.assertIs(got["go"], True, got)
+        self.assertEqual(git(self.run_tree, "rev-list", "--count", f"{self.base}..HEAD"), "2")
+        self.assertIs(userenv.ran(ran_dir), True, "積んでフックを走らせた回は印が残る")
 
     def test_origin_without_a_forge_repo_stops(self):
         git(self.main, "config", "remote.origin.url", str(self.origin))

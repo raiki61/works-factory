@@ -996,6 +996,7 @@ nodes:
       r2: "$eyes.output.r2"
       deliver: "$INPUTS.deliver"
       request: "$INPUTS.request"
+      user_env_dir: "$start.output.user_env_dir"
 
   - id: merge-apply-out
     <<: *receiver
