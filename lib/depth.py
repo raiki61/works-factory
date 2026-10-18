@@ -30,7 +30,7 @@ graph が optional と言う物だけ（R1〜R4 本体と差分の審査は持�
 - outside_cited(items, keys, touched, cited): 修正の差分 touched のうち、頭の深さの役が引用した where のファイル cited の外に出たパス
   （テストのファイルは run_wide と同じ除き _code_touched で除く。cited が空なら空）
 - late_signals(*, outside, refused, consulted, declared): 修正の後の 4 つの事実（引用の外の差分・TDD のループで修正役が拒まれた単位・範囲の相談をした
-  単位・直す側が直さずに残すと答えた案の審査の block）の run の理由の並び。空の欄からは理由を出さない。呼ぶのは修正のブロックの fixboard.depth_signals・redepth と、線の redepth
+  単位・直す側が直さずに残すと答えた案の審査の block）の run の理由の並び。空の欄からは理由を出さない。呼ぶのは修正の後の上げ直し latedepth.signals
   （raise_doc の run に足す。上げるだけで下げない）
 - run_depth(doc): 切った後の単位の深さの全体（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
 - omits(head): 段 head が省く確かめの名の並び（TIERS の omits。知らない語・空は標準の段の物）。空でない段だけが単位の軽量で
