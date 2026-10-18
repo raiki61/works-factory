@@ -4,6 +4,7 @@ description: |
   R2 独立設計との比較（独立設計が問いは立たないと言えば前提の検算）・R3 全体の整合・R4 見えていない範囲（R1・R2 の筋の後）。
   run の頭の深さの段がまとめる目（lib/depth.py の TIERS の merges。軽量）を持てば、R1（前段を含む）・R3・R4 を 1 つの役 eyes-one が
   1 つの会話で見る（R2 はほかの観点の結論を見ないよう分けたまま）。
+  R1 は最後の試験の関門の証拠（入力 checks）も読み、差分が足してどこからも使われない物を名指す。
   直した後の構造の実測と守りのパスの当たりも出す。目の出力は返った時だけ走る script ノードが置き場のファイルに書き、
   出力ノード verdict はそのファイルを読んで lib/eyeverdict.py でまとめる（落ちたノードへの with: は誤りで止まるため）。
 
@@ -32,6 +33,7 @@ inputs:
   premises: {default: "null", description: "実測した制約のポインタ（premises.json。{constraints}）。null は制約が渡っていない"}
   decisions: {default: "null", description: "決定記録の突合の返答のポインタ（material-prior-decisions.json）。null は突合が無い"}
   x_scalars: {default: "null", description: "直しの規模の数値の欄（名は x_ で始まる）。JSON の object"}
+  checks: {default: "null", description: "最後の試験の関門の証拠の文 evidence.md のポインタ。null は渡っていない"}
 
 returns: verdict
 outcome_field: ok
@@ -40,7 +42,6 @@ nodes:
   - id: structure-after
     script: structure_after
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     output_format:
       type: object
@@ -61,7 +62,6 @@ nodes:
   - id: prep
     script: prep
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [structure-after]
     output_format:
@@ -106,6 +106,7 @@ nodes:
         green_line: {type: string}
         measured_text: {type: string}
         origin_text: {type: string}
+        checks_file: {type: string}
 
   # 役の節は今の works の blk-eyes の同じ役の節から settingSources・sandbox を写す。出し直しは retry（合計 3 回）
   - id: r1-comments
@@ -149,7 +150,6 @@ nodes:
   - id: r1-comments-save
     script: save_reply
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r1-comments]
     with:
@@ -286,7 +286,6 @@ nodes:
     depends_on: [prep, r1-minimality, r2-compare, premise-check]
     trigger_rule: all_done
     when: "$prep.output.run_eyes == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -295,7 +294,6 @@ nodes:
         - id: r4-reject
           script: r4_rejects
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {prev: "$LOOP_PREV.r4-accept.output.ok"}
           output_format:
@@ -385,7 +383,6 @@ nodes:
         - id: r4-accept
           script: r4_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [r4-scope, r4-scope-fix, eyes-one, eyes-one-fix]
           trigger_rule: none_failed_min_one_success
@@ -409,7 +406,6 @@ nodes:
   - id: r1-minimality-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r1-minimality]
     output_type: eye-verdict
@@ -429,7 +425,6 @@ nodes:
   - id: r2-compare-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r2-compare]
     output_type: eye-verdict
@@ -442,7 +437,6 @@ nodes:
   - id: premise-check-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [premise-check]
     output_type: eye-verdict
@@ -455,7 +449,6 @@ nodes:
   - id: r3-coherence-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r3-coherence]
     output_type: eye-verdict
@@ -468,7 +461,6 @@ nodes:
   - id: r4-scope-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r4-loop]
     output_type: eye-verdict
@@ -482,7 +474,6 @@ nodes:
   - id: r1-one-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [prep, r4-loop]
     when: "$prep.output.one_eye == true"
@@ -496,7 +487,6 @@ nodes:
   - id: r3-one-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [prep, r4-loop]
     when: "$prep.output.one_eye == true"
@@ -511,7 +501,6 @@ nodes:
   - id: protected
     script: protected
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     output_format:
       type: object
@@ -525,7 +514,6 @@ nodes:
   # ASF の W/review の review-complete と同じ柵。落ちた目が在っても出口へ進む
   - id: eyes-complete
     bash: "true"
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r1-comments, r1-comments-save, r1-minimality, r2-compare, premise-check, r3-coherence, r4-loop,
                  r1-minimality-verdict, r2-compare-verdict, premise-check-verdict, r3-coherence-verdict, r4-scope-verdict,
@@ -536,7 +524,6 @@ nodes:
   - id: verdict
     script: verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [eyes-complete, prep, structure-after, protected]
     trigger_rule: all_done

@@ -59,7 +59,6 @@ def _load_result():
 
 result = _load_result()
 
-DEADLINE = 1728000000
 RUN_ID = "run-1"
 PY = sys.executable
 WAIT = 30   # 子のプロセスを待つ上限（秒）。試験の枠で、script の中には期限を置かない
@@ -332,7 +331,7 @@ class YamlCase(unittest.TestCase):
                 continue
             with self.subTest(n["id"]):
                 self.assertEqual(script_inputs(n["script"]), {f"INPUTS_{k.upper()}" for k in n["with"]})
-                self.assertEqual((n["runtime"], n["timeout"]), ("uv", DEADLINE))
+                self.assertEqual((n["runtime"], n.get("timeout")), ("uv", None))
 
     def test_readonly_nodes(self):
         for nid in ("ci-prep", "ci", "ci-accept", "result"):

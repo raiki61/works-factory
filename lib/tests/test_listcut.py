@@ -30,6 +30,15 @@ class ListcutCase(unittest.TestCase):
         small = listcut.lines(list("abcdef"), shown=2, prefix="    - ")
         self.assertEqual(small, ["    - a", "    - b", "    - " + listcut.REST.format(n=4)])
 
+    def test_rest_row_names_its_list(self):
+        """name を渡すと残りの行が一覧の名と欄の名で始まり、同じ置き場を指す 2 本の一覧の残りが読み分けられる。全件を返す時は name を使わない"""
+        many = [str(i) for i in range(listcut.SHOWN + 3)]
+        a = listcut.lines(many, name="増え（after.fence_up）", where="b/structure-after.json")[-1]
+        b = listcut.lines(many, name="新しい名（after.new_names）", where="b/structure-after.json")[-1]
+        self.assertEqual(a, "  - 増え（after.fence_up）の" + listcut.REST.format(n=3) + "（全件: b/structure-after.json）")
+        self.assertNotEqual(a, b)
+        self.assertEqual(listcut.lines(["x"], name="増え（after.fence_up）"), ["  - x"])
+
 
 if __name__ == "__main__":
     unittest.main()

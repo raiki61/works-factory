@@ -66,7 +66,6 @@ nodes:
   - id: testcmd
     script: testcmd
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -84,7 +83,6 @@ nodes:
   - id: start
     script: start
     runtime: uv
-    timeout: 1728000000
     depends_on: [testcmd]
     when: "$testcmd.output.stop == false"
     output_format:
@@ -120,7 +118,6 @@ nodes:
   - id: answer-start
     script: gate_answer
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -157,7 +154,6 @@ nodes:
     <<: &receiver
       script: returned
       runtime: uv
-      timeout: 1728000000
       output_format:
         type: object
         properties:
@@ -226,7 +222,6 @@ nodes:
   - id: plan-rounds
     depends_on: [judge]
     when: "$judge.output.ready == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 20
       until_bash: 'done=$plan-out.output.done; [ "$done" = "true" ]'
@@ -279,7 +274,6 @@ nodes:
         - id: plan-out
           script: plan_out
           runtime: uv
-          timeout: 1728000000
           output_format:
             type: object
             properties:
@@ -347,7 +341,6 @@ nodes:
   - id: ask-before-fix
     script: ask_before_fix
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -382,7 +375,6 @@ nodes:
   - id: answer-before-fix
     script: before_fix_answer
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -407,7 +399,6 @@ nodes:
   - id: fix-in
     script: fix_in
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -493,7 +484,6 @@ nodes:
   - id: after-fix
     script: after_fix
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -569,7 +559,6 @@ nodes:
   - id: ask-replan
     script: ask_replan
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -603,7 +592,6 @@ nodes:
   - id: answer-replan
     script: replan_answer
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -659,7 +647,6 @@ nodes:
   - id: fixed
     script: fixed
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -711,7 +698,6 @@ nodes:
   - id: spec-check
     script: spec_check
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -749,7 +735,6 @@ nodes:
   - id: judged
     script: judged
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -790,7 +775,6 @@ nodes:
   - id: redepth
     script: redepth
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -859,6 +843,7 @@ nodes:
       fix_units: "$fixed.output.units"
       green_ok: "$test-gate-final.output.ok"
       test_outcomes: "$test-gate-final.output.test_outcomes"
+      checks: "$test-gate-final.output.evidence"
       records: "$fixed.output.records"
       plan_declared: "$fixed.output.plan_declared"
       plan_questions: "$fixed.output.plan_questions"
@@ -893,13 +878,12 @@ nodes:
     depends_on: [merge-seal]
     with:
       got: "$merge-seal.output"
-      names: "mode ok hash diff protected_hits reason"
+      names: "mode ok hash diff protected_hits protected_count reason"
 
   # 11 最後の関所
   - id: ask-final
     script: ask_final
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -959,7 +943,6 @@ nodes:
   - id: answer-final
     script: gate_answer
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -997,14 +980,13 @@ nodes:
     depends_on: [merge-apply]
     with:
       got: "$merge-apply.output"
-      names: "mode ok hash diff protected_hits reason"
+      names: "mode ok hash diff protected_hits protected_count reason"
 
   # 13 報告。前の段が落ちても飛ばされても走る。resume でも collect と result は回し直す（always_run。report は include で、Archon は
   # include の always_run を捨てるので、回し直した collect の返りが変われば Archon が report の中の控えを捨てて回し直す）
   - id: collect
     script: collect
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -1134,7 +1116,6 @@ nodes:
   - id: sweep-children
     script: sweep_children
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -1150,7 +1131,6 @@ nodes:
   - id: result
     script: result
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:

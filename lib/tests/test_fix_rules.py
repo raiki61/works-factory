@@ -81,6 +81,16 @@ class TestSharedSource(unittest.TestCase):
                          ["core-fix", "evidence", "evidence-docs", "evidence-prompts", "evidence-config", "evidence-code",
                           "core-conflict", "core-keep"])
 
+    def test_target_text_rule_covers_names_strings_and_reasons(self):
+        """対象に書く文の決まり: 範囲に識別子の名・文字列とファイルとフォルダの名を挙げ、理由を直しを作った時の判断の出どころで
+        書くのを縛る。組んだ修正役・TDD の輪の役の指示書の両方に載る"""
+        phrases = ("識別子の名・文字列", "ファイルとフォルダの名", "直しを作った時の判断の出どころ")
+        for name, text in {"fix": fix_prompt(VALUES, kinds={}),
+                           "tdd": tdd_prompt({k: VALUES[k] for k in fixrules.TDD_VALUES}, "fix", "## 今の段", title="# t", kinds={})}.items():
+            for phrase in phrases:
+                with self.subTest(name=name, phrase=phrase):
+                    self.assertIn(phrase, text)
+
     def test_conflict_rule_in_both_prompts_and_ruler(self):
         """食い違いの申し出（持ち主 2026-09-28）: 正本の core-conflict の決まりの文が、組んだ修正役・TDD の輪の役の指示書の両方に
         いつも載る（種類を選ばない時も）。裁定役の指示書は持ち主の決まり（principles.md）の全文と返す JSON の形を持つ"""

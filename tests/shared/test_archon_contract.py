@@ -246,6 +246,11 @@ ARCHON_ROWS = (
         "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1], "exec")),
     Row("節の種類を決める節の鍵（scan の節の種類）", lambda: sorted(scan.NODE_KINDS),
         "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1])),
+    Row("script・bash の節と until_bash の確かめは、書いた timeout だけを子の過程へ渡す（scan の書かない鍵）",
+        lambda: scan.UNSET_DEADLINE_KEY, "packages/workflows/src/dag-executor.ts",
+        r"\A(?!.*node\.timeout \?\?).*?^\s*timeout: node\.(\w+),$"),
+    Row("子の過程は timeout が無ければ期限を掛けない", lambda: None, "packages/workflows/src/subprocess.ts",
+        r"^\s*options\.timeout === undefined\n\s*\? undefined\n\s*: setTimeout\(", lambda m: None),
     Row("output_format で宣言した欄の null は空の解決（境の口は空の字を null と読む）", lambda: boundary.value("") is None,
         "packages/workflows/src/output-ref.ts",
         r"if \(paths !== undefined && \(value === undefined \|\| value === null\)\) return \{ kind: 'empty' \};",
@@ -307,16 +312,17 @@ ARCHON_ROWS = (
         r"if \(!id\.endsWith\('@builtin'\) && !named\.has\(id\)\) unexpected\.push\(id\);", lambda m: None),
     Row("SDK は sandbox を設定の JSON の字の鍵に入れて --settings で渡す。設定のパスとは併せず、object の設定も JSON の字にする（包みが読む形）",
         lambda: (fence.SETTINGS, fence.DENY_WRITE[0]), SDK,
-        r"function qje\(e\)\{let t=e\.trim\(\);return t\.startsWith\(\"\{\"\)&&t\.endsWith\(\"\}\"\)\}"
-        r"function n2\(e,t\)\{let n=\{\.\.\.e\};if\(!t\)return n;.*?"
-        r"if\(o&&!qje\(o\)\)throw Error\(\"Cannot use both a settings file path and the sandbox option\..*?"
-        r"let s=\{(\w+):r\};if\(o\)try\{s=\{\.\.\.Ge\(o\),\1:r\}\}catch\{\}return n\.(\w+)=ie\(s\),n\}"
-        r"function Rx\(e,t,n\)\{let r=String\(n\);if\(r\.length>1&&r\.startsWith\(\"-\"\)\)e\.push\(`--\$\{t\}=\$\{r\}`\);"
-        r"else e\.push\(`--\$\{t\}`,r\)\}.*?"
-        r"let (\w+)=n2\(\w+,\w+\);for\(let\[(\w+),(\w+)\]of Object\.entries\(\3\)\)if\(\5===null\)\w+\.push\(`--\$\{\4\}`\);"
-        r"else Rx\(\w+,\4,\5\).*?"
-        r"\2:typeof (\w+)===\"object\"\?ie\(\6\):\6,",
-        lambda m: (f"--{m[2]}", m[1])),
+        r"function ([\w$]+)\(e\)\{let t=e\.trim\(\);return t\.startsWith\(\"\{\"\)&&t\.endsWith\(\"\}\"\)\}.*?"
+        r"function ([\w$]+)\(e,t\)\{let n=\{\.\.\.e\};if\(!t\)return n;let r=n\.([\w$]+);if\(r&&!\1\(r\)\)"
+        r"throw Error\(\"Cannot use both a settings file path and the sandbox option\..*?"
+        r"return n\.\3=([\w$]+)\(\{\.\.\.o,([\w$]+):s\}\),n\}"
+        r"function ([\w$]+)\(e,t\)\{return`\$\{e\}=\$\{t\}`\}"
+        r"function ([\w$]+)\(e,t\)\{let n=String\(t\);if\(n\.length>1&&n\.startsWith\(\"-\"\)\)return\[\6\(e,n\)\];return\[e,n\]\}.*?"
+        r"function ([\w$]+)\(e,t,n\)\{e\.push\(\.\.\.\7\(`--\$\{t\}`,n\)\)\}.*?"
+        r"let ([\w$]+)=\2\([\w$]+,[\w$]+\);for\(let\[([\w$]+),([\w$]+)\]of Object\.entries\(\9\)\)if\(\11===null\)[\w$]+\.push\(`--\$\{\10\}`\);"
+        r"else \8\([\w$]+,\10,\11\).*?"
+        r"\3:typeof ([\w$]+)===\"object\"\?\4\(\12\):\12,",
+        lambda m: (f"--{m[3]}", m[5])),
     Row("script を探すフォルダの深さ", lambda: test_uv_scripts.DISCOVERY_DEPTH, "packages/workflows/src/script-discovery.ts",
         r"^const MAX_SCRIPT_DISCOVERY_DEPTH = (\d+);$", lambda m: int(m[1])),
     Row("答えの行の run の id・答えの語・一言の位置", _answer_positions, "packages/cli/src/cli.ts",

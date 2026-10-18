@@ -66,12 +66,14 @@ import judge_accept  # noqa: E402
 import outcome  # noqa: E402
 import planfile  # noqa: E402
 import policy  # noqa: E402
+import protect  # noqa: E402
 import querytest  # noqa: E402
 import replan  # noqa: E402
 import runreport  # noqa: E402
 import seal  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
+import structmark  # noqa: E402
 
 SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
@@ -2090,7 +2092,7 @@ class AskFinalReadsCase(Artifacts):
         with mock.patch.dict(os.environ, self.null_env()):
             got = ask_final.got_of_env()
         self.assertEqual((got["sealed"], got["seal_reason"], got["hash"], got["protected_hits"], got["deleted"]), (True, "", "", [], []))
-        self.assertEqual(ask_final.SEAL_SKIPPED, {"ok": True, "reason": "", "hash": "", "protected_hits": [], "diff": None})
+        self.assertEqual(ask_final.SEAL_SKIPPED, {"ok": True, "reason": "", "hash": "", "protected_hits": [], "protected_count": 0, "diff": None})
         self.assertEqual(set(ask_final.SEAL_SKIPPED), set(ask_final.SEAL))
 
     def test_skipped_whole_outputs_stop_on_undeclared_names(self):
@@ -2106,6 +2108,14 @@ class AskFinalReadsCase(Artifacts):
             got = ask_final.got_of_env()
         self.assertEqual((got["sealed"], got["seal_reason"], got["protected_hits"]), (False, "封じる差分が空", []))
         self.assertIn("差分を封じられなかった（封じる差分が空）", ask_final.final_needs(got))
+
+    def test_seal_without_count_counts_the_hit_rows(self):
+        """前の版の merge-seal の返り（protected_count が無い）を resume で受けても、件数は 0 件でなく当たった行の数で言う"""
+        seal = {"ok": True, "reason": "", "hash": "h", "protected_hits": ["ci/a.yml（+1 −0）", "ci/b.yml（+1 −0）"], "diff": None}
+        with mock.patch.dict(os.environ, self.null_env(seal=seal)):
+            got = ask_final.got_of_env()
+        self.assertEqual(got["protected_count"], 2)
+        self.assertIn(f"{ask_final.PROTECTED_HEAD}（2 件。人の確かめが要る）", ask_final.final_needs(got))
 
     def test_deleted_files_named(self):
         """M38: 封じた差分の中で消えるファイルを、当てる前に SHOWN 件までは 1 本ずつ名指し（「取り込むと消えるファイル: <パス>」）、
@@ -2137,9 +2147,30 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
         self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)
 
+    def test_many_protected_hits_are_cut(self):
+        """守りのファイルに当たった物が 20,000 本でも、最後の承認ノードの文は本数に依らず短く、末尾の答え方の行まで在る。封じの返り
+        （merge が protect.shown で切った行と全件の数 protected_count）から文まで通し、件数は全件の数で言う"""
+        rows = protect.lines([{"path": f"gen/{i}.o", "id": "target:gen", "glob": "gen/**", "why": "生成物", "added": 0, "deleted": 1}
+                              for i in range(20000)])
+        whole = self.artifacts / "merge" / "protected-all.json"
+        seal_out = {"ok": True, "protected_hits": protect.shown(rows, "protected_hits", whole), "protected_count": len(rows)}
+        env = self.null_env(final_gate="always", unattended="false", tests={"ok": True, "green": True}, seal=seal_out)
+        with mock.patch.dict(os.environ, env):
+            out = ask_final.ask(**ask_final.from_env())
+        text, lines = out["text"], out["text"].splitlines()
+        self.assertTrue(out["open"], out)
+        self.assertLessEqual(len(lines), 120, text[:3000])
+        self.assertIn(f"{ask_final.PROTECTED_HEAD}（20000 件。人の確かめが要る）", lines[0])
+        self.assertTrue(any(x.startswith(f"## {ask_final.PROTECTED_HEAD}（20000 件。") for x in lines), text[:3000])
+        self.assertIn(f"- {rows[0]}", lines)
+        self.assertNotIn(f"- {rows[100]}", lines)
+        self.assertIn(f"- {protect.LIST}（protected_hits）のほか 19995 件（全件: {whole}）", lines)
+        self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
+        self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)
+
     def test_many_new_names_are_cut(self):
         """直した後の実測の新しい名と知る場所の増えが 20,000 件ずつでも、最後の承認ノードの文は件数に依らず短く、末尾の答え方の行まで在る。
-        各一覧は先頭 SHOWN 件と、残りの件数と structure-after.json のパスの 1 行だけで、全件の数の行（after_counts）は残る"""
+        各一覧は先頭 SHOWN 件と、どの一覧の残りかと残りの件数と structure-after.json のパスの 1 行だけで、全件の数の行（after_counts）は残る"""
         rises = [{"concept": "止め", "what": "語", "path": f"m{i}.py", "before": 1, "after": 2} for i in range(20000)]
         names = [{"name": f"name_{i}", "sites": 2} for i in range(20000)]
         ptr = self.place("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
@@ -2153,8 +2184,8 @@ class AskFinalReadsCase(Artifacts):
         self.assertTrue(any("新しい名 20000 個" in x and "知る場所の増え 20000 件" in x for x in lines), text[:3000])
         self.assertIn("  - 新しい名 name_0（現れる所 2 か所）", lines)
         self.assertNotIn("  - 新しい名 name_100（現れる所 2 か所）", lines)
-        self.assertIn(f"  - ほか 19995 件{where}", lines)
-        self.assertEqual(sum(1 for x in lines if x == f"  - ほか 19995 件{where}"), 2, text[:3000])
+        self.assertIn(f"  - {structmark.FENCE_UP_LIST}のほか 19995 件{where}", lines)
+        self.assertIn(f"  - {structmark.NEW_NAMES_LIST}のほか 19995 件{where}", lines)
         self.assertNotIn("m100.py", text)
         self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
         self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)

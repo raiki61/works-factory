@@ -74,7 +74,6 @@ nodes:
   - id: chain-start
     script: chain_start
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -129,7 +128,6 @@ nodes:
     <<: &round_commit
       script: round_commit
       runtime: uv
-      timeout: 1728000000
       output_format:
         type: object
         properties:
@@ -144,7 +142,6 @@ nodes:
     <<: &round_facts
       script: round_facts
       runtime: uv
-      timeout: 1728000000
       output_format:
         type: object
         properties:
@@ -172,7 +169,6 @@ nodes:
     <<: &round_decide
       script: decide
       runtime: uv
-      timeout: 1728000000
       output_format:
         type: object
         properties:
@@ -347,7 +343,6 @@ nodes:
   - id: final-diff
     script: final_diff
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:
@@ -378,7 +373,6 @@ nodes:
   - id: result
     script: result
     runtime: uv
-    timeout: 1728000000
     output_format:
       type: object
       properties:

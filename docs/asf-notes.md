@@ -3,7 +3,7 @@
 
 - ASF（AI software factory）: Archon の作者が `coleam00/Archon` の `.archon/workflows/sdlc/` に置く、SDLC（作業の受け付けから PR まで）のグラフの束。下の行の多くが引く `d97d00ef` は枝 `factory/sdlc-on-dev` の commit で、upstream の dev から消えたグラフ（lifecycle・merge-queue・verify-runtime など 8 本）を含む。
 - ASF には LICENSE のファイルが無い。だからコードは写さず、型（なぜその形か）だけを採る（`AGENTS.md` の E8）。
-- 見る版は止めた Archon（`docs/design.md` の「語」）（Archon の本体と同じ源。持ち主の決め `archon-same-as-asf`）。今は upstream の dev の `355f1867a1dceb6e913c368bab817ac4d9aa4add`（持ち主の決め `asf-follows-dev`）。`bin/` が取ったその源の `.archon/workflows/sdlc/` を横に並べて読む。下の行の commit は、その型を採った時の版。
+- 見る版は止めた Archon（`docs/design.md` の「語」）（Archon の本体と同じ源。持ち主の決め `archon-same-as-asf`）。今は upstream の dev の `64ec0c2e25df1306b4692b4e4851079a32bccd9f`（持ち主の決め `asf-follows-dev`）。`bin/` が取ったその源の `.archon/workflows/sdlc/` を横に並べて読む。下の行の commit は、その型を採った時の版。
 - 下のパスは ASF のリポジトリの根からの相対。`W` は `.archon/workflows/sdlc` の略。
 
 ## 書き方

@@ -1,4 +1,4 @@
-"""`workflows/` の YAML で、節の種類が全部知った物で、期限を持つ節の `timeout`・`idle_timeout`・`wait.deadline_ms` が全部 `1728000000`（workflows/AGENTS.md の E12 の機械の行）。"""
+"""`workflows/` の YAML で、節の種類が全部知った物で、どの節も `timeout` を書かず、期限を持つ節の `idle_timeout`・`wait.deadline_ms` が全部 `1728000000`（workflows/AGENTS.md の E12 の機械の行）。"""
 import pathlib
 import unittest
 
@@ -25,12 +25,11 @@ class NoTimeoutsTest(unittest.TestCase):
 
     def test_every_deadline_set_is_clean(self):
         nodes = (
-            "  - id: run\n    script: stub\n    timeout: 1728000000\n"
+            "  - id: run\n    script: stub\n"
             "  - id: ask\n    prompt: hi\n    idle_timeout: 1728000000\n"
             "  - id: retry\n    loop: {prompt: judge, until: DONE, max_iterations: 3}\n"
-            "    idle_timeout: 1728000000\n    timeout: 1728000000\n"
+            "    idle_timeout: 1728000000\n"
             "  - id: g\n    loop_group: {until_bash: 'true', max_iterations: 3, nodes: [{id: x, cancel: stop}]}\n"
-            "    timeout: 1728000000\n"
             "  - id: ok\n    approval: {message: hi}\n    idle_timeout: 1728000000\n"
             "  - id: ci\n    wait: {event: ci, deadline_ms: 1728000000}\n"
             "  - id: sub\n    include: works-factory-plan\n"
@@ -47,9 +46,9 @@ class NoTimeoutsTest(unittest.TestCase):
         self.assertEqual(len(got), 1, got)
         self.assertIn(f"{BLOCK}:11: idle_timeout", got[0])
 
-    def test_missing_timeout_is_red(self):
-        got = self.problems("  - id: run\n    script: stub\n")
-        self.assertTrue(any(BLOCK in line and "timeout" in line for line in got), got)
+    def test_written_timeout_is_red(self):
+        got = self.problems("  - id: run\n    script: stub\n    timeout: 1728000000\n")
+        self.assertEqual(got, [f"{BLOCK}:5: timeout を書かない（書かなければ期限が無い）"])
 
     def test_short_idle_timeout_is_red(self):
         got = self.problems("  - id: ask\n    prompt: hi\n    idle_timeout: 600\n")
@@ -60,15 +59,14 @@ class NoTimeoutsTest(unittest.TestCase):
         self.assertEqual(len(got), 2, got)
         self.assertTrue(all(BLOCK in line and "idle_timeout" in line for line in got), got)
 
-    def test_loop_node_without_either_deadline_is_red(self):
+    def test_loop_node_without_idle_timeout_is_red(self):
         got = self.problems("  - id: retry\n    loop: {prompt: judge, until: DONE, max_iterations: 3}\n")
-        self.assertEqual(len(got), 2, got)
-        self.assertTrue(any("idle_timeout が無い" in line for line in got), got)
-        self.assertTrue(any("timeout が無い" in line and "idle_timeout" not in line for line in got), got)
+        self.assertEqual(got, [f"{BLOCK}:3: 節に idle_timeout が無い（Archon の既定の期限が当たる）"])
 
-    def test_loop_group_without_timeout_is_red(self):
-        got = self.problems("  - id: g\n    loop_group: {until_bash: 'true', max_iterations: 3, nodes: [{id: x, cancel: stop}]}\n")
-        self.assertEqual(got, [f"{BLOCK}:3: 節に timeout が無い（Archon の既定の期限が当たる）"])
+    def test_loop_group_check_with_timeout_is_red(self):
+        got = self.problems("  - id: g\n    loop_group: {until_bash: 'true', max_iterations: 3, nodes: [{id: x, cancel: stop}]}\n"
+                            "    timeout: 1728000000\n")
+        self.assertEqual(got, [f"{BLOCK}:5: timeout を書かない（書かなければ期限が無い）"])
 
     def test_approval_without_idle_timeout_is_red(self):
         got = self.problems("  - id: ok\n    approval: {message: hi, on_reject: {prompt: fix}}\n")
@@ -82,7 +80,7 @@ class NoTimeoutsTest(unittest.TestCase):
         got = self.problems("  - id: new\n    sleep: 10\n")
         self.assertTrue(any(f"{BLOCK}:3" in line and "種類" in line for line in got), got)
 
-    def test_nested_node_with_short_timeout_is_red(self):
+    def test_nested_node_with_timeout_is_red(self):
         nodes = (
             "  - id: g\n    loop_group:\n      nodes:\n"
             "        - id: run\n          script: stub\n          timeout: 10\n"
@@ -96,7 +94,7 @@ class NoTimeoutsTest(unittest.TestCase):
 
     def test_schema_field_named_timeout_is_clean(self):
         nodes = (
-            "  - id: result\n    script: stub\n    timeout: 1728000000\n"
+            "  - id: result\n    script: stub\n"
             "    output_format:\n      type: object\n      properties:\n        timeout: {type: boolean}\n"
         )
         self.assertEqual(self.problems(nodes), [])

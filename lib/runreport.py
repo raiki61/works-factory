@@ -17,7 +17,7 @@
 - pack_terms()・plain_words(text)・swapped_line(counts): 語の表（lib/glossary.json の記録の名と人に向けた言い方の対）と、人に向けた文の
   言い換えと、言い換えた語と回数の 1 行
 - glossary_section(text, terms): 書き手の terms のうち本文に現れる語だけの定義の節（元 report_roles.py の glossary_section）
-- head_lines(happened, apply, asks, other)・apply_said(returns, outcome, run_id, decisions): 報告の冒頭（起きたこと・差分を当ててよいか・
+- ask_counts(asks, tallied)・head_lines(happened, apply, asks, counts, other)・apply_said(returns, outcome, run_id, decisions): 報告の冒頭（起きたこと・差分を当ててよいか・
   人が決めることの 3 行と 1 件 1 行）
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name, line) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000。line は線の値）
@@ -34,7 +34,6 @@ import hashlib
 import json
 import pathlib
 import re
-import subprocess
 import sys
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -44,7 +43,6 @@ if str(_HERE) not in sys.path:
 import answer  # noqa: E402
 import baseline_red  # noqa: E402
 import carry  # noqa: E402
-import changemap  # noqa: E402
 import conflict  # noqa: E402
 import depth as depthlib  # noqa: E402
 import declared_checks  # noqa: E402
@@ -171,6 +169,7 @@ DETAIL_TITLE = promptsection.Section("# 報告の詳しい中身（人に向け�
 RAW_HEADING = promptsection.Section("## 書き手の本文（字のまま。人に向けた報告では語の表で言い換えた）", human=report.FOR_READERS)
 SWAPPED_HEAD = "人に向けた報告で語の表（lib/glossary.json）から言い換えた語と回数"
 APPLY_ASK = "差分を当ててよいか: "   # 報告の冒頭 2 行目の頭（head_lines）
+PROTECTED_HITS_HEAD = "守りのパスに当たった差分"   # 行は先頭の数行と残りの 1 行（_hits）。件数は全件の数
 DECIDE_HEAD = "人が決めること: "      # 報告の冒頭 3 行目の頭（head_lines。件数の後ろに 1 件 1 行）
 STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "needs_human")   # 止まった run の結末（bin/apply が拒む）
 
@@ -956,17 +955,6 @@ def _conflict_line(returns: dict) -> str:
             f"{swap}{plan_n}・裁定なし {c['unruled']}）。種類の内訳: " + "・".join(kinds))
 
 
-def _target_uses(repo, rev: str, word: str) -> bool:
-    """対象が直す前の版で既にその語を使うか（元 report._target_uses。版か置き場が無い・git が落ちれば偽＝並べる側）"""
-    if not (repo and rev):
-        return False
-    try:
-        got = subprocess.run(["git", "-C", str(repo), "grep", "-q", "-F", "-e", word, str(rev), "--"], capture_output=True)
-    except OSError:
-        return False
-    return got.returncode == 0
-
-
 def inner_word_lines(diff_path, known) -> list:
     """直しの差分が足した行のうち works の内側の語（report.INNER_WORDS）を含む行（元 report.inner_word_lines。対象が直す前の版で
     既に使う語 known(語) は数えない）。差分が無い・当たりが無ければ空。差分が読めなければその行"""
@@ -976,13 +964,7 @@ def inner_word_lines(diff_path, known) -> list:
         text = pathlib.Path(diff_path).read_text(encoding="utf-8", errors="replace")
     except OSError as e:
         return [f"差分 {diff_path} が読めない（{type(e).__name__}）——内側の語を確かめていない"]
-    seen, rows = {}, []
-    for path, lines in changemap.split_diff(text)[0].items():
-        for n, ln in changemap.new_side(lines):
-            words = list(dict.fromkeys(report.INNER_WORD.findall(ln))) if ln.startswith("+") else []
-            words = [w for w in words if not seen.setdefault(w, known(w))]
-            if words:
-                rows.append(f"{path}:{n}（{'・'.join(words)}）: {oneline.one_line(ln[1:].strip())}")
+    rows = [f"{h['path']}:{h['line']}（{'・'.join(h['words'])}）: {h['text']}" for h in report.inner_word_hits(text, known)]
     return [f"{report.INNER_WORDS_HEAD}: {len(rows)} 件", *[f"  - {r}" for r in rows]] if rows else []
 
 
@@ -1053,10 +1035,16 @@ def premise_lines(returns: dict, start: dict) -> list:
     return lines
 
 
-def _hits(returns: dict) -> list:
-    """守りのパスの当たり（封じた差分と独立の目の両方。重ねない）"""
-    got = [h for rid in ("sealed-diff", "eyes") for h in _list(as_dict(returns.get(rid)).get("protected_hits")) if isinstance(h, str)]
-    return list(dict.fromkeys(got))
+def _hits(returns: dict) -> tuple[list, int]:
+    """守りのパスの当たりの行と全件の数。行は封じた差分の物が在ればそれ、無ければ独立の目の物（どちらも先頭の数行と残りの 1 行に
+    切ってあるので、両方を並べると残りの行が重なる）。全件の数は封じた差分の protected_count（確かめられなかった時の 0 と、前の版の
+    返りで欄が無い時は行の数）"""
+    sealed = as_dict(returns.get("sealed-diff"))
+    rows = [h for h in _list(sealed.get("protected_hits")) if isinstance(h, str)]
+    count = sealed.get("protected_count") if rows else None
+    rows = rows or [h for h in _list(as_dict(returns.get("eyes")).get("protected_hits")) if isinstance(h, str)]
+    rows = list(dict.fromkeys(rows))
+    return rows, count if type(count) is int and count > 0 else len(rows)
 
 
 def _counted(head: str, rows: list) -> list:
@@ -1119,8 +1107,8 @@ def _plan_questions(returns: dict, gates: dict, start: dict) -> tuple[list, list
 
 
 def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, beside: dict, exit_: tuple,
-               repo=None, line: dict | None = None) -> tuple[list, list]:
-    """人が決めることの節の行と、人が決める物 [(種, 1 件の文)]（冒頭が 1 件 1 行に並べる。問いの文だけが、保留の問いは台帳の選択肢を、
+               repo=None, line: dict | None = None) -> tuple[list, list, dict]:
+    """人が決めることの節の行と、人が決める物 [(種, 1 件の文)] と、行の数でなく全件の数で数える種の件数 {種: 件数}（冒頭が 1 件 1 行に並べる。問いの文だけが、保留の問いは台帳の選択肢を、
     判定の役が推しを書いていなければ NO_PUSH を尾に持つ。確かめ直しで戻した組・戻せず当たったままの組も 1 組 1 件）。数える物は
     元 head3 と head_decisions の人が決める物。round_limit の残りは直す義務に戻せなかった単位の行を重ねて数えない。closed は
     途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
@@ -1143,9 +1131,11 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
     spec_head = gatemarks.spec_words(spec_unchecked_of(line)).head
+    hit_rows, hit_count = _hits(returns)
+    tallied = {PROTECTED_HITS_HEAD: hit_count}
     questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_)]
     parts = [("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs),
-             ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
+             (PROTECTED_HITS_HEAD, hit_rows), ("許したテストの変更", tests),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate), (report.CHECKS_LEFT, checks),
              ("直しきれずに残った物", rest), ("記録が通らないこと", [outcome] if outcome == "record_invalid" else [])]
     lines, asks = [], [(head, x.removeprefix(f"{head}: ")) for head, rows in ((UNRESTORED_GROUP_HEAD, unrestored_lines(returns)),
@@ -1154,7 +1144,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     for n, (word, items) in enumerate([*questions, *parts]):
         if not items:
             continue
-        lines.append(f"{word}: {len(items)} 件")
+        lines.append(f"{word}: {tallied.get(word, len(items))} 件")
         for x in items:
             text = oneline.one_line(_item_said(x))
             lines.append(f"  - {text}")
@@ -1179,7 +1169,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += _pr_draft_lines(returns)
     lines += pr_lines(returns)
     lines += premise_lines(returns, start)
-    lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: _target_uses(repo, rev, w))
+    lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: report.target_uses(repo, rev, w))
     lines += _design_lines(returns)
     lines.append(f"{RESIDUE_HEAD}: {len(left)} 件（最後のテストが緑でない・独立の目が通さなかった目と結果が無い目・修正の段の残り・直しの後の実測が"
                  "見た住処の外の知る場所の増え・測れていない素材・落ちたがメイングラフが受け止めたノード）" + (f"。{MISSING_EYE_NOTE}" if left else ""))
@@ -1191,7 +1181,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += fixbeside.branch_rows(beside)
     lines += [f"修正の控え: {x}" for x in beside["unread"]]
     stages = as_dict(line).get("stages")
-    return lines + _gate_passes(returns, stages) + _converge_lines(returns, stages) + _amend_lines(returns, gates, line, closed) + _line_lines(line), asks
+    return lines + _gate_passes(returns, stages) + _converge_lines(returns, stages) + _amend_lines(returns, gates, line, closed) + _line_lines(line), asks, tallied
 
 
 def _item_said(x) -> str:
@@ -1216,12 +1206,16 @@ def _choices(q) -> str:
     return f"／選択肢: {'・'.join(opts)}" if opts else ""
 
 
-def head_lines(happened: str, apply: str, asks: list, other: str) -> list:
-    """報告の冒頭（機械が組む）: 起きたこと・差分を当ててよいか・人が決めること（件数と種ごとの内訳）の 3 行と、その下に人が決める物を
-    1 件 1 行（_decisions が組んだ文のまま）。決める物が無ければ 3 行目に other（次に大事な事実）を置く
+def ask_counts(asks: list, tallied: dict) -> dict:
+    """人が決める物の種ごとの件数（冒頭に並べる順）。tallied（_decisions の返り）に在る種は行の数でなくその件数"""
+    return {w: tallied.get(w, sum(1 for x, _ in asks if x == w)) for w in dict.fromkeys(w for w, _ in asks)}
+
+
+def head_lines(happened: str, apply: str, asks: list, counts: dict, other: str) -> list:
+    """報告の冒頭（機械が組む）: 起きたこと・差分を当ててよいか・人が決めること（件数と種ごとの内訳。counts は ask_counts）の 3 行と、
+    その下に人が決める物を 1 件 1 行（_decisions が組んだ文のまま）。決める物が無ければ 3 行目に other（次に大事な事実）を置く
     （「無い」と断る決まり文句は書かない）"""
-    counted = list(dict.fromkeys(w for w, _ in asks))
-    decide = (DECIDE_HEAD + f"{len(asks)} 件——" + "・".join(f"{w} {sum(1 for x, _ in asks if x == w)} 件" for w in counted)
+    decide = (DECIDE_HEAD + f"{sum(counts.values())} 件——" + "・".join(f"{w} {n} 件" for w, n in counts.items())
               + f"（1 件ずつ下の行。詳しくは見出しに「{report_roles.DECISIONS_HEAD}」を持つセクション）" if asks else other)
     items = [f"- {w}: {text}" for w, text in asks]
     return [gatemarks.HAPPENED + happened, APPLY_ASK + apply, decide, *items]
@@ -1765,7 +1759,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     drafts = answer_drafts(returns, gates, start, spec_changed_of(line), spec_unchecked_of(line))
     notes_at = eye_notes_dir(returns)   # E37: 前提の検算が偽と示した仮定の実測を次の run の制約に運ぶ
     constraints = carry.carried_constraints(eyeverdict.premise_facts(notes_at)["facts"] if notes_at is not None else [], run_id)
-    decisions, asks = _decisions(returns, gates, start, outcome, left, closed=closed, beside=beside, exit_=exit_,
+    decisions, asks, tallied = _decisions(returns, gates, start, outcome, left, closed=closed, beside=beside, exit_=exit_,
                                  repo=repo, line=line)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
     eye_lines, eye_notes = _eye_lines(returns, typed, skip)
@@ -1785,7 +1779,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     carried = len(findings) + len(drafts) + len(constraints)
     head_at = _first_port(returns, "depth_record")
     head_doc = headdepth.read_file(head_at) if head_at is not None else None
-    head = head_lines(happened, apply_said(returns, outcome, run_id or "—", len(asks)), asks,
+    counts = ask_counts(asks, tallied)
+    head = head_lines(happened, apply_said(returns, outcome, run_id or "—", sum(counts.values())), asks, counts,
                       other=f"次の run に渡す物: {carried} 件")
     sections = [
         (report.DECISIONS_HEADING, [*_pushed_lines(gates, taken, stages), *unrestored_lines(returns), *backed_out_lines(returns), *decisions,

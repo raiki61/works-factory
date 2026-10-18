@@ -133,6 +133,7 @@ def final_got(**kw) -> dict:
            "gates": [], "always": [], "structure_missing": "", "r2_inputs": [], "premise_facts": [], "sealed": True, "seal_reason": "", "hash": "a" * 64, "deleted": [], "sealed_diff": "", "fenced": [],
            "after": [], "passes": [], "converge": [], "held": [], "answered": [], "unmatched": [], "unread_holds": [], "unread": []}
     got.update(kw)
+    got.setdefault("protected_count", sum(1 for row in got["protected_hits"] if not str(row).startswith(seal.UNKNOWN_HEAD)))
     return got
 
 
@@ -405,7 +406,7 @@ class LedgerAsksCase(unittest.TestCase):
         final = ask_final.final_text(got, ask_final.final_needs(got), "run-1")
         returns = fixed_run(judge={**fixed_run()["judge"], "judgment": str(self.artifacts / "judge/judgment.json"),
                                    "units": [{"id": u["key"], "label": u["label"]} for u in units]})
-        head, _ = runreport._decisions(returns, {"before-fix-answer": answer} if answer else {}, {"answers": []}, "fixed", [], closed=True,
+        head, _, _ = runreport._decisions(returns, {"before-fix-answer": answer} if answer else {}, {"answers": []}, "fixed", [], closed=True,
                                        beside=runreport.fix_beside(returns), exit_=runreport.rejudge_exit(returns))
         return final, "\n".join(head)
 

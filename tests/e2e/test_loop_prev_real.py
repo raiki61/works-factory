@@ -38,7 +38,7 @@ def script_the_role(root: pathlib.Path) -> None:
     body = doc["nodes"][0]["loop_group"]["nodes"]
     at = next(i for i, node in enumerate(body) if node["id"] == "echo")
     role = body[at]
-    body[at] = {"id": "echo", "script": "echo_back", "runtime": "uv", "timeout": 1728000000, "mutates_checkout": False,
+    body[at] = {"id": "echo", "script": "echo_back", "runtime": "uv", "mutates_checkout": False,
                 "depends_on": role["depends_on"], "with": {"heard": "$prev-reason.output.reason"},
                 "output_format": role["output_format"]}
     path.write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")

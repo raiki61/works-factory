@@ -8,7 +8,8 @@ eyes/r2-premises.json に書く。目が読む累積差分は、入口の base�
 （未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
 （直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
 （試験の関門が比べた入力 test_outcomes）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（入力 premises の先の制約のうち measured_how が
-carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に）。目を回す run で、run の頭の深さの段が目を
+carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に）。R1 には最後の試験の関門の証拠の文（入力 checks。走らせ方・ログの置き場が書いてある）の
+置き場 checks_file を名指す（渡っていない・読めない時は、そう書いた訳の文）。目を回す run で、run の頭の深さの段が目を
 まとめる（depth.merges）なら one_eye を真にし、まとめた役が読む観点ごとの指示書を eyes/one/ に書いてその並びを one_briefs に置く
 （eyeverdict.one_briefs）"""
 import json
@@ -82,6 +83,13 @@ constraints = json.loads(premises.read_text(encoding="utf-8")).get("constraints"
 request_file = startrec.request_file(start)
 request = Path(request_file) if request_file else None
 repo_review = Path.cwd() / "REVIEW.md"
+gate_evidence = boundary.pointed(os.environ["INPUTS_CHECKS"])
+if gate_evidence is None:
+    checks_file = "（最後の試験の関門の証拠が渡っていない）"
+elif not gate_evidence.is_file():
+    checks_file = f"（入力 checks の証拠の文が読めない: {gate_evidence}）"
+else:
+    checks_file = str(gate_evidence)
 depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 head = os.environ.get("INPUTS_HEAD_DEPTH", "")
 purpose_text = purpose.get("purpose_text") or ""
@@ -112,6 +120,7 @@ out = {
     "base_rev": base_rev,
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
     "repo_review_md": str(repo_review) if repo_review.is_file() else "（対象のリポジトリの根に REVIEW.md は無い）",
+    "checks_file": checks_file,
     "policy_path": policy.frozen_copy(start),
     "recorded_policy": "\n".join([policy.recorded_section(recorded), *pushes_unread]),
     "lang_line": rolekit.lang_line(start),

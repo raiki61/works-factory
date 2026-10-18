@@ -540,7 +540,7 @@ class YamlCase(unittest.TestCase):
                 self.assertEqual(group["max_iterations"], limit)
                 self.assertIn(f"${accept_id}.output.done", group["until_bash"])
                 self.assertIs(group["fresh_context"], fresh)
-                self.assertEqual(got[loop]["timeout"], DEADLINE)
+                self.assertNotIn("timeout", got[loop])
         self.assertEqual(got["r2-design-loop"]["when"], "$open.output.r2_go == true")
         self.assertEqual(got["review-loop"]["trigger_rule"], "all_done")
         self.assertEqual(got["review"]["trigger_rule"], "all_done")

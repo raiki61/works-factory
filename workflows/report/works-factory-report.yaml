@@ -70,8 +70,9 @@ inputs:
   sealed-diff:
     default: ""
     description: >-
-      差分を封じた出力。JSON のオブジェクト {mode, ok, hash, diff, protected_hits, reason}（diff は封じた差分を指すポインタ {type, run_id, path}
-      か null、protected_hits は守りのパスの字の配列、ok が偽の時 reason が訳）。空か null はその段が飛ばされた・落ちたこと
+      差分を封じた出力。JSON のオブジェクト {mode, ok, hash, diff, protected_hits, protected_count, reason}（diff は封じた差分を指すポインタ
+      {type, run_id, path} か null、protected_hits は守りのパスの字の配列で先頭の数行と残りの 1 行、全件の数は protected_count、ok が偽の時
+      reason が訳）。空か null はその段が飛ばされた・落ちたこと
   applied-diff:
     default: ""
     description: >-
@@ -158,7 +159,6 @@ nodes:
   - id: facts
     script: facts
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     output_format:
       type: object
@@ -179,7 +179,6 @@ nodes:
   - id: write-loop
     depends_on: [facts]
     when: "$facts.output.ai_go == 'true'"
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: true
@@ -188,7 +187,6 @@ nodes:
         - id: write-reject
           script: reject
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.accept.output.reason_file", prev: "$LOOP_PREV.accept.output.prev_file"}
           output_format:
@@ -256,7 +254,6 @@ nodes:
         - id: cold-prep
           script: cold_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [write]
           with:
@@ -292,7 +289,6 @@ nodes:
         - id: accept
           script: report_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [write, cold]
           with:
@@ -313,7 +309,6 @@ nodes:
   - id: report
     script: collect
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [facts, write-loop]
     trigger_rule: all_done

@@ -31,13 +31,13 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 import concepthome  # noqa: E402  （判断の 1 軸と目の問いの文の住処）
+import listcut  # noqa: E402  （目に見せる duplicates の件数。_cut）
 import promptsection  # noqa: E402
 import rolekit  # noqa: E402  （拒否の控えと輪の回の数え）
 
 EYE_FILE = "eye.json"
 PROMPT_FILE = "eye-prompt-{n}.md"
 NAME = "structure-eye"   # 拒否の控え rejects-structure-eye.json の名（rolekit）
-DUP_SHOWN = 5   # 目に見せる duplicates の件数（残りは duplicates_total の数だけ。_cut）
 WALL = "wall_s"   # ブロックの時間の欄の名（壁時計の秒。段 A・段 B の timing・目の控え・出口が同じ名で持つ）
 ROUTES = ("自分で決める", "人に上げる")
 ROUTE, ROUTE_UP = ROUTES
@@ -97,7 +97,7 @@ def _load(structure_file) -> dict:
 
 
 def _cut(v):
-    """duplicates の配列を先頭 DUP_SHOWN 件に切り、全件の数を隣の duplicates_total に置く（入れ子のどこでも）。
+    """duplicates の配列を先頭 listcut.SHOWN 件に切り、全件の数を隣の duplicates_total に置く（入れ子のどこでも）。
     大きい追跡ファイルを名指す単位で塊の一致が数百件になり、支度の出力が実行基盤の標準出力の上限を越えて線が落ちた（run 131）"""
     if isinstance(v, list):
         return [_cut(x) for x in v]
@@ -105,8 +105,8 @@ def _cut(v):
         return v
     out = {k: _cut(x) for k, x in v.items()}
     dups = v.get("duplicates")
-    if isinstance(dups, list) and len(dups) > DUP_SHOWN:
-        out["duplicates"] = [_cut(x) for x in dups[:DUP_SHOWN]]
+    if isinstance(dups, list) and len(dups) > listcut.SHOWN:
+        out["duplicates"] = [_cut(x) for x in dups[:listcut.SHOWN]]
         out["duplicates_total"] = len(dups)
     return out
 
@@ -155,7 +155,7 @@ def render(doc: dict, rejected: str = "") -> str:
               "人は修正の前にその問いに答える",
               "- 単位の concepts.rows は単位のファイルに当たる考えの地図の行、concepts.places は単位のファイルに在る考えの語の行の数"
               "（home は住処か知ってよい所か・known_places はその考えを知る場所の数）。rules は対象の方針と根の地図の文書",
-              f"- duplicates は先頭 {DUP_SHOWN} 件だけを載せた。duplicates_total が在れば、それが全件の数", "",
+              f"- duplicates は先頭 {listcut.SHOWN} 件だけを載せた。duplicates_total が在れば、それが全件の数", "",
               UNITS_HEAD, "",
               "```json", json.dumps(view(doc), ensure_ascii=False, separators=(",", ":")), "```"]
     return "\n".join(lines) + "\n"
