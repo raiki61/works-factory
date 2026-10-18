@@ -703,7 +703,8 @@ class ScopeFieldsCase(PlanFieldsCase):
     def test_gaps_reject_whole_tree_allowance(self):
         """字の無い glob（丸ごとの許し。読みは test_globs）を allowed_paths に書いた案は拒む（無人の run は範囲を広げるだけの案の直しを
         関所なしに通すので、ここで止める）"""
-        for g in ("**/?*", "?*", "[!.]*", "**/*.*", "**/", "*/"):
+        for g in ("**/?*", "?*", "?", "*/?", "**/[a-z]*", "[!.]*", "**/*?", "*/**/*", "[]]*",
+                  "**/*.*", "*.*", "**/.*", "**/", "*/"):
             with self.subTest(g):
                 got = planmarks.gaps({"plan": [item(allowed_paths=[g])]}, self.repo)
                 self.assertTrue(any(x.startswith("plan[0].allowed_paths[0]") for x in got), got)

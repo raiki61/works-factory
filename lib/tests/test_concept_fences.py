@@ -210,7 +210,7 @@ class FenceCase(unittest.TestCase):
         "lanes": ["parent[i] = parent[parent[i]]"],
         "marks": ['"gate": Kind({}, "gate-marks.json", ROOT),', "write_json(jdir / prcheck.EXCLUDED, {})",
                   'row.setdefault("properties", {}).update(fields)', "{k: row.pop(k) for k in names if k in row}"],
-        "plan-scope": ["any(planmarks.glob_match(path, g) for g in globs(it))"],
+        "plan-scope": ["any(glob_match(path, g) for g in item_globs(it))"],
         "test-files": [r'TEST_STEM = re.compile(r"^(test_[^.]+|[^.]+_test|.+\.(test|spec))$")'],
         "red-check": ['QUOTES_FIELD = "red_quotes"', "probs = list(rules().red_problems(named, cases, code, baseline))",
                       r'ANSI = re.compile(r"\x1b\[[0-9;]*m")'],
