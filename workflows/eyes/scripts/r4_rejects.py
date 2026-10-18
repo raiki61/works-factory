@@ -7,7 +7,8 @@ R4 は 1 回目は新しい会話で起き、拒まれた後の出し直しは�
 前の拒否を落とさないため）。指示書が $<この節>.output.reason で読む。
 この輪の実行の中で前の周が拒まれ（with: の prev が前の周の受け付けの ok の false。拒否の文でなく真偽を結ぶのは、Archon が
 with: に貼った値の中の節の参照の字をもう 1 度置き換えるため。元の裁定 R44）、受け付けが合わせた答えの控えが在れば、出し直しの役
-（1 回目の役の会話の続き）の短い指示書を書き（rolekit.resubmit_brief）、resubmit: true とそのパス brief も返す"""
+（1 回目の役の会話の続き）の短い指示書を書き（rolekit.resubmit_brief）、resubmit: true とそのパス brief も返す。
+one_eye は支度の控え（eyeverdict.PREP_FILE）の one_eye で、R4 の役の組とまとめた役 eyes-one の組を振り分ける"""
 import os
 import sys
 from pathlib import Path
@@ -22,4 +23,5 @@ import rolekit  # noqa: E402
 
 eyes = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
 brief = rolekit.resubmit_brief(eyes, eyeverdict.R4_NODE, boundary.value(os.environ.get("INPUTS_PREV")))
-boundary.returns({"reason": eyeverdict.r4_rejects(eyes), "resubmit": bool(brief), "brief": brief})
+one_eye = (eyeverdict.read_json(eyes / eyeverdict.PREP_FILE) or {}).get("one_eye") is True
+boundary.returns({"reason": eyeverdict.r4_rejects(eyes), "one_eye": one_eye, "resubmit": bool(brief), "brief": brief})

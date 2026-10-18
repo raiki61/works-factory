@@ -805,6 +805,11 @@ class ScopeFieldsCase(PlanFieldsCase):
     def test_head_asks_for_moved_and_removed_paths(self):
         self.assertIn("移す・消すファイルの元のパスも allowed_paths に書け", planmarks.HEAD)
 
+    def test_head_asks_for_the_documents_that_come_with_the_fix(self):
+        """#687: 直しに付いてくる文書（方針の記録・設計の文書）も allowed_paths と files に入れよと言う（入れ落としが範囲の相談になる）"""
+        self.assertIn("直しに付いてくる文書（方針の記録・設計の文書", planmarks.HEAD)
+        self.assertIn("allowed_paths と files に入れよ", planmarks.HEAD)
+
     def test_head_asks_tests_id_to_match_existing_layout(self):
         """tests の id と置き場は、名指すファイルの既存のテストの置き方に合わせよと言う（対象の決まりは写さない一般の 1 文）"""
         self.assertIn("クラスの中か一番外か", planmarks.HEAD)

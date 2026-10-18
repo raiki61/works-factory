@@ -579,7 +579,7 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     base = pointed("baseline")
     if base is not None:
         got = baseline_red.read_baseline(base)
-        write_json(folder / BASELINE_FILE, {"cases": got["cases"], "exit": got["exit"]})
+        write_json(folder / BASELINE_FILE, {"cases": got["cases"], "exit": got["exit"], "how": got.get("how") or []})
 
     leftovers.record_ignored(folder, worktree)
     record_base_rev(folder, worktree)
@@ -1173,7 +1173,7 @@ RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
 ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（承認の節の出力 {decision, text, asked}）
 UNITS_FILE = "units.json"              # 入力 units の写し
 ONLY_ITEMS_FILE = "only-items.json"    # 直す項目の絞り（入力 only_items。空は全部）
-BASELINE_FILE = "baseline.json"        # 直す前の結末 {cases, exit}（baseline_red.read_baseline の欄だけ）
+BASELINE_FILE = "baseline.json"        # 直す前の結末 {cases, exit, how}（baseline_red.read_baseline の欄と、走らせ方の行 declared_checks.run_how）
 NOTES_FILE = "human-notes.md"          # 修正前の関所の一言と答えで直す義務に戻った単位の行（修正役と TDD の役の notes_file）
 BASE_REV_FILE = "base-rev.json"        # 修正前の版 {rev}（prep が親の作業ツリーの HEAD の sha を控え、組の子が写す）
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（差分の審査の材料 fix_report と plan_faces）
@@ -1395,6 +1395,20 @@ def plan_review_file(place):
     """置き場の事前審査の返答の写し PLAN_REVIEW_FILE のパス（差分の審査の材料 out.p2.plan_review。無ければ None＝事前審査の無い run）"""
     p = pathlib.Path(place) / PLAN_REVIEW_FILE
     return p if p.is_file() else None
+
+
+TESTS_HOW_HEAD = promptsection.Section("## 直す前のテストの走らせ方（直す前のテストの段が実際に走らせた形）",
+                                       source="fn:fixboard.tests_how_text")
+
+
+def tests_how_text(place) -> str:
+    """修正役と TDD の役の指示書に貼る節（TESTS_HOW_HEAD）: 置き場の BASELINE_FILE の走らせ方の行。行が無ければ空（直す前のテストの
+    無い run と、行を持たない前の版の控え）"""
+    rows = (read_json(pathlib.Path(place) / BASELINE_FILE, {}) or {}).get("how")
+    lines = [f"- {r}" for r in rows or [] if isinstance(r, str) and r]
+    if not lines:
+        return ""
+    return "\n".join([TESTS_HOW_HEAD, "", "テストを回す時は、環境や命令を探さずにこの形で回せ（絞り方は下の決まりのとおり）。", *lines])
 
 
 FACES_HEAD = promptsection.Section("## 事前審査に答える key（受け付けが plan_faces で答えを求める全部）",

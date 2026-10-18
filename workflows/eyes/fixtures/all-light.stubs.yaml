@@ -35,6 +35,8 @@ protected:
   broken: ''
 prep:
   run_eyes: false
+  one_eye: false
+  one_briefs: ''
   compare_due: true
   premise_due: false
   purpose_text: 古い入口を消す

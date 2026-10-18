@@ -2,6 +2,8 @@ name: works-factory-eyes
 description: |
   独立の目のサブグラフ。直しを作った役と別の新しい会話で、読むだけで直しを確かめる: R1 最小性（コメントの削除候補 → 最小性）・
   R2 独立設計との比較（独立設計が問いは立たないと言えば前提の検算）・R3 全体の整合・R4 見えていない範囲（R1・R2 の筋の後）。
+  run の頭の深さの段がまとめる目（lib/depth.py の TIERS の merges。軽量）を持てば、R3・R4 を 1 つの役 eyes-one が 1 つの会話で見る
+  （R1・R2 は別の会話にする訳が在るので分けたまま）。
   R1 は最後の試験の関門の証拠（入力 checks）も読み、差分が足してどこからも使われない物を名指す。
   直した後の構造の実測と守りのパスの当たりも出す。目の出力は返った時だけ走る script ノードが置き場のファイルに書き、
   出力ノード verdict はそのファイルを読んで lib/eyeverdict.py でまとめる（落ちたノードへの with: は誤りで止まるため）。
@@ -14,7 +16,7 @@ inputs:
   plan: {required: true, description: "plan-fields.json のポインタ"}
   ripple: {required: true, description: "ripple.json のポインタ"}
   depth: {required: true, description: "単位ごとの深さ。JSON の配列"}
-  head_depth: {default: "", description: "run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら R1〜R4 を省く。空は標準"}
+  head_depth: {default: "", description: "run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら R1〜R4 を省く。省かずに回す時、段がまとめる目（TIERS の merges）を持てば R3・R4 を 1 つの役で見る。空は標準"}
   design: {required: true, description: "design.json のポインタ"}
   changed: {required: true, description: "修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む"}
   fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}
@@ -65,12 +67,14 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [run_eyes, compare_due, premise_due, purpose_text, design_text, design_reply, diff_file, diff_lines,
+      required: [run_eyes, one_eye, one_briefs, compare_due, premise_due, purpose_text, design_text, design_reply, diff_file, diff_lines,
                  changed_files, scalars, cwd, base_rev, review_md, repo_review_md, policy_path, recorded_policy, lang_line, r1_head,
                  r3_head, concept_map, candidates_file, judgment_file, units_text, fixes_text, constraints_text, premises_text, carried,
                  plan_declared, r4_context, green_line, measured_text, origin_text]
       properties:
         run_eyes: {type: boolean}
+        one_eye: {type: boolean}
+        one_briefs: {type: string}
         compare_due: {type: boolean}
         premise_due: {type: boolean}
         purpose_text: {type: string}
@@ -164,14 +168,15 @@ nodes:
     depends_on: [prep, r1-comments-save]
     trigger_rule: all_done
     when: "$prep.output.run_eyes == true"
-    model: '@wf-eyes-core'
     context: fresh
-    settingSources: [user]
-    sandbox: {enabled: true, allowUnsandboxedCommands: false}
-    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-    mutates_checkout: false
-    idle_timeout: 1728000000
-    retry: {max_attempts: 2, on_error: all}
+    <<: &core_launch
+      model: '@wf-eyes-core'
+      settingSources: [user]
+      sandbox: {enabled: true, allowUnsandboxedCommands: false}
+      allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+      mutates_checkout: false
+      idle_timeout: 1728000000
+      retry: {max_attempts: 2, on_error: all}
     output_format:
       type: object
       required: [status, reason, deletions, ledger_audit, increments]
@@ -232,14 +237,8 @@ nodes:
     command: premise-check
     depends_on: [prep]
     when: "$prep.output.run_eyes == true && $prep.output.premise_due == true"
-    model: '@wf-eyes-core'
     context: fresh
-    settingSources: [user]
-    sandbox: {enabled: true, allowUnsandboxedCommands: false}
-    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-    mutates_checkout: false
-    idle_timeout: 1728000000
-    retry: {max_attempts: 2, on_error: all}
+    <<: *core_launch
     output_format:
       type: object
       required: [key, assumption, assumption_false, evidence, verdict, reason]
@@ -258,7 +257,7 @@ nodes:
   - id: r3-coherence
     command: r3-coherence
     depends_on: [prep]
-    when: "$prep.output.run_eyes == true"
+    when: "$prep.output.run_eyes == true && $prep.output.one_eye != true"
     model: '@wf-eyes-scope'
     context: fresh
     settingSources: [user]
@@ -267,7 +266,7 @@ nodes:
     mutates_checkout: false
     idle_timeout: 1728000000
     retry: {max_attempts: 2, on_error: all}
-    output_format:
+    output_format: &r3_reply
       type: object
       required: [status, reason, seen, unseen]
       properties:
@@ -280,7 +279,9 @@ nodes:
   # 3 回目は通らなくても抜ける（その時は名指さない行も最後の承認ノードで人に聞く。#455）。if/then は今の works の post_check
   # r4_inventory（棚卸しが発火したら lost を明示する）。目は 1 回目は新しい会話で起き、拒まれた後は出し直しの役 r4-scope-fix が
   # 同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと合わせる（振り分けは r4-reject の resubmit。並んだ層は会話を切るので
-  # r4-scope-fix は r4-scope の後ろの層に置く。#571）
+  # r4-scope-fix は r4-scope の後ろの層に置く。#571）。まとめた役 eyes-one（r4-reject の one_eye が真の run）は r4-scope の代わりに
+  # 1 回目を答え、R4 の欄に R3 の返答（r3）を足して返す。出し直しは同じ会話の続きの eyes-one-fix で、受け付けは R4 の欄だけを
+  # 照らす。2 組は並べず順の層に置く（並んだ層は会話を切る。plan-review の 2 組と同じ）
   - id: r4-loop
     depends_on: [prep, r1-minimality, r2-compare, premise-check]
     trigger_rule: all_done
@@ -298,12 +299,12 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
+            required: [reason, one_eye]
+            properties: {reason: {type: string}, one_eye: {type: boolean}, resubmit: {type: boolean}, brief: {type: string}}
         - id: r4-scope
           command: r4-scope
           depends_on: [r4-reject]
-          when: "$r4-reject.output.resubmit != true"
+          when: "$r4-reject.output.resubmit != true && $r4-reject.output.one_eye != true"
           <<: &r4_launch
             model: '@wf-eyes-scope'
             settingSources: [user]
@@ -316,7 +317,7 @@ nodes:
             type: object
             required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen]
             additionalProperties: false
-            properties:
+            properties: &r4_props
               status: {type: string, enum: [pass, redesign-needed, unverifiable]}
               reason: {type: string, minLength: 1}
               capability_inventory:
@@ -348,20 +349,46 @@ nodes:
           prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$r4-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
           depends_on: [r4-reject, r4-scope]
           trigger_rule: none_failed_min_one_success
-          when: "$r4-reject.output.resubmit == true"
+          when: "$r4-reject.output.resubmit == true && $r4-reject.output.one_eye != true"
           <<: *r4_launch
           output_format:
             <<: *r4_reply
+            required: []
+        - id: eyes-one
+          command: eyes-one
+          depends_on: [r4-reject, r4-scope-fix]
+          trigger_rule: none_failed_min_one_success
+          when: "$r4-reject.output.resubmit != true && $r4-reject.output.one_eye == true"
+          <<: *r4_launch
+          output_format: &one_reply
+            type: object
+            required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen, r3]
+            additionalProperties: false
+            properties:
+              <<: *r4_props
+              r3: *r3_reply
+            if: {properties: {capability_inventory: {properties: {fired: {const: true}}}}}
+            then: {properties: {capability_inventory: {required: [fired, lost]}}}
+        - id: eyes-one-fix
+          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$r4-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+          depends_on: [r4-reject, eyes-one]
+          trigger_rule: none_failed_min_one_success
+          when: "$r4-reject.output.resubmit == true && $r4-reject.output.one_eye == true"
+          <<: *r4_launch
+          output_format:
+            <<: *one_reply
             required: []
         - id: r4-accept
           script: r4_accept
           runtime: uv
           mutates_checkout: false
-          depends_on: [r4-scope, r4-scope-fix]
+          depends_on: [r4-scope, r4-scope-fix, eyes-one, eyes-one-fix]
           trigger_rule: none_failed_min_one_success
           with:
             reply: {from: "$r4-scope.output", if_skipped: null}
             fix_reply: {from: "$r4-scope-fix.output", if_skipped: null}
+            one_reply: {from: "$eyes-one.output", if_skipped: null}
+            one_fix_reply: {from: "$eyes-one-fix.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
@@ -382,6 +409,7 @@ nodes:
     output_type: eye-verdict
     with:
       eye: r1
+      part: ""
       out: $r1-minimality.output
     output_format: &eye_verdict
       type: object
@@ -400,6 +428,7 @@ nodes:
     output_type: eye-verdict
     with:
       eye: r2
+      part: ""
       out: $r2-compare.output
     output_format: *eye_verdict
 
@@ -411,6 +440,7 @@ nodes:
     output_type: eye-verdict
     with:
       eye: premise-check
+      part: ""
       out: $premise-check.output
     output_format: *eye_verdict
 
@@ -422,6 +452,7 @@ nodes:
     output_type: eye-verdict
     with:
       eye: r3
+      part: ""
       out: $r3-coherence.output
     output_format: *eye_verdict
 
@@ -433,6 +464,21 @@ nodes:
     output_type: eye-verdict
     with:
       eye: r4
+      part: ""
+      out: $r4-loop.output.reply
+    output_format: *eye_verdict
+
+  # まとめた役の返りの R3 の欄を、目ごとの成果物にする（part の欄だけを置き場の <eye>.json に書く）
+  - id: r3-one-verdict
+    script: eye_verdict
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [prep, r4-loop]
+    when: "$prep.output.one_eye == true"
+    output_type: eye-verdict
+    with:
+      eye: r3
+      part: r3
       out: $r4-loop.output.reply
     output_format: *eye_verdict
 
@@ -455,7 +501,8 @@ nodes:
     bash: "true"
     mutates_checkout: false
     depends_on: [r1-comments, r1-comments-save, r1-minimality, r2-compare, premise-check, r3-coherence, r4-loop,
-                 r1-minimality-verdict, r2-compare-verdict, premise-check-verdict, r3-coherence-verdict, r4-scope-verdict]
+                 r1-minimality-verdict, r2-compare-verdict, premise-check-verdict, r3-coherence-verdict, r4-scope-verdict,
+                 r3-one-verdict]
     trigger_rule: all_done
 
   # 返す節は落ちない。どの節にも with: で結ばず、返った節が置き場に書いたファイルを読む
