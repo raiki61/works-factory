@@ -4381,7 +4381,7 @@ class HandoffCase(unittest.TestCase):
             reply = {"changes": [{"unit_key": "u1", "breaks": {"accepted": "ADR-3 と食い違う既定を残す（docs/adr/3.md:4）"}}]}
             child = fixboard.group_result({"group_id": "g1", "unit_ids": ["u1"]}, start_tree="t", end_tree="t", tdd=None, reply=reply)
             fix = {"done": True, "units": [{"unit_id": "u1", "status": "fixed", "reason": ""}], "conflicts": None,
-                   "diff": str(place / "fix.diff"), "diffs": [str(place / "fix.diff")], "delta_review": {"rounds": 1, "pass": True},
+                   "diff": str(place / "fix.diff"), "delta_review": {"rounds": 1, "pass": True},
                    "handoffs": fixboard.final_lines([child], "handoffs"), "mismatched": []}
             got = runreport.build({"fix": fix}, {}, {}, None, "fixed", "", out_dir=pathlib.Path(tmp) / "report")
             body = pathlib.Path(got["report"]).read_text(encoding="utf-8").split(f"{report.DECISIONS_HEADING}\n\n", 1)[1]
