@@ -766,6 +766,20 @@ class LauncherTest(unittest.TestCase):
                 env = self.reached(self.launch(*args, ANTHROPIC_API_KEY=None))["env"]
                 self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
 
+    def test_cancel_reads_the_run_then_passes_the_cancel_to_archon(self):
+        """workflow cancel は run と子の run を読んでから同じ引数で Archon を起こし、その終了の値で抜ける（後に残った木を止める。
+        bin/_lib/runstop.py。本物の Archon での止めは tests/bin/test_runstop.py）"""
+        calls = self.tmp / "bun-calls.jsonl"
+        put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, sys\n"
+            f"open({str(calls)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\nsys.exit(3 if 'cancel' in sys.argv else 0)\n")
+        done = self.launch("workflow", "cancel", "run-1", "--json", "--cwd", str(self.target), ANTHROPIC_API_KEY=None)
+        self.assertEqual(done.returncode, 3, done.stderr)
+        entry = str(self.source / ENTRY)
+        got = [argv[argv.index(entry) + 1:] for argv in map(json.loads, calls.read_text(encoding="utf-8").splitlines())]
+        self.assertEqual(got, [["workflow", "get", "run-1", "--json", "--cwd", str(self.target)],
+                               ["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
+                               ["workflow", "cancel", "run-1", "--json", "--cwd", str(self.target)]])
+
     def test_no_auth_runs_without_auth_check_or_plugins(self):
         done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None, WORKS_FACTORY_NO_AUTH="1")
         env = self.reached(done)["env"]
