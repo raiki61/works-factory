@@ -1034,7 +1034,7 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
             raise Reject(_lines(planblk.FACE_REJECT, gaps))
         items = _map_items(b, inputs)
         kept = planblk.kept_keys(b, items or []) if _later(b, inputs) else set()
-        dmap = tree.get(converge.DESIGN_MAP) or []
+        dmap = planblk.bound_map(b, items or [], tree.get(converge.DESIGN_MAP))
         refs = {n: planblk.item_refs(b, n, [*design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") == n]),
                                             *design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") is None])], kept, dmap)
                 for n in items or []}

@@ -194,7 +194,7 @@ DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何�
               "独立設計が立つ run では、項目の答え（項目ごとの下請けの答えのファイル。下請けを起こさない往復と案の直しの事前審査では"
               "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote（独立設計に"
               "対がある時はその行を字のまま引く。対が無ければ null）, why} の 2 つの向き。案→設計: 項目の files の (path, symbol) ごとに"
-              "ちょうど 1 行——その鍵は、項目のセクション（下請けのファイル）か材料の頭の design_map のセクションに一覧で貼った（一覧に無い鍵の行は書かない）。"
+              "ちょうど 1 行——その鍵は、項目のセクション（下請けのファイル）か材料の頭の design_map のセクションに一覧で貼った（一覧に無い鍵の行は要らない）。"
               "design_ref は対の要素の id（独立設計の後ろの要素の一覧の D1 など。対が無ければ null）。"
               "設計→案: 案のどの行にも対の無い要素は、item・path・symbol を null にして design_ref だけを書いた行にする。独立設計の"
               "要素の id は全部、どれかの行の design_ref に出す（漏れは受け付けが拒む）。"
@@ -377,14 +377,14 @@ def map_items_section(b, items: list, others: str, *, carried: bool, kept=()) ->
     if design.stands(b.dir, b.design_schema) is None:
         return ""
     names = "・".join(str(n) for n in sorted(items or [])) or "無し"
-    text = f"{MAP_ITEMS_HEAD}\n\nこの往復で design_map を書く項目: 項目 {names}。{others}の行は書かない（受け付けが拒む）。"
+    text = f"{MAP_ITEMS_HEAD}\n\nこの往復で design_map を書く項目: 項目 {names}。{others}の行は要らない（書いても照らさない）。"
     refs = sorted(converge.carried_refs(b, items or [])) if carried else []
     if refs:
         text += f"{others}が前の往復で受けた要素（{'・'.join(refs)}）は網羅に数え済み。設計→案の行に書かなくてよい。"
     keys = design.wanted_lines(_map_rows(b, items or []), kept)
     if keys:
-        text += ("\n\n案→設計の行は、下の鍵ごとにちょうど 1 行（item・path・symbol をこの鍵のとおりに書く）。ほかの鍵の行は書かない"
-                 "（受け付けが拒む）:\n" + "\n".join(keys))
+        text += ("\n\n案→設計の行は、下の鍵ごとにちょうど 1 行（item・path・symbol をこの鍵のとおりに書く）。ほかの鍵の行は要らない"
+                 "（書いても照らさない）:\n" + "\n".join(keys))
     return text
 
 
@@ -650,6 +650,11 @@ def _map_rows(b, items: list) -> list:
     return [{**plan[n - 1].get("row", {}), "item": n} for n in items if 1 <= n <= len(plan)]
 
 
+def bound_map(b, items: list, design_map) -> list:
+    """項目 items の答えの対応表を、照らす案の行（_map_rows）の要る鍵に結び直した写し（design.rebound）。受け付けは照らしと refs の前に当てる"""
+    return design.rebound(_map_rows(b, items), design_map or [])
+
+
 def design_gaps(b, faces, items: list, design_map=None, kept=()) -> list[str]:
     """独立設計の引用の誤りの行（design.quote_gaps。設計が立たない run では空）。faces の unit_keys は単位の名に戻して重ね、案の行は
     壁打ちの控えの項目 items の行。design_map を渡す（None でない）と items の files の (path, symbol) ごとの対応表も求める（kept の
@@ -750,6 +755,8 @@ def check_item(b, k: int, n: int, rip: dict, pre: list | None = None) -> tuple:
         return None, [], True, dropped
     got, errs = _load(path, item_schema(b))
     if got is not None:
+        if converge.DESIGN_MAP in got:
+            got = {**got, converge.DESIGN_MAP: bound_map(b, [n], got[converge.DESIGN_MAP])}
         rows = precedent_plan(b, [n] if pre is None else pre).get(n) or []
         dropped = _surplus(b, n, got, rip, rows)
         got = {**got, "hits": [h for h in got["hits"] if h.get("id") not in dropped["hits"]],
