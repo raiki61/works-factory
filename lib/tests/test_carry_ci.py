@@ -117,7 +117,7 @@ class CliCase(unittest.TestCase):
             req, ids = pathlib.Path(tmp) / "next-request.json", pathlib.Path(tmp) / "failed.txt"
             req.write_text(json.dumps({"findings": [{"where": "a.py:1", "text": "穴"}]}), encoding="utf-8")
             ids.write_text(f"{TID}\n", encoding="utf-8")
-            argv = found[0].replace("<next-request.json>", str(req)).replace("<試験の id のファイル>", str(ids)).split()
+            argv = found[0].replace("<next-request.json>", str(req)).replace("<test-ids.txt>", str(ids)).split()
             done = subprocess.run([sys.executable, *argv[1:]], cwd=LIB.parent, capture_output=True, text=True, env=hermetic.child_env())
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertIn(TID, json.loads(req.read_text(encoding="utf-8"))["prior_failures"][0]["text"])
