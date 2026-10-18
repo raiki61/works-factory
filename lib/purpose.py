@@ -11,12 +11,13 @@ import sys
 sys.dont_write_bytecode = True   # accept.py と同じ（下で import する物の .pyc を止める）
 
 from accept import _in_repo  # noqa: E402
+import judgebeside  # noqa: E402
 from engine.util import Reject  # noqa: E402
 
 NODE = "p0.purpose"
 PREMISES_NODE = "p0.premises"
 PURPOSE_FILE = "purpose.json"             # 受け付けた目的の返答（graph の process.purpose と同じ中身）
-PURPOSE_REVIEW_FILE = "purpose-review.json"   # 判定の隣の目的の監査の役の受けた返答（judge が必ず置き、判定の出力の欄 purpose_review が指す）
+PURPOSE_REVIEW_FILE = judgebeside.PURPOSE_REVIEW_FILE   # 目的の監査の役の受けた返答（judge が必ず置き、判定の出力の欄 purpose_review が指す）
 REQUEST_COPY = "purpose-request.json"     # 目的の役に渡す依頼の写し（前の run の判断 prior_failures を外した物。carry.without_prior）
 
 

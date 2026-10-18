@@ -47,6 +47,7 @@ import cite  # noqa: E402
 import depth  # noqa: E402
 import gatemarks  # noqa: E402
 import jsonfile  # noqa: E402
+import judgebeside  # noqa: E402
 import launchgroups  # noqa: E402
 import oneline  # noqa: E402
 import promptsection  # noqa: E402
@@ -54,7 +55,7 @@ import startrec  # noqa: E402
 
 LIGHT = depth.LIGHT
 STANDARD = depth.STANDARD
-RECORD = "depth-head.json"
+RECORD = judgebeside.DEPTH_FILE
 BRIEF = "depth-head-brief.md"
 NO_RECORD = "run の頭の深さの控えが無い"
 NO_REPLY = "役の返答が受け付けに届いていない（役が走らなかったか落ちた）"
