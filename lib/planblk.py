@@ -90,11 +90,10 @@ TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイ�
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 works/.shared/core/entry.py:1228
 NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
-# 案の直しを終えられなかった項目の諦めの訳（元 works/.shared/core/replan.py:139-140）と、その行 [{item, why, ruling}] を置く隣のファイル
-# （計画の返り plan と事前審査の返り review の指し札の先と同じフォルダ。報告が前の失敗の行に読む）
+# 案の直しを終えられなかった項目の諦めの訳（元 works/.shared/core/replan.py:139-140）。その行 [{item, why, ruling}] を置く隣のファイルの名は
+# 計画の名の住処 planfile の REPLAN_GAVE_UP_FILE
 PLAN_GAVE_UP_WHY = f"修正案の役の直しが受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
 REVIEW_GAVE_UP_WHY = f"事前審査の役の返答が受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
-REPLAN_GAVE_UP_FILE = "replan-gave-up.json"
 DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（下の行を全部直して出し直せ。「」は独立設計と案の行の引用だけに使い、"
                        "ほかの引用は『』か `…` で書く）:")
 # 下請けの答えのファイルの置き場（作業ツリーの外の run の置き場 adapter.run_place_of の今の scope の下。作業ツリーは役が変えてはいけない。
@@ -192,8 +191,10 @@ DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何�
               "大きさの開きには、この項目の shrink に小さく閉じる別案も書け。この 2 つの頭の穴の why と design_map では、「」を"
               "独立設計と案の行の引用だけに使い、ほかの引用は『』か `…` で書け。"
               "独立設計が立つ run では、項目の答え（項目ごとの下請けの答えのファイル。下請けを起こさない往復と案の直しの事前審査では"
-              "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote（独立設計に"
-              "対がある時はその行を字のまま引く。対が無ければ null）, why} の 2 つの向き。案→設計: 項目の files の鍵（足す名・消す名と、"
+              "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote, why} の 2 つの向き。"
+              f"design_quote は、対がある時は{design.QUOTE_FROM}（{design.QUOTE_NONE}）。{design.QUOTE_FROM_ELEMENTS}と修正案の行の字は"
+              "本文に無いので貼らない（受け付けが拒む）。例: 本文が『上限は入口 1 箇所で掛け、各所では掛け直さない』なら『上限は入口 1 箇所で掛け』を引き、"
+              "要素の一覧の『D1: 足す: 上限の入口／消す: 無し』や案の行の字は引かない。案→設計: 項目の files の鍵（足す名・消す名と、"
               "op が create・delete・rename の行）ごとにちょうど 1 行——その鍵は、項目のセクション（下請けのファイル）か材料の頭の design_map の"
               "セクションに一覧で貼った（一覧に無い鍵の行は要らない。op が modify で足す名・消す名の無い行は鍵を持たない）。"
               "design_ref は対の要素の id（独立設計の後ろの要素の一覧の D1 など。対が無ければ null）。"
@@ -360,8 +361,8 @@ def design_only(b, *, diff: bool = False) -> str:
         return f"{DESIGN_HEAD}\n\n" + DESIGN_NOT_STANDS.format(reason=r + design.anchor_note(r))
     elements = design.element_lines(got)
     ask = f"{DESIGN_ASK}\n\n{DESIGN_DIFF_ASK}" if diff else DESIGN_ASK
-    return (f"{DESIGN_HEAD}\n\n{ask}\n\n設計の役の理由: {got['reason']}\n\n=====独立設計ここから=====\n"
-            f"{got['design']}\n=====独立設計ここまで=====" + (f"\n\n{elements}" if elements else ""))
+    return (f"{DESIGN_HEAD}\n\n{ask}\n\n設計の役の理由: {got['reason']}\n\n{design.BODY_OPEN}\n"
+            f"{got['design']}\n{design.BODY_CLOSE}" + (f"\n\n{elements}" if elements else ""))
 
 
 MAP_ITEMS_HEAD = promptsection.Section("## この往復で design_map を書く項目（機械が受け付けと同じ集合から作った）", source="fn:planblk.map_items_section")

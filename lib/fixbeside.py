@@ -9,16 +9,16 @@
 - DELTA_HOLES_FILE: {ties: {"1": [名札（holeties.tie の行）] か組めない訳の字, "2": …}, handled: {"1": [手直しの handled の行], "2": …}}
 どちらも、書けなかった・組めなかった時は {"error": 訳} を置き、読み手は訳を名指す（0 件に見せない）。
 修正役が人に回した物（handoffs）と申告と数え直しが合わない単位（mismatched）は fix の出力の欄が正本で、ここでは読まない。
-欄で返すほかの控え（書き手は fix のほかの所）:
-- allowed_tests（fixboard.ALLOWED_TESTS_FILE）: 許したテストの変更の訳 [{path, permit, source}]
-- accept_trace（fixboard.ACCEPT_TRACE_FILE）: 受け付けの行の並び（選んだ試験の知らせ・赤緑を確かめずに受けた回・はみ出しの
+欄で返すほかの控え（書き手は fix のほかの所。名は修正の名の住処 fixnames の定数）:
+- allowed_tests（fixnames.ALLOWED_TESTS_FILE）: 許したテストの変更の訳 [{path, permit, source}]
+- accept_trace（fixnames.ACCEPT_TRACE_FILE）: 受け付けの行の並び（選んだ試験の知らせ・赤緑を確かめずに受けた回・はみ出しの
   決着・範囲の相談。fixboard.accept_trace_rows）
-- lenses（fixboard.LENSES_FILE）: レンズの集め役の事実 {collector: {ok, reason}} に、returned が置き場のレンズの数え（lens.summary）と
+- lenses（fixnames.LENSES_FILE）: レンズの集め役の事実 {collector: {ok, reason}} に、returned が置き場のレンズの数え（lens.summary）と
   報告の行（lens.report_lines）を summary・lines で足した物
-- tdd_unit（fixboard.TDD_UNIT_FILE）: 組ごとの TDD の記録（書き手は fix の tdd-unit。eyes が R2 の比較役に貼る）
-- removed: clean が消したパスの控え（leftovers.REMOVED_FILE。置き場の根と scope の根の）のポインタの並び（leftovers.found）。
+- tdd_unit（fixnames.TDD_UNIT_FILE）: 組ごとの TDD の記録（書き手は fix の tdd-unit。eyes が R2 の比較役に貼る）
+- removed: clean が消したパスの控え（fixnames.REMOVED_FILE。置き場の根と scope の根の）のポインタの並び（leftovers.found）。
   clean が走っていなければ []、探せなければ null。消したパスの全件はファイルにだけ在る
-- tdd_refused: TDD の輪の状態（tddloop.STATE）の calls から修正役が拒まれた単位 {refused, unread}（tdd_refused）
+- tdd_refused: TDD の輪の状態（fixnames.TDD_STATE_FILE）の calls から修正役が拒まれた単位 {refused, unread}（tdd_refused）
 
 - claimed_of(reply)・closure_rows(place): 子の結果と親が欄を組む口
 - write(place, results, ruled_reply, *, items, plan_review, fix_reply): 書く
@@ -46,6 +46,7 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 import fixboard  # noqa: E402
+import fixnames  # noqa: E402
 import impact  # noqa: E402  （受け付けの trace の op の住処）
 import leftovers  # noqa: E402
 import listcut  # noqa: E402
@@ -53,12 +54,12 @@ import oneline  # noqa: E402
 import querytest  # noqa: E402
 import tddloop  # noqa: E402
 
-CLOSURE_FILE = "closure.json"
-DELTA_HOLES_FILE = "delta-holes.json"
+CLOSURE_FILE = fixnames.CLOSURE_FILE
+DELTA_HOLES_FILE = fixnames.DELTA_HOLES_FILE
 # 返す節の出力の欄 → 置き場の控え。ほかのブロックとメイングラフはこの欄で受け、名で開かない（docs/design.md の「fix の出力」）
-PORTS = {"allowed_tests": fixboard.ALLOWED_TESTS_FILE, "accept_trace": fixboard.ACCEPT_TRACE_FILE, "lenses": fixboard.LENSES_FILE,
-         "closure": CLOSURE_FILE, "delta_holes": DELTA_HOLES_FILE, "tdd_unit": fixboard.TDD_UNIT_FILE}
-FROM = {"removed": leftovers.REMOVED_FILE, "tdd_refused": tddloop.STATE}
+PORTS = {"allowed_tests": fixnames.ALLOWED_TESTS_FILE, "accept_trace": fixnames.ACCEPT_TRACE_FILE, "lenses": fixnames.LENSES_FILE,
+         "closure": CLOSURE_FILE, "delta_holes": DELTA_HOLES_FILE, "tdd_unit": fixnames.TDD_UNIT_FILE}
+FROM = {"removed": fixnames.REMOVED_FILE, "tdd_refused": fixnames.TDD_STATE_FILE}
 PRIOR_VERSION = "前の版の修正の出力。workflow run で最初から起こし直す"
 REMOVED_UNRETURNED = "修正の出力が消したファイルの控えを返せなかった"
 TESTS_OP, SKIPPED_OP, OVERFLOW_OP = impact.ACCEPT_TRACE_OP, impact.ACCEPT_GATES_SKIPPED_OP, impact.ACCEPT_OVERFLOW_OP
@@ -183,11 +184,11 @@ def _lens_counts(place: pathlib.Path) -> dict:
 
 
 def returned(place, pointer) -> dict:
-    """返す節の控えの欄（PORTS・FROM）。pointer は置き場の中のパスをポインタにする口。lenses.json にはレンズの数えと報告の行を足して
+    """返す節の控えの欄（PORTS・FROM）。pointer は置き場の中のパスをポインタにする口。LENSES_FILE にはレンズの数えと報告の行を足して
     から指す（集め役の事実の欄 collector は書き手のまま。読めない・object でない控えは書き直さず、読み手が訳を名指す）。PORTS の先が
     無い欄は null。removed は leftovers.found の各ファイルのポインタ（探せなければ null）、tdd_refused は {refused, unread}"""
     place = pathlib.Path(place)
-    lenses = place / fixboard.LENSES_FILE
+    lenses = place / fixnames.LENSES_FILE
     try:
         doc = fixboard.read_json(lenses)
     except ValueError:

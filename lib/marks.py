@@ -56,7 +56,7 @@ KINDS = {
     # 判定が依頼の答えと前の周の作り直しの行を問い・単位に結んだ行（gatemarks の answer_ties）
     "answers": Kind({"p2.diagnose": ()}, judgebeside.ANSWER_TIES_FILE, ROOT),
     # 目的の役が目的の文から分けた依頼の解き方 means（worldmark。世界の解の段が定石と比べる案）
-    "means": Kind({"p0.purpose": ()}, "purpose-means.json", ROOT),
+    "means": Kind({"p0.purpose": ()}, judgebeside.MEANS_FILE, ROOT),
     # 並行 PR の任せ先が外す hunk（prcheck）
     "pr": Kind({"p0.parallel_pr": ()}, judgebeside.PR_EXCLUDED_FILE, WORK),
     # 手直しの役の Bash で書いたファイルの申告 bash_writes（refix。外すのは writes.check、控えは書き込みの記録 trace に置く）

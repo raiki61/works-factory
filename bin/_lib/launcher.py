@@ -55,8 +55,8 @@ ARCHON_CWD_ENV_FILES = (".env", ".env.local", ".env.development", ".env.producti
 # works_dev_refuse_claude_tmp と同じ（実パスで照らす。* は / も越える）。読むだけの役（allowWrite が / ）はどこでも書けるので、
 # この照らしでは守れない。その役からは write_fence の --own が取り置きと工場の根を守る
 SANDBOX_WRITABLE = ("/tmp/claude-*", "/private/tmp/claude-*")
-# 実行する run の起動で毎回出す 1 行（持ち主の決め target-user-env）。対象の試験・受け入れ・TDD の試験のコマンドは利用者の HOME・XDG で走る。
-# コマンドごとの守りは工場が作らない（隔離が要る人は工場ごと包む）
+# 実行する run の起動で毎回出す 1 行（持ち主の決め target-user-env）。tree_run.outside_env の env で起こす対象のコマンド（数え上げは
+# docs/design.md の「対象のコマンドの環境と準備」）は利用者の HOME・XDG で走る。コマンドごとの守りは工場が作らない（隔離が要る人は工場ごと包む）
 TARGET_ENV_NOTICE = ("AI が書いた試験のコードを、あなたの権限（利用者の HOME・XDG）で走らせる。書く物も利用者の家に入る。"
                      "守りが要るなら工場ごとコンテナか VM の中で回す")
 

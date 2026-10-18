@@ -37,6 +37,9 @@
                  項目の番号に結び直し、結び直せない余りの行を落とした物（受け付けが照らしと refs と網羅の数えの前に当てる。planblk.bound_map）
 - element_gaps(reply)・element_lines(got): 立つ設計の elements（{id, adds, removes}）の空と id の重なりの誤り（boardview.check_design が呼ぶ）と、
                  要素を 1 行ずつ描く文（planblk.design_only が貼る）
+- BODY_OPEN・BODY_CLOSE・QUOTE_FROM・QUOTE_FROM_ELEMENTS・QUOTE_NONE: 役の材料で独立設計の本文を挟む印と、design_quote の引き元と
+                 対が無い時の句（planblk.DESIGN_ASK と design_map の拒みの行が同じ句を読む。拒みの行は、本文に無い字が要素の一覧の行か
+                 案の行に在れば、どちらを貼ったかを言う）
 """
 import json
 import pathlib
@@ -544,6 +547,11 @@ def missing(b) -> str:
     return f"{MISSING}: 修正の前に設計の役を起こしていない（{DESIGN_FILE} が無い）"
 
 
+# design_quote の引き元（受け付けが照らすのは独立設計の本文 design だけ。要素の一覧の行は機械が本文の後ろに描いた別の字）
+BODY_OPEN, BODY_CLOSE = "=====独立設計ここから=====", "=====独立設計ここまで====="   # 役の材料で独立設計の本文を挟む印（planblk.design_only）
+QUOTE_FROM = f"独立設計の本文（{BODY_OPEN} と {BODY_CLOSE} の間）の文を字のまま引け"
+QUOTE_FROM_ELEMENTS = "本文の後ろの要素の一覧の行（`D1: 足す: …／消す: …`）の字"
+QUOTE_NONE = "対が無ければ null"
 ELEMENTS_HEAD = promptsection.Section("### 独立設計の要素（design_map の design_ref が指す id）", source="fn:design.element_lines")
 
 
@@ -704,6 +712,8 @@ def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
         if ref is not None and ref not in ids:
             out.append(f"design_map の design_ref {ref} は独立設計の要素に無い（在るのは {sorted(ids) or '無し'}。"
                        "案に対が無い行の design_ref は null）")
+    listed = element_lines({"elements": elements})
+    planned = TEXT_SEP.join(_row_text(r) for r in rows)
     for e in entries:
         quote = e.get("design_quote")
         if quote is None:
@@ -712,8 +722,18 @@ def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
         inner = inner[1:-1] if inner.startswith("「") and inner.endswith("」") else inner
         if not cite.quoted_in(inner, source, norm=cite.fold):
             where = _label(e.get("item"), e.get("path"), e.get("symbol")) if e.get("item") is not None else f"設計→案 {_ref_of(e)}"
-            out.append(f"design_map の{where}の design_quote「{inner}」が独立設計の文に字のまま無い（対が無いなら null）")
+            out.append(f"design_map の{where}の design_quote「{inner}」が独立設計の文に字のまま無い（{_pasted(inner, listed, planned)}）")
     return out
+
+
+def _pasted(quote, listed, planned) -> str:
+    """独立設計の文に無い design_quote の拒みの行の直し方: 引いた字が要素の一覧の行 listed か案の行 planned に在れば、どちらを貼ったか
+    （見分けは空白を全部除いて比べる。`足す: … ／ 消す: …` のように空白を足して貼った字も一覧の行と見る）"""
+    if cite.quoted_in(quote, listed, norm=cite.unspaced):
+        return f"{QUOTE_FROM_ELEMENTS}を貼った。対がある時は{QUOTE_FROM}（{QUOTE_NONE}）"
+    if cite.quoted_in(quote, planned, norm=cite.unspaced):
+        return f"修正案の行の字を貼った。対がある時は{QUOTE_FROM}（{QUOTE_NONE}）"
+    return QUOTE_NONE
 
 
 def quote_gaps(board_dir, schema, faces, rows, design_map=None, kept=()) -> list:

@@ -39,6 +39,7 @@ import posixpath
 import types
 
 import answer
+import fixnames
 import jsonfile
 import oneline
 import policy
@@ -49,7 +50,7 @@ import startrec
 PREP_INPUTS = ("start", "judgment", "answer_ties", "materials", "depth_record", "plan", "fix_plan", "plan_review", "ripple", "depth", "head_depth",
                "answers", "units", "only_items", "baseline", "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
 TRACE_FILE = "trace.jsonl"
-ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
+ACCEPT_TRACE_FILE = fixnames.ACCEPT_TRACE_FILE   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
 
 def trace(place, op: str, **kw) -> None:
@@ -949,7 +950,7 @@ def child_allowed_rows(result) -> list:
 
 
 def allowed_test_rows(place, results=()) -> list:
-    """許したテストの変更の訳 [{path, permit, source}]（返りの diff の隣の allowed-tests.json の中身。パスと許しの id の順・重ねない）:
+    """許したテストの変更の訳 [{path, permit, source}]（返りの diff の隣の ALLOWED_TESTS_FILE の中身。パスと許しの id の順・重ねない）:
     置き場 place のテストの変更の許し（conflict.test_permits の範囲の在る行。承認済みの修正案の rewrite_tests・files の消す名（change=remove の symbol と op=delete・op=rename の元の .py）・範囲の相談の
     合意・裁定 fix_test_scope）と、範囲の相談の合意の新しいテストのファイル（granted_new_tests）と、組の子の結果の allowed_tests の行。
     permit は許しの id、source は ALLOWED_SOURCES の語。元 works/.shared/core/conflict.py:983 ruled_test_doc（許しの id と理由を
@@ -1155,7 +1156,7 @@ def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pa
 # ---------------------------------------------------------------- 差分の審査・レンズ・手直しの節の口（delta・lens・refix の scripts が呼ぶ）
 # 置き場の決まった名（prep が写し、ここが読む）
 GROUPS_FILE = "groups.json"            # {groups: [{group_id, …}], out_dir, start_tree, …}（prep の返りと同じ）
-TDD_UNIT_FILE = "tdd-unit.json"        # 組ごとの TDD の記録（tdd_units の本文。tdd-unit が書き、返す節が欄 tdd_unit で返して eyes が読む）
+TDD_UNIT_FILE = fixnames.TDD_UNIT_FILE        # 組ごとの TDD の記録（tdd_units の本文。tdd-unit が書き、返す節が欄 tdd_unit で返して eyes が読む）
 ASSERT_FILE = "assert-changed.json"    # 変更の確かめの結果 {ok, reason}（assert-changed が書き、delta-cut・collect が読む）
 RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>/result.json（reply_file に受け付けた修正役の返答の写し）
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）
@@ -1180,7 +1181,7 @@ BASE_REV_FILE = "base-rev.json"        # 修正前の版 {rev}（prep が親の�
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（差分の審査の材料 fix_report と plan_faces）
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
 LENS_PROMPT = "prompt-lens-{}.md"      # レンズの節の指示書（lenses.key）
-LENSES_FILE = "lenses.json"            # レンズの集め役の事実 {collector: {ok, reason}}（返す節が数えを足して欄 lenses で返す。読み手は最後の関所と報告）
+LENSES_FILE = fixnames.LENSES_FILE            # レンズの集め役の事実 {collector: {ok, reason}}（返す節が数えを足して欄 lenses で返す。読み手は最後の関所と報告）
 LENS_NOT_DONE = "レンズの集め役が終わらなかった: {why}"   # 集め役が落ちた・ok でない時の理由の頭（元 works/blk-lens/lib/lenses.py:130 の exit_）
 LENS_NOT_DUE = "差分の審査を回さないのでレンズは起こさない（{why}）"   # delta-cut が go: false の時の理由
 # 差分の審査の受け付けが拒む穴の語（元 works/.shared/core/graphloops/rules/review-loop.py:4084-4087）
@@ -1716,7 +1717,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 ADOPTED = (startrec.REL, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, HEAD_DEPTH_FILE,
            ANSWERS_FILE, UNITS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
-ALLOWED_TESTS_FILE = "allowed-tests.json"   # 許したテストの変更の訳 [{path, permit, source}]（collect が書き、欄 allowed_tests で返す。allowed_test_rows）
+ALLOWED_TESTS_FILE = fixnames.ALLOWED_TESTS_FILE   # 許したテストの変更の訳 [{path, permit, source}]（collect が書き、欄 allowed_tests で返す。allowed_test_rows）
 ALLOWED_SOURCES = ("plan", "consult", "ruling")   # ALLOWED_TESTS_FILE の source の語: 承認済みの修正案・範囲の相談の合意・裁定
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
 ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
@@ -1834,7 +1835,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
-    allowed-tests.json・allowed_test_changes が同じ 1 つの欄から読む。受け付けの行は accept_trace に残る）、conflicts は
+    ALLOWED_TESTS_FILE・allowed_test_changes が同じ 1 つの欄から読む。受け付けの行は accept_trace に残る）、conflicts は
     置き場の申し出の行（conflict.items）。新しい"""
     import fixbeside
     gid = str(group["group_id"])

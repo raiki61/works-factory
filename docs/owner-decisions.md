@@ -352,7 +352,7 @@
   - 修正前の試験が 1 段も走らなかった base の 2 つの形（段が全部起こせないか試験を走らせなかった base と、`test_cmd` を起こせなかった by role の base。準備が落ちた base も含む）は止め、道具の誤りの文と準備の案内を見せる。
   - 場所ごとの信頼など新しい作業ツリーで要る準備は、対象の宣言の `setup` で述べる（`docs/design.md` の「対象のコマンドの環境と準備」）。
   - 試験の報告が全部 error の段は、実行器が試験を集めた形として走った段に数え、止めずに判定へ進める。これは持ち主の決めでなく、`keep-essence` の 2（元から赤の区別）と main の振る舞いを落とさない決まりから導いた運び役の決め（持ち主の答えはこの形を名指していない。2026-10-17）。
-- 当て方: `lib/userenv.py`（控えは旗なしでいつも置く）・`bin/_lib/isolate.py`・`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・`bin/AGENTS.md` の E15・`lib/tree_run.py` の `outside_env` と `run`・`lib/declared_checks.py` の `checks_reply`・`lib/graphloops/engine/declared.py` の `setup`。
+- 当て方: `lib/userenv.py`（控えは旗なしでいつも置く）・`bin/_lib/isolate.py`・`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・`bin/AGENTS.md` の E15・`lib/tree_run.py` の `outside_env` と `run`・`lib/declared_checks.py` の `checks_reply`・`lib/graphloops/engine/declared.py` の `setup`・`workflows/merge/scripts/pr_commit.py`（`pr-commit` の `git commit` の hooks）。
 
 ### `writer-fall-resume` 報告の本文の書き手が落ちた run は failed で終え、別のアカウントで resume して書き手と返すノードだけを走り直させる
 
