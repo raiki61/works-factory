@@ -1,4 +1,4 @@
-"""run の作業ツリーの枝へ commit を積む 1 か所（周の鎖の周の結果と、出口の語 pr の差分の commit が使う）。標準ライブラリだけ。
+"""run の作業ツリーの枝へ commit を積む 1 か所（周の鎖の周の結果と、出口の語 pr の差分の commit が使う）。標準ライブラリと lib の oneline だけ。
 
 積むのは本体でない作業ツリー（git-dir と git-common-dir が違う）の、枝を指す HEAD だけ。本体の作業ツリーは利用者の物で、切り離された
 HEAD に積んだ commit は枝に残らない。呼び手が exclude に名指したパス（工程の写しの置き場など）は積まない。作者は利用者の git の設定に
@@ -17,6 +17,8 @@ import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 
+import oneline
+
 AUTHOR = ("-c", "user.name=works-factory", "-c", "user.email=works-factory@localhost", "-c", "commit.gpgsign=false")
 MAIN_TREE = "本体の作業ツリーでは commit しない（積むのは run のために切った作業ツリーだけ）"
 DETACHED = "HEAD が枝を指していない（切り離された HEAD には commit しない）"
@@ -34,7 +36,7 @@ def git(repo: Path, *args: str, environ: Mapping[str, str] | None = None) -> str
         env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
     done = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, encoding="utf-8", env=env)
     if done.returncode != 0:
-        raise GitFailed(f"git {' '.join(args)} が終了の値 {done.returncode}: {' '.join(done.stderr.split())}")
+        raise GitFailed(f"git {' '.join(args)} が終了の値 {done.returncode}: {oneline.one_line(done.stderr)}")
     return done.stdout.strip()
 
 
