@@ -6187,6 +6187,72 @@
       }
     ]
   },
+  "workflows/test-gate/commands/suite-write.md": {
+    "inserts": [
+      "$suite-prep.output.brief_file"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/test-gate/works-factory-test-gate.yaml#suite-write"
+      ],
+      "output_format_sha256": "78a8a836011137caa343940d68876ecc53741c5c6a3f89e7dd801e796af20407",
+      "json_keys": [
+        "body",
+        "made",
+        "why"
+      ]
+    },
+    "forbidden": [
+      {
+        "what": "探しすぎない",
+        "quote": "探しすぎるな"
+      },
+      {
+        "what": "テストを走らせない",
+        "quote": "テストを走らせるな"
+      },
+      {
+        "what": "依存を入れない",
+        "quote": "依存を入れるな"
+      },
+      {
+        "what": "ファイルを書かない",
+        "quote": "ファイルを書くな"
+      },
+      {
+        "what": "test_cmd の字を変えない",
+        "quote": "その字を一字も変えずに"
+      },
+      {
+        "what": "緑を仮定しない",
+        "quote": "緑を仮定するな"
+      }
+    ],
+    "steps": [
+      {
+        "what": "まず材料の文を全部読む",
+        "quote": "まずこのファイルを Read で全部読め"
+      },
+      {
+        "what": "test_cmd が在ればそのまま書き JUnit XML の指定を足す",
+        "quote": "JUnit XML を第 1 引数の書き先に書かせる指定をその後ろに足せ"
+      },
+      {
+        "what": "test_cmd が無ければ CI の定義と段の宣言から決める",
+        "quote": "テストを走らせるコマンドを決めよ"
+      },
+      {
+        "what": "本文の頭を #! の行にする",
+        "quote": "本文の頭は `#!` の行にせよ"
+      }
+    ],
+    "stops": [
+      {
+        "what": "決められなければ made を false にし訳を書く",
+        "quote": "`made` を false にし、`why` に何を読んで何が足りなかったかを 1 行で書け"
+      }
+    ]
+  },
   "workflows/test-gate/works-factory-test-gate.yaml#ci-fix.prompt": {
     "inserts": [
       "$ci-prep.output.brief"

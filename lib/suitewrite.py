@@ -40,6 +40,7 @@ if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
 import declared_checks  # noqa: E402
+import oneline  # noqa: E402
 import startrec  # noqa: E402
 
 KEY = "suite_written"
@@ -111,7 +112,7 @@ def place(start_file, folder, reply) -> dict:
     if not reply:
         why = NO_REPLY
     elif reply.get("made") is not True:
-        why = " ".join(str(reply.get("why") or "").split()) or NO_WHY
+        why = oneline.one_line(reply.get("why") or "") or NO_WHY
     elif not body.startswith("#!"):
         why = NO_SHEBANG
     else:
