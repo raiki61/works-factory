@@ -61,7 +61,7 @@ def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
     for r in runs:
         if r.get(PARENT_KEY) != run_id:
             continue
-        metadata = _metadata(r.get("metadata"))
+        metadata = run_metadata(r.get("metadata"))
         branch = metadata.get(BRANCH_KEY)
         if not branch:
             continue
@@ -124,14 +124,14 @@ def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subproc
 
     listed = archon("workflow", "runs", "--json", "--all", "--limit", str(LIST_LIMIT))
     try:
-        remove, result["left"] = select(run_id, _last_json(listed.stdout))
+        remove, result["left"] = select(run_id, last_json(listed.stdout))
     except ValueError as error:
         result["error"] = f"{error}（終了の値 {listed.returncode}、標準エラー: {_clip(listed.stderr)}）"
         return result
     if remove:
         states = archon("workflow", "get", run_id, "--json", "--verbose")
         try:
-            remove, held = unread(remove, _last_json(states.stdout))
+            remove, held = unread(remove, last_json(states.stdout))
         except ValueError as error:
             reason = _clip(f"この run のノードの状態が読めない: {error}（終了の値 {states.returncode}）")
             remove, held = [], [{**found, "reason": reason} for found in remove]
@@ -155,7 +155,7 @@ def _head(value: str | None) -> list[str] | None:
     return head if isinstance(head, list) and head and all(isinstance(part, str) for part in head) else None
 
 
-def _last_json(stdout: str) -> object:
+def last_json(stdout: str) -> object:
     """標準出力の最後の JSON（ログの行の後ろに 1 行で出る物も、字下げして複数行で出る誤りの物も読む）"""
     lines = stdout.splitlines()
     starts = [i for i, line in enumerate(lines) if line.startswith("{")]
@@ -167,7 +167,8 @@ def _last_json(stdout: str) -> object:
         raise ValueError(f"Archon の JSON が読めない: {error}") from None
 
 
-def _metadata(value: object) -> dict:
+def run_metadata(value: object) -> dict:
+    """run の行の metadata（JSON の字か object）を dict に読む。読めなければ空"""
     if isinstance(value, str):
         try:
             value = json.loads(value)

@@ -16,7 +16,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place, startpoint
+from bin._lib import hostgh, isolate, pack, place, runstop, startpoint
 from lib import answer, launchgroups, reads, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -68,15 +68,16 @@ class Stop(Exception):
 
 def main(argv: list[str]) -> int:
     try:
-        launch(argv, dict(os.environ), Path.cwd())
+        return launch(argv, dict(os.environ), Path.cwd())
     except Stop as stop:
         if str(stop):
             print(f"{NAME}: {stop}", file=sys.stderr)
         return stop.code
-    return 0
 
 
-def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
+def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
+    """Archon を起こす。workflow cancel だけは子として起こして終了の値を返し（止めた後の木の残りを止める。埋め P13 の runstop）、
+    ほかは Archon に置き換わって戻らない"""
     flags = before_double_dash(argv)
     if any(a == "--workflow-source" or a.startswith("--workflow-source=") for a in flags):
         raise Stop("--workflow-source は渡さない。自分のグラフの置き場は殻が渡す")
@@ -162,6 +163,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         args = place.workflow_run(source, workflows, config, target, workflow, *start, *rest)[2:]
     if executing:   # 止まる所を全部過ぎた後（起こさずに止まる起動は走らせないので、告げない）
         print(f"{NAME}: {TARGET_ENV_NOTICE}", file=sys.stderr)
+    if argv[:2] == ["workflow", "cancel"]:
+        return runstop.cancel(place.archon(bun, source), args, child, flag_value(flags, "--cwd"))
     command = [*place.archon(bun, source), *args]
     if not reads_only(argv):
         command = [*auth, "exec", *auth_user, "--", *command]
