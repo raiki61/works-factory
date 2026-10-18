@@ -21,8 +21,8 @@
   {source, name, text}。name は役が字のまま写す名指しで、機械はこれだけを照らす
 - hits(rows, *texts)・unrecorded(face, mark, rows)・face_gaps(faces, rows): 名指しの照らし、一覧の行を名指さない kind policy の穴、
   事前審査の受け付けが拒む穴の行
-- PRIOR_DECISIONS_FILE・POLICY_KIND・POLICY_DOC_FENCE: 決定記録の突合の返答のファイル名・方針の穴の kind・方針の文書の柵の語の
-  持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
+- PRIOR_DECISIONS_FILE・POLICY_KIND・POLICY_DOC_FENCE: 決定記録の突合の返答のファイル名（字は判定の名の住処 judgebeside）・方針の穴の kind・
+  方針の文書の柵の語の持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
 - face_example(rows): 事前審査の役に recorded_section の後ろへ添える、kind policy の穴の書き方の例（一覧の最初の名指せる行で作った
   JSON の 1 行と、この run の事実。名指せる行が無ければ FACE_NONE）。face_gaps を通る行だけを描く
 - recorded_section(rows): 役に貼る「記録された方針」のセクション（名指せる行が無ければ RECORDED_NONE）
@@ -44,6 +44,7 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine import util  # noqa: E402
+import judgebeside  # noqa: E402
 import answer  # noqa: E402
 from engine.render import FILE_CAP, MATERIAL_NOTE  # noqa: E402
 import oneline  # noqa: E402
@@ -148,7 +149,7 @@ def _capped(data: bytes, where) -> str:
 
 RECORDED_KEY = "recorded_policy"   # 事前審査の材料 open.json と見え方の record.process の欄（一覧の行）
 # 判定の置き場の決定記録の突合の返答（judge_accept.material_take が書く。役の名 judge_accept.PRIOR_DECISIONS_ROLE はこの名から引く）
-PRIOR_DECISIONS_FILE = "material-prior-decisions.json"
+PRIOR_DECISIONS_FILE = judgebeside.PRIOR_DECISIONS_FILE
 POLICY_KIND = "policy"            # 方針とのぶつかりの穴の kind（fixboard.HUMAN_FACE_KINDS が引く）
 POLICY_DOC_FENCE = "policy_doc"   # 方針の文書の行を書き換える穴の柵の語（gatemarks.FENCES が引く）
 RECORDED_TERM = "記録された方針"

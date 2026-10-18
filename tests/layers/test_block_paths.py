@@ -323,17 +323,18 @@ class PortNamesTest(unittest.TestCase):
     持ち主の外が名の字・住処の定数・名の表・開く関数に届く値（直・名に置いた値・助け手の返り・ARTIFACTS_DIR の読み）・印の環境変数で
     名指すと赤。返りのままの段と resolve を住処の読み手の口に渡す形・入力の字を渡す形は通る"""
 
-    PLAN_HOMES = {"lib/planfile.py": 'FIX_PLAN_FILE = "p2.fix_plan.json"\nROUND_FILE = "round.json"\n'
+    PLAN_HOMES = {"lib/planfile.py": 'FIX_PLAN_FILE = "p2.fix_plan.json"\nROUND_FILE = "round.json"\nREPLAN_GAVE_UP_FILE = "replan-gave-up.json"\n'
                                      "def nothing_owed(d):\n    return (d / ROUND_FILE).is_file()\n"
                                      "def require_ports(got):\n    return got\n",
-                  "lib/planblk.py": 'REPLAN_GAVE_UP_FILE = "replan-gave-up.json"\n',
                   "lib/rolekit.py": "def reject_rows(board, name):\n    return []\ndef last_reject(folder):\n    return ''\n"}
-    FIX_HOMES = {"lib/fixboard.py": 'ALLOWED_TESTS_FILE = "allowed-tests.json"\nACCEPT_TRACE_FILE = "accept-trace.json"\n',
-                 "lib/fixbeside.py": 'CLOSURE_FILE = "closure.json"\n'
+    FIX_HOMES = {"lib/fixnames.py": 'ALLOWED_TESTS_FILE = "allowed-tests.json"\nACCEPT_TRACE_FILE = "accept-trace.json"\n'
+                                    'CLOSURE_FILE = "closure.json"\nREMOVED_FILE = "fix-removed.json"\nTDD_STATE_FILE = "state.json"\n',
+                 "lib/fixboard.py": "import fixnames\nALLOWED_TESTS_FILE = fixnames.ALLOWED_TESTS_FILE\n",
+                 "lib/fixbeside.py": "import fixnames\nCLOSURE_FILE = fixnames.CLOSURE_FILE\n"
                                      "def read(stages, resolve):\n    return [resolve(s) / CLOSURE_FILE for s in stages]\n"
                                      "def stage(got):\n    return got\n",
-                 "lib/leftovers.py": 'REMOVED_FILE = "fix-removed.json"\ndef found(board):\n    return [board / REMOVED_FILE]\n',
-                 "lib/tddloop.py": 'STATE, PROMPT = "state.json", "next.md"\n'}
+                 "lib/leftovers.py": "import fixnames\nREMOVED_FILE = fixnames.REMOVED_FILE\ndef found(board):\n    return [board / REMOVED_FILE]\n",
+                 "lib/tddloop.py": 'import fixnames\nSTATE, PROMPT = fixnames.TDD_STATE_FILE, "next.md"\n'}
     LINE_HOMES = {"lib/tree_run.py": 'REUSE_SUB = "test-reuse"\ndef reuse_dir(top):\n    return top\n'
                                      "def reuse_place(place, run, *, rerun):\n    return place\n",
                   "lib/userenv.py": 'RAN_DIR_ENV = "WORKS_FACTORY_USER_ENV_RAN_DIR"\nRAN_FILE = "user-env-ran"\n'
@@ -381,7 +382,7 @@ class PortNamesTest(unittest.TestCase):
         """計画の置き場のファイルを、名の字・住処の定数・名の表・開く関数（rolekit は頭の関数の全部）に計画のポインタの隣で名指すと赤"""
         self.assert_red("plan", self.PLAN_HOMES, "workflows/line/scripts/a.py", (
             'X = "p2.fix_plan.json"\n', "import planfile\nX = d / planfile.FIX_PLAN_FILE\n",
-            "import planblk\nX = review.with_name(planblk.REPLAN_GAVE_UP_FILE)\n",
+            "import planfile\nX = review.with_name(planfile.REPLAN_GAVE_UP_FILE)\n",
             "import planfile\nX = planfile.PORTS['fix_plan']\n", "from planfile import FROM\n",
             "import pathlib, planfile\nX = planfile.nothing_owed(pathlib.Path(p).parent)\n",
             "import pathlib, rolekit, planfile\nX = rolekit.reject_rows(pathlib.Path(p).parent, 'plan')\n",
@@ -394,6 +395,7 @@ class PortNamesTest(unittest.TestCase):
         住処の読み手の口に渡す形は通る（どの欄がポインタかを知り、戻すのは住処の中だけ）"""
         self.assert_red("fix", self.FIX_HOMES, "workflows/line/scripts/a.py", (
             'X = "closure.json"\n', 'X = "state.json"\n', "import fixboard\nX = d / fixboard.ALLOWED_TESTS_FILE\n",
+            "import fixnames\nX = d / fixnames.CLOSURE_FILE\n", "import tddloop\nX = d / tddloop.STATE\n",
             "import fixbeside\nX = fixbeside.PORTS['closure']\n", "import fixbeside\nX = fixbeside.FROM\n",
             "import fixbeside\nX = fixbeside.read([diff.parent], str)\n", "import leftovers\nX = leftovers.found(diff.parent)\n"),
                         mark="修正")
