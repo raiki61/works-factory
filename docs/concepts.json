@@ -355,12 +355,13 @@
      "pattern": "\\bglob_match\\(",
      "allowed": [
       "lib/planrange.py",
-      "lib/planmarks.py"
+      "lib/planmarks.py",
+      "lib/globs.py"
      ],
      "known": {
       "lib/protect.py": [
        1,
-       "別の考え: 守りのファイルの型の当て方の正本を修正案の範囲と同じ glob の下回り（planmarks.glob_match）に寄せている（修正案の範囲の照らしではない）"
+       "別の考え: 守りのファイルの型の当て方の正本を修正案の範囲と同じ glob の下回り（globs.glob_match）に寄せている（修正案の範囲の照らしではない）"
       ],
       "lib/consult.py": [
        3,
@@ -881,6 +882,7 @@
   }
  },
  "loosened": {
+  "allowed:plan-scope:修正案の項目の範囲（allowed_paths・out_of_scope の glob）を手で当てる形:lib/globs.py": "#655 で glob の下回り（glob_match・glob_problem・globs_meet）を planmarks から lib/globs.py へ移した。読みも当て方も前の planmarks の物と同じで、範囲の照らしの住処 planrange の外で範囲を当てる所は増えていない",
   "exclude:lib/borrow/**": "#674 で借りた物の置き場を bin/_lib/borrow/ から lib/borrow/ へ移した。外す中身（借りた superpowers の写し・継ぎ目の表・無人の読み替え）は前の bin/_lib/borrow/** と同じ",
   "allowed:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形:workflows/chain/scripts/chain_start.py": "周の鎖（#380）の始めのノードが、一番上のグラフとして受けた入力 base・pr を 1 周目の子（メイングラフ）へ写して渡し、1 周目に名指した PR の番号を次の周の依頼の pr の欄で運ぶ。入口の種類の決めはメイングラフの start のまま",
   "allowed:human-gates:人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない:workflows/chain/works-factory-chain.yaml": "周の鎖（#380）の親のグラフが、メイングラフの入力 final_gate・unattended を同じ名で宣言し、5 組の周の子へ写して渡す。方針の語の読みはメイングラフの start と gatepolicy のまま",

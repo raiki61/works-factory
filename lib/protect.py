@@ -17,14 +17,14 @@ works 自身の試験・柵を書き換えられる（run 24 の修正役は Bas
 - merged(repo, rev, doc=None): 自分の一覧（doc。無ければ MANIFEST）と rev の宣言と宣言のファイル自身の行を合わせた一覧（hits・touched の doc）
 - rules(doc):          当てる行（rules と copies）の並び
 - match(path, pattern): git の :(glob) と同じ当たり方（** は 0 個以上のフォルダ・* と ? と [..] は / を跨がない。正本は
-                       planmarks.glob_match）
+                       globs.glob_match）
 - hits(paths, doc=None): パスごとに最初に当たった行 [{path, id, glob, why}]（差分を切った後の変わったファイルの一覧に当てる）
 - touched(repo, rev, doc=None): 数える版 rev から今の作業ツリーまで（commit・消した物・未追跡を含む）の差分のうち一覧に当たる物と
                        行数 [{path, id, glob, why, added, deleted}]（added・deleted はバイナリ・入れ子の git なら None）
 - lines(rows):         関所の文と盤面の問いに載せる 1 行ずつの文
 - shown(rows, key, where): ノードの出力に載せる行（先頭 listcut.SHOWN 行と、超える時は残りの 1 行）。key は全件を残した置き場のファイル
                        where の中の欄の名で、残りの行が一覧の名（LIST）とその欄を言う。当たりが何万本でも出力の行は増えない
-標準ライブラリと core の accept・listcut・planmarks だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
+標準ライブラリと core の accept・globs・listcut だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
 """
 import json
 import os
@@ -39,8 +39,8 @@ if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
 import accept  # noqa: E402
+import globs  # noqa: E402   glob の当て方の正本
 import listcut  # noqa: E402
-import planmarks  # noqa: E402   glob の当て方の正本
 
 MANIFEST = _CORE / "protected.json"
 TARGET_FILE = ".works-protected.json"
@@ -130,8 +130,8 @@ def rules(doc) -> list:
 
 
 def match(path: str, pattern: str) -> bool:
-    """根からの相対のパスが型に当たるか（当て方の正本は planmarks.glob_match。修正案の範囲の欄と同じ当て方）"""
-    return planmarks.glob_match(path, pattern)
+    """根からの相対のパスが型に当たるか（当て方の正本は globs.glob_match。修正案の範囲の欄と同じ当て方）"""
+    return globs.glob_match(path, pattern)
 
 
 def hits(paths, doc=None) -> list:
