@@ -8,8 +8,10 @@
 - glob_match(path, glob): 根からの相対のパスが glob に当たるか（修正案の範囲の欄と protect.match の当て方の正本）
 - globs_meet(a, b): 2 つの glob が同じパスに当たり得るか（言い切れない時は真。fix の組分けが範囲の交わる項目をつなぐ）
 
-既製の glob の部品（pathspec・wcmatch）に置き換えない: 守りのファイルの照らしは外のパッケージを入れない script のノード（PEP 723 の
-dependencies = []）で走り、どの部品も 2 つの glob の交わり（globs_meet）と丸ごとの許しの見分け（glob_problem）を持たない。
+既製の glob の部品（pathspec・wcmatch）に置き換えない: どの部品も 2 つの glob の交わり（globs_meet）と丸ごとの許しの見分け
+（glob_problem）を持たず、当て方（glob_match）だけを替えると、その 2 つが引く自前の読みと読みが 2 つに割れる。標準の
+glob.translate は下限の Python 3.12 に無い（3.13 から）。今は守りのファイルの照らしも外のパッケージを入れない script のノード
+（PEP 723 の dependencies = []）で走る。
 標準ライブラリだけ（lib のほかの物を import しない）。
 """
 from __future__ import annotations
