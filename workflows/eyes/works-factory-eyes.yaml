@@ -2,8 +2,8 @@ name: works-factory-eyes
 description: |
   独立の目のサブグラフ。直しを作った役と別の新しい会話で、読むだけで直しを確かめる: R1 最小性（コメントの削除候補 → 最小性）・
   R2 独立設計との比較（独立設計が問いは立たないと言えば前提の検算）・R3 全体の整合・R4 見えていない範囲（R1・R2 の筋の後）。
-  run の頭の深さの段がまとめる目（lib/depth.py の TIERS の merges。軽量）を持てば、R1（前段を含む）・R3・R4 を 1 つの役 eyes-one が
-  1 つの会話で見る（R2 はほかの観点の結論を見ないよう分けたまま）。
+  run の頭の深さの段がまとめる目（lib/depth.py の TIERS の merges。軽量）を持てば、R3・R4 を 1 つの役 eyes-one が 1 つの会話で見る
+  （R1・R2 は別の会話にする訳が在るので分けたまま）。
   R1 は最後の試験の関門の証拠（入力 checks）も読み、差分が足してどこからも使われない物を名指す。
   直した後の構造の実測と守りのパスの当たりも出す。目の出力は返った時だけ走る script ノードが置き場のファイルに書き、
   出力ノード verdict はそのファイルを読んで lib/eyeverdict.py でまとめる（落ちたノードへの with: は誤りで止まるため）。
@@ -16,7 +16,7 @@ inputs:
   plan: {required: true, description: "plan-fields.json のポインタ"}
   ripple: {required: true, description: "ripple.json のポインタ"}
   depth: {required: true, description: "単位ごとの深さ。JSON の配列"}
-  head_depth: {default: "", description: "run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら R1〜R4 を省く。省かずに回す時、段がまとめる目（TIERS の merges）を持てば R1・R3・R4 を 1 つの役で見る。空は標準"}
+  head_depth: {default: "", description: "run の頭の深さの段の語。その段の省く物（lib/depth.py の TIERS）が在り、単位がどれも軽量なら R1〜R4 を省く。省かずに回す時、段がまとめる目（TIERS の merges）を持てば R3・R4 を 1 つの役で見る。空は標準"}
   design: {required: true, description: "design.json のポインタ"}
   changed: {required: true, description: "修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む"}
   fix_units: {required: true, description: "単位ごとの結末。JSON の配列"}
@@ -112,7 +112,7 @@ nodes:
   - id: r1-comments
     command: r1-comments
     depends_on: [prep]
-    when: "$prep.output.run_eyes == true && $prep.output.one_eye != true"
+    when: "$prep.output.run_eyes == true"
     model: '@wf-eyes-read'
     context: fresh
     settingSources: [user]
@@ -121,7 +121,7 @@ nodes:
     mutates_checkout: false
     idle_timeout: 1728000000
     retry: {max_attempts: 2, on_error: all}
-    output_format: &r1_comments_reply
+    output_format:
       type: object
       required: [candidates, kept]
       additionalProperties: false
@@ -167,7 +167,7 @@ nodes:
     command: r1-minimality
     depends_on: [prep, r1-comments-save]
     trigger_rule: all_done
-    when: "$prep.output.run_eyes == true && $prep.output.one_eye != true"
+    when: "$prep.output.run_eyes == true"
     context: fresh
     <<: &core_launch
       model: '@wf-eyes-core'
@@ -177,7 +177,7 @@ nodes:
       mutates_checkout: false
       idle_timeout: 1728000000
       retry: {max_attempts: 2, on_error: all}
-    output_format: &r1_reply
+    output_format:
       type: object
       required: [status, reason, deletions, ledger_audit, increments]
       additionalProperties: false
@@ -280,8 +280,8 @@ nodes:
   # r4_inventory（棚卸しが発火したら lost を明示する）。目は 1 回目は新しい会話で起き、拒まれた後は出し直しの役 r4-scope-fix が
   # 同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと合わせる（振り分けは r4-reject の resubmit。並んだ層は会話を切るので
   # r4-scope-fix は r4-scope の後ろの層に置く。#571）。まとめた役 eyes-one（r4-reject の one_eye が真の run）は r4-scope の代わりに
-  # 1 回目を答え、R4 の欄に R1・R3 の返答（r1・r3）と R1 の前段の返答（r1_comments）を足して返す。出し直しは同じ会話の続きの
-  # eyes-one-fix で、受け付けは R4 の欄だけを照らす。2 組は並べず順の層に置く（並んだ層は会話を切る。plan-review の 2 組と同じ）
+  # 1 回目を答え、R4 の欄に R3 の返答（r3）を足して返す。出し直しは同じ会話の続きの eyes-one-fix で、受け付けは R4 の欄だけを
+  # 照らす。2 組は並べず順の層に置く（並んだ層は会話を切る。plan-review の 2 組と同じ）
   - id: r4-loop
     depends_on: [prep, r1-minimality, r2-compare, premise-check]
     trigger_rule: all_done
@@ -359,16 +359,14 @@ nodes:
           depends_on: [r4-reject, r4-scope-fix]
           trigger_rule: none_failed_min_one_success
           when: "$r4-reject.output.resubmit != true && $r4-reject.output.one_eye == true"
-          <<: *core_launch
+          <<: *r4_launch
           output_format: &one_reply
             type: object
-            required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen, r1, r3, r1_comments]
+            required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen, r3]
             additionalProperties: false
             properties:
               <<: *r4_props
-              r1: *r1_reply
               r3: *r3_reply
-              r1_comments: *r1_comments_reply
             if: {properties: {capability_inventory: {properties: {fired: {const: true}}}}}
             then: {properties: {capability_inventory: {required: [fired, lost]}}}
         - id: eyes-one-fix
@@ -376,7 +374,7 @@ nodes:
           depends_on: [r4-reject, eyes-one]
           trigger_rule: none_failed_min_one_success
           when: "$r4-reject.output.resubmit == true && $r4-reject.output.one_eye == true"
-          <<: *core_launch
+          <<: *r4_launch
           output_format:
             <<: *one_reply
             required: []
@@ -470,20 +468,7 @@ nodes:
       out: $r4-loop.output.reply
     output_format: *eye_verdict
 
-  # まとめた役の返りの R1・R3 の欄を、目ごとの成果物にする（part の欄だけを置き場の <eye>.json に書く）
-  - id: r1-one-verdict
-    script: eye_verdict
-    runtime: uv
-    mutates_checkout: false
-    depends_on: [prep, r4-loop]
-    when: "$prep.output.one_eye == true"
-    output_type: eye-verdict
-    with:
-      eye: r1
-      part: r1
-      out: $r4-loop.output.reply
-    output_format: *eye_verdict
-
+  # まとめた役の返りの R3 の欄を、目ごとの成果物にする（part の欄だけを置き場の <eye>.json に書く）
   - id: r3-one-verdict
     script: eye_verdict
     runtime: uv
@@ -517,7 +502,7 @@ nodes:
     mutates_checkout: false
     depends_on: [r1-comments, r1-comments-save, r1-minimality, r2-compare, premise-check, r3-coherence, r4-loop,
                  r1-minimality-verdict, r2-compare-verdict, premise-check-verdict, r3-coherence-verdict, r4-scope-verdict,
-                 r1-one-verdict, r3-one-verdict]
+                 r3-one-verdict]
     trigger_rule: all_done
 
   # 返す節は落ちない。どの節にも with: で結ばず、返った節が置き場に書いたファイルを読む

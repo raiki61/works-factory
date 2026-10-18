@@ -1,5 +1,5 @@
-# 筋書き one-eye: run の頭の深さが軽量で目を省かずに回す配線（#687）。R1（前段を含む）・R3・R4 はまとめた役 eyes-one が 1 つの
-# 会話で見て、R1・R3 の目ごとの成果物は eyes-one の返りの欄から作る。R2 の比較役は分けたまま起きる。前提の検算は飛ぶ。
+# 筋書き one-eye: run の頭の深さが軽量で目を省かずに回す配線（#687）。R3・R4 はまとめた役 eyes-one が 1 つの会話で見て、R3 の
+# 目ごとの成果物は eyes-one の返りの欄から作る。R1（前段を含む）と R2 の比較役は分けたまま起きる。前提の検算は飛ぶ。
 # 返す節の差し替えの ok が true なので、仕事の結末は succeeded
 fixture:
   expect: completed
@@ -21,13 +21,16 @@ fixture:
   reached:
   - structure-after
   - prep
+  - r1-comments
+  - r1-comments-save
+  - r1-minimality
   - r2-compare
   - r4-reject
   - eyes-one
   - r4-accept
+  - r1-minimality-verdict
   - r2-compare-verdict
   - r4-scope-verdict
-  - r1-one-verdict
   - r3-one-verdict
   - eyes-complete
   - protected
@@ -46,7 +49,7 @@ protected:
 prep:
   run_eyes: true
   one_eye: true
-  one_briefs: "- R1 の前段（コメントの削除候補）: `/tmp/eyes/one/r1-comments.md`\n- R1 冗長と最小性: `/tmp/eyes/one/r1-minimality.md`\n- R3 全体の整合: `/tmp/eyes/one/r3-coherence.md`\n- R4 見えていない範囲: `/tmp/eyes/one/r4-scope.md`"
+  one_briefs: "- R3 全体の整合: `/tmp/eyes/one/r3-coherence.md`\n- R4 見えていない範囲: `/tmp/eyes/one/r4-scope.md`"
   compare_due: true
   premise_due: false
   purpose_text: 古い入口を消す
@@ -91,21 +94,12 @@ eyes-one:
   seen:
   - a.py
   unseen: []
-  r1:
-    status: pass
-    reason: 累積差分は最小
-    deletions: []
-    ledger_audit: []
-    increments: []
   r3:
     status: pass
     reason: 整合
     seen:
     - a.py
     unseen: []
-  r1_comments:
-    candidates: []
-    kept: []
 r4-accept:
   ok: true
   done: true
@@ -125,7 +119,18 @@ r4-scope-verdict:
   eye: r4
   status: pass
   reason: 横断の危うさなし
-r1-one-verdict:
+r1-comments:
+  candidates: []
+  kept: []
+r1-comments-save:
+  saved: true
+r1-minimality:
+  status: pass
+  reason: 累積差分は最小
+  deletions: []
+  ledger_audit: []
+  increments: []
+r1-minimality-verdict:
   eye: r1
   status: pass
   reason: 累積差分は最小

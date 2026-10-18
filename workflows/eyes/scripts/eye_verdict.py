@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """目の出力の全体を置き場の eyes/<eye>.json に書き、型つきの成果物の行 {eye, status, reason} を返す。入力 part が在れば、出力の
-その欄（まとめた役 eyes-one の返りの r1・r3）を目の出力として読む"""
+その欄（まとめた役 eyes-one の返りの r3）を目の出力として読む"""
 import json
 import os
 import sys

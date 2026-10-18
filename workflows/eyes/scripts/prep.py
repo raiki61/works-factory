@@ -56,11 +56,10 @@ def taken_pushes() -> tuple:
 
 
 def one_text(name: str) -> str:
-    """観点ごとの役の指示書 commands/<name>.md に、この節の出力の欄 out を差し込んだ本文（まとめた役が読む。削除候補のファイルと
-    R4 の拒否の理由は、まとめた役の会話の中の物を指す字）"""
-    vals = {**out, "candidates_file": eyeverdict.ONE_CANDIDATES}
+    """観点ごとの役の指示書 commands/<name>.md に、この節の出力の欄 out を差し込んだ本文（まとめた役が読む。R4 の拒否の理由は、
+    まとめた役の会話の中の物を指す字）"""
     text = (Path(__file__).resolve().parents[1] / "commands" / f"{name}.md").read_text(encoding="utf-8")
-    text = re.sub(r"\$prep\.output\.([A-Za-z0-9_]+)", lambda m: str(vals[m.group(1)]), text)
+    text = re.sub(r"\$prep\.output\.([A-Za-z0-9_]+)", lambda m: str(out[m.group(1)]), text)
     return text.replace("$r4-reject.output.reason", eyeverdict.ONE_REJECTS)
 
 

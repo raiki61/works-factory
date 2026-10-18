@@ -187,7 +187,7 @@
       "nodes": [
         "workflows/eyes/works-factory-eyes.yaml#eyes-one"
       ],
-      "output_format_sha256": "6a5f1a5419a86fd582826d49b8c1e9f83815ac5f479e4e414fc7f001c94fe9f9",
+      "output_format_sha256": "06cb5b3b2be99c6b9c152f1c262c0f6843c725ca8cfeca5dab62d765eb95c65a",
       "json_keys": []
     },
     "forbidden": [
@@ -196,8 +196,8 @@
         "quote": "作業ツリーを 1 文字も変えてはいけない"
       },
       {
-        "what": "R2 を見ない",
-        "quote": "この役は R2 を見ない"
+        "what": "R1 と R2 を見ない",
+        "quote": "この役は R1 も R2 も見ない"
       },
       {
         "what": "どの観点も省かない",
@@ -212,10 +212,6 @@
       {
         "what": "観点ごとの指示書を全部読む",
         "quote": "上の指示書を、並んだ順に全部 Read で読め"
-      },
-      {
-        "what": "前段の削除候補を r1_comments に書いて最小性の代わりの材料にする",
-        "quote": "代わりにこの r1_comments を読む"
       },
       {
         "what": "観点ごとの返答を 1 つの JSON にまとめる",
@@ -936,7 +932,7 @@
       "nodes": [
         "workflows/eyes/works-factory-eyes.yaml#eyes-one-fix"
       ],
-      "output_format_sha256": "b32d4b7e84d732658def9796a56964bc5f7429d001ebcc2943e80ae82d111b97",
+      "output_format_sha256": "f3ce62bb812530bd0d5aa3f63f8196850efc76051fd7d859870e5ec13b13c5de",
       "json_keys": []
     },
     "forbidden": [],

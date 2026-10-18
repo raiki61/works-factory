@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """R4 の返答を受け付ける（lib/eyeverdict.r4_accept）。1 回目の返答と出し直しは、R4 の役の組（reply・fix_reply）か、まとめた役
-eyes-one の組（one_reply・one_fix_reply。R4 の欄に R1・R3 の欄を足した返り）のどちらか 1 組だけが起きる。拒否は数え、3 回目で
+eyes-one の組（one_reply・one_fix_reply。R4 の欄に R3 の欄を足した返り）のどちらか 1 組だけが起きる。拒否は数え、3 回目で
 done。返りの reply は輪の外の r4-scope-verdict が書く。
 拒まれた後の出し直しの役の返答 fix_reply（直す欄だけ）は、前の答えの控えと欄ごとに合わせてから照らす（rolekit.resubmitted に
 rolekit.merge_fields。返りの reply は合わせた答え）"""
