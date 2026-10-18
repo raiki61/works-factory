@@ -6,7 +6,7 @@
 役の返答の型の YAML の写し（計画の workflows/plan/works-factory-plan.yaml・報告の workflows/report/works-factory-report.yaml）は
 SCHEMA の写しで、持ち主との一致は試験が見る。
 
-- FIELD・KEYS・SCHEMA: 返答の欄の名・4 つの欄（read・decided・rejected・doubts）・欄の型
+- FIELD・KEYS・SCHEMA: 返答の欄の名・4 つの欄（read・kept・set_aside・open）・欄の型
 - ASK: メモを書けという頼み（役の名を含まない。計画の材料も報告の輪の頭の節も同じ文を貼る）
 - HEAD・USE・NONE・UNREADABLE: 前の周の節の見出し・前の周のメモの使い方・メモが無い周の文・読めない周の文
 - path_of(board)・save(board, note): 周のフォルダ board の控えのパス・控えを置く（空なら前の控えを消す）
@@ -26,25 +26,25 @@ import marks  # noqa: E402
 import promptsection  # noqa: E402
 
 FIELD = "handoff"
-KEYS = ("read", "decided", "rejected", "doubts")
+KEYS = ("read", "kept", "set_aside", "open")
 _TEXT = {"type": "string", "minLength": 1}
 SCHEMA = {"type": "object", "additionalProperties": False, "required": list(KEYS),
           "properties": {
               "read": {"type": "array", "items": {
                   "type": "object", "additionalProperties": False, "required": ["path", "lines", "why"],
                   "properties": {"path": _TEXT, "lines": _TEXT, "why": _TEXT}}},
-              "decided": {"type": "array", "items": _TEXT},
-              "rejected": {"type": "array", "items": {
+              "kept": {"type": "array", "items": _TEXT},
+              "set_aside": {"type": "array", "items": {
                   "type": "object", "additionalProperties": False, "required": ["option", "why"],
                   "properties": {"option": _TEXT, "why": _TEXT}}},
-              "doubts": {"type": "array", "items": _TEXT}}}
+              "open": {"type": "array", "items": _TEXT}}}
 ASK = (f"次の周の自分は新しい会話で起きて、この会話で読んだ所も考えも持たない。返答の欄 {FIELD}（本文・案とは別の欄。"
        "機械が周のフォルダに置き、本文・案には入らない）に、次の周の自分へのメモを書け: read＝読んだ所（path・lines・読んだ訳 why）、"
-       "decided＝そう決めた訳の文、rejected＝退けた案（option）と退けた訳（why）——選んだ道に限らず別の直し方・書き方も、"
-       "doubts＝迷っている所の文。どの並びも空でよいが、4 つとも書け")
+       "kept＝保つと決めた事とその訳の文、set_aside＝脇に置いた案（option）と置いた訳（why）——選んだ道に限らず別の直し方・書き方も、"
+       "open＝まだ決まっていない所の文。どの並びも空でよいが、4 つとも書け")
 HEAD = promptsection.Section("## 前の周の引き継ぎのメモ（機械が名指した）", source="fn:handoff.section")
-USE = ("前の周の自分が書いたメモの使い方: read に並ぶ所から読み直し、decided の訳を保ち、rejected の案は拒否の訳・審査の指摘が求めない限り"
-       "戻さず、doubts は拒否の訳・審査の指摘と突き合わせろ。メモは古い周から順に全部読め")
+USE = ("前の周の自分が書いたメモの使い方: read に並ぶ所から読み直し、kept を保ち、set_aside の案は拒否の訳・審査の指摘が求めない限り"
+       "戻さず、open は拒否の訳・審査の指摘と突き合わせろ。メモは古い周から順に全部読め")
 NONE = "置かれていない（その周の役がメモを書かなかったか、返答の本文が空で受け付けがメモを置かなかった）"
 UNREADABLE = "読めない（控えが壊れている。読まずに進め）"
 

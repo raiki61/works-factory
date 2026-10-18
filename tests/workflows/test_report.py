@@ -694,8 +694,8 @@ class AcceptScriptCase(Run):
         self.assertIn("拒否の控えが扱えない", ai["reason"])
 
     def test_rejected_round_names_the_previous_answer_relative(self):
-        note = {"read": [{"path": "lib/runreport.py", "lines": "1", "why": "確かめた"}], "decided": ["訳"],
-                "rejected": [{"option": "案", "why": "訳"}], "doubts": ["迷い"]}
+        note = {"read": [{"path": "lib/runreport.py", "lines": "1", "why": "確かめた"}], "kept": ["訳"],
+                "set_aside": [{"option": "案", "why": "訳"}], "open": ["迷い"]}
         reply = json.dumps({**json.loads(self.REPLY), "handoff": note}, ensure_ascii=False)
         out = self.accept(reply, self.REDESIGN)
         self.assertTrue(out.get("prev_file"))
@@ -744,8 +744,8 @@ class RejectScriptCase(Run):
         """輪の頭の節の返りの欄 handoff に、住処の頼み handoff.ASK と、使い方 handoff.USE と、前の周までの report/r<n>/handoff.json の
         パスが古い順に在る（今の周の分は無い）。メモを書かなかった周は無いと名指す"""
         redesign = AcceptScriptCase.REDESIGN
-        note = {"read": [{"path": "a.py", "lines": "1", "why": "読んだ"}], "decided": ["aの訳"],
-                "rejected": [{"option": "aの案", "why": "訳"}], "doubts": []}
+        note = {"read": [{"path": "a.py", "lines": "1", "why": "読んだ"}], "kept": ["aの訳"],
+                "set_aside": [{"option": "aの案", "why": "訳"}], "open": []}
         replies = [json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n無い", "terms": [], "handoff": note}, ensure_ascii=False),
                    json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)]
         for reply in replies:
@@ -764,7 +764,7 @@ class RejectScriptCase(Run):
         self.assertLess(part.index(handoff.USE), part.index(first))
         self.assertLess(part.index(first), part.index(handoff.NONE))
         self.assertNotIn("r3", part, "今の周の分は無い")
-        self.assertNotIn(note["decided"][0], part, "中身は貼らずパスで名指す")
+        self.assertNotIn(note["kept"][0], part, "中身は貼らずパスで名指す")
 
 
 class OutDirCase(unittest.TestCase):
@@ -1068,7 +1068,7 @@ if not cold and os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") == "SPENT":
     sys.exit(1)
 answer = ({"verdict": "pass", "stops": [], "guessed": [], "decidable": True} if cold else
           {"text": "依頼で止めた。\\n直した物は無い。\\n次の run に渡す物は無い。", "terms": [],
-           "handoff": {"read": [], "decided": [], "rejected": [], "doubts": []}})
+           "handoff": {"read": [], "kept": [], "set_aside": [], "open": []}})
 say({"type": "result", "subtype": "success", "is_error": False, "session_id": session, "num_turns": 1, "total_cost_usd": 0,
      "result": json.dumps(answer, ensure_ascii=False), "structured_output": answer})
 """

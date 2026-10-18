@@ -5636,7 +5636,7 @@
       "nodes": [
         "workflows/plan/works-factory-plan.yaml#plan-writer"
       ],
-      "output_format_sha256": "b8422e2d36478958b8fa28dab5f4522f8587928d2940da38d3d2192dc88437ee",
+      "output_format_sha256": "5997c19a71b93bff4c7bf8d078f5483466722ca54d270ba082c8d65e345f3b32",
       "json_keys": []
     },
     "forbidden": [
@@ -5748,7 +5748,7 @@
       "nodes": [
         "workflows/plan/works-factory-plan.yaml#plan-writer-fix"
       ],
-      "output_format_sha256": "9eedf35b9c2693fa7753736c7ad16a04ef5b6312567322889ee23a81f1a06e03",
+      "output_format_sha256": "9fe2880e95b634f40e1f02e47830c73b93b02815f66a4d5ae749a70aeedda90f",
       "json_keys": []
     },
     "forbidden": [],
@@ -5858,7 +5858,7 @@
       "nodes": [
         "workflows/report/works-factory-report.yaml#write"
       ],
-      "output_format_sha256": "6fa577633d01afdbb4436c5918356e2b33b0668da7a19ef78fbf34b5aebb3daa",
+      "output_format_sha256": "1315895ee2c3c8255fcaec8ce6bc765f5012bc686475e92df0ea4b80a3b47ad9",
       "json_keys": [
         "definition",
         "handoff",
