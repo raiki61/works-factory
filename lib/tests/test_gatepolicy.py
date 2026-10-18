@@ -36,6 +36,11 @@ class CheckCase(unittest.TestCase):
     def test_empty_is_default(self):
         self.assertEqual(gp.check("", "", spec=False), {gp.FINAL_KEY: gp.ALWAYS, gp.UNATTENDED_KEY: ""})
 
+    def test_unattended_empty_is_when_needed(self):
+        """無人の run は最後の関所で推しを持たず、開けば止まって差分を当てない。空の既定は理由が在る時だけ開く。名指した always は残す"""
+        self.assertEqual(gp.check("", gp.UNATTENDED, spec=False), {gp.FINAL_KEY: gp.WHEN_NEEDED, gp.UNATTENDED_KEY: gp.UNATTENDED})
+        self.assertEqual(gp.check(gp.ALWAYS, gp.UNATTENDED, spec=False)[gp.FINAL_KEY], gp.ALWAYS)
+
     def test_known_words_pass(self):
         for mode in gp.FINAL_GATES:
             self.assertEqual(gp.check(mode, gp.UNATTENDED, spec=False), {gp.FINAL_KEY: mode, gp.UNATTENDED_KEY: gp.UNATTENDED})
