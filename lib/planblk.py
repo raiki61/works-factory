@@ -90,11 +90,10 @@ TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイ�
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 works/.shared/core/entry.py:1228
 NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
-# 案の直しを終えられなかった項目の諦めの訳（元 works/.shared/core/replan.py:139-140）と、その行 [{item, why, ruling}] を置く隣のファイル
-# （計画の返り plan と事前審査の返り review の指し札の先と同じフォルダ。報告が前の失敗の行に読む）
+# 案の直しを終えられなかった項目の諦めの訳（元 works/.shared/core/replan.py:139-140）。その行 [{item, why, ruling}] を置く隣のファイルの名は
+# 計画の名の住処 planfile の REPLAN_GAVE_UP_FILE
 PLAN_GAVE_UP_WHY = f"修正案の役の直しが受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
 REVIEW_GAVE_UP_WHY = f"事前審査の役の返答が受け付けの網 {rolekit.NET_AFTER} 回まで拒まれ続けた: {{reason}}"
-REPLAN_GAVE_UP_FILE = "replan-gave-up.json"
 DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（下の行を全部直して出し直せ。「」は独立設計と案の行の引用だけに使い、"
                        "ほかの引用は『』か `…` で書く）:")
 # 下請けの答えのファイルの置き場（作業ツリーの外の run の置き場 adapter.run_place_of の今の scope の下。作業ツリーは役が変えてはいけない。

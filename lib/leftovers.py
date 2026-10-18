@@ -7,7 +7,7 @@
 - head_tree:          控えた段の頭の木（修正の受け付けが最後の回に止めた単位の足跡を戻す先）
 - remove_new_ignored: 控えに無かった無視されるファイルだけを消す。前から在った丸ごと無視されるフォルダ（.venv など）と、除くパスの頭
                       skip（既定 ()。呼び手の script が実行基盤の工程の写しの置き場を渡す）の下は触らない。
-                      消した全件は置き場の fix-removed.json に書き、件数とそのパスだけを返す（節 clean）
+                      消した全件は置き場の REMOVED_FILE に書き、件数とそのパスだけを返す（節 clean）
 - found:              盤面の根とその直下の scope の根に clean が書いた消した物のファイルのパスの並び（修正の出力ノードが欄 removed の
                       ポインタにする）。探せなければ Unreadable
 - read_removed:       渡された消した物のファイル（欄 removed の先。最後の関所と報告が fixbeside の読み手の口から渡す）を全部読み、
@@ -15,7 +15,7 @@
                       理由を返す
 控えと消した物のファイルの名は呼ぶ側が渡せる（before_name・removed_name。既定は IGNORED_BEFORE_FILE・REMOVED_FILE）。控えと消した物のファイルは
 呼び手が渡す置き場のフォルダ board に置く（fix と refix の分けは置き場の名で付く）。
-失敗は Unreadable を投げる。git は全部 repo を cwd にして呼ぶ。標準ライブラリだけ（lib のほかのモジュールは読まない）。
+失敗は Unreadable を投げる。git は全部 repo を cwd にして呼ぶ。標準ライブラリと修正の名の住処 fixnames だけ（lib のほかのモジュールは読まない）。
 """
 import json
 import os
@@ -25,10 +25,12 @@ import subprocess
 import sys
 import tempfile
 
+import fixnames
+
 sys.dont_write_bytecode = True
 
 IGNORED_BEFORE_FILE = "fix-ignored-before.json"   # {"ignored": [str], "ignored_dirs": [str], "dirs": [str], "head_tree": str}
-REMOVED_FILE = "fix-removed.json"   # {"removed": [str]}（clean が消したパスの全件）
+REMOVED_FILE = fixnames.REMOVED_FILE   # {"removed": [str]}（clean が消したパスの全件）
 
 
 class Unreadable(Exception):
@@ -145,7 +147,7 @@ def remove_new_ignored(board, repo, before_name: str = IGNORED_BEFORE_FILE, remo
     フォルダ——の下を除く）だけを消し、それで空になった親のフォルダも消す。ただし控えの dirs のどれか（前から在った
     未追跡のフォルダ）かその下に来たら、そこで止める。前から在った物は、中身が増えた・変わっていても消さない（元に戻す
     写しが無い。git clean -ffdX を丸ごと走らせると、対象の .venv など前から在った物まで消えてテストが走らなくなる）。
-    控えは盤面の before_name を読む。消したパスの全件（名前の順）は盤面の fix-removed.json（removed_name）に {"removed": [...]}
+    控えは盤面の before_name を読む。消したパスの全件（名前の順）は盤面の removed_name（既定 REMOVED_FILE）に {"removed": [...]}
     で書き、{"ok": True, "count", "file"} を返す（件数に上限が無いので、子の stdout・節の出口には載せない）。控えが無い・読めない・git が効かなければ Unreadable（何も消さない）"""
     repo = pathlib.Path(repo)
     before = _read_before(board, before_name)

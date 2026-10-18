@@ -104,6 +104,7 @@ from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401 
 import cite  # noqa: E402  （.shared/core。名指しの形・引いた文が現物に在るかの照らし。寄せた後の部分一致 quoted_in）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 import fixboard  # noqa: E402  （lib。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
+import fixnames  # noqa: E402
 import fixrules  # noqa: E402  （同じブロックの lib。指示書の組み立て）
 import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
@@ -128,7 +129,7 @@ QUOTES_FIELD = "red_quotes"   # test の段の返答の欄と単位の記録の�
 UNSENT = "unsent"   # 状態の欄: 盤面へまだ積んでいない止めた申し出の並び（行 {source, item}）
 SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単位の鍵（prep の new_unit の元。元 write_key の鍵）
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
-STATE, PROMPT, SUMMARY = "state.json", "next.md", "summary.md"
+STATE, PROMPT, SUMMARY = fixnames.TDD_STATE_FILE, "next.md", "summary.md"
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——全部の単位を今どおり直す"
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
@@ -1946,7 +1947,7 @@ def suite_made(state_file) -> list:
 
 
 def states(board_dir) -> list:
-    """盤面の根の輪の状態 tdd-<k>/state.json を番号の順に（run の全部の輪。2 回目の修正の段の輪は 1 回目の後に起きる）。
+    """盤面の根の輪の状態 tdd-<k>/ の STATE を番号の順に（run の全部の輪。2 回目の修正の段の輪は 1 回目の後に起きる）。
     置き場が無ければ空"""
     got = []
     for d in pathlib.Path(board_dir).glob("tdd-*"):

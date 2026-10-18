@@ -1196,7 +1196,7 @@ def collect(folder) -> dict:
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
     文書の変化を足す。聞かずに通した行は pass-<k>/ の PASSES_FILE、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
     GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 replan で受け付けが諦めた時は、裁かれた項目
-    ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置き、返りの gave_up にも入れる（ほかの時は None）。返り design に設計の控えを渡したか・無いまま進んだかを
+    ごとの諦めの行を review.json の隣の planfile.REPLAN_GAVE_UP_FILE に置き、返りの gave_up にも入れる（ほかの時は None）。返り design に設計の控えを渡したか・無いまま進んだかを
     trace に design.HANDED_OP・MISSING_OP で残す（元 works/.shared/core/design.py の hand）。形 design（直す物が無い周）は _collect_design"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
@@ -1213,7 +1213,7 @@ def collect(folder) -> dict:
             why = planblk.REVIEW_GAVE_UP_WHY.format(reason=gave)
             gave_up = [{"item": r["item"], "why": why, "ruling": planfile.ruling_text(r.get("rows") or [])}
                        for r in inputs.get("replan_items") or []]
-            _write_json(p / planblk.REPLAN_GAVE_UP_FILE, gave_up)
+            _write_json(p / planfile.REPLAN_GAVE_UP_FILE, gave_up)
     return {"pass": v.ok, "stalled": v.stalled, **_beside(p, _settled(d, p, b, items)),
             "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions, "gave_up": gave_up}
 

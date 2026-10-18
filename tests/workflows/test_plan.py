@@ -1019,7 +1019,7 @@ class ReplanCase(unittest.TestCase):
         error = run.json(out["ripple"])["error"]
         self.assertIn(f"{rolekit.NET_AFTER} 回とも受け付けで拒まれた", error)
         self.assertIn(replan.REPLAN_REJECT, error)
-        rows = json.loads((run.file(out["plan"]).parent / planblk.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
+        rows = json.loads((run.file(out["plan"]).parent / planfile.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(r["item"], r["ruling"]) for r in rows], [(1, "項目 1 の allowed_paths に request_ok.json を足せ")])
         self.assertTrue(rows[0]["why"].startswith(planblk.PLAN_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])
         self.assertEqual(out["gave_up"], rows, "諦めの行は欄 gave_up でも返す（報告は置き場の控えを開かない）")

@@ -3305,7 +3305,7 @@ class ReplanCase(RunCase):
         self.assertTrue(got["give_up"], got)
         out = r.out("result")
         self.assertIs(out["pass"], False)
-        rows = json.loads(r.pointed(out["review"]).with_name(planblk.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
+        rows = json.loads(r.pointed(out["review"]).with_name(planfile.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(x["item"], x["ruling"]) for x in rows], [(2, self.CONFLICT["ruling"]["text"])])
         self.assertTrue(rows[0]["why"].startswith(planblk.REVIEW_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])
 

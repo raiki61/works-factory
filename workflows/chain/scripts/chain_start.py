@@ -12,6 +12,9 @@
 first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）と、
 最後の差分の元の基 origin（run の作業ツリーの今の HEAD。1 周目の子の始めの記録の base_rev と同じ版。commit の無い木なら空）と、
 確かめた出口の語 deliver（lib/entry.py の DELIVERS。知らない語は act: refused）も返す。
+返りの user_env_dir は鎖の run の共有の置き場（ARTIFACTS_DIR の字。refused の時は空）で、hand の commit の節が commit の hooks を
+利用者の環境に戻して印を置く要件（workflows/AGENTS.md の E4: 一番上のグラフの始めのノードが作って入力で渡す）。印は鎖の報告に載せない
+（殻の起動の 1 行が告げる。chain.md は hand より前に書かれる）。
 出力ノード result が結ぶので落ちない: 境の口を読めない時も標準ライブラリだけで act: refused を返す。
 
 入力: rounds・budget_usd・request・base・pr・spec・design_only・fix_fixture・deliver（鎖の入力）
@@ -43,7 +46,8 @@ FIX_FIXTURE_REFUSED = ("周の鎖は fix_fixture と組めない（固定材料�
 
 def refused(reason: str) -> dict:
     return {"ok": False, "reason": reason, "act": "refused", "word": "", "text": reason, "request": "", "base": "", "pr": "",
-            "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0, "origin": "", "deliver": ""}
+            "spec": "", "rows": [], "rounds": 0, "budget": None, "first_request": "", "first_pr": 0, "origin": "", "deliver": "",
+            "user_env_dir": ""}
 
 
 def head() -> str:
@@ -68,7 +72,8 @@ def start() -> dict:
     return {"ok": True, "reason": "", "act": "launch", "word": "", "text": "1 周目を起こす", "request": request,
             "base": boundary.text(os.environ.get("INPUTS_BASE")), "pr": pr, "spec": boundary.text(os.environ.get("INPUTS_SPEC")),
             "rows": [], "rounds": rounds, "budget": budget, "first_request": first,
-            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": head(), "deliver": deliver}
+            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": head(), "deliver": deliver,
+            "user_env_dir": os.environ.get("ARTIFACTS_DIR", "")}
 
 
 def main() -> None:

@@ -48,11 +48,11 @@ CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_c
                  "path_changed")
 DRIFT_NOTE = "premise_drift_note"   # fixboard.DRIFT_NOTE の写し（lib を読めない時の返りの形）
 ERROR_FILE = "fix-collect-error.txt"
-LENSES_FILE = "lenses.json"   # fixboard.LENSES_FILE と同じ名（lib が読めない道でも書く）
+LENSES_FILE = "lenses.json"   # 修正の名の住処 fixnames.LENSES_FILE と同じ名（lib が読めない道でも書く）
 NO_COLLECTOR = "レンズの集め役が終わらなかった: 集め役の出口が無い（集め役が落ちたか走らなかった）"   # fixboard.LENS_NOT_DONE の形
 GROUP_LENSES = "組の子の run はレンズを起こさない（差分の審査は親の run が回す）"
-ALLOWED_TESTS = "allowed-tests.json"   # fixboard.ALLOWED_TESTS_FILE と同じ名（lib を読めない時も diff の隣に [] を置く）
-ACCEPT_TRACE = "accept-trace.json"     # fixboard.ACCEPT_TRACE_FILE と同じ名（lib を読めない時も diff の隣に無ければ [] を置く）
+ALLOWED_TESTS = "allowed-tests.json"   # fixnames.ALLOWED_TESTS_FILE と同じ名（lib を読めない時も diff の隣に [] を置く）
+ACCEPT_TRACE = "accept-trace.json"     # fixnames.ACCEPT_TRACE_FILE と同じ名（lib を読めない時も diff の隣に無ければ [] を置く）
 # fixbeside.PORTS・FROM の欄（lib を読めない時に null で返す。名の照らしは tests/workflows/test_fix.py）
 PORT_FIELDS = ("allowed_tests", "accept_trace", "lenses", "closure", "delta_holes", "tdd_unit", "removed", "tdd_refused")
 boundary = fixbeside = None   # 境の口と隣の約束のファイルの口。読めない時は fallback が stdlib だけで返す
@@ -188,7 +188,7 @@ def error_pointer(why: str) -> dict:
 
 
 def lenses_file() -> None:
-    """diff の隣の lenses.json（レンズの集め役の事実 {collector: {ok, reason}}。fixboard.LENSES_FILE と同じ名）を必ず置く: 集め役
+    """diff の隣の lenses.json（レンズの集め役の事実 {collector: {ok, reason}}。fixnames.LENSES_FILE と同じ名）を必ず置く: 集め役
     （lens-collect）か delta-cut が書いた行が読めればそのまま、無い・形が違えば ok: false と理由（集め役が何も書けずに落ちたか
     走らなかった）、組の子は ok: true（レンズを起こさない）。stdlib だけ（lib と境の口が読めない道でも書く）。書けなければ標準
     エラーに名指す（落ちない）"""
