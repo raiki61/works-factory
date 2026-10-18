@@ -1802,6 +1802,8 @@
       "nodes": [],
       "output_format_sha256": null,
       "json_keys": [
+        "ask_why",
+        "changes",
         "counts",
         "decision",
         "grounds",
@@ -1809,6 +1811,7 @@
         "how",
         "id",
         "limits",
+        "line",
         "misses",
         "query",
         "request_searched",
@@ -1844,6 +1847,14 @@
       {
         "what": "同じ字で defects の問いが書けないことを理由に人に回さない",
         "quote": "書けないとして `ask_human` に倒すな"
+      },
+      {
+        "what": "名の重なりを別の物と読むのは言語・在り処・役割が違い消す名の生き残りでない時だけ",
+        "quote": "消す名の生き残りでもない時だけ"
+      },
+      {
+        "what": "消す名を古いテストのために定義し直した物は limits に挙げない",
+        "quote": "同じ物で、`limits` に挙げない"
       }
     ],
     "steps": [
@@ -2358,7 +2369,7 @@
       "nodes": [
         "workflows/fix/works-factory-fix.yaml#ruler"
       ],
-      "output_format_sha256": "1a49d6835e5641dc81bbd78972d10c8f85bc6c4ebe3a3e5dbd9c2ba45829fb55",
+      "output_format_sha256": "4939b420d98a3830fd9c97cf8a98bd52f785ca8037358451e29d22856c67f5c3",
       "json_keys": []
     },
     "forbidden": [],

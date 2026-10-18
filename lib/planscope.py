@@ -34,7 +34,12 @@
   加えて、その前の段の def・class（名がそのファイルのモジュールならモジュール）が行の path の差分で docstring を得たかを ast で見る
   （_doc_added。docstring の字は __doc__ を書かないので、語だけでは正しい直しを拒む。run 35ad1c2a）。名の解き方は remove と同じ
   （最後の段の前が最上位のクラスならクラス.名、ほかは最上位の素の名）
-- 残った（remove）: 修正の後の .py を ast で読み、名がまだ定義されている（名を消した行か定義を足した行を持つファイルで）。
+- ファイルの種類（_kind）: 言語（changemap.fence_lang）。名が字で同じでも、種類の違うファイルの物（設定の値と手元の env の見本の
+  同じ名の環境変数・画面の型と backend の型）は別の物と読み、足す行の path の外の定義にも、消す名の残りにも数えない。テストと本体は
+  分けない（消す名をテストのファイルに足し直して古いテストを緑に残すのを拒む）。種類の同じ別のファイルの同名は、裁定役が直す裁定の
+  limits に挙げたパス（ruled。conflict.ruled_paths）なら数えない（裁定役が別の物と裁いた。人に回さない）。permits のほかの許し
+  （rewrite_tests・相談の合意のテスト）は名の照らしを外さない
+- 残った（remove）: 修正の後の .py を ast で読み、名がまだ定義されている（名を消した行か定義を足した行を持つ、行の path と種類の同じファイルで）。
   . か :: の修飾子は、そのファイルの最上位のクラスなら クラス.名、モジュール名か :: の前のパスなら最上位の素の名で照らす。.py でない・構文が読めないファイルは、足した行に定義の行（def・class・代入・関数の形）が在れば
   残る。名を挙げるだけの行（消えたことを確かめる hasattr・変更の記録の注記）は残ったと見ない
 
@@ -47,7 +52,7 @@
 - reject_head(ask): 拒否の行の頭（範囲の相談がその段に在れば相談を先の道に言う REJECT_ASK、無ければ REJECT）
 - added_removed(base, now): 行の並びの足した行と消した行
 - new_test_ids(path, base, now): 試験のモジュールで新しく現れたテストの id
-- problems(items, rows, changes, *, permits): 拒否の行と記録（純粋な関数）
+- problems(items, rows, changes, *, permits, ruled): 拒否の行と記録（純粋な関数）
 - check(rows, b, repo, rev, paths, *, pass_, items): 置き場 b と作業ツリーと承認済みの項目 items から材料を集めて problems に渡す。
   照らさない run（修正案や範囲の欄が無い・平の run）では理由を記録に書く
 """
@@ -62,6 +67,8 @@ import sys
 
 sys.dont_write_bytecode = True
 
+import changemap  # noqa: E402   ファイルの言語の名（fence_lang）
+import conflict  # noqa: E402   直す裁定の limits のパス（ruled_paths）
 import leftovers  # noqa: E402
 import planmarks  # noqa: E402
 import planrange  # noqa: E402   範囲の読みと単位に結べないパスの照らし（手直しの受け付けと同じ決まりの 1 か所。.shared/core）
@@ -142,11 +149,16 @@ def _who(it: dict) -> str:
 def _definition(name: str):
     """行 1 本が名 name の定義かを search で照らす型。3 本の枝は全部行の頭に錨で止める: `def`・`class`（字下げと、小文字の語の
     修飾子の並び async・export・declare・abstract・public・data などは許す）、`<名> =`、`[function ]<名>()`。行が `"` や `-` など
-    語でない字で始まる文書・表の中の文字列（JSON の `"pattern": "def <名>|..."`）は定義と数えない。言語やファイルの種類では分けない。
-    残る限界: 文書の中の字下げしたコード例の `    def <名>(` や、小文字の語で始まる散文の `the class <名>` は行の頭の型に当たるので
-    定義と数える"""
+    語でない字で始まる文書・表の中の文字列（JSON の `"pattern": "def <名>|..."`）は定義と数えない。型は言語やファイルの種類で
+    分けず、読み手が種類（_kind）の同じファイルの行だけに当てる。残る限界: 種類の同じファイルの中の、字下げしたコード例の
+    `    def <名>(` や、小文字の語で始まる散文の `the class <名>` は行の頭の型に当たるので定義と数える"""
     n = re.escape(name)
     return re.compile(rf"^[ \t]*(?:[a-z]+[ \t]+)*(?:def|class)[ \t]+{n}\b|^{n}\s*=|^(?:function\s+)?{n}\s*\(\)")
+
+
+def _kind(path: str) -> str:
+    """ファイルの種類（言語の名）。種類の違うファイルの同じ字の名は別の物"""
+    return changemap.fence_lang(path)
 
 
 def _defined_names(src: str | None):
@@ -236,7 +248,8 @@ def _owns(qual: str, raw: str, path: str, classes: set) -> str | None:
 
 
 def _remains(raw: str, name: str, changes: dict, diffs: dict) -> bool:
-    """files の change=remove の symbol の名が修正の後も残っているか（呼び手が、同じ名を移した先の path を changes から除いて渡す）。変わった .py は今の中身を ast で読み、その名を消した行か定義を足した行を持つファイルで、
+    """files の change=remove の symbol の名が修正の後も残っているか（呼び手が、同じ名を移した先の path・行の path と種類（_kind）の
+    違うファイル・行の path でない裁定のパス（ruled）を changes から除いて渡す）。変わった .py は今の中身を ast で読み、その名を消した行か定義を足した行を持つファイルで、
     名がまだ定義されていれば残る。修飾子の無い名は最上位の素の名で照らし、修飾子の在る名はファイルごとに解く（_owns: クラスなら
     クラス.名、モジュールなら最上位の素の名、どちらでもないファイルは見ない）。.py でない・構文が読めないファイルは、足した行に
     定義の行（_definition）が在れば残る"""
@@ -286,7 +299,7 @@ def _op_problems(row: dict, changes: dict) -> list[str]:
 
 
 def problems(items: list[dict], rows: list[dict], changes: dict, *,
-             permits=(), loop=None, untouched=None) -> tuple[list[str], dict]:
+             permits=(), ruled=(), loop=None, untouched=None) -> tuple[list[str], dict]:
     """承認済みの修正案の項目（items）と差分の外れの行と記録 {"checked": True, "unchecked": [識別子の形でない名], "items": [見た
     項目の番号], "overflow": [はみ出しの行 {line（拒否の行の文）, item, unit_key, paths, new_tests}]}。純粋な関数（ファイル・盤面を読まない）。見る物はモジュールの docstring の語と、下の 1〜6:
     1. 行の files の各パスが、その単位の項目のどれかの範囲に入り、out_of_scope に当たらない。その単位の項目のどれかが明示に
@@ -297,20 +310,22 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     3. 生きた項目の範囲の中に変わったパスが 1 つも無ければ Missing
     4. files の add（change=add の symbol）: 探す語（planmarks.search_word）が、生きた項目なら行の path の足した行に語の境で現れる
        （無ければ Missing。語が __doc__ なら、名の def・class の docstring を差分で足していても在る。_doc_added）。同じ名を足すと言った
-       行の path（その項目の files の add の同名の行）の外に、凍った後に修正役が足した同名の定義が在れば Extra（見る項目の全部）。
+       行の path（その項目の files の add の同名の行）の外の、そのどれかと種類（_kind）の同じファイルに、凍った後に修正役が足した
+       同名の定義が在れば Extra（見る項目の全部。ruled のパスは除く）。
        op=create・delete・rename・modify の行は path の新設・消し・移し・変更（_op_problems）を見る
     5. files の remove（change=remove の symbol）: 生きた項目なら、探す語が行の path の消した行に現れ、どの足した行にも定義として
-       現れない（同じ名を移した先の path の定義は残りに数えない）
+       現れない（同じ名を移した先の path・行の path と種類の違うファイル・行の path でない ruled のパスの定義は残りに数えない）
     6. tests: 新しく現れたテストのうち、どの項目の tests にも無い物は Extra（範囲の相談の合意で項目に入った物は tests に在る）。
        生きた項目の tests の各 id は、そのパスが変わり、今の中身に定義の行が在る
     裁定で外れた単位の項目も範囲を与える（依頼 241。外れた単位を直させない守りは受け付けの check_excused_units）。
-    permits のパスは 1 でも範囲に入る。out_of_scope は permits にも勝つ（1・2 とも先に見る）。ただし範囲の相談の合意でその項目の
+    permits のパスは 1 でも範囲に入る。ruled は直す裁定の limits のパス（check では permits にも入る）で、4・5 の名の照らしだけを外す。
+    out_of_scope は permits にも勝つ（1・2 とも先に見る）。ただし範囲の相談の合意でその項目の
     out_of_scope から外したパス（with_agreed の LIFTED）は、その項目の out_of_scope に当たらない（1・2 とも）。
     loop は修正役が変え始めた時の中身（パス → check の loop_tree の木の中身。無ければ None）。規則は 1 本: 欠け（Missing）の証拠は版からの差分の
     全部（changes）で見て、修正役に問う外れと余分（1・2・6 の Extra・足す行の path の外の定義）は凍った後に修正役が変えた分だけ
     （凍った時の中身と今の中身の差分）で見る。凍った後に変わっていないファイル（untouched。渡さなければ loop の中身が今の中身と
     同じパス）は 1・2・6 で照らさない"""
-    permits, loop = set(permits), dict(loop or {})
+    permits, ruled, loop = set(permits), set(ruled), dict(loop or {})
     if untouched is None:
         untouched = {p for p in loop if loop[p] is not None and p in changes and changes[p][1] == loop[p]}
     untouched = set(untouched)
@@ -384,13 +399,15 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
                         out.append(f"{who}: files の {path} の add {raw} が差分の {path} の足した行に無い"
                                    + ("（その def・class の docstring も差分で足されていない）" if name == DOC else ""))
                     add_paths = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}
-                    define = _definition(name)
-                    for p in sorted({p for p, line in fixer_added if p not in add_paths and define.search(line)}):
+                    kinds, define = {_kind(p) for p in add_paths}, _definition(name)
+                    for p in sorted({p for p, line in fixer_added if p not in add_paths | ruled and _kind(p) in kinds
+                                     and define.search(line)}):
                         out.append(f"{who}: files の {path} の add {raw} の足す行の path（{'・'.join(sorted(add_paths))}）の外に同名の定義（{p}）")
                 elif sym.get("change") == "remove" and not skip:
                     word = planmarks.word_re(name)
                     moved = {p for p, n in planmarks.file_symbols(it, "add") if n == raw}   # 移した先の定義は残りに数えない
-                    kept = {p: pair for p, pair in changes.items() if p not in moved}
+                    kept = {p: pair for p, pair in changes.items()
+                            if p not in moved and (p == path or (p not in ruled and _kind(p) == _kind(path)))}
                     if not any(word.search(line) for line in diffs.get(path, ([], []))[1]) or _remains(raw, name, kept, diffs):
                         out.append(f"{who}: files の {path} の remove {raw} が差分で消えていない（{path} の消した行に無いか、足した行に定義が残る）")
         for row in [] if skip else it.get("tests") or []:
@@ -439,7 +456,8 @@ def check(rows: list[dict], b, repo: pathlib.Path, rev: str, paths: list[str], *
     無い run は None）と、版 rev からの変わったパス paths の版と今の中身を problems に渡す。b は fix の run の置き場（合意・許し・
     裁定を conflict が置き場の控えから読む）。照らす項目と許しは planrange.fix_scope の値（修正役の指示書に貼る値と同じ）。テストの
     変更の許し（conflict.test_permits）の欄の控えが凍結の印と食い違えば ValueError（止めるのは呼び手）。
-    裁定の後（pass_ が ruled）は直す裁定（conflict.ruled_paths）のパスを permits に足す（裁定を受けた単位の全部は外さない）。
+    裁定の後（pass_ が ruled）は直す裁定（conflict.ruled_paths）のパスを permits に足し（裁定を受けた単位の全部は外さない）、
+    同じパスを ruled に渡す。
     項目が無い・範囲の欄の無い控えなら照らさず ([], {"checked": False, "why": 理由})。口が欄の控えの食い違いを出せば conflict.fields_broken
     の ValueError。
     loop_tree（修正役が変え始めた木。TDD の輪が凍らせた時の木か、呼び手の since）と frozen（その木から照らすパス）を渡せば、その木の
@@ -452,4 +470,5 @@ def check(rows: list[dict], b, repo: pathlib.Path, rev: str, paths: list[str], *
     changes = {p: (_base_text(repo, rev, p), _now_text(repo, p)) for p in paths}
     loop = {p: _base_text(repo, loop_tree, p) for p in paths if p in set(frozen)} if loop_tree else {}
     untouched = None if touched is None else set(loop) - set(touched)
-    return problems(got["items"], rows, changes, permits=tuple(got["permits"]), loop=loop, untouched=untouched)
+    ruled = conflict.ruled_paths(b) if pass_ == "ruled" else ()
+    return problems(got["items"], rows, changes, permits=tuple(got["permits"]), ruled=tuple(ruled), loop=loop, untouched=untouched)
