@@ -144,7 +144,7 @@
 - P019 試験の id のパスは根の中の相対だけ（逆斜線・絶対・根の外を拒む）。書いてよい範囲 allowed_paths は相対で狭く（字の無い glob は木の丸ごとで拒む）、out_of_scope は案が名指す試験に当たってはいけない。
   - 元: planmarks.py:593 `gaps`・:206 `glob_problem`、試験 works/tests/test_plan_fields.py::TestIdPaths・ScopeFieldsCase
   - 今: 表
-  - 証: lib/tests/test_plan_fields.py::ScopeFieldsCase.test_gaps_allowed_paths_must_be_relative_and_narrow・lib/tests/test_plan_fields.py::ScopeFieldsCase.test_glob_without_a_literal_character_is_a_whole_tree_allowance・lib/tests/test_plan_fields.py::ScopeFieldsCase.test_gaps_out_of_scope_must_not_hit_named_tests・lib/tests/test_plan_fields.py::TestIdPaths の 5 件・tests/workflows/test_plan.py::AcceptCase.test_works_field_gaps_rejected（allowed_paths[0] の行）
+  - 証: lib/tests/test_plan_fields.py::ScopeFieldsCase.test_gaps_allowed_paths_must_be_relative_and_narrow・lib/tests/test_plan_fields.py::ScopeFieldsCase.test_gaps_reject_whole_tree_allowance・lib/tests/test_globs.py::GlobsCase.test_glob_without_a_literal_character_is_a_whole_tree_allowance・lib/tests/test_plan_fields.py::ScopeFieldsCase.test_gaps_out_of_scope_must_not_hit_named_tests・lib/tests/test_plan_fields.py::TestIdPaths の 5 件・tests/workflows/test_plan.py::AcceptCase.test_works_field_gaps_rejected（allowed_paths[0] の行）
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan/r1/plan-fields.json の fields[].allowed_paths・out_of_scope）
   - 狭め: 範囲の glob の当て方を守りのファイルの当て方と 1 つにする試験（元 works/tests/test_plan_fields.py:505 test_glob_match_is_the_protect_matcher）が無い → 要追加: lib/tests/test_plan_fields.py::ScopeFieldsCase.test_glob_match_is_the_protect_matcher — planmarks.glob_match と protect.match が 5 つの組で同じ値（lib/protect.py が在るので写せる）。Archon で不可でない
 
