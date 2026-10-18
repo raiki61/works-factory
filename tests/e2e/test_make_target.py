@@ -2,7 +2,8 @@
 
 make_target.py は、自分の在る checkout の git の私用の置き場に控えを書くので、本物の checkout では走らせない。
 tests/bin/fakelaunch.py の木（写した bin/ と偽の Archon の源）に make_target.py と種を写して git の checkout にし、そこで走らせる。
-teardown の殻の後ろの Archon は偽の bun で、受けた命令を控え、workflow status には走っている run を 1 つ答える。
+teardown の殻の後ろの Archon は偽の bun で、受けた命令を控え、workflow status には走っている run を 1 つ答える。殻はその run を
+本物の ps の上で止めるので、run の id は試験ごとに作る（fakelaunch.unique_run_id）。
 本物の Archon と同じく、--cwd（無ければ cwd）が git のリポジトリでなければ命令を拒む。FAKE_FAILS に並べた命令は落とす。
 """
 import ast
@@ -35,7 +36,7 @@ if subprocess.run(["git", "-C", cwd, "rev-parse", "--git-dir"], capture_output=T
 if args[1] in os.environ.get("FAKE_FAILS", "").split(","):
     sys.exit(1)
 if args[1] == "status":
-    print(json.dumps({"runs": [{"id": "run-a", "status": "running"}], "scopeFallback": False}))
+    print(json.dumps({"runs": [{"id": os.environ["FAKE_RUN_ID"], "status": "running"}], "scopeFallback": False}))
 """
 
 
@@ -61,9 +62,10 @@ class MakeTargetTest(unittest.TestCase):
         fake = self.tmp / "fake-bin"
         fakelaunch.put(fake / "bun", FAKE_BUN)
         self.bun_log = self.tmp / "bun.jsonl"
+        self.run_id = fakelaunch.unique_run_id()
         self.env = hermetic.child_env(HOME=str(self.tmp / "user-home"), XDG_CACHE_HOME=str(self.tree.cache_home),
                                       PATH=os.pathsep.join([str(fake), os.environ.get("PATH", "")]),
-                                      FAKE_BUN_LOG=str(self.bun_log))
+                                      FAKE_BUN_LOG=str(self.bun_log), FAKE_RUN_ID=self.run_id)
         self.addCleanup(self.clear_ledger, self.repo)
 
     def clear_ledger(self, checkout):
@@ -85,6 +87,11 @@ class MakeTargetTest(unittest.TestCase):
         for path in made.values():
             self.assertTrue(os.path.isabs(path), path)
         return {k: pathlib.Path(v) for k, v in made.items()}
+
+    def stopped(self) -> list[list[str]]:
+        """走っている run を読んで cancel する時に、殻が偽の bun に打つ命令（それぞれ頭の 3 語）"""
+        return [["workflow", "status", "--all"], ["workflow", "get", self.run_id], ["workflow", "runs", "--all"],
+                ["workflow", "cancel", self.run_id]]
 
     def calls(self) -> list[dict]:
         if not self.bun_log.exists():
@@ -167,10 +174,15 @@ class MakeTargetTest(unittest.TestCase):
         theirs = self.make(self.tmp / "theirs")
         done = self.make_target("stop", str(self.tmp / "mine"))
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual([c["args"][:3] for c in self.calls()],
-                         [["workflow", "status", "--all"], ["workflow", "get", "run-a"], ["workflow", "runs", "--all"], ["workflow", "cancel", "run-a"]])
+        self.assertEqual([c["args"][:3] for c in self.calls()], self.stopped())
         self.assertTrue(all(pathlib.Path(c["archon_home"]).is_relative_to(mine["home"]) for c in self.calls()))
         self.assertEqual(self.ledger(self.repo).read_text(encoding="utf-8"), f"{theirs['home']}\t{theirs['target']}\n")
+
+    def test_run_id_differs_every_test(self):
+        other = type(self)(self._testMethodName)
+        other.setUp()
+        self.addCleanup(other.doCleanups)
+        self.assertNotEqual(other.env["FAKE_RUN_ID"], self.env["FAKE_RUN_ID"])
 
     def test_stop_refuses_a_folder_without_a_home(self):
         done = self.make_target("stop", str(self.tmp))
@@ -212,8 +224,7 @@ class MakeTargetTest(unittest.TestCase):
         for one in made:
             with self.subTest(home=one["home"]):
                 mine = [c["args"] for c in calls if pathlib.Path(c["archon_home"]).is_relative_to(one["home"])]
-                self.assertEqual([args[:3] for args in mine],
-                                 [["workflow", "status", "--all"], ["workflow", "get", "run-a"], ["workflow", "runs", "--all"], ["workflow", "cancel", "run-a"]])
+                self.assertEqual([args[:3] for args in mine], self.stopped())
                 self.assertTrue(all(args[-2:] == ["--cwd", str(one["target"])] for args in mine), mine)
         self.assertEqual(self.ledger(self.repo).read_text(encoding="utf-8"), "")
 
@@ -237,8 +248,7 @@ class MakeTargetTest(unittest.TestCase):
         done = self.make_target("teardown", FAKE_FAILS="cancel")
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual([c["args"][:3] for c in self.calls()],
-                         [["workflow", "status", "--all"], ["workflow", "get", "run-a"], ["workflow", "runs", "--all"], ["workflow", "cancel", "run-a"],
-                          ["workflow", "abandon", "run-a"]])
+                         self.stopped() + [["workflow", "abandon", self.run_id]])
         self.assertTrue(all(pathlib.Path(c["archon_home"]).is_relative_to(home) for c in self.calls()))
 
     def test_teardown_leaves_other_checkout(self):
