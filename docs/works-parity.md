@@ -3529,7 +3529,7 @@
 - line.md L-G16: lib/gatepolicy.py::head_words、workflows/line/scripts/start.py::gate_text、workflows/line/scripts/ask_final.py::final_head
 - line.md L-G17: workflows/line/scripts/ask_before_fix.py::ask、main lib/boardview.py::collect
 - line.md L-G18: lib/gatemarks.py::plan_gate_items・lib/gatemarks.py::_record、main lib/boardview.py::collect（出力の欄 gate_passes の先）、main lib/gate_axes.py::gather
-- line.md L-G19: 報告は lib/runreport.py の `_gate_passes`。最後の承認ノードは workflows/line/scripts/ask_final.py の `review_rows`（事前審査の review の隣の gatemarks.PASSES_FILE を gatemarks.pass_lines で）と `final_text` の「直す前の承認ノードで通した項目」
+- line.md L-G19: 報告は lib/runreport.py の `_gate_passes`。最後の承認ノードは workflows/line/scripts/ask_final.py の `review_rows`（事前審査の出力の欄 gate_passes の先を gatemarks.passes_of で）と `final_text` の「直す前の承認ノードで通した項目」
 - line.md L-G20: lib/gatemarks.py::_item → workflows/line/scripts/ask_before_fix.py::ask
 - line.md L-G21: workflows/line/scripts/ask_before_fix.py::ask は plan-review の questions の行 {kind, text} の種類のまま承認ノードの文の頭に並べ（gatemarks.gate_text の KIND_WORDS）、ASK_GATE_HEAD は台帳の問い（fork・escalate）が在る時だけ（部分 B1）
 - line.md L-G22: lib/gatemarks.py::ask_text → workflows/line/scripts/ask_before_fix.py::ask
@@ -3936,7 +3936,7 @@
 - plan.md P242: lib/gatemarks.py::request_answer・lib/gatemarks.py::answer_binds・lib/gatemarks.py::unmatched_answer_lines・lib/boardview.py::open_pass（始めの記録の写しから読む）・lib/runreport.py::ledger_state（報告の側の写し）
 - plan.md P243: lib/gatemarks.py::material_answer・lib/gatemarks.py::measured_materials・lib/gatemarks.py::origin（値で受ける式）。報告は lib/runreport.py::ledger_state が gatemarks の見え方で引く
 - plan.md P244: lib/boardview.py::take_gate_answers・lib/boardview.py::_note_asked・workflows/plan-review/scripts/pass_open.py（入力 gate_answers）。メイングラフの workflows/line/works-factory-line.yaml::replan-review の with: に gate_answers: $answer-before-fix.output.answer
-- plan.md P245: lib/boardview.py::_note_asked・lib/boardview.py::collect（gatemarks.PLAN_GATE_FILE）
+- plan.md P245: lib/boardview.py::_note_asked・lib/boardview.py::collect（planreviewbeside.GATE_FILE）
 - plan.md P246: lib/boardview.py::policy_change・lib/boardview.py::change_row・lib/boardview.py::collect（collect が行を足す）・lib/boardview.py::take_gate_answers（固め直し）
 - plan.md P247: lib/gatemarks.py::design_item・lib/gatemarks.py::_design_only_answered・lib/boardview.py::open_pass（始めの記録の写し）
 - plan.md P248: lib/gatemarks.py::design_item・lib/boardview.py::collect（stalled）
