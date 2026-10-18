@@ -2363,26 +2363,26 @@ class LinesCase(Base):
             prcheck.downgrades(pathlib.Path(bad))
 
     def test_structure_rows_and_after(self):
-        design = self.put("plan/design.jsonl", json.dumps({"unit_id": "u1", "verdict": "汚れる", "faces": [], "evidence": [],
-                                                           "reason": "責務が割れる"}, ensure_ascii=False))
-        state = self.put("plan/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
+        design = self.put("structure/design.jsonl", json.dumps({"unit_id": "u1", "verdict": "汚れる", "faces": [], "evidence": [],
+                                                                "reason": "責務が割れる"}, ensure_ascii=False))
+        state = self.put("structure/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
         after = self.put("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
                                                        "after": {"changed": ["a.py"], "tables": [], "new_names": []}})
-        _, text, _ = self.build(fixed_run(plan={**fixed_run()["plan"], "structure": state},
+        _, text, _ = self.build(fixed_run(structure={"ok": True, "structure": state},
                                           eyes={**fixed_run()["eyes"], "structure_after": after}))
         body = self.section(text, report.STRUCTURE_HEADING)
         self.assertIn("u1: 汚れる", body)
         self.assertIn("直しの後の実測", body)
 
     def test_structure_time_adds_the_stage_b_seconds(self):
-        """#227: 構造の実測と目で増えた時間は、段 A と目の秒（計画の structure-state.json）に直しの後の実測（段 B）の秒
+        """#227: 構造の実測と目で増えた時間は、段 A と目の秒（構造のブロックの structure-state.json）に直しの後の実測（段 B）の秒
         （structure-after.json の after.timing）を足す（元 works/blk-structure/scripts/collect.py:83）"""
-        design = self.put("plan/design.jsonl", "")
-        state = self.put("plan/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
+        design = self.put("structure/design.jsonl", "")
+        state = self.put("structure/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
         after = self.put("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
                                                        "after": {"changed": [], "tables": [], "new_names": [],
                                                                  "timing": {"wall_s": 1.5}}})
-        _, text, _ = self.build(fixed_run(plan={**fixed_run()["plan"], "structure": state},
+        _, text, _ = self.build(fixed_run(structure={"ok": True, "structure": state},
                                           eyes={**fixed_run()["eyes"], "structure_after": after}))
         self.assertIn("- 構造の実測と目で増えた時間: 4.5 秒\n", self.section(text, report.STRUCTURE_HEADING))
 
@@ -2704,6 +2704,26 @@ class LinesCase(Base):
                 returns = fixed_run(**{"sealed-diff": seal_ok, "applied-diff": {**applied, "deliver": handed}})
                 _, text, _ = self.build(returns)
                 self.assertEqual(text.splitlines()[3], runreport.APPLY_ASK + said)
+
+    def test_pr_commits_are_listed_or_why_they_were_not_split(self):
+        """#569: 出口の語 pr の run は、人が決めることのセクションに積んだ commit を出す。修正案の項目ごとに積めば本数と項目と commit の対、
+        1 つの commit に倒せばその訳。出口の語が空の run は行を出さない"""
+        seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
+        applied = fixed_run()["applied-diff"]
+        made = {"act": "pr", "pr": {"number": 7, "url": "https://github.com/o/r/pull/7", "is_draft": True}, "reason": ""}
+        commits = [{"item": 2, "subject": "項目 2: 足す", "head": "e" * 40}, {"item": 1, "subject": "項目 1: 使う", "head": "c" * 40}]
+        for handed, lines in (({**made, "commits": commits, "split": ""},
+                               [f"- {runreport.PR_COMMITS}修正案の項目ごとに 2 本（依存の順。", f"- 項目 2: {'e' * 12}（項目 2: 足す）",
+                                f"- 項目 1: {'c' * 12}（項目 1: 使う）"]),
+                              ({**made, "commits": [], "split": "差分のパスを 1 つの項目に決められない（x）"},
+                               [f"- {runreport.PR_COMMITS}項目ごとに分けなかった（差分のパスを 1 つの項目に決められない（x））"])):
+            with self.subTest(lines=lines[0]):
+                _, text, _ = self.build(fixed_run(**{"sealed-diff": seal_ok, "applied-diff": {**applied, "deliver": handed}}))
+                body = self.section(text, report.DECISIONS_HEADING)
+                for line in lines:
+                    self.assertIn(line, body)
+        _, text, _ = self.build(fixed_run(**{"sealed-diff": seal_ok}))
+        self.assertNotIn(runreport.PR_COMMITS, text)
 
     def test_tests_head_lines_and_deleted_files(self):
         """T35・T41・M38（部分 B2 の申し送り。最後の関所と同じ行を報告の冒頭に）: 人が決めることの節に最後のテストの一式の行と修正前のテストの

@@ -13,7 +13,6 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 
 ROLE = "plan-writer"            # 道具を持つ役の節（YAML の plan-loop の中）
-QUIET = ("structure-eye",)      # 道具を持たない役の節（読む物が無い）
 
 
 def collected() -> None:
@@ -28,7 +27,7 @@ def collected() -> None:
 
     def collect():
         start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
-        return planfile.collect_reads(round_dir, reads.log_here(), role=ROLE, quiet=QUIET,
+        return planfile.collect_reads(round_dir, reads.log_here(), role=ROLE,
                                       policy_md=policy.frozen_copy(start if isinstance(start, dict) else {}), repo=Path.cwd())
 
     boundary.returns(reads.guarded(collect, owner=ROLE, place=round_dir))

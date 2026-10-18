@@ -25,6 +25,9 @@ querytest.closure_lines の mismatched_only）は、fix の出力の handoffs・
 ログ・作業ツリー・差分の審査と穴の枝の名札と手直しの結果・異議と再審・構造のブロックが落ちた周・直した後の実測・修正前の関所で
 通した行と往復・許したテストの変更・取り込むと消えるファイル・独立の目・clean とレンズと仕組みの異常・残り・承認し直すかの問い・
 人に聞いている問い（記録のまま引く）・保留の問いと答えた問いと当たらなかった依頼の答えと読めなかった保留。開いた文は run の置き場の FINAL_GATE_FILE にも残す（元 line_edge.py:887 の final-gate.md）。
+出口の語 pr（始めの記録の入力 deliver）の run では、報告へ進めると対象に書く事（push 先の run の枝と向け先の既定の枝。merge が積む
+前に照らすのと同じ lib/runbranch.py の pr_branches で文を組む時だけ読み、積む前に止まる見込みならその訳。封じた差分が無ければ積まない
+こと）を答え方の前に 1 行出す。
 """
 import os
 import sys
@@ -37,6 +40,7 @@ with boundary.guarded_imports():
     import answer
     import conflict
     import declared_checks
+    import entry
     import eyeverdict
     import fixbeside
     import fixboard
@@ -48,6 +52,7 @@ with boundary.guarded_imports():
     import protect
     import querytest
     import replan
+    import runbranch
     import runreport
     import seal
     import startrec
@@ -321,12 +326,33 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines += eye_lines(got)
     lines += question_lines(got)
     lines += [f"- {why_}" for why_ in got["unread"]]
-    lines += [f"- 封じた差分の hash: {got['hash'] or '（無い）'}", f"- この文の控え: run の置き場の {FINAL_GATE_FILE}", "",
+    lines += [f"- 封じた差分の hash: {got['hash'] or '（無い）'}", *pr_line(got),
+              f"- この文の控え: run の置き場の {FINAL_GATE_FILE}", "",
               "答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:",
               f"- 報告へ進める: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残る）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
     return "\n".join(lines) + "\n"
 
+
+
+def pr_line(got: dict) -> list:
+    """出口の語 pr の run で報告へ進めると対象に書く事（ほかの run は行を出さない）。封じた差分が無ければ merge-seal も merge-apply も
+    走らないので積まない。push 先と向け先の枝は文を組む時だけ読む（開かない run で origin を引かない）"""
+    if not got["deliver_pr"]:
+        return []
+    head = f"- 報告へ進める（continue）と（出口 deliver={entry.DELIVER_PR}）: "
+    if not (got["sealed"] and got["hash"]):
+        return [f"{head}封じた差分が無いので、承認しても積まず PR も作らない"]
+    branch, base, reason = runbranch.pr_branches(Path.cwd(), runbranch.ORIGIN)
+    done = (f"報告の前に run の枝 {branch} へ commit を積んで push し、{base} へ向けた PR を作る（merge はしない）" if not reason else
+            f"run の枝へ commit を積んで push し PR を作るはずだが、今の作業ツリーの読みでは積む前に止まる見込み（{reason}）")
+    return [f"{head}{done}。止めれば対象の repo に何も書かない"]
+
+
+def delivers_pr(start) -> bool:
+    """始めの記録の入力 deliver が出口の語 pr か"""
+    inputs = (start or {}).get("inputs")
+    return isinstance(inputs, dict) and str(inputs.get("deliver") or "").strip() == entry.DELIVER_PR
 
 
 def ask(got: dict, *, mode: str, unattended: bool, run_id: str) -> dict:
@@ -408,15 +434,15 @@ def after_rows(structure_after) -> tuple:
 
 
 def structure_missing(structure) -> str:
-    """計画の構造の目が落ちた周の 1 文（計画の返り structure の先の structure-state.json。structmark.note。元 line_edge._final_text の
+    """構造の目が落ちた run の 1 文（構造のブロックの返り structure の先の控え。structmark.note。元 line_edge._final_text の
     「構造のブロック: …」）。落ちていない・控えが無ければ空。指し札が読めなければその訳"""
     if structure is None:
         return ""
     try:
-        folder = boundary.resolve(structure).parent
+        state = boundary.resolve(structure)
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return f"構造の目の控えのポインタを読めない（{type(error).__name__}: {error}）"
-    return structmark.note(structmark.read(folder))
+    return structmark.note(structmark.read(state))
 
 
 def fix_beside(records) -> dict:
@@ -555,6 +581,7 @@ def got_of_env() -> dict:
         "tests": final_tests(tests),
         "worktree": str(Path.cwd().resolve()),
         "base_rev": str((start or {}).get("base_rev") or ""),
+        "deliver_pr": delivers_pr(start),
         "protected_hits": boundary.as_items(closing["protected_hits"]),
         "protected_count": protected_count(closing),
         "asked": asked,

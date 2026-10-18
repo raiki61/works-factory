@@ -33,6 +33,7 @@ RETURNS = {
     "before-tests": os.environ.get("INPUTS_BEFORE_TESTS", ""),
     "judge": os.environ.get("INPUTS_JUDGE", ""),
     "rejudge": os.environ.get("INPUTS_REJUDGE", ""),
+    "structure": os.environ.get("INPUTS_STRUCTURE", ""),
     "plan": os.environ.get("INPUTS_PLAN", ""),
     "plan-review": os.environ.get("INPUTS_PLAN_REVIEW", ""),
     "replan": os.environ.get("INPUTS_REPLAN", ""),

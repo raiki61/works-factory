@@ -191,13 +191,16 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
 
 
 def declared_files(rows, repo) -> set:
-    """changes の行の files を、リポジトリの根からの相対パスに揃えた集合"""
-    out = set()
+    """changes の行の files を、リポジトリの根からの相対パスに揃えた集合。絶対パスは、親のフォルダと根のリンク（macOS の /var と
+    /private/var など）を解いてから比べる（ファイルそのもののリンクは解かない）"""
+    out, root = set(), os.path.realpath(repo)
     for c in rows:
         for f in c.get("files") or []:
             if isinstance(f, str) and f.strip():
                 f = f.strip()
-                out.add(posixpath.normpath(os.path.relpath(f, repo) if os.path.isabs(f) else f))
+                if os.path.isabs(f):
+                    f = os.path.relpath(os.path.join(os.path.realpath(os.path.dirname(f)), os.path.basename(f)), root)
+                out.add(posixpath.normpath(f))
     return out
 
 

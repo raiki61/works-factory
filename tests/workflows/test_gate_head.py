@@ -126,7 +126,7 @@ def final_got(**kw) -> dict:
     """最後の関所の材料（ask_final.got_of_env の形）。既定は緑で、目は全部通り、申し出も守りのパスの当たりも無い"""
     eye = {"status": "pass", "reason": ""}
     got = {"tests_ok": True, "green": True, "red_cause": "", "ran_steps": None, "tests": {**declared_checks.gate_values({"by": declared_checks.ENGINE}), "unread": ""},
-           "worktree": "/tmp/tree", "base_rev": "0123456789abcdef", "protected_hits": [], "asked": [], "conflicts_unread": [],
+           "worktree": "/tmp/tree", "base_rev": "0123456789abcdef", "deliver_pr": False, "protected_hits": [], "asked": [], "conflicts_unread": [],
            "allowed_tests": [], "beside_unread": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [], "spec_changed": [], "spec_unchecked": False,
            "objection": "", "rejudge_verdict": "", "rejudge": [], "split": "", "unproven": [], "amend": [],
            "delta_review": None, "branch_rows": [], "handoffs": [], "mismatched": [], "stuck": [], "closure": [], "tests_left": [],

@@ -187,7 +187,8 @@ def gate_text(shape: dict, record: dict, run_id: str, notes: list) -> str:
     happened = f"run を始める前で止まった。入口: {startrec.words(shape)}"
     rest = [*fixture.lines(record), depth_words(record["inputs"], record),
             entry.features_part(record["features_off"], record["features_on"], adds(record),
-                                depth.tier_auto(depth.named(record.get("thickness")))), gatepolicy.head_words(record), *notes]
+                                depth.tier_auto(depth.named(record.get("thickness")))), gatepolicy.head_words(record),
+            entry.deliver_line(entry.deliver_word(record["inputs"]["deliver"])), *notes]
     lines = gatemarks.head3(happened, "この入力で run を始めるか、止めるか（打つ行は末尾の答え方）", gatemarks.NO_PUSH)
     lines += ["", *[f"- {x}" for x in rest if x], "", "答え方:",
               f"- 始める: {answer.line(run_id, 'continue', '<一言>')}",

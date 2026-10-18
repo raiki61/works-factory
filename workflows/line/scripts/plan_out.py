@@ -15,8 +15,7 @@ nothing_owed は計画ができなかった周のうち、直す義務の単位�
 の plan_edge）と同じく最後のテストと独立の目で周を締める（#291）。
 例外の時は計画ができなかった形（ready: false・done: true・rejects: []・nothing_owed: false）と止めの理由 works:line-script を返す。
 
-入力（with:）: plan の 11 の欄（10 の返りの欄と、plan が落ちても線が先へ進めてよい節の宣言 optional）と plan-review の 10 の欄
-（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit。宣言 optional はそのまま外へ運ぶ（受け皿 plan-rounds-out が collect へ運ぶ）
+入力（with:）: plan の 9 つの返りの欄と plan-review の 10 の欄（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit
 """
 import os
 import sys
@@ -25,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
-PLAN = ("ready", "plan", "structure", "ripple", "depth", "round", "fix_plan", "rejects", "nothing_owed", "gave_up", "optional")
+PLAN = ("ready", "plan", "ripple", "depth", "round", "fix_plan", "rejects", "nothing_owed", "gave_up")
 REVIEW = ("pass", "stalled", "review", "gate_passes", "gate", "design", "design_premises", "gate_axes", "ask_human", "questions")
 
 

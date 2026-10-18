@@ -1,9 +1,9 @@
 """計画のブロックが要る、今の works の盤面の読みの書き直し（盤面 b の代わりに値かファイルのパスを受ける）と、計画のブロックの
 置き場の小道具。元の関数は名前のまま、docstring に元の <パス>:<行>（今の works の pack.json の works.commit の版の works/ から）を書く。
 
-置き場（計画のブロックの run の置き場の plan/）: 周ごとの r<k>/（k は往復と案の直しを通して 1 から数える）と、使い回す構造の
-実測の structure/<鍵>/。周のフォルダの中:
-- round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）, structure（周の節が読む構造の置き場。plan/ からの相対のパス）,
+置き場（計画のブロックの run の置き場の plan/）: 周ごとの r<k>/（k は往復と案の直しを通して 1 から数える）。構造の目の行は
+入力 structure の指し札の先の控え（structmark の形。構造のブロックが run に 1 回書く）から読み、隣のファイルを名で開かない。周のフォルダの中:
+- round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）,
   at（周を開いた時刻。読んだ証拠の記録を切る。reads.TS_FORMAT）}
 - slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料。拒まれた後の回は出し直しの
   役の短い指示書 rolekit.write_resubmit）・rejects-plan.json（拒否の控え。rolekit）・candidate-plan.json（受け付けが合わせた答えの控え。2 往復目からは前の往復の行を差し込んだ案の全体）・
@@ -15,10 +15,10 @@
   replan.json（形 replan の時。replan.TRIP_FILE の行の形）・ripple-units.json・ripple.json・trace.jsonl
 - handoff.json（住処は lib/handoff.py。受け付けた返答の頭の欄 handoff.FIELD。役が次の周の自分へ書いた引き継ぎのメモ: 読んだ所・保つと決めた事・脇に置いた案・まだ決まっていない所。
   案の控えには入れず、次の周の材料が handoff.section でパスで名指す）
-- prior-failures-in.json（入力 prior_failures の行の写し。carry.PRIOR_IN_FILE）・structure/（役を起こさない周の構造の控え）
+- prior-failures-in.json（入力 prior_failures の行の写し。carry.PRIOR_IN_FILE）
 
 - 直す義務: is_open（元 works/.shared/core/scripts/review-record.py:624）・_owed_units（元 works/.shared/core/conflict.py:676 の owed_units_but_asked）・
-  slots・plan_slots・stuck_reason・not_allowed（元 works/blk-plan/lib/planblk.py:316・:366・:407）・named（no を id に戻す）・
+  slots・plan_slots・stuck_reason・held_why（周が役を起こさない訳）・not_allowed（元 works/blk-plan/lib/planblk.py:316・:366・:407）・named（no を id に戻す）・
   fix_plan_covers_units（元 rules/review-loop.py:3077。例外の代わりに行を返す）
 - 案の直し: _plan_errors（元 works/.shared/core/replan.py:478）・exists_at（元 replan.py の _start_tree）・revised_fields（元 replan.py:365）・
   replan_section（元 replan.py の _section）・item_brief（元 replan.py:291 material の brief の行。planbrief.render で組む）
@@ -33,23 +33,18 @@
 - 拒まれた後の出し直し（#571）: RESUBMIT_RULES・REPLAN_RESUBMIT_RULES（出し直しの役の指示書 rolekit.write_resubmit に差し込む
   返し方）・merge_plan_items・merge_resubmit・merge_replan_resubmit（拒まれた所だけの出し直しを前の答えと合わせる。
   rolekit.resubmitted に渡す）・round_slots（形 plan の周の単位の名の並び）
-- 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）・
-  keep_state（書けない周の控え）
-- 周と出口: next_round・accepted_rounds・latest・structure_key・open_round・ripple_units・ripple_items・owed_order・collect・placeholders・
+- 周と出口: next_round・accepted_rounds・latest・open_round・ripple_units・ripple_items・owed_order・collect・placeholders・
   PORTS・FROM・returned（返す節の出力の欄のうち、ほかのブロックが読む周のフォルダの控え。ほかは欄で受け、名で開かない）・
   require_ports（この版より前に走った計画の返りを resume で受けたか）
 """
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import pathlib
 import posixpath
 import subprocess
 import sys
-import time
-from datetime import datetime, timezone
 
 _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
@@ -61,10 +56,8 @@ import accept  # noqa: E402
 import carry  # noqa: E402
 import concepthome  # noqa: E402
 import conflict  # noqa: E402
-import context  # noqa: E402
 import converge  # noqa: E402
 import depth  # noqa: E402
-import eye  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import handoff  # noqa: E402
@@ -81,7 +74,6 @@ import replan  # noqa: E402
 import ripple  # noqa: E402
 import reads  # noqa: E402
 import rolekit  # noqa: E402
-import stage_a  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
 
@@ -97,13 +89,6 @@ ITEM_BRIEF_FILE = "item-brief-{no}.md"   # 案の直しで直す項目の brief�
 TREE_FILE = "tree.json"            # 修正案の役を起こす前の作業ツリーの姿（accept.tree_state。支度の節が回ごとに置き直す）
 RIPPLE_UNITS_FILE = "ripple-units.json"
 RIPPLE_FILE = "ripple.json"
-STRUCTURE_DIR = "structure"
-UNREAD_STRUCTURE = f"{STRUCTURE_DIR}/unread"
-UNITS_FILE = "units.json"
-SKIPPED_FILE = "skipped-units.json"
-STRUCTURE_FILE = "structure.json"
-DESIGN_FILE = "design.jsonl"
-KEY_LEN = 12
 # 返す節の出力の欄 → 周のフォルダの控え。ほかのブロックとメイングラフはこの欄で受け、名で開かない（docs/design.md の「plan の出力」）。
 # PORTS はポインタの欄（先が無ければ null）、FROM は中身の欄とその元の控え。欄 gave_up（諦めの行）は note_gave_up の返り
 PORTS = {"fix_plan": FIX_PLAN_FILE}
@@ -115,7 +100,6 @@ BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテス�
 COVERS_REJECT = "単位の網羅に誤りが在る（直す義務の単位は全部、どれか 1 つの項目にちょうど 1 度入れる）。案に入れてよい no は"
 MALFORMED_REJECT = "修正案の返答の形が崩れている（plan は項目の object の配列で、各項目の narrows は配列）。指示書の JSON Schema に合う形で出し直せ"
 NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"
-UNWRITABLE_STATE = "構造の控えを書けない"
 NO_PLAN = "受け付けを通った修正案が無い（修正案のループが回らなかったか、途中で落ちた）"
 UNITS_HEAD = promptsection.Section("## 今の周に直す単位（機械が判定から貼った。案の unit_keys は下の no で指せ）", source="fn:planfile.units_section")
 REPO_LINE = "リポジトリ: {repo}（読む版: `{rev}`）　BASE: `{base}`　観点の正本: {review_md}"
@@ -217,6 +201,19 @@ def world_rows(raw: str, locate) -> tuple:
         return [], str(e)
 
 
+def round_inputs(locate, *, start: str, judgment: str, world: str, ties: str = "", materials: str = "", review: str = "",
+                 replan: bool = False) -> tuple:
+    """周を開く口（open_round）に渡す入力を指し札の字から読む: (判定, 事前審査の指摘, 読めない入力の訳)。訳は読めない
+    入力ごとの訳を「。」で繋いだ字（全部読めれば空）で、open_round の why に渡す。判定の読めなさは形 replan（replan）では数えない。
+    計画の 1 回目の周が役を起こすかを前もって決める呼び手も、周と同じ入力の同じ並びで決めるようにこの関数を引く"""
+    start_doc, bad_start = read_pointed(start, locate)
+    judgment_doc, bad_judgment = read_judgment(judgment, start_doc, locate, ties=ties, materials=materials)
+    review_doc, bad_review = read_pointed(review, locate)
+    _, bad_world = world_rows(world, locate)
+    bad = [("start が", bad_start), ("review が", bad_review), ("world が", bad_world), ("判定が", "" if replan else bad_judgment)]
+    return judgment_doc, review_doc, "。".join(f"{name}読めない（{b}）" for name, b in bad if b)
+
+
 def units_of(raw: str):
     """単位の目録の字を値に（JSON でなければ字のまま。段 A の読みが形の誤りを言う）"""
     try:
@@ -226,17 +223,13 @@ def units_of(raw: str):
 
 
 def read_round(round_dir) -> dict:
-    """周のフォルダの round.json（無い・読めなければ、フォルダの名の番号と形 plan・役を起こさない形・構造の置き場 UNREAD_STRUCTURE）。
-    structure は置き場 plan/ からの相対のパス"""
+    """周のフォルダの round.json（無い・読めなければ、フォルダの名の番号と形 plan・役を起こさない形）"""
     got = jsonfile.read_or(pathlib.Path(round_dir) / ROUND_FILE, {})
     name = pathlib.Path(round_dir).name
-    base = {"round": int(name[1:]) if name[:1] == "r" and name[1:].isdigit() else 1, "mode": "plan", "go": False, "why": "", "items": [],
-            "structure": UNREAD_STRUCTURE}
+    base = {"round": int(name[1:]) if name[:1] == "r" and name[1:].isdigit() else 1, "mode": "plan", "go": False, "why": "", "items": []}
     doc = {**base, **got} if isinstance(got, dict) else base
     if doc["mode"] not in ("plan", "replan"):
         doc["mode"] = "plan"
-    if not isinstance(doc["structure"], str):
-        doc["structure"] = UNREAD_STRUCTURE
     if not isinstance(doc["items"], list):
         doc["items"] = []
     return doc
@@ -292,6 +285,14 @@ def stuck_reason(judgment) -> str:
     names = slots(judgment)
     items = "・".join(f"no {names.index(k) + 1}（{k}）" if k in names else f"no の一覧に無い単位（{k}）" for k in stuck)
     return f"{planblk.PLAN_STUCK}: {items}。{planblk.STUCK_WHY}"
+
+
+def held_why(judgment) -> str:
+    """判定（read_judgment の返り。読めなければ None）の計画の周が修正案の役を起こさない訳: 判定が読めない・直す義務の単位が無い
+    （NOTHING_OWED）・行き止まりの単位が在る（stuck_reason）。起こすなら空（元 works/blk-plan/lib/planblk.py:1062 の snap の go）"""
+    if not isinstance(judgment, dict):
+        return "判定が読めない"
+    return NOTHING_OWED if not _owed_units(judgment) else stuck_reason(judgment)
 
 
 def _shut(judgment, reply) -> list:
@@ -455,11 +456,11 @@ def ruling_text(rows: list) -> str:
     return "／".join(str((c.get("ruling") or {}).get("text") or "") for c in rows) or NO_ROWS
 
 
-def item_brief(round_dir, n: int, old: dict, fields: dict, judgment, structure_dir_) -> pathlib.Path:
+def item_brief(round_dir, n: int, old: dict, fields: dict, judgment, structure) -> pathlib.Path:
     """承認済みの項目 n の brief（planbrief.render。修正のブロックが項目ごとに切る物と同じ部品・同じ材料）を周のフォルダの
     ITEM_BRIEF_FILE に書く（元の修正の段の brief-<n>.md は fix の置き場に在り、このブロックは開かない）"""
     path = pathlib.Path(round_dir) / ITEM_BRIEF_FILE.format(no=n)
-    path.write_text(planbrief.render(n, old, fields, _units(judgment), "", structmark.plan_section(structure_dir_)),
+    path.write_text(planbrief.render(n, old, fields, _units(judgment), "", structmark.plan_section(structure)),
                     encoding="utf-8")
     return path
 
@@ -537,16 +538,8 @@ def latest(plan_dir, *, before=None):
     return got[-1] if got else None
 
 
-def structure_key(units, head: str) -> str:
-    """構造の実測の使い回しの鍵（単位の目録と対象の HEAD の sha256 の頭 KEY_LEN 字）"""
-    text = json.dumps(units, ensure_ascii=False, sort_keys=True) + "\n" + (head or "")
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:KEY_LEN]
-
-
-def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = "") -> dict:
-    """周のフォルダ r<k> を作り、round.json に周の事実を置く。形は ruling が空でなければ replan。周の中の節が読む構造の置き場
-    （structure_dir。置き場からの相対のパス。役を起こさない周は周のフォルダの中の structure/ で、使い回す実測の控えに書かない）を
-    ここで 1 度だけ決める。受けた review（事前審査の返答。
+def open_round(plan_dir, *, ruling, judgment, review, why: str = "") -> dict:
+    """周のフォルダ r<k> を作り、round.json に周の事実を置く。形は ruling が空でなければ replan。受けた review（事前審査の返答。
     形 plan の時だけ）を review/p2.plan_review.json に写す。役を起こすか（go）: plan は判定が読めて直す義務の単位が在り行き止まりが
     無い時、replan は直す元の案と渡す項目が在る時。why は呼び手が読めなかった入力の訳（在れば go は偽）。
     返りは round.json の中身と、周のフォルダの run の置き場からの相対のパス dir"""
@@ -556,10 +549,9 @@ def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = ""
     mode = "replan" if ruling else "plan"
     if mode == "plan" and isinstance(review, dict):
         _write_json(d / REVIEW_FILE, review)
-    items, prev = [], None
+    items = []
     if not why and mode == "plan":
-        why = (NOTHING_OWED if not _owed_units(judgment) else stuck_reason(judgment)) if isinstance(judgment, dict) \
-            else "判定が読めない"
+        why = held_why(judgment)
         if not why:
             _write_json(d / SLOTS_FILE, slots(judgment))
     elif not why:
@@ -568,134 +560,15 @@ def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = ""
             why = "直す元の承認済みの修正案が無い"
         else:
             items, why = planmarks.handed(ruling, len(_rows(jsonfile.read_or(prev / REPLY_FILE), "plan")))
-    structure = (f"{d.name}/{STRUCTURE_DIR}" if why
-                 else structure_dir(plan_dir, units, repo, prev).relative_to(plan_dir).as_posix())
-    doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items, "structure": structure, "at": reads.stamp()}
+    doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items, "at": reads.stamp()}
     _write_json(d / ROUND_FILE, doc)
     return {**doc, "dir": f"{PLAN_DIR}/{d.name}"}
 
 
-# ---------------------------------------------------------------- 構造の実測（段 A）と構造の目の控え
-def _head(repo) -> str:
-    try:
-        return _git(repo, "rev-parse", "HEAD").strip()
-    except _Unreadable:
-        return ""
-
-
-def _measured_units(units) -> tuple:
-    """(測る単位の目録, paths が空で測らない単位の id)。目録が配列でなければそのまま返し、段 A の読みが形の誤りを言う"""
-    if not isinstance(units, list):
-        return units, []
-    rows = [u for u in units if not (isinstance(u, dict) and isinstance(u.get("paths"), list) and not u["paths"])]
-    return rows, [u.get("id") for u in units if isinstance(u, dict) and u not in rows]
-
-
-def structure_dir(plan_dir, units, repo, source=None) -> pathlib.Path:
-    """構造の実測の置き場 structure/<鍵>/。案の直し（replan）は直す元の周のフォルダ source の round.json の structure をそのまま使う
-    （修正の後の作業ツリーを鍵に入れない。直した後の構造は eyes が測る）"""
-    if source is not None:
-        return pathlib.Path(plan_dir) / read_round(source)["structure"]
-    return pathlib.Path(plan_dir) / STRUCTURE_DIR / structure_key(_measured_units(units)[0], _head(repo))
-
-
-def measure(out_dir, units, root, policy_path: str) -> dict:
-    """段 A の実測（元 works/blk-structure/scripts/stage_a.py の main）。同じ鍵の控え structure-state.json が在れば測らない（reused）。
-    paths の在る単位を units.json に、paths の空な単位の id を skipped-units.json に書き、単位ごとに stage_a.measure_unit で測って
-    structure.json を書き、design.jsonl を 0 バイトで置き直す。落ちても structure.json の status: failed と reason に残す。
-    返り {structure_file, design_file, eye（構造の目を起こすか。eye.due）, reused}"""
-    out_dir = pathlib.Path(out_dir)
-    structure, design = out_dir / STRUCTURE_FILE, out_dir / DESIGN_FILE
-    if (out_dir / structmark.STATE_FILE).is_file():
-        return {"structure_file": str(structure), "design_file": str(design), "eye": False, "reused": True}
-    out_dir.mkdir(parents=True, exist_ok=True)
-    rows, skipped = _measured_units(units)
-    _write_json(out_dir / UNITS_FILE, rows)
-    _write_json(out_dir / SKIPPED_FILE, skipped)
-    t0, started = time.monotonic(), _now()
-    design.write_bytes(b"")
-    eye.reset(out_dir)
-    root = pathlib.Path(root).resolve()
-    doc = {"status": "ok", "reason": "", "root": str(root), "policy_path": policy_path, "units": []}
-    try:
-        got = stage_a.read_units(str(out_dir / UNITS_FILE))
-    except ValueError as e:
-        doc.update(status="failed", reason=str(e))
-    else:
-        found = context.find(root)
-        doc["units"] = [{**stage_a.measure_unit(u, root), "concepts": context.concepts(root, u["paths"], found)} for u in got]
-        if found["reason"]:
-            doc["concepts_reason"] = found["reason"]
-        failed = [u["id"] for u in doc["units"] if u["status"] == "failed"]
-        if failed:
-            doc.update(status="failed", reason=f"実測が落ちた単位: {', '.join(failed)}")
-    doc["rules"] = context.rules(root, policy_path)
-    eye.stamp(doc, t0, started_at=started, finished_at=_now())
-    _write_json(structure, doc)
-    return {"structure_file": str(structure), "design_file": str(design), "eye": eye.due(doc), "reused": False}
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def _outcome(doc: dict, kept: dict, rejects: list) -> tuple:
-    """(status, reason)（元 works/blk-structure/scripts/collect.py の outcome。輪の出口の代わりに目の控え eye.json と
-    拒否の控え rejects（rolekit.rejected）を読む）"""
-    if doc.get("status") != "ok":
-        return "failed", f"実測が落ちた: {doc.get('reason') or '理由の記録が無い'}"
-    if not eye.due(doc):
-        return "ok", ""
-    if kept.get("status") == "ok":
-        return "ok", ""
-    if kept.get("status") == "gave_up":
-        return "failed", f"構造の目の返答が {len(rejects) or '?'} 回とも受け付けで拒まれた: {rejects[-1] if rejects else ''}"
-    return "failed", "構造の目の会話が落ちたか走らなかった（目の受け付けの控えが無いか途中のまま）"
-
-
-def write_state(out_dir, *, skipped: str = "") -> pathlib.Path:
-    """構造の目の控え structure-state.json（structmark の形）。在れば書き直さない（使い回し）。structure.json が読めなければ failed。
-    skipped（役を起こさない周の訳）が在れば測らなかった周として failed とその訳（design.jsonl は 0 バイトで置く）"""
-    out_dir = pathlib.Path(out_dir)
-    state = out_dir / structmark.STATE_FILE
-    if state.is_file():
-        return state
-    if skipped:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / DESIGN_FILE).write_bytes(b"")
-        return structmark.write(out_dir, status="failed", reason=f"役を起こさない周で、構造を測らなかった: {skipped}",
-                                design_file=str(out_dir / DESIGN_FILE), wall_s=0)
-    doc = jsonfile.read_or(out_dir / STRUCTURE_FILE)
-    kept = eye.state(out_dir)
-    if isinstance(doc, dict):
-        status, reason = _outcome(doc, kept, rolekit.rejected(out_dir, eye.NAME))
-    else:
-        status, reason = "failed", f"段 A の {STRUCTURE_FILE} が読めない"
-    return structmark.write(out_dir, status=status, reason=reason, design_file=str(out_dir / DESIGN_FILE),
-                            wall_s=round(eye.wall(doc) + eye.wall(kept), 3))
-
-
-def keep_state(plan_dir, round_dir) -> pathlib.Path:
-    """周の構造の目の控えを書く（write_state。役を起こさない周は測らなかった訳で failed）。構造の置き場に書けなければ節を落とさず、
-    周のフォルダの structure/ に UNWRITABLE_STATE の訳で failed の控えを置き、round.json の structure をそこへ替えて計画へ進む
-    （元 works/darkfactory/lib/line_edge.py の structure_edge）"""
-    plan_dir, round_dir = pathlib.Path(plan_dir), pathlib.Path(round_dir)
-    rnd = read_round(round_dir)
-    try:
-        return write_state(plan_dir / rnd["structure"], skipped="" if rnd["go"] else rnd["why"])
-    except OSError as e:
-        own = f"{round_dir.name}/{STRUCTURE_DIR}"
-        _write_json(round_dir / ROUND_FILE, {**rnd, "structure": own})
-        out = plan_dir / own
-        out.mkdir(parents=True, exist_ok=True)
-        (out / DESIGN_FILE).write_bytes(b"")
-        return structmark.write(out, status="failed", reason=f"{UNWRITABLE_STATE}（{rnd['structure']}）: {e}",
-                                design_file=str(out / DESIGN_FILE), wall_s=0)
-
-
-def answer_tables(structure_dir_, world_rows) -> list:
-    """構造と世界の解の行の答えの要る表（今の works の planrange.answer_tables と同じ表を structmark と worldmark から組む）"""
-    return [planmarks.design_need(structmark.dirty(structure_dir_)), worldmark.need(world_rows or [])]
+def answer_tables(structure, world_rows) -> list:
+    """構造と世界の解の行の答えの要る表（今の works の planrange.answer_tables と同じ表を structmark と worldmark から組む）。
+    structure は構造の目の控えのパス（入力 structure の指し札の先。無い run は None）"""
+    return [planmarks.design_need(structmark.dirty(structure)), worldmark.need(world_rows or [])]
 
 
 # ---------------------------------------------------------------- 材料
@@ -748,7 +621,7 @@ def _existing(path) -> str:
     return str(path) if path is not None and pathlib.Path(path).is_file() else ""
 
 
-def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, units, structure_dir_, world_rows, spec,
+def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, units, structure, world_rows, spec,
                 repo, review_rev: str, base: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
                 prior_failures=None, unread=(), recorded: str = "", excluded_file=None, verify_file=None, depth_file=None) -> tuple:
     """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す（拒まれた後の回の brief-<n>.md は、ふつうは
@@ -762,7 +635,8 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
     prompt_append の policy-path.md と policy.md）・2 往復目からは前の周の案と事前審査の指摘と前の周の波及の一覧。形 replan は
     ほかに REPLAN_ASK・直す項目ごとの前の形と申し出と裁定の文を足す（前の周は、直す元の案の周）。
     judgment_file は判定の記録の絶対パス（処方の節に出どころとして名指す。無い run は None）。excluded_file・verify_file・depth_file は
-    判定の出力の欄 pr_excluded・verify・depth_record の先のパス（無い run は None）"""
+    判定の出力の欄 pr_excluded・verify・depth_record の先のパス（無い run は None）。structure は構造の目の控えのパス（入力 structure の
+    指し札の先。無い run は None で、構造の目の行の節は無い）"""
     round_dir, plan_dir = pathlib.Path(round_dir), pathlib.Path(plan_dir)
     prev = latest(plan_dir, before=round_dir)
     unread = list(unread)
@@ -782,18 +656,18 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
         parts = [*common, replan.REPLAN_ASK,
                  *(replan_section(i, rows[i - 1], conflict_rows(conflicts, i, rows[i - 1]),
                                   str(item_brief(round_dir, i, rows[i - 1], fields[i - 1] if i <= len(fields) else {},
-                                                 judgment, structure_dir_)))
+                                                 judgment, structure)))
                    for i in items)]
     else:
         owed, opened, _ = plan_slots(judgment)
-        skipped = jsonfile.read_or(pathlib.Path(structure_dir_) / SKIPPED_FILE, [])
+        skipped = structmark.skipped(structure)
         world = worldmark.section(world_rows or [])
         doc = jsonfile.read_or(round_dir / RIPPLE_UNITS_FILE)
         record = converge_record(plan_dir)
         parts = [*common, units_section(judgment, units, skipped, converge.filled_units(record)),
                  repo_line(repo, review_rev, base, review_md),
                  prescription_section([k for k in slots(judgment) if k in owed | opened], prescriptions(judgment), judgment_file),
-                 structmark.plan_section(structure_dir_),
+                 structmark.plan_section(structure),
                  f"{world}\n{worldmark.PLAN_ASK}\n" if world else "",
                  ripple.units_section(doc) if isinstance(doc, dict) else "",
                  planblk.verify_part(_existing(verify_file)),
@@ -1030,16 +904,16 @@ def merge_replan_resubmit(prev: dict, part: dict) -> dict:
 
 
 # ---------------------------------------------------------------- 読んだ証拠
-def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, repo) -> dict:
+def collect_reads(round_dir, log, *, role: str, policy_md: str, repo) -> dict:
     """この周に起こした修正案の役 role が、機械が渡したパス（周の材料 brief-*.md・この周の拒否の理由の全部 rolekit.rejects_text_path・方針の文書の固めた写し）
     を読んだ証拠を reads.collect で集め、{役: 役ごとの証拠のパス} の索引を周のフォルダに書く（元 planblk.collect_reads）。記録は周を
-    開いた時刻（round.json の at）から後の、この周の材料 brief-*.md を読んだ session の行で切る。道具を持たない役 quiet は読む物が無いので null で名指す。役を起こさない周は
+    開いた時刻（round.json の at）から後の、この周の材料 brief-*.md を読んだ session の行で切る。役を起こさない周は
     索引の why に reads.NOT_LAUNCHED と訳。形 replan は役の名と索引を reads の案の直しの名にする（1 回目の物を上書き
     しない）。受け付けの条件にしない。返り {ok: True, missing, index_file}"""
     round_dir = pathlib.Path(round_dir)
     rnd = read_round(round_dir)
     again = rnd["mode"] == "replan"
-    index = {reads.role_key(r, again): None for r in (role, *quiet)}
+    index = {reads.role_key(role, again): None}
     missing = []
     if rnd["go"]:
         briefs = [str(p) for p in sorted(round_dir.glob(BRIEF_FILE.format(n="*")))]
@@ -1152,21 +1026,15 @@ def _filled(path: pathlib.Path) -> bool:
     return path.is_file() and path.stat().st_size > 0
 
 
-def placeholders(round_dir, structure_dir_, reason: str) -> dict:
-    """返りの指し札の先（plan-fields.json・structure-state.json・ripple.json）が在って空でないようにし、置き場からの相対でない
-    フルパスを {plan, structure, ripple} で返す。無い物は「無い」を表す形で書く（{round, fields: []}・status: failed・{items: [], error}）"""
-    round_dir, structure_dir_ = pathlib.Path(round_dir), pathlib.Path(structure_dir_)
+def placeholders(round_dir, reason: str) -> dict:
+    """返りの指し札の先（plan-fields.json・ripple.json）が在って空でないようにし、置き場からの相対でないフルパスを {plan, ripple} で
+    返す。無い物は「無い」を表す形で書く（{round, fields: []}・{items: [], error}）"""
+    round_dir = pathlib.Path(round_dir)
     round_dir.mkdir(parents=True, exist_ok=True)
-    structure_dir_.mkdir(parents=True, exist_ok=True)
     why = reason or NO_PLAN
-    plan, state, rip = round_dir / planmarks.FIELDS_FILE, structure_dir_ / structmark.STATE_FILE, round_dir / RIPPLE_FILE
+    plan, rip = round_dir / planmarks.FIELDS_FILE, round_dir / RIPPLE_FILE
     if not _filled(plan):
         _write_json(plan, {"round": read_round(round_dir)["round"], "fields": []})
-    if not _filled(state):
-        design = structure_dir_ / DESIGN_FILE
-        if not design.is_file():
-            design.write_bytes(b"")
-        structmark.write(structure_dir_, status="failed", reason=why, design_file=str(design), wall_s=0)
     if not _filled(rip):
         _write_json(rip, {"items": [], "error": why})
-    return {"plan": plan, "structure": state, "ripple": rip}
+    return {"plan": plan, "ripple": rip}

@@ -494,7 +494,7 @@ class FixFixtureTest(unittest.TestCase):
 
     def test_roles_start_from_the_fix(self):
         ran = NoFixRoundTest.ran
-        for node in ("test-gate-base__run", "judge__intake", "judge__verdict", "plan-rounds", "plan__plan", "ask-before-fix",
+        for node in ("test-gate-base__run", "judge__intake", "judge__verdict", "structure__structure", "plan-rounds", "plan__plan", "ask-before-fix",
                      "gate-before-fix", "answer-before-fix", "design-only"):
             self.assertFalse(ran(self.trace, node), node)
         for node in ("gate-start", "fix-in", "fix__fix", "fixed", "judged", "test-gate-final__result", "eyes__verdict", "collect"):
@@ -503,7 +503,7 @@ class FixFixtureTest(unittest.TestCase):
     def test_collect_reads_the_carried_values(self):
         carried = json.loads(self.trace["fix-in"]["output"])["received"]
         collected = json.loads(self.trace["collect"]["output"])
-        for name in ("test_gate_base", "judge", "plan", "plan_review"):
+        for name in ("test_gate_base", "judge", "structure", "plan", "plan_review"):
             self.assertEqual(collected[name], carried[name], name)
 
     def test_spec_check_passes_without_a_spec_stage(self):
