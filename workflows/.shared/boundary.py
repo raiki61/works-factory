@@ -26,6 +26,7 @@ Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.m
   run の作業ツリーの根
 - own_prefix(execution): 自分の include の名前空間の節の id の頭（run の記録の行の step と比べる）
 - shared_cache(): run をまたぐ控えの根
+- suite_keep(): run と対象をまたぐ TDD の実行器の取り置きの根（利用者ごと。起動の殻が決めて渡す）
 - RUNNER_PREFIXES・RUNNER_NAMES・drop_runner_env(user_env): Archon が script の節に立てる変数
 - USER_ENV_RAN_DIR・aim_user_env(place): 対象のコマンドを利用者の HOME・XDG に戻して起こした印を、入力で受けた置き場 place（メイングラフの
   run の置き場）へ置かせる変数（lib/userenv.py の RAN_DIR_ENV。drop_runner_env が先に立てる）。置き場が空なら変数を外す（起動の殻を
@@ -54,6 +55,8 @@ RUNTIME_COPY_DIRS = ((RUNTIME_COPY,),)
 SKIP = (RUNTIME_COPY_PREFIX,)
 SHARED_CACHE_ENV = "STATE_DIR"
 SHARED_CACHE = "works-factory"
+# 起動の殻が利用者ごとの取り置きの根を置く変数（bin/_lib/launcher.py の SUITE_KEEP_ENV の写し。tests/shared/test_boundary.py が突き合わせる）
+SUITE_KEEP_ENV = "WORKS_FACTORY_SUITE_KEEP"
 
 # Archon が script の節に立てる変数（exec-environment.ts の buildExecNodeEnvironment。tests/shared/test_archon_contract.py が照らす）。
 # 頭の一致は ARCHON_・INPUTS_ だけで、ほかは名の完全一致（CONTEXT などを頭で落とすと利用者の変数まで落とす）
@@ -278,6 +281,13 @@ def shared_cache() -> Path | None:
     控えを使わない"""
     state = os.environ.get(SHARED_CACHE_ENV)
     return Path(state) / SHARED_CACHE if state else None
+
+
+def suite_keep() -> Path | None:
+    """TDD の実行器の取り置きの根（起動の殻が利用者ごとに決めて SUITE_KEEP_ENV で渡す。run と対象がまたいで使う）。
+    渡されなければ None で、取り置かない"""
+    keep = os.environ.get(SUITE_KEEP_ENV)
+    return Path(keep) if keep else None
 
 
 def prev_reason() -> dict:
