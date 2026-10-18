@@ -1354,7 +1354,7 @@ class ResultScriptCase(ScriptCase):
 
 class SuiteLoopCase(ScriptCase):
     """#516: tdd_suite を省いた run の base で TDD の実行器を用意する輪の script（suite-prep → 書き手の返り → suite-place → suite-try）。
-    取り置きの根は起動の殻が家の下へ向ける XDG_STATE_HOME（境の口 suite_keep）を一時の置き場に向ける"""
+    取り置きの根（起動の殻が渡す launcher.SUITE_KEEP_ENV。境の口 suite_keep）は一時の置き場に向ける"""
     CMD = "true"
     # 名 test_x が failure（赤）、test_y が通る JUnit XML を第 1 引数に書いて 1 で抜ける実行器
     RED = ("#!/bin/sh\nprintf '%s' \"<testsuite><testcase classname='test_a.TestA' name='test_x'><failure message='0 != 10'/>"
@@ -1363,11 +1363,11 @@ class SuiteLoopCase(ScriptCase):
 
     def setUp(self):
         super().setUp()
-        self.declared = {"XDG_STATE_HOME": str(self.tmp / "home" / "xdg-state")}
+        self.declared = {launcher.SUITE_KEEP_ENV: str(self.tmp / "suites")}
         self.write_start(test_cmd=f" {self.CMD} ")
 
     def kept(self) -> pathlib.Path:
-        return self.tmp / "home" / "xdg-state" / "works-factory" / "suites" / hashlib.sha256(self.CMD.encode("utf-8")).hexdigest()
+        return self.tmp / "suites" / hashlib.sha256(self.CMD.encode("utf-8")).hexdigest()
 
     def put_kept(self, body: str) -> None:
         self.kept().parent.mkdir(parents=True)

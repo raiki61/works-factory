@@ -692,15 +692,34 @@ class LauncherTest(unittest.TestCase):
 
     def test_fence_denies_what_later_launches_run_outside_the_sandbox(self):
         """後の役の起動と次の起動が sandbox の外で走らせる物（殻・gh の口・本物の claude・包みを起こす Python・取り置いた Archon の源・
-        工場の checkout の根の全体〔根に置いた .py も次の起動の import に勝つ〕）は、禁じる一覧に入る"""
+        TDD の実行器の取り置き〔次の run の試験の関門が走らせる〕・工場の checkout の根の全体〔根に置いた .py も次の起動の import に勝つ〕）は、
+        禁じる一覧に入る"""
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
         argv = self.fence_of(env)
         own = {argv[i + 1] for i, a in enumerate(argv) if a == "--own"}
         home = self.default_home(self.target)
         self.assertEqual(own, {str(home / launcher.FENCE_DIR), str(home / launcher.HOST_GH_DIR),
                                str(self.cache_home / "works-factory"),
+                               str(self.home / ".local" / "state" / "works-factory" / launcher.SUITE_KEEP),
                                str(self.repo),
                                sys.prefix, sys.base_prefix, os.path.realpath(self.fake / "claude")})
+
+    def test_runner_keep_is_shared_across_targets_and_made_by_the_launch(self):
+        """#516: TDD の実行器の取り置きは利用者ごとに 1 つで、対象をまたいで使い回す（持ち主の決め suite-by-ai）。既定の家では別の対象 2 つが
+        同じ取り置き（対象ごとの家 targets/ の兄弟）を引き、家を選べばその下。殻が作って script のノードに渡す"""
+        other = self.tmp / "other-target"
+        other.mkdir()
+        git(other, "init", "-q")
+        default = self.home / ".local" / "state" / "works-factory" / launcher.SUITE_KEEP
+        for cwd in (self.target, other):
+            with self.subTest(target=str(cwd)):
+                env = self.reached(self.launch("workflow", "run", "works-factory-line", cwd=cwd))["env"]
+                self.assertEqual(env[launcher.SUITE_KEEP_ENV], str(default))
+        self.assertTrue(default.is_dir())
+        chosen = self.tmp / "chosen-home"
+        env = self.reached(self.launch("workflow", "run", "works-factory-line", WORKS_FACTORY_HOME=str(chosen)))["env"]
+        self.assertEqual(env[launcher.SUITE_KEEP_ENV], str(chosen / launcher.SUITE_KEEP))
+        self.assertTrue((chosen / launcher.SUITE_KEEP).is_dir())
 
     def test_env_file_naming_claude_bin_path_stops_the_run(self):
         """Archon が起きる場所の .env* か .archon/.env、ARCHON_HOME の .env が CLAUDE_BIN_PATH を名指すと、包みが外れるので起こさない"""

@@ -364,7 +364,7 @@
   - 使い回す時も毎回、機械が事実を照らす: 修正の前のテストの一式の回としてその実行器を 1 回走らせ、JUnit XML ができて試験が 1 件以上なら使う（照らしのためにテストを余分に走らせない）。通らなければ取り置きを捨て、その場で AI が書き直す。書き直したのも照らしが通った時だけ取り置く。
   - 照らしが通らなければ、今どおり TDD のループを飛ばして直に直す。報告の頭の 1 行に、取り置きを使った・書いた・書けなかったのどれかを出す（書けなかった時は訳も）。
   - 足すのは小さい AI の手番 1 回だけで、重い模型・長い探索は使わない。その費用は報告の「## 費用」にほかの段と同じ形で出る。
-- 当て方: test-gate の `suite-loop`（`suite-prep`・`suite-write`・`suite-place`・`suite-try`）と `lib/suitewrite.py`。取り置きの根は境の口の `suite_keep`（起動の殻が家の下へ向ける `XDG_STATE_HOME` の下 `works-factory/suites/`）。家を対象ごとに分ける既定の起動（`WORKS_FACTORY_HOME` を渡さない run）では、取り置きはその対象の家の中で育つ。書き手は試験の関門の CI の役と同じ群・道具・砂場で起こす（軽い群 `@wf-test-gate`。起こし方の行を増やさない）。今の works の S100・U074（`docs/works-parity.md`）を、`superset` と `lang-neutral` の両方を満たす形で戻した。
+- 当て方: test-gate の `suite-loop`（`suite-prep`・`suite-write`・`suite-place`・`suite-try`）と `lib/suitewrite.py`。取り置きの根は起動の殻が利用者ごとに決め（`bin/_lib/launcher.py` の `suite_keep`）、`WORKS_FACTORY_SUITE_KEEP` で script のノードへ渡す（境の口の `suite_keep`）。`WORKS_FACTORY_HOME` を渡した起動ではその下の `suites/`、渡さない既定の起動では隔離の前の `XDG_STATE_HOME`（無ければ `~/.local/state`）の下 `works-factory/suites/`（対象ごとの家 `targets/` の兄弟）で、どちらも対象をまたいで 1 つ。取り置いた実行器は次の run が sandbox の外で走らせるので、殻は根を読むだけの役の書き込みの柵（`write_fence` の `--own`）に入れる。書き手は試験の関門の CI の役と同じ群・道具・砂場で起こす（軽い群 `@wf-test-gate`。起こし方の行を増やさない）。今の works の S100・U074（`docs/works-parity.md`）を、`superset` と `lang-neutral` の両方を満たす形で戻した。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 

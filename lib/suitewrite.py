@@ -28,8 +28,10 @@
 - GATE_NOTE: 起動の承認ノードの文の 1 行
 """
 import hashlib
+import os
 import pathlib
 import sys
+import tempfile
 
 sys.dont_write_bytecode = True
 
@@ -182,10 +184,16 @@ def _drop(keep, start: dict, runner: str) -> None:
 
 def _put(path: pathlib.Path, data: bytes) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_bytes(data)
-    tmp.chmod(0o755)
-    tmp.replace(path)
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    tmp = pathlib.Path(name)
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(data)
+        tmp.chmod(0o755)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return str(path.resolve())
 
 

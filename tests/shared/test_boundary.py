@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bin._lib import isolate, launcher, place
+from bin._lib import launcher, place
 from tests import archon
 from tests.bin import hermetic
 
@@ -79,11 +79,11 @@ class ArchonFactsCase(unittest.TestCase):
                     os.environ.pop("STATE_DIR", None)
                 self.assertIsNone(boundary.shared_cache())
 
-    def test_suite_keep_is_under_the_isolated_state_home_or_none(self):
-        """#516: TDD の実行器の取り置きの根は、起動の殻が利用者の工場の家の下へ向ける変数（isolate.DIRS）の下。渡されなければ取り置かない"""
-        self.assertIn(boundary.SUITE_KEEP_ENV, isolate.DIRS)
-        with mock.patch.dict(os.environ, {boundary.SUITE_KEEP_ENV: "/home/xdg-state"}):
-            self.assertEqual(boundary.suite_keep(), pathlib.Path("/home/xdg-state/works-factory/suites"))
+    def test_suite_keep_is_what_the_launcher_hands_over_or_none(self):
+        """#516: TDD の実行器の取り置きの根は、起動の殻が利用者ごとに決めて渡す変数の値。渡されなければ取り置かない"""
+        self.assertEqual(boundary.SUITE_KEEP_ENV, launcher.SUITE_KEEP_ENV)
+        with mock.patch.dict(os.environ, {boundary.SUITE_KEEP_ENV: "/state/works-factory/suites"}):
+            self.assertEqual(boundary.suite_keep(), pathlib.Path("/state/works-factory/suites"))
         with mock.patch.dict(os.environ):
             os.environ.pop(boundary.SUITE_KEEP_ENV, None)
             self.assertIsNone(boundary.suite_keep())

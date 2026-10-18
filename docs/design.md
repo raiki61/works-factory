@@ -527,7 +527,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 
 ### test-gate（試験の関門）
 
-- 目的: 2 つの形で include する。base はテストの走らせ方を見つけ、直す前の結末を控える。final はテスト一式と CI を走らせ、赤の原因（今回入れた・元から・環境）を分け、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。機械で走らせられない時は任せ先の役が回す。入力 tdd_suite を省いた run の base は、走らせた後に TDD の実行器を用意する（`suite-loop`）: 同じ test_cmd で前に照らしを通った取り置き（利用者の工場の家の下。境の口の `suite_keep`）を使い、無ければ書き手の役が test_cmd と CI の定義から書く。その実行器を 1 回走らせた結末を機械が照らし（JUnit XML が出て試験が 1 件以上）、通れば始めの記録の tdd_suite に結ぶ。取り置きが通らなければ捨てて書き直す（持ち主の決め `suite-by-ai`）。
+- 目的: 2 つの形で include する。base はテストの走らせ方を見つけ、直す前の結末を控える。final はテスト一式と CI を走らせ、赤の原因（今回入れた・元から・環境）を分け、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。機械で走らせられない時は任せ先の役が回す。入力 tdd_suite を省いた run の base は、走らせた後に TDD の実行器を用意する（`suite-loop`）: 同じ test_cmd で前に照らしを通った取り置き（利用者ごとに 1 つで対象をまたぐ。起動の殻が決めて渡す境の口の `suite_keep`）を使い、無ければ書き手の役が test_cmd と CI の定義から書く。その実行器を 1 回走らせた結末を機械が照らし（JUnit XML が出て試験が 1 件以上）、通れば始めの記録の tdd_suite に結ぶ。取り置きが通らなければ捨てて書き直す（持ち主の決め `suite-by-ai`）。
 - ASF で読む物: `W/validate/archon-validate.yaml`（`mode`・`discover`・`run`・`classify`・`result`、`outcome_field: green`）と `W/deliver/scripts/gate-green.ts`（認証）と `W/.shared/validation-evidence.ts`（指紋）。
 - 入力: 形（base・final）・始めの記録。
 - 役（`commands/`）: `ci`・`suite-write`。
