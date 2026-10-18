@@ -30,15 +30,11 @@ def opened() -> dict:
         ruling, why = boundary.parsed(os.environ["INPUTS_RULING"]) or [], ""
     except ValueError as e:
         ruling, why = [], f"ruling が JSON の字でない: {e}"
-    start, bad_start = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
-    judgment, bad = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed,
-                                       ties=os.environ.get("INPUTS_ANSWER_TIES", ""), materials=os.environ.get("INPUTS_MATERIALS", ""))
-    review, bad_review = planfile.read_pointed(os.environ["INPUTS_REVIEW"], boundary.pointed)
-    _, bad_world = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.pointed)
-    unread = [f"{name} が読めない（{b}）" for name, b in (("start", bad_start), ("review", bad_review), ("world", bad_world)) if b]
-    if bad and not ruling:
-        unread.append(f"判定が読めない（{bad}）")
-    got = planfile.open_round(plan_dir, ruling=ruling, judgment=judgment, review=review, why=why or "。".join(unread))
+    judgment, review, unread = planfile.round_inputs(
+        boundary.pointed, start=os.environ["INPUTS_START"], judgment=os.environ["INPUTS_JUDGMENT"], world=os.environ["INPUTS_WORLD"],
+        ties=os.environ.get("INPUTS_ANSWER_TIES", ""), materials=os.environ.get("INPUTS_MATERIALS", ""),
+        review=os.environ["INPUTS_REVIEW"], replan=bool(ruling))
+    got = planfile.open_round(plan_dir, ruling=ruling, judgment=judgment, review=review, why=why or unread)
     return {k: got[k] for k in ("round", "mode", "dir", "go")}
 
 
