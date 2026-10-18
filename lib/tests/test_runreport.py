@@ -2299,7 +2299,7 @@ class LinesCase(Base):
         self.assertIn("許したテストの変更: 3 件", body)
         self.assertNotIn("tests/test_u0.py", body)
         _, text, _ = self.build(fixed_run(fix=fix))
-        self.assertIn("許したテストの変更: 14 件", self.section(text, report.DECISIONS_HEADING))
+        self.assertIn(f"{runreport.ALLOWED_TESTS_HEAD}{runreport.ALLOWED_UNCHECKED}: 14 件", self.section(text, report.DECISIONS_HEADING))
 
     def test_seal_not_ok_says_why(self):
         seal = {"mode": "seal", "ok": False, "reason": "指紋が今の作業ツリーと違う"}
