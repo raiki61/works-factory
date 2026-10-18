@@ -152,7 +152,8 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
                                     test_cmd=start.get("test_cmd") or "", rev=now["head"], exit=suite_exit(run),
                                     cases=run["cases"], by=run["by"], material=material, runs=run["runs"],
                                     skipped_steps=run["skipped_steps"], exit_codes={r["name"]: r["exit"] for r in run["runs"]},
-                                    junit_steps=run["junit_steps"], fingerprint=now)
+                                    junit_steps=run["junit_steps"], fingerprint=now,
+                                    how=declared_checks.run_how(root, run, test_cmd=start.get("test_cmd") or "", material=material))
         out["baseline"] = boundary.pointer(rel(mode, "baseline.json"))
     else:
         out["fingerprint"] = now

@@ -958,6 +958,8 @@ class ResultScriptCase(ScriptCase):
         doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
         self.assertEqual((doc["suite"], doc["test_cmd"], doc["exit"]), (str(suite), "true", 1))
         self.assertEqual(baseline_red.outcomes(doc["cases"]), {"s::x": "failure"})
+        self.assertTrue(doc["how"][0].startswith(f"作業ツリーの根: `{self.repo.resolve()}`"), doc["how"])
+        self.assertTrue(any(r.startswith("test_cmd: `true`") for r in doc["how"]), doc["how"])
 
     def test_final_returns_every_test_with_its_base_and_final_outcome(self):
         """issue #384: final はテストごとの元の結末と今の結末を test_outcomes で返す（独立の目の比較役が読む）。base は null、
