@@ -133,6 +133,14 @@ def deliver_word(word: str) -> str:
     return word
 
 
+def deliver_line(word: str) -> str:
+    """始めの承認ノードの頭の行の出口の句（語は deliver_word が確かめた物）"""
+    if word == DELIVER_PR:
+        return (f"出口（deliver）: {DELIVER_PR}——最後の承認ノードを通ると、報告の前に run の枝へ commit を積んで push し、"
+                "対象の既定の枝へ向けた PR を作る（merge はしない）")
+    return "出口（deliver）: 空（既定）——差分を run の置き場に置くだけで、対象の repo に何も書かない"
+
+
 # 元 works/.shared/core/graphloops/rules/review-loop.py 90-96 行（依頼の周ごとのバッチの一覧の型。字は元のまま）
 REQUEST_SCHEMA = {"type": "array", "items": {
     "type": "object", "required": ["round", "origin", "findings"], "additionalProperties": False, "properties": {
