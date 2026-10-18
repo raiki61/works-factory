@@ -15,7 +15,7 @@ For now the factory works in Japanese only: its role prompts, its messages and i
 - Facts are checked by machine. Whether a test failed or passed, how many, and which files changed are read by the machine (the tests' JUnit XML results, the git diff, and so on), not taken from what the AI reports.
 - Judgments need quoted evidence. When the AI says "it failed for this reason" or "this is the cause", it has to quote the text it relies on, and the machine checks that the quote exists in the real thing. Whether the judgment is right is checked by a separate reviewer.
 - The owner's decisions are recorded word for word and fed back into the factory. What a human answered at an approval node, and what was decided as policy, stay word for word in `docs/owner-decisions.md` (Japanese) and become input to the next judgment and the next run. The same question is not asked twice.
-- Nothing is applied unless it passed the approval nodes. The diff a human saw at the last approval node is sealed (hashed) and checked when it is applied. If it differs, the factory stops.
+- The factory applies nothing that did not pass the approval nodes. The diff a human saw at the last approval node is sealed (hashed) and checked when it is applied. If it differs, the factory stops.
 
 ## Flow
 
@@ -84,12 +84,12 @@ You choose the approval nodes with run inputs (`--input <name>=<value>` on `work
 3. Plan change: during fixing, when a unit's plan has to change. It opens when the change alters what you approved (such as the files the unit may touch or its acceptance tests) or the reviewer of the new plan asks you. In an unattended run (below), a change that only lets the unit touch more files goes ahead without asking.
 4. Last: after the test gate and the independent eyes, once the diff is sealed (and before the run places it for `bin/apply`). `--input final_gate=<value>` sets when it opens:
    - `always` (the default when a human answers the run): every time.
-   - `when_needed` (the default in an unattended run, below): only when there is a reason (in a run a human answers, the start node still opens), such as final tests that are not green or a question a role left for you. Otherwise the reasons are only listed at the top of the report.
-   - `protected_only`: only when the fix touched a protected path. A protected path is a file the target lists in `.works-protected.json` at its root, or that file itself. The file has the same shape as the factory's own list, `lib/protected.json`.
+   - `when_needed` (the default in an unattended run, below): only when there is a reason, such as final tests that are not green or a question a role left for you. Otherwise the reasons are only listed at the top of the report. (This does not change the start node, which still opens in a run a human answers.)
+   - `protected_only`: only when the fix touched a protected path (plus the reasons below that open it under any setting). A protected path is a file the target lists in `.works-protected.json` at its root, or that file itself. The file has the same shape as the factory's own list, `lib/protected.json`.
 
    Whatever you choose, the last node always opens for these reasons (this is the full list; the code is `needs` in `workflows/line/scripts/ask_final.py`):
    - The fix touched a protected path, or whether it did could not be checked.
-   - The fix changed a test that it had been given permission to rewrite.
+   - The fix changed a test that it had been given permission to rewrite during the fix, so a human checks the rewritten test.
    - A role passed a disagreement to you, or the record of disagreements could not be read.
    - The fix stage's side records could not be read, so the run cannot count what a fixer handed to you or where a fixer's claim and the machine's recount disagree.
    - The acceptance tests changed after you approved them (only with `--input spec=on`), or this could not be checked.
@@ -117,7 +117,7 @@ Which to choose:
 What a stopped run leaves (whether you answered `stop` or an unattended run stopped with `needs-human`):
 
 - At the start node or the before-fixing node: nothing has been fixed yet.
-- At the plan change node: the units fixed before the plan change stay in the run's worktree as uncommitted changes, but they go no further: no test gate, no independent eyes, no seal. `bin/apply` refuses them, and its refusal line gives a command that applies them without any of those checks (`git -C <run's worktree> diff <start commit> | git -C <target> apply`). A new run starts from your target as it is (see "Worktree start point"), so it does not build on these changes unless you apply them first.
+- At the plan change node: the units fixed before the plan change stay in the run's worktree as uncommitted changes, but they go no further: no test gate, no independent eyes, no seal. `bin/apply` refuses them, and its refusal line gives a command that applies them without any of those checks (`git -C <run's worktree> diff <start commit> | git -C <target> apply`). That command uses `git diff`, which leaves out files git does not track, so look for new files with `git -C <run's worktree> status` before you use it. A new run starts from your target as it is (see "Worktree start point"), so it does not build on these changes unless you apply them first.
 - At the last node: the diff is already sealed but is not applied. `bin/apply <run> --allow-stopped` applies it, unless the independent eyes' R2 said the fix needs a redesign (`redesign-needed`); then `bin/apply` refuses it.
 
 Archon's cancel does not stop the processes of the AI nodes (each node's Claude Code and what it started), so the script stops them itself:
