@@ -7,7 +7,8 @@
 走らなかった・落ちた・status: failed で抜けた・設計の行のファイルが読めない）で、reason に理由の 1 文。skipped は paths が空で
 実測しなかった単位の id。
 
-- write(path, …): 控えを書く（書けなければ OSError。受ける側が理由にして返す）
+- write(path, …): 控えを書く（書けなければ OSError。受ける側が理由にして返す）。秒は timed（段 A の実測・目の控えか、写す元の控え）の
+  秒を eye.wall で読んで足す
 - read(path):     控え（path が空か None・無い・読めない・形が違うなら None。拒まない）
 - rows(design_file):   設計の行（JSON のオブジェクトを 1 行に 1 つ並べたファイル）。読めない・行が壊れていれば ValueError
 - note(state):         落ちた周の 1 文（ok の周・控えが無い周は ""）
@@ -54,10 +55,11 @@ PLAN_NONE = "構造の目が汚れると見た行は無い（structure の欄に
 PLAN_CLEAN_HEAD = promptsection.Section("### 汚れないと見た行（参考。structure にこの行への答えを書くと受け付けが拒む）", source="fn:structmark.plan_section")
 
 
-def write(path, *, status: str, reason: str, design_file: str, wall_s, skipped=()) -> pathlib.Path:
+def write(path, *, status: str, reason: str, design_file: str, timed=(), skipped=()) -> pathlib.Path:
     path = pathlib.Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    doc = {"status": status, "reason": reason, "design_file": design_file, "wall_s": wall_s, "skipped": list(skipped)}
+    doc = {"status": status, "reason": reason, "design_file": design_file, eye.WALL: round(sum(eye.wall(t) for t in timed), 3),
+           "skipped": list(skipped)}
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return path
 

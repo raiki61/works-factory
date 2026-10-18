@@ -43,7 +43,7 @@ inputs:
   structure:
     default: "null"
     description: >-
-      構造の目の控えのポインタ（structure-state.json。{status, reason, design_file, wall_s, skipped}。design_file は構造の目の行
+      構造の目の控えのポインタ（structure-state.json。{status, reason, design_file, skipped ほか}。design_file は構造の目の行
       （design-row の形の JSON Lines）のパス、skipped は実測しなかった単位の id）。null は構造の目の行が無い
   spec:
     default: "null"

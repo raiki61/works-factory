@@ -119,8 +119,8 @@ def write_state(out_dir) -> pathlib.Path:
     else:
         status, reason = "failed", f"段 A の {STRUCTURE_FILE} が読めない"
     skipped = jsonfile.read_or(out_dir / SKIPPED_FILE, [])
-    return structmark.write(out_dir / STATE_FILE, status=status, reason=reason, design_file=str(design),
-                            wall_s=round(eye.wall(doc) + eye.wall(kept), 3), skipped=skipped if isinstance(skipped, list) else [])
+    return structmark.write(out_dir / STATE_FILE, status=status, reason=reason, design_file=str(design), timed=(doc, kept),
+                            skipped=skipped if isinstance(skipped, list) else [])
 
 
 def keep_state(art) -> pathlib.Path:
@@ -135,4 +135,4 @@ def keep_state(art) -> pathlib.Path:
         design = spare / eye.DESIGN_FILE
         design.write_bytes(b"")
         return structmark.write(spare / STATE_FILE, status="failed", reason=f"{UNWRITABLE_STATE}（{DIR}/{STATE_FILE}）: {e}",
-                                design_file=str(design), wall_s=0)
+                                design_file=str(design))

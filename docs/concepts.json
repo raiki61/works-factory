@@ -656,10 +656,6 @@
      "pattern": "\\b(costUsd|total_cost_usd|wall_s)\\b|\\bSPEND_DIR\\b",
      "allowed": [],
      "known": {
-      "lib/boardview.py": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 計画の記録の表示が構造の目の控えの時間 wall_s を読む"
-      ],
       "lib/declared_checks.py": [
        3,
        "散らばり（まとめる計画はまだ無い）: 宣言した確かめの段ごとの時間 wall_s を記録して要約に出す"
@@ -668,17 +664,9 @@
        2,
        "散らばり（まとめる計画はまだ無い）: 構造の目の時間の欄の名 WALL と目の控えの形"
       ],
-      "lib/planfile.py": [
-       4,
-       "散らばり（まとめる計画はまだ無い）: 計画が構造の目の控えに時間 wall_s を書く"
-      ],
       "lib/structmark.py": [
-       4,
+       2,
        "散らばり（まとめる計画はまだ無い）: 構造の目の控えの時間 wall_s を書いて報告の行に出す"
-      ],
-      "workflows/plan/scripts/plan_collect.py": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 構造の目が走らなかった周の控えに時間 wall_s を 0 で書く"
       ]
      }
     }
@@ -729,7 +717,7 @@
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/plan/works-factory-plan.yaml": [
-       4,
+       2,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/report/works-factory-report.yaml": [
@@ -740,7 +728,17 @@
        2,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ]
-     }
+     },
+     "bound": [
+      {
+       "paths": [
+        "workflows/structure/works-factory-structure.yaml"
+       ],
+       "lines": "^ {10}(model: '@wf-plan-structure'|allowed_tools: \\[\\])$",
+       "by": "tests/workflows/test_structure.py",
+       "why": "構造の目の役の模型の群と道具ゼロの 2 行（#560 で計画の YAML から構造のサブグラフの YAML へ移した。計画の YAML の既知の漏れはこの 2 行の分だけ減った）。試験 test_eye_is_a_toolless_isolated_role が、道具ゼロと群の既定（opus・high）を能力 P076 の約束に縛る"
+      }
+     ]
     }
    ]
   },
@@ -891,6 +889,7 @@
   "fence:handoff:引き継ぎのメモの型・頼み・欄の並び（旧い名の宣言 HANDOFF_SCHEMA・HANDOFF_KEYS・HANDOFF_ASK・NO_HANDOFF と、4 つの欄名 read・decided・rejected・doubts|open の並び）": "#712 で引き継ぎのメモの欄 decided・rejected・doubts を kept・set_aside・open に改名した（報告の書き手の返答の型の欄名が、モデルの提供元の安全の判定 reasoning_extraction に止められたため）。柵は what・pattern・bound の字を新しい欄名に合わせて掛け直しただけで、住処 lib/handoff.py の外を許す範囲は変えていない",
   "pattern:marks:足し欄の共有ボードの控えの名": "修正案の役の引き継ぎのメモの控えの名 handoff を marks の種の表に足したので、柵の選びにも足した",
   "pattern:accept-round:諦める回の数 GIVE_UP_AFTER との大小の比べ（最後の回かは rolekit.is_last_attempt が答える）": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）",
-  "pattern:accept-round:諦める回の数の定義 GIVE_UP_AFTER = <数> と、前の回の受け付けが拒んだ理由の見出しの Section の宣言": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）"
+  "pattern:accept-round:諦める回の数の定義 GIVE_UP_AFTER = <数> と、前の回の受け付けが拒んだ理由の見出しの Section の宣言": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）",
+  "bound:ai-launch:AI の起こし方の語（ノードの模型と effort の行 model:・effort:、道具 allowed_tools、道具ゼロの隔離の旗 isolated と ISOLATED_RUN_BY、run の明示の模型 WORKS_DEV_MODEL）:workflows/structure/works-factory-structure.yaml:^ {10}(model: '@wf-plan-structure'|allowed_tools: \\[\\])$": "#560 で構造の目を plan から新しいサブグラフ structure に分けた。散らばりの柵は新しいファイルを既知の漏れに足せず、知ってよい所も空のままなので、移した 2 行（役の群と道具ゼロ）だけを結んだ写しとして数えずに置く。AI の起こし方の行は全体で増えていない（計画の YAML は 4 行から 2 行）"
  }
 }

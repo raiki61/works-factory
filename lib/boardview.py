@@ -685,7 +685,7 @@ def _copy_structure(d: pathlib.Path, structure) -> None:
     ok = isinstance(doc, dict) and doc.get("status") == "ok"
     structmark.write(d / structmark.COPY_FILE, status="ok" if ok else "failed",
                      reason=str((doc or {}).get("reason") or "") if isinstance(doc, dict) else "構造の目の控えが object でない",
-                     design_file=str(dest) if rows is not None else "", wall_s=(doc or {}).get("wall_s", 0) if isinstance(doc, dict) else 0)
+                     design_file=str(dest) if rows is not None else "", timed=(doc,) if isinstance(doc, dict) else ())
 
 
 def _tree_on(b, word: str) -> bool:

@@ -3899,7 +3899,7 @@ class FourAxesCase(GateBase):
     def put_rows(self, *rows):
         design = self.tmp / "design.jsonl"
         design.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-        structmark.write(self.tmp / structmark.COPY_FILE, status="ok", reason="", design_file=str(design), wall_s=0)
+        structmark.write(self.tmp / structmark.COPY_FILE, status="ok", reason="", design_file=str(design))
 
     def test_decided_by_must_exist(self):
         """元 tests/test_plan_gate.py の FourAxesCase.test_decided_by_must_exist。決め手の出どころが現物に無ければ聞き、通した行に
