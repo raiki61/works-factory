@@ -13,7 +13,7 @@
 - reply.json（受け付けた返答。番号を id に戻した全体で、works の欄も決め手の欄も持つ。項目の同じさ converge.item_hash の元）
 - p2.fix_plan.json（reply.json から works の欄を外した物。2 往復目からは block_answers も）・plan-fields.json（planmarks.save の形）・
   replan.json（形 replan の時。replan.TRIP_FILE の行の形）・ripple-units.json・ripple.json・trace.jsonl
-- handoff.json（住処は lib/handoff.py。受け付けた返答の頭の欄 handoff.FIELD。役が次の周の自分へ書いた引き継ぎのメモ: 読んだ所・決めた訳・退けた案・迷っている所。
+- handoff.json（住処は lib/handoff.py。受け付けた返答の頭の欄 handoff.FIELD。役が次の周の自分へ書いた引き継ぎのメモ: 読んだ所・保つと決めた事・脇に置いた案・まだ決まっていない所。
   案の控えには入れず、次の周の材料が handoff.section でパスで名指す）
 - prior-failures-in.json（入力 prior_failures の行の写し。carry.PRIOR_IN_FILE）・structure/（役を起こさない周の構造の控え）
 

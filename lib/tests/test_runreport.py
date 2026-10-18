@@ -1359,8 +1359,8 @@ class AcceptCase(Base):
     @staticmethod
     def with_handoff(text: str, tag: str) -> str:
         return json.dumps({"text": text, "terms": [], "handoff": {
-            "read": [{"path": f"{tag}.py", "lines": "1", "why": f"{tag}を読んだ"}], "decided": [f"{tag}の訳"],
-            "rejected": [{"option": f"{tag}の退けた案", "why": f"{tag}の退けた訳"}], "doubts": [f"{tag}の迷い"]}},
+            "read": [{"path": f"{tag}.py", "lines": "1", "why": f"{tag}を読んだ"}], "kept": [f"{tag}の訳"],
+            "set_aside": [{"option": f"{tag}の脇に置いた案", "why": f"{tag}の置いた訳"}], "open": [f"{tag}の迷い"]}},
                           ensure_ascii=False)
 
     def test_rejected_reply_is_kept_for_the_next_round(self):

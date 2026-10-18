@@ -222,7 +222,7 @@ nodes:
               handoff:
                 type: object
                 additionalProperties: false
-                required: [read, decided, rejected, doubts]
+                required: [read, kept, set_aside, open]
                 properties:
                   read:
                     type: array
@@ -234,10 +234,10 @@ nodes:
                         path: {type: string, minLength: 1}
                         lines: {type: string, minLength: 1}
                         why: {type: string, minLength: 1}
-                  decided:
+                  kept:
                     type: array
                     items: {type: string, minLength: 1}
-                  rejected:
+                  set_aside:
                     type: array
                     items:
                       type: object
@@ -246,7 +246,7 @@ nodes:
                       properties:
                         option: {type: string, minLength: 1}
                         why: {type: string, minLength: 1}
-                  doubts:
+                  open:
                     type: array
                     items: {type: string, minLength: 1}
 
