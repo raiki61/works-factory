@@ -258,9 +258,9 @@ class Run:
                                        {"round": rnd, "fields": field_rows or [fields(r["unit_keys"][0]) for r in rows]})
 
     def structure(self, rows=(), status="ok"):
-        self.put("plan/structure/design.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), raw=True)
-        self.inputs["structure"] = self.put("plan/structure/structure-state.json",
-                                            {"status": status, "reason": "", "design_file": str(self.art / "plan/structure/design.jsonl"),
+        self.put("structure/design.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), raw=True)
+        self.inputs["structure"] = self.put("structure/structure-state.json",
+                                            {"status": status, "reason": "", "design_file": str(self.art / "structure/design.jsonl"),
                                              "wall_s": 0})
 
     def ripple(self, doc):
@@ -1780,8 +1780,10 @@ class ConvergeCase(RunCase):
 
         def hand(out):
             shutil.copytree(plan_run.art / "plan", r.art / "plan", dirs_exist_ok=True)
-            for key in ("plan", "fix_plan", "structure", "ripple"):
+            shutil.copytree(plan_run.art / "structure", r.art / "structure", dirs_exist_ok=True)
+            for key in ("plan", "fix_plan", "ripple"):
                 r.inputs[key] = json.dumps({**out[key], "run_id": RUN_ID})
+            r.inputs["structure"] = json.dumps({**json.loads(plan_run.inputs["structure"]), "run_id": RUN_ID})
             r.inputs["plan_rejects"] = json.dumps(out["rejects"], ensure_ascii=False)
 
         hand(first)
@@ -3937,7 +3939,7 @@ class FourAxesCase(GateBase):
     def put_rows(self, *rows):
         design = self.tmp / "design.jsonl"
         design.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-        structmark.write(self.tmp, status="ok", reason="", design_file=str(design), wall_s=0)
+        structmark.write(self.tmp / structmark.COPY_FILE, status="ok", reason="", design_file=str(design))
 
     def test_decided_by_must_exist(self):
         """元 tests/test_plan_gate.py の FourAxesCase.test_decided_by_must_exist。決め手の出どころが現物に無ければ聞き、通した行に

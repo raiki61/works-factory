@@ -20,12 +20,13 @@ For now the factory works in Japanese only: its role prompts, its messages and i
 ## Flow
 
 1. Judge: verify the request's assumptions by measuring them, state the goal in one sentence, look up how this kind of problem is usually solved (the established practice), and split the problem into root-cause defects ("units").
-2. Plan: for each unit, decide how to fix it, what it may touch, and the acceptance tests.
-3. Plan review: attack the plan before writing code. A separate role designs independently from the goal sentence alone and compares with the plan.
-4. Fix: TDD (write a failing test first, then fix and make it pass). Groups of units that do not overlap are fixed side by side in separate worktrees (Archon's `fan_out:`).
-5. Test gate: run the target project's checks, sort the causes of red (introduced this time, already there, environment), and certify green together with a fingerprint of the worktree it was measured on.
-6. Independent eyes: reviewers in separate conversations who know nothing of the history judge from 4 viewpoints (is it minimal, does it match the independent design, is the whole consistent, what is out of view).
-7. Report: the outcome, a record per unit, questions for the human, and follow-up work to hand on to the next run.
+2. Structure: once per run, measure the structure of the code the units point at, and let a separate eye name where the fix should not add to it. It runs only when a plan round will start.
+3. Plan: for each unit, decide how to fix it, what it may touch, and the acceptance tests.
+4. Plan review: attack the plan before writing code. A separate role designs independently from the goal sentence alone and compares with the plan.
+5. Fix: TDD (write a failing test first, then fix and make it pass). Groups of units that do not overlap are fixed side by side in separate worktrees (Archon's `fan_out:`).
+6. Test gate: run the target project's checks, sort the causes of red (introduced this time, already there, environment), and certify green together with a fingerprint of the worktree it was measured on.
+7. Independent eyes: reviewers in separate conversations who know nothing of the history judge from 4 viewpoints (is it minimal, does it match the independent design, is the whole consistent, what is out of view).
+8. Report: the outcome, a record per unit, questions for the human, and follow-up work to hand on to the next run.
 
 By default a run asks you at the start and at the end, and in between only when something needs asking (before fixing, and when a plan has to change during fixing). You choose how often you are asked with run inputs, down to a run nobody answers; see "Choosing the approval nodes" under "Usage".
 
@@ -50,7 +51,7 @@ You do not install superpowers yourself: the factory carries a pinned copy of th
 
 ## Usage
 
-The entry point is a single shell script, `bin/works-factory`, and you type Archon's commands as they are (`bin/works-factory <Archon CLI arguments>`; put flags after the command). The script sets up authentication and an isolated home (a separate state directory), fetches the Archon source at the version pinned by ASF (`factory/pack.json`), and starts it from there with `bun`. The graphs are not placed in Archon's home (its state directory). The main graph `works-factory-line` (`workflows/line/`) includes the 8 subgraphs (`workflows/<name>/`) in the order of "Flow" above, plus merge, which seals the diff and leaves it in the run's directory for `bin/apply`.
+The entry point is a single shell script, `bin/works-factory`, and you type Archon's commands as they are (`bin/works-factory <Archon CLI arguments>`; put flags after the command). The script sets up authentication and an isolated home (a separate state directory), fetches the Archon source at the version pinned by ASF (`factory/pack.json`), and starts it from there with `bun`. The graphs are not placed in Archon's home (its state directory). The main graph `works-factory-line` (`workflows/line/`) includes the 9 subgraphs (`workflows/<name>/`) in the order of "Flow" above, plus merge, which seals the diff and leaves it in the run's directory for `bin/apply`.
 
 1. Install: clone this repository and install what "Requirements" lists. If anything is missing, the script prints the install commands one per line and stops.
 2. Start: `bin/works-factory workflow run works-factory-line --cwd <target> --input request=<request file> [--input test_cmd='<one line>']`. The request file format is in "Request file" below, `test_cmd` in "test_cmd and worktrees", and where the run's worktree is created from in "Worktree start point".
@@ -232,7 +233,7 @@ All in Japanese. You do not need them to use the factory.
 
 ## Current status
 
-Under construction. The entry script `bin/works-factory`, the main graph `workflows/line/`, the 8 subgraphs, the round chain `workflows/chain/`, `lib/`, and the layer tests exist. The main graph is checked with scenarios composed with the real subgraphs (Archon's `workflow test`; no roles are started). Stage 1, the walking skeleton, is done: one request was taken through a small target repository with real roles, and the sealed diff was applied (issue [#154](https://github.com/raiki61/works-factory/issues/154); the run records are in "作りの順" (build order) in `docs/design.md`, Japanese). The foundation is being built by ASF. What is left:
+Under construction. The entry script `bin/works-factory`, the main graph `workflows/line/`, the 9 subgraphs, the round chain `workflows/chain/`, `lib/`, and the layer tests exist. The main graph is checked with scenarios composed with the real subgraphs (Archon's `workflow test`; no roles are started). Stage 1, the walking skeleton, is done: one request was taken through a small target repository with real roles, and the sealed diff was applied (issue [#154](https://github.com/raiki61/works-factory/issues/154); the run records are in "作りの順" (build order) in `docs/design.md`, Japanese). The foundation is being built by ASF. What is left:
 
 - Catching up with the current works. Each user-visible capability of the current works is matched to where works-factory does the same in `docs/works-parity.md` (Japanese); until the factory has them all, the current works (the works plugin of raiki61/claude-plugins) is the fix factory to use.
 - Known failures, tracked as open issues. For example, the node that writes the report's body is stopped by the model provider's safety check, so reports currently carry only the parts the machine builds (issue [#712](https://github.com/raiki61/works-factory/issues/712)).

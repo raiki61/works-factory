@@ -1,18 +1,24 @@
-"""構造のブロックの出口の控え（盤面の根の structure-state.json）。線の構造の境の節が 1 回書き、修正案の指示書の頭・報告・最後の
-関所の 3 か所がこの 1 つのファイルだけを読む（読み直しを 3 か所に割らない）。実行基盤を知らない関数だけを出す。
+"""構造の目の控え（構造のブロックの返す節の出力の欄 structure の指し札の先。名と置き場の住処は structfile）の形と読み書きの口。
+構造のブロックが run に 1 回書き、修正案の指示書の頭・事前審査の写し・報告・最後の関所がこの 1 つのファイルだけを読む（読み直しを
+割らない）。読み手は控えのファイルのパス（指し札の先）を渡し、隣のファイルを名で開かない（設計の行は控えの design_file から辿る）。
+実行基盤を知らない関数だけを出す。
 
-控えの形: {status: ok|failed, reason, design_file, wall_s}。failed は「構造の目の行なしで計画した」周（構造のブロックが走らなかった・
-落ちた・status: failed で抜けた・設計の行のファイルが読めない）で、reason に理由の 1 文。
+控えの形: {status: ok|failed, reason, design_file, wall_s, skipped}。failed は「構造の目の行なしで計画した」周（構造のブロックが
+走らなかった・落ちた・status: failed で抜けた・設計の行のファイルが読めない）で、reason に理由の 1 文。skipped は paths が空で
+実測しなかった単位の id。
 
-- write(board_dir, …): 控えを書く（書けなければ OSError。受ける側が理由にして返す）
-- read(board_dir):     控え（無い・読めない・形が違うなら None。拒まない）
-- rows(design_file):   設計の行（design.jsonl の JSON のオブジェクトの並び）。読めない・行が壊れていれば ValueError
+- write(path, …): 控えを書く（書けなければ OSError。受ける側が理由にして返す）。秒は timed（段 A の実測・目の控えか、写す元の控え）の
+  秒を eye.wall で読んで足す
+- read(path):     控え（path が空か None・無い・読めない・形が違うなら None。拒まない）
+- rows(design_file):   設計の行（JSON のオブジェクトを 1 行に 1 つ並べたファイル）。読めない・行が壊れていれば ValueError
 - note(state):         落ちた周の 1 文（ok の周・控えが無い周は ""）
-- plan_section(board_dir): 修正案の指示書の頭に貼る節（汚れる行が在れば守り方の指示とその行だけ、行は在るが汚れる行が無い周は答えの要らない旨の 1 行、
+- skipped(path):       実測しなかった単位の id（控えが無い・欄が読めなければ []）
+- plan_section(path): 修正案の指示書の頭に貼る節（汚れる行が在れば守り方の指示とその行だけ、行は在るが汚れる行が無い周は答えの要らない旨の 1 行、
   汚れない行は別の小見出し PLAN_CLEAN_HEAD の下。落ちた周は note、控えが無い・行が無い周は ""）
-- dirty(board_dir):    汚れると見た行（単位の id → 行）。控えが無い・落ちた周・行が読めない周は {}（修正案の欄 structure の要る行）
-- report_lines(board_dir, after_dir=None): 報告の「構造の目」の節の行（判定の行か落ちの印と、構造の実測と目で増えた時間（段 A と目の秒に、
-  after_dir（既定は board_dir）の直しの後の実測の段 B の秒を足す）と、直しの後の実測の行。控えが無い run は []）
+- dirty(path):    汚れると見た行（単位の id → 行）。控えが無い・落ちた周・行が読めない周は {}（修正案の欄 structure の要る行）
+- report_lines(path, after_dir=None): 報告の「構造の目」の節の行（判定の行か落ちの印と、構造の実測と目で増えた時間（段 A と目の秒に、
+  after_dir の直しの後の実測の段 B の秒を足す）と、直しの後の実測の行。控えが無い run は after_dir の行だけ）
+- COPY_FILE: 事前審査が自分の置き場へ控えを写す名（写しの design_file は写した行を指す）
 
 直しの後の実測の控え（盤面の根の structure-after.json。計画 2026-10-09-clean-whole の Task 2.5）: 線の直しの後の境の節が 1 回書き、
 報告・最後の関所・独立の目の頭・結末の残りの数え（report.rest_outside_validator）がこの 1 つのファイルだけを読む。
@@ -34,7 +40,7 @@ import listcut
 import planmarks   # 修正案の外れの訳の文の住処（answer_line）
 import promptsection
 
-STATE_FILE = "structure-state.json"
+COPY_FILE = "structure/state.json"
 AFTER_FILE = "structure-after.json"
 # after_lines の 2 本の一覧の名（残りの行の頭。全件を持つ AFTER_FILE の欄の名つき）
 FENCE_UP_LIST = "住処の外の知る場所の増え（after.fence_up）"
@@ -49,16 +55,20 @@ PLAN_NONE = "構造の目が汚れると見た行は無い（structure の欄に
 PLAN_CLEAN_HEAD = promptsection.Section("### 汚れないと見た行（参考。structure にこの行への答えを書くと受け付けが拒む）", source="fn:structmark.plan_section")
 
 
-def write(board_dir, *, status: str, reason: str, design_file: str, wall_s) -> pathlib.Path:
-    path = pathlib.Path(board_dir) / STATE_FILE
-    doc = {"status": status, "reason": reason, "design_file": design_file, "wall_s": wall_s}
+def write(path, *, status: str, reason: str, design_file: str, timed=(), skipped=()) -> pathlib.Path:
+    path = pathlib.Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    doc = {"status": status, "reason": reason, "design_file": design_file, eye.WALL: round(sum(eye.wall(t) for t in timed), 3),
+           "skipped": list(skipped)}
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return path
 
 
-def read(board_dir) -> dict | None:
+def read(path) -> dict | None:
+    if not path:
+        return None
     try:
-        doc = json.loads((pathlib.Path(board_dir) / STATE_FILE).read_text(encoding="utf-8"))
+        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError):
         return None
     return doc if isinstance(doc, dict) and doc.get("status") in ("ok", "failed") else None
@@ -104,9 +114,14 @@ def _bullets(rs: list) -> str:
     return "\n".join(f"- {_row_line(r)}" for r in rs)
 
 
-def _state_rows(board_dir):
+def skipped(path) -> list:
+    got = (read(path) or {}).get("skipped")
+    return [k for k in got if isinstance(k, str)] if isinstance(got, list) else []
+
+
+def _state_rows(path):
     """(控え, 行, 落ちの 1 文)。控えが無ければ (None, [], "")。行が読めない周は落ちとして 1 文を返す"""
-    state = read(board_dir)
+    state = read(path)
     if state is None:
         return None, [], ""
     if state["status"] == "failed":
@@ -122,14 +137,14 @@ def _is_dirty(r: dict) -> bool:
     return r.get("verdict") == DIRTY and isinstance(r.get("unit_id"), str)
 
 
-def dirty(board_dir) -> dict:
+def dirty(path) -> dict:
     """{単位の id: 汚れると見た設計の行}。控えが無い・落ちた周・行が読めない周は {}（行なしで計画した周は欄を求めない）"""
-    _, got, _ = _state_rows(board_dir)
+    _, got, _ = _state_rows(path)
     return {r["unit_id"]: r for r in got if _is_dirty(r)}
 
 
-def plan_section(board_dir) -> str:
-    state, got, missing = _state_rows(board_dir)
+def plan_section(path) -> str:
+    state, got, missing = _state_rows(path)
     if missing:
         return f"{PLAN_HEAD}\n\n{missing}"
     if not got:
@@ -140,13 +155,12 @@ def plan_section(board_dir) -> str:
     return f"{out}\n\n{PLAN_CLEAN_HEAD}\n\n{_bullets(clean_rows)}" if clean_rows else out
 
 
-def report_lines(board_dir, after_dir=None) -> list:
-    after_dir = board_dir if after_dir is None else after_dir
-    after = after_lines(after_dir)
-    state, got, missing = _state_rows(board_dir)
+def report_lines(path, after_dir=None) -> list:
+    after = after_lines(after_dir) if after_dir is not None else []
+    state, got, missing = _state_rows(path)
     if state is None:
         return after
-    stage_b = eye.wall((read_after(after_dir) or {}).get("after"))
+    stage_b = eye.wall((read_after(after_dir) or {}).get("after")) if after_dir is not None else 0
     wall = f"構造の実測と目で増えた時間: {round(state.get('wall_s', 0) + stage_b, 3)} 秒"
     if missing:
         return [missing, wall, *after]

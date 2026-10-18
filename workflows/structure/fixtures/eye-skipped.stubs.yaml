@@ -1,0 +1,8 @@
+# 筋書き: 測れた単位が無い（実測が落ちた・paths の在る単位が無い）run。構造の目の輪が飛び、返す節には届く
+structure-measure: {structure_file: structure/structure.json, design_file: structure/design.jsonl, eye: false}
+structure:
+  ok: false
+  structure: {type: archon_artifact, run_id: fixture-run, path: structure/structure-state.json}
+fixture:
+  expect: completed
+  reached: [structure-measure, structure]

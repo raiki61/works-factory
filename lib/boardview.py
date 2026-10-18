@@ -81,7 +81,7 @@ POLICY_CHANGED = "policy_changed"       # 関所の項目の種類（方針の�
 GATE_ASKED_FILE = "gate-asked.json"     # 返した関所の項目 {文: {kind, policy_change?}}（入力 gate_answers の通した行の種類と方針の変化を引く）
 GATE_ANSWERS_FILE = "gate-answers.json"  # 入力 gate_answers を写した人の関所の答えの行（gatemarks が読む process.human_items の形）
 WORLD_COPY = f"world/{worldmark.WORLD_FILE}"
-STRUCTURE_ROWS = "structure/design.jsonl"
+STRUCTURE_ROWS = "structure/design-rows.jsonl"   # 構造の目の控えが指す設計の行の写し（自分の名で写す）
 PASS_DIR = "pass-{k}"
 PREMISES_FILE = planreviewbeside.DESIGN_PREMISES_FILE
 R2_TREE = "r2-tree.json"                # 独立設計の役を起こす前の作業ツリーの姿
@@ -684,9 +684,9 @@ def _copy_structure(d: pathlib.Path, structure) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(rows, dest)
     ok = isinstance(doc, dict) and doc.get("status") == "ok"
-    structmark.write(d, status="ok" if ok else "failed",
+    structmark.write(d / structmark.COPY_FILE, status="ok" if ok else "failed",
                      reason=str((doc or {}).get("reason") or "") if isinstance(doc, dict) else "構造の目の控えが object でない",
-                     design_file=str(dest) if rows is not None else "", wall_s=(doc or {}).get("wall_s", 0) if isinstance(doc, dict) else 0)
+                     design_file=str(dest) if rows is not None else "", timed=(doc,) if isinstance(doc, dict) else ())
 
 
 def _tree_on(b, word: str) -> bool:

@@ -1,7 +1,7 @@
 # 能力の棚卸し — 区分 P（計画 plan と事前審査 plan-review）
 
 - 「元」は raiki61/claude-plugins @2aa7c66c の `works/`。「証」は works-factory の main の名（README.md の「指しの形」）。「今」は印（「表」か「無し（表）」、住処を書かなかった行は「無し」か空）だけを持ち、住処の字は docs/works-parity.md の「前の棚卸しの今」が持つ。
-- 本物の run の置き場は run の artifacts の下。計画のブロックは `plan/r<k>/`（周ごと）と `plan/structure/<鍵>/`（使い回す構造の実測）、事前審査のブロックは `plan-review/`（差し込みごとに `plan-review/pass-<k>/`）。
+- 本物の run の置き場は run の artifacts の下。計画のブロックは `plan/r<k>/`（周ごと）、構造のブロックは `structure/`（run に 1 回の構造の実測と目。#560 で計画から分けた）、事前審査のブロックは `plan-review/`（差し込みごとに `plan-review/pass-<k>/`）。
 - 種（tests/e2e/target-seed）は stats.py の 2 つの欠陥（mean・clamp）、厚さ 標準、方針の文書も docs/concepts も無い。往復の 2 周目・案の直し・関所の答えの道は、健全な種の run ではほぼ「筋書きでのみ」。
 - 行の番号 P001〜P258 は区分の中の通し番号（P258 は #207 で足し、P208 の隣に置いた）。節は 5 つ（修正案を書く側・構造の実測と目・往復と案の直し・事前審査・修正前の関所の材料）。
 
@@ -86,7 +86,7 @@
 - P011 直す義務の単位が無い判定は、修正案の役も構造の実測も起こさずに抜ける。
   - 元: graphs/review-loop.json:3324 `cond: units_open`、planblk.py:1062 `snap`（go: false）・:1441 `collect`（ok: true・plan_file 空）、試験 works/tests/test_blk_plan.py:1074 test_no_fix_skips_both_loops
   - 今: 表
-  - 証: tests/workflows/test_plan.py::CollectCase.test_nothing_owed_skips_the_role
+  - 証: tests/workflows/test_plan.py::CollectCase.test_nothing_owed_skips_the_role・tests/workflows/test_line.py::OwedCase.test_nothing_owed_stuck_and_unreadable_skip_the_structure（構造の実測を起こさない。#560 で構造を計画の外に出した後は、メイングラフのノード owed が計画の周を開く口と同じ決め lib/planfile.py の held_why を引き、構造のサブグラフの when を絞る）
   - 本物の run: 種では起きない（筋書きでのみ）。起きた時は plan/r1/round.json の why と ripple.json の error
   - 狭め: 結末の形を変えた（元は ok: true で「直す物が無い」と「諦めた」を collect の ok・gave_up で分けた。今は両方 ready: false で、訳は ripple.json の error・round.json の why の字だけ）。docs/design.md:206 が「返りに訳を分ける語を持たない。report が judge の units が空から no_fix_needed にする」と決めた（持ち主の文書）。Archon で不可でない。持ち主に: 判定の units が nit だけ（空でない）の時、report は no_fix_needed と言えない（stopped_by_line になる）——訳の語を返りに足すか
 
@@ -196,7 +196,7 @@
   - 元: planmarks.py:763 `structure_gaps`・planblk.py:1236（planrange.answer_tables）、試験 works/tests/test_blk_plan.py:1435・:1445・:1451
   - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_dirty_structure_row_needs_answer・lib/tests/test_plan_fields.py::TestStructure の 6 件（例 lib/tests/test_plan_fields.py::TestStructure.test_plan_without_structure_row_is_refused・lib/tests/test_plan_fields.py::TestStructure.test_plan_with_deviation_passes_and_is_recorded）
-  - 本物の run: plan/r1/plan-fields.json の fields[].structure（構造の目が「汚れる」と見た時）・plan/structure/<鍵>/design.jsonl
+  - 本物の run: plan/r1/plan-fields.json の fields[].structure（構造の目が「汚れる」と見た時）・structure/design.jsonl
   - 狭め: 無し
 
 - P027 構造の目の行（汚れると見た行と避け方）を修正案の材料に貼り、従うか外れの訳を頼む。
@@ -216,7 +216,7 @@
 - P029 paths の無い単位（構造の目が見ていない単位）を材料に名指す。
   - 元: 元は h-plan の structure_units_file の写しで同じ扱い（works/blk-structure/scripts/stage_a.py）
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_unit_without_paths_is_skipped_and_named
+  - 証: tests/workflows/test_structure.py::StageACase.test_unit_without_paths_is_skipped_and_named
   - 本物の run: plan/r1/brief-1.md（種の単位は paths を持つので出ない。筋書きでのみ）
   - 狭め: 無し
 
@@ -239,7 +239,7 @@
 - P032 修正案の役の指示書は元の p2.fix_plan.md の字のまま（許した 3 つの直し: 頭の 1 行・engine の雛形を外す・「材料の一覧の番号」）。
   - 元: works/.shared/core/gl-prompts/prompts/review-loop/p2.fix_plan.md（graphs/review-loop.json:3331）
   - 今: 表
-  - 証: tests/workflows/test_plan.py::ShapeCase.test_fix_plan_command_is_the_original_with_only_the_allowed_edits・tests/workflows/test_plan.py::ShapeCase.test_eye_command_reads_only_its_prep・tests/workflows/test_prompt_contracts.py::PromptContractsTest.test_every_prompt_keeps_its_contract（約束の表の鍵 workflows/plan/commands/fix-plan.md）
+  - 証: tests/workflows/test_plan.py::ShapeCase.test_fix_plan_command_is_the_original_with_only_the_allowed_edits・tests/workflows/test_plan.py::ShapeCase.test_writer_command_reads_only_its_prep・tests/workflows/test_prompt_contracts.py::PromptContractsTest.test_every_prompt_keeps_its_contract（約束の表の鍵 workflows/plan/commands/fix-plan.md）
   - 本物の run: plan-writer の節の会話（指示書の本文）。run の記録の node の prompt
   - 狭め: 無し
 
@@ -385,11 +385,11 @@
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
-- P053 返す節は落ちない: どの誤りでも ready: false と、在って空でない指し札の先 3 つ（plan-fields.json・structure-state.json・ripple.json）を返し、訳を collect-error.txt に書く。
+- P053 返す節は落ちない: どの誤りでも ready: false と、在って空でない指し札の先 2 つ（plan-fields.json・ripple.json）を返し、訳を collect-error.txt に書く（構造の目の控えは構造のブロックの返す節が同じく落ちずに返す。#560）。
   - 元: planblk.py:1441 `collect`（ok・plan_file・ripple_file ほか）
   - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_broken_inputs_still_return_the_contract・SurvivesCase
-  - 本物の run: 筋書きでのみ（落ちない返す節の誤りの道は種で通らない。在れば plan の節の出力の plan・structure・ripple の指し札（plan と ripple は plan/r1/…、structure は plan/structure/<鍵>/structure-state.json）と周のフォルダの collect-error.txt）
+  - 本物の run: 筋書きでのみ（落ちない返す節の誤りの道は種で通らない。在れば plan の節の出力の plan・ripple の指し札（plan/r1/…）と周のフォルダの collect-error.txt）
   - 狭め: 無し
 
 - P054 返りの約束: ready・plan・structure・ripple の指し札（archon_artifact）・depth・round を、ちょうどこの 6 つで返す。
@@ -440,64 +440,64 @@
 - P060 判定の単位のうち paths の在る単位だけを、単位ごとに measure.py（子のプロセス 1 つの口）で測り structure.json に書く（単位の id・summary・paths・status・measure）
   - 元: works/blk-structure/scripts/stage_a.py:96 `main`・:76 `measure_unit`
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_measures_units_and_writes_empty_design_rows
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/structure.json` の `status`=ok と `units[].id`=判定の単位の id、`units[].measure.schema`=`measure/1`）
+  - 証: tests/workflows/test_structure.py::StageACase.test_measures_units_and_writes_empty_design_rows
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `structure/structure.json` の `status`=ok と `units[].id`=判定の単位の id、`units[].measure.schema`=`measure/1`）
   - 狭め: 無し
 
 - P061 paths が空の単位は測らずに skipped-units.json に名を残し、修正案の材料に「構造の目が見ていない単位」として名指す
   - 元: works/darkfactory/lib/line_edge.py `structure_units`（paths の無い単位も落とさない）と元の修正案の頭の構造の節
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_unit_without_paths_is_skipped_and_named
-  - 本物の run: `plan/structure/<鍵>/skipped-units.json`（種の 2 単位は stats.py を名指すので `[]`）。名指しの行は筋書きでのみ
+  - 証: tests/workflows/test_structure.py::StageACase.test_unit_without_paths_is_skipped_and_named
+  - 本物の run: `structure/skipped-units.json`（種の 2 単位は stats.py を名指すので `[]`）。名指しの行は筋書きでのみ
   - 狭め: 無し
 
 - P062 実測が落ちた（git の無い対象・measure.py の非 0 終了・出力が JSON でない）単位は structure.json の status: failed と reason に残し、線を止めない
   - 元: works/blk-structure/scripts/stage_a.py:76-88 `measure_unit`・:113-115
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_measure_failure_and_unreadable_units_do_not_stop
+  - 証: tests/workflows/test_structure.py::StageACase.test_measure_failure_and_unreadable_units_do_not_stop
   - 本物の run: 筋書きでのみ（健全な種では落ちない）
   - 狭め: 無し
 
 - P063 単位の目録が読めない・形が違う時も structure.json を status: failed と訳つきで書き、構造の目を起こさない（eye: false）
   - 元: works/blk-structure/scripts/stage_a.py:52-70 `read_units`・:104-107
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_measure_failure_and_unreadable_units_do_not_stop
+  - 証: tests/workflows/test_structure.py::StageACase.test_measure_failure_and_unreadable_units_do_not_stop
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - P064 設計の行のファイル design.jsonl を毎回 0 バイトで置き直し（JSON Lines なので改行も書かない）、前の目の控え eye.json を消す
   - 元: works/blk-structure/scripts/stage_a.py:100-102
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_fresh_measure_drops_old_eye_state（#120 で足した。消すと赤: measure の eye.json の unlink を外すと赤）
-  - 本物の run: `plan/structure/<鍵>/design.jsonl`（目の受け付けの後は行が入る）
+  - 証: tests/workflows/test_structure.py::StageACase.test_fresh_measure_drops_old_eye_state（#120 で足した。消すと赤: measure の eye.json の unlink を外すと赤）
+  - 本物の run: `structure/design.jsonl`（目の受け付けの後は行が入る）
   - 狭め: 無し
 
 - P065 対象の根に考えの地図（docs/concepts.md）と柵の表（docs/concepts.json）が在れば、単位のパスに当たる地図の行と、単位のファイルの知る場所の数（home・known_places）を単位の concepts に置く。当たらない考えの行は載せない
   - 元: works/blk-structure/lib/context.py:93 `concepts`・:71 `find`
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_concept_rows_only_for_unit_paths（#120 で足した。消すと赤: context.concepts の当たりの照らしを外すと赤）
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].concepts`（種は地図が無いので `{"rows":[],"places":[]}`）
+  - 証: tests/workflows/test_structure.py::StageACase.test_concept_rows_only_for_unit_paths（#120 で足した。消すと赤: context.concepts の当たりの照らしを外すと赤）
+  - 本物の run: `structure/structure.json` の `units[].concepts`（種は地図が無いので `{"rows":[],"places":[]}`）
   - 狭め: 無し
 
 - P066 地図も柵の表も無い対象は実測だけで判じ、地図や表を作らない（concepts は空の並び）
   - 元: works/blk-structure/lib/context.py 冒頭の「作らない」・works/tests/test_blk_structure.py:625 `test_no_map_no_table_measures_only`
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_no_map_no_table_measures_only（#120 で足した。消すと赤: 実測が対象に docs/ を作ると赤）
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].concepts` が空（種に地図が無い）、対象の作業ツリーに docs/ が増えない
+  - 証: tests/workflows/test_structure.py::StageACase.test_no_map_no_table_measures_only（#120 で足した。消すと赤: 実測が対象に docs/ を作ると赤）
+  - 本物の run: `structure/structure.json` の `units[].concepts` が空（種に地図が無い）、対象の作業ツリーに docs/ が増えない
   - 狭め: 無し
 
 - P067 方針の文書（始めの記録の policy_md）の中身と根の地図の文書（AGENTS.md など。design.repo_map の探し方）を structure.json の rules に置き、構造の目に見せる。長い文書は TEXT_CAP（6000 字）で切って印を付ける
   - 元: works/blk-structure/lib/context.py:40 `rules`
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_eye_sees_root_map_and_cut_policy（#120 で足した。消すと赤: context._cut の切りを外すと赤）
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `rules.maps`・`rules.policy.path`
+  - 証: tests/workflows/test_structure.py::StageACase.test_eye_sees_root_map_and_cut_policy（#120 で足した。消すと赤: context._cut の切りを外すと赤）
+  - 本物の run: `structure/structure.json` の `rules.maps`・`rules.policy.path`
   - 狭め: 無し
 
 - P068 段 A の時間を structure.json の timing（started_at・finished_at・wall_s）に残す
   - 元: works/blk-structure/scripts/stage_a.py:120 `eye.stamp`
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_measure_records_timing（#120 で足した。消すと赤: measure の stamp に時刻を渡さないと赤）
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `timing.wall_s`
+  - 証: tests/workflows/test_structure.py::StageACase.test_measure_records_timing（#120 で足した。消すと赤: measure の stamp に時刻を渡さないと赤）
+  - 本物の run: `structure/structure.json` の `timing.wall_s`
   - 狭め: 無し
 
 - P069 構造の目は実測が ok で測れた単位が 1 つ以上の周だけ起こす（eye.due）。落ちた・測れた単位が無い周は目の会話を起こさない
@@ -507,25 +507,25 @@
   - 本物の run: 節 `structure-measure` の出力 `eye`=true と節 `structure-eye-loop` が走った記録
   - 狭め: 無し
 
-- P070 同じ単位の目録と同じ HEAD なら実測と構造の目を使い回す（plan/structure/<鍵>/。鍵は目録と HEAD の sha256 の頭 12 字）。2 往復目は測らず目も起こさない
+- P070 同じ単位の目録と同じ HEAD なら実測と構造の目を使い回す（structure/。鍵は目録と HEAD の sha256 の頭 12 字）。2 往復目は測らず目も起こさない
   - 元: works/darkfactory/darkfactory.yaml:443-466（構造は run で 1 度、planning の前。往復の中で測り直さない）
   - 今: 表
-  - 証: tests/workflows/test_plan.py::StageACase.test_same_units_and_head_reuse_the_measure・lib/tests/test_planfile.py::RoundCase.test_structure_key_follows_units_and_head
-  - 本物の run: 2 往復目の節 `structure-measure` の出力 `reused`=true と `structure-eye-loop` の skipped、`plan/r1/round.json` と `plan/r2/round.json` の `structure` が同じ（往復が起きた run だけ）
+  - 証: tests/workflows/test_line.py::StructureOnceCase.test_structure_runs_once_and_every_plan_reads_it・tests/workflows/test_plan.py::ReplanCase.test_replan_reads_the_same_structure_after_the_tree_moved
+  - 本物の run: 節 `structure__structure-measure` の記録が run に 1 つ（往復の 2 周目と案の直しは測らず目も起こさない。#560 で鍵による使い回しを、judge の後に 1 回だけ走る構造のブロックに替えた。元と同じく構造は run で 1 度、計画の前）
   - 狭め: 無し
 
-- P071 役を起こさない周（直す義務の単位が無い・行き止まり・入力が読めない）は測らず目も起こさず、使い回す実測の控えを汚さずに周のフォルダの structure/ に「測らなかった訳」つきの failed の控えを書く
+- P071 役を起こさない run（直す義務の単位が無い・行き止まり・入力が読めない）は測らず目も起こさない。構造のサブグラフを飛ばし、計画と事前審査は控えの無い run として構造の目の行なしで進む
   - 元: works/darkfactory/lib/line_edge.py `structure_edge(plan_go=False)`・works/darkfactory/darkfactory.yaml:454-457
   - 今: 表
-  - 証: tests/workflows/test_plan.py::CollectCase.test_nothing_owed_skips_the_role・lib/tests/test_planfile.py::ReplanInputsCase.test_round_without_role_gets_its_own_structure_folder
+  - 証: tests/workflows/test_line.py::OwedCase.test_nothing_owed_stuck_and_unreadable_skip_the_structure・tests/workflows/test_line.py::OwedCase.test_owed_matches_the_first_plan_round・tests/workflows/test_line.py::OwedCase.test_skipped_structure_relays_null・tests/workflows/test_line.py::StructureOnceCase.test_structure_runs_once_and_every_plan_reads_it
   - 本物の run: 筋書きでのみ（種は直す義務の単位が在る）
-  - 狭め: 無し（元は控えを書かなかった。今は返りの指し札が空であってはならない約束のために訳つきの failed を書く。能力は落ちていない）
+  - 狭め: 無し（元も控えを書かなかった。#560 で構造を judge の後に 1 回だけ走るサブグラフにした時に、judge が ready なら必ず測る形に一度狭めた → メイングラフのノード owed で戻した）
 
 - P072 構造の目の指示書は、実測できた単位だけ・問い 1 つ（concepthome.EYE_ASK）・6 つの形の番号つきの一覧・返し方を貼る。測れなかった単位は見せない。前の回の拒否の理由が在れば頭に貼り「丸ごと出し直せ」と言う
   - 元: works/blk-structure/lib/eye.py:151 `render`・:51 `FORMS`
   - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_prompt_carries_only_measured_units_and_the_forms（#120 で足した。消すと赤: render の 6 つの形の一覧を外すと赤）
-  - 本物の run: `plan/structure/<鍵>/eye-prompt-1.md` に問いと 6 つの形と stats.py の単位
+  - 本物の run: `structure/eye-prompt-1.md` に問いと 6 つの形と stats.py の単位
   - 狭め: 無し
 
 - P073 6 つの形の文は設計書の一覧と一字も違わない（faces の 1〜6 の意味の正本を 1 つにする）
@@ -539,7 +539,7 @@
   - 元: works/blk-structure/lib/eye.py:165-166
   - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_prompt_asks_chosen_to_follow_world_practice
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/eye-prompt-1.md` の「定石」の行）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `structure/eye-prompt-1.md` の「定石」の行）
   - 狭め: 無し
 
 - P075 目に見せる duplicates は先頭 DUP_SHOWN（5）件に切り、全件の数を duplicates_total に置く（支度の出力が実行基盤の標準出力の上限を越えて線が落ちた事故の再発止め）
@@ -552,7 +552,7 @@
 - P076 構造の目は道具ゼロ・opus・effort high・設定は user だけ・sandbox 有効・作業ツリーを変えない独立の会話で、指示書は支度の節の出力だけを読む
   - 元: works/blk-structure/blk-structure.yaml:108-121
   - 今: 表
-  - 証: tests/workflows/test_plan.py::ShapeCase.test_eye_command_is_the_original（#120 で足した。消すと赤: structure-eye.md に 1 字足すと赤）
+  - 証: tests/workflows/test_structure.py::ShapeCase.test_eye_command_is_the_original（#120 で足した。消すと赤: structure-eye.md に 1 字足すと赤）
   - 本物の run: 節 `structure-eye` の記録（道具の呼びが 0 回）
   - 狭め: 無し
 
@@ -567,14 +567,14 @@
   - 元: works/blk-structure/lib/eye.py:213 `problems`・:193 `_pointer`
   - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_bad_rows_are_named・lib/tests/test_structure_eye.py::EyeAcceptCase.test_good_rows_pass・lib/tests/test_structure_eye.py::EyeAcceptCase.test_evidence_indexes_the_units_the_prompt_showed
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/eye.json` の `status`=ok・`reason`=""）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `structure/eye.json` の `status`=ok・`reason`=""）
   - 狭め: 無し
 
 - P079 汚れると見た行は当たった形の番号と、推しの避け方 chosen と chosen_reason が要る
   - 元: works/blk-structure/lib/eye.py:245-246・:254-255
   - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_bad_rows_are_named
-  - 本物の run: `plan/structure/<鍵>/design.jsonl` の汚れる行の `chosen`（種で汚れる行が出た時だけ）
+  - 本物の run: `structure/design.jsonl` の汚れる行の `chosen`（種で汚れる行が出た時だけ）
   - 狭め: 無し
 
 - P080 行き先「人に上げる」は汚れる行だけで、決まらない訳 undecided_because（20 字以上）と捨てた案と代償 rejected（1 つ以上）が要る。自分で決める行に undecided_because を書けば拒む
@@ -588,28 +588,28 @@
   - 元: works/blk-structure/lib/eye.py:288-292 `accept`
   - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_own_decision_row_gets_default_route（#120 で足した。消すと赤: accept の既定の route_reason を空にすると赤）
-  - 本物の run: `plan/structure/<鍵>/design.jsonl` の各行の `route`・`route_reason`
+  - 本物の run: `structure/design.jsonl` の各行の `route`・`route_reason`
   - 狭め: 無し
 
 - P082 拒んだ時は design.jsonl に行を書かず、理由を拒否の控え rejects-structure-eye.json（rolekit）に積んで同じ会話（fresh_context: false）で出し直させ、3 回目の拒否で give_up して輪を抜ける（max_iterations で落とさない）
   - 元: works/blk-structure/lib/eye.py:280-287・works/blk-structure/blk-structure.yaml:88-91
   - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_third_rejection_gives_up・tests/workflows/test_plan.py::ShapeCase.test_loops_give_up_in_the_body_before_max_iterations
-  - 本物の run: `plan/structure/<鍵>/eye-prompt-2.md`（拒否の後の出し直しの時だけ）と `eye.json` の `status`・`rejects-structure-eye.json` の拒否の行（回の数は行の数。#232 で eye.json の attempt を外した）
+  - 本物の run: `structure/eye-prompt-2.md`（拒否の後の出し直しの時だけ）と `eye.json` の `status`・`rejects-structure-eye.json` の拒否の行（回の数は行の数。#232 で eye.json の attempt を外した）
   - 狭め: 無し
 
 - P083 構造の目の控え structure-state.json（status・reason・design_file・wall_s）を、目が飛んだ・落ちた・3 回拒まれた周も必ず書く。失敗の訳は「実測が落ちた: …」「構造の目の返答が N 回とも受け付けで拒まれた: …」「構造の目の会話が落ちたか走らなかった」の 3 通り。目を起こさない周（eye.due が偽）は ok
   - 元: works/blk-structure/scripts/collect.py `outcome`・works/darkfactory/lib/line_edge.py `structure_edge`
   - 今: 表
-  - 証: lib/tests/test_planfile.py::StateCase.test_each_failure_names_the_reason（#120 で足した。消すと赤: _outcome の gave_up の枝を外すと赤）
-  - 本物の run: `plan/structure/<鍵>/structure-state.json` の `status`=ok・`reason`=""（返り `structure` の指し札の先）
+  - 証: lib/tests/test_structfile.py::StateCase.test_each_failure_names_the_reason（#120 で足した。消すと赤: _outcome の gave_up の枝を外すと赤）
+  - 本物の run: `structure/structure-state.json` の `status`=ok・`reason`=""（返り `structure` の指し札の先）
   - 狭め: 無し
 
 - P084 構造のブロックで増えた時間（実測の秒＋目の秒）を structure-state.json の wall_s に足して残す（報告が「構造のブロックで増えた時間」として読む）
   - 元: works/blk-structure/scripts/collect.py（wall の和）
   - 今: 表
-  - 証: lib/tests/test_planfile.py::StateCase.test_wall_adds_the_eye_time（#120 で足した。消すと赤: write_state の目の秒の足しを外すと赤）
-  - 本物の run: `plan/structure/<鍵>/structure-state.json` の `wall_s`（0 より大きい）
+  - 証: lib/tests/test_structfile.py::StateCase.test_wall_adds_the_eye_time（#120 で足した。消すと赤: write_state の目の秒の足しを外すと赤）
+  - 本物の run: `structure/structure-state.json` の `wall_s`（0 より大きい）
   - 狭め: 無し
 
 - P085 構造の境の中の失敗（実測が落ちた・目が落ちた・3 回拒まれた）は節の失敗にせず、構造の目の行なしで計画に進む。修正案の材料には「構造の目の行なしで計画した（理由: …）」を貼る
@@ -622,14 +622,14 @@
 - P086 構造の控えを書けない（structure-state.json を書けない）周は、元は節の失敗にせず「控えを書けない」の訳で failed として計画に進んだ。今は structure-state の節が落ち、plan-loop が飛んで ready: false になる
   - 元: works/darkfactory/lib/line_edge.py `structure_edge`（OSError を訳にする）・works/tests/test_structure_eye.py:267 `test_unwritable_state_is_not_a_node_failure`
   - 今: 表
-  - 証: tests/workflows/test_plan.py::CollectCase.test_unwritable_state_still_plans（#120 で足した。消すと赤: keep_state の OSError の捕まえを外すと赤）
+  - 証: tests/workflows/test_structure.py::CollectCase.test_unwritable_state_goes_to_the_spare_place（#120 で足した。消すと赤: keep_state の OSError の捕まえを外すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: #75 で狭めた（Archon で不可でない: script の中で OSError を捕まえて訳を返せば済む → 戻す）
 
 - P087 構造の境の節そのものが落ちた周は、計画の落ちと同じく計画なしで修正へ進まない
   - 元: works/darkfactory/darkfactory.yaml:478-486（planning は h-structure に依る）・works/tests/test_structure_eye.py:255 `test_edge_failure_stops_like_plan_failure`
   - 今: 表
-  - 証: tests/workflows/test_plan.py::CollectCase.test_failed_state_node_gives_not_ready（#120 で足した。消すと赤: plan-loop の trigger_rule を all_done にすると赤）
+  - 証: tests/workflows/test_line.py::StructureOnceCase.test_plan_waits_for_the_structure_output（#120 で足した。消すと赤: plan-loop の trigger_rule を all_done にすると赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -644,21 +644,21 @@
   - 元: works/blk-structure/blk-structure.yaml:174-200（出力 3 本だけを宣言）・works/.shared/core/structmark.py 冒頭
   - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_route_up_row_keeps_ready・tests/workflows/test_plan.py::ShapeCase.test_fallback_names_match_lib
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 返す節 `plan` の出力 `structure.path`=`plan/structure/<鍵>/structure-state.json`）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 返す節 `structure` の出力 `structure.path`=`structure/structure-state.json`）
   - 狭め: 無し
 
 - P090 実測（measure.py）の行数と伸び: 窓の始まりの commit の行数を改名をたどった名で数え、差を出す。窓は HEAD の日時から 90 日
   - 元: works/blk-structure/scripts/measure.py `growth`・`window_since`・`name_at`
   - 今: 表
   - 証: lib/tests/test_blk_structure.py::MeasureCase.test_growth_counts_base_under_old_name・lib/tests/test_blk_structure.py::MeasureCase.test_window_days_counts_back_from_head（元と同じ assert）
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/structure.json` の `units[].measure.paths[].growth`）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `structure/structure.json` の `units[].measure.paths[].growth`）
   - 狭め: 無し
 
 - P091 実測の変更の頻度: パスごとに --follow・素・--no-merges の 3 つの数、複数のパスの和集合は 1 本ずつの和、素と --no-merges の差がマージの数
   - 元: works/blk-structure/scripts/measure.py `commits`
   - 今: 表
   - 証: lib/tests/test_blk_structure.py::MeasureCase.test_follow_raw_no_merges_per_path・lib/tests/test_blk_structure.py::MeasureCase.test_union_follow_is_sum_of_single_file_sets・lib/tests/test_blk_structure.py::MeasureCase.test_raw_minus_no_merges_is_merge_count
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/structure.json` の `units[].measure` の frequency・union）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `structure/structure.json` の `units[].measure` の frequency・union）
   - 狭め: 無し
 
 - P092 浅い clone では頻度・伸び・和集合の数を出さず「測れない」と書く
@@ -672,21 +672,21 @@
   - 元: works/blk-structure/scripts/measure.py（duplicates）
   - 今: 表
   - 証: lib/tests/test_blk_structure.py::MeasureCase.test_six_line_copy_found_five_line_not
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].measure.paths[].duplicates`
+  - 本物の run: `structure/structure.json` の `units[].measure.paths[].duplicates`
   - 狭め: 無し
 
 - P094 入口の数（ファイル名を名指す追跡ファイルの数と、うち実行できる物）と、環境変数の名・一番多い接頭辞（同数は辞書順）・3 つの数え方・書き込みの数
   - 元: works/blk-structure/scripts/measure.py（entrypoints・env）
   - 今: 表
   - 証: lib/tests/test_blk_structure.py::MeasureCase.test_entrypoints・lib/tests/test_blk_structure.py::MeasureCase.test_env_prefix_tie_is_broken_by_name_order・lib/tests/test_blk_structure.py::MeasureCase.test_env_prefix_without_tie・lib/tests/test_blk_structure.py::MeasureCase.test_env_three_counts_and_writes
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/structure.json` の `units[].measure` の entrypoints・env）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `structure/structure.json` の `units[].measure` の entrypoints・env）
   - 狭め: 無し
 
 - P095 読めない・大きすぎる・追跡されていないパスは skipped に理由つきで並べて続け、閾値で止めない。同じ入力なら同じ出力
   - 元: works/blk-structure/scripts/measure.py（skipped）
   - 今: 表
   - 証: lib/tests/test_blk_structure.py::MeasureCase.test_skipped_with_reasons_and_continue・lib/tests/test_blk_structure.py::MeasureCase.test_same_output_twice
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].measure.skipped`
+  - 本物の run: `structure/structure.json` の `units[].measure.skipped`
   - 狭め: 無し
 
 - P096 差分の形（--diff。案の patch か名の一覧を一時の像に当てて前後の増減と新しい名の場所を出し、対象のリポジトリを動かさない）。直しの前の段では使わず、直しの後の実測（eyes の持ち物）と同じ lib を共有する
@@ -707,14 +707,14 @@
   - 元: works/.shared/core/concepthome.py
   - 今: 表
   - 証: lib/tests/test_concepthome.py::TextCase.test_texts_carry_prefix_and_slot・lib/tests/test_concepthome.py::TextCase.test_axis_heads_every_text
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/eye-prompt-1.md` の問い（EYE_ASK の字））
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `structure/eye-prompt-1.md` の問い（EYE_ASK の字））
   - 狭め: 無し
 
 - P099 柵（conceptfence）: 考えの語の形が知ってよい所と除く所の外に何行あるかを数え、写しの束ねの行は数えず、壊れた束ねは拒み、増える向きだけ赤（ratchet）。単位のパスの知る場所の数（places）と、版の間の増え（scan_change。実行基盤の写しの置き場と入れ子のリポジトリは除く）
   - 元: works/.shared/core/conceptfence.py
   - 今: 表
   - 証: lib/tests/test_concept_fences.py::Synthetic の 12 件・lib/tests/test_concept_change.py::ChangeCase の 5 件（同名で在る）・lib/tests/test_concept_fences.py::MainTableCase（main の表を引く。版に表が無ければ空の表）
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].concepts.places`（種は表が無いので空）
+  - 本物の run: `structure/structure.json` の `units[].concepts.places`（種は表が無いので空）
   - 狭め: 無し
 
 - P100 工場自身のリポジトリの考えの地図と柵の表（地図と表の id・状態の揃い・住処ありの考えは柵を持つ・地図のパスが在る・柵が保たれる・main の表より増えない）を CI で照らす
@@ -728,7 +728,7 @@
   - 元: works/darkfactory/lib/line_edge.py `_unit_file_paths`・`structure_units`
   - 今: 表
   - 証: lib/tests/test_judge_accept.py::StructureUnitsCase.test_drops_paths_that_are_not_files_under_root ほか 3 件（judge の区分。ここは参照だけ）
-  - 本物の run: `plan/structure/<鍵>/units.json` の `paths`=`["stats.py"]`（judge の出力 units を plan が写した目録。出力そのものは run の記録に載らない）
+  - 本物の run: `structure/units.json` の `paths`=`["stats.py"]`（judge の出力 units を plan が写した目録。出力そのものは run の記録に載らない）
   - 狭め: 無し
 
 ## 計画と事前審査の往復（壁打ち）と案の直し（形 replan）
@@ -954,8 +954,8 @@
 - P132 案の直しは、修正の後の HEAD で測り直さず、直す元の周の構造の実測と構造の目の行を使う（構造の目を起こさない）
   - 元: works/darkfactory/darkfactory.yaml:687 `replanning`（blk-structure を通らない 2 度目の include）
   - 今: 表
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_reuses_the_first_measure_after_the_tree_moved・lib/tests/test_planfile.py::ReplanInputsCase.test_replan_structure_is_the_source_rounds
-  - 本物の run: plan/r2/round.json の `structure` が plan/r1 と同じ置き場。筋書きでのみ
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_reads_the_same_structure_after_the_tree_moved・tests/workflows/test_line.py::StructureOnceCase.test_structure_runs_once_and_every_plan_reads_it
+  - 本物の run: replan の節の with: の structure が 1 回目の計画と同じ構造の目の控え（`$fix-in.output.structure`。#560）。筋書きでのみ
   - 狭め: 無し
 
 - P133 案の直しの後の単位ごとの深さを、直した案で決め直し、2 度目の修正はそれを使う
@@ -1674,7 +1674,7 @@
   - 元: works/.shared/core/gatemarks.py:576 `axes`・`_answered_rows`
   - 今: 表
   - 証: tests/workflows/test_plan_review.py::FourAxesCase.test_clean_route_rows_do_not_block・lib/tests/test_gate_axes.py::SplitCase.test_route_up_unit_is_not_clean・lib/tests/test_gate_axes.py::SplitCase.test_dirty_unit_without_answer_is_not_clean
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `gate_axes.clean`、`plan-review/structure-state.json` の design_file（計画の design.jsonl の写し `plan-review/structure/design.jsonl` を指す。構造の目が行を書かない run では写しは 0 バイト））
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `gate_axes.clean`、`plan-review/structure-state.json` の design_file（構造の目の設計の行の写し `plan-review/structure/design-rows.jsonl` を指す。構造の目が行を書かない run では写しは 0 バイト））
   - 狭め: 無し
 
 - P231 軸「やりすぎでない」: 柵の印が無く、行が修正案の単位の外を名指さない

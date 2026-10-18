@@ -1,7 +1,5 @@
 # 筋書き: 案の直し（ruling つきの差し込み）。形 replan で案の前の波及の一覧が飛び、修正案の役と返す節に届く
 round: {round: 2, mode: replan, dir: plan/r2, go: true}
-structure-measure: {structure_file: plan/structure/k/structure.json, design_file: plan/structure/k/design.jsonl, eye: false, reused: true}
-structure-state: {state_file: plan/structure/k/structure-state.json}
 plan-prep: {brief: plan/r2/brief-1.md, attempt: 1, resubmit: false}
 plan-writer:
   plan:
@@ -24,7 +22,6 @@ plan-reads: {ok: true, missing: [], index_file: plan/r2/reads-replan-block.json,
 plan:
   ready: true
   plan: {type: archon_artifact, run_id: fixture-run, path: plan/r2/plan-fields.json}
-  structure: {type: archon_artifact, run_id: fixture-run, path: plan/structure/k/structure-state.json}
   ripple: {type: archon_artifact, run_id: fixture-run, path: plan/r2/ripple.json}
   depth: []
   round: 2

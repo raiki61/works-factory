@@ -51,16 +51,18 @@ def main() -> None:
     verify, bad_verify = planfile.pointed(os.environ.get("INPUTS_VERIFY", ""), boundary.pointed)
     depth_record, bad_depth = planfile.pointed(os.environ.get("INPUTS_DEPTH_RECORD", ""), boundary.pointed)
     decisions, bad_decisions = planfile.pointed(os.environ.get("INPUTS_DECISIONS", ""), boundary.pointed)
+    structure, bad_structure = planfile.pointed(os.environ["INPUTS_STRUCTURE"], boundary.pointed)
     bad_ties = planfile.pointed(os.environ.get("INPUTS_ANSWER_TIES", ""), boundary.pointed)[1]
     bad_materials = planfile.pointed(os.environ.get("INPUTS_MATERIALS", ""), boundary.pointed)[1]
     unread = [f"{name}: {why}" for name, why in (("world", bad_world), ("spec", bad_spec), ("conflicts", bad_conflicts),
                                                  ("prior_failures", bad_prior), ("pr_excluded", bad_excluded),
                                                  ("verify", bad_verify), ("depth_record", bad_depth), ("decisions", bad_decisions),
-                                                 ("answer_ties", bad_ties), ("materials", bad_materials)) if why]
+                                                 ("answer_ties", bad_ties), ("materials", bad_materials),
+                                                 ("structure", bad_structure)) if why]
     keys = set(planfile.slots(judgment)) if isinstance(judgment, dict) else None
     path, n = planfile.write_brief(
         round_dir, plan_dir, mode=rnd["mode"], judgment=judgment, judgment_file=judgment_file,
-        units=units, structure_dir_=plan_dir / rnd["structure"], world_rows=world, spec=spec,
+        units=units, structure=structure, world_rows=world, spec=spec,
         repo=repo, review_rev=startrec.read_rev(start), base=startrec.diff_base(start),
         review_md=str(boundary.lib_root() / "REVIEW.md"),
         lang_line=rolekit.lang_line(start), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,

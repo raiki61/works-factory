@@ -30,7 +30,8 @@ def main() -> None:
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
     base_rev = (start.get("base_rev") if isinstance(start, dict) else "") or ""
     world, _ = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.pointed)
-    tables = planfile.answer_tables(plan_dir / rnd["structure"], world)
+    structure, _ = planfile.pointed(os.environ["INPUTS_STRUCTURE"], boundary.pointed)
+    tables = planfile.answer_tables(structure, world)
     keys = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
     common = {"repo": repo, "tables": tables, "base_rev": base_rev, "keys": keys}
     if rnd["mode"] == "replan":

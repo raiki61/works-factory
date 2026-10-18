@@ -1,8 +1,6 @@
 # 筋書き: 受け付けが網の回（lib の rolekit.NET_AFTER の 20 回）まで拒み続けて諦めた周。輪は give_up の done で抜け、返す節は ready: false で正しく終わる
 # （ASF の W/plan/fixtures/blocked.stubs.yaml と同じく、ready: false も run を落とさない）
 round: {round: 1, mode: plan, dir: plan/r1, go: true}
-structure-measure: {structure_file: plan/structure/k/structure.json, design_file: plan/structure/k/design.jsonl, eye: false, reused: false}
-structure-state: {state_file: plan/structure/k/structure-state.json}
 ripple-units: {ripple_file: plan/r1/ripple-units.json}
 plan-prep: {brief: plan/r1/brief-20.md, attempt: 20, resubmit: false}
 plan-writer:
@@ -26,7 +24,6 @@ plan-reads: {ok: true, missing: [], index_file: plan/r1/reads-plan-block.json, r
 plan:
   ready: false
   plan: {type: archon_artifact, run_id: fixture-run, path: plan/r1/plan-fields.json}
-  structure: {type: archon_artifact, run_id: fixture-run, path: plan/structure/k/structure-state.json}
   ripple: {type: archon_artifact, run_id: fixture-run, path: plan/r1/ripple.json}
   depth: []
   round: 1
