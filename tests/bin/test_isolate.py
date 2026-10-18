@@ -4,7 +4,10 @@
 向け先は全部 run の置き場の下で、認証の起こし役（auth_launch.py）が読む利用者の HOME と CLAUDE_CONFIG_DIR は、変わらずに残る隔離の前の env から取る。
 """
 import json
+import os
 import pathlib
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +19,8 @@ if str(ROOT / "lib") not in sys.path:
 
 import isolate  # noqa: E402
 import userenv  # noqa: E402
+from tests import archon  # noqa: E402
+from tests.bin import hermetic  # noqa: E402
 
 ISOLATED = {"HOME", "ARCHON_HOME", "CLAUDE_CONFIG_DIR", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"}
 
@@ -78,6 +83,64 @@ class IsolateCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             isolate.isolate({"HOME": "/u"}, pathlib.Path("run"))
         self.assertFalse(pathlib.Path("run").exists())
+
+
+# 止めた Archon の作業場の作り（packages/isolation/src/providers/worktree.ts の addLockedWorktree）と同じ順で、まだ無い作業場の
+# パスを git の全体の設定に足す（git worktree add の前に addSafeDirectory）。作業場の置き場は Archon 自身が ARCHON_HOME から組む
+GRANT_TS = """\
+import { getProjectWorktreesPath } from '@SOURCE@/packages/paths/src/archon-paths.ts';
+import { addSafeDirectory } from '@SOURCE@/packages/git/src/repo.ts';
+const [where, kind] = process.argv.slice(2);
+const path = kind === 'new' ? `${getProjectWorktreesPath('o', 'r')}/${where}` : where;
+await addSafeDirectory(path as never);
+"""
+
+
+@unittest.skipIf(os.geteuid() == 0, "止めた Archon は root の作業場のパスをいつも git の全体の設定に書く（書かずに済むのは root でない利用者）")
+class ParallelWorktreeGrantCase(unittest.TestCase):
+    """#727: 並べて走る子の run の作業場の作りが、工場の家の .gitconfig のロックにぶつからない。
+
+    Archon の子の run は 1 つのプロセスの中で走り、git の全体の設定は殻が渡す HOME（工場の家）の .gitconfig 1 つを分け合う。git は
+    設定を書く間 .gitconfig.lock を作り、ほかが持っていれば待たずに落ちる。ここではロックを持ったまま子 2 本ぶんの書きを同時に回す。
+    止めた Archon は、まだ無いパスで、いちばん近い在る親がそのプロセスの利用者の物なら書かずに済ませる。殻が作業場の置き場
+    （ARCHON_HOME）を利用者の物として作るので、子の作業場はいつもこれに当たる。
+    """
+
+    def setUp(self):
+        source = archon.source()
+        self.bun = shutil.which("bun")
+        if self.bun is None:
+            raise archon.absent("bun が無い")
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        base = pathlib.Path(tmp.name).resolve()
+        self.script = base / "grant.ts"
+        self.script.write_text(GRANT_TS.replace("@SOURCE@", str(source)), encoding="utf-8")
+        self.env = isolate.isolate(hermetic.child_env(), base / "run")
+        for name in ("GIT_CONFIG_GLOBAL", "GIT_TEST_ASSUME_DIFFERENT_OWNER"):
+            self.env.pop(name, None)
+        self.gitconfig = pathlib.Path(self.env["HOME"]) / ".gitconfig"
+        self.gitconfig.write_text("[user]\n\tname = factory\n", encoding="utf-8")
+        self.gitconfig.with_name(".gitconfig.lock").touch()
+
+    def grant(self, *args: str) -> subprocess.Popen:
+        return subprocess.Popen([self.bun, str(self.script), *args], env=self.env, cwd=self.script.parent,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+
+    def test_two_children_creating_worktrees_together_both_succeed(self):
+        children = [self.grant(branch, "new") for branch in ("group-a", "group-b")]
+        for child in children:
+            _, err = child.communicate()
+            self.assertEqual(child.returncode, 0, err)
+        self.assertEqual(self.gitconfig.read_text(encoding="utf-8"), "[user]\n\tname = factory\n")
+
+    def test_held_lock_fails_a_write_that_is_not_skipped(self):
+        """上の試験が書きの省きで通り、ロックが効かずに通るのではないことの対照。在るパス（Archon が在る作業場を使い直す時に
+        足す物）は省かれず、#727 の落ちと同じ文で落ちる"""
+        existing = pathlib.Path(self.env["ARCHON_HOME"]) / "existing"
+        existing.mkdir()
+        _, err = self.grant(str(existing), "existing").communicate()
+        self.assertIn("could not lock config file", err)
 
 
 if __name__ == "__main__":
