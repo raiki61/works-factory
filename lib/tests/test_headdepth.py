@@ -296,7 +296,7 @@ class ReportLineTest(unittest.TestCase):
         self.assertEqual(headdepth.report_line("極厚", "x"), "run の頭の深さ: 標準（根拠: x）／省く物: 無い／足した物: 無い")
 
     def test_groups_lines_show_only_changed_groups_or_one_line(self):
-        none = [headdepth.NO_CHOICE, launchgroups.RECORD_ONLY]
+        none = [headdepth.NO_CHOICE, headdepth.RUN_SWITCH]
         self.assertEqual(none[0], "役の選びは無い（呼ぶ人の名指しと層の付け替えの後の値は下のノードごとの行）")
         for name, doc in (("no groups", headdepth.record("標準", "x")), ("empty groups", {"groups": []}), ("no record", None),
                           ("groups not a list", {"groups": "x"}), ("rows not objects", {"groups": ["x", 3]})):
@@ -315,7 +315,7 @@ class ReportLineTest(unittest.TestCase):
             "@wf-eyes-core: 役の選びを既定 opus・high に戻した（訳: 許さない語（model 'gpt'・effort 'high'。許すのは "
             "haiku・sonnet・opus と low・medium・high・max））",
             "@wf-nothing: 表に無い群を既定に戻した（訳: 群 '@wf-nothing' が表に無い）",
-            launchgroups.RECORD_ONLY])
+            headdepth.RUN_SWITCH])
         lines = "".join(headdepth.groups_lines(doc))
         for group in launchgroups.GROUPS:
             if group not in ("@wf-fix-writers", "@wf-eyes-core"):
@@ -329,6 +329,19 @@ class ReportLineTest(unittest.TestCase):
         no_effort = [{**same[0], "default": {"model": "sonnet"}, "fallback": "x"}]
         self.assertEqual(headdepth.groups_lines({"groups": no_effort})[0], "@wf-report: 役の選びを既定 sonnet に戻した（訳: x）",
                          "控えの既定に effort が無ければ出さない")
+
+    def test_groups_lines_say_up_and_down_are_record_only_with_the_launch_switch(self):
+        self.assertEqual(headdepth.RUN_SWITCH,
+                         "役の選びは記録だけで、この run にも子の run にも次の周にも効かない。走りの模型を替えるには、run を起こす時に "
+                         "--model @wf-<群>=<模型> を渡す（effort も替えるなら <模型> の代わりに effort を持つ別名 @<名> を書く）。")
+        for want, row in ((launchgroups.UP, {"group": "@wf-fix-writers", "model": "opus", "effort": "max", "why": "x"}),
+                          (launchgroups.DOWN, {"group": "@wf-fix-writers", "model": "haiku", "effort": "low", "why": "x"})):
+            with self.subTest(want):
+                chosen = launchgroups.choices([row])
+                self.assertEqual(chosen[0]["direction"], want)
+                got = headdepth.groups_lines(headdepth.record("標準", "x", groups=chosen))
+                self.assertEqual(len(got), 2)
+                self.assertEqual(got[-1], headdepth.RUN_SWITCH)
 
 
 if __name__ == "__main__":
