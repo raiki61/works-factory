@@ -55,7 +55,7 @@
 - YAML のノードにも script にも期限を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。
 - 期限の鍵の当て方は次のとおり（止めた Archon（`docs/design.md` の「語」）の `packages/workflows/src/schemas/dag-node.ts`・`dag-executor.ts` で確かめた）。
   - 書かなければ期限の無い鍵は書かない: `script:`・`bash:` の `timeout`、`loop:`・`loop_group:` の `timeout`（`until_bash` の確かめ）。Archon の文書 `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Omitted: no timeout, the node runs until it exits」。
-  - 書かなくても既定の期限が当たる鍵には、実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値。埋め P13）を書く: `prompt:`・`command:` の `idle_timeout`、`loop:` の `idle_timeout`（1 周ごと。無いと 30 分）、`approval:` の `idle_timeout`（`on_reject` の直しの役が受け継ぐ。承認ノードは `approval:` で書かない（E16））、`wait:` の中の `deadline_ms`（`event` を待つ時に要る）。`attention` の待ち（承認ノード）は期限を持たない（Archon の文書 `guides/authoring-workflows.md` の「An attention wait has no deadline」）
+  - 書かなくても既定の期限が当たる鍵には、実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値。埋め P14）を書く: `prompt:`・`command:` の `idle_timeout`、`loop:` の `idle_timeout`（1 周ごと。無いと 30 分）、`approval:` の `idle_timeout`（`on_reject` の直しの役が受け継ぐ。承認ノードは `approval:` で書かない（E16））、`wait:` の中の `deadline_ms`（`event` を待つ時に要る）。`attention` の待ち（承認ノード）は期限を持たない（Archon の文書 `guides/authoring-workflows.md` の「An attention wait has no deadline」）
   - `cancel:`・`include:`・`workflow:` は期限を持たない（`include:`・`workflow:` の先のノードは自分の鍵を持つ）
 - 機械: `tests/layers/test_no_timeouts.py`（`workflows/` の YAML のノードが全部上の種類のどれかで（知らない種類は赤）、どのノードも `timeout` を書かず、既定の期限が当たるノードに上の鍵が在り、`idle_timeout`・`deadline_ms` が全部 `1728000000`）。
 

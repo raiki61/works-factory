@@ -146,7 +146,7 @@
 - 使うサブグラフ: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
-### P13 AI のノードに既定の無言の期限が当たる
+### P14 AI のノードに既定の無言の期限が当たる
 
 - 穴: `idle_timeout` を書かない `prompt:`・`command:` のノードと `loop:` の 1 周に、Archon が provider から何も届かない 30 分で打ち切りを当てる。
 - 証拠:
