@@ -10,6 +10,8 @@ HEAD に積んだ commit は枝に残らない。呼び手が exclude に名指�
   無ければ積まない。hook_env が None なら対象の commit の hooks を飛ばし、在ればその環境で commit して hooks を走らせる
 - branch(repo) -> str: HEAD が指す枝の短い名
 - default_branch(repo, remote) -> str: remote の既定の枝（remote の HEAD が指す枝）の短い名。git ls-remote --symref で読む
+- pr_branches(repo, remote) -> (branch, base, reason): PR の push 先の run の枝と向け先の既定の枝。積めない・既定の枝を読めない・
+  run の枝が既定の枝と同じ名なら reason が訳（枝は空）
 - git(repo, *args, environ=None) -> str: git を repo で 1 回走らせた標準出力（0 でなければ GitFailed）。environ の既定は os.environ
 """
 import os
@@ -23,6 +25,7 @@ AUTHOR = ("-c", "user.name=works-factory", "-c", "user.email=works-factory@local
 MAIN_TREE = "本体の作業ツリーでは commit しない（積むのは run のために切った作業ツリーだけ）"
 DETACHED = "HEAD が枝を指していない（切り離された HEAD には commit しない）"
 HEADS = "refs/heads/"
+ORIGIN = "origin"   # PR を出す remote（merge が積む前に照らし、最後の承認ノードが同じ枝を見せる）
 
 
 class GitFailed(RuntimeError):
@@ -71,3 +74,20 @@ def default_branch(repo: Path, remote: str) -> str:
         if name == "HEAD" and ref.startswith("ref: " + HEADS):
             return ref[len("ref: " + HEADS):]
     raise GitFailed(f"{remote} の HEAD が枝を指していない（git ls-remote --symref {remote} HEAD）")
+
+
+def pr_branches(repo: Path, remote: str) -> tuple:
+    try:
+        reason = refusal(repo)
+        name = "" if reason else branch(repo)
+    except GitFailed as error:
+        return "", "", f"run の枝を読めない: {error}"
+    if reason:
+        return "", "", reason
+    try:
+        base = default_branch(repo, remote)
+    except GitFailed as error:
+        return "", "", f"対象の既定の枝を読めない（既定の枝へ push しないことを確かめられない）: {error}"
+    if name == base:
+        return "", "", f"run の枝 {name} が対象の既定の枝と同じ名（既定の枝へは push しない）"
+    return name, base, ""

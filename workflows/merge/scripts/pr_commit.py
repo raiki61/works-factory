@@ -40,7 +40,6 @@ if boundary is not None:
         import seal
         import userenv
 
-REMOTE = "origin"
 CHECKED = {
     "apply": "最後の承認ノードの後に、封じた差分の hash・修正の後のテストの緑の認証・独立の確かめ・守りのパスの当たりを照らして通った",
     "check": "封じた差分の hash を今の差分と照らして通った（テストと確かめは差分を作った所で済んだ）",
@@ -64,7 +63,7 @@ def message(mode: str, run_id: str, sealed: str, name: str, base: str, issues: l
 
 def origin_repo(repo: Path):
     try:
-        got = forge.repo_of(runbranch.git(repo, "config", "--get", f"remote.{REMOTE}.url"))
+        got = forge.repo_of(runbranch.git(repo, "config", "--get", f"remote.{runbranch.ORIGIN}.url"))
     except runbranch.GitFailed:
         return None
     return None if got is None else {"host": got["host"], "path": f"{got['owner']}/{got['name']}"}
@@ -86,19 +85,12 @@ def commit() -> dict:
         return stopped(f"照らしの形 {mode!r} は {' か '.join(CHECKED)} でない（照らした差分しか積まない）")
     if not base_rev:
         return stopped("差分の根 base_rev が無い")
-    reason = runbranch.refusal(repo)
+    name, base, reason = runbranch.pr_branches(repo, runbranch.ORIGIN)
     if reason:
         return stopped(reason)
-    name = runbranch.branch(repo)
-    try:
-        base = runbranch.default_branch(repo, REMOTE)
-    except runbranch.GitFailed as error:
-        return stopped(f"対象の既定の枝を読めない（既定の枝へ push しないことを確かめられない）: {error}")
-    if name == base:
-        return stopped(f"run の枝 {name} が対象の既定の枝と同じ名（既定の枝へは push しない）")
     target = origin_repo(repo)
     if target is None:
-        return stopped(f"{REMOTE} の URL から PR を出す repo（host と owner/name）を決められない")
+        return stopped(f"{runbranch.ORIGIN} の URL から PR を出す repo（host と owner/name）を決められない")
     why = seal.hash_refusal(sealed, seal.digest(green_cert.diff_bytes(repo, base_rev, skip=boundary.SKIP)))
     if why:
         return stopped(f"{why}（commit しない）")
