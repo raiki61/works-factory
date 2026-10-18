@@ -12,6 +12,7 @@
 - accept_rule(reply, board, base_rev, repo): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
   ちょうど 1 件ずつ・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
   外れない・裁きの出どころ（grounds）が現物に在り、依頼のファイルが在る run の ask_human は依頼の行か request_searched を持つ・
+  ask_human は人に回す訳（conflict.ASK_WHY の直しの向きか範囲と 1 行）を持ち、訳が名の重なりだけ（NAME_ONLY）でない・
   fix_plan_item は範囲を持たず、grounds にその単位の brief の行を名指す（planbrief.by_unit_at・conflict.brief_cite_problem）・
   同じ返答で fix_plan_item に裁いた項目の単位に直す裁定を出さない（plan_item_fix_problems）・rejudge は組どうしの合わせの申し出
   （conflict.JOIN_SOURCE）だけで範囲を持たず、同じ組の行は同じ裁定に揃える（clash_split_problems）、
@@ -43,7 +44,11 @@ BY_ROLE = "role:rule"
 BY_GIVE_UP = stopby.declare("rule-give-up", "裁定の by: 裁定役の返答が受け付けを通らず、決められない物として人に回した")
 GIVE_UP_TEXT = f"裁定役の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
 READONLY = "裁定役は読むだけで、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない: "
-RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", "query")   # 置き場の控えに積む裁定の欄
+NAME_ONLY_REJECT = (f"人に回す訳が名の重なりだけ（{conflict.NAME_ONLY}）——人が答えても直しは変わらないので人に回さず、自分で裁け。"
+                    "字が同じでも、言語・在り処・役割（環境変数・型など）が違い、消す名の生き残りでもない時だけ別の物と読み、もう一方の在り処を "
+                    "limits に挙げて fix_code_as に、案が消すと決めた名を古いテストを緑に残すために別のファイルに定義し直したのは同じ物で "
+                    "limits に挙げず、項目の path や名そのものを変える要り（衝突を避けた改名など）なら fix_plan_item に裁け")
+RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", conflict.ASK_WHY, "query")   # 置き場の控えに積む裁定の欄
 
 
 def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = "") -> dict:
@@ -98,6 +103,20 @@ def grounds_problems(r: dict, repo, request: str, roots) -> list:
     return errs
 
 
+def ask_why_problems(r: dict) -> list:
+    """人に回す訳（ASK_WHY）: ask_human は人の答えで変わる物（ASK_CHANGES の直しの向きか範囲）と 1 行の訳を持ち、訳が名の重なり
+    だけ（NAME_ONLY）なら拒む（名の重なりは人の答えで直しが変わらない。#664）。ほかの裁定は訳を持たない"""
+    why = r.get(conflict.ASK_WHY)
+    if r["decision"] != conflict.ASK:
+        return [f"{conflict.ASK_WHY} は {conflict.ASK} の裁定だけに書く"] if why is not None else []
+    if not isinstance(why, dict):
+        return [f"{conflict.ASK} には人に回す訳（{conflict.ASK_WHY} {{changes: {' か '.join(conflict.ASK_CHANGES)}, line: "
+                "人の答えで何が変わるかの 1 行}）が要る"]
+    if why.get("changes") == conflict.NAME_ONLY:
+        return [NAME_ONLY_REJECT]
+    return []
+
+
 def plan_item_units(unit_key, briefs) -> tuple:
     """fix_plan_item が誤りと裁く案の項目: (その単位の brief の項目の番号, その項目に載る単位の全部)。briefs は
     planbrief.by_unit_at の {unit_key: [{item, file}]}（brief の無い単位は ([], [])）"""
@@ -137,7 +156,7 @@ def problems(reply, todo: dict, repo, request: str = "", roots=(), briefs=None) 
                 errs.append(f"申し出 {r['id']}: {conflict.REJUDGE} は範囲を持たない（limits は空）")
         if r["decision"] == conflict.REPLACE or "query" in r:
             errs += [f"申し出 {r['id']}: {e}" for e in query_problems(r, todo.get(r["id"]) or {})]
-        errs += [f"申し出 {r['id']}: {e}" for e in grounds_problems(r, repo, request, roots)]
+        errs += [f"申し出 {r['id']}: {e}" for e in grounds_problems(r, repo, request, roots) + ask_why_problems(r)]
     errs += plan_item_fix_problems(rows, todo, briefs) + clash_split_problems(rows, todo)
     return errs
 
