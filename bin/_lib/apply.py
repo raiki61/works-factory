@@ -1,12 +1,15 @@
-"""封じた差分を対象に当てる口 bin/apply の中身: bin/apply <run-id> [--cwd <対象>] [--allow-delete] [--allow-stopped]。
+"""封じた差分を対象に当てる口 bin/apply の中身: bin/apply <run-id> [--cwd <対象>] [--allow-delete] [--allow-stopped] [--allow-failed]。
 
 約束は docs/plans/2026-10-13-stage1-walking-skeleton.md の「bin/apply（土台の計画 Task 7）」の 1〜9。run は殻 bin/works-factory の
 workflow get で読み（家・隔離・Archon の起こし方は殻の物）、メイングラフか周の鎖の出力ノード result の値（terminal_record.returns.value。
 どちらも同じ欄 apply・sealed を持ち、鎖の物は元の基から採る周までの最後の差分）から当てる差分を選ぶ。
 hash の正本は Archon の DB の run の記録で、置き場のファイルではない。今の works の確かめ（works/dev/use.sh の apply_checked:
 消す行の許し・止まった run の許し・git apply --check）に、封じた hash とポインタの照らし・読み戻しを足す。commit はしない。
-封じた hash で確かめられない差分（メイングラフの出力が読めない run・封じる前に止まった run）は当てず、拒む 1 行に素の git apply で当てる道を書く
-（docs/plans/2026-10-13-line-wiring.md の M45・M46 の決め。新しい旗は足さない）。
+封じる前に止まった run の差分は当てず、拒む 1 行に素の git apply で当てる道を書く（docs/plans/2026-10-13-line-wiring.md の M46 の決め）。
+メイングラフの出力が読めない run（封じた後のノードが落ちた run など）は、旗 --allow-failed が在れば、封じのノード merge-seal の出力を run の記録の
+出来事（workflow get --verbose --events の events）から読んで同じく照らして当てる（#665）。最後の承認ノードの答え（answer-final）が済んでいて
+止めの答えなら、--allow-stopped も要る（M44）。封じのノードが済んでいない・その出力や出来事が読めない時は、今どおり拒む 1 行に素の git apply で
+当てる道を書く（M45）。R2 が作り直しを言った run は、どちらの旗でも当てない。
 承認し直すかの問い（spec-check の問い。メイングラフと周の鎖の出力の spec_questions。鎖の物は最後の差分に入る周の問いの数の和）を
 残した run は、断らずに当て、当てた後にそう 1 行で知らせる（断った時は断りの 1 行だけ。今の works の apply_checked も断らない。
 人は最後の承認ノードで「承認すると差分は当たる」を読んで答えている）。
@@ -17,8 +20,8 @@ import os
 import shlex
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 from bin._lib import launcher
 
@@ -28,6 +31,7 @@ if str(LIB) not in sys.path:   # lib/ の部品は互いを名だけで import �
 
 import chain  # noqa: E402  周の鎖の最後の差分の置き場（final-diff と同じ名を 2 か所に持たない）
 import seal  # noqa: E402  差分の封印と R2 の語の持ち主（merge の apply と同じ決まりを 2 か所に持たない）
+import answer as answers  # noqa: E402  人の答えと無人の run の推しを分ける口（欄 pushed の在る答えは人の答えでない）
 
 NAME = "apply"
 SHELL = Path(__file__).resolve().parents[1] / "works-factory"
@@ -35,8 +39,21 @@ UNREADABLE = 2
 REFUSED = 1
 POINTER_TYPE = "archon_artifact"   # merge の出力の diff の型（試験が workflows/merge の output_format と縛る）
 APPLY_DIFF, SEALED_DIFF = "merge/apply.diff", "merge/sealed.diff"   # merge が置き場に置く差分（同じく output_format の enum と縛る）
+# メイングラフの出力が読めない run で読む、run の記録のノードの id（試験がメイングラフの YAML と縛る）。封じのノード merge-seal と、merge-apply に
+# R2 を渡す独立の目 eyes は、サブグラフの出力を受け皿（出力 {got, stop_reason}）で受けて読む（docs/design.md の受け皿の決め）。最後の承認ノードの
+# 答えは、merge-apply に答えを渡すメイングラフのノードの出力 {go, answer, stop_reason}
+SEAL_STEP, EYES_STEP, ANSWER_STEP = "merge-seal-out", "eyes-out", "answer-final"
+GOT = "got"
+# workflow get の答えに run の記録の出来事の列を足す旗とその欄・ノードの出力を持つ出来事・ノードの済んだ状態・出来事の出力の欄（型つきの出力・
+# 切り詰めの印・素の出力）。読む順も Archon の terminal-record.ts が returns を組む読みと同じ（型つきの出力が在れば切り詰めの印を見ない。
+# tests/shared/test_archon_contract.py が縛る）
+EVENTS_FLAGS, EVENTS = ("--verbose", "--events"), "events"
+OUTPUT_EVENTS, COMPLETED = ("node_completed", "node_skipped_prior_success"), "completed"
+OUTPUT_KEYS = STRUCTURED, TRUNCATED, RAW = ("structured_output", "node_output_truncated", "node_output")
 
-Get = Callable[[str, Path], subprocess.CompletedProcess[str]]
+
+class Get(Protocol):
+    def __call__(self, run_id: str, target: Path, *flags: str) -> subprocess.CompletedProcess[str]: ...
 
 
 class Refuse(Exception):
@@ -47,9 +64,9 @@ class Refuse(Exception):
         self.code = code
 
 
-def ask_launcher(run_id: str, target: Path) -> subprocess.CompletedProcess[str]:
+def ask_launcher(run_id: str, target: Path, *flags: str) -> subprocess.CompletedProcess[str]:
     """殻を子のプロセスで起こして run を読む。殻の文（標準エラー）はそのまま利用者へ流す"""
-    return subprocess.run([sys.executable, str(SHELL), "workflow", "get", run_id, "--json", "--cwd", str(target)],
+    return subprocess.run([sys.executable, str(SHELL), "workflow", "get", run_id, "--json", *flags, "--cwd", str(target)],
                           stdout=subprocess.PIPE, text=True, encoding="utf-8")
 
 
@@ -59,12 +76,14 @@ def main(argv: list[str], here: Path | None = None, get: Get = ask_launcher) -> 
     parser.add_argument("--cwd", help="対象（無ければ打った場所）")
     parser.add_argument("--allow-delete", action="store_true", help="対象のファイルを消す差分も当てる")
     parser.add_argument("--allow-stopped", action="store_true", help="最後の承認ノードで止めた run の封じた差分を当てる")
+    parser.add_argument("--allow-failed", action="store_true",
+                        help="封じた後のノードが落ちてメイングラフの出力が読めない run の封じた差分を、封じのノードの出力から当てる")
     args = parser.parse_args(argv)
     here = here or Path.cwd()
     try:
         target = launcher.target_root(Path(args.cwd or here), here)
-        run = read_run(get(args.run_id, target), args.run_id, target)
-        diff, sealed_hash, stopped = choose(run, target, args.allow_stopped)
+        run = read_run(get(args.run_id, target), args.run_id)
+        diff, sealed_hash, notes = pick(run, target, args, get)
         try:
             data = diff.read_bytes()
         except OSError as e:
@@ -75,17 +94,14 @@ def main(argv: list[str], here: Path | None = None, get: Get = ask_launcher) -> 
     except (launcher.Stop, Refuse) as stop:
         print(f"{NAME}: {one_line(str(stop))}", file=sys.stderr)
         return stop.code
-    if stopped:
-        print(f"{NAME}: {one_line(stopped)}で止まった run。--allow-stopped が在るので当てた", file=sys.stderr)
-    note = respec_note(run["terminal_record"]["returns"]["value"])
-    if note:
+    for note in notes:
         print(f"{NAME}: {one_line(note)}", file=sys.stderr)
     print(f"run {run['terminal_record']['run_id']} の封じた差分を {target} に当てた: {' '.join(files)}")
     print("commit はしていない。試験を回してから commit する")
     return 0
 
 
-def read_run(done: subprocess.CompletedProcess[str], run_id: str, target: Path) -> dict:
+def read_run(done: subprocess.CompletedProcess[str], run_id: str) -> dict:
     """workflow get --json の答え（run の記録の欄と、終わった run の terminal_record）。読めなければ終了の値 2"""
     if done.returncode != 0:
         raise Refuse(f"run {run_id} を読めない（workflow get が終了の値 {done.returncode}）", UNREADABLE)
@@ -96,17 +112,124 @@ def read_run(done: subprocess.CompletedProcess[str], run_id: str, target: Path) 
         raise Refuse(f"run {run_id} を読めない（workflow get の答えが JSON の object でない）", UNREADABLE) from None
     if record is None:
         raise Refuse(f"run {run_id} は終わっていない（terminal_record が null）。終わってから当てる", UNREADABLE)
-    returns = record.get("returns") or {}
-    if returns.get("availability") != "available":
-        raise Refuse(f"run {run_id} のメイングラフの出力が読めない（returns.availability が {returns.get('availability')}）"
-                     f"{unchecked(record, target)}", UNREADABLE)
-    if not isinstance(returns.get("value"), dict):
-        raise Refuse(f"run {run_id} のメイングラフの出力（returns.value）が object でない{unchecked(record, target)}", UNREADABLE)
     return run
 
 
+def pick(run: dict, target: Path, args: argparse.Namespace, get: Get) -> tuple[Path, str, list[str]]:
+    """当てる差分のファイルと、記録の封じた hash と、当てた後に知らせる行"""
+    record = run["terminal_record"]
+    unread = unreadable(record)
+    if unread:
+        diff, sealed_hash, note = from_seal(record, target, args, get, unread)
+        return diff, sealed_hash, [note]
+    value = record["returns"]["value"]
+    diff, sealed_hash, stopped = choose(run, target, args.allow_stopped)
+    notes = [f"{stopped}で止まった run。--allow-stopped が在るので当てた"] if stopped else []
+    return diff, sealed_hash, notes + [note for note in [respec_note(value)] if note]
+
+
+def unreadable(record: dict) -> str:
+    """メイングラフの出力が読めない訳と、落ちたノードの名（読めれば空）"""
+    returns = record.get("returns") or {}
+    if returns.get("availability") != "available":
+        why = f"returns.availability が {returns.get('availability')}"
+    elif not isinstance(returns.get("value"), dict):
+        why = "returns.value が object でない"
+    else:
+        return ""
+    failed = record.get("first_failed_node")
+    return (f"run {record['run_id']} のメイングラフの出力が読めない（{why}・"
+            f"{f'落ちたノード {failed}' if failed else '落ちたノードは記録に無い'}）")
+
+
+def from_seal(record: dict, target: Path, args: argparse.Namespace, get: Get, unread: str) -> tuple[Path, str, str]:
+    """メイングラフの出力が読めない run の、封じのノードの出力が指す差分と封じた hash と、当てた後に知らせる行"""
+    by_hand = unchecked(record, target)
+    states = {n.get("node_id"): n.get("state") for n in record.get("nodes") or [] if isinstance(n, dict)}
+    if states.get(SEAL_STEP) is None:
+        raise Refuse(f"{unread}。この run には封じのノード {SEAL_STEP} が無い{by_hand}", UNREADABLE)
+    if states[SEAL_STEP] != COMPLETED:
+        raise Refuse(f"{unread}。封じのノード {SEAL_STEP} が済んでいない（状態 {states[SEAL_STEP]}）{by_hand}", UNREADABLE)
+    try:
+        events = read_events(get(record["run_id"], target, *EVENTS_FLAGS), record["run_id"])
+    except Refuse as e:
+        raise Refuse(f"{unread}。{e}{by_hand}", e.code) from None
+    sealed = got_of(events, SEAL_STEP)
+    if not (isinstance(sealed, dict) and sealed.get("mode") == "seal" and isinstance(sealed.get("hash"), str)):
+        raise Refuse(f"{unread}。封じのノード {SEAL_STEP} の出力が読めない{by_hand}", UNREADABLE)
+    if sealed.get("ok") is not True:
+        raise Refuse(f"{unread}。封じのノード {SEAL_STEP} が封じていない（{sealed.get('reason')}）。封じていない差分は当てない{by_hand}")
+    verdict = got_of(events, EYES_STEP) if states.get(EYES_STEP) == COMPLETED else None
+    if not isinstance(verdict, dict):
+        raise Refuse(f"{unread}。独立の目 {EYES_STEP} の出力が読めず、R2 が作り直しを言ったかを照らせない{by_hand}", UNREADABLE)
+    r2 = verdict.get("r2")
+    if isinstance(r2, dict) and r2.get("status") == seal.REDESIGN:
+        raise Refuse(f"R2 が {seal.REDESIGN} を言った run の差分は、--allow-failed でも当てない")
+    seen, stopped = final_answer(events, states, unread, by_hand)
+    needed = ["--allow-failed", *(["--allow-stopped"] if stopped else [])]
+    if not args.allow_failed or (stopped and not args.allow_stopped):
+        raise Refuse(f"{unread}。{seen}。封じのノードの出力から封じた差分を当てるなら {' と '.join(needed)} を付けて打ち直す")
+    return pointed(record, sealed.get("diff")), sealed["hash"], f"{unread}。{seen}。{' と '.join(needed)} が在るので封じのノードの出力から当てた"
+
+
+def final_answer(events: list, states: dict, unread: str, by_hand: str) -> tuple[str, bool]:
+    """最後の承認ノードで人がどう答えたかの文と、止めの答えか（承認ノードの答えが済んでいなければ、人は見ていない）"""
+    if states.get(ANSWER_STEP) != COMPLETED:
+        return "最後の承認ノードで人が見るはずだった物を人は見ていない", False
+    answer = output_of(events, ANSWER_STEP)
+    if not (isinstance(answer, dict) and isinstance(answer.get("go"), bool)):
+        raise Refuse(f"{unread}。最後の承認ノードの答え {ANSWER_STEP} の出力が読めず、人が止めたかを照らせない{by_hand}", UNREADABLE)
+    if answer["go"]:
+        row = answer.get("answer")
+        if row is None:
+            return "最後の承認ノードは方針で開かず、機械が通した（人は見ていない）", False
+        if answers.by_push(row):
+            return "無人の run が最後の承認ノードを推しで通した（人の答えではない）", False
+        return "最後の承認ノードで人は承認した", False
+    parts = [f"止めた所 {answer['stop_reason']}"] if answer.get("stop_reason") else []
+    return f"最後の承認ノードで止めた run（{'・'.join(parts + human_said(answer.get('answer')))}）", True
+
+
+def read_events(done: subprocess.CompletedProcess[str], run_id: str) -> list:
+    """出来事の列つきの workflow get の答えの events。読めなければ終了の値 2"""
+    try:
+        events = json.loads(done.stdout).get(EVENTS) if done.returncode == 0 else None
+    except (json.JSONDecodeError, AttributeError):
+        events = None
+    if not isinstance(events, list):
+        raise Refuse(f"run {run_id} の記録の出来事を読めない（workflow get {' '.join(EVENTS_FLAGS)} の答えに {EVENTS} の列が無い）",
+                     UNREADABLE)
+    return events
+
+
+def got_of(events: list, step: str):
+    """受け皿のノード step の出力の got（読めなければ None）"""
+    out = output_of(events, step)
+    return out.get(GOT) if isinstance(out, dict) else None
+
+
+def output_of(events: list, step: str):
+    """ノード step の最後の済んだ出来事の出力（型つきの出力を先に、無ければ素の出力の JSON）。切り詰めた・読めない出力は None"""
+    for event in reversed(events):
+        if not (isinstance(event, dict) and event.get("step_name") == step and event.get("event_type") in OUTPUT_EVENTS):
+            continue
+        data = event.get("data")
+        try:
+            data = json.loads(data) if isinstance(data, str) else data
+            if not isinstance(data, dict):
+                return None
+            if STRUCTURED in data:
+                return data[STRUCTURED]
+            if data.get(TRUNCATED) is True:
+                return None
+            return json.loads(data[RAW]) if isinstance(data.get(RAW), str) else None
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
 def unchecked(record: dict, target: Path) -> str:
-    """メイングラフの出力が読めない run の、置き場に在る差分（周の鎖の親の run なら最後の差分）を確かめずに当てる道（置き場に差分が無ければ空）"""
+    """封じのノードの出力から当てられない run の、置き場に在る差分（周の鎖の親の run なら最後の差分）を確かめずに当てる道（置き場に差分が無ければ空）"""
     root = (record.get("artifacts") or {}).get("root")
     if not isinstance(root, str) or not root:
         return ""
@@ -144,10 +267,14 @@ def stopped_why(value: dict) -> str:
     parts = [f"結末 {value.get('outcome')}"]
     if value.get("stop_reason"):
         parts.append(f"止めた所 {value['stop_reason']}")
-    said = value.get("final_answer")
-    if isinstance(said, dict) and isinstance(said.get("text"), str) and said["text"].strip():
-        parts.append(f"人の一言「{said['text']}」")
-    return "・".join(parts)
+    return "・".join(parts + human_said(value.get("final_answer")))
+
+
+def human_said(answer) -> list[str]:
+    """最後の承認ノードの答え（{decision, text, asked}）の人の一言（無ければ空）"""
+    if isinstance(answer, dict) and isinstance(answer.get("text"), str) and answer["text"].strip():
+        return [f"人の一言「{answer['text']}」"]
+    return []
 
 
 def respec_note(value: dict) -> str:
