@@ -40,7 +40,7 @@ with boundary.guarded_imports():
     import policy
     import startrec
     import stopby
-    import tddloop
+    import suitewrite
     import tree_run
     import versions
 
@@ -172,12 +172,12 @@ def depth_words(raw: dict, record: dict) -> str:
 
 def test_notes(raw: dict, repo: Path) -> list:
     """テストの注: 修正前のテストの任せ先（元 entry.py 1218-1219 行。test_cmd も対象の宣言も無ければ、任せ先の役が走らせ方を探す）と、
-    tdd_suite を省いた run が TDD の輪を飛ばす事（元 use.sh 1086-1089 行）"""
+    tdd_suite を省いた run で修正前のテストの後に TDD の実行器を用意し、照らしが通れば TDD の輪を回す事（元 use.sh 1086-1089 行）"""
     notes = []
     if not raw["test_cmd"].strip() and "fallback" in declared_checks.checks_plan(repo):
         notes.append("修正前のテスト: 宣言も test_cmd も無い——任せ先の役がリポジトリから走らせ方を探す")
     if not raw["tdd_suite"].strip():
-        notes.append(tddloop.SUITE_SKIPPED)
+        notes.append(suitewrite.GATE_NOTE)
     return notes
 
 

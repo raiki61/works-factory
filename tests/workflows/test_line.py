@@ -123,7 +123,8 @@ def line_nodes(nodes=None) -> dict:
     return got
 
 
-RETURNING = {"judge": "judge", "rejudge": "judge", "plan": "plan", "replan": "plan", "fix": "fix"}   # collect の欄 → その返りを返すブロック
+RETURNING = {"test_gate_base": "test-gate", "judge": "judge", "rejudge": "judge", "plan": "plan", "replan": "plan",
+             "fix": "fix"}   # collect の欄 → その返りを返すブロック
 
 
 def block_optional(block: str) -> list:
@@ -467,16 +468,16 @@ class StartCase(Artifacts):
         self.assertEqual(self.record(got)["answers"], rows)
         self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
 
-    def test_omitted_tdd_suite_says_the_loop_is_skipped(self):
-        """#505: tdd_suite を省いた run は、承認ノードの文が TDD のループを飛ばす事と実行器の渡し方を言う（元 works の dev/use.sh
-        1086-1089 行）。名指した tdd_suite は始めの記録にそのまま載り、文は言わない"""
-        import tddloop
+    def test_omitted_tdd_suite_says_how_the_runner_is_prepared(self):
+        """#505・#516: tdd_suite を省いた run は、承認ノードの文が TDD の実行器を取り置きから使うか AI が書き、照らしが通らなければ
+        ループを飛ばす事を言う（元 works の dev/use.sh 1086-1089 行）。名指した tdd_suite は始めの記録にそのまま載り、文は言わない"""
+        import suitewrite
         got = self.start(base="base", test_cmd="make test")
         self.assertEqual(self.record(got)["tdd_suite"], "")
-        self.assertIn(tddloop.SUITE_SKIPPED, got["gate_text"])
+        self.assertIn(suitewrite.GATE_NOTE, got["gate_text"])
         got = self.start(base="base", test_cmd="make test", tdd_suite="run-tests.sh")
         self.assertEqual(self.record(got)["tdd_suite"], "run-tests.sh")
-        self.assertNotIn(tddloop.SUITE_SKIPPED, got["gate_text"])
+        self.assertNotIn(suitewrite.GATE_NOTE, got["gate_text"])
 
     def test_request_answers_reach_the_record(self):
         """L-E03: 依頼の answers は始めの記録の answers（元 works/tests/test_entry.py の test_request_answers_reach_start_doc）"""
@@ -3172,7 +3173,8 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual(own, ["eyes__"])
         self.assertEqual(collect.collect({}, self.line(optional=json.dumps(own)))["optional"], own)
         declared = declared_by_blocks()
-        for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth"):
+        for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth",
+                      "test-gate-base__suite-loop", "suite-write"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
@@ -3180,14 +3182,15 @@ class CollectAndResultCase(unittest.TestCase):
     def test_optional_is_built_from_each_blocks_declaration(self):
         before = ["judge__world-", "rejudge-run__world-", "world-classes", "world-classes-", "world-judge", "world-judge-",
                   "plan__structure-", "replan__structure-", "structure-eye", "structure-eye-", "fix__lens", "fix__lens-reply",
-                  "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-"]
+                  "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-",
+                  "test-gate-base__suite-loop", "suite-write"]
         own = line_nodes()["collect"]["with"]["optional"]
         self.assertEqual(json.loads(own), ["eyes__"])
         self.assertTrue(all(head.endswith(childsweep.INCLUDE_SEP) for head in json.loads(own)), "メイングラフの宣言に中の節の名が在る")
         ports = {**dict.fromkeys(judge_accept.PORTS), **dict.fromkeys(judge_accept.FIRST_PORTS)}
         plan_ports = {"fix_plan": None, "rejects": [], "nothing_owed": False, "gave_up": None}
         fix_ports = {**dict.fromkeys(fixbeside.PORTS), "removed": [], "tdd_refused": {"refused": [], "unread": []}}
-        block_ports = {"judge": ports, "rejudge": ports, "plan": plan_ports, "replan": plan_ports, "fix": fix_ports}
+        block_ports = {"test_gate_base": {}, "judge": ports, "rejudge": ports, "plan": plan_ports, "replan": plan_ports, "fix": fix_ports}
         returned = {field: {"ready": True, "units": [], **block_ports[field]} for field in RETURNING}
         receipts = {field: json.dumps({"got": {**returned[field], "optional": block_optional(block)}, "stop_reason": ""})
                     for field, block in RETURNING.items()}
@@ -3245,7 +3248,8 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertIn("world-judge-accept", steps)
         moved = {s for s in steps if any(s.startswith(head) for head in before) != runreport._declared(s, declared)}
         late = {"rejudge-run__head-depth-prep", "rejudge-run__head-depth-loop"}
-        self.assertEqual(moved, {"fix__lens-prep", "fix__lens-collect", "refix-run__lens-prep", "refix-run__lens-collect"} | late)
+        suite = {"test-gate-base__suite-loop", "suite-write"}   # #516: 前の宣言に無い TDD の実行器の輪と書き手（落ちれば実行器の無い run の道）
+        self.assertEqual(moved, {"fix__lens-prep", "fix__lens-collect", "refix-run__lens-prep", "refix-run__lens-collect"} | late | suite)
         # judge の宣言は judge と rejudge-run の両方に当たるので、再審の頭の深さの 2 節も数に入る。この 2 節は再審では走らない:
         # head-depth-prep は when が mode == 'judge' で飛び、head-depth-loop はその後ろで飛ぶ（落ちが無いので受け止めも変わらない）
         judge = {n["id"]: n for n in block_doc("works-factory-judge")["nodes"]}

@@ -12,7 +12,8 @@ test-gate/base/baseline.json を書く（baseline_red.write_baseline）。final 
 declared_checks.NO_ADAPTER_NOTE を足す。任せ先の役の節が落ちて残った作業ツリーの写し（ci-snapshot.json の top）を消す。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、終了の値 0 で ok: false・green: false・red_cause: incomplete と、誤りを
 名指した証拠の指し札を返す（返す節が落ちると線が先へ進めない）。その時の by などの字の欄は空、reason は INNER_ERROR。報告と最後の関所は
-その空の by（green_cert.GATE_BROKE_BY）を工場の不具合と読み、試験が走らなかったとは言わない"""
+その空の by（green_cert.GATE_BROKE_BY）を工場の不具合と読み、試験が走らなかったとは言わない。
+入力 optional（落ちても線が先へ進めてよい節の宣言）は読んだ並びのまま返りの欄 optional に載せる"""
 import json
 import os
 import sys
@@ -100,7 +101,7 @@ def role_systems(material) -> dict:
     return (material or {}).get("systems") or {"ran": [], "unran": []}
 
 
-def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
+def certified(mode: str, start_raw: str, baseline_raw: str, optional_raw: str) -> tuple:
     """（境の口, 返り）"""
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
@@ -164,6 +165,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     note = declared_checks.NO_ADAPTER_NOTE if role and not os.environ.get(fence.RECORDS_ENV) else ""
     write(rel(mode, "evidence.md"), evidence(mode, out, run, material, summary, note))
     out["evidence"] = boundary.pointer(rel(mode, "evidence.md"))
+    out["optional"] = boundary.items(optional_raw)
     return boundary, out
 
 
@@ -190,7 +192,8 @@ def failed(mode: str, error: BaseException) -> dict:
 def main() -> int:
     raw_mode = os.environ.get("INPUTS_MODE", "")
     try:
-        boundary, out = certified(raw_mode, os.environ["INPUTS_START"], os.environ["INPUTS_BASELINE"])
+        boundary, out = certified(raw_mode, os.environ["INPUTS_START"], os.environ["INPUTS_BASELINE"],
+                                  os.environ.get("INPUTS_OPTIONAL", ""))
         boundary.returns(out)
     except Exception as e:
         print(json.dumps(failed(raw_mode if raw_mode == "base" else "final", e), ensure_ascii=False, allow_nan=False), flush=True)
