@@ -162,7 +162,7 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         owner, run_id = self.foreground()
         found = self.tree(run_id)
         self.assertEqual(found["owner"], [owner.pid])
-        partner = subprocess.Popen([sys.executable, "-c", "import signal; signal.pause()"], process_group=owner.pid)
+        partner = subprocess.Popen([sys.executable, "-c", "import signal; signal.pause()"], env=self.env, process_group=owner.pid)
         self.addCleanup(lambda: (partner.kill(), partner.wait()))
         code, err = self.cancel(run_id)
         self.assertEqual(code, 0, err)
