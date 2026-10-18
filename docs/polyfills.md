@@ -38,7 +38,7 @@
 
 ### 候補（まだ埋めでない）: run の中で後のノードの模型と effort を付け替える口
 
-- 穴: Archon 64ec0c2e に、run の中で後のノードの模型と effort を付け替える口が無い。`--model` は run を起こす時だけで続きの run には渡せず、`workflow:` のノードにも付け替えの欄が無い。run の頭の深さの役の群の選び（`groups`）は、上げる向きも下げる向きも控えに残すだけで、その run にも子の run にも周の鎖の次の周にも効かない（持ち主の決め `head-choice-record-only`。`lib/headdepth.py`・`lib/launchgroups.py`）。走りの模型を替えるのは、呼ぶ人が run を起こす時の `--model @wf-<群>=<spec>` だけ（`--config` に書いた群の別名は殻が工場の値で上書きする。effort も替えるには `<spec>` に effort を持つ別名 `@<名>` を書く）。上流に issue は出さない。
+- 穴: Archon a972888a に、run の中で後のノードの模型と effort を付け替える口が無い。`--model` は run を起こす時だけで続きの run には渡せず、`workflow:` のノードにも付け替えの欄が無い。run の頭の深さの役の群の選び（`groups`）は、上げる向きも下げる向きも控えに残すだけで、その run にも子の run にも周の鎖の次の周にも効かない（持ち主の決め `head-choice-record-only`。`lib/headdepth.py`・`lib/launchgroups.py`）。走りの模型を替えるのは、呼ぶ人が run を起こす時の `--model @wf-<群>=<spec>` だけ（`--config` に書いた群の別名は殻が工場の値で上書きする。effort も替えるには `<spec>` に effort を持つ別名 `@<名>` を書く）。上流に issue は出さない。
 - 証拠:
   - `packages/workflows/src/model-validation.ts` の「Parse repeated CLI `name=spec` mappings into the shared transport shape.」（`--model` は run を起こす命令の字を受けるだけ）
   - `packages/workflows/src/executor.ts` の「Cannot supply model overrides when resuming an existing workflow run.」（続きの run は付け替えを拒む）
@@ -52,7 +52,7 @@
   - `packages/core/src/operations/workflow-operations.ts` の「Only failed or paused runs can be resumed.」（`resumeWorkflow` が、再開できる status の一覧に無い run を拒む）
   - `packages/workflows/src/schemas/workflow-run.ts` の「export const RESUMABLE_WORKFLOW_STATUSES」（再開できるのは `failed`・`paused` だけ）
   - `packages/core/src/operations/workflow-operations.ts` の「If its process is gone, abandon the run to release it.」（cancel は、走らせている process が答えない時〔`no_owner_answered`〕に abandon を案内する）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の 87 commit で、証拠の字と、その辺りの振る舞いは変わっていない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
 - 範囲: 長い待ち（CI・人の答え）は Archon の `wait:` のノードと承認ノードで書く。Archon 0.10.0 から待ちは持ちこたえる（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」。server が期限の来た run を再開する）。だからこの穴に当たるのは、ノードを走らせている途中で process が落ちた run だけ。
 - 埋め: `bin/apply`、`bin/_lib/apply.py`（`bin/apply` の中身は `bin/_lib/apply.py`。#101。続けられない run の差分を取り出して対象に当てる。今の works の apply と同じ能力）。Archon の命令だけでは足りない: 下の実測のとおり `abandon` は書きかけごと作業ツリーを消し、`--adopt` は最初のノードからやり直すので、持ち主の決め `carry`（止まった run の差分も捨てない。`docs/owner-decisions.md`）を満たさない。手放しと続きの起こしは止めた Archon の命令をそのまま打つ（入口に別名を作らない。持ち主の決め `one-launcher`）。
   - 足りない残り: ノードの途中で持ち主が落ちた run の、commit していない書きかけ。`bin/apply` は終わっていない run（`terminal_record` が null。手放す前の `running`）を拒み、手放した後は作業ツリーが消えている（commit 済みの物は残った枝に在る）。だから今は、手放す前に人が `workflow get <run> --json` の `working_path` で作業ツリーの変更（新しいファイルを含む）を取り出しておく。
@@ -82,7 +82,7 @@
 - 証拠: 書いた束ねは黙って JSON の値として渡り、書けたように見えて効かない。
   - `packages/workflows/src/schemas/dag-node.ts` の「Include/workflow `with:` maps have no directive, so」「objects there stay ordinary JSON literals.」（束ね `{from, if_skipped}` は `command:`・`script:` の `with:` だけの形）
   - `packages/workflows/src/include-expander.ts` の「if (slot.surface === 'binding_from' || slot.name === 'binding.if_skipped') return slot.value;」（include の展開は `binding.if_skipped` の欄を置き換えずにそのまま残す）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の 87 commit で、証拠の字と、その辺りの振る舞いは変わっていない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
 - 埋め: `workflows/.shared/skip_value.py`。メイングラフの中継のノードが使う。飛ばされうる値を、メイングラフの `script:` のノードの `with:` で欄ごとに `{from: "$<ノード>.output.<欄>", if_skipped: null}` で受け、明示の値で返し直す。サブグラフにはそのノードの出力を渡す。P2 のために在る中継のノードは `workflows/line/works-factory-line.yaml` の `answer-*`（承認ノードの答えを fix・merge に渡す）と `collect`（全部の出力を report に渡す）だけ。Archon が `INPUTS_<名>` に渡した字を値に戻す部品は `workflows/.shared/skip_value.py`。
 - 使うサブグラフ: メイングラフ
 - 外す条件: include の `with:` に書いた `if_skipped` が子の中まで効く版が出たら
@@ -93,7 +93,7 @@
 - 証拠:
   - `packages/cli/src/cli.ts` の「discoveryCwd: workflowSource,」「Point it at the checkout holding .archon/workflows/.」（`--workflow-source` は探す木の根を替えるだけ）
   - `packages/paths/src/archon-paths.ts` の「return ['.archon/workflows'];」（`getWorkflowFolderSearchPaths`。根の下で探すのは `.archon/workflows` だけ）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の 87 commit で、証拠の字と、その辺りの振る舞いは変わっていない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
 - 埋め: `bin/_lib/place.py` の `workflow_source`。キャッシュの中に置き場を作り、その `.archon/workflows/works-factory`（pack の形。名は `pack.json` の `ours.pack`）からリポジトリの `workflows/` へ symlink を張る。
 - 使うサブグラフ: メイングラフ（入口）
 - 外す条件: `--workflow-source` に任意のフォルダを渡して、その中のグラフを読める版が出たら
@@ -103,7 +103,7 @@
 - 穴: ノードの hooks: は固定の返事だけで、役が読んだ・書いたファイルの記録を残せない。
 - 証拠:
   - `packages/docs-web/src/content/docs/guides/hooks.md` の「YAML `hooks:` are deliberately static.」と、見出し「## Choosing where hook logic lives」の下の行「Logic that inspects the hook input at runtime」（中身を見るフックは Claude の設定に置く）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の 87 commit で、証拠の字と、その辺りの振る舞いは変わっていない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
 - 埋め: `bin/_lib/record-read.py`、`bin/_lib/record-write.py`、`bin/_lib/toolset.py`。record-read.py は Read と、Agent・WebFetch・WebSearch を path の無い行で、record-write.py は Edit・Write・NotebookEdit の書いた記録を残す。toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
 - 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）
 - 外す条件: ノードの hooks: が command の種類を受け、入力を見て書ける版が出たら
@@ -115,7 +115,7 @@
   - `packages/workflows/src/dag-executor.ts` の「sandbox: node.sandbox ?? workflowLevelOptions.sandbox,」（同じ関数で `systemPrompt` などは `resolveAiText` で置き換えるが、`sandbox` は置き換えない）
   - `packages/providers/src/claude/provider.ts` の「options.sandbox = nodeConfig.sandbox as Options['sandbox'];」
   - `packages/providers/src/claude/binary-resolver.ts` の「const envPath = process.env.CLAUDE_BIN_PATH;」「`CLAUDE_BIN_PATH` environment variable (honored in both modes」（起こす claude の実行ファイルを環境変数 `CLAUDE_BIN_PATH` から読む。dev mode でも読む）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の 87 commit で、証拠の字と、その辺りの振る舞いは変わっていない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit で `dag-executor.ts` を変えたのは、本文が振る舞いを変えない移しと言う `14de72582`（#4487。中身の一部を `dag/` の 5 ファイルへ分けた）だけで、引用の字は同じファイルに残る）。
 - 埋め: `workflows/.shared/fence.py`、`bin/_lib/launcher.py`。起動の殻（`bin/_lib/launcher.py` の `write_fence`）が、Archon を走らせる命令の時だけ包みの殻を書いて子の `CLAUDE_BIN_PATH` をそこへ向ける。包みは SDK が渡す `--settings` の `sandbox.filesystem.denyWrite` に固定の値（印）が在る起動だけ、起こす直前に cwd から組んだ一覧（cwd・`git rev-parse --git-common-dir`・`git worktree list` の全部の根・Archon の家・Claude の設定・殻が書いた口・後の役の起動と次の起動が sandbox の外で走らせる物〔それを起こす Python・本物の claude・取り置いた Archon の源・工場の checkout の根の全体（包み・版の止め、`bin/works-factory` が import の先頭に置く根の `.py` を含む）〕）を足して本物の claude を起こす。印の無い起動は argv を変えない。`--settings` が JSON の object でない起動は止める。形は包み `claude-adapter`（旗 `no-tree-write`）。試験は `tests/shared/test_fence.py`（本物の claude で書き込みが止まることも見る）。
   - 写した元（台帳）: 一覧の組み方 `_git`・`protected_paths` は、今の works（`raiki61/claude-plugins` の commit `2aa7c66cf7abe1fe09699ac2942d107123214168`）の `graphloops/engine/role_run.py` 141-172 行をそのまま写した。それを縛る元の試験（`graphloops/tests/simulate.py` の `test_tooled_launch_fence` の守る場所の 2 つの check と、`graphloops/tests/py/test_role_run_stop.py` の `test_protected_paths_is_undecided_when_git_answers_partly`）は `tests/shared/test_fence.py` の `ProtectedPathsCopiedTest` に写した。同じ元の `tooled_permission`（sandbox の形と道具の許しを組む）は写さない。ここでは役の sandbox の形と道具を YAML が持ち、層の柵 `tests/layers/scan.py` が縛る。
   - 起こす場所の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env`（`archon setup` の既定の書き先）が `CLAUDE_BIN_PATH` を名指すと、Archon はその値で包みを置き換えるか消す（`packages/paths/src/strip-cwd-env.ts`・`packages/paths/src/env-loader.ts` の `loadArchonEnv`）。起動の殻はその時 Archon を起こさずに止める。同じファイルが `WORKS_FACTORY_FENCE_RECORDS`（下の宣言）を名指しても止める。
@@ -131,7 +131,7 @@
 - 証拠:
   - `packages/workflows/src/artifact-pointer.ts` の「A pointer naming any other run is rejected — a result may only point」（読む側は「in-workflow resolver, the terminal run record」で、読む時に symlink を辿った照らしは「not yet implemented (#3160)」）
   - `packages/paths/src/archon-paths.ts` の「return join(getStoragePathsForRoot(root).artifactsRoot, 'runs', workflowRunId);」（`getRunArtifactsDirForRoot`。子と親は同じ `runs/` の下に兄弟で並ぶ）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の 87 commit で、証拠の字と、その辺りの振る舞いは変わっていない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
 - 埋め: `workflows/.shared/child_pointer.py`。自分の置き場（`ARTIFACTS_DIR`）の隣の `<run_id>` を子の置き場とし、札の形・run の id の形（空・`..`・`/` を拒む）・相対のパスを照らして、symlink を辿った先が子の置き場の中に在ることを確かめてから返す。試験は `tests/shared/test_child_pointer.py`。
 - 使うサブグラフ: 周の鎖（`workflows/chain/works-factory-chain.yaml` の `round-k-facts`）
 - 外す条件: Archon の run の中から、ほかの run のポインタを読む口が入ったら
@@ -141,7 +141,7 @@
 - 穴: `fan_out:` の子の run が作った作業ツリーと枝は、子が終わっても残る。
 - 証拠:
   - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 一部が動いた。upstream の #4328（`8c741d891`。止めた版に入っている）で、終わった（`completed`）run は自分で作った作業ツリーを、変更が無く commit が全部 remote に在り枝を公開していない時だけ外す（枝は残す）。fix の子は push しないので、子の作業ツリーはたぶん残る（実測はまだ）。証拠の文は止めた版でも同じ。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 一部が動いた。upstream の #4328（`8c741d891`。止めた版に入っている）で、終わった（`completed`）run は自分で作った作業ツリーを、変更が無く commit が全部 remote に在り枝を公開していない時だけ外す（枝は残す）。fix の子は push しないので、子の作業ツリーはたぶん残る（実測はまだ）。証拠の文は止めた版でも同じ。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えていない。
 - 埋め: `workflows/.shared/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。試験は `tests/shared/test_childsweep.py`。
 - 使うサブグラフ: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
@@ -152,7 +152,7 @@
 - 証拠: 後ろの 2 つの引用の振る舞いは、`tests/shared/test_archon_contract.py` の `ARCHON_ROWS` の行 `名指しの続き context: resume` が `packages/workflows/src/loader.ts` の字でも縛る。
   - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「`archon workflow run` starts a run without a conversation, so its `persist_session` nodes start fresh on every invocation」「Cross-run persistence isn't wired for them in this release」「Inside a `loop_group` body, the source must complete before entry into the group」（CLI の別の run は毎回新しい会話で、`loop_group` に run をまたぐ持続は無く、ループの中で続けられるのはループの前のノードだけ）
   - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「A command or prompt in the body can continue a statically named pre-loop session」（ループの中で続けられるのは、ループの前の `command:`・`prompt:` のノードを名指した時だけ）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない。`355f1867..64ec0c2e2` の 87 commit に、周をまたいで同じ役の会話を続けられるようにする物は無い。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない。`64ec0c2e..a972888a7` の 24 commit に、周をまたいで同じ役の会話を続けられるようにする物は無い。
 - 埋め: `lib/handoff.py`。引き継ぎのメモの型・頼み・前の周のノードに貼るセクション・控えを置く。
 - 使うサブグラフ: plan・report
 - 外す条件: 場合に分ける。
@@ -178,7 +178,7 @@
   - `packages/providers/src/claude/plugins.ts` の「Fails when a named id is not installed, because Claude Code would skip it」（`buildClaudePluginSettings` は入っていない名指しを `misconfigured` で投げる）
   - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「A named plugin brings its agents, hooks, LSP servers and commands」「The node fails before its first model turn when a named plugin is not installed」「An `mcp:` declared `optional: true` runs the node without its servers instead」「Your own settings, hooks, permissions and `CLAUDE.md` still load」（hooks だけは選べず、任意の形は `mcp:` にだけ在り、利用者の設定のフックは名指しなしで読む）
   - `packages/workflows/src/template-walker.test.ts` の「'plugins.*': { kind: 'literal'」（`plugins:` の値は literal）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` で `plugins.ts` は変わらず、`template-walker.test.ts` の変更は試験の印の 1 行だけで、`authoring-workflows.md` の変更は plugins の所に触れていない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は `plugins.ts`・`template-walker.test.ts`・`authoring-workflows.md` を変えていない）。
 - 埋め: `bin/_lib/toolset.py`。hooked の道で、coldwrite の `hooks/hooks.json` の表を隔離した設定の `settings.json` の hooks に足す。`settingSources: [user]` のノードは利用者の設定のフックを読む（証拠の `authoring-workflows.md`）ので、全部の役で効く。coldwrite の取り元の env は `lib/borrow/borrow.json` の coldwrite の項が持ち、利用者の設定に無ければ借りずに見送る（`toolset.user_borrow`。持ち主の決め `others-may-use`・`AGENTS.md` の E14）。env の字はここに写さない。
 - 使うサブグラフ: 書く役を持つ全部
 - 外す条件: 2 つが揃った版が出たら。1 つは、`plugins:` に入っていなければ飛ばす形が入ること。もう 1 つは、名指したプラグインのうち hooks だけを載せられること（か coldwrite が hooks しか持たないこと）。`plugins:` は agents・hooks・LSP・commands をまとめて載せる。外す時は、hooked の物が隔離した設定にプラグインとして入らない（`toolset.py` の install が CLI で入れる物から外している）ので、coldwrite を works-local へ入れる道（`pr-review-toolkit` と同じ）に替える要る。
@@ -191,7 +191,7 @@
   - `packages/workflows/src/template-walker.test.ts` の「'denied_tools.*': { kind: 'literal'」（値は literal）
   - `packages/workflows/src/schemas/run-config.ts` の「Sparse configuration values whose consumers still run after dispatch」（run の設定の層 `workflowRunConfigLayerSchema`。鍵は `assistant`・`assistants`・`aliases`・`tiers`・`workflows`・`docsPath`・`envVars` だけの strict な形）
   - `packages/providers/src/claude/config.ts` の「install: z.strictObject(fields)」「run: z.strictObject(fields)」（`assistants.claude` は `model`・`settingSources`・`claudeBinaryPath` だけの strict な形）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の `run-config.ts` の変更〔#4338〕は使用量の上限の注意の文だけで、道具を拒む鍵は足していない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、道具を拒む鍵を足していない）。
 - 埋め: `bin/_lib/toolset.py`。埋めは run ごとの部分だけ。`toolset.DENY_WEB_ENV`（`tests/calibration/run.py` が立てる）が 1 の時、install が permissions に拒みを足す（`toolset.permissions`）。env の字はここに写さない。決めは持ち主の決め `public-bench-at-major`。
 - 使うサブグラフ: 全部（公開ベンチの run だけで効く）
 - 外す条件: `denied_tools` か run の設定の層で、道具の拒みを run ごとに書ける版が出たら。外した後も `toolset.DENY_WEB` の一覧は残る: ベンチが素の Claude Code にも使う（`tests/calibration/run.py` の `--disallowedTools`・`settings.json`・漏れの数え）ため。
@@ -204,7 +204,7 @@
   - `packages/core/src/providers/process-provider.ts` の「detached: process.platform !== 'win32',」（provider のプロセスを持ち主のグループの外に起こす）
   - `packages/workflows/src/exec-environment.ts` の「WORKFLOW_ID: execution.runId,」（AI のノードのプロセスは run の id を env に持つ。番号のつながりの外の印はこれだけ）
   - `packages/core/src/operations/workflow-operations.ts` の「because it is not a detached run (a foreground CLI run, or an Archon server)」（前の run の cancel を拒む）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` で `run-owner-stop.ts` を変えた commit は無い。`process-provider.ts` の変更〔#4310・#4422〕は版の食い違いの文と resume の案内だけで、detached の起こしは同じ。#4375〔`372a494c9`〕は `archon serve` の cancel が bash・script のノードの木を止める変更で、provider と切り離した持ち主には触れない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えていない。`core/src/db/workflows.ts` の `cancelWorkflowRun` などを `workflow-run-*.ts` へ移した `50a9e0848`（#4509）は、本文が「Function bodies are unchanged」と言う移し）。
 - 実測（2026-10-18、`355f1867` で、止めた Archon に偽の claude〔`CLAUDE_BIN_PATH`。自分と同じグループの子と、別のセッションの子を起こして眠る〕の AI のノードと、`workflow:` の子の run の AI のノードを並べた使い捨てのグラフ。試験 `tests/bin/test_runstop.py` のグラフと同じ形）:
   - `--detach` の run の `workflow cancel` は `"processStopped": true` を返すが、ノードごとの provider（`bun --no-env-file <源>/packages/providers/src/claude/plugin.ts`）が親 1 で残った。数秒の後に provider は claude を止めたが、provider 自身と claude の子（同じグループの物も別のセッションの物も）は 15 秒の後も残った。子の run のノードも同じ。
   - 前の run の `workflow cancel` は拒んで（終了の値 1）何も止めず、持ち主に SIGTERM を送る（割り込みと同じ）と、持ち主は抜けたが provider と claude の子が親 1 で残った。
@@ -225,7 +225,7 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 - 証拠:
   - `packages/workflows/src/utils/idle-timeout.ts` の「export const STEP_IDLE_TIMEOUT_MS = 30 * 60 * 1000;」
   - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「`idle_timeout` — per-iteration timeout (default: 30 minutes)」
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。#4355 が期限を外したのは `bash:`・`script:` と `until_bash` だけ）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えていない。#4355 が期限を外したのは `bash:`・`script:` と `until_bash` だけ）。
 - 埋め: 既定の期限が当たる鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。もとは P9 の埋めの一部。
 - 使うサブグラフ: AI の役を持つ全部
 - 外す条件: `idle_timeout` を書かない AI のノードに期限を当てない版が出たら
@@ -234,7 +234,7 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 - 穴: 落ちたノードの出力は `{from, if_skipped}` でも読めず、読んだノードも落ちる。
 - 証拠:
   - `packages/workflows/src/dag-executor.ts` の「A binding never falls back to 'if_skipped' for a failed producer」（`resolveBindingDirective` が、落ちた producer を `assertProducerNotFailed` で止める）
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の 87 commit で、証拠の字と、その辺りの振る舞いは変わっていない）。
+- 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit で `dag-executor.ts` を変えたのは、本文が振る舞いを変えない移しと言う `14de72582`（#4487。中身の一部を `dag/` の 5 ファイルへ分けた）だけで、引用の字は同じファイルに残る）。
 - 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。
 - 使うサブグラフ: メイングラフ・fix
 - 外す条件: 見込みは無い（Archon が落ちたノードの出力を `if_skipped` に落とさないと決めている。上の証拠の文）。決めが変わって落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
