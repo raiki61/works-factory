@@ -32,7 +32,6 @@ nodes:
     script: merge
     runtime: uv
     mutates_checkout: false
-    timeout: 1728000000
     with:
       mode: $INPUTS.mode
       start: $INPUTS.start

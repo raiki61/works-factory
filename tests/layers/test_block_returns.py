@@ -23,7 +23,7 @@ BLOCK = "workflows/judge/works-factory-judge.yaml"
 LINE = "workflows/line/works-factory-line.yaml"
 RETURNING = (
     "name: works-factory-judge\nreturns: verdict\noutcome_field: ready\nnodes:\n"
-    "  - id: verdict\n    script: stub\n    timeout: 1728000000\n"
+    "  - id: verdict\n    script: stub\n"
     "    output_format:\n      type: object\n      properties:\n        ready: {type: boolean}\n        units: {type: array}\n"
     "      required: [ready, units]\n"
 )
@@ -31,7 +31,7 @@ TAKE = "workflows/line/scripts/take.py"
 LINE_HEAD = "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
 # 返りの欄を欄つきの参照で読む節。まるごとの参照の試験で、読み手の無い欄の赤を消すのに足す
 READS = (
-    "  - id: reader\n    script: reader\n    timeout: 1728000000\n    with:\n"
+    "  - id: reader\n    script: reader\n    with:\n"
     "      ready: $judge.output.ready\n      units: $judge.output.units\n"
 )
 GATE_NAMES = 'NAMES = ("ready", "units")\n'
@@ -44,7 +44,7 @@ DECLARED = 'got = boundary.picked(os.environ.get("INPUTS_GOT"), boundary.text(os
 def take_node(value, names=None):
     """script の節 take。with: の got に value（YAML の字）を結び、names を渡せば with: の names に結ぶ"""
     declared = "" if names is None else f"      names: {names}\n"
-    return f"  - id: take\n    script: take\n    timeout: 1728000000\n    with:\n      got: {value}\n{declared}"
+    return f"  - id: take\n    script: take\n    with:\n      got: {value}\n{declared}"
 
 
 class BlockReturnsTest(unittest.TestCase):
@@ -76,7 +76,7 @@ class BlockReturnsTest(unittest.TestCase):
         line = (
             "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
             "  - id: rejudge\n    include: works-factory-judge\n"
-            "  - id: collect\n    script: collect\n    timeout: 1728000000\n    with:\n"
+            "  - id: collect\n    script: collect\n    with:\n"
             "      ready: $judge.output.ready\n      units: { from: \"$rejudge.output.units\", if_skipped: null }\n"
         )
         self.assertEqual(self.problems(RETURNING, line), [])
@@ -101,7 +101,7 @@ class BlockReturnsTest(unittest.TestCase):
     def test_same_field_name_of_another_node_is_not_a_reader(self):
         line = (
             "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
-            "  - id: x\n    script: x\n    timeout: 1728000000\n    with:\n      ready: $judge.output.ready\n"
+            "  - id: x\n    script: x\n    with:\n      ready: $judge.output.ready\n"
             "      units: $x.output.units\n"
         )
         got = self.problems(RETURNING, line)
@@ -116,7 +116,7 @@ class BlockReturnsTest(unittest.TestCase):
     def test_returning_node_without_output_format_is_red(self):
         block = (
             "name: works-factory-judge\nreturns: verdict\noutcome_field: ready\nnodes:\n"
-            "  - id: verdict\n    script: stub\n    timeout: 1728000000\n"
+            "  - id: verdict\n    script: stub\n"
         )
         got = self.problems(block, "name: works-factory-line\nnodes: []\n")
         self.assertTrue(any("output_format" in line for line in got), got)
@@ -125,7 +125,7 @@ class BlockReturnsTest(unittest.TestCase):
         block = RETURNING.replace("required: [ready, units]", "required: [units]")
         line = (
             "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
-            "    when: \"$judge.output.ready == true\"\n  - id: x\n    script: x\n    timeout: 1728000000\n"
+            "    when: \"$judge.output.ready == true\"\n  - id: x\n    script: x\n"
             "    with:\n      units: $judge.output.units\n"
         )
         got = self.problems(block, line)
@@ -223,7 +223,7 @@ class BlockReturnsTest(unittest.TestCase):
                 self.assertEqual(self.gated(script, value, files=files, names=names), [])
         anchored = (
             "name: works-factory-line\nx-bind: &bind\n  got: \"$judge.output\"\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
-            "  - id: take\n    script: take\n    timeout: 1728000000\n    with:\n      <<: *bind\n"
+            "  - id: take\n    script: take\n    with:\n      <<: *bind\n"
         )
         with self.subTest("<<: で引いた with: の値"):
             self.assertEqual(self.files({BLOCK: RETURNING, LINE: anchored, TAKE: GATE}), [])
@@ -344,7 +344,7 @@ class BlockReturnsTest(unittest.TestCase):
         }
         for name, (files, script, why) in cases.items():
             with self.subTest(name):
-                line = LINE_HEAD + READS + f"  - id: take\n    script: {script}\n    timeout: 1728000000\n    with:\n      got: \"$judge.output\"\n"
+                line = LINE_HEAD + READS + f"  - id: take\n    script: {script}\n    with:\n      got: \"$judge.output\"\n"
                 got = self.files({BLOCK: RETURNING, LINE: line, **files})
                 self.assertEqual(len(got), 1, got)
                 self.assertIn("節 take の with.got", got[0])

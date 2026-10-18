@@ -7,7 +7,6 @@ description: |
 
 nodes:
   - id: rounds
-    timeout: 1728000000
     loop_group:
       max_iterations: 2
       fresh_context: true
@@ -16,7 +15,6 @@ nodes:
         - id: prev-reason
           script: prev_reason
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {reason: "$LOOP_PREV.round-check.output.reason"}
           output_format:
@@ -47,7 +45,6 @@ nodes:
         - id: round-check
           script: round_check
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [echo]
           with: {heard: "$echo.output.heard"}

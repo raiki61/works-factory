@@ -7,10 +7,8 @@ description: |
 nodes:
   - id: write
     bash: echo half > half-written.txt; sleep 600
-    timeout: 1728000000
   - id: tail
     bash: echo tail ran
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [write]
     trigger_rule: all_done

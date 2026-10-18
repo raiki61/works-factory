@@ -30,7 +30,6 @@ nodes:
   - id: run
     script: run
     runtime: uv
-    timeout: 1728000000
     with:
       mode: $INPUTS.mode
       start: $INPUTS.start
@@ -114,7 +113,6 @@ nodes:
   - id: ci-loop
     depends_on: [run]
     when: "$run.output.by == 'role_needed'"
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -123,7 +121,6 @@ nodes:
         - id: ci-prep
           script: ci_prep
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with:
             mode: $INPUTS.mode
@@ -195,7 +192,6 @@ nodes:
         - id: ci-accept
           script: ci_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [ci, ci-fix]
           trigger_rule: none_failed_min_one_success
@@ -219,7 +215,6 @@ nodes:
   - id: result
     script: result
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [run, ci-loop]
     trigger_rule: all_done

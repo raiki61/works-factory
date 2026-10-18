@@ -35,7 +35,7 @@ class NoAsfTest(unittest.TestCase):
 
     def test_schema_field_named_workflow_is_clean(self):
         yaml = (
-            "name: works-factory-report\nnodes:\n  - id: result\n    script: stub\n    timeout: 1728000000\n"
+            "name: works-factory-report\nnodes:\n  - id: result\n    script: stub\n"
             "    output_format:\n      type: object\n      properties:\n        workflow: {type: string}\n"
         )
         with tree({"workflows/report/works-factory-report.yaml": yaml}) as root:

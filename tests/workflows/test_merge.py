@@ -39,7 +39,6 @@ NAME = "works-factory-merge"
 RUN = "run-merge"
 INPUTS = ("mode", "start", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2")
 RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "reason")
-NO_DEADLINE = 1728000000
 PASS = json.dumps({"decision": "continue", "text": ""})
 
 
@@ -67,7 +66,7 @@ class ShapeTest(unittest.TestCase):
         self.assertEqual(self.node["script"], "merge")
         self.assertEqual(self.node["runtime"], "uv")
         self.assertIs(self.node["mutates_checkout"], False)
-        self.assertEqual(self.node["timeout"], NO_DEADLINE)
+        self.assertNotIn("timeout", self.node)
         self.assertFalse(any("approval" in n or "wait" in n for n in self.doc["nodes"]))
 
     def test_inputs_are_the_contract(self):

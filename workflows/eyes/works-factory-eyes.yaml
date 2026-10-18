@@ -40,7 +40,6 @@ nodes:
   - id: structure-after
     script: structure_after
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     output_format:
       type: object
@@ -61,7 +60,6 @@ nodes:
   - id: prep
     script: prep
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [structure-after]
     output_format:
@@ -148,7 +146,6 @@ nodes:
   - id: r1-comments-save
     script: save_reply
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r1-comments]
     with:
@@ -288,7 +285,6 @@ nodes:
     depends_on: [prep, r1-minimality, r2-compare, premise-check]
     trigger_rule: all_done
     when: "$prep.output.run_eyes == true"
-    timeout: 1728000000
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -297,7 +293,6 @@ nodes:
         - id: r4-reject
           script: r4_rejects
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           with: {prev: "$LOOP_PREV.r4-accept.output.ok"}
           output_format:
@@ -361,7 +356,6 @@ nodes:
         - id: r4-accept
           script: r4_accept
           runtime: uv
-          timeout: 1728000000
           mutates_checkout: false
           depends_on: [r4-scope, r4-scope-fix]
           trigger_rule: none_failed_min_one_success
@@ -383,7 +377,6 @@ nodes:
   - id: r1-minimality-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r1-minimality]
     output_type: eye-verdict
@@ -402,7 +395,6 @@ nodes:
   - id: r2-compare-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r2-compare]
     output_type: eye-verdict
@@ -414,7 +406,6 @@ nodes:
   - id: premise-check-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [premise-check]
     output_type: eye-verdict
@@ -426,7 +417,6 @@ nodes:
   - id: r3-coherence-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r3-coherence]
     output_type: eye-verdict
@@ -438,7 +428,6 @@ nodes:
   - id: r4-scope-verdict
     script: eye_verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r4-loop]
     output_type: eye-verdict
@@ -451,7 +440,6 @@ nodes:
   - id: protected
     script: protected
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     output_format:
       type: object
@@ -465,7 +453,6 @@ nodes:
   # ASF の W/review の review-complete と同じ柵。落ちた目が在っても出口へ進む
   - id: eyes-complete
     bash: "true"
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [r1-comments, r1-comments-save, r1-minimality, r2-compare, premise-check, r3-coherence, r4-loop,
                  r1-minimality-verdict, r2-compare-verdict, premise-check-verdict, r3-coherence-verdict, r4-scope-verdict]
@@ -475,7 +462,6 @@ nodes:
   - id: verdict
     script: verdict
     runtime: uv
-    timeout: 1728000000
     mutates_checkout: false
     depends_on: [eyes-complete, prep, structure-after, protected]
     trigger_rule: all_done
