@@ -1556,6 +1556,27 @@ class ReviewAcceptCase(RunCase):
         saved = json.loads((r.folder / "pass-1" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
         self.assertNotIn(converge.DESIGN_MAP, saved)
 
+    def test_design_quote_pasted_from_elements_or_plan_rows_names_the_source(self):
+        """#568（本物の run df5e111f の pass-1 の rejects-p2 の形）: design_quote に独立設計の本文でなく、本文の後ろの要素の一覧の行
+        （`D1: 足す: …／消す: …`）か案の行の字を貼った答えは、照らしは変えずに拒み、拒みの行がどちらを貼ったかと引き元の本文を言う。
+        どちらにも無い字は今までどおり null を勧める"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1, shrink_first=ROW_TEXT), item(UNIT_CLAMP, 2)])
+        r.open()
+        DesignCase.designed(self)
+        r.out("review_prep")
+        row, other = self.full_map()
+        cases = (("D1: 足す: 上限の入口／消す: 無し", design.QUOTE_FROM_ELEMENTS + "を貼った"),
+                 (ROW_TEXT, "修正案の行の字を貼った"),
+                 ("上限は入口 2 箇所で掛け", "対が無いなら null"))
+        for quote, want in cases:
+            with self.subTest(quote=quote):
+                got = r.accept(review(design_map=[{**row, "design_quote": quote}, other]))
+                self.assertFalse(got["ok"], got)
+                self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
+                self.assertIn(f"design_quote「{quote}」が独立設計の文に字のまま無い（{want}", got["reason"])
+                self.assertEqual(design.QUOTE_FROM in got["reason"], want != "対が無いなら null", got["reason"])
+
     def test_design_map_keys_by_path_and_symbol_both_ways(self):
         """同じ名 helper を a.py と b.py に足す項目は design_map に 2 行要る（名だけで数えると 1 行に潰れる）。同じ (item, path, symbol) の
         2 行は拒む。設計→案の行（item・path・symbol が null で design_ref つき）は受ける"""

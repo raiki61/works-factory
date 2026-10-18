@@ -192,8 +192,10 @@ DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何�
               "大きさの開きには、この項目の shrink に小さく閉じる別案も書け。この 2 つの頭の穴の why と design_map では、「」を"
               "独立設計と案の行の引用だけに使い、ほかの引用は『』か `…` で書け。"
               "独立設計が立つ run では、項目の答え（項目ごとの下請けの答えのファイル。下請けを起こさない往復と案の直しの事前審査では"
-              "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote（独立設計に"
-              "対がある時はその行を字のまま引く。対が無ければ null）, why} の 2 つの向き。案→設計: 項目の files の鍵（足す名・消す名と、"
+              "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote, why} の 2 つの向き。"
+              f"design_quote は、対がある時は{design.QUOTE_FROM}（対が無ければ null）。{design.QUOTE_FROM_ELEMENTS}と修正案の行の字は"
+              "本文に無いので貼らない（受け付けが拒む）。例: 本文が『上限は入口 1 箇所で掛け、各所では掛け直さない』なら『上限は入口 1 箇所で掛け』を引き、"
+              "要素の一覧の『D1: 足す: 上限の入口／消す: 無し』や案の行の字は引かない。案→設計: 項目の files の鍵（足す名・消す名と、"
               "op が create・delete・rename の行）ごとにちょうど 1 行——その鍵は、項目のセクション（下請けのファイル）か材料の頭の design_map の"
               "セクションに一覧で貼った（一覧に無い鍵の行は要らない。op が modify で足す名・消す名の無い行は鍵を持たない）。"
               "design_ref は対の要素の id（独立設計の後ろの要素の一覧の D1 など。対が無ければ null）。"
@@ -360,8 +362,8 @@ def design_only(b, *, diff: bool = False) -> str:
         return f"{DESIGN_HEAD}\n\n" + DESIGN_NOT_STANDS.format(reason=r + design.anchor_note(r))
     elements = design.element_lines(got)
     ask = f"{DESIGN_ASK}\n\n{DESIGN_DIFF_ASK}" if diff else DESIGN_ASK
-    return (f"{DESIGN_HEAD}\n\n{ask}\n\n設計の役の理由: {got['reason']}\n\n=====独立設計ここから=====\n"
-            f"{got['design']}\n=====独立設計ここまで=====" + (f"\n\n{elements}" if elements else ""))
+    return (f"{DESIGN_HEAD}\n\n{ask}\n\n設計の役の理由: {got['reason']}\n\n{design.BODY_OPEN}\n"
+            f"{got['design']}\n{design.BODY_CLOSE}" + (f"\n\n{elements}" if elements else ""))
 
 
 MAP_ITEMS_HEAD = promptsection.Section("## この往復で design_map を書く項目（機械が受け付けと同じ集合から作った）", source="fn:planblk.map_items_section")
