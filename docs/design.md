@@ -432,7 +432,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `ok`（boolean）: seal は差分を封じた。apply は封じた hash と今の差分が合い、置いて読み戻せた → メイングラフ 11（seal）・report
   - `hash`（string）: seal は封じた差分の sha256。apply は読み戻した差分の sha256 → メイングラフ 11・merge（apply が照らす）
   - `diff`（ポインタ・null 可）: seal は封じた差分。apply は置いた先（人が `bin/apply` で当てる物）。差分が空か組めない時は null（`ok` は false、`reason` に訳）→ report
-  - `protected_hits`（array of string・null 可）: 守りのパスの当たり。seal だけ。先頭 `listcut.SHOWN` 行と、超える時は残りの 1 行（`protect.shown`。全件は置き場の `merge/protected.json`）→ メイングラフ 11
+  - `protected_hits`（array of string・null 可）: 守りのパスの当たり。seal だけ。先頭 `listcut.SHOWN` 行と、超える時は残りの 1 行（`protect.shown`。全件は置き場の `merge/protected-all.json`）→ メイングラフ 11
   - `protected_count`（integer・null 可）: 守りのパスの当たりの全件の数（確かめられなかった時は 0）。seal だけ → メイングラフ 11
   - `reason`（string）: ok が false の訳（hash の食い違いなど）。ok なら `""` → report
 

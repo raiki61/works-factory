@@ -14,7 +14,7 @@ Archon が作業ツリーに置く工程の写し（.archon/ の下）は修正�
 import json
 import os
 
-PROTECTED_FILE = "merge/protected.json"
+PROTECTED_FILE = "merge/protected-all.json"
 
 
 def broken(mode: str, reason: str) -> dict:

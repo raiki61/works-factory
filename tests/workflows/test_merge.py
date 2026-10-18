@@ -40,7 +40,7 @@ NAME = "works-factory-merge"
 RUN = "run-merge"
 INPUTS = ("mode", "start", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2")
 RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason")
-PROTECTED_FILE = "merge/protected.json"
+PROTECTED_FILE = "merge/protected-all.json"
 NO_DEADLINE = 1728000000
 PASS = json.dumps({"decision": "continue", "text": ""})
 
@@ -198,7 +198,7 @@ class SealTest(ScriptCase):
 
     def test_many_protected_hits_keep_the_return_short(self):
         """守りのファイルに当たった物が何本でも、返りの protected_hits は先頭 SHOWN 行と残りの 1 行だけで、全件の数は
-        protected_count、全件は置き場の merge/protected.json に残る（20,000 本の時の最後の承認ノードの文は test_line が見る）"""
+        protected_count、全件は置き場の merge/protected-all.json に残る（20,000 本の時の最後の承認ノードの文は test_line が見る）"""
         many = listcut.SHOWN * 40
         (self.repo / ".works-protected.json").write_text(
             json.dumps({"rules": [{"id": "gen", "glob": "gen/**", "why": "生成物"}]}), encoding="utf-8")

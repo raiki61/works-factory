@@ -2144,7 +2144,7 @@ class AskFinalReadsCase(Artifacts):
         （merge が protect.shown で切った行と全件の数 protected_count）から文まで通し、件数は全件の数で言う"""
         rows = protect.lines([{"path": f"gen/{i}.o", "id": "target:gen", "glob": "gen/**", "why": "生成物", "added": 0, "deleted": 1}
                               for i in range(20000)])
-        whole = self.artifacts / "merge" / "protected.json"
+        whole = self.artifacts / "merge" / "protected-all.json"
         seal_out = {"ok": True, "protected_hits": protect.shown(rows, "protected_hits", whole), "protected_count": len(rows)}
         env = self.null_env(final_gate="always", unattended="false", tests={"ok": True, "green": True}, seal=seal_out)
         with mock.patch.dict(os.environ, env):
