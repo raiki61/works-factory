@@ -228,7 +228,7 @@ def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: P
 
 def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Path, run_id: str, carried=None) -> dict:
     """始めの記録 record を書き、start の通った返りを組む。carried は固定材料の run の運ぶ値のポインタ（ほかの run は None）"""
-    unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
+    unattended = gatepolicy.unattended_of(record)
     return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record), "prior_failures": prior,
             "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
