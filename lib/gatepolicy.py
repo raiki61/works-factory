@@ -7,7 +7,9 @@ run の入力の 2 つの語、最後の人の関所の開き方（final_gate）
 入力を写さない（入口を 1 つの入力の形にそろえる。後ろの段は入口の控えだけを読む）。
 
 - FINAL_KEY・UNATTENDED_KEY: 線の入力と始めの記録の欄の名
-- FINAL_GATES（ALWAYS・WHEN_NEEDED・PROTECTED_ONLY）: 最後の関所の開き方。空の既定は ALWAYS（P1-R3: 必ず止まれる所を残す）。
+- FINAL_GATES（ALWAYS・WHEN_NEEDED・PROTECTED_ONLY）: 最後の関所の開き方。空の既定は ALWAYS（P1-R3: 必ず止まれる所を残す）で、
+  無人の run の空の既定は WHEN_NEEDED（無人の run は最後の関所で推しを持たず、開くはずの時は止まって差分を当てないので、ALWAYS では
+  どの run も止まる。持ち主の決め unattended「人がいないときは推しの答え。」）。
   WHEN_NEEDED は開ける理由（最後のテストが緑でない・盤面が人に聞いている…）が在る時だけ、PROTECTED_ONLY は守りのファイルを
   触った時だけ開く（ほかの理由は報告の冒頭に並ぶだけ）
 - UNATTENDED・UNATTENDED_WORDS: 無人の語（true）と受ける語（空は人の居る run）
@@ -49,13 +51,13 @@ class Refused(ValueError):
 
 
 def check(final, unattended, *, spec) -> dict:
-    """入口の 2 つの語を確かめて {FINAL_KEY: 開き方（空は ALWAYS）, UNATTENDED_KEY: 語} を返す"""
-    mode = (final or "").strip() or ALWAYS
-    if mode not in FINAL_GATES:
-        raise Refused(f"{FINAL_KEY}={final!r} は知らない値（{' / '.join(FINAL_GATES)}）")
+    """入口の 2 つの語を確かめて {FINAL_KEY: 開き方（空は ALWAYS、無人の run の空は WHEN_NEEDED）, UNATTENDED_KEY: 語} を返す"""
     alone = (unattended or "").strip()
     if alone not in UNATTENDED_WORDS:
         raise Refused(f"{UNATTENDED_KEY}={unattended!r} は知らない値（空か {UNATTENDED}）")
+    mode = (final or "").strip() or (WHEN_NEEDED if alone else ALWAYS)
+    if mode not in FINAL_GATES:
+        raise Refused(f"{FINAL_KEY}={final!r} は知らない値（{' / '.join(FINAL_GATES)}）")
     if spec and alone:
         raise Refused(f"spec=on と無人の run（{UNATTENDED_KEY}）は組めない——仕様の承認は承認ノードで、無人の run は承認ノードで止めるので"
                       "仕様が固まらずに止まる（人の居る run で回す）")
