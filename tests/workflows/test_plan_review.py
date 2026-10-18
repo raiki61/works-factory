@@ -1502,6 +1502,37 @@ class ReviewAcceptCase(RunCase):
         got = r.accept(review(design_map=mapped))
         self.assertTrue(got["ok"], got)
 
+    def keyless_plan(self) -> str:
+        """files の行がどれも op=modify で symbols が空の案（案→設計の鍵が無い）を開き、独立設計を通した往復の材料の
+        MAP_ITEMS_HEAD の節"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1, files=[frow("stats.py"), frow("docs/notes.md")]), item(UNIT_CLAMP, 2, files=[frow("stats.py")])])
+        r.open()
+        DesignCase.designed(self)
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        return text[text.index(planblk.MAP_ITEMS_HEAD):].split("\n\n## ")[0]
+
+    KEYLESS_WHY = "設計の上限の入口は項目 1 の stats.py の modify の行が受ける"
+
+    def test_map_section_without_keys_passes_design_rows_first_time(self):
+        """#747: 案→設計の鍵が無い案では、材料の節が鍵の無いことと要素を設計→案の行に書くことを言い、その書き方の design_map が
+        1 回目で通る"""
+        section = self.keyless_plan()
+        self.assertIn(planblk.NO_MAP_KEYS, section)
+        self.assertNotIn('{"item"', section)
+        row = {"item": None, "path": None, "symbol": None, "design_ref": "D1", "design_quote": None, "why": self.KEYLESS_WHY}
+        got = self.run_.accept(review(design_map=[row]))
+        self.assertTrue(got["ok"], got)
+
+    def test_keyless_row_ref_is_not_coverage(self):
+        """#747: 鍵の無い files の行（op=modify で symbols が空）を指す案→設計の行は余りで照らさず、その design_ref も網羅に数えない
+        （D1 の漏れで拒む）"""
+        self.keyless_plan()
+        row = {"item": 1, "path": "stats.py", "symbol": None, "design_ref": "D1", "design_quote": None, "why": self.KEYLESS_WHY}
+        got = self.run_.accept(review(design_map=[row]))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("独立設計の要素 D1", got["reason"])
+
     def test_design_map_must_cover_every_added_name(self):
         """元 ConvergeReviewCase.test_design_map_must_cover_every_added_name: 対応表が files の足す symbol の (項目, path, symbol) を欠く・
         2 行書く・設計に無い字を引く返答は拒み、全部を 1 行ずつ持つ返答は受ける。行は {item, path, symbol, design_ref, design_quote, why}。
