@@ -193,10 +193,12 @@ DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何�
               "独立設計と案の行の引用だけに使い、ほかの引用は『』か `…` で書け。"
               "独立設計が立つ run では、項目の答え（項目ごとの下請けの答えのファイル。下請けを起こさない往復と案の直しの事前審査では"
               "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote（独立設計に"
-              "対がある時はその行を字のまま引く。対が無ければ null）, why} の 2 つの向き。案→設計: 項目の files の (path, symbol) ごとに"
-              "ちょうど 1 行——その鍵は、項目のセクション（下請けのファイル）か材料の頭の design_map のセクションに一覧で貼った（一覧に無い鍵の行は要らない）。"
+              "対がある時はその行を字のまま引く。対が無ければ null）, why} の 2 つの向き。案→設計: 項目の files の鍵（足す名・消す名と、"
+              "op が create・delete・rename の行）ごとにちょうど 1 行——その鍵は、項目のセクション（下請けのファイル）か材料の頭の design_map の"
+              "セクションに一覧で貼った（一覧に無い鍵の行は要らない。op が modify で足す名・消す名の無い行は鍵を持たない）。"
               "design_ref は対の要素の id（独立設計の後ろの要素の一覧の D1 など。対が無ければ null）。"
-              "設計→案: 案のどの行にも対の無い要素は、item・path・symbol を null にして design_ref だけを書いた行にする。独立設計の"
+              "設計→案: 鍵の一覧のどの行にも対の無い要素（対が鍵の無い files の行にだけ在る要素も）は、item・path・symbol を null にして"
+              " design_ref だけを書いた行にする（対の在りかは why に書く）。独立設計の"
               "要素の id は全部、どれかの行の design_ref に出す（漏れは受け付けが拒む）。"
               "単位を閉じるのに要る実装の細部は挙げない。頭の『既にある物を量ったかを見よ』（REUSE_REVIEW）で kind copy に挙げた行は、"
               "contract_drift に挙げ直さない。")
@@ -365,6 +367,8 @@ def design_only(b, *, diff: bool = False) -> str:
 MAP_ITEMS_HEAD = promptsection.Section("## この往復で design_map を書く項目（機械が受け付けと同じ集合から作った）", source="fn:planblk.map_items_section")
 
 
+NO_MAP_KEYS = ("この往復の項目の files に案→設計の行の鍵は無い（op が modify で足す名・消す名の無い行は鍵を持たない）。"
+               "案→設計の行は書かず、独立設計の要素は全部、item・path・symbol を null にした設計→案の行に書け。")
 ITEM_MAP_OTHERS = "ほかの項目"   # 木の下請けのファイルの項目の節が言う、その項目の外（項目の境は形によらない）
 
 
@@ -373,7 +377,7 @@ def map_items_section(b, items: list, others: str, *, carried: bool, kept=()) ->
     items は受け付けが design_map を照らす項目の番号、others はそれ以外の項目を言う句（呼び手が渡す: boardview._map_items と
     boardview.MAP_OTHERS、または tree_part の [n] と ITEM_MAP_OTHERS）。carried が真なら、others が前の往復で受けた独立設計の要素
     （converge.carried_refs。受け付けの coverage_gaps と同じ呼び）は網羅に数え済みと言い添える。節は案→設計の行の鍵の一覧
-    （design.wanted_lines。受け付けが照らすのと同じ集合を、受け付けと同じ案の行 _map_rows と同じ kept（kept_keys）から組む）を持つ"""
+    （design.wanted_lines。受け付けが照らすのと同じ集合を、受け付けと同じ案の行 _map_rows と同じ kept（kept_keys）から組む）か、鍵が 1 つも無い（kept も無い）時の NO_MAP_KEYS を持つ"""
     if design.stands(b.dir, b.design_schema) is None:
         return ""
     names = "・".join(str(n) for n in sorted(items or [])) or "無し"
@@ -385,6 +389,8 @@ def map_items_section(b, items: list, others: str, *, carried: bool, kept=()) ->
     if keys:
         text += ("\n\n案→設計の行は、下の鍵ごとにちょうど 1 行（item・path・symbol をこの鍵のとおりに書く）。ほかの鍵の行は要らない"
                  "（書いても照らさず、その design_ref も網羅に数えない）:\n" + "\n".join(keys))
+    elif items and not kept:
+        text += f"\n\n{NO_MAP_KEYS}"
     return text
 
 
