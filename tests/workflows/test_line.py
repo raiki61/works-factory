@@ -605,6 +605,17 @@ class StartCase(Artifacts):
         self.assertEqual(line_nodes()["gate-start"]["wait"]["attention"], "$start.output.gate_text")
         self.assertEqual(line_nodes()["gate-start"]["depends_on"], ["start"])
 
+    def test_start_gate_text_names_the_deliver_word(self):
+        """#751: 始めの承認ノードの頭の行に出口の語（deliver）を、段・機能・最後の承認ノードの開き方と同じ形で 1 行出す"""
+        rows = {"": "- 出口（deliver）: 空（既定）——差分を run の置き場に置くだけで、対象の repo に何も書かない",
+                "pr": "- 出口（deliver）: pr——最後の承認ノードを通ると、報告の前に run の枝へ commit を積んで push し、"
+                      "対象の既定の枝へ向けた PR を作る（merge はしない）"}
+        for word, row in rows.items():
+            with self.subTest(deliver=word):
+                lines = self.start(request="request_ok.json", deliver=word)["gate_text"].splitlines()
+                self.assertIn(row, lines)
+                self.assertEqual(lines.index(row), lines.index("- 最後の承認ノード: always") + 1)
+
     def test_heavy_thickness_is_taken(self):
         got = self.start(request="request_ok.json", thickness="重厚")
         self.assertTrue(got["ok"], got)
@@ -640,8 +651,7 @@ class StartCase(Artifacts):
         self.assertIn("段: 自動（既定）", text)
         self.assertIn("修正前のテスト: 宣言も test_cmd も無い", text)
         text = self.start(request="request_ok.json", thickness="軽量", test_cmd="make test")["gate_text"]
-        self.assertIn("段: 軽量", text)
-        self.assertNotIn("（既定）", text)
+        self.assertIn("- 段: 軽量\n", text)
         self.assertNotIn("修正前のテスト:", text)
 
 
@@ -1609,6 +1619,46 @@ class AskFinalCase(unittest.TestCase):
         approved = {"decision": "continue", "text": "", "asked": ["項目 2: 約束の欄が変わった（allowed_paths）"]}
         self.assertEqual(replan.amend_lines(["2", "3"], refixed=True, answer=approved),
                          ["案の項目 2: 直した——人が承認した", "案の項目 3: 直した——聞かずに通した（手段の欄だけ）"])
+
+
+class AskFinalDeliverCase(unittest.TestCase):
+    """#751: 出口の語 pr の run の最後の承認ノードの文は、承認すると積んで push し PR を作る事と、push 先と向け先の枝を出す"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        origin = self.tmp / "origin.git"
+        git(self.tmp, "init", "-q", "--bare", "-b", "main", str(origin))
+        self.main = self.tmp / "main"
+        git(self.tmp, "clone", "-q", str(origin), str(self.main))
+        git(self.main, "commit", "-q", "--allow-empty", "-m", "seed")
+        git(self.main, "push", "-q", "origin", "main")
+        self.run_tree = self.tmp / "run"
+        git(self.main, "worktree", "add", "-q", "-b", "archon/task-run", str(self.run_tree))
+
+    def text(self, deliver: str, tree: pathlib.Path) -> str:
+        with contextlib.chdir(tree):
+            got = final_got(pr_branches=ask_final.pr_branches({"inputs": {"deliver": deliver}}))
+        return ask_final.final_text(got, [], RUN)
+
+    def test_pr_run_names_the_push_and_target_branches(self):
+        lines = self.text("pr", self.run_tree).splitlines()
+        row = ("- 承認すると（出口 deliver=pr）: 報告の前に run の枝 archon/task-run へ commit を積んで push し、main へ向けた PR を"
+               "作る（merge はしない）。止めれば対象の repo に何も書かない")
+        self.assertIn(row, lines)
+        self.assertLess(lines.index(row), lines.index("答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:"))
+
+    def test_pr_run_that_would_stop_before_the_commit_says_why(self):
+        text = self.text("pr", self.main)
+        self.assertIn("- 承認すると（出口 deliver=pr）: run の枝へ commit を積んで push し PR を作るはずだが、今の作業ツリーでは積む前に"
+                      "止まる（本体の作業ツリーでは commit しない", text)
+        self.assertIn("。止めれば対象の repo に何も書かない", text)
+
+    def test_placing_run_says_nothing_of_a_pr(self):
+        self.assertIsNone(ask_final.pr_branches({"inputs": {"deliver": ""}}))
+        self.assertIsNone(ask_final.pr_branches(None))
+        self.assertNotIn("出口 deliver", self.text("", self.run_tree))
 
 
 class AskFinalReadsCase(Artifacts):
