@@ -17,10 +17,10 @@ unattended・design_only。questions の行は関所の項目の種類と文 {ki
 - 無人の run: 判定の推しが選択肢を名指し出どころ・depends が開いた単位の fork・held は台帳の読み（gatemarks.answered の run_push）が無人の run の答えとして採り、出どころを
   直す義務に戻すので、ここに来る台帳の問い（種類 fork・escalate。gatemarks.ASK_KINDS）は採れる推しの無い物と escalate だけで、それは関所に
   載せず deferred で返す（問いの出どころは直す義務から外れたまま修正へ進む。元 works/.shared/core/gatemarks.py:637-638）。ほかの種類（狭め・事前審査の穴・方針の文書の変化・事前審査の
-  諦め・設計の問い・世界の解の外れ・設計だけ）が在れば、その項目の全部が通す推しの尾を持つ時だけ推しで進み（返り pushed。
-  gatemarks.pushed_answer。持ち主 2026-10-15「人がいないときは推しの答え。」）、ほかは開かずに止める（needs-human。今の works で
-  無人の殻が関所に stop を返したのと同じ結末）。事前審査の壁打ちが止まった行（種類 design_only の止まりの行）も、
-  事前審査の役の推しの尾（付く条件は gatemarks.stuck_push）を持てば同じく推しで進む。ここは pushed_answer に渡すだけで変えない
+  諦め・設計の問い・世界の解の外れ・設計だけ）が在れば、進むか止めるかは無人の方針の口 gatepolicy.passage に渡すだけで決めない
+  （その項目の全部が通す推しの尾を持つ時だけ推しで進み〔返り pushed〕、ほかは開かずに止める〔needs-human。今の works で
+  無人の殻が関所に stop を返したのと同じ結末〕。事前審査の壁打ちが止まった行も、推しの尾〔付く条件は gatepolicy.stuck_pushable〕を
+  持てば同じく推しで進む）
 返り asked は関所に載せた項目の文の並び（開かない時は []。推しで進んだ時は推しで通した項目）。answer-before-fix がそれを答えの asked
 にし、fix・plan-review・eyes が通した行として読む。pushed は推しで進んだ時の答え（answer-before-fix が答えとして記録する）で、ほかは null。
 """
@@ -33,7 +33,7 @@ import boundary  # noqa: E402
 
 with boundary.guarded_imports():
     import gatemarks
-    import stopby
+    import gatepolicy
 
 AXES = {"obvious": "自明", "world": "世界の解", "clean": "汚くない", "not_overkill": "やりすぎでない"}
 AXIS_KIND = "plan_review"
@@ -67,12 +67,8 @@ def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict
     if not opens:
         return {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": deferred, "asked": [], "pushed": None}
     if unattended:
-        asked = [item for _, item in rows]
-        pushed = gatemarks.pushed_answer(asked)
-        if pushed is None:
-            return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "deferred": deferred, "asked": [],
-                    "pushed": None}
-        return {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": deferred, "asked": asked, "pushed": pushed}
+        return {"open": False, "text": "", "deferred": deferred,
+                **gatepolicy.passage([item for _, item in rows], gatemarks.row_push)._asdict()}
     asking = {"node": gatemarks.GATE_NODE, "kinds": list(dict.fromkeys(kind for kind, _ in rows if kind)) or [AXIS_KIND],
               "question": QUESTION, "items": [item for _, item in rows]}
     return {"open": True, "go": True, "stop_reason": "", "text": gate_text(asking, run_id=run_id), "deferred": deferred,

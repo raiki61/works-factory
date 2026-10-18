@@ -4450,7 +4450,7 @@ class ConvergeGateCase(GateBase):
         items, b = self.stuck_items(self.PUSH, unattended="true")
         head = f"{gatemarks.STUCK_ITEM}。理由: {converge.stuck_reason(b)}"
         self.assertEqual(gatemarks.push_rec(items[0]), {"item": head, **self.PUSH})
-        self.assertEqual(gatemarks.pushed_answer(items)["text"], self.PUSH["note"])
+        self.assertEqual(gatepolicy.passage(items, gatemarks.row_push).pushed["text"], self.PUSH["note"])
         items, b = self.stuck_items(self.PUSH)
         self.assertEqual(items, [head])
         self.assertIsNone(gatemarks.push_rec(items[0]))
@@ -4465,7 +4465,7 @@ class ConvergeGateCase(GateBase):
                 items, b = self.stuck_items(push, unattended="true")
                 self.assertEqual(items, [f"{gatemarks.STUCK_ITEM}。理由: {converge.stuck_reason(b)}"])
                 self.assertIsNone(gatemarks.push_rec(items[0]))
-                self.assertIsNone(gatemarks.pushed_answer(items))
+                self.assertIsNone(gatepolicy.passage(items, gatemarks.row_push).pushed)
 
     def test_unattended_stuck_push_goes_to_fix(self):
         """無人の run の止まりの行を question_row のまま ask_before_fix.ask に通すと、go・pushed 非 null・asked にその行が入り、pushed の
@@ -4519,7 +4519,7 @@ class ConvergeGateCase(GateBase):
         self.assertEqual((row["outcome"], row["capped"]), (converge.UNSETTLED, True))
         got, b = self.gate()
         items = got["ask"]["items"]
-        self.assertFalse(converge.pushable(converge.read(b)), "上限の止まりは役の推しで越えない")
+        self.assertTrue(converge.capped(converge.read(b)), "上限の止まりは役の推しで越えない")
         self.assertEqual(gatemarks.stuck_push(b), "")
         self.assertEqual(items, [f"{gatemarks.STUCK_ITEM}。理由: {converge.stuck_reason(b)}"])
         self.assertIsNone(gatemarks.push_rec(items[0]))
@@ -4528,8 +4528,8 @@ class ConvergeGateCase(GateBase):
 
     def test_held_face_added_for_the_push_is_not_a_second_gate_row(self):
         """推しが付く止まりで review.json の faces に足した保留の項目の block（印 held つき。kind は元のまま regression）は、関所の別の行に
-        ならない（推しの尾を持てず、載る項目の全部が尾を持つ時だけ通す pushed_answer を None にしてしまう）。止まりの行 1 つだけが載って
-        推しの尾を持ち、pushed_answer が通す。印の無い同じ block の face は今までどおり人に回す行になる"""
+        ならない（推しの尾を持てず、載る項目の全部が尾を持つ時だけ通す gatepolicy.passage を止めてしまう）。止まりの行 1 つだけが載って
+        推しの尾を持ち、gatepolicy.passage が通す。印の無い同じ block の face は今までどおり人に回す行になる"""
         unmarked = {"key": "a-key-001", "kind": "regression", "where": "stats.py", "why": "穴", "severity": "block", "unit_keys": ["u"]}
         held = {**unmarked, converge.HELD_MARK: True}
         self.start(unattended="true")
@@ -4538,10 +4538,10 @@ class ConvergeGateCase(GateBase):
         items = got["ask"]["items"]
         self.assertEqual(len(items), 1, items)
         self.assertTrue(items[0].startswith(gatemarks.STUCK_ITEM), items)
-        self.assertIsNotNone(gatemarks.pushed_answer(items))
+        self.assertIsNotNone(gatepolicy.passage(items, gatemarks.row_push).pushed)
         got, _ = self.gate(faces=[unmarked], unattended=True)
         self.assertEqual(len(got["ask"]["items"]), 2, got)
-        self.assertIsNone(gatemarks.pushed_answer(got["ask"]["items"]))
+        self.assertIsNone(gatepolicy.passage(got["ask"]["items"], gatemarks.row_push).pushed)
 
     def test_stuck_opens_design_item_with_reason(self):
         """元 tests/test_plan_gate.py の ConvergeGateCase.test_stuck_opens_design_item_with_reason。壁打ちが止まった案は修正に
