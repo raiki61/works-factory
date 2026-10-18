@@ -1,6 +1,6 @@
 # works-factory
 
-> **Status: under construction.** The whole flow already runs with real AI roles on a request (stage 1, the first stage of the build order, issue [#154](https://github.com/raiki61/works-factory/issues/154)), but the factory has not yet caught up with the tool it replaces, the current works (see "Related projects"), and known failures remain: for example, the part of the report that an AI writes currently fails (issue [#712](https://github.com/raiki61/works-factory/issues/712)). Everything except this README is in Japanese. If you need a fix factory you can rely on today, use the current works. More in "Current status".
+> **Status: under construction.** The whole flow already runs with real AI roles on a request (stage 1, the first stage of the build order, issue [#154](https://github.com/raiki61/works-factory/issues/154)), but the factory has not yet caught up with the tool it replaces, the current works (see "Related projects"), and known gaps remain: for example, a light run still costs as much time and money as a standard one (issue [#687](https://github.com/raiki61/works-factory/issues/687)). Everything except this README is in Japanese. If you need a fix factory you can rely on today, use the current works. More in "Current status".
 >
 > Before trying it, check "Requirements". Words such as run, node, and approval node are explained in "Terms" at the end.
 
@@ -236,7 +236,7 @@ All in Japanese. You do not need them to use the factory.
 Under construction. The entry script `bin/works-factory`, the main graph `workflows/line/`, the 9 subgraphs, the round chain `workflows/chain/`, `lib/`, and the layer tests exist. The main graph is checked with scenarios composed with the real subgraphs (Archon's `workflow test`; no roles are started). Stage 1, the walking skeleton, is done: one request was taken through a small target repository with real roles, and the sealed diff was applied (issue [#154](https://github.com/raiki61/works-factory/issues/154); the run records are in "作りの順" (build order) in `docs/design.md`, Japanese). The foundation is being built by ASF. What is left:
 
 - Catching up with the current works. Each user-visible capability of the current works is matched to where works-factory does the same in `docs/works-parity.md` (Japanese); until the factory has them all, the current works (the works plugin of raiki61/claude-plugins) is the fix factory to use.
-- Known failures, tracked as open issues. For example, the node that writes the report's body is stopped by the model provider's safety check, so reports currently carry only the parts the machine builds (issue [#712](https://github.com/raiki61/works-factory/issues/712)).
+- Known gaps, tracked as open issues. For example, a light run, meant for easy requests, still costs as much time and money as a standard run (issue [#687](https://github.com/raiki61/works-factory/issues/687)).
 - The build order and progress are in "作りの順" (build order) in `docs/design.md` (Japanese).
 
 ## Terms
