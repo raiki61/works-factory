@@ -972,10 +972,10 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 本物の run: 置き場の `delta-verdicts.json`（{round, compliance, quality}）
   - 狭め: 無し（試験の欠け）
 
-- F307 手直しが答える義務 = 審査の穴（faces）と、塞いだと言われたのに差分で塞がっていない検算（checks の closed=false）。変異の検算の見逃しは入れない。義務が 0 件なら手直しの役を起こさない
+- F307 手直しが答える義務 = 審査の穴（faces。差分の足した行の内側の語の機械の穴を含む）と、塞いだと言われたのに差分で塞がっていない検算（checks の closed=false）。変異の検算の見逃しは入れない。義務が 0 件なら手直しの役を起こさない
   - 元: review-loop.py:569-579 `_owed_rows`・:582 `delta_owed`・:641 `delta_faces_open`
   - 今: 表
-  - 証: lib/tests/test_blk_refix.py::RefixCase.test_owed_rows_come_from_the_accepted_review、lib/tests/test_blk_refix.py::RefixCase.test_review_none_owes_nothing、tests/workflows/test_fix.py::DeltaScriptsCase.test_not_launched_roles_are_done
+  - 証: lib/tests/test_blk_refix.py::RefixCase.test_owed_rows_come_from_the_accepted_review、lib/tests/test_blk_refix.py::RefixCase.test_review_none_owes_nothing、tests/workflows/test_fix.py::DeltaScriptsCase.test_not_launched_roles_are_done、lib/tests/test_blk_refix.py::RefixCase.test_inner_word_in_an_added_line_is_owed、lib/tests/test_blk_refix.py::RefixCase.test_inner_word_added_by_the_first_refix_is_owed_in_review2、tests/workflows/test_fix.py::DeltaScriptsCase.test_delta_accept_fails_the_pass_on_an_inner_word
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `delta/review-1.json` の owed と、refix の節が起きたか（Archon の節の状態）。健全な run では審査役次第）
   - 狭め: 無し
 
