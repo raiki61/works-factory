@@ -1,7 +1,7 @@
 """筋書き（workflows/*/fixtures/*.yaml）が、確かめられない周ごとの値を確かめたと言わない（落とし穴 K6）。
 
-`archon workflow test` の筋書きは周を回すが、前の周の出力を渡さない（止めた Archon の packages/workflows/src/dry-run.ts 795 行の
-`loopPrevOutput: ''`・1053-1085 行。stub は節ごとに 1 つで毎周同じ値）。周ごとに違う値・前の周の値は本物の run でしか見られない。
+`archon workflow test` の筋書きは周を回すが、前の周の出力を渡さない（止めた Archon の packages/workflows/src/dry-run.ts の executeCodeNode の
+`loopPrevOutput: ''`・simulateLoopGroup。stub は節ごとに 1 つで毎周同じ値）。周ごとに違う値・前の周の値は本物の run でしか見られない。
 - 筋書きの注記（`#` で始まる行）と `fixture.resolved-text-contains` の字に、CLAIMS の言い回しが在れば赤
 - 「3 回とも拒んだ」のように同じ値の周の数を言うのは、毎周同じ stub で正しく起きるので赤にしない
 - 今の食い違いは表 ALLOWED に行ごとに名指して許す。表の行が今の木に当たらなければ赤

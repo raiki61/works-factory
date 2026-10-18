@@ -1,8 +1,9 @@
 """埋め P5（docs/polyfills.md）: 読むだけの役の claude を起こす直前に、書き込みを禁じるパスの一覧を組んで sandbox の denyWrite に足す包み。
 
-止めた Archon は役の sandbox を置き換えずに SDK へ渡す（packages/workflows/src/dag-executor.ts:1847・
-packages/providers/src/claude/provider.ts:801-803）ので、YAML の固定の値では run ごとに違うパス（cwd・共通の .git・worktree の根）を
-名指せない。Archon が起こす claude の実行ファイルは CLAUDE_BIN_PATH で替えられる（packages/providers/src/claude/binary-resolver.ts:172-178）
+止めた Archon は役の sandbox を置き換えずに SDK へ渡す（packages/workflows/src/dag-executor.ts の
+『sandbox: node.sandbox ?? workflowLevelOptions.sandbox,』・packages/providers/src/claude/provider.ts の applyNodeConfig）ので、
+YAML の固定の値では run ごとに違うパス（cwd・共通の .git・worktree の根）を名指せない。Archon が起こす claude の実行ファイルは
+CLAUDE_BIN_PATH で替えられる（packages/providers/src/claude/binary-resolver.ts の resolveClaudeBinaryWithSource）
 ので、起動の殻（bin/_lib/launcher.py の write_fence）がこの包みをそこに置く。SDK は sandbox を `--settings` の JSON の字に入れて
 渡し、設定のファイルのパスでは渡さない（tests/shared/test_archon_contract.py が SDK の源で照らす）。
 

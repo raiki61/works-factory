@@ -4,7 +4,7 @@
 # ///
 """前の周の受け付けが拒んだ理由（with: の reason。1 周目は空の字）を、そのまま今の周の返りにする。
 輪の中の役の節は、自分の with: で結んだ名を $INPUTS で読めない: 線が include した時に、止めた Archon が「入力が無い」と止める
-（packages/workflows/src/include-expander.ts:566・627。輪の中の節の with: を楯にしない）。だから前の周の値は、今の周のこの節の返りを
+（packages/workflows/src/include-expander.ts の applyInputsMacro・inlineInclude。輪の中の節の with: を楯にしない）。だから前の周の値は、今の周のこの節の返りを
 役の指示書が $<この節>.output.reason で読む形で渡す（ASF の W/deliver/archon-deliver.yaml の ci-evidence と同じ形）。
 同じ形で、役の文の頭に足す言語の 1 行（始めの記録の lang から rolekit.lang_line。元 works/.shared/core/rolekit.py 147-150 行）を
 lang_line で返し、役の指示書が $<この節>.output.lang_line で読む。lib/ を読めなくても落ちずに訳の 1 行を返す"""
