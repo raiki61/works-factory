@@ -139,6 +139,12 @@ class MapCase(unittest.TestCase):
                 self.assertTrue((ROOT / home).is_file(), home)
                 self.assertEqual(scan.layer_of(home), ("lib", "lib/"))
 
+    def test_judge_home_constants_are_the_judge_beside_names(self):
+        """判定の名の住処の定数の字と地図の judge の名の集まりは等しい（住処に名を足して地図に足し忘れると、照らしが名を見ない）"""
+        import judgebeside
+        names = {v for k, v in vars(judgebeside).items() if k.isupper() and isinstance(v, str)}
+        self.assertEqual(names, set(scan.LAYER_MAP["beside"]["judge"]))
+
     def test_beside_names_match_the_design_promise(self):
         """地図の beside の名は docs/design.md の「サブグラフの出力の約束」から読める: ブロックの beside の名は、「<ブロック> の出力」の
         セクションの欄の行（`- `<欄>`` で始まる行）に書いた名のどれか（欄で返した名。地図に残すのは柵のため）"""
