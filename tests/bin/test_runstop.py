@@ -126,7 +126,8 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
     def cancel(self, run_id: str) -> tuple[int, str]:
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
-            code = runstop.cancel(self.head, ["workflow", "cancel", run_id, "--json"], self.env, str(self.root))
+            code = runstop.cancel(self.head, ["workflow", "cancel", run_id, "--json", "--cwd", str(self.root)], self.env,
+                                 str(self.root))
         return code, err.getvalue()
 
     def assertGone(self, found: dict, *kinds: str):
@@ -191,10 +192,17 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertNotIn("残ったプロセス", err)
 
     def test_cancel_of_a_child_run_stops_only_the_child_run_processes(self):
+        self.cancel_child_run(lambda kid: kid)
+
+    def test_a_child_run_is_cancelled_by_the_short_id_that_workflow_runs_shows(self):
+        """Archon の cancel は workflow runs が出す 8 字の id を完全な id に直して受ける。殻も完全な id で残りを探す"""
+        self.cancel_child_run(lambda kid: kid[:8])
+
+    def cancel_child_run(self, typed):
         run_id = self.detach()
         found = self.tree(run_id)
         kid = next(r["id"] for r in self.runs() if r.get("parent_run_id") == run_id)
-        code, err = self.cancel(kid)
+        code, err = self.cancel(typed(kid))
         self.assertEqual(code, 0, err)
         self.assertIn(f"run {kid} の持ち主のプロセスの木は数えない（子の run", err)
         self.assertEqual([pid for pid in [found["hosts"][1], found["claude"][1], *found["kids"][2:]] if alive(pid)], [])

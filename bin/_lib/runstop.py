@@ -6,7 +6,8 @@ AI のノードの provider（Claude）は、持ち主がノードごとに deta
 同じ持ち主の中で走るので同じ。前で起こした run（--detach の無い workflow run）は、cancel が拒んで何も止めない。前の命令を Ctrl-C で
 止めた run（failed）も、AI のノードのプロセスが残る。
 
-- 印は 2 つ。1 つは run と子の run（Archon の記録の parent_run_id で辿る）の id で、AI のノードと bash のノードのプロセスは env の
+- 印は 2 つ。1 つは run と子の run（Archon の記録の parent_run_id で辿る）の完全な id（workflow runs が出す 8 字の短い id で打たれても、
+  Archon の cancel と同じく workflow get で直す。読めなければ打たれた字のまま）で、AI のノードと bash のノードのプロセスは env の
   WORKFLOW_ID に自分の run の id を持つ（packages/workflows/src/exec-environment.ts）。子孫は env を継ぐ。もう 1 つは走っている根の run の
   生きた持ち主（metadata の execution_owner。この機械・この利用者の物で、last_activity_at より前に始まり、Archon の本体の workflow の
   命令を走らせるプロセス）で、持ち主とその子孫を親子の鎖で拾う。持ち主のグループとセッションでは拾わない（前の命令の持ち主は
@@ -53,12 +54,14 @@ WAIT = 0.1
 
 def cancel(head: list[str], argv: list[str], env: Mapping[str, str], cwd: str | None) -> int:
     """argv（workflow cancel <run> …）を Archon に渡し、run のプロセスで残った物を止める。head は Archon を起こす命令の頭、cwd は --cwd の値"""
-    run_id = run_id_of(argv)
-    if run_id is None:
+    typed = run_id_of(argv)
+    if typed is None:
         return subprocess.run([*head, *argv], env=env).returncode
     archon = Archon(head, env, cwd)
+    run = archon.get(typed)
+    run_id = run["id"] if isinstance(run, dict) else typed
     ids = archon.family(run_id)
-    owner, known = archon.owner_tree(run_id)
+    owner, known = archon.owner_tree(run_id, run)
     before, why = members(ids, known)
     if before is None:
         say(f"cancel の前に run {run_id} のプロセスを数えられない（{why}）")
@@ -112,6 +115,14 @@ class Archon:
                               capture_output=True, text=True, encoding="utf-8")
         return childsweep.last_json(done.stdout)
 
+    def get(self, typed: str) -> dict | str:
+        """workflow get の run。typed は workflow runs が出す短い id でもよく、run の id は完全な物。読めなければ訳"""
+        try:
+            run = self.read("workflow", "get", typed)
+        except ValueError as error:
+            return f"run を読めない: {error}"
+        return run if isinstance(run, dict) and isinstance(run.get("id"), str) else "run の形が読めない"
+
     def family(self, run_id: str) -> set[str]:
         """run と、Archon の記録で辿れる子の run（孫も）の id。一覧を読めなければ訳を出して run だけ"""
         try:
@@ -131,12 +142,9 @@ class Archon:
                     todo.append(run["id"])
         return ids
 
-    def owner_tree(self, run_id: str) -> tuple[int | None, dict[int, float]]:
-        """run の生きた持ち主の番号と known（{持ち主の番号: 開始時刻}）。持ち主の木を数えない run は訳を出して (None, {})"""
-        try:
-            found = owner_of(self.read("workflow", "get", run_id))
-        except ValueError as error:
-            found = f"run を読めない: {error}"
+    def owner_tree(self, run_id: str, run: dict | str) -> tuple[int | None, dict[int, float]]:
+        """run（get の物）の生きた持ち主の番号と known（{持ち主の番号: 開始時刻}）。持ち主の木を数えない run は訳を出して (None, {})"""
+        found = run if isinstance(run, str) else owner_of(run)
         if isinstance(found, tuple):
             found = live_owner(*found, self.head[-1])
         if isinstance(found, str):
@@ -146,11 +154,9 @@ class Archon:
         return pid, {pid: started}
 
 
-def owner_of(run: object) -> tuple[int, float] | str:
+def owner_of(run: dict) -> tuple[int, float] | str:
     """workflow get --json の run の持ち主の番号と born（last_activity_at のエポック秒）。根の running の run で、この機械・この利用者が
     持つ物だけ。ほかは数えない訳"""
-    if not isinstance(run, dict):
-        return "run の形が読めない"
     if run.get("status") != RUNNING:
         return f"run は {RUNNING} でない（{run.get('status')}）"
     if run.get("parent_run_id"):
