@@ -365,6 +365,26 @@ class RefixCase(DeltaPlaceCase):
         self.assertEqual(len(keys), 2)
         self.assertTrue(keys[1].startswith("inner_word stats.py:"), keys)
 
+    def test_inner_word_claimed_fixed_but_left_is_owed_again_in_review2(self):
+        """1 回目の手直しが直したと答えても足した行に内側の語が残れば、2 回目の審査役が塞がったと言っても 2 回目の義務に入る"""
+        def add_line(repo):
+            p = repo / "stats.py"
+            p.write_text(p.read_text(encoding="utf-8") + "# この単位の分母を直した\n", encoding="utf-8")
+        self.reviewed(review_none(), before_fix=add_line)
+        [owed] = fixboard._owed_rows(self.place, 1)
+        apply_refix(self.repo)
+        got = refix.accept_fix({"handled": [{"key": owed["key"], "handled": "fixed", "how": "言い換えた", "files": ["stats.py"]}]},
+                               self.place, self.base, self.repo, n=1)
+        self.assertTrue(got["ok"], got)
+        self.cut(2)
+        reply = {"faces": [], "faces_none": "手直しの差分の stats.py の docstring を読み、新しい穴は無かった",
+                 "checks": [{"key": owed["key"], "closed": True, "why": "言い換えたと答えている"}]}
+        got = refix.accept_review(reply, self.place, self.base, self.repo, n=2)
+        self.assertTrue(got["ok"], got)
+        rows = fixboard._owed_rows(self.place, 2)
+        self.assertEqual(len(rows), 1, rows)
+        self.assertIn("この単位", rows[0]["text"])
+
     def test_no_third_pass(self):
         self.assertEqual(sorted(refix.passes()), [1, 2])
         with self.assertRaises(ValueError):

@@ -85,7 +85,7 @@ INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "共有ボー
                "承認ノード", "関所")
 INNER_WORD = re.compile("|".join(re.escape(w) + ("(?!辺)" if w == "この周" else "") for w in INNER_WORDS))   # 「この周辺」は除く
 INNER_WORDS_HEAD = "直しが対象に足した行に works の内側の語（対象の読み手に通じない。当てる前に言い換えるかを決める）"
-INNER_FACE_KIND = "inner_word"   # 差分の審査の受け付けが足す機械の穴（足した行の内側の語）の kind
+INNER_FACE_KIND = "inner_word"
 
 
 def target_uses(repo, rev: str, word: str) -> bool:

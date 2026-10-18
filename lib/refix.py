@@ -2,7 +2,7 @@
 
 差分を切り（run の始めの版、2 回目は 1 回目に固めた修正後の姿から、今の作業ツリーの姿まで。未追跡のファイルも）、役に見せる材料を
 置き場（fix の run の作業のファイルを置くフォルダ。scripts が渡す）に書き、役の返答を照らして置き場に受ける。受ける時に、その回の
-差分が足した行の works の内側の語（report.inner_word_hits）を機械の穴（kind が report.INNER_FACE_KIND）として返答の faces の後ろに
+差分（2 回目は修正と手直しを合わせた差分）が足した行の works の内側の語（report.inner_word_hits）を機械の穴（kind が report.INNER_FACE_KIND）として返答の faces の後ろに
 足す。手直しの義務は置き場に受けた審査の返答から組む（fixboard._owed_rows）ので、足した穴も審査役の穴と同じ義務の行になる。
 節の名前は DELTA_PASSES からだけ引く（passes()）。
 
@@ -10,7 +10,7 @@
 - fix_delta(b):              1 回目の修正の差分（置き場の loop-fix_delta.json。{file, files, rev, base}）か None
 - cut(board, n, repo, base_rev, …): n 回目の審査役を起こす前の支度。差分を切って置き場の loop-<state_key>.json に置き、
                              差分のファイルと触ったファイルを返し、役に見せる材料（brief）を書き、読むだけの役の前の作業ツリーの写しを撮る
-- inner_faces(board, n, repo, base_rev): n 回目の差分の足した行に見つけた内側の語の機械の穴（faces の行の形）の並び
+- inner_faces(board, n, repo, base_rev): n 回目の差分（2 回目は修正と手直しを合わせた差分）の足した行に見つけた内側の語の機械の穴（faces の行の形）の並び
 - accept_review・accept_fix: 役の返答を置き場に受ける（fixboard.take。審査は読むだけの役の写しと比べ、faces に inner_faces を足して
                              受ける。手直しは先に修正案の項目の
                              範囲で変更を照らして外れを拒み（planrange.check_paths。修正の段と同じ決まり）、書き込みの
@@ -214,14 +214,23 @@ def brief_ties(ties: list) -> list[dict]:
 
 
 # ---------------------------------------------------------------- 受け付け
-def inner_faces(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str) -> list[dict]:
-    """n 回目の差分（置き場の loop-<state_key>.json の file。1 回目は修正の差分、2 回目は手直しだけの差分）が足した行のうち、works の
-    内側の語（report.INNER_WORD）を含む行の機械の穴 [{key, kind, where, cite, why}]。対象が run の始めの版 base_rev で既に使う語は
-    数えない。差分を切っていない置き場は []。key は「inner_word <パス>:<行>」で、周をまたいでも同じ行は同じ key"""
+def _added_text(board: pathlib.Path, n: int, repo: pathlib.Path) -> str:
+    """n 回目の照らしに当てる差分の字。1 回目は修正の差分（loop-<state_key>.json の file）。2 回目は run の始めの版から 2 回目に
+    固めた姿までの、修正か手直しが触ったファイルの差分（1 回目の手直しが直したと答えて残した語も拾う）。差分を切っていなければ空"""
     d = fixboard.loop_value(board, _pass(n)["state_key"]) or {}
     if not d.get("file"):
-        return []
-    text = pathlib.Path(d["file"]).read_text(encoding="utf-8", errors="replace")
+        return ""
+    if n == 1:
+        return pathlib.Path(d["file"]).read_text(encoding="utf-8", errors="replace")
+    first = fixboard.loop_value(board, _pass(1)["state_key"]) or {}
+    files = sorted({*(first.get("files") or []), *(d.get("files") or [])})
+    return leftovers.git(repo, "diff", first["base"], d["rev"], "--", *files) if files else ""
+
+
+def inner_faces(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str) -> list[dict]:
+    """n 回目の照らしの差分（_added_text）が足した行のうち、works の内側の語（report.INNER_WORD）を含む行の機械の穴
+    [{key, kind, where, cite, why}]。対象が run の始めの版 base_rev で既に使う語は数えない。key は「<kind> <パス>:<行>」"""
+    text = _added_text(board, n, repo)
     return [{"key": f"{report.INNER_FACE_KIND} {h['path']}:{h['line']}", "kind": report.INNER_FACE_KIND, "where": h["path"],
              "cite": h["text"], "why": f"足した行に works の内側の語（{'・'.join(h['words'])}）が在る。対象の読み手に通じない。言い換えよ"}
             for h in report.inner_word_hits(text, lambda w: report.target_uses(repo, base_rev, w))]
@@ -231,7 +240,7 @@ def accept_review(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib
                   keys=None) -> dict:
     """n 回目の審査役の返答（読むだけの役。cut が撮った写しと今の作業ツリーを keys の欄で比べる。fixboard.take）。fixboard.take の返り {ok, reply_file}
     に、受けた時は owed（手直しが答える義務の数。fixboard._owed_rows）を足す。受ける返答の faces（穴の並びの時）の後ろに、機械が
-    その回の差分の足した行に見つけた内側の語の穴（inner_faces。審査役の穴の照らしの後に足すので、照らしは変わらない）を足して置く。
+    その回の照らしの差分の足した行に見つけた内側の語の穴（inner_faces。審査役の穴の照らしの後に足すので、照らしは変わらない）を足して置く。
     節が deltamarks.NODES に在れば、先に 2 判定の欄を
     承認済みの修正案の項目（items。cut と同じ形）と照らし、欠けと誤りが在れば受けずに {ok: False, reason: deltamarks.REJECT と行}。
     無ければ欄を外した返答を受け、受けた時だけ欄を控える（置けなければ控えを名指す ValueError）。修正案の欄の控えが凍結の印と
