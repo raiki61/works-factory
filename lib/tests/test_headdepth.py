@@ -83,7 +83,7 @@ class GateTest(Repo):
             self.assertIn(name, text)
             self.assertIn(spec["what"], text)
             self.assertIn(f"{spec['model']}・{spec['effort']}", text)
-        self.assertIn("64ec0c2e", launchgroups.RECORD_ONLY)
+        self.assertIn("a972888a", launchgroups.RECORD_ONLY)
         self.assertIn("haiku・sonnet・opus", text)
         self.assertIn("low・medium・high・max", text)
         self.assertIn("sonnet・medium", text)

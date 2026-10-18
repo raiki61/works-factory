@@ -29,7 +29,7 @@ inputs:
     description: テストのコマンド（対象の根で走らせる 1 行）。test-gate が読む
   tdd_suite:
     default: ""
-    description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら修正の段の TDD のループを飛ばす
+    description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら修正前のテストの後に、同じ test_cmd で前に照らしを通った取り置きを使い、無ければ AI の手番 1 回が test_cmd と CI の定義から書く。走らせて JUnit XML が出て試験が 1 件以上の時だけ修正の段の TDD のループを回す（ほかは飛ばす）
   final_gate:
     default: ""
     description: 最後の承認ノードの開き方。always（空の既定。無人の run の空の既定は when_needed）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
@@ -167,7 +167,7 @@ nodes:
     depends_on: [test-gate-base]
     with:
       got: "$test-gate-base.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason"
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason optional"
 
   # 4 判定
   - id: judge
@@ -824,7 +824,7 @@ nodes:
     depends_on: [test-gate-final]
     with:
       got: "$test-gate-final.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason"
+      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason optional"
 
   # 9 独立の目
   - id: eyes

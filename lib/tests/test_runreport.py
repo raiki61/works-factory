@@ -45,6 +45,7 @@ import report_roles  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
+import suitewrite  # noqa: E402
 import tddloop  # noqa: E402
 from lib.tests.test_outcome import STAGES, fixed_run, stage_of  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
@@ -247,6 +248,19 @@ class BuildCase(Base):
         self.assertIn("unit", first)
         self.assertIn("lint", first)
         self.assertNotIn(green_cert.NOT_RAN, first)
+
+    def test_runner_preparation_is_named_in_the_head(self):
+        """#516: tdd_suite を省いた run は、冒頭の 1 行目が TDD の実行器を取り置きから使った・AI が書いた・作れなかったのどれかを言う。
+        人が実行器を渡した run（記録に欄が無い）は言わない"""
+        def first(**mark):
+            whole = {"from": suitewrite.FROM_AI, "path": "/a/runner", "ok": True, "why": "", "dropped": "", "stored": True, **mark}
+            return self.first_line(start={"run_id": RUN, "tdd_suite": "/a/runner", suitewrite.KEY: whole})
+        self.assertIn(suitewrite.USED, first(**{"from": suitewrite.FROM_KEEP}))
+        self.assertIn(suitewrite.WROTE, first())
+        self.assertIn(f"{suitewrite.NOT_MADE}（w）", first(ok=False, why="w", path=""))
+        plain = self.first_line()
+        for note in (suitewrite.USED, suitewrite.WROTE, suitewrite.NOT_MADE):
+            self.assertNotIn(note, plain)
 
     def test_users_environment_for_target_commands_is_named_in_the_head(self):
         """#492: 対象のコマンドを利用者の HOME・XDG で走らせた run だけ、冒頭の 1 行目が AI の試験のコードが資格に届いたと言う"""

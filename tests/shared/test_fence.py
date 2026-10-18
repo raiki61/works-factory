@@ -433,6 +433,8 @@ class RealClaudeTest(unittest.TestCase):
         self.outside.mkdir()
         self.cache = self.tmp / "cache" / "works-factory"
         self.cache.mkdir(parents=True)
+        self.keep = self.tmp / "state" / "works-factory" / "suites"
+        self.keep.mkdir(parents=True)
         child = self.tree["child"]
         main = self.tree["main"]
         self.blocked = {
@@ -444,6 +446,7 @@ class RealClaudeTest(unittest.TestCase):
             "Archon の家": pathlib.Path(child["ARCHON_HOME"]),
             "Claude の設定": pathlib.Path(child["CLAUDE_CONFIG_DIR"]),
             "取り置いた Archon の源": self.cache,
+            "TDD の実行器の取り置き": self.keep,
             "テストのキャッシュの置き場（cwd の下）": self.tree["linked"] / ".pytest_cache",
         }
         self.blocked["テストのキャッシュの置き場（cwd の下）"].mkdir()
@@ -471,7 +474,7 @@ class RealClaudeTest(unittest.TestCase):
 
     def test_fenced_role_cannot_write_the_listed_places(self):
         home = self.tmp / "run-home"
-        got = self.probe([launcher.write_fence(home, self.claude, self.tree["child"], self.cache, [])])
+        got = self.probe([launcher.write_fence(home, self.claude, self.tree["child"], self.cache, self.keep, [])])
         for what, place in self.blocked.items():
             with self.subTest(what=what):
                 self.assertEqual(got[str(place)], "BLOCKED")
