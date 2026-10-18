@@ -172,7 +172,8 @@ class Parallel:
     結末はモジュールの名の順に親の結果へ写す（落ちた試験の名と traceback・最後の数えの形は unittest のまま）。
     子は fork で集めた試験と hermetic.scrub の後の環境（外した値の inherited も）を受け継ぎ、親が替わったら終わる（watch_parent）。
     子が途中で落ちたら、終わらなかったモジュールを BROKEN の名で errors に入れて赤にし、最後の数えまで出す。
-    止められたら（Ctrl-C など）待ち行列のモジュールは回さずに終える"""
+    止められたら（Ctrl-C など）待ち行列のモジュールは回さずに終える。子へ渡す管に既に入った物（走っている物と次の 1 件）は
+    cancel_futures では取り消せず、回り切ってから終わる（tests/changed.py から回す時は、子過程ごと止められ親の替わりで子が終わる）"""
 
     def __init__(self, found: dict[str, unittest.TestSuite], n: int, seconds: dict[str, float]):
         self.found, self.n, self.seconds = found, n, seconds
