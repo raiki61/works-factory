@@ -2463,7 +2463,7 @@ class AfterFixAndJudgedCase(Artifacts):
         self.assertIn("比べられない", got["unread"])
         judge = self.returned(self.judgment("judge/judgment.json", []))
         got = judged.judged(judge, self.returned(self.judgment("rejudge/judgment.json", [])), "")
-        self.assertIn(f"{judge_accept.REJUDGE_EXIT} が無い", got["unread"])
+        self.assertIn("再審の出口が無い", got["unread"])
 
 
 class FixedCase(unittest.TestCase):
