@@ -124,7 +124,8 @@ def line_nodes(nodes=None) -> dict:
     return got
 
 
-RETURNING = {"judge": "judge", "rejudge": "judge", "plan": "plan", "replan": "plan", "fix": "fix"}   # collect の欄 → その返りを返すブロック
+RETURNING = {"test_gate_base": "test-gate", "judge": "judge", "rejudge": "judge", "plan": "plan", "replan": "plan",
+             "fix": "fix"}   # collect の欄 → その返りを返すブロック
 
 
 def block_optional(block: str) -> list:
@@ -468,16 +469,16 @@ class StartCase(Artifacts):
         self.assertEqual(self.record(got)["answers"], rows)
         self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
 
-    def test_omitted_tdd_suite_says_the_loop_is_skipped(self):
-        """#505: tdd_suite を省いた run は、承認ノードの文が TDD のループを飛ばす事と実行器の渡し方を言う（元 works の dev/use.sh
-        1086-1089 行）。名指した tdd_suite は始めの記録にそのまま載り、文は言わない"""
-        import tddloop
+    def test_omitted_tdd_suite_says_how_the_runner_is_prepared(self):
+        """#505・#516: tdd_suite を省いた run は、承認ノードの文が TDD の実行器を取り置きから使うか AI が書き、照らしが通らなければ
+        ループを飛ばす事を言う（元 works の dev/use.sh 1086-1089 行）。名指した tdd_suite は始めの記録にそのまま載り、文は言わない"""
+        import suitewrite
         got = self.start(base="base", test_cmd="make test")
         self.assertEqual(self.record(got)["tdd_suite"], "")
-        self.assertIn(tddloop.SUITE_SKIPPED, got["gate_text"])
+        self.assertIn(suitewrite.GATE_NOTE, got["gate_text"])
         got = self.start(base="base", test_cmd="make test", tdd_suite="run-tests.sh")
         self.assertEqual(self.record(got)["tdd_suite"], "run-tests.sh")
-        self.assertNotIn(tddloop.SUITE_SKIPPED, got["gate_text"])
+        self.assertNotIn(suitewrite.GATE_NOTE, got["gate_text"])
 
     def test_request_answers_reach_the_record(self):
         """L-E03: 依頼の answers は始めの記録の answers（元 works/tests/test_entry.py の test_request_answers_reach_start_doc）"""
@@ -2786,7 +2787,9 @@ class RedepthCase(Artifacts):
     def test_fix_and_line_read_missing_and_broken_records_alike(self):
         """#654: 修正のブロックの中の上げ直し（fixboard.redepth）と線の redepth は、同じ置き場の修正の後の信号の控えを
         latedepth.signals の 1 つの決まりで読む。範囲の相談の行を運ぶ控え（fix では戻せた組の子の結果、線では欄 accept_trace の先）が
-        無ければどちらも上げずに counted に訳を添え、在るのに読めなければどちらも上げる側へ倒す。TDD の輪の状態も同じ"""
+        無ければどちらも上げずに counted に訳を添え、在るのに読めなければどちらも上げる側へ倒す。TDD の輪の状態も同じ。片方の控えだけが
+        崩れた時は、その控えを読む側だけが同じ決まりで動く（子の結果は fix だけが読む。置き場の受け付けの行は fix も
+        fixboard.accept_trace_rows で読むので、壊れれば両方が上げる。無いのは fix には行が 0 の置き場で、線には null の欄）"""
         import tddloop
         place = self.artifacts / "fix"
         diff = self.put("fix/diff.patch", "")
@@ -2819,13 +2822,18 @@ class RedepthCase(Artifacts):
                     (line["depth"][0]["depth"] == "標準", no_record in line["counted"]))
 
         passed = {"calls": [{"n": 1, "phase": "fix", "unit_key": "u1", "ok": True}]}
-        for case, kw, want in (("揃った控え", {"result_doc": {"group_id": "g1"}, "trace": [], "state": passed}, (False, False)),
-                               ("輪の状態が無い", {"result_doc": {"group_id": "g1"}, "trace": [], "state": None}, (False, False)),
-                               ("相談の行の控えが無い", {"result_doc": None, "trace": None, "state": passed}, (False, True)),
-                               ("相談の行の控えが壊れた", {"result_doc": "{壊れた", "trace": "{壊れた", "state": passed}, (True, False)),
-                               ("輪の状態が壊れた", {"result_doc": {"group_id": "g1"}, "trace": [], "state": "{壊れた"}, (True, False))):
+        whole, kept, noted, raised = {"group_id": "g1"}, (False, False), (False, True), (True, False)
+        for case, kw, want in (("揃った控え", {"result_doc": whole, "trace": [], "state": passed}, (kept, kept)),
+                               ("輪の状態が無い", {"result_doc": whole, "trace": [], "state": None}, (kept, kept)),
+                               ("相談の行の控えが無い", {"result_doc": None, "trace": None, "state": passed}, (noted, noted)),
+                               ("相談の行の控えが壊れた", {"result_doc": "{壊れた", "trace": "{壊れた", "state": passed}, (raised, raised)),
+                               ("子の結果だけが無い", {"result_doc": None, "trace": [], "state": passed}, (noted, kept)),
+                               ("欄 accept_trace の先だけが無い", {"result_doc": whole, "trace": None, "state": passed}, (kept, noted)),
+                               ("子の結果だけが壊れた", {"result_doc": "{壊れた", "trace": [], "state": passed}, (raised, kept)),
+                               ("欄 accept_trace の先だけが壊れた", {"result_doc": whole, "trace": "{壊れた", "state": passed}, (raised, raised)),
+                               ("輪の状態が壊れた", {"result_doc": whole, "trace": [], "state": "{壊れた"}, (raised, raised))):
             with self.subTest(case):
-                self.assertEqual(outcome(**kw), (want, want))
+                self.assertEqual(outcome(**kw), want)
 
     def test_late_signals_come_from_the_stage_ports(self):
         """修正の後の 3 つの事実: diff の触るファイルが 1 回目の判定の頭の深さの控え（入力 depth_record）の where の外（テストのファイルを除く）・最後の
@@ -3220,7 +3228,8 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual(own, ["eyes__"])
         self.assertEqual(collect.collect({}, self.line(optional=json.dumps(own)))["optional"], own)
         declared = declared_by_blocks()
-        for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth"):
+        for stage in ("judge__world-", "plan__structure-", "fix__lens", "eyes__", "judge__head-depth-", "head-depth",
+                      "test-gate-base__suite-loop", "suite-write"):
             with self.subTest(stage=stage):
                 self.assertIn(stage, declared)
         self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
@@ -3228,14 +3237,15 @@ class CollectAndResultCase(unittest.TestCase):
     def test_optional_is_built_from_each_blocks_declaration(self):
         before = ["judge__world-", "rejudge-run__world-", "world-classes", "world-classes-", "world-judge", "world-judge-",
                   "plan__structure-", "replan__structure-", "structure-eye", "structure-eye-", "fix__lens", "fix__lens-reply",
-                  "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-"]
+                  "refix-run__lens", "refix-run__lens-reply", "eyes__", "judge__head-depth-", "head-depth", "head-depth-",
+                  "test-gate-base__suite-loop", "suite-write"]
         own = line_nodes()["collect"]["with"]["optional"]
         self.assertEqual(json.loads(own), ["eyes__"])
         self.assertTrue(all(head.endswith(childsweep.INCLUDE_SEP) for head in json.loads(own)), "メイングラフの宣言に中の節の名が在る")
         ports = {**dict.fromkeys(judge_accept.PORTS), **dict.fromkeys(judge_accept.FIRST_PORTS)}
         plan_ports = {"fix_plan": None, "rejects": [], "nothing_owed": False, "gave_up": None}
         fix_ports = {**dict.fromkeys(fixbeside.PORTS), "removed": [], "tdd_refused": {"refused": [], "unread": []}}
-        block_ports = {"judge": ports, "rejudge": ports, "plan": plan_ports, "replan": plan_ports, "fix": fix_ports}
+        block_ports = {"test_gate_base": {}, "judge": ports, "rejudge": ports, "plan": plan_ports, "replan": plan_ports, "fix": fix_ports}
         returned = {field: {"ready": True, "units": [], **block_ports[field]} for field in RETURNING}
         receipts = {field: json.dumps({"got": {**returned[field], "optional": block_optional(block)}, "stop_reason": ""})
                     for field, block in RETURNING.items()}
@@ -3293,7 +3303,8 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertIn("world-judge-accept", steps)
         moved = {s for s in steps if any(s.startswith(head) for head in before) != runreport._declared(s, declared)}
         late = {"rejudge-run__head-depth-prep", "rejudge-run__head-depth-loop"}
-        self.assertEqual(moved, {"fix__lens-prep", "fix__lens-collect", "refix-run__lens-prep", "refix-run__lens-collect"} | late)
+        suite = {"test-gate-base__suite-loop", "suite-write"}   # #516: 前の宣言に無い TDD の実行器の輪と書き手（落ちれば実行器の無い run の道）
+        self.assertEqual(moved, {"fix__lens-prep", "fix__lens-collect", "refix-run__lens-prep", "refix-run__lens-collect"} | late | suite)
         # judge の宣言は judge と rejudge-run の両方に当たるので、再審の頭の深さの 2 節も数に入る。この 2 節は再審では走らない:
         # head-depth-prep は when が mode == 'judge' で飛び、head-depth-loop はその後ろで飛ぶ（落ちが無いので受け止めも変わらない）
         judge = {n["id"]: n for n in block_doc("works-factory-judge")["nodes"]}

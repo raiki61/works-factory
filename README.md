@@ -15,7 +15,7 @@ For now the factory works in Japanese only: its role prompts, its messages and i
 - Facts are checked by machine. Whether a test failed or passed, how many, and which files changed are read by the machine (the tests' JUnit XML results, the git diff, and so on), not taken from what the AI reports.
 - Judgments need quoted evidence. When the AI says "it failed for this reason" or "this is the cause", it has to quote the text it relies on, and the machine checks that the quote exists in the real thing. Whether the judgment is right is checked by a separate reviewer.
 - The owner's decisions are recorded word for word and fed back into the factory. What a human answered at an approval node, and what was decided as policy, stay word for word in `docs/owner-decisions.md` (Japanese) and become input to the next judgment and the next run. The same question is not asked twice.
-- Nothing is applied unless it passed the approval nodes. The diff a human saw at the last approval node is sealed (hashed) and checked when it is applied. If it differs, the factory stops.
+- The factory applies nothing that did not pass the approval nodes. The diff a human saw at the last approval node is sealed (hashed) and checked when it is applied. If it differs, the factory stops.
 
 ## Flow
 
@@ -70,6 +70,7 @@ The entry point is a single shell script, `bin/works-factory`, and you type Arch
   - `WORKS_FACTORY_COLDWRITE_MARKETPLACE` and `WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`: when borrowing coldwrite.
   - `WORKS_FACTORY_ALLOW_TESTCMD=1`: go ahead without stopping the run even when `test_cmd` runs the target's local checkout; see "test_cmd and worktrees" below.
 - The target's test, acceptance, and TDD test commands always run with your HOME and XDG (not the isolated home, so that tools do not lose their settings, trust, caches, or credentials; Archon, the roles' Bash, and the factory's own scripts stay isolated). Test code the AI wrote runs with your privileges (your HOME and XDG), and whatever it writes goes into your own home directory. If you need protection, run the whole factory inside a container or VM. Every time it starts a run that executes such commands, the script prints the same notice once to standard error. It is in Japanese and says the two sentences above: `AI が書いた試験のコードを、あなたの権限（利用者の HOME・XDG）で走らせる。書く物も利用者の家に入る。守りが要るなら工場ごとコンテナか VM の中で回す`
+- Kept TDD runners: when a run omits the input `tdd_suite`, a TDD runner that passed the check is kept once per user, keyed by the text of `test_cmd`, and reused across targets. It lives in `<home>/suites/` when you pass `WORKS_FACTORY_HOME`, otherwise in `${XDG_STATE_HOME:-~/.local/state}/works-factory/suites/`. To drop them, delete the folder (the next run has the AI write a runner again).
 - A marker the target repository can rely on: the role's claude and its children (such as the target's tests started by the role's Bash) get `GRAPHLOOPS_ENGINE_CHILD=1`. A target's heavy suites (such as e2e) can use this value to recognize a start from an AI role and refuse. It is not set for what script nodes run, such as the main graph's final tests.
 - Login credentials expire after a few hours, so for long runs put a token made with `claude setup-token` in `CLAUDE_CODE_OAUTH_TOKEN` when starting the script.
 
@@ -82,17 +83,24 @@ You choose the approval nodes with run inputs (`--input <name>=<value>` on `work
 1. Start: before any AI work, it shows what the run will do. It opens in every run that a human answers.
 2. Before fixing: after plan review. It opens only when there is something to ask: the plan reviewer left a question for you, one of its 4 checks failed, or the plan review got stuck. `--input design_only=true` always opens it (use it to see the plan before any fix is made).
 3. Plan change: during fixing, when a unit's plan has to change. It opens when the change alters what you approved (such as the files the unit may touch or its acceptance tests) or the reviewer of the new plan asks you. In an unattended run (below), a change that only lets the unit touch more files goes ahead without asking.
-4. Last: after the test gate and the independent eyes, before the diff is sealed. `--input final_gate=<value>` sets when it opens:
+4. Last: after the test gate and the independent eyes, once the diff is sealed (and before the run places it for `bin/apply`). `--input final_gate=<value>` sets when it opens:
    - `always` (the default when a human answers the run): every time.
-   - `when_needed` (the default in an unattended run, below): only when there is a reason (in a run a human answers, the start node still opens), such as final tests that are not green or a question a role left for you. Otherwise the reasons are only listed at the top of the report.
-   - `protected_only`: only when the fix touched a protected path. A protected path is a file the target lists in `.works-protected.json` at its root, or that file itself. The file has the same shape as the factory's own list, `lib/protected.json`.
+   - `when_needed` (the default in an unattended run, below): only when there is a reason, such as final tests that are not green or a question a role left for you. Otherwise the reasons are only listed at the top of the report. (This does not change the start node, which still opens in a run a human answers.)
+   - `protected_only`: only when the fix touched a protected path (plus the reasons below that open it under any setting). A protected path is a file the target lists in `.works-protected.json` at its root, or that file itself. The file has the same shape as the factory's own list, `lib/protected.json`.
 
-   Whatever you choose, some reasons always open the last node, for example: the fix touched a protected path (or this could not be checked), a role passed a disagreement to you, or the acceptance tests changed after you approved them.
+   Whatever you choose, the last node always opens for these reasons (this is the full list; the code is `needs` in `workflows/line/scripts/ask_final.py`):
+   - The fix touched a protected path, or whether it did could not be checked.
+   - The fix changed a test that it had been given permission to rewrite during the fix, so a human checks the rewritten test.
+   - A role passed a disagreement to you, or the record of disagreements could not be read.
+   - The fix stage's side records could not be read, so the run cannot count what a fixer handed to you or where a fixer's claim and the machine's recount disagree.
+   - The acceptance tests changed after you approved them (only with `--input spec=on`), or this could not be checked.
+
+   A question a role left for you (such as a question from the independent eyes' R4) is different: it is only a `when_needed` reason. A disagreement is passed to you only when the ruling role (the role that rules on a disagreement a fixer raises) could settle it in none of its ways (instructions to the fixer, the scope of the tests, a plan change, judging again), so the diff was sealed with it unsettled; the run does not place that diff for `bin/apply` until a human has seen it at the last node (an unattended run stops there instead). A role's question is not answered at the last node: the node shows it as recorded and says your answer here does not answer it, and the question goes to the top of the report and into the draft of the next run's request, where you answer it.
 
 `--input unattended=true` is a run nobody answers. The start node is skipped. At the other nodes:
 
 - Each point a node would ask you about can carry a recommendation from the role that raised it (go ahead, or stop). If every point recommends going ahead, the run takes that as the answer and goes on without opening the node.
-- Otherwise the run stops without asking, with the stop reason `needs-human`.
+- Otherwise the run stops without asking, with the stop reason `needs-human`. What the stopped run leaves depends on the node; see "What a stopped run leaves" under "Stopping a run".
 - At the last node there is no recommendation, so if it would open, the run stops there with `needs-human` and nothing is applied. That is why an unattended run leaves `final_gate` at `when_needed` when you do not set it: a run with no reason to ask goes on to the end. If you set `final_gate=always` yourself, every unattended run stops at the last node.
 - It cannot be combined with `--input spec=on` (an optional stage that writes a spec for you to approve before judging).
 
@@ -106,8 +114,16 @@ Which to choose:
 ### Stopping a run
 
 - At an approval node: answer `workflow respond <run> stop <note>` (`workflow reject <run>` does the same). The main graph skips the rest and still writes the report.
-- Between approval nodes: `bin/works-factory workflow cancel <run> --cwd <target>`. No report is written. `<run>` is the id of the root run; for a round chain, the chain run.
-- After a cancel, the run ends up failed. To continue it, `workflow resume <run> --cwd <target>`; to give it up, `workflow abandon <run> --cwd <target>`.
+- Between approval nodes: `bin/works-factory workflow cancel <run> --cwd <target>`. No report is written. `<run>` is the id of the run you started (not one of its child runs); for a round chain, the chain run (cancelling it also stops its round runs). `bin/works-factory workflow runs --cwd <target>` lists runs one per line as the first 8 characters of the id, the status, and the graph name; take the 8 characters on the `works-factory-chain` line (if there are several, the running one; the age is at the end of the line). Cancel accepts those 8 characters as well as the full id (`workflow status` shows the full `ID:` of running runs).
+- After a cancel, a run started with `--detach` is `cancelled`. Archon does not resume a cancelled run (`workflow resume` takes only failed or paused runs); to do the work again, start a new run. `workflow abandon <run> --cwd <target>` on it only removes the worktrees Archon made for the run and its child runs (Archon refuses it for a cancelled run that has no such worktree).
+- A run started in the foreground (`workflow run` without `--detach`) is refused by Archon's cancel, so the script stops the process that started it (see below). Archon records that interrupted run as `failed`, not `cancelled`. To continue it, `workflow resume <run> --cwd <target>`; to give it up, `workflow abandon <run> --cwd <target>`.
+
+What a stopped run leaves (whether you answered `stop` or an unattended run stopped with `needs-human`):
+
+- At the start node or the before-fixing node: nothing has been fixed yet.
+- At the plan change node: the units fixed before the plan change stay in the run's worktree as uncommitted changes, but they go no further: no test gate, no independent eyes, no seal. `bin/apply` refuses them, and its refusal line gives a one-line `sh -c` command that applies them to your target without any of those checks. The fix stage writes the units' changes into the run's worktree without adding them to git's index, so files the fix created are untracked there and a plain `git diff` would leave them out. The command therefore adds the worktree's current state to a temporary copy of the index, then pipes its diff (with `--binary`) from the start commit into `git -C <target> apply`. The start commit is the commit the run's worktree was created from (see "Worktree start point"), and the refusal line writes it out, together with the worktree's path. The diff includes new, changed, deleted, and binary files, but not new files that match `.gitignore`. It does not change the run worktree's own index. A new run starts from your target as it is (see "Worktree start point"), so it does not build on these changes unless you apply them first.
+  - How long the run's worktree stays: the factory never removes it, and Archon started from the command line has no scheduled cleanup (only Archon's server runs one). When a run ends completed, Archon removes its worktree only when it has no uncommitted changes, no commit missing from every remote, and a branch that was never pushed; the changes left here are uncommitted, so the worktree stays. It also stays after a cancel or a failure. It goes when you remove it with `bin/works-factory workflow abandon <run> --cwd <target>` (Archon refuses it for a completed run), `bin/works-factory complete <branch>`, or `bin/works-factory isolation cleanup [<days>]` (worktrees with no activity for 7 days by default). Apply the changes before you run any of these. The worktree's path is in the refusal line and in `working_path` of `bin/works-factory workflow get <run> --json --cwd <target>`.
+- At the last node: the diff is already sealed but is not applied. `bin/apply <run> --allow-stopped` applies it, unless the independent eyes' R2 said the fix needs a redesign (`redesign-needed`); then `bin/apply` refuses it.
 
 Archon's cancel does not stop the processes of the AI nodes (each node's Claude Code and what it started), so the script stops them itself:
 
