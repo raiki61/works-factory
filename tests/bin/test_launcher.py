@@ -18,7 +18,7 @@ import unittest
 from bin._lib import auth_launch, launcher, place, toolset
 from lib import answer, launchgroups, reads, userenv, writelog
 from tests.bin import fakelaunch, hermetic
-from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
+from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put, unique_run_id
 from tests.bin.gitkit import git
 from tests.bin.test_toolset import make_user_config, write_fake_claude
 
@@ -442,8 +442,8 @@ class LauncherTest(unittest.TestCase):
         readme = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
         self.assertIn(launcher.TARGET_ENV_NOTICE, readme)
         self.assertNotIn("WORKS_FACTORY_TARGET_USER_ENV", readme)
-        section = readme.split("### test_cmd と作業ツリー\n", 1)[1].split("\n#", 1)[0]
-        for word in ("`setup`", ".review-checks.json", "`suite`", ".gitignore", "`test_cmd` だけの対象"):
+        section = readme.split("### test_cmd and worktrees\n", 1)[1].split("\n#", 1)[0]
+        for word in ("`setup`", ".review-checks.json", "`suite`", ".gitignore", "target with only `test_cmd`"):
             self.assertIn(word, section)
 
     def test_run_layer_carries_answer_head(self):
@@ -768,17 +768,23 @@ class LauncherTest(unittest.TestCase):
 
     def test_cancel_reads_the_run_then_passes_the_cancel_to_archon(self):
         """workflow cancel は run と子の run を読んでから同じ引数で Archon を起こし、その終了の値で抜ける（後に残った木を止める。
-        bin/_lib/runstop.py。本物の Archon での止めは tests/bin/test_runstop.py）"""
-        calls = self.tmp / "bun-calls.jsonl"
-        put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, sys\n"
-            f"open({str(calls)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\nsys.exit(3 if 'cancel' in sys.argv else 0)\n")
-        done = self.launch("workflow", "cancel", "run-1", "--json", "--cwd", str(self.target), ANTHROPIC_API_KEY=None)
-        self.assertEqual(done.returncode, 3, done.stderr)
+        bin/_lib/runstop.py。本物の Archon での止めは tests/bin/test_runstop.py）。殻は本物の ps の上で止めるので、cancel に渡る
+        run の id は回すたびに違う（fakelaunch.unique_run_id）"""
         entry = str(self.source / ENTRY)
-        got = [argv[argv.index(entry) + 1:] for argv in map(json.loads, calls.read_text(encoding="utf-8").splitlines())]
-        self.assertEqual(got, [["workflow", "get", "run-1", "--json", "--cwd", str(self.target)],
-                               ["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
-                               ["workflow", "cancel", "run-1", "--json", "--cwd", str(self.target)]])
+        cancelled = []
+        for n in range(2):
+            run_id = unique_run_id()
+            calls = self.tmp / f"bun-calls-{n}.jsonl"
+            put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, sys\n"
+                f"open({str(calls)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\nsys.exit(3 if 'cancel' in sys.argv else 0)\n")
+            done = self.launch("workflow", "cancel", run_id, "--json", "--cwd", str(self.target), ANTHROPIC_API_KEY=None)
+            self.assertEqual(done.returncode, 3, done.stderr)
+            got = [argv[argv.index(entry) + 1:] for argv in map(json.loads, calls.read_text(encoding="utf-8").splitlines())]
+            self.assertEqual(got, [["workflow", "get", run_id, "--json", "--cwd", str(self.target)],
+                                   ["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
+                                   ["workflow", "cancel", run_id, "--json", "--cwd", str(self.target)]])
+            cancelled.append(got[-1][2])
+        self.assertNotEqual(cancelled[0], cancelled[1])
 
     def test_no_auth_runs_without_auth_check_or_plugins(self):
         done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None, WORKS_FACTORY_NO_AUTH="1")
@@ -856,7 +862,7 @@ class LauncherTest(unittest.TestCase):
 
 
 class ReadmeUsageTest(unittest.TestCase):
-    """#495: README の「使い方」が、依頼のファイルの形（例が入口の照らしを通る）・test_cmd・作業ツリーの起点を書き、殻の案内が
+    """#495: README の「Usage」が、依頼のファイルの形（例が入口の照らしを通る）・test_cmd・作業ツリーの起点を書き、殻の案内が
     指すセクションの名が見出しに在る"""
     README = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
 
@@ -871,7 +877,7 @@ class ReadmeUsageTest(unittest.TestCase):
             sys.path.append(lib)
         import carry
         import entry
-        [example] = [block.split("\n", 1)[1] for block in self.section("依頼のファイル").split("```")[1::2]
+        [example] = [block.split("\n", 1)[1] for block in self.section("Request file").split("```")[1::2]
                      if block.startswith("json\n")]
         parts = carry.parts(json.loads(example))
         self.assertTrue(parts[carry.FINDINGS])
@@ -879,11 +885,11 @@ class ReadmeUsageTest(unittest.TestCase):
 
     def test_test_cmd_and_start_point_are_documented(self):
         from lib import testcmd_check
-        self.assertIn("「test_cmd と作業ツリー」", testcmd_check.HOW)
-        test_cmd = self.section("test_cmd と作業ツリー")
+        self.assertIn("「test_cmd and worktrees」", testcmd_check.HOW)
+        test_cmd = self.section("test_cmd and worktrees")
         for word in ("--input test_cmd=", testcmd_check.ALLOW_ENV, "止める（test_cmd）", "注意（test_cmd）"):
             self.assertIn(word, test_cmd)
-        start = self.section("作業ツリーの起点")
+        start = self.section("Worktree start point")
         for flag in ("--from", "--from-branch", "--base", "--branch", "--no-worktree", "--adopt"):
             self.assertIn(f"`{flag}", start)
 

@@ -44,12 +44,8 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - MACHINE_KEY・MACHINE_LABEL・machine_face_gaps(faces): 欄の行のうち機械が足し修正案の役が直せない欄（removes_tests）。事前審査の
   頭では役の書いた欄と分けて MACHINE_LABEL で名乗り、where でそれを名指す block の穴は事前審査の受け付けが拒む（役が直せない穴で
   案の往復を回さない）
-- climbs(norm): 整えたパスが根の外へ上るか（`..` は段で見る。conflict.parse_limit も同じ物を使う）
-- glob_problem(glob): 範囲の欄（allowed_paths・out_of_scope の glob）の誤りの文（\\ の区切り・根の外・`**`・`**/?*` のような字の無い丸ごとの許し）。
-  末尾 / はその下の全部（'/**' と同じ）と読み、読みは _dir_glob の 1 か所から引く（glob_match・globs_meet も同じ）
-- glob_match(path, glob): 根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。守りのファイルの
-  protect.match もこれを呼ぶ）。gaps は out_of_scope の glob が tests・rewrite_tests の id のファイルに当たる案を拒む
-- globs_meet(a, b): 2 つの glob が同じパスに当たり得るか（言い切れない時は真。fix の組分けが範囲の交わる項目をつなぐ）
+- 範囲の欄の glob の読み（誤り glob_problem・当たり glob_match・交わり globs_meet）と根の外への上り climbs は lib/globs.py。gaps は
+  誤った glob と、out_of_scope の glob が tests・rewrite_tests の id のファイルに当たる案を拒む
 - approved_items(b): 今の周の承認済みの修正案の項目と凍結した欄を同じ番号で合わせた並び（修正の受け付けが差分と照らす）
 - joined(it, f): 案の項目の行に同じ番号の欄の行の KEYS を重ねた行（approved_items と事前審査の往復の控えの行が使う）
 - handed(ruling, items): 裁かれた項目の番号の字（fix の replan_items）を案の項目の番号に読み、番号でない行と案の外の番号は訳を返す
@@ -62,7 +58,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - scoped(items): 範囲の欄の在る項目の並びか（217 番の形の控えは範囲の無い run と同じに扱う 1 つの決まり。
   修正の受け付けの範囲の照らしと差分の審査の準拠の受け付けが使う）
 
-写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と住処 marks（L1）・cite（L1。出どころの引き方の文）だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
+写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と住処 marks（L1）・cite（L1。出どころの引き方の文）・glob の読み globs だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
 輪を作らない）。
 """
 from __future__ import annotations
@@ -86,6 +82,7 @@ if str(_GL) not in sys.path:
 from engine.schema import validate_schema  # noqa: E402
 from engine.util import now  # noqa: E402
 import cite  # noqa: E402
+import globs  # noqa: E402
 import marks  # noqa: E402
 import promptsection  # noqa: E402
 
@@ -277,145 +274,11 @@ def _parse_id(test_id):
     return path, names
 
 
-def climbs(norm: str) -> bool:
-    """整えたパスが根そのもの・絶対パス・`..` の段で上る物か（`..` は段で見る。`..foo/x.py` は根の中のディレクトリ `..foo` の物）"""
-    return norm.startswith("/") or norm == "." or norm.split("/", 1)[0] == ".."
-
-
-def _dir_glob(glob: str) -> tuple[str, tuple]:
-    """範囲の glob の読みの 1 か所（glob_problem・glob_match・globs_meet が引く）: (当て方の glob, 交わりの段)。末尾 / は、その / を
-    1 つだけ外した本体の下の全部と読む: 当て方は '本体/**'、交わりの段は本体の段に ('*', '**') を足して 1 段以上下と読む（段の比べの
-    '**' は 0 段にも当たるので、'**' だけを足すと globs_meet('a/', 'a') が真になり、偽の glob_match('a', 'a/') と割れる）"""
-    if glob.endswith("/"):
-        body = glob[:-1]
-        return body + "/**", tuple(body.split("/")) + ("*", "**")
-    return glob, tuple(glob.split("/"))
-
-
-def glob_problem(glob: str) -> str | None:
-    """範囲の欄の glob（allowed_paths の行・out_of_scope の glob）の誤りの文。無ければ None。前後の空白・\\ の区切り・絶対パス
-    （/・ドライブ文字・~ で始まる）・`..` の段で根の外へ上る・整えた形でない綴り（./x・a/../b・a//b）・字の無い glob（* と ? と
-    [..] と / と . だけ。**・*・**/*・**/?*・[a-z]*・**/*.* のような丸ごとの許し。全部のファイルに当たり得る）を拒む。整えずに拒む（差分のパスは整えた綴りなので、整えない綴りの glob は当たらない）。
-    末尾 / はその下の全部（'/**' と同じ）と読み（_dir_glob の 1 か所から引く）、'lib//' のような整えない綴りは拒む。
-    ファイルの有無は見ない（新しく置くファイルも書く）"""
-    if glob != glob.strip():
-        return "前後に空白が在る（空白を外した、作業ツリーの根からの相対の glob にせよ）"
-    if "\\" in glob:
-        return "\\ が在る（区切りは / で書け。glob は作業ツリーの根からの相対）"
-    if glob.startswith(("/", "~")) or re.match(r"[A-Za-z]:", glob):
-        return "絶対パス（/・ドライブ文字・~ で始まる。作業ツリーの根からの相対の glob にせよ）"
-    read = _dir_glob(glob)[0]
-    norm = posixpath.normpath(read)
-    if climbs(norm):
-        return "根の外か根そのものを指す（`..` の段で上らない、根からの相対の glob にせよ）"
-    if not any(_literal(seg) for seg in norm.split("/")):
-        return "丸ごとの許し（字が無く * と ? と [..] と . だけの glob）は拒む。項目の直しが触るファイルかディレクトリまで狭めよ"
-    if norm != read:
-        return f"整えた形でない（./・..・// を含む）。整えた形 {norm} で書け"
-    return None
-
-
-def _literal(seg: str) -> bool:
-    """glob の 1 区切りに、* と ? と [..]（_segment と同じ読み）と . の外の字が在るか"""
-    i = 0
-    while i < len(seg):
-        c = seg[i]
-        if c == "[":
-            j = i + 1 + (seg[i + 1:i + 2] == "!")
-            j += seg[j:j + 1] == "]"
-            k = seg.find("]", j)
-            if k > 0:
-                i = k + 1
-                continue
-        if c not in "*?.":   # . だけの字（*.*・**/.*）は拡張子を持つ全部・隠しの全部に当たる
-            return True
-        i += 1
-    return False
-
-
-def _segment(seg: str) -> str:
-    """glob の 1 区切りを正規表現に（* と ? と [..] は / を跨がない。[! は否定）"""
-    out, i = [], 0
-    while i < len(seg):
-        c = seg[i]
-        k = -1
-        if c == "[":
-            j = i + 1 + (seg[i + 1:i + 2] == "!")
-            j += seg[j:j + 1] == "]"
-            k = seg.find("]", j)
-        if c == "*":
-            out.append("[^/]*")
-        elif c == "?":
-            out.append("[^/]")
-        elif k > 0:
-            body = seg[i + 1:k]
-            out.append("[" + ("^" + body[1:] if body.startswith("!") else body).replace("\\", "\\\\").replace("[", "\\[") + "]")
-            i = k
-        else:
-            out.append(re.escape(c))
-        i += 1
-    return "".join(out)
-
-
-def _glob_regex(glob: str):
-    parts = glob.split("/")
-    out = []
-    for i, seg in enumerate(parts):
-        last = i == len(parts) - 1
-        if seg == "**":
-            out.append(".*" if last else "(?:[^/]+/)*")
-        else:
-            out.append(_segment(seg) + ("" if last else "/"))
-    return re.compile("".join(out) + r"\Z")
-
-
-def glob_match(path: str, glob: str) -> bool:
-    """根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。末尾 / はその下の全部で '/**' と同じ。
-    読みは _dir_glob の 1 か所から引く）。範囲の欄と守りのファイルの当て方の正本
-    （protect.match はこれを呼ぶ。planmarks は protect を import しない: protect → accept → planmarks の輪になる）"""
-    return _glob_regex(_dir_glob(glob)[0]).match(path) is not None
-
-
-_WILD = re.compile(r"[*?\[]")
-
-
-def globs_meet(a: str, b: str) -> bool:
-    """2 つの glob（glob_match の読み）が同じパスに当たり得るか。言い切れない時は真（交わらないと言える時だけ偽）。末尾 / の読みは
-    _dir_glob の 1 か所から引く（'a/' は 'a/x'・'a/**' と交わり、'a' とは交わらない）"""
-    if isinstance(a, str) and isinstance(b, str):
-        return _parts_meet(_dir_glob(a)[1], _dir_glob(b)[1])
-    return True
-
-
-def _parts_meet(a: tuple, b: tuple) -> bool:
-    if not a or not b:
-        return all(s == "**" for s in a + b)
-    if a[0] == "**":
-        return _parts_meet(a[1:], b) or _parts_meet(a, b[1:])
-    if b[0] == "**":
-        return _parts_meet(a, b[1:]) or _parts_meet(a[1:], b)
-    return _segments_meet(a[0], b[0]) and _parts_meet(a[1:], b[1:])
-
-
-def _segments_meet(x: str, y: str) -> bool:
-    """glob の 1 区切りどうし。両方が wildcard を持つ時は頭と尻の字だけで見る（言い切れない所は真）"""
-    wx, wy = _WILD.search(x), _WILD.search(y)
-    if not wx and not wy:
-        return x == y
-    if not wx:
-        return re.fullmatch(_segment(y), x) is not None
-    if not wy:
-        return re.fullmatch(_segment(x), y) is not None
-    hx, hy = x[:wx.start()], y[:wy.start()]
-    tx, ty = (re.split(r"[*?\[\]]", s)[-1] for s in (x, y))
-    return (hx.startswith(hy) or hy.startswith(hx)) and (tx.endswith(ty) or ty.endswith(tx))
-
-
 def _resolve(repo: pathlib.Path, path: str):
     """根の中のファイルなら (作業ツリーの根からの相対の綴り, 実体)。根の外（絶対パス・`..` の段・根の外へのリンク）・無いなら
     None。根の外へのリンクは解いた実体の is_relative_to で見る"""
     norm = posixpath.normpath(path)
-    if climbs(norm):
+    if globs.climbs(norm):
         return None
     root = pathlib.Path(repo).resolve()
     real = (root / norm).resolve()
@@ -701,7 +564,7 @@ def _path_problem(repo: pathlib.Path, test_id: str) -> str | None:
         return None
     norm = posixpath.normpath(got[0])
     root = pathlib.Path(repo).resolve()
-    if climbs(norm) or not (root / norm).resolve().is_relative_to(root):
+    if globs.climbs(norm) or not (root / norm).resolve().is_relative_to(root):
         return "パスが作業ツリーの根からの相対でない（絶対パス・根の外を指す。/ で書いた根からの相対にせよ）"
     return None
 
@@ -794,7 +657,7 @@ def widened(old: dict, new: dict) -> dict | None:
     if not old_paths <= new_paths or not new_oos <= old_oos:
         return None
     added = list(dict.fromkeys(p for p in _scope_rows(new, "allowed_paths") if _canon(p) not in old_paths))
-    if any(not isinstance(p, str) or glob_problem(p) for p in added):   # 誤った・丸ごとの glob は広げるだけと数えない（聞く）
+    if any(not isinstance(p, str) or globs.glob_problem(p) for p in added):   # 誤った・丸ごとの glob は広げるだけと数えない（聞く）
         return None
     removed = [r.get("glob") if isinstance(r, dict) else r for r in _scope_rows(old, "out_of_scope") if _canon(r) not in new_oos]
     if not added and not removed:
@@ -834,10 +697,10 @@ def _scope_overlaps(plan: list) -> list[str]:
     for i, it in enumerate(plan):
         for j, row in enumerate(_rows(it, "out_of_scope") if isinstance(it, dict) else []):
             g = row.get("glob") if isinstance(row, dict) else None
-            if not isinstance(g, str) or not g or glob_problem(g):
+            if not isinstance(g, str) or not g or globs.glob_problem(g):
                 continue
             for n, p in named:
-                if glob_match(p, g):
+                if globs.glob_match(p, g):
                     out.append(f"plan[{i}].out_of_scope[{j}].glob（{g}）: 項目 {n} の tests・rewrite_tests の id のファイル {p} に"
                                "当たる（書けと言うファイルを触るなとも言っている。glob を狭めるか、テストの置き場を変えよ）")
     return out
@@ -862,7 +725,7 @@ def _path_problem_of(path) -> str | None:
     if "\\" in path:
         return "\\ が在る（区切りは / で書け）"
     norm = posixpath.normpath(path)
-    if climbs(norm):
+    if globs.climbs(norm):
         return "作業ツリーの根からの相対でない（絶対パス・根の外・根そのものを指す）"
     return None if norm == path else f"整えた形でない（./・..・// を含む）。整えた形 {norm} で書け"
 
@@ -1017,12 +880,12 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
                            "tests はまだ無いテストを名指す。"
                            "既に在るテストの期待を変えるなら rewrite_tests に書け")
         for j, g in enumerate(_rows(it, "allowed_paths")):
-            bad = glob_problem(g) if isinstance(g, str) and g else None
+            bad = globs.glob_problem(g) if isinstance(g, str) and g else None
             if bad:
                 out.append(f"plan[{i}].allowed_paths[{j}]（{g}）: {bad}")
         for j, row in enumerate(_rows(it, "out_of_scope")):
             g = row.get("glob") if isinstance(row, dict) else None
-            bad = glob_problem(g) if isinstance(g, str) and g else None
+            bad = globs.glob_problem(g) if isinstance(g, str) and g else None
             if bad:
                 out.append(f"plan[{i}].out_of_scope[{j}].glob（{g}）: {bad}")
         out += _files_gaps(i, it, roots)

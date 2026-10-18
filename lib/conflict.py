@@ -93,6 +93,7 @@ if str(_CORE / "graphloops") not in sys.path:   # 写しの engine（engine.util
 
 import cite  # noqa: E402
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
+import globs  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402  （planmarks は conflict・entry を読まないので輪にならない）
 import promptsection  # noqa: E402
@@ -773,7 +774,7 @@ def parse_limit(lim: str):
     根の外・根そのものを指す物は None"""
     m = cite.CITE.match(lim.strip())
     path = posixpath.normpath(m["path"] if m else lim.strip())
-    if planmarks.climbs(path):   # `..` は段で見る（`..foo/x.py` は根の中。planmarks.gaps が通す範囲を捨てない）
+    if globs.climbs(path):   # `..` は段で見る（`..foo/x.py` は根の中。planmarks.gaps が通す範囲を捨てない）
         return None
     return path, ((int(m["a"]), int(m["b"] or m["a"])) if m else None)
 
