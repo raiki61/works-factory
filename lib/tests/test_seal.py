@@ -124,6 +124,27 @@ class DeletedPathsCase(unittest.TestCase):
             self.assertEqual(sorted(seal.deleted_paths(git("diff"))), sorted(names[:3]))
 
 
+class TouchedPathsCase(unittest.TestCase):
+    def test_every_side_of_the_diff_is_touched(self):
+        """差分が触るファイルは、変える・足す・消すファイルと、改名の元と先（git の引用した名も実の名で）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp)
+            git = lambda *a: subprocess.run(["git", "-C", tmp, "-c", "user.email=a@b", "-c", "user.name=a", *a],  # noqa: E731
+                                            capture_output=True, text=True, check=True, env=hermetic.child_env()).stdout
+            git("init", "-q")
+            for name in ("changed.py", "gone.py", "old name.py", "kept.py"):
+                (repo / name).write_text(f"{name}\n" * 5, encoding="utf-8")
+            git("add", "-A")
+            git("commit", "-qm", "seed")
+            (repo / "changed.py").write_text("y\n", encoding="utf-8")
+            (repo / "gone.py").unlink()
+            (repo / "old name.py").rename(repo / "新.py")
+            (repo / "added.py").write_text("z\n", encoding="utf-8")
+            git("add", "-A")
+            self.assertEqual(seal.touched_paths(git("diff", "--cached", "-M")),
+                             {"changed.py", "gone.py", "old name.py", "新.py", "added.py"})
+
+
 class DeletedLinesCase(unittest.TestCase):
     def test_lines_cut_past_shown(self):
         """取り込むと消えるファイルの行: SHOWN 件以下なら『取り込むと消えるファイル: <パス>』を全件、超えるなら先頭 SHOWN 件と、

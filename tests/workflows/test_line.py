@@ -1964,20 +1964,47 @@ class AskFinalReadsCase(Artifacts):
         self.place("fix/fix/allowed-tests.json", [row])
         refix = self.place("fix/refix/fix.diff", "")
         self.place("fix/refix/allowed-tests.json", [row, {"path": "tests/test_b.py", "permit": "r-2", "source": "ruling"}])
-        rows = ask_final.fix_beside([self.stage(fix), self.stage(refix)])["allowed_tests"]
+        rows = ask_final.fix_beside([self.stage(fix), self.stage(refix)])["allowed"]
         self.assertEqual([r["path"] for r in rows], ["tests/test_a.py", "tests/test_b.py"])
-        self.assertEqual(ask_final.fix_beside([self.stage(fix)])["allowed_tests"], [row])
+        self.assertEqual(ask_final.fix_beside([self.stage(fix)])["allowed"], [row])
         got = final_got(allowed_tests=rows)
         text = ask_final.final_text(got, ask_final.final_needs(got), RUN)
         self.assertIn(f"## {ask_final.ALLOWED_TESTS_HEAD}（2 件", text)
         self.assertIn("- tests/test_b.py（許し r-2・ruling）", text)
         self.assertTrue(any(must for _, must in ask_final.needs(got)))
 
+    def test_touched_counts_only_allowed_tests_in_the_sealed_diff(self):
+        """#664: 許したテストが 14 本（消した名を使うテストの全部への許しを含む）でも、封じた差分が触ったのが 3 本なら「触った」は 3 件で、
+        並べる行も 3 本だけ。触らなかった許しは件数の 1 行だけで、開ける理由に数えない"""
+        touched = [f"tests/test_t{i}.py" for i in range(3)]
+        rows = ([{"path": p, "permit": "plan-1", "source": "plan"} for p in touched]
+                + [{"path": f"tests/test_u{i}.py", "permit": "plan-removes-1", "source": "plan"} for i in range(11)])
+        diff = self.place("fix/fix/fix.diff", "")
+        self.place("fix/fix/allowed-tests.json", rows)
+        sealed = self.place("merge/sealed.diff", {})
+        (self.artifacts / "merge/sealed.diff").write_text(
+            "".join(f"diff --git a/{p} b/{p}\nindex 1..2 100644\n--- a/{p}\n+++ b/{p}\n@@ -1 +1 @@\n-a\n+b\n"
+                    for p in [*touched, "lib/x.py"]), encoding="utf-8")
+        with mock.patch.dict(os.environ, self.null_env(fix_records=[self.stage(diff)], seal={"ok": True, "diff": sealed})):
+            got = ask_final.got_of_env()
+        self.assertEqual([r["path"] for r in got["allowed_tests"]], touched)
+        self.assertEqual(got["allowed_untouched"], 11)
+        self.assertIn(f"{ask_final.ALLOWED_TESTS_HEAD}（3 件。人の確かめが要る）", ask_final.final_needs(got))
+        text = ask_final.final_text(got, ask_final.final_needs(got), RUN)
+        self.assertIn(f"## {ask_final.ALLOWED_TESTS_HEAD}（3 件", text)
+        self.assertNotIn("tests/test_u0.py", text)
+        self.assertIn("- 書き換えを許したが封じた差分が触らなかったテスト: 11 件（確かめは要らない）", text)
+        self.assertNotIn(ask_final.ALLOWED_UNCHECKED, text)
+        with mock.patch.dict(os.environ, self.null_env(fix_records=[self.stage(diff)])):
+            got = ask_final.got_of_env()
+        self.assertEqual((len(got["allowed_tests"]), got["allowed_untouched"]), (14, None))
+        self.assertIn(ask_final.ALLOWED_UNCHECKED, ask_final.final_text(got, ask_final.final_needs(got), RUN))
+
     def test_unreadable_allowed_tests_is_said(self):
         """collect は落ちた道でも [] を置くので、欄が null・先が形の違う許したテストの変更の訳は読めなかった訳を返す（黙って空にしない）"""
         diff = self.place("fix/fix/fix.diff", "")
         got = ask_final.fix_beside([self.stage(diff)])
-        self.assertEqual(got["allowed_tests"], [])
+        self.assertEqual(got["allowed"], [])
         self.assertIn("修正の控え allowed_tests が無い", got["beside_unread"])
         self.place("fix/fix/allowed-tests.json", {"path": "x"})
         self.assertTrue(any("行の配列でない" in x for x in ask_final.fix_beside([self.stage(diff)])["beside_unread"]))
@@ -1988,7 +2015,7 @@ class AskFinalReadsCase(Artifacts):
         self.place("fix/fix/allowed-tests.json", [{"path": "tests/beside.py", "permit": "p", "source": "plan"}])
         moved = self.place("elsewhere/allowed.json", [{"path": "tests/ported.py", "permit": "p", "source": "plan"}])
         got = ask_final.fix_beside([{**self.stage(diff), "allowed_tests": moved}])
-        self.assertEqual([r["path"] for r in got["allowed_tests"]], ["tests/ported.py"])
+        self.assertEqual([r["path"] for r in got["allowed"]], ["tests/ported.py"])
 
     def test_unresolvable_stage_port_is_named_by_its_field(self):
         """#681: 戻せないポインタ（ほかの run の物）の欄と dict でない段は、欄の名と訳で読めなかった行にする（黙って空にしない）"""
@@ -2171,9 +2198,9 @@ class AskFinalReadsCase(Artifacts):
                 "diff --git a/keep.py b/keep.py\nindex 1..2 100644\n--- a/keep.py\n+++ b/keep.py\n@@ -1 +1 @@\n-a\n+b\n")
         ptr = self.place("merge/sealed.diff", {})
         (self.artifacts / "merge/sealed.diff").write_text(diff, encoding="utf-8")
-        self.assertEqual(ask_final.deleted_files(ptr), (["old.py"], ""))
+        self.assertEqual(ask_final.sealed_files(ptr), (["old.py"], {"old.py", "keep.py"}, ""))
         self.assertIn(f"- {seal.DELETED_HEAD}: old.py", ask_final.final_text(final_got(deleted=["old.py"]), [], RUN))
-        self.assertIn("封じた差分を読めない", ask_final.deleted_files({"type": "archon_artifact", "run_id": "x", "path": "d"})[1])
+        self.assertIn("封じた差分を読めない", ask_final.sealed_files({"type": "archon_artifact", "run_id": "x", "path": "d"})[2])
 
     def test_many_deleted_files_are_cut(self):
         """封じた差分が 20,000 本を消しても、最後の承認ノードの文は本数に依らず短く、末尾の答え方の行まで在る。with: の鍵（封じの返りまるごとの

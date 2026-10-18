@@ -14,6 +14,7 @@
 - seal_refusal(*, fingerprint, fingerprint_ok) -> str: 封じてよいかの理由（空なら封じてよい）
 - unknown_row(reason) -> str: 守りのパスを確かめられない時に、当たりとして数える 1 行
 - deleted_paths(text) -> list: 封じた差分の字が消すファイル（DELETED_HEAD）
+- touched_paths(text) -> set: 封じた差分の字が触るファイル（改名は元と先の両方）
 - deleted_lines(paths, where) -> list: 取り込むと消えるファイルの行（承認ノードの文と報告が共に引く）。listcut.SHOWN 件までは取り込む前に
   1 本ずつ名指し、超える分は件数と where（封じた差分の実のパス）で指す
 - hash_refusal(sealed_hash, current_hash) -> str: 封じた hash と今の差分の hash が合わない訳（合えば空）
@@ -122,6 +123,13 @@ def deleted_paths(text: str) -> list:
             path = got[2:] if got.startswith("a/") else got
     close()
     return out
+
+
+def touched_paths(text: str) -> set:
+    """git の差分の字が触るファイルのパス（足す・変える・消す・改名の先と元。changemap.split_diff で読む）"""
+    from changemap import split_diff
+    files, renames = split_diff(text)
+    return {*files, *(old for old in renames.values() if old)}
 
 
 def deleted_lines(paths, where: str) -> list:

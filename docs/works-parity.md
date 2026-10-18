@@ -4215,7 +4215,7 @@
 - tail.md M35: lib/runreport.py::_stop_lines
 - tail.md M36: lib/runreport.py::POINTERS・lib/runreport.py::_where_lines
 - tail.md M37: lib/runreport.py::_apply_lines（人が決めることのセクション: 差分を置いた run は bin/apply <run-id>、止まった run は止まりの 1 行と --allow-stopped、R2 が redesign-needed の run は当てない。生の git apply は出さない）
-- tail.md M38: lib/seal.py::deleted_paths・lib/seal.py::DELETED_HEAD。最後の承認ノードは workflows/line/scripts/ask_final.py::deleted_files（封じた差分 $merge-seal.output.diff） 。報告の側は lib/runreport.py::_tests_head_lines（seal.deleted_paths。部分 C）。行は lib/seal.py::deleted_lines が組む（承認ノードの文と報告が共に引く）。BASE から狭めた所: 消すファイルが lib/listcut.py::SHOWN 件を超える run は、超える分を 1 本ずつ名指さず、件数と封じた差分の実のパスで指す
+- tail.md M38: lib/seal.py::deleted_paths・lib/seal.py::DELETED_HEAD。最後の承認ノードは workflows/line/scripts/ask_final.py::sealed_files（封じた差分 $merge-seal.output.diff） 。報告の側は lib/runreport.py::_tests_head_lines（seal.deleted_paths。部分 C）。行は lib/seal.py::deleted_lines が組む（承認ノードの文と報告が共に引く）。BASE から狭めた所: 消すファイルが lib/listcut.py::SHOWN 件を超える run は、超える分を 1 本ずつ名指さず、件数と封じた差分の実のパスで指す
 - tail.md M39: bin/_lib/apply.py::main・bin/_lib/apply.py::put
 - tail.md M40: bin/_lib/apply.py::main（封じた hash と置き場のファイルの sha256 の照らし）・bin/_lib/apply.py::choose（apply.hash と sealed.hash の照らし）
 - tail.md M41: bin/_lib/apply.py::pointed（置き場の根 artifacts.root の下の差分だけを読み、run の作業ツリーを読まない）

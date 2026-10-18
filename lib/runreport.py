@@ -1058,6 +1058,20 @@ def _hits(returns: dict) -> tuple[list, int]:
     return rows, count if type(count) is int and count > 0 else len(rows)
 
 
+def _touched_tests(returns: dict) -> list:
+    """修正の返りの許したテストの変更（allowed_test_changes。許しの範囲のパス）のうち、封じた差分が触ったパス（最後の承認ノードと同じ
+    数え方。許しは消す名を使うテストの全部のように広いことがある）。封じた差分が無い・読めない時は照らせないので全部"""
+    tests = [t for t in _list(as_dict(returns.get("fix")).get("allowed_test_changes")) if isinstance(t, str)]
+    p = as_dict(returns.get("sealed-diff")).get("diff")
+    if not (isinstance(p, str) and p):
+        return tests
+    try:
+        touched = seallib.touched_paths(pathlib.Path(p).read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return tests
+    return [t for t in tests if t in touched]
+
+
 def _counted(head: str, rows: list) -> list:
     """見出しの件数の行と 1 件 1 行（rows が空なら何も出さない）"""
     return [f"{head}: {len(rows)} 件", *[f"  - {oneline.one_line(x)}" for x in rows]] if rows else []
@@ -1130,7 +1144,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     choices = {line: _choices(q) for q, line in held_pairs}
     done = ledger["answered"] + [oneline.one_line(x) for x in plan_done]
     asked = oc.asked_conflicts(returns, closed)
-    tests = [t for t in _list(as_dict(returns.get("fix")).get("allowed_test_changes")) if isinstance(t, str)]
+    tests = _touched_tests(returns)
     unreturned = [u for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == fixboard.NOT_DONE]
     premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
     escalate = [premise] if premise.get("verdict") == "escalate" else []
