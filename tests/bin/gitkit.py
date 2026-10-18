@@ -34,6 +34,18 @@ def git(repo, *args):
                           check=True, env=hermetic.child_env()).stdout.strip()
 
 
+def commit_absent(repo, paths) -> str:
+    """paths を中身の同じ 1 つの blob で index に足して commit し、作業ツリーには書かない。作業ツリーから見ると全部が消えた物で、
+    何万本の消えたファイルの差分を、ファイルを書かずに作る（書いて消すと、遅いファイルシステムでは 1 万本ごとに数秒かかる）。返りは commit の版"""
+    def run(*args, stdin=""):
+        return subprocess.run(["git", *GIT_ID, "-C", str(repo), *args], input=stdin, capture_output=True, text=True,
+                              encoding="utf-8", check=True, env=hermetic.child_env()).stdout.strip()
+    blob = run("hash-object", "-w", "--stdin", stdin="x\n")
+    run("update-index", "--index-info", stdin="".join(f"100644 {blob}\t{p}\n" for p in paths))
+    run("commit", "-q", "-m", "absent")
+    return run("rev-parse", "HEAD")
+
+
 def git_url_redirect(url, to):
     """url への git の接続を to（手元のリポジトリのパス）へ向け替える env の差分。継いだ GIT_CONFIG_COUNT の後ろに
     url.<to>.insteadOf=<url> を積み、file の道だけ許す。呼び手は os.environ（や子の env）の上に重ねて渡す。
