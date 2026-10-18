@@ -3727,7 +3727,7 @@ class LineWiringCase(unittest.TestCase):
 
     def test_block_inputs_outside_the_contract_have_defaults(self):
         """落とし穴 K11: ブロックの入力のうち docs/design.md の「サブグラフの出力の約束」の入力（「入力（`with:`）:」の箇条）の外の物は
-        既定値を持つ（既定値の無い入力は include する全部の工程の読み込みを落とす。Archon の include-expander.ts 576-580 行）"""
+        既定値を持つ（既定値の無い入力は include する全部の工程の読み込みを落とす。Archon の include-expander.ts の resolveIncludeInputs）"""
         contract = contract_inputs(DESIGN.read_text(encoding="utf-8"))
         self.assertEqual(set(contract), set(BLOCKS), "約束の節からブロックごとの入力の箇条を読めない")
         for block in BLOCKS:
@@ -3857,7 +3857,7 @@ class LineWiringCase(unittest.TestCase):
     def test_second_round_plan_gets_the_review(self):
         """L-D17: 計画の往復の 2 周目の plan は、前の周の事前審査の返り review（plan-out が plan-review-run から受け直した物）を
         $LOOP_PREV で受けて案を直す（元 converge.revise_section :538）。筋書きは輪を 1 周で終え前の周の値を渡さない（docs/design.md の U3。
-        止めた Archon の packages/workflows/src/dry-run.ts 795・849-890 行）ので、2 周目の値は段 1 の本物の run で見る。ブロックの側は
+        止めた Archon の packages/workflows/src/dry-run.ts の executeCodeNode の `loopPrevOutput: ''`・simulateLoopGroup）ので、2 周目の値は段 1 の本物の run で見る。ブロックの側は
         tests/workflows/test_plan.py の CollectCase.test_rounds_count_and_second_round_gets_review"""
         nodes = line_nodes()
         self.assertEqual(nodes["plan"]["with"]["review"], "$LOOP_PREV.plan-out.output.review")
@@ -3931,8 +3931,8 @@ class LineWiringCase(unittest.TestCase):
         """L-W60: 報告はいつも走る。collect・report・result は前の段が落ちても飛ばされても走り（all_done）、Archon の resume でも collect と
         result は回し直す（always_run。元 works/darkfactory/darkfactory.yaml 1314-1322 行・works/tests/test_line_wiring.py の
         ReportAfterFailureCase.test_report_reruns_on_resume）。report は include で、Archon は include の always_run を捨てる
-        （止めた Archon の packages/workflows/src/schemas/dag-node.ts 1085-1091 行・1911-1914 行）ので、回し直した collect の返りが
-        変わった時に Archon が report の中の節の控えを捨てて回し直す（dag-executor.ts 9716-9727 行の getStaleCachedDependencies）。
+        （止めた Archon の packages/workflows/src/schemas/dag-node.ts の INCLUDE_NODE_IGNORED_FIELDS と、dagNodeSchema の transform の include の枝）ので、回し直した collect の返りが
+        変わった時に Archon が report の中の節の控えを捨てて回し直す（dag-executor.ts の getStaleCachedDependencies）。
         resume で本当に回し直されるかは筋書きで確かめられない（段 1 の本物の run で見る）"""
         nodes = line_nodes()
         for key in ("collect", "report", "result"):
@@ -3946,7 +3946,7 @@ class LineWiringCase(unittest.TestCase):
 
     def test_start_is_not_always_run(self):
         """L-E34: 呼び直し（resume）で機能・test_cmd・入口の形・base_rev を替えない。Archon の再開は済んだ節を飛ばすので、start に
-        always_run を付けない（止めた Archon の packages/workflows/src/dag-executor.ts 9664-9666 行の priorCompletedNodes）"""
+        always_run を付けない（止めた Archon の packages/workflows/src/dag-executor.ts の priorCompletedNodes）"""
         self.assertNotIn("always_run", line_nodes()["start"])
 
     def test_round_limit_is_the_loop_limit(self):
