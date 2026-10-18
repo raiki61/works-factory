@@ -481,6 +481,21 @@ class FailedAfterSealTest(TargetCase):
         self.assertIn("人は承認した", err)
         self.assertNotIn("人が見るはずだった物", err)
 
+    def assert_go_not_by_a_human(self, go: dict, said: str):
+        rc, out, err = self.run_apply(self.failed_run(answer=go), "--allow-failed", events=self.events(answer=go))
+        self.assert_applied((rc, out, err))
+        self.assertIn(said, err)
+        self.assertNotIn("人は承認した", err)
+
+    def test_gate_skipped_by_policy_does_not_say_the_human_approved(self):
+        """最後の承認ノードが方針で開かなかった run（answer が null）は、人の承認と言わない"""
+        self.assert_go_not_by_a_human({"go": True, "answer": None, "stop_reason": ""}, "機械が通した")
+
+    def test_unattended_push_does_not_say_the_human_approved(self):
+        """無人の run が推しで通した run（答えに欄 pushed）は、人の承認と言わない"""
+        self.assert_go_not_by_a_human({"go": True, "answer": {"decision": "approve", "text": "", "asked": [], "pushed": ["ask-final"]},
+                                       "stop_reason": ""}, "推しで通した")
+
     def test_run_stopped_at_the_final_gate_whose_report_failed_needs_allow_stopped(self):
         """最後の承認ノードで人が止めた後に report が落ちた run は、--allow-failed だけでは当てない（止めた run の許しを迂回させない）"""
         stop = {"go": False, "answer": {"decision": "stop", "text": "当てない", "asked": []}, "stop_reason": "human:gate-final"}

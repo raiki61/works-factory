@@ -31,6 +31,7 @@ if str(LIB) not in sys.path:   # lib/ の部品は互いを名だけで import �
 
 import chain  # noqa: E402  周の鎖の最後の差分の置き場（final-diff と同じ名を 2 か所に持たない）
 import seal  # noqa: E402  差分の封印と R2 の語の持ち主（merge の apply と同じ決まりを 2 か所に持たない）
+import answer as answers  # noqa: E402  人の答えと無人の run の推しを分ける口（欄 pushed の在る答えは人の答えでない）
 
 NAME = "apply"
 SHELL = Path(__file__).resolve().parents[1] / "works-factory"
@@ -179,6 +180,11 @@ def final_answer(events: list, states: dict, unread: str, by_hand: str) -> tuple
     if not (isinstance(answer, dict) and isinstance(answer.get("go"), bool)):
         raise Refuse(f"{unread}。最後の承認ノードの答え {ANSWER_STEP} の出力が読めず、人が止めたかを照らせない{by_hand}", UNREADABLE)
     if answer["go"]:
+        row = answer.get("answer")
+        if row is None:
+            return "最後の承認ノードは方針で開かず、機械が通した（人は見ていない）", False
+        if answers.by_push(row):
+            return "無人の run が最後の承認ノードを推しで通した（人の答えではない）", False
         return "最後の承認ノードで人は承認した", False
     parts = [f"止めた所 {answer['stop_reason']}"] if answer.get("stop_reason") else []
     return f"最後の承認ノードで止めた run（{'・'.join(parts + human_said(answer.get('answer')))}）", True
