@@ -77,7 +77,7 @@ import subprocess
 from urllib.parse import unquote, urlparse
 
 ALLOW_ENV = "WORKS_FACTORY_ALLOW_TESTCMD"
-HOW = "worktree の中で環境を作るコマンド（例: 依存を入れてから試験を走らせる 1 行）にする（README.md の「test_cmd と作業ツリー」）"
+HOW = "worktree の中で環境を作るコマンド（例: 依存を入れてから試験を走らせる 1 行）にする（README.md の「test_cmd and worktrees」）"
 SEPARATORS = ("&&", "||", ";", "|", "&")
 REDIRECTS = (">", ">>", ">|", "&>", "&>>", ">&", "<>")   # 後ろの語が書き先のリダイレクト（< の先は読むので見る）
 # 書き先を値に取る旗（よく使う物だけ。空白で分けた値も = で繋いだ値も見ない。ほかの旗の = の値は絶対パスだけ見る）
