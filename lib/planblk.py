@@ -193,7 +193,7 @@ DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何�
               "独立設計と案の行の引用だけに使い、ほかの引用は『』か `…` で書け。"
               "独立設計が立つ run では、項目の答え（項目ごとの下請けの答えのファイル。下請けを起こさない往復と案の直しの事前審査では"
               "返答）に design_map を書け。相乗りの審査と束ね役は書かない。行は {item, path, symbol, design_ref, design_quote, why} の 2 つの向き。"
-              f"design_quote は、対がある時は{design.QUOTE_FROM}（対が無ければ null）。{design.QUOTE_FROM_ELEMENTS}と修正案の行の字は"
+              f"design_quote は、対がある時は{design.QUOTE_FROM}（{design.QUOTE_NONE}）。{design.QUOTE_FROM_ELEMENTS}と修正案の行の字は"
               "本文に無いので貼らない（受け付けが拒む）。例: 本文が『上限は入口 1 箇所で掛け、各所では掛け直さない』なら『上限は入口 1 箇所で掛け』を引き、"
               "要素の一覧の『D1: 足す: 上限の入口／消す: 無し』や案の行の字は引かない。案→設計: 項目の files の鍵（足す名・消す名と、"
               "op が create・delete・rename の行）ごとにちょうど 1 行——その鍵は、項目のセクション（下請けのファイル）か材料の頭の design_map の"

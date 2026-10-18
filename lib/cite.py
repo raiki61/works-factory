@@ -21,6 +21,7 @@
   引用と、独立設計の引用の照らしが使う 1 か所）。fold は NFKC にして空白を 1 つに畳む。missing_quotes は text の引用のうち、source に
   quoted_in でない物。folded が真（既定）なら両側を fold してから照らす（独立設計の引用）。偽なら字のまま（sources_problem の依頼の
   引用は偽。関所の決め手の照らしを緩めない）
+- unspaced(text) -> str: fold の後に空白を全部除いた物（design.py の拒みの行が、貼った字の出どころを見分けるのに使う）
 - ref_problem(source, prefix, known) -> list[str]: 出どころの文の中の prefix で始まる参照（頭に字が添えてあってもよい）の id が、
   呼び手が渡した実在の id の組 known に在るかの照らし。無い id ごとに誤りの 1 文（prefix の語が無ければ空）
 
@@ -128,6 +129,11 @@ def _pathish(word: str) -> bool:
 def fold(text) -> str:
     """引用の照らしの前に両側へ掛ける畳み: NFKC にし、空白（改行・タブ含む）の並びを 1 つの半角空白にして前後を除く"""
     return " ".join(unicodedata.normalize("NFKC", str(text)).split())
+
+
+def unspaced(text) -> str:
+    """fold の後に空白を全部除いた物（空白の置き方だけが違う字を同じと見る見分けに使う。受け付けの照らしには使わない）"""
+    return "".join(fold(text).split())
 
 
 def quotes(text) -> list:
