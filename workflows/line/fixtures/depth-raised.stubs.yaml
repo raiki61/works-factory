@@ -1,4 +1,5 @@
-# run の頭の深さは軽量だが、計画の単位に標準が在る（走っている間の上げる信号）。標準の単位を持つ軽量の頭の run でも、
+# run の頭の深さは軽量だが、計画の単位に中身の条件（約束の形のファイルを触る）で標準になった単位が在る（走っている間の上げる信号。
+# 触るファイルとテストの本数では上げない: issue #760）。標準の単位を持つ軽量の頭の run でも、
 # 事前審査の輪が走る（issue #441）
 fixture:
   expect: "completed"
@@ -15,7 +16,7 @@ structure__structure-measure: {"structure_file": "structure/structure.json", "de
 structure__structure: {"ok": true, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "structure/structure-state.json"}}
 plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
 plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
-plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}, {"unit_id": "u2", "depth": "標準", "why": "触るファイルが 5 個（3 個まで）"}], "round": 1, "fix_plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/p2.fix_plan.json"}, "rejects": [], "nothing_owed": false, "gave_up": null}
+plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}, {"unit_id": "u2", "depth": "標準", "why": "約束の形のファイルを触る（schemas/stats.schema.json）"}], "round": 1, "fix_plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/p2.fix_plan.json"}, "rejects": [], "nothing_owed": false, "gave_up": null}
 plan-review-run__open: {"ok": true, "r2_go": false, "tree": false, "k": 1, "form": "review", "reason": ""}
 plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "gate_passes": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/gate-passes.json"}, "gate": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/gate.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "design_premises": null, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": [], "gave_up": null}
 fix__route: {"group": true}

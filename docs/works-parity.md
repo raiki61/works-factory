@@ -3633,7 +3633,7 @@
 - line.md L-W65: workflows/line/works-factory-line.yaml::fix-in・workflows/line/works-factory-line.yaml::test-gate-base（固定材料の run は直す前のテスト・判定・計画の往復・修正前の承認ノードを飛ばし、fix から後ろは fix-in の値を読む）（#509 で戻した）
 - line.md L-W66: tests/workflows/test_line.py::LineWiringCase、tests/e2e/test_line_scenarios.py
 - line.md L-W67: tests/workflows/test_line.py の表 UNPASSED（渡さない入力と訳）
-- line.md L-D01: lib/depth.py::unit_depth。呼び手 lib/planfile.py::collect
+- line.md L-D01: lib/depth.py::unit_depth。呼び手 lib/planfile.py::collect（元の 5 つの条件のうち、触るファイルの数とテストの本数の 2 つは外した。本数は直しの量で難しさや危うさではない: issue #760）
 - line.md L-D02: lib/depth.py::wiring
 - line.md L-D03: lib/depth.py::decide_doc・lib/depth.py::run_depth
 - line.md L-D04: yaml の fix.depth（$fix-in.output.depth）・refix-run.depth（$replan.output.depth）
@@ -3642,10 +3642,10 @@
 - line.md L-D07: workflows/line/scripts/redepth.py::redepth
 - line.md L-D08: workflows/line/scripts/redepth.py::pending_signals（gatemarks.ledger_at・gatemarks.pending。入力 answer_ties・materials のポインタの先。判定の問いの台帳と依頼の answers と修正前の承認ノードの答え。台帳が読めなければ上げる側）
 - line.md L-D09: workflows/line/scripts/redepth.py::redepth、workflows/line/works-factory-line.yaml::redepth
-- line.md L-D10: workflows/line/scripts/redepth.py::fix_signals（lib/latedepth.py::signals の depth.run_wide。計画の欄と fixed の差分。counted を返し報告の深さの行に出る）と fix の中の lib/fixboard.py::redepth
+- line.md L-D10: workflows/line/scripts/redepth.py::fix_signals（lib/latedepth.py::signals。引用の外の差分・TDD の拒否・範囲の相談・残した block で上げる。計画の欄と fixed の差分から数えた触るファイルの数 depth.run_paths は上げる信号にせず counted に残し、報告の深さの行に出る。本数の上限は外した: issue #760）と fix の中の lib/fixboard.py::redepth
 - line.md L-D11: yaml の eyes.depth（$redepth.output.depth）→ workflows/eyes/scripts/prep.py::out の run_eyes（depth.skip_reason）
 - line.md L-D12: workflows/fix/scripts/delta_cut.py（fixboard.redepth の skip_reason で delta/skipped.json を書いて go: false。後ろのレンズ・手直しも飛ぶ）
-- line.md L-D13: lib/runreport.py::_depth_lines（redepth の出力 {depth, raised, counted} を lib/depth.lines の形で。単位ごとの数・上げた信号・run の広さの数え・軽量で省いた物）
+- line.md L-D13: lib/runreport.py::_depth_lines（redepth の出力 {depth, raised, counted} を lib/depth.lines の形で。単位ごとの数・上げた信号・run の広さの数え〔記録だけ〕・軽量で省いた物）
 - line.md L-D14: workflows/line/scripts/redepth.py::fallback は works:line-script で止め、試験の関門から先が飛ぶ（workflows/line/works-factory-line.yaml::test-gate-final）
 - line.md L-D15: workflows/line/scripts/redepth.py::merged（直した案の行で単位ごとに置き換え、1 回目の単位の行を残す）
 - line.md L-D16: workflows/line/works-factory-line.yaml の `max_iterations: 20` と plan-out の `with:` の `round_limit: 20`、workflows/line/scripts/plan_out.py::plan_out（round ≥ round_limit で done）。Archon は上限に達したループを落とす（packages/workflows/src/dag-executor.ts:5222）ので done で先に抜ける

@@ -8,11 +8,11 @@
 上げた）、修正の後の信号で標準へ上げる（lib/depth.py の raise_doc。下げない）。信号は、単位ごとに: 修正の段が止めた単位
 （status が fixed でない単位）、run 全体に: 申し出が在る・答えていない問い（問いの台帳の問いごと。元 depth.signals の
 gatemarks.pending。台帳が読めなければ上げる側に倒す）・案の直しが走った・再審が走った と、修正のサブグラフの中の上げ直し
-（fixboard.redepth）と同じ数えの信号（run 全体の広さ・修正の差分が頭の深さの引用した where の外に出た・TDD のループで修正役が
+（fixboard.redepth）と同じ数えの信号（修正の差分が頭の深さの引用した where の外に出た・TDD のループで修正役が
 拒まれた・範囲の相談をした・直さずに残すと答えた事前審査の block〔入力 plan_declared〕。数えと控えの扱いは lib/latedepth.py の
 signals で、fix_signals は指し札を解いて渡すだけ）。どれも上げるだけで下げない。返り {depth: [{unit_id, depth, why}],
 skip_optional: 省く理由の文（run の頭の深さの段が省く物を持ち、単位がどれも軽量の時だけ。depth.skip_reason。ほかは空）, raised,
-counted: run の広さの数えと起点の 1 行（信号の控えが無い訳を「／」で添える。latedepth.signals）, stop_reason}。
+counted: run の広さの数え（記録だけで上げる信号にしない）と起点の 1 行（信号の控えが無い訳を「／」で添える。latedepth.signals）, stop_reason}。
 例外の時は止めの理由 works:line-script を返し、試験の関門から先は飛ぶ（深さの分からない差分を目に通さない）。
 
 入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・head_depth（run の頭の深さの段の語）・units・conflicts・plan・diff・records（fixed の返り）・judgment（judged の返り）・
