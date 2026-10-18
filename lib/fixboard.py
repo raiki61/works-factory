@@ -1235,20 +1235,24 @@ def depth_doc(place):
     return doc
 
 
-def depth_signals(place) -> tuple:
-    """修正の後の深さを標準へ上げる信号 ({単位: 理由}, [run の理由])。単位ごと: 食い違いの申し出の在る単位（conflict.items）・
-    受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末 given_up）。run: 答えていない
-    修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が空でない 2 回目の修正）・
-    修正役が判定に異議を出した（組の子の結果と裁定の後の返答の objection）・TDD のループで修正役が拒まれた（置き場の tdd-<k>/
-    state.json の calls。返す節が欄 tdd_refused で線の redepth へ返すのと同じ読みの fixbeside.tdd_refused）・修正役が範囲の相談をした（受け付けの行
-    accept_trace_rows。consult.consulted_units）・修正役が直さずに残すと答えた事前審査の block が在る（declared_lines）。後ろの 3 つの理由の文は
-    depth.late_signals が持つ（頭の深さの引用した where の
-    外の差分は run の広さと同じく redepth が数える）。控えが読めなければ上げる側へ倒す（TDD の輪の状態は fixbeside.LATE_UNREAD）。
-    元 works/darkfactory/lib/depth.py:268 の signals と、線の h-redepth が渡した replanned・rejudged"""
+def returned_results(place) -> dict:
+    """戻せた組（join.json の groups の returned）の id → 子の結果 RESULT_FILE のパス（groups.json の out_dir の下。out_dir が
+    無ければ空）"""
+    place = pathlib.Path(place)
+    joined = read_json(place / JOIN_FILE, {}) or {}
+    out_dir = (read_json(place / GROUPS_FILE, {}) or {}).get("out_dir")
+    back = [g.get("group_id") for g in joined.get("groups") or [] if isinstance(g, dict) and g.get("returned")]
+    return {gid: pathlib.Path(out_dir) / gid / RESULT_FILE for gid in back if out_dir and isinstance(gid, str)}
+
+
+def depth_signals(place, results) -> tuple:
+    """修正のサブグラフの中だけが知る、修正の後の深さを標準へ上げる信号 ({単位: 理由}, [run の理由])。単位ごと: 食い違いの申し出の
+    在る単位（conflict.items）・受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末
+    given_up）。run: 答えていない修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が
+    空でない 2 回目の修正）・修正役が判定に異議を出した（読めた組の子の結果 results と裁定の後の返答の objection）。線の redepth と
+    同じ数えの信号（run の広さ・引用の外の差分・TDD の拒否・範囲の相談・残した block）は redepth が latedepth.signals で数える。
+    食い違いの控えが読めなければ上げる側へ倒す。元 works/darkfactory/lib/depth.py:268 の signals と、線の h-redepth が渡した replanned・rejudged"""
     import conflict
-    import consult
-    import depth
-    import fixbeside
     import gatemarks
     place = pathlib.Path(place)
     units, run = {}, []
@@ -1269,49 +1273,38 @@ def depth_signals(place) -> tuple:
     run += [f"答えていない問い {q.get('key')}" for q in gatemarks.pending(gate_view(place)) if isinstance(q, dict)]
     if read_json(place / ONLY_ITEMS_FILE, []):
         run.append("同じ run の案の直しが走った")
-    plan = read_json(place / GROUPS_FILE, {}) or {}
-    back = [g.get("group_id") for g in joined.get("groups") or [] if isinstance(g, dict) and g.get("returned")]
-    results = [read_json(pathlib.Path(plan["out_dir"]) / gid / RESULT_FILE) for gid in back if plan.get("out_dir")]
-    results = [r for r in results if isinstance(r, dict)]
-    if objection(results + [read_json(place / RULED_REPLY_FILE)]):
+    if objection([r for r in results if isinstance(r, dict)] + [read_json(place / RULED_REPLY_FILE)]):
         run.append("修正役が判定に異議を出した")
-    unread = []
-    refused = fixbeside.tdd_refused(place, unread)
-    run += depth.late_signals(refused=refused, consulted=consult.consulted_units(accept_trace_rows(place, results)),
-                              declared=declared_lines(place))
-    run += [fixbeside.LATE_UNREAD.format(why=why) for why in unread]
     return units, run
 
 
 def redepth(place, repo, skip=()) -> str:
     """修正の後の信号で深さを標準へ上げ（depth.raise_doc）、上げた控えを置き場の DEPTH_RAISED_FILE に書き、全部の単位が軽量のまま
     で run の頭の深さの段（置き場の HEAD_DEPTH_FILE）が省く物を持てば、差分の審査を省く理由の文（depth.skip_reason）を返す。
-    控えが無い・標準の単位が在る・単位が無い・頭の深さが省かない段なら空。信号は
-    depth_signals、run 全体の広さ（depth.run_wide）は修正の実際の差分（run の始めの木 start_tree から今の作業ツリーへの変更。
-    除くパスの頭 skip の下は数えない）と承認済みの修正案の欄で数え直し、数えたファイルの数と起点を控えの counted に 1 行残す。
-    同じ差分のうち、置き場の頭の深さの控えの写し（HEAD_DEPTH_FILE でなく HEAD_RECORD_FILE。prep が入力 depth_record の先から写す）の引用した where の
-    ファイルの外に出たパスは depth.outside_cited が拾い、理由は depth.late_signals（テストのファイルは run_wide と同じ除きで数えない。
-    控えが無い・where の無い run は外を持たない）。
-    控えが読めない・形が違えば ValueError。元 works/darkfactory/lib/depth.py:302 の raise_（線の h-redepth）"""
+    控えが無い・標準の単位が在る・単位が無い・頭の深さが省かない段なら空。信号は depth_signals と、線の redepth と同じ数えの
+    latedepth.signals（信号の元は fixbeside.late_place。修正の差分は run の始めの木 start_tree から今の作業ツリーへの変更で、除く
+    パスの頭 skip の下は数えない。引用は置き場の頭の深さの控えの写し HEAD_RECORD_FILE。prep が入力 depth_record の先から写す）。
+    数えたファイルの数と起点と控えの無い訳は控えの counted に 1 行残す。
+    深さの控えが読めない・形が違えば ValueError。元 works/darkfactory/lib/depth.py:302 の raise_（線の h-redepth）"""
     import depth
-    import headdepth
+    import fixbeside
+    import latedepth
     import planmarks
     import writes
+    place = pathlib.Path(place)
     doc = depth_doc(place)
     if doc is None:
         return ""
-    units, run = depth_signals(place)
-    items = planmarks.read(marks_view(place))
+    late, results = fixbeside.late_place(place, returned_results(place))
+    units, run = depth_signals(place, results)
     tree = start_tree(place)
     touched = [f for f in writes.changed_from(repo, tree) if not f.startswith(tuple(skip))] if tree else []
-    origin = f"修正の差分 {tree[:12]}" if tree else "計画の allowed_paths（修正の差分の起点が無い）"
-    wide, paths = depth.run_wide(items, doc["units"], touched)
-    run += wide
-    run += depth.late_signals(outside=depth.outside_cited(items, doc["units"], touched, headdepth.cited_files(headdepth.read_file(pathlib.Path(place) / HEAD_RECORD_FILE))))
-    doc["counted"] = f"触るファイル {paths} 個（起点: {origin}）"
-    doc = depth.raise_doc(doc, units=units, run=run)
-    write_json(pathlib.Path(place) / DEPTH_RAISED_FILE, doc)
-    return depth.skip_reason(doc, read_json(pathlib.Path(place) / HEAD_DEPTH_FILE))
+    origin = f"修正の差分 {tree[:12]}" if tree else f"{latedepth.PLAN_ORIGIN}（修正の差分の起点が無い）"
+    late_run, doc["counted"] = latedepth.signals(planmarks.read(marks_view(place)), doc["units"], touched, origin=origin,
+                                                 head_record=place / HEAD_RECORD_FILE, late=late, declared=declared_lines(place))
+    doc = depth.raise_doc(doc, units=units, run=run + late_run)
+    write_json(place / DEPTH_RAISED_FILE, doc)
+    return depth.skip_reason(doc, read_json(place / HEAD_DEPTH_FILE))
 
 
 def delta_review_due(place, repo, skip=(), fix_reply=None) -> tuple:
