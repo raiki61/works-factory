@@ -146,17 +146,6 @@
 - 使うサブグラフ: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
-### P14 AI のノードに既定の無言の期限が当たる
-
-- 穴: `idle_timeout` を書かない `prompt:`・`command:` のノードと `loop:` の 1 周に、Archon が provider から何も届かない 30 分で打ち切りを当てる。
-- 証拠:
-  - `packages/workflows/src/utils/idle-timeout.ts` の「export const STEP_IDLE_TIMEOUT_MS = 30 * 60 * 1000;」
-  - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「`idle_timeout` — per-iteration timeout (default: 30 minutes)」
-- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。#4355 が期限を外したのは `bash:`・`script:` と `until_bash` だけ）。
-- 埋め: 既定の期限が当たる鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。もとは P9 の埋めの一部。
-- 使うサブグラフ: AI の役を持つ全部
-- 外す条件: `idle_timeout` を書かない AI のノードに期限を当てない版が出たら
-
 ### P10 周をまたいで同じ役の会話を続けられない
 
 - 穴: 周をまたいで、同じ役の AI の会話を続けられない。当たるのは 3 つの場合: `include` したサブグラフをまたぐ時、別の run（周の鎖）をまたぐ時、ループの前に同じ役の AI のノードが無いループの中で、別の役のノードを挟む時。前の周の自分が読んだ所も考えも次の周の自分に届かないので、周ごとに新しい会話で起きる役には、書き置き（引き継ぎのメモ）で渡す。
@@ -215,8 +204,8 @@
   - `packages/core/src/providers/process-provider.ts` の「detached: process.platform !== 'win32',」（provider のプロセスを持ち主のグループの外に起こす）
   - `packages/workflows/src/exec-environment.ts` の「WORKFLOW_ID: execution.runId,」（AI のノードのプロセスは run の id を env に持つ。番号のつながりの外の印はこれだけ）
   - `packages/core/src/operations/workflow-operations.ts` の「because it is not a detached run (a foreground CLI run, or an Archon server)」（前の run の cancel を拒む）
-- 上流（`355f1867` の後の dev の `1d54e964a` まで）: 塞がっていない（`run-owner-stop.ts` を変えた commit は無い。`process-provider.ts` の変更〔#4310・#4422〕は版の食い違いの文と resume の案内だけで、detached の起こしは同じ。#4375〔`372a494c9`〕は `archon serve` の cancel が bash・script のノードの木を止める変更で、provider と切り離した持ち主には触れない）。
-- 実測（2026-10-18、止めた Archon に偽の claude〔`CLAUDE_BIN_PATH`。自分と同じグループの子と、別のセッションの子を起こして眠る〕の AI のノードと、`workflow:` の子の run の AI のノードを並べた使い捨てのグラフ。試験 `tests/bin/test_runstop.py` のグラフと同じ形）:
+- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` で `run-owner-stop.ts` を変えた commit は無い。`process-provider.ts` の変更〔#4310・#4422〕は版の食い違いの文と resume の案内だけで、detached の起こしは同じ。#4375〔`372a494c9`〕は `archon serve` の cancel が bash・script のノードの木を止める変更で、provider と切り離した持ち主には触れない）。
+- 実測（2026-10-18、`355f1867` で、止めた Archon に偽の claude〔`CLAUDE_BIN_PATH`。自分と同じグループの子と、別のセッションの子を起こして眠る〕の AI のノードと、`workflow:` の子の run の AI のノードを並べた使い捨てのグラフ。試験 `tests/bin/test_runstop.py` のグラフと同じ形）:
   - `--detach` の run の `workflow cancel` は `"processStopped": true` を返すが、ノードごとの provider（`bun --no-env-file <源>/packages/providers/src/claude/plugin.ts`）が親 1 で残った。数秒の後に provider は claude を止めたが、provider 自身と claude の子（同じグループの物も別のセッションの物も）は 15 秒の後も残った。子の run のノードも同じ。
   - 前の run の `workflow cancel` は拒んで（終了の値 1）何も止めず、持ち主に SIGTERM を送る（割り込みと同じ）と、持ち主は抜けたが provider と claude の子が親 1 で残った。
   - 子の run だけの `workflow cancel` は根の持ち主が答えて子を止め、子の provider のグループは消えたが、claude が別のセッションに起こした子は残った。
@@ -229,6 +218,17 @@
 
 Archon の穴でなく、Archon が決めてそうしている振る舞いに合わせた埋め。版が上がっても外れる見込みは無い。行の形と照らしは「今の行」と同じ。
 
+
+### P14 AI のノードに既定の無言の期限が当たる
+
+- 穴: `idle_timeout` を書かない `prompt:`・`command:` のノードと `loop:` の 1 周に、Archon が provider から何も届かない 30 分で打ち切りを当てる。
+- 証拠:
+  - `packages/workflows/src/utils/idle-timeout.ts` の「export const STEP_IDLE_TIMEOUT_MS = 30 * 60 * 1000;」
+  - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「`idle_timeout` — per-iteration timeout (default: 30 minutes)」
+- 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。#4355 が期限を外したのは `bash:`・`script:` と `until_bash` だけ）。
+- 埋め: 既定の期限が当たる鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。もとは P9 の埋めの一部。
+- 使うサブグラフ: AI の役を持つ全部
+- 外す条件: `idle_timeout` を書かない AI のノードに期限を当てない版が出たら
 ### P8 落ちたノードの出力を受け直せない
 
 - 穴: 落ちたノードの出力は `{from, if_skipped}` でも読めず、読んだノードも落ちる。
@@ -247,6 +247,6 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 - 証拠:
   - `packages/docs-web/src/content/docs/guides/script-nodes.md` の「Hard kill after this many milliseconds. Default: `120000` (2 min)」（`timeout` の欄）
 - 上流（`355f1867` の後の dev の `f906471c4` まで）: 塞がった（upstream の #4355、`1e2d8acc0`。`timeout` を書かない `bash:`・`script:` のノードと `until_bash` に期限を当てない）。その前の #4307（`7c287f52e`）は期限の来たノードの process の木ごと止める変更。
-- 外した埋め: `script:`・`bash:` の `timeout` と、`loop:`・`loop_group:` の `timeout`（`until_bash` の確かめ）に置いていた実質無しの値 `1728000000`。2026-10-18 に止めた版を `64ec0c2e` に上げた時に外した。その版で `timeout` を書かない `bash:`・`script:`・`loop_group:` の `until_bash` を 130 秒走らせ、どれも打ち切られずに終わった。今は E12 が `timeout` を書かせない（`tests/layers/scan.py` の `UNSET_DEADLINE_KEY`）。AI のノードの `idle_timeout` の値は P13 に残した。
+- 外した埋め: `script:`・`bash:` の `timeout` と、`loop:`・`loop_group:` の `timeout`（`until_bash` の確かめ）に置いていた実質無しの値 `1728000000`。2026-10-18 に止めた版を `64ec0c2e` に上げた時に外した。その版で `timeout` を書かない `bash:`・`script:`・`loop_group:` の `until_bash` を 130 秒走らせ、どれも打ち切られずに終わった。今は E12 が `timeout` を書かせない（`tests/layers/scan.py` の `UNSET_DEADLINE_KEY`）。AI のノードの `idle_timeout` の値は P14 に残した。
 - 使うサブグラフ: 全部
 - 外す条件: グラフの既定で期限を無しにできる版が出たら

@@ -37,7 +37,6 @@ nodes:
     bash: |
       if [ "$ARGUMENTS" = "b" ] && [ ! -f {mark}/child-b ]; then touch {mark}/child-b; echo boom >&2; exit 3; fi
       echo "ok:$ARGUMENTS"
-    timeout: 600000
     mutates_checkout: false
 """
 
@@ -47,7 +46,6 @@ returns: fix
 nodes:
   - id: prep
     bash: printf '%s' '["a","b"]'
-    timeout: 600000
     mutates_checkout: false
   - id: groups-seq
     workflow: works-factory-halt-child
@@ -60,25 +58,21 @@ nodes:
     bash: echo joined
     depends_on: [prep, groups-seq]
     trigger_rule: {join_rule}
-    timeout: 600000
     mutates_checkout: false
   - id: nodes-ok
     bash: "true"
     depends_on: {guarded}
     trigger_rule: {guard_rule}
-    timeout: 600000
     mutates_checkout: false
   - id: assert-changed
     bash: echo checked
     depends_on: [prep, join]
     trigger_rule: {chain_rule}
-    timeout: 600000
     mutates_checkout: false
   - id: fix
     bash: echo collect
     depends_on: [prep, groups-seq, join, assert-changed]
     trigger_rule: all_done
-    timeout: 600000
     mutates_checkout: false
 """
 
@@ -90,7 +84,6 @@ nodes:
   - id: after-fix
     bash: echo after-fix
     depends_on: [fixstage]
-    timeout: 600000
     mutates_checkout: false
 """
 
@@ -100,38 +93,32 @@ returns: fix
 nodes:
   - id: prep
     bash: echo run >> {mark}/prep-count
-    timeout: 600000
     mutates_checkout: false
   - id: step
     bash: |
       if [ ! -f {mark}/step ]; then touch {mark}/step; echo boom >&2; exit 3; fi
       echo stepped
     depends_on: [prep]
-    timeout: 600000
     mutates_checkout: false
   - id: clean
     bash: echo cleaned
     depends_on: [prep, step]
     trigger_rule: {chain_rule}
-    timeout: 600000
     mutates_checkout: false
   - id: assert-changed
     bash: echo checked
     depends_on: [prep, clean]
     trigger_rule: {chain_rule}
-    timeout: 600000
     mutates_checkout: false
   - id: nodes-ok
     bash: "true"
     depends_on: {guarded}
     trigger_rule: {guard_rule}
-    timeout: 600000
     mutates_checkout: false
   - id: fix
     bash: echo collect
     depends_on: [prep, step, clean, assert-changed]
     trigger_rule: all_done
-    timeout: 600000
     mutates_checkout: false
 """
 
@@ -143,13 +130,11 @@ nodes:
   - id: after-fix
     bash: echo after-fix
     depends_on: [fixstage]
-    timeout: 600000
     mutates_checkout: false
   - id: fixed
     bash: echo fixed
     depends_on: [after-fix, fixstage]
     trigger_rule: {fixed_rule}
-    timeout: 600000
     mutates_checkout: false
 """
 
@@ -160,18 +145,15 @@ returns: fix
 nodes:
   - id: lens-prep
     bash: echo prepared
-    timeout: 600000
     mutates_checkout: false
   - id: lens
     bash: "echo boom >&2; exit 3"
     depends_on: [lens-prep]
-    timeout: 600000
     mutates_checkout: false
   - id: lens-reply
     script: lens_reply
     runtime: uv
     depends_on: {reply_deps}
-    timeout: 600000
     mutates_checkout: false
     with: {reply_with}
   - id: lens-collect
@@ -179,26 +161,22 @@ nodes:
     runtime: uv
     depends_on: {collect_deps}
     trigger_rule: {collect_rule}
-    timeout: 600000
     mutates_checkout: false
     with: {collect_with}
   - id: delta-loop
     bash: echo reviewed
     depends_on: [lens-collect]
     trigger_rule: {chain_rule}
-    timeout: 600000
     mutates_checkout: false
   - id: nodes-ok
     bash: "true"
     depends_on: {guarded}
     trigger_rule: {guard_rule}
-    timeout: 600000
     mutates_checkout: false
   - id: fix
     bash: echo collect
     depends_on: [lens-prep, lens, lens-reply, lens-collect, delta-loop]
     trigger_rule: all_done
-    timeout: 600000
     mutates_checkout: false
 """
 
@@ -210,7 +188,6 @@ nodes:
   - id: after-fix
     bash: echo after-fix
     depends_on: [fixstage]
-    timeout: 600000
     mutates_checkout: false
 """
 

@@ -80,7 +80,7 @@ class NoTimeoutsTest(unittest.TestCase):
         got = self.problems("  - id: new\n    sleep: 10\n")
         self.assertTrue(any(f"{BLOCK}:3" in line and "種類" in line for line in got), got)
 
-    def test_nested_node_with_short_timeout_is_red(self):
+    def test_nested_node_with_timeout_is_red(self):
         nodes = (
             "  - id: g\n    loop_group:\n      nodes:\n"
             "        - id: run\n          script: stub\n          timeout: 10\n"
