@@ -20,6 +20,8 @@ from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import deltamarks  # noqa: E402
 import fixboard  # noqa: E402
 import refix  # noqa: E402
+import report  # noqa: E402
+import rulebook  # noqa: E402
 import writes  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
@@ -347,9 +349,12 @@ class RefixCase(DeltaPlaceCase):
         self.assertEqual(len(rows), 1, rows)
         self.assertEqual(rows[0]["from"], "p3.delta_review")
         self.assertIn("この単位", rows[0]["text"])
-        self.assertTrue(rows[0]["key"].startswith("inner_word stats.py:"), rows[0])
+        self.assertTrue(rows[0]["key"].startswith(f"{report.INNER_FACE_KIND} stats.py:"), rows[0])
         for word in ("作業ツリー", "この周辺"):
             self.assertNotIn(word, rows[0]["text"].split("——", 1)[1])
+        rules = rulebook.sections(LIB.parent / "workflows" / "fix" / "commands" / "fix-rules" / "refix.md")
+        for head in ("refix-head-1", "refix-head-2"):
+            self.assertIn(f"`{report.INNER_FACE_KIND}`", rules[head], f"手直しの指示書の {head} が機械の穴の kind を書く")
 
     def test_inner_word_added_by_the_first_refix_is_owed_in_review2(self):
         """1 回目の手直しが足した行の内側の語（この run）は、2 回目の審査の受け付けが穴に足し、2 回目の義務に入る"""
@@ -363,7 +368,7 @@ class RefixCase(DeltaPlaceCase):
         self.assertEqual(got["owed"], 2)
         self.assertEqual(keys[0], F2)
         self.assertEqual(len(keys), 2)
-        self.assertTrue(keys[1].startswith("inner_word stats.py:"), keys)
+        self.assertTrue(keys[1].startswith(f"{report.INNER_FACE_KIND} stats.py:"), keys)
 
     def test_inner_word_claimed_fixed_but_left_is_owed_again_in_review2(self):
         """1 回目の手直しが直したと答えても足した行に内側の語が残れば、2 回目の審査役が塞がったと言っても 2 回目の義務に入る"""
