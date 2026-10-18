@@ -289,7 +289,7 @@ class RunConfigTest(unittest.TestCase):
         """頭の深さの役の選びは記録だけ（持ち主の決め head-choice-record-only）。起動の層は殻が組むので、bin/ の下のどのファイルも
         lib.headdepth を import せず、控えのファイルの名 headdepth.RECORD の字も持たない。子の run と次の周は起動の層を受け継ぐので、
         そちらにも選びは届かない"""
-        files = [path for path in sorted((ROOT / "bin").rglob("*")) if path.is_file()]
+        files = [ROOT / name for name in git(ROOT, "ls-files", "bin").splitlines()]
         self.assertIn(ROOT / "bin" / "_lib" / "launcher.py", files)
         for path in files:
             text = path.read_text(encoding="utf-8")
