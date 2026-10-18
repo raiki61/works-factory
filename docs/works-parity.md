@@ -1406,7 +1406,7 @@
   - 元: SKILL.md:139
   - 印: 無し
   - 今: `workflows/merge/works-factory-merge.yaml::place`（封じた差分を run の置き場に書く）・`lib/seal.py::write_readback`
-  - 状態: 形を変えて在る（置き場は利用の家の diffs の下でなく run の置き場。封じる前に止まった run は差分のファイルが無く、`bin/apply` が作業ツリーから組む素の git の行を出す。出口の語 `pr` を選んだ run だけは、照らした差分を run の枝に 1 つの commit で積む〔`workflows/merge/works-factory-merge.yaml::pr-commit`〕。既定は今の works と同じく commit しない）
+  - 状態: 形を変えて在る（置き場は利用の家の diffs の下でなく run の置き場。封じる前に止まった run は差分のファイルが無く、`bin/apply` が作業ツリーから組む素の git の行を出す。出口の語 `pr` を選んだ run だけは、照らした差分を run の枝に修正案の項目ごとの commit で積む〔`workflows/merge/works-factory-merge.yaml::pr-commit`〕。既定は今の works と同じく commit しない）
   - 処置: 要らない: 封じる前の差分を当てないのは前の棚卸し M46 の決め（#101）。拒む 1 行が素の道を残す
   - 旧棚卸し: M1・M24・M46
 

@@ -16,6 +16,8 @@ pr-commit:
   branch: archon/task-fixture
   base: main
   repo: { host: github.com, path: owner/repo }
+  commits: []
+  split: "差分のパスを 1 つの項目に決められない（複数の項目か項目の外の単位が触った: a.py）"
   reason: ""
 fixture:
   expect: "failed"

@@ -1286,6 +1286,11 @@ class FactchecksSeamCase(TempCase):
     def test_declared_files(self):
         rows = [{"files": [str(self.repo / "a" / ".." / "stats.py"), " docs/x.md ", "", 3]}]
         self.assertEqual(self.fc.declared_files(rows, self.repo), {"stats.py", "docs/x.md"})
+        linked = self.tmp / "linked"
+        linked.symlink_to(self.repo)
+        (self.repo / "alias.py").symlink_to(self.repo / "stats.py")
+        rows = [{"files": [str(linked / "stats.py"), str(self.repo / "alias.py")]}]
+        self.assertEqual(self.fc.declared_files(rows, self.repo), {"stats.py", "alias.py"}, "根のリンクは解き、ファイルのリンクは解かない")
 
     def run_main(self, allowed):
         """置き場に修正案の控え（planmarks.save の欄・p2.fix_plan.json・judgment.json）と相談の控えを置き、下書きの返答で main を

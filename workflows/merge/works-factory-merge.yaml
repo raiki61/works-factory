@@ -2,8 +2,8 @@ name: works-factory-merge
 description: |
   取り込みと渡し方。seal は run の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして run の置き場に置き、
   check は封じた hash を今の差分と照らすだけで置く。apply・check の後の渡し方は出口の語で決まる: 空は置くだけ（対象のリポジトリへ
-  当てるのは人）、pr は照らした差分を run の枝に 1 つの commit で積み、Archon に同梱の archon-pr の子の run がその枝への push と PR の
-  作成をする（対象の既定の枝と同じ名の枝では止める。merge はしない）
+  当てるのは人）、pr は照らした差分を run の枝に修正案の項目ごとの commit で積み（項目に分けられなければ 1 つの commit）、Archon に
+  同梱の archon-pr の子の run がその枝への push と PR の作成をする（対象の既定の枝と同じ名の枝では止める。merge はしない）
 inputs:
   mode:
     required: true
@@ -38,6 +38,11 @@ inputs:
   request:
     default: ""
     description: 依頼のファイルのパス（相対なら対象の根から。空は無し）。pr の時に、PR の文へ依頼が名指した issue を渡す
+  items:
+    default: ""
+    description: >-
+      差分のパスを修正案の項目に決める記録 {items, claims, unread}（lib/itemcommits.py の merged の形。空は無し）。pr の時に、差分を
+      項目ごとの commit に分ける（apply・check だけ）
 returns: merge
 outcome_field: ok
 nodes:
@@ -88,7 +93,7 @@ nodes:
       required: [mode, ok, hash, diff, protected_hits, protected_count, reason, base_rev, deliver]
       additionalProperties: false
 
-  # 出口の語 pr だけ。照らした差分を run の枝に 1 つの commit で積む（作業ツリーの HEAD と index を変える）。seal は差分を封じるだけ
+  # 出口の語 pr だけ。照らした差分を run の枝に修正案の項目ごとの commit で積む（作業ツリーの HEAD と index を変える）。seal は差分を封じるだけ
   - id: pr-commit
     script: pr_commit
     runtime: uv
@@ -99,6 +104,7 @@ nodes:
       base_rev: "$place.output.base_rev"
       sealed_hash: "$place.output.hash"
       request: $INPUTS.request
+      items: $INPUTS.items
     output_format:
       type: object
       properties:
@@ -112,8 +118,19 @@ nodes:
             host: { type: string }
             path: { type: string }
           required: [host, path]
+        commits: &item_commits
+          type: array
+          items:
+            type: object
+            properties:
+              item: { type: integer }
+              subject: { type: string }
+              head: { type: string }
+            required: [item, subject, head]
+            additionalProperties: false
+        split: { type: string }
         reason: { type: string }
-      required: [go, head, branch, base, repo, reason]
+      required: [go, head, branch, base, repo, commits, split, reason]
       additionalProperties: false
 
   # push と PR の作成は Archon に同梱の archon-pr。題と本文を決める AI のノード prepare は書き込みをせず、script のノード publish が
@@ -198,6 +215,8 @@ nodes:
                 url: { type: string }
                 is_draft: { type: boolean }
               required: [number, url, is_draft]
+            commits: *item_commits
+            split: { type: string }
             reason: { type: string }
           required: [act, pr, reason]
         optional:

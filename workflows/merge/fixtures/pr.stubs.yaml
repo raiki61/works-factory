@@ -1,5 +1,5 @@
-# 出口の語 pr の配線: 照らした後に commit の節が積み、PR を作る子の run（archon-pr）が返した PR の記録を読み戻しの節が積んだ
-# commit と照らし、返す節が PR の在りかを返す
+# 出口の語 pr の配線: 照らした後に commit の節が項目ごとに積み、PR を作る子の run（archon-pr）が返した PR の記録を読み戻しの節が
+# 積んだ commit と照らし、返す節が PR の在りかと積んだ項目の commit を返す
 place:
   mode: apply
   ok: true
@@ -16,6 +16,10 @@ pr-commit:
   branch: archon/task-fixture
   base: main
   repo: { host: github.com, path: owner/repo }
+  commits:
+    - { item: 1, subject: "項目 1: 読み口を足す", head: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
+    - { item: 2, subject: "項目 2: 読み口を使う", head: "cccccccccccccccccccccccccccccccccccccccc" }
+  split: ""
   reason: ""
 pr-open:
   schemaVersion: 1

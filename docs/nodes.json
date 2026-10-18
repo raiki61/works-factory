@@ -184,7 +184,7 @@
   "chain/hand": "周の鎖の出口の語 pr の渡し。merge を check で include し、親の run の枝を最後の差分と照らして PR を 1 本作る（review-graph の外の新しい能力。issue #555）",
   "chain/result": "周の鎖の出力ノード",
   "merge/merge": "merge の出力ノード。照らしの出力に渡し方 deliver と落ちてよいノードの宣言を足す",
-  "merge/pr-commit": "出口の語 pr の時に、照らした差分を run の枝へ 1 つの commit で積む（既定の枝と同じ名の枝では止める。review-graph の外の新しい能力。issue #555）",
+  "merge/pr-commit": "出口の語 pr の時に、照らした差分を run の枝へ修正案の項目ごとの commit（分けられなければ 1 つ）で積む（既定の枝と同じ名の枝では止める。review-graph の外の新しい能力。issue #555）",
   "merge/pr-open": "出口の語 pr の時に、Archon に同梱の archon-pr を子の run で起こし、push と PR の作成を任せる（issue #555）",
   "merge/pr-read": "出口の語 pr の時に、子の run が返した PR の記録を積んだ commit・枝・向け先の repo と base と照らす読み戻し（issue #555）"
  },
