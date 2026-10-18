@@ -703,8 +703,8 @@
        "散らばり（まとめる計画はまだ無い）: 役の定義の前付けが模型と effort の正本を持つ（YAML の AI のノードの行とは結ばれていない）"
       ],
       "workflows/eyes/works-factory-eyes.yaml": [
-       12,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
+       10,
+       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/fix/works-factory-fix.yaml": [
        14,

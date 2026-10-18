@@ -1397,7 +1397,7 @@ def plan_review_file(place):
     return p if p.is_file() else None
 
 
-TESTS_HOW_HEAD = promptsection.Section("## 直す前のテストの走らせ方（直す前のテストの段が実際に走らせた形。機械が貼った）",
+TESTS_HOW_HEAD = promptsection.Section("## 直す前のテストの走らせ方（直す前のテストの段が実際に走らせた形）",
                                        source="fn:fixboard.tests_how_text")
 
 

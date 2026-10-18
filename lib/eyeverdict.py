@@ -12,8 +12,8 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   理由に諦めた訳を足す）。r4_rejects(eyes_dir) は出し直す役に渡す拒否の全部
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
-- one_briefs(eyes_dir, commands_dir, values): まとめた役 eyes-one（run の頭の深さの段が目をまとめる run。depth.merges）が読む観点ごとの
-  指示書を、観点ごとの役の指示書に支度の値を差し込んで置き場に書き、その並びの行を返す
+- one_briefs(eyes_dir, texts): まとめた役 eyes-one（run の頭の深さの段が目をまとめる run。depth.merges）が読む観点ごとの指示書
+  （観点ごとの役の指示書に支度の値を差し込んだ本文）を置き場に書き、その並びの行を返す
 - tdd_stages(stages, resolve)・measured_section(test_outcomes, stages): R2 の比較役に貼る機械の実測（試験の関門が返したテストごとの
   base と最後の結末を移り方ごとに全部と、修正の段ごとの TDD のループの記録。測っていない物はそう書く）
 - origin_section(repo, base, head, label, ...): R2 の比較役に貼る累積差分の起点の訳（PR の根か修正前の HEAD か・PR の差分と直しの差分）
@@ -327,19 +327,16 @@ def premise_section(*, human_items, request_text, repo, changed, constraints, de
     return "\n\n".join(parts), {"node": "r2.compare", **ledger}
 
 
-def one_briefs(eyes_dir, commands_dir, values: dict) -> str:
-    """まとめた役が読む観点ごとの指示書（ONE_VIEWS の順）を、観点ごとの役の指示書 commands_dir/<名>.md の $prep.output.<欄> に
-    values（支度の出力の欄）を差し込んで eyes_dir/ONE_DIR/<名>.md に書き、「- <平易な名>: `<パス>`」の行の並びを返す。削除候補の
-    ファイルと R4 の拒否の理由の差し込みは ONE_CANDIDATES・ONE_REJECTS に替える（観点ごとの役なら別の会話から届く物）"""
+def one_briefs(eyes_dir, texts: dict) -> str:
+    """まとめた役が読む観点ごとの指示書（ONE_VIEWS の順）を eyes_dir/ONE_DIR/<名>.md に書き、「- <平易な名>: `<パス>`」の行の並びを返す。
+    texts は {観点ごとの役の指示書の名: 支度の値を差し込んだ本文}（差し込みは目のブロックの prep。削除候補のファイルと R4 の拒否の
+    理由は、観点ごとの役なら別の会話から届く物なので ONE_CANDIDATES・ONE_REJECTS の字に替える）"""
     d = pathlib.Path(eyes_dir) / ONE_DIR
     d.mkdir(parents=True, exist_ok=True)
-    vals = {**values, "candidates_file": ONE_CANDIDATES}
     rows = []
     for name, view in ONE_VIEWS:
-        text = (pathlib.Path(commands_dir) / f"{name}.md").read_text(encoding="utf-8")
-        text = re.sub(r"\$prep\.output\.([A-Za-z0-9_]+)", lambda m: str(vals[m.group(1)]), text)
         path = d / f"{name}.md"
-        path.write_text(text.replace("$r4-reject.output.reason", ONE_REJECTS), encoding="utf-8")
+        path.write_text(texts[name], encoding="utf-8")
         rows.append(f"- {view}: `{path}`")
     return "\n".join(rows)
 

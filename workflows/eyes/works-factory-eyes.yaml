@@ -168,14 +168,15 @@ nodes:
     depends_on: [prep, r1-comments-save]
     trigger_rule: all_done
     when: "$prep.output.run_eyes == true && $prep.output.one_eye != true"
-    model: '@wf-eyes-core'
     context: fresh
-    settingSources: [user]
-    sandbox: {enabled: true, allowUnsandboxedCommands: false}
-    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-    mutates_checkout: false
-    idle_timeout: 1728000000
-    retry: {max_attempts: 2, on_error: all}
+    <<: &core_launch
+      model: '@wf-eyes-core'
+      settingSources: [user]
+      sandbox: {enabled: true, allowUnsandboxedCommands: false}
+      allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+      mutates_checkout: false
+      idle_timeout: 1728000000
+      retry: {max_attempts: 2, on_error: all}
     output_format: &r1_reply
       type: object
       required: [status, reason, deletions, ledger_audit, increments]
@@ -236,14 +237,8 @@ nodes:
     command: premise-check
     depends_on: [prep]
     when: "$prep.output.run_eyes == true && $prep.output.premise_due == true"
-    model: '@wf-eyes-core'
     context: fresh
-    settingSources: [user]
-    sandbox: {enabled: true, allowUnsandboxedCommands: false}
-    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-    mutates_checkout: false
-    idle_timeout: 1728000000
-    retry: {max_attempts: 2, on_error: all}
+    <<: *core_launch
     output_format:
       type: object
       required: [key, assumption, assumption_false, evidence, verdict, reason]
@@ -366,14 +361,7 @@ nodes:
           depends_on: [r4-reject, r4-scope-fix]
           trigger_rule: none_failed_min_one_success
           when: "$r4-reject.output.resubmit != true && $r4-reject.output.one_eye == true"
-          <<: &one_launch
-            model: '@wf-eyes-core'
-            settingSources: [user]
-            sandbox: {enabled: true, allowUnsandboxedCommands: false}
-            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-            mutates_checkout: false
-            idle_timeout: 1728000000
-            retry: {max_attempts: 2, on_error: all}
+          <<: *core_launch
           output_format: &one_reply
             type: object
             required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen, r1, r3, r1_comments]
@@ -390,7 +378,7 @@ nodes:
           depends_on: [r4-reject, eyes-one]
           trigger_rule: none_failed_min_one_success
           when: "$r4-reject.output.resubmit == true && $r4-reject.output.one_eye == true"
-          <<: *one_launch
+          <<: *core_launch
           output_format:
             <<: *one_reply
             required: []

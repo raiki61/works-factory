@@ -13,6 +13,7 @@ carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省�
 （eyeverdict.one_briefs）"""
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -51,6 +52,15 @@ def taken_pushes() -> tuple:
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return [], [f"- 判定の問いの控えか始めの記録を読めない（無人の run が保留の問いに採った推しを並べていない。{type(error).__name__}: {error}）"]
     return [f"問い {q.get('key')}: {push}" for q, push, _ in gatemarks.taken_pushes(b)], []
+
+
+def one_text(name: str) -> str:
+    """観点ごとの役の指示書 commands/<name>.md に、この節の出力の欄 out を差し込んだ本文（まとめた役が読む。削除候補のファイルと
+    R4 の拒否の理由は、まとめた役の会話の中の物を指す字）"""
+    vals = {**out, "candidates_file": eyeverdict.ONE_CANDIDATES}
+    text = (Path(__file__).resolve().parents[1] / "commands" / f"{name}.md").read_text(encoding="utf-8")
+    text = re.sub(r"\$prep\.output\.([A-Za-z0-9_]+)", lambda m: str(vals[m.group(1)]), text)
+    return text.replace("$r4-reject.output.reason", eyeverdict.ONE_REJECTS)
 
 
 def read(raw):
@@ -128,7 +138,7 @@ out = {
 }
 EYES.mkdir(parents=True, exist_ok=True)
 out["one_eye"] = out["run_eyes"] and bool(depth.merges(head))
-out["one_briefs"] = eyeverdict.one_briefs(EYES, Path(__file__).resolve().parents[1] / "commands", out) if out["one_eye"] else ""
+out["one_briefs"] = eyeverdict.one_briefs(EYES, {name: one_text(name) for name, _ in eyeverdict.ONE_VIEWS}) if out["one_eye"] else ""
 (EYES / eyeverdict.R2_PREMISES).write_text(json.dumps(r2_ledger, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 (EYES / eyeverdict.PREP_FILE).write_text(json.dumps({**out, policy.RECORDED_KEY: recorded}, ensure_ascii=False), encoding="utf-8")
 boundary.returns(out)
