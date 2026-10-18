@@ -102,6 +102,7 @@ DOC_SUFFIXES = (".md",)
 R2_PREMISES = "r2-premises.json"           # 比較役に貼った物の控え（置き場。元 eyes.PREMISES_NAME）
 PREMISE_INPUTS = "premise-inputs.json"     # 最後の関所に出す R2 の前提の材料（元 eyes-exit.json の premise_inputs）
 GATE_PASSES = eyesbeside.R4_PASSES_FILE   # 人が通したので R4 の問いから外した行（元 state.works.gate_passes。事前審査の聞かずに通した行とは別の物）
+PREMISE_NO_REPLY = "前提の検算の役の出力が無い（目の出力の欄 premise_reply が null か無い）: 偽と分かった仮定と次の run の制約に足す実測は読んでいない"
 # まとめた役 eyes-one が 1 つの会話で見る観点（観点ごとの役の指示書の名と、平易な名。並びは読む順）
 ONE_VIEWS = (("r3-coherence", "R3 全体の整合"), ("r4-scope", "R4 見えていない範囲"))
 ONE_DIR = "one"   # 観点ごとの指示書の置き場（eyes/one/<役の指示書の名>.md）
@@ -651,7 +652,10 @@ def premise_facts(path) -> dict:
 
 
 def premise_fact_lines(path) -> list:
-    """最後の関所と報告の前提の検算の行の下に並べる行（仮定が偽と分かった問いの key と、次の run の制約に足す実測。path は premise_facts）"""
+    """最後の関所と報告の前提の検算の行の下に並べる行（仮定が偽と分かった問いの key と、次の run の制約に足す実測。path は premise_facts。
+    None は役の出力が無いと 1 行で言う。欄 premise_reply の無い版の run を再開した時も None で来る）"""
+    if path is None:
+        return [PREMISE_NO_REPLY]
     got = premise_facts(path)
     if not got["key"]:
         return []

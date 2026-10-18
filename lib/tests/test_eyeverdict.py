@@ -925,6 +925,12 @@ class WriteNotesCase(unittest.TestCase):
         """名の住処の前提の検算の返りの名は、目の返りの置き場の名 <目>.json（eye_verdict が書く）の前提の検算の物と同じ"""
         self.assertEqual(eyesbeside.PREMISE_FILE, f"{eyeverdict.PREMISE}.json")
 
+    def test_no_premise_reply_is_said_in_one_line(self):
+        """前提の検算の行の下の行は、役の出力が無い（欄 premise_reply が null か、欄の無い版の run を再開した）時に黙らず 1 行で言う。
+        次の run の制約に足す実測は空のまま"""
+        self.assertEqual(eyeverdict.premise_fact_lines(None), [eyeverdict.PREMISE_NO_REPLY])
+        self.assertEqual(eyeverdict.premise_facts(None)["facts"], [])
+
 
 class PassedByCase(unittest.TestCase):
     """#552: 無人の run が推しで通した修正前の関所の答えは、R4 が聞き直さなかった行の控えに推しの印で残る（人が通したと言わない）"""

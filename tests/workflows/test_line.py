@@ -1992,22 +1992,28 @@ class AskFinalReadsCase(Artifacts):
         converge）を最後の関所の文に並べる。案の直しの事前審査の物も足す"""
         row = {"node": gatemarks.GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY, "item": "修正案 1 が狭める能力: x", "decided_by": "docs/adr.md:3"}
         review = (self.place("plan-review/pass-1/gate-passes.json", [row]),
-                  self.place("plan-review/pass-1/gate.json", {"items": [], "converge": ["壁打ち: 2 往復で clean", "  - 往復 1: …"]}))
-        passes, rounds, unread = ask_final.review_rows((review, (None, None)))
+                  self.place("plan-review/pass-1/gate.json", {"items": [], "converge": ["壁打ち: 2 往復で clean", "  - 往復 1: …"]}), True)
+        passes, rounds, unread = ask_final.review_rows((review, (None, None, False)))
         self.assertEqual((passes, rounds, unread), ([gatemarks.pass_lines([row])[0]], ["壁打ち: 2 往復で clean", "  - 往復 1: …"], []))
         text = ask_final.final_text(final_got(passes=passes, converge=rounds), [], RUN)
         self.assertIn(f"  - {gatemarks.named(gatemarks.GATE_NODE)}（周 1）で決め手が在るので聞かずに通した: 修正案 1 が狭める能力: x", text)
         self.assertIn("- 壁打ち: 2 往復で clean\n  - 往復 1: …", text)
         gone = {"type": "archon_artifact", "run_id": RUN, "path": "gone/gate-passes.json"}
-        _, _, unread = ask_final.review_rows(((gone, {**gone, "path": "gone/gate.json"}),))
+        _, _, unread = ask_final.review_rows(((gone, {**gone, "path": "gone/gate.json"}, True),))
         self.assertIn("事前審査の隣の控え（通した行・往復）を読めない", unread[0])
+
+    def test_review_fields_missing_from_a_review_that_ran_is_said(self):
+        """事前審査が走ったのに出力の欄 gate_passes・gate がどちらも無い（欄の無い版の run を再開した時）は、黙って飛ばさず読めなかった
+        訳の 1 行にする。走ったと分からない（飛ばされたのと見分けられない）対は今までどおり黙って飛ばす"""
+        self.assertEqual(ask_final.review_rows(((None, None, True), (None, None, False))), ([], [], [ask_final.REVIEW_FIELDS_MISSING]))
+        self.assertEqual(ask_final.review_rows(((None, None, False),)), ([], [], []))
 
     def test_final_gate_lists_gate_passes(self):
         """P255: 事前審査の返り gate_passes の先に 1 行在る時、最後の関所の文にその行が在る（元 works/tests/test_plan_gate.py:397・
         :515・:575 の final_text の断言の、決め手で通した行の分）"""
         row = {"node": gatemarks.GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY, "item": "決め手で通した行", "decided_by": "x.md:1"}
         passes, _, _ = ask_final.review_rows(((self.place("plan-review/pass-1/gate-passes.json", [row]),
-                                                self.place("plan-review/pass-1/gate.json", {"items": [], "converge": []})),))
+                                                self.place("plan-review/pass-1/gate.json", {"items": [], "converge": []}), True),))
         self.assertIn("決め手で通した行（決め手: x.md:1）", ask_final.final_text(final_got(passes=passes), [], RUN))
 
     def test_final_text_lists_suites_baseline_and_left_tests(self):

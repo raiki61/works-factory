@@ -59,6 +59,8 @@ PROTECTED_UNKNOWN = "守りのパスを確かめられなかった"   # 元 line
 ALLOWED_TESTS_HEAD = "書き換えを許したテストを触った"   # 元は conflict.ruled_test_doc を 2 つ目の一覧として守りのパスに通した（line_edge.py:640-651）
 CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
 BESIDE_UNREAD = "修正の段の控えを読めない"
+REVIEW_FIELDS_MISSING = ("事前審査の出力の欄 gate_passes・gate が無い（欄の無い版の run を再開した時）: 修正前の承認ノードで通した行と"
+                         "壁打ちの往復の行を並べていない")
 RECORD = "run の置き場の gates/gate-final.json"
 FINAL_GATE_FILE = "gates/final-gate.md"   # 開いた関所の文の控え（元 line_edge.FINAL_GATE_FILE）
 HANDOFF_REASON = "修正役が人に回した物が在る"
@@ -450,10 +452,14 @@ def eye_notes(eye) -> dict:
 
 def review_rows(reviews) -> tuple:
     """(修正前の関所で通した行, 壁打ちの往復の行, 読めなかった訳)。reviews は事前審査（計画の往復と案の直しの事前審査）の返りの欄
-    (gate_passes, gate) の対の並びで、gate_passes の先の行と gate の先の converge から"""
+    (gate_passes, gate, ran) の組の並びで、gate_passes の先の行と gate の先の converge から。ran は事前審査が走ったと分かっているか:
+    走ったのに 2 つの欄がどちらも無い（欄の無い版の run を再開した時）は訳の 1 行にする。案の直しの事前審査は飛ばされた時も null で来て
+    見分けられないので ran を偽で渡す"""
     passes, rounds, unread = [], [], []
-    for passed, gate in reviews:
+    for passed, gate, ran in reviews:
         if passed is None and gate is None:
+            if ran:
+                unread.append(REVIEW_FIELDS_MISSING)
             continue
         try:
             passes += gatemarks.passes_of(boundary.resolve(passed))
@@ -525,14 +531,16 @@ def got_of_env() -> dict:
                              boundary.value(os.environ.get("INPUTS_ANSWER_TIES")), boundary.value(os.environ.get("INPUTS_MATERIALS")))
     fenced, after, after_unread = after_rows(eye["structure_after"])
     asked, conflicts_unread = asked_conflicts(boundary.items(os.environ.get("INPUTS_CONFLICTS")))
+    first_judgment = boundary.value(os.environ.get("INPUTS_FIRST_JUDGMENT"))
     passes, rounds, review_unread = review_rows(
-        ((boundary.value(os.environ.get("INPUTS_REVIEW_PASSES")), boundary.value(os.environ.get("INPUTS_REVIEW_GATE"))),
-         (boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_PASSES")), boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_GATE")))))
+        ((boundary.value(os.environ.get("INPUTS_REVIEW_PASSES")), boundary.value(os.environ.get("INPUTS_REVIEW_GATE")),
+          first_judgment is not None),
+         (boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_PASSES")), boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_GATE")), False)))
     deleted, deleted_unread = deleted_files(closing["diff"])
     beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_RECORDS")))
     noted = eye_notes(eye)
     raw = {"units": boundary.items(os.environ.get("INPUTS_UNITS")), "first_units": boundary.items(os.environ.get("INPUTS_FIRST_UNITS")),
-           "judgment": judgment, "first_judgment": boundary.value(os.environ.get("INPUTS_FIRST_JUDGMENT")),
+           "judgment": judgment, "first_judgment": first_judgment,
            "rejudge_exit": boundary.value(os.environ.get("INPUTS_REJUDGE_EXIT")),
            "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
            "rejudge_verdict": boundary.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),

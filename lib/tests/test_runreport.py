@@ -21,6 +21,7 @@ import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import declared_checks  # noqa: E402
 import eyesbeside  # noqa: E402
+import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
 import handoff  # noqa: E402
 import judgebeside  # noqa: E402
@@ -828,6 +829,7 @@ class DecisionsCase(Base):
         self.assertIn("- 直す義務に戻せなかった単位: 単位 u9: 赤のまま", head)
         self.assertIn("- 前提の検算が人に上げた物: 検算の判定 escalate: 仮定が偽", head)
         self.assertFalse([x for x in head if "{" in x], head)
+        self.assertIn(f"  - {eyeverdict.PREMISE_NO_REPLY}\n", text, "欄 premise_reply の無い目の出力は黙らず 1 行で言う（E37 の運びも空）")
 
     def test_parked_clash_names_its_requests_and_patch(self):
         """#382: 合わせ役が直せず組どうしの合わせの申し出にした組（欄 clash の outcome parked）は、3 行目で申し出の id と控えの差分を
@@ -2533,7 +2535,7 @@ class LinesCase(Base):
 
     def test_converge_lines_reach_the_report(self):
         """L-D22・P119・R35: 事前審査の壁打ちの往復の行（何往復・抜け方・続いた block と、往復ごとの block・fixed・disputed・suggest に
-        下げた key・項目の閉じた/開いた/保留・相乗りの block。converge.lines）を、事前審査の返り review の隣の gate.json の converge から
+        下げた key・項目の閉じた/開いた/保留・相乗りの block。converge.lines）を、事前審査の出力の欄 gate の先の converge から
         人が決めることの節に出す（元 report.head_decisions の converge.lines(b)。計画の往復と案の直しの事前審査の両方）"""
         import converge
         head = converge.LINE_HEAD.format(n=2, word="同じ block が続いた", outcome="persisted", persists="k1", share="",
