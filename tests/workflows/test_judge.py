@@ -133,8 +133,8 @@ def loops() -> dict:
 
 
 class ParallelPrThroughReadOnlyGhTest(unittest.TestCase):
-    """run の中の素の gh は起動が PATH の頭に置く読むだけの口（bin/_lib/no-post-bin/）。並行 PR の数えの gh の打ち方が口の許可の表に
-    合うことを縛る（片側だけ変えると、試験は緑のまま run の中だけで口が拒み、人待ちになる）"""
+    """役の claude の PATH の頭には読むだけの口（bin/_lib/no-post-bin/）が在る。並行 PR の数えの gh の打ち方が口の許可の表に
+    合うことを縛る（script のノードは利用者のログインを継ぐ口を直に打つが、打ち方は読むだけの口の前でも通る形に保つ）"""
 
     def test_parallel_pr_scan_passes_the_read_only_gh(self):
         with tempfile.TemporaryDirectory(prefix="works-judge-gh-") as tmp:
@@ -334,7 +334,7 @@ class LoopTest(unittest.TestCase):
         見出しと文で出す（1 周目の $LOOP_PREV は空の字）。素材の輪には <役>-reject の節が無く、<役>-prep の返りが reason・lang_line を持つ。
         控えの全部を渡す輪（LEDGER_REJECTS）は script rejects の節で、$LOOP_PREV でなく受け付けの拒否の控えと前の周の受け付けの ok を結ぶ（#345・#571）。
         役の節には with: を書かず、指示書には $INPUTS も $LOOP_PREV も書かない: 線が include すると、止めた Archon は輪の中の節が
-        自分の with: で結んだ名を楯にせず「入力が無い」で止める（packages/workflows/src/include-expander.ts:566・627。楯は輪の節の
+        自分の with: で結んだ名を楯にせず「入力が無い」で止める（packages/workflows/src/include-expander.ts の applyInputsMacro・inlineInclude。楯は輪の節の
         束縛だけを見る）。ブロックの入力に宣言すると読み込みの時に既定の値で字が埋まり、周ごとの理由が消える。指示書の $LOOP_PREV は
         include した時だけ解け、単独の run では字のまま役に届く"""
         lead = rolekit.with_reject("", "").split("\n\n")[1].removesuffix(":")

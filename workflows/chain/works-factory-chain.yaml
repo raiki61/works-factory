@@ -5,9 +5,10 @@ description: |
   起こす・待つ・承認・再開・費用の合算は Archon の workflow: のノードが持ち、works-factory が書くのは周の commit（round_commit）・
   次の依頼（round_facts）・止めの決め（decide）の script だけ。鎖は名指して起こした時だけで、メイングラフを直に起こせば今の 1 周の run のまま。
   鎖の最後のノード final-diff が、止まった周を採らずに元の基から採る周までの差分を封じ、周ごとの表 chain.md を親の置き場に書く。
+  出口の語 pr の時だけ、その後にサブグラフ merge を check で include し、親の run の枝を最後の差分と照らして PR を 1 本作る（周の子は PR を作らない）。
   出力はノード result（最後の決めの act・止めの語 word・周ごとの行 rounds と、止めの語が closed の時に真の closed と、bin/apply が
   読む最後の差分 apply・sealed・R2 の語 r2_status・承認し直すかの問いの数 spec_questions と chain.md のポインタ report）。
-  bin/apply <親の run> が最後の差分を当てる。
+  bin/apply <親の run> が最後の差分を当てる。出口の語 pr の run は、result の deliver が PR の在りかか作らずに止めた訳を持つ。
 
 inputs:
   rounds:
@@ -61,6 +62,9 @@ inputs:
   lang:
     default: ""
     description: どの周の子にも渡すメイングラフの同じ名の入力
+  deliver:
+    default: ""
+    description: 出口の語（lib/entry.py の DELIVERS）。周の子には空で渡し、子は PR を作らない。pr は最後の差分を封じた後に、親の run の枝を最後の差分と照らし、Archon に同梱の archon-pr で PR を 1 本だけ作る（親の run の枝が対象の既定の枝と同じ名なら push せずに止める。merge はしない）。知らない語は chain-start が止める
 
 # 周の commit（round-k-commit）は run の作業ツリーの枝へ積む。--no-worktree で利用者の作業ツリーに走らせない
 worktree:
@@ -92,7 +96,8 @@ nodes:
         first_request: { type: string }
         first_pr: { type: integer }
         origin: { type: string }
-      required: [ok, reason, act, word, text, request, base, pr, spec, rows, rounds, budget, first_request, first_pr, origin]
+        deliver: { type: string }
+      required: [ok, reason, act, word, text, request, base, pr, spec, rows, rounds, budget, first_request, first_pr, origin, deliver]
     mutates_checkout: false
 
   # 周ごとの 4 つのノード。5 組は番号と前の決め（1 周目は chain-start、ほかは前の周の round-<k-1>-decide）のほかは同じ形。
@@ -119,6 +124,7 @@ nodes:
         policy_md: "$INPUTS.policy_md"
         fix_fixture: "$INPUTS.fix_fixture"
         lang: "$INPUTS.lang"
+        deliver: ""
       request: "$chain-start.output.request"
       base: "$chain-start.output.base"
       pr: "$chain-start.output.pr"
@@ -349,14 +355,15 @@ nodes:
         ok: { type: boolean }
         reason: { type: string }
         apply: { type: [object, "null"] }
-        sealed: { type: [object, "null"] }
+        sealed: { type: [object, "null"], properties: { hash: { type: string } } }
         report: { type: [object, "null"] }
         kept: { type: integer }
         skipped: { type: array, items: { type: integer } }
         outcome: { type: string }
         r2_status: { type: [string, "null"] }
         spec_questions: { type: integer }
-      required: [ok, reason, apply, sealed, report, kept, skipped, outcome, r2_status, spec_questions]
+        placed: { type: boolean }
+      required: [ok, reason, apply, sealed, report, kept, skipped, outcome, r2_status, spec_questions, placed]
     mutates_checkout: false
     depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide]
     trigger_rule: all_done
@@ -368,6 +375,19 @@ nodes:
       d3: { from: "$round-3-decide.output", if_skipped: null }
       d4: { from: "$round-4-decide.output", if_skipped: null }
       d5: { from: "$round-5-decide.output", if_skipped: null }
+
+  # 出口の語 pr の時だけ。親の run の枝（周の commit が積まれた枝）を元の基からの最後の差分と照らし、PR を 1 本作る。最後の差分に入る
+  # どの周も差分を置いた時だけ（placed）
+  - id: hand
+    include: works-factory-merge
+    depends_on: [final-diff]
+    when: "$chain-start.output.deliver == 'pr' && $final-diff.output.placed == true"
+    with:
+      mode: check
+      base_rev: "$chain-start.output.origin"
+      sealed_hash: "$final-diff.output.sealed.hash"
+      deliver: "$chain-start.output.deliver"
+      request: "$chain-start.output.first_request"
 
   # 鎖の出力。周の子かその周のノードか final-diff が落ちて後ろが飛んでも走る（resume のたびに走り直す）
   - id: result
@@ -391,15 +411,17 @@ nodes:
         r2_status: { type: [string, "null"] }
         spec_questions: { type: integer }
         stop_reason: { type: string }
+        deliver: { type: [object, "null"] }
       required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, spec_questions,
-                 stop_reason]
+                 stop_reason, deliver]
     mutates_checkout: false
-    depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide, final-diff]
+    depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide, final-diff, hand]
     trigger_rule: all_done
     always_run: true
     with:
       start: { from: "$chain-start.output", if_skipped: null }
       final: { from: "$final-diff.output", if_skipped: null }
+      hand: { from: "$hand.output.deliver", if_skipped: null }
       d1: { from: "$round-1-decide.output", if_skipped: null }
       d2: { from: "$round-2-decide.output", if_skipped: null }
       d3: { from: "$round-3-decide.output", if_skipped: null }

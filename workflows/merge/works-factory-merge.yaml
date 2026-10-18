@@ -1,12 +1,19 @@
 name: works-factory-merge
-description: 取り込み。seal は run の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして run の置き場に置く（対象のリポジトリへ当てるのは人）
+description: |
+  取り込みと渡し方。seal は run の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして run の置き場に置き、
+  check は封じた hash を今の差分と照らすだけで置く。apply・check の後の渡し方は出口の語で決まる: 空は置くだけ（対象のリポジトリへ
+  当てるのは人）、pr は照らした差分を run の枝に 1 つの commit で積み、Archon に同梱の archon-pr の子の run がその枝への push と PR の
+  作成をする（対象の既定の枝と同じ名の枝では止める。merge はしない）
 inputs:
   mode:
     required: true
-    description: seal（差分を封じる）か apply（封じた差分を置き場に置く）
+    description: seal（差分を封じる）・apply（封じた差分を置き場に置く）・check（封じた hash を今の差分と照らすだけで置く）
   start:
-    required: true
-    description: 始めの記録のポインタ（base_rev を読む）
+    default: ""
+    description: 始めの記録のポインタ（base_rev を読む。seal・apply だけ）
+  base_rev:
+    default: ""
+    description: 差分の根の版（check だけ）
   fingerprint:
     default: ""
     description: 修正の後のテストの緑の認証の指紋 {head, diff_hash}
@@ -18,35 +25,43 @@ inputs:
     description: 修正の後の独立の確かめが通ったか（ok）
   sealed_hash:
     default: ""
-    description: seal が封じた差分の hash（apply だけ）
+    description: 封じた差分の hash（apply・check）
   answer:
     default: ""
     description: 最後に人が返した答え {decision, text}。人に聞かなければ null（apply だけ）
   r2:
     default: ""
     description: 独立設計との比較（R2）の {status, reason}。省いた・走らなければ null（apply だけ）
+  deliver:
+    default: ""
+    description: 出口の語（空は差分を置くだけ・pr は PR まで。lib/entry.py の DELIVERS。apply・check だけ）
+  request:
+    default: ""
+    description: 依頼のファイルのパス（相対なら対象の根から。空は無し）。pr の時に、PR の文へ依頼が名指した issue を渡す
 returns: merge
 outcome_field: ok
 nodes:
-  - id: merge
+  - id: place
     script: merge
     runtime: uv
     mutates_checkout: false
     with:
       mode: $INPUTS.mode
       start: $INPUTS.start
+      base_rev: $INPUTS.base_rev
       fingerprint: $INPUTS.fingerprint
       green_ok: $INPUTS.green_ok
       eyes_ok: $INPUTS.eyes_ok
       sealed_hash: $INPUTS.sealed_hash
       answer: $INPUTS.answer
       r2: $INPUTS.r2
+      deliver: $INPUTS.deliver
     output_format:
       type: object
       properties:
         mode:
           type: string
-          enum: [seal, apply]
+          enum: [seal, apply, check]
         ok:
           type: boolean
         hash:
@@ -66,5 +81,126 @@ nodes:
           type: [integer, "null"]
         reason:
           type: string
-      required: [mode, ok, hash, diff, protected_hits, protected_count, reason]
+        base_rev:
+          type: string
+        deliver:
+          type: string
+      required: [mode, ok, hash, diff, protected_hits, protected_count, reason, base_rev, deliver]
+      additionalProperties: false
+
+  # 出口の語 pr だけ。照らした差分を run の枝に 1 つの commit で積む（作業ツリーの HEAD と index を変える）。seal は差分を封じるだけ
+  - id: pr-commit
+    script: pr_commit
+    runtime: uv
+    depends_on: [place]
+    when: "$place.output.ok == true && $place.output.deliver == 'pr' && $place.output.mode != 'seal'"
+    with:
+      mode: "$place.output.mode"
+      base_rev: "$place.output.base_rev"
+      sealed_hash: "$place.output.hash"
+      request: $INPUTS.request
+    output_format:
+      type: object
+      properties:
+        go: { type: boolean }
+        head: { type: string }
+        branch: { type: string }
+        base: { type: string }
+        repo:
+          type: [object, "null"]
+          properties:
+            host: { type: string }
+            path: { type: string }
+          required: [host, path]
+        reason: { type: string }
+      required: [go, head, branch, base, repo, reason]
+      additionalProperties: false
+
+  # push と PR の作成は Archon に同梱の archon-pr。題と本文を決める AI のノード prepare は書き込みをせず、script のノード publish が
+  # push して PR を作り、読み戻す。push の先の枝は入力 branch が決め（publish は prepare の返す head より branch を採る）、prepare には
+  # 決めさせない。子の run への渡し物は積んだ commit の文（with: と input: は一緒に書けない）。子の run は同じ作業ツリーで走る
+  - id: pr-open
+    workflow: archon-pr
+    depends_on: [pr-commit]
+    when: "$pr-commit.output.go == true"
+    with:
+      branch: "$pr-commit.output.branch"
+
+  # 子の run が落ちればこの節は飛ばされ、返す節が飛ばされたことを訳にする
+  - id: pr-read
+    script: pr_read
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [pr-open]
+    with:
+      got: "$pr-open.output"
+      head: "$pr-commit.output.head"
+      branch: "$pr-commit.output.branch"
+      base_branch: "$pr-commit.output.base"
+      repo: "$pr-commit.output.repo"
+    output_format:
+      type: object
+      properties:
+        ok: { type: boolean }
+        number: { type: [integer, "null"] }
+        url: { type: string }
+        is_draft: { type: [boolean, "null"] }
+        reason: { type: string }
+      required: [ok, number, url, is_draft, reason]
+      additionalProperties: false
+
+  # optional は、このブロックが落ちても線が先へ進めてよい節の宣言（PR を作る子の run の節）。[{node, bare}] の JSON の字
+  - id: merge
+    script: handed
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [place, pr-commit, pr-read]
+    trigger_rule: all_done
+    with:
+      mode: $INPUTS.mode
+      place: "$place.output"
+      commit: { from: "$pr-commit.output", if_skipped: null }
+      read: { from: "$pr-read.output", if_skipped: null }
+      optional: '[{"node": "pr-open", "bare": false}]'
+    output_format:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [seal, apply, check]
+        ok:
+          type: boolean
+        hash:
+          type: string
+        diff:
+          type: [object, "null"]
+          properties:
+            type: { type: string, enum: [archon_artifact] }
+            run_id: { type: string }
+            path: { type: string, enum: [merge/sealed.diff, merge/apply.diff, merge/refused.diff] }
+          required: [type, run_id, path]
+        protected_hits:
+          type: [array, "null"]
+          items:
+            type: string
+        protected_count:
+          type: [integer, "null"]
+        reason:
+          type: string
+        deliver:
+          type: [object, "null"]
+          properties:
+            act: { type: string, enum: [placed, none, pr, stopped, unconfirmed] }
+            pr:
+              type: [object, "null"]
+              properties:
+                number: { type: integer }
+                url: { type: string }
+                is_draft: { type: boolean }
+              required: [number, url, is_draft]
+            reason: { type: string }
+          required: [act, pr, reason]
+        optional:
+          type: array
+      required: [mode, ok, hash, diff, protected_hits, protected_count, reason, deliver, optional]
       additionalProperties: false

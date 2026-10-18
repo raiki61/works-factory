@@ -10,7 +10,7 @@
 chain.md（lib/chain.render）に書く。
 返す apply・sealed は、メイングラフの出力と同じ形（bin/apply が読む {ok, hash, diff}）。最後の差分は元の基からなので、前の周の変更も
 入る。apply.ok は最後の差分に入る（自分の差分のファイルが在る）どの周の子の run も自分の差分を置いた時だけ真で、どれかが置かなかった時は
-sealed だけを当てられる（bin/apply の --allow-stopped）。採る周の結末の語 outcome と、r2_status（最後の差分に入る周のどれかで R2 が
+sealed だけを当てられる（bin/apply の --allow-stopped）。placed は最後の差分を封じて apply.ok が真の時だけ真（出口の語 pr の渡しが読む）。採る周の結末の語 outcome と、r2_status（最後の差分に入る周のどれかで R2 が
 作り直しと言えばそれ、ほかは採る周の物）と、spec_questions（最後の差分に入る周の承認し直すかの問いの数の和）も返す（bin/apply が
 拒む訳と、R2 の作り直しを拒むのと、承認し直しの知らせに読む）。
 書くのは親の置き場だけで、作業ツリーと枝は動かさない（git は commit の間の差分を読むだけ）。final() は始めに前の chain/final.diff と
@@ -131,6 +131,7 @@ def final() -> dict:
             got["r2_status"] = r2_of(rows, kept)
             got["spec_questions"] = spec_of(rows, kept)
             got["ok"] = True
+            got["placed"] = got["apply"]["ok"] is True
     run = os.environ["WORKFLOW_ID"]
     report = boundary.pointer(chain.REPORT)
     final_path = str(boundary.resolve(got["sealed"]["diff"])) if got["sealed"] else ""
@@ -143,7 +144,7 @@ def final() -> dict:
 
 def nothing(reason: str) -> dict:
     return {"ok": False, "reason": reason, "apply": None, "sealed": None, "report": None, "kept": 0, "skipped": [], "outcome": "",
-            "r2_status": None, "spec_questions": 0}
+            "r2_status": None, "spec_questions": 0, "placed": False}
 
 
 def main() -> None:

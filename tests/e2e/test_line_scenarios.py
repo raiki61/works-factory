@@ -149,7 +149,7 @@ class LineReturnsTest(unittest.TestCase):
 
 class UnattendedGateTest(unittest.TestCase):
     """無人の run の修正前の関所（L-G38・L-G40・P236）: 台帳の問いだけなら関所を開かず修正へ進み、方針の文書の変化が在れば修正へ
-    進まずに止まる。筋書きの宣言は節が走らなかったことを照らせない（止めた Archon の packages/workflows/src/fixture-runner.ts 70-77 行）
+    進まずに止まる。筋書きの宣言は節が走らなかったことを照らせない（止めた Archon の packages/workflows/src/fixture-runner.ts の fixtureDeclarationSchema）
     ので、dry-run の trace で照らす"""
 
     @classmethod
@@ -268,6 +268,21 @@ class ProtectedNotAppliedTest(unittest.TestCase):
         self.assertIsNone(json.loads(trace["result"]["output"])["apply"])
 
 
+class DefaultDeliverTest(unittest.TestCase):
+    """#555: 出口の語を名指さない（既定の空の）run は、差分を置いて止まり、run の枝に積む節と PR を作る子の run の節が走らない"""
+
+    def test_default_run_places_without_the_pr_path(self):
+        trace = line_traces(("standard",))["standard"]
+        ran = UnattendedGateTest.ran
+        self.assertTrue(ran(trace, "merge-apply__place"))
+        self.assertTrue(ran(trace, "merge-apply__merge"))
+        for node in ("merge-apply__pr-commit", "merge-apply__pr-open", "merge-apply__pr-read",
+                     "merge-seal__pr-commit", "merge-seal__pr-open", "merge-seal__pr-read"):
+            self.assertFalse(ran(trace, node), node)
+        got = json.loads(trace["merge-apply-out"]["output"])["got"]
+        self.assertEqual(got["deliver"], {"act": "placed", "pr": None, "reason": ""})
+
+
 class HeadDepthTest(unittest.TestCase):
     """run の頭の深さ（issue #441）: 計画の壁打ち（plan と plan-review の往復）はどの深さでも省かない。頭が軽量・重厚・標準のどの筋書きでも
     事前審査の輪が走って報告まで届き、事前審査の輪を飛ばす節（plan-review-due）は線に無い。筋書きの宣言は節が走らなかったことを
@@ -357,7 +372,7 @@ def place_beside(artifacts: pathlib.Path, stage: dict) -> None:
 class ConflictGateTest(unittest.TestCase):
     """筋書き conflict-ask の最後の関所（L-W24・F426。部分 B2 の受け入れ）: 申し出は人に回した行（ask_human・諦めた fix_plan_item）
     だけを数え、裁定が直す裁定だけなら protected_only の関所は開かず、ask_human の行が 1 つ在れば開いて文にその行が出る。dry-run は
-    置き場にファイルを書けず（止めた Archon の packages/workflows/src/dry-run.ts 614・798 行）、run の id も dry-run（同 791 行）なので、
+    置き場にファイルを書けず（止めた Archon の packages/workflows/src/dry-run.ts の executeCodeNode）、run の id も dry-run（同じ所の `workflowId: 'dry-run',`）なので、
     stub の conflicts.json の指し札は筋書きの中では読めない: 筋書きでは読めない控えを名指して開くことを照らし、裁定の中身で開くかは、
     筋書きが ask-final に結んだ値のまま script を走らせ直し、指し札の先に控えを置いて照らす"""
 
@@ -501,7 +516,7 @@ class RefixInputsTest(unittest.TestCase):
     """部分 D1 の受け入れ: 筋書き replan で 2 度目の修正（refix-run）に 1 回目の申し出と裁定（prior_conflicts）・案の直しの事前審査の
     返り（plan_review）・機械の申し送り（notes）・直す項目の JSON の配列（only_items。S44）が届き、筋書き standard で独立の目に
     修正役の規模の数値（x_scalars）が届く。dry-run は include の入力を名前の script に渡さず（docs/design.md の U3。止めた Archon の
-    packages/workflows/src/dry-run.ts 757-766 行）、resolved-text-contains は script の節の with: を写さないので、筋書きが include の
+    packages/workflows/src/dry-run.ts の executeCodeNode）、resolved-text-contains は script の節の with: を写さないので、筋書きが include の
     with: に結んだ値を trace から引いて照らす。notes は dry-run が置き場にファイルを置けないので、筋書きが answer-replan に結んだ値の
     まま script を走らせ直し、指し札の先に事前審査の返りと修正案の役の返答を置いて照らす"""
 

@@ -13,7 +13,7 @@ lang_line で返す（読めない記録・思わぬ誤りの時は既定の言�
 一覧の形は止めた Archon の packages/workflows/src/schemas/node-artifact.ts の nodeArtifactsListingSchema
 （{runId, artifactsByType: {型: [{nodeId, outputType, loopGroupPath?, path, runId, producedAt, size}]}, errors: [{path, kind, code?}]}）。
 型の名と include の名は決め打たず、一覧に在る物で組む。読めない物は名前つきの限りとして warnings に入れ、黙らない
-（ASF の .archon/workflows/sdlc/.shared/report.ts:126-206 の型）。"""
+（ASF の .archon/workflows/sdlc/.shared/report.ts の latestVerdictFromListing・discoveries の型）。"""
 import json
 import os
 import sys

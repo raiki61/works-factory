@@ -121,6 +121,7 @@
   - 起こす場所の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env`（`archon setup` の既定の書き先）が `CLAUDE_BIN_PATH` を名指すと、Archon はその値で包みを置き換えるか消す（`packages/paths/src/strip-cwd-env.ts`・`packages/paths/src/env-loader.ts` の `loadArchonEnv`）。起動の殻はその時 Archon を起こさずに止める。同じファイルが `WORKS_FACTORY_FENCE_RECORDS`（下の宣言）を名指しても止める。
   - 起動の記録（今の works の包みの起動の記録と `ci_role.take`。`docs/plans/2026-10-13-capabilities/tail.md` の T49）: 包みは印の在る起動を、起こす前に `--records` の記録（家の `claude-fence/launches.jsonl`。`--own` の下で役は書き換えられない）へ時刻と cwd の 1 行で足し、書けなければ起こさない。起動の殻は同じパスを子の env `WORKS_FACTORY_FENCE_RECORDS` に置き、run が包みを通ると script のノードに宣言する。宣言が読めない（絶対パスでない）run は test-gate の `ci-prep` が落ち、CI の役を起こさない。宣言した run では test-gate の `ci-accept` が、`ci-prep` の後にその作業ツリーで柵の掛かった起動が記録に無ければ返答を受けずに諦める。宣言の無い run（殻を通らない起動。`tests/archon.py` が起こす Archon）は、test-gate の証拠に知らせ `NO_ADAPTER_NOTE` を出す。
   - 印を書かない役: Edit・Write を持つ役（直す役・書く役）は作業ツリーを変えるのが仕事で、cwd を禁じると仕事ができない。今の works の柵も道具に書き込みの無い役だけに掛けた（`graphloops/engine/role_run.py` の `tooled_permission` と `DELEGATE_TOOLS`）。
+  - 役の PATH の頭（持ち主の決め `roles-read-only-gh`）: Archon はノードごとの環境を持たず、script のノードにも役の claude にも同じ環境（Archon の過程の env に設定の `env:` を重ねた物）を渡す（`packages/provider-contract/src/agent-provider.ts` の env の組み・`packages/workflows/src/dag-executor.ts` の script の env）。だから起動の殻は Archon の子の PATH の頭に利用者のログインを継ぐ gh の口（`bin/_lib/hostgh.py`）だけを置き（script のノードと、出口の語 `pr` の時に push と PR の作成をする `archon-pr` の publish が打つ）、包みは `--path-head` で名指された読むだけの口の置き場（`bin/_lib/no-post-bin/`）を、起こす claude の PATH の頭に足す（印の有無に依らない）。script のノードが起こす対象のコマンド（AI が書いた試験のコードも走る）には、起動の殻が同じ置き場を `WORKS_FACTORY_READ_GH`（`lib/userenv.py` の `READ_GH_ENV`）で渡し、`lib/tree_run.py` の `outside_env` が PATH の頭に足す。試験は `tests/shared/test_fence.py` の `test_path_heads_lead_the_path_of_claude_only` と `tests/bin/test_launcher.py` の `test_role_path_starts_with_read_only_gh`・`test_target_commands_hit_the_read_only_gh`。
   - 足りない残り: judge の読むだけの役の受け付けは起動の記録を見ない（今の works にも無い）。包みを通らない起動には固定の値だけが残る。
 - 使うサブグラフ: judge・test-gate
 - 外す条件: ノードの `sandbox` が run ごとの値（cwd・共通の `.git`・worktree の根）を受ける版が出たら
@@ -235,8 +236,8 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 - 証拠:
   - `packages/workflows/src/dag-executor.ts` の「A binding never falls back to 'if_skipped' for a failed producer」（`resolveBindingDirective` が、落ちた producer を `assertProducerNotFailed` で止める）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit で `dag-executor.ts` を変えたのは、本文が振る舞いを変えない移しと言う `14de72582`（#4487。中身の一部を `dag/` の 5 ファイルへ分けた）だけで、引用の字は同じファイルに残る）。
-- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。
-- 使うサブグラフ: メイングラフ・fix
+- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。merge の読み戻しのノード `pr-read`（script `workflows/merge/scripts/pr_read.py`）も同じ形で、PR を作る子の run（`pr-open`）が落ちれば飛ばされ、出力ノード `merge` が `if_skipped: null` で受けて作らずに止めた訳を返す。
+- 使うサブグラフ: メイングラフ・fix・merge
 - 外す条件: 見込みは無い（Archon が落ちたノードの出力を `if_skipped` に落とさないと決めている。上の証拠の文）。決めが変わって落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
 
 ## 外した

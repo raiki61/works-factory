@@ -152,7 +152,7 @@
 - S013 AI の役の gh は読む形だけに絞り、PR への投稿を拒む（事故の柵）
   - 元: SKILL.md:15
   - 印: 無し
-  - 今: `bin/_lib/no-post-bin/works-gh::ALLOWED`・`bin/_lib/launcher.py::launch`（役の PATH の頭に置く）
+  - 今: `bin/_lib/no-post-bin/works-gh::ALLOWED`・`bin/_lib/launcher.py::write_fence`・`workflows/.shared/fence.py::main`（役の claude の PATH の頭に置く。script のノードの PATH には置かない）
   - 状態: 在る
   - 旧棚卸し: J106
 
@@ -1405,8 +1405,8 @@
 - S185 差分（run の worktree と周の頭の版の差。手直しと未追跡も入る）を書く。修正は commit されない
   - 元: SKILL.md:139
   - 印: 無し
-  - 今: `workflows/merge/works-factory-merge.yaml::merge`（封じた差分を run の置き場に書く）・`lib/seal.py::write_readback`
-  - 状態: 形を変えて在る（置き場は利用の家の diffs の下でなく run の置き場。封じる前に止まった run は差分のファイルが無く、`bin/apply` が作業ツリーから組む素の git の行を出す）
+  - 今: `workflows/merge/works-factory-merge.yaml::place`（封じた差分を run の置き場に書く）・`lib/seal.py::write_readback`
+  - 状態: 形を変えて在る（置き場は利用の家の diffs の下でなく run の置き場。封じる前に止まった run は差分のファイルが無く、`bin/apply` が作業ツリーから組む素の git の行を出す。出口の語 `pr` を選んだ run だけは、照らした差分を run の枝に 1 つの commit で積む〔`workflows/merge/works-factory-merge.yaml::pr-commit`〕。既定は今の works と同じく commit しない）
   - 処置: 要らない: 封じる前の差分を当てないのは前の棚卸し M46 の決め（#101）。拒む 1 行が素の道を残す
   - 旧棚卸し: M1・M24・M46
 
@@ -4201,7 +4201,7 @@
 - tail.md M21: lib/seal.py::apply_refusal
 - tail.md M22: lib/seal.py::apply_refusal
 - tail.md M23: lib/seal.py::apply_refusal
-- tail.md M24: workflows/merge/scripts/merge.py::main・workflows/merge/works-factory-merge.yaml::merge（`mutates_checkout: false`）
+- tail.md M24: workflows/merge/scripts/merge.py::main・workflows/merge/works-factory-merge.yaml::place（`mutates_checkout: false`）
 - tail.md M25: workflows/merge/scripts/merge.py::broken（main の外の except が、どの誤りも終了の値 0 で ok: false と理由にして返す）
 - tail.md M26: workflows/line/scripts/ask_final.py::ask（`must`）・workflows/line/scripts/ask_final.py::needs・workflows/line/works-factory-line.yaml::ask-final（merge-seal の protected_hits を ask-final に渡す）
 - tail.md M27: workflows/line/scripts/ask_final.py::final_head

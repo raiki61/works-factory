@@ -1,6 +1,6 @@
 """K6 周ごとの値（$LOOP_PREV）を本物の Archon で確かめる（docs/plans/2026-10-13-stage1-walking-skeleton.md の手順 6）。
 
-筋書き（archon workflow test）は前の周の出力を渡さない（止めた Archon の dry-run.ts 795・1053-1058 行）ので、
+筋書き（archon workflow test）は前の周の出力を渡さない（止めた Archon の dry-run.ts の executeCodeNode の `loopPrevOutput: ''`・simulateLoopGroup）ので、
 tests/e2e/loop-prev/ の使い捨ての工程を、止めた Archon を bun で直に起こして回す。殻 bin/works-factory は
 --workflow-source を拒み workflows/ だけを渡すので通さない。
 - LoopPrevScriptedCase: 役の節 echo を script（scripts/echo_back.py）に差し替えた写しを回す。AI も認証も要らないので CI でも走る。

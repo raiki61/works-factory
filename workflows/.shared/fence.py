@@ -1,8 +1,9 @@
 """埋め P5（docs/polyfills.md）: 読むだけの役の claude を起こす直前に、書き込みを禁じるパスの一覧を組んで sandbox の denyWrite に足す包み。
 
-止めた Archon は役の sandbox を置き換えずに SDK へ渡す（packages/workflows/src/dag-executor.ts:1847・
-packages/providers/src/claude/provider.ts:801-803）ので、YAML の固定の値では run ごとに違うパス（cwd・共通の .git・worktree の根）を
-名指せない。Archon が起こす claude の実行ファイルは CLAUDE_BIN_PATH で替えられる（packages/providers/src/claude/binary-resolver.ts:172-178）
+止めた Archon は役の sandbox を置き換えずに SDK へ渡す（packages/workflows/src/dag-executor.ts の
+『sandbox: node.sandbox ?? workflowLevelOptions.sandbox,』・packages/providers/src/claude/provider.ts の applyNodeConfig）ので、
+YAML の固定の値では run ごとに違うパス（cwd・共通の .git・worktree の根）を名指せない。Archon が起こす claude の実行ファイルは
+CLAUDE_BIN_PATH で替えられる（packages/providers/src/claude/binary-resolver.ts の resolveClaudeBinaryWithSource）
 ので、起動の殻（bin/_lib/launcher.py の write_fence）がこの包みをそこに置く。SDK は sandbox を `--settings` の JSON の字に入れて
 渡し、設定のファイルのパスでは渡さない（tests/shared/test_archon_contract.py が SDK の源で照らす）。
 
@@ -13,6 +14,9 @@ packages/providers/src/claude/provider.ts:801-803）ので、YAML の固定の�
 足し、書けなければ起こさない。記録は --own の下に置かれ、柵の中の役は書き換えられない。受け付け（test-gate の ci-accept）は
 fenced_since で、役を起こす前の時刻より後にその作業ツリーで柵の掛かった起動が在ったかを見る（今の works の ci_role.take の
 「包みの起動の記録を見て止める」と同じ所。棚卸しの T49）。
+起こす claude の PATH の頭には、起動の殻が --path-head で名指した置き場（読むだけの gh の口 works-gh の置き場）を足す。Archon は
+script のノードと役の claude に同じ環境を渡すので、gh を書き込みのできる口（script のノードが通す hostgh の口）と読むだけの口に
+分けられるのは、役の claude を起こすこの包みだけ（持ち主の決め roles-read-only-gh）。
 起こす claude には ENGINE_CHILD_ENV=1 を立てる。対象の重い一式（e2e など）がこの名で AI の役からの起動を見分けて拒む、今の works の
 約束の名（skills/works/SKILL.md）。最後のテストは script のノードが走らせて包みを通らないので立たない（今の works と同じ）。
 標準ライブラリだけを使う（起動の殻が `python -I -B` で起こす）。
@@ -173,6 +177,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--claude-config", required=True)
     ap.add_argument("--own", action="append", default=[])
     ap.add_argument("--records", required=True)
+    ap.add_argument("--path-head", action="append", default=[])
     opts = ap.parse_args(argv[:cut])
     rest = argv[cut + 1:]
 
@@ -187,6 +192,7 @@ def main(argv: list[str]) -> int:
         print(f"works-factory fence: {refused}", file=sys.stderr)
         return REFUSED_EXIT
     os.environ[ENGINE_CHILD_ENV] = "1"
+    os.environ["PATH"] = os.pathsep.join(filter(None, [*opts.path_head, os.environ.get("PATH")]))
     os.execv(opts.real, [opts.real, *rest])
 
 

@@ -1,7 +1,7 @@
 """返す節と、返す節が結ぶ節は落ちない（落とし穴 K1・K13・K16。docs/plans/2026-10-13-capabilities/pitfalls.md）。
 
-止めた Archon は、落ちた節の出力を結んだ節を trigger_rule: all_done でも落とす（packages/workflows/src/dag-executor.ts 495-533 行
-resolveBindingDirective・output-ref.ts 590-597 行）。返りの指し札の先が無い・空でも節を落とす（artifact-pointer.ts 141-153 行）。
+止めた Archon は、落ちた節の出力を結んだ節を trigger_rule: all_done でも落とす（packages/workflows/src/dag-executor.ts の
+resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProducerNotFailed）。返りの指し札の先が無い・空でも節を落とす（artifact-pointer.ts の checkPointer）。
 返りは JSON.parse で読むので NaN・Infinity を書けない。
 - 線と全ブロックの返す節の script を、境の口（.shared）も lib も隣の script も無い一時のフォルダへ単独で写し、入力無しで走らせる。
   終了の値 0 で、標準出力の JSON が節の output_format に合う
@@ -48,6 +48,10 @@ NEVER_FAIL = {
     ("line", "sweep-children"): ALONE_BOUND,
     ("chain", "chain-start"): ALONE_BOUND,
     ("chain", "final-diff"): ALONE_BOUND,
+    ("chain", "hand"): ALONE_RETURN,
+    ("merge", "place"): ALONE_BOUND,
+    ("merge", "pr-commit"): ALONE_BOUND,
+    ("merge", "pr-read"): ALONE_BOUND,
     **{("chain", f"round-{k}-decide"): ALONE_BOUND for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 
@@ -69,7 +73,10 @@ LIBLESS_EXITS = {
     "workflows/fix/scripts/collect.py": "fix の返す節",
     "workflows/test-gate/scripts/result.py": "test-gate の返す節",
     "workflows/eyes/scripts/verdict.py": "eyes の返す節",
-    "workflows/merge/scripts/merge.py": "merge の返す節",
+    "workflows/merge/scripts/merge.py": "merge の返す節が $place.output で結ぶ",
+    "workflows/merge/scripts/handed.py": "merge の返す節",
+    "workflows/merge/scripts/pr_commit.py": "merge の返す節が $pr-commit.output で結ぶ",
+    "workflows/merge/scripts/pr_read.py": "merge の返す節が $pr-read.output で結ぶ",
     "workflows/report/scripts/collect.py": "report の返す節",
     "workflows/report/scripts/facts.py": "report の返す節が $facts.output で結ぶ",
     "workflows/chain/scripts/result.py": "周の鎖の返す節",

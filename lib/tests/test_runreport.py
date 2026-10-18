@@ -1458,7 +1458,7 @@ class AcceptCase(Base):
         self.assertTrue(part.startswith(handoff.ASK))
         self.assertIn(handoff.USE, part)
         self.assertLess(part.index(str(handoff.path_of(self.out / "r1"))), part.index(str(handoff.path_of(self.out / "r2"))))
-        self.assertNotIn("r3", part, "今の周の前までだけ")
+        self.assertNotIn(str(handoff.path_of(self.out / "r3")), part, "今の周の前までだけ")
         rolekit.rejects_path(self.out, runreport.REPORT_NODE).write_text("{壊れた", encoding="utf-8")
         self.assertEqual(runreport.handoff_part(self.out), handoff.ASK)
 
@@ -2686,6 +2686,24 @@ class LinesCase(Base):
                 self.assertEqual(text.splitlines()[3], runreport.APPLY_ASK + said)
         self.assertEqual(runreport.apply_said(fixed_run(**{"sealed-diff": seal_ok}), "round_limit", RUN, 0),
                          f"確かめてから当てる（結末が「{report.OUTCOME_WORDS['round_limit']}」。bin/apply {RUN}）")
+
+    def test_head_says_the_pr_made_or_why_it_stopped(self):
+        """#555: 出口の語 pr の run の冒頭の 2 行目は、PR を作った在りかか、作らずに止めた訳か、作ったと確かめられなかった訳（push や
+        PR の作成が済んでいるかもしれない）と当て方を言う。出口の語が空の run は今のまま"""
+        seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
+        applied = fixed_run()["applied-diff"]
+        made = {"act": "pr", "pr": {"number": 7, "url": "https://github.com/o/r/pull/7", "is_draft": True}, "reason": ""}
+        stopped = {"act": "stopped", "pr": None, "reason": "run の枝 main が対象の既定の枝と同じ名（既定の枝へは push しない）"}
+        unconfirmed = {"act": "unconfirmed", "pr": None, "reason": "PR を作る子の run が落ちたか返らなかった"}
+        cases = ((made, f"{runreport.PR_MADE}https://github.com/o/r/pull/7（下書きの PR #7。merge は対象のレビューと決まりに任せる）"),
+                 (stopped, f"{runreport.PR_STOPPED}{stopped['reason']}。当ててよい（bin/apply {RUN}）"),
+                 (unconfirmed, f"{runreport.PR_UNCONFIRMED}{unconfirmed['reason']}。当ててよい（bin/apply {RUN}）"),
+                 ({"act": "placed", "pr": None, "reason": ""}, f"当ててよい（bin/apply {RUN}）"))
+        for handed, said in cases:
+            with self.subTest(act=handed["act"]):
+                returns = fixed_run(**{"sealed-diff": seal_ok, "applied-diff": {**applied, "deliver": handed}})
+                _, text, _ = self.build(returns)
+                self.assertEqual(text.splitlines()[3], runreport.APPLY_ASK + said)
 
     def test_tests_head_lines_and_deleted_files(self):
         """T35・T41・M38（部分 B2 の申し送り。最後の関所と同じ行を報告の冒頭に）: 人が決めることの節に最後のテストの一式の行と修正前のテストの

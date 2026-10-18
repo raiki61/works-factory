@@ -24,6 +24,19 @@ class NoAsfTest(unittest.TestCase):
             got = scan.problems("E8", root)
         self.assertTrue(any("works-factory-judge.yaml:4" in line and "workflow" in line for line in got), got)
 
+    def test_only_the_listed_node_may_call_archon_pr(self):
+        """外しは表 ARCHON_CALLS の節（merge の pr-open が archon-pr を呼ぶ）だけ。ほかの節・ほかのグラフ・include は赤"""
+        listed = "name: works-factory-merge\nnodes:\n  - id: pr-open\n    workflow: archon-pr\n"
+        with tree({"workflows/merge/works-factory-merge.yaml": listed}) as root:
+            self.assertEqual(scan.problems("E8", root), [])
+        for folder, ident, key, value in (("merge", "other", "workflow", "archon-pr"), ("judge", "pr-open", "workflow", "archon-pr"),
+                                          ("merge", "pr-open", "workflow", "archon-ship"), ("merge", "pr-open", "include", "archon-pr")):
+            with self.subTest(folder=folder, ident=ident, key=key, value=value):
+                yaml = f"name: works-factory-{folder}\nnodes:\n  - id: {ident}\n    {key}: {value}\n"
+                with tree({f"workflows/{folder}/works-factory-{folder}.yaml": yaml}) as root:
+                    got = scan.problems("E8", root)
+                self.assertTrue(any(f"{key}: の値 {value}" in line for line in got), got)
+
     def test_include_in_nested_nodes_is_red(self):
         yaml = (
             "name: works-factory-judge\nnodes:\n  - id: g\n    loop_group:\n      nodes:\n"

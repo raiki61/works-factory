@@ -75,7 +75,7 @@ LINE_SCRIPT = "works:line-script"
 # 欄の名と include の id は字が違う物（rejudge は rejudge-run）があり、2 度目の修正 refix-run は受け皿が無く 1 回目の修正 fix と同じブロックの
 # 宣言を使う（refix-run は fix の後にしか走らない）
 INNER = {"test_gate_base": ("test-gate-base",), "judge": ("judge",), "rejudge": ("rejudge-run",), "structure": ("structure",),
-         "fix": ("fix", "refix-run")}
+         "fix": ("fix", "refix-run"), "merge_apply": ("merge-apply",)}
 # 段の表（メイングラフの段の名と順を持つ 1 か所。report へ値で渡し、lib はこの表で段の名と返りの続きの切れ目を決める）。
 # nodes: 報告の入力の役の名 → この線の節の id（名の替わった物だけ。承認の答えの役は承認ノードの id を指す。載っていない役は名がそのまま節の id）。
 # links: 返りの続き。前の段 before の欄 flag（None は返りが在るだけ）が真なのに後の段 after の返りが無ければ text の切れ目。

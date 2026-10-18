@@ -22,8 +22,12 @@ IN_LOOP_REFUSED = {
     f"{scan.OURS_PREFIX}probe-fix": (
         ["error: loop_group 'rounds' body: 'workflow' (sub-run) is not supported inside a loop_group body"],
         "fix は組の子の run を workflow: の節で起こす。Archon は loop_group の本体に workflow: の節を置けない（止めた Archon の "
-        "packages/workflows/src/loader.ts 1302-1311 行）。Archon で不可の形で、線は fix を輪の外でだけ include するので、"
+        "packages/workflows/src/loader.ts の validateDagStructure）。Archon で不可の形で、線は fix を輪の外でだけ include するので、"
         "線の能力は落ちない（狭めでない）"),
+    f"{scan.OURS_PREFIX}probe-merge": (
+        ["error: loop_group 'rounds' body: 'workflow' (sub-run) is not supported inside a loop_group body"],
+        "merge は出口の語 pr の時に PR を作る子の run（archon-pr）を workflow: の節で起こす。Archon は loop_group の本体に workflow: の"
+        "節を置けない（fix と同じ）。線と周の鎖は merge を輪の外でだけ include するので、能力は落ちない（狭めでない）"),
     f"{scan.OURS_PREFIX}probe-judge": (
         ["error: loop_group 'rounds' body: wait node 'block__spec-gate' must be the body's sole terminal sink"],
         "judge の関所 spec-gate（wait: の attention）は本体の終わりでないので、Archon は輪の本体に置けない（止めた Archon の "
@@ -61,12 +65,12 @@ class ArchonValidateTest(unittest.TestCase):
     def test_every_block_loads_when_included(self):
         """どのブロックも、線のように include された形で読み込める。ブロック 1 つを include するだけの親の工程を木に足し、必須の
         入力には仮の字を渡して validate する。ブロックを単独で照らすだけでは見えない、include の時だけの誤り（輪の中の節の with: の名を
-        $INPUTS で読む指示書が「入力が無い」で止まる。止めた Archon の packages/workflows/src/include-expander.ts:566・627）を捕まえる"""
+        $INPUTS で読む指示書が「入力が無い」で止まる。止めた Archon の packages/workflows/src/include-expander.ts の applyInputsMacro・inlineInclude）を捕まえる"""
         self.assertEqual(self.probe_includes(lambda include: [include]), {})
 
     def test_every_block_loads_when_included_inside_a_loop_group(self):
         """線の plan-rounds のように、親の工程の loop_group の中で include した形でも読み込める。輪の中の節は輪の外の節と同じ
-        走査で指示書の名を解く（止めた Archon の packages/workflows/src/include-expander.ts:566・579・596・627）"""
+        走査で指示書の名を解く（止めた Archon の packages/workflows/src/include-expander.ts の applyInputsMacro）"""
         found = self.probe_includes(lambda include: [{
             "id": "rounds", "loop_group": {"max_iterations": 2, "until_bash": 'test -n "x"', "nodes": [include]}}])
         self.assertEqual(found, {name: issues for name, (issues, _) in IN_LOOP_REFUSED.items()})

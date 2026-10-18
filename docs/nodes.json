@@ -72,7 +72,7 @@
   "7": {"name": "欠陥の探し方の数え直し", "where": ["judge/diagnose-accept", "fix/fix-accept"], "proof": ["lib/tests/test_judge_accept.py::JudgeTakeCase.test_open_unit_without_class_query_is_rejected", "lib/tests/test_fix_units.py::BuildCase.test_replaced_query_counts_and_names_the_ruling"]},
   "8": {"name": "食い違いの申し出と読むだけの裁定役", "where": ["fix/conflict-check", "fix/rule-loop", "fix/rule-prep", "fix/ruler", "fix/rule-accept"], "proof": ["lib/tests/test_conflict_kinds.py::KindCase.test_problems_by_entry_names_the_unit_of_each_entry", "lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_cited_rows_drop_claims_whose_lines_are_gone", "lib/tests/test_fix_seams.py::RulingSeamCase.test_accept_rule_rejects_then_gives_up_to_the_human", "lib/tests/test_fix_seams.py::RulingSeamCase.test_accept_rule_applies_rulings_to_the_place", "tests/workflows/test_fix.py::FixLoopScriptsCase.test_first_pass_conflict_leaves_the_loop_for_ruling"]},
   "9": {"name": "独立設計", "where": ["plan-review/r2-design", "eyes/r2-compare"], "proof": ["tests/workflows/test_plan_review.py::IsolationCase.test_r2_prep_reads_only_the_allowed_names", "tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_gets_no_forbidden_input"]},
-  "10": {"name": "守りのファイルに触れたら最後の承認ノードを開く", "where": ["eyes/protected", "merge/merge", "line/gate-final"], "proof": ["tests/workflows/test_merge.py::ApplyTest.test_no_answer_and_protected_hit_refuses", "lib/tests/test_protect.py::TouchedCase.test_changed_deleted_untracked_committed"]},
+  "10": {"name": "守りのファイルに触れたら最後の承認ノードを開く", "where": ["eyes/protected", "merge/place", "line/gate-final"], "proof": ["tests/workflows/test_merge.py::ApplyTest.test_no_answer_and_protected_hit_refuses", "lib/tests/test_protect.py::TouchedCase.test_changed_deleted_untracked_committed"]},
   "11": {"name": "直す単位ごとの記録が報告に届く", "where": ["fix/tdd-unit", "report/facts"], "proof": ["lib/tests/test_runreport.py::TddCase.test_groups_reach_tdd_lines_unchanged", "tests/workflows/test_fix.py::BlockScriptsCase.test_tdd_unit_writes_one_body_for_all_groups"]},
   "12": {"name": "世界の解に照らす", "where": ["judge/world-intake", "judge/world-classes-loop", "judge/world-classes-reject", "judge/world-classes", "judge/world-classes-accept", "judge/world-plan", "judge/world-judge-loop", "judge/world-judge-reject", "judge/world-judge", "judge/world-judge-accept", "judge/world-finish", "plan/plan-accept"], "proof": ["lib/tests/test_world_check.py::Verify.test_paraphrase_is_dropped", "tests/workflows/test_plan.py::AcceptCase.test_world_row_needs_answer"]}
  },
@@ -181,7 +181,12 @@
   "chain/round-5-facts": "周の鎖の 5 周目の子の次の依頼を読み、運ぶ次の依頼を書き、周の費用と分を読む",
   "chain/round-5-decide": "周の鎖の 5 周目の後の止めの決め（lib/chain.step）",
   "chain/final-diff": "周の鎖の最後の差分。止まった周を採らずに元の基から採る周（lib/chain.pick）までの差分を封じ、周ごとの表 chain.md（lib/chain.render）を書く",
-  "chain/result": "周の鎖の出力ノード"
+  "chain/hand": "周の鎖の出口の語 pr の渡し。merge を check で include し、親の run の枝を最後の差分と照らして PR を 1 本作る（review-graph の外の新しい能力。issue #555）",
+  "chain/result": "周の鎖の出力ノード",
+  "merge/merge": "merge の出力ノード。照らしの出力に渡し方 deliver と落ちてよいノードの宣言を足す",
+  "merge/pr-commit": "出口の語 pr の時に、照らした差分を run の枝へ 1 つの commit で積む（既定の枝と同じ名の枝では止める。review-graph の外の新しい能力。issue #555）",
+  "merge/pr-open": "出口の語 pr の時に、Archon に同梱の archon-pr を子の run で起こし、push と PR の作成を任せる（issue #555）",
+  "merge/pr-read": "出口の語 pr の時に、子の run が返した PR の記録を積んだ commit・枝・向け先の repo と base と照らす読み戻し（issue #555）"
  },
  "downgrades": [
   {"node": "p0.parallel_pr", "what": "担当の PR へ申し送りを投稿しない（下書きを報告に載せる）。役の gh は読むだけ（docs/owner-decisions.md の 2026-10-12 の決め）", "versus": "review-graph は任せ先の役が gh で投稿する"},
