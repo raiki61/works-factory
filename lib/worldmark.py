@@ -44,12 +44,13 @@ import pathlib
 import shutil
 
 import cite   # 依頼の引用「…」の形と語（決め手の出どころの照らしの住処）
+import judgebeside  # 判定の隣のファイルの名の住処（控え STATE_FILE の名）
 import marks  # 返答の足し欄の住処（種 means）
 import planmarks  # 修正案の欄 structure の答えの仕組み（答えの要る行の表 Need）
 import promptsection
 
 WORLD_FILE = "world.jsonl"
-STATE_FILE = "world-state.json"
+STATE_FILE = judgebeside.WORLD_STATE_FILE
 VERDICTS = ("same", "differs", "none")
 SAME, DIFFERS, NONE = VERDICTS
 BASES = ("web", "knowledge")
