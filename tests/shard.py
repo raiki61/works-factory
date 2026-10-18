@@ -39,7 +39,7 @@ TABLE = ROOT / "tests" / "shard-seconds.json"
 PATTERN = "test*.py"
 WORKERS_ENV = "WORKS_FACTORY_TEST_WORKERS"
 # 並べる子の数の既定は、機械の CPU の数を、同じ機械で同時にこの口を回しうる数で割った数。工場は同じ機械で run を 2〜3 本回し、
-# run の中でも修正の段が組ごとの子の run を並べ、子もそれぞれこの口を回す。3 本 × 2 組で 6 とし、CPU の数がそれ未満の機械
+# run の中でも修正の段が組ごとの子の run を並べ、子もそれぞれこの口を回す。3 本 × 2 組で 6 とし、CPU が 12 に満たない機械
 # （CI の 4 CPU の機械など）では 1 つの子で順に回す
 SHARING = 6
 
