@@ -13,7 +13,8 @@ fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1
 - 拒まれた所だけを出し直す輪（RESUBMIT）は、頭の節の resubmit で 1 回目の役と出し直しの役（<役>-fix）を振り分け、出し直しの役は
   1 回目の役の後ろの層で同じ起こし方・同じ型（required を外しただけ）・同じ prompt（FIX_PROMPT）で起き、受け付けは両方の返答を
   if_skipped: null で受ける。plan-review の輪は単独の組（plan-review／plan-review-fix）と束ね役の組（plan-review-tree／
-  plan-review-tree-fix）の 2 組で、組ごとに頭の節の tree の条件が when に重なり、受け付けは 4 つの返答を if_skipped: null で受ける
+  plan-review-tree-fix）の 2 組で、組ごとに頭の節の tree の条件が when に重なり、受け付けは 4 つの返答を if_skipped: null で受ける。
+  eyes の R4 の輪も、R4 の組（r4-scope／r4-scope-fix）とまとめた役の組（eyes-one／eyes-one-fix）の 2 組で、頭の節の one_eye で振り分ける
 """
 import pathlib
 import unittest
@@ -45,7 +46,9 @@ RESUBMIT = {
     ("judge", "spec-review-loop"): ("spec-review-reject", (("spec-review", "spec-review-fix", *ONE),), "spec-review-accept"),
     ("judge", "spec-revise-loop"): ("spec-revise-reject", (("spec-revise", "spec-revise-fix", *ONE),), "spec-revise-accept"),
     ("judge", "rejudge-loop"): ("rejudge-reject", (("rejudge", "rejudge-fix", *ONE),), "rejudge-accept"),
-    ("eyes", "r4-loop"): ("r4-reject", (("r4-scope", "r4-scope-fix", *ONE),), "r4-accept"),
+    ("eyes", "r4-loop"): ("r4-reject", (
+        ("r4-scope", "r4-scope-fix", "one_eye != true", ("reply", "fix_reply")),
+        ("eyes-one", "eyes-one-fix", "one_eye == true", ("one_reply", "one_fix_reply"))), "r4-accept"),
     ("test-gate", "ci-loop"): ("ci-prep", (("ci", "ci-fix", *ONE),), "ci-accept"),
 }
 # 出し直しの役の prompt（YAML はブロックをまたいで文を共にできないので、9 つの節の字をこの 1 つに縛る）。brief は頭の節の指示書のパスの欄

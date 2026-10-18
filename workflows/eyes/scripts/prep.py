@@ -8,7 +8,9 @@ eyes/r2-premises.json に書く。目が読む累積差分は、入口の base�
 （未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
 （直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
 （試験の関門が比べた入力 test_outcomes）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（入力 premises の先の制約のうち measured_how が
-carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に）"""
+carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に）。目を回す run で、run の頭の深さの段が目を
+まとめる（depth.merges）なら one_eye を真にし、まとめた役が読む観点ごとの指示書を eyes/one/ に書いてその並びを one_briefs に置く
+（eyeverdict.one_briefs）"""
 import json
 import os
 import sys
@@ -71,6 +73,7 @@ request_file = startrec.request_file(start)
 request = Path(request_file) if request_file else None
 repo_review = Path.cwd() / "REVIEW.md"
 depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
+head = os.environ.get("INPUTS_HEAD_DEPTH", "")
 purpose_text = purpose.get("purpose_text") or ""
 after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
 human_items = eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer)
@@ -84,8 +87,7 @@ premises_text, r2_ledger = eyeverdict.premise_section(
 
 out = {
     # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）
-    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}},
-                                  os.environ.get("INPUTS_HEAD_DEPTH", "")) == ""
+    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}}, head) == ""
     or any(isinstance(c, dict) and str(c.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD) for c in constraints or []),
     "compare_due": eyeverdict.r2_compare_due(design, purpose_text),
     "premise_due": eyeverdict.r2_premise_invalid(design),
@@ -125,6 +127,8 @@ out = {
         declared=boundary.parsed(os.environ["INPUTS_PLAN_DECLARED"])),
 }
 EYES.mkdir(parents=True, exist_ok=True)
+out["one_eye"] = out["run_eyes"] and bool(depth.merges(head))
+out["one_briefs"] = eyeverdict.one_briefs(EYES, Path(__file__).resolve().parents[1] / "commands", out) if out["one_eye"] else ""
 (EYES / eyeverdict.R2_PREMISES).write_text(json.dumps(r2_ledger, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 (EYES / eyeverdict.PREP_FILE).write_text(json.dumps({**out, policy.RECORDED_KEY: recorded}, ensure_ascii=False), encoding="utf-8")
 boundary.returns(out)

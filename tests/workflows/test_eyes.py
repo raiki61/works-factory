@@ -30,6 +30,9 @@ NODES = {n["id"]: n for n in [*DOC["nodes"], *(b for n in DOC["nodes"] for b in 
 ROLES = {i: n for i, n in NODES.items() if "command" in n}
 EYE_NODES = ("r1-minimality", "r2-compare", "premise-check", "r3-coherence", "r4-scope")
 VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "premise-check", "r3", "r4"))}
+# まとめた役 eyes-one（#687。軽量の run で R1・R3・R4 を 1 つの会話で見る）の返りの欄から目ごとの成果物を作る節 → 目
+ONE_VERDICT_NODES = {"r1-one-verdict": "r1", "r3-one-verdict": "r3"}
+ONE_ROLE = "eyes-one"
 sys.path.append(str(ROOT / "lib"))
 import answer  # noqa: E402
 import boardview  # noqa: E402
@@ -348,6 +351,10 @@ COPIED_TEXTS = {
 }
 
 
+# 今の works に元の無い役の指示書（写しの台帳を持たない）→ 出どころ
+OWN_TEXTS = {"eyes-one.md": "issue #687 の持ち主の決め 3（軽量の run の R1・R3・R4 を 1 つの会話で見る役）"}
+
+
 def depends(node) -> set:
     return set(node.get("depends_on") or [])
 
@@ -406,7 +413,7 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(nid):
                 self.assertIs(node.get("mutates_checkout"), False)
                 if "command" in node:   # R4 は輪の 1 周目が新しい会話で、出し直しは同じ会話の続き（#571）
-                    self.assertEqual(node.get("context"), None if nid == "r4-scope" else "fresh")
+                    self.assertEqual(node.get("context"), None if nid in ("r4-scope", ONE_ROLE) else "fresh")
 
     def test_no_eye_has_shell_or_writer_tools(self):
         for nid, node in ROLES.items():
@@ -415,13 +422,18 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(ROLES["r2-compare"]["allowed_tools"], ["Read"])
 
     def test_eye_tools_are_the_role_tools(self):
-        self.assertEqual(set(ROLES), set(WORKS_RUN_BY))
+        """まとめた役の道具は、まとめた R1（前段を含む）・R3・R4 の役の道具の和"""
+        self.assertEqual(set(ROLES), {*WORKS_RUN_BY, ONE_ROLE})
         for nid, role in WORKS_RUN_BY.items():
             with self.subTest(nid, role=role):
                 self.assertEqual(ROLES[nid]["allowed_tools"], WORKS_TOOLS[role] + WORKS_NODE_TOOLS.get(nid, []))
+        merged = {t for name, _ in eyeverdict.ONE_VIEWS for t in ROLES[name]["allowed_tools"]}
+        self.assertEqual(set(ROLES[ONE_ROLE]["allowed_tools"]), merged)
 
     def test_role_model_and_effort_match_the_works_table(self):
-        self.assertEqual({nid: launchgroups.default_of(node["model"]) for nid, node in ROLES.items()}, WORKS_MODEL)
+        """まとめた役は、まとめた役のうち一番強い R1 冗長と最小性の模型と effort"""
+        self.assertEqual({nid: launchgroups.default_of(node["model"]) for nid, node in ROLES.items()},
+                         {**WORKS_MODEL, ONE_ROLE: WORKS_MODEL["r1-minimality"]})
 
     def test_eyes_run_side_by_side(self):
         """R1 の前段・比較役・前提の検算・R3 は互いを待たず、支度の後に並んで走る（元 works/blk-eyes/lib/eyes.py:26-27）"""
@@ -551,9 +563,33 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(loop["max_iterations"], rolekit.GIVE_UP_AFTER)
         self.assertIs(loop["fresh_context"], False)
         self.assertIn("$r4-accept.output.done", loop["until_bash"])
-        self.assertEqual([n["id"] for n in loop["nodes"]], ["r4-reject", "r4-scope", "r4-scope-fix", "r4-accept"])
+        self.assertEqual([n["id"] for n in loop["nodes"]], ["r4-reject", "r4-scope", "r4-scope-fix", ONE_ROLE, f"{ONE_ROLE}-fix", "r4-accept"])
         self.assertEqual(depends(NODES["r4-scope"]), {"r4-reject"})
+        self.assertEqual(depends(NODES[ONE_ROLE]), {"r4-reject", "r4-scope-fix"})
         self.assertIn("$r4-reject.output.reason", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
+
+    def test_one_role_keeps_every_view_and_r2_apart(self):
+        """#687 の持ち主の決め 3: 軽量の run で 1 つの役にまとめた後も、4 つの観点（最小性・設計の比較・整合・見えていない範囲）は審査の
+        指示に名で残る。まとめた役の指示書は R1（前段を含む）・R3・R4 の観点を名指して観点ごとの指示書（eyeverdict.ONE_VIEWS）を
+        全部読ませ、R2 の比較役はまとめずに別の会話のまま（when が one_eye を読まない）。まとめる目は段の表の merges と同じ。
+        標準の run の目ごとの役は one_eye が偽の時だけ起きる（標準と重厚の目は変えない）"""
+        import depth
+        text = (BLOCK / "commands" / f"{ROLES[ONE_ROLE]['command']}.md").read_text(encoding="utf-8")
+        self.assertIn("$prep.output.one_briefs", text)
+        for name in ("R1 冗長と最小性", "コメントの削除候補", "R3 全体の整合", "R4 見えていない範囲", "R2（独立設計との突き合わせ）"):
+            with self.subTest(name):
+                self.assertIn(name, text)
+        self.assertEqual(depth.merges(depth.LIGHT), ("r1.comment_candidates", "r1.minimality", "r3.coherence", "r4.hidden_scope"))
+        self.assertLessEqual(set(depth.merges(depth.LIGHT)), set(depth.OMITS))
+        self.assertEqual([name for name, _ in eyeverdict.ONE_VIEWS], ["r1-comments", "r1-minimality", "r3-coherence", "r4-scope"])
+        self.assertEqual((depth.merges(depth.STANDARD), depth.merges(depth.HEAVY)), ((), ()))
+        self.assertNotIn("one_eye", NODES["r2-compare"]["when"])
+        self.assertNotIn("one_eye", NODES["premise-check"]["when"])
+        for name, _ in eyeverdict.ONE_VIEWS:
+            with self.subTest(name):
+                head = "r4-reject" if name in LOOP_OF else "prep"
+                self.assertIn(f"${head}.output.one_eye != true", NODES[name]["when"])
+        self.assertIn("$r4-reject.output.one_eye == true", NODES[ONE_ROLE]["when"])
 
     def test_r1_minimality_runs_without_the_comment_candidates(self):
         node = NODES["r1-minimality"]
@@ -565,7 +601,7 @@ class ShapeCase(unittest.TestCase):
         barrier = NODES["eyes-complete"]
         self.assertEqual(barrier.get("bash"), "true")
         self.assertEqual(barrier.get("trigger_rule"), "all_done")
-        self.assertEqual(depends(barrier), {*(LOOP_OF.get(r, r) for r in ROLES), "r1-comments-save", *VERDICT_NODES})
+        self.assertEqual(depends(barrier), {*(LOOP_OF.get(r, r) for r in ROLES), "r1-comments-save", *VERDICT_NODES, *ONE_VERDICT_NODES})
         verdict = NODES["verdict"]
         self.assertEqual(depends(verdict), {"eyes-complete", "prep", "structure-after", "protected"})
         self.assertEqual(verdict.get("trigger_rule"), "all_done")
@@ -573,7 +609,14 @@ class ShapeCase(unittest.TestCase):
 
     def test_eye_verdict_typed(self):
         typed = {i: n for i, n in NODES.items() if "output_type" in n}
-        self.assertEqual(list(typed), list(VERDICT_NODES))
+        self.assertEqual(list(typed), [*VERDICT_NODES, *ONE_VERDICT_NODES])
+        for nid, eye in ONE_VERDICT_NODES.items():
+            with self.subTest(nid):
+                node = typed.pop(nid)
+                self.assertEqual(node["with"], {"eye": eye, "part": eye, "out": "$r4-loop.output.reply"})
+                self.assertEqual(depends(node), {"prep", "r4-loop"})
+                self.assertEqual(node["when"], "$prep.output.one_eye == true")
+                self.assertEqual(node["output_format"], NODES["r1-minimality-verdict"]["output_format"])
         for nid, node in typed.items():
             with self.subTest(nid):
                 self.assertEqual(node["output_type"], "eye-verdict")
@@ -581,6 +624,7 @@ class ShapeCase(unittest.TestCase):
                 self.assertEqual(set(fmt["properties"]), {"eye", "status", "reason"})
                 self.assertEqual(set(fmt["required"]), {"eye", "status", "reason"})
                 self.assertEqual(node["with"]["eye"], VERDICT_NODES[nid])
+                self.assertEqual(node["with"]["part"], "")
                 eye_node = nid.removesuffix("-verdict")
                 loop = LOOP_OF.get(eye_node)
                 self.assertEqual(depends(node), {loop or eye_node})
@@ -698,7 +742,7 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(nid):
                 self.assertEqual(node.get("settingSources"), ["user"])
                 self.assertEqual(node.get("sandbox"), {"enabled": True, "allowUnsandboxedCommands": False})
-                self.assertEqual(node.get("context"), None if nid == "r4-scope" else "fresh")
+                self.assertEqual(node.get("context"), None if nid in ("r4-scope", ONE_ROLE) else "fresh")
 
     def test_no_workflow_level_composed_keys(self):
         self.assertFalse({"interactive", "worktree", "container", "evidence_policy", "mutates_checkout"} & set(DOC))
@@ -706,7 +750,8 @@ class ShapeCase(unittest.TestCase):
 
 class FixtureCase(unittest.TestCase):
     # 筋書きごとの仕事の結末（返す節の差し替えの ok）。run の終わり（outcome）はどれも completed
-    AUTHORED = {"pass": "succeeded", "redesign": "failed", "premise": "failed", "all-light": "succeeded", "protected-hit": "succeeded"}
+    AUTHORED = {"pass": "succeeded", "redesign": "failed", "premise": "failed", "all-light": "succeeded", "protected-hit": "succeeded",
+                "one-eye": "succeeded"}
 
     def test_fixtures_pass_in_archon(self):
         with archon.tree(["eyes"]) as tree:
@@ -839,6 +884,20 @@ class ScriptCase(unittest.TestCase):
         named = {**reply, "policy_conflicts": ["/run/policy/abc.md:2 の『空の列は試験しない』に反する"]}
         got = self.run_script("r4_accept", with_={"reply": json.dumps(named, ensure_ascii=False)})
         self.assertEqual((got["ok"], got["done"]), (True, True))
+
+    def test_r4_accept_takes_the_one_role_reply(self):
+        """#687: まとめた役の返り（one_reply。R4 の欄に R1・R3 と前段の欄を足した物）を R4 の受け付けが照らし、返りの reply は
+        r1・r3 を持ったまま（輪の外の r1-one-verdict・r3-one-verdict が読む）。輪の頭の節は支度の控えの one_eye で組を振り分ける"""
+        self.prep_file()
+        self.assertIs(self.run_script("r4_rejects")["one_eye"], False)
+        self.prep_file(one_eye=True)
+        self.assertIs(self.run_script("r4_rejects")["one_eye"], True)
+        reply = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "policy_conflicts": [],
+                 "surfaced": [], "seen": [], "unseen": [], "r1": {"status": "pass", "reason": "最小"},
+                 "r3": {"status": "pass", "reason": "整合", "seen": [], "unseen": []}, "r1_comments": {"candidates": [], "kept": []}}
+        got = self.run_script("r4_accept", with_={"reply": "null", "one_reply": json.dumps(reply, ensure_ascii=False)})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
+        self.assertEqual(got["reply"], reply)
 
     def test_r4_resubmit_returns_only_the_rejected_fields(self):
         """#571: 拒まれた周の次（prev が false）は、r4-reject が出し直しの役の短い指示書を書いて resubmit: true を返し、受け付けは
@@ -1157,9 +1216,17 @@ class ScriptCase(unittest.TestCase):
 
     def test_eye_verdict_writes_file_and_returns_row(self):
         out = {"key": "k", "assumption": "a", "assumption_false": False, "evidence": "e", "verdict": "escalate", "reason": "実測で反証できない"}
-        got = self.run_script("eye_verdict", with_={"eye": "premise-check", "out": json.dumps(out, ensure_ascii=False)})
+        got = self.run_script("eye_verdict", with_={"eye": "premise-check", "part": "", "out": json.dumps(out, ensure_ascii=False)})
         self.assertEqual(got, {"eye": "premise-check", "status": "escalate", "reason": "実測で反証できない"})
         self.assertEqual(json.loads((self.artifacts / "eyes" / "premise-check.json").read_text(encoding="utf-8")), out)
+
+    def test_eye_verdict_reads_the_part_of_the_one_role_reply(self):
+        """#687: まとめた役の返り（R4 の欄に r1・r3 を足した物）から、part の欄だけを目の出力として置き場の <eye>.json に書く"""
+        r3 = {"status": "redesign-needed", "reason": "文書が古い", "seen": ["a.py"], "unseen": []}
+        reply = {"status": "pass", "reason": "なし", "r3": r3, "r1": {"status": "pass", "reason": "最小"}}
+        got = self.run_script("eye_verdict", with_={"eye": "r3", "part": "r3", "out": json.dumps(reply, ensure_ascii=False)})
+        self.assertEqual(got, {"eye": "r3", "status": "redesign-needed", "reason": "文書が古い"})
+        self.assertEqual(json.loads((self.artifacts / "eyes" / "r3.json").read_text(encoding="utf-8")), r3)
 
     def test_save_reply_writes_the_reply(self):
         reply = {"candidates": [], "kept": [{"where": "a.py:1", "fact": "なぜこの値か"}]}
@@ -1320,6 +1387,31 @@ class ScriptCase(unittest.TestCase):
         self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])
         self.inputs["head_depth"] = "軽量"
         self.assertIs(self.run_script("prep")["run_eyes"], False)
+
+    def test_prep_merges_the_eyes_only_in_a_light_head_run(self):
+        """#687 の持ち主の決め 3: run の頭の深さが軽量で目を省かずに回す run は one_eye が真で、まとめた役が読む観点ごとの指示書
+        （R1 の前段・R1・R3・R4 の役の指示書に支度の値を差し込んだ物）を置き、並びを one_briefs に返す。標準・重厚・空の run は
+        one_eye が偽で、目ごとの役のまま（one_briefs は空）"""
+        self.prep_inputs()
+        for head in ("標準", "重厚", ""):
+            with self.subTest(head=head):
+                self.inputs["head_depth"] = head
+                got = self.run_script("prep")
+                self.assertEqual((got["run_eyes"], got["one_eye"], got["one_briefs"]), (True, False, ""))
+        self.inputs["head_depth"] = "軽量"
+        got = self.run_script("prep")
+        self.assertEqual((got["run_eyes"], got["one_eye"]), (True, True))
+        rows = got["one_briefs"].splitlines()
+        self.assertEqual(len(rows), len(eyeverdict.ONE_VIEWS))
+        for row, (name, view) in zip(rows, eyeverdict.ONE_VIEWS):
+            with self.subTest(name):
+                path = self.artifacts / "eyes" / eyeverdict.ONE_DIR / f"{name}.md"
+                self.assertEqual(row, f"- {view}: `{path}`")
+                vals = {**got, "candidates_file": eyeverdict.ONE_CANDIDATES}
+                want = re.sub(r"\$prep\.output\.([A-Za-z0-9_]+)", lambda m: str(vals[m.group(1)]),
+                              (BLOCK / "commands" / f"{name}.md").read_text(encoding="utf-8"))
+                self.assertEqual(path.read_text(encoding="utf-8"), want.replace("$r4-reject.output.reason", eyeverdict.ONE_REJECTS))
+                self.assertNotIn("$", path.read_text(encoding="utf-8").replace("$HOME", ""))
 
     def test_prep_keeps_the_eyes_unless_the_head_is_light(self):
         """issue #561: 単位がどれも軽量でも、run の頭の深さが標準・重厚・空なら R1〜R4 を省かない"""
@@ -1504,7 +1596,8 @@ class CopiedTextsCase(unittest.TestCase):
         """許した直しを逆に当てると元のバイト（元の sha256）に戻る。台帳に無い指示書・指示書の無い台帳の行は赤"""
         on_disk = {p.name for p in (BLOCK / "commands").glob("*.md")}
         with self.subTest(ledger="台帳と指示書の一覧"):
-            self.assertEqual(sorted(COPIED_TEXTS), sorted(on_disk))
+            self.assertEqual(sorted([*COPIED_TEXTS, *OWN_TEXTS]), sorted(on_disk))
+            self.assertFalse(set(COPIED_TEXTS) & set(OWN_TEXTS))
             self.assertLessEqual(rewritten(BLOCK / "commands"), set(COPIED_TEXTS))
         for name in sorted(on_disk & set(COPIED_TEXTS)):
             source, sha256, edits = COPIED_TEXTS[name]

@@ -33,6 +33,8 @@ protected:
   broken: ''
 prep:
   run_eyes: true
+  one_eye: false
+  one_briefs: ''
   compare_due: true
   premise_due: false
   purpose_text: 古い入口を消す
@@ -91,6 +93,7 @@ r3-coherence-verdict:
   reason: 整合
 r4-reject:
   reason: ''
+  one_eye: false
 r4-scope:
   status: pass
   reason: 横断の危うさなし
