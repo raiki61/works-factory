@@ -1,5 +1,9 @@
 # works-factory
 
+> **Status: under construction.** The whole flow already runs with real AI roles on a request (stage 1, the first stage of the build order, issue [#154](https://github.com/raiki61/works-factory/issues/154)), but the factory has not yet caught up with the tool it replaces, the current works (see "Related projects"), and known failures remain: for example, the part of the report that an AI writes currently fails (issue [#712](https://github.com/raiki61/works-factory/issues/712)). Everything except this README is in Japanese. If you need a fix factory you can rely on today, use the current works. More in "Current status".
+>
+> Before trying it, check "Requirements". Words such as run, node, and approval node are explained in "Terms" at the end.
+
 works-factory is a fix factory you can point at any repository. Hand it what you want fixed (a fix request or a GitHub issue) and it returns a verified change and a report. The factory first works out what the problem is, plans the fix, and has the plan reviewed by a separate reviewer. Before fixing anything, it shows the defect with a failing test (the red proof). It separates tests that were already failing from the defect at hand. Fixes that do not overlap proceed side by side in separate worktrees. It runs the target project's own checks (its tests or CI). At the end, a separate reviewer who knows nothing about how the fix was made judges it against a design they drew up from scratch, given only the goal. A human is asked only at the approval nodes you chose (the points where a run pauses for a human). The factory runs on Archon, and borrows build patterns from ASF; both are described in "Related projects".
 
 GitHub About: A dev factory on Archon that turns a fix request into a verified change for any repository: plans are reviewed before code is written, red tests are proven before fixes, every agent claim is checked against quoted evidence, and independent reviewers judge blind. Japanese only for now.
@@ -25,11 +29,30 @@ For now the factory works in Japanese only: its role prompts, its messages and i
 
 By default the approval nodes are in 3 places: at the start, before fixing (when something needs asking), and at the end. You can also choose a policy that runs unattended.
 
+## Requirements
+
+The entry script checks Python, `bun`, Claude Code and the plugins when it starts; if one is missing, it prints what to install (one line each) and stops.
+
+- Python 3.12 or later (the entry script `bin/works-factory` refuses older versions).
+- git.
+- `bun` (https://bun.sh). The script uses it to start Archon.
+- A clone of this repository: `git clone https://github.com/raiki61/works-factory`.
+- Network access to GitHub on the first start: the script clones the Archon source at the pinned commit (`factory/pack.json`) into a cache and reuses it after that.
+- Claude Code (the `claude` command), logged in. Your normal login is used; for long runs see `CLAUDE_CODE_OAUTH_TOKEN` under "Usage".
+- The Claude Code plugin `pr-review-toolkit` from the `claude-plugins-official` marketplace (`anthropics/claude-plugins-official`), installed in your normal Claude Code: `claude plugin marketplace add anthropics/claude-plugins-official`, then `claude plugin install pr-review-toolkit@claude-plugins-official`. The script copies it from there into the isolated settings the roles use.
+- Optional: the GitHub CLI `gh`, logged in. Needed when a request names a PR or an issue (the run reads them with `gh`). Without it, the run cannot read them and records them as not read; the check for other open PRs is then left to an AI role.
+- Optional: the Claude Code plugin coldwrite (a document check from raiki61/claude-plugins; you can skip it). It is used only when you set `WORKS_FACTORY_COLDWRITE_MARKETPLACE` and `WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`; otherwise the script prints one line and goes on without it.
+- A target repository that is a git repository with at least one commit and a remote (Archon refuses a target without a remote; see "Worktree start point").
+- Budget for the model usage. For scale: the stage 1 runs on a small target cost about 7 to 10 US dollars each and took about 15 minutes, not counting time waiting at approval nodes ("作りの順" (build order) in `docs/design.md`).
+- Be aware that test code the AI wrote runs with your own rights (your HOME and XDG). If you need protection, run the whole factory inside a container or VM (details under "Usage").
+
+You do not install superpowers yourself: the factory carries a pinned copy of the skills it uses (`lib/borrow/superpowers/`). The list of what is borrowed is `lib/borrow/borrow.json`. Running this repository's own tests (not needed to use the factory) also needs `uv` (see `tests/AGENTS.md`).
+
 ## Usage
 
 The entry point is a single shell script, `bin/works-factory`, and you type Archon's commands as they are (`bin/works-factory <Archon CLI arguments>`; put flags after the command). The script sets up authentication and an isolated home (a separate state directory), fetches the Archon source at the version pinned by ASF (`factory/pack.json`), and starts it from there with `bun`. The graphs are not placed in Archon's home (its state directory). The main graph `works-factory-line` (`workflows/line/`) includes the 8 subgraphs (`workflows/<name>/`) in order (the build order is in `docs/design.md`).
 
-1. Install: on a machine with Python 3.12 or later and git, clone this repository, install `bun`, and install the plugins it borrows (the ones in `lib/borrow/borrow.json`) into Claude Code. If anything is missing, the script prints the install commands one per line and stops.
+1. Install: clone this repository and install what "Requirements" lists. If anything is missing, the script prints the install commands one per line and stops.
 2. Start: `bin/works-factory workflow run works-factory-line --cwd <target> --input request=<request file> [--input test_cmd='<one line>']`. The request file format is in "Request file" below, `test_cmd` in "test_cmd and worktrees", and where the run's worktree is created from in "Worktree start point".
 3. Answer: `bin/works-factory workflow respond <run> approve|stop [a short note] --cwd <target>`. Archon's home (its DB) is per target, so you need `--cwd` when typing from outside the target. A run started with `WORKS_FACTORY_HOME` needs the same value when you answer (the answer line in the approval node's text comes out in that form).
 4. Watch: `bin/works-factory workflow status --cwd <target>` and `workflow get <run> --cwd <target>`.
@@ -145,4 +168,35 @@ The root holds this factory's own things side by side with what ASF's install co
 
 ## Current status
 
-Under construction. The entry script `bin/works-factory`, the main graph `workflows/line/`, the 8 subgraphs, the round chain `workflows/chain/`, `lib/`, and the layer tests exist, and the main graph is checked with scenarios composed with the real subgraphs (Archon's `workflow test`; no roles are started). Stage 1's walking skeleton, which takes one request through a small target repository with real roles, is not there yet. The foundation is being built by ASF. The fix factory you can use today is the current works (the works plugin of raiki61/claude-plugins). The build order and progress are in "作りの順" (build order) in `docs/design.md`.
+Under construction. The entry script `bin/works-factory`, the main graph `workflows/line/`, the 8 subgraphs, the round chain `workflows/chain/`, `lib/`, and the layer tests exist. The main graph is checked with scenarios composed with the real subgraphs (Archon's `workflow test`; no roles are started). Stage 1, the walking skeleton, is done: one request was taken through a small target repository with real roles, and the sealed diff was applied (issue [#154](https://github.com/raiki61/works-factory/issues/154); the run records are in "作りの順" (build order) in `docs/design.md`). The foundation is being built by ASF. What is left:
+
+- Catching up with the current works. Each user-visible capability of the current works is matched to where works-factory does the same in `docs/works-parity.md`; until the factory has them all, the current works (the works plugin of raiki61/claude-plugins) is the fix factory to use.
+- Known failures, tracked as open issues. For example, the node that writes the report's body is stopped by the model provider's safety check, so reports currently carry only the parts the machine builds (issue [#712](https://github.com/raiki61/works-factory/issues/712)).
+- The build order and progress are in "作りの順" (build order) in `docs/design.md`.
+
+## Terms
+
+- Archon: the tool that runs this factory. It runs AI work as a graph written in YAML (see "Related projects").
+- ASF (AI software factory): a set of Archon graphs by Archon's author. ASF is used to build this repository (its install command put the `factory`-named files here), and this factory learns build patterns from it, but ASF's code is not copied into the factory itself.
+- Graph: a flow of steps written in Archon's YAML. The main graph `works-factory-line` lines up the subgraphs; a subgraph (judge, plan, and so on) is one stage, included into the main graph.
+- Node: one step of a graph. An AI node starts an AI role (a Claude Code session with its own instructions); a script node runs a Python script.
+- Role: the job an AI node is given, such as the judge, the fixer, or a reviewer. Its instructions are in `workflows/<subgraph>/commands/`.
+- Approval node: a node where the run pauses and waits for your answer (`workflow respond`).
+- Run: one execution of a graph by Archon, with its own id. A child run is a run started by another run (the round chain starts one child run of the main graph per round).
+- Target: the repository you want fixed (`--cwd <target>`).
+- Worktree: a separate checkout made with `git worktree`. Each run works in its own worktree, so your checkout of the target is not changed until you apply.
+- Unit: one root-cause defect found by the judge stage. Fixes, refusals, and give-ups are counted per unit.
+- Red proof: a test that fails before the fix and passes after it, showing the defect is real.
+- Test gate: the stage that runs the target's own checks and records "green" together with a fingerprint (a hash of the worktree's state) of the worktree it was measured on, so that green measured on other files does not count.
+- Independent eyes: reviewers in separate sessions that see only what they are given, not how the fix was made. R1 to R4 are their 4 viewpoints, in the order of "Flow" step 6: R1 is the fix minimal, R2 does it match the independent design, R3 is the whole consistent, R4 what is out of view.
+- Seal: the hash of the diff a human saw at the last approval node. `bin/apply` refuses a diff that does not match it.
+- Round chain: the graph `works-factory-chain`, which repeats the main graph up to 5 times, turning what is left into the next request.
+- Archon's home: the directory where Archon keeps its database and run files. The script gives each target its own home (`WORKS_FACTORY_HOME` overrides it).
+- Isolated home: the separate `HOME` and Claude Code settings that the script sets up for Archon and the roles. The roles see only the plugins and skills in `lib/borrow/borrow.json`, not your own settings.
+- Write fence: a wrapper the script puts in front of the roles' `claude`. For roles that only read, it adds the target's worktrees and this checkout to the paths Claude Code's sandbox may not write (P5 in `docs/polyfills.md`).
+- Polyfill: a small part in `workflows/.shared/` that fills in something Archon lacks (listed in `docs/polyfills.md`).
+- The current works: the works plugin in raiki61/claude-plugins, the earlier form of this factory. It does the same job (review and fix a change, from Claude Code with `/works`) and is the one to use today.
+- Stage, walking skeleton: the build is done in stages ("作りの順" (build order) in `docs/design.md`). Stage 1, the walking skeleton, was the first run of the whole flow end to end with real roles.
+- Layers: the 4 parts this repository is split into (`bin/`, `workflows/`, `workflows/.shared/`, `lib/`; see "Design"). Layer tests check that each part depends only on what it may.
+- superpowers: a published set of Claude Code skills (obra/superpowers). The roles use a pinned copy of some of them, such as test-driven development.
+- The owner: the owner of this repository (raiki61). "Owner decisions" are their decisions, kept word for word in `docs/owner-decisions.md`.
