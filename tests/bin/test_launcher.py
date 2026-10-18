@@ -14,12 +14,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
-import uuid
 
 from bin._lib import auth_launch, launcher, place, toolset
 from lib import answer, launchgroups, reads, userenv, writelog
 from tests.bin import fakelaunch, hermetic
-from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
+from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put, unique_run_id
 from tests.bin.gitkit import git
 from tests.bin.test_toolset import make_user_config, write_fake_claude
 
@@ -48,12 +47,6 @@ sys.exit(44)
 def read_with_real_bun(bun: str) -> str:
     return (f"#!/usr/bin/env python3\nimport os, sys\nif '-e' in sys.argv:\n    os.execv({bun!r}, [{bun!r}, *sys.argv[1:]])\n"
             + FAKE_BUN.split("\n", 1)[1])
-
-
-def unique_run_id() -> str:
-    """殻の workflow cancel は、env の WORKFLOW_ID がこの id のプロセスをこの機械の全部の中から探して止める。並べて回す別の試験の
-    プロセス（run-1 などを使う）を止めないよう、試験ごとに違う字にする"""
-    return f"launcher-test-{uuid.uuid4().hex}"
 
 
 def short(path) -> str:
@@ -775,24 +768,23 @@ class LauncherTest(unittest.TestCase):
 
     def test_cancel_reads_the_run_then_passes_the_cancel_to_archon(self):
         """workflow cancel は run と子の run を読んでから同じ引数で Archon を起こし、その終了の値で抜ける（後に残った木を止める。
-        bin/_lib/runstop.py。本物の Archon での止めは tests/bin/test_runstop.py）"""
-        run_id = unique_run_id()
-        calls = self.tmp / "bun-calls.jsonl"
-        put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, sys\n"
-            f"open({str(calls)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\nsys.exit(3 if 'cancel' in sys.argv else 0)\n")
-        done = self.launch("workflow", "cancel", run_id, "--json", "--cwd", str(self.target), ANTHROPIC_API_KEY=None)
-        self.assertEqual(done.returncode, 3, done.stderr)
+        bin/_lib/runstop.py。本物の Archon での止めは tests/bin/test_runstop.py）。殻は本物の ps の上で止めるので、cancel に渡る
+        run の id は回すたびに違う（fakelaunch.unique_run_id）"""
         entry = str(self.source / ENTRY)
-        got = [argv[argv.index(entry) + 1:] for argv in map(json.loads, calls.read_text(encoding="utf-8").splitlines())]
-        self.assertEqual(got, [["workflow", "get", run_id, "--json", "--cwd", str(self.target)],
-                               ["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
-                               ["workflow", "cancel", run_id, "--json", "--cwd", str(self.target)]])
-
-    def test_cancel_run_id_differs_every_time(self):
-        """殻に本物の ps の上で cancel を打たせる試験の run の id は、回すたびに違い、ほかの試験が使う run-1 とも違う"""
-        first, second = unique_run_id(), unique_run_id()
-        self.assertNotEqual(first, second)
-        self.assertNotIn("run-1", (first, second))
+        cancelled = []
+        for n in range(2):
+            run_id = unique_run_id()
+            calls = self.tmp / f"bun-calls-{n}.jsonl"
+            put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, sys\n"
+                f"open({str(calls)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\nsys.exit(3 if 'cancel' in sys.argv else 0)\n")
+            done = self.launch("workflow", "cancel", run_id, "--json", "--cwd", str(self.target), ANTHROPIC_API_KEY=None)
+            self.assertEqual(done.returncode, 3, done.stderr)
+            got = [argv[argv.index(entry) + 1:] for argv in map(json.loads, calls.read_text(encoding="utf-8").splitlines())]
+            self.assertEqual(got, [["workflow", "get", run_id, "--json", "--cwd", str(self.target)],
+                                   ["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
+                                   ["workflow", "cancel", run_id, "--json", "--cwd", str(self.target)]])
+            cancelled.append(got[-1][2])
+        self.assertNotEqual(cancelled[0], cancelled[1])
 
     def test_no_auth_runs_without_auth_check_or_plugins(self):
         done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None, WORKS_FACTORY_NO_AUTH="1")
