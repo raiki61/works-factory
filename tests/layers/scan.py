@@ -197,12 +197,11 @@ def problems(rule: str, root: Path) -> list[str]:
 def stale_allowances(root: Path) -> list[str]:
     """`ALLOWED` の行のうち、木の何にも当たらない物"""
     root = Path(root)
-    found = {}
+    found = {rule: RULES[rule](root) for rule, entries in ALLOWED.items() if any("#" in entry for entry in entries)}
 
     def hits(rule: str, entry: str) -> bool:
         path, _, word = entry.partition("#")
         if word:
-            found.setdefault(rule, RULES[rule](root))
             return any(_matches(entry, line) for line in found[rule])
         return any(_files(root, path)) if path.endswith("/") else (root / path).is_file()
 
@@ -790,8 +789,11 @@ def _envless_spawns(root: Path, path: Path) -> list[str]:
     except (SyntaxError, UnicodeDecodeError):
         return []   # 読めない字は _grep が UTF-8 の行で出す。構文の誤りは試験そのものが落ちる
     # 既定が None の引数を差し替えずに env へ渡す形も、呼び手が渡さなければ env の無い子になる
-    unset = {id(call): _none_default_params(fn) for fn in ast.walk(tree)
-             if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) for call in ast.walk(fn)}
+    # 入れ子の関数の中の呼び出しは、いちばん内の関数の引数で見る（ast.walk は外の関数を先に訪ねるので、内の関数が上書きする）
+    unset = {}
+    for fn in ast.walk(tree):
+        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            unset.update(dict.fromkeys(map(id, ast.walk(fn)), _none_default_params(fn)))
     out = []
     for node in ast.walk(tree):
         func = getattr(node, "func", None)
@@ -1766,7 +1768,8 @@ def layer_hits(root: Path) -> dict[str, list[str]]:
 
 
 def _layer_map(root: Path) -> list[str]:
-    return [line for check in LAYER_CHECKS for line in layer_hits(root)[check]]
+    hits = layer_hits(root)
+    return [line for check in LAYER_CHECKS for line in hits[check]]
 
 
 def _scalar(value) -> str:

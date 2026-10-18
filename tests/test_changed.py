@@ -9,6 +9,8 @@ unittest の最後の数え（Ran N tests）で何が回ったかを見る。木
 - 頭で読み込めない試験のパッケージの下を変えると赤（パッケージ名の 1 件を選ぶ）
 - 集め方の正本（tests/shard.py の PATTERN）を変えると、殻の選び（変わった lib を import する試験も）と CI の分けの両方が変わる
 - 出力の最後は unittest の数え（Ran N tests）で、数えの形 COUNT が最初に当たるのもその行
+- 試験は既定で子 WORKERS 個に並べて回す。並べても、選んだモジュールの名と回さないモジュールの数・回った数は 1 つの子で順に回した時と
+  同じで、落ちた試験は名と traceback が出て、最後は FAILED。2 つのモジュールは別の子で走り、並べる数の上書き（環境変数）は試験を回す口まで届く
 """
 import pathlib
 import re
@@ -23,6 +25,7 @@ from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 IN_CI = "全部の試験は CI に寄せる（持ち主の決め full-suite-in-ci）"
+WORKERS = "3"
 COUNT = re.compile(r"Ran (\d+) tests?")
 COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py", "tests/shard.py", "tests/bin/hermetic.py",
           "workflows/.shared/boundary.py")
@@ -68,8 +71,9 @@ class ChangedTest(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
 
     def run_changed(self, **overrides):
+        env = hermetic.child_env(**{"WORKS_FACTORY_TEST_WORKERS": WORKERS, **overrides})
         done = subprocess.run([sys.executable, "tests/changed.py"], cwd=self.repo, capture_output=True, text=True,
-                              encoding="utf-8", env=hermetic.child_env(**overrides))
+                              encoding="utf-8", env=env)
         return done.returncode, done.stdout, done.stdout + done.stderr
 
     def ran(self, out):
@@ -195,6 +199,50 @@ class ChangedTest(unittest.TestCase):
         self.assertEqual(len(COUNT.findall(out)), 1, out)
         self.assertRegex(lines[-2], r"^Ran \d+ tests? in ")
         self.assertEqual(lines[-1], "OK")
+
+    def test_parallel_run_keeps_the_names_and_counts_of_a_serial_run(self):
+        self.write("lib/beta.py", "def value():\n    return 1  # changed\n")
+        self.write("lib/tests/test_gamma.py", ONE_TEST)
+        runs = {n: self.run_changed(WORKS_FACTORY_TEST_WORKERS=n) for n in ("1", WORKERS)}
+        for _rc, stdout, out in runs.values():
+            self.assertIn("回さない: 1 モジュール", stdout, out)
+            for name in ("lib.tests.test_beta", "lib.tests.test_gamma", "tests.layers.test_fence"):
+                self.assertIn(f"  {name}\n", stdout, out)
+        (serial_rc, serial_stdout, serial_out), (rc, stdout, out) = runs.values()
+        self.assertEqual((rc, self.ran(out), out.splitlines()[-1]), (serial_rc, self.ran(serial_out), "OK"), out)
+        self.assertEqual(stdout.split("\n", 1)[1], serial_stdout.split("\n", 1)[1])   # 1 行目は選びの秒数
+
+    def test_parallel_run_names_the_failing_test_with_its_traceback(self):
+        self.write("lib/alpha.py", "def value():\n    return 2\n")
+        self.write("lib/beta.py", "def value():\n    return 1  # changed\n")
+        rc, _stdout, out = self.run_changed()
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(self.ran(out), 4, out)
+        self.assertIn("FAIL: test_one (lib.tests.test_alpha.T.test_one)\n", out)
+        self.assertIn("Traceback (most recent call last):", out)
+        self.assertIn("AssertionError: 2 != 1", out)
+        self.assertEqual(out.splitlines()[-1], "FAILED (failures=1)")
+
+    def test_modules_run_in_separate_children(self):
+        pids = self.repo / "pids"
+        pids.mkdir()
+        for name, other in (("a", "b"), ("b", "a")):
+            # 自分の pid を書いた後、もう 1 つのモジュールの pid が書かれるまで抱える（同じ子が両方を回せば、待ちが切れてから
+            # 同じ pid が 2 つ書かれて赤になる。機械が重くても、別の子が次のモジュールを取るまで重なりが続く）
+            self.write(f"tests/layers/test_pid_{name}.py",
+                       "import os, time, unittest\n\n\nclass T(unittest.TestCase):\n    def test_pid(self):\n"
+                       f"        open({str(pids / name)!r}, 'w').write(str(os.getpid()))\n"
+                       "        end = time.monotonic() + 10\n"
+                       f"        while not os.path.exists({str(pids / other)!r}) and time.monotonic() < end:\n"
+                       "            time.sleep(0.05)\n")
+        rc, _stdout, out = self.run_changed(WORKS_FACTORY_TEST_WORKERS="2")
+        self.assertEqual(rc, 0, out)
+        self.assertNotEqual((pids / "a").read_text(encoding="utf-8"), (pids / "b").read_text(encoding="utf-8"), out)
+
+    def test_the_worker_count_from_the_environment_reaches_the_runner(self):
+        rc, _stdout, out = self.run_changed(WORKS_FACTORY_TEST_WORKERS="0")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("1 以上の整数", out)
 
 
 if __name__ == "__main__":
