@@ -7,6 +7,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 - 「機械」の行は、その決まりを守らせる試験。今は予定（土台の計画 `docs/plans/2026-10-11-foundation.md` で作る）。試験で縛れない決まりは「人が見る」と書く。
 - `CLAUDE.md` を置かない。Claude Code は `CLAUDE.md` が在ると `AGENTS.md` を読まない（持ち主の決め `agents-md-per-level`）。
 - 文書は日本語。
+- スキル（SKILL.md）やコマンドを書く・直す前に https://github.com/raiki61/claude-plugins/blob/main/docs/standards/skill-authoring.md を読む。
 - 今の works（このリポジトリの前の形。`raiki61/claude-plugins` の `works/`、移す元の版は `pack.json` の `works.commit`）を読めば分かる事は、ここに書き直さず元を読む。確かめの部品の作り・その試験・能力の訳がそれに当たる。移す時は元のファイル名を残す（E18）。持ち主の決め `read-original-works`。役の指示書の中身はこれに当たらない。役の指示書は初見の読み手で詰まりが無くなるまで書き直す。写しの台帳を持つ指示書は、書き直しを台帳の許した直しとして記録する（持ち主の決め `prompts-coldread`）。
 
 ## 決まりの置き場
