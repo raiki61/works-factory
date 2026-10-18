@@ -226,7 +226,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - 同じサブグラフを 2 度 include する所の出力は include の id ごとに分かれる（U2）。`rejudge-run`・`replan`・`replan-review`・`refix-run`・`design-only` の出力は include したサブグラフと同じ形。後の段が fix の出力を読む所は `$fixed.output.<欄>`、judge の単位と判定を読む所は `$judged.output.<欄>`、plan と plan-review の出力を往復の外から読む所は `$plan-rounds.output.<欄>` を読む。ただし fix から後ろのノードは、直す前のテスト・1 回目の判定・計画の往復・修正前の承認ノードの答えを中継のノード `fix-in` の `$fix-in.output.<欄>` から読む（順と承認ノードの 7）。
 - メイングラフの始めのノード `start` の出力のうち、サブグラフが読むのは 4 つ:
   - `prior_failures`（ポインタ・null 可）: 前の run の持ち越しの前の失敗の行（始めのノードが依頼から `lib/carry` で置く、今の works の `prior-failures-in.json`）。無ければ null → judge・plan
-  - `record`（ポインタ）: 始めの記録。run の置き場の根を共有ボードの根とした `lib/startrec.py` の置き場 `r1/start.json`（lib の読み手が `startrec.read` で読む所と同じ 1 つ。サブグラフはポインタの先を自分の置き場の同じ所へ `startrec.adopt` で字のまま写し、欄を既定で埋めない）。今の works の `start.json` の欄（`input`（入口の入力の形 `{base: {rev, from, name, label}, head_rev, diff, requests, request_file, pr: {number, title, body} | null, spec}`。どの入口でも鍵が同じ。入口の種類（`base.from`）で分かれるのは入口の変換 `lib/entryshape.py` とメイングラフの `start` だけ）・`inputs`（入口の入力の写し。拒んだ run にも在る）・`versions`（版の控え `lib/versions.py`。分からない値は null で `unknown` に訳。拒んだ run にも在る）・`answers`（依頼の answers）・`run_id`・`base_rev`（修正の前の HEAD。差分の根 `input.base.rev` とは別）・`review_rev`（計画と事前審査の材料の読む版。今は `base_rev` と同じ HEAD。材料の BASE は `input.base.rev`）・`test_cmd`・`tdd_suite`（TDD のループと 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""`）・`final_gate`・`unattended`・`policy`（人の方針の文書を run の始めに 1 度だけ固めた版 `{named, path, sha256, copy}`。`named` は入口の名指し `policy_md`、`path` は名指しの文書か、対象のリポジトリの git の共通の置き場の `graphloops/policy.md`。文書が無ければ `path` は `""`、`sha256` と `copy` は null。役に貼る本文は `copy` から読み、`policy_md` を生で読まない。修正前の承認ノードで人が方針の文書の変化を通したら、メイングラフのノード `answer-before-fix` がこの欄を通した版に書き直す。だから fix・eyes・judge の再審は人が通した版を読む）・`spec` ほか）→ 全サブグラフ
+  - `record`（ポインタ）: 始めの記録。run の置き場の根を共有ボードの根とした `lib/startrec.py` の置き場 `r1/start.json`（lib の読み手が `startrec.read` で読む所と同じ 1 つ。サブグラフはポインタの先を自分の置き場の同じ所へ `startrec.adopt` で字のまま写し、欄を既定で埋めない）。今の works の `start.json` の欄（`input`（入口の入力の形 `{base: {rev, from, name, label}, head_rev, diff, requests, request_file, pr: {number, title, body} | null, spec}`。どの入口でも鍵が同じ。入口の種類（`base.from`）で分かれるのは入口の変換 `lib/entryshape.py` とメイングラフの `start` だけ）・`inputs`（入口の入力の写し。拒んだ run にも在る）・`versions`（版の控え `lib/versions.py`。分からない値は null で `unknown` に訳。拒んだ run にも在る）・`answers`（依頼の answers）・`run_id`・`base_rev`（修正の前の HEAD。差分の根 `input.base.rev` とは別）・`review_rev`（計画と事前審査の材料の読む版。今は `base_rev` と同じ HEAD。材料の BASE は `input.base.rev`）・`test_cmd`・`tdd_suite`（TDD のループと 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""` で、test-gate の base が用意した実行器が照らしを通った時だけその絶対パスを結ぶ）・`suite_written`（tdd_suite を省いた run だけ。用意した実行器の `{from, path, ok, why, dropped, stored}`。`from` は取り置き `keep` か書き手の役 `ai`、`ok` は null が照らす前・true が通った・false が作れなかった。`lib/suitewrite.py`）・`final_gate`・`unattended`・`policy`（人の方針の文書を run の始めに 1 度だけ固めた版 `{named, path, sha256, copy}`。`named` は入口の名指し `policy_md`、`path` は名指しの文書か、対象のリポジトリの git の共通の置き場の `graphloops/policy.md`。文書が無ければ `path` は `""`、`sha256` と `copy` は null。役に貼る本文は `copy` から読み、`policy_md` を生で読まない。修正前の承認ノードで人が方針の文書の変化を通したら、メイングラフのノード `answer-before-fix` がこの欄を通した版に書き直す。だから fix・eyes・judge の再審は人が通した版を読む）・`spec` ほか）→ 全サブグラフ
   - `reuse_dir`（string）: 同じ run の中の試験の結果の控えの置き場の絶対パス（`lib/tree_run.py` の `reuse_dir`）。拒んだ run と落ちた出力は `""` → test-gate（base）・fix
   - `user_env_dir`（string）: 対象のコマンドを利用者の HOME・XDG に戻して起こした印（`lib/userenv.py` の `RAN_FILE`）を置く置き場の絶対パス（run の置き場）。サブグラフは `workflows/.shared/boundary.py` の `drop_runner_env`・`aim_user_env` に渡して印の変数を立て、空なら変数を外す（起動の殻を通った run では `lib/userenv.restore` が戻さずに止まる）→ test-gate・fix・judge・report（report へは `collect` を通す）
 
@@ -386,6 +386,7 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
   - `log`（string）: ログの置き場（無ければ `""`）→ report・メイングラフ 11
   - `baseline_line`（string）: 頭「修正前のテスト: 」つきの修正前のテストの 1 行。final だけ（base と誤りは `""`）→ report・メイングラフ 11
   - `reason`（string）: 認証しなかった訳の 1 行（ok が真なら `""`）→ メイングラフ 11
+  - `optional`（array・required に入れない）: このサブグラフが落ちてもメイングラフが先へ進めてよいノード（TDD の実行器のループ `suite-loop` と書き手 `suite-write`。落ちれば実行器の無い run の道を通る）の宣言。項目は `{node, bare}`（`bare` はループの中のノードで、run の記録の step に include の前付けの無い素の id で載るか）。値は出力ノード `result` の `with:` の `optional`（JSON の字）を境の口 `boundary.items` で読んだ並び。受け皿 `test-gate-base-out` が運び、`collect` が include の id の頭 `test-gate-base` を付けて report の入力 `optional` に合わせる → メイングラフの `collect`
 - 型つきの成果物: 出力ノードに `output_type: green-cert`（report が全部の周の認証を一覧から拾う。E5）
 
 ### eyes の出力
@@ -526,11 +527,11 @@ run の頭の深さ（judge の `depth`）の 3 段の定義の、ただ 1 つ�
 
 ### test-gate（試験の関門）
 
-- 目的: 2 つの形で include する。base はテストの走らせ方を見つけ、直す前の結末を控える。final はテスト一式と CI を走らせ、赤の原因（今回入れた・元から・環境）を分け、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。機械で走らせられない時は任せ先の役が回す。
+- 目的: 2 つの形で include する。base はテストの走らせ方を見つけ、直す前の結末を控える。final はテスト一式と CI を走らせ、赤の原因（今回入れた・元から・環境）を分け、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。機械で走らせられない時は任せ先の役が回す。入力 tdd_suite を省いた run の base は、走らせた後に TDD の実行器を用意する（`suite-loop`）: 同じ test_cmd で前に照らしを通った取り置き（利用者ごとに 1 つで対象をまたぐ。起動の殻が決めて渡す境の口の `suite_keep`）を使い、無ければ書き手の役が test_cmd と CI の定義から書く。その実行器を 1 回走らせた結末を機械が照らし（JUnit XML が出て試験が 1 件以上）、通れば始めの記録の tdd_suite に結ぶ。取り置きが通らなければ捨てて書き直す（持ち主の決め `suite-by-ai`）。
 - ASF で読む物: `W/validate/archon-validate.yaml`（`mode`・`discover`・`run`・`classify`・`result`、`outcome_field: green`）と `W/deliver/scripts/gate-green.ts`（認証）と `W/.shared/validation-evidence.ts`（指紋）。
 - 入力: 形（base・final）・始めの記録。
-- 役（`commands/`）: `ci`。
-- lib: `baseline_red`・`green_cert`・`declared_checks`（共有ボードなしの CI の関数と素材の型）・`checkscope`（範囲の宣言）・`graphloops/engine/declared`。
+- 役（`commands/`）: `ci`・`suite-write`。
+- lib: `baseline_red`・`green_cert`・`declared_checks`（共有ボードなしの CI の関数と素材の型）・`checkscope`（範囲の宣言）・`suitewrite`（TDD の実行器の用意と照らし）・`graphloops/engine/declared`。
 - 埋め: 無し。
 
 ### eyes（独立の目）
