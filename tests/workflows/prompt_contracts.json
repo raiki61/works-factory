@@ -1735,6 +1735,8 @@
       "nodes": [],
       "output_format_sha256": null,
       "json_keys": [
+        "ask_why",
+        "changes",
         "counts",
         "decision",
         "grounds",
@@ -1742,6 +1744,7 @@
         "how",
         "id",
         "limits",
+        "line",
         "misses",
         "query",
         "request_searched",
@@ -2291,7 +2294,7 @@
       "nodes": [
         "workflows/fix/works-factory-fix.yaml#ruler"
       ],
-      "output_format_sha256": "1a49d6835e5641dc81bbd78972d10c8f85bc6c4ebe3a3e5dbd9c2ba45829fb55",
+      "output_format_sha256": "4939b420d98a3830fd9c97cf8a98bd52f785ca8037358451e29d22856c67f5c3",
       "json_keys": []
     },
     "forbidden": [],
