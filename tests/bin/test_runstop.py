@@ -88,9 +88,10 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         return runstop.childsweep.last_json(done.stdout)["runId"]
 
     def foreground(self) -> tuple[subprocess.Popen, str]:
+        """前で起こした run の持ち主と run の id。持ち主はシェルのジョブの長と同じく、自分のグループの長で、セッションの長でない"""
         known = {r["id"] for r in self.runs()}
         owner = subprocess.Popen([*self.head, "workflow", "run", PROBE, "--cwd", str(self.root)], cwd=self.root, env=self.env,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, process_group=0)
         self.addCleanup(lambda: owner.poll() is not None or (owner.kill(), owner.wait()))
         while not (fresh := [r["id"] for r in self.runs() if r["id"] not in known and not r.get("parent_run_id")]):
             self.assertIsNone(owner.poll(), "前で起こした run が run を作る前に抜けた")
@@ -156,20 +157,54 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertGone(untouched, "owner", "hosts", "claude", "kids", "shell")
 
     def test_cancel_of_a_foreground_run_stops_its_owner_too(self):
-        """前で起こした run は Archon の cancel が拒む（終了の値は Archon の物）が、殻が持ち主ごと止め、run は failed になる"""
+        """前で起こした run は Archon の cancel が拒むが、殻が持ち主ごと止めて 0 で抜け、run は failed になる。持ち主のジョブの
+        相手（`| tee` のように持ち主のグループに居る run の外の物）は止めない"""
         owner, run_id = self.foreground()
         found = self.tree(run_id)
         self.assertEqual(found["owner"], [owner.pid])
+        partner = subprocess.Popen([sys.executable, "-c", "import signal; signal.pause()"], process_group=owner.pid)
+        self.addCleanup(lambda: (partner.kill(), partner.wait()))
         code, err = self.cancel(run_id)
-        self.assertEqual(code, 1, err)
+        self.assertEqual(code, 0, err)
         self.assertIn("持ち主も止めた", err)
+        self.assertIn("割り込みは要らない", err)
+        self.assertIsNone(partner.poll())
         owner.wait()
         self.assertGone(found, "hosts", "claude", "kids", "shell")
         self.assertEqual(self.get(run_id)["status"], "failed")
 
-    def test_orphans_left_in_the_group_of_a_vanished_owner_are_stopped(self):
-        """持ち主が先に消えた run（P1 の kill -9）は、持ち主のグループに残った bash のノードを止める。provider は自分のセッションに
-        居て番号のつながりが無いので拾わない（抜け道。試験は見たプロセスを番号で片付ける）"""
+    def test_ai_processes_left_by_an_interrupted_foreground_run_are_stopped(self):
+        """前の命令を Ctrl-C で止めた run（failed）は持ち主の木を数えない訳を出し、残った AI のノードのプロセスを WORKFLOW_ID で
+        見つけて止める"""
+        owner, run_id = self.foreground()
+        found = self.tree(run_id)
+        owner.send_signal(signal.SIGINT)
+        owner.wait()
+        while self.get(run_id)["status"] == "running":
+            time.sleep(POLL)
+        self.assertEqual(self.get(run_id)["status"], "failed")
+        self.assertTrue([pid for kind in ("hosts", "kids") for pid in found[kind] if alive(pid)])
+        _, err = self.cancel(run_id)
+        self.assertGone(found, "hosts", "claude", "kids", "shell")
+        self.assertIn(f"run {run_id} の持ち主のプロセスの木は数えない（run は running でない（failed））", err)
+        self.assertIn(f"run {run_id} のプロセス", err)
+        self.assertNotIn("残ったプロセス", err)
+
+    def test_cancel_of_a_child_run_stops_only_the_child_run_processes(self):
+        run_id = self.detach()
+        found = self.tree(run_id)
+        kid = next(r["id"] for r in self.runs() if r.get("parent_run_id") == run_id)
+        code, err = self.cancel(kid)
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"run {kid} の持ち主のプロセスの木は数えない（子の run", err)
+        self.assertEqual([pid for pid in [found["hosts"][1], found["claude"][1], *found["kids"][2:]] if alive(pid)], [])
+        self.assertEqual([pid for pid in [found["hosts"][0], found["claude"][0], *found["kids"][:2], *found["shell"]]
+                          if not alive(pid)], [])
+        self.assertEqual(self.get(run_id)["status"], "running")
+
+    def test_orphans_of_a_vanished_owner_are_stopped(self):
+        """持ち主が先に消えた run（P1 の kill -9）は、持ち主のグループに残った bash のノードも、自分のセッションに居る provider と
+        その下も、WORKFLOW_ID で止める"""
         run_id = self.detach()
         found = self.tree(run_id)
         os.kill(found["owner"][0], signal.SIGKILL)
@@ -178,8 +213,15 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertTrue(all(alive(pid) for pid in found["shell"]))
         code, err = self.cancel(run_id)
         self.assertEqual(code, 1, err)   # Archon は持ち主が答えないので拒む（abandon を勧める）
-        self.assertGone(found, "shell")
+        self.assertGone(found, "hosts", "claude", "kids", "shell")
         self.assertIn(f"run {run_id} のプロセス", err)
+
+
+class RunIdTest(unittest.TestCase):
+    def test_the_run_id_is_read_after_flags_and_their_values(self):
+        self.assertEqual(runstop.run_id_of(["workflow", "cancel", "--cwd", "/x", "--json", "r1"]), "r1")
+        self.assertEqual(runstop.run_id_of(["workflow", "cancel", "--cwd=/x", "r1", "--json"]), "r1")
+        self.assertIsNone(runstop.run_id_of(["workflow", "cancel", "--cwd", "/x"]))
 
 
 if __name__ == "__main__":
