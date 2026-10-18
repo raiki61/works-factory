@@ -2286,6 +2286,21 @@ class LinesCase(Base):
         self.assertIn(f"{runreport.PROTECTED_HITS_HEAD}: {many} 件", body)
         self.assertEqual(body.count(listcut.REST.format(n=many - listcut.SHOWN)), 1, body)
 
+    def test_allowed_tests_are_those_the_sealed_diff_touched(self):
+        """#664: 許したテストのパスが 14 本でも、人が決めることに並べるのは封じた差分が触った 3 本だけ。封じた差分が無ければ
+        照らせないので全部"""
+        touched = [f"tests/test_t{i}.py" for i in range(3)]
+        allowed = [*touched, *(f"tests/test_u{i}.py" for i in range(11))]
+        diff = self.put("merge/sealed.diff", "".join(f"diff --git a/{p} b/{p}\n--- a/{p}\n+++ b/{p}\n@@ -1 +1 @@\n-a\n+b\n"
+                                                     for p in touched))
+        fix = {**fixed_run()["fix"], "allowed_test_changes": allowed}
+        _, text, _ = self.build(fixed_run(fix=fix, **{"sealed-diff": {"mode": "seal", "ok": True, "diff": diff}}))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("許したテストの変更: 3 件", body)
+        self.assertNotIn("tests/test_u0.py", body)
+        _, text, _ = self.build(fixed_run(fix=fix))
+        self.assertIn(f"{runreport.ALLOWED_TESTS_HEAD}{runreport.ALLOWED_UNCHECKED}: 14 件", self.section(text, report.DECISIONS_HEADING))
+
     def test_seal_not_ok_says_why(self):
         seal = {"mode": "seal", "ok": False, "reason": "指紋が今の作業ツリーと違う"}
         _, text, decided = self.build(fixed_run(**{"sealed-diff": seal, "applied-diff": None}))
