@@ -1,4 +1,4 @@
-"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
+"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・bin/_lib/apply.py・
 bin/_lib/startpoint.py・workflows/.shared/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・
 tests/layers/scan.py の役の節の鍵・機械の節の鍵・節の種類の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
 
@@ -21,7 +21,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 from unittest import mock
 
-from bin._lib import launcher, pack, place, startpoint
+from bin._lib import apply, launcher, pack, place, startpoint
 from lib import answer
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
@@ -372,6 +372,15 @@ ARCHON_ROWS = (
     Row("ループの until の呼びの名", lambda: runreport.UNTIL_ROW, "packages/workflows/src/dag-executor.ts", r"label: '(<until_bash>)'"),
     Row("ループの回の step の継ぎ", lambda: runreport.ITERATION_MARK, "packages/workflows/src/dag-executor.ts",
         r"nodeId: `\$\{node\.id\}(-iteration-)\$\{String\(i\)\}`"),
+    Row("workflow get の出来事の列の旗", lambda: apply.EVENTS_FLAGS, "packages/cli/src/cli.ts",
+        r"'Usage: archon workflow get <run-id> \[--json\] \[(--verbose)\] \[(--events)\]'", lambda m: m.groups()),
+    Row("workflow get --verbose --events の出来事の列の鍵", lambda: apply.EVENTS, "packages/cli/src/commands/workflow.ts",
+        r"rawEvents\n\s*\? \{\n\s*\.\.\.run,\n\s*transcript_path: transcriptPath,\n\s*terminal_record: terminalRecord,\n\s*(events),$"),
+    Row("ノードの出力を持つ出来事と済んだ状態", lambda: (*apply.OUTPUT_EVENTS, apply.COMPLETED), "packages/workflows/src/terminal-record.ts",
+        r"case '(node_completed)':\n\s*case '(node_skipped_prior_success)':\n\s*nodes\.set\(nodeId, \{ node_id: nodeId, state: '(\w+)' \}\);",
+        lambda m: m.groups()),
+    Row("記録の出力の読みの鍵（型つきの出力・切り詰めの印・素の出力）", lambda: apply.OUTPUT_KEYS, "packages/workflows/src/terminal-record.ts",
+        r"Object\.hasOwn\(data, '(\w+)'\).*?data\?\.(\w+) === true.*?typeof data\?\.(\w+) === 'string'", lambda m: m.groups()),
 )
 
 
