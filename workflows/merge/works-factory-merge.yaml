@@ -41,8 +41,8 @@ inputs:
   items:
     default: ""
     description: >-
-      修正の段の記録 {items, claims, unread}（lib/itemcommits.py の merged。空は無し）。pr の時に、差分を修正案の項目ごとの commit に
-      分ける（apply・check だけ）
+      差分のパスを修正案の項目に決める記録 {items, claims, unread}（lib/itemcommits.py の merged の形。空は無し）。pr の時に、差分を
+      項目ごとの commit に分ける（apply・check だけ）
 returns: merge
 outcome_field: ok
 nodes:

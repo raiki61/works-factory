@@ -2706,7 +2706,7 @@ class LinesCase(Base):
                 self.assertEqual(text.splitlines()[3], runreport.APPLY_ASK + said)
 
     def test_pr_commits_are_listed_or_why_they_were_not_split(self):
-        """#569: 出口の語 pr の run は、人が決めることの節に積んだ commit を出す。修正案の項目ごとに積めば本数と項目と commit の対、
+        """#569: 出口の語 pr の run は、人が決めることのセクションに積んだ commit を出す。修正案の項目ごとに積めば本数と項目と commit の対、
         1 つの commit に倒せばその訳。出口の語が空の run は行を出さない"""
         seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
         applied = fixed_run()["applied-diff"]
