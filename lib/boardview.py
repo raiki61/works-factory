@@ -423,9 +423,9 @@ def passed_version(folder, gate_answers) -> dict | None:
 
 
 def tree_word(start: dict | None, head: str = "") -> str:
-    """事前審査の木の語（on・off・auto）。始めの記録の名指し、無ければ頭の深さの段の足し（depth.tier_adds）、無ければ auto
-    （head の既定の空は足し無し）"""
-    return entry.switch(start, TREE_FEATURE, depth.tier_adds(head))
+    """事前審査の木の語（on・off・auto）。始めの記録の名指し、無ければ頭の深さの段の足し（depth.tier_adds）、無ければ段の auto の読み
+    （depth.tier_auto。軽量は off。head の既定の空は足し無しの auto）"""
+    return entry.switch(start, TREE_FEATURE, depth.tier_adds(head), depth.tier_auto(head))
 
 
 def _request(start: dict | None) -> tuple:
@@ -1034,7 +1034,7 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, reply: dict, repo, key
             raise Reject(_lines(planblk.FACE_REJECT, gaps))
         items = _map_items(b, inputs)
         kept = planblk.kept_keys(b, items or []) if _later(b, inputs) else set()
-        dmap = tree.get(converge.DESIGN_MAP) or []
+        dmap = planblk.bound_map(b, items or [], tree.get(converge.DESIGN_MAP))
         refs = {n: planblk.item_refs(b, n, [*design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") == n]),
                                             *design.refs_of([e for e in dmap if isinstance(e, dict) and e.get("item") is None])], kept, dmap)
                 for n in items or []}
