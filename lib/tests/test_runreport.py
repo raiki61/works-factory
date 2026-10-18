@@ -583,10 +583,12 @@ class TranscriptCase(Base):
         self.assertIn(f"最後の承認ノード gate-final: {runreport._gate_line(gates['final-answer'])}", outcome_line)
         self.assertIn(f"次の run に渡す物: {carried} 件", outcome_line)
         self.assertIn("持ち越した失敗: 1 件", outcome_line)
-        self.assertIn(runreport.DATA_PLACES, outcome_line)
-        for place in ("depth_record", "groups", "$LOG_DIR/<run の id>.jsonl", "execution.binding", "result", "outcome", "stop_reason"):
-            self.assertIn(place, runreport.DATA_PLACES)
-        self.assertNotIn("同じ run の置き場", runreport.DATA_PLACES)
+        self.assertIn(runreport.data_places(record), outcome_line)
+        self.assertIn(f"選び = {record} の groups", outcome_line, "選びの在り処は欄 depth_record の先の実のパス")
+        for place in ("$LOG_DIR/<run の id>.jsonl", "execution.binding", "result", "outcome", "stop_reason"):
+            self.assertIn(place, outcome_line)
+        self.assertNotIn("同じ run の置き場", outcome_line)
+        self.assertIn(runreport.NO_HEAD_AT, runreport.data_places(None))
         for skip, said in (("", "結果が無い——再実行の要あり（深さは標準で、省いていない）"), ("軽量で省いた", "深さで省いた")):
             with self.subTest(skip=skip):
                 _, text, _ = self.build(fixed_run(judge=judged, eyes=eyes), line={"redepth": {"skip_optional": skip}}, transcript=facts)

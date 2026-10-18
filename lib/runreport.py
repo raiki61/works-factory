@@ -9,7 +9,7 @@
   （run の記録の行の読み。efforts は models と同じ形の、行の execution.binding.effort。resubmits はループごとの {count: until が通らなかった回,
   minutes: 回り直しにかかった分}）
 - 報告の ## 模型 のセクション（_model_lines）: 群ごとの選びの行（headdepth.groups_lines）・ノードごとの実際に走った模型と effort・結末の行
-  （_outcome_line。結末の語・最後の承認ノードの答え・目ごとの語・次の run に渡す物と持ち越した失敗の件数・DATA_PLACES）
+  （_outcome_line。結末の語・最後の承認ノードの答え・目ごとの語・次の run に渡す物と持ち越した失敗の件数・data_places）
 - cost_rows(facts)・resubmit_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行・ループの回り直しの行と、費用の節の行（元 report.py:1769・1806）
 - next_request(returns, left, closed, *, beside, exit_doc)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
 - ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
@@ -387,17 +387,24 @@ def head_cost(facts: dict, why: str = "") -> list:
             *cost_rows(facts), *resubmit_rows(facts)]
 
 
-DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 判定の出力の欄 depth_record の先の groups／"
+DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = {head} の groups／"
                "実際の値 = $LOG_DIR/<run の id>.jsonl の行の execution.binding／"
                "結末 = メイングラフの出力 result の outcome・stop_reason")
+NO_HEAD_AT = "判定の出力の欄 depth_record の先（この run の判定は欄を返していない）"
 
 
-def _outcome_line(outcome: str, gates: dict, returns: dict, carried: int, prior: list, eyes_skip=None, stages=None) -> str:
+def data_places(head_at: pathlib.Path | None) -> str:
+    """固定のデータの在り処の 1 行。選びは判定の出力の欄 depth_record の先の実のパス"""
+    return DATA_PLACES.format(head=head_at if head_at is not None else NO_HEAD_AT)
+
+
+def _outcome_line(outcome: str, gates: dict, returns: dict, carried: int, prior: list, eyes_skip=None, stages=None,
+                  head_at: pathlib.Path | None = None) -> str:
     eyes = returns.get("eyes")
     seen = NO_EYES if eyes is None else "・".join(f"{name.upper()}: {_eye_word(eyes, name, eyes_skip)}" for name in oc.EYE_NAMES)
     return "／".join([f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）",
                      f"最後の承認ノード {oc.node_of(stages, 'final-answer')}: {_gate_line(gates.get('final-answer'))}", f"独立の目: {seen}",
-                     f"次の run に渡す物: {carried} 件", f"持ち越した失敗: {len(prior)} 件", DATA_PLACES])
+                     f"次の run に渡す物: {carried} 件", f"持ち越した失敗: {len(prior)} 件", data_places(head_at)])
 
 
 def _model_lines(facts: dict, head_doc, outcome_line: str) -> list:
@@ -1813,7 +1820,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (report.UNSEEN_LENS_HEADING, _unseen_lens_lines(returns, beside)),
         (report.OUTSIDE_HEADING, outside),
         (report.PRIOR_HEADING, report.prior_lines(prior, next_file)),
-        (report.MODEL_HEADING, _model_lines(tfacts, head_doc, _outcome_line(outcome, gates, returns, carried, prior, skip, stages))),
+        (report.MODEL_HEADING, _model_lines(tfacts, head_doc, _outcome_line(outcome, gates, returns, carried, prior, skip, stages, head_at))),
         (report.COST_HEADING, head_cost(tfacts, transcript_why)),
         (NOTES_HEADING, [oneline.one_line(n) for n in notes] or ["無い"]),
     ]
