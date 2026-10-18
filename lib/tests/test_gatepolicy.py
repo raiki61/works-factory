@@ -97,10 +97,6 @@ class OpensCase(unittest.TestCase):
         self.assertTrue(gp.opens("protected_only", reasons=[], guarded=True))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 def push(word, note):
     rec = {"item": "x", "answer": word, "note": note, "why": "推す理由"}
     return gp.Push(word == "continue", note, rec)
@@ -161,3 +157,7 @@ class StuckPushableCase(unittest.TestCase):
                                        ("key を引かない", (self.dir, self.doc(), push("continue", "直す")), False)):
             with self.subTest(why):
                 self.assertFalse(gp.stuck_pushable(*args, design_only=design_only))
+
+
+if __name__ == "__main__":
+    unittest.main()

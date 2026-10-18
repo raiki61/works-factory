@@ -1582,7 +1582,7 @@
 - S208 すぐ止めたい時は「取り消す」の行（`cancel <run-id>`）で、報告のノードまで届かない
   - 元: SKILL.md:165
   - 印: 無し
-  - 今: Archon の `workflow cancel`（README.md「Usage」）
+  - 今: Archon の `workflow cancel`（README.md「Stopping a run」）
   - 状態: 在る
   - 旧棚卸し: L-G55
 
@@ -2606,7 +2606,7 @@
 - U132 stop で、承認ノードで待つ run は respond stop で止めて報告へ進める
   - 元: use.sh:18・use.sh:943-946
   - 印: `stop`
-  - 今: Archon の `workflow respond` に stop と一言・`lib/answer.py::taken`（README.md「Usage」の 止める）
+  - 今: Archon の `workflow respond` に stop と一言・`lib/answer.py::taken`（README.md「Stopping a run」）
   - 状態: 在る
   - 旧棚卸し: L-G06・L-G07
 
