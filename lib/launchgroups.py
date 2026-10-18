@@ -43,7 +43,7 @@ MODELS = ("haiku", "sonnet", "opus")
 EFFORTS = ("low", "medium", "high", "max")
 UP, DOWN, SAME, MIXED = "上げ", "下げ", "同じ", "混ざる"
 # lib は実行基盤の名を書かない（柵 E3）。止めた版の識別は commit の短い字だけを書く
-RECORD_ONLY = "止めた版（355f1867）に run の中で後のノードの模型を付け替える口が無いので、役の選びは控えに残すだけで、この run では効かない。"
+RECORD_ONLY = "止めた版（64ec0c2e）に run の中で後のノードの模型を付け替える口が無いので、役の選びは控えに残すだけで、この run では効かない。"
 SECTION_HEAD = "## ノード群の模型と effort の既定（問い 3 で既定を替える群だけ選ぶ）"
 
 

@@ -168,6 +168,7 @@ def eyes(p: Place) -> dict:
                                     "tdd_unit": json.loads(p.put("fix/fix/tdd-unit.json", []))}]),
             "start": p.start(), "plan_questions": "null", "answers": "null", "start_answers": "null", "x_scalars": "null",
             "plan_declared": "null",
+            "checks": p.put("test-gate/final/evidence.md", "# test-gate（final）\n"),
             **judge_files(p, "answer_ties", "materials", "premises", "decisions")}
 
 

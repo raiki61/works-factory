@@ -4,4 +4,3 @@ nodes:
   - id: hello
     script: hello
     runtime: uv
-    timeout: 1728000000

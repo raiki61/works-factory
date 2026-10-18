@@ -360,6 +360,7 @@
     "inserts": [
       "$prep.output.base_rev",
       "$prep.output.candidates_file",
+      "$prep.output.checks_file",
       "$prep.output.concept_map",
       "$prep.output.cwd",
       "$prep.output.diff_file",

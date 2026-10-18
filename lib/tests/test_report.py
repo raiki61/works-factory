@@ -9,12 +9,14 @@
 import pathlib
 import re
 import sys
+import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+from tests.bin.gitkit import git  # noqa: E402
 import report  # noqa: E402
 
 
@@ -88,6 +90,30 @@ class TddLinesCase(unittest.TestCase):
     def test_stages_that_did_not_run_are_left_out(self):
         self.assertEqual(report.tdd_lines([(report.TDD_STAGES[0], None), (report.TDD_STAGES[1], None)]), [])
         self.assertEqual(len(report.tdd_lines([(report.TDD_STAGES[0], None), (report.TDD_STAGES[1], TDD_OFF)])), 1)
+
+
+class InnerWordCase(unittest.TestCase):
+    """works の内側の語の表の照らし（report.INNER_WORD・target_uses）は語の区切りを見て、長い語の頭に当てない"""
+
+    def test_longer_words_are_not_hits(self):
+        for line in ("この周期で回す", "この周波数を上げる", "この runner で走らせる", "この単位系は SI", "この周辺も読んだ"):
+            self.assertEqual(report.INNER_WORD.findall(line), [], line)
+
+    def test_real_words_are_hits(self):
+        self.assertEqual(report.INNER_WORD.findall("この周の、この run で、この単位の分母を直した。"), ["この周", "この run", "この単位"])
+        self.assertEqual(report.INNER_WORD.findall("出典の定石ではなく世界の解を採る"), ["定石", "世界の解"])
+        self.assertEqual(report.INNER_WORD.findall("この run_id"), [])
+
+    def test_target_uses_reads_only_whole_words(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            git(tmp, "init", "-q")
+            (pathlib.Path(tmp) / "a.txt").write_text("この周期で回す\nこの runner\n盤面\n", encoding="utf-8")
+            git(tmp, "add", "-A")
+            git(tmp, "commit", "-q", "-m", "a")
+            rev = git(tmp, "rev-parse", "HEAD")
+            self.assertFalse(report.target_uses(tmp, rev, "この周"), "「この周期」だけでは前から使う語にならない")
+            self.assertFalse(report.target_uses(tmp, rev, "この run"))
+            self.assertTrue(report.target_uses(tmp, rev, "盤面"))
 
 
 class DocCase(unittest.TestCase):
