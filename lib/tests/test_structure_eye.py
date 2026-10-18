@@ -13,6 +13,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import eye  # noqa: E402
+import listcut  # noqa: E402
 import planfile  # noqa: E402
 
 DOC = {"status": "ok", "reason": "", "units": [
@@ -181,11 +182,11 @@ class EyeAcceptCase(unittest.TestCase):
         self.assertTrue(eye.problems(doc, {"rows": [{**CLEAN, "evidence": ["/units/1/measure"]}]}))
 
     def test_long_duplicates_are_cut_with_the_total(self):
-        """大きいファイルの塊の一致が数百件でも、目に見せるのは先頭 DUP_SHOWN 件と全件の数（支度の出力を小さく保つ）"""
-        dups = [{"line": i, "other_line": i, "path": "x.yaml"} for i in range(eye.DUP_SHOWN * 40)]
+        """大きいファイルの塊の一致が数百件でも、目に見せるのは先頭 listcut.SHOWN 件と全件の数（支度の出力を小さく保つ）"""
+        dups = [{"line": i, "other_line": i, "path": "x.yaml"} for i in range(listcut.SHOWN * 40)]
         doc = {**DOC, "units": [{**DOC["units"][0], "measure": {"paths": [{"path": "a.txt", "duplicates": dups}]}}]}
         got = eye.view(doc)["units"][0]["measure"]["paths"][0]
-        self.assertEqual(len(got["duplicates"]), eye.DUP_SHOWN)
+        self.assertEqual(len(got["duplicates"]), listcut.SHOWN)
         self.assertEqual(got["duplicates_total"], len(dups))
         self.assertEqual(eye.problems(doc, {"rows": [{**CLEAN, "evidence": ["/units/0/measure/paths/0/duplicates_total"]}]}), [])
         self.assertLess(len(eye.render(doc)), 4000)

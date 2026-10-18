@@ -72,6 +72,7 @@ import runreport  # noqa: E402
 import seal  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
+import structmark  # noqa: E402
 
 SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
@@ -2097,7 +2098,7 @@ class AskFinalReadsCase(Artifacts):
 
     def test_many_new_names_are_cut(self):
         """直した後の実測の新しい名と知る場所の増えが 20,000 件ずつでも、最後の承認ノードの文は件数に依らず短く、末尾の答え方の行まで在る。
-        各一覧は先頭 SHOWN 件と、残りの件数と structure-after.json のパスの 1 行だけで、全件の数の行（after_counts）は残る"""
+        各一覧は先頭 SHOWN 件と、どの一覧の残りかと残りの件数と structure-after.json のパスの 1 行だけで、全件の数の行（after_counts）は残る"""
         rises = [{"concept": "止め", "what": "語", "path": f"m{i}.py", "before": 1, "after": 2} for i in range(20000)]
         names = [{"name": f"name_{i}", "sites": 2} for i in range(20000)]
         ptr = self.place("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
@@ -2111,8 +2112,8 @@ class AskFinalReadsCase(Artifacts):
         self.assertTrue(any("新しい名 20000 個" in x and "知る場所の増え 20000 件" in x for x in lines), text[:3000])
         self.assertIn("  - 新しい名 name_0（現れる所 2 か所）", lines)
         self.assertNotIn("  - 新しい名 name_100（現れる所 2 か所）", lines)
-        self.assertIn(f"  - ほか 19995 件{where}", lines)
-        self.assertEqual(sum(1 for x in lines if x == f"  - ほか 19995 件{where}"), 2, text[:3000])
+        self.assertIn(f"  - {structmark.FENCE_UP_LIST}のほか 19995 件{where}", lines)
+        self.assertIn(f"  - {structmark.NEW_NAMES_LIST}のほか 19995 件{where}", lines)
         self.assertNotIn("m100.py", text)
         self.assertIn(f"- 報告へ進める: {answer.line(RUN, 'continue', '<一言>')}（一言は {ask_final.RECORD} に残る）", lines)
         self.assertIn(f"- 止める: {answer.line(RUN, 'stop', '<理由>')}（報告は出る）", lines)

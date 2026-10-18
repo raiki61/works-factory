@@ -936,6 +936,19 @@ class DecisionsCase(Base):
         self.assertIn("    - dist: 4998 本", body)
         self.assertNotIn("    - r10.log", body)
 
+    def test_removed_top_folders_are_counted_per_scope(self):
+        """上位のフォルダごとの本数は scope ごとに数える。scope の gen/ と盤面の直下の gen/ を 1 つの「gen」に混ぜない"""
+        diff = self.fix_place("fix")
+        folder = pathlib.Path(diff).parent
+        fixboard.write_json(folder / "fix-removed.json", {"removed": [f"gen/{i}.o" for i in range(3)] + ["a.log"]})
+        (folder / "sub").mkdir()
+        fixboard.write_json(folder / "sub" / "fix-removed.json", {"removed": [f"gen/{i}.o" for i in range(4)]})
+        _, text, _ = self.build(self.with_fix(diff))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("    - sub の gen: 4 本", body)
+        self.assertIn("    - gen: 3 本", body)
+        self.assertIn("    - （根）: 1 本", body)
+
     def test_nothing_to_decide_puts_next_items(self):
         """元 ReportHeadCase.test_nothing_to_decide_puts_next_items: 決めることが無い run は 2 行目に次の run に渡す物の件数"""
         p = self.put("judge/out-of-purpose.json", {"rounds": {"1": [{"source": "P1", "why_outside": "目的の外の所見",

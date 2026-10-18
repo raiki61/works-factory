@@ -374,9 +374,16 @@ def lens_lines(got: dict) -> list:
     return out
 
 
+def _top(scope: str, path: str) -> str:
+    """上位のフォルダごとの本数の区分: パスの頭の 1 段。根に直に在るファイル（区切りの / が無い名）はファイル名ごとに数えず 1 つの区分に
+    まとめる。include の scope の分は scope の名を頭に付け、盤面の直下の分の同じ名のフォルダと混ぜない"""
+    top = path.split("/", 1)[0] if "/" in path else "（根）"
+    return f"{scope} の {top}" if scope else top
+
+
 def always_rows(got: dict) -> list:
     """clean が消したファイル・レンズ・仕組みの異常の行（0 件でも、走らせていない・読めないを 0 件と分ける。元 report.always_rows の
-    頭の 3 つ。残りの行は呼び手が持つ）。字下げの行は内訳で、先頭 listcut.SHOWN 本と（それを超える時は）上位のフォルダごとの本数。
+    頭の 3 つ。残りの行は呼び手が持つ）。字下げの行は内訳で、先頭 listcut.SHOWN 本と（それを超える時は）上位のフォルダごとの本数（scope ごと）。
     全件は fix-removed.json に在る（残りの行がその置き場を指す）"""
     rows = []
     for folder, gone in got["removed"]:
@@ -389,8 +396,7 @@ def always_rows(got: dict) -> list:
             rows.append(f"clean が消したファイル{where}: {gone['count']} 本")
             rows += listcut.lines(gone["paths"], where="、".join(gone["files"]))
             if len(gone["paths"]) > listcut.SHOWN:
-                # パスの頭の 1 段で数える。根に直に在るファイル（区切りの / が無い名）はファイル名ごとに数えず 1 つの区分にまとめる
-                tops = collections.Counter(n.split("/", 1)[0] if "/" in n else "（根）" for n in gone["paths"])
+                tops = collections.Counter(_top(scope, n) for scope, names in gone["by_scope"].items() for n in names)
                 rows += ["  - 上位のフォルダごとの本数:", *listcut.lines((f"{k}: {v} 本" for k, v in tops.most_common()), prefix="    - ")]
     if not got["removed"]:
         rows.append("clean が消したファイル: 走らせていない（修正の段が無い run）")
