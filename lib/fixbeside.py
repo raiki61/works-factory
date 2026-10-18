@@ -24,12 +24,12 @@
 - write(place, results, ruled_reply, *, items, plan_review, fix_reply): 書く
 - returned(place, pointer)・require_ports(got)・stage(got): 返す節の控えの欄を組む口と、この版より前に走った修正の返りを resume で
   受けたかの照らしと、返りから読み手の口に渡す段を切る口
-- read(stages, resolve)・tdd(stage, resolve)・late_records(stage, resolve): 読み手の口。段（fix の返りの控えの欄の dict。ポインタのまま）
+- read(stages, resolve)・tdd(stage, resolve)・late_records(stage, resolve)・late_place(place, result_files): 読み手の口。段（fix の返りの控えの欄の dict。ポインタのまま）
   と、ポインタを置き場の中のパスに戻す関数 resolve を受け、どの欄がポインタかを知って戻すのはここだけ（_port）。read は段の並び
   （fix と 2 度目の修正の順）を読み合わせた見え方、tdd は段の TDD の記録、late_records は線の redepth が修正の後に深さを上げる
-  信号（TDD の拒否・範囲の相談）の元
-- tdd_refused(folder, unread)・LATE_UNREAD: TDD の輪の状態から修正役が拒まれた単位の名を読む口（修正のブロックの中の
-  fixboard.depth_signals と returned が同じ読みで使う）と、読めない状態を上げる側へ倒す信号の字
+  信号（TDD の拒否・範囲の相談）の元。late_place は同じ形の元を返す節より前の置き場から読む口（fixboard.redepth）で、どちらの
+  元も latedepth.signals に渡す
+- tdd_refused(folder, unread): TDD の輪の状態から修正役が拒まれた単位の名を読む口（late_place と returned が同じ読みで使う）
 - closure_lines・not_closed・tests_left_lines・gates_lines・plan_ask_lines・branch_rows・always_rows・lens_lines・next_items:
   最後の承認ノードと報告が同じ行を出す口（元 works/.shared/core/report.py の branch_rows・gates_lines・plan_ask_lines・
   always_rows・lens_next_items・next_request の手直しの行、works/darkfactory/lib/line_edge.py の _ci_left）
@@ -325,12 +325,9 @@ def tdd(stage, resolve):
     return doc if doc is not None else unread[0]
 
 
-LATE_UNREAD = "修正の後の信号の控えが読めない（{why}）"
-
-
 def tdd_refused(folder, unread: list) -> list:
     """置き場 folder の TDD の輪の状態（tddloop.states）の calls から修正役が拒まれた単位の名（tddloop.refused_units）。在るのに
-    読めない・{"error"}・形が違う状態は unread に訳を足す（呼び手が LATE_UNREAD の信号で上げる側へ倒す）。輪の状態が 1 つも無い
+    読めない・{"error"}・形が違う状態は unread に訳を足す（latedepth.signals が上げる側へ倒す）。輪の状態が 1 つも無い
     置き場は TDD の輪が走っていないので拒否も無い"""
     refused = []
     for state in tddloop.states(folder):
@@ -342,8 +339,8 @@ def tdd_refused(folder, unread: list) -> list:
 def late_records(stage, resolve) -> dict:
     """段（最後の修正の段の返りの控えの欄）の、修正の後に深さを上げる信号の元: TDD の拒否（欄 tdd_refused）と、受け付けの行（欄
     accept_trace の先）。返り {refused: [単位の名], trace: 受け付けの行の並び | None, missing: [無い控えの名], unread: [在るのに読めない・
-    {"error"}・形が違う訳]}。受け付けの行の欄が null なら None で missing に名を、在るのに読めない控えは unread に訳を足す（呼び手
-    redepth が、無い時は上げずに訳を添え、読めない時だけ上げる側へ倒すため）。行は dict の物だけ"""
+    {"error"}・形が違う訳]}。受け付けの行の欄が null なら None で missing に名を、在るのに読めない控えは unread に訳を足す
+    （latedepth.signals の late。late_place と同じ決まり）。行は dict の物だけ"""
     got: dict = {"refused": [], "trace": None, "missing": [], "unread": []}
     if not isinstance(stage, dict):
         got["unread"].append("修正の段の出力が dict でない")
@@ -361,6 +358,28 @@ def late_records(stage, resolve) -> dict:
     rows = _load(path, got["unread"], rows=True) if path is not None else None
     got["trace"] = None if rows is None else [r for r in rows if isinstance(r, dict)]
     return got
+
+
+def late_place(place, result_files: dict) -> tuple:
+    """返す節より前の修正の段の置き場 place の、late_records と同じ形の信号の元と、読めた組の子の結果の並び。result_files は
+    戻せた組の id → 子の結果（fixboard.RESULT_FILE）のパス。子の結果が無い組は missing に名を、在るのに読めない子の結果と置き場の
+    受け付けの行（fixboard.accept_trace_rows が拒む形）は unread に訳を足し、受け付けの行を None にする"""
+    got: dict = {"refused": [], "trace": None, "missing": [], "unread": []}
+    got["refused"] = tdd_refused(place, got["unread"])
+    results = []
+    for gid, path in result_files.items():
+        path = pathlib.Path(path)
+        if not path.is_file():
+            got["missing"].append(f"組 {gid} の {path.name}")
+            continue
+        doc = _load(path, got["unread"])
+        if doc is not None:
+            results.append(doc)
+    try:
+        got["trace"] = fixboard.accept_trace_rows(place, results)
+    except ValueError as e:
+        got["unread"].append(oneline.one_line(e))
+    return got, results
 
 
 def _accepted_tests(trace: list) -> list:
