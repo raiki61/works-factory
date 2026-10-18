@@ -335,6 +335,16 @@
   - 試験の報告が全部 error の段は、実行器が試験を集めた形として走った段に数え、止めずに判定へ進める。これは持ち主の決めでなく、`keep-essence` の 2（元から赤の区別）と main の振る舞いを落とさない決まりから導いた運び役の決め（持ち主の答えはこの形を名指していない。2026-10-17）。
 - 当て方: `lib/userenv.py`（控えは旗なしでいつも置く）・`bin/_lib/isolate.py`・`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・`bin/AGENTS.md` の E15・`lib/tree_run.py` の `outside_env` と `run`・`lib/declared_checks.py` の `checks_reply`・`lib/graphloops/engine/declared.py` の `setup`。
 
+### `writer-fall-resume` 報告の本文の書き手が落ちた run は failed で終え、別のアカウントで resume して書き手と返すノードだけを走り直させる
+
+- 持ち主の言葉（2026-10-18、issue #702）: 「本文を書く段が使用枠で落ちたらそのNodeやブロックを再開かやり直しさせるべきでは」「そのNodeだけやり直しとかのほうがあってるかも」
+- 決め:
+  - 報告の本文の書き手（報告のサブグラフの `write-loop`）が落ちた run は failed で終える。返すノード `report` は機械の報告の冒頭に本文が無い訳を置く。
+  - 使用枠の切れで落ちた時は、別のアカウントの keychain の項目名（`WORKS_FACTORY_KEYCHAIN_ITEM`）で resume すると、書き手のループと `report` だけが走り直して本文が載る（`facts` は走り直さない）。自動では再開せず、人が resume を打つ（工場は Archon の使用枠の待ちを切っている。`bin/_lib/place.py` の `QUOTA_POLICY`・`asf-follows-dev`）。
+  - 提供元の安全の判定の誤りで落ちた時は failed のままでよい（同じモデルでは resume しても通らない）。
+  - 書き手を fan_out の `join: all_done` で包んで落ちを run に数えない案は採らない（止めた Archon `355f1867` の `all_done` は落ちの印 providerFailure を落とすので、resume のやり直しが消える）。
+- 当て方: `docs/design.md` の「書き手のループが落ちた run（#702）」の行・`lib/runreport.py` の `writer_fell`・`note_writer_fell`・`lib/answer.py` の `resume`。筋書きは `tests/workflows/test_report.py` の `WriterRunCase`。
+
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
 - 置き換えの条件: 今の works と同じ能力に届いたら置き換え、claude-plugins には `/works` の薄い入口だけを残す。根拠: 下の `superset` と `own-graph-alongside`。

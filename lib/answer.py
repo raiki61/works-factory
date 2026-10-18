@@ -7,6 +7,8 @@
 
 - head(env=None) -> str: 答えの行の頭
 - line(run_id, verb, note, env=None) -> str: 打つ行 1 本（verb は continue か stop）
+- resume(run_id, env=None) -> str: 落ちた run を別のアカウントで続ける行 1 本（答えの行の頭の respond を resume に替え、殻が認証に読む
+  keychain の項目名 KEYCHAIN_ENV を前に置く。項目名は穴のまま）
 - GO_WORDS・STOP_WORDS・REJECT: 関所の決めの語。通す語でない答えは止める語と読む
 - decision(got) -> dict: 関所の出力の値を {decision, text} に
 - taken(got, *, go, stop_reason, place, folder, asked=(), pushed=None, final=False) -> dict: 関所の答えの行 {go, answer, stop_reason}。関所が開かなかった
@@ -35,6 +37,9 @@ import stopby  # noqa: E402
 
 ENV = "WORKS_ANSWER_CMD"
 HOLE = "<答えの殻（bin/works-factory workflow respond --cwd <対象リポジトリ>）>"
+RESPOND, RESUME = " workflow respond ", " workflow resume "
+KEYCHAIN_ENV = "WORKS_FACTORY_KEYCHAIN_ITEM"   # 殻が認証に読む keychain の項目名の置き場（bin/_lib/auth_launch.py の ITEM_ENV）
+KEYCHAIN_HOLE = "<keychainの項目名>"
 VERBS = ("continue", "stop")
 GO_WORDS = ("approve", VERBS[0])   # approve は関所の選び肢に要る語
 REJECT = "reject"   # 今の works の関所の語で、stop と同じ。関所の選び肢に無いと、実行基盤がこの答えを拒む
@@ -55,6 +60,10 @@ def line(run_id: str, verb: str, note: str, env=None) -> str:
     if verb not in VERBS:
         raise ValueError(f"答えの語は {VERBS} のどれか: {verb!r}")
     return f'{head(env)} {run_id} {verb} "{note}"'
+
+
+def resume(run_id: str, env=None) -> str:
+    return f"{KEYCHAIN_ENV}={KEYCHAIN_HOLE} {head(env).replace(RESPOND, RESUME, 1)} {run_id}"
 
 
 def decision(got) -> dict:
