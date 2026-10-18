@@ -14,8 +14,14 @@ hash と違う。
 落ちた時も（runbranch.commit_parts が積み始める前の HEAD に戻す）、最後の木で hooks が通れば届くように 1 つの commit に積み直し、
 何本目で落ちたかと hooks の言葉を split に返す。各 commit の時点で試験が通るかは確かめない（確かめるのは積み終えた木の差分の hash
 だけ）。
-commit は対象の commit の hooks を飛ばさずに走らせ（hooks は対象のコマンドなので、PATH の頭に読むだけの gh の口を置く。
-lib/userenv.py の read_gh_first）、1 つの commit で hooks が落ちれば go: false と hooks の言葉（積み始める前の HEAD に戻し、積まない）。
+commit（項目ごとの各 commit と、1 つに積み直す commit）は対象の commit の hooks を飛ばさずに走らせ、1 つの commit で hooks が落ちれば
+go: false と hooks の言葉（積み始める前の HEAD に戻し、積まない）。hooks は対象のコマンドなので、git commit を対象のコマンドの環境
+（tree_run.outside_env）と印の置き場（入力 user_env_dir）で起こす。git commit 自身も利用者の HOME・XDG で走るので、走る hooks は
+利用者の大域の git の設定（core.hooksPath など）で決まり、利用者自身の commit と同じ形になる。git add・git diff など積む前後の git は
+節の環境のまま。印は積む変更が在る時だけ、最初の commit の前に置き（tree_run.split_mark・place_mark）、置けなければ積まずに止める
+（積む変更が無い回は置かない）。git が落ちた回は hooks が走ったかを口から見分けられないので、印は残す側に倒す。RECORD の形が違う・
+RECORD が在るのに印の置き場が空なら、積まずに go: false。push の hooks（pre-push）は pr-open の archon-pr が工場の環境で走らせ、
+この節の外にある。
 積んだ後に、差分の根から積んだ最後の commit までの差分の hash を封じた hash と照らし、違えば go: false（積んだ commit は run の
 枝に残るが、push はされない）。作業ツリーに変更が無く、封じた差分が既に枝の commit に在る時は積まずに進む。push・PR の作成はこの節でしない。
 commit の文が PR を作る子の run への渡し物（子の run には枝しか入力で渡せないので）: 項目の commit の題は項目の番号と approach の
@@ -27,7 +33,8 @@ commit の並び [{item, subject, head}]（1 つに倒した・積まなかっ�
 落ちない: どの誤りも go: false と訳を返す。
 
 入力: mode（照らしの形。apply か check）・base_rev（差分の根の版）・sealed_hash（封じた差分の sha256）・request（依頼のファイルのパス。
-相対なら対象の根から。空は無し）・items（修正の段の記録 itemcommits.merged の形。空は無し）
+相対なら対象の根から。空は無し）・items（修正の段の記録 itemcommits.merged の形。空は無し）・
+user_env_dir（利用者の HOME・XDG に戻した印を置く置き場の絶対パス。空は置き場が無い）
 """
 import json
 import os
@@ -50,7 +57,7 @@ if boundary is not None:
         import oneline
         import runbranch
         import seal
-        import userenv
+        import tree_run
 
 CHECKED = {
     "apply": "最後の承認ノードの後に、封じた差分の hash・修正の後のテストの緑の認証・独立の確かめ・守りのパスの当たりを照らして通った",
@@ -100,21 +107,23 @@ def item_message(parts: list, i: int, heads: list, run_id: str, tail: list, issu
     return "\n".join(lines) + "\n"
 
 
-def stack(repo: Path, record, mode: str, run_id: str, sealed: str, name: str, base: str, issues: list) -> tuple:
-    """今の変更を積む: (積んだ項目の commit の並び, 1 つに倒した・積まなかった訳)。git の誤りは runbranch.GitFailed のまま"""
+def stack(repo: Path, record, hook_env, mode: str, run_id: str, sealed: str, name: str, base: str, issues: list) -> tuple:
+    """今の変更を積む: (積んだ項目の commit の並び, 1 つに倒した・積まなかった訳)。git の誤りは runbranch.GitFailed のまま。
+    hook_env() は積む変更が在る時だけ 1 度呼び、hooks を走らせる commit の環境を返す（印を置く）"""
     paths = runbranch.staged(repo, boundary.RUNTIME_COPY)
     if not paths:
         return [], NOTHING
+    env = hook_env()
     parts, split = itemcommits.split(record, paths)
     if parts:
         tail = handoff(mode, run_id, sealed, name, base)
         try:
             heads = runbranch.commit_parts(repo, [p.paths for p in parts],
-                                           lambda i, done: item_message(parts, i, done, run_id, tail, issues), hook_env())
+                                           lambda i, done: item_message(parts, i, done, run_id, tail, issues), env)
             return [{"item": p.item, "subject": subject(p), "head": h} for p, h in zip(parts, heads)], ""
         except runbranch.PartFailed as error:
             split = f"項目ごとの {error.index + 1} 本目で hooks が落ちた: {error}"
-    runbranch.commit(repo, message(mode, run_id, sealed, name, base, issues, split), boundary.RUNTIME_COPY, hook_env=hook_env())
+    runbranch.commit(repo, message(mode, run_id, sealed, name, base, issues, split), boundary.RUNTIME_COPY, hook_env=env)
     return [], split
 
 
@@ -124,12 +133,6 @@ def origin_repo(repo: Path):
     except runbranch.GitFailed:
         return None
     return None if got is None else {"host": got["host"], "path": f"{got['owner']}/{got['name']}"}
-
-
-def hook_env() -> dict:
-    env = dict(os.environ)
-    userenv.read_gh_first(env)
-    return env
 
 
 def commit() -> dict:
@@ -152,9 +155,20 @@ def commit() -> dict:
     if why:
         return stopped(f"{why}（commit しない）")
     _, issues = entryshape.named({"request": boundary.text(os.environ.get("INPUTS_REQUEST"))}, repo)
+    record = boundary.value(os.environ.get("INPUTS_ITEMS"))
+    boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 入力を読み終えた。hooks に Archon の変数を継がせない
+    env, mark = tree_run.split_mark(tree_run.outside_env(os.environ))
+
+    def hook_env() -> dict:
+        if mark is not None:
+            tree_run.place_mark(mark)
+        return env
+
     try:
-        commits, split = stack(repo, boundary.value(os.environ.get("INPUTS_ITEMS")), mode, run_id, sealed, name, base, issues)
+        commits, split = stack(repo, record, hook_env, mode, run_id, sealed, name, base, issues)
         head = runbranch.git(repo, "rev-parse", "HEAD")
+    except OSError as error:   # 印を置けない（tree_run.MARK_FAILED）
+        return stopped(f"{error}（積まない・push しない）")
     except runbranch.GitFailed as error:
         return stopped(f"commit が通らなかった（対象の commit の hooks が落ちたか）: {error}（積まない・push しない）")
     why = seal.hash_refusal(sealed, seal.digest(green_cert.diff_between(repo, base_rev, head, skip=boundary.SKIP)))
