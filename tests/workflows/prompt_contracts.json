@@ -5709,13 +5709,13 @@
       }
     ]
   },
-  "workflows/plan/commands/structure-eye.md": {
+  "workflows/structure/commands/structure-eye.md": {
     "inserts": [
       "$structure-eye-prep.output.prompt"
     ],
     "returns": {
       "nodes": [
-        "workflows/plan/works-factory-plan.yaml#structure-eye"
+        "workflows/structure/works-factory-structure.yaml#structure-eye"
       ],
       "output_format_sha256": "8e4d525700dcb43b8c79ec1e7a5ed977be5873cf9c12f9905b70f3937460c7c1",
       "json_keys": []

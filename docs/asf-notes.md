@@ -82,7 +82,7 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 
 - ASF: d97d00ef の `W/ship/archon-ship.yaml`:58-59（`returns: outcome` / `outcome_field: delivered`）と 139-148（`trigger_rule: none_failed_min_one_success`、`delivered: { from: "$deliver.output.pr_url", if_skipped: null }`）。
 - なぜその形か: 子を飛ばす正しい道（止め・直す物が無い）でも、グラフの出力は 1 つの型で人と呼び手に届く。飛ばされた子は null で受け、落ちた子は受けない（落ちたノードの名が run の記録に残る）。
-- 採った先: メイングラフ（`workflows/line/works-factory-line.yaml`）の出力ノード `result` と、中継のノード `answer-*`・`collect`（埋め P2）と、`judged`・`fixed`（飛ばされうる再審・2 度目の修正の出力を `if_skipped: null` で受けて合わせる）。
+- 採った先: メイングラフ（`workflows/line/works-factory-line.yaml`）の出力ノード `result` と、中継のノード `answer-*`・`structure-in`・`collect`（埋め P2）と、`judged`・`fixed`（飛ばされうる再審・2 度目の修正の出力を `if_skipped: null` で受けて合わせる）。
 - 違い: メイングラフの報告はどの道でも出すので、集めるノード `collect`・`report`・`result` は `trigger_rule: all_done`（前の段が落ちても走る）。include の `with:` に束ねが書けないので、サブグラフへ渡す前にメイングラフの `script:` のノードで受け直す（ship は出力ノードだけで受ける）。
 
 ### A10 承認ノードは決めの語（decisions）と when: で道を分ける
@@ -97,7 +97,7 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - ASF: d97d00ef の `W/ship/fixtures/planned-delivered.stubs.yaml`（`deliver__impl__implement` のように include を展開した id に stub を置き、`exec-code: true` で stub の無い `outcome` の script を本当に走らせる）。
 - なぜその形か: 役（AI）を起こさずに、グラフの道筋と自分の script の決めを確かめる。stub は出力ノードの形を守らされる（`dry-run.ts` の `assertAuthoredStubSatisfiesSchema`）。
 - 採った先: メイングラフの筋書き `workflows/line/fixtures/*.stubs.yaml`。
-- 違い: メイングラフと本物の 8 つのサブグラフを置いて回し（`tests/e2e/test_line_scenarios.py`）、サブグラフのノードには、そのノードの `output_format` に合う stub を置く。dry-run の制約と、それに合わせた stub の置き方は `docs/design.md` の U3。
+- 違い: メイングラフと本物の 9 つのサブグラフを置いて回し（`tests/e2e/test_line_scenarios.py`）、サブグラフのノードには、そのノードの `output_format` に合う stub を置く。dry-run の制約と、それに合わせた stub の置き方は `docs/design.md` の U3。
 
 ### A12 頭の振り分けの AI が根拠つきで道を決め、後ろの段を when で飛ばす
 

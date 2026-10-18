@@ -98,7 +98,7 @@ class OpenCase(Base):
         self.open(plan_rejects=rows)
         b = self.view()
         self.assertEqual(boardview.read_open(self.folder)["plan_rejects"], rows)
-        self.assertEqual(structmark.rows(structmark.read(b.dir)["design_file"]), [TP.ROUTE_UP])
+        self.assertEqual(structmark.rows(structmark.read(b.dir / structmark.COPY_FILE)["design_file"]), [TP.ROUTE_UP])
         boardview.open_pass(
             self.folder, cwd=self.tmp, judgment=self.src / "judge/judgment.json", purpose=self.src / "judge/purpose.json",
             plan=self.src / "plan/r2/plan-fields.json", fix_plan=moved, structure=self.src / "plan/structure-state.json",
@@ -116,9 +116,9 @@ class OpenCase(Base):
         self.assertEqual((got["k"], got["form"]), (2, "review"))
         b = self.view()
         self.assertEqual(startrec.read(b.dir)["unattended"], "true")
-        self.assertEqual(structmark.read(b.dir)["status"], "ok")
-        self.assertEqual(structmark.rows(structmark.read(b.dir)["design_file"]), [TP.ROUTE_UP])
-        self.assertEqual(pathlib.Path(structmark.read(b.dir)["design_file"]).parent.parent, self.folder)
+        self.assertEqual(structmark.read(b.dir / structmark.COPY_FILE)["status"], "ok")
+        self.assertEqual(structmark.rows(structmark.read(b.dir / structmark.COPY_FILE)["design_file"]), [TP.ROUTE_UP])
+        self.assertEqual(pathlib.Path(structmark.read(b.dir / structmark.COPY_FILE)["design_file"]).parent.parent, self.folder)
         self.assertEqual([r["class_id"] for r in worldmark.stage_rows(b.dir, worldmark.COPY_STATE)], ["w-mean", "w-empty"])
         self.assertEqual(worldmark.read(b.dir, worldmark.COPY_STATE)["classes"], 2)
         self.assertFalse((b.dir / worldmark.STATE_FILE).exists(), "受けた控えは判定の置き場の名でなく自分の名で写す")
@@ -160,8 +160,8 @@ class OpenCase(Base):
 
     def test_failed_structure_is_kept_failed(self):
         self.open(structure={"status": "failed", "reason": "構造の目が落ちた", "design_file": "", "wall_s": 0})
-        self.assertEqual(structmark.read(self.folder)["status"], "failed")
-        self.assertEqual(structmark.dirty(self.folder), {})
+        self.assertEqual(structmark.read(self.folder / structmark.COPY_FILE)["status"], "failed")
+        self.assertEqual(structmark.dirty(self.folder / structmark.COPY_FILE), {})
 
     def test_replan_form_records_no_pass(self):
         """裁かれた項目が在れば形 replan で、往復を控えに積まない（案の項目の控えは審査する直した案に置き換える）。裁かれた項目は

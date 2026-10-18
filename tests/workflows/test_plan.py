@@ -2,9 +2,9 @@
 
 - 形: YAML を PyYAML で読み、返りの約束（docs/design.md の「plan の出力」）・役の節の決まり（E7・E12・E16）・輪の数を見る。
 - script: 節の script を子のプロセスで Archon と同じ順に回す（with: と工程の入力 → INPUTS_<大文字>・ARTIFACTS_DIR・WORKFLOW_ID・
-  cwd は対象の根。loop_group は until_bash の式を sh で評価し、max_iterations まで）。AI の節（構造の目・修正案の役）は試験が
-  返答を渡す。対象は tests/e2e/target-seed/ の git の写し（tests.bin.gitkit）。元の works の tests/test_blk_plan.py・
-  test_blk_structure.py の BlockCase・EyeInputsCase の当たる場合を写す。
+  cwd は対象の根。loop_group は until_bash の式を sh で評価し、max_iterations まで）。AI の節（修正案の役と、入力 structure を作る
+  構造のブロックの構造の目）は試験が返答を渡す。対象は tests/e2e/target-seed/ の git の写し（tests.bin.gitkit）。元の works の
+  tests/test_blk_plan.py の当たる場合を写す。構造のブロックそのものの試験は tests/workflows/test_structure.py。
 - 筋書き: Archon の `workflow test` で fixtures/*.stubs.yaml を回す（配線だけ。止めた Archon の源が無ければ見送る。tests/archon.py）。
 """
 import copy
@@ -22,7 +22,7 @@ import unittest
 import yaml
 
 from tests import archon
-from tests.bin import hermetic, trimmed
+from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.layers import scan
 from tests.workflows import copied
@@ -31,6 +31,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "plan"
 SCRIPTS = BLOCK / "scripts"
 COMMANDS = BLOCK / "commands"
+STRUCTURE = ROOT / "workflows" / "structure"   # 入力 structure の作り手（線では judge の後に 1 回だけ走る）
 LIB = ROOT / "lib"
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 if str(LIB) not in sys.path:
@@ -60,8 +61,8 @@ RUN_ID = "run-plan"
 NO_DEADLINE = 1728000000
 INPUTS = {"start": "", "units": "[]", "judgment": "", "world": "null", "spec": "null", "review": "", "ruling": "[]",
           "conflicts": "null", "prior_failures": "null", "verify": "null", "pr_excluded": "null", "depth_record": "null",
-          "answer_ties": "null", "materials": "null", "decisions": "null"}
-RETURNED = ["ready", "plan", "structure", "ripple", "depth", "round", "fix_plan", "rejects", "nothing_owed", "gave_up"]
+          "answer_ties": "null", "materials": "null", "decisions": "null", "structure": "null"}
+RETURNED = ["ready", "plan", "ripple", "depth", "round", "fix_plan", "rejects", "nothing_owed", "gave_up"]
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 NIT = "stats.py mean: 変数名が短い"
@@ -89,10 +90,6 @@ COPIED = {
           FIX_PLAN_TITLE + "\n",
           "engine の雛形の 5 行を外す（材料のファイルが同じ物を持つ）"),
          ("の no（上の一覧の番号。", "の no（材料の一覧の番号。", "no は材料の一覧で指す")]),
-    "structure-eye.md": (
-        [("works/blk-structure/commands/structure-eye.md",
-          "e6927788ec3f660e996d8c723fc86792f4929495afc2b68fb97b0d75610ca98f", 1238)],
-        []),
 }
 DIRTY_ROW = {"verdict": "汚れる", "faces": [5], "evidence": ["/units/0/id"], "reason": "骨組みの無い口が増える",
              "chosen": "既存の関数の中で直す", "chosen_reason": "骨組みが在る"}
@@ -101,8 +98,8 @@ WORLD_ROW = {"finding": 1, "where": "stats.py", "class_id": "mean-denominator", 
              "not_applies": "", "versus": {"proposed": "分母を直す", "verdict": "same", "challenge": ""}, "basis": "knowledge"}
 
 
-def load():
-    return yaml.safe_load((BLOCK / "works-factory-plan.yaml").read_text(encoding="utf-8"))
+def load(block=BLOCK):
+    return yaml.safe_load((block / f"works-factory-{block.name}.yaml").read_text(encoding="utf-8"))
 
 
 def nodes(doc, *, inner=True):
@@ -171,8 +168,9 @@ FORK = "f0" * 20   # 差分の run の差分の根（読む版と違う版）
 class Run:
     """1 つの run の置き場と対象。include(…) で計画のブロックを 1 度差し込む（Archon と同じ順に script を回す）"""
 
-    def __init__(self, case, *, start=None, units=None, judge=None, world=None):
+    def __init__(self, case, *, start=None, units=None, judge=None, world=None, block=BLOCK):
         self.case = case
+        self.block = block
         tmp = tempfile.TemporaryDirectory()
         case.addCleanup(tmp.cleanup)
         self.tmp = pathlib.Path(tmp.name)
@@ -189,7 +187,7 @@ class Run:
         self.inputs["judgment"] = self.pointer("judge/judgment.json", judgment() if judge is None else judge)
         if world is not None:
             self.inputs["world"] = self.pointer("judge/world.jsonl", world, lines=True)
-        self.doc = load()
+        self.doc = load(block)
         self.out = {}
         self.status = {}
         self.env_extra = {}
@@ -211,7 +209,7 @@ class Run:
 
     def script(self, name, bound=None, *, root=ROOT):
         """script を子で回す。終了の値 0 と、標準出力の JSON 1 つを確かめて返す。root は lib/ を探す根（WORKS_FACTORY_ROOT）"""
-        p = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], cwd=str(self.repo), env=self.env(bound or {}, root),
+        p = subprocess.run([sys.executable, str(self.block / "scripts" / f"{name}.py")], cwd=str(self.repo), env=self.env(bound or {}, root),
                            capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL)
         self.case.assertEqual(p.returncode, 0, f"{name}.py が落ちた: {p.stderr[-2000:]}")
         return json.loads(p.stdout)
@@ -256,12 +254,31 @@ class Run:
         return subprocess.run(["sh", "-c", text], env=hermetic.child_env()).returncode == 0
 
     def include(self, *, eye=None, writer=None, typed=True, **inputs):
-        """計画のブロックを 1 度差し込み、返す節の出力を返す。eye(structure_file) と writer(回の番号, 材料の字) は役の返答。
-        typed なら役の返答を節の output_format で照らす（Archon と同じく受け付けの前に）"""
+        """ブロックを 1 度差し込み、返す節の出力を返す。eye(structure_file) と writer(回の番号, 材料の字) は役の返答。
+        typed なら役の返答を節の output_format で照らす（Archon と同じく受け付けの前に）。計画のブロックの入力 structure が
+        まだ無ければ（null）、先に構造のブロックを 1 度差し込んで（measured）その返りの指し札を渡す（線と同じく run に 1 回）"""
         self.inputs.update(inputs)
+        if self.block == BLOCK and self.inputs["structure"] == "null":
+            self.inputs["structure"] = json.dumps(self.measured(eye=eye, typed=typed))
         self.out, self.status, self.typed, self.loop_prev = {}, {}, typed, {}
         self.walk(self.doc["nodes"], eye or eye_clean, writer or writer_ok)
         return self.out[self.doc["returns"]]
+
+    def measured(self, *, eye=None, typed=True):
+        """構造のブロックを 1 度差し込み、返す節の出力を structure_out に、節の状態を structure_status に置いて、控えの指し札を返す"""
+        block, doc = self.block, self.doc
+        self.block, self.doc = STRUCTURE, load(STRUCTURE)
+        try:
+            self.out, self.status, self.typed, self.loop_prev = {}, {}, typed, {}
+            self.walk(self.doc["nodes"], eye or eye_clean, writer_ok)
+            self.structure_out, self.structure_status = self.out[self.doc["returns"]], dict(self.status)
+        finally:
+            self.block, self.doc = block, doc
+        return self.structure_out["structure"]
+
+    def state(self):
+        """入力 structure の先の構造の目の控え"""
+        return self.json(json.loads(self.inputs["structure"]))
 
     def runs(self, n):
         deps = n.get("depends_on") or []
@@ -355,12 +372,11 @@ class ShapeCase(unittest.TestCase):
     def test_return_node_carries_exactly_the_contract(self):
         fmt = node(load(), "plan")["output_format"]
         self.assertEqual(fmt["required"], RETURNED)
-        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNED + ["optional"]), "optional は required に無い欄（差し替えの返りに無くても落ちない）")
-        self.assertEqual(fmt["properties"]["optional"]["type"], "array")
+        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNED))
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["ready"], {"type": "boolean"})
         self.assertEqual(fmt["properties"]["round"]["type"], "integer")
-        for key in ("plan", "structure", "ripple"):
+        for key in ("plan", "ripple"):
             ptr = fmt["properties"][key]
             self.assertEqual((ptr["type"], sorted(ptr["required"])), ("object", ["path", "run_id", "type"]), key)
             self.assertEqual(ptr["properties"]["type"]["enum"], ["archon_artifact"], key)
@@ -377,15 +393,14 @@ class ShapeCase(unittest.TestCase):
     def test_role_nodes_are_read_only_and_isolated(self):
         doc = load()
         roles = [n for n in nodes(doc) if any(k in n for k in scan.ROLE_KINDS)]
-        self.assertEqual([n["id"] for n in roles], ["structure-eye", "plan-writer", "plan-writer-fix"])
+        self.assertEqual([n["id"] for n in roles], ["plan-writer", "plan-writer-fix"])
         for n in roles:
             self.assertIs(n["mutates_checkout"], False, n["id"])
             self.assertEqual(n["settingSources"], ["user"], n["id"])
             self.assertEqual(n["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False}, n["id"])
             self.assertNotIn("context", n, n["id"])
             self.assertEqual(launchgroups.default_of(n["model"])[0], "opus", n["id"])
-        eye_node, writer, fix = roles
-        self.assertEqual((eye_node["allowed_tools"], launchgroups.default_of(eye_node["model"])[1]), ([], "high"))
+        writer, fix = roles
         self.assertEqual((writer["allowed_tools"], launchgroups.default_of(writer["model"])[1]),
                          (["Read", "Grep", "Glob", "WebSearch", "WebFetch"], "medium"))
         launch = ("model", "allowed_tools", "settingSources", "sandbox", "mutates_checkout", "idle_timeout", "retry")
@@ -419,20 +434,13 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(fix["properties"].pop(planfile.WHOLE_PLAN), {"type": "boolean"})
         self.assertEqual({**fix, "required": first["required"]}, first)
 
-    def test_eye_command_reads_only_its_prep(self):
-        """構造の目は道具なしの独立の会話: 指示書が読むのは支度の節の出力だけ"""
-        text = (COMMANDS / "structure-eye.md").read_text(encoding="utf-8")
-        self.assertEqual(set(re.findall(r"\$[A-Za-z][\w.-]*", text)), {"$structure-eye-prep.output.prompt"})
+    def test_writer_command_reads_only_its_prep(self):
         refs = set(re.findall(r"\$[A-Za-z][\w.-]*", (COMMANDS / "fix-plan.md").read_text(encoding="utf-8")))
         self.assertEqual(refs, {"$plan-prep.output.brief"})
 
     def test_fix_plan_command_is_the_original_with_only_the_allowed_edits(self):
         """修正案の役の指示書は元の p2.fix_plan.md の文のまま: 許した直しを逆に当てると元のバイトに戻る"""
         self.assertEqual(copied.restore_problems(COMMANDS / "fix-plan.md", *COPIED["fix-plan.md"]), [])
-
-    def test_eye_command_is_the_original(self):
-        """構造の目の指示書は元の blk-structure/commands/structure-eye.md の字のまま（台帳の直しは無く、書き直しは copied_rewrites.json の件だけ）"""
-        self.assertEqual(copied.restore_problems(COMMANDS / "structure-eye.md", *COPIED["structure-eye.md"]), [])
 
     def test_ai_deadlines_are_twenty_days_and_others_have_none(self):
         for n in nodes(load()):
@@ -441,11 +449,9 @@ class ShapeCase(unittest.TestCase):
                 self.assertEqual(n.get("idle_timeout"), NO_DEADLINE, n["id"])
 
     def test_loops_give_up_in_the_body_before_max_iterations(self):
-        """構造の目の輪は諦めの数 GIVE_UP_AFTER、修正案の輪は受け付けの網 NET_AFTER（回数で諦める数でなく、届けば工場の不具合）と同じ
-        max_iterations で、受け付けの done で抜ける"""
+        """修正案の輪は受け付けの網 NET_AFTER（回数で諦める数でなく、届けば工場の不具合）と同じ max_iterations で、受け付けの done で抜ける"""
         doc = load()
-        for nid, accept, fresh, limit in (("structure-eye-loop", "structure-eye-accept", False, rolekit.GIVE_UP_AFTER),
-                                          ("plan-loop", "plan-accept", False, rolekit.NET_AFTER)):
+        for nid, accept, fresh, limit in (("plan-loop", "plan-accept", False, rolekit.NET_AFTER),):
             lg = node(doc, nid)["loop_group"]
             self.assertEqual(lg["max_iterations"], limit, nid)
             self.assertIs(lg["fresh_context"], fresh, nid)
@@ -495,15 +501,6 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(fmt[handoff.FIELD], handoff.SCHEMA)
         self.assertNotIn(handoff.FIELD, node(doc, "plan-writer")["output_format"]["required"], "引き継ぎのメモは任意の欄")
         self.assertEqual(node(doc, "plan-writer-fix")["output_format"]["properties"][handoff.FIELD], handoff.SCHEMA)
-        owner = json.loads((LIB / "design-row.schema.json").read_text(encoding="utf-8"))
-        added = {"route_reason"}           # 受け付けが足す
-        dropped = {"precedents"}           # 今の works の structure-eye の型に無い
-        unrequired = {"route"}             # 今の works の structure-eye の型は任意（受け付けが既定の行き先を足す）
-        rows = node(doc, "structure-eye")["output_format"]["properties"]["rows"]["items"]
-        self.assertEqual(trimmed.without_trimmed(rows["properties"]),
-                         {k: v for k, v in bare(owner["properties"]).items() if k not in added | dropped})
-        self.assertEqual(rows["required"], [k for k in owner["required"] if k not in added | unrequired])
-        self.assertIs(rows["additionalProperties"], owner["additionalProperties"])
 
     def test_scripts_are_read_only_uv_scripts(self):
         """E7: 読むだけの script の節も mutates_checkout: false。script は uv の宣言を頭に持ち、.pyc を書かない（test-gate と同じ）"""
@@ -515,8 +512,7 @@ class ShapeCase(unittest.TestCase):
                 self.assertIn("sys.dont_write_bytecode = True", text, n["script"])
 
     def test_reads_roles_are_the_role_nodes_by_their_tools(self):
-        """読んだ証拠の節が名指す役は YAML の役の節と同じ: 道具を持つ役は plan_reads.ROLE、持たない役は QUIET（役が道具を得たのに
-        null と書く黙った緩みを赤にする）"""
+        """読んだ証拠の節が名指す役は YAML の役の節と同じ: 道具を持つ役は plan_reads.ROLE で、道具を持たない役は無い"""
         spec = importlib.util.spec_from_file_location("plan_script_plan_reads", SCRIPTS / "plan_reads.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -528,7 +524,7 @@ class ShapeCase(unittest.TestCase):
         roles = [n for n in every(load()["nodes"]) if any(k in n for k in scan.ROLE_KINDS)]
         # 出し直しの役は修正案の役の会話の続きなので、読んだ証拠は同じ役に数える
         self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")} - {"plan-writer-fix"}, {mod.ROLE})
-        self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, set(mod.QUIET))
+        self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, set())
 
     def test_fallback_names_match_lib(self):
         """落ちない 2 つの節（round・plan）は lib を読めない時に標準ライブラリだけで同じ置き場に書く。その字が lib と同じ"""
@@ -539,12 +535,9 @@ class ShapeCase(unittest.TestCase):
             return mod
 
         rnd, col = loaded("round"), loaded("plan_collect")
-        self.assertEqual((rnd.PLAN_DIR, rnd.ROUND_FILE, rnd.STRUCTURE_DIR),
-                         (planfile.PLAN_DIR, planfile.ROUND_FILE, planfile.STRUCTURE_DIR))
-        self.assertEqual((col.PLAN_DIR, col.ROUND_FILE, col.RIPPLE_FILE, col.DESIGN_FILE, col.UNREAD_STRUCTURE, col.FIELDS_FILE,
-                          col.STATE_FILE),
-                         (planfile.PLAN_DIR, planfile.ROUND_FILE, planfile.RIPPLE_FILE, planfile.DESIGN_FILE,
-                          planfile.UNREAD_STRUCTURE, planmarks.FIELDS_FILE, structmark.STATE_FILE))
+        self.assertEqual((rnd.PLAN_DIR, rnd.ROUND_FILE), (planfile.PLAN_DIR, planfile.ROUND_FILE))
+        self.assertEqual((col.ROUND_FILE, col.RIPPLE_FILE, col.FIELDS_FILE),
+                         (planfile.ROUND_FILE, planfile.RIPPLE_FILE, planmarks.FIELDS_FILE))
 
     def test_script_names_differ_from_lib_modules(self):
         """script のフォルダが sys.path の頭に来るので、lib のモジュールと同じ名の script は import で自分を読む"""
@@ -564,173 +557,6 @@ class CopiedTextsCase(unittest.TestCase):
         for name in names:
             with self.subTest(name):
                 self.assertEqual(copied.restore_problems(COMMANDS / name, *COPIED[name]), [])
-class EyeTypeCase(unittest.TestCase):
-    """構造の目の返答の型の正本は目の節の output_format だけ（受け付けの eye.problems は行の意味だけを見る）"""
-
-    def fmt(self) -> dict:
-        return node(load(), "structure-eye")["output_format"]
-
-    def test_trimmed_min_length_kept_by_pattern(self):
-        self.assertEqual(trimmed.missing_patterns(self.fmt()), [])
-
-    def test_vocabulary_matches_output_format(self):
-        """受け付けと指示書が使う語（eye.VERDICTS・eye.ROUTES）と形の数（eye.FORMS）は、目の節の output_format の enum と faces の範囲"""
-        row = self.fmt()["properties"]["rows"]["items"]["properties"]
-        self.assertEqual(row["verdict"]["enum"], list(eye.VERDICTS))
-        self.assertEqual(row["route"]["enum"], list(eye.ROUTES))
-        self.assertEqual((row["faces"]["items"]["minimum"], row["faces"]["items"]["maximum"]), (1, len(eye.FORMS)))
-
-    def test_rows_outside_the_type_are_rejected(self):
-        """元 lib/tests/test_structure_eye.py の test_bad_rows_are_named の型の側: 知らない行き先・形の外の欄・形の番号の型"""
-        clean = {"unit_id": "u-1", "verdict": "汚れない", "faces": [], "evidence": ["/units/0/measure"], "reason": "形が増えない"}
-        self.assertEqual(validate_schema({"rows": [clean]}, self.fmt()), [])
-        for name, row in (("知らない行き先", {**clean, "route": "後で"}), ("形の外の欄", {**clean, "note": "x"}),
-                          ("真偽を形の番号に", {**clean, "faces": [True]}), ("形の番号の外", {**clean, "faces": [7]})):
-            with self.subTest(name):
-                self.assertTrue(validate_schema({"rows": [row]}, self.fmt()))
-
-
-class StageACase(unittest.TestCase):
-    """段 A（元 tests/test_blk_structure.py の BlockCase・EyeInputsCase）"""
-
-    def measure(self, run, **inputs):
-        run.inputs.update(inputs)
-        rnd = run.script("round")
-        return run.script("structure_measure", {"dir": rnd["dir"]})
-
-    def test_measures_units_and_writes_empty_design_rows(self):
-        run = Run(self)
-        got = self.measure(run)
-        doc = json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))
-        self.assertEqual(doc["status"], "ok", doc)
-        self.assertEqual([u["id"] for u in doc["units"]], [MEAN, CLAMP])
-        self.assertEqual(pathlib.Path(got["design_file"]).stat().st_size, 0)
-        self.assertEqual((got["eye"], got["reused"]), (True, False))
-
-    def test_measure_failure_and_unreadable_units_do_not_stop(self):
-        run = Run(self)
-        shutil.rmtree(run.repo / ".git")   # git の無い対象では実測が落ちる
-        doc = json.loads(pathlib.Path(self.measure(run)["structure_file"]).read_text(encoding="utf-8"))
-        self.assertEqual(doc["status"], "failed", doc)
-        self.assertTrue(doc["reason"])
-        run = Run(self)
-        got = self.measure(run, units="{壊れた")
-        doc = json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))
-        self.assertEqual(doc["status"], "failed", doc)
-        self.assertFalse(got["eye"])
-
-    def test_unit_without_paths_is_skipped_and_named(self):
-        run = Run(self, units=[*catalog(), {"id": LOOSE, "paths": [], "summary": "書き方の全体"}],
-                  judge=judgment(unit(LOOSE)))
-        out = run.file(run.include(writer=writer_of({"plan": [item(1, 2, 3)]}))["structure"]).parent
-        doc = json.loads((out / "structure.json").read_text(encoding="utf-8"))
-        self.assertEqual([u["id"] for u in doc["units"]], [MEAN, CLAMP])
-        self.assertEqual(json.loads((out / "skipped-units.json").read_text(encoding="utf-8")), [LOOSE])
-        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
-        self.assertIn(f"構造の目が見ていない単位（paths が空で実測しなかった）: `{LOOSE}`", brief)
-
-    def test_eye_sees_concept_rows_and_policy(self):
-        run = Run(self, units=[{"id": MEAN, "paths": ["src/edge.py"], "summary": "境の節が結末の語を書く"}],
-                  start={"policy_md": "POLICY.md"})
-        files = {"src/report.py": 'OUT = "round_limit"\n', "src/edge.py": 'x = "round_limit"\n',
-                 "POLICY.md": "決まり: 結末の語は report.py だけが持つ\n",
-                 "docs/concepts.md": "# 地図\n\n### `outcome` run の結末\n\n- 状態: 住処あり\n- 住処: `src/report.py`\n",
-                 "docs/concepts.json": json.dumps({"exclude": ["docs/**"], "concepts": {"outcome": {
-                     "status": "住処あり", "fences": [{"what": "結末の語", "pattern": "\"round_limit\"",
-                                                     "allowed": ["src/report.py"], "known": {}}]}}}, ensure_ascii=False)}
-        for rel, text in files.items():
-            (run.repo / rel).parent.mkdir(parents=True, exist_ok=True)
-            (run.repo / rel).write_text(text, encoding="utf-8")
-        git(run.repo, "add", "-A")
-        git(run.repo, "commit", "-q", "-m", "concepts")
-        got = self.measure(run)
-        prompt = run.script("eye_prep", {"structure_file": got["structure_file"]})["prompt"]
-        self.assertIn("### `outcome` run の結末", prompt)
-        self.assertIn("known_places", prompt)
-        self.assertIn("結末の語は report.py だけが持つ", prompt)
-
-    MAP = ("# 地図\n\n### `outcome` run の結末\n\n- 状態: 住処あり\n- 住処: `src/report.py`\n\n"
-           "### `halt` 止め札\n\n- 状態: 住処あり\n- 住処: `src/halt.py`\n")
-    TABLE = {"exclude": ["docs/**"], "concepts": {
-        "outcome": {"status": "住処あり", "fences": [{"what": "結末の語", "pattern": "\"round_limit\"",
-                                                     "allowed": ["src/report.py"], "known": {}}]},
-        "halt": {"status": "住処あり", "fences": [{"what": "止め札", "pattern": "\"STOP\"", "allowed": ["src/halt.py"],
-                                                  "known": {}}]}}}
-
-    def target(self, run, files):
-        """元 tests/test_blk_structure.py の EyeInputsCase.target の形を種に commit する"""
-        for rel, text in files.items():
-            (run.repo / rel).parent.mkdir(parents=True, exist_ok=True)
-            (run.repo / rel).write_text(text, encoding="utf-8")
-        git(run.repo, "add", "-A")
-        git(run.repo, "commit", "-q", "-m", "target")
-
-    def edge_run(self, **start):
-        return Run(self, units=[{"id": MEAN, "paths": ["src/edge.py"], "summary": "境の節が結末の語を書く"}], start=start)
-
-    def test_fresh_measure_drops_old_eye_state(self):
-        run = Run(self)
-        rnd = run.script("round")
-        out = run.art / "plan" / planfile.read_round(run.art / rnd["dir"])["structure"]
-        out.mkdir(parents=True)
-        (out / eye.EYE_FILE).write_text('{"status": "gave_up"}', encoding="utf-8")
-        (out / planfile.DESIGN_FILE).write_text('{"unit_id": "前の行"}\n', encoding="utf-8")
-        got = run.script("structure_measure", {"dir": rnd["dir"]})
-        self.assertFalse((out / eye.EYE_FILE).exists())
-        self.assertEqual(pathlib.Path(got["design_file"]).read_bytes(), b"")
-
-    def test_concept_rows_only_for_unit_paths(self):
-        """元 tests/test_blk_structure.py の test_eye_sees_concept_rows_for_unit_paths"""
-        run = self.edge_run()
-        self.target(run, {"src/report.py": 'OUT = "round_limit"\n', "src/edge.py": 'x = "round_limit"\n',
-                          "src/halt.py": 'S = "STOP"\n', "docs/concepts.md": self.MAP,
-                          "docs/concepts.json": json.dumps(self.TABLE, ensure_ascii=False)})
-        got = self.measure(run)
-        unit_ = json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))["units"][0]
-        self.assertEqual([r["id"] for r in unit_["concepts"]["rows"]], ["outcome"])
-        self.assertEqual([(x["concept"], x["path"], x["home"], x["known_places"]) for x in unit_["concepts"]["places"]],
-                         [("outcome", "src/edge.py", False, 2)])
-        prompt = run.script("eye_prep", {"structure_file": got["structure_file"]})["prompt"]
-        self.assertIn("### `outcome` run の結末", prompt)
-        self.assertNotIn("### `halt`", prompt)
-
-    def test_no_map_no_table_measures_only(self):
-        run = self.edge_run()
-        self.target(run, {"src/edge.py": 'x = "round_limit"\n'})
-        got = self.measure(run)
-        doc = json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))
-        self.assertEqual(doc["units"][0]["concepts"], {"rows": [], "places": []})
-        self.assertFalse((run.repo / "docs").exists())
-
-    def test_eye_sees_root_map_and_cut_policy(self):
-        """元 tests/test_blk_structure.py の test_eye_sees_policy_text（根の地図の文書）と、長い方針の文書の切りの印"""
-        run = self.edge_run(policy_md="POLICY.md")
-        long_policy = "決まり: 結末の語は report.py だけが持つ\n" + "あ" * planfile.context.TEXT_CAP
-        self.target(run, {"src/edge.py": 'x = "round_limit"\n', "POLICY.md": long_policy,
-                          "AGENTS.md": "# 対象の決まり\n\n層は下へだけ依存する\n"})
-        got = self.measure(run)
-        prompt = run.script("eye_prep", {"structure_file": got["structure_file"]})["prompt"]
-        self.assertIn("結末の語は report.py だけが持つ", prompt)
-        self.assertIn("層は下へだけ依存する", prompt)
-        cut = len(long_policy) - planfile.context.TEXT_CAP
-        self.assertIn(f"…（{cut} 字を切った）", prompt)
-
-    def test_measure_records_timing(self):
-        doc = json.loads(pathlib.Path(self.measure(Run(self))["structure_file"]).read_text(encoding="utf-8"))
-        timing = doc["timing"]
-        self.assertIsInstance(timing[eye.WALL], float)
-        for key in ("started_at", "finished_at"):
-            self.assertRegex(timing[key], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00$", key)
-
-    def test_same_units_and_head_reuse_the_measure(self):
-        run = Run(self)
-        first = run.include()
-        second = run.include(review=run.pointer("review/p2.plan_review.json", {"faces": []}))
-        self.assertEqual(run.out["structure-measure"]["reused"], True)
-        self.assertEqual(run.status["structure-eye-loop"], "skipped")
-        self.assertEqual(first["structure"], second["structure"])
-
-
 class AcceptCase(unittest.TestCase):
     """受け付け（欠けごとに名指して拒む・受け付けの網の回で諦める・通った案の置き方）"""
 
@@ -752,8 +578,6 @@ class AcceptCase(unittest.TestCase):
         self.assertNotIn("route", side["plan"][0])
         self.assertIn("no_narrow", side["plan"][0]["narrows"][0], "narrows の行に関所の決め手の欄が残る")
         self.assertEqual(json.loads((run.art / "plan" / "r1" / "slots.json").read_text(encoding="utf-8")), [MEAN, CLAMP])
-        state = run.json(out["structure"])
-        self.assertEqual(state["status"], "ok", state)
         self.assertEqual(run.json(out["ripple"])["error"], "")
         self.assertEqual(out["depth"][0]["unit_id"], MEAN)
 
@@ -1125,7 +949,6 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(run.json(out["ripple"])["items"], [])
         self.assertIn(f"{rolekit.NET_AFTER} 回とも受け付けで拒まれた", run.json(out["ripple"])["error"])
         self.assertIn(rolekit.NET_WHY.format(n=rolekit.NET_AFTER), run.json(out["ripple"])["error"])
-        run.file(out["structure"])
         self.assertEqual(out["depth"], [])
 
 
@@ -1235,17 +1058,15 @@ class ReplanCase(unittest.TestCase):
         self.assertIn(f"### {MEAN}", text)
         self.assertIn("mean の分母を len(xs) に", text)
 
-    def test_replan_reuses_the_first_measure_after_the_tree_moved(self):
-        """案の直しは修正の後の HEAD で測り直さず、1 回目の実測と構造の目の行を使う"""
+    def test_replan_reads_the_same_structure_after_the_tree_moved(self):
+        """案の直しは構造のブロックを測り直さず、1 回目と同じ入力 structure（構造の目の控え）を受けて材料と受け付けに使う"""
         run = self.run_
         (run.repo / "stats.py").write_text((run.repo / "stats.py").read_text(encoding="utf-8") + "\n# 直した\n", encoding="utf-8")
         git(run.repo, "commit", "-qam", "修正")
         out = run.include(ruling='["1"]', conflicts=self.conflicts, eye=lambda f: self.fail("構造の目を起こした"),
                           writer=writer_of({"plan": [self.fixed()]}))
         self.assertIs(out["ready"], True, out)
-        self.assertIs(run.out["structure-measure"]["reused"], True)
-        self.assertEqual(run.status["structure-eye-loop"], "skipped")
-        self.assertEqual(out["structure"], self.first["structure"])
+        self.assertNotIn("structure-measure", run.out, "計画のブロックは構造を測らない")
 
     def test_replan_brief_names_the_handoff_of_the_plan_it_revises(self):
         """メモつきで受かった案を直す時、案の直しの材料は直す元の周のメモのパスを名指し、案の直しの役の返すメモは案の直しの周に置かれる"""
@@ -1319,7 +1140,7 @@ class ReadsCase(unittest.TestCase):
         self.assertEqual(run.out["plan-reads"]["ok"], True)
         self.assertEqual(run.out["plan-reads"]["missing"], [])
         index = self.index(run)
-        self.assertEqual(index["structure-eye"], None, "道具を持たない役は名指して null")
+        self.assertEqual(sorted(index), ["plan-writer"])
         doc = json.loads(pathlib.Path(index["plan-writer"]).read_text(encoding="utf-8"))
         self.assertEqual(doc["rows"], [{"path": str(run.art / "plan" / "r1" / "brief-1.md"), "hook": "read"}])
 
@@ -1387,7 +1208,7 @@ class ReadsCase(unittest.TestCase):
         self.assertIs(out["ready"], True, out)
         self.assertEqual((run.art / "plan" / "r1" / reads.index_name("plan")).read_bytes(), first)
         index = self.index(run, 2, reads.REPLAN)
-        self.assertEqual(sorted(index), ["replan-plan-writer", "replan-structure-eye"])
+        self.assertEqual(sorted(index), ["replan-plan-writer"])
         self.assertEqual(pathlib.Path(index["replan-plan-writer"]).name, reads.evidence_name("replan-plan-writer"))
         doc = json.loads(pathlib.Path(index["replan-plan-writer"]).read_text(encoding="utf-8"))
         self.assertEqual([r["hook"] for r in doc["rows"]], ["read"])
@@ -1411,7 +1232,7 @@ class CollectCase(unittest.TestCase):
                 out = run.script("plan_collect", {"dir": "plan/r1"})
                 self.assertEqual(validate_schema(out, fmt), [])
                 self.assertIs(out["ready"], False)
-                for key in ("plan", "structure", "ripple"):
+                for key in ("plan", "ripple"):
                     run.file(out[key])
         run = Run(self)
         run.include()
@@ -1419,22 +1240,10 @@ class CollectCase(unittest.TestCase):
         out = run.script("plan_collect", {"dir": "plan/r1"})
         self.assertEqual(validate_schema(out, fmt), [])
         self.assertIs(out["ready"], False)
-        for key in ("plan", "structure", "ripple"):
+        for key in ("plan", "ripple"):
             run.file(out[key])
         out = run.script("plan_collect", {"dir": "壊れた"})
         self.assertEqual(validate_schema(out, fmt), [])
-
-    def test_return_echoes_the_declared_optional(self):
-        self.assertIn("optional", node(load(), "plan")["with"], "返す節 plan の with: に宣言 optional が無い")
-        declared = node(load(), "plan")["with"]["optional"]
-        want = json.loads(declared)
-        self.assertEqual(sorted((row["node"], row["bare"]) for row in want),
-                         [("structure-", False), ("structure-eye", True), ("structure-eye-", True)])
-        run = Run(self)
-        self.assertEqual(run.include()["optional"], want, "ブロックを通した返す節の返り")
-        self.assertEqual(run.script("plan_collect", {"dir": "plan/r1", "optional": declared})["optional"], want)
-        self.assertEqual(run.script("plan_collect", {"dir": "壊れた", "optional": declared})["optional"], want, "失敗の形")
-        self.assertEqual(run.script("plan_collect", {"dir": "plan/r1"})["optional"], [], "宣言を渡されない呼び手")
 
     def test_first_round_reads_empty_and_null_review_alike(self):
         for review in ("", "null"):
@@ -1618,59 +1427,18 @@ class CollectCase(unittest.TestCase):
         out = run.include(eye=lambda f: eye_dirty(f, route=True),
                           writer=writer_of({"plan": [item(1, 2, structure=[{"row": MEAN, "follows": True}])]}))
         self.assertIs(out["ready"], True, out)
-        rows = [json.loads(x) for x in (run.file(out["structure"]).parent / "design.jsonl").read_text(
-            encoding="utf-8").splitlines()]
+        rows = structmark.rows(run.state()["design_file"])
         self.assertEqual(rows[0]["route"], "人に上げる")
 
     def test_failed_structure_note_reaches_the_brief(self):
         """元 tests/test_structure_eye.py の test_block_reason_reaches_the_mark: 構造の境の中の失敗は節を落とさず、行なしで計画する"""
         run = Run(self)
         out = run.include(eye=lambda f: {"rows": []})
-        self.assertEqual((run.status["structure-state"], run.status["plan-loop"]), ("ok", "ok"))
+        self.assertEqual((run.structure_status["structure"], run.status["plan-loop"]), ("ok", "ok"))
         self.assertIs(out["ready"], True, out)
-        reason = run.json(out["structure"])["reason"]
+        reason = run.state()["reason"]
         brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
         self.assertIn(f"{structmark.MISSING}（理由: {reason}", brief)
-
-    def test_unwritable_state_still_plans(self):
-        """構造の控えを鍵の置き場に書けない周も節を落とさず、周のフォルダに訳つきの failed の控えを置いて計画へ進む"""
-        run = Run(self)
-        rnd = run.script("round")
-        out = run.art / "plan" / planfile.read_round(run.art / rnd["dir"])["structure"]
-        (out / structmark.STATE_FILE).mkdir(parents=True)
-        shutil.rmtree(run.art / "plan" / "r1")
-        got = run.include()
-        self.assertEqual(run.status["structure-state"], "ok")
-        self.assertIs(got["ready"], True, got)
-        state = run.json(got["structure"])
-        self.assertEqual(state["status"], "failed")
-        self.assertIn(planfile.UNWRITABLE_STATE, state["reason"])
-        self.assertEqual(got["structure"]["path"], f"plan/r1/{planfile.STRUCTURE_DIR}/{structmark.STATE_FILE}")
-
-    def test_failed_state_node_gives_not_ready(self):
-        """構造の境の節そのものが落ちた周は計画の役を起こさず ready: false（線は計画なしで修正へ進まない）"""
-        run = Run(self)
-        run.doc = copy.deepcopy(run.doc)
-        node(run.doc, "structure-state")["script"] = "no_such_script"
-        script = run.script
-
-        def failing(name, bound=None, **kw):
-            if name == "no_such_script":
-                raise _NodeFailed
-            return script(name, bound, **kw)
-
-        run.script = failing
-        out = run.include(writer=lambda n, brief: self.fail("役を起こした"))
-        self.assertEqual((run.status["structure-state"], run.status["plan-loop"]), ("failed", "skipped"))
-        self.assertIs(out["ready"], False)
-
-    def test_eye_without_rows_leaves_failed_state(self):
-        run = Run(self)
-        out = run.include(eye=lambda f: {"rows": []})
-        self.assertEqual(run.out["structure-eye-accept"]["give_up"], True)
-        state = run.json(out["structure"])
-        self.assertEqual(state["status"], "failed", state)
-        self.assertIs(out["ready"], True)
 
     def test_collect_returns_the_fix_plan_rejects_and_nothing_owed(self):
         """#681: 返す節は、ほかのブロックが読む周のフォルダの控えを欄で返す: 修正案の役の返答のポインタ fix_plan（周の
@@ -1689,15 +1457,11 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(run.status["plan-loop"], "skipped")
         self.assertIs(out["ready"], False)
         self.assertIn(planfile.NOTHING_OWED, run.json(out["ripple"])["error"])
-        for key in ("plan", "structure", "ripple"):
+        for key in ("plan", "ripple"):
             run.file(out[key])
         self.assertTrue(outcome.plan_nothing_owed({"plan": {**out, "plan": str(run.file(out["plan"]))}}),
                         "結末の決めが計画の書いた控えから義務 0 件の周を読めない")
-        self.assertEqual((run.status["structure-measure"], run.status["structure-eye-loop"]), ("skipped", "skipped"))
-        self.assertEqual(out["structure"]["path"], "plan/r1/structure/structure-state.json", "使い回す実測の控えに書かない")
-        state = run.json(out["structure"])
-        self.assertEqual(state["status"], "failed")
-        self.assertIn(planfile.NOTHING_OWED, state["reason"])
+        self.assertEqual(run.state()["status"], "ok", "役を起こさない周も構造の目の控えは変えない（構造は run に 1 回）")
 
     def test_stuck_unit_skips_the_role(self):
         """同じ key の単位が開いた行と開いていない行で来た判定は行き止まり（必ず入れるのに案に入れられない）"""
@@ -1795,9 +1559,8 @@ class SurvivesCase(unittest.TestCase):
         out = run.script("plan_collect", {"dir": rnd["dir"]}, root=broken)
         self.assertEqual(validate_schema(out, node(load(), "plan")["output_format"]), [])
         self.assertEqual((out["ready"], out["round"], out["depth"]), (False, 1, []))
-        for key in ("plan", "structure", "ripple"):
+        for key in ("plan", "ripple"):
             run.file(out[key])
-        self.assertEqual(run.json(out["structure"])["status"], "failed")
         self.assertIn("ModuleNotFoundError", (run.art / "plan" / "r1" / "collect-error.txt").read_text(encoding="utf-8"))
         self.assertEqual(run.script("round")["dir"], "plan/r2", "lib が読める次の周は数え続ける")
 
@@ -1839,10 +1602,7 @@ class BriefCase(unittest.TestCase):
         brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
         self.assertIn("文書の置き場: /run/policy/frozen.md", brief)
         self.assertNotIn("文書の置き場: POLICY.md", brief)
-        rnd = run.script("round")
-        got = run.script("structure_measure", {"dir": rnd["dir"]})
-        self.assertEqual(json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))["policy_path"],
-                         "/run/policy/frozen.md")
+        self.assertEqual(run.json(json.loads(run.inputs["structure"]))["status"], "ok")
 
     def test_prep_passes_state_dir_cache_root(self):
         """修正案の材料のライブラリの文書の節は、STATE_DIR の下 works-factory/ の run をまたぐ控えを読む（網に出ない）"""
@@ -2009,6 +1769,14 @@ class BriefCase(unittest.TestCase):
         self.assertIn(f"### 単位 {CLAMP}", brief)
         self.assertTrue((run.art / "plan" / "r1" / planfile.RIPPLE_UNITS_FILE).is_file())
 
+    def test_unit_without_paths_is_skipped_and_named(self):
+        run = Run(self, units=[*catalog(), {"id": LOOSE, "paths": [], "summary": "書き方の全体"}],
+                  judge=judgment(unit(LOOSE)))
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1, 2, 3)]}))["ready"], True)
+        self.assertEqual(run.state()["skipped"], [LOOSE])
+        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn(f"構造の目が見ていない単位（paths が空で実測しなかった）: `{LOOSE}`", brief)
+
     def test_prior_failures_of_wrong_shape_are_named_unread(self):
         run = Run(self)
         run.inputs["prior_failures"] = run.pointer("start/prior-failures-in.json", {"where": "x"})
@@ -2023,7 +1791,7 @@ class FixtureCase(unittest.TestCase):
 
     def test_fixtures_pass(self):
         names = sorted(p.name.removesuffix(".stubs.yaml") for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
-        self.assertEqual(names, ["eye-skipped", "give-up", "ready", "replan", "resubmit"])
+        self.assertEqual(names, ["give-up", "ready", "replan", "resubmit"])
         with archon.tree(["plan"]) as tree:
             done = archon.archon(tree, "workflow", "test", "works-factory-plan", "--json", "--cwd", str(tree))
         try:

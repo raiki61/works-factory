@@ -26,9 +26,9 @@ FALLBACKS = {
     ("workflows/plan-review/scripts/pass_open.py", "OPEN_FILE"): FALLBACK + "（boardview.OPEN_FILE）",
     ("workflows/plan-review/scripts/pass_open.py", "OPEN_ERROR"): FALLBACK + "（boardview.OPEN_ERROR）",
     ("workflows/plan/scripts/plan_collect.py", "ROUND_FILE"): FALLBACK + "（planfile.ROUND_FILE）",
-    ("workflows/plan/scripts/plan_collect.py", "STATE_FILE"): FALLBACK + "（structmark.STATE_FILE）",
     ("workflows/plan/scripts/plan_collect.py", "RIPPLE_FILE"): FALLBACK + "（planfile.RIPPLE_FILE）",
     ("workflows/plan/scripts/round.py", "ROUND_FILE"): FALLBACK + "（planfile.ROUND_FILE）",
+    ("workflows/structure/scripts/structure_collect.py", "STATE_FILE"): FALLBACK + "（structfile.STATE_FILE）",
     ("workflows/fix/scripts/collect.py", "ALLOWED_TESTS"): FALLBACK + "（fixboard.ALLOWED_TESTS_FILE）",
     ("workflows/fix/scripts/collect.py", "ACCEPT_TRACE"): FALLBACK + "（fixboard.ACCEPT_TRACE_FILE）",
     ("workflows/fix/scripts/collect.py", "LENSES_FILE"): FALLBACK + "（fixboard.LENSES_FILE）",
@@ -52,7 +52,7 @@ OVERLAPS = {
     ("lib/judge_accept.py", "START_FILE"): "startrec.NAME の写し。区分 J。区分の issue で外す",
     ("lib/planblk.py", "SYNERGY_FILE"):
         "事前審査の答えのフォルダに置く別のファイルで、judgeverify.SYNERGY_FILE と字だけ同じ。区分 P。区分の issue で外す",
-    ("lib/fixboard.py", "UNITS_FILE"): "fix の置き場の入力 units の写しで、planfile.UNITS_FILE と字だけ同じ。区分 F。区分の issue で外す",
+    ("lib/fixboard.py", "UNITS_FILE"): "fix の置き場の入力 units の写しで、structfile.UNITS_FILE と字だけ同じ。区分 F。区分の issue で外す",
 }
 
 

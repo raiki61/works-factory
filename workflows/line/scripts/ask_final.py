@@ -408,15 +408,15 @@ def after_rows(structure_after) -> tuple:
 
 
 def structure_missing(structure) -> str:
-    """計画の構造の目が落ちた周の 1 文（計画の返り structure の先の structure-state.json。structmark.note。元 line_edge._final_text の
+    """構造の目が落ちた run の 1 文（構造のブロックの返り structure の先の控え。structmark.note。元 line_edge._final_text の
     「構造のブロック: …」）。落ちていない・控えが無ければ空。指し札が読めなければその訳"""
     if structure is None:
         return ""
     try:
-        folder = boundary.resolve(structure).parent
+        state = boundary.resolve(structure)
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return f"構造の目の控えのポインタを読めない（{type(error).__name__}: {error}）"
-    return structmark.note(structmark.read(folder))
+    return structmark.note(structmark.read(state))
 
 
 def fix_beside(records) -> dict:

@@ -54,7 +54,7 @@ from lib.tests.test_outcome import STAGES, fixed_run  # noqa: E402
 WORKFLOW = yaml.safe_load((BLOCK / "works-factory-report.yaml").read_text(encoding="utf-8"))
 NODES = {n["id"]: n for n in WORKFLOW["nodes"]}
 BODY = {n["id"]: n for n in NODES["write-loop"]["loop_group"]["nodes"]}
-INPUTS = ("start", "before-tests", "judge", "rejudge", "plan", "plan-review", "replan", "replan-review-result", "fix", "final-tests",
+INPUTS = ("start", "before-tests", "judge", "rejudge", "structure", "plan", "plan-review", "replan", "replan-review-result", "fix", "final-tests",
           "eyes", "sealed-diff", "applied-diff", "start-answer", "before-fix-answer", "replan-answer", "final-answer", "stops",
           "prior-failures", "deferred", "widened", "final-reasons", "spec-changed", "spec-unchecked", "redepth", "optional", "stages", "notices",
           "user-env-dir")
