@@ -43,7 +43,7 @@ DIR = "fix-fixture"              # run の置き場の下
 MANIFEST = "fixture.json"        # DIR の下の控え
 COPY = "place"                   # DIR の下の run の置き場の写し
 CARRIED = "fixture-carried.json"  # 取り込んだ run の置き場の根の、書き換えた carried
-FORMAT = 6                       # 6: 事前審査の隣のファイルを出力の欄で運ぶ形（#723）を、5 の計画と修正の控えの出力の欄（#681）に重ねた
+FORMAT = 7                       # 7: 6（5 の計画と修正の控えの出力の欄〔#681〕に、直す前のテストの受け皿の欄 optional〔#516〕を重ねた）に、事前審査の隣のファイルを出力の欄で運ぶ形（#723）を重ねた
 KEY = "fixture"                  # 始めの記録の鍵 {source_run, manifest_sha256, at}（取り込んだ run の印）
 CAPTURED_KEY = "fixture_captured"  # 始めの記録の鍵 {dir, error}（写した run の印）
 # 取り込みで今の値にする入力の欄（ほかの入力の欄は写した始めの記録と今の入力が同じでなければ拒む）。request は名指しの字が違っても

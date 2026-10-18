@@ -78,6 +78,7 @@ import seal as seallib  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
 import structmark  # noqa: E402
+import suitewrite  # noqa: E402
 import userenv  # noqa: E402
 import worldmark  # noqa: E402
 
@@ -1740,7 +1741,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, spec_changed,
     spec_unchecked, prior_failures（開けたファイルのパスの字か None）, redepth, notices}（線の collect が report の入力で渡す物。無ければ空。
     notices は run を止めずに進めた起こす前の注意の行で、冒頭の下に 1 行ずつ載せる）、user_env は対象のコマンドを利用者の
-    HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
+    HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）。tdd_suite を省いた run は、冒頭の 1 行目が
+    TDD の実行器を取り置きから使った・書いた・作れなかったのどれかを言う（始めの記録の欄。suitewrite.head_note）"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}
@@ -1771,6 +1773,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
                           *([pushed] if pushed else []),
                           *(_stopped_why(returns, line) if stopped else []), *_ran_notes(returns),
+                          *([suite] if (suite := suitewrite.head_note(start)) else []),
                           *([userenv.NOTE] if user_env else [])])
     carried = len(findings) + len(drafts) + len(constraints)
     head_at = _first_port(returns, "depth_record")

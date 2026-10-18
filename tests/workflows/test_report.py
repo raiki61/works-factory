@@ -763,7 +763,7 @@ class RejectScriptCase(Run):
         self.assertNotIn(second, part, "メモを書かなかった周のパスは名指さない")
         self.assertLess(part.index(handoff.USE), part.index(first))
         self.assertLess(part.index(first), part.index(handoff.NONE))
-        self.assertNotIn("r3", part, "今の周の分は無い")
+        self.assertNotIn(str(handoff.path_of(folder / "r3")), part, "今の周の分は無い")
         self.assertNotIn(note["kept"][0], part, "中身は貼らずパスで名指す")
 
 
