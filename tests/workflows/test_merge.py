@@ -35,6 +35,7 @@ import listcut  # noqa: E402
 from graphloops.engine.schema import validate_schema  # noqa: E402
 import protect  # noqa: E402
 import seal  # noqa: E402
+import tree_run  # noqa: E402
 import userenv  # noqa: E402
 
 BLOCK = ROOT / "workflows" / "merge"
@@ -668,6 +669,38 @@ class PrCommitTest(unittest.TestCase):
                 self.assertEqual(git(self.run_tree, "rev-list", "--count", f"{self.base}..HEAD"), count)
                 self.assertEqual(set(homes.read_text(encoding="utf-8").split()), {str(self.user_home)})
                 self.assertIs(userenv.ran(ran_dir), True)
+
+    def test_failing_hook_in_the_target_command_env_stops_with_the_mark_kept(self):
+        """利用者の環境で hooks が落ちて積まずに止まっても、hooks は走ったので印は残る（1 つの commit・積み直しの commit の両方）"""
+        self.hook("git diff --cached --name-only | grep -q a.txt && { echo 'a の誤り' >&2; exit 1; }\nexit 0\n")
+        for items in ("", self.record([("u1", ["a.txt"]), ("u2", ["new.txt"])])):
+            with self.subTest(items=bool(items)):
+                ran_dir = self.tmp / f"ran-{bool(items)}"
+                got = self.commit(env=self.shell_env(ran_dir), items=items)
+                self.assertStopped(got, "a の誤り")
+                self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base, "積み始める前の HEAD に戻す")
+                self.assertIs(userenv.ran(ran_dir), True)
+
+    def assertStoppedBeforeTheHooks(self, ran_dir, words: str):
+        hooked = self.tmp / "hooked"
+        self.hook(f"touch '{hooked}'\n")
+        self.assertStopped(self.commit(env=self.shell_env(ran_dir)), words)
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+        self.assertFalse(hooked.exists(), "利用者の環境で hooks を走らせない")
+
+    def test_mark_folder_that_is_a_file_stops_without_a_commit(self):
+        """印の置き場がフォルダでなくファイルなら、置き場を作る所（outside_env）で止まり、積まない"""
+        as_file = self.tmp / "ran"
+        as_file.write_text("", encoding="utf-8")
+        self.assertStoppedBeforeTheHooks(as_file, str(as_file))
+
+    @unittest.skipIf(os.geteuid() == 0, "root は書けないフォルダの中も書ける")
+    def test_mark_that_cannot_be_placed_stops_without_a_commit(self):
+        """印を置けなければ（書けない置き場）、訳に tree_run.MARK_FAILED を載せて積まずに止まる"""
+        read_only = self.tmp / "ran"
+        read_only.mkdir()
+        read_only.chmod(0o500)
+        self.assertStoppedBeforeTheHooks(read_only, tree_run.MARK_FAILED)
 
     def test_record_without_the_user_env_dir_stops_without_a_commit(self):
         """控えが在るのに印の置き場の入力が空なら、利用者の環境に戻さず・隔離のまま積まずに止まる"""
