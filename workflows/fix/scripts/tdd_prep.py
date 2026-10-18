@@ -8,7 +8,7 @@
 輪は前の周の会話を継ぐ（fresh_context: false）。単位が替わった周かを tddloop.prep が new_unit で返し、YAML がそれで同じ単位の
 続きの役 tdd（会話を継ぐ）と新しい単位の役 tdd-new（context: fresh）を振り分ける。前の単位と今の単位のこれまでは引き継ぎの節
 （tddloop.handoff_lines。今の単位の段の結果 current_lines を含む）でも指示書に載せる。前の周に拒んだ理由も指示書に載る。
-run の値: 判定の写し（judgment.json）・修正案の役の返答の写し（p2.fix_plan.json。無ければ空）・人の方針の文書（始めの記録の
+run の値: 判定の写し（judgment.json）・修正案の役の返答の写し（fixboard.PLAN_REPLY_FILE。無ければ空）・人の方針の文書（始めの記録の
 固めた版の写し）・依頼の文のファイル（request_file）・修正前の関所の一言（human-notes.md）・言語の 1 行（rolekit.lang_line）。brief は置き場の凍結した欄と修正案から切る
 （planbrief.cut。修正案の無い run は無し）。
 輪が済んだ（resume で 1 周目から回し直された）・実行器の無い run は何も書かずに {prompt_file: "", go: false, new_unit: false}。

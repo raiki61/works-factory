@@ -32,6 +32,9 @@ inputs:
   plan:
     default: ""
     description: 修正案のポインタ（plan-fields.json）。空は修正案の無い run
+  fix_plan:
+    default: "null"
+    description: 修正案のポインタ（先は項目の並びを 1 つの欄に持つ JSON の object。項目の unit_keys が承認済みの項目の出どころ）。置き場へ自分の名で写す。null は修正案の無い run
   ripple:
     default: ""
     description: 波及の一覧のポインタ
@@ -68,6 +71,12 @@ inputs:
   out_dir:
     default: ""
     description: 子が組の結果を書く、親の run の置き場の中の絶対パス。空なら自分の置き場に書く
+  reuse_dir:
+    default: ""
+    description: 同じ run の中の試験の結果の控えの置き場の絶対パス。TDD のループの頭が引いて置く。空は使い回さない
+  user_env_dir:
+    default: ""
+    description: 利用者の HOME・XDG に戻して起こした印（user-env-ran）を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）
 
 returns: fix
 outcome_field: done
@@ -139,6 +148,8 @@ nodes:
       depth: $INPUTS.depth
       answers: $INPUTS.answers
       only_items: $INPUTS.only_items
+      reuse_dir: $INPUTS.reuse_dir
+      user_env_dir: $INPUTS.user_env_dir
       mode: group
       from_tree: $prep.output.start_tree
       out_dir: $prep.output.out_dir
@@ -163,6 +174,8 @@ nodes:
       depth: $INPUTS.depth
       answers: $INPUTS.answers
       only_items: $INPUTS.only_items
+      reuse_dir: $INPUTS.reuse_dir
+      user_env_dir: $INPUTS.user_env_dir
       mode: group
       from_tree: ""
       out_dir: $prep.output.out_dir
@@ -1528,7 +1541,8 @@ nodes:
       type: object
       additionalProperties: false
       required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, x_scalars, delta_review,
-                 handoffs, mismatched, plan_declared, stop_reason]
+                 handoffs, mismatched, plan_declared, stop_reason, allowed_tests, accept_trace, lenses, closure, delta_holes, tdd_unit,
+                 removed, tdd_refused]
       properties:
         optional: {type: array}
         done: {type: boolean}
@@ -1609,3 +1623,34 @@ nodes:
         plan_declared: {type: array, items: {type: string}}
         # 止めの語（戻せず当たったままの組が在れば stopby.UNRESTORED。ほかは ""）
         stop_reason: {type: string}
+        # diff の隣の控えのポインタ（lib/fixbeside.py の PORTS。先が無ければ null）
+        allowed_tests: &pointer_or_null
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties: *pointer_fields
+            - {type: 'null'}
+        accept_trace: *pointer_or_null
+        lenses: *pointer_or_null
+        closure: *pointer_or_null
+        delta_holes: *pointer_or_null
+        tdd_unit: *pointer_or_null
+        # clean が消したパスの控え（置き場の根と scope の根）のポインタの並び。clean が走っていなければ []、探せなければ null
+        removed:
+          anyOf:
+            - type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [type, run_id, path]
+                properties: *pointer_fields
+            - {type: 'null'}
+        # TDD の輪の状態から読んだ修正役が拒まれた単位と、在るのに読めない状態の訳
+        tdd_refused:
+          type: object
+          additionalProperties: false
+          required: [refused, unread]
+          properties:
+            refused: {type: array, items: {type: string}}
+            unread: {type: array, items: {type: string}}

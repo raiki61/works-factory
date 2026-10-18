@@ -16,6 +16,12 @@ inputs:
   baseline:
     default: ""
     description: final の時だけ、base の出力の baseline のポインタの JSON の字。"" と null は「無い」と読む
+  reuse_dir:
+    default: ""
+    description: 同じ run の中の試験の結果の控えの置き場の絶対パス。base の時だけ引いて置く。空は使い回さない
+  user_env_dir:
+    default: ""
+    description: 利用者の HOME・XDG に戻して起こした印（user-env-ran）を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）
 
 returns: result
 outcome_field: ok
@@ -27,6 +33,8 @@ nodes:
     with:
       mode: $INPUTS.mode
       start: $INPUTS.start
+      reuse_dir: $INPUTS.reuse_dir
+      user_env_dir: $INPUTS.user_env_dir
     output_format:
       type: object
       additionalProperties: false

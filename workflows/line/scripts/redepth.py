@@ -16,7 +16,7 @@ skip_optional: 省く理由の文（run の頭の深さの段が省く物を持�
 counted: run の広さの数えと起点の 1 行（fix_signals の隣の控えが無い訳を「／」で添える）, stop_reason}。
 例外の時は止めの理由 works:line-script を返し、試験の関門から先は飛ぶ（深さの分からない差分を目に通さない）。
 
-入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・head_depth（run の頭の深さの段の語）・units・conflicts・plan・diff（fixed の返り）・judgment（judged の返り）・
+入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・head_depth（run の頭の深さの段の語）・units・conflicts・plan・diff・records（fixed の返り）・judgment（judged の返り）・
 start（始めの記録）・answer（修正前の関所の答え）・depth_record（1 回目の判定の頭の深さの控えのポインタ）・
 answer_ties・materials（judged の返りの結びと素材の状態のポインタ）・replanned・rejudged（after-fix の返り）・plan_declared（fixed の返り）
 """
@@ -91,10 +91,10 @@ def wide_signals(plan, diff, keys) -> tuple:
 NO_LATE_RECORD = "修正の後の信号の控えが無い（{name}）——範囲の相談を数えていない"
 
 
-def fix_signals(plan, diff, depth_record, keys) -> tuple:
+def fix_signals(plan, diff, records, depth_record, keys) -> tuple:
     """(修正の後の 3 つの事実の信号, counted に添える訳の並び)。事実の言い方は depth.late_signals、引用の外の差分は depth.outside_cited:
     引用の外の差分は diff の触るファイルを、1 回目の判定の頭の深さの控え（depth_record のポインタ）の where のファイル（headdepth.cited_files）と比べ、
-    TDD の拒否と範囲の相談は diff の隣の TDD の輪の状態 tdd-<k>/state.json と accept-trace.json の行を lib/fixbeside.py の late_records で読む。
+    TDD の拒否と範囲の相談は最後の修正の段（records の最後）の控えの欄を lib/fixbeside.py の late_records で読む。
     diff が null（直す物が無い周）・指し札が解けない時は何も足さず訳も添えない。控えの扱いは 1 つの決まり: 受け付けの行が無い時は
     上げずに訳を添え（NO_LATE_RECORD。黙らない）、在るのに読めない・{error}・形が違う時だけ fixbeside.LATE_UNREAD の信号で上げる側へ倒す。
     TDD の輪の状態が無い置き場は輪が走っていない（本物の run で TDD の前に止まった run は単位が止めた単位として既に上がる）。
@@ -102,7 +102,7 @@ def fix_signals(plan, diff, depth_record, keys) -> tuple:
     if diff is None:
         return [], []
     try:
-        folder = boundary.resolve(diff).parent
+        boundary.resolve(diff)
     except READ_ERRORS:
         return [], []
     try:
@@ -113,7 +113,7 @@ def fix_signals(plan, diff, depth_record, keys) -> tuple:
         cited = headdepth.cited_files(headdepth.read_file(boundary.resolve(depth_record))) if depth_record is not None else []
     except READ_ERRORS:
         cited = []
-    got = fixbeside.late_records(folder)
+    got = fixbeside.late_records(records[-1] if isinstance(records, list) and records else None, boundary.resolve)
     signals = depthlib.late_signals(outside=depthlib.outside_cited(_plan_items(plan), keys, touched, cited), refused=got["refused"],
                                     consulted=consult.consulted_units(got["trace"] or []))
     return ([*signals, *(fixbeside.LATE_UNREAD.format(why=why) for why in got["unread"])],
@@ -153,7 +153,7 @@ def from_env() -> dict:
     keys = [r["unit_id"] for r in merged(planned if isinstance(planned, list) else [],
                                         replanned_depth if isinstance(replanned_depth, list) else []) if r.get("unit_id")]
     wide, counted = wide_signals(value("PLAN"), value("DIFF"), keys)
-    late, missing = fix_signals(value("PLAN"), value("DIFF"), value("DEPTH_RECORD"), keys)
+    late, missing = fix_signals(value("PLAN"), value("DIFF"), value("RECORDS"), value("DEPTH_RECORD"), keys)
     pending = pending_signals(value("JUDGMENT"), value("START"), value("ANSWER"), value("ANSWER_TIES"), value("MATERIALS"))
     declared = depthlib.late_signals(declared=boundary.items(os.environ.get("INPUTS_PLAN_DECLARED")))
     return {"planned": planned, "replanned_depth": replanned_depth, "units": boundary.items(os.environ.get("INPUTS_UNITS")),

@@ -240,7 +240,8 @@ class YamlCase(unittest.TestCase):
 
     def test_name_inputs_and_return(self):
         self.assertEqual(self.y["name"], "works-factory-test-gate")
-        self.assertEqual(set(self.y["inputs"]), {"mode", "start", "baseline"})
+        self.assertEqual(set(self.y["inputs"]), {"mode", "start", "baseline", "reuse_dir", "user_env_dir"})
+        self.assertEqual((self.y["inputs"]["reuse_dir"]["default"], self.y["inputs"]["user_env_dir"]["default"]), ("", ""))
         self.assertTrue(self.y["inputs"]["mode"]["required"])
         self.assertTrue(self.y["inputs"]["start"]["required"])
         self.assertEqual(self.y["inputs"]["baseline"]["default"], "")
@@ -401,6 +402,7 @@ class ScriptCase(unittest.TestCase):
     def env(self, inputs: dict) -> dict:
         env = hermetic.child_env(**{**self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts),
                                     "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1",
+                                    "INPUTS_REUSE_DIR": str(self.artifacts / "test-reuse"), "INPUTS_USER_ENV_DIR": str(self.artifacts),
                                     **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}})
         if self.user_home is None:
             return env
@@ -512,6 +514,10 @@ class RunScriptCase(ScriptCase):
         self.ok("run", mode="final", start=self.start)
         self.assertTrue(userenv.ran(self.artifacts))
         (self.artifacts / userenv.RAN_FILE).unlink()
+        rc, out, err = self.script("run", mode="final", start=self.start, user_env_dir="")
+        self.assertEqual((rc, out), (1, None), "#681: 印の置き場の入力が無ければ自分の置き場へ黙って倒さず、戻さずに止める")
+        self.assertIn(userenv.RAN_DIR_ENV, err)
+        self.assertFalse(userenv.ran(self.artifacts))
         self.write_start()
         self.assertEqual(self.ok("run", mode="final", start=self.start)["by"], declared_checks.ROLE_NEEDED)
         self.assertFalse(userenv.ran(self.artifacts))
@@ -578,6 +584,8 @@ class RunScriptCase(ScriptCase):
         for _ in range(2):
             self.ok("run", mode="final", start=self.start)
         self.assertEqual(launched(), 3)
+        self.ok("run", mode="base", start=self.start, reuse_dir="")
+        self.assertEqual(launched(), 4, "#681: 控えの置き場の入力が無い base は自分の置き場へ黙って倒さず、使い回さない")
 
     def test_scope_declaration_without_review_declaration_stops(self):
         """範囲の宣言だけが在れば走らせずに 1 で止め、理由を標準エラーに出す"""

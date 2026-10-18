@@ -9,6 +9,7 @@
 """
 import ast
 import importlib.util
+import inspect
 import json
 import os
 import pathlib
@@ -55,7 +56,8 @@ NODES = {n["id"]: n for n in WORKFLOW["nodes"]}
 BODY = {n["id"]: n for n in NODES["write-loop"]["loop_group"]["nodes"]}
 INPUTS = ("start", "before-tests", "judge", "rejudge", "plan", "plan-review", "replan", "replan-review-result", "fix", "final-tests",
           "eyes", "sealed-diff", "applied-diff", "start-answer", "before-fix-answer", "replan-answer", "final-answer", "stops",
-          "prior-failures", "deferred", "widened", "final-reasons", "spec-changed", "spec-unchecked", "redepth", "optional", "stages", "notices")
+          "prior-failures", "deferred", "widened", "final-reasons", "spec-changed", "spec-unchecked", "redepth", "optional", "stages", "notices",
+          "user-env-dir")
 RETURN_FIELDS = {"outcome", "stop_reason", "report", "report_ai", "next_request", "prior_failures", "ok"}
 TOP_KEYS_DROPPED_ON_INCLUDE = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 SANDBOX = {"enabled": True, "allowUnsandboxedCommands": False}
@@ -223,9 +225,11 @@ class ShapeCase(unittest.TestCase):
         self.assertIn("stages", WORKFLOW["inputs"])
 
     def test_facts_reads_every_input_by_its_own_name(self):
-        """facts の読む入力が YAML の inputs と同じで、どれも自分の名の環境変数から読む。outcome の関所の並びは inputs の -answer"""
+        """facts の読む入力が YAML の inputs と同じで、どれも自分の名の環境変数から読む（印の置き場 user-env-dir は呼ぶ時に読む
+        marked_place）。outcome の関所の並びは inputs の -answer"""
         reads = env_reads("facts")
-        self.assertEqual(reads, {name: f"INPUTS_{name.upper().replace('-', '_')}" for name in WORKFLOW["inputs"]})
+        self.assertEqual(reads, {name: f"INPUTS_{name.upper().replace('-', '_')}" for name in WORKFLOW["inputs"] if name != "user-env-dir"})
+        self.assertIn('os.environ.get("INPUTS_USER_ENV_DIR"', inspect.getsource(facts_script.marked_place))
         self.assertEqual(outcome.GATES, tuple(name for name in WORKFLOW["inputs"] if name.endswith("-answer")))
 
     def test_no_top_keys_dropped_on_include(self):
@@ -386,7 +390,8 @@ class Run(unittest.TestCase):
     def run_script(self, name: str, **env) -> tuple[int, dict]:
         base = hermetic.child_env(**{"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "TYPED_ARTIFACTS_FILE": "", "LOG_DIR": "",
                                      "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1",
-                                     "INPUTS_STAGES": json.dumps(STAGES, ensure_ascii=False), **env})
+                                     "INPUTS_USER_ENV_DIR": str(self.artifacts), "INPUTS_STAGES": json.dumps(STAGES, ensure_ascii=False),
+                                     **env})
         done = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], env=base, capture_output=True, text=True,
                               encoding="utf-8")
         lines = [line for line in done.stdout.splitlines() if line.strip()]
@@ -413,18 +418,21 @@ class FactsCase(Run):
         self.assertIn("LOG_DIR", text)
 
     def test_users_env_sentence_only_with_the_marker(self):
-        """#504: 起動の殻を通った run（いつも控えが在る）でも、対象のコマンドを利用者の HOME・XDG に戻して起こした印（メイングラフの run の
-        置き場の userenv.RAN_FILE）が無ければ、報告の冒頭は利用者の環境で走らせたと言わない（対象のコマンドの前に止まった run）"""
+        """#504: 起動の殻を通った run（いつも控えが在る）でも、対象のコマンドを利用者の HOME・XDG に戻して起こした印（入力 user-env-dir の
+        置き場の userenv.RAN_FILE）が無ければ、報告の冒頭は利用者の環境で走らせたと言わない（対象のコマンドの前に止まった run）。
+        入力が空なら自分の置き場の印を黙って読まない（#681）"""
         opted = {userenv.RECORD: userenv.record({"HOME": "/u"})}
         text = (self.artifacts / self.run_script("facts", **opted)[1]["facts_file"]).read_text(encoding="utf-8")
         self.assertNotIn(userenv.NOTE, text)
         (self.artifacts / userenv.RAN_FILE).touch()
         text = (self.artifacts / self.run_script("facts", **opted)[1]["facts_file"]).read_text(encoding="utf-8")
         self.assertIn(userenv.NOTE, text)
+        text = (self.artifacts / self.run_script("facts", **opted, INPUTS_USER_ENV_DIR="")[1]["facts_file"]).read_text(encoding="utf-8")
+        self.assertNotIn(userenv.NOTE, text)
 
     def test_fallen_report_says_users_env_with_the_marker(self):
         """#504: 思わぬ誤りで落ちた報告も、印（userenv.RAN_FILE）が在れば冒頭で利用者の環境で走らせたと言う（起動の 1 行が冒頭を指す）"""
-        with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "INPUTS_OUT_DIR": ""}):
+        with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "INPUTS_USER_ENV_DIR": str(self.artifacts)}):
             for marked in (False, True):
                 with self.subTest(marked=marked):
                     if marked:
@@ -630,10 +638,9 @@ class ReplanGiveUpCase(Run):
         ruling = "RULING-7310 項目 1 の allowed_paths に request_ok.json を足せ"
         why = planblk.PLAN_GAVE_UP_WHY.format(reason="plan の受け付けが 3 回とも拒んだ: 一字も変えずに写す")
         plan = self.pointer("plan/r2/plan-fields.json", {"round": 2, "fields": []})
-        self.pointer(f"plan/r2/{planblk.REPLAN_GAVE_UP_FILE}", [{"item": 1, "why": why, "ruling": ruling}])
         judgment = self.pointer("judge/judgment.json", {})
         judge = {"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)}
-        replan = {"ready": False, "round": 2, "plan": json.loads(plan)}
+        replan = {"ready": False, "round": 2, "plan": json.loads(plan), "gave_up": [{"item": 1, "why": why, "ruling": ruling}]}
         code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
                                     INPUTS_JUDGE=json.dumps(judge), INPUTS_PLAN='{"ready": true, "round": 1}',
                                     INPUTS_REPLAN=json.dumps(replan))

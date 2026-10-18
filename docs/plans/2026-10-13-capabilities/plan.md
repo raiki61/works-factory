@@ -1834,7 +1834,7 @@
 - P253 関所の材料は修正の義務が在る周だけに作る（直す義務が 0 件の周は関所を開かず修正の役も起こさないが、今の works と同じく空の修正を渡して最後のテストと独立の目まで回す）
   - 元: works/.shared/core/gatemarks.py 冒頭（直す義務が 0 件の周は関所の節が走らない）・works/darkfactory/lib/line_edge.py:1109-1114 `plan_edge`（空の修正 `entry.empty_fix_reply`。works/.shared/core/entry.py:1313）
   - 今: 表
-  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_no_plan_goes_nowhere・tests/workflows/test_line.py::PlanOutNothingOwedCase.test_nothing_owed_is_read_from_the_round・tests/workflows/test_line.py::NoFixWiringCase.test_nothing_owed_round_takes_the_no_fix_tail・lib/tests/test_outcome.py::ReadingCase.test_nothing_owed_round_with_the_tail_is_round_limit・筋書き nothing-owed・tests/e2e/test_line_scenarios.py::NothingOwedRoundTest.test_the_tail_runs_like_works
+  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_no_plan_goes_nowhere・tests/workflows/test_line.py::PlanOutNothingOwedCase.test_nothing_owed_is_the_plan_field・tests/workflows/test_line.py::NoFixWiringCase.test_nothing_owed_round_takes_the_no_fix_tail・lib/tests/test_outcome.py::ReadingCase.test_nothing_owed_round_with_the_tail_is_round_limit・筋書き nothing-owed・tests/e2e/test_line_scenarios.py::NothingOwedRoundTest.test_the_tail_runs_like_works
   - 本物の run: 線の節 `ask-before-fix` の出力 `open`・`go`
   - 狭め: #74 で狭めた（直す義務 0 件の周に最後のテストと独立の目を飛ばした。この行の「無し」は棚卸しの見誤りで、持ち主の決めでない） → #291 で戻した
 

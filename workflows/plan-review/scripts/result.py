@@ -5,7 +5,7 @@
 """返す節（boardview.collect）。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、終了の値 0 で、偽の結末と訳を返りの約束の形で返す（返す節が落ちると線が
 先へ進めない）。その時は境の口を通さず、置き場の plan-review/failed/ に事前審査の返答・設計の控え・聞かずに通した行（空。report が
-review.json の隣を名で開く）と承認ノードの項目と壁打ちの行（gate.json）を素の json で書き、指し札も字で組む"""
+review.json の隣を名で開く）と承認ノードの項目と壁打ちの行（gate.json）を素の json で書き、指し札も字で組む（諦めの行 gave_up は null）"""
 import json
 import os
 import sys
@@ -49,7 +49,8 @@ def failed(error: BaseException) -> dict:
             pass
     pointer = lambda name: {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": f"{FAILED}/{name}"}  # noqa: E731
     return {"pass": False, "stalled": False, "review": pointer(REVIEW_FILE), "design": pointer(DESIGN_FILE),
-            "gate_axes": {axis: {"ok": False, "note": note} for axis in AXES}, "ask_human": True, "questions": [{"kind": FAILED_KIND, "text": note}]}
+            "gate_axes": {axis: {"ok": False, "note": note} for axis in AXES}, "ask_human": True, "questions": [{"kind": FAILED_KIND, "text": note}],
+            "gave_up": None}
 
 
 def main() -> int:
