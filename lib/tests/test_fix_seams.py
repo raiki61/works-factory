@@ -31,6 +31,7 @@ if str(LIB) not in sys.path:
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import globs  # noqa: E402
 import groups  # noqa: E402
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
@@ -1988,7 +1989,7 @@ class GroupScriptsSeamCase(TempCase):
             warnings.simplefilter("always")
             re.purge()
             for g in planrange.item_globs(self.RANGE_ITEMS["bracket"]):
-                planmarks.glob_match("", g)
+                globs.glob_match("", g)
         self.assertEqual([str(w.message) for w in seen if issubclass(w.category, FutureWarning)], [])
 
     def test_parallel_needs_two_groups_no_lane_switch_and_a_remote(self):

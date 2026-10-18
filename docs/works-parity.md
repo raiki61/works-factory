@@ -3710,7 +3710,7 @@
 - plan.md P016: lib/planfile.py::take_plan（reply.json・p2.fix_plan.json に欄のまま置く）
 - plan.md P017: lib/planmarks.py::gaps（元と字のまま）・lib/planfile.py::take_plan
 - plan.md P018: lib/planmarks.py::gaps
-- plan.md P019: lib/planmarks.py::gaps・lib/planmarks.py::glob_problem
+- plan.md P019: lib/planmarks.py::gaps・lib/globs.py::glob_problem
 - plan.md P020: lib/planmarks.py::_symbol_problem・lib/planmarks.py::gaps
 - plan.md P021: lib/planfile.py::_save・lib/planfile.py::take_plan
 - plan.md P022: lib/planmarks.py::_limit・lib/planmarks.py::split
@@ -4233,7 +4233,7 @@
 - tail.md M52: bin/_lib/apply.py::pointed
 - tail.md M53: 無し（周の鎖そのものがまだ無い）
 - tail.md M54: lib/protected.json・lib/protect.py::load
-- tail.md M55: lib/protect.py::match（planmarks.glob_match）
+- tail.md M55: lib/protect.py::match（globs.glob_match）
 - tail.md M56: lib/protected.json（行 manifest・checker・checker-test）
 - tail.md M57: lib/protected.json（行 baseline-red・baseline-red-test・green-cert・green-cert-test）
 - tail.md M58: lib/protected.json
