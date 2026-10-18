@@ -82,7 +82,7 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 
 - ASF: d97d00ef の `W/ship/archon-ship.yaml`:58-59（`returns: outcome` / `outcome_field: delivered`）と 139-148（`trigger_rule: none_failed_min_one_success`、`delivered: { from: "$deliver.output.pr_url", if_skipped: null }`）。
 - なぜその形か: 子を飛ばす正しい道（止め・直す物が無い）でも、グラフの出力は 1 つの型で人と呼び手に届く。飛ばされた子は null で受け、落ちた子は受けない（落ちたノードの名が run の記録に残る）。
-- 採った先: メイングラフ（`workflows/line/works-factory-line.yaml`）の出力ノード `result` と、中継のノード `answer-*`・`collect`（埋め P2）と、`judged`・`fixed`（飛ばされうる再審・2 度目の修正の出力を `if_skipped: null` で受けて合わせる）。
+- 採った先: メイングラフ（`workflows/line/works-factory-line.yaml`）の出力ノード `result` と、中継のノード `answer-*`・`structure-in`・`collect`（埋め P2）と、`judged`・`fixed`（飛ばされうる再審・2 度目の修正の出力を `if_skipped: null` で受けて合わせる）。
 - 違い: メイングラフの報告はどの道でも出すので、集めるノード `collect`・`report`・`result` は `trigger_rule: all_done`（前の段が落ちても走る）。include の `with:` に束ねが書けないので、サブグラフへ渡す前にメイングラフの `script:` のノードで受け直す（ship は出力ノードだけで受ける）。
 
 ### A10 承認ノードは決めの語（decisions）と when: で道を分ける

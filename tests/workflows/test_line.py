@@ -4149,12 +4149,14 @@ class StructureOnceCase(unittest.TestCase):
         nodes = line_nodes()
         once = [nid for nid, n in nodes.items() if n.get("include") == "works-factory-structure"]
         self.assertEqual(once, ["structure"])
-        self.assertEqual((nodes["structure"]["depends_on"], nodes["structure"]["when"]), (["judge"], "$judge.output.ready == true"))
+        self.assertEqual((nodes["owed"]["depends_on"], nodes["owed"]["when"]), (["judge"], "$judge.output.ready == true"))
+        self.assertEqual((nodes["structure"]["depends_on"], nodes["structure"]["when"]), (["owed"], "$owed.output.owed == true"))
         self.assertNotIn("loop_group", nodes["structure"])
         rounds = {n["id"] for n in nodes["plan-rounds"]["loop_group"]["nodes"]}
         self.assertNotIn("structure", rounds, "往復の中で測り直さない")
-        self.assertEqual(nodes["plan"]["with"]["structure"], "$structure.output.structure")
-        self.assertEqual(nodes["plan-review-run"]["with"]["structure"], "$structure.output.structure")
+        self.assertEqual(nodes["structure-in"]["with"]["structure"], {"from": "$structure.output.structure", "if_skipped": None})
+        self.assertEqual(nodes["plan"]["with"]["structure"], "$structure-in.output.structure")
+        self.assertEqual(nodes["plan-review-run"]["with"]["structure"], "$structure-in.output.structure")
         self.assertEqual(nodes["replan"]["with"]["structure"], "$fix-in.output.structure")
         self.assertEqual(nodes["replan-review"]["with"]["structure"], "$fix-in.output.structure")
         self.assertEqual(nodes["fix-in"]["with"]["structure"], {"from": "$structure-out.output", "if_skipped": None})
@@ -4162,13 +4164,72 @@ class StructureOnceCase(unittest.TestCase):
 
     def test_plan_waits_for_the_structure_output(self):
         """構造のブロックの返す節そのものが落ちた run は、計画の落ちと同じく計画なしで修正へ進まない（往復は既定の trigger_rule で
-        構造のブロックに頼る。中の節の落ちは返す節が失敗の控えに替えるので往復を止めない）"""
-        rounds = line_nodes()["plan-rounds"]
-        self.assertIn("structure", rounds["depends_on"])
+        返しの節 structure-in に頼り、structure-in は落ちた構造のブロックの後ろで飛ばされる。飛ばされた構造のブロックの後ろでは走る。
+        中の節の落ちは返す節が失敗の控えに替えるので往復を止めない）"""
+        nodes = line_nodes()
+        rounds = nodes["plan-rounds"]
+        self.assertIn("structure-in", rounds["depends_on"])
         self.assertNotIn("trigger_rule", rounds)
+        self.assertIn("structure", nodes["structure-in"]["depends_on"])
+        self.assertEqual(nodes["structure-in"]["trigger_rule"], "none_failed_min_one_success")
         self.assertEqual(block_doc("works-factory-structure")["returns"], "structure")
         returned = next(n for n in block_doc("works-factory-structure")["nodes"] if n["id"] == "structure")
         self.assertEqual(returned["trigger_rule"], "all_done")
+
+
+class OwedCase(Artifacts):
+    """P011・P071: 構造のブロックは、計画の 1 回目の周が修正案の役を起こす run（直す義務の単位が在り、行き止まりが無く、入力が
+    読める）でだけ走る。節 owed は計画の周を開く口（planfile.open_round）と同じ決め planfile.held_why を引く（元 works の
+    structure_edge(plan_go=False)）"""
+
+    MEAN, NIT = "stats.py mean: 分母が len(xs) - 1 になっている", "stats.py mean: 変数名が短い"
+
+    def place(self, rel, doc) -> str:
+        path = self.artifacts / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return json.dumps({"type": "archon_artifact", "run_id": RUN, "path": rel})
+
+    def unit(self, key, label="block", disposition="do-now"):
+        return {"key": key, "label": label, "disposition": disposition, "reason": f"事実: {key}"}
+
+    def owed(self, units, *, start=None, world="null", questions=()):
+        judgment = self.place("judge/judgment.json", {"units": units, "questions": list(questions)})
+        start_raw = self.place("start.json", start or {})
+        return load("owed").owed(start_raw, judgment, "null", "null", world)
+
+    def test_owed_unit_runs_the_structure(self):
+        self.assertEqual(self.owed([self.unit(self.MEAN)]), {"owed": True, "why": "", "stop_reason": ""})
+
+    def test_nothing_owed_stuck_and_unreadable_skip_the_structure(self):
+        missing = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "nowhere/x.json"})
+        fork = {"key": "q", "kind": "fork", "status": "held", "origin": self.MEAN, "options": ["a", "b"], "reason": "割れる"}
+        for name, got, want in (
+                ("nit だけ", self.owed([self.unit(self.NIT, "nit", None)]), planfile.NOTHING_OWED),
+                ("答え待ちの出どころだけ", self.owed([self.unit(self.MEAN)], questions=[fork]), planfile.NOTHING_OWED),
+                ("行き止まり", self.owed([self.unit(self.MEAN), self.unit(self.MEAN, "nit", None)]), "行き止まり"),
+                ("定石の行が読めない", self.owed([self.unit(self.MEAN)], world=missing), "world が読めない")):
+            with self.subTest(name):
+                self.assertIs(got["owed"], False)
+                self.assertIn(want, got["why"])
+
+    def test_owed_matches_the_first_plan_round(self):
+        """同じ判定で、節 owed の真偽は計画の 1 回目の周の go と同じ"""
+        for units in ([self.unit(self.MEAN)], [self.unit(self.NIT, "nit", None)], [self.unit(self.MEAN), self.unit(self.MEAN, "nit", None)]):
+            with self.subTest(units=units):
+                got = self.owed(units)
+                judgment, _ = planfile.read_judgment(self.place("judge/judgment.json", {"units": units, "questions": []}), {},
+                                                     boundary.pointed)
+                plan_dir = self.artifacts / f"plan-{len(units)}-{units[0]['label']}"
+                opened = planfile.open_round(plan_dir, ruling=[], judgment=judgment, review=None)
+                self.assertEqual((got["owed"], got["why"]), (opened["go"], opened["why"]))
+
+    def test_skipped_structure_relays_null(self):
+        relay = load("structure_in")
+        self.assertEqual(relay.relayed("null"), {"structure": None, "stop_reason": ""})
+        self.assertEqual(relay.relayed(""), {"structure": None, "stop_reason": ""})
+        ptr = {"type": "archon_artifact", "run_id": RUN, "path": "structure/structure-state.json"}
+        self.assertEqual(relay.relayed(json.dumps(ptr)), {"structure": ptr, "stop_reason": ""})
 
 
 if __name__ == "__main__":

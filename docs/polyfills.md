@@ -83,7 +83,7 @@
   - `packages/workflows/src/schemas/dag-node.ts` の「Include/workflow `with:` maps have no directive, so」「objects there stay ordinary JSON literals.」（束ね `{from, if_skipped}` は `command:`・`script:` の `with:` だけの形）
   - `packages/workflows/src/include-expander.ts` の「if (slot.surface === 'binding_from' || slot.name === 'binding.if_skipped') return slot.value;」（include の展開は `binding.if_skipped` の欄を置き換えずにそのまま残す）
 - 上流（`64ec0c2e` の後の dev の `64ec0c2e2` まで）: 塞がっていない（止めた版が dev の頭。`355f1867..64ec0c2e2` の 87 commit で、証拠の字と、その辺りの振る舞いは変わっていない）。
-- 埋め: `workflows/.shared/skip_value.py`。メイングラフの中継のノードが使う。飛ばされうる値を、メイングラフの `script:` のノードの `with:` で欄ごとに `{from: "$<ノード>.output.<欄>", if_skipped: null}` で受け、明示の値で返し直す。サブグラフにはそのノードの出力を渡す。P2 のために在る中継のノードは `workflows/line/works-factory-line.yaml` の `answer-*`（承認ノードの答えを fix・merge に渡す）と `collect`（全部の出力を report に渡す）だけ。Archon が `INPUTS_<名>` に渡した字を値に戻す部品は `workflows/.shared/skip_value.py`。
+- 埋め: `workflows/.shared/skip_value.py`。メイングラフの中継のノードが使う。飛ばされうる値を、メイングラフの `script:` のノードの `with:` で欄ごとに `{from: "$<ノード>.output.<欄>", if_skipped: null}` で受け、明示の値で返し直す。サブグラフにはそのノードの出力を渡す。P2 のために在る中継のノードは `workflows/line/works-factory-line.yaml` の `answer-*`（承認ノードの答えを fix・merge に渡す）と `structure-in`（飛ばされうる構造の目の控えのポインタを計画の往復に渡す）と `collect`（全部の出力を report に渡す）だけ。Archon が `INPUTS_<名>` に渡した字を値に戻す部品は `workflows/.shared/skip_value.py`。
 - 使うサブグラフ: メイングラフ
 - 外す条件: include の `with:` に書いた `if_skipped` が子の中まで効く版が出たら
 

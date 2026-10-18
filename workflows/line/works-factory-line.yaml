@@ -6,7 +6,7 @@ description: |
   YAML は配線だけで、決めはメイングラフの script（workflows/line/scripts/）、確かめは lib/ が持つ。
   修正から後ろのノードは、直す前のテスト・判定・計画・修正前の承認の答えを中継のノード fix-in から読む。固定材料（fix_fixture）を
   名指した run は、start が写しを取り込み、直す前のテスト・判定・計画を飛ばして fix-in が写しの値を運び、修正から始める。
-  サブグラフに渡す飛ばされうる値は、返しのノード（埋め P2: answer-*・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
+  サブグラフに渡す飛ばされうる値は、返しのノード（埋め P2: answer-*・structure-in・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
   サブグラフと計画の往復の出力は受け皿のノード（埋め P8: <include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
   （受けるノードが落ちても受け皿が飛ばされるだけで、報告まで届く）。
   出力はメイングラフのノード result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
@@ -187,12 +187,33 @@ nodes:
         pr_excluded materials purpose_review depth_record decisions answer_ties review_lenses pr_drafts rejudge_exit rejudge_diff
         purpose_means world_state optional"
 
-  # 4' 構造の目。判定が切った単位を run に 1 回だけ測って見る（単位が変わるのは再審の後だけで、その後に計画は走らない）。
-  # 計画の往復・案の直し・事前審査は同じ控えを入力 structure で受ける
-  - id: structure
-    include: works-factory-structure
+  # 4' 構造の目。計画の 1 回目の周が修正案の役を起こす run（直す義務の単位が在り、行き止まりが無く、入力が読める。owed が計画の周を
+  # 開く口と同じ決めを引く）でだけ、判定が切った単位を run に 1 回だけ測って見る（単位が変わるのは再審の後だけで、その後に計画は走らない）。
+  # 計画の往復・案の直し・事前審査は同じ控えを入力 structure で受ける（構造が飛ばされた run は structure-in が null を渡す）
+  - id: owed
+    script: owed
+    runtime: uv
+    output_format:
+      type: object
+      properties:
+        owed: { type: boolean }
+        why: { type: string }
+        stop_reason: { type: string }
+      required: [owed, why, stop_reason]
+    mutates_checkout: false
     depends_on: [judge]
     when: "$judge.output.ready == true"
+    with:
+      start: "$start.output.record"
+      judgment: "$judge.output.judgment"
+      answer_ties: "$judge.output.answer_ties"
+      materials: "$judge.output.materials"
+      world: "$judge.output.world"
+
+  - id: structure
+    include: works-factory-structure
+    depends_on: [owed]
+    when: "$owed.output.owed == true"
     with:
       start: "$start.output.record"
       units: "$judge.output.units"
@@ -203,6 +224,22 @@ nodes:
     with:
       got: "$structure.output"
       names: "ok structure optional"
+
+  - id: structure-in
+    script: structure_in
+    runtime: uv
+    output_format:
+      type: object
+      properties:
+        structure: {}
+        stop_reason: { type: string }
+      required: [structure, stop_reason]
+    mutates_checkout: false
+    depends_on: [judge, structure]
+    trigger_rule: none_failed_min_one_success
+    when: "$judge.output.ready == true"
+    with:
+      structure: { from: "$structure.output.structure", if_skipped: null }
 
   # 5' 直す物が無い周（判定が直す単位を出さず、止めてもいない）は修正案を作らず、最後の R2 が要る独立設計だけを作る（元
   # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める。
@@ -237,8 +274,8 @@ nodes:
 
   # 5 計画の往復。中の節は外から見えないので、本体の終わりの返しの節 plan-out が返りを欄ごとに受けて返す
   - id: plan-rounds
-    depends_on: [judge, structure]
-    when: "$judge.output.ready == true"
+    depends_on: [judge, structure-in]
+    when: "$judge.output.ready == true && $owed.output.stop_reason == '' && $structure-in.output.stop_reason == ''"
     loop_group:
       max_iterations: 20
       until_bash: 'done=$plan-out.output.done; [ "$done" = "true" ]'
@@ -257,7 +294,7 @@ nodes:
             decisions: "$judge.output.decisions"
             world: "$judge.output.world"
             spec: "$judge.output.spec"
-            structure: "$structure.output.structure"
+            structure: "$structure-in.output.structure"
             review: "$LOOP_PREV.plan-out.output.review"
             ruling: []
             conflicts: null
@@ -282,7 +319,7 @@ nodes:
             plan: "$plan.output.plan"
             fix_plan: "$plan.output.fix_plan"
             plan_rejects: "$plan.output.rejects"
-            structure: "$structure.output.structure"
+            structure: "$structure-in.output.structure"
             ripple: "$plan.output.ripple"
             answers: "$answer-start.output.answer"
             ruling: []
@@ -1040,7 +1077,7 @@ nodes:
                  stops, deferred, widened, final_reasons, optional, prior_failures, redepth, spec_changed, spec_unchecked, stages, notices,
                  user_env_dir]
     mutates_checkout: false
-    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, structure-out, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
+    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, owed, structure-out, structure-in, design-only-out, plan-rounds-out, plan-rounds-review-out, ask-before-fix,
                  answer-before-fix, fix-in, fix-out, after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan,
                  fixed, spec-check, redepth, test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
@@ -1074,6 +1111,8 @@ nodes:
       stop_fix_in: { from: "$fix-in.output.stop_reason", if_skipped: null }
       stop_after_fix: { from: "$after-fix.output.stop_reason", if_skipped: null }
       stop_judged: { from: "$judged.output.stop_reason", if_skipped: null }
+      stop_owed: { from: "$owed.output.stop_reason", if_skipped: null }
+      stop_structure_in: { from: "$structure-in.output.stop_reason", if_skipped: null }
       stop_ask_replan: { from: "$ask-replan.output.stop_reason", if_skipped: null }
       stop_answer_replan: { from: "$answer-replan.output.stop_reason", if_skipped: null }
       stop_fixed: { from: "$fixed.output.stop_reason", if_skipped: null }

@@ -3702,7 +3702,7 @@
 - plan.md P008: lib/planfile.py::not_allowed・lib/planfile.py::take_plan（lib/planblk.py::NOT_OWED_REJECT）
 - plan.md P009: lib/planfile.py::plan_slots・lib/planfile.py::units_section（「入れてもよい（人の答え待ちの…）」）
 - plan.md P010: lib/planfile.py::stuck_reason・lib/planfile.py::open_round（直す義務 lib/gatemarks.py::duty が依頼の答えで開いていない単位を戻すと起きる）
-- plan.md P011: lib/planfile.py::open_round（lib/planfile.py::NOTHING_OWED）・workflows/plan/works-factory-plan.yaml::plan-loop の when（構造の実測は計画の外の構造のサブグラフが judge の後に 1 回走るので、直す義務 0 件の run でも測る。#560）
+- plan.md P011: lib/planfile.py::open_round（lib/planfile.py::held_why・lib/planfile.py::NOTHING_OWED）・workflows/plan/works-factory-plan.yaml::plan-loop の when・workflows/line/scripts/owed.py::owed と workflows/line/works-factory-line.yaml::structure の when（構造の実測と構造の目は、計画の周を開く口と同じ決めが真の run でだけ走る。#560）
 - plan.md P012: lib/planfile.py::take_plan（lib/planfile.py::MALFORMED_REJECT）、lib/replan.py::_malformed
 - plan.md P013: lib/planfile.py::take_plan（reasons の並び）
 - plan.md P014: lib/planfile.py::take_plan（lib/planblk.py::NO_NARROW_REJECT）・役の型の required に no_narrow（workflows/plan/works-factory-plan.yaml::plan-writer）
@@ -3761,7 +3761,7 @@
 - plan.md P068: lib/eye.py::stamp（lib/structfile.py::measure が呼ぶ）
 - plan.md P069: lib/eye.py::due・workflows/structure/works-factory-structure.yaml::structure-eye-loop `when: "$structure-measure.output.eye == true"`
 - plan.md P070: workflows/line/works-factory-line.yaml::structure（judge の後に 1 回だけ include。計画の往復・案の直し・事前審査は同じ控えを入力 structure で受け、測り直さない。#560 で鍵 structure_key の使い回しを替えた）
-- plan.md P071: workflows/structure/works-factory-structure.yaml::structure（構造の目の控えは構造のサブグラフが run に 1 回書く。計画の周は役を起こすかに依らず控えに触らない。#560）・lib/structfile.py::write_state
+- plan.md P071: workflows/line/scripts/owed.py::owed・workflows/line/works-factory-line.yaml::structure の when（役を起こさない run は構造のサブグラフを飛ばし、測らず目も起こさない）・workflows/line/scripts/structure_in.py::relayed（飛ばした run は計画と事前審査へ null を渡す。#560）
 - plan.md P072: lib/eye.py::render（字のまま）
 - plan.md P073: lib/eye.py::FORMS（試験の lib/tests/test_structure_eye.py が今の works の設計書の一覧を字で持って照らす）（#120）
 - plan.md P074: lib/eye.py::prep

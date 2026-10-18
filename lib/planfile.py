@@ -18,7 +18,7 @@
 - prior-failures-in.json（入力 prior_failures の行の写し。carry.PRIOR_IN_FILE）
 
 - 直す義務: is_open（元 works/.shared/core/scripts/review-record.py:624）・_owed_units（元 works/.shared/core/conflict.py:676 の owed_units_but_asked）・
-  slots・plan_slots・stuck_reason・not_allowed（元 works/blk-plan/lib/planblk.py:316・:366・:407）・named（no を id に戻す）・
+  slots・plan_slots・stuck_reason・held_why（周が役を起こさない訳）・not_allowed（元 works/blk-plan/lib/planblk.py:316・:366・:407）・named（no を id に戻す）・
   fix_plan_covers_units（元 rules/review-loop.py:3077。例外の代わりに行を返す）
 - 案の直し: _plan_errors（元 works/.shared/core/replan.py:478）・exists_at（元 replan.py の _start_tree）・revised_fields（元 replan.py:365）・
   replan_section（元 replan.py の _section）・item_brief（元 replan.py:291 material の brief の行。planbrief.render で組む）
@@ -272,6 +272,14 @@ def stuck_reason(judgment) -> str:
     names = slots(judgment)
     items = "・".join(f"no {names.index(k) + 1}（{k}）" if k in names else f"no の一覧に無い単位（{k}）" for k in stuck)
     return f"{planblk.PLAN_STUCK}: {items}。{planblk.STUCK_WHY}"
+
+
+def held_why(judgment) -> str:
+    """判定（read_judgment の返り。読めなければ None）の計画の周が修正案の役を起こさない訳: 判定が読めない・直す義務の単位が無い
+    （NOTHING_OWED）・行き止まりの単位が在る（stuck_reason）。起こすなら空（元 works/blk-plan/lib/planblk.py:1062 の snap の go）"""
+    if not isinstance(judgment, dict):
+        return "判定が読めない"
+    return NOTHING_OWED if not _owed_units(judgment) else stuck_reason(judgment)
 
 
 def _shut(judgment, reply) -> list:
@@ -530,8 +538,7 @@ def open_round(plan_dir, *, ruling, judgment, review, why: str = "") -> dict:
         _write_json(d / REVIEW_FILE, review)
     items = []
     if not why and mode == "plan":
-        why = (NOTHING_OWED if not _owed_units(judgment) else stuck_reason(judgment)) if isinstance(judgment, dict) \
-            else "判定が読めない"
+        why = held_why(judgment)
         if not why:
             _write_json(d / SLOTS_FILE, slots(judgment))
     elif not why:

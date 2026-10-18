@@ -64,7 +64,7 @@ RECEIVED = ("test_gate_base", "judge", "rejudge", "structure", "replan", "replan
             "merge_apply")
 ROUNDS = ("plan", "plan_review")
 GATES = ("gate_start", "gate_before_fix", "gate_replan", "gate_final")
-STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in", "after-fix", "judged", "ask-replan", "answer-replan", "fixed",
+STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in", "after-fix", "judged", "owed", "structure-in", "ask-replan", "answer-replan", "fixed",
          "spec-check", "redepth", "ask-final", "answer-final")
 LISTS = ("deferred", "widened", "final_reasons", "spec_changed", "optional")
 VALUES = ("prior_failures", "redepth", "spec_unchecked")

@@ -1,6 +1,6 @@
 # 筋書き nothing-owed（#291。元 works/darkfactory/lib/line_edge.py:1109-1114 の plan_edge の空の修正 entry.empty_fix_reply）:
 # judge は直す単位を出したが、計画の周の開いた単位が全部人の答え待ちの問いの出どころで、直す義務 0 件の周（plan は ready: false、
-# plan__plan の stub の欄 nothing_owed が真で、本物の plan-out がその欄を運ぶ）。
+# plan__plan の stub の欄 nothing_owed が真で、本物の plan-out がその欄を運ぶ）。節 owed が偽なので構造のブロックは飛ぶ（P011・P071）。
 # 修正前の関所・修正は飛び、no-fix と同じく design-only が独立設計だけを作り、fixed が直す物の無い形で受けて、最後のテスト・独立の目で
 # 周を締める。封じも当てもしない。R2 の阻害の行（works の [block] の行）は残りに載り、判定が単位を出したので結末は round_limit。
 fixture:
@@ -13,8 +13,7 @@ test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause":
 judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "reason": ""}
 judge__verify-merge: {"ok": true, "reason": ""}
 judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null, "depth": "標準", "depth_why": "筋書きの stub", "premises": null, "verify": null, "pr_excluded": null, "materials": null, "purpose_review": null, "depth_record": null, "decisions": null, "answer_ties": null, "review_lenses": null, "pr_drafts": null, "rejudge_exit": null, "rejudge_diff": null, "purpose_means": null, "world_state": null}
-structure__structure-measure: {"structure_file": "structure/structure.json", "design_file": "structure/design.jsonl", "eye": false}
-structure__structure: {"ok": true, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "structure/structure-state.json"}}
+owed: {"owed": false, "why": "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"}
 plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
 plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
 plan__plan: {"ready": false, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/r1/plan-fields.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [], "round": 1, "fix_plan": null, "rejects": [], "nothing_owed": true, "gave_up": null}

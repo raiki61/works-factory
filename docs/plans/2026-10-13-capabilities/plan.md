@@ -86,7 +86,7 @@
 - P011 直す義務の単位が無い判定は、修正案の役も構造の実測も起こさずに抜ける。
   - 元: graphs/review-loop.json:3324 `cond: units_open`、planblk.py:1062 `snap`（go: false）・:1441 `collect`（ok: true・plan_file 空）、試験 works/tests/test_blk_plan.py:1074 test_no_fix_skips_both_loops
   - 今: 表
-  - 証: tests/workflows/test_plan.py::CollectCase.test_nothing_owed_skips_the_role
+  - 証: tests/workflows/test_plan.py::CollectCase.test_nothing_owed_skips_the_role・tests/workflows/test_line.py::OwedCase.test_nothing_owed_stuck_and_unreadable_skip_the_structure（構造の実測を起こさない。#560 で構造を計画の外に出した後は、メイングラフのノード owed が計画の周を開く口と同じ決め lib/planfile.py の held_why を引き、構造のサブグラフの when を絞る）
   - 本物の run: 種では起きない（筋書きでのみ）。起きた時は plan/r1/round.json の why と ripple.json の error
   - 狭め: 結末の形を変えた（元は ok: true で「直す物が無い」と「諦めた」を collect の ok・gave_up で分けた。今は両方 ready: false で、訳は ripple.json の error・round.json の why の字だけ）。docs/design.md:206 が「返りに訳を分ける語を持たない。report が judge の units が空から no_fix_needed にする」と決めた（持ち主の文書）。Archon で不可でない。持ち主に: 判定の units が nit だけ（空でない）の時、report は no_fix_needed と言えない（stopped_by_line になる）——訳の語を返りに足すか
 
@@ -514,12 +514,12 @@
   - 本物の run: 節 `structure__structure-measure` の記録が run に 1 つ（往復の 2 周目と案の直しは測らず目も起こさない。#560 で鍵による使い回しを、judge の後に 1 回だけ走る構造のブロックに替えた。元と同じく構造は run で 1 度、計画の前）
   - 狭め: 無し
 
-- P071 役を起こさない周（直す義務の単位が無い・行き止まり・入力が読めない）は測らず目も起こさず、使い回す実測の控えを汚さずに周のフォルダの structure/ に「測らなかった訳」つきの failed の控えを書く
+- P071 役を起こさない run（直す義務の単位が無い・行き止まり・入力が読めない）は測らず目も起こさない。構造のサブグラフを飛ばし、計画と事前審査は控えの無い run として構造の目の行なしで進む
   - 元: works/darkfactory/lib/line_edge.py `structure_edge(plan_go=False)`・works/darkfactory/darkfactory.yaml:454-457
   - 今: 表
-  - 証: tests/workflows/test_plan.py::CollectCase.test_nothing_owed_skips_the_role・tests/workflows/test_structure.py::CollectCase.test_failed_measure_node_still_returns_a_failed_state
+  - 証: tests/workflows/test_line.py::OwedCase.test_nothing_owed_stuck_and_unreadable_skip_the_structure・tests/workflows/test_line.py::OwedCase.test_owed_matches_the_first_plan_round・tests/workflows/test_line.py::OwedCase.test_skipped_structure_relays_null・tests/workflows/test_line.py::StructureOnceCase.test_structure_runs_once_and_every_plan_reads_it
   - 本物の run: 筋書きでのみ（種は直す義務の単位が在る）
-  - 狭め: 無し（元は控えを書かなかった。今は返りの指し札が空であってはならない約束のために訳つきの failed を書く。能力は落ちていない）
+  - 狭め: 無し（元も控えを書かなかった。#560 で構造を judge の後に 1 回だけ走るサブグラフにした時に、judge が ready なら必ず測る形に一度狭めた → メイングラフのノード owed で戻した）
 
 - P072 構造の目の指示書は、実測できた単位だけ・問い 1 つ（concepthome.EYE_ASK）・6 つの形の番号つきの一覧・返し方を貼る。測れなかった単位は見せない。前の回の拒否の理由が在れば頭に貼り「丸ごと出し直せ」と言う
   - 元: works/blk-structure/lib/eye.py:151 `render`・:51 `FORMS`
