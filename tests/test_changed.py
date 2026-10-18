@@ -10,7 +10,7 @@ unittest の最後の数え（Ran N tests）で何が回ったかを見る。木
 - 集め方の正本（tests/shard.py の PATTERN）を変えると、殻の選び（変わった lib を import する試験も）と CI の分けの両方が変わる
 - 出力の最後は unittest の数え（Ran N tests）で、数えの形 COUNT が最初に当たるのもその行
 - 試験は既定で子 WORKERS 個に並べて回す。並べても、選んだモジュールの名と回さないモジュールの数・回った数は 1 つの子で順に回した時と
-  同じで、落ちた試験は名と traceback が出て、最後は FAILED
+  同じで、落ちた試験は名と traceback が出て、最後は FAILED。2 つのモジュールは別の子で走り、並べる数の上書き（環境変数）は試験を回す口まで届く
 """
 import pathlib
 import re
@@ -222,6 +222,23 @@ class ChangedTest(unittest.TestCase):
         self.assertIn("Traceback (most recent call last):", out)
         self.assertIn("AssertionError: 2 != 1", out)
         self.assertEqual(out.splitlines()[-1], "FAILED (failures=1)")
+
+    def test_modules_run_in_separate_children(self):
+        pids = self.repo / "pids"
+        pids.mkdir()
+        for name in ("a", "b"):
+            # 先の子がモジュールを抱える間に、もう 1 つの子が次のモジュールを取る
+            self.write(f"tests/layers/test_pid_{name}.py",
+                       "import os, time, unittest\n\n\nclass T(unittest.TestCase):\n    def test_pid(self):\n"
+                       f"        open({str(pids / name)!r}, 'w').write(str(os.getpid()))\n        time.sleep(0.5)\n")
+        rc, _stdout, out = self.run_changed(WORKS_FACTORY_TEST_WORKERS="2")
+        self.assertEqual(rc, 0, out)
+        self.assertNotEqual((pids / "a").read_text(encoding="utf-8"), (pids / "b").read_text(encoding="utf-8"), out)
+
+    def test_the_worker_count_from_the_environment_reaches_the_runner(self):
+        rc, _stdout, out = self.run_changed(WORKS_FACTORY_TEST_WORKERS="0")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("1 以上の整数", out)
 
 
 if __name__ == "__main__":
