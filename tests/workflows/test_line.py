@@ -4203,15 +4203,25 @@ class OwedCase(Artifacts):
                 self.assertIn(want, got["why"])
 
     def test_owed_matches_the_first_plan_round(self):
-        """同じ判定で、節 owed の真偽は計画の 1 回目の周の go と同じ"""
-        for units in ([self.unit(self.MEAN)], [self.unit(self.NIT, "nit", None)], [self.unit(self.MEAN), self.unit(self.MEAN, "nit", None)]):
-            with self.subTest(units=units):
-                got = self.owed(units)
-                judgment, _ = planfile.read_judgment(self.place("judge/judgment.json", {"units": units, "questions": []}), {},
-                                                     boundary.pointed)
-                plan_dir = self.artifacts / f"plan-{len(units)}-{units[0]['label']}"
-                opened = planfile.open_round(plan_dir, ruling=[], judgment=judgment, review=None)
-                self.assertEqual((got["owed"], got["why"]), (opened["go"], opened["why"]))
+        """同じ入力で、節 owed の真偽と訳は計画の 1 回目の周（plan の round の script）の go と訳に同じ。読めない入力の時も"""
+        missing = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "nowhere/x.json"})
+        round_script = load_block_script("plan", "round")
+        cases = [(f"単位 {[u['label'] for u in units]}", units, {}) for units in (
+            [self.unit(self.MEAN)], [self.unit(self.NIT, "nit", None)], [self.unit(self.MEAN), self.unit(self.MEAN, "nit", None)])]
+        cases += [(f"{name} が読めない", [self.unit(self.MEAN)], {name: missing}) for name in ("start", "judgment", "world")]
+        for name, units, broken in cases:
+            with self.subTest(name):
+                given = {"start": self.place("start.json", {}),
+                         "judgment": self.place("judge/judgment.json", {"units": units, "questions": []}),
+                         "world": "null", **broken}
+                got = load("owed").owed(given["start"], given["judgment"], "null", "null", given["world"])
+                env = {f"INPUTS_{k.upper()}": v for k, v in given.items()}
+                with mock.patch.dict(os.environ, {**env, "INPUTS_ANSWER_TIES": "null", "INPUTS_MATERIALS": "null",
+                                                  "INPUTS_REVIEW": "", "INPUTS_RULING": "[]"}):
+                    opened = round_script.opened()
+                doc = json.loads((self.artifacts / opened["dir"] / planfile.ROUND_FILE).read_text(encoding="utf-8"))
+                self.assertEqual((got["owed"], got["why"]), (opened["go"], doc["why"]))
+                self.assertEqual(got["owed"], name == "単位 ['block']")
 
     def test_skipped_structure_relays_null(self):
         relay = load("structure_in")
