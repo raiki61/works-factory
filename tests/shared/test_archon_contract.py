@@ -21,6 +21,8 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 from unittest import mock
 
+import yaml
+
 from bin._lib import apply, launcher, pack, place, startpoint
 from lib import answer
 from tests import archon
@@ -408,6 +410,35 @@ class ConsumerContractTest(ContractTest):
 class ArchonContractTest(ContractTest):
     def test_copies_match_pinned_archon_source(self):
         self.check(archon.source(), ARCHON_ROWS)
+
+
+class ArchonPrTest(unittest.TestCase):
+    """出口の語 pr が任せる archon-pr の形（持ち主の決め deliver-via-archon-pr・roles-read-only-gh）: AI のノードは書き込みをしない
+    prepare だけで、push と PR の作成は script のノード publish が、呼び手の入力 branch の枝へする。版の上げで崩れたら赤"""
+    FOLDER = pathlib.Path(".archon/workflows/sdlc/pr")
+
+    def setUp(self):
+        self.source = archon.source()
+        self.doc = yaml.safe_load((self.source / self.FOLDER / "archon-pr.yaml").read_text(encoding="utf-8"))
+        self.nodes = {n["id"]: n for n in self.doc["nodes"]}
+
+    def test_the_only_ai_node_is_prepare_and_publish_is_a_script(self):
+        kinds = {i: [k for k in scan.NODE_KINDS if k in n] for i, n in self.nodes.items()}
+        self.assertEqual(kinds, {"forge": ["script"], "prepare": ["command"], "publish": ["script"]})
+        self.assertEqual((self.nodes["publish"]["script"], self.doc["returns"]), ("publish-pr", "publish"))
+
+    def test_the_caller_branch_decides_the_pushed_branch(self):
+        self.assertIn("branch", self.doc["inputs"])
+        self.assertEqual(self.nodes["publish"]["with"]["branch"], "$INPUTS.branch")
+        script = (self.source / self.FOLDER / "scripts" / "publish-pr.ts").read_text(encoding="utf-8")
+        self.assertRegex(script, r"const branch = trimmed\(process\.env\.INPUTS_BRANCH\);")
+        self.assertRegex(script, r"const head = branch \|\| text\(process\.env\.INPUTS_HEAD\);\n"
+                                 r"\s*const headRevision = pushHead\(\{ repo, head_repo: headRepo, head \}\);")
+
+    def test_merge_passes_only_inputs_archon_pr_declares(self):
+        merge = yaml.safe_load((ROOT / "workflows/merge/works-factory-merge.yaml").read_text(encoding="utf-8"))
+        opened = next(n for n in merge["nodes"] if n.get("workflow") == "archon-pr")
+        self.assertLessEqual(set(opened["with"]), set(self.doc["inputs"]))
 
 
 class GuardsTest(unittest.TestCase):

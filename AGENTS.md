@@ -98,10 +98,10 @@ works-factory/
 
 ## E8 ASF は横に並べて見るだけ
 
-- ASF と Archon 同梱のグラフを `include:`・`workflow:` で呼ばない。ASF のコードを自分の層（`bin/`・`workflows/`・`lib/`）に写さない。採るのは型（なぜその形か）だけ。
+- ASF と Archon 同梱のグラフを `include:`・`workflow:` で呼ばない。外しは 1 つだけ: 出口の語 `pr` の時に merge が `workflow:` で起こす `archon-pr`（push と PR の作成を Archon に任せる。持ち主の決め `deliver-via-archon-pr`。`workflows/AGENTS.md` の E17）。ASF のコードを自分の層（`bin/`・`workflows/`・`lib/`）に写さない。採るのは型（なぜその形か）だけ。
 - ASF の取り付け命令が置いた物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）は、ASF がこのリポジトリを作るための物で、4 つの層の外に置いたまま手を加えない。起こす物の無くなった取り付け物は外し、置き直さない（外した物の一覧は持ち主の決め `asf-installer-in-repo`）。ASF の共有のグラフへの決まりは `factory/WORKFLOW_POLICY.md`。
 - ASF の型を採ったら、`docs/asf-notes.md` に 1 行足す（ASF の commit・ファイル・採った先のサブグラフ・違いと訳）。
-- 機械: `tests/layers/test_no_asf.py`（`include:`・`workflow:` の値が `works-factory-` で始まる）。写していないことと名簿の行は人が見る。
+- 機械: `tests/layers/test_no_asf.py`（`include:`・`workflow:` の値が `works-factory-` で始まるか、外しの表 `tests/layers/scan.py` の `ARCHON_CALLS` のノード〔merge の `pr-open` の `archon-pr`〕に当たる）。写していないことと名簿の行は人が見る。
 
 ## E9 グラフの名は archon- で始めない
 

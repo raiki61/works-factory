@@ -1,9 +1,10 @@
 """ブロック merge（workflows/merge/）の YAML の形・script の通し・筋書きの試験。
 
-- YAML の形は PyYAML で読み、Archon を起こさない（返りの約束の 6 欄・入力の 9 つ・節 1 つ・作業ツリーを変えない）
+- YAML の形は PyYAML で読み、Archon を起こさない（返りの約束の欄・入力・照らし・commit・PR の子の run・読み戻し・返す節の 5 つの節）
 - script は subprocess で、一時の git の木を cwd に、Archon が script の節に渡す環境（WORKFLOW_ID・ARTIFACTS_DIR・INPUTS_*）を偽の run で作って走らせる。
-  どの走りでも作業ツリーの `git status --porcelain` が前後で同じ（E6・E7）
-- 筋書き（fixtures/）は tests/archon.py の使い捨ての木で `workflow test` に回す。Archon の源が無ければ見送る
+  照らしの節はどの走りでも作業ツリーの `git status --porcelain` が前後で同じ（E6・E7）。commit の節は run の作業ツリー（worktree）の
+  枝にだけ積み、origin へは何も送らない
+- 筋書き（fixtures/）は tests/archon.py の使い捨ての木で `workflow test` に回し、返す節の渡し方を dry-run の trace で照らす。Archon の源が無ければ見送る
 """
 import hashlib
 import json
@@ -21,41 +22,68 @@ import yaml
 from tests import archon
 from tests.bin import hermetic
 from tests.bin.gitkit import commit_absent, git
+from tests.e2e.test_line_scenarios import dry_run_traces
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LIB = ROOT / "lib"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import entry  # noqa: E402
 import green_cert  # noqa: E402
 import listcut  # noqa: E402
 from graphloops.engine.schema import validate_schema  # noqa: E402
 import protect  # noqa: E402
 import seal  # noqa: E402
+import userenv  # noqa: E402
 
 BLOCK = ROOT / "workflows" / "merge"
 YAML = BLOCK / "works-factory-merge.yaml"
-SCRIPT = BLOCK / "scripts" / "merge.py"
+SCRIPTS = BLOCK / "scripts"
+SCRIPT = SCRIPTS / "merge.py"
 NAME = "works-factory-merge"
 RUN = "run-merge"
-INPUTS = ("mode", "start", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2")
-RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason")
+INPUTS = ("mode", "start", "base_rev", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "request")
+PLACE_INPUTS = ("mode", "start", "base_rev", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver")
+RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "deliver", "optional")
+PLACE_RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "base_rev", "deliver")
 PROTECTED_FILE = "merge/protected-all.json"
 PASS = json.dumps({"decision": "continue", "text": ""})
+URL = "https://github.com/o/r.git"
+SCENARIOS = ("apply", "apply-refused", "empty-diff", "pr", "pr-child-failed", "pr-same-branch", "seal")
 
 
 def load() -> dict:
     return yaml.safe_load(YAML.read_text(encoding="utf-8"))
 
 
-def output_format() -> dict:
-    return load()["nodes"][0]["output_format"]
+def nodes() -> dict:
+    return {n["id"]: n for n in load()["nodes"]}
+
+
+def output_format(node: str = "place") -> dict:
+    return nodes()[node]["output_format"]
+
+
+def run_node(script: str, env: dict, cwd: pathlib.Path, node: str) -> dict:
+    """merge の script を Archon と同じく子のプロセスで走らせ、終了の値 0 と返りが節の output_format に合うことを確かめて返す"""
+    done = subprocess.run([sys.executable, str(SCRIPTS / f"{script}.py")], cwd=cwd,
+                          env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1", WORKFLOW_ID=RUN, **env),
+                          capture_output=True, text=True, encoding="utf-8")
+    if done.returncode != 0:
+        raise AssertionError(f"{script} が終了の値 {done.returncode}: {done.stderr}")
+    got = json.loads(done.stdout)
+    errors = validate_schema(got, output_format(node))
+    if errors:
+        raise AssertionError(f"{script} の返りが output_format に合わない: {errors}: {got}")
+    return got
 
 
 class ShapeTest(unittest.TestCase):
     def setUp(self):
         self.doc = load()
-        self.node = self.doc["nodes"][0]
+        self.nodes = nodes()
+        self.node = self.nodes["place"]
 
     def test_header(self):
         self.assertEqual(self.doc["name"], NAME)
@@ -63,36 +91,62 @@ class ShapeTest(unittest.TestCase):
         self.assertEqual(self.doc["outcome_field"], "ok")
         self.assertNotIn("interactive", self.doc)
 
-    def test_one_script_node(self):
-        self.assertEqual([n["id"] for n in self.doc["nodes"]], ["merge"])
-        self.assertEqual(self.node["script"], "merge")
-        self.assertEqual(self.node["runtime"], "uv")
-        self.assertIs(self.node["mutates_checkout"], False)
-        self.assertNotIn("timeout", self.node)
+    def test_nodes_are_place_the_pr_path_and_the_return(self):
+        self.assertEqual(list(self.nodes), ["place", "pr-commit", "pr-open", "pr-read", "merge"])
+        for node, script in (("place", "merge"), ("pr-commit", "pr_commit"), ("pr-read", "pr_read"), ("merge", "handed")):
+            self.assertEqual((self.nodes[node]["script"], self.nodes[node]["runtime"]), (script, "uv"), node)
+        for node in ("place", "pr-read", "merge"):
+            self.assertIs(self.nodes[node]["mutates_checkout"], False, node)
+        self.assertNotIn("mutates_checkout", self.nodes["pr-commit"], "commit の節は HEAD と index を変える")
+        for node in self.nodes.values():
+            self.assertNotIn("timeout", node)
         self.assertFalse(any("approval" in n or "wait" in n for n in self.doc["nodes"]))
+
+    def test_pr_path_runs_only_after_the_check_for_the_word_pr(self):
+        """出口の語 pr で照らしが通った時だけ commit し、commit が進めた時だけ PR を作る子の run を起こす（既定の空の語は対象に書かない）"""
+        commit, opened, read = self.nodes["pr-commit"], self.nodes["pr-open"], self.nodes["pr-read"]
+        self.assertEqual(commit["when"], f"$place.output.ok == true && $place.output.deliver == '{entry.DELIVER_PR}'"
+                                         " && $place.output.mode != 'seal'")
+        self.assertEqual(commit["with"], {"mode": "$place.output.mode", "base_rev": "$place.output.base_rev",
+                                          "sealed_hash": "$place.output.hash", "request": "$INPUTS.request"})
+        self.assertEqual((opened["workflow"], opened["when"]), ("archon-pr", "$pr-commit.output.go == true"))
+        self.assertEqual(opened["with"], {"branch": "$pr-commit.output.branch"}, "push の先の枝は commit の節が積んだ枝（AI に決めさせない）")
+        self.assertNotIn("input", opened)
+        self.assertEqual(read["depends_on"], ["pr-open"])
+        self.assertEqual(read["with"], {"got": "$pr-open.output", "head": "$pr-commit.output.head", "branch": "$pr-commit.output.branch",
+                                        "base_branch": "$pr-commit.output.base", "repo": "$pr-commit.output.repo"})
+        self.assertNotIn("trigger_rule", read, "子の run が落ちたら読み戻しの節は飛ぶ（返す節が落ちない）")
+        handed = self.nodes["merge"]
+        self.assertEqual(handed["trigger_rule"], "all_done")
+        self.assertEqual(handed["with"]["commit"], {"from": "$pr-commit.output", "if_skipped": None})
+        self.assertEqual(handed["with"]["read"], {"from": "$pr-read.output", "if_skipped": None})
+        self.assertEqual(json.loads(handed["with"]["optional"]), [{"node": "pr-open", "bare": False}])
 
     def test_inputs_are_the_contract(self):
         inputs = self.doc["inputs"]
         self.assertEqual(sorted(inputs), sorted(INPUTS))
-        for name in ("mode", "start"):
-            self.assertIs(inputs[name].get("required"), True, name)
-        for name in set(INPUTS) - {"mode", "start"}:
+        self.assertIs(inputs["mode"].get("required"), True)
+        for name in set(INPUTS) - {"mode"}:
             self.assertEqual(inputs[name].get("default"), "", name)
-        self.assertEqual(self.node["with"], {name: f"$INPUTS.{name}" for name in INPUTS})
+        self.assertEqual(self.node["with"], {name: f"$INPUTS.{name}" for name in PLACE_INPUTS})
 
     def test_output_format_is_the_contract(self):
-        fmt = self.node["output_format"]
-        self.assertEqual(sorted(fmt["properties"]), sorted(RETURNS))
-        self.assertEqual(sorted(fmt["required"]), sorted(RETURNS))
-        self.assertIs(fmt["additionalProperties"], False)
-        props = fmt["properties"]
-        self.assertEqual(props["mode"]["enum"], ["seal", "apply"])
-        self.assertEqual(props["ok"]["type"], "boolean")
-        self.assertIn("null", props["diff"]["type"])
-        self.assertIn("null", props["protected_hits"]["type"])
-        self.assertEqual(props["protected_count"]["type"], ["integer", "null"])
-        self.assertEqual(sorted(props["diff"]["properties"]["path"]["enum"]),
-                         sorted(["merge/sealed.diff", "merge/apply.diff", "merge/refused.diff"]))
+        for node, names in (("merge", RETURNS), ("place", PLACE_RETURNS)):
+            with self.subTest(node=node):
+                fmt = self.nodes[node]["output_format"]
+                self.assertEqual(sorted(fmt["properties"]), sorted(names))
+                self.assertEqual(sorted(fmt["required"]), sorted(names))
+                self.assertIs(fmt["additionalProperties"], False)
+                props = fmt["properties"]
+                self.assertEqual(props["mode"]["enum"], ["seal", "apply", "check"])
+                self.assertEqual(props["ok"]["type"], "boolean")
+                self.assertIn("null", props["diff"]["type"])
+                self.assertIn("null", props["protected_hits"]["type"])
+                self.assertEqual(props["protected_count"]["type"], ["integer", "null"])
+                self.assertEqual(sorted(props["diff"]["properties"]["path"]["enum"]),
+                                 sorted(["merge/sealed.diff", "merge/apply.diff", "merge/refused.diff"]))
+        self.assertEqual(self.nodes["merge"]["output_format"]["properties"]["deliver"]["properties"]["act"]["enum"],
+                         ["placed", "none", "pr", "stopped", "unconfirmed"])
 
 
 class ScriptCase(unittest.TestCase):
@@ -127,7 +181,7 @@ class ScriptCase(unittest.TestCase):
         """script を走らせ、終了の値 0・返りが output_format に合う・作業ツリーが前後で同じことを確かめて返りを返す"""
         cwd = self.repo if cwd is None else cwd
         env = hermetic.child_env(WORKFLOW_ID=RUN, ARTIFACTS_DIR=str(self.artifacts), WORKS_FACTORY_ROOT=str(root),
-                                 PYTHONDONTWRITEBYTECODE="1", **{f"INPUTS_{name.upper()}": inputs.get(name, "") for name in INPUTS})
+                                 PYTHONDONTWRITEBYTECODE="1", **{f"INPUTS_{name.upper()}": inputs.get(name, "") for name in PLACE_INPUTS})
         status = self.status(cwd)
         done = subprocess.run([sys.executable, str(SCRIPT)], cwd=cwd, env=env, capture_output=True, text=True,
                               encoding="utf-8")
@@ -353,6 +407,257 @@ class ApplyTest(ScriptCase):
                            "R2 が作り直しと言った")
 
 
+class CheckTest(ScriptCase):
+    """check は封じた hash を入力 base_rev からの今の差分と照らすだけで置く（関所の答え・緑・目は読まない）"""
+
+    def check(self, sealed_hash: str, **over) -> dict:
+        return self.run_script(**{"mode": "check", "base_rev": self.base, "sealed_hash": sealed_hash, "deliver": "pr", **over})
+
+    def test_same_diff_is_placed_with_the_root_and_the_word(self):
+        sealed = seal.digest(green_cert.diff_bytes(self.repo, self.base))
+        got = self.check(sealed)
+        self.assertEqual((got["mode"], got["ok"], got["hash"], got["reason"]), ("check", True, sealed, ""))
+        self.assertEqual((got["base_rev"], got["deliver"], got["diff"]["path"]), (self.base, "pr", "merge/apply.diff"))
+        self.assertEqual((got["protected_hits"], got["protected_count"]), (None, None))
+
+    def test_other_diff_is_refused(self):
+        got = self.check("0" * 64)
+        self.assertIs(got["ok"], False)
+        self.assertIn("封じた差分と今の差分が違う", got["reason"])
+        self.assertFalse(self.artifact("merge/apply.diff").exists())
+        self.assertEqual(got["diff"]["path"], "merge/refused.diff")
+
+    def test_missing_root_is_refused(self):
+        got = self.check("0" * 64, base_rev="")
+        self.assertEqual((got["ok"], got["diff"]), (False, None))
+        self.assertIn("base_rev", got["reason"])
+
+
+class PrCommitTest(unittest.TestCase):
+    """出口の語 pr の commit の節: run の作業ツリー（worktree）の枝にだけ、照らした差分を 1 つの commit で積む。origin へは送らない"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.origin = self.tmp / "origin.git"
+        git(self.tmp, "init", "-q", "--bare", "-b", "main", str(self.origin))
+        self.main = self.tmp / "main"
+        git(self.tmp, "clone", "-q", str(self.origin), str(self.main))
+        (self.main / "a.txt").write_text("one\n", encoding="utf-8")
+        git(self.main, "add", "a.txt")
+        git(self.main, "commit", "-q", "-m", "seed")
+        git(self.main, "push", "-q", "origin", "main")
+        self.base = git(self.main, "rev-parse", "HEAD")
+        self.run_tree = self.tmp / "run"
+        git(self.main, "worktree", "add", "-q", "-b", "archon/task-run", str(self.run_tree))
+        # commit の節は repo を remote.origin.url の字から決め、git は insteadOf で置き換えた先（ローカルの origin）を読む
+        git(self.main, "config", "remote.origin.url", URL)
+        git(self.main, "config", f"url.{self.origin}.insteadOf", URL)
+        (self.run_tree / "a.txt").write_text("two\n", encoding="utf-8")
+        (self.run_tree / "new.txt").write_text("new\n", encoding="utf-8")
+        copy = self.run_tree / ".archon" / "workflows" / "x.yaml"
+        copy.parent.mkdir(parents=True)
+        copy.write_text("RUNTIME = 1\n", encoding="utf-8")
+        self.sealed = seal.digest(green_cert.diff_bytes(self.run_tree, self.base, skip=(".archon/",)))
+        self.artifacts = self.tmp / "artifacts"
+        self.artifacts.mkdir()
+
+    def commit(self, cwd=None, env=None, **over) -> dict:
+        inputs = {"mode": "apply", "base_rev": self.base, "sealed_hash": self.sealed, "request": "", **over}
+        env = {"ARTIFACTS_DIR": str(self.artifacts), **(env or {}), **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
+        return run_node("pr_commit", env, self.run_tree if cwd is None else cwd, "pr-commit")
+
+    def remote_heads(self) -> str:
+        return git(self.origin, "for-each-ref", "--format=%(refname)")
+
+    def assertStopped(self, got, words: str):
+        self.assertIs(got["go"], False, got)
+        self.assertIn(words, got["reason"])
+        self.assertIsNone(got["repo"])
+
+    def test_checked_diff_is_one_commit_on_the_run_branch_without_the_runtime_copy(self):
+        got = self.commit()
+        self.assertEqual((got["go"], got["branch"], got["base"], got["repo"], got["reason"]),
+                         (True, "archon/task-run", "main", {"host": "github.com", "path": "o/r"}, ""), got)
+        self.assertEqual(got["head"], git(self.run_tree, "rev-parse", "HEAD"))
+        self.assertEqual(git(self.run_tree, "rev-list", "--count", f"{self.base}..HEAD"), "1")
+        self.assertEqual(git(self.run_tree, "diff", "--name-only", self.base, "HEAD").split(), ["a.txt", "new.txt"])
+        subject, body = git(self.run_tree, "log", "-1", "--format=%s"), git(self.run_tree, "log", "-1", "--format=%b")
+        self.assertIn(RUN, subject)
+        for words in (self.sealed, f"run: {RUN}", f"workflow get {RUN}", "対象の既定の枝 main", "merge の apply"):
+            self.assertIn(words, body)
+        self.assertEqual(git(self.main, "rev-parse", "main"), self.base, "利用者の枝は動かさない")
+        self.assertEqual(self.remote_heads(), "refs/heads/main", "commit の節は push しない")
+
+    def test_branch_named_like_the_default_branch_is_not_committed_nor_pushed(self):
+        """run の枝の名が対象の既定の枝と同じ時は、積まず・PR を作る子の run へ進めない（既定の枝へは push しない）"""
+        same = self.tmp / "same"
+        git(self.main, "branch", "-q", "-m", "main", "local-seed")
+        git(self.main, "worktree", "add", "-q", "-b", "main", str(same), self.base)
+        (same / "a.txt").write_text("two\n", encoding="utf-8")
+        got = self.commit(cwd=same, sealed_hash=seal.digest(green_cert.diff_bytes(same, self.base)))
+        self.assertStopped(got, "run の枝 main が対象の既定の枝と同じ名")
+        self.assertEqual(git(same, "rev-parse", "HEAD"), self.base, "積まない")
+        self.assertEqual(git(self.origin, "rev-parse", "main"), self.base, "origin の既定の枝は動かない")
+
+    def test_other_diff_is_not_committed(self):
+        got = self.commit(sealed_hash="0" * 64)
+        self.assertStopped(got, "封じた差分と今の差分が違う")
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+
+    def test_unreadable_default_branch_stops(self):
+        git(self.run_tree, "remote", "remove", "origin")
+        got = self.commit()
+        self.assertStopped(got, "既定の枝を読めない")
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+
+    def test_main_tree_and_detached_head_are_refused(self):
+        (self.main / "a.txt").write_text("two\n", encoding="utf-8")
+        self.assertStopped(self.commit(cwd=self.main), "本体の作業ツリーでは commit しない")
+        git(self.run_tree, "checkout", "-q", "--detach")
+        self.assertStopped(self.commit(), "切り離された HEAD")
+
+    def test_issue_named_by_the_request_is_a_non_closing_reference_in_the_commit(self):
+        request = self.tmp / "request.json"
+        request.write_text(json.dumps({"findings": [{"where": "a.txt", "text": "x"}], "issue": [555]}), encoding="utf-8")
+        self.assertIs(self.commit(request=str(request))["go"], True)
+        self.assertIn("Refs #555", git(self.run_tree, "log", "-1", "--format=%b").splitlines())
+
+    def test_failing_commit_hook_stops_without_a_commit(self):
+        """対象の commit の hooks は飛ばさない。落ちれば積まずに止め、hooks の言葉を訳に載せる"""
+        hook = self.tmp / "hooks" / "pre-commit"
+        hook.parent.mkdir()
+        hook.write_text("#!/bin/sh\necho 'lint の誤り' >&2\nexit 1\n", encoding="utf-8")
+        hook.chmod(0o755)
+        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        got = self.commit()
+        self.assertStopped(got, "hooks")
+        self.assertIn("lint の誤り", got["reason"])
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+
+    def test_commit_hook_sees_the_read_only_gh_first(self):
+        """hooks は対象のコマンドなので、起動の殻が渡した読むだけの gh の置き場が PATH の頭に在る"""
+        seen = self.tmp / "path.txt"
+        hook = self.tmp / "hooks" / "pre-commit"
+        hook.parent.mkdir()
+        hook.write_text(f"#!/bin/sh\nprintf '%s' \"$PATH\" > '{seen}'\n", encoding="utf-8")
+        hook.chmod(0o755)
+        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        read_gh = self.tmp / "read-gh"
+        self.assertIs(self.commit(env={userenv.READ_GH_ENV: str(read_gh)})["go"], True)
+        entries = [p for p in seen.read_text(encoding="utf-8").split(os.pathsep) if p != git(self.tmp, "--exec-path")]
+        self.assertEqual(entries[0], str(read_gh), "git が頭に足す自分の置き場の後ろは読むだけの gh の置き場")
+
+    def test_origin_without_a_forge_repo_stops(self):
+        git(self.main, "config", "remote.origin.url", str(self.origin))
+        self.assertStopped(self.commit(), "PR を出す repo")
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+
+    def test_seal_is_not_committed(self):
+        self.assertStopped(self.commit(mode="seal"), "照らしの形")
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base)
+
+    def test_already_committed_diff_goes_without_a_new_commit(self):
+        git(self.run_tree, "add", "-A", "--", ".", ":(exclude).archon")
+        git(self.run_tree, "commit", "-q", "-m", "round")
+        head = git(self.run_tree, "rev-parse", "HEAD")
+        got = self.commit()
+        self.assertEqual((got["go"], got["head"]), (True, head), got)
+
+    def test_lib_missing_is_a_stop_not_a_failure(self):
+        nowhere = self.tmp / "no-lib"
+        nowhere.mkdir()
+        env = {"WORKS_FACTORY_ROOT": str(nowhere), "INPUTS_BASE_REV": self.base, "INPUTS_SEALED_HASH": self.sealed}
+        self.assertIs(run_node("pr_commit", env, self.run_tree, "pr-commit")["go"], False)
+
+
+class PrReadTest(unittest.TestCase):
+    HEAD = "c" * 40
+    REPO = {"host": "github.com", "path": "o/r"}
+    RECORD = {"schemaVersion": 1, "number": 7, "url": "https://github.com/o/r/pull/7", "state": "open", "head_revision": HEAD,
+              "is_draft": True, "head": "archon/task-run", "base": "main", "repo": REPO, "head_repo": REPO}
+
+    def read(self, got) -> dict:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"INPUTS_GOT": json.dumps(got), "INPUTS_HEAD": self.HEAD, "INPUTS_BRANCH": "archon/task-run", "INPUTS_BASE_BRANCH": "main",
+               "INPUTS_REPO": json.dumps(self.REPO)}
+        return run_node("pr_read", env, pathlib.Path(tmp.name), "pr-read")
+
+    def test_open_pr_at_the_committed_head_is_made(self):
+        self.assertEqual(self.read(self.RECORD), {"ok": True, "number": 7, "url": self.RECORD["url"], "is_draft": True, "reason": ""})
+        self.assertIs(self.read({**self.RECORD, "repo": {"host": "GitHub.com", "path": "O/R"}})["ok"], True, "repo の名は大小を区別しない")
+
+    def test_pr_other_than_the_committed_one_is_not_made(self):
+        """開いていて、repo・head の repo・head の枝・base の枝・head の版が積んだ物と全部同じ時だけ作ったと言う"""
+        fork = {"host": "github.com", "path": "someone/r"}
+        for over, words in (({"head_revision": "d" * 40}, "積んだ commit"), ({"state": "closed"}, "開いていない"),
+                            ({"url": ""}, "在りかが無い"), ({"head": "other"}, "積んだ枝"), ({"base": "dev"}, "既定の枝"),
+                            ({"repo": fork}, "repo"), ({"head_repo": fork}, "head_repo"), ({"head_repo": None}, "head_repo")):
+            with self.subTest(over=over):
+                got = self.read({**self.RECORD, **over})
+                self.assertIs(got["ok"], False)
+                self.assertIn(words, got["reason"])
+
+    def test_unreadable_record_is_not_made(self):
+        self.assertIs(self.read("x")["ok"], False)
+
+    def test_import_fallback_keeps_its_own_name(self):
+        """境の口の import が落ちた時の控えの名と、読めない時の返りを組む関数の名は別（同じ名だと関数が控えを上書きする）"""
+        script = (SCRIPTS / "pr_read.py").read_text(encoding="utf-8")
+        self.assertIn("boundary, unread = None, error", script)
+        self.assertNotIn("def unread(", script)
+
+
+class HandedTest(unittest.TestCase):
+    """返す節: 照らしの返りに渡し方 deliver を足す。既定の空の語は置くだけで、PR の節の返りを読まない"""
+    PLACE = {"mode": "apply", "ok": True, "hash": "a" * 64, "diff": {"type": "archon_artifact", "run_id": RUN, "path": "merge/apply.diff"},
+             "protected_hits": None, "protected_count": None, "reason": "", "base_rev": "b" * 40, "deliver": ""}
+    COMMIT = {"go": True, "head": "c" * 40, "branch": "archon/task-run", "base": "main", "repo": {"host": "github.com", "path": "o/r"},
+              "reason": ""}
+
+    def handed(self, place, commit=None, read=None) -> dict:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"INPUTS_MODE": place.get("mode", "") if isinstance(place, dict) else "", "INPUTS_PLACE": json.dumps(place),
+               "INPUTS_COMMIT": json.dumps(commit), "INPUTS_READ": json.dumps(read),
+               "INPUTS_OPTIONAL": '[{"node": "pr-open", "bare": false}]'}
+        return run_node("handed", env, pathlib.Path(tmp.name), "merge")
+
+    def test_default_word_places_only(self):
+        got = self.handed(self.PLACE)
+        self.assertEqual({k: got[k] for k in RETURNS if k not in ("deliver", "optional")},
+                         {k: self.PLACE[k] for k in RETURNS if k not in ("deliver", "optional")})
+        self.assertEqual(got["deliver"], {"act": "placed", "pr": None, "reason": ""})
+        self.assertEqual(self.handed({**self.PLACE, "ok": False, "reason": "違う"})["deliver"]["act"], "none")
+        self.assertEqual(got["optional"], [{"node": "pr-open", "bare": False}])
+
+    def test_seal_has_no_delivery(self):
+        self.assertIsNone(self.handed({**self.PLACE, "mode": "seal"})["deliver"])
+
+    def test_pr_word_names_the_pr_or_why_it_stopped_or_was_unconfirmed(self):
+        place = {**self.PLACE, "deliver": "pr"}
+        made = {"ok": True, "number": 7, "url": "https://github.com/o/r/pull/7", "is_draft": True, "reason": ""}
+        self.assertEqual(self.handed(place, self.COMMIT, made)["deliver"],
+                         {"act": "pr", "pr": {"number": 7, "url": made["url"], "is_draft": True}, "reason": ""})
+        for args, act, words in (((None, None), "stopped", "commit のノードの出力が無い"),
+                                 (({**self.COMMIT, "go": False, "reason": "同じ名"}, None), "stopped", "同じ名"),
+                                 ((self.COMMIT, None), "unconfirmed", "PR を作る子の run が落ちたか返らなかった"),
+                                 ((self.COMMIT, {**made, "ok": False, "reason": "開いていない"}), "unconfirmed", "開いていない")):
+            with self.subTest(words=words):
+                got = self.handed(place, *args)["deliver"]
+                self.assertEqual((got["act"], got["pr"]), (act, None))
+                self.assertIn(words, got["reason"])
+        refused = self.handed({**place, "ok": False, "reason": "封じた差分と今の差分が違う"})["deliver"]
+        self.assertEqual(refused["act"], "stopped")
+        self.assertIn("差分を置かなかった", refused["reason"])
+
+    def test_unreadable_place_is_not_ok(self):
+        got = self.handed("x")
+        self.assertIs(got["ok"], False)
+
+
 class NeverFailsTest(ScriptCase):
     """返す節は落ちない: 壊れた入力でも終了の値 0 で、output_format に合う ok: false と理由を返す"""
 
@@ -369,6 +674,11 @@ class NeverFailsTest(ScriptCase):
 
     def test_empty_mode(self):
         self.assertBroken(self.seal(mode=""), "seal")
+
+    def test_unknown_deliver_word(self):
+        got = self.apply("0" * 64, deliver="merge")
+        self.assertBroken(got, "apply")
+        self.assertIn("deliver", got["reason"])
 
     def test_start_not_json(self):
         self.assertBroken(self.seal(start="{"), "seal")
@@ -398,17 +708,49 @@ class NeverFailsTest(ScriptCase):
 
 
 class FixturesTest(unittest.TestCase):
-    def test_fixtures_pass_in_archon(self):
-        fixtures = sorted(p.name for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
-        self.assertEqual(fixtures, ["apply-refused.stubs.yaml", "apply.stubs.yaml", "empty-diff.stubs.yaml",
-                                    "seal.stubs.yaml"])
-        with archon.tree(["merge"]) as tree:
-            done = archon.archon(tree, "workflow", "test", NAME)
-        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        for name in fixtures:
-            self.assertIn(f"merge/fixtures/{name}", done.stdout)
-        self.assertIn(f"{len(fixtures)} passed, 0 failed", done.stdout)
+    """筋書きの合否（workflow test）と、返す節の渡し方（dry-run の trace）。Archon の源か bun が無ければ見送る"""
 
+    @classmethod
+    def setUpClass(cls):
+        with archon.tree(["merge"]) as tree:
+            cls.done = archon.archon(tree, "workflow", "test", NAME)
+        cls.traces = dry_run_traces("merge", NAME, ["merge"], SCENARIOS)
+
+    def deliver(self, scenario: str):
+        return json.loads(self.traces[scenario]["merge"]["output"])["deliver"]
+
+    def test_fixtures_pass_in_archon(self):
+        fixtures = sorted(p.name.removesuffix(".stubs.yaml") for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
+        self.assertEqual(fixtures, sorted(SCENARIOS))
+        self.assertEqual(self.done.returncode, 0, self.done.stdout + self.done.stderr)
+        for name in fixtures:
+            self.assertIn(f"merge/fixtures/{name}.stubs.yaml", self.done.stdout)
+        self.assertIn(f"{len(fixtures)} passed, 0 failed", self.done.stdout)
+
+    def test_default_word_places_without_the_pr_path(self):
+        for scenario in ("apply", "seal", "empty-diff"):
+            with self.subTest(scenario=scenario):
+                trace = self.traces[scenario]
+                self.assertTrue(all(trace.get(n, {}).get("state", "skipped") == "skipped" for n in ("pr-commit", "pr-open", "pr-read")),
+                                trace)
+        self.assertEqual(self.deliver("apply"), {"act": "placed", "pr": None, "reason": ""})
+        self.assertIsNone(self.deliver("seal"))
+
+    def test_pr_word_makes_the_pr_and_names_it(self):
+        self.assertEqual(self.deliver("pr"), {"act": "pr", "pr": {"number": 7, "url": "https://github.com/owner/repo/pull/7",
+                                                                  "is_draft": True}, "reason": ""})
+
+    def test_pr_word_stops_without_the_child_on_the_default_branch_name(self):
+        self.assertEqual(self.traces["pr-same-branch"].get("pr-open", {}).get("state", "skipped"), "skipped")
+        got = self.deliver("pr-same-branch")
+        self.assertEqual(got["act"], "stopped")
+        self.assertIn("既定の枝と同じ名", got["reason"])
+
+    def test_failed_child_is_unconfirmed_not_a_failed_return(self):
+        got = self.deliver("pr-child-failed")
+        self.assertEqual(got["act"], "unconfirmed")
+        self.assertIn("PR を作る子の run が落ちた", got["reason"])
+        self.assertEqual(self.deliver("apply-refused")["act"], "stopped")
 
 
 if __name__ == "__main__":

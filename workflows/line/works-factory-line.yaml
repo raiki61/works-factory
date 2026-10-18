@@ -57,6 +57,9 @@ inputs:
   lang:
     default: ""
     description: 報告と、承認ノード・報告に載る役の文の言語。空は依頼文の言語
+  deliver:
+    default: ""
+    description: 出口の語（lib/entry.py の DELIVERS）。空は封じた差分を run の置き場に置くだけ（既定）。pr は最後の承認ノードの後に、照らした差分を run の枝に 1 つの commit で積み、push して対象の既定の枝へ向けた PR を作る（run の枝が既定の枝と同じ名なら push せずに止める。merge はしない）。知らない語は start が止める
 
 returns: result
 outcome_field: fixed
@@ -891,7 +894,7 @@ nodes:
     depends_on: [merge-seal]
     with:
       got: "$merge-seal.output"
-      names: "mode ok hash diff protected_hits protected_count reason"
+      names: "mode ok hash diff protected_hits protected_count reason deliver optional"
 
   # 11 最後の関所
   - id: ask-final
@@ -977,7 +980,7 @@ nodes:
       place: gate-final
       final: "true"
 
-  # 12 外へ 1 度だけ書く（既定は差分を run の置き場に置くだけ。E17）
+  # 12 外へ 1 度だけ書く（既定は差分を run の置き場に置くだけ。出口の語 pr の時だけ run の枝に積んで PR を作る。E17）
   - id: merge-apply
     include: works-factory-merge
     depends_on: [answer-final]
@@ -991,13 +994,15 @@ nodes:
       sealed_hash: "$merge-seal.output.hash"
       answer: "$answer-final.output.answer"
       r2: "$eyes.output.r2"
+      deliver: "$INPUTS.deliver"
+      request: "$INPUTS.request"
 
   - id: merge-apply-out
     <<: *receiver
     depends_on: [merge-apply]
     with:
       got: "$merge-apply.output"
-      names: "mode ok hash diff protected_hits protected_count reason"
+      names: "mode ok hash diff protected_hits protected_count reason deliver optional"
 
   # 13 報告。前の段が落ちても飛ばされても走る。resume でも collect と result は回し直す（always_run。report は include で、Archon は
   # include の always_run を捨てるので、回し直した collect の返りが変われば Archon が report の中の控えを捨てて回し直す）

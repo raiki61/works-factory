@@ -48,6 +48,10 @@ NEVER_FAIL = {
     ("line", "sweep-children"): ALONE_BOUND,
     ("chain", "chain-start"): ALONE_BOUND,
     ("chain", "final-diff"): ALONE_BOUND,
+    ("chain", "hand"): ALONE_RETURN,
+    ("merge", "place"): ALONE_BOUND,
+    ("merge", "pr-commit"): ALONE_BOUND,
+    ("merge", "pr-read"): ALONE_BOUND,
     **{("chain", f"round-{k}-decide"): ALONE_BOUND for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 
@@ -68,7 +72,10 @@ LIBLESS_EXITS = {
     "workflows/fix/scripts/collect.py": "fix の返す節",
     "workflows/test-gate/scripts/result.py": "test-gate の返す節",
     "workflows/eyes/scripts/verdict.py": "eyes の返す節",
-    "workflows/merge/scripts/merge.py": "merge の返す節",
+    "workflows/merge/scripts/merge.py": "merge の返す節が $place.output で結ぶ",
+    "workflows/merge/scripts/handed.py": "merge の返す節",
+    "workflows/merge/scripts/pr_commit.py": "merge の返す節が $pr-commit.output で結ぶ",
+    "workflows/merge/scripts/pr_read.py": "merge の返す節が $pr-read.output で結ぶ",
     "workflows/report/scripts/collect.py": "report の返す節",
     "workflows/report/scripts/facts.py": "report の返す節が $facts.output で結ぶ",
     "workflows/chain/scripts/result.py": "周の鎖の返す節",

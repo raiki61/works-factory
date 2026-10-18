@@ -28,7 +28,7 @@ SCRIPTS = FOLDER / "scripts"
 CHAIN = yaml.safe_load((FOLDER / "works-factory-chain.yaml").read_text(encoding="utf-8"))
 LINE = yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))
 NAME = CHAIN["name"]
-SCENARIOS = ("limit-then-fixed", "rounds-reached", "needs-human", "same-items", "interrupted", "child-failed", "refused")
+SCENARIOS = ("limit-then-fixed", "rounds-reached", "needs-human", "same-items", "interrupted", "child-failed", "refused", "deliver-pr")
 
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
@@ -271,6 +271,12 @@ class ChainStartCase(Tree):
         git(self.tmp, "commit", "-q", "-m", "seed")
         self.assertEqual(self.start(rounds="2")["origin"], git(self.tmp, "rev-parse", "HEAD"))
 
+    def test_deliver_word_is_checked_before_any_round(self):
+        got = self.start(rounds="2", deliver="merge")
+        self.assertEqual((got["ok"], got["act"]), (False, "refused"), got)
+        self.assertIn("deliver", got["text"])
+        self.assertEqual((self.start(rounds="2", deliver="pr")["deliver"], self.start(rounds="2")["deliver"]), ("pr", ""))
+
     def test_padded_pr_is_read_like_the_main_graph(self):
         """メイングラフの入口は pr の前後の空白を除いて読む。1 周目に名指した PR を後ろの周へ運ぶ鎖も同じに読む"""
         got = self.start(rounds="2", pr=" 7 ")
@@ -355,6 +361,7 @@ class FinalDiffCase(Tree):
         self.assertEqual(got["sealed"], {"ok": True, "hash": hashlib.sha256(final.read_bytes()).hexdigest(),
                                          "diff": {"type": "archon_artifact", "run_id": "parent", "path": "chain/final.diff"}})
         self.assertEqual(got["apply"], {**got["sealed"], "reason": ""})
+        self.assertIs(got["placed"], True)
         left = self.artifacts / "chain" / "round-3.diff"
         self.assertEqual(self.names(left.read_bytes()), ["three.txt"])
         report = (self.artifacts / chain.REPORT).read_text(encoding="utf-8")
@@ -369,7 +376,7 @@ class FinalDiffCase(Tree):
     def test_round_without_a_placed_diff_is_sealed_but_not_placed(self):
         start, made = three_rounds(self.repo, halted_last=False, placed=())
         got = self.final(start, *made)
-        self.assertEqual((got["kept"], got["sealed"]["ok"], got["apply"]["ok"]), (3, True, False), got)
+        self.assertEqual((got["kept"], got["sealed"]["ok"], got["apply"]["ok"], got["placed"]), (3, True, False, False), got)
         self.assertIn("差分を置かなかった", got["apply"]["reason"])
 
     def test_earlier_round_without_a_placed_diff_is_not_placed(self):
@@ -470,6 +477,31 @@ class ResultCase(Tree):
         final = {**final, "ok": True, "reason": "", "sealed": sealed, "apply": {**sealed, "ok": False, "reason": "周 1 が置かなかった"}}
         self.assertEqual(self.result(start, decided, final=final)["stop_reason"], "周 1 が置かなかった")
 
+    def test_deliver_is_the_hand_return_only_for_the_word_pr(self):
+        start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": [], "deliver": ""}
+        decided = {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": 1}]}
+        made = {"act": "pr", "pr": {"number": 7, "url": "https://github.com/o/r/pull/7", "is_draft": True}, "reason": ""}
+        self.assertIsNone(self.result(start, decided)["deliver"])
+        start["deliver"] = "pr"
+        env = {"INPUTS_START": json.dumps(start), "INPUTS_FINAL": "null", "INPUTS_HAND": json.dumps(made),
+               "INPUTS_D1": json.dumps(decided), "ARTIFACTS_DIR": str(self.tmp), "WORKFLOW_ID": "parent"}
+        self.assertEqual(run_script("result", env, self.tmp)["deliver"], made)
+        unplaced = {"ok": False, "reason": "採れる周が無い", "apply": None, "sealed": None, "placed": False}
+        got = self.result(start, decided, final=unplaced)["deliver"]
+        self.assertEqual((got["act"], got["pr"]), ("stopped", None))
+        self.assertIn("採れる周が無い", got["reason"])
+        got = self.result(start, decided, final={**unplaced, "ok": True, "placed": True})["deliver"]
+        self.assertEqual(got["act"], "unconfirmed", "差分を置いた後の hand の中で push や PR の作成が済んだかもしれない")
+        self.assertIn("出力が無い", got["reason"])
+
+    def test_pr_word_is_the_entry_word(self):
+        """result は lib を読まないので出口の語 pr を字で持つ。lib/entry の DELIVER_PR と同じことをここで縛る"""
+        spec = importlib.util.spec_from_file_location("chain_result", SCRIPTS / "result.py")
+        script = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(script)
+        import entry
+        self.assertEqual(script.PR, entry.DELIVER_PR)
+
     def test_launch_without_the_next_decision_is_wait(self):
         start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}
         got = self.result(start, None)
@@ -505,10 +537,24 @@ class ShapeCase(unittest.TestCase):
     """グラフの形の約束（Archon を起こさない）"""
 
     def test_node_ids_are_the_start_the_rounds_and_the_result(self):
-        want = {"chain-start", "final-diff", "result"} | {f"round-{k}{tail}" for k in range(1, chain.MAX_ROUNDS + 1)
-                                            for tail in ("", "-commit", "-facts", "-decide")}
+        want = {"chain-start", "final-diff", "hand", "result"} | {f"round-{k}{tail}" for k in range(1, chain.MAX_ROUNDS + 1)
+                                                    for tail in ("", "-commit", "-facts", "-decide")}
         self.assertEqual(set(NODES), want)
-        self.assertEqual(len(CHAIN["nodes"]), 3 + 4 * chain.MAX_ROUNDS)
+        self.assertEqual(len(CHAIN["nodes"]), 4 + 4 * chain.MAX_ROUNDS)
+
+    def test_children_never_deliver_and_the_parent_hands_once(self):
+        """周の子は出口の語を空で受けて PR を作らない。出口の語 pr の時だけ、親が最後の差分を封じた後にブロック merge を 1 度 include
+        して PR を 1 本作る"""
+        for k in range(1, chain.MAX_ROUNDS + 1):
+            with self.subTest(round=k):
+                self.assertEqual(NODES[f"round-{k}"]["with"]["deliver"], "")
+        hand = NODES["hand"]
+        self.assertEqual((hand["include"], hand["depends_on"]), ("works-factory-merge", ["final-diff"]))
+        self.assertEqual(hand["when"], "$chain-start.output.deliver == 'pr' && $final-diff.output.placed == true")
+        self.assertEqual(hand["with"], {"mode": "check", "base_rev": "$chain-start.output.origin",
+                                        "sealed_hash": "$final-diff.output.sealed.hash", "deliver": "$chain-start.output.deliver",
+                                        "request": "$chain-start.output.first_request"})
+        self.assertEqual(NODES["result"]["with"]["hand"], {"from": "$hand.output.deliver", "if_skipped": None})
 
     def test_round_groups_differ_only_by_number_and_previous_decision(self):
         first = shape(1)
@@ -556,14 +602,14 @@ class ShapeCase(unittest.TestCase):
 
     def test_final_diff_and_result_read_the_start_and_every_round_decision(self):
         rounds = range(1, chain.MAX_ROUNDS + 1)
-        for name, extra in (("final-diff", set()), ("result", {"final"})):
+        for name, extra in (("final-diff", set()), ("result", {"final", "hand"})):
             with self.subTest(node=name):
                 node = NODES[name]
                 self.assertEqual(set(node["with"]), {"start"} | {f"d{k}" for k in rounds} | extra)
                 for k in rounds:
                     self.assertEqual(node["with"][f"d{k}"], {"from": f"$round-{k}-decide.output", "if_skipped": None})
                 self.assertEqual(set(node["depends_on"]), {"chain-start"} | {f"round-{k}-decide" for k in rounds}
-                                 | ({"final-diff"} if extra else set()))
+                                 | ({"final-diff", "hand"} if extra else set()))
                 self.assertEqual((node["trigger_rule"], node["always_run"]), ("all_done", True))
         self.assertEqual(NODES["result"]["with"]["final"], {"from": "$final-diff.output", "if_skipped": None})
 
@@ -581,9 +627,9 @@ class ChainScenariosTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        with archon.tree(["chain"]) as tree:
+        with archon.tree(["chain", "merge"]) as tree:
             cls.results = scenarios(archon.archon(tree, "workflow", "test", NAME, "--cwd", str(tree), "--json"))
-        cls.traces = dry_run_traces("chain", NAME, ["chain"], SCENARIOS)
+        cls.traces = dry_run_traces("chain", NAME, ["chain", "merge"], SCENARIOS)
 
     def out(self, scenario: str, node: str) -> dict:
         return json.loads(self.traces[scenario][node]["output"])
@@ -608,6 +654,17 @@ class ChainScenariosTest(unittest.TestCase):
         self.assertFalse(self.ran("limit-then-fixed", "round-3"))
         self.assertIs(self.out("limit-then-fixed", "result")["closed"], True)
         self.assertEqual(self.out("limit-then-fixed", "result")["sealed"], self.out("limit-then-fixed", "final-diff")["sealed"])
+
+    def test_default_word_hands_nothing_and_the_word_pr_makes_one_pr_in_the_parent(self):
+        for scenario in SCENARIOS[:-1]:
+            with self.subTest(scenario=scenario):
+                self.assertFalse(self.ran(scenario, "hand__pr-commit"))
+                self.assertFalse(self.ran(scenario, "hand__pr-open"))
+                self.assertIsNone(self.out(scenario, "result")["deliver"])
+        trace = self.traces["deliver-pr"]
+        self.assertEqual(bound(trace, NODES["round-1"]["with"]["deliver"]), "", "周の子は PR を作らない")
+        self.assertEqual(self.out("deliver-pr", "result")["deliver"],
+                         {"act": "pr", "pr": {"number": 9, "url": "https://github.com/owner/repo/pull/9", "is_draft": True}, "reason": ""})
 
     def test_rounds_reached_skips_the_next_round(self):
         self.assertEqual(self.out("rounds-reached", "round-2-decide")["word"], "rounds_reached")
