@@ -2534,6 +2534,20 @@ class FixedCase(unittest.TestCase):
                          (False, {"path": "pr/design.json"}, {"path": "pr/design-premises.json"}, [{"kind": "fork", "text": "q"}],
                           {"decision": "continue"}))
 
+    def test_item_claims_take_the_later_items_and_all_claims(self):
+        """#569: 出口の語 pr が差分を項目ごとの commit に分ける記録は、項目が後の段（案の直しの後は直した案）の物、単位の触った
+        ファイルは両方の段の和（lib/itemcommits.py の merged）"""
+        def claims(approach, unit, files):
+            return {"items": [{"item": 1, "unit_keys": ["u1"], "approach": approach, "after": []}],
+                    "claims": [{"unit_key": unit, "files": files}], "unread": []}
+        first = fixed.fixed(self.fix(item_claims=claims("前の案", "u1", ["a.py"])), None, replan=False, stops=("", ""))
+        self.assertEqual(first["item_claims"], claims("前の案", "u1", ["a.py"]))
+        both = fixed.fixed(self.fix(item_claims=claims("前の案", "u1", ["a.py"])),
+                           self.fix(diff={"path": "refix/diff"}, item_claims=claims("直した案", "u1", ["b.py"])), replan=False, stops=("", ""))
+        self.assertEqual(both["item_claims"]["items"][0]["approach"], "直した案")
+        self.assertEqual(both["item_claims"]["claims"], [{"unit_key": "u1", "files": ["a.py"]}, {"unit_key": "u1", "files": ["b.py"]}])
+        self.assertIsNone(fixed.fixed(self.fix(), None, replan=False, stops=("", ""))["item_claims"])
+
     def test_records_line_up_the_stage_ports(self):
         """部分 D2・#681: fixed は段ごとの diff と控えの欄の並び records（1 回目・2 度目の順。fixbeside.stage）を返し、最後の
         承認ノード・深さの上げ直し・独立の目・報告が段ごとに読む。2 度目が走らなければ 1 回目だけ。控えの欄の無い返り（この版より前に
@@ -3741,6 +3755,7 @@ class LineWiringCase(unittest.TestCase):
         ("merge-seal", "sealed_hash"): APPLY_ONLY,
         ("merge-seal", "deliver"): APPLY_ONLY,
         ("merge-seal", "request"): APPLY_ONLY,
+        ("merge-seal", "items"): APPLY_ONLY,
         ("merge-seal", "base_rev"): CHECK_ONLY,
         ("merge-apply", "base_rev"): CHECK_ONLY,
         ("fix", "mode"): GROUP_ONLY,

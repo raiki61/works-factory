@@ -43,7 +43,7 @@ SCRIPTS = BLOCK / "scripts"
 SCRIPT = SCRIPTS / "merge.py"
 NAME = "works-factory-merge"
 RUN = "run-merge"
-INPUTS = ("mode", "start", "base_rev", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "request")
+INPUTS = ("mode", "start", "base_rev", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "request", "items")
 PLACE_INPUTS = ("mode", "start", "base_rev", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver")
 RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "deliver", "optional")
 PLACE_RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "base_rev", "deliver")
@@ -108,7 +108,7 @@ class ShapeTest(unittest.TestCase):
         self.assertEqual(commit["when"], f"$place.output.ok == true && $place.output.deliver == '{entry.DELIVER_PR}'"
                                          " && $place.output.mode != 'seal'")
         self.assertEqual(commit["with"], {"mode": "$place.output.mode", "base_rev": "$place.output.base_rev",
-                                          "sealed_hash": "$place.output.hash", "request": "$INPUTS.request"})
+                                          "sealed_hash": "$place.output.hash", "request": "$INPUTS.request", "items": "$INPUTS.items"})
         self.assertEqual((opened["workflow"], opened["when"]), ("archon-pr", "$pr-commit.output.go == true"))
         self.assertEqual(opened["with"], {"branch": "$pr-commit.output.branch"}, "push の先の枝は commit の節が積んだ枝（AI に決めさせない）")
         self.assertNotIn("input", opened)
@@ -434,7 +434,7 @@ class CheckTest(ScriptCase):
 
 
 class PrCommitTest(unittest.TestCase):
-    """出口の語 pr の commit の節: run の作業ツリー（worktree）の枝にだけ、照らした差分を 1 つの commit で積む。origin へは送らない"""
+    """出口の語 pr の commit の節: run の作業ツリー（worktree）の枝にだけ、照らした差分を修正案の項目ごとの commit で積む（分けられなければ 1 つ）。origin へは送らない"""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -489,6 +489,80 @@ class PrCommitTest(unittest.TestCase):
             self.assertIn(words, body)
         self.assertEqual(git(self.main, "rev-parse", "main"), self.base, "利用者の枝は動かさない")
         self.assertEqual(self.remote_heads(), "refs/heads/main", "commit の節は push しない")
+
+    ADD = "読み口 read_rows を lib に足し、行の形を 1 か所で決める"
+    USE = "呼び手を読み口 read_rows に寄せ、写しの読みを消す"
+
+    def record(self, claims) -> str:
+        """項目 1 が項目 2 に依存する修正の段の記録（番号の順と依存の順が逆）"""
+        return json.dumps({"items": [{"item": 1, "unit_keys": ["u1"], "approach": self.USE, "after": [2]},
+                                     {"item": 2, "unit_keys": ["u2"], "approach": self.ADD, "after": []}],
+                           "claims": [{"unit_key": k, "files": f} for k, f in claims], "unread": []}, ensure_ascii=False)
+
+    def test_two_items_are_two_commits_in_dependency_order(self):
+        """#569: 項目ごとに 1 つの commit。並びは依存の位相順（項目 2 が先）、題と本文は項目から作り、最後の commit に対を書く"""
+        got = self.commit(items=self.record([("u1", ["a.txt"]), ("u2", ["new.txt"])]))
+        self.assertIs(got["go"], True, got)
+        heads = git(self.run_tree, "rev-list", "--reverse", f"{self.base}..HEAD").split()
+        self.assertEqual(len(heads), 2)
+        self.assertEqual([c["item"] for c in got["commits"]], [2, 1])
+        self.assertEqual([c["head"] for c in got["commits"]], heads)
+        self.assertEqual((got["head"], got["split"]), (heads[-1], ""))
+        self.assertEqual([git(self.run_tree, "diff-tree", "--no-commit-id", "--name-only", "-r", h).split() for h in heads],
+                         [["new.txt"], ["a.txt"]])
+        subjects = [git(self.run_tree, "log", "-1", "--format=%s", h) for h in heads]
+        self.assertTrue(subjects[0].startswith("項目 2: 読み口 read_rows を lib に足し"), subjects)
+        self.assertTrue(subjects[1].startswith("項目 1: 呼び手を読み口"), subjects)
+        first, last = (git(self.run_tree, "log", "-1", "--format=%b", h) for h in heads)
+        self.assertIn(self.ADD, first)
+        self.assertNotIn(self.sealed, first, "照らしの要約は最後の commit だけ")
+        self.assertIn("項目 2 に依存する", last)
+        for words in (self.sealed, f"run: {RUN}", "対象の既定の枝 main", f"- 項目 2: {heads[0]}", "- 項目 1: この commit",
+                      "各 commit の時点で試験が通るかは確かめていない"):
+            self.assertIn(words, last)
+        self.assertEqual(seal.digest(green_cert.diff_between(self.run_tree, self.base, heads[-1], skip=(".archon/",))), self.sealed)
+        self.assertEqual(git(self.run_tree, "status", "--porcelain", "--", ".", ":(exclude).archon"), "")
+
+    def test_paths_no_single_item_owns_fall_back_to_one_commit_with_the_reason(self):
+        for claims, words in (([("u1", ["a.txt", "new.txt"]), ("u2", ["new.txt"])], "複数の項目か項目の外の単位が触った: new.txt"),
+                              ([("u1", ["a.txt"])], "どの項目も申告していない: new.txt"),
+                              ([("u1", ["a.txt"]), ("u9", ["new.txt"])], "項目の外の単位")):
+            with self.subTest(words=words):
+                git(self.run_tree, "reset", "-q", self.base)
+                got = self.commit(items=self.record(claims))
+                self.assertEqual((got["go"], got["commits"]), (True, []), got)
+                self.assertIn(words, got["split"])
+                self.assertEqual(git(self.run_tree, "rev-list", "--count", f"{self.base}..HEAD"), "1")
+                self.assertIn(f"1 つの commit にまとめた訳: {got['split']}", git(self.run_tree, "log", "-1", "--format=%b"))
+
+    def test_run_without_the_item_record_is_one_commit(self):
+        got = self.commit()
+        self.assertEqual((got["go"], got["commits"]), (True, []))
+        self.assertIn("修正案の項目の記録が無い", got["split"])
+
+    def test_stacked_tree_is_checked_against_the_sealed_hash_as_a_whole(self):
+        """項目の commit を積み終えた木の差分を封じた hash と照らす（hooks が途中の commit の中身を変えれば push しない）"""
+        hook = self.tmp / "hooks" / "pre-commit"
+        hook.parent.mkdir()
+        hook.write_text("#!/bin/sh\ngit diff --cached --name-only | grep -q new.txt && { echo more >> new.txt; git add new.txt; }\nexit 0\n",
+                        encoding="utf-8")
+        hook.chmod(0o755)
+        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        got = self.commit(items=self.record([("u1", ["a.txt"]), ("u2", ["new.txt"])]))
+        self.assertStopped(got, "差分が封じた差分と違う")
+
+    def test_failing_hook_on_a_later_item_leaves_no_commit(self):
+        hook = self.tmp / "hooks" / "pre-commit"
+        hook.parent.mkdir()
+        hook.write_text("#!/bin/sh\ngit diff --cached --name-only | grep -q a.txt && { echo 'a の誤り' >&2; exit 1; }\nexit 0\n",
+                        encoding="utf-8")
+        hook.chmod(0o755)
+        git(self.main, "config", "core.hooksPath", str(hook.parent))
+        got = self.commit(items=self.record([("u1", ["a.txt"]), ("u2", ["new.txt"])]))
+        self.assertStopped(got, "a の誤り")
+        self.assertEqual(git(self.run_tree, "rev-parse", "HEAD"), self.base, "積み始める前の HEAD に戻す")
+        self.assertEqual(seal.digest(green_cert.diff_bytes(self.run_tree, self.base, skip=(".archon/",))), self.sealed,
+                         "作業ツリーの変更は残す")
 
     def test_branch_named_like_the_default_branch_is_not_committed_nor_pushed(self):
         """run の枝の名が対象の既定の枝と同じ時は、積まず・PR を作る子の run へ進めない（既定の枝へは push しない）"""
@@ -614,8 +688,10 @@ class HandedTest(unittest.TestCase):
     """返す節: 照らしの返りに渡し方 deliver を足す。既定の空の語は置くだけで、PR の節の返りを読まない"""
     PLACE = {"mode": "apply", "ok": True, "hash": "a" * 64, "diff": {"type": "archon_artifact", "run_id": RUN, "path": "merge/apply.diff"},
              "protected_hits": None, "protected_count": None, "reason": "", "base_rev": "b" * 40, "deliver": ""}
+    STACKED = {"commits": [{"item": 1, "subject": "項目 1: 足す", "head": "e" * 40}, {"item": 2, "subject": "項目 2: 使う", "head": "c" * 40}],
+               "split": ""}
     COMMIT = {"go": True, "head": "c" * 40, "branch": "archon/task-run", "base": "main", "repo": {"host": "github.com", "path": "o/r"},
-              "reason": ""}
+              **STACKED, "reason": ""}
 
     def handed(self, place, commit=None, read=None) -> dict:
         tmp = tempfile.TemporaryDirectory()
@@ -640,7 +716,7 @@ class HandedTest(unittest.TestCase):
         place = {**self.PLACE, "deliver": "pr"}
         made = {"ok": True, "number": 7, "url": "https://github.com/o/r/pull/7", "is_draft": True, "reason": ""}
         self.assertEqual(self.handed(place, self.COMMIT, made)["deliver"],
-                         {"act": "pr", "pr": {"number": 7, "url": made["url"], "is_draft": True}, "reason": ""})
+                         {"act": "pr", "pr": {"number": 7, "url": made["url"], "is_draft": True}, "reason": "", **self.STACKED})
         for args, act, words in (((None, None), "stopped", "commit のノードの出力が無い"),
                                  (({**self.COMMIT, "go": False, "reason": "同じ名"}, None), "stopped", "同じ名"),
                                  ((self.COMMIT, None), "unconfirmed", "PR を作る子の run が落ちたか返らなかった"),
@@ -649,6 +725,8 @@ class HandedTest(unittest.TestCase):
                 got = self.handed(place, *args)["deliver"]
                 self.assertEqual((got["act"], got["pr"]), (act, None))
                 self.assertIn(words, got["reason"])
+                if act == "unconfirmed":
+                    self.assertEqual(got["commits"], self.STACKED["commits"], "積んだ commit は確かめられない時も報告に渡す")
         refused = self.handed({**place, "ok": False, "reason": "封じた差分と今の差分が違う"})["deliver"]
         self.assertEqual(refused["act"], "stopped")
         self.assertIn("差分を置かなかった", refused["reason"])
@@ -737,8 +815,11 @@ class FixturesTest(unittest.TestCase):
         self.assertIsNone(self.deliver("seal"))
 
     def test_pr_word_makes_the_pr_and_names_it(self):
-        self.assertEqual(self.deliver("pr"), {"act": "pr", "pr": {"number": 7, "url": "https://github.com/owner/repo/pull/7",
-                                                                  "is_draft": True}, "reason": ""})
+        got = self.deliver("pr")
+        self.assertEqual({k: got[k] for k in ("act", "pr", "reason", "split")},
+                         {"act": "pr", "pr": {"number": 7, "url": "https://github.com/owner/repo/pull/7", "is_draft": True}, "reason": "",
+                          "split": ""})
+        self.assertEqual([c["item"] for c in got["commits"]], [1, 2])
 
     def test_pr_word_stops_without_the_child_on_the_default_branch_name(self):
         self.assertEqual(self.traces["pr-same-branch"].get("pr-open", {}).get("state", "skipped"), "skipped")
