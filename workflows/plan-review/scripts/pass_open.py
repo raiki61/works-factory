@@ -6,6 +6,7 @@
 回すかと事前審査を木にするか（始めの記録の review_tree の名指し、無ければ入力 head_depth の頭の深さの段の足し。形 review の時だけ
 段の足しを引く）を返す。役の節の型（output_format）はブロックの YAML から読んで渡す。入力 mode が design（直す物が
 無い周）は修正案を読まず、独立設計の材料だけを置いて形 design を返す（boardview.open_design。事前審査の輪は飛ぶ）。
+修正案の役の返答 fix_plan は plan・structure・ripple と同じく要る入力で、null なら入力の名を挙げて落ちる（空の案で事前審査を回さない）。
 落ちない: 始めに前の差し込みの材料 open.json を消し（後の節が前の差し込みの結末を今回の物として読まない）、境の口と lib の import
 から先の誤りは全部捕まえて、落ちた訳 open-error.txt を置き ok: false と訳を返す（後の節は返す節の偽の結末に進む）"""
 import json
@@ -70,8 +71,12 @@ def opened() -> tuple:
     if os.environ.get("INPUTS_MODE", "") == boardview.DESIGN_FORM:   # 直す物が無い周: 修正案を読まずに独立設計だけ
         got = boardview.open_design(folder, cwd=Path.cwd(), **shared)
         return boundary, {"ok": True, **got, "reason": ""}
+    fix_plan = boundary.needed(os.environ["INPUTS_FIX_PLAN"], "fix_plan")
+    if not fix_plan.is_file():
+        raise ValueError(f"入力 fix_plan の先が無い（{fix_plan}）")
     got = boardview.open_pass(
-        folder, cwd=Path.cwd(), **shared, plan=boundary.needed(os.environ["INPUTS_PLAN"], "plan"),
+        folder, cwd=Path.cwd(), **shared, plan=boundary.needed(os.environ["INPUTS_PLAN"], "plan"), fix_plan=fix_plan,
+        plan_rejects=boundary.items(os.environ["INPUTS_PLAN_REJECTS"]),
         structure=boundary.needed(os.environ["INPUTS_STRUCTURE"], "structure"),
         ripple=boundary.needed(os.environ["INPUTS_RIPPLE"], "ripple"),
         ruling=boundary.parsed(os.environ["INPUTS_RULING"]) or [], conflicts=boundary.pointed(os.environ["INPUTS_CONFLICTS"]),

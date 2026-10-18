@@ -1,31 +1,35 @@
-"""修正のブロックの返り diff の隣の約束のファイル（docs/design.md の「サブグラフの出力の約束」の隣のファイル）のうち、閉鎖の表と
-差分の審査の穴の名札の書き手と、diff の隣の控えの全部の読み手。
+"""修正のブロックの返り diff の隣の約束のファイル（docs/design.md の「サブグラフの出力の約束」の fix の出力）のうち、閉鎖の表と
+差分の審査の穴の名札の書き手と、ほかのブロックとメイングラフが読む控えを出力の欄にする口と読む口。
 
-書き手は修正の出力ノード（write）。読み手は最後の承認ノードと報告（read で読み、行の口で文にする）。出力の欄は増やさず、diff の
-ポインタの先と同じフォルダ（修正の段ごとの置き場）に置く。組の子の run は子の置き場に書くので、子の結果（fixboard.group_result）の
-欄 closure・claimed で親へ運び、親の置き場の分（裁定の後の修正の段）と合わせる。
+書き手は修正の出力ノード（write と returned）。控えは diff のポインタの先と同じフォルダ（修正の段ごとの置き場）に置き、ほかが読む物は
+出力の欄で返す（PORTS はポインタの欄 → 置き場のファイル、FROM は中身の欄 → 元のファイル）。組の子の run は子の置き場に書くので、子の
+結果（fixboard.group_result）の欄 closure・claimed で親へ運び、親の置き場の分（裁定の後の修正の段）と合わせる。
 
 - CLOSURE_FILE: {rows: [閉鎖の表の行（querytest.save_closure の行）], claimed: [修正役が changes に載せた単位の key]}
 - DELTA_HOLES_FILE: {ties: {"1": [名札（holeties.tie の行）] か組めない訳の字, "2": …}, handled: {"1": [手直しの handled の行], "2": …}}
 どちらも、書けなかった・組めなかった時は {"error": 訳} を置き、読み手は訳を名指す（0 件に見せない）。
 修正役が人に回した物（handoffs）と申告と数え直しが合わない単位（mismatched）は fix の出力の欄が正本で、ここでは読まない。
-read が同じ diff の隣から一緒に読む物（書き手は fix のほかの所）:
-- fixboard.ACCEPT_TRACE_FILE（accept-trace.json）: 受け付けの行の並び（選んだ試験の知らせ・赤緑を確かめずに受けた回・はみ出しの
+欄で返すほかの控え（書き手は fix のほかの所）:
+- allowed_tests（fixboard.ALLOWED_TESTS_FILE）: 許したテストの変更の訳 [{path, permit, source}]
+- accept_trace（fixboard.ACCEPT_TRACE_FILE）: 受け付けの行の並び（選んだ試験の知らせ・赤緑を確かめずに受けた回・はみ出しの
   決着・範囲の相談。fixboard.accept_trace_rows）
-- fixboard.LENSES_FILE（lenses.json）: レンズの集め役の事実 {collector: {ok, reason}}。レンズの数え（lens.summary）は置き場の
-  lens.json と差分の審査の 1 回目の出力から読む時に数える
-- leftovers.REMOVED_FILE（fix-removed.json）: clean が消したパス（読みは leftovers.removed）
-- fixboard.TDD_UNIT_FILE（tdd-unit.json）: 組ごとの TDD の記録（書き手は fix の tdd-unit。読みは tdd。eyes が R2 の比較役に貼る）
-accept-trace.json と TDD の輪の状態 tdd-<k>/state.json の読み手には線の redepth も居る（範囲の相談の行と修正役の拒否。late_records）。
+- lenses（fixboard.LENSES_FILE）: レンズの集め役の事実 {collector: {ok, reason}} に、returned が置き場のレンズの数え（lens.summary）と
+  報告の行（lens.report_lines）を summary・lines で足した物
+- tdd_unit（fixboard.TDD_UNIT_FILE）: 組ごとの TDD の記録（書き手は fix の tdd-unit。eyes が R2 の比較役に貼る）
+- removed: clean が消したパスの控え（leftovers.REMOVED_FILE。置き場の根と scope の根の）のポインタの並び（leftovers.found）。
+  clean が走っていなければ []、探せなければ null。消したパスの全件はファイルにだけ在る
+- tdd_refused: TDD の輪の状態（tddloop.STATE）の calls から修正役が拒まれた単位 {refused, unread}（tdd_refused）
 
 - claimed_of(reply)・closure_rows(place): 子の結果と親が欄を組む口
 - write(place, results, ruled_reply, *, items, plan_review, fix_reply): 書く
-- read(folders): 段ごとの置き場（fix と 2 度目の修正）の全部を読み合わせた見え方
-- tdd(folder): 段の置き場の TDD の記録
-- tdd_refused(folder, unread)・LATE_UNREAD: TDD の輪の状態から修正役が拒まれた単位の名を読む口と、読めない状態を上げる側へ倒す
-  信号の字。修正のブロック（fixboard.depth_signals）と線の redepth（late_records）が同じ読みで使う
-- late_records(folder): TDD の輪の状態と受け付けの行を 1 つの決まり（無い・読めないを分ける）で読む。線の redepth が修正の後に
-  深さを上げる信号（TDD の拒否・範囲の相談）の元を diff の隣から引く口
+- returned(place, pointer)・require_ports(got)・stage(got): 返す節の控えの欄を組む口と、この版より前に走った修正の返りを resume で
+  受けたかの照らしと、返りから読み手の口に渡す段を切る口
+- read(stages, resolve)・tdd(stage, resolve)・late_records(stage, resolve): 読み手の口。段（fix の返りの控えの欄の dict。ポインタのまま）
+  と、ポインタを置き場の中のパスに戻す関数 resolve を受け、どの欄がポインタかを知って戻すのはここだけ（_port）。read は段の並び
+  （fix と 2 度目の修正の順）を読み合わせた見え方、tdd は段の TDD の記録、late_records は線の redepth が修正の後に深さを上げる
+  信号（TDD の拒否・範囲の相談）の元
+- tdd_refused(folder, unread)・LATE_UNREAD: TDD の輪の状態から修正役が拒まれた単位の名を読む口（修正のブロックの中の
+  fixboard.depth_signals と returned が同じ読みで使う）と、読めない状態を上げる側へ倒す信号の字
 - closure_lines・not_closed・tests_left_lines・gates_lines・plan_ask_lines・branch_rows・always_rows・lens_lines・next_items:
   最後の承認ノードと報告が同じ行を出す口（元 works/.shared/core/report.py の branch_rows・gates_lines・plan_ask_lines・
   always_rows・lens_next_items・next_request の手直しの行、works/darkfactory/lib/line_edge.py の _ci_left）
@@ -43,13 +47,20 @@ if str(_HERE) not in sys.path:
 
 import fixboard  # noqa: E402
 import impact  # noqa: E402  （受け付けの trace の op の住処）
+import leftovers  # noqa: E402
 import listcut  # noqa: E402
 import oneline  # noqa: E402
 import querytest  # noqa: E402
+import tddloop  # noqa: E402
 
 CLOSURE_FILE = "closure.json"
 DELTA_HOLES_FILE = "delta-holes.json"
-FILES = (CLOSURE_FILE, DELTA_HOLES_FILE)
+# 返す節の出力の欄 → 置き場の控え。ほかのブロックとメイングラフはこの欄で受け、名で開かない（docs/design.md の「fix の出力」）
+PORTS = {"allowed_tests": fixboard.ALLOWED_TESTS_FILE, "accept_trace": fixboard.ACCEPT_TRACE_FILE, "lenses": fixboard.LENSES_FILE,
+         "closure": CLOSURE_FILE, "delta_holes": DELTA_HOLES_FILE, "tdd_unit": fixboard.TDD_UNIT_FILE}
+FROM = {"removed": leftovers.REMOVED_FILE, "tdd_refused": tddloop.STATE}
+PRIOR_VERSION = "前の版の修正の出力。workflow run で最初から起こし直す"
+REMOVED_UNRETURNED = "修正の出力が消したファイルの控えを返せなかった"
 TESTS_OP, SKIPPED_OP, OVERFLOW_OP = impact.ACCEPT_TRACE_OP, impact.ACCEPT_GATES_SKIPPED_OP, impact.ACCEPT_OVERFLOW_OP
 BRANCH_HEAD = "差分の審査の穴の枝（機械が修正案の項目に結んだ名札。手直しの役にも同じ名札を渡した）"   # 1 回目の往復の頭
 ANOMALY_LINE = "仕組みの異常: 取れない（元は共有ボードの trace と包みの記録から数えた。docs/design.md の U6）"
@@ -109,7 +120,7 @@ def _ties(place, *, items, plan_review, fix_reply) -> tuple:
 
 
 def write(place, results, ruled_reply=None, *, items=None, plan_review=None, fix_reply=None) -> None:
-    """置き場 place に FILES を書く。results は戻せた組の子の結果（欄 closure・claimed。closure が None の子は表を読めなかった）、
+    """置き場 place に CLOSURE_FILE と DELTA_HOLES_FILE を書く。results は戻せた組の子の結果（欄 closure・claimed。closure が None の子は表を読めなかった）、
     ruled_reply は裁定の後の修正役の返答（親の置き場の段。無ければ None）。items・plan_review・fix_reply は手直しの穴の名札の材料
     （fixboard.hole_ties の引数）。1 つのファイルが組めなくても、ほかは書く（組めない物は {"error": 訳}）"""
     place = pathlib.Path(place)
@@ -162,53 +173,154 @@ def _load(path: pathlib.Path, unread: list, *, rows: bool = False):
     return doc
 
 
-def _lens_summary(folder: pathlib.Path, unread: list) -> dict:
-    """置き場のレンズの数え（lens.summary）と報告の行（lens.report_lines）と集め役の事実（fixboard.LENSES_FILE。読めなければ unread に訳）"""
+def _lens_counts(place: pathlib.Path) -> dict:
+    """置き場のレンズの数え（lens.summary）と報告の行（lens.report_lines。差分の審査の 1 回目の出力と合わせて数える）"""
     import lens
     import refix
-    review = fixboard.out_file(folder, refix._pass(passes()[0])["review"])
+    review = fixboard.out_file(place, refix._pass(passes()[0])["review"])
     review = review if review.is_file() else None
-    doc = _load(folder / fixboard.LENSES_FILE, unread)
-    collector = doc.get("collector") if isinstance(doc, dict) else None
-    return {"summary": lens.summary(folder, review), "lines": lens.report_lines(folder, review),
-            "collector": collector if isinstance(collector, dict) else None}
+    return {"summary": lens.summary(place, review), "lines": lens.report_lines(place, review)}
 
 
-def read(folders) -> dict:
-    """段ごとの置き場（diff のポインタの先のフォルダ。fix と 2 度目の修正の順）を読み合わせる。返り {closure, claimed, ties, handled,
-    lenses, trace, tests, removed, unread, closure_unread, folders}。ties・handled・lenses・removed は段ごとの並び [(フォルダ, 中身)]。
-    trace は受け付けの行（accept-trace.json）、tests はそのうち段・組・受け付けの段ごとに最後の回の選んだ試験の行。読めない・無いファイルと {"error"} は unread に訳（0 件に見せない）。閉鎖の表の控えの
-    訳は closure_unread にも置く（閉じたかを数えていない。outcome.residue が修正の残りに数える）"""
-    import leftovers
-    got = {"closure": {}, "claimed": [], "ties": [], "handled": [], "lenses": [], "trace": [], "tests": [], "removed": [], "unread": [],
-           "closure_unread": [], "folders": []}
-    for folder in folders or []:
-        folder = pathlib.Path(folder)
-        got["folders"].append(folder)
+def returned(place, pointer) -> dict:
+    """返す節の控えの欄（PORTS・FROM）。pointer は置き場の中のパスをポインタにする口。lenses.json にはレンズの数えと報告の行を足して
+    から指す（集め役の事実の欄 collector は書き手のまま。読めない・object でない控えは書き直さず、読み手が訳を名指す）。PORTS の先が
+    無い欄は null。removed は leftovers.found の各ファイルのポインタ（探せなければ null）、tdd_refused は {refused, unread}"""
+    place = pathlib.Path(place)
+    lenses = place / fixboard.LENSES_FILE
+    try:
+        doc = fixboard.read_json(lenses)
+    except ValueError:
+        doc = None
+    if isinstance(doc, dict):
+        fixboard.write_json(lenses, {**doc, **_lens_counts(place)})
+    try:
+        removed = [pointer(p) for p in leftovers.found(place)]
+    except leftovers.Unreadable:
+        removed = None
+    unread: list = []
+    return {**{field: pointer(place / name) if (place / name).is_file() else None for field, name in PORTS.items()},
+            "removed": removed, "tdd_refused": {"refused": tdd_refused(place, unread), "unread": unread}}
+
+
+def require_ports(got: dict | None) -> None:
+    """修正の返り（受け皿の got か、口 boundary.picked で受けた返り）が控えの欄 PORTS・FROM を持つか照らす（飛んだ段の None は
+    照らさない）。欄の鍵が無いか、いつも object の tdd_refused が null（picked は欠けた欄を null で埋める）の返りは、この版より前に走った
+    修正の控えを resume で受けた物で、欄を空と読むと控えを「無い」と読むので、ValueError で止める"""
+    if got is not None and (any(field not in got for field in (*PORTS, *FROM)) or got.get("tdd_refused") is None):
+        raise ValueError(PRIOR_VERSION)
+
+
+def stage(got) -> dict:
+    """修正の返り got から、読み手の口に渡す段 {diff, 控えの欄}（メイングラフが 1 回目と 2 度目の修正の段を並べる形）"""
+    return {"diff": got["diff"], **{field: got[field] for field in (*PORTS, *FROM)}}
+
+
+READ_ERRORS = (ValueError, TypeError, AttributeError, KeyError)
+
+
+def _port(stage: dict, field: str, resolve, unread: list) -> pathlib.Path | None:
+    """段の欄 field のポインタを置き場の中のパスに戻す（null・戻せなければ unread に訳を足して None）"""
+    ptr = stage.get(field)
+    if ptr is None:
+        unread.append(f"修正の控え {field} が無い")
+        return None
+    try:
+        return pathlib.Path(resolve(ptr))
+    except READ_ERRORS as e:
+        unread.append(f"修正の控え {field} のポインタを読めない（{type(e).__name__}: {oneline.one_line(e)}）")
+        return None
+
+
+def _label(stage: dict, resolve, n: int) -> str:
+    """段の名（diff の先のフォルダの名。戻せなければ段の番号）"""
+    try:
+        return pathlib.Path(resolve(stage.get("diff"))).parent.name
+    except READ_ERRORS:
+        return f"段 {n}"
+
+
+def _removed(stage: dict, resolve) -> dict:
+    """段の欄 removed（clean が消したパスの控えのポインタの並び）を leftovers.read_removed で読む。[] は走らせていない、null と戻せない
+    ポインタは読めない（訳つき）"""
+    ptrs = stage.get("removed")
+    if ptrs is None:
+        return {**leftovers.read_removed([]), "ran": True, "readable": False, "reason": REMOVED_UNRETURNED}
+    files, bad = [], []
+    for ptr in ptrs if isinstance(ptrs, list) else [ptrs]:
+        try:
+            files.append(pathlib.Path(resolve(ptr)))
+        except READ_ERRORS as e:
+            bad.append(f"{type(e).__name__}: {oneline.one_line(e)}")
+    got = leftovers.read_removed(files)
+    if bad:
+        got.update(ran=True, readable=False, reason="・".join([*([got["reason"]] if got["reason"] else []),
+                                                               f"消したファイルの控えのポインタを読めない（{'／'.join(bad)}）"]))
+    return got
+
+
+def _allowed(path: pathlib.Path | None, rows: list, unread: list) -> None:
+    """許したテストの変更の訳を rows に重ねずに足す（読めない・行の配列でなければ unread に訳。黙って空にしない）"""
+    if path is None:
+        return
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(doc, list) or not all(isinstance(row, dict) for row in doc):
+            raise ValueError("行の配列でない")
+    except (OSError, ValueError) as error:
+        unread.append(f"許したテストの変更の訳 {path} を読めない（{type(error).__name__}: {error}）")
+        return
+    rows += [row for row in doc if row not in rows]
+
+
+def read(stages, resolve) -> dict:
+    """修正の段ごとの返りの控えの欄の dict（fix と 2 度目の修正の順。ポインタのまま）を読み合わせる。resolve はポインタを置き場の中の
+    パスに戻す関数（戻せなければ ValueError など）。返り {closure, claimed, ties, handled, lenses, trace, tests, removed, allowed, unread,
+    closure_unread}。ties・handled・lenses・removed は段ごとの並び [(段の名, 中身)]。trace は受け付けの行、tests はそのうち段・組・
+    受け付けの段ごとに最後の回の選んだ試験の行、allowed は許したテストの変更の訳（段の順に重ねない）。null・戻せない・読めない・無い
+    控えと {"error"} は unread に訳（0 件に見せない）。閉鎖の表の控えの訳は closure_unread にも置く（閉じたかを数えていない。
+    outcome.residue が修正の残りに数える）。removed の読めなさは行に出すが unread に入れない"""
+    got = {"closure": {}, "claimed": [], "ties": [], "handled": [], "lenses": [], "trace": [], "tests": [], "removed": [], "allowed": [],
+           "unread": [], "closure_unread": []}
+    for n, stage in enumerate(stages or [], 1):
+        if not isinstance(stage, dict):
+            got["unread"].append("修正の段の出力が dict でない")
+            continue
+        label = _label(stage, resolve, n)
         closure_unread: list = []
-        closure = _load(folder / CLOSURE_FILE, closure_unread) or {}
+        path = _port(stage, "closure", resolve, closure_unread)
+        closure = (_load(path, closure_unread) if path is not None else None) or {}
         got["unread"] += closure_unread
         got["closure_unread"] += [f"{x}——{CLOSURE_UNREAD}" for x in closure_unread]
         for r in closure.get("rows") or []:
             if isinstance(r, dict):
                 got["closure"][r.get("unit_key")] = r   # 2 度目の修正の段の表がその単位の前の表を上書きする
         got["claimed"] += [k for k in closure.get("claimed") or [] if isinstance(k, str) and k not in got["claimed"]]
-        holes = _load(folder / DELTA_HOLES_FILE, got["unread"]) or {}
-        got["ties"].append((folder, holes.get("ties") or {}))
-        got["handled"].append((folder, holes.get("handled") or {}))
-        trace = [r for r in _load(folder / fixboard.ACCEPT_TRACE_FILE, got["unread"], rows=True) or [] if isinstance(r, dict)]
+        path = _port(stage, "delta_holes", resolve, got["unread"])
+        holes = (_load(path, got["unread"]) if path is not None else None) or {}
+        got["ties"].append((label, holes.get("ties") or {}))
+        got["handled"].append((label, holes.get("handled") or {}))
+        path = _port(stage, "accept_trace", resolve, got["unread"])
+        trace = [r for r in (_load(path, got["unread"], rows=True) if path is not None else None) or [] if isinstance(r, dict)]
         got["trace"] += trace
         got["tests"] += _accepted_tests(trace)
-        got["lenses"].append((folder, _lens_summary(folder, got["unread"])))
-        got["removed"].append((folder, leftovers.removed(folder)))
+        path = _port(stage, "lenses", resolve, got["unread"])
+        doc = (_load(path, got["unread"]) if path is not None else None) or {}
+        got["lenses"].append((label, {"summary": doc.get("summary"), "lines": doc.get("lines") or [],
+                                      "collector": doc.get("collector") if isinstance(doc.get("collector"), dict) else None}))
+        got["removed"].append((label, _removed(stage, resolve)))
+        _allowed(_port(stage, "allowed_tests", resolve, got["unread"]), got["allowed"], got["unread"])
     got["closure"] = list(got["closure"].values())
     return got
 
 
-def tdd(folder):
-    """段の置き場 folder の TDD の記録（fixboard.TDD_UNIT_FILE。組ごとの段の物の配列）か、無い・読めない訳の字"""
+def tdd(stage, resolve):
+    """段の TDD の記録（欄 tdd_unit の先。組ごとの段の物の配列）か、無い・読めない訳の字"""
     unread: list = []
-    doc = _load(pathlib.Path(folder) / fixboard.TDD_UNIT_FILE, unread, rows=True)
+    if not isinstance(stage, dict):
+        return "修正の段の出力が dict でない"
+    path = _port(stage, "tdd_unit", resolve, unread)
+    doc = _load(path, unread, rows=True) if path is not None else None
     return doc if doc is not None else unread[0]
 
 
@@ -219,7 +331,6 @@ def tdd_refused(folder, unread: list) -> list:
     """置き場 folder の TDD の輪の状態（tddloop.states）の calls から修正役が拒まれた単位の名（tddloop.refused_units）。在るのに
     読めない・{"error"}・形が違う状態は unread に訳を足す（呼び手が LATE_UNREAD の信号で上げる側へ倒す）。輪の状態が 1 つも無い
     置き場は TDD の輪が走っていないので拒否も無い"""
-    import tddloop
     refused = []
     for state in tddloop.states(folder):
         doc = _load(state, unread)
@@ -227,19 +338,27 @@ def tdd_refused(folder, unread: list) -> list:
     return refused
 
 
-def late_records(folder) -> dict:
-    """段の置き場 folder（diff のポインタの先のフォルダ）の、修正の後に深さを上げる信号の元: TDD の拒否（tdd_refused）と、受け付けの行
-    ACCEPT_TRACE_FILE。返り {refused: [単位の名], trace: 受け付けの行の並び | None, missing: [無いファイルの名], unread: [在るのに
-    読めない・{"error"}・形が違う訳]}。受け付けの行が無ければ None で missing に名を、在るのに読めない控えは unread に訳を足す
-    （呼び手 redepth が、無い時は上げずに訳を添え、読めない時だけ上げる側へ倒すため）。行は dict の物だけ"""
-    folder = pathlib.Path(folder)
+def late_records(stage, resolve) -> dict:
+    """段（最後の修正の段の返りの控えの欄）の、修正の後に深さを上げる信号の元: TDD の拒否（欄 tdd_refused）と、受け付けの行（欄
+    accept_trace の先）。返り {refused: [単位の名], trace: 受け付けの行の並び | None, missing: [無い控えの名], unread: [在るのに読めない・
+    {"error"}・形が違う訳]}。受け付けの行の欄が null なら None で missing に名を、在るのに読めない控えは unread に訳を足す（呼び手
+    redepth が、無い時は上げずに訳を添え、読めない時だけ上げる側へ倒すため）。行は dict の物だけ"""
     got: dict = {"refused": [], "trace": None, "missing": [], "unread": []}
-    got["refused"] = tdd_refused(folder, got["unread"])
-    if not (folder / fixboard.ACCEPT_TRACE_FILE).exists():
-        got["missing"].append(fixboard.ACCEPT_TRACE_FILE)
+    if not isinstance(stage, dict):
+        got["unread"].append("修正の段の出力が dict でない")
+        return got
+    refused = stage.get("tdd_refused")
+    if isinstance(refused, dict) and isinstance(refused.get("refused"), list) and isinstance(refused.get("unread"), list):
+        got["refused"] = [str(k) for k in refused["refused"]]
+        got["unread"] += [str(x) for x in refused["unread"]]
     else:
-        rows = _load(folder / fixboard.ACCEPT_TRACE_FILE, got["unread"], rows=True)
-        got["trace"] = None if rows is None else [r for r in rows if isinstance(r, dict)]
+        got["unread"].append("修正の控え tdd_refused の形が違う（{refused, unread} でない）")
+    if stage.get("accept_trace") is None:
+        got["missing"].append(PORTS["accept_trace"])
+        return got
+    path = _port(stage, "accept_trace", resolve, got["unread"])
+    rows = _load(path, got["unread"], rows=True) if path is not None else None
+    got["trace"] = None if rows is None else [r for r in rows if isinstance(r, dict)]
     return got
 
 
@@ -369,7 +488,7 @@ def branch_rows(got: dict) -> list:
 def lens_lines(got: dict) -> list:
     """報告の「未確認のレンズ」のセクションの行（lens.report_lines。段ごと）"""
     out = []
-    for folder, doc in got["lenses"]:
+    for _, doc in got["lenses"]:
         out += [str(x) for x in doc.get("lines") or []]
     return out
 
@@ -377,14 +496,14 @@ def lens_lines(got: dict) -> list:
 def always_rows(got: dict) -> list:
     """clean が消したファイル・レンズ・仕組みの異常の行（0 件でも、走らせていない・読めないを 0 件と分ける。元 report.always_rows の
     頭の 3 つ。残りの行は呼び手が持つ）。字下げの行は内訳で、先頭 listcut.SHOWN 本と（それを超える時は）上位のフォルダごとの本数。
-    全件は fix-removed.json に在る（残りの行がその置き場を指す）"""
+    全件は欄 removed の先のファイルに在る（残りの行がその置き場を指す）"""
     rows = []
-    for folder, gone in got["removed"]:
-        where = f"（{folder.name}）"
+    for label, gone in got["removed"]:
+        where = f"（{label}）"
         if not gone["readable"]:
             rows.append(f"clean が消したファイル{where}: 読めない（{oneline.one_line(gone['reason'])}）")
         elif not gone["ran"]:
-            rows.append(f"clean が消したファイル{where}: 走らせていない（fix-removed.json が無い。clean の前に止まった）")
+            rows.append(f"clean が消したファイル{where}: 走らせていない（消したファイルの控えが無い。clean の前に止まった）")
         else:
             rows.append(f"clean が消したファイル{where}: {gone['count']} 本")
             rows += listcut.lines(gone["paths"], where="、".join(gone["files"]))
@@ -396,9 +515,9 @@ def always_rows(got: dict) -> list:
         rows.append("clean が消したファイル: 走らせていない（修正の段が無い run）")
     import lens
     seen = False
-    for folder, doc in got["lenses"]:
+    for label, doc in got["lenses"]:
         s = doc.get("summary") if isinstance(doc.get("summary"), dict) else None
-        where = f"（{folder.name}）"
+        where = f"（{label}）"
         if s is None:
             continue
         seen = True
@@ -442,7 +561,7 @@ def next_items(got: dict) -> list:
                     items.append({"where": str(where),
                                   "text": f"{h['key']}（手直し {n} 回目が fixed と言ったが、{n + 1} 回目の審査は無い——検算が要る: "
                                           f"{h.get('how') or ''}）{tag}"})
-    for folder, doc in got["lenses"]:
+    for _, doc in got["lenses"]:
         s = doc.get("summary") if isinstance(doc.get("summary"), dict) else {}
         if s and not s.get("readable"):
             items.append({"where": LENS_WHERE, "text": f"レンズの控えが読めない——再実行の要あり: {oneline.one_line(s.get('reason'))}"})

@@ -43,7 +43,7 @@ import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
 import tddloop  # noqa: E402
-from lib.tests.test_outcome import STAGES, fixed_run  # noqa: E402
+from lib.tests.test_outcome import STAGES, fixed_run, stage_of  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 from lib.tests.test_plan_gate import DECIDED, FACE, FORK, FORK_UNIT, NARROW, WORLD_ROW  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
@@ -119,7 +119,8 @@ class Base(unittest.TestCase):
         return str(folder / "fix.diff")
 
     def with_fix(self, *diffs, **over):
-        return fixed_run(fix={**fixed_run()["fix"], "diff": diffs[-1], "diffs": list(diffs)}, **over)
+        """修正の段ごとの diff（fix_place の返り）から、段の控えの欄を今の置き場から組んだ fix の返り"""
+        return fixed_run(fix={**fixed_run()["fix"], "diff": diffs[-1], "records": [stage_of(d) for d in diffs]}, **over)
 
     @staticmethod
     def rejudge_lines(returns):
@@ -1052,10 +1053,10 @@ class DraftsCase(Base):
             WORLD_ROW, {**WORLD_ROW, "finding": 2, "class_id": "w-empty"})))
         plan = self.put("plan/plan-fields.json", {"round": 1, "fields": [{"structure": [
             {"world": "w-mean", "deviation": "呼び手の都合で 0 を返す形に寄せたい、と考えた"}]}]})
-        self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, **DECIDED}]}]})
+        fix_plan = self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, **DECIDED}]}]})
         line = worldmark.gate_line(WORLD_ROW, {"world": "w-mean", "deviation": "呼び手の都合で 0 を返す形に寄せたい、と考えた"})
         review = {"pass": True, "ask_human": True, "questions": [gatemarks.question_row("world", f"修正案 1 の{line}（人に聞く訳: 依頼を出どころにした外れ）")]}
-        returns = fixed_run(judge={**fixed_run()["judge"], "world": world}, plan={**fixed_run()["plan"], "plan": plan},
+        returns = fixed_run(judge={**fixed_run()["judge"], "world": world}, plan={**fixed_run()["plan"], "plan": plan, "fix_plan": fix_plan},
                             **{"plan-review": review}, eyes={**fixed_run()["eyes"], "questions": gatemarks.row_texts(review["questions"])})
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
         self.assertEqual(len(drafts), 1, drafts)
@@ -1066,9 +1067,10 @@ class DraftsCase(Base):
         """元 gatemarks._gate_draft: 修正案の狭める行の推し（recommend）が答えの下書きになる"""
         plan = self.put("plan/plan-fields.json", {"round": 1, "fields": []})
         rec = {"answer": "continue", "note": "例外にそろえる", "why": "呼び手が既に例外を捕まえている"}
-        self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, "recommend": rec}]}]})
+        fix_plan = self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, "recommend": rec}]}]})
         q = f"修正案 1 が狭める能力: {NARROW['what']}——{NARROW['why']}（世界の解: 役が書いていない）"
-        returns = fixed_run(plan={**fixed_run()["plan"], "plan": plan}, **{"plan-review": {"ask_human": True, "questions": [gatemarks.question_row("regression", q)]}})
+        returns = fixed_run(plan={**fixed_run()["plan"], "plan": plan, "fix_plan": fix_plan},
+                            **{"plan-review": {"ask_human": True, "questions": [gatemarks.question_row("regression", q)]}})
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
         self.assertEqual(drafts[0]["question"], f"修正案 1 が狭める能力: {NARROW['what']}——{NARROW['why']}")
         self.assertTrue(drafts[0]["text"].startswith("continue: 例外にそろえる"))
@@ -1096,9 +1098,9 @@ class DraftsCase(Base):
         起こさなかった周は、線の止め（計画の諦め）にならず、問いが報告の冒頭 2 行目と人が決めることに載る（#593: 推しの無い問いは止まる）"""
         judgment = self.put("judge/judgment.json", {"units": [{"key": FORK_UNIT, "label": "block"}],
                                                     "questions": [{**FORK, "reason": "空の列の意味が 2 つに割れる"}]})
-        self.put(f"plan/r1/{planfile.ROUND_FILE}", {"round": 1, "mode": "plan", "go": False, "why": planfile.NOTHING_OWED})
         fields = self.put(f"plan/r1/{planfile.planmarks.FIELDS_FILE}", {"round": 1, "fields": []})
-        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}, plan={"ready": False, "plan": fields}, fix=None,
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}, plan={"ready": False, "plan": fields, "nothing_owed": True},
+                            fix=None,
                             eyes=None, **{"plan-review": None, "final-tests": None, "sealed-diff": None, "applied-diff": None})
         _, text, decided = self.build(returns, start=UNATTENDED)
         self.assertEqual(decided, ("round_limit", ""))
@@ -1152,12 +1154,12 @@ class DraftsCase(Base):
         """元 gatemarks._gate_draft: 推しの無い修正案の狭める行は狭めない案（no_narrow）を、事前審査の人に回す種類の穴は穴の行の
         決め手を、材料として note に置く"""
         plan = self.put("plan/plan-fields.json", {"round": 1, "fields": []})
-        self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, "no_narrow": "例外にそろえて呼び手を直す"}]}]})
+        fix_plan = self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, "no_narrow": "例外にそろえて呼び手を直す"}]}]})
         review = self.put("plan-review/review.json", {"faces": [{**FACE, "no_narrow": "上限を変えずに足す"},
                                                                {**FACE, "key": "見た目", "kind": "style"}]})
         narrow = f"修正案 1 が狭める能力: {NARROW['what']}——{NARROW['why']}"
         face = f"事前審査の穴 [regression] {FACE['key']}: {FACE['why']}"
-        returns = fixed_run(plan={**fixed_run()["plan"], "plan": plan},
+        returns = fixed_run(plan={**fixed_run()["plan"], "plan": plan, "fix_plan": fix_plan},
                             **{"plan-review": {"review": review, "questions": [gatemarks.question_row(k, t) for k, t in (
                                 ("regression", narrow), ("regression", face), ("style", f"事前審査の穴 [style] 見た目: {FACE['why']}"))]}})
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
@@ -1974,6 +1976,23 @@ class CarryCase(Base):
         os.utime(later, (4_000_000_000, 4_000_000_000))
         self.assertEqual(rolekit.last_reject(pathlib.Path(judgment).parent), "計画の欄が足りない")
         self.assertEqual(rolekit.last_reject(self.dir / "nowhere"), "")
+
+    def test_plan_last_reject_is_the_returned_rejects(self):
+        """計画と案の直しの受け付けの最後の拒否は、返りの欄 rejects の最後の行（周のフォルダの拒否の控えを探さない）"""
+        rows = [{"at": "t1", "reason": "1 回目"}, {"at": "t2", "reason": "網羅が\n足りない"}]
+        self.assertEqual(runreport._last_reject(fixed_run(replan={"ready": False, "rejects": rows}), "replan"),
+                         "受け付けの最後の拒否: 網羅が 足りない")
+        self.assertEqual(runreport._last_reject(fixed_run(plan={"ready": False, "rejects": []}), "plan"), runreport.NO_REJECT)
+
+    def test_replan_gave_up_reads_the_returned_rows(self):
+        """案の直しを終えられなかった項目の行は、案の直しと、その事前審査の返りの欄 gave_up から読む（置き場の控えを開かない）"""
+        rows = [{"item": 2, "why": "修正案の役の直しが 3 回とも拒まれた: 網羅", "ruling": "案を直す"}]
+        review = [{"item": 3, "why": "事前審査の役の返答が 3 回とも拒まれた: 形", "ruling": "裁定なし"}]
+        returns = fixed_run(replan={"ready": False, "gave_up": rows}, **{"replan-review-result": {"gave_up": review}})
+        self.assertEqual(runreport.replan_gave_up(returns), [
+            {"where": runreport.REPLAN_GAVE_UP_WHERE.format(item=2), "text": "修正案の役の直しが 3 回とも拒まれた: 網羅。裁定の文: 案を直す"},
+            {"where": runreport.REPLAN_GAVE_UP_WHERE.format(item=3), "text": "事前審査の役の返答が 3 回とも拒まれた: 形。裁定の文: 裁定なし"}])
+        self.assertEqual(runreport.replan_gave_up(fixed_run(replan={"ready": False, "gave_up": None})), [])
 
 
 class LedgerCase(Base):

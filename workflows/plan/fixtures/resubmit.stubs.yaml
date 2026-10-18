@@ -36,6 +36,10 @@ plan:
   depth:
     - {unit_id: u1, depth: 標準, why: "stub: 機械の確かめが無い"}
   round: 1
+  fix_plan: {type: archon_artifact, run_id: fixture-run, path: plan/r1/p2.fix_plan.json}
+  rejects: []
+  nothing_owed: false
+  gave_up: null
 fixture:
   expect: completed
   reached: [round, structure-eye, plan-writer-fix, plan-accept, plan]
