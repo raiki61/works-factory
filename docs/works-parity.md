@@ -65,7 +65,7 @@
 - S001 Claude Code のスキル `/works` として「darkfactory に回して」「works で直して」と頼むと呼べる
   - 元: SKILL.md:1-4
   - 印: 無し
-  - 今: 無し（README.md「使い方」の末尾が、`/works` で同じ事ができるようになると先の話として書くだけ）
+  - 今: 無し（README.md「Usage」の末尾が、`/works` で同じ事ができるようになると先の話として書くだけ）
   - 状態: 無い
   - 処置: 要らない: 持ち主の決め `coexist-before-switch`（`/works` の差し替えは持ち主の動作確認の後の段。それまでは別の入口として並べてよい）
   - 旧棚卸し: 無し
@@ -137,9 +137,9 @@
 - S011 ログインの項目は数時間で切れるので、長い run には `claude setup-token` のトークンを置くよう案内する
   - 元: SKILL.md:15
   - 印: `CLAUDE_CODE_OAUTH_TOKEN`
-  - 今: README.md「使い方」（長い run は `claude setup-token` のトークンを `CLAUDE_CODE_OAUTH_TOKEN` に置く）・`bin/_lib/auth_launch.py::HOWTO`（認証が無い時の 1 行）
+  - 今: README.md「Usage」（長い run は `claude setup-token` のトークンを `CLAUDE_CODE_OAUTH_TOKEN` に置く）・`bin/_lib/auth_launch.py::HOWTO`（認証が無い時の 1 行）
   - 状態: 在る
-  - 処置: 戻した: README.md「使い方」
+  - 処置: 戻した: README.md「Usage」
   - 旧棚卸し: 無し
 
 - S012 run の中の gh は利用者の gh のログインを継ぎ、トークンは gh 自身の置き場のままにする
@@ -181,9 +181,9 @@
 - S017 marketplace を 2 つ足して works のプラグインを入れれば、依存の coldwrite・pr-review-toolkit も入り、リポジトリの clone は要らない
   - 元: SKILL.md:17-23
   - 印: 無し
-  - 今: README.md「使い方」（1 の入れる: clone・bun・借りるプラグイン）・`bin/_lib/toolset.py::installed_sources`
+  - 今: README.md「Usage」（1 の入れる: clone・bun・借りるプラグイン）・`bin/_lib/toolset.py::installed_sources`
   - 状態: 形を変えて在る（このリポジトリを clone して殻を打つ。借りるプラグインは利用者が入れ、足りなければ殻が入れる命令を並べて止まる）
-  - 処置: 要らない: 持ち主の決め `coexist-before-switch`（プラグインの入口は切り替えの段まで claude-plugins に残る。README.md「関係」）
+  - 処置: 要らない: 持ち主の決め `coexist-before-switch`（プラグインの入口は切り替えの段まで claude-plugins に残る。README.md「Related projects」）
   - 旧棚卸し: 無し
 
 - S018 superpowers は works に写した固定の版を使い、利用者が入れた版は使わない
@@ -437,7 +437,7 @@
 - S053 run の後の CI で赤だった試験の id を prior_failures に足す（where は `run の後の CI`、同じ行は 2 度足さない）
   - 元: SKILL.md:71
   - 印: `carry-ci`・`prior_failures`
-  - 今: `lib/carry.py::carry_ci`・`lib/carry.py::main`（README.md「使い方」の 6。呼ぶ形は `python3 -I lib/carry.py carry-ci`）
+  - 今: `lib/carry.py::carry_ci`・`lib/carry.py::main`（README.md「Usage」の 6。呼ぶ形は `python3 -I lib/carry.py carry-ci`）
   - 状態: 在る
   - 旧棚卸し: L-D54
 
@@ -572,13 +572,13 @@
   - 元: SKILL.md:81
   - 印: `--`
   - 今: `bin/_lib/launcher.py::require_command_first`・`bin/_lib/launcher.py::before_double_dash`・止めた Archon の `parseArgs`（strict。`packages/cli/src/cli.ts`）
-  - 状態: 形を変えて在る（旗は命令の後ろに置く。README.md「使い方」）
+  - 状態: 形を変えて在る（旗は命令の後ろに置く。README.md「Usage」）
   - 旧棚卸し: 無し
 
 - S073 手元に commit していない変更が在ると、PR の入口は PR の head と違うとして拒み、base の入口の差分には包んだ手元の変更も入る
   - 元: SKILL.md:81
   - 印: `--pr`・`--base`
-  - 今: `lib/entryshape.py::change_base`・`bin/_lib/startpoint.py::wrap`・README.md「作業ツリーの起点」（包んだ commit は PR の head と違うので run の始めで拒まれ、base の入口の差分には包んだ変更が入る。#495 を #503 で戻した）
+  - 今: `lib/entryshape.py::change_base`・`bin/_lib/startpoint.py::wrap`・README.md「Worktree start point」（包んだ commit は PR の head と違うので run の始めで拒まれ、base の入口の差分には包んだ変更が入る。#495 を #503 で戻した）
   - 状態: 在る
   - 旧棚卸し: 無し
 
@@ -600,7 +600,7 @@
 - S076 commit していない変更・未追跡のファイルが在っても止めず、殻が一時の commit に包み（.gitignore の物は入れない）run をそこから切り、差分を今の手元にそのまま当たる形にする
   - 元: SKILL.md:83
   - 印: 無し
-  - 今: `bin/_lib/startpoint.py::choose`・`bin/_lib/startpoint.py::wrap`・README.md「作業ツリーの起点」（#495 を #503 で戻した）
+  - 今: `bin/_lib/startpoint.py::choose`・`bin/_lib/startpoint.py::wrap`・README.md「Worktree start point」（#495 を #503 で戻した）
   - 状態: 在る
   - 旧棚卸し: 無し
 
@@ -617,7 +617,7 @@
   - 印: `show`
   - 今: `bin/_lib/startpoint.py::choose`
   - 状態: 形を変えて在る（包んだ commit とファイルを起動の 1 行に出す。状態を見る命令は出さない。#495 を #503 で戻した）
-  - 処置: 要らない: 状態を見る命令は README.md「使い方」の 4 が Archon の `workflow status` で言う（`on-archon-only`）
+  - 処置: 要らない: 状態を見る命令は README.md「Usage」の 4 が Archon の `workflow status` で言う（`on-archon-only`）
   - 旧棚卸し: 無し
 
 - S079 remote の `origin` を求め、無ければ確かめの命令が並べ、起動は Archon を起こす前に 1 行で止まって入れ方（`git remote add origin`・手元だけなら対象の外に裸のリポジトリ・`git remote set-head`）を出す。殻は remote を足さない
@@ -698,7 +698,7 @@
 - S089 run の worktree には無視される物（.venv・node_modules・.env）が無いので、test_cmd を worktree の中で環境を作る形にするよう README で案内する
   - 元: SKILL.md:86
   - 印: 無し
-  - 今: README.md「test_cmd と作業ツリー」・`lib/testcmd_check.py::HOW`（#495 を #503 で戻した）
+  - 今: README.md「test_cmd and worktrees」・`lib/testcmd_check.py::HOW`（#495 を #503 で戻した）
   - 状態: 在る
   - 旧棚卸し: 無し
 
@@ -719,7 +719,7 @@
 - S092 相対パスのように worktree で走らない形の test_cmd は `注意（test_cmd）` の行だけ出して止めない
   - 元: SKILL.md:86
   - 印: 無し
-  - 今: `lib/testcmd_check.py::path_notes`・`workflows/line/scripts/testcmd.py::check`・`lib/runreport.py::build`・README.md「test_cmd と作業ツリー」（メイングラフの頭のノードが注意の行を出力の reason に入れ、collect が受けて報告の冒頭に載せる。最初の語なら #666 の止め `lib/tree_run.py::prove_launchable` が試験を起こす前にも止める。#678）
+  - 今: `lib/testcmd_check.py::path_notes`・`workflows/line/scripts/testcmd.py::check`・`lib/runreport.py::build`・README.md「test_cmd and worktrees」（メイングラフの頭のノードが注意の行を出力の reason に入れ、collect が受けて報告の冒頭に載せる。最初の語なら #666 の止め `lib/tree_run.py::prove_launchable` が試験を起こす前にも止める。#678）
   - 状態: 形を変えて在る（行は殻の標準エラーでなく報告の冒頭に出る。#678）
   - 旧棚卸し: 無し
 
@@ -846,7 +846,7 @@
   - 状態: 形を変えて在る（`--input features_off=…`。語に world が足された。知らない語は拒む）
   - 旧棚卸し: L-E31・L-E32
 
-- S110 既定は judge_verify が off・review_tree が auto（開いた項目が 2 つ以上の往復だけ木）・ほかは on で、名指した語が既定に勝つ
+- S110 既定は judge_verify が off・review_tree が auto（開いた項目が 2 つ以上の往復だけ木。run の頭の深さが軽量なら off）・ほかは on で、名指した語が既定に勝つ
   - 元: SKILL.md:93
   - 印: `judge_verify`・`review_tree`・`WORKS_USE_FEATURES_ON`
   - 今: `lib/entry.py::FEATURE_DEFAULTS`・`lib/entry.py::feature_words`
@@ -877,7 +877,7 @@
 - S114 無人の run は起動の承認ノードを越え、人が決める承認ノードに着いたら開かずに止めて報告へ進む（狭める・方針とぶつかる修正は通さない）
   - 元: SKILL.md:94
   - 印: `policy-gate`
-  - 今: `workflows/line/scripts/start.py::start`（ask: not unattended）・`workflows/line/scripts/ask_before_fix.py::ask`・`lib/gatepolicy.py::unattended`・`lib/gatemarks.py::pushed_answer`
+  - 今: `workflows/line/scripts/start.py::start`（ask: not unattended）・`workflows/line/scripts/ask_before_fix.py::ask`・`lib/gatepolicy.py::unattended`・`lib/gatepolicy.py::passage`
   - 状態: 形を変えて在る（承認ノードに載る項目の全部が通す推しを持てば、止まらずに推しで進む。持ち主の決め `unattended` の 2026-10-15）
   - 旧棚卸し: L-G10・L-G39・L-G40・L-W39
 
@@ -912,7 +912,7 @@
 - S119 AI の役の子に `GRAPHLOOPS_ENGINE_CHILD=1` を立て（役の Bash の子にも継ぐ）、対象の重い一式が AI からの起動を拒めるようにし、メイングラフの最後のテストには立てない
   - 元: SKILL.md:96
   - 印: `GRAPHLOOPS_ENGINE_CHILD`
-  - 今: `workflows/.shared/fence.py::ENGINE_CHILD_ENV`（包みが本物の claude を起こす前に立てる。script ノードの最後のテストは包みを通らないので立たない）・README.md「使い方」
+  - 今: `workflows/.shared/fence.py::ENGINE_CHILD_ENV`（包みが本物の claude を起こす前に立てる。script ノードの最後のテストは包みを通らないので立たない）・README.md「Usage」
   - 状態: 在る
   - 処置: 戻した: `workflows/.shared/fence.py::ENGINE_CHILD_ENV`
   - 旧棚卸し: 無し
@@ -936,7 +936,7 @@
   - 印: `launch`
   - 今: `workflows/line/works-factory-line.yaml::gate-start`・`workflows/line/scripts/start.py::gate_text`・`bin/_lib/launcher.py::answer_head`
   - 状態: 形を変えて在る（承認ノードの文は入口・段・機能・最後の承認ノードと、そのまま打てる continue・stop の行。worktree・待つ・取り消す行・報告の置き場は無い）
-  - 処置: 要らない: Archon の `workflow get`・`workflow status` が持つ（README.md「使い方」の 4）
+  - 処置: 要らない: Archon の `workflow get`・`workflow status` が持つ（README.md「Usage」の 4）
   - 旧棚卸し: L-E47・L-E48・L-E50
 
 - S123 2 以上の整数で周の数を名指して周をつなぎ、打たなければ 1 周で鎖の控えを作らない
@@ -1229,7 +1229,7 @@
 - S161 `show <対象>` が start が結んだ一番新しい run（run id を足せばその run）の状態・報告の置き場・差分のファイルを出す。結べなければ候補の run id を出す
   - 元: SKILL.md:132・135
   - 印: `SKILL.md:129`・`show`・`start`
-  - 今: Archon の `workflow status`・`workflow runs`・`workflow get`（README.md「使い方」）
+  - 今: Archon の `workflow status`・`workflow runs`・`workflow get`（README.md「Usage」）
   - 状態: 形を変えて在る（結ぶ印は無く、対象の run の一覧から run id を選ぶ。置き場は get が出す）
   - 処置: 要らない: Archon の status・get が持つ（one-launcher）
   - 旧棚卸し: 無し
@@ -1566,7 +1566,7 @@
 - S206 止め方は 1 つ: `stop <対象> <run-id> "<理由>"`（承認ノードで待つ run には respond stop、走っている run には止め札を置く）
   - 元: SKILL.md:158-164
   - 印: `SKILL.md:156`・`stop`
-  - 今: Archon の `workflow respond`（stop と一言）・Archon の `workflow reject`（README.md「使い方」）
+  - 今: Archon の `workflow respond`（stop と一言）・Archon の `workflow reject`（README.md「Usage」）
   - 状態: 形を変えて在る（承認ノードで待つ run だけを報告つきで止められる。1 つの口に畳んだ別名は無い）
   - 処置: 要らない: 持ち主の決め one-launcher（別名を作らない）と stop-at-gates
   - 旧棚卸し: L-G02・L-G06
@@ -1582,7 +1582,7 @@
 - S208 すぐ止めたい時は「取り消す」の行（`cancel <run-id>`）で、報告のノードまで届かない
   - 元: SKILL.md:165
   - 印: 無し
-  - 今: Archon の `workflow cancel`（README.md「使い方」）
+  - 今: Archon の `workflow cancel`（README.md「Stopping a run」）
   - 状態: 在る
   - 旧棚卸し: L-G55
 
@@ -1643,7 +1643,7 @@
 - U001 本物の AI で run を起こし、最初の承認ノード（起動の承認ノード）で止まって戻る
   - 元: use.sh:4-5・1131-1168
   - 印: `start`
-  - 今: README.md「使い方」（2. 始める）・`bin/_lib/launcher.py::launch`・`workflows/line/works-factory-line.yaml::gate-start`・Archon の `workflow run`
+  - 今: README.md「Usage」（2. 始める）・`bin/_lib/launcher.py::launch`・`workflows/line/works-factory-line.yaml::gate-start`・Archon の `workflow run`
   - 状態: 形を変えて在る（殻の別名でなく `bin/works-factory workflow run works-factory-line --cwd <対象> --input request=<依頼>` を打つ）
   - 旧棚卸し: L-E47
 
@@ -1686,7 +1686,7 @@
 - U007 start --rounds N（2 以上）で周をつなぐ鎖を作る（1 は鎖を作らない 1 周）
   - 元: use.sh:7・96-104・1095-1098・1157-1160
   - 印: `--rounds`
-  - 今: `workflows/chain/works-factory-chain.yaml`（入力 rounds）・`workflows/chain/scripts/chain_start.py::start`・README.md「使い方」（周をつなぐ）
+  - 今: `workflows/chain/works-factory-chain.yaml`（入力 rounds）・`workflows/chain/scripts/chain_start.py::start`・README.md「Usage」（周をつなぐ）
   - 状態: 形を変えて在る（別のグラフ works-factory-chain を名指して起こす。rounds=1 も親の run になる）
   - 旧棚卸し: L-D55
 
@@ -1866,7 +1866,7 @@
 - U032 run・単位の worktree で走らない形（git が無視するパスを相対で指す）の test_cmd には「注意（test_cmd）」の行だけ出して止めない
   - 元: use.sh:61-62・1028
   - 印: 無し
-  - 今: `lib/testcmd_check.py::path_notes`・`workflows/line/scripts/testcmd.py::check`・`lib/runreport.py::build`・README.md「test_cmd と作業ツリー」（メイングラフの頭のノードが注意の行を出力の reason に入れ、collect が受けて報告の冒頭に載せる。最初の語なら #666 の止め `lib/tree_run.py::prove_launchable` が試験を起こす前にも止める。#678）
+  - 今: `lib/testcmd_check.py::path_notes`・`workflows/line/scripts/testcmd.py::check`・`lib/runreport.py::build`・README.md「test_cmd and worktrees」（メイングラフの頭のノードが注意の行を出力の reason に入れ、collect が受けて報告の冒頭に載せる。最初の語なら #666 の止め `lib/tree_run.py::prove_launchable` が試験を起こす前にも止める。#678）
   - 状態: 形を変えて在る（行は殻の標準エラーでなく報告の冒頭に出る。#678）
   - 旧棚卸し: T70
 
@@ -2300,7 +2300,7 @@
 - U090 show で run の状態・次に打つ行・差分のファイルを出し直す
   - 元: use.sh:9-10・use.sh:814-836
   - 印: `show`
-  - 今: Archon の `workflow get`・Archon の `workflow status`（README.md「使い方」の 4. 見る）・`workflows/merge/scripts/merge.py::main`（差分を run の置き場に封じて置く）
+  - 今: Archon の `workflow get`・Archon の `workflow status`（README.md「Usage」の 4. 見る）・`workflows/merge/scripts/merge.py::main`（差分を run の置き場に封じて置く）
   - 状態: 形を変えて在る（状態と行は Archon、差分は merge のサブグラフが run の置き場に置く）
   - 旧棚卸し: M24・M37
 
@@ -2461,7 +2461,7 @@
 - U112 鎖を止めた時、元の基から止まりと言われていない最後の周の結果までの最後の差分 final.diff と報告 chain.md を書き、取り込む行を出す
   - 元: use.sh:703-722
   - 印: `wait`
-  - 今: `workflows/chain/scripts/final_diff.py::final`・`lib/chain.py::pick`・`lib/chain.py::render`・README.md「使い方」（周をつなぐ）
+  - 今: `workflows/chain/scripts/final_diff.py::final`・`lib/chain.py::pick`・`lib/chain.py::render`・README.md「Usage」（周をつなぐ）
   - 状態: 在る
   - 旧棚卸し: L-D57
 
@@ -2519,7 +2519,7 @@
 - U120 answer で、承認ノードで待つ run に continue か stop と一言と答えた者を渡して答える
   - 元: use.sh:16・use.sh:896-924
   - 印: `answer`
-  - 今: Archon の `workflow respond`（README.md「使い方」の 3. 答える）・`lib/answer.py::taken`
+  - 今: Archon の `workflow respond`（README.md「Usage」の 3. 答える）・`lib/answer.py::taken`
   - 状態: 形を変えて在る（Archon の命令をそのまま打つ）
   - 旧棚卸し: L-G02・L-G04
 
@@ -2606,7 +2606,7 @@
 - U132 stop で、承認ノードで待つ run は respond stop で止めて報告へ進める
   - 元: use.sh:18・use.sh:943-946
   - 印: `stop`
-  - 今: Archon の `workflow respond` に stop と一言・`lib/answer.py::taken`（README.md「使い方」の 止める）
+  - 今: Archon の `workflow respond` に stop と一言・`lib/answer.py::taken`（README.md「Stopping a run」）
   - 状態: 在る
   - 旧棚卸し: L-G06・L-G07
 
@@ -2636,7 +2636,7 @@
 - U136 apply で run の差分を書き直し、git apply --check の後に対象へ当てる（commit しない）
   - 元: use.sh:19-21・use.sh:396-434・use.sh:950-971
   - 印: `apply`
-  - 今: `bin/_lib/apply.py::main`・`bin/_lib/apply.py::put`（README.md「使い方」の 5. 当てる）
+  - 今: `bin/_lib/apply.py::main`・`bin/_lib/apply.py::put`（README.md「Usage」の 5. 当てる）
   - 状態: 形を変えて在る（書き直しでなく、封じた差分を hash で照らして当て、読み戻す）
   - 旧棚卸し: M39・M40・M48
 
@@ -2803,7 +2803,7 @@
   - 印: `check`
   - 今: 無し（殻は走らせる命令で 1 つ目に止まり、uv は Archon の validate の警告）
   - 状態: 無い
-  - 処置: 要らない: `one-launcher`。足りない物は `workflow run` の時に Archon を起こす前（AI の費用の前）に入れ方の行つきで止まる（README.md「使い方」の 1. 入れる）。Archon 自身の点検は Archon の `doctor`
+  - 処置: 要らない: `one-launcher`。足りない物は `workflow run` の時に Archon を起こす前（AI の費用の前）に入れ方の行つきで止まる（README.md「Usage」の 1. 入れる）。Archon 自身の点検は Archon の `doctor`
   - 旧棚卸し: 無し
 
 - U160 特定の利用者の端末の道具の枠の中で起こした run は、その枠とサーバを控えに残す
@@ -2941,7 +2941,7 @@
 - K8 依頼・テスト・コードが食い違う時に役が申し出て、読むだけの裁定役が決める
   - 元: keep-essence.md:17
   - 印: `keep-essence.md:17`
-  - 今: `lib/conflict.py::ITEM_SCHEMA`（申し出の形）・`workflows/fix/works-factory-fix.yaml::rule-loop`・`workflows/fix/works-factory-fix.yaml::ruler`（allowed_tools は Read・Grep・Glob・WebSearch・WebFetch、mutates_checkout: false、sandbox 有効）・`workflows/fix/works-factory-fix.yaml::rule-accept`
+  - 今: `lib/conflict.py::ITEM_SCHEMA`（申し出の形）・`workflows/fix/works-factory-fix.yaml::rule-loop`・`workflows/fix/works-factory-fix.yaml::ruler`（allowed_tools は Read・Grep・Glob・WebSearch・WebFetch、mutates_checkout: false、sandbox 有効）・`workflows/fix/works-factory-fix.yaml::rule-accept`・`lib/ruling.py::ask_why_problems`（人に回すのは直しの向きか範囲が変わる申し出だけ）
   - 状態: 在る
   - 旧棚卸し: F200・F201・F209・F210・F211
 
@@ -2959,11 +2959,11 @@
   - 状態: 在る
   - 旧棚卸し: P159・P162・P163・P175・P177・E5・E6・L-W55
 
-- K9b R1〜R4 の 4 つの観点の審査（最小性・設計の比較・整合・隠れた範囲）
+- K9b R1〜R4 の 4 つの観点（最小性・設計の比較・整合・隠れた範囲）を、どれも審査の指示に残して見る。観点ごとに別の役にするのは標準と重厚の run で、軽量の run で目を省かずに回す時は、整合・隠れた範囲を 1 つの役が 1 つの会話の観点として見て、最小性（R1）と設計の比較（R2）はそれぞれ別の役に分ける（issue #687 の持ち主の決め 3）
   - 元: keep-essence.md:18
   - 印: 無し
-  - 今: `workflows/eyes/works-factory-eyes.yaml::r1-minimality`・`workflows/eyes/works-factory-eyes.yaml::r1-minimality-verdict`・`workflows/eyes/works-factory-eyes.yaml::r2-compare`・`workflows/eyes/works-factory-eyes.yaml::r2-compare-verdict`・`workflows/eyes/works-factory-eyes.yaml::r3-coherence`・`workflows/eyes/works-factory-eyes.yaml::r3-coherence-verdict`・`workflows/eyes/works-factory-eyes.yaml::r4-loop`・`workflows/eyes/works-factory-eyes.yaml::r4-scope-verdict`
-  - 状態: 在る
+  - 今: `workflows/eyes/works-factory-eyes.yaml::eyes-one`（軽量の run のまとめた役）・`workflows/eyes/works-factory-eyes.yaml::r3-one-verdict`・`workflows/eyes/works-factory-eyes.yaml::r1-minimality`・`workflows/eyes/works-factory-eyes.yaml::r1-minimality-verdict`・`workflows/eyes/works-factory-eyes.yaml::r2-compare`・`workflows/eyes/works-factory-eyes.yaml::r2-compare-verdict`・`workflows/eyes/works-factory-eyes.yaml::r3-coherence`・`workflows/eyes/works-factory-eyes.yaml::r3-coherence-verdict`・`workflows/eyes/works-factory-eyes.yaml::r4-loop`・`workflows/eyes/works-factory-eyes.yaml::r4-scope-verdict`
+  - 状態: 形を変えて在る（軽量の run では R3・R4 の観点を 1 つの役で見る）
   - 旧棚卸し: E2・E3・E8・E9
 
 - K10 対象のリポジトリが守ると宣言したファイルに触れたら、開き方（protected_only・when_needed・always）に関わらず最後の人の承認ノードを開き、答えが無ければ差分を当てない
@@ -3025,8 +3025,8 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 180
-- 状態 形を変えて在る: 178
+- 状態 在る: 179
+- 状態 形を変えて在る: 179
 - 状態 無い: 47
 - 処置 #516: 4
 - 処置 戻した: 10
@@ -3183,8 +3183,8 @@
 - fix.md F316: lib/fixboard.py::delta_review、workflows/fix/scripts/collect.py
 - fix.md F317: workflows/fix/scripts/collect.py の組の形、YAML の delta-cut・lens-collect・delta-loop の `when: "$route.output.group == false ..."`
 - fix.md F318: workflows/fix/scripts/delta_cut.py::main、lib/depth.py::skip_reason
-- fix.md F319: lib/fixboard.py::depth_signals・lib/fixboard.py::redepth、workflows/fix/scripts/delta_cut.py::main
-- fix.md F320: 報告（lib/runreport.py::_entry_lines）は計画の深さ（plan の出力 depth）だけを出す。fix の置き場の `depth-raised.json`・`delta/skipped.json` は出力に載らない（出力は delta_review {0, true} だけ）。メイングラフの redepth（workflows/line/scripts/redepth.py）も同じ信号で上げ直すが、fix の中の上げ直しとは別に数える
+- fix.md F319: lib/fixboard.py::depth_signals・lib/fixboard.py::redepth・lib/latedepth.py::signals、workflows/fix/scripts/delta_cut.py::main
+- fix.md F320: 報告（lib/runreport.py::_entry_lines）は計画の深さ（plan の出力 depth）だけを出す。fix の置き場の `depth-raised.json`・`delta/skipped.json` は出力に載らない（出力は delta_review {0, true} だけ）。メイングラフの redepth（workflows/line/scripts/redepth.py）も同じ数え（lib/latedepth.py::signals）で上げ直すが、fix の中の上げ直しとは別に数える
 - fix.md F321: lib/fixboard.py::delta_review_due、workflows/fix/scripts/delta_cut.py（修正前の版からの累積差分が空（.archon/ の下を除く）で 1 回目の claimed_closed も無ければ go: false、訳は delta/skipped.json）（#121）
 - fix.md F322: lib/refix.py::_drop_stale
 - fix.md F323: lib/refix.py::cut（conflict.fields_broken）
@@ -3264,7 +3264,7 @@
 - gaps-fix.md F306: lib/deltamarks.py、lib/refix.py::accept_review、YAML の delta-review の output_format の required（workflows/fix/works-factory-fix.yaml::delta-review）
 - gaps-fix.md F313: workflows/fix/scripts/cut2.py::main、lib/refix.py::cut の n=2、lib/fixboard.py::claimed_closed（2 回目の claimed_closed は 1 回目の手直しの fixed）
 - gaps-fix.md F317: workflows/fix/scripts/collect.py の組の形、YAML の delta-cut・lens-collect・delta-loop の `when: "$route.output.group == false ..."`
-- gaps-fix.md F319: lib/fixboard.py::depth_signals・lib/fixboard.py::redepth、workflows/fix/scripts/delta_cut.py::main
+- gaps-fix.md F319: lib/fixboard.py::depth_signals・lib/fixboard.py::redepth・lib/latedepth.py::signals、workflows/fix/scripts/delta_cut.py::main
 - gaps-fix.md F321: lib/fixboard.py::delta_review_due、workflows/fix/scripts/delta_cut.py（修正前の版からの累積差分が空（.archon/ の下を除く）で 1 回目の claimed_closed も無ければ go: false、訳は delta/skipped.json）（#121）
 - gaps-fix.md F324: lib/refix.py::cut（seat.section）、workflows/fix/commands/delta-review.md の seat_file の行
 - gaps-fix.md F325: lib/fixboard.py::refix_prompt、lib/refixrules.py、workflows/fix/commands/fix-rules/refix.md
@@ -3550,7 +3550,7 @@
 - line.md L-G37: 報告は lib/runreport.py::_decisions。最後の承認ノードは workflows/line/scripts/ask_final.py::ledger_rows（gatemarks.answered_lines・unmatched_answer_lines）→ question_lines
 - line.md L-G38: workflows/line/scripts/ask_before_fix.py::ask（無人の run は種類 fork・escalate の行だけを deferred にする）
 - line.md L-G39: workflows/line/scripts/ask_before_fix.py::ask・workflows/line/scripts/ask_replan.py::ask・workflows/line/scripts/ask_final.py::ask の `works:needs-human`
-- line.md L-G40: workflows/line/scripts/ask_before_fix.py::ask: 事前審査の出力 questions の行 {kind, text}（plan-review が種類を残す。lib/boardview.py::collect）のうち fork・escalate でない行（方針の文書の変化・事前審査の諦め given_up・狭め・穴・世界の解の外れ・設計）は無人の run で止める（全部が通す推しを持てば lib/gatemarks.py::pushed_answer で推しで進む）
+- line.md L-G40: workflows/line/scripts/ask_before_fix.py::ask: 事前審査の出力 questions の行 {kind, text}（plan-review が種類を残す。lib/boardview.py::collect）のうち fork・escalate でない行（方針の文書の変化・事前審査の諦め given_up・狭め・穴・世界の解の外れ・設計）は無人の run で止める（全部が通す推しを持てば lib/gatepolicy.py::passage で推しで進む）
 - line.md L-G41: lib/runreport.py::answer_drafts・lib/runreport.py::build
 - line.md L-G42: lib/gatemarks.py::recommend_gaps
 - line.md L-G43: workflows/line/scripts/ask_replan.py::ask
@@ -3608,7 +3608,7 @@
 - line.md L-W39: workflows/line/scripts/ask_before_fix.py・ask_replan.py・ask_final.py が止め（needs-human）と deferred・widened・reasons を返し、collect が report の入力 stops・deferred・widened・final-reasons に渡す。lib/runreport.py::_line_lines・lib/runreport.py::_stop_lines
 - line.md L-W40: 再審は 2 度目の修正の後（部分 D1）: fixed が 1 回目と 2 度目の修正役の異議をつないで rejudge を決め（workflows/line/scripts/fixed.py::fixed）、yaml の rejudge-run は `depends_on: [fixed]`・`when: $fixed.output.rejudge == true`、judged は fixed と rejudge-run の後、試験の関門（final）は judged の止めを読む（`when` に `$judged.output.stop_reason == ''`）
 - line.md L-W41: 無し。judge を新しく挟み、異議を入力で渡す（workflows/line/works-factory-line.yaml::rejudge-run）
-- line.md L-W42: 判定のサブグラフが再審の judgment の隣に rejudge-exit.json・rejudge-diff.json を書き（lib/judge_accept.rejudge_collect）、メイングラフの workflows/line/scripts/judged.py::compared と lib/runreport.py::rejudge_lines・lib/runreport.py::rejudge_opened・lib/runreport.py::rejudge_lowered・lib/runreport.py::rejudge_changes はそれを読むだけ（名は lib/report.py::REJUDGE_EXIT・lib/report.py::REJUDGE_DIFF。報告は report の入力 rejudge の judgment の隣を読む）
+- line.md L-W42: 判定のサブグラフが再審の judgment の隣に rejudge-exit.json・rejudge-diff.json を書き（lib/judge_accept.rejudge_collect）、メイングラフの workflows/line/scripts/judged.py::compared と lib/runreport.py::rejudge_lines・lib/runreport.py::rejudge_opened・lib/runreport.py::rejudge_lowered・lib/runreport.py::rejudge_changes はそれを読むだけ（名は lib/judgebeside.py::REJUDGE_EXIT_FILE・lib/judgebeside.py::REJUDGE_DIFF_FILE。報告は report の入力 rejudge の judgment の隣を読む）
 - line.md L-W43: workflows/line/works-factory-line.yaml::eyes（eyes の units・judgment・purpose・world ＝ `$judged.output.*`）・workflows/line/works-factory-line.yaml::ask-final（ask-final の judgment）
 - line.md L-W44: workflows/line/scripts/after_fix.py::decide、workflows/line/works-factory-line.yaml::replan（ruling・conflicts）
 - line.md L-W45: メイングラフの replan-review の with: の conflicts・gate_answers（申し出と裁定・修正前の承認ノードの答え）。往復の中の plan-review-run には渡さない（修正前の承認ノードより前）
@@ -3643,7 +3643,7 @@
 - line.md L-D07: workflows/line/scripts/redepth.py::redepth
 - line.md L-D08: workflows/line/scripts/redepth.py::pending_signals（gatemarks.ledger_at・gatemarks.pending。入力 answer_ties・materials のポインタの先。判定の問いの台帳と依頼の answers と修正前の承認ノードの答え。台帳が読めなければ上げる側）
 - line.md L-D09: workflows/line/scripts/redepth.py::redepth、workflows/line/works-factory-line.yaml::redepth
-- line.md L-D10: workflows/line/scripts/redepth.py::wide_signals（depth.run_wide。計画の欄と fixed の差分。counted を返し報告の深さの行に出る）と fix の中の lib/fixboard.py::redepth
+- line.md L-D10: workflows/line/scripts/redepth.py::fix_signals（lib/latedepth.py::signals の depth.run_wide。計画の欄と fixed の差分。counted を返し報告の深さの行に出る）と fix の中の lib/fixboard.py::redepth
 - line.md L-D11: yaml の eyes.depth（$redepth.output.depth）→ workflows/eyes/scripts/prep.py::out の run_eyes（depth.skip_reason）
 - line.md L-D12: workflows/fix/scripts/delta_cut.py（fixboard.redepth の skip_reason で delta/skipped.json を書いて go: false。後ろのレンズ・手直しも飛ぶ）
 - line.md L-D13: lib/runreport.py::_depth_lines（redepth の出力 {depth, raised, counted} を lib/depth.lines の形で。単位ごとの数・上げた信号・run の広さの数え・軽量で省いた物）
@@ -3710,7 +3710,7 @@
 - plan.md P016: lib/planfile.py::take_plan（reply.json・p2.fix_plan.json に欄のまま置く）
 - plan.md P017: lib/planmarks.py::gaps（元と字のまま）・lib/planfile.py::take_plan
 - plan.md P018: lib/planmarks.py::gaps
-- plan.md P019: lib/planmarks.py::gaps・lib/planmarks.py::glob_problem
+- plan.md P019: lib/planmarks.py::gaps・lib/globs.py::glob_problem
 - plan.md P020: lib/planmarks.py::_symbol_problem・lib/planmarks.py::gaps
 - plan.md P021: lib/planfile.py::_save・lib/planfile.py::take_plan
 - plan.md P022: lib/planmarks.py::_limit・lib/planmarks.py::split
@@ -3851,7 +3851,7 @@
 - plan.md P158: workflows/plan-review/fixtures/
 - plan.md P159: lib/boardview.py::r2_due・workflows/plan-review/works-factory-plan-review.yaml::r2-design-loop `when: "$open.output.r2_go == true"`
 - plan.md P160: lib/boardview.py::purpose_unusable・lib/design.py::UNUSABLE
-- plan.md P161: judge が判定の隣に purpose-review.json を置いて出力の欄 purpose_review で返し（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が入力 purpose_review の先を読む（名は lib/purpose.py::PURPOSE_REVIEW_FILE の 1 か所）
+- plan.md P161: judge が判定の隣に purpose-review.json を置いて出力の欄 purpose_review で返し（lib/judge_accept.py::verdict）、plan-review の lib/boardview.py::_purpose_review が入力 purpose_review の先を読む（名は lib/judgebeside.py::PURPOSE_REVIEW_FILE の 1 か所）
 - plan.md P162: workflows/plan-review/works-factory-plan-review.yaml::r2-design（systemPrompt。Archon の packages/providers/src/claude/provider.ts がノードの systemPrompt で既定の system prompt を置き換える）
 - plan.md P163: lib/boardview.py::r2_prompt・workflows/plan-review/scripts/r2_prep.py
 - plan.md P164: lib/boardview.py::r2_prompt（purpose.json の purpose_text だけを読む）
@@ -4233,7 +4233,7 @@
 - tail.md M52: bin/_lib/apply.py::pointed
 - tail.md M53: 無し（周の鎖そのものがまだ無い）
 - tail.md M54: lib/protected.json・lib/protect.py::load
-- tail.md M55: lib/protect.py::match（planmarks.glob_match）
+- tail.md M55: lib/protect.py::match（globs.glob_match）
 - tail.md M56: lib/protected.json（行 manifest・checker・checker-test）
 - tail.md M57: lib/protected.json（行 baseline-red・baseline-red-test・green-cert・green-cert-test）
 - tail.md M58: lib/protected.json

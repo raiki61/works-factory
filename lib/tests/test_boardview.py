@@ -320,6 +320,9 @@ class RulesCase(Base):
         self.assertEqual(boardview.tree_word(None), "auto")
         self.assertEqual(boardview.tree_word({"features_on": ["review_tree"]}), "on")
         self.assertEqual(boardview.tree_word({"features_off": ["review_tree"]}), "off")
+        self.assertEqual(boardview.tree_word(None, "軽量"), "off")
+        self.assertEqual(boardview.tree_word({"features_on": ["review_tree"]}, "軽量"), "on")
+        self.assertEqual((boardview.tree_word(None, "標準"), boardview.tree_word(None, "重厚")), ("auto", "on"))
 
     def test_review_body_names_the_run_values(self):
         """役の指示書の『リポジトリ: 』の行から末尾を、run の値（対象・読む版・BASE・観点の正本）に置き換え、人の方針の節（在れば）を

@@ -386,7 +386,7 @@ def head_cost(facts: dict, why: str = "") -> list:
             *cost_rows(facts), *resubmit_rows(facts)]
 
 
-DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 判定の出力の欄 depth_record の先（depth-head.json）の groups／"
+DATA_PLACES = ("固定のデータの在り処（鍵は run の id）: 選び = 判定の出力の欄 depth_record の先の groups／"
                "実際の値 = $LOG_DIR/<run の id>.jsonl の行の execution.binding／"
                "結末 = メイングラフの出力 result の outcome・stop_reason")
 
@@ -537,7 +537,7 @@ def answer_drafts(returns: dict, gates: dict, start: dict, spec_changed=(), spec
     report.next_items の pending_human）ごとに 1 行。項目の文が修正案の狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手
     （推し recommend・狭めない案 no_narrow・世界の解 world）を使う
     ②人の居る run でも無人の run でも、保留のままの台帳の問いごとに 1 行（理由の推しか選択肢）
-    ③問いの立っていない測れていない素材ごとに 1 行（materials.json の reason つき。依頼の answers が当たった素材は除く）
+    ③問いの立っていない測れていない素材ごとに 1 行（判定の出力の欄 materials の先の reason つき。依頼の answers が当たった素材は除く）
     同じ question の行は 1 度だけ。機械は関所にも問いにも答えない——下書きは依頼の入口が拒むので、人が見直してから使う"""
     rows = [*_fix_plan_rows(returns), *_face_rows(returns), *_world_rows(returns)]
     asked = oc.eye_questions(returns)
@@ -659,7 +659,7 @@ def _judgment_units(ret) -> dict:
 
 
 def rejudge_exit(returns: dict) -> tuple:
-    """(再審の出口 rejudge-exit.json の中身, 読めなかった訳)。再審の判定の出力の欄 rejudge_exit の先（判定のブロックが書く。
+    """(再審の出口の中身, 読めなかった訳)。再審の判定の出力の欄 rejudge_exit の先（判定のブロックが書く。
     lib/report.rejudge_exit）。再審が走っていなければ (None, "")"""
     rejudge = returns.get("rejudge")
     if not isinstance(rejudge, dict):
@@ -1544,9 +1544,10 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     gate_words = gatepolicy.head_words(s)
     if gate_words:
         out.append(gate_words)
-    adds = depthlib.tier_adds(as_dict(returns.get("judge")).get("depth"))
-    feats = (f"・{entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s), adds)}"
-             if entrylib.FEATURES_KEY in s else "")
+    head = as_dict(returns.get("judge")).get("depth")
+    part = entrylib.features_part(s.get(entrylib.FEATURES_KEY) or [], entrylib.features_on_of(s), depthlib.tier_adds(head),
+                                  depthlib.tier_auto(head))
+    feats = f"・{part}" if entrylib.FEATURES_KEY in s else ""
     out.append(f"段: {s.get('thickness') or '自動（機械が単位ごとに決めた）'}{feats}")
     answered = [g for g in as_dict(gates).values() if isinstance(g, dict)]
     pushed = sum(1 for g in answered if answer.by_push(g))

@@ -61,6 +61,8 @@ import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import fixture  # noqa: E402
 import gatemarks  # noqa: E402
+import gatepolicy  # noqa: E402
+import latedepth  # noqa: E402
 import green_cert  # noqa: E402
 import judge_accept  # noqa: E402
 import outcome  # noqa: E402
@@ -1229,6 +1231,17 @@ def planned(**kw) -> dict:
     return got
 
 
+class UnattendedPolicyCallCase(unittest.TestCase):
+    def test_gate_scripts_leave_the_unattended_choice_to_the_policy(self):
+        """#653: 修正前と案の直しの承認ノードの script は、無人の run の進むか止まるかを gatepolicy.passage に渡すだけで、止めの語を
+        自分で組まない（分かれ道の写しを持たない）"""
+        for name in ("ask_before_fix", "ask_replan"):
+            with self.subTest(name=name):
+                text = (SCRIPTS / f"{name}.py").read_text(encoding="utf-8")
+                self.assertIn("gatepolicy.passage(", text)
+                self.assertNotIn("NEEDS_HUMAN", text)
+
+
 class AskBeforeFixCase(unittest.TestCase):
     def ask(self, plan, unattended=False, design_only=False):
         return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, run_id=RUN)
@@ -1284,7 +1297,7 @@ class AskBeforeFixCase(unittest.TestCase):
                        unattended=True)
         self.assertEqual((got["open"], got["go"], got["stop_reason"], got["deferred"], got["asked"]),
                          (False, True, "", ["0 を返すか"], rows))
-        self.assertEqual(got["pushed"], gatemarks.pushed_answer(rows))
+        self.assertEqual(got["pushed"], gatepolicy.passage(rows, gatemarks.row_push).pushed)
         self.assertEqual(got["pushed"]["text"], "a で通す；b で通す")
 
     def test_unattended_stops_when_a_push_stops_or_is_missing(self):
@@ -2452,7 +2465,7 @@ class AfterFixAndJudgedCase(Artifacts):
         self.assertIn("比べられない", got["unread"])
         judge = self.returned(self.judgment("judge/judgment.json", []))
         got = judged.judged(judge, self.returned(self.judgment("rejudge/judgment.json", [])), "")
-        self.assertIn(f"{judge_accept.REJUDGE_EXIT} が無い", got["unread"])
+        self.assertIn("再審の出口が無い", got["unread"])
 
 
 class FixedCase(unittest.TestCase):
@@ -2735,14 +2748,15 @@ class RedepthCase(Artifacts):
         plan = self.put("plan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "tests": [], "rewrite_tests": []}]})
         diff = "".join(f"diff --git a/w{n}.py b/w{n}.py\n--- a/w{n}.py\n+++ b/w{n}.py\n@@ -1 +1 @@\n-x\n+y\n" for n in range(4))
         ptr = self.put("fix/diff.patch", diff)
-        signals, counted = redepth.wide_signals(plan, ptr, ["u1"])
+        stage = fixbeside.stage({"diff": ptr, **dict.fromkeys(fixbeside.PORTS), "removed": [], "tdd_refused": {"refused": [], "unread": []}})
+        signals, counted = redepth.fix_signals(plan, ptr, [stage], None, ["u1"])
         self.assertEqual(signals, ["run 全体で触るファイル 5 個（3 個まで）"])
-        self.assertEqual(counted, "触るファイル 5 個（起点: 修正の差分 fix/diff.patch）")
+        self.assertTrue(counted.startswith("触るファイル 5 個（起点: 修正の差分 fix/diff.patch）／"), counted)
         got = self.redepth(signals=signals, counted=counted)
         self.assertEqual((got["depth"][0]["depth"], got["counted"]), ("標準", counted))
-        signals, counted = redepth.wide_signals(plan, None, ["u1"])
+        signals, counted = redepth.fix_signals(plan, None, [], None, ["u1"])
         self.assertEqual(signals, [])
-        self.assertTrue(counted.startswith(f"触るファイル 1 個（起点: {redepth.PLAN_ORIGIN}"), counted)
+        self.assertTrue(counted.startswith(f"触るファイル 1 個（起点: {latedepth.PLAN_ORIGIN}"), counted)
 
     def test_the_node_joins_the_question_and_width_signals(self):
         """L-D08・L-D10: ノード redepth は with: の判定・始めの記録・修正前の承認ノードの答え・結びの判定から答えていない問いの信号を、
@@ -2769,6 +2783,50 @@ class RedepthCase(Artifacts):
         self.assertIn("run 全体で触るファイル 5 個（3 個まで）", got["raised"])
         self.assertTrue(got["counted"].startswith("触るファイル 5 個（起点: 修正の差分 fix/diff.patch）"), got["counted"])
         self.assertIn("修正の後の信号の控えが無い", got["counted"])
+
+    def test_fix_and_line_read_missing_and_broken_records_alike(self):
+        """#654: 修正のブロックの中の上げ直し（fixboard.redepth）と線の redepth は、同じ置き場の修正の後の信号の控えを
+        latedepth.signals の 1 つの決まりで読む。範囲の相談の行を運ぶ控え（fix では戻せた組の子の結果、線では欄 accept_trace の先）が
+        無ければどちらも上げずに counted に訳を添え、在るのに読めなければどちらも上げる側へ倒す。TDD の輪の状態も同じ"""
+        import tddloop
+        place = self.artifacts / "fix"
+        diff = self.put("fix/diff.patch", "")
+        result = place / "groups" / "g1" / fixboard.RESULT_FILE
+        env = {"INPUTS_DEPTH": json.dumps(self.LIGHT, ensure_ascii=False), "INPUTS_REPLAN_DEPTH": "null", "INPUTS_UNITS": "[]",
+               "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": "null", "INPUTS_DIFF": json.dumps(diff), "INPUTS_JUDGMENT": "null",
+               "INPUTS_START": "null", "INPUTS_ANSWER": "null", "INPUTS_ANSWER_TIES": "null", "INPUTS_MATERIALS": "null",
+               "INPUTS_DEPTH_RECORD": "null", "INPUTS_REPLANNED": "false", "INPUTS_REJUDGED": "false", "INPUTS_HEAD_DEPTH": "軽量",
+               "INPUTS_PLAN_DECLARED": "[]"}
+
+        def outcome(*, result_doc, trace, state):
+            """(fix の (上げたか, 無い訳を添えたか), 線の同じ組)。None の控えは置かない"""
+            shutil.rmtree(place, ignore_errors=True)
+            fixboard.write_json(place / fixboard.DEPTH_FILE, self.LIGHT)
+            fixboard.write_json(place / fixboard.HEAD_DEPTH_FILE, "軽量")
+            fixboard.write_json(place / fixboard.GROUPS_FILE, {"groups": [{"group_id": "g1"}], "out_dir": str(place / "groups")})
+            fixboard.write_json(place / fixboard.JOIN_FILE, {"groups": [{"group_id": "g1", "returned": True}], "units": []})
+            self.put("fix/diff.patch", "")
+            for rel, doc in ((result.relative_to(self.artifacts).as_posix(), result_doc), ("fix/accept-trace.json", trace),
+                             (f"fix/tdd-1/{tddloop.STATE}", state)):
+                if doc is not None:
+                    self.put(rel, doc)
+            skip = fixboard.redepth(place, place)
+            counted = fixboard.read_json(place / fixboard.DEPTH_RAISED_FILE)["counted"]
+            got = fixbeside.returned(place, lambda path: boundary.pointer(path.relative_to(self.artifacts).as_posix()))
+            with mock.patch.dict(os.environ, {**env, "INPUTS_RECORDS": json.dumps([fixbeside.stage({"diff": diff, **got})])}):
+                line = redepth.compute()
+            no_record = latedepth.NO_LATE_RECORD.split("（")[0]
+            return ((skip == "", no_record in counted),
+                    (line["depth"][0]["depth"] == "標準", no_record in line["counted"]))
+
+        passed = {"calls": [{"n": 1, "phase": "fix", "unit_key": "u1", "ok": True}]}
+        for case, kw, want in (("揃った控え", {"result_doc": {"group_id": "g1"}, "trace": [], "state": passed}, (False, False)),
+                               ("輪の状態が無い", {"result_doc": {"group_id": "g1"}, "trace": [], "state": None}, (False, False)),
+                               ("相談の行の控えが無い", {"result_doc": None, "trace": None, "state": passed}, (False, True)),
+                               ("相談の行の控えが壊れた", {"result_doc": "{壊れた", "trace": "{壊れた", "state": passed}, (True, False)),
+                               ("輪の状態が壊れた", {"result_doc": {"group_id": "g1"}, "trace": [], "state": "{壊れた"}, (True, False))):
+            with self.subTest(case):
+                self.assertEqual(outcome(**kw), (want, want))
 
     def test_late_signals_come_from_the_stage_ports(self):
         """修正の後の 3 つの事実: diff の触るファイルが 1 回目の判定の頭の深さの控え（入力 depth_record）の where の外（テストのファイルを除く）・最後の
@@ -2803,8 +2861,9 @@ class RedepthCase(Artifacts):
         def signals(*names):
             if names:
                 self.put("fix/diff.patch", patch(*names))   # 同じ指し札のまま差分の中身を替える
-            return redepth.fix_signals(plan, diff, records(), depth_record, ["u1"])
-        no_trace = redepth.NO_LATE_RECORD.format(name="accept-trace.json")
+            got, counted = redepth.fix_signals(plan, diff, records(), depth_record, ["u1"])
+            return got, counted.split("／")[1:]
+        no_trace = latedepth.NO_LATE_RECORD.format(name="accept-trace.json")
         self.assertEqual(signals(), ([], [no_trace]), "受け付けの行が無い時は上げずに訳を添え、輪の状態が無い時は拒否を数えない")
         self.put(tdd_name, passed)
         self.put(trace_name, [gate, {"op": "fix_tests_selected", "note": "x"}])
@@ -2836,7 +2895,8 @@ class RedepthCase(Artifacts):
         self.assertIn("修正の後の信号の控えが読めない", got[0])
         self.put(tdd_name, {"error": "組めなかった"})
         self.assertIn("組めなかった", signals()[0][0])
-        self.assertEqual(redepth.fix_signals(plan, None, [], depth_record, ["u1"]), ([], []), "diff が null なら何も足さない")
+        got, counted = redepth.fix_signals(plan, None, [], depth_record, ["u1"])
+        self.assertEqual((got, counted.split("／")[1:]), ([], []), "diff が null なら修正の段の信号も訳も足さない")
         env = {"INPUTS_DEPTH": json.dumps(self.LIGHT, ensure_ascii=False), "INPUTS_REPLAN_DEPTH": "null", "INPUTS_UNITS": "[]",
                "INPUTS_CONFLICTS": "[]", "INPUTS_PLAN": json.dumps(plan), "INPUTS_DIFF": json.dumps(diff),
                "INPUTS_JUDGMENT": json.dumps(judgment), "INPUTS_START": "null", "INPUTS_ANSWER": "null",

@@ -177,6 +177,49 @@
       }
     ]
   },
+  "workflows/eyes/commands/eyes-one.md": {
+    "inserts": [
+      "$prep.output.lang_line",
+      "$prep.output.one_briefs",
+      "$r4-reject.output.reason"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/eyes/works-factory-eyes.yaml#eyes-one"
+      ],
+      "output_format_sha256": "06cb5b3b2be99c6b9c152f1c262c0f6843c725ca8cfeca5dab62d765eb95c65a",
+      "json_keys": []
+    },
+    "forbidden": [
+      {
+        "what": "作業ツリーを変えない",
+        "quote": "作業ツリーを 1 文字も変えてはいけない"
+      },
+      {
+        "what": "R1 と R2 を見ない",
+        "quote": "この役は R1 も R2 も見ない"
+      },
+      {
+        "what": "どの観点も省かない",
+        "quote": "どの観点も省かない"
+      },
+      {
+        "what": "ほかの観点の札に合わせない",
+        "quote": "ほかの観点の札に合わせない"
+      }
+    ],
+    "steps": [
+      {
+        "what": "観点ごとの指示書を全部読む",
+        "quote": "上の指示書を、並んだ順に全部 Read で読め"
+      },
+      {
+        "what": "観点ごとの返答を 1 つの JSON にまとめる",
+        "quote": "返答は 1 つの JSON にまとめる"
+      }
+    ],
+    "stops": []
+  },
   "workflows/eyes/commands/premise-check.md": {
     "inserts": [
       "$prep.output.constraints_text",
@@ -879,6 +922,30 @@
       }
     ],
     "steps": [],
+    "stops": []
+  },
+  "workflows/eyes/works-factory-eyes.yaml#eyes-one-fix.prompt": {
+    "inserts": [
+      "$r4-reject.output.brief"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/eyes/works-factory-eyes.yaml#eyes-one-fix"
+      ],
+      "output_format_sha256": "f3ce62bb812530bd0d5aa3f63f8196850efc76051fd7d859870e5ec13b13c5de",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で全部読み"
+      },
+      {
+        "what": "指示書の返し方の形の JSON だけを返す",
+        "quote": "返すのは指示書の返し方の形の JSON だけ"
+      }
+    ],
     "stops": []
   },
   "workflows/eyes/works-factory-eyes.yaml#r4-scope-fix.prompt": {
@@ -1735,6 +1802,8 @@
       "nodes": [],
       "output_format_sha256": null,
       "json_keys": [
+        "ask_why",
+        "changes",
         "counts",
         "decision",
         "grounds",
@@ -1742,6 +1811,7 @@
         "how",
         "id",
         "limits",
+        "line",
         "misses",
         "query",
         "request_searched",
@@ -1777,6 +1847,14 @@
       {
         "what": "同じ字で defects の問いが書けないことを理由に人に回さない",
         "quote": "書けないとして `ask_human` に倒すな"
+      },
+      {
+        "what": "名の重なりを別の物と読むのは言語・在り処・役割が違い消す名の生き残りでない時だけ",
+        "quote": "消す名の生き残りでもない時だけ"
+      },
+      {
+        "what": "消す名を古いテストのために定義し直した物は limits に挙げない",
+        "quote": "同じ物で、`limits` に挙げない"
       }
     ],
     "steps": [
@@ -2291,7 +2369,7 @@
       "nodes": [
         "workflows/fix/works-factory-fix.yaml#ruler"
       ],
-      "output_format_sha256": "1a49d6835e5641dc81bbd78972d10c8f85bc6c4ebe3a3e5dbd9c2ba45829fb55",
+      "output_format_sha256": "4939b420d98a3830fd9c97cf8a98bd52f785ca8037358451e29d22856c67f5c3",
       "json_keys": []
     },
     "forbidden": [],

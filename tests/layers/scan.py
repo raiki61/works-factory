@@ -553,9 +553,9 @@ class NameHome:
 # workflows/.shared/・住処でない lib/）は名を持たず、出力の欄・入力で受ける（workflows/AGENTS.md の E4）
 NAME_HOMES = {
     "judge": NameHome("判定", "判定の置き場のファイルを名指す", "判定の出力の欄のポインタを入力で受ける", (("judge_accept", "PORTS"), ("judge_accept", "FIRST_PORTS")),
-                      ("lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py", "lib/gatemarks.py",
-                       "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py", "lib/worldmark.py",
-                       "lib/report.py"), writer="judge_accept"),
+                      ("lib/judgebeside.py", "lib/judge_accept.py", "lib/premises.py", "lib/judgeverify.py", "lib/prcheck.py",
+                       "lib/gatemarks.py", "lib/purpose.py", "lib/headdepth.py", "lib/policy.py", "lib/marks.py", "lib/diverted.py",
+                       "lib/worldmark.py"), writer="judge_accept"),
     "plan": NameHome("計画", "計画の置き場のファイルを名指す", "計画の出力の欄を入力で受ける", (("planfile", "PORTS"), ("planfile", "FROM")), ("lib/planfile.py", "lib/planblk.py", "lib/eye.py"),
                      openers=("lib/rolekit.py",)),
     "fix": NameHome("修正", "修正の置き場のファイルを名指す", "修正の出力の欄を入力で受ける", (("fixbeside", "PORTS"), ("fixbeside", "FROM")),
@@ -1858,12 +1858,13 @@ def _imports_against_map(root: Path, files) -> list[str]:
 
 def _beside_names(root: Path, files) -> list[str]:
     """名は複数のブロックの隣に在ってよい。名の `<k>` の形の段は、名の 1 段の字に当てる（`tdd-<k>/state.json`）。
-    ブロックの YAML の `inputs:` の `description:` は見ない。ポインタの入力の説明は先のファイルの名を書く決まり（workflows/AGENTS.md の E4）で、
+    持ち主のブロックの名の住処（地図の homes）の中の名は数えない。ブロックの YAML の `inputs:` の `description:` は見ない。ポインタの入力の説明は先のファイルの名を書く決まり（workflows/AGENTS.md の E4）で、
     名を書いても名で開かない"""
     owners = collections.defaultdict(set)
     for block, names in LAYER_MAP["beside"].items():
         for name in names:
             owners[name].add(block)
+    homes = LAYER_MAP["homes"]
     names = sorted(owners, key=len, reverse=True)
     pattern = re.compile(r"(?<!(?a:[\w\-.]))(?:" + "|".join(
         f"(?P<n{i}>" + re.sub(r"<[^>]*>", r"[^/\\s'\"`]+", re.escape(name)) + ")" for i, name in enumerate(names))
@@ -1877,7 +1878,7 @@ def _beside_names(root: Path, files) -> list[str]:
         for number, line in enumerate(lines, 1):
             for match in pattern.finditer(line):
                 name = names[int(match.lastgroup[1:])]
-                if place not in {f"workflows/{block}/" for block in owners[name]}:
+                if place not in {f"workflows/{block}/" for block in owners[name]} and rel not in {homes.get(b) for b in owners[name]}:
                     out.append(f"{rel}:{number}: ブロック {'・'.join(sorted(owners[name]))} の隣のファイル {name} を名指す")
     return out
 

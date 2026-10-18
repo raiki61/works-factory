@@ -57,7 +57,7 @@ def check(cmd: str, cwd: Path) -> dict:
                                                f"test_cmd が対象の手元（{'・'.join(hit)}）を走らせる形なので、AI を起こす前に run を止めた（run の"
                                                "試験が直しでなく手元のコードを試し、直しの正誤に関わらず緑になりうる）。作業ツリーの中で"
                                                "環境を作る形にして打ち直す。形を知った上で回すなら"
-                                               f" {ALLOW_ENV}=1 を前に付ける（README.md の「test_cmd と作業ツリー」）"])}
+                                               f" {ALLOW_ENV}=1 を前に付ける（README.md の「test_cmd and worktrees」）"])}
 
 
 def fallback(reason: str) -> dict:

@@ -60,7 +60,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
 - edit_rulings(b, pass_): edit_permits に裁定 fix_test_scope の範囲が入るか（段 ruled か 2 回目の修正の段）
 - ruled_test_limits(b, rulings=, source=, skip_ids=, base=)・parse_limit(lim): テストの変更の許し（承認済みの修正案の rewrite_tests と裁定
   fix_test_scope の範囲。test_permits）の範囲の文字列と、その 1 つの読み（TDD の輪の凍結が範囲の中の直しを通す）
-- human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。末尾に案の直しの理由と、単位の直しの
+- human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。裁定役の人に回す訳 ASK_WHY と、末尾に案の直しの理由と、単位の直しの
   在りか place_words を添える）
 - fix_place(rows)・place_words(rows)・unit_rows(rows, key): 人に回した単位の直しの在りか（IN_DIFF・REVERTED・LEFT・KEPT）を単位の
   行の全部から選ぶ 1 か所と、その言い方。関所の行・直す義務から外す理由・次の依頼・裁定へ回した理由はここから引く
@@ -93,6 +93,7 @@ if str(_CORE / "graphloops") not in sys.path:   # 写しの engine（engine.util
 
 import cite  # noqa: E402
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
+import globs  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402  （planmarks は conflict・entry を読まないので輪にならない）
 import promptsection  # noqa: E402
@@ -114,6 +115,9 @@ CORRECT = "correct_lines"               # which_is_right: query の時だけ要�
 QUERY = "query"                         # 判定者の class_query が直した後の正しい形にも当たる
 REPLACE = "replace_query"               # 問いを置き換える裁定（新しい問いを hits・misses と申し出の correct_lines で試す）
 ASK = "ask_human"
+ASK_WHY = "ask_why"                     # 裁定役の ask_human の欄 {changes, line}: 人の答えで何が変わるか（ASK_CHANGES）と 1 行の訳
+ASK_CHANGES = {"direction": "直しの向き", "scope": "直しの範囲"}   # 人に回してよい訳（人の答えで変わる物）と、関所の行の言い方
+NAME_ONLY = "name_only"                 # 名の重なりだけ（字が同じ名）。訳に書けば受け付けが拒み、裁定役が自分で決める
 ACCEPT_PARKED_OP = "fix_bound_parked"   # 修正の受け付け（blk-fix）が最後の回に止めた単位の trace の行の語。書くのは accept、読むのは報告と最後の関所
 REPLAN = "fix_plan_item"                # 案の項目そのものが誤りと裁く（同じ run の中で案を直して事前審査に掛けてから直す）
 REJUDGE = "rejudge"                     # 判定の単位の切り方が誤りと裁く（組どうしの合わせの申し出 JOIN_SOURCE にだけ。裁定の文が修正役の異議になり再審へ）
@@ -770,7 +774,7 @@ def parse_limit(lim: str):
     根の外・根そのものを指す物は None"""
     m = cite.CITE.match(lim.strip())
     path = posixpath.normpath(m["path"] if m else lim.strip())
-    if planmarks.climbs(path):   # `..` は段で見る（`..foo/x.py` は根の中。planmarks.gaps が通す範囲を捨てない）
+    if globs.climbs(path):   # `..` は段で見る（`..foo/x.py` は根の中。planmarks.gaps が通す範囲を捨てない）
         return None
     return path, ((int(m["a"]), int(m["b"] or m["a"])) if m else None)
 
@@ -1046,13 +1050,23 @@ def unit_rows(rows, key) -> list:
     return [r for r in rows if key in ruled_units(r)]
 
 
+def ask_why_words(ruling: dict) -> str:
+    """裁定の人に回す訳（ASK_WHY）の関所の言い方「人に回す訳（<変わる物>） <line>・」。訳の無い裁定（機械が人に回した物）は空"""
+    why = ruling.get(ASK_WHY)
+    if not isinstance(why, dict):
+        return ""
+    return f"人に回す訳（{ASK_CHANGES.get(why.get('changes'), why.get('changes'))}） {why.get('line')}・"
+
+
 def human_lines(b) -> list:
-    """最後の関所と報告に載せる ask_human の行（1 件 1 行。asked の行で、諦めた fix_plan_item も。裁定の文は字のまま。末尾の括弧に
-    REPLAN_WHY が在れば「・案の直し: <why>」と、行の単位の直しの在りか「・<place_words>」）"""
+    """最後の関所と報告に載せる ask_human の行（1 件 1 行。asked の行で、諦めた fix_plan_item も。裁定の文は字のまま。括弧に裁定役の
+    人に回す訳（ASK_WHY）が在れば「人に回す訳（<変わる物>） <line>」、末尾に REPLAN_WHY が在れば「・案の直し: <why>」と、行の単位の
+    直しの在りか「・<place_words>」）"""
     rows = asked(b)
     return [f"{r['unit_key']}: {r['ruling']['text']}（名指し {', '.join(r['between'])}・種類 {r.get(KIND_FIELD) or '無し'}・"
             f"正しいと見た側 {r[WHICH_FIELD]}・"
             + (f"依頼で探したこと {r['ruling']['request_searched']}・" if r["ruling"].get("request_searched") else "")
+            + ask_why_words(r["ruling"])
             + f"{r['id']}"
             + (f"・案の直し: {r[REPLAN_WHY]}" if r.get(REPLAN_WHY) else "")
             + f"・{place_words(unit_rows(rows, r['unit_key']))}）" for r in rows]

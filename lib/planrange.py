@@ -35,6 +35,7 @@ import glob
 import posixpath
 
 import conflict
+from globs import glob_match   # 同じ名の口 globs(it) がこのモジュールに在る
 import planmarks
 import promptsection
 import stopby   # L1。止めの理由の住処
@@ -75,7 +76,7 @@ def item_globs(it: dict) -> list[str]:
 
 def inside(path: str, it: dict) -> bool:
     """path が項目の範囲（item_globs）に入るか"""
-    return any(planmarks.glob_match(path, g) for g in item_globs(it))
+    return any(glob_match(path, g) for g in item_globs(it))
 
 
 def owner(path: str, items: list[dict]):
@@ -88,7 +89,7 @@ def oos_hit(path: str, items: list[dict]):
     """path に当たる out_of_scope の最初の (項目, glob)。無ければ None。合意でその項目の out_of_scope から外したパス（LIFTED）は
     その項目では当たらない"""
     return next(((it, g) for it in items if path not in (it.get(LIFTED) or ()) for g in _oos(it)
-                 if planmarks.glob_match(path, g)), None)
+                 if glob_match(path, g)), None)
 
 
 # 役の指示書に貼る out_of_scope の決まりの文。oos_hit（全部の項目で照らす。outside・手直しの受け付け）と oos_hit_for（行の単位の

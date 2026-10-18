@@ -629,6 +629,34 @@ def role_material_problems(material, *, mode: str) -> list:
     return probs
 
 
+# ---------------------------------------------------------------- 直す前のテストの走らせ方（修正役の材料）
+def run_how(root, run: dict, *, test_cmd: str, material) -> list:
+    """直す前のテストの段が走らせた形の行（#687。修正役がテストを回す環境を探さないよう材料に貼る）: 作業ツリーの根・宣言の準備
+    （setup）・走った宣言の段と test_cmd の命令と起こし方・シェルを通さない命令の頭の語が PATH で解けた先。run は節 run の記録
+    （{by, runs, same_as, test_cmd_how}）。任せ先の CI の役が走らせた run は、役が書いた走らせた物（素材の checked）"""
+    root = pathlib.Path(root)
+    out = [f"作業ツリーの根: `{root}`（命令はこの根で起こした。自分の作業ツリーでは、その根で同じ命令を起こす）"]
+    ran = {r.get("name") for r in run.get("runs") or [] if isinstance(r, dict)}
+    setup, _ = declared.read_setup(root)
+    out += [f"宣言 {DECL_NAME} の準備（setup）: `{shlex.join(argv)}`" for argv in setup]
+    out += [f"宣言 {DECL_NAME} の段 {s['name']}: `{shlex.join(s['argv'])}`（シェルを通さずに起こした{_found(s['argv'][0])}）"
+            for s in checks_plan(root).get("steps") or [] if s["name"] in ran]
+    cmd = (test_cmd or "").strip()
+    if cmd and (run.get("by") == ROLE or TEST_CMD_STEP in ran):
+        argv, how = tree_run.command_argv(cmd)
+        out.append(f"test_cmd: `{cmd}`（{'シェルで' if how == 'shell' else 'シェルを通さずに'}起こした"
+                   f"{_found(argv[0]) if how == 'direct' else ''}）")
+    checked = (material or {}).get("checked") if isinstance(material, dict) else None
+    if run.get("by") == ROLE_NEEDED and checked:
+        out.append(f"任せ先の CI の役が走らせた物: {checked}")
+    return out
+
+
+def _found(word: str) -> str:
+    where = shutil.which(word)
+    return f"。`{word}` は {where}" if where and where != word else ""
+
+
 # ---------------------------------------------------------------- 修正前のテストの行
 def gate_values(ret) -> dict:
     """試験の関門の返り ret（無い・dict でない時は空）の、人に見せる値 {by, suites, log, baseline, reason}: 走らせ方は by・suites_line、

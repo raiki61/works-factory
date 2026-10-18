@@ -34,7 +34,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 止まった事実＝converge.stuck_reason）。行は design_item の 1 か所で組む（設計だけでない run の止まりは頭を STUCK_ITEM にし、
 設計だけの run と名乗らない。種類の kinds は同じ design_only）。止まりの行は、事前審査の役が返答の一番上に書いた止まった時の推し
 （converge.STUCK_PUSH）の尾を持ちうる（付く条件は stuck_push。持ち主 2026-10-15「人がいないときは推しの答え。」・issue #552）。
-尾の無い行は pushed_answer が None を返して今どおり止まる。
+尾の無い行は無人の方針の口 gatepolicy.passage が今どおり止める。
 - reason_push(q)・run_push(b, q)・taken_pushes(b)・PUSH_TAKEN: 問いの理由に判定の役が書いた推し・無人の run が答えとして採る推し
   （fork・held だけ。依頼の answers と関所の continue が先）・推しで答えた問いと戻した単位の並び（報告が冒頭と人が決めることに並べる）・
   答えた行の印
@@ -55,23 +55,24 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   判定が結べないと訳つきで名乗った。報告の冒頭と最後の関所が名指す。保留の件数に数えない）。
 - answer_binds(b, a, questions=None, answer_rows=None)・split_answer_ties(reply)・answer_ties(b)・save_answer_ties(board, rnd, rows)・
   answer_tie_lines(b): 依頼の答えが当たる問いを決める 1 つの式（受け付けは返答の問いに、報告は台帳に当てる）と、判定の返答の足し欄
-  answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。受け付けが外して確かめ、通れば控え
-  answer-ties.json に置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
+  answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。受け付けが外して確かめ、通れば種 answers の
+  控えに置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
   ANSWERED_HEAD は答えた行の見出し、ANSWER_HOW は保留の行の下に出す答え方の 1 行
 - unmeasured(b)・origin_of(b, q)・material_answer(b, name)・measured_materials(b)・material_lines(b): 今の周に測れていない素材
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
   素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・命令と出力つきで答えた素材（報告が検証器の阻害から外す。
   HAND_CHECKED と名乗る）・答えた行に足す素材の行（利用者の声 10-09 の C2）
 - design_only(b)・design_item(b)・stuck_push(b): 設計だけの run か・関所に載せる設計だけの行（載せなければ空）・止まりの行に付ける
-  事前審査の役の推しの尾（付けなければ空。boardview の受け付けも同じ条件で、保留の項目の穴を review.json に足すかを決める）
+  事前審査の役の推しの尾（付けなければ空。付けてよいかの決めは gatepolicy.stuck_pushable。boardview の受け付けも同じ条件で、
+  保留の項目の穴を review.json に足すかを決める）
 - PLAIN・named(node)・status_named(status)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・specblk・境の節・報告が使う）
 - quote(question)・QUOTE_NOTE: 盤面の問いの文を引用として載せる行と、関所で添える答え方の読み替えの 1 行
 - head3(happened, decide, push)・pushes(texts)・push_of(texts): 関所の文と報告の冒頭 3 行（起きたこと・決めてほしいこと・推し）と、推しを記録から拾う口
 - gate_text(asking, *, run_id, node, record_name): 答えを受ける関所の文（修正前の関所と仕様の関所が呼ぶ 1 つの組み立て）
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
   形の誤り（受け付けが拒む。事前審査の返答は一番上の止まった時の推し converge.STUCK_PUSH も同じ形で照らす）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしの _human_passed はこの尾を外す）
-- push_rec(text)・pushed_answer(texts): 項目の推しの尾の読み戻しと、無人の run が関所を推しで通る答え（項目の全部が通す推しを持つ
-  時だけ。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
+- push_rec(text)・row_push(text): 項目の推しの尾の読み戻しと、その無人の方針の読み（gatepolicy.Push。無人の run が関所を推しで
+  通るかの決めは gatepolicy.passage。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
 - spec_words(unchecked) -> SpecWords(said, source, head, note): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
   （最後の承認ノードの 1 行目の句・次の依頼の下書きの source の頭・最後の承認ノードと報告の人が決めることの節の頭）
@@ -104,7 +105,7 @@ import answer
 from answer import GO_WORDS
 import carry   # 下書きの印の付け方（次の run への持ち越しの形の住処）
 import cite    # 決め手の出どころが現物に在るかの照らし（食い違いの申し出の引用の照らしと同じ住処）
-import gatepolicy   # 無人の run か（人の関所と無人の方針の住処）
+import gatepolicy   # 無人の run か・推しで進むかの決め（人の関所と無人の方針の住処）
 import converge
 import marks
 import oneline
@@ -117,7 +118,6 @@ import structmark  # 構造の目の行（汚れる・人に上げる）
 import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
 
 MARKS_FILE = marks.KINDS["gate"].file
-MATERIALS_FILE = "materials.json"   # 判定の隣の素材の状態（素材の名 → {status, …}。材料の支度が組み、判定の出力の欄 materials が指す）
 PLAN_GATE_FILE = "gate.json"   # 事前審査の差し込みの関所の項目と往復の報告の行 converge（boardview が書き、報告が読む）
 RECOMMEND = "recommend"   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
@@ -548,14 +548,14 @@ def push_rec(text) -> dict | None:
             RECOMMEND_KEYS[2]: got.group(4)}
 
 
-def pushed_answer(texts) -> dict | None:
-    """無人の run が関所を推しで通る答え {decision, text, answer.PUSHED}。関所に載る項目の全部が推しの尾を持ち、全部が通す時だけ。
-    一言 text は推しの note を「；」で繋いだ物（修正役に人の一言と同じ道で届く）。ほかは None（機械は推しを作らない）"""
-    recs = [push_rec(t) for t in texts or []]
-    if not recs or any(r is None or r[RECOMMEND_KEYS[0]] != RECOMMEND_ANSWERS[0] for r in recs):
-        return None
-    note = "；".join(dict.fromkeys(r[RECOMMEND_KEYS[1]] for r in recs))
-    return {"decision": RECOMMEND_ANSWERS[0], "text": note, answer.PUSHED: recs}
+def row_push(text) -> gatepolicy.Push | None:
+    """関所の項目の文の推しの尾（push_rec）の、無人の方針の読み（gatepolicy.passage に渡す。尾が無ければ None）"""
+    rec = push_rec(text)
+    return None if rec is None else _as_push(rec, rec[RECOMMEND_KEYS[1]])
+
+
+def _as_push(rec: dict, note: str) -> gatepolicy.Push:
+    return gatepolicy.Push(rec[RECOMMEND_KEYS[0]] == RECOMMEND_ANSWERS[0], note, rec)
 
 
 def _gate_rows(b) -> list:
@@ -760,20 +760,15 @@ def design_only(b) -> bool:
 
 
 def stuck_push(b) -> str:
-    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。往復の行の push）の尾 _push。4 つが全部揃う時
-    だけ: 無人の run（gatepolicy.unattended）・設計だけの run でない・壁打ちが推しで越えてよい止まり（converge.pushable）・
-    最後の往復の push が recommend_of で読めて通す（continue）推しで、その note が止まった key と保留・開いた項目の番号の全部を
-    字のまま引く（converge.uncited が空。修正役に届くのは note だけ）。ほかは空（推しが無い・止める・崩れた・引用が欠ける時は
-    pushed_answer が None を返して今どおり止まる。止める推しは往復の行の push に残る）。
+    """止まった壁打ちの行の尾に付ける、事前審査の役の推し（converge.STUCK_PUSH。最後の往復の行の push）の尾 _push。付けてよいかは
+    gatepolicy.stuck_pushable（note は尾の字で照らす。修正役に届くのは尾の note だけ）。ほかは空（推しが無い・止める・崩れた・引用が
+    欠ける時は gatepolicy.passage が今どおり止める。止める推しは往復の行の push に残る）。
     boardview（review.json に保留の項目の穴を足す）と design_item が同じこの 1 つの条件を読む"""
-    if not gatepolicy.unattended(b.dir) or design_only(b):
-        return ""
     doc = converge.read(b)
-    if not converge.pushable(doc):
-        return ""
-    mark = {RECOMMEND: doc["passes"][-1].get("push")}
+    mark = {RECOMMEND: doc["passes"][-1].get("push") if doc["passes"] else None}
     rec = recommend_of(mark)
-    if rec is None or rec[RECOMMEND_KEYS[0]] != RECOMMEND_ANSWERS[0] or converge.uncited(_tail_text(rec[RECOMMEND_KEYS[1]]), doc):
+    push = None if rec is None else _as_push(rec, _tail_text(rec[RECOMMEND_KEYS[1]]))
+    if not gatepolicy.stuck_pushable(b.dir, doc, push, design_only=design_only(b)):
         return ""
     return _push(mark)
 
@@ -902,7 +897,7 @@ def unmeasured(b) -> dict:
 
 
 def unmeasured_of(materials) -> dict:
-    """素材の状態 materials（materials.json の値）のうち今の周に測れていない素材 {名: status}（UNMEASURED。盤面の無い読み手の口。判定の受け付けと報告の読みもこれを呼ぶ）"""
+    """素材の状態 materials（判定の出力の欄 materials の先の値）のうち今の周に測れていない素材 {名: status}（UNMEASURED。盤面の無い読み手の口。判定の受け付けと報告の読みもこれを呼ぶ）"""
     if not isinstance(materials, dict):
         return {}
     return {n: m["status"] for n, m in materials.items() if isinstance(m, dict) and m.get("status") in UNMEASURED}
@@ -921,7 +916,7 @@ def origin(q, missing) -> str:
 
 def binds(a, questions, *, ties=(), missing=()) -> list:
     """依頼の答え a が当たる問い（値で受ける 1 つの式。判定の受け付け・修正前の関所・最後の関所・報告が引く）: 判定が結びの行 ties
-    （answer-ties.json の行）で a をこの問いの key に結んでいればその問い、結んだ key が questions に無い（再審で問いが変わった）か結びが
+    （判定の出力の欄 answer_ties の先の行）で a をこの問いの key に結んでいればその問い、結んだ key が questions に無い（再審で問いが変わった）か結びが
     無ければ question と key が字のまま等しい問い、それも無ければ出どころ（origin。missing は測れていない素材の名）が等しい問いの全部
     （同じ単位の fork と escalate のように複数に当たることがある）"""
     qs = [q for q in questions if isinstance(q, dict)]
@@ -968,14 +963,14 @@ def split_answer_ties(reply) -> tuple:
 
 
 def answer_ties(b) -> list:
-    """控え answer-ties.json の最後の周の結びの行（値の見え方 Ledger はその値。無い・読めない・形が違えば空）"""
+    """種 answers の控えの最後の周の結びの行（値の見え方 Ledger はその値。無い・読めない・形が違えば空）"""
     if isinstance(b, Ledger):
         return list(b.ties)
     return ties_of(marks.load(marks.path_of("answers", b)))
 
 
 def ties_of(doc) -> list:
-    """控え answer-ties.json の中身 doc の最後の周の結びの行（形が違えば空）"""
+    """種 answers の控えの中身 doc の最後の周の結びの行（形が違えば空）"""
     rounds = doc.get("rounds") if isinstance(doc, dict) else None
     if not isinstance(rounds, dict) or not rounds:
         return []
@@ -984,7 +979,7 @@ def ties_of(doc) -> list:
 
 
 def save_answer_ties(board, rnd: int, rows: list) -> None:
-    """周 rnd の結びの行を控え answer-ties.json に置く（その周の分を置き換える）。行が無く控えも無ければ書かない"""
+    """周 rnd の結びの行を種 answers の控えに置く（その周の分を置き換える）。行が無く控えも無ければ書かない"""
     p = marks.path_of("answers", board)
     doc = marks.load(p)
     if not (isinstance(doc, dict) and isinstance(doc.get("rounds"), dict)):
@@ -1324,8 +1319,8 @@ class Ledger(types.SimpleNamespace):
 
 def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_push=False) -> Ledger:
     """問いの台帳の値の見え方: judgment は判定の dict（units・questions）、answers は依頼の answers（始めの記録の欄）、gate は修正前の
-    関所の答え {decision, text, asked}（か、その並び。無ければ None）、ties は判定の結びの行（answer-ties.json の最後の周）、materials は
-    素材の状態（materials.json）、takes_push は無人の run か（判定の推しを答えに採る。run_push）。人に聞く状態の語は ASKING、測れていない
+    関所の答え {decision, text, asked}（か、その並び。無ければ None）、ties は判定の結びの行（判定の出力の欄 answer_ties の先の最後の周）、materials は
+    素材の状態（判定の出力の欄 materials の先）、takes_push は無人の run か（判定の推しを答えに採る。run_push）。人に聞く状態の語は ASKING、測れていない
     素材の状態は UNMEASURED"""
     doc = judgment if isinstance(judgment, dict) else {}
     status = {k: types.SimpleNamespace(blocks=True) for k in UNMEASURED}
@@ -1340,8 +1335,8 @@ def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_pu
 
 
 def ledger_files(judgment, *, ties_file=None, materials_file=None, answers=(), gate=None, takes_push=False) -> Ledger:
-    """ledger の結びの行と素材の状態を、ファイルから読んだ物: ties_file は判定の結び（answer-ties.json の形）、materials_file は素材の
-    状態（materials.json の形）。None か、ファイルが無い・読めなければ結び無し・素材無し（字の一致だけ。今の works の結びの無い run と同じ）"""
+    """ledger の結びの行と素材の状態を、ファイルから読んだ物: ties_file は判定の結び（判定の出力の欄 answer_ties の先）、materials_file は素材の
+    状態（判定の出力の欄 materials の先）。None か、ファイルが無い・読めなければ結び無し・素材無し（字の一致だけ。今の works の結びの無い run と同じ）"""
     ties = ties_of(marks.load(pathlib.Path(ties_file))) if ties_file is not None else []
     materials = marks.load(pathlib.Path(materials_file)) if materials_file is not None else None
     return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials, takes_push=takes_push)

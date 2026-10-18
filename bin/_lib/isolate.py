@@ -9,6 +9,12 @@ Claude Code 自身の keychain の項目の名と、macOS 以外の保存済み�
 隔離の前の HOME・XDG_* は、いつも子の userenv.RECORD に控える（対象のコマンドにだけ戻す。決めと訳は userenv）。工場の制御の変数
 （userenv.CONTROL: 控え・戻した印の置き場・印のパス）と読むだけの gh の置き場（userenv.READ_GH_ENV）は、利用者の env から継いだ値を子に残さない（控えは毎回作り直す。印はメイングラフの
 run の置き場にだけ置き、継いだ値が印を書かせない）。
+ARCHON_HOME を殻を起こした利用者の物として作るのは、並べて走る子の run が工場の家の .gitconfig のロックにぶつからないためでもある
+（#727）。止めた Archon は、子の作業場のまだ無いパスのいちばん近い在る親が自分の利用者の物なら、git の全体の設定に
+safe.directory を書かない。ほかの直し方は取れない。子の run は 1 つの Archon のプロセスの中で走って環境を分け合うので、
+子ごとに GIT_CONFIG_GLOBAL を替えられない。前もって家の .gitconfig に親のフォルダを入れても、Archon は作業場のパスそのままの
+行しか済みと見ない（作業場のパスは前もって分からないので、先に書き終えておく道も無い）。落ちた子を起こし直す道は、Archon が
+workflow: のノードの retry: を拒むので、グラフの中に置けない。試験は tests/bin/test_isolate.py の ParallelWorktreeGrantCase。
 """
 from collections.abc import Mapping
 from pathlib import Path
