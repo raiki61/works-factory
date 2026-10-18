@@ -16,7 +16,9 @@ line_edge.py:1184-1197）。無人の run で開くはずの時は開かずに�
 文に訳を出す。判定の役が人に聞くと保留にしたままの問い（held）は冒頭と本文に見せるが、開ける理由には数えない（元 _final_head）。
 「修正役が人に回した物が在る」（元 report.handoff_lines）と「直したという申告と機械の数え直しが合わない単位が在る」（元
 querytest.closure_lines の mismatched_only）は、fix の出力の handoffs・mismatched（fixed が 1 回目と 2 度目の修正の分を合わせた物）を読む。
-許したテストの変更（[{path, permit, source}]）は許しの id と出どころつきで並べる。それとほかの段の控え（閉鎖の表・穴の名札と手直し・
+許したテストの変更（[{path, permit, source}]）は、封じた差分が触ったテストの行だけを「触った」と数え、許しの id と出どころつきで
+並べる（許しは消す名を使うテストの全部のように広いことがあり、触らなかった許しは件数の 1 行だけ。封じた差分が無い・読めない時は
+許しの行をみな並べ、照らしていないと言う）。それとほかの段の控え（閉鎖の表・穴の名札と手直し・
 受け付けの trace・レンズ）は、修正の段ごとの返りの控えの欄（fixed の records）を lib/fixbeside.py の read で読む。
 
 文は冒頭 3 行（final_head。lib/gatemarks.py の head3）で始め、元 line_edge.final_edge・_final_text の節の並びに戻す: 守りのパス
@@ -62,6 +64,7 @@ with boundary.guarded_imports():
 PROTECTED_HEAD = "守りのパスを触った"
 PROTECTED_UNKNOWN = "守りのパスを確かめられなかった"   # 元 line_edge.py 111 行。merge が確かめられなかった行（lib/seal.py の UNKNOWN_HEAD）の見出し
 ALLOWED_TESTS_HEAD = "書き換えを許したテストを触った"   # 元は conflict.ruled_test_doc を 2 つ目の一覧として守りのパスに通した（line_edge.py:640-651）
+ALLOWED_UNCHECKED = "封じた差分が無い・読めないので、許した行が差分に在るかを照らしていない（許した行をみな並べた）"
 CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
 BESIDE_UNREAD = "修正の段の控えを読めない"
 REVIEW_FIELDS_MISSING = ("事前審査の出力の欄 gate_passes・gate が無い（欄の無い版の run を再開した時）: 修正前の承認ノードで通した行と"
@@ -121,7 +124,7 @@ def needs(got: dict) -> list:
     if hits:
         why.append((f"{PROTECTED_HEAD}（{got['protected_count']} 件。人の確かめが要る）", True))
     if got["allowed_tests"]:
-        why.append((f"{ALLOWED_TESTS_HEAD}（{len(got['allowed_tests'])} 件。人の確かめが要る）", True))
+        why.append((f"{ALLOWED_TESTS_HEAD}（{allowed_count(got)} 件。人の確かめが要る）", True))
     word = tests_word(got)
     if word != "緑":
         why.append((f"最後のテストが{word}", False))
@@ -189,9 +192,12 @@ def protected_section(got: dict) -> list:
                   f"- 差分: git -C {got['worktree']} diff {got['base_rev'][:12] or '<起点の版が記録に無い>'} -- <パス>（未追跡は新しいファイル）",
                   f"- 一覧: {protect.MANIFEST}", ""]
     if got["allowed_tests"]:
-        lines += [f"## {ALLOWED_TESTS_HEAD}（{len(got['allowed_tests'])} 件。承認済みの案と範囲の相談と裁定が書き換えを許したテスト。"
+        lines += [f"## {ALLOWED_TESTS_HEAD}（{allowed_count(got)} 件。承認済みの案と範囲の相談と裁定が書き換えを許したテスト。"
                   "通すのは人の答えだけ）", "",
-                  *[f"- {row.get('path')}（許し {row.get('permit')}・{row.get('source')}）" for row in got["allowed_tests"]], ""]
+                  *[f"- {row.get('path')}（許し {row.get('permit')}・{row.get('source')}）" for row in got["allowed_tests"]],
+                  *([ALLOWED_UNCHECKED] if got["allowed_untouched"] is None else []), ""]
+    if got["allowed_untouched"]:
+        lines += [f"- 書き換えを許したが封じた差分が触らなかったテスト: {got['allowed_untouched']} 件（確かめは要らない）", ""]
     return lines
 
 
@@ -452,7 +458,7 @@ def fix_beside(records) -> dict:
     got = fixbeside.read(records, boundary.resolve)
     return {"stuck": fixbeside.closure_lines(got, stuck_only=True), "closure": fixbeside.closure_lines(got),
             "tests_left": fixbeside.tests_left_lines(got), "gates": fixbeside.gates_lines(got),
-            "branch_rows": fixbeside.branch_rows(got), "always": fixbeside.always_rows(got), "allowed_tests": got["allowed"],
+            "branch_rows": fixbeside.branch_rows(got), "always": fixbeside.always_rows(got), "allowed": got["allowed"],
             "beside_unread": got["unread"]}
 
 
@@ -518,14 +524,29 @@ def rejudge_rows(returns: dict) -> list:
     return [x for x in runreport.rejudge_lines(returns, runreport.rejudge_exit(returns)) if not x.startswith("再審されずに残った異議")]
 
 
-def deleted_files(diff) -> tuple:
-    """(封じた差分が消すファイル, 読めなかった訳)"""
+def sealed_files(diff) -> tuple:
+    """(封じた差分が消すファイル, 触るファイルの集まりか None（差分が無い・読めない）, 読めなかった訳)"""
     if diff is None:
-        return [], ""
+        return [], None, ""
     try:
-        return seal.deleted_paths(boundary.resolve(diff).read_text(encoding="utf-8", errors="replace")), ""
+        text = boundary.resolve(diff).read_text(encoding="utf-8", errors="replace")
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
-        return [], f"封じた差分を読めない（取り込むと消えるファイルを数えていない。{type(error).__name__}: {error}）"
+        return [], None, (f"封じた差分を読めない（取り込むと消えるファイルと、許したテストのうち触った物を数えていない。"
+                          f"{type(error).__name__}: {error}）")
+    return seal.deleted_paths(text), seal.touched_paths(text), ""
+
+
+def touched_allowed(rows: list, touched) -> tuple:
+    """(許したテストの変更の行のうち封じた差分が触ったファイルの行, 触らなかったファイルの数)。touched が None（差分が無い・読めない）
+    なら照らせないので (rows のまま, None)"""
+    if touched is None:
+        return rows, None
+    return [row for row in rows if row.get("path") in touched], len({row.get("path") for row in rows} - touched)
+
+
+def allowed_count(got: dict) -> int:
+    """触った許したテストのファイルの数（1 本のファイルに許しの行が 2 つ在っても 1 件）"""
+    return len({row.get("path") for row in got["allowed_tests"]})
 
 
 def start_doc(ptr) -> tuple:
@@ -562,8 +583,9 @@ def got_of_env() -> dict:
           boundary.value(os.environ.get("INPUTS_REVIEW_GATE"))),
          (boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW")), boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_PASSES")),
           boundary.value(os.environ.get("INPUTS_REPLAN_REVIEW_GATE")))))
-    deleted, deleted_unread = deleted_files(closing["diff"])
+    deleted, touched, deleted_unread = sealed_files(closing["diff"])
     beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_RECORDS")))
+    allowed, untouched = touched_allowed(beside.pop("allowed"), touched)
     noted = eye_notes(eye)
     raw = {"units": boundary.items(os.environ.get("INPUTS_UNITS")), "first_units": boundary.items(os.environ.get("INPUTS_FIRST_UNITS")),
            "judgment": judgment, "first_judgment": boundary.value(os.environ.get("INPUTS_FIRST_JUDGMENT")),
@@ -604,6 +626,8 @@ def got_of_env() -> dict:
                                     gate=boundary.text(os.environ.get("INPUTS_REPLAN_GATE"))),
         "delta_review": boundary.value(os.environ.get("INPUTS_DELTA_REVIEW")),
         **beside,
+        "allowed_tests": allowed,
+        "allowed_untouched": untouched,
         "structure_missing": structure_missing(boundary.value(os.environ.get("INPUTS_STRUCTURE"))),
         "sealed": boundary.as_flag(closing["ok"]),
         "seal_reason": boundary.as_text(closing["reason"]),
