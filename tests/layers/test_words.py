@@ -3,7 +3,7 @@
 
 見る字（`scope`）: `docs/` の直下の `*.md`・`*.json`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`MISSION.md`・`engineering.md`・
 `lib/` の直下の `*.md`・`*.json`・借りる物の表 `lib/borrow/*.json`・
-役の指示書（`workflows/*/commands/` の下の全部・`lib/agents/*.md`・`lib/borrow/unattended.md`）・グラフの YAML の `description`・`prompt`・`systemPrompt`・`message` の値・
+役の指示書（`workflows/*/commands/` の下の全部・役の定義 `workflows/.shared/prompts/role-*.md`・`lib/borrow/unattended.md`）・グラフの YAML の `description`・`prompt`・`systemPrompt`・`message` の値・
 `lib/` の直下・`workflows/*/scripts/`・境 `workflows/.shared/` の Python の文字列（docstring とコメントは開発者の字なので見ない）・
 入口 `bin/`（殻 2 つ・`bin/_lib/` の直下・`bin/_lib/no-post-bin/works-gh`）の Python の文字列・docstring・コメントの全部。旧い語は #115 の対応表の左の全部で、部分一致で探す。外す規則は `EXCEPT` の 1 か所。
 """
@@ -78,7 +78,7 @@ def scope(root):
     found += [p for p in root.glob("lib/borrow/*.json")]
     found += [p for p in root.glob(BORROWED_PROMPT)]
     found += [p for p in root.glob("workflows/*/commands/**/*") if p.is_file()]
-    found += [p for p in root.glob("lib/agents/*.md")]
+    found += [p for p in root.glob("workflows/.shared/prompts/role-*.md")]   # 役の定義 5 本（今の lib/agents/*.md の行き先。integration.md の 4.3-13）
     for path in sorted(set(found)):
         yield path.relative_to(root).as_posix(), "md"
     for path in sorted(root.glob("workflows/*/*.yaml")):
@@ -204,7 +204,7 @@ class WordsTest(unittest.TestCase):
 
     def test_command_and_agent_are_red(self):
         self.red({"workflows/judge/commands/fix-rules/a.md": "x\nお前は判定役\n"}, "workflows/judge/commands/fix-rules/a.md:2", "お前")
-        self.red({"lib/agents/judge.md": "指し札を読む\n"}, "lib/agents/judge.md:1", "指し札")
+        self.red({"workflows/.shared/prompts/role-judge.md": "指し札を読む\n"}, "workflows/.shared/prompts/role-judge.md:1", "指し札")
 
     def test_yaml_text_keys_are_red_and_the_rest_is_not(self):
         body = ("name: x\ndescription: 線の部品\n# 輪のコメント\nnodes:\n  - id: a\n    prompt: |\n      読め\n      TDD の輪\n"
