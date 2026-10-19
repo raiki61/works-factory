@@ -77,7 +77,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 - `blocks/purpose/src/__init__.py`: 空。
 - `blocks/purpose/src/steps.py`: 今の `lib/judge_accept.py` の `refuse_if_frozen`（:1224-1230）・`check_purpose`（:1233-1255）・`PURPOSE_RULE`（:1218）と、作業ツリーの比べ `_tree_snapshot`・`_moved_since`・`_tree_unchanged`（:1121-1160。写しの在る道だけ）の写し。`purpose_prep`（:1258-1284）は、材料の文を組む部分を md へ出し、依頼の写しの作り方（`carry.without_prior`）だけを `request_copy(doc)` として写す。place のファイルの名（`INTAKE_FILE`・`TREE_FILE = "tree.json"`・`PURPOSE_FILE = "purpose.json"`・`MEANS_FILE = "purpose-means.json"`・`ROLE = "purpose"`）と、出典の語 `PR_SOURCE = "①PR 説明"`・`PLAN_SOURCE = "②計画・タスク記述"`・`WRITER_SOURCE = "③writer の要約"`・`UNKNOWN_SOURCE = "目的不明"`、制約の `kind` の語 `MEASURED = "実測"`・`HYPOTHESIS = "仮説"` もここだけが持つ。解き方の分け（今の `worldmark.split_means`。`lib/worldmark.py:161-166`）は `split_means(reply)` として写す: 返答の写しから鍵 `means` を外し、`means` の中の空白だけでない字だけを並べる（今の `split_means` が頼る `lib/marks.py` は、README の 9.1 で消すと決まった部品なので使わない）。
 - `blocks/purpose/src/sourcefiles.py`: 今の `lib/purpose.py:24-46` の `_source_files_errors` と、それが頼る `lib/judge_accept.py` の `_resolve_target`（:2250-2260）・`_in_version`（:2236-2247）の写し。根は `engine.util.repo_root(engine.util.git)`、git の向き先は `accept.in_repo(repo)`。拒みの訳の字は今のまま。
-- block の `schemas/` は置かない。依頼の形は共通の `blocks/.shared/schemas/request.schema.json`（依頼の容器の照らしは土台の口 `requestrows.parts`）、前提の実測の形は共通の `blocks/.shared/schemas/constraints.schema.json`（行の欄は今の前提の役の `output_format` と同じで、行は `additionalProperties: false`、`measured_output` は空白だけでない字。容器の外側は閉じない。`実測` の行が `measured_output` を持つかは `src/steps.py` の `constraint_rows` が見る）。
+- block の `schemas/` は置かない。依頼の形は共通の `blocks/.shared/schemas/request.schema.json`（依頼の容器の照らしは土台の口 `requestrows.parts`）、前提の実測の形は共通の `blocks/.shared/schemas/constraints.schema.json`（行の欄は今の前提の役の `output_format` と同じで、行は `additionalProperties: false`、`measured_output` は空白だけでない字。容器の外側は閉じない。`実測` の行の `measured_output` の欠けは拒まない: 役の返りには在り、前の run から持ち越した行〔`lib/carry.py` の `carried_constraints`〕には無い）。
 - 使う `lib/`: `accept`（KEEP。`tree_state`・`tree_moved`・`type_errors`・`TREE_SCHEMA`・`status_keys`・`guard`・`in_repo`）・`carry`（KEEP。`without_prior`）・`rolekit`（KEEP。`accept_round`・`rejected`・`rejects_text`・`given_up_reason`）・`graphloops/engine/util.py`（KEEP。`Reject`・`git`・`repo_root`）・`jsonfile`・`oneline`。
 - 作り直しの間は `lib/purpose.py` と `lib/judge_accept.py` の目的の部分を消さない（今の judge が使う）。組み込みで消す（README の 9.2）。
 
@@ -144,7 +144,7 @@ properties:
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …（spawns の段落は入らない）}
 
-You are the purpose role, started in a new conversation. …
+You are the purpose role. …
 
 **Separate the purpose from the means.** …
 
@@ -232,7 +232,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 元の works の `works/blk-purpose/`（入力 `request`〔依頼のファイルのパス〕・`constraints_file`・`base_rev`・`pr_file`、出口 `ok`・`purpose_file`・`purpose_text`・`source` の独立したブロック）から、工場は判定のブロックの中に写した（#76。`docs/plans/2026-10-12-blocks/judge.md:31`・`:111`）。graphloops の同じ場面は `prompts/review-loop/p0.purpose.md`（`p0.purpose`。once の節）。
 
 - 独立したブロックの形と、出口の `purpose_text`・`source`: 工場は judge の返す節の pointer `purpose` だけにした（#76）。この block は元の形（入力だけで動き、文と出典の語を欄で返す）に戻し、`means` も欄で返す。
-- 入力の前提の実測を写しの型と post_check（`measured_needs_output`）に通す（元の intake の `check_constraints`）: 工場には無い。計画（`docs/plans/2026-10-12-blocks/judge.md:111`）は「中身は (b) で `lib/judge_accept.py` へ」と書いたが、今の `lib/judge_accept.py` に無く、`git log -S "def check_constraints"` も工場の履歴に当たらない（#76 で写さなかった。意図の記録は（未確認））。judge の中では前提の役の受け付けを通った物だけが来るので、要らなかった。この block は port で人が渡せるので、`constraints.schema.json` の形（`実測` の行は `measured_output` を持つ）で同じ事を確かめる（[premises.md](premises.md) の 8 節の 3）。
+- 入力の前提の実測を写しの型と post_check（`measured_needs_output`）に通す（元の intake の `check_constraints`）: 工場には無い。計画（`docs/plans/2026-10-12-blocks/judge.md:111`）は「中身は (b) で `lib/judge_accept.py` へ」と書いたが、今の `lib/judge_accept.py` に無く、`git log -S "def check_constraints"` も工場の履歴に当たらない（#76 で写さなかった。意図の記録は（未確認））。元の judge は前提の役の受け付けの後に持ち越しの行を足し（`lib/judge_accept.py` の `with_carried`〔:1187-1192〕）、目的の役へ確かめずに貼った（:1274-1281）。持ち越しの行は `measured_output` を持たないので、この block も `実測` の行の欠けを拒まず、`constraints.schema.json` の形（知らない欄・空白だけの `measured_output`）だけを確かめる。役自身の返りの `measured_output` は前提の block が見る（[premises.md](premises.md) の 8 節の 3）。
 - 入力 `base_rev`（写しが無い時の HEAD の照らし）: 工場は写しを必ず取るので受けない（[premises.md](premises.md) の 2.7 と同じ。意図の記録は（未確認））。この block も写しを `intake` で必ず取る。
 - 依頼の `prior_failures` を外した写しを役に渡す（元の intake）: 工場も同じ（`carry.without_prior`。持ち主の決め `premises-purpose`）。この block も残す。
 - 目的の監査（`p0.purpose_review`）をブロックに入れない（元の YAML の頭の注）: 工場も入れていない。この block も入れない（素材の観点 purpose-review の block と line の物）。
@@ -247,7 +247,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
   3. `source_files` に、作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る（`src/sourcefiles.py` の `errors`）→ 「source_files に作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る: [<名>…]——出典にしたリポジトリの中のファイルを、…（依頼のファイルなどリポジトリの外の物・git が無視するファイルは書かない）」。git が動かない時は「source_files を確かめられない（…）」で拒む（『分からない』を合格に倒さない）。
   - どれも `Reject` を `accept.guard` が `{ok: false, reason}` にする。照らしは `accept.in_repo(repo)` の中で回す。
 - 受けた時: `split_means(reply)` で外した `means` の並びを先に `purpose-means.json` に `{"means": [...]}` で書き（並びが空でも書く。今の :1251-1254 と同じ結果）、最後に `means` を外した返答を `purpose.json` に書く（`purpose.json` が済んだ印）。
-- 回数: `rolekit.accept_round(place, "purpose", raw, take)`。受けた時は 1 回目でも `done` が true、拒んだ時は 3 回目の拒みで `done` が true になり、loop を抜ける。loop は `fresh_context: false` なので、2 回目からは同じ会話の続きで役が起きる（md の「started in a new conversation」は 1 回目の事で、2 回目からは却下の段落が頭に入る。今の md と同じ）。run は止めない。
+- 回数: `rolekit.accept_round(place, "purpose", raw, take)`。受けた時は 1 回目でも `done` が true、拒んだ時は 3 回目の拒みで `done` が true になり、loop を抜ける。loop は `fresh_context: false` なので、2 回目からは同じ会話の続きで役が起きる（md は「新しい会話で起きた」とは書かない。2 回目からは却下の段落が頭に入る）。run は止めない。
 - 諦めた時に出口へ書く物: `finish` が `status: failed`・`purpose: null`・`purpose_text: ""`・`source: ""`・`means: []`・`reason` に `rolekit.given_up_reason(place, "purpose")`（最後の拒みの文）・`report` に `目的の文: <reason>` を返す。
 
 ### 2.9 試験
@@ -262,7 +262,7 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 2. `request`・`pr_text`・`constraints`・`lang` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読む。`request` は `requestrows.parts(raw)` で照らし（形・知らない鍵・下書きの行）、写しの元は `ports.json(raw, "shared:request.schema.json")` の値。`constraints` は `ports.json(raw, "shared:constraints.schema.json")`、ほかは `ports.text(raw)`。
 3. この block が名を持つファイル（`intake.json`・`tree.json`・`purpose-means.json`・`rejects-purpose.json`・`purpose-prompt-*.md`）を消す。ほかの名のファイルは消さない。
 4. 役に見せる依頼の写し `request = steps.request_copy(doc)`: `carry.without_prior(doc)` が None でなければそれ（容器から `prior_failures` を外した物）、None なら `doc` のまま（今の :1268-1272）。
-5. 制約の行 `constraints`: port の値が配列ならそれ、`{"constraints": [...]}` ならその欄。`実測` の行に `measured_output` が無ければ拒む（`constraint_rows`）。
+5. 制約の行 `constraints`: port の値が配列ならそれ、`{"constraints": [...]}` ならその欄。`実測` の行の `measured_output` の欠けは拒まない（持ち越しの行は持たない）。
 6. `intake.json` に `{request, pr_text, constraints, lang, frozen: false, failed: false, reason: ""}` を書く。
 7. 作業ツリーの写しを `tree.json` に書く（`accept.tree_state(Path.cwd())`。今の :1283 の `snap_tree`）。
 8. `{due: true, reason: ""}` を返す。
@@ -352,7 +352,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 ### 7.1 standalone の fixture（`blocks/purpose/fixtures/`）
 
 - 形は README の 13 章のとおり、`exec-code: true` で script を本当に走らせ、AI の node の返答だけを差し替える。入力はどれも `request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'` だけ。
-- `standalone.stubs.yaml`: `expect: completed`・`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`。prep は差し替えない。`resolved-text-contains` の `purpose` は md の決まった文（`You are the purpose role, started in a new conversation.`）。役の返答は `{purpose_text: 平均の関数が正しい値を返す, source: ②計画・タスク記述, known_weaknesses: [], source_files: [], means: [分母を len(xs) にする]}`。
+- `standalone.stubs.yaml`: `expect: completed`・`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`。prep は差し替えない。`resolved-text-contains` の `purpose` は md の決まった文（`You are the purpose role.`）。役の返答は `{purpose_text: 平均の関数が正しい値を返す, source: ②計画・タスク記述, known_weaknesses: [], source_files: [], means: [分母を len(xs) にする]}`。
 - `frozen.stubs.yaml`: 筋書きの place は空なので、`intake: {due: false, reason: 目的は既に固めてある（purpose.json）}` と `finish`（`status: ok`）の返りを差し替えて、輪を通らずに出口へ届く配線だけを見る。`reached: [intake, finish]`。固めた目的を読む道は `FinishCase` が見る。
 - `gave-up.stubs.yaml`: 役の返答だけを差し替え、`source_files` に版に無いファイルを返させる。`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`・`expect: completed`。筋書きは輪を 1 周で終えるので、3 回で諦める数えは `FinishCase` が見る。
 
@@ -360,7 +360,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 script を子のプロセスで回す（今の `tests/workflows/test_judge.py:695-704` の `Run.run` と同じ形。`hermetic.child_env` で `ARTIFACTS_DIR`・`WORKFLOW_ID`・`WORKS_FACTORY_ROOT`・`PYTHONDONTWRITEBYTECODE=1`・`INPUTS_…` を渡す）。始めの記録は置かない。使い捨ての git のリポジトリに `README.md`・`docs/plan.md`・`sub/x.py`・git が無視するファイルを置く。
 
-- `IntakeCase`（元: `lib/tests/test_judge_accept.py::PurposeCase.test_purpose_material_has_no_prior_failures`〔:1076〕・`test_prep_snapshots_the_tree_the_accept_compares`〔:1067〕と `tests/workflows/test_judge.py::test_purpose_prep_failure_writes_a_stop`〔:1264〕）: 容器の `prior_failures` が `intake.json` の `request` に無く、ほかの欄は字のまま。`tree.json` が取られる。place に `purpose.json` が在れば、読めない port でも `due: false` でほかのファイルも消さない。前の回の自分の控え（却下・指示）を消し、古い却下が次の指示に届かず、指示の回が 1 から数え直す。読めない port・前提の実測の行の形（知らない欄・空白だけの `measured_output`・`実測` の行の `measured_output` の欠け）で `due: false` と「目的の役の支度が落ちた」の訳。
+- `IntakeCase`（元: `lib/tests/test_judge_accept.py::PurposeCase.test_purpose_material_has_no_prior_failures`〔:1076〕・`test_prep_snapshots_the_tree_the_accept_compares`〔:1067〕と `tests/workflows/test_judge.py::test_purpose_prep_failure_writes_a_stop`〔:1264〕）: 容器の `prior_failures` が `intake.json` の `request` に無く、ほかの欄は字のまま。`tree.json` が取られる。place に `purpose.json` が在れば、読めない port でも `due: false` でほかのファイルも消さない。前の回の自分の控え（却下・指示）を消し、古い却下が次の指示に届かず、指示の回が 1 から数え直す。読めない port・前提の実測の行の形（知らない欄・空白だけの `measured_output`）で `due: false` と「目的の役の支度が落ちた」の訳。持ち越しの形（`実測` で `measured_output` の無い行）は通る。
 - `PromptCase`（元: `PurposeCase.test_pr_body_reaches_purpose_brief`〔:1018〕と `tests/workflows/test_judge.py::test_purpose_role_does_not_see_the_prior_run`〔:501-506〕・`test_roles_that_reach_outside_carry_the_query_rule` の purpose の行）: `purpose_prep` の `prompt` に PR の文が在り、PR の無い run では「(This run has no PR.)」が在る。前提の実測の行が在る。容器に `prior_failures` を持つ依頼でも、`prompt` と YAML の `purpose` の node の欄に `prior_failures`・`prior-failures`・`judgment`・`PRIOR` の字が無い。外への検索の決まりの断片が入る。埋まらない差し込み口が無い。
 - `AcceptCase`（元: `PurposeCase` の `test_good_reply_writes_purpose_and_means`・`test_purpose_role_changed_the_tree_rejected`・`test_source_files_outside_or_missing_rejected`・`test_source_files_nested_ignored_and_subdir`・`test_frozen_purpose_is_not_overwritten`〔:990-1066〕）: 通った返答が `purpose.json`（`means` を外した物）と `purpose-means.json` に書かれる・役が作業ツリーを変えたら拒む・リポジトリの外や無い名を拒む・入れ子・無視されるファイル・サブディレクトリで回した時の決まり・固めた目的を書き直さない。
 - `FinishCase`: 受けた時は `status: ok` と pointer と `purpose_text`・`source`・`means`。固めた目的の時は `status: ok` と固めた中身。3 回拒まれた時は `status: failed` と null と諦めた文（「3 回とも」）と `report` の 1 行。1 回の拒みで輪が終わった時は最後の拒否の文。解き方の控えが無い・読めない時は `status: failed`。include された時は place が include の道に分かれる。
@@ -393,8 +393,8 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 4. PR の説明は README のとおり文の port `pr_text` で受け、番号・題・本文の見出しを組むのは line に残した。根拠: 単独の run で人が PR の本文をそのまま渡せる。見出しの組み方（`pr_file_text`）は始めの記録の `input.pr` の形を知る line の物。
 5. 出力に `purpose_text`・`source`・`means` を欄で置き、目的の控え全体は pointer で返す。根拠: 世界の解と独立設計は `purpose_text`（と `means`）しか読まない（README の 4.2 の「3 つ以上の欄を読む時だけ pointer」）。素材の観点・diagnose・plan は 4 つの欄を読むので pointer。
 6. 前の回までの却下の理由は、prep が place の却下の控えから全部を読む（`with: {reason: $LOOP_PREV…}` で前の回の 1 つだけを運ぶ形にしない）。根拠: README の 13 章と `.shared/AGENTS.md` の土台の決め（resume で輪が 1 周目から回り直しても数え直さない・#351 の「却下の理由を古い順に全部渡す」）と手本の world。
-7. 依頼の形は共通の `shared:request.schema.json` を使い、前提の実測の形も共通の `blocks/.shared/schemas/constraints.schema.json` に置いて、block の `schemas/` は持たない。根拠: README の 13 章「同じ名の形のファイルが pack の 2 か所に在れば形の検査が赤」「足りない共通の形（`constraints.schema.json` など）は、最初に要った PR が足す」。形の行は今の前提の役の `output_format`（`workflows/judge/works-factory-judge.yaml:594-606`）と [premises.md](premises.md) の行の形に合わせ、`additionalProperties: false` と `measured_output` の `minLength`・`pattern` を持たせた（#772 の審査）。premises.md の形との違い: `if`/`then`・`oneOf`・`$ref`・`$defs` は `KNOWN_KEYWORDS` の外なので使わない（`実測` の行の `measured_output` の要りは 8 が見る）。容器の外側（`{constraints: [...]}` のほかの欄）は閉じない（前提の実測の block の返りまるごとの pointer を受けるため）。依頼の容器の照らしは土台の口 `requestrows.parts` に通し、役に見せる写しは `ports.json` の値から `prior_failures` だけを外す（ほかの欄は字のまま）。
-8. `実測` の行が `measured_output` を持つかは、形の照らしでなく `src/steps.py` の `constraint_rows` が確かめ、無ければ入口が `failed` にする。根拠: `engine.schema` は if/then を持たない。訳の字は今の `measured_needs_output` に合わせた。
+7. 依頼の形は共通の `shared:request.schema.json` を使い、前提の実測の形も共通の `blocks/.shared/schemas/constraints.schema.json` に置いて、block の `schemas/` は持たない。根拠: README の 13 章「同じ名の形のファイルが pack の 2 か所に在れば形の検査が赤」「足りない共通の形（`constraints.schema.json` など）は、最初に要った PR が足す」。形の行は今の前提の役の `output_format`（`workflows/judge/works-factory-judge.yaml:594-606`）と [premises.md](premises.md) の行の形に合わせ、`additionalProperties: false` と `measured_output` の `minLength`・`pattern` を持たせた（#772 の審査）。premises.md の形との違い: `if`/`then`・`oneOf`・`$ref`・`$defs` は `KNOWN_KEYWORDS` の外なので使わない（`実測` の行の `measured_output` の扱いは 8）。容器の外側（`{constraints: [...]}` のほかの欄）は閉じない（前提の実測の block の返りまるごとの pointer を受けるため）。依頼の容器の照らしは土台の口 `requestrows.parts` に通し、役に見せる写しは `ports.json` の値から `prior_failures` だけを外す（ほかの欄は字のまま）。
+8. `実測` の行の `measured_output` の欠けは拒まない。根拠: 前の run から持ち越した行（`lib/carry.py:137-141` の `carried_constraints`・`lib/runreport.py:1814`）は `measured_output` を持たず、元の judge は前提の受け付けの後にそれを足して（`lib/judge_accept.py:1187-1192` の `with_carried`）目的の役へ確かめずに貼った（:1274-1281）。拒めば持ち越しの在る run が毎回ここで止まる。役自身の返りの `measured_output` は前提の block が見る。
 9. 固めた目的の照らしを port の読みより先にした。根拠: 今の `purpose_prep` も材料を読む前に `refuse_if_frozen` で役を起こさないと決めた（`lib/judge_accept.py:1264-1267`）。固めた目的は port の値に依らないので、port が読めなくても固めた目的を返す（#772 の審査）。
 10. 入口は place の中の、この block が名を持つファイルだけを消す（`purpose.json` は在れば固めた目的の道に入るので消さない）。根拠: README の 13 章と `.shared/AGENTS.md`「place は作るだけで消さない。消してよいのは自分が名を持つファイルだけ」。
 11. 受け付けは `purpose-means.json` を先に、`purpose.json` を最後に書き、出口は解き方の控えが無い・読めない時に `means: []` にせず `failed` を返す。根拠: `purpose.json` が在れば両方が書き終わっている、と読めるようにする（書きかけの控えを、解き方の無い目的と取り違えない。#772 の審査）。

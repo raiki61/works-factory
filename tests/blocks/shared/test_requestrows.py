@@ -22,7 +22,10 @@ class ReadCase(unittest.TestCase):
         cases = {json.dumps([{"text": "no where"}]): "where", json.dumps({"findings": [ROW], "extra": 1}): "知らない鍵",
                  json.dumps([{**ROW, "draft": True, "source": "r"}]): "下書き",
                  json.dumps({"findings": [{**ROW, "draft": True, "source": "r"}]}): "下書き",
-                 json.dumps({"findings": [ROW], "pr": ["x"]}): "pr"}
+                 json.dumps({"findings": [ROW], "pr": ["x"]}): "pr",
+                 # 行の知らない欄（打ち違い）は拒む（元の judge の REQUEST_SCHEMA の additionalProperties: false）
+                 json.dumps([{**ROW, "mesured": "x"}]): "mesured",
+                 json.dumps({"findings": [{**ROW, "mesured": "x"}]}): "mesured"}
         for raw, word in cases.items():
             with self.subTest(raw=raw), self.assertRaisesRegex(ValueError, word):
                 requestrows.parts(raw)
