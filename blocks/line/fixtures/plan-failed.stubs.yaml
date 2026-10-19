@@ -1,0 +1,159 @@
+# 計画の往復の中の node が落ちた（plan の入口の node intake に output_format に合わない stub を置いて落とす）。往復が落ち、受け皿
+# plan-rounds-out から後ろが飛び、collect・report・result は走る。
+fixture:
+  expect: failed
+  inputs: {request: .archon/workflows/works-factory/line/fixtures/request.json}
+  reached: [collect, report__finish, result]
+  fail-node: [plan-rounds, plan__intake]
+exec-code: true
+gate-start: {decision: approve, text: ''}
+test-gate-base__intake: {ok: true, reason: ''}
+test-gate-base__run:
+  by: engine
+  material: {status: clean, checked: 'suite: exit 0'}
+  runs:
+  - {name: suite, exit: 0, how: direct}
+  skipped_steps: []
+  same_as: null
+  log: test-gate-base/logs/checks.log
+  junit_steps: []
+  fingerprint_before: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+  fingerprint_after: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+test-gate-base__result:
+  mode: base
+  ok: true
+  green: true
+  red_cause: ''
+  ran_steps:
+    ran: [suite]
+    unran: []
+  baseline: {type: archon_artifact, run_id: fixture-run, path: test-gate-base/baseline.json}
+  fingerprint: null
+  test_outcomes: null
+  evidence: {type: archon_artifact, run_id: fixture-run, path: test-gate-base/evidence.json}
+  by: engine
+  suites_line: '走らせた: suite（exit 0・direct）／走らせなかった: 無い'
+  log: test-gate-base/logs/checks.log
+  baseline_line: ''
+  reason: ''
+  suite: ''
+  suite_note: ''
+  report: ['試験の関門（base）: 緑']
+judge__ins: {spec: false, world: false, web: 'on'}
+judge__head-depth__intake: {due: false, reason: ''}
+judge__head-depth__finish:
+  ok: true
+  status: ok
+  reason: ''
+  tier: 標準
+  why: 筋書きの stub
+  rows: []
+  record: {type: archon_artifact, run_id: fixture-run, path: head-depth/depth-head.json}
+  report: ['- 段: 標準']
+judge__spec-in: {go: false, stop_reason: '', reason: '', request: null, spec: null, added_rows: null, added_origin: ''}
+judge__diagnose-in:
+  ok: false
+  reason: 筋書きの stub
+  go: false
+  purpose: null
+  constraints: null
+  materials: []
+  missing: []
+  pr_material: null
+  world_rows: ''
+  row_asks: []
+  depth_why: ''
+  spec_rows: ''
+  spec_origin: ''
+  tier: 標準
+  verify: false
+judge__verdict:
+  ok: true
+  stop_reason: ''
+  reason: ''
+  ready: true
+  units:
+  - id: u1
+    paths: [stats.py]
+    summary: 空の列の mean が 0 割りで落ちる
+  judgment: {type: archon_artifact, run_id: fixture-run, path: judge/judgment.json}
+  answer_ties: null
+  out_of_purpose: null
+  materials: {type: archon_artifact, run_id: fixture-run, path: judge/materials.json}
+  brief: null
+  inputs: null
+  purpose: {type: archon_artifact, run_id: fixture-run, path: judge/purpose.json}
+  purpose_text: 空の列でも mean が落ちない
+  purpose_source: 筋書きの stub
+  means: []
+  purpose_review: null
+  constraints: null
+  world: null
+  world_state: {status: skipped, reason: 筋書きの stub}
+  spec: null
+  spec_rows: null
+  spec_origin: ''
+  excluded: null
+  pr_drafts: null
+  downgrades: []
+  decisions: null
+  tier: 標準
+  tier_why: 筋書きの stub
+  row_asks: []
+  tier_record: null
+  verify: null
+  verify_why: 回さない（筋書きの stub）
+  report: ['- 判定: 開いた単位 1']
+  sections: []
+  optional: []
+structure__measure: {eye: false, reason: ''}
+structure__finish:
+  ok: true
+  status: ok
+  reason: ''
+  structure: {type: archon_artifact, run_id: fixture-run, path: structure/structure-state.json}
+  after: null
+  dirty: 0
+  escalate: 0
+  optional:
+  - {node: measure, bare: false}
+  report: ['- 構造: 汚れない']
+independent-design__intake: {due: false, status: '', reason: ''}
+independent-design__finish:
+  ok: true
+  status: ok
+  stands: true
+  design: {type: archon_artifact, run_id: fixture-run, path: independent-design/design.json}
+  premises: null
+  reason: ''
+  downgrades: []
+  report: ['- 独立設計: 問いは立つ']
+report__facts: {outcome: stopped_by_line, ok: false, stop_reason: '', machine: null, next_request: null, prior_failures: null, ai_go: false, stamp: ''}
+report__finish:
+  ok: false
+  outcome: stopped_by_line
+  stop_reason: ''
+  machine: {type: archon_artifact, run_id: fixture-run, path: report/report.machine.json}
+  human: {type: archon_artifact, run_id: fixture-run, path: report/report.md}
+  detail: null
+  next_request: null
+  prior_failures: null
+  report: ['- 報告']
+plan__intake: {go: 型に合わない, mode: plan, round: 1, reason: ''}
+plan__ripple-items: {ok: true}
+plan__finish:
+  ok: true
+  status: ok
+  reason: ''
+  mode: plan
+  round: 1
+  owed: [u1]
+  plan: {type: archon_artifact, run_id: fixture-run, path: plan/plan-fields.json}
+  fix_plan: {type: archon_artifact, run_id: fixture-run, path: plan/fix-plan.json}
+  reply: null
+  handoff: null
+  replan: null
+  ripple: {type: archon_artifact, run_id: fixture-run, path: plan/ripple.json}
+  rejects: []
+  gave_up: null
+  report: ['- 計画: 1 項目']
