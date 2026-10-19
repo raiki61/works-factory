@@ -1,14 +1,15 @@
-"""埋め P6（workflows/.shared/child_pointer.py）を、使い捨ての runs/{parent,child} の置き場で確かめる。"""
+"""埋め P6（blocks/.shared/child_pointer.py。integration.md の 4.5-1 で ports を読む形に直した）を、使い捨ての runs/{parent,child} の置き場で確かめる。"""
 import os
 import pathlib
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
-from tests.shared.test_boundary import load_boundary
+from tests.blocks import kit
 
-load_boundary()   # 埋めが import する境の口の置き場を sys.path に足す
-
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(kit.SHARED))   # 埋めが import する口 ports の置き場
 import child_pointer  # noqa: E402
 
 

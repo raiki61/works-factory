@@ -13,6 +13,8 @@
 - file(raw) -> Path | None: ファイル 1 つ（pointer かパス）。空・null は None。在らなければ ValueError
 - place() -> Path: この node の block の run directory の中のフォルダ（$ARTIFACTS_DIR/<include の道>/。単独の run では
   $ARTIFACTS_DIR/）。無ければ作る。run directory の根は返さない（4.3）
+- inside(rel, root) -> Path: 置き場 root からの相対パス rel の照らし（.. と先頭・末尾の / を拒む）。pointer の path の照らしと
+  child_pointer（ほかの run の置き場の中）が使う
 - pointer(path) -> dict: place の中のファイルを指す Archon の pointer {type: archon_artifact, run_id, path}
 - returns(obj): node の返り（JSON 1 つを標準出力へ）
 - run(compute, fallback): compute() の返りを返す。例外は fallback(理由の 1 行) の返りにする（落ちない node の口）
@@ -99,15 +101,20 @@ def choice(raw, words) -> str:
     return word
 
 
+def inside(rel, root) -> Path:
+    """置き場 root からの相対パス rel を、Archon が通す形に限って root の中のパスにする。形が違えば ValueError。Archon は / と \\ の両方で
+    区切って .. を拒み、末尾の / は pathlib が落とすが Archon の stat は ENOTDIR で拒む（child_pointer も子の run の置き場の root で使う）"""
+    if (not isinstance(rel, str) or not rel or "\0" in rel or rel.startswith(("/", "\\")) or rel.endswith("/")
+            or ".." in re.split(r"[\\/]", rel)):
+        raise ValueError(f"pointer の path は run directory からの相対で、.. を持たず、/ で終わらない: {rel!r}")
+    return Path(root) / rel
+
+
 def _pointer_path(ptr: dict) -> Path:
     run_id = os.environ.get("WORKFLOW_ID", "")
     if ptr.get("run_id") != run_id:
         raise ValueError(f"ほかの run の pointer: {ptr.get('run_id')!r}（この run は {run_id!r}）")
-    rel = ptr.get("path")
-    if (not isinstance(rel, str) or not rel or "\0" in rel or rel.startswith(("/", "\\")) or rel.endswith("/")
-            or ".." in re.split(r"[\\/]", rel)):
-        raise ValueError(f"pointer の path は run directory からの相対で、.. を持たず、/ で終わらない: {rel!r}")
-    return Path(os.environ["ARTIFACTS_DIR"]) / rel
+    return inside(ptr.get("path"), os.environ["ARTIFACTS_DIR"])
 
 
 def _is_pointer(value) -> bool:

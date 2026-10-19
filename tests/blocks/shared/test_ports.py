@@ -116,6 +116,23 @@ class PlaceCase(Base):
             ports.pointer(self.tmp / "outside.txt")
 
 
+class InsideCase(Base):
+    def test_inside_joins_a_clean_relative_path_under_the_root(self):
+        self.assertEqual(ports.inside("a/b.json", self.art), self.art / "a" / "b.json")
+        self.assertEqual(ports.inside("a/b.json", str(self.art)), self.art / "a" / "b.json")
+
+    def test_inside_refuses_what_archon_refuses(self):
+        for rel in ("", None, 3, "/abs", "\\abs", "a/", "../x", "a/../b", "a\\..\\b", "a\0b"):
+            with self.subTest(rel=rel), self.assertRaises(ValueError):
+                ports.inside(rel, self.art)
+
+    def test_pointer_reading_uses_it(self):
+        (self.art / "x.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(ports.file(self.ptr("x.json")), self.art / "x.json")
+        with self.assertRaises(ValueError):
+            ports.file(self.ptr("../x.json"))
+
+
 class HelperCase(Base):
     def test_parsed_and_picked(self):
         self.assertIsNone(ports.parsed(""))
