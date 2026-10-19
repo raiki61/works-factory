@@ -1,0 +1,13 @@
+# 役の返答が受け付けを通らない道: run は止めず、出口が status: failed と却下の理由を返す。筋書きでは輪が 1 周で終わるので
+# 却下は 1 回で、3 回で諦める数えは tests/blocks/purpose の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, purpose-prep, purpose, purpose-accept, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+exec-code: true
+purpose:
+  purpose_text: 平均の関数が正しい値を返す
+  source: ②計画・タスク記述
+  known_weaknesses: []
+  source_files: [docs/no-such-plan.md]
