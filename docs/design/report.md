@@ -159,16 +159,16 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
 
 - line（組み込みの後の `blocks/line/`）: 最後に `include: works-factory-report` を置く（id `report`、`trigger_rule: all_done`）。その前の script の node（今の `collect` の後継）が、各 block の出力を受けて `sections` と `facts` を組み、place にファイルとして書いて pointer を `with:` で渡す（README の 4.2 の「欄を 3 つ以上読む時は pointer 1 つ」）。`lang` は始めの記録の `lang`。
 - `sections` の並びは今の機械の報告の節の並びに合わせる（line の設計書が決める）。今の節と、新しい形でその行を組む作り手:
-  - 「2. 入口・段・決めた人」（今 `_entry_lines`・`_depth_lines`・`_head_depth_line`・`_prior_in_lines`・`_policy_lines`・凍結の行）→ line。
+  - 「2. 入口・段・決めた人」（今 `_entry_lines`・`_depth_lines`・`_head_depth_line`・`_prior_in_lines`・`_policy_lines`・凍結の行）→ line。ただし run の頭の深さの行（今 `_head_depth_line`）の段と根拠は head-depth の `report`、省く物・足した物は line が組む（head-depth の設計書の 8 節の 3）。
   - 「4. 読んだ証拠と包み」のうち、フックの記録の行（今 `_reads_lines` の `HOOK_HEAD` の下。`reads-*.json` を run directory から探した物）→ 読んだ証拠の node を持つ block（今 `lib/reads.py` を使う fix・plan・plan-review・parallel-pr）が自分の `report` の欄に組む。run の記録の道具の呼びの行は report が組む（節「4. 役が呼んだ道具」）。
   - 「TDD のループの単位ごとの結末」（今 `_tdd_lines`。型つきの成果物 `tdd-unit` から）→ fix（2 度目の修正は別の節。今の `report.TDD_STAGES`）。keep-essence の 11（7 節）。
   - 「緑の認証（全部の周）」（今 `_green_lines`）→ test-gate。
   - 「独立の目」（今 `_eye_lines`）→ r1〜r4 と eyes のまとめ。r1 の行は、今の書き手の指示の構成 5 が読ませていた「削ったコメント（`r1.json` の `deletions` の `where` と `why`）」と「残した why（`r1-comments.json` の `kept` の `where` と `fact`）」を 1 件 1 行で含む（書き手の md がほかの block のファイルの名を持たない形にしたため。2.6）。
   - 「構造の目」（今 `_structure_lines`）→ structure（after）。
   - 「世界の解」（今 `_world_lines`）→ world（world.md の 1.2 の `report`）。
-  - 「未確認のレンズ」（今 `_unseen_lens_lines`）→ local-review（素材の観点）。
+  - 「未確認のレンズ」（今 `_unseen_lens_lines`）→ local-review（素材の観点）。素材の観点の族は `report` の配列を 1 つだけ返すので、見ていないレンズの行は local-review の `report` の、素材の 1 行の後ろに入る（local-review の設計書の 1.6）。この行を独り立ちの節にするか、修正の後のレンズの行（今の `fixbeside.lens_lines`）と並べるかは、`sections` を組む line が決める。
   - 「判定が目的の外とした所見」（今 `_outside` の 2 つ目）→ diagnose。
-  - 「模型」の群ごとの選びの行（今 `headdepth.groups_lines`）→ head-depth。
+  - 「模型」の群ごとの選びの行（今 `headdepth.groups_lines`）→ head-depth の `report` には入れない。ノードごとの実際の模型の事実と並ぶ節なので、head-depth の出力 `record` の pointer から KEEP の `headdepth.groups_lines` で組む（head-depth の設計書の 8 節の 3）。line が組んで `sections` に入れるか、report が受けて組むかは line の設計書で決める。
 - 節「3. 見る所」の元（今の `POINTERS`、`lib/runreport.py:181-188` の 18 個）は、line が各節の `files` に入れる（判定・目的・定石・仕様・目的の外の所見・計画・構造の目・波及・事前審査・独立設計・差分・申し出と裁定・直す前の結末・試験の記録 2 つ・直した後の構造・封じた差分・置いた差分）。
 - `facts` は 1.2 の表の「今」の計算を line の `src/` が持つ（承認ノードの答え・止めの語・段の表・無人の方針は line の持ち物。README の 1.2 の U・D）。
 - 読み手: chain（`outcome`・`next_request` を、line の返りの欄を通して読む。今と同じ）。line の返りの欄 `report`・`report_ai` は、組み込みで `machine`・`human` を写す（`bin/` は報告を読まない）。

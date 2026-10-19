@@ -46,7 +46,7 @@
 
 ### 1.3 node の並び（`blocks/premises/works-factory-premises.yaml`）
 
-1. `intake`（script `intake.py`。`mutates_checkout: false`）: port を読み、place を作り直し、依頼の行と運ばれた実測を `intake.json` に書き、作業ツリーの写しを `tree.json` に取る。返り `{due, reason}`。
+1. `intake`（script `intake.py`。`mutates_checkout: false`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、依頼の行と運ばれた実測を `intake.json` に書き、作業ツリーの写しを `tree.json` に取る。返り `{due, reason}`。
 2. `premises-loop`（`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: done=$premises-accept.output.done; test "$done" = true`。`depends_on: [intake]`・`when: $intake.output.due == true`）
    - `premises-prep`（script `measure_prep.py`。`mutates_checkout: false`・`with: {reason: "$LOOP_PREV.premises-accept.output.reason"}`）: 指示を組む。返り `{prompt}`。
    - `premises`（AI。`depends_on: [premises-prep]`・`prompt: "$premises-prep.output.prompt"`・`model: '@wf-judge-materials'`・`settingSources: [user]`・`allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false, filesystem: {denyWrite: ['~/../archon-home']}}`・`idle_timeout: 1728000000`・`mutates_checkout: false`・`retry: {max_attempts: 2, on_error: all}`。`output_format` は今のまま。2.4）
@@ -277,7 +277,7 @@ Write `text` and `measured_how` in the language of the request lines. …
 ### 3.1 `intake.py`
 
 1. `request`・`carried`・`lang` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(raw, "request.schema.json")`・`ports.json(raw, "constraints.schema.json")`・`ports.text(raw)` に渡す（口の名は土台の PR の `ports.py` に合わせる）。
-2. place を作り直す（place の中のファイルを全部消す。今の judge の入口は前の控えを残さなかった）。
+2. place の中のこの block のファイル（`src/` の定数が名を持つ物と `<node-id>-prompt-*.md`）を名で引いて消す（今の judge の入口は前の控えを残さなかった）。place そのものと、ほかの物は消さない（単独の run では place が run directory の根。README の 13 章）。
 3. 依頼の行 `findings` は、値が配列ならそれ、object なら `findings` の欄。運ばれた実測 `carried` は、port の値が配列ならそれ、`{"constraints": [...]}` ならその欄。それが空で、依頼が object で `constraints` の欄を持てば、その欄（今の judge の入口が依頼の容器から `carried-constraints.json` を置いたのと同じ。`lib/judge_accept.py:3862`）。
 4. `intake.json` に `{findings, carried, lang, failed: false, reason: ""}` を書く。
 5. 作業ツリーの写しを `tree.json` に書く（`accept.tree_state(Path.cwd())`）。
@@ -448,6 +448,8 @@ uv run --isolated python3 tests/changed.py
 6. 却下の段落に入れる理由は、今と同じく前の回の 1 つだけにした（[head-depth.md](head-depth.md) の 8 節の 5 と同じ訳）。
 
 ## 9 README へ返す問題
+
+下の 3 つは README に当てた（8.2・10 節の 9・9.3・13 章）。
 
 1. 独立設計（independent-design）の入力は README の 8.2 で `purpose` だけだが、今の独立設計の役は実測した制約も貼られている（`lib/boardview.py:714-750` の `r2_prompt` が入力 `premises` の `constraints` を貼る。plan-review の入力 `premises`）。README の 10 節の 9 は「入力は `purpose` だけ」を yes/no で縛るとしているので、このままだと独立設計が今持つ「実測した制約を所与にする」能力が落ちる。independent-design の port に `constraints` を足すか、落とすと決めるかを README で決める必要がある。
 2. 依頼の port の形の写し（[head-depth.md](head-depth.md) の 9 節の 5）と同じく、制約の行の形 `constraints.schema.json` も premises と purpose（と diagnose）の 3 つの block が同じ中身を持つ。

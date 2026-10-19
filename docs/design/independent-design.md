@@ -50,9 +50,9 @@
 
 ### 1.3 node の並び（`blocks/independent-design/works-factory-independent-design.yaml`）
 
-1. `intake`（script `intake.py`）: port を読み、place を作り直して `intake.json` を書き、役を起こすかを決める。返り `{due, status, reason}`。
+1. `intake`（script `intake.py`）: port を読み、place の中のこの block のファイルを名で引いて消し（place そのものは消さない。README の 13 章）、`intake.json` を書き、役を起こすかを決める。返り `{due, status, reason}`。
 2. `design-loop`（`depends_on: [intake]`、`loop_group`、`max_iterations: 3`、`fresh_context: false`、`until_bash: done=$design-accept.output.done; test "$done" = true`、`when: "$intake.output.due == true"`）
-   - `design-prep`（script `design_prep.py`。`with:` を持たない）: 指示と system prompt を組み、役を起こす前の作業ツリーの姿を置く。返り `{prompt, system}`。前の回の却下の理由は `$LOOP_PREV` で受けず、place の却下の控えから読む（Archon は `with:` に貼った前の周の値の中の `$<id>.output.<欄>` の字をもう 1 度置き換えるので、却下の文が node の参照の字を含むと loop が落ちる。今の裁定 R44 と `tests/workflows/test_test_gate.py::YamlCase.test_loop_does_not_paste_previous_reject_by_loop_prev`）。
+   - `design-prep`（script `design_prep.py`。`with:` を持たない）: 指示と system prompt を組み、役を起こす前の作業ツリーの姿を置く。返り `{prompt, system}`。前の回の却下の理由は `$LOOP_PREV` で受けず、place の却下の控えから読む（resume で輪が 1 周目から回り直しても却下が抜けず、却下の理由を古い順に全部渡せる。README の 13 章と world の 9.1 の 6 と同じ）。
    - `design`（AI。`prompt: "$design-prep.output.prompt"`・`systemPrompt: "$design-prep.output.system"`・`allowed_tools: []`・`settingSources: [user]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false}`・`mutates_checkout: false`・`model: '@wf-plan-review'`・`idle_timeout: 1728000000`・`retry: {max_attempts: 2, on_error: all}`・`output_format` は今の `r2-design` の物を字のまま。`depends_on: [design-prep]`）
    - `design-accept`（script `design_accept.py`。`depends_on: [design]`・`mutates_checkout: false`・`with: {status_guarded: true, reply: $design.output}`）: 返り `{ok, done, give_up, reason}`。
 3. `finish`（script `finish.py`。`depends_on: [intake, design-loop]`・`trigger_rule: all_done`・`mutates_checkout: false`）: 出力を返す。どの段が落ちても落ちない（今の落とし穴 K1・K13 の決まり）。
@@ -393,15 +393,15 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 ## 11 自分で決めた事
 
-1. 独立設計の役の system prompt を、AI の node の md と同じ型の `prompts/<node-id>.system.md` に書き、prep の出力の欄 `system` を `systemPrompt: "$<prep>.output.system"` で渡す。根拠: 既定の system prompt は作業ツリーの git の様子を入れるので、今の役は `systemPrompt` で前付けだけに替えている（#73）。README の型は `prompt:` しか言わず、YAML に文を書けば README 2 節の憲法の 2（AI の node の指示はその node の md 1 本に書き、Python と YAML は指示の文を持たない）に触れる。Archon は `systemPrompt` の `$<id>.output` を置き換える（`A/packages/workflows/src/template-walker.ts:79` の `systemPrompt: { surface: 'prompt', outputReference: true }`・`dag-executor.ts:1805-1806`）。r2 の block（比べの役）も同じ形が要る。README の 5.2 と 7.1 の 1・2 に足すべき。
-2. port を 10 個にする（README の 8.2 は `purpose` だけ、README の 10 節の 9 は「入力は `purpose` だけ」の yes/no）。根拠: 今の役は目的に加えて実測した制約・人の承認ノードの答え・依頼が名指した設計書の節・対象の地図・人の方針・足した行の印・裏取りを通っていない目的の判定を受けている（`boardview.r2_prompt`）。`purpose` だけにすると、元の works から持つ人が決めた前提（`PREMISE_KINDS`）と #418 の印が落ちる。独立の守りは「修正案・判定・差分を運ぶ port が無い」の yes/no で同じ強さに保てる。
+1. 独立設計の役の system prompt を、AI の node の md と同じ型の `prompts/<node-id>.system.md` に書き、prep の出力の欄 `system` を `systemPrompt: "$<prep>.output.system"` で渡す。根拠: 既定の system prompt は作業ツリーの git の様子を入れるので、今の役は `systemPrompt` で前付けだけに替えている（#73）。README の型は `prompt:` しか言わず、YAML に文を書けば README 2 節の憲法の 2（AI の node の指示はその node の md 1 本に書き、Python と YAML は指示の文を持たない）に触れる。Archon は `systemPrompt` の `$<id>.output` を置き換える（`A/packages/workflows/src/template-walker.ts:79` の `systemPrompt: { surface: 'prompt', outputReference: true }`・`dag-executor.ts:1805-1806`）。r2 の block（比べの役）も同じ形が要る。README の 5.2 と 7.1 の 1・2 と 13 章に足した。
+2. port を 10 個にする（README の 8.2 は `purpose` だけ、README の 10 節の 9 は「入力は `purpose` だけ」の yes/no）。根拠: 今の役は目的に加えて実測した制約・人の承認ノードの答え・依頼が名指した設計書の節・対象の地図・人の方針・足した行の印・裏取りを通っていない目的の判定を受けている（`boardview.r2_prompt`）。`purpose` だけにすると、元の works から持つ人が決めた前提（`PREMISE_KINDS`）と #418 の印が落ちる。独立の守りは「修正案・判定・差分を運ぶ port が無い」の yes/no で同じ強さに保てる。README の 8.2 と 10 節の 9 をこれに合わせた。
 3. 「同じ run に設計の控えが在れば作り直さない」の確かめを block から外し、1 回だけ include する配線に任せる。根拠: README 4.3（block は自分の place だけを開く）。place は include ごとに分かれるので、block の中で前の控えは見えない。world と同じ置き方（world.md の 1.6）。
-4. 足した行の印に要る git の 3 つ（`fixboard.pr_revs`・`pr_diff`・`pr_added_lines`）と、それが使う `unittrees` の部分を、この block の `src/marks.py` に写す。根拠: README 9.2 は `fixboard` と `unittrees` を fix へ MOVE と決めたが、この 3 つは独立設計（`boardview`）と r2 の比べ（`eyeverdict.py:446`）も使う。組み込みの後に lib に無いので、block が持つ。2 つの block が使うので本来は lib の KEEP に置く物で、README の 9 節の割り当てを直すべき（報告に書いた）。
+4. 足した行の印に要る git の 3 つ（`fixboard.pr_revs`・`pr_diff`・`pr_added_lines`）と、それが使う `unittrees` の部分を、この block の `src/marks.py` に写す。根拠: README 9.2 は `fixboard` と `unittrees` を fix へ MOVE と決めたが、この 3 つは独立設計（`boardview`）と r2 の比べ（`eyeverdict.py:446`）も使う。組み込みの後に lib に無いので、block が持つ。2 つの block が使うので本来は lib の KEEP に置く物で、README の 9.2・9.3 をそう直した（組み込みで lib の 1 モジュールに寄せる）。
 5. 却下の理由を貼る先を共通の断片 `rejected` にし、今の `with_reject` の見出しつきの段落をやめる。根拠: world と parallel-pr と同じ置き方。理由は今と同じく古い順に全部。
 6. 設計が無い時に報告の行を 1 行出す（今は報告に出ていなかった。plan-review の事前審査の文と eyes の R2 の行が `design.missing` の文を出していた）。根拠: README 4.1（報告の文は事実を持つ block が組む）。block の外の読み手が設計の無い訳を言うのは、この block の事実の言い直しになる。
 7. `purpose_review` が読めない時だけ落ちずに監査の無い形で進め、訳を控えに残す。根拠: 今の振る舞い（`_purpose_review`）を変えない。README 4.2 の「読めない pointer は落とす」は ports の口の決まりで、block がその誤りを捕まえて控えに名指して進むのは黙った緩めではない（持ち主の決め `no-silent-loosen` の「黙って」に当たらない）。
 8. 制約の `kind` の語「仮説」を md に `{hypothesis}` で入れ、値を `src/steps.py` に 1 つ置く。根拠: README 5.3（md と受け付け・データが同じ字を持つべき値は定数 1 つ）。語の正本は premises の block の出力の形で、その block の行の形のモジュールが lib に置かれたらそこから引く。
-9. prep は前の周の却下の理由を `$LOOP_PREV` で受けず、place の却下の控えから読む。根拠: Archon は `with:` に貼った前の周の値をもう 1 度置き換えるので、却下の文に `$<id>.output.<欄>` の字が在ると loop が落ちる（今の裁定 R44。test-gate の `test_loop_does_not_paste_previous_reject_by_loop_prev` が縛る）。world.md の 1.3 は `with: {reason: $LOOP_PREV.…reason}` と書くが、この block はその形を写さない（README と world.md で直すべき点として報告に書いた）。
+9. prep は前の周の却下の理由を `$LOOP_PREV` で受けず、place の却下の控えから読む。根拠: 書いた時は、Archon が `with:` に貼った前の周の値をもう 1 度置き換える（今の裁定 R44）と読んだ。土台の PR が、止めた版は読み直さないと源で確かめ（README の 13 章）、それでも resume で却下が抜けないよう控えから読む形に決めた。world も同じ形（world.md の 9.1 の 6）。
 
 ## 12 試験
 
