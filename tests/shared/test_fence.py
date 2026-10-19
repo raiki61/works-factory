@@ -1,4 +1,4 @@
-"""読むだけの役の claude の包み（workflows/.shared/fence.py。埋め P5）を確かめる。
+"""読むだけの役の claude の包み（pack の .shared/fence.py。埋め P5）を確かめる。
 
 一覧の組み方・argv の書き換え・main は使い捨ての git の木と偽の claude で確かめる。RealClaudeTest は本物の claude を偽の API で起こし、
 sandbox が包みの足した一覧への書き込みを本当に止めることを確かめる。起こす前に、共有の部品 tests/bin/sandbox_probe.py で sandbox の
@@ -21,10 +21,11 @@ from unittest import mock
 from bin._lib import isolate, launcher
 from tests.bin import hermetic, sandbox_probe
 from tests.bin.gitkit import git
+from tests.archon import WORKFLOWS
 from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-FENCE = ROOT / "workflows" / ".shared" / "fence.py"
+FENCE = WORKFLOWS / ".shared" / "fence.py"
 
 
 def load_fence():
