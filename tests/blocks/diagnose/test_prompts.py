@@ -97,6 +97,17 @@ class WordsCase(unittest.TestCase):
         for word in rejudge.REJUDGE_VERDICTS:
             self.assertIn(word, self.rejudge)
 
+    def test_fork_recommendation_mark_is_the_one_the_machine_reads(self):
+        import gatemarks
+        raw = (PROMPTS / "diagnose.md").read_text(encoding="utf-8")
+        self.assertEqual(gatemarks.PUSH_IN.findall('"推し: <option>——<reason>"'), ["<option>——<reason>\""])
+        self.assertIn('"推し: <option>——<reason>"', raw, "推しの印は lib/gatemarks.py の PUSH_IN が拾う字のまま")
+        self.assertIn("the mark `推し:` as they are", raw)
+
+    def test_redesign_section_is_named_by_its_heading(self):
+        heading = re.search(r"^## (What the previous round's [^:\n]+):", (SHARED_PROMPTS / "prior-failures.md").read_text(encoding="utf-8"), re.M).group(1)
+        self.assertEqual(self.diagnose.count(f'"{heading}"'), 3, "作り直しの節は断片の見出しの字のまま引く")
+
     def test_ledger_kinds_are_explained_with_their_origin(self):
         for kind in self.mod["judge"].QUESTION_KINDS:
             self.assertRegex(self.diagnose, rf"- `{kind}` \(")

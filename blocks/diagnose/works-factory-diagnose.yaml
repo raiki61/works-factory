@@ -364,6 +364,7 @@ nodes:
                           maxItems: 20
                           items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
                         examples_unavailable: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+                        misses_omitted_why: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
         - id: rejudge-fix-prep
           script: rejudge_fix_prep
           runtime: uv

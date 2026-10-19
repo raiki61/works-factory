@@ -331,6 +331,15 @@ class YamlCase(unittest.TestCase):
         finish = self.nodes["finish"]["output_format"]["properties"]["rejudge_verdict"]["enum"]
         self.assertEqual(tuple(w for w in finish if w), rejudge.REJUDGE_VERDICTS)
 
+    def test_rejudge_class_query_shape_is_the_diagnose_one(self):
+        def class_query(loop, role):
+            node = next(n for n in self.loop(loop)["nodes"] if n["id"] == role)
+            return node["output_format"]["properties"]["units"]["items"]["properties"]["class_query"]
+        want = class_query("diagnose-loop", "diagnose")
+        self.assertIn("misses_omitted_why", want["properties"])
+        for role in ("rejudge", "rejudge-fix"):
+            self.assertEqual(class_query("rejudge-loop", role), want, f"{role} の class_query は判定役の物と同じ形（querytest.problems が同じ欄を求める）")
+
     def test_reply_vocabulary_matches_the_tables(self):
         judge = support.modules()["judge"]
         node = next(n for n in self.loop("diagnose-loop")["nodes"] if n["id"] == "diagnose")
