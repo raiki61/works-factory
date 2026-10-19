@@ -306,3 +306,9 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 - 起動の隔離した設定（`CLAUDE_CONFIG_DIR`）が、block の script の node にも今の fix の `lens-prep` と同じく渡り、`agent_def` が利用者の plugin を引けるか（本物の単独の run で確かめる）。
 - 持ち主の決め `code-review-lens`（標準の /code-review をレンズに入れる）の当て方は、今の表に入っていない。表に足すのは振る舞いを変える話で、この作り直しの外。
+8. `intake.json` に `lang`（port `lang` の字）も書く。根拠: `<lens>-prep` は `with:` で lens の名しか受けず、言語の文を組むには入口の控えから読むしかない（1.4 の形に足した）。
+9. `finish` は `errors.json` に `<lens>-prep` の行が在れば `status: failed`・`ok: false`（3 節の 4 の 3）。`reason` は「レンズの指示が組めなかった: <node>（<訳>）」。入口が `errors.json` に積んだ行は入口の `failed` で先に処理される。
+10. `base` が版として読めない時の訳は「入力 base: git の版（木か commit）として読めない: <値>」。`leftovers.Unreadable` を `ValueError` に替えて port の名を頭に付ける。
+11. 入口の `ports.run` の fallback の返りの `<key>_go` は script の中に字で書いた（`silent_failure_hunter_go`）。落ちた先で `src` を import せずに返すため。表に足す時は script も直す（`ShapeCase` が YAML の欄と表を結ぶ）。
+12. 試験は `tests/blocks/lens/test_lens.py` の 1 本に `IntakeCase`・`PromptCase`・`FinishCase`・`ShapeCase` を置いた。`finish.py` の逃げ道の `optional` も表の 1 行を字で持つ。
+13. 筋書き `not-routed` は `base: HEAD` で、`reached: [intake, finish]`（レンズの 3 つの node は飛ぶ）。
