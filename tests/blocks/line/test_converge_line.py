@@ -437,6 +437,32 @@ class ItemsCase(BoardCase):
         self.assertEqual((self.states(got), got["outcome"]), ([C.HELD, C.OPEN, C.CLOSED], C.AGAIN))
         self.assertEqual(C.stuck_reason(self.b), "")
 
+    def test_stuck_keys_uncited_and_stuck_faces_of_a_held_item(self):
+        """元 test_review_section_names_held_cites_for_the_stuck_push の止めた key の部分（src.rounds の stuck_keys・uncited・stuck_faces）:
+        項目 1 を保留にした後、保留の項目のほかの開いた block が端だけの往復で止まる（PERSISTED）。stuck_keys は保留の項目の前の往復の
+        block key-a1 と開いた項目の block key-b3。止まった時の推しの note は、止めた key と保留・開いた項目の『項目 n』を全部引けば
+        uncited が空・欠けた物を名指す（『項目 12』と key-a12 は引用に数えない）。止まっていない控えは照らさない。保留の項目の前の往復の
+        block は stuck_faces が印 HELD_MARK つきで返し、block_faces は数えない。
+        元の review_section（HELD_CITES を事前審査の役に貼る節）は plan-review の src/material.py と md へ移ったので、ここでは見ない"""
+        self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
+        self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
+        doc = C.read(self.b)
+        self.assertEqual((C.stuck_keys(doc), C.uncited("何でも", doc), C.stuck_faces(doc)), ([], [], []),
+                         "止まっていない控えは照らさない")
+        got = self.review([edge("key-b3", units=["u2"])], resolved=["key-b2"])
+        self.assertEqual(got["outcome"], C.PERSISTED, "保留の項目のほかの開いた block が端だけの往復")
+        doc = C.read(self.b)
+        self.assertEqual(C.stuck_keys(doc), ["key-a1", "key-b3"])
+        self.assertIn("key-a1、key-b3", C.stuck_reason(self.b), "stuck_reason も同じ式で止めた key を出す")
+        self.assertEqual(C.uncited("key-a1 と key-b3 を項目 1・項目 2 の修正の中で片付ける", doc), [])
+        self.assertEqual(C.uncited("key-b3 を項目 2 の修正で片付ける", doc), ["key-a1", "項目 1"])
+        self.assertEqual(C.uncited("key-a12 と key-b3 を項目 12・項目 2 で片付ける", doc), ["key-a1", "項目 1"])
+        self.assertEqual(C.uncited("key-a1・key-b3・項目 1・項目 2", doc), [])
+        held = C.stuck_faces(doc)
+        self.assertEqual([f["key"] for f in held], ["key-a1"], "最後の往復の faces に在る key-b3 は足さない")
+        self.assertEqual(held[0], {**face("key-a1", units=["u1"]), C.HELD_MARK: True})
+        self.assertEqual(converge.block_faces({"faces": held}), [])
+
     def test_items_go_again_while_new_central_blocks_come(self):
         """開いた項目に中央の新しい block が出続ける間は、開いた数が減らなくても往復の数に依らず AGAIN。端だけになった往復で SETTLED"""
         for k in range(1, 6):
@@ -638,6 +664,26 @@ class ItemsCase(BoardCase):
                                    origins=claims)
         self.assertEqual(got["origins"], {"key-b1": C.ORIGIN_UNSPLIT, "key-a2": C.ORIGIN_UNSPLIT})
         self.assertEqual(got["origins_claimed"], claims)
+
+
+class StuckKeysCase(BoardCase):
+    """止めた block の key（src.rounds の stuck_keys・uncited）の項目の無い控えの分（元 lib/tests/test_converge.py の分に無かった分岐）"""
+
+    def test_stuck_keys_without_items_follow_the_outcome(self):
+        """stuck_keys の項目の無い控えの分: PERSISTED は最後の往復の続いた key、UNSETTLED は最後の往復の block（docstring の式）。
+        uncited は『項目 n』を求めない"""
+        self.record(["key-a"])
+        self.record(["key-a"], resolved=[])
+        doc = C.read(self.b)
+        self.assertEqual((doc["outcome"], C.stuck_keys(doc)), (C.PERSISTED, ["key-a"]))
+        self.assertEqual(C.uncited("key-a を直す", doc), [])
+        self.b = b = self.board(2)
+        self.record(["c1", "c2", "c3"])
+        self.record(["c4", "c5"])
+        self.record(["c6"], at_cap=True)
+        doc = C.read(b)
+        self.assertEqual((doc["outcome"], C.stuck_keys(doc)), (C.UNSETTLED, ["c6"]))
+        self.assertEqual(C.uncited("推しの一言", doc), ["c6"])
 
 
 class AddPassCase(BoardCase):

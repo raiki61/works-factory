@@ -853,12 +853,16 @@ def answer_drafts(values: dict, returns: dict, gates: dict, record: dict, unatte
     spec_qs = [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]
     words = gatemarks.spec_words(bool(spec_qs) and spec.get("unchecked") is not False)
     out = [gatemarks._draft(q, "", words.source, words.note) for q in spec_qs]
+    b = ledger(returns, gates, record, unattended)
+    held = gatemarks.held_questions(b)
     asked = eye_questions(returns)
     if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in ("approve", "continue"):
-        asked = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))] + asked
+        # 載せなかった修正前の項目のうち台帳の問い（gatemarks.ask_text の文）は、下の保留の台帳の問いとして key で 1 行にする
+        ledger_texts = {gatemarks.ask_text(q) for q in held}
+        deferred = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
+        asked = [q for q in deferred if q not in ledger_texts] + asked
     out += [gatemarks._gate_draft(q, {}, gatemarks.GATE_NODE) for q in asked if q.strip()]
-    b = ledger(returns, gates, record, unattended)
-    for q in gatemarks.held_questions(b):
+    for q in held:
         key = gatemarks.answer_key(b, q)
         push = gatemarks.reason_push(q)
         if push:
