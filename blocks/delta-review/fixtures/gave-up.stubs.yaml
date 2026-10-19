@@ -1,0 +1,27 @@
+# 審査役の返答が受け付けを通らない道: run は止めず、出口が status: gave_up と却下の理由を返す。筋書きでは輪が 1 周で終わるので却下は 1 回で、
+# 3 回で諦める数えは tests/blocks/delta_review の試験が確かめる（変わっていないファイルを where に書いた穴は拒まれる）
+fixture:
+  expect: completed
+  reached: [intake, review-1, review-1-accept, finish]
+  inputs:
+    base: 'HEAD'
+    fix_reply: '{"changes": [], "not_done": [], "plan_faces": [{"key": "claimed-closed-hole", "handled": "absorbed", "how": "The fix says it closed this hole."}]}'
+exec-code: true
+review-1:
+  faces:
+    - key: untouched-file-hole
+      kind: copy
+      where: README.md
+      cite: README
+      why: 'This file did not change in the fix, so the acceptance check rejects the hole.'
+  checks:
+    - key: claimed-closed-hole
+      closed: true
+      why: 'The hole is closed: the guard now covers the other route too.'
+  compliance:
+    verdict: not_applicable
+    items: []
+    read: 'There is no approved plan item, so there is nothing to check against.'
+  quality:
+    verdict: fail
+    why: 'The hole above is not tied to any compliance row, so the quality is fail.'

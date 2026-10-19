@@ -38,6 +38,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `report-head-check`: 報告の頭の確かめの 2 段落（中の口 `{machine_heading}`。報告の block の初見の読み手だけが使う）。
   - 役の定義 5 本: `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`。
   - `works-gh`: 読むだけの gh の口の使い方。
+  - `writer-rules`: コードを直す役（書く役）の決まりの正本（直し方・テストで赤→緑を示せない直しの証拠・食い違いの申し出・守ること）。段落 `conflict`（食い違いの申し出。申し出の出口を持つ役だけ true）・`docs`・`prompts_kind`・`config`・`code`（証拠の種類。役が扱う変更の種類だけ true）の真偽が要る。口 `{name}` は無い。修正の役と、差分の審査の手直しの役が共に差し込む。
   - 素材の観点の族（docs/design/materials.md の 3.2）: `material-status`・`material-na`（段落 `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`、中の口 `{na_why}`）・`material-where`・`material-readonly`。
 - 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: `unknown-asks`。名は設計書の段で決め、ここに足す。
 - `schemas/<name>.schema.json`: 2 つ以上の block が使う port の形。今在る物: `request.schema.json`（依頼の行）・`constraints.schema.json`（前提の実測の行）。
