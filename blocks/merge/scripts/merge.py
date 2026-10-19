@@ -38,8 +38,28 @@ def true_only(raw) -> bool:
         return False
 
 
-def optional_json(raw, schema: str):
-    return None if ports.text(raw).strip() in ("", "null") else ports.json(raw, schema)
+def optional_json(raw, schema: str) -> tuple:
+    """(値, 形が合うか)。空と null は (None, True)。JSON として読めない入力は誤り（ValueError）。形の違う値は (値, False) で返し、
+    落とさずに呼ぶ側が拒む側へ倒す（指紋は合わない・答えは通さない。差分と守りの当たりは書く）"""
+    if ports.text(raw).strip() in ("", "null"):
+        return None, True
+    value = ports.json(raw)
+    try:
+        ports.json(raw, schema)
+    except ValueError:
+        return value, False
+    return value, True
+
+
+def r2_value(raw):
+    """R2 の札は形が違えば誤り（前と同じ）"""
+    value, shaped = optional_json(raw, "r2.schema.json")
+    if not shaped:
+        ports.json(raw, "r2.schema.json")
+    return value
+
+
+OFF_SHAPE_ANSWER = {"decision": "形の違う答え", "text": ""}
 
 
 def compute() -> dict:
@@ -57,7 +77,7 @@ def compute() -> dict:
     base = ports.text(os.environ.get("INPUTS_BASE")).strip()
     if not base:
         raise ValueError(f"差分の根 base が無い: {base!r}")
-    fingerprint = optional_json(os.environ.get("INPUTS_FINGERPRINT"), "fingerprint.schema.json")
+    fingerprint, fingerprint_shaped = optional_json(os.environ.get("INPUTS_FINGERPRINT"), "fingerprint.schema.json")
     repo = Path.cwd()
 
     data = green_cert.diff_bytes(repo, base, skip=(ports.RUNTIME_COPY_PREFIX,))
@@ -86,20 +106,21 @@ def compute() -> dict:
         protected, counted = [seal.unknown_row(str(error))], 0
 
     if mode == "seal":
-        reason = seal.seal_refusal(fingerprint=fingerprint, fingerprint_ok=green_cert.matches(fingerprint, repo))
+        reason = seal.seal_refusal(fingerprint=fingerprint, fingerprint_ok=fingerprint_shaped and green_cert.matches(fingerprint, repo))
         ptr, digest = put(files.SEALED)
         whole = folder / files.PROTECTED_FILE
         whole.write_text(json.dumps({"protected_hits": protected}, ensure_ascii=False), encoding="utf-8")
         return returned(ptr, digest, reason, protect.shown(protected, "protected_hits", whole), counted)
 
+    answer, answer_shaped = optional_json(os.environ.get("INPUTS_ANSWER"), "answer.schema.json")
     reason = seal.apply_refusal(
         sealed_hash=sealed_hash,
         current_hash=seal.digest(data),
-        answer=optional_json(os.environ.get("INPUTS_ANSWER"), "answer.schema.json"),
+        answer=answer if answer_shaped else OFF_SHAPE_ANSWER,
         green_ok=true_only(os.environ.get("INPUTS_GREEN_OK")),
         eyes_ok=true_only(os.environ.get("INPUTS_EYES_OK")),
-        r2=optional_json(os.environ.get("INPUTS_R2"), "r2.schema.json"),
-        fingerprint_ok=green_cert.matches(fingerprint, repo),
+        r2=r2_value(os.environ.get("INPUTS_R2")),
+        fingerprint_ok=fingerprint_shaped and green_cert.matches(fingerprint, repo),
         protected=protected,
     )
     return returned(*put(files.REFUSED if reason else files.APPLIED), reason)

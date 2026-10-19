@@ -257,6 +257,39 @@ class SealTest(ScriptCase):
         self.assertIn("緑の認証の指紋が今の木と違う", got["reason"])
         self.assertTrue(self.artifact("sealed.diff").is_file())
 
+    def test_off_shape_fingerprint_refuses_but_writes_the_diff_and_hits(self):
+        """形の違う指紋（{}）は「指紋が合わない」として拒み、壊れた返りにしない（hash・守りの当たり・sealed.diff は在る）"""
+        got = self.seal(fingerprint="{}")
+        self.assertIs(got["ok"], False)
+        self.assertIn("緑の認証の指紋が今の木と違う", got["reason"])
+        self.assertEqual(got["hash"], hashlib.sha256(self.artifact("sealed.diff").read_bytes()).hexdigest())
+        self.assertEqual((got["protected_hits"], got["protected_count"]), ([], 0))
+        sealed = self.seal()["hash"]
+        refused = self.apply(sealed, fingerprint="{}", answer="")
+        self.assertIs(refused["ok"], False)
+        self.assertIn("緑の認証の指紋が今の木と違う", refused["reason"])
+        self.assertTrue(self.artifact("refused.diff").is_file())
+
+    def test_off_shape_answer_does_not_pass_but_writes_the_refused_diff(self):
+        sealed = self.seal()["hash"]
+        for answer in ("{}", "[]", json.dumps({"decision": 1})):
+            with self.subTest(answer=answer):
+                got = self.apply(sealed, answer=answer)
+                self.assertIs(got["ok"], False, got)
+                self.assertEqual(got["hash"], sealed)
+                self.assertIn("最後の承認ノード", got["reason"])
+                self.assertTrue(self.artifact("refused.diff").is_file())
+                self.assertFalse(self.artifact("apply.diff").exists())
+
+    def test_green_ok_that_is_not_true_is_false(self):
+        sealed = self.seal()["hash"]
+        for raw in ("", "1", "yes"):
+            with self.subTest(raw=raw):
+                got = self.apply(sealed, answer="", green_ok=raw)
+                self.assertIs(got["ok"], False, got)
+                self.assertIn("緑でない", got["reason"])
+        self.assertIs(self.apply(sealed, answer="")["ok"], True)
+
     def test_protected_hit_is_named(self):
         glob = self.touch_protected()
         got = self.seal()
@@ -552,6 +585,16 @@ class PrCommitTest(unittest.TestCase):
         got = self.commit()
         self.assertEqual((got["go"], got["commits"]), (True, []))
         self.assertIn("修正案の項目の記録が無い", got["split"])
+
+    def test_missing_request_file_does_not_stop_the_commit(self):
+        got = self.commit(request=str(self.tmp / "no-such-request.json"))
+        self.assertEqual((got["go"], got["reason"]), (True, ""), got)
+
+    def test_item_record_that_is_not_json_is_one_commit(self):
+        got = self.commit(items="{not json")
+        self.assertEqual((got["go"], got["commits"]), (True, []), got)
+        self.assertTrue(got["split"], got)
+        self.assertEqual(git(self.run_tree, "rev-list", "--count", f"{self.base}..HEAD"), "1")
 
     def test_stacked_tree_is_checked_against_the_sealed_hash_as_a_whole(self):
         """項目の commit を積み終えた木の差分を封じた hash と照らす（hooks が途中の commit の中身を変えれば push しない）"""
@@ -968,6 +1011,43 @@ class FixturesTest(unittest.TestCase):
             diff = (kit.fixture("merge", name).get("place") or {}).get("diff")
             if diff:
                 self.assertEqual(validate_schema(diff["path"], shape), [], name)
+
+
+
+class DeliverTest(unittest.TestCase):
+    """筋書きごとに Archon で dry-run（exec-code）し、返す節 merge の deliver を照らす（workflow test は節の出力を返さない）。
+    Archon の源か bun が無ければ見送る"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = kit.dry_run_traces("merge", SCENARIOS)
+
+    def deliver(self, scenario: str):
+        return json.loads(self.traces[scenario]["merge"]["output"])["deliver"]
+
+    def test_default_word_places_without_the_pr_path(self):
+        for scenario in ("apply", "standalone", "empty-diff"):
+            with self.subTest(scenario=scenario):
+                trace = self.traces[scenario]
+                self.assertTrue(all(trace.get(n, {}).get("state", "skipped") == "skipped" for n in ("pr-commit", "pr-open", "pr-read")),
+                                trace)
+
+    def test_pr_word_makes_the_pr_and_names_it(self):
+        got = self.deliver("pr")
+        self.assertEqual({k: got[k] for k in ("act", "pr", "reason")},
+                         {"act": "pr", "pr": {"number": 7, "url": "https://github.com/owner/repo/pull/7", "is_draft": True}, "reason": ""},
+                         got)
+        self.assertEqual([c["item"] for c in got["commits"]], [1, 2])
+
+    def test_pr_word_stops_without_the_child_on_the_default_branch_name(self):
+        self.assertEqual(self.traces["pr-same-branch"].get("pr-open", {}).get("state", "skipped"), "skipped")
+        got = self.deliver("pr-same-branch")
+        self.assertEqual(got["act"], "stopped")
+        self.assertIn("既定の枝と同じ名", got["reason"])
+
+    def test_failed_child_is_unconfirmed_and_refused_apply_is_stopped(self):
+        self.assertEqual(self.deliver("pr-child-failed")["act"], "unconfirmed")
+        self.assertEqual(self.deliver("apply-refused")["act"], "stopped")
 
 
 if __name__ == "__main__":
