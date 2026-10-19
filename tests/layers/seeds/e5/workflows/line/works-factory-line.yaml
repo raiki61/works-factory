@@ -9,6 +9,8 @@ nodes:
     runtime: uv
     depends_on: [judge]
     when: "$judge.output.ready == true"
+    with:
+      units: $judge.output.units
     output_format:
       type: object
       properties:

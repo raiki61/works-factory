@@ -1363,8 +1363,8 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [fixed, ok, outcome, stop_reason, report, report_ai, next_request, prior_failures, apply, sealed, r2_status, final_answer,
-                 spec_questions, children]
+      required: [fixed, ok, outcome, stop_reason, report, report_ai, report_detail, report_lines, next_request, prior_failures, apply,
+                 sealed, r2_status, final_answer, spec_questions, children]
       properties:
         fixed: {type: boolean}
         ok: {type: boolean}
@@ -1372,6 +1372,8 @@ nodes:
         stop_reason: {type: string}
         report: {type: [object, 'null']}
         report_ai: {type: [object, 'null']}
+        report_detail: {type: [object, 'null']}
+        report_lines: {type: array, items: {type: string}}
         next_request: {type: [object, 'null']}
         prior_failures: {type: [object, 'null']}
         apply: {type: [object, 'null']}

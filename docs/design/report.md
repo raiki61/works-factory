@@ -170,7 +170,7 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
   - 「模型」の群ごとの選びの行（今 `headdepth.groups_lines`）→ head-depth の `report` には入れない。ノードごとの実際の模型の事実と並ぶ節なので、head-depth の出力 `record` の pointer から KEEP の `headdepth.groups_lines` で組む（head-depth の設計書の 8 節の 3）。line が組んで `sections` に入れるか、report が受けて組むかは line の設計書で決める。
 - 節「3. 見る所」の元（今の `POINTERS`、`lib/runreport.py:181-188` の 18 個）は、line が各節の `files` に入れる（判定・目的・定石・仕様・目的の外の所見・計画・構造の目・波及・事前審査・独立設計・差分・申し出と裁定・直す前の結末・試験の記録 2 つ・直した後の構造・封じた差分・置いた差分）。
 - `facts` は 1.2 の表の「今」の計算を line の `src/` が持つ（承認ノードの答え・止めの語・段の表・無人の方針は line の持ち物。README の 1.2 の U・D）。
-- 読み手: chain（`outcome`・`next_request` を、line の返りの欄を通して読む。今と同じ）。line の返りの欄 `report`・`report_ai` は、組み込みで `machine`・`human` を写す（`bin/` は報告を読まない）。
+- 読み手: 周の鎖 chain（line を子の run として回す親のグラフ。`outcome`〔結末の語〕・`next_request`〔次の周の依頼の pointer〕を、line の返りの欄を通して読む。今と同じ）。line の返りの欄 `report`・`report_ai` は、組み込みで `machine`・`human` を写す（`bin/` は報告を読まない）。`detail`・`report` は line の返りの欄 `report_detail`・`report_lines` に写す（line の設計書の 1.2）。
 - e2e の照らしの表 `tests/e2e/evidence.json` の行のうち `where` が `parent/report/report.md`・`report-ai.md`・`next-request.json` の物は、line の include の id を `report` にすれば置き場の字はそのまま。`writer` の欄（`lib/runreport.py::_decisions` など）は、その行を組む作り手の block の関数の名に替える（組み込みの時）。
 
 ### 1.7 結末の決め（`src/outcome.py` の `decide`）

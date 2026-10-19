@@ -74,8 +74,6 @@ premises__finish:
     type: archon_artifact
     run_id: stub
     path: premises/premises.json
-  measured: 1
-  hypotheses: 0
   report:
   - '- 前提の実測: 1 件'
 purpose__intake:

@@ -44,7 +44,7 @@ judge__main-path-observation__finish: {"ok": true, "status": "skipped", "reason"
 judge__main-path-observation__intake: {"due": false, "reason": "筋書き: block の中は block の筋書きが見る"}
 judge__parallel-pr__finish: {"ok": true, "status": "clean", "stop_reason": "", "reason": "", "material": {"status": "clean", "checked": "開いている PR は無い"}, "excluded": {"type": "archon_artifact", "run_id": "dry-run", "path": "parallel-pr/pr-excluded.json"}, "drafts": null, "reads": null, "downgrades": [{"what": "担当の PR へ申し送りを投稿しない（下書きを報告に載せる）", "versus": "review-graph は任せ先の役が gh で投稿する"}], "report": ["- 並行 PR: clean"]}
 judge__parallel-pr__scan: {"go_role": false, "reason": "筋書き: block の中は block の筋書きが見る"}
-judge__premises__finish: {"ok": true, "status": "ok", "reason": "", "constraints": {"type": "archon_artifact", "run_id": "dry-run", "path": "premises/premises.json"}, "measured": 1, "hypotheses": 0, "report": ["- 前提の実測: 1 件"]}
+judge__premises__finish: {"ok": true, "status": "ok", "reason": "", "constraints": {"type": "archon_artifact", "run_id": "dry-run", "path": "premises/premises.json"}, "report": ["- 前提の実測: 1 件"]}
 judge__premises__intake: {"due": false, "reason": "筋書き: block の中は block の筋書きが見る"}
 judge__prior-decisions__finish: {"ok": true, "status": "skipped", "reason": "", "material": {"type": "archon_artifact", "run_id": "dry-run", "path": "prior-decisions/material.json"}, "report": ["観点 prior-decisions: skipped"]}
 judge__prior-decisions__intake: {"due": false, "reason": "筋書き: block の中は block の筋書きが見る"}

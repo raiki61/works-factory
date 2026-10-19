@@ -39,10 +39,9 @@
 - `status`: `ok` か `failed`。`failed` は、依頼が読めない・作業ツリーの写しが取れない・役が 3 回拒まれた・役が走らなかった時。
 - `reason`: 日本語の 1 行（人に見せる）。`failed` の訳。`ok` の時は空の字。
 - `constraints`: pointer（place の `premises.json`。中身は `{"constraints": [...]}` で、受けた返答の制約に運ばれた実測を足した物）か null（`failed` の時）。
-- `measured`・`hypotheses`: `premises.json` の制約のうち `kind` が `実測`・`仮説` の行の数（`failed` の時は 0）。
 - `report`: 報告の行の配列。依頼が `measured` を持っていたのに制約が `仮説` でしか書けなかった行ごとに `依頼の実測を測り直せなかった（前提は仮説）: <where>——<制約の text>`。`failed` の時は `前提の制約: <reason>` の 1 行。どちらも無ければ `[]`。
 
-今との違い: 今は依頼の行を judge の入口が `judge/request.json` に置き（`lib/judge_accept.py:3832-3868` の `intake`）、作業ツリーの写しも入口が `judge/judge-tree.json` に取り、運ばれた実測も入口が `judge/carried-constraints.json` に置いていた。役は `$ARTIFACTS_DIR/judge/request.json` を Read し（`workflows/judge/commands/premises.md:38`）、受け付けは `judge/premises.json` に書き、諦めた時は止めの記録 `judge/stop.json`（`stopby.PREMISES`）を置いた（`workflows/judge/scripts/premises_accept.py:21-24`）。出口は judge の返す節の欄 `premises`（pointer）で、報告の行は `lib/runreport.py:1026-1046` の `premise_lines` が依頼のファイルと控えを読み直して組んでいた。この block は、支度を自分で持ち、止めの記録の代わりに `status` を返し、報告の行を自分で組む。`measured`・`hypotheses` の数は、元の works の出口が持っていた数（2.7）のうち、読み手が使える 2 つを戻した物（8 節の自分で決めた 4）。
+今との違い: 今は依頼の行を judge の入口が `judge/request.json` に置き（`lib/judge_accept.py:3832-3868` の `intake`）、作業ツリーの写しも入口が `judge/judge-tree.json` に取り、運ばれた実測も入口が `judge/carried-constraints.json` に置いていた。役は `$ARTIFACTS_DIR/judge/request.json` を Read し（`workflows/judge/commands/premises.md:38`）、受け付けは `judge/premises.json` に書き、諦めた時は止めの記録 `judge/stop.json`（`stopby.PREMISES`）を置いた（`workflows/judge/scripts/premises_accept.py:21-24`）。出口は judge の返す節の欄 `premises`（pointer）で、報告の行は `lib/runreport.py:1026-1046` の `premise_lines` が依頼のファイルと控えを読み直して組んでいた。この block は、支度を自分で持ち、止めの記録の代わりに `status` を返し、報告の行を自分で組む。元の works の出口が持っていた数（2.7）は戻さない（8 節の自分で決めた 4）。
 
 ### 1.3 node の並び（`workflows/premises/works-factory-premises.yaml`）
 
@@ -250,7 +249,7 @@ Write `text` and `measured_how` in the language of the request lines. …
 元の works の `works/blk-premises/`（入力 `request`〔依頼のファイルのパス〕・`base_rev`、出口 10 欄の独立したブロック）から、工場は判定のブロックの中に写した（#76。`docs/plans/2026-10-12-blocks/judge.md:30`・`:62`）。graphloops の同じ場面は `prompts/review-loop/p0.premises.md`（`p0.premises`。4 行の短い指示）と、写しの rules の `measured_needs_output`。
 
 - 独立したブロックの形（入力だけで動く）: 工場は judge の中に直に置き、`judge/request.json` を読む形にした（#76）。この block で元の形に戻す。
-- 出口の要約 `constraints_summary`（判定役に貼る 1 行 1 制約の文）と数（`constraints`・`measured`・`hypotheses`・`claims`・`claims_hypothesis`）と `reads_file`: 工場は #232 で `lib/premises.py` の `collect` を「届かない関数」として消した（`d91c4b49`。工場の線では判定役の支度が `premises.json` を直に読むため）。この block は、数のうち `measured`・`hypotheses` を戻す（読み手が pointer を開かずに「実測が在るか」を見られる。8 節の自分で決めた 4）。要約の文は戻さない（読み手の md の材料の組み方なので、読み手の block が組む）。`reads_file` は元の works でも「まだ無い（空）」の欄だった。
+- 出口の要約 `constraints_summary`（判定役に貼る 1 行 1 制約の文）と数（`constraints`・`measured`・`hypotheses`・`claims`・`claims_hypothesis`）と `reads_file`: 工場は #232 で `lib/premises.py` の `collect` を「届かない関数」として消した（`d91c4b49`。工場の線では判定役の支度が `premises.json` を直に読むため）。この block は数を戻さない（8 節の自分で決めた 4）。要約の文は戻さない（読み手の md の材料の組み方なので、読み手の block が組む）。`reads_file` は元の works でも「まだ無い（空）」の欄だった。
 - 入力 `base_rev`（受け付けが HEAD がその版のままかを見る）: 工場は写しが在る時は写しと比べるだけで、版を受けない（`lib/judge_accept.py:1139-1160` の `_tree_unchanged`。写しが無い時だけ `rev` を見る）。元の works も写しを必ず取ったので、版は写しの無い時の守りだった。この block は写しを `intake` で必ず取るので、版の入力は要らない。意図して外した記録は（未確認）。
 - 依頼の型の確かめを使い捨ての置き場で通すだけで積まない（元の intake）: この block も積まない（place に `intake.json` を書くだけ）。依頼の型は `request.schema.json` が確かめる。
 - 3 回とも拒まれたら、元の works のメイングラフの共有の記録（盤面）に止めの印を置いて、後ろの判定役を起こさない（元の `collect`。元の works の裁定の番号 R50）: 工場は止めの記録 `stopby.PREMISES` を置く形にした。この block は `status: failed` を返し、止めるかは graph が決める（1.6）。
@@ -299,15 +298,15 @@ Write `text` and `measured_how` in the language of the request lines. …
 1. `intake.json` を読む。`failed` が真なら `status: failed`・`reason` はその訳。
 2. ほかは `premises.json` を読む。在れば `status: ok`。無ければ `status: failed`、`reason` は `rolekit.given_up_reason(place, "premises")`、それも空なら控えの最後の拒みの文、それも無ければ「前提の実測を受け付けた控えが無い（役が走らなかったか落ちた）」（今の `lib/judge_accept.py:3919` の訳と同じ向き）。
 3. `report`: `ok` の時は `report.lines(findings, constraints)`。中身は今の `premise_lines` と同じ: 制約のうち `kind` が `仮説` の行を `hyp` とし、依頼の行で `measured` と `where` を持つ物ごとに、`where` を `text` に含む最初の `hyp` の行が在れば `依頼の実測を測り直せなかった（前提は仮説）: <where>——<その行の text>`。`failed` の時は `[f"前提の制約: {reason}"]`。
-4. 返り: `{ok, status, reason, constraints: ports.pointer(place / "premises.json") か None, measured: <実測の数>, hypotheses: <仮説の数>, report}`。
-5. どこで例外が出ても落ちず、`{ok: false, status: failed, reason: "<型>: <訳>", constraints: null, measured: 0, hypotheses: 0, report: ["前提の制約: <訳>"]}` を返す。
+4. 返り: `{ok, status, reason, constraints: ports.pointer(place / "premises.json") か None, report}`。
+5. どこで例外が出ても落ちず、`{ok: false, status: failed, reason: "<型>: <訳>", constraints: null, report: ["前提の制約: <訳>"]}` を返す。
 
 `finish` の `output_format`:
 
 ```yaml
 type: object
 additionalProperties: false
-required: [ok, status, reason, constraints, measured, hypotheses, report]
+required: [ok, status, reason, constraints, report]
 properties:
   ok: {type: boolean}
   status: {type: string, enum: [ok, failed]}
@@ -318,8 +317,6 @@ properties:
       type: {type: string, enum: [archon_artifact]}
       run_id: {type: string}
       path: {type: string}
-  measured: {type: integer, minimum: 0}
-  hypotheses: {type: integer, minimum: 0}
   report: {type: array, items: {type: string}}
 ```
 
@@ -380,7 +377,7 @@ script を子のプロセスで回す（今の `tests/workflows/test_judge.py:69
 - `PromptCase`: `measure_prep` の `prompt` に依頼の行の JSON が在り、`$ARTIFACTS_DIR` と `judge/request.json` の字が無く、埋まらない差し込み口が無い。拒みの理由が空でない時だけ却下の段落が入る。外への検索の決まりの断片が入る（元: `tests/workflows/test_judge.py::test_roles_that_reach_outside_carry_the_query_rule` の premises の行）。
 - `AcceptCase`（元: `lib/tests/test_judge_accept.py::PremisesCase` の全部〔:928-985〕）: 実測なのに出力が無い制約を拒む・仮説は出力が要らず通った返答が `premises.json` に書かれる・依頼の実測は測り直させる・役が作業ツリーを変えたら拒む・バイトコードも変更と数える。元の `tests/workflows/test_judge.py::test_premises_reply_outside_the_type_is_rejected`（:194-198）は、`output_format` の照らしを Archon が持つので、YAML の `output_format` で同じ 3 つの返答が拒まれることを `engine.schema.validate_schema` で照らす形にする。
 - `CarriedCase`（元: `lib/tests/test_judge_accept.py::CarriedConstraintsCase.test_carried_constraints_join_the_premises`〔:907-926〕と `tests/workflows/test_judge.py::CarriedConstraintsCase.test_carried_rows_fit_the_premises_shape`〔:2086-2093〕）: 運ばれた実測が返答に足される（同じ字は 2 度足さない）。`carry.carried_constraints` の行が `constraints.schema.json` と役の `output_format` の両方に通る。
-- `FinishCase`: 受けた時は `status: ok` と pointer と数。3 回拒まれた時は `status: failed`・`constraints: null`・諦めた文。`measured` を持つ依頼の行に `仮説` の制約が当たる時だけ `report` に行が載る（元: `lib/tests/test_runreport.py` の `premise_lines` を見る試験の行。報告の行は block の試験へ移る）。
+- `FinishCase`: 受けた時は `status: ok` と pointer。3 回拒まれた時は `status: failed`・`constraints: null`・諦めた文。`measured` を持つ依頼の行に `仮説` の制約が当たる時だけ `report` に行が載る（元: `lib/tests/test_runreport.py` の `premise_lines` を見る試験の行。報告の行は block の試験へ移る）。
 - `ShapeCase`: YAML の `premises` の `output_format` の `kind` の enum が `[steps.MEASURED, steps.HYPOTHESIS]`、loop の `max_iterations` が `rolekit.GIVE_UP_AFTER`、AI の node の鍵（群・`settingSources`・道具・sandbox と `denyWrite`・`idle_timeout`・`mutates_checkout`・`retry`）が 1.3 のとおり（元: `test_roles_keep_the_old_settings` の premises の行）。
 - 写さない試験: `tests/workflows/test_judge.py::test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment`（judge のまとめの `when:` と返りの試験へ）・`test_roles_receive_the_reject_reason_through_the_loop_head`・`test_unreadable_start_pointer_degrades_in_every_lang_line_script`（reject の node と始めの記録が無くなる）。
 
@@ -415,7 +412,7 @@ uv run --isolated python3 tests/changed.py
 1. 依頼の行を Read させる形をやめ、指示の中に JSON で入れた。根拠: README の 4.3（block は自分の place と port の値が指すファイルのほかは開かない）と 5.2（指示は `prompt:` に直に入れる）。役が Read したのは同じ JSON の字なので、役に届く中身は変わらない。
 2. 作業ツリーの写しを、judge の入口でなくこの block の `intake` で取る。根拠: 写しを取る所が block の外に在ると、単独で回せない（憲法の 5）。写しを取る時が並行 PR の役の後に移るが、並行 PR の役も読むだけの役で、その受け付けが同じ写しで作業ツリーが変わっていないことを確かめている（今の `TREE_FILE` の注。`lib/judge_accept.py:3764`）ので、比べの範囲は狭まらない。loop の中の prep で取り直さないのは、1 回目に変えて拒まれた役の変更が 2 回目の写しに入り、比べが緩むのを避けるため。
 3. 運ばれた実測の形は、土台の PR が置いた共通の `workflows/.shared/schemas/constraints.schema.json` を使い、この block に同じ名の形のファイルを置かない。「`実測` の行は `measured_output` を持つ」は形に書かず、`src/steps.py` の受け付け（`measured_needs_output`）が役の返答に照らす。根拠: 共通の形は `KNOWN_KEYWORDS` の語だけで書け（`$schema`・`$defs`・`$ref`・`oneOf`・`if`/`then` は照らしが飛ばすので `ports.json` が拒む）、外の容器は開けたままにする決まり。同じ名の形を 2 か所に置くと形の検査（`check_input_forms`）が赤くなる。`measured_output` を port の `carried` で求めないのは、運ばれる行（`carry.carried_constraints`）が `kind: 実測` で `measured_output` を持たない（前の run の検算の実測）ので、求めると今の judge が通す行を拒み、運ぶ能力が落ちるため。出力を求めるのは、役が自分で測った返答だけ（今の受け付けの決まり 3 と同じ）。
-4. 出力に `measured`・`hypotheses` の数を置いた。根拠: 元の works の出口が持っていた数で、#232 は「届かない関数」として消した（工場の線に読み手が無かった）。block の出力では、読み手が pointer を開かずに「実測が 1 つでも在るか」を見られ、報告と承認ノードの材料になる。欄を足すだけで振る舞いは変えない。読み手が要らないと決まれば消してよい。
+4. 出力に `measured`・`hypotheses`（実測・仮説の制約の数）を置かない。根拠: 一度は置いたが、どの graph もこの 2 つの欄を読まず、返りの欄の読み手を照らす機械（`tests/layers/test_block_returns.py`。読み手ゼロなら赤）が赤くした。数は `constraints` の先の `premises.json` の制約の `kind` から数えられ、仮説に落ちた依頼の実測は `report` の行が名指す。#232 も同じ数を「届かない関数」として消している。
 5. 依頼の行が空の配列の run でも役を起こす（今と同じ）。根拠: 振る舞いを変えない。役の md が「空なら `constraints` を空の配列に」と決めていて、今の judge もこの道で役を起こしている。AI の 1 回を省く変更は、この作り直しの外で扱う。
 6. 依頼の型の確かめは共通の口 `requestrows.parts` に任せ、この block に `request.schema.json` を置かない。根拠: 共通の形が土台の PR に既にあり、容器の知らない鍵・下書きの行の拒みまで同じ口が持つ。
 7. 却下の段落に入れる理由は、前の回の 1 つでなく回の全部（`rolekit.rejects_text`）にした。前の回の理由は `with: $LOOP_PREV` で受けず、place の拒みの控えから読む。根拠: `workflows/.shared/AGENTS.md`（prep は `$LOOP_PREV` で却下を受けず控えから全部読む）。主な効き目は、会話が継がれない役が前の回の誤りを繰り返さないこと。拒みを減らす方向の変更で、拒みの決まりは変わらない。

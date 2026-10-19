@@ -3,6 +3,12 @@
 - どの workflow にも `returns:` と `outcome_field:` が在り、返すノードが `output_format` を持ち、`outcome_field` の欄がその `required` に在る（止めた Archon は `required` に在る boolean の欄しか受けない）。
 - 返りに `report`（報告に載せる日本語の行の配列）が在ることは `tests/layers/test_block_shape.py`（7.1 の 8）が見る。
 - graph が欄つきの参照 `$<include の id>.output.<欄>` で読む欄が返すノードの `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`）が照らすので、ここでは照らさない。まるごとの参照 `$<include の id>.output` は validate が欄を見られないので、受けてよい置き場（script のノードの `with:<鍵>` の直の字か `with:<鍵>.from` の字）と、受けた script が `ports.picked` の口 1 つで読み、宣言した名が `output_format` に在ることをここで照らす。受けた script は環境変数を字のままの鍵でだけ読み、名を組む・回す・写す・渡す読みは赤。
+- 読み手ゼロなら赤（持ち主の決め `declared-io`）。block の返す節の `output_format` の欄は、どこかの graph（その block を include か
+  workflow で呼ぶ物。`loop_group` の中と `$LOOP_PREV.` も）が欄つきの参照 `$<id>.output.<欄>` で読むか、まるごとの参照を受けた口
+  `ports.picked` が宣言した名（受け皿の `with:` の `names` と `optional=` を含む）に在る。入口（一番上のグラフ line・chain と、どの graph も
+  呼ばない workflow）の返りは人（`workflow get`）と起動の殻が読むので照らさない。block の `inputs:` の名は、その block の YAML の字の
+  `$INPUTS.<名>` か、その block の `scripts/`・`src/` の Python の `INPUTS_<名>` の読みが読む（ほかの名の `with:` の鍵で script に渡した字は
+  その名の読みでない）。種 `tests/layers/seeds/e5-unread-return`・`e5-unread-input`。
 - 許す物の表（`ALLOWED["E5"]`）は持たない（持ち主の決め `shape-checks-only`）。
 - 輪（`loop_group`）の中の役のノードは自分の `with:` を結ばない（落とし穴 K5。役の `with:` は include の時に既定の字で固まる。前の周の値は輪の頭の script のノードが `$LOOP_PREV` で結んで返す）。種 `tests/layers/seeds/k5-loop-role-with`。
 """
@@ -137,10 +143,80 @@ class BlockReturnsTest(unittest.TestCase):
         got = self.files({LINE: "name: works-factory-line\nreturns: result\nnodes: []\n"})
         self.assertIn(f"{LINE}:1: outcome_field: が無い", got)
 
-    def test_fields_without_a_reader_are_not_red(self):
-        """返りの欄の読み手は照らさない（宣言しない欄も、欄つきの参照の無い欄も赤にしない）"""
-        self.assertEqual(self.problems(RETURNING, LINE_HEAD), [])
-        self.assertEqual(self.gated('NAMES = ("ready",)\n' + GATE_CALL), [])
+    def test_unread_seeds_are_one_violation_each(self):
+        for seed, why in (("e5-unread-return", "返りの欄 note に読み手が無い"), ("e5-unread-input", "入力 base に読み手が無い")):
+            with self.subTest(seed):
+                got = scan.problems("E5", SEEDS / seed)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(BLOCK, got[0])
+                self.assertIn(why, got[0])
+
+    def test_return_field_without_a_reader_is_red(self):
+        """返りの欄は、どこかの graph が欄つきの参照で読むか、口が宣言した名に在る（declared-io の「読み手ゼロなら赤」）"""
+        self.assertEqual(self.problems(RETURNING, LINE_HEAD + READS), [])
+        got = self.problems(RETURNING, LINE_HEAD + "  - id: reader\n    script: reader\n    with:\n      ready: $judge.output.ready\n")
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith(f"{BLOCK}:11:"), got)
+        self.assertIn("返りの欄 units に読み手が無い", got[0])
+
+    def test_field_read_only_through_the_gate_counts_by_the_declared_names(self):
+        """まるごとの参照だけで読む欄は、口の宣言した名（optional= と受け皿の with: の names を含む）に在れば読まれている"""
+        self.assertEqual(self.gated(GATE), [])
+        self.assertEqual(self.gated('NAMES = ("ready",)\ngot = ports.picked(os.environ.get("INPUTS_GOT"), NAMES, optional=("units",))\n'), [])
+        for name, (script, names) in {"名の並び": ('NAMES = ("ready",)\n' + GATE_CALL, None),
+                                      "受け皿の with: の names": (DECLARED, '"ready"')}.items():
+            with self.subTest(name):
+                got = self.gated(script, names=names)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("返りの欄 units に読み手が無い", got[0])
+
+    def test_field_reads_in_any_calling_graph_count(self):
+        """読み手はどの graph でもよい（include の id で引く。workflow: のノード・輪の中・$LOOP_PREV. も）"""
+        r1 = ("name: works-factory-r1\nreturns: take\noutcome_field: ok\nnodes:\n  - id: j\n    include: works-factory-judge\n"
+              "  - id: take\n    script: take\n    with:\n      units: $j.output.units\n"
+              "    output_format:\n      type: object\n      properties:\n        ok: {type: boolean}\n      required: [ok]\n")
+        line = LINE_HEAD + "  - id: x\n    script: x\n    when: \"$judge.output.ready == true\"\n"
+        self.assertEqual(self.files({BLOCK: RETURNING, LINE: line, "workflows/r1/works-factory-r1.yaml": r1}), [])
+        called = LINE_TOP + "  - id: w\n    workflow: works-factory-judge\n  - id: x\n    script: x\n    with:\n      a: $w.output.ready\n"
+        got = self.problems(RETURNING, called)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("返りの欄 units に読み手が無い", got[0])
+        looped = (LINE_TOP + "  - id: rounds\n    loop_group:\n      until_bash: 'true'\n      nodes:\n"
+                  "        - id: judge\n          include: works-factory-judge\n"
+                  "        - id: x\n          script: x\n          with: {a: $LOOP_PREV.judge.output.ready, b: $judge.output.units}\n")
+        self.assertEqual(self.problems(RETURNING, looped), [])
+
+    def test_entry_returns_are_not_checked(self):
+        """どの graph も呼ばない workflow と一番上のグラフ（line・chain）の返りは人と起動の殻が読むので、読み手を照らさない"""
+        self.assertEqual(self.problems(RETURNING, LINE_TOP), [])
+        self.assertEqual(self.files({LINE: LINE_TOP.replace("ok: {type: boolean}\n", "ok: {type: boolean}\n        extra: {type: string}\n")}), [])
+
+    def test_block_input_without_a_reader_is_red(self):
+        """block の inputs: の名は、その block の YAML の $INPUTS.<名> か、scripts/・src/ の INPUTS_<名> の読みが読む"""
+        head = ("name: works-factory-judge\ninputs:\n  request: {default: '', description: 'text: x'}\n"
+                "returns: verdict\noutcome_field: ready\nnodes:\n  - id: verdict\n    script: verdict\n")
+        tail = ("    output_format:\n      type: object\n      properties:\n        ready: {type: boolean}\n      required: [ready]\n")
+        line = LINE_HEAD + "  - id: x\n    script: x\n    with:\n      a: $judge.output.ready\n"
+        script = "workflows/judge/scripts/verdict.py"
+        green = {
+            "YAML の with: の $INPUTS": (head + "    with:\n      request: \"$INPUTS.request\"\n" + tail, {}),
+            "script の INPUTS_": (head + tail, {script: 'raw = os.environ.get("INPUTS_REQUEST")\n'}),
+            "src の INPUTS_": (head + tail, {"workflows/judge/src/steps.py": 'raw = os.environ["INPUTS_REQUEST"]\n'}),
+        }
+        for name, (block, files) in green.items():
+            with self.subTest(name):
+                self.assertEqual(self.files({BLOCK: block, LINE: line, **files}), [])
+        red = {
+            "読み手が無い": (head + tail, {}),
+            "別の名の with: の鍵で渡した字を読む": (head + "    with:\n      text: other\n" + tail, {script: 'raw = os.environ.get("INPUTS_TEXT")\n'}),
+            "ほかの block の script が読む": (head + tail, {"workflows/plan/scripts/x.py": 'raw = os.environ.get("INPUTS_REQUEST")\n'}),
+        }
+        for name, (block, files) in red.items():
+            with self.subTest(name):
+                got = self.files({BLOCK: block, LINE: line, **files})
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith(f"{BLOCK}:3:"), got)
+                self.assertIn("入力 request に読み手が無い", got[0])
 
     def test_whole_ref_in_any_graph_is_checked(self):
         """まるごとの参照は線の外の graph（include を持つ workflow）でも照らす"""

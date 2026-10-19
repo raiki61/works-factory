@@ -169,8 +169,7 @@ def take(out, raw, repo) -> dict:
 
 # ---------------------------------------------------------------- 出口
 def failed(reason: str) -> dict:
-    return {"ok": False, "status": "failed", "reason": reason, "constraints": None, "measured": 0, "hypotheses": 0,
-            "report": [REPORT_HEAD + reason]}
+    return {"ok": False, "status": "failed", "reason": reason, "constraints": None, "report": [REPORT_HEAD + reason]}
 
 
 def _why_failed(out) -> str:
@@ -180,7 +179,7 @@ def _why_failed(out) -> str:
 
 
 def finish(out) -> dict:
-    """block の返り {ok, status, reason, constraints, measured, hypotheses, report}。落ちた段が在っても落ちない"""
+    """block の返り {ok, status, reason, constraints, report}。落ちた段が在っても落ちない"""
     out = pathlib.Path(out)
     doc = jsonfile.read_or(out / INTAKE_FILE)
     if not isinstance(doc, dict):
@@ -192,5 +191,4 @@ def finish(out) -> dict:
         return failed(_why_failed(out))
     rows = [c for c in got.get("constraints") or [] if isinstance(c, dict)]
     return {"ok": True, "status": "ok", "reason": "", "constraints": ports.pointer(out / PREMISES_FILE),
-            "measured": sum(c.get("kind") == MEASURED for c in rows), "hypotheses": sum(c.get("kind") == HYPOTHESIS for c in rows),
             "report": report.lines(doc.get("findings"), rows, HYPOTHESIS)}

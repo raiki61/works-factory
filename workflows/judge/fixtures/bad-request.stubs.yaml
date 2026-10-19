@@ -57,7 +57,5 @@ premises__finish:
   status: failed
   reason: '入力 request: 依頼の行の形が違う'
   constraints: null
-  measured: 1
-  hypotheses: 0
   report:
   - '- 前提の実測: 1 件'

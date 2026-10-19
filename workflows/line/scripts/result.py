@@ -5,7 +5,9 @@
 """line の返す node result（returns: result・outcome_field: fixed。docs/design/line.md の 1.2 の出力。欄の名は今のまま）。
 
 report の返りを受けて返し、結末の語が fixed・fixed_needs_check の時に fixed を真にする。report の返りの machine・human を今の名
-report・report_ai で写す（report の設計書の 1.6）。report が届かなければ（report の中の node が落ちた）結末の語は空で、fixed は偽。
+report・report_ai で写す（report の設計書の 1.6）。report の返りの detail（詳しい報告 report-detail.md の pointer）と report（報告の行の配列）は、人がどこを開けばよいかと
+報告の要点を line の返りで見られるように report_detail・report_lines で写す（line の返りを読むのは人と起動の殻）。
+report が届かなければ（report の中の node が落ちた）結末の語は空で、fixed は偽。
 差分を当てる殻 bin/apply・chain・通しの試験が読む欄を、受け皿の got から足す（merge の返りを直に読むと、merge の返す node が落ちた時に
 line の返りまで落ちる）: apply（merge-apply の {ok, hash, diff, reason}。飛ばされたら null）・sealed（merge-seal の {ok, hash, diff}）・
 r2_status（独立の目の R2 の status。省いた・飛ばされたら null）・final_answer（最後の承認ノードの答え {decision, text, asked}。開かなかったら
@@ -34,7 +36,7 @@ FIXED = ("fixed", "fixed_needs_check")
 LINE_SCRIPT = "works:line-script"
 APPLY = ("ok", "hash", "diff", "reason")
 SEALED = ("ok", "hash", "diff")
-REPORT = ("ok", "outcome", "stop_reason", "machine", "human", "next_request", "prior_failures")
+REPORT = ("ok", "outcome", "stop_reason", "machine", "human", "detail", "next_request", "prior_failures", "report")
 
 
 def pick(got, keys) -> dict | None:
@@ -46,9 +48,11 @@ def result(report, *, merge_apply, merge_seal, eyes, spec_check, answer_final, c
     outcome = got.get("outcome") if isinstance(got.get("outcome"), str) else ""
     r2 = eyes.get("r2") if isinstance(eyes, dict) else None
     questions = spec_check.get("questions") if isinstance(spec_check, dict) else None
+    lines = got.get("report")
     return {"fixed": outcome in FIXED, "ok": got.get("ok") is True, "outcome": outcome,
             "stop_reason": got.get("stop_reason") if isinstance(got.get("stop_reason"), str) else "",
-            "report": got.get("machine"), "report_ai": got.get("human"), "next_request": got.get("next_request"),
+            "report": got.get("machine"), "report_ai": got.get("human"), "report_detail": got.get("detail"),
+            "report_lines": lines if isinstance(lines, list) else [], "next_request": got.get("next_request"),
             "prior_failures": got.get("prior_failures"), "apply": pick(merge_apply, APPLY), "sealed": pick(merge_seal, SEALED),
             "r2_status": r2.get("status") if isinstance(r2, dict) else None,
             "final_answer": answer_final if isinstance(answer_final, dict) else None,
@@ -68,7 +72,7 @@ def compute() -> dict:
 
 def fallback(reason: str) -> dict:
     return {"fixed": False, "ok": False, "outcome": "", "stop_reason": LINE_SCRIPT, "report": None, "report_ai": None,
-            "next_request": None, "prior_failures": None, "apply": None, "sealed": None, "r2_status": None, "final_answer": None,
+            "report_detail": None, "report_lines": [], "next_request": None, "prior_failures": None, "apply": None, "sealed": None, "r2_status": None, "final_answer": None,
             "spec_questions": 0, "children": None}
 
 

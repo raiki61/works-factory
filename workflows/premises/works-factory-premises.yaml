@@ -92,7 +92,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, status, reason, constraints, measured, hypotheses, report]
+      required: [ok, status, reason, constraints, report]
       properties:
         ok: {type: boolean}
         status:
@@ -107,8 +107,6 @@ nodes:
               enum: [archon_artifact]
             run_id: {type: string}
             path: {type: string}
-        measured: {type: integer, minimum: 0}
-        hypotheses: {type: integer, minimum: 0}
         report:
           type: array
           items: {type: string}

@@ -1,0 +1,18 @@
+name: works-factory-line
+returns: result
+outcome_field: ok
+nodes:
+  - id: judge
+    include: works-factory-judge
+  - id: result
+    script: stub
+    runtime: uv
+    depends_on: [judge]
+    when: "$judge.output.ready == true"
+    with:
+      units: $judge.output.units
+    output_format:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]

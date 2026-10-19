@@ -528,6 +528,8 @@ GATE_PICKED = "picked"
 GATE_TEXT = "text"
 GATE_OPTIONAL = "optional"
 INPUT_HEAD = "INPUTS_"
+# 口を通らないまるごとの読み（赤は 1 つ出す）。どの欄を読むか分からないので、読み手の照らしでは全部の欄を読むと数え、赤を重ねない
+UNGATED = (None, None, ())
 # 環境変数を読む os の名（まるごとの参照を受ける script では、鍵が字のままの読みだけを許す）
 ENV_NAMES = ("environ", "environb", "getenv", "getenvb")
 
@@ -555,35 +557,41 @@ def _scalars(node, path=(), skip=frozenset()):
             yield from _scalars(value, (*path, key), skip)
 
 
-def _whole_refs(root: Path, path: Path, document) -> tuple[dict, list[str]]:
-    """graph の YAML（path）の節の字のうち、まるごとの参照 `$<include の id>.output` を照らす。返りは (named, 赤の行):
-    named は、まるごとの参照を受けた script の口が宣言した名を、差し込んだ工程の名ごとに {名: [(宣言の場所, 名の並び)…]}。
+def _whole_refs(root: Path, path: Path, document) -> tuple[dict, dict, list[str]]:
+    """graph の YAML（path）の節の字のうち、まるごとの参照 `$<include の id>.output` を照らす。返りは (named, reads, 赤の行):
+    named は、まるごとの参照を受けた script の口が宣言した名を、差し込んだ工程の名ごとに {名: [(宣言の場所, 名の並び, optional の名)…]}。
+    reads は、欄つきの参照 `$<include か workflow の id>.output.<欄>` で読む欄の頭を、呼んだ工程の名ごとに {名: {欄…}}（読み手の照らし）。
     まるごとの参照を受けてよいのは script の節の with:<鍵> の直の字か with:<鍵>.from の字が参照そのものの時だけで、ほかは赤。
-    欄つきの参照 `$<include の id>.output.<欄>` は Archon の validate が照らすので見ない"""
-    target = {
-        _top(node, "id").value: value.value
-        for node in _nodes(document)
-        if isinstance(value := _top(node, "include"), yaml.ScalarNode) and isinstance(_top(node, "id"), yaml.ScalarNode)
+    欄つきの参照の欄が返りに在るかは Archon の validate が照らすので見ない"""
+    called = {
+        _top(node, "id").value: (key, value.value)
+        for node in _nodes(document) for key in CALL_KEYS
+        if isinstance(value := _top(node, key), yaml.ScalarNode) and isinstance(_top(node, "id"), yaml.ScalarNode)
     }
-    named, out = {}, []
-    if not target:
-        return named, out
+    target = {ident: name for ident, (key, name) in called.items() if key == "include"}
+    named, reads, out = {}, {}, []
+    if not called:
+        return named, reads, out
     for node in _nodes(document):
         ident = getattr(_top(node, "id"), "value", "?")
         for keys, text in _scalars(node, skip={("loop_group", "nodes")}):   # loop_group の中の節は別の節として回す
+            for match in OUTPUT_REF.finditer(text):
+                if match[1] in called and match[2] is not None:
+                    reads.setdefault(called[match[1]][1], set()).add(match[2].partition(".")[0])
             whole = next((m for m in OUTPUT_REF.finditer(text) if m[1] in target and m[2] is None), None)
             if whole is None:
                 continue
             if not _takes_whole(node, keys, text):
                 out.append(f"{_rel(root, path)}:{_line(node)}: 節 {ident} の {'.'.join(map(str, keys))} のまるごとの参照 {whole[0]} は受けられない"
                            "（受けてよいのは script の節の with:<鍵> の直の字と with:<鍵>.from の字だけ）")
-                continue
-            entry, problem = _gated(root, path, node, f"節 {ident} の with.{keys[1]}", keys[1])
+                entry, problem = UNGATED, ""
+            else:
+                entry, problem = _gated(root, path, node, f"節 {ident} の with.{keys[1]}", keys[1])
             if problem:
                 out.append(problem)
-            else:
-                named.setdefault(target[whole[1]], []).append(entry)
-    return named, out
+                entry = UNGATED
+            named.setdefault(target[whole[1]], []).append(entry)
+    return named, reads, out
 
 
 def _takes_whole(node, keys: tuple, text: str) -> bool:
@@ -594,7 +602,7 @@ def _takes_whole(node, keys: tuple, text: str) -> bool:
 
 
 def _gated(root: Path, yaml_path: Path, node, here: str, key: str):
-    """まるごとの参照を with:<key> で受ける script の節 node の口。返りは ((宣言の場所, 名の並び), "") か (None, 赤の行)。
+    """まるごとの参照を with:<key> で受ける script の節 node の口。返りは ((宣言の場所, 名の並び, optional の名), "") か (None, 赤の行)。
     口は `ports.picked(<"INPUTS_<KEY>" の読み>, <名の並び>[, optional=<字の tuple>])` の呼び 1 つ。<読み> は
     `os.environ.get("INPUTS_<KEY>")`・`os.environ["INPUTS_<KEY>"]` そのものか、それを 1 度だけ束ねて口でだけ 1 度読む名
     （`raw = os.environ.get(...)`・`a, raw = os.environ.get(...), os.environ.get(...)`）。"INPUTS_<KEY>" の字はその読みの外に無い
@@ -630,7 +638,8 @@ def _gated(root: Path, yaml_path: Path, node, here: str, key: str):
         return None, (f"{rel}:{gate.lineno}: {here} を受ける script の ports.{GATE_PICKED} の名の並びを解けない（許すのは module の頭の"
                       "字の tuple の名・lib の部品の字の tuple の定数 <部品>.<定数>・with: の字の値を読む "
                       f"ports.{GATE_TEXT}(<INPUTS_<鍵> の読み>).split()（その式を 1 度だけ束ねた名も可）と、鍵 {GATE_OPTIONAL}= の字の tuple だけ）")
-    return (where, names), ""
+    optional = tuple(e.value for k in gate.keywords for e in k.value.elts)
+    return (where, names, optional), ""
 
 
 def _binds(tree, name: str) -> list:
@@ -855,20 +864,29 @@ def _loop_roles(root: Path) -> list[str]:
     return out
 
 
+INPUT_REF = re.compile(r"\$INPUTS\.([A-Za-z_][\w-]*)")
+
+
 def _block_returns(root: Path) -> list[str]:
     """どの workflow（block と graph）にも returns: と outcome_field: が在り、返す節が output_format を持ち、outcome_field の欄がその
     required に在る。graph のまるごとの参照を受けた script の口が宣言した名は、返す節の output_format の properties に在る。
-    輪の中の役が自分の with: を結ばないこと（K5）も照らす"""
-    out, named, schemas = _loop_roles(root), {}, {}
+    返りの欄は読み手を持つ（持ち主の決め declared-io の「読み手ゼロなら赤」）: どこかの graph が欄つきの参照で読むか、まるごとの参照の
+    口が宣言した名（optional を含む）に在る。入口（一番上のグラフ line・chain と、どの graph も include:・workflow: で呼ばない workflow）の
+    返りは人（workflow get）と起動の殻が読むので照らさない。block の入力の読み手（_inputs_read）と、輪の中の役が自分の with: を結ばない
+    こと（K5）も照らす"""
+    out, named, reads, called, schemas = _loop_roles(root) + _inputs_read(root), {}, {}, set(), {}
     for folder in _blocks(root):
         path, document = _workflow_doc(folder)
         if document is None:
             continue
         rel = _rel(root, path)
-        found, problems = _whole_refs(root, path, document)
+        found, read, problems = _whole_refs(root, path, document)
         out += problems
         for name, entries in found.items():
             named.setdefault(name, []).extend(entries)
+        for name, fields in read.items():
+            reads.setdefault(name, set()).update(fields)
+        called |= {value.value for node in _nodes(document) for key in CALL_KEYS if isinstance(value := _top(node, key), yaml.ScalarNode)}
         returns, outcome = _top(document, "returns"), _top(document, "outcome_field")
         for key, value in (("returns", returns), ("outcome_field", outcome)):
             if not isinstance(value, yaml.ScalarNode):
@@ -883,12 +901,38 @@ def _block_returns(root: Path) -> list[str]:
         required = [item.value for item in getattr(_top(schema, "required"), "value", []) if isinstance(item, yaml.ScalarNode)]
         if isinstance(outcome, yaml.ScalarNode) and outcome.value not in required:
             out.append(f"{rel}:{_line(outcome)}: outcome_field の欄 {outcome.value} が返す節の required に無い")
-        schemas[f"{OURS_PREFIX}{folder.name}"] = {key for key, _ in _pairs(_top(schema, "properties"))}
-    for name, entries in named.items():
-        if name not in schemas:
-            continue   # 差し込んだ工程が木に無い・返りを読めない時の赤は validate と上の照らしが出す
-        for where, names in entries:
-            out += [f"{where}: 宣言した欄 {n} が {name} の返りに無い" for n in names if n not in schemas[name]]
+        schemas[f"{OURS_PREFIX}{folder.name}"] = (rel, list(_pairs(_top(schema, "properties"))), folder.name)
+    for name, (rel, fields, folder) in schemas.items():
+        known = {key for key, _ in fields}
+        read = set(reads.get(name, ()))
+        for where, names, optional in named.get(name, ()):
+            if names is None:
+                read |= known
+                continue
+            read |= {*names, *optional}
+            out += [f"{where}: 宣言した欄 {n} が {name} の返りに無い" for n in names if n not in known]
+        if folder in TOP_FOLDERS or name not in called:   # 入口の返りを読むのは人（workflow get）と起動の殻で、graph の読み手は無い
+            continue
+        out += [f"{rel}:{_line(value)}: 返りの欄 {key} に読み手が無い（どの graph の欄つきの参照 $<id>.output.{key} も、"
+                f"まるごとの参照の口 ports.{GATE_PICKED} の宣言も読まない）" for key, value in fields if key not in read]
+    return out
+
+
+def _inputs_read(root: Path) -> list[str]:
+    """block の inputs: の名は、その block の YAML の字が $INPUTS.<名> で読むか（with: で include・script・役へ渡す字を含む）、その block の
+    scripts/ と src/ の Python が INPUTS_<名> で読む（script_reads）。宣言しただけで誰も読まない入力を残さない（declared-io）"""
+    out = []
+    for folder in _blocks(root):
+        path, document = _workflow_doc(folder)
+        if document is None:
+            continue
+        refs = {m[1] for node in _nodes(document) for _, text in _scalars(node, skip={("loop_group", "nodes")})
+                for m in INPUT_REF.finditer(text)}
+        codes = ["\n".join(_lines(root, p)[0]) for part in ("scripts", "src") for p in _files(folder, part) if p.suffix == ".py"]
+        for key, value in _pairs(_top(document, "inputs")):
+            if key not in refs and not any(script_reads(text, key, root / "lib") for text in codes):
+                out.append(f"{_rel(root, path)}:{_line(value)}: 入力 {key} に読み手が無い（YAML の $INPUTS.{key} も、"
+                           f"scripts/・src/ の {_input_env(key)} も無い）")
     return out
 
 

@@ -27,6 +27,8 @@ testcmd_check = kit.load("line", "testcmd_check")
 guard = kit.load("line", "guard")
 
 import answer  # noqa: E402  （kit.load が共通の口を読み、lib/ を sys.path に足した後に読む）
+import yaml  # noqa: E402
+from engine.schema import validate_schema  # noqa: E402
 RUN = kit.RUN_ID
 
 
@@ -195,7 +197,8 @@ class RelayCase(ScriptRun):
 
 class ResultCase(unittest.TestCase):
     REPORT = {"ok": True, "outcome": "fixed", "stop_reason": "", "machine": ptr("report.md"), "human": ptr("report-ai.md"),
-              "next_request": None, "prior_failures": ptr("prior-failures.json")}
+              "detail": ptr("report-detail.md"), "next_request": None, "prior_failures": ptr("prior-failures.json"),
+              "report": ["- 報告"]}
 
     def result(self, report=None, **kw) -> dict:
         given = {"merge_apply": None, "merge_seal": None, "eyes": None, "spec_check": None, "answer_final": None, "children": None, **kw}
@@ -208,6 +211,20 @@ class ResultCase(unittest.TestCase):
         self.assertEqual((got["report"], got["report_ai"], got["prior_failures"]), (ptr("report.md"), ptr("report-ai.md"),
                                                                                    ptr("prior-failures.json")))
         self.assertTrue(self.result({**self.REPORT, "outcome": "fixed_needs_check", "ok": True})["fixed"])
+
+    def test_report_detail_and_lines_are_returned(self):
+        """report の返りの detail・report を report_detail・report_lines で返す（人が line の返りで詳しい報告の置き場と報告の行を見る）"""
+        got = self.result(dict(self.REPORT))
+        self.assertEqual((got["report_detail"], got["report_lines"]), (ptr("report-detail.md"), ["- 報告"]))
+        self.assertEqual((self.result(None)["report_detail"], self.result(None)["report_lines"]), (None, []))
+        self.assertEqual((result.fallback("")["report_detail"], result.fallback("")["report_lines"]), (None, []))
+
+    def test_result_and_fallback_match_the_returns_shape(self):
+        node = next(n for n in yaml.safe_load((LINE / "works-factory-line.yaml").read_text(encoding="utf-8"))["nodes"]
+                    if n["id"] == "result")
+        for name, got in (("result", self.result(dict(self.REPORT))), ("fallback", result.fallback(""))):
+            with self.subTest(name):
+                self.assertEqual(validate_schema(got, node["output_format"]), [])
         self.assertFalse(self.result({**self.REPORT, "outcome": "no_fix_needed"})["fixed"])
 
     def test_absent_report_is_not_fixed(self):

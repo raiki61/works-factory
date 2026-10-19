@@ -17,8 +17,7 @@ def compute():
 
 
 def fallback(why: str) -> dict:
-    return {"ok": False, "status": "failed", "reason": why, "constraints": None, "measured": 0, "hypotheses": 0,
-            "report": [f"前提の制約: {why}"]}
+    return {"ok": False, "status": "failed", "reason": why, "constraints": None, "report": [f"前提の制約: {why}"]}
 
 
 ports.run(compute, fallback)
