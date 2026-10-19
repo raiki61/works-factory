@@ -8,13 +8,8 @@ from tests.blocks import kit
 
 
 def line_graph() -> dict:
-    """chain が周ごとに起こす line の YAML。組み込みの前は line の block（blocks/line/）がまだ無いことがあるので、無ければ今の
-    workflows/line/ を読む（入力の名と既定値だけを照らす）"""
-    for folder in (kit.BLOCKS, kit.ROOT / "workflows"):
-        path = folder / "line" / "works-factory-line.yaml"
-        if path.is_file():
-            return yaml.safe_load(path.read_text(encoding="utf-8"))
-    raise FileNotFoundError("line の YAML が blocks/line/ にも workflows/line/ にも無い")
+    """chain が周ごとに起こす line の YAML（workflows/line/。入力の名と既定値だけを照らす）"""
+    return yaml.safe_load((kit.BLOCKS / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))
 
 
 def scenarios(done) -> dict:

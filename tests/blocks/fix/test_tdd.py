@@ -1,4 +1,4 @@
-"""fix の block の TDD の輪（blocks/fix/src/tdd.py。lib/tddloop.py の写し）と、輪の赤の判定を読む事後の関門の赤緑
+"""fix の block の TDD の輪（workflows/fix/src/tdd.py。lib/tddloop.py の写し）と、輪の赤の判定を読む事後の関門の赤緑
 （src/gates.py の red_green）の検査。lib/tests/test_blk_fix_tdd.py・test_tdd_outside.py・test_tdd_frozen_function_span.py・
 test_fix_gates.py の TestRedGreen を src の写しに向け直した物（docs/design/fix.md の 14.2）。
 

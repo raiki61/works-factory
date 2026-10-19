@@ -1,4 +1,4 @@
-"""試験の関門の block（blocks/test-gate/）の YAML の形と、script を子のプロセスで走らせる振る舞いの試験（docs/design/test-gate.md の 12 節）。
+"""試験の関門の block（workflows/test-gate/）の YAML の形と、script を子のプロセスで走らせる振る舞いの試験（docs/design/test-gate.md の 12 節）。
 
 - YAML: block の名・入力（port 11 個）・返す node の output_format（今の 15 欄に suite・suite_note・report を足した 18 欄）・任せ先の CI の役の node の形・
   輪の上限と受け付けの諦める回数・script の INPUTS_<名> と with: の鍵（INPUTS_ を読むのは intake.py だけ）・読むだけの node
@@ -1538,7 +1538,7 @@ class SuiteLoopCase(ScriptCase):
 
 class PromptCase(ScriptCase):
     """3 つの指示（prompts/*.md）に prep が入れる値と、段落の選び（docs/design/test-gate.md の 2.3・3.3・4.3）"""
-    LANG_DEFAULT = "the language of the request (the user's language)"   # blocks/.shared/prompts/lang-default.md
+    LANG_DEFAULT = "the language of the request (the user's language)"   # workflows/.shared/prompts/lang-default.md
     OTHER_SLOTS = {"root", "base", "copy_dir", "tmp_dir", "mode", "attempt", "decl_name", "lang"}
 
     def test_status_slots_are_the_declared_statuses(self):

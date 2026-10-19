@@ -2,7 +2,7 @@
 
 役は周ごとに新しい会話で起きて、前の周で読んだ所も考えも持たない。そこで役の返答に、本文・案とは別の欄 handoff を持たせ、
 受け付けが外して周のフォルダに置き（控えの名は FILE）、次の周の材料が前の周のメモをパスで名指す。メモを書けという頼みと前の周の
-節の文は共通の断片 blocks/.shared/prompts/handoff.md に在る（integration.md 4.3-追加-1）。
+節の文は共通の断片 workflows/.shared/prompts/handoff.md に在る（integration.md 4.3-追加-1）。
 
 - FIELD・KEYS・SCHEMA: 返答の欄の名・4 つの欄（read・kept・set_aside・open）・欄の型
 - FILE・path_of(board)・save(board, note): 控えの名・周のフォルダ board の控えのパス・控えを置く（空なら前の控えを消す）

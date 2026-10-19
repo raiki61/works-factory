@@ -1,4 +1,4 @@
-"""line の始めの node start（blocks/line/scripts/start.py。docs/design/line.md の 1.3 の 1・1.6・9 節の start）: 入力の拒み・始めの記録・
+"""line の始めの node start（workflows/line/scripts/start.py。docs/design/line.md の 1.3 の 1・1.6・9 節の start）: 入力の拒み・始めの記録・
 固定材料の取り込み・起動の承認ノードの文と、配る値 ports の欄ごとの式。
 
 元は今の tests/workflows/test_line.py の StartCase（README 9.5）。start を名で読み（compute を回さない）、load の後に start.start を
@@ -31,7 +31,7 @@ INPUTS = ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate"
 
 
 def script(name: str):
-    """blocks/line/scripts/<name>.py を名で読む（__main__ でないので ports.run は回らない）。src と共通の口を sys.path の頭に置く"""
+    """workflows/line/scripts/<name>.py を名で読む（__main__ でないので ports.run は回らない）。src と共通の口を sys.path の頭に置く"""
     sys.dont_write_bytecode = True
     for mod in [n for n in sys.modules if n == "src" or n.startswith("src.")]:
         del sys.modules[mod]

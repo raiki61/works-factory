@@ -1,4 +1,4 @@
-"""固定材料の写しと取り込み（blocks/line/src/fixture.py。元 lib/fixture.py とその試験 lib/tests/test_fixture.py の写し。docs/design/line.md の 1.5 の MOVE。その元 works/.shared/core/fixture.py）の検査。
+"""固定材料の写しと取り込み（workflows/line/src/fixture.py。元 lib/fixture.py とその試験 lib/tests/test_fixture.py の写し。docs/design/line.md の 1.5 の MOVE。その元 works/.shared/core/fixture.py）の検査。
 
 写した run と取り込む run は、同じ木の別の作業ツリー（取り込む側は起動が切った包みの commit を 1 つ積んだ形）と別の置き場で照らす。
 """

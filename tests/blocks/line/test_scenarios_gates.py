@@ -1,4 +1,4 @@
-"""line の筋書き（blocks/line/fixtures/）のうち、承認ノード・計画の往復・案の直し・再審・無人の run・修正の後の並行 PR・守りのパスの 21 本を dry-run の trace で照らす
+"""line の筋書き（workflows/line/fixtures/）のうち、承認ノード・計画の往復・案の直し・再審・無人の run・修正の後の並行 PR・守りのパスの 21 本を dry-run の trace で照らす
 （docs/design/line.md の 11 節。元は tests/e2e/test_line_scenarios.py の LineReturnsTest・UnattendedGateTest・HeldPushTest・
 ProtectedNotAppliedTest・RefixHandoffTest）。
 

@@ -2,7 +2,7 @@
 全部が渡るか名指した訳に在るか（L-W67）・when: が名に depth を含む欄を読まない・差分の審査の 3 つの when:・報告がいつも走ること。
 
 元は今の tests/workflows/test_line.py の LineWiringCase・FixWiringCase・NoFixWiringCase・SharedPlacesWiringCase・StructureOnceCase・
-HandoffCase（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。include した block の YAML が blocks/ に
+HandoffCase（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。include した block の YAML が workflows/ に
 無い間（組み込みの前に別の枝に在る block）は、その block の照らしだけを見送らずに赤にする（組み込みの後はどれも在る）。
 """
 import contextlib
@@ -58,7 +58,7 @@ def block_doc(name: str) -> dict:
     block = name.removeprefix("works-factory-")
     path = kit.BLOCKS / block / f"works-factory-{block}.yaml"
     if not path.is_file():
-        raise AssertionError(f"include した block {block} が blocks/ に無い（組み込みで別の枝から入る）")
+        raise AssertionError(f"include した block {block} が workflows/ に無い（組み込みで別の枝から入る）")
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 

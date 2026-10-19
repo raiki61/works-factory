@@ -34,7 +34,7 @@ ENTRY_DEFAULT = ("README.md", "AGENTS.md")
 NEW, NEW_ = "{new}", "{new_}"   # 閉じるべき所の中の、新しい block の名の口（{new_} は - を _ にした形）
 # 読み手に見せない所（この目そのものの block・試験・設計書と、Archon が写した pack）。YAML の guidance-walk の denied_tools が
 # Read(./<所>) で塞ぎ、受け付けは開いたと言う返答を拒む。tests/blocks/guidance_path が YAML と突き合わせる
-HIDDEN = ("blocks/guidance-path", "tests/blocks/guidance_path", "docs/design/guidance-path.md", ".archon")
+HIDDEN = ("workflows/guidance-path", "tests/blocks/guidance_path", "docs/design/guidance-path.md", ".archon")
 NONE = "(none)"
 
 

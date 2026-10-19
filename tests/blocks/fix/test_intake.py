@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の入口 intake の試験（docs/design/fix.md の 1.2・1.4・7 節の intake.py・14.2）。
+"""修正の block（workflows/fix/）の入口 intake の試験（docs/design/fix.md の 1.2・1.4・7 節の intake.py・14.2）。
 
 script intake.py を子のプロセスで回し（始めの記録の無い使い捨ての run directory と git のリポジトリ。port の値だけを渡す）、
 - 形ごとの必須（whole は judgment・group は group・out_dir の無い group は judgment も）を ok: false と「入力 <名>: …」の理由で返す

@@ -1,6 +1,6 @@
 """line の standalone の筋書きを dry-run で回し、道の node の状態と result の返りを見る（docs/design/line.md の 11 節）。
 
-include した block が blocks/ に要る（組み込みの前は別の枝に在る block が無いので赤。Archon の源か bun が無ければ見送り）。
+include した block が workflows/ に要る（組み込みの前は別の枝に在る block が無いので赤。Archon の源か bun が無ければ見送り）。
 36 本の今の筋書きの書き直しは別の試験（test_scenarios.py・test_scenarios_gates.py）が持つ。
 """
 import json

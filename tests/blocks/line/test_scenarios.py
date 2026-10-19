@@ -1,4 +1,4 @@
-"""line の筋書きの組 A（blocks/line/fixtures/*.stubs.yaml の 17 本）の試験（docs/design/README.md の 11.3 の 2、line.md の 11 節）。
+"""line の筋書きの組 A（workflows/line/fixtures/*.stubs.yaml の 17 本）の試験（docs/design/README.md の 11.3 の 2、line.md の 11 節）。
 
 元は今の tests/e2e/test_line_scenarios.py と tests/workflows/test_line.py の筋書きの場面。筋書きを新しい line の node の id
 （include した block の中の node は `<include の id>__<中の id>`）に書き直し、各筋書きが何を照らすかは変えない。

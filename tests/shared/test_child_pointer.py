@@ -1,4 +1,4 @@
-"""埋め P6（blocks/.shared/child_pointer.py。integration.md の 4.5-1 で ports を読む形に直した）を、使い捨ての runs/{parent,child} の置き場で確かめる。"""
+"""埋め P6（workflows/.shared/child_pointer.py。integration.md の 4.5-1 で ports を読む形に直した）を、使い捨ての runs/{parent,child} の置き場で確かめる。"""
 import os
 import pathlib
 import sys

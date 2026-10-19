@@ -1,4 +1,4 @@
-"""版の控え（blocks/line/src/versions.py。元 lib/versions.py とその試験 lib/tests/test_versions.py の写し。docs/design/line.md の 1.5 の MOVE。その元 works/.shared/core/versions.py）の検査: 分からない値は null と理由、引ける値はその値。"""
+"""版の控え（workflows/line/src/versions.py。元 lib/versions.py とその試験 lib/tests/test_versions.py の写し。docs/design/line.md の 1.5 の MOVE。その元 works/.shared/core/versions.py）の検査: 分からない値は null と理由、引ける値はその値。"""
 import json
 import pathlib
 import sys

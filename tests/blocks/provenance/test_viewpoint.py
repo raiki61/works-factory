@@ -1,4 +1,4 @@
-"""観点の宣言 blocks/provenance/src/viewpoint.py のこの観点だけの中身（族の全部に当てる照らしは tests/blocks/materials/）"""
+"""観点の宣言 workflows/provenance/src/viewpoint.py のこの観点だけの中身（族の全部に当てる照らしは tests/blocks/materials/）"""
 import types
 import unittest
 

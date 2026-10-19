@@ -1,4 +1,4 @@
-"""結末の決め（blocks/report/src/outcome.py。docs/design/report.md の 1.7 の 11 の順）を、facts と run の組で 1 つずつ照らす。
+"""結末の決め（workflows/report/src/outcome.py。docs/design/report.md の 1.7 の 11 の順）を、facts と run の組で 1 つずつ照らす。
 写す元は lib/tests/test_outcome.py の TableCase・LineStopCase・OrderCase。返りの欄を組む見本は facts の欄の見本に替えた。"""
 import unittest
 

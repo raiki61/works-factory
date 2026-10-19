@@ -1,10 +1,10 @@
 """観点 hygiene（コード衛生）の宣言（docs/design/materials.md の 5.1・docs/design/hygiene.md の 1.5）。
 
 対象差分を、何の機能かも近傍のコードも知らない目（道具を持たない役）で読み、言語・フレームワーク一般の衛生の逸脱を拾わせて
-素材 hygiene を返させる。観点の本文（blocks/.shared/prompts/REVIEW.md の「コード衛生観点」の節）と差分の本文の全部を指示に貼る。返答に material の
+素材 hygiene を返させる。観点の本文（workflows/.shared/prompts/REVIEW.md の「コード衛生観点」の節）と差分の本文の全部を指示に貼る。返答に material の
 欄は無く、findings と seen から機械が素材を作る。受け付けの流れと出口は lib/materialkit が持ち、ここは宣言だけを持つ。
 """
-import ports  # blocks/.shared/
+import ports  # workflows/.shared/
 
 import materialkit  # lib/
 

@@ -1,6 +1,6 @@
 """素材の観点の族の共通の部品（docs/design/materials.md の 2 節）。
 
-判定の前に集める素材の観点 11 本の block（blocks/<観点>/）が共に使う。観点の block は src/viewpoint.py の宣言（名・素材の名・回す
+判定の前に集める素材の観点 11 本の block（workflows/<観点>/）が共に使う。観点の block は src/viewpoint.py の宣言（名・素材の名・回す
 条件・『条件に当たらない』の扱い・指示の値・返答から素材への写し・観点だけの受け付け）だけを持ち、対象差分の取り方・作業ツリーの写しと
 照らし・所見の場所の照らし・素材の欄の照らし・受け付けの流れ・出口はここに置く。中身は lib/judge_accept.py の material_* の写しで
 （各関数の docstring に写す元）、置き場は呼び手が渡す place のフォルダだけ。lib/judge_accept.py は import しない。
@@ -112,7 +112,7 @@ def _write(path, doc) -> pathlib.Path:
 
 def review_md_paths(repo, own_file) -> tuple:
     """写す元 judge_accept.review_md_paths（元 rules:35）。(工場の観点の正本 own_file の絶対パス, 対象の根の REVIEW.md の絶対パスか "")。
-    工場の正本は blocks/.shared/prompts/REVIEW.md で、lib は block の置き場を名指せないので呼び手の block がパスを渡す
+    工場の正本は workflows/.shared/prompts/REVIEW.md で、lib は block の置き場を名指せないので呼び手の block がパスを渡す
     （README 9.3。前は lib/REVIEW.md を lib の中から引いた）。対象の根の REVIEW.md は在る時だけ"""
     own = pathlib.Path(own_file).resolve()
     theirs = pathlib.Path(repo).resolve() / REVIEW_MD

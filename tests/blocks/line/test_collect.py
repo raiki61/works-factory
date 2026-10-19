@@ -1,4 +1,4 @@
-"""report へ渡す sections と facts（blocks/line/src/sections.py・facts.py と scripts/collect.py。docs/design/line.md の 7 節）。
+"""report へ渡す sections と facts（workflows/line/src/sections.py・facts.py と scripts/collect.py。docs/design/line.md の 7 節）。
 
 元は今の tests/workflows/test_line.py の CollectAndResultCase・FallbackCase・BrokenLibCase（docs/design/README.md の 9.5）。facts の欄は
 docs/design/report.md の 1.2 の表の欄ごとに見る。組んだ形は report の block の schemas/facts.schema.json・sections.schema.json に照らす。

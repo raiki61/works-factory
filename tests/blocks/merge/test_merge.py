@@ -1,4 +1,4 @@
-"""block merge（blocks/merge/）の YAML の形・script の通し・報告の行の試験（docs/design/merge.md の 11 節）。
+"""block merge（workflows/merge/）の YAML の形・script の通し・報告の行の試験（docs/design/merge.md の 11 節）。
 
 - YAML の形は PyYAML で読み、Archon を起こさない（返りの約束の欄・入力・照らし・commit・PR の子の run・読み戻し・返す節の 5 つの節）
 - script は subprocess で、一時の git の木を cwd に、Archon が script の節に渡す環境（WORKFLOW_ID・ARTIFACTS_DIR・INPUTS_*）を偽の run で作って走らせる。

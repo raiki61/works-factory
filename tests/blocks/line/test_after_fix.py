@@ -1,4 +1,4 @@
-"""案の直しを差し込むか（blocks/line/scripts/after_fix.py。docs/design/line.md の 4.2）"""
+"""案の直しを差し込むか（workflows/line/scripts/after_fix.py。docs/design/line.md の 4.2）"""
 import json
 import unittest
 

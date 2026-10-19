@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の裁定の輪の試験（docs/design/fix.md の 14.2 の test_ruling.py）。
+"""修正の block（workflows/fix/）の裁定の輪の試験（docs/design/fix.md の 14.2 の test_ruling.py）。
 
 今の lib/tests/test_fix_seams.py の RulingSeamCase・ConflictSeamCase、tests/workflows/test_fix.py の RulerTypeCase と
 FixLoopScriptsCase の rule の部分を写した物。写す時に置き場を place（standalone の run は $ARTIFACTS_DIR）に、始めの記録の値を

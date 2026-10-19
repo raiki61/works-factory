@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の 9 つの AI の node の指示を、その prep（か prep が呼ぶ src/prompts.py の口）を回して md から組み、
+"""修正の block（workflows/fix/）の 9 つの AI の node の指示を、その prep（か prep が呼ぶ src/prompts.py の口）を回して md から組み、
 決まった文が入ることを見る（docs/design/fix.md の 14.2 の test_prompts.py）。
 
 表 RENDERED は、筋書き（fixtures/）で届かない 6 つの node（全体の形は fan_out で dry-run が落ち、tdd は同じ単位の 2 周目にだけ回る）の

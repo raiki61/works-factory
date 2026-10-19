@@ -1,8 +1,8 @@
-"""周の鎖 works-factory-chain（blocks/chain/。今の tests/workflows/test_chain.py の移し。docs/design/line.md の 12）の script・グラフの形・筋書きの試験。
+"""周の鎖 works-factory-chain（workflows/chain/。今の tests/workflows/test_chain.py の移し。docs/design/line.md の 12）の script・グラフの形・筋書きの試験。
 
 script は子のプロセスとして使い捨ての置き場（runs/<親>・runs/<子>）・run の記録・git の木で走らせる（Archon を起こさない）。
 グラフの形は YAML を読んで照らす（5 組の周のノードが番号と前の決めのほかは同じ形・子へ渡す入力がメイングラフの入力と同じ）。
-筋書き（blocks/chain/fixtures/）は止めた Archon の `workflow test` で合否を、`workflow run --dry-run` の trace で決めの語を照らす
+筋書き（workflows/chain/fixtures/）は止めた Archon の `workflow test` で合否を、`workflow run --dry-run` の trace で決めの語を照らす
 （子の run と、読み書きをするノード round-k-commit・round-k-facts は stub で差し、chain-start・round-k-decide・result は本当に走る）。
 """
 import hashlib
@@ -542,7 +542,7 @@ class ResultCase(Tree):
 
 class FilesCase(unittest.TestCase):
     def test_file_names_are_the_ones_bin_apply_reads(self):
-        """置き場のファイルの名は blocks/chain/src/files.py が持つ。bin/apply が引く lib/chain.py の FINAL・REPORT と同じ字"""
+        """置き場のファイルの名は workflows/chain/src/files.py が持つ。bin/apply が引く lib/chain.py の FINAL・REPORT と同じ字"""
         files = kit.load("chain", "files")
         self.assertEqual((files.FINAL, files.REPORT), (chain.FINAL, chain.REPORT))
         self.assertEqual(files.round_diff(2), "chain/round-2.diff")

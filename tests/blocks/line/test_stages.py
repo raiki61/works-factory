@@ -1,4 +1,4 @@
-"""2 つの修正の段の合わせ（blocks/line/src/stages.py の fixed。docs/design/line.md の 4.3）と、修正の段の控えの読み口（read・late_records）と、
+"""2 つの修正の段の合わせ（workflows/line/src/stages.py の fixed。docs/design/line.md の 4.3）と、修正の段の控えの読み口（read・late_records）と、
 script fixed の欄の読み。元は今の tests/workflows/test_line.py の FixedCase（docs/design/README.md の 9.5）。
 
 守る keep-essence: 6（受け付けが回さなかった試験の行 tests_left_lines）・11（単位ごとの閉鎖の表の行 closure_lines）

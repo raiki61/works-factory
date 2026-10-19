@@ -6,7 +6,7 @@ not_applicable を書く。『条件に当たらない』は名乗れない。�
 """
 import json
 
-import ports  # blocks/.shared/
+import ports  # workflows/.shared/
 
 import materialkit  # lib/
 import oneline  # lib/

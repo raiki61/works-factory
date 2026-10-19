@@ -1,5 +1,5 @@
 <!-- coldwrite:skip AI 向けの決まり。語は docs/design/README.md の頭の語の一覧で定義 -->
-# pack の共通の部品（`blocks/.shared/`）の決まり
+# pack の共通の部品（`workflows/.shared/`）の決まり
 
 block の script と `src/` が Archon と出入りする口と、2 つ以上の block が使う指示の断片と port の形を置く。設計は `docs/design/README.md` の 4 章と 5 章。
 

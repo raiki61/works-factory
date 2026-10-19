@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の全体の形の頭と組の戻し: prep・join・conflict-check の script と、src/board.py の組の分けと戻しの口・
+"""修正の block（workflows/fix/）の全体の形の頭と組の戻し: prep・join・conflict-check の script と、src/board.py の組の分けと戻しの口・
 src/lanes.py の試験（docs/design/fix.md の 14.2 の test_join.py）。
 
 今の tests/workflows/test_fix.py の BlockScriptsCase の prep・join・conflict-check の部分、lib/tests/test_lanekit.py、
@@ -101,7 +101,7 @@ class Whole(unittest.TestCase):
 
     # ---- 助け
     def go(self, name, env_extra=None, **inputs):
-        """blocks/fix/scripts/<name>.py を子のプロセスで回す。(終了の値, 標準出力の JSON か None, 標準エラー)"""
+        """workflows/fix/scripts/<name>.py を子のプロセスで回す。(終了の値, 標準出力の JSON か None, 標準エラー)"""
         env = hermetic.child_env(**self.run.environ(**inputs), PYTHONDONTWRITEBYTECODE="1", **(env_extra or {}))
         done = subprocess.run([sys.executable, str(kit.BLOCKS / "fix" / "scripts" / f"{name}.py")], cwd=self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")

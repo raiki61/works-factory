@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の形 group の子の run の試験（docs/design/fix.md の 14.2 の test_group.py）。
+"""修正の block（workflows/fix/）の形 group の子の run の試験（docs/design/fix.md の 14.2 の test_group.py）。
 
 今の tests/workflows/test_fix.py の GroupChildScriptsCase と lib/tests/test_fix_seams.py の GroupChildSeamCase を写した物。
 子の run は port だけを渡して回す: intake（mode group・group・out_dir＝親の place の groups/・from_tree）→ group-start → tdd-prep・
@@ -132,7 +132,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         return env
 
     def run_script(self, script, *, art=None, ok=True, cwd=None, node=None, **inputs):
-        """blocks/fix/scripts/<script>.py を起こす。ok なら返りを JSON で読み、node（既定は script の名の - 綴り）の output_format で
+        """workflows/fix/scripts/<script>.py を起こす。ok なら返りを JSON で読み、node（既定は script の名の - 綴り）の output_format で
         照らす。ok が偽なら落ちることを見て標準エラーを返す"""
         art = art or self.art
         done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=cwd or self.repo,

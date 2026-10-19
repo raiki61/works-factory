@@ -1,4 +1,4 @@
-"""修正の block（blocks/fix/）の返す node finish と、全体の形の終わりの clean・assert-changed の試験（docs/design/fix.md の 1.2・7 節・
+"""修正の block（workflows/fix/）の返す node finish と、全体の形の終わりの clean・assert-changed の試験（docs/design/fix.md の 1.2・7 節・
 11 節・14.2）。
 
 今の tests/workflows/test_fix.py の BlockScriptsCase の collect・clean・assert_changed の試験を写した（差分の審査とレンズの欄の物は

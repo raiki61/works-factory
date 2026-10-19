@@ -1,4 +1,4 @@
-"""独立の目の族（blocks/r1〜r4。docs/design/r1.md の 0 節）が共に使う部品。どれも lib/eyeverdict.py の関数の写しか、それを値で
+"""独立の目の族（workflows/r1〜r4。docs/design/r1.md の 0 節）が共に使う部品。どれも lib/eyeverdict.py の関数の写しか、それを値で
 受ける形にした物（写す元は関数ごとの docstring）。標準ライブラリと KEEP の lib の部品だけを読む。実行系を知らない（パスと値を受け、
 値を返す）。ファイルの名は呼び手の block が渡す。
 

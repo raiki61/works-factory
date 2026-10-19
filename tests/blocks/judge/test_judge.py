@@ -1,4 +1,4 @@
-"""判定のまとめの graph（blocks/judge。docs/design/judge-eyes.md の 1 節）: 止めの語の順・返りの無い block の欄・diagnose へ渡す値の
+"""判定のまとめの graph（workflows/judge。docs/design/judge-eyes.md の 1 節）: 止めの語の順・返りの無い block の欄・diagnose へ渡す値の
 そろえ方・判定の裏取りの選び・返す node が落ちないこと・配線の yes/no・筋書きの verdict を確かめる。
 
 元は今の tests/workflows/test_judge.py の graph の場面（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。
@@ -377,7 +377,7 @@ class WiringCase(unittest.TestCase):
             block = node["include"].removeprefix("works-factory-")
             path = kit.BLOCKS / block / f"works-factory-{block}.yaml"
             with self.subTest(block=block):
-                self.assertTrue(path.is_file(), f"include した block {block} が blocks/ に無い")
+                self.assertTrue(path.is_file(), f"include した block {block} が workflows/ に無い")
                 inputs = set(yaml.safe_load(path.read_text(encoding="utf-8")).get("inputs") or {})
                 given = set(node.get("with") or {})
                 self.assertEqual(sorted(given - inputs), [], "block の inputs: に無い鍵を渡している")
@@ -385,7 +385,7 @@ class WiringCase(unittest.TestCase):
 
 
 class FixtureCase(unittest.TestCase):
-    """筋書きを dry-run で回し、verdict の出力を見る（include した block が blocks/ に要る）"""
+    """筋書きを dry-run で回し、verdict の出力を見る（include した block が workflows/ に要る）"""
     SCENARIOS = ("standalone", "pass", "bad-request", "judge-gave-up", "material-peer-stop", "no-open-units", "spec-on",
                  "spec-stop", "world-offline", "world-cut", "verify-heavy")
 

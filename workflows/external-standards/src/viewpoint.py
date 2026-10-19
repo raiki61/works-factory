@@ -5,7 +5,7 @@
 """
 import json
 
-import ports  # blocks/.shared/
+import ports  # workflows/.shared/
 
 import materialkit  # lib/
 import oneline  # lib/
@@ -20,7 +20,7 @@ GUARDED = False   # AI の node が mutates_checkout: false を持たない（�
 NA = "never"
 NA_REASON = ""
 NA_PARAGRAPH = True   # 返答が material の欄を持ち、md が共通の断片 material-na を差し込む
-STANDARDS_SECTION = "外部標準照合観点"   # 観点の正本 blocks/.shared/prompts/REVIEW.md の見出しの字（md と正本が合うべき値）
+STANDARDS_SECTION = "外部標準照合観点"   # 観点の正本 workflows/.shared/prompts/REVIEW.md の見出しの字（md と正本が合うべき値）
 CRITERIA_SECTION = "指摘の提出基準"
 
 

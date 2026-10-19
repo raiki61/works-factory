@@ -1,4 +1,4 @@
-"""test_cmd が対象の手元を試す形の見分け（blocks/line/src/testcmd_check.py。元 lib/testcmd_check.py とその試験 lib/tests/test_testcmd_check.py の写し。docs/design/line.md の 1.5 の MOVE）の検査。
+"""test_cmd が対象の手元を試す形の見分け（workflows/line/src/testcmd_check.py。元 lib/testcmd_check.py とその試験 lib/tests/test_testcmd_check.py の写し。docs/design/line.md の 1.5 の MOVE）の検査。
 
 run の作業ツリーと単位の作業ツリーは commit から切るので、対象の git が無視する物（.venv・node_modules など）は無い。test_cmd が
 対象の手元を絶対パスで指すか、対象を editable で入れた対象の外の環境を使えば、作業ツリーの直しでなく手元のコードを試す（止める形）。

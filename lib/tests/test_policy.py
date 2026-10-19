@@ -1,5 +1,5 @@
 """人の方針を役に届ける形（policy）。写しから組む brief が上限 PASTE_CAP（listcut.FILE_CAP と同じ値）で本文を切ること。
-節の文は共通の断片 blocks/.shared/prompts/policy.md（integration.md 4.5-4(c)）"""
+節の文は共通の断片 workflows/.shared/prompts/policy.md（integration.md 4.5-4(c)）"""
 import hashlib
 import json
 import pathlib

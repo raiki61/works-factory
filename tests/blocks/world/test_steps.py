@@ -1,4 +1,4 @@
-"""世界の解の block の中身（blocks/world/src/steps.py。lib/tests/test_blk_world.py の Classes・Plan・Verify・Judge・Intake を、
+"""世界の解の block の中身（workflows/world/src/steps.py。lib/tests/test_blk_world.py の Classes・Plan・Verify・Judge・Intake を、
 port の値で受ける形に写した物。docs/design/world.md の 8 節。写さない試験は同じ節に名指してある）。
 
 - 言い直す役の受け付け（依頼の全部の行に 1 つ・対象の識別子を、web の役に渡る proposed も含めて拒む・全部の行に検索語）・取る類を

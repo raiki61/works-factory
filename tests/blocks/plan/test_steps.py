@@ -1,4 +1,4 @@
-"""修正案の block の中身（blocks/plan/src/steps.py・take.py・brief.py・files.py）の検査。今の lib/tests/test_planfile.py を、port の値で
+"""修正案の block の中身（workflows/plan/src/steps.py・take.py・brief.py・files.py）の検査。今の lib/tests/test_planfile.py を、port の値で
 受ける形に写した物（docs/design/plan.md の 9.2）。
 
 元の関数は盤面の置き場から判定・往復の記録・修正前の版を読んでいた。ここでは入口（steps.intake）を port の値で本当に回して周のフォルダ
@@ -26,7 +26,7 @@ from tests.blocks.plan import base
 brief = kit.load("plan", "brief")
 take = importlib.import_module("src.take")   # kit.load が置いた src の package から（steps・files を brief と同じ物に揃える）
 steps, files = brief.steps, brief.files
-import ports  # noqa: E402  （blocks/.shared/。kit.load が sys.path に足す）
+import ports  # noqa: E402  （workflows/.shared/。kit.load が sys.path に足す）
 import carry  # noqa: E402  （lib/）
 import conflict  # noqa: E402
 import converge  # noqa: E402

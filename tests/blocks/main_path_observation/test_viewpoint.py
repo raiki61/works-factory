@@ -1,4 +1,4 @@
-"""観点の宣言 blocks/main-path-observation/src/viewpoint.py のこの観点だけの中身（族の全部に当てる照らしは tests/blocks/materials/）"""
+"""観点の宣言 workflows/main-path-observation/src/viewpoint.py のこの観点だけの中身（族の全部に当てる照らしは tests/blocks/materials/）"""
 import unittest
 
 from tests.blocks import kit

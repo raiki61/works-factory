@@ -1,4 +1,4 @@
-"""独立の目のまとめの graph（blocks/eyes。docs/design/judge-eyes.md の 2 節）: ok の決まり・返らなかった目の行と「まま R4 を回した」の尾・
+"""独立の目のまとめの graph（workflows/eyes。docs/design/judge-eyes.md の 2 節）: ok の決まり・返らなかった目の行と「まま R4 を回した」の尾・
 目を省いた run の行・まとめた R3 の行・返す node が落ちないこと・配線の yes/no・筋書きの verdict を確かめる。
 
 元は今の tests/workflows/test_eyes.py と lib/tests/test_eyeverdict.py のまとめの部分（docs/design/README.md の 9.5）。目の中は各 block の
@@ -212,13 +212,13 @@ class WiringCase(unittest.TestCase):
             block = node["include"].removeprefix("works-factory-")
             path = kit.BLOCKS / block / f"works-factory-{block}.yaml"
             with self.subTest(block=block):
-                self.assertTrue(path.is_file(), f"include した block {block} が blocks/ に無い")
+                self.assertTrue(path.is_file(), f"include した block {block} が workflows/ に無い")
                 inputs = set(yaml.safe_load(path.read_text(encoding="utf-8")).get("inputs") or {})
                 self.assertEqual(set(node["with"]), inputs)
 
 
 class FixtureCase(unittest.TestCase):
-    """筋書きを dry-run で回し、verdict の出力を見る（include した block が blocks/ に要る）"""
+    """筋書きを dry-run で回し、verdict の出力を見る（include した block が workflows/ に要る）"""
     SCENARIOS = ("standalone", "pass", "all-light", "one-eye", "premise", "redesign")
 
     @classmethod

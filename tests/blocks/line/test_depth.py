@@ -20,7 +20,7 @@ depth = kit.load("line", "tiers")
 latedepth = depth   # 元 lib/latedepth.py の signals も src/tiers.py に写した
 import headdepth  # noqa: E402  （KEEP の lib。kit.load が lib/ を sys.path に足す）
 
-UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（blocks/head-depth/src/steps.py の NONE。block の間は import しない）
+UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（workflows/head-depth/src/steps.py の NONE。block の間は import しない）
 
 ROUTE_REFUSED = "振り分けの段（単位の名の無い拒否）"   # 元 lib/tddloop.py の ROUTE_REFUSED の字（tddloop は fix の src へ移る）
 

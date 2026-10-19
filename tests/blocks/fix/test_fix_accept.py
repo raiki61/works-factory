@@ -1,4 +1,4 @@
-"""修正の受け付けの試験（docs/design/fix.md の 8.1・8.2・10 節の 5 と 7・14.2 の test_fix_accept.py）。blocks/fix/src の写し
+"""修正の受け付けの試験（docs/design/fix.md の 8.1・8.2・10 節の 5 と 7・14.2 の test_fix_accept.py）。workflows/fix/src の写し
 （board・facts・gates・scope・unitrows・parking・rules）を kit.load で読み、script は kit.Run で子のプロセスで回す。
 
 写した元と、この中の 3 つの部分:
@@ -2092,7 +2092,7 @@ _S_MODS = ("board", "facts", "gates", "scope", "unitrows", "parking", "rules", "
 
 
 def _s_load() -> types.SimpleNamespace:
-    """blocks/fix の src を読み直し、試験が使うモジュールを 1 つの名前空間で返す（ほかの block の試験が src を読み替えても、
+    """workflows/fix の src を読み直し、試験が使うモジュールを 1 つの名前空間で返す（ほかの block の試験が src を読み替えても、
     同じ試験の中では 1 組の写しを使う）"""
     kit.load("fix", "board")
     return types.SimpleNamespace(**{n: importlib.import_module(f"src.{n}") for n in _S_MODS})
@@ -4293,7 +4293,7 @@ class HandoffCase(_XPlace):
     """修正役が人に回した物（breaks.accepted）が報告の人が決めることに届く"""
 
     def test_common_rules_breaks_promise_reaches_the_decisions(self):
-        """部分 D2 やる事 1（S03）: 修正役の指示の共通の決まり（blocks/.shared/prompts/writer-rules.md）の「人に回す物は
+        """部分 D2 やる事 1（S03）: 修正役の指示の共通の決まり（workflows/.shared/prompts/writer-rules.md）の「人に回す物は
         breaks.accepted に書け……機械が人に見せる一覧（報告の「人が決めること」）に載せる」が本当になる: 組の子の返答の
         breaks.accepted が組の結果の handoffs と fix の出力の handoffs を通って報告の人が決めることのセクションに 1 件 1 行で出る"""
         board = self.board

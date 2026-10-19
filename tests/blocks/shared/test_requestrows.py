@@ -1,4 +1,4 @@
-"""blocks/.shared/requestrows.py: 依頼の行を port から読む共通の口。形の照らしの後に lib/carry の容器の読みを通す"""
+"""workflows/.shared/requestrows.py: 依頼の行を port から読む共通の口。形の照らしの後に lib/carry の容器の読みを通す"""
 import json
 import sys
 import unittest

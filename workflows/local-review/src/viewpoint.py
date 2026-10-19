@@ -6,7 +6,7 @@
 """
 import json
 
-import ports  # blocks/.shared/
+import ports  # workflows/.shared/
 
 import jsonfile  # lib/
 import materialkit  # lib/

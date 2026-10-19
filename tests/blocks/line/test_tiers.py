@@ -14,7 +14,7 @@ BLOCK = "line"
 tiers = kit.load(BLOCK, "tiers")
 import headdepth  # noqa: E402  （KEEP の lib）
 
-UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（blocks/head-depth/src/steps.py の NONE。block の間は import しない）
+UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（workflows/head-depth/src/steps.py の NONE。block の間は import しない）
 
 U1 = "u1: 一つ目の根本"
 LIGHT_ROWS = [{"unit_id": U1, "depth": "軽量", "why": "配線だけ"}]

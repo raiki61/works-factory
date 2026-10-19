@@ -1,4 +1,4 @@
-"""方針の文だけを入れる入口（blocks/policy-check。docs/design/world.md の 9 節・docs/design/plan-review.md の 1.6）: policy-in の依頼の行と
+"""方針の文だけを入れる入口（workflows/policy-check。docs/design/world.md の 9 節・docs/design/plan-review.md の 1.6）: policy-in の依頼の行と
 解き方の組み方と、事前審査の block（形 text）へ運ぶ方針の文と、result のまとめ（事前審査の穴と定石と違う行を先頭に・ok は両方の ok）を、
 script を子のプロセスで回して確かめる"""
 import json

@@ -7,7 +7,7 @@
 import json
 import re
 
-import ports  # blocks/.shared/
+import ports  # workflows/.shared/
 
 import materialkit  # lib/
 import oneline  # lib/

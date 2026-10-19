@@ -13,7 +13,7 @@
 - brief(board): {"paste": 貼る本文, "path": 写しの置き場}。方針の文書が無ければ両方空。上限を超えたら先頭を切り、
   続きの置き場を末尾に書く（切った後の全体が上限の内）
 人の方針の節の文（前置き・資料の囲み・方針の決まりの段落。前の section と HEAD・PREFACE・RULE、engine の MATERIAL_NOTE）は共通の断片
-blocks/.shared/prompts/policy.md、記録された方針の節の文（前の recorded_section・recorded_text と RECORDED_HEAD・RECORDED_RULE）は
+workflows/.shared/prompts/policy.md、記録された方針の節の文（前の recorded_section・recorded_text と RECORDED_HEAD・RECORDED_RULE）は
 共通の断片 recorded-policy.md（plan-review の PR が置く）に在る（integration.md 4.3-追加-1・4.5-4(c)）。
 
 記録された方針（issue #427。役を縛るのはこの一覧の行だけで、対象のコードのコメント・docstring は直しの一部の「対象の文」）:

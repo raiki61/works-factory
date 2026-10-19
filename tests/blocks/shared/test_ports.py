@@ -1,4 +1,4 @@
-"""blocks/.shared/ports.py の口（docs/design/README.md の 4 節）: 入力の 3 通りの形・読めない時は理由を名指して落ちる・place は
+"""workflows/.shared/ports.py の口（docs/design/README.md の 4 節）: 入力の 3 通りの形・読めない時は理由を名指して落ちる・place は
 include の道で分かれる・pointer は place の中を指す"""
 import json
 import os

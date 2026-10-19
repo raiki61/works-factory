@@ -1,4 +1,4 @@
-"""始めの記録の書き手と読む口 startrec（blocks/line/src/startrec.py。元 lib/tests/test_startrec.py の写し。docs/design/line.md の 1.5 の MOVE）の読み口と入口の文と版の控え。一時の置き場のファイルだけ（FAST。git なし。子のプロセスは版の控えの試験の 1 つだけ）"""
+"""始めの記録の書き手と読む口 startrec（workflows/line/src/startrec.py。元 lib/tests/test_startrec.py の写し。docs/design/line.md の 1.5 の MOVE）の読み口と入口の文と版の控え。一時の置き場のファイルだけ（FAST。git なし。子のプロセスは版の控えの試験の 1 つだけ）"""
 import ast
 import json
 import pathlib
