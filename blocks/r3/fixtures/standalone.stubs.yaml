@@ -1,0 +1,13 @@
+# 単独の run: 入力は無しで最後まで届く（base は既定の HEAD。script は本当に走り、AI の役の返答だけを差し替える）。
+# 返答は例の run（df5e111f）の形: pass、seen に読んだ地図と行
+fixture:
+  expect: completed
+  reached: [intake, r3-coherence-prep, r3-coherence, r3-coherence-save, finish]
+  resolved-text-contains:
+    r3-coherence: 'R3 looks at the coherence of the range the diff touched (whether what changed lines up with what already exists).'
+exec-code: true
+r3-coherence:
+  status: pass
+  reason: 'stub: 変更した物は既存と揃っていて、考えの住処の外への書き足しも無い'
+  seen: ['stub: README.md']
+  unseen: []
