@@ -6,11 +6,15 @@
 """
 import json
 
+import ports  # blocks/.shared/
+
 import jsonfile  # lib/
 import materialkit  # lib/
 import seat  # lib/
 
 from src import lenses
+
+REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"   # 観点の正本（工場の物。lib は経由しない）
 
 NAME = "local-review"
 MATERIALS = ("local_review",)
@@ -42,14 +46,14 @@ def judged_na(view, values) -> bool:
 
 
 def values(view, values) -> dict:
-    own, theirs = materialkit.review_md_paths(view.repo)
+    own, theirs = materialkit.review_md_paths(view.repo, REVIEW_MD)
     return {"diff_file": view.diff_file, "base": view.base, "changed_files_file": view.changed_files_file,
             "review_md": own, "repo_review_md": theirs, "skills": _dump(lenses.skills()),
             "unattended": seat.overlay_body(seat.OVERLAY_KINDS["local-review"])}
 
 
 def when(view, values) -> dict:
-    _, theirs = materialkit.review_md_paths(view.repo)
+    _, theirs = materialkit.review_md_paths(view.repo, REVIEW_MD)
     return {"spawns": True, "repo_review": bool(theirs)}
 
 
