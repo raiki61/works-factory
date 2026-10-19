@@ -367,7 +367,7 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(role, list(self.steps.UNKNOWNS))
         finish = self.nodes["finish"]["output_format"]["properties"]
         self.assertEqual(finish["rows"]["items"]["properties"]["unknown"]["enum"], list(self.steps.UNKNOWNS))
-        self.assertEqual(finish["tier"]["enum"], list(self.steps.depth.HEADS))
+        self.assertEqual(finish["tier"]["enum"], list(self.steps.headdepth.HEADS))
         self.assertNotIn("tier", self.nodes["head-depth"]["output_format"]["properties"])
         self.assertNotIn("depth", self.nodes["head-depth"]["output_format"]["properties"])
         self.assertEqual(self.nodes["head-depth"]["output_format"]["required"], ["why", "items", "groups"])

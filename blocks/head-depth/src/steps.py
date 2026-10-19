@@ -20,8 +20,7 @@ import prompt
 import requestrows
 
 import cite          # lib/。番地の規則と引用の照らし
-import depth         # lib/。段の語 HEAVY・HEADS（組み込みで headdepth へ移るまで）
-import headdepth     # lib/。段の語 LIGHT・STANDARD と控えの形・読み
+import headdepth     # lib/。段の語 LIGHT・STANDARD・HEAVY・HEADS と控えの形・読み
 import jsonfile      # lib/
 import launchgroups  # lib/。群の表と群の選びの照らし
 import oneline       # lib/
@@ -33,7 +32,7 @@ INTAKE_FILE = "intake.json"
 RECORD_FILE = "depth-head.json"
 ROLE = "head-depth"        # 却下の控えの名（rejects-head-depth.json）
 NODE = "head-depth"        # AI の node の id（prompts/head-depth.md）
-LIGHT, STANDARD, HEAVY, HEADS = headdepth.LIGHT, headdepth.STANDARD, depth.HEAVY, depth.HEADS
+LIGHT, STANDARD, HEAVY, HEADS = headdepth.LIGHT, headdepth.STANDARD, headdepth.HEAVY, headdepth.HEADS
 # port thickness の語（choice の語は ASCII だけ。形の検査 FORM）→ 名指しの段（auto は名指さない）。段の並びは HEADS と同じ
 THICKNESS = {"auto": "", "light": LIGHT, "standard": STANDARD, "heavy": HEAVY}
 NONE, CAUSE, SHAPE, SCOPE = "無し", "原因", "形", "範囲"

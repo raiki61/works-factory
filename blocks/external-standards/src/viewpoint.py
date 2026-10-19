@@ -5,10 +5,14 @@
 """
 import json
 
+import ports  # blocks/.shared/
+
 import materialkit  # lib/
 import oneline  # lib/
 
 from src import rankings
+
+REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"   # 観点の正本（工場の物。lib は経由しない）
 
 NAME = "external-standards"
 MATERIALS = ("external_standards",)
@@ -16,7 +20,7 @@ GUARDED = False   # AI の node が mutates_checkout: false を持たない（�
 NA = "never"
 NA_REASON = ""
 NA_PARAGRAPH = True   # 返答が material の欄を持ち、md が共通の断片 material-na を差し込む
-STANDARDS_SECTION = "外部標準照合観点"   # 観点の正本 lib/REVIEW.md の見出しの字（md と正本が合うべき値）
+STANDARDS_SECTION = "外部標準照合観点"   # 観点の正本 blocks/.shared/prompts/REVIEW.md の見出しの字（md と正本が合うべき値）
 CRITERIA_SECTION = "指摘の提出基準"
 
 
@@ -43,7 +47,7 @@ def judged_na(view, values) -> bool:
 
 
 def values(view, values) -> dict:
-    own, theirs = materialkit.review_md_paths(view.repo)
+    own, theirs = materialkit.review_md_paths(view.repo, REVIEW_MD)
     out = {"diff_file": view.diff_file, "changed_files": _dump(list(view.changed_files)), "repo": str(view.repo),
            "review_md": own, "standards_section": STANDARDS_SECTION, "criteria_section": CRITERIA_SECTION,
            "purpose_text": "", "known_weaknesses": "", "repo_review_md": theirs}   # 段落が入らない時も空の字で渡す（指示を組む口が数える）
@@ -54,7 +58,7 @@ def values(view, values) -> dict:
 
 
 def when(view, values) -> dict:
-    _, theirs = materialkit.review_md_paths(view.repo)
+    _, theirs = materialkit.review_md_paths(view.repo, REVIEW_MD)
     return {"spawns": False, "purpose": values["purpose"] is not None, "repo_review": bool(theirs)}
 
 

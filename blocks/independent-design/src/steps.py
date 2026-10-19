@@ -9,21 +9,23 @@ from __future__ import annotations
 
 import json
 import pathlib
-import re
 import types
 
 import ports
 import prompt
 
 import accept    # lib/。作業ツリーの姿・guard・write_board
+import cite      # lib/。依頼の名指しを引く Markdown の読み（MD_LINK・_md_lines・_md_slugs。integration.md 4.5-5）
 import design    # lib/。名指し・根拠の検算・要素の照らし
+import fixboard  # lib/。足した行の印に要る git の 3 つ pr_revs・pr_added_lines（integration.md 4.4-B）
 import jsonfile  # lib/
 import oneline   # lib/
 import policy    # lib/。PASTE_CAP
 import rolekit   # lib/。loop の数え・却下の控え・諦め
+import unittrees # lib/。git が落ちた時の UnitTreeError
 from engine.util import Reject   # lib/graphloops/engine/util.py
 
-from src import files, marks, premises, report
+from src import files, premises, report
 
 HYPOTHESIS = "仮説"          # 制約の kind の語（正本は前提の実測の block の出力の形。md には {hypothesis} で入れる）
 UNKNOWN_SOURCE = "目的不明"   # 目的の出典の語（目的の固定の block の出力 source）
@@ -45,36 +47,6 @@ NOT_RUN = "役の loop が回らなかった"
 CRASHED = "{step} の node が落ちた（{why}）"
 
 
-# ---------------------------------------------------------------- 依頼の名指しを引く道具（lib/boardview.py の rules の写し）
-MD_LINK = re.compile(r"(?<!!)\[[^\]\n]*\]\((?:<([^>\n]+)>|([^()\s<]+))(?:\s+\"[^\"]*\")?\)")
-MD_FENCE = re.compile(r"^\s{0,3}(```|~~~)")
-
-
-def _md_lines(text):
-    """(行番号, 行) を、コードブロック（``` / ~~~ の囲い）の外の行だけ返す"""
-    fence = False
-    for i, line in enumerate(text.splitlines(), 1):
-        if MD_FENCE.match(line):
-            fence = not fence
-        elif not fence:
-            yield i, line
-
-
-def _md_slugs(text):
-    """見出しのアンカー（GitHub の書き方。重複は -1, -2 …）の集合"""
-    seen, out = {}, set()
-    for _, line in _md_lines(text):
-        m = re.match(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$", line)
-        if not m:
-            continue
-        h = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", m.group(1).strip())
-        s = re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")
-        n = seen.get(s, 0)
-        seen[s] = n + 1
-        out.add(s if n == 0 else f"{s}-{n}")
-    return out
-
-
 # ---------------------------------------------------------------- 人が決めた前提の見え方
 def answer_rows(answers) -> list:
     """port answers の値（{decision, text} か、その配列。null は無い）のうち、decision を持つ行"""
@@ -90,7 +62,7 @@ def human_items(answers) -> list:
 
 def r2_view(request: str, answers) -> types.SimpleNamespace:
     """独立設計の前提を組むだけの見え方（承認ノードの答え・依頼の本文・名指しを引く道具だけ。修正案・判定・差分は持たない）"""
-    rules = types.SimpleNamespace(MD_LINK=MD_LINK, _md_lines=_md_lines, _md_slugs=_md_slugs)
+    rules = types.SimpleNamespace(MD_LINK=cite.MD_LINK, _md_lines=cite._md_lines, _md_slugs=cite._md_slugs)
     return types.SimpleNamespace(record={"process": {"human_items": human_items(answers)}},
                                  state={"inputs": {"request": request}}, rules=rules)
 
@@ -119,14 +91,14 @@ def unusable(source: str, review: dict):
 # ---------------------------------------------------------------- 足した行の印
 def added_marks(constraints: list, repo, base: str, head: str) -> list:
     """実測した制約のうち、text・measured_output が名指す <パス>:<行>（design.anchors）が審査する変更（起点 base → 修正前の
-    HEAD head。marks.pr_added_lines）の足した行に当たる物に欄 mark（ADDED_MARK）を付けた並び。独立設計は変更の後の作業ツリーから
+    HEAD head。fixboard.pr_added_lines）の足した行に当たる物に欄 mark（ADDED_MARK）を付けた並び。独立設計は変更の後の作業ツリーから
     測った制約を受けるので、印が無いと変更そのものを既存の仕組みと読む。base が空の run と差分を測れない時は付けない"""
     if not base:
         return constraints
     try:
-        base_sha, head_sha = marks.pr_revs(repo, base, head or "HEAD")
-        added = marks.pr_added_lines(repo, base_sha, head_sha) if base_sha != head_sha else {}
-    except marks.MarkError:
+        base_sha, head_sha = fixboard.pr_revs(repo, base, head or "HEAD")
+        added = fixboard.pr_added_lines(repo, base_sha, head_sha) if base_sha != head_sha else {}
+    except unittrees.UnitTreeError:
         return constraints
 
     def hit(path: str, start: int, end: int) -> bool:

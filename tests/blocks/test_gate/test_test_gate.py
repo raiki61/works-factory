@@ -43,7 +43,6 @@ import green_cert  # noqa: E402
 import launchgroups  # noqa: E402
 import rolekit  # noqa: E402
 import suitewrite  # noqa: E402
-import tddloop  # noqa: E402
 import tree_run  # noqa: E402
 import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
@@ -1449,6 +1448,7 @@ class SuiteLoopCase(ScriptCase):
         """keep-essence 1（赤緑の機械の判定）は tdd_suite を省いた run でも効く: 書いた実行器を 1 回走らせた結末が照らしを通れば
         実行器の控えの tdd_suite に結び、元の結末に 1 件ごとの結末が載り、出力の suite が実行器の絶対パスで、修正の段の TDD の輪が
         その実行器で名指しの赤を判じる。照らしを通った実行器は test_cmd の字で取り置く"""
+        tddloop = kit.load("fix", "tdd")   # keep-essence 1 の継ぎ目: 修正の段の TDD の輪（integration.md 4.3-3）
         self.assertEqual(tddloop.start(self.tmp / "fix", self.repo, "", "[]")["reason"], tddloop.NO_SUITE)
         self.ok("run", "base")
         prep, tried = self.round(self.RED)

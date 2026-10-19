@@ -6,8 +6,12 @@ not_applicable を書く。『条件に当たらない』は名乗れない。�
 """
 import json
 
+import ports  # blocks/.shared/
+
 import materialkit  # lib/
 import oneline  # lib/
+
+REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"   # 観点の正本（工場の物。lib は経由しない）
 
 NAME = "consistency-bypass"
 MATERIALS = ("consistency", "bypass")
@@ -41,13 +45,13 @@ def judged_na(view, values) -> bool:
 
 def values(view, values) -> dict:
     # repo_review_md は対象に REVIEW.md が無い回も空の字で渡す（指示を組む口は選ばれない段落の中の差し込み口も数える）
-    own, theirs = materialkit.review_md_paths(view.repo)
+    own, theirs = materialkit.review_md_paths(view.repo, REVIEW_MD)
     return {"repo": str(view.repo), "review_rev": view.review_rev, "base": view.base, "diff_file": view.diff_file,
             "changed_files": _dump(list(view.changed_files)), "review_md": own, "repo_review_md": theirs}
 
 
 def when(view, values) -> dict:
-    return {"repo_review": bool(materialkit.review_md_paths(view.repo)[1])}
+    return {"repo_review": bool(materialkit.review_md_paths(view.repo, REVIEW_MD)[1])}
 
 
 def before(view, values, reply, place) -> tuple:
