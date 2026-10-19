@@ -5,6 +5,7 @@
   （YAML の systemPrompt: に文を書かない。README の 13 章）。パスも文も受けない
 - emit(node_id, values, when, n) -> render の返り: 組んだ物を place の <node_id>-prompt-<n>.md（と <node_id>-system-<n>.md）に書き、
   prep の返りの形で返す。AI の node の YAML は prompt: "$<prep>.output.prompt"（と systemPrompt: "$<prep>.output.system"）だけ
+- round_of(node_id) -> int: place に在る <node_id>-prompt-<n>.md の数 + 1（emit に渡す、輪の何回目か）
 - lang(raw) -> str: 人に見せる欄の言語の値（port lang。空なら共通の断片 .shared/prompts/lang-default.md の文）
 
 md の書き方:
@@ -130,3 +131,7 @@ def emit(node_id: str, values: dict, when: dict | None, n: int) -> dict:
     for key, text in out.items():
         (place / f"{node_id}-{key}-{n}.md").write_text(text, encoding="utf-8")
     return out
+
+
+def round_of(node_id: str) -> int:
+    return len(list(ports.place().glob(f"{node_id}-prompt-*.md"))) + 1

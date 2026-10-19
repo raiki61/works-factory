@@ -1,10 +1,10 @@
 # block の設計書: world（世界の解）
 
 - 何の話か: 依頼の各行を業界の定石と照合する観点「世界の解」を、単独で呼べる block `blocks/world/` にする設計。あわせて、方針の文だけを入れてこの観点（と事前審査）で評価する入口の workflow `blocks/policy-check/` の設計も書く。型は [README.md](README.md) に従う。ほかの block の設計書の手本でもある。
-- 決めたこと: 今の judge の 9 つの node（world-intake〜world-finish）を、7 つの node の block にする。入力は依頼の行・目的の文・依頼が示した解き方・web の切り替え・言語の 5 つの port だけで、run の記録を読まない。指示は 2 本の英語の md（`prompts/world-classes.md`・`prompts/world-judge.md`）にまとめる。lib の Python に在った「返し方」の文と、md と lib に二重に書いていた 11 の決まりは md に 1 回だけ書く。振る舞いは変えない。
+- 決めたこと: 今の judge の 9 つの node（world-intake〜world-finish）を、頂の 5 つ（intake・言い直しの輪・pick・web の役の輪・finish。輪は本体の prep・役・受け付けを 1 つと数える）の block にする。土台の審査の後、web が off の run のための輪を 1 つ足して 6 つになった（9.1 の 7）。入力は依頼の行・目的の文・依頼が示した解き方・web の切り替え・言語の 5 つの port だけで、run の記録を読まない。指示は 2 本の英語の md（`prompts/world-classes.md`・`prompts/world-judge.md`）にまとめる。lib の Python に在った「返し方」の文と、md と lib に二重に書いていた 11 の決まりは md に 1 回だけ書く。振る舞いは変えない（変えた所は 9.1 に名指す: `ok` の意味・web が off を道具で守る・下書きの行の拒みを配列の形にも当てる）。
 - 持ち主に求めること: なし。
 
-この文書の語は README の頭の物を使う。ほかに:
+この文書の語は README の頭の物を使う（block・graph・port・place・prep・accept・pointer・Archon と、`returns`・`outcome_field`・`loop_group` などの Archon の YAML の鍵、form の書き方 `json(…)`・`choice(a|b)` は README の頭の語と 4 章。K の番号は今の落とし穴の一覧、keep-essence の番号は README の 10 章）。ほかに:
 
 - 言い直す役（world-classes）: 依頼の行を、依頼が示した解き方と対象の名を外した「問題の類」に言い直し、検索語を作る AI の役。道具を持たない。
 - web の役（world-judge）: 問題の類ごとに一次の出典を web で探して抜き書きを運び、定石と、依頼の解き方との比べ（same・differs・none）を決める AI の役。道具は WebSearch と WebFetch だけ。
@@ -30,7 +30,7 @@
 出力（`returns: finish`、`outcome_field: ok`）:
 
 - `ok`: boolean。`status` が `ok` か。
-- `status`: `ok` か `failed`。どこかの段が落ちた・役が受け付けを通らなかった時は `failed`。
+- `status`: `ok` か `failed`。どこかの段が落ちた・役が受け付けを通らなかった時は `failed`。空の依頼（行が 0）は飛ばした結果として `status: ok`・`rows: null`・`reason` は「依頼の行が無い」（飛ばしたことは新しい status の値でなく、この形。9.1 の 1）。
 - `reason`: 日本語の 1 行（人に見せる）。落ちた段・web に出られなかった・類の上限を越えた行など。
 - `rows`: pointer（`world.jsonl`。1 行が依頼の 1 行）か null。行の欄は今の `lib/worldmark.py` の `FIELDS`（finding・where・class_id・problem・activity・practice・sources・applies・not_applies・versus・basis）のまま。
 - `classes`: 取った問題の類の数。`dropped`: 照らしで落とした抜き書きと、上限を越えて取らなかった抜き書きの数。
@@ -42,11 +42,11 @@
 
 1. `intake`（script `intake.py`）: port を読み、place を作り直して `intake.json` を書く。返り `{due, findings, reason}`。
 2. `world-classes-loop`（`loop_group`、最大 3 回、`fresh_context: false`、`until_bash` は accept の `done`。`when: $intake.output.due == true`）
-   - `world-classes-prep`（script `restate_prep.py`。`with:` を持たない。前の回までの却下は place の控えから読む。13 項）: 指示を組む。返り `{prompt}`。
+   - `world-classes-prep`（script `restate_prep.py`。`with:` を持たない。前の回までの却下は place の控えから読む。9.1 の 6）: 指示を組む。返り `{prompt}`。
    - `world-classes`（AI。`prompt: "$world-classes-prep.output.prompt"`・`allowed_tools: []`・`mutates_checkout: false`・model `@wf-judge-core`・閉じた sandbox・`retry`・`idle_timeout: 1728000000`。`output_format` は今の `classes` のまま）
    - `world-classes-accept`（script `restate_accept.py`。`with: {reply: $world-classes.output}`）: 返り `{ok, done, reason}`。
 3. `pick`（script `pick.py`。`trigger_rule: all_done`）: 取る類を `MAX_CLASSES`（5）まで決めて `plan.json` に書く。返り `{due, reason}`。
-4. `world-judge-loop`（同じ形。`when: $pick.output.due == true`）
+4. `world-judge-loop`（同じ形。`when: $pick.output.due == true && $pick.output.web == true`）と `world-judge-offline-loop`（`when: … && $pick.output.web == false`。本体は `world-judge-offline-prep`〔script `offline_prep.py`〕・`world-judge-offline`〔AI。`allowed_tools: []`。返す形は `world-judge` と同じ〕・`world-judge-offline-accept`〔script `web_accept.py`〕）。web が off の run は道具を持たない役の輪だけが回る（9.1 の 7）
    - `world-judge-prep`（script `web_prep.py`）・`world-judge`（AI。`allowed_tools: [WebSearch, WebFetch]`・model `@wf-judge-materials`。`output_format` は今の `rows`・`excerpts` のまま）・`world-judge-accept`（script `web_accept.py`。抜き書きを取り直して照らす）。
 5. `finish`（script `finish.py`。`trigger_rule: all_done`）: 行を `world.jsonl` に、段の控えを `state.json` に書き、出力を返す。どの段が落ちても落ちない（今の落とし穴 K1・K13 の決まり）。
 
@@ -54,11 +54,11 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.4 place のファイル
 
-`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/world/`）の下に、今の `judge/world/` と同じ名で書く（`state.json` だけは今の `world-state.json` の代わり）: `intake.json`・`classes.json`・`plan.json`・`judge-input.json`・`judged.json`・`verified.json`・`rejects-classes.json`・`rejects-judge.json`・`world-classes-prompt-<n>.md`・`world-judge-prompt-<n>.md`・`world.jsonl`・`state.json`。名は `src/steps.py` だけが持つ。
+`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/world/`）の下に、今の `judge/world/` と同じ名で書く（`state.json` だけは今の `world-state.json` の代わり）: `intake.json`・`classes.json`・`plan.json`・`judge-input.json`・`judged.json`・`verified.json`・`rejects-classes.json`・`rejects-judge.json`・`world-classes-prompt-<n>.md`・`world-judge-prompt-<n>.md`・`world-judge-offline-prompt-<n>.md`・`prompt-error.json`（指示が組めなかった node と訳）・`world.jsonl`・`state.json`。名は `src/steps.py` だけが持つ。
 
 ### 1.5 コードの置き場
 
-- `blocks/world/src/steps.py`: 今の `lib/worldblk.py` の中身（入口・言い直しの材料と受け付け・類の決め・web の役の材料と受け付け・出口）。指示の文（`classes_prep` の「## 返し方」と `judge_prep` の「## 返し方」）は持たず、材料の行と値だけを組む。`place()`（「盤面の隣」）は消す。
+- `blocks/world/src/steps.py`: 今の `lib/worldblk.py` の中身（入口・言い直しの材料と受け付け・類の決め・web の役の材料と受け付け・出口）。指示の文（`classes_prep` の「## 返し方」と `judge_prep` の「## 返し方」）は持たず、材料の行と値だけを組む。今の `worldblk.place()`（判定の盤面のフォルダ `judge/board` の隣に `judge/world/` を組む口）は消し、置き場は `ports.place()` が決める。
 - `blocks/world/src/excerpts.py`: 今の `lib/worldcheck.py`（正規化・依頼の識別子の取り出し・抜き書きの照らし）。
 - `blocks/world/src/report.py`: 報告の行を値から組む（今の `worldmark.report_lines` を、控えのファイルでなく値で受ける形にした写し）。
 - `blocks/world/schemas/means.schema.json`。依頼の行の形 `request.schema.json` は 2 つ以上の block が使うので `blocks/.shared/schemas/` に置く（README の 13 章）。
@@ -79,11 +79,11 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 2.2 port
 
-`intake.json` の `findings`（← port `request`）・`purpose_text`（← `purpose`）・`means`（← `means`）、前の回の却下の理由（← loop の `$LOOP_PREV`）、`lang`。
+`intake.json` の `findings`（← port `request`）・`purpose_text`（← `purpose`）・`means`（← `means`）、前の回の却下の理由（← place の却下の控え `rejects-classes.json`。9.1 の 6）、`lang`。
 
 ### 2.3 組み立ての順（`prompts/world-classes.md`）
 
-1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 前の回の accept の理由が空でない。断片の中の `{rejection}` ← 却下の理由（Python が組む日本語の文。8 項）。
+1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 前の回の accept の理由が空でない。断片の中の `{rejection}` ← 却下の理由（Python が組む日本語の文。5 節）。
 2. 役の定義（決まった文）: 新しい会話で起きていること・道具を持たないこと・対象を読ませない訳。
 3. 芯の 1 文（決まった文、太字）。
 4. 決まりの箇条（決まった文）: 1 段上の作業の種類に上がる・解き方は `proposed` へ写す・対象の名を書かない（機械が照らして拒む）・検索語の書き方・2 つにまたがる行。
@@ -93,51 +93,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 8. `## How to answer`（決まった文）と差し込み口 `{finding_count}`・`{max_queries}`（← `src/steps.py` の `MAX_QUERIES`）・`{lang}`。
 9. 結びの 1 文（決まった文）: 出力の schema に合う JSON だけを返す。
 
-md の本文（英語。この block の PR でこのまま置く）:
-
-```markdown
-<!-- if rejected -->
-{shared:rejected}
-<!-- end rejected -->
-
-You are the restater, started in a new conversation. Your job is to restate each line of a person's fix request as a problem class, with the means the request proposes and the target's names removed, and to write search queries that ask how practitioners solve that class.
-You have no tools. You cannot open files or the repository; this prompt is everything you are given. You are kept away from the target so that you step up from the mechanism the request names to the kind of work it is.
-
-One core rule: **do not ask about the parts of the mechanism the request names, or about the output format of a tool. Ask how practitioners do this kind of work.**
-
-- Step up one level to the kind of work. Even if the request says "add X so that Y is judged", the problem class is neither how to build X nor how to read Y. Write it in the words of the work itself (shape of an example: "in test-first development, how to make a test that calls a not-yet-existing function fail for a target that must be compiled").
-- Do not accept a means embedded in the request. Copy it to `proposed`, and keep it out of the problem class and the queries. Whether the means is good is decided later against the practice that is found. Write `proposed` in words of the means, with the target's names removed.
-- Do not write the target's names (paths, files, functions, fields, environment variables, component names, run ids) in `problem`, `activity`, `proposed`, or `queries`. These four go to the next role as they are; the request lines do not. The machine checks them against identifiers taken from the request lines and rejects the answer, naming the identifier it found.
-- Write queries in the general wording of the work, asking about practice, convention, and standards. Do not ask about the request's component names or a tool's output format.
-- If one line spans two kinds of work, restate it as the one kind above both.
-
-## Request lines
-
-These were taken by the machine from the request. They are all you are given.
-
-{findings}
-
-## Purpose
-
-{purpose}
-
-<!-- if means -->
-Means the request proposed (split from the purpose):
-
-{means}
-<!-- end means -->
-
-## How to answer
-
-- In `classes`, give one entry for every request line above. `finding` is the line number, 1 to {finding_count}.
-- `problem`: one sentence that restates the line as a problem class in the words of the work practitioners do.
-- `activity`: a short name for the kind of work.
-- `proposed`: the means the request proposed, copied without the target's names (from the means above and from the request text). Empty if the request proposed none.
-- `queries`: 1 to {max_queries} search queries per line that ask how practitioners solve this class (practice, convention, standards).
-- Write `problem`, `activity`, and `proposed` in {lang}. Keep keys, enum values, identifiers, paths, commands, and error messages as they are.
-
-Return only JSON that matches the output schema.
-```
+md の本文の正本は `blocks/world/prompts/world-classes.md`。この設計書は上の組み立ての順だけを持ち、本文を写さない（写しがあると直す所が 2 か所になる）。
 
 ### 2.4 返す形
 
@@ -182,6 +138,8 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
+作り直しの時の、古い指示との差の記録。後の指示の変更では、ここに足さない。
+
 今の指示は `workflows/judge/commands/world-classes.md`（29 行）と、`$world-intake.output.prompt` に入る `lib/worldblk.py` の `classes_prep`（:177-193）が組む本文の 2 か所に在る。
 
 - 移した: 「## 返し方」の 6 行（`lib/worldblk.py:183-192`）と見出し 3 つ（`FINDINGS_HEAD`・`PURPOSE_HEAD`・`REPLY_HEAD`、:172-174）を md へ。lib の Python に残るのは材料の行（`_finding_lines`）と値（`MAX_QUERIES`・行の数）だけ。
@@ -202,7 +160,7 @@ Return only JSON that matches the output schema.
 
 `judge-input.json`（← 言い直す役の受け付けを通った行と `pick` が取った類。依頼の行の本文は渡さない）・`intake.json` の `web`（← port `web`）・前の回の却下の理由・`lang`。
 
-### 3.3 組み立ての順（`prompts/world-judge.md`）
+### 3.3 組み立ての順（`prompts/parts/world-judge.md`）
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 前の回の却下の理由が空でない。
 2. `{shared:query-rule}`（外への検索の決まり）。断片の中の `<!-- if spawns -->`（下請けを起こすなら、下請けへの指示にこの決まりを含めよ）には `spawns: false` を渡す（この役は Agent の道具を持たない）。
@@ -213,54 +171,9 @@ Return only JSON that matches the output schema.
 7. 返し方の残り（決まった文）と差し込み口 `{same}`・`{differs}`・`{none}`（← `lib/worldmark.py` の `VERDICTS`）・`{min_challenge}`（← `src/steps.py` の `MIN_CHALLENGE`）・`{lang}`。
 8. 結びの 1 文。
 
-md の本文（英語）:
+md の本文の正本は `blocks/world/prompts/parts/world-judge.md`（`prompts/world-judge.md` と `prompts/world-judge-offline.md` はどちらも `{part:world-judge}` の 1 行。9.1 の 7）。この設計書は上の組み立ての順だけを持ち、本文を写さない。
 
-```markdown
-<!-- if rejected -->
-{shared:rejected}
-<!-- end rejected -->
-
-{shared:query-rule}
-
-You are the web role, started in a new conversation. For each problem class given below, find documents on the web that say how practitioners routinely solve that class (practice, convention, standards), bring back excerpts, and from those excerpts decide how the practice applies to this request and whether the means the request proposed is the same as the practice or differs from it.
-Your only tools are web search and web fetch. You cannot read the repository or any file; this prompt is everything you are given. The request lines themselves are not given to you.
-
-- Copy each excerpt word for word from the fetched text. When you ask the fetch tool, ask it to "quote the relevant paragraph verbatim", and copy from the quote it returns. The machine fetches the same URL again; an excerpt that is not in the normalized text word for word (a paraphrase or a summary) is dropped, and so are the sources that point to it.
-- Put in `url` only pages you actually fetched with the fetch tool. Do not write a URL that only appeared in a search result list.
-- Go to primary sources first (standards documents, official guides, practitioner documents that are widely cited). Check that a source is not about an old version and that it fits the situation of this request. Do not search by the target repository's name or file names. You may add queries, but, like the given queries, without the target's names.
-- State the practice from the excerpts. For a class where you find no source, write the practice from your own knowledge with no excerpt and empty `sources`. The machine sets the mark of whether the web confirmed a row from the sources that survive its check.
-- Do not take the request's means as given. If it differs from the practice, name the difference and recommend the practice: "The request does X; the practice is Y. Choose Y unless …".
-- Write in `not_applies` where the practice does not apply to this request. If the practice does not apply to the request at all, leave `applies` empty.
-- Do not write the target's names (paths, files, functions, fields, environment variables, component names, run ids) in `practice`. The machine checks it against identifiers taken from the request lines and rejects the answer.
-
-## Problem classes
-
-These were taken by the machine from the restater's answer. They are all you are given.
-
-{classes}
-
-## How to answer
-
-<!-- if web -->
-- Search for the practice with the queries (you may add queries without the target's names) and bring excerpts from pages you fetched.
-- List `excerpts` as `{id, url, excerpt}`. `id` is a name such as x1, x2, unique within your answer.
-- At most {max_excerpts} excerpts in total. Each is at least {min_excerpt} characters, copied word for word from the fetched text.
-<!-- end web -->
-<!-- if not web -->
-- The web is off for this run: do not search or fetch. Leave `excerpts` empty and every `sources` empty, and write the practice from your knowledge only. If you use the web anyway, the machine discards the excerpts and the sources.
-<!-- end web -->
-- In `rows`, give one entry for every request line listed above (`finding` is the number shown there).
-- `practice`: how practitioners routinely solve this class, in 1 to 3 sentences, without the target's names.
-- `sources`: the ids of the excerpts the practice rests on. Empty if you use none.
-- `applies`: how it applies to this request. `not_applies`: where it does not.
-- `verdict`: `{same}` if the request's means is the same as the practice, `{differs}` if it differs, `{none}` if the request proposed no means.
-- `challenge`: only for `{differs}`, a sentence of the form "The request does X; the practice is Y. Choose Y unless …" of at least {min_challenge} characters. Empty otherwise.
-- Write `practice`, `applies`, `not_applies`, and `challenge` in {lang}. Keep keys, enum values, identifiers, URLs, and quoted excerpts as they are.
-
-Return only JSON that matches the output schema.
-```
-
-`{id, url, excerpt}` は差し込み口の形（`{` の直後が小文字の名で `}` で閉じる）に合わないので、そのまま字として残る。合う形の字を書く時は `{{`・`}}` で書く（`prompt.py` の決まり）。
+md の中の `{id, url, excerpt}` は差し込み口の形（`{` の直後が小文字の名で `}` で閉じる）に合わないので、そのまま字として残る。合う形の字を書く時は `{{`・`}}` で書く（`prompt.py` の決まり）。
 
 ### 3.4 返す形
 
@@ -299,9 +212,11 @@ These were taken by the machine from the restater's answer. They are all you are
 Return only JSON that matches the output schema.
 ```
 
-例の run は web が on で、取り直しで 3 本の抜き書きが残った（`verified.json` の `kept` が x1〜x3、`dropped` は空）。材料の札（`Problem class:`・`Query:` など）は、今の日本語の札（「問題の類:」「検索語:」）を英語にした物で、Python の材料の中の短い札として残す（README の 5.3）。
+例の run は web が on で、取った類が 1 つなので抜き書きの上限は 6（6 × 取った類の数。5 節）。取り直しで 3 本の抜き書きが残った（`verified.json` の `kept` が x1〜x3、`dropped` は空）。材料の札（`Problem class:`・`Query:` など）は、今の日本語の札（「問題の類:」「検索語:」）を英語にした物で、Python の材料の中の短い札として残す（README の 5.3）。
 
 ### 3.6 今の指示との差
+
+作り直しの時の、古い指示との差の記録。後の指示の変更では、ここに足さない。外への検索と出典の決まり（一次の出典を先に読む）は、土台の後に共通の断片 `query-rule` へ移した（9.1 の 8）。
 
 今の指示は `workflows/judge/commands/world-judge.md`（41 行）と、`$world-plan.output.prompt` に入る `lib/worldblk.py` の `judge_prep`（:290-325）の 2 か所に在る。
 
@@ -317,8 +232,8 @@ Return only JSON that matches the output schema.
 
 ## 4 script の node
 
-- `intake.py`: `request`・`purpose`・`means`・`web` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")` などに渡す。place の中のこの block のファイル（`src/steps.py` が名を持つ物と `world-*-prompt-*.md`）だけを消して `intake.json` を書く。place は作るだけで消さない（単独の run では place は run directory の根。13 項）。依頼や目的が読めない時も落ちず、`due: false` と理由を返す（今のまま）。
-- `restate_prep.py`・`web_prep.py`: `rolekit.rejected` で place の却下の控えを全部読み（`$LOOP_PREV` は使わない。13 項）、`prompt.render("world-classes", values, when)` で組んで返す。今の `worldblk._prep` が `rolekit.with_reject` で頭に却下を貼っていた道（今の流れでは通らなかった。棚卸しの 10.1）は無くなり、却下の段落は md の 1 か所に決まる。
+- `intake.py`: `request`・`purpose`・`means`・`web` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")` などに渡す。place の中のこの block のファイル（`src/steps.py` が名を持つ物と `world-*-prompt-*.md`）だけを消して `intake.json` を書く。place は作るだけで消さない（単独の run では place は run directory の根。README の 13 章）。依頼や目的が読めない時も落ちず、`due: false` と理由を返す（今のまま。出口は `status: failed` で、その理由を `reason` に書く）。
+- `restate_prep.py`・`web_prep.py`: `rolekit.rejected` で place の却下の控えを全部読み（`$LOOP_PREV` は使わない。9.1 の 6）、`prompt.render("world-classes", values, when)` で組んで返す。今の `worldblk._prep` が `rolekit.with_reject` で頭に却下を貼っていた道（今の流れでは通らなかった。棚卸し `~/.cache/works-self/tmp/inventory-765.md` の 10.1）は無くなり、却下の段落は md の 1 か所に決まる。
 - `restate_accept.py`・`web_accept.py`: 今の `judge_accept.world_accept` と同じく `rolekit.accept_round` で回の数えと諦めを持ち、`src/steps.py` の受け付けを呼ぶ。`web_accept.py` は取り直しの口 `webget` を使う（試験では差し替える）。
 - `pick.py`: 今の `worldblk.plan`。
 - `finish.py`: 今の `worldblk.finish` と `judge_accept.world_finish` を 1 つにした物。行と控えを place に書き、`rows` を pointer で、`report` を `src/report.py` で組んで返す。
@@ -326,6 +241,7 @@ Return only JSON that matches the output schema.
 ## 5 受け付け（どちらの役も）
 
 - 却下の理由の文は Python（`src/steps.py` の `class_problems`・`judge_problems`・`_excerpts`）が組む。日本語のまま（loop を諦めた時に `reason` を通って報告に載るため。README の 5.3）。中身は今のまま（依頼の行の数と番号・重なり・空の欄・検索語の数・依頼の識別子・`verdict` と `proposed` の食い違い・`differs` の `challenge` の長さ・`sources` が `excerpts` の id か）。
+- 拒否を足す道: 返答の形で決まる拒否は `src/steps.py` の `class_problems`・`judge_problems` に、抜き書きを取り直した後で決まる拒否（残った抜き書きの数など）は `_take_judge` の `_check_excerpts` の後に `bad` として足す。理由は `rolekit.accept_round` が控えに積み、次の回の `{shared:rejected}` に載る。`scripts/web_accept.py` は `steps.accept` を呼ぶだけ（docstring の受け付けの説明も同じ変更で直す）。試験は `tests/blocks/world/test_steps.py` の Classes・Judge・Verify。
 - 3 回目の却下でloop を抜ける（`rolekit.GIVE_UP_AFTER`）。run は止めず、`finish` が `status: failed` と、落ちた役の最後の却下の理由を `reason` に書く。
 - 抜き書きの照らし: `web_accept.py` が、通った返答の抜き書きを同じ URL から取り直し、正規化した本文に字のまま無い物を落とし、それを指す `sources` も外す。根拠が残った行は `basis: web`、残らない行は `basis: knowledge`。上限（6 × 取った類の数）を越えた分は頭から取り、取らなかった数を残す（今のまま）。
 
@@ -359,10 +275,11 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-world -
 
 - standalone の fixture（`blocks/world/fixtures/`）:
   - `standalone.stubs.yaml`: 入力は `request`（JSON の字）・`purpose`・`means`・`web: off` だけ。`reached` に `finish`。
-  - `web-on.stubs.yaml`: 抜き書きが残る web の道（今は筋書きが無い）。
-  - `gave-up.stubs.yaml`: 言い直す役が 3 回拒まれ、`finish` が `status: failed` を返し、run は `completed`。
+  - `web-on.stubs.yaml`: web が on の道（web の役の指示の on の段落まで。抜き書きは返さない。9.1 の 4）。
+  - `gave-up.stubs.yaml`: 言い直す役の返答が受け付けを通らず、`finish` が `status: failed` を返し、run は `completed`（dry-run の輪は 1 周なので却下は 1 回。輪が終わった時に言い直しの行の控え `classes.json` が無いので、出口は諦めの数に届かなくても `failed` にし、最後の却下の理由を `reason` に書く。9.1 の 4）。
+- 0 行の依頼の試験は `tests/blocks/world/test_steps.py` の Intake。依頼の容器の拒み（知らない鍵・下書きの行）も同じ所と `tests/blocks/shared/test_requestrows.py`。
 - `tests/blocks/world/test_world.py`: script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡し、`intake` → `restate_prep` → 台本の返答 → `restate_accept` → `pick` → `web_prep` → 台本の返答と偽の取り直し → `web_accept` → `finish` と回し、`rows` の行と `report` の行を照らす。
-- 指示の比べ（README の 11.4）: 例の run の `intake.json`・`judge-input.json` と同じ値で、1 つ目の commit では日本語の md で組んだ指示が今の `classes-prompt-1.md`・`judge-prompt-1.md` と md の本文を合わせた物と同じ字になることを照らす。2 つ目の commit（英語）では、2.6 と 3.6 の差の一覧どおりかを並べて審査に出す。
+- 指示の比べ（README の 11.4 の、block ごとの 2 つの commit の形。土台の PR では作っていない。9.1 の 11。作る時は）: 例の run の `intake.json`・`judge-input.json` と同じ値で、1 つ目の commit では日本語の md で組んだ指示が今の `classes-prompt-1.md`・`judge-prompt-1.md` と md の本文を合わせた物と同じ字になることを照らす。2 つ目の commit（英語）では、2.6 と 3.6 の差の一覧どおりかを並べて審査に出す。
 - 振る舞いの試験（今の試験から写す）: `lib/tests/test_world_check.py` の全部（Verify・Banned）・`lib/tests/test_blk_world.py` の Classes・Plan・Verify・Judge・Intake の大半・`lib/tests/test_judge_accept.py` の `WorldStageCase`（`judge/` のパスを place に替える）・`tests/workflows/test_judge.py` の `test_world_stage_without_rows_returns_no_world` と `…_with_a_broken_row_…`。
 - 写さない試験（古い中身だけを見る）: `lib/tests/test_blk_world.py` の `test_wording_flag_is_not_an_exception`・`test_reply_class_id_is_ignored`・`test_exit_has_no_cache_or_skip_counts`・`test_intake_has_no_cache_root` と、旧の引数に合わせる助け `accepted()`（:68）、`lib/tests/test_worldmark.py::Notes.test_no_unit_note_or_where_paths`、`tests/workflows/test_judge.py:1912-1923`（元の works の md の hash と node の名の置き換え）・:1239・:1248（`judge/` のパス）。
 - 読み手の側の試験はそれぞれの block と line に残す: `tests/workflows/test_plan.py::AcceptCase.test_world_row_needs_answer`（plan）・`tests/workflows/test_plan_review.py::WorldGateCase`・`WorldGateRunCase`（plan-review と line）・`lib/tests/test_worldmark.py` の Files・Answers（KEEP）・`lib/tests/test_runreport.py` の world の 4 件（report の行は world の `src/report.py` の試験へ）。
@@ -386,7 +303,7 @@ node:
 1. `policy-in`（script）: 依頼の行を組んで place に `request.json` を書く。`problem` が空でなければ行は `[{where: "依頼", text: problem}]`、空なら `[{where: "方針", text: policy}]`。解き方は `policy` を箇条の行ごとに割った配列（箇条が無ければ全体を 1 つ）。返り `{request (pointer), means, purpose, web, lang}`。値を include へ運ぶのはこの node だけにする（include の `with:` に `$INPUTS` を書けるかは（未確認）なので頼らない）。
 2. `world`（`include: works-factory-world`）: `with:` は `request: $policy-in.output.request`・`means: $policy-in.output.means`・`purpose`・`web`・`lang` を `policy-in` の出力から。
 3. `review`（`include: works-factory-plan-review`）: plan-review の text の形（README の 8.2）。`with: {proposal: <policy の文>, purpose, world_rows: $world.output.rows}`。plan-review の新しい block ができるまで、この node は置かない（土台の PR では world だけをつなぎ、plan-review の PR がこの node を足す。README の 11.1）。
-4. `result`（script。`trigger_rule: all_done`）: 2 つの返りをまとめ、`differs` の行（依頼は X、定石は Y）と欠陥を先頭に並べた `report` を組んで返す。
+4. `result`（script。`trigger_rule: all_done`）: world と review の返りをまとめ、`differs` の行（依頼は X、定石は Y）と欠陥を先頭に並べた `report` を組んで返す。土台の PR では review が無いので、world の返りだけを受け、`holes` は空の配列で返す（`ok` は world の `ok`）。
 
 承認ノードは持たない。定石からの外れを人に回すのは line の修正前の承認ノードの仕事で、この入口は結果を返すだけ。
 
@@ -394,13 +311,17 @@ node:
 
 ## 9.1 土台の PR で決めた事
 
-1. `ok` は `status == "ok"`（1.2 のとおり）。今の `world-finish` はいつも `ok: true` だった。単独で呼ぶ人が `outcome_field:` で落ちを知れるようにする。空の依頼（行の配列が空）は今どおり `status: ok`・行なし（`rows: null`）。
+1. `ok` は `status == "ok"`（1.2 のとおり）。今の `world-finish` はいつも `ok: true` だった。単独で呼ぶ人が `outcome_field:` で落ちを知れるようにする。空の依頼（行の配列が空）は今どおり `status: ok`・行なし（`rows: null`）で、`reason` は「依頼の行が無い」。
 2. 行の無い出口は `rows: null`（空のファイルの pointer を返さない。Archon は返りの pointer の先が空でないかを照らす）。
 3. port の読めない入力は、どの port かを頭に付けた理由（「入力 request: …」）で `reason` に残す。
 4. 筋書き: `web-on.stubs.yaml` は web の役の指示の on の段落までを見る（抜き書きの取り直しは網に出るので、抜き書きを返さない）。抜き書きが残る道は `tests/blocks/world/test_steps.py` の Verify が、取り直しの口を差し替えて見る。`gave-up.stubs.yaml` は dry-run の輪が 1 周で終わるので却下は 1 回で、出口が最後の却下の理由で `status: failed` を返す所を見る。3 回で諦める数えは同じ試験の Plan が見る。
 5. standalone の筋書きの依頼の字に `$ARTIFACTS_DIR` を入れ、組んだ指示の中で字のまま AI の node に届くことを照らす（README の 13 章）。
 6. 前の回の却下は、prep が place の控え（`rejects-classes.json`・`rejects-judge.json`）から全部を読む。prep の `with:` に `$LOOP_PREV…reason` を書かない。止めた Archon は `with:` の値を読み直さないが（README の 13 章）、resume で輪が 1 周目から回り直しても却下の段落が抜けないようにする。
-7. 指示の比べ（8 節・README の 11.4 の 1 つ目の commit の日本語の md の字の一致）は、この PR では作らない。md は 2.3・3.3 の英語の本文をそのまま置いた。古い指示と新しい指示を同じ値で並べた物は、PR の審査に出す時に作る。
+7. web が off の run は、指示の文（`<!-- if not web -->` の段落）だけでなく道具で web を断つ: `pick` が `web` を返し、web が on なら `world-judge-loop`（`WebSearch`・`WebFetch`）、off なら `world-judge-offline-loop`（道具なし）のどちらか 1 つが回る。2 つの役の指示は同じ md `prompts/parts/world-judge.md` から組む（node ごとの md は `{part:world-judge}` の 1 行）。loop の本体の node の `when:` で外の node を読む形は使わない（本体は閉じた小さな DAG）。
+8. 一次の出典を先に読む決まりは、world-judge の md から共通の断片 `query-rule` へ移した（役の定義 `role-investigator` の同じ文も）。外への検索と出典の決まりは断片 1 か所。
+9. 依頼の容器は共通の口 `blocks/.shared/requestrows.py` で読む（形の照らしの後に `lib/carry.parts`）。今の `worldblk._findings` が拒んでいた知らない最上位の鍵と下書きの行を、ここでも拒む（下書きの行は行の配列の形でも拒む）。
+10. 指示が組めない prep は `prompt-error.json` に node と訳を書いてから落ち、出口の `reason` がその訳を名指す。
+11. 指示の比べ（8 節・README の 11.4 の 1 つ目の commit の日本語の md の字の一致）は、この PR では作らない。md は 2.3・3.3 の英語の本文をそのまま置いた。古い指示と新しい指示を同じ値で並べた物は、PR の審査に出す時に作る。
 
 ## 10 未確認
 

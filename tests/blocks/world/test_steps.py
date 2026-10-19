@@ -9,6 +9,7 @@ port の値で受ける形に写した物。docs/design/world.md の 8 節。写
 """
 import json
 import unittest
+from unittest import mock
 
 from tests.blocks import kit
 
@@ -152,7 +153,7 @@ class Plan(Base):
     def test_plan_holds_only_taken_and_over(self):
         self.intake()
         self.assertTrue(self.classes({"classes": [klass(1), doc_class()]})["ok"])
-        self.assertEqual(self.plan(), {"due": True, "reason": ""})
+        self.assertEqual(self.plan(), {"due": True, "web": True, "reason": ""})
         self.assertEqual(set(self.read(steps.PLAN)), {"over", "taken"})
 
     def test_doc_only_rows_still_go_to_judge(self):
@@ -163,11 +164,14 @@ class Plan(Base):
     def test_web_off_collects_nothing_and_still_judges(self):
         """web が off の run も web の役に回り、指示は道具を使うなと言う（on の指示は抜き書きの返し方を言う）"""
         prompts = {}
-        for web in ("on", "off"):
+        for web, node in (("on", steps.JUDGE_NODE), ("off", steps.OFFLINE_NODE)):
             self.intake(web=web)
             self.classes({"classes": [klass(1), doc_class()]})
-            self.assertTrue(self.plan()["due"])
-            prompts[web] = steps.judge_prompt(self.out)["prompt"]
+            self.assertEqual(self.plan()["web"], web == "on")
+            prompts[web] = steps.judge_prompt(self.out, node)["prompt"]
+            other = steps.OFFLINE_NODE if node == steps.JUDGE_NODE else steps.JUDGE_NODE
+            with self.assertRaisesRegex(ValueError, "配線の誤り"):
+                steps.judge_prompt(self.out, other)
         self.assertFalse(self.read(steps.INTAKE)["web"])
         self.assertIn("The web is off for this run", prompts["off"])
         self.assertNotIn("List `excerpts`", prompts["off"])
@@ -179,7 +183,7 @@ class Plan(Base):
         self.intake(web="off")
         self.classes({"classes": [klass(1), doc_class()]})
         self.plan()
-        steps.judge_prompt(self.out)
+        steps.judge_prompt(self.out, steps.OFFLINE_NODE)
 
         def never(url):
             raise AssertionError(f"web が off なのに取り直した: {url}")
@@ -275,7 +279,7 @@ class Verify(Base):
             self.intake(findings=FINDINGS[:1], web="off")
             self.classes({"classes": [klass(1)]})
             self.plan()
-            steps.judge_prompt(self.out)
+            steps.judge_prompt(self.out, steps.OFFLINE_NODE)
             calls = []
             got = self.judge([judged(sources=["x1"])], [ex], get=lambda u: calls.append(u) or (200, PAGE))
             self.assertTrue(got["ok"], got)
@@ -383,9 +387,31 @@ class Intake(Base):
         self.assertIn("none.json", fin["reason"])
 
     def test_empty_request_is_not_due_and_ok(self):
+        """空の依頼は飛ばした結果: status ok・rows null・reason「依頼の行が無い」（docs/design/world.md の 1.2）"""
         self.assertFalse(self.intake(findings=[])["due"])
+        self.assertEqual(self.plan()["reason"], steps.EMPTY)
         got = self.finish()
-        self.assertEqual((got["status"], got["rows"]), ("ok", None))
+        self.assertEqual((got["ok"], got["status"], got["rows"], got["reason"]), (True, "ok", None, steps.EMPTY))
+
+    def test_container_refuses_drafts_and_unknown_keys(self):
+        """依頼の容器は lib/carry の読みで照らす: 知らない鍵と前の run の所見の下書きの行を名指して拒む（今の worldblk._findings と同じ）"""
+        got = steps.intake(self.out, request=json.dumps({"findings": FINDINGS[:1], "extra": 1}), purpose="", means="[]", web="on",
+                           lang="")
+        self.assertIn("知らない鍵 ['extra']", got["reason"])
+        draft = [{**FINDINGS[0], "draft": True, "source": "run-1"}]
+        got = steps.intake(self.out, request=json.dumps(draft, ensure_ascii=False), purpose="", means="[]", web="on", lang="")
+        self.assertIn("下書き", got["reason"])
+
+    def test_prompt_error_reaches_the_reason(self):
+        """指示が組めない prep は落ち、その訳が出口の reason に載る"""
+        self.intake()
+        broken = kit.BLOCKS / "world" / "prompts" / "world-classes.md"
+        with mock.patch.object(steps.prompt, "_read", side_effect=steps.prompt.PromptError(f"指示の md {broken} が無い")):
+            with self.assertRaises(steps.prompt.PromptError):
+                steps.classes_prompt(self.out)
+        got = self.finish()
+        self.assertEqual(got["status"], "failed")
+        self.assertIn("world-classes の指示が組めない", got["reason"])
 
     def test_bad_web_word_is_reported(self):
         self.assertIn("web", self.intake(web="maybe")["reason"])

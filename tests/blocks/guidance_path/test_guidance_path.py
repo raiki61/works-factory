@@ -6,6 +6,7 @@
 import json
 import unittest
 
+from tests.bin import hermetic
 from tests.blocks import kit
 
 REQUESTS = [
@@ -37,7 +38,9 @@ class FlowCase(unittest.TestCase):
     def test_hit_and_miss_lead_to_fixes_for_the_miss_only(self):
         (first, a1), (second, a2) = self.walks(walk(["blocks/world/src/steps.py"]), walk(["lib/neweye.py"]))
         self.assertIn(REQUESTS[0]["request"], first["prompt"])
-        self.assertNotIn("blocks/world/", first["prompt"].split("## How to answer")[0], "読み手に閉じるべき所を見せない")
+        for close in [c for r in REQUESTS for c in r["closes"]] + ["closes", "Should close in"]:
+            self.assertNotIn(close, first["prompt"], "読み手に閉じるべき所を見せない（指示の全部で）")
+            self.assertNotIn(close, second["prompt"])
         self.assertIn("- README.md\n- AGENTS.md", first["prompt"], "入口が空なら README.md と AGENTS.md")
         self.assertIn(REQUESTS[1]["request"], second["prompt"])
         self.assertEqual((a1["done"], a2["done"]), (False, True))
@@ -94,7 +97,65 @@ class FlowCase(unittest.TestCase):
         self.assertEqual((fin["ok"], fin["paths"]), (False, None))
 
 
+class IsolationCase(unittest.TestCase):
+    def setUp(self):
+        self.run = kit.Run(self, "guidance-path")
+        (self.run.repo / "AGENTS.md").write_text("# entry\n", encoding="utf-8")
+
+    def test_requests_are_not_taken_by_path(self):
+        (self.run.repo / "reqs.json").write_text(json.dumps(REQUESTS), encoding="utf-8")
+        got = self.run.script("intake", requests="reqs.json", entry="AGENTS.md", lang="")
+        self.assertFalse(got["due"])
+        self.assertIn("パスで受けない", got["reason"])
+        (self.run.artifacts / "reqs.json").write_text(json.dumps(REQUESTS), encoding="utf-8")
+        got = self.run.script("intake", requests=self.run.pointer("reqs.json"), entry="AGENTS.md", lang="")
+        self.assertEqual((got["due"], got["requests"]), (True, 2), "pointer では受ける")
+
+    def test_hidden_places_match_the_yaml_and_are_refused(self):
+        import yaml
+        steps = kit.load("guidance-path", "steps")
+        doc = yaml.safe_load((kit.BLOCKS / "guidance-path" / "works-factory-guidance-path.yaml").read_text(encoding="utf-8"))
+        walker = next(n for node in doc["nodes"] for n in (node.get("loop_group") or {}).get("nodes", []) if n["id"] == "guidance-walk")
+        want = [f"Read(./{h}/**)" if not h.endswith(".md") else f"Read(./{h})" for h in steps.HIDDEN]
+        self.assertEqual(walker["denied_tools"], want)
+        self.assertNotIn("Bash", walker["allowed_tools"], "読み手は shell を持たない（Read の規則を抜けない）")
+        (self.run.repo / "docs/design").mkdir(parents=True)
+        (self.run.repo / "docs/design/guidance-path.md").write_text("x", encoding="utf-8")
+        self.run.script("intake", requests=json.dumps(REQUESTS[:1]), entry="AGENTS.md", lang="")
+        self.run.script("walk_prep", "walk-loop.walk-prep")
+        got = self.run.script("walk_accept", "walk-loop.walk-accept",
+                              reply=json.dumps(walk(["blocks/world/x.py"], steps=("AGENTS.md", "docs/design/guidance-path.md"))))
+        self.assertIn("見せない所", got["reason"])
+        got = self.run.script("intake", requests=json.dumps(REQUESTS[:1]), entry="docs/design/guidance-path.md", lang="")
+        self.assertIn("見せない所", got["reason"])
+
+    def test_intake_clears_only_its_own_files(self):
+        (self.run.artifacts / "rejects-classes.json").write_text("[]", encoding="utf-8")
+        self.run.script("intake", requests=json.dumps(REQUESTS[:1]), entry="AGENTS.md", lang="")
+        self.run.script("walk_prep", "walk-loop.walk-prep")
+        self.run.script("walk_accept", "walk-loop.walk-accept", reply=json.dumps(walk([])))
+        self.assertTrue((self.run.artifacts / "rejects-walk-add-check.json").is_file())
+        self.run.script("intake", requests=json.dumps(REQUESTS[1:]), entry="AGENTS.md", lang="")
+        self.assertFalse((self.run.artifacts / "rejects-walk-add-check.json").exists(), "前の intake の頼みの控えは名で消す")
+        self.assertTrue((self.run.artifacts / "rejects-classes.json").is_file(), "ほかの block の控えは消さない")
+
+
 class CompareCase(unittest.TestCase):
+    def test_new_block_placeholder(self):
+        """{new} と {new_} は全部の置いた所で同じ 1 つの名に結ばれ、その所が作業ツリーにまだ無い時だけ当たる"""
+        steps = kit.load("guidance-path", "steps")
+        root = hermetic.tmpdir(self)
+        closes = ["blocks/{new}/", "tests/blocks/{new_}/", "docs/design/{new}.md"]
+        new = ["blocks/docs-sync/works-factory-docs-sync.yaml", "tests/blocks/docs_sync/test_docs_sync.py", "docs/design/docs-sync.md"]
+        self.assertEqual(steps.judge_placed(new, closes, root), (True, ""))
+        got = steps.judge_placed(["blocks/docs-sync/x.yaml", "docs/design/other.md"], closes, root)
+        self.assertEqual(got[0], False)
+        self.assertIn("1 つに結ばれない", got[1])
+        self.assertIn("閉じるべき所の外", steps.judge_placed(["blocks/docs-sync/x", "lib/x.py"], closes, root)[1])
+        (root / "blocks" / "world").mkdir(parents=True)
+        got = steps.judge_placed(["blocks/world/src/x.py"], closes, root)
+        self.assertEqual(got, (False, "新しい所のはずの blocks/world が作業ツリーに既に在る"))
+
     def test_under(self):
         steps = kit.load("guidance-path", "steps")
         self.assertTrue(steps.under("./blocks/world/src/x.py", ["blocks/world/"]))

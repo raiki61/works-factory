@@ -10,12 +10,14 @@ place のファイル（名はこのモジュールだけが持つ）:
 - compare.json: [{id, hit, placed, closes}]
 - fixes.json: [{request, kind, where, change, why}]
 - paths.json: 出力 paths の pointer の先（[{id, request, closes, hit, steps, placed, copied, stuck, guessed, gave_up}]）
-- rejects-walk-<id>.json・rejects-fix.json: 出し直しの輪の却下の控え（lib/rolekit）
+- rejects-walk-<id>.json・rejects-fix.json: 出し直しの輪の却下の控え（lib/rolekit）。入口は名で引いて消す（ほかの block の控えを消さない）
 - guidance-walk-prompt-<n>.md・guidance-fix-prompt-<n>.md（prompt.emit が書く）
 """
 from __future__ import annotations
 
+import json
 import pathlib
+import re
 
 import ports
 import prompt
@@ -29,6 +31,10 @@ WALK_NODE, FIX_NODE = "guidance-walk", "guidance-fix"
 FIX_ROLE = "fix"
 KINDS = ("guide", "model", "block")   # 案内の直しの種類（README の 8.6: 案内を足す・手本を替える・間違った道を置き場で塞ぐ）
 ENTRY_DEFAULT = ("README.md", "AGENTS.md")
+NEW, NEW_ = "{new}", "{new_}"   # 閉じるべき所の中の、新しい block の名の口（{new_} は - を _ にした形）
+# 読み手に見せない所（この目そのものの block・試験・設計書と、Archon が写した pack）。YAML の guidance-walk の denied_tools が
+# Read(./<所>) で塞ぎ、受け付けは開いたと言う返答を拒む。tests/blocks/guidance_path が YAML と突き合わせる
+HIDDEN = ("blocks/guidance-path", "tests/blocks/guidance_path", "docs/design/guidance-path.md", ".archon")
 NONE = "(none)"
 
 
@@ -41,6 +47,10 @@ def _need(out, name):
     if got is None:
         raise ValueError(f"{pathlib.Path(out) / name} が無いか読めない")
     return got
+
+
+def is_hidden(path: str) -> bool:
+    return under(path, HIDDEN)
 
 
 def walk_role(request_id: str) -> str:
@@ -61,17 +71,71 @@ def under(path: str, closes) -> bool:
     return any(path == norm(c) or path.startswith(norm(c) + "/") for c in closes)
 
 
+def _close_pattern(close: str) -> re.Pattern:
+    """閉じるべき所 1 つの形。{new} は新しい block の名（小文字・数字・-）、{new_} は同じ名の - を _ にした物（試験のフォルダ）"""
+    rx = re.escape(norm(close)).replace(re.escape(NEW_), r"(?P<under>[a-z0-9][a-z0-9_]*)").replace(re.escape(NEW),
+                                                                                                 r"(?P<name>[a-z0-9][a-z0-9-]*)")
+    return re.compile(rf"^{rx}(?:/.*)?$")
+
+
+def judge_placed(placed: list, closes: list, root: pathlib.Path) -> tuple[bool, str]:
+    """置いた所が全部、閉じるべき所のどれかの中か。返り (当たりか, 外れの訳)。{new}・{new_} を持つ所は、置いた所の全部で同じ 1 つの名に
+    結ばれ、その名で埋めた所（新しい block のフォルダなど）が作業ツリーにまだ無い時だけ当たる"""
+    if not placed:
+        return False, "置いた所が無い"
+    names, outside = set(), []
+    for path in map(norm, placed):
+        match = next((m for c in closes if (m := _close_pattern(c).match(path))), None)
+        if match is None:
+            outside.append(path)
+            continue
+        bound = match.groupdict()
+        if bound.get("name"):
+            names.add(bound["name"].replace("-", "_"))
+        if bound.get("under"):
+            names.add(bound["under"])
+    if outside:
+        return False, f"閉じるべき所の外: {outside}"
+    if len(names) > 1:
+        return False, f"新しい名が 1 つに結ばれない: {sorted(names)}"
+    for name in names:
+        hyphen = next((m.group("name") for path in map(norm, placed) for c in closes
+                       if (m := _close_pattern(c).match(path)) and m.groupdict().get("name")), name.replace("_", "-"))
+        for close in closes:
+            if NEW in close or NEW_ in close:
+                spot = norm(close.replace(NEW_, name).replace(NEW, hyphen))
+                if (root / spot).exists():
+                    return False, f"新しい所のはずの {spot} が作業ツリーに既に在る"
+    return True, ""
+
+
 # ---------------------------------------------------------------- 入口
+def _own_files(out: pathlib.Path, ids) -> list[pathlib.Path]:
+    """place の中でこの block が名を持つファイル（頼みの id ごとの却下の控えも名で引く。ほかの物は消さない）"""
+    names = [INTAKE, WALKS, COMPARE, FIXES, PATHS, rolekit.rejects_path(out, FIX_ROLE).name,
+             *[rolekit.rejects_path(out, walk_role(i)).name for i in ids]]
+    return [out / n for n in names] + [p for node in (WALK_NODE, FIX_NODE) for p in out.glob(f"{node}-prompt-*.md")]
+
+
+def _inline_or_pointer(raw) -> str:
+    """頼みは値そのものか pointer だけで受ける。ファイルのパスで受けると、頼みと閉じるべき所が読み手の作業ツリーに在りうる"""
+    raw = ports.text(raw)
+    if not raw.strip():
+        return raw
+    try:
+        json.loads(raw)
+    except ValueError:
+        raise ValueError("入力 requests はパスで受けない（値そのものの JSON か、この run の pointer で渡す。閉じるべき所を読み手の"
+                         "作業ツリーに置かない）") from None
+    return raw
+
+
 def intake(out, *, requests, entry, lang) -> dict:
     out = pathlib.Path(out)
-    for name in (INTAKE, WALKS, COMPARE, FIXES, PATHS):
-        (out / name).unlink(missing_ok=True)
-    for pattern in ("rejects-*.json", f"{WALK_NODE}-prompt-*.md", f"{FIX_NODE}-prompt-*.md"):
-        for path in out.glob(pattern):
-            path.unlink()
+    before = (_read(out / INTAKE) or {}).get("requests") or []
     doc = {"requests": [], "entry": [], "lang": prompt.lang(lang), "reason": ""}
     try:
-        doc["requests"] = ports.json(requests, "requests.schema.json")
+        doc["requests"] = ports.json(_inline_or_pointer(requests), "requests.schema.json")
         ids = [r["id"] for r in doc["requests"]]
         twice = sorted({i for i in ids if ids.count(i) > 1})
         if twice:
@@ -80,8 +144,14 @@ def intake(out, *, requests, entry, lang) -> dict:
         absent = [e for e in doc["entry"] if not (pathlib.Path.cwd() / e).is_file()]
         if absent:
             raise ValueError(f"入口のファイル {absent} が作業ツリーに無い")
+        hidden = [e for e in doc["entry"] if is_hidden(e)]
+        if hidden:
+            raise ValueError(f"入口のファイル {hidden} は読み手に見せない所（{'・'.join(HIDDEN)}）の中")
     except ValueError as e:
         doc["reason"] = oneline.one_line(e)
+    ids = {r.get("id") for r in [*before, *doc["requests"]] if isinstance(r, dict) and isinstance(r.get("id"), str)}
+    for path in _own_files(out, sorted(ids)):
+        path.unlink(missing_ok=True)
     jsonfile.write(out / INTAKE, doc)
     return {"due": not doc["reason"], "requests": len(doc["requests"]), "reason": doc["reason"]}
 
@@ -99,10 +169,9 @@ def walk_prompt(out) -> dict:
     if req is None:
         raise ValueError("辿る頼みが残っていない（輪の done の配線の誤り）")
     rejected = rolekit.rejected(out, walk_role(req["id"]))
-    n = len(list(pathlib.Path(out).glob(f"{WALK_NODE}-prompt-*.md"))) + 1   # 輪の何回目か
     values = {"rejection": rolekit.rejects_text(rejected), "request": req["request"],
               "entry": "\n".join(f"- {e}" for e in doc["entry"]), "lang": doc["lang"]}
-    return prompt.emit(WALK_NODE, values, {"rejected": bool(rejected)}, n)
+    return prompt.emit(WALK_NODE, values, {"rejected": bool(rejected)}, prompt.round_of(WALK_NODE))
 
 
 def _rows(reply, key: str, fields: tuple, bad: list) -> list:
@@ -137,6 +206,8 @@ def walk_problems(reply) -> list:
     for row in steps:
         why = _path_problem(row["file"]) or ("" if (pathlib.Path.cwd() / norm(row["file"])).is_file()
                                             else f"steps の {row['file']!r} が作業ツリーに無い（開いたファイルだけを書く）")
+        if not why and is_hidden(row["file"]):
+            why = f"steps の {row['file']!r} は読み手に見せない所の中（読めないはずの所を開いたと書いた）"
         if why:
             bad.append(why)
     for row in [*placed, *copied]:
@@ -183,8 +254,8 @@ def compare(out) -> dict:
         if not walk or "gave_up" in walk:
             continue
         placed = [norm(p["path"]) for p in walk["placed"]]
-        rows.append({"id": req["id"], "hit": bool(placed) and all(under(p, req["closes"]) for p in placed), "placed": placed,
-                     "closes": [norm(c) for c in req["closes"]]})
+        hit, why = judge_placed(placed, req["closes"], pathlib.Path.cwd())
+        rows.append({"id": req["id"], "hit": hit, "why": why, "placed": placed, "closes": [norm(c) for c in req["closes"]]})
     jsonfile.write(out / COMPARE, rows)
     misses = sum(not r["hit"] for r in rows)
     return {"due": misses > 0, "misses": misses, "reason": ""}
@@ -193,13 +264,14 @@ def compare(out) -> dict:
 # ---------------------------------------------------------------- 案内を見直す役
 def _miss_lines(out) -> str:
     doc, walks = _need(out, INTAKE), _need(out, WALKS)
-    missed = {r["id"] for r in _need(out, COMPARE) if not r["hit"]}
+    missed = {r["id"]: r.get("why", "") for r in _need(out, COMPARE) if not r["hit"]}
     lines = []
     for req in doc["requests"]:
         if req["id"] not in missed:
             continue
         walk = walks[req["id"]]
         lines += [f"### Request {req['id']}", "", f"- Request: {req['request']}", f"- Should close in: {', '.join(req['closes'])}",
+                  *([f"- Why it missed (machine): {missed[req['id']]}"] if missed[req["id"]] else []),
                   "- Reader opened:", *[f"  {i}. {s['file']} — {s['why']}" for i, s in enumerate(walk["steps"], 1)],
                   "- Reader placed:", *[f"  - {p['path']} — {p['change']}" for p in walk["placed"]],
                   "- Reader copied:", *([f"  - {c['path']} — {c['why']}" for c in walk["copied"]] or [f"  - {NONE}"]),
@@ -214,7 +286,7 @@ def fix_prompt(out) -> dict:
     values = {"rejection": rolekit.rejects_text(rejected), "misses": _miss_lines(out),
               "entry": "\n".join(f"- {e}" for e in doc["entry"]), "guide": KINDS[0], "model": KINDS[1], "block": KINDS[2],
               "lang": doc["lang"]}
-    return prompt.emit(FIX_NODE, values, {"rejected": bool(rejected)}, len(rejected) + 1)
+    return prompt.emit(FIX_NODE, values, {"rejected": bool(rejected)}, prompt.round_of(FIX_NODE))
 
 
 def fix_problems(out, reply) -> list:

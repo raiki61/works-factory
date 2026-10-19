@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""web の役の指示を prompts/world-judge.md から組む（依頼の行の本文は渡さない）。組めなければ node が落ち、出口が理由を残す"""
+"""web が on の run の web の役の指示を prompts/world-judge.md から組む（依頼の行の本文は渡さない）。組めなければ node が落ち、出口が理由を残す"""
 import sys
 from pathlib import Path
 

@@ -1,16 +1,16 @@
-# 単独の run: port の値だけで最後まで届く（web は off。script は本当に走り、AI の役の返答だけを差し替える）。
-# 依頼の字の $ARTIFACTS_DIR は、prep が組んだ指示の中でも字のまま AI の node に届く（Archon は入れた値を読み直さない。README の 13 章）
+# 単独の run: port の値だけで最後まで届く（web は off なので、道具を持たない web の役の輪が回る。script は本当に走り、AI の役の
+# 返答だけを差し替える）
 fixture:
   expect: completed
-  reached: [intake, world-classes-prep, world-classes, world-classes-accept, pick, world-judge-prep, world-judge, world-judge-accept, finish]
+  reached: [intake, world-classes-prep, world-classes, world-classes-accept, pick, world-judge-offline-prep, world-judge-offline, world-judge-offline-accept, finish]
   inputs:
-    request: '[{"where": "README", "text": "The cache folder should follow the user settings, not $ARTIFACTS_DIR"}]'
+    request: '[{"where": "README", "text": "The cache folder should follow the user settings"}]'
     purpose: 'Cached files go where the user expects them'
     means: '["read one environment variable for the folder"]'
     web: 'off'
   resolved-text-contains:
-    world-classes: 'text: The cache folder should follow the user settings, not $ARTIFACTS_DIR'
-    world-judge: 'The web is off for this run'
+    world-classes: 'You are the restater, started in a new conversation.'
+    world-judge-offline: 'The web is off for this run: do not search or fetch.'
 exec-code: true
 world-classes:
   classes:
@@ -19,7 +19,7 @@ world-classes:
       activity: choosing the cache location of a tool
       proposed: read one environment variable for the folder
       queries: [cache directory convention for command line tools]
-world-judge:
+world-judge-offline:
   rows:
     - finding: 1
       practice: Follow the base directory convention of the platform for cache files.

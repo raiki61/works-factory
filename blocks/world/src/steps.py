@@ -28,6 +28,7 @@ import pathlib
 
 import ports
 import prompt
+import requestrows
 
 import jsonfile   # lib/
 import oneline    # lib/
@@ -41,15 +42,17 @@ INTAKE, CLASSES, PLAN, VERIFIED, JUDGE_INPUT, JUDGED, STATE = (
     "intake.json", "classes.json", "plan.json", "verified.json", "judge-input.json", "judged.json", "state.json")
 WORLD_FILE = worldmark.WORLD_FILE
 CLASSES_ROLE, JUDGE_ROLE = "classes", "judge"   # 却下の控えの名（rejects-<名>.json）
-CLASSES_NODE, JUDGE_NODE = "world-classes", "world-judge"   # AI の node の id（prompts/<id>.md）
-OWN_FILES = (INTAKE, CLASSES, PLAN, VERIFIED, JUDGE_INPUT, JUDGED, STATE, WORLD_FILE,
+CLASSES_NODE, JUDGE_NODE, OFFLINE_NODE = "world-classes", "world-judge", "world-judge-offline"   # AI の node の id（prompts/<id>.md）
+PROMPT_ERROR = "prompt-error.json"   # 指示が組めなかった node と理由（prep が書き、出口の理由に載せる）
+OWN_FILES = (INTAKE, CLASSES, PLAN, VERIFIED, JUDGE_INPUT, JUDGED, STATE, WORLD_FILE, PROMPT_ERROR,
              *(rolekit.rejects_path(pathlib.Path(), r).name for r in (CLASSES_ROLE, JUDGE_ROLE)))
-OWN_PROMPTS = (f"{CLASSES_NODE}-prompt-*.md", f"{JUDGE_NODE}-prompt-*.md")
+OWN_PROMPTS = tuple(f"{node}-prompt-*.md" for node in (CLASSES_NODE, JUDGE_NODE, OFFLINE_NODE))
 MAX_CLASSES, MAX_QUERIES, MAX_EXCERPTS = 5, 3, 6
 MIN_CHALLENGE = 20   # differs の challenge の字の下限
 MAX_BODY = 2 * 1024 * 1024
 HEADERS = {"User-Agent": "works-world/1", "Accept": "text/html, text/plain;q=0.9, */*;q=0.5"}
 NOT_GIVEN = "(not given)"
+EMPTY = "依頼の行が無い"   # 空の依頼の出口の reason（status は ok・rows は null。docs/design/world.md の 1.2）
 NO_MEANS = "(none proposed)"
 
 
@@ -80,11 +83,6 @@ def fetch(url):
 
 
 # ---------------------------------------------------------------- 入口
-def _findings(value) -> list:
-    rows = value.get("findings") if isinstance(value, dict) else value
-    return list(rows)
-
-
 def _port(name: str, read):
     try:
         return read()
@@ -104,7 +102,7 @@ def intake(out, *, request, purpose, means, web, lang) -> dict:
     doc = {"findings": [], "purpose_text": "", "means": [], "web": True, "lang": prompt.lang(lang), "reason": ""}
     try:
         doc["web"] = _port("web", lambda: ports.choice(web, ("on", "off"))) == "on"
-        doc["findings"] = _findings(_port("request", lambda: ports.json(request, "shared:request.schema.json")))
+        doc["findings"] = _port("request", lambda: requestrows.findings(request))
         doc["purpose_text"] = ports.text(purpose).strip()
         doc["means"] = [m.strip() for m in _port("means", lambda: ports.json(means, "means.schema.json")) if m.strip()]
     except ValueError as e:
@@ -114,14 +112,20 @@ def intake(out, *, request, purpose, means, web, lang) -> dict:
 
 
 # ---------------------------------------------------------------- 輪の控え（拒否は rolekit の控えに積む）
-def _round(out, role) -> tuple:
-    """(拒否の文の並び, 指示の回の番号)"""
-    rejected = rolekit.rejected(out, role)
-    return rejected, len(rejected) + 1
+def _emit(out, node: str, values: dict, when: dict) -> dict:
+    """prompt.emit。組めなければ理由を place に残してから落ちる（出口の理由に載る）"""
+    try:
+        return prompt.emit(node, values, when, prompt.round_of(node))
+    except prompt.PromptError as e:
+        _write(pathlib.Path(out) / PROMPT_ERROR, {"node": node, "reason": oneline.one_line(e)})
+        raise
 
 
 def _why_failed(out, role) -> str:
-    """輪が通らなかった役の理由（諦めた文か、落ちた周の最後の拒否の文。拒否も無ければ走らなかった）"""
+    """輪が通らなかった役の理由（指示が組めなかった訳か、諦めた文か、落ちた周の最後の拒否の文。どれも無ければ走らなかった）"""
+    broken = _read(pathlib.Path(out) / PROMPT_ERROR)
+    if isinstance(broken, dict):
+        return f"{broken.get('node')} の指示が組めない: {broken.get('reason')}"
     rejected = rolekit.rejected(out, role)
     return rolekit.given_up_reason(out, role) or (rejected[-1] if rejected else "ループが走らなかったか落ちた")
 
@@ -138,11 +142,11 @@ def _finding_lines(findings) -> str:
 def classes_prompt(out) -> dict:
     """言い直す役の指示を組んで place に書く。返り {prompt}"""
     doc = _need(out, INTAKE)
-    rejected, n = _round(out, CLASSES_ROLE)
+    rejected = rolekit.rejected(out, CLASSES_ROLE)
     values = {"rejection": rolekit.rejects_text(rejected), "findings": _finding_lines(doc["findings"]),
               "purpose": doc["purpose_text"] or NOT_GIVEN, "means": "\n".join(f"- {m}" for m in doc["means"]),
               "finding_count": len(doc["findings"]), "max_queries": MAX_QUERIES, "lang": doc["lang"]}
-    return prompt.emit(CLASSES_NODE, values, {"rejected": bool(rejected), "means": bool(doc["means"])}, n)
+    return _emit(out, CLASSES_NODE, values, {"rejected": bool(rejected), "means": bool(doc["means"])})
 
 
 def class_problems(doc: dict, reply) -> list:
@@ -205,12 +209,12 @@ def pick(out) -> dict:
     out = pathlib.Path(out)
     doc = _read(out / INTAKE)
     if doc is None:
-        return {"due": False, "reason": "入口の控えが無い（入口の node が落ちた）"}
+        return {"due": False, "web": False, "reason": "入口の控えが無い（入口の node が落ちた）"}
     rows = _read(out / CLASSES)
     if not isinstance(rows, list):
         _write(out / PLAN, {"over": [], "taken": []})
-        return {"due": False, "reason": doc.get("reason") or ("依頼の行が無い" if not doc.get("findings")
-                                                              else _why_failed(out, CLASSES_ROLE))}
+        return {"due": False, "web": bool(doc.get("web", True)),
+                "reason": doc.get("reason") or (EMPTY if not doc.get("findings") else _why_failed(out, CLASSES_ROLE))}
     taken, over = [], []
     for r in rows:
         if r["class_id"] not in taken and len(taken) >= MAX_CLASSES:
@@ -218,7 +222,7 @@ def pick(out) -> dict:
         elif r["class_id"] not in taken:
             taken.append(r["class_id"])
     _write(out / PLAN, {"over": over, "taken": taken})
-    return {"due": bool(taken), "reason": "" if taken else "取る類が無い"}
+    return {"due": bool(taken), "web": bool(doc.get("web", True)), "reason": "" if taken else "取る類が無い"}
 
 
 # ---------------------------------------------------------------- web の役
@@ -244,19 +248,22 @@ def _class_lines(rows) -> str:
     return "\n".join(lines).rstrip("\n")
 
 
-def judge_prompt(out) -> dict:
-    """web の役の指示を組んで place に書く。返り {prompt}"""
+def judge_prompt(out, node: str = JUDGE_NODE) -> dict:
+    """web の役の指示を組んで place に書く。返り {prompt}。web が on の run は node JUDGE_NODE（web の検索と取得を持つ）、off の run は
+    OFFLINE_NODE（道具を持たない）で、どちらも同じ md（prompts/parts/world-judge.md）から組む。run の web と node が食い違えば配線の誤り"""
     out = pathlib.Path(out)
+    doc = _need(out, INTAKE)
+    if (node == OFFLINE_NODE) == bool(doc["web"]):
+        raise ValueError(f"web が {'on' if doc['web'] else 'off'} の run で {node} の指示を組もうとした（pick の web で輪を選ぶ配線の誤り）")
     if not (out / JUDGE_INPUT).is_file():
         _write(out / JUDGE_INPUT, _judge_rows(out))
     rows = _need(out, JUDGE_INPUT)
-    doc = _need(out, INTAKE)
-    rejected, n = _round(out, JUDGE_ROLE)
+    rejected = rolekit.rejected(out, JUDGE_ROLE)
     values = {"rejection": rolekit.rejects_text(rejected), "classes": _class_lines(rows),
               "max_excerpts": MAX_EXCERPTS * len({r["class_id"] for r in rows}), "min_excerpt": excerpts.MIN_EXCERPT,
               "same": worldmark.SAME, "differs": worldmark.DIFFERS, "none": worldmark.NONE, "min_challenge": MIN_CHALLENGE,
               "lang": doc["lang"]}
-    return prompt.emit(JUDGE_NODE, values, {"rejected": bool(rejected), "spawns": False, "web": bool(doc["web"])}, n)
+    return _emit(out, node, values, {"rejected": bool(rejected), "spawns": False, "web": bool(doc["web"])})
 
 
 def _excerpts(reply) -> tuple:
@@ -416,6 +423,8 @@ def finish(out) -> dict:
         status, rows = "failed", []
         reasons.append(f"書いた行が行の形に合わない: {e}")
         world.write_text("", encoding="utf-8")
+    if intake_doc and not intake_doc.get("reason") and not intake_doc.get("findings"):
+        reasons.append(EMPTY)
     if not intake_doc.get("web", True) and pl.get("taken"):
         reasons.append(f"web が off（{worldmark.NOT_WEB}）")
     elif ver.get("offline"):

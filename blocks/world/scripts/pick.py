@@ -16,4 +16,4 @@ def compute():
     return steps.pick(ports.place())
 
 
-ports.run(compute, lambda why: {"due": False, "reason": f"類を決める node が落ちた（{why}）"})
+ports.run(compute, lambda why: {"due": False, "web": False, "reason": f"類を決める node が落ちた（{why}）"})

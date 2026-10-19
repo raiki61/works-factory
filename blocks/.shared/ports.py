@@ -17,7 +17,9 @@
 - returns(obj): node の返り（JSON 1 つを標準出力へ）
 - run(compute, fallback): compute() の返りを返す。例外は fallback(理由の 1 行) の返りにする（落ちない node の口）
 - parsed(raw): JSON の値。null・空の字・無い入力は None（読めない JSON は ValueError）。飛ばされうる作り手の欄を受ける時
-- picked(raw, names): 作り手の返りまるごと（json の form）から、宣言した欄 names だけを持つ dict（宣言の外の名は KeyError）
+- picked(raw, names, optional=()): 作り手の返りまるごと（json の form）から、宣言した欄 names（と optional）だけを持つ dict。
+  宣言の外の名を読むと KeyError、names の欄が返りに無くても KeyError（optional の欄は無ければ None）
+- unknown_keywords(shape): 形の中の、照らしが読まない語の在りか（json の schema はこれが空でないと拒む）
 - 対象のコマンドを起こす block（test-gate・fix など）の口。workflows/.shared/boundary.py と同じ約束の写しで、
   tests/blocks/shared/test_ports.py が突き合わせる:
   RUNTIME_COPY・RUNTIME_COPY_PREFIX（Archon が run の作業ツリーに写す置き場。差分に数えない）・RUNNER_PREFIXES・RUNNER_NAMES・
@@ -151,9 +153,29 @@ def _check(value, schema: str) -> None:
         shape = _json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise ValueError(f"形のファイル {path} が読めない: {error}") from None
+    unknown = unknown_keywords(shape)
+    if unknown:
+        raise ValueError(f"形のファイル {path} が照らしの知らない語 {unknown} を持つ（照らしは黙って飛ばすので書かない。"
+                         "使える語は lib/graphloops/engine/schema.py の KNOWN_KEYWORDS）")
     errors = validate_schema(value, shape)
     if errors:
         raise ValueError(f"入力が {schema} の形に合わない: {' / '.join(errors[:5])}")
+
+
+def unknown_keywords(shape, at: str = "$") -> list[str]:
+    """形の中の、照らし（engine.schema.validate_schema）が読まない語の在りか（`<道>.<語>`）。properties・patternProperties の鍵は
+    欄の名なので数えない。anyOf・oneOf・format・$ref などは照らしが飛ばす（$ref は拒む）ので、書けば形が効かないまま通る"""
+    from engine.schema import KNOWN_KEYWORDS
+    out = []
+    if isinstance(shape, dict):
+        for key, sub in shape.items():
+            if key in ("properties", "patternProperties") and isinstance(sub, dict):
+                out += [hit for name, child in sub.items() for hit in unknown_keywords(child, f"{at}.{key}.{name}")]
+            elif key not in KNOWN_KEYWORDS:
+                out.append(f"{at}.{key}")
+            elif key in ("items", "additionalProperties"):
+                out += unknown_keywords(sub, f"{at}.{key}")
+    return out
 
 
 def file(raw) -> Path | None:
@@ -175,10 +197,11 @@ def _include_path() -> list[str]:
     中の node の id は `<include の id>__<id>`。段ごとの最後の __ より前を順に継ぐ（judge__world__intake → judge/world、
     world__world-classes-loop.world-classes-prep → world）。dry-run（workflow test）は path に node の id だけを渡すので、include
     の中の loop の本体の node は include の道を失う（docs/design/README.md の 13 節）"""
+    raw = os.environ.get("ARCHON_NODE_EXECUTION") or "{}"
     try:
-        doc = _json.loads(os.environ.get("ARCHON_NODE_EXECUTION") or "{}")
+        doc = _json.loads(raw)
     except ValueError:
-        doc = {}
+        raise ValueError(f"ARCHON_NODE_EXECUTION が JSON でない（{raw[:80]!r}）。place を決められない") from None
     path = doc.get("path") if isinstance(doc, dict) else None
     steps = path.split(".") if isinstance(path, str) else []
     return [part for step in steps for part in step.split("__")[:-1] if part]
@@ -226,13 +249,17 @@ class Picked(dict):
         return self[key]
 
 
-def picked(raw, names) -> Picked | None:
+def picked(raw, names, optional=()) -> Picked | None:
+    """names の欄が返りに無ければ KeyError（作り手の欄の名の打ち違い・欄の消えを黙って None にしない）。optional の名だけは、無ければ None"""
     got = None if not text(raw).strip() or text(raw).strip() == "null" else json(raw)
     if got is None:
         return None
     if not isinstance(got, dict):
         raise ValueError(f"まるごとの入力が object でない（{type(got).__name__}）")
-    return Picked((name, got.get(name)) for name in names)
+    absent = [name for name in names if name not in got and name not in optional]
+    if absent:
+        raise KeyError(f"返りに欄 {absent} が無い（在るのは {sorted(got)}。無くてよい欄は optional に名指す）")
+    return Picked((name, got.get(name)) for name in (*names, *[o for o in optional if o not in names]))
 
 
 # ---------------------------------------------------------------- 対象のコマンドを起こす block の口

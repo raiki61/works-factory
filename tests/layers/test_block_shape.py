@@ -5,9 +5,11 @@
 2. AI の node ごとに prompts/<node-id>.md が在り、prompts/ の直下の md はどれもどれかの AI の node の物（<node-id>.md か
    <node-id>.system.md）。prompts/parts/ の md はどれも同じ block のどれかの md から {part:…} で差し込まれる。md の
    {shared:…}・{part:…} の先が在る
-3. 指示が standalone の値で組める: standalone の筋書きは exec-code: true で、AI の node の prompt: が指す prep の node を差し替えず、
-   AI の node を全部 reached に持つ（prep が prompt.render を本当に通る）。筋書きを Archon の workflow test で回して全部が通る
-   （ArchonCase。Archon の源が無ければ見送り、CI は赤）
+3. 指示が筋書きの値で md から組める: standalone の筋書きは exec-code: true。どの AI の node も、exec-code: true でその prep を
+   差し替えない筋書きのどれかで reached に在り、その筋書きの resolved-text-contains が、その node の md の決まった文（断片を
+   入れ、差し込み口と段落の印で割った字）の一続きの中に在る（prep が md を prompt.render で本当に組んだ証）。standalone の筋書きの
+   AI の node の resolved-text-contains は、どれも決まった文。筋書きを Archon の workflow test で回して全部が通る（ArchonCase。
+   Archon の源が無ければ見送り、CI は赤）
 4. どの workflow にも fixtures/standalone.stubs.yaml が在り、その fixture.inputs の鍵は workflow の inputs: の中にあって pointer の
    値を持たず、必須の入力を全部持つ
 5. どの入力の description も `<form>: ` で始まり（form は text・file・flag・json(<schema>)・choice(a|b|…)）、json の <schema> が
@@ -20,6 +22,8 @@
 8. returns: の node の output_format の properties と required に、outcome_field: の欄と report の欄が在る
 9. src/ が在れば __init__.py を持つ package。scripts/ の名は lib/ のモジュールの名・pack の共通の口（.shared/*.py）の名・src と
    重ならない。.shared/*.py の名も lib/ のモジュールの名と重ならない（script のフォルダと .shared が sys.path の頭に来るため）
+11. YAML に指示の文を置く鍵が無い: loop: の node（loop_group と prep で書く）・agents:・on_reject の prompt・decisions の rework の
+   prompt。形のファイル（block の schemas/ と .shared/schemas/）は照らしの知らない語を持たない（ports.unknown_keywords）
 10. どの workflow にも試験のフォルダ tests/blocks/<名の - を _ にした物>/ が在り、__init__.py と test_*.py を持つ（Python の
    package の名は - を持てない）
 
@@ -31,6 +35,7 @@ import json
 import pathlib
 import re
 import shutil
+import sys
 import tempfile
 import unittest
 
@@ -49,6 +54,7 @@ FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
+MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
 STANDALONE = "standalone"
 
@@ -147,23 +153,101 @@ def check_prompt_files(pack: pathlib.Path) -> list[str]:
     return out
 
 
+def fixed_text(pack: pathlib.Path, folder: pathlib.Path, node_id: str) -> list[str]:
+    """node の md（と system の md）の決まった文の一続きの並び: 断片を入れ、差し込み口と段落の印の行で割った字"""
+    chunks = []
+    for name in (f"{node_id}.md", f"{node_id}.system.md"):
+        path = folder / "prompts" / name
+        if not path.is_file():
+            continue
+        text = _expand(path.read_text(encoding="utf-8"), pack, folder)
+        lines = [line for line in text.split("\n") if not MARK.match(line.strip())]
+        chunks += [c for c in re.split(r"\{[a-z0-9_]+\}", "\n".join(lines).replace("{{", "{").replace("}}", "}")) if c.strip()]
+    return chunks
+
+
+def _expand(text: str, pack: pathlib.Path, folder: pathlib.Path, depth: int = 0) -> str:
+    def one(m):
+        kind, name = m.groups()
+        path = (pack / SHARED / "prompts" if kind == "shared" else folder / "prompts" / "parts") / f"{name}.md"
+        return _expand(path.read_text(encoding="utf-8").rstrip("\n"), pack, folder, depth + 1) if path.is_file() and depth < 8 else ""
+    return FRAGMENT.sub(one, text)
+
+
 def check_standalone_renders(pack: pathlib.Path) -> list[str]:
     out = []
     for folder in folders(pack):
-        doc, fx = load(folder), fixture(folder)
-        if fx is None or not ai_nodes(doc):
+        doc = load(folder)
+        if not ai_nodes(doc):
             continue
+        prep_of = {n["id"]: PROMPT_REF.match(n["prompt"]).group(1) for n in ai_nodes(doc)
+                   if isinstance(n.get("prompt"), str) and PROMPT_REF.match(n["prompt"])}
+        fixtures = {p.name.removesuffix(".stubs.yaml"): yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+                    for p in sorted((folder / "fixtures").glob("*.stubs.yaml"))}
+        standalone = fixtures.get(STANDALONE)
         at = f"{folder.name}/fixtures/{STANDALONE}.stubs.yaml"
-        if fx.get("exec-code") is not True:
+        if standalone is not None and standalone.get("exec-code") is not True:
             out.append(f"{at} が exec-code: true でない（prep が本当に指示を組まない）")
-        stubbed = sorted(preps(doc) & set(fx))
-        if stubbed:
-            out.append(f"{at} が prep の node {stubbed} を差し替える")
-        reached = set((fx.get("fixture") or {}).get("reached") or [])
-        missing = sorted({n["id"] for n in ai_nodes(doc)} - reached)
-        if missing:
-            out.append(f"{at} の reached に AI の node {missing} が無い")
+        for node in ai_nodes(doc):
+            nid = node["id"]
+            chunks = fixed_text(pack, folder, nid)
+            proved = False
+            for name, fx in fixtures.items():
+                decl = fx.get("fixture") or {}
+                said = (decl.get("resolved-text-contains") or {}).get(nid)
+                runs = fx.get("exec-code") is True and nid in (decl.get("reached") or []) and prep_of.get(nid) not in fx
+                fixed = isinstance(said, str) and any(said in c for c in chunks)
+                if name == STANDALONE and said is not None and not fixed:
+                    out.append(f"{at} の resolved-text-contains の {nid} が prompts/{nid}.md の決まった文の中に無い（値でなく md の文で照らす）")
+                proved |= runs and fixed
+            if not proved:
+                out.append(f"{folder.name}: AI の node {nid} の指示を md から組んだと照らす筋書きが無い（exec-code: true・prep を差し替えない・"
+                           f"reached に在る・resolved-text-contains が md の決まった文）")
     return out
+
+
+TEXT_KEYS_PARENT = ("on_reject", "rework")
+
+
+def _text_keys(value, at: str) -> list[str]:
+    out = []
+    if isinstance(value, dict):
+        for key, sub in value.items():
+            if key == "agents":
+                out.append(f"{at}.agents")
+            elif key == "prompt" and at.rsplit(".", 1)[-1].split("[")[0] in TEXT_KEYS_PARENT:
+                out.append(f"{at}.prompt")
+            out += _text_keys(sub, f"{at}.{key}")
+    elif isinstance(value, list):
+        for i, sub in enumerate(value):
+            out += _text_keys(sub, f"{at}[{i}]")
+    return out
+
+
+def check_no_text_in_yaml(pack: pathlib.Path) -> list[str]:
+    from_ports = _ports().unknown_keywords
+    out = []
+    for folder in folders(pack):
+        for node in nodes(load(folder)):
+            if "loop" in node:
+                out.append(f"{folder.name}: node {node['id']} が loop: を持つ（指示の文が YAML に入る。loop_group と prep で書く）")
+            out += [f"{folder.name}: node {node['id']} が {hit} を持つ（指示の文は md に置く）"
+                    for hit in _text_keys({k: v for k, v in node.items() if k not in ("output_format",)}, node["id"])]
+    for path in sorted([*(pack / SHARED / "schemas").glob("*.json"), *[p for f in folders(pack) for p in (f / "schemas").glob("*.json")]]):
+        try:
+            unknown = from_ports(json.loads(path.read_text(encoding="utf-8")))
+        except ValueError as error:
+            unknown = [f"JSON でない: {error}"]
+        if unknown:
+            out.append(f"{path.relative_to(pack)}: 照らしの知らない語 {unknown}")
+    return out
+
+
+def _ports():
+    import importlib
+    if str(BLOCKS / SHARED) not in sys.path:
+        sys.path.append(str(BLOCKS / SHARED))
+    return importlib.import_module("ports")
 
 
 def check_standalone_inputs(pack: pathlib.Path) -> list[str]:
@@ -276,7 +360,7 @@ def check_block_tests(pack: pathlib.Path, tests: pathlib.Path | None = None) -> 
 
 CHECKS = (check_prompt_from_prep, check_prompt_files, check_standalone_renders, check_standalone_inputs, check_input_forms,
           check_graphs_have_no_roles, check_no_run_root_or_other_folders, check_returns_carry_outcome_and_report, check_module_names,
-          check_block_tests)
+          check_block_tests, check_no_text_in_yaml)
 
 
 class RealTreeCase(unittest.TestCase):
@@ -321,7 +405,8 @@ class SeedCase(unittest.TestCase):
         "demo/scripts/finish.py": "import ports\n",
         "demo/src/__init__.py": "",
         "demo/fixtures/standalone.stubs.yaml": yaml.safe_dump({"fixture": {"reached": ["prep", "role", "finish"],
-                                                                         "inputs": {"text_in": "x"}},
+                                                                         "inputs": {"text_in": "x"},
+                                                                         "resolved-text-contains": {"role": "rules"}},
                                                              "exec-code": True, "role": {}}),
         "other/works-factory-other.yaml": yaml.safe_dump({
             "name": "works-factory-other", "returns": "x", "outcome_field": "ok",
@@ -367,45 +452,64 @@ class SeedCase(unittest.TestCase):
             return yaml.safe_dump(copy)
         no_report = json.loads(json.dumps(demo))
         no_report["nodes"][2]["output_format"]["required"] = ["ok"]
+        def fixture_with(**decl):
+            base = {"reached": ["prep", "role", "finish"], "inputs": {"text_in": "x"}, "resolved-text-contains": {"role": "rules"}}
+            return {"demo/fixtures/standalone.stubs.yaml": yaml.safe_dump({"fixture": {**base, **decl}, "exec-code": True, "role": {}})}
+        with_loop = {**demo, "nodes": [*demo["nodes"], {"id": "again", "loop": {"prompt": "Say it.", "until": "DONE"}}]}
+        with_agents = nodes_with(1, agents={"helper": {"description": "d", "prompt": "Help."}})
+        with_reject = nodes_with(2, on_reject={"prompt": "Fix it.", "max_attempts": 2})
+        with_rework = {**demo, "nodes": [*demo["nodes"], {"id": "gate", "wait": {"attention": "a", "decisions": [{"rework": {"prompt": "x"}}]}}]}
         cases = [
-            (check_prompt_from_prep, {"demo/works-factory-demo.yaml": nodes_with(1, prompt="Do the thing.")}),
-            (check_prompt_from_prep, {"demo/works-factory-demo.yaml": nodes_with(1, command="role")}),
-            (check_prompt_files, {"demo/prompts/role.md": None}),
-            (check_prompt_files, {"demo/prompts/stray.md": "x"}),
-            (check_prompt_files, {"demo/prompts/parts/unused.md": "x"}),
-            (check_prompt_files, {"demo/prompts/role.md": "{shared:absent}\n{part:rules}\n"}),
+            (check_prompt_from_prep, {"demo/works-factory-demo.yaml": nodes_with(1, prompt="Do the thing.")}, "$<id>.output.prompt でない"),
+            (check_prompt_from_prep, {"demo/works-factory-demo.yaml": nodes_with(1, command="role")}, "command: を持つ"),
+            (check_prompt_from_prep, {"demo/works-factory-demo.yaml": nodes_with(1, systemPrompt="You are the role.")}, "systemPrompt: が"),
+            (check_prompt_from_prep, {"demo/prompts/role.system.md": "You are the role.\n"}, "片方しか無い"),
+            (check_prompt_files, {"demo/prompts/role.md": None}, "prompts/role.md が無い"),
+            (check_prompt_files, {"demo/prompts/stray.md": "x"}, "prompts/stray.md はどの AI の node の物でもない"),
+            (check_prompt_files, {"demo/prompts/parts/unused.md": "x"}, "{part:unused} で差し込まれない"),
+            (check_prompt_files, {"demo/prompts/role.md": "{shared:absent}\n{part:rules}\n"}, "{shared:absent} の先"),
             (check_standalone_renders, {"demo/fixtures/standalone.stubs.yaml": yaml.safe_dump(
-                {"fixture": {"reached": ["prep", "role", "finish"], "inputs": {"text_in": "x"}}, "role": {}})}),
+                {"fixture": {"reached": ["prep", "role", "finish"], "inputs": {"text_in": "x"}}, "role": {}})}, "exec-code: true でない"),
             (check_standalone_renders, {"demo/fixtures/standalone.stubs.yaml": yaml.safe_dump(
-                {"fixture": {"reached": ["prep", "finish"], "inputs": {"text_in": "x"}}, "exec-code": True, "prep": {"prompt": "x"}})}),
-            (check_standalone_inputs, {"other/fixtures/standalone.stubs.yaml": None}),
+                {"fixture": {"reached": ["prep", "role", "finish"], "inputs": {"text_in": "x"}, "resolved-text-contains": {"role": "rules"}},
+                 "exec-code": True, "prep": {"prompt": "rules"}})}, "照らす筋書きが無い"),
+            (check_standalone_renders, fixture_with(reached=["prep", "finish"]), "照らす筋書きが無い"),
+            (check_standalone_renders, fixture_with(**{"resolved-text-contains": {"role": "x"}}), "決まった文の中に無い"),
+            (check_standalone_renders, fixture_with(**{"resolved-text-contains": {}}), "照らす筋書きが無い"),
+            (check_standalone_inputs, {"other/fixtures/standalone.stubs.yaml": None}, "standalone.stubs.yaml が無い"),
             (check_standalone_inputs, {"demo/fixtures/standalone.stubs.yaml": yaml.safe_dump(
-                {"fixture": {"inputs": {"text_in": "x", "extra": "y"}}, "exec-code": True})}),
+                {"fixture": {"inputs": {"text_in": "x", "extra": "y"}}, "exec-code": True})}, "入力 extra が inputs: に無い"),
             (check_standalone_inputs, {"demo/fixtures/standalone.stubs.yaml": yaml.safe_dump(
-                {"fixture": {"inputs": {"text_in": '{"type": "archon_artifact", "run_id": "r", "path": "p"}'}}})}),
-            (check_standalone_inputs, {"demo/fixtures/standalone.stubs.yaml": yaml.safe_dump({"fixture": {}})}),
-            (check_input_forms, {"demo/works-factory-demo.yaml": self.yaml_with(inputs={"a": {"description": "something"}})}),
-            (check_input_forms, {"demo/schemas/doc.schema.json": None}),
-            (check_graphs_have_no_roles, {"demo/works-factory-demo.yaml": yaml.safe_dump(
-                {**demo, "nodes": [*demo["nodes"], {"id": "sub", "include": "works-factory-other"}]})}),
-            (check_graphs_have_no_roles, {"demo/works-factory-demo.yaml": yaml.safe_dump(
-                {**demo, "nodes": [*demo["nodes"], {"id": "kid", "workflow": "works-factory-other"}]})}),
-            (check_no_run_root_or_other_folders, {"demo/scripts/prep.py": "import os\nos.environ['ARTIFACTS_DIR']\n"}),
-            (check_no_run_root_or_other_folders, {"demo/src/x.py": "P = '../other/scripts/x.py'\n"}),
-            (check_returns_carry_outcome_and_report, {"demo/works-factory-demo.yaml": yaml.safe_dump(no_report)}),
-            (check_module_names, {"demo/src/__init__.py": None, "demo/src/steps_of_demo.py": ""}),
-            (check_module_names, {"demo/scripts/steps.py": ""}),
-            (check_module_names, {"demo/scripts/ports.py": ""}),
-            (check_prompt_from_prep, {"demo/works-factory-demo.yaml": nodes_with(1, systemPrompt="You are the role.")}),
-            (check_prompt_from_prep, {"demo/prompts/role.system.md": "You are the role.\n"}),
-            (check_input_forms, {"other/schemas/doc.schema.json": "{}"}),
+                {"fixture": {"inputs": {"text_in": '{"type": "archon_artifact", "run_id": "r", "path": "p"}'}}})}, "pointer"),
+            (check_standalone_inputs, {"demo/fixtures/standalone.stubs.yaml": yaml.safe_dump({"fixture": {}})}, "必須の入力 text_in"),
+            (check_input_forms, {"demo/works-factory-demo.yaml": self.yaml_with(inputs={"a": {"description": "something"}})},
+             "`<form>: ` で始まらない"),
+            (check_input_forms, {"demo/schemas/doc.schema.json": None}, "demo/schemas/doc.schema.json が無い"),
+            (check_input_forms, {"other/schemas/doc.schema.json": "{}"}, "形のファイル doc.schema.json が"),
             (check_input_forms, {"demo/works-factory-demo.yaml": self.yaml_with(
-                inputs={"a": {"description": "json(shared:absent.schema.json): x"}})}),
-            (check_block_tests, {"tests-of-blocks/other/test_other.py": None}),
+                inputs={"a": {"description": "json(shared:absent.schema.json): x"}})}, ".shared/schemas/absent.schema.json が無い"),
+            (check_graphs_have_no_roles, {"demo/works-factory-demo.yaml": yaml.safe_dump(
+                {**demo, "nodes": [*demo["nodes"], {"id": "sub", "include": "works-factory-other"}]})}, "graph が AI の node"),
+            (check_graphs_have_no_roles, {"demo/works-factory-demo.yaml": yaml.safe_dump(
+                {**demo, "nodes": [*demo["nodes"], {"id": "kid", "workflow": "works-factory-other"}]})}, "graph が AI の node"),
+            (check_no_run_root_or_other_folders, {"demo/scripts/prep.py": "import os\nos.environ['ARTIFACTS_DIR']\n"}, "字 ARTIFACTS_DIR"),
+            (check_no_run_root_or_other_folders, {"demo/src/x.py": "P = '../other/scripts/x.py'\n"}, "'../other'"),
+            (check_returns_carry_outcome_and_report, {"demo/works-factory-demo.yaml": yaml.safe_dump(no_report)}, "欄 report が無い"),
+            (check_module_names, {"demo/src/__init__.py": None, "demo/src/steps_of_demo.py": ""}, "__init__.py が無い"),
+            (check_module_names, {"demo/scripts/steps.py": ""}, "['steps']"),
+            (check_module_names, {"demo/scripts/ports.py": ""}, "['ports']"),
+            (check_block_tests, {"tests-of-blocks/other/test_other.py": None}, "tests/blocks/other/"),
+            (check_no_text_in_yaml, {"demo/works-factory-demo.yaml": yaml.safe_dump(with_loop)}, "loop: を持つ"),
+            (check_no_text_in_yaml, {"demo/works-factory-demo.yaml": with_agents}, "role.agents"),
+            (check_no_text_in_yaml, {"demo/works-factory-demo.yaml": with_reject}, "finish.on_reject.prompt"),
+            (check_no_text_in_yaml, {"demo/works-factory-demo.yaml": yaml.safe_dump(with_rework)}, "rework.prompt"),
+            (check_no_text_in_yaml, {"demo/schemas/doc.schema.json": '{"anyOf": [], "format": "uri"}'}, "$.anyOf"),
+            (check_no_text_in_yaml, {".shared/schemas/x.schema.json": '{"oneOf": []}'}, "$.oneOf"),
         ]
-        for check, changes in cases:
+        for check, changes, word in cases:
             with self.subTest(check=check.__name__, changes=sorted(changes)):
-                self.assertNotEqual(self.broken(check, changes), [])
+                got = self.broken(check, changes)
+                self.assertTrue(any(word in line for line in got), (word, got))
 
     def test_self_workflow_is_allowed_in_a_block(self):
         """block が起こしてよい workflow は自分（直しの組ごとに自分を子の run として起こす形）"""

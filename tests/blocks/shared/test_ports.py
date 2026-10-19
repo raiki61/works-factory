@@ -69,6 +69,17 @@ class JsonCase(Base):
         with self.assertRaisesRegex(ValueError, "block の中に無い"):
             ports.json("[]", "means.schema.json")
 
+    def test_unknown_schema_keywords_are_named(self):
+        """照らしが読まない語（anyOf・oneOf・format…）を持つ形は、黙って効かないので拒む。欄の名は数えない"""
+        shape = {"type": "object", "properties": {"anyOf": {"type": "string"}, "x": {"type": "string", "format": "uri"}},
+                 "items": {"oneOf": []}, "anyOf": []}
+        self.assertEqual(sorted(ports.unknown_keywords(shape)), ["$.anyOf", "$.items.oneOf", "$.properties.x.format"])
+        shared = self.tmp / "shared"
+        (shared / "schemas").mkdir(parents=True)
+        (shared / "schemas" / "bad.schema.json").write_text(json.dumps({"type": "array", "anyOf": []}), encoding="utf-8")
+        with mock.patch.object(ports, "SHARED", shared), self.assertRaisesRegex(ValueError, r"知らない語 \['\$\.anyOf'\]"):
+            ports.json("[]", "shared:bad.schema.json")
+
     def test_file_form(self):
         (self.art / "a.txt").write_text("x", encoding="utf-8")
         self.assertEqual(ports.file(self.ptr("a.txt")), self.art / "a.txt")
@@ -92,6 +103,11 @@ class PlaceCase(Base):
         self.assertEqual(self.at("plan-rounds.plan__intake"), self.art / "plan", "loop の本体の中の include")
         self.assertTrue((self.art / "judge" / "world").is_dir())
 
+    def test_broken_execution_record_is_refused(self):
+        os.environ["ARCHON_NODE_EXECUTION"] = "{not json"
+        with self.assertRaisesRegex(ValueError, "ARCHON_NODE_EXECUTION が JSON でない"):
+            ports.place()
+
     def test_pointer_points_inside_the_run(self):
         folder = self.at("world__finish")
         (folder / "rows.jsonl").write_text("x\n", encoding="utf-8")
@@ -105,10 +121,12 @@ class HelperCase(Base):
         self.assertIsNone(ports.parsed(""))
         self.assertIsNone(ports.parsed("null"))
         self.assertEqual(ports.parsed('{"a": 1}'), {"a": 1})
-        got = ports.picked('{"a": 1, "b": 2}', ("a", "c"))
-        self.assertEqual(dict(got), {"a": 1, "c": None})
+        got = ports.picked('{"a": 1, "b": 2}', ("a",), optional=("c",))
+        self.assertEqual(dict(got), {"a": 1, "c": None}, "optional の欄は無ければ None")
         with self.assertRaisesRegex(KeyError, "宣言の外"):
             got["b"]
+        with self.assertRaisesRegex(KeyError, r"欄 \['c'\] が無い"):
+            ports.picked('{"a": 1}', ("a", "c"))
         self.assertIsNone(ports.picked("null", ("a",)))
 
     def test_runner_names_match_the_boundary(self):

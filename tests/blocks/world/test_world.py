@@ -37,8 +37,9 @@ class FlowCase(unittest.TestCase):
                                                 reply=json.dumps(classes))
         out["pick"] = self.run.script("pick", node("pick"))
         if out["pick"]["due"]:
-            out["web_prep"] = self.run.script("web_prep", loop("world-judge-loop", "world-judge-prep"))
-            out["web_accept"] = self.run.script("web_accept", loop("world-judge-loop", "world-judge-accept"),
+            group, prep = ("world-judge-loop", "web_prep") if out["pick"]["web"] else ("world-judge-offline-loop", "offline_prep")
+            out["web_prep"] = self.run.script(prep, loop(group, f"{group.removesuffix('-loop')}-prep"))
+            out["web_accept"] = self.run.script("web_accept", loop(group, f"{group.removesuffix('-loop')}-accept"),
                                                 reply=json.dumps(judged))
         out["finish"] = self.run.script("finish", node("finish"))
         return out
@@ -66,6 +67,7 @@ class FlowCase(unittest.TestCase):
         got = self.walk(include="world")
         self.assertEqual(got["finish"]["rows"]["path"], "world/world.jsonl")
         self.assertTrue((self.run.artifacts / "world" / "world-classes-prompt-1.md").is_file())
+        self.assertTrue((self.run.artifacts / "world" / "world-judge-offline-prompt-1.md").is_file(), "web が off なら道具の無い役の指示")
         self.assertFalse((self.run.artifacts / "world.jsonl").exists())
 
     def test_lang_reaches_the_prompt(self):
@@ -110,19 +112,29 @@ class ShapeCase(unittest.TestCase):
 
     def test_loop_bound_matches_the_give_up_count(self):
         rolekit = kit.load("world", "steps").rolekit
-        for loop in ("world-classes-loop", "world-judge-loop"):
+        for loop in ("world-classes-loop", "world-judge-loop", "world-judge-offline-loop"):
             self.assertEqual(self.nodes[loop]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
     def test_roles_have_only_their_tools(self):
         """言い直す役は道具を持たず、web の役は web の検索と取得だけ（keep-essence の 12。対象を読まずに上の類に上がる）"""
-        body = {n["id"]: n for loop in ("world-classes-loop", "world-judge-loop") for n in self.nodes[loop]["loop_group"]["nodes"]}
+        loops = ("world-classes-loop", "world-judge-loop", "world-judge-offline-loop")
+        body = {n["id"]: n for loop in loops for n in self.nodes[loop]["loop_group"]["nodes"]}
         self.assertEqual(body["world-classes"]["allowed_tools"], [])
         self.assertEqual(body["world-judge"]["allowed_tools"], ["WebSearch", "WebFetch"])
+        self.assertEqual(body["world-judge-offline"]["allowed_tools"], [], "web が off の run は道具で web を断つ")
+        self.assertEqual(body["world-judge-offline"]["output_format"], body["world-judge"]["output_format"])
+
+    def test_web_switch_picks_exactly_one_judge_loop(self):
+        whens = {self.nodes[n]["when"] for n in ("world-judge-loop", "world-judge-offline-loop")}
+        self.assertEqual(whens, {"$pick.output.due == true && $pick.output.web == true",
+                                 "$pick.output.due == true && $pick.output.web == false"})
+        for node in ("world-judge", "world-judge-offline"):
+            self.assertEqual((BLOCK / "prompts" / f"{node}.md").read_text(encoding="utf-8"), "{part:world-judge}\n", "同じ md から組む")
 
     def test_web_off_fixture_needs_no_network(self):
         fixture = kit.fixture("world", "standalone")
         self.assertEqual(fixture["fixture"]["inputs"]["web"], "off")
-        self.assertEqual(fixture["world-judge"]["excerpts"], [])
+        self.assertEqual(fixture["world-judge-offline"]["excerpts"], [])
 
 
 if __name__ == "__main__":

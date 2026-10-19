@@ -1,12 +1,14 @@
-# web が on の道: web の役の指示が検索と抜き書きの段落を持つ。抜き書きの取り直しは網に出るので筋書きでは抜き書きを返さず、
-# 抜き書きが残る道は tests/blocks/world の試験が取り直しの口を差し替えて確かめる
+# web が on の道: web の検索と取得を持つ web の役の輪が回り、指示は検索と抜き書きの段落を持つ。抜き書きの取り直しは網に出るので
+# 筋書きでは抜き書きを返さず、抜き書きが残る道は tests/blocks/world の試験が取り直しの口を差し替えて確かめる。
+# 依頼の字の $ARTIFACTS_DIR は、prep が組んだ指示の中でも字のまま AI の node に届く（Archon は入れた値を読み直さない。README の 13 章）
 fixture:
   expect: completed
   reached: [intake, world-classes, world-classes-accept, pick, world-judge-prep, world-judge, world-judge-accept, finish]
   inputs:
-    request: '[{"where": "README", "text": "The cache folder should follow the user settings"}]'
+    request: '[{"where": "README", "text": "The cache folder should follow the user settings, not $ARTIFACTS_DIR"}]'
     web: 'on'
   resolved-text-contains:
+    world-classes: 'text: The cache folder should follow the user settings, not $ARTIFACTS_DIR'
     world-judge: 'Search for the practice with the queries'
 exec-code: true
 world-classes:

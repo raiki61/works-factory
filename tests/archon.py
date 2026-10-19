@@ -76,8 +76,10 @@ def source() -> pathlib.Path:
 
 
 @contextlib.contextmanager
-def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: pathlib.Path = WORKFLOWS / SHARED) -> Iterator[pathlib.Path]:
-    """workflows の names のフォルダと shared（既定はこのリポジトリの workflows/.shared/）を pack の形で置いて commit した使い捨ての git の木"""
+def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: pathlib.Path = WORKFLOWS / SHARED,
+         files: dict[str, str] | None = None) -> Iterator[pathlib.Path]:
+    """workflows の names のフォルダと shared（既定はこのリポジトリの workflows/.shared/）を pack の形で置いて commit した使い捨ての git の木。
+    files（根からのパス → 中身）は対象のリポジトリの側のファイルとして一緒に commit する（exec-code の筋書きの作業ツリーに入る）"""
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp) / "tree"
         placed = place.pack_folder(PACK, root)
@@ -85,15 +87,22 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: path
         for name in names:
             shutil.copytree(workflows / name, placed / name, ignore=no_cache)
         shutil.copytree(shared, placed / SHARED, ignore=no_cache)
+        for rel, body in (files or {}).items():
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(body, encoding="utf-8")
         git(root, "init", "-q")
         git(root, "add", "-A")
         git(root, "commit", "-q", "-m", "seed")
         yield root
 
 
+# blocks/ の筋書きの作業ツリーに置く、対象のリポジトリの小さな入口（guidance-path の読み手が辿る所。.archon の外に要る）
+TARGET_FILES = {"README.md": "# Fixture target\n\nSee AGENTS.md.\n", "AGENTS.md": "# Rules\n\nNew review viewpoints are blocks.\n"}
+
+
 def blocks_tree(names: Iterable[str]) -> contextlib.AbstractContextManager[pathlib.Path]:
-    """blocks/ の names の block と blocks/.shared/ を pack の形で置いた使い捨ての git の木（tree と同じ形）"""
-    return tree(names, BLOCKS, BLOCKS / SHARED)
+    """blocks/ の names の block と blocks/.shared/ を pack の形で置き、TARGET_FILES を置いた使い捨ての git の木（tree と同じ形）"""
+    return tree(names, BLOCKS, BLOCKS / SHARED, TARGET_FILES)
 
 
 def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:

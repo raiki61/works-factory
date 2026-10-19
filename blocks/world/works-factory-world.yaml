@@ -92,13 +92,16 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [due, reason]
+      required: [due, web, reason]
       properties:
         due: {type: boolean}
+        web: {type: boolean}
         reason: {type: string}
+  # web の役は 2 つの輪のどちらか 1 つだけが回る。web が on の run は web の検索と取得を持つ world-judge、off の run は道具を持たない
+  # world-judge-offline（off を指示の文だけでなく道具で守る）。指示は同じ md（prompts/parts/world-judge.md）から組む
   - id: world-judge-loop
     depends_on: [pick]
-    when: $pick.output.due == true
+    when: $pick.output.due == true && $pick.output.web == true
     loop_group:
       max_iterations: 3
       fresh_context: false
@@ -123,7 +126,7 @@ nodes:
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
           retry: {max_attempts: 2, on_error: all}
-          output_format:
+          output_format: &judge_reply
             type: object
             required: [rows, excerpts]
             additionalProperties: false
@@ -170,11 +173,53 @@ nodes:
               ok: {type: boolean}
               done: {type: boolean}
               reason: {type: string}
+  - id: world-judge-offline-loop
+    depends_on: [pick]
+    when: $pick.output.due == true && $pick.output.web == false
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$world-judge-offline-accept.output.done; test "$done" = true
+      nodes:
+        - id: world-judge-offline-prep
+          script: offline_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: world-judge-offline
+          prompt: "$world-judge-offline-prep.output.prompt"
+          depends_on: [world-judge-offline-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: []
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format: *judge_reply
+        - id: world-judge-offline-accept
+          script: web_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [world-judge-offline]
+          with: {reply: $world-judge-offline.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
   - id: finish
     script: finish
     runtime: uv
     mutates_checkout: false
-    depends_on: [pick, world-judge-loop]
+    depends_on: [pick, world-judge-loop, world-judge-offline-loop]
     trigger_rule: all_done
     output_format:
       type: object
