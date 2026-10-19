@@ -132,6 +132,8 @@ class FixerParagraphsCase(unittest.TestCase):
         first = run.script("fix_prep")
         self.assertIn("# Fixing (the writer's job)", first["prompt"])
         self.assertIn("## Scope consultation and the pre-check", first["prompt"])
+        self.assertIn("If the write to ", first["prompt"])   # 下書きの置き場が拒まれた時の逃げ道（temporary directory）
+        self.assertIn("pass that path to `--reply`", first["prompt"])
         reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある"}]}
         asked = run.script("consult_check", reply=json.dumps(reply), **{"pass": "first"})
         self.assertTrue(asked["go"], asked)
