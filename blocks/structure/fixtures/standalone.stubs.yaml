@@ -6,7 +6,7 @@ fixture:
   inputs:
     units: '[{"id": "u1", "paths": ["README.md"], "summary": "README の 1 行を直す"}]'
   resolved-text-contains:
-    structure-eye: 'You are the structure eye, started in a new conversation.'
+    structure-eye: 'You are the structure eye. Your job is to judge'
 exec-code: true
 structure-eye:
   rows:

@@ -38,7 +38,7 @@
 - `policy`: `file: 人が run に固めた方針の文書（今の始めの記録の policy の写し）。空の字は、方針の文書が渡されていない`。既定 `""`。
 - `base`: `text: after の時の直す前の版の commit。before では読まない`。既定 `""`。
 - `plan`: `file: after の時の修正案の欄のファイル（plan-fields.json。欄 fields）。構造の目の避け方から外れた訳を読む。空の字は、修正案が渡されていない（外れの訳は空の並び）。before では読まない`。既定 `""`。
-- `lang`: `text: 人に見せる欄（reason・chosen・chosen_reason・rejected・undecided_because）の言語。空は単位の summary の言語`。既定 `""`。
+- `lang`: `text: 人に見せる欄（reason・chosen・chosen_reason・rejected・undecided_because）の言語。空は共通の既定（依頼の言語）`。既定 `""`。
 
 出力（`returns: finish`、`outcome_field: ok`）:
 
@@ -134,7 +134,7 @@ md の本文（英語。この block の PR の 3 つ目の commit でこのま�
 {shared:rejected}
 <!-- end rejected -->
 
-You are the structure eye, started in a new conversation. Your job is to judge, for each unit of change below, whether the change dirties the structure of the target: whether it goes against what the target's written intent says, or makes more places know a design concept. Only for a unit you see as dirty, when the deciding sources (the target's written intent and the policy, the person's earlier decisions, the same situation elsewhere in the target, and practitioners' practice — whichever this prompt carries) still do not settle how to avoid it, make its row a question for a person. "Do not settle" means the ways to avoid it split and cannot be narrowed to one. Such a row has `route` set to `{route_up}`; how to write it is under How to answer.
+You are the structure eye. Your job is to judge, for each unit of change below, whether the change dirties the structure of the target: whether it goes against what the target's written intent says, or makes more places know a design concept. Only for a unit you see as dirty, when the deciding sources (the target's written intent and the policy, the person's earlier decisions, the same situation elsewhere in the target, and practitioners' practice — whichever this prompt carries) still do not settle how to avoid it, make its row a question for a person. "Do not settle" means the ways to avoid it split and cannot be narrowed to one. Such a row has `route` set to `{route_up}`; how to write it is under How to answer.
 You have no tools. You cannot open files or the repository; this prompt is everything you are given.
 
 ## Question
@@ -145,7 +145,7 @@ One axis of judgment: does the whole become simpler while the purpose is met and
 Judge each unit by one question: after this change, does the target go against what its written intent says, or know a design concept (a word, a field name, a value, or a decision rule) in more places than before? The written intent is the target's own constitution, rules, and design documents, and the policy for this run, shown under "Written intent" below. Judge against what is written there, not against how the surrounding code happens to look today: the surrounding code may already have drifted from the written intent, and a change that copies the drift is still dirty. Where the written intent names the home of a concept (the one place that holds it), a change that writes the concept outside its home is dirty. Where it names no home, write in `chosen` the form that gathers the concept into a place that already knows it. Where the measurements carry concept-map rows and known-place counts, take them as given. Use the other measurements (copied blocks, entry points, places where names appear) as evidence of where a concept is known. If nothing goes against the written intent and the number of places does not grow, the unit is clean. Use the form numbers to name which form the growth takes (form 2 only when the same concept is written in a second place).
 <!-- end intent -->
 <!-- if not intent -->
-The target has no written intent documents: none was found under the fixed names, and none was given. Judge each unit by one question: after this change, does the target know a design concept (a word, a field name, a value, or a decision rule) in more places than before? Where the measurements carry concept-map rows and known-place counts, take them as given (a change that writes a concept that has a home outside its home is dirty; for a concept with no home, write in `chosen` the form that gathers it into a place that already knows it). Otherwise judge from the measurements (copied blocks, entry points, places where names appear). If the number of places does not grow, the unit is clean. Use the form numbers to name which form the growth takes (form 2 only when the same concept is written in a second place).
+No written intent document of the target could be read: either none was found under the fixed names and none was given, or the ones given could not be read. Judge each unit by one question: after this change, does the target know a design concept (a word, a field name, a value, or a decision rule) in more places than before? Where the measurements carry concept-map rows and known-place counts, take them as given (a change that writes a concept that has a home outside its home is dirty; for a concept with no home, write in `chosen` the form that gathers it into a place that already knows it). Otherwise judge from the measurements (copied blocks, entry points, places where names appear). If the number of places does not grow, the unit is clean. Use the form numbers to name which form the growth takes (form 2 only when the same concept is written in a second place).
 <!-- end intent -->
 
 <!-- if after -->
@@ -221,7 +221,7 @@ Return only JSON that matches the output schema.
 before（例の run の `plan/structure/681f73b08c5a/eye-prompt-1.md` と同じ値。この run は 1 回目で通った）:
 
 ````markdown
-You are the structure eye, started in a new conversation. …（決まった文。{route_up} は 人に上げる）
+You are the structure eye. …（決まった文。{route_up} は 人に上げる）
 
 ## Question
 
@@ -326,7 +326,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
 - 足した: after の時の段落・`## Diff` の節・`after.deviations` の読み方の箇条（直した後の目は今は無い。README の 8.6 の「入る時」）。
 - 替えた: 形 4 の「サブグラフの境をまたいで、他のサブグラフの中身を前提にする」を「部品（モジュール・block・サブグラフなど）の境」に。#235 `787b55ba`・#253 `1c8c6015` は「ブロック」を工場の語「サブグラフ」に替えたが、目が見るのはどの対象のリポジトリでもあり、工場の語に限らない言い方にした。
 - 替えた: 役の定義の「人に上げた行には、修正の前に人が答える」を「人への問いになる」に（after の時は修正の後で、承認ノードの振る舞いは line の物）。
-- 替えた: 言語。今は言語の行が無く（役の定義にも返し方にも無い）、目は単位の summary の言語で書いていた。人に見せる欄を名指す 1 文を足し、`lang` が空なら summary の言語（README の 5.3 の既定と同じ意味）。
+- 替えた: 言語。今は言語の行が無く（役の定義にも返し方にも無い）、目は単位の summary の言語で書いていた。人に見せる欄を名指す 1 文を足し、`lang` が空なら共通の断片 `lang-default` の文（依頼の言語。15 を見よ）。
 - 英語にした（#764）。役の名「構造の目」は "the structure eye"。
 
 ## 3 script の node
@@ -341,7 +341,7 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
   - before: 今の `structfile.measure` と同じ（`units.json`・`skipped-units.json`・`structure.json` を書き、`design.jsonl` を 0 バイトで置き直し、目の控えを消す）。`structure.json` の欄 `rules` は書かない。`view.json` は今の `eye.view` の中身から `rules` を外した物（`{units: [{id, summary, measure, concepts?}], timing}`）。返り `eye` は今の `eye.due`（`structure.json` が ok で、測れた単位が 1 つ以上）。
   - after: `src/stage_b.run(root, base, skip_prefix=<実行基盤の写しのパスの頭>)`（今の `boundary.RUNTIME_COPY_PREFIX`。土台の `ports.py` の同じ値）を回し、`eye.stamp` で秒を残す。`plan` が空でなければ `planmarks.deviations(<fields>)`。`structmark.write_after(place, status, reason, after, deviations)` で `structure-after.json` を書く（今の `structure_after.py` と同じ中身）。差分の全体を `stage_b.patch_of` で `after.diff` に書く。単位は port `units` の paths の在る物、空なら `[{id: "diff", summary: "", paths: <changed>}]`。`view.json` は `{units: [{id, summary, paths}], after: {base_rev, changed, tables, tables_changed, fence_up, new_names, dup_blocks_added, deviations}, timing}`（`fence_up`・`new_names` は `listcut.SHOWN` 件で切り、全件の数を隣の `<名>_total` に置く。今の `eye._cut` と同じ形）。返り `eye` は段 B の `status` が ok で `changed` が空でない時。
   - 中の誤りは `structure.json`（before）か `structure-after.json`（after）の `status: failed` と `reason` に残し、`eye: false` を返す（落ちない）。
-- `prep.py`: 却下の控えと回の数え（`rolekit.rejected`・`len + 1`）を読み、`prompt.render("structure-eye", values, when)` で組む。`values` は 2.3 の差し込み口と、`intent_docs`（`intent.json` の本文の在る文書ごとに `### <path> (<rev の頭 12 字>, lines 1-<行の数>)`・切った時は `(cut: the first <TEXT_CAP> characters are shown; <cut> more were left out)` の 1 行・本文。読めなかった文書は `### <path> (could not be read: <reason>)`。文書の間は空行 1 つ）・`view`（`view.json` を `separators=(",", ":")`・`ensure_ascii=False` で 1 行に）・`diff`（after。`after.diff` の先頭 `DIFF_CAP` バイトを UTF-8 で読み〔読めない字は置き換え〕、切った時は末尾に `(cut: the first <DIFF_CAP> bytes are shown; <n> more were left out)`）・`lang`（空なら README の 5.3 の既定の英文の、単位の summary の言語を言う形）。`when` は `{"rejected": …, "intent": <本文の在る文書が 1 つ以上>, "after": <mode が after>}`。目の控え `eye.json` を `pending` にする（今の `eye.prep` と同じ）。返り `{prompt, attempt}`（今の `prompt_file` の欄は無くす。組んだ指示は place の `structure-eye-prompt-<n>.md`）。
+- `prep.py`: 却下の控えと回の数え（`rolekit.rejected`・`len + 1`）を読み、`prompt.render("structure-eye", values, when)` で組む。`values` は 2.3 の差し込み口と、`intent_docs`（`intent.json` の本文の在る文書ごとに `### <path> (<rev の頭 12 字>, lines 1-<行の数>)`・切った時は `(cut: the first <TEXT_CAP> characters are shown; <cut> more were left out)` の 1 行・本文。読めなかった文書は `### <path> (could not be read: <reason>)`。文書の間は空行 1 つ）・`view`（`view.json` を `separators=(",", ":")`・`ensure_ascii=False` で 1 行に）・`diff`（after。`after.diff` の先頭 `DIFF_CAP` バイトを UTF-8 で読み〔読めない字は置き換え〕、切った時は末尾に `(cut: the first <DIFF_CAP> bytes are shown; <n> more were left out)`）・`lang`（空なら共通の断片 `lang-default` の文。依頼の言語）。`when` は `{"rejected": …, "intent": <本文の在る文書が 1 つ以上>, "after": <mode が after>}`。目の控え `eye.json` を `pending` にする（今の `eye.prep` と同じ）。返り `{prompt, attempt}`（今の `prompt_file` の欄は無くす。組んだ指示は place の `structure-eye-prompt-<n>.md`）。
 - `take.py`: 今の `eye.accept` と同じ（`rolekit.current_round`・`accept_round`・`round_outcome`。控えが読めなければ落ちずに done・give_up の拒否）。照らしは 7 節。通れば `design.jsonl` に行を書く（`route` の既定と `route_reason` を足す。今のまま）。
 - `finish.py`: `src/state.write_state(place, mode)` で `structure-state.json` を書き（今の `_outcome` の決め。after では段 B の `status` が failed なら `failed`）、`dirty`・`escalate` を `design.jsonl` から数え、`report` を `structmark.report_lines(<state>, <after なら place>)` で組んで返す。書けなければ（`OSError`）`structure: null`・`status: failed`・`reason` に「構造の控えを書けない（<文>）」。境の口と lib の import から先の誤りは全部捕まえ、標準ライブラリだけで `status: failed` と 0 バイトの `design.jsonl` を書いて返す（今の `structure_collect.failed`）。`optional` はどの返りにも `src/files.py` の `OPTIONAL`。
 
@@ -384,7 +384,7 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
 10. 元の設計書（`docs/specs/2026-09-29-structure-block-design.md`）の block の中の設計の承認ノード（3 つの答え・全部の案を捨てた時の loop）と前例を探す役: 元の works にも工場にも無い（元の `eye.py:8` が「このブロックは関所を持たない」、設計書の 5 行目が blk-world に替えたと書く）。この block も持たない（人に上げる行は line の修正前の承認ノードが聞く）。
 11. 比べる相手: 元の works の目も、見たのは書いた意図（方針の文書・根の `ARCHITECTURE.md`・`AGENTS.md`・考えの地図と柵の表）と機械の実測だけで、周りのコードを道具で読んだことは無い。ただし、根の地図は `rules.maps` に実測と並べて貼るだけで、問いは「知る場所が増えるか」で、書いた意図に反するかは問わず、抜き書きも求めなかった。この block で、書いた意図を基準にし、単位のファイルの上のフォルダの `AGENTS.md` まで探し、汚れる行に抜き書きを求めて照らす（持ち主の 2026-10-19 の追加）。
 
-この block が両方より良く、残す物: paths の空な単位を名指して修正案に渡す（#75・#560）・読めない入力を `unread` に残す（#560）・返す node が落ちない（#560）・resume を跨ぐ回の数え（#232）・一過性の誤りの retry（#476）・修正案の頭で汚れる行と汚れない行を分ける（#566・#577）・長い一覧を切って名と件数と pointer を残す（#656・#717）・R1・R3 の頭に修正案の外れの訳と事前審査の受け入れを載せる（#353 `0440b970`）・事前審査が控えと行を自分の置き場に写す（#73）。新しく足す物: 書いた意図の抜き書きの機械の照らし（world の抜き書きの照らしと同じ形）・直した後の差分を目が見る。
+この block が両方より良く、残す物: paths の空な単位を名指して修正案に渡す（#75・#560）・読めない入力は黙って空にせず `status: failed` と訳を残し、目を起こさない（17。#560 の `unread` に残す形は替えた）・返す node が落ちない（#560）・resume を跨ぐ回の数え（#232）・一過性の誤りの retry（#476）・修正案の頭で汚れる行と汚れない行を分ける（#566・#577）・長い一覧を切って名と件数と pointer を残す（#656・#717）・R1・R3 の頭に修正案の外れの訳と事前審査の受け入れを載せる（#353 `0440b970`）・事前審査が控えと行を自分の置き場に写す（#73）。新しく足す物: 書いた意図の抜き書きの機械の照らし（world の抜き書きの照らしと同じ形）・直した後の差分を目が見る。
 
 ## 7 試験
 
@@ -455,9 +455,9 @@ mode=before                          mode=after
 12. `verdict`・`route` の語は日本語のまま。根拠: 語は plan・plan-review・line・report・eyes が読む行の形（`structmark`・`gatemarks`・`planmarks` が持つ）で、この block の PR は `lib/` を変えない（README の 11.1）。
 13. 抜き書きに `$` を含まない所を選ばせる（md の 1 文）。根拠: 9 節の Archon の置き換え。照らしを緩めずに、置き換えで食い違いうる所を役に避けさせる。止めた版は読み直さない（README の 13 章）ので、この 1 文は要らなくなった。害は無く、外すかは作る時に決める。
 14. measure が消すのは、この block が名を持つファイルだけにした（3 節の「place を作り直す〔中を全部消す〕」を替えた）。根拠: 根の方針（block は自分の名のファイルだけを消す。`blocks/.shared/AGENTS.md`）。名は `src/files.py` の `OWN_FILES`・`OWN_PROMPTS`（`rejects-structure-eye.json` を含む。却下の控えの名は試験が `rolekit` と突き合わせる）。ほかの物は残る。
-15. `lang` が空の時は、共通の断片 `lang-default`（`prompt.lang`）の文のまま（依頼の言語）にした。3 節・1.2 の「空は単位の summary の言語」は、共通の断片が 1 本に決まっているので置かない（Python に指示の文を持たせない）。
+15. `lang` が空の時は、共通の断片 `lang-default`（`prompt.lang`）の文のまま（依頼の言語）にした。3 節・1.2 は「空は共通の既定（依頼の言語）」と書く。単位の summary の言語を言う別の文は、共通の断片が 1 本に決まっているので置かない（Python に指示の文を持たせない）。
 16. 方針の文書は、書いた意図の最後の 1 本として入れ、見出しと抜き書きの `path` は「作業ツリーの根の下なら根からの相対パス、外なら絶対パス」にした（port の値の字は pointer の JSON になりうるため。3 節の「渡された値」を替えた）。
-17. 読めない port（`mode`・`intent`・`policy`・`units`・after の `plan`）は黙って空にせず、控え（before は `structure.json`、after は `structure-after.json`）に `status: failed` と「入力 <名>: <訳>」を残して目を起こさない。書いた意図を探す git が落ちた時も同じ（「書いた意図を探せない」）。
+17. 読めない port（`mode`・`intent`・`policy`・`units`・after の `plan`）は黙って空にせず、控え（before は `structure.json`、after は `structure-after.json`）に `status: failed` と「入力 <名>: <訳>」を残して目を起こさない。書いた意図を探す git が落ちた時も同じ（「書いた意図を探せない」）。代償: 元の目は読めない入力を `unread` に残したまま、残りの材料で判じていた。この block は目を起こさないので、目の行が無い（失敗が見えるのと引き換えに、読めた材料での判定は出ない）。
 18. 本文の在る文書が 1 つも無い時（読めなかった文書だけの時も）は、指示に `## Written intent` の節を入れず、`intent` を持つ行を拒む。読めなかった文書の見出しは、本文の在る文書が別に 1 つでも在る時に節の中に並ぶ。
 19. 受け付けの `intent` の照らしは、汚れない行の `intent` にも同じ照らしを当てる（`path` が見せた文書・20 字以上・本文に字のまま在る）。`quote` の長さも、空白を詰めた後の字数で数える。
 20. 設計の行を書いた直後の読み直し（11 節の 10）で読めなければ、目の控え `eye.json` の `status` を `design_unreadable` にし、受け付けは `ok: false, done: true, give_up: false` を返す。出口はそれを `failed` と「設計の行が読めない: <訳>」にする。

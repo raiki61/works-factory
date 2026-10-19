@@ -39,7 +39,10 @@ class ProblemsCase(_Case):
                            ("行が無い", []),
                            ("ポインタでない根拠", [{**CLEAN, "evidence": ["units/0/measure"]}]),
                            ("前に 0 を付けた添字", [{**CLEAN, "evidence": ["/units/00/measure"]}]),
-                           ("無い欄", [{**CLEAN, "evidence": ["/units/1/measure"]}])):
+                           ("無い欄", [{**CLEAN, "evidence": ["/units/1/measure"]}]),
+                           ("根拠が空の配列", [{**CLEAN, "evidence": []}]),
+                           ("汚れるで chosen_reason が無い", [{**DIRTY, "chosen_reason": ""}]),
+                           ("汚れるで chosen_reason の欄が無い", [{k: v for k, v in DIRTY.items() if k != "chosen_reason"}])):
             with self.subTest(name):
                 self.assertTrue(self.eye.problems(SHOWN, {"rows": rows}))
         self.assertTrue(self.eye.problems(SHOWN, None))

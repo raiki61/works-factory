@@ -21,7 +21,7 @@ inputs:
     description: 'file: after の時の修正案の欄のファイル（plan-fields.json。欄 fields）。構造の目の避け方から外れた訳を読む。空の字は、修正案が渡されていない。before では読まない'
   lang:
     default: ''
-    description: 'text: 人に見せる欄（reason・chosen・chosen_reason・rejected・undecided_because）の言語。空は単位の summary の言語'
+    description: 'text: 人に見せる欄（reason・chosen・chosen_reason・rejected・undecided_because）の言語。空は共通の既定（依頼の言語）'
 returns: finish
 outcome_field: ok
 nodes:

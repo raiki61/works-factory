@@ -106,7 +106,8 @@ def before(out, units, root, given, policy) -> dict:
         if failed:
             doc.update(status="failed", reason=f"実測が落ちた単位: {', '.join(failed)}")
         try:
-            _intent(out, root, "HEAD", [p for u in got for p in u["paths"]], given, policy)
+            head = intent._git(root, "rev-parse", "HEAD").strip()   # 見出しに出す版を commit に決める（字の HEAD のままにしない）
+            _intent(out, root, head, [p for u in got for p in u["paths"]], given, policy)
         except RuntimeError as e:
             doc.update(status="failed", reason=f"書いた意図を探せない: {e}")
     libeye.stamp(doc, t0, started_at=started, finished_at=_now())

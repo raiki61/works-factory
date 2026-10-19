@@ -244,7 +244,8 @@ class IntentCase(_RepoCase):
 
     def test_found_by_the_fixed_names_shallow_first(self):
         self.survey(self.unit)
-        self.assertEqual([(d["path"], d["rev"]) for d in self.read("intent.json")], [("AGENTS.md", "HEAD"), ("pkg/AGENTS.md", "HEAD")])
+        head = git(self.run.repo, "rev-parse", "HEAD")
+        self.assertEqual([(d["path"], d["rev"]) for d in self.read("intent.json")], [("AGENTS.md", head), ("pkg/AGENTS.md", head)])
 
     def test_prompt_carries_the_documents_and_the_dirty_row_is_checked_against_them(self):
         self.survey(self.unit)
@@ -293,10 +294,28 @@ class IntentCase(_RepoCase):
         run.script("survey", units=json.dumps([{"id": "u1", "paths": ["a.py"], "summary": "s"}]))
         prompt = run.script("prep")["prompt"]
         self.assertNotIn("## Written intent", prompt)
-        self.assertIn("The target has no written intent documents", prompt)
+        self.assertIn("No written intent document of the target could be read", prompt)
         got = run.script("take", reply=json.dumps({"rows": [{**clean("u1"), "intent": [{"path": "x", "quote": "y" * 30}]}]}))
         self.assertIn("書いた意図の文書は見せていない", got["reason"])
         self.assertTrue(run.script("take", reply=json.dumps({"rows": [clean("u1")]}))["ok"])
+
+    def test_clean_row_whose_quote_is_not_in_the_shown_text_is_rejected(self):
+        """決め 19: 汚れない行の intent にも、見せた本文に字のまま在るかの照らしを当てる"""
+        self.survey(self.unit)
+        self.run.script("prep")
+        got = self.take(self.reply({**clean("u1"), "intent": [{"path": "AGENTS.md", "quote": "この文は AGENTS.md に書いていない文である"}]}))
+        self.assertFalse(got["ok"])
+        self.assertIn("AGENTS.md の抜き書きが、見せた本文に字のまま無い", got["reason"])
+
+    def test_git_failure_while_finding_intent_is_a_failed_state_without_an_eye(self):
+        """HEAD が無い（commit が 1 つも無い）対象では書いた意図を探せず、status failed で目を起こさない"""
+        run = kit.Run(self, "structure")
+        (run.repo / "a.py").write_text("x = 1\n", encoding="utf-8")
+        got = run.script("survey", units=json.dumps([{"id": "u1", "paths": ["a.py"], "summary": "s"}]))
+        self.assertFalse(got["eye"])
+        doc = json.loads((run.artifacts / "structure.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["status"], "failed")
+        self.assertIn("書いた意図を探せない", doc["reason"])
 
     def test_given_intent_replaces_the_fixed_names(self):
         self.survey(self.unit, intent=json.dumps(["other/AGENTS.md"]))

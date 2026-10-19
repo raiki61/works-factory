@@ -1,6 +1,6 @@
 """structure-eye の node の中身（docs/design/structure.md の 2・4 節。lib/eye.py の prep・problems・accept・state の写し）。
 
-目は道具を持たない独立の会話の役で、見せるのは view.json の単位ごとの {id, summary, measure, concepts} と対象の決まり rules と、
+目は道具を持たない独立の会話の役で、見せるのは view.json の単位ごとの {id, summary, measure, concepts} と、
 問いと 6 つの形（文は prompts/structure-eye.md）。行き先 route は「自分で決める」か「人に上げる」。人に上げるのは決め手を当たっても
 1 つに決まらない汚れる行だけで、決まらない訳（undecided_because）と捨てた案と代償（rejected）が要る。受け付けは返答を機械で確かめ、
 通れば設計の行を design.jsonl に書く。拒めば理由を返し、同じ会話で出し直させる（3 回目の拒否で done・give_up。線は止めない）。
