@@ -20,7 +20,6 @@ if str(LIB) not in sys.path:
 
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import leftovers  # noqa: E402
-import writelog  # noqa: E402
 import writes  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
 

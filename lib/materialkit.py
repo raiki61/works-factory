@@ -7,7 +7,7 @@
 
 公開の名:
 - 定数: INTAKE・VIEW・DIFF・CHANGED・TREE・ACCEPTED・MATERIAL（place のファイルの名）・STATUSES・OK_STATUSES・
-  Rule・STATUS・SILENT_STATUS・OBSERVED_STATUS・MATERIALS・READONLY_MOVED・LOCATION_HEAD・LOCATION_MARK・SNAPSHOT_FALLBACK_IDENT・
+  Rule・STATUS・SILENT_STATUS・UNMEASURED・OBSERVED_STATUS・MATERIALS・READONLY_MOVED・LOCATION_HEAD・LOCATION_MARK・SNAPSHOT_FALLBACK_IDENT・
   NA_MODES・REVIEW_MD
 - View・take_view・numstat_totals・worktree_tree・snapshot（対象差分の見方）
 - snap_tree・moved_since（作業ツリーの写しと照らし）
@@ -68,6 +68,7 @@ STATUS = {name: Rule(*args) for name, args in {
     "not_run": (("reason",), True, False, False),
 }.items()}
 SILENT_STATUS = tuple(k for k, r in STATUS.items() if not r.observed and not r.blocks)
+UNMEASURED = tuple(k for k, r in STATUS.items() if r.blocks)   # 今の周に測れていない状態（阻害になる物。gatemarks の写しの代わり。integration.md 4.2-5）
 OBSERVED_STATUS = tuple(k for k, r in STATUS.items() if r.observed)
 # 写す元 lib/judge_accept.py の MATERIALS（元 review-record.py:107）
 MATERIALS = (

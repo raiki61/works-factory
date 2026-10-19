@@ -274,6 +274,11 @@ class LocationCase(_RepoCase):
 
 
 class RecordCase(unittest.TestCase):
+    def test_unmeasured_is_the_blocking_statuses(self):
+        """測れていない状態 UNMEASURED は素材の状態の表 STATUS の阻害になる物（blocks が真）から導く 1 つだけ（integration.md 4.2-5）"""
+        self.assertEqual(set(mk.UNMEASURED), {k for k, r in mk.STATUS.items() if r.blocks})
+        self.assertEqual(set(mk.UNMEASURED), {"not_run", "awaiting_human"})
+
     def test_accept_rules(self):
         """元 MaterialCase.test_accept_rules と check_record の文（「ノード」を「観点」に、graph への宣言の求めを外した）"""
         cases = (

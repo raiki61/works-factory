@@ -16,11 +16,8 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import answer  # noqa: E402
-import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
-import planfile  # noqa: E402
 import seal  # noqa: E402
-import startrec  # noqa: E402
 
 FORK = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "depends": ["B"], "options": ["x", "y"], "reason": "割れる"}
 PUSHED_FORK = {**FORK, "reason": "割れる。推し: x——呼び手が既に x を前提にしている"}
@@ -48,40 +45,25 @@ class DutyCase(unittest.TestCase):
             (self.jdir / name).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         self.start = {"run_id": "run-1", "answers": ANSWERS}
 
-    def plan_duty(self) -> set:
-        """plan の口: 線の指し札の先を read_judgment で読み、planfile.plan_slots の必ず入れる単位"""
-        raw = {name: json.dumps({"path": str(self.jdir / name)}) for name in ("judgment.json", "answer-ties.json", "materials.json")}
-        judgment, why = planfile.read_judgment(raw["judgment.json"], self.start, lambda text: pathlib.Path(json.loads(text)["path"]),
-                                               ties=raw["answer-ties.json"], materials=raw["materials.json"])
-        self.assertEqual(why, "")
-        return planfile.plan_slots(judgment)[0]
+    def ledger(self, gate=None, takes_push=False):
+        """値の見え方: 判定・結び・素材の状態のファイルと依頼の answers・関所の答え・無人の run か（始めの記録は読まない。呼び手が値で渡す）"""
+        judgment = json.loads((self.jdir / "judgment.json").read_text(encoding="utf-8"))
+        return gatemarks.ledger_files(judgment, ties_file=self.jdir / "answer-ties.json", materials_file=self.jdir / "materials.json",
+                                      answers=self.start["answers"], gate=gate, takes_push=takes_push)
 
-    def fix_duty(self, answers=None) -> set:
-        """fix の口: prep が置き場に写す物（判定・始めの記録・入力の結びと素材の状態の写し・関所の答え）から group_owed と fix_duty"""
-        place = self.tmp / "fix"
-        place.mkdir(exist_ok=True)
-        startrec.write(place, self.start)
-        for name, copy in (("judgment.json", fixboard.JUDGMENT_FILE), ("answer-ties.json", fixboard.TIES_FILE),
-                           ("materials.json", fixboard.MATERIALS_FILE)):
-            (place / copy).write_bytes((self.jdir / name).read_bytes())
-        if answers is not None:
-            (place / fixboard.ANSWERS_FILE).write_text(json.dumps(answers, ensure_ascii=False), encoding="utf-8")
-        owed = set(fixboard.group_owed(place))
-        self.assertEqual(fixboard.fix_duty(place, owed)[0], owed)
-        return owed
+    def owed(self, gate=None, takes_push=False) -> set:
+        return gatemarks.duty(self.ledger(gate, takes_push))
 
-    def test_plan_and_fix_get_the_same_duty(self):
+    def test_duty_of_the_ledger(self):
         """開いた単位 − 答えの無い問い（fork・escalate）の出どころ・depends ＋ 依頼の answers が答えた問いの出どころ・depends
-        （字の一致・判定の結び・測れていない素材の名のどれで当たっても。開いていない単位も戻る）"""
-        want = {"D", "E", "F", "G"}
-        self.assertEqual(self.plan_duty(), want)
-        self.assertEqual(self.fix_duty(), want)
+        （字の一致・判定の結び・測れていない素材の名のどれで当たっても。開いていない単位も戻る）。plan と fix は同じこの口を呼ぶ"""
+        self.assertEqual(self.owed(), {"D", "E", "F", "G"})
 
     def test_gate_continue_returns_what_it_was_asked(self):
         """P241: 関所の continue は asked に載った問いだけに答え、その出どころ・depends を直す義務に戻す（fix だけに届く）"""
         gate = {"decision": "approve", "text": "", "asked": [gatemarks.ask_text(FORK)]}
-        self.assertEqual(self.fix_duty(gate), {"A", "B", "D", "E", "F", "G"})
-        self.assertEqual(self.fix_duty({**gate, "asked": []}), {"D", "E", "F", "G"})
+        self.assertEqual(self.owed(gate), {"A", "B", "D", "E", "F", "G"})
+        self.assertEqual(self.owed({**gate, "asked": []}), {"D", "E", "F", "G"})
         held = gatemarks.ledger(JUDGMENT, gate={**gate, "text": "保留: q-a"})
         self.assertEqual(gatemarks.duty(held), {"G"}, "「保留: <key>」で名指した問いは答えに数えない")
 
@@ -107,16 +89,15 @@ class DutyCase(unittest.TestCase):
         want = {"D", "E", "F", "G"}
         escalated = {**FORK, "key": "q-x", "status": "escalate", "origin": "C", "depends": [], "reason": "人でないと決められない。推し: x"}
         self.judge(PUSHED_FORK, escalated, {**ESC, "reason": "人でないと決められない。推し: z"})
-        self.assertEqual((self.plan_duty(), self.fix_duty()), (want, want), "人のいる run は推しを採らない")
-        self.start = {**self.start, "unattended": "true"}
-        self.assertEqual((self.plan_duty(), self.fix_duty()), (want | {"A", "B"}, want | {"A", "B"}), "fork・escalate の推しは採らない")
-        self.assertEqual([q["key"] for q, _, _ in gatemarks.taken_pushes(fixboard.gate_view(self.tmp / "fix"))], ["q-a"])
-        line = next(x for x in gatemarks.returned_lines(fixboard.gate_view(self.tmp / "fix")) if "q-a" in x)
+        self.assertEqual(self.owed(), want, "人のいる run は推しを採らない")
+        self.assertEqual(self.owed(takes_push=True), want | {"A", "B"}, "fork・escalate の推しは採らない")
+        self.assertEqual([q["key"] for q, _, _ in gatemarks.taken_pushes(self.ledger(takes_push=True))], ["q-a"])
+        line = next(x for x in gatemarks.returned_lines(self.ledger(takes_push=True)) if "q-a" in x)
         self.assertTrue(line.startswith(f"{answer.PUSHED_NOTE}\n無人の run が採った推しで答えた{gatemarks.ASK_HEAD} q-a"), line)
         self.assertIn("——推し: x——呼び手が既に x を前提にしている。", line)
         self.assertEqual(line.count(answer.PUSHED_NOTE), 1)
         self.judge(FORK, ESC)
-        self.assertEqual((self.plan_duty(), self.fix_duty()), (want, want), "推しの無い問いは止まる")
+        self.assertEqual(self.owed(takes_push=True), want, "推しの無い問いは止まる")
 
     def test_unattended_run_takes_only_a_push_that_names_an_option_of_open_units(self):
         """#593: 推しの最後の「推し:」の頭が選択肢のどれかを名指し、出どころ・depends が開いた単位の時だけ採る。ほかは保留のまま
@@ -175,20 +156,8 @@ class PushRecCase(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIsNone(gatemarks.push_rec(text))
 
-    def test_row_push_is_the_policy_reading_of_the_tail(self):
-        """#653: 推しの尾の読みを無人の方針の口（gatepolicy.passage）に渡す形にする。通すかと note は尾の字のまま、答えに残す読みは push_rec"""
-        rows = [self.row(), self.row(), gatemarks._item("修正案 2 が狭める能力: y", {gatemarks.RECOMMEND: {**self.REC, "note": "y で通す"}})]
-        got = gatemarks.gatepolicy.passage(rows, gatemarks.row_push).pushed
-        self.assertEqual((got["decision"], got["text"]), ("continue", "空の列は 0 を返す・形で通す；y で通す"))
-        self.assertEqual(got[gatemarks.answer.PUSHED], [gatemarks.push_rec(r) for r in rows])
-        self.assertEqual(gatemarks.row_push(self.row(answer="stop")).go, False)
-        self.assertIsNone(gatemarks.row_push(self.BODY))
-        for rows in ([], [self.row(), self.BODY], [self.row(), self.row(answer="stop")]):
-            with self.subTest(rows=rows):
-                self.assertIsNone(gatemarks.gatepolicy.passage(rows, gatemarks.row_push).pushed)
-
     def test_the_go_push_word_is_the_go_answer_word(self):
-        """#733: 通す推しの字（row_push の go）と、推しで進んだ時に口が答えに書く字（gatepolicy.passage の decision）は同じ"""
+        """#733: 通す推しの字と、推しで進んだ時に答えに書く字（answer.VERBS の頭）は同じ"""
         self.assertEqual(gatemarks.RECOMMEND_ANSWERS[0], answer.VERBS[0])
 
     def test_scenario_rows_are_read(self):
@@ -199,12 +168,6 @@ class PushRecCase(unittest.TestCase):
                 text = (fixtures / f"{name}.stubs.yaml").read_text(encoding="utf-8")
                 row = next(line.split('"text": "', 1)[1].split('"', 1)[0] for line in text.splitlines() if "／推し: " in line)
                 self.assertEqual(gatemarks.push_rec(row)["answer"], word)
-
-    def test_gate_items_keep_the_push_origin(self):
-        """推しで通した答えを human_items の行にしても欄 answer.PUSHED を落とさない（人の答えの行は持たない）"""
-        pushed = gatemarks.gatepolicy.passage([self.row()], gatemarks.row_push).pushed
-        self.assertEqual(gatemarks.gate_items(pushed)[0][gatemarks.answer.PUSHED], pushed[gatemarks.answer.PUSHED])
-        self.assertNotIn(gatemarks.answer.PUSHED, gatemarks.gate_items({"decision": "continue", "text": "人"})[0])
 
     def test_pass_line_tells_a_push_from_a_human(self):
         row = {"node": gatemarks.R4_GATE_NODE, "round": 1, "item": "x", "passed_at": {"node": gatemarks.GATE_NODE, "round": 1}}
