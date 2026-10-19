@@ -23,7 +23,7 @@ GATES_MERGE_WHY = "変異の検算は合流した版でまとめて 1 回撃つ�
 def due(view, values) -> materialkit.Due:
     if values.get("gates") == GATES_MERGE:
         return materialkit.Due(False, GATES_MERGE_WHY)
-    if values.get("entry"):
+    if materialkit.is_entry_run(view, values):
         return materialkit.entry_skip("ゲートの検算")
     return materialkit.Due(True, "ゲートの検算は合流の道でも判定から入る run でもない run で回す"
                                  "（差分の形の申告 touches_gates は機械が真に倒す。1 run は 1 周で、いつも初回）")
@@ -34,7 +34,7 @@ def fill(view, values, due) -> dict:
         return {"gate_efficacy": {"status": "not_applicable",
                                   "reason": f"{GATES_MERGE_WHY}——差分はゲートに触れているが、この run では撃たない。"
                                             "合流した版を gates=merge 無しの run で回し、そこの P1 のゲートの検算が撃つ"}}
-    if values.get("entry"):
+    if materialkit.is_entry_run(view, values):
         return {"gate_efficacy": materialkit.fill_entry(values["entry"], None)}
     raise NotImplementedError("回す時の素材の埋めは呼ばれない")
 

@@ -70,11 +70,11 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`workflows/judge/works-factory-judge.yaml:1548`）
   - `NA = "cond"`、`NA_REASON = "対象差分は検証ゲート（CI ジョブ・assert・テスト・pre-commit）を新設・変更していない"`（今の `MATERIAL_NODES['p1.gate_efficacy']['na_reason']`、`:1676`）。
   - `GATES_MERGE = "merge"`、`GATES_MERGE_WHY = "変異の検算は合流した版でまとめて 1 回撃つ（init --input gates=merge）"`（字のまま。`:366`・`:1301`）。
-  - `due(view, values)`: 順に、(1) `values["gates"] == GATES_MERGE` なら `materialkit.Due(False, GATES_MERGE_WHY)`（今の `_deep_due` の `merge_off` が入口より先に見る順。`:1552-1555`）、(2) `values["entry"]` が空でなければ `materialkit.entry_skip("ゲートの検算")`、(3) ほかは `materialkit.Due(True, "ゲートの検算は合流の道でも判定から入る run でもない run で回す（差分の形の申告 touches_gates は機械が真に倒す。1 run は 1 周で、いつも初回）")`。今の `gate_efficacy_due` の 1 周目の値（`touches_gates` 真・前の周の修正なし）は、合流と入口を外せばいつも真。
-  - `fill(view, values, due)`: `values["gates"] == GATES_MERGE` なら `{"gate_efficacy": {"status": "not_applicable", "reason": f"{GATES_MERGE_WHY}——差分はゲートに触れているが、この run では撃たない。合流した版を gates=merge 無しの run で回し、そこの P1 のゲートの検算が撃つ"}}`（`_fill_one` の `:1946-1949` の字のまま）。`values["entry"]` が空でなければ `{"gate_efficacy": materialkit.fill_entry(values["entry"], 0)}`（`request` を持たないので件数の句は materials.md の 2.6 の「渡されていない」の形）。ほかは `raise NotImplementedError`（`due` が真の時は呼ばれない）。
+  - `due(view, values)`: 順に、(1) `values["gates"] == GATES_MERGE` なら `materialkit.Due(False, GATES_MERGE_WHY)`（今の `_deep_due` の `merge_off` が入口より先に見る順。`:1552-1555`）、(2) `materialkit.is_entry_run(view, values)`（`entry` が在り、かつ対象差分が空）なら `materialkit.entry_skip("ゲートの検算")`（修正が入って差分が出来た run は入口の周でないので、古い `entry` が残っていても検算を回す）、(3) ほかは `materialkit.Due(True, "ゲートの検算は合流の道でも判定から入る run でもない run で回す（差分の形の申告 touches_gates は機械が真に倒す。1 run は 1 周で、いつも初回）")`。今の `gate_efficacy_due` の 1 周目の値（`touches_gates` 真・前の周の修正なし）は、合流と入口を外せばいつも真。
+  - `fill(view, values, due)`: `values["gates"] == GATES_MERGE` なら `{"gate_efficacy": {"status": "not_applicable", "reason": f"{GATES_MERGE_WHY}——差分はゲートに触れているが、この run では撃たない。合流した版を gates=merge 無しの run で回し、そこの P1 のゲートの検算が撃つ"}}`（`_fill_one` の `:1946-1949` の字のまま）。`materialkit.is_entry_run(view, values)` なら `{"gate_efficacy": materialkit.fill_entry(values["entry"], None)}`（`request` を持たないので件数の句は materials.md の 2.6 の「渡されていない」の形）。ほかは `raise NotImplementedError`（`due` が真の時は呼ばれない）。
   - `applies(view, values)`: `materialkit.Due(True, "差分が検証ゲートに触れる")`（今の `gates_touched` は `touches_gates` を機械が真に倒すので、1 run = 1 周ではいつも真。理由の字は `_touched` の真の枝の字。`:1479`）。
   - `judged_na(view, values)`: `got = signals.signals_of(view)`。`got is None` なら `False`、ほかは `not got`（今の `role_judged_na`。`touches_gates` を外して評価する条件は、前の周の修正の申告が無いのでいつも偽で、残るのは印の有無だけ）。
-  - `values(view, values)`: `{"repo": str(view.repo), "base": view.base, "diff_file": view.diff_file, "changed_files_file": view.changed_files_file, "decl_name": mutation.DECL_NAME}` に、`m = mutation.state(view.repo)` から、`m["declared"]` なら `mutation_argv`（`m["argv"]`）・`mutation_arms`（`m["arms"]`）を、`not m["declared"] and m["error"]` なら `mutation_error`（`m["error"]`）を足した物（入る段落の口の値だけ。materials.md の 2.11）。
+  - `values(view, values)`: `{"repo": str(view.repo), "base": view.base, "diff_file": view.diff_file, "changed_files_file": view.changed_files_file, "decl_name": mutation.DECL_NAME}` に、`m = mutation.state(view.repo)` から `mutation_argv`（`m["argv"]`）・`mutation_arms`（`m["arms"]`）・`mutation_error`（`m["declared"]` なら空の字、ほかは `m["error"]`）の 3 つを足した物。段落が入らない回も 4 つの値（`decl_name` を含む）をいつも渡す（条件ごとの足し分けにしない。7 節の決めと同じ）。
   - `when(view, values)`: `m = mutation.state(view.repo)`。`{"spawns": False, "mutation_declared": m["declared"], "mutation_undeclared": not m["declared"], "mutation_unreadable": (not m["declared"]) and bool(m["error"])}`。
   - `before(view, values, reply, place)`: `return None, reply, False`。
   - `after(view, values, reply, place)`: `return arms.arms_problem(NAME, reply)`。
@@ -131,7 +131,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:query-rule}
 
-You are the gate-efficacy role, started in a new conversation. Your only job is to check that the verification gates the target diff adds or changes really catch the violations they are meant to catch. You are given neither the local findings nor any other material.
+You are the gate-efficacy role. Your only job is to check that the verification gates the target diff adds or changes really catch the violations they are meant to catch. You are given neither the local findings nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox. Make your copies of the repository in a temporary place (`mktemp -d`); the wrapper stops writes to the target's working tree.
 
@@ -208,7 +208,7 @@ md の中に `$` の字は無い。差し込み口のほかの `{` も無い。�
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …}
 
-You are the gate-efficacy role, started in a new conversation. …（決まった文）
+You are the gate-efficacy role. …（決まった文。役は同じ会話の続きで起こし直されるので「新しい会話」とは書かない）
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox. …
 
@@ -290,7 +290,7 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
 
 - standalone の fixture（`blocks/gate-efficacy/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`gates: ""`・`entry: ""`・`lang: ""`。AI の node `gate-efficacy` だけを台本の返答（`material: {status: clean, checked: "…"}`・`arms` 1 行〔`red_confirmed: true`・`control_green: true`・`hit_evidence` 10 字以上〕）で差し替え、script は本物。`reached` に `finish`。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: clean`・`arms: []`（腕が 0 行で拒まれる）。`finish` の `status` が `gave_up`、run は `completed`。
+  - `gave-up.stubs.yaml`: 台本の返答は `material.status: clean`・`arms: []`（腕が 0 行で拒まれる）。筋書きでは輪が 1 周で終わるので拒否は 1 回で、run は `completed`、出口は落ちずに返る（fixture 自身の注にあるとおり）。3 回で諦めて `finish` が `status: gave_up` を返す数えは `test_gate_efficacy.py` の `test_three_rejections_give_up` が確かめる。
   - `skipped.stubs.yaml`: `gates: merge`。AI の node に届かず、`finish` の `status` が `skipped`。
   - `entry.stubs.yaml`: `entry: "人の依頼（standalone）"`。`finish` の `status` が `skipped`。
 - `tests/blocks/gate_efficacy/test_gate_efficacy.py`（materials.md の 8 節の block の試験。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリ）:
@@ -302,16 +302,15 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
   - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:95` の表の gate-efficacy の行（`"sonnet", "medium", INVESTIGATE, DELEGATE, …`）が照らす物と同じ。
 - `tests/blocks/gate_efficacy/test_signals.py`: 写す元 `lib/tests/test_judge_accept.py::GateSignalsCase` の 4 本（`test_docstring_only_diff_has_no_signal`・`test_gate_files_are_signals`・`test_added_or_removed_assert_is_a_signal`・`test_context_assert_is_not_a_signal`）を `src.signals.gate_signals` に向ける。`test_only_the_gate_node_lets_the_role_judge`（ほかの節は差し替えを受けない）は写さない（`judged_na` はこの block の宣言だけが持ち、ほかの観点の `judged_na` が偽を返すことは各観点の `test_viewpoint.py` が見る）。
 - `tests/blocks/gate_efficacy/test_viewpoint.py`: materials.md の 8 節。`NA == "cond"` なので `applies` は `Due(True, …)` を返し、`fill` は `due` が真の値で `NotImplementedError` を上げる。
-- 指示の比べ（README の 11.4）: `tests/blocks/gate_efficacy/test_prompts.py`。
+- 指示の比べ（README の 11.4）: `tests/blocks/gate_efficacy/test_prompts.py`（1 つ目の commit だけ。2 つ目の commit で消した）。
   - 1 つ目の commit: `prompts/gate-efficacy.md` を、今の `workflows/judge/commands/material-gate-efficacy.md` の `$gate-efficacy-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く（prior-decisions.md の 2.9 と同じ形）。試験は例の run の値（`base`・リポジトリのパス・変異の宣言なし・ゲートの印あり）で、(a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が例の run の `judge/material-gate-efficacy-brief.md` と同じ（run directory とリポジトリのパスは試験の物に置き換えて比べる）ことを照らす。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、例の run の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
 - 守る keep-essence の番号: 無い（README の 10 節の 12 の仕組みにこの観点は出てこない。1 の赤緑の機械の判定は fix の仕組みで、この観点の腕の赤とは別）。守るのは「腕が赤・対照の緑・守る行の通過をそろえずに `clean` を名乗れない」と「ゲートの印の無い差分だけ役の『条件に当たらない』を受ける」で、上の試験が見る。
-- 終わりの条件の命令（1 モジュールずつ）:
+- 終わりの条件の命令（1 モジュールずつ。1 つ目の commit では `tests.blocks.gate_efficacy.test_prompts` も回した。2 つ目の commit で消した）:
 
 ```sh
 uv run --isolated python3 -m unittest discover -s tests/blocks/gate_efficacy -t .
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
-uv run --isolated python3 -m unittest tests.blocks.gate_efficacy.test_prompts
 ```
 
 ## 3 script の node

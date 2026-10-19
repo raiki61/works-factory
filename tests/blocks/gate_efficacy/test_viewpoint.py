@@ -18,24 +18,34 @@ class ViewpointCase(unittest.TestCase):
                          ("gate-efficacy", ("gate_efficacy",), False, "cond", True))
 
     def test_applies_is_always_true_and_fill_is_not_called_when_due(self):
-        self.assertTrue(self.vp.applies(None, {}).run)
-        due = self.vp.due(None, {"gates": "", "entry": ""})
+        view = self.view(".")
+        self.assertTrue(self.vp.applies(view, {}).run)
+        due = self.vp.due(view, {"gates": "", "entry": ""})
         self.assertTrue(due.run)
         with self.assertRaises(NotImplementedError):
-            self.vp.fill(None, {"gates": "", "entry": ""}, due)
+            self.vp.fill(view, {"gates": "", "entry": ""}, due)
 
     def test_due_order_merge_first_then_entry(self):
-        merge = self.vp.due(None, {"gates": "merge", "entry": "人の依頼（x）"})
+        empty = self.view(".", files=())
+        merge = self.vp.due(empty, {"gates": "merge", "entry": "人の依頼（x）"})
         self.assertEqual((merge.run, merge.why), (False, self.vp.GATES_MERGE_WHY))
-        entry = self.vp.due(None, {"gates": "", "entry": "人の依頼（x）"})
+        entry = self.vp.due(empty, {"gates": "", "entry": "人の依頼（x）"})
         self.assertFalse(entry.run)
         self.assertEqual(entry, self.mk.entry_skip("ゲートの検算"))
-        self.assertTrue(self.vp.due(None, {"gates": "other", "entry": ""}).run, "merge 以外の字は回す")
+        self.assertTrue(self.vp.due(empty, {"gates": "other", "entry": ""}).run, "merge 以外の字は回す")
         both = {"gates": "merge", "entry": "人の依頼（x）"}
-        self.assertTrue(self.vp.fill(None, both, self.vp.due(None, both))["gate_efficacy"]["reason"].startswith(self.vp.GATES_MERGE_WHY))
+        self.assertTrue(self.vp.fill(empty, both, self.vp.due(empty, both))["gate_efficacy"]["reason"].startswith(self.vp.GATES_MERGE_WHY))
         only_entry = {"gates": "", "entry": "人の依頼（x）"}
-        self.assertEqual(self.vp.fill(None, only_entry, None), {"gate_efficacy": self.mk.fill_entry("人の依頼（x）", None)})
-        self.assertEqual(self.vp.fill(None, only_entry, None)["gate_efficacy"]["status"], "not_applicable")
+        self.assertEqual(self.vp.fill(empty, only_entry, None), {"gate_efficacy": self.mk.fill_entry("人の依頼（x）", None)})
+        self.assertEqual(self.vp.fill(empty, only_entry, None)["gate_efficacy"]["status"], "not_applicable")
+
+    def test_entry_with_a_diff_is_not_an_entry_run(self):
+        """修正が入って差分が出来た run は、古い entry が残っていても検算を回す（materialkit.is_entry_run）"""
+        view = self.view(".", files=("tests/test_a.py",))
+        values = {"gates": "", "entry": "人の依頼（x）"}
+        self.assertTrue(self.vp.due(view, values).run)
+        with self.assertRaises(NotImplementedError):
+            self.vp.fill(view, values, self.vp.due(view, values))
 
     def test_judged_na_follows_the_signals(self):
         import pathlib
