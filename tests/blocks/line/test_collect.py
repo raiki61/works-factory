@@ -208,6 +208,44 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(self.f.policy_lines({"policy": frozen}, self.run.repo, self.run.artifacts), [])
 
 
+class MoreLinesCase(unittest.TestCase):
+    """人が決めることの節の後ろの行（元 runreport の _conflict_line・unproven_lines・pr_lines・inner_word_lines・_gate_passes・
+    _amend_lines・_line_lines。能力を残す）"""
+
+    def setUp(self):
+        self.f = kit.load(BLOCK, "facts")
+        self.run = kit.Run(self, BLOCK)
+        seed(self.run)
+
+    def after(self, values):
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            return self.f.build(values, record(), cwd=self.run.repo)["decisions"]["after"]
+
+    def test_lines_are_kept(self):
+        v = passing()
+        (self.run.artifacts / "judge").mkdir()
+        (self.run.artifacts / "judge" / "pr-excluded.json").write_text(json.dumps(
+            {"excluded": [{"pr": 7, "file": "a.py", "start": 1, "end": 3, "why": "重なる"}]}))
+        v["judge"] = {**v["judge"], "excluded": ptr("judge/pr-excluded.json")}
+        v["ask_before_fix"] = {**v["ask_before_fix"], "passes": [{"node": "p2.human_gate", "round": 1, "by": "decided", "item": "行 x"}],
+                               "deferred": [{"kind": "fork", "text": "載せなかった問い"}]}
+        v["ask_final"] = {**v["ask_final"], "reasons": ["最後のテストが緑でない"]}
+        after = self.after(v)
+        joined = "\n".join(after)
+        self.assertTrue(after[[i for i, x in enumerate(after) if x.startswith("食い違いの申し出: ")][0]].startswith("食い違いの申し出: 0 件"))
+        self.assertIn("並行 PR #7 と重なるので外した範囲: a.py:1-3（重なる）", after)
+        self.assertIn("修正前の承認ノードが聞かずに通した行（gate-before-fix）: 1 件", after)
+        self.assertIn(self.f.DEFERRED_HEAD + ": 1 件", after)
+        self.assertIn(self.f.FINAL_REASONS_HEAD + ": 1 件", after)
+        self.assertNotIn("組めない", joined)
+
+    def test_amend_lines_name_the_replanned_items(self):
+        v = passing()
+        v["fixed"] = {**v["fixed"], "replan_items": ["1"], "refixed": True}
+        after = self.after(v)
+        self.assertTrue(any(x.startswith("同じ run の中で直した修正案の項目: 1 件") for x in after), after)
+
+
 class SectionsCase(unittest.TestCase):
     def setUp(self):
         self.s = kit.load(BLOCK, "sections")
@@ -232,6 +270,11 @@ class SectionsCase(unittest.TestCase):
         self.assertEqual(tdd["files"], [{"label": "差分", "ref": ptr("fix/diff")}])
         entry = next(s for s in got if s["title"] == self.s.ENTRY)["lines"]
         self.assertIn("判定の裏取りを回さなかった: 既定で切（features の既定）", entry)
+        self.assertIn("決めた人: 承認ノードの答え 2 件", entry)
+        self.assertIn("直す前のテスト: 緑", entry)
+        self.assertTrue(any(x.startswith("始めの記録: run ") for x in entry), entry)
+        self.assertTrue(any(x.startswith("走った段: ") for x in entry), entry)
+        self.assertFalse([x for x in entry if "組めない" in x], entry)
         self.assertNotIn("深さ: 標準", entry, "省いた数が在れば raise の lines を tiers.lines で組み直す")
         self.assertTrue(any("軽量の単位 1 個で省いた" in x for x in entry), entry)
 

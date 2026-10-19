@@ -121,7 +121,7 @@ def compute():
     from src import facts, files, sections
     values = values_of(raw)
     record, why = record_of(values.get("start"))
-    built = facts.build(values, record, why)
+    built = facts.build(values, record, why, cwd=Path.cwd())
     secs = sections.build(values, record or {}, cwd=Path.cwd(), folder=ports.place())
     return {"sections": write(files.SECTIONS, secs), "facts": write(files.FACTS, built)}
 

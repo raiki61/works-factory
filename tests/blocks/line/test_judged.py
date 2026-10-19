@@ -55,11 +55,23 @@ class JudgedCase(unittest.TestCase):
         self.assertIn("再審の結果（1 往復）: overturned", got["lines"][0])
         self.assertIn({"where": "u3", "text": "u3（再審が直す単位にした——この run では直していない）"}, got["carry"])
 
+    def test_units_the_fix_took_are_not_left_open(self):
+        """再審が開いた単位のうち、修正の段が受けた単位は「この run では直していない」に数えない（入力 fixed_units）"""
+        run = kit.Run(self, BLOCK)
+        (run.artifacts / "re").mkdir()
+        (run.artifacts / "re" / "exit.json").write_text(json.dumps({"new_open_units": ["u1", "u3"], "verdicts": ["overturned"]}))
+        ptr = {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "re/exit.json"}
+        got = run.script("judged", fix_in=json.dumps(FIRST), rejudge_due="true", objection="",
+                         rejudge=json.dumps(rejudge(rejudge_exit=ptr)), fixed_units=json.dumps([{"unit_id": "u1", "status": "fixed"}]))
+        opened = [c["where"] for c in got["carry"] if "直す単位にした" in c["text"]]
+        self.assertEqual(opened, ["u3"])
+        self.assertEqual(got["new_open_units"], ["u1", "u3"], "出口の比べそのものは字のまま")
+
     def test_script(self):
         run = kit.Run(self, BLOCK)
-        got = run.script("judged", fix_in=json.dumps(FIRST), rejudge_due="false", objection="", rejudge="null")
+        got = run.script("judged", fix_in=json.dumps(FIRST), rejudge_due="false", objection="", rejudge="null", fixed_units="[]")
         self.assertEqual((got["rejudged"], got["stop_reason"]), (False, ""))
-        fell = run.script("judged", fix_in=json.dumps(FIRST), rejudge_due="true", objection="", rejudge=json.dumps({"ok": True}))
+        fell = run.script("judged", fix_in=json.dumps(FIRST), rejudge_due="true", objection="", rejudge=json.dumps({"ok": True}), fixed_units="[]")
         self.assertEqual(fell["stop_reason"], "works:line-script", "欄の欠けた前の版の返りは空と読まない")
 
 

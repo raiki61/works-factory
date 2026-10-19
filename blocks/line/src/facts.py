@@ -642,9 +642,121 @@ def constraints_of(returns: dict, run_id: str) -> list:
     return carry.carried_constraints(facts if isinstance(facts, list) else [], run_id)
 
 
+# ---------------------------------------------------------------- 人が決めることの節の後ろの行（元 runreport の _decisions の後ろ）
+# 写さない行（同じ行を block の report が返す。報告から行は落ちない）: verify_lines（verify の block の report。judge の graph の節
+# 「判定の単位の裏取り」）・premise_lines（premises の block の report。節「前提の実測」）・_design_lines（independent-design の block の
+# report。節「独立設計」）・_pr_draft_lines（parallel-pr の block の report。節「並行 PR」）・_converge_lines（line の rounds.lines。節「計画の往復」）
+DEFERRED_HEAD = "無人の run で修正前の承認ノードに載せずに報告へ回した問い（承認ノードを開かずに修正へ進めた）"
+FINAL_REASONS_HEAD = "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）"
+EYE_PASSES_HEAD = ("修正前の承認ノードで通した行（人が通したか、無人の run が推しで通したので、独立の目 R4 の問いから外して聞き直さ"
+                   "なかった行。どちらかは行ごとに書く）")
+
+
+def _counted(head: str, rows: list) -> list:
+    """見出しの件数の行と 1 件 1 行（rows が空なら何も出さない）"""
+    import oneline
+    return [f"{head}: {len(rows)} 件", *[f"  - {oneline.one_line(x)}" for x in rows]] if rows else []
+
+
+def conflict_line(returns: dict) -> str:
+    """申し出の件数と裁定・種類の内訳（元 runreport._conflict_line）"""
+    import conflict
+    rows, _ = conflict_rows(returns)
+    c, k = conflict.counts_of(rows), conflict.kind_counts_of(rows)
+    plan_n = f"・案の項目を直す（{conflict.REPLAN}）{c[conflict.REPLAN]}" if conflict.REPLAN in c else ""
+    swap = f"・問いを置き換える（{conflict.REPLACE}）{c[conflict.REPLACE]}" if conflict.REPLACE in c else ""
+    swap += f"・判定をやり直す（{conflict.REJUDGE}）{c[conflict.REJUDGE]}" if conflict.REJUDGE in c else ""
+    kinds = [f"{x} {k[x]}" for x in conflict.DIV_KINDS] + ([f"種類なし {k[conflict.UNSET]}"] if conflict.UNSET in k else [])
+    return (f"{conflict.HEAD}: {c['parked']} 件（裁定の内訳。括弧は記録の名: テストの直しを許す（fix_test_scope）"
+            f"{c['fix_test_scope']}・コードをこう直す（fix_code_as）{c['fix_code_as']}・人に回す（ask_human）{c[conflict.ASK]}"
+            f"{swap}{plan_n}・裁定なし {c['unruled']}）。種類の内訳: " + "・".join(kinds))
+
+
+def unproven_lines(returns: dict) -> list:
+    """例で証明できない判定の問いの行（今の判定の judgment から。行は src/final.py の unproven_lines。最後の承認ノードと同じ口）"""
+    import querytest
+    from src import final
+    return _counted(querytest.UNPROVEN_HEAD, final.unproven_lines(as_dict(latest(returns, "judge")).get("judgment")))
+
+
+def pr_lines(returns: dict) -> list:
+    """並行 PR と重なるので外した範囲（判定の出力の欄 excluded の先。元 runreport.pr_lines。parallel-pr の block の report は外した範囲を
+    並べないので line が組む）"""
+    doc, why = read_ptr(as_dict(returns.get("judge")).get("excluded"))
+    if why:
+        return [f"並行 PR と重なるので外した範囲: {why}"]
+    rows = doc.get("excluded") if isinstance(doc, dict) else doc
+    return [f"並行 PR #{x.get('pr')} と重なるので外した範囲: {x.get('file')}:{x.get('start')}-{x.get('end')}（{x.get('why') or ''}）"
+            for x in _list(rows) if isinstance(x, dict)]
+
+
+def inner_word_lines(diff_ptr, known) -> list:
+    """直しの差分が足した行のうち works の内側の語を含む行（元 runreport.inner_word_lines。対象が直す前の版で既に使う語 known(語) は
+    数えない）。差分が無い・当たりが無ければ空。差分が読めなければその行"""
+    import report
+    if not diff_ptr:
+        return []
+    try:
+        text = stageslib.resolve(diff_ptr).read_text(encoding="utf-8", errors="replace")
+    except (OSError, *stageslib.READ_ERRORS) as e:
+        return [f"差分が読めない（{type(e).__name__}）——内側の語を確かめていない"]
+    rows = [f"{h['path']}:{h['line']}（{'・'.join(h['words'])}）: {h['text']}" for h in report.inner_word_hits(text, known)]
+    return [f"{report.INNER_WORDS_HEAD}: {len(rows)} 件", *[f"  - {r}" for r in rows]] if rows else []
+
+
+def gate_passes(values: dict, returns: dict) -> list:
+    """修正前の承認ノードが聞かずに通した行（ask-before-fix の passes。line が組む。元 runreport._gate_passes）と、人が通したので独立の
+    目 R4 の問いから外した行（eyes の passes）"""
+    import gatemarks
+    out = []
+    ask = values.get("ask_before_fix")
+    if isinstance(ask, dict):
+        rows = _list(ask.get("passes"))
+        out.append(f"修正前の承認ノードが聞かずに通した行（gate-before-fix）: {len(rows)} 件")
+        out += [f"  - {x}" for x in gatemarks.pass_lines(rows)]
+    eyes = returns.get("eyes")
+    if isinstance(eyes, dict) and _list(eyes.get("passes")):
+        rows = _list(eyes.get("passes"))
+        out += [f"{EYE_PASSES_HEAD}: {len(rows)} 件", *[f"  - {x}" for x in gatemarks.pass_lines(rows)]]
+    return out
+
+
+def amend_lines(values: dict, returns: dict, gates: dict, closed: bool) -> list:
+    """同じ run の中で直した修正案の項目ごとの 1 行（元 runreport._amend_lines。lib/replan.amend_lines）"""
+    import conflict
+    import replan
+    fix = as_dict(returns.get("fix"))
+    items = [str(i) for i in _list(fix.get("replan_items"))]
+    whys = {}
+    for r in conflict_rows(returns)[0]:
+        why = r.get(conflict.REPLAN_WHY)
+        for n in map(str, conflict.ruled_items(r)):
+            if isinstance(why, str) and why:
+                whys.setdefault(n, why)
+    rows = replan.amend_lines(items, refixed=fix.get("refixed") is True, answer=gates.get("gate-replan"),
+                              widened=_list(as_dict(values.get("ask_replan")).get("widened")), whys=whys, pending=not closed,
+                              gate="gate-replan")
+    return _counted(replan.AMEND_HEAD, rows)
+
+
+def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, cwd=None) -> list:
+    """人が決めることの節の後ろの行: 申し出の内訳・例で証明できない問い・外した範囲・内側の語・聞かずに通した行・直した案の項目・
+    載せなかった問いと最後の承認ノードを開ける理由"""
+    import report
+    rev = str(as_dict(as_dict(values.get("start")).get("ports")).get("base_rev") or "")
+    out = [conflict_line(returns), *unproven_lines(returns), *pr_lines(returns)]
+    out += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: report.target_uses(cwd, rev, w) if cwd else False)
+    out += gate_passes(values, returns)
+    out += amend_lines(values, returns, gates, closed)
+    out += _counted(DEFERRED_HEAD, [json.dumps(q, ensure_ascii=False) if not isinstance(q, str) else q
+                                    for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))])
+    out += _counted(FINAL_REASONS_HEAD, [str(r) for r in _list(as_dict(values.get("ask_final")).get("reasons"))])
+    return out
+
+
 # ---------------------------------------------------------------- 人が決めること
 def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unattended: bool, left: list, closed: bool, got: dict,
-              taken: list) -> tuple[dict, list, dict, list]:
+              taken: list, cwd=None) -> tuple[dict, list, dict, list]:
     """(decisions {before, after, outside}, asks [{kind, text}], tallied, counted_left)。結末で決まる塊（人が確かめる物・直しきれずに
     残った物・記録が通らないこと）は report が足す（report の設計書の 1.2 の asks）"""
     import fixboard
@@ -702,11 +814,7 @@ def decisions(values: dict, returns: dict, gates: dict, record: dict, *, unatten
     after += stageslib.always_rows(got)
     after += [*stageslib.tests_left_lines(got), *stageslib.gates_lines(got), *stageslib.plan_ask_lines(got)]
     after += [f"修正の控え: {x}" for x in got["unread"]]
-    after += [f"無人の run で修正前の承認ノードに載せずに報告へ回した問い: {oneline.one_line(q)}" for q in plan_qs if unattended]
-    after += [f"聞かずに通した範囲を広げるだけの直し: {oneline.one_line(json.dumps(w, ensure_ascii=False))}"
-              for w in _list(as_dict(values.get("ask_replan")).get("widened"))]
-    after += [f"最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）: {oneline.one_line(str(r))}"
-              for r in _list(as_dict(values.get("ask_final")).get("reasons"))]
+    after += more_lines(values, returns, gates, closed=closed, cwd=cwd)
     _, _, outside_count = _outside(returns)
     counted_left = [f"修正 {u.get('unit_id')}" for u in unreturned]
     return {"before": before, "after": after, "outside": [outside_count] if outside_count else []}, asks, tallied, counted_left
@@ -810,40 +918,16 @@ def outcome_parts(returns: dict, gates: dict, eyes_due, head_at: str) -> dict:
 
 
 # ---------------------------------------------------------------- 方針の文書の変化（integration.md 4.5-12）
-def change_row(ch: dict) -> str:
-    """関所の行の 1 行——置き場だけで本文を載せない（元 boardview.change_row の字。差分のファイルは作らないので diff_missing の訳）"""
-    where = (f"差分 {ch['diff_file']}" if ch.get("diff_file") else ch.get("diff_missing", "")) + \
-            f"・前の版の写し {ch.get('from_copy') or '（無い）'}・今の版の写し {ch.get('to_copy') or '（無い）'}"
-    return (f"人の方針の文書 {ch['path'] or '（無い）'} が固定した版から変わった: sha256 "
-            f"{str(ch['from'])[:12]} → {str(ch['to'])[:12] if ch['to'] else '消えた'}（{where}）")
-
-
-DIFF_NOT_MADE = "差分は作らない（写しを比べる）"
-
-
-def policy_change(record: dict, cwd, folder) -> dict | None:
-    """始めの記録の固めた方針（line が書き、修正前の答えで固め直す）から、今の方針の文書が変わったか（元 boardview.policy_change を
-    始めの記録の欄 policy で読む形にした物。変わっていなければ None。今の版の写しは policy.snapshot が folder の下に置く）"""
-    import policy
-    frozen = policy.version(record)
-    if frozen is None:
-        return None
-    path = policy.locate(cwd, frozen.get("named") or "") or frozen.get("path") or ""
-    to, to_copy = policy.snapshot(folder, path)
-    if to == frozen.get("sha256"):
-        return None
-    return {"path": path, "from": frozen.get("sha256"), "to": to, "from_copy": frozen.get("copy"), "to_copy": to_copy,
-            "diff_file": None, "diff_missing": DIFF_NOT_MADE}
-
-
 def policy_lines(record: dict, cwd, folder) -> list:
-    """方針の文書が始めに固定した版から変わったまま終わった run の 1 行（integration.md 4.5-12。報告の節 1 の方針の行）"""
+    """方針の文書が始めに固定した版から変わったまま終わった run の 1 行（integration.md 4.5-12。報告の節 1 の方針の行）。比べと行の字は
+    修正前の承認ノードと同じ口（src/gates.py の policy_change・change_row。元 boardview の同じ名）"""
     import oneline
+    from src import gates
     try:
-        ch = policy_change(record, cwd, folder)
+        ch = gates.policy_change(record, cwd, folder)
     except (OSError, ValueError) as e:
         return [f"{POLICY_CHANGED_HEAD}か: 確かめられない（{oneline.one_line(e)}）"]
-    return [f"{POLICY_CHANGED_HEAD}: {change_row(ch)}"] if ch else []
+    return [f"{POLICY_CHANGED_HEAD}: {gates.change_row(ch)}"] if ch else []
 
 
 # ---------------------------------------------------------------- 4.5-14: 軽量の単位で test_cmd を省いた数
@@ -878,7 +962,7 @@ RETURNED = (("test-gate-base", "test_gate_base"), ("judge", "judge"), ("structur
             ("merge-apply", "merge_apply"))
 
 
-def build(values: dict, record: dict | None, record_why: str = "") -> dict:
+def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> dict:
     """facts（docs/design/report.md の 1.2 の欄の全部）"""
     import oneline
     record = record or {}
@@ -912,7 +996,7 @@ def build(values: dict, record: dict | None, record_why: str = "") -> dict:
     taken = part("無人の run が採った推し", lambda: _taken(returns, gates, record, unattended), [], outcome=False)
     dec, asks, tallied, counted_left = part(
         "人が決めること", lambda: decisions(values, returns, gates, record, unattended=unattended, left=left, closed=closed, got=got,
-                                       taken=taken),
+                                       taken=taken, cwd=cwd),
         ({"before": [], "after": [], "outside": []}, [], {}, []), outcome=False)
     carried_rows = [*_list(fixed.get("carry")), *_list(as_dict(values.get("judged")).get("carry"))]
     findings = part("次の依頼", lambda: next_request(returns, left, closed, got, carried_rows), [])

@@ -35,7 +35,7 @@ SPEC_CHECK = "仕様の照らし"
 MERGE = "封じた差分と置いた差分"
 GROUPS = "模型の群の選び"
 LENS_NOT_DUE = "差分の審査を回さないのでレンズは起こさない（{why}）"   # 今の fixboard.LENS_NOT_DUE
-# judge の graph の節の見出し（blocks/judge/src/verdict.py の TITLES の値）のうち、line が名で引く物
+# judge の graph の節の見出し（judge の graph の src/verdict.py の TITLES の値）のうち、line が名で引く物
 JUDGE_WORLD = "世界の解"
 JUDGE_LOCAL = "素材: 局所レビュー"
 JUDGE_DIAGNOSE = "根本の診断"
@@ -83,22 +83,18 @@ def entry_lines(values: dict, record: dict, *, cwd, folder) -> list:
     """節 1 の行: 始めの記録の入口の文・固定材料・最後の承認ノードの開き方・段と機能・下げている所・省く物と足した物・深さの行・前の失敗・
     方針の行・直す前のテストの語・テストの凍結が効いていない組・判定の裏取りを回さなかった訳（docs/design/line.md の 7.1 の 1）"""
     start = _d(values.get("start"))
-    out = []
-    try:
-        from src import startrec
-        shape = startrec.shape(record)
-        if shape is not None:
-            out.append(f"入口: {startrec.words(shape)}")
-    except Exception as e:  # noqa: BLE001 — 行を組めなくても節を出す
-        out.append(f"入口の文を組めない（{type(e).__name__}: {e}）")
+    out = [*_part("始めの記録の行", lambda: record_lines(record)), *_part("入口の文", lambda: shape_lines(record))]
     if start.get("from_fixture") is True:
         out.append(f"固定材料から始めた（判定と修正案を作り直さず、修正から）: {json.dumps(start.get('fixture'), ensure_ascii=False)}")
-    if start.get("final_gate"):
-        out.append(f"最後の承認ノードの開き方: {start['final_gate']}")
+    out += _part("承認ノードの開き方の語", lambda: gate_words(record))
     switches = _d(_d(values.get("fix_in")).get("switches")) or _d(values.get("tiers"))
     if switches.get("tier"):
         out.append(f"run の頭の深さの段: {switches['tier']}")
+    out += _part("段と機能の行", lambda: tier_lines(record, switches.get("tier") or ""))
     out += [str(x) for x in _l(switches.get("lines"))]
+    out += _part("決めた人の行", lambda: decided_lines(values))
+    out += _part("forge の行", lambda: forge_lines(cwd))
+    out += _part("走った段の行", lambda: ran_lines(values))
     down = [r for name in ("judge", "independent_design", "rejudge", "parallel_after") for r in _l(_d(values.get(name)).get("downgrades"))
             if isinstance(r, dict)]
     if down:
@@ -117,6 +113,8 @@ def entry_lines(values: dict, record: dict, *, cwd, folder) -> list:
     except Exception as e:  # noqa: BLE001
         out.append(f"{factslib.POLICY_CHANGED_HEAD}か: 確かめられない（{type(e).__name__}: {e}）")
     base = _d(values.get("test_gate_base")) or _d(_d(_d(values.get("fix_in")).get("received")).get("test_gate_base"))
+    if base:
+        out += _part("直す前のテストの語", lambda: [f"直す前のテスト: {base_word(base)}"])
     if base.get("baseline_line"):
         out.append(str(base["baseline_line"]))
     off = [r for name in ("fix", "refix") for r in _l(_d(values.get(name)).get("freeze_off"))]
@@ -125,6 +123,103 @@ def entry_lines(values: dict, record: dict, *, cwd, folder) -> list:
     if judge and judge.get("verify") is None:
         out.append(f"判定の裏取りを回さなかった: {judge.get('verify_why') or '訳の記録が無い'}")
     return out
+
+
+def _part(name: str, fn) -> list:
+    """節 1 の行の 1 つを組む（組めなければ訳の 1 行。節は出す）"""
+    try:
+        return [str(x) for x in fn()]
+    except Exception as e:  # noqa: BLE001
+        return [f"{name}を組めない（{type(e).__name__}: {e}）"]
+
+
+def record_lines(record: dict) -> list:
+    """始めの記録の 1 行と固定材料の行（元 runreport._entry_lines の頭。src/fixture.py の lines）"""
+    from src import fixture, gates
+    s = _d(record)
+    return [f"始めの記録: run {s.get('run_id') or '—'}・元の版 {s.get('base_rev') or '—'}・テストの命令 {s.get('test_cmd') or '—'}・"
+            f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gates.UNATTENDED_KEY) or '—'}", *fixture.lines(s)]
+
+
+def shape_lines(record: dict) -> list:
+    from src import startrec
+    shape = startrec.shape(record)
+    if shape is None:
+        return []
+    try:
+        return [f"入口: {startrec.words(shape)}"]
+    except (KeyError, TypeError):
+        return ["入口: 入口の入力の形が読めない"]
+
+
+def gate_words(record: dict) -> list:
+    from src import gates
+    words = gates.head_words(_d(record))
+    return [words] if words else []
+
+
+def tier_lines(record: dict, head: str) -> list:
+    """段と機能の 1 行（元 runreport._entry_lines の「段:」の行。entry.features_part）"""
+    import entry
+    from src import tiers
+    s = _d(record)
+    part = entry.features_part(s.get(entry.FEATURES_KEY) or [], entry.features_on_of(s), tiers.tier_adds(head), tiers.tier_auto(head))
+    feats = f"・{part}" if entry.FEATURES_KEY in s else ""
+    return [f"段: {s.get('thickness') or '自動（機械が単位ごとに決めた）'}{feats}"]
+
+
+def decided_lines(values: dict) -> list:
+    """決めた人: 承認ノードの答えの数と、無人の run が推しで通した承認ノードの数"""
+    import answer
+    answered = [g for g in factslib.gates_of(values).values() if isinstance(g, dict)]
+    pushed = sum(1 for g in answered if answer.by_push(g))
+    return [f"決めた人: 承認ノードの答え {len(answered) - pushed} 件" + (f"（ほかに無人の run が推しで通した承認ノード {pushed} 件）" if pushed else "")]
+
+
+FORGE_HEAD = "PR を持つホスト（forge）"
+
+
+def forge_lines(cwd) -> list:
+    """PR を持つホストが無い時の 1 行（並行 PR の確かめは条件外。元 runreport._entry_lines の forge の行）"""
+    import forge
+    why = forge.reason(forge.detect(cwd)) if cwd else ""
+    return [f"{FORGE_HEAD}: 無い——並行 PR の確かめは条件外（not_applicable。{why}）"] if why else []
+
+
+def ran_lines(values: dict) -> list:
+    """走った段と、飛ばされた・出力の無い段（include の id。受け皿の got が在るか）"""
+    ran = [rid for rid, name in factslib.RETURNED if isinstance(values.get(name), dict)]
+    skipped = [rid for rid, name in factslib.RETURNED if not isinstance(values.get(name), dict)]
+    return [f"走った段: {'・'.join(ran) or '無い'}", f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}"]
+
+
+def base_word(base: dict) -> str:
+    """直す前のテストの語（元 runreport._base_word）"""
+    import baseline_red
+    import declared_checks
+    import gatemarks
+    import green_cert
+    import oneline
+    if base.get("green"):
+        return "緑"
+    cause = base.get("red_cause")
+    if green_cert.RAN_BY_CAUSE.get(cause) == green_cert.NOT_RAN and base.get("ok") is not True:
+        why = oneline.one_line(declared_checks.gate_values(base)["reason"])
+        return f"走らせられなかった（{cause}）——{gatemarks.BASELINE_NOT_RUN}" + (f"——{why}" if why else "")
+    if cause == green_cert.INCOMPLETE:
+        material = {}
+        try:
+            ptr = base.get("baseline")
+            if ptr:
+                from src import stages
+                material = _d(baseline_red.read_baseline(stages.resolve(ptr)).get("material"))
+        except (ValueError, OSError, TypeError, KeyError, AttributeError):
+            material = {}
+        status = material.get("status")
+        if status in (green_cert.NOT_APPLICABLE, green_cert.AWAITING_HUMAN):
+            why = oneline.one_line(material.get("reason") or "") if status == green_cert.AWAITING_HUMAN else ""
+            return f"{gatemarks.MATERIAL_WORDS[status]}（{status}）" + (f"——{why}" if why else "")
+    return "赤" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else "")
 
 
 def depth_lines(raise_: dict, switches: dict, ports_: dict, tdd: list) -> list:

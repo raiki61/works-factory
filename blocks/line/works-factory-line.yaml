@@ -488,6 +488,7 @@ nodes:
       fixture: "$start.output.fixture"
       start_go: "$answer-start.output.go"
       ports: "$start.output.ports"
+      record: "$start.output.record"
       test_gate_base: {from: "$test-gate-base-out.output.got", if_skipped: null}
       judge: {from: "$judge-out.output.got", if_skipped: null}
       tiers: {from: "$tiers.output", if_skipped: null}

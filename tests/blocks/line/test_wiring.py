@@ -306,7 +306,7 @@ class ScriptReadsCase(unittest.TestCase):
                     with mock.patch.object(os, "environ", env), contextlib.redirect_stdout(io.StringIO()), \
                             contextlib.redirect_stderr(io.StringIO()):
                         runpy.run_path(str(path), run_name="__main__")
-                    read = {name for name in env.read if name.startswith("INPUTS_")}
+                    read = {name for name in env.read if isinstance(name, str) and name.startswith("INPUTS_")}
                     self.assertTrue({f"INPUTS_{name.upper()}" for name in node["with"]} <= read,
                                     f"with: の鍵を読まない: {sorted({f'INPUTS_{n.upper()}' for n in node['with']} - read)}")
 
