@@ -140,7 +140,7 @@ class WritesLogNameCase(s.Flow):
 
     def test_no_second_copy_of_the_record_name_in_src(self):
         copies = []
-        for path in sorted((kit.ROOT / "blocks" / "delta-review" / "src").glob("*.py")):
+        for path in sorted((kit.BLOCKS / "delta-review" / "src").glob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             docs = {id(n.body[0].value) for n in ast.walk(tree)
                     if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.body

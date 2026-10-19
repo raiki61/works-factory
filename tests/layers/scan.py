@@ -1136,7 +1136,7 @@ def _gate_words(root: Path) -> list[str]:
     return out
 
 
-DEPTH_TABLE = "docs/design.md"
+DEPTH_TABLE = "docs/design/line.md"   # 16 章の「### 深さの段の表」（docs/design.md は組み込みで docs/design/ に置き換えた）
 DEPTH_HEAD = "### 深さの段の表"
 DEPTH_WHEN = re.compile(r"\.output\.\w*depth\w*")
 DEPTH_NAMED = re.compile(r"`([^`]+)`")
@@ -1188,7 +1188,7 @@ def tiers() -> dict:
 
 
 def _depth_when(root: Path) -> list[str]:
-    """E20: どのノードの when も、出力の深さの欄を読む句（DEPTH_WHEN）を持たない（深さで飛ばす道を作らない）。docs/design.md の
+    """E20: どのノードの when も、出力の深さの欄を読む句（DEPTH_WHEN）を持たない（深さで飛ばす道を作らない）。docs/design/line.md の
     深さの段の表の行（段・省く物・足す物）は line の段の表 TIERS（tiers()）と等しい"""
     rows, out = _tier_rows(root)
     line = _graph(root, LINE_YAML)
@@ -1205,7 +1205,7 @@ def _depth_when(root: Path) -> list[str]:
             for atom in (a.strip() for part in when.split("||") for a in part.split("&&")):
                 if DEPTH_WHEN.search(atom):
                     out.append(f"{rel}:{_line(node)}: ノード {', '.join(ids)} の when の句 `{atom}` が出力の深さの欄を読む"
-                               "（深さで飛ばす道を作らない。深さの段は docs/design.md の表 1 か所）")
+                               "（深さで飛ばす道を作らない。深さの段は docs/design/line.md の表 1 か所）")
     listed = {tier: (omits, adds, n) for n, tier, omits, adds in rows}
     for tier, spec in tiers().items():
         want = (tuple(spec["omits"]), tuple(spec["adds"]))

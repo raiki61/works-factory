@@ -27,7 +27,7 @@ NAME = "works-factory"
 RESUMING = frozenset({"resume", "approve", "reject", "respond", "answer"})
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run"}) | RESUMING | CONTINUING
-# run のノードが lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root が読む名）
+# run のノードが lib/ を探すリポジトリの根（workflows/.shared/ports.py の lib_root が読む名）
 ROOT_ENV = "WORKS_FACTORY_ROOT"
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
@@ -39,7 +39,7 @@ FENCE = ROOT / "workflows" / ".shared" / "fence.py"
 # 包みが印の在る起動を書く記録（fence.py の RECORDS_ENV と同じ名）。子の env に置くと、run が包みを通ると script のノードに宣言する
 FENCE_RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"
 FENCE_RECORDS = "launches.jsonl"
-# TDD の実行器の取り置きの根を script のノードに渡す名（workflows/.shared/boundary.py の SUITE_KEEP_ENV と同じ名）
+# TDD の実行器の取り置きの根を script のノードに渡す名（workflows/.shared/ports.py の SUITE_KEEP_ENV と同じ名）
 SUITE_KEEP_ENV = "WORKS_FACTORY_SUITE_KEEP"
 SUITE_KEEP = "suites"
 # run の中のノードが殻を入れ子にせず同じ Archon を起こす命令の頭を置く名（名の持ち主は読む側の埋め P7）
@@ -220,7 +220,7 @@ def adopting(flags: list[str]) -> bool:
 
 
 def run_env(home: Path, target: Path) -> dict[str, str]:
-    """run のノード（script・bash）に渡す環境変数: lib/ を探すリポジトリの根（workflows/.shared/boundary.py の lib_root）と、承認ノードの
+    """run のノード（script・bash）に渡す環境変数: lib/ を探すリポジトリの根（workflows/.shared/ports.py の lib_root）と、承認ノードの
     文の答えの行の頭（answer_head）"""
     return {ROOT_ENV: str(ROOT), answer.ENV: answer_head(home, target)}
 
