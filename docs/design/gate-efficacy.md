@@ -357,3 +357,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - `due` の回す時の訳の字を「ゲートの検算は合流の道でも判定から入る run でもない run で回す（…1 run は 1 周で、いつも初回）」にする。訳: 今の字（「…前の周の P3 が何かを直した周——成り立つ（round=1・…）」）は 1 run = 1 周で効かない枝を名指す。prior-decisions.md の `due` の字と同じ書き方にそろえた。回さない時の訳と素材の埋めの字は今のまま。
 - 回さない時の fixture を、合流（`skipped.stubs.yaml`）と入口（`entry.stubs.yaml`）の 2 本にする。訳: 回さない道が 2 つ在り、埋めの字が違う。
 - 報告の行に腕ごとの 1 行を足す。訳: 素材の 1 行（materials.md の 2.10）は `detail` を 1 行に縮めるので、腕の 3 つの印のどれが欠けたかが報告から見えない。腕の行は判定の材料に載る事実そのまま。
+- 変異の 4 つの値（`mutation_argv`・`mutation_arms`・`mutation_error` と `decl_name`）は、段落が入らない回も空の字でいつも渡す（`values` の欄で、3 条件の足し分けにしない）。訳: 共通の `prompt.render` が選ばれない段落の中の差し込み口にも値を要り、足りないと落ちる（`.shared/AGENTS.md`）。
+- `fill` の判定から入る run の枝は `materialkit.fill_entry(entry, None)`（件数の句は「渡されていない」）にする。訳: 1.5 の `0` は「0 件」と読まれ、この block は `request` を持たないので事実と違う。materials.md の 2.6 は `request` を持たない観点に `None` を渡すと決めている。
+- md の役の 1 段落から「started in a new conversation」を外し、"You are the gate-efficacy role." で始める。訳: 輪が `fresh_context: false` で、2 回目以降は同じ会話の続きで出し直すため、「新しい会話」は事実に合わない（調整役の指摘）。`fixtures/` の決まった文もこれに合わせた。prep・役・accept は 1 つずつ別の層で、同じ層に並ぶ node は無い。
+- 1 つ目の commit の `oldbrief.py` は、今の `material_prep` の材料のファイルと同じ字を試験で突き合わせる（`test_prompts.py`。今の `judge_accept` を直に呼んで比べる）。例の run のファイルは使わない（手元の家のパスが要るため）。2 つ目の commit で `oldbrief.py`・`test_prompts.py` と prep の旧い値の渡し方を消した。

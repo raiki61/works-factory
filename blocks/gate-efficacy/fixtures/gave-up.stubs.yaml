@@ -7,7 +7,7 @@ fixture:
     gates: ''
     entry: ''
   resolved-text-contains:
-    gate-efficacy: 'この役はゲートの実効性確認の役（任せ先）。'
+    gate-efficacy: 'You are the gate-efficacy role.'
 exec-code: true
 gate-efficacy:
   material:

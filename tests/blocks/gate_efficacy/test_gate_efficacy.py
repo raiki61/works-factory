@@ -54,9 +54,8 @@ class FlowCase(unittest.TestCase):
             (self.run.repo / f).write_text("x\n", encoding="utf-8")
 
     def instruction(self):
-        """役に渡る指示の全部（1 つ目の commit は md と、材料のファイル）"""
-        prompt = self.prep()
-        return prompt + "\n" + (self.run.artifacts / "material-gate-efficacy-brief.md").read_text(encoding="utf-8")
+        """役に渡る指示の全部"""
+        return self.prep()
 
     # ---- 回さない道（写す元 DueCase.test_gates_merge_turns_gate_efficacy_off）
     def test_merge_route_does_not_run_the_role(self):
@@ -129,7 +128,7 @@ class FlowCase(unittest.TestCase):
                 self.setUp()
                 self.change(*([extra] if extra else []))
                 self.intake()
-                self.assertEqual("役の判定を受ける" in self.instruction(), ok)
+                self.assertEqual("none of the facts the machine holds raise it" in self.instruction(), ok)
                 got = self.accept(NA)
                 self.assertEqual(got["ok"], ok, got)
                 if not ok:
@@ -140,13 +139,13 @@ class FlowCase(unittest.TestCase):
         self.change("tests/test_app.py")
         (self.run.repo / "arms.txt").write_text("arm-1\n", encoding="utf-8")
         decl = {"suite": [{"name": "t", "argv": ["true"]}], "mutation": {"argv": ["mutate", "--fast"], "arms": "arms.txt"}}
-        undeclared = "mutation の段が無い"
+        undeclared = "has no mutation stage"
         cases = (
-            (json.dumps(decl), ['["mutate", "--fast"]', "arms.txt"], [undeclared, "mutation の段を読めない"]),
-            (json.dumps({"suite": decl["suite"]}), [undeclared], ["mutate", "mutation の段を読めない"]),
-            (json.dumps({**decl, "mutation": {"argv": []}}), [undeclared, "mutation の段を読めない"], ["mutate"]),
-            ("{", [undeclared, "mutation の段を読めない"], ["mutate"]),
-            (json.dumps({**decl, "suite": []}), [undeclared, "mutation の段を読めない"], ["mutate"]),
+            (json.dumps(decl), ['["mutate", "--fast"]', "arms.txt"], [undeclared, "its mutation stage cannot be read"]),
+            (json.dumps({"suite": decl["suite"]}), [undeclared], ["mutate", "its mutation stage cannot be read"]),
+            (json.dumps({**decl, "mutation": {"argv": []}}), [undeclared, "its mutation stage cannot be read"], ["mutate"]),
+            ("{", [undeclared, "its mutation stage cannot be read"], ["mutate"]),
+            (json.dumps({**decl, "suite": []}), [undeclared, "its mutation stage cannot be read"], ["mutate"]),
         )
         for text, said, unsaid in cases:
             with self.subTest(text=text):

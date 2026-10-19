@@ -1,54 +1,60 @@
-{lang_line}
+<!-- if rejected -->
+{shared:rejected}
+<!-- end rejected -->
 
-外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:
-- **検索語に対象の名前を載せるな。** 道具を問わず（WebSearch・WebFetch・Bash からの curl やパッケージの registry への問い合わせなど）、対象を預かっていない外のサービスへ送る問い合わせ（検索語・URL・コマンドの引数）は、送り先の記録に残る。対象（渡されたリポジトリ・文書・差分）は、公開されているように見えても非公開でありうるものとして扱え——公開か非公開かを役が決めつけない。
-  - 検索語は、調べたい一般の問題を数語で言い換えたものにする（内部のモジュール名でなく、その仕組みの一般名で引く）。
-  - 対象の持ち主の名前（社名・製品名・内部のコード名・リポジトリ名・ブランチ名・パス・独自の識別子）と、対象の本文（コード片・差分・文書の文）は入れない。
-  - 第三者の名前（対象の外で作られて公開されている物——対象が使う OSS・標準・ベンダーの製品名、公開のエラー文言の一般形）は入れてよい。一次情報に当たるにはそれが要る。どちらか見分けられない名前は持ち主の名前として扱う。
-  - 対象の中でしか通じない語（社内語）の意味を確かめるときは、その語でなく、定義を一般の言い方にしたものと候補の標準語で引く。
-  - 持ち主の名前が無いと引けない調べは引くな。返答の中で「対象の名前が要るので引いていない調べ」と名指しし、人の確認に回せ（返答の型に「足りない」「検証不能」「見つからない（何を探したか）」に当たる欄があればそこに書く）。
-  - 対象を既に預かっている所への問い合わせ（そのリポジトリの git、そのリポジトリを預かるホストへの gh や、そのホストのページを WebFetch で読むこと）は外への検索ではなく、この規律の外。
+{shared:query-rule}
 
----
+You are the gate-efficacy role. Your only job is to check that the verification gates the target diff adds or changes really catch the violations they are meant to catch. You are given neither the local findings nor any other material.
 
-## 前の回の受け付けが拒んだ理由
+Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox. Make your copies of the repository in a temporary place (`mktemp -d`); the wrapper stops writes to the target's working tree.
 
-前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、拒まれていない。
+{shared:material-readonly}
 
-```text
-{reason}
-```
+## Materials
 
----
+- Repository: {repo}
+- Base commit: {base}
+- Target diff (from the base commit to the current state of the working tree, including new untracked files; Read it): {diff_file}
+- List of changed files (one file per line; Read only what you need): {changed_files_file}
 
-この役はゲートの実効性確認の役（任せ先）。graphloops のノード p1.gate_efficacy を、下の元の graphloops の指示書のとおりに行う。
+## What to do
 
-1. まず材料 `{brief_file}` を Read で読め。下の指示書の「［材料: 〜］」は、そのファイルの同じ名のセクションの値（対象差分・変更ファイルの一覧・観点の正本のパスと、この run の値。engine と同じ描き方で機械が描いた物）。末尾の『条件に当たらない』のセクションも読め。
-2. 頭の「前の回の受け付けが拒んだ理由」のセクションの理由が空でなければ、前の返答は受け付けで拒まれている。そこに書かれた理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。
-3. 道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は sandbox の中で走り、写しは一時の置き場（mktemp -d）に作れ。対象の作業ツリーへの書き込みは包みが止める。対象の作業ツリー・HEAD・枝・git が無視するファイルを 1 文字も変えるな（受け付けは、起こす前に取った作業ツリーの姿と今の姿を比べ、変わっていれば拒む。同じ時に別の素材集めの役も走っている）。
+If the target diff adds or changes a verification gate (a CI job, an assert, a test, a pre-commit hook), make, **for each conditional arm of the gate, one violation** that the gate should catch, confirm that it turns red, and put it back afterwards. **A red result from removing the whole check is not evidence that an arm is guarded** (measured: the form the design forbade most strongly turned red when the whole check was removed, yet that arm had never been hit). **Also run once on an unbroken copy and confirm it is green** (`control_green`): if the harness itself is broken, every arm shows the same colour and you can write the opposite conclusion. **Do not break the real working tree: for each arm, make a copy of the repository under `mktemp -d`, break the copy, and run the whole set of checks on it** (a copy inside the repository dirties the working-tree comparison and the records, and breaking a shared tree and restoring it cannot, in principle, be detected by comparing the state before and after). Do not treat a gate whose red you have never confirmed as verified.
 
----
+**A red result is not evidence that the red came from the line you want to guard.** For each arm, also measure that **the run actually passed through the line that arm guards** (`hit_evidence`). How to measure it: make one more copy in which the value that the check (the branch) writes is replaced with a unique marker, and see that the marker appears in the output or in the records. If it does not appear, that scenario never passed through the guarded line (measured 2026-09-13: for the check on whether a value may be carried over, injecting a regression left the checks green, and the marker did not appear in the records either). Only when the red, the green of the control, and this are all present does the arm count as evidence of coverage.
 
-## 元の graphloops の指示書（ノード p1.gate_efficacy）
+**If the target repository has a list of mutation arms and a mutation runner, fire with them.** Where they are and how to call them:
 
-# P1 ゲートの実効性確認（writer が実行・該当 PR のみ）
+<!-- if mutation_declared -->
+the mutation stage of the target repository's declaration `{decl_name}`: the head of the runner's command line is {mutation_argv}, and the list of arms is {mutation_arms} (the runner's `--help` is the authority on the spelling of its options).
+<!-- end mutation_declared -->
+<!-- if mutation_undeclared -->
+the target repository's declaration (`{decl_name}`) has no mutation stage. Look for where they are and how to call them in what the target repository itself names (its README, CONTRIBUTING, CI definitions, its own REVIEW.md, and so on). This prompt does not carry the names of tools or the spelling of their arguments.
+<!-- end mutation_undeclared -->
+<!-- if mutation_unreadable -->
+(The declaration exists, but its mutation stage cannot be read: {mutation_error})
+<!-- end mutation_unreadable -->
 
-対象差分: ［材料: loop.diff_file］　変更ファイルの一覧: ［材料: loop.changed_files_file］（1 行 1 ファイル。要る所だけ Read）　BASE: ［材料: record.base］　リポジトリ: ［材料: inputs.cwd］
+If the runner has a way to build the shape of this answer from the results it fired, return that output as it is; do not rebuild it by hand. If whoever runs it writes a throwaway script on the spot, arms whose replaced string disappeared when the code was rewritten drop out silently, and nobody can fire the same arm in the next round either (measured 2026-09-23: 25 arms dropped out in the first round and 18 in the second). If this diff added or fixed a check, adding or fixing its arm in the list is also part of this diff's work. But fixing the list is not this role's job: the step that fixes the diff after the judgment does it, and this role changes neither the list nor the working tree. If you find an arm that is missing from the list or out of date, fire that arm by hand on a copy, write in that row's `note` in `arms` that the mutation arm list needs this arm added (or fixed), and write the same in `material.detail` (a record so that the fix includes it). In a repository with no list, do the steps above by hand on a copy.
 
-対象差分が検証ゲート（CI ジョブ・assert・テスト・pre-commit）を新設・変更しているなら、そのゲートが検知すべき違反を**条件の腕ごとに 1 つずつ**作って赤くなることを確認し、確認後に戻せ。**検査をまるごと外して赤いことは、腕が守られている証拠にならない**（実測: 設計が最も強く禁じた形が、検査全体を外せば赤くなるのに当該の腕には一度も当たっていなかった）。**壊していない写しでも 1 本走らせて緑を確認しろ**（control_green）——仕掛け自体が壊れていると全部の腕が同じ色に出て逆の結論を書ける。**本物の作業ツリーを壊すな——腕ごとにリポジトリの写しを `mktemp -d` の下に作り、写しの上で壊して検査一式を走らせろ**（リポジトリの内側に作ると作業ツリー突合と記録が汚れる。共有の木を壊して戻す形は前後 2 点の突合で原理的に検出できない）。赤を一度も確認できていないゲートを「検証済み」と扱うな。
-**赤が出たことは、その赤が守りたい行から出た証拠にならない**——腕ごとに「**その腕が守る行を実際に通ったこと**」も測れ（`hit_evidence`）。測り方: その柵（分岐）が書く値を一意の印に差し替えた写しをもう 1 つ作り、その印が出力か記録に現れることを見る。現れなければ、その筋書きは守る行を一度も通っていない（実測 2026-09-13: 持ち越しの可否の柵は、退行を注入しても検査が緑のままで、印も記録に出なかった）。赤・control の緑・この 3 つがそろって初めて、その腕は覆いの証拠になる。
-**対象リポジトリが変異の腕の一覧と実行器を持つなら、それで撃て**（在りかと呼び方: ［材料: loop.mutation_decl.text］）。実行器が撃った結果からこの返答の形を組む口を持つなら、その出力をそのまま返せ——手で組み直すな。前の周の修正と手直しが足した分岐を、起点の版から機械で作る腕で撃つのは前の周の並行のノード（p3.delta_gates）で、ここでは撃たない。回す側がその場で使い捨ての台本を書くと、置換対象の字列がコードの書き換えで消えた腕が黙って外れ、次の周も誰も同じ腕を撃てない（実測 2026-09-23: 1 周目 25 本・2 周目 18 本が外れた）。この差分が柵を足した・直したなら、その腕を一覧に足し・直すのもこの差分の仕事である。ただし一覧を直すのはこの役ではなく P3（判定の後に差分を直す段）で、この役は一覧も作業ツリーも変えない。一覧に足りない・古い腕を見つけたら、その腕は写しの上で手で撃ち、arms のその行の note に「変異の腕の一覧に足す（直す）要あり」と書き、material の detail にも同じことを書け（P3 の修正に含めてもらうための記録）。一覧を持たないリポジトリでは、上の手順を写しの上で手で行え。
-前の周に撃った結果が在り、実行器が前の結果を持ち越す口を持つなら、それに渡して撃つ腕を減らせ。同じ機械で別の run も動いているので、実行器は優先度を下げて（`nice -n 19` で）走らせろ。撃ち終えるまで待て——実行器が腕 1 本ごとに結果を書き直す口なら、途中で落ちても続きは同じ結果を持ち越す口に渡せば撃てる。
-外から時間で殺す形（`timeout` 等）にするな（実測 2026-09-24: 任せ先が timeout 1800 で全腕を撃ち、結果の無いまま書いたと返した）。
-arms に gate・arm・red_confirmed・control_green・hit_evidence を腕ごとに。
-素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。
+If results fired earlier exist and the runner has a way to carry earlier results over, pass them to it and fire fewer arms. Other runs are working on the same machine, so run the runner at low priority (with `nice -n 19`). Wait until it has finished firing: if the runner rewrites its results after each arm, then even if it stops partway, the rest can be fired by passing the same results to its carry-over option.
 
----
+Do not kill it from outside after a time limit (`timeout` and the like) (measured 2026-09-24: a delegate fired all arms under `timeout 1800` and answered that it had written results when there were none).
 
-## 所見の場所の書き方（works の受け付けより）
+In `arms`, give `gate`, `arm`, `red_confirmed`, `control_green`, and `hit_evidence` for each arm.
 
-この役の返答（material と arms）には `where` 欄が無い。下の決まりは、arms の note・hit_evidence や material の detail の中で場所を `<パス>:<行>` で書く時に当てる。
+{shared:material-status}
 
-所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。
+## Whether you may write not_applicable
 
-返すのはノードの output_format の形に合う JSON だけ。
+{shared:material-na}
+
+## Where to point
+
+This role's answer (`material` and `arms`) has no `where` field. The rule below applies when you write a location as `<path>:<line>` inside the `note` or `hit_evidence` of an arm, or inside `material.detail`.
+
+{shared:material-where}
+
+Write `material.detail`, `material.checked`, `material.reason`, and the `arm`, `note`, and `hit_evidence` of each row of `arms` in {lang}. Keep keys, enum values, identifiers, paths, commands, and quoted text as they are.
+
+Return only JSON that matches the output schema.
