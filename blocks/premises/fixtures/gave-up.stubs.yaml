@@ -1,0 +1,13 @@
+# 役の返答が受け付けを通らない道（依頼の実測の where を text に含む制約が無い）: run は止めず、出口が status: failed と却下の理由を
+# 返す。筋書きでは輪が 1 周で終わるので却下は 1 回で、3 回で諦める数えは tests/blocks/premises の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, premises-prep, premises, premises-accept, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す", "measured": "3"}]'
+exec-code: true
+premises:
+  constraints:
+    - text: 'mean は 3 を返す'
+      measured_how: 読んだ
+      kind: 仮説

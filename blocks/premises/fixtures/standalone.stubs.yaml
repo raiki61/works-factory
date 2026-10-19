@@ -1,0 +1,16 @@
+# 単独の run: 依頼の行だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。運ばれた実測と言語は渡さない
+# （空の配列と空の文）。役の返答は依頼の実測の where を text に含み、実測の行が出力を持つので受け付けを通る
+fixture:
+  expect: completed
+  reached: [intake, premises-prep, premises, premises-accept, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す", "measured": "3"}]'
+  resolved-text-contains:
+    premises: 'You are the measuring role. Before the request is grouped into root-cause units'
+exec-code: true
+premises:
+  constraints:
+    - text: 'stats.py:4: mean は 3 を返す'
+      measured_how: python3 -c で呼んだ
+      kind: 実測
+      measured_output: "$ python3 -c 'import stats; print(stats.mean([1,2,3]))'\n3"
