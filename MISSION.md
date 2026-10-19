@@ -6,8 +6,8 @@
 
 - 流れ: 判定 → 計画 → 事前審査 → 修正 → 試験の関門 → 独立の目 → 報告。途中に承認ノード（人に答えを聞いて止まる所）を置く。
   - 修正は TDD（先に落ちるテストを書き、直して通す）で進め、互いに触らない直しは別々の作業ツリー（枝）で並べて進める。
-  - 独立の目は、直しを作った AI と別の AI が 4 つの観点（R1〜R4。中身は `docs/design.md` の「eyes」のセクション）で直しを確かめる段。
-- 土台: Archon（AI の処理をグラフにして YAML で書き、機械が順に回す道具）の、ASF と同じ開発中の源（止めた Archon（`docs/design.md` の「語」））。書き方は、Archon の作者が作った SDLC のグラフの束 ASF（AI software factory）に寄せる。
+  - 独立の目は、直しを作った AI と別の AI が 4 つの観点（R1〜R4。中身は `docs/design/judge-eyes.md` の 2 章と `docs/design/r1.md`〜`r4.md`）で直しを確かめる段。
+- 土台: Archon（AI の処理をグラフにして YAML で書き、機械が順に回す道具）の、ASF と同じ開発中の源（止めた Archon（`docs/design/archon.md` の「語」））。書き方は、Archon の作者が作った SDLC のグラフの束 ASF（AI software factory）に寄せる。
 - 持ち主のエッセンスはグラフそのもの（どの確かめと役が在り、何をし、どの順でつながり、どこで人に聞くか）。Archon の書き方で `workflows/` に書く。script ノードが呼ぶ Python の助け手は、Archon を知らない `lib/` に置く。
 - 今の works（raiki61/claude-plugins の `works/`）と同じ能力に届いたら置き換える。
 

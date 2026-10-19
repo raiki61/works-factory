@@ -3,14 +3,16 @@
 
 状態: 2026-10-13（issue #254・PR #269）。今の works の地図（`works/docs/concepts.md`）の柵を持つ 31 の考えを 1 つずつ今の木に当て、住処が works-factory に在る考えと散らばりの考えは全部載せ、考えそのものが works-factory に無い物は下の「載せない考え」に訳を書いた。載せた考えの住処の外の当たりは、本当の漏れなら表の既知の漏れに件数と理由を置き、同じ字の別の考えに当たるだけなら語の形を狭めた。行のパスは試験（`tests/layers/test_concept_fences.py`）が在ることを確かめる（まだ無い物は「予定」と書き、試験は見ない）。
 
+#765 の組み込み（2026-10-19）の後: 地図と表は組み込みの前の木（古いサブグラフと lib のモジュール）を名指したまま残る。works-factory 自身の木に全部を当てる試験 `tests/layers/test_concept_fences.py` は組み込みで消した（`docs/design/README.md` の 9.4）。表 `docs/concepts.json` は、run の中で構造の目が対象の表として読む（works-factory 自身を直す run）ので消さない。新しい形の考えの住処は、block の `src/`・`lib/` の行の形のモジュール・`workflows/.shared/` の口（`docs/design/README.md` の 1.2・4.1）。
+
 載せない考え（今の works の地図に在り、考えそのものが works-factory に無い。漏れの多さは載せない訳にしない）:
 
-- `hinge` 境のノード: メイングラフの境のノード（h-* の名のノードと住処 darkfactory/lib/line_edge.py）は works-factory に無く、docs/design.md:472 の通りメイングラフの when: と小さな script ノード（workflows/line/scripts/ の start・redepth・collect など）が担う
+- `hinge` 境のノード: メイングラフの境のノード（h-* の名のノードと住処 darkfactory/lib/line_edge.py）は works-factory に無く、docs/design.md:472（#765 で消した。cbc7297 の版） の通りメイングラフの when: と小さな script ノード（workflows/line/scripts/ の start・redepth・collect など）が担う
 - `halt` 止め札: 共有ボードの止め札 STOP と住処 halt.py は持ち込まず（持ち主の決め stop-at-gates。lib/halt.py は無い）、報告つきの止めは承認ノードの stop・reject の答え（一言が request: で始まれば止め札の扱い。lib/outcome.py・lib/seal.py）が、承認ノードの間の止めは Archon の workflow cancel が担う
-- `scope` 部品の置き場と宣言: 部品の宣言のファイル manifest.json と住処 scopes.py は落とし（docs/design.md:471）、入出力の宣言は Archon の YAML の with:・returns: と出力の型が、宣言の外の書き込みは mutates_checkout: false と書き込みの出どころの突き合わせが担う（持ち主の決め declared-io）
-- `injectors` 包みが足す system prompt の塊: AI を起こす包み（前の works の adapter.py の INJECTORS と --append-system-prompt）を持ってきていない（docs/design.md:474 で落とした）。system prompt を足すのは Archon の AI ノードの systemPrompt（workflows/plan-review・workflows/eyes の YAML）がノードごとに字で担う
-- `replycontract` 返答の契約: 返答を本文で受けて型を確かめ出し直させる包みの旗 text-reply と replycontract.py を持ってきていない（docs/design.md:474 で包みを落とした）。返答の型は Archon の AI ノードの output_format（SDK の構造化出力 StructuredOutput）が担う
-- `writes` 役の返答を共有ボードに書く規則: graphloops の engine の共有ボードと書く規則（record.py の apply_writes・rules の WRITE_OPS）を持ってきていない（docs/design.md の graphloops の写しの行で落とした）。役の返答を後ろへ渡すのは Archon のノードの出力（$<ノード>.output）と各サブグラフの script が置き場に書くファイル
+- `scope` 部品の置き場と宣言: 部品の宣言のファイル manifest.json と住処 scopes.py は落とし（docs/design.md:471（#765 で消した。cbc7297 の版））、入出力の宣言は Archon の YAML の with:・returns: と出力の型が、宣言の外の書き込みは mutates_checkout: false と書き込みの出どころの突き合わせが担う（持ち主の決め declared-io）
+- `injectors` 包みが足す system prompt の塊: AI を起こす包み（前の works の adapter.py の INJECTORS と --append-system-prompt）を持ってきていない（docs/design.md:474（#765 で消した。cbc7297 の版） で落とした）。system prompt を足すのは Archon の AI ノードの systemPrompt（workflows/plan-review・workflows/eyes の YAML）がノードごとに字で担う
+- `replycontract` 返答の契約: 返答を本文で受けて型を確かめ出し直させる包みの旗 text-reply と replycontract.py を持ってきていない（docs/design.md:474（#765 で消した。cbc7297 の版） で包みを落とした）。返答の型は Archon の AI ノードの output_format（SDK の構造化出力 StructuredOutput）が担う
+- `writes` 役の返答を共有ボードに書く規則: graphloops の engine の共有ボードと書く規則（record.py の apply_writes・rules の WRITE_OPS）を持ってきていない（docs/design.md（#765 で消した。cbc7297 の版） の graphloops の写しの行で落とした）。役の返答を後ろへ渡すのは Archon のノードの出力（$<ノード>.output）と各サブグラフの script が置き場に書くファイル
 - `core-seams` 写しの核の差し替えの口: 写しの核（graphloops の review-loop）が無く（lib/graphloops は engine の型検査・描き方の 7 ファイルだけ）、走る時に写しの名を替える CORE_OVERRIDES・組み手の印 rl_builder も無い。承認ノードの組み立て（gatemarks.plan_gate_items）などはグラフの script が直に呼び、写しのバイトの手直しは写しの台帳の読み口 tests/bin/copyledger.py の ! 行が担う
 
 ## 平たく言うと（3 行）

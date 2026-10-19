@@ -1,8 +1,8 @@
-<!-- coldwrite:skip 埋めの名簿。語は docs/design.md の「語」のセクションで定義 -->
+<!-- coldwrite:skip 埋めの名簿。語は docs/design/README.md の頭の語の一覧で定義 -->
 # Archon の埋め（polyfill）の名簿
 
-- 埋め（polyfill）: Archon（止めた Archon（`docs/design.md` の「語」））に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
-- `workflows/.shared/` と `bin/_lib/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の `- 埋め:` の行の頭の欄が名指す物のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。行の説明の文にだけ名が出る部品は数えない。
+- 埋め（polyfill）: Archon（止めた Archon（`docs/design/archon.md` の「語」））に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
+- `workflows/.shared/` と `bin/_lib/` のファイルは、pack の口（Archon との出入りのモジュール `ports.py`・`prompt.py`・`requestrows.py`）・2 つ以上の block が使う断片と形（`prompts/`・`schemas/`）か、入口の部品（`tests/layers/scan.py` の `ALLOWED["E2"]` が 1 行ずつ名指す物）か、この名簿の `- 埋め:` の行の頭の欄が名指す物のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。行の説明の文にだけ名が出る部品は数えない。
 - 頭の欄は `- 埋め:` の直後に、部品のパスを `、` 区切りで並べる（予定ならパスの直後に「（予定）」）。欄は「（予定）」と `、` 以外の最初の字で終わる。部品を持たない埋め（値の埋め・YAML の型の埋め）は、頭が文で始まり欄は空。埋めの一部は入口 `bin/` に置く物もある。それも頭の欄に書く。
 - 証拠の在り処は、止めた Archon（`factory/pack.json` の `integration_revision_required`）の源のファイルと、そのファイルで探せる引用で書く。行番号は版で動くので書かない（証拠の「12-14 行」の形も、項目のどこかの `ファイル:数字` の形も）。`- 証拠:` の下の字下げした行は 1 行に 1 つのファイルで、頭にファイルのパスを置き、その行の「」の中の字はどれもそのファイルにちょうど 1 か所だけ字のまま在る（2 か所に当たる時は 1 か所に決まるまで字を伸ばす）。行の説明に「」を使わない。候補の項目も、証拠を書くなら同じ形で書く。試験 `tests/layers/test_polyfill_evidence.py` が照らす。「外した」の項目は、源の引用と版の照らしから外す（外した時の版の字のまま残す）。
 - 各行の `` - 上流（`<止めた版の頭 8 字>` の後の dev の `<読んだ dev の commit の頭 8 字以上>` まで）: `` に、止めた版より後の upstream の dev で穴が塞がったかの確かめの結果を書く。「塞がった」と書く時は、塞いだ upstream の commit（`` ` `` で囲んだ頭 8 字以上）か PR（`#<番号>`）を添える。版を上げたら書き直す（頭の 8 字が止めた版と違うと試験が赤）。読んだ日が古くなっても赤にはしない。
@@ -23,7 +23,7 @@
   - `<止めた Archon の源のパス>` の「<そのファイルに字のまま在る引用>」（説明）
 - 上流（`<止めた版の頭 8 字>` の後の dev の `<読んだ dev の commit>` まで）: 塞がったか（塞がったなら塞いだ commit か PR）
 - 埋め: `<パス>`、`<パス>`（予定）。何を置くか
-- 使うサブグラフ: 
+- 使う block と graph: 
 - 外す条件: Archon のどの振る舞いが入ったら消せるか
 ```
 
@@ -32,7 +32,7 @@
 ### 候補（まだ埋めでない）: fan_out の子ごとの作業ツリー
 
 - 修正の組の並べは Archon の `fan_out:` で書く（持ち主の決め `no-queue`。埋めは要らない）。
-- 組ごとに別の作業ツリーが要る。`workflow:` と `fan_out:`（`isolation: worktree`）の子の run は組ごとに起き、子ごとに作業ツリーが切られる。子の作業ツリーは親の姿を写せ、子は親の run の置き場に結果を書ける（止めた Archon で 2026-10-12 に実測。PR #94 の「組を並べて回せるか（計画の U8）の実測」。`docs/design.md` の U8）。
+- 組ごとに別の作業ツリーが要る。`workflow:` と `fan_out:`（`isolation: worktree`）の子の run は組ごとに起き、子ごとに作業ツリーが切られる。子の作業ツリーは親の姿を写せ、子は親の run の置き場に結果を書ける（止めた Archon で 2026-10-12 に実測。PR #94 の「組を並べて回せるか（計画の U8）の実測」。`docs/design/archon.md` の U8）。
 - remote（`origin`）の無い対象のリポジトリでは、子の作業ツリーが切れない（`no git remote is configured`。親の run そのものも remote が無いと作業ツリーを切れない）。fix は remote が在る時だけ組を並べ、無い時は親の作業ツリーで 1 つずつ回す（`groups-seq`）。埋めは要らない。
 - 2026-10-06 の判断「fan_out は子ごとに作業ツリー（cwd）を決められない」は、ノードの `fan_out:` だけを見ていたかもしれない。U8 で読み直す。
 
@@ -63,7 +63,7 @@
   - `workflow abandon <run> --json` は `owner.outcome: no_owner_answered` と記録した pid を出し、run を `cancelled` にし、run が作った作業ツリーを書きかけのファイルごと消す（`releasedWorktrees`）。枝は残る。
   - その後の `workflow run <工程> --adopt <run> --detach --json` は新しい id の run（`a21aee649292b6b07be27e96aa8e6496`。`adopted_from_run_id` が前の run）を起こし、残った枝で同じパスに作業ツリーを作り直し、最初のノードからやり直す（前の run の終わったノードを飛ばさない）。後ろの `all_done` のノード `tail` は走った。
   - 持ち主を `kill -9` で止めても、走っていたノードの子のプロセス（`bash -c …` と `sleep`）は残って走り続けた（親が 1 になる）。`abandon` は持ち主が答えない時はプロセスを止めない（「Nothing decides the run is dead from its age or pid」）。手放す前に、残った子を pid で止める。
-  - `d97d00ef` ではメイングラフが `interactive: true` だったので、メイングラフの `--adopt` は `--detach` を付けずに打った。`355f1867` から `interactive:` が効かないので、この縛りは無い（実測はまだ。`docs/design.md` の「Archon の分かっていること」）。
+  - `d97d00ef` ではメイングラフが `interactive: true` だったので、メイングラフの `--adopt` は `--detach` を付けずに打った。`355f1867` から `interactive:` が効かないので、この縛りは無い（実測はまだ。`docs/design/archon.md`）。
 - 実測（段 1 の手順 6、2026-10-13。main `b5d9d8da` のメイングラフを本物の役で。run `ee0f15b7`）: 役のノード（`judge__world-judge-loop.world-judge`）が走る間に `--detach` の子のプロセスを pid で止めた。`workflow get` は `running` のまま（持ち主が居ないことは get からは分からない）・`workflow wait` は `owner_lost`・`workflow resume` は拒む・`workflow abandon` は `cancelled` にし、`releasedWorktrees` の作業ツリーを書きかけごと消す（枝は残る）。`workflow run --adopt` は新しい run `097c08dc`（`adopted_from_run_id` 付き、メイングラフの頭からやり直し）を起こし、閉じた時に報告のノードが全部走った（棚卸しの L-W60 の resume の半分。report.md 6082 バイト）。この埋め（`bin/apply` と Archon の命令）で足りる（埋めを足さない。上の「足りない残り」はそのまま）。
   - 気づき（不具合と決めていない）: 殻 `bin/works-factory` は出力の JSON が `"ok": false`・`owner_lost` でも終了の値が 0。親を失った役の claude は作業ツリーの中で約 20 秒走り続けてから自分で終わった。
 - 再現（AI の役も認証も要らない。グラフは `tests/e2e/owner-lost-probe/`。プロセスを止めるので試験にせず手で回す。形だけは `tests/e2e/test_resume_probe.py` が validate で照らす）:
@@ -73,7 +73,7 @@
   4. `workflow wait <run> --json --timeout 10`（`owner_lost`）・`workflow resume <run> --json`（拒む）・`workflow run works-factory-owner-lost-probe --adopt <run> --detach --json`（拒む）を見る。
   5. 残ったノードの子（`bash -c echo half > half-written.txt; sleep 600` と、それを親に持つ `sleep`）を pid で止め、`workflow abandon <run> --json` を打ち、作業ツリーが消えたことを見る。
   6. `workflow run works-factory-owner-lost-probe --adopt <run> --detach --json` で新しい run を起こし、`write` が最初から走ることを見る。その `sleep` の pid と新しい持ち主の pid を止め、使い捨ての木と家を消す。
-- 使うサブグラフ: メイングラフ（入口）
+- 使う block と graph: メイングラフ（入口）
 - 外す条件: 持ち主の居ない `running` を Archon が自分で `failed` にするか、`resume` を受け付ける版が出たら
 
 ### P2 include の入力に if_skipped を通せない
@@ -84,7 +84,7 @@
   - `packages/workflows/src/include-expander.ts` の「if (slot.surface === 'binding_from' || slot.name === 'binding.if_skipped') return slot.value;」（include の展開は `binding.if_skipped` の欄を置き換えずにそのまま残す）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
 - 埋め: `workflows/.shared/skip_value.py`。メイングラフの中継のノードが使う。飛ばされうる値を、メイングラフの `script:` のノードの `with:` で欄ごとに `{from: "$<ノード>.output.<欄>", if_skipped: null}` で受け、明示の値で返し直す。サブグラフにはそのノードの出力を渡す。P2 のために在る中継のノードは `workflows/line/works-factory-line.yaml` の `answer-*`（承認ノードの答えを fix・merge に渡す）と `structure-in`（飛ばされうる構造の目の控えのポインタを計画の往復に渡す）と `collect`（全部の出力を report に渡す）だけ。Archon が `INPUTS_<名>` に渡した字を値に戻す部品は `workflows/.shared/skip_value.py`。
-- 使うサブグラフ: メイングラフ
+- 使う block と graph: メイングラフ
 - 外す条件: include の `with:` に書いた `if_skipped` が子の中まで効く版が出たら
 
 ### P3 --workflow-source が任意のフォルダを読まない
@@ -95,7 +95,7 @@
   - `packages/paths/src/archon-paths.ts` の「return ['.archon/workflows'];」（`getWorkflowFolderSearchPaths`。根の下で探すのは `.archon/workflows` だけ）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
 - 埋め: `bin/_lib/place.py` の `workflow_source`。キャッシュの中に置き場を作り、その `.archon/workflows/works-factory`（pack の形。名は `pack.json` の `ours.pack`）からリポジトリの `workflows/` へ symlink を張る。
-- 使うサブグラフ: メイングラフ（入口）
+- 使う block と graph: メイングラフ（入口）
 - 外す条件: `--workflow-source` に任意のフォルダを渡して、その中のグラフを読める版が出たら
 
 ### P4 読んだ・書いた証拠のフックをノードに付けられない
@@ -105,7 +105,7 @@
   - `packages/docs-web/src/content/docs/guides/hooks.md` の「YAML `hooks:` are deliberately static.」と、見出し「## Choosing where hook logic lives」の下の行「Logic that inspects the hook input at runtime」（中身を見るフックは Claude の設定に置く）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
 - 埋め: `bin/_lib/record-read.py`、`bin/_lib/record-write.py`、`bin/_lib/toolset.py`。record-read.py は Read と、Agent・WebFetch・WebSearch を path の無い行で、record-write.py は Edit・Write・NotebookEdit の書いた記録を残す。toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
-- 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）
+- 使う block と graph: plan・plan-review（区分 J・F の issue の後は judge・fix）
 - 外す条件: ノードの hooks: が command の種類を受け、入力を見て書ける版が出たら
 
 ### P5 役の sandbox に起動ごとの値を渡せない
@@ -123,18 +123,18 @@
   - 印を書かない役: Edit・Write を持つ役（直す役・書く役）は作業ツリーを変えるのが仕事で、cwd を禁じると仕事ができない。今の works の柵も道具に書き込みの無い役だけに掛けた（`graphloops/engine/role_run.py` の `tooled_permission` と `DELEGATE_TOOLS`）。
   - 役の PATH の頭（持ち主の決め `roles-read-only-gh`）: Archon はノードごとの環境を持たず、script のノードにも役の claude にも同じ環境（Archon の過程の env に設定の `env:` を重ねた物）を渡す（`packages/provider-contract/src/agent-provider.ts` の env の組み・`packages/workflows/src/dag-executor.ts` の script の env）。だから起動の殻は Archon の子の PATH の頭に利用者のログインを継ぐ gh の口（`bin/_lib/hostgh.py`）だけを置き（script のノードと、出口の語 `pr` の時に push と PR の作成をする `archon-pr` の publish が打つ）、包みは `--path-head` で名指された読むだけの口の置き場（`bin/_lib/no-post-bin/`）を、起こす claude の PATH の頭に足す（印の有無に依らない）。script のノードが起こす対象のコマンド（AI が書いた試験のコードも走る）には、起動の殻が同じ置き場を `WORKS_FACTORY_READ_GH`（`lib/userenv.py` の `READ_GH_ENV`）で渡し、`lib/tree_run.py` の `outside_env` が PATH の頭に足す。試験は `tests/shared/test_fence.py` の `test_path_heads_lead_the_path_of_claude_only` と `tests/bin/test_launcher.py` の `test_role_path_starts_with_read_only_gh`・`test_target_commands_hit_the_read_only_gh`。
   - 足りない残り: judge の読むだけの役の受け付けは起動の記録を見ない（今の works にも無い）。包みを通らない起動には固定の値だけが残る。
-- 使うサブグラフ: judge・test-gate
+- 使う block と graph: judge・test-gate
 - 外す条件: ノードの `sandbox` が run ごとの値（cwd・共通の `.git`・worktree の根）を受ける版が出たら
 
 ### P6 親が子の run のポインタを読めない
 
-- 穴: `workflow:` のノードが起こした子の run の出力のポインタ（`{type: archon_artifact, run_id, path}`）を、親の run の script が読む口が無い。境の口 `workflows/.shared/boundary.py` の `resolve` は自分の run のポインタしか読まない。
+- 穴: `workflow:` のノードが起こした子の run の出力のポインタ（`{type: archon_artifact, run_id, path}`）を、親の run の script が読む口が無い。pack の口 `workflows/.shared/ports.py` の `json`・`file` は自分の run のポインタしか読まない（ほかの run の pointer を拒む）。
 - 証拠:
   - `packages/workflows/src/artifact-pointer.ts` の「A pointer naming any other run is rejected — a result may only point」（読む側は「in-workflow resolver, the terminal run record」で、読む時に symlink を辿った照らしは「not yet implemented (#3160)」）
   - `packages/paths/src/archon-paths.ts` の「return join(getStoragePathsForRoot(root).artifactsRoot, 'runs', workflowRunId);」（`getRunArtifactsDirForRoot`。子と親は同じ `runs/` の下に兄弟で並ぶ）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、題と本文にもその辺りの振る舞いを変える物は無い）。
-- 埋め: `workflows/.shared/child_pointer.py`。自分の置き場（`ARTIFACTS_DIR`）の隣の `<run_id>` を子の置き場とし、札の形・run の id の形（空・`..`・`/` を拒む）・相対のパスを照らして、symlink を辿った先が子の置き場の中に在ることを確かめてから返す。試験は `tests/shared/test_child_pointer.py`。
-- 使うサブグラフ: 周の鎖（`workflows/chain/works-factory-chain.yaml` の `round-k-facts`）
+- 埋め: `workflows/.shared/child_pointer.py`。自分の place（`ARTIFACTS_DIR`）の隣の `<run_id>` を子の place とし、札の形・run の id の形（空・`..`・`/` を拒む）・相対のパスを照らして、symlink を辿った先が子の place の中に在ることを確かめてから返す。札の形と相対のパスの照らしは pack の口 `ports` の公開の口（`ports.inside`）を使う（#765 の組み込みで境 `boundary.py` から移した。`docs/design/integration.md` の 4.5-1）。周の鎖が直に import する（`ports.polyfill` を通さない）。試験は `tests/shared/test_child_pointer.py`。
+- 使う block と graph: 周の鎖（`workflows/chain/works-factory-chain.yaml` の `round-k-facts`）
 - 外す条件: Archon の run の中から、ほかの run のポインタを読む口が入ったら
 
 ### P7 fan_out の子の作業ツリーが子の終わりで消えない
@@ -144,7 +144,7 @@
   - `packages/docs-web/src/content/docs/guides/authoring-workflows.md` の「It is **not** removed when the child finishes」（`archon complete <branch>` で消す）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 一部が動いた。upstream の #4328（`8c741d891`。止めた版に入っている）で、終わった（`completed`）run は自分で作った作業ツリーを、変更が無く commit が全部 remote に在り枝を公開していない時だけ外す（枝は残す）。fix の子は push しないので、子の作業ツリーはたぶん残る（実測はまだ）。証拠の文は止めた版でも同じ。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えていない。
 - 埋め: `workflows/.shared/childsweep.py`。メイングラフの最後のノードから呼ばれ、この run の子だけを選んで止めた Archon の `complete --force` で消す。試験は `tests/shared/test_childsweep.py`。
-- 使うサブグラフ: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
+- 使う block と graph: メイングラフ（`workflows/line/works-factory-line.yaml` の `sweep-children`）
 - 外す条件: 子の run が終わった時に、その作業ツリーと枝を Archon が自分で消す版が出たら
 
 ### P10 周をまたいで同じ役の会話を続けられない
@@ -155,22 +155,15 @@
   - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「A command or prompt in the body can continue a statically named pre-loop session」（ループの中で続けられるのは、ループの前の `command:`・`prompt:` のノードを名指した時だけ）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない。`64ec0c2e..a972888a7` の 24 commit に、周をまたいで同じ役の会話を続けられるようにする物は無い。
 - 埋め: `lib/handoff.py`。引き継ぎのメモの型・頼み・前の周のノードに貼るセクション・控えを置く。
-- 使うサブグラフ: plan・report
+- 使う block と graph: plan・report
 - 外す条件: 場合に分ける。
   - 計画（plan）: `include` をまたぐか、CLI の別の run で同じノードの会話を続けられる版が出たら。外す前に、`docs/owner-decisions.md` の「計画の往復の周をまたぐ書き直し（#571。2026-10-15）」の行（前の周の会話を続けず新しい会話で始めると持ち主が選んだ）と、同じ文書の「再審・案の直し・範囲の相談の答えは新しい会話で回す」の行の訳（`d97d00ef` の `authoring-workflows.md` の「Addressable resume is not supported inside `loop_group` bodies」に頼っていて、`355f1867` の同じ所の「Inside a `loop_group` body, the source must complete before entry into the group」とはもう合わない）を持ち主に戻す。`docs/owner-decisions.md` はこの名簿からは書き換えない。
   - 報告（report）の `write-loop`: `355f1867` から、ループの前に書き手の AI のノードを置けば（今の `write-loop` の前は `facts` の script だけ）書き手の会話をループの中で続けられるので、既に外せる候補。作り直し（`write-loop` を名指しの持ち主の会話に替えて報告の引き継ぎのメモを外すか）は #671 で確かめる。
 - 外す手順: 外す条件を満たしたら次を全部消し、役の会話を続ける形に替える。`lib/handoff.py` を import する物の全部（`grep -rn "import handoff" lib workflows tests`）も、取りこぼしの入口にする。
-  - `lib/handoff.py` の全体。
-  - `lib/planfile.py::write_brief`・`_save`・`take_plan`・`take_replan` の handoff の呼びと、`RESUBMIT_RULES`・`REPLAN_RESUBMIT_RULES` の `handoff.FIELD` の行（`accepted_rounds` は `latest` の絞りとして残す）。
-  - `lib/report_roles.py::TEXT_SCHEMA` の handoff の欄。
-  - `lib/runreport.py::NOTE_ROUND`・`handoff_part`・`_prior_rounds` と、`_carry_rejected` の前の周のメモの読み・置き（前の答えの控えに本文を置く所は残す）。
-  - `workflows/report/scripts/reject.py` の出力の handoff。
-  - YAML の handoff の欄: plan の `plan-writer`・`plan-writer-fix` の `output_format`（`workflows/plan/works-factory-plan.yaml`）、report の `write` と `write-reject` の `output_format`（`workflows/report/works-factory-report.yaml`）。
-  - `workflows/report/commands/report.md` の `$write-reject.output.handoff` と、報告の 2 本の筋書きの stub（`workflows/report/fixtures/fixed.stubs.yaml`・`workflows/report/fixtures/stopped-by-request.stubs.yaml`）の handoff。
-  - 指示書の約束の台帳 `tests/workflows/prompt_contracts.json` の `workflows/report/commands/report.md` の行と、写しの手直しの台帳 `tests/workflows/copied_rewrites.json` の `#589` の 2 行。
-  - `docs/concepts.json`・`docs/concepts.md` の handoff の行と、`docs/concepts.md` の `marks` の行の持ち主の記述。
-  - `lib/marks.py::KINDS` の種 `handoff`。
-  - `lib/tests/test_handoff.py` の全体と、ほかの試験の handoff の分（残りの試験は import で赤になるので、黙っては残らない）。
+  - `lib/handoff.py` の全体と `lib/tests/test_handoff.py`。
+  - 共通の断片 `workflows/.shared/prompts/handoff.md` と、それを差し込む md（plan の書き手・report の書き手）。
+  - plan と report の block の返答の型（`output_format`）の handoff の欄と、その受け付け・筋書き・試験の handoff の分（残りの試験は import で赤になるので、黙っては残らない）。
+  - `docs/concepts.json`・`docs/concepts.md` の handoff の行。
 
 ### P11 ノードの plugins: で入っていないかもしれないプラグインを名指せない
 
@@ -181,7 +174,7 @@
   - `packages/workflows/src/template-walker.test.ts` の「'plugins.*': { kind: 'literal'」（`plugins:` の値は literal）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は `plugins.ts`・`template-walker.test.ts`・`authoring-workflows.md` を変えていない）。
 - 埋め: `bin/_lib/toolset.py`。hooked の道で、coldwrite の `hooks/hooks.json` の表を隔離した設定の `settings.json` の hooks に足す。`settingSources: [user]` のノードは利用者の設定のフックを読む（証拠の `authoring-workflows.md`）ので、全部の役で効く。coldwrite の取り元の env は `lib/borrow/borrow.json` の coldwrite の項が持ち、利用者の設定に無ければ借りずに見送る（`toolset.user_borrow`。持ち主の決め `others-may-use`・`AGENTS.md` の E14）。env の字はここに写さない。
-- 使うサブグラフ: 書く役を持つ全部
+- 使う block と graph: 書く役を持つ全部
 - 外す条件: 2 つが揃った版が出たら。1 つは、`plugins:` に入っていなければ飛ばす形が入ること。もう 1 つは、名指したプラグインのうち hooks だけを載せられること（か coldwrite が hooks しか持たないこと）。`plugins:` は agents・hooks・LSP・commands をまとめて載せる。外す時は、hooked の物が隔離した設定にプラグインとして入らない（`toolset.py` の install が CLI で入れる物から外している）ので、coldwrite を works-local へ入れる道（`pr-review-toolkit` と同じ）に替える要る。
 
 ### P12 道具の拒みを run ごとに変えられない
@@ -194,7 +187,7 @@
   - `packages/providers/src/claude/config.ts` の「install: z.strictObject(fields)」「run: z.strictObject(fields)」（`assistants.claude` は `model`・`settingSources`・`claudeBinaryPath` だけの strict な形）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えておらず、道具を拒む鍵を足していない）。
 - 埋め: `bin/_lib/toolset.py`。埋めは run ごとの部分だけ。`toolset.DENY_WEB_ENV`（`tests/calibration/run.py` が立てる）が 1 の時、install が permissions に拒みを足す（`toolset.permissions`）。env の字はここに写さない。決めは持ち主の決め `public-bench-at-major`。
-- 使うサブグラフ: 全部（公開ベンチの run だけで効く）
+- 使う block と graph: 全部（公開ベンチの run だけで効く）
 - 外す条件: `denied_tools` か run の設定の層で、道具の拒みを run ごとに書ける版が出たら。外した後も `toolset.DENY_WEB` の一覧は残る: ベンチが素の Claude Code にも使う（`tests/calibration/run.py` の `--disallowedTools`・`settings.json`・漏れの数え）ため。
 
 ### P13 run を cancel しても AI のノードのプロセスが残る
@@ -212,7 +205,7 @@
   - 子の run だけの `workflow cancel` は根の持ち主が答えて子を止め、子の provider のグループは消えたが、claude が別のセッションに起こした子は残った。
 - 埋め: `bin/_lib/runstop.py`。殻が `workflow cancel <run>` の時だけ Archon を子として起こし、前と後で run のプロセスを数えて残りを止める。印は 2 つ: run と、Archon の記録（`workflow runs` の `parent_run_id`）で辿れる子の run の完全な id（`workflow runs` が出す 8 字の短い id で打たれても、Archon の cancel と同じく `workflow get` で直す）を env の `WORKFLOW_ID` に持つ自分の利用者のプロセス（AI のノードも bash のノードも持つ。env は `ps -A -E -ww`〔macOS〕・`ps -A e -ww`〔Linux〕の args の後ろを読む）と、走っている根の run の生きた持ち主（`workflow get` の `execution_owner` で、この機械とこの利用者の物・`last_activity_at` より前に始まって Archon の本体の `workflow` の命令を走らせるプロセス）。どちらもその子孫を親子の鎖で拾い、cancel の前に数えた物の子孫は持ち主が消えた後も辿る。持ち主のグループとセッションでは拾わない（前の命令の持ち主はシェルのジョブの長で、`| tee` の相手が同じグループに居る）。cancel の後に、生きた物へ SIGTERM、`lib/tree_run.py` の `KILL_GRACE` 秒の後に SIGKILL を 1 本ずつ送る。cancel が拒んだ前の run の持ち主も止め（run は failed になる）、残りが無ければ 0 で抜ける。持ち主の木を数えない時（running でない・子の run・持ち主が別の機械・別の利用者・居ない・番号に別の物が居る・`last_activity_at` が読めない）はその訳を、env を読めない時はその訳と手で探す命令を 1 行で出す。止めた物と、止めた後も残った物（pid とコマンドの名）を 1 行ずつ出す。Archon の命令の別名は作らない（持ち主の決め `one-launcher`）。
   - 足りない残り: env の `WORKFLOW_ID` を外して起こされた子孫で、数える前に親子の鎖が切れた物（拾う印が無い）。env を読めない環境では、持ち主の木（走っている根の run の生きた持ち主の子孫）だけを止める。
-- 使うサブグラフ: メイングラフ（入口）と周の鎖
+- 使う block と graph: メイングラフ（入口）と周の鎖
 - 外す条件: cancel が provider のプロセスの木ごと止め、前の run も止められる版が出たら
 
 ## Archon の決めに合わせた形
@@ -228,7 +221,7 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
   - `packages/docs-web/src/content/docs/guides/loop-nodes.md` の「`idle_timeout` — per-iteration timeout (default: 30 minutes)」
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit は証拠のファイルを変えていない。#4355 が期限を外したのは `bash:`・`script:` と `until_bash` だけ）。
 - 埋め: 既定の期限が当たる鍵に置く、実質無しの値（値の持ち主は `tests/layers/scan.py` の `NO_DEADLINE` と `workflows/AGENTS.md` の E12。この行はそこを指すだけ）。もとは P9 の埋めの一部。
-- 使うサブグラフ: AI の役を持つ全部
+- 使う block と graph: AI の役を持つ全部
 - 外す条件: `idle_timeout` を書かない AI のノードに期限を当てない版が出たら
 ### P8 落ちたノードの出力を受け直せない
 
@@ -236,8 +229,8 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 - 証拠:
   - `packages/workflows/src/dag-executor.ts` の「A binding never falls back to 'if_skipped' for a failed producer」（`resolveBindingDirective` が、落ちた producer を `assertProducerNotFailed` で止める）
 - 上流（`a972888a` の後の dev の `a972888a7` まで）: 塞がっていない（止めた版が読んだ dev の頭。`64ec0c2e..a972888a7` の 24 commit で `dag-executor.ts` を変えたのは、本文が振る舞いを変えない移しと言う `14de72582`（#4487。中身の一部を `dag/` の 5 ファイルへ分けた）だけで、引用の字は同じファイルに残る）。
-- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。fix のレンズの出力の中継 `lens-reply`（script `workflows/fix/scripts/lens_reply.py`）も同じ形で、レンズが落ちても集め役 `lens-collect` が `if_skipped: null` で受けて先へ進む。merge の読み戻しのノード `pr-read`（script `workflows/merge/scripts/pr_read.py`）も同じ形で、PR を作る子の run（`pr-open`）が落ちれば飛ばされ、出力ノード `merge` が `if_skipped: null` で受けて作らずに止めた訳を返す。
-- 使うサブグラフ: メイングラフ・fix・merge
+- 埋め: メイングラフの受け皿のノード（`<include の id>-out` の形。script `workflows/line/scripts/returned.py`、置き場 `workflows/line/works-factory-line.yaml`）。受けるノードの後ろに既定の `trigger_rule` で置き、受けるノードが落ちれば自分が飛ばされ、読む側（`collect`）は `if_skipped: null` に落とす。レンズ（lens の block）も line の受け皿で受け、レンズが落ちても差分の審査は `if_skipped: null` で受けて先へ進む（#765 の組み込みの前は fix の中の中継 `lens-reply` が同じ形で受けた）。merge の読み戻しのノード `pr-read`（script `workflows/merge/scripts/pr_read.py`）も同じ形で、PR を作る子の run（`pr-open`）が落ちれば飛ばされ、出力ノード `merge` が `if_skipped: null` で受けて作らずに止めた訳を返す。
+- 使う block と graph: メイングラフ・fix・merge
 - 外す条件: 見込みは無い（Archon が落ちたノードの出力を `if_skipped` に落とさないと決めている。上の証拠の文）。決めが変わって落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら
 
 ## 外した
@@ -249,5 +242,5 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
   - `packages/docs-web/src/content/docs/guides/script-nodes.md` の「Hard kill after this many milliseconds. Default: `120000` (2 min)」（`timeout` の欄）
 - 上流（`355f1867` の後の dev の `f906471c4` まで）: 塞がった（upstream の #4355、`1e2d8acc0`。`timeout` を書かない `bash:`・`script:` のノードと `until_bash` に期限を当てない）。その前の #4307（`7c287f52e`）は期限の来たノードの process の木ごと止める変更。
 - 外した埋め: `script:`・`bash:` の `timeout` と、`loop:`・`loop_group:` の `timeout`（`until_bash` の確かめ）に置いていた実質無しの値 `1728000000`。2026-10-18 に止めた版を `64ec0c2e` に上げた時に外した。その版で `timeout` を書かない `bash:`・`script:`・`loop_group:` の `until_bash` を 130 秒走らせ、どれも打ち切られずに終わった。今は E12 が `timeout` を書かせない（`tests/layers/scan.py` の `UNSET_DEADLINE_KEY`）。AI のノードの `idle_timeout` の値は P14 に残した。
-- 使うサブグラフ: 全部
+- 使う block と graph: 全部
 - 外す条件: グラフの既定で期限を無しにできる版が出たら
