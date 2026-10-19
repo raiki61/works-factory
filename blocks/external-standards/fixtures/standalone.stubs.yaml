@@ -10,7 +10,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    external-standards: 'この役は外部標準照合の役（investigator。作る前に既製の定番解が無いかを疑う目）。'
+    external-standards: 'You are the external-standards role. Your only job is to check the target diff against external standards'
 exec-code: true
 external-standards:
   material:

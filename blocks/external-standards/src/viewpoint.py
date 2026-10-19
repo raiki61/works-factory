@@ -45,12 +45,11 @@ def judged_na(view, values) -> bool:
 def values(view, values) -> dict:
     own, theirs = materialkit.review_md_paths(view.repo)
     out = {"diff_file": view.diff_file, "changed_files": _dump(list(view.changed_files)), "repo": str(view.repo),
-           "review_md": own, "standards_section": STANDARDS_SECTION, "criteria_section": CRITERIA_SECTION}
+           "review_md": own, "standards_section": STANDARDS_SECTION, "criteria_section": CRITERIA_SECTION,
+           "purpose_text": "", "known_weaknesses": "", "repo_review_md": theirs}   # 段落が入らない時も空の字で渡す（指示を組む口が数える）
     if values["purpose"] is not None:
         out["purpose_text"] = values["purpose"]["purpose_text"]
         out["known_weaknesses"] = _dump(values["purpose"]["known_weaknesses"])
-    if theirs:
-        out["repo_review_md"] = theirs
     return out
 
 

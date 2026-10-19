@@ -136,6 +136,44 @@ class FlowCase(unittest.TestCase):
         self.assertIn("purpose", fin["reason"])
         self.assertEqual(self.material()["materials"]["external_standards"]["status"], "not_run")
 
+    def test_prompt_with_and_without_a_purpose(self):
+        """写す元 test_missing_purpose_is_said_not_invented: 目的の文が無い run は目的を作らせない 1 文を入れ、目的の値を渡さない"""
+        self.intake()
+        got = self.prep()["prompt"]
+        self.assertIn("Original purpose: " + PURPOSE["purpose_text"], got)
+        self.assertIn("Weaknesses already known and accepted: []", got)
+        self.assertNotIn("no purpose text is given", got)
+        self.assertNotIn("Why your previous answer was rejected", got)
+        self.assertIn("in the language of the request", got, "lang が空なら既定の言語の文")
+        self.setUp()
+        self.intake(purpose="null", lang="Japanese")
+        got = self.prep()["prompt"]
+        self.assertIn("Original purpose: no purpose text is given in this run.", got)
+        self.assertNotIn(PURPOSE["purpose_text"], got)
+        self.assertIn("in Japanese.", got)
+        self.assertIn("Files the target diff touches: [\n \"a.py\"\n]", got)
+
+    def test_repo_review_paragraph_follows_the_file(self):
+        self.intake()
+        self.assertNotIn("The target repository's own source of truth", self.prep()["prompt"])
+        self.setUp()
+        (self.run.repo / "REVIEW.md").write_text("# 対象の観点\n", encoding="utf-8")
+        self.intake()
+        got = self.prep()["prompt"]
+        self.assertIn("The target repository's own source of truth: Read ", got)
+        self.assertIn(str((self.run.repo / "REVIEW.md").resolve()), got)
+        self.assertIn('Read the section "外部標準照合観点" of', got)
+
+    def test_a_rejection_is_shown_on_the_next_round(self):
+        self.intake()
+        self.prep()
+        self.accept({**GOOD, "rankings": [{**RANK, "diff_at": "どこにも無い"}]})
+        got = self.prep()["prompt"]
+        self.assertTrue(got.startswith("## Why your previous answer was rejected"), got[:80])
+        self.assertIn("ranked に無い", got)
+        self.assertTrue((self.run.artifacts / f"{NAME}-prompt-2.md").is_file())
+        self.assertNotIn("started in a new conversation", got, "同じ会話で続ける役の指示に『新しい会話』と書かない")
+
     def test_prep_without_intake_fails_the_node(self):
         self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
 

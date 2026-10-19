@@ -343,3 +343,11 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 拒みの文の頭を `観点 external-standards: ` にする。訳: [purpose-review.md](purpose-review.md) の 7 節と同じ（graph の節の id は新しい形に無い）。
 - `purpose` の schema を purpose-review と同じ字で置く。訳: materials.md の 1.2 の「同じ意味の入力は同じ名と同じ形」。中身は purpose-review.md の 1.5 で決めた。
 - 回す時の `due` の訳を、今の `external_standards_due` の字でなく「外部標準の照合は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回）」にする。訳: 1 run = 1 周（持ち主の決め carry）で、前の周の P3 と機構を変えた周の枝はいつも効かない。効かない枝の名を人に見せる `reason` に残すと、読む人が「前の周」が在ると取り違える。prior-decisions.md の 1.5 と、ほかの P1 の観点（test-double-fidelity・main-path-observation など）と同じ決め方。回すかの真偽は今と同じ。
+- 実装時に決めた事（#765 の実装）:
+  - `fill` は `materialkit.fill_entry(values["entry"], None)`。訳: 1.5 は `0` を渡すと書くが、`fill_entry` は `0` を「依頼 0 件」と書き、`None` が「件数は渡されていない」の句になる（materials.md の 2.6）。この観点は port `request` を持たないので `None` が書いた意図に合う。
+  - `purpose` の形 `purpose.schema.json` は `blocks/.shared/schemas/` に 1 つ置く（`shared:purpose.schema.json`）。訳: 1.2 は block ごとの写しを書くが、`tests/layers/test_block_shape.py` の入力の形の検査が「形のファイルの名は pack の中で 1 か所。2 つ以上の block が使う形は `.shared/schemas/`」と決める。`$schema` の鍵は `KNOWN_KEYWORDS` に無いので外した。
+  - 役の md の頭の文から「started in a new conversation」を外した（`You are the external-standards role. Your only job …`）。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話を続けるので、「新しい会話」と言うと誤る。standalone の筋書きの決まった文もこの頭の文に合わせた。
+  - `NA_PARAGRAPH = True` を宣言に足した（共通の試験が要る名。1.5 は書いていない）。
+  - 1 つ目の commit の材料のファイル `src/oldbrief.py` は、本物の run の物が手元に無いので、今の `judge_accept.material_prep` の字（見出し・節の名・『条件に当たらない』の段）を `lib/judge_accept.py` の定数から組み直して書いた。本物の run の物との字の比べ（2.9 の (b)）はしていない。2 つ目の commit で消した。
+  - 試験は 2.9 のとおり。起こし方の照らしは `tests/workflows/test_judge.py` の行を `ShapeCase.LAUNCH` に字で写した。
+  - `values` は目的の値と `repo_review_md` を、段落が入らない時は空の字で渡す。訳: 1.5 は「在る時だけ」と書くが、`blocks/.shared/AGENTS.md` の決め（指示を組む口は選ばれない段落の中の `{name}` も数える。prep はいつも同じ組の値を渡す）が勝つ。

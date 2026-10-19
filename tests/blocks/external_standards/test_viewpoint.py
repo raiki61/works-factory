@@ -33,10 +33,10 @@ class ViewpointCase(unittest.TestCase):
         got = self.vp.values(view, {"purpose": purpose})
         self.assertEqual((got["purpose_text"], got["known_weaknesses"]), ("目的", '[\n "弱点"\n]'))
         self.assertEqual(got["standards_section"], "外部標準照合観点")
-        self.assertNotIn("repo_review_md", got, "対象の根に REVIEW.md が無ければ値を渡さない")
+        self.assertEqual(got["repo_review_md"], "", "対象の根に REVIEW.md が無ければ空の字")
         self.assertEqual(self.vp.when(view, {"purpose": purpose}), {"spawns": False, "purpose": True, "repo_review": False})
         bare = self.vp.values(view, {"purpose": None})
-        self.assertNotIn("purpose_text", bare)
+        self.assertEqual((bare["purpose_text"], bare["known_weaknesses"]), ("", ""))
         self.assertFalse(self.vp.when(view, {"purpose": None})["purpose"])
 
     def test_materials_and_report_lines(self):
