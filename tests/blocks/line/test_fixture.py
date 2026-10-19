@@ -86,6 +86,14 @@ class CaptureCase(Fixture):
         self.assertIn("git", note["error"])
         self.assertTrue(fixture.lines(startrec.read(self.place))[0].startswith("固定材料を写せなかった: "))
 
+    def test_noted_capture_does_not_overwrite_a_broken_start_record(self):
+        """読めない始めの記録は captured だけの記録で上書きせず、ファイルの名を言って止まる（fail closed）"""
+        broken = startrec.path(self.place)
+        broken.write_text("{壊れた", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, str(broken)):
+            fixture.noted_capture(self.place, self.repo, run_id=OLD, carried=self.carried)
+        self.assertEqual(broken.read_text(encoding="utf-8"), "{壊れた")
+
 
 class AdoptCase(Fixture):
     def test_adopt_rewrites_paths_run_and_head(self):

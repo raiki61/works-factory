@@ -20,7 +20,8 @@
 
 口:
 - capture(place, repo, *, run_id, carried): 固定材料を作って控えを返す。控えが既に在れば何も書かずにそれを返す。
-- noted_capture(place, repo, *, run_id, carried): capture の結果を始めの記録の CAPTURED_KEY {dir, error} に書く。落ちない
+- noted_capture(place, repo, *, run_id, carried): capture の結果を始めの記録の CAPTURED_KEY {dir, error} に書く。写せなくても落ちない
+  が、在るのに読めない始めの記録は上書きせず ValueError
 - adopt(place, src, repo, *, run_id, inputs, request_text): 固定材料 src を place へ取り込み、(書き換えた始めの記録, 書き換えた
   carried) を返す。carried は place の CARRIED にも置く。合わなければ FixtureRefused（何が違うかを名指す 1 行）。拒む時は何も書かない
 - lines(doc): 始めの記録 doc の固定材料の行（取り込んだ run・写した run。起動の承認ノードの文と報告の入口が同じ字を出す）
@@ -149,15 +150,20 @@ def capture(place, repo, *, run_id: str, carried) -> dict:
 
 def noted_capture(place, repo, *, run_id: str, carried) -> None:
     """capture を呼び、写したフォルダか写せなかった訳を始めの記録の CAPTURED_KEY {dir, error} に書く。写せなくても落ちない
-    （固定材料は比べるための道具で、run を止める訳にしない）。始めの記録の無い置き場は何も書かない"""
+    （固定材料は比べるための道具で、run を止める訳にしない）。始めの記録の無い置き場は何も書かない。在るのに読めない始めの記録は
+    上書きせず ValueError（訳にファイルの名。壊れた記録を captured だけの記録で消さない）"""
     try:
         capture(place, repo, run_id=run_id, carried=carried)
         note = {"dir": str(pathlib.Path(place) / DIR), "error": ""}
     except (OSError, ValueError) as e:
         note = {"dir": "", "error": oneline.one_line(f"{type(e).__name__}: {e}")}
-    if not startrec.path(place).is_file():
+    file = startrec.path(place)
+    if not file.is_file():
         return
-    doc = startrec.read(place)
+    try:
+        doc = startrec.load(file)
+    except (OSError, ValueError) as e:
+        raise ValueError(f"始めの記録 {file} が読めないので、固定材料の控えを書き足さない（{type(e).__name__}: {e}）") from None
     doc[CAPTURED_KEY] = note
     startrec.write(place, doc)
 
