@@ -2,14 +2,14 @@ name: works-factory-r1
 description: '独立の目 R1 最小性とコメントの block（docs/design/r1.md）。直しを作った役と別の新しい会話で、読むだけの 2 つの役が累積差分を見る: 前段は足したか書き換えたコメントの削除候補と残すコメントの運ぶ事実を、2 段目は累積差分が最小か・処方が正当化されているか・問いの台帳が逃げ道になっていないかを判じる。作り直しが要るかは目の札でなく、組み直す設計の点の名指しの有無で機械が決める。前段が取れなくても 2 段目は回る。落ちず、判定の行と報告の行を出す。単独の run でも、graph から include されても回る'
 inputs:
   base: {default: '', description: 'text: 累積差分の根の commit（入口の差分の根。差分の run では PR の根）。累積差分はここから作業ツリーの今の姿まで（未追跡の新しいファイルも入る）。空は HEAD'}
-  purpose: {default: '', description: 'text: 凍結した目的の 1 文（目的の固定の purpose_text）。空は渡されていない'}
+  purpose: {default: '', description: 'text: 凍結した目的の 1 文。空は渡されていない'}
   units: {default: '[]', description: 'json(shared:units.schema.json): 判定が切った根本の単位の目録 [{id, summary, paths}]。空の配列は渡されていない'}
   judgment: {default: '', description: 'file: 判定の出力（judgment.json。役が欄 questions〔問いの台帳〕を Read する）。空は渡されていない'}
-  fixes: {default: '[]', description: 'json(r1-fixes.schema.json): この run の修正の単位ごとの結末 [{unit_id, group_id, status, reason}]（修正の出力の units）。空の配列は渡されていない'}
-  x_scalars: {default: '{}', description: 'json(r1-scalars.schema.json): 修正役が足した規模の数値の欄（名は x_ で始まる）の object。空の object は無い'}
-  green: {default: 'true', description: 'flag: 修正の後の試験の緑が認証されたか（試験の関門 final の ok）。偽なら目の指示に「最後のテストの認証が通っていない」の 1 文を足す'}
-  checks: {default: '', description: 'file: 最後の試験の関門の証拠の文（試験の関門 final の出力 evidence の先。evidence.md）。空は渡されていない'}
-  after: {default: '', description: 'file: 直した後の構造の実測の控え（structure の block の mode after の出力 after の先。structure-after.json）。空は測っていない'}
+  fixes: {default: '[]', description: 'json(r1-fixes.schema.json): この run の修正の単位ごとの結末 [{unit_id, group_id, status, reason}]。空の配列は渡されていない'}
+  x_scalars: {default: '{}', description: 'json(r1-scalars.schema.json): 修正役が足した規模の数値の欄（名は x_ で始まる）の object（形の外の値は落とさず、測れなかった訳に名指す）。空の object は無い'}
+  green: {default: 'true', description: 'flag: 修正の後の最後の試験の緑が認証されたか。偽なら目の指示に「最後のテストの認証が通っていない」の 1 文を足す'}
+  checks: {default: '', description: 'file: 最後の試験の証拠の文（走らせ方とログの置き場を書いた md）。空は渡されていない'}
+  after: {default: '', description: 'file: 直した後の構造の実測の控え（名は structure-after.json）。空は測っていない'}
   review: {default: '{}', description: 'json(shared:plan-verdict.schema.json): 修正が使った修正案を審査した事前審査の最後の往復の結論 {round, verdict, blocks, why}。空のオブジェクトは渡されていない'}
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針の文書が無い'}
   lang: {default: '', description: 'text: 人に見せる欄（candidates の reason・kept の fact・reason・redesign_points・deletions の why・ledger_audit・increments・candidates_note）の言語。空は依頼の言語'}

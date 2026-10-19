@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import json
 import pathlib
 
 import ports
@@ -169,6 +170,10 @@ def finish(out) -> dict:
         row, took = eyekit.verdict_row("r1", reply, unread)
         got = {"ok": took, "status": "ran" if took else "failed", "reason": "" if took else row["reason"], "verdict": row,
                "questions": [], "report": report.lines(row, reply, comments)}
+    try:   # Archon の JSON.parse が読めない NaN・Infinity は、控えを書く前に落とす（出口が落ちた形にする）
+        json.dumps(got, allow_nan=False)
+    except ValueError as e:
+        raise ValueError(f"出力が JSON に書けない: {e}") from None
     jsonfile.write(out / files.FINISH, got)
     return got
 

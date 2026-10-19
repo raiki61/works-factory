@@ -128,17 +128,40 @@ class FlowCase(_RepoCase):
         done = self.finish()
         self.assertEqual(done["report"], ["R1: pass（最小）", "  - コメントの削除候補は取れなかった（出力のファイルが無い）"])
 
+    def plant_old_files(self) -> dict:
+        """この block が名を持つファイルの全部（と前の回の指示）を「前の run の物」の字で置く"""
+        files = kit.load("r1", "files")
+        old = {name: self.place / name for name in files.OWN_FILES}
+        old.update({p.replace("*", "1"): self.place / p.replace("*", "1") for p in files.OWN_PROMPTS})
+        for path in old.values():
+            path.write_text("old", encoding="utf-8")
+        return old
+
     def test_intake_clears_only_its_own_files(self):
-        self.intake()
-        self.save("r1-comments", COMMENTS)
-        self.comments()
+        """入口は src/files.py が名を持つファイルの全部と前の回の指示を消し（書き直す物は新しい字）、ほかのファイルは残す"""
+        old = self.plant_old_files()
         other = self.place / "rejects-other.json"
         other.write_text("[]", encoding="utf-8")
         self.intake()
-        self.assertFalse((self.place / "r1-comments.json").exists())
-        self.assertFalse(list(self.place.glob("r1-comments-prompt-*.md")))
+        for name, path in old.items():
+            with self.subTest(name):
+                self.assertFalse(path.is_file() and path.read_text(encoding="utf-8") == "old", name)
         self.assertTrue(other.exists())
 
+    def test_intake_that_cannot_read_lib_still_clears_its_files(self):
+        """lib を読めずに落ちた入口も、この block のファイルを名で消して落ちた訳を返す"""
+        import subprocess
+        import sys
+        from tests.bin import hermetic
+        old = self.plant_old_files()
+        env = hermetic.child_env(**{**self.run.environ(), "WORKS_FACTORY_ROOT": str(self.run.artifacts.parent / "no-lib")})
+        done = subprocess.run([sys.executable, str(BLOCK / "scripts" / "intake.py")], cwd=self.repo, env=env, capture_output=True,
+                              text=True, encoding="utf-8")
+        got = json.loads(done.stdout)
+        self.assertFalse(got["due"])
+        self.assertIn("R1 の入口が落ちた", got["reason"])
+        self.assertEqual([n for n, p in old.items() if p.exists()], [])
+        self.assertEqual(self.finish()["status"], "failed")
 
 class DiffCase(_RepoCase):
     def test_no_fix_round_sees_the_requested_change(self):
@@ -197,6 +220,15 @@ class MaterialCase(_RepoCase):
         self.assertIn("Fixes in this run:\n- u1（組 g1）: fixed——直した\n", text)
         self.assertIn("Scalars: now 足した行 1・消した行 1・文書の足した行 0・変わったファイル 1 本・x_endpoints 2 / no previous round", text)
         self.assertIn("Frozen purpose: (not given)", text)
+
+    def test_malformed_x_scalars_are_named_not_refused(self):
+        """今の E17 の寛い読み: object でない値・形の外の欄は入口を止めず、規模の数値の文の「測れなかった」に名指す"""
+        self.assertTrue(self.intake(x_scalars="[1]")["due"])
+        self.assertIn("修正役の x_scalars が object でない", self.minimality())
+        self.assertTrue(self.intake(x_scalars=dump({"endpoints": 2, "x_ok": 1}))["due"])
+        text = self.minimality()
+        self.assertIn("x_ok 1", text)
+        self.assertIn("修正役の x_scalars の形でない欄: endpoints", text)
 
     def test_missing_units_and_fixes_say_so(self):
         self.intake()
@@ -367,6 +399,17 @@ class VerdictCase(_RepoCase):
                 self.assertEqual((done["ok"], done["status"], done["reason"]), (False, "failed", got["reason"]))
                 self.assertEqual(done["verdict"], {"status": "unverifiable", "reason": f"入力が読めない: {got['reason']}"})
                 self.assertEqual(len(done["report"]), 1)
+
+    def test_output_that_json_cannot_hold_is_refused_before_the_copy(self):
+        """NaN・Infinity は finish.json を書く前に落とす（script の出口はこれを落ちた形にする）"""
+        from unittest import mock
+        steps = kit.load("r1", "steps")
+        self.intake()
+        self.save("r1-minimality", PASS)
+        with self.run.env(), mock.patch.object(steps.eyekit, "verdict_row", return_value=({"status": "pass", "reason": float("nan")}, True)):
+            with self.assertRaisesRegex(ValueError, "JSON に書けない"):
+                steps.finish(self.place)
+        self.assertFalse((self.place / "finish.json").exists())
 
     def test_finish_never_fails(self):
         """test_verdict_never_fails の r1 の半分: 中の誤りでも落ちず、出口が落ちた形を返す"""
