@@ -1,0 +1,107 @@
+name: works-factory-purpose-review
+description: >-
+  目的の監査: 目的の文を役（writer）が自分で要約した run で、その目的の文が実装に都合よく狭められていないかを、別の目に判じさせる。
+  判定には作業ツリーで引ける根拠（字とその行の数）を付けさせ、固めた版で数え直す。素材集めの観点の block（docs/design/materials.md
+  の形）。単独の run でも、判定のまとめから include されても動く
+inputs:
+  base: {default: "", description: "text: 対象差分の根の commit（対象差分は、この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD"}
+  purpose: {default: "null", description: "json(shared:purpose.schema.json): 固めた目的 {purpose_text, source, known_weaknesses, source_files}。null は目的の文がこの run に無い"}
+  entry: {default: "", description: "text: 判定から入る run の出どころの文（例「人の依頼（/path/req.json）」）。空は判定から入る run でない"}
+  lang: {default: "", description: "text: 人に見せる欄（reason、findings の text）の言語。空は依頼の言語"}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: purpose-review-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$purpose-review-accept.output.done; test "$done" = true
+      nodes:
+        - id: purpose-review-prep
+          script: role_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string}
+        - id: purpose-review
+          prompt: "$purpose-review-prep.output.prompt"
+          depends_on: [purpose-review-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          mutates_checkout: false
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [verdict, reason, findings]
+            additionalProperties: false
+            properties:
+              verdict:
+                type: string
+                enum: [問題なし, 狭めている]
+              reason: {type: string}
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [text, cite, hits]
+                  additionalProperties: false
+                  properties:
+                    text: {type: string, minLength: 1}
+                    cite: {type: string, minLength: 1}
+                    hits: {type: integer, minimum: 0}
+        - id: purpose-review-accept
+          script: role_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [purpose-review]
+          with: {reply: $purpose-review.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, purpose-review-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, material, report]
+      properties:
+        ok: {type: boolean}
+        status: {type: string, enum: [ran, skipped, gave_up, failed]}
+        reason: {type: string}
+        material:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        report: {type: array, items: {type: string}}
