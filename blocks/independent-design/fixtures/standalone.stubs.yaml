@@ -6,7 +6,7 @@ fixture:
   inputs:
     purpose: 'commit のフックが、対象のテストのコマンドと同じ環境で走るようにする'
   resolved-text-contains:
-    design: 'You are the independent designer, one half of R2 (the zero-based re-derivation), started in a new conversation.'
+    design: 'You are the independent designer, one half of R2 (the zero-based re-derivation).'
 exec-code: true
 design:
   question_stands: true

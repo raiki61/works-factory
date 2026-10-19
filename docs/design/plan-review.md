@@ -377,7 +377,7 @@ Repository: <run の作業ツリー>（read version: `4428f368…`） BASE: `442
 今の指示は 6 か所に在る: `workflows/plan-review/commands/plan-review.md`（63 行。頭の 14 行は `lib/agents/judge.md` の写し）・材料のファイルに入る `lib/planblk.py` の `HEAD["plan-review"]`（:252-255。`REUSE_REVIEW` :227-232・`HANDOFF_REVIEW` :236-242）と `DESIGN_HEAD`・`DESIGN_ASK`・`DESIGN_NOT_STANDS`・`DESIGN_NONE`・`DESIGN_DIFF_ASK`（:182-208・:150-151）・`map_items_section` の文（:385-394・`NO_MAP_KEYS` :371-372）・`lib/gatemarks.py` の `HEAD["p2.plan_review"]`（:158-197）・`lib/concepthome.py` の `AXIS`・`REVIEW_ASK`・地図の見出し（:29-46・:112-114）・`lib/converge.py` の `REREVIEW_ASK`・`ORIGIN_ASK`・`HELD_CITES`（:128-138・:219-221）・`lib/planmarks.py` の `REVIEW_ASK`・`MACHINE_LABEL`・見出し（:245-260）・`lib/policy.py` の `RECORDED_RULE`・`FACE_NONE`・`FACE_EXAMPLE_HEAD`・`DOC_FENCE_ONLY`・方針の節（:60-64・:155-170）・`lib/boardview.py` の `UNITS_LINE`・`REVIEW_ASK_REPLAN`・`DEFAULTS_HEAD`・見出し（:114・:122-128・:140）・`lib/rolekit.py` の `with_reject`（:187-191）。
 
 - 移した: 上の Python の文を全部 md と断片へ。Python に残るのは材料の行と短い札と、md と受け付けが同じ字を持つ値だけ。
-- まとめた: 役の定義は `{shared:role-judge}`（今の md:1-14 と同じ中身で、外への検索の決まりは `{shared:query-rule}` 1 か所）。今の md:18 の「材料のファイルを Read で読め・束ね役の頼みが在ればそれに従え」は、単独の役と束ね役の md に分けたので、束ね役の分は束ね役の md へ。
+- まとめた: 役の定義は `{shared:role-judge}`（今の md:1-14 の 5 行をまとめた物。外への検索の決まりは `{shared:query-rule}` 1 か所に持ち、その断片が「一次の出典を先に読む」の決まりと「下請けを起こすならこの塊を下請けの指示に写せ」の文を足して持ち込む。今の md にはどちらも無かった。足した出典の決まりは README 5.1 が共通の断片の足しとして 1 行で書く）。今の md:18 の「材料のファイルを Read で読め・束ね役の頼みが在ればそれに従え」は、単独の役と束ね役の md に分けたので、束ね役の分は束ね役の md へ。
 - まとめた: 却下の段落（`rolekit.with_reject` の見出しつきの段落）を `{shared:rejected}` に。理由は今と同じく古い順に全部。
 - まとめた: 8 種の確かめと穴の重さの定義を `parts/checks.md` 1 本に（下請けの指示と形 text の役も同じ断片を使う。今は下請けの指示が描いた指示書の「リポジトリ:」の行から末尾までを字で切り出していた。`planblk._review_rules` と `RULES_FROM`）。
 - 分けた: 確かめの文のうち案の欄の名（`home.concept`・`considered`・`why_not`・`shrink_first`・`narrows`・単位の `reason`・`one_shot`・判定者の先行例の `verdict`）を指す句を `parts/plan-checks.md` へ。形 text の役に案の欄の無い確かめだけを当てるため（README 8.2）。
@@ -538,6 +538,9 @@ Return only JSON that matches the output schema.
 例の run の 2 往復目は、`done_items` が無く（今の受け付けは項目ごとに答えのファイルを確かめ、項目 2 の答えが通った後の往復）、`rest` に項目 2（閉じた）が載る形（3 往復目の項目の状態は全部 closed で clean）。
 
 ### 5.6 今の指示との差
+
+- 足した差（新旧の指示の比べの納品。2026-10-19）: review-tree は下請けへ理由の行を渡す形にした。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 下請けの指示に `checked` の使い方の段落を足した（18 節には在る）。
 
 今の指示は、材料のファイルの `tree_part`（`lib/planblk.py:972-1030`。`AGG_HEAD`・`AGG_ASK`・`OPEN_HEAD`・`DONE_HEAD`・`REDO_HEAD`・`AGG_MERGE`・`AGG_SYNERGY`、:108-124）と、下請けのファイルの `brief_head`・`SUB_HEAD`・`SUB_FORMAT`・`SUB_ITEM_ASK`・`SUB_ITEM_DIFF_ASK`・`SUB_SYNERGY_ASK`・`PRECEDENT_*`・`ERRORS_HEAD`・`ANSWER_AT`・`RULES_MISSING`（:125-176・:864-883）に在る。
 

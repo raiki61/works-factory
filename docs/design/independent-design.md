@@ -121,7 +121,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。YAML �
 `prompts/design.md`:
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 却下の控え `rolekit.rejected(place, NODE)` が空でない。断片の中の `{rejection}` ← `rolekit.rejects_text(<控え>)`（古い順に全部。日本語。4 節）。
-2. 役の定義（決まった文）: 新しい会話で起きていること・修正案も判定の経緯も実装も引き継いでいないこと・道具を持たないこと・渡すのは目的と制約と人が決めた前提と方針だけであること。
+2. 役の定義（決まった文）: 修正案も判定の経緯も実装も引き継いでいないこと・道具を持たないこと・渡すのは目的と制約と人が決めた前提と方針だけであること。
 3. `{shared:design-premises}`（人が決めた前提。r2 の block と共に使う断片）。断片の中:
    - `## Premises a person set (pasted by the machine)`（決まった見出し）
    - `<!-- if answers -->` 承認ノードの答えの見出しと頼みの文（決まった文）と `{answers}` ← `src/premises.py` が組む箇条の行（`- 周 <round>・<node>（<kinds>）: <answer>（一言: <note>）`。`design.human_answers` の行）`<!-- end answers -->` — 条件: 貼る答えの行が 1 つ以上。
@@ -159,7 +159,7 @@ md の本文（英語。この block の PR でこのまま置く）:
 {shared:rejected}
 <!-- end rejected -->
 
-You are the independent designer, one half of R2 (the zero-based re-derivation), started in a new conversation. You have inherited neither the fix plan, nor the history of the judgment, nor the implementation, nor the cumulative diff, nor the points already settled.
+You are the independent designer, one half of R2 (the zero-based re-derivation). You have inherited neither the fix plan, nor the history of the judgment, nor the implementation, nor the cumulative diff, nor the points already settled.
 You have no tools. You cannot open files, the repository, its history, or the web; the sections below are everything you are given. What you are given is the original purpose, the measured constraints, the premises a person set, and the person's policy (when there is one).
 
 {shared:design-premises}
@@ -260,7 +260,7 @@ If there is a policy, it is not the target's text but a constraint the issuer of
 ### 2.5 描いた骨組み（例の run の値）
 
 ```markdown
-You are the independent designer, one half of R2 … started in a new conversation. …（決まった文）
+You are the independent designer, one half of R2 …（決まった文）
 You have no tools. …（決まった文）
 
 ## Premises a person set (pasted by the machine)
@@ -319,6 +319,11 @@ Return only JSON that matches the output schema.
 - 消した: 始めの記録が届かない時の名指しの節の 1 行（`NOT_GIVEN_START`、`boardview.py:113`）。block は始めの記録を受けないので、この場合が無い。依頼のファイルが無い時は名指しの節を貼らない（今の「依頼のファイル無し」と同じ）。
 - 足した: 言語の 1 文（`{lang}`）。今の指示は日本語で書かれていたので返答も日本語になっていた。英語にした指示で人に見せる欄の言語を保つため（#764 の求め）。
 - 足した: 役の定義の「人の方針（在る時）」の句。今も方針は本文の後ろに貼られていたが（`boardview.py:743-744`）、指示が渡す物として名指していなかった。
+- 消した: 「新しい会話で起きている」（今の `r2-design.md:1`）。この輪は `fresh_context: false` で、2 回目からは前の答えと却下を見た会話の続きなので、続く会話の役に新しい会話とは言わない（今の指示にも在った古くからの誤りを、md を英語にした時に直した）。
+- 足した: 依頼のファイルが読めなかった時の段落 `request_unread`（断片 `design-premises` の中。名指しの節が無いことを「依頼が名指していない」と読ませない）。今は読めない訳の 1 行を名指しの節の見出しの下に貼っていた（11 節の 15）。
+- 変えた: 裏取りを通っていない目的の判定の行（`stale`）は、判定が在る時だけ出す。
+- 足した: 返答の欄の決まり — 実在を名指す根拠の書き方（`<path>:<line>` か `<path>:<start>-<end>`）・`reason` は空にしない・訳さない物（key・id・パス・コマンド・識別子・エラー文）。いずれも受け付けが前から照らしていた物（今の指示は言わなかった）。
+- 直した: 共通の断片 `policy` の閉じる囲みの向き。
 - 英語にした（#764）。役の名「独立設計の役」は "the independent designer"。
 
 1 つ目の commit（日本語の md。README 11.4）の作り方: 今の `r2-design.md` の字の並びを上から写し、`$r2-prep.output.prompt` の所に、`r2_prompt` が組む本文の並び（`<!-- if premises -->` に当たる `DESIGN_PREMISE_HEAD`・`DESIGN_PREMISE_REREAD`・人の答え・名指し・地図・`---`、元の目的・制約・ドリフト・裏取りの 2 行、方針の節）を、今の字のまま md の段落と差し込み口で書く。区切りの 2 行も残す。比べは例の run の値（却下なし・方針なし）で、組んだ指示が今の `r2-prompt.md` を `r2-design.md` に差し込んだ字と同じになること、system prompt が今の `systemPrompt` と同じ字になることを照らす。2 つ目の commit で上の英語の md に替え、この節の差の一覧どおりかを並べて審査に出す。
@@ -412,7 +417,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 12. standalone の筋書きは `exec-code: true` で、差し替えるのは AI の node `design` だけにする（12 節の「script の node も差し替える」を直した）。根拠: 7.1 の 3 が、筋書きの `resolved-text-contains` を prep が md から本当に組んだ指示に照らす（prep を差し替えると証にならない）。`gave-up` の筋書きは要素の無い返答を `design` に返させ、受け付けが 1 回拒む道を見る（筋書きの輪は 1 周で終わるので、3 回で諦める数えは試験が見る）。`unusable` は入口が本当に走る。
 13. 入口が消すのは、この block が名を持つファイルだけ（`intake.json`・`design-tree.json`・`design-premises.json`・`design.json`・`design-crash.json`・`finish.json`・`rejects-r2.design.json`・`design-prompt-*.md`・`design-system-*.md`）。3 節の「place の中のファイルを全部消してから」を直した。根拠: block が消してよいのは自分が名を持つファイルだけ（`blocks/.shared/AGENTS.md`）。
 14. `r2_view` の `rules` は、`purpose_unusable` でなく、`design.named_sections` が引く `MD_LINK`・`_md_lines`・`_md_slugs`（`lib/boardview.py:151-176` の写し）を持つ（1.5 を直した）。目的が使えるかは `unusable(source, review)` が決める。根拠: 依頼の名指しの節を引く `design._named_targets`・`_section` は `b.rules` のこの 3 つを読む。
-15. 依頼のファイルが在らない・読めない時は、落とさず、`REQUEST_UNREAD` の行を控えの `withheld`（種類 `named_section`）に残して名指しの節を貼らない。方針のファイルが在らない時は port の読みの決まりで `failed`。根拠: 今は依頼のファイルが読めなくても独立設計は回る（`_request`）。1.2 と 3 節の「ほかの port が読めない時は failed」から依頼だけを外した。今は読めない訳の 1 行を名指しの節の見出しの下に貼っていたが、見出しと頼みの文が断片に移ったので貼らず、控えだけに残す（2.6 の「消した」と同じ向き）。
+15. 依頼のファイルが在らない・読めない時は、落とさず、`REQUEST_UNREAD` の行を控えの `withheld`（種類 `named_section`）に残して名指しの節を貼らない。方針のファイルが在らない時は port の読みの決まりで `failed`。根拠: 今は依頼のファイルが読めなくても独立設計は回る（`_request`）。1.2 と 3 節の「ほかの port が読めない時は failed」から依頼だけを外した。今は読めない訳の 1 行を名指しの節の見出しの下に貼っていた。見出しと頼みの文が断片に移ったので、その行は貼らず、控えの `withheld` に残すのに加えて、断片の段落 `request_unread`（読めなかったので名指しの節は渡していない。名指しが無いと読むな）を出す（2.6 の「足した」）。
 16. 空の入力（空の字か `null`）は、`purpose_review`・`constraints`・`answers`・`request`・`policy` で、既定と同じ「無い」と読む。根拠: graph の `with:` は値の無い欄を空の字で渡しうる。`json` の口は空の字を拒むので、block が先に既定へ寄せる（黙って緩めるのでなく、1.2 の port の説明の「空は…」に書いた意味）。
 17. 日本語の md（1 つ目の commit）は今の `r2-design.md` と同じ字を並べ、`lang` の差し込み口と、裏取りを通っていない目的の判定の段落（`<!-- if stale -->`）は 2 つ目の commit の英語の md で入れる。1 つ目の commit では、その行は今のとおり `（無い）` を入れて常に載る。却下の段落の置き場（md の頭の `{shared:rejected}`）は 1 つ目の commit から変えた（今は役の定義の後の囲みの頭）。この違いは、指示の比べの試験が却下の無い値で照らすので、試験の外にある。
 18. `blocks/.shared/AGENTS.md` の断片の一覧に `design-premises`・`policy` を足し、取り置いた名から外した。

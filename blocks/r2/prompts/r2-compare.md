@@ -60,5 +60,5 @@ Cumulative diff: read the whole file `{diff_file}` with Read as "How the cumulat
 
 What you compare is structure: what is fixed and what is treated as derived, where the seams are, and whether the everyday flows close. A difference in wording is not a difference. List the differences in `differences` with `kind` 構造 (structure) or 表現 (wording). If there is an essential difference in structure, `status` is {st_redesign}; if there is none, `status` is {st_pass}. `reason` is copied as it is into the final report.
 
-Write `reason` and the `text` of each difference in {lang}. Keep the `kind` values 構造 and 表現 as they are.
+Write `reason` and the `text` of each difference in {lang}. Keep keys, enum values (the `kind` values 構造 and 表現 included), identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
 Return only JSON that matches this node's output schema (JSON Schema).

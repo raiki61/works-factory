@@ -26,5 +26,5 @@ Identify the assumption (`assumption`). If you can show it false against the act
 - In `evidence`, write the actual state that decided it false or true (the files and lines you read, the primary sources you read).
 - When the input is not enough (R2's answer is empty, the assumption cannot be read out, the repository cannot be read, and so on): the answer schema has no value for "not enough", so set `assumption_false` to false and `verdict` to {escalate}, start `reason` with "足りない: " (keep that string as it is), and write what is missing.
 
-Write `key`, `assumption`, `evidence`, `reason`, `resolution`, and each of `facts_to_add` in {lang}. Keep the `verdict` words and any file paths and quotes as they are.
+Write `key`, `assumption`, `evidence`, `reason`, `resolution`, and each of `facts_to_add` in {lang}. Keep keys, enum values (the `verdict` words included), identifiers, paths, commands, quotes, and error messages as they are (keys are matched across rounds, so do not translate them).
 Return only JSON that matches this node's output schema (JSON Schema).

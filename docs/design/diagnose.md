@@ -260,6 +260,11 @@ Return only JSON that matches the output schema.
 
 ### 2.6 今の指示との差
 
+- 足した差（新旧の指示の比べの納品。2026-10-19）: `undecided_min`（先行例の `undecided_because` の最小の字数。受け付けは前から照らしていた）を md に足した。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 「推し:」の印を日本語の字に固定した（受け付けが読む字）。指示は見出しを写せと言う。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 素材の欄から `gate_efficacy` と `gate_arms` を外した（11 節の 27）。素材の欄の欠けを言う訳の句は落ちた。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 世界の解の行は札の文でなく素の JSON になったので、`basis: knowledge` は web で確かめていない・`versus.verdict` は依頼の解き方との比べ・`applies` が空の行は答えの要らない行、の意味を md の `world_rows` の箇条に 1 文ずつ足した（今の札の文と同じ意味）。
+
 作り直しの時の、古い指示との差の記録。後の指示の変更では、ここに足さない。
 
 今の指示は 3 か所に在る: `workflows/judge/commands/diagnose.md`（120 行。`$diagnose-reject.output.*` と `$diagnose-prep.output.*` を Archon が入れる）・役が Read した `judge/diagnose-brief.md`（`lib/judge_accept.py:2800-2832` の `brief` が組む。`DIAGNOSE_EXCERPT`〔`:2717`〕の「## 入力」の段と問いの台帳の段を graphloops の描き方で埋め、頭に世界の解の行と頭の深さの節、尾に依頼と PR・依頼の answers・前の run の行・記録された方針・人の方針）・材料の段の値の表（`PROMPT_TABLES`、`:180-192`）。
@@ -399,6 +404,11 @@ Return only JSON that matches the output schema.
 例の run は 1 回目で通ったので却下の段落は入らない。仕様と方針は無かったので、その段落も入らない。今の材料のファイルは「1 回目の判定・判定役の材料・対象差分・前提の制約・凍結した目的・素材の状態・世界の解の行・判定の裏取り・並行 PR の外す範囲」の 9 本を並べた（`judge/` の名のファイル）。新しい形では対象差分・前提の制約・素材の状態は判定役の材料の中に値かパスで在る（3.6）。
 
 ### 3.6 今の指示との差
+
+- 足した差（新旧の指示の比べの納品。2026-10-19）: `facts_min`（`new_facts` の最小の字数）を足した。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 印「足りない:」「確かめられない:」を英語にした（「推し:」は受け付けが日本語の字を読むので日本語のまま。扱いが割れる）。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 方針が無い run では方針の段を出さない。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 「この役は Bash を持たない」を足した。
 
 今の指示は `workflows/judge/commands/rejudge.md`（77 行。`$rejudge-reject.output.*`・`$rejudge-prep.output.brief_file`）と、役が Read した `rejudge/brief.md`（`_rejudge_brief`、`:3295-3309`）の 2 か所に在る。
 
