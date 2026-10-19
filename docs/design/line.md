@@ -425,7 +425,7 @@ keep-essence の 12 の仕組みのうち、line が担う物（6・8・10・11�
 - 入力 `gates` は持ち主の決め（2026-10-19）で足さない（8.3）。確かめは済んだ。
 - `lang` が空の時: README 5.3 は「空なら line が依頼の言語を決めて渡す」と言うが、言語を自動で選ぶ仕組みを作らない決めとぶつかる。この設計は空のまま渡す（依頼を読む役は既定の文で依頼の言語に書く）。依頼を見ない役（test-gate の任せ先・実行器の書き手）に、依頼の文の頭を引いて「この文と同じ言語」と書いた値を渡すかは未決。
 - `startrec` の読む口の残し方（閉じた）: lib に読む口は残さない。始めの記録を読む口（`read`・`shape` など）は line の `src/` に置き、KEEP の関数（`conflict`・`gatemarks`・`headdepth`）は値を引数で受ける形に直す。形を問わない JSON の読み書き（今の `startrec.load`・`save`）は `lib/jsonfile.py` に寄せ、test-gate と `suitewrite` はそれを使う。`lib/runreport.py` は消え、line だけが使う部分は line の `src/facts.py` へ、run の記録の読み（`transcript_facts` など）は `lib/runlog.py` へ移る（12 節。integration.md の 4.3-9・4.3-追加-6・4.5-4）。
-- 包みが始めの記録を読む `graph_map`（機能の語）は、block の外の埋めが line の記録を読む形のまま残る。README 4.3 は block の話で埋めに当たらないと読んだ。
+- 包み（役の claude の前に挟む殻。埋め P5、`workflows/.shared/fence.py`）が始めの記録から読む機能の切り替え `graph_map`（`lib/entry.py` の `FEATURE_DEFAULTS` の機能の名の 1 つ。役の system prompt に全体の graph とその役の居場所を足すか）は、block の外の埋めが line の記録を読む形のまま残す。README 4.3（block は run の記録を前提にしない）は block の決まりで、埋めには当たらないと読んだ。
 - `fixture.FORMAT` を上げた（組み込みで新しい line が運ぶ値の鍵を変えるので上げる。4.1）後、今の固定材料（前の版の写し）を新しい line で使えないこと。報告の「固定材料」の行を持つ前の run の写しは取り込めず、AI の前で拒む。
 - 判定から入る run で修正の後に並行 PR を回すと、無人の run が止まる場合が増える（8.1）。持ち主の決め（無人は推しで進む）とは別の、事実が無い所での止まりなので止める側に倒したが、確かめていない。
 - dry-run が include の中の loop の本体に include の道を渡さない（README 13 章）ので、line の筋書きは計画の往復の中の include した block の loop の本体の script を差し替える。本体を走らせる確かめは各 block の筋書きが持つ。

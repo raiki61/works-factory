@@ -11,7 +11,7 @@
 
 根の直下のファイルとフォルダが、根の `AGENTS.md` の「リポジトリの形」の木に在る物だけ（根の `AGENTS.md` の機械の行）。
 
-- 木の名は AGENTS.md から読み、ここに写さない。名の欄（2 つ以上の空白の前）は `・` で並べてよく、`/` より後は根の直下の名に関わらない。根の直下の欄が空白を含む行は名でなく組の見出しで、その下の 1 段が根の直下の名。木の根の直下の名は 1 度だけ。
+- 木の名は AGENTS.md から読み、ここに写さない。木は「リポジトリの形」の ```text の中の行で、1 行は `├── 名   説明` の形。名の欄（`├── ` などの線の後から、2 つ以上の空白の前まで）は `・` で並べてよく、`/` より後は根の直下の名に関わらない。根の直下の段（字下げの 1 段目）の名の欄が空白を含む行（例 `ASF の取り付け命令が置いた物`）は、名でなく組の見出しで、その下の 1 段（字下げの 2 段目）の名を根の直下の名に数える。木の根の直下の名は 1 度だけ。
 - `workflows/` の直下は、`works-factory-<名>.yaml` を持つフォルダ（block と graph）・`.shared/`・`AGENTS.md` だけ。直下のフォルダが自分の名の YAML を持たなければ赤（block の名の表は持たない。持ち主の決め `shape-checks-only`）。
 - 試験を置くフォルダ（`test_*.py` の在るフォルダとその上の全部）に `__init__.py` が在る（無いと Python 3.12 の unittest は黙って見つけない）。小さな対象のリポジトリの種 `tests/e2e/target-seed/` には置かない。
 - 見るファイルは git が知る物と、まだ add していないが無視されない物（`.venv`・`__pycache__` など無視の物は見ない）。
@@ -100,7 +100,7 @@ block と graph の返りが 1 つのノードの構造体で、仕事の結末�
 
 - 全部の block と graph の AI のノード（`prompt:`・`command:`。`loop_group` の中も）の印は道具から導く: `allowed_tools` に Bash・Edit・Write（`scan.TREE_CHANGERS`）が無い役は書き、在る役は書かない。外れは、変える道具を持つが作業ツリーを変えない役（表 `scan.KEEP_CHECKOUT`。訳つき）だけ。
 - script・bash のノードは、作業ツリーを変えるノード（表 `scan.CHANGE_CHECKOUT`。訳つき）の外の全部が書き、表のノードは書かない。
-- `loop:` のノードが無い（Archon は `loop:` のノードの `mutates_checkout` を無視して警告を出す）。
+- `loop:` のノードを置かない（在れば赤。Archon は `loop:` のノードの `mutates_checkout` を無視して警告を出すので、印を書けない）。
 - AI のノードは `settingSources: [user]`・閉じた `sandbox`（`enabled: true`・`allowUnsandboxedCommands: false`）・表 `scan.ROLE_TOOLS` の中の `allowed_tools` を持つ。
 - 役の `model` は表 `lib/launchgroups.py` の `GROUPS` の群の名（`'@wf-<群>'`）で、役にもグラフの根にも `effort`・`modelReasoningEffort` が無い（`test_role_model_names_a_group_without_effort`。ノードの `effort` は群の別名の `effort` より先に採られ、run ごとの `--model @wf-<群>=…` の付け替えが黙って効かなくなる）。
 - Bash を持ち Edit・Write を持たない役は `sandbox.filesystem.denyWrite` に `scan.NO_TREE_WRITE`（`~/../archon-home`。起動が隔離した Archon の家）を書き、`'.'` を書かない（`test_bash_reader_without_no_tree_write_is_red`。`'.'` は cwd を塞がない。#293）。値は `isolate.DIRS` の置き場の名から引き、`isolate()` が組む HOME から解くと隔離した Archon の家を指す（`test_no_tree_write_names_the_isolated_archon_home`）。書き込みの柵の包み（役の claude の前に挟む殻。`docs/polyfills.md` の埋め P5、`workflows/.shared/fence.py`）は、`denyWrite` にこの値（印）が在る起動にだけ、書いてはならない場所の一覧を足す。それは `tests/shared/test_fence.py` が見る。
