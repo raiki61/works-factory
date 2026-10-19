@@ -5,8 +5,10 @@
 docstring に元の試験の名を書く）。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
+import os
 import pathlib
 import unittest
+from unittest import mock
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
@@ -224,6 +226,119 @@ class CompareRoadCase(_RepoCase):
         text = self.compare()["prompt"]
         self.assertIn("(0 lines;", text)
         self.assertTrue(pathlib.Path(self.intake_json()["diff"]["file"]).is_file())
+        self.assertIn("PR も直しも何も変えていない", text)
+        self.assertNotIn("打ち消し", text)
+
+    def test_runtime_copy_is_left_out_of_the_origin_section(self):
+        """test_skipped_paths_are_left_out_of_the_pr_diff_too: Archon が作業ツリーに写す置き場の下は、直しの差分のファイルに載らない"""
+        (self.repo / ".archon").mkdir()
+        (self.repo / ".archon" / "w.yaml").write_text("x: 1\n", encoding="utf-8")
+        self.intake()
+        text = self.compare()["prompt"]
+        self.assertNotIn(".archon", text)
+        self.assertIn("この run の直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: 無い", text)
+
+
+class PremiseSectionCase(_RepoCase):
+    """元 PremiseSectionCase のうち、貼りと後に来た答え以外（名指しの引き方・控えの kind の柵・渡っていない物の言い方）を block の筋で"""
+
+    def setUp(self):
+        super().setUp()
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs" / "d.md").write_text("# 設計\n\n## 2 入口\n\n入口は 1 つ\n\n## 3 出口\n\n出口\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "docs")
+
+    def ledger(self) -> dict:
+        return json.loads((self.place / "r2-premises.json").read_text(encoding="utf-8"))
+
+    def named(self, request: str) -> tuple:
+        self.intake(request=str(self.write("request.md", request)))
+        text = self.compare()["prompt"]
+        return text, self.ledger()
+
+    def test_link_anchor_finds_the_heading_by_its_slug(self):
+        _, ledger = self.named("[入口](docs/d.md#2-入口) のとおりに直す")
+        self.assertIn({"kind": "named_section", "what": "docs/d.md#2-入口"}, ledger["given"])
+
+    def test_heading_inside_a_code_fence_is_not_an_anchor(self):
+        """名指された文書の見出しは囲い（``` と ~~~。情報文字列つきも）の外だけを読む: 囲いの中の # 行はアンカーにならず、節も切らない"""
+        for fence in ("```", "```js title=x", "~~~"):
+            with self.subTest(fence):
+                (self.repo / "docs" / "f.md").write_text(
+                    f"# 設計\n\n## 2 入口\n\n{fence}\n## 9 偽\n{fence[:3]}\n\nBODY-2-TAIL\n\n## 3 出口\n\nS3\n", encoding="utf-8")
+                git(self.repo, "add", "-A")
+                git(self.repo, "commit", "-q", "-m", fence)
+                text, ledger = self.named("[偽](docs/f.md#9-偽) と [入口](docs/f.md#2-入口) のとおりに直す")
+                self.assertIn({"kind": "named_section", "what": "docs/f.md#2-入口"}, ledger["given"])
+                self.assertNotIn({"kind": "named_section", "what": "docs/f.md#9-偽"}, ledger["given"])
+                self.assertIn("docs/f.md#9-偽", [w["what"] for w in ledger["withheld"]])
+                self.assertIn("BODY-2-TAIL", text)
+                self.assertNotIn("S3", text)
+
+    def test_premise_kinds_fence_is_design_premises(self):
+        """test_premise_kinds_fence_is_design_premises: 貼る入力の種類が design.PREMISE_KINDS の外なら、比べの支度が落ちる。
+        後半が足す drift・constraint の kind も、控えの kind の許す一覧 KINDS の外なら落ちる"""
+        self.intake(answers=dump({"start": {"decision": "continue", "text": "x"}}))
+        with self.run.env():
+            import design
+            steps = kit.load("r2", "steps")
+            premises = steps.premises
+            with mock.patch.object(design, "PREMISE_KINDS", ("named_section", "repo_map")):
+                with self.assertRaises(premises.BoardGap) as raised:
+                    steps.compare_prompt(self.place, self.repo)
+            self.assertIn("human_answer", str(raised.exception))
+            self.intake(changed=dump({"premise_drift": True, "premise_drift_note": "ずれ"}))
+            with mock.patch.object(premises, "KINDS", design.PREMISE_KINDS):
+                with self.assertRaises(premises.BoardGap) as raised:
+                    steps.compare_prompt(self.place, self.repo)
+            self.assertIn("drift", str(raised.exception))
+
+    def test_says_what_was_not_passed(self):
+        """依頼が無い・修正の印が無い・制約が無い時の言い方（元 test_says_what_was_not_passed の残り）"""
+        self.intake()
+        text = self.compare()["prompt"]
+        self.assertIn("（修正の印が渡っていない）", text)
+        self.assertIn("### Recorded constraints\n\n（無い）", text)
+        self.intake(changed=dump({"premise_drift": False}))
+        self.assertIn("### Drift of premises (declared during the fix)\n\n（無い）", self.compare()["prompt"])
+        self.intake(changed=dump({"premise_drift": True}))
+        self.assertIn("（申告の文なし）", self.compare()["prompt"])
+
+    def test_constraints_come_as_an_object_and_read_the_same_in_both_roles(self):
+        """test_constraints_read_the_same_in_the_compare_head_and_the_premise_check（E43）: object の形で来ても同じ行。
+        検算の役の md にも同じ行が載る"""
+        cons = [{"kind": "実測", "text": "1 デプロイは 2 リポジトリ", "measured_how": "grep"},
+                {"kind": "仮説", "text": "入口は 1 つ", "measured_how": "読んだ"}]
+        want = "- （実測）1 デプロイは 2 リポジトリ\n- （仮説）入口は 1 つ"
+        for form in (cons, {"constraints": cons}):
+            with self.subTest(type(form).__name__):
+                self.intake(constraints=dump(form))
+                self.assertIn(want, self.compare()["prompt"])
+        self.intake(design=dump(NOT_STANDS), constraints=dump({"constraints": cons}))
+        self.assertIn(want, self.premise())
+
+
+class OriginSectionCase(_RepoCase):
+    """元 OriginSectionCase のうち、PR の根の 1 本以外を block の筋で（head と base_label の port で起点を替える）"""
+
+    def test_origin_at_head_has_no_pr_diff(self):
+        (self.repo / "a.txt").write_text("fix\n", encoding="utf-8")
+        self.intake()
+        text = self.compare()["prompt"]
+        self.assertIn(f"起点は修正前の HEAD `{self.base[:12]}`", text)
+        self.assertIn("PR の差分は無い", text)
+        self.assertIn("直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: a.txt", text)
+        self.assertNotIn("打ち消し", text)
+
+    @unittest.skipIf(os.geteuid() == 0, "root はモードを無視してファイルを読める")
+    def test_unreadable_work_tree_is_said_not_raised(self):
+        secret = self.repo / "secret"
+        secret.write_text("s\n", encoding="utf-8")
+        secret.chmod(0)
+        self.addCleanup(secret.chmod, 0o644)
+        self.intake()
+        self.assertIn("累積差分の起点を測れない", self.compare()["prompt"])
 
 
 class PremiseRoadCase(_RepoCase):
@@ -244,6 +359,14 @@ class PremiseRoadCase(_RepoCase):
         self.assertIn("  - 次の run の制約に足す実測: 上限は config.py:3 の 10", report)
         self.assertTrue(any("保留（held）のまま残す" in line for line in report))
         self.assertTrue(any("独立の設計と差分を比べる役に渡した入力の控えが無い（compare）" in n for n in done["notes"]))
+
+    def test_premise_reason_falls_back_to_the_reason(self):
+        """test_premise_reason_prefers_the_named_field_then_the_reason: premise_invalid_reason が無ければ reason を判定の行に"""
+        design = {k: v for k, v in NOT_STANDS.items() if k != "premise_invalid_reason"}
+        self.intake(design=dump(design))
+        self.premise()
+        self.save("premise-check", CHECK)
+        self.assertEqual(self.finish()["verdict"], {"status": "unverifiable", "reason": "前提不成立: 既に入っている"})
 
     def test_escalate_carries_no_facts(self):
         self.intake(design=dump(NOT_STANDS))
@@ -314,6 +437,14 @@ class SkippedRoadCase(_RepoCase):
         self.assertEqual(done["status"], "skipped")
 
 
+    def test_a_design_with_a_missing_field_is_not_due(self):
+        """design の値が missing の欄を持つ時は、問いが立つ・立たないと言っていても役を起こさない（形の照らしは余分な欄を通す）"""
+        for stands in (True, False):
+            with self.subTest(stands):
+                out = self.intake(design=dump({**STANDS, "question_stands": stands, "missing": "x"}))
+                self.assertEqual((out["compare"], out["premise"]), (False, False))
+
+
 class FailureCase(_RepoCase):
     def test_unreadable_port_fails_with_its_name(self):
         out = self.intake(design='{"question_stands": "yes"}')
@@ -323,6 +454,16 @@ class FailureCase(_RepoCase):
         self.assertEqual((done["ok"], done["status"]), (False, "failed"))
         self.assertIn("入力が読めない: 入力 design:", done["verdict"]["reason"])
         self.assertEqual((done["premise_check"], done["notes"], done["questions"]), (None, [], []))
+
+    def test_unwritable_notes_say_so_in_one_line(self):
+        """premise-inputs.json が書けなくても出口は落ちず、notes は控えが無いの 1 行"""
+        self.intake()
+        self.compare()
+        self.save("r2-compare", PASS)
+        (self.place / "premise-inputs.json").mkdir()
+        done = self.finish()
+        self.assertEqual((done["ok"], done["status"]), (True, "ran"))
+        self.assertEqual(done["notes"], ["独立の設計と比べる目に渡した入力の控えが無い（R2）"])
 
     def test_finish_without_intake_fails_softly(self):
         done = self.finish()

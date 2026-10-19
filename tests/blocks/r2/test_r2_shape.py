@@ -97,6 +97,10 @@ class RoleCase(unittest.TestCase):
             with self.subTest(name):
                 self.assertNotIn("block", spec["description"])
 
+        for path in sorted((BLOCK / "schemas").glob("*.schema.json")):
+            with self.subTest(path.name):
+                self.assertNotIn("block", json.loads(path.read_text(encoding="utf-8")).get("description", ""))
+
 
 class TextCase(unittest.TestCase):
     def test_compare_reads_the_whole_diff_file(self):

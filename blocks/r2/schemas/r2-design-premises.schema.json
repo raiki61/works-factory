@@ -1,5 +1,5 @@
 {
-  "description": "独立設計の控え（独立設計の block の出力 premises の先）。seen.count は独立設計が見た人の答えの数。null は控えが無い",
+  "description": "独立設計の控え。seen.count は独立設計が見た人の答えの数。null は控えが無い",
   "type": ["object", "null"],
   "properties": {
     "node": {"type": "string"},

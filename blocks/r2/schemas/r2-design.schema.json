@@ -1,5 +1,5 @@
 {
-  "description": "独立設計の役の返答（独立設計の block の出力 design の先）。null は独立設計が無い",
+  "description": "独立設計の役の返答。null は独立設計が無い",
   "type": ["object", "null"],
   "properties": {
     "question_stands": {"type": "boolean"},

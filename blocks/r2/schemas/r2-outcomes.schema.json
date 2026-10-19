@@ -1,5 +1,5 @@
 {
-  "description": "テストごとの base と最後の結末（試験の関門 final の出力 test_outcomes）。null は渡されていない",
+  "description": "テストごとの base と最後の結末。null は渡されていない",
   "type": ["object", "null"],
   "properties": {
     "rows": {
