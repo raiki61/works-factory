@@ -589,12 +589,16 @@ class PromptInputsCase(_RepoCase):
 
 class ReviewMdCase(_RepoCase):
     def test_review_md_paths(self):
-        own, theirs = mk.review_md_paths(self.repo)
-        self.assertEqual(own, str(LIB / "REVIEW.md"))
+        """工場の正本は呼び手が渡すパス（lib は blocks/ を名指さない）、対象の根の REVIEW.md は在る時だけ"""
+        factory = LIB.parent / "blocks" / ".shared" / "prompts" / "REVIEW.md"
+        self.assertTrue(factory.is_file(), "工場の観点の正本は blocks/.shared/prompts/REVIEW.md")
+        self.assertFalse((LIB / "REVIEW.md").exists())
+        own, theirs = mk.review_md_paths(self.repo, factory)
+        self.assertEqual(own, str(factory.resolve()))
         self.assertEqual(theirs, "")
         (self.repo / "REVIEW.md").write_text("x", encoding="utf-8")
-        self.assertEqual(mk.review_md_paths(self.repo)[1], str(self.repo / "REVIEW.md"))
-        self.assertEqual(mk.review_md_paths(self.repo, self.tmp)[0], str(self.tmp / "REVIEW.md"))
+        self.assertEqual(mk.review_md_paths(self.repo, factory)[1], str(self.repo / "REVIEW.md"))
+        self.assertEqual(mk.review_md_paths(self.repo, self.tmp / "REVIEW.md")[0], str(self.tmp / "REVIEW.md"))
 
 
 if __name__ == "__main__":

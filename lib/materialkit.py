@@ -110,10 +110,11 @@ def _write(path, doc) -> pathlib.Path:
     return jsonfile.write(path, doc, parents=True)
 
 
-def review_md_paths(repo, lib_dir=None) -> tuple:
-    """写す元 judge_accept.review_md_paths（元 rules:35）。(工場の観点の正本 <lib_dir>/REVIEW.md の絶対パス, 対象の根の REVIEW.md の
-    絶対パスか "")。lib_dir の既定はこのモジュールの在る lib/（試験は一時のフォルダを渡せる）"""
-    own = pathlib.Path(lib_dir or pathlib.Path(__file__).resolve().parent).resolve() / REVIEW_MD
+def review_md_paths(repo, own_file) -> tuple:
+    """写す元 judge_accept.review_md_paths（元 rules:35）。(工場の観点の正本 own_file の絶対パス, 対象の根の REVIEW.md の絶対パスか "")。
+    工場の正本は blocks/.shared/prompts/REVIEW.md で、lib は block の置き場を名指せないので呼び手の block がパスを渡す
+    （README 9.3。前は lib/REVIEW.md を lib の中から引いた）。対象の根の REVIEW.md は在る時だけ"""
+    own = pathlib.Path(own_file).resolve()
     theirs = pathlib.Path(repo).resolve() / REVIEW_MD
     return str(own), (str(theirs) if theirs.is_file() else "")
 
