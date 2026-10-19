@@ -1,0 +1,20 @@
+# 人が承認ノードで止める道: 固めずに止めの控えを書き、出口が status: stopped と stop_reason human:spec-gate を返す（run は completed）。
+# 筋書きは到達だけを見る。出口の返りの語は tests/blocks/spec の試験が確かめる。受け入れ条件のテストのファイルはこのファイル自身
+# （Given / When / Then の 3 語と、テストの名 test_mean_divides_by_count を中に持つ）
+fixture:
+  expect: completed
+  reached: [intake, spec-write, spec-write-accept, spec-review, spec-review-accept, spec-ask, spec-gate, spec-freeze, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+exec-code: true
+spec-write:
+  requirements:
+    - {key: R1, text: mean は要素の数で割る}
+  acceptance:
+    - {key: A1, requirement: R1, file: .archon/workflows/works-factory/spec/fixtures/gate-stop.stubs.yaml, name: test_mean_divides_by_count, run: 'false'}
+  out_of_scope: []
+spec-review:
+  faces: []
+  faces_none: 要件 R1 と受け入れ条件 A1 を突き合わせ、既定の振る舞いと失敗した時の扱いも依頼に含まれないと確かめた
+  reason: 要件 R1 と受け入れ条件 A1 を読み、境目の入力と範囲の外を確かめた
+spec-gate: {decision: stop, text: 範囲が違う}

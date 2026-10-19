@@ -610,3 +610,15 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 6. 承認ノードの文の組み立て `gatemarks.gate_text` は `lib/` に残る物として使う。根拠: line の修正前の承認ノードと仕様の承認ノードの 2 つが使う（`lib/gatemarks.py:366` の docstring）。README の 9.2 は `gatemarks` の承認ノードの決めの部分を line の `src/` へ移すと書くが、`gate_text` は決めでなく文の組み立てで、2 つの使い手を持つ。
 7. 出し直しの段落を共通の断片 `resubmit` にした。根拠: 仕様の 3 つの役と diagnose の再審の役（今の `rejudge-loop` の `rejudge-fix`）が同じ `RESUBMIT_ASK` を使う。README の 5.1 の決め（2 つ以上の block が使う段落は `blocks/.shared/prompts/`）。
 8. 審査役の指示に `{shared:role-judge}` と `{shared:query-rule}` を並べた。根拠: 今の審査役の指示は `lib/agents/judge.md` の本文を写していて、その中に外への検索の決まりの塊が在る（world の query-rule の元 `lib/agents/judge.md:16-22`）。役の定義の断片に検索の決まりを持たせると 2 か所目の写しになる。断片の名 `role-judge` は、土台の PR が役の定義 5 本に付ける名に合わせる（`role-<役>` を仮の名にした）。
+
+## 12 実装で決めた事（実装の役が書く。設計書と main の決まりが食い違った所・設計書が黙っていた所）
+
+1. 入口が write の回の頭で消すのは、この block が名で持つファイルだけ（`src/files.py` の `own_files()`・`own_prompts()`）。1.4・6 節の「place を作り直し（中を全部消す）」は、「block が消してよいのは自分が名を持つファイルだけ」（`blocks/.shared/AGENTS.md`）に合わせて替えた。ほかの物の名のファイルは残る。
+2. 依頼の行の形は `shared:request.schema.json` を使い、block に写しを置かない（1.5 の「`blocks/spec/schemas/request.schema.json`（world と同じ形の写し）」を取り下げ）。形のファイルの名は pack の中で 1 か所にしか置けない（`tests/layers/test_block_shape.py` の 5）。
+3. 出し直しの指示を組む node `spec-<役>-fix-prep` を役ごとに足した（script は 3 つで 1 本 `fix_prep.py`。`with: {role}`）。`spec-<役>-prep` は出し直すかと 1 回目の指示だけを返す（出し直しの時の `prompt` は空）。訳: 筋書きは輪を 1 周しか回さない（`until_bash` を仮定で満たす）ので、出し直しの役は 1 周目に届かない。出し直すかを決める prep の返りだけを筋書きで差し替え、出し直しの指示を組む prep は差し替えずに本物を回せば、出し直しの役の md を筋書きが照らせる（`check_standalone_renders` は、AI の node の prep を差し替えた筋書きを証にしない）。筋書きは `resubmit-write`・`resubmit-review`・`resubmit-revise` の 3 本を足した。
+4. script は prep を 1 本 `prep.py`（`with: {role, prev}`）、受け付けを 1 本 `take.py` にした（設計書は prep 3 本）。違いは `role` だけで、`with:` に結ぶ入力が node ごとに揃う。
+5. 承認ノードの文に入れる run の id は `ports.run_id()` でなく `ports.pointer(<place のファイル>)["run_id"]` で引く（`ports.py` にその口は無い。土台の `ports.py` は変えない）。
+6. 筋書きの `reached` に AI の node を足した（`check_standalone_renders` は reached に在る AI の node を証にする）。受け入れ条件のテストのファイルは、筋書きの作業ツリーに在る筋書き自身（Given / When / Then の 3 語と、テストの名を中に持つ）にした。check の筋書きの仕様は `fixtures/approved-spec.json`（受け入れ条件のテストは作業ツリーの `README.md`）。
+7. 出力: `stopped` で `stop_reason` が `human:spec-gate` か `request:spec-gate`、`failed` で `works:spec`。check の `ok` は `status` が `checked` の時だけ真（照らせなかった `unchecked` は偽）。照らしの node が返りを返さなかった時は、照らせなかった（問い 1 行・`unchecked`）として返す。
+8. 入口が `mode` を読めない時は `mode` を空にして `go` 偽・`failed`（`works:spec`）で返す。write の止めの控え `stop.json` は、入口が読めなかった時にも書く。
+9. `answer`（承認ノードの答え）が通す語で、`spec-ask.json` が無い時は、`stop.json` に `works:spec` と「`spec-ask.json` が無い・形が違う」を書く（今の `spec_answer` のまま。承認ノードが開かなかった時は null で別の道）。

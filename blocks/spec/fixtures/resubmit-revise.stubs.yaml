@@ -1,0 +1,23 @@
+# 直す役の返答が拒まれた後の出し直し（resubmit-write.stubs.yaml と同じ形）。書く役と審査役は通り（審査は穴を 1 件挙げる）、直す輪の 1 周目の
+# prep の返りを「出し直す」に差し替える。受け入れ条件のテストのファイルはこのファイル自身（Given / When / Then の 3 語と、
+# テストの名 test_mean_divides_by_count を持つ）
+fixture:
+  expect: completed
+  reached: [intake, spec-write-accept, spec-review-accept, spec-revise-prep, spec-revise-fix-prep, spec-revise-fix, spec-revise-accept, spec-ask, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+  resolved-text-contains:
+    spec-revise-fix: '前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。'
+exec-code: true
+spec-write:
+  requirements:
+    - {key: R1, text: mean は要素の数で割る}
+  acceptance:
+    - {key: A1, requirement: R1, file: .archon/workflows/works-factory/spec/fixtures/resubmit-revise.stubs.yaml, name: test_mean_divides_by_count, run: 'false'}
+  out_of_scope: []
+spec-review:
+  faces:
+    - {key: F1, kind: ambiguous, where: R1, why: 空の並びの時に何を返すかが書かれていない（要件にも受け入れ条件にも無い）}
+  reason: 要件 R1 は空の並びを渡した時に何を返すかが曖昧で、受け入れ条件 A1 もそこを試していない
+spec-revise-prep: {prompt: '', resubmit: true}
+spec-revise-fix: {}
