@@ -13,14 +13,18 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 
+WORLD = ("ok", "status", "reason", "rows", "classes", "dropped", "report")   # world の返りの欄（返す node finish の required の全部。返りの world にそのまま載せる）
+REVIEW = ("ok", "holes", "report")   # 事前審査の返りのうち読む欄（同じ）
+
+
 def compute():
     from src import steps
-    raw = ports.text(os.environ.get("INPUTS_WORLD")).strip()
-    world = None if raw in ("", "null") else ports.json(raw)
+    world = ports.picked(os.environ.get("INPUTS_WORLD"), WORLD)
+    world = None if world is None else dict(world)
     if isinstance(world, dict) and world.get("rows"):
         world = {**world, "rows_file": str(ports.file(json.dumps(world["rows"])))}
-    raw = ports.text(os.environ.get("INPUTS_REVIEW")).strip()
-    review = None if raw in ("", "null") else ports.json(raw)
+    review = ports.picked(os.environ.get("INPUTS_REVIEW"), REVIEW)
+    review = None if review is None else dict(review)
     faces = []
     if isinstance(review, dict) and review.get("holes"):
         holes = ports.json(json.dumps(review["holes"]))

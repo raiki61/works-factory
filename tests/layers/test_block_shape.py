@@ -33,9 +33,9 @@
    どこかの深さの properties に在る（形に無い欄は Archon の構造化の出力が拒むので、役は指示が求める欄を返せない。
    docs/design/integration.md の 4.2-2。tests/workflows/test_reply_fields.py の後継。指示の文は md だけなので lib の字は辿らない）
 
-今ある yes/no の検査も blocks/ に当てる（ExistingRulesCase）: E6（外への書き込み）・E7（読むだけの node の印）・E12（期限を
-置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、blocks/ を workflows/ の場所に写した
-一時の木に当てる。uv の script の頭の宣言（4 行）はここで照らす。E1（archon validate が警告なしで通る）は ArchonCase。
+今ある yes/no の検査も pack（workflows/）に当てる（ExistingRulesCase）: E6（外への書き込み）・E7（読むだけの node の印）・E12（期限を
+置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、pack を一時の木の workflows/ に写して
+当てる。uv の script の頭の宣言（4 行）はここで照らす。E1（archon validate が警告なしで通る）は ArchonCase。
 """
 import ast
 import json
@@ -54,14 +54,14 @@ from tests.layers import scan
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BLOCKS = archon.WORKFLOWS   # pack のフォルダ（入れ替えの前は workflows/ の古いサブグラフを指す。docs/design/integration.md の 4.5-11）
+BLOCKS = archon.WORKFLOWS   # pack のフォルダ workflows/（pack.json の ours.folder から読む。docs/design/integration.md の 4.5-11）
 SHARED = ".shared"
 LIB = ROOT / "lib"
 FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\([a-z0-9_-]+(?:\|[a-z0-9_-]+)+\)): ")
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
-RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # blocks/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
+RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # workflows/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
 JSON_KEY = re.compile(r'"([A-Za-z_]\w*)"\s*:', re.ASCII)
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
@@ -624,7 +624,7 @@ class SeedCase(unittest.TestCase):
 
 
 class ExistingRulesCase(unittest.TestCase):
-    """今ある yes/no の検査（tests/layers/scan.py）を blocks/ に当てる。scan は木の workflows/ を見るので、blocks/ をそこへ写した一時の木に当てる"""
+    """今ある yes/no の検査（tests/layers/scan.py）を pack（workflows/）に当てる。pack を一時の木の workflows/ に写して当てる"""
 
     RULES = ("E6", "E7", "E12", "E16", "E19")
 
@@ -634,8 +634,8 @@ class ExistingRulesCase(unittest.TestCase):
             shutil.copytree(BLOCKS, root / "workflows", ignore=shutil.ignore_patterns("__pycache__"))
             shutil.copy(ROOT / "pack.json", root / "pack.json")
             shutil.copytree(ROOT / "factory", root / "factory")
-            # graph（include を持つ物）は役を持たないので、今の workflows/ の同じ名のサブグラフ（judge・eyes）の役を名指す
-            # 表 KEEP_CHECKOUT の行が「工程に無い」と出る。その行は今の workflows/ の表の話で、graph の形の外れではない
+            # graph（include を持つ物）は役を持たないので、graph の名（judge・eyes など）の役を名指す表 KEEP_CHECKOUT の行が
+            # 「工程に無い」と出る。その行は表の話で、graph の形の外れではない
             graphs = {f.name for f in folders(BLOCKS) if any("include" in n for n in nodes(load(f)))}
             stale = re.compile(rf"^workflows/({'|'.join(map(re.escape, graphs)) or '$^'})/[^:]+:1: 表 KEEP_CHECKOUT が名指した役 ")
             for rule in self.RULES:
@@ -645,7 +645,7 @@ class ExistingRulesCase(unittest.TestCase):
 
 
 class ArchonCase(unittest.TestCase):
-    """E1 と 7.1 の 3: blocks/ の全部の workflow を Archon の validate に通し、全部の筋書きを workflow test で回す"""
+    """E1 と 7.1 の 3: pack（workflows/）の全部の workflow を Archon の validate に通し、全部の筋書きを workflow test で回す"""
 
     @classmethod
     def setUpClass(cls):

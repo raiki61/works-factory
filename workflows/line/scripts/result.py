@@ -57,12 +57,12 @@ def result(report, *, merge_apply, merge_seal, eyes, spec_check, answer_final, c
 
 
 def compute() -> dict:
-    raw = {"report": os.environ.get("INPUTS_REPORT"), "merge_apply": os.environ.get("INPUTS_MERGE_APPLY"),
+    report = ports.picked(os.environ.get("INPUTS_REPORT"), REPORT)
+    raw = {"merge_apply": os.environ.get("INPUTS_MERGE_APPLY"),
            "merge_seal": os.environ.get("INPUTS_MERGE_SEAL"), "eyes": os.environ.get("INPUTS_EYES"),
            "spec_check": os.environ.get("INPUTS_SPEC_CHECK"), "answer_final": os.environ.get("INPUTS_ANSWER_FINAL"),
            "children": os.environ.get("INPUTS_CHILDREN")}
     value = ports.polyfill("skip_value").value
-    report = ports.picked(raw.pop("report"), REPORT)
     return result(None if report is None else dict(report), **{name: value(got) for name, got in raw.items()})
 
 

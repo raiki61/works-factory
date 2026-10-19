@@ -1,4 +1,9 @@
-"""`workflows/` の YAML で、節の種類が全部知った物で、どの節も `timeout` を書かず、期限を持つ節の `idle_timeout`・`wait.deadline_ms` が全部 `1728000000`（workflows/AGENTS.md の E12 の機械の行）。"""
+"""`workflows/` の YAML で、ノードの種類が全部知った物で、どのノードも `timeout` を書かず、既定の期限が当たるノードの `idle_timeout`・`wait.deadline_ms` が全部 `1728000000`（`workflows/AGENTS.md` の E12 の機械の行。持ち主の決め `no-timeouts`）。
+
+- 書かなければ期限の無い鍵は書かない: `script:`・`bash:` の `timeout`、`loop:`・`loop_group:` の `timeout`（`until_bash` の確かめ）。
+- 書かなくても既定の期限が当たる鍵には、実質無しの値 `1728000000`（ミリ秒で 20 日。`scan.NO_DEADLINE`。埋め P14）を書く: `prompt:`・`command:` の `idle_timeout`、`loop:` の `idle_timeout`、`approval:` の `idle_timeout`、`wait:` の中の `deadline_ms`。`attention` の待ち（承認ノード）は期限を持たない。`cancel:`・`include:`・`workflow:` は期限を持たない。
+- 知らない種類のノードは赤。鍵ごとの訳と止めた Archon の在り処は `docs/design/archon.md` の E12 の節。
+"""
 import pathlib
 import unittest
 

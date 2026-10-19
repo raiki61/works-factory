@@ -1,4 +1,8 @@
-"""`workflows/` の YAML の AI ノード（`prompt:`・`command:`。輪の中も）が `retry` を形 `scan.ROLE_RETRY` で持つか、真上に外す理由の行を持つ（workflows/AGENTS.md の E19 の機械の行）。"""
+"""graph と block の YAML の AI のノード（`prompt:`・`command:`。`loop_group` の本体の中も）が `retry` を形 `scan.ROLE_RETRY`（`{max_attempts: 2, on_error: all}`）で持つか、ノードの頭の行の真上に外す理由の行 `# retry なし: <理由>` を持つ（`workflows/AGENTS.md` の E19 の機械の行）。
+
+- 両方在るのも赤。照らしは `tests/layers/scan.py` の `_role_retry`。
+- `on_error: all` を書く訳（止めた Archon の既定は `on_error: transient` で、種類が `unknown` の失敗を出し直さない）と、`loop_group` のノードそのものに書けない訳は `docs/design/archon.md` の E19 の節。
+"""
 import pathlib
 import unittest
 

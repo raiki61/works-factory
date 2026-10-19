@@ -1,4 +1,8 @@
-"""`bin/`・`workflows/`・`lib/` に、持ち主の環境の字（`raiki61`・`claude-code-oauth-`・`/Users/`）が無い（根の AGENTS.md の E14 の機械の行）。"""
+"""`bin/`・`workflows/`・`lib/` に、持ち主の環境の字（`raiki61`・`claude-code-oauth-`・`/Users/`）が無い（根の `AGENTS.md` の E14 の機械の行。持ち主の決め `others-may-use`）。
+
+- 持ち主の環境（Claude のアカウントの名・keychain の項目の名・GitHub のアカウントの名・置き場のパス）は、選べる道として置き、値は利用者の設定か起動の引数で渡す。
+- 何かを削る直しが普通の利用者の環境で要らないかは人が見る。
+"""
 import pathlib
 import unittest
 

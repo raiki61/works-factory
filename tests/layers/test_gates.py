@@ -1,9 +1,10 @@
-"""人の関所の形（workflows/AGENTS.md の E16 の機械の行）。
+"""承認ノードの形（`workflows/AGENTS.md` の E16 の機械の行。持ち主の決め `asf-way-gates-fanout`）。
 
-どの工程も頭に効かない `interactive` を書かない。差し込まれるブロックは工程の頭に `worktree`・`container`・`evidence_policy`・
-`mutates_checkout` を書かない。関所は `wait:` の `attention` を `form: select` で書き、`options` に答えの語（lib/answer.py の
-GO_WORDS・STOP_WORDS・REJECT）を全部持ち、非推奨の `approval:` で書かない（K10）。輪（loop_group）の本体に関所を置かない（K18）。
-並べの形は人が見る。
+- 全部の graph と block の承認ノードが `wait:` の `attention` で `form: select` を持ち、`options` に `lib/answer.py` の答えの語（`GO_WORDS`・`STOP_WORDS`。`STOP_WORDS` は `REJECT` を含む）を全部持つ（止めた Archon は `options` に無い答えを拒み、run は承認ノードで止まったまま）。
+- `approval:` のノードが無い。どのグラフも頭に `interactive` を書かない（止めた Archon は読み込みで非推奨の警告を出し、効かない）。
+- ループ（`loop_group`）の本体に承認ノードが無い（本体が承認ノードで終わるループの再開は会話を引き継がない）。
+- include されるグラフ（block と、メイングラフと周の鎖のほかの graph）は頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない（一番上のグラフ〔メイングラフ・周の鎖〕は書いてよい）。
+- 筋書きの stub は `workflow test` が照らす（答えの stub の無い承認ノードで止まると赤）。並べ（`fan_out:`）の形は人が見る。
 """
 import pathlib
 import unittest

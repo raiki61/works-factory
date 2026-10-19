@@ -1,4 +1,9 @@
-"""深さの段の表と line の段の表 TIERS（scan.tiers()。line の src/tiers.py）の一致、深さを読む when の句の無さ（workflows/AGENTS.md の E20 の機械の行）。今の木は緑、小さな木で 1 本 1 違反の赤を作る。"""
+"""深さの段の表と line の段の表 `TIERS`（`scan.tiers()`。`workflows/line/src/tiers.py`）の一致と、深さを読む `when` の句の無さ（`workflows/AGENTS.md` の E20 の機械の行。持ち主の決め `depth-by-reason`・`three-tiers`）。
+
+- 表は `docs/design/line.md` の「### 深さの段の表」（`scan.DEPTH_TABLE`）。行（段・省く物・足す物）が `TIERS` と等しい。省く物・足す物の欄は `` `名` `` を並べるか「無し」。
+- どのノード（メイングラフ・include した graph と block の頭の段・ループの中）の `when` も、出力の深さの欄を読む句（`$<ノード>.output.<名に depth を含む欄>`）を持たない。省くかを `when:` に渡す時は、line が表から引いた真偽（`raise` の `checks`・`eyes_due` など）だけにする。
+- 今の木は緑、小さな木で 1 本 1 違反の赤を作る。
+"""
 import pathlib
 import unittest
 

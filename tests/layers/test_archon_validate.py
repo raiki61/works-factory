@@ -1,8 +1,9 @@
-"""`archon validate workflows` が自分の工程（works-factory-*）に誤りも警告も出さない（workflows/AGENTS.md の E1 の機械の行）。
+"""`archon validate` が自分のグラフ（`works-factory-*`）に誤りも警告も出さない（`workflows/AGENTS.md` の E1 の機械の行）。
 
-木は tests/archon.py の使い捨ての木に workflows/ の全部（線とブロック）を pack の形で置いた物。
-同梱の skill の警告は数えない（tests/archon.py の counted）。
-Archon の源か bun が無ければ見送る。
+- 木は `tests/archon.py` の使い捨ての git の木に `workflows/` の全部（block と graph と `.shared/`）を pack の形（`.archon/workflows/works-factory/`）で置いた物。`validate` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けないので、この木を `--cwd` に渡す。
+- 数えない警告は 1 つの形だけ: Claude Code に同梱の skill（`tests/archon.py` の `BUILTIN_SKILLS`）と借りる superpowers の skill（`BORROWED_SKILLS`。`lib/borrow/borrow.json` の `superpowers.skills`）をノードの `skills:` に名指した時の「Claude skill '<名>' not found on disk — expected for built-in…」の警告（level が warning・field が `skills`・文がこの形・名が 2 つの一覧のどちらかに在る、の全部が当たる物。照らしは `tests/archon.py` の `counted` の 1 か所）。訳は `docs/design/archon.md` の E1 の節。
+- 2 つの一覧に無い名の警告と、同梱の名でも別の置き場に入っていて届かない時の誤り（installed elsewhere）は数える。種 `tests/layers/seeds/e1/workflows/skills/` で、その 2 つが数えられることを縛る。
+- Archon の源か bun が無ければ見送る（CI は `WORKS_FACTORY_ARCHON_REQUIRED` で赤にする）。
 """
 import json
 import pathlib

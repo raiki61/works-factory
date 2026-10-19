@@ -1,4 +1,8 @@
-"""決まりの番号（E1 など）が、根の AGENTS.md の表の置き場にちょうど 1 つずつ在ることを確かめる（根の AGENTS.md の「決まりの置き場」）。"""
+"""決まりの番号（E1 など）が、根の `AGENTS.md` の「決まりの置き場」の表の置き場にちょうど 1 つずつ在る（根の `AGENTS.md` の「決まりの置き場」）。
+
+- 表の行は `| E<番号> | `<置き場>` |`、見出しは `## E<番号> `。表の番号は 1 から欠けずに並ぶ。
+- 置き場の `AGENTS.md` は全部の階層を探す（`workflows/AGENTS.md`・`lib/AGENTS.md`・`tests/AGENTS.md`・`bin/AGENTS.md` と根）。
+"""
 import pathlib
 import re
 import unittest
