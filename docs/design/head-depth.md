@@ -292,7 +292,9 @@ Return only JSON of this shape.
 - 消した: 記録だけの 1 文の括弧書き「（止めた版 a972888a は run の中で後のノードの模型を付け替えられず、子の run は親の模型の設定を受け継ぐ）」（`lib/launchgroups.py:47`）。役が知るべきなのは「効かない」ことだけで、訳の Archon の版の事実は持ち主の決め `head-choice-record-only` と `docs/polyfills.md` に在る。
 - 消した: ほかの node の id（`$head-depth-reject.output.*`・`$head-depth-prep.output.brief_file`）。
 - 並べ替えた: `## 入力` の 2 行（材料・対象のリポジトリ）を、対象のリポジトリ・材料の説明の順にし、材料の本文をその後に置いた。材料の説明の文（md:21 の「機械が測った物で、依頼の行ごとの番号・字・番地と…末尾に群のセクションが在り…」）は残した。
-- 足した物は無い。2 つ目の commit で英語にした（#764）。役の名「run の頭の深さの役」は "the run-depth role"。1 つ目の commit（日本語）では、材料の札は今の字（「行 n:」「番地:」「ファイル 在る・行の範囲 ファイルの中」「既定 sonnet・medium」）のまま、2 つ目の commit で 3.2 の英語の札にする。
+- 足した: 役の定義の「段は返さない」（`you do not return a tier`。段は機械が行の種類の重い方から引く。2.3 の 2）。
+- 消さなかった: 輪は `fresh_context: false` なので、2 回目からは会話の続き。役の定義に「新しい会話で起きている」と書かない（元の指示にも無い）。
+- 2 つ目の commit で英語にした（#764）。役の名「run の頭の深さの役」は "the run-depth role"。1 つ目の commit（日本語）では、材料の札は今の字（「行 n:」「番地:」「ファイル 在る・行の範囲 ファイルの中」「既定 sonnet・medium」）のまま、2 つ目の commit で 3.2 の英語の札にする。
 
 ### 2.7 元の works と graphloops の同じ場面
 
