@@ -106,16 +106,6 @@ class FlowCase(unittest.TestCase):
         self.assertIn("The target's own review guide (Read it as well): ", got)
         self.assertIn("REVIEW.md", got.split("The target's own review guide")[1])
 
-    def test_empty_tree_base_takes_the_whole_tree_as_the_diff(self):
-        self.assertTrue(self.intake(base="4b825dc642cb6eb9a060e54bf8d69288fbee4904", entry="")["due"] is False)
-        self.setUp()
-        (self.run.repo / "README.md").write_text("# 手順\n", encoding="utf-8")
-        git(self.run.repo, "add", "-A")
-        git(self.run.repo, "commit", "-q", "-m", "docs")
-        self.assertTrue(self.intake(base="4b825dc642cb6eb9a060e54bf8d69288fbee4904")["due"])
-        view = json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))
-        self.assertEqual(view["changed_files"], ["README.md", "src.txt"])
-
     def test_reply_that_changes_the_tree_is_refused(self):
         """写す元 test_test_caches_count_like_any_change: 計器が作業ツリーに控えを書いた時も拒む"""
         self.script_file()

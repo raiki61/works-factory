@@ -55,11 +55,11 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `procedure_files(view) -> list[str]`: `sorted({f for f in view.changed_files for p in PROCEDURE_PATTERNS if re.search(p, f)})`（今の `touches_procedures`、`:1393-1398` の中身）。
   - `applies(view, values)`: `hit = procedure_files(view)`、`materialkit.Due(bool(hit), f"差分に手順書・スクリプト・CI 定義が {len(hit)} 件" if hit else "差分に手順書・スクリプト・CI 定義が無い")`（今の `touches_procedures` の訳の字のまま）。
   - `due(view, values)`:
-    1. `values["entry"]` が空でなければ `materialkit.entry_skip("手順の追跡")`（今の `_deep_due` の入口の枝の名詞。例の run とは別の判定から入る run `df5e111f-…` の `material-route.json` の `roles.procedure-trace.why` と同じ字になる）。
+    1. `materialkit.is_entry_run(view, values)`（`entry` が在り、対象差分が空）なら `materialkit.entry_skip("手順の追跡")`（今の `_deep_due` の入口の枝の名詞。例の run とは別の判定から入る run `df5e111f-…` の `material-route.json` の `roles.procedure-trace.why` と同じ字になる）。
     2. `ok, why = applies(view, values)`。`ok` なら `Due(True, f"対象差分に手順書・スクリプト・CI 定義の変更が在る（{why}）——手順の追跡を回す")`、偽なら `Due(False, f"{NA_REASON}（{why}）——手順の追跡を起こさない")`。今の `_because` の字（「差分に手順書…があって初回の周、または前の周の P3 が何かを直した周——成り立たない（round=1・…・前の周の P3 が触ったファイルは 0 件）」）は使わない（自分で決めた。7 節）。
-  - `fill(view, values, due)`: `ok, why = applies(view, values)`。`ok` が偽なら `{"procedure_trace": materialkit.fill_na(NA_REASON, why)}`。真なら（`entry` が在る時だけここに来る）`{"procedure_trace": materialkit.fill_entry(values["entry"], 0)}`。当たる条件を入口より先に見るのは、今の `_fill_one`（`:1934-1950`。`_entry_skipped` は `:1926-1931`）が入口の埋めを「入口の印を外せば条件が真」の時（`_entry_skipped`）にだけ選ぶのと同じ結果にするため（判定から入る run は差分が空なので、今は入口の run でも条件外の文が入る）。
+  - `fill(view, values, due)`: いつも `{"procedure_trace": materialkit.fill_na(NA_REASON, applies(view, values).why)}`。回さないのは、手順のファイルに触れない時と、判定から入る run の周（差分が空）の時で、後者も差分が空なので触れない文が入る（今の `_fill_one`〔`:1934-1950`〕が入口の run でも条件外の文を入れるのと同じ結果）。`fill_entry` の枝は置かない（7.1）。
   - `judged_na(view, values)`: `return False`。
-  - `values(view, values)`: `own, theirs = materialkit.review_md_paths(view.repo)` として `{"repo": str(view.repo), "diff_file": view.diff_file, "changed_files": dump(list(view.changed_files)), "review_md": own}`、`theirs` が空でなければ `"repo_review_md": theirs` を足す（materials.md の 2.11 の「入る段落の中の口だけ」）。`dump` は materials.md の 3.3。
+  - `values(view, values)`: `own, theirs = materialkit.review_md_paths(view.repo)` として `{"repo": str(view.repo), "diff_file": view.diff_file, "changed_files": dump(list(view.changed_files)), "review_md": own}`、`"repo_review_md": theirs` も、対象の `REVIEW.md` が無く空の字の時も渡す（指示を組む口は選ばれない段落の中の差し込み口にも値を要る。7.1）。`dump` は materials.md の 3.3。
   - `when(view, values)`: `{"spawns": False, "repo_review": bool(theirs)}`（`theirs` は上と同じ値）。
   - `before(view, values, reply, place)`: `return None, reply, False`。
   - `after(view, values, reply, place)`: `return None`（今の `MATERIAL_NODES` にこの観点の `post_check` は無い）。
@@ -95,7 +95,7 @@ materials.md の 3.1 の並び。
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: `rejects-procedure-trace.json` に拒否が 1 件以上。`{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "procedure-trace"))`。
 2. `{shared:role-investigator}`。
 3. （置かない。外への検索の決まりは `{shared:role-investigator}` の中から入る。段落 `spawns` の真偽は `false` を渡す）
-4. 役の 1 段落（決まった文）: 新しい会話で起きていること・手順トレースだけをすること・局所の所見もほかの素材も渡していないこと。
+4. 役の 1 段落（決まった文）: 手順トレースだけをすること・局所の所見もほかの素材も渡していないこと。
 5. 道具の段落（決まった文）、`{shared:works-gh}`、`{shared:material-readonly}`。
 6. `## Materials` と差し込み口: `{repo}` ← `view.repo`、`{diff_file}` ← `view.diff_file`（Read を持つ役なのでパス）、`{changed_files}` ← `view.changed_files`（JSON の配列の字）、`{review_md}` ← `review_md_paths` の 1 つ目。`<!-- if repo_review -->` `{repo_review_md}` ← 2 つ目 `<!-- end repo_review -->` — 条件: 対象の根に `REVIEW.md` が在る。
 7. `## What to do`（決まった文）: 今の md の「元の graphloops の指示書」の段（`material-procedure-trace.md:46-53`）を英語にした物。
@@ -181,9 +181,7 @@ md の中に、`$` の直後に英字か `{` が続く字は無い（今の md �
 ```markdown
 {shared:role-investigator の本文: This role is an investigator. It investigates and brings things back; …}
 
-{shared:query-rule の本文: Rules for queries to outside services …}
-
-You are the procedure-trace role, started in a new conversation. …（決まった文）
+You are the procedure-trace role. …（決まった文）
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. …
 
@@ -264,15 +262,15 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 ### 2.9 試験
 
 - standalone の fixture（`blocks/procedure-trace/fixtures/`）:
-  - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。fixture の木（`tests/archon.py` の `tree` が 1 つの commit に固めた木）には差分が無いので、回さない道を通る: `intake` の `due` が偽、AI の node `procedure-trace` に届かず、`reached` に `finish`、`finish` の `status` が `skipped`、`material` の素材が `not_applicable`（2.5 の回さない道の字。「差分に手順書・スクリプト・CI 定義が無い」）。
+  - `standalone.stubs.yaml`: `fixture.inputs` は `base: "HEAD~1"`・`entry: ""`・`lang: ""`。fixture の木（`tests/archon.py` の `blocks_tree` が置く木）は、対象の入口のファイル（`README.md`・`AGENTS.md`）を 2 つ目の commit に置くので、`HEAD~1` から作業ツリーまでの差分に手順のファイル（`README.md`）が入る。`intake` の `due` が真になり、AI の node `procedure-trace` を起こす道を通り（`reached` に `procedure-trace-prep`・`procedure-trace`・`procedure-trace-accept`・`finish`）、役の返答は差し替えで `clean`。指示が md から組まれたことを md の決まった文で照らす。回さない道（`status: skipped`）は `tests/blocks/procedure_trace` の試験が見る。
   - `skipped.stubs.yaml` は置かない（`standalone.stubs.yaml` がその道。materials.md の 8 節の「回す条件を持つ観点は skipped」を満たす）。
-  - `gave-up.stubs.yaml` は置かない。役を起こす道は、作業ツリーに手順のファイルの変更が要り、fixture の入力（port の値だけ）では作れない（自分で決めた。7 節）。起こす道と諦める道は下の子のプロセスの試験が回す。
+  - `gave-up.stubs.yaml`: 入力は standalone と同じ（`base: "HEAD~1"`）。役の返答が受け付けを通らない（手順のファイルに触れる run で `not_applicable`）道。筋書きでは輪が 1 周で終わるので、3 回で諦めて `status: gave_up` を返す数えは、下の子のプロセスの試験が見る。
 - `tests/blocks/procedure_trace/test_procedure_trace.py`: materials.md の 8 節の block の試験（使い捨ての `ARTIFACTS_DIR` と git のリポジトリ、port の値だけ）。
   - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_procedure_trace_reply_is_taken_or_refused`: 作業ツリーに `run.sh` を足した木で回し、`not_applicable` の返答は拒まれる（`cond_true`）。見た返答（`clean`）は受け、`material.json` の `materials` が `{"procedure_trace": <返答の material>}`。今の試験の「条件が偽なら not_applicable を受ける」の枝は、block では役が起きないので、`intake` が `due` 偽で `not_applicable` を機械が書く照らしに替える。
   - 写す元 `DueCase.test_procedure_trace_needs_procedure_files`: 変更ファイルが `src/a.txt` だけなら `due` が偽で、`finish` の `status` が `skipped`・素材の `reason` が `fill_na` の字。
   - 写す元 `DueCase.test_run_with_a_diff_runs_them` の procedure-trace の部分と `test_na_note_for_each_kind_of_node` の procedure-trace の 2 行: `run.sh` を足した木で `due` が真、組んだ指示に `na_cond_true` の段落と `{na_why}` の字「差分に手順書・スクリプト・CI 定義が 1 件」が在り、`na_cond_false` の段落が無い。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions` の procedure-trace の部分: `entry` が在り差分が空なら `due` が偽で、`finish` の `reason` が `entry_skip("手順の追跡")` の字、素材が条件外の `not_applicable`（入口の文でない。1.5 の `fill`）。
-  - 足す: `entry` が在り、作業ツリーに `run.sh` の変更も在れば、素材が `fill_entry` の字（件数の句は「渡されていない」）。
+  - 足す: `entry` が在っても対象差分が在れば回す（`due` が真）。
   - 足す: 対象の根に `REVIEW.md` が在れば `repo_review` の段落が入り、無ければ入らない（値 `repo_review_md` も渡さない）。
   - 足す: 拒まれる返答 3 回で `gave_up`（`run.sh` を足した木で）。
   - 足す（起こし方の照らし）: block の YAML の AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:94` の表の procedure-trace の行（`"sonnet", "medium", INVESTIGATE, CLOSED, False, …`）が照らす物と同じ。
@@ -301,7 +299,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 ## 6 未確認
 
 - prior-decisions.md の 6 節の 2 つ（役の定義の断片の名・起動の殻の引数）。
-- `archon workflow test` の fixture が、作業ツリーに未 commit の変更を置いてから回せるか。置ければ `ran.stubs.yaml` と `gave-up.stubs.yaml` を足す（2.9）。
+- 他の観点の block の fixture も、`blocks_tree` の 2 つ目の commit に置いた対象の入口のファイルで `base: HEAD~1` を使えるか（この block の試験は通した。ほかは各 block の設計書が見る）。
 - `materialkit.review_md_paths` の引数（materials.md の 5.2 の終わりは `(repo)`、写す元 `lib/judge_accept.py:1765` は `(lib_dir, repo)`）。この block は `(view.repo)` で呼ぶと書いた。
 
 ## 7 自分で決めた事（この block だけ）
@@ -310,7 +308,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - `fill` で当たる条件を入口より先に見る。訳: 今の `_fill_one` は、入口の印を外しても条件が真の時だけ入口の文を選ぶ。手順トレースでは「入口でなくても回った」とは「手順のファイルに触れる」ことなので、当たる条件を先に見ると同じ結果になる。判定から入る run の差分は空なので、今も入口の run では条件外の文が入っている（判定から入る run `df5e111f-…` の `fill.procedure_trace`）。
 - `report_lines` に所見と未実測の行を足す。訳: 判定役の材料に届かない `unmeasured` を、少なくとも報告の素材の節で人が見られるようにする（1.6）。報告に載せるかは line と report の配線の決め（materials.md の 1.6）なので、行を返すだけにする。
 - 2.5 の骨組みと 1 つ目の commit の比べの値を、例の run の値に仮の変更ファイル `README.md` を足した物にする。訳: 記録の在る 148 本の run のどれでもこの観点は回っておらず、本物の指示の字が無い。例の run は材料の値（リポジトリ・観点の正本・対象の `REVIEW.md`）が全部そろった run で、手順のファイルを 1 件足すだけで回す条件が真になる。`README.md` は `PROCEDURE_PATTERNS` の頭の型に当たる、いちばん多い手順書の名。
-- fixture は回さない道だけにし、起こす道と諦める道を子のプロセスの試験に置く。訳: fixture の入力は port の値だけ（README の 7.1 の 4）で、作業ツリーの変更を作れない。fixture の木は 1 つの commit なので、`base` に何を入れても手順のファイルの差分が出ない。
+- fixture は `base: HEAD~1` で、対象の入口のファイルを 2 つ目の commit に置いた木（`blocks_tree`）の差分を対象にし、役を起こす道を通す。回さない道と諦める数えは子のプロセスの試験に置く。訳: fixture の入力は port の値だけ（README の 7.1 の 4）なので、作業ツリーの変更は作れないが、他の条件つきの観点と同じく `base` で差分は作れる。
 - 試験のフォルダの名を `tests/blocks/procedure_trace/` にする（materials.md の 10 節と同じ訳）。
 
 ### 7.1 実装で決めた事（main の決まりに合わせた所）
@@ -318,5 +316,5 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - md に `{shared:query-rule}` を置かず、役の 1 段落の「started in a new conversation」を外した。訳: 役の定義の断片が中に `query-rule` を持つ（prior-decisions と同じ。materials.md の 10.1）。輪は `fresh_context: false` で、2 回目からは同じ会話を続けるので、「新しい会話」と書くと嘘になる。役の node は prep だけに依り（直前の層は 1 node）、会話が切れない。
 - `values` は `repo_review_md` を、対象の `REVIEW.md` が無い時も空の字で渡す。訳: 指示を組む口は選ばれない段落の中の差し込み口にも値を要る（materials.md の 10.1 の `rejection`・`na_why` と同じ）。
 - 判定から入る run の周は `materialkit.is_entry_run`（`entry` が在り、対象差分が空）で決める。`entry` が在っても差分が在れば回す。訳: 今の `request_entry` は差分の事実で決め、族の部品も同じ（prior-decisions の 10.1）。差分が空なら手順のファイルは無いので、`fill` はいつも `fill_na`（条件外の字）になる。`fill_entry` の枝は到達しないので置かない。1.5 の `due` の 1 と `fill` の `fill_entry` の枝、2.9 の「`entry` ありで `run.sh` の変更も在れば `fill_entry`」の試験は、この決めで置き換えた（`entry` ありで差分が在れば回す、の試験）。
-- 筋書きの木は 1 つの commit なので、port `base` に git の空の木の id（`4b825dc…`）を渡せるようにした（`src/rootbase.py`）。空の木から親の無い commit を 1 つ作って（枝も index も動かさない）その id を差分の根にし、木の全部を対象差分にする。訳: 形の検査 `check_standalone_renders` は、どの AI の node も `exec-code: true` の筋書きで起こして md の決まった文を照らすことを求めるが、port の値だけでは手順のファイルに触れる差分を作れなかった（2.9）。最初の commit だけのリポジトリを対象にする実用も在る。これで standalone と gave-up の筋書きが役を起こす道を通り、回さない道・出口の status は `tests/blocks/procedure_trace` の試験が見る。2.9 の「`gave-up.stubs.yaml` は置かない」「standalone は回さない道を通る」は、これで置き換えた。
+- 筋書きの木（`blocks_tree`）は、対象の入口のファイルを 2 つ目の commit に置き、筋書きが `base: HEAD~1` を渡して手順のファイルに触れる差分を作る。port `base` を、この block だけ広げることはしない（共有の入力の意味を変えない）。訳: 形の検査 `check_standalone_renders` は、どの AI の node も `exec-code: true` の筋書きで起こして md の決まった文を照らすことを求める。2.9 の standalone と gave-up の筋書きがこれで役を起こす道を通る。
 - `test_viewpoint` の例の run の値を、実機の run が無いので、今の `material_prep` を同じ値で動かした字との比べにした（1 つ目の commit の `test_prompts`）。

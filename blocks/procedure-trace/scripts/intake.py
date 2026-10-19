@@ -12,7 +12,7 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 import materialkit  # noqa: E402  （lib/。ports を読むと lib/ が sys.path に入る）
-from src import rootbase, viewpoint  # noqa: E402
+from src import viewpoint  # noqa: E402
 
 values, unreadable = {}, []
 for name, read in (("base", lambda: ports.text(os.environ.get("INPUTS_BASE"))),
@@ -23,5 +23,4 @@ for name, read in (("base", lambda: ports.text(os.environ.get("INPUTS_BASE"))),
     except ValueError as e:
         values[name] = None
         unreadable.append(f"{name}: {e}")
-values["base"] = rootbase.resolve(Path.cwd(), values["base"])   # 空の木の id は、親の無い commit にする
 ports.returns(materialkit.intake(viewpoint, ports.place(), Path.cwd(), values, "／".join(unreadable)))
