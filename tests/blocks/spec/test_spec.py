@@ -631,6 +631,22 @@ class PromptCase(_Case):
                 self.assertIn(self.read(f"rejects-spec-{role}.json")[0]["reason"], again)
                 self.assertEqual("fix the test file in the target repository first" in again, role == "write")
 
+    def test_pr_text_reaches_the_three_roles_and_only_when_given(self):
+        """PR の題と本文だけで仕様の段を選んだ run でも、役は PR の文を読める（無ければ節ごと入らない）"""
+        pr = "#7 題 T\n\n本文X {not_a_slot} $LOOP"
+        for role in ("write", "review", "revise"):
+            with self.subTest(role=role):
+                self.setUp()
+                text = self.text(role, pr_text=pr)
+                self.assertIn("## Pull request", text)
+                self.assertIn(pr, text, "入れた値の中の字は読み直さない")
+                self.setUp()
+                self.assertNotIn("## Pull request", self.text(role))
+                self.assertNotIn("## Pull request", self.text(role, pr_text="  \n"), "空白だけは PR が無い")
+
+    def test_revise_prompt_tells_the_minimum_length_of_how(self):
+        self.assertIn(f"`how` is at least {self.steps.files.MIN_HOW} characters", self.text("revise"))
+
     def test_review_prompt_takes_the_words_the_answer_form_checks(self):
         text = self.text("review")
         for word in self.steps.files.FACE_KINDS:

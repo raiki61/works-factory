@@ -69,15 +69,16 @@ def _first_prompt(place: pathlib.Path, role: str) -> dict:
     doc = files.need(place, files.INTAKE)
     nid = files.node_id(role)
     rejected = rolekit.rejected(place, files.ROLES[role])
-    values = {"rejection": rolekit.rejects_text(rejected), "request_file": str(place / files.REQUEST), "lang": prompt.lang(doc["lang"])}
+    values = {"rejection": rolekit.rejects_text(rejected), "request_file": str(place / files.REQUEST), "pr_text": doc["pr_text"],
+              "lang": prompt.lang(doc["lang"])}
     if role in ("review", "revise"):
         values["spec_file"] = str(files.role_file(place, "write"))
     if role == "review":
         values.update(zip(("missing", "ambiguous", "out_of_scope"), files.FACE_KINDS), min_why=files.MIN_WHY, min_reason=files.MIN_REASON)
     if role == "revise":
-        values.update(review_file=str(files.role_file(place, "review")), absorbed=files.HANDLED[0], declared=files.HANDLED[1])
+        values.update(review_file=str(files.role_file(place, "review")), absorbed=files.HANDLED[0], declared=files.HANDLED[1], min_how=files.MIN_HOW)
     # この block の役は Agent の道具を持たない（下請けを起こさない）ので、検索の決まりの段落 spawns は入れない
-    when = {"rejected": bool(rejected), "spawns": False}
+    when = {"rejected": bool(rejected), "pr_text": bool(doc["pr_text"].strip()), "spawns": False}
     return prompt.emit(nid, values, when, prompt.round_of(nid))
 
 

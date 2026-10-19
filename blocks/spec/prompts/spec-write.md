@@ -13,6 +13,14 @@ You are the spec writer. Your job is to write, one by one, the requirements unde
 - Request: read `{request_file}` (the request lines; a person's fix request is here too).
 - Repository: the current working directory (the root of the target repository's working tree).
 
+<!-- if pr_text -->
+## Pull request
+
+The title and body of the pull request the request names:
+
+{pr_text}
+<!-- end pr_text -->
+
 **Why this step exists**: conditions that the request does not state did not enter the fix plan, and surfaced only when the plan review raised them as holes. (Measured 2026-09-25: in a run that built a new entry point, the request listed 6 requirements but not "from the second round on, run the first checks as usual". The first plan kept those checks from coming back until the end of the run, and the plan review stopped it as must-fix.) **Before any plan, write one by one what must hold for the work to be complete.**
 
 ## What to do
