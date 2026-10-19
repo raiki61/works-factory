@@ -15,6 +15,8 @@ import tokenize
 import unittest
 from collections.abc import Callable
 
+import yaml
+
 from tests import archon
 from tests.bin import hermetic, stepnames
 from tests.e2e import evidence, make_target
@@ -25,35 +27,46 @@ E2E = pathlib.Path(__file__).resolve().parent
 ROOT = E2E.parents[1]
 # 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
-# 線の中のブロック（置き場の parent/ の次のフォルダ）と線そのもの。fix の組の子の run の置き場は fix
-BLOCKS = ("judge", "structure", "plan", "plan-review", "fix", "test-gate", "eyes", "merge", "report")
+# 線の中のブロック（置き場の parent/ の次のフォルダ。line の include の id で、include の中の節の place はその id のフォルダの下に
+# 重なる。例: parent/judge/diagnose/）のうち、種の run で必ず走り、seen の行を持つ物と、線そのもの。fix の組の子の run の置き場は
+# 子の run の根（child-*/）で、fix の物。条件で回る include（lens・delta-review・案の直しの道・再審・仕様・修正の後の並行 PR）は
+# 必ずは走らないので入れない。independent-design は種の run で必ず走るが、独立設計の能力の行は #261 の決め直しで本物の通しの
+# 照らしの外（scenario-only）にしたので、seen の行が無く入れない（設計を目に渡した跡は L-W55、承認ノードの控えは L-W33 が照らす）
+BLOCKS = ("test-gate-base", "judge", "structure", "plan", "plan-review-run", "fix", "test-gate-final", "eyes", "merge-seal",
+          "merge-apply", "report")
 LINE_ITSELF = "line"
+# line の include の id → 差し込むブロックのフォルダ。置き場の parent/ の次のフォルダが include の id なら、Archon が include の道から
+# place を作るので（workflows/.shared/ports.py の place）、フォルダの名は書き手のコードに無くてよい
+INCLUDES = {n["id"]: n["include"].removeprefix("works-factory-") for n in stepnames.walk(stepnames.nodes("works-factory-line"))
+            if "include" in n}
 WRITERS = ("lib", "workflows", "bin")
-# 名を組んで書く・名の表から引いて書くので字で引けない置き場 → 名を組む関数・表の定数（`path::名`）
+# 名を組んで書く・名の表（block の src/files.py の定数）から引いて書くので、書き手のコードの字で引けない置き場 → 名を組む関数・表の
+# 定数（`path::名`）。指示のファイル <node の id>-prompt-<n>.md は workflows/.shared/prompt.py の emit が組む
 NAMED_BY_PATTERN = {
     "parent/gates/gate-start.json": "lib/answer.py::taken",
     "parent/gates/gate-final.json": "lib/answer.py::taken",
     "parent/gates/gate-*.json": "lib/answer.py::taken",
-    "parent/plan/r1/plan-fields.json": "lib/marks.py::KINDS",
-    "parent/fix/fix/plan-fields.json": "lib/marks.py::KINDS",
-    "parent/judge/purpose-means.json": "lib/marks.py::KINDS",
-    "parent/eyes/r1.json": "workflows/eyes/works-factory-eyes.yaml::r1-minimality-verdict",
-    "parent/eyes/r1-comments.json": "workflows/eyes/works-factory-eyes.yaml::r1-comments-save",
-    "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py::material_brief_file",
-    "parent/judge/material-prior-decisions.json": "lib/judge_accept.py::material_file",
-    "parent/judge/material-pr-check.json": "workflows/parallel-pr/src/files.py::MATERIAL",
-    "parent/judge/material-purpose-review.json": "lib/judge_accept.py::material_file",
-    "parent/plan/r1/brief-1.md": "lib/planfile.py::BRIEF_FILE",
-    "parent/structure/eye-prompt-1.md": "lib/eye.py::PROMPT_FILE",
-    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py::tree_part",
-    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py::ANSWER_FILE",
-    "parent/fix/fix/review1-brief.json": "lib/refix.py::cut",
-    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py::_planned_run",
-    "parent/judge/query-examples.json": "lib/marks.py::KINDS",
+    "parent/gates/final-gate.md": "workflows/line/src/files.py::FINAL_GATE_MD",
+    "parent/plan-converge.json": "workflows/line/src/files.py::PLAN_CONVERGE",
+    "parent/plan/plan-writer-prompt-1.md": "workflows/.shared/prompt.py::emit",
+    "parent/plan/r1/plan-fields.json": "lib/planmarks.py::FIELDS_FILE",
     "parent/plan/r1/rejects-plan.json": "lib/rolekit.py::rejects_path",
     "parent/plan/r1/rejects-plan.md": "lib/rolekit.py::rejects_text_path",
+    "parent/plan/r1/ripple.json": "workflows/plan/src/files.py::RIPPLE",
+    "parent/plan/r1/ripple-units.json": "workflows/plan/src/files.py::RIPPLE_UNITS",
+    "parent/judge/verdict.json": "workflows/judge/src/files.py::VERDICT",
+    "parent/judge/parallel-pr/material-pr-check.json": "workflows/parallel-pr/src/files.py::MATERIAL",
+    "parent/judge/diagnose/query-examples.json": "workflows/diagnose/src/files.py::QUERY_EXAMPLES_FILE",
     "parent/structure/design.jsonl": "workflows/structure/src/files.py::DESIGN_FILE",
-    "parent/plan-review/gate-marks.json": "lib/marks.py::KINDS",
+    "parent/eyes/r1/r1-comments.json": "workflows/r1/src/steps.py::save",
+    "parent/eyes/r1/r1-minimality.json": "workflows/r1/src/steps.py::save",
+    "parent/eyes/r1/r1-minimality-prompt-1.md": "workflows/.shared/prompt.py::emit",
+    "parent/eyes/r2/r2-compare-prompt-1.md": "workflows/.shared/prompt.py::emit",
+    "parent/eyes/r2/r2-premises.json": "workflows/r2/src/files.py::PREMISES",
+    "parent/eyes/structure-after/structure-after.json": "workflows/structure/src/files.py::AFTER_FILE",
+    "parent/delta-review/review-1-brief.json": "workflows/delta-review/src/files.py::review_brief",
+    "parent/test-gate-base/logs/*/test_cmd.log": "lib/declared_checks.py::_planned_run",
+    "parent/report/report.md": "workflows/report/src/files.py::REPORT_FILE",
 }
 
 
@@ -188,7 +201,7 @@ def seen_writer_problems(rows: list[dict], code: CodeText) -> list[str]:
             continue
         rest = row["where"].split("/")[1:]
         folder = rest[0] if len(rest) > 1 and not re.search(r"[*?\[]", rest[0]) else ""
-        if folder:
+        if folder and folder not in INCLUDES:
             block = archon.WORKFLOWS / folder
             here = [whole, *(code.text(p.relative_to(ROOT).as_posix()) for p in sorted(block.rglob("*"))
                              if p.suffix in (".py", ".yaml") and "fixtures" not in p.parts)]
@@ -276,8 +289,9 @@ class EvidenceTableCase(unittest.TestCase):
 
     def test_rows_without_a_sure_trace_in_the_seed_run_are_seed_cannot_with_their_check(self):
         """#355（c38831c2）: E12 の削除候補は役が削る物を見つけた時だけ出る（健やかな種の run で必ず通る道でない。seen の基準 (3)）。
-        L-W08 の記録は空の {units: [], paths: []} でも書かれ、働かなかった run と同じ跡（基準 (2)）。照らしは働いた時だけ当たる物で残す"""
-        for i, where in (("E12", "parent/eyes/r1-comments.json"), ("L-W08", "parent/judge/structure-units-dropped.json")):
+        L-W08 の記録は空の {units: [], paths: []} でも書かれ、働かなかった run と同じ跡（基準 (2)）。照らしは働いた時だけ当たる物で残す。
+        置き場は組み込みの後の include の道（eyes の中の r1・judge の中の diagnose）の下"""
+        for i, where in (("E12", "parent/eyes/r1/r1-comments.json"), ("L-W08", "parent/judge/diagnose/structure-units-dropped.json")):
             with self.subTest(row=i):
                 row = self.by_id[i]
                 self.assertEqual((row["kind"], row.get("check"), row.get("where")), ("seed-cannot", "json-has", where))
@@ -303,7 +317,7 @@ class EvidenceTableCase(unittest.TestCase):
         lib・workflows・bin のファイルに定義の在る関数・定数・`クラス.名`（YAML は節の id。最上位のコードで決める script は、それを
         走らせる節）。決める所は保存の所から離れうるので、where のファイル名かその名を作る定数は、writer のファイル（節なら節の
         script も）のコードの字（コメント・docstring・.md を除く）のどこかに在ればよい。where の置き場の頭のフォルダ（parent/・
-        child-*/ の次）の名も、書き手のファイルかそのブロックの script と YAML のコードの字に在る。名を組んで書く置き場は
+        child-*/ の次）の名は、line の include の id（INCLUDES）か、書き手のファイルかそのブロックの script と YAML のコードの字に在る。名を組んで書く置き場は
         NAMED_BY_PATTERN に名を組む所と名指し、ここでは名の照らしを外す（名を組むかは test_named_by_pattern_bodies_build_the_name が
         縛る）。run の記録の節の行の writer は、その節の YAML の `path::節の id`"""
         self.assertEqual(seen_writer_problems(writer_rows(self.rows), CodeText()), [])
@@ -368,9 +382,10 @@ SCRIPTS = archon.WORKFLOWS
 IDLE_RUN = "idle"
 SKIPPED, COMPLETED = "skipped", evidence.COMPLETED
 LINE = "works-factory-line"
-# 前の段が全部飛んでも走る線の節: 始め・入口の関所の答え・修正の段へ運ぶ値の中継（go が偽なら何も書かない）・報告の集め・報告の
-# ブロック（AI の書き手は記録が崩れていなければ走る。lib/runreport.py の ai_go）・返す節
-ALWAYS_RAN = re.compile(r"start|answer-start|fix-in|collect|report__.*|result")
+# 前の段が全部飛んでも走る線の節: 頭の testcmd・始め・入口の承認ノードの答え・修正の段へ運ぶ値の中継（go が偽なら何も書かない）・
+# 修正の後のまとめ・判定のまとめ（どちらも none_failed_min_one_success で、運ぶ値が無ければ何もしない）・報告の集め・報告の
+# ブロック・子の run の掃除・返す節（all_done）。match で当てるので頭と尾を区切る
+ALWAYS_RAN = re.compile(r"(?:testcmd|start|answer-start|fix-in|fixed|judged|collect|report__.*|sweep-children|result)$")
 # start に入力を受けさせない名指し（対象に無い固定材料のフォルダ）。受けない start は入力のこだまと版の控えだけを書く
 REFUSED_INPUT = "fixture"
 
@@ -383,18 +398,15 @@ def seed_inputs(request: str) -> dict[str, str]:
 
 
 def idle_run(tmp: pathlib.Path, started: bool) -> pathlib.Path:
-    """何も働かなかった run の試みのフォルダ。置き場は、どの能力も働かなくても書かれる物だけ: 線の始めの節 start と、各ブロックと
-    メイングラフの落ちない返す節・目の prep を、上流が全部飛んだ形（入力が null）で今の書き手のまま走らせた物（判定・計画の空の
-    埋め物、目の prep がいつも書く欄、報告の見出しと 0 件の行など）。started が偽なら start は種の入力を受けず（入力のこだまと版の
+    """何も働かなかった run の試みのフォルダ。置き場は、どの能力も働かなくても書かれる物だけ: 線の始めの節 start と、BLOCKS の
+    ブロックの落ちない返す節（YAML の returns）と、線の ALWAYS_RAN の script の節を、上流が全部飛んだ形（入力が null）で今の書き手の
+    まま、その節の place で走らせた物（判定・計画の空の埋め物、報告の見出しと 0 件の行など）。fix の組の子の run は返す節 finish だけ。started が偽なら start は種の入力を受けず（入力のこだまと版の
     控えだけを書く）、run の記録は線と fix の組の子の全部の節が skipped。真なら start は種の入力を受けて書く欄を全部書き、線の
     ALWAYS_RAN の節は completed（ほかは skipped）"""
     made = make_target.make(tmp / "attempt", listed=False)
     target, attempt = pathlib.Path(made["target"]), tmp / "attempt"
     ev = attempt / evidence.EVIDENCE
     (ev / "record").mkdir(parents=True)
-
-    def ptr(rel):
-        return json.dumps({"type": "archon_artifact", "run_id": IDLE_RUN, "path": rel})
 
     def script(folder, rel, node="", unset="null", /, **inputs):
         """rel を節として走らせた返り。渡さない入力は unset（飛んだ節の返りは null、線の渡さない入力は空の字）"""
@@ -412,34 +424,42 @@ def idle_run(tmp: pathlib.Path, started: bool) -> pathlib.Path:
 
     parent = ev / "parent"
     parent.mkdir()
-    start = ptr("r1/start.json")   # 線の start が始めの記録を置く所（lib/startrec.py の REL）
     refused = {} if started else {"fix_fixture": REFUSED_INPUT}
-    begun = script(parent, "line/scripts/start.py", "", "", **seed_inputs(made["request"]), **refused)
+    begun = script(parent, "line/scripts/start.py", "start", "", **seed_inputs(made["request"]), **refused)
     if begun["ok"] != started:
         raise AssertionError(f"start の ok が {begun['ok']}（{begun['reason']}）")
-    for mode in ("base", "final"):
-        script(parent, "test-gate/scripts/result.py", f"test-gate-{mode}__result", mode=mode, start=start)
-    script(parent, "judge/scripts/verdict.py", objection="")
-    judgment = ptr("judge/judgment.json")
-    opened = script(parent, "plan/scripts/round.py", ruling="", start=start, judgment=judgment)
-    script(parent, "plan/scripts/plan_collect.py", dir=opened["dir"], start=start, judgment=judgment)
-    script(parent, "plan-review/scripts/result.py", start=start)
-    script(parent, "fix/scripts/collect.py", "fix__fix", mode="")
-    (parent / "empty.diff").write_text("", encoding="utf-8")
-    script(parent, "eyes/scripts/prep.py", "eyes__prep", start=start, judgment=judgment, purpose=ptr("judge/purpose.json"),
-           diff=ptr("empty.diff"), changed="[]", depth="[]", x_scalars="[]", units="[]", fix_units="[]", green_ok="false",
-           plan_questions="[]")
-    script(parent, "eyes/scripts/verdict.py", "eyes__verdict", start=start, plan_questions="[]")
-    for mode in ("seal", "apply"):
-        script(parent, "merge/scripts/merge.py", f"merge-{mode}__merge", mode=mode, start=start, sealed_hash="")
-    script(parent, "line/scripts/collect.py", start=start)
-    facts = script(parent, "report/scripts/facts.py", start=start)
-    returned = script(parent, "line/scripts/result.py",
-                      **{k: json.dumps(facts[k]) for k in ("ok", "outcome", "stop_reason", "report", "next_request",
-                                                           "prior_failures")})
+    line = {n["id"]: n for n in stepnames.walk(stepnames.nodes(LINE))}
+
+    def node(block, ident, folder, step, /, **inputs):
+        """block の節 ident を、上流が全部飛んだ形（with: の $ の値は null、字のままの値と、line の include の with: から字のまま
+        降りる値はそのまま）で step として走らせた返り。inputs は名指しで上書きする値"""
+        n = next(x for x in stepnames.walk(stepnames.nodes(f"works-factory-{block}")) if x["id"] == ident)
+        given = {}
+        for key, value in (n.get("with") or {}).items():
+            if isinstance(value, str) and value.startswith("$INPUTS."):
+                value = (line.get(step.rsplit("__", 1)[0].rsplit(".", 1)[-1], {}).get("with") or {}).get(value.removeprefix("$INPUTS."))
+            given[key] = value if isinstance(value, str) and "$" not in value else "null"
+        return script(folder, f"{block}/scripts/{n['script']}.py", step, **{**given, **inputs})
+
+    def returning(include, prefix=""):
+        """line の include の返す節（ブロックの YAML の returns）を、その include の place で走らせた返り"""
+        block = line[include]["include"].removeprefix("works-factory-")
+        ident = yaml.safe_load((SCRIPTS / block / f"works-factory-{block}.yaml").read_text(encoding="utf-8"))["returns"]
+        return node(block, ident, parent, f"{prefix}{include}__{ident}")
+
+    for name in ("answer-start", "fix-in", "fixed", "judged"):
+        node("line", name, parent, name)
+    for include in BLOCKS:
+        if include != "report":
+            returning(include, "plan-rounds." if include in ("plan", "plan-review-run") else "")
+    gathered = node("line", "collect", parent, "collect")
+    node("report", "facts", parent, "report__facts", sections=json.dumps(gathered.get("sections")),
+         facts=json.dumps(gathered.get("facts")))
+    reported = returning("report")
+    returned = node("line", "result", parent, "result", report=json.dumps(reported))
     child = ev / "child-1"
     child.mkdir()
-    script(child, "fix/scripts/collect.py", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": ["stats.py"]}))
+    node("fix", "finish", child, "finish")
     for name, flow, value in (("parent", LINE, returned), ("child-1", "works-factory-fix", None)):
         nodes = [{"nodeId": n, "state": COMPLETED if started and flow == LINE and ALWAYS_RAN.match(n) else SKIPPED}
                  for n in sorted(stepnames.step_names(flow))]

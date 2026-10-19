@@ -15,6 +15,8 @@ PLAN = ROOT / "docs" / "plans" / "2026-10-13-stage1-walking-skeleton.md"
 COMMAND = re.compile(r"`(WORKS_FACTORY_HOME=<家> \./bin/works-factory workflow (\S+) [^`]*)`")
 # 計画の文書と筋書きが同じ字で持つ命令の動詞（起こす・待つ・関所に答える）
 SHARED_VERBS = ("run", "wait", "respond")
+# 拒まれた後に同じ会話の続きで直す出し直しの役の id の尾（r4-scope-fix）。1 回目の役でないので、R1〜R4 の役の節に数えない
+RESUBMIT = "-fix"
 
 
 class ScenarioCase(unittest.TestCase):
@@ -40,9 +42,8 @@ class ScenarioCase(unittest.TestCase):
 
     def test_every_block_ran_names_the_nodes_the_workflows_have(self):
         includes = {n["id"] for n in stepnames.walk(stepnames.nodes("works-factory-line")) if "include" in n}
-        eyes = {n["id"]: n for n in stepnames.walk(stepnames.nodes("works-factory-eyes"))}
-        roles = {f"eyes__{step}" for step in stepnames.step_names("works-factory-eyes")
-                 if "command" in eyes[step.rsplit(".", 1)[-1]] and re.match(r"r\d-", step.rsplit(".", 1)[-1])}
+        roles = {f"eyes__{step}" for step, node in ai_steps(stepnames.nodes("works-factory-eyes"))
+                 if re.match(r"r\d-", own_id(step)) and not own_id(step).endswith(RESUBMIT)}
         child = stepnames.step_names("works-factory-fix")
         scenario = {a["id"]: a["description"] for a in json.loads(SCENARIO.read_text(encoding="utf-8"))["assertions"]}
         plan = next(line for line in PLAN.read_text(encoding="utf-8").splitlines() if line.startswith("  2. `every-block-ran`"))
@@ -55,6 +56,21 @@ class ScenarioCase(unittest.TestCase):
                 fixers = named(r"修正の役の節（([^）]+)）", text)
                 self.assertTrue(fixers)
                 self.assertLessEqual(set(fixers), child)
+
+
+def own_id(step: str) -> str:
+    """節の id の、include の頭（<include の id>__）と輪の頭（<輪の id>.）を除いた節そのものの id"""
+    return re.split(r"__|\.", step)[-1]
+
+
+def ai_steps(listed: list[dict], prefix: str = ""):
+    """節の並びを 1 つの run として回した時の、AI の節（prompt か command を持つ節）の (節の id, 節)。目の graph は r1〜r4 の block を
+    include で差し込むので、include を開き、輪の中まで入る（名の付け方は tests/bin/stepnames.py と同じ）"""
+    for ident, node in stepnames._expanded(listed):
+        if "prompt" in node or "command" in node:
+            yield prefix + ident, node
+        if "loop_group" in node:
+            yield from ai_steps(node["loop_group"]["nodes"], f"{prefix}{ident}.")
 
 
 def commands(text: str) -> dict[str, list[str]]:
