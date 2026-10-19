@@ -111,7 +111,7 @@ class FlowCase(_RepoCase):
             prep = self.run.script("prep")
             self.assertEqual(prep["attempt"], n + 1)
             if got:   # どの回の目も前の回までの拒否の全部を読む
-                self.assertIn("## 前の回の受け付けが拒んだ理由", prep["prompt"])
+                self.assertTrue(prep["prompt"].startswith("## Why your previous answer was rejected"), prep["prompt"][:80])
                 self.assertIn(got[-1]["reason"], prep["prompt"])
             got.append(self.take({"rows": []}))
         self.assertEqual([(g["ok"], g["done"], g["give_up"]) for g in got], [(False, False, False)] * 2 + [(False, True, True)])
@@ -120,6 +120,11 @@ class FlowCase(_RepoCase):
         fin = self.finish()
         self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
         self.assertEqual(fin["reason"], f"構造の目の返答が 3 回とも受け付けで拒まれた: {got[-1]['reason']}")
+
+    def test_lang_reaches_the_prompt(self):
+        self.survey()
+        self.assertIn("in the language of the request", self.run.script("prep", lang="")["prompt"], "lang が空なら共通の既定の言語の文")
+        self.assertIn("in Japanese", self.run.script("prep", lang="Japanese")["prompt"])
 
     def test_unreadable_reply_is_a_rejection_not_a_crash(self):
         self.survey()

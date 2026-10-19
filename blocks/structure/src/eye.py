@@ -48,7 +48,7 @@ def _view(out) -> dict:
     return got
 
 
-def prepare(out) -> dict:
+def prepare(out, lang="") -> dict:
     """指示を md から組んで place に書く。前の回までの却下は place の控えから全部。返り {prompt, attempt}"""
     out = pathlib.Path(out)
     shown = _view(out)
@@ -56,7 +56,7 @@ def prepare(out) -> dict:
     rejects = rolekit.rejected(out, files.NAME)
     n = len(rejects) + 1
     values = {"rejection": rolekit.rejects_text(rejects), "dirty": DIRTY, "clean": CLEAN, "route_self": ROUTE, "route_up": ROUTE_UP,
-              "min_undecided": MIN_UNDECIDED, "shown": listcut.SHOWN,
+              "min_undecided": MIN_UNDECIDED, "shown": listcut.SHOWN, "lang": prompt.lang(lang),
               "view": json.dumps(shown, ensure_ascii=False, separators=(",", ":"))}
     got = prompt.emit(files.NAME, values, {"rejected": bool(rejects)}, n)
     _put(out, {"started_at": st.get("started_at") or time.time(), "status": "pending", WALL: st.get(WALL, 0)})

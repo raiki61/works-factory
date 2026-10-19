@@ -7,6 +7,9 @@ inputs:
   policy:
     default: ''
     description: 'file: 人が run に固めた方針の文書。空の字は、方針の文書が渡されていない'
+  lang:
+    default: ''
+    description: 'text: 人に見せる欄（reason・chosen・chosen_reason・rejected・undecided_because）の言語。空は単位の summary の言語'
 returns: finish
 outcome_field: ok
 nodes:
