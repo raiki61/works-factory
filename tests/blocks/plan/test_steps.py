@@ -1328,8 +1328,16 @@ class FinishCase(PlaceCase):
         self.assertIn("網羅が欠けた", self.status(folder)[1])
         (folder / files.REJECTS).write_text("{壊れ", encoding="utf-8")
         status, reason = self.status(folder)
-        self.assertEqual(status, "gave_up")
+        self.assertEqual(status, "failed")
         self.assertTrue(reason.startswith("拒否の控えが扱えない（"), reason)
+
+    def test_status_of_unhandled_reject_record_is_failed_even_with_a_why(self):
+        """拒否の控えが読めない周は、round.json に訳が在っても役の諦め（gave_up）でなく機械の故障（failed）"""
+        folder = self.folder(why="何かの訳")
+        (folder / files.REJECTS).write_text("{壊れ", encoding="utf-8")
+        status, reason = self.status(folder)
+        self.assertEqual(status, "failed")
+        self.assertIn("拒否の控えが扱えない", reason)
 
     def test_report_lines(self):
         rnd = {"round": 2, "mode": "plan", "items": []}
@@ -1361,7 +1369,7 @@ class FinishCase(PlaceCase):
         (folder / files.INTAKE).write_text("{壊れ", encoding="utf-8")
         (folder / files.REJECTS).write_text("{壊れ", encoding="utf-8")
         got = steps.finish(self.place)
-        self.assertEqual((got["status"], got["rejects"], got["gave_up"]), ("gave_up", [], None))
+        self.assertEqual((got["status"], got["rejects"], got["gave_up"]), ("failed", [], None))
 
     def test_finish_after_an_accepted_plan(self):
         folder, ctx = self.opened()

@@ -443,7 +443,7 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual({k: got[k] for k in ("ok", "done", "give_up")}, {"ok": False, "done": True, "give_up": True})
         self.assertIn("拒否の控えが扱えない", got["reason"])
         self.assertFalse((run.round_dir(1) / files.FIX_PLAN).exists())
-        self.assertEqual(out["status"], "gave_up")
+        self.assertEqual(out["status"], "failed")
         self.assertIn("拒否の控えが扱えない", out["reason"])
 
     def test_accepted_plan_has_item_ripple(self):

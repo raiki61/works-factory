@@ -500,7 +500,7 @@ def status_of(folder, rnd: dict, fields) -> tuple:
     try:
         given = rolekit.given_up_reason(folder, files.ROLE)
     except rolekit.BoardGap as e:
-        return "gave_up", f"拒否の控えが扱えない（{e}）"
+        return "failed", f"拒否の控えが扱えない（{e}）"   # 機械の故障。役の使い切りではない
     if rnd["why"] or given:
         return "gave_up", str(rnd["why"] or given)
     return "failed", files.NO_PLAN

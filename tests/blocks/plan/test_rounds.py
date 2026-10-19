@@ -832,7 +832,7 @@ class StatusCase(unittest.TestCase):
         self.assertIn("judgment が読めない", out["reason"])
 
     def test_gave_up(self):
-        """拒否の控えが扱えない受け付けは輪を抜け、出口は gave_up と訳を返す"""
+        """拒否の控えが扱えない受け付けは輪を抜け、出口は failed（機械の故障）と訳を返す"""
         run = PlanRun(self)
 
         def writer(n, prompt):
@@ -840,7 +840,7 @@ class StatusCase(unittest.TestCase):
             return {"plan": [item(1)]}
 
         out = run.include(writer=writer)
-        self.assertEqual((out["ok"], out["status"]), (False, "gave_up"), out)
+        self.assertEqual((out["ok"], out["status"]), (False, "failed"), out)
         self.assertIn("拒否の控えが扱えない", out["reason"])
 
     def test_failed(self):
