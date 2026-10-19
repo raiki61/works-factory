@@ -21,11 +21,12 @@ from unittest import mock
 
 import yaml
 
+from tests.archon import WORKFLOWS
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BLOCKS = ROOT / "blocks"
+BLOCKS = WORKFLOWS   # pack のフォルダ（pack.json の ours.folder。入れ替えの前も後も同じ口。docs/design/integration.md の 4.5-11）
 SHARED = BLOCKS / ".shared"
 RUN_ID = "run-test"
 
