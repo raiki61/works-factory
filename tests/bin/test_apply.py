@@ -308,6 +308,27 @@ class ApplyTest(TargetCase):
                            sealed={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-seal/sealed.diff")})
         self.assert_applied(self.run_apply(self.record(value)))
 
+    def test_apply_checks_the_pointer_name_ending_not_the_place(self):
+        """置き場の道は include の道で決まる。道が違っても名の末尾が apply.diff・sealed.diff なら当て、ほかの名は当てない"""
+        self.place("merge-apply/apply.diff", self.diff)
+        self.place("merge-seal/sealed.diff", self.diff)
+        self.place("merge-apply/refused.diff", self.diff)
+        moved = self.value(apply={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-apply/apply.diff"), "reason": ""},
+                           sealed={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-seal/sealed.diff")})
+        with self.subTest("名の末尾が違う先は当てない"):
+            value = {**moved, "apply": {**moved["apply"], "diff": pointer("merge-apply/refused.diff")}}
+            self.assert_refused(self.run_apply(self.record(value)), 1, "apply.diff")
+        with self.subTest("道が違っても名の末尾が合えば当てる"):
+            self.assert_applied(self.run_apply(self.record(moved)))
+
+    def test_unchecked_way_finds_the_diff_by_name_under_any_place(self):
+        """封じのノードの出力から当てられない run は、置き場のどこに在っても名の末尾で差分を探して道を言う"""
+        (self.root / "merge" / "apply.diff").unlink()
+        (self.root / "merge" / "sealed.diff").unlink()
+        place = self.place("merge-apply/apply.diff", self.diff)
+        got = self.record(returns={"availability": "unavailable"})
+        self.assert_refused(self.run_apply(got), 2, f"git -C {self.target} apply {place}")
+
     def test_apply_accepts_short_run_id(self):
         self.assert_applied(self.run_apply(self.record(), run=SHORT))
         self.assertEqual(self.calls, [(SHORT, self.target)])
