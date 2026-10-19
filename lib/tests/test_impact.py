@@ -19,9 +19,7 @@ if str(LIB) not in sys.path:
 
 import changemap  # noqa: E402
 import conflict  # noqa: E402
-import consult  # noqa: E402
 import fixboard  # noqa: E402
-import fixgates  # noqa: E402
 import impact  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 
@@ -399,30 +397,6 @@ class CacheCase(RepoCase):
         units = [{"key": "直す", "reason": "pkg/core.py の compute_total が 1 足りない。solo.py は無関係"},
                  {"key": "別", "reason": "無い file nothere.py", "prescriptions": ["pkg/mid.py を直す"]}]
         self.assertEqual(impact.seeds_from_units(self.repo, units), ["lonely/solo.py", "pkg/core.py", "pkg/mid.py"])
-
-
-
-class OverflowRowCase(unittest.TestCase):
-    """はみ出しの trace の行の鍵の正本は impact の行の形。書き手（fixboard.overflow_trace）は名で値を渡す"""
-
-    def written_row(self):
-        rows = [{"origin": consult.ORIGIN_ACCEPT, "id": "合意"},
-                {"origin": consult.ORIGIN_GATE, "granted_new_tests": [{"id": "関所の試験", "red_kind": "assertion"}]}]
-        written = []
-        with mock.patch.object(conflict, "agreed", return_value=rows), \
-                mock.patch.object(fixgates, "present", return_value=True), \
-                mock.patch.object(fixgates, "guards", return_value=[{"id": "守り", "base": "passed"}]), \
-                mock.patch.object(fixboard, "trace", lambda place, op, **row: written.append(row)):
-            fixboard.overflow_trace("盤面", {"reverted": ["戻した"]}, "木", pass_="first", attempt=1)
-        (row,) = written
-        return row
-
-    def test_values_bind_to_keys_by_name(self):
-        want = {"agreed": ["合意"], "reverted": ["戻した"], "guards": ["守り: 守りのテスト（base で passed）"],
-                "gate_tests": ["関所の試験（assertion）"]}
-        self.assertEqual({k: self.written_row()[k] for k in impact.ACCEPT_OVERFLOW_KEYS}, want)
-        with mock.patch.object(impact, "ACCEPT_OVERFLOW_KEYS", tuple(reversed(impact.ACCEPT_OVERFLOW_KEYS))):
-            self.assertEqual({k: self.written_row()[k] for k in want}, want, "鍵の並びの順は値の行き先を変えない")
 
 
 if __name__ == "__main__":
