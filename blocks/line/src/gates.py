@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
 import pathlib
 from typing import Callable, NamedTuple
 
@@ -468,7 +469,10 @@ def located(value, what: str, unread: list) -> str:
     if isinstance(value, dict):
         if value.get("type") != ports.POINTER_TYPE:
             raise ValueError(f"{what} の値が pointer の形でない（type {value.get('type')!r}）")
-        path = ports._pointer_path(value)
+        run_id = os.environ.get("WORKFLOW_ID", "")
+        if value.get("run_id") != run_id:
+            raise ValueError(f"{what} の pointer がほかの run を指す: {value.get('run_id')!r}（この run は {run_id!r}）")
+        path = ports.inside(value.get("path"), os.environ["ARTIFACTS_DIR"])
         shown = value.get("path")
     elif isinstance(value, str):
         path = pathlib.Path(value.strip())
