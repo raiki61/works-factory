@@ -132,6 +132,7 @@
   5. issue と PR の単位は大きくする。持ち主の言葉「PRの単位が小さいのでは」「書いたことは忠実にやってくれるのであれば、でっかくかいていいのでは」。サブグラフ 1 つと、それが使う `lib/` の部品と試験を、1 つの issue にまとめる。
   4. 依存の置き場は根の `pyproject.toml`、試験の命令は `uv run --isolated python3 -m unittest discover -s . -t .`（PR #8。Archon を使う人は uv を持つ。`outside-packages-ok` の当て方）。（2026-10-12 の `full-suite-in-ci` で置き換え: run の中の確かめの命令は `tests/changed.py`、全部の試験は CI だけ）
 - 当て方: 根の `AGENTS.md` の「リポジトリの形」の木に `pyproject.toml` を載せる。計画の Task 4 と「全体の決まり」。
+- 2026-10-19 の `rebuild-speed` で、#765 の作り直しの間だけに狭めた。
 
 ### `archon-same-as-asf` 自分のグラフも ASF と同じ開発中の Archon で回す
 
@@ -157,6 +158,7 @@
 - 持ち主の言葉: 「なら全部最新の枝ASFのやり方に合わせるように移植するだけでいいってことだよね」「それ以外はASFが作りやすいようにしてくれていいが、最後には要らないものは全部掃除する感じでもいいよ」「あとは普通に元のworksみたらわかるものはそっちみればいいしね。」
 - 決め: 今の works の部品は、元のファイル名・元の中身・元の相対の置き場（`works/.shared/core/` → `lib/`、その下の `graphloops/engine/` → `lib/graphloops/engine/`）のまま、頼る部品ごと持ってくる。共有ボード（今の works のグラフの状態）と Archon に届く関数は持ってこず、外した名を PR に書く。要らない物は最後の掃除の段で消す。
 - 当て方: 「能力の棚卸し」の表の `lib/<名>` は能力の名で、置くファイルは元の名（E18）。共有ボードに届く能力は、そのサブグラフの issue で扱う。
+- 2026-10-19 に `lib-port-ended` で終えた。
 
 ### `stop-at-gates` 走っている run を止めるのは承認ノードの答えだけ
 
@@ -414,6 +416,42 @@
 - E1 の例外（同梱の skill と借りる skill の警告）: Claude Code に同梱の skill（`tests/archon.py` の `BUILTIN_SKILLS`）と借りる superpowers の skill（`BORROWED_SKILLS`。`lib/borrow/borrow.json`）を `skills:` に名指したノードの「ディスクに無い」の警告だけは数えない。根拠: 名指さないと局所レビューの役がレンズを起こせず、本物の run で素材集めが諦めて判定の前で止まる（`superset` に反する）。警告は止めた Archon が同梱の skill と、run の隔離した設定へ起動の時に入る借りる skill を、確かめの木のディスクで見つけられないだけで、誤りではない。例外は名前の一覧に載る skill のこの警告 1 つの形に限り、ほかの警告は今までどおり赤。出典: 運び役の #76 のコメント（2026-10-11 の 2 回目の 1）と #76 の本文「約束を変える頼み」2。借りる skill は fix の PR #94 が足した（`tests/archon.py` の `BORROWED_SKILLS`）。
 - メイングラフが後に回した 4 つの能力は、メイングラフの PR #74 の後の issue で戻す: 依頼の答えの結び（`answer_ties`）・測れていない素材の名から問いの出どころを読む結び・案の直しの後の 2 度目の修正に渡す人でない審査の面（今の works の `replan._notes` の 3 つ目）・最後の承認ノードで申し出を人に回した行だけ数える絞り（`lib/conflict`）。根拠: どれも今の works に在った能力で（`superset`・`no-narrow`）、#74 の時点では読む先（judge・plan-review・fix のサブグラフ）がまだ main に無かった。出典: 運び役の #74 のコメント（2026-10-11 の 3 回目の 3）と #74 の本文「今の works から狭めた物」。
 - 周の鎖の置き場（#380）: 親のグラフ `workflows/chain/works-factory-chain.yaml` が、周ごとの `workflow:` のノードでメイングラフを子の run として最大 5 本起こし、`lib/chain.py` が周の間の決めを持つ（E10 の新しい置き場）。持ち主の言葉: 「いいですよ。つないで。」（2026-10-14。この置き場を名指した #380 の本文への答え）。退けた形と訳: メイングラフの末尾から同じメイングラフを起こす形は止めた Archon の祖先の照らし（`executor.ts` の「Sub-run cycle detected」）で落ちる。`loop_group` の中に `include:` でメイングラフを入れる形は、周が同じ run の繰り返しになり `carry`・`request-to-judge` に反し、`loop_group` には `workflow:` を置けない。殻 `bin/works-factory` に置く形は `one-launcher` に反する。1 組を `include:` で 5 回入れる形は、dry-run が include で入った script を走らせず止めの決めを筋書きで照らせない。上限 5 の根拠: 今の works の review-graph（`works/.shared/core/graphloops/graphs/review-loop.json` の `max_rounds: 5`）と `slim`。5 周を越えて続ける時は、最後の周が運んだ次の依頼で鎖を起こし直す。周ごとのノードを #380 の本文の 3 つ（子の run・周の commit・止めの決め）から 4 つにした訳: dry-run には子の run の置き場が無く次の依頼を読めないので、読み書きをノード `round-k-facts` に寄せ、止めの決めのノードはファイルを読まずに筋書きで本当に走らせる。書く script は止めの決め・次の依頼・周の commit の 3 つのまま（`on-archon-only`）。
+
+## 2026-10-19 の決め（#765 の部品の作り直し）
+
+出典: 2026-10-19 の持ち主と運び役の会話（#765 の設計の依頼。設計は `docs/design/README.md`）。逐語の言葉は運び役の手元に無いので、どれも「なし（本文の要約）」と書く。持ち主が違えば戻す。
+
+### `block-local-code` 1 つの block だけが使うコードは block のフォルダに置き、lib/ は 2 つ以上が使う物だけ
+
+- 持ち主の言葉: なし（本文の要約）
+- 決め: block（`docs/design/README.md` の語）だけが使う Python は、その block の `src/` に置く。`lib/` には 2 つ以上の block（か graph か `bin/`）が使う物だけを置く。`workflows/AGENTS.md` の E4 の「サブグラフの script は lib/ と境の口を呼ぶだけ」「共に使う物は lib か境の口に置く」をこれで置き換える。
+- 訳: サブグラフだけが使うコードの置き場が平らな `lib/` しか無く、lib の import の循環が 2 から 33 モジュールに育ち、指示の文も lib の定数に流れ込んだ（`~/.cache/works-self/tmp/drift-audit.md` の 1 章と 6 章）。
+- 当て方: `docs/design/README.md` の 3 章と 9 章。作り直しの間は新しい `blocks/` に当て、組み込みで E4 を書き直す。
+
+### `lib-port-ended` lib-port-as-is を終える
+
+- 持ち主の言葉: なし（本文の要約）
+- 決め: `lib-port-as-is`（元の works の部品を元の名・元の中身のまま持ってくる。要らない物は最後の掃除の段で消す）を終える。部品は works-factory の置き場の形（`block-local-code`）に直してよい。「最後の掃除の段」は #765 の組み込みが担い、`docs/design/README.md` の 9 章の DELETE・MOVE・KEEP の仕分けで消す。元の works は参照するだけにする（作り直しの目標ではない）。元の works に在って工場に無い物は、工場の git の履歴で意図して外したかを確かめ（PR を引く）、それから戻すかを決める。
+- 当て方: `docs/design/README.md` の 6 章（設計シートの 7 項）・9 章。根の `AGENTS.md` の E18 の「元と同じファイル名で置く」は、組み込みで MOVE した物には当てない。
+
+### `rules-tests-design-apart` 決まり・試験の仕様・設計を分けて書く
+
+- 持ち主の言葉: なし（本文の要約）
+- 決め: AGENTS.md には決まりとパスだけを書き、試験が見る形の細目は試験のモジュールの docstring に、機能の設計は `docs/design/` に書く。憲法は根の `AGENTS.md` と `workflows/AGENTS.md` の頭に数行だけ置く。
+- 訳: AGENTS.md が決まり・試験の仕様・設計を兼ね、18k 字から 39k 字に育ち、1 つの箇条が 2,860 字になった（drift-audit の 2 章）。
+- 当て方: `docs/design/README.md` の 2 章（憲法 6 行）と 7.2 章。組み込みで書き直す。
+
+### `shape-checks-only` 数の歯止め・閾値・許す物の表を検査にしない
+
+- 持ち主の言葉: なし（本文の要約）
+- 決め: 機械の検査は yes/no の形の決まりだけにする（例: YAML に指示の文が無い・AI のノードごとに md が在る・block ごとに standalone の fixture が在る・port を宣言している）。数の上限・既知の漏れの数の表・許すファイルの表で縛る検査は作らない。間違った書き方は、API と置き場の形で書けなくする（例: 指示を組む口は node の md と名前つきの値しか受けない）。
+- 当て方: `docs/design/README.md` の 7.1 章と 9.4 章（`tests/layers/test_layer_map.py` などを消す）。
+
+### `rebuild-speed` overnight-speed はこの作り直しの間だけ、simple-software で層の検査を小さくする
+
+- 持ち主の言葉: なし（本文の要約）
+- 決め: `overnight-speed`（PR の単位は大きく、聞かずに merge）は #765 の作り直しの間だけ効かせ、組み込みの後に外す（外した日をここに足す）。`simple-software` に沿って、層の検査のコード（`tests/layers/scan.py` の 2,070 行など）を、置き場の形と API に置き換えて小さくする。
+- 当て方: `docs/design/README.md` の 11 章。
 
 ## 引き継いだ決め
 
