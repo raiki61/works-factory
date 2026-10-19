@@ -1,0 +1,42 @@
+{
+  "description": "固めた目的。null は目的の文がこの run に無い",
+  "type": [
+    "object",
+    "null"
+  ],
+  "additionalProperties": false,
+  "required": [
+    "purpose_text",
+    "source",
+    "known_weaknesses",
+    "source_files"
+  ],
+  "properties": {
+    "purpose_text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "①PR 説明",
+        "②計画・タスク記述",
+        "③writer の要約",
+        "目的不明"
+      ]
+    },
+    "known_weaknesses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、目的の監査の役の返答だけを差し替える。
+# 指示が md から組まれたことを md の決まった文で照らす。出口の status が ran になることと material.json の reply は
+# tests/blocks/purpose_review の試験が確かめる（筋書きは値と node の返りの欄を照らさない）
+fixture:
+  expect: completed
+  reached: [intake, purpose-review-prep, purpose-review, purpose-review-accept, finish]
+  inputs:
+    base: ''
+    purpose: '{"purpose_text":"設定の読み込みが空のファイルでも落ちないようにする","source":"③writer の要約","known_weaknesses":[],"source_files":[]}'
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    purpose-review: 'この役は目的の審査の役（inspector）。'
+exec-code: true
+purpose-review:
+  verdict: 問題なし
+  reason: the purpose text still covers what the change set out to do
+  findings: []
