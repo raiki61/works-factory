@@ -476,8 +476,11 @@ def judged_rows(judged: dict | None) -> list:
 
 def unproven_lines(judgment) -> list:
     """例で試していない単位の行（元 runreport.unproven_lines。判定の judgment の units から querytest.unproven で出し直す。開いた単位は
-    元の検証器の is_open と同じ式 gatemarks._fix_duty）。判定が無い・読めなければ []"""
-    doc = gates.read_json(gates.path_of(judgment)) if judgment is not None else None
+    元の検証器の is_open と同じ式 gatemarks._fix_duty）。判定が無ければ []、判定の pointer を開けなければ訳の 1 行（黙って 0 件にしない）"""
+    try:
+        doc = gates.read_json(gates.path_of(judgment)) if judgment is not None else None
+    except (OSError, ValueError, TypeError) as error:
+        return [f"判定を読めないので、例で試していない単位を数えていない（{type(error).__name__}: {error}）"]
     units = [u for u in (doc or {}).get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)] \
         if isinstance(doc, dict) else []
     return [f"{r['key']}: {r['why']}" for r in querytest.unproven(units, gatemarks._fix_duty)]
