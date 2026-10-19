@@ -426,7 +426,7 @@
 - 持ち主の言葉: なし（本文の要約）
 - 決め: block（`docs/design/README.md` の語）だけが使う Python は、その block の `src/` に置く。`lib/` には 2 つ以上の block（か graph か `bin/`）が使う物だけを置く。`workflows/AGENTS.md` の E4 の「サブグラフの script は lib/ と境の口を呼ぶだけ」「共に使う物は lib か境の口に置く」をこれで置き換える。
 - 訳: サブグラフだけが使うコードの置き場が平らな `lib/` しか無く、lib の import の循環が 2 から 33 モジュールに育ち、指示の文も lib の定数に流れ込んだ（`~/.cache/works-self/tmp/drift-audit.md` の 1 章と 6 章）。
-- 当て方: `docs/design/README.md` の 3 章と 9 章。作り直しの間は新しい `blocks/` に当て、組み込みで E4 を書き直す。
+- 当て方: `docs/design/README.md` の 3 章と 9 章・憲法の 4（根の `AGENTS.md` と `workflows/AGENTS.md` の頭）。#765 の組み込みで `workflows/AGENTS.md` の E4 をこの形に書き直した。
 
 ### `lib-port-ended` lib-port-as-is を終える
 
