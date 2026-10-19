@@ -257,6 +257,12 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 1. この block を報告に依らない汎用の初見の読み手にし、報告の書き手との往復と報告の頭の決まりは report の block の中に残す（調整役の決め。report の設計書の決めに合わせた）。根拠: 書き手の回ごとの受け付けが同じ回の読み手の判定で決まる・読み手の後に受け付けの node を graph に置くと README 2 節の憲法の 3（block は宣言した port だけで受け渡し、ほかの block を名指さない）に触れる・report を単独で回した時にも初見の確かめが要る。同じ役が 2 か所に在る分は、役の定義を断片 `role-cold-reader` の 1 か所に置くことで、定義の直しが 1 本で閉じる（README 1.2 の I）。
 2. 受け付けの loop を置かない（今と同じ）。根拠は 4 節。
 3. 前の回の所見を読み手に渡さない（今と同じ）。根拠: 初見の確かめは毎回まっさらに読むことが芯。gates の形（6 節の 5）に替えるのは振る舞いを変える提案なので、作り直しの外。
+4. 筋書きの script の node は差し替えず本当に走らせる（11 節の「script の node も差し替え」を採らない）。根拠: 土台の形の検査 `check_standalone_renders` が、AI の node の指示を md から組んだ証として、`exec-code: true`・prep を差し替えない・`resolved-text-contains` が md の決まった文、を求める。`cold-prep` を差し替えると証が立たない。`finish` も本当に走らせ、台本の返答を読む配線まで見る。`unreadable` は存在しないファイル名を渡して `due: false` の道を本当に通す。
+5. `cold-prep` は place の中を全部消さず、自分の名のファイル（`cold-prompt-1.md`・`reply.json`・`read.json`。名は `src/files.py`）だけを消す（1.4 の「全部消す」を採らない）。根拠: 土台の決め「block が消してよいのは自分が名を持つファイルだけ」。
+6. `lang` が空の時の言語は、共通の断片 `lang-default`（「依頼の言語」）でなく `the language of the text`（`src/reply.py` の `LANG_OF_TEXT`）にする。根拠: この block に依頼は無く、port の説明も「空は本文の言語」。`prompt.lang` は使わない。
+7. 本文は `ports.file` で受けて UTF-8 で読み、末尾の改行だけを外して差し込む（字の中は触らない）。ファイルが読めない型（無い・UTF-8 でない）は、パス（80 字まで）と型の名を訳に入れる。
+8. 試験の本文は例の run の 1 回目の報告の頭（Archon の記録の `report__write-loop.cold-prep` の `node_output`）で、約 5.7 KB だった（1 回目が約 11 KB という記述と違う）。対象の名だけ `<owner>/<repo>` に替えた。
+9. 1 つ目の commit の比べは、今の `cold-check.md` の行 1-10 と行 14 以降（行 11-13 を除く）に本文を差し込み、空白を畳んで照らす。2 つ目の commit で消した。
 
 ## 11 試験
 

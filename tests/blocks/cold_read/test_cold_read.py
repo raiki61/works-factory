@@ -40,9 +40,17 @@ class PrepCase(_Case):
         got = self.prep()
         self.assertEqual((got["due"], got["reason"]), (True, ""))
         self.assertIn(values.BODY.rstrip("\n"), got["prompt"])
-        for word in ("頭の後ろ", "機械が組んだ事実", "reports head"):
+        role = (kit.SHARED / "prompts" / "role-cold-reader.md").read_text(encoding="utf-8").strip()
+        self.assertTrue(got["prompt"].startswith(role), "役の定義は共通の断片 role-cold-reader から入る")
+        for word in ("頭の後ろ", "機械が組んだ事実", "report heading", "the head of the report"):
             self.assertNotIn(word, got["prompt"], "報告の頭の決まりは report の block の物")
+        self.assertIn("`verdict` is `redesign-needed`; if there is none, `pass`.", got["prompt"])
         self.assertEqual((self.run.artifacts / "cold-prompt-1.md").read_text(encoding="utf-8"), got["prompt"])
+
+    def test_lang_default_and_given(self):
+        self.assertIn("Write `stops` and `guessed` in the language of the text.", self.prep()["prompt"])
+        got = self.run.script("cold_prep", text=self.put("d.md", "x"), lang="Japanese")
+        self.assertIn("Write `stops` and `guessed` in Japanese.", got["prompt"])
 
     def test_text_goes_in_verbatim(self):
         """本文の中の $x.output.y と {name} は置き換わらずに残る（値の中の字は読み直さない）"""

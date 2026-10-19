@@ -15,7 +15,7 @@ import prompt  # noqa: E402
 
 def compute():
     import oneline  # lib/
-    from src import files
+    from src import files, reply
     place = ports.place()
     for name in files.OWN_FILES:   # 自分の名のファイルだけ消す（world の intake と同じ。ほかの物は消さない）
         (place / name).unlink(missing_ok=True)
@@ -30,7 +30,8 @@ def compute():
             f"読ませる本文のファイルを読めない（{ports.text(raw).strip()[:80]}: {type(e).__name__}）")}
     if not body.strip():
         return {"due": False, "prompt": "", "reason": "読ませる本文が空"}
-    values = {"text": body.rstrip("\n")}
+    values = {"text": body.rstrip("\n"), "passed": reply.PASSED, "redesign": reply.REDESIGN,
+              "lang": ports.text(os.environ.get("INPUTS_LANG")).strip() or reply.LANG_OF_TEXT}
     return {"due": True, "prompt": prompt.emit("cold", values, {}, 1)["prompt"], "reason": ""}
 
 
