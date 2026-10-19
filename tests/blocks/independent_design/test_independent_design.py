@@ -164,8 +164,7 @@ class PromptCase(_RepoCase):
         text = self.to_prompt()
         self.assertIn(values.PURPOSE, text)
         self.assertIn(values.CONSTRAINTS[0]["text"], text)
-        self.assertIn("対象のコマンドの環境は", self.run.repo.joinpath("docs/design.md").read_text(encoding="utf-8"))
-        for foreign in ("PLAN-XYZ", "fix_plan", "judgment", "diff.patch"):
+        for foreign in ("PLAN-XYZ", "fix_plan", "diff.patch"):
             self.assertNotIn(foreign, text)
         self.assertIn("AGENTS.md:1-", text)
         self.assertIn(values.AGENTS_MD.splitlines()[2], text)
@@ -192,6 +191,8 @@ class PromptCase(_RepoCase):
         self.assertEqual(got, {"due": True, "status": "", "reason": ""})
         text = self.prep()["prompt"]
         self.assertIn(self.steps.STALE_WHY, text)
+        self.assertIn("A judgment of the purpose that has not passed its check", text)
+        self.assertNotIn("A judgment of the purpose that has not passed its check", self.to_prompt())
 
     def test_vetted_narrowing_review_does_not_start_the_role(self):
         review = {"verdict": "狭めている", "reason": "r", "findings": [{"text": "t", "cite": "a.py:1"}]}
@@ -244,6 +245,16 @@ class PromptCase(_RepoCase):
         self.assertIn(f"［方針の文書は {path.stat().st_size} バイトで、{policy.PASTE_CAP} バイトまでを貼った。続きは {path}］", body)
         path.write_text("短い方針\n", encoding="utf-8")
         self.assertEqual(self.steps.policy_body(path), "短い方針\n")
+
+    def test_lang_is_given_to_the_role(self):
+        self.assertIn("in English.", self.to_prompt(lang="English"))
+        self.assertIn("in the language of the request (the user's language).", self.to_prompt())
+
+    def test_system_prompt_is_the_blind_judge_definition(self):
+        self.intake()
+        system = self.prep()["system"]
+        self.assertEqual(system, (kit.SHARED / "prompts" / "role-blind-judge.md").read_text(encoding="utf-8"))
+        self.assertEqual((self.run.artifacts / "design-system-1.md").read_text(encoding="utf-8"), system)
 
     def test_earlier_rejects_are_pasted_oldest_first(self):
         self.intake()

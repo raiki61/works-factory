@@ -1,25 +1,23 @@
-## 人が決めた前提（機械が貼った）
-
-下の指示書の「渡すのは元の目的と実測した制約だけである」は、この run では、このセクション（承認ノードの答え・依頼が名指した設計書のセクション・対象のリポジトリの地図）も渡していると読み替えよ。
+## Premises a person set (pasted by the machine)
 
 <!-- if answers -->
-### 承認ノードの答え
+### Answers at the approval nodes
 
-人が承認ノードで答えた前提（run の中で人が決めた物）。ほかのセクションより先に読め。答えが目的の文や前の要求を取り下げ・変えていれば、取り下げ・変えた後の要求を前提にせよ（取り下げた要求を固定の契約にしない）。設計が取り下げた要求を置いていても、そのことだけでは差にも前提の崩れにも数えず、答えに照らした目的で突き合わせよ。
+Premises a person answered at an approval node (things a person decided during the run). Read them before the other sections. If an answer withdraws or changes the purpose or an earlier requirement, take the withdrawn or changed requirement as the premise (do not make a withdrawn requirement a fixed contract). If a design still keeps a withdrawn requirement, do not count that alone as a difference or as a broken premise; compare against the purpose as the answers changed it.
 
 {answers}
 <!-- end answers -->
 
 <!-- if named -->
-### 依頼が名指した設計書のセクション
+### Sections of design documents the request names
 
-依頼が名指した設計書のセクションの本文（依頼を固めた版のファイルから機械が抜いた）。目的の文と同じく依頼の一部として読め。
+The text of the design-document sections the request names (the machine cut them from the files at the version the request was fixed at). Read them as part of the request, like the purpose.
 
 {named}
 <!-- end named -->
 
-### 対象のリポジトリの地図
+### Map of the target repository
 
-対象のリポジトリの根に在る地図の文書（依頼を固めた版のファイルから機械が貼った。見出しは出どころのパス:行）。依頼が名指していなくても、仕組みの中に既に在る実物（信用の起点・外との通信の経路・守る物）から設計を始めよ。
+The map documents at the target repository's root (the machine pasted them from the files at the version the request was fixed at; each heading is the source path:line). Even where the request does not name them, start the design from what already exists in the system (the roots of trust, the paths of outside communication, the things being protected).
 
 {map}

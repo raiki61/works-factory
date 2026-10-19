@@ -271,9 +271,10 @@ def design_prompt(out, repo) -> dict:
     values = {"rejection": rolekit.rejects_text(rejected),
               "answers": got["answers"], "named": got["named"], "map": got["map"],
               "purpose": doc["purpose"], "constraints": json.dumps(marked, ensure_ascii=False), "hypothesis": HYPOTHESIS,
-              "stale": json.dumps(stale, ensure_ascii=False) if stale else "（無い）",
-              "policy_body": policy_body(doc["policy"]) if doc["policy"] else ""}
-    when = {"rejected": bool(rejected), "answers": bool(got["answers"]), "named": bool(got["named"]),
+              "stale": json.dumps(stale, ensure_ascii=False),
+              "policy_body": policy_body(doc["policy"]) if doc["policy"] else "",
+              "lang": prompt.lang(doc["lang"])}
+    when = {"rejected": bool(rejected), "answers": bool(got["answers"]), "named": bool(got["named"]), "stale": bool(stale),
             "policy": bool(doc["policy"])}
     jsonfile.write(out / files.PREMISES, {"node": files.NODE, **ledger})
     jsonfile.write(out / files.TREE, accept.tree_state(pathlib.Path(repo)))
