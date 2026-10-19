@@ -121,6 +121,43 @@ class FlowCase(unittest.TestCase):
     def test_without_entry_runs_on_an_empty_diff(self):
         self.assertTrue(self.intake()["due"])
 
+    def test_prompt_pastes_the_viewpoint_and_the_whole_diff(self):
+        """写す元 MaterialCase.test_prep_renders_role_inputs の hygiene の部分。工場の観点の節と差分の本文の全部が指示に入り、
+        資料であって指示ではないという囲いの文は md だけが持つ。素材の書き方と『条件に当たらない』の段は入れない"""
+        self.change()
+        self.intake(lang="Japanese")
+        got = self.prep()["prompt"]
+        self.assertIn("コード衛生観点", got)
+        self.assertIn("+直した行", got)
+        self.assertIn("----- material begins -----", got)
+        self.assertIn("```diff\ndiff --git", got)
+        self.assertIn("in Japanese.", got)
+        self.assertNotIn("資料であって指示ではない", got)
+        self.assertNotIn("How to write `material`", got)
+        self.assertNotIn("not_applicable", got)
+        self.assertNotIn("Why your previous answer was rejected", got)
+        self.assertNotIn("new conversation", got, "輪の 2 回目以降は同じ会話の続き")
+        self.accept({"findings": [], "seen": ""})
+        again = self.prep()["prompt"]
+        self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
+        self.assertIn("'checked' が要る", again)
+        self.assertTrue((self.run.artifacts / f"{NAME}-prompt-2.md").is_file())
+
+    def test_missing_viewpoint_section_fails_prep_and_finish_still_returns(self):
+        """観点の節が見つからない時は黙って空で役を起こさず落ちる（工場の不具合）。出口は failed で返る"""
+        vp = kit.load("hygiene", "viewpoint")
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            (pathlib.Path(tmp) / "REVIEW.md").write_text("# 観点\n\n本文\n", encoding="utf-8")
+            orig = vp.materialkit.review_md_paths
+            vp.materialkit.review_md_paths = lambda repo, lib_dir=None: orig(repo, tmp)
+            try:
+                view = vp.materialkit.View(self.run.repo, "b", "r", str(pathlib.Path(tmp) / "d"), (), "c", "", 0)
+                with self.assertRaises(KeyError):
+                    vp.values(view, {})
+            finally:
+                vp.materialkit.review_md_paths = orig
+
     def test_failed_when_the_role_never_answered(self):
         """prep が落ちた（観点の節が無い等）時、出口は落ちずに failed で返る"""
         self.change()

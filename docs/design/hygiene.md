@@ -328,3 +328,10 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 回す時の `due` の訳を「判定から入る run でない（port entry が空）——通常の run」にする。訳は consistency-bypass.md の 7 節と同じ。
 - 1 つ目の commit の材料の本文の比べを、例の run のファイルでなく、試験のリポジトリで今の `material_prep` が返す字と比べる。訳: 例の run の材料の本文は別の組織のリポジトリ（<owner>/<repo>）の差分の全部（1796 行）を含み、それを試験に入れたくない。今の関数は作り直しの間は残るので、同じ値で直に比べられる。
 - `role_prep.py` で `when` の `na_*` の 4 つを外す（3 節）。訳: materials.md の 2.11 のままでは、`material` の欄を持たない観点の md の組み立てが落ちる。族の部品の口を変えずに、この block の殻の 1 行で閉じる。
+- 実装で main の土台の決まりに合わせた事（#765）:
+  - `NA_PARAGRAPH = False` を宣言し、`role_prep.py` は `materialkit.prompt_inputs` と `prompt.emit` だけで組む（3 節の「`na_*` の 4 つを外す」1 行は要らない）。訳: main の `prompt_inputs` は `NA_PARAGRAPH` が偽なら `na_why` と `na_*` を足さない。
+  - `due` は `materialkit.not_entry_due(view, values, "P1 の役")`（`entry` が在り、かつ対象差分が空の時だけ見送る）。訳: main の `is_entry_run` が判定から入る run の周を `entry` と空の差分の両方で決める（今の `request_entry` と同じ）。1.5 の「`entry` が空でなければ見送る」は、差分の在る run で見送ってしまう。
+  - `fill` は `materialkit.fill_entry(values["entry"], None)`。訳: main の `fill_entry` は依頼の port を持たない観点に `None`（件数は渡されていない）と定める。
+  - 役の 1 段落は "started in a new conversation" と書かない。訳: 輪は `fresh_context: false` で、2 回目以降は同じ会話の続き（調整役の指摘）。筋書きの決まった文は道具の段落の文で照らす。
+  - prep は輪の中で 1 つだけの層（`with:` も `depends_on` も持たない）なので、同じ層に 2 つの node は並ばない。
+  - 観点の節が `lib/REVIEW.md` に無い時は `KeyError` で prep を落とし、出口が `failed` で返す（2.9 のとおり）。

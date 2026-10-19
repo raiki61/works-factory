@@ -8,7 +8,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    hygiene: '差分を読む役。道具は 1 つも無い'
+    hygiene: 'You have no tools. You cannot open files or the web; this prompt is everything you are given.'
 exec-code: true
 hygiene:
   findings: []
