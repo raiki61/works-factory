@@ -111,6 +111,11 @@ class FlowCase(unittest.TestCase):
         self.assertIn("件数は渡されていない", mat["reason"])
         self.assertIsNone(self.material()["reply"])
 
+    def test_stale_entry_with_a_diff_wakes_the_role(self):
+        """entry が在っても対象差分が空でなければ入口の周ではなく、役を回す"""
+        (self.run.repo / "README.md").write_text("# 対象\n直した\n", encoding="utf-8")
+        self.assertTrue(self.intake(entry="人の依頼（試験）")["due"])
+
     def test_unreadable_base_fails_with_the_reason(self):
         got = self.intake(base="no-such-commit")
         self.assertFalse(got["due"])

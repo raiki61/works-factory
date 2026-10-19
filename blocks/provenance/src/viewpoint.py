@@ -16,7 +16,7 @@ NA_PARAGRAPH = True   # 返答が material の欄を持ち、md が共通の断�
 
 
 def due(view, values) -> materialkit.Due:
-    if values.get("entry"):
+    if materialkit.is_entry_run(view, values):
         return materialkit.entry_skip("出典の確かめ")
     return materialkit.Due(True, "根拠の出所検査は run ごとに 1 回回す（判定から入る run でない。1 run は 1 周で、いつも初回）")
 
