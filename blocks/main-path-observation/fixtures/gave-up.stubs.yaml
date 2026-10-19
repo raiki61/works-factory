@@ -1,0 +1,17 @@
+# 観測の役の返答が受け付けを通らない道（見たと言う状態なのに観測の行が無い）: run は止めず、出口が落ちずに返る。筋書きでは輪が
+# 1 周で終わるので拒否は 1 回で、3 回で諦めて出口が status: gave_up を返す数えは tests/blocks/main_path_observation の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, main-path-observation-prep, main-path-observation, main-path-observation-accept, finish]
+  inputs:
+    base: ''
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    main-path-observation: 'この役は主経路の実行観測の役（任せ先）。'
+exec-code: true
+main-path-observation:
+  material:
+    status: clean
+    checked: read the diff only
+  observed: []
