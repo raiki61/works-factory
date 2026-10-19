@@ -1,6 +1,6 @@
 """依頼の行を port から読む共通の口（2 つ以上の block が使う。docs/design/README.md の 13 章）。
 
-依頼は、行の配列か、それを findings の欄に持つ工場の依頼のファイルの形（`.shared/schemas/request.schema.json`）。形を照らした後、
+依頼は、行の配列か、それを findings の欄に持つ工場の依頼のファイルの形（`.shared/schemas/request.schema.json`。行は閉じた形で、知らない欄を拒む）。形を照らす前に、
 lib/carry.py の parts で容器を読む: 知らない最上位の鍵・前の run の報告が運んだ所見の下書き（draft・source の欄の行）・pr と issue の
 番号の形・answers・prior_failures・constraints の形を、名指して拒む（今の worldblk._findings が carry.parts で拒んでいた物）。
 下書きの行は、行の配列の形でも拒む（carry.parts は配列の形では見ない）。
@@ -19,9 +19,12 @@ SCHEMA = "shared:request.schema.json"
 
 
 def parts(raw) -> dict:
-    value = ports.json(raw, SCHEMA)
-    # 行の配列も容器に包んでから読む（carry.parts は配列の形では下書きの行を見ないので、2 つの形で拒む物を揃える）
-    return carry.parts({carry.FINDINGS: value} if isinstance(value, list) else value)
+    value = ports.json(raw)
+    # 行の配列も容器に包んでから読む（carry.parts は配列の形では下書きの行を見ないので、2 つの形で拒む物を揃える）。
+    # carry の読みを先にして、下書きの行を「知らない欄」でなく名指して拒む。行の知らない欄は後の形の照らしが拒む（元の judge の REQUEST_SCHEMA）
+    got = carry.parts({carry.FINDINGS: value} if isinstance(value, list) else value)
+    ports.json(raw, SCHEMA)
+    return got
 
 
 def findings(raw) -> list:

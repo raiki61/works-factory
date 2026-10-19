@@ -4,6 +4,7 @@
   "items": {
     "type": "object",
     "required": ["where", "text"],
+    "additionalProperties": false,
     "properties": {
       "where": {"type": "string"},
       "text": {"type": "string"},
@@ -19,6 +20,7 @@
       "items": {
         "type": "object",
         "required": ["where", "text"],
+    "additionalProperties": false,
         "properties": {
           "where": {"type": "string"},
           "text": {"type": "string"},
