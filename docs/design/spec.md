@@ -217,6 +217,7 @@ Return only JSON that matches the output schema.
 - 替えた: この node が在る訳の実測の例の「2 周目以降は P1 を通常どおり走らせる」「P1 が run の最後まで戻らない」を、graphloops の段の名 P1 を外した言い方に（block は段の名を知らない）。
 - 消した: 「同じテストが、後で TDD の『先に書く赤いテスト』になる」「その時点で緑なら『赤を見ていない』と判定役に渡る」の、後ろの block の振る舞いを前提として伝える部分（world の 3.6 と同じ決め）。「赤を見ていないと記録される」だけを残した。
 - 消した: 見出しの括弧「（writer の仕事。仕様の道だけ）」と、役の札「writer」。
+- 消した: 外への検索の決まりの頭の「Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ」（この役は Agent の道具を持たない。断片の `spawns` の段落に `false` を渡して出さない）。
 - 英語にした（#764）。役の名は "the spec writer"。
 
 ## 3 node の設計シート: spec-review（審査役）
@@ -342,6 +343,8 @@ Return only JSON that matches the output schema.
 - 替えた: 実測の例の P1 の名（2.6 と同じ）。
 - 消した: 見出しの括弧「（judge。仕様の道だけ）」と、役の札「judge」の 2 度目（役の定義の断片が言う）。
 - 並べ替えた: 却下の段落を頭に（world と同じ）。役の定義・検索の決まり・この役の文の順は今のまま。
+- 足した: 「読むだけ」の段落（Read・Grep・Glob と web の検索と取得だけを持ち、作業ツリーを 1 字も変えない。機械が起こす前の写しと今を比べ、変わっていれば答えを拒む）。
+- 消した: 外への検索の決まりの頭の「Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ」（この役は Agent の道具を持たない。断片の `spawns` の段落に `false` を渡して出さない）。
 - 英語にした。役の名は "the spec reviewer"。
 
 ## 4 node の設計シート: spec-revise（直す役）
@@ -444,6 +447,7 @@ Return only JSON that matches the output schema.
 - 足した: PR の題と本文の節（2.6 と同じ訳）。
 - 替えた: 「engine が … 人に見せて承認を求め」の engine を「the machine」に（graphloops の engine の名は block の外の物）。
 - 消した: 見出しの括弧「（writer の仕事。仕様の道だけ）」と役の札「writer」。
+- 消した: 外への検索の決まりの頭の「Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ」（この役は Agent の道具を持たない。断片の `spawns` の段落に `false` を渡して出さない）。
 - 英語にした。役の名は "the spec reviser"。
 
 ## 5 node の設計シート: spec-write-fix・spec-review-fix・spec-revise-fix（出し直しの役）
