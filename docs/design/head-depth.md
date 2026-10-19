@@ -113,7 +113,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 ### 2.3 組み立ての順（`prompts/head-depth.md`）
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 前の回の accept の理由が空でない。断片の中の `{rejection}` ← これまでの拒みの理由の全部（place の控えから、古い順。8 節の自分で決めた 10）。
-2. 役の定義（決まった文）: 新しい会話で起きていること・行ごとに種類を 1 つ引用で示す・段は機械が引く・群の選び。差し込み口 `{light}`・`{standard}`・`{heavy}`（← `lib/headdepth.py` の `LIGHT`・`STANDARD` と `lib/depth.py` の `HEAVY`）。
+2. 役の定義（決まった文）: 行ごとに種類を 1 つ引用で示す・段は機械が引く・群の選び。差し込み口 `{light}`・`{standard}`・`{heavy}`（← `lib/headdepth.py` の `LIGHT`・`STANDARD` と `lib/depth.py` の `HEAVY`）。
 3. 段の意味（決まった文）。差し込み口 `{light}`・`{standard}`・`{heavy}`・`{cause}`。
 4. 読むだけの決まり（決まった文）。
 5. `## Input` の 2 行（決まった文）: 対象のリポジトリ・材料は機械が測った物・この run には機械の確かめが在る。
@@ -129,7 +129,7 @@ md の本文（英語。この block の PR の 2 つ目の commit でこのま�
 {shared:rejected}
 <!-- end rejected -->
 
-You are the run-depth role, started in a new conversation. For each line of a person's fix request, name the one kind of unknown that is still left, with a quote from the request's text and a quote from the repository's lines (questions 1 and 2). The depth tier ({light}, {standard}, or {heavy}) is taken by the machine from the heaviest kind among the lines; you do not return a tier. Also pick, with reasons, only the node groups whose default model or effort should change (question 3).
+You are the run-depth role. For each line of a person's fix request, name the one kind of unknown that is still left, with a quote from the request's text and a quote from the repository's lines (questions 1 and 2). The depth tier ({light}, {standard}, or {heavy}) is taken by the machine from the heaviest kind among the lines; you do not return a tier. Also pick, with reasons, only the node groups whose default model or effort should change (question 3).
 
 What the tiers mean: a {light} run is only for a request where the place to fix and the way to fix it are known on every line. If a run is wrongly made {light}, holes that should be found before the fix stay hidden until after the fix. {standard} runs every check as before; a run wrongly made {standard} only costs more and does no harm. {heavy} adds to {standard} a second check of the judgment and a per-item tree in the review of the plan, and costs much more. So give a lighter kind only where you can show it with quotes, and when in doubt choose `{cause}` (which gives {standard}).
 
@@ -228,7 +228,7 @@ properties:
 ### 2.5 描いた骨組み（例の run の値）
 
 ```markdown
-You are the run-depth role, started in a new conversation. … The depth tier (軽量, 標準, or 重厚) is taken by the machine from the heaviest kind among the lines; …
+You are the run-depth role. … The depth tier (軽量, 標準, or 重厚) is taken by the machine from the heaviest kind among the lines; …
 
 What the tiers mean: a 軽量 run is only for a request where … when in doubt choose `原因` (which gives 標準).
 

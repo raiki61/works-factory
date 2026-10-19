@@ -321,7 +321,7 @@ node:
 4. 筋書き: `web-on.stubs.yaml` は web の役の指示の on の段落までを見る（抜き書きの取り直しは網に出るので、抜き書きを返さない）。抜き書きが残る道は `tests/blocks/world/test_steps.py` の Verify が、取り直しの口を差し替えて見る。`gave-up.stubs.yaml` は dry-run の輪が 1 周で終わるので却下は 1 回で、出口が最後の却下の理由で `status: failed` を返す所を見る。3 回で諦める数えは同じ試験の Plan が見る。
 5. standalone の筋書きの依頼の字に `$ARTIFACTS_DIR` を入れ、組んだ指示の中で字のまま AI の node に届くことを照らす（README の 13 章）。
 6. 前の回の却下は、prep が place の控え（`rejects-classes.json`・`rejects-judge.json`）から全部を読む。prep の `with:` に `$LOOP_PREV…reason` を書かない。止めた Archon は `with:` の値を読み直さないが（README の 13 章）、resume で輪が 1 周目から回り直しても却下の段落が抜けないようにする。
-7. web が off の run は、指示の文（`<!-- if not web -->` の段落）だけでなく道具で web を断つ: `pick` が `web` を返し、web が on なら `world-judge-loop`（`WebSearch`・`WebFetch`）、off なら `world-judge-offline-loop`（道具なし）のどちらか 1 つが回る。2 つの役の指示は同じ md `prompts/parts/world-judge.md` から組む（node ごとの md は `{part:world-judge}` の 1 行）。loop の本体の node の `when:` で外の node を読む形は使わない（本体は閉じた小さな DAG）。
+7. web が off の run は、指示の文（`<!-- if not web -->` の段落）だけでなく道具で web を断つ: `pick` が `web` を返し、web が on なら `world-judge-loop`（`WebSearch`・`WebFetch`）、off なら `world-judge-offline-loop`（道具なし）のどちらか 1 つが回る。2 つの役の指示は同じ md `prompts/parts/world-judge.md` から組む（node ごとの md は却下の段落と `{part:world-judge}`。外への検索の決まりは道具を持つ node の md だけ）。loop の本体の node の `when:` で外の node を読む形は使わない（本体は閉じた小さな DAG）。
 8. 一次の出典を先に読む決まりは、world-judge の md から共通の断片 `query-rule` へ移した（役の定義 `role-investigator` の同じ文も）。外への検索と出典の決まりは断片 1 か所。
 9. 依頼の容器は共通の口 `blocks/.shared/requestrows.py` で読む（形の照らしの後に `lib/carry.parts`）。今の `worldblk._findings` が拒んでいた知らない最上位の鍵と下書きの行を、ここでも拒む（下書きの行は行の配列の形でも拒む）。
 10. 指示が組めない prep は `prompt-error.json` に node と訳を書いてから落ち、出口の `reason` がその訳を名指す。
