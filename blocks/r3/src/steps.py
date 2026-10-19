@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import json
 import pathlib
 
 import ports
@@ -39,7 +40,7 @@ def _request_answers(raw) -> tuple[str, list, str]:
     try:
         return str(path), list(requestrows.parts(str(path))["answers"] or []), ""
     except Exception as e:  # noqa: BLE001 — 読めない中身は役を止めない（訳は intake.json の unread に残す）
-        return str(path), [], oneline.one_line(f"{type(e).__name__}: {e}")
+        return str(path), [], REQUEST_UNREAD.format(why=oneline.one_line(f"{type(e).__name__}: {e}"))
 
 
 def _read_ports(raw: dict) -> tuple[dict, list]:
@@ -109,6 +110,8 @@ def coherence_prompt(out, repo) -> dict:
     doc = _intake(out)
     concept, found = eyekit.maps(repo)
     rows, none = eyekit.recorded_rows_text(doc["recorded"])
+    if doc.get("unread"):   # 読めなかった依頼の answers を「none」と読ませない
+        rows += "\n- " + doc["unread"]
     values = {
         "home_prefix": concepthome.PREFIX,
         "after_section": eyekit.after_section(doc["after"] or None, doc["review"]),
@@ -147,5 +150,9 @@ def finish(out) -> dict:
         row, took = eyekit.verdict_row("r3", reply, unread)
         got = {"ok": took, "status": "ran" if took else "failed", "reason": "" if took else row["reason"], "verdict": row,
                "questions": [], "report": report.lines(row)}
+    try:   # Archon の JSON.parse が読めない NaN・Infinity は、控えを書く前に落とす（出口が落ちた形にする）
+        json.dumps(got, allow_nan=False)
+    except ValueError as e:
+        raise ValueError(f"出力が JSON に書けない: {e}") from None
     jsonfile.write(out / files.FINISH, got)
     return got

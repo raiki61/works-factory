@@ -113,16 +113,51 @@ class FlowCase(_RepoCase):
         self.assertIn("r4-scope", err)
         self.assertFalse((self.place / "r4-scope.json").exists())
 
+    def plant_old_files(self) -> dict:
+        """この block が名を持つファイルの全部（と前の回の指示）を「前の run の物」の字で置く"""
+        files = kit.load("r3", "files")
+        old = {name: self.place / name for name in files.OWN_FILES}
+        old.update({p.replace("*", "1"): self.place / p.replace("*", "1") for p in files.OWN_PROMPTS})
+        for path in old.values():
+            path.write_text("old", encoding="utf-8")
+        return old
+
     def test_intake_clears_only_its_own_files(self):
-        self.intake()
-        self.save(PASS)
-        self.prompt()
+        """入口は src/files.py が名を持つファイルの全部と前の回の指示を消し（書き直す物は新しい字）、ほかのファイルは残す"""
+        old = self.plant_old_files()
         other = self.place / "rejects-other.json"
         other.write_text("[]", encoding="utf-8")
         self.intake()
-        self.assertFalse((self.place / "r3-coherence.json").exists())
-        self.assertFalse(list(self.place.glob("r3-coherence-prompt-*.md")))
+        for name, path in old.items():
+            with self.subTest(name):
+                self.assertFalse(path.is_file() and path.read_text(encoding="utf-8") == "old", name)
         self.assertTrue(other.exists())
+
+    def test_intake_that_cannot_read_lib_still_clears_its_files(self):
+        """lib を読めずに落ちた入口も、この block のファイルを名で消して落ちた訳を返す"""
+        import subprocess
+        import sys
+        from tests.bin import hermetic
+        old = self.plant_old_files()
+        env = hermetic.child_env(**{**self.run.environ(), "WORKS_FACTORY_ROOT": str(self.run.artifacts.parent / "no-lib")})
+        done = subprocess.run([sys.executable, str(BLOCK / "scripts" / "intake.py")], cwd=self.repo, env=env, capture_output=True,
+                              text=True, encoding="utf-8")
+        got = json.loads(done.stdout)
+        self.assertFalse(got["due"])
+        self.assertIn("R3 の入口が落ちた", got["reason"])
+        self.assertEqual([n for n, p in old.items() if p.exists()], [])
+        self.assertEqual(self.finish()["status"], "failed")
+
+    def test_output_that_json_cannot_hold_is_refused_before_the_copy(self):
+        """NaN・Infinity は finish.json を書く前に落とす（script の出口はこれを落ちた形にする）"""
+        from unittest import mock
+        steps = kit.load("r3", "steps")
+        self.intake()
+        self.save(PASS)
+        with self.run.env(), mock.patch.object(steps.eyekit, "verdict_row", return_value=({"status": "pass", "reason": float("nan")}, True)):
+            with self.assertRaisesRegex(ValueError, "JSON に書けない"):
+                steps.finish(self.place)
+        self.assertFalse((self.place / "finish.json").exists())
 
     def test_prompt_needs_the_intake(self):
         """入口が落ちていれば指示を組めない（node が落ち、出口が判定の行にする）"""
@@ -172,6 +207,11 @@ class VerdictCase(_RepoCase):
         got = self.intake(request=str(self.repo / "gone.json"))
         self.assertFalse(got["due"])
         self.assertTrue(got["reason"].startswith("入力 request: "), got["reason"])
+
+    def test_missing_decisions_path_is_an_unreadable_port(self):
+        got = self.intake(decisions=str(self.repo / "gone" / "material.json"))
+        self.assertFalse(got["due"])
+        self.assertTrue(got["reason"].startswith("入力 decisions: "), got["reason"])
 
     def test_unfit_answers_shape_is_named(self):
         got = self.intake(answers=dump({"start": "continue"}))
@@ -348,6 +388,8 @@ class RecordedPolicyCase(_RepoCase):
         self.assertTrue(doc["unread"], doc)
         self.assertEqual(doc["recorded"], [])
         self.assertIn("Recorded policy: none", self.prompt())
+        self.assertIn("- " + doc["unread"], self.prompt())
+        self.assertTrue(doc["unread"].startswith("依頼のファイルの中身が読めない"), doc)
         self.save(PASS)
         done = self.finish()
         self.assertEqual((done["ok"], done["status"]), (True, "ran"))
