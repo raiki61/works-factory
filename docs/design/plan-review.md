@@ -317,7 +317,7 @@ Recorded policy is a rule a person or the target's owner recorded as decided …
 Example of a kind policy hole (made from the first nameable row of this run's list): …
 {"kind": "policy", "severity": "suggest", "decided_by": "承認ノードの答え 3f2a1c"}
 
-## Map of concept homes (the machine found it in tracked files; Read it first)
+## Map of where concepts live (the machine found it in tracked files; Read it first)
 - docs/concepts.md
 The map of the folder holding the file under review wins.
 
@@ -900,3 +900,28 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-plan-re
 - `libdocs.section` の返りの説明の文（「機械が…控えた」など）を、組み込みで md へ出すか（README 9.3 は `libdocs` を KEEP とし「文は md へ」と書いていない）。
 - 観点の正本 `lib/REVIEW.md` の置き場が組み込みで `blocks/.shared/prompts/` へ移った時に、役が Read するパスをどう渡すか（README 9.3 の「`REVIEW.md` は `blocks/.shared/prompts/` へ」）。
 - 1 回目の役の `context: fresh` を `fresh_context: false` の輪の本体に置く形が、止めた版の Archon で今と同じく効くか（今の YAML は同じ形で回っている。筋書きと validate は通るが、本物の run の会話の切れ目は見ていない）。
+
+## 18 今の指示 → 新しい md の置き場（審査が 1 つずつ照らす表）
+
+審査役 `review`（3.6 の一覧の番号）:
+
+- 1・2 役の定義・別の目・実測 2026-09-24 → `prompts/parts/role.md`（`{shared:role-judge}`）。根拠は読む版で取れ（:63）も同じ。
+- 3・4・5・6・7 8 種の確かめ・人に聞く旨・`shrink`・`faces` の欄・`faces_none`・`reason`（:28-61）→ `prompts/parts/checks.md`。案の欄を指す句は `prompts/parts/plan-checks.md`。修正役の absorbed か declared は `prompts/review.md` の How to answer。
+- 8 役の頭（読むだけ・道具・作業ツリーを変えない）→ `prompts/review.md` の道具の段落。
+- 9 `REUSE_REVIEW`・10 `HANDOFF_REVIEW`・11 `AXIS`/`REVIEW_ASK`・12 `_RULE`/`_NO_NARROW_REVIEW`・13 `_STUCK_RULE` → `prompts/parts/head.md`。
+- 14 `EXCLUDED_HEAD` → `review.md` の段落 `excluded`。
+- 15 `DESIGN_ASK` → `parts/design-ask.md`。`DESIGN_NOT_STANDS`・`DESIGN_NONE`・`DESIGN_DIFF_ASK` → `review.md` の段落 `design_not_stands`・`design_none`・`design_diff`。
+- 16 `map_items_section`・`NO_MAP_KEYS` → `review.md` の段落 `map_items`。
+- 17 `planmarks.REVIEW_ASK`・`DEVIATION_HEAD` → `review.md` の段落 `fields`（形 replan でも入る。14 節の A の決め）。
+- 18 `REREVIEW_ASK`・`HELD_CITES` → `parts/rereview-ask.md`。`ORIGIN_ASK` → `parts/origin-ask.md`。`DIFF_ASK`・`CROSS_ASK`・`SCOPE_ASK`・`ERROR_NOTE` → `parts/diff-ask.md`。
+- 19 `REVIEW_ASK_REPLAN` → `review.md` の段落 `replan`。
+- 20 `RECORDED_RULE` → `{shared:recorded-policy}`。`FACE_NONE`・`FACE_EXAMPLE_HEAD`・`DOC_FENCE_ONLY` → `review.md` の段落 `policy_example`・`doc_row`。人の方針の節 → `{shared:policy}`。
+- 21 地図 → `{shared:concept-map}`。22 `UNITS_LINE` → `review.md` の How to answer。23 `with_reject` → `{shared:rejected}`。
+
+出し直しの役（4.6・6）: `RESUBMIT_ASK`・`FIELD_RULES` → `{shared:resubmit}`（`review-fix.md`・`review-tree-fix.md`）。方針の文の役（7.6）→ `prompts/review-text.md`。
+
+束ね役と下請け（5.6）:
+
+- `AGG_HEAD`・`AGG_ASK`・`DONE_HEAD`・`REDO_HEAD`・`OPEN_HEAD`・`AGG_MERGE`・`AGG_SYNERGY`・`HELD_CITES` → `prompts/review-tree.md`（段落 `done_items`・`redo`・`fresh`・`rest`・`synergy`・`later`）。
+- `SUB_HEAD`・`SUB_FORMAT`・`SUB_ITEM_ASK`・`SUB_ITEM_DIFF_ASK`・`PRECEDENT_*`・`ERRORS_HEAD` → `prompts/parts/item-brief.md`。`SUB_SYNERGY_ASK` → `prompts/parts/synergy-brief.md`。
+- `_review_rules`・`RULES_FROM`・`RULES_MISSING` は消した（断片から組むので切り出しが要らない）。

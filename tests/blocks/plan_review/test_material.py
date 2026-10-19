@@ -237,9 +237,9 @@ class MaterialCase(_Case):
         地図の節より前。BASE は材料の Repository の行"""
         prompt, mat = self.texts(policy=self.put_policy())
         self.assertIn("BASE: `HEAD`", mat)
-        for want in ("## The person's policy", "POLICY-MARK-8080", "Do not rewrite the policy document", "## Map of concept homes"):
+        for want in ("## The person's policy", "POLICY-MARK-8080", "Do not rewrite the policy document", "## Map of where concepts live"):
             self.assertIn(want, prompt)
-        self.assertLess(prompt.index("Do not rewrite the policy document"), prompt.index("## Map of concept homes"))
+        self.assertLess(prompt.index("Do not rewrite the policy document"), prompt.index("## Map of where concepts live"))
 
     def test_material_pastes_the_port_copy(self):
         """元 PortedMaterialCase.test_material_pastes_the_frozen_copy: 貼る方針の本文は port policy の写し（line が run の頭で固めた

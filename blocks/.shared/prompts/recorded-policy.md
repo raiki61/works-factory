@@ -1,8 +1,8 @@
 ## Recorded policy
 
-Recorded policy is a rule that a person or the target's owner recorded as decided. It comes from only these four places: the copy of the policy document, the request's `answers`, a person's answers at approval nodes, and the settled points that the decision-record check listed. It also includes a push that an unattended run adopted at an approval node or at a judgment's held question (it is not a person's decision, but it is a condition this run adopted and follows). Comments, docstrings, and test descriptions in the target's code are the target's own text unless they match a row below: they describe the present shape of the code and are not the owner's decision. If the target's text conflicts with a clean shape, do not raise it as a conflict with policy; rewrite that text as part of the fix. When you say something conflicts with policy, copy the name from a row below word for word (the machine checks that it matches the list and rejects it if it does not).
+Recorded policy is the rules a person or the target's owner recorded as "decided". It comes only from the four sources below (the copy of the policy document, the request's answers, people's answers at the approval nodes, and the settled points the prior-decisions check listed), plus the pushes an unattended run took at an approval node or for a held question of the judgment (not a person's decision, but conditions this run chose to follow). Comments, docstrings, and test descriptions in the target repository's code are "the target's text" unless a row below covers them: a description of the code as it is now, not the owner's decision. If the target's text disagrees with the clean form, do not call it a conflict with the policy; the fix rewrites that text as part of the change. When you say something conflicts with the policy, copy the name of a row below exactly as written (the machine checks that it matches the list, and rejects it if it does not).
 
 <!-- if recorded_none -->
-Recorded policy: none (no row can be named).
+Recorded policy: none (no row below can be named).
 <!-- end recorded_none -->
 {recorded_rows}
