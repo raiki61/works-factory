@@ -96,12 +96,16 @@ class FlowCase(unittest.TestCase):
         self.assertEqual(json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))["changed_files"], [])
 
     def test_request_wheres_follow_the_entry(self):
-        """entry が空なら request_wheres は []、在れば依頼の行の where の並び（findings の欄に持つオブジェクトの形でも）"""
+        """entry が空か差分が在れば request_wheres は []、差分が空で entry が在れば依頼の行の where の並び（findings の欄に持つオブジェクトの形でも）"""
         self.intake(entry="")
         self.assertIn("(in a run that enters at the judgment; `[]` in a run with a diff): []", self.prep()["prompt"])
         self.setUp()
         self.intake(request=json.dumps({"findings": [{"where": "a.py:1", "text": "x"}, {"where": "b.py", "text": "y"}]}))
         self.assertIn('[\n "a.py:1",\n "b.py"\n]', self.prep()["prompt"])
+        self.setUp()
+        (self.run.repo / "README.md").write_text("直した\n", encoding="utf-8")
+        self.intake()
+        self.assertIn("in a run with a diff): []", self.prep()["prompt"], "差分の在る run は entry が在っても入口の周でない")
 
     def test_unreadable_request_fails_with_the_port_name(self):
         got = self.intake(request="{not json")
@@ -149,21 +153,24 @@ class ShapeCase(unittest.TestCase):
         import rolekit
         self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
-    def test_launch_matches_the_judge_role(self):
-        """起こし方は今の判定の prior-decisions の役と同じ（tests/workflows/test_judge.py の ROLES の行が照らす物）"""
-        from tests.workflows import test_judge as tj
-        import launchgroups
-        model, effort, tools, sandbox, read_only, _, _, _ = tj.ROLES[NAME]
-        role = self.body[NAME]
-        old = tj.nodes()[NAME]
-        self.assertEqual(launchgroups.default_of(role["model"]), (model, effort))
-        self.assertEqual(role["allowed_tools"], tools)
-        self.assertEqual(role["sandbox"], sandbox)
-        self.assertEqual(role.get("mutates_checkout"), False if read_only else None)
-        for key in ("model", "settingSources", "allowed_tools", "sandbox", "idle_timeout", "retry", "output_format"):
-            with self.subTest(key=key):
-                self.assertEqual(role[key], old[key])
+    # 今の判定の prior-decisions の役の起こし方（tests/workflows/test_judge.py の ROLES["prior-decisions"] の行と、
+    # workflows/judge/works-factory-judge.yaml の錨 net_closed_launch を、作り直しの時に字で写した物）。組み込みで workflows/ が
+    # 入れ替わっても、この期待は block の起こし方の正本として残る
+    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
+              "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],
+              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
+                          "excludedCommands": ["works-gh:*"], "network": {"allowedDomains": []},
+                          "filesystem": {"denyWrite": ["~/../archon-home"]}},
+              "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}}
 
+    def test_launch_matches_the_judge_role(self):
+        """起こし方は今の判定の prior-decisions の役と同じ（群の既定は sonnet・medium。役の node は mutates_checkout を持たない）"""
+        import launchgroups
+        role = self.body[NAME]
+        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
+        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
+        self.assertNotIn("mutates_checkout", role)
+        self.assertEqual(role["output_format"]["required"], ["material", "checked", "searched", "settled"])
 
 if __name__ == "__main__":
     unittest.main()

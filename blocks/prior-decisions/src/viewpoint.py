@@ -44,16 +44,16 @@ def _request_rows(values) -> list:
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
-def request_wheres(values) -> list:
-    """判定から入る run（port entry が空でない）の、依頼の行の where の並び。そうでない run は []"""
-    if not values.get("entry"):
+def request_wheres(view, values) -> list:
+    """判定から入る run の周（materialkit.is_entry_run: 対象差分が空で entry が在る）の、依頼の行の where の並び。そうでない run は []"""
+    if not materialkit.is_entry_run(view, values):
         return []
     return [r["where"] for r in _request_rows(values) if isinstance(r.get("where"), str)]
 
 
 def values(view, values) -> dict:
     return {"repo": str(view.repo), "base": view.base, "changed_files": _dump(list(view.changed_files)),
-            "request_wheres": _dump(request_wheres(values))}
+            "request_wheres": _dump(request_wheres(view, values))}
 
 
 def when(view, values) -> dict:

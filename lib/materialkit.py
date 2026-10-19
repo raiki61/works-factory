@@ -6,13 +6,13 @@
 （各関数の docstring に写す元）、置き場は呼び手が渡す place のフォルダだけ。lib/judge_accept.py は import しない。
 
 公開の名:
-- 定数: INTAKE・VIEW・DIFF・CHANGED・TREE・ACCEPTED・MATERIAL（place のファイルの名）・PROMPT_FILE・STATUSES・OK_STATUSES・
+- 定数: INTAKE・VIEW・DIFF・CHANGED・TREE・ACCEPTED・MATERIAL（place のファイルの名）・STATUSES・OK_STATUSES・
   Rule・STATUS・SILENT_STATUS・OBSERVED_STATUS・MATERIALS・READONLY_MOVED・LOCATION_HEAD・LOCATION_MARK・SNAPSHOT_FALLBACK_IDENT・
   NA_MODES・REVIEW_MD
 - View・take_view・numstat_totals・worktree_tree・snapshot（対象差分の見方）
 - snap_tree・moved_since（作業ツリーの写しと照らし）
 - where_rows・location_problems・location_gap（所見の場所の照らし）
-- Due・entry_skip・normal_run・not_entry_due・fill_entry・fill_na・fill_not_run・intake（回すかの決めと、回さない時の埋め）
+- Due・entry_skip・normal_run・not_entry_due・fill_entry・fill_na・fill_not_run・fill_problems・intake（回すかの決めと、回さない時の埋め）
 - na_mode（『条件に当たらない』の扱い）
 - check_record・material_from_findings（素材の欄の照らし）
 - accept（受け付け）
@@ -52,7 +52,6 @@ CHANGED = "changed-files.txt"
 TREE = "tree.json"
 ACCEPTED = "accepted.json"
 MATERIAL = "material.json"
-PROMPT_FILE = "{name}-prompt-{n}.md"
 STATUSES = ("ran", "skipped", "gave_up", "failed")
 OK_STATUSES = ("ran", "skipped")
 NA_MODES = ("never", "cond_true", "cond_false", "judged")
@@ -346,13 +345,19 @@ def fill_entry(entry: str, requests: int | None) -> dict:
 
 
 def normal_run(noun: str) -> Due:
-    """判定から入る run でないので観点を回す決め（entry_skip の対。写す元 judge_accept.request_entry の偽の枝の訳の字）"""
-    return Due(True, f"入口の印（process.request_entry）が無い——通常の run のため、{noun}を起こす")
+    """判定から入る run でないので観点を回す決め（entry_skip の対。写す元 judge_accept.request_entry の偽の枝の訳）"""
+    return Due(True, f"判定から入る run でない（入力 entry が空か、対象差分が空でない）——通常の run のため、{noun}を起こす")
 
 
-def not_entry_due(values: dict, noun: str) -> Due:
-    """判定から入る run（port entry が空でない）でない時だけ回す決め（写す元 judge_accept.not_request_entry）"""
-    return entry_skip(noun) if values.get("entry") else normal_run(noun)
+def is_entry_run(view, values: dict) -> bool:
+    """判定から入る run の周か（写す元 judge_accept.request_entry）: 対象差分が空で（block が自分で測った事実）、line が依頼の行が
+    1 件以上在ると決めて出どころの文を入力 entry に渡した時だけ真。修正が入って差分が出来た run は入口の周でない"""
+    return bool(values.get("entry")) and view.empty
+
+
+def not_entry_due(view, values: dict, noun: str) -> Due:
+    """判定から入る run の周（is_entry_run）でない時だけ回す決め（写す元 judge_accept.not_request_entry）"""
+    return entry_skip(noun) if is_entry_run(view, values) else normal_run(noun)
 
 
 def fill_na(na_reason: str, why: str) -> dict:
@@ -362,6 +367,27 @@ def fill_na(na_reason: str, why: str) -> dict:
 
 def fill_not_run(why: str) -> dict:
     return {"status": "not_run", "reason": why}
+
+
+def fill_problems(viewpoint, fill) -> list:
+    """回さない時の素材の埋め fill（viewpoint.fill の返り）の外れの文: 宣言の素材の全部を 1 つずつ持ち、status が STATUS の語で、
+    status ごとの要る欄を持つ（写す元 judge_accept._fill_one はいつも全部の素材を埋めた）。合えば空"""
+    if not isinstance(fill, dict):
+        return [f"埋めが素材の名 → 状態の dict でない（{type(fill).__name__}）"]
+    out = []
+    if set(fill) != set(viewpoint.MATERIALS):
+        out.append(f"埋めの素材 {sorted(fill)} が宣言の素材 {sorted(viewpoint.MATERIALS)} と違う")
+    for mat, m in fill.items():
+        st = m.get("status") if isinstance(m, dict) else None
+        if st not in STATUS:
+            out.append(f"素材 '{mat}' の status が不正: {st!r}")
+            continue
+        for f in STATUS[st].fields:
+            v = m.get(f)
+            ok = isinstance(v, int) and not isinstance(v, bool) if f in ("count", "from_round") else isinstance(v, (str, list)) and v
+            if not ok:
+                out.append(f"素材 '{mat}'（{st}）に '{f}' が無い")
+    return out
 
 
 def _all_not_run(viewpoint, why: str) -> dict:
@@ -389,6 +415,10 @@ def intake(viewpoint, place, repo, values: dict, unreadable: str = "") -> dict:
             due = viewpoint.due(view, values)
             if not due.run:
                 status, reason, fill = "skipped", due.why, viewpoint.fill(view, values, due)
+                bad = fill_problems(viewpoint, fill)
+                if bad:
+                    status, fill = "failed", None
+                    reason = f"観点 {viewpoint.NAME} の回さない時の素材の埋めが決まりに合わない（{'; '.join(bad)}）——役を起こしていない"
             else:
                 reason = due.why
                 try:
@@ -504,8 +534,8 @@ def accept(viewpoint, place, repo, raw: str) -> dict:
             errs = check_record(viewpoint.NAME, viewpoint.MATERIALS, mats, na_mode(viewpoint, view, values)[0])
             if errs:
                 raise Reject("素材の欄が記録の決まりに合わない: " + "; ".join(errs))
+            viewpoint.after_accept(got, out)   # 観点の控えを先に書き、受けた記録 ACCEPTED を最後に書く（落ちても受けた記録が残らない）
             _write(out / ACCEPTED, {"role": viewpoint.NAME, "reply": got, "materials": mats})
-            viewpoint.after_accept(got, out)
             return {"ok": True, "reason": ""}
         return core_accept.guard(run)
 
@@ -519,7 +549,17 @@ def _ordered(viewpoint, mats: dict) -> dict:
 
 
 def _material_doc(viewpoint, place) -> dict:
-    """出口の素材 {role, status, reason, reply, materials}（finish の 1〜5）"""
+    """出口の素材 {role, status, reason, reply, materials, base, commits}（finish の 1〜5。base・commits は対象差分の見方の
+    引いた根と根から HEAD までの commit の数。見方が無ければ null）"""
+    doc = _material_body(viewpoint, place)
+    try:
+        view = (_read(pathlib.Path(place) / INTAKE) or {}).get("view") or {}
+    except (ValueError, AttributeError):
+        view = {}
+    return {**doc, "base": view.get("base"), "commits": view.get("commits")}
+
+
+def _material_body(viewpoint, place) -> dict:
     out = pathlib.Path(place)
     name = viewpoint.NAME
     try:
@@ -553,7 +593,7 @@ def finish(viewpoint, place, pointer) -> dict:
     except Exception as e:  # noqa: BLE001 — 出口は落ちない
         reason = f"出口が落ちた（{type(e).__name__}: {oneline.one_line(e)}）"
         doc = {"role": viewpoint.NAME, "status": "failed", "reason": reason, "reply": None,
-               "materials": _all_not_run(viewpoint, reason)}
+               "materials": _all_not_run(viewpoint, reason), "base": None, "commits": None}
     material = None
     try:
         material = pointer(_write(out / MATERIAL, doc))
@@ -591,7 +631,8 @@ def report_lines(doc) -> list:
 
 
 def read(path) -> dict:
-    """読み手の口: material.json を読み、role（字）・status（STATUSES のどれか）・materials（dict）を確かめて中身を返す。外れれば ValueError"""
+    """読み手の口: material.json を読み、role（字）・status（STATUSES のどれか）・materials（dict）・base（字か null）・commits（整数か
+    null）を確かめて中身を返す。外れれば ValueError"""
     doc = _read(path)
     if not isinstance(doc, dict):
         raise ValueError(f"素材のファイル {path} が無いか JSON のオブジェクトでない")
@@ -601,21 +642,29 @@ def read(path) -> dict:
         raise ValueError(f"素材のファイル {path} の status が {'・'.join(STATUSES)} のどれでもない（{doc.get('status')!r}）")
     if not isinstance(doc.get("materials"), dict):
         raise ValueError(f"素材のファイル {path} の materials がオブジェクトでない")
+    if doc.get("base") is not None and not isinstance(doc["base"], str):
+        raise ValueError(f"素材のファイル {path} の base が字か null でない")
+    if doc.get("commits") is not None and (not isinstance(doc["commits"], int) or isinstance(doc["commits"], bool)):
+        raise ValueError(f"素材のファイル {path} の commits が整数か null でない")
     return doc
 
 
-def assemble(docs: list, *, local_checks: dict | None, base: str, commits: int) -> dict:
+def assemble(docs: list, *, local_checks: dict | None = None) -> dict:
     """読み手（diagnose）が素材の 15 欄（MATERIALS）にそろえる口（写す元 judge_accept.fill_materials）。docs は read の返りの並び
-    （回さない・諦めた素材の埋めは各 materials に在る）→ local_checks は渡された修正前の CI の素材 → base_determination は差分の根
-    base の決め → fix_closure は P1 時点の not_applicable → 残りは not_run（走っていない）"""
+    （観点の block と並行 PR の block の material.json。回さない・諦めた素材の埋めは各 materials に在る）→ local_checks は渡された
+    修正前の CI の素材 → base_determination は docs の引いた根 base と commit の数 commits（両方を持つ最初の doc。無ければ not_run）
+    → fix_closure は P1 時点の not_applicable → 残りは not_run（走っていない）"""
     mats = {}
     for doc in docs:
         mats.update({k: v for k, v in (doc.get("materials") or {}).items() if isinstance(v, dict)})
     if local_checks is not None:
         mats["local_checks"] = local_checks
-    if "base_determination" not in mats and base:
-        mats["base_determination"] = {"status": "found", "count": int(commits or 0),
-                                      "detail": f"{base}（始めの記録の差分の根。空なら HEAD）"}
+    seen = next((d for d in docs if isinstance(d.get("base"), str) and d["base"]
+                 and isinstance(d.get("commits"), int) and not isinstance(d.get("commits"), bool)), None)
+    if "base_determination" not in mats:
+        mats["base_determination"] = (
+            {"status": "found", "count": seen["commits"], "detail": f"{seen['base']}（始めの記録の差分の根。空なら HEAD）"} if seen else
+            {"status": "not_run", "reason": "どの素材の観点も対象差分の根と commit の数を返していない"})
     if "fix_closure" not in mats:
         mats["fix_closure"] = {"status": "not_applicable", "reason": "P1 時点。修正は P3 でこれから行う"}
     for name in MATERIALS:
@@ -626,19 +675,22 @@ def assemble(docs: list, *, local_checks: dict | None, base: str, commits: int) 
 
 # ---------------------------------------------------------------- 2.11 指示の値の共通の口
 def prompt_inputs(viewpoint, place, lang) -> tuple:
-    """prep の本体（materials.md の 2.11）。(values, when, n)。INTAKE から View と port の値を戻し、観点の値と段落の真偽に、共通の値
+    """prep の本体（materials.md の 2.11）。(values, when)。INTAKE から View と port の値を戻し、観点の値と段落の真偽に、共通の値
     （lang・rejection・na_why）と共通の真偽（rejected・na_never・na_cond_true・na_cond_false・na_judged）を足す。lang は port の字を
-    人に見せる欄の言語の値にする口（空なら既定の言語の文。block の口 prompt.lang）。rejection と na_why は、段落が入らない回も空の字で
+    人に見せる欄の言語の値にする口（空なら既定の言語の文。block の口 prompt.lang）。観点の値・真偽の名が共通の名と重なれば ValueError。rejection と na_why は、段落が入らない回も空の字で
     渡す（指示を組む口は選ばれない段落の中の差し込み口も数える）。na_why と na_* の真偽は、返答が material の欄を持つ観点
     （viewpoint.NA_PARAGRAPH が真。md が共通の断片 material-na を差し込む）だけに足す。INTAKE が無い・見方を持たなければ ValueError"""
     out = pathlib.Path(place)
     view, ports_values, _ = _intake_doc(out)
     rejected = rolekit.rejected(out, viewpoint.NAME)
     mode, why = na_mode(viewpoint, view, ports_values)
-    values = {**viewpoint.values(view, ports_values), "lang": lang(ports_values.get("lang") or ""),
-              "rejection": rolekit.rejects_text(rejected)}
-    when = {**viewpoint.when(view, ports_values), "rejected": bool(rejected)}
+    values = {"lang": lang(ports_values.get("lang") or ""), "rejection": rolekit.rejects_text(rejected)}
+    when = {"rejected": bool(rejected)}
     if viewpoint.NA_PARAGRAPH:
         values["na_why"] = why
         when.update({f"na_{m}": m == mode for m in NA_MODES})
-    return values, when, rolekit.attempt(out, viewpoint.NAME)
+    own_values, own_when = viewpoint.values(view, ports_values), viewpoint.when(view, ports_values)
+    clash = sorted((set(own_values) & set(values)) | (set(own_when) & set(when)))
+    if clash:
+        raise ValueError(f"観点 {viewpoint.NAME} の指示の値か段落の名 {clash} が共通の名と重なる")
+    return {**own_values, **values}, {**own_when, **when}

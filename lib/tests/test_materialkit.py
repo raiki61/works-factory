@@ -8,6 +8,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
@@ -30,7 +31,7 @@ class Viewpoint:
 
     def __init__(self, **over):
         self.run, self.applies_to, self.judged, self.before_why, self.after_why = True, (True, "当たる"), False, None, None
-        self.from_findings = False
+        self.from_findings, self.fill_with, self.after_seen = False, None, []
         for key, value in over.items():
             setattr(self, key, value)
 
@@ -38,7 +39,7 @@ class Viewpoint:
         return mk.Due(True, "いつも回す") if self.run else mk.Due(False, "回さない訳")
 
     def fill(self, view, values, due):
-        return {"sample": mk.fill_na("当たらない", due.why)}
+        return self.fill_with if self.fill_with is not None else {"sample": mk.fill_na("当たらない", due.why)}
 
     def applies(self, view, values):
         if self.NA == "never":
@@ -58,9 +59,12 @@ class Viewpoint:
         return (self.before_why, reply, True) if self.before_why else (None, reply, False)
 
     def after(self, view, values, reply, place):
+        from engine import util
+        self.after_seen.append(util.GIT_CWD)   # 後の照らしは accept.in_repo の中で呼ばれる（git が対象に向く）
         return self.after_why
 
     def after_accept(self, reply, place):
+        assert not (pathlib.Path(place) / mk.ACCEPTED).exists(), "受けた記録は観点の控えの後に書く"
         (pathlib.Path(place) / "after-accept.json").write_text("{}", encoding="utf-8")
 
     def materials_of(self, reply):
@@ -127,6 +131,15 @@ class ViewCase(_RepoCase):
         gitkit.git(self.repo, "checkout", "-q", "--", "app.txt")
         (self.repo / "new.txt").unlink()
         self.assertTrue(mk.take_view(self.place, self.repo, "").empty)
+
+    def test_commits_from_the_base(self):
+        base = self.head
+        for n in (1, 2):
+            (self.repo / f"c{n}.txt").write_text("x\n", encoding="utf-8")
+            gitkit.git(self.repo, "add", "-A")
+            gitkit.git(self.repo, "commit", "-q", "-m", f"c{n}")
+        view = mk.take_view(self.place, self.repo, base)
+        self.assertEqual((view.base, view.commits, view.changed_files), (base, 2, ("c1.txt", "c2.txt")))
 
     def test_unknown_base_is_a_reject(self):
         with self.assertRaises(Reject):
@@ -316,9 +329,15 @@ class FillCase(unittest.TestCase):
         self.assertIn("判定から入る run（出どころ: 人の依頼（/p/req.json）。この周の判定に届く人の依頼 2 件）", got["reason"])
         self.assertIn("この周の判定に届く人の依頼の件数は渡されていない", mk.fill_entry("x", None)["reason"])
         self.assertIn("依頼 0 件", mk.fill_entry("x", 0)["reason"])
-        self.assertEqual(mk.not_entry_due({"entry": "e"}, "役"), mk.entry_skip("役"))
-        self.assertEqual(mk.not_entry_due({"entry": ""}, "役"), mk.normal_run("役"))
         self.assertTrue(mk.normal_run("役").run)
+
+    def test_entry_run_is_an_empty_diff_with_an_entry(self):
+        """写す元 judge_accept.request_entry: 差分が空で（block が測った事実）、line が入口の出どころを渡した時だけ判定から入る run"""
+        empty = mk.View(pathlib.Path("."), "b", "r", "d", (), "c", "", 0)
+        diffed = mk.View(pathlib.Path("."), "b", "r", "d", ("a.py",), "c", "", 0)
+        self.assertEqual(mk.not_entry_due(empty, {"entry": "e"}, "役"), mk.entry_skip("役"))
+        self.assertEqual(mk.not_entry_due(empty, {"entry": ""}, "役"), mk.normal_run("役"))
+        self.assertEqual(mk.not_entry_due(diffed, {"entry": "e"}, "役"), mk.normal_run("役"), "修正が入った後は入口の周でない")
         self.assertEqual(mk.fill_na("差分に手順書が無い", "0 件"), {"status": "not_applicable", "reason": "差分に手順書が無い（0 件）"})
         self.assertEqual(mk.fill_not_run("訳"), {"status": "not_run", "reason": "訳"})
         self.assertFalse(mk.entry_skip("局所レビューの役").run)
@@ -341,6 +360,26 @@ class IntakeCase(_RepoCase):
         self.assertEqual((doc["status"], doc["fill"]), ("skipped", {"sample": {"status": "not_applicable", "reason": "当たらない（回さない訳）"}}))
         self.assertFalse((self.place / mk.TREE).exists())
 
+    def test_bad_fill_fails(self):
+        """回さない時の埋めは宣言の素材を全部、status ごとの要る欄つきで持つ（写す元 _fill_one はいつも全部を埋めた）。外れは failed"""
+        for fill, word in (({}, "宣言の素材"), ({"sample": {"status": "not_run"}}, "'reason' が無い"),
+                           ({"sample": {"status": "odd"}}, "status が不正"), ({"sample": mk.fill_not_run("x"), "other": mk.fill_not_run("y")}, "宣言の素材")):
+            with self.subTest(fill=fill):
+                got = self.intake(Viewpoint(run=False, fill_with=fill))
+                self.assertFalse(got["due"])
+                self.assertIn(word, got["reason"])
+                doc = self.read(mk.INTAKE)
+                self.assertEqual(doc["status"], "failed")
+                self.assertEqual(doc["fill"], {"sample": {"status": "not_run", "reason": got["reason"]}})
+        self.assertEqual(mk.fill_problems(Viewpoint(), {"sample": mk.fill_na("r", "w")}), [])
+
+    def test_snapshot_failure_fails(self):
+        with mock.patch.object(mk, "snap_tree", side_effect=Reject("HEAD が引けない")):
+            got = self.intake()
+        self.assertEqual(got["due"], False)
+        self.assertTrue(got["reason"].startswith("役を起こす前の作業ツリーの姿が取れない（HEAD が引けない）"), got)
+        self.assertEqual(self.read(mk.INTAKE)["status"], "failed")
+
     def test_unreadable_and_untaken_fail(self):
         got = mk.intake(Viewpoint(), self.place, self.repo, {"base": ""}, "request: 読めない")
         self.assertEqual(got["due"], False)
@@ -354,7 +393,9 @@ class IntakeCase(_RepoCase):
 class AcceptCase(_RepoCase):
     def test_reply_is_taken_and_written(self):
         self.intake()
-        got = self.take(CLEAN)
+        vp = Viewpoint()
+        got = self.take(CLEAN, vp)
+        self.assertEqual(vp.after_seen, [str(self.repo)], "後の照らしは in_repo の中")
         self.assertEqual(got, {"ok": True, "done": True, "reason": ""})
         self.assertEqual(self.read(mk.ACCEPTED), {"role": "sample", "reply": CLEAN, "materials": {"sample": CLEAN["material"]}})
         self.assertTrue((self.place / "after-accept.json").is_file())
@@ -420,7 +461,8 @@ class FinishCase(_RepoCase):
         got = self.finish()
         self.assertEqual((got["ok"], got["status"], got["reason"]), (True, "ran", ""))
         doc = self.read(mk.MATERIAL)
-        self.assertEqual(doc, {"role": "sample", "status": "ran", "reason": "", "reply": CLEAN, "materials": {"sample": CLEAN["material"]}})
+        self.assertEqual(doc, {"role": "sample", "status": "ran", "reason": "", "reply": CLEAN, "materials": {"sample": CLEAN["material"]},
+                               "base": self.head, "commits": 0})
         self.assertEqual(got["report"], ["素材 sample: clean（見た所: README を見た）", "  - 足した行"])
 
     def test_finish_does_not_fall(self):
@@ -468,7 +510,8 @@ class AssembleCase(unittest.TestCase):
                 {"role": "provenance", "status": "gave_up", "materials": {"provenance": {"status": "not_run", "reason": "出典が違う"}}},
                 {"role": "local-review", "status": "skipped",
                  "materials": {"local_review": mk.fill_entry("人の依頼", 1)}}]
-        got = mk.assemble(docs, local_checks={"status": "clean", "checked": "CI"}, base="abc", commits=2)
+        docs[0].update(base="abc", commits=2)
+        got = mk.assemble(docs, local_checks={"status": "clean", "checked": "CI"})
         self.assertEqual(tuple(got), mk.MATERIALS)
         self.assertEqual(got["hygiene"]["status"], "clean")
         self.assertIn("出典が違う", got["provenance"]["reason"])
@@ -477,8 +520,9 @@ class AssembleCase(unittest.TestCase):
         self.assertEqual(got["base_determination"], {"status": "found", "count": 2, "detail": "abc（始めの記録の差分の根。空なら HEAD）"})
         self.assertEqual(got["fix_closure"]["status"], "not_applicable")
         self.assertEqual(got["parallel_pr"], {"status": "not_run", "reason": "走っていない（どのノードも返していない）"})
-        self.assertNotIn("base_determination", {k for k, v in mk.assemble([], local_checks=None, base="", commits=0).items()
-                                                if v["status"] == "found"})
+        self.assertEqual(mk.assemble([])["base_determination"]["status"], "not_run")
+        self.assertEqual(mk.assemble([{"materials": {}, "base": "abc", "commits": None}])["base_determination"]["status"], "not_run",
+                         "commit の数が無ければ 0 にしない")
 
 
 class PromptInputsCase(_RepoCase):
@@ -486,27 +530,36 @@ class PromptInputsCase(_RepoCase):
         """拒否の無い回は rejection が空の字で段落 rejected が偽、never の回は na_why が空の字で na_never だけが真（指示を組む口は
         選ばれない段落の中の差し込み口も数えるので、値はいつも渡す）"""
         self.intake(lang="")
-        values, when, n = mk.prompt_inputs(Viewpoint(), self.place, lambda raw: raw or "既定の言語")
+        values, when = mk.prompt_inputs(Viewpoint(), self.place, lambda raw: raw or "既定の言語")
         self.assertEqual(values, {"repo": str(self.repo), "lang": "既定の言語", "rejection": "", "na_why": ""})
         self.assertEqual(when, {"spawns": False, "rejected": False, "na_never": True, "na_cond_true": False,
                                 "na_cond_false": False, "na_judged": False})
-        self.assertEqual(n, 1)
         self.take({"material": {"status": "odd"}})
         cond = type("Cond", (Viewpoint,), {"NA": "cond"})(applies_to=(False, "手順書が無い"))
-        values, when, n = mk.prompt_inputs(cond, self.place, lambda raw: raw or "既定の言語")
+        values, when = mk.prompt_inputs(cond, self.place, lambda raw: raw or "既定の言語")
         self.assertEqual(values["na_why"], "手順書が無い")
         self.assertTrue(when["na_cond_false"])
-        values, when, n = mk.prompt_inputs(Viewpoint(), self.place, lambda raw: raw or "既定の言語")
-        self.assertEqual((n, when["rejected"]), (2, True))
+        values, when = mk.prompt_inputs(Viewpoint(), self.place, lambda raw: raw or "既定の言語")
+        self.assertTrue(when["rejected"])
         self.assertIn("status が不正", values["rejection"])
 
     def test_viewpoint_without_the_na_paragraph_gets_no_na_values(self):
         """返答が material の欄を持たない観点（NA_PARAGRAPH が偽。md に material-na が無い）には na_why と na_* を渡さない"""
         self.intake()
         bare = type("Bare", (Viewpoint,), {"NA_PARAGRAPH": False})()
-        values, when, _ = mk.prompt_inputs(bare, self.place, str)
+        values, when = mk.prompt_inputs(bare, self.place, str)
         self.assertNotIn("na_why", values)
         self.assertEqual(sorted(when), ["rejected", "spawns"])
+
+    def test_clashing_names_are_refused(self):
+        self.intake()
+        for over in ({"values": lambda v, x: {"lang": "x"}}, {"when": lambda v, x: {"rejected": True}}):
+            with self.subTest(over=sorted(over)):
+                vp = Viewpoint()
+                for k, f in over.items():
+                    setattr(vp, k, f)
+                with self.assertRaisesRegex(ValueError, "共通の名と重なる"):
+                    mk.prompt_inputs(vp, self.place, str)
 
     def test_without_intake_fails(self):
         with self.assertRaisesRegex(ValueError, "intake.json"):

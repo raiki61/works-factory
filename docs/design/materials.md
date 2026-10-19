@@ -50,10 +50,11 @@
 
 ```json
 {"role": "<観点>", "status": "ran|skipped|gave_up|failed", "reason": "<1 行>",
- "reply": <受けた返答の JSON か null>, "materials": {"<素材の名>": {"status": "...", "...": "..."}}}
+ "reply": <受けた返答の JSON か null>, "materials": {"<素材の名>": {"status": "...", "...": "..."}},
+ "base": "<引いた差分の根の commit か null>", "commits": <根から HEAD までの commit の数か null>}
 ```
 
-欄 `role`・`reply`・`materials` は今の `judge/material-<役>.json`（`lib/judge_accept.py:2621` が書く）と同じ名で同じ形。今の読み手（`judge_accept._accepted`・`policy._settled_rows`）が読み方を変えずに読める。`status`・`reason` は足した欄。
+欄 `role`・`reply`・`materials` は今の `judge/material-<役>.json`（`lib/judge_accept.py:2621` が書く）と同じ名で同じ形。今の読み手（`judge_accept._accepted`・`policy._settled_rows`）が読み方を変えずに読める。`status`・`reason`・`base`・`commits` は足した欄（`base`・`commits` は対象差分の見方〔`view.json`〕の値で、見方が無い道では null。読み手が素材 `base_determination` を組む。2.10）。
 
 今との違い: 今は 11 本が judge の中の 1 つの YAML に在り、要否を `material-route` がまとめて決め（`lib/judge_accept.py:1953-1986`）、差分と作業ツリーの写しを 1 度だけ `judge/` に置き、受けた返答を `judge/material-<役>.json` に書き、回さない素材の埋めと諦めの埋めは diagnose-prep の `fill_materials`（`:2654-2693`）がした。入力は始めの記録・`judge/request.json`・`judge/purpose.json`・`judge/stop.json` を名で開いた。新しい形では block が port だけを読み、自分の place に書き、素材の状態を自分で埋めて返す。止めの記録の確かめ（今の `material_route` の `read_stop`）は無くし、回すかは graph の `when:` が決める（README の 4.3）。
 
@@ -158,9 +159,9 @@ nodes:
 - `intake.json`: intake が読んだ port の値・対象差分の見方・回すかの決め・回さない時の素材の状態（2.6）。
 - `view.json`・`diff.patch`・`changed-files.txt`: 対象差分（今の `judge/material-view.json`・`judge/diff.patch`・`judge/changed-files.txt` と同じ中身）。
 - `tree.json`: 役を起こす前の作業ツリーの姿（今の `judge/material-tree.json` と同じ形）。在れば書き直さない（今の「最初の姿を残す」のまま）。
-- `<観点>-prompt-<n>.md`: 組んだ指示（`<n>` は `rolekit.attempt(place, <観点>)`。1 回目は 1）。
+- `<観点>-prompt-<n>.md`: 組んだ指示（`prompt.emit` が書く。`<n>` は `prompt.round_of(<観点>)`〔place に在る同じ名の指示の数 + 1〕。1 回目は 1）。
 - `rejects-<観点>.json`・`rejects-<観点>.md`: 拒否の控え（`rolekit.accept_round` が書く）。
-- `accepted.json`: 受けた返答と素材の状態 `{role, reply, materials}`（accept が書く）。
+- `accepted.json`: 受けた返答と素材の状態 `{role, reply, materials}`（accept が最後に書く。4 節の 7）。
 - `material.json`: 出口の素材（finish が書く。1.2）。
 
 intake は place の中のファイルを消さない（自分で決めた。10 節）。
@@ -187,24 +188,22 @@ intake は place の中のファイルを消さない（自分で決めた。10 
 - 判定のまとめ（`blocks/judge/`）が 11 本を `include:` で並べる。`depends_on` は目的の固定（purpose）と世界の解（world）の後（今の `material-route` の `depends_on: [purpose-loop, world-finish]` と同じ順）。11 本は互いに依らず、並んで走る。
 - `with:` は、`base` ← line が始めの記録から引いた差分の根（今の始めの記録の `diff_base`）、`entry` ← line が始めの記録から引いた出どころの文（今の `due_view` の `record.process.request_entry.origin`。判定から入る run でなければ空）、`lang` ← 始めの記録の `lang`、観点ごとの入力 ← 各設計書が名指す作り手の出力。
 - `when:` は、機能を切る run（始めの記録の `features_cut`）で観点を外す時だけ置く。回す条件（今の `CONDS`）は graph に置かない。block が自分で決め、回さない時も素材の状態を返す（10 節）。
-- 読み手: diagnose の port `materials`（11 本の `material` の pointer を、判定のまとめが 1 つの json の配列にして渡す）。diagnose は `materialkit.assemble`（2.10）で 15 欄にそろえる。prior-decisions の `material` は、記録された方針の決着済みの論点の出どころでもある（読み手と配線は [prior-decisions.md](prior-decisions.md) の 1.6）。
+- 読み手: diagnose の port `materials`（11 本の `material` の pointer と、並行 PR の block〔parallel-pr〕の素材の pointer を、判定のまとめが 1 つの json の配列にして渡す）。diagnose は `materialkit.assemble`（2.10）で 15 欄にそろえる。素材 `parallel_pr` は並行 PR の block が同じ `material.json` の形（`materials` に `{"parallel_pr": …}`）で返す物で、族の 11 本は書かない（今の `judge/material-pr-check.json` と同じ住み分け。parallel-pr の設計書がその形を守る）。`local_checks` は試験の関門の直す前の結末から、`base_determination` は docs の `base`・`commits` から、`fix_closure` は P1 時点の決まった値で埋める。prior-decisions の `material` は、記録された方針の決着済みの論点の出どころでもある（読み手と配線は [prior-decisions.md](prior-decisions.md) の 1.6）。
 - 諦めた観点（`status: gave_up`）が 1 本でもあれば、判定の前で line を止める（今の `diagnose_prep` が `materials_given_up` で止めの語 `material`〔`lib/judge_accept.py:305`〕を置いて `go` 偽にした形。`:2862-2866`）。止めるのは diagnose の設計書が決める（読み手の決め。この族は `status` を返すだけ）。
 - 報告: 判定のまとめは 11 本の `report` の欄を節「素材」にまとめて line に返してよい。載せるかは line と report の配線の決め（今の報告には素材の節が無く、測れていない素材だけが残りの行に出る）。
 
 ## 2 共通の部品 `lib/materialkit.py`
 
-このモジュールの docstring の頭に「素材の観点の族の共通の部品（docs/design/materials.md の 2 節）」と、公開の名の一覧を書く（今の lib の docstring の書き方）。下の「写す元」は今の `lib/judge_accept.py` の行で、関数の中身を写し、名と引数を下のとおりに替える。
+このモジュールの docstring の頭に「素材の観点の族の共通の部品（docs/design/materials.md の 2 節）」と、公開の名の一覧を書く（今の lib の docstring の書き方）。公開の名には、下の節の物のほかに `review_md_paths(repo, lib_dir=None)`（5.2 の終わり）・`is_entry_run`・`normal_run`・`not_entry_due`・`fill_problems`（2.6）が入る。下の「写す元」は今の `lib/judge_accept.py` の行で、関数の中身を写し、名と引数を下のとおりに替える。
 
 ### 2.1 定数
 
 - `FILES`: place のファイルの名。`INTAKE = "intake.json"`・`VIEW = "view.json"`・`DIFF = "diff.patch"`・`CHANGED = "changed-files.txt"`・`TREE = "tree.json"`・`ACCEPTED = "accepted.json"`・`MATERIAL = "material.json"` を、モジュールの定数として 1 つずつ置く（`FILES` は名の総称で、変数としては置かない）。
-- `PROMPT_FILE = "{name}-prompt-{n}.md"`。
 - `STATUSES = ("ran", "skipped", "gave_up", "failed")`、`OK_STATUSES = ("ran", "skipped")`。
 - `Rule = collections.namedtuple("Rule", "fields blocks carryable observed")` と `STATUS`・`SILENT_STATUS`・`OBSERVED_STATUS`: 写す元 `:94`・`:122-131`（字のまま）。
 - `MATERIALS`: 写す元 `:104-120`（15 の名と注記のまま）。
 - `READONLY_MOVED`・`LOCATION_HEAD`・`LOCATION_MARK`: 写す元 `:1739-1741`。
 - `SNAPSHOT_FALLBACK_IDENT`: 写す元 `:1749-1750`。
-- `LANG_DEFAULT = "the language of the request (the user's language)"`: `{lang}` に入れる既定の英語の文（今の `rolekit.LANG_DEFAULT`「依頼文の言語（利用者の言語）」と同じ意味。README の 5.3）。
 - `NA_MODES = ("never", "cond_true", "cond_false", "judged")`: 『条件に当たらない』の扱い（2.7）。
 
 ### 2.2 `View`（対象差分の見方）
@@ -222,22 +221,26 @@ intake は place の中のファイルを消さない（自分で決めた。10 
 
 ### 2.5 所見の場所の照らし
 
-`where_rows(node)`・`location_problems(reply, repo)`・`location_gap(place, name, reply, repo) -> (拒む文か None, 受ける返答)`: 写す元 `_where_rows`・`_location_problems`・`_location_gap`（`:2463-2502`）。`rolekit.is_last_attempt(rolekit.attempt(place, name))` の回は拒まずに `LOCATION_MARK` を付けて受ける（今のまま）。
+`where_rows(node)`・`location_problems(reply, repo)`・`location_gap(place, name, reply, repo) -> (拒む文か None, 受ける返答)`: 写す元 `_where_rows`・`_location_problems`・`_location_gap`（`:2463-2502`）。`rolekit.is_last_attempt(rolekit.attempt(place, name))` の回は拒まずに `LOCATION_MARK` を付けて受ける（今のまま）。照らすのは `where` と `text` を両方持つ行だけ（今のまま）。`text` を持たない行の観点（gate-efficacy・purpose-review・main-path-observation、prior-decisions の `settled`）は場所を照らさないので、共通の断片 `material-where` は「`where` と `text` を持つ行だけを拒む」と言う（コードでなく断片の文を事実に合わせた。照らしを広げると今の受け付けの振る舞いが変わる）。
 
 ### 2.6 回すかの決めと、回さない時の埋め
 
 - `Due = collections.namedtuple("Due", "run why")`。
 - `entry_skip(noun: str) -> Due`: `Due(False, f"判定から入る run の周（入口の印が在り、修正がまだ 1 ファイルも入っていない）のため、{noun}を起こさない")`（今の `request_entry` と `not_request_entry`・`*_due` の訳の字。`:1374-1382`・`:1512-1516`）。
-- `fill_entry(entry: str, requests: int) -> dict`: 判定から入る run で回さない素材の状態。写す元 `_fill_one` の 1 つ目の枝（`:1937-1941`）の字。`origin` は port `entry`、件数は依頼の行の数（観点が `request` を持たない時は 0 を渡し、件数の句「この周の判定に届く人の依頼 0 件」を出す代わりに「この周の判定に届く人の依頼の件数は渡されていない」にする。自分で決めた。10 節）。
+- `normal_run(noun: str) -> Due`: `Due(True, f"判定から入る run でない（入力 entry が空か、対象差分が空でない）——通常の run のため、{noun}を起こす")`（回す時の訳の共通の字。`entry_skip` の対）。
+- `is_entry_run(view, values) -> bool`: 判定から入る run の周か。`values["entry"]` が空でなく、`view.empty`（block が自分で測った対象差分が空）の時だけ真（今の `request_entry` の「差分が空で依頼が 1 件以上」。依頼の件数の事実は line が始めの記録から決めて `entry` に出どころの文を入れることで渡り、差分の事実は block が測る。10 節）。
+- `not_entry_due(view, values, noun) -> Due`: `is_entry_run` なら `entry_skip(noun)`、でなければ `normal_run(noun)`（今の `not_request_entry`。9 本の観点の回す条件）。
+- `fill_entry(entry: str, requests: int | None) -> dict`: 判定から入る run で回さない素材の状態。写す元 `_fill_one` の 1 つ目の枝（`:1937-1941`）の字。`origin` は port `entry`、件数は依頼の行の数。観点が `request` を持たない時は `None` を渡し、件数の句を「この周の判定に届く人の依頼の件数は渡されていない」にする（`0` は「0 件」のまま。10 節）。
 - `fill_na(na_reason: str, why: str) -> dict`: `{"status": "not_applicable", "reason": f"{na_reason}（{why}）"}`（写す元 `:1944-1945`）。
 - `fill_not_run(why: str) -> dict`: `{"status": "not_run", "reason": why}`。
+- `fill_problems(viewpoint, fill) -> list[str]`: 回さない時の埋めの外れの文。`set(fill) == set(viewpoint.MATERIALS)`・status が `STATUS` の語・status ごとの要る欄（`STATUS` の `fields`）を照らす（今の `_fill_one` はいつも宣言の素材の全部を埋めた）。
 - `intake(viewpoint, place, repo, values: dict, unreadable: str = "") -> dict`: intake の node の本体。順:
   1. `unreadable` が空でなければ（script が port を読めなかった）、`status: failed`・`reason: f"入力が読めない（{unreadable}）——役を起こしていない"`・素材は全部 `fill_not_run(reason)` にして `INTAKE` に書き、`{due: False, reason}` を返す。
   2. `take_view(place, repo, values["base"])`。`Reject` なら `status: failed`・`reason: f"対象差分が取れない（{e}）——役を起こしていない"`・素材は全部 `fill_not_run(reason)`（今の `material_route` の `:1972-1975` と `fill_materials` の `:2677-2679` を合わせた字）。
-  3. `due = viewpoint.due(view, values)`。`due.run` が偽なら `status: skipped`・`reason: due.why`・素材は `viewpoint.fill(view, values, due)`。
-  4. `due.run` が真なら `snap_tree(place, repo)`。`status` はまだ決めない（`null`）。
+  3. `due = viewpoint.due(view, values)`。`due.run` が偽なら `status: skipped`・`reason: due.why`・素材は `viewpoint.fill(view, values, due)`。`fill_problems` が外れを返せば `status: failed`・`reason: f"観点 {NAME} の回さない時の素材の埋めが決まりに合わない（{外れ}）——役を起こしていない"`・素材は全部 `fill_not_run(reason)`。
+  4. `due.run` が真なら `snap_tree(place, repo)`。`status` はまだ決めない（`null`）。`Reject` なら `status: failed`・`reason: f"役を起こす前の作業ツリーの姿が取れない（{e}）——役を起こしていない"`・素材は全部 `fill_not_run(reason)`。
   5. 返りの `reason` は、回さない時は 1〜3 の訳、回す時は `due.why`（例 prior-decisions は「先行議論の突合は run ごとに 1 回回す…」）。`INTAKE` に `{"values": values, "view": view.as_dict() か null, "due": {"run", "why"}, "status", "reason", "fill": {素材: 状態} か null}` を書き、`{"due": due.run, "reason": due.why か訳}` を返す。
-  - 例外は捕まえない（1〜3 で落ちうる所は全部 `Reject` か値で受ける。それ以外の例外は不具合として node を落とす）。
+  - 例外は捕まえない（1〜4 で落ちうる所は全部 `Reject` か値で受ける。それ以外の例外は不具合として node を落とす）。
 
 ### 2.7 『条件に当たらない』の扱い
 
@@ -259,11 +262,11 @@ intake は place の中のファイルを消さない（自分で決めた。10 
 - 知らない status: `f"素材 '{mat}' の status が不正: {st!r}"`
 - status ごとの要る欄（`STATUS` の `fields`。`found` は `count`・`detail`、`clean` は `checked`、`carried_over` は `from_round`・`reason`、`not_applicable`・`awaiting_human`・`not_run` は `reason`）: `count`・`from_round` が整数でなければ `f"素材 '{mat}'（{st}）の '{f}' は数で書け"`、ほかの欄が空でない字か配列でなければ `f"素材 '{mat}'（{st}）に '{f}' が要る（何を見たかを書け）"`（今の `:2551-2559` の字）。
 
-`material_from_findings(src) -> dict`: 写す元 `:2505-2512`（hygiene の写し方）。
+`material_from_findings(src) -> dict`: 写す元 `:2505-2512`（hygiene の写し方）。使い手は hygiene だけなので、hygiene の PR がこの関数を `blocks/hygiene/src/` へ移し、ここから消す（憲法の 4）。
 
 ### 2.9 受け付け `accept(viewpoint, place, repo, raw: str) -> dict`
 
-`rolekit.accept_round(place, viewpoint.NAME, raw, take)` を呼び、`{ok, done, reason}` を返す。`take(reply)` の中は 4 節の順。`accept.guard` で `Reject` を `{ok: False, reason}` に写す（今の `material_take` の `core_accept.guard(run)`）。通れば `ACCEPTED` に `{role, reply, materials}` を書く。
+`rolekit.accept_round(place, viewpoint.NAME, raw, take)` を呼び、`{ok, done, reason}` を返す。`take(reply)` の中は 4 節の順。`accept.guard` で `Reject` を `{ok: False, reason}` に写す（今の `material_take` の `core_accept.guard(run)`）。通れば `viewpoint.after_accept` の後、最後に `ACCEPTED` に `{role, reply, materials}` を書く。
 
 ### 2.10 出口と読み手の口
 
@@ -273,22 +276,22 @@ intake は place の中のファイルを消さない（自分で決めた。10 
   3. `ACCEPTED` が在れば `status: ran`・`reason: ""`・その `reply` と `materials`。
   4. 無く、`rolekit.given_up_reason(place, NAME)` が空でなければ `status: gave_up`・`reason` はその字・素材は全部 `fill_not_run(f"{reason}——素材集めの役の返答を受けられなかった")`（今の `fill_materials` の `:2684-2686` の字）。
   5. どれでもなければ `status: failed`・`reason: f"観点 {NAME} の役の返答を受けた記録が無い（ループが落ちたか、走っていない）"`・素材は全部 `fill_not_run(reason)`。
-  6. `MATERIAL` に書き、`{ok: status in OK_STATUSES, status, reason, material: pointer(パス), report: report_lines(doc) + viewpoint.report_lines(doc)}` を返す。書けなければ `material: None` と `reason` に書けない訳を足し、`status: failed`。
+  6. 1〜5 の素材に `base`・`commits`（`INTAKE` の見方の値。無ければ null）を足して `MATERIAL` に書き、`{ok: status in OK_STATUSES, status, reason, material: pointer(パス), report: report_lines(doc) + viewpoint.report_lines(doc)}` を返す。書けなければ `material: None` と `reason` に書けない訳を足し、`status: failed`。
   - 素材の名は `viewpoint.MATERIALS` の順に並べる。
   - finish は落ちない: 1〜6 の外の例外も捕まえて `status: failed` と訳で返す（今の `world_finish` と同じ決まり。今の落とし穴の一覧 `docs/plans/2026-10-13-capabilities/pitfalls.md` の K1・K13: 返りの node が落ちると line が先へ進めない・落ちた段の訳が消える）。
 - `report_lines(doc) -> list[str]`: 素材ごとに 1 行 `f"素材 {名}: {status}" + 尾`。尾は `found` なら `f"（{count} 件）: {oneline(detail)}"`、`clean` なら `f"（見た所: {oneline(checked)}）"`、ほかは `f"（{oneline(reason)}）"`。素材を書かない観点（purpose-review）は `f"観点 {NAME}: {status}"` の 1 行と `reason`（空でなければ）。
-- `read(path) -> dict`: 読み手の口。`material.json` を読み、`role`（字）・`status`（`STATUSES` のどれか）・`materials`（dict）を確かめ、外れれば `ValueError`（訳を名指す）。返りは中身の dict。
-- `assemble(docs: list, *, local_checks: dict | None, base: str, commits: int) -> dict`: 読み手（diagnose）が 15 欄にそろえる口。写す元 `fill_materials`（`:2654-2693`）。違いは、受けた素材を place のファイルでなく `docs`（`read` の返りの並び）から取ることと、回さない・諦めた素材の埋めは各 `docs` の `materials` に既に在ること（block が埋めて返すため）。`base_determination`・`fix_closure`・残りの `not_run` の埋めは今のまま。
+- `read(path) -> dict`: 読み手の口。`material.json` を読み、`role`（字）・`status`（`STATUSES` のどれか）・`materials`（dict）・`base`（字か null）・`commits`（整数か null）を確かめ、外れれば `ValueError`（訳を名指す）。返りは中身の dict。
+- `assemble(docs: list, *, local_checks: dict | None = None) -> dict`: 読み手（diagnose）が 15 欄にそろえる口。写す元 `fill_materials`（`:2654-2693`）。違いは、受けた素材を place のファイルでなく `docs`（`read` の返りの並び）から取ることと、回さない・諦めた素材の埋めは各 `docs` の `materials` に既に在ること（block が埋めて返すため）。`base_determination` は `base` と `commits` を両方持つ最初の doc から `{status: found, count: commits, detail}` に、どれも持たなければ `not_run`（commit の数を 0 に倒さない）。`fix_closure`・残りの `not_run` の埋めは今のまま。
 
 ### 2.11 指示の値の共通の口
 
-`prompt_inputs(viewpoint, place) -> (values: dict, when: dict, n: int)`: prep の本体。`INTAKE` から `View` と `values` を戻し、次を足して返す。
+`prompt_inputs(viewpoint, place, lang) -> (values: dict, when: dict)`: prep の本体。`INTAKE` から `View` と `values` を戻し、次を足して返す。`lang` は port の字を人に見せる欄の言語の値にする口で、script が `prompt.lang`（空なら共通の断片 `lang-default` の文）を渡す。回の番号は返さない（script が `prompt.round_of(NAME)` で `prompt.emit` に渡す）。
 
-- `values`: `viewpoint.values(view, ports_values)` に、`lang`（port が空なら `LANG_DEFAULT`）、`rejection`（拒否が在る時だけ。`rolekit.rejects_text(rolekit.rejected(place, NAME))`）、`na_why`（`mode` が `never` でない時だけ。2.7 の `why`）を足した物。
-- `when`: `viewpoint.when(view, ports_values)` に、`rejected`（拒否が 1 件以上）と `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`（2.7 の `mode` に当たる 1 つだけが真）を足した物。
-- `n`: `rolekit.attempt(place, NAME)`。
+- `values`: `viewpoint.values(view, ports_values)` に、`lang`（`lang(port の字)`）・`rejection`（`rolekit.rejects_text(rolekit.rejected(place, NAME))`。拒否が無い回は空の字）を足し、`viewpoint.NA_PARAGRAPH` が真の観点だけ `na_why`（2.7 の `why`。`never` の回は空の字）も足した物。
+- `when`: `viewpoint.when(view, ports_values)` に、`rejected`（拒否が 1 件以上）を足し、`NA_PARAGRAPH` が真の観点だけ `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`（2.7 の `mode` に当たる 1 つだけが真）も足した物。
+- 観点の値・真偽の名が共通の名と重なれば `ValueError`（黙って上書きしない）。
 
-`values` に入れるのは、差し込むと決まった段落の中に在る差し込み口の値だけにする（入らない段落の中の口の値は渡さない。自分で決めた。11 節の未確認）。
+`rejection` と `na_why` は、段落が入らない回も空の字で渡す（土台の `prompt.render` は選ばれない段落の中の差し込み口も数える。10 節）。
 
 ## 3 指示の md の共通の形（`prompts/<観点>.md`）
 
@@ -309,7 +312,7 @@ intake は place の中のファイルを消さない（自分で決めた。10 
 11. 言語の 1 文（決まった文）: 観点の人に見せる欄を名指し、`{lang}` で書けと言う。key・enum の値・識別子・パス・コマンド・引いた字はそのまま。
 12. 結びの 1 文: `Return only JSON that matches the output schema.`
 
-md と値に、`$` の直後に英字か `{` が続く字（例 `$HOME`・`$ARTIFACTS_DIR`）を置かない。Archon は `prompt:` に入れた値の中の `$…` を置き換え直す（`lib/rolekit.py` の `with_reject` の docstring「前の周の値の差し込みで貼ると実行基盤が文の中の $… を置き換え直す」）。今の md が頼っていた `$ARTIFACTS_DIR` の置き換えは、prep が絶対パスを入れる形に替える。
+md に `$` の直後に英字か `{` が続く字（例 `$HOME`・`$ARTIFACTS_DIR`）を置かない（md の字は誰も置き換えないので、置き換えを当てにした書き方にしない）。値（人の依頼・対象の文）の中の `$…` は止めた Archon（`a972888a`）が読み直さない（`prompt:` の置き換えは 1 回の走査。README の 13 章）ので、値には決まりを置かない。今の md が頼っていた `$ARTIFACTS_DIR` の置き換えは、prep が絶対パスを入れる形に替える。
 
 ### 3.2 共通の断片（`blocks/.shared/prompts/`。この族の PR が足す）
 
@@ -321,7 +324,7 @@ md と値に、`$` の直後に英字か `{` が続く字（例 `$HOME`・`$ARTI
 How to write `material`: `status` is one of the following.
 - `found`: you found something. Give `count` (an integer) and `detail`.
 - `clean`: you looked in this run and found nothing. Say in `checked` what you looked at.
-- `not_applicable`: the viewpoint does not apply. Give `reason`. Whether you may write it is in the section on `not_applicable`.
+- `not_applicable`: the viewpoint does not apply. Give `reason`. Whether you may write it is in the section on whether you may write `not_applicable`.
 - `awaiting_human`: it waits for a person to start something. Give `reason`.
 - `not_run`: it should have been done, but you skipped it. Give `reason`.
 
@@ -348,7 +351,7 @@ The condition of this viewpoint holds for this run ({na_why}), but none of the f
 `material-where.md`（今の 11 本の「所見の場所の書き方」の段の芯。観点ごとの前置きは各 md に残す）:
 
 ```markdown
-Write the `<path>:<line>` of a location (`where`) as a line number in the current file in the working tree. Do not write a line number inside the diff (patch) file: lines of the diff are not lines of the file, and a person cannot open that place. For a finding you saw in the diff, if you can read files, Read the file and confirm the line before you write it; if you cannot read files, do not write a line number you cannot confirm, and write the path with a function name or similar instead. The acceptance step rejects a location that points outside the lines of an existing file and asks for the answer again.
+Write the `<path>:<line>` of a location (`where`) as a line number in the current file in the working tree. Do not write a line number inside the diff (patch) file: lines of the diff are not lines of the file, and a person cannot open that place. For a finding you saw in the diff, if you can read files, Read the file and confirm the line before you write it; if you cannot read files, do not write a line number you cannot confirm, and write the path with a function name or similar instead. In a row that has both `where` and `text`, the acceptance step rejects a location that points outside the lines of an existing file and asks for the answer again; it does not check other rows.
 ```
 
 `material-readonly.md`（今の md の道具の段の尾「対象の作業ツリー・HEAD・枝・git が無視するファイルを 1 文字も変えるな（受け付けは…比べ、変わっていれば拒む。同じ時に別の素材集めの役も走っている）」）:
@@ -383,7 +386,7 @@ README の 5.3 のまま。この族では:
 4. 所見の場所: `location_gap(place, NAME, got, repo)`。拒む文が在れば拒む。
 5. 観点の後の照らし: `why = viewpoint.after(view, values, got, place)`。在れば拒む（今の `post_check` の 5 つ。`:2603-2613`。`accept.in_repo(repo)` の中で呼ぶ）。
 6. 素材: `mats = viewpoint.materials_of(got)`、`errs = check_record(NAME, viewpoint.MATERIALS, mats, mode)`（`mode` は 2.7）。在れば拒む: `"素材の欄が記録の決まりに合わない: " + "; ".join(errs)`。
-7. `ACCEPTED` に `{"role": NAME, "reply": got, "materials": mats}` を書き、`{"ok": True, "reason": ""}`。観点が控えを足す時（local-review の見ていないレンズの控え）は `viewpoint.after_accept(got, place)` を呼ぶ（持たない観点は何もしない）。
+7. 観点が控えを足す時（local-review の見ていないレンズの控え）は `viewpoint.after_accept(got, place)` を呼び（持たない観点は何もしない）、最後に `ACCEPTED` に `{"role": NAME, "reply": got, "materials": mats}` を書き、`{"ok": True, "reason": ""}`（受けた記録は、観点の控えまで書けた時だけ残る）。
 
 諦め: 3 回目の拒否で `done`（`rolekit.GIVE_UP_AFTER`）。3 で `give_up` が真なら 1 回目で `done`。run は止めず、finish が `status: gave_up` を返す。
 
@@ -398,6 +401,7 @@ README の 5.3 のまま。この族では:
 - `GUARDED: bool` — AI の node が `mutates_checkout: false` を持つか（Archon が節の前後の git status を照らす役か）。真なら作業ツリーの照らしの欄から `porcelain` を外す（`accept.status_keys`。今の YAML の accept の `with: {status_guarded: …}`）。
 - `NA: str` — `"never"` か `"cond"`。
 - `NA_REASON: str` — `NA == "cond"` の時の『条件に当たらない』の訳（今の `MATERIAL_NODES` の `na_reason`）。`"never"` の時は `""`。
+- `NA_PARAGRAPH: bool` — 返答が `material` の欄を持ち、md が `{shared:material-na}` を差し込むか（2.11）。
 - `def due(view, values) -> materialkit.Due` — 回す条件。
 - `def fill(view, values, due) -> dict` — 回さない時の素材の状態 `{素材の名: 状態}`。
 - `def applies(view, values) -> materialkit.Due` — `NA == "cond"` の時の当たる条件。`"never"` の時は `raise NotImplementedError`（呼ばれないことを試験が見る）。
@@ -434,8 +438,8 @@ README の 5.3 のまま。この族では:
 
 どれも uv の頭の宣言（`# /// script` … `# ///`、`requires-python = ">=3.12"`、`dependencies = []`）を持ち、`sys.dont_write_bytecode = True` を import より前に置き、`blocks/.shared/` と `lib/` と block のフォルダ（`src` を引くため）を `sys.path` に足す（足し方は土台の `ports` の口に従う。world の scripts と同じ）。docstring に node の役を 1〜2 行で書く。
 
-- `scripts/intake.py`: port を 1 つずつ `os.environ.get("INPUTS_<名>")` の字のままで読み（名を組んで読まない。README の 4.2）、`ports` の口で値にする（`text` の form は `ports.text`、`json` の form は `ports.json(字, "<schema>")`）。読めない（`ValueError`）なら `unreadable` に `f"{名}: {e}"` を入れる。`ports.returns(materialkit.intake(viewpoint, ports.place(), Path.cwd(), values, unreadable))`。
-- `scripts/role_prep.py`: `values, when, n = materialkit.prompt_inputs(viewpoint, ports.place())`、`text = prompt.render(viewpoint.NAME, values, when)`、`(place / materialkit.PROMPT_FILE.format(name=viewpoint.NAME, n=n)).write_text(text, encoding="utf-8")`、`ports.returns({"prompt": text})`。落ちる時は落とす（10 節）。
+- `scripts/intake.py`: port を 1 つずつ `os.environ.get("INPUTS_<名>")` の字のままで読み（名を組んで読まない。README の 4.2）、`ports` の口で値にする（`text` の form は `ports.text`、`json` の form は `ports.json(字, "<schema>")`、依頼の行の `request` は `requestrows.findings(字)`）。読めない（`ValueError`）なら `unreadable` に `f"{名}: {e}"` を入れる。`ports.returns(materialkit.intake(viewpoint, ports.place(), Path.cwd(), values, unreadable))`。
+- `scripts/role_prep.py`: `values, when = materialkit.prompt_inputs(viewpoint, ports.place(), prompt.lang)`、`ports.returns(prompt.emit(viewpoint.NAME, values, when, prompt.round_of(viewpoint.NAME)))`。落ちる時は落とす（10 節）。
 - `scripts/role_accept.py`: `ports.returns(materialkit.accept(viewpoint, ports.place(), Path.cwd(), os.environ.get("INPUTS_REPLY", "")))`。返りは `{ok, done, reason}` の 3 欄だけに絞る。
 - `scripts/finish.py`: `ports.returns(materialkit.finish(viewpoint, ports.place(), ports.pointer))`。
 
@@ -471,27 +475,29 @@ README の 5.3 のまま。この族では:
   - `test_material_file_names_round_trip` は写さない（今の `material-<役>.json` の名の往復を見る試験で、place の名は族の部品の定数 1 つになった）。
   - `test_tree_change_names_the_peer_roles` は写さない（ほかの役を名指す文をやめた。4 節の 2）。代わりに「拒みの文が『変えたのがこの役とは限らない』を言う」を照らす。
   - `test_stop_turns_every_role_off` は写さない（止めの記録を読まない。README の 4.3）。
-  - 足す: `finish` が 6 つの道（読めない intake・failed・skipped・ran・gave_up・記録なし）で `status` と素材を返し、どの道でも落ちない。`read` が形の外れた `material.json` を訳つきで落とす。`assemble` が今の `fill_materials` と同じ 15 欄を返す（受けた素材・回さない素材・諦めた素材・`base_determination`・`fix_closure`）。`prompt_inputs` が拒否の無い回に `rejection` を値に入れず、`never` の回に `na_why` を値に入れない。
+  - 足す: `finish` が 6 つの道（読めない intake・failed・skipped・ran・gave_up・記録なし）で `status` と素材を返し、どの道でも落ちない。`read` が形の外れた `material.json` を訳つきで落とす。`assemble` が今の `fill_materials` と同じ 15 欄を返す（受けた素材・回さない素材・諦めた素材・`base_determination`・`fix_closure`）。`prompt_inputs` が拒否の無い回に `rejection` を空の字で、`never` の回に `na_why` を空の字で渡し、`NA_PARAGRAPH` が偽の観点には `na_*` を渡さず、名が重なれば落ちる。`intake` が外れた埋めと写しの失敗を `failed` にする。
 - 観点の block ごとの `tests/blocks/<観点>/`:
   - `test_<観点>.py`: 使い捨ての `ARTIFACTS_DIR`（始めの記録を置かない）と git のリポジトリで、port の値だけを渡し、`intake` → `role_prep` → 台本の返答 → `role_accept` → `finish` を子のプロセスで回し、`material.json` と出力の 5 欄を照らす。拒まれる返答 3 回で `gave_up` になる道も回す。
-  - `test_viewpoint.py`: `src/viewpoint.py` の宣言が 5.1 の名を全部持ち、`MATERIALS` が `materialkit.MATERIALS` の中に在り、`NA == "never"` の観点の `applies` が `NotImplementedError` を上げる。
-  - `test_prompts.py`: 指示の比べ（README の 11.4）。1 つ目の commit は、日本語の md を今の `commands/material-<観点>.md` から作り（`$<観点>-prep.output.<欄>` を `{<欄>}` に替えた字）、本物の run の値で組んだ字が、今の md に同じ値を入れた字と同じになることを照らす。材料のファイル（今の `material-<観点>-brief.md`）は 1 つ目の commit でも prep が今と同じ字で書き、今の run の物と同じ字になることを照らす（各観点の設計書が値と照らし方を書く）。2 つ目の commit（英語。材料を指示に入れ、材料のファイルを無くす）でこの 2 つの試験を消し、新しい指示と古い指示（md と材料のファイル）を並べた物を PR に載せる。
-  - `blocks/<観点>/fixtures/standalone.stubs.yaml`（8 節の終わりの命令で回す）: `fixture.inputs` は port の値だけ（pointer を持たない。README の 7.1 の 4）。AI の node だけを台本の返答で差し替え、script は本物を走らせる（`--exec-code`）。`reached` に `finish`。
-  - `blocks/<観点>/fixtures/gave-up.stubs.yaml`: 役が 3 回拒まれ、`finish` が `status: gave_up` を返し、run は `completed`。
-  - 回す条件を持つ観点は `skipped.stubs.yaml`: 役を起こさず `finish` が `status: skipped` を返す。
-- 形の検査（README の 7.1）は族の block にもそのまま当たる。族だけの yes/no の検査は足さない（5.1 の名の有無は `test_viewpoint.py` が見る）。
+  - `test_viewpoint.py`: その観点だけの宣言の中身。族の全部に当てる照らし（5.1 の名を全部持つ・`MATERIALS` が `materialkit.MATERIALS` の中・`NA == "never"` の `applies` が `NotImplementedError`・`GUARDED` が AI の node の `mutates_checkout: false` と同じ）は `tests/blocks/materials/test_viewpoints.py` が `src/viewpoint.py` を持つ block の全部に当てるので、観点の PR は足さない。
+  - `test_prompts.py`（1 つ目の commit だけ。2 つ目の commit で消す）: 指示の比べ（README の 11.4）。1 つ目の commit は、日本語の md を今の `commands/material-<観点>.md` から作り（`$<観点>-prep.output.<欄>` を `{<欄>}` に替えた字）、本物の run の値で組んだ字が、今の md に同じ値を入れた字と同じになることを照らす。材料のファイル（今の `material-<観点>-brief.md`）は 1 つ目の commit でも prep が今と同じ字で書き、今の run の物と同じ字になることを照らす（各観点の設計書が値と照らし方を書く）。2 つ目の commit（英語。材料を指示に入れ、材料のファイルを無くす）でこの 2 つの試験を消し、新しい指示と古い指示（md と材料のファイル）を並べた物を PR に載せる。
+  - `blocks/<観点>/fixtures/standalone.stubs.yaml`（8 節の終わりの命令で回す）: `fixture.inputs` は port の値だけ（pointer を持たない。README の 7.1 の 4）。AI の node だけを台本の返答で差し替え、script は本物を走らせる（`--exec-code`）。`reached` に `finish`。`resolved-text-contains` に AI の node の md の決まった文（形の検査）。筋書きは node の返りの欄を照らせないので、`finish` の `status` は `test_<観点>.py` が照らす。
+  - `blocks/<観点>/fixtures/gave-up.stubs.yaml`: 役の返答が拒まれ、run が `completed`（dry-run は輪を 1 周で終えるので拒否は 1 回。3 回で `gave_up` になる数えは `test_<観点>.py`）。
+  - 回す条件を持つ観点は `skipped.stubs.yaml`: 役を起こさず run が `completed`。
+- 形の検査（README の 7.1）は族の block にもそのまま当たる。族だけの yes/no は `tests/blocks/materials/test_viewpoints.py` に置く（上）。
 - 終わりの条件の命令（PR ごと。どれも 1 モジュールずつ回す。手元で全部の試験は回さない）:
 
 ```sh
 uv run --isolated python3 -m unittest lib.tests.test_materialkit
 uv run --isolated python3 -m unittest discover -s tests/blocks/<観点の package の名> -t .
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
-uv run --isolated python3 -m unittest tests.blocks.<観点の package の名>.test_prompts
+uv run --isolated python3 -m unittest discover -s tests/blocks/materials -t .
 ```
+
+  - 1 つ目の commit（指示の比べ）の間だけ `uv run --isolated python3 -m unittest tests.blocks.<観点の package の名>.test_prompts` も回す。
 
   - `<観点の package の名>` は観点の名の `-` を `_` にした字（例 `prior_decisions`）。unittest は `-` を持つフォルダを package として import できないので、試験のフォルダは `tests/blocks/<観点の package の名>/` に置く（自分で決めた。10 節）。8 節のほかの所の `tests/blocks/<観点>/` もこの名と読む。
 
-  - fixture は `tests/blocks/<観点>/test_fixtures.py`（今の `tests/workflows/test_report.py::FixtureCase` と同じ形。`archon.tree([...], workflows=<blocks の根>)` の中で `archon workflow test works-factory-<観点> --json` を回し、全部の fixture が通り、`archon validate workflows --json` の誤りと警告が 0）が回す。`tests/archon.py` が `blocks/` を置ける形は土台の PR が作る。
+  - fixture は土台の形の検査 `tests/layers/test_block_shape.py` の `ArchonCase` が、`blocks/` の全部の workflow を Archon の `validate` と `workflow test` に通して回す（観点の PR は fixture の試験を足さない。環境変数 `WORKS_FACTORY_ARCHON_CACHE` が Archon の源の置き場を指す時に回る）。
   - 本物の単独の run を 1 回（README の 11.2。費用のかかる試しは聞かずに回してよい）。
 
 keep-essence の 12 の仕組みのうち、この族が担う物は無い（README の 10 節の割り当てに素材の観点は出てこない）。族が守るのは keep-essence に数えられていない今の能力（作業ツリーの照らし・所見の場所の照らし・素材の欄の照らし・回さない素材の理由つきの埋め・諦めで判定の前に止める材料）で、上の試験がそれを見る。
@@ -506,6 +512,7 @@ keep-essence の 12 の仕組みのうち、この族が担う物は無い（REA
 - 支度が出力の在りかを見て役を飛ばす形（元の prep の返り `already`）: 工場に無い（（未確認）: 意図の記録なし）。Archon の resume が済んだ node を回し直さないので、新しい形も持たない。
 - 目的の文の入力（元の `purpose_file`）: 工場は判定の置き場の `purpose.json` を読んだ。新しい形は要る観点だけが port `purpose` で受ける。
 - 素材の出口（元の `collect` は `{ok, reason}` だけを返し、素材は盤面に在った）: 新しい形は観点ごとに `material.json` を返し、15 欄にそろえるのは読み手（`materialkit.assemble`）。
+- 対象差分と作業ツリーの写しを、観点ごとにその block の intake で取る（今の judge は `material-route` が 1 度だけ取り、11 本が同じ `judge/material-view.json` と `judge/material-tree.json` を読んだ）。訳: block はほかの観点を知らず、自分の place にだけ書く（憲法の 3・README の 4.4）。安全か: 作業ツリーが観点の間で変わらない限り、11 本の差分の中身は同じ（`review_rev` の commit の id は時刻を持つので違いうるが、木と根は同じ）。役が作業ツリーを変えた時は、変えた役の受け付けは自分の写しと比べて拒む（今と同じ）。ただし、その後に intake が走った観点は変わった後の姿を写しに取るので、その変化をその観点の照らしでは見ず、変わった後の差分で判断する。今は 1 つの写しで全部の観点が同じ変化を拒んだので、ここは今より弱い。役の node は sandbox で作業ツリーを書けない（`denyWrite` と包み）ので起きにくいが、起きた時に判定の前で気づく所（観点ごとの `base` と写しの突き合わせ）は judge の設計書が決める（11 節）。
 
 graphloops の `blocks/review-loop/` と `graphs/review-loop.json` は、素材の節を 1 本の graph の節として持ち、engine が条件（`cond`・`applies_cond`・`na_self_ok`）と書き先（`writes`）を宣言から読む。工場の `MATERIAL_NODES` はその写し（`lib/judge_accept.py:1632`）。新しい形は宣言を観点の block の `src/viewpoint.py` に置く。graphloops の engine が持つ周をまたぐ値（前の周の素材の流用 `carried_over`・前の周の修正の申告 `prev.p3.fix.*`・`loop.last_material`）は、工場が 1 run = 1 周（持ち主の決め carry）と決めて使わないので、新しい形も持たない。
 
@@ -515,7 +522,7 @@ graphloops の `blocks/review-loop/` と `graphs/review-loop.json` は、素材�
 
 - 回す条件と回さない時の埋めを、graph の `when:` でなく観点の block の intake に置く。訳: 回さない素材にも「なぜ回さないか」の状態（`not_applicable` と出どころ・`not_run` と条件）を書くのは、その観点の意味（`na_reason` と条件の訳）を知る所だけができる。graph が `when:` で飛ばすと素材の状態が欠け、読み手（diagnose）が 11 本の条件と訳を知ることになる（README の憲法の 3 と 4 に触れる）。README の 4.3 の「回すかは graph の when: が決め」は、block を include するか（機能を切る run）の決めとして残る。
 - 共通の入力 `entry` を足す。訳: 判定から入る run かは始めの記録の事実（差分が空で依頼が在る）で、9 本の観点の回す条件と埋めの訳の字（出どころ）がそれを使う。観点の block が差分と依頼から推し直すより、line が 1 回決めた値を配る方が、出どころの字（依頼のファイルのパス）も今と同じになる。README の 8.1 の例「hygiene は base text だけ」は例で、この入力を足しても外れない。
-- 観点が `request` を持たない時の `fill_entry` の件数の句を「この周の判定に届く人の依頼の件数は渡されていない」にする。訳: 件数のためだけに `request` を 9 本に足すと、読まない入力が増える（README の 1.2 の P）。
+- 観点が `request` を持たない時の `fill_entry` の件数の句を「この周の判定に届く人の依頼の件数は渡されていない」にする（件数は `None` で渡す。10.1）。訳: 件数のためだけに `request` を 9 本に足すと、読まない入力が増える（README の 1.2 の P）。
 - `na_self_ok` の扱いを持ち込まない。訳: 11 本のどれも持たない（`MATERIAL_NODES`）。足すのは要る観点が出た時。
 - prep は `with:` を持たず、却下の段落を place の控えから組む。訳: Archon は `with:` の値の中の `$x.output.y` を置き換え直すので、却下の理由（役の返答を引いた字を含みうる）を `$LOOP_PREV` で運ばない。また 控え（`rejects-<観点>.json`）は resume を跨いで回を数える正本（`rolekit.attempt` の docstring）で、`$LOOP_PREV` の値と 2 つの源を持たない。world は `with:` で理由を受けるが、組む中身は同じ控えなので、振る舞いは同じ。
 - prep が落ちた時は node を落とす。訳: 今の `material_prep.py` は落ちた時に「material を not_run（この理由）で返せ」という指示の文を Python で組んで役に渡していた。憲法の 2（Python は指示の文を持たない）に触れる。新しい形では落ちうる所（port の読み・差分の取り・作業ツリーの写し）を intake が先に済ませて値と状態で返すので、prep の落ちは不具合で、黙って役に回さない（持ち主の決め `no-silent-loosen`）。finish は「役の返答を受けた記録が無い」で返す。
@@ -525,25 +532,32 @@ graphloops の `blocks/review-loop/` と `graphs/review-loop.json` は、素材�
 - 試験のフォルダの名は観点の名の `-` を `_` にした字（`tests/blocks/prior_decisions/`）。訳: unittest は `-` を持つフォルダを package として import できない。README の 3 節の `tests/blocks/<block>/` は、Python の package の名に直した字と読む。
 - 族の部品の PR は `lib/` に新しいモジュールを足す。README の 11.1 の「lib/ は読むだけで変えない」の例外で、11.1 の「素材の観点は、共通の部品と 1 本目を 1 本の PR にし」が求める物。今あるモジュールは変えない。
 
-### 10.1 実装で決めた事（族の部品と 1 本目の PR）
+### 10.1 実装で決めた事（族の部品と 1 本目の PR）の訳
 
-- `LANG_DEFAULT` を `lib/materialkit.py` に置かない。`prompt_inputs(viewpoint, place, lang)` の 3 つ目の引数に、port の字を言語の値にする口（block の script が渡す `prompt.lang`）を受ける。訳: 土台が `lang` の既定の文を共通の断片 `blocks/.shared/prompts/lang-default.md` に置き、`prompt.lang` だけが読む形にした（README の 13 章。憲法の 2: AI に届く決まった文は md だけ）。`lib/` が `.shared` の口を import すると層が逆になる。入る字は 2.1 の文と同じ。
-- `prompt_inputs` は `rejection` をいつも（拒否が無い回は空の字で）渡し、`na_why` も `NA_PARAGRAPH` の観点にはいつも（`never` の回は空の字で）渡す。訳: 11 節の未確認の答え。土台の `prompt.render` は選ばれない段落の中の差し込み口も数え、値が無ければ落ちる（`tests/blocks/shared/test_prompt.py::SlotCase.test_slots_in_unselected_paragraphs_still_need_values`。値を渡せば「使われない値」には数えない）。同じ md の中に `<!-- if x -->` と `<!-- if not x -->` を両方置ける（`ParagraphCase.test_if_and_if_not_select_and_drop_marks`）。2.11 の終わりの「入らない段落の口の値は渡さない」は、この形に替えた。
-- 宣言の名 `NA_PARAGRAPH: bool` を 5.1 に足す。真なら `prompt_inputs` が `na_why` と `na_never`・`na_cond_true`・`na_cond_false`・`na_judged` を足す。訳: 返答に `material` の欄を持たない観点（hygiene・purpose-review）の md は `{shared:material-na}` を差し込まないので、いつも足すと `prompt.render` が「when の名が md の段落に無い」「使われない値」で落ちる（残りの 10 本の設計書の書き手の指摘）。どの観点の md が断片を入れるかは観点だけが知るので、宣言に置く。
-- `fill_entry(entry, requests)` の件数を渡さない時は `None` にする（2.6 の「0 を渡す」を替えた）。訳: 本当に 0 件の時と、件数を渡されていない時を分ける（同じ指摘）。
-- 回す時の訳の共通の口 `normal_run(noun) -> Due` と、判定から入る run でない時だけ回す決め `not_entry_due(values, noun) -> Due`（`entry` が在れば `entry_skip(noun)`、無ければ `normal_run(noun)`）を `entry_skip` の隣に足す。訳: 9 本の観点が同じ条件（今の `not_request_entry`）を持つので、訳の字を観点ごとに書かせない（同じ指摘）。
-- `review_md_paths(repo, lib_dir=None)` を公開の名にする（5.2 の終わり）。`lib_dir` の既定はこのモジュールの在る `lib/`。訳: 写す元 `judge_accept.review_md_paths(lib_dir, repo)` の、試験が一時のフォルダを指せる形を残す（同じ指摘）。
-- prep の script は `prompt.render` と自分の書き込みでなく `prompt.emit(NAME, values, when, n)` で組む。訳: `blocks/.shared/AGENTS.md` の「prep は `prompt.emit` だけで組む」。書く先の名 `<NAME>-prompt-<n>.md` は `PROMPT_FILE` と同じ字。
-- intake の 4（回す時の作業ツリーの写し）で `Reject` が出たら（HEAD が引けないなど）、`status: failed`・`reason: f"役を起こす前の作業ツリーの姿が取れない（{e}）——役を起こしていない"` で返す。訳: 2.6 の「落ちうる所は全部 `Reject` か値で受ける」を 4 にも当てた。
-- finish の落ちた道の素材の埋めは、観点の宣言そのものが壊れていても落ちない（素材を名指せなければ空）。訳: 2.10 の「finish は落ちない」。
-- 観点の入力 `request` の形は、block の `schemas/` に写さず、土台の共通の形 `json(shared:request.schema.json)` で名指す（1.2 の「`blocks/world/schemas/request.schema.json` を字のまま写す」を替えた）。訳: 土台が依頼の行の形を `blocks/.shared/schemas/request.schema.json` に 1 つ置き、world もそれを名指す。同じ名の形が pack の 2 か所に在ると形の検査（README の 7.1 の 5）が赤。
-- 役の定義の断片 `role-investigator`・`role-judge` は中に `{shared:query-rule}` を持つので、その役の md は 3.1 の 3 を置かない（11 節の未確認の答え。`spawns` の真偽は役の定義の中の段落のために渡す）。
-- 筋書き `gave-up.stubs.yaml` は、Archon の dry-run が輪を 1 周で終えるので、拒否 1 回で出口まで届くことだけを見る。3 回で諦めて `status: gave_up` を返す数えと、出口の `status` の照らしは `tests/blocks/<観点>/test_<観点>.py` が見る（筋書きは node の返りの欄を照らせない。world の筋書きと同じ分け）。
+本文（2〜8 節）は決めた後の形で書いた。ここには訳だけを残す。
+
+- `LANG_DEFAULT` を族の部品に置かず、`prompt_inputs` が言語の口 `lang` を受ける（2.11）: 土台が既定の文を共通の断片 `lang-default.md` に置き、`prompt.lang` だけが読む（README の 13 章。憲法の 2）。`lib/` が `.shared` の口を import すると層が逆になる。
+- `rejection`・`na_why` を空の字でもいつも渡す（2.11）: 土台の `prompt.render` は選ばれない段落の中の差し込み口も数え、値が無ければ落ちる（`tests/blocks/shared/test_prompt.py::SlotCase.test_slots_in_unselected_paragraphs_still_need_values`。渡した値は「使われない値」に数えない）。同じ md に `<!-- if x -->` と `<!-- if not x -->` を両方置ける（`ParagraphCase.test_if_and_if_not_select_and_drop_marks`）。
+- 宣言の名 `NA_PARAGRAPH`（5.1）: 返答に `material` の欄を持たない観点（hygiene・purpose-review）の md は `material-na` を差し込まないので、`na_*` をいつも足すと `prompt.render` が落ちる。どの md が断片を入れるかは観点だけが知る。
+- 観点の値・真偽の名が共通の名と重なれば落とす（2.11）: 黙って片方で上書きすると、指示の字が観点の思った物と違っても誰も気づかない。
+- 回の番号を `prompt.round_of` の 1 つにし、`PROMPT_FILE` と `prompt_inputs` の `n` を置かない（1.4・2.11・6 節）: `blocks/.shared/AGENTS.md` の「prep は `prompt.emit(..., prompt.round_of(node_id))`」。数え方を 2 つ持たない。
+- `fill_entry` の件数の無い時は `None`（2.6）: 本当の 0 件と、件数を渡されていない時を分ける。件数のためだけに `request` を 9 本に足さない（README の 1.2 の P）。
+- 判定から入る run の周を `is_entry_run`（`entry` が在り、対象差分が空）で決める（2.6）: 今の `request_entry` は事実（差分が空・依頼が 1 件以上）で決めた。差分の事実は block が自分で測れるので測る（修正が入った後に line が古い `entry` を渡しても入口の周と取り違えない）。依頼の件数は観点の多くが `request` を持たないので、line が始めの記録から決めた結果を `entry` の出どころの文で受ける。
+- `normal_run`・`not_entry_due` の共通の口（2.6）: 9 本の観点が同じ条件（今の `not_request_entry`）を持つので、訳の字を観点ごとに書かせない。
+- `fill_problems` で回さない時の埋めを照らす（2.6）: 今の `_fill_one` は宣言の素材の全部を、要る欄つきで機械が埋めた。新しい形では観点の `fill` が埋めるので、欠けた素材・要る欄の無い状態が黙って読み手に届かないよう族の部品が照らす。
+- intake の作業ツリーの写しの失敗を `failed` で返す（2.6 の 4）: 「落ちうる所は `Reject` か値で受ける」を 4 にも当てた。
+- `material.json` に `base`・`commits` を入れ、`assemble` は docs から `base_determination` を組む（1.2・2.10）: 読み手が始めの記録を別に読まずに済む。commit の数が無い時は 0 に倒さず `not_run`（測っていない値を測った値に見せない）。
+- `ACCEPTED` を最後に書く（4 節の 7）: 観点の控え（`after_accept`）が落ちた時に、受けた記録だけが残って finish が `ran` と返す道を無くす。
+- `review_md_paths(repo, lib_dir=None)`（5.2）: 写す元の、試験が一時のフォルダを指せる形を残す。
+- `request` の形は共通の `json(shared:request.schema.json)` で名指し、読む口は `requestrows.findings`（1.2・6 節）: 同じ名の形が pack の 2 か所に在ると形の検査が赤。`requestrows` は下書きの行と知らない鍵を拒む（`blocks/.shared/AGENTS.md`）。
+- 役の定義 `role-investigator`・`role-judge` の md は 3.1 の 3 を置かない: 断片が中に `{shared:query-rule}` を持つ（11 節の未確認の答え）。
+- 族の yes/no を `tests/blocks/materials/test_viewpoints.py` に置く（8 節）: 宣言の名と `GUARDED` の揃いは 11 本で同じ照らしなので、観点ごとに写さない（今の `tests/workflows/test_nodeflags.py` の block 版）。
+- 共通の断片 `material-where` を「`where` と `text` を持つ行だけ拒む」と言う形にした（2.5）: 照らしを広げると今の受け付けの振る舞いが変わる。役に届く文を事実に合わせた。
+- 筋書きは node の返りの欄を照らせない（dry-run は輪を 1 周で終える）ので、`ran`・`gave_up`・`skipped` は `test_<観点>.py` が照らす（8 節）。world の筋書きと同じ分け。
 
 ## 11 未確認
 
-- 土台の `prompt.render` が、差し込まないと決まった段落の中の差し込み口を「使われない値」に数えるか。この族は数えない（入る段落の中の口だけに値を渡す）前提で 2.11 を書いた。数える形なら、`prompt_inputs` は `na_why` と `rejection` をいつも渡す形に替える。
-- 土台の役の定義の断片 5 本の名。この族は `role-investigator`・`role-inspector`・`role-cold-reader` と書いた。土台の名が違えば、その名に合わせる。役の定義の断片が外への検索の決まりを含むなら、3.1 の 3 を外す（今の `lib/agents/investigator.md` は検索の決まりを中に持つが、world.md は検索の決まりを別の断片 `query-rule` にした）。
+- 観点ごとに対象差分と作業ツリーを写すので、11 本の見方がずれうる（9 節）。判定のまとめが `material.json` の `base` を突き合わせるか、写しの木の id を足すかは judge の設計書が決める。
 - 土台の `ports` の口の名（6 節）と、`lib/` と block のフォルダを `sys.path` に足す形。
 - 判定のまとめが 11 本の `material` の pointer を 1 つの json の配列にする組み方（Archon の `with:` で配列を組めるか。組めなければ judge のまとめの script の node が組む）。
 - 工場の観点の正本 `lib/REVIEW.md` を共通の断片へ移した後の、`inputs.review_md` の値（5.2 の終わり）。

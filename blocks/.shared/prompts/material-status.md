@@ -1,7 +1,7 @@
 How to write `material`: `status` is one of the following.
 - `found`: you found something. Give `count` (an integer) and `detail`.
 - `clean`: you looked in this run and found nothing. Say in `checked` what you looked at.
-- `not_applicable`: the viewpoint does not apply. Give `reason`. Whether you may write it is in the section on `not_applicable`.
+- `not_applicable`: the viewpoint does not apply. Give `reason`. Whether you may write it is in the section on whether you may write `not_applicable`.
 - `awaiting_human`: it waits for a person to start something. Give `reason`.
 - `not_run`: it should have been done, but you skipped it. Give `reason`.
 
