@@ -24,13 +24,14 @@ from bin._lib import apply
 from graphloops.engine.schema import validate_schema  # lib/ は bin._lib.apply が sys.path に置く
 from tests.bin import fakelaunch, hermetic
 from tests.bin.stepnames import step_names
+from tests.archon import WORKFLOWS
 from tests.bin.gitkit import git
 from tests.workflows.test_chain import ROUND_FILES, chain, run_final, run_result, three_rounds
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
-LINE = ROOT / "workflows" / "line" / "works-factory-line.yaml"
-CHAIN = ROOT / "workflows" / "chain" / "works-factory-chain.yaml"
+MERGE = WORKFLOWS / "merge" / "works-factory-merge.yaml"
+LINE = WORKFLOWS / "line" / "works-factory-line.yaml"
+CHAIN = WORKFLOWS / "chain" / "works-factory-chain.yaml"
 # 周の鎖は承認のノードを持たない（最後の承認は周の子 run の中）ので、人の一言 final_answer を鎖の result は運ばない。
 # stopped_why は無い一言を言わないだけで、ほかの読む欄は鎖も線と同じに要る
 CHAIN_OMITS = {"final_answer"}
@@ -284,16 +285,28 @@ class ApplyTest(TargetCase):
 
     def test_apply_refuses_pointer_outside_root(self):
         outside = self.place("../outside.diff", self.diff)
-        link = self.root / "merge" / "link.diff"
+        link = self.root / "link" / "apply.diff"
+        link.parent.mkdir()
         link.symlink_to(outside)
-        for name, ptr in (("..", pointer("../outside.diff")), ("絶対パス", pointer(str(outside))),
-                          ("symlink", pointer("merge/link.diff")), ("無いファイル", pointer("merge/none.diff")),
-                          ("フォルダ", pointer("merge")), ("別の run", pointer("merge/apply.diff", run_id="other")),
-                          ("指し札でない", "merge/apply.diff")):
+        (self.root / "folder" / "apply.diff").mkdir(parents=True)
+        for name, ptr, said in (("..", pointer("../apply.diff"), "外"), ("絶対パス", pointer(str(self.root / "merge/apply.diff")), "相対"),
+                                ("symlink", pointer("link/apply.diff"), "外"), ("無いファイル", pointer("none/apply.diff"), "普通のファイル"),
+                                ("フォルダ", pointer("folder/apply.diff"), "普通のファイル"),
+                                ("別の run", pointer("merge/apply.diff", run_id="other"), "別の run"),
+                                ("先の名が違う", pointer("merge/sealed.diff"), "名が apply.diff でない"),
+                                ("指し札でない", "merge/apply.diff", "読めない")):
             with self.subTest(name):
                 value = self.value()
                 value["apply"]["diff"] = ptr
-                self.assert_refused(self.run_apply(self.record(value)), 1)
+                self.assert_refused(self.run_apply(self.record(value)), 1, said)
+
+    def test_apply_reads_the_place_of_any_include(self):
+        """place は include の道で決まる（merge-seal/sealed.diff・merge-apply/apply.diff）。決まったパスでなく名の末尾で照らす（README 11.3 の 7）"""
+        self.place("merge-apply/apply.diff", self.diff)
+        self.place("merge-seal/sealed.diff", self.diff)
+        value = self.value(apply={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-apply/apply.diff"), "reason": ""},
+                           sealed={"ok": True, "hash": sha(self.diff), "diff": pointer("merge-seal/sealed.diff")})
+        self.assert_applied(self.run_apply(self.record(value)))
 
     def test_apply_accepts_short_run_id(self):
         self.assert_applied(self.run_apply(self.record(), run=SHORT))
@@ -340,9 +353,16 @@ class ApplyTest(TargetCase):
 
     def test_apply_reads_the_merge_returns(self):
         """result の apply・sealed は merge の返りの欄を写した物（計画「線の返りに足す欄」）。試験の形が merge の output_format に合う"""
-        returns = yaml.safe_load(MERGE.read_text(encoding="utf-8"))["nodes"][0]["output_format"]["properties"]
+        nodes = yaml.safe_load(MERGE.read_text(encoding="utf-8"))["nodes"]
+        returns = next((n for n in nodes if n["id"] == "merge"), nodes[0])["output_format"]["properties"]
         self.assertEqual(returns["diff"]["properties"]["type"]["enum"], [apply.POINTER_TYPE])
-        self.assertLessEqual({apply.APPLY_DIFF, apply.SEALED_DIFF}, set(returns["diff"]["properties"]["path"]["enum"]))
+        path = returns["diff"]["properties"]["path"]
+        for name in (apply.APPLY_DIFF, apply.SEALED_DIFF):
+            with self.subTest(name):
+                if "pattern" in path:   # place は include の道で決まるので、名の末尾の形で縛る（docs/design/merge.md の 1.3）
+                    self.assertRegex(f"merge-apply/{name}", path["pattern"])
+                else:
+                    self.assertTrue(any(pathlib.PurePosixPath(p).name == name for p in path["enum"]))
         for name, member in ((n, self.value()[n]) for n in ("apply", "sealed")):
             with self.subTest(name):
                 shape = {"type": "object", "properties": {k: returns[k] for k in member}, "required": list(member)}
