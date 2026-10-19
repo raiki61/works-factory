@@ -1517,6 +1517,7 @@ KEEP_CHECKOUT = {
 CHANGE_CHECKOUT = {
     ("line", "start"): "始めの記録を run の置き場に書くだけだが、今の線は印を持たない。足すと Archon の照らしが増えて振る舞いが変わるので部分 0 では足さない",
     ("judge", "spec-freeze"): "人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（lib/judge_accept._spec_run）",
+    ("spec", "spec-freeze"): "人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（blocks/spec/src/freeze.py の run_command）",
     ("fix", "group-start"): "親の姿の木を作業ツリーと index に写す（groups.adopt_tree）",
     ("fix", "join"): "並べた組の子の差分を親の作業ツリーへ当て、当たらない組は戻す（unittrees.apply）",
     ("fix", "clash-prep"): "join が確かめ直しの赤で戻した組の控えの差分を作業ツリーへ当て直し、当たらなければ当てる前の木へ戻す（clash.stage・settle_parked）",

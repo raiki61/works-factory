@@ -1,0 +1,13 @@
+# 書く役の返答が拒まれた後の出し直し: 筋書きは輪を 1 周しか回さないので、1 周目の prep の返りを「出し直す」に差し替えて出し直しの役の
+# 道（出し直しの指示を組む prep・出し直しの役・受け付け）へ届かせる。出し直しの役の指示は本物の prep が md から組む。控えが無いので受け付けは
+# 拒み、出口が status: failed を返す
+fixture:
+  expect: completed
+  reached: [intake, spec-write-prep, spec-write-fix-prep, spec-write-fix, spec-write-accept, spec-ask, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+  resolved-text-contains:
+    spec-write-fix: "Your previous answer was rejected by the machine's check."
+exec-code: true
+spec-write-prep: {prompt: '', resubmit: true}
+spec-write-fix: {}

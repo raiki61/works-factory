@@ -1,0 +1,365 @@
+name: works-factory-spec
+description: '仕様の block（docs/design/spec.md）。依頼が完成と言える要件と、要件ごとの受け入れ条件のテストを、修正案より前に書く役が書き、別の目の役が抜け・曖昧さ・範囲の外を挙げ、書く役が穴に答えて直し、人の承認ノードで承認された物を固める（受け入れ条件の run を走らせて終了コードを取り、テストのファイルの sha256 とともに spec.json に 1 度だけ書く）。mode check では、固めた仕様の受け入れ条件のテストが承認の版から変わったかを照らし、変わった所を承認し直すかの問いにする（照らせなかったら黙って 0 件にせず、照らせなかったと言う）。単独の run でも、graph から include されても回る'
+inputs:
+  mode: {default: write, description: 'choice(write|check): write は仕様を書いて審査し、承認ノードの後に固める。check は固めた仕様の受け入れ条件のテストが承認の版から変わったかを照らす'}
+  request: {default: '[]', description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい。check では読まない'}
+  pr_text: {default: '', description: 'text: 依頼が名指す PR の題と本文（write の役に見せる）。空は PR が無い'}
+  spec: {default: '', description: 'file: check で照らす固めた仕様（write の出力 spec の pointer）。write では読まない。check で空なら、照らす仕様が無いという問いを返す'}
+  user_env_dir: {default: '', description: 'text: 受け入れ条件のコマンドを利用者の HOME・XDG に戻して走らせた印を置くフォルダの絶対パス。空なら place に置く'}
+  lang: {default: '', description: 'text: 人に見せる欄（requirements の text・out_of_scope・faces の why・handled の how）の言語。空は依頼の行の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [mode, go, reason]
+      properties:
+        mode: {type: string}
+        go: {type: boolean}
+        reason: {type: string}
+  # 3 つの輪（書く・審査・直す）は、拒まれた後は出し直しの役 <役>-fix が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと
+  # 欄ごとに合わせる（#571）。出し直すかは <役>-prep が決め、出し直しの指示は <役>-fix-prep が組む（役の指示を組む prep を役ごとに分ける）
+  - id: spec-write-loop
+    depends_on: [intake]
+    when: "$intake.output.go == true && $intake.output.mode == 'write'"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$spec-write-accept.output.done; test "$done" = true
+      nodes:
+        - id: spec-write-prep
+          script: prep
+          runtime: uv
+          mutates_checkout: false
+          with: {role: write, prev: "$LOOP_PREV.spec-write-accept.output.ok"}
+          output_format: &prep_output
+            type: object
+            additionalProperties: false
+            required: [prompt, resubmit]
+            properties:
+              prompt: {type: string}
+              resubmit: {type: boolean}
+        - id: spec-write
+          prompt: "$spec-write-prep.output.prompt"
+          depends_on: [spec-write-prep]
+          when: "$spec-write-prep.output.resubmit != true"
+          <<: &write_launch
+            model: '@wf-judge-spec'
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &spec_reply
+            type: object
+            additionalProperties: false
+            required: [requirements, acceptance, out_of_scope]
+            properties:
+              requirements:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, text]
+                  properties:
+                    key: {type: string, minLength: 1}
+                    text: {type: string, minLength: 4}
+              acceptance:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, requirement, file, name, run]
+                  properties:
+                    key: {type: string, minLength: 1}
+                    requirement: {type: string, minLength: 1}
+                    file: {type: string, minLength: 1}
+                    name: {type: string, minLength: 1}
+                    run: {type: string, minLength: 1}
+              out_of_scope:
+                type: array
+                items: {type: string}
+        - id: spec-write-fix-prep
+          script: fix_prep
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [spec-write-prep, spec-write]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-write-prep.output.resubmit == true"
+          with: {role: write}
+          output_format: &fix_prep_output
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: spec-write-fix
+          prompt: "$spec-write-fix-prep.output.prompt"
+          depends_on: [spec-write-prep, spec-write-fix-prep, spec-write]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-write-prep.output.resubmit == true"
+          <<: *write_launch
+          output_format:
+            <<: *spec_reply
+            required: []
+        - id: spec-write-accept
+          script: take
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [spec-write, spec-write-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            role: write
+            status_guarded: false
+            reply: {from: "$spec-write.output", if_skipped: null}
+            fix_reply: {from: "$spec-write-fix.output", if_skipped: null}
+          output_format: &accept_output
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, revise]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              revise: {type: boolean}
+  - id: spec-review-loop
+    depends_on: [spec-write-loop]
+    when: $spec-write-loop.output.ok == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$spec-review-accept.output.done; test "$done" = true
+      nodes:
+        - id: spec-review-prep
+          script: prep
+          runtime: uv
+          mutates_checkout: false
+          with: {role: review, prev: "$LOOP_PREV.spec-review-accept.output.ok"}
+          output_format: *prep_output
+        - id: spec-review
+          prompt: "$spec-review-prep.output.prompt"
+          depends_on: [spec-review-prep]
+          when: "$spec-review-prep.output.resubmit != true"
+          <<: &review_launch
+            model: '@wf-judge-core'
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            mutates_checkout: false
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          output_format: &review_reply
+            type: object
+            additionalProperties: false
+            required: [faces, reason]
+            properties:
+              faces:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, kind, where, why]
+                  properties:
+                    key: {type: string, minLength: 2}
+                    kind:
+                      type: string
+                      enum: [missing, ambiguous, out_of_scope]
+                    where: {type: string, minLength: 1}
+                    why: {type: string, minLength: 20}
+              faces_none: {type: string}
+              reason: {type: string, minLength: 20}
+        - id: spec-review-fix-prep
+          script: fix_prep
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [spec-review-prep, spec-review]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-review-prep.output.resubmit == true"
+          with: {role: review}
+          output_format: *fix_prep_output
+        - id: spec-review-fix
+          prompt: "$spec-review-fix-prep.output.prompt"
+          depends_on: [spec-review-prep, spec-review-fix-prep, spec-review]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-review-prep.output.resubmit == true"
+          <<: *review_launch
+          output_format:
+            <<: *review_reply
+            required: []
+        - id: spec-review-accept
+          script: take
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [spec-review, spec-review-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            role: review
+            status_guarded: true
+            reply: {from: "$spec-review.output", if_skipped: null}
+            fix_reply: {from: "$spec-review-fix.output", if_skipped: null}
+          output_format: *accept_output
+  - id: spec-revise-loop
+    depends_on: [spec-review-loop]
+    when: $spec-review-loop.output.revise == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$spec-revise-accept.output.done; test "$done" = true
+      nodes:
+        - id: spec-revise-prep
+          script: prep
+          runtime: uv
+          mutates_checkout: false
+          with: {role: revise, prev: "$LOOP_PREV.spec-revise-accept.output.ok"}
+          output_format: *prep_output
+        - id: spec-revise
+          prompt: "$spec-revise-prep.output.prompt"
+          depends_on: [spec-revise-prep]
+          when: "$spec-revise-prep.output.resubmit != true"
+          <<: *write_launch
+          output_format: &revise_reply
+            type: object
+            additionalProperties: false
+            required: [spec, handled]
+            properties:
+              spec: *spec_reply
+              handled:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, handled, how]
+                  properties:
+                    key: {type: string, minLength: 2}
+                    handled:
+                      type: string
+                      enum: [absorbed, declared]
+                    how: {type: string, minLength: 20}
+        - id: spec-revise-fix-prep
+          script: fix_prep
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [spec-revise-prep, spec-revise]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-revise-prep.output.resubmit == true"
+          with: {role: revise}
+          output_format: *fix_prep_output
+        - id: spec-revise-fix
+          prompt: "$spec-revise-fix-prep.output.prompt"
+          depends_on: [spec-revise-prep, spec-revise-fix-prep, spec-revise]
+          trigger_rule: none_failed_min_one_success
+          when: "$spec-revise-prep.output.resubmit == true"
+          <<: *write_launch
+          output_format:
+            <<: *revise_reply
+            required: []
+        - id: spec-revise-accept
+          script: take
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [spec-revise, spec-revise-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            role: revise
+            status_guarded: false
+            reply: {from: "$spec-revise.output", if_skipped: null}
+            fix_reply: {from: "$spec-revise-fix.output", if_skipped: null}
+          output_format: *accept_output
+  - id: spec-ask
+    script: ask
+    runtime: uv
+    depends_on: [intake, spec-write-loop, spec-review-loop, spec-revise-loop]
+    trigger_rule: all_done
+    when: "$intake.output.go == true && $intake.output.mode == 'write'"
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ask, message]
+      properties:
+        ask: {type: boolean}
+        message: {type: string}
+  - id: spec-gate
+    depends_on: [spec-ask]
+    when: $spec-ask.output.ask == true
+    wait:
+      attention: $spec-ask.output.message
+      form: select
+      options:
+        - {id: approve}
+        - {id: continue}
+        - {id: stop}
+        - {id: reject}
+  # 受け入れ条件のコマンドを走らせる（作業ツリーに書きうる）ので mutates_checkout は書かない
+  - id: spec-freeze
+    script: freeze
+    runtime: uv
+    depends_on: [intake, spec-ask, spec-gate]
+    trigger_rule: all_done
+    when: "$intake.output.go == true && $intake.output.mode == 'write'"
+    with:
+      answer: {from: "$spec-gate.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, reason]
+      properties:
+        go: {type: boolean}
+        reason: {type: string}
+  - id: spec-check
+    script: check
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake]
+    when: "$intake.output.mode == 'check'"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [questions, unchecked]
+      properties:
+        questions:
+          type: array
+          items: {type: string}
+        unchecked: {type: boolean}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, spec-ask, spec-freeze, spec-check]
+    trigger_rule: all_done
+    with:
+      checked: {from: "$spec-check.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, stop_reason, reason, spec, added_rows, added_origin, questions, unchecked, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [approved, stopped, failed, checked, unchecked]
+        stop_reason: {type: string}
+        reason: {type: string}
+        spec: &pointer
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        added_rows: *pointer
+        added_origin: {type: string}
+        questions:
+          type: array
+          items: {type: string}
+        unchecked: {type: boolean}
+        report:
+          type: array
+          items: {type: string}
