@@ -122,6 +122,10 @@ class ShapeCase(unittest.TestCase):
         facts = json.loads((BLOCK / "schemas" / "facts.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(set(facts["properties"]), set(M.facts_in.DEFAULTS), "欄と既定は同じ並び")
 
+    def test_the_shared_fragments_the_block_adds_exist(self):
+        for name in ("handoff", "report-head-check"):
+            self.assertTrue((kit.SHARED / "prompts" / f"{name}.md").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

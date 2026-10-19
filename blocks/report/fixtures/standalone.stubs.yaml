@@ -7,8 +7,8 @@ fixture:
     sections: '[{"title": "直した所", "lines": ["単位 u1: 直した"]}]'
     facts: '{"start_ok": true, "proved": true}'
   resolved-text-contains:
-    write: 'この役はレビューの最終報告を書く役（writer）。'
-    cold: 'この役は文脈を持たない初見の読み手。'
+    write: 'You are the writer of the final report, started in a new conversation.'
+    cold: 'You have no context: you are given none of the history, the record, or the diff.'
 exec-code: true
 write:
   text: 平均の関数を直した。単位 u1 は直って、最後のテストまで通った。

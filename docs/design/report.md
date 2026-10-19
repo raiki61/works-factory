@@ -627,6 +627,15 @@ uv run --isolated python3 -m unittest tests.layers.test_block_shape
 - `sections` の形はこの設計書が決め、土台の PR では何も置かない。訳: README の 11.1 は「sections の形は土台で決めるので、ほかの block を待たない」と書くが、ほかの block が守るのは 4.1 の `report` の欄（日本語の行の配列）だけで、節の見出しと `files` は graph が付ける。だから report の PR が `schemas/sections.schema.json` を置けば、ほかの block は待たずに作れる。
 - 書き手の md から、ほかの block の place のファイルの名（`r1.json`・`r1-comments.json`）と欄の名を外し、r1 の block がその行を `report` の欄に組むことを求める。訳: 憲法の 3（block はほかの block を名指さない）。今の能力（構成 5 の R1 の削ったコメントと残した why）は、r1 の行が届くことで残る（r1 の設計書の宿題として 1.6 に書いた）。
 - 共通の断片 `handoff` をこの block の PR が足す。訳: report は 1 波目、plan は 2 波目で、先に要るのが report（README の 11.1 の「最初に要った PR が足す」）。
+- 実装で決めた事（作った時に、シートが黙っていたか、main の決まりと食い違った所）:
+  - script の node の中身は `blocks/report/src/steps.py` に置き（`facts`・`facts_fallback`・`write_prompt`・`cold_prompt`・`finish`・`finish_fallback`）、`scripts/` は `ports.run` で呼ぶ薄い皮にした。訳: 1.5 の一覧に script の中身の置き場が無く、purpose の手本が `src/steps.py` に置く形だった。
+  - 出口 `finish` は `with:` を持たず、`facts.json` と place のファイルの在り方（`report.md`・`next-request.json`・`prior-failures.json`・`report-detail.md`）から pointer を組む。facts が落ちた時も `facts.json` を書く（標準ライブラリだけ）。訳: 4 節が出口の入力を `facts.json` と run の記録としか書かず、pointer を `facts.json` に足すと 1.4 の欄の一覧と食い違う。
+  - `facts.schema.json` の `tallied` は値の型（整数）を `facts_in.read` が照らす。訳: 形の照らし（`KNOWN_KEYWORDS`）は欄の名が開いたオブジェクトの値の型を書けない（`additionalProperties` は偽の時しか読まれない）。
+  - 書き手の md の末尾の JSON の例は、Archon でなく `prompt.render` が `{{`・`}}` を 1 つの括弧にするので、閉じの `}}` を `}}}}` と書いた（シートの md は `}}` のままで、組むと `}` になり例が 1 つ閉じ足りない）。
+  - `cold-gave-up.stubs.yaml` は dry-run のループが 1 周で終わる（`until_bash` は走らない）ので、初見の読み手が 1 回通さない道（受け付けが出し直させ、run は止まらず出口が返る）を回す。3 回目の受け取りと印は `tests/blocks/report/test_scripts.py` の `AcceptCase` が確かめる。
+  - 共通の断片 `handoff`・`report-head-check` を `blocks/.shared/prompts/` に足し、`blocks/.shared/AGENTS.md` の名の一覧を取り置きから今在る名へ移した。
+  - `rejects-report.md` は、拒んだ回の `write-accept` が今までどおり書く（書き手の指示は `rejects-report.json` の控えから組むが、拒否の全部の読み物として残す）。
+  - run の記録の `own_prefix` は、ループの本体の node（`<ループの id>.<node の id>`）の path でも段ごとの `__` の頭を継ぐ形にした（`ports` に同じ口が無かったので `src/transcript.py` に置いた）。
 
 ## 10 未確認
 

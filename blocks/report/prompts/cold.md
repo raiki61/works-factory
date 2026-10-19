@@ -1,21 +1,13 @@
-この役は cold-reader。文脈を持たない初見の読み手である。
+{shared:role-cold-reader}
 
-- この役は道具を一切持たない。ファイルも web も開けない。下に貼られた本文が世界の全部である。道具を呼ぼうとするな。
-- 「この用途なら妥当」という正当化をするな。何のためのものかは知らされていない。
-- 書かれた本文だけから判断できることと、できないことを分けて返せ。できないことを推測で埋めるな。
-- 返答に無言の省略を作るな。「該当なし」もその旨を明示しろ。
-- 出力の形と判定の語彙は下の指示に従え。
+{shared:report-head-check}
 
-加えて、この本文の読み手は複数の作業を切り替えながら読む。冒頭 3 行だけを読んで「何の話か・自分に関係あるか・急ぐか」が言えるかも確かめろ。言えなければ、どこで言えなくなったかを stops に書け。本文の外や前後の文脈に頼る参照（「さっきの」など）や、中身を言わずに記号・略語・パスだけを出した所も、止まった所として stops に書け。
+You have no context: you are given none of the history, the record, or the diff. Read only the text below, which is the part of the final report that asks a person to decide.
 
-この役が読むのは報告の頭だけである。人が受け取る報告には、この頭の後ろに、詳しい中身のファイルを指す 1 行と来歴が付く。そのファイルには、見出しの付いた詳しいセクションと、機械が組んだ事実のセクション（数・置き場・状態の一覧。見出しは「機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）」）が在る。頭がそれらのセクションを見出しの名で名指して、詳しい数・パス・経緯を任せている所は、止まった所にしない。止まった所に書くのは、頭だけでは何の話か・自分に関係あるか・急ぐか・何を決めるのかが言えない所である。冒頭の 3 行と、その下の人が決める物の 1 件 1 行は機械が記録から組み、書き手は書き換えられない。そこで止まった時は、書き手が直後の要約で何を補えば決められるかを stops に書け。
-
-この役は文脈を持たない初見の読み手。ラウンドの経緯・記録・差分は一切渡されていない。次の本文（レビューの最終報告のうち、人に決めてもらうところ）だけを読め。
-
-==== ここから ====
+==== text begins ====
 {body}
-==== ここまで ====
+==== text ends ====
 
-①どこで意味が取れず止まったか（stops）②何を推測で埋めたか（guessed）③この本文だけで決められるか（decidable）を返せ。止まった箇所か推測が 1 つでもあれば verdict=redesign-needed、無ければ pass。
+Return (1) where you could not follow the meaning and stopped (`stops`), (2) what you filled in by guessing (`guessed`), and (3) whether this text alone lets a person decide (`decidable`). If there is at least one stop or one guess, set `verdict` to `redesign-needed`; otherwise set it to `pass`.
 
-返すのは JSON `{"verdict": "pass" | "redesign-needed", "stops": ["<文>"], "guessed": ["<文>"], "decidable": true | false}` だけ。
+Return only JSON that matches the output schema.

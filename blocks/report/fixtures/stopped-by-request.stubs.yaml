@@ -7,7 +7,7 @@ fixture:
     sections: '[]'
     facts: '{"start_ok": true, "gates": [{"at": "final-answer", "decision": "stop", "text": "request: 止め札"}]}'
   resolved-text-contains:
-    write: 'この run の結末の語は **stopped_by_request**'
+    write: 'The outcome word of this run is **stopped_by_request**'
 exec-code: true
 write:
   text: "止め札で止めた。\n最後の承認ノードの前で止めた。\n続けるなら新しい run を始める。"

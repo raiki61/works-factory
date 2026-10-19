@@ -9,7 +9,6 @@
 import json
 import pathlib
 
-import handoff    # lib/
 import jsonfile   # lib/
 import rolekit    # lib/
 import report     # lib/
@@ -90,8 +89,8 @@ def _facts_doc(place) -> dict:
 
 
 def write_prompt(place, *, run_id: str) -> dict:
-    """書き手の指示を組んで place に書く（1 つ目の commit: 今の指示書と同じ字の日本語の md。値は今の工程が Archon に入れさせていた物）。
-    機械の報告の冒頭から、resume の前に出口が置いた「本文は無い」の行を先に外す。返り {prompt}"""
+    """書き手の指示を組んで place に書く。機械の報告の冒頭から、resume の前に出口が置いた「本文は無い」の行を先に外す。前の回までの拒否は
+    place の控えから全部（受け付けが残した物）。返り {prompt}"""
     place = pathlib.Path(place)
     doc = _facts_doc(place)
     machine_file = place / files.REPORT_FILE
@@ -99,19 +98,22 @@ def write_prompt(place, *, run_id: str) -> dict:
     rejected = rolekit.rejected(place, files.ROLE)
     candidate = rolekit.candidate_path(place, files.ROLE)
     prev = bool(rejected) and candidate.is_file() and not rolekit.given_up_reason(place, files.ROLE)
-    n, _ = rolekit.current_round(place, files.ROLE)
-    notes = "\n\n".join(x for x in (handoff.ASK, handoff.section(writer.prior_rounds(place, n))) if x)
-    values = {"lang_line": rolekit.lang_line({"lang": doc.get("lang") or ""}), "outcome": doc["outcome"], "stop_reason": doc["stop_reason"],
-              "facts_file": str(machine_file), "reason_file": rolekit.reject_file(place, files.ROLE) if rejected else "",
-              "prev": str(candidate) if prev else "", "handoff": notes, "eyes_dir": str(place / "eyes")}
-    out = prompt.emit(files.WRITE_NODE, values, {}, rolekit.attempt(place, files.ROLE))
+    notes = writer.handoff_rounds(place)
+    values = {"rejection": rolekit.rejects_text(rejected), "outcome": doc["outcome"], "stop_reason": doc["stop_reason"],
+              "facts_file": str(machine_file), "where_heading": files.bare(files.WHERE_HEADING),
+              "stop_heading": files.bare(files.STOP_HEADING), "prev_file": str(candidate) if prev else "",
+              "decisions_head": writer.DECISIONS_HEAD, "lang": prompt.lang(doc.get("lang")),
+              "decisions_heading": files.bare(files.DECISIONS_HEADING), "cell_limit": writer.CELL_LIMIT, "handoff_rounds": notes}
+    when = {"rejected": bool(rejected), "prev": prev, "handoff_rounds": bool(notes)}
+    out = prompt.emit(files.WRITE_NODE, values, when, rolekit.attempt(place, files.ROLE))
     return {"prompt": out["prompt"]}
 
 
 def cold_prompt(place, raw) -> dict:
     """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物）。返り {prompt}"""
     place = pathlib.Path(place)
-    out = prompt.emit(files.COLD_NODE, {"body": writer.cold_body(raw, place=place)}, {}, rolekit.attempt(place, files.ROLE))
+    values = {"body": writer.cold_body(raw, place=place), "machine_heading": files.bare(writer.MACHINE_HEADING)}
+    out = prompt.emit(files.COLD_NODE, values, {}, rolekit.attempt(place, files.ROLE))
     return {"prompt": out["prompt"]}
 
 
