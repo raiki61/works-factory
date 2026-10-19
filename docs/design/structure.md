@@ -33,7 +33,7 @@
 入力（YAML の `inputs:`）:
 
 - `mode`: `choice(before|after): before は直す前に単位を測って見る。after は base から今の作業ツリーまでの差分を測って見る`。既定 `before`。
-- `units`: `json(units.schema.json): 直しの単位の配列 [{id, paths, summary}]。before では paths が空の単位は測らずに skipped に名指す。after では空の配列でよく、その時は差分の全体を 1 つの単位（id は diff）として見る`。既定 `[]`。
+- `units`: `json(shared:units.schema.json): 直しの単位の配列 [{id, paths, summary}]。before では paths が空の単位は測らずに skipped に名指す。after では空の配列でよく、その時は差分の全体を 1 つの単位（id は diff）として見る`。既定 `[]`。
 - `intent`: `json(intent.schema.json): 書いた意図の文書のパスの配列（作業ツリーの根からの相対）。空の配列なら決まった名で探す（3 節の intent）`。既定 `[]`。
 - `policy`: `file: 人が run に固めた方針の文書（今の始めの記録の policy の写し）。空の字は、方針の文書が渡されていない`。既定 `""`。
 - `base`: `text: after の時の直す前の版の commit。before では読まない`。既定 `""`。
@@ -89,7 +89,7 @@
 - `blocks/structure/src/survey.py`: 今の `lib/structfile.py` の `_measured_units`・`_now`・`measure` を mode で 2 つに分けた物（`before(place, units, root, intent_docs)`・`after(place, units, root, base, plan_fields, intent_docs)`）と、目に見せる JSON を組む `view`（今の `eye.view`・`_cut`・`measured`・`due`）。
 - `blocks/structure/src/eye.py`: 今の `lib/eye.py` の `prep`（指示の文の組み立て `render` は md に移り、材料の値だけを組む）・`_pointer`・`problems`（書いた意図の照らしを足す。7 節）・`accept`・`state`・`reset`・`_put`・`_load`・`ROUTES`・`ROUTE`・`ROUTE_UP`・`ROUTE_REASON`・`MIN_UNDECIDED = 20`・`VERDICTS`・`DIRTY`・`FORM_COUNT = 6`・`MIN_QUOTE = 20`。6 つの形の文（今の `FORMS`）は md に移す。
 - `blocks/structure/src/state.py`: 今の `structfile._outcome`・`write_state`・`keep_state`（spare の道は消す）の写し。
-- `blocks/structure/schemas/units.schema.json`（`{type: array, items: {type: object, required: [id], properties: {id: {type: string, minLength: 1}, paths: {type: array, items: {type: string, minLength: 1}}, summary: {type: string}}}}`）・`intent.schema.json`（`{type: array, items: {type: string, minLength: 1}}`）。
+- `blocks/.shared/schemas/units.schema.json`（r1 の PR が structure の `schemas/` から移した。r1・plan も使う）（`{type: array, items: {type: object, required: [id], properties: {id: {type: string, minLength: 1}, paths: {type: array, items: {type: string, minLength: 1}}, summary: {type: string}}}}`）・`intent.schema.json`（`{type: array, items: {type: string, minLength: 1}}`）。
 - 使う `lib/`: `measure`（コマンドとして）・`conceptfence`（`tables`・`places`・`changed`・`scan_change`）・`concepthome`（`tracked_names`・`pick_maps`・`base_of`・`TABLE_NAME`）・`design`（`MAP_NAMES` だけ。根の地図の文書の名）・`eye`（`stamp`・`wall`・`WALL`。ブロックの時間の欄。`structmark` も読む）・`structmark`（`write`・`read`・`rows`・`write_after`・`AFTER_FILE`・`report_lines`・`DIRTY`・`ROUTE_UP`）・`planmarks`（`deviations`）・`listcut`（`SHOWN`）・`rolekit`（`accept_round`・`current_round`・`round_outcome`・`rejected`・`rejects_text`・`rejects_path`）・`jsonfile`・`oneline`。
 - `concepthome.EYE_ASK`・`AXIS` の文（構造の目の問い）は md に移す。`concepthome` の `AXIS` は R1・R3・plan・plan-review の文も使うので、lib の定数は組み込みまで消さない（README の 9.3 の「文は md へ」）。
 - `lib/design-row.schema.json` は写さない。今は試験だけが読む（`tests/workflows/test_structure.py:116-131`・`lib/tests/test_structure_eye.py:158-161`。#232 `d91c4b49` から実行の時に読む物は無い）。行の型の正本は `structure-eye` の node の `output_format` と、受け付けが足す `route_reason`（11 節の 9）。

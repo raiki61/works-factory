@@ -1,0 +1,5 @@
+{
+  "description": "無人の run が判定の保留の問いに採った推しの文の配列（「問い <key>: <推し>」）。空の配列は無い",
+  "type": "array",
+  "items": {"type": "string"}
+}
