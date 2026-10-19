@@ -15,6 +15,8 @@ SCAN = "scan.json"                       # scan の返り {go_role, reason}（�
 READS = reads.evidence_name(ROLE)        # 読んだ証拠
 READS_INDEX = reads.index_name(ROLE)     # その索引
 PROMPT = f"{ROLE}-prompt-{{n}}.md"       # 組んだ指示（prompt.emit が書く）
+# 読んだ証拠を集める node が落ちた時に lib/reads.guarded が置く落ちた記録（名に時刻が入るので、名の型で引く）
+READS_FAILED = READS.removesuffix(".json") + "-failed-*.json"
 
 # この block が place に書く名前つきのファイル（scan が前の run の物を名で引いて消す）。組んだ指示は n を 1 から数えて在る分だけ
 OWN = (TREE, BRIEF, MATERIAL, EXCLUDED, DRAFTS, REJECTS, SCAN, READS, READS_INDEX)

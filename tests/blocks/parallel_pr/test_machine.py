@@ -247,6 +247,26 @@ class TakeCase(Base):
             self.assertIn(word, got["reason"], word)
             self.assertFalse((self.place / self.files.DRAFTS).exists(), word)
 
+    def test_excluded_file_listed_in_conflicts_but_absent_from_the_tree(self):
+        """conflicts の files に在っても作業ツリーに無いファイルの hunk は、行の数を数えずに拒む"""
+        hunk = OK["excluded"][0]
+        bad = {**OK, "conflicts": [{**OK["conflicts"][0], "files": ["stats.py", "gone.py"]}],
+               "excluded": [{**hunk, "file": "gone.py"}]}
+        got = self.take(bad)
+        self.assertFalse(got["ok"])
+        self.assertIn("作業ツリーに無い", got["reason"])
+        self.assertFalse((self.place / self.files.EXCLUDED).exists())
+
+    def test_reply_that_is_not_an_object_is_refused(self):
+        """JSON としては読めるが object でない返答（配列）は、落とさず拒む"""
+        for raw in ([], "x", 3):
+            got = self.take(raw)
+            self.assertEqual(got, {"ok": False, "reason": "返答が JSON のオブジェクトでない"}, raw)
+        got = self.accept([])
+        self.assertFalse(got["ok"])
+        self.assertIn("オブジェクト", got["reason"])
+        self.assertFalse((self.place / self.files.MATERIAL).exists())
+
     def test_role_reads_only(self):
         (self.repo / "stats.py").write_text("changed\n", encoding="utf-8")
         got = self.take(OK)

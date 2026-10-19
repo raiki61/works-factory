@@ -8,8 +8,8 @@ def draft_lines(rows) -> list:
             f"{r['note']}" for r in rows or [] if isinstance(r, dict) and r.get("note")]
 
 
-def lines(status: str, reason: str, material: dict, drafts, missing) -> list:
-    """頭の 1 行・下書きの行・読んだ証拠が欠けた時の 1 行"""
+def lines(status: str, reason: str, material: dict, drafts, missing, proof_failed: str = "") -> list:
+    """頭の 1 行・下書きの行・読んだ証拠が欠けた時の 1 行・読んだ証拠を集める node が落ちた時の 1 行"""
     if status == "failed":
         out = [f"並行 PR: 確かめが終わらなかった（{oneline.one_line(reason)}）"]
     else:
@@ -18,4 +18,6 @@ def lines(status: str, reason: str, material: dict, drafts, missing) -> list:
     out += draft_lines(drafts)
     if missing:
         out.append(f"並行 PR の役が渡し物を読んだ記録が無い（{'・'.join(map(str, missing))}）")
+    if proof_failed:
+        out.append(f"並行 PR: 読んだ証拠を集められなかった（{oneline.one_line(proof_failed)}）")
     return out

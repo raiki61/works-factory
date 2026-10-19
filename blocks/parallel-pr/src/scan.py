@@ -108,9 +108,11 @@ def _material(place, reply: dict) -> None:
 
 
 def _clear(place) -> None:
-    """この block が前の run で置いた名前つきのファイルを消す（place そのものと、ほかの名は消さない）"""
+    """この block が前の run で置いた名前つきのファイル（読んだ証拠の落ちた記録は時刻つきなので名の型で引く）を消す。place そのものと、ほかの名は消さない"""
     for name in files.OWN:
         (place / name).unlink(missing_ok=True)
+    for path in place.glob(files.READS_FAILED):
+        path.unlink()
     n = 1
     while (path := place / files.PROMPT.format(n=n)).is_file():
         path.unlink()

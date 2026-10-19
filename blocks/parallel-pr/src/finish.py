@@ -2,7 +2,8 @@
 （落とし穴 K1・K13）。
 
 - 役を諦めた（rolekit.given_up_reason が空でない）: status failed・stop_reason works:pr・material は not_run
-- 素材の控えが無い（scan が落ちた・役の輪が回らなかった）: status failed・stop_reason ""・material は not_run（無言の空を作らない）。ok は真のまま
+- 素材の控えが無い（scan が落ちた・役の輪が回らなかった）: status failed・stop_reason works:pr・material は not_run（無言の空を作らない）。
+  ok は偽（元の工場では役の輪が落ちると判定が止まった。止めは再開できる）
 - ほか: status は素材の札、reason は scan の reason
 """
 import json
@@ -28,6 +29,15 @@ def _pointer(place, name, pointer, *, nonempty=False):
     return pointer(path)
 
 
+def _proof_failure(place) -> str:
+    """読んだ証拠を集める node が落ちた記録（lib/reads.guarded が置く。名に時刻が入る）の訳。無ければ空"""
+    for path in sorted(pathlib.Path(place).glob(files.READS_FAILED), reverse=True):
+        doc = _read(path)
+        sources = doc.get("sources") if isinstance(doc, dict) else None
+        return str((sources or {}).get("why") or "訳が記録に無い") if isinstance(sources, dict) else "記録が読めない"
+    return ""
+
+
 def build(place, pointer) -> dict:
     place = pathlib.Path(place)
     scan = _read(place / files.SCAN)
@@ -40,7 +50,7 @@ def build(place, pointer) -> dict:
         status, stop, reason = "failed", stopby.PR, gave_up
         material = {"status": "not_run", "reason": gave_up}
     elif not isinstance(material, dict):
-        status, stop = "failed", ""
+        status, stop = "failed", stopby.PR
         reason = f"並行 PR の確かめが走らなかった（{said or '機械の道も役の返答の記録も無い'}）"
         material = {"status": "not_run", "reason": reason}
     else:
@@ -51,7 +61,8 @@ def build(place, pointer) -> dict:
     return {"ok": stop == "", "status": status, "stop_reason": stop, "reason": reason, "material": material,
             "excluded": _pointer(place, files.EXCLUDED, pointer), "drafts": _pointer(place, files.DRAFTS, pointer, nonempty=True),
             "reads": _pointer(place, files.READS, pointer), "downgrades": files.DOWNGRADES,
-            "report": report.lines(status, reason, material, drafts_file if isinstance(drafts_file, list) else [], missing)}
+            "report": report.lines(status, reason, material, drafts_file if isinstance(drafts_file, list) else [], missing,
+                                  _proof_failure(place))}
 
 
 def fallback(why: str) -> dict:

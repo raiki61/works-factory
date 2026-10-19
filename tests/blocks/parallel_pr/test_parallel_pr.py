@@ -7,15 +7,21 @@ scan → prep → 台本の返答 → take → read_proof → finish と回す�
 import hashlib
 import json
 import os
+import pathlib
 import stat
+import subprocess
+import sys
 import unittest
 from unittest import mock
+
+import yaml
 
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
 NAME = "parallel-pr"
+RECORDER = kit.ROOT / "bin" / "_lib" / "record-read.py"
 SOURCE = "def mean(xs):\n    return sum(xs)\n"
 LOOP = "pr-check-loop"
 GITHUB = "git@github.com:o/r.git"
@@ -33,7 +39,7 @@ OK_REPLY = {
 }
 
 
-class FlowCase(unittest.TestCase):
+class FlowBase(unittest.TestCase):
     def setUp(self):
         self.run = kit.Run(self, NAME)
         (self.run.repo / "stats.py").write_text(SOURCE, encoding="utf-8")
@@ -64,6 +70,8 @@ class FlowCase(unittest.TestCase):
     def read(self, name):
         return json.loads((self.run.artifacts / name).read_text(encoding="utf-8"))
 
+
+class FlowCase(FlowBase):
     def test_no_crossing_is_decided_by_the_machine(self):
         """交差なし → scan が役を起こさず、出口が clean。外す hunk は空の控えで置く"""
         got = self.scan(changed='["unrelated.py"]')
@@ -126,14 +134,15 @@ class FlowCase(unittest.TestCase):
         self.assertEqual(got["go_role"], False)
         self.assertIn("入力が読めない", got["reason"])
         fin = self.finish()
-        self.assertEqual((fin["ok"], fin["status"], fin["stop_reason"]), (True, "failed", ""))
+        self.assertEqual((fin["ok"], fin["status"], fin["stop_reason"]), (False, "failed", "works:pr"))   # 素材の控えが無い
         self.assertEqual(fin["material"]["status"], "not_run")
         self.assertIn("入力が読めない", fin["material"]["reason"])
 
-    def test_exit_without_any_record_says_not_run(self):
-        """scan も役も回っていない place → failed と not_run の素材（無言の空を作らない）。ok は真のまま"""
+    def test_exit_without_any_record_stops_with_works_pr(self):
+        """scan も役も回っていない place（役が再試行の後に落ちた・scan が全部落ちた）→ failed と not_run の素材に、止める語 works:pr。
+        元の工場では役の輪が落ちると判定が止まった（再開できる止め）"""
         fin = self.finish()
-        self.assertEqual((fin["ok"], fin["status"], fin["stop_reason"]), (True, "failed", ""))
+        self.assertEqual((fin["ok"], fin["status"], fin["stop_reason"]), (False, "failed", "works:pr"))
         self.assertEqual(fin["material"]["status"], "not_run")
         self.assertIn("走らなかった", fin["material"]["reason"])
         self.assertEqual((fin["excluded"], fin["drafts"], fin["reads"]), (None, None, None))
@@ -160,3 +169,100 @@ class FlowCase(unittest.TestCase):
         self.assertFalse((self.run.artifacts / "pr-downgrades.json").exists())
         self.assertFalse((self.run.artifacts / "rejects-pr-check.json").exists())
         self.assertTrue((self.run.artifacts / "keep.txt").is_file(), "ほかの名は消さない")
+
+
+class ReadsCase(FlowBase):
+    """読んだ証拠の node pr-check-reads（元 tests/workflows/test_judge.py の ReadsTest の写し）"""
+
+    def setUp(self):
+        super().setUp()
+        self.config = hermetic.tmpdir(self) / "claude"
+        self.scan(changed='["stats.py"]')
+        self.brief = self.run.artifacts / "pr-brief.json"
+        at = self.brief.stat().st_mtime - 60
+        os.utime(self.brief, (at, at))
+
+    def read_proof(self) -> dict:
+        """read_proof を、隔離した設定の置き場（CLAUDE_CONFIG_DIR）を渡して子のプロセスで回す（kit.Run.script は INPUTS_ しか渡さない）"""
+        done = subprocess.run([sys.executable, str(kit.BLOCKS / NAME / "scripts" / "read_proof.py")], cwd=self.run.repo, text=True,
+                              encoding="utf-8", capture_output=True,
+                              env=hermetic.child_env(**self.run.environ(), CLAUDE_CONFIG_DIR=str(self.config)))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return json.loads(done.stdout)
+
+    def hook(self, path):
+        event = {"session_id": "s-1", "tool_name": "Read", "tool_input": {"file_path": str(path)}, "tool_use_id": "toolu_Read",
+                 "cwd": str(self.run.repo), "hook_event_name": "PostToolUse"}
+        done = subprocess.run([sys.executable, str(RECORDER), str(self.config / "works-reads")], input=json.dumps(event), text=True,
+                              encoding="utf-8", capture_output=True, cwd=str(self.run.repo),
+                              env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1"))
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def test_pr_check_must_read_its_brief(self):
+        """渡し物を読んでいなければ missing に入り、出口の報告に 1 行出る。読めば空になり、索引に読んだ行が残る"""
+        (self.config / "works-reads").mkdir(parents=True)
+        self.hook(self.run.repo / "stats.py")
+        out = self.read_proof()
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(out["missing"], [str(self.brief)])
+        self.assertIn(f"並行 PR の役が渡し物を読んだ記録が無い（{self.brief}）", self.finish()["report"])
+        self.hook(self.brief)
+        out = self.read_proof()
+        self.assertEqual(out["missing"], [], out)
+        index = pathlib.Path(out["index_file"])
+        self.assertEqual(index.parent, self.run.artifacts)
+        doc = json.loads(pathlib.Path(json.loads(index.read_text(encoding="utf-8"))["pr-check"]).read_text(encoding="utf-8"))
+        self.assertEqual([row["path"] for row in doc["rows"]], [str(self.brief)])
+        self.assertTrue(all("読んだ記録が無い" not in line for line in self.finish()["report"]))
+
+    def test_pr_check_reads_without_record_root_does_not_fail(self):
+        """記録の根が無い（フックを置いていない起動）時も落ちず、読んでいないとも言わない"""
+        out = self.read_proof()
+        self.assertEqual((out["ok"], out["missing"]), (True, []), out)
+        self.assertEqual(self.read("reads-pr-check.json")["sources"], {"hook": "none", "why": "記録の根が無い（読んだ証拠のフックを置いていない起動）"})
+
+    def test_proof_failure_is_reported_and_cleaned_by_the_next_run(self):
+        """集める node が落ちた回（渡し物が消えた）: ok 偽で返り、時刻つきの落ちた記録が残り、出口の報告に 1 行出る。
+        次の scan はその記録を型の名で引いて消す（積もらない）"""
+        self.brief.unlink()
+        out = self.read_proof()
+        self.assertIs(out["ok"], False, out)
+        self.assertTrue(out["reason"])
+        self.assertEqual(len(list(self.run.artifacts.glob("reads-pr-check-failed-*.json"))), 1)
+        self.assertTrue(any(line.startswith("並行 PR: 読んだ証拠を集められなかった（") for line in self.finish()["report"]))
+        self.scan(changed='["unrelated.py"]')
+        self.assertEqual(list(self.run.artifacts.glob("reads-pr-check-failed-*.json")), [])
+
+
+class WiringCase(unittest.TestCase):
+    """YAML の配線と、役の返答の形（元 tests/workflows/test_judge.py の同名の試験の写し）"""
+
+    def setUp(self):
+        doc = yaml.safe_load((kit.BLOCKS / NAME / "works-factory-parallel-pr.yaml").read_text(encoding="utf-8"))
+        self.nodes = {}
+        for node in doc["nodes"]:
+            self.nodes[node["id"]] = node
+            for inner in (node.get("loop_group") or {}).get("nodes", []):
+                self.nodes[inner["id"]] = inner
+
+    def rejected(self, reply):
+        kit.load(NAME, "files")   # lib/graphloops を sys.path に足す
+        from engine.schema import validate_schema
+        return validate_schema(reply, self.nodes["pr-check"]["output_format"])
+
+    def test_pr_check_reads_runs_after_the_role_on_the_roles_rounds(self):
+        """役の輪の後に走り（先に走ると読む前の記録で欠けと言う）、輪が落ちた回も走り、役を起こした回だけ走る"""
+        node, role = self.nodes["pr-check-reads"], self.nodes[LOOP]
+        self.assertIn(LOOP, node["depends_on"])
+        self.assertEqual(node["trigger_rule"], "one_success")
+        self.assertEqual(node["when"], role["when"])
+
+    def test_pr_check_reply_outside_the_type_is_rejected(self):
+        """excluded が無い・行の番号が 1 より小さい返答を、output_format が拒む"""
+        self.assertEqual(self.rejected(OK_REPLY), [])
+        self.assertTrue(self.rejected({k: v for k, v in OK_REPLY.items() if k != "excluded"}))
+        self.assertTrue(self.rejected(dict(OK_REPLY, excluded=[dict(OK_REPLY["excluded"][0], start=0)])))
+
+
+if __name__ == "__main__":
+    unittest.main()
