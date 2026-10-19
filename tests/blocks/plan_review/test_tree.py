@@ -138,12 +138,13 @@ class TreeCase(TreeBase):
         self.assertIn("stats.py: item 1, 2", syn)
 
     def test_brief_carries_only_its_item_inline(self):
-        """元 test_brief_carries_only_its_item_inline: 下請けの指示（items/brief.md）は審査の決まり・独立設計の節・Repository の行を持ち、
-        項目の材料のファイルは自分の項目だけを持つ（全部の項目で同じ指示は 1 本のファイル）"""
+        """元 test_brief_carries_only_its_item_inline: 下請けの指示（items/brief.md）は審査の決まり・独立設計の節・Repository の行と、
+        根拠を読む版で取れの頼み（元 planblk.brief_head が貼った plan-review.md の :63）を持ち、項目の材料のファイルは自分の項目だけを
+        持つ（全部の項目で同じ指示は 1 本のファイル）"""
         self.prepped()
         brief = self.brief()
         for part in ("## What to look at", "## How to write the holes", self.material.MAT_HEADS["design"],
-                     f"Repository: {self.flow.repo}"):
+                     f"Repository: {self.flow.repo}", "**Take your evidence from the read version**"):
             self.assertIn(part, brief)
         one = self.item_text(1)
         self.assertTrue(one.startswith(self.heads["item"].format(n=1)), one[:80])

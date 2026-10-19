@@ -14,6 +14,8 @@ Where the rules below speak of "the material", read your item file and this file
 
 {repository_line}
 
+{part:read-version}
+
 <!-- if framing -->
 Judge's view: {framing}
 <!-- end framing -->
@@ -38,7 +40,7 @@ From the second pass on, compare with the design only the sentences the diff add
 
 ## How each sub-agent answers
 
-An item's sub-agent answers every uncovered hit of its item (the list "Uncovered hits:" of its ripple list) with exactly one of `covered` (this item covers it within its scope; say where), `no_effect` (it has no effect; say why), or `block` (a hole; raise it in `faces` with severity block). Write `why` for each hit in 10 characters or more, and do not settle it with "same as above". Copy the item's `unit_keys` into `faces[].unit_keys` word for word (the names, not integers). `resolved` is the keys of the earlier pass's holes that needed an answer (blocks and owed suggests) that are now gone (`[]` if none). Make the answer one JSON object that matches the JSON Schema below, and Write it to the file your item file names after "Answer file:" (write nowhere else; when you rewrite it, use the same file). After writing it, return one line in your last message (do not copy the content of the answer).
+An item's sub-agent answers every uncovered hit of its item (the list "Uncovered hits:" of its ripple list) with exactly one of `covered` (this item covers it within its scope; say where), `no_effect` (it has no effect; say why), or `block` (a hole; raise it in `faces` with severity block). Write `why` for each hit in 10 characters or more, and do not settle it with "same as above". A name marked `common name: only the count` has hits in so many files that its callers are not all listed: read the code and decide whether the fix touches them. Copy the item's `unit_keys` into `faces[].unit_keys` word for word (the names, not integers). `resolved` is the keys of the earlier pass's holes that needed an answer (blocks and owed suggests) that are now gone (`[]` if none). Make the answer one JSON object that matches the JSON Schema below, and Write it to the file your item file names after "Answer file:" (write nowhere else; when you rewrite it, use the same file). After writing it, return one line in your last message (do not copy the content of the answer).
 
 ```json
 {item_schema}

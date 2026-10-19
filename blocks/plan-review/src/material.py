@@ -365,7 +365,7 @@ def _ripple_names(rows: list) -> list[str]:
 
 
 def ripple_section(doc: dict, n: int) -> str:
-    """項目 n の波及の一覧の節（元 ripple.section(doc, n) と item_text。札は英語。頼み SCOPE_ASK と ERROR_NOTE は md の parts/diff-ask.md へ）。
+    """項目 n の波及の一覧の節（元 ripple.section(doc, n) と item_text。札は英語。頼み SCOPE_ASK と ERROR_NOTE と COMMON_NOTE の「読んで決めよ」は md の parts/diff-ask.md と parts/item-brief.md へ）。
     一覧に誤りが在れば札 ripple list missing と訳"""
     head = LABELS["ripple"].format(n=n)
     if (doc or {}).get("error"):
@@ -377,7 +377,7 @@ def ripple_section(doc: dict, n: int) -> str:
     lines += _ripple_names(it.get("names") or []) or ["- no name of the target"]
     lines += ["", "Uncovered hits:"]
     removed = {"removed", "removed_test"}
-    lines += [f"- {h['id']}: {h['kind']} {h['at']} (name {h['name']})" + (" (left over after a removed name)" if h["kind"] in removed else "")
+    lines += [f"- {h['id']}: {h['kind']} {h['at']} (name {h['name']})" + (" (left over after a removed name: a reference that breaks once it is removed)" if h["kind"] in removed else "")
               for h in it.get("uncovered") or []] or [f"- {LABELS['none']}"]
     return "\n".join(lines)
 
