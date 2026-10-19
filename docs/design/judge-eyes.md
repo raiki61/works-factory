@@ -1,9 +1,9 @@
 # graph の設計書: judge（判定のまとめ）と eyes（独立の目のまとめ）
 
+- 読む人: 2 つの graph を作る実装の役（作るのは README 11.1 の作る順の 4 番〔全部の block の後〕。急ぎは無い）と、作った後に直す人。どちらもこの文書の決めのとおりに作り・直す。パスは、組み込みで pack が `workflows/` に入れ替わった後の形で書く（古いサブグラフの `workflows/judge/`・`workflows/eyes/` は組み込みで消え、同じパスに新しい graph が入る）。
 - 何の話か: 組み込みの前の judge のサブグラフ（古い `workflows/judge/`。YAML 2305 行）を 8.1 の block を並べる graph `workflows/judge/` に、組み込みの前の eyes のサブグラフ（古い `workflows/eyes/`）を r1〜r4 と structure（after）を並べる graph `workflows/eyes/` に作り直す設計。どちらも line から 1 つの include で呼ばれる（README 8.7。Archon 同梱の sdlc の `deliver` が `implement`・`review` を include で組む形）。型は [README.md](README.md) の 1 節（graph の定義と形の直し 7）。line の側の配線は [line.md](line.md)。
 - 決めたこと: 2 つの graph は、block をいつ回すか（`when:`）・並べ方・飛ばされうる値の受け直し（埋め P2・P8）・まとめの判定（judge の `ready` と、止める訳が重なった時にどの止めの語〔`works:premises` など、run を止めた訳を表す語〕を返すかの順〔1.4〕、eyes の `ok`）だけを持つ。AI の node と観点の計算は持たない。判定の裏取り（verify の block。判定を別の役が確かめ直す）を回すかは、line が段（run の頭の深さ: 軽量・標準・重厚）ごとに引いた真偽の表 `verify_by_tier` を port で受け、head-depth の block が返した段でその表を引くだけにする（深さの表は line に 1 つ。node と `when:` はこの文書の 1.5）。再審は judge の graph を通らない（line が diagnose を直に include する）。守りのパスの当たり（差分が、人の確かめなしに変えてはならないパスに触れた件。README の語「守りのファイルと当たり」）を数えるのは eyes から merge へ移った（README 13 節）ので、eyes の `ok` は目の判定だけで決まる。
 - 持ち主（リポジトリの owner）に求めること: なし。README・各 block の設計書・今のコードで決まった（3 節）。2 波目の設計書（README 11.1 の作る順の 2 つ目の組。diagnose・verify・r1〜r4）は書き終える前に置かれたので、配線はそれぞれの設計書の 1.2（port）と 1.6 に合わせた。残る確かめは 4 節（未確認の一覧。どれも持ち主の答えを待つ物ではない）。
-- 読む人: 2 つの graph を作る実装の役（作るのは README 11.1 の作る順の 4 番〔全部の block の後〕。急ぎは無い）と、作った後に直す人。どちらもこの文書の決めのとおりに作り・直す。パスは、組み込みで pack が `workflows/` に入れ替わった後の形で書く（古いサブグラフの `workflows/judge/`・`workflows/eyes/` は組み込みで消え、同じパスに新しい graph が入る）。
 
 語は README の頭の物と line.md の頭の物（始めの記録・配る値・受け皿・返し・段）を使う。ほかに:
 
