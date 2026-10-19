@@ -316,7 +316,7 @@ def unknown_lines(row_asks: list) -> list:
     """頭の深さの行ごとの未知の種類の行（種類が決まっている行だけ）。種類の語は字のまま"""
     out = []
     for it in row_asks:
-        if not headdepth._known(it.get("unknown")):
+        if not headdepth.known(it.get("unknown")):
             continue
         where = oneline.one_line(it.get("where") or "")
         place = (f"place {where}「{oneline.one_line(it.get('code_quote') or '')}」" if where

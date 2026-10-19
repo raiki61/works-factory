@@ -192,7 +192,7 @@ def recorded_rows_text(rows) -> tuple[str, bool]:
     if of["push"]:
         out.append("- Pushes the run took on its own, with no person answering, at an approval node or for a held question of the judgment (not a person's answer):")
         out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" for r in of["push"]]
-    out.append("- Settled points (an earlier check):" + ("" if of["settled"] else " none"))
+    out.append("- Settled points (from the decision records):" + ("" if of["settled"] else " none"))
     out += [f"  - name `{r['name']}`: {_head(r.get('text'))}" if r.get("name")
             else f"  - (no `where`, so it cannot be named) {_head(r.get('text'))}" for r in of["settled"]]
     return "\n".join(out), not any(r.get("name") for r in rows)

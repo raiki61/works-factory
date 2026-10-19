@@ -16,6 +16,7 @@ BLOCK = "line"
 rounds = kit.load(BLOCK, "rounds")
 files = kit.load(BLOCK, "files")
 import converge  # noqa: E402
+import judgmark  # noqa: E402
 
 U1, U2 = "u1", "u2"
 PRIOR_SHAPE_REQUIRED = ("passes",)                   # plan-review の設計書の 1.5 の PRIOR_SHAPE の required
@@ -163,7 +164,7 @@ class OwedCase(unittest.TestCase):
 
     def test_no_owed_unit_or_unreadable_judgment_does_not(self):
         got = self.owed(self.put("judge/judgment.json", {"units": [{"key": U1, "label": "nit"}], "questions": []}))
-        self.assertEqual((got["owed"], got["why"]), (False, rounds.NOTHING_OWED))
+        self.assertEqual((got["owed"], got["why"]), (False, judgmark.NOTHING_OWED))
         got = self.owed("null")
         self.assertFalse(got["owed"])
         self.assertIn("判定が読めない", got["why"])

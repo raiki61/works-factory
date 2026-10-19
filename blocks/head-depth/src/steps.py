@@ -35,8 +35,8 @@ NODE = "head-depth"        # AI の node の id（prompts/head-depth.md）
 LIGHT, STANDARD, HEAVY, HEADS = headdepth.LIGHT, headdepth.STANDARD, headdepth.HEAVY, headdepth.HEADS
 # port thickness の語（choice の語は ASCII だけ。形の検査 FORM）→ 名指しの段（auto は名指さない）。段の並びは HEADS と同じ
 THICKNESS = {"auto": "", "light": LIGHT, "standard": STANDARD, "heavy": HEAVY}
-NONE, CAUSE, SHAPE, SCOPE = "無し", "原因", "形", "範囲"
-UNKNOWNS = {NONE: LIGHT, CAUSE: STANDARD, SHAPE: STANDARD, SCOPE: HEAVY}   # 未知の種類 → 段。役の output_format の unknown の enum の並び
+# 未知の種類の語と種類 → 段の表は diagnose・plan も読むので lib/headdepth に在る（役の output_format の unknown の enum の並び）
+NONE, CAUSE, SHAPE, SCOPE, UNKNOWNS = headdepth.NONE, headdepth.CAUSE, headdepth.SHAPE, headdepth.SCOPE, headdepth.UNKNOWNS
 WHERE_SPAN = 30   # 軽量の根拠の where の行の範囲の幅の上限。直す所を 1 画面で名指せない範囲はファイルを指すのと変わらない
 NO_ROWS = "依頼の行が無い（行ごとの未知の種類を引けない）"
 NO_REPLY = "役の返答が受け付けに届いていない（役が走らなかったか落ちた）"
@@ -159,14 +159,7 @@ def depth_prompt(out) -> dict:
 
 
 # ---------------------------------------------------------------- 受け付け
-def _known(kind) -> bool:
-    return isinstance(kind, str) and kind in UNKNOWNS
-
-
-def tier_of(items) -> str:
-    """行の並びの一番重い種類の段（HEADS の順）。引けない（行が無い・表に無い種類しか無い）時は標準"""
-    tiers = [UNKNOWNS[it["unknown"]] for it in items or [] if isinstance(it, dict) and _known(it.get("unknown"))]
-    return max(tiers, key=HEADS.index, default=STANDARD)
+_known, tier_of = headdepth.known, headdepth.tier_of
 
 
 def _check_item(it: dict, rows: list, repo, span=WHERE_SPAN, code_optional=False) -> list:

@@ -432,9 +432,9 @@ class RepoLineCase(PlaceCase):
         self.assertEqual(self.values(base="def")[1:3], ("def", "def"))
         self.assertEqual(self.values()[1:3], ("HEAD", "HEAD"))
 
-    def test_review_md_is_the_lib_viewpoint_file(self):
+    def test_review_md_is_the_shared_viewpoint_file(self):
         review_md = pathlib.Path(self.values()[3])
-        self.assertEqual(review_md, ports.lib_root() / "REVIEW.md")
+        self.assertEqual(review_md, ports.SHARED / "prompts" / "REVIEW.md")
         self.assertTrue(review_md.is_file())
 
 
@@ -934,15 +934,15 @@ class FilesCase(PlaceCase):
         self.assertNotIn(files.CURRENT_ROUND, own, "place の直下の今の周の番号は消さない")
         self.assertTrue(all("/" not in n for n in own))
 
-    def test_round_dir_and_current_round(self):
+    def test_round_dir_and_round_no(self):
         self.assertEqual(files.round_dir(self.place, 2), self.place / "r2")
-        self.assertEqual(files.current_round(self.place), 1, "無ければ 1")
+        self.assertEqual(files.round_no(self.place), 1, "無ければ 1")
         for doc, want in (({"round": 3}, 3), ({"round": True}, 1), ({"round": 0}, 1), ({"round": "2"}, 1), (["x"], 1)):
             with self.subTest(doc=doc):
                 files.write_json(self.place / files.CURRENT_ROUND, doc)
-                self.assertEqual(files.current_round(self.place), want)
+                self.assertEqual(files.round_no(self.place), want)
         (self.place / files.CURRENT_ROUND).write_text("{壊れ", encoding="utf-8")
-        self.assertEqual(files.current_round(self.place), 1)
+        self.assertEqual(files.round_no(self.place), 1)
 
     def test_read_round_defaults(self):
         self.assertEqual(files.read_round(self.place / "r7"), {"round": 7, "mode": "plan", "go": False, "why": "", "items": []})

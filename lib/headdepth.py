@@ -1,12 +1,14 @@
 """run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）の段の語と控えの読み（README 9.3 の KEEP。integration.md 4.5-6・4.3-5）。
-使うのは head-depth と line。
+使うのは head-depth・line と、行ごとの未知の種類を読む diagnose・plan。
 
 run 全体の深さの段（軽量・標準・重厚）の語と並び HEADS はここ 1 か所（前は lib/depth.py。depth は line へ移る）。依頼の行ごとの
-未知の種類 → 段の表・事実の測り・機械の止め・役の材料・返答の照らし（前の facts・gate・brief・check・tier_of・UNKNOWNS）は
-head-depth の src/steps.py、種類ごとの受け手への指示の文（前の ASKS・section）は読み手の diagnose・plan の md、報告の冒頭 2 の行
+未知の種類の語と種類 → 段の表（NONE・CAUSE・SHAPE・SCOPE・UNKNOWNS・known・tier_of）は head-depth・diagnose・plan の 3 つが
+読むのでここ。事実の測り・機械の止め・役の材料・返答の照らし（前の facts・gate・brief・check）は head-depth の src/steps.py、種類ごとの受け手への指示の文（前の ASKS・section）は読み手の diagnose・plan の md、報告の冒頭 2 の行
 （前の report_line）は line の src/ に在る。
 
 - LIGHT・STANDARD・HEAVY・HEADS: 段の語と、軽い順の並び
+- NONE・CAUSE・SHAPE・SCOPE・UNKNOWNS: 依頼の行ごとの未知の種類の語と、種類 → 段の表。known(kind): 表の種類か。
+  tier_of(items): 行の並びの一番重い種類の段（引けなければ標準）
 - RECORD: 判定の置き場の控えの名（字をここに直に書く。前は judgebeside.DEPTH_FILE）
 - record(depth, why, *, items, facts_doc, groups): 控えの形。groups は役の群の選びを launchgroups.choices で照らした行（既定のまま・
   拒んだ時は空）。この run では効かず記録だけ
@@ -35,6 +37,20 @@ STANDARD = "標準"
 HEAVY = "重厚"
 HEADS = (LIGHT, STANDARD, HEAVY)
 RECORD = "depth-head.json"
+NONE, CAUSE, SHAPE, SCOPE = "無し", "原因", "形", "範囲"
+UNKNOWNS = {NONE: LIGHT, CAUSE: STANDARD, SHAPE: STANDARD, SCOPE: HEAVY}   # 未知の種類 → 段。役の output_format の unknown の enum の並び
+
+
+def known(kind) -> bool:
+    return isinstance(kind, str) and kind in UNKNOWNS
+
+
+def tier_of(items) -> str:
+    """行の並び（各行の `unknown` が UNKNOWNS の鍵）から、一番重い種類の段を HEADS の順で引く。引けない（行が無い・表に無い種類しか
+    無い）時は標準"""
+    tiers = [UNKNOWNS[it["unknown"]] for it in items or [] if isinstance(it, dict) and known(it.get("unknown"))]
+    return max(tiers, key=HEADS.index, default=STANDARD)
+
 NO_RECORD = "run の頭の深さの控えが無い"
 
 

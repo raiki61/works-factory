@@ -680,7 +680,7 @@ class BriefCase(unittest.TestCase):
         run = PlanRun(self, diff_base=FORK)
         run.include()
         self.assertIn(f"Repository: {run.repo.resolve()} (version read: `{run.base}`)  BASE: `{FORK}`  "
-                      f"Viewpoint source: {base.ROOT / 'lib' / 'REVIEW.md'}", self.prompt(run))
+                      f"Viewpoint source: {kit.SHARED / 'prompts' / 'REVIEW.md'}", self.prompt(run))
 
     def test_excluded_range_named(self):
         run = PlanRun(self)

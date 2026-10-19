@@ -17,11 +17,9 @@
   out_of_scope に当たる）。hint なら、ほかの項目の out_of_scope に当たるがある項目の範囲には入るパスに OWNER_HINT を足す
 - approved(items, *, by): 承認済みの修正案の項目の値 items（planmarks.approved_items の形。呼び手が渡す）を照らせるか
 - scope(b, *, items, ruled, by, agreed, round_): 受け付けが照らす値 ({items: 合意を足した項目, permits: 許しのパス, rule: OOS_ANY,
-  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（check_paths・planscope.check）と役の指示書（scope_text）と
+  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（check_paths・planscope.check）と
   役の brief の範囲の欄（fixboard.scope_brief）が同じ値を引く 1 か所
 - fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く（rule は OOS_MINE）
-- scope_text(got): 役の指示書に貼る節（SCOPE_HEAD）。scope の値の out_of_scope の決まりの文（rule）と、項目の範囲・out_of_scope・
-  許しのパスを字のまま並べる
 - test_ids(it): 項目の足してよい新しいテストの id（修正の段の受け付けの planscope.problems と指示書が同じ値を引く）
 - tests_text(got, edits, frozen): 修正役の指示書に貼る節（TESTS_HEAD）。足してよい新しいテスト（test_ids）・本体を変えてよい既存の
   テスト（conflict.edit_permits）・凍ったテスト（factchecks.frozen_tests）を字のまま並べる
@@ -44,7 +42,6 @@ OWNER_HINT = "（項目 {nums} の範囲には入る。その項目の単位の 
 LIFTED = "out_of_scope_lifted"   # with_agreed が項目の写しに足す欄: 合意でその項目の out_of_scope から外したパス（字のまま）
 NO_PLAN = "承認済みの修正案か works の欄の控えが無い"
 NO_SCOPE = "範囲の欄の無い控え（217 番の形の共有ボード）"
-SCOPE_HEAD = "## 変えてよいパスと触らない物（受け付けがこの値で照らす）"
 TESTS_HEAD = "## 変えてよいテストと凍ったテスト（受け付けがこの名で照らす）"
 
 
@@ -223,28 +220,6 @@ def fix_scope(b, pass_: str, *, items, agreed=None, round_: int = 1) -> tuple[di
 
 def _paths_line(paths) -> str:
     return "、".join(f"`{p}`" for p in paths) or "無し"
-
-
-def scope_text(got) -> str:
-    """役の指示書に貼る節（SCOPE_HEAD）: scope の値 got の out_of_scope の決まりの文（rule）と、項目ごとの範囲（allowed_paths の
-    glob・tests と rewrite_tests の id のファイル）・out_of_scope・合意で外したパス（LIFTED）と、全部の項目に効く許しのパスを字のまま。
-    got が None なら空"""
-    if got is None:
-        return ""
-    lines = [SCOPE_HEAD, "", "受け付けは、変えたパスをこの値で照らし、外れを拒む。" + got["rule"]
-             + "範囲の相談で許されたパスとテストの許しも、ここに入っている。", ""]
-    for it in got["items"]:
-        units = "、".join(str(k) for k in it.get("unit_keys") or []) or "無し"
-        oos = [f"`{r['glob']}`" + (f"（{r['why']}）" if r.get("why") else "") for r in _oos_rows(it)]
-        lines += [f"- 項目 {it.get('item')}（単位: {units}）",
-                  f"  - allowed_paths: {_paths_line(globs(it))}",
-                  f"  - テストのファイル（tests・rewrite_tests の id）: {_paths_line(planmarks.test_paths(it))}",
-                  f"  - out_of_scope: {'、'.join(oos) or '無し'}"]
-        if it.get(LIFTED):
-            lines.append(f"  - 相談で out_of_scope から外したパス: {_paths_line(it[LIFTED])}")
-    lines.append(f"- 全部の項目に効く許し（テストの変更の許し・直す裁定が足したパス。out_of_scope には勝たない）: "
-                 f"{_paths_line(got['permits'])}")
-    return "\n".join(lines)
 
 
 def tests_text(got, edits: dict, frozen=None) -> str:

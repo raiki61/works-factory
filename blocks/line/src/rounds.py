@@ -480,61 +480,8 @@ def stuck_push_due(doc: dict, *, unattended: bool, design_only: bool) -> bool:
 
 
 # ---------------------------------------------------------------- 計画の周の前の支度（node owed）
-# 計画の 1 回目の周が修正案の役を起こすかを、plan の block の周を開く口（plan の block の intake）と同じ入力の同じ並びで決める。決めの
-# 元は lib/planfile.py の round_inputs・held_why（docs/design/line.md の 13 節は lib に残すと書いたが、plan の block が自分の src へ
-# 写したので、line も同じ式を写す。plan の側の写しと字を揃える）。名は元のまま（stuck_reason は往復の記録の口と重なるので
-# plan_stuck_reason）
-NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"
-PLAN_STUCK = "修正案の行き止まり: 必ず案に入れる単位が開いていない"
-STUCK_WHY = ("受け付けの写しは開いていない単位を受けず、義務からも外さないので、案の形では閉じない。人が承認ノードで問いの答えを直すか、"
-             "単位を開く")
-LEDGER = "_ledger"   # 判定の dict に添える問いの台帳の見え方（gatemarks.Ledger）の鍵。判定の欄ではない
-
-
-def _rows_of(doc, key: str) -> list:
-    got = doc.get(key) if isinstance(doc, dict) else None
-    return [r for r in got if isinstance(r, dict)] if isinstance(got, list) else []
-
-
-def is_open(u) -> bool:
-    """開いた単位（label が block か、suggest で disposition が do-now）"""
-    return u.get("label") == "block" or (u.get("label") == "suggest" and u.get("disposition") == "do-now")
-
-
-def _owed_units(judgment) -> set:
-    import gatemarks
-    got = judgment.get(LEDGER)
-    return gatemarks.duty(got if isinstance(got, gatemarks.Ledger) else gatemarks.ledger(judgment))
-
-
-def units_of(judgment) -> dict:
-    return {u["key"]: u for u in _rows_of(judgment, "units") if isinstance(u.get("key"), str)}
-
-
-def slots(judgment) -> list:
-    return [k for k, u in units_of(judgment).items() if is_open(u)]
-
-
-def plan_slots(judgment) -> tuple:
-    units = units_of(judgment)
-    return _owed_units(judgment), {k for k, u in units.items() if is_open(u)}, units
-
-
-def plan_stuck_reason(judgment) -> str:
-    owed, opened, _ = plan_slots(judgment)
-    stuck = sorted(owed - opened)
-    if not stuck:
-        return ""
-    names = slots(judgment)
-    items = "・".join(f"no {names.index(k) + 1}（{k}）" if k in names else f"no の一覧に無い単位（{k}）" for k in stuck)
-    return f"{PLAN_STUCK}: {items}。{STUCK_WHY}"
-
-
-def held_why(judgment) -> str:
-    """判定の周が修正案の役を起こさない訳: 判定が読めない・直す義務の単位が無い（NOTHING_OWED）・行き止まりの単位が在る。起こすなら空"""
-    if not isinstance(judgment, dict):
-        return "判定が読めない"
-    return NOTHING_OWED if not _owed_units(judgment) else plan_stuck_reason(judgment)
+# 計画の 1 回目の周が修正案の役を起こすかを、plan の block の周を開く口（plan の block の intake）と同じ式で決める。式は lib/judgmark.py
+# の held_why（plan・diagnose・verify と共に使う。使い手 2 つ以上は lib）。line の stuck_reason（往復の記録）とは別物
 
 
 def _pointed(raw):
@@ -545,8 +492,8 @@ def _pointed(raw):
 
 def owed_why(judgment_raw, ties_raw, materials_raw, world_raw, *, answers, takes_push: bool) -> str:
     """計画の 1 回目の周が修正案の役を起こさない訳（起こすなら空）。入力が読めない（判定・世界の解の行）なら「<名>が読めない（<訳>）」を
-    「。」で繋いだ訳、読めれば held_why（問いの台帳の見え方は、依頼の answers と結びと素材の状態と無人の推し。gatemarks.ledger_files）"""
-    import gatemarks
+    「。」で繋いだ訳、読めれば judgmark.held_why（問いの台帳の見え方は、依頼の answers と結びと素材の状態と無人の推し。judgmark.with_ledger）"""
+    import judgmark
     import worldmark
     bad, doc = [], None
     try:
@@ -564,11 +511,9 @@ def owed_why(judgment_raw, ties_raw, materials_raw, world_raw, *, answers, takes
         bad.append(f"world が読めない（{e}）")
     if bad:
         return "。".join(bad)
-    ties, mats = _pointed(ties_raw), _pointed(materials_raw)
-    judgment = ({**doc, LEDGER: gatemarks.ledger_files(doc, ties_file=ties, materials_file=mats,
-                                                       answers=[a for a in answers if isinstance(a, dict)], takes_push=takes_push)}
-                if isinstance(doc, dict) else None)
-    return held_why(judgment)
+    judgment = judgmark.with_ledger(doc, ties_file=_pointed(ties_raw), materials_file=_pointed(materials_raw), answers=answers,
+                                    takes_push=takes_push)
+    return judgmark.held_why(judgment)
 
 
 def start_items(answer) -> list:

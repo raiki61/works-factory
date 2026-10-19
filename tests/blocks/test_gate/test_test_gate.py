@@ -258,7 +258,7 @@ class EvidenceRowsCase(unittest.TestCase):
         rows = json.loads((ROOT / "tests" / "e2e" / "evidence.json").read_text(encoding="utf-8"))
         heads = [p.removeprefix("- ") for p in (certify.RUN_ROW, certify.LOG_ROW)]
         texts = [r["text"] for r in rows if str(r.get("where", "")).endswith("/evidence.md")
-                 and str(r.get("where")).startswith("parent/test-gate/") and any(h in str(r.get("text")) for h in heads)]
+                 and str(r.get("where")).startswith(("parent/test-gate-base/", "parent/test-gate-final/")) and any(h in str(r.get("text")) for h in heads)]
         self.assertTrue(texts)
         for text in texts:
             with self.subTest(text):

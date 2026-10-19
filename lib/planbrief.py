@@ -33,8 +33,6 @@
 - by_unit_at: 今の周の控えの brief を単位ごとに {unit_key: [{item, file（絶対パス）}]}（切らない・書き戻さない。食い違いの申し出の
   brief_vs_judgment の確かめが読む。置き場が無い・控えが無い・壊れているなら {}）
 - for_units: 単位の key に当たる項目の行だけ
-- head_text: 指示書の頭に置く、brief を名指す節（今直す単位を渡すと、項目のほかの単位に「今は直すな」と添える。単位の書き方は unit_note。
-  TDD の輪は今の単位と一緒に直す同じ項目の単位も今直す単位に渡す）
 - files: 今の周の brief のファイル（読んだ証拠に足す）
 """
 from __future__ import annotations
@@ -81,7 +79,7 @@ UNIT_HEAD = "### {key}"
 
 
 UNSCOPED = "無し（この案は範囲を決めていない。範囲では縛らない）"   # 範囲の欄の無い項目（依頼 218 より前の案）の範囲の節
-NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（head_text）
+NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（brief を名指す文は fix の src/rules.py が組む）
 
 
 class LedgerBroken(ValueError):
@@ -474,27 +472,6 @@ def for_units(briefs: list, keys) -> list[dict]:
     """unit_keys が keys と重なる項目の行（項目の順。1 つの単位が 2 項目に在れば両方）"""
     want = set(keys)
     return [r for r in briefs if want & set(r.get("unit_keys") or [])]
-
-
-def unit_note(keys: list, owed=None) -> str:
-    """項目の単位の並び keys の書き方: owed（今直す単位の key）と重なる物を「、」で並べ（無ければ NONE）、ほかの単位は
-    「・今は直すな: …」と添える。owed が None なら keys を全部（head_text の行と fixrules の下請けの実装役の型の題が使う）"""
-    keys = list(keys or [])
-    want = None if owed is None else set(owed)
-    now = keys if want is None else [k for k in keys if k in want]
-    rest = [k for k in keys if k not in now]
-    return ("、".join(now) or NONE) + (f"・{NOT_NOW}: {'、'.join(rest)}" if rest else "")
-
-
-def head_text(briefs: list, owed=None) -> str:
-    """指示書の頭に置く、brief を名指す節。brief が無ければ空。owed（今直す単位の key）を渡すと、行の「単位」は owed と重なる
-    物だけにし、項目のほかの単位（義務から外れた・今の段の外）は「今は直すな」と添えて並べる。None なら項目の単位を全部"""
-    if not briefs:
-        return ""
-
-    def row(r):
-        return f"- 項目 {r['item']}: {r['file']}（sha256 {r['sha256']}・単位 {unit_note(r.get('unit_keys'), owed)}）"
-    return f"{HEAD}\n\n" + "\n".join(row(r) for r in briefs) + f"\n\n{READ_ALL}"
 
 
 def files(b, round_: int = 1) -> list[str]:

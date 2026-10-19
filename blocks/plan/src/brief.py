@@ -47,9 +47,12 @@ def _dump(doc) -> str:
     return json.dumps(doc, ensure_ascii=False)
 
 
+HEAD_CAP = 120   # 並べる答え・論点の頭の字数（元 lib/policy.py の _CAP。lib の policy から消えた）
+
+
 def _head(text) -> str:
     text = oneline.one_line(text or "")
-    return text if len(text) <= policy._CAP else text[:policy._CAP] + "…"
+    return text if len(text) <= HEAD_CAP else text[:HEAD_CAP] + "…"
 
 
 def _exists(path) -> str:
@@ -189,7 +192,7 @@ def unknown_rows(record_file) -> tuple:
     doc = headdepth.read_file(record_file) if record_file else headdepth.record(headdepth.STANDARD, headdepth.NO_RECORD)
     rows = []
     for it in doc.get("items") or []:
-        if not (isinstance(it, dict) and headdepth._known(it.get("unknown"))):
+        if not (isinstance(it, dict) and headdepth.known(it.get("unknown"))):
             continue
         where = oneline.one_line(it.get("where") or "")
         place = (f"place {where}「{oneline.one_line(it.get('code_quote') or '')}」" if where
@@ -369,7 +372,7 @@ def values(place, repo) -> tuple:
         v["repo"] = str(repo)
         v["read_rev"] = ctx.get("review_rev") or ctx.get("base") or "HEAD"
         v["diff_base"] = ctx.get("diff_base") or ctx.get("base") or v["read_rev"]
-        v["review_md"] = str(ports.lib_root() / "REVIEW.md")
+        v["review_md"] = str(ports.SHARED / "prompts" / "REVIEW.md")   # 観点の正本（工場の物。lib は経由しない）
         v["judgment_file"] = ctx.get("judgment") or ""
         v["prescriptions"] = prescription_rows(judgment)
         w["prescriptions"] = bool(v["prescriptions"])

@@ -8,14 +8,13 @@
   works の欄・狭めない案の誤りを全部並べて 1 回で拒む。REPLAN_REJECT）。項目ごとの節の見出しは ITEM_HEAD・OLD_HEAD・ROW_HEAD
 - new_item(row): 控えの行の直した項目に、外した決め手の欄を narrows の行ごとに戻した形
 - bare(item): 項目から関所の決め手の欄を外した写し（約束の欄の比べ planmarks.contract_diff に渡す形。案の直しの事前審査と受け付けが引く）
-- _json_block(doc)・_malformed(reply): 項目を指示書に貼る JSON の段と、修正案の返答の形の崩れ
+- _malformed(reply): 修正案の返答の形の崩れ
 - WIDEN_OP・WIDEN_LINE・WIDEN_PARTS・widen_text(widened)・AMEND_HEAD・amend_lines(items, …, gate=""): 無人の run で聞かずに通した範囲を
   広げるだけの直しの文と、同じ run の中で直した項目ごとの 1 行とその見出し（線の案の直しの承認の支度・最後の承認の支度と報告が読む）
 """
 from __future__ import annotations
 
 import copy
-import json
 import pathlib
 import sys
 
@@ -135,10 +134,6 @@ def new_item(row: dict) -> dict:
         if isinstance(narrow, dict) and isinstance(marks, dict):
             narrow.update(copy.deepcopy(marks))
     return out
-
-
-def _json_block(doc) -> list:
-    return ["```json", json.dumps(doc, ensure_ascii=False, indent=1), "```"]
 
 
 def _malformed(reply) -> bool:

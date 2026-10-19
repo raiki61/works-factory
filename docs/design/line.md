@@ -105,7 +105,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `blocks/line/scripts/`: node ごとに 1 本（`testcmd`・`start`・`gate_answer`・`returned`・`relay`〔返しの 4 つ `structure-in`・`design-in`・`lens-in`・`lens-2-in`。今の `structure_in.py` の形を 1 本にした物。`with:` の `got`〔運ぶ物の返りまるごと。`{from, if_skipped: null}`〕と `field`〔運ぶ欄の名を空白で区切った字。`design-in` は `design reason premises`〕を受け、その欄と `stop_reason` を返す〕・`tiers`・`owed`・`plan_out`・`ask_before_fix`・`before_fix_answer`・`fix_in`・`after_fix`・`ask_replan`・`replan_answer`・`fixed`・`raise_depth`〔node `raise`。名を `lib/` と重ねない〕・`judged`・`eyes_in`・`ask_final`・`collect`・`sweep_children`・`result`）。どれも `ports` の口で入力を読み、`src/` を呼ぶだけ。
 - `blocks/line/src/`（package `src`）:
   - `files.py`: 1.4 のファイルの名。
-  - `startrec.py`・`fixture.py`・`testcmd_check.py`・`versions.py`: README 9.2 の MOVE（今の `lib/` の同じ名のモジュール）。ただし `startrec` の読む口は KEEP の lib（`headdepth`・`suitewrite`・`conflict`・`runreport`）がまだ読むので、組み込みで使い手を数え、残る使い手があれば読む口だけを `lib/` に残す（15 節）。
+  - `startrec.py`・`fixture.py`・`testcmd_check.py`・`versions.py`: README 9.2 の MOVE（`lib/` から block の `src/` へ移す物。ここでは今の `lib/` の同じ名のモジュールを line の `src/` へ移す）。`startrec` の `load`・`save` は形を問わない JSON の読み書きなので、line の外でそれを呼んでいた test-gate と、README 9.3 の KEEP〔2 つ以上の使い手が在るので `lib/` に残す物〕の `suitewrite` は、`lib/jsonfile.py` の `read_dict`・`write(..., indent=2, parents=True)` を直に呼ぶ形に替え（line の中の `save` は `jsonfile.write` を呼ぶ薄い包みとして残す）、始めの記録を読む口そのもの（`read`・`shape` など）は line の `src/startrec.py` にだけ置く。`lib/` に読む口は残さない（integration.md の 4.3-9・4.3-追加-6）。
   - `deal.py`（足す）: 始めの記録から配る値を引く（1.6）。
   - `gates.py`: 承認ノードの決め（今の `lib/gatepolicy.py` の全部と、`lib/gatemarks.py` の承認ノードの決めの部分〔開くか・項目の行・軸・通した行・無人の抜け方〕、`lib/gate_axes.py`）。問いの行の形（`ASKING`・`asks_human`・推しの尾の字の形）と承認ノードの文の組み立て `gate_text` は KEEP の `lib/gatemarks` を引く（README 9.3）。
   - `final.py`: 最後の承認ノードの開ける理由と文（今の `ask_final.py` の中身）。
@@ -345,7 +345,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `gate-start`・`answer-start`: 2 節の 1（L-G01〜L-G10）。
 - `test-gate-base`(-out): 今のまま。判定の前に走り、固定材料の run は飛ぶ。
 - `judge`(-out): judge の graph（judge-eyes.md）。返りの欄の名は変わる（1.6・4.5 が新しい名で読む）。今の `judge_accept.require_ports`（前の版の返りを resume で受けたら止める）は、新しい graph の返りの形で同じ照らしを `fix-in`・`fixed`・`collect` に置く（欄の欠けた got を空と読まない。L-W67 の能力）。判定のまとめだけでなく、plan と fix の返りも同じ: 読む script が `ports.picked(raw, names)` を要る欄の全部で呼び、欄の欠けた返りは `KeyError` で止める（今の `fixbeside.require_ports`・`planfile.require_ports` の替わり。integration.md の 4.3-12）。
-- `owed`・`structure`(-out)・`structure-in`: 今のまま（計画の 1 回目の周が修正案の役を起こす run でだけ構造の目を測る）。`owed` の決め（`planfile.round_inputs`・`held_why`）は plan と line が共に使うので、README 9.2 の `planfile` の MOVE から外し、その 2 つを `lib/` に残す（13 節・15 節）。
+- `owed`・`structure`(-out)・`structure-in`: 今のまま（計画の 1 回目の周が修正案を書く AI の役〔plan の中の役〕を起こす run でだけ、構造の目〔structure の graph〕を回して測る）。node `owed` は名も働きも今のまま。その node が引く決めの関数（今の `planfile.round_inputs` と `held_why`）は plan と line が共に使うので、`lib/judgmark.py`（判定の出力の行の形を持つ `lib/` のモジュール）へ移した（この組み込みの枝で移し終え、リポジトリに入っている。`round_inputs` の替わりが `with_ledger`、`held_why` は同じ名。13 節・15 節）。
 - `design-only`(-out): 直す物が無い周の独立設計。→ independent-design の include（判定の後に 1 回。どの周でも）。直す物が無い周の印は `fix-in.no_fix`。今の plan-review の `mode: design` の道は無くなる（independent-design の設計書の 1.6）。
 - `plan-rounds`（`plan`・`plan-review-run`・`plan-out`）と受け皿 2 つ: 3 節。受け皿は 1 つにまとめる（欄の名を 1 つの `names` に並べる）。往復の記録・止め・安全の上限 20・上限でも輪が落ちずに抜ける（L-D16）・前の周の返りを次の周へ（L-D17。今の `review` は 2 本の `prior` になる）・事前審査の木の段の読み（今は plan-review が `head_depth` を受けて決めた。→ `tiers` の `tree` を plan-review の `tree` に渡し、auto の数えは plan-review）・事前審査の中に在った往復の行の書き・止め時・止まった案の推しの穴の足し（今の `boardview._take`。→ `plan-out`）。
 - `ask-before-fix`・`gate-before-fix`・`answer-before-fix`: 2 節の 2 と 6 節（L-G17〜L-G41・L-W14・L-W38・L-W39・L-D19〜L-D21）。軸と通した行は line が組む（今は事前審査が返した）。
@@ -388,7 +388,7 @@ graph は AI の node を持たないので、README 6 節の node ごとの 9 �
   - `test_stages.py`: 2 つの段の合わせ（今の `FixedCase`）と `no_fix`・held・`diffed`。
   - `test_collect.py`: `sections` の並び・`files`・`facts` の欄（report の設計書の 1.2 の表の欄ごと）・前の版の返りを空と読まない・落ちない（今の `CollectAndResultCase`・`FallbackCase`・`BrokenLibCase`・`ReturnedCase`）。
   - `test_wiring.py`: YAML の配線（今の `LineWiringCase`・`FixWiringCase`・`NoFixWiringCase`・`SharedPlacesWiringCase`・`StructureOnceCase`・`HandoffCase`）。足す yes/no: include した block の `inputs:` の全部が、line の `with:` で渡るか、渡さない訳を名指した一覧に在る（L-W67）・一度だけの include（`replan`・`replan-review`・`refix-run`・`rejudge-run`・`parallel-pr-after`）が line に 1 つずつ・`when:` が名に depth を含む欄を読まない。
-- 通しの試験: `tests/e2e/test_line_scenarios.py` を新しい line に書き直し、`tests/e2e/evidence.json` の行の書き手を新しい関数の名に替える（L-E33 は line の節 1 の行に。verify の設計書の 1.6）。
+- 通しの試験: `tests/e2e/test_line_scenarios.py` は筋書きの試験 `tests/blocks/line/test_scenarios.py`・`test_scenarios_gates.py` に置き換えて消し、`tests/e2e/evidence.json` の行の書き手を新しい関数の名に替える（L-E33 は judge の graph の判定の裏取りの段の行に。verify の設計書の 1.6）。新しい node の id と置き場に合わせて `tests/e2e/scenario.json`・`tests/e2e/test_evidence.py` の定数（`BLOCKS`・`NAMED_BY_PATTERN`・`ALWAYS_RAN`）・`tests/e2e/test_fix_halt_resume.py` も直す（integration.md の 4.5-10）。
 - 守る keep-essence: 6（回さなかった試験を最後の承認ノードに名で並べる。`test_gates.py`）・8（人に回した申し出で最後の承認ノードが開く。`conflict-ask` の筋書き）・10（守りのパスに触れたら開き、apply を拒む。`eyes-failed-protected` の筋書きを `seal-protected` に改める）・11（単位ごとの記録が最後の承認ノードと報告に届く。`test_gates.py`・`test_collect.py`）・12（定石からの外れを修正前の承認ノードで人に回す。`test_gates.py`）。
 
 ## 12 chain（周の鎖）
@@ -410,7 +410,7 @@ graph は AI の node を持たないので、README 6 節の node ごとの 9 �
 - line の返りの欄 `report`（機械の報告の pointer）の名を変えない。根拠: `bin/`・chain・通しの試験が今の名で読み、形の検査（7.1 の 8）は欄の有無の yes/no で通る（1.2）。line の報告の行は `sections` に入る。
 - 差分の審査が通らなかった・諦めたことを `fixed.go` に混ぜず、残りに数える。`ok` が偽（段が壊れた）の時だけ止める。根拠: delta-review の設計書の 1.6（`ok` が false なら止め、`gave_up` は止めない）。今も審査が通らなかった差分は最後のテストへ進み、結末を fixed にしない（今の `review_failed` の道）ので、結末は同じ。
 - 修正の後の読むだけの 3 つ（並行 PR の確かめ直し・再審・仕様の照らし）を、最後の段の差分の審査の後（`fixed` の後）に置く。根拠: どれも「役が作業ツリーを変えていない」を照らすので、作業ツリーを変える手直しと重ねられない。今の再審と仕様の照らしも 2 つの修正の段（中の手直しを含む）の後だった。
-- `owed` の決め（`planfile.round_inputs`・`held_why`）を `lib/` に残す。根拠: plan（周を開く口）と line（構造の目を回すか）の 2 つが同じ式を引く（今の docstring「周と同じ入力の同じ並びで決めるようにこの関数を引く」）。憲法の 4。
+- node `owed` が引く決めの関数（今の `planfile.round_inputs` と `held_why`）を `lib/judgmark.py` へ移した（この組み込みの枝で移し終え、リポジトリに入っている。`round_inputs` の替わりが `with_ledger`、`held_why` は同じ名。node `owed` の名は変えない）。根拠: plan（周を開く口）と line（構造の目を回すか）の 2 つが同じ式を引く（今の docstring「周と同じ入力の同じ並びで決めるようにこの関数を引く」）。憲法の 4。
 - `when:` が読む上げ直し（1 回目の修正の後に単位の深さを標準へ上げ直すこと。5.3）の欄を、確かめを回すか `checks`・独立の目を回すか `eyes_due` の真偽にする（上げ直しが起きたかの印ではない）。根拠: README 1.2 の D（verify・delta-review・r1〜r4 を回すかは line の `when:`）と、KEEP の `tests/layers/test_depth_skip.py`（`when:` が名に depth を含む欄を読まない）の両方を満たす。表を引くのは line の `src/` で、`when:` は結果の真偽だけを読む。E20 の文は組み込みで「省くかを `when:` に渡す時は、line が表から引いた真偽だけにする」に書き直した（`workflows/AGENTS.md`。README 11.3 の 6）。表の写しはこの設計書の 16 節。
 - 配る値を `start` の出力の欄 `ports` 1 つにまとめる。根拠: 始めの記録の書き手と読み口を 1 か所にする（今の L-E24 の柵の意図）。node ごとに記録を開いて引き直すと、続きの run で値が黙って変わった `8dfebca6` の形が戻る。
 - `lang` は始めの記録の値をそのまま全部の include に渡す（15 節に残りの問い）。

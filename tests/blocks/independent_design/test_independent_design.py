@@ -106,11 +106,6 @@ class ShapeCase(unittest.TestCase):
                 fx = kit.fixture("independent-design", name)
                 self.assertLessEqual(set(fx["fixture"]["reached"]), ids)
 
-    def test_downgrades_are_the_current_row(self):
-        rows = json.loads((kit.ROOT / "lib" / "downgrades.json").read_text(encoding="utf-8"))
-        self.assertEqual(kit.load("independent-design", "report").DOWNGRADES, [r for r in rows if r["node"] == "r2.design"])
-
-
 class FlowCase(_RepoCase):
     def test_flow_reaches_the_design_and_the_ledger(self):
         got = self.intake(constraints=dump(values.CONSTRAINTS), answers=dump(values.ANSWERS))

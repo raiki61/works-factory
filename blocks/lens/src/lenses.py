@@ -4,7 +4,7 @@ lib/fixboard.py の lens_route の引きの部分の写し）。
 表の行ごとに YAML の node が 3 つ（<レンズ>-prep・<レンズ>・<レンズ>-take）在る。表に足す時は YAML の node も足す（試験が結ぶ）。
 """
 import ports  # noqa: F401  （lib/ と lib/graphloops を読めるようにする）
-from engine import validator   # lib/graphloops/engine/validator.py。agent_def（利用者の plugin の役の定義を引く）
+from src import validator   # 元 lib/graphloops/engine/validator.py の写し。agent_def（利用者の plugin の役の定義を引く）
 
 import oneline  # lib/
 

@@ -66,7 +66,7 @@ def round_dir(place, k: int) -> pathlib.Path:
     return pathlib.Path(place) / f"r{k}"
 
 
-def current_round(place) -> int:
+def round_no(place) -> int:
     """今の周の番号（current-round.json。無い・読めなければ 1）"""
     got = read_json(pathlib.Path(place) / CURRENT_ROUND)
     k = got.get("round") if isinstance(got, dict) else None
@@ -74,7 +74,7 @@ def current_round(place) -> int:
 
 
 def current_dir(place) -> pathlib.Path:
-    return round_dir(place, current_round(place))
+    return round_dir(place, round_no(place))
 
 
 def read_round(d) -> dict:
@@ -130,7 +130,7 @@ def crash_finish(place, why: str) -> dict:
     """出口の中で落ちた時の返り。標準ライブラリだけで、在って空でない plan-fields.json・ripple.json を置き、訳を finish-error.txt に書いて
     status failed の約束の形を返す"""
     place = pathlib.Path(place)
-    k = current_round(place)
+    k = round_no(place)
     d = round_dir(place, k)
     try:
         d.mkdir(parents=True, exist_ok=True)

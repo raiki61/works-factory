@@ -192,15 +192,6 @@ class BriefCase(PlaceCase):
         self.assertEqual([r["item"] for r in planbrief.for_units(rows, [CLAMP])], [1])
         self.assertEqual(planbrief.for_units(rows, ["判定に無い単位"]), [])
 
-    def test_head_text(self):
-        self.assertEqual(planbrief.head_text([]), "")
-        self.ready()
-        rows = self.cut()
-        head = planbrief.head_text(rows)
-        for w in (planbrief.HEAD, rows[0]["file"], rows[0]["sha256"], "まず Read で全部読め"):
-            self.assertIn(w, head)
-        self.assertEqual(planbrief.files(self.board), [rows[0]["file"]])
-
     # ---------------------------------------------------------------- 凍結の破れ（LedgerBroken）と書き戻し
     def first_cut(self):
         """1 回目の cut の後の (置き場, 返り, 控えのパス)"""
