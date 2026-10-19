@@ -49,6 +49,7 @@ HYPOTHESIS = "仮説"
 TREE_KEYS = accept.status_keys(True)
 PURPOSE_RULE = "目的の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない"
 FROZEN_REASON = "目的は既に固めてある（purpose.json）"
+MEANS_MISSING = "目的の解き方の控え purpose-means.json が無いか読めない（目的の控えが書きかけ）"
 NOT_TAKEN = "目的の文を受け付けた控えが無い（役が走らなかったか落ちた）"
 REPORT_HEAD = "目的の文: "
 OWN_FILES = (INTAKE_FILE, TREE_FILE, MEANS_FILE, rolekit.rejects_path(pathlib.Path(), ROLE).name)
@@ -89,21 +90,21 @@ def constraint_rows(value) -> list:
 
 
 def intake(out, *, request, pr_text, constraints, lang) -> dict:
-    """port の字を読み、置き場に固めた目的が在れば役を起こさない（ほかのファイルも消さない）。無ければこの block のファイルを消して
+    """置き場に固めた目的が在れば、port を読まずに役を起こさない（ほかのファイルも消さない）。無ければ port の字を読み、この block のファイルを消して
     intake.json と作業ツリーの写し tree.json を書く。返り {due, reason}。落ちた時は intake.json に failed と訳を書き、due は偽"""
     out = pathlib.Path(out)
     doc = {"request": [], "pr_text": "", "constraints": [], "lang": "", "frozen": False, "failed": False, "reason": ""}
     try:
+        if (out / PURPOSE_FILE).exists():   # 固めた目的が在れば port を読む前に役を起こさないと決める（今の purpose_prep と同じ順）
+            doc.update(frozen=True, reason=FROZEN_REASON)
+            jsonfile.write(out / INTAKE_FILE, doc)
+            return {"due": False, "reason": FROZEN_REASON}
         _port("request", lambda: requestrows.parts(request))   # 形・知らない鍵・下書きの行の拒み（役に見せる写しは字のまま）
         doc["request"] = request_copy(_port("request", lambda: ports.json(request, requestrows.SCHEMA)))
         doc["pr_text"] = ports.text(pr_text)
         doc["constraints"] = _port("constraints", lambda: constraint_rows(
             ports.json(constraints, "shared:constraints.schema.json")))
         doc["lang"] = ports.text(lang).strip()
-        if (out / PURPOSE_FILE).exists():
-            doc.update(frozen=True, reason=FROZEN_REASON)
-            jsonfile.write(out / INTAKE_FILE, doc)
-            return {"due": False, "reason": FROZEN_REASON}
         for name in OWN_FILES:
             (out / name).unlink(missing_ok=True)
         for pattern in OWN_PROMPTS:
@@ -183,7 +184,8 @@ def _tree_unchanged(out, repo) -> None:
 
 def check(reply, out, repo) -> dict:
     """目的の役の返答を受け付ける。凍結（once）→ 作業ツリー（役は読むだけ）→ 足し欄 means を外す → source_files。通れば
-    purpose.json に means を外した返答を、purpose-means.json に {means: [...]} を書く（並びが空でも書く）。返り {ok, reason}"""
+    purpose-means.json に {means: [...]} を（並びが空でも）、最後に purpose.json に means を外した返答を書く（purpose.json が済んだ印）。
+    返り {ok, reason}"""
     def run():
         repo_p = pathlib.Path(repo)
         with accept.in_repo(repo_p):
@@ -196,8 +198,8 @@ def check(reply, out, repo) -> dict:
                              "——出典にしたリポジトリの中のファイルを、作業ツリーの根からの相対（サブディレクトリで回していても根から・"
                              "`./` や末尾の `/`・重ねた `/`・`.` や `..` の段・symlink 経由なし・大小文字もリポジトリのまま）で書け"
                              "（依頼のファイルなどリポジトリの外の物・git が無視するファイルは書かない）")
-        jsonfile.write(pathlib.Path(out) / PURPOSE_FILE, got)
         jsonfile.write(pathlib.Path(out) / MEANS_FILE, {MEANS: means})
+        jsonfile.write(pathlib.Path(out) / PURPOSE_FILE, got)   # 最後に書く: purpose.json が在れば両方が書き終わっている
         return {"ok": True, "reason": ""}
     return accept.guard(run)
 
@@ -231,7 +233,10 @@ def finish(out) -> dict:
     got = jsonfile.read_or(out / PURPOSE_FILE)
     if not isinstance(got, dict):
         return failed(_why_failed(out))
-    means = (jsonfile.read_or(out / MEANS_FILE) or {}).get(MEANS) or []
+    kept = jsonfile.read_or(out / MEANS_FILE)
+    means = kept.get(MEANS) if isinstance(kept, dict) else None
+    if not isinstance(means, list) or not all(isinstance(m, str) for m in means):
+        return failed(MEANS_MISSING)
     return {"ok": True, "status": "ok", "reason": FROZEN_REASON if doc.get("frozen") else "",
             "purpose": ports.pointer(out / PURPOSE_FILE), "purpose_text": str(got.get("purpose_text") or ""),
-            "source": str(got.get("source") or ""), "means": [str(m) for m in means], "report": []}
+            "source": str(got.get("source") or ""), "means": means, "report": []}

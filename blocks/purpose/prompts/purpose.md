@@ -10,10 +10,9 @@ You are the purpose role, started in a new conversation. Write the "original pur
 
 You **only read**. Your tools are Read, Grep, and Glob, and WebSearch and WebFetch for the web. Do not change a single character of the working tree (the machine compares a copy of the working tree taken before you were started with the working tree now, and rejects your answer if it changed).
 
-## What this sentence is used for
+## What holds for this sentence
 
-- The purpose sentence becomes the **only input** given to a role that designs again from zero.
-- It also goes to the role that judges the request (which needs it to decide how to split the work and when a unit is resolved).
+- The purpose sentence becomes a **fixed input** later in this run, read on its own without the request. Write only the purpose in it, so that it alone says what the work should reach and when the work is done.
 - **It is fixed before the first fix starts and is not changed afterwards** (pre-registration). The machine rejects the answer if this run already has a purpose sentence. If it could be rewritten later, a path would open to narrow the purpose to fit the implementation.
 
 ## Input
@@ -54,7 +53,7 @@ Each row of `constraints` has `text` (the constraint), `measured_how` (how it wa
    - `{writer_source}`: only when there is neither of the above, you write the summary yourself (the last resort). In that case another reviewer checks whether you narrowed it to suit the implementation: do not shrink the purpose to the scope already implemented. Do not silently drop requirements that the implementation cannot meet.
    - `{unknown_source}`: when no source can be found (a design made from the purpose then cannot be checked). Do not make up a plausible purpose that cannot be found. Since `purpose_text` cannot be empty, write "{unknown_source}: " followed by the sources you looked for and did not find (the PR description, the request, plan documents); make `source_files` an empty array and leave out `means`.
 2. Write the purpose as one sentence in **`purpose_text`** (it must not be empty).
-3. In **`source_files`**, list the files you used as sources of the purpose sentence as **paths relative to the repository root**. The purpose sentence does not move, but in a later round where a fix rewrote one of its sources, only the review of the purpose is run again (the names you write stay frozen for every round of the run, so write them correctly now). Without the list, a "narrowed" verdict binds every remaining round even after the sources are fixed (measured 2026-09-13: the four named sources were fixed, yet the design made from the purpose did not run in any of five rounds).
+3. In **`source_files`**, list the files you used as sources of the purpose sentence as **paths relative to the repository root**. The names you write are fixed together with the purpose sentence for every round of the run, and later rounds compare them character for character with the names of the files a fix changed, so write them correctly now. A source left out of the list, or written in another form, never matches, so a later change to that source is not noticed.
    - The machine checks that each row is in normal form relative to the root of the working tree and is a file in the version (later rounds compare it, character for character, with the names from `git diff --name-only`, which are relative to the root; write from the root even if the run is in a subdirectory). Besides absolute paths, `..`, names that do not exist, and files that git ignores, it also rejects names not in normal form, such as `./a`, `a/`, `a//b`, `a/./b`, or a path through a symlink, and names whose letter case differs from the repository (such as writing `README.md` as `readme.md`).
    - Do not write things outside the repository, such as a request file outside the target. If no source file is in the repository, make it an empty array.
 4. **`means`** (optional): copy the means the request proposes from the request's text, one sentence each (do not repeat what you wrote in the purpose sentence; the purpose sentence of step 2 has the means removed).

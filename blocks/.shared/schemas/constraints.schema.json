@@ -4,11 +4,12 @@
   "items": {
     "type": "object",
     "required": ["text", "measured_how", "kind"],
+    "additionalProperties": false,
     "properties": {
       "text": {"type": "string"},
       "measured_how": {"type": "string"},
       "kind": {"type": "string", "enum": ["実測", "仮説"]},
-      "measured_output": {"type": "string"}
+      "measured_output": {"type": "string", "minLength": 1, "pattern": "\\S"}
     }
   },
   "required": ["constraints"],
@@ -18,11 +19,12 @@
       "items": {
         "type": "object",
         "required": ["text", "measured_how", "kind"],
+        "additionalProperties": false,
         "properties": {
           "text": {"type": "string"},
           "measured_how": {"type": "string"},
           "kind": {"type": "string", "enum": ["実測", "仮説"]},
-          "measured_output": {"type": "string"}
+          "measured_output": {"type": "string", "minLength": 1, "pattern": "\\S"}
         }
       }
     }

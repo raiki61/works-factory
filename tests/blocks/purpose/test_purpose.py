@@ -79,6 +79,30 @@ class IntakeCase(_RepoCase):
         self.assertTrue((self.run.artifacts / "tree.json").is_file(), "固めた目的の時はほかのファイルも消さない")
         self.assertTrue(self.read("intake.json")["frozen"])
 
+    def test_intake_clears_its_own_stale_files(self):
+        """前の回の控え（却下・指示・作業ツリーの写し）は入口が名で消す: 古い却下は次の指示に届かず、指示の回は 1 から数え直す"""
+        self.intake()
+        self.prep()
+        self.assertFalse(self.accept({**GOOD, "source_files": ["stale-reject.md"]})["ok"])
+        self.prep()
+        self.assertTrue((self.run.artifacts / "purpose-prompt-2.md").is_file())
+        (self.run.artifacts / "other.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(self.intake(), {"due": True, "reason": ""})
+        for name in ("rejects-purpose.json", "purpose-prompt-1.md", "purpose-prompt-2.md"):
+            self.assertFalse((self.run.artifacts / name).exists(), name)
+        self.assertTrue((self.run.artifacts / "other.json").is_file(), "ほかの物の名のファイルは消さない")
+        text = self.prep()["prompt"]
+        self.assertNotIn("stale-reject.md", text)
+        self.assertNotIn("## Why your previous answer was rejected", text)
+        self.assertTrue((self.run.artifacts / "purpose-prompt-1.md").is_file())
+        self.assertFalse((self.run.artifacts / "purpose-prompt-2.md").exists())
+
+    def test_frozen_purpose_is_checked_before_the_ports(self):
+        """固めた目的が在れば、読めない port でも役を起こさない道に入る（今の purpose_prep の順）"""
+        (self.run.artifacts / "purpose.json").write_text(json.dumps(GOOD), encoding="utf-8")
+        self.assertEqual(self.intake(request=""), {"due": False, "reason": "目的は既に固めてある（purpose.json）"})
+        self.assertFalse(self.read("intake.json")["failed"])
+
     def test_unreadable_port_does_not_stop_the_run(self):
         for raw in (self.run.pointer("absent.json"), '{"rows": 1}'):
             with self.subTest(raw):
@@ -93,6 +117,16 @@ class IntakeCase(_RepoCase):
         got = self.intake(constraints=bad)
         self.assertFalse(got["due"])
         self.assertIn("measured_output", got["reason"])
+
+    def test_constraint_rows_keep_the_old_contract(self):
+        """行の欄は今の前提の役の output_format のとおり: 知らない欄と、空白だけの measured_output を拒む"""
+        row = {"text": "数は 3", "measured_how": "数えた", "kind": "実測", "measured_output": "$ wc -l\n3"}
+        for bad in ({**row, "extra": 1}, {**row, "measured_output": "  "}):
+            for shape in ([bad], {"constraints": [bad]}):
+                with self.subTest(shape=shape):
+                    got = self.intake(constraints=json.dumps(shape, ensure_ascii=False))
+                    self.assertFalse(got["due"])
+                    self.assertIn("入力 constraints", got["reason"])
 
     def test_constraints_in_a_container(self):
         self.intake(constraints=json.dumps({"constraints": json.loads(CONSTRAINTS), "other": 1}, ensure_ascii=False))
@@ -275,7 +309,33 @@ class FinishCase(_RepoCase):
         self.assertEqual((fin["ok"], fin["status"], fin["purpose"], fin["purpose_text"], fin["source"], fin["means"]),
                          (False, "failed", None, "", "", []))
         self.assertIn("nothing.md", fin["reason"])
+        self.assertIn("3 回とも", fin["reason"], "諦めた文（given_up_reason）で、最後の拒否の文そのままではない")
         self.assertEqual(fin["report"], [f"目的の文: {fin['reason']}"])
+
+    def test_one_rejection_reports_the_last_rejection(self):
+        """諦めの数に届かずに輪が終わった時（筋書きの 1 周）は、最後の拒否の文を返す"""
+        self.intake()
+        self.prep()
+        self.accept({**GOOD, "source_files": ["nothing.md"]})
+        fin = self.run.script("finish")
+        self.assertEqual(fin["status"], "failed")
+        self.assertIn("nothing.md", fin["reason"])
+        self.assertNotIn("回とも", fin["reason"])
+
+    def test_missing_means_file_is_failed(self):
+        """purpose.json は最後に書く済みの印。解き方の控えが無い・読めなければ、空の並びにせず failed"""
+        self.intake()
+        self.prep()
+        self.assertTrue(self.accept(GOOD)["ok"])
+        for broken in (None, "not json", '{"means": "x"}'):
+            with self.subTest(broken):
+                path = self.run.artifacts / "purpose-means.json"
+                path.unlink(missing_ok=True)
+                if broken is not None:
+                    path.write_text(broken, encoding="utf-8")
+                fin = self.run.script("finish")
+                self.assertEqual((fin["ok"], fin["status"], fin["purpose"]), (False, "failed", None))
+                self.assertIn("purpose-means.json", fin["reason"])
 
     def test_failed_intake_is_failed(self):
         self.intake(request="")
