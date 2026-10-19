@@ -18,12 +18,12 @@
 
 ## 変更の種類ごとに閉じる所（`docs/design/README.md` の 1.2）
 
-- 指示の文だけを変える（I）: その node の `prompts/<node-id>.md` 1 本。同じ block の 2 つ以上の node が使う文は `prompts/parts/<name>.md`、2 つ以上の block が使う文は `.shared/prompts/<name>.md`。返す形・`src/`・試験・設計書は、依頼が返す形や検査を変えると言う時だけ触る。
-- 受け付けに確かめを足す（A）: その block の `src/` の受け付け・`prompts/<node-id>.md` の 1 段落・`tests/blocks/<block>/`。
-- 不具合を直す（B）: その block の `src/`（と `scripts/`）と `tests/blocks/<block>/`。共通の形・断片・口は直さない。
-- 入力を足す（P）: 受け手の block の `inputs:`・`schemas/`・それを読む script と `src/`・`prompts/`・`tests/blocks/<block>/`。既定値つきの任意の入力なら、今の呼び手（policy-check などの graph）と根の README の例はそのまま回るので触らない。graph の `with:` は、その graph から値を渡すと依頼が言う時だけ足す。
-- 観点を足す（N）: 新しい block のフォルダ `blocks/<block>/`・`tests/blocks/<block の名の - を _ にした物>/`・`docs/design/<block>.md`。graph の with: と include は、つなぐと依頼が言う時だけ。
-- 2 つ以上の block が使う助け: Archon の pointer・`INPUTS_`・place を解く所は `.shared/` の口、解いた後のパスや値を受ける所は `lib/`（`.shared/AGENTS.md` の「`.shared` と `lib/` の分け」）。
+- 指示の文だけを変える（I）: その node の `prompts/<node-id>.md` 1 本。同じ block の 2 つ以上の node が使う文は `prompts/parts/<name>.md`、2 つ以上の block が使う文は `.shared/prompts/<name>.md`（`.shared/AGENTS.md` の名の一覧も試験も直さない）。返す形・`src/`・試験・設計書は、依頼が返す形や検査を変えると言う時だけ触る。
+- 受け付けに確かめを足す（A）: その block の `src/` の受け付け・`prompts/<node-id>.md` の 1 段落・`tests/blocks/<block>/`・設計書の受け付けの所（受け付けの決まりが変わる）。`fixtures/` は触らない（筋書きは完了・`reached`・指示の字だけを見るので、拒否を足しても通る）。
+- 不具合を直す（B）: その block の `src/`（と `scripts/`）と `tests/blocks/<block>/`。設計書と、共通の口（`.shared/` の `requestrows.py`・`ports.py`）・形・断片は、原因がそこに見えても直さない（出力の形は設計書に決めてあり、直すのはそれに合わせる block のコード）。
+- 入力を足す（P）: 受け手の block の `inputs:`・`schemas/`・それを読む script と `src/`・`prompts/`・`tests/blocks/<block>/`。既定値つきの任意の入力なら、今の呼び手（policy-check などの graph）と根の README の例はそのまま回るので触らない。graph の `with:` は、その graph から値を渡すと依頼が言う時だけ足す。設計書の port の所は直す（port が変わる）。
+- 観点を足す（N）: 新しい block のフォルダ `blocks/<block>/`・`tests/blocks/<block の名の - を _ にした物>/`・`docs/design/<block>.md`。graph の with: と include は、つなぐと依頼が言う時だけ。根の README は触らない（単独で回す例は world の 1 つで足りる。新しい block の単独の呼び方は `docs/design/<block>.md` の「単独で呼ぶ」の所に書く）。
+- 2 つ以上の block が使う助け: Archon の pointer・`INPUTS_`・place を解く所は `.shared/` の口、解いた後のパスや値を受ける所は `lib/` の新しいモジュール（`.shared/AGENTS.md` の「`.shared` と `lib/` の分け」）。助けを置くだけの依頼では、使い手の block の `scripts/`・`src/` は触らない（使い始めは、その block を名指す別の変更で）。
 - block の中で閉じる変更では、設計書 `docs/design/<block>.md` は port・node の並び・受け付けの決まりが変わる時だけ直し、筋書き（`fixtures/`）は通らなくなった時だけ直す。設計書は md の本文を写さない（本文の正本は block の `prompts/`）。
 
 ## 始め方

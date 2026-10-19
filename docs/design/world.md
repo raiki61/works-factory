@@ -277,7 +277,8 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-world -
   - `standalone.stubs.yaml`: 入力は `request`（JSON の字）・`purpose`・`means`・`web: off` だけ。`reached` に `finish`。
   - `web-on.stubs.yaml`: web が on の道（web の役の指示の on の段落まで。抜き書きは返さない。9.1 の 4）。
   - `gave-up.stubs.yaml`: 言い直す役の返答が受け付けを通らず、`finish` が `status: failed` を返し、run は `completed`（dry-run の輪は 1 周なので却下は 1 回。輪が終わった時に言い直しの行の控え `classes.json` が無いので、出口は諦めの数に届かなくても `failed` にし、最後の却下の理由を `reason` に書く。9.1 の 4）。
-- 0 行の依頼の試験は `tests/blocks/world/test_steps.py` の Intake。依頼の容器の拒み（知らない鍵・下書きの行）も同じ所と `tests/blocks/shared/test_requestrows.py`。
+  - 筋書きは `expect: completed` と `reached` と指示の字だけを見る。受け付けが拒んでも出口は `status: failed` で run は completed なので、拒否を足しても筋書きは直さない。
+- 0 行の依頼の試験は `tests/blocks/world/test_steps.py` の Intake。依頼の容器の拒み（知らない鍵・下書きの行）も同じ所と `tests/blocks/shared/test_requestrows.py`。空の依頼の不具合は world の `src/` と、この Intake か `test_world.py` の `FlowCase` で閉じる（共通の口と設計書は直さない）。
 - `tests/blocks/world/test_world.py`: script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡し、`intake` → `restate_prep` → 台本の返答 → `restate_accept` → `pick` → `web_prep` → 台本の返答と偽の取り直し → `web_accept` → `finish` と回し、`rows` の行と `report` の行を照らす。
 - 指示の比べ（README の 11.4 の、block ごとの 2 つの commit の形。土台の PR では作っていない。9.1 の 11。作る時は）: 例の run の `intake.json`・`judge-input.json` と同じ値で、1 つ目の commit では日本語の md で組んだ指示が今の `classes-prompt-1.md`・`judge-prompt-1.md` と md の本文を合わせた物と同じ字になることを照らす。2 つ目の commit（英語）では、2.6 と 3.6 の差の一覧どおりかを並べて審査に出す。
 - 振る舞いの試験（今の試験から写す）: `lib/tests/test_world_check.py` の全部（Verify・Banned）・`lib/tests/test_blk_world.py` の Classes・Plan・Verify・Judge・Intake の大半・`lib/tests/test_judge_accept.py` の `WorldStageCase`（`judge/` のパスを place に替える）・`tests/workflows/test_judge.py` の `test_world_stage_without_rows_returns_no_world` と `…_with_a_broken_row_…`。

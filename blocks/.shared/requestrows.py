@@ -6,7 +6,8 @@ lib/carry.py の parts で容器を読む: 知らない最上位の鍵・前の 
 下書きの行は、行の配列の形でも拒む（carry.parts は配列の形では見ない）。
 
 - parts(raw) -> dict: carry.parts の返り（findings・pr・issue・answers・prior_failures・constraints）。読めなければ ValueError
-- findings(raw) -> list: parts(raw) の findings
+- findings(raw) -> list: parts(raw) の findings。空の配列 `[]`（と findings が空の容器）は拒まずに `[]` を返す。空の依頼の扱いは block が
+  決める（`.shared/AGENTS.md`）ので、block の空の依頼の不具合でここを直さない
 
 作り直しの間は lib/ を触らないので、ここに置く。組み込みで lib/ の carry の隣へ移すかは、その時に使い手の数で決める。
 """

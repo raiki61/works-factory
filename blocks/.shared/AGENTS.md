@@ -13,7 +13,8 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 ## `.shared` と `lib/` の分け
 
 - 2 つ以上の block が使う助けのうち、Archon の pointer（`{type: archon_artifact, run_id, path}`）・`INPUTS_`・place・node の実行の記録を解く所は、ここの口（`ports.py` か、ここの小さなモジュール）に置く。試験は `tests/blocks/shared/`。
-- 解いた後のパスや値を受けて中身（行・欄の意味）を返す所は `lib/` に置く（`lib/` は Archon を知らない。`lib/AGENTS.md` の E3）。試験は `lib/tests/`。作り直しの間は `lib/` を変えないので、新しく要る物は `lib/` の今のモジュールを使うか、ここに置いて組み込みで移す（例 `requestrows.py` は `lib/carry` を呼ぶだけ）。
+- 解いた後のパスや値を受けて中身（行・欄の意味）を返す所は `lib/` に置く（`lib/` は Archon を知らない。`lib/AGENTS.md` の E3）。試験は `lib/tests/`。`lib/` の今のモジュールは変えない。2 つ以上の block が使う新しいモジュールは足してよい（例 `lib/materialkit.py`）。
+- pointer の JSON を読んで行を返す助けは、pointer を解く所が `ports.json`・`ports.file` に既に在るので、ここに新しい口を足さない。script は `ports.json(raw, schema)` の値を渡し、行を取り出す所だけを `lib/` の新しいモジュールに置く（試験は `lib/tests/`）。
 - JSON を読む口は、先に `ports.json`・`lib/jsonfile.py` に無いかを見る。
 
 ## 口の一覧
@@ -28,7 +29,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 
 - `prompts/<name>.md`: 2 つ以上の block が使う指示の断片。md から `{shared:<name>}` で入れる。今在る名:
   - `rejected`: 前の回の却下（中の口 `{rejection}`）。
-  - `query-rule`: 外への検索と出典の決まりの全部（名を出さない・どの出典を先に読むか）。役が web を引く時の決まりはここに足す。段落 `spawns` の真偽が要る（下請けを起こさない役は `spawns: false`）。役の定義と node の md は検索の決まりを書き直さず `{shared:query-rule}` で受け、断片を変えた時に取り込む md は直さない。
+  - `query-rule`: 外への検索と出典の決まりの全部（名を出さない・どの出典を先に読むか）。役が web を引く時の決まりはここに足す。段落 `spawns` の真偽が要る（下請けを起こさない役は `spawns: false`）。役の定義と node の md は検索の決まりを書き直さず `{shared:query-rule}` で受け、断片を変えた時に取り込む md は直さない。断片の文だけを直す依頼は `prompts/query-rule.md` 1 本で閉じる。この一覧の行は断片の名や段落（`spawns`）が変わる時だけ直す。`tests/blocks/` に断片の字を照らす試験は無い（`tests/workflows/test_judge.py` の `QUERY_RULE` は旧の `lib/agents/judge.md` を照らす物で、作り直しの間は触らない）。
   - `lang-default`: `lang` が空の時の言語の文（`prompt.lang` が読む）。
   - 役の定義 5 本: `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`。
 - 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: `resubmit`・`policy`・`design-premises`・`unknown-asks`・`works-gh`・`material-status`・`material-na`・`material-where`・`material-readonly`・`handoff`・`report-head-check`。名は設計書の段で決め、ここに足す。
