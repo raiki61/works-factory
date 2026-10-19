@@ -9,7 +9,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    consistency-bypass: 'この役は整合性と標準機構の迂回を見る役（inspector）。'
+    consistency-bypass: 'You do two checks, independently of each other: consistency across the repository, and bypasses of standard mechanisms.'
 exec-code: true
 consistency-bypass:
   consistency: {status: clean, checked: 呼び手を見た}

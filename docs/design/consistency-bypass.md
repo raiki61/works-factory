@@ -335,3 +335,8 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 「足りない: 」の印の字を md に置かない（2.6）。訳: 機械が読まない字で、`reason` の言語の決まり（`{lang}`）と食い違う。
 - 1 つ目の commit の材料のファイルの比べを、例の run のファイルでなく、試験のリポジトリで今の `material_prep` が返す字と比べる。訳: 例の run の対象は別の組織のリポジトリ（<owner>/<repo>）で、その変更ファイルの名と置き場のパスを試験に入れたくない。今の関数は作り直しの間は残る（materials.md の 1.5）ので、同じ値で組んだ字を直に比べられ、置き換えるパスの字の扱いも要らない。
 - `report_lines` に `unseen` の 1 行だけを足す。訳: この観点は「見ていない」と「無かった」を分けることを返答の形で求める観点で、素材の 2 行（status と count・detail か checked）は見ていない範囲を言わない。所見の行は素材の `detail` が言う。
+- `due` は `materialkit.not_entry_due(view, values, "P1 の役")` を使う（entry が在り、かつ対象差分が空の時だけ回さない）。訳: main の部品が今の `not_request_entry` の写しで、修正が入って差分が出来た run は入口の周でない。1.5 の「entry が空でなければ」は差分が空の前提を落とした書き方だった。訳の字は部品のもの。
+- `NA_PARAGRAPH = True`。訳: md が共通の断片 `material-na` を差し込むので、`na_*` の段落と `na_why` が要る。
+- `values` は `repo_review_md` を、対象に REVIEW.md が無い回も空の字で渡す。訳: 指示を組む口（`blocks/.shared/prompt.py`）は選ばれない段落の中の差し込み口にも値を要求する。1.5 の「`theirs` が空でない時だけ足す」は main の口と合わない。
+- 役の 1 段落から「started in a new conversation」を外した。訳: 輪は `fresh_context: false` で会話を継ぐので、2 回目以降の回で嘘になる。
+- 1 つ目の commit の `role_prep.py` は `materialkit.prompt_inputs` を通らず、今の指示の 5 つの値で直に組む（2 つ目の commit で雛形に戻す）。

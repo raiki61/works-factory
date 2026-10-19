@@ -122,6 +122,13 @@ class FlowCase(unittest.TestCase):
         self.intake()
         self.assertIn(mine, self.prep()["prompt"])
 
+    def test_lang_and_conversation_wording(self):
+        self.intake(lang="Japanese")
+        got = self.prep()["prompt"]
+        self.assertIn("in Japanese.", got)
+        self.assertNotIn("new conversation", got, "輪は会話を継ぐので、新しい会話で起きたとは書かない")
+        self.assertNotIn("{repo_review_md}", got)
+
     def test_unreadable_base_fails_with_the_port_name(self):
         got = self.intake(base="no-such-revision")
         self.assertFalse(got["due"])
