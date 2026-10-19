@@ -1,0 +1,12 @@
+{
+  "description": "並行 PR の素材の札 {status, count?, detail?, checked?, reason?}。null か空は並行 PR の確かめが回っていない（script が先に見る）",
+  "type": "object",
+  "required": ["status"],
+  "properties": {
+    "status": {"type": "string", "enum": ["found", "clean", "carried_over", "not_applicable", "awaiting_human", "not_run"]},
+    "count": {"type": "integer"},
+    "detail": {"type": "string"},
+    "checked": {"type": "string"},
+    "reason": {"type": "string"}
+  }
+}
