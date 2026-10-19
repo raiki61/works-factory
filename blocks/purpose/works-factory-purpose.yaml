@@ -1,0 +1,120 @@
+name: works-factory-purpose
+description: '目的の固定の block（docs/design/purpose.md）。依頼・PR の説明・計画の文書から、この run の元の目的を AI の役に 1 つの文にさせ、出典の語と出典のファイルと自覚済みの弱点を返させる。依頼が示した解き方は目的の文から外して別の欄で返す。役に前の run の判断は見せない。目的は同じ place で 1 度固めたら書き直さない。単独の run でも、graph から include されても回る'
+inputs:
+  request:
+    required: true
+    description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形。prior_failures の欄は役に見せない）。空の配列は依頼の行の無い run'
+  pr_text: {default: '', description: 'text: PR の番号・題・本文を並べた文。空は PR の無い run'}
+  constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 前提の実測の行の配列か、それを constraints の欄に持つオブジェクト。空の配列は実測が無い'}
+  lang: {default: '', description: 'text: 人に見せる欄（purpose_text・known_weaknesses・means）の言語。空は依頼の行の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: purpose-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$purpose-accept.output.done; test "$done" = true
+      nodes:
+        - id: purpose-prep
+          script: purpose_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: purpose
+          prompt: "$purpose-prep.output.prompt"
+          depends_on: [purpose-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [purpose_text, source, known_weaknesses, source_files]
+            additionalProperties: false
+            properties:
+              purpose_text: {type: string, minLength: 1, pattern: '\S'}
+              source:
+                type: string
+                enum: [①PR 説明, ②計画・タスク記述, ③writer の要約, 目的不明]
+              known_weaknesses:
+                type: array
+                items: {type: string}
+              source_files:
+                type: array
+                items: {type: string}
+              means:
+                type: array
+                items: {type: string, minLength: 1, pattern: '\S'}
+        - id: purpose-accept
+          script: purpose_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [purpose]
+          with: {reply: $purpose.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, purpose-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, purpose, purpose_text, source, means, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+        purpose:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties:
+                type:
+                  type: string
+                  enum: [archon_artifact]
+                run_id: {type: string}
+                path: {type: string}
+            - {type: 'null'}
+        purpose_text: {type: string}
+        source:
+          type: string
+          enum: [①PR 説明, ②計画・タスク記述, ③writer の要約, 目的不明, '']
+        means:
+          type: array
+          items: {type: string}
+        report:
+          type: array
+          items: {type: string}

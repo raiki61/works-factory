@@ -1,0 +1,30 @@
+{
+  "description": "前提の実測の行の配列か、それを constraints の欄に持つオブジェクト（前提の実測の block の出力の pointer の先の形。constraints のほかの欄は読まない）。kind が 実測 の行は measured_output（実行したコマンドとその出力）を持つ（この形の照らしは if/then を持たないので、読み手の block が確かめる）",
+  "type": ["array", "object"],
+  "items": {
+    "type": "object",
+    "required": ["text", "measured_how", "kind"],
+    "properties": {
+      "text": {"type": "string"},
+      "measured_how": {"type": "string"},
+      "kind": {"type": "string", "enum": ["実測", "仮説"]},
+      "measured_output": {"type": "string"}
+    }
+  },
+  "required": ["constraints"],
+  "properties": {
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text", "measured_how", "kind"],
+        "properties": {
+          "text": {"type": "string"},
+          "measured_how": {"type": "string"},
+          "kind": {"type": "string", "enum": ["実測", "仮説"]},
+          "measured_output": {"type": "string"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+# 単独の run: 依頼の行だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。PR の説明と前提の実測は渡さない
+# （空の文と空の配列）。役の返答の means は受け付けが目的の文から外して別のファイルに置き、出口が欄で返す
+fixture:
+  expect: completed
+  reached: [intake, purpose-prep, purpose, purpose-accept, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+  resolved-text-contains:
+    purpose: '"where": "stats.py:4"'
+exec-code: true
+purpose:
+  purpose_text: 平均の関数が正しい値を返す
+  source: ②計画・タスク記述
+  known_weaknesses: []
+  source_files: []
+  means: [分母を len(xs) にする]
