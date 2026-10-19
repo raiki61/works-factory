@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import posixpath
+import re
 import types
 
 import answer
@@ -1037,6 +1038,7 @@ FIX_CHECKS = {
     "writes": "書き込みの出どころ",
     "conflict": "食い違いの申し出の形",
     "pack": "除くパスの頭の下の変更",
+    "excluded": "並行 PR に回した hunk",
     "duplicate": "同じ unit_key の重なり",
     "not_opened": "今の周に直す単位に無い unit_key",
     "excused": "直す義務から外れた単位",
@@ -1147,6 +1149,43 @@ def record_skipped(place, repo, skip) -> pathlib.Path:
     """修正の段の頭の、除くパスの頭 skip の下の姿（skip_digests）を置き場の SKIP_BEFORE_FILE に控える（check_pack_copy が読む）。
     元は修正役の前の控え（leftovers.record_ignored）の欄の 1 つ（元 works/.shared/core/leftovers.py:134）"""
     return write_json(pathlib.Path(place) / SKIP_BEFORE_FILE, skip_digests(repo, skip))
+
+
+EXCLUDED_TOUCHED = ("並行 PR #{pr} に回した hunk {file}:{start}-{end}（{why}）を変えた——この run の範囲から外した所なので、元の姿に"
+                    "戻してから出し直せ（変えた行 {lines}）")
+HUNK_OLD = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
+
+
+def check_excluded(place, repo) -> list:
+    """並行 PR の block が外した hunk（values.json の excluded。行の範囲は修正前の作業ツリーの行）に、修正の段の始めの木から今の
+    作業ツリーへの変更が触れたら、hunk を名指す拒否の文（hunk ごとに 1 行）。外した hunk が無ければ照らさない。新しい
+    （docs/design/fix.md の 8.1。line の設計書の 8.2 の決め）"""
+    import leftovers
+    from src import runvals
+    rows = runvals.read(place)["excluded"]
+    if not rows:
+        return []
+    tree = start_tree(place)
+    if not tree:
+        return []
+    out = []
+    for f in sorted({r["file"] for r in rows}):
+        try:
+            diff = leftovers.git(repo, "diff", "-U0", "--no-color", "--no-ext-diff", tree, "--", f)
+        except leftovers.Unreadable:
+            continue
+        spans = []   # 変えた・消した旧い側の行の範囲（足しただけの所は足した位置の前後の行）
+        for line in diff.splitlines():
+            m = HUNK_OLD.match(line)
+            if m:
+                a, n = int(m.group(1)), int(m.group(2) if m.group(2) is not None else 1)
+                spans.append((a, a + n - 1) if n else (a, a + 1))
+        for r in (r for r in rows if r["file"] == f):
+            hit = [s for s in spans if s[0] <= r["end"] and s[1] >= r["start"]]
+            if hit:
+                out.append(EXCLUDED_TOUCHED.format(pr=r.get("pr"), file=f, start=r["start"], end=r["end"], why=r.get("why") or "",
+                                                   lines="・".join(f"{a}-{b}" for a, b in hit)))
+    return out
 
 
 def check_pack_copy(reply: dict, place, repo, skip) -> str:
@@ -1443,6 +1482,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     got = factchecks.fix_unit_keys(reply, pathlib.Path(place), owed)
     if got is not None:
         note("pack", check_pack_copy(reply, place, repo, skip))
+        note("excluded", check_excluded(place, repo))
         keys, duty, excused = got
         note("duplicate", [DUPLICATE + k for k in check_unique_units(keys)])
         note("not_opened", [NOT_OPENED + k for k in check_opened_units(keys, duty | set(excused))])

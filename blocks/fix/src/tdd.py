@@ -630,40 +630,6 @@ def _test_cmd_problems(st, repo) -> list[str]:
 
 
 # ---------------------------------------------------------------- 指示書（節 tdd-prep）
-RETURN = {
-    "route": '{"phase": "route", "units": [{"unit_key": "<単位の key>", "route": "tdd" か "direct", "why": "<direct の理由。10 字以上>"}]}',
-    "test": '{"phase": "test", "unit_key": "<今の単位>", "test_files": ["<書いたテストのファイル>"], '
-            '"tests": ["<パス>::<クラス>::<テストの名前>"], "' + QUOTES_FIELD + '": {"<名指しの id>": {"quote": "<赤の時の失敗の文を'
-            '結末からそのまま>", "why": "<なぜ期待どおりの理由で落ちたか。10 字以上>"}}}  （結末に失敗の文が無い名指しは引かなくてよい。'
-            '先にテストを書けないと分かったら {"phase": "test", "unit_key": "<今の単位>", "direct_why": "<理由。10 字以上>"}）',
-    "fix": '{"phase": "fix", "unit_key": "<今の単位>", "files": ["<直したファイル>"], "what": "<何をどう直したか>", '
-           '"refactor": {"declared": true か false, "why": "<整える理由。declared が true なら 10 字以上>"}}',
-    "refactor": '{"phase": "refactor", "unit_key": "<今の単位>", "what": "<何を整えたか。整える物が無ければそう書く>"}',
-}
-RETURN_CONFLICT = ('どの段でも、緑にするためにテスト・依頼・コードのどれかを曲げるしかないと分かった単位は '
-                   '{"phase": "conflict", "unit_key": "<単位>", "between": ["<パス>:<行>", "<パス>:<行>"], '
-                   '"why_both_cannot_hold": "<なぜ両方は成り立たないか>", "which_is_right": "request か test か code か unknown か query", '
-                   '"kind": "<種類: ' + " か ".join(conflict.DIV_KINDS) + '>"}'
-                   '（query なら "correct_lines": ["<問いが当たる直した後の正しい行>"] も）'
-                   '（振り分けの段なら義務の単位のどれか、ほかの段なら今の単位）。種類の意味は決まりのセクション「食い違いの申し出」')
-DO = {
-    "route": "直す義務の単位を全部、ちょうど 1 度ずつ振り分けよ。tdd＝直す前に落ち、直した後に通るテストをリポジトリのテスト一式に"
-             "書ける単位。direct＝先にテストを書けない単位（文書・指示書・注記・設定だけの直しなど）で、理由を 10 字以上で書く。"
-             "この段では作業ツリーを変えるな。",
-    "test": "今の単位の欠陥を再現する、今は落ちるテストを書け（「今の単位と一緒に直す単位」のセクションが在れば、その単位も今の単位に含める）。"
-            "やり方は rules/tdd.md の test の段に従え。機械が一式を走らせ、名指しのテストが failure で落ち、元で通っていたテストが"
-            "通ることを確かめる（error・一式の結末に居ない・もう通る・飛ばされた、は拒む）。名指しごとの失敗の文の引用と理由は返答の欄 "
-            + QUOTES_FIELD + " に書け（機械は引用が結末の failure の文に在るかを照らす）。",
-    "fix": "今の単位だけを直せ（「今の単位と一緒に直す単位」のセクションが在れば、その単位も）。テストのファイルは変えるな（凍っている。"
-           "テストの誤りに気づいたら直さずに what に書け）。機械が一式を"
-           "走らせ、名指しのテストと元で通っていたテストが通ることを確かめる。緑の後に整えたい所（重複・名前・不要になったコード）が"
-           "在る時だけ refactor の declared を true にし、why に理由を 10 字以上で書け。申告が無ければ整えの段は来ない（brief の "
-           "refactor.declared が true の単位は申告なしでも来る）。",
-    "refactor": "この段は、fix の段で申告した単位か、brief で申告した単位だけに来る。申告した所を緑のまま整えよ（テストのファイルは"
-                "変えない）。整える物が無くなっていれば何も変えずに返せ。変えたなら機械がもう 1 回緑を確かめる。",
-}
-
-
 def _briefs(board_dir: pathlib.Path, **sources) -> list:
     """置き場の brief（planbrief.cut_at。sources は cut の材料。控えが在ればそれを返す。置き場が無い・材料の無い run は []）。
     控えが壊れていれば理由の Broken（fixrules.brief_halt の文。brief の無い指示書として続けない。止めるのは呼び手）"""
@@ -765,12 +731,6 @@ def _together_lines(st, k) -> list:
             "これらの単位を閉じる（別の段は来ない）。", ""] + [f"- {q}" for q in keys] + [""]
 
 
-DO_HEAD = promptsection.Section("## この段ですること", source="fn:tddloop.prep")
-DUTY_HEAD = promptsection.Section("## 直す義務の単位", source="fn:tddloop.prep")
-NOW_HEAD = promptsection.Section("## 今の単位", source="fn:tddloop.prep")
-RUN_HEAD = promptsection.Section("## テストの回し方", source="fn:tddloop.prep")
-REPLY_HEAD = promptsection.Section("## 返す JSON", source="fn:tddloop.prep")
-STEP_TITLE = promptsection.Section("# TDD のループの指示書（{count} 回目・段 {phase}）", source="fn:tddloop.prep")
 
 
 def prep(state_file, sources=None) -> dict:

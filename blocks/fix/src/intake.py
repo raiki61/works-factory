@@ -16,12 +16,14 @@ SCHEMAS = {"judgment": "judgment.schema.json", "plan": "plan-fields.schema.json"
            "answer_ties": "answer-ties.schema.json", "materials": "materials.schema.json",
            "skip_rerun": "skip-rerun.schema.json", "answers": "gate-answers.schema.json",
            "request_answers": "request-answers.schema.json", "plan_review": "plan-review.schema.json",
-           "prior": "carry.schema.json", "only_items": "only-items.schema.json", "group": "group.schema.json"}
+           "prior": "carry.schema.json", "only_items": "only-items.schema.json", "group": "group.schema.json",
+           "excluded": "excluded.schema.json"}
 FILES = ("ripple", "baseline", "policy", "request")
 FLAGS = {"unattended": False, "parallel": True}
 TEXTS = ("notes", "test_cmd", "tdd_suite", "reuse_dir", "reuse_key", "user_env_dir", "from_tree", "out_dir", "lang")
 DEFAULTS = {"judgment": None, "plan": None, "fix_plan": None, "answer_ties": None, "materials": None, "skip_rerun": [],
-            "answers": None, "request_answers": [], "plan_review": None, "prior": None, "only_items": [], "group": None}
+            "answers": None, "request_answers": [], "plan_review": None, "prior": None, "only_items": [], "group": None,
+            "excluded": None}
 NAMES = ("mode", *SCHEMAS, *FILES, *FLAGS, *TEXTS)
 NEEDED = "入力 {name}: {mode} の形には要る"
 
@@ -85,4 +87,12 @@ def run_values(doc: dict, run_id: str) -> dict:
     return {"tdd_suite": doc["tdd_suite"], "test_cmd": doc["test_cmd"], "reuse_key": doc["reuse_key"] or run_id,
             "reuse_dir": doc["reuse_dir"], "user_env_dir": doc["user_env_dir"], "lang": doc["lang"], "policy": doc["policy"],
             "request_file": doc["request"], "answers": doc["request_answers"], "unattended": doc["unattended"],
-            "parallel": doc["parallel"], "skip_rerun": doc["skip_rerun"]}
+            "parallel": doc["parallel"], "skip_rerun": doc["skip_rerun"], "excluded": excluded_rows(doc.get("excluded"))}
+
+
+def excluded_rows(got) -> list:
+    """port excluded（並行 PR の block の pr-excluded.json {excluded: [...]} か、その行の配列。null は外した hunk が無い）の行
+    [{pr, file, start, end, why}]"""
+    rows = got.get("excluded") if isinstance(got, dict) else got
+    return [r for r in rows or [] if isinstance(r, dict) and isinstance(r.get("file"), str)
+            and isinstance(r.get("start"), int) and isinstance(r.get("end"), int)]

@@ -34,10 +34,6 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
-
 import conflict  # noqa: E402
 from src import board as fixboard  # noqa: E402
 import impact  # noqa: E402

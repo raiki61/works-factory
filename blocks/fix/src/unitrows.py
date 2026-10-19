@@ -35,9 +35,6 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_GL = pathlib.Path(__file__).resolve().parent / "graphloops"   # 写しの engine（元は import board が sys.path に足した。carry.py と同じ足し方）
-if str(_GL) not in sys.path:
-    sys.path.insert(0, str(_GL))
 
 import engine.util as _util  # noqa: E402
 import recount  # noqa: E402

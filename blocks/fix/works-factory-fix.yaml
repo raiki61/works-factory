@@ -85,6 +85,9 @@ inputs:
   lang:
     default: ''
     description: 'text: 人に見せる欄（各役の md が名指す欄）の言語。空は依頼の言語'
+  excluded:
+    default: 'null'
+    description: 'json(excluded.schema.json): 並行 PR の確かめが外した hunk（parallel-pr の excluded の先 {excluded: [{pr, file, start, end, why}]} か、その行の配列）。修正の受け付けは、修正の段の始めの木からの変更がこの範囲に触れた返答を拒む。null は外した hunk が無い'
 
 returns: finish
 outcome_field: ok

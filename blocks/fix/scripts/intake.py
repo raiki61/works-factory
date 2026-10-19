@@ -15,7 +15,7 @@ import ports  # noqa: E402
 RAW = {name: os.environ.get(f"INPUTS_{name.upper()}") for name in (
     "mode", "judgment", "plan", "fix_plan", "answer_ties", "materials", "skip_rerun", "answers", "request_answers", "plan_review",
     "prior", "only_items", "group", "ripple", "baseline", "policy", "request", "unattended", "parallel", "notes", "test_cmd",
-    "tdd_suite", "reuse_dir", "reuse_key", "user_env_dir", "from_tree", "out_dir", "lang")}
+    "tdd_suite", "reuse_dir", "reuse_key", "user_env_dir", "from_tree", "out_dir", "lang", "excluded")}
 
 
 def compute() -> dict:

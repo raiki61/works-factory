@@ -30,6 +30,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように（必ず import より前）
 if __name__ == "__main__":   # 修正役が事前の確かめのコマンドとして単独で起こす（docs/design/fix.md の 1.5.5。script の頭と同じ）
+    # 単独で起こすと Python が自分のフォルダ src/ を頭に置き、lib の同じ名のモジュール（carry など）を隠すので外す
+    sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != Path(__file__).resolve().parent]
     sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
     import ports  # noqa: E402,F401  （lib/ を sys.path に足す）
 

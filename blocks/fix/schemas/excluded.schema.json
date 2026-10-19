@@ -1,0 +1,1 @@
+{"type": ["object", "array", "null"], "properties": {"excluded": {"type": "array"}}, "items": {"type": "object", "required": ["file", "start", "end"]}}
