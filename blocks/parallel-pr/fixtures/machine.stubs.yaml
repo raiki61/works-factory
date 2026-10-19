@@ -1,0 +1,22 @@
+# 機械が決める道: scan が役を起こさないと言えば、役の輪と読んだ証拠の node を通らずに出口へ届く。筋書きの place は空なので scan と出口の
+# 返りを差し替えて配線だけを見る。本当に走らせた道は tests/blocks/parallel_pr の試験が見る
+fixture:
+  expect: completed
+  reached: [scan, finish]
+  inputs:
+    changed: '["a.py"]'
+exec-code: true
+scan:
+  go_role: false
+  reason: '機械が決めた: clean（open な PR と変更ファイルの交差 0 件）'
+finish:
+  ok: true
+  status: clean
+  stop_reason: ''
+  reason: '機械が決めた: clean（open な PR と変更ファイルの交差 0 件）'
+  material: {status: clean, checked: gh で open な PR を引いて交差 0 件}
+  excluded: null
+  drafts: null
+  reads: null
+  downgrades: []
+  report: ['並行 PR: clean']

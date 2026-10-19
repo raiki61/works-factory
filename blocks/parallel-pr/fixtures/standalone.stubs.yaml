@@ -1,0 +1,23 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。AI の node のほかの script は本当に走り、指示が md から組まれたことを
+# md の決まった文で照らす。scan だけは差し替える: 筋書きの作業ツリーは remote が GitHub でないので、本当に走らせると機械が条件外と決めて
+# 役を起こさない（その道は machine.stubs.yaml）。値の振る舞い（交差・外す hunk・受け付けの拒み）は tests/blocks/parallel_pr の試験が確かめる
+fixture:
+  expect: completed
+  reached: [scan, pr-check-prep, pr-check, pr-check-accept, pr-check-reads, finish]
+  inputs:
+    changed: '["a.py"]'
+  resolved-text-contains:
+    pr-check: 'この役は読むだけ。ファイルを書く・消す'
+exec-code: true
+scan:
+  go_role: true
+  reason: 並行 PR と 1 件交差した（['7']）
+pr-check:
+  material:
+    status: clean
+    checked: open な PR 2 件を引き、交差した PR #7 の差分を読んだ。ぶつかる hunk は無い
+  repo: o/r
+  listed: 2
+  truncated: false
+  conflicts: []
+  excluded: []

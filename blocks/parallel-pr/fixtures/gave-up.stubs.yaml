@@ -1,0 +1,24 @@
+# 役の返答が受け付けを通らない道（担当の PR へ投稿したと名乗る返答）: run は止めず、出口が落ちずに返る。筋書きでは輪が 1 周で終わるので
+# 却下は 1 回で、3 回で諦めて出口が status: failed と stop_reason: works:pr を返す数えは tests/blocks/parallel_pr の試験が確かめる
+fixture:
+  expect: completed
+  reached: [scan, pr-check-prep, pr-check, pr-check-accept, pr-check-reads, finish]
+  inputs:
+    changed: '["a.py"]'
+  resolved-text-contains:
+    pr-check: 'この役は読むだけ。ファイルを書く・消す'
+exec-code: true
+scan:
+  go_role: true
+  reason: 並行 PR と 1 件交差した（['7']）
+pr-check:
+  material:
+    status: found
+    count: 1
+    detail: PR #7 が a.py を同じく書き換えている。担当の PR に申し送った
+  repo: o/r
+  listed: 2
+  truncated: false
+  conflicts:
+    - {pr: '7', files: [a.py], handed_over: true, note: gh pr comment 7 で申し送った}
+  excluded: []
