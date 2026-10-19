@@ -1,0 +1,7 @@
+# 判定から入る run（entry が在る・差分が空）: 役の node に届かず、素材は人の依頼の文で埋まって出口が status: skipped を返す
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    entry: '人の依頼（standalone）'
+exec-code: true

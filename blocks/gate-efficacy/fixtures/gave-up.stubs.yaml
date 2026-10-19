@@ -1,0 +1,16 @@
+# ゲートの検算の役の返答が受け付けを通らない道（腕が 0 行なのに clean）: run は止めず、出口が落ちずに返る。筋書きでは輪が 1 周で
+# 終わるので却下は 1 回で、3 回で諦めて出口が status: gave_up を返す数えは tests/blocks/gate_efficacy の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, gate-efficacy-prep, gate-efficacy, gate-efficacy-accept, finish]
+  inputs:
+    gates: ''
+    entry: ''
+  resolved-text-contains:
+    gate-efficacy: 'You are the gate-efficacy role.'
+exec-code: true
+gate-efficacy:
+  material:
+    status: clean
+    checked: nothing was fired
+  arms: []

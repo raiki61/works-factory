@@ -1,0 +1,51 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、局所レビューの役の返答だけを差し替える。
+# 指示が md から組まれたことを md の決まった文で照らす。出口の status が ran になることと、見ていないレンズの印・判定から入る run で
+# 役を起こさないことは tests/blocks/local_review の試験が確かめる（筋書きは値と node の返りの欄を照らさない）
+fixture:
+  expect: completed
+  reached: [intake, local-review-prep, local-review, local-review-accept, finish]
+  inputs:
+    base: ''
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    local-review: 'You are the local-review role.'
+exec-code: true
+local-review:
+  material:
+    status: clean
+    checked: the diff and the changed files, with each declared lens
+  simplify_carried: false
+  findings:
+    - skill: /code-review
+      invoked: true
+      items:
+        - where: README.md:1
+          text: The first line of the README is a title only
+          mechanism: The README starts without a summary line
+          measured: not measured
+          false_positive_if: The title is meant to be the summary
+    - skill: pr-review-toolkit:code-reviewer
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: /simplify
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: /security-review
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: pr-review-toolkit:silent-failure-hunter
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: pr-review-toolkit:type-design-analyzer
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: pr-review-toolkit:pr-test-analyzer
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)

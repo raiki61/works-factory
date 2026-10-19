@@ -82,8 +82,8 @@ materials.md の 1.4 の名（`intake.json`・`view.json`・`diff.patch`・`chan
   - `MATERIALS = ("local_review",)`
   - `GUARDED = False`（作業ツリーの照らしを外すのではなく、Archon が節の前後の git status を照らさない役なので、accept が `porcelain` も含む全部の欄を比べる、の意味。AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false}`。`workflows/judge/works-factory-judge.yaml:1123`）
   - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.local_review']` が `applies_cond` を持たず `na_self_ok: False`。`lib/judge_accept.py:1644-1648`。graphloops の `na_reason_note`「差分が在る限り常に対象」）
-  - `due(view, values)`: `values["entry"]` が空でなければ `materialkit.entry_skip("P1 の役")`。空なら `materialkit.Due(True, "判定から入る run でない（port entry が空）——通常の run")`。今の `not_request_entry`（`:1511-1516`）の 2 つの枝。回す時の字は今の「入口の印（process.request_entry）が無い——通常の run」の、盤面の欄の名を port の名に替えた物。
-  - `fill(view, values, due)`: `{"local_review": materialkit.fill_entry(values["entry"], 0)}`（回さないのは判定から入る run だけ。今の `_fill_one` の 1 つ目の枝）。
+  - `due(view, values)`: `return materialkit.not_entry_due(view, values, "P1 の役")`。判定から入る run の周（`materialkit.is_entry_run`: `entry` が空でなく、対象差分が空）だけ `entry_skip`、それ以外は `normal_run`。族の決め（materials.md の 5.1・`lib/judge_accept.py` の `request_entry`）に従う。差分が出来た run は `entry` が在っても通常の run。
+  - `fill(view, values, due)`: `{"local_review": materialkit.fill_entry(values["entry"], None)}`（回さないのは判定から入る run だけ。今の `_fill_one` の 1 つ目の枝）。
   - `applies(view, values)`: `raise NotImplementedError`。
   - `judged_na(view, values)`: `return False`。
   - `values(view, values)`: `own, theirs = materialkit.review_md_paths(view.repo)` として、`{"diff_file": view.diff_file, "base": view.base, "changed_files_file": view.changed_files_file, "review_md": own, "skills": dump(lenses.skills()), "unattended": seat.overlay_body(seat.OVERLAY_KINDS["local-review"])}`。`theirs` が空でなければ `"repo_review_md": theirs` も足す（入る段落の中の口だけに値を渡す。materials.md の 2.11）。`dump` は `json.dumps(x, ensure_ascii=False, indent=1)`。
@@ -141,7 +141,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:query-rule}
 
-You are the local-review role, started in a new conversation. Your only job is to start each review lens declared below on the target diff, one by one and by name, and to collect what each lens finds. Do not score the findings or settle their labels. You are given neither the request nor any other material.
+You are the local-review role. Your only job is to start each review lens declared below on the target diff, one by one and by name, and to collect what each lens finds. Do not score the findings or settle their labels. You are given neither the request nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill (to start a skill), and Agent (to start an agent). Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 
@@ -225,7 +225,7 @@ md の中に `$` の字は無い（今の道具の段の「`$(…)`」は `{shar
 
 言語: `{lang}` は materials.md の 2.11 のとおり。`{skills}` の中の `applies_why` と `{unattended}` は日本語の値のまま入る（機械の事実の字と、借りた物の写しの台帳 `lib/borrow/COPIED_FROM` が持つ字。自分で決めた。7 節）。
 
-会話: prior-decisions.md の 2.3 の終わりと同じ（1 回目は新しい会話、拒まれた後は同じ会話の続き、各回に Archon の `retry`）。
+会話: 役は `fresh_context: false` で、拒まれた後の回は同じ会話の続き（各回に Archon の `retry`）。
 
 ### 2.4 返す形
 
@@ -252,7 +252,7 @@ md の中に `$` の字は無い（今の道具の段の「`$(…)`」は `{shar
 
 {shared:query-rule の本文（spawns の段落つき）}
 
-You are the local-review role, started in a new conversation. …
+You are the local-review role. …
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill (to start a skill), and Agent (to start an agent). …
 
@@ -440,10 +440,17 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - `/code-review` の注意の旗の綴りを、綴りを書かない文に替える。訳: 同じ md の実測の決まり（否定の文の中の綴りも旗に取られる）に、今の値が外れていた。役への求め（旗を付けない）は同じ。
 - 借りたスキルの読み替えは、md に写さず値 `{unattended}` で `seat.overlay_body` から入れ、日本語のまま入れる。訳: 源は `lib/borrow/unattended.md` で、版・錨・試験は `lib/borrow/` の台帳が持つ（README の 9.3 の `borrow/`・`seat` は KEEP）。md に英語の写しを置くと源が 2 つになる。読み替えは借りた物の写しの手直しで、この block の決まった文ではない。新しい共通の断片は足さない（使い手の fix・delta-review は種類の節が違うので、同じ字の断片にならない）。
 - 読み替えの段を結びの 1 文の前に移す。訳: materials.md の 3.1 の並び（言語の 1 文と結びの 1 文を最後）を守る。今は返答の形の 1 行の後ろに在った。
-- 回す時の `due` の字を「判定から入る run でない（port entry が空）——通常の run」にする。訳: 今の字は盤面の欄 `process.request_entry` を名指すが、block はその記録を読まない。意味は同じで、名指す物を port に替えた。materials.md に回す時の字の共通の口が無いので、この block が持つ（報告に書いた）。
+- 回す時の `due` の字は materialkit の `normal_run`（「判定から入る run でない（入力 entry が空か、対象差分が空でない）——通常の run のため、P1 の役を起こす」）。block 独自の字は持たない。
 - `security_surface_touched` を block の入力にせず、`src/lenses.py` の `applies` がいつも真と決まった字を返す。訳: 今も機械は `touches_security_surface` を判定せず真に倒している（`due_view` の docstring「機械は差分の柵を決められないので役を起こす側に倒す」）。読まない入力を足さない（README の 1.2 の P）。
 - 見ていないレンズの控えの名を `lenses.json` にする（今は `local-review-lenses.json`）。訳: place は観点ごとに分かれるので、観点の名を前に付ける要が無い。ほかの block は読まない。控えは残す（materials.md の 4 節の 7 が求め、resume や後の調べで受けた回の印を見られる）。
 - 見ていないレンズを報告へ渡すのを、`lenses.json` の pointer でなく `report` の行にする。訳: README の 4.1（報告の文は事実を持つ block が組む）と、出力を族の 5 欄にそろえる materials.md の 1.2。report.md の 1.6 も「未確認のレンズ → local-review」とする。
 - プラグインの欠けの拒みの文の入れ直しの道を `bin/_lib/toolset.py install` に直す。訳: 今の字の `dev/toolset.py` は元の works の置き場で、工場には無い（`bin/_lib/launcher.py:361-364` が `bin/_lib/toolset.py install` を打つ）。拒みの文は人に見せる文なので、在る道を名指す。
 - `lens_gap` から持ち越しの変数 `carry_ok` を外す。訳: 今もいつも偽で、1 run = 1 周では真にならない。読む人に「真になる周が在る」と誤らせない。
 - 試験のフォルダの名を `tests/blocks/local_review/` にする（materials.md の 10 節と同じ訳）。
+- 実装で決めた事（main の決まりが設計書と食い違った所）:
+  - `repo_review_md` の値は、対象の根に `REVIEW.md` が無い回も空の字で渡す。訳: 設計書の 1.5 は「空でなければ足す」と言うが、土台の `prompt.render` は選ばれない段落の中の差し込み口も数え、値が無ければ落ちる（materials.md の 2.11 と同じ決まり）。段落の真偽 `repo_review` が入る・入らないを決める。
+  - md の役の 1 段落を `You are the local-review role.` にし、「started in a new conversation」を外した。訳: この輪は `fresh_context: false` で、拒まれた後の回は同じ会話の続きになる。1 回目だけ新しい会話という文は 2 回目以降に嘘になる（調整役の指摘）。fixture の `resolved-text-contains` もこの文に合わせた。
+  - `intake` の `due` は materials.md に従い `materialkit.not_entry_due`（`entry` が空でなく差分が空の時だけ回さない）で決める。
+  - `covers_lenses` の「宣言したレンズが空」の文は `skills` が空の枝として残した（graph への求めだけを外した）。`LENSES` は空にならないので試験は見ない。
+  - 起こし方の照らしは、今の `tests/workflows/test_judge.py` の表を import せず、`tests/blocks/local_review/test_local_review.py` の `LAUNCH` に値を写した（今の定数が消えても残る）。
+  - 1 つ目の commit の `oldbrief.py` は、対象の根に `REVIEW.md` が無い回は「対象リポジトリ側」の節を出さない。今の `material_prep` はその回に穴が解けず落ちる（`?` を外して描く）ので、字を比べられるのは `REVIEW.md` が在る回だけ。

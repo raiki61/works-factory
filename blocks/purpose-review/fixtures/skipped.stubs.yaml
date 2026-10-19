@@ -1,0 +1,8 @@
+# 出典が writer の要約でない目的（PR の説明）: 役を起こさず、intake が回さないと決めて finish が status: skipped を返す。
+# AI の node は走らないので reached に入れない。skipped の status と reason の字は tests/blocks/purpose_review の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    purpose: '{"purpose_text":"設定の読み込みが空のファイルでも落ちないようにする","source":"①PR 説明","known_weaknesses":[],"source_files":[]}'
+exec-code: true
