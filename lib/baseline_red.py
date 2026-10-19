@@ -131,8 +131,12 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0):
 
 def nice19() -> None:
     """子の中で exec の前に呼ぶ（Popen の preexec_fn）: nice -n 19 と同じだけ優先度を下げる（元 works/.shared/core/entry.py:680-682 の
-    _nice19）"""
-    os.nice(NICENESS)
+    _nice19）。下げるのは努めるだけ: 親が既に一番低い優先度で動いている（nice -n 19 の下の macOS など）か OS が下げるのを拒めば
+    （os.nice の OSError。PermissionError を含む）、下げずにそのまま子を起こす。ほかの誤りは握らない"""
+    try:
+        os.nice(NICENESS)
+    except OSError:
+        pass
 
 
 def lowered() -> tuple[dict, str]:

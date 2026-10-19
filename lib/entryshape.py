@@ -31,7 +31,6 @@ import tempfile
 import carry  # noqa: E402  （依頼の容器の形 parts）
 import ghreads  # noqa: E402  （run の中の gh の読み出し・盤面の github.json）
 import oneline  # noqa: E402
-import promptsection  # noqa: E402
 import engine.util as _util  # noqa: E402
 from engine.util import Reject, git  # noqa: E402
 
@@ -142,11 +141,11 @@ def build(inp: dict, repo: pathlib.Path) -> dict:
             "spec": bool(inp.get("spec"))}
 
 
-REQUEST_HEAD = promptsection.Section("## 依頼", source="fn:entryshape.request_text")
-PR_TEXT_HEAD = promptsection.Section("## PR #{number} の題と本文", source="fn:entryshape.request_text")
-PR_TITLE = promptsection.Section("# PR #{number}", source="fn:entryshape.write_pr_file")
-PR_SUBJECT_HEAD = promptsection.Section("## 題", source="fn:entryshape.write_pr_file")
-PR_BODY_HEAD = promptsection.Section("## 本文", source="fn:entryshape.write_pr_file")
+REQUEST_HEAD = "## 依頼"
+PR_TEXT_HEAD = "## PR #{number} の題と本文"
+PR_TITLE = "# PR #{number}"
+PR_SUBJECT_HEAD = "## 題"
+PR_BODY_HEAD = "## 本文"
 
 
 def request_text(inp: dict) -> str:

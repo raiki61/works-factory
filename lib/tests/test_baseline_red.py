@@ -121,7 +121,7 @@ class RunSuiteSeedCase(unittest.TestCase):
     def test_runner_is_niced(self):
         """実行器は nice -n 19 と同じだけ優先度を下げて起こす（元 works/blk-fix/lib/tddloop.py:307。同じ機械で別の run も動く）。
         argv は変えない（起こせるかの証明を走らせる時と同じ形のまま通す）"""
-        mine = os.nice(0)
+        mine = os.getpriority(os.PRIO_PROCESS, 0)   # os.nice(0) は nice 19 の下の macOS で PermissionError になる
         exe = self.runner(f"ps -o nice= -p $$ > {self.work}/nice\nexit 0\n")
         seen = []
         real = baseline_red.tree_run.run
@@ -140,6 +140,21 @@ class RunSuiteSeedCase(unittest.TestCase):
             baseline_red.run_suite(exe, self.repo, self.work, "bare")
         self.assertNotIn("preexec_fn", seen[0])
         self.assertIn(baseline_red.NO_NICE, (self.work / "suite-bare.log").read_text(encoding="utf-8"))
+
+    def test_refused_nice_still_starts_the_child(self):
+        """OS が優先度を下げるのを拒む（nice -n 19 の下の macOS の os.nice は PermissionError）時も、下げずに子を起こす。拒みの
+        OSError だけを握り、ほかの誤りは上げる"""
+        def refuse(_inc):
+            raise PermissionError(1, "Operation not permitted")
+        exe = self.runner(f"echo ran > {self.work}/ran\nexit 0\n")
+        with mock.patch.object(baseline_red.os, "nice", refuse):
+            self.assertIsNone(baseline_red.nice19())
+            _, code, _ = baseline_red.run_suite(exe, self.repo, self.work, "refused")
+        self.assertEqual(code, 0)
+        self.assertEqual((self.work / "ran").read_text(encoding="utf-8").strip(), "ran", "子が起きた")
+        with mock.patch.object(baseline_red.os, "nice", side_effect=RuntimeError("別の誤り")):
+            with self.assertRaises(RuntimeError):
+                baseline_red.nice19()
 
 def row(name, outcome, cls="test_a.TestA"):
     return {"classname": cls, "name": name, "outcome": outcome}

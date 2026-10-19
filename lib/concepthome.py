@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import pathlib
 import subprocess
-import promptsection
 
 MAP_NAME = "docs/concepts.md"
 TABLE_NAME = "docs/concepts.json"
@@ -45,8 +44,7 @@ REVIEW_ASK = (
     "知る所を書け。住処が在るのに使わない案は severity block、住処の無い考えの知る所を増やす案は suggest。住処のパスと行を書けない"
     "物は挙げない。構造の目の行がその単位で「責務を 2 か所に割る」を既に挙げ、案がその避け方（chosen）に従っているなら挙げ直さない。")
 
-R1_HEAD = promptsection.Section(
-    "## 最小の意味（works が足した読み替え。下の指示書の「累積差分が最小か」と観点の正本の「処方の最小性」の大きさは、この意味で読め）\n\n"
+R1_HEAD = ("## 最小の意味（works が足した読み替え。下の指示書の「累積差分が最小か」と観点の正本の「処方の最小性」の大きさは、この意味で読め）\n\n"
     f"{AXIS}。\n\n"
     "最小は行数でなく、考え（設計の決まりごと）を知る所の数で量る。累積差分の後、どの考えも、それを知る所（語・欄の名・値・判定の式を"
     "書く所）が差分の前より増えていなければ最小である。考えを住処（1 か所で持つ所）へ移すために行が増えた差分は最小に数え、数行で"
@@ -55,17 +53,16 @@ R1_HEAD = promptsection.Section(
     f"「{PREFIX}」で始めて考えの名と増えた所を書き、増えた所を deletions に 1 行ずつ（where は増えた所、why は住処のパスと行）置け。"
     f"住処の無い考えの知る所が増えただけなら、正当化できる増分として（所見に数えずに）increments に「{PREFIX}」で始まる 1 行を置け。"
     "知る所の数は、下の機械の実測と『考えの住処の地図』のセクション（機械がこのセクションの後ろに貼った）を手がかりに量れ。\n\n"
-    "{section}", source="fn:eyeverdict.after_section")
+    "{section}")
 
-R3_HEAD = promptsection.Section(
-    "## 考えの住処（works が足した観点）\n\n"
+R3_HEAD = ("## 考えの住処（works が足した観点）\n\n"
     f"{AXIS}。\n\n"
     "差分が触る考えごとに、対象のリポジトリの中での住処（1 か所で持つ所）を確かめよ。『考えの住処の地図』のセクション（機械がこのセクションの後ろに貼った）に地図が在ればその行を正とし、"
     "無ければリポジトリ自身の構造（README・モジュールの境・同じ語を定数で持つ所）から住処を見つけよ。差分が考えを住処の外に書き"
     "足している、または住処と違う形で同じ考えを持ち直していて、住処のパスと行を名指せるなら、status を redesign-needed にし、"
     f"reason を「{PREFIX}」で始めて考えの名・住処・外の所を書け。名指せない物は pass のまま reason に書け。読んだ地図（地図が"
     "無ければ構造から見つけた住処）を seen に、住処を見つけられなかった考えを unseen に含めよ。下の機械の実測の増えた所も確かめよ。\n\n"
-    "{section}", source="fn:eyeverdict.after_section")
+    "{section}")
 
 EYE_ASK = (
     f"{AXIS}。\n\n"
@@ -109,9 +106,9 @@ def tracked_names(repo) -> tuple[list[str], str]:
     return [n for n in p.stdout.split("\0") if n], ""
 
 
-MAP_NONE_HEAD = promptsection.Section(f"## 考えの住処の地図\n\n無い（探した形: 追跡されたファイルの {MAP_NAME}。根とどのフォルダの下でも）{{tail}}。"
-                                      "住処はリポジトリ自身の構造から探せ", source="fn:concepthome.section")
-MAP_FOUND_HEAD = promptsection.Section("## 考えの住処の地図（機械が追跡されたファイルから探した。先に Read で読め）\n\n", source="fn:concepthome.section")
+MAP_NONE_HEAD = (f"## 考えの住処の地図\n\n無い（探した形: 追跡されたファイルの {MAP_NAME}。根とどのフォルダの下でも）{{tail}}。"
+                                      "住処はリポジトリ自身の構造から探せ")
+MAP_FOUND_HEAD = "## 考えの住処の地図（機械が追跡されたファイルから探した。先に Read で読め）\n\n"
 
 
 def section(repo) -> str:

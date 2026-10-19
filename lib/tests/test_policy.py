@@ -1,9 +1,8 @@
-"""人の方針を役に届ける形（policy）。盤面の写しから組む brief と、盤面の無いブロックが貼る節 section が同じ上限で本文を切ること
-（元 works/.shared/core/gl-prompts/prompts/policy-paste.md・policy.md）"""
+"""人の方針を役に届ける形（policy）。写しから組む brief が上限 PASTE_CAP（listcut.FILE_CAP と同じ値）で本文を切ること。
+節の文は共通の断片 blocks/.shared/prompts/policy.md（integration.md 4.5-4(c)）"""
 import hashlib
 import json
 import pathlib
-import re
 import subprocess
 import sys
 import tempfile
@@ -13,41 +12,29 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
-import boardview  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
-import judge_accept  # noqa: E402
 import policy  # noqa: E402
-from engine.render import MATERIAL_NOTE  # noqa: E402
+import listcut  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
 
 
-class SectionCase(unittest.TestCase):
+class BriefCapCase(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.pol = pathlib.Path(tmp.name) / "policy.md"
 
-    def test_section_carries_preface_material_and_rule_only_when_present(self):
-        self.pol.write_text("- 公開の口を減らさない\n", encoding="utf-8")
-        got = policy.section(self.pol)
-        self.assertTrue(got.startswith(f"{policy.HEAD}\n\n{policy.PREFACE}{MATERIAL_NOTE}\n"), got)
-        self.assertIn("- 公開の口を減らさない", got)
-        self.assertTrue(got.endswith(policy.RULE))
-        self.assertIn("自分の判断で通すな", policy.RULE)
-        self.assertEqual(policy.section(""), "")
-        self.assertEqual(policy.section(self.pol.parent / "無い.md"), "")
+    def test_paste_cap_is_the_listcut_cap(self):
+        self.assertEqual(policy.PASTE_CAP, listcut.FILE_CAP)
 
-    def test_section_cuts_the_body_at_the_paste_cap_and_names_the_rest(self):
-        """上限を越えた方針は先頭だけを貼り、続きの置き場を書く（貼った本文は上限の内。brief と同じ切り方）"""
+    def test_brief_cuts_the_body_at_the_paste_cap_and_names_the_rest(self):
+        """上限を越えた方針は先頭だけを貼り、続きの置き場を書く（貼った本文は上限の内）"""
         self.pol.write_bytes(("- 決まり\n" * 6000).encode("utf-8") + "TAIL-MARK".encode("utf-8"))
-        got = policy.section(self.pol)
-        body = got.split(f"{MATERIAL_NOTE}\n", 1)[1].rsplit(f"\n{MATERIAL_NOTE}", 1)[0]
+        body = policy.brief({"policy_md": str(self.pol)})["paste"]
         self.assertLessEqual(len(body.encode("utf-8")), policy.PASTE_CAP)
-        self.assertNotIn("TAIL-MARK", got)
+        self.assertNotIn("TAIL-MARK", body)
         self.assertIn(f"{policy.PASTE_CAP} バイトまでを貼った。続きは {self.pol}", body)
-        self.assertEqual(body, policy.brief({"policy_md": str(self.pol)})["paste"])
-        self.assertTrue(got.endswith(policy.RULE))
 
 
 class FreezeCase(unittest.TestCase):
@@ -111,12 +98,7 @@ class NameOwnerCase(unittest.TestCase):
 
     def test_policy_kind_is_a_human_face_kind(self):
         self.assertIn(policy.POLICY_KIND, fixboard.HUMAN_FACE_KINDS)
-        self.assertIs(boardview.HUMAN_FACE_KINDS, fixboard.HUMAN_FACE_KINDS)
         self.assertIn(policy.POLICY_KIND, gatemarks.KIND_WORDS)
-
-    def test_prior_decisions_file_is_the_material_file_of_its_role(self):
-        self.assertEqual(judge_accept.material_file(judge_accept.PRIOR_DECISIONS_ROLE), policy.PRIOR_DECISIONS_FILE)
-        self.assertIn(judge_accept.PRIOR_DECISIONS_ROLE, judge_accept.MATERIAL_ROLES)
 
 
 if __name__ == "__main__":
@@ -124,7 +106,7 @@ if __name__ == "__main__":
 
 
 class RecordedCase(unittest.TestCase):
-    """記録された方針の一覧（issue #427）: 4 つの出どころの行・名指しの照らし・事前審査の受け付けが拒む穴・役に貼るセクション"""
+    """記録された方針の一覧（issue #427）: 4 つの出どころの行・名指しの照らし・事前審査の受け付けが拒む穴（役に貼る節の文は共通の断片）"""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -134,7 +116,7 @@ class RecordedCase(unittest.TestCase):
         pol.write_text("# 方針\n- 公開の口を減らさない\n", encoding="utf-8")
         self.frozen = policy.freeze(self.tmp / "run", self.tmp, str(pol))
         self.start = {"policy": self.frozen, "answers": [{"question": "q-mean-empty", "text": "空の列は例外"}, {"question": ""}]}
-        self.decisions = self.tmp / "judge" / policy.PRIOR_DECISIONS_FILE
+        self.decisions = self.tmp / "judge" / "material-prior-decisions.json"
         self.decisions.parent.mkdir()
         settled = [{"topic": "公開の口", "decision": "減らさない", "where": "docs/adr/0002.md"},
                    {"topic": "where の無い論点", "decision": "決めた"}, "壊れた行"]
@@ -210,31 +192,3 @@ class RecordedCase(unittest.TestCase):
                 self.assertEqual(self.example_faces(text), [], text)
                 self.assertIn(policy.FACE_NONE, text)
                 self.assertNotIn("contract_drift", text)
-
-    def test_section_says_none_when_nothing_can_be_named(self):
-        got = policy.recorded_text({})
-        self.assertTrue(got.startswith(policy.RECORDED_HEAD), got)
-        self.assertIn(policy.RECORDED_NONE, got)
-        self.assertIn("承認ノードの人の答え: この役には渡っていない", got)
-        got = policy.recorded_section(self.rows)
-        self.assertNotIn(policy.RECORDED_NONE, got)
-        for want in (f"`{self.frozen['copy']}:<行>`（1〜2 行", '`q-mean-empty`', f"`{self.gates[1]}`", '`docs/adr/0002.md`',
-                     "（where が無いので名指せない）where の無い論点"):
-            self.assertIn(want, got)
-
-    def test_names_copied_from_the_section_hit_their_rows(self):
-        """役はセクションの名指しを字のまま写す。引用符・バックスラッシュ・Windows のパスを持つ名も、写した字が一覧に当たる"""
-        rows = policy.recorded({"answers": [{"question": 'Use "foo" API?', "text": "使う"}]})
-        rows.append({"source": "settled", "name": "C:\\repo\\docs\\adr.md", "text": "決めた"})
-        copied = re.findall(r"名指し `([^`]+)`", policy.recorded_section(rows))
-        self.assertEqual(copied, [r["name"] for r in rows])
-        for name in copied:
-            with self.subTest(name):
-                self.assertEqual(policy.hits(rows, f"ぶつかる: {name}"), [name])
-
-    def test_text_tells_a_role_without_gate_answers_so(self):
-        """承認ノードの答えを入力に持たない役（human_items が None）には「渡っていない」、持つ役には行か「無い」"""
-        self.assertIn("承認ノードの人の答え: この役には渡っていない", policy.recorded_text(self.start, self.decisions))
-        self.assertIn("承認ノードの人の答え: 無い", policy.recorded_text(self.start, self.decisions, []))
-        self.assertIn(f"`{self.gates[0]}`", policy.recorded_text(self.start, self.decisions, self.human))
-        self.assertNotIn("docs/adr/0002.md", policy.recorded_text(self.start))

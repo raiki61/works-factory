@@ -7,7 +7,7 @@
 
 公開の名:
 - 定数: INTAKE・VIEW・DIFF・CHANGED・TREE・ACCEPTED・MATERIAL（place のファイルの名）・STATUSES・OK_STATUSES・
-  Rule・STATUS・SILENT_STATUS・OBSERVED_STATUS・MATERIALS・READONLY_MOVED・LOCATION_HEAD・LOCATION_MARK・SNAPSHOT_FALLBACK_IDENT・
+  Rule・STATUS・SILENT_STATUS・UNMEASURED・OBSERVED_STATUS・MATERIALS・READONLY_MOVED・LOCATION_HEAD・LOCATION_MARK・SNAPSHOT_FALLBACK_IDENT・
   NA_MODES・REVIEW_MD
 - View・take_view・numstat_totals・worktree_tree・snapshot（対象差分の見方）
 - snap_tree・moved_since（作業ツリーの写しと照らし）
@@ -49,7 +49,7 @@ INTAKE = "intake.json"
 VIEW = "view.json"
 DIFF = "diff.patch"
 CHANGED = "changed-files.txt"
-TREE = "tree.json"
+TREE = core_accept.TREE   # 作業ツリーの写しのファイルの名（住処は accept）
 ACCEPTED = "accepted.json"
 MATERIAL = "material.json"
 STATUSES = ("ran", "skipped", "gave_up", "failed")
@@ -68,6 +68,7 @@ STATUS = {name: Rule(*args) for name, args in {
     "not_run": (("reason",), True, False, False),
 }.items()}
 SILENT_STATUS = tuple(k for k, r in STATUS.items() if not r.observed and not r.blocks)
+UNMEASURED = tuple(k for k, r in STATUS.items() if r.blocks)   # 今の周に測れていない状態（阻害になる物。gatemarks の写しの代わり。integration.md 4.2-5）
 OBSERVED_STATUS = tuple(k for k, r in STATUS.items() if r.observed)
 # 写す元 lib/judge_accept.py の MATERIALS（元 review-record.py:107）
 MATERIALS = (
@@ -109,10 +110,11 @@ def _write(path, doc) -> pathlib.Path:
     return jsonfile.write(path, doc, parents=True)
 
 
-def review_md_paths(repo, lib_dir=None) -> tuple:
-    """写す元 judge_accept.review_md_paths（元 rules:35）。(工場の観点の正本 <lib_dir>/REVIEW.md の絶対パス, 対象の根の REVIEW.md の
-    絶対パスか "")。lib_dir の既定はこのモジュールの在る lib/（試験は一時のフォルダを渡せる）"""
-    own = pathlib.Path(lib_dir or pathlib.Path(__file__).resolve().parent).resolve() / REVIEW_MD
+def review_md_paths(repo, own_file) -> tuple:
+    """写す元 judge_accept.review_md_paths（元 rules:35）。(工場の観点の正本 own_file の絶対パス, 対象の根の REVIEW.md の絶対パスか "")。
+    工場の正本は blocks/.shared/prompts/REVIEW.md で、lib は block の置き場を名指せないので呼び手の block がパスを渡す
+    （README 9.3。前は lib/REVIEW.md を lib の中から引いた）。対象の根の REVIEW.md は在る時だけ"""
+    own = pathlib.Path(own_file).resolve()
     theirs = pathlib.Path(repo).resolve() / REVIEW_MD
     return str(own), (str(theirs) if theirs.is_file() else "")
 
@@ -259,26 +261,9 @@ def snap_tree(place, repo) -> pathlib.Path:
     return _write(path, core_accept.tree_state(pathlib.Path(repo)))
 
 
-def _tree_snapshot(path):
-    """写す元 judge_accept._tree_snapshot。置いた作業ツリーの写し。無ければ None、読めない・形が違えば Reject"""
-    try:
-        snap = _read(path)
-    except ValueError as e:
-        raise Reject(str(e)) from None
-    if snap is None:
-        return None
-    core_accept.type_errors(snap, core_accept.TREE_SCHEMA, f"作業ツリーの写し {path} ")
-    return {k: snap[k] for k in core_accept.TREE_KEYS}
-
-
 def moved_since(place, repo, keys) -> list:
-    """写す元 judge_accept._moved_since。place の TREE から今の作業ツリーが変わった所の文（accept.tree_moved。keys の欄だけを比べる。
-    keys は accept.status_keys(viewpoint.GUARDED)）。同じなら空。写しが無い・読めない・形が違えば Reject"""
-    path = pathlib.Path(place) / TREE
-    snap = _tree_snapshot(path)
-    if snap is None:
-        raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置く段が先に走る）")
-    return core_accept.tree_moved(snap, pathlib.Path(repo), keys=keys)
+    """place の TREE から今の作業ツリーが変わった所の文。accept.moved_since を呼ぶだけ（住処は accept。integration.md 4.4-H）"""
+    return core_accept.moved_since(place, repo, keys)
 
 
 # ---------------------------------------------------------------- 2.5 所見の場所の照らし

@@ -15,7 +15,7 @@
                       理由を返す
 控えと消した物のファイルの名は呼ぶ側が渡せる（before_name・removed_name。既定は IGNORED_BEFORE_FILE・REMOVED_FILE）。控えと消した物のファイルは
 呼び手が渡す置き場のフォルダ board に置く（fix と refix の分けは置き場の名で付く）。
-失敗は Unreadable を投げる。git は全部 repo を cwd にして呼ぶ。標準ライブラリと修正の名の住処 fixnames だけ（lib のほかのモジュールは読まない）。
+失敗は Unreadable を投げる。git は全部 repo を cwd にして呼ぶ。標準ライブラリだけ（lib のほかのモジュールは読まない）。
 """
 import json
 import os
@@ -25,12 +25,10 @@ import subprocess
 import sys
 import tempfile
 
-import fixnames
-
 sys.dont_write_bytecode = True
 
 IGNORED_BEFORE_FILE = "fix-ignored-before.json"   # {"ignored": [str], "ignored_dirs": [str], "dirs": [str], "head_tree": str}
-REMOVED_FILE = fixnames.REMOVED_FILE   # {"removed": [str]}（clean が消したパスの全件）
+REMOVED_FILE = "fix-removed.json"   # {"removed": [str]}（clean が消したパスの全件）
 
 
 class Unreadable(Exception):

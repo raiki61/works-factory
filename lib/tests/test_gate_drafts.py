@@ -27,10 +27,6 @@ NO_NARROW = "daemon を別の Deployment に分け、webserver は RollingUpdate
 
 
 class SchemaCase(unittest.TestCase):
-    def test_rule_text_asks_for_recommend(self):
-        for node in gatemarks.NODES:
-            self.assertIn(gatemarks.RECOMMEND, gatemarks.HEAD[node])
-
     def test_recommend_schema_is_built_from_the_keys(self):
         """推しの欄の名は RECOMMEND_KEYS の 1 か所（頭が答えの enum、残りが RECOMMEND_MIN 字以上の文）"""
         schema = gatemarks.MARK_SCHEMA[gatemarks.RECOMMEND]
@@ -51,8 +47,6 @@ class SchemaCase(unittest.TestCase):
         shape = gatemarks.RECOMMEND_SHAPE
         for word in (*gatemarks.RECOMMEND_KEYS, *gatemarks.RECOMMEND_ANSWERS, f"{gatemarks.RECOMMEND_MIN} 字以上"):
             self.assertIn(word, shape)
-        for node in gatemarks.NODES:
-            self.assertIn(shape, gatemarks.HEAD[node])
         self.assertIn(shape, planblk.RECOMMEND_REJECT)
         self.assertFalse(hasattr(gatemarks, "RECOMMEND_REJECT"))
 
