@@ -23,7 +23,6 @@ import libdocs    # lib/
 import oneline    # lib/
 import planbrief  # lib/
 import policy     # lib/
-import replan     # lib/
 import rolekit    # lib/
 import structmark  # lib/
 import worldmark  # lib/
@@ -102,6 +101,25 @@ def structure_rows(path) -> dict:
         return out
     is_dirty = structmark._is_dirty
     return {**out, "has": True, "dirty": _bullets([r for r in rows if is_dirty(r)]), "clean": _bullets([r for r in rows if not is_dirty(r)])}
+
+
+def _json_block(doc) -> list:
+    """JSON を字のまま貼る塊の行（```json の囲い）"""
+    return ["```json", json.dumps(doc, ensure_ascii=False, indent=1), "```"]
+
+
+def structure_parts(path) -> tuple:
+    """構造の目の行の節（prompts/parts/structure-rows.md）に入れる値と段落の真偽。修正案の役の指示と、案の直しの項目の brief が共に使う"""
+    got = structure_rows(path)
+    return ({"structure_note": got["note"], "dirty_rows": got["dirty"], "clean_rows": got["clean"]},
+            {"structure_missing": bool(got["note"]), "structure_dirty": bool(got["dirty"]),
+             "structure_clean_only": got["has"] and not got["note"] and not got["dirty"], "structure_clean": bool(got["clean"])})
+
+
+def structure_section(path) -> str:
+    """案の直しの項目の brief に貼る構造の目の行の節（行も控えも無ければ空）"""
+    values, marks = structure_parts(path)
+    return prompt.render_part("structure-rows", values, marks).strip()
 
 
 def _row_line(r: dict) -> str:
@@ -278,11 +296,11 @@ def replan_rows(folder, ctx: dict, judgment, repo) -> str:
         item = old[n - 1]
         path = pathlib.Path(folder) / files.ITEM_BRIEF.format(no=n)
         path.write_text(planbrief.render(n, item, fields[n - 1] if n <= len(fields) else {}, units, "",
-                                         structmark.plan_section(ctx.get("structure") or None)), encoding="utf-8")
+                                         structure_section(ctx.get("structure") or None)), encoding="utf-8")
         lines = [f"## Item to fix {n} (its number in the approved plan)", "",
                  f"- unit_keys (copy this text as is): {json.dumps(item.get('unit_keys'), ensure_ascii=False)}",
                  f"- Brief of this item: {path}", "",
-                 "### The previous item (approved; pasted by the machine)", "", *replan._json_block(item)]
+                 "### The previous item (approved; pasted by the machine)", "", *_json_block(item)]
         rows = steps.conflict_rows(conflicts, n, item)
         for i, c in enumerate(rows, 1):
             ru = c.get("ruling") or {}
@@ -358,12 +376,9 @@ def values(place, repo) -> tuple:
         v["unknown_rows"], v["unknown_why"] = unknown_rows(ctx.get("depth_record") or "")
         w["unknown_rows"], w["unknown_none"] = bool(v["unknown_rows"]), not v["unknown_rows"]
     if plan_form:
-        got = structure_rows(ctx.get("structure") or None)
-        v["structure_note"], v["dirty_rows"], v["clean_rows"] = got["note"], got["dirty"], got["clean"]
-        w["structure_missing"] = bool(got["note"])
-        w["structure_dirty"] = bool(got["dirty"])
-        w["structure_clean_only"] = got["has"] and not got["note"] and not got["dirty"]
-        w["structure_clean"] = bool(got["clean"])
+        values, marks = structure_parts(ctx.get("structure") or None)
+        v.update(values)
+        w.update(marks)
         rows = worldmark.rows(ctx["world_rows"]) if ctx.get("world_rows") else []
         v["world_rows"], w["world"] = world_lines(rows), bool(rows)
         doc = jsonfile.read_or(folder / files.RIPPLE_UNITS)
@@ -380,7 +395,7 @@ def values(place, repo) -> tuple:
         if ctx.get("spec"):
             spec = pathlib.Path(ctx["spec"]).read_text(encoding="utf-8", errors="replace")
             try:
-                spec = "\n".join(replan._json_block(json.loads(spec)))
+                spec = "\n".join(_json_block(json.loads(spec)))
             except ValueError:
                 pass
             v["spec"], w["spec"] = spec, True
