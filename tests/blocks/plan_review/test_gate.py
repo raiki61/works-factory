@@ -14,7 +14,6 @@ import os
 import pathlib
 import tempfile
 import unittest
-from unittest import mock
 
 from tests.blocks import kit
 from tests.blocks.plan_review.test_take import (UNIT_CLAMP, UNIT_MEAN, Flow, dump, face, fields, item, review)
@@ -52,7 +51,6 @@ class GateBase(unittest.TestCase):
         self.tmp = pathlib.Path(os.path.realpath(self._tmp.name))
         self.place = self.tmp
         self.cwd = self.tmp
-        self.run_root(self.tmp)
         self.gate = kit.load(BLOCK, "gate")
         self.lib = self.gate   # lib のモジュールは gate の名で引く（gate.structmark など）
         self.request_text, self.request_file = "", ""
@@ -85,10 +83,6 @@ class GateBase(unittest.TestCase):
 
     def deviations(self, review_doc=None) -> list:
         return self.gate.deviations(self.place, self.intake(), review_doc or {"faces": []})
-
-    def run_root(self, root):
-        """src/gate が読む run の置き場の根 $ARTIFACTS_DIR（script の子のプロセスでは Archon が渡す）"""
-        self.enterContext(mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(root)}))
 
     def put_rows(self, *rows):
         """構造の目の行（元 FourAxesCase.put_rows）"""
@@ -343,7 +337,7 @@ class FourAxesCase(GateBase):
 
 # ---------------------------------------------------------------- 決め手の出どころに引いてよい根（元 lib/tests/test_gate_axes.py の RunRootCase）
 class RunRootCase(GateBase):
-    """決め手の出どころに引いてよい作業ツリーの外の根は、依頼のファイル（port request）と run の置き場の根 $ARTIFACTS_DIR。場面は run f3a32503: 計画の役が
+    """決め手の出どころに引いてよい作業ツリーの外の根は、依頼のファイル（port request）と place の親。場面は run f3a32503: 計画の役が
     定石から外れる訳に、run の置き場の plan/r1/brief-2.md:62（判定の処方の行）を挙げた"""
 
     def setUp(self):
@@ -351,7 +345,6 @@ class RunRootCase(GateBase):
         self.run_dir = self.tmp / "run"
         self.place = self.run_dir / "plan-review"
         self.place.mkdir(parents=True)
-        self.run_root(self.run_dir)
         self.cwd = self.tmp / "repo"
         self.cwd.mkdir()
         self.brief = self.run_dir / "plan" / "r1" / "brief-2.md"
@@ -385,17 +378,6 @@ class RunRootCase(GateBase):
         got = self.row({**DECIDED, "decided_by": f"{other}:1 の処方"})
         self.assertEqual(self.bad(got), ["obvious"])
         self.assertIn("の外", self.note(got, "obvious"))
-
-    def test_root_is_the_run_not_the_parent_of_the_place(self):
-        """足す: 根は place の親でなく run の置き場の根。単独の run（place が $ARTIFACTS_DIR そのもの）では run の外の隣のファイルを
-        引けず、2 段の include（place が run/<輪>/<節>/）では run の根の直下のファイルを引ける"""
-        self.place, outside = self.run_dir, self.tmp / "beside.md"
-        outside.write_text("判定の処方\n", encoding="utf-8")
-        got = self.row({**DECIDED, "decided_by": f"{outside}:1 の処方"})
-        self.assertEqual(self.bad(got), ["obvious"])
-        self.place = self.run_dir / "loop" / "step" / "plan-review"
-        self.place.mkdir(parents=True)
-        self.assertEqual(self.row({**DECIDED, "decided_by": f"判定の処方 {self.judgment}:2 の単位の並び"})["why"], {})
 
     def test_request_file_is_a_source_but_not_its_folder(self):
         """元 RunRootCase.test_request_file_is_a_source_but_not_its_folder（依頼のファイルは始めの記録でなく port request から）"""
@@ -566,7 +548,6 @@ class WorldGateRunCase(unittest.TestCase):
 
     def setUp(self):
         self.flow = Flow(self)
-        self.enterContext(mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.flow.place)}))
         self.gate = kit.load(BLOCK, "gate")
 
     def deviate(self, why) -> list:

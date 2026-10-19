@@ -18,7 +18,6 @@ conflict.request_file は始めの記録を読むので使わない）。
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 
 import cite        # lib/。決め手の出どころが現物に在るか
@@ -134,9 +133,8 @@ def _world_answers(b) -> list:
 
 def _cite_check(place, intake: dict):
     """（決め手の文 → 出どころの誤りの 1 文（無ければ ""）の口, 依頼のファイル, 依頼の解き方の並び, 作業ツリーの根）。出どころの照らしは
-    cite.sources_problem（依頼の引用は port request の本文と照らす）。作業ツリーの外で引いてよい根は依頼のファイルと run の置き場の根
-    $ARTIFACTS_DIR（run の中の指示書・判定を絶対パスで引ける。place の親は単独の run では run の外、深い include では run の中の一部
-    なので使わない）。依頼のファイルと依頼の解き方（worldmark.means_of）は世界の解の外れの決め手に
+    cite.sources_problem（依頼の引用は port request の本文と照らす）。作業ツリーの外で引いてよい根は依頼のファイルと place の親
+    （run の中の指示書・判定を絶対パスで引ける）。依頼のファイルと依頼の解き方（worldmark.means_of）は世界の解の外れの決め手に
     ならない物"""
     req = str(intake.get("request_file") or "")
     quoted = str(intake.get("request") or "")
@@ -145,7 +143,7 @@ def _cite_check(place, intake: dict):
     except ValueError:
         pass
     repo = intake.get("cwd") or "."
-    roots = [r for r in (req, str(pathlib.Path(os.environ["ARTIFACTS_DIR"]).resolve())) if r]
+    roots = [r for r in (req, str(pathlib.Path(place).resolve().parent)) if r]
 
     def cite_ok(text):
         return cite.sources_problem(text, repo, roots, quoted)

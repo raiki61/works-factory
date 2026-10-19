@@ -702,7 +702,7 @@ Return only JSON that matches the output schema.
 
 - 行: 修正案の項目 `i` の `narrows` の行ごとに `{kind: "regression", node: "p2.fix_plan", text: "修正案 <i+1> が狭める能力: <what>——<why>", units: <項目の unit_keys>, mark: <その行の決め手の欄>}`。穴のうち `kind` が `HUMAN_FACE_KINDS` の行で、kind policy なら記録された方針の行を名指す物（`policy.unrecorded` が偽）だけ `{kind, node: "p2.plan_review", text: "事前審査の穴 [<kind>] <key>: <why>", units: <穴の unit_keys>, mark}`。字の形は今のまま（line の承認ノードと修正の後の照らし `gatemarks.NARROW_HEAD`・`FACE_HEAD` がこの頭で読む）。
 - `decided`: `gatemarks.decided(mark)`。
-- `why`: `{obvious, world, clean, not_overkill}` ごとの揃わない訳の並び（今の `axis_reasons` のまま: `decided_by` が無いか `undecided_because` が在る・出どころが現物に無い〔`cite.sources_problem`。依頼の引用は port `request` の本文と照らし、作業ツリーの外で引いてよい根は依頼のファイルと run の置き場の根 `$ARTIFACTS_DIR`（place の親ではない）〕・柵の印・世界の解の行の無い run で `world` も URL も無い・構造の目が人に上げた単位・汚れると見た単位に案の答えが無い・案の単位の外）。訳の無い軸は載せない（揃った軸は鍵ごと無い。全部の軸が揃えば `{}`）。
+- `why`: `{obvious, world, clean, not_overkill}` ごとの揃わない訳の並び（今の `axis_reasons` のまま: `decided_by` が無いか `undecided_because` が在る・出どころが現物に無い〔`cite.sources_problem`。依頼の引用は port `request` の本文と照らし、作業ツリーの外で引いてよい根は依頼のファイルと place の親（今の line・policy-check の 1 段の include では run の根。単独の run では run の外まで、2 段より深い include では run の一部に食い違う。block は run の根を受けない〔README 4.3・形の検査の 7〕ので、根の直しは持ち主の決めを待つ）〕・柵の印・世界の解の行の無い run で `world` も URL も無い・構造の目が人に上げた単位・汚れると見た単位に案の答えが無い・案の単位の外）。訳の無い軸は載せない（揃った軸は鍵ごと無い。全部の軸が揃えば `{}`）。
 - 形 replan も同じ行を返す（今は形 replan の承認ノードは `replan_asks` だけを使ったが、事実として返し、使うかは line が決める）。
 
 ### 10.2 外れ `deviations`
@@ -906,23 +906,24 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-plan-re
 
 審査役 `review`（3.6 の一覧の番号）:
 
-- 1・2 役の定義・別の目・実測 2026-09-24 → `prompts/parts/role.md`（`{shared:role-judge}`）。根拠は読む版で取れ（:63）も同じ。
-- 3・4・5・6・7 8 種の確かめ・人に聞く旨・`shrink`・`faces` の欄・`faces_none`・`reason`（:28-61）→ `prompts/parts/checks.md`。案の欄を指す句は `prompts/parts/plan-checks.md`。修正役の absorbed か declared は `prompts/review.md` の How to answer。
+- 1・2 役の定義・別の目・実測 2026-09-24 → `prompts/parts/role.md`（`{shared:role-judge}`）。別の目と実測は `parts/other-eye.md` に出し、`role.md` と下請けの `parts/item-brief.md` の両方が差し込む。根拠は読む版で取れ（:63）→ `parts/read-version.md`（`role.md` と、下請けの道の `item-brief.md` の `{repository_line}` の後。元の下請けは `planblk.brief_head` の `_review_rules` で同じ文を受けていた）。
+- 元の md の :18（材料のファイルを読め・束ね役の頼みが在ればそれに従え・型が持つ欄だけを返せ）→ 単独の審査役は `review.md` の Material の段落と最後の 1 行、束ね役は `review-tree.md` の Material と Bundling の段落（頼みを材料に貼らず、束ね役の md に直に書く）。:20 の「BASE はこの run が直し始める前の版で、6 の比べの基準」→ `review.md` の Material の段落・`review-text.md` の `{repository_line}` の後の 1 文・`parts/checks.md` の 6。
+- 3・4・5・6・7 8 種の確かめ・人に聞く旨・`shrink`・`faces` の欄・`faces_none`・`reason`（:28-61）→ `prompts/parts/checks.md`。案の欄を指す句は `prompts/parts/plan-checks.md`。修正役の absorbed か declared（:61）→ `parts/absorb-ask.md`（`review.md` の How to answer と、下請けの `item-brief.md` の答え方の段落の両方）。
 - 8 役の頭（読むだけ・道具・作業ツリーを変えない）→ `prompts/review.md` の道具の段落。
 - 9 `REUSE_REVIEW`・10 `HANDOFF_REVIEW`・11 `AXIS`/`REVIEW_ASK`・12 `_RULE`/`_NO_NARROW_REVIEW`・13 `_STUCK_RULE` → `prompts/parts/head.md`。
-- 14 `EXCLUDED_HEAD` → `review.md` の段落 `excluded`。
-- 15 `DESIGN_ASK` → `parts/design-ask.md`。`DESIGN_NOT_STANDS`・`DESIGN_NONE`・`DESIGN_DIFF_ASK` → `review.md` の段落 `design_not_stands`・`design_none`・`design_diff`。
-- 16 `map_items_section`・`NO_MAP_KEYS` → `review.md` の段落 `map_items`。
-- 17 `planmarks.REVIEW_ASK`・`DEVIATION_HEAD` → `review.md` の段落 `fields`（形 replan でも入る。14 節の A の決め）。
-- 18 `REREVIEW_ASK`・`HELD_CITES` → `parts/rereview-ask.md`。`ORIGIN_ASK` → `parts/origin-ask.md`。`DIFF_ASK`・`CROSS_ASK`・`SCOPE_ASK`・`ERROR_NOTE` → `parts/diff-ask.md`。
+- 14 `EXCLUDED_HEAD` → `review.md` の段落 `excluded`。`DEFAULTS_HEAD` → 材料の節の名 `## Inputs read with defaults`（`src/material.py` の `MAT_HEADS`）と `review.md` の段落 `defaults`。
+- 15 `DESIGN_ASK` → `parts/design-ask.md`。`DESIGN_HEAD`（`planblk` の独立設計の節の頭。設計の出どころ「目的と実測した制約・承認ノードの答え・依頼が名指した設計書の節」）→ 材料の節の名 `## Independent design` と、`design-ask.md` の 1 段落目の出どころの句。`DESIGN_NOT_STANDS`・`DESIGN_NONE` → `parts/design-absent.md`（段落 `design_not_stands`・`design_none`。`review.md` と下請けの `item-brief.md` の両方が差し込む）。`DESIGN_DIFF_ASK` → `review.md` の段落 `design_diff` と、下請けの写しの `item-brief.md` の段落 `design_diff`（項目のファイルの鍵の一覧と言い分ける）。
+- 16 `map_items_section`・`NO_MAP_KEYS` → `review.md` の段落 `map_items` と、下請けの写しの `item-brief.md` の段落 `design_stands` の 2 段落目（項目 1 つの鍵だけを言う）。
+- 17 `planmarks.REVIEW_ASK`・`DEVIATION_HEAD` → `review.md` の段落 `fields`（形 replan でも入る。14 節の A の決め）。`planmarks.MACHINE_LABEL` → 材料の札 `<MACHINE_KEY> (added by the machine)`（`src/material.py` の `LABELS` の `machine_rows`）と、札の説明は `review.md` の段落 `fields` の 2 段落目。
+- 18 `REREVIEW_ASK` → `parts/rereview-ask.md`。`HELD_CITES` → `parts/stuck-quote.md`（`rereview-ask.md` と束ね役の `review-tree.md` の段落 `later` の両方が差し込む）。`ORIGIN_ASK` → `parts/origin-ask.md`。`DIFF_ASK`・`CROSS_ASK`・`ERROR_NOTE` → `parts/diff-ask.md`。`SCOPE_ASK` → `parts/diff-ask.md` に足した（元は下請けだけが受け、単独の審査役は受けていなかった）。波及の一覧の札 `ripple.COMMON_NOTE`・`REMOVED_MARK` → 札は `src/material.py` の `_ripple_names`・`ripple_section` の英語の字（`(common name: only the count)`・`(left over after a removed name: a reference that breaks once it is removed)`）、`COMMON_NOTE` の「直しが触るかは読んで決めよ」は `diff-ask.md` の波及の一覧の段落と `item-brief.md` の答え方の段落の 1 文。
 - 19 `REVIEW_ASK_REPLAN` → `review.md` の段落 `replan`。
-- 20 `RECORDED_RULE` → `{shared:recorded-policy}`。`FACE_NONE`・`FACE_EXAMPLE_HEAD`・`DOC_FENCE_ONLY` → `review.md` の段落 `policy_example`・`doc_row`。人の方針の節 → `{shared:policy}`。
+- 20 `RECORDED_RULE` → `{shared:recorded-policy}`。`FACE_NONE`・`FACE_EXAMPLE_HEAD`・`DOC_FENCE_ONLY` → `parts/policy-example.md`（段落 `policy_example`・`doc_row`。`review.md`・`item-brief.md`・`review-text.md` が差し込む）。人の方針の節 → `{shared:policy}`。
 - 21 地図 → `{shared:concept-map}`。22 `UNITS_LINE` → `review.md` の How to answer。23 `with_reject` → `{shared:rejected}`。
 
-出し直しの役（4.6・6）: `RESUBMIT_ASK`・`FIELD_RULES` → `{shared:resubmit}`（`review-fix.md`・`review-tree-fix.md`）。方針の文の役（7.6）→ `prompts/review-text.md`。
+出し直しの役（4.6・6）: `RESUBMIT_ASK`・`FIELD_RULES` → `{shared:resubmit}`（`review-fix.md`・`review-tree-fix.md`）。元の YAML の出し直しの役の `prompt:` の 1 文（拒まれた・この会話の続きで直す・指示書を Read で読み直して従え・返し方の形の JSON だけ）→ `{shared:resubmit}` の頭の段落（材料は同じ会話で読んだ物として読み直させない。拒みの訳は字のまま貼る）。方針の文の役（7.6）→ `prompts/review-text.md`。
 
 束ね役と下請け（5.6）:
 
 - `AGG_HEAD`・`AGG_ASK`・`DONE_HEAD`・`REDO_HEAD`・`OPEN_HEAD`・`AGG_MERGE`・`AGG_SYNERGY`・`HELD_CITES` → `prompts/review-tree.md`（段落 `done_items`・`redo`・`fresh`・`rest`・`synergy`・`later`）。
-- `SUB_HEAD`・`SUB_FORMAT`・`SUB_ITEM_ASK`・`SUB_ITEM_DIFF_ASK`・`PRECEDENT_*`・`ERRORS_HEAD` → `prompts/parts/item-brief.md`。`SUB_SYNERGY_ASK` → `prompts/parts/synergy-brief.md`。
+- `SUB_HEAD`・`SUB_FORMAT`・`SUB_ITEM_ASK`・`SUB_ITEM_DIFF_ASK`・`PRECEDENT_*`・`ERRORS_HEAD` → `prompts/parts/item-brief.md`。答えの型が持たない `faces_none`・`reason` に書けと決まりが言う物は `checked` に書く（`item-brief.md` の答えの型の後の段落。足した）。`CARRIED_HEAD`（前の往復で答えた当たり）→ 項目のファイルの節の名 `### Hits answered in a previous pass`（`src/tree.py` の札 `carried`）と、`item-brief.md` の「Hits under …」の段落。`HISTORY_HEAD` → 項目のファイルの節の名 `### Previous passes' owed holes of this item`（札 `history`）と、`item-brief.md` の 2 段落目の読み替え（決まりの言う「Previous passes」）。`ANSWER_AT` → 項目のファイルの行 `Answer file: {path}`（札 `answer`）と、`item-brief.md` の答え方の段落の、項目のファイルが「Answer file:」の後に名指すファイルに書けの句。`SUB_SYNERGY_ASK` → `prompts/parts/synergy-brief.md`。
 - `_review_rules`・`RULES_FROM`・`RULES_MISSING` は消した（断片から組むので切り出しが要らない）。
