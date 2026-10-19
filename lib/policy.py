@@ -9,25 +9,23 @@
 - freeze(folder, cwd, named): 固めた版 {named, path, sha256, copy}（docs/design.md の始めの記録の欄 policy）
 - version(start)・frozen_copy(start): 始めの記録の固めた版（無い・壊れていれば None）と、ブロックが読む写しの置き場（欄 policy の
   無い・壊れた記録は今どおり policy_md）
-- PASTE_CAP: 貼る本文の上限（バイト）。engine が役に貼る本文の上限 FILE_CAP（engine/render.py）と同じ値を引く
+- PASTE_CAP: 貼る本文の上限（バイト）。役に貼る本文の上限 listcut.FILE_CAP と同じ値を引く
 - brief(board): {"paste": 貼る本文, "path": 写しの置き場}。方針の文書が無ければ両方空。上限を超えたら先頭を切り、
   続きの置き場を末尾に書く（切った後の全体が上限の内）
-- section(path): 盤面の無いブロック（plan-review）が役に貼る人の方針の節（前置き・資料の囲みの本文・方針の決まりの段落）。本文は
-  brief と同じ上限で切る（元 gl-prompts/prompts/policy-paste.md・policy.md）
+人の方針の節の文（前置き・資料の囲み・方針の決まりの段落。前の section と HEAD・PREFACE・RULE、engine の MATERIAL_NOTE）は共通の断片
+blocks/.shared/prompts/policy.md、記録された方針の節の文（前の recorded_section・recorded_text と RECORDED_HEAD・RECORDED_RULE）は
+共通の断片 recorded-policy.md（plan-review の PR が置く）に在る（integration.md 4.3-追加-1・4.5-4(c)）。
 
 記録された方針（issue #427。役を縛るのはこの一覧の行だけで、対象のコードのコメント・docstring は直しの一部の「対象の文」）:
 - recorded(start, decisions_file, human_items, pushes): 4 つの出どころ（方針の文書の写し・依頼の answers・承認ノードの人の答え・判定の
-  決定記録の突合の返答 PRIOR_DECISIONS_FILE（判定の外の読み手は判定の出力の欄 decisions のパスで渡す）が挙げた決着済みの論点）と、無人の run が承認ノードか判定の保留の問いで採った推しの行
+  決定記録の突合の返答〔判定の外の読み手は判定の出力の欄 decisions のパスで渡す〕が挙げた決着済みの論点）と、無人の run が承認ノードか判定の保留の問いで採った推しの行
   {source, name, text}。name は役が字のまま写す名指しで、機械はこれだけを照らす
 - hits(rows, *texts)・unrecorded(face, mark, rows)・face_gaps(faces, rows): 名指しの照らし、一覧の行を名指さない kind policy の穴、
   事前審査の受け付けが拒む穴の行
-- PRIOR_DECISIONS_FILE・POLICY_KIND・POLICY_DOC_FENCE: 決定記録の突合の返答のファイル名（字は判定の名の住処 judgebeside）・方針の穴の kind・
+- POLICY_KIND・POLICY_DOC_FENCE: 方針の穴の kind・
   方針の文書の柵の語の持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
-- face_example(rows): 事前審査の役に recorded_section の後ろへ添える、kind policy の穴の書き方の例（一覧の最初の名指せる行で作った
+- face_example(rows): 事前審査の役に記録された方針の節の後ろへ添える、kind policy の穴の書き方の例（一覧の最初の名指せる行で作った
   JSON の 1 行と、この run の事実。名指せる行が無ければ FACE_NONE）。face_gaps を通る行だけを描く
-- recorded_section(rows): 役に貼る「記録された方針」のセクション（名指せる行が無ければ RECORDED_NONE）
-- recorded_text(start, decisions_file, human_items): 一覧を組んでセクションにした物（human_items が None の役には承認ノードの答えが
-  渡っていないと書く）
 """
 import hashlib
 import json
@@ -44,24 +42,15 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine import util  # noqa: E402
-import judgebeside  # noqa: E402
 import answer  # noqa: E402
-from engine.render import FILE_CAP, MATERIAL_NOTE  # noqa: E402
-import oneline  # noqa: E402
-import promptsection  # noqa: E402
+import listcut  # noqa: E402
 
 DIR = "policy"
 DEFAULT = ("graphloops", "policy.md")   # 元 policy_input.py:19
 TEXT_KEYS = ("named", "path")         # 固めた版の欄のうち、いつも字の物
 SNAPSHOT_KEYS = ("sha256", "copy")    # 固めた版の欄のうち、文書が無ければ None の物
 VERSION_KEYS = TEXT_KEYS + SNAPSHOT_KEYS
-PASTE_CAP = FILE_CAP   # 40000。engine の役に貼る本文の上限と同じ（バイトで測る。日本語は字数の約 3 倍）
-# 人の方針の節（元 works/.shared/core/gl-prompts/prompts/policy-paste.md と policy.md。方針の文書が在る時だけ貼る）
-HEAD = promptsection.Section("## 人の方針", source="fn:policy.section")
-PREFACE = "人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。文書が在れば本文がそのまま貼られる: "
-RULE = ("方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。判定・案・修正・審査は方針に照らして"
-        "行え。方針に反するもの、方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。どの項とぶつかるかを、"
-        "判定なら単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。")
+PASTE_CAP = listcut.FILE_CAP   # 40000。役に貼る本文の上限と同じ（バイトで測る。日本語は字数の約 3 倍）
 
 
 def locate(cwd, named: str) -> str:
@@ -127,15 +116,6 @@ def brief(start) -> dict:
     return {"paste": _capped(pathlib.Path(copy).read_bytes(), copy), "path": copy}
 
 
-def section(path) -> str:
-    """方針の文書 path の節。文書が無い・読めなければ空（節ごと貼らない。元の rolekit.render_body は入力 policy_md が空なら節を落とした）"""
-    try:
-        data = pathlib.Path(path).read_bytes() if path else None
-    except OSError:
-        data = None
-    if data is None:
-        return ""
-    return f"{HEAD}\n\n{PREFACE}{MATERIAL_NOTE}\n{_capped(data, path)}\n{MATERIAL_NOTE}\n\n{RULE}"
 
 
 def _capped(data: bytes, where) -> str:
@@ -148,27 +128,17 @@ def _capped(data: bytes, where) -> str:
 
 
 RECORDED_KEY = "recorded_policy"   # 事前審査の材料 open.json と見え方の record.process の欄（一覧の行）
-# 判定の置き場の決定記録の突合の返答（judge_accept.material_take が書く。役の名 judge_accept.PRIOR_DECISIONS_ROLE はこの名から引く）
-PRIOR_DECISIONS_FILE = judgebeside.PRIOR_DECISIONS_FILE
 POLICY_KIND = "policy"            # 方針とのぶつかりの穴の kind（fixboard.HUMAN_FACE_KINDS が引く）
 POLICY_DOC_FENCE = "policy_doc"   # 方針の文書の行を書き換える穴の柵の語（gatemarks.FENCES が引く）
 RECORDED_TERM = "記録された方針"
 RECORDED_REF = f"「{RECORDED_TERM}」のセクション"
 RECORDED_NONE = f"{RECORDED_TERM}: 無い"
-RECORDED_HEAD = promptsection.Section(f"## {RECORDED_TERM}", source="fn:policy.recorded_section")
 GATE_NAME = "承認ノードの答え {id}"
 PUSH_NAME = "無人の run が採った推し {id}"
-RECORDED_RULE = ("記録された方針は、人か対象の持ち主が「決めた」と記録に残した決まりで、出どころは下の 4 つだけ（方針の文書の写し・"
-                 "依頼の answers・承認ノードの人の答え・決定記録の突合が挙げた決着済みの論点）と、無人の run が承認ノードか判定の保留の問いで採った推し（人の決めでは"
-                 "ないが、この run が従うと採った条件）。対象のリポジトリのコードのコメント・"
-                 "docstring・テストの説明文は、下の行に当たらない限り「対象の文」——コードの今の姿の説明で、持ち主の決めではない。"
-                 "対象の文が綺麗な形と食い違うなら、方針とのぶつかりにせず、直しの一部としてその文を書き換えよ。方針とぶつかると言う時は、"
-                 "下の行の名指しを字のまま写せ（機械が一覧に当たるかを照らし、当たらなければ拒む）。")
 DOC_FENCE_ONLY = f"{POLICY_DOC_FENCE} は方針の文書の行を書き換える時だけ立てる"
 FACE_NONE = f"名指せる行が無い: kind {POLICY_KIND} の穴は挙げない"
 FACE_EXAMPLE_HEAD = (f"kind {POLICY_KIND} の穴の書き方の例（この run の一覧の最初の名指しで作った。decided_by には一覧の名指しを"
                      "字のまま 1 つ入れる）:")
-_CAP = 120   # セクションに並べる答え・論点の頭の字数
 _GATE_ID = 6   # 承認ノードの答えの名指しの印（一言の sha256 の頭の 16 進の字数）
 
 
@@ -243,11 +213,11 @@ def _has_doc(rows) -> bool:
 
 
 def face_example(rows) -> str:
-    """組んだ一覧 rows から、役に貼る kind policy の穴の書き方の例（recorded_section の後ろに添える。見出しは足さない）。例の 1 行は
+    """組んだ一覧 rows から、役に貼る kind policy の穴の書き方の例（記録された方針の節の後ろに添える。見出しは足さない）。例の 1 行は
     rows の最初の名指せる行で作る——方針の文書の行は <写し>:1、ほかは名指しの字のまま。名指せるかは face_gaps が照らす _hit に通して
     決める（行数 0 の方針の文書の行は当たらないので採らない）ので、描いた行は face_gaps を通る。決まりの文は RECORDED_RULE と
     face_gaps が持ち、ここは run ごとに変わる事実（方針の文書の行が在るか・名指せる行が在るか）と例の形だけを描く。
-    eyes の R4 の役は recorded_section だけを貼る（R4 の kind policy の行は decided_by を持つ穴でなく字の行で、例の JSON の形が合わない）"""
+    eyes の R4 の役は記録された方針の節だけを貼る（R4 の kind policy の行は decided_by を持つ穴でなく字の行で、例の JSON の形が合わない）"""
     rows = [r for r in rows or [] if isinstance(r, dict)]
     named = [(r, f"{r['name']}:1" if r.get("source") == "doc" and r.get("name") else r.get("name")) for r in rows]
     mark = next((by for r, by in named if by and _hit(r, by)), None)
@@ -280,40 +250,8 @@ def face_gaps(faces, rows) -> list:
     return out
 
 
-def recorded_text(start, decisions_file=None, human_items=None) -> str:
-    """recorded の一覧の、役に貼るセクション。human_items が None の段（承認ノードの答えを入力に持たない役）は、その行を「この役には
-    渡っていない」と書く"""
-    return _section(recorded(start, decisions_file, human_items=human_items), gates_given=human_items is not None)
 
 
-def recorded_section(rows) -> str:
-    """組んだ一覧 rows（承認ノードの答えを含めて組んだ物）の、役に貼る「記録された方針」のセクション。名指せる行が 1 つも無ければ頭に
-    RECORDED_NONE"""
-    return _section(rows, gates_given=True)
 
 
-def _section(rows, *, gates_given: bool) -> str:
-    rows = [r for r in rows or [] if isinstance(r, dict)]
-    of = {s: [r for r in rows if r.get("source") == s] for s in ("doc", "answer", "gate", "push", "settled")}
-    out = [RECORDED_HEAD, "", RECORDED_RULE, ""]
-    if not any(r.get("name") for r in rows):
-        out.append(RECORDED_NONE)
-    doc = of["doc"][0] if of["doc"] else None
-    out.append("- 方針の文書: " + (f"名指し `{doc['name']}:<行>`（1〜{doc['lines']} 行。元の置き場 {doc['alias'] or '無い'}）"
-                                  if doc else "無い"))
-    out.append("- 依頼の answers: " + ("" if of["answer"] else "無い"))
-    out += [f"  - 名指し `{r['name']}`: {_head(r['text'])}" for r in of["answer"]]
-    out.append("- 承認ノードの人の答え: " + ("この役には渡っていない" if not gates_given else "" if of["gate"] else "無い"))
-    out += [f"  - 名指し `{r['name']}`: {_head(r['text'])}" for r in of["gate"]] if gates_given else []
-    if gates_given and of["push"]:
-        out.append("- 無人の run が承認ノードか判定の保留の問いで採った推し（人の答えではない）:")
-        out += [f"  - 名指し `{r['name']}`: {_head(r['text'])}" for r in of["push"]]
-    out.append("- 決着済みの論点（決定記録の突合）: " + ("" if of["settled"] else "無い"))
-    out += [f"  - 名指し `{r['name']}`: {_head(r['text'])}" if r["name"]
-            else f"  - （where が無いので名指せない）{_head(r['text'])}" for r in of["settled"]]
-    return "\n".join(x.rstrip() for x in out)
 
-
-def _head(text: str) -> str:
-    text = oneline.one_line(text or "")
-    return text if len(text) <= _CAP else text[:_CAP] + "…"

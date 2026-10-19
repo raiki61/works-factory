@@ -56,7 +56,7 @@ if str(_CORE) not in sys.path:
 
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
-from engine.render import FILE_CAP, cap_bytes  # noqa: E402
+from listcut import FILE_CAP, cap_bytes  # noqa: E402
 from engine.util import Reject  # noqa: E402
 import accept  # noqa: E402
 import answer  # noqa: E402
