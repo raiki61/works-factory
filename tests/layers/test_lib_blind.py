@@ -49,7 +49,7 @@ class LibBlindTest(unittest.TestCase):
 
     def test_named_word_allowance_hides_only_that_word(self):
         """ALLOWED の `<パス>#<字>` の行は、そのファイルのその字だけを外す（同じファイルのほかの字は赤のまま）"""
-        with tree({"lib/tests/test_blk_fix.py": 'A = "$LOOP_PREV"\nB = "INPUTS_OTHER"\n'}) as root:
+        with tree({"lib/borrow/unattended.md": "loop_group を読む\nINPUTS_OTHER を読む\n"}) as root:
             got = scan.problems("E3", root)
         self.assertEqual(len(got), 1, got)
         self.assertIn("INPUTS_OTHER", got[0])
