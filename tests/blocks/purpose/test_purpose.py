@@ -176,7 +176,7 @@ class PromptCase(_RepoCase):
         self.assertIn('write "目的不明: " followed by', text)
         self.assertIn("in Japanese", text)
         self.assertNotRegex(text, r"\{[a-z0-9_]+\}", "埋まらない差し込み口が無い")
-        self.assertIn('`{"findings": [...], "pr": [...], "issue": [...]}`', text)
+        self.assertIn('an object whose keys are `findings`, `pr`, and `issue` (each an array)', text)
 
     def test_rejected_reply_brings_the_reasons_to_the_next_prompt(self):
         self.intake()

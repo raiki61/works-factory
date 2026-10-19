@@ -22,7 +22,7 @@ You **only read**. Your tools are Read, Grep, and Glob, and WebSearch and WebFet
 
 ### Request
 
-A copy of the request file: a JSON array of findings, or an object of the form `{"findings": [...], "pr": [...], "issue": [...]}`. In a run with no request lines it is empty; then look for the sources of the steps below after the request. The only sources of the purpose are the request's `findings` and the sources of step 1 below (the PR description in the material, and the plan documents and task descriptions of `{plan_source}`). When you take the purpose from the request's `findings`, set `source` to `{plan_source}` if the findings lines describe a plan or a task (what to build or fix), or to `{writer_source}` if they only list findings and you summarized the purpose from them.
+A copy of the request file: a JSON array of findings, or an object whose keys are `findings`, `pr`, and `issue` (each an array). In a run with no request lines it is empty; then look for the sources of the steps below after the request. The only sources of the purpose are the request's `findings` and the sources of step 1 below (the PR description in the material, and the plan documents and task descriptions of `{plan_source}`). When you take the purpose from the request's `findings`, set `source` to `{plan_source}` if the findings lines describe a plan or a task (what to build or fix), or to `{writer_source}` if they only list findings and you summarized the purpose from them.
 
 ```json
 {request}
