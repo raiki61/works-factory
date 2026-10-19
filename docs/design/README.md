@@ -208,11 +208,12 @@
 blocks/                          新しい pack（作り直しの間だけの置き場。組み込みで workflows/ に入れ替える）
 ├── AGENTS.md                    憲法 6 行と、手本の block（blocks/world/）を写せという案内
 ├── .shared/                     pack の共通の部品（Archon は dot のフォルダを workflow と見ない）
-│   ├── ports.py                 port の読み・place・返り（今の workflows/.shared/boundary.py の後継）
+│   ├── AGENTS.md                ports.py と prompt.py の口の一覧・共通の断片と形の名
+│   ├── ports.py                 port の読み・place・返り（今の workflows/.shared/boundary.py の後継。口の一覧は .shared/AGENTS.md）
 │   ├── prompt.py                md に値を入れて指示を組む口（5 節）
 │   ├── prompts/<name>.md        2 つ以上の block が使う指示の断片（外への検索の決まり・却下の段落・役の定義・lang の既定の文。名は .shared/AGENTS.md）
 │   ├── schemas/<name>.schema.json   2 つ以上の block が使う port の形（json(shared:<name>) で名指す。13 章）
-│   └── 埋め（fence.py など。組み込みの時に workflows/.shared/ から移す）
+│   └── 埋め（fence.py など。組み込みの時に workflows/.shared/ から移す。作り直しの間は ports.polyfill(<名>) で workflows/.shared/ から読む）
 ├── <block>/                     block 1 つ（例 world）。名は観点の名
 │   ├── works-factory-<block>.yaml   YAML 1 本（グラフの名も同じ。E9）
 │   ├── prompts/<node-id>.md     AI の node ごとの指示（英語。Archon は読まない。prep が読む。system prompt は <node-id>.system.md）
@@ -222,7 +223,7 @@ blocks/                          新しい pack（作り直しの間だけの置
 │   ├── schemas/<port>.schema.json   json の port の形（4 節）
 │   └── fixtures/                筋書き（standalone.stubs.yaml は必ず置く）
 └── <graph>/                     graph（line・chain・judge・eyes・policy-check）。形は block と同じ（src/ も持てる）で、include を持てる
-tests/blocks/<block>/            block の試験（今の tests/ の層ごとの鏡の形を続ける）
+tests/blocks/<block>/            block の試験（今の tests/ の層ごとの鏡の形を続ける。フォルダの名は block の名の - を _ にした物。例 tests/blocks/head_depth/。13 章）
 docs/design/<block>.md           block の設計書（この型に従う）
 ```
 
@@ -247,8 +248,9 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
   - `flag`: true か false。
   - `choice(a|b|…)`: 決まった語のどれか。
 - 出力は `returns:` が名指す node の `output_format`（素の JSON Schema）だけで述べ、写しを持たない（今の E5 と持ち主の決め `io-in-output-format` のまま）。大きい中身はファイルにし、出力には Archon の pointer `{type: archon_artifact, run_id, path}` を入れる（`A/packages/workflows/src/artifact-pointer.ts`。作り手の run の中のファイルだけを指せる）。
-- 2 つ以上の block が読む出力の行の形（欄の名・語・行を読む述語）は、作り手の出力ごとに `lib/` の 1 モジュールに置き、作り手は書く時に、読み手は読む時にそれを使う。手本は `worldmark`（world.md の 1.5）。ほかに当たる物は、問いの行（diagnose が作る。今の `gatemarks` の問いの語と `asks_human`）・食い違いの申し出の行（fix が作る。今の `conflict` の語と読み口）・修正案の項目（plan が作る。`planmarks`）・頭の深さの出力（head-depth が作る。`headdepth` の段の語と控えの読み）。欄の型の正本は `output_format` のままで、このモジュールは語の意味と述語を持つ。1 つの block だけが読む行の形は、作り手の block の `src/` に置く。
+- 2 つ以上の block が読む出力の行の形（欄の名・語・行を読む述語）は、作り手の出力ごとに `lib/` の 1 モジュールに置き、作り手は書く時に、読み手は読む時にそれを使う。手本は `worldmark`（world.md の 1.5）。ほかに当たる物は、問いの行（diagnose が作る。今の `gatemarks` の問いの語と `asks_human`）・食い違いの申し出の行（fix が作る。今の `conflict` の語と読み口）・修正案の項目（plan が作る。`planmarks`）・頭の深さの出力（head-depth が作る。`headdepth` の段の語と控えの読み）・前提の実測の行（premises が作る。`kind` の語 `実測`・`仮説`。今は `carry.MEASURED` と `runreport.HYPOTHESIS` に割れている）・目的の出典の語（purpose が作る。`source` の語。今の `judge_accept.PURPOSE_UNKNOWN` の「目的不明」など。independent-design が読む）。欄の型の正本は `output_format` のままで、このモジュールは語の意味と述語を持つ。1 つの block だけが読む行の形は、作り手の block の `src/` に置く。
 - どの block の返りにも、`outcome_field:` が名指す欄（block の仕事がうまくいったか）と、欄 `report`（報告に載せる日本語の行の配列）を置く。報告の文は事実を持つ block が組み、report の block は並べて継ぐだけにする。今の `lib/runreport.py` が lib の 43 モジュールを import する集め口になった崩れ（`~/.cache/works-self/tmp/drift-audit.md` の 3 節）を、この形で閉じる。
+- block の中の node が落ちても line が先へ進めてよい時は、返りに欄 `optional`（`[{node, bare}]`。node は自分の node の id だけ）を置いて宣言する（無くてよい欄）。line の collect がこの宣言を読み、報告が落ちを分ける（今の `workflows/line/scripts/collect.py` の `optional`）。例は structure と merge の設計書。
 
 ### 4.2 文とリポジトリだけで単独に呼ぶ
 
@@ -261,8 +263,8 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 
 ### 4.3 run の記録を前提にしない
 
-- block は自分の place と、port の値が指すファイルのほかは開かない。`ports.py` は run directory の根（`ARTIFACTS_DIR`）を script に渡さない。
-- 前の段の失敗を伝えていた止めの記録（今の `judge/stop.json`）は使わない。block を回すかは graph の `when:` が決め、block は自分の結果を `outcome_field:` と出力の欄で返す。
+- block は自分の place と、port の値が指すファイルのほかは開かない。`ports.py` は run directory の根（`ARTIFACTS_DIR`）を script に渡さない。ここで言う run の記録は工場の記録（始めの記録・run directory の根のファイル）のこと。Archon が node に渡す run の log（`$LOG_DIR/<WORKFLOW_ID>.jsonl`）は読んでよい（report が落ちた node・費用・模型を読む。report の設計書の 9 節）。
+- 前の段の失敗を伝えていた止めの記録（今の `judge/stop.json`）は使わない。block を include するかは graph の `when:` が決め、block は自分の結果を `outcome_field:` と出力の欄で返す。include された block の中で役を起こすか（例 素材の観点が、変更ファイルや判定から入る run かで決める `due`）は、block の intake が自分の port の値で決める。
 
 ### 4.4 place（block ごとの run directory）
 
@@ -281,10 +283,11 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 
 ### 5.2 組み立ての口
 
-- prep は `prompt.render(node_id, values, when)` だけで指示を組む。口は、呼んだ script の在る block の `prompts/<node_id>.md` を自分で探し、パスも文も受けない。
-- 口は次の時に落ちる: 値の無い `{name}` が在る・使われない値を渡された・`when` の名が md に無い・md の `if` に `when` の値が無い・`{shared:…}`・`{part:…}` の先が無い。
-- 組んだ指示は place の `<node-id>-prompt-<n>.md` に書く（`<n>` はloop の何回目か）。prep の出力の欄 `prompt` で返す。
-- AI の node の YAML は `prompt: "$<prep の id>.output.prompt"` の 1 行だけにする。`command:` は使わない。道具を持たない役（world-classes など）も、指示をファイルから Read せずに受け取れる。
+- prep は `prompt.render(node_id, values, when)`（place に書くなら `prompt.emit`）だけで指示を組む。口は、呼んだ script の在る block の `prompts/<node_id>.md` を自分で探し、パスも文も受けない。system prompt の文も md に置く: `prompts/<node-id>.system.md` が在れば、口が同じ値と `when` で組んで返す（13 章）。
+- 口は次の時に落ちる: 値の無い `{name}` が在る（選ばれない段落の中の口も、system の md の口も数える。prep はいつも同じ組の値を渡す）・使われない値を渡された・`when` の名が md に無い・md の `if` に `when` の値が無い・`{shared:…}`・`{part:…}` の先が無い。
+- 口は段落を選んだ後、値を入れる前に、3 つ以上続く改行を 2 つに畳む。だから空の値を入れた行は空行として残る（見た目だけ。消したい行は段落の `if` で選ぶ）。
+- 組んだ指示は place の `<node-id>-prompt-<n>.md` に書く（`<n>` はloop の何回目か）。prep の出力の欄 `prompt`（system prompt は `system`）で返す。
+- AI の node の YAML は `prompt: "$<prep の id>.output.prompt"` の 1 行だけにする（system prompt を持つ node は `systemPrompt: "$<prep の id>.output.system"` も）。`command:` は使わない。道具を持たない役（world-classes など）も、指示をファイルから Read せずに受け取れる。
 - 「Python は指示の文を持たない」は、この口の形で守る。AI に届く決まった文の在りかは md しか無く、審査は md を読めば済む。lib の Python の定数の長さを数える検査は置かない（持ち主の決め `shape-checks-only`）。
 
 ### 5.3 Python が持つ物と、md が持つ物
@@ -297,7 +300,8 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
   - 段落を差し込むかの真偽。
   - 人に見せる欄の言語の値（port `lang`）。
 - accept（Python）: 却下の理由の文。どの決まりに落ちたかで文が変わるので、Python に残す（#764 の求め 3）。憲法の 2 の「指示の文」は run によらない決まった文のことで、返答ごとに変わる却下の理由はそれに当たらない。却下の理由はloop を諦めた時に報告に載るので、人に見せる文として日本語のまま書く（#764 の「日本語に残す物」）。次の回の指示には `{shared:rejected}` の中の `{rejection}` として入る。
-- 人に見せる欄の言語: md の中で、その node の人に見せる欄を名指し、`{lang}` で書けと言う。`lang` は port で受け、空なら今の既定（`lib/rolekit.py` の `LANG_DEFAULT`「依頼文の言語」）と同じ意味の英語の文を入れる。言語を自動で選ぶ仕組みは作らない（持ち主の決め）。
+- 人に見せる欄の言語: md の中で、その node の人に見せる欄を名指し、`{lang}` で書けと言う。`lang` は port で受け、空なら今の既定（`lib/rolekit.py` の `LANG_DEFAULT`「依頼文の言語」）と同じ意味の英語の文を入れる。その文は共通の断片 `blocks/.shared/prompts/lang-default.md` に 1 つ置き、`prompt.lang` が読む（13 章）。言語を自動で選ぶ仕組みは作らない（持ち主の決め）。
+- 依頼を見ない役（例 test-gate の CI の任せ先・TDD の実行器の書き手）には「依頼の言語」の既定が意味を持たない。だから line は、block を include する時にいつも `lang` を渡す（始めの記録の言語。空なら line が依頼の言語を決めて渡す）。既定の文は、block を単独で回した時のためだけに在る。
 
 ## 6 ノードごとの設計シートの型
 
@@ -307,22 +311,22 @@ block の設計書（`docs/design/<block>.md`）は、頭に block の全体（�
 2. port: その node が読む物と、どの block の port から来るか。
 3. 組み立ての順: md の節を上から並べる。節ごとに、決まった文か `{name}`（値の出どころ）か、差し込むかを選ぶ段落か（条件）かを書く。
 4. 返す形: `output_format` の欄。人に見せる欄と、その言語。
-5. 描いた骨組み: 本物の run の値を入れて描いた指示の骨組み（見出しと各節の頭の行）。run は `~/.local/state/works-factory/targets/<target>/archon-home/workspaces/<owner>/<repo>/artifacts/runs/<run>/` から選び、run の id を書く。
+5. 描いた骨組み: 本物の run の値を入れて描いた指示の骨組み（見出しと各節の頭の行）。run は `~/.local/state/works-factory/targets/<target>/archon-home/workspaces/<owner>/<repo>/artifacts/runs/<run>/` から選び、run の id を書く。その node が本物の run で一度も走っていなければ、近い run の値に仮の値を足して描き、仮に置いた値を書く（purpose-review と procedure-trace は、記録の在る 148 本の run のどれでも走っていない。本物の指示の字は 11.2 の本物の単独の run で初めて見られる）。
 6. 今の指示との差: 移した物・まとめた物・消した物・足した物と、その訳。
 7. 元の works と graphloops の同じ場面: 対応する物、工場に無い能力、消した時の PR（意図して外したかを工場の git の履歴で確かめ、PR の番号を引く。記録が無ければ（未確認））。
 8. 受け付け: 却下の決まり、諦めるまでの回数、諦めた時に出口へ書く物。
-9. 試験: standalone の fixture・指示の比べ（10.3）・振る舞いの試験・守る keep-essence の番号。
+9. 試験: standalone の fixture・指示の比べ（11.4）・振る舞いの試験・守る keep-essence の番号。
 
 ## 7 形の検査と案内
 
 ### 7.1 形の検査（どれも yes/no）
 
-1. AI の node の `prompt:` は、同じ block の script の node の `$<id>.output.prompt` 1 つだけ。`command:` を持つ AI の node は無い。
-2. AI の node ごとに `prompts/<node-id>.md` が在り、`prompts/` の直下の md はどれもどれかの AI の node の物で、`prompts/parts/` の md はどれも同じ block のどれかの md から `{part:…}` で差し込まれる。
+1. AI の node の `prompt:` は、同じ block の script の node の `$<id>.output.prompt` 1 つだけ（`systemPrompt:` を持つ時は、同じ prep の `$<id>.output.system` 1 つだけ）。`command:` を持つ AI の node は無い。
+2. AI の node ごとに `prompts/<node-id>.md` が在り（system prompt を持つ node は `prompts/<node-id>.system.md` も）、`prompts/` の直下の md はどれもどれかの AI の node の物で、`prompts/parts/` の md はどれも同じ block のどれかの md から `{part:…}` で差し込まれる。
 3. どの md も、その block の standalone の fixture の値で `prompt.render` が通る（埋まらない口も、使われない値も無い）。
 4. どの block にも `fixtures/standalone.stubs.yaml` が在り、その `fixture.inputs` の鍵は block の `inputs:` の中にあって、pointer の値を持たない。
 5. どの入力の `description` も `<form>: ` で始まり、`json(<schema>)` の `<schema>` が block の `schemas/` に在る。
-6. block の YAML は `include:` を持たず、`workflow:` は自分の YAML の名だけを指す（直しの組ごとに自分を子の run として起こす fix の形。ほかの workflow を起こすのは graph だけ）。
+6. ほかの workflow を名指す workflow（`include:` か、自分の外を指す `workflow:` を持つ物）は AI の node を持たない。AI の node を持つ block が `workflow:` で起こしてよいのは自分の YAML だけ（直しの組ごとに自分を子の run として起こす fix の形）。AI の node を持たない merge が、出口の語 pr の時に Archon 同梱の `archon-pr` を `workflow:` で起こすのは、この決まりの中で通る（持ち主の決め `deliver-via-archon-pr`。根の `AGENTS.md` の E8 の外し。merge の設計書の 10 節の 1）。
 7. block の `scripts/` と `src/` に、字 `ARTIFACTS_DIR` と、ほかの block のフォルダへのパスが無い。
 8. どの block の `returns:` の node の `output_format` にも、`outcome_field:` の欄と `report` の欄が在る。
 9. `src/` の package の名は `src` で、`scripts/` の名と `lib/` のモジュールの名は重ならない（script のフォルダが `sys.path` の頭に来るため。今の E4 の決まりを続ける）。
@@ -339,9 +343,9 @@ block の設計書（`docs/design/<block>.md`）は、頭に block の全体（�
 直す人が立つ所に、短い AGENTS.md を置く。どれも決まりとパスだけを書き、設計の細目は `docs/design/` に置く。
 
 - `blocks/AGENTS.md`: 憲法 6 行。「新しい block は `blocks/world/` を写して始める」。設計書の型はこの文書の 6 節。
-- `blocks/.shared/AGENTS.md`: `ports.py` と `prompt.py` の口の一覧と、口を通さずに書けない物（入力の読み・place・指示）。
+- `blocks/.shared/AGENTS.md`: `ports.py` と `prompt.py` の口の一覧（作り直しの間の埋めの読み方 `ports.polyfill` を含む）と、口を通さずに書けない物（入力の読み・place・指示）、共通の断片と形の名、md を書く人の決まり。
 - `lib/AGENTS.md`: 「2 つ以上の block が使う物だけを置く。1 つの block だけが使う物は `blocks/<block>/src/`」。共通の部品の短い一覧（`jsonfile`・`oneline`・`rolekit`・`worldmark` など）。
-- `tests/AGENTS.md`: block の試験は `tests/blocks/<block>/`。block の出力の見本は、block の `returns:` の `output_format` から作る助けで作る（今の試験ごとの写し `judgment(...)` の崩れ。drift-audit の 7 節）。
+- `tests/AGENTS.md`: block の試験は `tests/blocks/<block の名の - を _ にした物>/`。block の出力の見本は、block の `returns:` の `output_format` から作る助けで作る（今の試験ごとの写し `judgment(...)` の崩れ。drift-audit の 7 節）。
 - block の外の文書（根の README・`docs/owner-decisions.md`・`docs/polyfills.md`）は、block・port・コマンド・環境変数の名までを書き、関数の名を書かない。関数を名指すのは block の設計書だけ（1.3 の形の直し 8）。
 - 手本の block は 1 つ（world）にする。崩れたコードが「いちばん近い手本」にならないよう、古いサブグラフは組み込みで消す。
 
@@ -354,18 +358,18 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - world（世界の解）: 依頼の行を問題の類に言い直し、一次の出典の抜き書きで業界の定石と照合する。入力 `request` json（依頼の行）・`purpose` text・`means` json（依頼が示した解き方）・`web` choice(on|off)。出力 `rows`（pointer。行の形は `lib/worldmark.py`）・`status`・`reason`・`classes`・`dropped`。設計書 [world.md](world.md)。
 - purpose（目的の固定）: run の元の目的を 1 文にし、依頼が示した解き方を分ける。入力 `request` json・`pr_text` text・`constraints` json（前提の実測。空でよい）。出力 `purpose`（purpose_text・source・known_weaknesses・source_files）・`means`。
 - premises（前提の実測）: 依頼に書かれた数値・規模・在る/無いの主張を作業ツリーで測り直す。入力 `request` json・`carried` json（前の run が運んだ実測。空でよい）。出力 `constraints`。
-- head-depth（run の頭の深さ）: 依頼の行ごとの未知の種類を引用つきで返し、機械が段を引く。入力 `request` json・`has_checks` flag・`thickness` choice・`spec` flag・`design_only` flag。出力 `tier`・`rows`。未知の種類 → 段の表（今の `headdepth.UNKNOWNS`）は、この block の `src/` が持つ。段の語と控えの読みは line も読むので `lib/headdepth`（4.1）。段 → 回す物の表は line（1.2 の D）。
-- spec（仕様）: 要件と受け入れテストを書いて審査し、承認ノードの後に固める。中に人の承認ノードを持つ（単独で呼んでも人が答える）。入力 `request` json。出力 `spec`・`added_rows`（依頼に足す受け入れ条件の行）。
-- parallel-pr（並行 PR）: 開いている PR と変更ファイルの交差を見て、ぶつかる所を外す。入力 `base` text・`changed` json・`request` json。出力 `excluded`・`drafts`。
-- 素材の観点 11 本（prior-decisions・purpose-review・local-review・consistency-bypass・hygiene・external-standards・procedure-trace・gate-efficacy・test-double-fidelity・main-path-observation・provenance）: 1 本ずつ block にする。どれも同じ型（prep・役・accept）で、共通の部品は `lib/` の 1 モジュールに置く（11 本が使う）。入力は観点ごとに要る物だけ（例: hygiene は `base` text だけ、prior-decisions は `request`・`purpose`）。出力 `material`（pointer）。
-- diagnose（根本の診断と再審）: 素材をまとめて直す単位を切る。`objection` が空でなければ再審の道を通る。再審は同じ block に置く（持ち主の決め `rejudge-cohabit` の訳「再審が判定の置き場を外から前提にする」は、前の判定を port で受ける形で起きなくなるが、置き場は変えない）。入力 `request`・`purpose`・`materials` json・`world_rows` file・`constraints`・`row_asks` json（頭の深さが行ごとに返した問い）・`answers`・`objection` text・`prior` file（再審の時の前の判定）。出力 `judgment`（pointer）・`units`・`questions`・`ready`。
+- head-depth（run の頭の深さ）: 依頼の行ごとの未知の種類を引用つきで返し、機械が段を引く。入力 `request` json・`has_checks` flag・`thickness` choice・`spec` flag・`design_only` flag。出力 `tier`・`why`・`rows`・`record`（pointer）。未知の種類 → 段の表（今の `headdepth.UNKNOWNS`）は、この block の `src/` が持つ。段の語と控えの読みは line も読むので `lib/headdepth`（4.1）。段 → 回す物の表は line（1.2 の D）。報告の「run の頭の深さ」の行は割る: 段と根拠はこの block の `report`、省く物・足した物（段 → 回す物の表から引く字）は line の `report`（設計書 [head-depth.md](head-depth.md) の 8 節の 3）。
+- spec（仕様）: 要件と受け入れテストを書いて審査し、承認ノードの後に固める。中に人の承認ノードを持つ（単独で呼んでも人が答える）。固めた仕様の受け入れテストが承認の版から変わったかの照らし（今の line の `spec-check`）も、`mode` check でこの block が持つ。入力 `mode` choice(write|check)・`request` json・`pr_text` text（依頼が名指す PR の題と本文）・`spec` file（check で照らす固めた仕様）・`user_env_dir` text。出力 `status`・`stop_reason`・`reason`・`spec`・`added_rows`（依頼に足す受け入れ条件の行）・`added_origin`（足した行の出どころの名）・`questions`（check の承認し直すかの問い）・`unchecked`。設計書 [spec.md](spec.md)。
+- parallel-pr（並行 PR）: 開いている PR と変更ファイルの交差を見て、ぶつかる所を外す。入力 `base` text・`changed` json・`request` json。出力 `status`・`stop_reason`（役を諦めた時の止めの語。止めるかは line が決める）・`reason`・`material`（素材の札。diagnose の `materials` に入る）・`excluded`・`drafts`・`reads`・`downgrades`（この block が下げている所の自分の行）。設計書 [parallel-pr.md](parallel-pr.md)。
+- 素材の観点 11 本（prior-decisions・purpose-review・local-review・consistency-bypass・hygiene・external-standards・procedure-trace・gate-efficacy・test-double-fidelity・main-path-observation・provenance）: 1 本ずつ block にする。どれも同じ型（prep・役・accept）で、共通の部品は `lib/` の 1 モジュールに置く（11 本が使う）。入力は観点ごとに要る物だけ（例: hygiene は `base` text と判定から入る run の出どころ `entry` text、prior-decisions は `base`・`request`〔行の `where` だけを読む〕・`entry`。`purpose` は持たない）。出力 `status`・`reason`・`material`（pointer）。
+- diagnose（根本の診断と再審）: 素材をまとめて直す単位を切る。`objection` が空でなければ再審の道を通る。再審は同じ block に置く（持ち主の決め `rejudge-cohabit` の訳「再審が判定の置き場を外から前提にする」は、前の判定を port で受ける形で起きなくなるが、置き場は変えない）。入力 `request`・`purpose`・`materials` json・`world_rows` file・`constraints`・`row_asks` json（頭の深さが行ごとに返した問い）・`spec_rows` file（仕様が足した受け入れ条件の行。spec の `added_rows` と、行を分ける出どころの名 `added_origin`）・`answers`・`objection` text・`prior` file（再審の時の前の判定）。出力 `judgment`（pointer）・`units`・`questions`・`ready`。
 - verify（判定の裏取り）: 開いた単位ごとに、本当に根本か・証拠は在るかを別の目で確かめる。入力 `judgment` file・`materials` json。出力 `verify`。
 
 ### 8.2 計画と事前審査
 
-- structure（構造の目）: 直しの単位を測り、直しが設計の考えを知る場所を増やすかを見る。今の見方（周りのコードと比べる）から、対象のリポジトリの書いた意図（憲法・決まり・設計の文書）と比べる見方に変える（持ち主の 2026-10-19 の追加。8.6 の 3 つの時の 2 つ目）。直した後の実測（今の `stage_b`。差分が設計の考えを知る場所を増やしたか）もこの block に置く。入力 `mode` choice(before|after)・`units` json・`intent` json（対象の書いた意図の文書のパスの一覧。空なら決まった名で探す）・`base` text（after の時の直す前の版）。出力 `structure`（pointer）。
-- independent-design（R2 の独立設計）: 目的の文だけから別の役が設計する。入力 `purpose` text。出力 `design`（pointer）。
-- plan（修正案）: 修正案を書き、事前審査の指摘で書き直す。入力 `judgment` file・`purpose`・`structure` file・`world_rows` file・`policy` file・`prior` file（前の周の案と指摘。1 周目は空）・`ruling` file（案の直しの時）。出力 `plan`（pointer）。
+- structure（構造の目）: 直しの単位を測り、直しが設計の考えを知る場所を増やすかを見る。今の見方（周りのコードと比べる）から、対象のリポジトリの書いた意図（憲法・決まり・設計の文書）と比べる見方に変える（持ち主の 2026-10-19 の追加。8.6 の 3 つの時の 2 つ目）。直した後の実測（今の `stage_b`。差分が設計の考えを知る場所を増やしたか）もこの block に置く。入力 `mode` choice(before|after)・`units` json・`intent` json（対象の書いた意図の文書のパスの一覧。空なら決まった名で探す）・`policy` file（人が固めた方針の文書）・`base` text（after の時の直す前の版）・`plan` file（after の時の修正案の欄。構造の目の避け方から外れた訳を読む）。出力 `status`・`reason`・`structure`（pointer）・`after`（pointer。after の時）・`dirty`・`escalate`・`optional`。元の works は目を Git の外で起こして作業ツリーの git の様子を見せなかったが、工場はこの隔離を記録なしに落とした。system prompt を md から入れる口（13 章）で塞げるが、振る舞いを変えるので作り直しの外に置く（設計書 [structure.md](structure.md) の 11 節の 8）。
+- independent-design（R2 の独立設計）: 目的の文と、人が決めた前提だけから別の役が設計する。修正案・判定・差分を運ぶ port を持たない（独立の守り）。入力 `purpose` text・`purpose_source` text・`purpose_review` json・`constraints` json（前提の実測。今の `boardview.r2_prompt` も貼っている）・`answers` json・`request` file・`policy` file・`base` text・`head` text（足した行の印を付ける版の組）。出力 `status`・`stands`・`design`（pointer）・`premises`（pointer）・`reason`・`downgrades`。設計書 [independent-design.md](independent-design.md)。
+- plan（修正案）: 修正案を書き、事前審査の指摘で書き直す。入力 `judgment` file・`purpose`・`structure` file・`world_rows` file・`spec` file（固めた仕様。今の `plan_prep.py` の `INPUTS_SPEC`）・`policy` file・`prior` file（前の周の案と指摘。1 周目は空）・`ruling` file（案の直しの時）。出力 `plan`（pointer）。
 - plan-review（事前審査）: 案の欠陥を探す。`proposal` を案の構造（項目・ファイル）か、方針の文だけ（text）のどちらでも受ける。text だけの時は、案の構造を前提にする確かめを飛ばし、今の事前審査の md（`workflows/plan-review/commands/plan-review.md`）が持つ 8 種の確かめと欠陥の重さの定義だけを当てる（入口の workflow のため。棚卸しの 5 節）。入力 `proposal` file か text・`purpose`・`design` file・`world_rows` file・`structure` file・`policy` file・`tree` flag（項目ごとの下請けで木にするか。line が深さの表から引く）・`prior` file（前の周の案と指摘。1 周目と方針の文だけの時は空。2 往復目からの穴の出自・続いた穴・約束の欄が変わった項目を決める）。往復の記録・止め・安全の上限は line が持つ（1.2 の D）。出力 `holes`・`deviations`（定石や独立設計からの外れと、その出どころ）。承認ノードを聞かずに通してよいかは line が決める（1.2 の U）。
 
 ### 8.3 修正
@@ -379,12 +383,12 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 
 - r1（最小性とコメント）・r2（独立設計との比べと前提の検算）・r3（全体の整合）・r4（見えていない範囲）: 1 本ずつ block。入力はどれも `base` text（差分の base commit）と、観点ごとに要る物（r2 は `design` file と `purpose`、r3 は `intent` json と `policy`、r4 は `plan` file と `policy`）。出力 `verdict`・`questions`（人に回す問い）。
 - test-gate（試験の関門）: 直す前と後の結末を取り、元から赤のテストを分ける。入力 `mode` choice(base|final)・`test_cmd` text・`tdd_suite` text・`baseline` file（final の時）。出力 `baseline`（pointer）・`green`。
-- merge（差分の確定と取り込み）: AI を持たない。入力 `mode` choice(seal|apply)・`diff` file・`deliver` choice。出力 `sealed`・`protected_hits`（守りのファイルに触れた一覧。13 節）・`pr`。
+- merge（差分の確定と取り込み）: AI を持たない。差分は作業ツリーと根から組み直して指紋と照らすので、入力 `diff` は持たない（#266 `3adce5e5` で意図して外した。1.3 の歩かせ 4）。入力 `mode` choice(seal|apply|check)（check は chain の `hand` が使う）・`base` text・`fingerprint` json・`green_ok` flag・`eyes_ok` flag・`sealed_hash` text・`answer` json・`r2` json・`deliver` text・`request` file・`items` json・`user_env_dir` text。出力は今の欄の名のまま（line の最後の承認ノード・`bin/apply`・chain・報告が今の名で読む）: `mode`・`hash`・`diff`（pointer）・`protected_hits`（守りのファイルに触れた一覧。13 節）・`protected_count`・`reason`・`deliver`（PR を作った時の結果を含む）・`optional`。設計書 [merge.md](merge.md)。
 
 ### 8.5 報告
 
-- report（報告を書く）: block の `report` の欄を並べ、結末の語を決め、書き手の役が本文を書く。入力 `sections` json（block ごとの `report` の欄を graph が 1 つに集めた物）・`facts` json（結末を決める事実）。出力 `report`（pointer）。
-- cold-read（初見の読み手）: 文脈を持たない読み手が本文を読み、詰まった所を返す。入力 `text` file。出力 `stuck`。
+- report（報告を書く）: block の `report` の欄を並べ、結末の語を決め、書き手の役が本文を書く。書き手と初見の読み手の往復（回ごとの書き手の受け付けが、同じ回の読み手の判定で決まる）は、この block の中に置く。graph の loop で report と cold-read を並べると、受け付けの決まりを cold-read か graph が持つことになり（憲法の 3）、report を単独で回した時に初見の確かめが落ちる（憲法の 5）。入力 `sections` json（block ごとの `report` の欄を graph が 1 つに集めた物）・`facts` json（結末を決める事実。どの block の欄が止め・人待ち・残りに当たるかは line が読み分けて入れる）。出力 `outcome`・`stop_reason`・`machine`・`human`・`detail`（どれも報告のファイルの pointer）・`next_request`・`prior_failures`・`report`（ほかの block と同じ日本語の行の配列。4.1・7.1 の 8。pointer ではない）。設計書 [report.md](report.md)。
+- cold-read（初見の読み手）: 文脈を持たない読み手が本文を 1 回読み、詰まった所を返す。報告に依らない素の読み手で、報告の頭の決まりは持たない（報告の中の読み手は report が持つ。役の定義は共通の断片 `role-cold-reader` 1 か所）。入力 `text` file。出力 `status`・`verdict`・`pass`・`stops`・`guessed`・`decidable`・`stuck`。設計書 [cold-read.md](cold-read.md)。
 
 ### 8.6 3 つの時の目（崩れを入る前・入る時・入った後で見る）
 
@@ -395,6 +399,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 ### 8.7 graph
 
 - line（メイングラフ）: block を並べ、承認ノード・計画の往復（往復の記録・止め・安全の上限）・一度だけの include（案の直し・2 度目の修正・再審）・深さの表（段 → 回す物）と修正の後の上げ直し（fix と delta-review の間で 1 回）・無人の方針を持つ。始めの記録はここだけが書き、block には port の値として配る。
+  - 今の工場の穴（作り直しで直す。line の設計書で決める）: 並行 PR の確かめを回し直す条件（今の `judge_accept.parallel_pr_due`）は写したが名指す節が無い死んだコードで、最初の修正の後に並行 PR の確かめが走り直さない。fix は parallel-pr が外した hunk（`excluded`）を受け取らず、外した範囲を直しても拒む関門が無い（parallel-pr の設計書の 6 節の 2・5）。始めの記録に `gates` を書く物が無いので、ゲートの検算を合流した版に回す道（gate-efficacy の `gates` が `merge`）が今の run では走らない。その訳の字 `GATES_MERGE_WHY` は元の works の入口の入力（`init --input gates=merge`）を名指していて、工場の起動の殻に同じ入力は無い（gate-efficacy の設計書の 6 節）。
 - chain（周の鎖）: line を周ごとに子の run として起こす（今のまま）。
 - judge（判定のまとめ）: 8.1 の block を `include:` で並べ、line から 1 つの include で呼べるようにする。Archon 同梱の sdlc の `deliver` が `implement`・`review` を include で組むのと同じ形（`A/.archon/workflows/sdlc/deliver/archon-deliver.yaml`）。
 - eyes（独立の目のまとめ）: r1〜r4 と structure（after）を並べ、まとめの判定の script を持つ。
@@ -418,19 +423,20 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 ### 9.2 lib/ の MOVE（行き先の block）
 
 - world: `worldblk`・`worldcheck`
-- purpose: `purpose`／premises: `premises`／spec: `specblk`／parallel-pr: `prcheck`・`downgrades.json`（（未確認））／local-review: `diverted`
-- judge の芯 `judge_accept`: 観点ごとの部分を各 block（world・purpose・premises・head-depth・spec・parallel-pr・diagnose・verify）へ割る。素材の 11 本が共に使う部分は KEEP（新しい 1 モジュール）。`judge/` の決め打ちの包み（`world_intake` など）と `PORTS`・`FIRST_PORTS` は DELETE。
+- purpose: `purpose`／premises: `premises`／spec: `specblk`／parallel-pr: `prcheck`／local-review: `diverted`
+- `downgrades.json`（下げている所の宣言。今は parallel-pr と independent-design の 2 つの block の行を 1 つのファイルに持ち、読むのは報告の頭の数だけ。`docs/nodes.json` の一覧とも合わない）: どの block にも移さない。下げている block が自分の行を出力の欄 `downgrades` で返し（parallel-pr の設計書の 6 節の 6・10 節の 8、independent-design の 1.2）、ファイルは組み込みで消す。報告の頭の「下げている所」の数をこの欄から組み直す形は、report と line の設計書で決める。
+- judge の芯 `judge_accept`: 観点ごとの部分を各 block（world・purpose・premises・head-depth・spec・parallel-pr・diagnose・verify）へ割る。素材の 11 本が共に使う部分は KEEP（新しい 1 モジュール）。指し先の綴りと版に在るかの照らし（`_resolve_target`・`_in_version`。purpose・diagnose と KEEP の `recount` が使う）も KEEP（新しい 1 モジュール）。`judge/` の決め打ちの包み（`world_intake` など）と `PORTS`・`FIRST_PORTS` は DELETE。
 - verify: `judgeverify`
-- structure: `context`・`stage_a`・`stage_b`（直した後の実測）・`structfile`・`design-row.schema.json`（（未確認））
-- head-depth: `headdepth` の未知の種類 → 段の表と受け付け（段の語と控えの読みは KEEP）
+- structure: `context`・`stage_a`・`stage_b`（直した後の実測）・`structfile`。`design-row.schema.json` は実行の時に読む物が無い（#232 から）ので写さず DELETE（行の型の正本は node の `output_format`。structure の設計書の 11 節の 9）
+- head-depth: `headdepth` の未知の種類 → 段の表と受け付け（段の語と控えの読みは KEEP）。種類ごとの受け手への指示の文（今の `headdepth.ASKS`）は、読み手の diagnose と plan の md が使う共通の断片 `unknown-asks` へ（先に要った PR が足す。head-depth の設計書の 8 節の 4）
 - plan: `planfile`・`ripple`
 - plan-review: `boardview`（独立設計の部分は independent-design へ）・`planblk`（修正案の役の部分は plan へ）
-- fix: `clash`・`consult`・`factchecks`・`fixboard`（差分の審査の部分は delta-review、レンズの部分は lens へ。上げ直し `redepth` は消して line の上げ直しに寄せる）・`fixgates`・`fixrules`・`lanekit`・`parking`・`planscope`・`ruling`・`unitrows`・`unittrees`・`tddloop`（line の始めの記録が使う部分が残れば KEEP。fix の設計書で決める）・`conflict` の決めの部分（申し出と裁定の積み方・テストの許し `test_permits`・指示の約束の文は md へ）
+- fix: `clash`・`consult`・`factchecks`・`fixboard`（差分の審査の部分は delta-review、レンズの部分は lens へ。上げ直し `redepth` は消して line の上げ直しに寄せる。足した行の印に要る git の 3 つ `pr_revs`・`pr_diff`・`pr_added_lines` と、それが使う `unittrees` の部分は independent-design と r2 も使うので KEEP〔9.3〕）・`fixgates`・`fixrules`・`lanekit`・`parking`・`planscope`・`ruling`・`unitrows`・`unittrees`（上の git の 3 つが使う部分は KEEP）・`tddloop`（line の始めの記録が使う部分が残れば KEEP。fix の設計書で決める）・`conflict` の決めの部分（申し出と裁定の積み方・テストの許し `test_permits`・指示の約束の文は md へ）
 - delta-review: `deltamarks`・`refix`・`refixrules`
 - lens: `lenses`
 - eyes（graph）: `eyeverdict`（観点ごとの部分は r1〜r4 へ）
-- report: `outcome`・`report_roles`・`glossary.json`
-- line（graph の `src/`）: `fixture`・`startrec`・`testcmd_check`・`versions`・`gatepolicy`・`gatemarks`（承認ノードの決めの部分。問いの行の語と選び方は KEEP。修正案と事前審査に渡していた文は md へ）・`depth`（段 → 回す物の表と単位ごとの深さ。block には真偽と一覧を port で渡す）・`latedepth`（修正の後の上げ直し。読み手は line だけ）・`converge` の往復の記録と止め・`gate_axes`
+- report: `outcome`（結末の 10 語と決める順。ほかの block の欄の名〔`stalled`・`premise_check`・`units` など〕を読む読み分けは report に持ち込まず、line が `facts` の欄〔止め・人待ち・残り〕に仕分けて渡す。report の設計書の 9 節）・`report_roles`・`glossary.json`
+- line（graph の `src/`）: `fixture`・`startrec`・`testcmd_check`・`versions`・`gatepolicy`・`gatemarks`（承認ノードの決めの部分。問いの行の語と選び方と、承認ノードの文の組み立て `gate_text`〔line の修正前の承認ノードと spec の仕様の承認ノードが使う〕は KEEP。修正案と事前審査に渡していた文は md へ）・`depth`（段 → 回す物の表と単位ごとの深さ。block には真偽と一覧を port で渡す）・`latedepth`（修正の後の上げ直し。読み手は line だけ）・`converge` の往復の記録と止め・`gate_axes`
 
 ### 9.3 lib/ の KEEP（使い手）
 
@@ -440,19 +446,22 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - `carry`（line・chain・report・test-gate）・`changemap`・`COPIED_FROM.changemap`（line と `impact` の使い手）・`impact`（fix・plan・structure）
 - `cite`（fix・diagnose・head-depth・plan-review・line）・`conflict` の行の形（申し出の行の語・出どころ・人に諮る行の選び・数え・直しの在りか。fix が作り、plan・line・report が読む。4.1）・`converge`（plan・plan-review。往復の記録と止めは line の `src/` へ）・`replan`（fix・plan・line）
 - `concepthome`（plan・plan-review・structure・r1・r3。文は md へ）・`conceptfence`（structure・r3。対象のリポジトリの表に当てる道具として残す）・`measure`（structure・eyes。コマンドとして起こす）
-- `headdepth`（段の語と控えの読み。head-depth・line。未知の種類 → 段の表は head-depth へ）・`launchgroups`（`bin/`・head-depth）
+- `headdepth`（段の語と控えの読み。head-depth・line。未知の種類 → 段の表は head-depth へ）。段の語は今 `lib/depth.py` に在り（`LIGHT`・`STANDARD`・`HEAVY` と並び `HEADS`）、`headdepth` は `LIGHT`・`STANDARD` だけを写している。`depth` は line へ MOVE なので、組み込みで 4 つとも `headdepth` へ移す（11.3）。作り直しの間、head-depth は `lib/depth.py` の `HEAVY`・`HEADS` を読む・`launchgroups`（`bin/`・head-depth）
 - `design`（independent-design・r2・plan-review）・`eye`（structure・eyes）・`structmark`（structure・plan・plan-review・eyes・line・report）
 - `forge`（merge・parallel-pr・line）・`ghreads`（line・purpose）
 - `globs`（fix・plan・eyes・merge）・`protect`・`protected.json`（eyes・merge・line）・`seal`（merge・eyes・line・chain・`bin/`）・`listcut`（eyes・fix・merge・structure・`bin/`）
 - `groups`・`holeties`・`planrange`（fix・delta-review）・`itemcommits`（fix・merge・line）・`planbrief`（fix・plan）・`planmarks`（plan・plan-review・fix・eyes・line）・`recount`・`querytest`（diagnose・fix・delta-review・plan-review・line）
 - `handoff`（plan・report）・`outpurpose`（diagnose・line・report）・`policy`（fix・delta-review・plan・structure・r1・r3・r4・line。文は md へ）
 - `lens`（lens・delta-review）・`libdocs`・`libdocs_local`・`libdocs_web`（plan・plan-review・fix）・`webget`（world・libdocs の使い手）
-- `rolekit`（役を持つ block の全部。loop の数え・諦め・却下の控え。言語の文と出し直しの文は md へ）・`rulebook`・`seat`（fix・delta-review）・`spseam`・`borrow/`（`bin/`・fix・delta-review）
+- `rolekit`（役を持つ block の全部。loop の数え・諦め・却下の控え。言語の文と出し直しの文は md へ）・`rulebook`・`seat`（fix・delta-review。見出しの文を `promptsection.Section` で持つので、9.1 で `promptsection` を消す前に文を md へ出し、import を外す）・`spseam`・`borrow/`（`bin/`・fix・delta-review）
 - `reads`（fix・plan・plan-review・parallel-pr・`bin/`）・`writelog`（`bin/`・fix・delta-review）・`writes`（fix・delta-review）
-- `report`・`runreport`（report・line・chain。block の中身を import しない形に軽くする）・`stopby`（line・report・chain）
+- `report`・`runreport`（report・line・chain。block の中身を import しない形に軽くする）・`stopby`（line・report・chain・judge のまとめ。前提の実測と目的の固定が落ちた時に judge のまとめが止める語 `works:premises`・`works:purpose` もここに在り、止めるかは judge のまとめが決める）
 - `tree_run`（test-gate・fix・merge・line・`bin/`）・`userenv`（`bin/`・report・`tree_run`）
 - `worldmark`（world・diagnose・plan・plan-review・line。行の欄と語・読み・答えの照らし。`judgebeside` への import は外し、文は md へ。報告の行の組み立て `report_lines` は world の `src/` へ）
-- `gatemarks` の問いの行の形（問いの語 `ASKING`・人へ回す問いの選び `asks_human`・項目の推しの尾の字の形。diagnose・plan-review・line・report。4.1）
+- `gatemarks` の問いの行の形（問いの語 `ASKING`・人へ回す問いの選び `asks_human`・項目の推しの尾の字の形。diagnose・plan-review・line・report。4.1）と、承認ノードの文の組み立て `gate_text`（line・spec）
+- `fixboard` の git の 3 つ `pr_revs`・`pr_diff`・`pr_added_lines` と、それが使う `unittrees` の部分（fix・independent-design・r2。足した行の印。新しい 1 モジュールに寄せる）。作り直しの間は independent-design が自分の `src/` に写す（independent-design の設計書の 11 節の 4）
+- 指し先の綴りと版に在るかの照らし（`judge_accept` の `_resolve_target`・`_in_version` から作る新しい 1 モジュール。purpose・diagnose・`recount`）
+- 前提の実測の行の形（`kind` の語 `実測`・`仮説`。premises・independent-design・diagnose・report）と目的の出典の語（`source` の語。purpose・independent-design・diagnose）。今 `carry`・`runreport`・`judge_accept`・`design` に割れている語を、作り手ごとの行の形のモジュールに寄せる（4.1。名は premises と purpose の設計書で決める）
 - `jsonfile`・`oneline`（ほぼ全部）
 - 素材の 11 本の共通の部品（新しい 1 モジュール。`judge_accept` の `material_*` から作る）
 - `graphloops/engine/util.py`・`schema.py`・`declared.py`（`accept`・test-gate・`tree_run`）
@@ -471,12 +480,12 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 
 古いファイルは組み込みで消す。振る舞いを見る試験を `tests/blocks/<block>/` に作り直す時の元にする。
 
-- `lib/tests/`: world へ `test_blk_world.py`・`test_world_check.py`／fix へ `test_blk_fix.py`・`test_blk_fix_conflict.py`・`test_clash.py`・`test_consult.py`・`test_fix_duty.py`・`test_fix_gates.py`・`test_fix_rules.py`・`test_fix_units.py`・`test_duty_sets.py`・`test_lanekit.py`・`test_plan_scope.py`・`test_unittrees.py`・`test_blk_fix_tdd.py`・`test_tdd_frozen.py`・`test_tdd_frozen_function_span.py`・`test_tdd_outside.py`／lens へ `test_blk_lens.py`／delta-review へ `test_blk_refix.py`・`test_blk_tests_delta.py`・`test_delta_marks.py`／plan へ `test_blk_plan.py`・`test_planfile.py`・`test_ripple.py`／plan-review へ `test_boardview.py`・`test_gate_axes.py`・`test_plan_gate.py`／structure へ `test_blk_structure.py`・`test_structfile.py`・`test_structure_eye.py`／判定の各 block へ `test_blk_judge.py`・`test_judge_accept.py`／local-review へ `test_diverted.py`／eyes と r1〜r4 へ `test_blk_eyes.py`・`test_eyeverdict.py`・`test_stage_b.py`／report へ `test_outcome.py`・`test_report_roles.py`／line へ `test_fixture.py`・`test_startrec.py`・`test_testcmd_check.py`・`test_versions.py`。
+- `lib/tests/`: world へ `test_blk_world.py`・`test_world_check.py`／fix へ `test_blk_fix.py`・`test_blk_fix_conflict.py`・`test_clash.py`・`test_consult.py`・`test_fix_duty.py`・`test_fix_gates.py`・`test_fix_rules.py`・`test_fix_units.py`・`test_duty_sets.py`・`test_lanekit.py`・`test_plan_scope.py`・`test_unittrees.py`・`test_blk_fix_tdd.py`・`test_tdd_frozen.py`・`test_tdd_frozen_function_span.py`・`test_tdd_outside.py`／lens へ `test_blk_lens.py`／delta-review へ `test_blk_refix.py`・`test_blk_tests_delta.py`・`test_delta_marks.py`／plan へ `test_blk_plan.py`・`test_planfile.py`・`test_ripple.py`／plan-review へ `test_boardview.py`・`test_gate_axes.py`・`test_plan_gate.py`／structure へ `test_structfile.py`・`test_structure_eye.py`・`test_stage_b.py`／判定の各 block へ `test_blk_judge.py`・`test_judge_accept.py`／local-review へ `test_diverted.py`／eyes と r1〜r4 へ `test_blk_eyes.py`・`test_eyeverdict.py`／report へ `test_outcome.py`・`test_report_roles.py`／line へ `test_fixture.py`・`test_startrec.py`・`test_testcmd_check.py`・`test_versions.py`。
 - `tests/workflows/`: `test_judge.py`・`test_fix.py`・`test_eyes.py`・`test_plan.py`・`test_plan_review.py`・`test_report.py`・`test_structure.py`・`test_test_gate.py`・`test_merge.py` を各 block へ。`test_line.py`・`test_chain.py`・`test_gate_head.py`・`test_testcmd_head.py` を新しい line・chain へ。
 
 ### 9.6 試験の KEEP
 
-- `lib/tests/` の残り全部（KEEP の lib のモジュールの試験。例 `test_accept.py`・`test_rolekit.py`・`test_worldmark.py`・`test_impact.py`・`test_baseline_red.py`・`test_writes.py`・`test_imports.py`〔lib の import の循環が解けたら yes/no の「循環が無い」に替える〕）。文を md へ出したモジュールの試験は、文の字への assert を符号と欄への assert に替える。
+- `lib/tests/` の残り全部（KEEP の lib のモジュールの試験。例 `test_accept.py`・`test_rolekit.py`・`test_worldmark.py`・`test_impact.py`・`test_baseline_red.py`・`test_writes.py`・`test_blk_structure.py`〔名は structure だが、試すのは KEEP の `lib/measure.py`〕・`test_imports.py`〔lib の import の循環が解けたら yes/no の「循環が無い」に替える〕）。文を md へ出したモジュールの試験は、文の字への assert を符号と欄への assert に替える。
 - `tests/layers/` の yes/no の検査: `test_archon_validate.py`・`test_readonly_nodes.py`・`test_no_timeouts.py`・`test_outward_write.py`・`test_gates.py`・`test_role_retry.py`・`test_depth_skip.py`・`test_names.py`・`test_no_asf.py`・`test_no_conversion.py`・`test_no_owner_env.py`・`test_hermetic_env.py`・`test_required_checks.py`・`test_test_commands.py`・`test_rule_index.py`・`test_polyfills_listed.py`・`test_polyfill_evidence.py`・`test_lib_blind.py`・`test_words.py`・`test_layout.py`（新しい木に書き直す）・`test_block_returns.py`（`returns:` と `outcome_field:` の有無の部分だけ。`ALLOWED` の表は外す）・`test_lang_neutral.py`（言語の表を 1 つのモジュールに寄せ、許すファイルの表をやめる）・`trees.py`。どれも `blocks/` にも当てる。7.1 の 9 つは新しい `tests/layers/test_block_shape.py` に置く。
 - `tests/workflows/` の形の検査: `test_uv_scripts.py`・`test_nodeflags.py`・`test_loop_sessions.py`・`test_returns_never_fail.py`・`test_role_texts.py`・`test_reply_fields.py`・`test_reply_patterns.py`・`test_fixture_claims.py`・`test_script_imports.py`・`test_count_how_copies.py`・`test_input_reads.py`（`ports` の口に向け直す）・`test_unread_named.py`（同じ）。
 - `tests/shared/`: `test_archon_contract.py`・`test_child_pointer.py`・`test_childsweep.py`・`test_fence.py`（埋めは残る）。
@@ -487,14 +496,14 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 元の works の `works/docs/keep-essence.md` の 12 の仕組み。block の試験の欄の「（作る）」は、今の守りが lib の中の関数を直に呼ぶ試験で、その中身を割ると試験ごと消えるので、block の振る舞いの試験として作り直す物。今の守りの名は、作り直しの元として書く。
 
 1. 赤緑の機械の判定 → 担う block fix（組の子の TDD の loop の中と、受け付けの後の確かめ直し）。読み手 report。今の守り `lib/tests/test_blk_fix_tdd.py::TestRedCheck`・`lib/tests/test_fix_gates.py::TestRedGreen`・`tests/workflows/test_test_gate.py::SuiteLoopCase.test_written_runner_feeds_the_red_green_check`。新しい守り `tests/blocks/fix/` の、組 1 つの形の standalone の赤緑の試験（作る）。
-2. 元から赤のテストの区別 → 担う block test-gate。読み手 fix。今の守り `lib/tests/test_baseline_red.py`・`tests/workflows/test_test_gate.py::ResultScriptCase`。新しい守り `tests/blocks/test-gate/`（作る）と `lib/tests/test_baseline_red.py`（KEEP）。
+2. 元から赤のテストの区別 → 担う block test-gate。読み手 fix。今の守り `lib/tests/test_baseline_red.py`・`tests/workflows/test_test_gate.py::ResultScriptCase`。新しい守り `tests/blocks/test_gate/`（作る）と `lib/tests/test_baseline_red.py`（KEEP）。
 3. テストの凍結と、許す道は 1 本 → 担う block fix（TDD の loop が hash を取り、受け付けが確かめる）。許しを出すのは fix の裁定・plan・案の直し・範囲の相談。今は `lib/conflict.py::test_permits` の 1 つの関数が「1 本」を担う。TDD の loop を fix の中に置く（1.3 の形の直し 2）ので、この関数は fix の `src/` の 1 つのまま残り、block をまたがない。許しの出どころを数える今の試験を fix の試験に写す（作る）。今の守り `lib/tests/test_tdd_frozen.py::FrozenRuledScopeCase`・`lib/tests/test_conflict_kinds.py::TestReplanState.test_permit_sources_are_read_in_one_place`。
 4. 3 回拒まれたら諦める → 担う block fix（TDD の loop と修正の loop。loop の数え `lib/rolekit.py` は KEEP）。今の守り `tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit` ほか。新しい守り `tests/blocks/fix/`（作る）。
 5. 書き込みの出どころの突き合わせ → 担う block fix・delta-review（`lib/writes.py` は KEEP）。フックを置くのは `bin/`。今の守り `lib/tests/test_writes.py::TestProvenance`・`tests/bin/test_record_write.py`（どちらも KEEP）。
 6. 当たる試験を選んで回し、回さなかった試験を名で残す → 担う block fix。読み手 test-gate・line の最後の承認ノード・report。今の守り `lib/tests/test_impact.py`（KEEP）・`lib/tests/test_tdd_outside.py`（MOVE fix）・`tests/workflows/test_line.py::AskFinalReadsCase.test_final_text_lists_suites_baseline_and_left_tests`（新しい line へ）。
 7. class_query の数え直し（判定役が欠陥ごとに書く探し方〔grep の型と対象のパス〕で、修正の前と後の件数を機械が数え直す）→ 探し方を作るのは diagnose、数え直すのは fix。今の守り `lib/tests/test_judge_accept.py::JudgeTakeCase`（MOVE diagnose）・`lib/tests/test_fix_units.py`（MOVE fix）・`lib/tests/test_fix_seams.py::RecountSeamCase`（KEEP。中の継ぎ目の試験なので、fix の振る舞いの試験に作り直す）。通しの run の記録の照らしの表 `tests/e2e/evidence.json` の J70・J71・F122・F123 の行で、本物の run の記録に印が見えている。
 8. 食い違いの申し出と、読むだけの裁定役 → 担う block fix（TDD の役も申し出を出す）。読み手 line の最後の承認ノード・plan-review・report。今の守り `lib/tests/test_conflict_kinds.py`・`lib/tests/test_fix_seams.py` の 3 本・`tests/layers/test_readonly_nodes.py`（裁定役が読むだけ）・筋書き `workflows/line/fixtures/conflict-ask.stubs.yaml`。fix の振る舞いの試験（作る）。
-9. 独立設計と R1〜R4 → 担う block independent-design（目的だけを受ける port の形そのものが独立の守りになる）。読み手 plan-review・r2。R1〜R4 は r1〜r4。今の守り `tests/workflows/test_plan_review.py::IsolationCase.test_r2_prep_reads_only_the_allowed_names`・`tests/workflows/test_eyes.py::ShapeCase`。新しい守りは `tests/blocks/independent-design/` の「入力は `purpose` だけ」の yes/no（作る）。
+9. 独立設計と R1〜R4 → 担う block independent-design（修正案・判定・差分を運ぶ port を持たない形そのものが独立の守りになる。目的のほかに、前提の実測・人の承認ノードの答え・依頼が名指した節・人の方針・足した行の印は今の役も受けているので port に在る）。読み手 plan-review・r2。R1〜R4 は r1〜r4。今の守り `tests/workflows/test_plan_review.py::IsolationCase.test_r2_prep_reads_only_the_allowed_names`・`tests/workflows/test_eyes.py::ShapeCase`。新しい守りは `tests/blocks/independent_design/` の「入力の鍵がちょうど設計書の 10 個で、修正案・判定・差分を運ぶ物が無い」の yes/no（作る。independent-design の設計書の 12 節の `test_inputs_carry_no_plan_judgment_or_diff`）。
 10. 守りのファイルに触れたら最後の承認ノードを開く → 当たりを見るのは merge（今は eyes の中。13 節）。読み手 line の最後の承認ノードと `bin/apply`。今の守り `tests/workflows/test_merge.py::ApplyTest.test_no_answer_and_protected_hit_refuses`・`lib/tests/test_protect.py`（KEEP）・筋書き `workflows/line/fixtures/eyes-failed-protected.stubs.yaml`。通しの試験の小さな対象のリポジトリ（`tests/e2e/target-seed/`）は守りのファイルに触れない作りなので、この仕組みは本物の run ではまだ一度も通っていない。
 11. 直す単位ごとの記録が報告と最後の承認ノードに届く → 書くのは fix（TDD の loop と修正の loop）、読むのは report と line。block をまたぐので、fix の出力 `units` の形を試す試験と、report が `sections` で受ける試験を作る（作る）。今の守り `lib/tests/test_runreport.py::TddCase`・`tests/workflows/test_line.py::AskFinalReadsCase.test_fix_beside_files_reach_the_final_gate`。
 12. 世界の解に照らす → 担う block world。読み手 diagnose・plan（行ごとに答えさせる）・plan-review（依頼を出どころにした外れを人に回す）・line の修正前の承認ノード。今の守り `lib/tests/test_world_check.py::Verify`・`lib/tests/test_blk_world.py::Classes`（MOVE world）・`tests/workflows/test_plan.py::AcceptCase.test_world_row_needs_answer`・`tests/workflows/test_plan_review.py::WorldGateCase.test_deviation_cited_to_request_goes_to_human`・筋書き `workflows/judge/fixtures/world-offline.stubs.yaml`。詳しくは [world.md](world.md) の 8 節。
@@ -504,7 +513,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 ### 11.1 作る順
 
 0. 土台と手本（1 本の PR。並べない）: guidance-path の目の block（8.6）・`blocks/` の pack の骨組み・`blocks/.shared/ports.py`・`prompt.py`・共通の指示の断片（外への検索の決まり・却下の段落・役の定義 5 本）・`blocks/AGENTS.md`・7.1 の形の検査・`tests/archon.py` と起動の殻で `blocks/` を pack として回す口・world の block・policy-check の入口（この時は world だけをつなぐ）。#765 の進め方 2 に当たる。土台の後、新しい形で guidance-path の目を 1 回回し、1 節の「変更が閉じる 1 か所」へ辿れない頼みがあれば、案内か手本を直してから次へ進む。
-1. 1 波目（互いに独立。同時に作る）: purpose・premises・head-depth・parallel-pr・spec・structure・independent-design・cold-read・test-gate・merge・report（`sections` の形は土台で決めるので、ほかの block を待たない）。素材の観点は、共通の部品と 1 本目（prior-decisions）を 1 本の PR にし、残りの 10 本を同時に作る。
+1. 1 波目（互いに独立。同時に作る）: purpose・premises・head-depth・spec・structure・independent-design・cold-read・test-gate・merge・report（`sections` の形は土台で決めず、report の PR が `schemas/sections.schema.json` を置く。ほかの block が守るのは 4.1 の `report` の欄だけなので、report を待たない）。素材の観点は、共通の部品と 1 本目（prior-decisions）を 1 本の PR にし、残りの 10 本を同時に作る。parallel-pr は素材の観点の共通の部品（素材の札の語と照らし）と断片 `works-gh`・`material-status`・`material-na` を使うので、その PR（共通の部品と prior-decisions）の後に作る（parallel-pr の設計書の 10 節の 2）。
 2. 2 波目（1 波目の出力の形を使う）: diagnose（再審を含む）・verify・plan・plan-review（text の形を足し、policy-check に include を足す）・r1〜r4・lens。
 3. 3 波目（修正の族）: delta-review・fix（TDD の loop を含む）。どちらも `lib/fixboard.py` の中身を自分の `src/` へ写す（`lib/tddloop.py` は fix だけ）ので、lib は触らず、写す範囲が重ならないように各設計書で割り当てる。
 4. graph: judge と eyes のまとめ。
@@ -513,7 +522,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 
 並べ方の決まり:
 
-- 各 PR が触るのは、`blocks/<block>/`・`tests/blocks/<block>/`・`docs/design/<block>.md` だけ。`lib/` は読むだけで変えない（MOVE は写して置き、元は残す）。だから PR どうしは衝突しない。
+- 各 PR が触るのは、`blocks/<block>/`・`tests/blocks/<block>/`・`docs/design/<block>.md` だけ。`lib/` の今のモジュールは読むだけで変えない（MOVE は写して置き、元は残す）。だから PR どうしは衝突しない。例外は、2 つ以上の block が使う新しいモジュールを `lib/` に足すこと（例 素材の観点の共通の部品 `lib/materialkit.py`）。足すのは最初に要った PR で、今のモジュールは変えない（`blocks/.shared/AGENTS.md` の `.shared` と `lib/` の分け）。
 - 共通の指示の断片は土台が先に置く。足りない断片は、最初に要った PR が足す。同じ断片を 2 本の PR が同時に足さないよう、設計書の段で名を決める。
 - 1 本の PR は block 1 つ（素材の 10 本だけは束ねてよい）。持ち主の決め `overnight-speed` は、この作り直しの間だけ効かせる（大きい PR・聞かずに merge）。
 
@@ -521,22 +530,26 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 
 - standalone の fixture（`archon workflow test`）が、port の値だけで最後まで届く。
 - `tests/blocks/<block>/` の、script を子のプロセスで回す試験。始めの記録の無い使い捨ての run directory と git のリポジトリで、port の値だけを渡して prep・accept・出口を回す。
-- 指示の比べ（10.3）。
+- 指示の比べ（11.4 の 1 つ目と 2 つ目の commit）。
 - 設計書の keep-essence の番号の試験。
 - 本物の単独の run を 1 回（費用のかかる試しは聞かずに回してよい。リポジトリの決まり）。
 
 ### 11.3 組み込み
 
+組み込みの PR の前に、指示の新旧の比べを全部の node で 1 回通す。1 人の審査役が、全部の block の全部の AI の node について、古い指示と新しい指示を同じ値で組んで並べ、各設計書の「今の指示との差」の一覧どおりかを見る。block ごとの PR で 11.4 の 1 つ目の commit（日本語で同じ字）を作らなかった block（world・purpose）も、ここで比べる。指示の比べは、能力を守る 3 つ（keep-essence の割り当て・指示の比べ・e2e の筋書きと本物の run。9 節の頭）の 1 つなので省かない。
+
 1. `blocks/line/` と `blocks/chain/` に新しい line と chain を書く。始めの記録を書き、block に port の値を配り、block の `report` の欄を集めて report に渡す。
 2. line の筋書き（今の `workflows/line/fixtures/` の 36 本）を、新しい node の id に書き直す。
 3. `workflows/` の古いサブグラフと `workflows/.shared/boundary.py` を消し、埋め（`fence.py`・`childsweep.py`・`child_pointer.py`・`skip_value.py`）を `blocks/.shared/` へ移す。
 4. `blocks/` を `workflows/` に入れ替える（`git mv`）。`pack.json` の `ours.folder` はそのまま。
-5. 9 節の DELETE と MOVE の元を lib と試験から消し、KEEP の物から文を md へ出す。
+5. 9 節の DELETE と MOVE の元を lib と試験から消し、KEEP の物から文を md へ出す。段の語 4 つ（`lib/depth.py` の `LIGHT`・`STANDARD`・`HEAVY`・`HEADS`）は、`depth` を line へ移す前に `lib/headdepth` へ移す（9.3）。
 6. 根の `AGENTS.md` と `workflows/AGENTS.md` を、憲法 6 行と、決まりとパスだけの短い形に書き直す。決まりの中の試験の仕様は試験の docstring へ、設計の細目は `docs/design/` へ移す。`docs/design.md` は `docs/design/` に置き換える。
+7. `bin/_lib/apply.py` が持つ差分の決まったパス（`merge/apply.diff`・`merge/sealed.diff`）を、pointer の先の名の末尾（`apply.diff`・`sealed.diff`）の照らしに替える（place は include の道で決まる。merge の設計書の 7 節）。
+8. `lib/protected.json` の行のうち、作り直しで消える・移るパス（`workflows/.shared/boundary.py`・`tests/shared/test_boundary.py`・`tests/layers/*.py`・`tests/layers/seeds/**` など）の直しと、守りの関門の新しい住処を足すかを、組み込みの PR で持ち主に諮る。この一覧は行を足す・消すのを人だけに許す（`protected.json` の `about`）。直さなければ `lib/tests/test_protect.py` が赤になる。
 
 ### 11.4 確かめ（組み込みの後）
 
-- 指示の比べ: #764 の 2 つの commit の形を block ごとに使う。1 つ目の commit は、md を日本語のまま作り、同じ値で組んだ新しい指示が古い指示と同じ字になること（空白と改行の違いは除く）を試験で確かめる。この試験は 2 つ目の commit（英語にする）で消す。2 つ目の commit では、古い指示と新しい指示を同じ値で組んで並べた物を PR に載せ、設計書の「今の指示との差」の一覧どおりかを審査が見る。
+- 指示の比べ: #764 の 2 つの commit の形を block ごとの PR で使う。1 つ目の commit は、md を日本語のまま作り、同じ値で組んだ新しい指示が古い指示と同じ字になること（空白と改行の違いは除く）を試験で確かめる。この試験は 2 つ目の commit（英語にする）で消す。2 つ目の commit では、古い指示と新しい指示を同じ値で組んで並べた物を PR に載せ、設計書の「今の指示との差」の一覧どおりかを審査が見る。英語にするだけでなく見方も変える block（例 structure。持ち主の 2026-10-19 の追加）は、3 つ目の commit を足してよい（1 つ目 日本語で同じ字・2 つ目 英語・3 つ目 新しい見方）。訳の差と見方の差を同じ commit で並べると、審査が差の一覧どおりかを分けて見られない（structure の設計書の 11 節の 3）。組み込みの前には、全部の node を通した比べをもう 1 度回す（11.3 の頭）。
 - e2e の筋書き: `tests/e2e/test_line_scenarios.py`（AI の返答を台本で差し替えて line 全体を回す）が緑。
 - 本物の run を 1 回: 小さな依頼を新しい line で回し、`tests/e2e/evidence.py check` で keep-essence の印を照らし、報告と承認ノードの文が日本語で出ることを確かめる。
 
@@ -577,6 +590,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - 共通の断片の名は `blocks/.shared/AGENTS.md` に今在る物（`rejected`・`query-rule`〔段落 `spawns`〕・`lang-default`・役の定義 `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`）と取り置いた物（`resubmit`・`policy`・`design-premises`・`unknown-asks`・`works-gh`・`material-status`・`material-na`・`material-where`・`material-readonly`・`handoff`・`report-head-check`）を並べる。取り置いた物は最初に要った PR がその名で足す（11.1 の「同じ断片を 2 本の PR が足さない」）。役の定義のうち外への検索を持つ役（judge・investigator）は、断片の中で `{shared:query-rule}` を入れる（写しを持たない）。
 - system prompt の文も md に置く: `prompts/<node-id>.system.md`。`prompt.render`・`emit` が同じ値と `when` で組み（値の有無は 2 本の和で数える）、prep の出力の欄 `system` で返し、YAML は `systemPrompt: "$<prep>.output.system"` だけ。根拠: 憲法の 2（今の r2 は YAML の `systemPrompt:` に文を持つ）。止めた Archon は `systemPrompt:` を `prompt:` と同じに解く（`dag-executor.ts` の「`systemPrompt:` and `agents.*` go straight to the provider, so they resolve exactly as a `prompt:` does (#2476)」）。形の検査（7.1 の 1・2）が片方だけの物を赤にする。
 - `prompt:` に `$<prep>.output.prompt` で入れた指示の中の `$…`（対象の文の `$ARTIFACTS_DIR` など）は、止めた Archon が読み直さない。源で確かめた: `executor-shared.ts` の `substituteWorkflowVariables`「Every variable and every `options.references` grammar resolves in one scan of the template: a substituted value is inserted verbatim and never read as template syntax」、`output-ref.ts` の `substituteTemplate` は 1 回の走査。`with:` の値も同じ 1 回の走査（`dag-executor.ts` の `resolveValueTemplate`「in one pass」）。今の落とし穴 R44（読み直し）は、この版より前の Archon の振る舞い。だから指示をファイルに書いて役に Read させる形にはしない（道具を持たない役が受け取れなくなる）。world の standalone の筋書きが、依頼の字の `$ARTIFACTS_DIR` が字のまま AI の node に届くことを照らす（版の上げで崩れたら赤）。それでも、前の回の却下の文は `with: {reason: $LOOP_PREV…}` で運ばず、prep が自分の place の却下の控え（`lib/rolekit` の `rejects-<名>.json`）から全部を読む。根拠: resume で輪が 1 周目から回り直しても却下を数え直さず、#351 の「却下の理由を古い順に全部渡す」が 1 つの読み口で済む。
+  - block の設計書のいくつか（independent-design・structure・report・gate-efficacy・hygiene・procedure-trace など）は土台より前に書かれ、Archon が値の中の `$…` を読み直す（R44）と書いている。止めた版ではこの確かめが勝ち、読み直しを避ける書き方（md の字から `$` を外す言い換え・抜き書きに `$` を含まない所を選ばせる文）は要らない。害は無いので、外すかは block を作る時に決めてよい。読み直しが版の上げで戻れば、world の standalone の筋書きが赤になる。
 - place は作るだけで、消さない。block の入口は place の中の自分が名を持つファイル（`src/` の定数と `<node-id>-prompt-*.md`）だけを消す。根拠: 単独の run では place は run directory の根で、Archon とほかの node の物も同じ所に在る。今の `worldblk.intake` は自分だけのフォルダを丸ごと消していた。
 - include の道は、`ARCHON_NODE_EXECUTION` の `path` の段（`.` 区切り）ごとの、最後の `__` より前を順に継ぐ。根拠: 止めた Archon は loop の本体の node の path を `<loop の id>.<node の id>` にし（`dag/run-context.ts` の `beginExecution` が `stepNamePrefix + node.id`）、include の展開は loop の本体の id に頭を付けない。今の `boundary.own_prefix` は最後の段だけを読むので、include の中の loop の本体の node の道を落とす。
 - dry-run（`workflow test`）は `ARCHON_NODE_EXECUTION` の `path` に node の id だけを渡す（`dry-run.ts` の `path: node.id`）。だから graph の筋書きで、include した block の loop の本体の script を `exec-code` で走らせると place を取り違える。graph の筋書き（policy-check）はその本体を差し替えて配線だけを見て、block の中の道は block 自身の筋書きが見る。
@@ -606,6 +620,5 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 - `prompt:` に大きい指示（数十 KB）を `$<id>.output.prompt` で入れた時に、Archon の出力の大きさの上限に当たらないか。
 - dry-run が include の中の loop の本体の node に include の道を渡すようになるか（上の 13 章。なれば graph の筋書きでも本体を走らせられる）。
 - `graphloops/engine/validator.py` を消せるか（判定の受け付けが頼る所）。
-- `lib/downgrades.json` と `lib/design-row.schema.json` の使い手。
 - Archon の workflow の頭に、全部の AI の node に効くモデルと effort の既定を書けるか（書ければ `d0b086a2` の形の 1 回きりの散らばりも 1 か所になる。1.2 の残る散らばり）。
 - `archon workflow test` で、自分を子として起こす fix の全体の形を筋書きで通せるか（今は `fan_out` の所で落ちる。fix の standalone の fixture は組 1 つの形にする）。

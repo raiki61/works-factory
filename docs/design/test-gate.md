@@ -548,7 +548,7 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・L-W53・T1・T6・T18・T2
 4. port `request_scope`（flag）を足す。根拠: 今の `run.py` は始めの記録の「入口の差分が空」の時だけ依頼の where を範囲に足す。block は始めの記録を読まないので、その真偽を port で受ける。base の時の作業ツリーの差分（`base` からの触ったファイル）は入口の差分（入口の差分の根から修正前の HEAD まで）と違うので、block の中で代わりに数えられない。
 5. port `reuse_key` を足す。根拠: 今は始めの記録の `run_id` を控えの run の名にしていた。fix の TDD の輪の頭は組の子の run（別の run の id）から同じ控えを引くので、名は line の run の id を port で揃える。空ならこの run の id（単独の run）。
 6. 土台の `ports.py` に `drop_runner_env`・`suite_keep`・`RUNTIME_COPY_PREFIX` を求め、無ければこの block の PR が足す。埋め `fence` の import の道も土台の決めに従う。根拠: 今の `boundary.py` に在り、merge と fix も使う（憲法の 4。2 つ以上の block が使う物は共通の置き場）。README 3 節は `ports.py` を `boundary.py` の後継と書くが、口の一覧と、作り直しの間の埋めの import の道を書いていない。
-7. 言語の既定の文を、README 5.3 どおり `the language of the person's request` にする。根拠: README の決め。ただしこの block の役は依頼の文を見ないので、この既定は役には分からない。line が始めの記録の lang を必ず渡す（空なら依頼の言語を line が決めて渡す）形が要る。README で直すべき点として報告に書いた。
+7. 言語の既定の文を、README 5.3 どおり `the language of the person's request` にする。根拠: README の決め。ただしこの block の役は依頼の文を見ないので、この既定は役には分からない。line が始めの記録の lang を必ず渡す（空なら依頼の言語を line が決めて渡す）形が要る。README の 5.3 に書いた。
 8. 拒まれた後の出し直しと書き手の材料を、指示書のファイルを Read させる道から、指示に値を貼る道に替える。根拠: README 5.2（指示は prep が組んで `prompt` で返す）。読ませる道は、Read を持つ役にしか使えず、指示の在りかが 2 つになる。今の振る舞い（同じ会話の続き・拒まれた欄だけ）は変わらない。
 9. 出し直しの断片の囲いを `~~~` にする。根拠: 却下の理由の字は Python が組み、受け付けの文に `` ``` `` が入りうる（素材の detail の写しなど）。今の `` ``` `` の囲いはそれで閉じる。
 
