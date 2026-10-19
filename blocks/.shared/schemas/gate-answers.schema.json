@@ -1,0 +1,9 @@
+{
+  "description": "承認ノードの人の答え（始めの承認ノード start と修正前の承認ノード before_fix）。どちらも {decision, text?, asked?, pushed?} か null。空のオブジェクトは答えが無い",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "start": {"type": ["object", "null"], "required": ["decision"], "properties": {"decision": {"type": "string"}, "text": {"type": "string"}}},
+    "before_fix": {"type": ["object", "null"], "required": ["decision"], "properties": {"decision": {"type": "string"}, "text": {"type": "string"}}}
+  }
+}

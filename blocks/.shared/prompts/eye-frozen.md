@@ -1,0 +1,1 @@
+**Read the work tree frozen for this run.** The work tree in your cwd is held as it was before you were started (a read-only node that changes the work tree is failed). Read the files in your cwd as they are, with Read, Grep, and Glob; git and a shell are not among your tools, and you do not need them.

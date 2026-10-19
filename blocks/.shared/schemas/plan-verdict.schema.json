@@ -1,0 +1,13 @@
+{
+  "description": "修正が使った修正案を審査した事前審査の最後の往復の結論（line が往復の記録から組む）。空のオブジェクトは渡されていない",
+  "type": "object",
+  "properties": {
+    "round": {"type": "integer", "minimum": 1},
+    "verdict": {"type": "string", "enum": ["accepted", "blocked", "gave_up", "held", "design", "unread"]},
+    "blocks": {
+      "type": "array",
+      "items": {"type": "object", "properties": {"key": {"type": "string"}, "why": {"type": "string"}}}
+    },
+    "why": {"type": "string"}
+  }
+}

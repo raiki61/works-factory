@@ -1,0 +1,7 @@
+# 単位が全部 label nit で直す義務が 0 件: 修正案の役を起こさず（輪は when で飛ぶ）、出口が nothing_owed を返す
+fixture:
+  expect: completed
+  reached: [intake, ripple-items, finish]
+  inputs:
+    judgment: '{"units": [{"key": "stats.py mean: 変数名が短い", "label": "nit", "disposition": "defer"}], "questions": []}'
+exec-code: true

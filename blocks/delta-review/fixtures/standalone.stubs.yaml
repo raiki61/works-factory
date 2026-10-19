@@ -1,0 +1,25 @@
+# 単独の run: 修正の前の版と、修正役が塞いだと言う穴 1 つだけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。筋書きの
+# 作業ツリーは commit した直後で差分は空だが、塞いだと言う穴が在るので審査が回る。審査役は検算を closed: true で返して通る
+fixture:
+  expect: completed
+  reached: [intake, review-1-prep, review-1, review-1-accept, owed-1, finish]
+  inputs:
+    base: 'HEAD'
+    fix_reply: '{"changes": [], "not_done": [], "plan_faces": [{"key": "claimed-closed-hole", "handled": "absorbed", "how": "The fix says it closed this hole."}]}'
+  resolved-text-contains:
+    review-1: "You are the inspector for the diff of this round's fix."
+exec-code: true
+review-1:
+  faces: []
+  faces_none: 'Read the claimed hole and its callers; nothing new was added by the fix.'
+  checks:
+    - key: claimed-closed-hole
+      closed: true
+      why: 'The hole is closed: the guard now covers the other route too.'
+  compliance:
+    verdict: not_applicable
+    items: []
+    read: 'There is no approved plan item, so there is nothing to check against.'
+  quality:
+    verdict: pass
+    why: 'Looked at the claimed hole and found no untied hole in the change.'

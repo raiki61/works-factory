@@ -1,0 +1,14 @@
+{
+  "description": "依頼者が前の run の問いに答えた行の配列 [{question, text, command?, output?}]",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["question", "text"],
+    "properties": {
+      "question": {"type": "string"},
+      "text": {"type": "string"},
+      "command": {"type": "string"},
+      "output": {"type": "string"}
+    }
+  }
+}

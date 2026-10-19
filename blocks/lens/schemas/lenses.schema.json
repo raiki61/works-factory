@@ -1,0 +1,4 @@
+{"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["lens"],
+  "properties": {"lens": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+                 "agent": {"type": "string", "pattern": "^[^:\\s]+:[^:\\s]+$"},
+                 "body": {"type": "string", "minLength": 1}}}}

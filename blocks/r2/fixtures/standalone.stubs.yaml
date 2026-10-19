@@ -1,0 +1,16 @@
+# 単独の run（比べの道）: 目的の文と、問いが立つ独立設計の返答だけで最後まで届く（base は既定の HEAD。script は本当に走り、
+# 比べの役の返答だけを差し替える）。返答は例の run（df5e111f）の形
+fixture:
+  expect: completed
+  reached: [intake, r2-compare-prep, r2-compare, r2-compare-save, finish]
+  inputs:
+    purpose: '出口の語 deliver=pr の run が PR 用の commit を積むとき、対象のテストのコマンドと同じ環境で hook が走るようにする'
+    design: '{"question_stands": true, "reason": "立つ", "design": "対象のコマンドの環境を作る所を 1 か所にする"}'
+  resolved-text-contains:
+    r2-compare: 'As the blind judge (R2, the comparing role): the history of the investigation and the list of judgments are not given to you.'
+exec-code: true
+r2-compare:
+  status: pass
+  reason: 'stub: 構造は一致し、違いは表現だけ'
+  differences:
+    - {kind: 表現, text: 'stub: 呼び名が違う'}

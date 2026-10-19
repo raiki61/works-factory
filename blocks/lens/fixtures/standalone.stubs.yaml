@@ -1,0 +1,14 @@
+# 単独の run: 空の木 4b825dc… を base にすると、作業ツリーの README.md と AGENTS.md が変わったファイルになる。script は本当に走り、
+# AI の役の返答だけを差し替える。筋書きの手元に pr-review-toolkit は無いので、定義の本文は入力で渡す
+fixture:
+  expect: completed
+  reached: [intake, silent-failure-hunter-prep, silent-failure-hunter, silent-failure-hunter-take, finish]
+  inputs:
+    base: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+    lenses: '[{"lens": "silent-failure-hunter", "body": "You look for errors that are swallowed without a trace."}]'
+  resolved-text-contains:
+    silent-failure-hunter: 'You are a lens for a local review after the fix, started in a new conversation.'
+exec-code: true
+silent-failure-hunter:
+  findings: []
+  findings_none: 変わったファイルを読み、握りつぶされる失敗は無かった
