@@ -419,7 +419,7 @@
 
 ## 2026-10-19 の決め（#765 の部品の作り直し）
 
-出典: 2026-10-19 の持ち主と運び役の会話（#765 の設計の依頼。設計は `docs/design/README.md`）。逐語の言葉は運び役の手元に無いので、どれも「なし（本文の要約）」と書く。持ち主が違えば戻す。
+出典: 2026-10-19 の持ち主と運び役の会話（#765 の設計の依頼。設計は `docs/design/README.md`）。逐語の言葉は運び役の手元に無いので、`gate-efficacy-outside-judge` と `protected-rewrite-765` のほかは「なし（本文の要約）」と書く。持ち主が違えば戻す。
 
 ### `block-local-code` 1 つの block だけが使うコードは block のフォルダに置き、lib/ は 2 つ以上が使う物だけ
 
@@ -457,7 +457,19 @@
 
 - 持ち主の言葉: なし（本文の要約）。#764 の本文に「オーナーが 2026-10-19 に英語でよいと言った」と残る。
 - 決め: AI のノードへの指示の文は、ノードごとの md に英語で書く（#764）。人に見せる字（報告・承認の文・人に見せる却下の文・殻の案内）は日本語のまま。`lang-one`（中は 1 つの言語、人と話す所だけその人の言語）に沿う。2026-10-18 の `readme-english` が書いた「役の指示書は日本語のまま」は、これで替わった。
-- 当て方: `docs/design/README.md` の 2 章と 5 章・`blocks/AGENTS.md`。
+- 当て方: `docs/design/README.md` の 2 章と 5 章・`workflows/AGENTS.md`。
+
+### `gate-efficacy-outside-judge` 試験と関門の効き目の計測は判定の中で回さず、重い試験は run の外か CI に任せる
+
+- 持ち主の言葉: 「入力gatesは足すどころではなく、重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたいまである」（2026-10-19。judge の graph に入力 `gates` を足して gate-efficacy を回すかの問いへの答え。PR #792 の本文がこの行を足すと約束した）
+- 決め: judge の graph は gate-efficacy の block（対象の試験と関門が誤りを捕まえるかを変異で測る観点）を include せず、入力 `gates` も持たない。重い計測と試験は判定のたびに回さず、まとめて run の外で回すか CI に任せて、run は先に進める。gate-efficacy の block は単独で回せる形のまま残す。
+- 当て方: `docs/design/judge-eyes.md` の 1 章・`docs/design/line.md` の 8.3。
+
+### `protected-rewrite-765` 守りのファイルの一覧を #765 の新しい置き場に合わせて書き換える
+
+- 持ち主の言葉: 「綺麗にリファクタリングしながら書き換えていいよ」（2026-10-19。`docs/design/integration.md` の 4.3-14 の案〔5 行を直し、3 行を足す〕への答え）
+- 決め: 守りのファイルの一覧 `lib/protected.json` を、組み込みの後の置き場に合わせて書き換える。直す 5 行は、最後の承認ノードを開く所（`final-gate`。line の承認ノードの決めと `workflows/.shared/ports.py`）・その試験（`edge-test`。`tests/blocks/line/` と `tests/blocks/shared/test_ports.py`）・層の検査（`layers-test`）・検査の見本（`yaml-rules-data`）・残す `lib/graphloops/` の部品（`rules-copy`）。足す 3 行は、指示を組む口 `workflows/.shared/prompt.py`・形の検査 `tests/layers/test_block_shape.py`・keep-essence の指しの検査 `tests/layers/test_keep_essence.py`。意味の同じ行は id を変えず、`about` と訳の古い置き場の名は直してよい。ほかの行は消さない。
+- 当て方: 組み込みの PR が `lib/protected.json` を書き換え、`lib/tests/test_protect.py` を緑にする（`docs/design/README.md` の 11.3 の 8）。行を足す・消すのを人だけに許す決まり（`protected.json` の `about`）は変えない。
 
 ## 引き継いだ決め
 
@@ -880,7 +892,7 @@
 - 持ち主の言葉: なし（本文の要約）
 - 決め: keep-essence の 10。守りのファイルに触れた直しは人が最後に見る。
 - 出典: 今の works の `docs/keep-essence.md` の 10
-- 当て方: eyes と merge の守りのパスの当たり（ASF の型 A7）。
+- 当て方: merge の封じ（`mode` seal）が数える守りのパスの当たり（ASF の型 A7）。最後の承認ノードと `bin/apply` はこの当たりを読む。eyes は守りのパスを見ない（#765 の組み込みで merge に寄せた。`docs/design/integration.md` の 4.5-13）。
 
 #### `tell-downstream` 判定を経ずに当てた変更や処方の変化は後ろに伝える
 - 日付: 2026-09-13
