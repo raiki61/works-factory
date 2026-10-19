@@ -16,13 +16,14 @@ import accept      # lib/。Reject・guard・in_repo・resolve_rev・snapshot_tr
 import cite        # lib/。出典の照らし
 import gatemarks   # lib/
 import jsonfile    # lib/
-import materialkit   # lib/。MATERIALS・moved_since
+import materialkit   # lib/。moved_since
 import oneline     # lib/
 import outpurpose  # lib/
 import policy      # lib/
 import querytest   # lib/
 import rolekit     # lib/
 import worldmark   # lib/
+from judgmark import is_open, open_units   # lib/。開いた単位の選び（verify・fix と共に読む判定の行の形）
 from engine.util import Reject, git as _git, repo_root, run_count   # lib/graphloops/engine/util.py
 
 from src import files
@@ -81,17 +82,6 @@ def blank(s, min_len):
     """役が埋める自由文が「空同然」か（表と長さの両方で見る）"""
     t = (s or "").strip()
     return t.lower() in EMPTY or len(t) < min_len
-
-
-def is_open(u):
-    """単位が今の周に直す義務を残すか"""
-    return u["label"] == "block" or (u["label"] == "suggest" and u.get("disposition") == "do-now")
-
-
-def open_units(judgment) -> list:
-    """判定の開いた単位（直す義務の残る物）"""
-    units = judgment.get("units") if isinstance(judgment, dict) else None
-    return [u for u in units or [] if isinstance(u, dict) and isinstance(u.get("key"), str) and is_open(u)]
 
 
 def origin_not_awaiting(q, materials):

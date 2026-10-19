@@ -23,20 +23,10 @@
 
 入力（YAML の `inputs:`）:
 
-- `judgment`（必須）: `json(judgment.schema.json): 受け付けを通った判定。欄 framing（字）・one_shot（字）・units（行の配列。行は key と label を持ち、disposition・reason・origin_analysis・why_chain・prescriptions を持ちうる）。開いた単位（label が block か、suggest で disposition が do-now）を確かめる`
+- `judgment`（必須）: `json(shared:judgment.schema.json): 受け付けを通った判定。欄 framing（字）・one_shot（字）・units（行の配列。行は key を持ち、共通の形は label を要らないので、label が字でない単位は受け付け（`read_judgment`）が拒む。label を持つ行は、disposition・reason・origin_analysis・why_chain・prescriptions を持ちうる）。開いた単位（label が block か、suggest で disposition が do-now）を確かめる`
 - `lang`: `text: 人に見せる欄（下請けの答えの evidence・location・why・real_root と、相乗りの答えの why）の言語。空は既定の文（依頼の言語）`。既定 `""`。
 
-`judgment.schema.json`（`blocks/verify/schemas/`。`KNOWN_KEYWORDS` の語だけ）:
-
-```json
-{"type": "object", "required": ["units"],
- "properties": {"framing": {"type": "string"}, "one_shot": {"type": "string"},
-                "units": {"type": "array", "items": {"type": "object", "required": ["key", "label"],
-                          "properties": {"key": {"type": "string", "minLength": 1}, "label": {"type": "string"},
-                                         "disposition": {"type": "string"}}}}}}
-```
-
-`additionalProperties` は書かない（判定のほかの欄を通す）。作る時に `blocks/.shared/schemas/judgment.schema.json` が既に在れば（diagnose の PR が先に置いた時）、block の形を置かず、説明を `json(shared:judgment.schema.json): …` にする（同じ名の形が pack の 2 か所に在ると形の検査 7.1 の 5 が赤）。
+形は共通の `shared:judgment.schema.json`（`blocks/.shared/schemas/`。本文は plan.md の 1.2。plan・diagnose と共に読む）。block の形は置かない（同じ名の形が pack の 2 か所に在ると形の検査 7.1 の 5 が赤。commit 13dfa31）。共通の形は `units` の行の `key` だけを必須にし、`label` を要らない。`is_open` が `label` を読むので、`src/steps.py` の `read_judgment` が、共通の形で読んだ後に `label` が字でない単位を拒む（`KeyError` で落とさない）。拒んだ時は、ほかの形の誤りと同じく理由の頭に「入力 judgment: 」を付け、`go` は偽、`finish` は `failed`。
 
 出力（`returns: finish`、`outcome_field: ok`）:
 
@@ -82,10 +72,9 @@ prep の頭で、この block の名のファイルだけを名で引いて消�
   - `lib/judgeverify.py` の名と語と型: `MIN_UNITS`（2）・`SUBAGENT_TYPE`（`general-purpose`）・`CHECKED`・`UNVERIFIED`・`VERDICTS`・`PLACES`・`WAITING`・`output_format`（束ね役の返答 `{summary}` の型を返す関数。YAML の `judge-verify` の `output_format` と同じ物。finish の返りの型ではない）・`unit_schema`・`synergy_schema`・`_unit_row`・`_initial`・`_load`。指示の文（`TITLE`・`SUB_HEAD`・`RULES`・`UNIT_HEAD`・`ANSWER_AT`・`UNIT_ASK`・`VIEW_HEAD`・`SYNERGY_HEAD`・`ALL_UNITS_HEAD`・`SYNERGY_ASK`・`AGG`・`AGG_REPLY`）と `_head` は写さず md へ（2.3）。`promptsection` の `Section`・`Receive`・`RECEIVES` は写さない（README の 9.1 で消える）。
   - `lib/judge_accept.py` の裏取りの部分: `is_open`・`open_units`（:212-222）・`verify_not_run`・`_verify_off`・`prep_on`・`_check_unit`・`_check_synergy`・`merge_on`（:913-1027）・`_tree_snapshot`・`_moved_since`（:1118-1136）と止めの語 `VERIFY_STOP`（:303）。止めの控えの読み書き（`read_stop`・`write_stop`）は写さない（README の 4.3）。
 - `blocks/verify/src/report.py`: 申し送りの値から報告の行を組む（今の `lib/runreport.py` の `verify_lines`〔:982-1014〕を、判定の返りの pointer でなく申し送りの dict で受ける形にした写しと、回さなかった時の 1 行。5 節）。
-- `blocks/verify/schemas/judgment.schema.json`（1.2）。
 - 使う `lib/`（import するだけ。変えない）: `accept`（`tree_state`・`tree_moved`・`status_keys`・`TREE_SCHEMA`・`type_errors`）・`engine.schema`（`validate_schema`。`lib/graphloops/engine/schema.py`）・`engine.util`（`Reject`）・`stopby`（`declare`）・`jsonfile`・`oneline`。`.shared` の `ports`・`prompt`。
 - `rolekit` は使わない（輪も却下の控えも持たない）。
-- 作り直しの間は `lib/judgeverify.py` と `lib/judge_accept.py` の裏取りの部分を消さない（今の judge が使う）。組み込みで消す（README の 9.2）。`is_open` は diagnose と fix（`fixboard` の義務の数え）も使う単位の行の述語なので、組み込みで diagnose の出力の行の形のモジュール（README の 4.1）ができれば、写しを消してそこを import する（8 節）。
+- 作り直しの間は `lib/judgeverify.py` と `lib/judge_accept.py` の裏取りの部分を消さない（今の judge が使う）。組み込みで消す（README の 9.2）。`is_open`・`open_units` は diagnose・plan・fix（`fixboard` の義務の数え）も使う単位の行の述語なので、写さず新しい lib のモジュール `lib/judgmark.py`（統合の設計書 integration.md の 4.4-H。diagnose・plan が今読み、fix は組み込みの後に読む）から `from judgmark import is_open, open_units` で受ける。作業ツリーの比べ `_moved_since` も写さず、`materialkit.moved_since`（KEEP。置いた `tree.json` と今を比べる）を呼び、`Reject`・`OSError`・`ValueError` を 1 行の訳にして閉じた側に倒す。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
@@ -366,7 +355,7 @@ graphloops の review-graph（`~/src/claude-plugins/graphloops/prompts/review-lo
 `os.environ.get("INPUTS_JUDGMENT")`・`os.environ.get("INPUTS_LANG")` を字のままで読み、`steps.prep(ports.place(), judgment=…, lang=…)` を `ports.run` で呼ぶ（fallback `{"go": False, "prompt": "", "reason": "判定の裏取りの支度が落ちた（<訳>）"}`）。`steps.prep` の順:
 
 1. 1.4 の名のファイルを消す。
-2. port を読む: `judgment` は `ports.json(raw, "judgment.schema.json")`（落ちれば理由の頭に「入力 judgment: 」を付ける。world の 9.1 の 3）、`lang` は `ports.text(raw).strip()`。
+2. port を読む: `judgment` は `ports.json(raw, "shared:judgment.schema.json")`（落ちれば理由の頭に「入力 judgment: 」を付ける。world の 9.1 の 3）、`lang` は `ports.text(raw).strip()`。
 3. 開いた単位を選ぶ（`open_units`: `units` の行のうち dict で `key` が字で `is_open` の物を、並びのまま）。
 4. 開いた単位が `MIN_UNITS` 未満 → 回さない: 申し送りに回さなかった形（訳「開いた単位が <k> つ（2 つ未満は相乗りが無く、裏取りを回さない）」）を書き、`prep.json` に `{go: false, failed: false, reason}`、返り `{go: false, prompt: "", reason}`。
 5. 4 通りの組を全部 `prompt.render("judge-verify", values, when)` で先に組む（組めなければ `PromptError` を受けて 7 へ。ファイルを書く前に組むので、組めない時に番号の控えが残らない）。
@@ -488,15 +477,14 @@ README の 10 節の 12 の仕組みのどれも、この block が担わない�
 ## 8 未確認
 
 - Agent の道具で起こした `general-purpose` の下請けが、親の node の `allowed_tools`（Write を含む）と sandbox を継ぐか。今の run で下請けが答えのファイルを書けているので今の形で働くが、継ぎ方を源で確かめていない。
-- 単位の行の述語 `is_open` を写しで持つ（1.5）。diagnose の設計書が判定の行の形のモジュール（README の 4.1）を `lib/` に足すなら、作る時にそちらを import して写しを持たない。足さないなら組み込みで決める。
 - 束ね役の組に外への検索の決まりの塊が入る（2.6）。束ね役は検索しないので害は無いと見たが、指示の大きさが約 1.5 KB 増える。
 - 読み手が include されない run の null をどう書くか（1.6）。plan・report・line の設計書で決める。
-- `blocks/.shared/schemas/judgment.schema.json` を diagnose が置くか（1.2）。置けば `json(shared:judgment.schema.json)` にする。
 
 ## 9 決めた事（作った時）
 
 - 6 節の 1（`materials` を持たない）・4（`tests/layers/scan.py` の `KEEP_CHECKOUT` に `("verify", "judge-verify")` を 1 行足す）・6（`ok` は `status == "ok"`）・7（1 本の md を段落で 4 通りに組む。`.shared` は変えない）は、設計書どおりに作った。6 節の 2・3（plan と diagnose の入力）は読み手の設計書の事で、この block では何も足していない。
-- `judgment.schema.json` は `blocks/verify/schemas/` に置いた（`blocks/.shared/schemas/` に同名の形がまだ無いため）。diagnose が共通に置いたら `json(shared:judgment.schema.json)` に替えて、この形を消す。
+- `judgment` は共通の `shared:judgment.schema.json` で読む（block の形は消した。commit 13dfa31）。共通の形は `label` を要らないので、`read_judgment` が `label` が字でない単位を拒む。
+- `is_open`・`open_units` は `lib/judgmark.py` から、作業ツリーの比べは `materialkit.moved_since` から受ける（写しを持たない。統合の設計書の 4.4-H）。
 - 見立て（`framing`・`one_shot`）が両方とも字でない判定は、`view` の段落を偽にし、`{view}` には空の字を渡す。
 - `prep.json` の `failed` が真になるのは、port が読めない・指示が組めない・例外の時。開いた単位が 2 つ未満の時は `failed` が偽。
 - 作業ツリーの写しが読めない・形が違う時の訳は、写しの読み込みの失敗を `OSError`・`ValueError`・`Reject` で受けて 1 行にする。
