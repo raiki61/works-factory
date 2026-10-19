@@ -20,6 +20,8 @@ depth = kit.load("line", "tiers")
 latedepth = depth   # 元 lib/latedepth.py の signals も src/tiers.py に写した
 import headdepth  # noqa: E402  （KEEP の lib。kit.load が lib/ を sys.path に足す）
 
+UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（blocks/head-depth/src/steps.py の NONE。block の間は import しない）
+
 ROUTE_REFUSED = "振り分けの段（単位の名の無い拒否）"   # 元 lib/tddloop.py の ROUTE_REFUSED の字（tddloop は fix の src へ移る）
 
 U1, U2 = "u1: 一つ目の根本", "u2: 二つ目の根本"
@@ -188,7 +190,7 @@ class LateCase(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        cited = [{"item": n + 1, "unknown": headdepth.NONE, "where": f"{p}:1", "cause_quote": "x", "code_quote": "y"}
+        cited = [{"item": n + 1, "unknown": UNKNOWN_NONE, "where": f"{p}:1", "cause_quote": "x", "code_quote": "y"}
                  for n, p in enumerate(self.PATHS)]
         self.head = pathlib.Path(tmp.name) / "depth-head.json"
         self.head.write_text(json.dumps(headdepth.record(depth.LIGHT, "易しい", items=cited)), encoding="utf-8")

@@ -15,8 +15,8 @@ from tests.blocks import kit
 
 BLOCK = "line"
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-FACTS_SCHEMA = ROOT / "blocks" / "report" / "schemas" / "facts.schema.json"
-SECTIONS_SCHEMA = ROOT / "blocks" / "report" / "schemas" / "sections.schema.json"
+FACTS_SCHEMA = kit.BLOCKS / "report" / "schemas" / "facts.schema.json"
+SECTIONS_SCHEMA = kit.BLOCKS / "report" / "schemas" / "sections.schema.json"
 INPUTS = ("notices", "start", "answer_start", "test_gate_base", "judge", "tiers", "owed", "structure", "structure_in", "independent_design",
           "design_in", "rounds", "ask_before_fix", "answer_before_fix", "fix_in", "fix", "after_fix", "raise", "lens", "lens_in", "delta",
           "replan", "replan_review", "ask_replan", "answer_replan", "refix", "lens_2", "lens_2_in", "delta_2", "fixed", "parallel_after",

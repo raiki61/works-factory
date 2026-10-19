@@ -14,6 +14,8 @@ BLOCK = "line"
 tiers = kit.load(BLOCK, "tiers")
 import headdepth  # noqa: E402  （KEEP の lib）
 
+UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（blocks/head-depth/src/steps.py の NONE。block の間は import しない）
+
 U1 = "u1: 一つ目の根本"
 LIGHT_ROWS = [{"unit_id": U1, "depth": "軽量", "why": "配線だけ"}]
 ASKED_OP = "plan_scope_asked"   # lib/conflict.py の ASKED_OP（範囲の相談の行の op）
@@ -24,15 +26,6 @@ def patch(*names):
 
 
 class TableCase(unittest.TestCase):
-    def test_table_is_the_copy_of_the_lib_table(self):
-        """組み込みの前の写しの照らし: 段 → 回す物の表が今の lib/depth.py の TIERS と同じ（lib の元が消えた後は見送る）"""
-        try:
-            import depth
-        except ImportError:
-            self.skipTest("lib/depth.py は組み込みで消えた（表の正本は src/tiers.py だけ）")
-        self.assertEqual(tiers.TIERS, depth.TIERS)
-        self.assertEqual((tiers.OMITS, tiers.UNIT_OMIT, tiers.HEADS), (depth.OMITS, depth.UNIT_OMIT, depth.HEADS))
-
     def test_words_come_from_headdepth(self):
         self.assertEqual((tiers.LIGHT, tiers.STANDARD), (headdepth.LIGHT, headdepth.STANDARD))
         self.assertEqual(tiers.HEADS, ("軽量", "標準", "重厚"))
@@ -137,7 +130,7 @@ class RaiseCase(unittest.TestCase):
         questions = [{"key": "q1", "kind": "fork", "status": "held", "origin": U1, "reason": "a か b か"}]
         judgment = self.put("judge/judgment.json", {"units": [], "questions": questions})
         record = self.put("judge/depth-head.json", headdepth.record("軽量", "易しい", items=[
-            {"item": 1, "unknown": headdepth.NONE, "where": "a.py:1", "cause_quote": "x", "code_quote": "y"}]))
+            {"item": 1, "unknown": UNKNOWN_NONE, "where": "a.py:1", "cause_quote": "x", "code_quote": "y"}]))
         cases = {
             "止めた単位": ({"fix": self.fix(units=[{"unit_id": U1, "status": "given_up"}])}, "修正の段が止めた単位"),
             "申し出": ({"fix": self.fix(conflicts=conflicts)}, "申し出が在る（1 件）"),

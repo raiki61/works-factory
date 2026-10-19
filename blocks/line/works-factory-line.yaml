@@ -194,7 +194,7 @@ nodes:
     depends_on: [judge]
     with:
       got: "$judge.output"
-      names: "ok stop_reason reason ready units judgment answer_ties out_of_purpose materials brief inputs purpose purpose_text purpose_source
+      names: "ok stop_reason reason ready units questions judgment answer_ties out_of_purpose materials brief inputs purpose purpose_text purpose_source
         means purpose_review constraints world world_state spec spec_rows spec_origin excluded pr_drafts downgrades decisions tier tier_why
         row_asks tier_record verify verify_why report sections"
   # 5 段 → 回す物の表（docs/design/line.md の 5.1）

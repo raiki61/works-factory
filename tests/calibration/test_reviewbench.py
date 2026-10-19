@@ -156,7 +156,7 @@ class ConvertCase(unittest.TestCase):
         self.assertEqual(record["unread"], {runner.R4: reviewbench.MISSING})
 
     def test_rejudge_replaces_first_judgment(self):
-        """再審が走った run は rejudge/judgment.json の units が工場の最後の判定"""
+        """再審が走った run は rejudge-run/judgment.json の units が工場の最後の判定"""
         attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
         first, rejudge = runner.WorksFactory.sources[0].file, runner.WorksFactory.sources[0].prefer
         rejudged = attempt / "evidence" / rejudge

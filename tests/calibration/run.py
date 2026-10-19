@@ -72,13 +72,14 @@ from tests.e2e import evidence, make_target  # noqa: E402
 
 # 工場の run の記録から読む判定・目の返答・封じた差分の置き場（run の置き場 parent/ の下の、line の include の道の place。
 # docs/design/integration.md の 4.3-15。使い手はこの道具だけなので、道の定数はここに直に置く）。judge の graph の中の
-# diagnose の place は judge/diagnose/（judge-eyes.md の 1.6）、再審は line が include する rejudge/、目は eyes の graph の中の
-# eyes/r1/・eyes/r4/、封じは line の merge-seal/（merge.md の 1.3）。ファイルの名は作り手の block（diagnose・r1・r4）が持つ名で、
-# 組み込みで作り手と合わせる（この道具の試験 test_reviewbench の SourcesCase が作り手の output_format と縛る）
+# diagnose の place は judge/diagnose/（judge-eyes.md の 1.6）、再審は line が include する rejudge-run/、目は eyes の graph の中の
+# eyes/r1/・eyes/r4/、封じは line の merge-seal/（merge.md の 1.3）。ファイルの名は作り手の block（diagnose・r1・r4）が持つ名
+# （diagnose の files.JUDGMENT_FILE・r1 の files.MINIMALITY・r4 の files.REPLY。この道具の試験 test_reviewbench の SourcesCase が
+# 作り手の output_format と縛る）
 JUDGMENT = "parent/judge/diagnose/judgment.json"
-REJUDGMENT = "parent/rejudge/judgment.json"
-R1 = "parent/eyes/r1/r1.json"
-R4 = "parent/eyes/r4/r4.json"
+REJUDGMENT = "parent/rejudge-run/judgment.json"
+R1 = "parent/eyes/r1/r1-minimality.json"
+R4 = "parent/eyes/r4/r4-scope.json"
 SEALED = "parent/merge-seal/sealed.diff"
 SHELL_ENV = "WORKS_CALIBRATION_SHELL"
 OLD_WORKS_ENV = "WORKS_FACTORY_OLD_WORKS"

@@ -13,7 +13,6 @@
 """
 import json
 import pathlib
-import sys
 import unittest
 
 import yaml
@@ -28,7 +27,6 @@ SCENARIOS = (
     "fix-excluded", "fix-fixture", "light", "light-all-units", "no-fix", "nothing-owed", "plan-failed", "plan-stalled", "spec-changed", "standard",
     "start-refused", "test-gate-failed",
 )
-LIB = kit.ROOT / "lib"
 
 
 def nodes() -> dict:
@@ -291,14 +289,8 @@ class FailedBlockTest(unittest.TestCase):
 
 
 def tiers_table():
-    """段の表（段 → 省く物・足す物）。組み込みの前は今の lib/depth.py、後は line の src/tiers.py の TIERS"""
-    try:
-        return kit.load(BLOCK, "tiers")
-    except (ImportError, ModuleNotFoundError):
-        if str(LIB) not in sys.path:
-            sys.path.append(str(LIB))
-        import depth
-        return depth
+    """段の表（段 → 省く物・足す物）。line の src/tiers.py の TIERS（lib/depth.py は組み込みで消えた）"""
+    return kit.load(BLOCK, "tiers")
 
 
 class HeadDepthTest(unittest.TestCase):
