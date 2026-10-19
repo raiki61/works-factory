@@ -54,7 +54,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け�
 - `reply.json`: 役の返答（`finish` が写す。役が飛ばされた・落ちた回は書かない）。
 - `read.json`: 出口の返りの写し。
 
-`cold-prep` が place の中を全部消してから書く（world の intake と同じ）。block は 1 回の include で 1 回だけ読むので、回の番号は要らない。
+`cold-prep` は自分の名のファイル（上の 3 つ）だけを消してから書く（world の intake と同じ。ほかの物は消さない。10 節の 5）。block は 1 回の include で 1 回だけ読むので、回の番号は要らない。
 
 ### 1.5 コードの置き場と、作る・触るファイル
 
@@ -68,7 +68,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け�
 - `blocks/cold-read/src/reply.py`: 返答の読み。今の `lib/runreport.py` の `_cold_of`（:1912-1917）・`COLD_UNREADABLE`・`COLD_EMPTY`（:1920-1921）・`_cold_lines`（:1924-1928）の写しと、`VERDICTS = ("pass", "redesign-needed")`（今の `runreport.COLD_SCHEMA` の `verdict` の enum。md の `{passed}`・`{redesign}` と `output_format` の enum が同じ字を持つ。試験が YAML の enum と突き合わせる）。`stuck(c)` は 1.2 の決まり。
 - `blocks/cold-read/src/report.py`: 報告の行（9 節）。
 - `blocks/cold-read/fixtures/standalone.stubs.yaml`・`redesign.stubs.yaml`・`unreadable.stubs.yaml`（11 節）。
-- `tests/blocks/cold_read/__init__.py`・`test_cold_read.py`・`test_prompt_compare.py`（11 節。Python の package の名は `-` を持てないので `_`）。
+- `tests/blocks/cold_read/__init__.py`・`test_cold_read.py`（11 節。Python の package の名は `-` を持てないので `_`）。
 
 使う `lib/`（KEEP）: `jsonfile`・`oneline` だけ。`lib/runreport.py`・`lib/report_roles.py` は import しない（どちらも report の物）。
 
@@ -102,7 +102,7 @@ port `text` のファイルの本文・`lang`。ほかの block の出力も run
 5. `## How to answer`（決まった文）と差し込み口 `{passed}`・`{redesign}`（← `src/reply.py` の `VERDICTS`）・`{lang}`。
 6. 結びの 1 文（決まった文）。
 
-差し込み口の一覧（値の出どころ）: `{text}` ← port `text`・`{passed}`・`{redesign}` ← `src/reply.py` の `VERDICTS`・`{lang}` ← port `lang`（空なら `the language of the text`。`rolekit.LANG_DEFAULT` と同じ意味の英語の文。README 5.3）。差し込むかを選ぶ段落は無い。
+差し込み口の一覧（値の出どころ）: `{text}` ← port `text`・`{passed}`・`{redesign}` ← `src/reply.py` の `VERDICTS`・`{lang}` ← port `lang`（空なら md の段落 `<!-- if not lang_given -->` が `the language of the text` と書く。`cold_prep.py` が `when={"lang_given": bool(lang)}` を渡し、`lang` は空の時も `""` で渡す。`prompt.render` は選ばれない段落の `{lang}` にも値を要るため）。差し込むかを選ぶ段落は `lang_given` の 2 つ。
 
 md の本文（英語。この block の PR でこのまま置く）:
 
@@ -124,7 +124,12 @@ You are a first-time reader with no context. You have been given nothing about w
 Return (1) where you stopped because you could not take the meaning (`stops`), (2) what you filled in by guessing (`guessed`), and (3) whether a decision can be made from this text alone (`decidable`). If there is even one stop or one guess, `verdict` is `{redesign}`; if there is none, `{passed}`.
 
 - Each entry in `stops` and `guessed` is one sentence that names the place in the text.
+<!-- if lang_given -->
 - Write `stops` and `guessed` in {lang}. Keep quoted words from the text, identifiers, and paths as they are.
+<!-- end lang_given -->
+<!-- if not lang_given -->
+- Write `stops` and `guessed` in the language of the text. Keep quoted words from the text, identifiers, and paths as they are.
+<!-- end lang_given -->
 
 Return only JSON that matches the output schema.
 ```
@@ -190,7 +195,7 @@ Return only JSON that matches the output schema.
 
 ## 3 script の node
 
-- `cold_prep.py`: `os.environ.get("INPUTS_TEXT")`・`INPUTS_LANG` を字のままで読み、`ports` の口（`file`・`text`。名は土台の `ports.py` に合わせる）に渡す。place の中を全部消す。
+- `cold_prep.py`: `os.environ.get("INPUTS_TEXT")`・`INPUTS_LANG` を字のままで読み、`ports` の口（`file`・`text`。名は土台の `ports.py` に合わせる）に渡す。自分の名のファイルだけを消す。
   - 本文のファイルが読めない（在らない・UTF-8 でない）→ `due: false`・`prompt: ""`・`reason: 読ませる本文のファイルを読めない（<パス>: <型の名>）`。
   - 本文が空白だけ → `due: false`・`reason: 読ませる本文が空`。
   - ほかは `prompt.render("cold", values, when)` で組み、`cold-prompt-1.md` に書き（口が書く作りなら口に任せる）、`{due: true, prompt, reason: ""}` を返す。
@@ -257,20 +262,25 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 1. この block を報告に依らない汎用の初見の読み手にし、報告の書き手との往復と報告の頭の決まりは report の block の中に残す（調整役の決め。report の設計書の決めに合わせた）。根拠: 書き手の回ごとの受け付けが同じ回の読み手の判定で決まる・読み手の後に受け付けの node を graph に置くと README 2 節の憲法の 3（block は宣言した port だけで受け渡し、ほかの block を名指さない）に触れる・report を単独で回した時にも初見の確かめが要る。同じ役が 2 か所に在る分は、役の定義を断片 `role-cold-reader` の 1 か所に置くことで、定義の直しが 1 本で閉じる（README 1.2 の I）。
 2. 受け付けの loop を置かない（今と同じ）。根拠は 4 節。
 3. 前の回の所見を読み手に渡さない（今と同じ）。根拠: 初見の確かめは毎回まっさらに読むことが芯。gates の形（6 節の 5）に替えるのは振る舞いを変える提案なので、作り直しの外。
+4. 筋書きの script の node は差し替えず本当に走らせる（11 節の「script の node も差し替え」を採らない）。根拠: 土台の形の検査 `check_standalone_renders` が、AI の node の指示を md から組んだ証として、`exec-code: true`・prep を差し替えない・`resolved-text-contains` が md の決まった文、を求める。`cold-prep` を差し替えると証が立たない。`finish` も本当に走らせ、台本の返答を読む配線まで見る。`unreadable` は存在しないファイル名を渡して `due: false` の道を本当に通す。
+5. `cold-prep` は place の中を全部消さず、自分の名のファイル（`cold-prompt-1.md`・`reply.json`・`read.json`。名は `src/files.py`）だけを消す。根拠: 土台の決め「block が消してよいのは自分が名を持つファイルだけ」。
+6. `lang` が空の時の言語は、共通の断片 `lang-default`（「依頼の言語」）でなく `the language of the text`（md の段落 `<!-- if not lang_given -->` の字。main の決め「lang の既定の文は md に置く」に合わせ、Python に AI 向けの字を持たない）にする。根拠: この block に依頼は無く、port の説明も「空は本文の言語」。`prompt.lang` は使わない。
+7. 本文は `ports.file` で受けて UTF-8 で読み、末尾の改行だけを外して差し込む（字の中は触らない）。ファイルが読めない型（無い・UTF-8 でない）は、パス（80 字まで）と型の名を訳に入れる。
+8. 試験の本文は例の run の 1 回目の報告の頭（Archon の記録の `report__write-loop.cold-prep` の `node_output`）で、約 5.7 KB だった（1 回目が約 11 KB という記述と違う）。対象の名だけ `<owner>/<repo>` に替えた。
+9. 1 つ目の commit の比べは、今の `cold-check.md` の行 1-10 と行 14 以降（行 11-13 を除く）に本文を差し込み、空白を畳んで照らす。2 つ目の commit で消した。
 
 ## 11 試験
 
-- standalone の fixture（`blocks/cold-read/fixtures/`。script の node も差し替え、配線を見る）:
-  - `standalone.stubs.yaml`: 入力は `text: README.md` だけ。`cold-prep` を `{due: true, prompt: "…", reason: ""}`、`cold` を `{verdict: pass, stops: [], guessed: [], decidable: true}`、`finish` を `status: ok` の返りで差し替える。`expect: completed`・`reached: [cold-prep, cold, finish]`。
-  - `redesign.stubs.yaml`: `cold` が `redesign-needed` と止まった所 1 つ、`finish` の返りの `pass: false`・`stuck` 1 行。
-  - `unreadable.stubs.yaml`: `cold-prep` が `{due: false, prompt: "", reason: 読ませる本文が空}`、`reached: [cold-prep, finish]`（`cold` は飛ばされる）、`finish` が `status: failed`、run は `completed`。
+- standalone の fixture（`blocks/cold-read/fixtures/`。script の node は差し替えず本当に走らせ、AI の役 `cold` の返答だけを差し替える。10 節の 4）:
+  - `standalone.stubs.yaml`: 入力は `text: README.md` だけ。`cold` を `{verdict: pass, stops: [], guessed: [], decidable: true}` で差し替える。`resolved-text-contains` は `cold.md` 自身の決まった文（`Read only the text below.`）。`expect: completed`・`reached: [cold-prep, cold, finish]`。
+  - `redesign.stubs.yaml`: `cold` が `redesign-needed` と止まった所 1 つ。`finish` は本当に走り、`pass: false`・`stuck` 1 行になる。
+  - `unreadable.stubs.yaml`: 存在しないファイル名 `no-such-file.md` を渡し、`cold-prep` が本当に `due: false` を返す。`reached: [cold-prep, finish]`（`cold` は飛ばされる）、`finish` が `status: failed`、run は `completed`。
 - `tests/blocks/cold_read/test_cold_read.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す）:
   - `cold_prep` が組んだ指示に、断片 `role-cold-reader` の本文と本文の字が入り、報告の頭の決まりの字（「頭の後ろ」「機械が組んだ事実」）が入らない。
   - 本文の字がそのまま指示に入る（`$x.output.y` の形の字と `{name}` の形の字を含む本文で、置き換わらずに残る。今の test-gate の `test_reject_with_a_reference_reaches_the_prompt_verbatim` と同じ確かめ）。
   - 本文のファイルが無い・空 → `due: false` と訳。
   - `finish`: `pass` の返答 → `pass: true`・`stuck: []`。`redesign-needed` → `stuck` が `止まった所: …`・`推測で埋めた所: …` の順。`redesign-needed` で欄が空 → `（止まった所・推測の欄が空）`。壊れた返答・語の外 → `failed` と `初見の読み手の返答を読めない（判定の語が無い）`（今の `lib/tests/test_runreport.py:1721-1725` の `_cold_of` の確かめの写し）。null → `failed`。
   - `src/reply.py` の `VERDICTS` が YAML の `cold` の `output_format` の `verdict` の enum と同じ（yes/no）。
-- `tests/blocks/cold_read/test_prompt_compare.py`（README 11.4）: 8 節の値で、1 つ目の commit では日本語の md で組んだ指示が、2.6 の「1 つ目の commit の作り方」の字と同じになる（空白と改行の違いは除く）。2 つ目の commit でこの照らしを消し、並べた物を PR に載せて 2.6 の差の一覧どおりかを審査が見る。
 - この block の外に残る試験（report の block と、その試験）: `tests/workflows/test_report.py::ShapeCase.test_cold_reader_is_told_the_machine_heading`・`ColdPrepScriptCase`・`AcceptScriptCase.test_cold_redesign_three_times`、`lib/tests/test_runreport.py` の `ColdBodyCase`・`test_cold_rejects_twice_then_takes_with_mark`。
 - e2e の `tests/e2e/evidence.json` に、この block の行は無い（報告の初見の確かめの印は report の行が持つ）。
 
