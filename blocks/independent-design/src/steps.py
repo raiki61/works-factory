@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import json
 import pathlib
-import re
 import types
 
 import ports
 import prompt
 
 import accept    # lib/。作業ツリーの姿・guard・write_board
+import cite      # lib/。依頼の名指しを引く Markdown の読み（MD_LINK・_md_lines・_md_slugs。integration.md 4.5-5）
 import design    # lib/。名指し・根拠の検算・要素の照らし
 import jsonfile  # lib/
 import oneline   # lib/
@@ -45,36 +45,6 @@ NOT_RUN = "役の loop が回らなかった"
 CRASHED = "{step} の node が落ちた（{why}）"
 
 
-# ---------------------------------------------------------------- 依頼の名指しを引く道具（lib/boardview.py の rules の写し）
-MD_LINK = re.compile(r"(?<!!)\[[^\]\n]*\]\((?:<([^>\n]+)>|([^()\s<]+))(?:\s+\"[^\"]*\")?\)")
-MD_FENCE = re.compile(r"^\s{0,3}(```|~~~)")
-
-
-def _md_lines(text):
-    """(行番号, 行) を、コードブロック（``` / ~~~ の囲い）の外の行だけ返す"""
-    fence = False
-    for i, line in enumerate(text.splitlines(), 1):
-        if MD_FENCE.match(line):
-            fence = not fence
-        elif not fence:
-            yield i, line
-
-
-def _md_slugs(text):
-    """見出しのアンカー（GitHub の書き方。重複は -1, -2 …）の集合"""
-    seen, out = {}, set()
-    for _, line in _md_lines(text):
-        m = re.match(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$", line)
-        if not m:
-            continue
-        h = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", m.group(1).strip())
-        s = re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")
-        n = seen.get(s, 0)
-        seen[s] = n + 1
-        out.add(s if n == 0 else f"{s}-{n}")
-    return out
-
-
 # ---------------------------------------------------------------- 人が決めた前提の見え方
 def answer_rows(answers) -> list:
     """port answers の値（{decision, text} か、その配列。null は無い）のうち、decision を持つ行"""
@@ -90,7 +60,7 @@ def human_items(answers) -> list:
 
 def r2_view(request: str, answers) -> types.SimpleNamespace:
     """独立設計の前提を組むだけの見え方（承認ノードの答え・依頼の本文・名指しを引く道具だけ。修正案・判定・差分は持たない）"""
-    rules = types.SimpleNamespace(MD_LINK=MD_LINK, _md_lines=_md_lines, _md_slugs=_md_slugs)
+    rules = types.SimpleNamespace(MD_LINK=cite.MD_LINK, _md_lines=cite._md_lines, _md_slugs=cite._md_slugs)
     return types.SimpleNamespace(record={"process": {"human_items": human_items(answers)}},
                                  state={"inputs": {"request": request}}, rules=rules)
 
