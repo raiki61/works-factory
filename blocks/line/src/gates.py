@@ -298,11 +298,12 @@ def _ask_kind(q) -> str:
 
 
 def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledger=None, design_rows_=(), policy_row: str = "",
-               stuck_reason: str = "", record_doc: dict | None = None, answered=()) -> dict:
+               stuck_reason: str = "", record_doc: dict | None = None, answered=(), unread=()) -> dict:
     """修正前の承認ノードの決め。rounds は計画の往復の受け皿の got（plan-out の返りの欄）、ledger は問いの台帳の値の見え方
     （gatemarks.ledger。判定が無ければ None）、design_rows_ は構造の目の設計の行、policy_row は方針の文書の変化の行（変わっていなければ
     空）、stuck_reason は止まった往復の理由（止まっていなければ空）、record_doc は往復の記録（止まりの行の推しの尾を読む）、answered は
-    同じ承認ノードの前の答え（resume で回し直した時に、continue で通した同じ文を聞き直さない）。
+    同じ承認ノードの前の答え（resume で回し直した時に、continue で通した同じ文を聞き直さない）、unread は指す先が無いか読めない控えの訳
+    （判定・結び・素材の状態・構造の目・往復の記録。読めないまま修正へ進めず、UNREAD_KIND の行で開く）。
     返り {open, go, stop_reason, items: [(種類, 文)], deferred, asked, pushed, passes, policy_changed}"""
     closed = {"open": False, "go": False, "stop_reason": "", "items": [], "deferred": [], "asked": [], "pushed": None, "passes": [],
               "policy_changed": False}
@@ -318,6 +319,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     items, passes, deferred = [], [], []
     if fell and not _continued(answered, fell):
         items.append((gatemarks.GIVEN_UP_KIND, fell))
+    items += [(kind, text) for kind, text in unread_items(unread) if not _continued(answered, text)]
     kept_asks, kept_devs = [], []   # 聞く行（前に continue で通した同じ文の行を除く）。軸の行はこの行だけから組む
     for a in asks:
         mark = a.get("mark") if isinstance(a.get("mark"), dict) else {}
@@ -447,3 +449,51 @@ def path_of(value) -> str:
         value = json.loads(value)
     got = ports.file(json.dumps(value) if isinstance(value, dict) else str(value))
     return str(got) if got else ""
+
+
+# ---------------------------------------------------------------- 指す先が無い・読めない控え（承認ノードの開ける理由にする）
+UNREAD_KIND = "unread"   # 関所の項目の種類: 指す先のファイルが無いか読めない控え（読めないまま進めず、聞く側に倒す）
+UNREAD_TAIL = "（読めないまま進めないので人に見せる）"
+
+
+def located(value, what: str, unread: list) -> str:
+    """pointer かパスの値を、在るファイルのパスの字に。null・空・"null" は ""。先のファイルが無ければ unread に「<what> の <先> が無い」を
+    足して ""（設計した状態: 読めない控えは聞く側に倒す。docs/design/line.md の 2 節）。pointer の形の違い（object でない・型が違う・
+    ほかの run の id・run directory の外を指す）は約束の誤りなので ValueError のまま（呼び手は落ちて works:line-script を返す）"""
+    import ports
+    if value is None or value == "" or value == "null":
+        return ""
+    if isinstance(value, str) and value.strip().startswith("{"):
+        value = json.loads(value)
+    if isinstance(value, dict):
+        if value.get("type") != ports.POINTER_TYPE:
+            raise ValueError(f"{what} の値が pointer の形でない（type {value.get('type')!r}）")
+        path = ports._pointer_path(value)
+        shown = value.get("path")
+    elif isinstance(value, str):
+        path = pathlib.Path(value.strip())
+        path = path if path.is_absolute() else pathlib.Path.cwd() / path
+        shown = value.strip()
+    else:
+        raise ValueError(f"{what} の値が pointer でもパスでもない（{type(value).__name__}）")
+    if not path.is_file():
+        unread.append(f"{what} の {shown} が無い")
+        return ""
+    return str(path)
+
+
+def read_located(value, what: str, unread: list):
+    """located の先の JSON。無い・JSON として読めなければ unread に訳を足して None（形の違う pointer は ValueError）"""
+    path = located(value, what, unread)
+    if not path:
+        return None
+    try:
+        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        unread.append(f"{what} の {path} が JSON として読めない（{type(error).__name__}）")
+        return None
+
+
+def unread_items(unread) -> list:
+    """読めなかった控えの関所の項目 [(UNREAD_KIND, 文)]（同じ訳を 2 度載せない）"""
+    return [(UNREAD_KIND, f"{row}{UNREAD_TAIL}") for row in dict.fromkeys(unread)]

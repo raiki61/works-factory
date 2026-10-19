@@ -41,6 +41,7 @@ ALLOWED_TESTS_HEAD = "書き換えを許したテストを触った"
 ALLOWED_UNCHECKED = "封じた差分が無い・読めないので、許した行が差分に在るかを照らしていない（許した行をみな並べた）"
 CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
 BESIDE_UNREAD = "修正の段の控えを読めない"
+MISSING_HEAD = "控えの指す先が無いか読めない（読めないまま置かないので人に見せる）"
 RECORD = "run の置き場の gates/gate-final.json"
 HANDOFF_HEAD = "修正役が人に回した物（壊すと分かって通した理由 breaks.accepted。役だけで決めた代償なので人が確かめる）"   # 元 fixboard
 HANDOFF_REASON = "修正役が人に回した物が在る"
@@ -125,6 +126,8 @@ def needs(got: dict) -> list:
         why.append((f"{CONFLICT_UNREAD}（{len(got['conflicts_unread'])} 件。人に回した申し出を数えられない）", True))
     if got["asked"]:
         why.append((f"{conflict.HEAD}を人に回した（{len(got['asked'])} 件）", True))
+    if got.get("missing"):
+        why.append((f"{MISSING_HEAD}（{len(got['missing'])} 件: {'・'.join(got['missing'])}）", True))
     if got["beside_unread"]:
         why.append((f"{BESIDE_UNREAD}（{len(got['beside_unread'])} 件。人に回した物・数え直しの食い違いを数えられない）", True))
     if got["handoffs"]:
@@ -494,8 +497,10 @@ def split_and_unproven(fixed: dict, judgment) -> tuple:
 
 def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None, eyes: dict | None, seal_got: dict | None,
            spec_check: dict | None, parallel_after: dict | None, replan_answer, widened, record: dict, given: dict, rounds_lines: list,
-           unread: list) -> dict:
-    """受け皿の got と line の値から、文と理由の材料 got を組む（docs/design/line.md の 2 節の 4 の「読む物」）"""
+           unread: list, missing=()) -> dict:
+    """受け皿の got と line の値から、文と理由の材料 got を組む（docs/design/line.md の 2 節の 4 の「読む物」）。missing は指す先が
+    無いか読めない控えの訳（src.gates.located。開き方に依らず開ける理由にする）"""
+    missing = list(missing)
     tests_ = tests or {}
     eye = eyes or {}
     if seal_got is None:
@@ -535,11 +540,12 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         **beside, "allowed_tests": allowed, "allowed_untouched": untouched,
         "structure_missing": structure_missing(fix_in.get("structure")),
         "sealed": closing.get("ok") is True, "seal_reason": str(closing.get("reason") or ""), "hash": str(closing.get("hash") or ""),
-        "deleted": deleted, "sealed_diff": gates.path_of(closing.get("diff")) if closing.get("diff") is not None else "",
+        "deleted": deleted, "sealed_diff": gates.located(closing.get("diff"), "封じた差分", missing),
         "fenced": after_fenced, "after": after, "passes": passes,
         "r2_inputs": [x for x in eye.get("notes") or [] if isinstance(x, str)],
         "converge": rounds_lines, "parallel_after": parallel_after,
         **rows,
+        "missing": list(dict.fromkeys(missing)),
         "unread": [*unread, *ledger_notes, *([after_unread] if after_unread else []), *([deleted_unread] if deleted_unread else [])],
     }
 

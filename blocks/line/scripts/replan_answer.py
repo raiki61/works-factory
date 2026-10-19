@@ -57,31 +57,31 @@ def fix_answers(before_fix, replan_answer) -> dict | None:
     return got
 
 
-def fix_notes(review, fix_plan_path: str, items: list) -> str:
-    """2 度目の修正に渡す機械の申し送り（replan.fix_notes）。事前審査の返りが無い・読めない時は訳の 1 行"""
+def fix_notes(review, fix_plan, items: list) -> str:
+    """2 度目の修正に渡す機械の申し送り（replan.fix_notes）。事前審査の返りが無い・指す先が無い・読めない時は訳の 1 行（2 度目の修正の
+    notes に載る）。pointer の形の違い（型・ほかの run・run directory の外）は約束の誤りなので落ちる（src.gates.located）"""
     import oneline
     import replan
     from src import gates
+    if review is None or review["holes"] is None:
+        return replan.NO_REVIEW_WHY.format(why="案の直しの事前審査が飛ばされた（出力が無い）")
+    unread: list = []
+    doc = gates.read_located(review["holes"], "案の直しの事前審査の返答", unread)
+    plan = gates.read_located(fix_plan, "案の直しの修正案", unread)
+    if unread or not isinstance(doc, dict):
+        why = "・".join(unread) or "案の直しの事前審査の返答が JSON の object でない"
+        return replan.NO_REVIEW_WHY.format(why=oneline.one_line(why))
     try:
-        if review is None or review["holes"] is None:
-            raise ValueError("案の直しの事前審査が飛ばされた（出力が無い）")
-        doc = gates.read_json(gates.path_of(review["holes"]))
-        if not isinstance(doc, dict):
-            raise ValueError("案の直しの事前審査の返答が JSON の object でない")
-        plan = gates.read_json(fix_plan_path)
-    except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
+        return replan.fix_notes(doc, plan, items, gates.HUMAN_FACE_KINDS)
+    except (ValueError, TypeError, AttributeError, KeyError) as error:
         return replan.NO_REVIEW_WHY.format(why=oneline.one_line(f"{type(error).__name__}: {error}"))
-    return replan.fix_notes(doc, plan, items, gates.HUMAN_FACE_KINDS)
 
 
 def fix_ripple(again, first):
     """2 度目の修正に渡す波及の一覧の pointer（replan.remade_ripple。作り直せなかった時だけ 1 回目の物）"""
     import replan
     from src import gates
-    try:
-        doc = gates.read_json(gates.path_of(again)) if again is not None else None
-    except (OSError, ValueError, TypeError):
-        doc = None
+    doc = gates.read_located(again, "作り直した波及の一覧", []) if again is not None else None
     return again if replan.remade_ripple(doc) else first
 
 
@@ -114,7 +114,7 @@ def compute() -> dict:
                        pushed=ports.parsed(raw["pushed"]))
     go = got["go"]
     return {**got, "fix_answers": fix_answers(ports.parsed(raw["before_fix"]), got["answer"]),
-            "fix_notes": fix_notes(review, gates.path_of((replan or {}).get("fix_plan")), items) if go else "",
+            "fix_notes": fix_notes(review, (replan or {}).get("fix_plan"), items) if go else "",
             "fix_ripple": fix_ripple((replan or {}).get("ripple"), ports.parsed(raw["first_ripple"])) if go else None,
             "plan_review": (review or {}).get("holes") if go and review is not None else None,
             "units_tier": units_tier(first_tier, (replan or {}).get("owed") or []), "skip_rerun": []}
