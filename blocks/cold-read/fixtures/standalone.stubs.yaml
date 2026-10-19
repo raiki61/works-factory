@@ -5,7 +5,7 @@ fixture:
   inputs:
     text: README.md
   resolved-text-contains:
-    cold: 'You are the cold reader: a first-time reader with no context.'
+    cold: 'Read only the text below.'
 exec-code: true
 cold:
   verdict: pass

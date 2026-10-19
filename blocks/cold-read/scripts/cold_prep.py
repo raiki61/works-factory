@@ -30,9 +30,10 @@ def compute():
             f"読ませる本文のファイルを読めない（{ports.text(raw).strip()[:80]}: {type(e).__name__}）")}
     if not body.strip():
         return {"due": False, "prompt": "", "reason": "読ませる本文が空"}
-    values = {"text": body.rstrip("\n"), "passed": reply.PASSED, "redesign": reply.REDESIGN,
-              "lang": ports.text(os.environ.get("INPUTS_LANG")).strip() or reply.LANG_OF_TEXT}
-    return {"due": True, "prompt": prompt.emit("cold", values, {}, 1)["prompt"], "reason": ""}
+    lang = ports.text(os.environ.get("INPUTS_LANG")).strip()
+    values = {"text": body.rstrip("\n"), "passed": reply.PASSED, "redesign": reply.REDESIGN, "lang": lang}
+    return {"due": True, "prompt": prompt.emit("cold", values, {"lang_given": bool(lang)}, prompt.round_of("cold"))["prompt"],
+            "reason": ""}
 
 
 def fallback(why: str) -> dict:

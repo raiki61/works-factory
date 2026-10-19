@@ -7,7 +7,6 @@ import json
 
 VERDICTS = ("pass", "redesign-needed")   # YAML の cold の output_format の verdict の enum と同じ（試験が突き合わせる）
 PASSED, REDESIGN = VERDICTS
-LANG_OF_TEXT = "the language of the text"   # port lang が空の時の言語（共通の lang-default は依頼の言語を言うので使わない。10 節）
 COLD_UNREADABLE = "初見の読み手の返答を読めない（判定の語が無い）"
 COLD_EMPTY = "（止まった所・推測の欄が空）"
 

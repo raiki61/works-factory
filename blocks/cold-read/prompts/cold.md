@@ -15,6 +15,11 @@ You are a first-time reader with no context. You have been given nothing about w
 Return (1) where you stopped because you could not take the meaning (`stops`), (2) what you filled in by guessing (`guessed`), and (3) whether a decision can be made from this text alone (`decidable`). If there is even one stop or one guess, `verdict` is `{redesign}`; if there is none, `{passed}`.
 
 - Each entry in `stops` and `guessed` is one sentence that names the place in the text.
+<!-- if lang_given -->
 - Write `stops` and `guessed` in {lang}. Keep quoted words from the text, identifiers, and paths as they are.
+<!-- end lang_given -->
+<!-- if not lang_given -->
+- Write `stops` and `guessed` in the language of the text. Keep quoted words from the text, identifiers, and paths as they are.
+<!-- end lang_given -->
 
 Return only JSON that matches the output schema.

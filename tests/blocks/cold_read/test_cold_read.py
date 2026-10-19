@@ -135,6 +135,7 @@ class FinishCase(_Case):
         got = self.run.script("finish", prep=dump({"due": False, "prompt": "", "reason": "読ませる本文が空"}), reply="null")
         self.assertEqual((got["ok"], got["status"], got["reason"], got["verdict"], got["pass"], got["stops"], got["guessed"],
                           got["decidable"], got["stuck"]), (False, "failed", "読ませる本文が空", "", False, [], [], False, []))
+        self.assertEqual(got["report"], ["初見の読み手: 読めなかった（読ませる本文が空）"])
 
     def test_prep_fell(self):
         got = self.run.script("finish", prep="null", reply="null")
