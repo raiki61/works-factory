@@ -1,8 +1,9 @@
 # 部品の作り直しの型（issue #765 の設計の正本）
 
-- 何の話か: 工場（このリポジトリの Archon のワークフロー）の AI の役と観点を、単独で呼べる部品（block）に作り直す。その全部の block が従う型を、この文書が決める。block ごとの設計書は同じフォルダに 1 本ずつ置く。最初の 1 本は世界の解の [world.md](world.md) で、ほかの設計書はこれを写して書く。
+- 何の話か: 工場（このリポジトリの Archon のワークフロー）の AI の役と観点を、単独で呼べる部品（block）に作り直す。その全部の block が従う型を、この文書が決める。block ごとの設計書は同じフォルダに 1 本ずつ置く。最初の 1 本は世界の解（依頼の各行を業界の定石と照らす観点。block `world`）の [world.md](world.md) で、ほかの設計書はこれを写して書く。
 - 決めたこと: block は作り直しの間だけの置き場 `blocks/`（2 つ目の pack）に横に並べて作り、block ごとに、それだけで回るかを確かめた。1 回の組み込みで line を新しい block に切り替え、古いサブグラフを消し、`blocks/` を `workflows/` に入れ替えた（11.3）。今の pack は `workflows/` の 1 つだけ。指示は AI のノードごとに 1 本の英語の md に書き、Python は `{name}` に値を渡すだけにする。入力はポートとして、形と意味で宣言する。
-- 持ち主に求めること: なし。持ち主の 2026-10-19 の決め・業界の定石・リポジトリの事実で決まらない物は残らなかった。自分で決めた事と根拠は 13 節。1 節の変更の種類の割り当ては履歴の分類から作り、1.3 で代表の commit 15 件を新しい形の上で歩かせて確かめた（訳なく散った 9 件から、形を 8 か所直した）。
+- 持ち主に求めること: なし。持ち主の 2026-10-19 の決め・業界の定石・リポジトリの事実で決まらない物は残らなかった。自分で決めた事と根拠は 13 節。1 節の変更の種類の割り当ては履歴の分類から作り、1.3 で代表の commit 15 件を新しい形の上で歩かせて（その commit の変更を新しい形に当てたら、どこを触るかを紙の上で辿って数えて）確かめた（訳なく散った〔形の上の訳が無いのに触る所が 2 か所以上に分かれた〕9 件から、形を 8 か所直した）。
+- 読む人: block と graph を作る・直す実装の役と、block の設計書の書き手。型を引く正本として読む（block ごとの細目は各設計書）。
 
 この文書の中の語（初出の物だけ。#763 の対訳に沿って英語の語はそのまま書く）:
 
@@ -14,7 +15,7 @@
 - accept: AI のノードの直後の script のノード。返答を validation し、通さなければ却下の理由を返す。
 - 古いサブグラフ: 組み込みの前の `workflows/<名>/` の 11 本（line・chain と 9 本）。組み込みで消した。この文書の「今の」は、組み込みの前の形を指す（作り直しの元として書いた所）。
 - `blocks/`: 作り直しの間の 2 つ目の pack の置き場。組み込みで `workflows/` に入れ替えた（11.3 の 4）。2 章から 9 章は入れ替えの後のパス（`workflows/<block>/`）で書き、1.3・11 章・13 章の記録はその時の名のまま残す。
-- 元の works: `~/src/claude-plugins/works/`。工場の移植元で、参照するだけ（作り直しの目標ではない）。
+- 元の works: `~/src/claude-plugins/works/`。このリポジトリの前の形の修正の工場（raiki61/claude-plugins の `works/`。根の README の「今の works」と同じ物）で、工場の移植元。参照するだけ（作り直しの目標ではない）。
 - graphloops: `~/src/claude-plugins/graphloops/`。工場の形の元（`prompts/review-loop/p*.md` がノードごとに 1 本、`blocks/review-loop/<名>/block.json` と `exit.schema.json` が差し替えられる block）。
 - Archon の源: `~/.local/state/works-factory/archon-src/d97d00ef…/`（`factory/pack.json` が止めた版）。以下 `A/` と書く。
 - pack: Archon が workflow を読む置き場のフォルダ 1 つ（3 節）。
@@ -22,7 +23,12 @@
 - 止めた Archon: `factory/pack.json` が止めた版の Archon の源。工場が頼る振る舞いの記録は [archon.md](archon.md)。
 - 埋め: Archon に無い物を外から補う部品（polyfill。`workflows/.shared/` の `fence.py`・`childsweep.py`・`child_pointer.py`・`skip_value.py`。名簿は `docs/polyfills.md`）。
 - E1〜E22: AGENTS.md の決まりの番号（置き場の表は根の `AGENTS.md` の「決まりの置き場」）。K の番号は今の落とし穴の一覧（`docs/plans/2026-10-13-capabilities/pitfalls.md`）。
-- 持ち主: リポジトリの owner（決めを下す人）。10 節で仕組みを担う block は「担う block」と書く。
+- 持ち主: リポジトリの owner（決めを下す人）。持ち主の決めは `docs/owner-decisions.md` に名（`overnight-speed` など）で書く。10 節で仕組みを担う block は「担う block」と書く。
+- 起動の殻: 人が打つ入口 `bin/works-factory`（中身は `bin/_lib/`）。認証と隔離を整えて Archon を起こす。
+- 始めの記録: line が run の頭に 1 度書く記録（[line.md](line.md) の語）。block はこれを読まない（4.3）。
+- 段: run の頭の深さ 3 つ（軽量・標準・重厚）。上げ直し: 1 回目の修正の後に、修正の結果の信号を見て単位の深さを標準へ上げ直すこと（line が 1 回だけ持つ）。表は line.md の 5 節と 16 節。
+- 再審: 修正役が判定に異議を出した時に、判定を考え直すこと（考え直す役 `rejudge` は diagnose の block の中）。
+- 名の住処: 組み込みの前の、ほかのサブグラフが開く隣のファイルの名の字をただ 1 つ持つ `lib/` のモジュール（9 節で消す）。
 
 ## 1 根拠から導く形（変更の種類と、変更が閉じる 1 か所）
 
@@ -280,7 +286,7 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 
 - 1 つの AI の node に、`prompts/<node-id>.md` を 1 本置く。決まった指示の文は全部ここに英語で書く。
 - 値の差し込み口は `{name}`（小文字・数字・`_`）。JSON の例の `{"a": 1}` は形が合わないので、差し込み口にならない。
-- 同じ block の 2 つ以上の node が使う段落は、その block の `prompts/parts/<name>.md` に 1 本だけ置き、`{part:<name>}` で差し込む（例 fix の修正役・TDD の役・裁定役・合わせ役が共に使う fix だけの決まり。組み込みの前の `workflows/fix/commands/fix-rules/brief.md`・`principles.md`）。2 つ以上の block が使う段落は `workflows/.shared/prompts/<name>.md` に 1 本だけ置き、`{shared:<name>}` で差し込む（例 書き手の役の決まり `writer-rules`。fix と delta-review が使う。組み込みの前の `fix-rules/common.md`）。今 21 本の md に写されている外への検索の決まり（`lib/agents/judge.md:16-22` が元）と、4 通りに割れた却下の段落は、ここで 1 つになる。共通の断片 `query-rule` を入れる役は、一次の出典を先に読む決まり（組み込みの前の指示に無かった物）が指示に足される。全部の役に同じく足されるので、各 block の設計書の「今の指示との差」の一覧には書かず、ここに 1 度だけ書く。
+- 同じ block の 2 つ以上の node が使う段落は、その block の `prompts/parts/<name>.md` に 1 本だけ置き、`{part:<name>}` で差し込む（例 fix の修正役・TDD の役・裁定役・合わせ役が共に使う fix だけの決まり。組み込みの前の `workflows/fix/commands/fix-rules/brief.md`・`principles.md`）。2 つ以上の block が使う段落は `workflows/.shared/prompts/<name>.md` に 1 本だけ置き、`{shared:<name>}` で差し込む（例 書き手の役の決まり `writer-rules`。fix と delta-review が使う。組み込みの前の `fix-rules/common.md`）。今 21 本の md に写されている外への検索の決まり（`lib/agents/judge.md:16-22` が元）と、4 通りに割れた却下の段落は、ここで 1 つになる。共通の断片 `query-rule` を入れる役は、一次の出典を先に読む決まり（組み込みの前の指示に無かった物）が指示に足される。`query-rule` を入れる役の全部に同じく足されるので、各 block の設計書の「今の指示との差」の一覧には書かず、ここに 1 度だけ書く。
 - 差し込むかを選ぶ段落は `<!-- if <name> -->` と `<!-- end <name> -->` で囲む。逆の条件は `<!-- if not <name> -->`。入れ子にはしない。
 
 ### 5.2 組み立ての口
@@ -571,7 +577,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 
 ## 12 持ち主の決めの変更
 
-`docs/owner-decisions.md` の「2026-10-19 の決め」に、次の 7 件を書いた（後の 2 件は組み込みで足した）。
+`docs/owner-decisions.md` の「2026-10-19 の決め」に、次の 7 件を書いた（最後の 2 件 `gate-efficacy-outside-judge`・`protected-rewrite-765` は組み込みで足した）。
 
 - `block-local-code`: 1 つの block だけが使うコードは block のフォルダに置き、`lib/` は 2 つ以上が使う物だけ。今の E4 の「script は lib と境の口を呼ぶだけ」を置き換える。
 - `lib-port-ended`: `lib-port-as-is`（元の名と元の中身のまま持ってくる。要らない物は最後の掃除の段で消す）を終える。最後の掃除はこの作り直しの組み込みが担う。
@@ -583,7 +589,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 
 ## 13 根拠を書いて自分で決めた事（持ち主に聞かない物）
 
-- 作り直しの間の置き場を、2 つ目の pack `blocks/` として今の `workflows/` と別に読ませる。根拠: Archon は pack をまたいで workflow のファイルの名が重なると誤りにする（3 節）。別に読ませれば最後の名（`works-factory-plan` など）を初めから使え、組み込みは `git mv` で済む。仮の名で `workflows/` に並べると、組み込みで全部の名を付け替える手間が増える。払う物は、起動の殻の引数 1 つ。
+- 作り直しの間の置き場を、2 つ目の pack `blocks/` として今の `workflows/` と別に読ませる。根拠: Archon は pack をまたいで workflow のファイルの名が重なると誤りにする（3 節）。別に読ませれば最後の名（`works-factory-plan` など）を初めから使え、組み込みは `git mv` で済む。仮の名で `workflows/` に並べると、組み込みで全部の名を付け替える手間が増える。払う物は、起動の殻の引数 1 つ（後に引数でなく環境変数 `WORKS_FACTORY_FOLDER` にし、組み込みで外した。下の「土台（11.1 の 0）で決めた事」の節）。
 - 再審は diagnose の block に同居させる。根拠: 持ち主の決め `rejudge-cohabit`。
 - 守りのファイルに触れたかを見る所（keep-essence の 10）は merge に置く。最後の承認ノードは組み込みの前も merge の封じの当たりを読んでいた。eyes の写し（報告の落ちの控えだけが読む）は消す（integration.md の 4.5-13・4.5-18 の (c)）。根拠: 守りの当たりは差分を確定する所の事実で、独立の目の観点ではない。最後の承認ノードと `bin/apply` の拒みが読む事実は変わらない。
 - 1.3 の変更の歩かせで訳なく散った所から、形を 8 か所直した（詳しい訳は 1.3 の「形の直し」）。根拠はどれも、持ち主の決め（block はほかの block を名指さない・1 つの block だけの物は block に・機械の検査は yes/no だけ）と、変わりやすい決めを 1 つのモジュールに隠す情報隠蔽（1 節の Parnas）と、#765 の本文。
@@ -592,8 +598,8 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
   - 同じ block の node どうしの断片は block の `prompts/parts/` に。根拠: 憲法の 4 と同じ決め方。
   - 2 つ以上の block が読む行の形は、作り手の出力ごとに `lib/` の 1 モジュール（手本 `worldmark`）。根拠: 憲法の 4。読み手が作り手の中身を import しない。
   - 深さの表を、未知の種類 → 段（head-depth）と、段 → 回す物・上げ直し（line）に割り、fix の中の上げ直しを無くす。根拠: 上げ直しの読み手が 1 つになり、表とその説明の md が同じ block に在る。delta-review は fix の外の block。
-  - 計画の往復の記録は line が持ち、plan-review は前の周を port `prior` で受ける。根拠: 往復の loop を持つのは line。前の周を見ないと決まらない確かめ（穴の出自・続いた穴）が plan-review に在る。
-  - 直した後の実測は structure の block（`mode` after）に。graph は流れの決めだけを持つ。根拠: 観点の計算を graph に置くと、能力の行が graph に来る。
+  - 計画の往復の記録は line が持ち、plan-review は前の周を port `prior` で受ける。根拠: 往復の loop を持つのは line。前の周を見ないと決まらない確かめ（穴の出自〔審査が挙げた穴が、前の周の案の直しから生まれたか〕・続いた穴〔前の周の穴が直らずに残ったか〕）が plan-review に在る。
+  - 直した後の実測は structure の block（`mode` after）に。graph は流れの決めだけを持つ。根拠: 観点の計算を graph に置くと、能力の棚卸し（`docs/plans/2026-10-13-capabilities/` の、能力ごとの行）の担い手が graph になり、graph が流れの決めだけを持つ形が崩れる。
   - block の外の文書は関数の名を書かない。根拠: block の中の作り替えで block の外の文書が動かない（`2a21ac3b` で `owner-decisions.md` が動いた）。
 - 報告の文は事実を持つ block が組んで出力の `report` の欄で返す。根拠: 持ち主の決め（block はほかの block を名指さない・1 つの block だけのコードは block に置く）の下では、report が各 block の中身を import する今の形を続けられない。drift-audit の 3 節の直し方 1 と同じ。
 

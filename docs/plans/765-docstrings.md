@@ -1,6 +1,8 @@
 # #765 組み込み: 決まりの文から試験の docstring へ移す細目（組み立ての陣が当てる）
 
-- 何の話か: 根の `AGENTS.md` と `workflows/AGENTS.md`（作り直しの間は `blocks/AGENTS.md`）を「憲法 6 行と決まりとパス」に縮めた（`docs/design/README.md` の 11.3 の 6・持ち主の決め `rules-tests-design-apart`）。決まりの「機械」の行に在った試験の細目は、その試験のモジュールの docstring に置く。文書の陣は `tests/` を持たないので、ここに試験のファイルごとの docstring の案を書く。組み立ての陣が、入れ替え（`git mv blocks workflows`）の後に各ファイルの頭の docstring をこの字に替える。
+- 読む人と頼み: 組み立ての陣。入れ替えの後に、下の各節の字を、見出しの試験のファイルの頭の docstring に当てる。ほかの読み手は、決まりの「機械」の行の細目を探す時に読む。
+- 陣: #765 の組み込みを分けて進める作業の組。この文書を書いた文書の陣（文書だけを直す）・削除と試験の陣（古い物を消し、試験を直す）・組み立ての陣（入れ替え `git mv blocks workflows` を当てる）。
+- 何の話か: 根の `AGENTS.md` と `workflows/AGENTS.md`（作り直しの間は `blocks/AGENTS.md`）を「憲法 6 行（`docs/design/README.md` の 2 節）と決まりとパス」に縮めた（`docs/design/README.md` の 11.3 の 6・持ち主の決め `rules-tests-design-apart`）。決まりの「機械」の行に在った試験の細目は、その試験のモジュールの docstring に置く。文書の陣は `tests/` を持たないので、ここに試験のファイルごとの docstring の案を書く。組み立ての陣が、入れ替え（`git mv blocks workflows`）の後に各ファイルの頭の docstring をこの字に替える。
 - 決まりの番号は変えていない（E1〜E22。置き場は根の `AGENTS.md` の表）。番号を引く試験と文書は直さなくてよい。決まりの置き場が `workflows/AGENTS.md` の物は、入れ替えの後のパスで書いた。
 - 下の各節の見出しがファイルのパス、本文が docstring の全文（字下げの無い段落と箇条）。試験のコードが案と違う振る舞いをしていれば、コードを正にして案を直す（案は今の決まりの文と、削除と試験の陣の枝の試験を読んで書いた）。
 - 載せない試験: docstring が既に細目を持ち、決まりの文から移す物が無い試験（`tests/layers/test_block_shape.py` の 7.1 の箇条・`tests/layers/test_keep_essence.py`・`tests/layers/test_polyfill_evidence.py`・`tests/layers/test_block_loop_sessions.py`）。これらは頭の行の「決まりの置き場」だけ合っているかを見る（`test_block_shape.py` の頭の `blocks/` は `workflows/` に替える）。
@@ -9,7 +11,7 @@
 
 根の直下のファイルとフォルダが、根の `AGENTS.md` の「リポジトリの形」の木に在る物だけ（根の `AGENTS.md` の機械の行）。
 
-- 木の名は AGENTS.md から読み、ここに写さない。名の欄（2 つ以上の空白の前）は `・` で並べてよく、`/` より後は根の名に関わらない。根の直下の欄が空白を含む行は名でなく組の見出しで、その下の 1 段が根の直下の名。木の根の直下の名は 1 度だけ。
+- 木の名は AGENTS.md から読み、ここに写さない。名の欄（2 つ以上の空白の前）は `・` で並べてよく、`/` より後は根の直下の名に関わらない。根の直下の欄が空白を含む行は名でなく組の見出しで、その下の 1 段が根の直下の名。木の根の直下の名は 1 度だけ。
 - `workflows/` の直下は、`works-factory-<名>.yaml` を持つフォルダ（block と graph）・`.shared/`・`AGENTS.md` だけ。直下のフォルダが自分の名の YAML を持たなければ赤（block の名の表は持たない。持ち主の決め `shape-checks-only`）。
 - 試験を置くフォルダ（`test_*.py` の在るフォルダとその上の全部）に `__init__.py` が在る（無いと Python 3.12 の unittest は黙って見つけない）。小さな対象のリポジトリの種 `tests/e2e/target-seed/` には置かない。
 - 見るファイルは git が知る物と、まだ add していないが無視されない物（`.venv`・`__pycache__` など無視の物は見ない）。
@@ -18,7 +20,7 @@
 
 `workflows/` の YAML の `include:`・`workflow:` の値が `works-factory-` で始まる（根の `AGENTS.md` の E8 の機械の行）。
 
-- 外しは 1 つだけ: merge の `pr-open` が出口の語 `pr` の時に起こす Archon 同梱の `archon-pr`（表 `tests/layers/scan.py` の `ARCHON_CALLS`。持ち主の決め `deliver-via-archon-pr`）。
+- 外しは 1 つだけ: merge の `pr-open` が出口の語 `pr`（依頼の入力 `deliver` の値。`pr` の時だけ PR を作る）の時に起こす Archon 同梱の `archon-pr`（表 `tests/layers/scan.py` の `ARCHON_CALLS`。持ち主の決め `deliver-via-archon-pr`）。
 - ASF のコードを写していないことと、`docs/asf-notes.md` の行は人が見る。
 
 ## tests/layers/test_names.py
@@ -101,7 +103,7 @@ block と graph の返りが 1 つのノードの構造体で、仕事の結末�
 - `loop:` のノードが無い（Archon は `loop:` のノードの `mutates_checkout` を無視して警告を出す）。
 - AI のノードは `settingSources: [user]`・閉じた `sandbox`（`enabled: true`・`allowUnsandboxedCommands: false`）・表 `scan.ROLE_TOOLS` の中の `allowed_tools` を持つ。
 - 役の `model` は表 `lib/launchgroups.py` の `GROUPS` の群の名（`'@wf-<群>'`）で、役にもグラフの根にも `effort`・`modelReasoningEffort` が無い（`test_role_model_names_a_group_without_effort`。ノードの `effort` は群の別名の `effort` より先に採られ、run ごとの `--model @wf-<群>=…` の付け替えが黙って効かなくなる）。
-- Bash を持ち Edit・Write を持たない役は `sandbox.filesystem.denyWrite` に `scan.NO_TREE_WRITE`（`~/../archon-home`。起動が隔離した Archon の家）を書き、`'.'` を書かない（`test_bash_reader_without_no_tree_write_is_red`。`'.'` は cwd を塞がない。#293）。値は `isolate.DIRS` の置き場の名から引き、`isolate()` が組む HOME から解くと隔離した Archon の家を指す（`test_no_tree_write_names_the_isolated_archon_home`）。包み（埋め P5）がこの値を印と読み、一覧を足すことは `tests/shared/test_fence.py`。
+- Bash を持ち Edit・Write を持たない役は `sandbox.filesystem.denyWrite` に `scan.NO_TREE_WRITE`（`~/../archon-home`。起動が隔離した Archon の家）を書き、`'.'` を書かない（`test_bash_reader_without_no_tree_write_is_red`。`'.'` は cwd を塞がない。#293）。値は `isolate.DIRS` の置き場の名から引き、`isolate()` が組む HOME から解くと隔離した Archon の家を指す（`test_no_tree_write_names_the_isolated_archon_home`）。書き込みの柵の包み（役の claude の前に挟む殻。`docs/polyfills.md` の埋め P5、`workflows/.shared/fence.py`）は、`denyWrite` にこの値（印）が在る起動にだけ、書いてはならない場所の一覧を足す。それは `tests/shared/test_fence.py` が見る。
 - 違反の見本は `tests/layers/seeds/e7`・`k18-*`・`k3-*` に 1 本 1 違反。
 - 訳と Archon の振る舞いは `docs/design/archon.md` の E7 の節。
 
@@ -168,7 +170,7 @@ graph と block の YAML の AI のノード（`prompt:`・`command:`。`loop_gr
 
 run の中の確かめの命令と全部の試験の命令を、役が取り違えないように書いてある（`tests/AGENTS.md`。持ち主の決め `full-suite-in-ci`）。
 
-- `tests/AGENTS.md` に run の中の命令 `uv run --isolated python3 tests/changed.py`（`UNIT`）が、全部の試験の命令より先に在る。
+- `tests/AGENTS.md` に run の中の命令 `uv run --isolated python3 tests/changed.py`（試験の中の定数 `UNIT`）が、全部の試験の命令より先に在る。
 - 全部の試験の命令（`python3 -m unittest discover`）は `tests/AGENTS.md` の CI の行にだけ在り、その行は「CI が回す物」と「回さない」を持つ。ほかの決まりの文書（全部の階層の `AGENTS.md`・根の `README.md`・`MISSION.md`・`engineering.md`）と `pyproject.toml` には無い。
 - どちらが run の中の命令と読めるか（読み方そのもの）は人が見る。
 
