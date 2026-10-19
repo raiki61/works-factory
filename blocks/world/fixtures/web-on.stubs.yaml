@@ -1,0 +1,28 @@
+# web が on の道: web の役の指示が検索と抜き書きの段落を持つ。抜き書きの取り直しは網に出るので筋書きでは抜き書きを返さず、
+# 抜き書きが残る道は tests/blocks/world の試験が取り直しの口を差し替えて確かめる
+fixture:
+  expect: completed
+  reached: [intake, world-classes, world-classes-accept, pick, world-judge-prep, world-judge, world-judge-accept, finish]
+  inputs:
+    request: '[{"where": "README", "text": "The cache folder should follow the user settings"}]'
+    web: 'on'
+  resolved-text-contains:
+    world-judge: 'Search for the practice with the queries'
+exec-code: true
+world-classes:
+  classes:
+    - finding: 1
+      problem: where a command line tool keeps its cache files
+      activity: choosing the cache location of a tool
+      proposed: ''
+      queries: [cache directory convention for command line tools]
+world-judge:
+  rows:
+    - finding: 1
+      practice: Follow the base directory convention of the platform for cache files.
+      sources: []
+      applies: The tool should put its cache under the platform cache home.
+      not_applies: ''
+      verdict: none
+      challenge: ''
+  excerpts: []

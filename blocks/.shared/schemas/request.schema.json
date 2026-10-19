@@ -1,0 +1,32 @@
+{
+  "description": "依頼の行の配列か、それを findings の欄に持つオブジェクト（工場の依頼のファイルの形。findings のほかの欄はこの block は読まない）",
+  "type": ["array", "object"],
+  "items": {
+    "type": "object",
+    "required": ["where", "text"],
+    "properties": {
+      "where": {"type": "string"},
+      "text": {"type": "string"},
+      "mechanism": {"type": "string"},
+      "measured": {"type": "string"},
+      "false_positive_if": {"type": "string"}
+    }
+  },
+  "required": ["findings"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["where", "text"],
+        "properties": {
+          "where": {"type": "string"},
+          "text": {"type": "string"},
+          "mechanism": {"type": "string"},
+          "measured": {"type": "string"},
+          "false_positive_if": {"type": "string"}
+        }
+      }
+    }
+  }
+}

@@ -11,6 +11,7 @@
   aliases=False で起こす（家の置き場は別。--config の層が値を運ぶことを照らす試験が使う）。
   bun が無ければ見送る。
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
+  作り直しの間の 2 つ目の pack blocks/（docs/design/README.md の 3 節）は blocks_tree で置く（.shared/ も blocks/.shared/ を写す）。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
 - validate の数えない警告: Claude Code に同梱の skill（BUILTIN_SKILLS）と、借りる superpowers の skill（BORROWED_SKILLS。
   lib/borrow/borrow.json の superpowers.skills）を節が名指した時の「ディスクに無い」の警告だけ。同梱の skill は SKILL.md を
@@ -41,6 +42,7 @@ BORROWED_SKILLS = frozenset(json.loads((ROOT / "lib" / "borrow" / "borrow.json")
                             ["superpowers"]["skills"])
 BUILTIN_SKILL_WARNING = re.compile(r"Skill '([^']+)' not found in ")
 WORKFLOWS = ROOT / PACK["ours"]["folder"]
+BLOCKS = ROOT / "blocks"
 SHARED = ".shared"
 
 
@@ -74,19 +76,24 @@ def source() -> pathlib.Path:
 
 
 @contextlib.contextmanager
-def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS) -> Iterator[pathlib.Path]:
-    """workflows の names のフォルダとこのリポジトリの .shared/ を pack の形で置いて commit した使い捨ての git の木"""
+def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS, shared: pathlib.Path = WORKFLOWS / SHARED) -> Iterator[pathlib.Path]:
+    """workflows の names のフォルダと shared（既定はこのリポジトリの workflows/.shared/）を pack の形で置いて commit した使い捨ての git の木"""
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp) / "tree"
         placed = place.pack_folder(PACK, root)
         no_cache = shutil.ignore_patterns("__pycache__")
         for name in names:
             shutil.copytree(workflows / name, placed / name, ignore=no_cache)
-        shutil.copytree(WORKFLOWS / SHARED, placed / SHARED, ignore=no_cache)
+        shutil.copytree(shared, placed / SHARED, ignore=no_cache)
         git(root, "init", "-q")
         git(root, "add", "-A")
         git(root, "commit", "-q", "-m", "seed")
         yield root
+
+
+def blocks_tree(names: Iterable[str]) -> contextlib.AbstractContextManager[pathlib.Path]:
+    """blocks/ の names の block と blocks/.shared/ を pack の形で置いた使い捨ての git の木（tree と同じ形）"""
+    return tree(names, BLOCKS, BLOCKS / SHARED)
 
 
 def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:

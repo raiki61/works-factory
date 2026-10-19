@@ -1,0 +1,15 @@
+# 言い直す役の返答が受け付けを通らない道: run は止めず、出口が status: failed と却下の理由を返す。筋書きでは輪が 1 周で終わるので
+# 却下は 1 回で、3 回で諦める数えは tests/blocks/world の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, world-classes, world-classes-accept, pick, finish]
+  inputs:
+    request: '[{"where": "README", "text": "The cache_dir helper should follow the user settings"}]'
+exec-code: true
+world-classes:
+  classes:
+    - finding: 1
+      problem: where cache_dir keeps its files
+      activity: choosing the cache location
+      proposed: ''
+      queries: [cache_dir convention]

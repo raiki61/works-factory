@@ -1,0 +1,205 @@
+name: works-factory-world
+description: '世界の解の block（docs/design/world.md）。依頼の各行を、依頼が示した解き方と対象の名を外した問題の類に言い直し、一次の出典の抜き書きで業界の定石と照らし、依頼の解き方が定石と同じか違うかを返す。抜き書きは機械が同じ URL から取り直して照らす。web に出られない run でも止めず、行を知識だけで書いて印を付ける。単独の run でも、graph から include されても回る'
+inputs:
+  request:
+    required: true
+    description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）'
+  purpose: {default: '', description: 'text: 依頼の目的の 1 文。空は渡されていない'}
+  means: {default: '[]', description: 'json(means.schema.json): 依頼が示した解き方の文の配列。空の配列は示していない'}
+  web: {default: 'on', description: 'choice(on|off): web で出典を探すか。off なら検索も取得もせず、行は知識だけで書く'}
+  lang: {default: '', description: 'text: 人に見せる欄（problem・activity・proposed・practice・applies・not_applies・challenge）の言語。空は依頼の行の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, findings, reason]
+      properties:
+        due: {type: boolean}
+        findings: {type: integer}
+        reason: {type: string}
+  - id: world-classes-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$world-classes-accept.output.done; test "$done" = true
+      nodes:
+        - id: world-classes-prep
+          script: restate_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: world-classes
+          prompt: "$world-classes-prep.output.prompt"
+          depends_on: [world-classes-prep]
+          model: '@wf-judge-core'
+          settingSources: [user]
+          allowed_tools: []
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [classes]
+            additionalProperties: false
+            properties:
+              classes:
+                type: array
+                items:
+                  type: object
+                  required: [finding, problem, activity, proposed, queries]
+                  additionalProperties: false
+                  properties:
+                    finding: {type: integer, minimum: 1}
+                    problem: {type: string, minLength: 1}
+                    activity: {type: string, minLength: 1}
+                    proposed: {type: string}
+                    queries:
+                      type: array
+                      items: {type: string}
+        - id: world-classes-accept
+          script: restate_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [world-classes]
+          with: {reply: $world-classes.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: pick
+    script: pick
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, world-classes-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: world-judge-loop
+    depends_on: [pick]
+    when: $pick.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$world-judge-accept.output.done; test "$done" = true
+      nodes:
+        - id: world-judge-prep
+          script: web_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: world-judge
+          prompt: "$world-judge-prep.output.prompt"
+          depends_on: [world-judge-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [rows, excerpts]
+            additionalProperties: false
+            properties:
+              rows:
+                type: array
+                items:
+                  type: object
+                  required: [finding, practice, sources, applies, not_applies, verdict, challenge]
+                  additionalProperties: false
+                  properties:
+                    finding: {type: integer, minimum: 1}
+                    practice: {type: string, minLength: 1}
+                    sources:
+                      type: array
+                      items: {type: string}
+                    applies: {type: string}
+                    not_applies: {type: string}
+                    verdict:
+                      type: string
+                      enum: [same, differs, none]
+                    challenge: {type: string}
+              excerpts:
+                type: array
+                items:
+                  type: object
+                  required: [id, url, excerpt]
+                  additionalProperties: false
+                  properties:
+                    id: {type: string}
+                    url: {type: string}
+                    excerpt: {type: string}
+        - id: world-judge-accept
+          script: web_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [world-judge]
+          with: {reply: $world-judge.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [pick, world-judge-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, rows, classes, dropped, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+        rows:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties:
+                type:
+                  type: string
+                  enum: [archon_artifact]
+                run_id: {type: string}
+                path: {type: string}
+            - {type: 'null'}
+        classes: {type: integer}
+        dropped: {type: integer}
+        report:
+          type: array
+          items: {type: string}

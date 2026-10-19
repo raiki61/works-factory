@@ -60,6 +60,7 @@ works-factory/
 │   │   ├── scripts/             script ノード。lib/ と境の口を呼ぶだけ
 │   │   └── fixtures/            Archon の筋書きの試験
 │   └── .shared/                 境。Archon との出入りの口 1 つと埋め（E2）
+├── blocks/                      #765 の作り直しの間の 2 つ目の pack（AGENTS.md が憲法 6 行。形は docs/design/README.md の 3 章）。組み込みで workflows/ に入れ替える
 ├── lib/                         助け手（AGENTS.md が E3）。Archon を知らない Python（E3）
 │   ├── borrow/                  借りた superpowers の写しと固定（borrow.json）・継ぎ目の表（seams.json）・無人の読み替え（unattended.md）。読み口は lib/spseam.py
 │   ├── graphloops/engine/       lib の部品が頼る graphloops の小道具（持ち主の決め lib-port-as-is）
@@ -69,6 +70,7 @@ works-factory/
 │   ├── bin/                     入口の試験
 │   ├── shared/                  境の試験
 │   ├── workflows/               サブグラフの YAML の形と筋書きの試験（test_<サブグラフ>.py。筋書きは tests/archon.py の使い捨ての木で回す）
+│   ├── blocks/                  blocks/ の block の試験（tests/blocks/<block の名の - を _ にした物>/。助けは tests/blocks/kit.py）
 │   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験と筋書き（scenario.json。人が読む要約は scenario.md）
 ├── docs/
 │   ├── design.md                設計（メイングラフ・サブグラフ・能力の棚卸し・未決）

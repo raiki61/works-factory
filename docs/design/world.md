@@ -21,7 +21,7 @@
 
 入力（YAML の `inputs:`）:
 
-- `request`（必須）: `json(request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）`
+- `request`（必須）: `json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい（工場の依頼のファイルの形）`
 - `purpose`: `text: 依頼の目的の 1 文。空は渡されていない`。既定 `""`。
 - `means`: `json(means.schema.json): 依頼が示した解き方の文の配列。空の配列は示していない`。既定 `[]`。
 - `web`: `choice(on|off): web で出典を探すか。off なら検索も取得もせず、行は知識だけで書く`。既定 `on`。
@@ -42,7 +42,7 @@
 
 1. `intake`（script `intake.py`）: port を読み、place を作り直して `intake.json` を書く。返り `{due, findings, reason}`。
 2. `world-classes-loop`（`loop_group`、最大 3 回、`fresh_context: false`、`until_bash` は accept の `done`。`when: $intake.output.due == true`）
-   - `world-classes-prep`（script `restate_prep.py`。`with: {reason: $LOOP_PREV.world-classes-accept.output.reason}`）: 指示を組む。返り `{prompt}`。
+   - `world-classes-prep`（script `restate_prep.py`。`with:` を持たない。前の回までの却下は place の控えから読む。13 項）: 指示を組む。返り `{prompt}`。
    - `world-classes`（AI。`prompt: "$world-classes-prep.output.prompt"`・`allowed_tools: []`・`mutates_checkout: false`・model `@wf-judge-core`・閉じた sandbox・`retry`・`idle_timeout: 1728000000`。`output_format` は今の `classes` のまま）
    - `world-classes-accept`（script `restate_accept.py`。`with: {reply: $world-classes.output}`）: 返り `{ok, done, reason}`。
 3. `pick`（script `pick.py`。`trigger_rule: all_done`）: 取る類を `MAX_CLASSES`（5）まで決めて `plan.json` に書く。返り `{due, reason}`。
@@ -54,14 +54,14 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.4 place のファイル
 
-`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/world/`）の下に、今の `judge/world/` と同じ名で書く: `intake.json`・`classes.json`・`plan.json`・`judge-input.json`・`judged.json`・`verified.json`・`rejects-classes.json`・`rejects-judge.json`・`world-classes-prompt-<n>.md`・`world-judge-prompt-<n>.md`・`world.jsonl`・`state.json`。名は `src/steps.py` だけが持つ。
+`ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/world/`）の下に、今の `judge/world/` と同じ名で書く（`state.json` だけは今の `world-state.json` の代わり）: `intake.json`・`classes.json`・`plan.json`・`judge-input.json`・`judged.json`・`verified.json`・`rejects-classes.json`・`rejects-judge.json`・`world-classes-prompt-<n>.md`・`world-judge-prompt-<n>.md`・`world.jsonl`・`state.json`。名は `src/steps.py` だけが持つ。
 
 ### 1.5 コードの置き場
 
 - `blocks/world/src/steps.py`: 今の `lib/worldblk.py` の中身（入口・言い直しの材料と受け付け・類の決め・web の役の材料と受け付け・出口）。指示の文（`classes_prep` の「## 返し方」と `judge_prep` の「## 返し方」）は持たず、材料の行と値だけを組む。`place()`（「盤面の隣」）は消す。
 - `blocks/world/src/excerpts.py`: 今の `lib/worldcheck.py`（正規化・依頼の識別子の取り出し・抜き書きの照らし）。
 - `blocks/world/src/report.py`: 報告の行を値から組む（今の `worldmark.report_lines` を、控えのファイルでなく値で受ける形にした写し）。
-- `blocks/world/schemas/request.schema.json`・`means.schema.json`。
+- `blocks/world/schemas/means.schema.json`。依頼の行の形 `request.schema.json` は 2 つ以上の block が使うので `blocks/.shared/schemas/` に置く（README の 13 章）。
 - 使う `lib/`: `worldmark`（行の欄と語 `FIELDS`・`VERDICTS`・`BASES`・`NOT_WEB`。ほかの block も読む行の形の正本）・`rolekit`（loop の数え・却下の控え・諦め。`accept_round`・`rejected`・`given_up_reason`）・`webget`（取り直しの口）・`oneline`・`jsonfile`。依頼の容器の読み（今の `carry.parts`）は `request.schema.json` の形で替える。
 - 作り直しの間は `lib/worldblk.py`・`lib/worldcheck.py` を消さない（今の judge が使う）。組み込みで消す（README の 9.2）。
 
@@ -317,8 +317,8 @@ Return only JSON that matches the output schema.
 
 ## 4 script の node
 
-- `intake.py`: `request`・`purpose`・`means`・`web` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")` などに渡す。place を作り直し（今の `worldblk.intake` が置き場のファイルを全部消すのと同じ）、`intake.json` を書く。依頼や目的が読めない時も落ちず、`due: false` と理由を返す（今のまま）。
-- `restate_prep.py`・`web_prep.py`: `$LOOP_PREV` の理由を受け、`rolekit.rejected` で却下の控えを読み、`prompt.render("world-classes", values, when)` で組んで返す。今の `worldblk._prep` が `rolekit.with_reject` で頭に却下を貼っていた道（今の流れでは通らなかった。棚卸しの 10.1）は無くなり、却下の段落は md の 1 か所に決まる。
+- `intake.py`: `request`・`purpose`・`means`・`web` を `os.environ.get("INPUTS_REQUEST")` などの字のままで読み、`ports.json(…, "request.schema.json")` などに渡す。place の中のこの block のファイル（`src/steps.py` が名を持つ物と `world-*-prompt-*.md`）だけを消して `intake.json` を書く。place は作るだけで消さない（単独の run では place は run directory の根。13 項）。依頼や目的が読めない時も落ちず、`due: false` と理由を返す（今のまま）。
+- `restate_prep.py`・`web_prep.py`: `rolekit.rejected` で place の却下の控えを全部読み（`$LOOP_PREV` は使わない。13 項）、`prompt.render("world-classes", values, when)` で組んで返す。今の `worldblk._prep` が `rolekit.with_reject` で頭に却下を貼っていた道（今の流れでは通らなかった。棚卸しの 10.1）は無くなり、却下の段落は md の 1 か所に決まる。
 - `restate_accept.py`・`web_accept.py`: 今の `judge_accept.world_accept` と同じく `rolekit.accept_round` で回の数えと諦めを持ち、`src/steps.py` の受け付けを呼ぶ。`web_accept.py` は取り直しの口 `webget` を使う（試験では差し替える）。
 - `pick.py`: 今の `worldblk.plan`。
 - `finish.py`: 今の `worldblk.finish` と `judge_accept.world_finish` を 1 つにした物。行と控えを place に書き、`rows` を pointer で、`report` を `src/report.py` で組んで返す。
@@ -348,12 +348,12 @@ graphloops の `prompts/review-loop/p1.external_standards.md` にあって、こ
 ## 7 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は実装で決める）> workflow run works-factory-world \
+WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-world --cwd <対象> \
   --input request='[{"where":"README","text":"…直したい事…"}]' \
   --input purpose='…' --input web=on
 ```
 
-`bin/works-factory` の引数と Archon の命令の前の部分は、起動の殻の今の形に合わせる（（未確認）: 殻の引数の名は土台の PR で決める）。出力は `workflow get <run>` の `finish` の返り。始めの記録は要らない。
+読ませるフォルダは環境変数 `WORKS_FACTORY_FOLDER` で選ぶ（README の 13 章）。出力は `workflow get <run>` の `finish` の返り。始めの記録は要らない。
 
 ## 8 試験
 
@@ -392,9 +392,19 @@ node:
 
 試験: `blocks/policy-check/fixtures/standalone.stubs.yaml`（入力は `policy` だけ）と、`tests/blocks/policy-check/` の `policy-in` の行の組み方の試験。
 
+## 9.1 土台の PR で決めた事
+
+1. `ok` は `status == "ok"`（1.2 のとおり）。今の `world-finish` はいつも `ok: true` だった。単独で呼ぶ人が `outcome_field:` で落ちを知れるようにする。空の依頼（行の配列が空）は今どおり `status: ok`・行なし（`rows: null`）。
+2. 行の無い出口は `rows: null`（空のファイルの pointer を返さない。Archon は返りの pointer の先が空でないかを照らす）。
+3. port の読めない入力は、どの port かを頭に付けた理由（「入力 request: …」）で `reason` に残す。
+4. 筋書き: `web-on.stubs.yaml` は web の役の指示の on の段落までを見る（抜き書きの取り直しは網に出るので、抜き書きを返さない）。抜き書きが残る道は `tests/blocks/world/test_steps.py` の Verify が、取り直しの口を差し替えて見る。`gave-up.stubs.yaml` は dry-run の輪が 1 周で終わるので却下は 1 回で、出口が最後の却下の理由で `status: failed` を返す所を見る。3 回で諦める数えは同じ試験の Plan が見る。
+5. standalone の筋書きの依頼の字に `$ARTIFACTS_DIR` を入れ、組んだ指示の中で字のまま AI の node に届くことを照らす（README の 13 章）。
+6. 前の回の却下は、prep が place の控え（`rejects-classes.json`・`rejects-judge.json`）から全部を読む。prep の `with:` に `$LOOP_PREV…reason` を書かない。止めた Archon は `with:` の値を読み直さないが（README の 13 章）、resume で輪が 1 周目から回り直しても却下の段落が抜けないようにする。
+7. 指示の比べ（8 節・README の 11.4 の 1 つ目の commit の日本語の md の字の一致）は、この PR では作らない。md は 2.3・3.3 の英語の本文をそのまま置いた。古い指示と新しい指示を同じ値で並べた物は、PR の審査に出す時に作る。
+
 ## 10 未確認
 
-- 起動の殻で `blocks/` を読ませる引数の名と、7 節の命令の正確な形。
 - include の `with:` に `$INPUTS.<名>` を書けるか（9 節では使わない）。
+- dry-run は include の中の loop の本体の node に include の道を渡さない（README の 13 章）。policy-check の筋書きは world の言い直しの輪の本体を差し替える。
 - query-rule の断片の「足りない」の欄の文を、欄の無い役に残してよいか（今と同じ振る舞い。3.6）。
 - `prompt:` に入る指示の大きさの上限（この block の指示は約 3 KB で、今の `$world-intake.output.prompt` と同じ大きさ）。

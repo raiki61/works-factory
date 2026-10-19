@@ -1,0 +1,26 @@
+# 単独の run: 頼み 1 つを読み手が辿り、閉じるべき所の外に置いたので、案内を見直す役が直しを出す（script は本当に走り、AI の役の返答だけを差し替える）
+fixture:
+  expect: completed
+  reached: [intake, walk-prep, guidance-walk, walk-accept, compare, fix-prep, guidance-fix, fix-accept, finish]
+  inputs:
+    requests: '[{"id": "add-check", "request": "Add one more check that an AI role answer must pass.", "closes": ["blocks/world/"]}]'
+    entry: '.archon/workflows/works-factory/.shared/AGENTS.md'
+  resolved-text-contains:
+    guidance-walk: 'Add one more check that an AI role answer must pass.'
+    guidance-fix: 'Should close in: blocks/world/'
+exec-code: true
+guidance-walk:
+  steps:
+    - {file: .archon/workflows/works-factory/.shared/AGENTS.md, why: the entry file}
+  placed:
+    - {path: lib/checks.py, change: add the check as a new function}
+  copied: []
+  stuck: [the entry file does not say where checks of one role live]
+  guessed: [that shared checks go to lib]
+guidance-fix:
+  fixes:
+    - request: add-check
+      kind: guide
+      where: blocks/.shared/AGENTS.md
+      change: Say that a check that one role answer must pass goes in that block's src and accept script.
+      why: The reader's first step found no pointer to the block that owns the role.

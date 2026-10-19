@@ -119,6 +119,17 @@ class LauncherTest(unittest.TestCase):
         return {"env": {"WORKS_FACTORY_ROOT": str(self.repo), answer.ENV: shlex.join(head)},
                 "workflows": {"autoResumeOnQuotaReset": False}, "aliases": place.group_presets()}
 
+    def test_folder_env_reads_the_named_pack(self):
+        """作り直しの間の 2 つ目の pack blocks/ を、新しい run だけ環境変数で選ぶ（docs/design/README.md の 3 節）"""
+        argv = self.reached(self.launch("workflow", "run", "works-factory-world", "--input", "request=x",
+                                        WORKS_FACTORY_FOLDER="blocks"))["argv"]
+        self.assertEqual(argv[7], "--workflow-source")
+        self.assertEqual((pathlib.Path(argv[8]) / ".archon" / "workflows" / "works-factory").resolve(), self.repo / "blocks")
+        for bad in ("../workflows", "absent", ".shared"):
+            with self.subTest(bad=bad):
+                err = self.stopped(self.launch("workflow", "run", "works-factory-world", WORKS_FACTORY_FOLDER=bad))
+                self.assertIn("WORKS_FACTORY_FOLDER", err)
+
     def test_run_gets_cwd_and_workflow_source_before_user_args(self):
         got = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x", cwd=self.target / "sub"))
         argv = got["argv"]

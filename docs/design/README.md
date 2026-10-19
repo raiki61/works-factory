@@ -210,11 +210,12 @@ blocks/                          新しい pack（作り直しの間だけの置
 ├── .shared/                     pack の共通の部品（Archon は dot のフォルダを workflow と見ない）
 │   ├── ports.py                 port の読み・place・返り（今の workflows/.shared/boundary.py の後継）
 │   ├── prompt.py                md に値を入れて指示を組む口（5 節）
-│   ├── prompts/<name>.md        2 つ以上の block が使う指示の断片（外への検索の決まり・却下の段落・役の定義）
+│   ├── prompts/<name>.md        2 つ以上の block が使う指示の断片（外への検索の決まり・却下の段落・役の定義・lang の既定の文。名は .shared/AGENTS.md）
+│   ├── schemas/<name>.schema.json   2 つ以上の block が使う port の形（json(shared:<name>) で名指す。13 章）
 │   └── 埋め（fence.py など。組み込みの時に workflows/.shared/ から移す）
 ├── <block>/                     block 1 つ（例 world）。名は観点の名
 │   ├── works-factory-<block>.yaml   YAML 1 本（グラフの名も同じ。E9）
-│   ├── prompts/<node-id>.md     AI の node ごとの指示（英語。Archon は読まない。prep が読む）
+│   ├── prompts/<node-id>.md     AI の node ごとの指示（英語。Archon は読まない。prep が読む。system prompt は <node-id>.system.md）
 │   ├── prompts/parts/<name>.md  同じ block の 2 つ以上の node が使う指示の断片（`{part:<name>}` で差し込む）
 │   ├── scripts/<name>.py        script の node（Archon が名で探す）
 │   ├── src/                     この block だけが使う Python（package。scripts/ から import する）
@@ -228,7 +229,7 @@ docs/design/<block>.md           block の設計書（この型に従う）
 Archon の源で確かめた読み方（この形はこれに合わせた）:
 
 - workflow は pack のフォルダの直下のフォルダ 1 つに YAML 1 本。YAML の無いフォルダ、dot で始まるフォルダ、`fixtures/` は workflow と見ない。2 本あれば誤り（`A/packages/workflows/src/workflow-discovery.ts` の `loadPackWorkflows`）。だから block は `blocks/` の直下に平らに並べる。入れ子の `blocks/judge/world/` は読まれない。
-- `--workflow-source <dir>` の `<dir>/.archon/workflows/` の下の各フォルダが pack になる。workflow のファイルの名は pack をまたいで重なると誤り（同じファイルの `loadPackagedWorkflowsFromDir` の collision）。新しい block は最後の名（`works-factory-plan` など）をそのまま使うので、今の `workflows/` と同時には読ませない。作り直しの間は `blocks/` だけを pack にして回す。起動の殻 `bin/_lib/place.py` の `workflow_source` は `pack.json` の `ours.folder` を指すので、読ませるフォルダを選べるように引数を 1 つ足す（名は実装で決める）。
+- `--workflow-source <dir>` の `<dir>/.archon/workflows/` の下の各フォルダが pack になる。workflow のファイルの名は pack をまたいで重なると誤り（同じファイルの `loadPackagedWorkflowsFromDir` の collision）。新しい block は最後の名（`works-factory-plan` など）をそのまま使うので、今の `workflows/` と同時には読ませない。作り直しの間は `blocks/` だけを pack にして回す。起動の殻 `bin/_lib/place.py` の `workflow_source` は `pack.json` の `ours.folder` を指すので、読ませるフォルダを選べるように引数を 1 つ足す（`folder`。殻では環境変数 `WORKS_FACTORY_FOLDER`。13 章）。
 - `command:` の md は `<workflow のフォルダ>/commands/<名>.md` から探す（同じファイルの `resolveCommandContentForScan`）。block の指示の md は Archon に読ませず prep が読むので、`commands/` でなく `prompts/` に置く。生の型（`{name}` が埋まっていない物）が AI に届く道はこれで無くなる。
 - 名の script は `<workflow のフォルダ>/scripts/` の 1 段下までの、知った拡張子のファイル全部で、名が重なると誤り（`A/packages/workflows/src/script-discovery.ts` の `MAX_SCRIPT_DISCOVERY_DEPTH = 1` と `discoverPackScripts`）。だから block の中の Python の部品は `scripts/` の下に置かず、`src/` に置く。
 - Archon は run の始めに `.archon` の源を丸ごと写し取り、resume もその写しから走る（`A/packages/workflows/src/workflow-source.ts`）。`src/` と `prompts/` は写しに入るが、`lib/` は入らない（今の `boundary.lib_root` は環境変数 `WORKS_FACTORY_ROOT` から辿る）。block だけが使うコードを block に置くと、止まった run の resume が同じコードで続く、という利点もある。
@@ -325,6 +326,9 @@ block の設計書（`docs/design/<block>.md`）は、頭に block の全体（�
 7. block の `scripts/` と `src/` に、字 `ARTIFACTS_DIR` と、ほかの block のフォルダへのパスが無い。
 8. どの block の `returns:` の node の `output_format` にも、`outcome_field:` の欄と `report` の欄が在る。
 9. `src/` の package の名は `src` で、`scripts/` の名と `lib/` のモジュールの名は重ならない（script のフォルダが `sys.path` の頭に来るため。今の E4 の決まりを続ける）。
+10. どの block にも試験のフォルダ `tests/blocks/<block の名の - を _ にした物>/` が在り、`__init__.py` と `test_*.py` を持つ（13 章）。
+
+1 の `systemPrompt:`（`prompts/<node-id>.system.md`）・3 の照らし方・5 の `json(shared:<schema>)`・6 の block と graph の見分けは 13 章の土台の決め。検査は `tests/layers/test_block_shape.py` 1 本。
 
 今ある yes/no の検査は、`blocks/` にも当てて続ける: E1（`archon validate` が警告なしで通る）・E6（外への書き込みは 1 つの node）・E7（読むだけの node の印）・E12（期限を置かない）・E16（承認ノードの形）・E19（AI の node の retry）・uv の頭の宣言。数の表と許す物の表で縛る検査（`tests/layers/test_layer_map.py` の `known`・`ALLOWED` の表・名の住処の柵）は持ち込まない（9 節で消す）。
 
@@ -560,9 +564,31 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
   - block の外の文書は関数の名を書かない。根拠: block の中の作り替えで block の外の文書が動かない（`2a21ac3b` で `owner-decisions.md` が動いた）。
 - 報告の文は事実を持つ block が組んで出力の `report` の欄で返す。根拠: 持ち主の決め（block はほかの block を名指さない・1 つの block だけのコードは block に置く）の下では、report が各 block の中身を import する今の形を続けられない。drift-audit の 3 節の直し方 1 と同じ。
 
+### 土台（11.1 の 0）で決めた事
+
+土台の PR で、文書のままでは決まらなかった所を、リポジトリの事実と Archon の源（`factory/pack.json` が止めた版 `a972888a`。取り置きは `~/.cache/works-factory/archon/a972888a…/`）で決めた。
+
+- 起動の殻で `blocks/` を読ませる口は、環境変数 `WORKS_FACTORY_FOLDER=blocks`（根の直下のフォルダの名だけ受ける）。`bin/_lib/place.py` の `workflow_source` に引数 `folder` を足した。根拠: 殻は Archon の命令の別名と自分の旗を作らない（持ち主の決め `one-launcher`。旗は命令の前に置けない `require_command_first`）。殻の切り替えは今も環境変数（`WORKS_FACTORY_HOME`・`WORKS_FACTORY_NO_AUTH`）。続ける命令は run が始めに写し取った pack から走るので読まない。
+- block の試験のフォルダは `tests/blocks/<block の名の - を _ にした物>/`（例 `tests/blocks/guidance_path/`）。根拠: Python の package の名は `-` を持てず、unittest は package でないフォルダを黙って見つけない（`tests/AGENTS.md`）。名の写し方は `tests/blocks/kit.py` の `tests_of` 1 か所で、形の検査（7.1 に足した 10）がフォルダの在りかを照らす。
+- 2 つ以上の block が使う port の形は `blocks/.shared/schemas/<名>` に 1 つ置き、入力の説明と `ports.json` で `json(shared:<名>)` と名指す（土台は `request.schema.json` を置いた。world が最初の使い手）。block だけの形は今どおり block の `schemas/`。同じ名の形のファイルが pack の 2 か所に在れば形の検査（7.1 の 5）が赤。根拠: 憲法の 4（2 つ以上の使い手は共通の住処）。断片の `{shared:…}` と同じ書き方にして、探す順の決まり（block を先に見るなど）を作らない。足りない共通の形（`constraints.schema.json` など）は、最初に要った PR が足す。
+- `lang` が空の時の言語の文は、共通の断片 `blocks/.shared/prompts/lang-default.md` に 1 つ置き、`prompt.lang` がそれを読む。根拠: 憲法の 2（AI に届く決まった文は md だけ）。値の口 `{lang}` に入る文なので `{shared:…}` では入れない。
+- 共通の断片の名は `blocks/.shared/AGENTS.md` に今在る物（`rejected`・`query-rule`〔段落 `spawns`〕・`lang-default`・役の定義 `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`）と取り置いた物（`resubmit`・`policy`・`design-premises`・`unknown-asks`・`works-gh`・`material-status`・`material-na`・`material-where`・`material-readonly`・`handoff`・`report-head-check`）を並べる。取り置いた物は最初に要った PR がその名で足す（11.1 の「同じ断片を 2 本の PR が足さない」）。役の定義のうち外への検索を持つ役（judge・investigator）は、断片の中で `{shared:query-rule}` を入れる（写しを持たない）。
+- system prompt の文も md に置く: `prompts/<node-id>.system.md`。`prompt.render`・`emit` が同じ値と `when` で組み（値の有無は 2 本の和で数える）、prep の出力の欄 `system` で返し、YAML は `systemPrompt: "$<prep>.output.system"` だけ。根拠: 憲法の 2（今の r2 は YAML の `systemPrompt:` に文を持つ）。止めた Archon は `systemPrompt:` を `prompt:` と同じに解く（`dag-executor.ts` の「`systemPrompt:` and `agents.*` go straight to the provider, so they resolve exactly as a `prompt:` does (#2476)」）。形の検査（7.1 の 1・2）が片方だけの物を赤にする。
+- `prompt:` に `$<prep>.output.prompt` で入れた指示の中の `$…`（対象の文の `$ARTIFACTS_DIR` など）は、止めた Archon が読み直さない。源で確かめた: `executor-shared.ts` の `substituteWorkflowVariables`「Every variable and every `options.references` grammar resolves in one scan of the template: a substituted value is inserted verbatim and never read as template syntax」、`output-ref.ts` の `substituteTemplate` は 1 回の走査。`with:` の値も同じ 1 回の走査（`dag-executor.ts` の `resolveValueTemplate`「in one pass」）。今の落とし穴 R44（読み直し）は、この版より前の Archon の振る舞い。だから指示をファイルに書いて役に Read させる形にはしない（道具を持たない役が受け取れなくなる）。world の standalone の筋書きが、依頼の字の `$ARTIFACTS_DIR` が字のまま AI の node に届くことを照らす（版の上げで崩れたら赤）。それでも、前の回の却下の文は `with: {reason: $LOOP_PREV…}` で運ばず、prep が自分の place の却下の控え（`lib/rolekit` の `rejects-<名>.json`）から全部を読む。根拠: resume で輪が 1 周目から回り直しても却下を数え直さず、#351 の「却下の理由を古い順に全部渡す」が 1 つの読み口で済む。
+- place は作るだけで、消さない。block の入口は place の中の自分が名を持つファイル（`src/` の定数と `<node-id>-prompt-*.md`）だけを消す。根拠: 単独の run では place は run directory の根で、Archon とほかの node の物も同じ所に在る。今の `worldblk.intake` は自分だけのフォルダを丸ごと消していた。
+- include の道は、`ARCHON_NODE_EXECUTION` の `path` の段（`.` 区切り）ごとの、最後の `__` より前を順に継ぐ。根拠: 止めた Archon は loop の本体の node の path を `<loop の id>.<node の id>` にし（`dag/run-context.ts` の `beginExecution` が `stepNamePrefix + node.id`）、include の展開は loop の本体の id に頭を付けない。今の `boundary.own_prefix` は最後の段だけを読むので、include の中の loop の本体の node の道を落とす。
+- dry-run（`workflow test`）は `ARCHON_NODE_EXECUTION` の `path` に node の id だけを渡す（`dry-run.ts` の `path: node.id`）。だから graph の筋書きで、include した block の loop の本体の script を `exec-code` で走らせると place を取り違える。graph の筋書き（policy-check）はその本体を差し替えて配線だけを見て、block の中の道は block 自身の筋書きが見る。
+- 7.1 の 3（md が standalone の値で組める）は、standalone の筋書きの形（`exec-code: true`・prep を差し替えない・AI の node を全部 `reached` に持つ）と、Archon の `workflow test` が全部の筋書きを通すことの 2 つで照らす。根拠: prompt の値は port の値から prep が組むので、md を値で組めるかは prep を本当に走らせないと決まらない。`resolved-text-contains` で、組んだ指示が AI の node に届いたことも照らせる。値の有無は段落の真偽に依らず md の全部の口で数える（prep はいつも同じ組の値を渡す）。
+- 7.1 の 6 の「block」と「graph」の見分けは、ほかの workflow を名指すか（`include:` か、自分の外を指す `workflow:`）で決め、名指す物は AI の node を持たない、と検査する。根拠: 名の表で分けない（持ち主の決め `shape-checks-only`）。graph の定義（観点の判断は block に置く）をそのまま形にした。
+- 今ある yes/no の検査（E6・E7・E12・E16・E19）は、`tests/layers/scan.py` を書き直さず、`blocks/` を `workflows/` の場所に写した一時の木に当てる。E1 は使い捨ての木で `archon validate` に通す。考えの住処の柵（`docs/concepts.json`）からは `blocks/**` を外した（表の `loosened` に訳）。根拠: 柵と既知の漏れの表は組み込みで消す（9.4）。新しい置き場は 7.1 の検査が縛る。
+- block の返りの `ok`（`outcome_field:`）は「block の仕事が最後まで回ったか」。world では `status` が `ok` か（world.md の 1.2）。今の `world-finish` はいつも `ok: true` を返していたので、ここだけ振る舞いが変わる（judge のまとめが `ok` を読む時に決める）。
+- guidance-path の読み手は、頼みごとに新しい会話（`loop_group` の `fresh_context: true`）で起こし、閉じるべき所を見せない。案内の直しは別の役（読み手と別の会話）が出す。設計は [guidance-path.md](guidance-path.md)。
+- 設計の頭の語の「Archon の源」の置き場（`~/.local/state/works-factory/archon-src/d97d00ef…/`）は、`factory/pack.json` が今止める版（`a972888a`）と違う。土台はどれも `a972888a` の源で確かめた。
+
 ## 未確認の一覧
 
 - `prompt:` に大きい指示（数十 KB）を `$<id>.output.prompt` で入れた時に、Archon の出力の大きさの上限に当たらないか。
+- dry-run が include の中の loop の本体の node に include の道を渡すようになるか（上の 13 章。なれば graph の筋書きでも本体を走らせられる）。
 - `graphloops/engine/validator.py` を消せるか（判定の受け付けが頼る所）。
 - `lib/downgrades.json` と `lib/design-row.schema.json` の使い手。
 - Archon の workflow の頭に、全部の AI の node に効くモデルと effort の既定を書けるか（書ければ `d0b086a2` の形の 1 回きりの散らばりも 1 か所になる。1.2 の残る散らばり）。
