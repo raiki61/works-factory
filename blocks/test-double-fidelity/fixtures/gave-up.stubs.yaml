@@ -8,7 +8,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    test-double-fidelity: 'この役は代役の忠実性の役（任せ先）。'
+    test-double-fidelity: 'You are the test-double-fidelity role.'
 exec-code: true
 test-double-fidelity:
   material:

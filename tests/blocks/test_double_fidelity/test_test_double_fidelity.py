@@ -60,6 +60,12 @@ class FlowCase(unittest.TestCase):
 
     def test_not_applicable_is_refused_and_the_paragraph_says_why(self):
         self.intake()
+        got = self.prep()["prompt"]
+        self.assertIn("The condition of this viewpoint holds for this run (差分が外部との継ぎ目に触れる)", got)
+        for gone in ("has no condition under which", "does not hold for this run", "none of the facts the machine holds"):
+            self.assertNotIn(gone, got)
+        self.assertIn("Bash runs inside a sandbox, and its network is open", got)
+        self.assertNotIn("If you start a sub-agent", got)
         refused = self.accept({**GOOD, "material": {"status": "not_applicable", "reason": "継ぎ目が無い"}})
         self.assertEqual((refused["ok"], refused["done"]), (False, False))
         self.assertIn("条件が真で走ったのに not_applicable", refused["reason"])

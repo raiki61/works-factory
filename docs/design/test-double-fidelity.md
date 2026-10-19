@@ -302,3 +302,8 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 指示から「継ぎ目に触れない差分なら not_applicable」を消す。訳: 受け付けがいつも拒む書き方を指示が勧めると、役が 1 回拒まれる道が残る。材料の節と受け付けの側に合わせた（2.6）。
 - `report_lines` に不一致の行を 1 行ずつ足す。訳: prior-decisions が決着済みの論点を足したのと同じく、素材の 1 行（件数と detail の要約）だけでは、どの継ぎ目のどこかが報告から辿れない。
 - `test_run_launch` の注記「denyWrite は pr-check の注釈と同じ」を、`net_closed_launch` の注記 3 行の写しに替える。訳: 錨を展開した block の YAML に pr-check は無く、名指す先が無い注記になる（block はほかの block を名指さない。憲法の 3）。
+- 実装で決めた事（materials.md の 10.1 と同じ扱い）:
+  - `fill` は `materialkit.fill_entry(entry, None)`（件数は渡されていない、と言う）。訳: 1.5 の `0` だと「依頼 0 件」と言い切るが、この block は依頼の件数を受けない。2.9 の試験の句（「件数は渡されていない」）と、受けない事実に合わせた。
+  - 役の 1 段落の頭を「You are the test-double-fidelity role.」にし、「started in a new conversation」を外した。訳: 輪が `fresh_context: false` で、2 回目からは同じ会話が続くので、新しい会話と言うと事実と違う（調整役の指摘）。2.3 の本文からの差。固定の文（筋書きの `resolved-text-contains`）もこの文。
+  - 輪の中は prep → 役 → accept の 1 本線で、同じ層に node を 2 つ置かない（会話を続ける役の前に複数 node の層を作ると Archon が会話を切るため）。
+  - `intake.py` は `request` の port を持たない（この block の入力は `base`・`entry`・`lang` の 3 つだけ）。
