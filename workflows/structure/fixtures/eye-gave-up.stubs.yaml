@@ -1,13 +1,10 @@
-# 筋書き: 構造の目の返答が受け付けで拒まれ続け、受け付けが give_up の done を出して輪を抜けた run。返す節は ok: false で正しく終わる
-# （計画は構造の目の行なしで進む）
-structure-measure: {structure_file: structure/structure.json, design_file: structure/design.jsonl, eye: true}
-structure-eye-prep: {prompt: "stub: 指示書", prompt_file: structure/eye-prompt-3.md, attempt: 3}
-structure-eye:
-  rows: []
-structure-eye-accept: {ok: false, done: true, give_up: true, reason: "stub: 行の無い単位が在る", attempt: 3}
-structure:
-  ok: false
-  structure: {type: archon_artifact, run_id: fixture-run, path: structure/structure-state.json}
+# 役の返答が受け付けで拒まれる道: run は止めず、出口が status: failed と拒否の理由を返す。筋書きでは輪が 1 周で終わるので拒否は 1 回で、
+# 3 回で諦める数えは tests/blocks/structure の試験が確かめる
 fixture:
   expect: completed
-  reached: [structure-eye-accept, structure]
+  reached: [measure, structure-eye-prep, structure-eye, structure-eye-accept, finish]
+  inputs:
+    units: '[{"id": "u1", "paths": ["README.md"], "summary": "README の 1 行を直す"}]'
+exec-code: true
+structure-eye:
+  rows: []

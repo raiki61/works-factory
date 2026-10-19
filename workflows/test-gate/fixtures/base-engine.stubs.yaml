@@ -1,32 +1,37 @@
-# 筋書き base-engine: 形 base で、機械が宣言の段を走らせた（by engine）ので任せ先の輪は飛ばされ、返す節に届く
+# 筋書き base-engine: 形 base で、機械が宣言の段を走らせた（by engine）ので任せ先の輪と実行器の輪は飛ばされ、返す node に届く。
+# 配線だけを見る（script も差し替える）
+intake: {ok: true, reason: ""}
 run:
   by: engine
   material: {status: found, count: 1, detail: "suite: exit 1"}
   runs: [{name: suite, exit: 1, how: direct}]
   skipped_steps: []
   same_as: null
-  log: test-gate/base/logs/a1/checks.log
+  log: logs/a1/checks.log
   junit_steps: [suite]
   fingerprint_before: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
   fingerprint_after: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
+  suite_owed: false
 result:
   mode: base
   ok: true
   green: false
   red_cause: ""
   ran_steps: {ran: [suite], unran: []}
-  baseline: {type: archon_artifact, run_id: stub-run, path: test-gate/base/baseline.json}
+  baseline: {type: archon_artifact, run_id: stub-run, path: baseline.json}
   fingerprint: null
   test_outcomes: null
-  evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/base/evidence.md}
+  evidence: {type: archon_artifact, run_id: stub-run, path: evidence.md}
   by: engine
   suites_line: "走らせた: suite（exit 1・direct）／走らせなかった: test_cmd（渡されていない）"
-  log: test-gate/base/logs/a1/checks.log
+  log: logs/a1/checks.log
   baseline_line: ""
   reason: ""
+  suite: ""
+  suite_note: ""
+  report: ["直す前のテスト: 赤"]
 fixture:
   inputs:
     mode: base
-    start: '{"type": "archon_artifact", "run_id": "stub-run", "path": "start/record.json"}'
   expect: completed
-  reached: [run, result]
+  reached: [intake, run, result]

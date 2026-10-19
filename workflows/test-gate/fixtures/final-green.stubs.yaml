@@ -1,11 +1,12 @@
-# 筋書き final-green: 形 final で base の返りの baseline を渡し、緑で指紋が揃ったので返す節が認証する（ok: true）
+# 筋書き final-green: 形 final で base の出力の baseline のファイルと実行器を渡し、緑で指紋が揃ったので返す node が認証する（ok: true）
+intake: {ok: true, reason: ""}
 run:
   by: engine
   material: {status: clean, checked: "suite: exit 0"}
   runs: [{name: suite, exit: 0, how: direct}]
   skipped_steps: []
   same_as: null
-  log: test-gate/final/logs/a1/checks.log
+  log: logs/a1/checks.log
   junit_steps: [suite]
   fingerprint_before: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
   fingerprint_after: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
@@ -18,16 +19,19 @@ result:
   baseline: null
   fingerprint: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
   test_outcomes: {rows: [], unmeasured: ""}
-  evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/final/evidence.md}
+  evidence: {type: archon_artifact, run_id: stub-run, path: evidence.md}
   by: engine
-  suites_line: "走らせた: suite（exit 0・direct）／走らせなかった: test_cmd（渡されていない）"
-  log: test-gate/final/logs/a1/checks.log
+  suites_line: "走らせた: suite（exit 1・direct）／走らせなかった: test_cmd（渡されていない）"
+  log: logs/a1/checks.log
   baseline_line: "修正前のテスト: 赤（元の結末（入力 baseline） の status found）"
   reason: ""
+  suite: "/tmp/runner"
+  suite_note: ""
+  report: ["試験の関門（final）: 緑・ok True"]
 fixture:
   inputs:
     mode: final
-    start: '{"type": "archon_artifact", "run_id": "stub-run", "path": "start/record.json"}'
-    baseline: '{"type": "archon_artifact", "run_id": "stub-run", "path": "test-gate/base/baseline.json"}'
+    baseline: test-gate-base/baseline.json
+    tdd_suite: /tmp/runner
   expect: completed
-  reached: [run, result]
+  reached: [intake, run, result]

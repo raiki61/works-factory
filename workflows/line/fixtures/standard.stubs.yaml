@@ -1,45 +1,431 @@
-# 全部の段が回る。計画の往復の返りを外の節 ask-before-fix が $plan-rounds.output.<欄> で読めることも照らす（fix に届く値は dry-run の
-# 制約で筋書きでは照らせず、tests/workflows/test_line.py が線の with: で照らす。docs/design.md の U3）。
-# 線の返り result の apply.ok が真で sealed.hash と apply.hash が同じこと（bin/apply が読む欄）は tests/e2e/test_line_scenarios.py の
-# LineReturnsTest が同じ stub の dry-run の trace で照らす。
-# dry-run の置き場には修正の diff の隣の控えが無い（dry-run.ts の executeCodeNode。置き場は模擬ごとの一時の物）ので、最後の関所は読めない控えを開けた理由に名指す
-# （ほかに開けた理由の無い時の「いつも開く設定」の文は tests/workflows/test_line.py の AskFinalCase が照らす）。
+# 全部の段が回る標準の筋書き。判定は ready で、構造・独立設計・計画・事前審査が通り、修正・差分の審査・最後のテスト・独立の目・封じ・当てまで進む。
+# dry-run の置き場には修正の控えのファイルが無いので、最後の承認ノードは読めない控えを開けた理由に名指す。
+# 線の返り result の apply.ok が真で sealed.hash と apply.hash が同じこと（bin/apply が読む欄）は tests/blocks/line/test_scenarios.py が
+# 同じ stub の dry-run の trace で照らす。
 fixture:
-  expect: "completed"
-  inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
-  reached: ["start", "gate-start", "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "fix__fix", "after-fix", "judged", "fixed", "redepth", "eyes__verdict", "merge-seal__merge", "ask-final", "gate-final", "answer-final", "merge-apply__merge", "collect", "report__report", "sweep-children", "result"]
-  resolved-text-contains: {"gate-final": "開けた理由: 修正の段の控えを読めない"}
+  expect: completed
+  inputs: {request: .archon/workflows/works-factory/line/fixtures/request.json}
+  reached: [start, gate-start, answer-start, test-gate-base__result, judge__verdict, tiers, owed, structure__finish, independent-design__finish, plan__finish, plan-review-run__finish, plan-out, ask-before-fix, answer-before-fix, fix-in, fix__finish, after-fix, raise, fixed, judged, test-gate-final__result, eyes-in, eyes__verdict, merge-seal__merge, ask-final, gate-final, answer-final, merge-apply__merge, collect, report__finish, sweep-children, result]
+  resolved-text-contains: {gate-final: 修正の段の控えを読めない}
 exec-code: true
-test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
-test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "ran_steps": {"ran": ["suite"], "unran": []}, "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "test_outcomes": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}, "by": "engine", "suites_line": "走らせた: suite（exit 0・direct）／走らせなかった: 無い", "log": "test-gate-base/logs/checks.log", "baseline_line": "", "reason": ""}
-judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "reason": ""}
-judge__verify-merge: {"ok": true, "reason": ""}
-judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null, "depth": "標準", "depth_why": "筋書きの stub", "premises": null, "verify": null, "pr_excluded": null, "materials": null, "purpose_review": null, "depth_record": null, "decisions": null, "answer_ties": null, "review_lenses": null, "pr_drafts": null, "rejudge_exit": null, "rejudge_diff": null, "purpose_means": null, "world_state": null}
-owed: {"owed": true, "why": "", "stop_reason": ""}
-structure__structure-measure: {"structure_file": "structure/structure.json", "design_file": "structure/design.jsonl", "eye": false}
-structure__structure: {"ok": true, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "structure/structure-state.json"}}
-plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
-plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
-plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 1, "fix_plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/p2.fix_plan.json"}, "rejects": [], "nothing_owed": false, "gave_up": null}
-plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "reason": ""}
-plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "gate_passes": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/gate-passes.json"}, "gate": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/gate.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "design_premises": null, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": [], "gave_up": null}
-fix__route: {"group": true}
-fix__group-start: {"tdd": false, "units": 1, "reason": ""}
-fix-prep: {"prompt_file": "", "go": false, "iteration": 1}
-fix-accept: {"ok": true, "done": true, "reason": "", "reason_file": ""}
-fix__group-end: {"result_file": ""}
-fix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": null, "replan_items": [], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false, "premise_drift_note": ""}, "delta_review": {"rounds": 1, "pass": true}, "handoffs": [], "mismatched": [], "plan_declared": [], "stop_reason": "", "x_scalars": {"x_moved_lines": 3}, "allowed_tests": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/allowed-tests.json"}, "accept_trace": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/accept-trace.json"}, "lenses": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/lenses.json"}, "closure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/closure.json"}, "delta_holes": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/delta-holes.json"}, "tdd_unit": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/tdd-unit.json"}, "removed": [], "tdd_refused": {"refused": [], "unread": []}, "item_claims": null}
-test-gate-final__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/final/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
-test-gate-final__result: {"mode": "final", "ok": true, "green": true, "red_cause": "", "ran_steps": {"ran": ["suite"], "unran": []}, "baseline": null, "fingerprint": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "test_outcomes": {"rows": [], "unmeasured": ""}, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-final/evidence.json"}, "by": "engine", "suites_line": "走らせた: suite（exit 0・direct）／走らせなかった: 無い", "log": "test-gate-final/logs/checks.log", "baseline_line": "修正前のテスト: 緑（元の結末（入力 baseline） の status clean）", "reason": ""}
-eyes__structure-after: {"after": {"type": "archon_artifact", "run_id": "fixture-run", "path": "eyes/structure-after.json"}, "status": "ok", "reason": ""}
-eyes__prep: {"run_eyes": false, "one_eye": false, "one_briefs": "", "compare_due": false, "premise_due": false, "purpose_text": "古い入口を消す", "design_text": "入口を 1 つにする", "design_reply": "{}", "diff_file": "/tmp/diff.patch", "diff_lines": 6, "changed_files": "a.py", "scalars": "足した行 1・消した行 1", "cwd": "/tmp/repo", "base_rev": "0123abc", "review_md": "/tmp/REVIEW.md", "repo_review_md": "（対象のリポジトリの根に REVIEW.md は無い）", "policy_path": "", "recorded_policy": "## 記録された方針\n\n記録された方針: 無い", "lang_line": "人が読む文の欄は依頼文の言語で書け。", "r1_head": "## 最小の意味", "r3_head": "## 考えの住処", "concept_map": "## 考えの住処の地図", "candidates_file": "/tmp/eyes/r1-comments.json", "judgment_file": "/tmp/judgment.json", "units_text": "- u1", "fixes_text": "- u1: fixed", "constraints_text": "（無い）", "premises_text": "### 記録の制約", "carried": "", "plan_declared": "", "r4_context": "- 波及の一覧: /tmp/ripple.json", "green_line": "", "measured_text": "- 比べた結果（test_outcomes）が渡っていない", "origin_text": "- 起点は修正前の HEAD"}
-eyes__protected: {"hits": [], "lines": [], "broken": ""}
-eyes__verdict: {"ok": true, "r1": {"status": "pass", "reason": ""}, "r2": {"status": "pass", "reason": ""}, "r3": {"status": "pass", "reason": ""}, "r4": {"status": "pass", "reason": ""}, "questions": [], "premise_check": null, "structure_after": null, "protected_hits": [], "notes": null, "r4_passes": null, "premise_reply": null}
-merge-seal__place: {"mode": "seal", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "merge/sealed.diff"}, "protected_hits": [], "protected_count": 0, "reason": "", "base_rev": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "deliver": ""}
-merge-seal__merge: {"mode": "seal", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "merge/sealed.diff"}, "protected_hits": [], "protected_count": 0, "reason": "", "deliver": null, "optional": [{"node": "pr-open", "bare": false}]}
-merge-apply__place: {"mode": "apply", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "merge/apply.diff"}, "protected_hits": null, "protected_count": null, "reason": "", "base_rev": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "deliver": ""}
-merge-apply__merge: {"mode": "apply", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "merge/apply.diff"}, "protected_hits": null, "protected_count": null, "reason": "", "deliver": {"act": "placed", "pr": null, "reason": ""}, "optional": [{"node": "pr-open", "bare": false}]}
-report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
-report__report: {"ok": true, "outcome": "fixed", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
 gate-start: {decision: approve, text: ''}
 gate-final: {decision: approve, text: ''}
+owed:
+  owed: true
+  why: ''
+  recorded: []
+  stop_reason: ''
+test-gate-base__intake: {ok: true, reason: ''}
+test-gate-base__run:
+  by: engine
+  material: {status: clean, checked: 'suite: exit 0'}
+  runs:
+  - {name: suite, exit: 0, how: direct}
+  skipped_steps: []
+  same_as: null
+  log: test-gate-base/logs/checks.log
+  junit_steps: []
+  fingerprint_before: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+  fingerprint_after: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+test-gate-base__result:
+  mode: base
+  ok: true
+  green: true
+  red_cause: ''
+  ran_steps:
+    ran: [suite]
+    unran: []
+  baseline: {type: archon_artifact, run_id: dry-run, path: test-gate-base/baseline.json}
+  fingerprint: null
+  test_outcomes: null
+  evidence: {type: archon_artifact, run_id: dry-run, path: test-gate-base/evidence.json}
+  by: engine
+  suites_line: '走らせた: suite（exit 0・direct）／走らせなかった: 無い'
+  log: test-gate-base/logs/checks.log
+  baseline_line: ''
+  reason: ''
+  suite: ''
+  suite_note: ''
+  report: ['試験の関門（base）: 緑']
+judge__ins: {spec: false, world: false, web: 'on'}
+judge__head-depth__intake: {due: false, reason: ''}
+judge__head-depth__finish:
+  ok: true
+  status: ok
+  reason: ''
+  tier: 標準
+  why: 筋書きの stub
+  rows: []
+  record: {type: archon_artifact, run_id: dry-run, path: head-depth/depth-head.json}
+  report: ['- 段: 標準']
+judge__spec-in: {go: false, stop_reason: '', reason: '', request: null, spec: null, added_rows: null, added_origin: ''}
+judge__diagnose-in:
+  ok: false
+  reason: 筋書きの stub
+  go: false
+  purpose: null
+  constraints: null
+  materials: []
+  missing: []
+  pr_material: null
+  world_rows: ''
+  row_asks: []
+  depth_why: ''
+  spec_rows: ''
+  spec_origin: ''
+  tier: 標準
+  verify: false
+judge__verdict:
+  ok: true
+  stop_reason: ''
+  reason: ''
+  ready: true
+  units:
+  - id: u1
+    paths: [stats.py]
+    summary: 空の列の mean が 0 割りで落ちる
+  judgment: null
+  answer_ties: null
+  out_of_purpose: null
+  materials: null
+  brief: null
+  inputs: null
+  purpose: {type: archon_artifact, run_id: dry-run, path: judge/purpose.json}
+  purpose_text: 空の列でも mean が落ちない
+  purpose_source: 筋書きの stub
+  means: []
+  purpose_review: null
+  constraints: null
+  world: null
+  world_state: {status: skipped, reason: 筋書きの stub}
+  spec: null
+  spec_rows: null
+  spec_origin: ''
+  excluded: null
+  pr_drafts: null
+  downgrades: []
+  decisions: null
+  tier: 標準
+  tier_why: 筋書きの stub
+  row_asks: []
+  tier_record: null
+  verify: null
+  verify_why: 回さない（筋書きの stub）
+  report: ['- 判定: 開いた単位 1']
+  sections: []
+  optional: []
+structure__measure: {eye: false, reason: ''}
+structure__finish:
+  ok: true
+  status: ok
+  reason: ''
+  structure: null
+  after: null
+  dirty: 0
+  escalate: 0
+  optional:
+  - {node: measure, bare: false}
+  report: ['- 構造: 汚れない']
+independent-design__intake: {due: false, status: '', reason: ''}
+independent-design__finish:
+  ok: true
+  status: ok
+  stands: true
+  design: null
+  premises: null
+  reason: ''
+  downgrades: []
+  report: ['- 独立設計: 問いは立つ']
+plan__intake: {go: false, mode: plan, round: 1, reason: ''}
+plan__ripple-items: {ok: true}
+plan__finish:
+  ok: true
+  status: ok
+  reason: ''
+  mode: plan
+  round: 1
+  owed: [u1]
+  plan: {type: archon_artifact, run_id: dry-run, path: plan/plan-fields.json}
+  fix_plan: {type: archon_artifact, run_id: dry-run, path: plan/fix-plan.json}
+  reply: null
+  handoff: null
+  replan: null
+  ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
+  rejects: []
+  gave_up: null
+  report: ['- 計画: 1 項目']
+plan-out:
+  done: true
+  ok: true
+  status: ok
+  round: 1
+  plan_prior: null
+  record: null
+  plan: {type: archon_artifact, run_id: dry-run, path: plan/plan-fields.json}
+  fix_plan: {type: archon_artifact, run_id: dry-run, path: plan/fix-plan.json}
+  reply: null
+  handoffs: []
+  ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
+  owed: [u1]
+  gave_up: null
+  stalled: false
+  capped: false
+  review: null
+  asks: []
+  deviations: []
+  review_status: ok
+  review_reason: ''
+  stop_reason: ''
+plan-review-run__intake: {due: false, form: plan, tree: false, k: 0, reason: ''}
+plan-review-run__finish:
+  ok: true
+  status: ok
+  form: plan
+  round: 1
+  reason: ''
+  holes: {type: archon_artifact, run_id: dry-run, path: plan-review/holes.json}
+  blocks: []
+  pass: {type: archon_artifact, run_id: dry-run, path: plan-review/pass.json}
+  asks: []
+  deviations: []
+  replan: []
+  gave_up: null
+  reads: null
+  report: ['- 事前審査: 通った']
+fix__intake: {ok: false, whole: false, reason: ''}
+fix__fix-reads:
+  ok: true
+  missing: []
+  index_file: fix/reads.json
+  reason: ''
+fix__finish:
+  ok: true
+  reason: ''
+  units:
+  - {unit_id: u1, group_id: g1, status: fixed, reason: ''}
+  groups:
+  - group_id: g1
+    unit_ids: [u1]
+    returned: true
+    reason: ''
+  conflicts: null
+  carry: null
+  replan_items: []
+  objection: ''
+  diff: {type: archon_artifact, run_id: dry-run, path: fix/diff.patch}
+  start_tree: tttttttttttttttttttttttttttttttttttttttt
+  reply: null
+  ruled_reply: null
+  scope: null
+  checked: {ok: true, reason: ''}
+  allowed_test_changes: []
+  changed: {mechanism_changed: false, premise_drift: false, gates_changed: false, seams_changed: false, security_surface_changed: false, path_changed: false, premise_drift_note: ''}
+  x_scalars: {x_moved_lines: 3}
+  handoffs: []
+  mismatched: []
+  plan_declared: []
+  stop_reason: ''
+  allowed_tests: {type: archon_artifact, run_id: dry-run, path: fix/allowed-tests.json}
+  accept_trace: {type: archon_artifact, run_id: dry-run, path: fix/accept-trace.json}
+  closure: {type: archon_artifact, run_id: dry-run, path: fix/closure.json}
+  tdd_unit: null
+  frozen: null
+  tdd: []
+  removed: null
+  tdd_refused:
+    refused: []
+    unread: []
+  item_claims: null
+  freeze_off: []
+  report: ['- 修正: 1 単位']
+lens__intake: {due: false, reason: '', silent_failure_hunter_go: false}
+lens__finish:
+  ok: true
+  status: ok
+  reason: ''
+  rows: {type: archon_artifact, run_id: dry-run, path: lens/rows.json}
+  ran: 1
+  failed: 0
+  not_routed: 0
+  carry: []
+  report: ['- レンズ: 1 本']
+  optional:
+  - {node: silent-failure-hunter, bare: false}
+delta-review__intake:
+  due: false
+  reason: ''
+  seal: {}
+delta-review__owed-1: {due: false, reason: ''}
+delta-review__cut-2: {due: false, reason: ''}
+delta-review__owed-2: {due: false, reason: ''}
+delta-review__finish:
+  ok: true
+  status: ok
+  reason: ''
+  rounds: 1
+  pass: true
+  holes: {type: archon_artifact, run_id: dry-run, path: delta-review/holes.json}
+  diff: {type: archon_artifact, run_id: dry-run, path: delta-review/diff.patch}
+  carry: []
+  report: ['- 差分の審査: 通った']
+parallel-pr-after__scan: {go_role: false, reason: ''}
+parallel-pr-after__finish:
+  ok: true
+  status: clean
+  stop_reason: ''
+  reason: ''
+  material: {status: clean, checked: 開いている PR は無い}
+  excluded: {type: archon_artifact, run_id: dry-run, path: parallel-pr/pr-excluded.json}
+  drafts: null
+  reads: null
+  downgrades: []
+  report: ['- 並行 PR: clean']
+test-gate-final__intake: {ok: true, reason: ''}
+test-gate-final__run:
+  by: engine
+  material: {status: clean, checked: 'suite: exit 0'}
+  runs:
+  - {name: suite, exit: 0, how: direct}
+  skipped_steps: []
+  same_as: null
+  log: test-gate-final/logs/checks.log
+  junit_steps: []
+  fingerprint_before: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+  fingerprint_after: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+test-gate-final__result:
+  mode: final
+  ok: true
+  green: true
+  red_cause: ''
+  ran_steps:
+    ran: [suite]
+    unran: []
+  baseline: null
+  fingerprint: {head: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh, diff_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+  test_outcomes:
+    rows: []
+    unmeasured: ''
+  evidence: {type: archon_artifact, run_id: dry-run, path: test-gate-final/evidence.json}
+  by: engine
+  suites_line: '走らせた: suite（exit 0・direct）／走らせなかった: 無い'
+  log: test-gate-final/logs/checks.log
+  baseline_line: '修正前のテスト: 緑（元の結末（入力 baseline） の status clean）'
+  reason: ''
+  suite: ''
+  suite_note: ''
+  report: ['試験の関門（final）: 緑']
+eyes__ins: {run: true, merge: false}
+eyes__structure-after__measure: {eye: false, reason: ''}
+eyes__structure-after__finish:
+  ok: true
+  status: ok
+  reason: ''
+  structure: null
+  after: {type: archon_artifact, run_id: dry-run, path: eyes/structure-after.json}
+  dirty: 0
+  escalate: 0
+  optional:
+  - {node: measure, bare: false}
+  report: ['- 直した後の実測: 増えていない']
+eyes__after-in:
+  after: {type: archon_artifact, run_id: dry-run, path: eyes/structure-after.json}
+  why: ''
+eyes__r1__intake: {due: false, reason: ''}
+eyes__r1__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict: {status: pass, reason: r1 は通した}
+  questions: []
+  report: ['R1: pass']
+eyes__r2__intake: {compare: false, premise: false, reason: ''}
+eyes__r2__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict: {status: pass, reason: r2 は通した}
+  questions: []
+  report: ['R2: pass']
+  premise_check: null
+  notes: []
+eyes__r3__intake: {due: false, reason: ''}
+eyes__r3__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict: {status: pass, reason: r3 は通した}
+  questions: []
+  report: ['R3: pass']
+eyes__r4__intake: {due: false, reason: ''}
+eyes__r4__finish:
+  ok: true
+  status: ran
+  reason: ''
+  verdict: {status: pass, reason: r4 は通した}
+  questions: []
+  report: ['R4: pass']
+  passes: []
+  coherence: null
+eyes__verdict:
+  ok: true
+  r1: {status: pass, reason: r1 は通した}
+  r2: {status: pass, reason: r2 は通した}
+  r3: {status: pass, reason: r3 は通した}
+  r4: {status: pass, reason: r4 は通した}
+  questions: []
+  passes: []
+  premise_check: null
+  notes: []
+  after: null
+  dirty: 0
+  escalate: 0
+  after_ok: true
+  report: ['- 独立の目: 全部通った']
+  sections: []
+  optional: []
+merge-seal__place:
+  mode: seal
+  ok: true
+  hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  diff: null
+  protected_hits: []
+  protected_count: 0
+  reason: ''
+  base_rev: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  deliver: ''
+merge-seal__merge:
+  mode: seal
+  ok: true
+  hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  diff: null
+  protected_hits: []
+  protected_count: 0
+  reason: ''
+  deliver: null
+  optional:
+  - {node: pr-open, bare: false}
+  report: ['- merge（seal）: 置いた']
+merge-apply__place: {mode: apply, ok: true, hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, diff: null, protected_hits: null, protected_count: null, reason: '', base_rev: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, deliver: ''}
+merge-apply__merge:
+  mode: apply
+  ok: true
+  hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  diff: null
+  protected_hits: null
+  protected_count: null
+  reason: ''
+  deliver: {act: placed, pr: null, reason: ''}
+  optional:
+  - {node: pr-open, bare: false}
+  report: ['- merge（apply）: 置いた']
+report__facts: {outcome: fixed, ok: true, stop_reason: '', machine: null, next_request: null, prior_failures: null, ai_go: false, stamp: ''}
+report__finish:
+  ok: true
+  outcome: fixed
+  stop_reason: ''
+  machine: {type: archon_artifact, run_id: dry-run, path: report/report.machine.json}
+  human: {type: archon_artifact, run_id: dry-run, path: report/report.md}
+  detail: null
+  next_request: null
+  prior_failures: null
+  report: ['- 報告']

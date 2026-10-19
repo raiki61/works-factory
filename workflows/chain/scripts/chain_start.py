@@ -12,31 +12,29 @@
 first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）と、
 最後の差分の元の基 origin（run の作業ツリーの今の HEAD。1 周目の子の始めの記録の base_rev と同じ版。commit の無い木なら空）と、
 確かめた出口の語 deliver（lib/entry.py の DELIVERS。知らない語は act: refused）も返す。
-返りの user_env_dir は鎖の run の共有の置き場（ARTIFACTS_DIR の字。refused の時は空）で、hand の commit の節が commit の hooks を
+返りの user_env_dir は鎖の run の共有の置き場（ports.place()。refused の時は空）で、hand の commit の節が commit の hooks を
 利用者の環境に戻して印を置く要件（workflows/AGENTS.md の E4: 一番上のグラフの始めのノードが作って入力で渡す）。印は鎖の報告に載せない
 （殻の起動の 1 行が告げる。chain.md は hand より前に書かれる）。
-出力ノード result が結ぶので落ちない: 境の口を読めない時も標準ライブラリだけで act: refused を返す。
+出力ノード result が結ぶので落ちない: ports か lib を読めない時も標準ライブラリだけで act: refused を返す。
 
 入力: rounds・budget_usd・request・base・pr・spec・design_only・fix_fixture・deliver（鎖の入力）
 """
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 try:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-    import boundary
+    import ports
+    from src import reads
+    import chain
+    import entry
+    import entryshape
     unread = None
 except Exception as error:   # 出力ノードが結ぶので落ちない（上の docstring）
-    boundary, unread = None, error
-
-if boundary is not None:
-    with boundary.guarded_imports():
-        import chain
-        import entry
-        import entryshape
+    ports, unread = None, error
 
 
 DESIGN_ONLY_REFUSED = "周の鎖は design_only と組めない（設計だけの run は差分を作らず、次の周の基が無い）"
@@ -50,39 +48,34 @@ def refused(reason: str) -> dict:
             "user_env_dir": ""}
 
 
-def head() -> str:
-    done = subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"], capture_output=True, text=True, encoding="utf-8")
-    return done.stdout.strip() if done.returncode == 0 else ""
-
-
 def start() -> dict:
-    if boundary.text(os.environ.get("INPUTS_DESIGN_ONLY")):
+    if reads.text(os.environ.get("INPUTS_DESIGN_ONLY")):
         return refused(DESIGN_ONLY_REFUSED)
-    if boundary.text(os.environ.get("INPUTS_FIX_FIXTURE")):
+    if reads.text(os.environ.get("INPUTS_FIX_FIXTURE")):
         return refused(FIX_FIXTURE_REFUSED)
-    request = boundary.text(os.environ.get("INPUTS_REQUEST"))
-    pr = boundary.text(os.environ.get("INPUTS_PR"))
+    request = reads.text(os.environ.get("INPUTS_REQUEST"))
+    pr = reads.text(os.environ.get("INPUTS_PR"))
     try:
-        rounds, budget = chain.limits(boundary.text(os.environ.get("INPUTS_ROUNDS")),
-                                      boundary.text(os.environ.get("INPUTS_BUDGET_USD")))
-        deliver = entry.deliver_word(boundary.text(os.environ.get("INPUTS_DELIVER")))
+        rounds, budget = chain.limits(reads.text(os.environ.get("INPUTS_ROUNDS")),
+                                      reads.text(os.environ.get("INPUTS_BUDGET_USD")))
+        deliver = entry.deliver_word(reads.text(os.environ.get("INPUTS_DELIVER")))
     except (ValueError, entry.InputRefused) as error:
         return refused(str(error))
-    first = str(boundary.work_tree() / request) if request and not Path(request).is_absolute() else request
+    first = str(reads.work_tree() / request) if request and not Path(request).is_absolute() else request
     return {"ok": True, "reason": "", "act": "launch", "word": "", "text": "1 周目を起こす", "request": request,
-            "base": boundary.text(os.environ.get("INPUTS_BASE")), "pr": pr, "spec": boundary.text(os.environ.get("INPUTS_SPEC")),
+            "base": reads.text(os.environ.get("INPUTS_BASE")), "pr": pr, "spec": reads.text(os.environ.get("INPUTS_SPEC")),
             "rows": [], "rounds": rounds, "budget": budget, "first_request": first,
-            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": head(), "deliver": deliver,
-            "user_env_dir": os.environ.get("ARTIFACTS_DIR", "")}
+            "first_pr": entryshape.named_pr({"pr": pr}) or 0, "origin": reads.head(), "deliver": deliver,
+            "user_env_dir": str(ports.place())}
 
 
 def main() -> None:
-    if boundary is None:
+    if ports is None:
         reason = f"{type(unread).__name__}: {unread}"
         print(reason, file=sys.stderr)
         print(json.dumps(refused(reason), ensure_ascii=False, allow_nan=False), flush=True)
     else:
-        boundary.run(start, refused)
+        ports.run(start, refused)
 
 
 if __name__ == "__main__":

@@ -2,47 +2,118 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""計画の往復（loop_group の plan-rounds）の終わりの返しの節 plan-out（docs/design.md の U4）。
+"""計画の往復（loop_group の plan-rounds）の本体の終わりの node plan-out（docs/design/line.md の 3 節。往復の記録と止めは line）。
 
-loop_group の中の節は外から見えず、外から見えるのは $plan-rounds.output（本体の終わりの節の出力）だけなので、ここで plan と
-plan-review の返りを欄ごとに受けて返す。外の節は $plan-rounds.output.<欄> を読む。plan-review は plan ができなかった周に飛ばされる
-（`{from, if_skipped: null}`）。
-done は往復を抜けるかで、until_bash が読む: 計画ができなかった・通った・事前審査の壁打ちが止まった（stalled。止め時は
-lib の converge.decide）・plan の round が往復の安全の上限 round_limit 以上。上限は max_iterations と同じ数（試験が
-突き合わせる）で、届かない大きさの網（中央の新しい穴が出続ける往復も普通は届かず、届けば工場の不具合）。上限の周の終わりで必ず真になるので、往復は上限に当たって落ちない。
-nothing_owed は計画ができなかった周のうち、直す義務の単位が 0 件で役を起こさなかった周か（plan の欄 nothing_owed を、計画が
-できなかった周に限って運ぶ）。真なら design-only が走り、今の works の空の修正（works/darkfactory/lib/line_edge.py:1109-1114
-の plan_edge）と同じく最後のテストと独立の目で周を締める（#291）。
-例外の時は計画ができなかった形（ready: false・done: true・rejects: []・nothing_owed: false）と止めの理由 works:line-script を返す。
+1. 入力: plan の返りまるごと・事前審査の返りまるごと（plan が通らなかった周は飛ぶ）・前の周の記録（$LOOP_PREV.plan-out.output.record）
+2. 事前審査が通った周は、pass.json の材料で往復の行を記録 plan-converge.json に足す（src.rounds.record_pass。輪がもう 1 周回せない
+   周〔周の番号が上限 LIMIT〕は at_cap。files を plan-converge/<k>/ へ写し、plan の rejects と事前審査の拒否を行に積み、
+   precedent_checks を記録の頭に置く）。次の周の plan の prior（plan-rounds/prior-<k>.json。plan の plan-prior.schema.json の形）を書く
+3. 事前審査の状態 review_status（ok・gave_up・failed。計画が通った周に事前審査の返りが無ければ failed）と訳 review_reason を返す
+   （修正前の承認ノードが、諦めた・落ちた事前審査を開ける理由にする）
+4. 止め時は src.rounds.decide の語（往復の数・block の数で止めない）。done は、plan が ok でない・事前審査が ok でない・抜け方が修正へ
+   進む語（proceeds）・止まった（PERSISTED・UNSETTLED）・周の番号が上限 LIMIT 以上、のどれか。上限で止めた行には capped
+5. 止まった案を無人の run が推しで進める時（rounds.stuck_push_due）は、保留の項目の前の往復の block（stuck_faces）を事前審査の
+   返答に足したファイルを書いて review に返す（fix と delta-review の plan_review が読む）
+例外の時は計画ができなかった形（ok: false・done: true）と止めの語 works:line-script。
 
-入力（with:）: plan の 9 つの返りの欄と plan-review の 10 の欄（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit
+入力（with:）: plan（$plan.output）・review（{from: $plan-review-run.output, if_skipped: null}）・prior（前の周の記録の pointer。
+1 周目は空）・unattended（無人の run か）
 """
+import json
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-PLAN = ("ready", "plan", "ripple", "depth", "round", "fix_plan", "rejects", "nothing_owed", "gave_up")
-REVIEW = ("pass", "stalled", "review", "gate_passes", "gate", "design", "design_premises", "gate_axes", "ask_human", "questions")
-
-
-def plan_out(got: dict, round_limit: int) -> dict:
-    done = (got["ready"] is not True or got["pass"] is True or got["stalled"] is True
-            or (isinstance(got["round"], int) and got["round"] >= round_limit))
-    return {**got, "nothing_owed": got["ready"] is not True and got["nothing_owed"] is True, "done": done, "stop_reason": ""}
+PLAN = ("ok", "status", "reason", "round", "owed", "plan", "fix_plan", "reply", "handoff", "ripple", "rejects", "gave_up")
+REVIEW = ("ok", "status", "round", "holes", "blocks", "pass", "asks", "deviations", "reason")
 
 
-def from_env() -> tuple:
-    got = {key: boundary.value(os.environ.get(f"INPUTS_{key.upper()}")) for key in PLAN + REVIEW}
-    return got, boundary.value(os.environ.get("INPUTS_ROUND_LIMIT"))
+def _json_at(ptr):
+    return json.loads(ports.file(json.dumps(ptr)).read_text(encoding="utf-8"))
+
+
+def plan_out(plan, review, prior_raw, *, unattended: bool, place: Path) -> dict:
+    from src import files, rounds
+    k = plan["round"] if isinstance(plan["round"], int) else 1
+    prior = ports.file(prior_raw) if ports.parsed(prior_raw) is not None else None
+    doc = rounds.read(prior)
+    passed = plan["ok"] is True and review is not None and review["ok"] is True and review["pass"] is not None
+    if passed:
+        rounds.record_pass(doc, _json_at(review["pass"]), at_cap=k >= rounds.LIMIT,
+                           dest=place / files.PLAN_CONVERGE_FILES.format(k=len(doc["passes"]) + 1), plan_rejects=plan["rejects"])
+    record = rounds.write(place / files.PLAN_CONVERGE, doc)
+    outcome = doc["outcome"] if passed else None
+    stalled = outcome in rounds.STUCK
+    reviewed = review is not None and review["ok"] is True
+    pointer_of_holes = review["holes"] if reviewed else None
+    if stalled and rounds.stuck_push_due(doc, unattended=unattended, design_only=False) and pointer_of_holes is not None:
+        held = rounds.stuck_faces(doc)
+        if held:
+            holes = _json_at(pointer_of_holes)
+            written = place / files.PLAN_REVIEW.format(k=k)
+            written.parent.mkdir(parents=True, exist_ok=True)
+            written.write_text(json.dumps({**holes, "faces": list(holes.get("faces") or []) + held}, ensure_ascii=False, indent=1) + "\n",
+                               encoding="utf-8")
+            pointer_of_holes = ports.pointer(written)
+    handoffs = [*_prior_handoffs(place, files, k), {"round": k, "handoff": plan["handoff"]}]
+    prior_file = None
+    if plan["ok"] is True:
+        prior_file = place / files.PLAN_PRIOR.format(k=k)
+        prior_file.parent.mkdir(parents=True, exist_ok=True)
+        prior_file.write_text(json.dumps({"round": k, "reply": plan["reply"], "fields": plan["plan"], "fix_plan": plan["fix_plan"],
+                                          "ripple": plan["ripple"], "review": pointer_of_holes, "record": doc, "handoffs": handoffs},
+                                         ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    proceeds = rounds.proceeds(outcome)
+    done = (plan["ok"] is not True or not reviewed or proceeds or stalled or k >= rounds.LIMIT)
+    return {"done": done, "ok": plan["ok"] is True and reviewed and proceeds, "status": plan["status"] or "", "round": k,
+            "plan_prior": ports.pointer(prior_file) if prior_file else None, "record": ports.pointer(record),
+            "plan": plan["plan"], "fix_plan": plan["fix_plan"], "reply": plan["reply"],
+            "handoffs": [h for h in handoffs if isinstance(h.get("handoff"), dict)], "ripple": plan["ripple"],
+            "owed": plan["owed"] if isinstance(plan["owed"], list) else [], "gave_up": plan["gave_up"] or (review or {}).get("gave_up"),
+            "stalled": stalled, "capped": rounds.capped(doc), "review": pointer_of_holes,
+            "asks": review["asks"] if reviewed and isinstance(review["asks"], list) else [],
+            "deviations": review["deviations"] if reviewed and isinstance(review["deviations"], list) else [],
+            "review_status": review_state(plan, review), "review_reason": (review or {}).get("reason") or "", "stop_reason": ""}
+
+
+def review_state(plan, review) -> str:
+    """事前審査の状態（修正前の承認ノードが、諦めた・落ちた事前審査を人に見せる。計画が通らず事前審査が飛んだ周は空）。今の事前審査は
+    受け付けが諦めた周の訳を関所の項目に載せた（元 lib/boardview.py の collect の GIVEN_UP_FACES）"""
+    if review is None:
+        return "" if plan["ok"] is not True else "failed"
+    return str(review["status"] or "")
+
+
+def _prior_handoffs(place: Path, files, k: int) -> list:
+    """前の周の prior のファイル（同じ run の plan-rounds/prior-<k-1>.json）の handoffs（無い・読めなければ []）"""
+    if k <= 1:
+        return []
+    try:
+        got = json.loads((place / files.PLAN_PRIOR.format(k=k - 1)).read_text(encoding="utf-8")).get("handoffs")
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [h for h in got if isinstance(h, dict) and isinstance(h.get("round"), int) and h["round"] < k] if isinstance(got, list) else []
+
+
+def compute() -> dict:
+    raw_plan, raw_review = os.environ.get("INPUTS_PLAN"), os.environ.get("INPUTS_REVIEW")
+    raw_prior, raw_unattended = os.environ.get("INPUTS_PRIOR"), os.environ.get("INPUTS_UNATTENDED")
+    plan = ports.picked(raw_plan, PLAN)
+    if plan is None:
+        raise ValueError("plan の出力（plan）が読めない。with: の鍵の結びを確かめる")
+    review = ports.picked(raw_review, REVIEW, optional=("gave_up",))
+    return plan_out(plan, review, raw_prior, unattended=ports.flag(raw_unattended), place=ports.place())
 
 
 def fallback(reason: str) -> dict:
-    return {**{key: None for key in PLAN + REVIEW}, "ready": False, "rejects": [], "nothing_owed": False, "done": True,
-            "stop_reason": boundary.LINE_SCRIPT}
+    from src import guard
+    return {"done": True, "ok": False, "status": "failed", "round": 0, "plan_prior": None, "record": None, "plan": None, "fix_plan": None,
+            "reply": None, "handoffs": [], "ripple": None, "owed": [], "gave_up": None, "stalled": False, "capped": False, "review": None,
+            "asks": [], "deviations": [], "review_status": "", "review_reason": "", "stop_reason": guard.LINE_SCRIPT}
 
 
-if __name__ == "__main__":
-    boundary.run(lambda: plan_out(*from_env()), fallback)
+ports.run(compute, fallback)

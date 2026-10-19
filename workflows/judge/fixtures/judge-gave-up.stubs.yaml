@@ -1,62 +1,275 @@
-# 筋書き judge-gave-up: 判定の受け付けが 3 回目の拒否で done にした後の状態。輪は落ちずに抜け、返す節が止めの理由を返す
+# judge-gave-up: 判定役が 3 回とも拒まれて diagnose が works:judge を返す → verdict が止める（裏取りは回らない）
 fixture:
   expect: completed
-  reached: [diagnose-accept, verify-prep, verdict]
-intake: {go: true, mode: judge, spec: false, world: false, reason: ''}
-head-depth-prep: {go: false, brief_file: '', reason: 機械の止め（筋書きの stub）}
-pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
-premises:
-  constraints: []
-premises-reject: {reason: '', "lang_line": ""}
-premises-accept: &id001 {ok: true, done: true, reason: ''}
-purpose-prep: {go: true, brief_file: /tmp/judge/purpose-brief.md, reason: ''}
-purpose:
-  purpose_text: 平均と範囲の関数が正しい値を返す
-  source: ①PR 説明
-  known_weaknesses: []
-  source_files: []
-  means: []
-purpose-reject: {reason: '', "lang_line": ""}
-purpose-accept: *id001
-material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: false, test_double_fidelity: false, main_path_observation: false, provenance: false, reason: 差分の空の run}
-diagnose-prep: {go: true, brief_file: /tmp/judge/diagnose-brief.md, review_md: /tmp/lib/REVIEW.md, repo_review_md: '', reason: ''}
-diagnose:
-  units:
-  - {key: 'stats.py mean: 分母が len(xs) - 1', label: block}
-  questions: []
-  framing: 分母の取り違え
-  one_shot: 分母を len(xs) にする
-  materials_missing: []
-  carried_r1: []
-  one_shot_closes: ['stats.py mean: 分母が len(xs) - 1']
-  precedents: []
-verify-prep: {go: false, prompt_file: '', reason: 受け付けた判定が無い, "lang_line": ""}
-verify-merge: {ok: true, reason: ''}
-verdict:
-  depth: 標準
-  depth_why: 筋書きの stub
-  ready: false
+  reached:
+  - ins
+  - head-depth__finish
+  - spec-in
+  - parallel-pr__finish
+  - premises__finish
+  - purpose__finish
+  - world__finish
+  - prior-decisions__finish
+  - purpose-review__finish
+  - local-review__finish
+  - consistency-bypass__finish
+  - hygiene__finish
+  - external-standards__finish
+  - procedure-trace__finish
+  - test-double-fidelity__finish
+  - main-path-observation__finish
+  - provenance__finish
+  - diagnose-in
+  - diagnose__finish
+  - verdict
+  inputs:
+    request: '[{"where": "app.py", "text": "Uploads fail on a flaky link; retry them."}]'
+exec-code: true
+head-depth__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+head-depth__finish:
+  ok: true
+  status: ok
+  reason: ''
+  tier: 標準
+  why: 原因が未知の行が在る
+  rows: []
+  record:
+    type: archon_artifact
+    run_id: stub
+    path: head-depth/depth-head.json
+  report:
+  - '- 段: 標準'
+parallel-pr__scan:
+  go_role: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+parallel-pr__finish:
+  ok: true
+  status: clean
+  stop_reason: ''
+  reason: ''
+  material:
+    status: clean
+    checked: 開いている PR は無い
+  excluded:
+    type: archon_artifact
+    run_id: stub
+    path: parallel-pr/pr-excluded.json
+  drafts: null
+  reads: null
+  downgrades:
+  - what: 担当の PR へ申し送りを投稿しない（下書きを報告に載せる）
+    versus: review-graph は任せ先の役が gh で投稿する
+  report:
+  - '- 並行 PR: clean'
+premises__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+premises__finish:
+  ok: true
+  status: ok
+  reason: ''
+  constraints:
+    type: archon_artifact
+    run_id: stub
+    path: premises/premises.json
+  measured: 1
+  hypotheses: 0
+  report:
+  - '- 前提の実測: 1 件'
+purpose__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+purpose__finish:
+  ok: true
+  status: ok
+  reason: ''
+  purpose:
+    type: archon_artifact
+    run_id: stub
+    path: purpose/purpose.json
+  purpose_text: Uploads survive a flaky link.
+  source: ③writer の要約
+  means:
+  - retry
+  report:
+  - '- 目的: Uploads survive a flaky link.'
+world__intake:
+  due: false
+  findings: 1
+  reason: '筋書き: block の中は block の筋書きが見る'
+world__finish:
+  ok: true
+  status: ok
+  reason: ''
+  rows: null
+  classes: 1
+  dropped: 0
+  report:
+  - '- 世界の解: 1 類'
+diagnose__intake:
+  due: false
+  mode: judge
+  reason: '筋書き: block の中は block の筋書きが見る'
+diagnose__finish:
+  ok: false
+  status: failed
+  mode: judge
   stop_reason: works:judge
+  reason: 判定役を諦めた
+  ready: false
+  judgment:
+    type: archon_artifact
+    run_id: stub
+    path: diagnose/judgment.json
   units: []
-  judgment: {type: archon_artifact, run_id: fixture, path: judge/judgment.json}
-  purpose: {type: archon_artifact, run_id: fixture, path: judge/purpose.json}
-  world: null
-  spec: null
+  questions: []
+  inputs: null
+  brief: null
+  materials:
+    type: archon_artifact
+    run_id: stub
+    path: diagnose/materials.json
   out_of_purpose: null
-  rejudge_verdict: null
-  premises: null
-  verify: null
-  pr_excluded: null
-  materials: null
-  purpose_review: null
-  depth_record: null
-  decisions: null
   answer_ties: null
-  review_lenses: null
-  pr_drafts: null
+  rejudge_verdict: null
   rejudge_exit: null
   rejudge_diff: null
-  purpose_means: null
-  world_state: null
-diagnose-reject: {reason: '', "lang_line": ""}
-diagnose-accept: {ok: false, done: true, reason: 'units[0] の label が不正: bogus'}
+  downgrades: []
+  report:
+  - '- 判定: 開いた単位 1'
+prior-decisions__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+prior-decisions__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: prior-decisions/material.json
+  report:
+  - '観点 prior-decisions: skipped'
+purpose-review__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+purpose-review__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: purpose-review/material.json
+  report:
+  - '観点 purpose-review: skipped'
+local-review__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+local-review__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: local-review/material.json
+  report:
+  - '観点 local-review: skipped'
+consistency-bypass__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+consistency-bypass__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: consistency-bypass/material.json
+  report:
+  - '観点 consistency-bypass: skipped'
+hygiene__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+hygiene__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: hygiene/material.json
+  report:
+  - '観点 hygiene: skipped'
+external-standards__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+external-standards__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: external-standards/material.json
+  report:
+  - '観点 external-standards: skipped'
+procedure-trace__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+procedure-trace__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: procedure-trace/material.json
+  report:
+  - '観点 procedure-trace: skipped'
+test-double-fidelity__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+test-double-fidelity__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: test-double-fidelity/material.json
+  report:
+  - '観点 test-double-fidelity: skipped'
+main-path-observation__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+main-path-observation__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: main-path-observation/material.json
+  report:
+  - '観点 main-path-observation: skipped'
+provenance__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+provenance__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: provenance/material.json
+  report:
+  - '観点 provenance: skipped'
+world__pick:
+  due: false
+  web: false
+  reason: '筋書き: block の中は block の筋書きが見る'

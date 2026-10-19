@@ -2,30 +2,28 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""メイングラフの頭のノード testcmd（docs/design.md の「メイングラフ」の「順と承認ノード」の 0）。
+"""line の頭の node testcmd（docs/design/line.md の 1.3 の 0・9 節の testcmd。今のまま）。
 
-入力 test_cmd が run の作業ツリーの直しでなく対象の手元を試す形（lib/testcmd_check.py。決まりはそちら）なら、出力 {stop, reason} の
-stop を真にし、次の cancel のノード testcmd-stop が reason を理由に、AI を起こす前に run を止める。形を知った上で回す人の許し
-（ALLOW_ENV が 1）が在れば止めず、reason に形を残す。確かめそのものが落ちた時も、手元を試す形を除けないので同じに
-止める（許しが在れば止めない）。止めない時の reason（許しの行と、作業ツリーに無い物を相対で指す注意の行）は、報告の集め
-collect が受けて報告の冒頭に載せる（Archon は script のノードの出力を人に見せない）。
+入力 test_cmd が run の作業ツリーの直しでなく対象の手元を試す形（src/testcmd_check.py。決まりはそちら）なら、出力 {stop, reason} の
+stop を真にし、次の cancel の node testcmd-stop が reason を理由に、AI を起こす前に run を止める。形を知った上で回す人の許し
+（ALLOW_ENV が 1）が在れば止めず、reason に形を残す。確かめそのものが落ちた時も、手元を試す形を除けないので同じに止める（許しが
+在れば止めない）。止めない時の reason（許しの行と、作業ツリーに無い物を相対で指す注意の行）は collect が受けて報告の冒頭に載せる
+（Archon は script の node の出力を人に見せない）。
 
-対象の手元は、run の作業ツリーと同じ git の作業ツリーのうち run の作業ツリーの外の全部（主の作業ツリー＝Archon が run の作業
-ツリーを切った元の clone も、利用者が git worktree add で作った作業ツリーも）。test_cmd を走らせる環境は、試験と同じく
+対象の手元は、run の作業ツリーと同じ git の作業ツリーのうち run の作業ツリーの外の全部。test_cmd を走らせる環境は、試験と同じく
 lib/tree_run.outside_env（利用者の HOME・XDG に戻し、uv が足した物を外した写し）で見る。
+
+入力: line の inputs: の test_cmd（環境変数 INPUTS_TEST_CMD）
 """
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
+sys.dont_write_bytecode = True
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-with boundary.guarded_imports():
-    import testcmd_check
-    import tree_run
-
-# lib/testcmd_check.py の ALLOW_ENV の写し（lib を読めない時の fallback も引く。tests/workflows/test_testcmd_head.py が突き合わせる）
+# src/testcmd_check.py の ALLOW_ENV の写し（src を読めない時の fallback も引く。tests/blocks/line/test_scripts_misc.py が突き合わせる）
 ALLOW_ENV = "WORKS_FACTORY_ALLOW_TESTCMD"
 STOP_HEAD = "止める（test_cmd）: "
 ALLOWED_HEAD = "注意（test_cmd）: "
@@ -36,9 +34,13 @@ def allowed() -> bool:
 
 
 def check(cmd: str, cwd: Path) -> dict:
+    import tree_run
+
+    from src import testcmd_check
+
     if not cmd.strip():
         return {"stop": False, "reason": ""}
-    boundary.aim_user_env(os.environ.get("ARTIFACTS_DIR", ""))
+    os.environ[ports.USER_ENV_RAN_DIR] = str(ports.place())   # 利用者の HOME・XDG に戻した印の置き場（line の place は run の根）
     environ = tree_run.outside_env(os.environ)
     stops, notices, hit = [], [], []
     for root in testcmd_check.checkouts(cwd):
@@ -62,12 +64,12 @@ def check(cmd: str, cwd: Path) -> dict:
 
 def fallback(reason: str) -> dict:
     if allowed():
-        return {"stop": False, "reason": f"test_cmd の形の確かめ（lib/testcmd_check.py）が落ちた（{reason}）。"
+        return {"stop": False, "reason": f"test_cmd の形の確かめ（src/testcmd_check.py）が落ちた（{reason}）。"
                                          f"{ALLOW_ENV}=1 なので確かめずに進める"}
-    return {"stop": True, "reason": f"test_cmd の形の確かめ（lib/testcmd_check.py）が落ち（{reason}）、対象の手元を走らせる形かを"
+    return {"stop": True, "reason": f"test_cmd の形の確かめ（src/testcmd_check.py）が落ち（{reason}）、対象の手元を走らせる形かを"
                                     "確かめられないので、AI を起こす前に run を止めた。確かめずに回すなら"
                                     f" {ALLOW_ENV}=1 を前に付ける"}
 
 
-if __name__ == "__main__":
-    boundary.run(lambda: check(os.environ.get("INPUTS_TEST_CMD", ""), Path.cwd()), fallback)
+if __name__ == "__main__":   # 試験は名で読んで check を直に呼ぶ
+    ports.run(lambda: check(ports.text(os.environ.get("INPUTS_TEST_CMD")), Path.cwd()), fallback)

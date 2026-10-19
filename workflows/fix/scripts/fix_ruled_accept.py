@@ -2,73 +2,60 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""節 fix-ruled-accept（形 "" の裁定の後の修正の輪の終わり）: 裁定の後の修正役の返答を受け付ける（fixboard.accept_reply の ruled。
-裁定 fix_test_scope の limits のテストの変更はここで初めて許す。新しい申し出は機械が ask_human に裁いて積む）。TDD の輪の状態は
-join が組の子から写した物（fixboard.ruled_states。凍結したテスト・範囲・変更に当たる試験の確かめに使う）。
-
-- 範囲の相談の周（入力 consulted が true）は受け付けを回さず done: false
-- 役を起こさなかった（入力 reply が null。直す裁定が無い）周は done: true
-- 拒否は rolekit の控え rejects-fix-ruled-accept.json に積み（fixboard.accept_out。reason_file はこの輪の拒否の全部のファイル
-  rejects-fix-ruled-accept.md）、最後の回（rolekit.is_last_attempt。回は控えの拒否の数 + 1）まで done: false。最後の回の拒否は
-  名指しの単位だけを段の頭の木（fix-ruled-head.json）に戻して諦め、ほかを受けて done: true（指示書の番号 INPUTS_ITERATION は
-  諦めの判断に使わない。with: の入力は残るが読まない）
-- 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false で、控えに数えない（count: false）
-置き場に残す物: fix-ruled-reply.json（受けた返答に 6 つの印と rejudge_requested を前の控えと論理和で重ね、印を changed にも置いた物。
-assert-changed・collect が読む）・fix-units.json。
-返り {ok, done, reason, reason_file}。回す側の誤りは標準エラーに 1 行で非 0。拒否の控え rejects-fix-ruled-accept.json が読めない・書けない時は落ちずに done: true の
-拒否（理由『拒否の控えが扱えない』）。rejects-fix-ruled-accept.md が書けない時は標準エラーに 1 行で非 0。
-"""
+"""node fix-ruled-accept（全体の形の裁定の後の修正の輪の終わり）: 裁定の後の修正役の返答を受け付ける（src/board.accept_reply の
+ruled。今のまま）。直す義務は board.ruled_owed、頭の木は fix-ruled-head.json、輪の状態は board.ruled_states。
+返り {ok, done, reason, reason_file}"""
 import os
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+import ports  # noqa: E402
 
-import fixboard  # noqa: E402
 import oneline  # noqa: E402
 import rolekit  # noqa: E402
-import startrec  # noqa: E402
 import writelog  # noqa: E402
+
+from src import board, runvals  # noqa: E402
 
 NAME = "fix-ruled-accept"
 NOT_LAUNCHED = "裁定の後の修正役を起こさなかった（直す裁定が無い）"
+SKIP = (ports.RUNTIME_COPY_PREFIX,)
 
 
 def main() -> dict:
-    raw = os.environ["INPUTS_REPLY"]
+    raw = os.environ.get("INPUTS_REPLY", "")
     consulted = os.environ.get("INPUTS_CONSULTED", "").strip().lower() == "true"
     if consulted:
-        return {"ok": False, "done": False, "reason": fixboard.CONSULTED, "reason_file": ""}
-    if boundary.value(raw) is None:
+        return {"ok": False, "done": False, "reason": board.CONSULTED, "reason_file": ""}
+    if ports.polyfill("skip_value").value(raw) is None:
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise ValueError(why)
-    place, repo = boundary.place("fix"), boundary.work_tree()
-    iteration, stopped = fixboard.round_number(place, NAME)
+    place, repo = ports.place(), Path.cwd()
+    iteration, stopped = board.round_number(place, NAME)
     if stopped:
         return stopped
-    owed = fixboard.ruled_owed(place)
-    start = startrec.read(place)
-    judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
-    head = fixboard.fixer_head(place, "ruled")
-    state, tests_state = fixboard.ruled_states(place)
+    owed = board.ruled_owed(place)
+    values = runvals.read(place)
+    judgment = board.read_json(place / board.JUDGMENT_FILE) or {}
+    head = board.fixer_head(place, "ruled")
+    state, tests_state = board.ruled_states(place)
     log = writelog.log_here()
-    boundary.drop_runner_env(os.environ.get("INPUTS_USER_ENV_DIR", ""))   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
-    got = fixboard.accept_reply(reply, place, repo, pass_="ruled", iteration=iteration, owed=owed,
-                                judged=judgment.get("units"), suite=str(start.get("tdd_suite") or ""), state=state,
-                                tests_state=tests_state, head=head, skip=boundary.SKIP, log=log)
-    fixboard.write_json(place / fixboard.FIX_UNITS_FILE, got["units"])
+    ports.drop_runner_env(values["user_env_dir"])   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
+    got = board.accept_reply(reply, place, repo, pass_="ruled", iteration=iteration, owed=owed,
+                             judged=judgment.get("units"), suite=str(values["tdd_suite"] or ""), state=state,
+                             tests_state=tests_state, head=head, skip=SKIP, log=log)
+    board.write_json(place / board.FIX_UNITS_FILE, got["units"])
     if got["ok"]:
-        path = place / fixboard.RULED_REPLY_FILE
-        fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
-        fixboard.trace(place, "fix_ruled_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]))
+        path = place / board.RULED_REPLY_FILE
+        board.write_json(path, board.reply_marks(got["reply"], board.read_json(path)))
+        board.trace(place, "fix_ruled_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]))
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
-    out = fixboard.accept_out(place, NAME, got)
-    fixboard.trace(place, "fix_ruled_rejected", node=NAME, iteration=iteration, done=out["done"], parked=sorted(got["parked"]))
+    out = board.accept_out(place, NAME, got)
+    board.trace(place, "fix_ruled_rejected", node=NAME, iteration=iteration, done=out["done"], parked=sorted(got["parked"]))
     return {**out, "reason": got["reason"]}
 
 
@@ -78,4 +65,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"{NAME}: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
-    boundary.returns(out)
+    ports.returns(out)

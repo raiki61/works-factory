@@ -1,51 +1,16 @@
-# 筋書き base-resubmit: 任せ先の CI の役の輪で ci-prep が出し直し（resubmit: true）を返した周。1 回目の役 ci は when で飛び、
-# 出し直しの役 ci-fix と受け付けと返す節に届く（配線だけを見る。出し直しを合わせる中身は tests/workflows/test_test_gate.py が
-# script を子のプロセスで回して見る）。返る値は base-role と同じ
-run:
-  by: role_needed
-  material: null
-  runs: []
-  skipped_steps: []
-  same_as: null
-  log: ""
-  junit_steps: []
-  fingerprint_before: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
-  fingerprint_after: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
-ci-prep:
-  copy_dir: /tmp/works-factory-ci-stub/work
-  tmp_dir: /tmp/works-factory-ci-stub/tmp
-  root: /tmp/target
-  base_rev: ""
-  mode: base
-  reject: "1 回目の拒否: 素材の欄が足りない"
-  attempt: 2
-  resubmit: true
-  brief: /tmp/works-factory-ci-stub/resubmit-ci-2.md
-ci-fix:
-  material: {status: awaiting_human, reason: "CI の定義が実機を要る"}
-ci-accept:
-  ok: true
-  done: true
-  give_up: false
-  reason: ""
-result:
-  mode: base
-  ok: true
-  green: false
-  red_cause: incomplete
-  ran_steps: {ran: [], unran: []}
-  baseline: {type: archon_artifact, run_id: stub-run, path: test-gate/base/baseline.json}
-  fingerprint: null
-  test_outcomes: null
-  evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/base/evidence.md}
-  by: role_needed
-  suites_line: "走らせた: 無い／走らせなかった: 宣言の段・test_cmd（任せ先の CI の役 blk-ci が走らせなかった: 素材の status awaiting_human）"
-  log: ""
-  baseline_line: ""
-  reason: ""
+# 筋書き base-resubmit: 任せ先の CI の役の輪の出し直しの周。ci-prep を差し替えて出し直し（resubmit: true）の周にすると、1 回目の役 ci は
+# when で飛び、ci-fix-prep が本当に出し直しの指示を組み（組んだ指示の字を照らす）、出し直しの役 ci-fix の返答（拒まれた欄だけ）の後に
+# 受け付けと返す node に届く。出し直しを前の答えと合わせる中身は tests/blocks/test_gate/ が script を子のプロセスで回して見る
 fixture:
+  expect: completed
+  reached: [intake, run, ci-prep, ci-fix-prep, ci-fix, ci-accept, result]
   inputs:
     mode: base
-    start: '{"type": "archon_artifact", "run_id": "stub-run", "path": "start/record.json"}'
-  expect: completed
-  reached: [ci-prep, ci-fix, ci-accept, result]
+    tdd_suite: /tmp/runner
+  resolved-text-contains:
+    ci-fix: 'In this same conversation, fix only what was rejected and return it.'
+exec-code: true
+ci-prep: {prompt: "", resubmit: true, attempt: 2}
+ci-fix:
+  material: {status: awaiting_human, reason: "CI の定義が実機を要る"}
+ci-accept: {ok: true, done: true, give_up: false, reason: ""}

@@ -4,7 +4,7 @@ place:
   mode: apply
   ok: false
   hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  diff: { type: archon_artifact, run_id: fixture-run, path: merge/refused.diff }
+  diff: { type: archon_artifact, run_id: fixture-run, path: refused.diff }
   protected_hits: null
   protected_count: null
   reason: 封じた差分と今の差分が違う
@@ -15,7 +15,7 @@ fixture:
   reached: [place, merge]
   inputs:
     mode: apply
-    start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
+    base: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     sealed_hash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     answer: "null"
     r2: '{"status":"redesign-needed","reason":"別の設計"}'

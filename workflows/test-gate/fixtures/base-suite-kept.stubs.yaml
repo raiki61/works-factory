@@ -1,17 +1,18 @@
 # 筋書き base-suite-kept: 入力 tdd_suite を省いた run の base で、同じ test_cmd の取り置きが在る。suite-prep が写して書き手の役と
-# suite-place は when で飛び（AI の手番を起こさない）、suite-try が照らしを通す。返す節に届く
+# suite-place は when で飛び（AI の手番を起こさない）、suite-try が照らしを通す。返す node に届く
+intake: {ok: true, reason: ""}
 run:
   by: engine
   material: {status: found, count: 1, detail: "suite: exit 1"}
   runs: [{name: suite, exit: 1, how: direct}]
   skipped_steps: []
   same_as: null
-  log: test-gate/base/logs/a1/checks.log
+  log: logs/a1/checks.log
   junit_steps: [suite]
   fingerprint_before: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
   fingerprint_after: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
   suite_owed: true
-suite-prep: {write: false, brief_file: ""}
+suite-prep: {write: false, prompt: ""}
 suite-try: {done: true, ok: true, why: ""}
 result:
   mode: base
@@ -19,18 +20,21 @@ result:
   green: false
   red_cause: ""
   ran_steps: {ran: [suite], unran: []}
-  baseline: {type: archon_artifact, run_id: stub-run, path: test-gate/base/baseline.json}
+  baseline: {type: archon_artifact, run_id: stub-run, path: baseline.json}
   fingerprint: null
   test_outcomes: null
-  evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/base/evidence.md}
+  evidence: {type: archon_artifact, run_id: stub-run, path: evidence.md}
   by: engine
   suites_line: "走らせた: suite（exit 1・direct）／走らせなかった: test_cmd（渡されていない）"
-  log: test-gate/base/logs/a1/checks.log
+  log: logs/a1/checks.log
   baseline_line: ""
   reason: ""
+  suite: "/tmp/runner"
+  suite_note: "TDD の実行器は取り置きを使った"
+  report: ["直す前のテスト: 赤"]
 fixture:
   inputs:
     mode: base
-    start: '{"type": "archon_artifact", "run_id": "stub-run", "path": "start/record.json"}'
+    test_cmd: make test
   expect: completed
-  reached: [run, suite-prep, suite-try, result]
+  reached: [intake, run, suite-prep, suite-try, result]

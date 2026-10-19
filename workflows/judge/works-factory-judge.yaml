@@ -1,2305 +1,487 @@
 name: works-factory-judge
-description: '判定のサブグラフ（メイングラフが include する部品。単独の run には使わない）。依頼を根本の単位にまとめる: run の頭の深さ・前提の実測・目的の固定・定石（世界の解）・並行 PR とのぶつかり・素材集め 11 本・根本の診断と受け付け・判定の裏取り・再審・目的の外の所見の持ち越し。始めの記録が仕様の段を選んだ run は、仕様を書いて審査し、仕様の承認ノードの承認の後に受け入れテストを固める'
+description: '判定のまとめの graph（docs/design/judge-eyes.md の 1 章）。run の頭の深さ・仕様・並行 PR・前提の実測・目的の固定・世界の解・素材の観点 10 本・根本の診断・判定の裏取りの block を今の judge と同じ順と条件で並べ、どこかの段が止めれば止めの語を返して後ろを回さない。判定の道だけを持ち、再審は持たない。line から 1 つの include で呼ばれ、単独でも依頼の行だけで回る'
 inputs:
-  start: {default: 'null', description: 始めの記録のポインタ（JSON の字）}
-  baseline: {default: 'null', description: 直す前の結末のポインタ（JSON の字）}
-  objection: {default: '', description: 判定のフレーミングへの異議の文。空でなければ再審の道}
-  prior_failures: {default: 'null', description: 前の run の持ち越しの前の失敗の行のポインタ（JSON の字。今の works の prior-failures-in.json）。約束に無い入力}
-  user_env_dir: {default: '', description: 利用者の HOME・XDG に戻して起こした印（user-env-ran）を置く置き場の絶対パス。空は置き場が無い（戻す run では止まる）}
+  request: {default: '[]', description: 'json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つ object（工場の依頼のファイルの形）。空の配列は依頼の行が無い run'}
+  pr_text: {default: '', description: 'text: 依頼が名指す PR の番号・題・本文を並べた文。空は PR の無い run'}
+  carried: {default: '[]', description: 'json(shared:constraints.schema.json): 前の run が運んだ前提の実測の行の配列。空の配列は運ばれていない'}
+  base: {default: '', description: 'text: 入口の差分の根の commit。空は HEAD'}
+  entry: {default: '', description: 'text: 判定から入る run の出どころの文。空は判定から入る run でない'}
+  web: {default: 'on', description: 'choice(on|off): 世界の解の段が web で出典を探すか'}
+  world: {default: 'true', description: 'flag: 世界の解の段を回すか'}
+  spec: {default: 'false', description: 'flag: 仕様の段を挟むか（仕様の段は中に承認ノードを持つ）'}
+  has_checks: {default: 'false', description: 'flag: 機械の確かめ（試験のコマンドか TDD の実行器）が在るか。false なら run の頭の深さの役を起こさず標準'}
+  thickness: {default: 'auto', description: 'choice(auto|light|standard|heavy): 呼ぶ人の段の名指し（light は軽量・standard は標準・heavy は重厚）。auto は役と機械が決める'}
+  design_only: {default: 'false', description: 'flag: 設計だけの run か。true なら run の頭の深さの役を起こさず標準'}
+  verify_by_tier: {default: '{}', description: 'json(verify-by-tier.schema.json): 段ごとに判定の裏取りを回すか {軽量, 標準, 重厚}（真偽）。空の object はどの段でも回さない'}
+  user_env_dir: {default: '', description: 'text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は place'}
+  request_origin: {default: '', description: 'text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin）。空は「人の依頼（依頼の行）」'}
+  baseline: {default: '', description: 'file: 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。空は local_checks を not_run にする'}
+  policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
+  lang: {default: '', description: 'text: 人に見せる欄の言語（include する block のどれにも渡す）。空は依頼の行の言語'}
 returns: verdict
-outcome_field: ready
+outcome_field: ok
 nodes:
-  - id: intake
-    script: intake
+  - id: ins
+    script: ins
     runtime: uv
     mutates_checkout: false
     output_format:
       type: object
       additionalProperties: false
-      required: [go, mode, spec, world, reason]
+      required: [spec, world, web]
       properties:
-        go: {type: boolean}
-        mode:
-          type: string
-          enum: [judge, rejudge]
         spec: {type: boolean}
         world: {type: boolean}
-        reason: {type: string}
-  # run の頭の深さ（docs/design.md の「深さの段の表」）。支度が機械の止めを通し、役が依頼の行ごとの未知の種類を引用つきで返し、段は受け付けが一番重い種類から引く
-  # （引用の実在も受け付けが照らす）。控えは judge/depth-head.json で、判定役の材料（diagnose-prep が行ごとの指示を貼る）・返す節・裏取りの支度が読み
-  # （裏取りの支度は diagnose-prep を通してこの役の終わりを待つ）。判定の外へは返す節の欄 depth_record で返す。落ちても判定は標準で進む。
-  - id: head-depth-prep
-    script: head_depth_prep
-    runtime: uv
-    depends_on: [intake]
-    when: $intake.output.go == true && $intake.output.mode == 'judge'
-    mutates_checkout: false
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [go, brief_file, reason]
-      properties:
-        go: {type: boolean}
-        brief_file: {type: string}
-        reason: {type: string}
-  - id: head-depth-loop
-    depends_on: [head-depth-prep]
-    when: $head-depth-prep.output.go == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$head-depth-accept.output.done; test "$done" = true
-      nodes:
-        - id: head-depth-reject
-          script: reject
-          runtime: uv
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.head-depth-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
-        - id: head-depth
-          command: head-depth
-          depends_on: [head-depth-reject]
-          # 読むだけの役の起こし方（目的の監査の役 purpose-review と同じ。模型と effort は群 @wf-judge-materials の既定。docs/concepts.md の ai-launch）
-          <<: &read_launch
-            model: '@wf-judge-materials'
-            settingSources: [user]
-            allowed_tools: [Read, Grep, Glob]
-            sandbox: {enabled: true, allowUnsandboxedCommands: false}
-            idle_timeout: 1728000000
-          mutates_checkout: false
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [why, items, groups]
-            properties:
-              why: {type: string, minLength: 1, pattern: '\S'}
-              groups:
-                type: array
-                items: {type: object, additionalProperties: false, required: [group, model, effort, why], properties: {group: {type: string, minLength: 1}, model: {type: string, minLength: 1}, effort: {type: string, minLength: 1}, why: {type: string, minLength: 1}}}
-              items:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [item, unknown, cause_quote]
-                  properties:
-                    item: {type: integer, minimum: 1}
-                    unknown:
-                      type: string
-                      enum: [無し, 原因, 形, 範囲]
-                    cause_quote: {type: string, minLength: 1}
-                    where: {type: string, minLength: 3}
-                    code_quote: {type: string, minLength: 1}
-        - id: head-depth-accept
-          script: head_depth_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [head-depth]
-          with: {reply: $head-depth.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  # 仕様の 3 つの輪と再審の輪（rejudge-loop）は、拒まれた後は出し直しの役 <役>-fix が同じ会話の続きで拒まれた欄だけを返し、
-  # 受け付けが前の答えと欄ごとに合わせる（振り分けは頭の節 rejects の resubmit。並んだ層は会話を切るので <役>-fix は役の後ろの
-  # 層に置く。#571）
-  - id: spec-loop
-    depends_on: [intake]
-    when: $intake.output.spec == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$spec-accept.output.done; test "$done" = true
-      nodes:
-        - id: spec-reject
-          script: rejects
-          runtime: uv
-          mutates_checkout: false
-          with: {board: judge, accept: spec-write, prev: "$LOOP_PREV.spec-accept.output.ok"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
-        - id: spec
-          command: spec
-          depends_on: [spec-reject]
-          when: "$spec-reject.output.resubmit != true"
-          <<: &spec_launch
-            model: '@wf-judge-spec'
-            settingSources: [user]
-            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
-            sandbox: {enabled: true, allowUnsandboxedCommands: false}
-            idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format: &spec_reply
-            type: object
-            additionalProperties: false
-            required: [requirements, acceptance, out_of_scope]
-            properties:
-              requirements:
-                type: array
-                minItems: 1
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [key, text]
-                  properties:
-                    key: {type: string, minLength: 1}
-                    text: {type: string, minLength: 4}
-              acceptance:
-                type: array
-                minItems: 1
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [key, requirement, file, name, run]
-                  properties:
-                    key: {type: string, minLength: 1}
-                    requirement: {type: string, minLength: 1}
-                    file: {type: string, minLength: 1}
-                    name: {type: string, minLength: 1}
-                    run: {type: string, minLength: 1}
-              out_of_scope:
-                type: array
-                items: {type: string}
-        - id: spec-fix
-          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
-          depends_on: [spec-reject, spec]
-          trigger_rule: none_failed_min_one_success
-          when: "$spec-reject.output.resubmit == true"
-          <<: *spec_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            <<: *spec_reply
-            required: []
-        - id: spec-accept
-          script: spec_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [spec, spec-fix]
-          trigger_rule: none_failed_min_one_success
-          with:
-            status_guarded: false
-            role: write
-            reply: {from: "$spec.output", if_skipped: null}
-            fix_reply: {from: "$spec-fix.output", if_skipped: null}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason, revise]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-              revise: {type: boolean}
-  - id: spec-review-loop
-    depends_on: [spec-loop]
-    when: $spec-loop.output.ok == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$spec-review-accept.output.done; test "$done" = true
-      nodes:
-        - id: spec-review-reject
-          script: rejects
-          runtime: uv
-          mutates_checkout: false
-          with: {board: judge, accept: spec-review, prev: "$LOOP_PREV.spec-review-accept.output.ok"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
-        - id: spec-review
-          command: spec-review
-          depends_on: [spec-review-reject]
-          when: "$spec-review-reject.output.resubmit != true"
-          <<: &review_launch
-            model: '@wf-judge-core'
-            settingSources: [user]
-            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-            sandbox: {enabled: true, allowUnsandboxedCommands: false}
-            idle_timeout: 1728000000
-          mutates_checkout: false
-          retry: {max_attempts: 2, on_error: all}
-          output_format: &spec_review_reply
-            type: object
-            additionalProperties: false
-            required: [faces, reason]
-            properties:
-              faces:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [key, kind, where, why]
-                  properties:
-                    key: {type: string, minLength: 2}
-                    kind:
-                      type: string
-                      enum: [missing, ambiguous, out_of_scope]
-                    where: {type: string, minLength: 1}
-                    why: {type: string, minLength: 20}
-              faces_none: {type: string}
-              reason: {type: string, minLength: 20}
-        - id: spec-review-fix
-          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-review-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
-          depends_on: [spec-review-reject, spec-review]
-          trigger_rule: none_failed_min_one_success
-          when: "$spec-review-reject.output.resubmit == true"
-          <<: *review_launch
-          mutates_checkout: false
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            <<: *spec_review_reply
-            required: []
-        - id: spec-review-accept
-          script: spec_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [spec-review, spec-review-fix]
-          trigger_rule: none_failed_min_one_success
-          with:
-            status_guarded: true
-            role: review
-            reply: {from: "$spec-review.output", if_skipped: null}
-            fix_reply: {from: "$spec-review-fix.output", if_skipped: null}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason, revise]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-              revise: {type: boolean}
-  - id: spec-revise-loop
-    depends_on: [spec-review-loop]
-    when: $spec-review-loop.output.revise == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$spec-revise-accept.output.done; test "$done" = true
-      nodes:
-        - id: spec-revise-reject
-          script: rejects
-          runtime: uv
-          mutates_checkout: false
-          with: {board: judge, accept: spec-revise, prev: "$LOOP_PREV.spec-revise-accept.output.ok"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
-        - id: spec-revise
-          command: spec-revise
-          depends_on: [spec-revise-reject]
-          when: "$spec-revise-reject.output.resubmit != true"
-          <<: *spec_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format: &spec_revise_reply
-            type: object
-            additionalProperties: false
-            required: [spec, handled]
-            properties:
-              spec:
-                type: object
-                additionalProperties: false
-                required: [requirements, acceptance, out_of_scope]
-                properties:
-                  requirements:
-                    type: array
-                    minItems: 1
-                    items:
-                      type: object
-                      additionalProperties: false
-                      required: [key, text]
-                      properties:
-                        key: {type: string, minLength: 1}
-                        text: {type: string, minLength: 4}
-                  acceptance:
-                    type: array
-                    minItems: 1
-                    items:
-                      type: object
-                      additionalProperties: false
-                      required: [key, requirement, file, name, run]
-                      properties:
-                        key: {type: string, minLength: 1}
-                        requirement: {type: string, minLength: 1}
-                        file: {type: string, minLength: 1}
-                        name: {type: string, minLength: 1}
-                        run: {type: string, minLength: 1}
-                  out_of_scope:
-                    type: array
-                    items: {type: string}
-              handled:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [key, handled, how]
-                  properties:
-                    key: {type: string, minLength: 2}
-                    handled:
-                      type: string
-                      enum: [absorbed, declared]
-                    how: {type: string, minLength: 20}
-        - id: spec-revise-fix
-          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$spec-revise-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
-          depends_on: [spec-revise-reject, spec-revise]
-          trigger_rule: none_failed_min_one_success
-          when: "$spec-revise-reject.output.resubmit == true"
-          <<: *spec_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            <<: *spec_revise_reply
-            required: []
-        - id: spec-revise-accept
-          script: spec_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [spec-revise, spec-revise-fix]
-          trigger_rule: none_failed_min_one_success
-          with:
-            status_guarded: false
-            role: revise
-            reply: {from: "$spec-revise.output", if_skipped: null}
-            fix_reply: {from: "$spec-revise-fix.output", if_skipped: null}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason, revise]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-              revise: {type: boolean}
-  - id: spec-ask
-    script: spec_ask
-    runtime: uv
-    depends_on: [intake, spec-loop, spec-review-loop, spec-revise-loop]
-    trigger_rule: all_done
-    when: $intake.output.spec == true
-    mutates_checkout: false
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [ask, message]
-      properties:
-        ask: {type: boolean}
-        message: {type: string}
-  - id: spec-gate
-    depends_on: [spec-ask]
-    when: $spec-ask.output.ask == true
-    wait:
-      attention: $spec-ask.output.message
-      form: select
-      options:
-        - {id: approve}
-        - {id: continue}
-        - {id: stop}
-        - {id: reject}
-  - id: spec-freeze
-    script: spec_freeze
-    runtime: uv
-    depends_on: [spec-ask, spec-gate]
-    trigger_rule: all_done
-    when: $intake.output.spec == true
+        web: {type: string, enum: ['on', 'off']}
+  - id: head-depth
+    include: works-factory-head-depth
+    depends_on: [ins]
     with:
-      answer: {from: $spec-gate.output, if_skipped: null}
+      request: "$INPUTS.request"
+      has_checks: "$INPUTS.has_checks"
+      thickness: "$INPUTS.thickness"
+      spec: "$INPUTS.spec"
+      design_only: "$INPUTS.design_only"
+      lang: "$INPUTS.lang"
+  - id: head-depth-out
+    # 受け皿の本体はここ 1 か所。ほかは <<: *receiver で受け、id・depends_on・with だけを書く（names は運ぶ欄の名）
+    <<: &receiver
+      script: returned
+      runtime: uv
+      mutates_checkout: false
+      output_format:
+        type: object
+        additionalProperties: false
+        required: [got, why]
+        properties:
+          got: {type: [object, 'null']}
+          why: {type: string}
+    depends_on: [head-depth]
+    with:
+      got: "$head-depth.output"
+      names: "ok status reason tier why rows record report"
+  - id: spec
+    include: works-factory-spec
+    depends_on: [ins]
+    when: "$ins.output.spec == true"
+    with:
+      mode: "write"
+      request: "$INPUTS.request"
+      pr_text: "$INPUTS.pr_text"
+      user_env_dir: "$INPUTS.user_env_dir"
+      lang: "$INPUTS.lang"
+  - id: spec-out
+    <<: *receiver
+    depends_on: [spec]
+    with:
+      got: "$spec.output"
+      names: "ok status stop_reason reason spec added_rows added_origin report"
+  - id: spec-in
+    script: spec_in
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [ins, spec-out]
+    trigger_rule: none_failed_min_one_success
+    with:
+      spec_out: {from: "$spec-out.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
-      required: [go, reason]
+      required: [go, stop_reason, reason, request, spec, added_rows, added_origin]
       properties:
         go: {type: boolean}
+        stop_reason: {type: string}
         reason: {type: string}
-  - id: pr-scan
-    script: pr_check
+        request: {type: [object, 'null']}
+        spec: {type: [object, 'null']}
+        added_rows: {type: [object, 'null']}
+        added_origin: {type: string}
+  - id: parallel-pr
+    include: works-factory-parallel-pr
+    depends_on: [spec-in]
+    when: "$spec-in.output.go == true"
+    with:
+      request: "$spec-in.output.request"
+      base: "$INPUTS.base"
+      changed: "[]"
+      lang: "$INPUTS.lang"
+  - id: parallel-pr-out
+    <<: *receiver
+    depends_on: [parallel-pr]
+    with:
+      got: "$parallel-pr.output"
+      names: "ok status stop_reason reason material excluded drafts reads downgrades report"
+  - id: premises
+    include: works-factory-premises
+    depends_on: [parallel-pr]
+    when: "$parallel-pr.output.stop_reason == ''"
+    with:
+      request: "$spec-in.output.request"
+      carried: "$INPUTS.carried"
+      lang: "$INPUTS.lang"
+  - id: premises-out
+    <<: *receiver
+    depends_on: [premises]
+    with:
+      got: "$premises.output"
+      names: "ok status reason constraints report"
+  - id: purpose
+    include: works-factory-purpose
+    depends_on: [premises]
+    when: "$premises.output.ok == true"
+    with:
+      request: "$INPUTS.request"
+      pr_text: "$INPUTS.pr_text"
+      constraints: "$premises.output.constraints"
+      lang: "$INPUTS.lang"
+  - id: purpose-out
+    <<: *receiver
+    depends_on: [purpose]
+    with:
+      got: "$purpose.output"
+      names: "ok status reason purpose purpose_text source means report"
+  - id: world
+    include: works-factory-world
+    depends_on: [purpose, ins]
+    when: "$purpose.output.ok == true && $ins.output.world == true"
+    with:
+      request: "$spec-in.output.request"
+      purpose: "$purpose.output.purpose_text"
+      means: "$purpose.output.means"
+      web: "$ins.output.web"
+      lang: "$INPUTS.lang"
+  - id: world-out
+    <<: *receiver
+    depends_on: [world]
+    with:
+      got: "$world.output"
+      names: "ok status reason rows classes dropped report"
+  # 素材の観点 10 本（gate-efficacy は持ち主の決めで include しない。docs/design/judge-eyes.md の 3 節）。互いを待たずに並ぶ。世界の解の受け皿に依るのは、世界の解が切られた・落ちた run でも回すため
+  - id: prior-decisions
+    include: works-factory-prior-decisions
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      request: "$spec-in.output.request"
+      lang: "$INPUTS.lang"
+  - id: prior-decisions-out
+    <<: *receiver
+    depends_on: [prior-decisions]
+    with:
+      got: "$prior-decisions.output"
+      names: "ok status reason material report"
+  - id: purpose-review
+    include: works-factory-purpose-review
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      purpose: "$purpose.output.purpose"
+      lang: "$INPUTS.lang"
+  - id: purpose-review-out
+    <<: *receiver
+    depends_on: [purpose-review]
+    with:
+      got: "$purpose-review.output"
+      names: "ok status reason material report"
+  - id: local-review
+    include: works-factory-local-review
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      lang: "$INPUTS.lang"
+  - id: local-review-out
+    <<: *receiver
+    depends_on: [local-review]
+    with:
+      got: "$local-review.output"
+      names: "ok status reason material report"
+  - id: consistency-bypass
+    include: works-factory-consistency-bypass
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      lang: "$INPUTS.lang"
+  - id: consistency-bypass-out
+    <<: *receiver
+    depends_on: [consistency-bypass]
+    with:
+      got: "$consistency-bypass.output"
+      names: "ok status reason material report"
+  - id: hygiene
+    include: works-factory-hygiene
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      lang: "$INPUTS.lang"
+  - id: hygiene-out
+    <<: *receiver
+    depends_on: [hygiene]
+    with:
+      got: "$hygiene.output"
+      names: "ok status reason material report"
+  - id: external-standards
+    include: works-factory-external-standards
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      purpose: "$purpose.output.purpose"
+      lang: "$INPUTS.lang"
+  - id: external-standards-out
+    <<: *receiver
+    depends_on: [external-standards]
+    with:
+      got: "$external-standards.output"
+      names: "ok status reason material report"
+  - id: procedure-trace
+    include: works-factory-procedure-trace
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      lang: "$INPUTS.lang"
+  - id: procedure-trace-out
+    <<: *receiver
+    depends_on: [procedure-trace]
+    with:
+      got: "$procedure-trace.output"
+      names: "ok status reason material report"
+  - id: test-double-fidelity
+    include: works-factory-test-double-fidelity
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      lang: "$INPUTS.lang"
+  - id: test-double-fidelity-out
+    <<: *receiver
+    depends_on: [test-double-fidelity]
+    with:
+      got: "$test-double-fidelity.output"
+      names: "ok status reason material report"
+  - id: main-path-observation
+    include: works-factory-main-path-observation
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      lang: "$INPUTS.lang"
+  - id: main-path-observation-out
+    <<: *receiver
+    depends_on: [main-path-observation]
+    with:
+      got: "$main-path-observation.output"
+      names: "ok status reason material report"
+  - id: provenance
+    include: works-factory-provenance
+    depends_on: [purpose, world-out]
+    trigger_rule: none_failed_min_one_success
+    when: "$purpose.output.ok == true"
+    with:
+      base: "$INPUTS.base"
+      entry: "$INPUTS.entry"
+      lang: "$INPUTS.lang"
+  - id: provenance-out
+    <<: *receiver
+    depends_on: [provenance]
+    with:
+      got: "$provenance.output"
+      names: "ok status reason material report"
+  - id: diagnose-in
+    script: diagnose_in
     runtime: uv
-    depends_on: [intake, spec-freeze]
+    mutates_checkout: false
+    depends_on: [prior-decisions-out, purpose-review-out, local-review-out, consistency-bypass-out, hygiene-out, external-standards-out, procedure-trace-out, test-double-fidelity-out, main-path-observation-out, provenance-out, parallel-pr-out, head-depth-out, world-out, spec-in, premises-out, purpose-out]
     trigger_rule: all_done
-    when: $intake.output.go == true && $intake.output.mode == 'judge'
-    mutates_checkout: false
+    with:
+      prior_decisions_out: {from: "$prior-decisions-out.output", if_skipped: null}
+      purpose_review_out: {from: "$purpose-review-out.output", if_skipped: null}
+      local_review_out: {from: "$local-review-out.output", if_skipped: null}
+      consistency_bypass_out: {from: "$consistency-bypass-out.output", if_skipped: null}
+      hygiene_out: {from: "$hygiene-out.output", if_skipped: null}
+      external_standards_out: {from: "$external-standards-out.output", if_skipped: null}
+      procedure_trace_out: {from: "$procedure-trace-out.output", if_skipped: null}
+      test_double_fidelity_out: {from: "$test-double-fidelity-out.output", if_skipped: null}
+      main_path_observation_out: {from: "$main-path-observation-out.output", if_skipped: null}
+      provenance_out: {from: "$provenance-out.output", if_skipped: null}
+      parallel_pr_out: {from: "$parallel-pr-out.output", if_skipped: null}
+      world_out: {from: "$world-out.output", if_skipped: null}
+      head_depth_out: {from: "$head-depth-out.output", if_skipped: null}
+      spec_in: {from: "$spec-in.output", if_skipped: null}
+      premises_out: {from: "$premises-out.output", if_skipped: null}
+      purpose_out: {from: "$purpose-out.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
-      required: [go, go_role, reason]
-      properties:
-        go: {type: boolean}
-        go_role: {type: boolean}
-        reason: {type: string}
-  - id: pr-check-loop
-    depends_on: [pr-scan]
-    when: $pr-scan.output.go_role == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$pr-check-accept.output.done; test "$done" = true
-      nodes:
-        - id: pr-check-reject
-          script: reject
-          runtime: uv
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.pr-check-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
-        - id: pr-check
-          command: pr-check
-          depends_on: [pr-check-reject]
-          <<: &net_closed_launch
-            model: '@wf-judge-materials'
-            settingSources: [user]
-            allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-            sandbox:
-              enabled: true
-              allowUnsandboxedCommands: false
-              failIfUnavailable: true
-              excludedCommands: ['works-gh:*']
-              network:
-                allowedDomains: []
-              # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
-              # '.' は cwd でなく設定の一時ファイルのフォルダに解かれる。実測 2026-10-13。issue #293）
-              # 起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）
-              filesystem:
-                denyWrite: ['~/../archon-home']
-            idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, repo, listed, truncated, conflicts, excluded]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              repo: {type: string}
-              listed: {type: integer, minimum: 0}
-              truncated: {type: boolean}
-              conflicts:
-                type: array
-                items:
-                  type: object
-                  required: [pr, files, handed_over]
-                  additionalProperties: false
-                  properties:
-                    pr: {type: string}
-                    files:
-                      type: array
-                      items: {type: string}
-                    handed_over: {type: boolean}
-                    note: {type: string}
-              excluded:
-                type: array
-                items:
-                  type: object
-                  required: [pr, file, start, end, why]
-                  additionalProperties: false
-                  properties:
-                    pr: {type: string, minLength: 1, pattern: '\S'}
-                    file: {type: string, minLength: 1, pattern: '\S'}
-                    start: {type: integer, minimum: 1}
-                    end: {type: integer, minimum: 1}
-                    why: {type: string, minLength: 1, pattern: '\S'}
-        - id: pr-check-accept
-          script: pr_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [pr-check]
-          with: {reply: $pr-check.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  # 読んだ証拠（受け付けの条件にしない）。並行 PR の役が渡し物 judge/pr-brief.json を読んだかを、フックの記録から集めて置き場の
-  # reads-pr-check.json と索引に書く。pr-scan は機械が決めた回も渡し物を書くので、役を起こさなかった回は when で飛ばす。
-  # pr-scan が走らなかった回（再審の道など）は飛ぶ（one_success）。輪が落ちても走り、落ちない
-  - id: pr-check-reads
-    script: pr_reads
-    runtime: uv
-    mutates_checkout: false
-    depends_on: [pr-scan, pr-check-loop]
-    trigger_rule: one_success
-    when: $pr-scan.output.go_role == true
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [ok, missing, index_file, reason]
+      required: [ok, reason, go, purpose, constraints, materials, missing, pr_material, world_rows, row_asks, depth_why, spec_rows, spec_origin, tier, verify]
       properties:
         ok: {type: boolean}
+        reason: {type: string}
+        go: {type: boolean}
+        purpose: {type: [object, 'null']}
+        constraints: {type: [object, 'null']}
+        materials: {type: array, items: {type: object}}
         missing: {type: array, items: {type: string}}
-        index_file: {type: string}
-        reason: {type: string}
-  - id: premises-loop
-    depends_on: [pr-scan, pr-check-loop]
-    trigger_rule: none_failed_min_one_success
-    when: $pr-scan.output.go == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$premises-accept.output.done; test "$done" = true
-      nodes:
-        - id: premises-reject
-          script: reject
-          runtime: uv
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.premises-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
-        - id: premises
-          command: premises
-          depends_on: [premises-reject]
-          model: '@wf-judge-materials'
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox:
-            enabled: true
-            allowUnsandboxedCommands: false
-            # denyWrite は pr-check の注釈と同じ
-            filesystem:
-              denyWrite: ['~/../archon-home']
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [constraints]
-            additionalProperties: false
-            properties:
-              constraints:
-                type: array
-                items:
-                  type: object
-                  required: [text, measured_how, kind]
-                  additionalProperties: false
-                  properties:
-                    text: {type: string}
-                    measured_how: {type: string}
-                    kind:
-                      type: string
-                      enum: [実測, 仮説]
-                    measured_output: {type: string, minLength: 1, pattern: '\S'}
-        - id: premises-accept
-          script: premises_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [premises]
-          with: {reply: $premises.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: purpose-prep
-    script: purpose_prep
-    runtime: uv
-    depends_on: [premises-loop]
-    mutates_checkout: false
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [go, brief_file, reason]
-      properties:
-        go: {type: boolean}
-        brief_file: {type: string}
-        reason: {type: string}
-  - id: purpose-loop
-    depends_on: [purpose-prep]
-    when: $purpose-prep.output.go == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$purpose-accept.output.done; test "$done" = true
-      nodes:
-        - id: purpose-reject
-          script: reject
-          runtime: uv
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.purpose-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
-        - id: purpose
-          command: purpose
-          depends_on: [purpose-reject]
-          model: '@wf-judge-materials'
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
-          mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [purpose_text, source, known_weaknesses, source_files]
-            additionalProperties: false
-            properties:
-              purpose_text: {type: string, minLength: 1, pattern: '\S'}
-              source:
-                type: string
-                enum: [①PR 説明, ②計画・タスク記述, ③writer の要約, 目的不明]
-              known_weaknesses:
-                type: array
-                items: {type: string}
-              source_files:
-                type: array
-                items: {type: string}
-              means:
-                type: array
-                items: {type: string, minLength: 1, pattern: '\S'}
-        - id: purpose-accept
-          script: purpose_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [purpose]
-          with: {status_guarded: true, reply: $purpose.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: world-intake
-    script: world_intake
-    runtime: uv
-    mutates_checkout: false
-    depends_on: [purpose-loop]
-    when: $intake.output.world == true
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [due, prompt, reason]
-      properties:
-        due: {type: boolean}
-        prompt: {type: string}
-        reason: {type: string}
-  - id: world-classes-loop
-    depends_on: [world-intake]
-    when: $world-intake.output.due == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$world-classes-accept.output.done; test "$done" = true
-      nodes:
-        - id: world-classes-reject
-          script: reject
-          runtime: uv
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.world-classes-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
-        - id: world-classes
-          command: world-classes
-          depends_on: [world-classes-reject]
-          model: '@wf-judge-core'
-          settingSources: [user]
-          allowed_tools: []
-          mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [classes]
-            additionalProperties: false
-            properties:
-              classes:
-                type: array
-                items:
-                  type: object
-                  required: [finding, problem, activity, proposed, queries]
-                  additionalProperties: false
-                  properties:
-                    finding: {type: integer, minimum: 1}
-                    problem: {type: string, minLength: 1}
-                    activity: {type: string, minLength: 1}
-                    proposed: {type: string}
-                    queries:
-                      type: array
-                      items: {type: string}
-        - id: world-classes-accept
-          script: world_classes_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [world-classes]
-          with: {reply: $world-classes.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: world-plan
-    script: world_plan
-    runtime: uv
-    mutates_checkout: false
-    depends_on: [world-intake, world-classes-loop]
-    trigger_rule: all_done
-    when: $intake.output.world == true
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [due, prompt, reason]
-      properties:
-        due: {type: boolean}
-        prompt: {type: string}
-        reason: {type: string}
-  - id: world-judge-loop
-    depends_on: [world-plan]
-    when: $world-plan.output.due == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$world-judge-accept.output.done; test "$done" = true
-      nodes:
-        - id: world-judge-reject
-          script: reject
-          runtime: uv
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.world-judge-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
-        - id: world-judge
-          command: world-judge
-          depends_on: [world-judge-reject]
-          model: '@wf-judge-materials'
-          settingSources: [user]
-          allowed_tools: [WebSearch, WebFetch]
-          mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [rows, excerpts]
-            additionalProperties: false
-            properties:
-              rows:
-                type: array
-                items:
-                  type: object
-                  required: [finding, practice, sources, applies, not_applies, verdict, challenge]
-                  additionalProperties: false
-                  properties:
-                    finding: {type: integer, minimum: 1}
-                    practice: {type: string, minLength: 1}
-                    sources:
-                      type: array
-                      items: {type: string}
-                    applies: {type: string}
-                    not_applies: {type: string}
-                    verdict:
-                      type: string
-                      enum: [same, differs, none]
-                    challenge: {type: string}
-              excerpts:
-                type: array
-                items:
-                  type: object
-                  required: [id, url, excerpt]
-                  additionalProperties: false
-                  properties:
-                    id: {type: string}
-                    url: {type: string}
-                    excerpt: {type: string}
-        - id: world-judge-accept
-          script: world_judge_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [world-judge]
-          with: {reply: $world-judge.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: world-finish
-    script: world_finish
-    runtime: uv
-    mutates_checkout: false
-    depends_on: [world-plan, world-judge-loop]
-    trigger_rule: all_done
-    when: $intake.output.world == true
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [ok, status, reason]
-      properties:
-        ok: {type: boolean}
-        status:
-          type: string
-          enum: [ok, failed]
-        reason: {type: string}
-  - id: material-route
-    script: material_route
-    runtime: uv
-    depends_on: [purpose-loop, world-finish]
-    trigger_rule: none_failed_min_one_success
-    mutates_checkout: false
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [prior_decisions, purpose_review, local_review, consistency_bypass, hygiene, external_standards, procedure_trace, gate_efficacy, test_double_fidelity, main_path_observation, provenance,
-        reason]
-      properties:
-        prior_decisions: {type: boolean}
-        purpose_review: {type: boolean}
-        local_review: {type: boolean}
-        consistency_bypass: {type: boolean}
-        hygiene: {type: boolean}
-        external_standards: {type: boolean}
-        procedure_trace: {type: boolean}
-        gate_efficacy: {type: boolean}
-        test_double_fidelity: {type: boolean}
-        main_path_observation: {type: boolean}
-        provenance: {type: boolean}
-        reason: {type: string}
-  - id: prior-decisions-loop
-    depends_on: [material-route]
-    when: $material-route.output.prior_decisions == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$prior-decisions-accept.output.done; test "$done" = true
-      nodes:
-        - id: prior-decisions-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: prior-decisions, reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: prior-decisions
-          command: material-prior-decisions
-          depends_on: [prior-decisions-prep]
-          <<: *net_closed_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, checked, searched, settled]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              checked: {type: boolean}
-              searched:
-                type: array
-                items: {type: string}
-              settled:
-                type: array
-                items:
-                  type: object
-                  required: [topic, decision, reason, revisit]
-                  additionalProperties: false
-                  properties:
-                    topic: {type: string}
-                    decision: {type: string}
-                    reason: {type: string}
-                    revisit: {type: string}
-                    where: {type: string}
-        - id: prior-decisions-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [prior-decisions]
-          with: {status_guarded: false, role: prior-decisions, reply: $prior-decisions.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: purpose-review-loop
-    depends_on: [material-route]
-    when: $material-route.output.purpose_review == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$purpose-review-accept.output.done; test "$done" = true
-      nodes:
-        - id: purpose-review-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: purpose-review, reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: purpose-review
-          command: material-purpose-review
-          depends_on: [purpose-review-prep]
-          <<: *read_launch
-          mutates_checkout: false
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [verdict, reason, findings]
-            additionalProperties: false
-            properties:
-              verdict:
-                type: string
-                enum: [問題なし, 狭めている]
-              reason: {type: string}
-              findings:
-                type: array
-                items:
-                  type: object
-                  required: [text, cite, hits]
-                  additionalProperties: false
-                  properties:
-                    text: {type: string, minLength: 1}
-                    cite: {type: string, minLength: 1}
-                    hits: {type: integer, minimum: 0}
-        - id: purpose-review-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [purpose-review]
-          with: {status_guarded: true, role: purpose-review, reply: $purpose-review.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: local-review-loop
-    depends_on: [material-route]
-    when: $material-route.output.local_review == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$local-review-accept.output.done; test "$done" = true
-      nodes:
-        - id: local-review-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: local-review, reason: "$LOOP_PREV.local-review-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: local-review
-          command: material-local-review
-          depends_on: [local-review-prep]
-          <<: *net_closed_launch
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill, Agent]
-          skills: [code-review, simplify, security-review]
-          plugins: [pr-review-toolkit@works-local]
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, findings, simplify_carried]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              simplify_carried: {type: boolean}
-              findings:
-                type: array
-                items:
-                  type: object
-                  required: [skill, items]
-                  additionalProperties: false
-                  properties:
-                    skill: {type: string}
-                    items:
-                      type: array
-                      items:
-                        type: object
-                        required: [where, text]
-                        additionalProperties: false
-                        properties:
-                          where: {type: string}
-                          text: {type: string}
-                          mechanism: {type: string}
-                          measured: {type: string}
-                          false_positive_if: {type: string}
-                    invoked: {type: boolean}
-                    failed: {type: string}
-        - id: local-review-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [local-review]
-          with: {status_guarded: false, role: local-review, reply: $local-review.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: consistency-bypass-loop
-    depends_on: [material-route]
-    when: $material-route.output.consistency_bypass == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$consistency-bypass-accept.output.done; test "$done" = true
-      nodes:
-        - id: consistency-bypass-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: consistency-bypass, reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: consistency-bypass
-          command: material-consistency-bypass
-          depends_on: [consistency-bypass-prep]
-          <<: *read_launch
-          mutates_checkout: false
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [consistency, bypass, findings, bypass_findings, seen, unseen]
-            additionalProperties: false
-            properties:
-              consistency:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              bypass:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              findings:
-                type: array
-                items:
-                  type: object
-                  required: [where, text]
-                  additionalProperties: false
-                  properties:
-                    where: {type: string}
-                    text: {type: string}
-                    mechanism: {type: string}
-                    measured: {type: string}
-                    false_positive_if: {type: string}
-              bypass_findings:
-                type: array
-                items:
-                  type: object
-                  required: [where, text]
-                  additionalProperties: false
-                  properties:
-                    where: {type: string}
-                    text: {type: string}
-                    mechanism: {type: string}
-                    measured: {type: string}
-                    false_positive_if: {type: string}
-              seen: {type: string}
-              unseen: {type: string}
-        - id: consistency-bypass-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [consistency-bypass]
-          with: {status_guarded: true, role: consistency-bypass, reply: $consistency-bypass.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: hygiene-loop
-    depends_on: [material-route]
-    when: $material-route.output.hygiene == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$hygiene-accept.output.done; test "$done" = true
-      nodes:
-        - id: hygiene-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: hygiene, reason: "$LOOP_PREV.hygiene-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: hygiene
-          command: material-hygiene
-          depends_on: [hygiene-prep]
-          model: '@wf-judge-materials'
-          settingSources: [user]
-          allowed_tools: []
-          mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [findings, seen]
-            additionalProperties: false
-            properties:
-              findings:
-                type: array
-                items:
-                  type: object
-                  required: [where, text]
-                  additionalProperties: false
-                  properties:
-                    where: {type: string}
-                    text: {type: string}
-                    mechanism: {type: string}
-                    measured: {type: string}
-                    false_positive_if: {type: string}
-              seen: {type: string}
-        - id: hygiene-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [hygiene]
-          with: {status_guarded: true, role: hygiene, reply: $hygiene.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: external-standards-loop
-    depends_on: [material-route]
-    when: $material-route.output.external_standards == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$external-standards-accept.output.done; test "$done" = true
-      nodes:
-        - id: external-standards-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: external-standards, reason: "$LOOP_PREV.external-standards-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: external-standards
-          command: material-external-standards
-          depends_on: [external-standards-prep]
-          <<: *net_closed_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, findings, seen, unseen, web_refetched, rankings]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              findings:
-                type: array
-                items:
-                  type: object
-                  required: [where, text]
-                  additionalProperties: false
-                  properties:
-                    where: {type: string}
-                    text: {type: string}
-                    mechanism: {type: string}
-                    measured: {type: string}
-                    false_positive_if: {type: string}
-              seen: {type: string}
-              unseen: {type: string}
-              web_refetched: {type: boolean}
-              rankings:
-                type: array
-                items:
-                  type: object
-                  required: [problem, source, ranked, diff_at]
-                  additionalProperties: false
-                  properties:
-                    problem: {type: string, minLength: 4}
-                    source: {type: string, minLength: 4}
-                    ranked:
-                      type: array
-                      minItems: 1
-                      items: {type: string, minLength: 1}
-                    diff_at: {type: string, minLength: 1}
-                    why_not_higher: {type: string}
-              rankings_none: {type: string}
-        - id: external-standards-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [external-standards]
-          with: {status_guarded: false, role: external-standards, reply: $external-standards.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: procedure-trace-loop
-    depends_on: [material-route]
-    when: $material-route.output.procedure_trace == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$procedure-trace-accept.output.done; test "$done" = true
-      nodes:
-        - id: procedure-trace-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: procedure-trace, reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: procedure-trace
-          command: material-procedure-trace
-          depends_on: [procedure-trace-prep]
-          <<: *net_closed_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, findings, unmeasured]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              findings:
-                type: array
-                items:
-                  type: object
-                  required: [where, text]
-                  additionalProperties: false
-                  properties:
-                    where: {type: string}
-                    text: {type: string}
-                    mechanism: {type: string}
-                    measured: {type: string}
-                    false_positive_if: {type: string}
-              unmeasured:
-                type: array
-                items: {type: string}
-        - id: procedure-trace-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [procedure-trace]
-          with: {status_guarded: false, role: procedure-trace, reply: $procedure-trace.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: gate-efficacy-loop
-    depends_on: [material-route]
-    when: $material-route.output.gate_efficacy == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$gate-efficacy-accept.output.done; test "$done" = true
-      nodes:
-        - id: gate-efficacy-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: gate-efficacy, reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: gate-efficacy
-          command: material-gate-efficacy
-          depends_on: [gate-efficacy-prep]
-          <<: &test_run_launch
-            model: '@wf-judge-materials'
-            settingSources: [user]
-            allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-            sandbox:
-              enabled: true
-              allowUnsandboxedCommands: false
-              failIfUnavailable: true
-              enableWeakerNetworkIsolation: true
-              network:
-                allowedDomains: ['*']
-                allowLocalBinding: true
-              # denyWrite は pr-check の注釈と同じ
-              filesystem:
-                allowWrite: [/]
-                denyWrite: ['~/../archon-home']
-            idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, arms]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              arms:
-                type: array
-                items:
-                  type: object
-                  required: [gate, arm, red_confirmed, control_green, hit_evidence]
-                  additionalProperties: false
-                  properties:
-                    gate: {type: string}
-                    arm: {type: string}
-                    red_confirmed: {type: boolean}
-                    control_green: {type: boolean}
-                    note: {type: string}
-                    hit_evidence: {type: string}
-        - id: gate-efficacy-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [gate-efficacy]
-          with: {status_guarded: false, role: gate-efficacy, reply: $gate-efficacy.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: test-double-fidelity-loop
-    depends_on: [material-route]
-    when: $material-route.output.test_double_fidelity == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$test-double-fidelity-accept.output.done; test "$done" = true
-      nodes:
-        - id: test-double-fidelity-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: test-double-fidelity, reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: test-double-fidelity
-          command: material-test-double-fidelity
-          depends_on: [test-double-fidelity-prep]
-          <<: *test_run_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, mismatches]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              mismatches:
-                type: array
-                items:
-                  type: object
-                  required: [where, text]
-                  additionalProperties: false
-                  properties:
-                    where: {type: string}
-                    text: {type: string}
-                    mechanism: {type: string}
-                    measured: {type: string}
-                    false_positive_if: {type: string}
-        - id: test-double-fidelity-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [test-double-fidelity]
-          with: {status_guarded: false, role: test-double-fidelity, reply: $test-double-fidelity.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: main-path-observation-loop
-    depends_on: [material-route]
-    when: $material-route.output.main_path_observation == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$main-path-observation-accept.output.done; test "$done" = true
-      nodes:
-        - id: main-path-observation-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: main-path-observation, reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: main-path-observation
-          command: material-main-path-observation
-          depends_on: [main-path-observation-prep]
-          <<: *test_run_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, observed]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              observed:
-                type: array
-                items:
-                  type: object
-                  required: [path, value]
-                  additionalProperties: false
-                  properties:
-                    path: {type: string, minLength: 1}
-                    value: {type: string, minLength: 1}
-        - id: main-path-observation-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [main-path-observation]
-          with: {status_guarded: false, role: main-path-observation, reply: $main-path-observation.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: provenance-loop
-    depends_on: [material-route]
-    when: $material-route.output.provenance == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$provenance-accept.output.done; test "$done" = true
-      nodes:
-        - id: provenance-prep
-          script: material_prep
-          runtime: uv
-          mutates_checkout: false
-          with: {role: provenance, reason: "$LOOP_PREV.provenance-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [brief_file, brief, review_md, repo_review_md, reason, lang_line]
-            properties:
-              brief_file: {type: string}
-              brief: {type: string}
-              review_md: {type: string}
-              repo_review_md: {type: string}
-              reason: {type: string}
-              lang_line: {type: string}
-        - id: provenance
-          command: material-provenance
-          depends_on: [provenance-prep]
-          <<: *test_run_launch
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [material, claims]
-            additionalProperties: false
-            properties:
-              material:
-                type: object
-                required: [status]
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
-                  count: {type: integer, minimum: 0}
-                  detail: {type: string}
-                  checked: {type: string}
-                  reason: {type: string}
-                  from_round: {type: integer, minimum: 1}
-              claims:
-                type: array
-                items:
-                  type: object
-                  required: [claim, exists_at_base, evidence]
-                  additionalProperties: false
-                  properties:
-                    claim: {type: string}
-                    exists_at_base: {type: boolean}
-                    evidence: {type: string}
-        - id: provenance-accept
-          script: material_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [provenance]
-          with: {status_guarded: false, role: provenance, reply: $provenance.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: diagnose-prep
-    script: diagnose_prep
-    runtime: uv
-    depends_on: [material-route, prior-decisions-loop, purpose-review-loop, local-review-loop, consistency-bypass-loop, hygiene-loop, external-standards-loop, procedure-trace-loop, gate-efficacy-loop, test-double-fidelity-loop,
-      main-path-observation-loop, provenance-loop, head-depth-loop]
-    trigger_rule: all_done
-    when: $intake.output.go == true && $intake.output.mode == 'judge'
-    mutates_checkout: false
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [go, brief_file, review_md, repo_review_md, reason]
-      properties:
-        go: {type: boolean}
-        brief_file: {type: string}
-        review_md: {type: string}
-        repo_review_md: {type: string}
-        reason: {type: string}
-  - id: diagnose-loop
-    depends_on: [diagnose-prep]
-    when: $diagnose-prep.output.go == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$diagnose-accept.output.done; test "$done" = true
-      nodes:
-        - id: diagnose-reject
-          script: reject
-          runtime: uv
-          mutates_checkout: false
-          with: {reason: "$LOOP_PREV.diagnose-accept.output.reason"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}}
-        - id: diagnose
-          command: diagnose
-          depends_on: [diagnose-reject]
-          <<: *review_launch
-          mutates_checkout: false
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            type: object
-            required: [units, questions, framing, one_shot, materials_missing, carried_r1, one_shot_closes, precedents]
-            additionalProperties: false
-            properties:
-              units:
-                type: array
-                items:
-                  type: object
-                  required: [key, label]
-                  additionalProperties: true
-                  properties:
-                    key: {type: string, minLength: 1, pattern: '\S'}
-                    label:
-                      type: string
-                      enum: [block, suggest, nit, question, info]
-                    disposition:
-                      type: string
-                      enum: [do-now, defer]
-                    reason: {type: string}
-                    reopen_evidence: {type: string}
-                    origin_analysis: {type: string}
-                    why_chain:
-                      type: array
-                      items: {type: string}
-                    prescriptions:
-                      type: array
-                      items: {type: string}
-                    closed_note: {type: string}
-                    class_query:
-                      type: object
-                      required: [how, counts, total]
-                      additionalProperties: false
-                      properties:
-                        how:
-                          type: object
-                          required: [patterns, paths, count]
-                          additionalProperties: false
-                          properties:
-                            patterns:
-                              type: array
-                              minItems: 1
-                              maxItems: 20
-                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
-                            fixed: {type: boolean}
-                            paths:
-                              type: array
-                              minItems: 1
-                              maxItems: 50
-                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
-                            count:
-                              type: string
-                              enum: [lines, files]
-                            untracked: {type: boolean}
-                            ignore_case: {type: boolean}
-                            word: {type: boolean}
-                        counts:
-                          type: string
-                          enum: [defects, population]
-                        total: {type: integer, minimum: 0}
-                        note: {type: string}
-                        hits:
-                          type: array
-                          maxItems: 20
-                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
-                        misses:
-                          type: array
-                          maxItems: 20
-                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
-                        examples_unavailable: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
-                        misses_omitted_why: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
-              questions:
-                type: array
-                items:
-                  type: object
-                  required: [key, kind, status, reason]
-                  additionalProperties: false
-                  properties:
-                    key: {type: string, minLength: 1, pattern: '\S'}
-                    kind:
-                      type: string
-                      enum: [fork, split, rule, stuck, thrash, premise, unverifiable, awaiting, field]
-                    status:
-                      type: string
-                      enum: [held, decided, resolved, escalate]
-                    reason: {type: string}
-                    resolution: {type: string}
-                    options:
-                      type: array
-                      items: {type: string}
-                    depends:
-                      type: array
-                      items: {type: string}
-                    origin: {type: string}
-              framing: {type: string}
-              one_shot: {type: string}
-              materials_missing:
-                type: array
-                items: {type: string}
-              carried_r1:
-                type: array
-                items:
-                  type: object
-                  required: [where, disposition]
-                  additionalProperties: false
-                  properties:
-                    where: {type: string, minLength: 1, pattern: '\S'}
-                    disposition:
-                      type: string
-                      enum: [promote, decline]
-                    unit_key: {type: string}
-                    why: {type: string}
-              router:
-                type: array
-                items:
-                  type: object
-                  required: [key, route, note]
-                  additionalProperties: false
-                  properties:
-                    key: {type: string}
-                    route: {type: string}
-                    note: {type: string}
-              reburn_causes:
-                type: array
-                items:
-                  type: object
-                  required: [key, cause]
-                  additionalProperties: false
-                  properties:
-                    key: {type: string}
-                    cause:
-                      type: string
-                      enum: [コード, レビュアー, 規約, 前の周の修正]
-                    note: {type: string}
-              one_shot_closes:
-                type: array
-                items: {type: string}
-              precedents:
-                type: array
-                items:
-                  type: object
-                  required: [key, problem, source, verdict, reason]
-                  additionalProperties: false
-                  properties:
-                    key: {type: string, minLength: 1, pattern: '\S'}
-                    problem: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
-                    source: {type: string}
-                    verdict:
-                      type: string
-                      enum: [adopt, adapt, does_not_apply, not_found]
-                    reason: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
-                    searched: {type: string}
-                    undecided_because: {type: string}
-              out_of_purpose:
-                type: array
-                items:
-                  type: object
-                  required: [source, where, why_outside]
-                  additionalProperties: false
-                  properties:
-                    source: {type: string, minLength: 1, pattern: '\S'}
-                    where: {type: string, minLength: 1, pattern: '\S'}
-                    why_outside: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
-                    text: {type: string, minLength: 1, pattern: '\S'}
-              answer_ties:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: false
-                  properties:
-                    answer: {type: string, minLength: 1, pattern: '\S'}
-                    redesign: {type: string, minLength: 1, pattern: '\S'}
-                    to: {type: string, minLength: 1, pattern: '\S'}
-                    none: {type: string, minLength: 20, pattern: '\S[\s\S]{18,}\S'}
-        - id: diagnose-accept
-          script: diagnose_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [diagnose]
-          with: {status_guarded: true, reply: $diagnose.output}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  - id: verify-prep
-    script: verify
-    runtime: uv
-    depends_on: [diagnose-loop]
-    mutates_checkout: false
-    with: {status_guarded: false, stage: prep}
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [go, prompt_file, reason, lang_line]
-      properties:
-        go: {type: boolean}
-        prompt_file: {type: string}
-        reason: {type: string}
-        lang_line: {type: string}
-  - id: judge-verify
-    command: judge-verify
-    depends_on: [verify-prep]
-    when: $verify-prep.output.go == true
-    model: '@wf-judge-core'
-    context: fresh
-    settingSources: [user]
-    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
-    mutates_checkout: false
-    sandbox: {enabled: true, allowUnsandboxedCommands: false}
-    idle_timeout: 1728000000
-    retry: {max_attempts: 2, on_error: all}
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [summary]
-      properties:
-        summary: {type: string, minLength: 10}
-  - id: verify-merge
-    script: verify
-    runtime: uv
-    depends_on: [verify-prep, judge-verify]
-    trigger_rule: all_done
-    when: $intake.output.mode == 'judge'
-    mutates_checkout: false
-    with: {status_guarded: true, stage: merge}
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [ok, reason]
-      properties:
-        ok: {type: boolean}
-        reason: {type: string}
-  - id: rejudge-prep
-    script: rejudge_prep
-    runtime: uv
-    depends_on: [intake]
-    when: $intake.output.go == true && $intake.output.mode == 'rejudge'
-    mutates_checkout: false
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [go, brief_file, reason]
-      properties:
-        go: {type: boolean}
-        brief_file: {type: string}
-        reason: {type: string}
-  - id: rejudge-loop
-    depends_on: [rejudge-prep]
-    when: $rejudge-prep.output.go == true
-    loop_group:
-      max_iterations: 3
-      fresh_context: false
-      until_bash: done=$rejudge-accept.output.done; test "$done" = true
-      nodes:
-        - id: rejudge-reject
-          script: rejects
-          runtime: uv
-          mutates_checkout: false
-          with: {board: rejudge, accept: rejudge, prev: "$LOOP_PREV.rejudge-accept.output.ok"}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [reason, lang_line]
-            properties: {reason: {type: string}, lang_line: {type: string}, resubmit: {type: boolean}, brief: {type: string}}
-        - id: rejudge
-          command: rejudge
-          depends_on: [rejudge-reject]
-          when: "$rejudge-reject.output.resubmit != true"
-          <<: *review_launch
-          mutates_checkout: false
-          retry: {max_attempts: 2, on_error: all}
-          output_format: &rejudge_reply
-            type: object
-            required: [verdict, new_facts, units]
-            additionalProperties: false
-            properties:
-              verdict:
-                type: string
-                enum: [採る, 退ける, 一部採る]
-              new_facts: {type: string, minLength: 20, pattern: '\S[\s\S]{18,}\S'}
-              reason: {type: string}
-              units:
-                type: array
-                items:
-                  type: object
-                  required: [key, label]
-                  additionalProperties: true
-                  properties:
-                    key: {type: string, minLength: 1, pattern: '\S'}
-                    label:
-                      type: string
-                      enum: [block, suggest, nit, question, info]
-                    disposition:
-                      type: string
-                      enum: [do-now, defer]
-                    reason: {type: string}
-                    reopen_evidence: {type: string}
-                    origin_analysis: {type: string}
-                    why_chain:
-                      type: array
-                      items: {type: string}
-                    prescriptions:
-                      type: array
-                      items: {type: string}
-                    closed_note: {type: string}
-                    class_query:
-                      type: object
-                      required: [how, counts, total]
-                      additionalProperties: false
-                      properties:
-                        how:
-                          type: object
-                          required: [patterns, paths, count]
-                          additionalProperties: false
-                          properties:
-                            patterns:
-                              type: array
-                              minItems: 1
-                              maxItems: 20
-                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
-                            fixed: {type: boolean}
-                            paths:
-                              type: array
-                              minItems: 1
-                              maxItems: 50
-                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
-                            count:
-                              type: string
-                              enum: [lines, files]
-                            untracked: {type: boolean}
-                            ignore_case: {type: boolean}
-                            word: {type: boolean}
-                        counts:
-                          type: string
-                          enum: [defects, population]
-                        total: {type: integer, minimum: 0}
-                        note: {type: string}
-                        hits:
-                          type: array
-                          maxItems: 20
-                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
-                        misses:
-                          type: array
-                          maxItems: 20
-                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
-                        examples_unavailable: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
-                        misses_omitted_why: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
-        - id: rejudge-fix
-          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$rejudge-reject.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
-          depends_on: [rejudge-reject, rejudge]
-          trigger_rule: none_failed_min_one_success
-          when: "$rejudge-reject.output.resubmit == true"
-          <<: *review_launch
-          mutates_checkout: false
-          retry: {max_attempts: 2, on_error: all}
-          output_format:
-            <<: *rejudge_reply
-            required: []
-        - id: rejudge-accept
-          script: rejudge_accept
-          runtime: uv
-          mutates_checkout: false
-          depends_on: [rejudge, rejudge-fix]
-          trigger_rule: none_failed_min_one_success
-          with:
-            status_guarded: true
-            reply: {from: "$rejudge.output", if_skipped: null}
-            fix_reply: {from: "$rejudge-fix.output", if_skipped: null}
-          output_format:
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-  # with: の optional は、この判定のブロックが落ちても線が先へ進めてよい節の宣言（世界の解の段・run の頭の深さの段。落ちても判定は標準で進む）。
-  # [{node, bare}] の JSON の字で、node は自分の中の節の id かその頭（区切り - で終わる物は頭）、bare はループの中の節で、記録の step に
-  # include の前付けの無い素の id で載るか。線は返りの欄 optional を受け皿で受け、include の id の頭を付けて報告へ渡す。
-  # 再審も同じブロックの差し込みなので同じ宣言を使う（head-depth-prep は when で再審では飛ぶ）
+        pr_material: {type: [object, 'null']}
+        world_rows: {type: [object, string]}
+        row_asks: {type: array, items: {type: object}}
+        depth_why: {type: string}
+        spec_rows: {type: [object, string]}
+        spec_origin: {type: string}
+        tier: {type: string}
+        verify: {type: boolean}
+  # 判定の道だけ（objection・prior は渡さない。再審は line が diagnose を直に include する）
+  - id: diagnose
+    include: works-factory-diagnose
+    depends_on: [diagnose-in]
+    when: "$diagnose-in.output.ok == true && $diagnose-in.output.go == true"
+    with:
+      request: "$INPUTS.request"
+      request_origin: "$INPUTS.request_origin"
+      base: "$INPUTS.base"
+      purpose: "$diagnose-in.output.purpose"
+      constraints: "$diagnose-in.output.constraints"
+      materials: "$diagnose-in.output.materials"
+      pr_material: "$diagnose-in.output.pr_material"
+      world_rows: "$diagnose-in.output.world_rows"
+      row_asks: "$diagnose-in.output.row_asks"
+      depth_why: "$diagnose-in.output.depth_why"
+      spec_rows: "$diagnose-in.output.spec_rows"
+      spec_origin: "$diagnose-in.output.spec_origin"
+      baseline: "$INPUTS.baseline"
+      pr_text: "$INPUTS.pr_text"
+      policy: "$INPUTS.policy"
+      lang: "$INPUTS.lang"
+  - id: diagnose-out
+    <<: *receiver
+    depends_on: [diagnose]
+    with:
+      got: "$diagnose.output"
+      names: "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties downgrades report"
+  - id: verify
+    include: works-factory-verify
+    depends_on: [diagnose, diagnose-in]
+    when: "$diagnose-in.output.verify == true && $diagnose.output.ready == true"
+    with:
+      judgment: "$diagnose.output.judgment"
+      lang: "$INPUTS.lang"
+  - id: verify-out
+    <<: *receiver
+    depends_on: [verify]
+    with:
+      got: "$verify.output"
+      names: "ok status stop_reason reason verify report"
   - id: verdict
     script: verdict
     runtime: uv
-    depends_on: [intake, spec-freeze, diagnose-loop, verify-merge, rejudge-loop, pr-check-reads, head-depth-loop]
-    trigger_rule: all_done
     mutates_checkout: false
+    depends_on: [head-depth-out, spec-out, spec-in, parallel-pr-out, premises-out, purpose-out, world-out, prior-decisions-out, purpose-review-out, local-review-out, consistency-bypass-out, hygiene-out, external-standards-out, procedure-trace-out, test-double-fidelity-out, main-path-observation-out, provenance-out, diagnose-in, diagnose-out, verify-out]
+    trigger_rule: all_done
     with:
-      optional: '[{"node": "world-", "bare": false}, {"node": "world-classes", "bare": true}, {"node": "world-classes-", "bare": true}, {"node": "world-judge", "bare": true}, {"node": "world-judge-", "bare": true}, {"node": "head-depth-", "bare": false}, {"node": "head-depth", "bare": true}, {"node": "head-depth-", "bare": true}]'
+      head_depth_out: {from: "$head-depth-out.output", if_skipped: null}
+      spec_out: {from: "$spec-out.output", if_skipped: null}
+      spec_in: {from: "$spec-in.output", if_skipped: null}
+      parallel_pr_out: {from: "$parallel-pr-out.output", if_skipped: null}
+      premises_out: {from: "$premises-out.output", if_skipped: null}
+      purpose_out: {from: "$purpose-out.output", if_skipped: null}
+      world_out: {from: "$world-out.output", if_skipped: null}
+      prior_decisions_out: {from: "$prior-decisions-out.output", if_skipped: null}
+      purpose_review_out: {from: "$purpose-review-out.output", if_skipped: null}
+      local_review_out: {from: "$local-review-out.output", if_skipped: null}
+      consistency_bypass_out: {from: "$consistency-bypass-out.output", if_skipped: null}
+      hygiene_out: {from: "$hygiene-out.output", if_skipped: null}
+      external_standards_out: {from: "$external-standards-out.output", if_skipped: null}
+      procedure_trace_out: {from: "$procedure-trace-out.output", if_skipped: null}
+      test_double_fidelity_out: {from: "$test-double-fidelity-out.output", if_skipped: null}
+      main_path_observation_out: {from: "$main-path-observation-out.output", if_skipped: null}
+      provenance_out: {from: "$provenance-out.output", if_skipped: null}
+      diagnose_in: {from: "$diagnose-in.output", if_skipped: null}
+      diagnose_out: {from: "$diagnose-out.output", if_skipped: null}
+      verify_out: {from: "$verify-out.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
-      required: [ready, stop_reason, units, judgment, purpose, world, spec, out_of_purpose, rejudge_verdict, depth, depth_why,
-                 premises, verify, pr_excluded, materials, purpose_review, depth_record, decisions, answer_ties, review_lenses,
-                 pr_drafts, rejudge_exit, rejudge_diff, purpose_means, world_state]
+      required: [ok, stop_reason, reason, ready, units, questions, judgment, answer_ties, out_of_purpose, materials, brief, inputs, purpose,
+                 purpose_text, purpose_source, means, purpose_review, constraints, world, world_state, spec, spec_rows, spec_origin,
+                 excluded, pr_drafts, downgrades, decisions, tier, tier_why, row_asks, tier_record, verify, verify_why, report,
+                 sections, optional]
       properties:
-        optional: {type: array}
-        depth:
-          type: string
-          enum: [軽量, 標準, 重厚]
-        depth_why: {type: string}
-        ready: {type: boolean}
+        ok: {type: boolean}
         stop_reason: {type: string}
-        units:
+        reason: {type: string}
+        ready: {type: boolean}
+        units: {type: array, items: {type: object}}
+        questions: {type: array, items: {type: object}}
+        judgment: {type: [object, 'null']}
+        answer_ties: {type: [object, 'null']}
+        out_of_purpose: {type: [object, 'null']}
+        materials: {type: [object, 'null']}
+        brief: {type: [object, 'null']}
+        inputs: {type: [object, 'null']}
+        purpose: {type: [object, 'null']}
+        purpose_text: {type: string}
+        purpose_source: {type: string}
+        means: {type: array, items: {type: string}}
+        purpose_review: {type: [object, 'null']}
+        constraints: {type: [object, 'null']}
+        world: {type: [object, 'null']}
+        world_state:
+          type: object
+          required: [status, reason]
+          properties:
+            status: {type: string}
+            reason: {type: string}
+            classes: {type: integer}
+            dropped: {type: integer}
+        spec: {type: [object, 'null']}
+        spec_rows: {type: [object, 'null']}
+        spec_origin: {type: string}
+        excluded: {type: [object, 'null']}
+        pr_drafts: {type: [object, 'null']}
+        downgrades: {type: array, items: {type: object}}
+        decisions: {type: [object, 'null']}
+        tier: {type: string}
+        tier_why: {type: string}
+        row_asks: {type: array, items: {type: object}}
+        tier_record: {type: [object, 'null']}
+        verify: {type: [object, 'null']}
+        verify_why: {type: string}
+        report: {type: array, items: {type: string}}
+        sections:
           type: array
           items:
             type: object
-            additionalProperties: false
-            required: [id, paths, summary]
+            required: [title, lines]
             properties:
-              id: {type: string}
-              paths:
-                type: array
-                items: {type: string}
-              summary: {type: string}
-        judgment:
-          type: object
-          additionalProperties: false
-          required: [type, run_id, path]
-          properties:
-            type:
-              type: string
-              enum: [archon_artifact]
-            run_id: {type: string}
-            path: {type: string}
-        purpose:
-          type: object
-          additionalProperties: false
-          required: [type, run_id, path]
-          properties:
-            type:
-              type: string
-              enum: [archon_artifact]
-            run_id: {type: string}
-            path: {type: string}
-        world: &pointer_or_null
-          anyOf:
-            - type: object
-              additionalProperties: false
-              required: [type, run_id, path]
-              properties:
-                type:
-                  type: string
-                  enum: [archon_artifact]
-                run_id: {type: string}
-                path: {type: string}
-            - {type: 'null'}
-        spec:
-          anyOf:
-            - type: object
-              additionalProperties: false
-              required: [type, run_id, path]
-              properties:
-                type:
-                  type: string
-                  enum: [archon_artifact]
-                run_id: {type: string}
-                path: {type: string}
-            - {type: 'null'}
-        out_of_purpose:
-          anyOf:
-            - type: object
-              additionalProperties: false
-              required: [type, run_id, path]
-              properties:
-                type:
-                  type: string
-                  enum: [archon_artifact]
-                run_id: {type: string}
-                path: {type: string}
-            - {type: 'null'}
-        rejudge_verdict:
-          anyOf:
-            - type: string
-              enum: [採る, 退ける, 一部採る]
-            - {type: 'null'}
-        premises: *pointer_or_null
-        verify: *pointer_or_null
-        pr_excluded: *pointer_or_null
-        materials: *pointer_or_null
-        purpose_review: *pointer_or_null
-        depth_record: *pointer_or_null
-        decisions: *pointer_or_null
-        answer_ties: *pointer_or_null
-        review_lenses: *pointer_or_null
-        pr_drafts: *pointer_or_null
-        rejudge_exit: *pointer_or_null
-        rejudge_diff: *pointer_or_null
-        purpose_means: *pointer_or_null
-        world_state: *pointer_or_null
+              title: {type: string}
+              lines: {type: array, items: {type: string}}
+        optional:
+          type: array
+          items:
+            type: object
+            properties:
+              node: {type: string}
+              bare: {type: boolean}

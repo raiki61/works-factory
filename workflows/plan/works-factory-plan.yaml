@@ -1,112 +1,75 @@
 name: works-factory-plan
 description: |
-  計画のサブグラフ（メイングラフが include する部品。単独では回さない）。判定が切った単位を、直す前に設計として固める:
-  修正案の役が項目ごとに書いてよい範囲・受け入れテスト・定石と構造の目の行（入力 structure）への従うか外れの訳を書き、受け付けが
-  機械で照らし、波及の一覧（変える名の呼び出し元と試験）を機械で出す。案の直し（fix の裁定の後の 1 度）は同じサブグラフを ruling の入力つきで include する（形 replan）。
-  事前審査との往復はメイングラフが持ち、このサブグラフは 1 回の案を作って返す。2 往復目からは受けた review を周のフォルダに写し、
-  前の周の案と指摘と、役が書く引き継ぎのメモ（handoff.json）も材料のファイルで渡して新しい会話で直させる（穴と外す条件は docs/polyfills.md の P10）。
-  同じ周の中で受け付けに拒まれた後の出し直しは、修正案の役の会話の続きで拒まれた所だけを返させ、受け付けが前の答えと合わせる。
-  置き場は run の置き場の plan/ の下だけ（周ごとの plan/r<k>/）。
-  出力ノード plan は落ちない（中の誤りを捕まえて ready: false と、在って空でないポインタを返す）。
+  修正案の block（docs/design/plan.md）。判定が切った直す単位を、直す前に設計として固める。修正案の役が項目ごとに書いてよい範囲・受け入れテスト・
+  定石と構造の目の行への答えを書き、受け付けが機械で照らし、波及の一覧（変える名の呼び出し元と試験）を機械で出す。承認済みの案の一部の項目を直す
+  「案の直し」は、同じ block を ruling つきで回す（形 replan）。審査との往復の記録と止めは、この block を呼ぶ graph が持ち、この block は前の周を port prior で
+  受けて 1 周分の案を作る。拒まれた後の出し直しは、修正案の役の会話の続きで拒まれた所だけを返させ、受け付けが前の答えと合わせる。
+  出口 finish は落ちない（中の誤りを捕まえて status failed と、在って空でない pointer を出す）。単独の run でも、graph から include されても回る
 
 inputs:
-  start:
-    default: ""
-    description: 始めの記録のポインタ。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・review_rev・input.base.rev・lang を読む
-  units:
-    default: "[]"
-    description: 単位の目録（[{id, paths, summary}]）
-  judgment:
-    default: ""
-    description: 受け付けた判定のポインタ（judgment.json）
-  verify:
-    default: "null"
-    description: 判定の単位の裏取りの申し送りのポインタ（judge-verify.json）。null は申し送りが無い
-  pr_excluded:
-    default: "null"
-    description: 並行 PR と重なるので外した範囲のポインタ（pr-excluded.json）。null は外した範囲が無い
-  depth_record:
-    default: "null"
-    description: run の頭の深さの控えのポインタ（depth-head.json。行ごとの未知の種類と引用）。null は控えが無い（標準）
-  answer_ties:
-    default: "null"
-    description: 依頼の答えを判定の問い・単位に結んだ行のポインタ（answer-ties.json）。null は結びが無い（字の一致だけ）
-  materials:
-    default: "null"
-    description: 判定の素材の状態のポインタ（materials.json。素材の名 → {status, …}）。null は素材の状態が無い
-  decisions:
-    default: "null"
-    description: 決定記録の突合の返答のポインタ（material-prior-decisions.json。reply.settled が決着済みの論点）。null は突合が無い
-  world:
-    default: "null"
-    description: 定石の行のポインタ（world-row の行の並び）。無ければ null
-  structure:
-    default: "null"
-    description: >-
-      構造の目の控えのポインタ（structure-state.json。{status, reason, design_file, skipped ほか}。design_file は構造の目の行
-      （design-row の形の JSON Lines）のパス、skipped は実測しなかった単位の id）。null は構造の目の行が無い
-  spec:
-    default: "null"
-    description: 仕様のポインタ。無ければ null
-  review:
-    default: ""
-    description: 事前審査の指摘のポインタ（往復の 2 回目から。空の字と null は指摘がまだ無い）
-  ruling:
-    default: "[]"
-    description: 案の直しで直す項目の番号の字の並び。空でなければ形 replan
-  conflicts:
-    default: "null"
-    description: 申し出と裁定の行のポインタ（conflicts.json）。案の直しの時だけ
-  prior_failures:
-    default: "null"
-    description: 前の run で最後まで通らなかった物の行のポインタ（[{where, text}]。lib/carry の prior-failures-in.json の形）。無ければ null
-
-returns: plan
-outcome_field: ready
+  judgment: {default: '', description: 'json(shared:judgment.schema.json): 受け付けた判定（欄 units・questions・framing・one_shot・one_shot_closes・precedents を読む）。pointer・パス・値のどれか。空の字は判定が無い（形 plan では役を起こさない。形 replan では処方とライブラリの文書と項目の brief だけに使う）'}
+  units: {default: '[]', description: 'json(unit-catalog.schema.json): 直しの単位の目録の配列 [{id, paths, summary}]。空の配列は目録が無い'}
+  answer_ties: {default: '', description: 'file: 依頼の答えを判定の問いと単位に結んだ行のファイル（answer-ties.json の形）。空は結びが無い（答えを字の一致だけで数える）'}
+  materials: {default: '', description: 'file: 判定の素材の状態のファイル（素材の名 → {status, …}）。空は素材の状態が無い'}
+  answers: {default: '[]', description: 'json(request-answers.schema.json): 依頼の answers の行の配列 [{question, text, …}]。空の配列は答えが無い'}
+  takes_push: {default: 'false', description: 'flag: 判定が保留にした分かれ道の問いの推しを、答えとして数えるか（無人の run の方針。直す義務の数えに効く）'}
+  verify: {default: '', description: 'file: 判定の単位の裏取りの申し送り（{units: [...], synergy: {...}}）。空は申し送りが無い'}
+  excluded: {default: '', description: 'file: 並行 PR と重なるので外した範囲のファイル。空は外した範囲が無い'}
+  depth_record: {default: '', description: 'file: run の頭の深さの控え（行ごとの未知の種類と引用）。空は控えが無い'}
+  decisions: {default: '', description: 'file: 決定記録の突合の返答（reply.settled が決着済みの論点）。空は突合が無い'}
+  world_rows: {default: '', description: 'file: 世界の解の行の JSON Lines。空は行が無い'}
+  structure: {default: '', description: 'file: 構造の目の控え（{status, reason, design_file, skipped, …}）。空は構造の目の行が無い'}
+  spec: {default: '', description: 'file: 固めた仕様（requirements・acceptance を持つ JSON。JSON でなければ字のまま貼る）。空は仕様が無い'}
+  policy: {default: '', description: 'file: 人の方針の文書の固めた写し。空は方針の文書が無い'}
+  prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い'}
+  prior: {default: '', description: 'json(plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）'}
+  ruling: {default: '[]', description: 'json(replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）'}
+  conflicts: {default: '', description: 'file: 項目の誤りの申し出と、その裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い'}
+  base: {default: '', description: 'text: 修正前の HEAD の版（受け入れテストの定義と修正前のテストの中身を引く版）。空は HEAD'}
+  review_rev: {default: '', description: 'text: 役が読む版。空は base、それも空なら HEAD'}
+  diff_base: {default: '', description: 'text: 材料の BASE（入口の差分の根）。空は base、それも空なら読む版'}
+  lang: {default: '', description: 'text: 人に見せる欄（approach・shrink_first・各 why・why_not・no_narrow・undecided_because・world・deviation・narrows の what・recommend の note と why・block_answers の how・handoff）の言語。空は依頼の言語'}
+returns: finish
+outcome_field: ok
 
 nodes:
-  # この差し込みの周の番号 k（plan/r*/ の数 + 1。往復と案の直しを通して数える）と形を決め、置き場 plan/r<k>/ を作る。
-  # go は役を起こすか（形 plan は直す義務の単位が在り行き止まりが無い時、形 replan は直す元の案と渡す項目が在る時）。
-  # 返す節が dir を束ねるので落ちない（中の誤りは go: false と round.json の why に残す）
-  - id: round
-    script: round
+  # 周を開く。port を読み、周のフォルダ r<k>/ を作り、形（ruling が空でなければ replan）と役を起こすかを決める。落ちない
+  - id: intake
+    script: intake
     runtime: uv
     mutates_checkout: false
     output_format:
       type: object
       additionalProperties: false
-      required: [round, mode, dir, go]
+      required: [go, mode, round, reason]
       properties:
-        round: {type: integer, minimum: 1}
-        mode: {type: string, enum: [plan, replan]}
-        dir: {type: string}
         go: {type: boolean}
+        mode: {type: string, enum: [plan, replan]}
+        round: {type: integer, minimum: 1}
+        reason: {type: string}
 
   # 修正案の役が案を書く前に読む、単位の名の波及の一覧（形 replan では作らない）
   - id: ripple-units
     script: ripple_units
     runtime: uv
     mutates_checkout: false
-    depends_on: [round]
-    when: "$round.output.mode == 'plan' && $round.output.go == true"
-    with:
-      dir: $round.output.dir
+    depends_on: [intake]
+    when: "$intake.output.go == true && $intake.output.mode == 'plan'"
     output_format:
       type: object
       additionalProperties: false
-      required: [ripple_file]
+      required: [ok]
       properties:
-        ripple_file: {type: string}
+        ok: {type: boolean}
 
-  # 修正案の輪。1 回目は修正案の役 plan-writer が新しい会話で全部の材料から案を書く。拒否の後は出し直しの役 plan-writer-fix が
-  # 同じ会話の続きで拒まれた所だけを返し、受け付けが前の答えの控えと合わせてから全体を照らす（振り分けは plan-prep の resubmit。
-  # 並んだ層は会話を切るので plan-writer-fix は plan-writer の後ろの層に置く）。拒否の回数では諦めず、受け付けの網（lib の
-  # rolekit.NET_AFTER。輪の max_iterations と同じ数で、届けば工場の不具合）の回の拒否で受け付けが done（give_up）を出して輪を抜ける
-  # （max_iterations で落とさない）
+  # 修正案の輪。1 回目は修正案の役 plan-writer が全部の材料から案を書く。拒否の後は出し直しの役 plan-writer-fix が同じ会話の続きで拒まれた所だけを
+  # 返し、受け付けが前の答えの控えと合わせてから全体を照らす（振り分けは plan-prep の resubmit。会話を切らないよう、続きの役の直前の層は node 1 つ）。
+  # 拒否の回数では諦めず、受け付けの網（rolekit.NET_AFTER。輪の max_iterations と同じ数で、届けば工場の不具合）の回の拒否で受け付けが done・give_up を
+  # 出して輪を抜ける（max_iterations で落とさない）
   - id: plan-loop
-    depends_on: [round, ripple-units]
+    depends_on: [intake, ripple-units]
     trigger_rule: none_failed_min_one_success
-    when: "$round.output.go == true"
+    when: "$intake.output.go == true"
     loop_group:
       max_iterations: 20
       fresh_context: false
@@ -117,19 +80,17 @@ nodes:
           runtime: uv
           mutates_checkout: false
           with:
-            dir: $round.output.dir
             prev: "$LOOP_PREV.plan-accept.output.ok"
           output_format:
             type: object
             additionalProperties: false
-            required: [brief, attempt, resubmit]
+            required: [prompt, resubmit]
             properties:
-              brief: {type: string}
-              attempt: {type: integer}
+              prompt: {type: string}
               resubmit: {type: boolean}
         # 模型・道具・設定は出し直しの役 plan-writer-fix と同じ（merge key の錨 writer_launch）
         - id: plan-writer
-          command: fix-plan
+          prompt: "$plan-prep.output.prompt"
           depends_on: [plan-prep]
           when: "$plan-prep.output.resubmit != true"
           <<: &writer_launch
@@ -140,10 +101,9 @@ nodes:
             mutates_checkout: false
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
-          # 今の works の blk-plan.yaml の修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の関所の決め手の欄）。
-          # 2 往復目からの答えの要る穴（block と開いた項目の suggest）への答え block_answers は任意の欄（converge.ANSWER_SCHEMA と同じ形）。
-          # 次の周の自分へ運ぶ引き継ぎのメモ handoff も任意の欄（handoff.SCHEMA の写し。受け付けが外して周のフォルダに置く）。欄の型は planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA（files）・
-          # gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
+          # 修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の決め手の欄）。2 往復目からの答えの要る穴への答え block_answers は任意の欄
+          # （converge.ANSWER_SCHEMA の写し）。次の周の自分へ運ぶ引き継ぎのメモ handoff も任意の欄（handoff.SCHEMA の写し）。欄の型は
+          # planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA・gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
           output_format: &plan_reply
             type: object
             additionalProperties: false
@@ -492,11 +452,23 @@ nodes:
                   open:
                     type: array
                     items: {type: string, minLength: 1}
-        # 拒まれた後の出し直しの役（plan-writer の会話の続き）。型は plan-writer の型から required を外し、whole_plan を足した物
-        - id: plan-writer-fix
-          prompt: 前の回の返答は受け付けで拒まれた。この会話の続きで直す。指示書 `$plan-prep.output.brief` を Read で全部読み、その指示に従え。返すのは指示書の返し方の形の JSON だけ。
+        - id: plan-fix-prep
+          script: fix_prep
+          runtime: uv
+          mutates_checkout: false
           depends_on: [plan-prep, plan-writer]
           trigger_rule: none_failed_min_one_success
+          when: "$plan-prep.output.resubmit == true"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string, minLength: 1}
+        # 拒まれた後の出し直しの役（plan-writer の会話の続き）。型は plan-writer の型から required を外し、whole_plan を足した物
+        - id: plan-writer-fix
+          prompt: "$plan-fix-prep.output.prompt"
+          depends_on: [plan-prep, plan-fix-prep]
           when: "$plan-prep.output.resubmit == true"
           <<: *writer_launch
           output_format:
@@ -512,8 +484,6 @@ nodes:
           depends_on: [plan-writer, plan-writer-fix]
           trigger_rule: none_failed_min_one_success
           with:
-            status_guarded: true
-            dir: $round.output.dir
             reply: {from: "$plan-writer.output", if_skipped: null}
             fix_reply: {from: "$plan-writer-fix.output", if_skipped: null}
           output_format:
@@ -527,58 +497,42 @@ nodes:
               reason: {type: string}
               attempt: {type: integer}
 
-  # 受け付けた案の項目ごとの波及の一覧 ripple.json（返り ripple の指し札の先）。案が無い周は {items: [], error: <訳>}
+  # 受け付けた案の項目ごとの波及の一覧 ripple.json。案が無い周は {items: [], error: <訳>}
   - id: ripple-items
     script: ripple_items
     runtime: uv
     mutates_checkout: false
-    depends_on: [round, plan-loop]
+    depends_on: [intake, plan-loop]
     trigger_rule: all_done
-    with:
-      dir: $round.output.dir
     output_format:
       type: object
       additionalProperties: false
-      required: [ripple_file]
-      properties:
-        ripple_file: {type: string}
-
-  # 読んだ証拠: この周に起こした修正案の役が、機械が渡したパス（材料・前の拒否の理由・方針の文書）を読んだかを、隔離した設定の
-  # フックの記録から集めて周のフォルダに書く（受け付けの条件にしない。返す節に結ばない。役を起こさない周も、輪が落ちた周も走って
-  # 書く。周を開く節が落ちた周は dir が無いので飛ぶ（one_success）。落ちない）
-  - id: plan-reads
-    script: plan_reads
-    runtime: uv
-    mutates_checkout: false
-    depends_on: [round, plan-loop]
-    trigger_rule: one_success
-    with:
-      dir: $round.output.dir
-    output_format:
-      type: object
-      additionalProperties: false
-      required: [ok, missing, index_file, reason]
+      required: [ok]
       properties:
         ok: {type: boolean}
-        missing: {type: array, items: {type: string}}
-        index_file: {type: string}
-        reason: {type: string}
 
-  # 返す節。落ちない（中の誤りを捕まえて ready: false と、在って空でない指し札の先を返す。誤りの訳は plan/r<k>/collect-error.txt）
-  - id: plan
-    script: plan_collect
+  # 出口。落ちない（中の誤りを捕まえて status failed と、在って空でない pointer の先を返す。誤りの訳は r<k>/finish-error.txt）
+  - id: finish
+    script: finish
     runtime: uv
     mutates_checkout: false
-    depends_on: [round, ripple-items]
+    depends_on: [intake, ripple-items]
     trigger_rule: all_done
-    with:
-      dir: $round.output.dir
     output_format:
       type: object
       additionalProperties: false
-      required: [ready, plan, ripple, depth, round, fix_plan, rejects, nothing_owed, gave_up]
+      required: [ok, status, reason, mode, round, owed, plan, fix_plan, reply, handoff, replan, ripple, rejects, gave_up, report]
       properties:
-        ready: {type: boolean}
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, nothing_owed, held, gave_up, failed]
+        reason: {type: string}
+        mode: {type: string, enum: [plan, replan]}
+        round: {type: integer, minimum: 1}
+        owed:
+          type: array
+          items: {type: string}
         plan: &pointer
           type: object
           additionalProperties: false
@@ -587,22 +541,16 @@ nodes:
             type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
+        fix_plan: &pointer_or_null
+          type: [object, 'null']
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        reply: *pointer_or_null
+        handoff: *pointer_or_null
+        replan: *pointer_or_null
         ripple: *pointer
-        depth:
-          type: array
-          items:
-            type: object
-            additionalProperties: false
-            required: [unit_id, depth, why]
-            properties:
-              unit_id: {type: string}
-              depth: {type: string, enum: [軽量, 標準]}
-              why: {type: string}
-        round: {type: integer, minimum: 1}
-        fix_plan:
-          anyOf:
-            - *pointer
-            - {type: 'null'}
         rejects:
           type: array
           items:
@@ -612,16 +560,16 @@ nodes:
               at: {}
               reason: {type: string}
               kind: {type: string}
-        nothing_owed: {type: boolean}
         gave_up:
-          anyOf:
-            - type: array
-              items:
-                type: object
-                additionalProperties: false
-                required: [item, why, ruling]
-                properties:
-                  item: {type: integer}
-                  why: {type: string}
-                  ruling: {type: string}
-            - {type: 'null'}
+          type: [array, 'null']
+          items:
+            type: object
+            additionalProperties: false
+            required: [item, why, ruling]
+            properties:
+              item: {type: integer}
+              why: {type: string}
+              ruling: {type: string}
+        report:
+          type: array
+          items: {type: string}

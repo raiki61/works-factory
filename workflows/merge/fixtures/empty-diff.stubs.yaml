@@ -14,5 +14,5 @@ fixture:
   reached: [place, merge]
   inputs:
     mode: seal
-    start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
+    base: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 exec-code: true
