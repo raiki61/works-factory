@@ -9,8 +9,8 @@ report__finish:
   ok: false
   outcome: stopped_by_line
   stop_reason: start:works:start-refused
-  machine: {type: archon_artifact, run_id: fixture-run, path: report/report.machine.json}
-  human: {type: archon_artifact, run_id: fixture-run, path: report/report.md}
+  machine: {type: archon_artifact, run_id: dry-run, path: report/report.machine.json}
+  human: {type: archon_artifact, run_id: dry-run, path: report/report.md}
   detail: null
   next_request: null
   prior_failures: null

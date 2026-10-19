@@ -10,6 +10,33 @@ fixture:
 exec-code: true
 gate-start: {decision: approve, text: ''}
 gate-final: {decision: approve, text: ''}
+owed:
+  owed: true
+  why: ''
+  recorded: []
+  stop_reason: ''
+plan-out:
+  done: true
+  ok: true
+  status: ok
+  round: 1
+  plan_prior: null
+  record: null
+  plan: {type: archon_artifact, run_id: dry-run, path: plan/plan-fields.json}
+  fix_plan: {type: archon_artifact, run_id: dry-run, path: plan/fix-plan.json}
+  reply: null
+  handoffs: []
+  ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
+  owed: [u1]
+  gave_up: null
+  stalled: false
+  capped: false
+  review: null
+  asks: []
+  deviations: []
+  review_status: ok
+  review_reason: ''
+  stop_reason: ''
 fix__intake: {ok: false, whole: false, reason: ''}
 fix__fix-reads:
   ok: true
@@ -30,7 +57,7 @@ fix__finish:
   carry: null
   replan_items: []
   objection: ''
-  diff: {type: archon_artifact, run_id: fixture-run, path: fix/diff.patch}
+  diff: {type: archon_artifact, run_id: dry-run, path: fix/diff.patch}
   start_tree: tttttttttttttttttttttttttttttttttttttttt
   reply: null
   ruled_reply: null
@@ -43,9 +70,9 @@ fix__finish:
   mismatched: []
   plan_declared: []
   stop_reason: ''
-  allowed_tests: {type: archon_artifact, run_id: fixture-run, path: fix/allowed-tests.json}
-  accept_trace: {type: archon_artifact, run_id: fixture-run, path: fix/accept-trace.json}
-  closure: {type: archon_artifact, run_id: fixture-run, path: fix/closure.json}
+  allowed_tests: {type: archon_artifact, run_id: dry-run, path: fix/allowed-tests.json}
+  accept_trace: {type: archon_artifact, run_id: dry-run, path: fix/accept-trace.json}
+  closure: {type: archon_artifact, run_id: dry-run, path: fix/closure.json}
   tdd_unit: null
   frozen: null
   tdd: []
@@ -61,7 +88,7 @@ lens__finish:
   ok: true
   status: ok
   reason: ''
-  rows: {type: archon_artifact, run_id: fixture-run, path: lens/rows.json}
+  rows: {type: archon_artifact, run_id: dry-run, path: lens/rows.json}
   ran: 1
   failed: 0
   not_routed: 0
@@ -82,8 +109,8 @@ delta-review__finish:
   reason: ''
   rounds: 1
   pass: true
-  holes: {type: archon_artifact, run_id: fixture-run, path: delta-review/holes.json}
-  diff: {type: archon_artifact, run_id: fixture-run, path: delta-review/diff.patch}
+  holes: {type: archon_artifact, run_id: dry-run, path: delta-review/holes.json}
+  diff: {type: archon_artifact, run_id: dry-run, path: delta-review/diff.patch}
   carry: []
   report: ['- 差分の審査: 通った']
 parallel-pr-after__scan: {go_role: false, reason: ''}
@@ -93,7 +120,7 @@ parallel-pr-after__finish:
   stop_reason: ''
   reason: ''
   material: {status: clean, checked: 開いている PR は無い}
-  excluded: {type: archon_artifact, run_id: fixture-run, path: parallel-pr/pr-excluded.json}
+  excluded: {type: archon_artifact, run_id: dry-run, path: parallel-pr/pr-excluded.json}
   drafts: null
   reads: null
   downgrades: []
@@ -117,14 +144,14 @@ eyes__structure-after__finish:
   status: ok
   reason: ''
   structure: null
-  after: {type: archon_artifact, run_id: fixture-run, path: eyes/structure-after.json}
+  after: {type: archon_artifact, run_id: dry-run, path: eyes/structure-after.json}
   dirty: 0
   escalate: 0
   optional:
   - {node: measure, bare: false}
   report: ['- 直した後の実測: 増えていない']
 eyes__after-in:
-  after: {type: archon_artifact, run_id: fixture-run, path: eyes/structure-after.json}
+  after: {type: archon_artifact, run_id: dry-run, path: eyes/structure-after.json}
   why: ''
 eyes__r1__intake: {due: false, reason: ''}
 eyes__r1__finish:
@@ -183,7 +210,7 @@ merge-seal__place:
   mode: seal
   ok: true
   hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  diff: {type: archon_artifact, run_id: fixture-run, path: merge/sealed.diff}
+  diff: null
   protected_hits: []
   protected_count: 0
   reason: ''
@@ -193,7 +220,7 @@ merge-seal__merge:
   mode: seal
   ok: true
   hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  diff: {type: archon_artifact, run_id: fixture-run, path: merge/sealed.diff}
+  diff: null
   protected_hits: []
   protected_count: 0
   reason: ''
@@ -201,21 +228,12 @@ merge-seal__merge:
   optional:
   - {node: pr-open, bare: false}
   report: ['- merge（seal）: 置いた']
-merge-apply__place:
-  mode: apply
-  ok: true
-  hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  diff: {type: archon_artifact, run_id: fixture-run, path: merge/apply.diff}
-  protected_hits: null
-  protected_count: null
-  reason: ''
-  base_rev: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-  deliver: ''
+merge-apply__place: {mode: apply, ok: true, hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, diff: null, protected_hits: null, protected_count: null, reason: '', base_rev: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, deliver: ''}
 merge-apply__merge:
   mode: apply
   ok: true
   hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  diff: {type: archon_artifact, run_id: fixture-run, path: merge/apply.diff}
+  diff: null
   protected_hits: null
   protected_count: null
   reason: ''
@@ -228,8 +246,8 @@ report__finish:
   ok: true
   outcome: fixed
   stop_reason: ''
-  machine: {type: archon_artifact, run_id: fixture-run, path: report/report.machine.json}
-  human: {type: archon_artifact, run_id: fixture-run, path: report/report.md}
+  machine: {type: archon_artifact, run_id: dry-run, path: report/report.machine.json}
+  human: {type: archon_artifact, run_id: dry-run, path: report/report.md}
   detail: null
   next_request: null
   prior_failures: null
@@ -238,7 +256,7 @@ start:
   ok: true
   stop_reason: ''
   reason: ''
-  record: {type: archon_artifact, run_id: fixture-run, path: r1/start.json}
+  record: null
   prior_failures: null
   ask: true
   gate_text: '起きたこと: run を始める前で止まった。
@@ -250,7 +268,7 @@ start:
   design_only: false
   final_gate: ''
   from_fixture: true
-  fixture: {type: archon_artifact, run_id: fixture-run, path: fixture-carried.json}
+  fixture: {type: archon_artifact, run_id: dry-run, path: fixture-carried.json}
   ports:
     request: .archon/workflows/works-factory/line/fixtures/request.json
     request_file: .archon/workflows/works-factory/line/fixtures/request.json
@@ -295,9 +313,9 @@ fix-in:
   answer: null
   deferred: []
   passes: []
-  baseline: {type: archon_artifact, run_id: fixture-run, path: test-gate-base/baseline.json}
+  baseline: {type: archon_artifact, run_id: dry-run, path: test-gate-base/baseline.json}
   suite: ''
-  judgment: {type: archon_artifact, run_id: fixture-run, path: judge/judgment.json}
+  judgment: {type: archon_artifact, run_id: dry-run, path: judge/judgment.json}
   units:
   - id: u1
     paths: [stats.py]
@@ -311,7 +329,7 @@ fix-in:
   decisions: null
   world: null
   spec: null
-  purpose: {type: archon_artifact, run_id: fixture-run, path: judge/purpose.json}
+  purpose: {type: archon_artifact, run_id: dry-run, path: judge/purpose.json}
   purpose_text: 空の列でも mean が落ちない
   means: []
   constraints: null
@@ -319,12 +337,12 @@ fix-in:
   inputs: null
   recorded: []
   structure: null
-  design: {type: archon_artifact, run_id: fixture-run, path: independent-design/design.json}
+  design: {type: archon_artifact, run_id: dry-run, path: independent-design/design.json}
   design_reason: ''
   design_premises: null
-  plan: {type: archon_artifact, run_id: fixture-run, path: plan/plan-fields.json}
-  fix_plan: {type: archon_artifact, run_id: fixture-run, path: plan/fix-plan.json}
-  ripple: {type: archon_artifact, run_id: fixture-run, path: plan/ripple.json}
+  plan: {type: archon_artifact, run_id: dry-run, path: plan/plan-fields.json}
+  fix_plan: {type: archon_artifact, run_id: dry-run, path: plan/fix-plan.json}
+  ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
   reply: null
   review: null
   record: null

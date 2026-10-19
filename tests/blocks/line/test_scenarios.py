@@ -25,7 +25,7 @@ BLOCK = "line"
 LINE = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"
 SCENARIOS = (
     "block-failed", "block-returns-failed", "conflict-ask", "depth-heavy", "depth-light", "depth-no-evidence", "depth-raised",
-    "fix-excluded", "fix-fixture", "light", "light-all-units", "no-fix", "nothing-owed", "plan-failed", "plan-stalled", "plan-unsettled", "spec-changed", "standard",
+    "fix-excluded", "fix-fixture", "light", "light-all-units", "no-fix", "nothing-owed", "plan-failed", "plan-stalled", "spec-changed", "standard",
     "start-refused", "test-gate-failed",
 )
 LIB = kit.ROOT / "lib"
@@ -169,12 +169,12 @@ class LineReturnsTest(unittest.TestCase):
         for node in ("collect", "report__finish", "sweep-children", "result"):
             self.assertTrue(ran(trace, node), node)
         self.assertEqual(out(trace, "result")["outcome"], "stopped_by_line")
-        self.assertIn("works:start-refused", trace["collect"]["output"])
+        self.assertEqual(out(trace, "result")["stop_reason"], "start:works:start-refused")
 
     def test_spec_changed_stop_reaches_the_report(self):
         trace = self.traces["spec-changed"]
         self.assertEqual(out(trace, "result")["outcome"], "needs_human")
-        self.assertIn("works:spec-changed", trace["collect"]["output"])
+        self.assertEqual(out(trace, "result")["stop_reason"], "spec-check:works:spec-changed")
         for node in ("test-gate-final__result", "eyes__verdict", "merge-seal__merge", "gate-final"):
             self.assertTrue(ran(trace, node), node)
 
@@ -240,25 +240,18 @@ class NothingOwedRoundTest(unittest.TestCase):
 
 
 class PlanStopTest(unittest.TestCase):
-    """計画の往復が止まった姿（plan-stalled）と安全の上限の周（plan-unsettled）は、往復を抜けて修正前の承認ノードが開く。
-    止まりの決めは往復の記録のファイルを読む plan-out が持つので、plan-stalled は plan-out の返りを止まりの値で差す"""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.traces = line_traces(("plan-stalled", "plan-unsettled"))
+    """計画の往復が止まった姿（plan-stalled）は往復を抜けて、修正前の承認ノードが必ず開く。止まりの決めと止まった理由の文は往復の記録の
+    ファイルを読む plan-out が持ち、dry-run の置き場には無いので、plan-out の返りを止まりの値（stalled と事前審査が諦めた印）で差す。
+    上限の周（旧 plan-unsettled。止まった理由の文が記録のファイルから組まれる）は筋書きで届かず、tests/blocks/line/test_rounds.py と
+    test_gates.py が見る（line.md の 3 節）"""
 
     def test_stalled_round_opens_the_gate_before_fix(self):
-        trace = self.traces["plan-stalled"]
-        self.assertIs(out(trace, "ask-before-fix")["open"], True)
+        trace = line_traces(("plan-stalled",))["plan-stalled"]
+        asked = out(trace, "ask-before-fix")
+        self.assertIs(asked["open"], True, asked)
+        self.assertIn("事前審査の受け付けが諦めた: ", asked["text"])
         for node in ("plan-out", "gate-before-fix", "answer-before-fix", "fix__finish"):
             self.assertTrue(ran(trace, node), node)
-
-    def test_cap_round_is_a_capped_stop(self):
-        trace = self.traces["plan-unsettled"]
-        rounds = out(trace, "plan-out")
-        self.assertEqual((rounds["done"], rounds["capped"]), (True, True), rounds)
-        self.assertIs(out(trace, "ask-before-fix")["open"], True)
-        self.assertTrue(ran(trace, "fix__finish"))
 
 
 class FailedBlockTest(unittest.TestCase):
@@ -313,7 +306,7 @@ class HeadDepthTest(unittest.TestCase):
     どの筋書きでも事前審査の輪が走って報告まで届き、事前審査の輪を飛ばす node（plan-review-due）は line に無い。判定の段の語は
     tiers に届き、省く物と足す物が段ごとに違う（軽量は省く物、重厚は足した物と事前審査の木 on）"""
 
-    LOOP = "plan-review-run__review-accept"
+    LOOP = "review-accept"   # 事前審査の輪の本体の node は include の id の頭が付かない
     NAMES = ("depth-light", "depth-raised", "depth-heavy", "depth-no-evidence")
 
     @classmethod
@@ -379,7 +372,7 @@ class FixExcludedTest(unittest.TestCase):
     """line.md 11 節の fix-excluded（4.5 の fix の excluded）: 並行 PR が外した hunk の控えが fix-in を通って fix に届き、2 度目の修正
     （refix-run）にも同じ値が配られる。fix の受け付けが外した hunk に触れた修正を拒むのは fix の block の筋書きが見る"""
 
-    POINTER = {"type": "archon_artifact", "run_id": "fixture-run", "path": "parallel-pr/pr-excluded.json"}
+    POINTER = {"type": "archon_artifact", "run_id": "dry-run", "path": "parallel-pr/pr-excluded.json"}
 
     def test_excluded_reaches_fix_and_refix(self):
         trace = line_traces(("fix-excluded",))["fix-excluded"]

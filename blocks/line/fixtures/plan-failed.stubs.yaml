@@ -27,10 +27,10 @@ test-gate-base__result:
   ran_steps:
     ran: [suite]
     unran: []
-  baseline: {type: archon_artifact, run_id: fixture-run, path: test-gate-base/baseline.json}
+  baseline: {type: archon_artifact, run_id: dry-run, path: test-gate-base/baseline.json}
   fingerprint: null
   test_outcomes: null
-  evidence: {type: archon_artifact, run_id: fixture-run, path: test-gate-base/evidence.json}
+  evidence: {type: archon_artifact, run_id: dry-run, path: test-gate-base/evidence.json}
   by: engine
   suites_line: '走らせた: suite（exit 0・direct）／走らせなかった: 無い'
   log: test-gate-base/logs/checks.log
@@ -48,7 +48,7 @@ judge__head-depth__finish:
   tier: 標準
   why: 筋書きの stub
   rows: []
-  record: {type: archon_artifact, run_id: fixture-run, path: head-depth/depth-head.json}
+  record: {type: archon_artifact, run_id: dry-run, path: head-depth/depth-head.json}
   report: ['- 段: 標準']
 judge__spec-in: {go: false, stop_reason: '', reason: '', request: null, spec: null, added_rows: null, added_origin: ''}
 judge__diagnose-in:
@@ -76,13 +76,13 @@ judge__verdict:
   - id: u1
     paths: [stats.py]
     summary: 空の列の mean が 0 割りで落ちる
-  judgment: {type: archon_artifact, run_id: fixture-run, path: judge/judgment.json}
+  judgment: null
   answer_ties: null
   out_of_purpose: null
-  materials: {type: archon_artifact, run_id: fixture-run, path: judge/materials.json}
+  materials: null
   brief: null
   inputs: null
-  purpose: {type: archon_artifact, run_id: fixture-run, path: judge/purpose.json}
+  purpose: {type: archon_artifact, run_id: dry-run, path: judge/purpose.json}
   purpose_text: 空の列でも mean が落ちない
   purpose_source: 筋書きの stub
   means: []
@@ -111,7 +111,7 @@ structure__finish:
   ok: true
   status: ok
   reason: ''
-  structure: {type: archon_artifact, run_id: fixture-run, path: structure/structure-state.json}
+  structure: null
   after: null
   dirty: 0
   escalate: 0
@@ -123,7 +123,7 @@ independent-design__finish:
   ok: true
   status: ok
   stands: true
-  design: {type: archon_artifact, run_id: fixture-run, path: independent-design/design.json}
+  design: null
   premises: null
   reason: ''
   downgrades: []
@@ -133,8 +133,8 @@ report__finish:
   ok: false
   outcome: stopped_by_line
   stop_reason: ''
-  machine: {type: archon_artifact, run_id: fixture-run, path: report/report.machine.json}
-  human: {type: archon_artifact, run_id: fixture-run, path: report/report.md}
+  machine: {type: archon_artifact, run_id: dry-run, path: report/report.machine.json}
+  human: {type: archon_artifact, run_id: dry-run, path: report/report.md}
   detail: null
   next_request: null
   prior_failures: null
@@ -148,12 +148,12 @@ plan__finish:
   mode: plan
   round: 1
   owed: [u1]
-  plan: {type: archon_artifact, run_id: fixture-run, path: plan/plan-fields.json}
-  fix_plan: {type: archon_artifact, run_id: fixture-run, path: plan/fix-plan.json}
+  plan: {type: archon_artifact, run_id: dry-run, path: plan/plan-fields.json}
+  fix_plan: {type: archon_artifact, run_id: dry-run, path: plan/fix-plan.json}
   reply: null
   handoff: null
   replan: null
-  ripple: {type: archon_artifact, run_id: fixture-run, path: plan/ripple.json}
+  ripple: {type: archon_artifact, run_id: dry-run, path: plan/ripple.json}
   rejects: []
   gave_up: null
   report: ['- 計画: 1 項目']
