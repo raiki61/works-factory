@@ -16,7 +16,8 @@
   "engineering.md",
   "lib/REVIEW.md",
   "lib/borrow/**",
-  ".factory/**"
+  ".factory/**",
+  "blocks/**"
  ],
  "concepts": {
   "entry-kind": {
@@ -910,6 +911,7 @@
   "pattern:marks:足し欄の共有ボードの控えの名": "修正案の役の引き継ぎのメモの控えの名 handoff を marks の種の表に足したので、柵の選びにも足した",
   "pattern:accept-round:諦める回の数 GIVE_UP_AFTER との大小の比べ（最後の回かは rolekit.is_last_attempt が答える）": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）",
   "pattern:accept-round:諦める回の数の定義 GIVE_UP_AFTER = <数> と、前の回の受け付けが拒んだ理由の見出しの Section の宣言": "#662 で受け付けの網 NET_AFTER（計画と事前審査の受け付けが回数の上限で諦めない代わりの届かない数）を住処 rolekit に足したので、柵の選びにもその名を足した（当たる形が増えるだけで、緩めではない）",
-  "bound:ai-launch:AI の起こし方の語（ノードの模型と effort の行 model:・effort:、道具 allowed_tools、道具ゼロの隔離の旗 isolated と ISOLATED_RUN_BY、run の明示の模型 WORKS_DEV_MODEL）:workflows/structure/works-factory-structure.yaml:^ {10}(model: '@wf-plan-structure'|allowed_tools: \\[\\])$": "#560 で構造の目を plan から新しいサブグラフ structure に分けた。散らばりの柵は新しいファイルを既知の漏れに足せず、知ってよい所も空のままなので、移した 2 行（役の群と道具ゼロ）だけを結んだ写しとして数えずに置く。AI の起こし方の行は全体で増えていない（計画の YAML は 4 行から 2 行）"
+  "bound:ai-launch:AI の起こし方の語（ノードの模型と effort の行 model:・effort:、道具 allowed_tools、道具ゼロの隔離の旗 isolated と ISOLATED_RUN_BY、run の明示の模型 WORKS_DEV_MODEL）:workflows/structure/works-factory-structure.yaml:^ {10}(model: '@wf-plan-structure'|allowed_tools: \\[\\])$": "#560 で構造の目を plan から新しいサブグラフ structure に分けた。散らばりの柵は新しいファイルを既知の漏れに足せず、知ってよい所も空のままなので、移した 2 行（役の群と道具ゼロ）だけを結んだ写しとして数えずに置く。AI の起こし方の行は全体で増えていない（計画の YAML は 4 行から 2 行）",
+  "exclude:blocks/**": "#765 の作り直しの間の 2 つ目の pack blocks/ は、block ごとの形の検査 tests/layers/test_block_shape.py（7.1 の yes/no）が縛る。考えの住処の柵と既知の漏れの表は組み込みで消す（docs/design/README.md の 9.4）ので、新しい置き場には当てない。workflows/ と lib/ の柵は変えない"
  }
 }

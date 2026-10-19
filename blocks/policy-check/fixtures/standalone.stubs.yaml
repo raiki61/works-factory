@@ -1,0 +1,18 @@
+# 単独の run: 方針の文だけで、world の include を通って最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。
+# dry-run は include の中の loop の本体の node に include の道を渡さない（docs/design/README.md の 13 節）ので、world の言い直しの
+# 輪の本体は差し替え、配線（policy-in の値が world の入口に届き、result がまとめる）だけを見る。world の中の道は world の筋書きが見る
+fixture:
+  expect: completed
+  reached: [policy-in, world__intake, world-classes-prep, world-classes, world-classes-accept, world__pick, world__finish, result]
+  inputs:
+    policy: '- Retry a failed upload three times with a fixed one second wait.'
+exec-code: true
+world-classes-prep: {prompt: 'You are the restater.'}
+world-classes:
+  classes:
+    - finding: 1
+      problem: how a client should retry a failed network upload
+      activity: retrying failed network requests
+      proposed: retry three times with a fixed one second wait
+      queries: [retry policy for failed network requests]
+world-classes-accept: {ok: true, done: true, reason: ''}

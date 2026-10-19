@@ -1,0 +1,31 @@
+# 単独の run: port の値だけで最後まで届く（web は off なので、道具を持たない web の役の輪が回る。script は本当に走り、AI の役の
+# 返答だけを差し替える）
+fixture:
+  expect: completed
+  reached: [intake, world-classes-prep, world-classes, world-classes-accept, pick, world-judge-offline-prep, world-judge-offline, world-judge-offline-accept, finish]
+  inputs:
+    request: '[{"where": "README", "text": "The cache folder should follow the user settings"}]'
+    purpose: 'Cached files go where the user expects them'
+    means: '["read one environment variable for the folder"]'
+    web: 'off'
+  resolved-text-contains:
+    world-classes: 'You are the restater, started in a new conversation.'
+    world-judge-offline: 'The web is off for this run: do not search or fetch.'
+exec-code: true
+world-classes:
+  classes:
+    - finding: 1
+      problem: where a command line tool keeps its cache files
+      activity: choosing the cache location of a tool
+      proposed: read one environment variable for the folder
+      queries: [cache directory convention for command line tools]
+world-judge-offline:
+  rows:
+    - finding: 1
+      practice: Follow the base directory convention of the platform for cache files.
+      sources: []
+      applies: The tool should put its cache under the platform cache home.
+      not_applies: ''
+      verdict: same
+      challenge: ''
+  excerpts: []

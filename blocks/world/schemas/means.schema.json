@@ -1,0 +1,5 @@
+{
+  "description": "依頼が示した解き方の文の配列",
+  "type": "array",
+  "items": {"type": "string"}
+}
