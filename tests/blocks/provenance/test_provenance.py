@@ -118,6 +118,15 @@ class FlowCase(unittest.TestCase):
         self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
         self.assertEqual(self.material()["materials"]["provenance"]["status"], "not_run")
 
+    def test_prompt_is_built_from_the_slots(self):
+        self.intake(lang="Japanese")
+        got = self.prep()["prompt"]
+        self.assertIn("in Japanese.", got)
+        self.assertIn("- Target diff (Read it): ", got)
+        self.assertIn("- Repository: " + str(self.run.repo.resolve()), got.replace(str(self.run.repo), str(self.run.repo.resolve())))
+        self.assertNotIn("new conversation", got, "輪は会話を続けるので、毎回新しい会話とは言わない")
+        self.assertFalse((self.run.artifacts / "material-provenance-brief.md").exists())
+
     def test_prep_without_intake_fails_the_node(self):
         self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
 

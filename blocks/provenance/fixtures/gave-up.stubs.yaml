@@ -8,7 +8,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    provenance: 'この役は根拠の出所検査の役（任せ先）。'
+    provenance: 'You are the provenance role.'
 exec-code: true
 provenance:
   material:

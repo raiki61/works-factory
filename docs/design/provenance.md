@@ -283,3 +283,8 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - md の「P2」「writer」の段の名を落とす。訳: 役が自分の返答を決めるのに要らない graphloops の型の名で、残すと役が「P2」を探す。読み手が判定役であることは残した。
 - `report_lines` に差分の根に無い根拠の行を足す。訳: 循環と未確認の前提は人が報告で見て直す物で、`claims` の 17 行の全部を出すと素材の節が長くなる。`exists_at_base` が偽の行だけにした（例の run では 17 行のうち 7 行）。報告に載せるかは line と report の配線の決め（materials.md の 1.6）。
 - 試験のフォルダの名を `tests/blocks/provenance/` にする（`-` を持たない名なのでそのまま）。
+- 実装で決めた事（#765 の実装）:
+  - `fill` の `fill_entry` に渡す件数は `None`（「依頼の件数は渡されていない」）にする。訳: この観点は `request` の入力を持たず、materials.md の 2.6 が「`request` を持たない観点は `None`」と決めている。1.5 の `0` は 2.5 の「句が替わる」と食い違っていた。
+  - 役の 1 段落から「started in a new conversation」を外し、「You are the provenance role.」にする。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話の続きに指示が届くので、新しい会話とは言えない（調整役の注意）。fixture の決まった文もこの文にした。
+  - 輪の中の node の `depends_on` は雛形のまま（prep は先頭で、役は prep だけに依る）。訳: 出し直し専用の prep が無く、役の直前に同じ層の node が 2 つ並ぶ形が無い。
+  - 指示の比べ（1 つ目の commit）の日本語の md は共通の断片を使わず、今の md の字をそのまま置いた（断片は英語のため）。値の口は `lang_line`・`reason`・`brief_file`。`lang_line` には port `lang` の値（空なら既定の言語の英語の文）を入れた。
