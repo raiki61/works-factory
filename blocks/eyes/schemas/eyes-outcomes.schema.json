@@ -1,0 +1,32 @@
+{
+  "description": "テストごとの base と最後の結末か null（r2 の port test_outcomes と同じ形）",
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "base": {
+            "type": "string"
+          },
+          "final": {
+            "type": "string"
+          },
+          "fail_message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unmeasured": {
+      "type": "string"
+    }
+  }
+}

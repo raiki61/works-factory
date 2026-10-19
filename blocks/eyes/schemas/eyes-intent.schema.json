@@ -1,0 +1,8 @@
+{
+  "description": "書いた意図の文書のパス（作業ツリーの根からの相対）の配列（structure の port intent と同じ形）",
+  "type": "array",
+  "items": {
+    "type": "string",
+    "minLength": 1
+  }
+}
