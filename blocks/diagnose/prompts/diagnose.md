@@ -24,6 +24,7 @@ You only read. Your tools are Read, Grep, Glob, and WebSearch and WebFetch for t
   - `world_rows`: the rows of the world's solutions (use them first in steps 7 and 8).
   - `answers`: what the requester answered to the questions of a previous run (the origin is a person; each row is `{{question, text, command?, output?}}`). `command` and `output` are the command a person typed by hand and its output. A question whose text equals a ledger question's key or origin character for character, the machine marks as answered and does not ask the person again. An answer that matches no question of your reply by character equality (it differs from every key, or it matches several questions) you tie to a question or unit of your present reply with `answer_ties` (see "How to write answer_ties").
   - `changed_files`: the changed files of the target diff.
+  - `diff_file`: the path of the target diff (the same file as "Target diff" below).
   - `purpose_review`: the audit of the purpose (the verdict on whether the purpose was written narrower than the request). If it says the purpose "narrows" it, do not trust the boundary between inside and outside of the purpose as it stands.
   - `prior_decisions`: the reply of the check against the settled points of earlier discussions (the decision records).
 <!-- if purpose -->

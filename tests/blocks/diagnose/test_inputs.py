@@ -1,6 +1,7 @@
 """入口と指示の値（src/inputs.py）の試験。写す元は tests/workflows/test_judge.py の BaselineTest・PriorFailuresTest・MaterialGiveUpTest と
 lib/tests/test_judge_accept.py の BriefCase のうち値を見る物。支度の決まりは docs/design/diagnose.md の 5.1〜5.4。"""
 import json
+import pathlib
 import unittest
 
 from tests.blocks import kit
@@ -62,7 +63,32 @@ class JudgeIntakeCase(_Base):
                          {"materials", "local_findings", "consistency_findings", "bypass_findings", "external_findings",
                           "procedure_findings", "test_double_fidelity", "main_path_observation", "provenance",
                           "prior_decisions", "purpose_review", "request_findings", "constraints", "world_rows", "answers",
-                          "changed_files"})
+                          "changed_files", "diff_file"})
+
+    def test_diff_file_is_the_absolute_path_of_the_target_diff(self):
+        """再審の役は 1 回目の材料のファイルからこのパスで差分に届く（再審の材料に diff.patch を直に渡さない）"""
+        self.intake()
+        path = pathlib.Path(self.doc("diagnose-input.json")["diff_file"])
+        self.assertTrue(path.is_absolute())
+        self.assertEqual(path.resolve(), (self.art / "diff.patch").resolve())
+
+    def test_base_determination_falls_back_to_the_view(self):
+        """根を持つ素材の doc が 1 本も無い run は、見方の根と commit の数で found に埋める（not_run にしない）"""
+        self.intake()
+        view = self.doc("view.json")
+        got = self.doc("diagnose-input.json")["materials"]["base_determination"]
+        self.assertEqual(got, {"status": "found", "count": view["commits"], "detail": f"{view['base']}（始めの記録の差分の根。空なら HEAD）"})
+        self.assertEqual(self.doc("materials.json")["base_determination"], got)
+
+    def test_base_determination_from_a_material_wins_over_the_view(self):
+        ptr = self.write("local-review/material.json", {"role": "local-review", "status": "ran", "reason": "", "reply": None,
+                                                        "materials": {}, "base": "abc123", "commits": 2})
+        self.assertTrue(self.intake(materials=dump([json.loads(ptr)]))["due"])
+        self.assertEqual(self.doc("diagnose-input.json")["materials"]["base_determination"]["count"], 2)
+        said = {"status": "not_run", "reason": "根を決める観点が回らなかった"}
+        ptr = self.material("local-review", materials={"base_determination": said})
+        self.assertTrue(self.intake(materials=dump([json.loads(ptr)]))["due"])
+        self.assertEqual(self.doc("diagnose-input.json")["materials"]["base_determination"], said, "素材が言った not_run は埋めない")
 
     def test_replies_are_picked_by_role(self):
         pointers = [

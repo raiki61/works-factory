@@ -53,7 +53,7 @@ Read each file below with Read.
 - Instructions the first judgment role was given: {prior_brief_file} (the recorded policy, the rows of the previous run, the rows of the head depth, and the text of the person's policy are in it)
 <!-- end prior_brief -->
 <!-- if prior_inputs -->
-- Materials the first judgment role read: {prior_inputs_file} (the path of the target diff, the premises that were measured, the state of the materials, and the request rows are in it)
+- Materials the first judgment role read: {prior_inputs_file} (the path of the target diff in `diff_file`, the premises that were measured, the state of the materials, and the request rows are in it)
 <!-- end prior_inputs -->
 <!-- if world_rows -->
 - World rows: {world_rows_file}

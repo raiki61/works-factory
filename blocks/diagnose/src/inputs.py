@@ -161,14 +161,15 @@ def material_rows(by_role: dict, batches: list) -> list:
     return out
 
 
-def input_doc(materials: dict, by_role: dict, batches: list, constraints: list, world_rows, answers: list, changed_files) -> dict:
+def input_doc(materials: dict, by_role: dict, batches: list, constraints: list, world_rows, answers: list, changed_files,
+              diff_file: str) -> dict:
     """材料のファイル diagnose-input.json の中身（値だけ。鍵の意味は prompts/diagnose.md の Inputs が持つ）"""
     doc = {"materials": materials}
     for key, (role, field) in files.REPLY_KEYS.items():
         reply = _reply_of(by_role, role)
         doc[key] = reply if field is None else (reply.get(field) if isinstance(reply, dict) else None)
     doc.update(request_findings=batches, constraints=constraints, world_rows=world_rows, answers=answers,
-               changed_files=list(changed_files))
+               changed_files=list(changed_files), diff_file=diff_file)
     return doc
 
 
@@ -200,9 +201,11 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
         view = materialkit.take_view(place, repo, base)
     except Reject as e:
         raise Stop("failed", files.JUDGE_STOP, f"対象差分が取れない（{oneline.one_line(e)}）——判定役を起こさない") from None
+    if mats["base_determination"].get("status") == "not_run" and not any("base_determination" in (doc.get("materials") or {}) for _, doc in docs):
+        mats["base_determination"] = base_determination(view)   # 根を持つ素材の doc が無い（単独の run など）時は、見方の根で埋める
     batches = request_batches(rows, request_origin, spec_rows, spec_origin)
     _write(place / files.MATERIALS_FILE, mats)
-    _write(place / files.INPUT_FILE, input_doc(mats, by_role, batches, constraints, world, answers, view.changed_files))
+    _write(place / files.INPUT_FILE, input_doc(mats, by_role, batches, constraints, world, answers, view.changed_files, view.diff_file))
     decisions = next((path for path, doc in docs if doc.get("role") == files.PRIOR_DECISIONS_ROLE and path is not None), None)
     start = {"policy": {"named": "", "path": "", "sha256": None, "copy": str(policy_path) if policy_path else None},
              "answers": answers}
@@ -220,6 +223,11 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
     }
     gave = [str(doc.get("reason") or "") for _, doc in docs if doc.get("status") == "gave_up"]
     return values, "／".join(gave)
+
+
+def base_determination(view) -> dict:
+    """素材の doc のどれも根を持たない時の base_determination（写す元 judge_accept の素材の束ね）: 差分の見方の根と commit の数"""
+    return {"status": "found", "count": int(view.commits or 0), "detail": f"{view.base}（始めの記録の差分の根。空なら HEAD）"}
 
 
 def _constraint_rows(value) -> list:
