@@ -1,0 +1,6 @@
+# rounds=6 は範囲の外。chain-start が act: refused を返し、周のノードは全部飛ぶ（AI の前で止まる）。
+fixture:
+  expect: "completed"
+  inputs: {"rounds": "6", "request": "request.json"}
+  reached: ["chain-start", "final-diff", "result"]
+exec-code: true

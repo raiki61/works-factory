@@ -1,0 +1,8 @@
+# round-1 に stub を置かない。dry-run は stub の無い workflow: のノードを落とすので、子の run が落ちた時の親の姿の代わりになる。
+# round-1 の後ろは飛び、決めは走らない。result は落ちずに act: wait と続け方を返す。
+fixture:
+  expect: "failed"
+  fail-node: "round-1"
+  inputs: {"rounds": "3", "request": "request.json"}
+  reached: ["chain-start", "final-diff", "result"]
+exec-code: true
