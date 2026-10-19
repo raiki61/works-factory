@@ -1,15 +1,15 @@
 # graph の設計書: judge（判定のまとめ）と eyes（独立の目のまとめ）
 
-- 何の話か（読む人: 2 つの graph を作る実装の役。急ぎは無く、作るのは README 11.1 の 4 の段〔全部の block の後〕）: 今の judge のサブグラフ（`workflows/judge/`。YAML 2305 行）を 8.1 の block を並べる graph `blocks/judge/` に、今の eyes のサブグラフ（`workflows/eyes/`）を r1〜r4 と structure（after）を並べる graph `blocks/eyes/` に作り直す設計。どちらも line から 1 つの include で呼ばれる（README 8.7。Archon 同梱の sdlc の `deliver` が `implement`・`review` を include で組む形）。型は [README.md](README.md) の 1 節（graph の定義と形の直し 7）。line の側の配線は [line.md](line.md)。
+- 何の話か（読む人: 2 つの graph を作る実装の役。急ぎは無く、作るのは README 11.1 の 4 の段〔全部の block の後〕）: 組み込みの前の judge のサブグラフ（古い `workflows/judge/`。YAML 2305 行）を 8.1 の block を並べる graph `workflows/judge/` に、組み込みの前の eyes のサブグラフ（古い `workflows/eyes/`）を r1〜r4 と structure（after）を並べる graph `workflows/eyes/` に作り直す設計。どちらも line から 1 つの include で呼ばれる（README 8.7。Archon 同梱の sdlc の `deliver` が `implement`・`review` を include で組む形）。型は [README.md](README.md) の 1 節（graph の定義と形の直し 7）。line の側の配線は [line.md](line.md)。
 - 決めたこと: 2 つの graph は、block をいつ回すか（`when:`）・並べ方・飛ばされうる値の受け直し（埋め P2・P8）・まとめの判定（judge の `ready` と止めの語の順、eyes の `ok`）だけを持つ。AI の node と観点の計算は持たない。判定の裏取りを回すかは、line が段ごとに引いた真偽の表を受けて、head-depth の段で選ぶだけにする（深さの表は line に 1 つ）。再審は judge の graph を通らない（line が diagnose を直に include する）。守りのパスの当たりは eyes から merge へ移った（README 13 節）ので、eyes の `ok` は目の判定だけで決まる。
 - 持ち主（リポジトリの owner）に求めること: なし。README・各 block の設計書・今のコードで決まった（3 節）。2 波目の設計書（diagnose・verify・r1〜r4）は書き終える前に置かれたので、配線はその 1.2 と 1.6 に合わせた。残る確かめは 4 節。
-- 読む人: 組み込みの前（README 11.1 の 4）に 2 つの graph を作る実装の役。
+- 読む人: 2 つの graph を直す人（作ったのは README 11.1 の 4 の段。組み込みで pack が `workflows/` に入れ替わったので、パスは入れ替えの後の形で書く）。
 
 語は README の頭の物と line.md の頭の物（始めの記録・配る値・受け皿・返し・段）を使う。
 
 ## 0 2 つの graph の共通の形
 
-- 置き場: `blocks/judge/works-factory-judge.yaml`・`blocks/eyes/works-factory-eyes.yaml`。`scripts/`・`src/`（package `src`）・`fixtures/standalone.stubs.yaml`・`tests/blocks/judge/`・`tests/blocks/eyes/`。手本は `blocks/policy-check/`（README 13 章・`blocks/AGENTS.md`）。
+- 置き場: `workflows/judge/works-factory-judge.yaml`・`workflows/eyes/works-factory-eyes.yaml`。`scripts/`・`src/`（package `src`）・`fixtures/standalone.stubs.yaml`・`tests/blocks/judge/`・`tests/blocks/eyes/`。手本は `workflows/policy-check/`（README 13 章・`workflows/AGENTS.md`）。
 - AI の node を持たない（README 7.1 の 6）。だから README 6 節の node ごとの 9 項は当たらない。
 - 返す node は `verdict`（script。`trigger_rule: all_done`）。`outcome_field: ok`。返りに欄 `report`（日本語の行の配列）と `sections`（`[{title, lines, files?}]`。report の port `sections` と同じ形。include した block の `report` の欄を block ごとに 1 節にした物）を置く（README 4.1・7.1 の 8）。返す node は落ちない（境の口を読めない時も標準ライブラリだけで `ok: false` と訳を返す。今の judge の `verdict.py` と eyes の `verdict.py` の `fallen` の形）。
 - include ごとに受け皿 `<id>-out`（script `returned`。今の line の錨と同じ）を置く。`all_done` で集める node（`verdict` と、judge の `diagnose-in`）は受け皿の got だけを読む。流れの node（既定の `all_success`）は include の出力を直に読む（作り手が落ちれば、依る node は飛ぶ）。訳: Archon は落ちた node への `with:` を誤りにする（今の `returned.py` の docstring。止めた Archon の `dag-executor.ts` の `resolveBindingDirective`）。1 つの block の返す node が落ちても、ほかの block の結果が報告に届く。
@@ -36,7 +36,7 @@
 - `world`: `flag: 世界の解の段を回すか`。既定 `true`。
 - `spec`: `flag: 仕様の段を挟むか（承認ノードを持つ）`。既定 `false`。
 - `has_checks`・`thickness`（`choice(auto|light|standard|heavy)`。既定 `auto`）・`design_only`: head-depth の同じ名の port に渡す（説明は head-depth の 1.2 の字）。
-- `verify_by_tier`: `json(verify-by-tier.schema.json): 段ごとに判定の裏取りを回すか {軽量, 標準, 重厚}（真偽）。空の object はどの段でも回さない`。既定 `{}`。形は `{"type": "object", "properties": {"軽量": {"type": "boolean"}, "標準": {"type": "boolean"}, "重厚": {"type": "boolean"}}}`（`blocks/judge/schemas/`）。
+- `verify_by_tier`: `json(verify-by-tier.schema.json): 段ごとに判定の裏取りを回すか {軽量, 標準, 重厚}（真偽）。空の object はどの段でも回さない`。既定 `{}`。形は `{"type": "object", "properties": {"軽量": {"type": "boolean"}, "標準": {"type": "boolean"}, "重厚": {"type": "boolean"}}}`（`workflows/judge/schemas/`）。
 - `user_env_dir`: `text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は place`。既定 `""`。
 - `request_origin`: `text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin）。空は「人の依頼（依頼の行）」`。既定 `""`。diagnose へ渡す。
 - `baseline`・`policy`: `file`（直す前の試験の結末・固めた方針の写し）。diagnose へ渡す。既定 `""`。
@@ -63,7 +63,7 @@
 - `report`: このまとめの行（止めの行・回さなかった段の行・返らなかった block の行）。`sections`: 0 節の形。並びは 1.3 の順。
 - `optional`: `world__`・`head-depth__`・素材の 10 本の `<id>__`（落ちても判定は進む段）。
 
-### 1.3 node の並び（`blocks/judge/works-factory-judge.yaml`）
+### 1.3 node の並び（`workflows/judge/works-factory-judge.yaml`）
 
 並びと条件は今の judge のまま（`workflows/judge/works-factory-judge.yaml` の depends_on と when）。止めの記録（今の `judge/stop.json`）は使わず、前の段の出力の欄で `when:` を書く（README 4.3）。
 
@@ -129,8 +129,8 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 
 ### 1.8 試験（`tests/blocks/judge/`）
 
-- standalone の筋書き `blocks/judge/fixtures/standalone.stubs.yaml`: `fixture.inputs` は `request` だけ（依頼の行 1 つ）。include した block の AI の node と loop の本体の script を台本で差し替え（README 13 章）、graph の script は本物。`reached` に `verdict`。`verdict` の `ok` が真。
-- 筋書き（今の `workflows/judge/fixtures/` の 8 本を写す）: `bad-request`（依頼の型の拒みは line と block の受け付けに移ったので、premises の出口が `failed` を返す台本 → `works:premises`。`requestrows` の拒みそのものは premises の block の筋書きが見る）・`judge-gave-up`（`works:judge`）・`material-peer-stop`（素材の諦め → `works:material`）・`no-open-units`（`ok` 真・`ready` 偽）・`pass`・`spec-on`（spec が approved を返して先へ進む。承認ノードは spec の block の中で graph は通らない）・`spec-stop`（spec が止めを返す → `works:spec` 系の止めの語が返り、後ろを回さない。1.4 の 1）・`world-offline`（`web: off`）・`rejudge` は line へ移す（再審は line の筋書き）。足す: `verify-heavy`（`verify_by_tier` の重厚が真で、head-depth が重厚を返す → verify が回る）・`world-cut`（`world: false` でも素材が回る）。
+- standalone の筋書き `workflows/judge/fixtures/standalone.stubs.yaml`: `fixture.inputs` は `request` だけ（依頼の行 1 つ）。include した block の AI の node と loop の本体の script を台本で差し替え（README 13 章）、graph の script は本物。`reached` に `verdict`。`verdict` の `ok` が真。
+- 筋書き（今の `workflows/judge/fixtures/` の 8 本を写す）: `bad-request`（依頼の型の拒みは line と block の受け付けに移ったので、premises の出口が `failed` を返す台本 → `works:premises`。`requestrows` の拒みそのものは premises の block の筋書きが見る）・`judge-gave-up`（`works:judge`）・`material-peer-stop`（素材の諦め → `works:material`）・`no-open-units`（`ok` 真・`ready` 偽）・`pass`・`spec-on`（spec が approved を返して先へ進む。承認ノードは spec の block の中で graph は通らない）・`spec-stop`（spec が止めを返す → 人が仕様の承認ノードで止めた語 `human:spec-gate` が返り、後ろを回さない。1.4 の 1）・`world-offline`（`web: off`）・`rejudge` は line へ移す（再審は line の筋書き）。足す: `verify-heavy`（`verify_by_tier` の重厚が真で、head-depth が重厚を返す → verify が回る）・`world-cut`（`world: false` でも素材が回る）。
 - 振る舞いの試験: 止めの語の順（1.4 の 1〜6 を 1 つずつ立てて、最初の物が返る）・返りの無い block の欄が null で `report` に行が在る・`diagnose-in` の配列の順と `missing`・`verify` の選び（段が返らない時は標準）・`verdict` が落ちない（壊れた入力で `ok: false`）。元は今の `tests/workflows/test_judge.py` の graph の場面（README 9.5）。
 - 配線の yes/no: 8.1 の block の全部を 1 回ずつ include する・再審の道の block（diagnose に `objection` を渡す include）が無い・include した block の `inputs:` が全部 `with:` で渡るか、渡さない訳の一覧に在る。
 - 守る keep-essence: 7（class_query。diagnose が作り、この graph は運ぶ）・12（世界の解の行を diagnose・plan・plan-review・line へ。`world` の欄）。
@@ -153,7 +153,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - r2 の port: `head`・`base_label`・`design`・`design_reason`・`design_premises`・`constraints`・`test_outcomes`・`tdd`（r2 の設計書の 1.2）。`head` は structure（after）の `base` にも渡す（直す前の版）。
 - r4 の port: `ripple`・`world_rows`・`asked`・`declared`（r4 の設計書の 1.2）。
 - structure（after）の port: `plan`（修正が使った修正案の欄）・`intent`（structure の設計書の 1.2）。
-- 形のファイル: 受ける block の `schemas/` の形と同じ中身を `blocks/eyes/schemas/` に名を `eyes-` で始めて置く（同じ名の形を pack の 2 か所に置かない。7.1 の 5）。`shared:` の物（`plan-verdict`・`gate-answers`・`pushes`・`fix-marks`・`constraints`）はそのまま名指す。
+- 形のファイル: 受ける block の `schemas/` の形と同じ中身を `workflows/eyes/schemas/` に名を `eyes-` で始めて置く（同じ名の形を pack の 2 か所に置かない。7.1 の 5）。`shared:` の物（`plan-verdict`・`gate-answers`・`pushes`・`fix-marks`・`constraints`）はそのまま名指す。
 
 出力（`returns: verdict`・`outcome_field: ok`）。欄の名は今の eyes の返りの名を残す（line の最後の承認ノード・merge・報告が今の名で読む）:
 
@@ -164,7 +164,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - `after`: structure（after）の `after` の pointer か null。`dirty`・`escalate`: 同じ出力の数。`after_ok`: structure（after）の `ok`（測れなかった時は偽。line の最後の承認ノードと報告が「直した後の実測が無い」と言う）。
 - `report`・`sections`・`optional`（`structure-after__`。直した後の実測が落ちても先へ進む。E54）。
 
-### 2.3 node の並び（`blocks/eyes/works-factory-eyes.yaml`）
+### 2.3 node の並び（`workflows/eyes/works-factory-eyes.yaml`）
 
 1. `ins`（script）: `run`・`merge` を出力に写し、空の `head` を作業ツリーの `HEAD` の版に解いて `head` に出す（structure の `base` は空を受けない。単独で回す時のため。憲法 5）。
 2. `structure-after`（include `works-factory-structure`、`mode: after`。`depends_on: [ins]`。`when:` を持たない: 目を省く run でも測る。E71）。`with:` `units`・`intent`・`policy`・`base: "$ins.output.head"`・`plan`・`lang`。→ `structure-after-out` → `after-in`（返し。`depends_on: [ins, structure-after-out]`・`none_failed_min_one_success`。`after` の pointer か `""`）。
@@ -230,7 +230,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - コードの置き場: 返しの中身は `src/feed.py`、まとめは `src/verdict.py`、落ちた時の形は標準ライブラリだけの `src/fallback.py`（verdict の script が境の口か lib を読めない時も同じ形を返す。1.6 の `src/verdict.py`・`src/files.py` に 2 本を足した）。段の既定は `lib/headdepth` の `STANDARD`、止めの語 `works:judge`・`works:spec` は `stopby.declare` に diagnose・spec の block と同じ名と意味で足す。
 - graph の筋書きは、include した block ごとに入口（`intake`・`scan`・`prep`）と出口（`finish`）の node を台本で差し替え、block の中を飛ばす（1.8 の「AI の node と loop の本体の script を差し替え」から変えた）。訳: dry-run は include の中の loop の本体に include の道を渡さない（README 13 節）ので、block の中の道は block 自身の筋書きが見る。止めた Archon の `workflow test` は使われない台本（`unusedStubs`）を外れにするので、走らない分岐の台本は置かない。spec-on の筋書きは仕様の承認ノードを通らない（承認ノードは spec の block の筋書きが見る）。
 - 試験の助け: `tests/blocks/kit.py` の `dry_run_traces` に include する block の名 `included` を足した（graph の筋書きは include 先と同じ木で回す）。`tests/layers/test_block_shape.py` の `ExistingRulesCase` は、graph のフォルダ（include を持つ物）について、今の `workflows/` の同じ名のサブグラフの役を名指す表 `KEEP_CHECKOUT` の行（`("judge", "judge-verify")`）が「工程に無い」と出る行だけを外す（graph は役を持たない。表の行は今の `workflows/judge` の物）。
-- 変異の検算の観点 gate-efficacy を judge の graph に include せず、入力 `gates` も持たない。持ち主の決め（2026-10-19）「重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたい」: 重い確かめは工場の run の中で回さず、まとめて回すか CI に任せる。gate-efficacy の block は `blocks/` に残り、単独の run（まとめて回す時）で使う。block は変えない。
+- 変異の検算の観点 gate-efficacy を judge の graph に include せず、入力 `gates` も持たない。持ち主の決め `gate-efficacy-outside-judge`（2026-10-19）「重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたい」: 重い確かめは工場の run の中で回さず、まとめて回すか CI に任せる。gate-efficacy の block は `blocks/` に残り、単独の run（まとめて回す時）で使う。block は変えない。
   - diagnose の側: port `materials` は返った観点の `material.json` の配列で、観点ごとの鍵を要らない。無い観点は `materialkit.assemble` が素材の欄 `gate_efficacy` を `{status: not_run, reason: "走っていない（どのノードも返していない）"}` で埋め、材料の `gate_arms` は無い（diagnose の設計書の 5.1 の 4・7）。だから graph は何も足さずに回る。
   - 残る差: 埋まる訳の字が「走っていない」で、持ち主の決めで回さない訳（まとめて回す・CI に任せる）を言わない。`not_run` は止めない語だが、判定役には「確かめていない素材」として見える。訳を言わせるには、diagnose が観点ごとの回さない訳を受ける口（例 port で `{gate_efficacy: {status: not_applicable, reason}}` の埋めを受ける）を持つか、`materialkit.assemble` の既定の訳を変える要る。graph が gate-efficacy の block の `not_applicable` の形を回さずに作るのは、block の持ち物を graph が作ることになるので、しない（4 節の未確認）。
 
