@@ -238,6 +238,12 @@ class FlowCase(unittest.TestCase):
         self.assertIn("件数は渡されていない", mat["materials"]["local_review"]["reason"])
         self.assertIsNone(mat["reply"])
 
+    def test_entry_with_a_diff_still_starts_the_role(self):
+        """entry が空でなくても、作業ツリーに差分が在れば判定から入る run ではない——回す"""
+        (self.run.repo / "app.txt").write_text("一行目\n二行目\n", encoding="utf-8")
+        got = self.intake(entry="人の依頼（/path/req.json）")
+        self.assertTrue(got["due"])
+
     def test_prompt_declares_the_lenses_without_notes(self):
         """prep が組んだ指示の {skills} の値: /security-review は applies: true と理由を持ち、どの要素も note を持たない。
         対象の根に REVIEW.md が無ければ repo_review の段落が入らず、在れば入る"""

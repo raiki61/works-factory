@@ -56,6 +56,14 @@ class LensesCase(unittest.TestCase):
                          ["/code-review", "pr-review-toolkit:code-reviewer", "/simplify", "/security-review",
                           "pr-review-toolkit:silent-failure-hunter", "pr-review-toolkit:type-design-analyzer",
                           "pr-review-toolkit:pr-test-analyzer"])
+        self.assertEqual(list(self.lenses.LENSES), [
+            {"skill": "/code-review", "args": "high", "required": True},
+            {"skill": "pr-review-toolkit:code-reviewer", "required": True},
+            {"skill": "/simplify", "required": True},
+            {"skill": "/security-review", "required": False, "applies_cond": "security_surface_touched"},
+            {"skill": "pr-review-toolkit:silent-failure-hunter", "required": True},
+            {"skill": "pr-review-toolkit:type-design-analyzer", "required": True},
+            {"skill": "pr-review-toolkit:pr-test-analyzer", "required": True}])
         self.assertFalse(any("note" in e for e in self.skills))
         sec = self.skills[3]
         self.assertEqual((sec["applies"], sec["applies_why"]), (True, self.lenses.SECURITY_WHY))

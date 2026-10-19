@@ -19,13 +19,16 @@ class ViewpointCase(unittest.TestCase):
             self.vp.applies(self.view, {})
         self.assertFalse(self.vp.judged_na(self.view, {}))
 
-    def test_due_follows_the_entry_port(self):
-        """entry が空なら通常の run（回す）、空でなければ判定から入る run（回さず、素材を fill_entry の字で埋める）"""
-        normal = self.vp.due(self.view, {"entry": ""})
-        self.assertEqual(normal, self.mk.Due(True, "判定から入る run でない（port entry が空）——通常の run"))
-        entry = self.vp.due(self.view, {"entry": "人の依頼（x）"})
+    def test_due_follows_the_entry_run_rule(self):
+        """判定から入る run（entry が空でなく差分が空）だけ回さず、素材を fill_entry の字で埋める。差分が在れば entry が在っても通常の run"""
+        with_diff = self.view
+        empty = self.mk.View(".", "b", "r", "/d/diff.patch", (), "/d/changed.txt", "", 0)
+        self.assertEqual(self.vp.due(with_diff, {"entry": ""}), self.mk.normal_run("P1 の役"))
+        self.assertEqual(self.vp.due(empty, {"entry": ""}), self.mk.normal_run("P1 の役"))
+        self.assertEqual(self.vp.due(with_diff, {"entry": "人の依頼（x）"}), self.mk.normal_run("P1 の役"))
+        entry = self.vp.due(empty, {"entry": "人の依頼（x）"})
         self.assertEqual(entry, self.mk.entry_skip("P1 の役"))
-        self.assertEqual(self.vp.fill(self.view, {"entry": "人の依頼（x）"}, entry),
+        self.assertEqual(self.vp.fill(empty, {"entry": "人の依頼（x）"}, entry),
                          {"local_review": self.mk.fill_entry("人の依頼（x）", None)})
 
     def test_values_and_when(self):

@@ -26,9 +26,7 @@ def _dump(value) -> str:
 
 
 def due(view, values) -> materialkit.Due:
-    if values["entry"]:
-        return materialkit.entry_skip(NOUN)
-    return materialkit.Due(True, "判定から入る run でない（port entry が空）——通常の run")
+    return materialkit.not_entry_due(view, values, NOUN)
 
 
 def fill(view, values, due) -> dict:
