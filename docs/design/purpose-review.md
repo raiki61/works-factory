@@ -46,7 +46,7 @@ materials.md の 1.3 の雛形の `<観点>` を `purpose-review` にした物�
 
 materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・`changed-files.txt`・`tree.json`・`purpose-review-prompt-<n>.md`・`rejects-purpose-review.json`・`rejects-purpose-review.md`・`accepted.json`・`material.json`。
 
-1 つ目の commit（2.9 の指示の比べの間）だけ、`material-purpose-review-brief.md`（今の材料のファイルと同じ字）も書く。2 つ目の commit で書かなくなる。
+（実装では書かない: 7 節）材料のファイル `material-purpose-review-brief.md` は書かない。
 
 ### 1.5 コードの置き場
 
@@ -77,7 +77,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `_cite_errors`（`:2280-2375`）は、`findings` の道（`CITE_LABELS["findings"]`。指し先を持たない）だけを写した `_errors(rows, rev) -> list[str]`: 行が dict でない・`cite` が空・改行を含む・NUL を含む の 4 つの照らしと `_count_in_version`。`wrote_refs` の道（指し先と書いた場所・`hook_evidence` による読了の記録の照らし）は写さない（この観点は指し先を持たない行だけを出すので、その道に入らない。今も `jdir` はその道でしか使われない）。
   - `purpose_findings_cited`（`:2401-2410`）を `problem` に。`verdict == narrows` で `findings` が空なら拒む文、`_errors` が在れば拒む文を返し、無ければ `None`。数え直せない時の `Reject`（git が動かない・版を解決できない）も捕まえて、その字を返す。
   - 使う `lib/`: `graphloops/engine/util.py` の `git`・`_grep`・`repo_root`・`sum_counts`・`Reject`。
-- `blocks/purpose-review/schemas/purpose.schema.json`: 固めた目的の形（下）。external-standards の block も同じ字の写しを置く（materials.md の 1.2「同じ意味の入力は同じ名と同じ形」）。
+- `blocks/.shared/schemas/purpose.schema.json`: 固めた目的の形（下）。external-standards の block も使うので `.shared` に置く（materials.md の 1.2「同じ意味の入力は同じ名と同じ形」。置き場の決めは 7 節）。
 
 ```json
 {
@@ -123,7 +123,7 @@ materials.md の 3.1 の並び。素材の欄を持たないので 3 と 8・9 �
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: `rejects-purpose-review.json` に拒否が 1 件以上。`{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "purpose-review"))`。
 2. `{shared:role-inspector}`（役の定義）。
 3. （飛ばす。web も外のコマンドも持たない）
-4. 役の 1 段落（決まった文）: 新しい会話・目的の文の監査だけ・差分も局所の所見もほかの素材も渡していない。
+4. 役の 1 段落（決まった文）: 目的の文の監査だけ・差分も局所の所見もほかの素材も渡していない。
 5. 道具の段落（決まった文）: Read・Grep・Glob だけ、Bash が無いので git を打てない。`{shared:material-readonly}`。
 6. `## Materials` と 3 つの差し込み口: `{purpose_text}` ← `values.purpose.purpose_text`（目的の文の字のまま）、`{repo}` ← `view.repo`、`{review_rev}` ← `view.review_rev`。
 7. `## What to do`（決まった文）: 今の graphloops の指示の段（`material-purpose-review.md:35-52`）を英語にした物。差し込み口 `{verdict_ok}`・`{verdict_narrows}` ← `src/viewpoint.py` の定数。
@@ -132,7 +132,7 @@ materials.md の 3.1 の並び。素材の欄を持たないので 3 と 8・9 �
 11. 言語の 1 文と `{lang}` ← port `lang`（空なら `materialkit.LANG_DEFAULT`）。
 12. 結びの 1 文。
 
-`materialkit.prompt_inputs` は materials.md の 2.11 のまま `na_never` などの 4 つの真偽を足すので、この block の `role_prep.py` がその 4 つの鍵を `when` から外してから `prompt.render` に渡す（この md は `{shared:material-na}` を持たないので、外さないと `prompt.render` が「`when` の名が md に無い」で落ちる。`NA` が `never` なので `values` に `na_why` は入らない。hygiene と同じ扱い。自分で決めた。7 節）。
+`materialkit.prompt_inputs` は materials.md の 2.11 のまま `na_never` などの 4 つの真偽を足すので、（実装では要らなくなった: 7 節）この block の `role_prep.py` がその 4 つの鍵を `when` から外してから `prompt.render` に渡す形を最初は考えた（この md は `{shared:material-na}` を持たないので、外さないと `prompt.render` が「`when` の名が md に無い」で落ちる。`NA` が `never` なので `values` に `na_why` は入らない。hygiene と同じ扱い。自分で決めた。7 節）。
 
 md の本文（英語。この block の 2 つ目の commit でこのまま置く）:
 
@@ -143,7 +143,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:role-inspector}
 
-You are the purpose-review role, started in a new conversation. Your only job is to review the purpose text below. You are given neither the target diff, the local findings, nor any other material.
+You are the purpose-review role. Your only job is to review the purpose text below. You are given neither the target diff, the local findings, nor any other material.
 
 Your tools are Read, Grep, and Glob. You have no Bash, so you cannot run git.
 
@@ -203,7 +203,7 @@ md の中に `$` の字は無い。差し込み口のほかに `{` は無い。�
 ```markdown
 {shared:role-inspector の本文: This role is an inspector. It scores in a context separate from the one that runs this loop; …（6 行）}
 
-You are the purpose-review role, started in a new conversation. …（決まった文）
+You are the purpose-review role. Your only job …（決まった文）
 
 Your tools are Read, Grep, and Glob. You have no Bash, so you cannot run git.
 
@@ -274,15 +274,15 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
 
 - standalone の fixture（`blocks/purpose-review/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`purpose: '{"purpose_text":"…目的の文…","source":"③writer の要約","known_weaknesses":[],"source_files":[]}'`・`entry: ""`・`lang: ""`。AI の node `purpose-review` だけを台本の返答（`verdict: 問題なし`・`reason` 1 行・`findings: []`）で差し替える。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `verdict: 狭めている`・`findings: []`。`finish` の `status` が `gave_up`、run は `completed`。
+  - `gave-up.stubs.yaml`: 台本の返答が `verdict: 狭めている`・`findings: []`（台本は 1 周分。3 回の数えは単体の試験 `test_three_rejections_give_up` が見る）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `purpose` の `source` を `①PR 説明` にする。AI の node は走らず、`finish` の `status` が `skipped`、`reason` が「目的テキストの出典が ①PR 説明——…」。
 - `tests/blocks/purpose_review/test_purpose_review.py`（materials.md の 8 節の block の試験）:
   - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_purpose_review_findings_must_cite_the_version`: 4 つの返答（数の合う根拠・版に無い字・数の合わない申告・根拠の無い『狭めている』）で、1 つ目だけが `material.json` の `reply` に載り、ほかは拒みの文に今の字（「'どこにも無い字列' が現物に 1 件も無い」など）を含む。根拠の字は試験のリポジトリで固めた版に在る字にする。
   - 写す元 `DueCase.test_purpose_review_only_for_writer_summary`: 出典が `③writer の要約` なら `due` が真、`①PR 説明` なら偽。足す: `purpose` が null なら偽で、`reason` が「目的の文が渡されていない」で始まる。差分が空で `entry` の在る run でも、出典が ③ なら真（入口の印を読まない）。
   - 足す: `material.json` が `materialkit.read` を通り、`materials` が `{}`、`reply.verdict` が受けた語。`skipped` の道で `reply` が null。
-  - 足す（語の照らし）: `VERDICTS` が block の YAML の AI の node の `verdict` の enum と同じ並び。`WRITER_SOURCE` が `schemas/purpose.schema.json` の `source` の enum に在る。
+  - 足す（語の照らし）: `VERDICTS` が block の YAML の AI の node の `verdict` の enum と同じ並び。`WRITER_SOURCE` が `shared:purpose.schema.json` の `source` の enum に在る。
   - 足す（起こし方の照らし）: AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`mutates_checkout`・`retry` が、今の `tests/workflows/test_judge.py:88` の purpose-review の行（`"sonnet", "medium", READ, BASE, True, …`）が照らす物と同じ。
-- 指示の比べ（README の 11.4）: `tests/blocks/purpose_review/test_prompts.py`。
+- 指示の比べ（README の 11.4）: 実装では置かなかった（7 節。`test_prompts.py` と `src/oldbrief.py` は無い）。当初の案は次の 2 つの commit:
   - 1 つ目の commit: `prompts/purpose-review.md` を、今の md の `$purpose-review-prep.output.lang_line` を `{lang_line}` に、`.reason` を `{reason}` に、`.brief_file` を `{brief_file}` に替えた日本語の字で置く。prep は 1 つ目の commit だけ、この 3 つを値に入れ（prior-decisions.md の 2.9 と同じ作り方）、`src/oldbrief.py` の `brief(view, values)` で `material-purpose-review-brief.md` を書く。試験は (a) 組んだ指示が今の md に同じ 3 つの値を入れた字と同じ、(b) `oldbrief.brief` の字が、同じ試験のリポジトリと置き場で今の `judge_accept.material_prep(jdir, "purpose-review", repo, review_md)` が書いた材料のファイルと同じ（本物の run の材料のファイルが無いので、今の関数の出力と比べる。自分で決めた。7 節）。
   - 2 つ目の commit（英語）: 1 つ目の試験と `src/oldbrief.py` を消し、2.5 の値で組んだ新しい指示と、今の md と材料のファイルを並べた物を PR に載せ、2.6 の差の一覧どおりかを審査に出す。
 - 守る keep-essence の番号: 無い。守るのは「目的の文の監査の判定に、固めた版で数え直した根拠が付く」と「裏取りを通った『狭めている』で独立設計を止める材料が plan-review に届く」で、上の数え直しの試験と、plan-review の側の試験（`tests/workflows/test_plan_review.py` の目的の監査を読む試験。読み手の block に残す）が見る。
@@ -292,16 +292,15 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
 uv run --isolated python3 -m unittest lib.tests.test_materialkit
 uv run --isolated python3 -m unittest discover -s tests/blocks/purpose_review -t .
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
-uv run --isolated python3 -m unittest tests.blocks.purpose_review.test_prompts
 ```
 
 ## 3 script の node
 
 materials.md の 6 節の雛形のまま。この block だけの物:
 
-- `intake.py` が読む入力は `INPUTS_BASE`・`INPUTS_PURPOSE`・`INPUTS_ENTRY`・`INPUTS_LANG` の 4 つ。`purpose` は `ports.json(os.environ.get("INPUTS_PURPOSE"), "purpose.schema.json")`、ほかは `ports.text(…)`。値の dict の鍵は `base`・`purpose`・`entry`・`lang`。
-- `role_prep.py`: `materialkit.prompt_inputs` の返りの `when` から、`na_never`・`na_cond_true`・`na_cond_false`・`na_judged` の 4 つの鍵を外してから `prompt.render` に渡す（2.3 の終わり。hygiene.md の 3 節と同じ 1 行）。族の部品がこの扱いを持てば、この 1 行は消す。
-- 1 つ目の commit だけ、`role_prep.py` が `src.oldbrief.brief(view, values)` を place の `material-purpose-review-brief.md` に書いてから組む。
+- `intake.py` が読む入力は `INPUTS_BASE`・`INPUTS_PURPOSE`・`INPUTS_ENTRY`・`INPUTS_LANG` の 4 つ。`purpose` は `ports.json(os.environ.get("INPUTS_PURPOSE"), "shared:purpose.schema.json")`、ほかは `ports.text(…)`。値の dict の鍵は `base`・`purpose`・`entry`・`lang`。
+- `role_prep.py`: 4 つの鍵を外す 1 行は要らない（7 節。`NA_PARAGRAPH = False` で `materialkit.prompt_inputs` が `na_*` を足さない）。
+- 1 つ目の commit だけの材料のファイルの書きは、実装では置かなかった（7 節）。
 
 ## 4 受け付けの文（観点の後の照らし `src/cited.py`）
 
@@ -338,5 +337,11 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - `purpose` が null の時の回さない訳を「目的の文が渡されていない——監査するのは writer が要約した目的（③writer の要約）だけ」にする。訳: 今の `purpose_review_due` は目的の文が無いと出典を `None` と書いた（「目的テキストの出典が None——」）。block は port で受けるので、渡されていないことをそのまま言う方が直せる。回さない決めは今と同じ。
 - 数え直しの部品を `lib/` に置かず、block の `src/cited.py` に写す。訳: 指し先を持たない根拠の行を版で数える道を使うのはこの観点だけ（`wrote_refs` の道は fix の側。README の 9.2 で `judge_accept` を割る）。憲法の 4。
 - 根拠の拒みの文の頭を `観点 purpose-review: ` にする。訳: 今の頭はコピーした graph の節の id（`p0.purpose_review`）で、新しい形に graph の節は無い。materials.md の 2.8 の替えと同じ。
-- 固めた目的の schema（`purpose.schema.json`）の中身をここで決め、external-standards も同じ字を写す。訳: materials.md の 1.2 は名と欄だけを書き、中身を決めていない。欄と出典の語は今の目的の役の `output_format` のまま（`means` は目的の block が別のファイルにする）。出典の語を enum で縛るので、目的の block が語を替えれば読みの段で名指して落ちる（黙って `skipped` にならない）。
+- 固めた目的の schema（`purpose.schema.json`）の中身をここで決め、`blocks/.shared/schemas/` に置く（external-standards も同じ字を使う）。訳: materials.md の 1.2 は名と欄だけを書き、中身を決めていない。欄と出典の語は今の目的の役の `output_format` のまま（`means` は目的の block が別のファイルにする）。出典の語を enum で縛るので、目的の block が語を替えれば読みの段で名指して落ちる（黙って `skipped` にならない）。
 - 「足りない」の印の字を md に書かず、役の定義の断片の言い方に任せる。訳: 印は inspector の役の定義の決まり（今の `lib/agents/inspector.md` の 3 つ目の箇条）で、機械はこの印を読まない（`lib/` と `workflows/` に「足りない: 」を比べる所は無い）。字を md に写すと、断片の英語の字と食い違いうる。
+- 実装で main の決まりに合わせた事（実装者が決めた）:
+  - `blocks/.shared/schemas/purpose.schema.json` から `$schema` を外し、`description` を足した。訳: `ports.json` が照らしの知らない語 `$schema` を拒む（`KNOWN_KEYWORDS` に無い）。
+  - `role_prep.py` に 4 つの鍵を外す 1 行は要らなかった。訳: main の `materialkit.prompt_inputs` が `NA_PARAGRAPH` が偽の観点には `na_*` を足さない。`viewpoint.NA_PARAGRAPH = False`（`tests/blocks/materials/test_viewpoints.py` が名を要る）。
+  - 英語の md の「started in a new conversation」を外した。訳: 輪が `fresh_context: false` で、2 回目からは同じ会話を続ける。「新しい会話」と書くと事実に反する（調整役の知らせ）。輪は prep → 役 → accept の 1 本道で、同じ層に 2 つの node は並ばない。
+  - 「purpose」の port の既定は文字列 `"null"`。訳: `ports.json` は空の字を拒み、Archon は省いた入力に既定を入れる。
+  - `skipped.stubs.yaml` は AI の node を `reached` に入れない。status と reason の字は `tests/blocks/purpose_review` が見る。

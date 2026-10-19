@@ -1,0 +1,20 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。fixture の木は対象の入口のファイルを 2 つ目の commit に置くので、
+# 差分の根に HEAD~1 を渡して手順のファイル（README.md）を対象差分にし、手順トレースの役を起こす道を通す。script は本当に走り、役の返答だけを
+# 差し替える。指示が md から組まれたことを md の決まった文で照らす。回さない道（status: skipped）と出口の status は
+# tests/blocks/procedure_trace の試験が確かめる（筋書きは値と node の返りの欄を照らさない）
+fixture:
+  expect: completed
+  reached: [intake, procedure-trace-prep, procedure-trace, procedure-trace-accept, finish]
+  inputs:
+    base: 'HEAD~1'
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    procedure-trace: 'You are the procedure-trace role. Your only job is to trace the procedures that the target diff changes'
+exec-code: true
+procedure-trace:
+  material:
+    status: clean
+    checked: the procedure files the diff changes
+  findings: []
+  unmeasured: []

@@ -1,0 +1,15 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、衛生の役の返答だけを差し替える。
+# 指示が md から組まれたことを md の決まった文で照らす。出口の status が ran になることは tests/blocks/hygiene の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, hygiene-prep, hygiene, hygiene-accept, finish]
+  inputs:
+    base: ''
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    hygiene: 'You have no tools. You cannot open files or the web; this prompt is everything you are given.'
+exec-code: true
+hygiene:
+  findings: []
+  seen: 差分の全部

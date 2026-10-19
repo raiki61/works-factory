@@ -1,0 +1,139 @@
+name: works-factory-local-review
+description: >-
+  局所レビュー: 対象差分に、宣言したレビューのレンズ（skill 3 本と pr-review-toolkit の agent 4 本）を 1 本ずつ起こして所見を集め、素材 local_review を返す。
+  素材集めの観点の block（docs/design/materials.md の形）。単独の run でも、判定のまとめから include されても動く
+inputs:
+  base: {default: "", description: "text: 対象差分の根の commit（対象差分は、この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD"}
+  entry: {default: "", description: "text: 判定から入る run の出どころの文（例「人の依頼（/path/req.json）」）。空は判定から入る run でない"}
+  lang: {default: "", description: "text: 人に見せる欄（material の detail・checked・reason、findings の行の failed と items の text・mechanism・measured・false_positive_if）の言語。空は依頼の言語"}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: local-review-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$local-review-accept.output.done; test "$done" = true
+      nodes:
+        - id: local-review-prep
+          script: role_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string}
+        - id: local-review
+          prompt: "$local-review-prep.output.prompt"
+          depends_on: [local-review-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill, Agent]
+          skills: [code-review, simplify, security-review]
+          plugins: [pr-review-toolkit@works-local]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            excludedCommands: ['works-gh:*']
+            network:
+              allowedDomains: []
+            # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
+            # '.' は cwd でなく設定の一時ファイルのフォルダに解かれる。実測 2026-10-13。issue #293）
+            # 起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）
+            filesystem:
+              denyWrite: ['~/../archon-home']
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [material, findings, simplify_carried]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              simplify_carried: {type: boolean}
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [skill, items]
+                  additionalProperties: false
+                  properties:
+                    skill: {type: string}
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        required: [where, text]
+                        additionalProperties: false
+                        properties:
+                          where: {type: string}
+                          text: {type: string}
+                          mechanism: {type: string}
+                          measured: {type: string}
+                          false_positive_if: {type: string}
+                    invoked: {type: boolean}
+                    failed: {type: string}
+        - id: local-review-accept
+          script: role_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [local-review]
+          with: {reply: $local-review.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, local-review-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, material, report]
+      properties:
+        ok: {type: boolean}
+        status: {type: string, enum: [ran, skipped, gave_up, failed]}
+        reason: {type: string}
+        material:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        report: {type: array, items: {type: string}}

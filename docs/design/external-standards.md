@@ -16,14 +16,14 @@
 
 ### 1.1 役
 
-差分が解いている問題を一般の問題の類にし、外の一次情報で、その類の定番解・順位・既知の落とし穴を確かめ、差分がどの順位に乗るか・手元に宣言済みの依存で済むのに自作していないかを返す。見た範囲と見ていない範囲も返させる。機械が、作業ツリーを変えていないか・所見の場所がファイルに在るか・順位の行の差分の乗る所が順位の字に在り、最上位でなければ訳が在るか・素材の欄が決まりに合うかで受け付ける。判定から入る run では役を起こさない。判定から入る run かは port `entry` だけで決める: line（メイングラフ。run の始めに始めの記録を書き、判定のまとめを通して block に port の値を配る）は差分が空で人の依頼が在る run にだけ `entry` に出どころの文を入れて渡し、block は差分と依頼から推し直さない（prior-decisions と同じ。materials.md の 10 節）。単独の run で `entry` に字を入れれば、差分が在ってもその run は判定から入る run として扱われる（2.9 の `skipped.stubs.yaml` はこれで回さない道を確かめる）。
+差分が解いている問題を一般の問題の類にし、外の一次情報で、その類の定番解・順位・既知の落とし穴を確かめ、差分がどの順位に乗るか・手元に宣言済みの依存で済むのに自作していないかを返す。見た範囲と見ていない範囲も返させる。機械が、作業ツリーを変えていないか・所見の場所がファイルに在るか・順位の行の差分の乗る所が順位の字に在り、最上位でなければ訳が在るか・素材の欄が決まりに合うかで受け付ける。判定から入る run では役を起こさない。判定から入る run かは port `entry` だけで決める: line（メイングラフ。run の始めに始めの記録を書き、判定のまとめを通して block に port の値を配る）は差分が空で人の依頼が在る run にだけ `entry` に出どころの文を入れて渡し、block は差分と依頼から推し直さない（prior-decisions と同じ。materials.md の 10 節）。単独の run でも `materialkit.is_entry_run`（`entry` が空でなく、かつ block が測った対象差分が空）で決め、差分が在る run は `entry` に字を入れても回す（2.9 の `skipped.stubs.yaml` はこれで回さない道を確かめる）。
 
 ### 1.2 port
 
 入力（YAML の `inputs:`）:
 
 - `base`・`entry`: materials.md の 1.2 の字のまま（`base` は対象差分の根の commit。空は HEAD。`entry` は判定から入る run の出どころの文。空はそうでない run。1.1）。
-- `purpose`: materials.md の 1.2 の字のまま（`json(purpose.schema.json)`。既定 `null`）。schema の中身は [purpose-review.md](purpose-review.md) の 1.5 と字のまま同じ物を `blocks/external-standards/schemas/purpose.schema.json` に置く。
+- `purpose`: materials.md の 1.2 の字のまま（`json(purpose.schema.json)`。既定 `null`）。schema の中身は [purpose-review.md](purpose-review.md) の 1.5 と字のまま同じ物を `blocks/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）に置く。
 - `lang`: `text: 人に見せる欄（material の detail・checked・reason、findings の text・mechanism・measured・false_positive_if、seen・unseen、rankings の problem・ranked・diff_at・why_not_higher、rankings_none）の言語。空は依頼の言語`。既定 `""`。
 
 出力（`returns: finish`、`outcome_field: ok`）: materials.md の 1.2 の 5 欄だけ。`material.json` の `reply` は受けた返答（`material`・`findings`・`seen`・`unseen`・`web_refetched`・`rankings`・`rankings_none?`）、`materials` は `{"external_standards": <返答の material>}`。
@@ -57,13 +57,13 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `NA = "never"`、`NA_REASON = ""`（今の `MATERIAL_NODES['p1.external_standards']` が `applies_cond` を持たず `na_self_ok: False`。`lib/judge_accept.py:1661-1667`）
   - `STANDARDS_SECTION = "外部標準照合観点"`、`CRITERIA_SECTION = "指摘の提出基準"`（観点の正本の見出しの字。md と正本の字が合うべき値。README の 5.3）
   - `due(view, values)`: `values["entry"]` が空でなければ `materialkit.entry_skip("外部標準の照合")`（今の `external_standards_due` の入口の枝の字。`:1521-1524`）。空なら `materialkit.Due(True, "外部標準の照合は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回）")`。今の `:1525-1527` は「初回か、機構を足した／変えた周か、前の周の P3 が何かを直した周——成り立つ（round=1・前の周の P3 が触ったファイルは 0 件）」を返す（例の run の `material-route.json` の `roles.external-standards.why`）。P3 は graphloops の段の名で修正の段。1 run = 1 周なので「前の周の P3」と「機構を変えた周」の枝はいつも効かず、成り立つのは「初回」の枝だけなので、効かない枝の名を外した字にした（自分で決めた。7 節。prior-decisions.md の 1.5 と、ほかの P1 の観点の設計書と同じ替え方）。
-  - `fill(view, values, due)`: `{"external_standards": materialkit.fill_entry(values["entry"], 0)}`（`due` が偽になるのは `entry` が空でない時〔判定から入る run〕だけ。依頼の行の port `request` を持たないので、依頼の件数には 0 を渡し、materials.md の 2.6 の「件数は渡されていない」の句になる）。
+  - `fill(view, values, due)`: `{"external_standards": materialkit.fill_entry(values["entry"], None)}`（`due` が偽になるのは `materialkit.is_entry_run(view, values)` が真の時〔判定から入る run〕だけ。依頼の行の port `request` を持たないので、依頼の件数には `None` を渡し、materials.md の 2.6 の「件数は渡されていない」の句になる）。
   - `applies(view, values)`: `raise NotImplementedError`。
   - `judged_na(view, values)`: `return False`。
   - `values(view, values)`: 次の dict。`dump` は materials.md の 3.3 の `json.dumps(x, ensure_ascii=False, indent=1)`。`own, theirs = materialkit.review_md_paths(view.repo)`。
     - いつも: `"diff_file": view.diff_file`・`"changed_files": dump(list(view.changed_files))`・`"repo": str(view.repo)`・`"review_md": own`・`"standards_section": STANDARDS_SECTION`・`"criteria_section": CRITERIA_SECTION`。
-    - `values["purpose"]` が null でない時だけ: `"purpose_text": values["purpose"]["purpose_text"]`・`"known_weaknesses": dump(values["purpose"]["known_weaknesses"])`。
-    - `theirs` が空でない時だけ: `"repo_review_md": theirs`。
+    - `values["purpose"]` が null でない時だけ中身を入れる（null の時は空の字）: `"purpose_text": values["purpose"]["purpose_text"]`・`"known_weaknesses": dump(values["purpose"]["known_weaknesses"])`。
+    - `"repo_review_md": theirs`（いつも渡し、段落が入らない時は空の字）。
   - `when(view, values)`: `_, theirs = materialkit.review_md_paths(view.repo)` を自分で呼び直し、`{"spawns": False, "purpose": values["purpose"] is not None, "repo_review": bool(theirs)}` を返す（`values` の中の `theirs` は `when` から見えないので、同じ口を 2 回呼ぶ。口はファイルの在りを見るだけで副作用が無い）（`spawns` は外への検索の決まりの断片の段落。この役は Agent の道具を持たない）。
   - `before(view, values, reply, place)`: `return None, reply, False`。
   - `after(view, values, reply, place)`: `return src.rankings.problem(reply)`（4 節）。
@@ -71,7 +71,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `materials_of(reply)`: `{"external_standards": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.external_standards ← material`。`:1665`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `rankings` の行ごとに `f"  - 順位: {oneline(problem)}——差分は {k} 位／{len(ranked)} 位中（{oneline(diff_at)}）"`（`k` は `ranked.index(diff_at) + 1`。受け付けを通った返答では `diff_at` はいつも `ranked` に在る）。`rankings` が空なら `f"  - 順位: 付けられる問題なし（{oneline(rankings_none)}）"` の 1 行。字下げ 2 つで、materials.md の 2.10 の素材の 1 行の下に並ぶ。
 - `blocks/external-standards/src/rankings.py`: 順位の行の照らし。公開の名は `problem(reply) -> str | None` だけ。写す元（`lib/judge_accept.py`）: `external_rankings`（`:2146-2157`。`Reject` を上げる代わりに拒む文を返し、通れば `None`）・`blank`（`:248-251`）・`EMPTY`（`:244-245`。字のまま）。
-- `blocks/external-standards/schemas/purpose.schema.json`: [purpose-review.md](purpose-review.md) の 1.5 の字のまま。
+- `blocks/.shared/schemas/purpose.schema.json`（`shared:purpose.schema.json`）: [purpose-review.md](purpose-review.md) の 1.5 の字のまま。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
@@ -96,16 +96,15 @@ materials.md の 3.1 の並び。
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: `rejects-external-standards.json` に拒否が 1 件以上。`{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "external-standards"))`。
 2. `{shared:role-investigator}`。
-3. `{shared:query-rule}`。断片の中の `<!-- if spawns -->` には `spawns: false`。
-4. 役の 1 段落（決まった文）: 新しい会話・外部標準照合だけ・局所の所見を渡していない訳（所見に寄ると問題の類の取り出しがそこへ寄る）。
-5. 道具の段落（決まった文）、`{shared:works-gh}`、`{shared:material-readonly}`。
-6. `## Materials` と差し込み口: `{diff_file}` ← `view.diff_file`（Read させるパス）、`{changed_files}` ← `view.changed_files`（JSON の配列の字）、`{repo}` ← `view.repo`、`<!-- if purpose -->` `{purpose_text}` ← `values.purpose.purpose_text`・`{known_weaknesses}` ← `values.purpose.known_weaknesses`（JSON の配列の字）`<!-- end purpose -->`、`<!-- if not purpose -->` 目的の文の無い run の 1 文（決まった文）`<!-- end purpose -->`、`{review_md}`・`{standards_section}`・`{criteria_section}` ← 2.2、`<!-- if repo_review -->` `{repo_review_md}` `<!-- end repo_review -->` — 条件 `repo_review`: 対象の根に `REVIEW.md` が在る。
-7. `## What to do`（決まった文）: 今の graphloops の指示の段（`material-external-standards.md:47-59`）を英語にした物。
-8. `{shared:material-status}`。
-9. `## Whether you may write not_applicable` と `{shared:material-na}` — 扱いは `never`。
-10. `## Where to point` と `{shared:material-where}`。
-11. 言語の 1 文と `{lang}`。
-12. 結びの 1 文。
+3. 役の 1 段落（決まった文）: 外部標準照合だけ・局所の所見を渡していない訳（所見に寄ると問題の類の取り出しがそこへ寄る）。
+4. 道具の段落（決まった文）、`{shared:works-gh}`、`{shared:material-readonly}`。
+5. `## Materials` と差し込み口: `{diff_file}` ← `view.diff_file`（Read させるパス）、`{changed_files}` ← `view.changed_files`（JSON の配列の字）、`{repo}` ← `view.repo`、`<!-- if purpose -->` `{purpose_text}` ← `values.purpose.purpose_text`・`{known_weaknesses}` ← `values.purpose.known_weaknesses`（JSON の配列の字）`<!-- end purpose -->`、`<!-- if not purpose -->` 目的の文の無い run の 1 文（決まった文）`<!-- end purpose -->`、`{review_md}`・`{standards_section}`・`{criteria_section}` ← 2.2、`<!-- if repo_review -->` `{repo_review_md}` `<!-- end repo_review -->` — 条件 `repo_review`: 対象の根に `REVIEW.md` が在る。
+6. `## What to do`（決まった文）: 今の graphloops の指示の段（`material-external-standards.md:47-59`）を英語にした物。
+7. `{shared:material-status}`。
+8. `## Whether you may write not_applicable` と `{shared:material-na}` — 扱いは `never`。
+9. `## Where to point` と `{shared:material-where}`。
+10. 言語の 1 文と `{lang}`。
+11. 結びの 1 文。
 
 md の本文（英語。この block の 2 つ目の commit でこのまま置く）:
 
@@ -116,9 +115,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:role-investigator}
 
-{shared:query-rule}
-
-You are the external-standards role, started in a new conversation. Your only job is to check the target diff against external standards: look outside the repository (the web, official documentation, the issues, pull requests, and source of the open-source projects involved) for deviations from the established solutions of the ecosystem, and for dependencies already at hand that the diff leaves unused. You are not given the local findings: if you saw them, your choice of problem classes would drift toward them.
+You are the external-standards role. Your only job is to check the target diff against external standards: look outside the repository (the web, official documentation, the issues, pull requests, and source of the open-source projects involved) for deviations from the established solutions of the ecosystem, and for dependencies already at hand that the diff leaves unused. You are not given the local findings: if you saw them, your choice of problem classes would drift toward them.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 
@@ -147,7 +144,7 @@ Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside
 
 Read the dependencies the diff imports first: it is a set you can derive mechanically, so you can start quickly. Do not stop there. What this repository declares as a dependency (not only language packages, but also declared plugins and tools) is where to look for "already at hand but unused", even if nothing imports it (measured: a role that the plugin itself declared as a dependency fell outside the set, and "no reinvention of an established solution" came back for three rounds). Take every primary source you need to confirm a point; you may drop only redundant sources and duplicate secondary sources. Say in `web_refetched` whether you fetched the sources again.
 
-**Go as far as the ranking (`rankings`).** For each generalized problem, write the order that the primary source gives the options (from the top), with a quotation, in `ranked`; write in `diff_at` which option the diff is on, spelled exactly as in `ranked`; and if it is not the top one, write in `why_not_higher` why the higher ones cannot be taken. **Do not judge the diff the same as the standard only because the features match** (for example "does not go through a shell, uses an allow list"): degraded variants appear exactly in a form whose features match (measured 2026-09-24: three rounds in a row returned clean as "the same as the OWASP standard", but the diff was not on what OWASP ranks higher, "separate data and command by structure", but on the lower "validate the string"). For a problem with no ranking, `ranked` may hold a single option. If there is no generalized problem that can be ranked, leave `rankings` empty and say why in `rankings_none`.
+**Go as far as the ranking (`rankings`).** For each generalized problem, write the order that the primary source gives the options (from the top), in `ranked` (`ranked` holds only the option names; the quotation goes in `source`); write in `diff_at` which option the diff is on, spelled exactly as in `ranked`; and if it is not the top one, write in `why_not_higher` why the higher ones cannot be taken. **Do not judge the diff the same as the standard only because the features match** (for example "does not go through a shell, uses an allow list"): degraded variants appear exactly in a form whose features match (measured 2026-09-24: three rounds in a row returned clean as "the same as the OWASP standard", but the diff was not on what OWASP ranks higher, "separate data and command by structure", but on the lower "validate the string"). For a problem with no ranking, `ranked` may hold a single option. If there is no generalized problem that can be ranked, leave `rankings` empty and say why in `rankings_none`.
 
 Return the range you looked at and the range you did not look at (`seen` and `unseen`). If you stopped because of volume or time, write where you stopped: if "looked and found nothing" and "did not look" turn into the same "none", a silent omission is mistaken for "none". The diff is where to start looking, not where to stop. Read dependencies, the neighborhood, and callers as far as you need to understand.
 
@@ -198,9 +195,7 @@ md の中に `$` の字は無い（今の `$TMPDIR` は「TMPDIR 環境変数が
 
 {shared:role-investigator の本文: This role is an investigator. It investigates and brings things back; …}
 
-{shared:query-rule の本文: Rules for queries to outside services …}
-
-You are the external-standards role, started in a new conversation. …（決まった文）
+You are the external-standards role. …（決まった文）
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. …
 
@@ -287,7 +282,7 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
 - `tests/blocks/external_standards/test_external_standards.py`（materials.md の 8 節の block の試験）:
   - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_accept_rules` の external-standards の場合（`diff_at` が最上位でなく `why_not_higher` が無い返答を拒み、`material.json` を書かない）。足す: `rankings` が空で `rankings_none` が無い返答を拒む・`diff_at` が `ranked` に無い返答を拒み、文が「ranked に無い」を含む・`rankings` が空でも `rankings_none` に訳が在る `clean` を受ける・拒みの文の頭が `観点 external-standards: `。
   - 写す元 `test_missing_purpose_is_said_not_invented`: `purpose` が null の run で組んだ指示が目的の文の無い 1 文を含み、`Original purpose: ` の後に目的の文を持たず、`prompt_inputs` の値に `purpose_text`・`known_weaknesses` が無い。
-  - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions` の external-standards の部分: `entry` が在れば `due` が偽で、素材が `materialkit.fill_entry` の字。`entry` が空なら真。
+  - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions` の external-standards の部分: 差分が空で `entry` が在れば `due` が偽で、素材が `materialkit.fill_entry` の字。`entry` が空なら真。
   - 足す: 対象の根に `REVIEW.md` を置いた run と置かない run で、`repo_review` の段落の有無と `repo_review_md` の値の有無が合う。
   - 足す（起こし方の照らし）: AI の node の `model`・`allowed_tools`・`sandbox`・`idle_timeout`・`retry` が、今の `tests/workflows/test_judge.py:93` の external-standards の行（`"sonnet", "medium", INVESTIGATE, CLOSED, False, …`）が照らす物と同じ。
   - 足す（字の照らし）: `STANDARDS_SECTION`・`CRITERIA_SECTION` が `lib/REVIEW.md` の `## ` の見出しの頭に在る（見出しの名を正本が替えたら落ちる）。
@@ -308,7 +303,7 @@ uv run --isolated python3 -m unittest tests.blocks.external_standards.test_promp
 
 materials.md の 6 節の雛形のまま。この block だけの物:
 
-- `intake.py` が読む入力は `INPUTS_BASE`・`INPUTS_PURPOSE`・`INPUTS_ENTRY`・`INPUTS_LANG` の 4 つ。`purpose` は `ports.json(os.environ.get("INPUTS_PURPOSE"), "purpose.schema.json")`、ほかは `ports.text(…)`。値の dict の鍵は `base`・`purpose`・`entry`・`lang`。
+- `intake.py` が読む入力は `INPUTS_BASE`・`INPUTS_PURPOSE`・`INPUTS_ENTRY`・`INPUTS_LANG` の 4 つ。`purpose` は `ports.json(os.environ.get("INPUTS_PURPOSE"), "shared:purpose.schema.json")`、ほかは `ports.text(…)`。値の dict の鍵は `base`・`purpose`・`entry`・`lang`。
 - 1 つ目の commit だけ、`role_prep.py` が `src.oldbrief.brief(view, values)` を place の `material-external-standards-brief.md` に書いてから組む。
 
 ## 4 受け付けの文（観点の後の照らし `src/rankings.py`）
@@ -343,3 +338,11 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 拒みの文の頭を `観点 external-standards: ` にする。訳: [purpose-review.md](purpose-review.md) の 7 節と同じ（graph の節の id は新しい形に無い）。
 - `purpose` の schema を purpose-review と同じ字で置く。訳: materials.md の 1.2 の「同じ意味の入力は同じ名と同じ形」。中身は purpose-review.md の 1.5 で決めた。
 - 回す時の `due` の訳を、今の `external_standards_due` の字でなく「外部標準の照合は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回）」にする。訳: 1 run = 1 周（持ち主の決め carry）で、前の周の P3 と機構を変えた周の枝はいつも効かない。効かない枝の名を人に見せる `reason` に残すと、読む人が「前の周」が在ると取り違える。prior-decisions.md の 1.5 と、ほかの P1 の観点（test-double-fidelity・main-path-observation など）と同じ決め方。回すかの真偽は今と同じ。
+- 実装時に決めた事（#765 の実装）:
+  - `fill` は `materialkit.fill_entry(values["entry"], None)`。訳: 1.5 は `0` を渡すと書くが、`fill_entry` は `0` を「依頼 0 件」と書き、`None` が「件数は渡されていない」の句になる（materials.md の 2.6）。この観点は port `request` を持たないので `None` が書いた意図に合う。
+  - `purpose` の形 `purpose.schema.json` は `blocks/.shared/schemas/` に 1 つ置く（`shared:purpose.schema.json`）。訳: 1.2 は block ごとの写しを書くが、`tests/layers/test_block_shape.py` の入力の形の検査が「形のファイルの名は pack の中で 1 か所。2 つ以上の block が使う形は `.shared/schemas/`」と決める。`$schema` の鍵は `KNOWN_KEYWORDS` に無いので外した。
+  - 役の md の頭の文から「started in a new conversation」を外した（`You are the external-standards role. Your only job …`）。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話を続けるので、「新しい会話」と言うと誤る。standalone の筋書きの決まった文もこの頭の文に合わせた。
+  - `NA_PARAGRAPH = True` を宣言に足した（共通の試験が要る名。1.5 は書いていない）。
+  - 1 つ目の commit の材料のファイル `src/oldbrief.py` は、本物の run の物が手元に無いので、今の `judge_accept.material_prep` の字（見出し・節の名・『条件に当たらない』の段）を `lib/judge_accept.py` の定数から組み直して書いた。本物の run の物との字の比べ（2.9 の (b)）はしていない。2 つ目の commit で消した。
+  - 試験は 2.9 のとおり。起こし方の照らしは `tests/workflows/test_judge.py` の行を `ShapeCase.LAUNCH` に字で写した。
+  - `values` は目的の値と `repo_review_md` を、段落が入らない時は空の字で渡す。訳: 1.5 は「在る時だけ」と書くが、`blocks/.shared/AGENTS.md` の決め（指示を組む口は選ばれない段落の中の `{name}` も数える。prep はいつも同じ組の値を渡す）が勝つ。
