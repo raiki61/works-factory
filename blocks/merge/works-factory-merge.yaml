@@ -1,0 +1,226 @@
+name: works-factory-merge
+description: |
+  差分の確定と取り込み。seal は作業ツリーの差分を封じて守りのファイルの当たりを返し、apply は封じた hash を今の差分と照らして place に置き、
+  check は封じた hash を今の差分と照らすだけで置く。apply・check の後の渡し方は出口の語 deliver で決まる: 空は置くだけ（対象のリポジトリへ
+  当てるのは人）、pr は照らした差分を run の枝に修正案の項目ごとの commit で積み（項目に分けられなければ 1 つの commit）、Archon に
+  同梱の archon-pr の子の run がその枝への push と PR の作成をする（対象の既定の枝と同じ名の枝では止める。merge はしない）
+inputs:
+  mode:
+    required: true
+    description: 'choice(seal|apply|check): 形。seal は今の差分を封じて守りのファイルの当たりを数える。apply は封じた hash と今の差分を照らし、置いてよい時だけ置く。check は封じた hash と今の差分を照らすだけで置く'
+  base:
+    required: true
+    description: 'text: 差分の根の版（seal と apply は修正前の HEAD、check は鎖の元の基）'
+  fingerprint:
+    default: 'null'
+    description: 'json(fingerprint.schema.json): 修正の後のテストの緑の認証の指紋 {head, diff_hash}。null は指紋が無い（seal は照らさない。apply は人の答えが無ければ拒む）'
+  green_ok:
+    default: 'false'
+    description: 'flag: 修正の後のテストが通ったか（apply で、人の答えが無い時だけ読む）'
+  eyes_ok:
+    default: 'false'
+    description: 'flag: 修正の後の独立の確かめが通ったか（apply で、人の答えが無い時だけ読む）'
+  sealed_hash:
+    default: ''
+    description: 'text: 封じた差分の sha256（apply と check）。空は封じていない'
+  answer:
+    default: 'null'
+    description: 'json(answer.schema.json): 最後の承認ノードで人が返した答え {decision, text}。null は承認ノードが開かなかった（apply だけ）'
+  r2:
+    default: 'null'
+    description: 'json(r2.schema.json): 独立設計との比べ（R2）の {status, reason}。null は省いた・走らなかった（apply だけ）'
+  deliver:
+    default: ''
+    description: 'text: 出口の語。空は差分を place に置くだけ、pr は照らした差分を run の枝に積んで PR を作る（apply と check だけ）。ほかの語は ok: false'
+  request:
+    default: ''
+    description: 'file: 依頼のファイル（pr の時に、依頼が名指した issue を commit の文に閉じない参照で書く）。空は無い'
+  items:
+    default: 'null'
+    description: 'json(items.schema.json): 差分のパスを修正案の項目に決める記録 {items, claims, unread}（fix の出力。lib/itemcommits.py の merged の形）。null は無い（pr の時に 1 つの commit に倒す）'
+  user_env_dir:
+    default: ''
+    description: 'text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は置き場が無い（戻す run では pr の commit を積まずに止める）。pr の commit の hooks だけが読む'
+returns: merge
+outcome_field: ok
+nodes:
+  - id: place
+    script: merge
+    runtime: uv
+    mutates_checkout: false
+    with:
+      mode: $INPUTS.mode
+      base: $INPUTS.base
+      fingerprint: $INPUTS.fingerprint
+      green_ok: $INPUTS.green_ok
+      eyes_ok: $INPUTS.eyes_ok
+      sealed_hash: $INPUTS.sealed_hash
+      answer: $INPUTS.answer
+      r2: $INPUTS.r2
+      deliver: $INPUTS.deliver
+    output_format:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [seal, apply, check]
+        ok:
+          type: boolean
+        hash:
+          type: string
+        diff:
+          type: [object, "null"]
+          properties:
+            type: { type: string, enum: [archon_artifact] }
+            run_id: { type: string }
+            path: { type: string, pattern: "(^|/)(sealed|apply|refused)\\.diff$" }
+          required: [type, run_id, path]
+        protected_hits:
+          type: [array, "null"]
+          items:
+            type: string
+        protected_count:
+          type: [integer, "null"]
+        reason:
+          type: string
+        base_rev:
+          type: string
+        deliver:
+          type: string
+      required: [mode, ok, hash, diff, protected_hits, protected_count, reason, base_rev, deliver]
+      additionalProperties: false
+
+  # 出口の語 pr だけ。照らした差分を run の枝に修正案の項目ごとの commit で積む（作業ツリーの HEAD と index を変える）。seal は差分を封じるだけ
+  - id: pr-commit
+    script: pr_commit
+    runtime: uv
+    depends_on: [place]
+    when: "$place.output.ok == true && $place.output.deliver == 'pr' && $place.output.mode != 'seal'"
+    with:
+      mode: "$place.output.mode"
+      base_rev: "$place.output.base_rev"
+      sealed_hash: "$place.output.hash"
+      request: $INPUTS.request
+      user_env_dir: $INPUTS.user_env_dir
+      items: $INPUTS.items
+    output_format:
+      type: object
+      properties:
+        go: { type: boolean }
+        head: { type: string }
+        branch: { type: string }
+        base: { type: string }
+        repo:
+          type: [object, "null"]
+          properties:
+            host: { type: string }
+            path: { type: string }
+          required: [host, path]
+        commits: &item_commits
+          type: array
+          items:
+            type: object
+            properties:
+              item: { type: integer }
+              subject: { type: string }
+              head: { type: string }
+            required: [item, subject, head]
+            additionalProperties: false
+        split: { type: string }
+        reason: { type: string }
+      required: [go, head, branch, base, repo, commits, split, reason]
+      additionalProperties: false
+
+  # push と PR の作成は Archon に同梱の archon-pr。題と本文を決める AI のノード prepare は書き込みをせず、script のノード publish が
+  # push して PR を作り、読み戻す。push の先の枝は入力 branch が決め（publish は prepare の返す head より branch を採る）、prepare には
+  # 決めさせない。子の run への渡し物は積んだ commit の文（with: と input: は一緒に書けない）。子の run は同じ作業ツリーで走る
+  - id: pr-open
+    workflow: archon-pr
+    depends_on: [pr-commit]
+    when: "$pr-commit.output.go == true"
+    with:
+      branch: "$pr-commit.output.branch"
+
+  # 子の run が落ちればこの節は飛ばされ、返す節が飛ばされたことを訳にする
+  - id: pr-read
+    script: pr_read
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [pr-open]
+    with:
+      got: "$pr-open.output"
+      head: "$pr-commit.output.head"
+      branch: "$pr-commit.output.branch"
+      base_branch: "$pr-commit.output.base"
+      repo: "$pr-commit.output.repo"
+    output_format:
+      type: object
+      properties:
+        ok: { type: boolean }
+        number: { type: [integer, "null"] }
+        url: { type: string }
+        is_draft: { type: [boolean, "null"] }
+        reason: { type: string }
+      required: [ok, number, url, is_draft, reason]
+      additionalProperties: false
+
+  # optional は、このブロックが落ちても線が先へ進めてよい節の宣言（PR を作る子の run の節）。[{node, bare}] の JSON の字
+  - id: merge
+    script: handed
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [place, pr-commit, pr-read]
+    trigger_rule: all_done
+    with:
+      mode: $INPUTS.mode
+      place: "$place.output"
+      commit: { from: "$pr-commit.output", if_skipped: null }
+      read: { from: "$pr-read.output", if_skipped: null }
+      optional: '[{"node": "pr-open", "bare": false}]'
+    output_format:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [seal, apply, check]
+        ok:
+          type: boolean
+        hash:
+          type: string
+        diff:
+          type: [object, "null"]
+          properties:
+            type: { type: string, enum: [archon_artifact] }
+            run_id: { type: string }
+            path: { type: string, pattern: "(^|/)(sealed|apply|refused)\\.diff$" }
+          required: [type, run_id, path]
+        protected_hits:
+          type: [array, "null"]
+          items:
+            type: string
+        protected_count:
+          type: [integer, "null"]
+        reason:
+          type: string
+        deliver:
+          type: [object, "null"]
+          properties:
+            act: { type: string, enum: [placed, none, pr, stopped, unconfirmed] }
+            pr:
+              type: [object, "null"]
+              properties:
+                number: { type: integer }
+                url: { type: string }
+                is_draft: { type: boolean }
+              required: [number, url, is_draft]
+            commits: *item_commits
+            split: { type: string }
+            reason: { type: string }
+          required: [act, pr, reason]
+        optional:
+          type: array
+        report:
+          type: array
+          items: { type: string }
+      required: [mode, ok, hash, diff, protected_hits, protected_count, reason, deliver, optional, report]
+      additionalProperties: false

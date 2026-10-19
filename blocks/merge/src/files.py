@@ -1,0 +1,5 @@
+"""merge の place に書くファイルの名（docs/design/merge.md の 1.4）。名を持つのはここだけ。"""
+SEALED = "sealed.diff"
+APPLIED = "apply.diff"
+REFUSED = "refused.diff"
+PROTECTED_FILE = "protected-all.json"

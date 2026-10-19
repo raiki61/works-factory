@@ -1,0 +1,46 @@
+# 出口の語 pr の配線: 照らした後に commit の節が項目ごとに積み、PR を作る子の run（archon-pr）が返した PR の記録を読み戻しの節が
+# 積んだ commit と照らし、返す節が PR の在りかと積んだ項目の commit を返す
+place:
+  mode: apply
+  ok: true
+  hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  diff: { type: archon_artifact, run_id: fixture-run, path: apply.diff }
+  protected_hits: null
+  protected_count: null
+  reason: ""
+  base_rev: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  deliver: pr
+pr-commit:
+  go: true
+  head: "cccccccccccccccccccccccccccccccccccccccc"
+  branch: archon/task-fixture
+  base: main
+  repo: { host: github.com, path: owner/repo }
+  commits:
+    - { item: 1, subject: "項目 1: 読み口を足す", head: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
+    - { item: 2, subject: "項目 2: 読み口を使う", head: "cccccccccccccccccccccccccccccccccccccccc" }
+  split: ""
+  reason: ""
+pr-open:
+  schemaVersion: 1
+  repo: { host: github.com, path: owner/repo }
+  number: 7
+  url: https://github.com/owner/repo/pull/7
+  head: archon/task-fixture
+  base: main
+  is_draft: true
+  state: open
+  head_repo: { host: github.com, path: owner/repo }
+  head_revision: "cccccccccccccccccccccccccccccccccccccccc"
+  base_revision: "dddddddddddddddddddddddddddddddddddddddd"
+  maintainer_can_modify: null
+fixture:
+  expect: completed
+  reached: [place, pr-commit, pr-open, pr-read, merge]
+  inputs:
+    mode: apply
+    base: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    sealed_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    answer: '{"decision":"approve","text":""}'
+    deliver: pr
+exec-code: true
