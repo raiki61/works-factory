@@ -1,0 +1,17 @@
+# 依頼の行も差分も無い。start が ok: false を返し、block は全部飛び、collect・report・後始末・result だけが走る。
+fixture:
+  expect: completed
+  inputs: {request: ''}
+  reached: [start, answer-start, collect, report__finish, sweep-children, result]
+exec-code: true
+report__facts: {outcome: stopped_by_line, ok: false, stop_reason: 'start:works:start-refused', machine: null, next_request: null, prior_failures: null, ai_go: false, stamp: ''}
+report__finish:
+  ok: false
+  outcome: stopped_by_line
+  stop_reason: start:works:start-refused
+  machine: {type: archon_artifact, run_id: dry-run, path: report/report.machine.json}
+  human: {type: archon_artifact, run_id: dry-run, path: report/report.md}
+  detail: null
+  next_request: null
+  prior_failures: null
+  report: ['- 報告']
