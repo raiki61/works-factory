@@ -1,6 +1,7 @@
 """blocks/.shared/prompt.py の口（docs/design/README.md の 5 節）: md に値を入れて指示を組み、md と値が食い違えば名指して落ちる"""
 import sys
 import unittest
+from unittest import mock
 
 from tests.bin import hermetic
 from tests.blocks import kit
@@ -51,6 +52,36 @@ class SlotCase(Base):
         self.md("<!-- if extra -->\nX {more}\n<!-- end extra -->\nY\n")
         self.refused(r"\['more'\] に値が無い", {}, {"extra": False})
         self.assertEqual(self.render({"more": "m"}, {"extra": False}), "Y\n")
+
+
+class PartCase(Base):
+    def test_part_is_composed_like_a_prompt(self):
+        self.part("brief", "Read {file}.\n<!-- if later -->\nAgain.\n<!-- end later -->\n")
+        got = prompt._compose(self.block, "brief", {"file": "a.md"}, {"later": True}, part=True)["prompt"]
+        self.assertEqual(got, "Read a.md.\nAgain.\n")
+        with self.assertRaisesRegex(prompt.PromptError, "に値が無い"):
+            prompt._compose(self.block, "brief", {}, {"later": False}, part=True)
+        with self.assertRaisesRegex(prompt.PromptError, "が無い"):
+            prompt._compose(self.block, "absent", {}, {}, part=True)
+
+    def from_block(self, code: str) -> dict:
+        """block の src/ のモジュールとして code を回す（ports.caller_block が呼び手の在る block を解く道を通す）"""
+        names = {"prompt": prompt}
+        with mock.patch.object(prompt.ports, "PACK", self.block.parent):
+            exec(compile(code, str(self.block / "src" / "brief.py"), "exec"), names)
+        return names
+
+    def test_render_part_reads_the_parts_of_the_caller_block(self):
+        """render_part は呼んだ block の prompts/parts/ を読む。名は node の id の字だけ（ほかの字は prompts/parts/ の外を指しうるので拒む）。
+        呼び手が block の外なら名指して落ちる"""
+        self.part("brief", "Read {file}.\n")
+        got = self.from_block("out = prompt.render_part('brief', {'file': 'a.md'})\n")
+        self.assertEqual(got["out"], "Read a.md.\n")
+        for bad in ("my_brief", "../role", "parts/brief"):
+            with self.subTest(bad=bad), self.assertRaisesRegex(prompt.PromptError, "断片 の id の形でない"):
+                self.from_block(f"prompt.render_part({bad!r}, {{}})\n")
+        with self.assertRaisesRegex(ValueError, "block の中に無い"):
+            prompt.render_part("brief", {"file": "a.md"})
 
 
 class ParagraphCase(Base):

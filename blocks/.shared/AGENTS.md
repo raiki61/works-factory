@@ -22,7 +22,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
 - `ports.py`: `text(raw)`・`flag(raw)`・`choice(raw, words)`・`json(raw, schema)`（schema は block の `schemas/` の名か `shared:<名>`）・`file(raw)`・`parsed(raw)`・`picked(raw, names, optional=())`（names の欄が作り手の出力に無ければ `KeyError`。無くてよい欄は optional）・`unknown_keywords(shape)`・`place()`・`pointer(path)`・`returns(obj)`・`run(compute, fallback)`・`lib_root()`・`shared_cache()`（run をまたぐ控えの根。`STATE_DIR` の下の `works-factory/`、渡されなければ None）。import すると `lib/` が読めるようになる。
 - `ports.py` の、対象のコマンドを起こす block の口（`workflows/.shared/boundary.py` と同じ約束）: `RUNTIME_COPY`・`RUNTIME_COPY_PREFIX`・`RUNNER_PREFIXES`・`RUNNER_NAMES`・`drop_runner_env(user_env)`・`suite_keep()`。
 - 埋め: `ports.polyfill(name)`（`fence`・`childsweep`・`child_pointer`・`skip_value`）。組み込みで埋めをここへ移すまで、リポジトリの `workflows/.shared/` から読む。役の書き込みの柵（`fence`）は起動の殻が役の claude を包むので、block が import する物ではない（読むだけの役は YAML の `sandbox.filesystem.denyWrite` に印を書く。根の `workflows/AGENTS.md` の E7）。
-- `prompt.py`: `render(node_id, values, when)`・`emit(node_id, values, when, n)`・`round_of(node_id)`・`lang(raw)`・`PromptError`。
+- `prompt.py`: `render(node_id, values, when)`・`render_part(name, values, when)`（AI の node でない物の指示を `prompts/parts/<name>.md` から組む。束ね役が起こす下請けが Read する指示のファイルなど）・`emit(node_id, values, when, n)`・`round_of(node_id)`・`lang(raw)`・`PromptError`。
 - `requestrows.py`: `parts(raw)`・`findings(raw)`。依頼の行の port を読む口。
 
 ## 置く物
@@ -41,7 +41,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `report-head-check`: 報告の頭の確かめの 2 段落（中の口 `{machine_heading}`。報告の block の初見の読み手だけが使う）。
   - 役の定義 5 本: `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`。
   - `works-gh`: 読むだけの gh の口の使い方。
-  - `writer-rules`: コードを直す役（書く役）の決まりの正本（直し方・テストで赤→緑を示せない直しの証拠・食い違いの申し出・守ること）。段落 `conflict`（食い違いの申し出。申し出の出口を持つ役だけ true）・`docs`・`prompts_kind`・`config`・`code`（証拠の種類。役が扱う変更の種類だけ true）の真偽が要る。口 `{name}` は無い。修正の役と、差分の審査の手直しの役が共に差し込む。
+  - `writer-rules`: 作業ツリーを直す書き手の役の決まり（直し方・テストで赤→緑を示せない直しの証拠・食い違いの申し出・守ること）。段落 `conflict`（食い違いの申し出）・`evidence`（証拠の頭。4 つの種類のどれかが真の時）・`docs`・`prompts_kind`・`config`・`code`（証拠の 4 つの種類）・`where_fixer`・`where_tdd`・`where_rework`（証拠を書く場所。使う役の 1 つだけを真にする）の真偽が要る。
   - 素材の観点の族（docs/design/materials.md の 3.2）: `material-status`・`material-na`（段落 `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`、中の口 `{na_why}`）・`material-where`・`material-readonly`。
   - 目の外の block も使う物（docs/design/r1.md の 0.6）: `axis`（判断の 1 軸の 1 文）・`concept-map`（考えの住処の地図。段落 `maps_found` の真偽が要る。中は次の 2 本を選ぶだけ）・`concept-map-found`（中の口 `{concept_maps}`）・`concept-map-none`（中の口 `{map_tail}`）。値は `lib/eyekit.py` の `maps` が組む。`concept-map-found`・`concept-map-none` は段落の印を持たないので、段落の中に地図を置く md（r4 のまとめた形）はこの 2 本を自分の段落で選ぶ。
   - 独立の目の族（docs/design/r1.md の 0.6。r1〜r4 だけが使う。どれも段落の印を持たないので、段落の中に置ける）: `eye-role`（役の 2 行目と 3 行目）・`eye-diff`（累積差分の 1 段落。中の口 `{diff_file}`・`{base}`・`{changed_files}`・`{repo}`。値は `eyekit.diff_values`）・`eye-frozen`（読むのはこの run に固定した作業ツリー）・`eye-green`（最後のテストの認証が通っていない 1 文。md は `<!-- if not green -->` の中に置く）・`eye-seen`（seen と unseen・status の 3 語。中の口 `{st_pass}`・`{st_redesign}`・`{st_unverifiable}`）・`eye-coherence`（R3 の観点の全部。`axis`・`eye-seen` を中に持ち、中の口 `{home_prefix}`・`{after_section}`・`{review_md}`・`{repo_review_md}`。地図は持たない）・`eye-policy`（`policy` とこの役の書く先 reason。md は `<!-- if policy -->` の中に置く）・`eye-recorded-policy`（目の 1 文と `recorded-policy`。段落の外に置く）。

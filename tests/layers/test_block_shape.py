@@ -3,12 +3,15 @@
 1. AI の node の prompt: は、同じ workflow の script の node の `$<id>.output.prompt` 1 つだけ。command: を持つ AI の node は無い。
    systemPrompt: を持つなら、同じ prep の `$<id>.output.system` 1 つだけで、prompts/<node-id>.system.md が在る（逆も）
 2. AI の node ごとに prompts/<node-id>.md が在り、prompts/ の直下の md はどれもどれかの AI の node の物（<node-id>.md か
-   <node-id>.system.md）。prompts/parts/ の md はどれも同じ block のどれかの md から {part:…} で差し込まれる。md の
+   <node-id>.system.md）。prompts/parts/ の md はどれも同じ block のどれかの md から {part:…} で差し込まれるか、同じ block の
+   scripts/・src/ の prompt.render_part("<name>" の呼び（コメントと文の字の中は数えない）が名指す。md の
    {shared:…}・{part:…} の先が在る
 3. 指示が筋書きの値で md から組める: standalone の筋書きは exec-code: true。どの AI の node も、exec-code: true でその prep を
    差し替えない筋書きのどれかで reached に在り、その筋書きの resolved-text-contains が、その node の md の決まった文（断片を
    入れ、差し込み口と段落の印で割った字）の一続きの中に在る（prep が md を prompt.render で本当に組んだ証）。standalone の筋書きの
-   AI の node の resolved-text-contains は、どれも決まった文。筋書きを Archon の workflow test で回して全部が通る（ArchonCase。
+   AI の node の resolved-text-contains は、どれも決まった文。筋書きで届かない node（workflow: の fan_out の先・loop の 2 周目）は、block の
+   試験 tests/blocks/<block>/test_prompts.py の表 RENDERED（{node の id: md の決まった文}）に行が在り、その字が md の決まった文の中に在れば
+   照らされたと数える（表の行で prep を回して照らすのは試験の側）。筋書きを Archon の workflow test で回して全部が通る（ArchonCase。
    Archon の源が無ければ見送り、CI は赤）
 4. どの workflow にも fixtures/standalone.stubs.yaml が在り、その fixture.inputs の鍵は workflow の inputs: の中にあって pointer の
    値を持たず、必須の入力を全部持つ
@@ -31,6 +34,7 @@
 置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、blocks/ を workflows/ の場所に写した
 一時の木に当てる。uv の script の頭の宣言（4 行）はここで照らす。E1（archon validate が警告なしで通る）は ArchonCase。
 """
+import ast
 import json
 import pathlib
 import re
@@ -54,6 +58,7 @@ FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
+RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # blocks/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
 STANDALONE = "standalone"
@@ -104,6 +109,20 @@ def is_pointer(value: str) -> bool:
     return isinstance(got, dict) and got.get("type") == "archon_artifact"
 
 
+def render_part_names(text: str) -> set[str]:
+    """Python の字の中の prompt.render_part("<name>", …) の呼びが名指す断片の名（コメントと文の字の中の物は呼びでないので数えない。
+    名が RENDER_PART_NAME に合わない呼びは回すと落ちるので数えない）"""
+    try:
+        tree_ = ast.parse(text)
+    except SyntaxError:
+        return set()
+    return {call.args[0].value for call in ast.walk(tree_)
+            if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr == "render_part"
+            and isinstance(call.func.value, ast.Name) and call.func.value.id == "prompt" and call.args
+            and isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str)
+            and RENDER_PART_NAME.fullmatch(call.args[0].value)}
+
+
 def py_files(folder: pathlib.Path) -> list[pathlib.Path]:
     return sorted(p for sub in ("scripts", "src") for p in (folder / sub).rglob("*.py") if "__pycache__" not in p.parts)
 
@@ -144,8 +163,9 @@ def check_prompt_files(pack: pathlib.Path) -> list[str]:
         texts = [p.read_text(encoding="utf-8") for p in prompts.rglob("*.md")] if prompts.is_dir() else []
         refs = {m.groups() for text in texts for m in FRAGMENT.finditer(text)}
         parts = {p.stem for p in (prompts / "parts").glob("*.md")} if (prompts / "parts").is_dir() else set()
-        out += [f"{folder.name}: prompts/parts/{p}.md はどの md からも {{part:{p}}} で差し込まれない"
-                for p in sorted(parts - {name for kind, name in refs if kind == "part"})]
+        called = {name for path in py_files(folder) for name in render_part_names(path.read_text(encoding="utf-8"))}
+        out += [f"{folder.name}: prompts/parts/{p}.md はどの md からも {{part:{p}}} で差し込まれない（prompt.render_part(\"{p}\" の呼びも無い）"
+                for p in sorted(parts - {name for kind, name in refs if kind == "part"} - called)]
         for kind, name in sorted(refs):
             where = pack / SHARED / "prompts" if kind == "shared" else prompts / "parts"
             if not (where / f"{name}.md").is_file():
@@ -174,7 +194,23 @@ def _expand(text: str, pack: pathlib.Path, folder: pathlib.Path, depth: int = 0)
     return FRAGMENT.sub(one, text)
 
 
-def check_standalone_renders(pack: pathlib.Path) -> list[str]:
+def rendered_rows(folder: pathlib.Path, tests: pathlib.Path | None = None) -> dict:
+    """block の試験 tests/blocks/<block>/test_prompts.py の表 RENDERED（{node の id: md の決まった文}。表の行を照らすのは試験の側で、
+    ここは表の在りと字だけを読む）。無ければ {}"""
+    path = kit.tests_of(folder.name, *([tests] if tests else [])) / "test_prompts.py"
+    if not path.is_file():
+        return {}
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "RENDERED" for t in node.targets):
+            try:
+                got = ast.literal_eval(node.value)
+            except ValueError:
+                return {}
+            return got if isinstance(got, dict) else {}
+    return {}
+
+
+def check_standalone_renders(pack: pathlib.Path, tests: pathlib.Path | None = None) -> list[str]:
     out = []
     for folder in folders(pack):
         doc = load(folder)
@@ -200,9 +236,12 @@ def check_standalone_renders(pack: pathlib.Path) -> list[str]:
                 if name == STANDALONE and said is not None and not fixed:
                     out.append(f"{at} の resolved-text-contains の {nid} が prompts/{nid}.md の決まった文の中に無い（値でなく md の文で照らす）")
                 proved |= runs and fixed
+            reached = any(nid in ((fx.get("fixture") or {}).get("reached") or []) for fx in fixtures.values())
+            rendered = rendered_rows(folder, tests).get(nid)   # 表の行は筋書きで届かない node だけを照らす（届く node は筋書きで照らす）
+            proved |= not reached and isinstance(rendered, str) and any(rendered in c for c in chunks)
             if not proved:
                 out.append(f"{folder.name}: AI の node {nid} の指示を md から組んだと照らす筋書きが無い（exec-code: true・prep を差し替えない・"
-                           f"reached に在る・resolved-text-contains が md の決まった文）")
+                           f"reached に在る・resolved-text-contains が md の決まった文。筋書きで届かない node は試験の表 RENDERED の行）")
     return out
 
 
@@ -427,7 +466,7 @@ class SeedCase(unittest.TestCase):
             (pathlib.Path(lib) / "steps.py").write_text("", encoding="utf-8")
             if check is check_module_names:
                 got = check(root, pathlib.Path(lib))
-            elif check is check_block_tests:
+            elif check in (check_block_tests, check_standalone_renders):
                 got = check(root, root / "tests-of-blocks")
             else:
                 got = check(root)
@@ -510,6 +549,39 @@ class SeedCase(unittest.TestCase):
             with self.subTest(check=check.__name__, changes=sorted(changes)):
                 got = self.broken(check, changes)
                 self.assertTrue(any(word in line for line in got), (word, got))
+
+    def test_rendered_table_proves_a_node_the_fixtures_do_not_reach(self):
+        """筋書きで届かない AI の node は、block の試験の表 RENDERED の行（md の決まった文）で照らされたと数える。字が md に無い行は数えない"""
+        unreached = yaml.safe_dump({"fixture": {"reached": ["prep", "finish"], "inputs": {"text_in": "x"}}, "exec-code": True, "role": {}})
+        for table, clean in (('RENDERED = {"role": "rules"}\n', True), ('RENDERED = {"role": "x"}\n', False)):
+            with self.subTest(table=table):
+                got = self.broken(check_standalone_renders, {"demo/fixtures/standalone.stubs.yaml": unreached,
+                                                             "tests-of-blocks/demo/test_prompts.py": table})
+                self.assertEqual(got == [], clean, got)
+
+    def test_rendered_table_does_not_prove_a_node_the_fixtures_reach(self):
+        """筋書きで届く node は表 RENDERED の行では照らされない（筋書きの resolved-text-contains がなければ照らす筋書きが無い）"""
+        reached = yaml.safe_dump({"fixture": {"reached": ["prep", "role", "finish"], "inputs": {"text_in": "x"}}, "exec-code": True,
+                                  "role": {}})
+        got = self.broken(check_standalone_renders, {"demo/fixtures/standalone.stubs.yaml": reached,
+                                                     "tests-of-blocks/demo/test_prompts.py": 'RENDERED = {"role": "rules"}\n'})
+        self.assertTrue(any("照らす筋書きが無い" in line for line in got), got)
+
+    def test_part_named_only_by_render_part(self):
+        """parts の md は、scripts/・src/ の prompt.render_part("<name>" の呼びだけが名指しても通る。コメントの中の字・名の字が
+        prompt.NODE_ID に合わない呼び（回すと落ちる）・どこからも名指されない物は赤"""
+        brief = {"demo/prompts/parts/brief.md": "brief\n"}
+        cases = [("from src import prompt\nprompt.render_part('brief', {})\n", True),
+                 ("# prompt.render_part('brief', {}) は使わない\n", False),
+                 ('"""prompt.render_part("brief", {})"""\n', False),
+                 ("", False)]
+        for code, clean in cases:
+            with self.subTest(code=code):
+                got = self.broken(check_prompt_files, {**brief, "demo/src/x.py": code})
+                self.assertEqual(got == [], clean, got)
+        got = self.broken(check_prompt_files, {"demo/prompts/parts/my_brief.md": "x\n",
+                                               "demo/src/x.py": "prompt.render_part('my_brief', {})\n"})
+        self.assertTrue(any("{part:my_brief} で差し込まれない" in line for line in got), got)
 
     def test_self_workflow_is_allowed_in_a_block(self):
         """block が起こしてよい workflow は自分（直しの組ごとに自分を子の run として起こす形）"""
