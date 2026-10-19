@@ -58,10 +58,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
   対応表）・出自 ORIGINS・一番上の止まった時の推し STUCK_PUSH は tree_split が外す。下請けの答えのファイルの当たりの答えの型は
   HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
-- capped(doc): 最後の往復が輪の安全の上限の周で止めた物か（止まった壁打ちを役の推しで越えてよいかの決めは gatepolicy.stuck_pushable）
-- stuck_keys(doc)・uncited(note, doc)・stuck_faces(doc): 止まった壁打ちの止めた block の key（stuck_reason も同じ式）・止まった時の
-  推しの note が引いていない key と『項目 n』・保留の項目の前の往復の block を review.json の faces に足す行（印 HELD_MARK つき。
-  block_faces は審査の挙げた block に数えない）
+- 止めの訳・往復の行・止まった時の key（capped・stuck_reason・lines・stuck_keys・uncited・stuck_faces）は line の src/rounds.py に在る
+  （README 9.2。line が写した）
 - carried_refs(b, opened)・last_refs(b, n): 今の往復が見ない項目が前の往復の答えの対応表（DESIGN_MAP）で受けた独立設計の要素の id
   （往復の行の items の refs。要素の網羅は全部の項目の答えを合わせて数える）と、項目 n を最後に審査した往復の refs（2 往復目からの
   開いた項目は変わっていない files の鍵の行を書き直さないので、前の往復の要素を引き継ぐ）
@@ -894,34 +892,4 @@ def tree_split(reply: dict) -> tuple[dict, dict]:
 # ---------------------------------------------------------------- 文
 def _keys(keys) -> str:
     return "、".join(keys) if keys else NONE
-
-
-def stuck_keys(doc: dict) -> list:
-    """止まった壁打ち（PERSISTED・UNSETTLED）の、止めた block の key（stuck_reason・uncited・stuck_faces が読む 1 つの式）。
-    項目の無い控えは PERSISTED なら最後の往復の続いた key・UNSETTLED なら最後の往復の block。項目の在る控えは、保留の項目の
-    block（前の往復の物。今の往復は審査しない）と開いた項目の block。止まっていなければ []"""
-    if doc["outcome"] not in STUCK:
-        return []
-    last = doc["passes"][-1]
-    keys = last["persists"] if doc["outcome"] == PERSISTED else last["blocks"]
-    if last.get("items") is not None:
-        keys = list(dict.fromkeys(k for it in last["items"] if it.get("state") in (HELD, OPEN) for k in it["blocks"]))
-    return keys
-
-
-def _stuck_items(doc: dict) -> list:
-    """止まった控えの最後の往復の、保留・開いた項目の番号（項目の無い控えは []）"""
-    last = doc["passes"][-1] if doc["outcome"] in STUCK else {}
-    return [it["n"] for it in last.get("items") or [] if it.get("state") in (HELD, OPEN)]
-
-
-def uncited(note: str, doc: dict) -> list[str]:
-    """止まった時の推し（STUCK_PUSH）の note が字のまま引いていない物の並び: stuck_keys の key（前後に key の字 KEY_CHAR が続かない
-    一致。長い key の断片は引用に数えない）と、最後の往復の保留・開いた項目の『項目 n』（後ろに数字が続かない一致。『項目 12』は
-    『項目 1』の引用に数えない）。止まっていなければ []。
-    修正役に届くのは note だけなので、推しが修正の義務（止まった key と項目）に触れているかをここで照らす"""
-    note = str(note or "")
-    out = [k for k in stuck_keys(doc) if not re.search(rf"(?<!{KEY_CHAR})" + re.escape(k) + rf"(?!{KEY_CHAR})", note)]
-    out += [name for n in _stuck_items(doc) for name in [f"項目 {n}"] if not re.search(re.escape(name) + r"(?!\d)", note)]
-    return out
 
