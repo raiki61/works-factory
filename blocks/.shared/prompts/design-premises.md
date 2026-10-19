@@ -16,6 +16,10 @@ The text of the design-document sections the request names (the machine cut them
 {named}
 <!-- end named -->
 
+<!-- if request_unread -->
+The request file could not be read, so the design-document sections the request names were not given to you. Do not take their absence as the request naming none.
+<!-- end request_unread -->
+
 ### Map of the target repository
 
 The map documents at the target repository's root (the machine pasted them from the files at the version the request was fixed at; each heading is the source path:line). Even where the request does not name them, start the design from what already exists in the system (the roots of trust, the paths of outside communication, the things being protected).

@@ -5,8 +5,11 @@ port の値だけを渡し、intake → design_prep → 台本の返答 → desi
 この過程で呼んで確かめる。YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 keep-essence の 9（独立設計と R1〜R4）の守りは test_inputs_carry_no_plan_judgment_or_diff が縛る。
 """
+import contextlib
+import io
 import json
 import pathlib
+import runpy
 import unittest
 import unittest.mock
 
@@ -221,6 +224,15 @@ class PromptCase(_RepoCase):
         self.assertIn("目的の監査の受けた返答", rows[0]["why"])
         self.assertEqual(self.read("intake.json")["purpose_review"], {})
 
+    def test_unreadable_purpose_review_names_the_real_cause(self):
+        broken = self.write("review.json", "{not json")
+        self.assertTrue(self.intake(purpose_review=broken)["due"])
+        self.prep()
+        why = [w for w in self.read("design-premises.json")["withheld"] if w["kind"] == "purpose_review"][0]["why"]
+        self.assertNotIn("（ValueError）", why)
+        self.assertNotIn("\n", why)
+        self.assertRegex(why, r"JSON|json|Expecting|review")
+
     def test_unreadable_request_file_is_named(self):
         got = self.intake(request="/no/such/request.md")
         self.assertTrue(got["due"])
@@ -229,6 +241,14 @@ class PromptCase(_RepoCase):
         self.assertEqual(len(rows), 1)
         self.assertIn("依頼のファイル /no/such/request.md を読めない", rows[0]["why"])
         self.assertNotIn("/no/such/request.md", text)
+        self.assertEqual(rows[0]["what"], "/no/such/request.md")
+        self.assertEqual(self.read("intake.json")["request_given"], "/no/such/request.md")
+        self.assertIn("The request file could not be read", text)
+
+    def test_readable_request_file_does_not_say_it_was_unread(self):
+        request = self.write("request.md", "依頼の本文\n")
+        self.assertNotIn("The request file could not be read", self.to_prompt(request=request))
+        self.assertNotIn("The request file could not be read", self.to_prompt())
 
     def test_policy_is_pasted(self):
         policy = self.write("policy.md", "方針の印 POLICY-QRS: 環境は 1 か所で組む\n")
@@ -384,6 +404,38 @@ class AcceptCase(_RepoCase):
         self.intake()
         done = self.finish()
         self.assertEqual((done["status"], done["reason"]), ("failed", "独立設計が取れなかった: 役の loop が回らなかった"))
+
+    def test_prep_crash_is_the_reason_the_design_is_missing(self):
+        self.intake()
+        (self.run.artifacts / "intake.json").write_text("{}", encoding="utf-8")   # prep が読む欄が無い
+        self.run.failing("design_prep")
+        self.assertEqual(self.read("design-crash.json")["step"], "design_prep")
+        done = self.finish()
+        self.assertEqual(done["status"], "failed")
+        self.assertIn("design_prep の node が落ちた", done["reason"])
+        self.assertNotIn("役の loop が回らなかった", done["reason"])
+
+    def test_accept_crash_after_the_role_ran_is_not_called_not_run(self):
+        self.intake()
+        self.prep()
+        script = BLOCK / "scripts" / "design_accept.py"
+        out = io.StringIO()
+        with self.run.env(), unittest.mock.patch.object(self.steps, "check_design", side_effect=RuntimeError("boom")), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            runpy.run_path(str(script), run_name="__main__")
+        got = json.loads(out.getvalue())
+        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
+        self.assertEqual(self.read("design-crash.json")["step"], "design_accept")
+        done = self.finish()
+        self.assertEqual(done["status"], "failed")
+        self.assertIn("design_accept の node が落ちた", done["reason"])
+        self.assertNotIn("役の loop が回らなかった", done["reason"])
+
+    def test_intake_clears_an_old_crash_note(self):
+        self.intake()
+        (self.run.artifacts / "design-crash.json").write_text('{"step": "x", "why": "old"}', encoding="utf-8")
+        self.intake()
+        self.assertFalse((self.run.artifacts / "design-crash.json").exists())
 
 
 class PremisesCase(_RepoCase):

@@ -20,4 +20,13 @@ def compute():
                               keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")))
 
 
-ports.run(compute, lambda why: {"ok": False, "done": True, "give_up": True, "reason": f"受け付けが落ちた（{why}）"})
+def fallback(why: str) -> dict:
+    try:
+        from src import steps
+        steps.record_crash(ports.place(), "design_accept", why)
+    except Exception:  # noqa: BLE001 — 控えを残せなくても返りは返す
+        pass
+    return {"ok": False, "done": True, "give_up": True, "reason": f"受け付けが落ちた（{why}）"}
+
+
+ports.run(compute, fallback)

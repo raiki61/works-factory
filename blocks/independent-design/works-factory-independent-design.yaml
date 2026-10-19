@@ -12,7 +12,7 @@ inputs:
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
   base: {default: '', description: 'text: 審査する変更の起点の版（入口の差分の根）。空は足した行の印を付けない'}
   head: {default: '', description: 'text: 審査する変更の先の版（修正前の HEAD）。空は HEAD'}
-  lang: {default: '', description: 'text: 人に見せる欄（reason・premise_invalid_reason・design・elements の字）の言語。空は目的の文の言語'}
+  lang: {default: '', description: 'text: 人に見せる欄（reason・premise_invalid_reason・design・elements の字）の言語。空は依頼の言語'}
 returns: finish
 outcome_field: ok
 nodes:

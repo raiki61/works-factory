@@ -6,6 +6,7 @@
 - design-premises.json: 貼った前提の控え {node, given, withheld, seen, claims}
 - design.json: 受け付けを通った返答
 - rejects-r2.design.json: 却下の控え（lib/rolekit が名を組む）
+- design-crash.json: prep・accept の node が落ちた時の {step, why}（出口が設計の無い訳に使う）
 - finish.json: 出口の返りの写し
 """
 import pathlib
@@ -19,7 +20,8 @@ TREE = "design-tree.json"
 PREMISES = "design-premises.json"
 DESIGN = "design.json"
 FINISH = "finish.json"
+CRASH = "design-crash.json"
 REJECTS = rolekit.rejects_path(pathlib.Path(), NODE).name
 # 入口が消す物: この block が名を持つファイルだけ（名で引く。広い形で消さない）
-OWN_FILES = (INTAKE, TREE, PREMISES, DESIGN, FINISH, REJECTS)
+OWN_FILES = (INTAKE, TREE, PREMISES, DESIGN, FINISH, CRASH, REJECTS)
 OWN_PROMPTS = (f"{AI_NODE}-prompt-*.md", f"{AI_NODE}-system-*.md")

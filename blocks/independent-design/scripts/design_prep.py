@@ -12,4 +12,8 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 from src import steps  # noqa: E402
 
-ports.returns(steps.design_prompt(ports.place(), Path.cwd()))
+try:
+    ports.returns(steps.design_prompt(ports.place(), Path.cwd()))
+except Exception as error:
+    steps.record_crash(ports.place(), "design_prep", f"{type(error).__name__}: {error}")
+    raise

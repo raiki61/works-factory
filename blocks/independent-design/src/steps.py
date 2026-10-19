@@ -42,6 +42,7 @@ NO_CONSTRAINTS = "実測した制約が渡されていない（port constraints 
 # 実測した制約のうち、審査する変更が足した行を名指す物に機械が付ける欄 mark の字（prompts/design.md がこの字で読む）
 ADDED_MARK = "（審査する変更 {base}..{head} が足した行: {where}）"
 NOT_RUN = "役の loop が回らなかった"
+CRASHED = "{step} の node が落ちた（{why}）"
 
 
 # ---------------------------------------------------------------- 依頼の名指しを引く道具（lib/boardview.py の rules の写し）
@@ -182,22 +183,23 @@ def _purpose_review(raw) -> tuple[dict, list]:
     try:
         return ports.json(raw, "purpose-review.schema.json"), []
     except ValueError as e:
-        why = type(e).__name__
+        why = oneline.one_line(str(e)) or type(e).__name__
         return {}, [{"kind": "purpose_review", "what": "purpose_review", "why": PURPOSE_REVIEW_UNREAD.format(why=why)}]
 
 
-def _request(raw) -> tuple[str, str]:
-    """(依頼のファイルのパス, 読めない訳の行)。空は依頼のファイルが無い（どちらも空）。在らない・読めないファイルは本文を空として読み、
-    訳を行に残す（名指しの節は渡っていない）"""
+def _request(raw) -> tuple[str, str, str]:
+    """(依頼のファイルのパス, 読めない訳の行, 渡された字のままのパス)。空は依頼のファイルが無い（全部空）。在らない・読めない
+    ファイルはパスを空にして本文を空として読み、訳を行に残す（名指しの節は渡っていない）。字のままのパスは控えの名指しに使う"""
     if _blank(raw):
-        return "", ""
+        return "", "", ""
+    given = ports.text(raw).strip()[:200]
     try:
         path = ports.file(raw)
         if path is not None:
             path.read_text(encoding="utf-8")
     except (ValueError, OSError, UnicodeDecodeError) as e:
-        return "", REQUEST_UNREAD.format(path=ports.text(raw).strip()[:200], why=type(e).__name__)
-    return str(path) if path is not None else "", ""
+        return "", REQUEST_UNREAD.format(path=given, why=type(e).__name__), given
+    return (str(path) if path is not None else ""), "", given
 
 
 def intake(out, *, purpose, purpose_source, purpose_review, constraints, answers, request, policy_file, base, head, lang) -> dict:
@@ -205,7 +207,7 @@ def intake(out, *, purpose, purpose_source, purpose_review, constraints, answers
     目的が使えない（出典が目的不明・裏取りを通った狭めている）時は due: false・status: unusable。読めない port は due: false・
     status: failed と訳（purpose_review と依頼のファイルだけは落ちずに控えに名指す）。落ちない"""
     out = pathlib.Path(out)
-    doc = {"purpose": "", "purpose_source": "", "purpose_review": {}, "constraints": [], "answers": [], "request": "", "request_unread": "",
+    doc = {"purpose": "", "purpose_source": "", "purpose_review": {}, "constraints": [], "answers": [], "request": "", "request_unread": "", "request_given": "",
            "policy": "", "base": "", "head": "", "lang": "", "withheld": [], "due": False, "status": "failed", "reason": ""}
     try:
         for name in files.OWN_FILES:
@@ -221,7 +223,7 @@ def intake(out, *, purpose, purpose_source, purpose_review, constraints, answers
         doc["constraints"] = [] if _blank(constraints) else _port("constraints", lambda: _constraint_rows(
             ports.json(constraints, "shared:constraints.schema.json")))
         doc["answers"] = [] if _blank(answers) else _port("answers", lambda: ports.json(answers, "answers.schema.json"))
-        doc["request"], doc["request_unread"] = _request(request)
+        doc["request"], doc["request_unread"], doc["request_given"] = _request(request)
         policy_path = _port("policy", lambda: ports.file(policy_file))
         doc["policy"] = str(policy_path) if policy_path is not None else ""
         doc["base"], doc["head"], doc["lang"] = ports.text(base).strip(), ports.text(head).strip(), ports.text(lang).strip()
@@ -259,7 +261,7 @@ def design_prompt(out, repo) -> dict:
     got = premises.material(r2_view(request_text, doc["answers"]), repo)
     ledger = got["ledger"]
     if unread:
-        ledger["withheld"].append({"kind": "named_section", "what": doc["request"] or "request", "why": unread})
+        ledger["withheld"].append({"kind": "named_section", "what": doc["request_given"] or doc["request"] or "request", "why": unread})
     if not answer_rows(doc["answers"]):
         ledger["withheld"].append({"kind": "human_answer", "what": "answers", "why": NO_ANSWERS})
     if not doc["constraints"]:
@@ -275,7 +277,7 @@ def design_prompt(out, repo) -> dict:
               "policy_body": policy_body(doc["policy"]) if doc["policy"] else "",
               "lang": prompt.lang(doc["lang"])}
     when = {"rejected": bool(rejected), "answers": bool(got["answers"]), "named": bool(got["named"]), "stale": bool(stale),
-            "policy": bool(doc["policy"])}
+            "policy": bool(doc["policy"]), "request_unread": bool(unread)}
     jsonfile.write(out / files.PREMISES, {"node": files.NODE, **ledger})
     jsonfile.write(out / files.TREE, accept.tree_state(pathlib.Path(repo)))
     return prompt.emit(files.AI_NODE, values, when, prompt.round_of(files.AI_NODE))
@@ -329,6 +331,22 @@ def result(status: str, reason: str, *, made=None, design_file=None, premises_fi
             "downgrades": report.DOWNGRADES, "report": report.lines(status, reason, made)}
 
 
+def record_crash(out, step: str, why: str) -> None:
+    """prep・accept の node が落ちた訳を place に残す（出口が読む。ここ自体は落ちない）"""
+    try:
+        jsonfile.write(pathlib.Path(out) / files.CRASH, {"step": step, "why": oneline.one_line(why)})
+    except Exception:  # noqa: BLE001 — 落ちた訳を残す口が落ちても、元の誤りを隠さない
+        pass
+
+
+def _missing_why(out) -> str:
+    """設計が取れなかった訳: 落ちた node の訳（役が回った後でも）→ 最後の却下 → 役の loop が回らなかった"""
+    crash = jsonfile.read_or(out / files.CRASH)
+    if isinstance(crash, dict) and crash.get("why"):
+        return CRASHED.format(step=crash.get("step") or "?", why=crash["why"])
+    return rolekit.given_up_reason(out, files.NODE) or NOT_RUN
+
+
 def finish(out) -> dict:
     """block の返り {ok, status, stands, design, premises, reason, downgrades, report}。どの段が落ちても落ちない。finish.json にも写す"""
     out = pathlib.Path(out)
@@ -341,6 +359,6 @@ def finish(out) -> dict:
     elif isinstance(made := jsonfile.read_or(out / files.DESIGN), dict):
         got = result("ok", "", made=made, design_file=out / files.DESIGN, premises_file=ledger)
     else:
-        got = result("failed", f"{design.MISSING}: {rolekit.given_up_reason(out, files.NODE) or NOT_RUN}", premises_file=ledger)
+        got = result("failed", f"{design.MISSING}: {_missing_why(out)}", premises_file=ledger)
     jsonfile.write(out / files.FINISH, got)
     return got
