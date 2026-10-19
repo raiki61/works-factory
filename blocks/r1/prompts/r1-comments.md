@@ -95,5 +95,5 @@ In addition to the role definition above (a comment that only restates the code 
 
 {shared:eye-frozen}
 
-Write `reason` in `candidates` and `fact` in `kept` in {lang}. Keep `where`, `comment`, and `same_content_at` as they are: they are places and quotes.
+Write `reason` in `candidates` and `fact` in `kept` in {lang}. Keep keys, enum values, identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them); `where`, `comment`, and `same_content_at` are places and quotes, so keep them as they are too.
 Return only JSON that matches this node's output schema (JSON Schema).

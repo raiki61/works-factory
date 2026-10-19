@@ -10,7 +10,6 @@ import ports
 import prompt
 import requestrows
 
-import concepthome   # lib/。PREFIX
 import eyekit        # lib/。独立の目の族の共通の部品
 import jsonfile      # lib/
 import oneline       # lib/
@@ -150,7 +149,6 @@ def scope_prompt(out, repo, doc: dict) -> dict:
         "world_rows": doc["world_rows"] or NOT_GIVEN,
         "marks": _marks(doc["changed"]),
         **eyekit.status_values("r4"),
-        "home_prefix": concepthome.PREFIX,
         "after_section": eyekit.after_section(doc["after"] or None, doc["review"]) if coherence else "",
         **concept,
         "policy_body": eyekit.policy_body(doc["policy"] or None),

@@ -316,6 +316,9 @@ after では、差分が変えたファイル（14 本）の上のフォルダ�
 
 ### 2.6 今の指示との差
 
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 「新しい会話で起きている」を消した（輪は `fresh_context: false`）。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 返答の欄の説明に「or is null」を足した。
+
 今の指示は `workflows/structure/commands/structure-eye.md`（11 行。役の定義と区切り）と、`$structure-eye-prep.output.prompt` に入る `lib/eye.py` の `render`（:129-152）と `lib/concepthome.py` の `EYE_ASK`・`AXIS`（:27-28・:70-76）が組む本文の 3 か所に在る。
 
 - 移した: `render` の見出し 5 つ（`REJECT_HEAD`・`ASK_HEAD`・`SHAPES_HEAD`・`REPLY_HEAD`・`UNITS_HEAD`）と返し方の 8 行、`FORMS` の 6 つ、`EYE_ASK` と `AXIS` を md へ。lib の Python に残るのは材料（`view` の JSON・書いた意図の文書の見出しと本文・差分）と値（語・下限の数・`SHOWN`）だけ。

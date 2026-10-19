@@ -25,8 +25,10 @@ import prompt
 
 import accept     # lib/。作業ツリーの写しと比べ・in_repo・TREE_SCHEMA
 import jsonfile   # lib/
+import materialkit   # lib/。moved_since（作業ツリーの写しとの比べ）
 import oneline    # lib/
 import stopby     # lib/
+from judgmark import is_open, open_units   # lib/。開いた単位の選び（diagnose・fix と共に読む判定の行の形）
 from engine.schema import validate_schema   # lib/graphloops/engine/schema.py
 from engine.util import Reject              # lib/graphloops/engine/util.py
 
@@ -35,7 +37,7 @@ from src import report
 NODE = "judge-verify"                  # AI の node の id（prompts/judge-verify.md）
 PREP_FILE = "prep.json"
 PLAN_FILE = "plan.json"
-TREE_FILE = "tree.json"
+TREE_FILE = materialkit.TREE   # 束ね役を起こす前の作業ツリーの写しの名（moved_since が読む名と同じ）
 VERIFY_FILE = "verify.json"
 SYNERGY_BRIEF = "synergy.md"
 ANSWERS_DIR = "answers"
@@ -92,11 +94,6 @@ JUDGMENT_SCHEMA = "shared:judgment.schema.json"   # 2 つ以上の block が使�
 
 
 # ---------------------------------------------------------------- 判定の単位
-def is_open(u) -> bool:
-    """単位が直す義務を残すか（lib/judge_accept.is_open と同じ）"""
-    return u["label"] == "block" or (u["label"] == "suggest" and u.get("disposition") == "do-now")
-
-
 def read_judgment(raw):
     """port judgment を共通の形で読み、この block が要る欄を足して照らす。共通の形（shared:judgment.schema.json）は単位の label を
     必須にしないが、開いた単位を選ぶ is_open が label を読むので、label が字でない単位はここで拒む（KeyError で落とさない）"""
@@ -105,11 +102,6 @@ def read_judgment(raw):
         if not isinstance(u, dict) or not isinstance(u.get("label"), str):
             raise ValueError(f"units の {n} 行目に label（字）が無い")
     return doc
-
-
-def open_units(judgment) -> list:
-    units = judgment.get("units") if isinstance(judgment, dict) else None
-    return [u for u in units or [] if isinstance(u, dict) and isinstance(u.get("key"), str) and is_open(u)]
 
 
 def _unit_row(u: dict) -> dict:
@@ -267,18 +259,13 @@ def _check_synergy(answers, keys: dict) -> dict:
             "order": [{"first": keys[r["first"]], "then": keys[r["then"]], "why": r["why"]} for r in got["order"]]}
 
 
-def _moved_since(path: pathlib.Path) -> list:
+def _moved_since(out: pathlib.Path) -> list:
     """写しから今の作業ツリーが変わった所の文。写しが無い・読めない・形が違う時はその訳（閉じた側に倒す）。比べる欄は porcelain を除く
     （node が mutates_checkout: false で、Archon が前後の git status を照らすため）"""
     try:
-        snap = json.loads(path.read_text(encoding="utf-8"))
-        accept.type_errors(snap, accept.TREE_SCHEMA, f"作業ツリーの写し {path} ")
-        snap = {k: snap[k] for k in accept.TREE_KEYS}
-        repo = pathlib.Path.cwd()
-        with accept.in_repo(repo):
-            return accept.tree_moved(snap, repo, keys=accept.status_keys(True))
+        return materialkit.moved_since(out, pathlib.Path.cwd(), accept.status_keys(True))   # 写しの名は materialkit.TREE（TREE_FILE と同じ字）
     except (OSError, ValueError, Reject) as e:
-        return [oneline.one_line(f"作業ツリーの写し {path} を使えない（{e}）——役を起こす前の作業ツリーと比べられない")]
+        return [oneline.one_line(f"作業ツリーの写し {out / TREE_FILE} を使えない（{e}）——役を起こす前の作業ツリーと比べられない")]
 
 
 def _result(out, status, stop_reason, reason, doc, ran) -> dict:
@@ -298,7 +285,7 @@ def finish(out) -> dict:
             jsonfile.write(out / VERIFY_FILE, _not_run(reason))
         doc = jsonfile.read_or(out / VERIFY_FILE)
         return _result(out, "failed" if prep_doc.get("failed") else "ok", "", reason, doc, False)
-    moved = _moved_since(out / TREE_FILE)
+    moved = _moved_since(out)
     answers = pathlib.Path(plan.get("answers") or out / ANSWERS_DIR)
     keys = {r["n"]: r["key"] for r in plan["units"]}
     rows = [_check_unit(answers, n, key) for n, key in keys.items()]

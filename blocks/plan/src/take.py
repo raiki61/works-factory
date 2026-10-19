@@ -220,7 +220,7 @@ def take_replan(folder, ctx: dict, *, reply, repo, tables, base_rev: str, keys=a
     prior = ctx.get("prior")
     old = steps.prior_rows(ctx)
     if prior is None or not old:
-        return {"ok": False, "reason": f"{replan.REPLAN_REJECT}\n  - 直す元の承認済みの修正案が無い"}
+        return {"ok": False, "reason": f"{steps.REPLAN_REJECT}\n  - 直す元の承認済みの修正案が無い"}
     items = files.read_round(folder)["items"]
     rows = [{**dict.fromkeys(replan.TRIP_KEYS), "item": n, "units": list(old[n - 1].get("unit_keys") or []),
              "old": copy.deepcopy(old[n - 1])} for n in items if 1 <= n <= len(old)]
@@ -230,7 +230,7 @@ def take_replan(folder, ctx: dict, *, reply, repo, tables, base_rev: str, keys=a
     except ValueError as e:
         errs = [str(e)]
     if errs:
-        return {"ok": False, "reason": _section(replan.REPLAN_REJECT, errs)}
+        return {"ok": False, "reason": _section(steps.REPLAN_REJECT, errs)}
     for row, got in zip(rows, reply["plan"]):
         bare, row_marks = gatemarks.split(planmarks.NODE, {"plan": [got]})
         row["new"], row["new_marks"] = bare["plan"][0], row_marks[0]

@@ -227,13 +227,13 @@ import しない（組み込みで別の block へ移るか消える）: `lib/bo
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 却下の控え `rolekit.rejected(place, REVIEW_NODE)` が空でない（出し直しの役でなく、この役がもう 1 度起きる時。合わせた答えの控えが無かった時）。`{rejection}` ← `rolekit.rejects_text(<控え>)`（古い順に全部。日本語）。
 2. `{part:role}`（決まった文）。中身: `{shared:role-judge}`（断片の中の `{shared:query-rule}` の段落 `spawns` は真。この役は Agent を持つ）・別の目であること（判定者は自分の一撃の原理に肩入れしうる。直した後の段だけでは修正の作った穴が次の周の全体審査で初めて見つかっていた〔実測 2026-09-24: 3 周目の指摘のうち 8 件が 2 周目の修正の産物〕）・根拠は読む版で取れ（作業ツリーは直しの途中でありうる）。
 3. 道具と読むだけの決まり（決まった文）: 道具は Read・Grep・Glob・WebSearch・WebFetch と、下請けを起こす Agent と、下請けが答えのファイルを書く Write だけ。作業ツリーを 1 字も変えない（受け付けが起こす前の姿と比べて拒む）。
-4. `{part:head}`（決まった文。形 plan と replan の 3 つの役と下請けの指示が共に使う）: 既にある物を量ったかを見よ（今の `REUSE_REVIEW`）・人に回す物は人の口で挙げよ（`HANDOFF_REVIEW`。`fences` の `policy_doc` の決まりを含む）・判断の 1 軸と考えの住処を見よ（`concepthome.AXIS`・`REVIEW_ASK`。`why` の頭 `{home_prefix}` ← `concepthome.PREFIX`）・承認ノードの項目の決め手（今の `gatemarks._RULE` を穴の行に当てた物と `_NO_NARROW_REVIEW`。`{no_narrow}` ← `gatemarks.NO_NARROW`・`{no_narrow_min}` ← `gatemarks.NO_NARROW_MIN`・`{recommend_shape}` ← `gatemarks.RECOMMEND_SHAPE`・`{recommend}` ← `gatemarks.RECOMMEND`）・壁打ちが止まる時の推し（今の `_STUCK_RULE`。`{stuck_push}` ← `converge.STUCK_PUSH`。今の「『止まった時の推しの note に引く物』のセクション」は材料の `### Held items` の節を名指す）。
+4. `{part:head}`（決まった文。形 plan と replan の 3 つの役と下請けの指示が共に使う）: 既にある物を量ったかを見よ（今の `REUSE_REVIEW`）・人に回す物は人の口で挙げよ（`HANDOFF_REVIEW`。`fences` の `policy_doc` の決まりを含む）・判断の 1 軸と考えの住処を見よ（`concepthome.AXIS`・`REVIEW_ASK`。`why` の頭は md が「考えの住処: 」を字のまま持つ（読み手 `concepthome.PREFIX` と同じ字。試験が突き合わせる。差し込み口は持たない）・承認ノードの項目の決め手（今の `gatemarks._RULE` を穴の行に当てた物と `_NO_NARROW_REVIEW`。`{no_narrow}` ← `gatemarks.NO_NARROW`・`{no_narrow_min}` ← `gatemarks.NO_NARROW_MIN`・`{recommend_shape}` ← `gatemarks.RECOMMEND_SHAPE`・`{recommend}` ← `gatemarks.RECOMMEND`）・壁打ちが止まる時の推し（今の `_STUCK_RULE`。`{stuck_push}` ← `converge.STUCK_PUSH`。今の「『止まった時の推しの note に引く物』のセクション」は材料の `### Held items` の節を名指す）。
 5. `<!-- if excluded -->` 並行 PR の範囲は触らず単位に入れない・材料の該当の節を先に読め（今の `EXCLUDED_HEAD` の行）`<!-- end excluded -->` — 条件: `excluded.json` が在る。
 6. `## Material`（決まった文）と `{material_file}` ← 材料のファイルの絶対パス: 全部を Read で読め。ほかの指示書を読みに行かなくてよい（根拠のコードは読め）。
 7. `<!-- if defaults -->` 既定で読んだ入力の節が在る・その入力は無いとして読め `<!-- end defaults -->`。
 8. `<!-- if purpose -->` `## Purpose` と `{purpose}` ← port `purpose` `<!-- end purpose -->`。
 9. 独立設計の 3 つの段落（どれか 1 つ）:
-   - `<!-- if design_stands -->` `{part:design-ask}`（決まった文。今の `DESIGN_ASK`。差し込み口 `{drift_head}` ← `design.DRIFT_HEAD`・`{unpaired_head}` ← `design.UNPAIRED_HEAD`・`{row_quote_keys}` ← `design.ROW_QUOTE_KEYS` を `・` で）`<!-- end design_stands -->`
+   - `<!-- if design_stands -->` `{part:design-ask}`（決まった文。今の `DESIGN_ASK`。頭の字（「独立設計との構造の食い違い: 」「独立設計に対の無い仕組み: 」。読み手 `design.DRIFT_HEAD`・`UNPAIRED_HEAD` と同じ字）・引用の照らしが読む案の欄（`approach`・`files`・`allowed_paths`・`shrink_first`。`design.ROW_QUOTE_KEYS`）・独立設計の本文を挟む印（`design.BODY_OPEN`・`BODY_CLOSE`）は md が字のまま持ち、差し込み口を持たない。試験が lib の定数と突き合わせる）`<!-- end design_stands -->`
    - `<!-- if design_not_stands -->` 設計の役は問いが立たないと返した。問いが立つかは修正の後の独立の目が検算するので穴に挙げず、突き合わせずに審査せよ（今の `DESIGN_NOT_STANDS`）`<!-- end design_not_stands -->`
    - `<!-- if design_none -->` 独立設計は無い。突き合わせずに審査せよ（今の `DESIGN_NONE`）`<!-- end design_none -->`
 10. `<!-- if design_diff -->` 2 往復目からは差分の文と `design_map` の鍵の一覧の鍵だけを設計と突き合わせる（今の `DESIGN_DIFF_ASK`）`<!-- end design_diff -->` — 条件: 設計が立ち、2 往復目からの形 plan。
@@ -314,7 +314,7 @@ Recorded policy is a rule a person or the target's owner recorded as decided …
 - request answers: …
 - answers at approval nodes:
   - `承認ノードの答え 3f2a1c`: 始める（main の確かめの run）
-- settled points (decision records): …
+- settled points (from the decision records): …
 Example of a kind policy hole (made from the first nameable row of this run's list): …
 {"kind": "policy", "severity": "suggest", "decided_by": "承認ノードの答え 3f2a1c"}
 
@@ -377,7 +377,7 @@ Repository: <run の作業ツリー>（read version: `4428f368…`） BASE: `442
 今の指示は 6 か所に在る: `workflows/plan-review/commands/plan-review.md`（63 行。頭の 14 行は `lib/agents/judge.md` の写し）・材料のファイルに入る `lib/planblk.py` の `HEAD["plan-review"]`（:252-255。`REUSE_REVIEW` :227-232・`HANDOFF_REVIEW` :236-242）と `DESIGN_HEAD`・`DESIGN_ASK`・`DESIGN_NOT_STANDS`・`DESIGN_NONE`・`DESIGN_DIFF_ASK`（:182-208・:150-151）・`map_items_section` の文（:385-394・`NO_MAP_KEYS` :371-372）・`lib/gatemarks.py` の `HEAD["p2.plan_review"]`（:158-197）・`lib/concepthome.py` の `AXIS`・`REVIEW_ASK`・地図の見出し（:29-46・:112-114）・`lib/converge.py` の `REREVIEW_ASK`・`ORIGIN_ASK`・`HELD_CITES`（:128-138・:219-221）・`lib/planmarks.py` の `REVIEW_ASK`・`MACHINE_LABEL`・見出し（:245-260）・`lib/policy.py` の `RECORDED_RULE`・`FACE_NONE`・`FACE_EXAMPLE_HEAD`・`DOC_FENCE_ONLY`・方針の節（:60-64・:155-170）・`lib/boardview.py` の `UNITS_LINE`・`REVIEW_ASK_REPLAN`・`DEFAULTS_HEAD`・見出し（:114・:122-128・:140）・`lib/rolekit.py` の `with_reject`（:187-191）。
 
 - 移した: 上の Python の文を全部 md と断片へ。Python に残るのは材料の行と短い札と、md と受け付けが同じ字を持つ値だけ。
-- まとめた: 役の定義は `{shared:role-judge}`（今の md:1-14 と同じ中身で、外への検索の決まりは `{shared:query-rule}` 1 か所）。今の md:18 の「材料のファイルを Read で読め・束ね役の頼みが在ればそれに従え」は、単独の役と束ね役の md に分けたので、束ね役の分は束ね役の md へ。
+- まとめた: 役の定義は `{shared:role-judge}`（今の md:1-14 の 5 行をまとめた物。外への検索の決まりは `{shared:query-rule}` 1 か所に持ち、その断片が「一次の出典を先に読む」の決まりと「下請けを起こすならこの塊を下請けの指示に写せ」の文を足して持ち込む。今の md にはどちらも無かった。足した出典の決まりは README 5.1 が共通の断片の足しとして 1 行で書く）。今の md:18 の「材料のファイルを Read で読め・束ね役の頼みが在ればそれに従え」は、単独の役と束ね役の md に分けたので、束ね役の分は束ね役の md へ。
 - まとめた: 却下の段落（`rolekit.with_reject` の見出しつきの段落）を `{shared:rejected}` に。理由は今と同じく古い順に全部。
 - まとめた: 8 種の確かめと穴の重さの定義を `parts/checks.md` 1 本に（下請けの指示と形 text の役も同じ断片を使う。今は下請けの指示が描いた指示書の「リポジトリ:」の行から末尾までを字で切り出していた。`planblk._review_rules` と `RULES_FROM`）。
 - 分けた: 確かめの文のうち案の欄の名（`home.concept`・`considered`・`why_not`・`shrink_first`・`narrows`・単位の `reason`・`one_shot`・判定者の先行例の `verdict`）を指す句を `parts/plan-checks.md` へ。形 text の役に案の欄の無い確かめだけを当てるため（README 8.2）。
@@ -538,6 +538,9 @@ Return only JSON that matches the output schema.
 例の run の 2 往復目は、`done_items` が無く（今の受け付けは項目ごとに答えのファイルを確かめ、項目 2 の答えが通った後の往復）、`rest` に項目 2（閉じた）が載る形（3 往復目の項目の状態は全部 closed で clean）。
 
 ### 5.6 今の指示との差
+
+- 足した差（新旧の指示の比べの納品。2026-10-19）: review-tree は下請けへ理由の行を渡す形にした。
+- 足した差（新旧の指示の比べの納品。2026-10-19）: 下請けの指示に `checked` の使い方の段落を足した（18 節には在る）。
 
 今の指示は、材料のファイルの `tree_part`（`lib/planblk.py:972-1030`。`AGG_HEAD`・`AGG_ASK`・`OPEN_HEAD`・`DONE_HEAD`・`REDO_HEAD`・`AGG_MERGE`・`AGG_SYNERGY`、:108-124）と、下請けのファイルの `brief_head`・`SUB_HEAD`・`SUB_FORMAT`・`SUB_ITEM_ASK`・`SUB_ITEM_DIFF_ASK`・`SUB_SYNERGY_ASK`・`PRECEDENT_*`・`ERRORS_HEAD`・`ANSWER_AT`・`RULES_MISSING`（:125-176・:864-883）に在る。
 

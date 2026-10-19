@@ -31,6 +31,7 @@ import carry  # noqa: E402  （lib/）
 import conflict  # noqa: E402
 import converge  # noqa: E402
 import handoff  # noqa: E402
+import judgmark  # noqa: E402
 import headdepth  # noqa: E402
 import planmarks  # noqa: E402
 import replan  # noqa: E402
@@ -221,7 +222,7 @@ class SlotsCase(unittest.TestCase):
 
     def test_stuck_names_owed_unit_that_is_not_open(self):
         """必ず入れるのに開いていない単位（元は関所で答えた問いの出どころが defer）が在れば、行き止まりの理由が番号と key を名指す"""
-        with mock.patch.object(steps, "_owed_units", return_value={MEAN, DEFER}):
+        with mock.patch.object(judgmark, "owed_units", return_value={MEAN, DEFER}):
             why = steps.stuck_reason(judgment())
             self.assertEqual(steps.held_why(judgment()), why)
         self.assertTrue(why.startswith(steps.PLAN_STUCK), why)

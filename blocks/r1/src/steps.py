@@ -9,7 +9,6 @@ import pathlib
 import ports
 import prompt
 
-import concepthome   # lib/。PREFIX
 import eyekit        # lib/。独立の目の族の共通の部品
 import jsonfile      # lib/
 import oneline       # lib/
@@ -126,7 +125,6 @@ def minimality_prompt(out, repo) -> dict:
     candidates = out / f"{files.COMMENTS}.json"
     concept, found = eyekit.maps(repo)
     values = {
-        "home_prefix": concepthome.PREFIX,
         "after_section": eyekit.after_section(doc["after"] or None, doc["review"]),
         **concept,
         "candidates_file": str(candidates) if candidates.is_file() else "",

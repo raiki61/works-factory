@@ -10,7 +10,6 @@ import ports
 import prompt
 import requestrows
 
-import concepthome   # lib/。PREFIX
 import eyekit        # lib/。独立の目の族の共通の部品
 import jsonfile      # lib/
 import oneline       # lib/
@@ -115,7 +114,6 @@ def coherence_prompt(out, repo) -> dict:
     if doc.get("unread"):   # 読めなかった依頼の answers を「none」と読ませない
         rows += "\n- " + doc["unread"]
     values = {
-        "home_prefix": concepthome.PREFIX,
         "after_section": eyekit.after_section(doc["after"] or None, doc["review"]),
         **concept,
         **eyekit.review_md_values(repo, REVIEW_MD),

@@ -474,7 +474,7 @@ def recorded_rows(rows: list) -> str:
     if of["push"]:
         out.append("- recommendations an unattended run adopted at an approval node or a held question (not a person's answers):")
         out += [f"  - named `{r['name']}`: {_cut(r.get('text'))}" for r in of["push"]]
-    out.append("- settled points (decision records):" + ("" if of["settled"] else " none"))
+    out.append("- settled points (from the decision records):" + ("" if of["settled"] else " none"))
     out += [f"  - named `{r['name']}`: {_cut(r.get('text'))}" if r.get("name")
             else f"  - (no `where`, so it cannot be named) {_cut(r.get('text'))}" for r in of["settled"]]
     return "\n".join(out)
@@ -608,18 +608,12 @@ SLOTS = {
     "framing": _framing,
     "design_body": lambda c: design_only(c.b, c.intake),
     "lang": lambda c: prompt.lang(c.intake.get("lang") or ""),
-    "home_prefix": lambda c: concepthome.PREFIX,
     "no_narrow": lambda c: gatemarks.NO_NARROW,
     "no_narrow_min": lambda c: gatemarks.NO_NARROW_MIN,
     "recommend": lambda c: gatemarks.RECOMMEND,
     "recommend_shape": lambda c: _recommend_shape(),
     "stuck_push": lambda c: converge.STUCK_PUSH,
     "policy_doc_fence": lambda c: policy.POLICY_DOC_FENCE,
-    "drift_head": lambda c: design.DRIFT_HEAD,
-    "unpaired_head": lambda c: design.UNPAIRED_HEAD,
-    "row_quote_keys": lambda c: ", ".join(f"`{k}`" for k in design.ROW_QUOTE_KEYS),
-    "body_open": lambda c: design.BODY_OPEN,
-    "body_close": lambda c: design.BODY_CLOSE,
     "machine_key": lambda c: planmarks.MACHINE_KEY,
     "minimal_head": lambda c: files.MINIMAL_HEAD,
     "short_head": lambda c: files.SHORT_HEAD,

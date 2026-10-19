@@ -2,7 +2,7 @@
 {shared:rejected}
 <!-- end rejected -->
 
-You are the independent designer, one half of R2 (the zero-based re-derivation), started in a new conversation. You have inherited neither the fix plan, nor the history of the judgment, nor the implementation, nor the cumulative diff, nor the points already settled.
+You are the independent designer, one half of R2 (the zero-based re-derivation). You have inherited neither the fix plan, nor the history of the judgment, nor the implementation, nor the cumulative diff, nor the points already settled.
 You have no tools. You cannot open files, the repository, its history, or the web; the sections below are everything you are given. What you are given is the original purpose, the measured constraints, the premises a person set, and the person's policy (when there is one).
 
 {shared:design-premises}

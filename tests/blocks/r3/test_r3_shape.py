@@ -107,6 +107,13 @@ class TextCase(unittest.TestCase):
         self.assertNotIn("<!--", head)
         self.assertIn("(on the target repository's side: {repo_review_md})", head)
 
+    def test_viewpoint_fragment_writes_the_home_head_as_the_readers_do(self):
+        """考えの住処の頭の字は断片が直に持つ（lib の頭の定数を値で渡さない）。報告と承認ノードの読み手の字と同じ（r3・r4 が読む）"""
+        import concepthome   # lib/（kit.load が sys.path に足す）
+        head = fragment("eye-coherence")
+        self.assertIn(f'start `reason` with "{concepthome.PREFIX}"', head)
+        self.assertNotIn("{home_prefix}", head)
+
     def test_prompt_binds_the_language_and_returns_json(self):
         """test_every_command_binds_the_language_and_returns_json の r3"""
         tail = md().rstrip().splitlines()[-2:]

@@ -18,6 +18,9 @@ import carry      # lib/
 import converge   # lib/
 import gatemarks  # lib/
 import handoff    # lib/
+import judgmark   # lib/。開いた単位の選びと、直す義務・周が役を起こすかの決め（diagnose・verify・fix・line と共に読む判定の行の形）
+from judgmark import (LEDGER, NOTHING_OWED, PLAN_STUCK, STUCK_WHY, held_why, is_open, plan_slots, slots, units_of,   # noqa: F401
+                      plan_stuck_reason as stuck_reason)
 import jsonfile   # lib/
 import planmarks  # lib/
 import rolekit    # lib/
@@ -27,22 +30,18 @@ import worldmark  # lib/
 from src import files, ripple
 
 RUNTIME_COPY_DIRS = ((ports.RUNTIME_COPY,),)   # 波及の一覧が飛ぶ、Archon が作業ツリーに写す置き場（lib/ の boundary.RUNTIME_COPY_DIRS と同じ値）
-LEDGER = "_ledger"   # 判定の dict に添える問いの台帳の見え方（gatemarks.Ledger）の鍵。判定の欄ではない
 WHOLE_PLAN = "whole_plan"          # 出し直しの役の型だけが持つ欄。真なら plan が前の案を丸ごと置き換える（合わせた後も控えに残す）
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}
 
 # 受け付けと出口の文。拒否の理由は日本語のまま（網の回まで拒まれた時に reason を通って報告に載り、出し直しの役の指示に字のまま入る）
 COVERS_REJECT = "単位の網羅に誤りが在る（直す義務の単位は全部、どれか 1 つの項目にちょうど 1 度入れる）。案に入れてよい no は"
 MALFORMED_REJECT = "修正案の返答の形が崩れている（plan は項目の object の配列で、各項目の narrows は配列）。指示書の JSON Schema に合う形で出し直せ"
-NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
-PLAN_STUCK = "修正案の行き止まり: 必ず案に入れる単位が開いていない"
-STUCK_WHY = ("受け付けの写しは開いていない単位を受けず、義務からも外さないので、案の形では閉じない。人が承認ノードで問いの答えを直すか、"
-             "単位を開く")
 NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gatemarks.NO_NARROW}）が無いか短い（直して出し直せ）。狭めを避ける形が"
                     "在ればそれを案に採ってその行を消し、無い時だけ、どの形を当たりなぜ採れないかを書け:")
 RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。"
                     f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
+REPLAN_REJECT = "直した項目の返答に誤りが在る（下の行を全部直して出し直せ）:"   # lib/replan.py の REPLAN_REJECT と同じ字（案の直しの拒否の頭）
 NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
 ANSWERS_REJECT = "答えの要る穴への答えに誤りが在る（下の行を全部直して出し直せ）:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
@@ -240,13 +239,10 @@ def load(place) -> tuple:
 
 
 def with_ledger(ctx: dict, doc) -> dict | None:
-    """判定の dict に、直す義務の数え（gatemarks.duty）が読む問いの台帳の見え方を添える: 依頼の answers と、結び・素材の状態のファイルと、
-    無人の run の推しを答えとして数えるか（gatemarks.ledger_files）。plan に承認ノードの答えは届かない"""
-    if not isinstance(doc, dict):
-        return None
-    ties, mats = ctx.get("answer_ties") or None, ctx.get("materials") or None
-    return {**doc, LEDGER: gatemarks.ledger_files(doc, ties_file=ties, materials_file=mats, answers=ctx.get("answers") or [],
-                                                  takes_push=bool(ctx.get("takes_push")))}
+    """判定の dict に、直す義務の数え（gatemarks.duty）が読む問いの台帳の見え方を添える（judgmark.with_ledger）: 依頼の answers と、結び・素材の
+    状態のファイルと、無人の run の推しを答えとして数えるか。plan に承認ノードの答えは届かない"""
+    return judgmark.with_ledger(doc, ties_file=ctx.get("answer_ties"), materials_file=ctx.get("materials"), answers=ctx.get("answers") or [],
+                                takes_push=bool(ctx.get("takes_push")))
 
 
 def read_judgment(ctx: dict) -> dict | None:
@@ -261,51 +257,8 @@ def prior_rows(ctx: dict, which: str = "reply") -> list:
     return rows_of(jsonfile.read_or(prior[which]) if prior else None, "plan")
 
 
-# ---------------------------------------------------------------- 直す義務の単位
-def is_open(u) -> bool:
-    """開いた単位（label が block か、suggest で disposition が do-now）"""
-    return u.get("label") == "block" or (u.get("label") == "suggest" and u.get("disposition") == "do-now")
-
-
-def _owed_units(judgment) -> set:
-    """今の周に直す義務の単位の key（gatemarks.duty。fix の直す義務と同じ口）: 開いた単位から、答えていない関所の問い（人に聞く状態の
-    fork と、status が escalate の問い）の出どころ・depends を除き、依頼の answers と無人の run が採った判定の推しが答えた問いの
-    出どころ・depends を戻した物"""
-    got = judgment.get(LEDGER)
-    return gatemarks.duty(got if isinstance(got, gatemarks.Ledger) else gatemarks.ledger(judgment))
-
-
-def units_of(judgment) -> dict:
-    return {u["key"]: u for u in rows_of(judgment, "units") if isinstance(u.get("key"), str)}
-
-
-def slots(judgment) -> list:
-    """案に入れてよい単位（開いた単位）の key を判定の順に。no は 1 始まりの位置（slots.json の並び）"""
-    return [k for k, u in units_of(judgment).items() if is_open(u)]
-
-
-def plan_slots(judgment) -> tuple:
-    """(必ず入れる, 入れてよい, 単位の key → 単位)。受け付けの fix_plan_covers_units と材料が同じ物から作る"""
-    units = units_of(judgment)
-    return _owed_units(judgment), {k for k, u in units.items() if is_open(u)}, units
-
-
-def stuck_reason(judgment) -> str:
-    """必ず入れるのに開いていない単位が在れば、行き止まりの理由（PLAN_STUCK・その単位の no と key・STUCK_WHY）。無ければ空"""
-    owed, opened, _ = plan_slots(judgment)
-    stuck = sorted(owed - opened)
-    if not stuck:
-        return ""
-    names = slots(judgment)
-    items = "・".join(f"no {names.index(k) + 1}（{k}）" if k in names else f"no の一覧に無い単位（{k}）" for k in stuck)
-    return f"{PLAN_STUCK}: {items}。{STUCK_WHY}"
-
-
-def held_why(judgment) -> str:
-    """判定の周が修正案の役を起こさない訳: 判定が読めない・直す義務の単位が無い（NOTHING_OWED）・行き止まりの単位が在る。起こすなら空"""
-    if not isinstance(judgment, dict):
-        return "判定が読めない"
-    return NOTHING_OWED if not _owed_units(judgment) else stuck_reason(judgment)
+# ---------------------------------------------------------------- 直す義務の単位（本体は lib/judgmark.py。plan の周を開く口と line の node owed が共に引く）
+_owed_units = judgmark.owed_units
 
 
 def shut(judgment, reply) -> list:
