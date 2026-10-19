@@ -99,7 +99,7 @@ materials.md の 3.1 の並び。
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: `rejects-prior-decisions.json` に拒否が 1 件以上。断片の中の `{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "prior-decisions"))`（拒否の文の全部、古い順。Python が組む日本語の文。4 節）。
 2. `{shared:role-investigator}`（役の定義。決まった文）。
-3. `{shared:query-rule}`（外への検索の決まり）。断片の中の `<!-- if spawns -->` には `spawns: false`。
+3. （置かない。7 節）外への検索の決まりは 2 の `{shared:role-investigator}` の中に `{shared:query-rule}` で入る。その断片の中の `<!-- if spawns -->` には `spawns: false`。
 4. 役の 1 段落（決まった文）: 新しい会話で起きていること・突合だけをすること・局所の所見もほかの素材も渡していないこと。
 5. 道具の段落（決まった文）、`{shared:works-gh}`、`{shared:material-readonly}`。
 6. `## Materials` と 4 つの差し込み口: `{repo}` ← `view.repo`（作業ツリーの絶対パス）、`{base}` ← `view.base`（引いた commit）、`{changed_files}` ← `view.changed_files`（JSON の配列の字）、`{request_wheres}` ← `request_wheres(values)`（JSON の配列の字）。
@@ -118,8 +118,6 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 <!-- end rejected -->
 
 {shared:role-investigator}
-
-{shared:query-rule}
 
 You are the prior-decisions role, started in a new conversation. Your only job is to check the target against earlier decisions. You are given neither the local findings nor any other material.
 
@@ -184,9 +182,7 @@ md の中に `$` の字は無い（materials.md の 3.1 の終わり）。
 例の run では、今の指示は 2 か所に在った: `workflows/judge/commands/material-prior-decisions.md`（57 行。`$prior-decisions-prep.output.lang_line`・`.reason`・`.brief_file` を Archon が入れた物）と、役が Read した `judge/material-prior-decisions-brief.md`（23 行）。新しい指示はこの 2 つを 1 本にする:
 
 ```markdown
-{shared:role-investigator の本文: This role is an investigator. It investigates and brings things back; …（5 行）}
-
-{shared:query-rule の本文: Rules for queries to outside services …（7 行）}
+{shared:role-investigator の本文: You are the investigator: … と、その中の {shared:query-rule} の本文 Rules for queries to outside services …}
 
 You are the prior-decisions role, started in a new conversation. …（決まった文）
 
@@ -269,8 +265,8 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 ### 2.9 試験
 
 - standalone の fixture（`blocks/prior-decisions/fixtures/`）:
-  - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`request: '[{"where":"README.md","text":"…直したい事…"}]'`・`entry: "人の依頼（standalone）"`・`lang: ""`。AI の node `prior-decisions` だけを台本の返答（`material.status: clean`・`checked: true`・`searched` 1 行・`settled: []`）で差し替え、script は本物（`--exec-code`）。`reached` に `finish`。`finish` の出力の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: not_applicable`。`finish` の `status` が `gave_up`、run は `completed`。
+  - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`request: '[{"where":"README.md","text":"…直したい事…"}]'`・`entry: "人の依頼（standalone）"`・`lang: ""`。AI の node `prior-decisions` だけを台本の返答（`material.status: clean`・`checked: true`・`searched` 1 行・`settled: []`）で差し替え、script は本物（`--exec-code`）。`reached` に `finish`、`resolved-text-contains` に md の決まった文（7 節）。`finish` の出力の `status` が `ran` になることは試験が照らす（筋書きは node の返りを照らせない）。
+  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: not_applicable`。run は `completed`（dry-run は輪を 1 周で終えるので、3 回で `finish` が `status: gave_up` を返す数えは試験が照らす）。
   - 回す条件は持たない（いつも回す）ので `skipped.stubs.yaml` は置かない。
 - `tests/blocks/prior_decisions/test_prior_decisions.py`: materials.md の 8 節の block の試験。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す。
   - 写す元 `lib/tests/test_judge_accept.py::MaterialCase.test_prior_decisions_reply_is_taken_or_refused`: 見た返答は `material.json` の `materials` に `{"prior_decisions": <返答の material>}` で載り、`not_applicable` は拒まれ、`settled` の `where` が `policy.recorded(start, <material.json のパス>)` の `source: settled` の行の `name` に出る（読み手の口が新しいファイルの形のまま読めることの照らし）。
@@ -308,7 +304,7 @@ materials.md の 2.8 と 4 節の文だけを使う。この観点が足す拒�
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-prior-decisions \
+WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-prior-decisions \
   --input request='[{"where":"docs/owner-decisions.md","text":"…直したい事…"}]' \
   --input entry='人の依頼（手で起こした run）' --input base=
 ```
