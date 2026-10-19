@@ -43,7 +43,7 @@ def main() -> dict:
     try:
         got = prompts.fixer(place, repo, "ruled", values, owed=owed, items=functools.partial(board.place_items, place),
                             sources=board.brief_sources(place), frozen=facts.frozen_tests(place, state, "ruled"),
-                            shared=files.shared_cache(), saved_reply=str(saved) if saved is not None else "")
+                            shared=ports.shared_cache(), saved_reply=str(saved) if saved is not None else "")
     except prompts.Broken as e:
         prompts.error(place, "fix-ruled", oneline.one_line(e))
         raise

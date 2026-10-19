@@ -1,8 +1,13 @@
 """手直しの役の受け付けと指示（docs/design/delta-review.md の 3.8・3.3・10.2 の RefixAcceptCase・RefixPromptCase）。"""
+import ast
 import hashlib
+import importlib
 import json
 import os
+import pathlib
+from unittest import mock
 
+from tests.blocks import kit
 from tests.blocks.delta_review import support as s
 
 HOLE, CHECK = "copy-of-the-rule", "claimed-closed-hole"
@@ -106,6 +111,44 @@ class RefixAcceptCase(s.Flow):
     def test_unreadable_reply_is_a_rejection(self):
         got = self.run.script("refix_accept", n="1", reply="nope")
         self.assertEqual((got["ok"], got["done"]), (False, False))
+
+
+class WritesLogNameCase(s.Flow):
+    """書き込みの記録の名の持ち主は writelog.LOG の 1 か所。手直しの受け付けの既定の置き場はその名を引き、src にほかの写しの字が無い
+    （元 lib/tests/test_writes.py の WritesLogNameCase。block の src の字を照らす）"""
+
+    def setUp(self):
+        super().setUp()
+        self.assertEqual(self.start(), {"due": True, "reason": ""})
+        self.write("a.py", "alpha = 1\nbeta = 22\ngamma = 5\n")
+
+    def test_default_record_name_is_writelog_log(self):
+        touchup = kit.load(s.BLOCK_NAME, "touchup")
+        writelog, writes = importlib.import_module("writelog"), importlib.import_module("writes")
+        seen = []
+
+        def check(reply, repo, paths, log, **kw):
+            seen.append(pathlib.Path(log))
+            return {"problems": ["止める"], "reply": reply}
+
+        reply = self.handled(self.answer(HOLE), self.answer(CHECK))
+        with mock.patch.object(writelog, "LOG", "renamed.jsonl"), mock.patch.object(writelog, "log_here", return_value=None), \
+                mock.patch.object(writes, "check", check):
+            got = touchup.take(self.run.artifacts, 1, reply, self.run.repo, self.read("intake.json")["base"], self.seal)
+        self.assertEqual(got["reason"], "止める", got)
+        self.assertEqual([p.name for p in seen], ["renamed.jsonl"])
+
+    def test_no_second_copy_of_the_record_name_in_src(self):
+        copies = []
+        for path in sorted((kit.ROOT / "blocks" / "delta-review" / "src").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            docs = {id(n.body[0].value) for n in ast.walk(tree)
+                    if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.body
+                    and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+            copies += [f"{path.name}:{n.lineno} {n.value!r}" for n in ast.walk(tree)
+                       if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs
+                       and "writes" in n.value and n.value.endswith(".jsonl")]
+        self.assertEqual(copies, [], "書き込みの記録の名は writelog.LOG を引く")
 
 
 class RefixScopeCase(s.Flow):

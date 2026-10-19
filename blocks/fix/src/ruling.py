@@ -30,6 +30,7 @@ from accept import TREE_KEYS, tree_moved  # noqa: E402   共通の作業ツリ�
 import cite  # noqa: E402
 import conflict  # noqa: E402
 from src import board as fixboard  # noqa: E402   置き場への作業ツリーの姿の控え（元 entry.snapshot）
+from src import runvals  # noqa: E402   依頼のファイル（values.json）
 import jsonfile  # noqa: E402
 import planbrief  # noqa: E402   今の周の brief の行（fix_plan_item を brief の在る単位に限る）
 import querytest  # noqa: E402
@@ -62,7 +63,7 @@ def prep(board_dir, repo, values: dict) -> dict:
     n = rolekit.attempt(b, ROLE)
     fixboard.snapshot(board_dir, TREE, pathlib.Path(repo))
     vals = {**values, "conflicts_file": str(pathlib.Path(b) / conflict.FILE), "ids": ", ".join(i["id"] for i in todo),
-            "request_file": conflict.request_file(board_dir)}
+            "request_file": runvals.read(board_dir)["request_file"]}
     return {"values": vals, "iteration": n}
 
 
@@ -226,9 +227,9 @@ def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
     if not (isinstance(snap, dict) and set(TREE_KEYS) <= set(snap)):
         raise ValueError(f"{b / TREE} が無い・形が違う——rule-prep が先に走る")
     moved = tree_moved({k: snap[k] for k in TREE_KEYS}, pathlib.Path(repo), keys=keys)
-    request = conflict.request_file(board)
+    request = runvals.read(board)["request_file"]
     briefs = planbrief.by_unit_at(board)
-    errs = [READONLY + "・".join(moved)] if moved else problems(reply, todo, repo, request, conflict.cite_roots(board), briefs)
+    errs = [READONLY + "・".join(moved)] if moved else problems(reply, todo, repo, request, conflict.cite_roots(request, board), briefs)
     if not errs:
         def stored(r):   # 置き場に積む欄（役の欄と、fix_plan_item には機械が足すその単位の brief の項目の番号と、その項目の単位の全部）
             got = {k: r[k] for k in RULING_KEYS if k in r}

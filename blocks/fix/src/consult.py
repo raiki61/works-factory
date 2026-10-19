@@ -61,7 +61,6 @@ import gatemarks  # noqa: E402   直す前の人の関所の節の名（GATE_NOD
 import globs  # noqa: E402   glob の当て方の正本
 import jsonfile  # noqa: E402
 import planmarks  # noqa: E402   承認済みの修正案の項目
-import promptsection  # noqa: E402
 
 STATE = "consult-{pass_}.json"
 QUESTION_FILE = "consult-{pass_}-{turn}-ask.md"
@@ -106,7 +105,7 @@ ANSWER_SCHEMA = {
 }
 
 
-QUESTION = promptsection.Section("""\
+QUESTION = """\
 # 範囲の相談（修正の段から）
 
 あなたがこの会話で書いた修正案を、別の役が直している。直している側から、範囲の相談が {n} 件来た。範囲を広げるかは仕様の判断で、
@@ -130,9 +129,9 @@ QUESTION = promptsection.Section("""\
   許しは出すな
 - spec: 直す側が従う仕様の補い（無ければ空）
 - reason: 決めた理由（{min_why} 字以上）
-""", source="fn:consult.question")
+"""
 
-ASK_TEXT = promptsection.Section("""\
+ASK_TEXT = """\
 ## 相談 {n}: 項目 {item}（単位: {units}）
 
 - 項目の今の範囲（allowed_paths）: {allowed}
@@ -142,9 +141,9 @@ ASK_TEXT = promptsection.Section("""\
 - 足したい新しいテスト（<パス>::<クラス>::<名前>。修正案の tests に無い物）: {new_tests}
 {oos_hits}- 理由（直している側の文）:
 {why}
-""", source="fn:consult.question")
+"""
 
-ASK_GATE_TEXT = promptsection.Section("""\
+ASK_GATE_TEXT = """\
 ## 相談 {n}: 項目 {item}（単位: {units}）
 
 - 項目の今の範囲（allowed_paths）: {allowed}
@@ -154,24 +153,24 @@ ASK_GATE_TEXT = promptsection.Section("""\
 {why}
 {oos_hits}- 答え方: この条件を満たすのにこの項目で要る、足すパス・書き換える既存のテストの範囲・足す新しいテスト（id と赤の種類）を決めよ。
   この項目に関わらない条件なら deny。
-""", source="fn:consult.question")
+"""
 
-ANSWER_HEAD = promptsection.Section("""\
+ANSWER_HEAD = """\
 # 範囲の相談の答え（相談の周 {turn}）
 
 前の返答の consult に、修正案を書いた役が答えた（機械が確かめて共有ボードに残した）。相談ごとの答え:
-""", source="fn:consult.answer_text")
-ANSWER_HEAD_ACCEPT = promptsection.Section("""\
+"""
+ANSWER_HEAD_ACCEPT = """\
 # 範囲の相談の答え（相談の周 {turn}）
 
 受け付けが見つけたはみ出しを、修正案を書いた役に聞いた（機械が確かめて共有ボードに残した）。相談ごとの答え:
-""", source="fn:consult.answer_text")
-ANSWER_HEAD_GATE = promptsection.Section("""\
+"""
+ANSWER_HEAD_GATE = """\
 # 範囲の相談の答え（相談の周 {turn}）
 
 承認ノードで出した条件を、修正案を書いた役に聞いた（機械が確かめて共有ボードに残した）。相談ごとの答え:
-""", source="fn:consult.answer_text")
-ANSWER_ROW_HEAD = promptsection.Section("## 相談（項目 {item}・パス {paths}・テスト {tests}{new_tests}）", source="fn:consult.answer_text")
+"""
+ANSWER_ROW_HEAD = "## 相談（項目 {item}・パス {paths}・テスト {tests}{new_tests}）"
 
 
 ORIGIN_ACCEPT = "accept"   # 頼みと確かめの行の origin: 受け付けが見つけて積んだ頼み（無い＝修正役が返答の consult に書いた頼み）

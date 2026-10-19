@@ -52,8 +52,8 @@ def _write(path, doc) -> pathlib.Path:
 
 
 def _change(unit, files):
-    """修正役の返答の changes の 1 行（自己申告の欄は lib/tests/test_fix_seams.py の SELF_REPORT）"""
-    from lib.tests.test_fix_seams import SELF_REPORT
+    """修正役の返答の changes の 1 行（自己申告の欄は tests/blocks/fix/support.py の SELF_REPORT）"""
+    from tests.blocks.fix.support import SELF_REPORT
     return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT,
             "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
                         "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}

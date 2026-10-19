@@ -12,6 +12,4 @@
 - The main material for the diff is the diff file the fixer wrote (the absolute path of the Diff file above). Read it first. Only when it is missing or unreadable, run `git diff <the Base version>` with the Base version above (the diff between the working tree and base; works does not commit, so no diff appears in a commit range), get the names of new untracked files with `git ls-files --others --exclude-standard`, and Read each of them.
 - The diff is the whole from base and includes the previous items' fixes. Review what concerns the current item's brief; do not review the previous items' fixes themselves (point it out if the current item's fix breaks them).
 
-Rules for queries to outside services (from the works wrapper; these rules win over the template's text):
-
 {shared:query-rule}

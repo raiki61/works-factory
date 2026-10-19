@@ -5,7 +5,7 @@ Read the ripple list {ripple_file} too (it names hits that are not in the scope)
 
 # Scope consultation (from the fixing stage)
 
-Another role is fixing the fix plan you wrote. From the fixing side, {count} scope consultations came. Whether to widen the scope is a specification decision, and you decide it. Decide from your thinking when you wrote the plan and from the current repository (you can read it with Read, Grep, and Glob; you have no tools that write).
+Another role is fixing the fix plan you wrote. From the fixing side, {count} scope consultation(s) came. Whether to widen the scope is a specification decision, and you decide it. Decide from your thinking when you wrote the plan and from the current repository (you can read it with Read, Grep, and Glob; you have no tools that write).
 For a consultation whose requested paths hit out_of_scope (things not to touch), the hit globs and the reasons for excluding them are listed. If you wrote it in this item's out_of_scope, reconsider whether the reason for the exclusion still holds, compared with the fixing side's reason: if allow, only that path leaves out_of_scope for this item and enters the scope. If the reason still holds, deny. If you allow something that hits another item's out_of_scope, it passes only as a change of this item's units (that item's out_of_scope does not change).
 <!-- if plain -->
 

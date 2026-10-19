@@ -73,4 +73,4 @@ A row whose `source` is `join-clash` is a declaration the machine made from a gr
 6. `rejudge`: when the judgment's cut of units is wrong and the two groups are actually fixing one problem separately. Write `text` as an objection the redone judgment reads. `limits` is empty.
 7. Only when none of these applies, `ask_human`.
 
-Write `text`, `ask_why.line`, and `request_searched` in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are.
+Write `text`, `ask_why.line`, and `request_searched` in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).

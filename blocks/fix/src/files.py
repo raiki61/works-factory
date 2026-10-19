@@ -6,7 +6,6 @@ lib/ のモジュールは import しない（返す node が lib を読めな�
 """
 from __future__ import annotations
 
-import os
 import pathlib
 
 MODES = ("whole", "group")   # port mode の語（docs/design/fix.md の 13.1 の 1）
@@ -14,9 +13,6 @@ MODES = ("whole", "group")   # port mode の語（docs/design/fix.md の 13.1 �
 # 入口（intake が書く）
 INTAKE = "intake.json"   # port を読んだ値
 VALUES = "values.json"   # 始めの記録の写しの代わり（src/runvals.py だけが読み書きする）
-# lib の conflict.request_file・cite_roots が place から読む始めの記録の形の写し（lib/startrec.py の REL と同じ字）。作り直しの間、
-# lib の conflict を写さずに呼ぶため（docs/design/fix.md の 1.5.2）、依頼のファイルを lib に見せるだけの写しを置く
-LIB_START = "r1/start.json"
 
 # 入力の写し（lib/fixboard.py の置き場の名の定数。prep と group-start が書く）
 GROUPS_FILE = "groups.json"            # {groups: [{group_id, …}], out_dir, start_tree, …}（prep の返りと同じ）
@@ -59,12 +55,3 @@ CONFLICTS_DROPPED = "conflicts-dropped.json"
 TDD_DELIVERED = "tdd-delivered.json"         # TDD の役に渡した証拠の種類と回の控え（今の tdd-<k>/next.delivered.json の代わり）
 FIXER_DELIVERED = "fixer-delivered.json"     # 修正役に渡した証拠の種類と回の控え（今の prompt-p3.fix.delivered.json）
 RULED_DELIVERED = "fix-ruled-delivered.json"
-
-# run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下。ライブラリの文書の控え。今の boundary.shared_cache）
-SHARED_CACHE_ENV = "STATE_DIR"
-SHARED_CACHE = "works-factory"
-
-
-def shared_cache() -> pathlib.Path | None:
-    state = os.environ.get(SHARED_CACHE_ENV)
-    return pathlib.Path(state) / SHARED_CACHE if state else None
