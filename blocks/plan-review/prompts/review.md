@@ -31,12 +31,7 @@ Some inputs were read with defaults: the section "Inputs read with defaults" of 
 <!-- if design_stands -->
 {part:design-ask}
 <!-- end design_stands -->
-<!-- if design_not_stands -->
-The designer returned that the purpose's question does not stand (its reason is in the section "Independent design" of the material). Whether the question stands is handled after the fix by the independent eye, which checks the premises against reality, so do not raise it as a hole here. Review without comparing the plan with a design.
-<!-- end design_not_stands -->
-<!-- if design_none -->
-There is no independent design (the reason is in the section "Independent design" of the material). Review without comparing the plan with a design.
-<!-- end design_none -->
+{part:design-absent}
 
 <!-- if design_diff -->
 From the second pass on, compare with the design only the sentences the diffs added and removed, and the keys in the key list of the section "Items that write design_map". The machine carries over the comparison of unchanged rows from the earlier pass (do not write rows for keys not in the list).
@@ -49,11 +44,11 @@ How to read the section "Items that write design_map": write `design_map` rows o
 <!-- if fields -->
 ## How to read the works fields
 
-The works fields are what the plan role wrote for each item: `route`, the acceptance tests `tests`, the existing tests to rewrite `rewrite_tests`, the refactor declaration `refactor`, the paths it may write `allowed_paths`, and what it does not touch `out_of_scope` (in the section "Works fields of the plan items" of the material, or, in a replan, inside the items of the section "Replan items"). Once approved, they become each item's brief, the canonical requirements of the fixer and the TDD role. Check that the acceptance tests go through the real route, do not assert the return value of a mock, and do not lean on comparing wording; that the red of `red_kind` really happens with the current code; and that `rewrite_tests` rewrites only behaviour the request changes, not expected values bent to fit the implementation. Also check that `allowed_paths` is enough for the item's fix and not too wide, and that `out_of_scope` covers what the request does not touch.
+The works fields are what the plan role wrote for each item: `route`, the acceptance tests `tests`, the existing tests to rewrite `rewrite_tests`, the refactor declaration `refactor`, the paths it may write `allowed_paths`, and what it does not touch `out_of_scope` (in the section "Works fields of the plan items" of the material, or, in a replan, inside the items of the section "Replan items"). Once approved, they become each item's brief, the canonical requirements of the fixing stage. Check that the acceptance tests go through the real route, do not assert the return value of a mock, and do not lean on comparing wording; that the red of `red_kind` really happens with the current code; and that `rewrite_tests` rewrites only behaviour the request changes, not expected values bent to fit the implementation. Also check that `allowed_paths` is enough for the item's fix and not too wide, and that `out_of_scope` covers what the request does not touch.
 
 The rows after the label "{machine_key} (added by the machine)" are permits the machine added: existing tests, before the fix, that use as a code identifier a symbol that the item's `files` remove with change=remove (a removed name). The plan role did not write them and cannot change them; they only permit rewriting or removing those tests, and they are neither an instruction to remove them nor a duty. The acceptance check rejects a block whose `where` names `{machine_key}`. If you think a permit is too wide or too narrow, name the change=remove symbol in that item's `files`. Raise holes in `faces`.
 
-When the material has the section "Deviations recorded in the plan" (the reasons the plan's `structure` field gives for departing from the structure eye's way to avoid a problem, from the judgment's prescription, or from the world solution), check that each reason holds.
+When the material has the section "Deviations recorded in the plan" (the reasons the plan's `structure` field gives for departing from the way to avoid a problem in the input `structure`, from the judgment's prescription, or from the world solution), check that each reason holds.
 <!-- end fields -->
 
 <!-- if later -->
@@ -78,17 +73,7 @@ The section "Replan items" of the material holds, for each ruled item, the earli
 
 {shared:recorded-policy}
 
-<!-- if policy_example -->
-An example of how to write a hole of kind policy (made from the first row of this run's list that can be named; put one name from the list in `decided_by`, word for word):
-
-{policy_example}
-<!-- end policy_example -->
-<!-- if not policy_example -->
-No row can be named: do not raise holes of kind policy.
-<!-- end policy_example -->
-<!-- if doc_row -->
-This run has a row of the policy document: raise `{policy_doc_fence}` in `fences` only when the hole rewrites a line of the policy document.
-<!-- end doc_row -->
+{part:policy-example}
 
 <!-- if policy -->
 {shared:policy}
@@ -100,7 +85,7 @@ This run has a row of the policy document: raise `{policy_doc_fence}` in `fences
 
 - In `unit_keys`, point at units by the integer `no` that the machine numbered after `Units:` in the material. Do not copy the key: the machine turns the number back into the unit's name and records it.
 - `kind` is exactly one of the eight words of "What to look at".
-- When fixing, the role that writes the fix is asked to answer, for each key of `faces` and `shrink`, whether it absorbed it or declared it kept.
+- {part:absorb-ask}
 - Write the text of `where`, `why`, `no_add`, the text part of `decided_by`, `undecided_because`, `world`, `recommend.note`, `recommend.why`, `no_narrow`, the `alternative` and `why` of `shrink`, `faces_none`, `reason`, `stuck_recommend.note`, `stuck_recommend.why`, and the `why` of `design_map` in {lang}. Keep keys, paths, identifiers, commands, error texts, and the characters inside quotes 「…」 as they are. Write the fixed heads ("{drift_head}", "{unpaired_head}", "{minimal_head}", "{short_head}", "{home_prefix}") as they are, whatever the language.
 
 Return only JSON that matches the output schema.

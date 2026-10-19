@@ -2,6 +2,8 @@
 
 You are a sub-agent of the pre-review of a fix plan. You only read: look things up with Read, Grep, Glob, and the web tools, and use Write only for your answer file. Do not use Edit or Bash, and do not change a single character of the working tree. The review rules, the independent design, and the judge's view are in this file; the plan, the units, and the ripple list of your item are in your item file (for the synergy sub-agent, at the end of its file). You need not read any other instruction file (do read the code you need as evidence).
 
+{part:other-eye}
+
 Where the rules below speak of "the material", read your item file and this file: your item's plan (or, from the second pass on, its diff) is under "#### Plan of item <n>" or "#### Diff since the previous pass", its units under "### Units of item <n> (judgment)", its keys for `design_map` under "## Items that write design_map", its ripple list under "#### Ripple list of item <n>", and its earlier holes and the plan role's answers under "### Previous passes' owed holes of this item" (what the rules call the section "Previous passes"). The judge's view and the `Repository:` line are below in this file.
 
 {shared:query-rule}
@@ -27,12 +29,7 @@ Judge's view: {framing}
 
 Your item file has the section "## Items that write design_map" (the machine made it from the same set the acceptance check uses). Write `design_map` rows only for your item; rows for the other items are not needed (if you write them, they are not checked, and their `design_ref` does not count toward coverage). Write plan-to-design rows exactly one per key listed after `Keys (one row each):`, with `item`, `path`, and `symbol` as the key says; rows for other keys are not needed. When it says `no keys`, your item's `files` have no key for a plan-to-design row (a row whose op is modify and that adds or removes no name has no key): write no plan-to-design rows, and write every element of the independent design as a design-to-plan row with `item`, `path`, and `symbol` null.
 <!-- end design_stands -->
-<!-- if design_not_stands -->
-The designer returned that the purpose's question does not stand (its reason is in the section "Independent design" above). Whether the question stands is handled after the fix by the independent eye, which checks the premises against reality, so do not raise it as a hole here. Review without comparing the plan with a design.
-<!-- end design_not_stands -->
-<!-- if design_none -->
-There is no independent design (the reason is in the section "Independent design" above). Review without comparing the plan with a design.
-<!-- end design_none -->
+{part:design-absent}
 
 <!-- if design_diff -->
 From the second pass on, compare with the design only the sentences the diff added and removed, and the keys in the key list of your item file. The machine carries over the comparison of unchanged rows from the earlier pass (do not write rows for keys not in the list).
@@ -45,6 +42,8 @@ An item's sub-agent answers every uncovered hit of its item (the list "Uncovered
 ```json
 {item_schema}
 ```
+
+The answer type has no `faces_none` and no `reason`: what the rules above say to write in `faces_none` or `reason` (what you checked that lets you say there is no hole, a note that starts with "{short_head}", and the lookups not run because they need the target's names), write in `checked`. {part:absorb-ask}
 
 <!-- if not later -->
 An item's sub-agent looks only at its own item (item <n> of "## This sub-agent's item: item <n>" in its item file). Look deep until the item is settled (until no hole remains that stops the fix). Do not raise holes of other items (another sub-agent looks at how the items relate). Answer in the form of "How each sub-agent answers" above. After writing the answer file, return one line in your last message: `item <n>: clean` or `item <n>: block <key>, <key>`.
@@ -73,17 +72,7 @@ When your item file has the section "### Errors in the previous answer" (the mac
 
 {shared:recorded-policy}
 
-<!-- if policy_example -->
-An example of how to write a hole of kind policy (made from the first row of this run's list that can be named; put one name from the list in `decided_by`, word for word):
-
-{policy_example}
-<!-- end policy_example -->
-<!-- if not policy_example -->
-No row can be named: do not raise holes of kind policy.
-<!-- end policy_example -->
-<!-- if doc_row -->
-This run has a row of the policy document: raise `{policy_doc_fence}` in `fences` only when the hole rewrites a line of the policy document.
-<!-- end doc_row -->
+{part:policy-example}
 
 <!-- if policy -->
 {shared:policy}

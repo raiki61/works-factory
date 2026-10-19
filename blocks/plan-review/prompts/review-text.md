@@ -25,7 +25,7 @@ What you review below is a policy statement only: it has no plan structure (no i
 
 {world}
 
-These rows are the standard practice the world check found for the request's problem classes (rows that differ from the request's means come first). Use them as the precedents of check 8 (open their sources) and as the practice to compare the proposal with.
+These rows are the standard practice for the request's problem classes, from the input `world_rows` (rows that differ from the request's means come first). Use them as the precedents of check 8 (open their sources) and as the practice to compare the proposal with.
 <!-- end world -->
 
 {repository_line}
@@ -36,17 +36,7 @@ BASE in this line is the version before this run started fixing: the baseline of
 
 {shared:recorded-policy}
 
-<!-- if policy_example -->
-An example of how to write a hole of kind policy (made from the first row of this run's list that can be named; put one name from the list in `decided_by`, word for word):
-
-{policy_example}
-<!-- end policy_example -->
-<!-- if not policy_example -->
-No row can be named: do not raise holes of kind policy.
-<!-- end policy_example -->
-<!-- if doc_row -->
-This run has a row of the policy document: raise `{policy_doc_fence}` in `fences` only when the hole rewrites a line of the policy document.
-<!-- end doc_row -->
+{part:policy-example}
 
 <!-- if policy -->
 {shared:policy}

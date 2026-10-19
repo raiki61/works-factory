@@ -141,7 +141,7 @@ script の名は `lib/` のモジュールの名と重ねない（README 7.1 の
 
 - `blocks/plan-review/works-factory-plan-review.yaml`（1.3）。
 - `blocks/plan-review/prompts/review.md`・`review-fix.md`・`review-tree.md`・`review-tree-fix.md`・`review-text.md`（3〜7 節）。
-- `blocks/plan-review/prompts/parts/role.md`・`read-version.md`・`checks.md`・`head.md`・`plan-checks.md`・`design-ask.md`・`rereview-ask.md`・`origin-ask.md`・`diff-ask.md`・`item-brief.md`・`synergy-brief.md`（3.3・5.3 に中身）。
+- `blocks/plan-review/prompts/parts/role.md`・`read-version.md`・`checks.md`・`head.md`・`plan-checks.md`・`design-ask.md`・`rereview-ask.md`・`origin-ask.md`・`diff-ask.md`・`item-brief.md`・`synergy-brief.md`・`design-absent.md`・`policy-example.md`・`stuck-quote.md`・`other-eye.md`・`absorb-ask.md`（3.3・5.3 に中身）。
 - `blocks/plan-review/scripts/intake.py`・`review_prep.py`・`review_fix_prep.py`・`review_accept.py`・`text_prep.py`・`text_accept.py`・`review_reads.py`・`finish.py`（8 節）。
 - `blocks/plan-review/src/__init__.py`（空）。
 - `blocks/plan-review/src/files.py`: 1.4 の名・受け付けの名 `REVIEW_NODE = "p2.plan_review"`・`TEXT_NODE = "p2.plan_review.text"`・`PLAN_NODE = planmarks.NODE`・`HUMAN_FACE_KINDS = ("regression", "policy")`（今の `fixboard.HUMAN_FACE_KINDS`、`lib/fixboard.py:1188` の値。fix へ移るモジュールなので写す）・`node_schema(node_id)`・`PROPOSAL_SHAPE`・`PRIOR_SHAPE`（下）・`REVIEW_MD = ports.lib_root() / "REVIEW.md"`（観点の正本。組み込みで置き場が変わる時はこの 1 か所を直す）・md と読み手が同じ字を持つ値（`MINIMAL_HEAD = "最小性:"`・`SHORT_HEAD = "足りない: "`。3.3）。

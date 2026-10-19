@@ -13,7 +13,7 @@ Your tools are Read, Grep, Glob, WebSearch, and WebFetch, plus Agent to start su
 Read the whole material file {material_file} with Read. It holds everything the machine pasted for this pass: the plan items (or, from the second pass on, the diffs of the open items), the earlier passes, the units, the judge's view, and the `Repository:` line. You read it to write the recommendation below; you do not review the plan items yourself. You need not read any other instruction file.
 
 <!-- if later -->
-What to quote in the note of `{stuck_push}`: when the material has the section "Held items", quote the blocks of the held items listed there (this pass does not review those items), every block key raised in this pass, and the numbers of those items.
+{part:stuck-quote}
 <!-- end later -->
 
 ## Bundling the sub-reviews
