@@ -1,0 +1,14 @@
+# 筋書き resubmit: 範囲の役の輪の出し直しの周。r4-scope-prep を差し替えて出し直し（resubmit: true）の周にすると、1 回目の役 r4-scope は
+# when で飛び、r4-scope-fix-prep が本当に出し直しの指示を組み（組んだ指示の字を照らす）、出し直しの役 r4-scope-fix の返答（拒まれた欄だけ）の
+# 後に受け付けと返す node に届く。出し直しを前の答えと合わせる中身は tests/blocks/r4/ が script を子のプロセスで回して見る
+fixture:
+  expect: completed
+  reached: [intake, r4-scope-prep, r4-scope-fix-prep, r4-scope-fix, r4-scope-accept, finish]
+  inputs:
+    purpose: 'commit のフックが、対象のテストのコマンドと同じ環境で走るようにする'
+  resolved-text-contains:
+    r4-scope-fix: 'In this same conversation, fix only what was rejected and return it.'
+exec-code: true
+r4-scope-prep: {prompt: "", resubmit: true, attempt: 2}
+r4-scope-fix: {policy_conflicts: []}
+r4-scope-accept: {ok: true, done: true, give_up: false, reason: ""}

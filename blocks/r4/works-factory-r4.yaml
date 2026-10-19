@@ -1,0 +1,210 @@
+name: works-factory-r4
+description: '独立の目 R4 見えていない範囲の block（docs/design/r4.md）。直しを作った役と別の会話で、読むだけの役が累積差分を見て、差分の中でなく差分が解こうとしている領域に潜む、変更が手を付けていない横断のリスク（SRE・セキュリティ・データガバナンスの複数のレンズ）を探す。この変更が入れたか露呈させたリスクは作り直しが要る、既に在って無関係なリスクは知らせるだけの行にする。消えた能力と、記録された方針とのぶつかりは判定に数えず、最後の承認ノードで人に聞く問いの行にする。方針とのぶつかりが記録された方針の行を名指さなければ機械が拒んで同じ会話の続きで出し直させる。修正前に通した行は問いから外して通した印つきで返す。軽量の run では同じ会話で R3 全体の整合も見る。落ちず、判定の行と問いの行と報告の行を出す。単独の run でも、graph から include されても回る'
+inputs:
+  base: {default: '', description: 'text: 累積差分の根の commit（入口の差分の根。差分の run では PR の根）。累積差分はここから作業ツリーの今の姿まで（未追跡の新しいファイルも入る）。空は HEAD'}
+  lang: {default: '', description: 'text: 人に見せる欄（reason・lost・note・policy_conflicts・surfaced の text・mechanism・measured・false_positive_if・seen・unseen と、r3 の reason・seen・unseen）の言語。空は依頼の言語'}
+  purpose: {default: '', description: 'text: 元の目的の 1 文。空は渡されていない'}
+  green: {default: 'true', description: 'flag: 修正の後の試験の緑が認証されたか。偽なら目の指示に「最後のテストの認証が通っていない」の 1 文を足す'}
+  policy: {default: '', description: 'file: 人の方針の文書の写し。空は方針の文書が無い'}
+  after: {default: '', description: 'file: 直した後の構造の実測の控え。空は測っていない。coherence が真の時だけ読む'}
+  review: {default: '{}', description: 'json(shared:plan-verdict.schema.json): 修正が使った修正案を審査した事前審査の最後の往復の結論 {round, verdict, blocks, why}。空のオブジェクトは渡されていない。coherence が真の時だけ読む'}
+  answers: {default: '{}', description: 'json(shared:gate-answers.schema.json): 承認ノードの人の答え {start, before_fix}（始めの承認ノードと修正前の承認ノード。どちらも {decision, text?, asked?, pushed?} か null）。空のオブジェクトは答えが無い'}
+  request: {default: '', description: 'file: 依頼のファイル（工場の依頼の JSON。欄 answers を読む）。空は依頼のファイルが無い'}
+  changed: {default: '{}', description: 'json(shared:fix-marks.schema.json): 修正の印（真偽の欄と前提のずれの申告の文 premise_drift_note）。空のオブジェクトは渡されていない'}
+  pushes: {default: '[]', description: 'json(shared:pushes.schema.json): 無人の run が判定の保留の問いに採った推しの文の配列（「問い <key>: <推し>」）。空の配列は無い'}
+  decisions: {default: '', description: 'file: 先行議論の突合の素材（欄 reply.settled を読む material.json）。空は突合が無い'}
+  ripple: {default: '', description: 'file: 波及の一覧（役が Read する）。空は渡されていない'}
+  world_rows: {default: '', description: 'file: 定石の行（役が Read する）。空は渡されていない'}
+  asked: {default: '[]', description: 'json(r4-asked.schema.json): 修正前の承認ノードで聞いた項目 [{kind, text}]（狭める能力と事前審査の穴の行）。空の配列は聞いていない'}
+  declared: {default: '[]', description: 'json(r4-declared.schema.json): 直す側が直さずに残すと答えた事前審査の行（「key: 穴の訳（直す側の答え: …）」）の配列。空の配列は無い'}
+  coherence: {default: 'false', description: 'flag: 真なら、同じ会話で R3 全体の整合も見て、その答えを返答の欄 r3 に書かせる'}
+returns: finish
+outcome_field: ok
+nodes:
+  # port を読み、この block の前の回のファイルを消して intake.json を書く。後ろの script は port を読まずに intake.json を読む
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+
+  # 範囲の役の受け付けの輪。諦めは r4-scope-accept の done・give_up で抜け、max_iterations で落とさない。
+  # 役は 1 回目は新しい会話で起き、拒まれた後は出し直しの役 r4-scope-fix が同じ会話の続きで拒まれた欄だけを返し、受け付けが前の答えと
+  # 合わせる（振り分けは r4-scope-prep の resubmit。並んだ層は会話を切るので r4-scope-fix は r4-scope の後ろの層に置く）
+  - id: r4-loop
+    depends_on: [intake]
+    when: "$intake.output.due == true"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: accepted=$r4-scope-accept.output.done; test "$accepted" = true
+      nodes:
+        - id: r4-scope-prep
+          script: scope_prep
+          runtime: uv
+          mutates_checkout: false
+          with:
+            prev: "$LOOP_PREV.r4-scope-accept.output.ok"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, resubmit, attempt]
+            properties:
+              prompt: {type: string}   # 1 回目の役の指示（出し直しの周は ""。出し直しの役の指示は r4-scope-fix-prep が組む）
+              resubmit: {type: boolean}
+              attempt: {type: integer, minimum: 1}
+        - id: r4-scope
+          description: '範囲の役: 累積差分が手を付けていない横断のリスクを探す。軽量の run では同じ会話で R3 全体の整合も見る'
+          prompt: "$r4-scope-prep.output.prompt"
+          depends_on: [r4-scope-prep]
+          when: "$r4-scope-prep.output.resubmit != true"
+          <<: &r4_launch
+            model: '@wf-eyes-scope'
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            allowed_tools: [Read, Grep, Glob]
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          # r3 は coherence が真の run だけ受け付けが要る（必須にしない）。if/then は棚卸しが発火したら lost を明示させる
+          output_format: &r4_reply
+            type: object
+            required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen]
+            additionalProperties: false
+            properties:
+              status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+              reason: {type: string, minLength: 1}
+              capability_inventory:
+                type: object
+                required: [fired]
+                additionalProperties: false
+                properties:
+                  fired: {type: boolean}
+                  lost: {type: array, items: {type: string}}
+                  note: {type: string}
+              policy_conflicts: {type: array, items: {type: string, minLength: 1}}
+              surfaced:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              seen: {type: array, items: {type: string}}
+              unseen: {type: array, items: {type: string}}
+              r3:
+                type: object
+                required: [status, reason, seen, unseen]
+                properties:
+                  status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+                  reason: {type: string, minLength: 1}
+                  seen: {type: array, items: {type: string}}
+                  unseen: {type: array, items: {type: string}}
+            if: {properties: {capability_inventory: {properties: {fired: {const: true}}}}}
+            then: {properties: {capability_inventory: {required: [fired, lost]}}}
+        # 出し直しの役の指示は r4-scope-prep と別の prep が組む（出し直しの周だけ回る）。筋書きは r4-scope-prep を差し替えて出し直しの周を作り、
+        # この prep が本当に指示を組むことを見る（輪の 2 周目は dry-run で回らない）
+        - id: r4-scope-fix-prep
+          script: scope_fix_prep
+          runtime: uv
+          mutates_checkout: false
+          # r4-scope の後ろの層に置く（r4-scope-prep だけに依ると r4-scope と同じ層に並び、Archon は並んだ層で会話を切るので出し直しの役が新しい会話で起きる）
+          depends_on: [r4-scope-prep, r4-scope]
+          trigger_rule: none_failed_min_one_success
+          when: "$r4-scope-prep.output.resubmit == true"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string, minLength: 1}
+        - id: r4-scope-fix
+          description: '出し直しの役: 前の回の返答が受け付けで拒まれた時に、同じ会話の続きで拒まれた欄だけを直して返す'
+          prompt: "$r4-scope-fix-prep.output.prompt"
+          depends_on: [r4-scope-prep, r4-scope, r4-scope-fix-prep]
+          trigger_rule: none_failed_min_one_success
+          when: "$r4-scope-prep.output.resubmit == true"
+          <<: *r4_launch
+          output_format:
+            <<: *r4_reply
+            required: []
+        - id: r4-scope-accept
+          script: scope_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [r4-scope, r4-scope-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            reply: {from: "$r4-scope.output", if_skipped: null}
+            fix_reply: {from: "$r4-scope-fix.output", if_skipped: null}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, r4-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, verdict, questions, passes, coherence, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ran, failed]
+        reason: {type: string}
+        verdict: &eye_row
+          type: object
+          additionalProperties: false
+          required: [status, reason]
+          properties:
+            status:
+              type: string
+              enum: [pass, redesign-needed, unverifiable]
+            reason: {type: string}
+        questions:
+          type: array
+          items: {type: string}
+        passes:
+          type: array
+          items:
+            type: object
+            required: [node, round, by, item, passed_at]
+            properties:
+              node: {type: string}
+              round: {type: integer}
+              by: {type: string, enum: [human, push]}
+              item: {type: string}
+              passed_at:
+                type: object
+                required: [node, round]
+                properties:
+                  node: {type: string}
+                  round: {type: integer}
+        coherence:
+          <<: *eye_row
+          type: [object, "null"]
+        report:
+          type: array
+          items: {type: string}
