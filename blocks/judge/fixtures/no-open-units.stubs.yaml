@@ -1,0 +1,290 @@
+# no-open-units: 判定は受けたが開いた単位が無い → ok: true・ready: false（止めでない）。裏取りは回らない
+fixture:
+  expect: completed
+  reached:
+  - ins
+  - head-depth__finish
+  - spec-in
+  - parallel-pr__finish
+  - premises__finish
+  - purpose__finish
+  - world__finish
+  - prior-decisions__finish
+  - purpose-review__finish
+  - local-review__finish
+  - consistency-bypass__finish
+  - hygiene__finish
+  - external-standards__finish
+  - procedure-trace__finish
+  - gate-efficacy__finish
+  - test-double-fidelity__finish
+  - main-path-observation__finish
+  - provenance__finish
+  - diagnose-in
+  - diagnose__finish
+  - verdict
+  inputs:
+    request: '[{"where": "app.py", "text": "Uploads fail on a flaky link; retry them."}]'
+    verify_by_tier: '{"標準": true}'
+exec-code: true
+head-depth__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+head-depth__finish:
+  ok: true
+  status: ok
+  reason: ''
+  tier: 標準
+  why: 原因が未知の行が在る
+  rows: []
+  record:
+    type: archon_artifact
+    run_id: stub
+    path: head-depth/depth-head.json
+  report:
+  - '- 段: 標準'
+parallel-pr__scan:
+  go_role: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+parallel-pr__finish:
+  ok: true
+  status: clean
+  stop_reason: ''
+  reason: ''
+  material:
+    status: clean
+    checked: 開いている PR は無い
+  excluded:
+    type: archon_artifact
+    run_id: stub
+    path: parallel-pr/pr-excluded.json
+  drafts: null
+  reads: null
+  downgrades:
+  - what: 担当の PR へ申し送りを投稿しない（下書きを報告に載せる）
+    versus: review-graph は任せ先の役が gh で投稿する
+  report:
+  - '- 並行 PR: clean'
+premises__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+premises__finish:
+  ok: true
+  status: ok
+  reason: ''
+  constraints:
+    type: archon_artifact
+    run_id: stub
+    path: premises/premises.json
+  measured: 1
+  hypotheses: 0
+  report:
+  - '- 前提の実測: 1 件'
+purpose__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+purpose__finish:
+  ok: true
+  status: ok
+  reason: ''
+  purpose:
+    type: archon_artifact
+    run_id: stub
+    path: purpose/purpose.json
+  purpose_text: Uploads survive a flaky link.
+  source: ③writer の要約
+  means:
+  - retry
+  report:
+  - '- 目的: Uploads survive a flaky link.'
+world__intake:
+  due: false
+  findings: 1
+  reason: '筋書き: block の中は block の筋書きが見る'
+world__finish:
+  ok: true
+  status: ok
+  reason: ''
+  rows: null
+  classes: 1
+  dropped: 0
+  report:
+  - '- 世界の解: 1 類'
+diagnose__intake:
+  due: false
+  mode: judge
+  reason: '筋書き: block の中は block の筋書きが見る'
+diagnose__finish:
+  ok: true
+  status: ok
+  mode: judge
+  stop_reason: ''
+  reason: ''
+  ready: false
+  judgment:
+    type: archon_artifact
+    run_id: stub
+    path: diagnose/judgment.json
+  units: []
+  questions: []
+  inputs: null
+  brief: null
+  materials:
+    type: archon_artifact
+    run_id: stub
+    path: diagnose/materials.json
+  out_of_purpose: null
+  answer_ties: null
+  rejudge_verdict: null
+  rejudge_exit: null
+  rejudge_diff: null
+  downgrades: []
+  report:
+  - '- 判定: 開いた単位 1'
+prior-decisions__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+prior-decisions__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: prior-decisions/material.json
+  report:
+  - '観点 prior-decisions: skipped'
+purpose-review__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+purpose-review__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: purpose-review/material.json
+  report:
+  - '観点 purpose-review: skipped'
+local-review__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+local-review__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: local-review/material.json
+  report:
+  - '観点 local-review: skipped'
+consistency-bypass__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+consistency-bypass__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: consistency-bypass/material.json
+  report:
+  - '観点 consistency-bypass: skipped'
+hygiene__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+hygiene__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: hygiene/material.json
+  report:
+  - '観点 hygiene: skipped'
+external-standards__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+external-standards__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: external-standards/material.json
+  report:
+  - '観点 external-standards: skipped'
+procedure-trace__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+procedure-trace__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: procedure-trace/material.json
+  report:
+  - '観点 procedure-trace: skipped'
+gate-efficacy__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+gate-efficacy__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: gate-efficacy/material.json
+  report:
+  - '観点 gate-efficacy: skipped'
+test-double-fidelity__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+test-double-fidelity__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: test-double-fidelity/material.json
+  report:
+  - '観点 test-double-fidelity: skipped'
+main-path-observation__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+main-path-observation__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: main-path-observation/material.json
+  report:
+  - '観点 main-path-observation: skipped'
+provenance__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+provenance__finish:
+  ok: true
+  status: skipped
+  reason: ''
+  material:
+    type: archon_artifact
+    run_id: stub
+    path: provenance/material.json
+  report:
+  - '観点 provenance: skipped'
+world__pick:
+  due: false
+  web: false
+  reason: '筋書き: block の中は block の筋書きが見る'

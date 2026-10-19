@@ -1,0 +1,63 @@
+# bad-request: 前提の実測が依頼の行を拒んで failed → 目的・世界の解・素材・判定は回らず、verdict が works:premises で止める
+fixture:
+  expect: completed
+  reached:
+  - ins
+  - head-depth__finish
+  - spec-in
+  - parallel-pr__finish
+  - premises__finish
+  - verdict
+  inputs:
+    request: '[{"where": "app.py", "text": "Uploads fail on a flaky link; retry them."}]'
+exec-code: true
+head-depth__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+head-depth__finish:
+  ok: true
+  status: ok
+  reason: ''
+  tier: 標準
+  why: 原因が未知の行が在る
+  rows: []
+  record:
+    type: archon_artifact
+    run_id: stub
+    path: head-depth/depth-head.json
+  report:
+  - '- 段: 標準'
+parallel-pr__scan:
+  go_role: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+parallel-pr__finish:
+  ok: true
+  status: clean
+  stop_reason: ''
+  reason: ''
+  material:
+    status: clean
+    checked: 開いている PR は無い
+  excluded:
+    type: archon_artifact
+    run_id: stub
+    path: parallel-pr/pr-excluded.json
+  drafts: null
+  reads: null
+  downgrades:
+  - what: 担当の PR へ申し送りを投稿しない（下書きを報告に載せる）
+    versus: review-graph は任せ先の役が gh で投稿する
+  report:
+  - '- 並行 PR: clean'
+premises__intake:
+  due: false
+  reason: '筋書き: block の中は block の筋書きが見る'
+premises__finish:
+  ok: false
+  status: failed
+  reason: '入力 request: 依頼の行の形が違う'
+  constraints: null
+  measured: 1
+  hypotheses: 0
+  report:
+  - '- 前提の実測: 1 件'
