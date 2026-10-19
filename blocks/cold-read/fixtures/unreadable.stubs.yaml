@@ -1,0 +1,7 @@
+# 本文のファイルが読めない道: 支度が読ませないと決め（due: false）、役は飛ばされ、出口が status: failed と訳を返す。run は止めない
+fixture:
+  expect: completed
+  reached: [cold-prep, finish]
+  inputs:
+    text: no-such-file.md
+exec-code: true
