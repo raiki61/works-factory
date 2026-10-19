@@ -280,7 +280,7 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 
 - 1 つの AI の node に、`prompts/<node-id>.md` を 1 本置く。決まった指示の文は全部ここに英語で書く。
 - 値の差し込み口は `{name}`（小文字・数字・`_`）。JSON の例の `{"a": 1}` は形が合わないので、差し込み口にならない。
-- 同じ block の 2 つ以上の node が使う段落は、その block の `prompts/parts/<name>.md` に 1 本だけ置き、`{part:<name>}` で差し込む（例 fix の修正役・TDD の役・裁定役・合わせ役が共に使う fix だけの決まり。組み込みの前の `workflows/fix/commands/fix-rules/brief.md`・`principles.md`）。2 つ以上の block が使う段落は `workflows/.shared/prompts/<name>.md` に 1 本だけ置き、`{shared:<name>}` で差し込む（例 書き手の役の決まり `writer-rules`。fix と delta-review が使う。組み込みの前の `fix-rules/common.md`）。今 21 本の md に写されている外への検索の決まり（`lib/agents/judge.md:16-22` が元）と、4 通りに割れた却下の段落は、ここで 1 つになる。
+- 同じ block の 2 つ以上の node が使う段落は、その block の `prompts/parts/<name>.md` に 1 本だけ置き、`{part:<name>}` で差し込む（例 fix の修正役・TDD の役・裁定役・合わせ役が共に使う fix だけの決まり。組み込みの前の `workflows/fix/commands/fix-rules/brief.md`・`principles.md`）。2 つ以上の block が使う段落は `workflows/.shared/prompts/<name>.md` に 1 本だけ置き、`{shared:<name>}` で差し込む（例 書き手の役の決まり `writer-rules`。fix と delta-review が使う。組み込みの前の `fix-rules/common.md`）。今 21 本の md に写されている外への検索の決まり（`lib/agents/judge.md:16-22` が元）と、4 通りに割れた却下の段落は、ここで 1 つになる。共通の断片 `query-rule` を入れる役は、一次の出典を先に読む決まり（組み込みの前の指示に無かった物）が指示に足される。全部の役に同じく足されるので、各 block の設計書の「今の指示との差」の一覧には書かず、ここに 1 度だけ書く。
 - 差し込むかを選ぶ段落は `<!-- if <name> -->` と `<!-- end <name> -->` で囲む。逆の条件は `<!-- if not <name> -->`。入れ子にはしない。
 
 ### 5.2 組み立ての口
