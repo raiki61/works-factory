@@ -97,17 +97,13 @@ nodes:
           enum: [ok, failed]
         reason: {type: string}
         purpose:
-          anyOf:
-            - type: object
-              additionalProperties: false
-              required: [type, run_id, path]
-              properties:
-                type:
-                  type: string
-                  enum: [archon_artifact]
-                run_id: {type: string}
-                path: {type: string}
-            - {type: 'null'}
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
         purpose_text: {type: string}
         source:
           type: string

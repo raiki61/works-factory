@@ -5,7 +5,9 @@ port の値だけを渡し、intake → purpose_prep → 台本の返答 → pur
 この過程で呼んで確かめる。YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
+import os
 import shutil
+import time
 import unittest
 
 import yaml
@@ -36,6 +38,8 @@ class _RepoCase(unittest.TestCase):
         (repo / "sub" / "x.py").write_text("x = 1\n", encoding="utf-8")
         (repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
         (repo / "sub" / "skip.log").write_text("x\n", encoding="utf-8")
+        old = time.time() - 60   # git が無視するファイルの印を書いた時刻の近さ（lib/accept の RACY_NS）に左右させない
+        os.utime(repo / "sub" / "skip.log", (old, old))
         git(repo, "add", "-A")
         git(repo, "commit", "-q", "-m", "seed")
         self.steps = kit.load("purpose", "steps")

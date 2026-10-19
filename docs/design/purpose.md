@@ -481,7 +481,7 @@ uv run --isolated python3 tests/changed.py
 11. 出口が `purpose.json` を見つけられない時の訳は、諦めた文（`rolekit.given_up_reason`）→ 最後の拒否の文 → 「目的の文を受け付けた控えが無い（役が走らなかったか落ちた）」の順にした（3.4 の 2 に、最後の拒否の文を足した）。根拠: 手本の world の `_why_failed` と同じ。筋書き（dry-run）は輪を 1 周で終えるので、諦めの数に届かない拒否の訳もここで残す。
 12. 筋書きは README の 13 章の形にした: standalone は `exec-code: true` で prep を差し替えず、AI の node `purpose` を `reached` に持つ（7.1 の stub の並びは script の返りを差し替えていたが、それだと md が組めるかを照らせない）。`gave-up` も script を本当に走らせ、役の返答だけを差し替える（`source_files` に無いファイル）。`frozen` は筋書きの place が空なので、入口と出口の返りを差し替えて配線だけを見る（固めた目的を読む道は `FinishCase` が見る）。
 13. 指示の比べ（7.3 の 1 つ目の commit の日本語の md と `test_prompt_compare.py`）は、この PR では作らない。md は 2.3 の英語の本文をそのまま置いた。根拠: 手本の world.md の 8 節の 7 と同じ。7.5 の `test_fixtures.py` も置かない（筋書きは `tests/layers/test_block_shape.py` の `ArchonCase` が全部の block の分を Archon の `workflow test` で回す。world と同じ）。
-14. `finish` の `purpose` の欄の null を許す書き方は、3.4 の `type: [object, "null"]` でなく、手本の world の `rows` と同じ `anyOf`（pointer の object と null）にした。
+14. `finish` の `purpose` の欄の null を許す書き方は、3.4 のとおり `type: [object, "null"]` にした（手本の world の `rows` の `anyOf` は写さない）。根拠: 土台は `engine.schema.KNOWN_KEYWORDS` の外の語（`anyOf`・`oneOf`・`format` など）を持つ形を拒むようになる。この block の形（YAML の `output_format` と `.shared/schemas/constraints.schema.json`）は、その語の内だけで書いた。`ports.picked` は使わない。
 
 ## 9 README へ返す問題
 
