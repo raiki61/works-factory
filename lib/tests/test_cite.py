@@ -32,5 +32,25 @@ class QuotedInCase(unittest.TestCase):
         self.assertTrue(cite.quoted_in("入口 1\n箇所", "\x1b[31m上限は入口 1  箇所\x1b[0m"), "既定の flat は空白と色を寄せる")
 
 
+class MovedReadsCase(unittest.TestCase):
+    """指し先の照らしと Markdown の読みの住処は cite の 1 か所（前は judge_accept・boardview。integration.md 4.3-4・4.5-5）"""
+
+    def test_markdown_reads(self):
+        text = "# 頭\n```\n# 囲いの中\n```\n## 頭\n[a](b.md#x)\n"
+        self.assertEqual([n for n, _ in cite._md_lines(text)], [1, 5, 6])
+        self.assertEqual(cite._md_slugs(text), {"頭", "頭-1"})
+        self.assertEqual(cite.MD_LINK.findall("[a](b.md#x) ![i](c.png)"), [("", "b.md#x")])
+
+    def test_resolve_target_and_precedent_gap(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        self.assertEqual(cite._resolve_target("lib/cite.py", root), ("lib/cite.py", ""))
+        self.assertIsNone(cite._resolve_target("./lib/cite.py", root)[0])
+        self.assertIsNone(cite._resolve_target("../x", root)[0])
+        self.assertEqual(cite._precedent_gap({"verdict": "adopt", "source": "https://example.org"}), "")
+        self.assertTrue(cite._precedent_gap({"verdict": "not_found", "searched": "無し"}))
+        self.assertTrue(cite.blank("なし", 4))
+        self.assertEqual(cite.Reject.__module__, "engine.util")
+
+
 if __name__ == "__main__":
     unittest.main()

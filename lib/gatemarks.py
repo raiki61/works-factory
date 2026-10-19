@@ -579,7 +579,7 @@ def _cite_check(b):
     依頼の解き方（worldmark.means_of）は世界の解の外れの決め手にならない物。目的の文の出典 source_files は目的の審査を走り直すための
     物で、ここに入れない"""
     import conflict   # conflict は fixboard を通して gatemarks を読むので、ここで読む
-    req = conflict.request_file(b.dir)
+    req = str(getattr(b, "request_file", "") or "")   # 依頼のファイルは呼び手が値で渡す（始めの記録は読まない。integration.md 4.3-追加-6）
     quoted = ""
     try:
         quoted = pathlib.Path(req).read_text(encoding="utf-8") if req else ""
@@ -587,7 +587,7 @@ def _cite_check(b):
     except (OSError, UnicodeDecodeError, ValueError):
         pass
     repo = (b.state.get("inputs") or {}).get("cwd") or "."
-    roots = conflict.cite_roots(b.dir, pathlib.Path(b.dir).parent)
+    roots = conflict.cite_roots(req, pathlib.Path(b.dir).parent)
     def cite_ok(text):
         return cite.sources_problem(text, repo, roots, quoted)
     return cite_ok, req, worldmark.means_of(b.dir, worldmark.COPY_MEANS), repo

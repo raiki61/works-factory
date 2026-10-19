@@ -36,6 +36,8 @@ if str(_GL) not in sys.path:
     sys.path.insert(0, str(_GL))
 
 from engine.util import READ_CAP, git, read_capped, read_json, run_count, write_json  # noqa: E402
+import cite  # noqa: E402  （指し先の綴りと版・Markdown のリンクの読み。integration.md 4.3-4・4.5-5）
+import materialkit  # noqa: E402  （黙って通る閉鎖の状態 SILENT_STATUS。integration.md 4.3-4 の (a)）
 
 FIX_NODE = "p3.fix"
 ROLE = "fix"
@@ -53,9 +55,7 @@ COUNT_CACHE_FILE = "count-cache.json"
 COUNT_BUDGET_FILE = "count-budget.json"
 # 1 周に数える問いを走らせてよい回数と時間の上限（元 works/.shared/core/graphloops/rules/review-loop.py:3304 の COUNT_BUDGET）
 COUNT_BUDGET = {"calls": 300, "seconds": 900}
-# 「書いていない」と同じ扱いにする語（元 works/.shared/core/graphloops/rules/review-loop.py:467 の EMPTY）
-EMPTY = ("なし", "無し", "ない", "無い", "特になし", "n/a", "none", "-", "未確認", "不明",
-         "todo", "未実施", "未測定", "後で")
+EMPTY = cite.EMPTY   # 「書いていない」と同じ扱いにする語（住処は cite）
 REJECT_HEADING = "下の行を直した返答を丸ごと出し直せ:"   # 写しの FIX_REJECT_HEADING（engine/util.py）と同じ文
 
 
@@ -68,10 +68,7 @@ def v1_changes(rows) -> list:
     return [{k: c[k] for k in V1_CHANGE_KEYS} for c in rows]
 
 
-def blank(s, min_len) -> bool:
-    """役が埋める自由文が「空同然」か（表と長さの両方で見る）。元 works/.shared/core/graphloops/rules/review-loop.py:480"""
-    t = (s or "").strip() if isinstance(s, str) else ""
-    return t.lower() in EMPTY or len(t) < min_len
+blank = cite.blank   # 役が埋める自由文が空同然か（住処は cite）
 
 
 def _run_query(place, where, how, root, rev=None, probe=True, round_: int = 1) -> tuple:
@@ -107,14 +104,13 @@ def _run_query(place, where, how, root, rev=None, probe=True, round_: int = 1) -
 
 
 def _reply_shape_problems(reply: dict, precedents) -> list:
-    """返答の自己申告の形の照らし（数え直しの前）: 修正が在るのに黙って通る閉鎖の状態（judge_accept.SILENT_STATUS）・同じファイルを
+    """返答の自己申告の形の照らし（数え直しの前）: 修正が在るのに黙って通る閉鎖の状態（materialkit.SILENT_STATUS）・同じファイルを
     触った修正どうしの interactions・破りに行った形跡（bypass_tried）・壊しうる面の結果（breaks.result）・先行例（from_judge_row
     なら判定者の先行例の行 precedents にその単位の行）・症状を塞ぐ理由（root_or_symptom）。元 review-loop.py:2683-2738"""
-    import judge_accept
     errs = []
     changes = [c for c in reply.get("changes") or [] if isinstance(c, dict)]
     st = (reply.get("fix_closure") or {}).get("status")
-    if changes and st in judge_accept.SILENT_STATUS:
+    if changes and st in materialkit.SILENT_STATUS:
         errs.append(f"修正が {len(changes)} 件在るのに fix_closure が {st}——閉鎖の実証は今の周の修正に対して行う（clean か found）")
     shared = {}
     for c in changes:
@@ -145,7 +141,7 @@ def _reply_shape_problems(reply: dict, precedents) -> list:
             if c.get("unit_key") not in judge_rows:
                 errs.append(f"{head}: precedent が from_judge_row なのに、判定者の先行例の行（process.precedents）にこの単位の行が無い"
                             "——自分で先行例を当たって problem と source を書け")
-        elif blank(pr.get("problem"), 4) or judge_accept._precedent_gap(pr):
+        elif blank(pr.get("problem"), 4) or cite._precedent_gap(pr):
             errs.append(f"{head}: precedent に problem と source（not_found なら searched）が要る——機構を足す・形を変える修正は、"
                         "同じ問題を世の中がどう解いているかを一次情報で確かめてから書け（REVIEW.md『処方の最小性』の世界の解を採る）")
         ros = c.get("root_or_symptom") or {}
@@ -155,7 +151,7 @@ def _reply_shape_problems(reply: dict, precedents) -> list:
 
 
 def _after_problems(reply: dict, place, base_rev: str, repo) -> list:
-    """数え直しの後の照らし: 赤を一度も見ずに名乗った clean・修正が新しく書いた指し（wrote_refs。judge_accept._cite_errors で
+    """数え直しの後の照らし: 赤を一度も見ずに名乗った clean・修正が新しく書いた指し（wrote_refs。cite._cite_errors で
     作業ツリーの指し先を数え直す。申告が空でも通す）・差分が足した Markdown のリンク（md_link_errors。申告に依らず差分から拾う）。
     元 review-loop.py:2776-2812"""
     errs = []
@@ -168,16 +164,15 @@ def _after_problems(reply: dict, place, base_rev: str, repo) -> list:
 
 
 def ref_problems(reply: dict, place, base_rev: str, repo) -> list:
-    """修正が新しく書いた指し（wrote_refs。judge_accept._cite_errors で作業ツリーの指し先を数え直す。申告が空でも通す）と、差分が
+    """修正が新しく書いた指し（wrote_refs。cite._cite_errors で作業ツリーの指し先を数え直す。申告が空でも通す）と、差分が
     足した Markdown のリンク（md_link_errors。申告に依らず差分から拾う）の照らしの文。受け付け（_after_problems）と修正役の事前の
     確かめ（factchecks.precheck）が同じ口で回す。置き場は読むだけ"""
     import accept
-    import judge_accept
     errs = []
     with accept.in_repo(repo):
         try:
-            cites, _ = judge_accept._cite_errors(place, ROLE, reply.get("wrote_refs") or [], None, "wrote_refs")
-        except judge_accept.Reject as e:
+            cites, _ = cite._cite_errors(place, ROLE, reply.get("wrote_refs") or [], None, "wrote_refs")
+        except cite.Reject as e:
             cites = [str(e)]
         errs.extend(f"{ROLE}: 修正が書いた指しが現物で引けない（直してから出し直せ）: {e}" for e in cites)
         links = md_link_errors(base_rev or "HEAD", str(repo))
@@ -192,7 +187,6 @@ def _added_md_links(base, root):
     """BASE から今の作業ツリーまでに足された .md の行（コードブロックとコードスパンの外）にある相対リンク ——
     [(ファイル, 行, 指し先, 問題)]。None は差分を引けなかった。未追跡の .md（.gitignore に当たらない物）は中身の全行を足された行として
     数える。git は engine.util.git（呼び手が accept.in_repo で向ける）。元 review-loop.py:2852"""
-    import boardview
     d = git("-c", "core.quotePath=false", "diff", "-U0", "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/",
             base, "--", ":(top)*.md")
     new = git("-c", "core.quotePath=false", "ls-files", "--full-name", "--others", "--exclude-standard", "--", ":(top)*.md")
@@ -216,11 +210,11 @@ def _added_md_links(base, root):
         if data is None:
             links.append((rel, 0, None, f"を読めないのでリンクを確かめられない（{why}）"))
             continue
-        for i, line in boardview._md_lines(data.decode("utf-8", "replace")):
+        for i, line in cite._md_lines(data.decode("utf-8", "replace")):
             if lines is not None and i not in lines:
                 continue
             bare = re.sub(r"`+[^`]*`+", "", line)
-            for tgt in (a or b for a, b in boardview.MD_LINK.findall(bare)):
+            for tgt in (a or b for a, b in cite.MD_LINK.findall(bare)):
                 if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", tgt):   # URL の scheme（http: mailto: …）は引かない
                     links.append((rel, i, tgt, None))
     return links
@@ -244,8 +238,6 @@ def md_link_errors(base, root) -> list:
     """BASE から足されたリンクが、指し先のファイル（リポジトリの中で版に入る物）と見出しに届くか。届かない件の文の一覧。
     元 review-loop.py:2915"""
     from urllib.parse import unquote
-    import boardview
-    import judge_accept
     links = _added_md_links(base, root)
     if links is None:
         return ["差分を引けないので、足された Markdown のリンクを確かめられない"]
@@ -260,7 +252,7 @@ def md_link_errors(base, root) -> list:
     dirs = {x for x in inside if (rootp / x).is_dir()}
     with_files = {x for x in dirs if (git("ls-files", "--full-name", "--cached", "--others", "--exclude-standard", "--",
                                           f":(top,literal){x}") or "").strip()}
-    versioned = judge_accept._in_version(sorted(inside)) if inside else {}
+    versioned = cite._in_version(sorted(inside)) if inside else {}
     if versioned is None:
         return ["git が動かないので、足された Markdown のリンクの指し先を確かめられない"]
     for rel, line, tgt, problem in links:
@@ -279,7 +271,7 @@ def md_link_errors(base, root) -> list:
         elif frag and dest.suffix == ".md":
             if dest not in slugs:
                 data, _ = read_capped(str(dest), READ_CAP)
-                slugs[dest] = boardview._md_slugs(data.decode("utf-8", "replace")) if data is not None else set()
+                slugs[dest] = cite._md_slugs(data.decode("utf-8", "replace")) if data is not None else set()
             if unquote(frag).lower() not in slugs[dest]:
                 errs.append(f"{where} の見出し #{frag[:40]} が {dest.relative_to(rootp)} に無い")
     return errs
