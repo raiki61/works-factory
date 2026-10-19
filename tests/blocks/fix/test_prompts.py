@@ -218,7 +218,7 @@ class FixerParagraphsCase(unittest.TestCase):
 
 
 class SubAgentFilesCase(unittest.TestCase):
-    """下請けのファイル（g1-impl-<n>.md・g1-review-<n>.md）は prompts/sub/ の md から組まれ、place に書かれる"""
+    """下請けのファイル（g1-impl-<n>.md・g1-review-<n>.md）は prompts/parts/ の md から組まれ、place に書かれる"""
 
     def test_g1_files(self):
         run = seeded(self)

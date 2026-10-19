@@ -54,6 +54,36 @@ class SlotCase(Base):
         self.assertEqual(self.render({"more": "m"}, {"extra": False}), "Y\n")
 
 
+class PartCase(Base):
+    def test_part_is_composed_like_a_prompt(self):
+        self.part("brief", "Read {file}.\n<!-- if later -->\nAgain.\n<!-- end later -->\n")
+        got = prompt._compose(self.block, "brief", {"file": "a.md"}, {"later": True}, part=True)["prompt"]
+        self.assertEqual(got, "Read a.md.\nAgain.\n")
+        with self.assertRaisesRegex(prompt.PromptError, "に値が無い"):
+            prompt._compose(self.block, "brief", {}, {"later": False}, part=True)
+        with self.assertRaisesRegex(prompt.PromptError, "が無い"):
+            prompt._compose(self.block, "absent", {}, {}, part=True)
+
+    def from_block(self, code: str) -> dict:
+        """block の src/ のモジュールとして code を回す（ports.caller_block が呼び手の在る block を解く道を通す）"""
+        names = {"prompt": prompt}
+        with mock.patch.object(prompt.ports, "PACK", self.block.parent):
+            exec(compile(code, str(self.block / "src" / "brief.py"), "exec"), names)
+        return names
+
+    def test_render_part_reads_the_parts_of_the_caller_block(self):
+        """render_part は呼んだ block の prompts/parts/ を読む。名は node の id の字だけ（ほかの字は prompts/parts/ の外を指しうるので拒む）。
+        呼び手が block の外なら名指して落ちる"""
+        self.part("brief", "Read {file}.\n")
+        got = self.from_block("out = prompt.render_part('brief', {'file': 'a.md'})\n")
+        self.assertEqual(got["out"], "Read a.md.\n")
+        for bad in ("my_brief", "../role", "parts/brief"):
+            with self.subTest(bad=bad), self.assertRaisesRegex(prompt.PromptError, "断片 の id の形でない"):
+                self.from_block(f"prompt.render_part({bad!r}, {{}})\n")
+        with self.assertRaisesRegex(ValueError, "block の中に無い"):
+            prompt.render_part("brief", {"file": "a.md"})
+
+
 class ParagraphCase(Base):
     def test_if_and_if_not_select_and_drop_marks(self):
         self.md("Head\n\n<!-- if web -->\nOn\n<!-- end web -->\n<!-- if not web -->\nOff\n<!-- end web -->\n\n\nTail\n")
@@ -146,32 +176,6 @@ class CallerCase(Base):
     def test_lang_default(self):
         self.assertEqual(prompt.lang(""), "the language of the request (the user's language)", "空なら共通の断片の文")
         self.assertEqual(prompt.lang(" Japanese "), "Japanese")
-
-
-class SubCase(Base):
-    """sub: block の prompts/sub/<name>.md（AI の node でない下請けの頼み）を render と同じ決まりで組み、place に書かない"""
-
-    def sub(self, text, values=None, when=None):
-        (self.block / "prompts" / "sub").mkdir(exist_ok=True)
-        (self.block / "prompts" / "sub" / "helper.md").write_text(text, encoding="utf-8")
-        return prompt._compose(self.block, "helper", values or {}, when, folder="sub")["prompt"]
-
-    def test_fragments_paragraphs_and_slots(self):
-        self.part("rules", "Rule {x}\n")
-        got = self.sub("{template}\n{part:rules}\n<!-- if ask -->\nAsk\n<!-- end ask -->\n", {"template": "T", "x": "1"}, {"ask": False})
-        self.assertEqual(got, "T\nRule 1\n")
-
-    def test_missing_value_is_refused(self):
-        with self.assertRaisesRegex(prompt.PromptError, r"\['template'\] に値が無い"):
-            self.sub("{template}\n")
-
-    def test_sub_writes_nothing_in_the_place(self):
-        """fix の prompts/sub/g1-review.md を組んでも place に何も書かない（書くのは呼び手）"""
-        run = kit.Run(self, "fix")
-        with run.env(), mock.patch.object(prompt.ports, "caller_block", return_value=kit.BLOCKS / "fix"):
-            got = prompt.sub("g1-review", {"template": "TEMPLATE"}, {"spawns": False})
-        self.assertTrue(got.startswith("TEMPLATE\n"))
-        self.assertEqual(list(run.artifacts.iterdir()), [])
 
 
 if __name__ == "__main__":

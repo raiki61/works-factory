@@ -108,6 +108,20 @@ class ReadonlyNodesTest(unittest.TestCase):
         got = self.problems({f"workflows/{block}/works-factory-{block}.yaml": workflow(block, role("other", "[Read]", True))})
         self.assertTrue(any(ident in line and "KEEP_CHECKOUT" in line for line in got), got)
 
+    def test_alternate_roles_need_one_whole_group(self):
+        """表 scan.ALTERNATE_ROLES の 2 組（今の工程と作り直しの block の役の id）は、どちらかの組が全部在れば、もう一方の組が無くても
+        欠けとしない。どちらの組も欠ければ、欠けた役ごとに赤"""
+        block = "plan-review"
+        path = f"workflows/{block}/works-factory-{block}.yaml"
+        old, new = (sorted(g) for g in scan.ALTERNATE_ROLES[block])
+        missing = [line for line in self.problems({path: workflow(block, "".join(role(n, "[Read, Write]", True) for n in new))})
+                   if "KEEP_CHECKOUT" in line]
+        self.assertEqual(missing, [])
+        half = [*old[:2], *new[:2]]
+        got = [line for line in self.problems({path: workflow(block, "".join(role(n, "[Read, Write]", True) for n in half))})
+               if "KEEP_CHECKOUT" in line]
+        self.assertEqual(sorted(n for n in [*old, *new] if any(f"役 {n} が" in line for line in got)), sorted([*old[2:], *new[2:]]), got)
+
     def test_mark_set_to_true_is_red(self):
         got = self.problems({"workflows/plan/works-factory-plan.yaml": workflow("plan", role("plan", "[Read]", False)
                                                                                 + "    mutates_checkout: true\n")})

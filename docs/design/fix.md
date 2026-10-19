@@ -153,7 +153,7 @@ loop の中の会話（README 13 章の決め・今の振る舞いのまま）: 
 
 - `blocks/fix/works-factory-fix.yaml`
 - 共通の物に足す 2 つ: `blocks/.shared/prompt.py` の口 `sub`（1.5.4）と、`tests/layers/test_block_shape.py` の 7.1 の 3 の照らしの 1 つの道（14.3）。どちらも `.shared/AGENTS.md`・`blocks/AGENTS.md` の 1 行と一緒に足す。共通の断片 `writer-rules` は delta-review の PR が置き、この block は使うだけ（1.5.4）
-- `blocks/fix/prompts/`: node ごとの md 9 本（`fixer.md`・`fix-ruled.md` は `{part:fixer}` の 1 行、`consult-answer.md`・`ruled-consult-answer.md` は `{part:consult}`、`tdd.md`・`tdd-new.md` は `{part:tdd}`、`clash-fix.md`・`clash-ruled.md` は `{part:clash}`、`ruler.md` は本文）と断片 `prompts/parts/`（`fixer.md`・`consult.md`・`tdd.md`・`clash.md`・修正役と TDD の役が共に使う `brief.md`）と、下請けの指示 `prompts/sub/g1-impl.md`・`prompts/sub/g1-review.md`（1.5.4）。
+- `blocks/fix/prompts/`: node ごとの md 9 本（`fixer.md`・`fix-ruled.md` は `{part:fixer}` の 1 行、`consult-answer.md`・`ruled-consult-answer.md` は `{part:consult}`、`tdd.md`・`tdd-new.md` は `{part:tdd}`、`clash-fix.md`・`clash-ruled.md` は `{part:clash}`、`ruler.md` は本文）と断片 `prompts/parts/`（`fixer.md`・`consult.md`・`tdd.md`・`clash.md`・修正役と TDD の役が共に使う `brief.md`）と、下請けの指示 `prompts/sub/g1-impl.md`・`prompts/parts/g1-review.md`（1.5.4）。
 - `blocks/fix/scripts/`: `intake.py`・`prep.py`・`join.py`・`clash_prep.py`・`clash_accept.py`・`conflict_check.py`・`rule_prep.py`・`rule_accept.py`・`fix_ruled_prep.py`・`fix_ruled_accept.py`・`consult_check.py`・`consult_accept.py`・`clean.py`・`assert_changed.py`・`group_start.py`・`tdd_prep.py`・`tdd_step.py`・`fix_prep.py`・`fix_accept.py`・`group_end.py`・`fix_reads.py`・`finish.py`（今の名のまま。`collect.py` は `finish.py`、`route.py` は `intake.py` に）。どの script も「`os.environ.get("INPUTS_<名>")` を字のまま読み、`src/` の 1 つの関数を呼び、`ports.returns` で返す」だけにする。
 - `blocks/fix/src/`（package `src`。1.5.1 の写しと、この block の新しいモジュール）
 - `blocks/fix/schemas/`（1.2 の 12 本）
@@ -207,7 +207,7 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 
 #### 1.5.4 共通の口に足す物（この block が最初に要る）
 
-- `blocks/.shared/prompt.py` に `sub(name, values, when=None) -> str`: 呼んだ script の在る block の `prompts/sub/<name>.md` を、`render` と同じ決まり（断片・段落・差し込み口・落ちる時）で組んだ字を返す。place には書かない（書くのは呼び手。修正役に渡す下請けの指示のファイル `g1-impl-<n>.md`・`g1-review-<n>.md`）。訳: 下請けは Archon の node でないので `render` の node の md に置けず、今は決まった文を `lib/seat.py` の定数（`G1_SUB_HEAD`・`G1_SUB_RULES`・`G1_EXTRA`）と `direct.md` の節 `fix-ask-sub` と `lib/agents/judge.md`（検索語の規律）から Python が組んでいた（憲法の 2 に当たる）。`prompts/sub/` は 7.1 の 2 の「`prompts/` の直下の md」と「`prompts/parts/`」の外なので、node の md の決まりに掛からない。`.shared/AGENTS.md` の口の一覧に 1 行足す。試験は `tests/blocks/shared/test_prompt.py` に `SubCase`（断片が入る・値の無い口で落ちる・place に書かない）。
+- 下請けの指示を組む口は、plan-review の枝が置いた `blocks/.shared/prompt.py` の `render_part(name, values, when=None) -> str`（呼んだ script の在る block の `prompts/parts/<name>.md` を `render` と同じ決まりで組んだ字を返し、place には書かない）を使う。書くのは呼び手（修正役に渡す下請けの指示のファイル `g1-impl-<n>.md`・`g1-review-<n>.md`）。訳: 下請けは Archon の node でないので `render` の node の md に置けず、今は決まった文を `lib/seat.py` の定数（`G1_SUB_HEAD`・`G1_SUB_RULES`・`G1_EXTRA`）と `direct.md` の節 `fix-ask-sub` と `lib/agents/judge.md`（検索語の規律）から Python が組んでいた（憲法の 2 に当たる）。block の断片の置き場は `prompts/parts/` の 1 つだけ（`docs/design/README.md` の 3 章）。この枝は初め `sub` と `prompts/sub/` を足したが、窓口の決めで `render_part` と `prompts/parts/` に替え、断片を字を変えずに移した。
 - 共通の断片 `writer-rules`（`blocks/.shared/prompts/writer-rules.md`。`{shared:writer-rules}`）: 書く役の決まりの正本（今の `fix-rules/common.md` の `core-fix`・`evidence` と 4 つの種類・`core-conflict`・`core-keep`）。修正役・TDD の役と、delta-review の手直しの役の 2 つの block が使うので共通の断片にする（`blocks/.shared/AGENTS.md` と README 11.1 の決まり。工場の作り直しのまとめ役の決め。README の形の直し 3 は fix の中の断片と書いたが、手直しの役が fix の外の block になった）。置くのは先に作る delta-review の PR で、この block は受けて使うだけ（足さない・直さない）。段落の名は `conflict`（食い違いの申し出）と `docs`・`prompts_kind`・`config`・`code`（証拠の 4 つの種類）の 5 つで、ほかの段落（直し方・証拠の頭・守ること）はいつも入る。この block は `conflict` をいつも真で渡す（手直しの役は偽）。
 - 外への検索の決まりは今在る `{shared:query-rule}`、却下の段落は `{shared:rejected}`。ほかの共通の断片は足さない。
 
@@ -294,11 +294,11 @@ DELETE（どの block にも写さない）: `PREP_INPUTS`・`MODES`・`LANE_SWI
 - `prompts/parts/brief.md`（この block だけ）: `<!-- if rules -->` `## Brief rules (the source of the requirement and the background)` と決まり 1〜8（今の `brief.md` の `brief-canon`）。
 - `{shared:writer-rules}`（1.5.4。delta-review の PR が置く）: いつも入る `## How to fix`（今の `core-fix` の 10 の決まり）と `## Evidence for fixes whose red-to-green a test cannot show` の頭、`<!-- if docs -->`・`<!-- if prompts_kind -->`・`<!-- if config -->`・`<!-- if code -->` の 4 つの種類、`<!-- if conflict -->` `## Conflict declarations (do not bend to get green)`（今の `core-conflict`）、いつも入る `## What to keep`（今の `core-keep`）。
 
-#### 2.3.2 下請けの指示（`prompts/sub/`。1.5.4 の `prompt.sub`）
+#### 2.3.2 下請けの指示（`prompts/parts/g1-impl.md`・`g1-review.md`。1.5.4 の `prompt.render_part`）
 
 - `g1-impl.md`: `{template}`（← `seat.fill` で項目ごとに埋めた superpowers の implementer-prompt。借りた字のまま）と、works の決まり（今の `seat.G1_SUB_HEAD`・`G1_SUB_RULES`）・`{shared:query-rule}`（`spawns` は偽。今は `lib/agents/judge.md` の写しを入れていた）・範囲の外が要る時の決まり（今の `direct.md` の `fix-ask-sub`。`{check_cmd}`）。
 - `g1-review.md`: `{template}`（← task-review の型に `BASE_SHA`・`DIFF_FILE`・`GLOBAL_CONSTRAINTS` を入れた物）と今の `seat.G1_EXTRA`。
-- `src/prompts.py` の `g1_files(place, items, values)` が `prompt.sub` で組んで place の `g1-impl-<n>.md`・`g1-review-<n>.md` に書く（名は今のまま。修正役は今どおりファイルの中身を字を変えずに下請けに渡す）。
+- `src/prompts.py` の `g1_files(place, items, values)` が `prompt.render_part` で組んで place の `g1-impl-<n>.md`・`g1-review-<n>.md` に書く（名は今のまま。修正役は今どおりファイルの中身を字を変えずに下請けに渡す）。
 
 ### 2.4 返す形
 
@@ -793,7 +793,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 ### 12.2 B（修正役と修正の受け付け）
 
 - 住処は `src/board.py`（受け付け）・`src/rules.py`（値）・`src/scope.py`・`src/unitrows.py`・`src/parking.py` と、lib の `recount`・`writes`・`querytest`・`planbrief`・`planrange`・`libdocs`・`seat`。
-- 違う行: F140（指示の組み立ての順）は 2.3 の md の並びに替わる（並びは今のまま）。F143・F144（下請けと借りた座）は、決まった文が md と `prompts/sub/` に、借りた型の字が値に分かれる（2.3.2）。F147（読んだ証拠）は session の切り方が変わる（13.1 の 10）。F100（事前の確かめのコマンド）はコマンドの字が変わる（1.5.5）。F139（仕組みを新しく作った時に止める・深さを上げる道）は fix の中に無く、出力 `changed` を line が読む（今の fix の中の道は `redepth` の信号だけだった）。F136（2 回目の段の控え）は今も無い（`replan_items` と `prior` で残す今の決めのまま）。F106・F107 は今のコードのまま。
+- 違う行: F140（指示の組み立ての順）は 2.3 の md の並びに替わる（並びは今のまま）。F143・F144（下請けと借りた座）は、決まった文が md と `prompts/parts/` に、借りた型の字が値に分かれる（2.3.2）。F147（読んだ証拠）は session の切り方が変わる（13.1 の 10）。F100（事前の確かめのコマンド）はコマンドの字が変わる（1.5.5）。F139（仕組みを新しく作った時に止める・深さを上げる道）は fix の中に無く、出力 `changed` を line が読む（今の fix の中の道は `redepth` の信号だけだった）。F136（2 回目の段の控え）は今も無い（`replan_items` と `prior` で残す今の決めのまま）。F106・F107 は今のコードのまま。
 
 ### 12.3 C（申し出・裁定・範囲の相談・関所の答え）
 
@@ -837,7 +837,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 11. 指示は `prompt: "$<prep>.output.prompt"` で字で渡す（README 5.2）。修正役の指示は今 95 KB ほど（例の run の `prompt-p3.fix.md`）。止めた Archon は node の出力を走っている間は丸ごと持ち、記録には 32 KB の頭と、resume のための全部を別のファイルに置く（`dag-executor.ts:3030` の `PERSISTED_NODE_OUTPUT_MAX_BYTES` と `formatPersistedNodeOutput`）。本物の run で確かめる（16 節の 1）。
 12. `conflict` と `unittrees` を写さず lib から呼ぶ（1.5.2）。根拠: keep-essence の 3 の「許す道は 1 本」と憲法の 4。README 9.2 の MOVE の範囲は組み込みで割る（16 節の 3）。
 13. intake は落ちず、読めない port は `ok: false` と理由で出口に出す。全体の形の `prep` の落ちる時（判定の写しが壊れている等）は今のまま落ちる（`nodes-ok` が落ちを見せ、finish は `ok: false` で返す）。
-14. 下請けの指示を組む口 `prompt.sub` と置き場 `prompts/sub/` を足した（1.5.4）。根拠: 憲法の 2（Python は指示の文を持たない）。
+14. 下請けの指示は `prompt.render_part` と `prompts/parts/` で組む（1.5.4。初めは `prompt.sub`・`prompts/sub/` を足したが、窓口の決めで plan-review の枝の口に揃えた）。根拠: 憲法の 2（Python は指示の文を持たない）。
 15. 7.1 の 3 の照らしを広げる（14.3）。根拠: 全体の形の AI の node は `archon workflow test` で届かない（`workflow:` の node は筋書きで差し替えられず、全体の形は fan_out で落ちる。止めた Archon の `dry-run.ts` の `collectsStub`）、`tdd` は dry-run の loop が 1 周で済むので届かない（同じ単位の 2 周目にだけ回る）。
 
 ### 13.2 指示の決め
@@ -871,7 +871,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 4. 写したモジュールの中の place の名の定数（`src/tdd.py` の `STATE`・`src/consult.py` の `QUESTION_FILE`・`src/clash.py` の `BRIEF`・`src/ruling.py` の `TREE` など）は写しのまま持つ（写しの中身を変えない決まりが勝つ）。`src/files.py` は今の `fixnames`・`fixbeside` の名と `fixboard` の置き場の名の定数（1.5.3）と新しい名を持つ。
 5. run をまたぐ控えの根（ライブラリの文書。今の `boundary.shared_cache`、環境変数 `STATE_DIR`）は `src/files.py` の `shared_cache()` に置いた（`.shared/ports.py` に口が無く、使い手はこの block だけ）。
 6. 修正役の指示は、範囲の節（段落 `scope`。真偽は承認済みの修正案が在るか）とテストの節（段落 `tests`。`rules` の時はいつも真）に分ける。根拠: 今の指示はテストの節（`planrange.tests_text`）をいつも載せ、範囲の節は修正案が在る時だけだった（2.3 の表）。修正案の無い run でも、変えてよい既存のテストと「これ以外の既存のテストの関数の本体を変える・消すと拒む」の文は指示に残す。
-7. 下請けの審査役の頼み `prompts/sub/g1-review.md` も、2.3.2 の `G1_EXTRA` のほかに、今の `seat.g1_prompt` どおり `G1_SUB_RULES` と検索の決まり `{shared:query-rule}`（`spawns` は偽）を持つ（今の能力を落とさない）。
+7. 下請けの審査役の頼み `prompts/parts/g1-review.md` も、2.3.2 の `G1_EXTRA` のほかに、今の `seat.g1_prompt` どおり `G1_SUB_RULES` と検索の決まり `{shared:query-rule}`（`spawns` は偽）を持つ（今の能力を落とさない）。
 8. TDD の役の座の効く所と効かない所は、差し込み口を `{seat_applies}`・`{seat_not_applies}` の 2 つに分けた（見出しの文を md に置くため。4.3 の 8 の `{seat_notes}`）。修正役の座の型の名は `{seat_file}`（今の `PROMPT_HEAD` の `{file}`）。
 9. 範囲の相談の答えの役の指示は、`board.consult_ask` が受ける口 `render`（`src/prompts.consult_render`）が md から組み、place の `consult-<pass>-<turn>-ask.md` と `<node>-prompt-<n>.md` の両方に同じ字が残る（今の `consult_ask` は指示書を書いていた）。頼みごとの節の材料は `src/consult.py` の `asks_text`（今の `question` から決まった文と答え方の行を除いた物）。
 10. 「読む物」の空の値は `(empty)`（今の `rulebook.EMPTY` の「（空）」の英語）。

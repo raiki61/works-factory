@@ -1,6 +1,6 @@
 """9 つの AI の node の指示に渡す値と段落の真偽（docs/design/fix.md の 2.3・3.3・4.3・5.3・6.3 の差し込み口の一覧）。
 
-指示の文は prompts/ の md が持ち、ここは値を集めて prompt.emit（下請けの頼みは prompt.sub）に渡すだけ。材料の行（brief・穴・範囲・
+指示の文は prompts/ の md が持ち、ここは値を集めて prompt.emit（下請けの頼みは prompt.render_part）に渡すだけ。材料の行（brief・穴・範囲・
 テスト・ライブラリ・相談の頼み・単位・引き継ぎ）は今の lib が組む日本語の字のまま入る（13.2 の 5）。組んだ指示は place の
 <node-id>-prompt-<n>.md に書く。
 """
@@ -201,7 +201,7 @@ def fixer(place, repo, pass_: str, values: dict, **kw) -> dict:
 
 
 def g1_files(place, values: dict, repo, owed: list[str], briefs: list, config: str = "") -> list[dict]:
-    """修正役が起こす下請けのファイルを、項目ごとに place に 2 つ書き（prompt.sub。名は今のまま g1-impl-<n>.md・g1-review-<n>.md）、
+    """修正役が起こす下請けのファイルを、項目ごとに place に 2 つ書き（prompt.render_part。名は今のまま g1-impl-<n>.md・g1-review-<n>.md）、
     項目の順の [{item, impl_file, review_file, base, patch}] を返す（今の fixrules.g1_values）。実装役は implementer の型
     （[BRIEF_FILE] はその項目の brief、[task name] はその項目の直す義務の単位、[REPORT_FILE] は seat.G1_IMPL_REPORT）、審査役は
     task-review の型（[BASE_SHA] は修正前の版、[DIFF_FILE] は place の g1-<n>.patch。型の <base>..<head> は <base> に直す）"""
@@ -214,11 +214,11 @@ def g1_files(place, values: dict, repo, owed: list[str], briefs: list, config: s
         patch = str(place / rules.G1_PATCH_FILE.format(n=n))
         template = seat.fill("implementer", {**common, "[task name]": task, "[BRIEF_FILE]": brief,
                                               "[REPORT_FILE]": seat.G1_IMPL_REPORT})
-        impl.write_text(prompt.sub("g1-impl", {"template": template.rstrip("\n"), "check_cmd": _check_cmd(config)},
+        impl.write_text(prompt.render_part("g1-impl", {"template": template.rstrip("\n"), "check_cmd": _check_cmd(config)},
                                    {"spawns": False, "ask": bool(config)}), encoding="utf-8")
         rv = rules.review_values(brief, values, base, patch)
         filled = seat.fill("task-review", rv).replace(f"{rv['[BASE_SHA]']}..{rv['[HEAD_SHA]']}", rv["[BASE_SHA]"])
-        review.write_text(prompt.sub("g1-review", {"template": filled.rstrip("\n")}, {"spawns": False}), encoding="utf-8")
+        review.write_text(prompt.render_part("g1-review", {"template": filled.rstrip("\n")}, {"spawns": False}), encoding="utf-8")
         rows.append({"item": n, "impl_file": str(impl), "review_file": str(review), "base": base, "patch": patch})
     return rows
 

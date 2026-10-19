@@ -3,7 +3,7 @@
 写しは元の関数の中身を変えない。指示の文は prompts/ の md が持ち、今の rulebook.render に渡した節の組み立て（fix_parts・tdd_parts・
 ruler_parts・write_prompt・tdd_render・ruler_prompt・start_lines）は写さない（src/prompts.py が prompt.emit に渡す値と段落の真偽を
 組む）。変えた所: 渡した証拠の種類の控えのパス（kinds_now・iteration_next は控えのファイルを受ける）、範囲の相談の控え（ask_config は
-控えのパスを返し、文は md）、下請けの項目（g1_items は項目の行を返し、ファイルは src/prompts.py が prompt.sub で書く）、相談の答えの
+控えのパスを返し、文は md）、下請けの項目（g1_items は項目の行を返し、ファイルは src/prompts.py が prompt.render_part で書く）、相談の答えの
 続きの周の値（resume_values）。
 """
 import json

@@ -1,0 +1,1 @@
+What to quote in the note of `{stuck_push}`: when the material has the section "Held items", quote the blocks of the held items listed there (this pass does not review those items), every block key raised in this pass, and the numbers of those items.

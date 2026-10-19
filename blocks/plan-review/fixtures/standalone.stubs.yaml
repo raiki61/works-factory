@@ -1,0 +1,28 @@
+# 単独の run（形 text）: 方針の文と目的だけで入口・方針の文の輪・出口を通る。script は本当に走り、AI の役の返答だけを差し替える
+fixture:
+  expect: completed
+  reached:
+  - intake
+  - text-prep
+  - review-text
+  - text-accept
+  - review-reads
+  - finish
+  inputs:
+    proposal: 'hook_env を tree_run.outside_env(os.environ) に寄せる。
+
+      読むだけの gh を PATH の頭に置く今の形は保つ。'
+    purpose: PR 用の commit を積むとき、commit のフックが対象のコマンドと同じ環境で走るようにする
+  resolved-text-contains:
+    review-text: What you review below is a policy statement only
+exec-code: true
+review-text:
+  faces:
+  - key: hook-env-gh-path-kept
+    kind: contract_drift
+    where: workflows/merge/scripts/pr_commit.py hook_env
+    why: outside_env に寄せると読むだけの gh を PATH の頭に置く所が二重になる
+    severity: suggest
+    reach: peripheral
+  shrink: []
+  reason: 方針の文を 8 種の確かめで読み、穴を 1 つ挙げた（PATH の組み立ての二重）
