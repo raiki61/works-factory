@@ -25,7 +25,7 @@ def _dump(value) -> str:
 
 
 def due(view, values) -> materialkit.Due:
-    if values["entry"]:
+    if materialkit.is_entry_run(view, values):
         return materialkit.entry_skip("外部標準の照合")
     return materialkit.Due(True, "外部標準の照合は、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回）")
 

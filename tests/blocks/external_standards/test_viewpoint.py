@@ -19,13 +19,16 @@ class ViewpointCase(unittest.TestCase):
             self.vp.applies(None, {})
         self.assertFalse(self.vp.judged_na(None, {}))
 
-    def test_due_follows_the_entry_port_only(self):
+    def test_due_is_skipped_only_when_entry_has_text_and_the_diff_is_empty(self):
+        empty = self.mk.View(".", "b", "r", "d", (), "c", "", 0)
         self.assertTrue(self.vp.due(self.view, {"entry": ""}).run)
-        got = self.vp.due(self.view, {"entry": "人の依頼（x）"})
-        self.assertFalse(got.run, "差分が在っても entry に字が在れば判定から入る run")
-        self.assertEqual(self.vp.fill(self.view, {"entry": "人の依頼（x）"}, got),
+        self.assertTrue(self.vp.due(empty, {"entry": ""}).run, "差分が空でも entry が空なら回す")
+        self.assertTrue(self.vp.due(self.view, {"entry": "人の依頼（x）"}).run, "差分が在れば entry に字が在っても回す")
+        got = self.vp.due(empty, {"entry": "人の依頼（x）"})
+        self.assertFalse(got.run, "差分が空で entry に字が在れば判定から入る run")
+        self.assertEqual(self.vp.fill(empty, {"entry": "人の依頼（x）"}, got),
                          {"external_standards": self.mk.fill_entry("人の依頼（x）", None)})
-        self.assertIn("件数は渡されていない", self.vp.fill(self.view, {"entry": "e"}, got)["external_standards"]["reason"])
+        self.assertIn("件数は渡されていない", self.vp.fill(empty, {"entry": "e"}, got)["external_standards"]["reason"])
 
     def test_values_and_paragraphs_follow_purpose_and_repo_review(self):
         purpose = {"purpose_text": "目的", "source": "①PR 説明", "known_weaknesses": ["弱点"], "source_files": []}

@@ -119,6 +119,7 @@ class FlowCase(unittest.TestCase):
         self.assertEqual(self.material()["materials"]["external_standards"]["status"], "not_run")
 
     def test_entry_run_does_not_start_the_role(self):
+        git(self.run.repo, "checkout", "--", "a.py")   # setUp の差分を戻し、差分が空の作業ツリーで回す
         got = self.intake(entry="人の依頼（試験）")
         self.assertFalse(got["due"])
         fin = self.finish()
@@ -127,6 +128,10 @@ class FlowCase(unittest.TestCase):
         self.assertEqual(mat["status"], "not_applicable")
         self.assertIn("人の依頼（試験）", mat["reason"])
         self.assertIn("件数は渡されていない", mat["reason"])
+
+    def test_entry_with_a_diff_still_runs_the_role(self):
+        got = self.intake(entry="人の依頼（試験）")
+        self.assertTrue(got["due"], "差分が在れば entry に字が在っても回す")
 
     def test_unreadable_purpose_fails_with_the_port_name(self):
         got = self.intake(purpose='{"purpose_text": ""}')
@@ -145,6 +150,8 @@ class FlowCase(unittest.TestCase):
         self.assertNotIn("no purpose text is given", got)
         self.assertNotIn("Why your previous answer was rejected", got)
         self.assertIn("in the language of the request", got, "lang が空なら既定の言語の文")
+        rule = (kit.BLOCKS / ".shared" / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()[0]
+        self.assertEqual(got.count(rule), 1, "外への検索の決まりは role-investigator の断片が持つ 1 回だけ")
         self.setUp()
         self.intake(purpose="null", lang="Japanese")
         got = self.prep()["prompt"]
