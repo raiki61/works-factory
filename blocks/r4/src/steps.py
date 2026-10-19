@@ -22,6 +22,7 @@ NOT_GIVEN = "(not given)"                                          # 渡って�
 NO_INTAKE = "入口の控え intake.json が無いか読めない（入口の node が落ちた）"
 UNREAD_INPUT = "入力が読めない: {why}"
 NO_R3 = "出力の欄 r3 が無い"
+ACCEPT_CRASHED = "（受け付けが落ちた: {why}）"                       # 判定の行の reason の尾
 
 
 def value(raw):
@@ -194,9 +195,23 @@ def accept(out, reply, fix_reply) -> dict:
     return take.scope(out, got, doc)
 
 
+def record_crash(out, why: str) -> None:
+    """受け付けが中の誤りで落ちた訳を place に残す（出口が読む。ここ自体は落ちない）"""
+    try:
+        jsonfile.write(pathlib.Path(out) / files.ACCEPT_CRASH, {"why": oneline.one_line(why)})
+    except Exception:  # noqa: BLE001 — 落ちた訳を残す口が落ちても、受け付けの返りは返す
+        pass
+
+
+def _crash_why(out) -> str:
+    crash = jsonfile.read_or(pathlib.Path(out) / files.ACCEPT_CRASH)
+    return str(crash.get("why") or "") if isinstance(crash, dict) else ""
+
+
 # ---------------------------------------------------------------- 出口
 def finish(out) -> dict:
-    """place の intake.json と範囲の役の返答から出力を組み、finish.json にも書く（docs/design/r4.md の 5 節）"""
+    """place の intake.json と範囲の役の返答から出力を組み、finish.json にも書く（docs/design/r4.md の 5 節）。受け付けが中の誤りで
+    落ちた印が在れば、読めた返答が在っても failed にし、判定の行の reason の尾に落ちた訳を足す"""
     out = pathlib.Path(out)
     doc = jsonfile.read_or(out / files.INTAKE)
     if not isinstance(doc, dict) or not doc.get("due"):
@@ -211,6 +226,10 @@ def finish(out) -> dict:
         gave_up = rolekit.given_up_reason(out, files.R4_NODE)
         if gave_up:
             row["reason"] += gate.R4_GAVE_UP.format(why=gave_up)
+        crashed = _crash_why(out)
+        if crashed:
+            row["reason"] += ACCEPT_CRASHED.format(why=crashed)
+            took = False
         passed = gate.human_passed(doc["asked"], doc["before_fix"])
         questions = gate.r4_gate_items(reply, passed)
         passes = gate.gate_passes(reply, passed, gate.passed_by(doc["before_fix"]))

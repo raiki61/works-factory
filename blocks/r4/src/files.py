@@ -5,6 +5,7 @@
 - r4-scope-prompt-<n>.md・r4-scope-fix-prompt-<n>.md: 組んだ指示（prompt.emit が書く）
 - r4-scope.json: 受け付けが回ごとに書く、読めた最後の返答（出し直しは前の答えと合わせた物）
 - rejects-r4-scope.json・candidate-r4-scope.json: 受け付けの拒否の控えと、合わせた答えの控え（lib/rolekit が名を組む）
+- accept-crash.json: 受け付けが中の誤りで落ちた訳 {why}（scope_accept.py の fallback が書き、出口が読む）
 - finish.json: 出口の出力の写し
 """
 import pathlib
@@ -16,8 +17,9 @@ DIFF = "run.diff"
 DIFF_NONE = "run-diff-none.txt"
 REPLY = f"{R4_NODE}.json"
 FINISH = "finish.json"
+ACCEPT_CRASH = "accept-crash.json"
 # 入口が消す物: この block が名を持つファイルだけ（名で引く。広い形で消さない）
-OWN_FILES = (INTAKE, DIFF, DIFF_NONE, REPLY, FINISH)
+OWN_FILES = (INTAKE, DIFF, DIFF_NONE, REPLY, FINISH, ACCEPT_CRASH)
 OWN_PROMPTS = (f"{R4_NODE}-prompt-*.md", f"{FIX_NODE}-prompt-*.md")
 
 

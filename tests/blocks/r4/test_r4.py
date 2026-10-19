@@ -124,8 +124,9 @@ class FlowCase(_RepoCase):
         self.accept(PASS)
         other = self.place / "rejects-other.json"
         other.write_text("[]", encoding="utf-8")
+        (self.place / "accept-crash.json").write_text("{}", encoding="utf-8")
         self.intake()
-        for name in ("r4-scope.json", "candidate-r4-scope.json", "rejects-r4-scope.json"):
+        for name in ("r4-scope.json", "candidate-r4-scope.json", "rejects-r4-scope.json", "accept-crash.json"):
             self.assertFalse((self.place / name).exists(), name)
         self.assertFalse(list(self.place.glob("r4-scope-prompt-*.md")))
         self.assertTrue(other.exists())
@@ -157,6 +158,34 @@ class FlowCase(_RepoCase):
         done = self.finish()
         self.assertEqual((done["ok"], done["status"]), (False, "failed"))
         self.assertIn("出口が落ちた", done["verdict"]["reason"])
+
+    def test_an_accept_that_fell_after_writing_the_reply_makes_finish_failed(self):
+        """受け付けが r4-scope.json を書いた後で中の誤りで落ちても、出口は ran にせず、判定の行の reason の尾に落ちた訳を足す（9 の 11・12）"""
+        self.intake(answers=dump({"before_fix": {"decision": "continue"}}))
+        doc = self.intake_json()
+        (self.place / "intake.json").write_text(dump({**doc, "asked": 5}), encoding="utf-8")
+        got = self.accept(PASS)
+        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
+        self.assertTrue(got["reason"].startswith("受け付けが落ちた: TypeError"), got["reason"])
+        self.assertTrue((self.place / "r4-scope.json").is_file())
+        self.assertIn("TypeError", json.loads((self.place / "accept-crash.json").read_text(encoding="utf-8"))["why"])
+        (self.place / "intake.json").write_text(dump(doc), encoding="utf-8")
+        done = self.finish()
+        self.assertEqual((done["ok"], done["status"]), (False, "failed"))
+        self.assertTrue(done["verdict"]["reason"].startswith("なし（受け付けが落ちた: TypeError"), done["verdict"]["reason"])
+        self.assertEqual(done["reason"], done["verdict"]["reason"])
+        self.assertIn("受け付けが落ちた", done["report"][0])
+
+    def test_an_accept_that_fell_before_writing_the_reply_is_named_in_finish(self):
+        """受け付けが返答を書けずに落ちた時も、出口の判定の行の reason に落ちた訳が載る（scope_accept.py の fallback の形）"""
+        self.intake()
+        (self.place / "r4-scope.json").mkdir()
+        got = self.accept(PASS)
+        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
+        self.assertTrue(got["reason"].startswith("受け付けが落ちた: "), got["reason"])
+        done = self.finish()
+        self.assertEqual((done["ok"], done["status"]), (False, "failed"))
+        self.assertIn("（受け付けが落ちた: ", done["verdict"]["reason"])
 
     def test_status_outside_the_words_is_unverifiable(self):
         self.intake()
@@ -374,7 +403,8 @@ class CoherenceCase(_RepoCase):
         self.intake(coherence="true")
         text = self.prep()["prompt"]
         for want in ("R3 overall coherence, in this same conversation", "You do not look at R1 or R2; other roles do",
-                     "Where concepts live", "Map of where concepts live", "(none at the root of the target repository)"):
+                     "Where concepts live", "Map of where concepts live", "(none at the root of the target repository)",
+                     "For R3, a conflict with the policy is judged by R3: write the item it conflicts with in `r3.reason`"):
             self.assertIn(want, text)
         r3 = {**R3, "status": "redesign-needed", "reason": "文書が古い"}
         self.assertTrue(self.accept({**PASS, "r3": r3})["ok"])
@@ -404,7 +434,8 @@ class CoherenceCase(_RepoCase):
         self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
         self.assertEqual(json.loads((self.place / "r4-scope.json").read_text(encoding="utf-8")), {**PASS, "r3": R3})
         for bad in ({"status": "pass", "reason": "", "seen": [], "unseen": []}, {"status": "weird", "reason": "x", "seen": [], "unseen": []},
-                    {"status": "pass", "reason": "x", "seen": "a", "unseen": []}, "x"):
+                    {"status": "pass", "reason": "x", "seen": "a", "unseen": []},
+                    {"status": "pass", "reason": "x", "seen": [], "unseen": "a"}, "x"):
             with self.subTest(bad=bad):
                 self.assertFalse(self.accept({**PASS, "r3": bad})["ok"])
                 (self.place / "rejects-r4-scope.json").unlink()

@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """R4 の範囲の役の返答の受け付け: 出し直しは前の答えの控えと欄ごとに合わせてから、方針とのぶつかりの名指しと（まとめた形では）欄 r3 を照らす。
-拒否は控えに積み、3 回目の拒否で輪を抜ける。落ちない（中の誤りは諦めた拒否にする）"""
+拒否は控えに積み、3 回目の拒否で輪を抜ける。落ちない（中の誤りは諦めた拒否にし、訳を place に残して出口が failed にする）"""
 import os
 import sys
 from pathlib import Path
@@ -18,4 +18,12 @@ def compute():
     return steps.accept(ports.place(), steps.value(os.environ.get("INPUTS_REPLY")), steps.value(os.environ.get("INPUTS_FIX_REPLY")))
 
 
-ports.run(compute, lambda why: {"ok": False, "done": True, "give_up": True, "reason": f"受け付けが落ちた: {why}"})
+def fallback(why: str) -> dict:
+    try:
+        steps.record_crash(ports.place(), why)
+    except Exception:  # noqa: BLE001 — 控えを残せなくても返りは返す
+        pass
+    return {"ok": False, "done": True, "give_up": True, "reason": f"受け付けが落ちた: {why}"}
+
+
+ports.run(compute, fallback)

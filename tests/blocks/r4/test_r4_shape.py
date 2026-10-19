@@ -140,7 +140,8 @@ class TextCase(unittest.TestCase):
                      "copy the row's body as it is", "A risk this change introduced or exposed is redesign-needed",
                      "never use [block]", "match the kind in [ ] (regression goes to `lost`, policy goes to `policy_conflicts`)",
                      "copy the body without changing a single character", 'Read "横断リスク観点" and follow it',
-                     "The list is examples, not a limit"):
+                     "The list is examples, not a limit",
+                     "whether to accept a lost capability is also for a person to decide at the approval node"):
             with self.subTest(want[:30]):
                 self.assertIn(want, text)
 

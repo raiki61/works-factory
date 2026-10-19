@@ -44,7 +44,7 @@ Where the machine put the ripple and the established practice (Read them if pres
 
 When the diff triggers the inventory (a migration, a procedure, a development flow, or UX), set `capability_inventory.fired` to true and say explicitly in `lost` whether a capability that BASE could do is gone (a silent omission is forbidden; an empty array if none). One row of `lost` is one capability, and it becomes one row asked of a person at the last approval node: if it is the same capability as in an earlier round, write it in the same words (a sentence a person already passed is not asked again). Also say explicitly in `policy_conflicts` where this cumulative diff conflicts with the person's policy (checked only against the rows of the section "Recorded policy" at the end; an empty array if none). One row is one conflict, and, like `lost`, it becomes one row asked of a person at the last approval node.
 
-Do not count what you list in `policy_conflicts` toward `status`: whether to let it through is for a person to decide at the approval node (making it redesign-needed would have the role decide before the person does). A capability you list in `lost` does not count toward `status` either.
+Do not count what you list in `policy_conflicts` toward `status`: whether to let it through is for a person to decide at the approval node (making it redesign-needed would have the role decide before the person does). A capability you list in `lost` does not count toward `status` either: whether to accept a lost capability is also for a person to decide at the approval node.
 
 Rows already passed at the approval node before the fix (a person's answer, or the push an unattended run took) are in the section "Narrowings passed at the approval node before the fix" above (if there is no such section, there is no passed row). If you see the same capability or the same conflict, copy the row's body as it is: a row with the same text is not asked again, and if you reword it, the same question goes to a person once more.
 
@@ -60,6 +60,7 @@ In this same conversation you look at two viewpoints: R4 (above) and R3 (below).
 - Write the R3 answer (`status`, `reason`, `seen`, `unseen`) in the field `r3`, and the R4 answer in the top-level fields of your reply.
 - Choose `status` for each viewpoint separately, by that viewpoint's own rule; do not match the label of the other viewpoint.
 - You may write what you found under one viewpoint in the fields of the other viewpoint too; when you do, write it by the rule of the viewpoint you write it to.
+- For R3, a conflict with the policy is judged by R3: write the item it conflicts with in `r3.reason` (the `policy_conflicts` rule is R4's only).
 - The reason the machine's check rejected your R4 answer is given in this conversation (in the section "Why your previous answer was rejected", or in the message that asks you to resubmit).
 
 {shared:eye-coherence}
