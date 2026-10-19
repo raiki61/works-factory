@@ -1,4 +1,4 @@
-"""line の筋書き（blocks/line/fixtures/）のうち、承認ノード・計画の往復・案の直し・再審・無人の run・修正の後の並行 PR の 19 本を dry-run の trace で照らす
+"""line の筋書き（blocks/line/fixtures/）のうち、承認ノード・計画の往復・案の直し・再審・無人の run・修正の後の並行 PR・守りのパスの 21 本を dry-run の trace で照らす
 （docs/design/line.md の 11 節。元は tests/e2e/test_line_scenarios.py の LineReturnsTest・UnattendedGateTest・HeldPushTest・
 ProtectedNotAppliedTest・RefixHandoffTest）。
 
@@ -17,10 +17,10 @@ import yaml
 from tests.blocks import kit
 
 NAMES = (
-    "eyes-failed-protected", "final-stop", "final-when-needed-green", "policy-continue", "policy-stop", "refix-handoff", "rejudge",
+    "eyes-failed", "final-stop", "final-when-needed-green", "policy-continue", "policy-stop", "refix-handoff", "rejudge",
     "rejudge-stop", "replan", "replan-answers", "replan-stop", "unattended-held-no-push", "unattended-held-push",
     "unattended-needs-human", "unattended-policy-change", "unattended-push", "unattended-push-stop", "unattended-questions",
-    "parallel-pr-after-found",
+    "parallel-pr-after-found", "seal-protected", "seal-protected-unattended",
 )
 
 
@@ -167,6 +167,30 @@ run は止まらず、答えの approve で差分を当てる"""
         self.assertTrue(ran(self.trace, "merge-apply__merge"))
 
 
+class SealProtectedCase(unittest.TestCase):
+    """keep-essence 10: 封じる段が守りのパスの当たりを返したら、最後の承認ノードは開き方に依らず開き、無人の run は開かずに止まる"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.t = traces(("seal-protected", "seal-protected-unattended"))
+
+    def test_hit_opens_the_final_gate_even_when_needed_only(self):
+        trace = self.t["seal-protected"]
+        got = out(trace, "ask-final")
+        self.assertTrue(got["open"], got)
+        self.assertIn("守りのパス", got["text"].splitlines()[0])
+        self.assertIn("tests/test_stats.py", got["text"])
+        self.assertTrue(ran(trace, "gate-final"))
+
+    def test_hit_stops_an_unattended_run_without_applying(self):
+        trace = self.t["seal-protected-unattended"]
+        got = out(trace, "ask-final")
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, "works:needs-human"), got)
+        self.assertFalse(ran(trace, "gate-final"))
+        self.assertFalse(ran(trace, "merge-apply__merge"))
+        self.assertIsNone(out(trace, "result")["apply"])
+
+
 class RejudgeCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -195,7 +219,7 @@ class UnattendedCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.t = traces(("unattended-questions", "unattended-policy-change", "unattended-push", "unattended-push-stop",
-                        "unattended-needs-human", "unattended-held-push", "unattended-held-no-push", "eyes-failed-protected"))
+                        "unattended-needs-human", "unattended-held-push", "unattended-held-no-push", "eyes-failed"))
 
     def test_questions_only_go_to_fix_without_the_gate(self):
         trace = self.t["unattended-questions"]
@@ -262,7 +286,7 @@ class UnattendedCase(unittest.TestCase):
 
     def test_eyes_failure_never_applies(self):
         """L-G50: 独立の目の graph が落ちた run は、封じる段から先が飛んだまま差分を当てない。報告と線の返りは出る"""
-        trace = self.t["eyes-failed-protected"]
+        trace = self.t["eyes-failed"]
         self.assertEqual(trace["eyes__verdict"]["state"], "failed")
         for node in ("merge-seal__merge", "ask-final", "gate-final", "answer-final", "merge-apply__merge"):
             self.assertFalse(ran(trace, node), node)
