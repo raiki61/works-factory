@@ -609,9 +609,8 @@ class SplitCase(_Case):
     def test_fixed_heads_are_the_literals_readers_match(self):
         """頭の決まった字（最小性・足りない・考えの住処・独立設計の 2 つの頭）は言語によらず読み手と同じ字で指示に入る（14 節の 20）"""
         prompt, _ = self.texts(design=V.dump(V.DESIGN_OK), lang="English")
-        for head in (files.MINIMAL_HEAD, files.SHORT_HEAD, files.HOME_HEAD, design.DRIFT_HEAD, design.UNPAIRED_HEAD):
+        for head in (files.MINIMAL_HEAD, files.SHORT_HEAD, material.concepthome.PREFIX, design.DRIFT_HEAD, design.UNPAIRED_HEAD):
             self.assertIn(f'"{head}"', prompt, head)
-        self.assertEqual(files.HOME_HEAD, material.concepthome.PREFIX)
         self.assertIn("in English.", prompt)
 
     def test_material_heads_are_named_by_the_md(self):

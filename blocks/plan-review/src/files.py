@@ -25,7 +25,6 @@ HUMAN_FACE_KINDS = ("regression", "policy")   # 人に回しうる穴の kind（
 REVIEW_MD = ports.lib_root() / "REVIEW.md"    # 観点の正本。組み込みで置き場が変わる時はこの 1 か所を直す
 MINIMAL_HEAD = "最小性:"                # 範囲の膨張の穴のうち最小性の穴の why の頭（md と読み手が同じ字を持つ）
 SHORT_HEAD = "足りない: "               # 入力が足りない時の faces_none・reason の頭
-HOME_HEAD = "考えの住処: "
 
 # ---------------------------------------------------------------- place のファイル
 INTAKE = "intake.json"

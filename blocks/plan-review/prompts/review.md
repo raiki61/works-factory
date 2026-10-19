@@ -86,6 +86,6 @@ The section "Replan items" of the material holds, for each ruled item, the earli
 - In `unit_keys`, point at units by the integer `no` that the machine numbered after `Units:` in the material. Do not copy the key: the machine turns the number back into the unit's name and records it.
 - `kind` is exactly one of the eight words of "What to look at".
 - {part:absorb-ask}
-- Write the text of `where`, `why`, `no_add`, the text part of `decided_by`, `undecided_because`, `world`, `recommend.note`, `recommend.why`, `no_narrow`, the `alternative` and `why` of `shrink`, `faces_none`, `reason`, `stuck_recommend.note`, `stuck_recommend.why`, and the `why` of `design_map` in {lang}. Keep keys, paths, identifiers, commands, error texts, and the characters inside quotes 「…」 as they are. Write the fixed heads ("{drift_head}", "{unpaired_head}", "{minimal_head}", "{short_head}", "{home_prefix}") as they are, whatever the language.
+- Write the text of `where`, `why`, `no_add`, the text part of `decided_by`, `undecided_because`, `world`, `recommend.note`, `recommend.why`, `no_narrow`, the `alternative` and `why` of `shrink`, `faces_none`, `reason`, `stuck_recommend.note`, `stuck_recommend.why`, and the `why` of `design_map` in {lang}. Keep keys, paths, identifiers, commands, error texts, and the characters inside quotes 「…」 as they are. Write the fixed heads ("独立設計との構造の食い違い: ", "独立設計に対の無い仕組み: ", "{minimal_head}", "{short_head}", "考えの住処: ") as they are, whatever the language.
 
 Return only JSON that matches the output schema.

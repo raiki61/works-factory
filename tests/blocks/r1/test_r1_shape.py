@@ -157,6 +157,13 @@ class TextCase(unittest.TestCase):
         self.assertIn("as a justifiable increment", unhoused)
         self.assertNotIn("{st_", unhoused)
 
+    def test_minimality_writes_the_home_head_as_the_readers_do(self):
+        """考えの住処の頭の字は md が直に持つ（lib の頭の定数を値で渡さない）。報告と承認ノードの読み手の字と同じ"""
+        import concepthome   # lib/（kit.load が sys.path に足す）
+        text = md("r1-minimality")
+        self.assertEqual(text.count(f'"{concepthome.PREFIX}"'), 2)
+        self.assertNotIn("{home_prefix}", text)
+
     def test_minimality_holds_the_shared_sections(self):
         """test_concept_map_only_on_r1_and_r3・test_policy_section_on_r1_r3_r4・test_concept_map_is_pasted_after_the_concept_head の r1"""
         text = md("r1-minimality")
