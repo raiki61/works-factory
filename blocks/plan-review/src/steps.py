@@ -3,7 +3,7 @@
 _role_item・replan_items〔:588-612〕・_tree_on〔:692-696〕の写し）。
 
 - intake(out, repo, **raw): port の字を読み、形を決め、place のこの block のファイルを名で消して材料を写し、intake.json を書く。
-  返り {due, form, tree, k, reason}。落ちない（誤りは intake-error.json の {why} と due: false）
+  返り {due, form, tree, k, reason}。落ちない（誤りは intake-error.json の {why, form} と due: false）
 - proposal_form(raw) -> ("plan", 修正案の役の返答) か ("text", 方針の文): 審査する物の形の決め（8 節の intake の 2）
 - recorded_rows(recorded, policy_path) -> 記録された方針の行（port recorded が空で方針が在れば、方針の文書の行だけ）
 - replan_items(b, approved, marked_rows, ruled, conflicts): 形 replan の裁かれた項目ごとの材料
