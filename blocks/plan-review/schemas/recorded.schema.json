@@ -1,0 +1,15 @@
+{
+  "description": "記録された方針の行（lib/policy.py の recorded の行の形）。source は出どころの語、name は役が字のまま名指す字",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["source", "name"],
+    "properties": {
+      "source": {"type": "string", "enum": ["doc", "answer", "gate", "push", "settled"]},
+      "name": {"type": "string"},
+      "text": {"type": "string"},
+      "lines": {"type": "integer"},
+      "alias": {"type": "string"}
+    }
+  }
+}

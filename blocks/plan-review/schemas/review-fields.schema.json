@@ -1,0 +1,10 @@
+{
+  "description": "修正案の項目ごとの works の欄（入力 fields の先 plan-fields.json の形）。round は計画の周、fields は項目ごとの欄、amended は差し替えた項目の核の欄",
+  "type": "object",
+  "required": ["round", "fields"],
+  "properties": {
+    "round": {"type": "integer", "minimum": 1},
+    "fields": {"type": "array"},
+    "amended": {"type": "object"}
+  }
+}

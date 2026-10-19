@@ -3,7 +3,8 @@
 1. AI の node の prompt: は、同じ workflow の script の node の `$<id>.output.prompt` 1 つだけ。command: を持つ AI の node は無い。
    systemPrompt: を持つなら、同じ prep の `$<id>.output.system` 1 つだけで、prompts/<node-id>.system.md が在る（逆も）
 2. AI の node ごとに prompts/<node-id>.md が在り、prompts/ の直下の md はどれもどれかの AI の node の物（<node-id>.md か
-   <node-id>.system.md）。prompts/parts/ の md はどれも同じ block のどれかの md から {part:…} で差し込まれる。md の
+   <node-id>.system.md）。prompts/parts/ の md はどれも同じ block のどれかの md から {part:…} で差し込まれるか、同じ block の
+   scripts/・src/ の prompt.render_part("<name>" の呼び（コメントと文の字の中は数えない）が名指す。md の
    {shared:…}・{part:…} の先が在る
 3. 指示が筋書きの値で md から組める: standalone の筋書きは exec-code: true。どの AI の node も、exec-code: true でその prep を
    差し替えない筋書きのどれかで reached に在り、その筋書きの resolved-text-contains が、その node の md の決まった文（断片を
@@ -31,6 +32,7 @@
 置かない）・E16（承認ノードの形）・E19（AI の node の retry）は tests/layers/scan.py の照らしを、blocks/ を workflows/ の場所に写した
 一時の木に当てる。uv の script の頭の宣言（4 行）はここで照らす。E1（archon validate が警告なしで通る）は ArchonCase。
 """
+import ast
 import json
 import pathlib
 import re
@@ -54,6 +56,7 @@ FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
+RENDER_PART_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")   # blocks/.shared/prompt.py の NODE_ID と同じ字（render_part はほかの名を拒む）
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
 STANDALONE = "standalone"
@@ -104,6 +107,20 @@ def is_pointer(value: str) -> bool:
     return isinstance(got, dict) and got.get("type") == "archon_artifact"
 
 
+def render_part_names(text: str) -> set[str]:
+    """Python の字の中の prompt.render_part("<name>", …) の呼びが名指す断片の名（コメントと文の字の中の物は呼びでないので数えない。
+    名が RENDER_PART_NAME に合わない呼びは回すと落ちるので数えない）"""
+    try:
+        tree_ = ast.parse(text)
+    except SyntaxError:
+        return set()
+    return {call.args[0].value for call in ast.walk(tree_)
+            if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr == "render_part"
+            and isinstance(call.func.value, ast.Name) and call.func.value.id == "prompt" and call.args
+            and isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str)
+            and RENDER_PART_NAME.fullmatch(call.args[0].value)}
+
+
 def py_files(folder: pathlib.Path) -> list[pathlib.Path]:
     return sorted(p for sub in ("scripts", "src") for p in (folder / sub).rglob("*.py") if "__pycache__" not in p.parts)
 
@@ -144,8 +161,9 @@ def check_prompt_files(pack: pathlib.Path) -> list[str]:
         texts = [p.read_text(encoding="utf-8") for p in prompts.rglob("*.md")] if prompts.is_dir() else []
         refs = {m.groups() for text in texts for m in FRAGMENT.finditer(text)}
         parts = {p.stem for p in (prompts / "parts").glob("*.md")} if (prompts / "parts").is_dir() else set()
-        out += [f"{folder.name}: prompts/parts/{p}.md はどの md からも {{part:{p}}} で差し込まれない"
-                for p in sorted(parts - {name for kind, name in refs if kind == "part"})]
+        called = {name for path in py_files(folder) for name in render_part_names(path.read_text(encoding="utf-8"))}
+        out += [f"{folder.name}: prompts/parts/{p}.md はどの md からも {{part:{p}}} で差し込まれない（prompt.render_part(\"{p}\" の呼びも無い）"
+                for p in sorted(parts - {name for kind, name in refs if kind == "part"} - called)]
         for kind, name in sorted(refs):
             where = pack / SHARED / "prompts" if kind == "shared" else prompts / "parts"
             if not (where / f"{name}.md").is_file():
@@ -510,6 +528,22 @@ class SeedCase(unittest.TestCase):
             with self.subTest(check=check.__name__, changes=sorted(changes)):
                 got = self.broken(check, changes)
                 self.assertTrue(any(word in line for line in got), (word, got))
+
+    def test_part_named_only_by_render_part(self):
+        """parts の md は、scripts/・src/ の prompt.render_part("<name>" の呼びだけが名指しても通る。コメントの中の字・名の字が
+        prompt.NODE_ID に合わない呼び（回すと落ちる）・どこからも名指されない物は赤"""
+        brief = {"demo/prompts/parts/brief.md": "brief\n"}
+        cases = [("from src import prompt\nprompt.render_part('brief', {})\n", True),
+                 ("# prompt.render_part('brief', {}) は使わない\n", False),
+                 ('"""prompt.render_part("brief", {})"""\n', False),
+                 ("", False)]
+        for code, clean in cases:
+            with self.subTest(code=code):
+                got = self.broken(check_prompt_files, {**brief, "demo/src/x.py": code})
+                self.assertEqual(got == [], clean, got)
+        got = self.broken(check_prompt_files, {"demo/prompts/parts/my_brief.md": "x\n",
+                                               "demo/src/x.py": "prompt.render_part('my_brief', {})\n"})
+        self.assertTrue(any("{part:my_brief} で差し込まれない" in line for line in got), got)
 
     def test_self_workflow_is_allowed_in_a_block(self):
         """block が起こしてよい workflow は自分（直しの組ごとに自分を子の run として起こす形）"""

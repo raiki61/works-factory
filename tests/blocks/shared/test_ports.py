@@ -159,6 +159,15 @@ class HelperCase(Base):
         self.assertIn(f'SHARED_CACHE_ENV = "{ports.SHARED_CACHE_ENV}"', boundary)
         self.assertIn(f'SHARED_CACHE = "{ports.SHARED_CACHE}"', boundary)
 
+    def test_shared_cache_follows_state_dir(self):
+        boundary = (kit.ROOT / "workflows" / ".shared" / "boundary.py").read_text(encoding="utf-8")
+        self.assertIn(f'SHARED_CACHE = "{ports.SHARED_CACHE}"', boundary)
+        with mock.patch.dict(os.environ, {"STATE_DIR": "/s"}):
+            self.assertEqual(ports.shared_cache(), pathlib.Path("/s") / "works-factory")
+        with mock.patch.dict(os.environ):
+            os.environ.pop("STATE_DIR", None)
+            self.assertIsNone(ports.shared_cache())
+
     def test_polyfill_reads_the_shared_parts(self):
         self.assertIsNone(ports.polyfill("skip_value").parsed("null"))
         with self.assertRaisesRegex(ValueError, "無い"):
