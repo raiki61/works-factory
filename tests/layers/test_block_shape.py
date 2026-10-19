@@ -1,4 +1,4 @@
-"""blocks/ の block と graph の形の検査（docs/design/README.md の 7.1）。どれも yes/no で、数の上限・許す物の表は持たない。
+"""pack（tests/archon.py の WORKFLOWS。組み込みの入れ替えの後の workflows/）の block と graph の形の検査（docs/design/README.md の 7.1）。どれも yes/no で、数の上限・許す物の表は持たない。
 
 1. AI の node の prompt: は、同じ workflow の script の node の `$<id>.output.prompt` 1 つだけ。command: を持つ AI の node は無い。
    systemPrompt: を持つなら、同じ prep の `$<id>.output.system` 1 つだけで、prompts/<node-id>.system.md が在る（逆も）
@@ -50,7 +50,7 @@ from tests.layers import scan
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BLOCKS = ROOT / "blocks"
+BLOCKS = archon.WORKFLOWS   # pack のフォルダ（入れ替えの前は workflows/ の古いサブグラフを指す。docs/design/integration.md の 4.5-11）
 SHARED = ".shared"
 LIB = ROOT / "lib"
 FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\([a-z0-9_-]+(?:\|[a-z0-9_-]+)+\)): ")

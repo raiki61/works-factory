@@ -1169,17 +1169,9 @@ def _graph(root: Path, rel: str) -> list:
 
 @functools.cache
 def tiers() -> dict:
-    """段 → 回す物の表（line の src/tiers.py の TIERS。docs/design/line.md の 1.5。今の lib/depth.py の TIERS の行き先）。
-    block の src は package の名 src が block ごとに重なるので、読む前に前の src を外す（tests/blocks/kit.py の load と同じ）"""
-    folder = str(REPO / OURS["folder"] / LINE_FOLDER)
-    for name in [m for m in sys.modules if m == "src" or m.startswith("src.")]:
-        del sys.modules[name]
-    sys.path.insert(0, folder)
-    try:
-        import src.tiers  # noqa: PLC0415
-        return src.tiers.TIERS
-    finally:
-        sys.path.remove(folder)
+    """段 → 回す物の表（line の src/tiers.py の TIERS。docs/design/line.md の 1.5。今の lib/depth.py の TIERS の行き先）"""
+    from tests import archon  # noqa: PLC0415  （tests.archon は bin と試験の助けを読むので、使う時だけ読む）
+    return archon.src_module(LINE_FOLDER, "tiers").TIERS
 
 
 def _depth_when(root: Path) -> list[str]:

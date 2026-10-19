@@ -32,9 +32,6 @@ ROOT_ENV = "WORKS_FACTORY_ROOT"
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
-# 新しい run が読む pack のフォルダ（リポジトリの根の直下のフォルダの名）。空は pack.json の ours.folder。作り直しの間の 2 つ目の
-# pack blocks/ を単独で回す時に blocks を選ぶ（docs/design/README.md の 3 章）。続ける命令は run が始めに写し取った pack から走るので読まない
-FOLDER_ENV = "WORKS_FACTORY_FOLDER"
 NO_AUTH_ENV = "WORKS_FACTORY_NO_AUTH"   # 認証の要らない起動（lib/entryshape.py の NO_AUTH_ENV と同じ名）
 HOST_GH_DIR = "host-gh"
 FENCE_DIR = "claude-fence"
@@ -163,7 +160,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         args = argv
     else:
         try:
-            workflows = place.workflow_source(loaded, ROOT, cache, pack_folder(user))
+            workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
         rest = without_flag(without_flag(argv[3:], "--cwd"), "--config")
@@ -183,17 +180,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     if not reads_only(argv):
         command = [*auth, "exec", *auth_user, "--", *command]
     os.execve(command[0], command, child)
-
-
-def pack_folder(user: Mapping[str, str]) -> str | None:
-    """新しい run が読む pack のフォルダの名（FOLDER_ENV。空なら None で pack.json の ours.folder）。リポジトリの根の直下の
-    フォルダの名でなければ止める"""
-    name = user.get(FOLDER_ENV, "").strip()
-    if not name:
-        return None
-    if "/" in name or name.startswith(".") or not (ROOT / name).is_dir():
-        raise Stop(f"{FOLDER_ENV}={name!r} はリポジトリの根の直下の pack のフォルダの名にする（例 blocks）")
-    return name
 
 
 def reads_only(argv: list[str]) -> bool:

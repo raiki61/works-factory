@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 from bin._lib import isolate
+from tests.archon import WORKFLOWS
 from tests.layers import scan
 from tests.layers.trees import tree
 
@@ -186,7 +187,7 @@ class ReadonlyNodesTest(unittest.TestCase):
         """表が名指した節は本物の工程の script・bash の節（表が古くなって黙って外さない）"""
         for block, ident in scan.CHANGE_CHECKOUT:
             with self.subTest(block=block, node=ident):
-                folder = next(p for p in (ROOT / "workflows" / block, ROOT / "blocks" / block) if p.is_dir())   # 作り直しの間は blocks/ の block も
+                folder = WORKFLOWS / block
                 _, document = scan._workflow_doc(folder)
                 node = next((n for n in scan._nodes(document) if getattr(scan._top(n, "id"), "value", None) == ident), None)
                 self.assertIsNotNone(node)
