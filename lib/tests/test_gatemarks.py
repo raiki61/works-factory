@@ -18,7 +18,7 @@ if str(LIB) not in sys.path:
 import answer  # noqa: E402
 import gatemarks  # noqa: E402
 import seal  # noqa: E402
-from tests.archon import WORKFLOWS  # noqa: E402
+from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
 
 FORK = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "depends": ["B"], "options": ["x", "y"], "reason": "割れる"}
 PUSHED_FORK = {**FORK, "reason": "割れる。推し: x——呼び手が既に x を前提にしている"}

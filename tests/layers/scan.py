@@ -124,6 +124,10 @@ ALLOWED = {
         # 借りたスキルを無人の役で読む時の読み替え（役が読む文）。役の skills: の宣言と受け付けのループを、役に名指して説く
         "lib/borrow/unattended.md#Archon",
         "lib/borrow/unattended.md#loop_group",
+        # Archon の run の記録（$LOG_DIR/<WORKFLOW_ID>.jsonl）を読む口。report と chain の 2 つが使うので lib に上げた
+        # （docs/design/integration.md の 4.5-2 の決め）
+        "lib/runlog.py",
+        "lib/tests/test_runlog.py",
     ),
     "E21": (
         # 試験の子の環境の唯一の作り手
@@ -902,7 +906,6 @@ ROLE_KINDS = ("prompt", "command")
 CODE_KINDS = ("script", "bash")
 TREE_CHANGERS = frozenset({"Bash", "Edit", "Write"})
 KEEP_CHECKOUT = {
-    ("judge", "judge-verify"): "単位ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
     ("verify", "judge-verify"): "単位ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout。blocks/ の block の名での同じ行）",
     ("plan-review", "plan-review"): "束ね役と同じ起こし方の錨 review_launch から Write を持つが、作業ツリーも run の置き場も書かない（単独の審査）",
     ("plan-review", "plan-review-fix"): "plan-review の会話の続きの出し直しの役。束ね役と同じ起こし方の錨 review_launch から Write を持つが、"
@@ -927,7 +930,6 @@ ALTERNATE_ROLES = {"plan-review": ({"plan-review", "plan-review-fix", "plan-revi
                                    {"review", "review-fix", "review-tree", "review-tree-fix"})}
 CHANGE_CHECKOUT = {
     ("line", "start"): "始めの記録を run の置き場に書くだけだが、今の線は印を持たない。足すと Archon の照らしが増えて振る舞いが変わるので部分 0 では足さない",
-    ("judge", "spec-freeze"): "人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（lib/judge_accept._spec_run）",
     ("spec", "spec-freeze"): "人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（blocks/spec/src/freeze.py の run_command）",
     ("fix", "group-start"): "親の姿の木を作業ツリーと index に写す（groups.adopt_tree）",
     ("fix", "join"): "並べた組の子の差分を親の作業ツリーへ当て、当たらない組は戻す（unittrees.apply）",
@@ -939,8 +941,6 @@ CHANGE_CHECKOUT = {
     ("fix", "tdd-step"): "諦めた単位を単位の頭の木に戻す（tddloop.step）",
     ("fix", "fix-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply）",
     ("fix", "fix-ruled-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply の ruled）",
-    ("fix", "refix-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
-    ("fix", "refix2-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("test-gate", "run"): "対象のテストを作業ツリーで走らせる（declared_checks.run_ci）",
     ("merge", "pr-commit"): "出口の語 pr の時に、照らした差分を run の枝へ修正案の項目ごとの commit で積む（index と HEAD を変える。runbranch.commit・commit_parts）",
     **{("chain", f"round-{k}-commit"): "周の結果を親の run の枝へ commit する（index と HEAD を変える）" for k in range(1, chain.MAX_ROUNDS + 1)},

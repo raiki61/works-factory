@@ -15,7 +15,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
-from tests.archon import WORKFLOWS  # noqa: E402
+from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
 
 SKIP = ("graphloops/",)
 # 報告と次の run の依頼に残る語の字（変えると前の run の止めを読み違える）。表の語と、lib と block が declare で足す語

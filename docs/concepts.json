@@ -463,7 +463,7 @@
       ],
       "workflows/line/src/sections.py": [
        1,
-       "始めの記録の prior_failures を報告の節の材料に渡す所（中身は読まない。字の形で中身を直に読む形と分けられない）"
+       "始めの記録の prior_failures を報告の章の材料に渡す所（中身は読まない。字の形で中身を直に読む形と分けられない）"
       ],
       "workflows/plan/src/brief.py": [
        1,

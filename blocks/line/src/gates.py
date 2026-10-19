@@ -472,7 +472,7 @@ def located(value, what: str, unread: list) -> str:
         run_id = os.environ.get("WORKFLOW_ID", "")
         if value.get("run_id") != run_id:
             raise ValueError(f"{what} の pointer がほかの run を指す: {value.get('run_id')!r}（この run は {run_id!r}）")
-        path = ports.inside(value.get("path"), os.environ["ARTIFACTS_DIR"])
+        path = ports.inside(value.get("path"), ports.place())   # line は include されないので place は run directory そのもの
         shown = value.get("path")
     elif isinstance(value, str):
         path = pathlib.Path(value.strip())

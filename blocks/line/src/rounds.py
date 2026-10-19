@@ -480,7 +480,7 @@ def stuck_push_due(doc: dict, *, unattended: bool, design_only: bool) -> bool:
 
 
 # ---------------------------------------------------------------- 計画の周の前の支度（node owed）
-# 計画の 1 回目の周が修正案の役を起こすかを、plan の block の周を開く口（blocks/plan の intake）と同じ入力の同じ並びで決める。決めの
+# 計画の 1 回目の周が修正案の役を起こすかを、plan の block の周を開く口（plan の block の intake）と同じ入力の同じ並びで決める。決めの
 # 元は lib/planfile.py の round_inputs・held_why（docs/design/line.md の 13 節は lib に残すと書いたが、plan の block が自分の src へ
 # 写したので、line も同じ式を写す。plan の側の写しと字を揃える）。名は元のまま（stuck_reason は往復の記録の口と重なるので
 # plan_stuck_reason）

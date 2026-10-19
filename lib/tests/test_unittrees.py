@@ -28,7 +28,7 @@ if str(LIB) not in sys.path:
 import groups  # noqa: E402
 import unittrees  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
-from tests.archon import WORKFLOWS  # noqa: E402
+from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
 
 CLASH_PART = WORKFLOWS / "fix" / "prompts" / "parts" / "clash.md"   # 合わせ役の指示（fix の block。pack のフォルダから引く）
 
