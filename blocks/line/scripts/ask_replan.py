@@ -17,7 +17,7 @@ workflows/line/scripts/ask_replan.py の決まりのまま）。
 
 入力（with:）: replan（replan-out の got）・review（replan-review-out の got か null）・old_plan（承認済みの案の欄の pointer）・
 items（直す計画の項目の番号）・conflicts（1 回目の修正の申し出と裁定の pointer か null）・before_fix（修正前の承認ノードの答え）・
-ports（start の配る値）
+record（始めの記録の pointer。方針の文書が固めた版から変わっていれば、その行を聞く項目に足す）・ports（start の配る値）
 """
 import json
 import os
@@ -36,6 +36,7 @@ ITEM_HEAD = "## 人に聞く直した項目 {n}（単位 {units}）"   # 元 rep
 OLD_HEAD = "### 前の項目（承認済み。機械が貼った）"   # 元 replan.OLD_HEAD
 NEW_HEAD = "### 直した項目（修正案の役が返した形。機械が貼った）"   # 元 replan.NEW_HEAD
 REVIEW_FELL = "案の直しの事前審査が案を審査できていない（{why}）"
+PREVIOUS = "gates/gate-replan.json"   # 同じ承認ノードの前の答え（answer.taken が書く。resume で回し直した時に聞き直さない）
 
 
 def plan_items(path: str) -> list | None:
@@ -92,7 +93,19 @@ def passed_before(before_fix, face: dict) -> bool:
     return any(isinstance(a, str) and a.startswith(head) for a in before_fix.get("asked") or [])
 
 
-def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before_fix, *, unattended: bool, run_id: str) -> dict:
+def policy_row(record: dict, folder: Path, answered: list) -> str:
+    """方針の文書が始めの記録の固めた版から変わっていれば、その行（src.gates.change_row）。今の案の直しの承認ノードも、事前審査の
+    _asked が方針の変化の行を足して開いた（元 lib/boardview.py の collect）。人が前に continue で通した同じ文の行は聞き直さない
+    （修正前の承認ノードの答えか、この承認ノードの前の答え。ほかの行と同じ決まり）。修正前に通して固め直した run は、始めの記録の
+    方針が今の版なので行が出ない"""
+    from src import gates
+    change = gates.policy_change(record, Path.cwd(), folder)
+    row = gates.change_row(change) if change else ""
+    return "" if not row or gates._continued(answered, row) else row
+
+
+def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before_fix, *, unattended: bool, run_id: str,
+        policy: str = "") -> dict:
     import answer
     import gatemarks
     import replan
@@ -127,6 +140,8 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
     for r in facts:
         if unattended and isinstance(r, dict) and r.get("widened") and not r.get("human"):
             widened.append(f"項目 {r.get('item')}: {replan.widen_text(r['widened'])}")
+    if policy:
+        rows.append(policy)
     if not rows:
         return {**closed, "go": True, "widened": widened}
     if unattended:
@@ -147,14 +162,19 @@ def compute() -> dict:
     raw = {"replan": os.environ.get("INPUTS_REPLAN"), "review": os.environ.get("INPUTS_REVIEW"),
            "old_plan": os.environ.get("INPUTS_OLD_PLAN"), "items": os.environ.get("INPUTS_ITEMS"),
            "conflicts": os.environ.get("INPUTS_CONFLICTS"), "before_fix": os.environ.get("INPUTS_BEFORE_FIX"),
-           "ports": os.environ.get("INPUTS_PORTS")}
-    from src import gates
+           "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS")}
+    from src import gates, startrec
 
     given = ports.parsed(raw["ports"]) or {}
     ids = ports.parsed(raw["items"]) or []
+    record_path = ports.file(raw["record"])
+    before_fix = ports.parsed(raw["before_fix"])
+    previous = gates.read_json(ports.place() / PREVIOUS)
+    answered = [a for a in (before_fix, previous) if isinstance(a, dict)]
+    row = policy_row(startrec.load(record_path) if record_path else {}, ports.place(), answered)
     return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW), gates.path_of(raw["old_plan"]),
-               [str(x) for x in ids] if isinstance(ids, list) else [], gates.path_of(raw["conflicts"]), ports.parsed(raw["before_fix"]),
-               unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"])
+               [str(x) for x in ids] if isinstance(ids, list) else [], gates.path_of(raw["conflicts"]), before_fix,
+               unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row)
 
 
 def fallback(reason: str) -> dict:

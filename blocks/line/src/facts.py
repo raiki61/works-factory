@@ -337,12 +337,19 @@ def plan_gave_up(returns: dict) -> bool:
         and bool(_units(returns)) and not plan_nothing_owed(returns)
 
 
+def review_fell(returns: dict) -> bool:
+    """計画は通ったのに事前審査が諦めた・落ちた周（plan-out の review_status）"""
+    plan = as_dict(returns.get("plan"))
+    return plan.get("status") == "ok" and plan.get("review_status") in ("gave_up", "failed")
+
+
 def halt_rows(returns: dict) -> list:
     """line が返りの欄から読んだ止め: 往復が進まない（修正へ進まなかった run）・計画の諦め・封じと置きの ok でない"""
     import stopby
     out = []
     plan = as_dict(returns.get("plan"))
-    if plan.get("stalled") is True and returns.get("fix") is None:
+    if (plan.get("stalled") is True or review_fell(returns)) and returns.get("fix") is None:
+        # 事前審査が諦めた・落ちた周も往復が進まない止め（今の事前審査は諦めた周を stalled で返した。元 lib/boardview.py の verdict）
         out.append({"at": "plan-review", "word": stopby.PLAN_CONVERGE})
     if plan_gave_up(returns):
         sr = plan.get("stop_reason")
@@ -367,8 +374,11 @@ def wait_rows(values: dict, returns: dict) -> dict:
         others.append({"at": "eyes", "word": "premise-escalate"})
     if eye_questions(returns):
         others.append({"at": "eyes", "word": "r4-ask"})
-    deferred = _list(as_dict(values.get("ask_before_fix")).get("deferred"))
-    if deferred and returns.get("fix") is None and as_dict(values.get("answer_before_fix")).get("answer") is None:
+    # 修正前に人に聞く物（載せなかった台帳の問いか、承認ノードに載せた行）が残ったまま、答えも修正も無い run（今の outcome._waits の
+    # 事前審査の ask_human。ask_human は関所の項目と諦めた往復の行を持った）
+    before = as_dict(values.get("ask_before_fix"))
+    pending = _list(before.get("deferred")) or _list(before.get("asked"))
+    if pending and returns.get("fix") is None and as_dict(values.get("answer_before_fix")).get("answer") is None:
         others.append({"at": "plan-review", "word": "ask-human"})
     return {"conflicts": [{"at": "fix", "word": stopby.CONFLICT}] if asked else [],
             "conflicts_if_closed": [{"at": "fix", "word": stopby.CONFLICT}] if waiting else [], "others": others}

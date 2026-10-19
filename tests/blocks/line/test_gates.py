@@ -34,7 +34,7 @@ def rounds(**over) -> dict:
     """計画の往復の受け皿の got（plan-out の返り）。既定は修正へ進む抜け方で、人に回しうる行は無い"""
     return {"done": True, "ok": True, "status": "ok", "round": 1, "plan_prior": None, "record": None, "plan": None, "fix_plan": None,
             "reply": None, "handoffs": [], "ripple": None, "owed": ["u1"], "gave_up": None, "stalled": False, "capped": False,
-            "review": None, "asks": [], "deviations": [], "stop_reason": "", **over}
+            "review": None, "asks": [], "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": "", **over}
 
 
 class AskBeforeFixCase(unittest.TestCase):
@@ -420,11 +420,12 @@ class ScriptCase(unittest.TestCase):
     def review_got(self, rows, status="ok"):
         return {"ok": status == "ok", "status": status, "reason": "", "replan": rows, "round": 1, "holes": None, "blocks": []}
 
-    def ask_replan(self, rows, *, status="ok", unattended=False, before_fix="null"):
+    def ask_replan(self, rows, *, status="ok", unattended=False, before_fix="null", record=None):
         old, new = self.plans()
         return self.run.script("ask_replan", replan=json.dumps(self.replan_got(new)),
                                review=json.dumps(self.review_got(rows, status)) if status else "null", old_plan=old,
-                               items=json.dumps([1]), conflicts="null", before_fix=before_fix, ports=self.ports(unattended=unattended))
+                               items=json.dumps([1]), conflicts="null", before_fix=before_fix,
+                               record=record or self.put("r1/start.json", {}), ports=self.ports(unattended=unattended))
 
     def test_same_contract_passes_without_asking(self):
         out = self.ask_replan([{"item": 1, "units": ["u1"], "contract_changed": [], "human": [], "widened": None}])

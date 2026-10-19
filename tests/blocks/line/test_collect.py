@@ -75,7 +75,7 @@ def passing() -> dict:
         "judge": judge,
         "rounds": {"done": True, "ok": True, "status": "ok", "round": 1, "plan_prior": None, "record": None, "plan": ptr("plan/p.json"),
                    "fix_plan": None, "reply": None, "handoffs": [], "ripple": None, "owed": ["u1"], "gave_up": None, "stalled": False,
-                   "capped": False, "review": None, "asks": [], "deviations": [], "stop_reason": ""},
+                   "capped": False, "review": None, "asks": [], "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": ""},
         "ask_before_fix": {"open": True, "go": True, "stop_reason": "", "text": "", "deferred": [], "asked": [], "pushed": None, "passes": [],
                            "policy_changed": False},
         "answer_before_fix": {"go": True, "answer": {"decision": "approve", "text": "よい"}, "stop_reason": "", "policy": ""},

@@ -26,7 +26,7 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 
 ROUNDS = ("done", "ok", "status", "round", "plan_prior", "record", "plan", "fix_plan", "reply", "handoffs", "ripple", "owed", "gave_up",
-          "stalled", "capped", "review", "asks", "deviations", "stop_reason")
+          "stalled", "capped", "review", "asks", "deviations", "review_status", "review_reason", "stop_reason")
 JUDGE = ("judgment", "answer_ties", "materials")
 RECORD = "run の置き場の gates/gate-before-fix.json"
 QUESTION = "事前審査の 4 つの軸と人への問い。通すなら通す範囲と条件を一言に"

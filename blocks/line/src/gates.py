@@ -279,6 +279,20 @@ def change_row(ch: dict) -> str:
 
 
 # ---------------------------------------------------------------- 修正前の承認ノード（docs/design/line.md の 2 節の 2）
+GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "   # 元 lib/boardview.py の GIVEN_UP_FACES（諦めた往復の訳を関所の項目に載せた）
+REVIEW_FAILED = "事前審査が落ちた（案を審査できていない）: "
+REVIEW_FELL = {"gave_up": GIVEN_UP_FACES, "failed": REVIEW_FAILED}
+
+
+def review_fell_row(rounds: dict) -> str:
+    """計画は通ったのに事前審査が諦めた・落ちた周の関所の行（gatemarks.GIVEN_UP_KIND の文。ほかは空）。今の line は諦めた周を関所に
+    載せて開き（無人の run は needs-human で止まった）、落ちた周は返す node が例外で run ごと止まった。新しい形はどちらも開ける理由にし、
+    黙って修正を飛ばさない（閉じた側に倒す）"""
+    head = REVIEW_FELL.get(str(rounds.get("review_status") or ""))
+    if head is None or rounds.get("status") != "ok":
+        return ""
+    return head + (str(rounds.get("review_reason") or "").strip() or "（訳が返っていない）")
+
 def _ask_kind(q) -> str:
     return gatemarks.ASK_KINDS[0] if q.get("kind") == "fork" else gatemarks.ASK_KINDS[1]
 
@@ -295,12 +309,15 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     if not isinstance(rounds, dict) or rounds.get("status") == "nothing_owed":
         return closed   # 計画ができていない・直す義務 0 件の周は開かず、修正へも進まない（直す物が無い周の印は fix-in が持つ）
     stalled = bool(rounds.get("stalled"))
-    if not rounds.get("ok") and not stalled:
+    fell = review_fell_row(rounds)
+    if not rounds.get("ok") and not stalled and not fell:
         return closed
     asks = [a for a in rounds.get("asks") or [] if isinstance(a, dict)]
     deviations = [d for d in rounds.get("deviations") or [] if isinstance(d, dict)]
     rnd = rounds.get("round") if isinstance(rounds.get("round"), int) else 1
     items, passes, deferred = [], [], []
+    if fell and not _continued(answered, fell):
+        items.append((gatemarks.GIVEN_UP_KIND, fell))
     kept_asks, kept_devs = [], []   # 聞く行（前に continue で通した同じ文の行を除く）。軸の行はこの行だけから組む
     for a in asks:
         mark = a.get("mark") if isinstance(a.get("mark"), dict) else {}
@@ -349,7 +366,8 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
                 items.append((AXIS_KIND, f"{AXIS_WORDS[key]}（{key}）の軸が通らない: {axis['note'] or '（訳が無い）'}"))
     changed = any(kind == POLICY_CHANGED for kind, _ in items)
     if not items:
-        return {**closed, "go": rounds.get("ok") is True, "deferred": deferred, "passes": passes}
+        # 諦めた・落ちた事前審査の行を前に continue で通した run（resume）は、計画のまま修正へ進む
+        return {**closed, "go": rounds.get("ok") is True or bool(fell), "deferred": deferred, "passes": passes}
     texts = [text for _, text in items]
     if unattended_run:
         got = passage(texts, row_push)

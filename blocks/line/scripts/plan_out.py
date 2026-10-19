@@ -8,9 +8,11 @@
 2. 事前審査が通った周は、pass.json の材料で往復の行を記録 plan-converge.json に足す（src.rounds.record_pass。輪がもう 1 周回せない
    周〔周の番号が上限 LIMIT〕は at_cap。files を plan-converge/<k>/ へ写し、plan の rejects と事前審査の拒否を行に積み、
    precedent_checks を記録の頭に置く）。次の周の plan の prior（plan-rounds/prior-<k>.json。plan の plan-prior.schema.json の形）を書く
-3. 止め時は src.rounds.decide の語（往復の数・block の数で止めない）。done は、plan が ok でない・事前審査が ok でない・抜け方が修正へ
+3. 事前審査の状態 review_status（ok・gave_up・failed。計画が通った周に事前審査の返りが無ければ failed）と訳 review_reason を返す
+   （修正前の承認ノードが、諦めた・落ちた事前審査を開ける理由にする）
+4. 止め時は src.rounds.decide の語（往復の数・block の数で止めない）。done は、plan が ok でない・事前審査が ok でない・抜け方が修正へ
    進む語（proceeds）・止まった（PERSISTED・UNSETTLED）・周の番号が上限 LIMIT 以上、のどれか。上限で止めた行には capped
-4. 止まった案を無人の run が推しで進める時（rounds.stuck_push_due）は、保留の項目の前の往復の block（stuck_faces）を事前審査の
+5. 止まった案を無人の run が推しで進める時（rounds.stuck_push_due）は、保留の項目の前の往復の block（stuck_faces）を事前審査の
    返答に足したファイルを書いて review に返す（fix と delta-review の plan_review が読む）
 例外の時は計画ができなかった形（ok: false・done: true）と止めの語 works:line-script。
 
@@ -74,7 +76,16 @@ def plan_out(plan, review, prior_raw, *, unattended: bool, place: Path) -> dict:
             "owed": plan["owed"] if isinstance(plan["owed"], list) else [], "gave_up": plan["gave_up"] or (review or {}).get("gave_up"),
             "stalled": stalled, "capped": rounds.capped(doc), "review": pointer_of_holes,
             "asks": review["asks"] if reviewed and isinstance(review["asks"], list) else [],
-            "deviations": review["deviations"] if reviewed and isinstance(review["deviations"], list) else [], "stop_reason": ""}
+            "deviations": review["deviations"] if reviewed and isinstance(review["deviations"], list) else [],
+            "review_status": review_state(plan, review), "review_reason": (review or {}).get("reason") or "", "stop_reason": ""}
+
+
+def review_state(plan, review) -> str:
+    """事前審査の状態（修正前の承認ノードが、諦めた・落ちた事前審査を人に見せる。計画が通らず事前審査が飛んだ周は空）。今の事前審査は
+    受け付けが諦めた周の訳を関所の項目に載せた（元 lib/boardview.py の collect の GIVEN_UP_FACES）"""
+    if review is None:
+        return "" if plan["ok"] is not True else "failed"
+    return str(review["status"] or "")
 
 
 def _prior_handoffs(place: Path, files, k: int) -> list:
@@ -102,7 +113,7 @@ def fallback(reason: str) -> dict:
     from src import guard
     return {"done": True, "ok": False, "status": "failed", "round": 0, "plan_prior": None, "record": None, "plan": None, "fix_plan": None,
             "reply": None, "handoffs": [], "ripple": None, "owed": [], "gave_up": None, "stalled": False, "capped": False, "review": None,
-            "asks": [], "deviations": [], "stop_reason": guard.LINE_SCRIPT}
+            "asks": [], "deviations": [], "review_status": "", "review_reason": "", "stop_reason": guard.LINE_SCRIPT}
 
 
 ports.run(compute, fallback)
