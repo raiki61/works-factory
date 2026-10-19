@@ -1,0 +1,18 @@
+# 単独の run: mode だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。宣言も test_cmd も無い作業ツリーなので、機械は
+# 何も走らせられず（by role_needed）任せ先の CI の役の輪が回り（ci-prep が写しを作り、役が awaiting_human を返し、ci-accept が受ける）、
+# tdd_suite を省いた base なので実行器の輪も回る（書き手の返答の本文を suite-place が置き、suite-try が 1 回走らせて照らす）
+fixture:
+  expect: completed
+  reached: [intake, run, ci-prep, ci, ci-accept, suite-prep, suite-write, suite-place, suite-try, result]
+  inputs:
+    mode: base
+  resolved-text-contains:
+    ci: 'You are the CI delegate, started for this check.'
+    suite-write: 'You are the TDD runner writer, started in a new conversation.'
+exec-code: true
+ci:
+  material: {status: awaiting_human, reason: "CI の定義が実機を要る"}
+suite-write:
+  made: true
+  body: "#!/bin/sh\nprintf '%s' \"<testsuite><testcase classname='m' name='a'/></testsuite>\" > \"$1\"\n"
+  why: ""
