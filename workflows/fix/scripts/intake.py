@@ -12,10 +12,38 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
-RAW = {name: os.environ.get(f"INPUTS_{name.upper()}") for name in (
-    "mode", "judgment", "plan", "fix_plan", "answer_ties", "materials", "skip_rerun", "answers", "request_answers", "plan_review",
-    "prior", "only_items", "group", "ripple", "baseline", "policy", "request", "unattended", "parallel", "notes", "test_cmd",
-    "tdd_suite", "reuse_dir", "reuse_key", "user_env_dir", "from_tree", "out_dir", "lang", "excluded")}
+# env の名は字のまま書く（Archon は読み込みの時に script の字から INPUTS_ の名を拾う。組んだ名は拾われない）
+RAW = {
+    "mode": os.environ.get("INPUTS_MODE"),
+    "judgment": os.environ.get("INPUTS_JUDGMENT"),
+    "plan": os.environ.get("INPUTS_PLAN"),
+    "fix_plan": os.environ.get("INPUTS_FIX_PLAN"),
+    "answer_ties": os.environ.get("INPUTS_ANSWER_TIES"),
+    "materials": os.environ.get("INPUTS_MATERIALS"),
+    "skip_rerun": os.environ.get("INPUTS_SKIP_RERUN"),
+    "answers": os.environ.get("INPUTS_ANSWERS"),
+    "request_answers": os.environ.get("INPUTS_REQUEST_ANSWERS"),
+    "plan_review": os.environ.get("INPUTS_PLAN_REVIEW"),
+    "prior": os.environ.get("INPUTS_PRIOR"),
+    "only_items": os.environ.get("INPUTS_ONLY_ITEMS"),
+    "group": os.environ.get("INPUTS_GROUP"),
+    "ripple": os.environ.get("INPUTS_RIPPLE"),
+    "baseline": os.environ.get("INPUTS_BASELINE"),
+    "policy": os.environ.get("INPUTS_POLICY"),
+    "request": os.environ.get("INPUTS_REQUEST"),
+    "unattended": os.environ.get("INPUTS_UNATTENDED"),
+    "parallel": os.environ.get("INPUTS_PARALLEL"),
+    "notes": os.environ.get("INPUTS_NOTES"),
+    "test_cmd": os.environ.get("INPUTS_TEST_CMD"),
+    "tdd_suite": os.environ.get("INPUTS_TDD_SUITE"),
+    "reuse_dir": os.environ.get("INPUTS_REUSE_DIR"),
+    "reuse_key": os.environ.get("INPUTS_REUSE_KEY"),
+    "user_env_dir": os.environ.get("INPUTS_USER_ENV_DIR"),
+    "from_tree": os.environ.get("INPUTS_FROM_TREE"),
+    "out_dir": os.environ.get("INPUTS_OUT_DIR"),
+    "lang": os.environ.get("INPUTS_LANG"),
+    "excluded": os.environ.get("INPUTS_EXCLUDED"),
+}
 
 
 def compute() -> dict:

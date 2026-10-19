@@ -31,8 +31,10 @@ class _Case(unittest.TestCase):
     def prep(self, text: str = values.BODY, **inputs) -> dict:
         return self.run.script("cold_prep", text=self.put("draft.md", text), lang="", **inputs)
 
-    def finish(self, prep, reply) -> dict:
-        return self.run.script("finish", prep=dump(prep), reply=dump(reply))
+    def finish(self, prep, reply, raw: str | None = None) -> dict:
+        """受け皿 cold-save に役の返答を渡して写させ、出口 finish を回す（出口は役の node を結ばず、写しのファイルで読む）"""
+        self.run.script("cold_save", reply=dump(reply) if raw is None else raw)
+        return self.run.script("finish", prep=dump(prep))
 
 
 class PrepCase(_Case):
@@ -64,6 +66,7 @@ class PrepCase(_Case):
         self.assertEqual(got["prompt"], "")
         self.assertIn("absent.md", got["reason"])
         self.assertIn("読ませる本文のファイルを読めない", got["reason"])
+        self.assertIn("入力 text", got["reason"], "壊れた入力を名指す")
 
     def test_not_utf8_is_not_due(self):
         (self.run.repo / "bin.md").write_bytes(b"\xff\xfe\x00bad")
@@ -118,7 +121,8 @@ class FinishCase(_Case):
     def test_broken_or_foreign_reply_is_named_not_passed(self):
         for raw in ('"not json{"', dump(["x"]), dump({"verdict": "maybe", "stops": [], "guessed": [], "decidable": True}), dump({})):
             with self.subTest(raw=raw):
-                done = self.run.script("finish", prep=dump(self.DUE), reply=raw)
+                (self.run.artifacts / "reply.json").unlink(missing_ok=True)
+                done = self.finish(self.DUE, None, raw)
                 self.assertEqual((done["ok"], done["status"], done["verdict"], done["pass"]), (False, "failed", "", False))
                 self.assertEqual((done["reason"], done["stuck"]), (BAD_REPLY, [BAD_REPLY]))
                 self.assertEqual(done["report"], [f"初見の読み手: 読めなかった（{BAD_REPLY}）"])
@@ -126,19 +130,19 @@ class FinishCase(_Case):
     def test_null_reply_fails(self):
         for reply in ("null", ""):
             with self.subTest(reply=reply):
-                got = self.run.script("finish", prep=dump(self.DUE), reply=reply)
+                got = self.finish(self.DUE, None, reply)
                 self.assertEqual((got["status"], got["stuck"]), ("failed", [BAD_REPLY]))
                 self.assertIn("返答を返さなかった", got["reason"])
         self.assertFalse((self.run.artifacts / "reply.json").exists())
 
     def test_prep_stopped_it(self):
-        got = self.run.script("finish", prep=dump({"due": False, "prompt": "", "reason": "読ませる本文が空"}), reply="null")
+        got = self.run.script("finish", prep=dump({"due": False, "prompt": "", "reason": "読ませる本文が空"}))
         self.assertEqual((got["ok"], got["status"], got["reason"], got["verdict"], got["pass"], got["stops"], got["guessed"],
                           got["decidable"], got["stuck"]), (False, "failed", "読ませる本文が空", "", False, [], [], False, []))
         self.assertEqual(got["report"], ["初見の読み手: 読めなかった（読ませる本文が空）"])
 
     def test_prep_fell(self):
-        got = self.run.script("finish", prep="null", reply="null")
+        got = self.run.script("finish", prep="null")
         self.assertEqual((got["status"], got["reason"]), ("failed", "支度の node が落ちた"))
 
     def test_end_to_end_through_prep(self):
@@ -167,6 +171,9 @@ class ShapeCase(unittest.TestCase):
 
     def test_finish_survives_every_stage(self):
         self.assertEqual(self.nodes["finish"]["trigger_rule"], "all_done")
+        self.assertNotIn("cold", self.nodes["finish"]["depends_on"], "出口は落ちうる役を結ばず、受け皿 cold-save の写しで読む")
+        self.assertEqual(self.nodes["cold-save"]["with"], {"reply": "$cold.output"})
+        self.assertNotIn("trigger_rule", self.nodes["cold-save"], "役が落ちたら受け皿は飛ぶ")
 
     def test_fixtures_exist(self):
         for name in ("standalone", "redesign", "unreadable"):

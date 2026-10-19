@@ -90,7 +90,7 @@ def main():
         import ports
     except Exception as error:  # noqa: BLE001 — 境の口を読めない時も返す node は落ちない
         from src import fallback
-        print(json.dumps(fallback.fallen(f"境の口が読めない: {type(error).__name__}: {error}"), ensure_ascii=False), flush=True)
+        print(json.dumps(fallback.fallen(f"境の口が読めない: {type(error).__name__}: {error}"), ensure_ascii=False, allow_nan=False), flush=True)
         return
 
     def fell(why):

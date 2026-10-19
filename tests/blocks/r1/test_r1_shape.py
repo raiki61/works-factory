@@ -28,7 +28,7 @@ color: green
 ---
 
 """
-ROLE_HEAD = "## Role definition (pr-review-toolkit:comment-analyzer)\n\n"
+ROLE_HEAD = "## Role definition (comment analyzer)\n\n"
 
 # 役の返答の型の正本（今の works の review-loop.json の r1.comment_candidates・r1.minimality の schema。tests/workflows/test_eyes.py の
 # GRAPH_SCHEMAS の r1 の 2 つの写し。note は YAML ではコメントに書く）と、r1-minimality に足した物（#663。R1_ADDED）

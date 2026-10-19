@@ -46,7 +46,11 @@ def compute():
         "purpose": _got(os.environ.get("INPUTS_PURPOSE_OUT")),
         "spec-in": _value(os.environ.get("INPUTS_SPEC_IN")),
     }
-    return feed.diagnose_values(received, ports.json(os.environ.get("INPUTS_VERIFY_BY_TIER") or "{}", "verify-by-tier.schema.json"))
+    try:
+        table = ports.json(os.environ.get("INPUTS_VERIFY_BY_TIER") or "{}", "verify-by-tier.schema.json")
+    except ValueError as e:
+        raise ValueError(f"入力 verify_by_tier が読めない（{e}）") from e
+    return feed.diagnose_values(received, table)
 
 
 def fallback(why: str) -> dict:

@@ -38,12 +38,15 @@ def true_only(raw) -> bool:
         return False
 
 
-def optional_json(raw, schema: str) -> tuple:
-    """(値, 形が合うか)。空と null は (None, True)。JSON として読めない入力は誤り（ValueError）。形の違う値は (値, False) で返し、
-    落とさずに呼ぶ側が拒む側へ倒す（指紋は合わない・答えは通さない。差分と守りの当たりは書く）"""
+def optional_json(raw, schema: str, name: str) -> tuple:
+    """(値, 形が合うか)。空と null は (None, True)。JSON として読めない入力は誤り（ValueError。入力の名 name を名指す）。形の違う
+    値は (値, False) で返し、落とさずに呼ぶ側が拒む側へ倒す（指紋は合わない・答えは通さない。差分と守りの当たりは書く）"""
     if ports.text(raw).strip() in ("", "null"):
         return None, True
-    value = ports.json(raw)
+    try:
+        value = ports.json(raw)
+    except ValueError as e:
+        raise ValueError(f"入力 {name} が読めない（{e}）") from e
     try:
         ports.json(raw, schema)
     except ValueError:
@@ -53,7 +56,7 @@ def optional_json(raw, schema: str) -> tuple:
 
 def r2_value(raw):
     """R2 の札は形が違えば誤り（前と同じ）"""
-    value, shaped = optional_json(raw, "r2.schema.json")
+    value, shaped = optional_json(raw, "r2.schema.json", "r2")
     if not shaped:
         ports.json(raw, "r2.schema.json")
     return value
@@ -77,7 +80,7 @@ def compute() -> dict:
     base = ports.text(os.environ.get("INPUTS_BASE")).strip()
     if not base:
         raise ValueError(f"差分の根 base が無い: {base!r}")
-    fingerprint, fingerprint_shaped = optional_json(os.environ.get("INPUTS_FINGERPRINT"), "fingerprint.schema.json")
+    fingerprint, fingerprint_shaped = optional_json(os.environ.get("INPUTS_FINGERPRINT"), "fingerprint.schema.json", "fingerprint")
     repo = Path.cwd()
 
     data = green_cert.diff_bytes(repo, base, skip=(ports.RUNTIME_COPY_PREFIX,))
@@ -112,7 +115,7 @@ def compute() -> dict:
         whole.write_text(json.dumps({"protected_hits": protected}, ensure_ascii=False), encoding="utf-8")
         return returned(ptr, digest, reason, protect.shown(protected, "protected_hits", whole), counted)
 
-    answer, answer_shaped = optional_json(os.environ.get("INPUTS_ANSWER"), "answer.schema.json")
+    answer, answer_shaped = optional_json(os.environ.get("INPUTS_ANSWER"), "answer.schema.json", "answer")
     reason = seal.apply_refusal(
         sealed_hash=sealed_hash,
         current_hash=seal.digest(data),

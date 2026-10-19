@@ -132,11 +132,11 @@ class FlowCase(FlowBase):
     def test_unreadable_port_does_not_crash_and_the_exit_says_failed(self):
         got = self.scan(changed="not json")
         self.assertEqual(got["go_role"], False)
-        self.assertIn("入力が読めない", got["reason"])
+        self.assertIn("入力 changed が読めない", got["reason"])
         fin = self.finish()
         self.assertEqual((fin["ok"], fin["status"], fin["stop_reason"]), (False, "failed", "works:pr"))   # 素材の控えが無い
         self.assertEqual(fin["material"]["status"], "not_run")
-        self.assertIn("入力が読めない", fin["material"]["reason"])
+        self.assertIn("入力 changed が読めない", fin["material"]["reason"])
 
     def test_exit_without_any_record_stops_with_works_pr(self):
         """scan も役も回っていない place（役が再試行の後に落ちた・scan が全部落ちた）→ failed と not_run の素材に、止める語 works:pr。

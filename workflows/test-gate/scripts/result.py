@@ -32,7 +32,7 @@ def main() -> int:
                           "evidence": {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": "failure.txt"},
                           "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": "出力ノードの中の誤り",
                           "optional": [], "suite": None, "suite_note": "",
-                          "report": [f"試験の関門: 出力ノードの中の誤り（工場の不具合）——{line}"]}, ensure_ascii=False), flush=True)
+                          "report": [f"試験の関門: 出力ノードの中の誤り（工場の不具合）——{line}"]}, ensure_ascii=False, allow_nan=False), flush=True)
         return 0
     try:
         out = certify.certified(place, os.environ.get("INPUTS_OPTIONAL"))

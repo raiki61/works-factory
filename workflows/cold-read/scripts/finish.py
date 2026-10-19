@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""初見の読み手の出口: 役の返答を読み、判定・止まった所・推測・書き直す側へ渡す行・報告の行を返す。どの段が落ちても落ちない"""
+"""初見の読み手の出口: 受け皿が place に写した役の返答（reply.json）を読み、判定・止まった所・推測・書き直す側へ渡す行・報告の行を返す。どの段が落ちても落ちない"""
 import os
 import sys
 from pathlib import Path
@@ -26,7 +26,8 @@ def compute():
     from src import files, reply
     place = ports.place()
     prep = ports.parsed(os.environ.get("INPUTS_PREP"))
-    raw = ports.text(os.environ.get("INPUTS_REPLY"))
+    saved = place / files.REPLY_FILE   # 受け皿 cold-save が写した役の返答（役が落ちた・飛ばされた時は無い）
+    raw = saved.read_text(encoding="utf-8") if saved.is_file() else ""
     if not isinstance(prep, dict):
         out = result("failed", "支度の node が落ちた")
     elif prep.get("due") is not True:
@@ -34,10 +35,6 @@ def compute():
     elif not raw.strip() or raw.strip() == "null":
         out = result("failed", "初見の読み手の役が返答を返さなかった（役が落ちたか飛ばされた）", stuck=[reply.COLD_UNREADABLE])
     else:
-        try:
-            jsonfile.write(place / files.REPLY_FILE, ports.parsed(raw))
-        except ValueError:   # 読めない返答は写さない。下の読みが名指して failed にする
-            pass
         c = reply.read(raw)
         out = (result("ok", "", c, reply.stuck(c)) if c["verdict"]
                else result("failed", reply.COLD_UNREADABLE, c, [reply.COLD_UNREADABLE]))

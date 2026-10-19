@@ -16,12 +16,15 @@ import requestrows  # noqa: E402
 
 def compute():
     from src import files, scan
+    name = "request"   # 読めない入力を名指す（読む順に置き換える）
     try:
-        values = {"request": requestrows.findings(os.environ.get("INPUTS_REQUEST")),
-                  "base": ports.text(os.environ.get("INPUTS_BASE")).strip(),
-                  "changed": ports.json(os.environ.get("INPUTS_CHANGED"), "changed.schema.json")}
+        values = {"request": requestrows.findings(os.environ.get("INPUTS_REQUEST"))}
+        name = "base"
+        values["base"] = ports.text(os.environ.get("INPUTS_BASE")).strip()
+        name = "changed"
+        values["changed"] = ports.json(os.environ.get("INPUTS_CHANGED"), "changed.schema.json")
     except ValueError as e:
-        return scan._done(ports.place(), {"go_role": False, "reason": f"入力が読めない: {e}"})
+        return scan._done(ports.place(), {"go_role": False, "reason": f"入力 {name} が読めない: {e}"})
     return scan.scan(ports.place(), Path.cwd(), **values)
 
 

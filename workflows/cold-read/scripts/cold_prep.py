@@ -27,7 +27,7 @@ def compute():
         body = path.read_text(encoding="utf-8")
     except (ValueError, OSError) as e:   # UnicodeDecodeError は ValueError の子
         return {"due": False, "prompt": "", "reason": oneline.one_line(
-            f"読ませる本文のファイルを読めない（{ports.text(raw).strip()[:80]}: {type(e).__name__}）")}
+            f"入力 text: 読ませる本文のファイルを読めない（{ports.text(raw).strip()[:80]}: {type(e).__name__}）")}
     if not body.strip():
         return {"due": False, "prompt": "", "reason": "読ませる本文が空"}
     lang = ports.text(os.environ.get("INPUTS_LANG")).strip()

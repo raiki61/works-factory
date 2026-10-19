@@ -135,7 +135,10 @@ def intake(out, *, requests, entry, lang) -> dict:
     before = (_read(out / INTAKE) or {}).get("requests") or []
     doc = {"requests": [], "entry": [], "lang": prompt.lang(lang), "reason": ""}
     try:
-        doc["requests"] = ports.json(_inline_or_pointer(requests), "requests.schema.json")
+        try:
+            doc["requests"] = ports.json(_inline_or_pointer(requests), "requests.schema.json")
+        except ValueError as e:
+            raise ValueError(f"入力 requests が読めない（{e}）") from e
         ids = [r["id"] for r in doc["requests"]]
         twice = sorted({i for i in ids if ids.count(i) > 1})
         if twice:

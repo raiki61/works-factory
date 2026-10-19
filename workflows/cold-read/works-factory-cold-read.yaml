@@ -41,15 +41,28 @@ nodes:
         stops: {type: array, items: {type: string}}
         guessed: {type: array, items: {type: string}}
         decidable: {type: boolean}
+  # 役の返答の受け皿。出口は落ちうる役の node を結ばず、受け皿が写したファイルで読む（役が落ちても受け皿が飛ぶだけ）
+  - id: cold-save
+    script: cold_save
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [cold]
+    with:
+      reply: $cold.output
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [saved]
+      properties:
+        saved: {type: boolean}
   - id: finish
     script: finish
     runtime: uv
     mutates_checkout: false
-    depends_on: [cold-prep, cold]
+    depends_on: [cold-prep, cold-save]
     trigger_rule: all_done
     with:
       prep: {from: "$cold-prep.output", if_skipped: null}
-      reply: {from: "$cold.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
