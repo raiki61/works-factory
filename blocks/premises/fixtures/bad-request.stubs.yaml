@@ -1,0 +1,7 @@
+# 依頼が読めない道（容器の鍵でない）: 入口が due: false を返し、役を起こさず出口が status: failed を返す
+fixture:
+  expect: completed
+  reached: [intake, finish]
+  inputs:
+    request: '{"rows": []}'
+exec-code: true
