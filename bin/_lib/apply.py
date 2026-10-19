@@ -38,7 +38,8 @@ SHELL = Path(__file__).resolve().parents[1] / "works-factory"
 UNREADABLE = 2
 REFUSED = 1
 POINTER_TYPE = "archon_artifact"   # merge の出力の diff の型（試験が workflows/merge の output_format と縛る）
-APPLY_DIFF, SEALED_DIFF = "merge/apply.diff", "merge/sealed.diff"   # merge が置き場に置く差分（同じく output_format の enum と縛る）
+APPLY_DIFF, SEALED_DIFF = "apply.diff", "sealed.diff"   # merge が置き場に置く差分の名の末尾（置き場の道は include の道で決まるので、名の末尾で見る。試験が output_format の pattern と縛る）
+DIFF_NAMES = (APPLY_DIFF, SEALED_DIFF, os.path.basename(chain.FINAL))   # ポインタの先に許す名の末尾
 # メイングラフの出力が読めない run で読む、run の記録のノードの id（試験がメイングラフの YAML と縛る）。封じのノード merge-seal と、merge-apply に
 # R2 を渡す独立の目 eyes は、サブグラフの出力を受け皿（出力 {got, stop_reason}）で受けて読む（docs/design.md の受け皿の決め）。最後の承認ノードの
 # 答えは、merge-apply に答えを渡すメイングラフのノードの出力 {go, answer, stop_reason}
@@ -169,7 +170,7 @@ def from_seal(record: dict, target: Path, args: argparse.Namespace, get: Get, un
     needed = ["--allow-failed", *(["--allow-stopped"] if stopped else [])]
     if not args.allow_failed or (stopped and not args.allow_stopped):
         raise Refuse(f"{unread}。{seen}。封じのノードの出力から封じた差分を当てるなら {' と '.join(needed)} を付けて打ち直す")
-    return pointed(record, sealed.get("diff")), sealed["hash"], f"{unread}。{seen}。{' と '.join(needed)} が在るので封じのノードの出力から当てた"
+    return pointed(record, sealed.get("diff"), ), sealed["hash"], f"{unread}。{seen}。{' と '.join(needed)} が在るので封じのノードの出力から当てた"
 
 
 def final_answer(events: list, states: dict, unread: str, by_hand: str) -> tuple[str, bool]:
@@ -233,8 +234,8 @@ def unchecked(record: dict, target: Path) -> str:
     root = (record.get("artifacts") or {}).get("root")
     if not isinstance(root, str) or not root:
         return ""
-    for rel in (APPLY_DIFF, SEALED_DIFF, chain.FINAL):
-        path = Path(root, rel)
+    found = lambda name: sorted(p for p in Path(root).rglob(name) if p.is_file())   # 置き場の道は include の道で決まるので、名の末尾で探す
+    for path in (*found(APPLY_DIFF)[:1], *found(SEALED_DIFF)[:1], Path(root, chain.FINAL)):
         if path.is_file():
             return f"。置き場の差分 {path} を確かめずに当てるなら {shlex.join(['git', '-C', str(target), 'apply', str(path)])}"
     return ""
@@ -259,7 +260,7 @@ def choose(run: dict, target: Path, allow_stopped: bool) -> tuple[Path, str, str
         raise Refuse(f"{nothing}。最後の承認ノードで止めた run の封じた差分を当てるなら --allow-stopped を付けて打ち直す")
     if value.get("r2_status") == seal.REDESIGN:
         raise Refuse(f"R2 が {seal.REDESIGN} を言った run の差分は、--allow-stopped でも当てない")
-    return pointed(record, sealed.get("diff")), sealed["hash"], why
+    return pointed(record, sealed.get("diff"), ), sealed["hash"], why
 
 
 def stopped_why(value: dict) -> str:
@@ -307,7 +308,7 @@ def from_worktree(run: dict, target: Path) -> str:
 
 
 def pointed(record: dict, ptr) -> Path:
-    """ポインタの先の実のパス。ポインタがこの run の物で、置き場の根の実のパスの下の在る普通のファイルでなければ止まる"""
+    """ポインタの先の実のパス。ポインタがこの run の物で、置き場の根の実のパスの下の在る普通のファイルで、名の末尾が差分の名（apply.diff・sealed.diff・周の鎖の最後の差分）でなければ止まる"""
     if not isinstance(ptr, dict) or ptr.get("type") != POINTER_TYPE or not isinstance(ptr.get("path"), str):
         raise Refuse(f"差分のポインタが読めない: {json.dumps(ptr, ensure_ascii=False)}")
     if ptr.get("run_id") != record["run_id"]:
@@ -315,6 +316,8 @@ def pointed(record: dict, ptr) -> Path:
     root = (record.get("artifacts") or {}).get("root")
     if not isinstance(root, str) or not root:
         raise Refuse("run の置き場の根（artifacts.root）が記録に無い")
+    if os.path.basename(ptr["path"]) not in DIFF_NAMES:
+        raise Refuse(f"差分のポインタの名の末尾が {' か '.join(DIFF_NAMES)} でない: {ptr['path']}")
     if os.path.isabs(ptr["path"]):
         raise Refuse(f"差分のポインタのパスが相対でない: {ptr['path']}")
     real_root = os.path.realpath(root)
