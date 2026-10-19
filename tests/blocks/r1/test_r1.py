@@ -291,7 +291,7 @@ class MaterialCase(_RepoCase):
     def test_prep_names_the_bundled_review_md(self):
         """test_prep_names_the_bundled_review_md: 同梱の観点の正本を 2 つの役に名指す"""
         self.intake()
-        review = kit.ROOT / "lib" / "REVIEW.md"
+        review = kit.SHARED / "prompts" / "REVIEW.md"
         text = review.read_text(encoding="utf-8")
         for head in ("**処方の最小性", "**導線を作る手段の優先順位**"):
             self.assertIn(head, text)

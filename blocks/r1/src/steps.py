@@ -16,6 +16,8 @@ import oneline       # lib/
 
 from src import files, material, report, scalars
 
+REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"   # 観点の正本（工場の物。lib は経由しない）
+
 NOT_GIVEN = "(not given)"                                   # 凍結した目的が渡っていない時の値（md の材料の行）
 NO_CHECKS = "最後の試験の関門の証拠が渡っていない"          # 元 workflows/eyes/scripts/prep.py:87-92 の字
 CHECKS_UNREAD = "入力 checks の証拠の文が読めない: {why}"
@@ -113,7 +115,7 @@ def _intake(out) -> dict:
 def comments_prompt(out, repo) -> dict:
     """1 段目の役（コメントの削除候補）の指示（docs/design/r1.md の 2.3）"""
     doc = _intake(out)
-    values = {**eyekit.diff_values(doc["diff"]), "review_md": eyekit.review_md(repo)[0], "lang": prompt.lang(doc["lang"])}
+    values = {**eyekit.diff_values(doc["diff"]), "review_md": eyekit.review_md(repo, REVIEW_MD)[0], "lang": prompt.lang(doc["lang"])}
     return prompt.emit(files.COMMENTS, values, {}, prompt.round_of(files.COMMENTS))
 
 
@@ -134,7 +136,7 @@ def minimality_prompt(out, repo) -> dict:
         "judgment_file": doc["judgment"],
         "fixes": material.fixes_text(doc["fixes"]),
         "scalars": scalars.scalars_text(doc["scalars"]),
-        "review_md": eyekit.review_md(repo)[0],
+        "review_md": eyekit.review_md(repo, REVIEW_MD)[0],
         "checks_file": doc["checks"],
         "checks_why": doc["checks_why"],
         "policy_body": eyekit.policy_body(doc["policy"] or None),

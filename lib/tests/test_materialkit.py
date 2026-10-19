@@ -590,8 +590,9 @@ class PromptInputsCase(_RepoCase):
 class ReviewMdCase(_RepoCase):
     def test_review_md_paths(self):
         """工場の正本は呼び手が渡すパス（lib は blocks/ を名指さない）、対象の根の REVIEW.md は在る時だけ"""
-        factory = LIB.parent / "blocks" / ".shared" / "prompts" / "REVIEW.md"
-        self.assertTrue(factory.is_file(), "工場の観点の正本は blocks/.shared/prompts/REVIEW.md")
+        from tests.archon import WORKFLOWS   # pack のフォルダ（入れ替えの前も後も同じ口。integration.md 4.5-11）
+        factory = WORKFLOWS / ".shared" / "prompts" / "REVIEW.md"
+        self.assertTrue(factory.is_file(), "工場の観点の正本は pack の .shared/prompts/REVIEW.md")
         self.assertFalse((LIB / "REVIEW.md").exists())
         own, theirs = mk.review_md_paths(self.repo, factory)
         self.assertEqual(own, str(factory.resolve()))

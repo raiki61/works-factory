@@ -17,6 +17,8 @@ import oneline       # lib/
 
 from src import files, report
 
+REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"   # 観点の正本（工場の物。lib は経由しない）
+
 NO_INTAKE = "入口の控え intake.json が無いか読めない（入口の node が落ちた）"
 UNREAD_INPUT = "入力が読めない: {why}"
 REQUEST_UNREAD = "依頼のファイルの中身が読めない（answers は空にした）: {why}"
@@ -116,7 +118,7 @@ def coherence_prompt(out, repo) -> dict:
         "home_prefix": concepthome.PREFIX,
         "after_section": eyekit.after_section(doc["after"] or None, doc["review"]),
         **concept,
-        **eyekit.review_md_values(repo),
+        **eyekit.review_md_values(repo, REVIEW_MD),
         **eyekit.diff_values(doc["diff"]),
         "policy_body": eyekit.policy_body(doc["policy"] or None),
         "recorded_rows": rows,

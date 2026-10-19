@@ -257,7 +257,7 @@ class DiffCase(_RepoCase):
 class MaterialCase(_RepoCase):
     def test_prompt_names_the_bundled_and_the_target_review_md(self):
         """test_prep_pastes_the_premises_and_names_the_target_review_md の REVIEW.md の半分（在る時はパス、無い時は札）"""
-        review = kit.ROOT / "lib" / "REVIEW.md"
+        review = kit.SHARED / "prompts" / "REVIEW.md"
         self.intake()
         self.assertIn(f"The canonical sources: `{review}` (on the target repository's side: (none at the root of the target repository))",
                       self.prompt())

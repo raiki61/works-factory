@@ -6,8 +6,8 @@
 - changed_files(diff_text): 差分が触れたファイルの並び
 - diff_values(diff): 断片 eye-diff の値 {diff_file, changed_files, base, repo}
 - maps(repo): 断片 concept-map の値と段落の真偽 ({concept_maps, map_tail}, found)
-- review_md(repo): (工場の観点の正本 lib/REVIEW.md の絶対パス, 対象の根の REVIEW.md の絶対パスか "")
-- review_md_values(repo): 断片 eye-coherence の値 {review_md, repo_review_md}（対象の根に REVIEW.md が無ければ NO_REPO_REVIEW_MD）
+- review_md(repo, own_file): (工場の観点の正本 own_file〔呼び手の block が渡す〕の絶対パス, 対象の根の REVIEW.md の絶対パスか "")
+- review_md_values(repo, own_file): 断片 eye-coherence の値 {review_md, repo_review_md}（対象の根に REVIEW.md が無ければ NO_REPO_REVIEW_MD）
 - after_section(after_file, review)・review_line(review): R1・R3 の頭に貼る直した後の実測の材料と、事前審査の最後の往復の結論の 1 行
 - human_items(answers): 承認ノードの答え {start, before_fix} を記録の行 {round, node, answer, note, …} に
 - policy_start(policy_file, request_answers)・policy_body(policy_file): lib/policy.py の口に渡す最小の始めの記録と、断片 policy の本文
@@ -93,15 +93,15 @@ def maps(repo) -> tuple[dict, bool]:
     return {"concept_maps": "\n".join(rows), "map_tail": tail}, bool(found)
 
 
-def review_md(repo) -> tuple[str, str]:
-    """元 prep.py:121-122。materialkit.review_md_paths の返り"""
-    return materialkit.review_md_paths(repo)
+def review_md(repo, own_file) -> tuple[str, str]:
+    """元 prep.py:121-122。materialkit.review_md_paths の返り（工場の観点の正本 own_file は呼び手の block が渡す）"""
+    return materialkit.review_md_paths(repo, own_file)
 
 
-def review_md_values(repo) -> dict:
+def review_md_values(repo, own_file) -> dict:
     """断片 eye-coherence の値 {review_md, repo_review_md}。対象の根に REVIEW.md が無ければ repo_review_md は NO_REPO_REVIEW_MD
     （元 prep.py:122。R3 と、R3 をまとめて見る R4 が使う）"""
-    own, theirs = review_md(repo)
+    own, theirs = review_md(repo, own_file)
     return {"review_md": own, "repo_review_md": theirs or NO_REPO_REVIEW_MD}
 
 

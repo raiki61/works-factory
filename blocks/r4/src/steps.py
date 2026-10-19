@@ -18,6 +18,8 @@ import rolekit       # lib/
 
 from src import files, gate, report, take
 
+REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"   # 観点の正本（工場の物。lib は経由しない）
+
 NOT_GIVEN = "(not given)"                                          # 渡っていない材料の値（md の材料の行）
 NO_INTAKE = "入口の控え intake.json が無いか読めない（入口の node が落ちた）"
 UNREAD_INPUT = "入力が読めない: {why}"
@@ -143,7 +145,7 @@ def scope_prompt(out, repo, doc: dict) -> dict:
         "declared": declared,
         **eyekit.diff_values(doc["diff"]),
         "purpose": doc["purpose"] or NOT_GIVEN,
-        **eyekit.review_md_values(repo),
+        **eyekit.review_md_values(repo, REVIEW_MD),
         "ripple": doc["ripple"] or NOT_GIVEN,
         "world_rows": doc["world_rows"] or NOT_GIVEN,
         "marks": _marks(doc["changed"]),

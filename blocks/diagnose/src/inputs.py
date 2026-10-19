@@ -33,6 +33,7 @@ from src import files, judge, rejudge
 
 HUMAN_ORIGIN = "人の依頼（依頼の行）"
 EMPTY_PORTS = ("", "null")
+REVIEW_MD = ports.SHARED / "prompts" / "REVIEW.md"   # 観点の正本（工場の物。lib は経由しない）
 
 
 class Stop(Exception):
@@ -334,7 +335,7 @@ def diagnose_values(place) -> tuple:
     purpose_text = ""
     if v["purpose"]:
         purpose_text = str(json.loads(pathlib.Path(v["purpose"]).read_text(encoding="utf-8")).get("purpose_text") or "")
-    review_md, repo_review_md = materialkit.review_md_paths(view["repo"])
+    review_md, repo_review_md = materialkit.review_md_paths(view["repo"], REVIEW_MD)
     unknown = unknown_lines(v["row_asks"])
     recorded = recorded_text(v["recorded"])
     values = {

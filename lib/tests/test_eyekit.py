@@ -147,11 +147,12 @@ class AfterCase(_Tmp):
 class ReviewMdCase(_Tmp):
     def test_repo_review_md_says_when_the_target_has_none(self):
         """test_prep_pastes_the_premises_and_names_the_target_review_md の REVIEW.md の半分（r3 と r4 のまとめた形が使う）"""
-        got = eyekit.review_md_values(self.tmp)
-        self.assertEqual(got, {"review_md": eyekit.review_md(self.tmp)[0], "repo_review_md": eyekit.NO_REPO_REVIEW_MD})
+        own = self.tmp / "own" / "REVIEW.md"   # 工場の観点の正本は呼び手の block が渡す（README 9.3）
+        got = eyekit.review_md_values(self.tmp, own)
+        self.assertEqual(got, {"review_md": str(own.resolve()), "repo_review_md": eyekit.NO_REPO_REVIEW_MD})
+        self.assertEqual(eyekit.review_md(self.tmp, own)[0], got["review_md"])
         (self.tmp / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
-        self.assertEqual(pathlib.Path(eyekit.review_md_values(self.tmp)["repo_review_md"]), (self.tmp / "REVIEW.md").resolve())
-        self.assertTrue(pathlib.Path(eyekit.review_md_values(self.tmp)["review_md"]).is_file())
+        self.assertEqual(pathlib.Path(eyekit.review_md_values(self.tmp, own)["repo_review_md"]), (self.tmp / "REVIEW.md").resolve())
 
 
 class HumanItemsCase(unittest.TestCase):
