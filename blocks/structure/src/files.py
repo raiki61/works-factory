@@ -7,9 +7,13 @@ VIEW_FILE = "view.json"                  # 目に見せる JSON（根拠の JSON
 DESIGN_FILE = "design.jsonl"             # 設計の行（measure が 0 バイトで置き、受け付けが書く）
 EYE_FILE = "eye.json"                    # 目の控え {started_at, status, wall_s}
 STATE_FILE = "structure-state.json"      # 返す控え
+INTENT_FILE = "intent.json"              # 見せた書いた意図 [{path, rev, text, cut, reason}]
+AFTER_FILE = "structure-after.json"      # after の段 B の実測（読み手の口 structmark.read_after が持つ字と同じ）
+DIFF_FILE = "after.diff"                 # after の差分の全体
+MODES = ("before", "after")
 NAME = "structure-eye"                   # 却下の控えの名（rejects-structure-eye.json）と AI の node の id
 # measure が消してよい物（この block が名を持つ物だけ。広い形で消さない）
-OWN_FILES = (UNITS_FILE, SKIPPED_FILE, STRUCTURE_FILE, VIEW_FILE, EYE_FILE, STATE_FILE, f"rejects-{NAME}.json")
+OWN_FILES = (UNITS_FILE, SKIPPED_FILE, STRUCTURE_FILE, VIEW_FILE, EYE_FILE, STATE_FILE, INTENT_FILE, AFTER_FILE, DIFF_FILE, f"rejects-{NAME}.json")
 OWN_PROMPTS = (f"{NAME}-prompt-*.md",)
 # line が、この block の中の node が落ちても先へ進めてよい宣言 [{node, bare}]。node は自分の node の id か、- で終わる頭
 OPTIONAL = [{"node": "measure", "bare": False}, {"node": "structure-eye-", "bare": False},

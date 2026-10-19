@@ -1,0 +1,108 @@
+"""直した後の実測（段 B。docs/design/structure.md の 1.5・3 節。lib/stage_b.py の写し）。直す前の版 base と対象の根 root の今の作業ツリーの
+差分を、lib/measure.py の差分の形（--diff。コマンドとして起こす）と、対象の柵の表（在れば。conceptfence.scan_change）で測る。
+
+after: {status: ok|failed, reason, base_rev, changed: [パス], tables: [表のパス], tables_changed: [直しが変えた表のパス],
+fence_up: [{concept, what, path, before, after}], new_names: [{name, sites}], dup_blocks_added: int}
+- fence_up は柵の表を持つ対象だけ。住処の外で知る場所の行が増えた所。数えは直す前の版の表で行い、直しが表そのものを変えた時は
+  tables_changed に名指す。実行基盤の写し（skip_prefix）は差分に数えない
+- 差分の前の像は、対象を変えない一時の clone（--shared）を直す前の版で取り出した物
+- 実測が落ちても例外にしない（status: failed と reason）
+- patch_of(root, base, changed): 差分の全体（まだ追跡されていないファイルは /dev/null からの足しの patch）
+"""
+from __future__ import annotations
+
+import importlib.util
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+import conceptfence   # lib/
+import concepthome    # lib/
+
+MEASURE = Path(importlib.util.find_spec("measure").origin)   # lib/measure.py をコマンドとして起こす（import しない）
+REASON_TAIL = 2000
+
+
+def _git(repo: Path, *args: str, ok=(0,)) -> bytes:
+    """git の標準出力のバイト（差分は対象の文字コードのまま運ぶ。UTF-8 でないファイルも落とさない）"""
+    p = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, stdin=subprocess.DEVNULL)
+    if p.returncode not in ok:
+        raise RuntimeError(f"git {' '.join(args[:2])} が終了コード {p.returncode}: "
+                           f"{p.stderr.decode('utf-8', 'replace').strip()[-REASON_TAIL:]}")
+    return p.stdout
+
+
+def patch_of(root: Path, base: str, changed: list) -> bytes:
+    """base と今の作業ツリーの、変わったファイル changed（conceptfence.changed）の patch。まだ追跡されていないファイルは
+    /dev/null からの足しの patch"""
+    if not changed:
+        return b""
+    tracked = set(_git(root, "ls-files", "-z", "--").decode("utf-8", "surrogateescape").split("\0"))
+    old = set(_git(root, "ls-tree", "-r", "-z", "--name-only", base).decode("utf-8", "surrogateescape").split("\0"))
+    known = [p for p in changed if p in tracked or p in old]
+    text = _git(root, "diff", "--binary", "--no-renames", base, "--", *known) if known else b""
+    for p in [p for p in changed if p not in tracked and p not in old]:
+        text += _git(root, "diff", "--binary", "--no-index", "--", "/dev/null", p, ok=(0, 1))
+    return text
+
+
+def measure_diff(root: Path, base: str, patch: bytes, paths: list) -> dict:
+    """直しの前の版の一時の clone に patch を当てて measure.py --diff で測った出力"""
+    with tempfile.TemporaryDirectory(prefix="works-stage-b-") as tmp:
+        clone = Path(tmp) / "before"
+        _git(Path(tmp), "clone", "-q", "--shared", "--no-checkout", str(root), str(clone))
+        _git(clone, "-c", "advice.detachedHead=false", "checkout", "-q", base)
+        pf = Path(tmp) / "fix.patch"
+        pf.write_bytes(patch)
+        p = subprocess.run([sys.executable, str(MEASURE), "--paths", *paths, "--repo", str(clone), "--diff", str(pf)],
+                           cwd=str(clone), capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL)
+        if p.returncode != 0:
+            raise RuntimeError((p.stderr.strip() or f"measure.py が終了コード {p.returncode}")[-REASON_TAIL:])
+        return json.loads(p.stdout)
+
+
+def summarize(diff: dict) -> tuple[list, int]:
+    """(新しい名 [{name, sites}], 増えた写しの塊の数)"""
+    names = [{"name": n.get("name"), "sites": len(n.get("sites") or [])} for n in diff.get("names") or [] if isinstance(n, dict)]
+    added = 0
+    for e in diff.get("paths") or []:
+        d = ((e or {}).get("duplicates") or {}).get("delta")
+        if isinstance(d, int) and d > 0:
+            added += d
+    return names, added
+
+
+def run(root: Path, base: str, *, skip_prefix: str) -> dict:
+    doc = {"status": "ok", "reason": "", "base_rev": base, "changed": [], "tables": [], "tables_changed": [], "fence_up": [],
+           "new_names": [], "dup_blocks_added": 0}
+    if not base:
+        doc.update(status="failed", reason="base_rev が空（直しの前の版が無い）")
+        return doc
+    try:
+        _git(root, "rev-parse", "--verify", "-q", f"{base}^{{commit}}")
+        changed = conceptfence.changed(root, base, skip_prefix=skip_prefix)
+        patch = patch_of(root, base, changed)
+    except (RuntimeError, subprocess.CalledProcessError) as e:
+        doc.update(status="failed", reason=str(e))
+        return doc
+    doc["changed"] = changed
+    found, bad = conceptfence.tables(root, rev=base)   # 直しの前の版の表で数える（直しが表を広げても数えは緩まない）
+    names = ["/".join(x for x in (b, concepthome.TABLE_NAME) if x) for b, _ in found]
+    doc["tables"] = names
+    doc["tables_changed"] = [n for n in names if n in changed]
+    problems = list(bad)
+    try:
+        for b, table in found:
+            doc["fence_up"] += conceptfence.scan_change(root, base, table, b, skip_prefix=skip_prefix)
+    except (subprocess.CalledProcessError, OSError) as e:
+        problems.append(f"柵の数えが落ちた: {e}")
+    if changed and patch.strip():
+        try:
+            doc["new_names"], doc["dup_blocks_added"] = summarize(measure_diff(root, base, patch, changed).get("diff") or {})
+        except (RuntimeError, ValueError, OSError) as e:
+            problems.append(f"差分の実測が落ちた: {e}")
+    if problems:
+        doc.update(status="failed", reason=" / ".join(problems))
+    return doc

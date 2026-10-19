@@ -1,12 +1,24 @@
 name: works-factory-structure
-description: '構造の目の block（docs/design/structure.md）。判定が切った直しの単位ごとに、直しが対象のリポジトリの構造を汚すか（設計の考えを知る場所を増やすか）を、機械の実測を見せた道具なしの目に判じさせる。汚れると見た単位には推しの避け方を書かせ、決め手を当たっても避け方が決まらない単位だけを人に上げる行にさせる。落ちず、控えと報告の行を返す。単独の run でも、graph から include されても回る'
+description: '構造の目の block（docs/design/structure.md）。直しの単位ごとに、直しが対象のリポジトリの構造を汚すか（書いた意図に反するか、設計の考えを知る場所を増やすか）を、書いた意図と機械の実測を見せた道具なしの目に判じさせる。直す前（修正案の前に単位を見る）と直した後（差分を見る）を mode で選ぶ。汚れると見た単位には推しの避け方を書かせ、決め手を当たっても避け方が決まらない単位だけを人に上げる行にさせる。落ちず、控えと報告の行を返す。単独の run でも、graph から include されても回る'
 inputs:
+  mode:
+    default: before
+    description: 'choice(before|after): before は直す前に単位を測って見る。after は base から今の作業ツリーまでの差分を測って見る'
   units:
     default: '[]'
-    description: 'json(units.schema.json): 直しの単位の配列 [{id, paths, summary}]。paths が空の単位は測らずに skipped に名指す'
+    description: 'json(units.schema.json): 直しの単位の配列 [{id, paths, summary}]。before では paths が空の単位は測らずに skipped に名指す。after では空の配列でよく、その時は差分の全体を 1 つの単位（id は diff）として見る'
+  intent:
+    default: '[]'
+    description: 'json(intent.schema.json): 書いた意図の文書のパスの配列（作業ツリーの根からの相対）。空の配列なら決まった名（ARCHITECTURE.md・AGENTS.md）で探す'
   policy:
     default: ''
     description: 'file: 人が run に固めた方針の文書。空の字は、方針の文書が渡されていない'
+  base:
+    default: ''
+    description: 'text: after の時の直す前の版の commit。before では読まない'
+  plan:
+    default: ''
+    description: 'file: after の時の修正案の欄のファイル（plan-fields.json。欄 fields）。構造の目の避け方から外れた訳を読む。空の字は、修正案が渡されていない。before では読まない'
   lang:
     default: ''
     description: 'text: 人に見せる欄（reason・chosen・chosen_reason・rejected・undecided_because）の言語。空は単位の summary の言語'
@@ -83,6 +95,15 @@ nodes:
                     chosen_reason: {type: string}
                     route: {type: string, enum: [自分で決める, 人に上げる]}
                     undecided_because: {type: string}
+                    intent:
+                      type: array
+                      items:
+                        type: object
+                        required: [path, quote]
+                        additionalProperties: false
+                        properties:
+                          path: {type: string, minLength: 1, pattern: '\S'}
+                          quote: {type: string, minLength: 1, pattern: '\S'}
         - id: structure-eye-accept
           script: take
           runtime: uv
@@ -108,7 +129,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, status, reason, structure, dirty, escalate, optional, report]
+      required: [ok, status, reason, structure, after, dirty, escalate, optional, report]
       properties:
         ok: {type: boolean}
         status:
@@ -116,6 +137,14 @@ nodes:
           enum: [ok, failed]
         reason: {type: string}
         structure:
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        after:
           type: [object, 'null']
           properties:
             type:

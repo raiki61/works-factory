@@ -13,4 +13,4 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(_
 import ports  # noqa: E402
 from src import eye  # noqa: E402
 
-ports.returns(eye.prepare(ports.place(), os.environ.get("INPUTS_LANG")))
+ports.returns(eye.prepare(ports.place(), os.environ.get("INPUTS_MODE"), os.environ.get("INPUTS_LANG")))

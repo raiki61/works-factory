@@ -95,6 +95,35 @@ class AcceptCase(_Case):
         self.assertEqual((self.out / self.files.DESIGN_FILE).stat().st_size, 0)
 
 
+class UnreadableRowsCase(_Case):
+    def test_rows_that_cannot_be_read_back_fail_the_state(self):
+        """受け付けが書いた設計の行を書いた直後に読み直し、読めなければ ok にしない"""
+        (self.out / self.files.VIEW_FILE).write_text(json.dumps(SHOWN, ensure_ascii=False), encoding="utf-8")
+        (self.out / self.files.DESIGN_FILE).write_bytes(b"")
+        (self.out / self.files.STRUCTURE_FILE).write_text(json.dumps(StateCase.MEASURED, ensure_ascii=False), encoding="utf-8")
+        state = kit.load("structure", "state")
+        original = self.eye.structmark.rows
+
+        def broken(path):
+            raise ValueError("設計の行 1 が JSON でない")
+        self.eye.structmark.rows = broken
+        try:
+            with self.run.env():
+                got = self.eye.accept(self.out, {"rows": [CLEAN]})
+                self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, False))
+                self.assertIn("設計の行が読めない", got["reason"])
+                self.eye.structmark.rows = original
+                doc = json.loads(state.write_state(self.out).read_text(encoding="utf-8"))
+        finally:
+            self.eye.structmark.rows = original
+        self.assertEqual((doc["status"], doc["reason"]), ("failed", "設計の行が読めない: 設計の行 1 が JSON でない"))
+
+
+class NamesCase(_Case):
+    def test_after_file_name_is_the_one_the_readers_know(self):
+        self.assertEqual(self.files.AFTER_FILE, self.eye.structmark.AFTER_FILE)
+
+
 class VocabularyCase(unittest.TestCase):
     """受け付けと指示が使う語と形の数は、目の node の output_format の enum と faces の範囲と同じ"""
 

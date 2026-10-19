@@ -5,6 +5,7 @@
 """構造の目の出口: 控え structure-state.json を書いて指し、判定の行の数と報告の行を返す。落ちない: 境の口と lib の import から先の
 誤りは全部捕まえ、標準ライブラリだけで status: failed の控えと 0 バイトの design.jsonl を書いて返す"""
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -15,7 +16,7 @@ import ports  # noqa: E402
 
 def compute():
     from src import state
-    return state.finish(ports.place())
+    return state.finish(ports.place(), ports.text(os.environ.get("INPUTS_MODE")).strip() or "before")
 
 
 def fallback(why: str) -> dict:
@@ -30,7 +31,7 @@ def fallback(why: str) -> dict:
         pointer = ports.pointer(place / files.STATE_FILE)
     except Exception as error:  # noqa: BLE001 — 出口は落ちない
         pointer, why = None, f"{why} / 控えを書けない: {error}"
-    return {"ok": False, "status": "failed", "reason": f"出口の中で誤りが起きた: {why}", "structure": pointer, "dirty": 0, "escalate": 0,
+    return {"ok": False, "status": "failed", "reason": f"出口の中で誤りが起きた: {why}", "structure": pointer, "after": None, "dirty": 0, "escalate": 0,
             "optional": files.OPTIONAL, "report": [f"構造の目: 出口の中で誤りが起きた（{why}）"]}
 
 

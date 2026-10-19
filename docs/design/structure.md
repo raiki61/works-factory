@@ -454,3 +454,12 @@ mode=before                          mode=after
 11. 6 つの形の文を md に移し、受け付けは形の数 `FORM_COUNT`（6）だけを持つ。根拠: 形の文は AI にだけ届く決まった指示の文（README の憲法の 2）。今の試験 `test_six_forms_match_the_design_doc` が設計書との一致を見ていたのは、文が Python に在ったため。
 12. `verdict`・`route` の語は日本語のまま。根拠: 語は plan・plan-review・line・report・eyes が読む行の形（`structmark`・`gatemarks`・`planmarks` が持つ）で、この block の PR は `lib/` を変えない（README の 11.1）。
 13. 抜き書きに `$` を含まない所を選ばせる（md の 1 文）。根拠: 9 節の Archon の置き換え。照らしを緩めずに、置き換えで食い違いうる所を役に避けさせる。止めた版は読み直さない（README の 13 章）ので、この 1 文は要らなくなった。害は無く、外すかは作る時に決める。
+14. measure が消すのは、この block が名を持つファイルだけにした（3 節の「place を作り直す〔中を全部消す〕」を替えた）。根拠: 根の方針（block は自分の名のファイルだけを消す。`blocks/.shared/AGENTS.md`）。名は `src/files.py` の `OWN_FILES`・`OWN_PROMPTS`（`rejects-structure-eye.json` を含む。却下の控えの名は試験が `rolekit` と突き合わせる）。ほかの物は残る。
+15. `lang` が空の時は、共通の断片 `lang-default`（`prompt.lang`）の文のまま（依頼の言語）にした。3 節・1.2 の「空は単位の summary の言語」は、共通の断片が 1 本に決まっているので置かない（Python に指示の文を持たせない）。
+16. 方針の文書は、書いた意図の最後の 1 本として入れ、見出しと抜き書きの `path` は「作業ツリーの根の下なら根からの相対パス、外なら絶対パス」にした（port の値の字は pointer の JSON になりうるため。3 節の「渡された値」を替えた）。
+17. 読めない port（`mode`・`intent`・`policy`・`units`・after の `plan`）は黙って空にせず、控え（before は `structure.json`、after は `structure-after.json`）に `status: failed` と「入力 <名>: <訳>」を残して目を起こさない。書いた意図を探す git が落ちた時も同じ（「書いた意図を探せない」）。
+18. 本文の在る文書が 1 つも無い時（読めなかった文書だけの時も）は、指示に `## Written intent` の節を入れず、`intent` を持つ行を拒む。読めなかった文書の見出しは、本文の在る文書が別に 1 つでも在る時に節の中に並ぶ。
+19. 受け付けの `intent` の照らしは、汚れない行の `intent` にも同じ照らしを当てる（`path` が見せた文書・20 字以上・本文に字のまま在る）。`quote` の長さも、空白を詰めた後の字数で数える。
+20. 設計の行を書いた直後の読み直し（11 節の 10）で読めなければ、目の控え `eye.json` の `status` を `design_unreadable` にし、受け付けは `ok: false, done: true, give_up: false` を返す。出口はそれを `failed` と「設計の行が読めない: <訳>」にする。
+21. after の控え `structure-state.json` の秒は目の秒だけにした（段 B の秒は `structmark.report_lines` が `structure-after.json` から足すので、控えにも入れると二重に数える）。
+22. 筋書き: `standalone`・`eye-gave-up`・`eye-skipped` は script を本当に回し、AI の node だけを差し替える（7 節は `measure` などの返りも差し替える形だったが、土台の検査 `check_standalone_renders` が「script は本当に走る」を求める）。`after` だけは、base に本物の commit が要るので script の node も差し替えて配線だけを見る。差分を本物の対象で回す道は `tests/blocks/structure/test_structure.py` の `AfterCase`。

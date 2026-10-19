@@ -20,9 +20,10 @@ import sys
 import conceptfence   # lib/
 import concepthome    # lib/
 
+from src.intent import TEXT_CAP   # 地図の 1 行の字の上限（目の指示を小さく保つ。切ったら印を付ける）
+
 MEASURE = pathlib.Path(importlib.util.find_spec("measure").origin)   # lib/measure.py をコマンドとして起こす
 REASON_TAIL = 2000
-TEXT_CAP = 6000   # 地図の 1 行の字の上限（目の指示を小さく保つ。切ったら印を付ける）
 HEADING = re.compile(r"^### `([^`]+)`")
 
 
