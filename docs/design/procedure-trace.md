@@ -94,7 +94,7 @@ materials.md の 3.1 の並び。
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: `rejects-procedure-trace.json` に拒否が 1 件以上。`{rejection}` ← `rolekit.rejects_text(rolekit.rejected(place, "procedure-trace"))`。
 2. `{shared:role-investigator}`。
-3. `{shared:query-rule}`。`spawns: false`。
+3. （置かない。外への検索の決まりは `{shared:role-investigator}` の中から入る。段落 `spawns` の真偽は `false` を渡す）
 4. 役の 1 段落（決まった文）: 新しい会話で起きていること・手順トレースだけをすること・局所の所見もほかの素材も渡していないこと。
 5. 道具の段落（決まった文）、`{shared:works-gh}`、`{shared:material-readonly}`。
 6. `## Materials` と差し込み口: `{repo}` ← `view.repo`、`{diff_file}` ← `view.diff_file`（Read を持つ役なのでパス）、`{changed_files}` ← `view.changed_files`（JSON の配列の字）、`{review_md}` ← `review_md_paths` の 1 つ目。`<!-- if repo_review -->` `{repo_review_md}` ← 2 つ目 `<!-- end repo_review -->` — 条件: 対象の根に `REVIEW.md` が在る。
@@ -114,9 +114,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:role-investigator}
 
-{shared:query-rule}
-
-You are the procedure-trace role, started in a new conversation. Your only job is to trace the procedures that the target diff changes: confirm them by running, not only by reading. You are given neither the local findings nor any other material.
+You are the procedure-trace role. Your only job is to trace the procedures that the target diff changes: confirm them by running, not only by reading. You are given neither the local findings nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 
@@ -314,3 +312,11 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - 2.5 の骨組みと 1 つ目の commit の比べの値を、例の run の値に仮の変更ファイル `README.md` を足した物にする。訳: 記録の在る 148 本の run のどれでもこの観点は回っておらず、本物の指示の字が無い。例の run は材料の値（リポジトリ・観点の正本・対象の `REVIEW.md`）が全部そろった run で、手順のファイルを 1 件足すだけで回す条件が真になる。`README.md` は `PROCEDURE_PATTERNS` の頭の型に当たる、いちばん多い手順書の名。
 - fixture は回さない道だけにし、起こす道と諦める道を子のプロセスの試験に置く。訳: fixture の入力は port の値だけ（README の 7.1 の 4）で、作業ツリーの変更を作れない。fixture の木は 1 つの commit なので、`base` に何を入れても手順のファイルの差分が出ない。
 - 試験のフォルダの名を `tests/blocks/procedure_trace/` にする（materials.md の 10 節と同じ訳）。
+
+### 7.1 実装で決めた事（main の決まりに合わせた所）
+
+- md に `{shared:query-rule}` を置かず、役の 1 段落の「started in a new conversation」を外した。訳: 役の定義の断片が中に `query-rule` を持つ（prior-decisions と同じ。materials.md の 10.1）。輪は `fresh_context: false` で、2 回目からは同じ会話を続けるので、「新しい会話」と書くと嘘になる。役の node は prep だけに依り（直前の層は 1 node）、会話が切れない。
+- `values` は `repo_review_md` を、対象の `REVIEW.md` が無い時も空の字で渡す。訳: 指示を組む口は選ばれない段落の中の差し込み口にも値を要る（materials.md の 10.1 の `rejection`・`na_why` と同じ）。
+- 判定から入る run の周は `materialkit.is_entry_run`（`entry` が在り、対象差分が空）で決める。`entry` が在っても差分が在れば回す。訳: 今の `request_entry` は差分の事実で決め、族の部品も同じ（prior-decisions の 10.1）。差分が空なら手順のファイルは無いので、`fill` はいつも `fill_na`（条件外の字）になる。`fill_entry` の枝は到達しないので置かない。1.5 の `due` の 1 と `fill` の `fill_entry` の枝、2.9 の「`entry` ありで `run.sh` の変更も在れば `fill_entry`」の試験は、この決めで置き換えた（`entry` ありで差分が在れば回す、の試験）。
+- 筋書きの木は 1 つの commit なので、port `base` に git の空の木の id（`4b825dc…`）を渡せるようにした（`src/rootbase.py`）。空の木から親の無い commit を 1 つ作って（枝も index も動かさない）その id を差分の根にし、木の全部を対象差分にする。訳: 形の検査 `check_standalone_renders` は、どの AI の node も `exec-code: true` の筋書きで起こして md の決まった文を照らすことを求めるが、port の値だけでは手順のファイルに触れる差分を作れなかった（2.9）。最初の commit だけのリポジトリを対象にする実用も在る。これで standalone と gave-up の筋書きが役を起こす道を通り、回さない道・出口の status は `tests/blocks/procedure_trace` の試験が見る。2.9 の「`gave-up.stubs.yaml` は置かない」「standalone は回さない道を通る」は、これで置き換えた。
+- `test_viewpoint` の例の run の値を、実機の run が無いので、今の `material_prep` を同じ値で動かした字との比べにした（1 つ目の commit の `test_prompts`）。

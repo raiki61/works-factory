@@ -56,10 +56,9 @@ def judged_na(view, values) -> bool:
 
 def values(view, values) -> dict:
     own, theirs = materialkit.review_md_paths(view.repo)
-    out = {"repo": str(view.repo), "diff_file": view.diff_file, "changed_files": _dump(list(view.changed_files)), "review_md": own}
-    if theirs:
-        out["repo_review_md"] = theirs
-    return out
+    # 対象の REVIEW.md が無い時も空の字で渡す（指示を組む口は選ばれない段落の中の差し込み口にも値を要る）
+    return {"repo": str(view.repo), "diff_file": view.diff_file, "changed_files": _dump(list(view.changed_files)),
+            "review_md": own, "repo_review_md": theirs}
 
 
 def when(view, values) -> dict:

@@ -10,7 +10,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    procedure-trace: 'この役は手順トレースの役（investigator）。graphloops のノード p1.procedure_trace を、下の元の graphloops の指示書のとおりに行う。'
+    procedure-trace: 'You are the procedure-trace role. Your only job is to trace the procedures that the target diff changes'
 exec-code: true
 procedure-trace:
   material:
