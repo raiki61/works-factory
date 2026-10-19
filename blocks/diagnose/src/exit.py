@@ -60,12 +60,16 @@ def _status(place: pathlib.Path, mode: str):
         if (place / files.JUDGMENT_FILE).is_file():
             return "ok", "", ""
         return "failed", files.JUDGE_STOP, _why_no_record(place, files.DIAGNOSE_ROLE)
-    if not (place / files.REJUDGE_EXIT_FILE).is_file():
+    written = (place / files.REJUDGE_EXIT_FILE).is_file()   # 受け付けが輪を抜ける時に書いた出口。在ればその訳が先
+    if not written:
         rejudge.collect(place)
     exit_doc = _read(place, files.REJUDGE_EXIT_FILE)
     if isinstance(exit_doc, dict) and exit_doc.get("ok") is True and (place / files.JUDGMENT_FILE).is_file():
         return "ok", "", ""
     reason = str(exit_doc.get("reason") or "") if isinstance(exit_doc, dict) else ""
+    err = None if written else _read(place, files.PROMPT_ERROR_FILE)
+    if isinstance(err, dict) and err.get("reason"):   # 出口を書く前に node が落ちた（指示が組めない・受け付けが落ちた）訳
+        reason = str(err["reason"])
     return "failed", files.REJUDGE_STOP, reason or _why_no_record(place, files.REJUDGE_ROLE)
 
 

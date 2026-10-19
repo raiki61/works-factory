@@ -442,7 +442,7 @@ Return only JSON that matches the output schema.
 
 ## 5 script の node
 
-どの script も `ports.run(compute, fallback)` で包み、落ちない（prep だけは、指示が組めなければ `prompt-error.json` に node と訳を書いてから落ちる。world の 9.1 の 10）。判定の受け付け（`diagnose_accept`）の fallback は落ちた訳を `prompt-error.json` に `{node, reason}` で、intake の fallback は `intake.json` に `{status: failed, stop_reason, reason}` で残す（出口が訳を返せるように。審査の指摘）。入力は `os.environ.get("INPUTS_<名>")` を字のままで読み、`ports` の form の口に渡す（名を組んで読まない。README の 4.2）。
+どの script も `ports.run(compute, fallback)` で包み、落ちない（prep だけは、指示が組めなければ `prompt-error.json` に node と訳を書いてから落ちる。world の 9.1 の 10）。判定と再審の受け付け（`diagnose_accept`・`rejudge_accept`）の fallback は落ちた訳を `prompt-error.json` に `{node, reason}` で、intake の fallback は `intake.json` に `{status: failed, stop_reason, reason}` で残す（出口が訳を返せるように。審査の指摘）。入力は `os.environ.get("INPUTS_<名>")` を字のままで読み、`ports` の form の口に渡す（名を組んで読まない。README の 4.2）。
 
 ### 5.1 `intake.py`（`src/inputs.py` の `intake(place, repo, raw)`）
 
@@ -493,7 +493,7 @@ Return only JSON that matches the output schema.
 ### 5.4 `rejudge_prep.py`・`rejudge_accept.py`
 
 - `rejudge_prep.py`（`src/inputs.py` の `rejudge_values(place)`）: `prompt.emit("rejudge", values, when, prompt.round_of("rejudge"))`。返り `{prompt, resubmit}`（拒まれた後の回は `{prompt: "", resubmit: true}` で、出し直しの役の道に回す。4 節）。
-- `rejudge_accept.py`: 3.8。fallback は `{ok: False, done: True, reason: "受け付けが落ちた（<訳>）"}`。
+- `rejudge_accept.py`: 3.8。fallback は `{ok: False, done: True, reason: "受け付けが落ちた（<訳>）"}` を返し、訳を `prompt-error.json` に `{node: "rejudge-accept", reason}` で残す。出口は、受け付けが `rejudge-exit.json` を書いていればその訳を先に、書いていなければ `prompt-error.json` の訳を返す（5.6）。
 
 ### 5.5 指示が組めない時
 

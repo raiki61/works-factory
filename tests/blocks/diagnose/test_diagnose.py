@@ -1,8 +1,12 @@
 """診断の block を script を子のプロセスで回して確かめる（docs/design/diagnose.md の 9.2）。始めの記録の無い使い捨ての run directory と
 種のリポジトリで、port の値だけを渡し、intake → prep → 台本の返答 → accept → finish と回す。筋書きを Archon の workflow test で回すのは
 tests/layers/test_block_shape.py。"""
+import contextlib
+import io
 import json
+import runpy
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -233,6 +237,24 @@ class RejudgePathCase(_Base):
         self.assertEqual(out["units"], [])
         self.assertTrue((self.art / "judgment.json").is_file())
         self.assertIsNone(out["rejudge_verdict"])
+
+    def test_accept_that_falls_leaves_its_reason_for_the_exit(self):
+        """再審の受け付けが思わぬ例外で落ちても、prompt-error.json の訳を出口が返す。受け付けが出口を書いていれば、その訳が先"""
+        self.rejudge_intake()
+        mods = support.modules()
+        out = io.StringIO()
+        with self.run.env(), mock.patch.object(mods["inputs"], "accept_rejudge", side_effect=RuntimeError("壊れた")), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            runpy.run_path(str(BLOCK / "scripts" / "rejudge_accept.py"), run_name="__main__")
+        got = json.loads(out.getvalue())
+        self.assertEqual(got, {"ok": False, "done": True, "reason": "受け付けが落ちた（RuntimeError: 壊れた）"})
+        self.assertEqual(self.doc("prompt-error.json"), {"node": "rejudge-accept", "reason": got["reason"]})
+        self.assertFalse((self.art / "rejudge-exit.json").is_file())
+        end = self.finish(objection=OBJECTION)
+        self.assertEqual((end["ok"], end["status"], end["stop_reason"], end["reason"]), (False, "failed", "works:rejudge", got["reason"]))
+        (self.art / "rejudge-exit.json").write_text(json.dumps({"ok": False, "reason": "受け付けが書いた出口の訳"}, ensure_ascii=False),
+                                                     encoding="utf-8")
+        self.assertEqual(self.finish(objection=OBJECTION)["reason"], "受け付けが書いた出口の訳")
 
     def test_three_rejections_stop_as_rejudge(self):
         self.rejudge_intake()
