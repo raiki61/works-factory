@@ -10,7 +10,7 @@ finishes」）。この部品はメイングラフの最後のノードから呼
 - status が completed の子だけを消す。再開は completed の子を起こし直さず記録だけを使うが、failed などの子は作業ツリーを
   使い回して起こし直す（packages/workflows/src/dag-executor.ts の fan_out の再開）。
 - completed の子でも、子を起こしたノードと同じ include の中のノード（id の頭の <include の id>__ が同じ物）が全部この run で
-  completed になるまでは残す。同じ include の中には子の作業ツリーから書き込みの記録を写すノード（fix の中の名は fix の設計書が決める）が
+  completed か skipped（when が偽で飛んだ。ふつうの run でも条件で回らないノードは在る）になるまでは残す。同じ include の中には子の作業ツリーから書き込みの記録を写すノード（fix の中の名は fix の設計書が決める）が
   在り、この部品はその名を持たない（README 1.3 の歩かせ 4・line.md の 1.5）。どれかが落ちた run は再開でき、再開は前に成功した
   ノードだけを飛ばし、依存が走り直したノードも走らせ直す（dag-executor.ts の node_skipped_prior_success・
   node_prior_cache_invalidated）ので、走り直すノードが消えた作業ツリーを読みに行く。include の外（id に __ の無い）ノードが子を
@@ -39,6 +39,8 @@ BRANCH_KEY = "branch_name"
 NODE_KEY = "parent_node_id"
 PARENT_KEY = "parent_run_id"
 DONE = "completed"
+SKIPPED = "skipped"
+SETTLED = (DONE, SKIPPED)   # ノードの済んだ状態: 走り終えたか、when が偽で飛んだ（飛んだノードは子の作業ツリーを読まない）
 NODES = "nodes"
 NODE_ID = "nodeId"
 STATE = "state"
@@ -83,7 +85,7 @@ def include_of(node: str) -> str:
 
 
 def waits_on(node: str, states: Mapping[str, object]) -> list[str]:
-    """子を起こしたノードの子の作業ツリーを消す前に completed を待つノード: 同じ include の中の全部（include の外なら自分だけ）"""
+    """子を起こしたノードの子の作業ツリーを消す前に completed か skipped を待つノード: 同じ include の中の全部（include の外なら自分だけ）"""
     include = include_of(node)
     if not include:
         return [node]
@@ -98,9 +100,9 @@ def unread(remove: list[dict], got: object) -> tuple[list[dict], list[dict]]:
     states = {n.get(NODE_ID): n.get(STATE) for n in nodes if isinstance(n, dict)}
     keep, left = [], []
     for found in remove:
-        open_nodes = [n for n in waits_on(found["node"], states) if states.get(n) != DONE]
+        open_nodes = [n for n in waits_on(found["node"], states) if states.get(n) not in SETTLED]
         if open_nodes:
-            reason = (f"ノード {'・'.join(open_nodes)} が completed でない。再開が同じ include のノードを走らせ直し子の作業ツリーを"
+            reason = (f"ノード {'・'.join(open_nodes)} が completed でも skipped でもない。再開が同じ include のノードを走らせ直し子の作業ツリーを"
                       "読みうるので残す")
             left.append({**found, "reason": reason})
         else:

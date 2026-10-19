@@ -149,6 +149,17 @@ class ChildSweepTest(unittest.TestCase):
                         self.assertIn(node, left["reason"])
                 self.assertEqual(got["error"], "")
 
+    def test_skipped_nodes_in_the_include_do_not_hold(self):
+        """同じ include の中のノードが when で飛んだ（skipped）だけなら済んだと数え、子を消す（ふつうの run で fix の中の条件の
+        ノードが回らなくても、子の作業ツリーを残し続けない。issue #113・埋め P7）"""
+        archon = FakeArchon({"runs": [child(0), row(RUN, "running")]},
+                            got=nodes(**{"fix__groups-par": "completed", "fix__join": "completed", "fix__clash-prep": "skipped",
+                                         "fix__clash-ruled-loop": "skipped"}))
+        got = self.sweep(archon)
+        self.assertEqual(archon.completed(), [f"{OURS}0"])
+        self.assertEqual(got["left"], [])
+        self.assertEqual(got["error"], "")
+
     def test_include_is_read_per_spawner(self):
         """2 度目の修正（refix-run）の子は refix-run__ の中のノードを見る。1 回目の include が済んでも 2 度目の include の
         ノードが落ちれば 2 度目の子を残す"""
