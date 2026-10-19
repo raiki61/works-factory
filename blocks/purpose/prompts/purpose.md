@@ -39,7 +39,7 @@ The PR's number, title, and body (a run without a PR says so). This is the sourc
 
 ### Measured premises
 
-Each row of `constraints` has `text` (the constraint), `measured_how` (how it was measured), `kind` (`{measured}` or `{hypothesis}`), and, for `{measured}`, `measured_output` (the command that was run and its output). An empty array means there are no measured premises. If you write numbers, sizes, or counts in the purpose sentence, use only values measured here. **Do not take a row with `kind` `{hypothesis}` as given.**
+Each row of `constraints` has `text` (the constraint), `measured_how` (how it was measured), `kind` (`{measured}` or `{hypothesis}`), and, when present, `measured_output` (the command that was run and its output). An empty array means there are no measured premises. If you write numbers, sizes, or counts in the purpose sentence, use only values measured here. **Do not take a row with `kind` `{hypothesis}` as given.**
 
 ```json
 {constraints}

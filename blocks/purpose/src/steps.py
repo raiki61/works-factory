@@ -79,14 +79,10 @@ def request_copy(doc):
 
 
 def constraint_rows(value) -> list:
-    """port constraints の値（配列か、{constraints: [...]}）の行。kind が実測の行は measured_output を持つ（形の照らしは if/then を
-    持たないので、ここで確かめる。元の works の intake の check_constraints と lib/judge_accept の measured_needs_output）"""
-    rows = list(value.get("constraints") if isinstance(value, dict) else value)
-    bad = [str(r.get("text", ""))[:60] for r in rows if r.get("kind") == MEASURED and not str(r.get("measured_output") or "").strip()]
-    if bad:
-        raise ValueError(f"kind={MEASURED} なのに measured_output（実行したコマンドと出力）が無い制約がある: {bad}"
-                         f"——コマンドと出力を示せないものは kind={HYPOTHESIS} にする")
-    return rows
+    """port constraints の値（配列か、{constraints: [...]}）の行。実測の行の measured_output の欠けは拒まない（前の run から持ち越した行
+    〔lib/carry.carried_constraints〕は持たず、元の judge も受け付けの後に足して目的の役へ確かめずに渡した〔lib/judge_accept の with_carried〕。
+    役自身の返りの measured_output は前提の block が見る）"""
+    return list(value.get("constraints") if isinstance(value, dict) else value)
 
 
 def intake(out, *, request, pr_text, constraints, lang) -> dict:
