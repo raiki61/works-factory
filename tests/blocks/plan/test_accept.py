@@ -29,7 +29,7 @@ import rolekit    # noqa: E402
 ROLE = files.ROLE
 NO_NARROW = "狭めない案として空の列に 0 を返す形を当たったが、呼び手が例外を捕まえている"
 UNITS_HEAD = "## Units to fix in this round"
-CONCEPT_HEAD = "## Map of the homes of concepts"
+CONCEPT_HEAD = "## Map of where concepts live"
 ITEM_HEAD = "## Item to fix {n}"
 HANDOFF_ROUNDS = "Notes that earlier rounds of you wrote"
 REJECTED_HEAD = (kit.SHARED / "prompts" / "rejected.md").read_text(encoding="utf-8").splitlines()[0]

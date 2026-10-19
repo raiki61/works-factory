@@ -35,8 +35,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `policy`: 人の方針（中の口 `{policy_body}`）。方針を受ける役の全部が、段落の中で差し込む。
   - `resubmit`: 拒まれた後に、同じ会話の続きで拒まれた欄だけを返させる役の指示（中の口 `{rejection}`・`{candidate}`）。
   - `handoff`: 引き継ぎのメモの頼みと前の周のメモのセクション（中の口 `{handoff_rounds}`。段落 `handoff_rounds` の真偽が要る。報告の書き手と、plan の書き手が使う）。
-  - `recorded-policy`: 記録された方針（人か持ち主が決めた出どころの決まりと名指しの行。中の口 `{recorded_rows}`。段落 `recorded_none` の真偽が要る）。修正案の役が差し込む。
-  - `concept-map`: 考えの住処の地図（中の口 `{concept_maps}`・`{map_tail}`。段落 `maps_found` の真偽が要る）。
+  - 目の外の block も使う物（docs/design/r1.md の 0.6）: `axis`（判断の 1 軸の 1 文）・`concept-map`（考えの住処の地図。段落 `maps_found` の真偽が要る。中は次の 2 本を選ぶだけ）・`concept-map-found`（中の口 `{concept_maps}`）・`concept-map-none`（中の口 `{map_tail}`）・`recorded-policy`（記録された方針。段落 `recorded_none` の真偽が要る。中の口 `{recorded_rows}`）。値は `lib/eyekit.py` の `maps`・`recorded_rows_text` が組む。`concept-map-found`・`concept-map-none` は段落の印を持たないので、段落の中に地図を置く md（r4 のまとめた形）はこの 2 本を自分の段落で選ぶ。
   - `prior-failures`: 前の run で最後まで通らなかった物の行（中の口 `{prior_notes}`・`{prior_redesign}`。段落 `prior_notes`・`prior_redesign` の真偽が要る）。
   - `unknown-asks`: 頭の深さの、依頼の行ごとの未知の種類と、種類ごとにすること（中の口 `{kind_none}`・`{kind_cause}`・`{kind_shape}`・`{kind_scope}`・`{unknown_rows}`・`{unknown_why}`。段落 `unknown_rows`・`unknown_none` の真偽が要る）。
   - `report-head-check`: 報告の頭の確かめの 2 段落（中の口 `{machine_heading}`。報告の block の初見の読み手だけが使う）。
