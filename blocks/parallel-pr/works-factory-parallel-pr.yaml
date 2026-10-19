@@ -1,0 +1,182 @@
+name: works-factory-parallel-pr
+description: >-
+  並行 PR: 開いている PR とこの run の変更ファイルの交差を見て、ぶつかる hunk を run の範囲から外し、担当への申し送りの下書きを作る。
+  機械が gh の読みだけで決められない時だけ読むだけの役を起こす。投稿はしない。単独の run でも、graph から include されても回る
+inputs:
+  request: {default: "[]", description: "json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つオブジェクトでもよい。changed が空で base からも変更ファイルが取れない時だけ、行の where が名指す追跡中のファイルを変更ファイルにする"}
+  base: {default: "", description: "text: 差分の根の commit。空なら差分から変更ファイルを取らない"}
+  changed: {default: "[]", description: "json(changed.schema.json): 変更ファイルのパスの配列（作業ツリーの根からの相対）。空の配列なら base から取る"}
+  lang: {default: "", description: "text: 人に見せる欄（material の detail・checked・reason、conflicts の note、excluded の why）の言語。空は依頼の行の言語"}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: scan
+    script: scan
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go_role, reason]
+      properties:
+        go_role: {type: boolean}
+        reason: {type: string}
+  - id: pr-check-loop
+    depends_on: [scan]
+    when: $scan.output.go_role == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$pr-check-accept.output.done; test "$done" = true
+      nodes:
+        - id: pr-check-prep
+          script: prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string}
+        - id: pr-check
+          prompt: "$pr-check-prep.output.prompt"
+          depends_on: [pr-check-prep]
+          model: '@wf-judge-materials'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            excludedCommands: ['works-gh:*']
+            network:
+              allowedDomains: []
+            filesystem:
+              denyWrite: ['~/../archon-home']
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [material, repo, listed, truncated, conflicts, excluded]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              repo: {type: string}
+              listed: {type: integer, minimum: 0}
+              truncated: {type: boolean}
+              conflicts:
+                type: array
+                items:
+                  type: object
+                  required: [pr, files, handed_over]
+                  additionalProperties: false
+                  properties:
+                    pr: {type: string}
+                    files:
+                      type: array
+                      items: {type: string}
+                    handed_over: {type: boolean}
+                    note: {type: string}
+              excluded:
+                type: array
+                items:
+                  type: object
+                  required: [pr, file, start, end, why]
+                  additionalProperties: false
+                  properties:
+                    pr: {type: string, minLength: 1, pattern: '\S'}
+                    file: {type: string, minLength: 1, pattern: '\S'}
+                    start: {type: integer, minimum: 1}
+                    end: {type: integer, minimum: 1}
+                    why: {type: string, minLength: 1, pattern: '\S'}
+        - id: pr-check-accept
+          script: take
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [pr-check]
+          with: {reply: $pr-check.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  # 読んだ証拠（受け付けの条件にしない）。役が渡し物を読んだかを、フックの記録から集めて place の reads-pr-check.json と索引に書く。
+  # 役を起こさなかった回は when で飛ばす。役の輪が落ちても走り、落ちない
+  - id: pr-check-reads
+    script: read_proof
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [scan, pr-check-loop]
+    trigger_rule: one_success
+    when: $scan.output.go_role == true
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, missing, index_file, reason]
+      properties:
+        ok: {type: boolean}
+        missing: {type: array, items: {type: string}}
+        index_file: {type: string}
+        reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [scan, pr-check-loop, pr-check-reads]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, stop_reason, reason, material, excluded, drafts, reads, downgrades, report]
+      properties:
+        ok: {type: boolean}
+        status: {type: string, enum: [found, clean, not_applicable, awaiting_human, not_run, failed]}
+        stop_reason: {type: string}
+        reason: {type: string}
+        material: {type: object}
+        excluded:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        drafts:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        reads:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        downgrades:
+          type: array
+          items:
+            type: object
+            required: [what, versus]
+            properties:
+              what: {type: string}
+              versus: {type: string}
+        report: {type: array, items: {type: string}}
