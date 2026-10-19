@@ -1,6 +1,6 @@
 # block の設計書: procedure-trace（手順トレース）
 
-- 何の話か: 対象差分が変えた手順書・スクリプト・CI 定義を、読むだけでなく動かして確かめる素材の観点「手順トレース」を、単独で呼べる block `blocks/procedure-trace/` にする設計。素材の観点の族の 1 本で、族の共通の形は [materials.md](materials.md)、書き方の手本は [prior-decisions.md](prior-decisions.md) に従う。型は [README.md](README.md)。
+- 何の話か: 対象差分が変えた手順書・スクリプト・CI 定義を、読むだけでなく動かして確かめる素材の観点「手順トレース」を、単独で呼べる block `workflows/procedure-trace/` にする設計。素材の観点の族の 1 本で、族の共通の形は [materials.md](materials.md)、書き方の手本は [prior-decisions.md](prior-decisions.md) に従う。型は [README.md](README.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `procedure-trace-loop`（prep・役・accept）を、5 つの node（intake・prep・役・accept・finish）の block にする。入力は差分の根・判定から入る run の出どころ・言語の 3 つの port だけ。回すかは intake が対象差分の変更ファイルを今の `PROCEDURE_PATTERNS` に当てて決め、当たらなければ役を起こさずに今と同じ字の `not_applicable` を書く。指示は 1 本の英語の md（`prompts/procedure-trace.md`）にし、今は別のファイルに描いて役に Read させた材料を指示に直に入れる。所見の行（`findings`）は今と同じ形で `material.json` の `reply` に残り、判定役が今と同じ値を読む。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜3 節の名と順をそのまま作る）。素材の観点の残り 10 本と同じ PR に束ねてよい（README の 11.1 の 1 波目）。
@@ -26,7 +26,7 @@
 
 今との違い: 今は差分の根と入口の印を `judge/start.json` から、変更ファイルを `judge/material-view.json` から名で開き、回すかを `material-route` の `procedure_trace_due`（`lib/judge_accept.py:1546-1569` の `_deep_due` が作る）が、回さない時の素材を diagnose-prep の `fill_materials` が `material-route.json` の `fill` から埋めた。受けた返答は `judge/material-procedure-trace.json` に書き、判定役の材料が `_diagnose_ctx`（`:2764-2777`）で `findings` を `record.process.procedure_findings` として読んだ。
 
-### 1.3 node の並び（`blocks/procedure-trace/works-factory-procedure-trace.yaml`）
+### 1.3 node の並び（`workflows/procedure-trace/works-factory-procedure-trace.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `procedure-trace` にした物。
 
@@ -45,8 +45,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.5 コードの置き場
 
-- `blocks/procedure-trace/src/__init__.py`（空）。
-- `blocks/procedure-trace/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/procedure-trace/src/__init__.py`（空）。
+- `workflows/procedure-trace/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "procedure-trace"`
   - `MATERIALS = ("procedure_trace",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`workflows/judge/works-factory-judge.yaml:1458`）
@@ -66,13 +66,13 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"procedure_trace": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.procedure_trace ← material`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。ほかは `findings` の行ごとに `f"  - 所見: {oneline(where)}: {oneline(text)}"`、続けて `unmeasured` の行ごとに `f"  - 未実測: {oneline(行)}"`（自分で決めた。7 節）。
-- `blocks/procedure-trace/src/oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。
+- `workflows/procedure-trace/src/oldbrief.py`（1 つ目の commit だけ。2.9）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。
 - `schemas/` は置かない（json の入力が無い）。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-procedure-trace`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-procedure-trace`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
 - 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ）。
   - 素材 `procedure_trace` は `materialkit.assemble` で 15 欄の 1 つになる（今の `fill_materials` と同じ）。
   - 所見の行: 今の判定役の材料は `findings` を「手順トレース: {{?record.process.procedure_findings}}」（`lib/judge_accept.py:2717` の `DIAGNOSE_EXCERPT`、値は `:2777`）で読む。新しい形では diagnose が `materialkit.read` で開いた `material.json` の `reply.findings` を同じ欄に入れる（読み方は diagnose の設計書が決める。この block は `reply` を今の返答のまま置くだけ）。
@@ -262,7 +262,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/procedure-trace/fixtures/`）:
+- standalone の fixture（`workflows/procedure-trace/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: "HEAD~1"`・`entry: ""`・`lang: ""`。fixture の木（`tests/archon.py` の `blocks_tree` が置く木）は、対象の入口のファイル（`README.md`・`AGENTS.md`）を 2 つ目の commit に置くので、`HEAD~1` から作業ツリーまでの差分に手順のファイル（`README.md`）が入る。`intake` の `due` が真になり、AI の node `procedure-trace` を起こす道を通り（`reached` に `procedure-trace-prep`・`procedure-trace`・`procedure-trace-accept`・`finish`）、役の返答は差し替えで `clean`。指示が md から組まれたことを md の決まった文で照らす。回さない道（`status: skipped`）は `tests/blocks/procedure_trace` の試験が見る。
   - `skipped.stubs.yaml` は置かない（`standalone.stubs.yaml` がその道。materials.md の 8 節の「回す条件を持つ観点は skipped」を満たす）。
   - `gave-up.stubs.yaml`: 入力は standalone と同じ（`base: "HEAD~1"`）。役の返答が受け付けを通らない（手順のファイルに触れる run で `not_applicable`）道。筋書きでは輪が 1 周で終わるので、3 回で諦めて `status: gave_up` を返す数えは、下の子のプロセスの試験が見る。
@@ -291,7 +291,7 @@ materials.md の 2.8 と 4 節の文だけを使う。この観点が足す拒�
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-procedure-trace \
+bin/works-factory workflow run works-factory-procedure-trace \
   --input base=origin/main
 ```
 

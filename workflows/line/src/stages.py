@@ -23,7 +23,7 @@ FROM = ("removed", "tdd_refused")
 READ_ERRORS = (ValueError, TypeError, AttributeError, KeyError)
 CLOSURE_UNREAD = "閉じたかを数えていない"   # 閉鎖の表の控えを読めない行の尾（facts.residue が修正の残りにする）
 REMOVED_UNRETURNED = "修正の出力が消したファイルの控えを返せなかった"
-ANOMALY_LINE = "仕組みの異常: 取れない（元は共有ボードの trace と包みの記録から数えた。docs/design.md の U6）"
+ANOMALY_LINE = "仕組みの異常: 取れない（元は共有ボードの trace と包みの記録から数えた。docs/design/archon.md の U6）"
 STAGE_NAMES = ("修正の段", "案を直した後の修正の段")   # stages の並び（1 回目・2 度目）。lib/report.py の TDD_STAGES と同じ順
 # held の訳（報告と試験が読む）
 HELD_REPLAN = "案の直しが要ったのに 2 度目の修正が走らなかった"

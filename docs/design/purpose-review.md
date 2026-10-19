@@ -1,6 +1,6 @@
 # block の設計書: purpose-review（目的の監査）
 
-- 何の話か: この block を作る実装者が、そのまま作るための設計書。目的の文を役（writer）が自分で要約した run で、その目的の文が実装に都合よく狭められていないかを別の目に見させる素材の観点「目的の監査」を、単独で呼べる block `blocks/purpose-review/` にする設計。族の共通の形は [materials.md](materials.md)、1 本目の手本は [prior-decisions.md](prior-decisions.md)。型は [README.md](README.md)。
+- 何の話か: この block を作る実装者が、そのまま作るための設計書。目的の文を役（writer）が自分で要約した run で、その目的の文が実装に都合よく狭められていないかを別の目に見させる素材の観点「目的の監査」を、単独で呼べる block `workflows/purpose-review/` にする設計。族の共通の形は [materials.md](materials.md)、1 本目の手本は [prior-decisions.md](prior-decisions.md)。型は [README.md](README.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `purpose-review-loop`（prep・役・accept）を、materials.md の 5 つの node の block にする。入力は差分の根・固めた目的・判定から入る run の出どころ・言語の 4 つの port。回すかは block の intake が目的の出典の語（`③writer の要約`）で決める。素材の欄は書かず（素材 0 個）、受けた返答 `{verdict, reason, findings}` を `material.json` の `reply` に置く。判定の語 `問題なし`・`狭めている` は今の字のまま（読み手が字で比べるため）。根拠の数え直し（今の `purpose_findings_cited`）は block の `src/` に写す。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜4 節の名と順をそのまま作る）。素材の観点の残り 10 本と同じ PR の束に入る（README の 11.1 の 1 波目）。読み手の block（diagnose・plan-review）の設計書の書き手は 1.6 を読む。
@@ -10,7 +10,7 @@
 - 目的の監査の役（purpose-review）: 固めた目的の文と、読む版（作業ツリーを固めた commit）を渡され、目的の文が実装の範囲に合わせて縮められていないかを判じる AI の役。役の定義は inspector。道具は Read・Grep・Glob だけ（Bash を持たないので git を打てない）。
 - 判定の語: 返答の `verdict` の 2 語 `問題なし`・`狭めている`（今の `output_format` の enum。`workflows/judge/works-factory-judge.yaml:1017-1019`）。
 - 根拠の行: 返答の `findings` の 1 行 `{text, cite, hits}`。`cite` は `git grep -F` で引ける字、`hits` はその字が現れる行の数。機械が読む版に対して数え直す。
-- 出典の語 `③writer の要約`: 目的の block（[purpose.md](purpose.md)）の出力の `source` の 4 語の 1 つ（今の `workflows/judge/works-factory-judge.yaml:673-675` の enum。新しい形では `blocks/purpose/src/steps.py` の `WRITER_SOURCE`）。目的の役が、PR の説明も計画の文書も無く、自分で要約した時に書く。
+- 出典の語 `③writer の要約`: 目的の block（[purpose.md](purpose.md)）の出力の `source` の 4 語の 1 つ（今の `workflows/judge/works-factory-judge.yaml:673-675` の enum。新しい形では `workflows/purpose/src/steps.py` の `WRITER_SOURCE`）。目的の役が、PR の説明も計画の文書も無く、自分で要約した時に書く。
 - 例の run: 記録の在る 148 本の run（`~/.local/state/works-factory/targets/*/archon-home/workspaces/*/*/artifacts/runs/*/`）のどれでも、この役は走っていない（どの `judge/material-route.json` も `purpose-review` の `run` が偽で、`judge/purpose-review.json` はどれも `{}`）。骨組みは run `53e71318-ac9f-4468-ae72-5f6ed569a667`（対象 <owner>/<repo>。置き場 `~/.local/state/works-factory/targets/316e3bbc/archon-home/workspaces/<owner>/<repo>/artifacts/runs/53e71318-…/judge/`）の値に、出典の語だけを `③writer の要約` と仮に置いて描いた（自分で決めた。7 節）。
 
 ## 1 block の全体
@@ -31,7 +31,7 @@
 
 今との違い: 今は目的を `judge/purpose.json` から名で開き（`lib/judge_accept.py:1887-1894` の `_purpose_of`）、受けた返答を `judge/material-purpose-review.json` に書き、判定の返す節（`verdict`）がその `reply` を `judge/purpose-review.json` に写して（`:3960-3963`）、判定の出力の欄 `purpose_review`（`PORTS`、`:3881-3882`）で外へ出していた。役が走らなかった run は `{}` を置いた（`_empty_public`、`:3903`）。
 
-### 1.3 node の並び（`blocks/purpose-review/works-factory-purpose-review.yaml`）
+### 1.3 node の並び（`workflows/purpose-review/works-factory-purpose-review.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `purpose-review` にした物。
 
@@ -50,8 +50,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.5 コードの置き場
 
-- `blocks/purpose-review/src/__init__.py`（空）。
-- `blocks/purpose-review/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/purpose-review/src/__init__.py`（空）。
+- `workflows/purpose-review/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "purpose-review"`
   - `MATERIALS = ()`（今の `MATERIAL_NODES['p0.purpose_review']` が `materials` を持たない。`lib/judge_accept.py:1641-1643`）
   - `GUARDED = True`（AI の node が `mutates_checkout: false` を持つ。今の accept の `with: {status_guarded: true}`。`workflows/judge/works-factory-judge.yaml:1036`）
@@ -72,12 +72,12 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `return {}`。
   - `report_lines(doc)`: `reply` が null なら `[]`。在れば `f"  - 判定: {verdict}（根拠 {len(findings)} 件）"` の 1 行と、根拠の行ごとに `f"  - 根拠: {oneline(text)}（{oneline(cite)} が {hits} 行）"`。字下げ 2 つで、materials.md の 2.10 の素材の無い観点の 1 行（`観点 purpose-review: ran`）の下に並ぶ。
-- `blocks/purpose-review/src/cited.py`: 根拠の数え直し。公開の名は `problem(reply, rev, narrows) -> str | None` だけ。写す元（`lib/judge_accept.py`。中身を写し、引数を下のとおりに替える）:
+- `workflows/purpose-review/src/cited.py`: 根拠の数え直し。公開の名は `problem(reply, rev, narrows) -> str | None` だけ。写す元（`lib/judge_accept.py`。中身を写し、引数を下のとおりに替える）:
   - `_repo_root`（`:2223-2225`）・`_grep_count`（`:2228-2234`）・`_count_in_version`（`:2378-2398`）を字のまま。
   - `_cite_errors`（`:2280-2375`）は、`findings` の道（`CITE_LABELS["findings"]`。指し先を持たない）だけを写した `_errors(rows, rev) -> list[str]`: 行が dict でない・`cite` が空・改行を含む・NUL を含む の 4 つの照らしと `_count_in_version`。`wrote_refs` の道（指し先と書いた場所・`hook_evidence` による読了の記録の照らし）は写さない（この観点は指し先を持たない行だけを出すので、その道に入らない。今も `jdir` はその道でしか使われない）。
   - `purpose_findings_cited`（`:2401-2410`）を `problem` に。`verdict == narrows` で `findings` が空なら拒む文、`_errors` が在れば拒む文を返し、無ければ `None`。数え直せない時の `Reject`（git が動かない・版を解決できない）も捕まえて、その字を返す。
   - 使う `lib/`: `graphloops/engine/util.py` の `git`・`_grep`・`repo_root`・`sum_counts`・`Reject`。
-- `blocks/.shared/schemas/purpose.schema.json`: 固めた目的の形（下）。external-standards の block も使うので `.shared` に置く（materials.md の 1.2「同じ意味の入力は同じ名と同じ形」。置き場の決めは 7 節）。
+- `workflows/.shared/schemas/purpose.schema.json`: 固めた目的の形（下）。external-standards の block も使うので `.shared` に置く（materials.md の 1.2「同じ意味の入力は同じ名と同じ形」。置き場の決めは 7 節）。
 
 ```json
 {
@@ -99,7 +99,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-purpose-review`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおり、`purpose: $purpose.output.purpose`（目的の block の `purpose.json` の pointer。[purpose.md](purpose.md) の 1.6 の読み手の行）。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-purpose-review`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおり、`purpose: $purpose.output.purpose`（目的の block の `purpose.json` の pointer。[purpose.md](purpose.md) の 1.6 の読み手の行）。
 - 回すかは block の intake が `purpose.source` で決める（materials.md の 10 節）。graph の `when:` は機能を切る run だけに置く。[purpose.md](purpose.md) の 1.6 の「目的の監査を回すかは、line が `$purpose.output.source` が `③writer の要約` かで決める」は、この block では採らない（回さない run にも `status: skipped` と訳を返すため。報告に書いた）。
 - 読み手:
   - diagnose: `materials`（11 本の `material` の配列の 1 つ）。素材の 15 欄には何も足さない（`materialkit.assemble` は `materials` が空の doc を読み飛ばす）。判定役の材料の「目的の監査」の行（今の `record.process.purpose_review`。`lib/judge_accept.py:2780`）は、`role` が `purpose-review` の doc の `reply` から取る（diagnose の設計書の決め）。
@@ -274,7 +274,7 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/purpose-review/fixtures/`）:
+- standalone の fixture（`workflows/purpose-review/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`purpose: '{"purpose_text":"…目的の文…","source":"③writer の要約","known_weaknesses":[],"source_files":[]}'`・`entry: ""`・`lang: ""`。AI の node `purpose-review` だけを台本の返答（`verdict: 問題なし`・`reason` 1 行・`findings: []`）で差し替える。`finish` の `status` が `ran`。
   - `gave-up.stubs.yaml`: 台本の返答が `verdict: 狭めている`・`findings: []`（台本は 1 周分。3 回の数えは単体の試験 `test_three_rejections_give_up` が見る）。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `purpose` の `source` を `①PR 説明` にする。AI の node は走らず、`finish` の `status` が `skipped`、`reason` が「目的テキストの出典が ①PR 説明——…」。
@@ -317,7 +317,7 @@ materials.md の 6 節の雛形のまま。この block だけの物:
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-purpose-review \
+bin/works-factory workflow run works-factory-purpose-review \
   --input purpose='{"purpose_text":"…目的の文…","source":"③writer の要約","known_weaknesses":[],"source_files":[]}' \
   --input base=
 ```
@@ -328,7 +328,7 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 
 - 土台の役の定義の断片 `role-inspector` の英語の字で、「足りない」の印が何と書かれるか（2.3 の md はその字を名指さず「役の定義が言う印」と書いた）。
 - 土台の `prompt.render` が、差し込んだ値の中の `{…}` と `$…` を置き換え直さないか（目的の文は人の字なので `{id}` や `$` を含みうる。2.5）。materials.md の 3.1 は値に `$` の直後の英字を置かないと書くが、人の字を入れる値の扱いは決めていない。
-- 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形（prior-decisions.md の 6 節と同じ）。
+- 5 節の命令の正確な形（prior-decisions.md の 6 節と同じ）。
 
 ## 7 自分で決めた事（この block だけ）
 
@@ -339,10 +339,10 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - `purpose` が null の時の回さない訳を「目的の文が渡されていない——監査するのは writer が要約した目的（③writer の要約）だけ」にする。訳: 今の `purpose_review_due` は目的の文が無いと出典を `None` と書いた（「目的テキストの出典が None——」）。block は port で受けるので、渡されていないことをそのまま言う方が直せる。回さない決めは今と同じ。
 - 数え直しの部品を `lib/` に置かず、block の `src/cited.py` に写す。訳: 指し先を持たない根拠の行を版で数える道を使うのはこの観点だけ（`wrote_refs` の道は fix の側。README の 9.2 で `judge_accept` を割る）。憲法の 4。
 - 根拠の拒みの文の頭を `観点 purpose-review: ` にする。訳: 今の頭はコピーした graph の節の id（`p0.purpose_review`）で、新しい形に graph の節は無い。materials.md の 2.8 の替えと同じ。
-- 固めた目的の schema（`purpose.schema.json`）の中身をここで決め、`blocks/.shared/schemas/` に置く（external-standards も同じ字を使う）。訳: materials.md の 1.2 は名と欄だけを書き、中身を決めていない。欄と出典の語は今の目的の役の `output_format` のまま（`means` は目的の block が別のファイルにする）。出典の語を enum で縛るので、目的の block が語を替えれば読みの段で名指して落ちる（黙って `skipped` にならない）。
+- 固めた目的の schema（`purpose.schema.json`）の中身をここで決め、`workflows/.shared/schemas/` に置く（external-standards も同じ字を使う）。訳: materials.md の 1.2 は名と欄だけを書き、中身を決めていない。欄と出典の語は今の目的の役の `output_format` のまま（`means` は目的の block が別のファイルにする）。出典の語を enum で縛るので、目的の block が語を替えれば読みの段で名指して落ちる（黙って `skipped` にならない）。
 - 「足りない」の印の字を md に書かず、役の定義の断片の言い方に任せる。訳: 印は inspector の役の定義の決まり（今の `lib/agents/inspector.md` の 3 つ目の箇条）で、機械はこの印を読まない（`lib/` と `workflows/` に「足りない: 」を比べる所は無い）。字を md に写すと、断片の英語の字と食い違いうる。
 - 実装で main の決まりに合わせた事（実装者が決めた）:
-  - `blocks/.shared/schemas/purpose.schema.json` から `$schema` を外し、`description` を足した。訳: `ports.json` が照らしの知らない語 `$schema` を拒む（`KNOWN_KEYWORDS` に無い）。
+  - `workflows/.shared/schemas/purpose.schema.json` から `$schema` を外し、`description` を足した。訳: `ports.json` が照らしの知らない語 `$schema` を拒む（`KNOWN_KEYWORDS` に無い）。
   - `role_prep.py` に 4 つの鍵を外す 1 行は要らなかった。訳: main の `materialkit.prompt_inputs` が `NA_PARAGRAPH` が偽の観点には `na_*` を足さない。`viewpoint.NA_PARAGRAPH = False`（`tests/blocks/materials/test_viewpoints.py` が名を要る）。
   - 英語の md の「started in a new conversation」を外した。訳: 輪が `fresh_context: false` で、2 回目からは同じ会話を続ける。「新しい会話」と書くと事実に反する（調整役の知らせ）。輪は prep → 役 → accept の 1 本道で、同じ層に 2 つの node は並ばない。
   - 「purpose」の port の既定は文字列 `"null"`。訳: `ports.json` は空の字を拒み、Archon は省いた入力に既定を入れる。

@@ -1,6 +1,6 @@
 # block の設計書: gate-efficacy（ゲートの実効性確認）
 
-- 何の話か: 対象差分が新設・変更した検証ゲート（CI ジョブ・assert・テスト・pre-commit）が、守るべき違反を本当に捕まえるかを、条件の腕ごとに壊した写しで確かめる素材の観点「ゲートの実効性確認」を、単独で呼べる block `blocks/gate-efficacy/` にする設計。素材の観点の族の 1 本で、族の共通の形は [materials.md](materials.md)、1 本目の手本は [prior-decisions.md](prior-decisions.md) に従う。型は [README.md](README.md)。
+- 何の話か: 対象差分が新設・変更した検証ゲート（CI ジョブ・assert・テスト・pre-commit）が、守るべき違反を本当に捕まえるかを、条件の腕ごとに壊した写しで確かめる素材の観点「ゲートの実効性確認」を、単独で呼べる block `workflows/gate-efficacy/` にする設計。素材の観点の族の 1 本で、族の共通の形は [materials.md](materials.md)、1 本目の手本は [prior-decisions.md](prior-decisions.md) に従う。型は [README.md](README.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `gate-efficacy-loop`（prep・役・accept）を、5 つの node（intake・prep・役・accept・finish）の block にする。入力は差分の根・変異の検算をまとめる道の語（`gates`）・判定から入る run の出どころ・言語の 4 つの port だけ。回す条件（`gates` が `merge` でなく、判定から入る run でない）と、ゲートの印が無い差分で役の『条件に当たらない』を受ける決め（今の `gate_signals`・`role_judged_na`）と、腕の照らし（今の `gate_arms_all_red`）は、この block の `src/` に移す。今は Python が日本語の文で組んで材料に貼っていた「変異の腕の一覧と実行器の在りか」の段（`mutation_decl`）は、md の 3 つの段落と値に割る。役のすること（写しの上で腕ごとに壊して赤・対照の緑・守る行の通過を測る。対象が宣言した変異の実行器が在ればそれで撃つ）は変えない。持ち主の決め `no-mutation-in-graph`（graph の中で変異の検算を回さない）はそのまま守る（7 節）。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜4 節の名と順をそのまま作る）。素材の観点の残りの 10 本と同時に作る（README の 11.1 の 1 波目。族の部品と prior-decisions の PR の後）。
@@ -35,7 +35,7 @@
 
 今との違い: 今は `gates` を始めの記録（`judge/start.json` の `gates`。`start_view`、`lib/judge_accept.py:3785`）から名で開き、回すかは `material-route` が `gate_efficacy_due` で決め、回さない時の埋めは `_fill_one`（`:1946-1949`）が `material-route.json` に書いた。受けた返答は `judge/material-gate-efficacy.json` に書き、判定役の材料（`_diagnose_ctx`、`:2764-2779`）が `reply.arms` を `record.process.gate_arms` として、`reply` を `out.p1.gate_efficacy` として読んだ。
 
-### 1.3 node の並び（`blocks/gate-efficacy/works-factory-gate-efficacy.yaml`）
+### 1.3 node の並び（`workflows/gate-efficacy/works-factory-gate-efficacy.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `gate-efficacy` にした物。
 
@@ -54,17 +54,17 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.5 コードの置き場
 
-- `blocks/gate-efficacy/src/__init__.py`（空）。
-- `blocks/gate-efficacy/src/signals.py`: ゲートの印。写す元 `lib/judge_accept.py:2003-2032`（注記ごと）。
+- `workflows/gate-efficacy/src/__init__.py`（空）。
+- `workflows/gate-efficacy/src/signals.py`: ゲートの印。写す元 `lib/judge_accept.py:2003-2032`（注記ごと）。
   - `GATE_FILE_PATTERNS`（字のまま。最後の要素は `rf"(^|/){re.escape(checkscope.SCOPE_DECL)}$"` で、`lib/checkscope.py`〔KEEP〕を import する）・`GATE_FILES`（今の `_GATE_FILES`）・`ASSERT_LINE`（今の `_ASSERT_LINE`）。
   - `gate_signals(changed_files, diff_text: str) -> list[str]`（字のまま）。
   - `signals_of(view) -> list[str] | None`: `view.diff_file` を `encoding="utf-8", errors="replace"` で読み、`gate_signals(list(view.changed_files), 本文)` を返す。読めなければ（`TypeError`・`OSError`）`None`（今の `role_judged_na` の `:2045-2048`）。
-- `blocks/gate-efficacy/src/mutation.py`: 変異の宣言の読み。写す元 `mutation_decl`（`:2083-2096`）の分かれ方だけを写し、文は持たない（2.6）。
+- `workflows/gate-efficacy/src/mutation.py`: 変異の宣言の読み。写す元 `mutation_decl`（`:2083-2096`）の分かれ方だけを写し、文は持たない（2.6）。
   - `state(repo) -> dict`: `d = declared.read(repo)`（`lib/graphloops/engine/declared.py`。KEEP）。`m = (d or {}).get("mutation")`。`m` が在れば `{"declared": True, "argv": json.dumps(m["argv"], ensure_ascii=False), "arms": str(m["arms"]), "error": ""}`。無ければ `{"declared": False, "argv": "", "arms": "", "error": (d or {}).get("mutation_error") or (d or {}).get("error") or ""}`。
   - `DECL_NAME = declared.DECL_NAME`（`".review-checks.json"`）。
-- `blocks/gate-efficacy/src/arms.py`: 腕の照らし。写す元 `_unproven`・`gate_arms_all_red`（`:2160-2183`）。`raise Reject(...)` を `return 文` に、`f"{nid}: "` を `f"観点 {name}: "` にした物。字は 3 節。`blank` は `lib/recount.py` の `blank`（KEEP。今の `judge_accept.blank` と同じ表 `EMPTY` と同じ長さの見方）を使う。
+- `workflows/gate-efficacy/src/arms.py`: 腕の照らし。写す元 `_unproven`・`gate_arms_all_red`（`:2160-2183`）。`raise Reject(...)` を `return 文` に、`f"{nid}: "` を `f"観点 {name}: "` にした物。字は 3 節。`blank` は `lib/recount.py` の `blank`（KEEP。今の `judge_accept.blank` と同じ表 `EMPTY` と同じ長さの見方）を使う。
   - `unproven(arms) -> list[str]`・`arms_problem(name: str, reply: dict) -> str | None`。
-- `blocks/gate-efficacy/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/gate-efficacy/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "gate-efficacy"`
   - `MATERIALS = ("gate_efficacy",)`
   - `GUARDED = False`（AI の node が `mutates_checkout: false` を持たない。今の accept の `with: {status_guarded: false, …}`。`workflows/judge/works-factory-judge.yaml:1548`）
@@ -81,12 +81,12 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"gate_efficacy": reply["material"]} if isinstance(reply.get("material"), dict) else {}`（今の `writes` の `materials.gate_efficacy ← material`。`:1679`）。
   - `report_lines(doc)`: `reply` が null なら `[]`。ほかは `arms` の行ごとに `f"  - 腕: {oneline(arm)}（{oneline(gate)}。赤 {'見た' if red_confirmed else '見ていない'}・対照の緑 {'見た' if control_green else '見ていない'}・守る行の通過 {'見た' if not recount.blank(hit_evidence, 10) else '見ていない'}）"`。
-- `blocks/gate-efficacy/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。今の `MATERIAL_BRIEF_HEAD`・頭の 1 文・5 つの穴の節・`MUTATION_UNDECLARED` と `mutation_decl` の文・`_na_note` の文を、この 1 本の中に字のまま持つ（2 つ目の commit でファイルごと消すので、Python が指示の文を持つのはこの間だけ）。
+- `workflows/gate-efficacy/src/oldbrief.py`（1 つ目の commit だけ）: 今の材料のファイルを同じ字で組む `brief(view, values) -> str`。今の `MATERIAL_BRIEF_HEAD`・頭の 1 文・5 つの穴の節・`MUTATION_UNDECLARED` と `mutation_decl` の文・`_na_note` の文を、この 1 本の中に字のまま持つ（2 つ目の commit でファイルごと消すので、Python が指示の文を持つのはこの間だけ）。
 - 使う `lib/`: `materialkit`・`rolekit`・`oneline`・`recount`（`blank`）・`checkscope`（`SCOPE_DECL`）・`graphloops/engine/declared.py`（`read`・`DECL_NAME`）。どれも KEEP（README の 9.3）。`recount` と `checkscope` の使い手の欄に「素材の観点（gate-efficacy）」が足る。
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-gate-efficacy`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`gates: <line が始めの記録から引いた gates。無ければ空>`・`entry: <line が始めの記録から引いた出どころの文>`・`lang: <始めの記録の lang>`。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-gate-efficacy`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`gates: <line が始めの記録から引いた gates。無ければ空>`・`entry: <line が始めの記録から引いた出どころの文>`・`lang: <始めの記録の lang>`。
 - 読み手:
   - diagnose の `materials`（11 本の `material` の配列の 1 つ）。`materialkit.assemble` が `materials.gate_efficacy` を 15 欄の 1 つにする。
   - diagnose の判定の材料の「ゲートの実効性確認」の行（今の `record.process.gate_arms` と `out.p1.gate_efficacy`）。diagnose は `materialkit.read` で読んだ `material.json` の `reply.arms`（腕の行の配列）と `reply`（返答の全部）を、今と同じ形で受ける。`reply` の形は今の `judge/material-gate-efficacy.json` の `reply` と同じなので、読み方は変わらない（読む口の作り替えは diagnose の設計書が決める）。
@@ -289,7 +289,7 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/gate-efficacy/fixtures/`）:
+- standalone の fixture（`workflows/gate-efficacy/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`gates: ""`・`entry: ""`・`lang: ""`。AI の node `gate-efficacy` だけを台本の返答（`material: {status: clean, checked: "…"}`・`arms` 1 行〔`red_confirmed: true`・`control_green: true`・`hit_evidence` 10 字以上〕）で差し替え、script は本物。`reached` に `finish`。`finish` の `status` が `ran`。
   - `gave-up.stubs.yaml`: 台本の返答は `material.status: clean`・`arms: []`（腕が 0 行で拒まれる）。筋書きでは輪が 1 周で終わるので拒否は 1 回で、run は `completed`、出口は落ちずに返る（fixture 自身の注にあるとおり）。3 回で諦めて `finish` が `status: gave_up` を返す数えは `test_gate_efficacy.py` の `test_three_rejections_give_up` が確かめる。
   - `skipped.stubs.yaml`: `gates: merge`。AI の node に届かず、`finish` の `status` が `skipped`。
@@ -334,7 +334,7 @@ materials.md の 2.8 と 4 節の文のほかに、後の照らし `arms.arms_pr
 ## 5 単独で呼ぶ
 
 ```sh
-bin/works-factory <読ませるフォルダを blocks/ にする引数（名は土台の PR で決める）> workflow run works-factory-gate-efficacy \
+bin/works-factory workflow run works-factory-gate-efficacy \
   --input base=<差分の根の commit> --input gates= --input entry=
 ```
 

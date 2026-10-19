@@ -6,7 +6,7 @@
 - DIR・DEFAULT: 写しを置く置き場の中のフォルダ（policy/<sha256>.md）と、名指しが無い時の方針の文書の置き場（git の共通の置き場の下）
 - locate(cwd, named): 方針の文書の置き場（名指しか既定の置き場。どちらも無ければ空）
 - snapshot(folder, path): 文書を 1 回だけ読み (sha256, 写しの置き場)。無ければ (None, None)
-- freeze(folder, cwd, named): 固めた版 {named, path, sha256, copy}（docs/design.md の始めの記録の欄 policy）
+- freeze(folder, cwd, named): 固めた版 {named, path, sha256, copy}（docs/design/line.md の 1.6 の始めの記録の欄 policy）
 - version(start)・frozen_copy(start): 始めの記録の固めた版（無い・壊れていれば None）と、ブロックが読む写しの置き場（欄 policy の
   無い・壊れた記録は今どおり policy_md）
 - PASTE_CAP: 貼る本文の上限（バイト）。役に貼る本文の上限 listcut.FILE_CAP と同じ値を引く

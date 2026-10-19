@@ -70,7 +70,7 @@ LINE_YAML = f"workflows/{LINE_FOLDER}/{OURS['line']}.yaml"
 CALL_KEYS = ("include", "workflow")
 
 NO_DEADLINE = "1728000000"
-# 止めた Archon（docs/design.md の「語」）の節の種類の鍵の全部と、その種類の節に Archon が既定の期限を当てる鍵（workflows/AGENTS.md の E12）。
+# 止めた Archon（docs/design/archon.md の「語」）の節の種類の鍵の全部と、その種類の節に Archon が既定の期限を当てる鍵（workflows/AGENTS.md の E12）。
 # ここに無い種類の節は赤にする。鍵は tests/shared/test_archon_contract.py が Archon の源に照らす（種類が足されたら赤になる）。
 # 足す時は期限を持つかを確かめてから足す。
 NODE_KINDS = {

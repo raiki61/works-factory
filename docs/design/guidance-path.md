@@ -10,13 +10,13 @@
 
 入力:
 
-- `requests`（必須）: `json(requests.schema.json): 頼みの一覧 [{id, request, closes}]`。値そのものか pointer で渡す（パスでは受けない。閉じるべき所を読み手の作業ツリーに置かない）。`request` は読み手に渡す頼みの文、`closes` は閉じるべき所（作業ツリーの根からのファイルかフォルダのパス。置いた所が全部どれかの中なら当たり。訳ありの 2 か所はパスを 2 つ書く）。新しい block を足す頼みは `blocks/{new}/`・`tests/blocks/{new_}/`・`docs/design/{new}.md` と書く: 置いた所の全部が同じ 1 つの名に結ばれ（`{new_}` はその名の `-` を `_` にした物）、その所が作業ツリーにまだ無い時だけ当たる。
+- `requests`（必須）: `json(requests.schema.json): 頼みの一覧 [{id, request, closes}]`。値そのものか pointer で渡す（パスでは受けない。閉じるべき所を読み手の作業ツリーに置かない）。`request` は読み手に渡す頼みの文、`closes` は閉じるべき所（作業ツリーの根からのファイルかフォルダのパス。置いた所が全部どれかの中なら当たり。訳ありの 2 か所はパスを 2 つ書く）。新しい block を足す頼みは `workflows/{new}/`・`tests/blocks/{new_}/`・`docs/design/{new}.md` と書く: 置いた所の全部が同じ 1 つの名に結ばれ（`{new_}` はその名の `-` を `_` にした物）、その所が作業ツリーにまだ無い時だけ当たる。
 - `entry`: `text: 入口のファイル（空白区切り）。空は README.md と AGENTS.md`。既定 `""`。
 - `lang`: `text`。人に見せる欄（why・change・stuck・guessed）の言語。既定 `""`。
 
 出力（`returns: finish`、`outcome_field: ok`）: `ok`（全部の頼みを辿れて、外れには直しが通ったか）・`status`・`reason`・`paths`（pointer。頼みごとの辿った道・置いた所・写した物・詰まり・推測・当たりか）・`fixes`（`[{request, kind, where, change, why}]`。`kind` は `guide`・`model`・`block`）・`hits`・`misses`・`report`（日本語の行）。
 
-### 1.2 node の並び（`blocks/guidance-path/works-factory-guidance-path.yaml`）
+### 1.2 node の並び（`workflows/guidance-path/works-factory-guidance-path.yaml`）
 
 1. `intake`（script）: port を読み、頼みの id の重なり・入口のファイルの在る無し・入口が見せない所の中でないかを照らして `intake.json` を書く。消すのは、この block が名を持つファイルだけ（頼みの id ごとの却下の控えは名を組んで消す）。落ちない。
 2. `walk-loop`（`loop_group`・`fresh_context: true`・`max_iterations: 60`）: 1 周が頼み 1 つの 1 回。`walk-prep` がまだ辿っていない頭の頼みの指示を組み、`guidance-walk`（AI。`Read`・`Glob`・`Grep`・`@wf-report`。`denied_tools` の `Read(./<所>)` で、この目の block・試験・設計書と `.archon/` を読めない。並びは `src/steps.py` の `HIDDEN`）が辿り、`walk-accept` が受け付ける。頼みごとに 3 回拒めば諦めて次へ（`rolekit` の控え `rejects-walk-<id>.json`）。`done` は全部の頼みが済んだか。`max_iterations` は Archon が輪に求める上限で、頼みの数 × 3 回が収まる大きさ（尽きれば出口が辿れなかった頼みを名指す）。
@@ -52,4 +52,4 @@ place のファイルの名は `src/steps.py` だけが持つ（`intake.json`・
 
 ## 4 回す時
 
-README の 8.6: block を作り始める前に新しい形で 1 回、その後は案内か置き場の形を変えるたび。頼みの例と閉じるべき所は README の 1.3 の歩かせから取る（例「この AI の役に確かめを 1 つ足す」は `blocks/<block>/`、「観点の block を 1 つ足す」は新しい `blocks/<block>/` と `docs/design/<block>.md`）。
+README の 8.6: block を作り始める前に新しい形で 1 回、その後は案内か置き場の形を変えるたび。頼みの例と閉じるべき所は README の 1.3 の歩かせから取る（例「この AI の役に確かめを 1 つ足す」は `workflows/<block>/`、「観点の block を 1 つ足す」は新しい `workflows/<block>/` と `docs/design/<block>.md`）。

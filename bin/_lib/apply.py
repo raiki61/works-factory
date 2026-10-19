@@ -42,7 +42,7 @@ POINTER_TYPE = "archon_artifact"   # merge の出力の diff の型（試験が 
 # パスは決めず、ポインタの先の名の末尾で照らす（docs/design/merge.md の 1.3。同じく output_format の pattern と縛る）
 APPLY_DIFF, SEALED_DIFF = "apply.diff", "sealed.diff"
 # メイングラフの出力が読めない run で読む、run の記録のノードの id（試験がメイングラフの YAML と縛る）。封じのノード merge-seal と、merge-apply に
-# R2 を渡す独立の目 eyes は、サブグラフの出力を受け皿（出力 {got, stop_reason}）で受けて読む（docs/design.md の受け皿の決め）。最後の承認ノードの
+# R2 を渡す独立の目 eyes は、サブグラフの出力を受け皿（出力 {got, stop_reason}）で受けて読む（docs/design/line.md の頭の語「受け皿」）。最後の承認ノードの
 # 答えは、merge-apply に答えを渡すメイングラフのノードの出力 {go, answer, stop_reason}
 SEAL_STEP, EYES_STEP, ANSWER_STEP = "merge-seal-out", "eyes-out", "answer-final"
 GOT = "got"

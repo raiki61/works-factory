@@ -1,4 +1,4 @@
-"""文書・役の指示書・lib が人や役に見せる字に、グラフの語にそろえる前の旧い語が無い（`docs/design.md` の「語」。
+"""文書・役の指示書・lib が人や役に見せる字に、グラフの語にそろえる前の旧い語が無い（`docs/design/README.md` の頭の語の一覧。
 持ち主の決め `graph-words`）。
 
 見る字（`scope`）: `docs/` の直下の `*.md`・`*.json`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`MISSION.md`・`engineering.md`・

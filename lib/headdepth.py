@@ -1,4 +1,4 @@
-"""run の頭の深さ（issue #441。docs/design.md の「深さの段の表」）の段の語と控えの読み（README 9.3 の KEEP。integration.md 4.5-6・4.3-5）。
+"""run の頭の深さ（issue #441。docs/design/line.md の 16 章「深さの段の表」）の段の語と控えの読み（README 9.3 の KEEP。integration.md 4.5-6・4.3-5）。
 使うのは head-depth・line と、行ごとの未知の種類を読む diagnose・plan。
 
 run 全体の深さの段（軽量・標準・重厚）の語と並び HEADS はここ 1 か所（前は lib/depth.py。depth は line へ移る）。依頼の行ごとの

@@ -23,7 +23,7 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 - 入力を足す（P）: 受け手の block の `inputs:`・`schemas/`・それを読む script と `src/`・`prompts/`・`tests/blocks/<block>/`。既定値つきの任意の入力なら、今の呼び手（graph）と根の README の例はそのまま回るので触らない。graph の `with:` は、その graph から値を渡すと依頼が言う時だけ足す。設計書の port の所は直す（port が変わる）。
 - 観点を足す（N）: 新しい block のフォルダ `workflows/<block>/`・`tests/blocks/<block の名の - を _ にした物>/`・`docs/design/<block>.md`。graph の `with:` と include は、つなぐと依頼が言う時だけ。根の README は触らない（単独で回す例は world の 1 つで足りる。新しい block の単独の呼び方は設計書の「単独で呼ぶ」の所に書く）。
 - 2 つ以上の block が使う助け: Archon の pointer・`INPUTS_`・place を解く所は `.shared/` の口、解いた後のパスや値を受ける所は `lib/` の新しいモジュール（`.shared/AGENTS.md` の「`.shared` と `lib/` の分け」）。助けを置くだけの依頼では、使い手の block の `scripts/`・`src/` は触らない（使い始めは、その block を名指す別の変更で）。
-- 承認ノード・無人の方針・深さの表・計画の往復を変える（U・D）: line の `src/`（`docs/design/line.md`）。未知の種類 → 段の表は head-depth の `src/`。
+- 承認ノード・無人の方針・深さの表・計画の往復を変える（U・D）: line の `src/`（`docs/design/line.md`）。未知の種類 → 段の表は `lib/headdepth.py`（head-depth・line・diagnose・plan が読む）。
 - block の中で閉じる変更では、設計書 `docs/design/<block>.md` は port・node の並び・受け付けの決まりが変わる時だけ直し、筋書き（`fixtures/`）は通らなくなった時だけ直す。設計書は md の本文を写さない（本文の正本は block の `prompts/`）。
 
 ## 始め方

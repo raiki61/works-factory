@@ -1,6 +1,6 @@
 # graph の設計書: line（メイングラフ）と chain（周の鎖）
 
-- 何の話か: 工場のメイングラフ `works-factory-line` を、block を `include:` で並べる graph `blocks/line/` に作り直す設計（組み込みの PR で作る。README の 11.3 の 1）。あわせて、line を周ごとに子の run として起こす `works-factory-chain` の移しを 12 節に短く書く。型は [README.md](README.md) の 1 節（graph の定義と形の直し 7）・4 節・8.7 節に従う。判定と独立の目のまとめ（judge・eyes の graph）は [judge-eyes.md](judge-eyes.md)。
+- 何の話か: 工場のメイングラフ `works-factory-line` を、block を `include:` で並べる graph `workflows/line/` に作り直す設計（組み込みの PR で作る。README の 11.3 の 1）。あわせて、line を周ごとに子の run として起こす `works-factory-chain` の移しを 12 節に短く書く。型は [README.md](README.md) の 1 節（graph の定義と形の直し 7）・4 節・8.7 節に従う。判定と独立の目のまとめ（judge・eyes の graph）は [judge-eyes.md](judge-eyes.md)。
 - 決めたこと: line は配線と流れの決めだけを持つ。持つのは、どの block をいつ回すか（`when:`）・承認ノード 4 つ・計画の往復の記録と止めと安全の上限・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表（段 → 回す物）と、fix と delta-review の間の 1 回の上げ直し・無人の方針・始めの記録（line だけが書き、block には port の値として配る）・報告への受け渡し（`sections`・`facts`）。AI の node は持たない。README 8.7 の「今の工場の穴」3 つは 8 節で決めた（並行 PR を修正の後に 1 度だけ確かめ直す・fix に外した hunk を渡す・入力 `gates` を足す）。
 - 持ち主（リポジトリの owner）に求めること: なし。入力 `gates`（変異の検算を合流でまとめる道）は、持ち主の決め（2026-10-19）で足さない（8 節の 3）。ほかは README・持ち主の決め・今のコードで決まった（13 節）。決まらない物は 15 節。
 - 読む人: 組み込みの PR で line と chain を書く実装の役。block の設計書の書き手（自分の block の port を line がどこから配るかを 1.6・4〜7 節で引く）。
@@ -47,7 +47,7 @@
 - `apply`（`{ok, hash, diff, reason}` か null）・`sealed`（`{ok, hash, diff}` か null）・`r2_status`（字か null）・`final_answer`（`{decision, text, asked}` か null）・`spec_questions`（整数）・`children`（`{cleaned, left, error}` か null）: 今の `result.py` のまま。
 - 形の検査（README 7.1 の 8）は返す node に欄 `outcome_field`（`fixed`）と `report` が在るかの yes/no で、今の `report`（機械の報告の pointer）で通る。line は一番上の graph で、line を include する graph は無い（chain は `workflow:` で起こし、`outcome` などを読む）ので、line 自身の報告の行は `report` の欄でなく `sections` の節 1（7.1）に入れる。欄の名は変えない（13 節）。
 
-### 1.3 node の並び（`blocks/line/works-factory-line.yaml`）
+### 1.3 node の並び（`workflows/line/works-factory-line.yaml`）
 
 番号は流れの順。`<<: *receiver` は受け皿（今の YAML の錨と同じ形。`with: {got, names}`）。include の `with:` の中身は 4〜7 節と 1.6。script の node はどれも `runtime: uv`・`mutates_checkout: false`・uv の頭の宣言 4 行。
 
@@ -102,8 +102,8 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 ### 1.5 コードの置き場
 
-- `blocks/line/scripts/`: node ごとに 1 本（`testcmd`・`start`・`gate_answer`・`returned`・`relay`〔返しの 4 つ `structure-in`・`design-in`・`lens-in`・`lens-2-in`。今の `structure_in.py` の形を 1 本にした物。`with:` の `got`〔運ぶ物の返りまるごと。`{from, if_skipped: null}`〕と `field`〔運ぶ欄の名を空白で区切った字。`design-in` は `design reason premises`〕を受け、その欄と `stop_reason` を返す〕・`tiers`・`owed`・`plan_out`・`ask_before_fix`・`before_fix_answer`・`fix_in`・`after_fix`・`ask_replan`・`replan_answer`・`fixed`・`raise_depth`〔node `raise`。名を `lib/` と重ねない〕・`judged`・`eyes_in`・`ask_final`・`collect`・`sweep_children`・`result`）。どれも `ports` の口で入力を読み、`src/` を呼ぶだけ。
-- `blocks/line/src/`（package `src`）:
+- `workflows/line/scripts/`: node ごとに 1 本（`testcmd`・`start`・`gate_answer`・`returned`・`relay`〔返しの 4 つ `structure-in`・`design-in`・`lens-in`・`lens-2-in`。今の `structure_in.py` の形を 1 本にした物。`with:` の `got`〔運ぶ物の返りまるごと。`{from, if_skipped: null}`〕と `field`〔運ぶ欄の名を空白で区切った字。`design-in` は `design reason premises`〕を受け、その欄と `stop_reason` を返す〕・`tiers`・`owed`・`plan_out`・`ask_before_fix`・`before_fix_answer`・`fix_in`・`after_fix`・`ask_replan`・`replan_answer`・`fixed`・`raise_depth`〔node `raise`。名を `lib/` と重ねない〕・`judged`・`eyes_in`・`ask_final`・`collect`・`sweep_children`・`result`）。どれも `ports` の口で入力を読み、`src/` を呼ぶだけ。
+- `workflows/line/src/`（package `src`）:
   - `files.py`: 1.4 のファイルの名。
   - `startrec.py`・`fixture.py`・`testcmd_check.py`・`versions.py`: README 9.2 の MOVE（`lib/` から block の `src/` へ移す物。ここでは今の `lib/` の同じ名のモジュールを line の `src/` へ移す）。`startrec` の `load`・`save` は形を問わない JSON の読み書きなので、line の外でそれを呼んでいた test-gate と、README 9.3 の KEEP〔2 つ以上の使い手が在るので `lib/` に残す物〕の `suitewrite` は、`lib/jsonfile.py` の `read_dict`・`write(..., indent=2, parents=True)` を直に呼ぶ形に替え（line の中の `save` は `jsonfile.write` を呼ぶ薄い包みとして残す）、始めの記録を読む口そのもの（`read`・`shape` など）は line の `src/startrec.py` にだけ置く。`lib/` に読む口は残さない（integration.md の 4.3-9・4.3-追加-6）。
   - `deal.py`（足す）: 始めの記録から配る値を引く（1.6）。
@@ -115,7 +115,6 @@ line は一番上の graph なので、place は run directory の根（README 4
   - `facts.py`・`sections.py`: report へ渡す 2 つの形を組む（7 節）。
 - 使う `lib/`（KEEP。README 9.3）: `answer`・`carry`・`entry`・`entryshape`・`runbranch`・`green_cert`・`declared_checks`・`suitewrite`・`cite`・`conflict`（行の形）・`replan`・`ghreads`・`forge`・`protect`・`seal`・`listcut`・`itemcommits`・`planmarks`・`querytest`・`outpurpose`・`policy`・`headdepth`・`gatemarks`（行の形）・`report`・`runreport`（軽くした物）・`stopby`・`tree_run`・`userenv`・`worldmark`・`structmark`・`oneline`・`jsonfile`。
 - 使う埋め: `childsweep`（`sweep-children`。今の `reader_of` が fix の中の node の名 `join` を持つので、「子を起こした node と同じ include の中の node が全部 completed になるまで消さない」に替える。README 1.3 の歩かせ 4）・`child_pointer`（chain）。
-- 作り直しの間は line を作らない（今の line が動く）。line は組み込みの PR で書く（README 11.3 の 1）。その PR で MOVE の元を消す。
 
 ### 1.6 始めの記録と配る値
 
@@ -250,7 +249,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - 標準: 省く物も足す物も無い。木の auto は auto。
 - 重厚: 足す物 = 名指さない既定の機能の全部（判定の裏取り・事前審査の木）。単位の深さは標準に固定。木の auto は auto。
 - 省く物は「段が省く物を持ち、単位の深さがどれも軽量の時だけ」省く（今の `skip_reason`。issue #561 の答え）。
-- 種類 → 段の表（今の `headdepth.UNKNOWNS`）は head-depth の block が持ち、line は持たない（形の直し 5）。
+- 種類 → 段の表（`headdepth.UNKNOWNS`）は `lib/headdepth.py` に在り（head-depth・diagnose・plan も読む）、line の `src/` は持たない（形の直し 5）。
 
 `tiers`（script。判定の後）: `$judge.output.tier` を表で引いて返す（固定材料の run は判定が飛ぶので `tiers` も飛び、`fix-in` が運んだ判定の返りの `tier` で同じ表を引き直す。修正から後ろの node は段の切り替えを `$fix-in.output.switches` から読む）: `tier`・`omits`（段が省く物を持つか）・`merge`（段が目をまとめるか）・`tree`（`P.tree_named` が名指しならその語。無ければ `entry.switch(記録, "review_tree", tier_adds(段), tier_auto(段))` の語〔重厚は足す機能に在るので on・軽量は off・標準は auto〕。今の `boardview.py:426-429` と同じ式）・`adds`（報告の「段が足した物」）・`lines`（報告の「省く物・足した物」の行。head-depth の設計書の 8 節の 3）。段の語が表に無ければ標準と読み、行に訳（今の `named` の倒し方）。
 
@@ -333,7 +332,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 ### 8.3 始めの記録に `gates` を書く物が無い
 
 - 今の事実: gate-efficacy の `gates` が `merge` の時にこの観点を回さない道は、始めの記録の欄 `gates` を読むが、書き手が工場に無い。訳の字 `GATES_MERGE_WHY` は元の works の入口の入力（`init --input gates=merge`）を名指す（S37・L-E40）。
-- 決め: line に入力 `gates` を足さない。持ち主の決め（2026-10-19）「重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたい」: 重い確かめは工場の run の中で回さず、まとめて回すか CI に任せる。judge の graph は gate-efficacy を include しない（judge-eyes.md の 3 節）ので、run の中で変異の検算の観点は回らず、`gates` を配る先も無い。gate-efficacy の block は `blocks/` に残り、まとめて回す時に単独の run で使う（block の port `gates` はそのまま）。
+- 決め: line に入力 `gates` を足さない。持ち主の決め（2026-10-19）「重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたい」: 重い確かめは工場の run の中で回さず、まとめて回すか CI に任せる。judge の graph は gate-efficacy を include しない（judge-eyes.md の 3 節）ので、run の中で変異の検算の観点は回らず、`gates` を配る先も無い。gate-efficacy の block は `workflows/` に残り、まとめて回す時に単独の run で使う（block の port `gates` はそのまま）。
 - 字の直し: `GATES_MERGE_WHY` の字は gate-efficacy の block の物で、line は直さない。
 
 ## 9 今の line との比べ（全部の確かめ・止め・承認ノード・書く順の行き先）
@@ -378,7 +377,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 
 graph は AI の node を持たないので、README 6 節の node ごとの 9 項（指示の組み立て・描いた骨組み・指示の比べ）は当たらない。確かめは筋書きと振る舞いの試験と通しの試験。
 
-- standalone の筋書き `blocks/line/fixtures/standalone.stubs.yaml`（7.1 の 4）: `fixture.inputs` は `request`（`fixtures/request.json`）・`test_cmd` だけ。include した block の AI の node と、include の中の loop の本体の script を台本で差し替え（README 13 章: dry-run は include の道を loop の本体に渡さない）、line の script は本物で回す。`reached` に `result`。
+- standalone の筋書き `workflows/line/fixtures/standalone.stubs.yaml`（7.1 の 4）: `fixture.inputs` は `request`（`fixtures/request.json`）・`test_cmd` だけ。include した block の AI の node と、include の中の loop の本体の script を台本で差し替え（README 13 章: dry-run は include の道を loop の本体に渡さない）、line の script は本物で回す。`reached` に `result`。
 - 今の筋書き 36 本（`workflows/line/fixtures/`）を新しい node の id に書き直す（README 11.3 の 2）。足す筋書き: `parallel-pr-after-found`（判定から入る run で、修正の後の並行 PR が found → 最後の承認ノードが開く）・`fix-excluded`（`excluded` が fix に届く。`resolved-text-contains` でなく `with` の値の照らし）・`light-all-units`（軽量で全部の単位が軽量 → lens・delta-review・r1〜r4 が飛び、structure after は走る）。
 - 振る舞いの試験 `tests/blocks/line/`（今の `tests/workflows/test_line.py`・`test_gate_head.py`・`test_testcmd_head.py` と `lib/tests/test_fixture.py`・`test_startrec.py`・`test_testcmd_check.py`・`test_versions.py` を元にする。README 9.5）:
   - `test_start.py`: 入力の拒み（今の `StartCase` の全部）と、配る値（1.6 の欄ごと。`entry` が差分の空と依頼の数の両方で決まる・`verify_by_tier` が名指しで全段 on/off になる）。
@@ -393,7 +392,7 @@ graph は AI の node を持たないので、README 6 節の node ごとの 9 �
 
 ## 12 chain（周の鎖）
 
-組み込みの前の古いサブグラフ `workflows/chain/` を、新しい pack（Archon が workflow を読む置き場のフォルダ。README の語）の chain に作り直して移した（README 11.3 の 1）。新しい chain は組み込みの間は `blocks/chain/` に置き、`blocks/` を `workflows/` に入れ替えて同じパス `workflows/chain/` に入る（古い物は 11.3 の 3 で消す）。line を周ごとに子の run として起こす形・5 組の周の node・止めの決め・最後の差分・PR の渡しは今のまま。直す所だけ:
+組み込みの前の古いサブグラフ `workflows/chain/` を、新しい pack（Archon が workflow を読む置き場のフォルダ。README の語）の chain に作り直して移した（README 11.3 の 1）。新しい chain は組み込みの間は `blocks/chain/` に置き、`blocks/` を `workflows/` に入れ替えて同じパス `workflows/chain/` に入った（古い物は 11.3 の 3 で消した）。line を周ごとに子の run として起こす形・5 組の周の node・止めの決め・最後の差分・PR の渡しは今のまま。直す所だけ:
 
 - 子の line に渡す入力を 1 か所に書いた YAML の錨（anchor）`line_inputs` に `gates` は足さない（8.3。持ち主の決め 2026-10-19）。
 - `hand`（include `works-factory-merge`、`mode: check`）の `with:` の `base_rev` を、merge の port の名 `base` に改める（merge の設計書の 1.6）。ほかの欄（`sealed_hash`・`deliver`・`request`・`user_env_dir`）は今のまま。

@@ -127,7 +127,7 @@ def refuse_empty(items: list, change, repo: pathlib.Path) -> None:
 
 
 def build(inp: dict, repo: pathlib.Path) -> dict:
-    """入口の節（start）が確かめた入力 inp から、入口の入力の形（始めの記録の欄 input。約束は docs/design.md の線の start の record）を作る:
+    """入口の節（start）が確かめた入力 inp から、入口の入力の形（始めの記録の欄 input。約束は docs/design/line.md の 1.6 の始めの記録）を作る:
     {base: {rev, from, name, label}, head_rev, diff: {empty, files, stat}, requests, request_file, pr: {number, title, body} | None,
     spec}。base は差分の根（名指しが無ければ HEAD・from head）、diff は差分の根から作業ツリーの今の姿までの測り（diff_of）、
     requests は依頼の行の数、pr は PR の番号と題と本文（目的の役が出典 ① PR 説明として読む。元は盤面の根の pr.md を線が

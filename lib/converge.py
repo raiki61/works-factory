@@ -111,7 +111,7 @@ FACE_KEYS = ("key", "kind", "where", "why")
 # 穴の中央・端の札（block の face の欄 REACH。役の型の faces の reach はこの写し）。中央の値は、直さずに修正へ進むと当たる害の
 # 定義の名（直しが壊れる・今ある振る舞いを失う・記録された方針に背く・やり直しを迫る設計の選び）。端はどれにも当たらない穴
 # （古い説明文の取り残し・書き換えの一覧の漏れ・試験の材料）で、修正の段で修正役が答え、直さずに残せば直しの後の目の R4 に
-# 申し送られる（fixboard.declared_lines）。定義と訳は docs/design.md
+# 申し送られる（fixboard.declared_lines）。定義と訳は docs/design/plan-review.md の頭の語（穴の reach）
 REACH = "reach"
 CENTRAL = ("breaks_fix", "loses_behavior", "against_policy", "forces_redesign")
 PERIPHERAL = "peripheral"

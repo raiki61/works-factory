@@ -1,7 +1,7 @@
 """対象のコマンドに渡す、利用者の隔離の前の HOME・XDG の控え（#492）。層 L1（works の物を何も知らない）。標準ライブラリだけ。
 
 起動の殻（bin/_lib/isolate.py）は HOME・XDG を run の置き場へ向け、隔離の前の値をいつも RECORD に控える。tree_run.outside_env が
-対象のコマンド（tree_run.outside_env の env で起こすコマンド。数え上げは docs/design.md の「対象のコマンドの環境と準備」）の env にだけ戻す。
+対象のコマンド（tree_run.outside_env の env で起こすコマンド。数え上げは docs/design/ の「対象のコマンドの環境と準備」の節）の env にだけ戻す。
 決め（持ち主の答え。docs/owner-decisions.md の target-user-env）:
 対象のコマンドは利用者の HOME・XDG で走る——設定・信頼・キャッシュ・認証を道具が見失わないため。AI が書いた試験のコードは、利用者の
 権限で走り、書く物も利用者の家に入る（起動の殻が実行する run のたびにその旨を告げる）。役の Bash は隔離のまま。

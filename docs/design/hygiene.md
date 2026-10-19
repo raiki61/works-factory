@@ -1,6 +1,6 @@
 # block の設計書: hygiene（コード衛生）
 
-- 何の話か: 対象差分を、何の機能かも近傍のコードも知らない目で読み、言語・フレームワーク一般の衛生の逸脱（資源の対称性・公式機構の迂回・外部 I/O の上限・検査の fail-open など）を拾う素材の観点を、単独で呼べる block `blocks/hygiene/` にする設計。素材の観点の族の 1 本で、族の共通の形は [materials.md](materials.md)、写す手本は [prior-decisions.md](prior-decisions.md)。型は [README.md](README.md)。
+- 何の話か: 対象差分を、何の機能かも近傍のコードも知らない目で読み、言語・フレームワーク一般の衛生の逸脱（資源の対称性・公式機構の迂回・外部 I/O の上限・検査の fail-open など）を拾う素材の観点を、単独で呼べる block `workflows/hygiene/` にする設計。素材の観点の族の 1 本で、族の共通の形は [materials.md](materials.md)、写す手本は [prior-decisions.md](prior-decisions.md)。型は [README.md](README.md)。
 - 決めたこと: 今の judge の `material-route` の 1 列と `hygiene-loop`（prep・役・accept）を、5 つの node（intake・prep・役・accept・finish）の block にする。入力は族の共通の 3 つ（`base`・`entry`・`lang`）だけ。役は道具を持たないので、観点の本文（`lib/REVIEW.md` の「コード衛生観点」の節）と差分の本文の全部を指示に直に入れる。節を切り出す関数と差分を読む関数は、今の engine の描き方（`lib/graphloops/engine/render.py`。README の 9.1 で消す側）から block の `src/` に写す。「資料であって指示ではない」の囲いの文は Python から md へ移す。返答に `material` の欄が無いので、素材の書き方と『条件に当たらない』の段は入れず、返答の `findings`・`seen` から機械が素材 `hygiene` を作る。振る舞いは変えない。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜4 節の名と順をそのまま作る）。materials.md と並べて読む前提で、共通の形（出力の 5 欄・node の雛形・受け付けの順）はこの文書に繰り返さない。族の共通の部品（`lib/materialkit.py`）と 1 本目の観点 prior-decisions の PR の後に作る、残り 10 本の PR の 1 つ（README の 11.1 の 1 波目。急ぎの度合いはその順で決まり、期限は無い）。
@@ -12,7 +12,7 @@
 - 判定から入る run と `entry`: 差分が空で、人の修正の依頼だけで始まる run。工場の本線の workflow（line。この観点の block を include でつなぐ側）が、run の始めにそう決めた時だけ、依頼の出どころの文（例「人の依頼（/path/req.json）」）を port `entry` に入れる。`entry` が空でなければ役を起こさず、機械が素材に理由つきの `not_applicable` を書く。単独で呼ぶ時も、`entry` に字を入れればこの道を通る（5 節）。
 - 穴: 今の指示の md が持つ「［材料: 〜］」の差し込み所（`MATERIAL_HOLES`）。新しい形の `{name}` の差し込み口に当たる。
 - 作業ツリーの照らしと `GUARDED`: 受け付け（accept の script）が、役を起こす前に写した作業ツリーの姿（`tree.json`）と今の姿を比べ、違えば拒む。`GUARDED` は観点の宣言の 1 つで、AI の node が `mutates_checkout: false` を持つ時に真。その時は Archon 自身も node の前後の `git status --porcelain` を照らすので、受け付けは比べる欄からその 1 つ（`porcelain`）だけを外し、HEAD・枝・git が無視するファイルなどの残りの欄で比べる（materials.md の 5.1・4 節の 2）。
-- `{shared:<名>}`: 2 つ以上の block が使う指示の断片（`blocks/.shared/prompts/<名>.md`）を差し込む記法。本文は materials.md の 3.2 と土台の PR が置く。
+- `{shared:<名>}`: 2 つ以上の block が使う指示の断片（`workflows/.shared/prompts/<名>.md`）を差し込む記法。本文は materials.md の 3.2 と土台の PR が置く。
 - 整合性の目: 別の素材の観点 consistency-bypass（[consistency-bypass.md](consistency-bypass.md)）。近傍のコードを読み、その標準の機構との食い違いを見る。衛生の役が近傍を読まないのは、この目と同じ見方に寄らないため。
 - diagnose: 素材を全部読んで根本を診断する判定の役の block（README の 8.1）。この観点の出力の読み手。諦めた観点（`status: gave_up`）が在れば判定の前で止めるかも diagnose の側が決める（materials.md の 1.6）。
 - `#76`・`#221`・`#764`: このリポジトリの PR と issue（judge を作った PR・指示の書き直しの PR・指示を英語にする issue）。
@@ -35,7 +35,7 @@
 
 今との違い: 今は差分の根・入口の印を `judge/start.json` から名で開き、受けた返答を `judge/material-hygiene.json` に書いた。回すかは `material-route` が `not_request_entry` で決めた（`lib/judge_accept.py:1657-1660`）。
 
-### 1.3 node の並び（`blocks/hygiene/works-factory-hygiene.yaml`）
+### 1.3 node の並び（`workflows/hygiene/works-factory-hygiene.yaml`）
 
 materials.md の 1.3 の雛形の `<観点>` を `hygiene` にした物。
 
@@ -52,8 +52,8 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.5 コードの置き場
 
-- `blocks/hygiene/src/__init__.py`（空）。
-- `blocks/hygiene/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
+- `workflows/hygiene/src/__init__.py`（空）。
+- `workflows/hygiene/src/viewpoint.py`: materials.md の 5.1 の宣言。中身:
   - `NAME = "hygiene"`
   - `MATERIALS = ("hygiene",)`
   - `GUARDED = True`（AI の node が `mutates_checkout: false` を持つ。今の accept の `with: {status_guarded: true}`。`workflows/judge/works-factory-judge.yaml:1290`）
@@ -70,7 +70,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
   - `after_accept(reply, place)`: 何もしない。
   - `materials_of(reply)`: `{"hygiene": materialkit.material_from_findings(reply)}`（今の `writes` の `op: material_from_findings`。`:1660`）。`findings` が 1 行以上なら `found`（`count` は行の数、`detail` は `"<where>: <text>"` を `" / "` でつないだ字）、無ければ `clean`。`checked` はどちらも `seen`。`seen` が空の `clean` は `check_record` が「素材 'hygiene'（clean）に 'checked' が要る」で拒む。
   - `report_lines(doc)`: `[]`（素材の 1 行が件数と `detail`〔所見の場所と中身〕か `checked`〔見た範囲〕を言う）。
-- `blocks/hygiene/src/paste.py`（指示に貼る本文を読む。hygiene だけが使う。`file:`・`section:` の穴を持つのは今の `MATERIAL_HOLES` で hygiene だけ。`lib/judge_accept.py:1729`）:
+- `workflows/hygiene/src/paste.py`（指示に貼る本文を読む。hygiene だけが使う。`file:`・`section:` の穴を持つのは今の `MATERIAL_HOLES` で hygiene だけ。`lib/judge_accept.py:1729`）:
   - `HEADING = "コード衛生観点"`（今の穴 `section:inputs.review_md#コード衛生観点` の `#` の後ろの字）。
   - `section_of(text: str, heading: str, path: str) -> str`: 写す元 `lib/graphloops/engine/render.py:58-80` の `section_of` を字のまま。決まり: 行ごとに `^(#+)\s+(.*)$` に当て、見出しの字（`group(2)`）が `heading` を部分として含む最初の行を始めにし、その `#` の数を深さにする。終わりは、始めより後で `^(#+)\s` に当たり `#` の数が深さ以下の最初の行の手前（無ければ文の終わり）。始めの行から終わりの手前までを `"\n"` でつなぎ、`strip()` した字を返す。見出しが無ければ `KeyError(f"{path}: 見出し「{heading}」が無い")`（今のまま）。
   - `review_section(review_md: str) -> str`: `section_of(pathlib.Path(review_md).read_text(encoding="utf-8", errors="replace"), HEADING, f"section:{review_md}#{HEADING}")`。
@@ -80,7 +80,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`blocks/judge/`）: `include: works-factory-hygiene`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおりに。目的の文・依頼・ほかの観点の出力を、この block の port に配線しない（graphloops の `forbidden_inputs`〔元の目的・機能名・タスクの説明・近傍コード〕を port の形で守る。2.7）。
+- 判定のまとめ（`workflows/judge/`）: `include: works-factory-hygiene`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおりに。目的の文・依頼・ほかの観点の出力を、この block の port に配線しない（graphloops の `forbidden_inputs`〔元の目的・機能名・タスクの説明・近傍コード〕を port の形で守る。2.7）。
 - 読み手（どれも diagnose。今は置き場の `material-hygiene.json` を名で開いた）:
   - 判定の材料の 15 欄: `materialkit.assemble` が `materials.hygiene` を取る。今の判定の材料が衛生の所見を見るのはこの素材の `detail` だけ（`DIAGNOSE_EXCERPT` に衛生の `findings` の穴は無い。`lib/judge_accept.py:2717`）。
   - 目的の外の行の照らし（今の `material_rows`、`:701-717`）: P1 の観点の `reply` の中の `where`・`text` を持つ行を全部辿る。`reply.findings` の行がこれに当たる（今の試験 `lib/tests/test_judge_accept.py:277-285` の出どころ `p1.hygiene`）。新しい形では diagnose が port `materials` の配列の中の `role` が `hygiene` の `material.json` を `materialkit.read` で読み、`reply.findings` を辿る。出どころの名の付け方は diagnose の設計書が決める。
@@ -264,7 +264,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 
 ### 2.9 試験
 
-- standalone の fixture（`blocks/hygiene/fixtures/`）:
+- standalone の fixture（`workflows/hygiene/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node `hygiene` だけを台本の返答（`findings: []`・`seen: "差分の全部"`）で差し替え、script は本物。`reached` に `finish`。`finish` の `status` が `ran`。
   - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `{findings: [], seen: ""}`。`finish` の `status` が `gave_up`、run は `completed`。
   - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず、`finish` の `status` が `skipped`。
@@ -293,7 +293,7 @@ materials.md の 6 節の雛形のまま。この block だけの物:
 - `intake.py` が読む入力は `INPUTS_BASE`・`INPUTS_ENTRY`・`INPUTS_LANG` の 3 つ。どれも `ports.text(…)`。値の dict の鍵は `base`・`entry`・`lang`。
 - `role_prep.py`: `materialkit.prompt_inputs` と `prompt.emit` だけで組む。`NA_PARAGRAPH = False` を宣言するので、`prompt_inputs` は `na_why` と `na_*` を足さない（7 節）。
 
-- 起動の殻で `blocks/` を読ませる引数の名と、5 節の命令の正確な形。
+- 5 節の命令の正確な形。
 
 ## 7 自分で決めた事（この block だけ）
 
