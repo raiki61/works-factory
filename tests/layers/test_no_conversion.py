@@ -18,7 +18,7 @@ class NoConversionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             shim = place.workflow_source(loaded, ROOT, pathlib.Path(tmp))
             read = files(place.pack_folder(loaded, shim))
-        self.assertIn(".shared/boundary.py", read)
+        self.assertIn(".shared/ports.py", read)
         self.assertEqual(read, files(ROOT / loaded["ours"]["folder"]))
 
 

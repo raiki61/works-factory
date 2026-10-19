@@ -27,7 +27,6 @@ WORDS = frozenset({
 # 線の script と境（workflows/line/scripts/・workflows/.shared/）で止めの語の字の写しを持ってよい所: lib を読めない時の返り
 # （lib を読めないので stopby を引けない）。値は stopby の定数と同じでなければならない
 COPIES = {
-    ("workflows/.shared/boundary.py", "LINE_SCRIPT"): "LINE_SCRIPT",
     ("workflows/line/scripts/result.py", "LINE_SCRIPT"): "LINE_SCRIPT",
     ("workflows/line/scripts/collect.py", "LINE_SCRIPT"): "LINE_SCRIPT",
 }
