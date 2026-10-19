@@ -25,7 +25,7 @@ BLOCK = "line"
 LINE = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"
 SCENARIOS = (
     "block-failed", "block-returns-failed", "conflict-ask", "depth-heavy", "depth-light", "depth-no-evidence", "depth-raised",
-    "fix-fixture", "light", "no-fix", "nothing-owed", "plan-failed", "plan-stalled", "plan-unsettled", "spec-changed", "standard",
+    "fix-excluded", "fix-fixture", "light", "light-all-units", "no-fix", "nothing-owed", "plan-failed", "plan-stalled", "plan-unsettled", "spec-changed", "standard",
     "start-refused", "test-gate-failed",
 )
 LIB = kit.ROOT / "lib"
@@ -362,6 +362,30 @@ class LightTest(unittest.TestCase):
         for node in ("lens__finish", "delta-review__finish", "eyes__r1__finish", "eyes__r4__finish"):
             self.assertFalse(ran(self.trace, node), node)
         self.assertTrue(ran(self.trace, "eyes__structure-after__finish"))
+
+
+class LightAllUnitsTest(unittest.TestCase):
+    """line.md 11 節の light-all-units: 全部の単位が軽量の周は lens・delta-review・r1〜r4 が飛び、structure after は走る"""
+
+    def test_only_the_structure_after_runs(self):
+        trace = line_traces(("light-all-units",))["light-all-units"]
+        for node in ("lens__finish", "delta-review__finish", "eyes__r1__finish", "eyes__r2__finish", "eyes__r3__finish", "eyes__r4__finish"):
+            self.assertFalse(ran(trace, node), node)
+        self.assertTrue(ran(trace, "eyes__structure-after__finish"))
+        self.assertIs(bound(trace, nodes()["eyes"]["with"]["run"]), False)
+
+
+class FixExcludedTest(unittest.TestCase):
+    """line.md 11 節の fix-excluded（4.5 の fix の excluded）: 並行 PR が外した hunk の控えが fix-in を通って fix に届き、2 度目の修正
+    （refix-run）にも同じ値が配られる。fix の受け付けが外した hunk に触れた修正を拒むのは fix の block の筋書きが見る"""
+
+    POINTER = {"type": "archon_artifact", "run_id": "fixture-run", "path": "parallel-pr/pr-excluded.json"}
+
+    def test_excluded_reaches_fix_and_refix(self):
+        trace = line_traces(("fix-excluded",))["fix-excluded"]
+        self.assertEqual(out(trace, "fix-in")["excluded"], self.POINTER)
+        self.assertEqual(bound(trace, nodes()["fix"]["with"]["excluded"]), self.POINTER)
+        self.assertEqual(nodes()["refix-run"]["with"]["excluded"], nodes()["fix"]["with"]["excluded"])
 
 
 class ConflictGateTest(unittest.TestCase):
