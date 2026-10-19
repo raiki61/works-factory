@@ -218,6 +218,7 @@ Return only JSON that matches the output schema.
 - 消した: 道具の段の「同じ時に別の素材集めの役も走っている」の断定（prior-decisions.md の 2.6 と同じ。`{shared:material-readonly}` の「走りうる」）。
 - 足した: 道具の段の「its network is open」。今の md は網を言わないが、起こし方（`network: {allowedDomains: ['*']}`）の事実を役に伝える 1 句で、prior-decisions の「網は閉じている」と対になる。
 - 残した: `mismatches` は頭の欄で `material` と別・1 件 1 行・`found` の時の `count` は行の数（#221 が足した段）。返答の形を決める文なので残した。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
 - 英語にした（#764）。役の名「代役の忠実性の役（任せ先）」は "the test-double-fidelity role"。「任せ先」（元の graphloops の `run_by: writer` の委任の印）は、block の中に任せる元が無いので訳さない。
 
 ### 2.7 元の works と graphloops の同じ場面

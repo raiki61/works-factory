@@ -249,6 +249,8 @@ Return only JSON that matches the output schema.
 - 言い換えた: `$TMPDIR`（md:59）を「TMPDIR 環境変数が名指す一時ディレクトリ」に（materials.md の 3.1 の終わり）。
 - 消した: md:59 の「GitHub を読む口は上の手順 3 のとおりで…issue と検索は works-gh でも通らないので WebFetch・WebSearch で読め」。`{shared:works-gh}` が同じ事を言う。
 - 消した: 素材の書き方の尾（md:60）の「欄と値の正本は受け付けが使う検証器 review-record.py だが…」（prior-decisions.md の 2.6 と同じ）。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
+- 足した: `rankings` の `ranked`（選択肢の名だけ）と `source`（原文の引用）の書き分け。消した: gh の参照と、works-gh の断片の結びの 1 文。
 - 英語にした（#764）。役の名「外部標準照合の役」は "the external-standards role"。
 
 ### 2.7 元の works と graphloops の同じ場面

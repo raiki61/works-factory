@@ -220,6 +220,7 @@ Return only JSON that matches the output schema.
 - 替えた: 「（台帳に載り、次の周の judge が『動かす手段が本当に無いか』を再審する）」（md:38）を「It reaches a person, who decides whether there is really no way to run it.」に。訳: 工場は 1 run = 1 周で、次の周も盤面の台帳も無い。今の工場で `awaiting_human` が届く先は、判定役が必ず立てる人への問い（1.6）。役に「書いた `reason` が人に読まれる」ことを伝え、`reason` に人が何をすればよいかを書かせる、という文の役目は残した。
 - 足した: 「`found` と `clean` は `observed` に 1 行以上要り、無ければ受け付けが拒む」の箇条と、`awaiting_human` の `reason` に「人が何を動かして何を見ればよいか」を書けの句。訳: 今の md は「observed に経路と観測した値」とだけ言い、受け付けの `main_path_observed` の決まりを役が知らずに 1 回拒まれる道が在った。受け付けの決まりは変わらない（自分で決めた。7 節）。後の句は、例の run の役が自ら書いていた形（「人が、…を当てた DB で結合テストを走らせ、実画面で…を見る必要がある」）を指示の側に置いた。
 - 足した: `## Where to point` の前置きの 1 文。訳: この返答の欄に `where` は無く、`{shared:material-where}` の「`where`」が何を指すかが役に分からない。今の md は前置き無しで同じ段を置いていた。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
 - 英語にした（#764）。役の名「主経路の実行観測の役（任せ先）」は "the main-path-observation role"。
 
 ### 2.7 元の works と graphloops の同じ場面

@@ -243,6 +243,7 @@ Return only JSON that matches the output schema.
 - 替えた: 渡し物のパス `$ARTIFACTS_DIR/judge/pr-brief.json` を `{brief_file}`（place の絶対パス）に。上限 100 を `{limit}` に（`src/files.py` の `PR_LIMIT` と受け付けの打ち切りの決めが同じ字を持つ。README の 5.3）。
 - 消した: 見出し「# P0-5 並行 PR 衝突チェック」の段の番号（graphloops の段の名で、この block は知らない）。
 - 消した: 6 段の括弧の中の「外した hunk は後の役——判定・修正案・修正——に触らない範囲として渡る」「下書きは報告の冒頭に載り」（下流の block の振る舞いを役に前提として伝えていた。world の 3.6 と同じ決め）。「人が読んで渡す」だけを残した。
+- 足した: `pr-check` に、共通の断片 `works-gh` から、WebFetch・WebSearch の使い方の 1 文が入った。
 - 足した物: 共通の断片 `query-rule` の「一次の出典を先に当たる」の 1 項目（今の指示には無い）と、`material-na` の断片の `na_never` の文（「found か clean と書き、確かめられなければ not_run と理由を書く」。今の指示は『条件に当たらない』の段を持たなかった）。どちらも共通の断片が持つ文で、この block では書き換えない。英語にした（#764）。役の名「任せ先の役」は "the parallel-PR role"。
 
 ## 3 script の node

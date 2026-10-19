@@ -214,6 +214,7 @@ Return only JSON that matches the output schema.
 - 言い換えた: md:38 の「素材として P2 へ渡す（P2 は素材を読んで判定する段で、この run では診断の役 diagnose がこの役の返答を読む」（#221 の足し）を「Pass it on as material for the judgment step (the diagnose role of this run reads this answer)」に。段の名 P2 は役が知らなくてよい名なので落とし、読み手の言い方だけを残した。渡し方（`exists_at_base` 偽・`evidence` に循環の証拠・`found`）と `claims` の欄の説明（どちらも #221 の足し）は字の中身のまま箇条にした。
 - 足した: `## Where to point` の前置きの 1 文（この役の返答には `where` の欄が無く、`material.detail` と `evidence` が場所を名指す時に下の書き方に従う）。訳: 今の md は所見の場所の段を前置きなしで置いていて、`where` の欄を持たない役が段の当て先を推すことになっていた。受け付けの照らしは今も新しい形も `where` と `text` を持つ行だけを見るので、この役の返答には当たらない（2.8）。materials.md の 3.1 の 10 が名指す「観点ごとの前置きの文」に当たる。
 - 移した: md:39 の素材の書き方（尾の「欄と値の正本は review-record.py」は消した。役が開かない物の名指し）。
+- 変えた: 断片 `material-where` の尾の文を、受け付けが照らす範囲（`where` と `text` を持つ行だけ。ほかの行は照らさない）に合わせて狭めた。
 - 英語にした（#764）。役の名「根拠の出所検査の役（任せ先）」は "the provenance role"（「任せ先」は元の graphloops の回す側の割り当ての名で、役の振る舞いを変えない）。
 
 ### 2.7 元の works と graphloops の同じ場面
