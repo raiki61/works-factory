@@ -1,0 +1,4 @@
+{
+  "description": "差分のパスを修正案の項目に決める記録（中の形は itemcommits.split が読み、読めない記録は 1 つの commit に倒す）。null は無い",
+  "type": ["object", "null"]
+}

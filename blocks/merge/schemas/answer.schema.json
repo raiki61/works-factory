@@ -1,0 +1,9 @@
+{
+  "description": "最後の承認ノードで人が返した答え。null は承認ノードが開かなかった",
+  "type": ["object", "null"],
+  "required": ["decision"],
+  "properties": {
+    "decision": {"type": "string"},
+    "text": {"type": "string"}
+  }
+}

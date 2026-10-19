@@ -222,6 +222,13 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 6. 土台の `ports.py` に要る口を 1.5 に並べ、無い物は最初に要った block の PR が足す。根拠: 今の `boundary.py` の口で、test-gate・fix も使う（憲法の 4）。README 3 節は `ports.py` を `boundary.py` の後継と書くが、口の一覧を決めていない。
 7. 出力の `diff.path` を enum から末尾の名の形に替える。根拠: README 4.4（place は include の道で決まる）で、line の 2 つの include と chain の 1 つで place の字が違う。名の住処は block の `src/files.py` だけ（README 4.4）。
 8. 守りの当たりの行と `bin/apply` の打ち方の行を `report` に入れず、欄で返す。根拠: README 4.1 は報告の文を事実を持つ block が組むと決めたが、この 2 つは他の block の事実（ほかの人が決めることの件数・結末の語・最後の答え）と合わせて初めて決まる。事実を欄で返し、組むのは report と line にする。
+9. 土台の `ports.py` を直さず、1.5 の口のうち無い物は block の中で組む。根拠: 土台は別の PR の持ち物で、この PR が触るのは `blocks/merge/` と `tests/blocks/merge/` と設計書だけ（作り直しの間は既存の共通の口を変えない）。`resolve` は要らない（place の下のファイルは `ports.place()` と `src/files.py` の名で直に指す）。`value`・`items`・`as_items`・`as_text` は各 script の 2〜3 行の関数（`parsed` の読みと型の倒し方）に、`SKIP` は `(ports.RUNTIME_COPY_PREFIX,)` に、`guarded_imports` は script の頭の `try: import …` と `ports.run` の fallback に替えた。10 節の 6 の「最初に要った PR が足す」は、足す先が土台の PR になるので、足さずに済む形にした。
+10. 形のファイル 4 本は、`anyOf` でなく `type: [object, "null"]`（と `required`・`properties`）で書く。根拠: `blocks/.shared/AGENTS.md` と `ports.unknown_keywords` が `anyOf` を拒む（`KNOWN_KEYWORDS` に無く、照らしが黙って飛ばす）。`required` は値が object の時だけ効くので、null は通り、object は `decision`・`status`・`head`・`diff_hash` を要る。
+11. 入力 `green_ok`・`eyes_ok` は `ports.flag` で読み、`true`/`false` でない値（空・`null` など）は偽に倒す（拒む側）。根拠: 1.2 の「真偽でない値は偽」。`ports.flag` は不正な字で落ちるので、script が `ValueError` を偽に替える。`fingerprint`・`answer`・`r2` は空と `null` を無し（`None`）に、それ以外は `ports.json` で形を照らす（`answer` が object でも null でもなければ読み込みで `ok: false`。今の `object_or_none` と同じ所に倒れる）。
+12. 入力 `request`（form `file`）は `ports.file` で読み、読めない・無いファイルは空に倒す（依頼が名指した issue を引けなくても止めない。今の `entryshape.named` の挙動のまま）。`items` は `ports.json` で形を照らし、JSON として読めない字は字のまま `itemcommits.split` に渡して 1 つの commit に倒す（今の `boundary.value` のまま）。
+13. `report.lines` の引数は `(place, deliver, sealed_diff)`（1.3 の 5・3.4 の `(place, commit, read, deliver)` から替えた）。根拠: 積んだ commit の並びと訳は `deliver` が `commits`・`split` で既に持つので、commit と read の返りを渡し直す要が無い。seal の消すファイルの行は封じた差分を読むので、実のパス（`ports.place()` の `sealed.diff`）を受ける。node `merge` の place は seal の node と同じ include の道なので同じ場所を指す。
+14. この block は AI の node を持たないので、プロンプトの md も指示の比べの試験も無い。作業は 1 つの commit にまとめた（#764 の 2 つの commit の形は AI の md の写しと翻訳のための物）。`pr_commit.py` の commit の文など、人に見せる日本語の字は今のまま日本語で残す（AI に届く指示ではなく、PR の本文の材料と報告の行）。
+15. 標準の筋書きは今の `seal.stubs.yaml` を `standalone.stubs.yaml` に改めた物（6 本はそのまま）。入力は `base` を 40 字の版で。`place` と `pr-commit` と `pr-open` は stub で差し替え、`pr-read` と `merge` は本物の script が走る。
 
 ## 11 試験
 
