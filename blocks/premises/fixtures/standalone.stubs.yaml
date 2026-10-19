@@ -6,7 +6,7 @@ fixture:
   inputs:
     request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す", "measured": "3"}]'
   resolved-text-contains:
-    premises: 'You are the measuring role, started in a new conversation.'
+    premises: 'You are the measuring role. Before the request is grouped into root-cause units'
 exec-code: true
 premises:
   constraints:

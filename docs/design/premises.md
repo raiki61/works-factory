@@ -111,7 +111,7 @@ md の本文（英語。この block の PR の 2 つ目の commit でこのま�
 
 {shared:query-rule}
 
-You are the measuring role, started in a new conversation. Before the request is grouped into root-cause units, measure again in this working tree every claim the request makes about numbers, sizes, counts, "exists / does not exist", and "X can arrive", and turn them into a list of constraints. Later roles read your constraints as given, so if you hand over a wrong fact here, every judgment and fix built on it goes off.
+You are the measuring role. Before the request is grouped into root-cause units, measure again in this working tree every claim the request makes about numbers, sizes, counts, "exists / does not exist", and "X can arrive", and turn them into a list of constraints. Later roles read your constraints as given, so if you hand over a wrong fact here, every judgment and fix built on it goes off.
 
 ## Tools and what you must keep
 
@@ -192,7 +192,7 @@ properties:
 ```markdown
 {shared:query-rule の本文: Rules for queries to outside services …（spawns の段落は入らない）}
 
-You are the measuring role, started in a new conversation. Before the request is grouped into root-cause units, …
+You are the measuring role. Before the request is grouped into root-cause units, …
 
 ## Tools and what you must keep
 
@@ -244,6 +244,7 @@ Write `text` and `measured_how` in the language of the request lines. …
 - 替えた: 作業ツリーの写しの説明（md:29「依頼を受け付けた時に取った作業ツリーの姿」）を「役を起こす前に取った姿」に。写しを取る所が judge の入口からこの block の `intake` に移ったため（3.1）。
 - 消した: ほかの node の id（`$premises-reject.output.*`）と `$ARTIFACTS_DIR` の字。
 - 足した物は無い。2 つ目の commit で英語にした（#764）。役の名「実測役」は "the measuring role"。
+- 今の md の「この役は新しい会話で起きている」は英語に写さなかった。輪は `fresh_context: false` で、2 回目からは同じ会話の続きになるため（レビューの指摘）。
 
 ### 2.7 元の works と graphloops の同じ場面
 

@@ -4,7 +4,7 @@
 
 {shared:query-rule}
 
-You are the measuring role, started in a new conversation. Before the request is grouped into root-cause units, measure again in this working tree every claim the request makes about numbers, sizes, counts, "exists / does not exist", and "X can arrive", and turn them into a list of constraints. Later roles read your constraints as given, so if you hand over a wrong fact here, every judgment and fix built on it goes off.
+You are the measuring role. Before the request is grouped into root-cause units, measure again in this working tree every claim the request makes about numbers, sizes, counts, "exists / does not exist", and "X can arrive", and turn them into a list of constraints. Later roles read your constraints as given, so if you hand over a wrong fact here, every judgment and fix built on it goes off.
 
 ## Tools and what you must keep
 
