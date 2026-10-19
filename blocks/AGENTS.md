@@ -58,8 +58,8 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 
 ## E5 block の出力は 1 つのノードの構造体
 
-- block の YAML は `returns:` で 1 つのノードを名指し、`outcome_field:` で仕事がうまくいったかの欄を名指す。返りの `output_format` には `report`（報告に載せる日本語の行の配列）を置く。block の間で渡す物の型の正本は、そのノードの `output_format` と graph の `with:` だけ（持ち主の決め `io-in-output-format`）。
-- 大きい中身はファイルに置き、出力には pointer `{type: archon_artifact, run_id, path}` を入れる。作り手の欄を 3 つ以上読む受け手は、返りを丸ごと置いたファイルの pointer 1 つで受ける（`docs/design/README.md` の 4.2）。
+- block の YAML は `returns:` で 1 つのノードを名指し、`outcome_field:` で仕事がうまくいったかの欄を名指す。そのノードの `output_format` には `report`（報告に載せる日本語の行の配列）を置く。block の間で渡す物の型の正本は、そのノードの `output_format` と graph の `with:` だけ（持ち主の決め `io-in-output-format`）。
+- 大きい中身はファイルに置き、出力には pointer `{type: archon_artifact, run_id, path}` を入れる。作り手の欄を 3 つ以上読む受け手は、作り手の出力を丸ごと置いたファイルの pointer 1 つで受ける（`docs/design/README.md` の 4.2）。
 - 飛ばされうる段の出力は、受ける側の `with:` に `{ from: "$<id>.output.<欄>", if_skipped: null }` で受ける。include の受け手へ束ねて渡す時は、graph の中継の script のノードで受けてから渡す（埋め P2）。
 - 機械: `tests/layers/test_block_returns.py`・`tests/layers/test_block_shape.py`（7.1 の 8）。
 
