@@ -1,0 +1,21 @@
+# 単独の run: port の値だけで最後まで届く（始めの記録を読まない）。script は本当に走り、突合の役の返答だけを差し替える。
+# 判定から入る run（entry が在る）なので、依頼の行の where が指示の材料に入る。出口の status が ran になることは
+# tests/blocks/prior_decisions の試験が確かめる（筋書きは node の返りの欄を照らせない）
+fixture:
+  expect: completed
+  reached: [intake, prior-decisions-prep, prior-decisions, prior-decisions-accept, finish]
+  inputs:
+    base: ''
+    request: '[{"where": "README.md", "text": "The README should say how to start the tool"}]'
+    entry: '人の依頼（standalone）'
+    lang: ''
+  resolved-text-contains:
+    prior-decisions: 'material-prior-decisions-brief.md'
+exec-code: true
+prior-decisions:
+  material:
+    status: clean
+    checked: the decision records of the area the request points to
+  checked: true
+  searched: [README.md and the docs folder]
+  settled: []

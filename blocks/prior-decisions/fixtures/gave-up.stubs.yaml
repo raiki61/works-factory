@@ -1,0 +1,16 @@
+# 突合の役の返答が受け付けを通らない道（not_applicable はこの観点では名乗れない）: run は止めず、出口が落ちずに返る。筋書きでは輪が
+# 1 周で終わるので却下は 1 回で、3 回で諦めて出口が status: gave_up を返す数えは tests/blocks/prior_decisions の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, prior-decisions-prep, prior-decisions, prior-decisions-accept, finish]
+  inputs:
+    request: '[{"where": "README.md", "text": "The README should say how to start the tool"}]'
+    entry: '人の依頼（standalone）'
+exec-code: true
+prior-decisions:
+  material:
+    status: not_applicable
+    reason: no decision records
+  checked: true
+  searched: [README.md]
+  settled: []

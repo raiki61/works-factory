@@ -1,0 +1,1 @@
+Do not change a single character of the target's working tree, HEAD, branch, or the files git ignores. The acceptance step compares the working tree with the snapshot taken before you were started, and rejects your answer if anything changed. Other roles may be running on the same working tree at the same time.
