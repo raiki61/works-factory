@@ -382,13 +382,13 @@ graph は AI の node を持たないので、README 6 節の node ごとの 9 �
 
 ## 12 chain（周の鎖）
 
-今の `workflows/chain/` を `blocks/chain/` に移す（README 11.3 の 1）。line を周ごとに子の run として起こす形・5 組の周の node・止めの決め・最後の差分・PR の渡しは今のまま。直す所だけ:
+組み込みの前の `workflows/chain/` を新しい pack の `workflows/chain/` に移した（README 11.3 の 1。組み込みの間は `blocks/chain/` に置き、入れ替えで今の置き場になる）。line を周ごとに子の run として起こす形・5 組の周の node・止めの決め・最後の差分・PR の渡しは今のまま。直す所だけ:
 
 - 子の line に渡す入力の錨 `line_inputs` に `gates` は足さない（8.3。持ち主の決め 2026-10-19）。
 - `hand`（include `works-factory-merge`、`mode: check`）の `with:` の `base_rev` を、merge の port の名 `base` に改める（merge の設計書の 1.6）。ほかの欄（`sealed_hash`・`deliver`・`request`・`user_env_dir`）は今のまま。
-- script（`chain_start`・`round_commit`・`round_facts`・`decide`・`final_diff`・`result`）は `boundary` の代わりに `ports` の口で入力を読む。読む lib（`chain`・`entry`・`entryshape`・`runbranch`・`carry`・`runreport`・`report`・`seal`）と埋め `child_pointer` は KEEP（README 9.3）。chain の置き場のファイル（`chain/final.diff`・`chain/round-<k>.diff`・`chain.md`・`chain/<子>/next-request.json`）の名は `blocks/chain/src/files.py` が持つ。
+- script（`chain_start`・`round_commit`・`round_facts`・`decide`・`final_diff`・`result`）は `boundary` の代わりに `ports` の口で入力を読む。読む lib（`chain`・`entry`・`entryshape`・`runbranch`・`carry`・`report`・`seal`）は KEEP（README 9.3）。子の費用の読み（今の `runreport.transcript_facts`）は KEEP の `lib/runlog.py`（integration.md の 4.5-2）。埋め `child_pointer` は `workflows/.shared/` に移り、`ports` の公開の口 `inside(rel, root)` で pointer の道を照らす形に直して、chain が直に import する（integration.md の 4.5-1）。chain の place のファイル（`chain/final.diff`・`chain/round-<k>.diff`・`chain.md`・`chain/<子>/next-request.json`）の名は `workflows/chain/src/files.py` が持つ。
 - 子の line の返りの欄（`outcome`・`apply`・`r2_status`・`spec_questions`・`next_request`）は line が今の名で返す（1.2）ので、`decide` と `round_facts` は変わらない。
-- 守る能力（L-D55〜L-D57）: 周の数 1〜5 と費用の上限の確かめ・design_only と fix_fixture の拒み・止めの語の順（周の数 → 結末の種 → 人が要る → 進みが無い → 費用）・周の commit を run の枝にだけ積む（`worktree.enabled: true`）・次の依頼に 1 周目の answers・pr・issue を足し下書きの行は運ばない・止まった周を採らずに最後の差分を封じる・出口の語 pr の時だけ親が PR を 1 本作る。試験は今の `tests/workflows/test_chain.py` と筋書き 8 本を `tests/blocks/chain/` と `blocks/chain/fixtures/` へ移す。
+- 守る能力（L-D55〜L-D57）: 周の数 1〜5 と費用の上限の確かめ・design_only と fix_fixture の拒み・止めの語の順（周の数 → 結末の種 → 人が要る → 進みが無い → 費用）・周の commit を run の枝にだけ積む（`worktree.enabled: true`）・次の依頼に 1 周目の answers・pr・issue を足し下書きの行は運ばない・止まった周を採らずに最後の差分を封じる・出口の語 pr の時だけ親が PR を 1 本作る。試験は組み込みの前の `tests/workflows/test_chain.py` と筋書き 8 本を `tests/blocks/chain/` と `workflows/chain/fixtures/` へ移した。
 
 ## 13 自分で決めた事
 
@@ -400,7 +400,7 @@ graph は AI の node を持たないので、README 6 節の node ごとの 9 �
 - 差分の審査が通らなかった・諦めたことを `fixed.go` に混ぜず、残りに数える。`ok` が偽（段が壊れた）の時だけ止める。根拠: delta-review の設計書の 1.6（`ok` が false なら止め、`gave_up` は止めない）。今も審査が通らなかった差分は最後のテストへ進み、結末を fixed にしない（今の `review_failed` の道）ので、結末は同じ。
 - 修正の後の読むだけの 3 つ（並行 PR の確かめ直し・再審・仕様の照らし）を、最後の段の差分の審査の後（`fixed` の後）に置く。根拠: どれも「役が作業ツリーを変えていない」を照らすので、作業ツリーを変える手直しと重ねられない。今の再審と仕様の照らしも 2 つの修正の段（中の手直しを含む）の後だった。
 - `owed` の決め（`planfile.round_inputs`・`held_why`）を `lib/` に残す。根拠: plan（周を開く口）と line（構造の目を回すか）の 2 つが同じ式を引く（今の docstring「周と同じ入力の同じ並びで決めるようにこの関数を引く」）。憲法の 4。
-- `when:` が読む上げ直しの欄を `checks`・`eyes_due` の真偽にする。根拠: README 1.2 の D（verify・delta-review・r1〜r4 を回すかは line の `when:`）と、KEEP の `tests/layers/test_depth_skip.py`（`when:` が名に depth を含む欄を読まない）の両方を満たす。表を引くのは line の `src/` で、`when:` は結果の真偽だけを読む。E20 の文の「ノードを深さの値で飛ばさない」は、組み込みで「深さの語を `when:` に書かない。表を引くのは line の src」に書き直す（`workflows/AGENTS.md` の決まりの直し。11.3 の 6）。
+- `when:` が読む上げ直しの欄を `checks`・`eyes_due` の真偽にする。根拠: README 1.2 の D（verify・delta-review・r1〜r4 を回すかは line の `when:`）と、KEEP の `tests/layers/test_depth_skip.py`（`when:` が名に depth を含む欄を読まない）の両方を満たす。表を引くのは line の `src/` で、`when:` は結果の真偽だけを読む。E20 の文は組み込みで「省くかを `when:` に渡す時は、line が表から引いた真偽だけにする」に書き直した（`workflows/AGENTS.md`。README 11.3 の 6）。表の写しはこの設計書の 16 節。
 - 配る値を `start` の出力の欄 `ports` 1 つにまとめる。根拠: 始めの記録の書き手と読み口を 1 か所にする（今の L-E24 の柵の意図）。node ごとに記録を開いて引き直すと、続きの run で値が黙って変わった `8dfebca6` の形が戻る。
 - `lang` は始めの記録の値をそのまま全部の include に渡す（15 節に残りの問い）。
 - 受け皿を include ごとに置き、`all_done` で集める node（`collect`・`ask-final`・`fix-in`）は受け皿の got だけを読む。根拠: 今の埋め P8 のまま。block の返す node が落ちない作りでも、Archon が落ちた node への `with:` を誤りにする事実は変わらない。
@@ -413,7 +413,7 @@ keep-essence の 12 の仕組みのうち、line が担う物（6・8・10・11�
 
 2 波目・3 波目の設計書（diagnose・plan・plan-review・fix・delta-review・lens・r2〜r4）は、この設計書を書き終える前に置かれたので、配線は全部その 1.2 と 1.6 に合わせた。残る食い違い:
 
-- fix に port `excluded` を足し、外した hunk を触った返答を拒む関門を受け付けに足すこと（8.2）。fix の設計書の 1.2 に無い。fix の設計書の直しで確かめる。
+- fix に port `excluded` を足し、外した hunk を触った返答を拒む関門を受け付けに足すこと（8.2）。integration.md の 4.1-5 で 8.2 のとおりと決めた（fix の設計書の 1.2 と受け付けの節は fix の直しの陣が直す）。
 - fix の設計書の 16 節の 4（line の上げ直しが修正役の異議を信号に足すか）の答えは「足す」（5.3）。
 - plan の設計書の 1.6 の「事前審査の port `prior` と同じファイルにできるか」の答えは「2 本に分ける」（3 節）。
 - delta-review の設計書の 1.6 の「累積の差分の読み手」の答えは 4.3 の `diff`。
@@ -424,8 +424,35 @@ keep-essence の 12 の仕組みのうち、line が担う物（6・8・10・11�
 
 - 入力 `gates` は持ち主の決め（2026-10-19）で足さない（8.3）。確かめは済んだ。
 - `lang` が空の時: README 5.3 は「空なら line が依頼の言語を決めて渡す」と言うが、言語を自動で選ぶ仕組みを作らない決めとぶつかる。この設計は空のまま渡す（依頼を読む役は既定の文で依頼の言語に書く）。依頼を見ない役（test-gate の任せ先・実行器の書き手）に、依頼の文の頭を引いて「この文と同じ言語」と書いた値を渡すかを決める。
-- `startrec` の読む口の残し方: KEEP の lib（`headdepth`・`suitewrite`・`conflict`・`runreport`）が始めの記録を読む所が組み込みの後に残るか。残れば読む口だけを `lib/` に残す。
+- `startrec` の読む口の残し方（閉じた）: lib に読む口は残さない。始めの記録を読む口（`read`・`shape` など）は line の `src/` に置き、KEEP の関数（`conflict`・`gatemarks`・`headdepth`）は値を引数で受ける形に直す。形を問わない JSON の読み書き（今の `startrec.load`・`save`）は `lib/jsonfile.py` に寄せ、test-gate と `suitewrite` はそれを使う。`runreport` は消え、line だけが使う部分は line の `src/facts.py` へ移る（integration.md の 4.3-9・4.3-追加-6・4.5-4）。
 - 包みが始めの記録を読む `graph_map`（機能の語）は、block の外の埋めが line の記録を読む形のまま残る。README 4.3 は block の話で埋めに当たらないと読んだ。
 - `fixture.FORMAT` を上げた後、今の固定材料（前の版の写し）を新しい line で使えないこと。報告の「固定材料」の行を持つ前の run の写しは取り込めず、AI の前で拒む。
 - 判定から入る run で修正の後に並行 PR を回すと、無人の run が止まる場合が増える（8.1）。持ち主の決め（無人は推しで進む）とは別の、事実が無い所での止まりなので止める側に倒したが、確かめていない。
 - dry-run が include の中の loop の本体に include の道を渡さない（README 13 章）ので、line の筋書きは計画の往復の中の include した block の loop の本体の script を差し替える。本体を走らせる確かめは各 block の筋書きが持つ。
+
+## 16 深さの段の表
+
+### 深さの段の表
+
+run の頭の深さの 3 段の定義の写し（issue #441・#561。持ち主の決め `depth-by-reason`・`three-tiers`）。正本は line の `src/tiers.py` の `TIERS`（5.1）で、表の行（段・省く物・足す物）は `TIERS` と等しい（`workflows/AGENTS.md` の E20。`tests/layers/test_depth_skip.py` が照らす）。省く物は段の頭の run で、直した後も単位がどれも軽量の時だけ省く確かめ（`tiers.OMITS` の名。同じ段の頭の run では、軽量の単位ごとに緑の後と親に当てた後の `test_cmd` の走らせ直しも省く。`tiers.UNIT_OMIT`）、足す物は段が足す機能（`lib/entry.py` の `FEATURE_DEFAULTS` の名）。ノードを深さの `when` で飛ばす道は作らない。未知の種類 → 段の表は head-depth の block が持つ（`docs/design/head-depth.md`）。#765 の組み込みの前は `docs/design.md` に在った表と注を、そのまま移した（注の中の古いノードの名は、その時の形の記録）。
+
+| 段 | 省く物 | 足す物 | 理由 |
+| --- | --- | --- | --- |
+| 軽量 | `p3.delta_review`・`r1.comment_candidates`・`r1.minimality`・`r2.compare`・`r3.coherence`・`r4.hidden_scope` | 無し | 依頼の全部の行が未知の種類『無し』（原因と直す所を依頼の字とリポジトリの行の引用で示せた）run。省く物は単位の深さの省き（差分の審査と R1〜R4）で、直した後も単位がどれも軽量の時だけ省く（記録された方針 `dynamic-depth`）。足す物が無いので、名指しの無い事前審査の木も開いた項目の数に依らず off に読む（`TIERS` の `auto`。issue #687）。計画の壁打ち（plan と plan-review の往復）はどの段でも省かない |
+| 標準 | 無し | 無し | 今までどおりの全部の確かめ。未知の種類『原因』（症状だけで原因がコードに見えない）か『形』（設計の選び）の行が在る run。引用が通らない・機械の止め（仕様の段・設計だけ・依頼の行が無い・機械の確かめが無い）の run はここ |
+| 重厚 | 無し | `judge_verify`・`review_tree` | 未知の種類『範囲』（公開の約束の変更・複数のサブグラフにまたがる）の行が在る run に、触る所が広い時の取りこぼしを拾うため、判定の裏取りと事前審査の項目ごとの木を足す（issue #648、持ち主の決め `depth-by-reason`）。単位の深さは標準 |
+
+注:
+
+- gate の機械の止めの run は役を起こさず標準になり、自動では重厚を選ばない。重厚が要るなら入力 `thickness=重厚` で名指す（名指しは役を起こさずに固定し、単位の深さは標準に固定する）。
+- 名指した重厚（`thickness=重厚`）が足す機能を `features_off` で切る組は、入口（`workflows/line/scripts/start.py` の `words`）がぶつかった機能を名指して止める。自動で選んだ重厚は入口の後に決まるので止められず、名指しで切った機能は入れずに、報告の深さの行が「名指しで切った」と言う。
+- 重厚の足しは、判定の裏取りの支度（judge の `verify-prep` が始めの記録と頭の深さの控えから決める）と、事前審査の木（`plan-review` の入力 `head_depth`）が読む。裏取りは開いた単位が 2 つ未満なら重厚でも回さない（報告の裏取りの行が訳を出す）。
+- まとめる目（`TIERS` の `merges`。軽量だけ `r3.coherence`・`r4.hidden_scope`）: 軽量の頭の run で、上げ直しなどで目を省かずに回す時は、この目を 1 つの役 `eyes-one` が 1 つの会話で見る（eyes の `prep` が `depth.merges` を読む）。別の会話にする訳がある目だけを分ける持ち主の決め（`eyes-by-reason`）で、決めは軽量の run の組み方なので、「その目だけが拾う穴」は軽量の run に近い小さい差分（差分 400 行未満の 14 本の run）で数えた。そこでほかの目が挙げない要修正は R1 13 件・R2 5 件・R4 7 件・R3 0 件（43 本全体では R1 74 件・R2 18 件・R3 3 件・R4 14 件。数えの控えは issue #687 のコメント）。R2 は修正を見ない独立設計と突き合わせ、ほかの観点の結論を見ると偏るので分けたまま。R1 は小さい差分でも単独の穴を一番多く拾い、問いの台帳を受け取るのも R1 だけなので、標準の run と同じ前段つきの役のまま。R4 も小さい差分で単独の穴を拾うので分けたまま。R3 は小さい差分で単独の穴が 0 件で、道具（Read・Grep・Glob）と模型の群も R4 と同じなので、R4 の受け付けのループの中の 1 つの役が R4 と一緒に見る。まとめても R3 の観点は審査の指示に残り、同じ会話の中で見続ける。4 つの観点（最小性・設計の比較・整合・見えていない範囲）はどれも審査の指示に残る。標準と重厚の目は目ごとの役のまま。
+
+載せなかった候補（代わりが無い）:
+
+- judge の P1 の素材（`local-review`・`consistency-bypass`・`hygiene`・`external-standards`・`provenance`・`procedure-trace`・`gate-efficacy`・`test-double-fidelity`・`main-path-observation`）: 差分の無い依頼の run では今すでに起きない（`lib/judge_accept.py` の `due_view` が入口の印を立てる）。差分の在る run では、ReviewBench で所見を出したのは judge（15 件・最後の差分に 4）と eyes だけで、judge の所見はこの素材から来る。安全面・黙った失敗・ゲートの変異の検算などは eyes が見ない。
+- `judge__prior-decisions-loop`（過去の決定記録の探し）: eyes の R4 が照らすのは記録された方針の文書だけで、git の履歴や issue の決定を探す役はほかに無い。
+- `judge__purpose-review-loop`（書き手が要約した目的の監査）: eyes の R2 の独立設計も同じ目的の文から作るので、要約が狭めていたら R2 も同じく狭まる。
+- 計画の事前審査のループ（`plan-review-run__review-loop`）: 軽量の頭の run で飛ばす道があったが、計画の壁打ちはどの段でも省かないと決めて外した。ReviewBench の測り（2026-10-14）は事前審査が高い（3 課題の和で 3772 秒・33.14 USD・所見 0）ことを示したが、事前審査は省かない。
+- fix・test-gate・eyes・report: issue #441 が飛ばさないと決めている。
