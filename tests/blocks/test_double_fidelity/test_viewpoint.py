@@ -14,9 +14,12 @@ class ViewpointCase(unittest.TestCase):
                          (("test_double_fidelity",), False, "cond", True))
 
     def test_due_and_fill(self):
-        self.assertTrue(self.vp.due(None, {"entry": ""}).run)
-        self.assertFalse(self.vp.due(None, {"entry": "人の依頼"}).run)
-        filled = self.vp.fill(None, {"entry": "人の依頼"}, self.vp.due(None, {"entry": "人の依頼"}))
+        empty = self.mk.View(".", "b", "r", "d", (), "c", "", 0)
+        changed = self.mk.View(".", "b", "r", "d", ("a.py",), "c", "", 0)
+        self.assertTrue(self.vp.due(empty, {"entry": ""}).run)
+        self.assertFalse(self.vp.due(empty, {"entry": "人の依頼"}).run)
+        self.assertTrue(self.vp.due(changed, {"entry": "人の依頼"}).run)   # 修正が入って差分が出来た run は入口の周でない
+        filled = self.vp.fill(empty, {"entry": "人の依頼"}, self.vp.due(empty, {"entry": "人の依頼"}))
         self.assertEqual(filled["test_double_fidelity"]["status"], "not_applicable")
         self.assertIn("人の依頼", filled["test_double_fidelity"]["reason"])
         self.assertIn("件数は渡されていない", filled["test_double_fidelity"]["reason"])

@@ -1,7 +1,7 @@
 """観点 test-double-fidelity（代役の忠実性）の宣言（docs/design/materials.md の 5.1・docs/design/test-double-fidelity.md の 1.5）。
 
 対象差分が外部との継ぎ目に触れる時に、テストの代役の形が実物と合うかを、実物から取った値 1 件で確かめさせ、不一致の行（mismatches）と
-素材 test_double_fidelity を返させる。回すかは判定から入る run かだけで決める（継ぎ目に触れるかは機械が決められないので、触れる側に倒す）。
+素材 test_double_fidelity を返させる。回すかは判定から入る run か（materialkit.is_entry_run: entry があり、かつ対象差分が空）だけで決める（継ぎ目に触れるかは機械が決められないので、触れる側に倒す）。
 受け付けの流れと出口は lib/materialkit が持ち、ここは宣言だけを持つ。
 """
 import materialkit  # lib/
@@ -17,7 +17,7 @@ NOUN = "代役の忠実さの確かめ"
 
 
 def due(view, values) -> materialkit.Due:
-    if values.get("entry"):
+    if materialkit.is_entry_run(view, values):
         return materialkit.entry_skip(NOUN)
     return materialkit.Due(True, "代役の忠実さの確かめは、判定から入る run でなければ run ごとに 1 回回す（1 run は 1 周で、いつも初回。"
                                  "差分が外部との継ぎ目に触れるかは機械が決められないので、触れる側に倒す）")

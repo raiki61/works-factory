@@ -42,6 +42,10 @@ class FlowCase(unittest.TestCase):
     def material(self):
         return json.loads((self.run.artifacts / "material.json").read_text(encoding="utf-8"))
 
+    def test_lang_reaches_the_prompt(self):
+        self.intake(lang="Japanese")
+        self.assertIn(" in Japanese.", self.prep()["prompt"])
+
     def test_port_values_alone_reach_the_material(self):
         """写す元 MaterialCase.test_test_double_fidelity_reply_is_taken_or_refused: carried_over は拒み、clean は素材の欄に写して受ける"""
         self.assertEqual(self.intake()["due"], True)

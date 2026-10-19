@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""代役の忠実性の入口: port を読み、対象差分を取り、回すかを決め（いつも回す）、作業ツリーを写して intake.json を書く。
+"""代役の忠実性の入口: port を読み、対象差分を取り、回すかを決め（判定から入る run の周だけ回さない）、作業ツリーを写して intake.json を書く。
 返り {due, reason}。port が読めない・差分が取れない時は due: false と訳（出口が status: failed にする）"""
 import os
 import sys
