@@ -1,0 +1,17 @@
+# 初見の読み手が通さない道: 台本は redesign-needed を返し、受け付けは書き手に出し直させる（kind cold の拒否を控えに積む）。run は止まらず、
+# 出口が機械の報告を指して返る（人に向けた報告はまだ無い）。dry-run の輪は 1 周で終わる（until は走らない）ので、3 回目に上限の回として
+# 受け取って印を残す数えは tests/blocks/report/test_scripts.py の AcceptCase が確かめる
+fixture:
+  expect: completed
+  reached: [facts, write-prep, write, cold-prep, cold, write-accept, finish]
+  inputs:
+    sections: '[{"title": "直した所", "lines": ["単位 u1: 直した"]}]'
+    facts: '{"start_ok": true, "proved": true}'
+  resolved-text-contains:
+    cold: 'この役は文脈を持たない初見の読み手。'
+exec-code: true
+write:
+  text: "平均の関数を直した。\n\n## 人が決めること\n\n- 決める物は無い"
+  terms: []
+  handoff: {read: [], kept: [], set_aside: [], open: []}
+cold: {verdict: redesign-needed, stops: [何の話か分からない], guessed: [], decidable: false}

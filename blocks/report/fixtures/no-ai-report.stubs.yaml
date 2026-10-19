@@ -1,0 +1,9 @@
+# 事実が渡されていない（facts が空のオブジェクト）。facts は record_invalid を返し、書き手のループは飛ばされ、出口が機械の報告を指して返る
+# （人に向けた報告は無い）。AI の node の台本は要らない
+fixture:
+  expect: completed
+  reached: [facts, finish]
+  inputs:
+    sections: '[]'
+    facts: '{}'
+exec-code: true
