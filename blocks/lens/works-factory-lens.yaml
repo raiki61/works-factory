@@ -1,0 +1,122 @@
+name: works-factory-lens
+description: '黙った失敗のレンズの block（docs/design/lens.md）。修正の前の版から今の作業ツリーまでの差分を切り、利用者が入れた review の agent の定義（今は pr-review-toolkit の silent-failure-hunter）の観点だけで、レンズごとに独立の AI の node が差分を読んで指摘を返す。指摘は出どころのレンズの名つきで集める。落ちたレンズ・起こさなかったレンズは理由つきの行に残して先へ進む。指摘を確かめて穴にするのはこの block の外。単独の run でも、graph から include されても回る'
+inputs:
+  base:
+    required: true
+    description: 'text: 修正の前の作業ツリーの姿の git の版（木か commit の sha）。差分はこの版から今の作業ツリーまでを切る'
+  lenses:
+    default: '[{"lens": "silent-failure-hunter"}]'
+    description: 'json(lenses.schema.json): 当てるレンズの並び [{lens, agent?, body?}]。lens はこの block のレンズの表の名、agent は定義を引く <plugin>:<役>（省けば表の物）、body は定義の本文（在れば agent から引かない）。表に在って並びに無いレンズは起こさない'
+  lang: {default: '', description: 'text: 人に見せる欄（findings の why・findings_none）の言語。空は依頼の行の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason, silent_failure_hunter_go]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+        silent_failure_hunter_go: {type: boolean}
+  - id: silent-failure-hunter-prep
+    script: lens_prep
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake]
+    when: $intake.output.silent_failure_hunter_go == true
+    with: {lens: silent-failure-hunter}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties: {prompt: {type: string, minLength: 1}}
+  - id: silent-failure-hunter
+    description: 'レンズ silent-failure-hunter: 修正の差分の黙った失敗を探す（読むだけ）'
+    prompt: "$silent-failure-hunter-prep.output.prompt"
+    depends_on: [silent-failure-hunter-prep]
+    context: fresh
+    model: '@wf-fix-review'
+    settingSources: [user]
+    allowed_tools: [Read, Grep, Glob]
+    mutates_checkout: false
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [findings]
+      properties:
+        findings:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [where, cite, why]
+            properties:
+              where: {type: string, minLength: 1}
+              cite: {type: string, minLength: 4}
+              why: {type: string, minLength: 20}
+        findings_none: {type: string}
+  - id: silent-failure-hunter-take
+    script: lens_take
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [silent-failure-hunter]
+    with: {lens: silent-failure-hunter, reply: $silent-failure-hunter.output}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties: {ok: {type: boolean}}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, silent-failure-hunter-prep, silent-failure-hunter, silent-failure-hunter-take]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, rows, ran, failed, not_routed, carry, report, optional]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+        rows:
+          type: [object, 'null']
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        ran: {type: integer, minimum: 0}
+        failed: {type: integer, minimum: 0}
+        not_routed: {type: integer, minimum: 0}
+        carry:
+          type: array
+          items:
+            type: object
+            required: [where, text]
+            properties:
+              where: {type: string}
+              text: {type: string}
+        report:
+          type: array
+          items: {type: string}
+        optional:
+          type: array
+          items:
+            type: object
+            required: [node, bare]
+            properties:
+              node: {type: string}
+              bare: {type: boolean}

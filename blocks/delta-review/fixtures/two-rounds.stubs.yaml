@@ -1,0 +1,46 @@
+# 2 往復: 審査役 1 回目が塞いだと言う穴を closed: false で返し（義務 1）、手直しの役 1 回目が fixed と答え、手直しだけの差分に 2 回目の審査が
+# 当たって同じ穴が塞がっていないと返し、手直しの役 2 回目が declared で残す。4 つの役の指示が md から組まれて届く
+fixture:
+  expect: completed
+  reached: [intake, review-1, review-1-accept, owed-1, refix-1, refix-1-accept, cut-2, review-2, review-2-accept, owed-2, refix-2, refix-2-accept, finish]
+  inputs:
+    base: 'HEAD'
+    fix_reply: '{"changes": [], "not_done": [], "plan_faces": [{"key": "claimed-closed-hole", "handled": "absorbed", "how": "The fix says it closed this hole."}]}'
+  resolved-text-contains:
+    review-1: "You are the inspector for the diff of this round's fix."
+    refix-1: 'You are the writer who touches up the holes the diff review raised.'
+    review-2: 'You are the inspector for the diff of the touch-up.'
+    refix-2: 'You are the writer who touches up the holes the second diff review raised.'
+exec-code: true
+review-1:
+  faces: []
+  faces_none: 'Read the claimed hole and its callers; nothing new was added by the fix.'
+  checks:
+    - key: claimed-closed-hole
+      closed: false
+      why: 'The diff does not close the hole: the second route is still open.'
+  compliance:
+    verdict: not_applicable
+    items: []
+    read: 'There is no approved plan item, so there is nothing to check against.'
+  quality:
+    verdict: pass
+    why: 'Looked at the claimed hole and found no untied hole in the change.'
+refix-1:
+  handled:
+    - key: claimed-closed-hole
+      handled: fixed
+      how: 'Closed the second route by reusing the guard that already covers the first one.'
+      files: [README.md]
+review-2:
+  faces: []
+  faces_none: 'Read the touch-up diff and the guard it reuses; nothing new was added.'
+  checks:
+    - key: claimed-closed-hole
+      closed: false
+      why: 'The second route is still open after the touch-up: the guard is not called from it.'
+refix-2:
+  handled:
+    - key: claimed-closed-hole
+      handled: declared
+      how: 'The guard cannot be called from the second route without a new mechanism, so I leave it.'

@@ -1,0 +1,19 @@
+# 再審の道: objection と prior（1 回目の判定の値）だけで、再審の役の返答を受け付けて出口まで届く。script は本当に走り、AI の役の返答
+# だけを差し替える。再審の役の返答は異議を退ける答えで、単位は 1 回目と同じ
+fixture:
+  expect: completed
+  reached: [intake, rejudge-prep, rejudge, rejudge-accept, finish]
+  inputs:
+    objection: 修正役が、単位 stats.py mean の分母が 2 の固定値 の処方が 1 語足りないと言っている
+    prior: '{"units": [{"key": "stats.py mean の分母が 2 の固定値", "label": "block", "disposition": "do-now"}], "questions": [], "framing": "", "one_shot": "", "materials_missing": [], "carried_r1": [], "one_shot_closes": [], "precedents": []}'
+  resolved-text-contains:
+    rejudge: 'You are woken to reconsider this run''s judgment.'
+exec-code: true
+rejudge:
+  verdict: 退ける
+  new_facts: 異議が挙げた行を Read で読んだが、処方に足りない語は見当たらなかった
+  reason: 確かめた事実では処方は変わらない
+  units:
+    - key: stats.py mean の分母が 2 の固定値
+      label: block
+      disposition: do-now

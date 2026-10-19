@@ -1502,6 +1502,7 @@ CODE_KINDS = ("script", "bash")
 TREE_CHANGERS = frozenset({"Bash", "Edit", "Write"})
 KEEP_CHECKOUT = {
     ("judge", "judge-verify"): "単位ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
+    ("verify", "judge-verify"): "単位ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout。blocks/ の block の名での同じ行）",
     ("plan-review", "plan-review"): "束ね役と同じ起こし方の錨 review_launch から Write を持つが、作業ツリーも run の置き場も書かない（単独の審査）",
     ("plan-review", "plan-review-fix"): "plan-review の会話の続きの出し直しの役。束ね役と同じ起こし方の錨 review_launch から Write を持つが、"
                                         "作業ツリーも run の置き場も書かない（単独の審査）",

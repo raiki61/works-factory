@@ -1,0 +1,11 @@
+{
+  "description": "独立設計の役の返答。null は独立設計が無い",
+  "type": ["object", "null"],
+  "properties": {
+    "question_stands": {"type": "boolean"},
+    "reason": {"type": "string"},
+    "premise_invalid_reason": {"type": "string"},
+    "design": {"type": "string"},
+    "elements": {"type": "array"}
+  }
+}

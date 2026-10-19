@@ -1,0 +1,19 @@
+# 単独の run: 依頼の行だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。素材・世界の解・前提は渡さない
+# （素材は全部 not_run、世界の解の行は無い）。役の返答は開いた単位の無い判定で、出口は status: ok・ready: false を返す
+fixture:
+  expect: completed
+  reached: [intake, diagnose-prep, diagnose, diagnose-accept, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+  resolved-text-contains:
+    diagnose: 'You are the judgment role of this run.'
+exec-code: true
+diagnose:
+  units: []
+  questions: []
+  framing: 依頼の行は 1 つで、直す単位は無い
+  one_shot: ''
+  materials_missing: []
+  carried_r1: []
+  one_shot_closes: []
+  precedents: []

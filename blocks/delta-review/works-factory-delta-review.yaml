@@ -1,0 +1,411 @@
+name: works-factory-delta-review
+description: '差分の審査と手直しの block（docs/design/delta-review.md）。修正の直後に、修正だけの差分を読むだけの審査役に見せて修正が新しく作った穴を挙げさせ、書く役に同じ周のうちに直させる（審査と手直しを 2 往復まで）。承認済みの修正案の項目への準拠と品質の 2 判定、塞いだと言われた穴の検算、レンズの指摘、守りのファイル、方針を審査役に渡し、手直しの変更は範囲・書き込みの記録と申告で機械が照らす。差分が空で検算する物も無い時は審査を飛ばす。単独の run でも、graph から include されても回る'
+inputs:
+  base:
+    required: true
+    description: 'text: 修正の前の作業ツリーの姿の git の版（木か commit の sha）。差分はこの版から今の作業ツリーまでを切る'
+  plan:
+    default: ''
+    description: 'file: 範囲の欄の JSON のファイル {plan_items, ruled_paths, agreed}（plan_items は承認済みの修正案の項目〔lib/planmarks.py の approved_items の行の形 {item, unit_keys, approach, files, tests, rewrite_tests, allowed_paths, out_of_scope, …}〕に範囲の相談の合意と裁定で外れた印 held・held_units を足した並び）。項目の並びだけの配列でもよい（合意と裁定が無い）。空は修正案の無い run'
+  lens_rows:
+    default: ''
+    description: 'file: 修正の差分に当てたレンズの行（lib/lens.py の控えの形 {rows: [{lens, agent, go, reason, state, findings, dropped}]}）の JSON のファイル。空はレンズを走らせていない run'
+  fix_reply:
+    default: 'null'
+    description: 'json(fix-reply.schema.json): 修正役が受け付けられた返答をまとめた {changes, not_done, plan_faces}。plan_faces の absorbed の行が、審査の検算する穴。null は直す返答が無い'
+  permits:
+    default: '[]'
+    description: 'json(permits.schema.json): テストの変更の許しの行 [{path, permit, source}]（パスの字の配列でもよい）。手直しの範囲の照らしで、項目の範囲の外でも変えてよいパスになる。空の配列は許しが無い'
+  plan_review:
+    default: 'null'
+    description: 'json(plan-review.schema.json): 事前審査の返答（faces・shrink を持つ object）。null は事前審査の無い run'
+  policy:
+    default: ''
+    description: 'file: 人が run に固めた方針の文書。空は方針の文書が無い'
+  request:
+    default: '[]'
+    description: 'json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つオブジェクト。手直しの役が先に全部読む。空の配列は依頼の文が無い'
+  lang:
+    default: ''
+    description: 'text: 人に見せる欄（審査役の why・faces_none・checks の why・compliance の read と行の why・quality の why、手直しの役の how・bash_writes の why）の言語。空は依頼の行の言語'
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, reason, seal]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+        seal:
+          type: object
+          additionalProperties: {type: string}
+  - id: review-1-loop
+    depends_on: [intake]
+    when: $intake.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$review-1-accept.output.done; test "$done" = true
+      nodes:
+        - id: review-1-prep
+          script: review_prep
+          runtime: uv
+          mutates_checkout: false
+          with: {n: 1}
+          output_format: &prompt_out
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: review-1
+          description: '1 回目の審査役: この周の修正だけの差分を読み、修正が新しく作った穴と塞いだと言われた穴の検算を返す（読むだけ）'
+          prompt: "$review-1-prep.output.prompt"
+          depends_on: [review-1-prep]
+          model: '@wf-fix-review'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [faces, checks, compliance, quality]
+            properties:
+              faces:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, kind, where, cite, why]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    kind:
+                      type: string
+                      enum: [copy, entrance, contract_drift, dead_path, scope_creep]
+                    where: {type: string, minLength: 1}
+                    cite: {type: string, minLength: 4}
+                    why: {type: string, minLength: 20}
+                    lens: {type: string}
+              faces_none: {type: string}
+              checks:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, closed, why]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    closed: {type: boolean}
+                    why: {type: string, minLength: 20}
+              compliance:
+                type: object
+                additionalProperties: false
+                required: [verdict, items, read]
+                properties:
+                  verdict:
+                    type: string
+                    enum: [pass, fail, unverifiable, not_applicable]
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [item, kind, face_key, why]
+                      properties:
+                        item: {type: integer, minimum: 1}
+                        kind:
+                          type: string
+                          enum: [missing, extra, misunderstood, unverifiable]
+                        face_key: {type: string}
+                        why: {type: string, minLength: 20}
+                  read: {type: string, minLength: 20}
+              quality:
+                type: object
+                additionalProperties: false
+                required: [verdict, why]
+                properties:
+                  verdict:
+                    type: string
+                    enum: [pass, fail]
+                  why: {type: string, minLength: 20}
+        - id: review-1-accept
+          script: review_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [review-1]
+          with: {n: 1, reply: $review-1.output, seal: $intake.output.seal}
+          output_format: &accept_out
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: owed-1
+    script: owed
+    runtime: uv
+    mutates_checkout: false
+    with: {n: 1}
+    depends_on: [review-1-loop]
+    trigger_rule: all_done
+    output_format: &due_out
+      type: object
+      additionalProperties: false
+      required: [due, reason]
+      properties:
+        due: {type: boolean}
+        reason: {type: string}
+  - id: refix-1-loop
+    depends_on: [owed-1]
+    when: $owed-1.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$refix-1-accept.output.done; test "$done" = true
+      nodes:
+        - id: refix-1-prep
+          script: refix_prep
+          runtime: uv
+          mutates_checkout: false
+          with: {n: 1}
+          output_format: *prompt_out
+        - id: refix-1
+          description: '1 回目の手直しの役: 審査が挙げた穴と塞がっていなかった検算の全部に、直す（fixed）か残す（declared）かで答えて直す'
+          prompt: "$refix-1-prep.output.prompt"
+          depends_on: [refix-1-prep]
+          model: '@wf-fix-writers'
+          settingSources: [user]
+          skills: [receiving-code-review]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [handled]
+            properties:
+              handled:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, handled, how]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    handled:
+                      type: string
+                      enum: [fixed, declared]
+                    how: {type: string, minLength: 20}
+                    files:
+                      type: array
+                      items: {type: string, minLength: 1}
+              bash_writes:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, why]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    why: {type: string, minLength: 10}
+        - id: refix-1-accept
+          script: refix_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [refix-1]
+          with: {n: 1, reply: $refix-1.output, seal: $intake.output.seal}
+          output_format: *accept_out
+  - id: cut-2
+    script: cut2
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [owed-1, refix-1-loop]
+    trigger_rule: all_done
+    output_format: *due_out
+  - id: review-2-loop
+    depends_on: [cut-2]
+    when: $cut-2.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$review-2-accept.output.done; test "$done" = true
+      nodes:
+        - id: review-2-prep
+          script: review_prep
+          runtime: uv
+          mutates_checkout: false
+          with: {n: 2}
+          output_format: *prompt_out
+        - id: review-2
+          description: '2 回目の審査役: 手直しだけの差分を読み、手直しが新しく作った穴と塞いだと言われた穴の検算を返す（読むだけ）'
+          prompt: "$review-2-prep.output.prompt"
+          depends_on: [review-2-prep]
+          model: '@wf-fix-review'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [faces, checks]
+            properties:
+              faces:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, kind, where, cite, why]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    kind:
+                      type: string
+                      enum: [copy, entrance, contract_drift, dead_path, scope_creep]
+                    where: {type: string, minLength: 1}
+                    cite: {type: string, minLength: 4}
+                    why: {type: string, minLength: 20}
+                    lens: {type: string}
+              faces_none: {type: string}
+              checks:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, closed, why]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    closed: {type: boolean}
+                    why: {type: string, minLength: 20}
+        - id: review-2-accept
+          script: review_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [review-2]
+          with: {n: 2, reply: $review-2.output, seal: $intake.output.seal}
+          output_format: *accept_out
+  - id: owed-2
+    script: owed
+    runtime: uv
+    mutates_checkout: false
+    with: {n: 2}
+    depends_on: [review-2-loop]
+    trigger_rule: all_done
+    output_format: *due_out
+  - id: refix-2-loop
+    depends_on: [owed-2]
+    when: $owed-2.output.due == true
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$refix-2-accept.output.done; test "$done" = true
+      nodes:
+        - id: refix-2-prep
+          script: refix_prep
+          runtime: uv
+          mutates_checkout: false
+          with: {n: 2}
+          output_format: *prompt_out
+        - id: refix-2
+          description: '2 回目の手直しの役: 審査が挙げた穴と塞がっていなかった検算の全部に、直す（fixed）か残す（declared）かで答えて直す'
+          prompt: "$refix-2-prep.output.prompt"
+          depends_on: [refix-2-prep]
+          model: '@wf-fix-writers'
+          settingSources: [user]
+          skills: [receiving-code-review]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [handled]
+            properties:
+              handled:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, handled, how]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    handled:
+                      type: string
+                      enum: [fixed, declared]
+                    how: {type: string, minLength: 20}
+                    files:
+                      type: array
+                      items: {type: string, minLength: 1}
+              bash_writes:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, why]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    why: {type: string, minLength: 10}
+        - id: refix-2-accept
+          script: refix_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [refix-2]
+          with: {n: 2, reply: $refix-2.output, seal: $intake.output.seal}
+          output_format: *accept_out
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, review-1-loop, owed-1, refix-1-loop, cut-2, review-2-loop, owed-2, refix-2-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, rounds, pass, holes, diff, carry, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, gave_up, failed]
+        reason: {type: string}
+        rounds: {type: integer, minimum: 0, maximum: 2}
+        pass: {type: boolean}
+        holes: &pointer_or_null
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties:
+                type:
+                  type: string
+                  enum: [archon_artifact]
+                run_id: {type: string}
+                path: {type: string}
+            - {type: 'null'}
+        diff: *pointer_or_null
+        carry:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [where, text]
+            properties:
+              where: {type: string}
+              text: {type: string}
+        report:
+          type: array
+          items: {type: string}

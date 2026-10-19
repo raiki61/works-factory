@@ -149,6 +149,16 @@ class HelperCase(Base):
             os.environ["ARTIFACTS_DIR"] = str(self.art)
             os.environ["WORKFLOW_ID"] = "r1"
 
+    def test_shared_cache(self):
+        with mock.patch.dict(os.environ, {ports.SHARED_CACHE_ENV: "/state"}):
+            self.assertEqual(ports.shared_cache(), pathlib.Path("/state") / "works-factory")
+        with mock.patch.dict(os.environ):
+            os.environ.pop(ports.SHARED_CACHE_ENV, None)
+            self.assertIsNone(ports.shared_cache(), "渡されなければ控えを使わない")
+        boundary = (kit.ROOT / "workflows" / ".shared" / "boundary.py").read_text(encoding="utf-8")
+        self.assertIn(f'SHARED_CACHE_ENV = "{ports.SHARED_CACHE_ENV}"', boundary)
+        self.assertIn(f'SHARED_CACHE = "{ports.SHARED_CACHE}"', boundary)
+
     def test_polyfill_reads_the_shared_parts(self):
         self.assertIsNone(ports.polyfill("skip_value").parsed("null"))
         with self.assertRaisesRegex(ValueError, "無い"):
