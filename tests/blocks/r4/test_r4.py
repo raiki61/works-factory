@@ -390,6 +390,22 @@ class AcceptCase(_RepoCase):
         self.assertEqual([p["by"] for p in done["passes"]], ["push"])
         self.assertEqual(done["questions"], [])
 
+    def test_a_lost_row_that_copies_the_kind_head_keeps_its_pass(self):
+        """役が指示の通した行の頭「[regression] 」を lost に写しても、同じ種類の頭なら外して照らし、問いにしない（9 の 17）"""
+        self.intake(answers=dump({"before_fix": {"decision": "continue"}}), asked=dump([{"kind": "regression", "text": NARROW}]))
+        self.accept({**PASS, "capability_inventory": {"fired": True, "lost": [f"[regression] {LOST}"]}})
+        done = self.finish()
+        self.assertEqual(done["questions"], [])
+        self.assertEqual([p["item"] for p in done["passes"]], [f"R4 が BASE から消えたと見た能力: [regression] {LOST}"])
+
+    def test_a_head_of_another_kind_is_asked_again(self):
+        """ほかの種類の頭「[policy] 」を写した lost の行は外さず、聞き直す"""
+        self.intake(answers=dump({"before_fix": {"decision": "continue"}}), asked=dump([{"kind": "regression", "text": NARROW}]))
+        self.accept({**PASS, "capability_inventory": {"fired": True, "lost": [f"[policy] {LOST}"]}})
+        done = self.finish()
+        self.assertEqual(done["questions"], [f"R4 が BASE から消えたと見た能力: [policy] {LOST}"])
+        self.assertEqual(done["passes"], [])
+
     def test_a_different_kind_is_asked_again(self):
         """種類が違えば聞き直す（regression で通した本文を policy_conflicts に書いても外れない）"""
         self.intake(answers=dump({"before_fix": {"decision": "continue"}}), asked=dump([{"kind": "regression", "text": NARROW}]))

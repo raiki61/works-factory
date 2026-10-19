@@ -26,7 +26,7 @@ def scope(place, got: tuple, doc: dict) -> dict:
 
     def check() -> dict:
         reasons = []
-        off = [x for kind, _, x in gate.rows(reply) if kind == policy.POLICY_KIND and (kind, x) not in passed
+        off = [x for kind, _, x in gate.rows(reply) if kind == policy.POLICY_KIND and gate.passed_key(kind, x) not in passed
                and not policy.hits(doc["recorded"], x)]
         if off:
             reasons.append(gate.R4_REJECT + "\n" + gate.lines(off))

@@ -53,10 +53,17 @@ def rows(r4) -> list:
     return [(kind, head, x) for kind, field, head in R4_ROWS for x in got[field]]
 
 
+def passed_key(kind: str, x: str) -> tuple:
+    """役の行 x を通した行と照らす鍵 (種類, 本文)。役が指示の通した行の頭「[<種類>] 」を写した時は、その種類が行の種類と同じ時だけ
+    1 つ外す（ほかの種類の頭は外さず、聞き直す。docs/design/r4.md の 9 の 17）"""
+    head = f"[{kind}] "
+    return kind, x[len(head):] if x.startswith(head) else x
+
+
 def r4_gate_items(r4, passed: dict) -> list:
     """元 r4_gate_items。R4 の消えた能力と方針とのぶつかりの行から、人が通した行と種類も頭を除いた本文も同じ物を外す（種類が違えば
     聞き直す）。外した行は gate_passes が控える"""
-    return [head + x for kind, head, x in rows(r4) if (kind, x) not in passed]
+    return [head + x for kind, head, x in rows(r4) if passed_key(kind, x) not in passed]
 
 
 def passed_by(before_fix) -> str:
@@ -68,5 +75,5 @@ def passed_by(before_fix) -> str:
 def gate_passes(r4, passed: dict, by: str) -> list:
     """元 gate_passes。r4_gate_items が外した行を、修正前の承認ノードで通した印 by つきで控える（gatemarks._keep の行の形）"""
     return [{"node": gatemarks.R4_GATE_NODE, "round": 1, "by": by, "item": head + x,
-             "passed_at": {"node": gatemarks.GATE_NODE, "round": passed[(kind, x)]}}
-            for kind, head, x in rows(r4) if (kind, x) in passed]
+             "passed_at": {"node": gatemarks.GATE_NODE, "round": passed[passed_key(kind, x)]}}
+            for kind, head, x in rows(r4) if passed_key(kind, x) in passed]
