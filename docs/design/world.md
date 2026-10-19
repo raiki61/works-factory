@@ -84,7 +84,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 ### 2.3 組み立ての順（`prompts/world-classes.md`）
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 前の回の accept の理由が空でない。断片の中の `{rejection}` ← 却下の理由（Python が組む日本語の文。5 節）。
-2. 役の定義（決まった文）: 新しい会話で起きていること・道具を持たないこと・対象を読ませない訳。
+2. 役の定義（決まった文）: 道具を持たないこと・対象を読ませない訳。
 3. 芯の 1 文（決まった文、太字）。
 4. 決まりの箇条（決まった文）: 1 段上の作業の種類に上がる・解き方は `proposed` へ写す・対象の名を書かない（機械が照らして拒む）・検索語の書き方・2 つにまたがる行。
 5. `## Request lines` と `{findings}` ← `src/steps.py` が組む材料（番号つきの行。`where`・`text`・`mechanism`・`measured`・`false_positive_if`）。
@@ -147,6 +147,7 @@ Return only JSON that matches the output schema.
 - まとめた: 同じ md の中で 2 回言っていた却下の段落（md:5 と md:23）を、共通の断片 `{shared:rejected}` の 1 回に。末尾の言い回し「1 回目の返答である」（4 通りに割れていた物の 1 つ）は、却下が無い時は段落ごと入れない形にして要らなくした。決まりは今と同じ「丸ごと出し直せ」。
 - 移した: 言語の 1 行（`rolekit.LANG_RULE` を `$world-classes-reject.output.lang_line` で入れていた物）を md の 1 文に。汎用の欄の並び（reason・how・what・why・異議…）は、この node の人に見せる欄（problem・activity・proposed）の名指しに替えた。
 - 消した: ほかの node の id（`$world-classes-reject.output.*`・`$world-intake.output.prompt`）と、差し込んだ本文の区切り「=====指示書ここから=====」「=====指示書ここまで=====」。本文は md の節になったので区切りが要らない。
+- 消した: 役の定義の「新しい会話で起きている」と、後の役の名（今の指示は、後の役が web の役だと名指していた）。
 - 足した物は無い。
 - 英語にした（#764）。役の名「言い直す役」は "the restater"。
 
@@ -160,18 +161,18 @@ Return only JSON that matches the output schema.
 
 `judge-input.json`（← 言い直す役の受け付けを通った行と `pick` が取った類。依頼の行の本文は渡さない）・`intake.json` の `web`（← port `web`）・前の回の却下の理由・`lang`。
 
-### 3.3 組み立ての順（`prompts/parts/world-judge.md`）
+### 3.3 組み立ての順（`prompts/world-judge.md` と、その部品 `prompts/parts/world-judge.md`）
 
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 前の回の却下の理由が空でない。
-2. `{shared:query-rule}`（外への検索の決まり）。断片の中の `<!-- if spawns -->`（下請けを起こすなら、下請けへの指示にこの決まりを含めよ）には `spawns: false` を渡す（この役は Agent の道具を持たない）。
-3. 役の定義（決まった文）。
+2. `{shared:query-rule}`（外への検索の決まり）。道具を持つ `world-judge` の md だけが持ち、道具の無い `world-judge-offline` の md には置かない（検索をしない役に検索の決まりを渡さない）。部品 `world-judge` の外（node の md）に在る。断片の中の `<!-- if spawns -->`（下請けを起こすなら、下請けへの指示にこの決まりを含めよ）には `spawns: false` を渡す（この役は Agent の道具を持たない）。
+3. 役の定義（決まった文）。道具の文は web に合わせて 2 通り: `<!-- if web -->`「Your only tools are web search and web fetch」`<!-- end web -->`、`<!-- if not web -->`「You have no tools」`<!-- end web -->`（道具の無い world-judge-offline に、持たない道具を言わない）。
 4. 決まりの箇条（決まった文）: 原文のまま写す・取得したページだけ・一次の情報を先に・抜き書きから定石を言う・解き方を所与にしない（「依頼は X、定石は Y」の形）・当たらない所・対象の名を書かない。
 5. `## Problem classes` と `{classes}` ← `src/steps.py` が組む材料（類ごとの見出し `### Class <id>` と、問題の類・作業・検索語・依頼の行ごとの解き方の行）。
 6. `## How to answer` の頭に `<!-- if web -->`（検索と取得・`excerpts` の書き方・上限 `{max_excerpts}`・下限 `{min_excerpt}`）`<!-- end web -->` と `<!-- if not web -->`（web は off。検索も取得もせず知識だけで書く）`<!-- end web -->` — 条件: port `web` が `on`。
 7. 返し方の残り（決まった文）と差し込み口 `{same}`・`{differs}`・`{none}`（← `lib/worldmark.py` の `VERDICTS`）・`{min_challenge}`（← `src/steps.py` の `MIN_CHALLENGE`）・`{lang}`。
 8. 結びの 1 文。
 
-md の本文の正本は `blocks/world/prompts/parts/world-judge.md`（`prompts/world-judge.md` と `prompts/world-judge-offline.md` はどちらも `{part:world-judge}` の 1 行。9.1 の 7）。この設計書は上の組み立ての順だけを持ち、本文を写さない。
+md の本文の正本は `blocks/world/prompts/parts/world-judge.md`（`prompts/world-judge.md` と `prompts/world-judge-offline.md` はどちらも、却下の段落と `{part:world-judge}` を持つ。`world-judge.md` だけが間に `{shared:query-rule}` を持つ。9.1 の 7）。この設計書は上の組み立ての順だけを持ち、本文を写さない。
 
 md の中の `{id, url, excerpt}` は差し込み口の形（`{` の直後が小文字の名で `}` で閉じる）に合わないので、そのまま字として残る。合う形の字を書く時は `{{`・`}}` で書く（`prompt.py` の決まり）。
 
@@ -228,6 +229,8 @@ Return only JSON that matches the output schema.
 - 消した: md:30 の「web で確かめていない定石として名指される」（下流の承認ノードと報告の振る舞いを、この役に前提として伝えていた）。印を機械が付ける事だけを残した。
 - 残した: 断片の中の「名前が要る調べは引かず、返答の型に『足りない』などの欄があればそこに書け」。この役の返答の型にはその欄が無いので、今と同じく条件の文のまま効かない（（未確認）: 欄を足すかは振る舞いを変えるので、この作り直しの外）。
 - 移した: 言語の 1 行（2 項と同じ）。
+- 消した: 役の定義の「新しい会話で起きている」と、Agent で子を起こす文（この役は Agent の道具を持たない）。
+- 変えた: web が off の node（`world-judge-offline`）には、道具の文を「You have no tools」に替え、外への検索の決まり（`query-rule`）を渡さない（道具の無い役に、持たない道具の文と検索の決まりを渡すと、指示の中で食い違う）。
 - 足した物は無い。英語にした。
 
 ## 4 script の node
