@@ -39,13 +39,13 @@ def intake(place, *, mode, request, pr_text, lang) -> dict:
     try:
         doc["mode"] = _port("mode", lambda: ports.choice(mode, files.MODES))
         if doc["mode"] == "write":
-            rows = _port("request", lambda: requestrows.findings(request))
-            doc.update(pr_text=ports.text(pr_text), lang=ports.text(lang).strip())
             for name in files.own_files():
                 (place / name).unlink(missing_ok=True)
             for pattern in files.own_prompts():
                 for path in place.glob(pattern):
                     path.unlink()
+            rows = _port("request", lambda: requestrows.findings(request))
+            doc.update(pr_text=ports.text(pr_text), lang=ports.text(lang).strip())
             files.write(place / files.REQUEST, rows)
         doc["go"] = True
     except Exception as e:  # noqa: BLE001 — 入口は落ちない（出口が status: failed にする）
@@ -88,7 +88,7 @@ def fix_prompt(place, role: str) -> dict:
     name = files.ROLES[role]
     rejected = rolekit.rejected(place, name)
     nid = files.node_id(role, fix=True)
-    values = {"resubmit_reason": rejected[-1] if rejected else "", "candidate_file": str(rolekit.candidate_path(place, name))}
+    values = {"rejection": rejected[-1] if rejected else "", "candidate": str(rolekit.candidate_path(place, name))}
     return prompt.emit(nid, values, {}, prompt.round_of(nid))
 
 

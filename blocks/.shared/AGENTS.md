@@ -31,7 +31,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `rejected`: 前の回の却下（中の口 `{rejection}`）。
   - `query-rule`: 外への検索と出典の決まりの全部（名を出さない・どの出典を先に読むか）。役が web を引く時の決まりはここに足す。段落 `spawns` の真偽が要る（下請けを起こさない役は `spawns: false`）。役の定義と node の md は検索の決まりを書き直さず `{shared:query-rule}` で受け、断片を変えた時に取り込む md は直さない。断片の文だけを直す依頼は `prompts/query-rule.md` 1 本で閉じる。この一覧の行は断片の名や段落（`spawns`）が変わる時だけ直す。`tests/blocks/` に断片の字を照らす試験は無い（`tests/workflows/test_judge.py` の `QUERY_RULE` は旧の `lib/agents/judge.md` を照らす物で、作り直しの間は触らない）。
   - `lang-default`: `lang` が空の時の言語の文（`prompt.lang` が読む）。
-  - `resubmit`: 拒まれた後の出し直しの段落（中の口 `{resubmit_reason}`・`{candidate_file}`。出し直しの役の md は `{shared:resubmit}` 1 行）。
+  - `resubmit`: 拒まれた後に、同じ会話の続きで拒まれた欄だけを返させる役の指示（中の口 `{rejection}`・`{candidate}`）。
   - 役の定義 5 本: `role-judge`・`role-blind-judge`・`role-cold-reader`・`role-inspector`・`role-investigator`。
   - `works-gh`: 読むだけの gh の口の使い方。
   - 素材の観点の族（docs/design/materials.md の 3.2）: `material-status`・`material-na`（段落 `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`、中の口 `{na_why}`）・`material-where`・`material-readonly`。

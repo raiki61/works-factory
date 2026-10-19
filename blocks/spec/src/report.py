@@ -1,4 +1,4 @@
-"""報告の節「仕様」の行（docs/design/spec.md の 9 節）。事実を持つ block が組み、report の block は並べて継ぐだけにする。"""
+"""報告の節「仕様」の行（docs/design/spec.md の 9 節）。事実を持つ block が組む。"""
 
 
 def _exit(a: dict) -> str:

@@ -41,7 +41,7 @@ def run_command(root, cmd) -> tuple:
 
 
 def row_of(a: dict, requirement_text: str) -> dict:
-    """受け入れ条件 1 件（exit_at_approval を持つ）の依頼の行。判定の役が読む材料で、役の観察と同じく反証の対象"""
+    """受け入れ条件 1 件（exit_at_approval を持つ）の依頼の行。依頼の行として後の段へ渡る材料で、役の観察と同じく反証の対象"""
     code = a["exit_at_approval"]
     return {"where": f"{a['file']}: {a['name']}",
             "text": f"{PROVENANCE}受け入れ条件 {a['key']}（要件 {a['requirement']}）がまだ満たされていない——承認の時点で `{a['run']}` が "

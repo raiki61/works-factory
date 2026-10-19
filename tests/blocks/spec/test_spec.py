@@ -219,6 +219,17 @@ class IntakeCase(_Case):
         self.assertFalse(self.prep("write")["prompt"].startswith("## "), "古い却下は次の指示に届かない")
         self.assertTrue((self.place / "spec-write-prompt-1.md").is_file())
 
+    def test_unreadable_request_still_clears_the_old_files(self):
+        """依頼が読めなくても、前の回の自分のファイルは先に消える（古い答えが残らない）"""
+        self.place.mkdir(parents=True, exist_ok=True)
+        for name in ("spec-write.json", "spec.json", "stop.json"):
+            (self.place / name).write_text('{"stale": true}', encoding="utf-8")
+        got = self.intake(request="not json")
+        self.assertIs(got["go"], False)
+        self.assertFalse((self.place / "spec-write.json").exists())
+        self.assertFalse((self.place / "spec.json").exists())
+        self.assertNotIn("stale", self.read("stop.json"))
+
     def test_check_does_not_clear_the_place(self):
         self.written()
         self.assertEqual(self.intake(mode="check"), {"mode": "check", "go": True, "reason": ""})
@@ -294,6 +305,33 @@ class ErrorsCase(_Case):
             take.revise_output(bad, review_reply(), self.run.repo)
         self.assertIn("'F9' は仕様の審査に無い", str(cm.exception))
         self.assertIn("'F1' に応答が無い", str(cm.exception))
+
+    def test_revise_checks_the_revised_spec_too(self):
+        """直した仕様のテストのファイルが読めなければ拒む（直す役も書く役と同じ照らし）"""
+        take = self.steps.take
+        self.write_tests()
+        bad = revise_reply()
+        bad["spec"] = write_reply(file="gone_test.txt")
+        with self.assertRaises(take.Reject) as cm:
+            take.revise_output(bad, review_reply(), self.run.repo)
+        self.assertIn("gone_test.txt", str(cm.exception))
+
+    def test_review_faces_keys_unique(self):
+        take = self.steps.take
+        bad = review_reply()
+        bad["faces"] = [FACE, {**FACE, "why": "同じ鍵の 2 つ目の穴。空の列の平均をどう扱うかが決まっていない"}]
+        with self.assertRaises(take.Reject) as cm:
+            take.review_output(bad)
+        self.assertIn("faces[1] の key が重複", str(cm.exception))
+
+    def test_revise_handled_keys_unique(self):
+        take = self.steps.take
+        self.write_tests()
+        bad = revise_reply()
+        bad["handled"] = bad["handled"] * 2
+        with self.assertRaises(take.Reject) as cm:
+            take.revise_output(bad, review_reply(), self.run.repo)
+        self.assertIn("handled[1] の key が重複", str(cm.exception))
 
     def test_revise_due_only_with_faces(self):
         self.assertTrue(self.steps.take.revise_due(review_reply()))
@@ -464,6 +502,23 @@ class StopCase(_Case):
         got = self.run.script("ask")
         self.assertEqual(got, {"ask": False, "message": ""})
         self.assertIn("spec.review", self.read("stop.json")["reason"])
+
+    def test_ask_with_faces_but_no_revise_reply_stops_without_opening(self):
+        self.written()
+        self.take("review", review_reply())
+        got = self.run.script("ask")
+        self.assertEqual(got, {"ask": False, "message": ""})
+        self.assertIn("spec.revise", self.read("stop.json")["reason"])
+        self.assertFalse((self.place / "spec-ask.json").exists())
+
+    def test_answer_without_the_ask_record_stops_with_works_spec(self):
+        self.asked(faces=False)
+        (self.place / "spec-ask.json").unlink()
+        got = self.freeze("approve")
+        self.assertIs(got["go"], False)
+        self.assertEqual(self.read("stop.json")["stop_reason"], "works:spec")
+        self.assertIn("spec-ask.json", self.read("stop.json")["reason"])
+        self.assertFalse((self.place / "spec.json").exists())
 
     def test_ask_that_cannot_build_the_text_is_a_works_spec_stop(self):
         self.reviewed()
@@ -667,8 +722,8 @@ class PromptCase(_Case):
         self.intake()
         self.take("write", write_reply("missing.txt"))
         text = self.fix_prep("write")["prompt"]
-        self.assertTrue(text.startswith("Your previous answer was rejected by the machine."), text[:60])
-        self.assertIn("return {}", text, "二重の波括弧は字の {} になる")
+        self.assertTrue(text.startswith("Your previous answer was rejected by the machine's check."), text[:60])
+        self.assertIn("return `{}`", text, "二重の波括弧は字の {} になる")
         for role in ("review", "revise"):
             self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n")
 
@@ -727,6 +782,15 @@ class ShapeCase(unittest.TestCase):
         for role in ("write", "review", "revise"):
             self.assertEqual(ns[f"spec-{role}-fix"]["output_format"]["required"], [])
             self.assertTrue(ns[f"spec-{role}"]["output_format"]["required"])
+
+    def test_no_parallel_layer_before_a_conversation_continuing_role(self):
+        """出し直しの役の前に並んだ層が在ると会話が切れる（#571）"""
+        from tests.workflows.test_loop_sessions import layers, parallel_before_role
+        for role in ("write", "review", "revise"):
+            group = nodes()[f"spec-{role}-loop"]
+            with self.subTest(role=role):
+                self.assertEqual(parallel_before_role(group), [])
+                self.assertEqual([len(x) for x in layers(group["loop_group"]["nodes"])], [1] * 5)
 
     def test_md_per_ai_node(self):
         ai = {n for n, node in nodes().items() if "prompt" in node}

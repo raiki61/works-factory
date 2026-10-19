@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 import pathlib
 
-import gatemarks   # lib/。問いの頭の語 SPEC_CHANGED_LABEL（最後の承認ノードと報告も読む）
+import gatemarks   # lib/。問いの頭の語 SPEC_CHANGED_LABEL
 import oneline     # lib/
 
 from src import files, freeze

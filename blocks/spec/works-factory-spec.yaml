@@ -90,7 +90,8 @@ nodes:
           script: fix_prep
           runtime: uv
           mutates_checkout: false
-          depends_on: [spec-write-prep]
+          depends_on: [spec-write-prep, spec-write]
+          trigger_rule: none_failed_min_one_success
           when: "$spec-write-prep.output.resubmit == true"
           with: {role: write}
           output_format: &fix_prep_output
@@ -177,7 +178,8 @@ nodes:
           script: fix_prep
           runtime: uv
           mutates_checkout: false
-          depends_on: [spec-review-prep]
+          depends_on: [spec-review-prep, spec-review]
+          trigger_rule: none_failed_min_one_success
           when: "$spec-review-prep.output.resubmit == true"
           with: {role: review}
           output_format: *fix_prep_output
@@ -243,7 +245,8 @@ nodes:
           script: fix_prep
           runtime: uv
           mutates_checkout: false
-          depends_on: [spec-revise-prep]
+          depends_on: [spec-revise-prep, spec-revise]
+          trigger_rule: none_failed_min_one_success
           when: "$spec-revise-prep.output.resubmit == true"
           with: {role: revise}
           output_format: *fix_prep_output
