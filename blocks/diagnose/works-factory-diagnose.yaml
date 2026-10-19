@@ -1,0 +1,479 @@
+name: works-factory-diagnose
+description: '根本の診断と再審の block（docs/design/diagnose.md）。判定の道は、依頼の行・素材の観点の所見・世界の解の行・前提の実測・記録された方針を読んだ判定役が、人の修正依頼を根本の単位に切ってラベルと disposition・処方・欠陥の数え方・先行例・人へ回す問いを返し、機械が作業ツリー・数え方の例と件数・先行例の出どころ・台帳の語彙・目的の外の所見・依頼の答えの結び・記録された方針の名指しで受け付ける。再審の道は、修正役の異議を受けた再審の役が、保存した判定を読んで考え直し、採る・退ける・一部採るを決める。道は port objection が空かで分かれる。単独の run でも、graph から include されても回る'
+inputs:
+  request: {default: '[]', description: 'json(shared:request.schema.json): 依頼の行の配列 [{where, text, mechanism?, measured?, false_positive_if?}]。それを findings の欄に持つ依頼のファイルの形でもよい（その時は answers・prior_failures の欄も読む）。空の配列は依頼の行の無い run（対象差分だけを審査する）。判定の道だけが読む'}
+  request_origin: {default: '', description: 'text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin。例「人の依頼（/path/req.json）」）。空は「人の依頼（依頼の行）」。判定の道だけが読む'}
+  objection: {default: '', description: 'text: 修正役が判定に出した異議の文。空は判定の道、空でなければ再審の道'}
+  base: {default: '', description: 'text: 対象差分の根の commit（この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD。判定の道だけが読む'}
+  purpose: {default: '', description: 'file: 固めた目的のファイル（purpose.json。{purpose_text, source, known_weaknesses, source_files}）。空は目的の文がこの run に無い'}
+  constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 前提の実測の行の配列か、それを constraints の欄に持つオブジェクト。空の配列は実測が無い。判定の道だけが読む'}
+  materials: {default: '[]', description: 'json(materials.schema.json): 素材の観点の block が返した material.json の pointer（かファイルのパス）の配列。空の配列は素材の観点が 1 つも回っていない。判定の道だけが読む'}
+  pr_material: {default: 'null', description: 'json(pr-material.schema.json): 並行 PR の素材の札 {status, count?, detail?, checked?, reason?}。null か空は並行 PR の確かめが回っていない。判定の道だけが読む'}
+  baseline: {default: '', description: 'file: 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする。判定の道だけが読む'}
+  world_rows: {default: '', description: 'file: 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い'}
+  row_asks: {default: '[]', description: 'json(row-asks.schema.json): 頭の深さが依頼の行ごとに返した未知の種類の行 [{item, unknown, cause_quote, where?, code_quote?}]。空の配列は種類が決まっていない。判定の道だけが読む'}
+  depth_why: {default: '', description: 'text: 頭の深さの段の根拠の文（行ごとの種類が決まっていない run で、その訳として役に見せる）。空は「run の頭の深さの控えが無い」。判定の道だけが読む'}
+  spec_rows: {default: '', description: 'file: 仕様が足した受け入れ条件の行のファイル（added-rows.json。依頼の行の配列）。空は足した行が無い。判定の道だけが読む'}
+  spec_origin: {default: '', description: 'text: 仕様が足した行の出どころの名（判定役に見せるバッチの origin）。spec_rows が在る時に要る。判定の道だけが読む'}
+  answers: {default: '[]', description: 'json(answer-rows.schema.json): 依頼者が前の run の問いに答えた行 [{question, text, command?, output?}]。空の配列は request の容器の answers を使う。判定の道だけが読む'}
+  prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run が運んだ行 [{where, text}]（最後まで通らなかった物と、独立の目 R2 の作り直しの行）。request の容器の prior_failures の後ろに足す。空の配列は足す物が無い。判定の道だけが読む'}
+  pr_text: {default: '', description: 'text: 依頼が名指す PR の番号・題・本文を並べた文。空は PR の無い run。判定の道だけが読む'}
+  policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
+  prior: {default: 'null', description: 'json(shared:judgment.schema.json): 考え直す 1 回目の判定（judgment.json の中身か、その pointer）。null か空は 1 回目の判定が無い（再審せずに止める）。再審の道だけが読む'}
+  prior_brief: {default: '', description: 'file: 1 回目の判定役に渡した指示（組んだ指示のファイル。記録された方針・前の run の行・頭の深さの行・人の方針の本文を含む）。空は渡されていない。再審の道だけが読む'}
+  prior_inputs: {default: '', description: 'file: 1 回目の判定役が読んだ材料のファイル（diagnose-input.json）。空は渡されていない。再審の道だけが読む'}
+  spec: {default: '', description: 'file: 固めた仕様（spec.json）。空は仕様の段が無い。再審の道だけが読む'}
+  verify: {default: '', description: 'file: 判定の裏取りの結果。空は裏取りが無い。再審の道だけが読む'}
+  excluded: {default: '', description: 'file: 並行 PR の外す範囲（pr-excluded.json）。空は渡されていない。再審の道だけが読む'}
+  lang: {default: '', description: 'text: 人に見せる欄（判定役の reason・origin_analysis・why_chain・prescriptions・framing・one_shot・問いの reason・resolution・options・先行例の problem・reason・searched・undecided_because・目的の外の why_outside・結びの none・class_query の note ほか、再審の役の new_facts・reason）の言語。空は依頼の行の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, mode, reason]
+      properties:
+        due: {type: boolean}
+        mode:
+          type: string
+          enum: [judge, rejudge]
+        reason: {type: string}
+  - id: diagnose-loop
+    depends_on: [intake]
+    when: "$intake.output.due == true && $intake.output.mode == 'judge'"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: 'done=$diagnose-accept.output.done; test "$done" = true'
+      nodes:
+        - id: diagnose-prep
+          script: diagnose_prep
+          runtime: uv
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: diagnose
+          prompt: "$diagnose-prep.output.prompt"
+          depends_on: [diagnose-prep]
+          model: '@wf-judge-core'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          mutates_checkout: false
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            type: object
+            required: [units, questions, framing, one_shot, materials_missing, carried_r1, one_shot_closes, precedents]
+            additionalProperties: false
+            properties:
+              units:
+                type: array
+                items:
+                  type: object
+                  required: [key, label]
+                  additionalProperties: true
+                  properties:
+                    key: {type: string, minLength: 1, pattern: '\S'}
+                    label:
+                      type: string
+                      enum: [block, suggest, nit, question, info]
+                    disposition:
+                      type: string
+                      enum: [do-now, defer]
+                    reason: {type: string}
+                    reopen_evidence: {type: string}
+                    origin_analysis: {type: string}
+                    why_chain:
+                      type: array
+                      items: {type: string}
+                    prescriptions:
+                      type: array
+                      items: {type: string}
+                    closed_note: {type: string}
+                    class_query:
+                      type: object
+                      required: [how, counts, total]
+                      additionalProperties: false
+                      properties:
+                        how:
+                          type: object
+                          required: [patterns, paths, count]
+                          additionalProperties: false
+                          properties:
+                            patterns:
+                              type: array
+                              minItems: 1
+                              maxItems: 20
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
+                            fixed: {type: boolean}
+                            paths:
+                              type: array
+                              minItems: 1
+                              maxItems: 50
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
+                            count:
+                              type: string
+                              enum: [lines, files]
+                            untracked: {type: boolean}
+                            ignore_case: {type: boolean}
+                            word: {type: boolean}
+                        counts:
+                          type: string
+                          enum: [defects, population]
+                        total: {type: integer, minimum: 0}
+                        note: {type: string}
+                        hits:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
+                        misses:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
+                        examples_unavailable: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+                        misses_omitted_why: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+              questions:
+                type: array
+                items:
+                  type: object
+                  required: [key, kind, status, reason]
+                  additionalProperties: false
+                  properties:
+                    key: {type: string, minLength: 1, pattern: '\S'}
+                    kind:
+                      type: string
+                      enum: [fork, split, rule, stuck, thrash, premise, unverifiable, awaiting, field]
+                    status:
+                      type: string
+                      enum: [held, decided, resolved, escalate]
+                    reason: {type: string}
+                    resolution: {type: string}
+                    options:
+                      type: array
+                      items: {type: string}
+                    depends:
+                      type: array
+                      items: {type: string}
+                    origin: {type: string}
+              framing: {type: string}
+              one_shot: {type: string}
+              materials_missing:
+                type: array
+                items: {type: string}
+              carried_r1:
+                type: array
+                items:
+                  type: object
+                  required: [where, disposition]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string, minLength: 1, pattern: '\S'}
+                    disposition:
+                      type: string
+                      enum: [promote, decline]
+                    unit_key: {type: string}
+                    why: {type: string}
+              router:
+                type: array
+                items:
+                  type: object
+                  required: [key, route, note]
+                  additionalProperties: false
+                  properties:
+                    key: {type: string}
+                    route: {type: string}
+                    note: {type: string}
+              reburn_causes:
+                type: array
+                items:
+                  type: object
+                  required: [key, cause]
+                  additionalProperties: false
+                  properties:
+                    key: {type: string}
+                    cause:
+                      type: string
+                      enum: [コード, レビュアー, 規約, 前の周の修正]
+                    note: {type: string}
+              one_shot_closes:
+                type: array
+                items: {type: string}
+              precedents:
+                type: array
+                items:
+                  type: object
+                  required: [key, problem, source, verdict, reason]
+                  additionalProperties: false
+                  properties:
+                    key: {type: string, minLength: 1, pattern: '\S'}
+                    problem: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
+                    source: {type: string}
+                    verdict:
+                      type: string
+                      enum: [adopt, adapt, does_not_apply, not_found]
+                    reason: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
+                    searched: {type: string}
+                    undecided_because: {type: string}
+              out_of_purpose:
+                type: array
+                items:
+                  type: object
+                  required: [source, where, why_outside]
+                  additionalProperties: false
+                  properties:
+                    source: {type: string, minLength: 1, pattern: '\S'}
+                    where: {type: string, minLength: 1, pattern: '\S'}
+                    why_outside: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+                    text: {type: string, minLength: 1, pattern: '\S'}
+              answer_ties:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    answer: {type: string, minLength: 1, pattern: '\S'}
+                    redesign: {type: string, minLength: 1, pattern: '\S'}
+                    to: {type: string, minLength: 1, pattern: '\S'}
+                    none: {type: string, minLength: 20, pattern: '\S[\s\S]{18,}\S'}
+        - id: diagnose-accept
+          script: diagnose_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [diagnose]
+          with: {reply: $diagnose.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: rejudge-loop
+    depends_on: [intake]
+    when: "$intake.output.due == true && $intake.output.mode == 'rejudge'"
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: 'done=$rejudge-accept.output.done; test "$done" = true'
+      nodes:
+        - id: rejudge-prep
+          script: rejudge_prep
+          runtime: uv
+          mutates_checkout: false
+          with: {prev: "$LOOP_PREV.rejudge-accept.output.ok"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, resubmit]
+            properties:
+              prompt: {type: string}
+              resubmit: {type: boolean}
+        - id: rejudge
+          prompt: "$rejudge-prep.output.prompt"
+          depends_on: [rejudge-prep]
+          when: "$rejudge-prep.output.resubmit != true"
+          model: '@wf-judge-core'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          mutates_checkout: false
+          retry: {max_attempts: 2, on_error: all}
+          output_format: &rejudge_reply
+            type: object
+            required: [verdict, new_facts, units]
+            additionalProperties: false
+            properties:
+              verdict:
+                type: string
+                enum: [採る, 退ける, 一部採る]
+              new_facts: {type: string, minLength: 20, pattern: '\S[\s\S]{18,}\S'}
+              reason: {type: string}
+              units:
+                type: array
+                items:
+                  type: object
+                  required: [key, label]
+                  additionalProperties: true
+                  properties:
+                    key: {type: string, minLength: 1, pattern: '\S'}
+                    label:
+                      type: string
+                      enum: [block, suggest, nit, question, info]
+                    disposition:
+                      type: string
+                      enum: [do-now, defer]
+                    reason: {type: string}
+                    reopen_evidence: {type: string}
+                    origin_analysis: {type: string}
+                    why_chain:
+                      type: array
+                      items: {type: string}
+                    prescriptions:
+                      type: array
+                      items: {type: string}
+                    closed_note: {type: string}
+                    class_query:
+                      type: object
+                      required: [how, counts, total]
+                      additionalProperties: false
+                      properties:
+                        how:
+                          type: object
+                          required: [patterns, paths, count]
+                          additionalProperties: false
+                          properties:
+                            patterns:
+                              type: array
+                              minItems: 1
+                              maxItems: 20
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
+                            fixed: {type: boolean}
+                            paths:
+                              type: array
+                              minItems: 1
+                              maxItems: 50
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
+                            count:
+                              type: string
+                              enum: [lines, files]
+                            untracked: {type: boolean}
+                            ignore_case: {type: boolean}
+                            word: {type: boolean}
+                        counts:
+                          type: string
+                          enum: [defects, population]
+                        total: {type: integer, minimum: 0}
+                        note: {type: string}
+                        hits:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
+                        misses:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]*[^\s\x00][^\n\r\x00]*$'}
+                        examples_unavailable: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+        - id: rejudge-fix-prep
+          script: rejudge_fix_prep
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [rejudge-prep, rejudge]
+          trigger_rule: none_failed_min_one_success
+          when: "$rejudge-prep.output.resubmit == true"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties: {prompt: {type: string, minLength: 1}}
+        - id: rejudge-fix
+          prompt: "$rejudge-fix-prep.output.prompt"
+          depends_on: [rejudge-prep, rejudge-fix-prep, rejudge]
+          trigger_rule: none_failed_min_one_success
+          when: "$rejudge-prep.output.resubmit == true"
+          model: '@wf-judge-core'
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          mutates_checkout: false
+          retry: {max_attempts: 2, on_error: all}
+          output_format:
+            <<: *rejudge_reply
+            required: []
+        - id: rejudge-accept
+          script: rejudge_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [rejudge, rejudge-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            reply: {from: "$rejudge.output", if_skipped: null}
+            fix_reply: {from: "$rejudge-fix.output", if_skipped: null}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, diagnose-loop, rejudge-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, mode, stop_reason, reason, ready, judgment, units, questions, inputs, brief, materials, out_of_purpose, answer_ties, rejudge_verdict, rejudge_exit, rejudge_diff, downgrades, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, stopped, failed]
+        mode:
+          type: string
+          enum: [judge, rejudge]
+        stop_reason: {type: string}
+        reason: {type: string}
+        ready: {type: boolean}
+        judgment:
+          type: object
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        units:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, paths, summary]
+            properties:
+              id: {type: string}
+              paths:
+                type: array
+                items: {type: string}
+              summary: {type: string}
+        questions:
+          type: array
+          items: {type: object}
+        inputs: &pointer_or_null
+          type: [object, 'null']
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        brief: *pointer_or_null
+        materials: *pointer_or_null
+        out_of_purpose: *pointer_or_null
+        answer_ties: *pointer_or_null
+        rejudge_verdict:
+          type: [string, 'null']
+          enum: [採る, 退ける, 一部採る, null]
+        rejudge_exit: *pointer_or_null
+        rejudge_diff: *pointer_or_null
+        downgrades:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [what, versus]
+            properties:
+              what: {type: string}
+              versus: {type: string}
+        report:
+          type: array
+          items: {type: string}

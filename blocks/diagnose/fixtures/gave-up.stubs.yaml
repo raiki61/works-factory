@@ -1,0 +1,20 @@
+# 判定役の返答が型には合うが受け付けを通らない道（直す単位に class_query が無い）: run は止めず、出口が status: failed・works:judge と最後の却下の理由を返す。筋書きでは輪が
+# 1 周で終わるので却下は 1 回で、3 回で諦める数えは tests/blocks/diagnose の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, diagnose-prep, diagnose, diagnose-accept, finish]
+  inputs:
+    request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
+exec-code: true
+diagnose:
+  units:
+    - key: stats.py mean の分母が 2 の固定値
+      label: block
+      disposition: do-now
+  questions: []
+  framing: 直す単位に class_query が無い
+  one_shot: ''
+  materials_missing: []
+  carried_r1: []
+  one_shot_closes: []
+  precedents: []

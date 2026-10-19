@@ -1,0 +1,4 @@
+{
+  "description": "素材の観点の block が返した material.json の pointer（かファイルのパス）の配列。要素の形（dict の pointer か空でない字）は src/inputs.py が 1 つずつ照らす",
+  "type": "array"
+}

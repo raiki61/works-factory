@@ -1,7 +1,7 @@
 # block の設計書: diagnose（根本の診断と再審）
 
 - 何の話か（読む人: この block の実装者・つなぐ graph の設計書の書き手・英語の md を照らす審査役。語と節の番号は [README.md](README.md) の物）: 素材・依頼の行・世界の解・前提の実測などを読み、人の修正依頼を根本の単位にまとめてラベルと disposition を確定させる判定役と、修正役が判定に異議を出した時に同じ block の中で判定を考え直す再審の役を、単独で呼べる block `blocks/diagnose/` にする設計。型は [README.md](README.md)、手本は [world.md](world.md)。
-- 決めたこと: 今の judge の `diagnose-prep`・`diagnose-loop`・`rejudge-prep`・`rejudge-loop` と、返す節 `verdict` のうち判定と再審の分を、頂 4 つ（`intake`・診断の輪・再審の輪・`finish`）の block にする。AI の node は 2 つ（判定役 `diagnose`・再審の役 `rejudge`）。今の再審の輪の出し直しの役（`rejudge-fix`。拒まれた欄だけを返す）は置かず、拒まれたら同じ会話の続きで丸ごと出し直させる（4 節・11 節の 5）。道は port `objection` が空か（README の 8.1）で分かれ、再審は同じ block に置く（持ち主の決め `rejudge-cohabit`）。判定役の材料は指示に直に入れず、値だけの JSON 1 本（`diagnose-input.json`）に書いて Read させ、鍵の意味は全部 md が持つ（Python は指示の文を持たない。11 節の 1）。受け付けの規則は今の `lib/judge_accept.py` の判定と再審の部分を `src/` に写す（README の 9.2 の MOVE）。振る舞いは変えない（変えた所は 11 節に名指す）。
+- 決めたこと: 今の judge の `diagnose-prep`・`diagnose-loop`・`rejudge-prep`・`rejudge-loop` と、返す節 `verdict` のうち判定と再審の分を、頂 4 つ（`intake`・診断の輪・再審の輪・`finish`）の block にする。AI の node は 2 つ（判定役 `diagnose`・再審の役 `rejudge`）。今の再審の輪の出し直しの役（`rejudge-fix`。拒まれた欄だけを返す）も置く（4 節・11 節の 5）。道は port `objection` が空か（README の 8.1）で分かれ、再審は同じ block に置く（持ち主の決め `rejudge-cohabit`）。判定役の材料は指示に直に入れず、値だけの JSON 1 本（`diagnose-input.json`）に書いて Read させ、鍵の意味は全部 md が持つ（Python は指示の文を持たない。11 節の 1）。受け付けの規則は今の `lib/judge_accept.py` の判定と再審の部分を `src/` に写す（README の 9.2 の MOVE）。振る舞いは変えない（変えた所は 11 節に名指す）。
 - 持ち主に求めること: なし。
 - 読む人と使い方: この block を作る実装者（1〜5 節の名と順をそのまま作る）と、つなぐ graph（judge のまとめ・line）の設計書の書き手（1.6）。README の 11.1 の 2 波目。審査役は 9.4 の「残す指示の一覧」で、英語の md を古い指示と 1 件ずつ照らす。
 
@@ -75,7 +75,7 @@
 - `questions`: 受けた判定の台帳のうち人へ回す問いの行（`gatemarks.asks_human` が真の行。台帳の行の形のまま）。無ければ `[]`。
 - `inputs`: pointer（`diagnose-input.json`）か null。判定の道で材料を書けた時だけ。再審の道の `prior_inputs` に渡す。
 - `brief`: pointer（最後に組んだ判定役の指示 `diagnose-prompt-<n>.md`。`<n>` の最も大きい物）か null。判定の道で指示を組めた時だけ。再審の道の `prior_brief` に渡す（今の再審が Read させた「判定役の材料」`diagnose-brief.md` の代わり）。
-- `materials`: pointer（`materials.json`。素材の 15 欄）か null。判定の道で書けた時だけ。
+- `materials`: pointer（`materials.json`。素材の 14 欄。11 節の 27）か null。判定の道で書けた時だけ。
 - `out_of_purpose`: pointer（`out-of-purpose.json`）か null。判定を受け付けて、目的の外の行が在った時だけ（今の `outpurpose.save` が書く時）。
 - `answer_ties`: pointer（`answer-ties.json`）か null。同じく結びの行が在った時だけ。
 - `rejudge_verdict`: `採る`・`退ける`・`一部採る` か null（再審の道で受け付けた時だけ）。
@@ -96,9 +96,10 @@ AI の node の起動の鍵（今の YAML の錨 `review_launch` のまま。`wo
    - `diagnose`（AI。`prompt: "$diagnose-prep.output.prompt"`・`depends_on: [diagnose-prep]`・起動の鍵。`output_format` は今の物を字のまま写す: `workflows/judge/works-factory-judge.yaml:1814-1987`。2.4）。
    - `diagnose-accept`（script `diagnose_accept.py`。`depends_on: [diagnose]`・`with: {reply: $diagnose.output}`）: 返り `{ok, done, reason}`。
 3. `rejudge-loop`（`depends_on: [intake]`・`when: "$intake.output.due == true && $intake.output.mode == 'rejudge'"`・同じ loop の形で `until_bash: 'done=$rejudge-accept.output.done; test "$done" = true'`）
-   - `rejudge-prep`（script `rejudge_prep.py`。`with:` を持たない）: 再審の役の指示を組む。返り `{prompt}`（`minLength: 1`）。
-   - `rejudge`（AI。`prompt: "$rejudge-prep.output.prompt"`・`depends_on: [rejudge-prep]`・起動の鍵。`output_format` は今の `&rejudge_reply` を字のまま: `:2084-2149`。3.4）。
-   - `rejudge-accept`（script `rejudge_accept.py`。`depends_on: [rejudge]`・`with: {reply: $rejudge.output}`）: 返り `{ok, done, reason}`。
+   - `rejudge-prep`（script `rejudge_prep.py`。`with: {prev: "$LOOP_PREV.rejudge-accept.output.ok"}`）: 再審の役の 1 回目の指示を組む。前の周が拒まれて控えが在れば組まず `resubmit: true`。返り `{prompt, resubmit}`。
+   - `rejudge`（AI。`prompt: "$rejudge-prep.output.prompt"`・`depends_on: [rejudge-prep]`・`when: resubmit != true`・起動の鍵。`output_format` は今の `&rejudge_reply` を字のまま: `:2084-2149`。3.4）。
+   - `rejudge-fix-prep`（script `rejudge_fix_prep.py`）・`rejudge-fix`（AI。出し直しの役）: 4 節。
+   - `rejudge-accept`（script `rejudge_accept.py`。`depends_on: [rejudge, rejudge-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {reply, fix_reply}`）: 返り `{ok, done, reason}`。
 4. `finish`（script `finish.py`。`depends_on: [intake, diagnose-loop, rejudge-loop]`・`trigger_rule: all_done`）: 出力を返す。どの段が落ちても落ちない（今の落とし穴 K1・K13。5.6）。
 
 輪の中の層の決まり（1 波目を作った時の決め: `fresh_context: false` の輪で、続きの会話で起きる役の直前に 2 つ以上の node の層を置かない）: どちらの輪も `fresh_context: false` で、どの層も node 1 つ（prep → 役 → 受け付け）。拒まれた後の回で同じ会話の続きとして起きる役の直前の層は prep 1 つで、2 つ以上の node の層を置かない（Archon は並びの層で会話を切る）。
@@ -254,7 +255,7 @@ For each line below, do what its kind asks:
 Return only JSON that matches the output schema.
 ```
 
-例の run の `diagnose-input.json` の値（鍵の頭だけ）: `materials` は 15 欄（`base_determination` found・count 0、`local_checks` clean、`parallel_pr` found 1、`prior_decisions` found、P1 の観点 9 本は `not_applicable`〔判定から入る run〕、`procedure_trace` not_applicable、`fix_closure` not_applicable）・P1 の所見の鍵 9 つと `purpose_review` はどれも null・`prior_decisions` は突合の返答（決着済みの論点 3 行）・`request_findings` は 1 バッチ（origin「人の依頼（<依頼のファイル>）」・行 1 つ）・`constraints` は 1 行（`kind` 実測）・`world_rows` は 1 行（類 `w-459d38b29048`、依頼の解き方は定石と同じ）・`answers` は `[]`・`changed_files` は `[]`。`intake.json` の値は、`row_asks` が 1 行（行 1・`無し`・番地 `workflows/merge/scripts/pr_commit.py:73-76`）・前の run の行と作り直しの行は無い・記録された方針は `settled` の 3 行。PR・方針・対象の REVIEW.md は無いので、`pr_text`・`policy`・`repo_review` の段落は入らない。1 回目で通ったので却下の段落も入らない。`lang` は空で、`{lang}` に既定の文が入った形。
+例の run の `diagnose-input.json` の値（鍵の頭だけ）: `materials` は 14 欄（`base_determination` found・count 0、`local_checks` clean、`parallel_pr` found 1、`prior_decisions` found、P1 の観点 9 本は `not_applicable`〔判定から入る run〕、`procedure_trace` not_applicable、`fix_closure` not_applicable）・P1 の所見の鍵 9 つと `purpose_review` はどれも null・`prior_decisions` は突合の返答（決着済みの論点 3 行）・`request_findings` は 1 バッチ（origin「人の依頼（<依頼のファイル>）」・行 1 つ）・`constraints` は 1 行（`kind` 実測）・`world_rows` は 1 行（類 `w-459d38b29048`、依頼の解き方は定石と同じ）・`answers` は `[]`・`changed_files` は `[]`。`intake.json` の値は、`row_asks` が 1 行（行 1・`無し`・番地 `workflows/merge/scripts/pr_commit.py:73-76`）・前の run の行と作り直しの行は無い・記録された方針は `settled` の 3 行。PR・方針・対象の REVIEW.md は無いので、`pr_text`・`policy`・`repo_review` の段落は入らない。1 回目で通ったので却下の段落も入らない。`lang` は空で、`{lang}` に既定の文が入った形。
 
 ### 2.6 今の指示との差
 
@@ -405,7 +406,7 @@ Return only JSON that matches the output schema.
 - 消した: 「新しい会話で起きている（判定役の会話は継がず…）」（md:20）。輪は `fresh_context: false` で、拒まれた後の回は同じ会話の続きなので、この字は 2 回目からの回で誤りになる（1 波目を作った時の決め）。「1 回目の判定はこの会話で書いた物ではなく、ファイルから読め」に言い換えた。
 - 消した: 規律の 2 の「超えても決着しなければ、新しい別の judge が会話に参加して…判定する（`p2.rejudge_third`。常設ではなく、そのときだけ立つ）」。工場にも今の works にもその node は無い（`docs/nodes.json:57`）ので、役に無い仕組みを在ると言っていた。「往復の数を数えるのはこの役の外で、回数で返し方は変わらない」は残す。
 - 消した: 節の名「P2-9」「P2 で書いたもの」・「writes が units を丸ごと置き換える」の `writes`（元の仕組みの名）。「返さなかった単位は消える」の事実は残す。
-- まとめた: 却下の段落（md:22-29）を `{shared:rejected}` に。拒まれた後の回は、今の出し直しの役（`rejudge-fix`）でなく、この役が同じ会話の続きで却下の段落を読んで丸ごと出し直す（4 節）。
+- まとめた: 却下の段落（md:22-29）を `{shared:rejected}` に。拒まれた後の出し直しは、今のとおり出し直しの役（`rejudge-fix`。拒まれた欄だけ返す。4 節）が受ける。1 回目の役が再び起きる回（resume で輪が 1 周目から回り直した時）は、この段落を読んで丸ごと出し直す。
 - 移した: 役の定義（md:3-16）を `{shared:role-judge}` へ、人の方針の段（md:69-72）を `{shared:policy}` へ。言語の 1 行（md:1）を結びの 1 文へ。
 - 足した物は無い。英語にした。役の名「再審の役」は "the rejudge role"。
 
@@ -428,14 +429,16 @@ Return only JSON that matches the output schema.
 - 回数: `rolekit.accept_round(place, "rejudge", raw, take)`。3 回目の却下で `done`。拒まれた後の回は、同じ会話の続きで返答を丸ごと出し直させる（4 節）。
 - 輪を抜ける時（`done`）: `collect(place)` が `rejudge-exit.json` を書く（今の `rejudge_collect` の形 `{ok, reason, passes, verdicts, unsettled, objection, new_open_units, lowered, unnamed_changed, diff_file, reads_file}`）。受けた再審が無ければ `ok: false` と諦めの理由。止めの控えは書かない（finish が `works:rejudge` を返す）。書けない時の例外は捕まえて、accept は `{ok, done, reason}` を返す（finish が出口を書き直す。5.6）。
 
-## 4 置かない node: rejudge-fix（今の出し直しの役）
+## 4 再審の出し直しの役: rejudge-fix（今の出し直しの役を残す）
 
-今の再審の輪は、受け付けに拒まれた後の回で、出し直しの役 `rejudge-fix`（YAML の `prompt:` の 1 文で `rolekit.resubmit_brief` が書いた指示書 `resubmit-rejudge-<n>.md` を Read させ、拒まれた欄だけを返させ、受け付けが控え `candidate-rejudge.json` と合わせる。#571 `b46ec691`・#588 `249c88ea`、`:2150-2163`）を起こした。この block は置かず、拒まれた回も `rejudge` が同じ会話の続きで起き、却下の段落（`{shared:rejected}`。輪の却下の全部）を読んで返答を丸ごと出し直す（判定役の輪と同じ形）。
+今の再審の輪は、受け付けに拒まれた後の回で、出し直しの役 `rejudge-fix`（拒まれた欄だけを返させ、受け付けが控え `candidate-rejudge.json` と欄ごとに合わせる。#571 `b46ec691`・#588 `249c88ea`）を起こした。この block も置く（統合の設計書 integration.md の 4.1 の 4 の裁定。最初の版は dry-run が輪を 1 周しか回さないので置かない形にしたが、spec の block が筋書きで出し直しの役に届く形を持つので、同じ形で残す）。
 
-- 訳: dry-run は輪を 1 周しか回さない（止めた Archon の `dry-run.ts` の「'until_bash' is not executed in a dry run」）ので、出し直しの役は prep を差し替えない筋書きで一度も `reached` に入らず、README の 7.1 の 3（どの AI の node も md から組んだことを筋書きで照らす）を満たせない。筋書きで差し替えてよいのは AI の node だけ（土台の後の決め）なので、出し直しの道を開く prep の返りも差し替えられない。
-- 落ちる物: 拒まれた欄だけを返す手間の減り（返答の型が小さい再審では、丸ごとの出し直しとの差は小さい。`verdict`・`new_facts`・`reason`・`units`）。keep-essence の 12 の仕組みと review-graph の同じ場面には当たらない（元の works と graphloops は、拒まれたら新しい会話で丸ごと出し直させた）。
-- 残る物: 拒まれた後も同じ会話の続きで起きる（材料を読み直さずに済む）・却下の理由を古い順に全部渡す（#351）・3 回で諦める。
-- 今の YAML の `prompt:` の文（指示を YAML に書く形。README の 7.1 の 11 が禁じる）と、指示書のファイルを Read させる段も無くなる。
+- 輪の形（spec の `spec-write-*` と同じ）: `rejudge-prep`（`with: {prev: "$LOOP_PREV.rejudge-accept.output.ok"}`。返り `{prompt, resubmit}`）→ `rejudge`（`when: resubmit != true`）／`rejudge-fix-prep`（script `rejudge_fix_prep`。`depends_on: [rejudge-prep, rejudge]`・`trigger_rule: none_failed_min_one_success`・`when: resubmit == true`。返り `{prompt}`）→ `rejudge-fix`（`depends_on: [rejudge-prep, rejudge-fix-prep, rejudge]`・同じ trigger_rule と when。`output_format` は再審の役の物で `required: []`）→ `rejudge-accept`（`depends_on: [rejudge, rejudge-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {reply: {from: $rejudge.output, if_skipped: null}, fix_reply: {from: $rejudge-fix.output, if_skipped: null}}`）。出し直しの道の 2 つの node は頭の prep と 1 回目の役の両方に依るので、続きの会話で起きる役の直前の層は 1 node になる。
+- 出し直しに入る条件: 前の周の受け付けが拒み（`prev` が偽）、`candidate-rejudge.json` が在る（`rolekit.resubmitting`）。resume で輪が 1 周目から回り直した時は `prev` が空で、1 回目の指示を組む。
+- 指示: `prompts/rejudge-fix.md` は共通の断片 `{shared:resubmit}` 1 つ（`rejection` は最後の 1 件、`candidate` は合わせた前の答えの控えのパス）。`rejudge_fix_prep` が `src/inputs.py` の `rejudge_fix_prompt` で組む。
+- 受け付け: `rolekit.resubmitted(place, "rejudge", reply, fix_reply, rolekit.merge_fields)` で前の答えと欄ごとに合わせ、`rolekit.accept_parsed` に通す（`src/rejudge.py` の `accept_reply`）。判定役の輪は今も丸ごとの出し直し。
+- 筋書き: `fixtures/rejudge-resubmit.stubs.yaml` が 1 周目の `rejudge-prep` の返りを `{prompt: '', resubmit: true}` に差し替え、出し直しの道の `rejudge-fix-prep`（本物が md から組む）・`rejudge-fix`・`rejudge-accept` に届かせる。控えが無いので受け付けは拒み、出口は `works:rejudge` で失敗を返す。
+- 残る物: 拒まれた欄だけを返す手間の減り・拒まれた後も同じ会話の続き・却下の理由を古い順に全部渡す（#351。1 回目の役の指示の段落）・3 回で諦める。
 
 ## 5 script の node
 
@@ -455,8 +458,8 @@ Return only JSON that matches the output schema.
 5. `view = materialkit.take_view(place, repo, base)`。`Reject` なら `works:judge`・「対象差分が取れない（<訳>）——判定役を起こさない」（今の字、`:2858`）。
 6. 依頼のバッチ（`request_batches`）: 人の依頼の行（`request` の行）を `{round: 1, origin: request_origin か「人の依頼（依頼の行）」, findings}`、仕様の行（`spec_rows` を `ports.file` → JSON の配列）を `{round: 1, origin: spec_origin, findings}`。行の無いバッチは置かない（今の `request_batches`、`:1901-1910`）。`spec_rows` が在って `spec_origin` が空なら「入力 spec_origin: spec_rows の出どころの名が要る」で落とす。
 7. 材料のファイル（`input_doc`）を `diagnose-input.json` に書く。鍵と値:
-   - `materials`: 4 の 15 欄。
-   - `local_findings` ← 素材の観点 `local-review` の `reply.findings`・`consistency_findings` ← `consistency-bypass` の `reply.findings`・`bypass_findings` ← `consistency-bypass` の `reply.bypass_findings`・`external_findings` ← `external-standards` の `reply.findings`・`procedure_findings` ← `procedure-trace` の `reply.findings`・`gate_arms` ← `gate-efficacy` の `reply.arms`・`test_double_fidelity` ← `test-double-fidelity` の `reply`・`main_path_observation` ← `main-path-observation` の `reply`・`provenance` ← `provenance` の `reply`・`prior_decisions` ← `prior-decisions` の `reply`・`purpose_review` ← `purpose-review` の `reply`（今の `_diagnose_ctx` の `process` と `out`、`:2764-2794`。素材の doc が無い・`reply` が null・欄が無ければ null）。役の名と鍵の表は `src/files.py` の `REPLY_KEYS` 1 つに置く。`hygiene` の返答と `procedure-trace` の `unmeasured`・`external-standards` の `rankings` は今も判定役に届いていないので載せない（12 節の 2）。
+   - `materials`: 4 の 14 欄（`files.MATERIALS`。11 節の 27）。
+   - `local_findings` ← 素材の観点 `local-review` の `reply.findings`・`consistency_findings` ← `consistency-bypass` の `reply.findings`・`bypass_findings` ← `consistency-bypass` の `reply.bypass_findings`・`external_findings` ← `external-standards` の `reply.findings`・`procedure_findings` ← `procedure-trace` の `reply.findings`・`test_double_fidelity` ← `test-double-fidelity` の `reply`・`main_path_observation` ← `main-path-observation` の `reply`・`provenance` ← `provenance` の `reply`・`prior_decisions` ← `prior-decisions` の `reply`・`purpose_review` ← `purpose-review` の `reply`（今の `_diagnose_ctx` の `process` と `out`、`:2764-2794`。素材の doc が無い・`reply` が null・欄が無ければ null）。役の名と鍵の表は `src/files.py` の `REPLY_KEYS` 1 つに置く。`hygiene` の返答と `procedure-trace` の `unmeasured`・`external-standards` の `rankings` は今も判定役に届いていないので載せない（12 節の 2）。
    - `request_findings`: 6 のバッチ（無ければ `[]`）。
    - `constraints`: port `constraints` の行（オブジェクトの形なら `constraints` の欄）。
    - `world_rows`: `world_rows` が在れば `worldmark.rows(path)`（読めなければ「入力 world_rows: …」で落とす）、無ければ null。
@@ -538,8 +541,8 @@ prep は `prompt.PromptError` と値の読み落ち（`intake.json` が読めな
   - 単位の前の写しは 1 回目の前だけ → intake で 1 回だけ書く（intake は輪の外）。
   - 材料のファイル `brief.md` → md（3.3）。
   - 例外は「再審の支度ができない（…）」で止める → 5.1 の fallback。
-- 再審の輪の頭（`rejects.py`）: 輪の却下の全部・言語の 1 行・出し直しの指示書と `resubmit` → 却下は prep が place から、言語は port。出し直しの役は置かない（4 節）。
-- 出し直しの役（`rejudge-fix`）と、受け付けの合わせ（`rolekit.resubmitted`・`merge_fields`・控え `candidate-rejudge.json`）→ 置かない（4 節）。
+- 再審の輪の頭（`rejects.py`）: 輪の却下の全部・言語の 1 行・出し直しの指示書と `resubmit` → 却下は prep が place から、言語は port。出し直しの指示書は `rejudge-fix` の md（`{shared:resubmit}`。4 節）。
+- 出し直しの役（`rejudge-fix`）と、受け付けの合わせ（`rolekit.resubmitted`・`merge_fields`・控え `candidate-rejudge.json`）→ 置く（4 節。`src/rejudge.py` の `accept_reply`）。
 - 再審の受け付け（`rejudge_accept.py`・`rejudge_take`・`rejudge_collect`）→ 3.8。出口が書けない時の止めの控え → finish が出口を書き直し、それでも無ければ `works:rejudge`（5.6 の 4）。
 - 返す節（`verdict.py`・`verdict`・`verdict_fallback`）:
   - 決して落ちない・lib が読めない時の約束の形・JSON に書けない時 → 5.6。
@@ -675,7 +678,7 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-diagnos
 72. 人の方針の段（断片 `policy`。md:72-76）。
 73. 決められた JSON の形だけを返す（md:77）。
 
-今の出し直しの役の指示（`RESUBMIT_ASK`・`FIELD_RULES`）は、役を置かないので持たない（4 節）。
+今の出し直しの役の指示（`RESUBMIT_ASK`・`FIELD_RULES`）は、共通の断片 `resubmit` が持つ（4 節。`prompts/rejudge-fix.md` は断片 1 つ）。
 
 ## 10 済んだと言える条件（PR ごと。README の 11.2）
 
@@ -690,7 +693,7 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-diagnos
 2. 素材の観点の返答を、`material.json` の欄 `role` の値（`local-review` など）で引いて `diagnose-input.json` の鍵に写す。根拠: 素材の観点の設計書（consistency-bypass・hygiene・local-review・gate-efficacy・provenance・procedure-trace・test-double-fidelity・main-path-observation・external-standards・purpose-review）が、読み方は diagnose が決めると書き、`role` で引く形を前提にしている。`role` は素材の行の形（`lib/materialkit` の族の語）の値で、block を include して呼ぶ名指しではない（憲法の 3 が禁じるのは graph の外でほかの block を呼ぶこと）。表は `src/files.py` の `REPLY_KEYS` 1 つに置く。今判定役に届いていない返答（hygiene の `findings`・procedure-trace の `unmeasured`・external-standards の `rankings`）は足さない（振る舞いを変えない。12 節の 2）。
 3. 並行 PR の素材は `materials` の配列に入れず、port `pr_material`（札のオブジェクト）で受ける。根拠: parallel-pr.md の 1.2 は出力 `material` を札のオブジェクトと決め、materials.md の 1.6 は「同じ material.json の形」と書いていて割れている。作り手の出力の形は作り手の設計書が決める（README の 4.1）ので、読み手が合わせる。札を `{"role": "parallel-pr", "materials": {"parallel_pr": 札}}` に包んでから `materialkit.assemble` に渡す。
 4. `_carried_r1_accounted`・`_fork_moves_forward` と `judge_output` の `prev_*`・`defer_ledger` の引数は写さない。根拠: 工場は 1 run = 1 周（持ち主の決め carry）で、今の `accept` はいつも空を渡し（`:854-857`）、2 つの規則は一度も働かない。働かない規則は「目的を満たし、全体がより簡潔か」で外す（リポジトリの決まり）。欄 `carried_r1` は型に残し、md は空の配列を返せと言う。
-5. 再審の輪に出し直しの役（今の `rejudge-fix`）を置かず、拒まれた回も `rejudge` が同じ会話の続きで丸ごと出し直す。根拠: dry-run は輪を 1 周しか回さないので、AI の node だけを差し替える筋書きでは出し直しの役に一度も届かず、README の 7.1 の 3 を満たせない（4 節）。落ちるのは拒まれた欄だけを返す手間の減りで、keep-essence の 12 の仕組みと review-graph の同じ場面には当たらない。判定役の輪は今も丸ごとの出し直しなので、2 つの輪が同じ形になり、block が簡潔になる。
+5. 再審の輪に出し直しの役（今の `rejudge-fix`）を置く（最初の版は置かなかったが、統合の設計書の 4.1 の 4 の裁定で戻した）。根拠: spec の block が、1 周目の prep の返りを `resubmit: true` に差し替え、出し直しの役の自分の prep を本当に走らせる筋書き（`resubmit-write.stubs.yaml`）で、dry-run が輪を 1 周しか回さなくても出し直しの役に届く。README の 7.1 の 3 も満たす。keep-essence の 12 の仕組みと review-graph の同じ場面（拒まれたら新しい会話で丸ごと出し直させる）を、今の works のとおり拒まれた欄だけを返させる形で残す。判定役の輪は今も丸ごとの出し直し（今のまま）。
 6. 判定役の却下の理由は、今の前の回の 1 件から、輪の却下の全部（古い順）にする。根拠: README の 13 章の決め（prep は place の控えから全部を読み、`with:` で `$LOOP_PREV` の理由を運ばない。resume で輪が 1 周目から回り直しても却下が抜けない）。再審の役は今も全部（`rejects.py`）なので同じ。
 7. 記録された方針の方針の文書の行は、port `policy` の写しのパスだけで組み、元の置き場（`alias`）を持たない。根拠: README の 4.2 は始めの記録を block に渡さず、port `policy` は independent-design・structure と同じく写しのパスだけを運ぶ。名指しは行の札が示す写しのパス `<写し>:<行>` で当たる（`policy._hit` は `name` か `alias` のどちらかで当てる）ので、受け付けの照らしは働く。元の置き場で名指した返答だけが当たらなくなる。行の札の元の置き場は plan と同じく `none` と書く（plan.md の 10 節の 5）。
 8. `request_origin` と `spec_origin` を port にする。根拠: 依頼のバッチの出どころの名は、今は始めの記録の依頼のファイルの名と入口の印から judge が組んだ（`request_batches`）。block は始めの記録を読まない（README の 4.2）ので、組む所は line（`request_origin`）と spec（`added_origin`。spec.md の 11 節の 4）。
@@ -701,10 +704,22 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-diagnos
 13. 再審の道の `answer_ties`・`materials`・`out_of_purpose` は null。根拠: 再審は単位だけを考え直し、結び・素材・目的の外の行は 1 回目の物が正（今の line の `judged` も 1 回目の物を持ち続ける）。
 14. 前の run の行・記録された方針・頭の深さの行の節は、plan.md が名と本文と口を決めた共通の断片 `prior-failures`・`recorded-policy`・`unknown-asks` を使い、行の英語の札も plan.md の 2.3 の字にそろえる。port の形 `judgment.schema.json`・`prior-failures.schema.json` も plan.md の 1.2 の物を `blocks/.shared/schemas/` に置いて共に使う。根拠: 2 つ以上の block が使う段落と形は `blocks/.shared/` に 1 つ（README の 5.1・13 章）。2 波目で plan と同時に書いたので、名を割らないよう先に書かれた方に合わせた。
 15. 頭の深さの段の根拠を port `depth_why` で受ける。根拠: 今の判定役は、種類が決まっていない run で「決まっていない（訳: <控えの why>）」を見ていた（`headdepth.section`）。`row_asks` だけでは訳が落ちる。head-depth の出力 `why` がその字（head-depth.md の 1.2）。
+16. 共通の形 `judgment.schema.json`・`prior-failures.schema.json` と断片 `unknown-asks`・`prior-failures` は plan の作業場（7d93fe30）の物を字のまま、断片 `recorded-policy` は r1 の作業場（6271e0bd）の物を字のまま置く（統合の指示。同じ道は同じ中身）。plan の `judgment.schema.json` は `units` の行の `key` だけを必須にし、`prescriptions`（字の配列）と `questions`（object の配列）の型を縛る。verify の block ごとの形との差は 2 つ: 共通の形は `label` を要らない（verify の `is_open` は `label` を直に引くので、verify は自分で確かめるか形を足す）・`prescriptions` が字・`questions` が字の配列の判定は共通の形が拒む（verify の形は通す）。diagnose が書く判定（`output_format` が型を保つ）は両方とも通る。試験 `test_judgment_schema.py` が差を名指しで固定する。
+17. 入力 `answers` の形のファイルは `answer-rows.schema.json` と呼ぶ（設計書の port の欄は `answers.schema.json`）。根拠: `tests/layers/test_block_shape.py` の「形のファイルの名は pack の中で 1 か所」が、independent-design の `answers.schema.json`（別の形）と重なる名を拒む。中身は port の説明のとおり（行の配列、`question`・`text` が必須）。
+18. 判定の受け付けの `_name_hints` と `NUMBER_HINTS` は写さない。根拠: 言い換える相手の文は `_carried_r1_accounted` だけが書き（11 節の 4 で写さない）、この block ではどの拒否の文にも当たらない。働かない規則は外す（リポジトリの決まり）。
+19. 再審の `take` は、返答の単位の行に空でない `key` が無ければ、`judgment.json` を書く前に拒む（今は書いた後の `diff_units` で `TypeError` が上がり、`judgment.json` が書かれたまま受け付けが落ちた）。根拠: 出口は `judgment.json` が在れば再審を受けたと読むので、拒んだ返答の判定が残ると受けたことになる。output_format が `key` を必須にしているので、通る返答の振る舞いは変わらない。
+20. 筋書きは `standalone`・`gave-up`・`rejudge`・`rejudge-resubmit` の 4 本にする（10 節のとおり）。根拠: AI の node を差し替えて届く道は、判定の道の通り・判定の道の諦め・再審の道の通り・再審の出し直し（4 節）の 4 つ。4 本目に当たる `rejudge-session`（`prior` が null）は AI の node に届かないので 9.1 のとおり試験が見る（`test_rejudge.py` の `test_session_stop_when_there_is_no_first_judgment` と `test_diagnose.py` の `test_no_first_judgment_stops_the_session`）。`gave-up` の差し替えの返答は、ラベルの語が表の外の単位でなく（Archon が差し替えの返答を `output_format` に照らして拒む）、型に合って受け付けだけが拒む返答（開いた単位に `class_query` が無い）にする。ラベルの語の拒みは `test_judge.py` が見る。
+21. 再審の `accept_reply` は輪を抜ける時（`done`）に出口 `rejudge-exit.json` を書き、書けなくても落ちない。`finish` は出口が無ければ `collect` で書き直す。根拠: 3.8 の「輪を抜ける時は `collect` が出口を書く」と 5.6 の 4 の両方を満たす。
+22. 判定の道の出口は、素材の観点が諦めた時に `status: stopped`・`ok: false`・`stop_reason: works:material`・`reason` は各素材の `reason` を「／」でつないだ字で返す。材料のファイルと `materials.json` は書いてあるので `inputs`・`materials` の pointer は在る（1.2 のとおり）。`intake.json` の `values` は書く（再審の役は使わないが、読み手が止めた訳を引ける）。
+23. 共通の断片 `recorded-policy` と `prior-failures` の本文は、今の `policy.RECORDED_HEAD`・`RECORDED_RULE`・`RECORDED_NONE` と `carry.PRIOR_HEAD`・`REDESIGN_HEAD` の文を英語にして足した。`unknown-asks` は plan の作業場の下書きの本文を字のまま写した。根拠: 14 のとおり、先に書かれた物に揃える。plan の PR が別の字で足していれば、main の物に合わせる（12 節の 5）。行の英語の札を組む Python は `src/inputs.py` の `recorded_text` と `unknown_lines`（12 節の 5 のとおり、plan と重なる）。
+24. md の「Inputs」は、設計書の 2.3 の順のうち、断片が見出しを持つ物（前の run の行・記録された方針・人の方針・頭の深さ）を箇条の後ろに見出しつきの節として並べる。「前の run の行」の 2 つの節の読み方（直す穴か注意か）は、その段落が入る時だけ md が言う（段落 `prior_notes`・`prior_redesign` を md の側でも使う）。目的の外の所見の決まりは箇条にして、材料の鍵の説明の後に置く。
+25. 報告の行（5.7）の字は今の `lib/runreport.py` の `unproven_lines`・`rejudge_changes`・`rejudge_lines` の頭と下げた単位の行をそのまま使い、再審が直す単位にした単位の行と「再審されずに残った異議」は書かない（line が組む）。
+26. `COUNT_BUDGET`（数える問いを走らせる量の上限。300 回か 900 秒）は今の判定の受け付けが持つ数のまま写す。根拠: 振る舞いを変えない写しで、新しい期限ではない（同じ返答を出し直し続ける輪の網）。
+27. 素材の欄から `gate_efficacy` を外す。この block が読む欄は `files.MATERIALS`（`lib/materialkit.MATERIALS` の 15 欄から `gate_efficacy` を除いた 14 欄）で、`materials.json`・材料のファイルの `materials` もその 14 欄。材料のファイルの鍵 `gate_arms` も無く、指示 md も `gate_arms`・`gate_efficacy` を言わない。受け付けの問いの出どころ（素材名）の域も 14 欄。gate-efficacy の block の素材が `materials` の port に来ても読まない。根拠: 持ち主の決め 2026-10-19 「重い試験は全部まとめてやるし、なんならＣＩに任せて先に進めたい」「その診断の…種類から外せばいいのでは」。`lib/materialkit.py` は変えない（gate-efficacy の block は単独で回り、素材の欄の照らしは全体の表を使う）。外した素材を回す graph を持つ時は、graph が `materials` に渡さない。
 
 ## 12 未確認
 
-1. 出し直しの役（`-fix`）を持つ block の筋書き: dry-run は輪を 1 周しか回さないので、AI の node だけを差し替える筋書きでは `-fix` の node に届かない。この block は役を置かない形で避けた（4 節）が、spec（`spec-*-fix`）・test-gate（`ci-fix`）・plan（`plan-writer-fix`）は `-fix` を持つ設計で、README の 7.1 の 3 をどう満たすかが決まっていない。dry-run が `until_bash` を走らせるようになれば、この block も出し直しの役を戻せる。
+1. 出し直しの役（`-fix`）を持つ block の筋書き: dry-run は輪を 1 周しか回さないので、そのままでは `-fix` の node に届かない。spec の `resubmit-*.stubs.yaml` が決めた形（1 周目の prep の返りを `resubmit: true` に差し替え、出し直しの役の自分の prep は本物を走らせる）を、この block の `rejudge-resubmit.stubs.yaml` も取った（4 節）。test-gate（`ci-fix`）・plan（`plan-writer-fix`）が同じ形で届くかは各 block の設計書の決め。
 2. 判定役に届いていない返答（hygiene の `findings`・procedure-trace の `unmeasured`・external-standards の `rankings`）を届けるか。今と同じく届けない（素材の `detail` と各 block の `report` には載る）。届けるのは振る舞いの変更なので、この作り直しの外。
 3. `lib/gatemarks.py` の `_tie_row_problems`・`_squeeze`・`_fix_duty` と `lib/outpurpose.py` の `_walk` は内向きの名（`_` で始まる）だが、今の `judge_accept` と同じく呼ぶ。組み込みで公開の名にするか。あわせて、KEEP の `querytest`・`outpurpose`・`gatemarks` は DELETE の `lib/marks.py`（README の 9.1）の `split`・`path_of` に頼っている。組み込みで `marks` を消すなら、この 3 つの読み口の作り替えが要る。
 4. 再審の後の単位は `REJUDGE_UNIT_FIELDS` だけを持ち、class_query を落とす（今の `rejudge_take` のまま。修正の数え直し〔keep-essence の 7〕は再審の後の単位の class_query を読めない）。今の振る舞いを変えないので写すが、意図した形かは記録が無い（#76）。
