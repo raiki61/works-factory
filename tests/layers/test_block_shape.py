@@ -3,7 +3,8 @@
 1. AI の node の prompt: は、同じ workflow の script の node の `$<id>.output.prompt` 1 つだけ。command: を持つ AI の node は無い。
    systemPrompt: を持つなら、同じ prep の `$<id>.output.system` 1 つだけで、prompts/<node-id>.system.md が在る（逆も）
 2. AI の node ごとに prompts/<node-id>.md が在り、prompts/ の直下の md はどれもどれかの AI の node の物（<node-id>.md か
-   <node-id>.system.md）。prompts/parts/ の md はどれも同じ block のどれかの md から {part:…} で差し込まれる。md の
+   <node-id>.system.md）。prompts/parts/ の md はどれも同じ block のどれかの md から {part:…} で差し込まれるか、同じ block の
+   scripts/・src/ の prompt.render_part("<name>" の呼びが名指す。md の
    {shared:…}・{part:…} の先が在る
 3. 指示が筋書きの値で md から組める: standalone の筋書きは exec-code: true。どの AI の node も、exec-code: true でその prep を
    差し替えない筋書きのどれかで reached に在り、その筋書きの resolved-text-contains が、その node の md の決まった文（断片を
@@ -54,6 +55,7 @@ FORM = re.compile(r"^(text|file|flag|json\((shared:)?([A-Za-z0-9_.-]+)\)|choice\
 SYSTEM_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.system$")
 PROMPT_REF = re.compile(r"^\$([a-z0-9][a-z0-9_-]*)\.output\.prompt$")
 FRAGMENT = re.compile(r"\{(shared|part):([a-z0-9][a-z0-9_-]*)\}")
+RENDER_PART = re.compile(r"""prompt\.render_part\(\s*["']([a-z0-9][a-z0-9_-]*)["']""")
 MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
 UV_HEAD = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
 STANDALONE = "standalone"
@@ -144,8 +146,9 @@ def check_prompt_files(pack: pathlib.Path) -> list[str]:
         texts = [p.read_text(encoding="utf-8") for p in prompts.rglob("*.md")] if prompts.is_dir() else []
         refs = {m.groups() for text in texts for m in FRAGMENT.finditer(text)}
         parts = {p.stem for p in (prompts / "parts").glob("*.md")} if (prompts / "parts").is_dir() else set()
-        out += [f"{folder.name}: prompts/parts/{p}.md はどの md からも {{part:{p}}} で差し込まれない"
-                for p in sorted(parts - {name for kind, name in refs if kind == "part"})]
+        called = {m.group(1) for path in py_files(folder) for m in RENDER_PART.finditer(path.read_text(encoding="utf-8"))}
+        out += [f"{folder.name}: prompts/parts/{p}.md はどの md からも {{part:{p}}} で差し込まれない（prompt.render_part(\"{p}\" の呼びも無い）"
+                for p in sorted(parts - {name for kind, name in refs if kind == "part"} - called)]
         for kind, name in sorted(refs):
             where = pack / SHARED / "prompts" if kind == "shared" else prompts / "parts"
             if not (where / f"{name}.md").is_file():

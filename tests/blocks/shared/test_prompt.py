@@ -53,6 +53,17 @@ class SlotCase(Base):
         self.assertEqual(self.render({"more": "m"}, {"extra": False}), "Y\n")
 
 
+class PartCase(Base):
+    def test_part_is_composed_like_a_prompt(self):
+        self.part("brief", "Read {file}.\n<!-- if later -->\nAgain.\n<!-- end later -->\n")
+        got = prompt._compose(self.block, "brief", {"file": "a.md"}, {"later": True}, part=True)["prompt"]
+        self.assertEqual(got, "Read a.md.\nAgain.\n")
+        with self.assertRaisesRegex(prompt.PromptError, "に値が無い"):
+            prompt._compose(self.block, "brief", {}, {"later": False}, part=True)
+        with self.assertRaisesRegex(prompt.PromptError, "が無い"):
+            prompt._compose(self.block, "absent", {}, {}, part=True)
+
+
 class ParagraphCase(Base):
     def test_if_and_if_not_select_and_drop_marks(self):
         self.md("Head\n\n<!-- if web -->\nOn\n<!-- end web -->\n<!-- if not web -->\nOff\n<!-- end web -->\n\n\nTail\n")

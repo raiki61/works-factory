@@ -1508,12 +1508,21 @@ KEEP_CHECKOUT = {
     ("plan-review", "plan-review-tree"): "項目ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
     ("plan-review", "plan-review-tree-fix"): "plan-review-tree の会話の続きの出し直しの役。項目ごとの下請けが答えのファイルを run の置き場に"
                                              " Write で書く。作業ツリーは書かない（元の keep_checkout）",
+    # blocks/plan-review/（作り直しの block。役の id が違う）。workflows/plan-review/ の上の 4 つと、folder の名が同じなので両方を置き、
+    # 在る方だけを照らす（ALTERNATE_ROLES）
+    ("plan-review", "review"): "束ね役と同じ起こし方の錨から Write を持つが、作業ツリーも run の置き場も書かない（単独の審査）",
+    ("plan-review", "review-fix"): "review の会話の続きの出し直しの役。review と同じ起こし方で、作業ツリーも run の置き場も書かない（単独の審査）",
+    ("plan-review", "review-tree"): "項目ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない",
+    ("plan-review", "review-tree-fix"): "review-tree の会話の続きの出し直しの役。項目ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない",
     ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。sandbox の denyWrite が書き込みを止め、false と ci-accept の"
                          "作業ツリーの比べが重ねて守る（#69・#293）",
     ("test-gate", "ci-fix"): "ci の会話の続きの出し直しの役。Bash でテストを走らせるが作業ツリーは書かない（ci と同じ起こし方・同じ守り）",
     ("test-gate", "suite-write"): "TDD の実行器の書き手。ci と同じ起こし方で Bash を持つが、使い方の表示を読むだけで作業ツリーは書かない"
                                   "（sandbox の denyWrite と false が守る。#516）",
 }
+# 同じ folder の名で役の id が違う 2 組（今の工程と作り直しの block）。どちらかが全部在れば、もう一方の組が無くても欠けとしない
+ALTERNATE_ROLES = {"plan-review": ({"plan-review", "plan-review-fix", "plan-review-tree", "plan-review-tree-fix"},
+                                   {"review", "review-fix", "review-tree", "review-tree-fix"})}
 CHANGE_CHECKOUT = {
     ("line", "start"): "始めの記録を run の置き場に書くだけだが、今の線は印を持たない。足すと Archon の照らしが増えて振る舞いが変わるので部分 0 では足さない",
     ("judge", "spec-freeze"): "人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（lib/judge_accept._spec_run）",
@@ -1591,7 +1600,10 @@ def _readonly_nodes(root: Path) -> list[str]:
                 elif not marked and not changes:
                     out.append(f"{at}: script の節 {ident} に mutates_checkout: false が無い（作業ツリーを変えるなら表 CHANGE_CHECKOUT に訳を書く）")
         for block, ident in KEEP_CHECKOUT:
-            if block == folder.name and ident not in seen:
+            sets = ALTERNATE_ROLES.get(folder.name, ())
+            absent_pair = any(ident in group and not group <= seen and any(other <= seen for other in sets if other is not group)
+                              for group in sets)
+            if block == folder.name and ident not in seen and not absent_pair:
                 out.append(f"{rel}:1: 表 KEEP_CHECKOUT が名指した役 {ident} が工程に無い")
     return out
 

@@ -69,6 +69,7 @@
 - `deviations`: 外れの行の配列（10.2）。`{source: "world", item, text, mark, why}`（修正案の欄 `structure` が世界の解の行から外れると答えた行と、その決め手の照らし）と `{source: "design", key, kind, why}`（独立設計との構造の食い違い・対の無い仕組みの穴）。
 - `replan`: 形 replan の直した項目ごとの事実の配列 `[{item, units, contract_changed, human, widened}]`（10.3）。ほかの形は空の配列。
 - `gave_up`: 形 replan で受け付けが諦めた時の、裁かれた項目ごとの諦めの行 `[{item, why, ruling}]`。ほかは null。
+- `reads`: pointer（この include の読んだ証拠 `reads-<役>.json`）か null（証拠を集めていない・集める node が落ちた）。受け付けの条件にしない（14 節の 36）。
 - `report`: 報告に載せる日本語の行の配列（12 節）。
 
 今との違い:
@@ -82,23 +83,25 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。AI の 
 
 1. `intake`（script `intake.py`）: port を読み、形を決め、place のこの block のファイルを名で引いて消し、材料を place に写して `intake.json` を書く（8 節）。返り `{due, form, tree, k, reason}`。落ちない。
 2. `review-loop`（`depends_on: [intake]`・`when: "$intake.output.due == true && $intake.output.form != 'text'"`・`loop_group`・`max_iterations: 20`（`rolekit.NET_AFTER` と同じ数。試験が突き合わせる）・`fresh_context: false`・`until_bash: done=$review-accept.output.done; test "$done" = true`）。本体は層ごとに 1 つの node の鎖（並んだ層は会話を切る。今の #571 の置き方のまま）:
-   - `review-prep`（script `review_prep.py`。`with: {prev: "$LOOP_PREV.review-accept.output.ok"}`）: 返り `{prompt, resubmit, tree}`。`prev` は出し直しの役を起こすか（`rolekit.resubmitting`）の判じにだけ使い、却下の文は運ばない（却下の文は place の控えから読む。README 13 章）。
+   - `review-prep`（script `review_prep.py`。`with: {prev: "$LOOP_PREV.review-accept.output.ok"}`）: 返り `{prompt, resubmit, tree}`。`prev` は出し直しの役を起こすか（`rolekit.resubmitting`）の判じにだけ使い、却下の文は運ばない（却下の文は place の控えから読む。README 13 章）。出し直しの周の `prompt` は `""`（出し直しの役の指示は次の `review-fix-prep` が組む。14 節の 26）。
    - `review`（AI。`depends_on: [review-prep]`・`when: "$review-prep.output.resubmit != true && $review-prep.output.tree != true"`・`context: fresh`・`prompt: "$review-prep.output.prompt"`・`allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]`・起こし方の鍵・`output_format` は 3.4）
-   - `review-fix`（AI。`depends_on: [review-prep, review]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true && $review-prep.output.tree != true"`・`context` を書かない（`review` の会話の続き）・`prompt: "$review-prep.output.prompt"`・道具と起こし方は `review` と同じ・`output_format` は `review` の物で `required: []`）
+   - `review-fix-prep`（script `review_fix_prep.py`。`depends_on: [review-prep, review]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true"`）: 返り `{prompt}`。出し直しの役（木なら `review-tree-fix`、ほかは `review-fix`）の指示を組み、作業ツリーの姿を置き直す（14 節の 26）。
+   - `review-fix`（AI。`depends_on: [review-prep, review-fix-prep, review]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true && $review-prep.output.tree != true"`・`context` を書かない（`review` の会話の続き）・`prompt: "$review-fix-prep.output.prompt"`・道具と起こし方は `review` と同じ・`output_format` は `review` の物で `required: []`）
    - `review-tree`（AI。`depends_on: [review-prep, review-fix]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit != true && $review-prep.output.tree == true"`・`context: fresh`・`prompt: "$review-prep.output.prompt"`・道具と起こし方は `review` と同じ・`output_format` は 5.4）
-   - `review-tree-fix`（AI。`depends_on: [review-prep, review-tree]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true && $review-prep.output.tree == true"`・`context` を書かない・`prompt: "$review-prep.output.prompt"`・`output_format` は `review-tree` の物で `required: []`）
+   - `review-tree-fix`（AI。`depends_on: [review-prep, review-fix-prep, review-tree]`・`trigger_rule: none_failed_min_one_success`・`when: "$review-prep.output.resubmit == true && $review-prep.output.tree == true"`・`context` を書かない・`prompt: "$review-fix-prep.output.prompt"`・`output_format` は `review-tree` の物で `required: []`）
    - `review-accept`（script `review_accept.py`。`depends_on: [review, review-fix, review-tree, review-tree-fix]`・`trigger_rule: none_failed_min_one_success`・`with: {status_guarded: true, reply: {from: "$review.output", if_skipped: null}, fix_reply: {from: "$review-fix.output", if_skipped: null}, tree_reply: {from: "$review-tree.output", if_skipped: null}, tree_fix_reply: {from: "$review-tree-fix.output", if_skipped: null}}`）: 返り `{ok, done, give_up, reason}`。
 3. `text-loop`（`depends_on: [intake]`・`when: "$intake.output.due == true && $intake.output.form == 'text'"`・`loop_group`・`max_iterations: 3`（`rolekit.GIVE_UP_AFTER`）・`fresh_context: false`・`until_bash: done=$text-accept.output.done; test "$done" = true`）:
    - `text-prep`（script `text_prep.py`。`with:` を持たない）: 返り `{prompt}`。
    - `review-text`（AI。`depends_on: [text-prep]`・`prompt: "$text-prep.output.prompt"`・`allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]`・起こし方の鍵・`output_format` は 7.4。`context` を書かない: 却下の後は同じ会話の続きで丸ごと出し直す）
    - `text-accept`（script `text_accept.py`。`depends_on: [review-text]`・`with: {status_guarded: true, reply: "$review-text.output"}`）: 返り `{ok, done, give_up, reason}`。
-4. `finish`（script `finish.py`。`depends_on: [intake, review-loop, text-loop]`・`trigger_rule: all_done`）: 出力を返す。どの段が落ちても落ちない（今の落とし穴 K1・K13 の決まり）。
+4. `review-reads`（script `review_reads.py`。`depends_on: [intake, review-loop, text-loop]`・`trigger_rule: all_done`・`when: "$intake.output.due == true"`）: 読んだ証拠。審査の役が機械の渡したパス（材料のファイル `review-material-<n>.md` と方針の写し）を読んだかを、隔離した設定のフックの記録から `lib/reads.collect` で集め、place に書く。木の往復は束ね役の Agent の起動の数を trace に残す。`lib/reads.guarded` で包み、落ちない。返り `{ok, missing, index_file, reason}`（14 節の 36）。
+5. `finish`（script `finish.py`。`depends_on: [intake, review-loop, text-loop, review-reads]`・`trigger_rule: all_done`）: 出力を返す。どの段が落ちても落ちない（今の落とし穴 K1・K13 の決まり）。
 
 出し直しの役（`review-fix`・`review-tree-fix`）と方針の文の役（`review-text`）は `fresh_context: false` の輪の中で同じ会話の続きとして起きるので、その md と骨組みは「新しい会話で起きた」と言わない。1 回目の役（`review`・`review-tree`）は `context: fresh` で起きるが、今の指示どおり会話の新旧を言わない。
 
 AI の node の `output_format` は JSON の流れの書き方（`{…}`）で YAML に書く。`src/files.py` の `node_schema(node_id)`（今の `pass_open.node_schema`、`workflows/plan-review/scripts/pass_open.py:25-42` の写し）が YAML から読み、下請けの答えのファイルの型（5 節）がその `faces`・`shrink` を使う。形の語は `blocks/.shared/AGENTS.md` の `KNOWN_KEYWORDS` だけ（今の型の `uniqueItems` は外し、受け付けが重なりを拒む。14 節の 12）。
 
-script の名は `lib/` のモジュールの名と重ねない（README 7.1 の 9）: `intake`・`review_prep`・`review_accept`・`text_prep`・`text_accept`・`finish`。
+script の名は `lib/` のモジュールの名と重ねない（README 7.1 の 9）: `intake`・`review_prep`・`review_fix_prep`・`review_accept`・`text_prep`・`text_accept`・`finish`。
 
 ### 1.4 place のファイル
 
@@ -128,6 +131,7 @@ script の名は `lib/` のモジュールの名と重ねない（README 7.1 の
 - `replan.json`・`replan-gave-up.json`: 形 replan の直した項目ごとの事実と、諦めた時の項目ごとの行（今の `pass-<k>/replan.json`・`planfile.REPLAN_GAVE_UP_FILE`）。
 - `crash.json`: prep・accept の node が落ちた時の `{step, why}`。出口が訳に使う。
 - `finish.json`: 出口の返りの写し（試験と報告の照らし）。
+- `reads-plan-review.json`・`reads-replan-plan-review.json`・`reads-plan-review-text.json`（役ごとの読んだ証拠。`lib/reads` が名を組む）と索引 `reads-plan-review-block.json`・`reads-replan-block.json`、集める node が落ちた記録 `reads-<役>-failed-<時刻>.json`（名の型で消す）。名は `src/files.py` の `READS_FILES`・`READS_INDEXES`・`READS_FAILED`。
 
 入口が消すのは上の名のファイル（`libdocs/` を除く）と、名で引ける形の `<node-id>-prompt-*.md`・`review-material-*.md`・`items/`・`answers/`・`world/`・`structure/` だけ（`rejects-*.json` のような広い形で消さない。`blocks/.shared/AGENTS.md`）。
 
@@ -138,7 +142,7 @@ script の名は `lib/` のモジュールの名と重ねない（README 7.1 の
 - `blocks/plan-review/works-factory-plan-review.yaml`（1.3）。
 - `blocks/plan-review/prompts/review.md`・`review-fix.md`・`review-tree.md`・`review-tree-fix.md`・`review-text.md`（3〜7 節）。
 - `blocks/plan-review/prompts/parts/role.md`・`checks.md`・`head.md`・`plan-checks.md`・`design-ask.md`・`rereview-ask.md`・`origin-ask.md`・`diff-ask.md`・`item-brief.md`・`synergy-brief.md`（3.3・5.3 に中身）。
-- `blocks/plan-review/scripts/intake.py`・`review_prep.py`・`review_accept.py`・`text_prep.py`・`text_accept.py`・`finish.py`（8 節）。
+- `blocks/plan-review/scripts/intake.py`・`review_prep.py`・`review_fix_prep.py`・`review_accept.py`・`text_prep.py`・`text_accept.py`・`review_reads.py`・`finish.py`（8 節）。
 - `blocks/plan-review/src/__init__.py`（空）。
 - `blocks/plan-review/src/files.py`: 1.4 の名・受け付けの名 `REVIEW_NODE = "p2.plan_review"`・`TEXT_NODE = "p2.plan_review.text"`・`PLAN_NODE = planmarks.NODE`・`HUMAN_FACE_KINDS = ("regression", "policy")`（今の `fixboard.HUMAN_FACE_KINDS`、`lib/fixboard.py:1188` の値。fix へ移るモジュールなので写す）・`node_schema(node_id)`・`PROPOSAL_SHAPE`・`PRIOR_SHAPE`（下）・`REVIEW_MD = ports.lib_root() / "REVIEW.md"`（観点の正本。組み込みで置き場が変わる時はこの 1 か所を直す）・md と読み手が同じ字を持つ値（`MINIMAL_HEAD = "最小性:"`・`SHORT_HEAD = "足りない: "`。3.3）。
 - `blocks/plan-review/src/view.py`: 今の `lib/boardview.py` の見え方の部分の写し（`view`・`place`・`_tracer`・`rules`〔`plan_review_output`・`HUMAN_FACE_KINDS` だけを持つ `SimpleNamespace`〕・`blank`・`EMPTY`・`_keys_once`・`plan_review_output`、`lib/boardview.py:153-303`）。`view` の `record` は `units`・`process.precedents`・`process.diagnosis`・`process.recorded_policy` だけ、`state.inputs` は `cwd`・`request`・`policy_md`・`review_rev` だけを持つ（`questions`・`materials`・`human_items`・`purpose_review` は承認ノードの材料で、この block は読まない）。
@@ -150,11 +154,12 @@ script の名は `lib/` のモジュールの名と重ねない（README 7.1 の
 - `blocks/plan-review/src/gate.py`: 人に回しうる行と外れの事実（10 節）。今の `gatemarks` の行の照らしの写し（`_gate_rows`・`_mark`・`axis_reasons`・`_cite_check`・`_design_rows`・`_world_rows`・`_world_answers`・`_answered_rows`・`world_items`、`lib/gatemarks.py:483-711`）と、今の `boardview.replan_asks` の事実の部分（`_faces_of`・`replan_asks`、`lib/boardview.py:1118-1154`）。`_mark` は盤面の控えでなく行の欄を読む形だけにする（14 節の 10）。
 - `blocks/plan-review/src/marks.py`: 返答の行から決め手の欄（`gatemarks.FIELDS` と `gatemarks.NO_NARROW`）と壁打ちの欄（`converge.RESOLVED`・`converge.TREE_KEYS`）を外す純粋な関数 `split_marks(rows)`・`split_review(reply)`（今の `gatemarks.split`・`converge.split`・`converge.tree_split` と同じ欄を外す。住処 `lib/marks.py` は README 9.1 で消えるので使わない）。
 - `blocks/plan-review/src/report.py`: 報告の行（12 節）。
+- `blocks/plan-review/src/proof.py`: 読んだ証拠（今の `boardview.collect_reads` の写し。14 節の 36）。
 - `blocks/plan-review/schemas/stated-means.schema.json`: `{"type": "array", "items": {"type": "string"}}`。
 - `blocks/plan-review/schemas/review-design.schema.json`: 今の `r2-design` の `output_format` を字のまま（`works-factory-plan-review.yaml:156-177`。必須 `question_stands`・`reason`・`design`）。`design.made`・`design.stands` もこの形で照らす。
 - `blocks/plan-review/schemas/review-fields.schema.json`（下）。
 - `blocks/plan-review/schemas/recorded.schema.json`: `{"type": "array", "items": {"type": "object", "required": ["source", "name"], "properties": {"source": {"type": "string", "enum": ["doc", "answer", "gate", "push", "settled"]}, "name": {"type": "string"}, "text": {"type": "string"}, "lines": {"type": "integer"}, "alias": {"type": "string"}}}}`（今の `policy.recorded` の行の形）。
-- `blocks/plan-review/fixtures/standalone.stubs.yaml`・`plan.stubs.yaml`・`tree.stubs.yaml`・`gave-up.stubs.yaml`（15 節）。
+- `blocks/plan-review/fixtures/standalone.stubs.yaml`・`plan.stubs.yaml`・`tree.stubs.yaml`・`gave-up.stubs.yaml`・`resubmit.stubs.yaml`・`resubmit-tree.stubs.yaml`（15 節）。
 - `tests/blocks/plan_review/__init__.py`・`values.py`・`test_plan_review.py`・`test_material.py`・`test_take.py`・`test_tree.py`・`test_gate.py`・`test_text.py`（15 節）。
 
 `PROPOSAL_SHAPE`（`src/files.py`。照らしは `engine.schema.validate_schema`）: `{"type": "object", "required": ["plan"], "properties": {"plan": {"type": "array", "minItems": 1}, "block_answers": {"type": "array"}}}`（ほかの欄は許す）。`plan` は修正案の役の返答の項目の行（決め手の欄 `decided_by` などを `narrows` の行に持ったまま）、`block_answers` は前の往復の穴への修正案の役の答え。修正案の block の出力 `fix_plan`（`p2.fix_plan.json`）の形（plan の設計書の 1.2）。
@@ -619,10 +624,10 @@ Return only JSON that matches the output schema.
 
 ## 8 script の node
 
-- `intake.py`: `INPUTS_PROPOSAL`・`INPUTS_FIELDS`・`INPUTS_JUDGMENT`・`INPUTS_PURPOSE`・`INPUTS_DESIGN`・`INPUTS_DESIGN_WHY`・`INPUTS_WORLD_ROWS`・`INPUTS_MEANS`・`INPUTS_STRUCTURE`・`INPUTS_RIPPLE`・`INPUTS_PRIOR`・`INPUTS_TREE`・`INPUTS_EXCLUDED`・`INPUTS_POLICY`・`INPUTS_RECORDED`・`INPUTS_REQUEST`・`INPUTS_REVIEW_REV`・`INPUTS_DIFF_BASE`・`INPUTS_RULING`・`INPUTS_CONFLICTS`・`INPUTS_LANG` を `os.environ.get("INPUTS_<名>")` の字のままで読み、`ports` の口に渡す。順は次のとおり（どこで落ちても `intake-error.json` に訳を書き、`{due: false, form: <決まっていれば>, tree: false, k: 0, reason: "<入力の名か段>: <訳>"}` を返す。落ちない）:
+- `intake.py`: `INPUTS_PROPOSAL`・`INPUTS_FIELDS`・`INPUTS_JUDGMENT`・`INPUTS_PURPOSE`・`INPUTS_DESIGN`・`INPUTS_DESIGN_WHY`・`INPUTS_WORLD_ROWS`・`INPUTS_MEANS`・`INPUTS_STRUCTURE`・`INPUTS_RIPPLE`・`INPUTS_PRIOR`・`INPUTS_TREE`・`INPUTS_EXCLUDED`・`INPUTS_POLICY`・`INPUTS_RECORDED`・`INPUTS_REQUEST`・`INPUTS_REVIEW_REV`・`INPUTS_DIFF_BASE`・`INPUTS_RULING`・`INPUTS_CONFLICTS`・`INPUTS_LANG` を `os.environ.get("INPUTS_<名>")` の字のままで読み、`ports` の口に渡す。順は次のとおり（どこで落ちても `intake-error.json` に訳 `{why, form}` を書き、`{due: false, form: <決まっていれば>, tree: false, k: 0, reason: "<入力の名か段>: <訳>"}` を返す。落ちない）:
   1. place のこの block のファイルを名で引いて消す（1.4 の終わり）。
-  2. 形を決める（`src/steps.proposal_form(raw)`）: 字の前後の空白を除き、(a) JSON として読めて `type` が `archon_artifact` の object なら pointer（`ports.json(raw)` で読む。読めなければ「入力 proposal: …」で failed。黙って text にしない。K15）・(b) `{` で始まり JSON の object として読めて `plan` の配列を持てば値・(c) 改行を持たず、`ports.file(raw)` が在るファイルに解ければそのファイル——の 3 つは構造。中身を `PROPOSAL_SHAPE` で照らす（合わなければ failed）。構造の時は port `fields` も要る（空なら「入力 fields: 修正案の欄が渡されていない」で failed。形は `ports.json(raw, "review-fields.schema.json")` が照らす）。どれでもなければ方針の文（`ports.text`）で形 `text`。構造の時、`ruling` が空でなければ形 `replan`、空なら `plan`。
-  3. 形 text: `purpose`・`world_rows`（在れば `world/` に写す）・`policy`・`recorded`・`review_rev`・`diff_base`・`lang` だけを読み、`intake.json` に `{form: "text", proposal_text, purpose, world, recorded, policy_copy, review_rev, diff_base, cwd, defaults}` を書いて `{due: true, form: "text", tree: false, k: 0, reason: ""}`。ほかの port は読まない（`judgment` が空でも落とさない）。
+  2. 形を決める（`src/steps.proposal_form(raw)`）: 字の前後の空白を除き、(a) JSON として読めて `type` が `archon_artifact` の object なら pointer（`ports.json(raw)` で読む。読めなければ「入力 proposal: …」で failed。黙って text にしない。K15）・(b) `{` で始まり JSON の object として読めれば値（`plan` を持たない object も構造と読み、照らしで failed。14 節の 27）・(c) 改行を持たず、`ports.file(raw)` が在るファイルに解ければそのファイル——の 3 つは構造。中身を `PROPOSAL_SHAPE` で照らす（合わなければ failed）。構造の時は port `fields` も要る（空なら「入力 fields: 修正案の欄が渡されていない」で failed。形は `ports.json(raw, "review-fields.schema.json")` が照らす）。どれでもなければ方針の文（`ports.text`）で形 `text`。構造の時、`ruling` が空でなければ形 `replan`、空なら `plan`。
+  3. 形 text: `purpose`・`world_rows`（在れば `world/` に写す）・`policy`・`recorded`・`review_rev`・`diff_base`・`lang` だけを読み、`intake.json` に `{form: "text", k: 0, round: 0, proposal_text, purpose, world, recorded_policy, policy_copy, review_rev, diff_base, cwd, defaults, lang}` を書いて `{due: true, form: "text", tree: false, k: 0, reason: ""}`。ほかの port は読まない（`judgment` が空でも落とさない）。
   4. 形 plan・replan: `judgment` が空なら「入力 judgment: 判定の返りが渡されていない」で failed（今の `boundary.needed`）。`judgment.json` に写す。`excluded`・`request` が在らない・読めない時は落とさず、無いとして読み、`defaults` に訳の行を足す（今の `pass_open.port` の「無いとして読んだ」と `REQUEST_UNREAD`）。`means` が読めない時も同じ（今の `purpose_means` は同じ扱い）。`design`・`world_rows`・`structure`・`ripple`・`prior`・`conflicts` が読めない時（値が在るのに読めない）は failed。空の字・`null`・空のオブジェクト・空の配列は、`ports` の口に渡さずに既定と同じ「無い」と読む（graph の `with:` は値の無い欄を空の字で渡しうる。`json` の口は空の字を拒み、`review-design` の形は空のオブジェクトを拒むので、block が先に既定へ寄せる。independent-design の設計書の 11 節の 16 と同じ）。
   5. 修正案の役の返答を割る: `block_answers` を外し（`converge.split("plan-revise", …)` と同じ欄）、決め手の欄を持ったままの写し（形 replan の直した項目の `narrows` に使う）を取ってから、`narrows` の行の決め手の欄を `src/marks.split_marks` で外す（外した欄は `intake.json` の `plan_marks` に項目と行の番号で置く。`asks` の `narrows` の行が読む）。
   6. 形 replan: 裁かれた項目を `planmarks.handed(ruling, <案の項目の数>)` で読む（番号でない行・案の外の番号は訳つきで failed）。承認済みの案を `prior` の `plan` の行から組む（`[{"item": n, **r["row"]} for n, r in enumerate(prior.plan, 1)]`。`prior` が空か `plan` が無ければ `NO_APPROVED` の訳で failed）。
@@ -632,9 +637,9 @@ Return only JSON that matches the output schema.
   10. 記録された方針の行: port `recorded` が空でなければそれ、空で `policy` が在れば `[{"source": "doc", "name": <policy のパス>, "text": "", "lines": <行数>, "alias": ""}]`（`src/steps.recorded_rows`。今の `policy.recorded` の文書の行と同じ形）。
   11. 形 replan: `replan_items(view, approved, <決め手つきの行>, ruled, <conflicts の items>)`（今の写し）。
   12. 木: 形 plan で port `tree` が `on` なら真・`off` なら偽・`auto` なら `len(src.material._opened(view, src.material._item_rows(view))) >= TREE_AUTO_MIN`（2。今の `planblk.TREE_AUTO_MIN`）。形 replan は偽。
-  13. `intake.json`（`k`・`form`・`round`（`fields` の `round`）・`ruled`・`cwd`・`review_rev`（空なら `HEAD`）・`diff_base`（空なら review_rev）・`request`（依頼の本文）・`request_file`・`policy_copy`・`excluded_file`・`units`・`names`・`precedents`・`diagnosis`（`framing`・`one_shot`）・`purpose`・`plan`（決め手を外した案）・`plan_marks`・`recorded_policy`・`review_schema`（`node_schema("review")`）・`design_schema`（`schemas/review-design.schema.json`）・`design_why`・`defaults`・`replan_items`・`tree`・`tree_word`）を書き、`{due: true, form, tree, k, reason: ""}`。
+  13. `intake.json`（`k`・`form`・`round`（`fields` の `round`）・`ruled`・`cwd`・`review_rev`（空なら `HEAD`）・`diff_base`（空なら review_rev）・`request`（依頼の本文）・`request_file`・`policy_copy`・`excluded_file`・`units`・`names`・`precedents`・`diagnosis`（`framing`・`one_shot`）・`purpose`・`plan`（決め手を外した案）・`plan_marks`・`recorded_policy`・`review_schema`（`node_schema("review")`）・`design_schema`（`schemas/review-design.schema.json`）・`design_why`・`defaults`・`replan_items`・`tree`・`tree_word`・`means`・`lang`。欄の正本は `src/steps.py` の docstring）を書き、`{due: true, form, tree, k, reason: ""}`。
 - `review_prep.py`: `INPUTS_PREV` を読む（`ports.parsed`）。`intake.json` を読む。
-  - `rolekit.resubmitting(place, REVIEW_NODE, prev)` が真: 作業ツリーの姿を `review-tree-state.json` に置き直し（`accept.tree_state`。今の `review_resubmit` と同じ）、`prompt.emit("review-tree-fix" if tree else "review-fix", {"rejection": …, "candidate": …, "lang": …}, {}, prompt.round_of(<node>))`。返り `{prompt, resubmit: true, tree}`。
+  - `rolekit.resubmitting(place, REVIEW_NODE, prev)` が真: 返り `{prompt: "", resubmit: true, tree}`。出し直しの指示は `review_fix_prep.py` が組む: 作業ツリーの姿を `review-tree-state.json` に置き直し（`accept.tree_state`。今の `review_resubmit` と同じ）、`prompt.emit("review-tree-fix" if tree else "review-fix", {"rejection": …, "candidate": …, "lang": …}, {}, prompt.round_of(<node>))`。返り `{prompt}`。
   - 偽: `src/material.write_material` で材料のファイルと値と `when` を組み、木なら `src/tree.write_tree(place, view, …)`（`items/brief.md`・`items/item-<n>.md`・`items/synergy.md`・`answers/` を作り、済んだ・起こし直す・審査しない項目の一覧を返す）。`prompt.emit("review-tree" if tree else "review", values, when, n)`。作業ツリーの姿を `review-tree-state.json` に置く。返り `{prompt, resubmit: false, tree}`。
   - 欄の控えが凍結の印と食い違う（`planmarks.FieldsBroken`）・指示が組めない（`prompt.PromptError`）・ほかの誤りは、`crash.json` に `{step: "review-prep", why}` を書いてから落ちる（今の `PREP_ERROR` と同じく、出口が訳を名指す）。
 - `review_accept.py`: `INPUTS_REPLY`・`INPUTS_FIX_REPLY`・`INPUTS_TREE_REPLY`・`INPUTS_TREE_FIX_REPLY`・`INPUTS_STATUS_GUARDED` を読み、起きた組の返答（`null` でない方。今の `replied`）を `src/take.take(place, reply, repo, keys=accept.status_keys(status_guarded), fix_reply=…)` に渡して返す（9 節）。中の誤りは `crash.json` に `{step: "review-accept", why}` を書き、`{ok: false, done: true, give_up: true, reason}` を返す。
@@ -643,7 +648,7 @@ Return only JSON that matches the output schema.
 - `finish.py`: `ports.run(compute, fallback)` で落ちない（fallback は `status: failed`・訳・pointer は null・配列は空）。
   - `intake.json` が無いか `due` が偽: `status: failed`・`reason` は `intake-error.json` の訳。
   - 形 plan・replan: `rolekit.given_up_reason(place, REVIEW_NODE)` が在れば `status: gave_up`（`reason` は今の `GIVEN_UP_FACES + 訳`）・`holes` は諦めの `review.json`・形 replan は `gave_up` の行（今の `planblk.REVIEW_GAVE_UP_WHY` と裁定の文 `ruling_text` の写し）を `replan-gave-up.json` に書いて返す。`review.json` が在れば `status: ok`・`holes`・`blocks`・`pass`（形 plan）・`asks`・`deviations`（`src/gate.py`）・`replan`（形 replan。`replan.json` にも書く）。どちらも無ければ `status: failed`・`reason` は `crash.json` の「<step> の node が落ちた（<訳>）」、無ければ「受け付けを通らなかった（最後の却下: <rolekit.rejected の最後>）」、それも無ければ「役の loop が回らなかった」。
-  - 形 text: 同じ決まりを `TEXT_NODE` で（`gave_up` は `rolekit.GIVE_UP_AFTER` 回で）。`asks`・`deviations`・`replan` は空、`pass` は null。
+  - 形 text: 同じ決まりを `TEXT_NODE` で（`gave_up` は `rolekit.GIVE_UP_AFTER` 回で）。`asks`・`deviations`・`replan` は空、`pass` は null。諦めた時は受け付けが `review.json` を書かないので、出口が `{faces: [], shrink: [], reason: GIVEN_UP_FACES + 訳}` を書いて `holes` に指す（1.2 の「諦めた時も pointer」。14 節の 29）。
   - どの道でも `form`・`round`・`report`（12 節）を付け、`finish.json` に写す。
 
 ## 9 受け付け
@@ -752,7 +757,7 @@ Return only JSON that matches the output schema.
 38. 設計の控えを渡したか・無いまま進んだかの trace（`HANDED_OP`・`MISSING_OP`）→ 無くした。設計は port で受け、設計が無い訳は独立設計の block の出力と報告が言う（読み手が無い）。
 39. 形 replan で諦めた時の項目ごとの行（`REVIEW_GAVE_UP_WHY`・`ruling_text`・`REPLAN_GAVE_UP_FILE`）→ 出口の `gave_up` と `replan-gave-up.json`。
 40. 返す節が落ちた時の偽の結末とファイル（`result.py:41-56`）→ 出口は `ports.run` で落ちず、pointer は null（書けるなら書いた物を指す）。
-41. 読んだ証拠の node（`review_reads`。フックの記録から役が材料と方針の写しを読んだか・束ね役が起こした下請けの数）→ 無くした。読み手だった報告の `_reads_lines` のフックの証拠の部分を、作り直す報告の block が写さない（report の設計書の `calls_lines`。道具の呼びは Archon の run の記録から読む）。受け付けの条件でもない。
+41. 読んだ証拠の node（`review_reads`。フックの記録から役が材料と方針の写しを読んだか・束ね役が起こした下請けの数）→ 残す（node `review-reads`・`src/proof.py`・出力 `reads`・報告の欠けの行。14 節の 36）。受け付けの条件ではない。
 42. 往復の記録の作業の写しは place の中だけ。line は `prior` と `pass` だけで受け渡す（place をまたいで名でファイルを開かない。README 4.3）。
 43. YAML: 審査の輪の `max_iterations: 20`・`until` は受け付けの done・1 回目の役は `context: fresh`・出し直しの役は会話の続き・層ごとに 1 つの node の鎖（#571）→ 1.3 のまま。木の組と単独の組を `when` で分ける形もそのまま。
 44. 役の型の写し（`node_schema` で YAML の JSON の流れの書き方から読む）→ `src/files.py`。
@@ -795,7 +800,7 @@ Return only JSON that matches the output schema.
 10. 決め手の欄の分けは `src/marks.py` の素の dict の操作で行う。根拠: 住処 `lib/marks.py` は README 9.1 で消える。`gatemarks._mark` の「盤面の控えから読む」道は、行が欄を持つ形だけにする（控えのファイル `gate-marks.json` を書かない）。
 11. 形 text は別の輪にし、3 回で諦め、丸ごと出し直す。根拠: 返す形（`unit_keys` も往復の欄も無い）が違うので node を分ける。往復の記録に入らない単発の審査なので、受け付けの網（20 回）の訳（計画の往復の行き止まりを避ける）が当たらない。world の役と同じ置き方。
 12. 型の `uniqueItems` を外し、受け付けが `fences` の重なりを拒む。根拠: 学びの 3（照らしの語は `KNOWN_KEYWORDS` だけ）。今も下請けの答えの型の照らし（`validate_schema`）は `uniqueItems` を黙って飛ばしていた。
-13. 読んだ証拠の node を持たない（11 節の 41）。
+13. （改めた）読んだ証拠の node を持たない、は 36 で「残す」に改めた。
 14. `libdocs/` を入口で消さない。根拠: 版で引く控えで、往復ごとに消すと同じ文書を網から取り直す（今は同じ run の往復で使い回していた。`LibDocsCase.test_cache_is_reused_across_passes`）。
 15. 先行例の出典の確かめの控えを `prior` の `precedent_checks` と `pass` で運ぶ。根拠: run で 1 度だけ開く（run 68f35d6b の開き直し）を、place が include ごとに分かれ入口が消す形でも続ける。
 16. `structure`・`ripple`・`design` の空を許す。根拠: 単独で回す（憲法 5）。空の時の意味は今の「控えが無い・一覧が無い・設計が無い」の扱いと同じ。
@@ -809,6 +814,19 @@ Return only JSON that matches the output schema.
 24. 形 replan の承認済みの案を `prior` の `plan` の行から組む。根拠: 今は同じ place に残る前の欄の控えと往復の記録から組んでいた（`_approved`）。place が include ごとに分かれるので、記録の行（案の行に欄を重ねた物。`note_plan`）を使う。案の直しは run で 1 度なので、承認済みの案に差し替え（`amended`）は無く、今の `approved_items` と同じ物になる。
 25. 置き場の名を `items/`・`answers/`・`ripple.json`・`review-tree-state.json` にする（往復の番号を名に持たない）。根拠: place が include（往復）ごとに分かれる。
 
+26. 出し直しの役の指示を組む prep を別の node `review-fix-prep`（`review_fix_prep.py`）にした（1.3 の字は `review-prep` が組む形だった）。根拠: 形の検査（`tests/layers/test_block_shape.py` の 3）は AI の node ごとに「prep を差し替えない筋書きで reached に在り、md の決まった文を照らす」ことを求めるが、筋書きの輪は 1 周しか回らず、1 周目の `review-prep` が出し直しの道へ進むことは無い。同じ branch の spec（`spec-*-fix-prep`）と test-gate（`ci-fix-prep`）と同じ形にし、`review-prep` を差し替えた筋書き 2 本（`resubmit`・`resubmit-tree`）で本物の fix-prep が md から組むことを見る。層は `review-prep`・`review`・`review-fix-prep`・`review-fix`・`review-tree`・`review-tree-fix`・`review-accept` の 1 層 1 node の鎖のまま（Archon の落とし穴を踏まない。試験が層を数える）。
+27. 入口の形の決めの (b) は、`{` で始まり JSON の object として読めれば構造と読み、`PROPOSAL_SHAPE` で照らして合わなければ failed（設計書の字は「`plan` の配列を持てば値」で、持たない object は方針の文に落ちていた）。根拠: JSON の object を方針の文として審査するのは黙った緩め（K15・`no-silent-loosen`）。`plan` が空の配列の物も `minItems` で failed。
+28. 役の `output_format` の JSON の流れの書き方は、鍵の字下げより深く字下げする（閉じの `}` も鍵より右）。根拠: 止めた Archon の YAML の読み（Bun）は、鍵と同じ字下げの閉じを読めずに workflow の読み込みが落ちる（PyYAML は通す。実測）。出し直しの役の型は錨を使わずに同じ JSON を写す（`src/files.py` の `node_schema` は値の頭の錨を飛ばさない）。等しさは試験が縛る（`test_resubmit_formats_drop_only_required`）。
+29. 形 text で受け付けが諦めた時は、出口が空の返答の `review.json` を書いて `holes` に指す（9.4 は受け付けが書かないと決めた）。根拠: 1.2 の「諦めた時も pointer」を形によらず保つ（policy-check の `result` が `holes` の先を同じ道で読む）。
+30. 報告の行の「形の語」は形 plan で「修正案」（12 節の `<形の語>`）。木の往復の「項目 <n> 本」は下請けの項目の材料のファイル（`items/item-<n>.md`）の数。
+31. `intake.json` の欄に `lang`（両方の形）と、形 text の `k: 0`・`round: 0` を足し、形 text の記録された方針の鍵を `recorded_policy`（`policy.RECORDED_KEY`）にそろえた（8 節の字は `recorded`）。根拠: 3 つの prep が `prompt.lang` に渡す値と、出口の `round` が要る。欄の一覧の正本は `src/steps.py` の docstring。
+32. 受け付けが穴の行から外した決め手の欄の控え `review-marks.json` を `src/files.py` の `FACE_MARKS` に置き、入口が名で消す（1.4 の一覧に無かった place のファイル。`src/take.py` が書き `src/gate.py` が読む）。
+33. 形の検査の E7（`tests/layers/scan.py` の `KEEP_CHECKOUT`）に、この block の Write を持つ 4 つの役（`review`・`review-fix`・`review-tree`・`review-tree-fix`）を足し、`ALTERNATE_ROLES` で今の `workflows/plan-review/` の 4 つの役の名とどちらかの組が在れば欠けとしないようにした。根拠: 形の検査は `blocks/` を `workflows/` の場所に写して当てるので、folder の名が同じ今の工程と作り直しの block が同じ表を引く。組み込みで今の工程が消えたら古い組を表から外す。
+34. 試験の値（`tests/blocks/plan_review/values.py`）は、例の run の値でなく今の試験（`tests/workflows/test_plan_review.py`）の stats.py の例（`tests/e2e/target-seed`）の写しにした。根拠: 写す試験（15.3 の一覧）が同じ値で書かれていて、写しの差を小さく保てる。例の run の対象の名前と置き場をリポジトリに置かない。往復の記録は試験の中で `converge.add_pass` で組む（line の側の使い方の見本を兼ねる）。
+35. policy-check の `result`: `review` の返りが無い（include が飛ばされた・落ちた）時は報告の頭に「- 事前審査の段が走らなかった」を置き、`ok` は偽。`holes` は `review` の `holes` の先の `faces`。報告は事前審査の行（頭の 1 行と block の穴の行）・定石と違う行・world の報告の順。筋書きは dry-run が include の中の loop の本体に include の道を渡さないので、事前審査の方針の文の輪の本体（`text-prep`・`text-accept`）を差し替え、`review__intake`・`review__finish` は本物が走る。
+
+36. 読んだ証拠を残す（13 と 11 節の 41 の「無くす」を改めた。組み込みの決め docs/design/integration.md の 4.1-2・4.5-18 (a)「機械が役に読むパスを渡す block は残す」）。この block は大きい材料を place のファイルに置いて指示が名指すので、役がそれを読んだかが証拠になる。形は parallel-pr と同じ（`lib/reads.collect`・`guarded`・索引・出口の `reads` の pointer・報告の欠けの行）。読むパスは材料のファイル（輪の回ごとの `review-material-<n>.md` の全部）と方針の写し、目印（その役だけに渡す物）は材料のファイル。記録は入口が `intake.json` を書いた時刻から後の行で切る（K14。前の往復の読みを数えない）。形 replan は `reads.role_key` の案の直しの名、形 text は役の名 `plan-review-text` で、方針の写しを渡した時だけ集める（渡したパスが無ければ索引に訳だけ）。木の往復は束ね役の Agent の起動の数と型を、下請けの項目の材料のファイルの数と並べて trace に `plan_review_agents` で残す（今の `planblk.AGENT_OP`）。試験は今の `ReadsCase` の写し（`test_plan_review.py`）。
+
 ## 15 試験
 
 ### 15.1 standalone の fixture（`blocks/plan-review/fixtures/`。`exec-code: true` で script は本当に走り、差し替えるのは AI の node だけ）
@@ -817,6 +835,7 @@ Return only JSON that matches the output schema.
 - `plan.stubs.yaml`: 形 plan・木にしない。入力は `proposal`（項目 1 つの修正案の役の返答の JSON の値）・`fields`（同じ項目の欄の JSON の値。`round: 1`）・`judgment`（単位 1 つの JSON の値）・`tree: off`。`review` を穴の無い返答（`faces_none` つき）で差し替える。`resolved-text-contains` は `review.md` と `parts/head.md` の決まった文。`reached: [intake, review-prep, review, review-accept, finish]`。
 - `tree.stubs.yaml`: 形 plan・`tree: on`・項目 2 つ（入力は `plan.stubs.yaml` と同じ形の値）。`review-tree` を `items` の要約で差し替える（下請けの答えのファイルは無いので、受け付けが「答えのファイルが無い」で 1 回拒み、筋書きの輪は 1 周で終わる）。出口は `status: failed`（受け付けを通らなかった）で run は completed。`resolved-text-contains` は `review-tree.md` の束ねの決まった文。下請けの指示のファイルの字は試験（`test_tree.py`）が照らす。
 - `gave-up.stubs.yaml`: 形 plan。`review` が key の重なる返答を返し、受け付けが 1 回拒む。出口は `status: failed`・`reason` に最後の却下の理由。run は completed。網（20 回）で諦める数えは試験が見る。
+- `resubmit.stubs.yaml`・`resubmit-tree.stubs.yaml`: 筋書きの輪は 1 周なので、`review-prep` を `{prompt: "", resubmit: true, tree}` に差し替えて、本物の `review-fix-prep` が `review-fix`・`review-tree-fix` の指示を md から組む所まで届かせる（`resolved-text-contains` は共通の断片 `resubmit` の決まった文）。合わせる前の答えの控えが無いので受け付けは拒み、出口は `status: failed`（test-gate・spec の出し直しの筋書きと同じ形）。
 - 筋書きは `expect: completed`・`reached`・指示の字だけを見る（拒否を足しても筋書きは直さない。`blocks/AGENTS.md`）。
 
 ### 15.2 指示の比べ（2 波目の変更: 2 つの commit の比べを作らない）
@@ -841,7 +860,7 @@ Return only JSON that matches the output schema.
 - `test_gate.py`: `asks` の行（`narrows` の行と人に回す種類の穴だけ・記録された方針を名指さない kind policy の穴は行にしない・字の頭が `gatemarks.NARROW_HEAD`・`FACE_HEAD` に合う）と `why` の軸ごとの訳（写す元: `lib/tests/test_gate_axes.py` の `SplitCase` 13 本と `RunRootCase` 4 本を、`gate_axes.gather` でなく行の `why` を見る形に。`test_plan_review.py` の `FourAxesCase` 9 本・`GateFromPlanCase.test_non_human_face_kinds_are_not_asked`・`test_target_text_as_contract_drift_is_not_asked` の行の事実の半分）・`deviations` の世界の解の行（写す元: `WorldGateCase.test_following_world_row_passes_without_asking`〔`why` が空〕・`test_world_deviation_becomes_gate_item`・`test_deviation_cited_to_request_goes_to_human`〔`why` が在る〕・`test_code_lines_in_purpose_sources_pass_without_asking`・`test_request_quote_on_none_verdict_row_passes_without_asking`・`test_knowledge_row_named_in_gate_item`、`WorldGateRunCase` 2 本）・`replan` の行（`ReplanCase.test_contract_change_or_human_face_asks`・`test_unattended_widen_only_is_not_asked` の事実の半分: `contract_changed`・`human`・`widened`）。承認ノードを開くか・聞き直さないか・無人の推し・4 つの軸のまとめの半分は line の試験に残す。
 - `test_text.py`: 形 text の材料（方針の文が囲いの中・目的・世界の解の行・記録された方針・方針の節）・受け付け（方針の穴の名指し・入口の `no_add`・key の重なり・`faces_none`・作業ツリーの変化・3 回で諦め）・出口の `report` の行。
 
-写さない試験（古い中身だけを見る。今の分類の D）: `YamlCase` の古い YAML の頭・入力・返りの約束・`node_schema` の読み・命令の写しの台帳（`test_review_command_is_the_original_with_only_the_allowed_edits`・`CopiedTextsCase`。README 9.4）・`ReadsCase` 全部（11 節の 41）・`ResultCase` と `FailSafeCase` の返す節の落ちた時の形（出口は `ports.run`）・`ScriptHeadCase`（形の検査が全部の block に当てる）・`FixtureCase`（古い筋書き）・`test_plan_review.py` の `QuoteFoldCase`（`test_blk_plan` の写し）・`lib/tests/test_boardview.py` の `view`・`place`・`open.json` の中の試験と `Owners.test_owners_read_the_table`。
+写さない試験（古い中身だけを見る。今の分類の D）: `YamlCase` の古い YAML の頭・入力・返りの約束・`node_schema` の読み・命令の写しの台帳（`test_review_command_is_the_original_with_only_the_allowed_edits`・`CopiedTextsCase`。README 9.4）・`ResultCase` と `FailSafeCase` の返す節の落ちた時の形（出口は `ports.run`）・`ScriptHeadCase`（形の検査が全部の block に当てる）・`FixtureCase`（古い筋書き）・`test_plan_review.py` の `QuoteFoldCase`（`test_blk_plan` の写し）・`lib/tests/test_boardview.py` の `view`・`place`・`open.json` の中の試験と `Owners.test_owners_read_the_table`。
 
 line の試験へ（今の分類の B）: `ConvergeCase` の止め時の 11 本・`PolicyCase`・`ReviewAcceptCase.test_stuck_push_carries_held_blocks_to_fix_duty`・`test_policy_change_asks`・`GateFromPlanCase`・`PlanGateCase`・`LedgerAsksCase`・`EscalateAsksCase`・`DesignOnlyCase`・`ConvergeGateCase`・`PlainSubjectCase`・`QuotedQuestionCase`・`RequestAnswersCase`・`MaterialAnswersCase`・`PushCase`・`ResultCase` の `test_questions_carry_their_kinds`・`test_gate_files_carry_kinds_and_items`・`FailSafeCase.test_unwritable_converge_record_is_named`・`PortedMaterialCase.test_gate_answers_reach_the_lib_through_the_open_script`、`lib/tests/test_boardview.py` の `GateCase`・`PolicyCase`・`GateAnswersCase`・`OpenCase` の承認ノードの答えと方針の版の 4 本・`RulesCase.test_validator_tables`、`lib/tests/test_gate_axes.py` の `GatherCase`。独立設計の block の試験へは済み（`IsolationCase`・`AddedMarkCase`・`DesignCase`・`NoFixDesignCase`）。`lib/tests/test_converge.py` は KEEP の `converge` の試験なので lib に残す（記録と止めの部分は組み込みで line の試験に寄せる）。
 
@@ -866,12 +885,18 @@ WORKS_FACTORY_FOLDER=blocks bin/works-factory workflow run works-factory-plan-re
 
 ## 17 未確認
 
+作った時の決め（同じ branch の block にそろえた）:
+
+- 共通の断片 `resubmit` の差し込み口は、先に入った物（`{rejection}`・`{candidate}`）を使った。`recorded-policy`（段落 `recorded_none`・`{recorded_rows}`）・`concept-map`（段落 `maps_found`・`{concept_maps}`・`{map_tail}`）も先に入った物の名のまま。
+- `ripple.section` などの plan へ移るモジュールの読み口は、この block の `src/material.py` に写した（組み込みで plan の写しとどちらかに寄せる）。
+- `REVIEW.md` の置き場は `src/files.py` の `REVIEW_MD` 1 か所が持つ（組み込みで置き場が移ればここを直す）。
+- dry-run の include の道: policy-check の筋書きは、この block の方針の文の輪の本体を差し替えた（14 節の 35）。
+
+まだ確かめていない物:
+
 - `prompt:` に入れる指示の大きさの上限（材料をファイルにしたので、この block の指示は約 15〜20 KB の見込み）。
-- 共通の断片 `resubmit` の差し込み口の名（test-gate の設計書は `{rejection}`・`{candidate}`、spec の設計書は `{resubmit_reason}`・`{candidate_file}`。先に入った PR の名に合わせる）。
-- 修正案の block の出力（同じ波の plan の設計書の `fix_plan`・`plan`・`ripple`）の中身が `PROPOSAL_SHAPE`・`review-fields.schema.json` と波及の一覧の形（`{items, overlaps, error?}`）に合うか（plan の設計書は書きかけの時に読んだ）。
-- 共通の断片 `recorded-policy`・`concept-map` の段落と差し込み口の名が、plan の PR で決まった物と合うか（先に入った PR の名に合わせる）。
-- `ripple.section` などの plan へ移るモジュールの読み口を、組み込みで plan と plan-review のどちらに置くか（今は両方が写す）。
+- 修正案の block の出力（同じ波の plan の設計書の `fix_plan`・`plan`・`ripple`）の中身が `PROPOSAL_SHAPE`・`review-fields.schema.json` と波及の一覧の形（`{items, overlaps, error?}`）に合うか（plan の設計書は書きかけの時に読んだ）。plan の block はこの branch にまだ無いので、組み込みで照らす。
+- `ripple.section` などの plan へ移るモジュールの読み口を、組み込みで plan と plan-review のどちらに寄せるか（今は両方が写す）。
 - `libdocs.section` の返りの説明の文（「機械が…控えた」など）を、組み込みで md へ出すか（README 9.3 は `libdocs` を KEEP とし「文は md へ」と書いていない）。
 - 観点の正本 `lib/REVIEW.md` の置き場が組み込みで `blocks/.shared/prompts/` へ移った時に、役が Read するパスをどう渡すか（README 9.3 の「`REVIEW.md` は `blocks/.shared/prompts/` へ」）。
-- 1 回目の役の `context: fresh` を `fresh_context: false` の輪の本体に置く形が、止めた版の Archon で今と同じく効くか（今の YAML は同じ形で回っている）。
-- dry-run が include の中の loop の本体の node に include の道を渡さない（README 13 章）。policy-check の筋書きは、この block の方針の文の輪の本体を差し替える。
+- 1 回目の役の `context: fresh` を `fresh_context: false` の輪の本体に置く形が、止めた版の Archon で今と同じく効くか（今の YAML は同じ形で回っている。筋書きと validate は通るが、本物の run の会話の切れ目は見ていない）。

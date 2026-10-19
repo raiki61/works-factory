@@ -1,0 +1,39 @@
+{
+  "description": "判定の返り（判定の block の出力 judgment の pointer の先の形）。事前審査などが読む欄だけを決め、ほかの欄は許す。units は直す単位の行（key と label が要る）、questions は問い、precedents は世の中の先行例、framing と one_shot は判定者の見立て",
+  "type": "object",
+  "required": ["units"],
+  "properties": {
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label"],
+        "properties": {
+          "key": {"type": "string", "minLength": 1},
+          "label": {"type": "string"},
+          "disposition": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "questions": {"type": "array"},
+    "framing": {"type": "string"},
+    "one_shot": {"type": "string"},
+    "precedents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "problem", "source", "verdict", "reason"],
+        "properties": {
+          "key": {"type": "string"},
+          "problem": {"type": "string"},
+          "source": {"type": "string"},
+          "verdict": {"type": "string", "enum": ["adopt", "adapt", "does_not_apply", "not_found"]},
+          "reason": {"type": "string"},
+          "searched": {"type": "string"},
+          "undecided_because": {"type": "string"}
+        }
+      }
+    }
+  }
+}

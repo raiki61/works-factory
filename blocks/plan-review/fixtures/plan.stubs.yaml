@@ -1,0 +1,29 @@
+# 形 plan・木にしない 1 往復: 修正案の役の返答・欄・判定を JSON の値で渡し、審査役 1 つが穴の無い返答を返して通る
+fixture:
+  expect: completed
+  reached:
+  - intake
+  - review-prep
+  - review
+  - review-accept
+  - review-reads
+  - finish
+  inputs:
+    proposal: '{"plan": [{"unit_keys": ["stats.py mean: 分母が len(xs) - 1 になっている"], "approach": "項目 1 の直し: stats.py mean: 分母が len(xs) - 1 になっている
+      を直す", "files": [{"path": "stats.py", "op": "modify", "responsibility": "この行の受け持ち", "home": {"concept": "stats.py の考え（helper_1）", "why":
+      "この行の path が住処だから"}, "considered": [{"path": "alt_home.py", "why_not": "同じ仕事の助け手が alt_home.py:3 に無かった"}], "symbols": [{"name": "helper_1",
+      "change": "add"}]}], "shrink_first": "要らない", "narrows": []}]}'
+    fields: '{"round": 1, "fields": [{"route": "direct", "route_why": "1 行の直しで済む", "tests": [], "rewrite_tests": [], "refactor": "無い", "allowed_paths":
+      ["stats.py"], "out_of_scope": [], "structure": []}]}'
+    judgment: '{"units": [{"key": "stats.py mean: 分母が len(xs) - 1 になっている", "label": "block", "disposition": "fix", "reason": "分母が 1 少ない"}], "framing":
+      "分母と上限の 2 つの誤り", "one_shot": "2 か所を直す"}'
+    purpose: 統計の関数が正しい値を返す
+    tree: 'off'
+  resolved-text-contains:
+    review: Your tools are Read, Grep, Glob, WebSearch, and WebFetch, plus Agent to start sub-agents
+exec-code: true
+review:
+  faces: []
+  shrink: []
+  faces_none: 写し・入口・契約のずれ・死んだ道・範囲の膨張・後退・方針・先行例を全部確かめて穴が無い
+  reason: 案を全部読み、写し・入口・契約のずれ・死んだ道・範囲・後退・方針・先行例を確かめた

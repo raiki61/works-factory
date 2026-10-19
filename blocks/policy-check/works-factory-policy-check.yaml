@@ -1,5 +1,5 @@
 name: works-factory-policy-check
-description: '方針の文だけを入れる入口の graph（docs/design/world.md の 9 節）。方針の文（直し方の案）を世界の解で評価し、定石と違う所を先に並べて返す。承認ノードは持たない。事前審査の観点は、事前審査の block ができた時にその PR が足す'
+description: '方針の文だけを入れる入口の graph（docs/design/world.md の 9 節）。方針の文（直し方の案）を世界の解と事前審査の観点（案の欠陥を探す review。plan-review の形 text）で評価し、事前審査の block の穴と定石と違う所を先に並べて返す。承認ノードは持たない'
 inputs:
   policy:
     required: true
@@ -18,7 +18,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [request, means, purpose, web, lang]
+      required: [request, policy, means, purpose, web, lang]
       properties:
         request:
           type: object
@@ -30,6 +30,7 @@ nodes:
               enum: [archon_artifact]
             run_id: {type: string}
             path: {type: string}
+        policy: {type: string}
         means:
           type: array
           items: {type: string}
@@ -47,14 +48,24 @@ nodes:
       purpose: "$policy-in.output.purpose"
       web: "$policy-in.output.web"
       lang: "$policy-in.output.lang"
+  - id: review
+    include: works-factory-plan-review
+    depends_on: [policy-in, world]
+    trigger_rule: all_done
+    with:
+      proposal: "$policy-in.output.policy"
+      purpose: "$policy-in.output.purpose"
+      world_rows: "$world.output.rows"
+      lang: "$policy-in.output.lang"
   - id: result
     script: result
     runtime: uv
     mutates_checkout: false
-    depends_on: [world]
+    depends_on: [world, review]
     trigger_rule: all_done
     with:
       world: {from: "$world.output", if_skipped: null}
+      review: {from: "$review.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false

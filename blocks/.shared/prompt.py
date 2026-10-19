@@ -5,6 +5,8 @@
   （YAML の systemPrompt: に文を書かない。README の 13 章）。パスも文も受けない
 - emit(node_id, values, when, n) -> render の返り: 組んだ物を place の <node_id>-prompt-<n>.md（と <node_id>-system-<n>.md）に書き、
   prep の返りの形で返す。AI の node の YAML は prompt: "$<prep>.output.prompt"（と systemPrompt: "$<prep>.output.system"）だけ
+- render_part(name, values, when=None) -> str: 呼んだ script の在る block の prompts/parts/<name>.md を、render と同じ決まり（断片・段落・
+  差し込み口の数え・落ち方）で組んだ字。AI の node でない物（束ね役が起こす下請けが Read する指示のファイルなど）の指示を md から組む
 - round_of(node_id) -> int: place に在る <node_id>-prompt-<n>.md の数 + 1（emit に渡す、輪の何回目か）
 - lang(raw) -> str: 人に見せる欄の言語の値（port lang。空なら共通の断片 .shared/prompts/lang-default.md の文）
 
@@ -90,14 +92,14 @@ def _select(text: str, when: dict) -> tuple[str, set]:
     return "\n".join(out), names
 
 
-def _compose(block: Path, node_id: str, values: dict, when: dict | None) -> dict:
+def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part: bool = False) -> dict:
     if not NODE_ID.fullmatch(node_id):
-        raise PromptError(f"node の id の形でない: {node_id!r}")
+        raise PromptError(f"{'断片' if part else 'node'} の id の形でない: {node_id!r}")
     when = dict(when or {})
     if not all(isinstance(v, bool) for v in when.values()):
         raise PromptError("when の値は真偽だけ")
-    files = {"prompt": block / "prompts" / f"{node_id}.md"}
-    if (system := block / "prompts" / f"{node_id}{SYSTEM}.md").is_file():
+    files = {"prompt": block / "prompts" / ("parts" if part else "") / f"{node_id}.md"}
+    if not part and (system := block / "prompts" / f"{node_id}{SYSTEM}.md").is_file():
         files["system"] = system
     texts = {key: _expand(_read(path, "指示の md"), block, (), False).replace("{{", OPEN).replace("}}", CLOSE)
              for key, path in files.items()}
@@ -123,6 +125,10 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None) -> dict
 
 def render(node_id: str, values: dict, when: dict | None = None) -> dict:
     return _compose(ports.caller_block(), node_id, values, when)
+
+
+def render_part(name: str, values: dict, when: dict | None = None) -> str:
+    return _compose(ports.caller_block(), name, values, when, part=True)["prompt"]
 
 
 def emit(node_id: str, values: dict, when: dict | None, n: int) -> dict:

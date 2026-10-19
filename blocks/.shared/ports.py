@@ -24,7 +24,7 @@
   tests/blocks/shared/test_ports.py が突き合わせる:
   RUNTIME_COPY・RUNTIME_COPY_PREFIX（Archon が run の作業ツリーに写す置き場。差分に数えない）・RUNNER_PREFIXES・RUNNER_NAMES・
   drop_runner_env(user_env)（Archon が script の node に立てる変数を落とす。先に印の置き場 user_env を立てる）・suite_keep()（TDD の
-  実行器の取り置きの根。起動の殻が渡す）
+  実行器の取り置きの根。起動の殻が渡す）・shared_cache()（run をまたぐ控えの根。STATE_DIR の下の works-factory/。無ければ None）
 - polyfill(name): 埋め（workflows/.shared/<name>.py。fence・childsweep・child_pointer・skip_value）を読んだモジュール。組み込みで埋めを
   この pack の .shared/ へ移すまでの間だけ、リポジトリの根（WORKS_FACTORY_ROOT）から読む
 
@@ -49,6 +49,8 @@ RUNNER_NAMES = frozenset({
     "LOOP_USER_INPUT", "LOOP_PREV_OUTPUT", "REJECTION_REASON", "CONTEXT", "EXTERNAL_CONTEXT", "ISSUE_CONTEXT", "TYPED_ARTIFACTS_FILE",
 })
 USER_ENV_RAN_DIR = "WORKS_FACTORY_USER_ENV_RAN_DIR"   # lib/userenv.py の RAN_DIR_ENV
+SHARED_CACHE_ENV = "STATE_DIR"                       # Archon が project ごとに渡す run をまたぐ置き場
+SHARED_CACHE = "works-factory"
 SUITE_KEEP_ENV = "WORKS_FACTORY_SUITE_KEEP"            # bin/_lib/launcher.py の SUITE_KEEP_ENV
 ROOT_ENV = "WORKS_FACTORY_ROOT"
 PACK = Path(__file__).resolve().parents[1]
@@ -271,6 +273,12 @@ def drop_runner_env(user_env: str) -> None:
         os.environ.pop(USER_ENV_RAN_DIR, None)
     for name in [n for n in os.environ if n.startswith(RUNNER_PREFIXES) or n in RUNNER_NAMES]:
         del os.environ[name]
+
+
+def shared_cache() -> Path | None:
+    """run をまたぐ控えの根（STATE_DIR の下 works-factory/。ライブラリの文書の控えなど）。渡されなければ None で、控えを使わない"""
+    state = os.environ.get(SHARED_CACHE_ENV)
+    return Path(state) / SHARED_CACHE if state else None
 
 
 def suite_keep() -> Path | None:

@@ -1,5 +1,6 @@
-"""方針の文だけを入れる入口（blocks/policy-check。docs/design/world.md の 9 節）: policy-in の依頼の行と解き方の組み方と、result の
-まとめ（定石と違う行を先頭に）を、script を子のプロセスで回して確かめる"""
+"""方針の文だけを入れる入口（blocks/policy-check。docs/design/world.md の 9 節・docs/design/plan-review.md の 1.6）: policy-in の依頼の行と
+解き方の組み方と、事前審査の block（形 text）へ運ぶ方針の文と、result のまとめ（事前審査の穴と定石と違う行を先頭に・ok は両方の ok）を、
+script を子のプロセスで回して確かめる"""
 import json
 import unittest
 
@@ -16,6 +17,7 @@ class PolicyInCase(unittest.TestCase):
         got = self.run.script("policy_in", policy=POLICY, problem="", purpose="p", web="off", lang="")
         self.assertEqual(got["means"], ["three times", "with a fixed one second wait", "then give up"])
         self.assertEqual((got["purpose"], got["web"]), ("p", "off"))
+        self.assertEqual(got["policy"], POLICY, "事前審査へ運ぶ方針の文は字のまま")
         request = json.loads((self.run.artifacts / got["request"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual(request, [{"where": "方針", "text": POLICY}])
         got = self.run.script("policy_in", policy="Just retry.", problem="Uploads fail on a flaky link.", purpose="", web="on", lang="")
@@ -31,10 +33,30 @@ class PolicyInCase(unittest.TestCase):
         self.assertEqual(intake, {"due": True, "findings": 1, "reason": ""})
         self.assertTrue((self.run.artifacts / "world" / "intake.json").is_file())
 
+    def test_policy_reaches_the_review_intake_as_text(self):
+        """policy-in の方針の文と目的を、事前審査の block の入口が方針の文だけの形（text）で読む"""
+        got = self.run.script("policy_in", policy=POLICY, problem="", purpose="p", web="off", lang="")
+        intake = self.run.other("plan-review").script("intake", "review__intake", proposal=got["policy"], purpose=got["purpose"],
+                                                      world_rows="null", lang=got["lang"])
+        self.assertEqual(intake, {"due": True, "form": "text", "tree": False, "k": 0, "reason": ""})
+        doc = json.loads((self.run.artifacts / "review" / "intake.json").read_text(encoding="utf-8"))
+        self.assertEqual((doc["proposal_text"], doc["purpose"]), (POLICY, "p"))
+
 
 class ResultCase(unittest.TestCase):
     def setUp(self):
         self.run = kit.Run(self, "policy-check")
+
+    def review(self, faces, ok=True) -> dict:
+        """事前審査の block（形 text）の返り: holes は place の review.json の pointer"""
+        (self.run.artifacts / "review").mkdir(exist_ok=True)
+        (self.run.artifacts / "review" / "review.json").write_text(json.dumps({"faces": faces, "shrink": [], "reason": "r"}),
+                                                                 encoding="utf-8")
+        head = "事前審査（方針の文）: 穴 1 件（block 1）・別案 0 件"
+        return {"ok": ok, "status": "ok" if ok else "failed", "form": "text", "round": 0, "reason": "",
+                "holes": json.loads(self.run.pointer("review/review.json")), "blocks": [f["key"] for f in faces], "pass": None,
+                "asks": [], "deviations": [], "replan": [], "gave_up": None,
+                "report": [head, *(f"- [{f['kind']}] {f['key']}: {f['why']}" for f in faces)]}
 
     def test_differs_rows_come_first(self):
         row = {"finding": 1, "where": "方針", "class_id": "w-1", "problem": "p", "activity": "a", "practice": "backoff",
@@ -44,17 +66,25 @@ class ResultCase(unittest.TestCase):
         (self.run.artifacts / "world" / "world.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
         world = {"ok": True, "status": "ok", "reason": "", "rows": json.loads(self.run.pointer("world/world.jsonl")), "classes": 1,
                  "dropped": 0, "report": ["- 類 w-1（依頼の行 1）: backoff"]}
-        got = self.run.script("result", "result", world=json.dumps(world))
+        face = {"key": "fixed-wait-overloads-server", "kind": "regression", "where": "the policy", "why": "w" * 20,
+                "severity": "block", "reach": "breaks_fix"}
+        got = self.run.script("result", "result", world=json.dumps(world), review=json.dumps(self.review([face])))
         self.assertEqual(got["ok"], True)
-        self.assertEqual(got["report"], ["- 定石と違う（依頼の行 1）: The request waits a fixed time; use backoff.",
-                                         "- 類 w-1（依頼の行 1）: backoff"])
+        self.assertEqual(got["report"], ["事前審査（方針の文）: 穴 1 件（block 1）・別案 0 件",
+                                         f"- [regression] fixed-wait-overloads-server: {'w' * 20}",
+                                         "- 定石と違う（依頼の行 1）: The request waits a fixed time; use backoff.",
+                                         "- 類 w-1（依頼の行 1）: backoff"], "事前審査の穴が頭、定石と違う行がその次")
         self.assertEqual(got["world"], world)
-        self.assertEqual(got["holes"], [])
+        self.assertEqual(got["holes"], [face], "holes は事前審査が受けた返答の faces")
+        got = self.run.script("result", "result", world=json.dumps(world), review=json.dumps(self.review([face], ok=False)))
+        self.assertEqual(got["ok"], False, "ok は world と review の両方の ok")
+        got = self.run.script("result", "result", world=json.dumps(world), review="null")
+        self.assertEqual((got["ok"], got["holes"], got["report"][0]), (False, [], "- 事前審査の段が走らなかった"))
 
     def test_skipped_world_is_reported(self):
-        got = self.run.script("result", "result", world="null")
+        got = self.run.script("result", "result", world="null", review="null")
         self.assertEqual((got["ok"], got["world"]), (False, None))
-        self.assertIn("走らなかった", got["report"][0])
+        self.assertEqual(got["report"], ["- 事前審査の段が走らなかった", "- 世界の解の段が走らなかった"])
 
 
 if __name__ == "__main__":

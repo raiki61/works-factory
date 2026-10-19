@@ -1,0 +1,5 @@
+{
+  "description": "依頼が示した解き方の文の配列（目的の固定の means。世界の解からの外れの決め手にならない物）",
+  "type": "array",
+  "items": {"type": "string"}
+}
