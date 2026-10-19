@@ -1,0 +1,192 @@
+name: works-factory-r2
+description: '独立の目 R2 独立設計との比べと前提の検算の block（docs/design/r2.md）。修正の前に目的だけから作った独立設計と、修正の後の累積差分を、道具を Read だけに絞った別の役が構造で突き合わせる。独立設計が「問いが立たない」と言った時は比べず、別の読むだけの役が前提の仮定をリポジトリの実態で検算する。どちらを起こすかは独立設計の返答から機械が決め、独立設計が無い・目的の文が空・問いが立つかの欄が無い時は役を起こさず、どの訳かを分けて判定の行にする。落ちず、判定の行・前提の検算の答え・渡した入力の控えの行・報告の行を出す。単独の run でも、graph から include されても回る'
+inputs:
+  base: {default: '', description: 'text: 累積差分の根の commit（入口の差分の根。差分の run では PR の根）。累積差分はここから作業ツリーの今の姿まで（未追跡の新しいファイルも入る）。空は HEAD'}
+  head: {default: '', description: 'text: 修正前の HEAD（審査する変更の先の版）。空は HEAD'}
+  base_label: {default: '', description: 'text: 累積差分の起点の出どころの文（例「PR #12 の根」）。空は書かない'}
+  purpose: {default: '', description: 'text: 元の目的の 1 文。空は渡されていない（比べない）'}
+  design: {default: 'null', description: 'json(r2-design.schema.json): 独立設計の役の返答 {question_stands, reason, premise_invalid_reason?, design?, elements?}。null は独立設計が無い'}
+  design_reason: {default: '', description: 'text: 独立設計が無い訳。空は訳が無い'}
+  design_premises: {default: 'null', description: 'json(r2-design-premises.schema.json): 独立設計を作る役に渡した前提の控え {node, given, withheld, seen, claims}。seen.count は独立設計が見た人の答えの数。null は控えが無い（独立設計の後に来た答えを分けない）'}
+  answers: {default: '{}', description: 'json(shared:gate-answers.schema.json): 承認ノードの人の答え {start, before_fix}（どちらも {decision, text?, asked?, pushed?} か null）。空のオブジェクトは答えが無い'}
+  request: {default: '', description: 'file: 依頼のファイル（工場の依頼の JSON。本文の名指しの節を読む）。空は依頼のファイルが無い'}
+  changed: {default: '{}', description: 'json(shared:fix-marks.schema.json): 修正の印（真偽の欄と前提のずれの申告の文 premise_drift_note）。空のオブジェクトは渡されていない'}
+  constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 記録の制約の配列 [{text, measured_how, kind, measured_output?}]（それを constraints の欄に持つオブジェクトでもよい）。空の配列は無い'}
+  test_outcomes: {default: 'null', description: 'json(r2-outcomes.schema.json): テストごとの base と最後の結末 {rows, unmeasured}。null は渡されていない'}
+  tdd: {default: 'null', description: 'json(r2-tdd.schema.json): 修正の段ごとの TDD の記録（段ごとに、組ごとの記録の配列か、読めない訳の字）。null は渡されていない'}
+  lang: {default: '', description: 'text: 人に見せる欄（reason・differences の text・key・assumption・evidence・resolution・facts_to_add）の言語。空は依頼の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [compare, premise, reason]
+      properties:
+        compare: {type: boolean}
+        premise: {type: boolean}
+        reason: {type: string}
+
+  - id: r2-compare-prep
+    script: compare_prep
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake]
+    when: "$intake.output.compare == true"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [prompt, system]
+      properties:
+        prompt: {type: string, minLength: 1}
+        system: {type: string, minLength: 1}
+
+  # 元の旗 isolated: Git の外で起こし、既定の system prompt（cwd と git status の写しを持つ）を替える。道具は Read だけ
+  - id: r2-compare
+    prompt: "$r2-compare-prep.output.prompt"
+    systemPrompt: "$r2-compare-prep.output.system"
+    depends_on: [r2-compare-prep]
+    model: '@wf-eyes-core'
+    context: fresh
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    allowed_tools: [Read]
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [status, reason, differences]
+      additionalProperties: false
+      properties:
+        status: {type: string, enum: [pass, redesign-needed]}
+        reason: {type: string, minLength: 1}
+        differences:
+          type: array
+          items:
+            type: object
+            required: [kind, text]
+            additionalProperties: false
+            properties:
+              kind: {type: string, enum: [構造, 表現]}
+              text: {type: string}
+
+  - id: r2-compare-save
+    script: save
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [r2-compare]
+    with:
+      name: r2-compare
+      reply: $r2-compare.output
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [saved]
+      properties:
+        saved: {type: boolean}
+
+  - id: premise-check-prep
+    script: premise_prep
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake]
+    when: "$intake.output.premise == true"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt: {type: string, minLength: 1}
+
+  - id: premise-check
+    prompt: "$premise-check-prep.output.prompt"
+    depends_on: [premise-check-prep]
+    model: '@wf-eyes-core'
+    context: fresh
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [key, assumption, assumption_false, evidence, verdict, reason]
+      additionalProperties: false
+      properties:
+        key: {type: string, minLength: 1}
+        assumption: {type: string}
+        assumption_false: {type: boolean}
+        evidence: {type: string}
+        verdict: {type: string, enum: [resolved, escalate]}
+        reason: {type: string, minLength: 1}
+        resolution: {type: string}
+        facts_to_add: {type: array, items: {type: string}}
+
+  - id: premise-check-save
+    script: save
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [premise-check]
+    with:
+      name: premise-check
+      reply: $premise-check.output
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [saved]
+      properties:
+        saved: {type: boolean}
+
+  # 落ちた node へは with: を結ばない（返った役が書いたファイルで読む）
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, r2-compare-save, premise-check-save]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, verdict, questions, premise_check, notes, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ran, skipped, failed]
+        reason: {type: string}
+        verdict:
+          type: object
+          additionalProperties: false
+          required: [status, reason]
+          properties:
+            status:
+              type: string
+              enum: [pass, redesign-needed, unverifiable]
+            reason: {type: string}
+        questions:
+          type: array
+          items: {type: string}
+        premise_check:
+          type: [object, 'null']
+          properties:
+            verdict:
+              type: string
+              enum: [resolved, escalate]
+            reason: {type: string}
+            key: {type: string}
+            resolution: {type: string}
+            facts:
+              type: array
+              items: {type: string}
+        notes:
+          type: array
+          items: {type: string}
+        report:
+          type: array
+          items: {type: string}
