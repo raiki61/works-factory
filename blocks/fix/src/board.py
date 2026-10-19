@@ -23,7 +23,7 @@ from fixboard import (  # noqa: F401  lib のまま呼ぶ名（docs/design/fix.m
 
 from src import files as fixnames
 from src.files import (  # noqa: F401
-    GROUPS_FILE, TDD_UNIT_FILE, ASSERT_FILE, RESULT_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, JUDGE_COPIES, CHECKED_COPIES, RIPPLE_FILE, ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, NOTES_FILE, BASE_REV_FILE, FIX_REPLY_FILE, VALUES, LIB_START)
+    GROUPS_FILE, TDD_UNIT_FILE, ASSERT_FILE, RESULT_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, JUDGE_COPIES, CHECKED_COPIES, RIPPLE_FILE, ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, NOTES_FILE, BASE_REV_FILE, FIX_REPLY_FILE, VALUES)
 
 ACCEPT_TRACE_FILE = fixnames.ACCEPT_TRACE_FILE   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
@@ -802,7 +802,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
     return f"当てた後の名指しのテストの中身が組の子の終わりの木と違う（{moved[:5]}）" if moved else ""
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = (VALUES, LIB_START, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE,
+ADOPTED = (VALUES, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE,
            ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = fixnames.ALLOWED_TESTS_FILE   # 許したテストの変更の訳 [{path, permit, source}]（collect が書き、欄 allowed_tests で返す。allowed_test_rows）

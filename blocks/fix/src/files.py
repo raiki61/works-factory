@@ -13,9 +13,6 @@ MODES = ("whole", "group")   # port mode の語（docs/design/fix.md の 13.1 �
 # 入口（intake が書く）
 INTAKE = "intake.json"   # port を読んだ値
 VALUES = "values.json"   # 始めの記録の写しの代わり（src/runvals.py だけが読み書きする）
-# lib の conflict.request_file・cite_roots が place から読む始めの記録の形の写し（lib/startrec.py の REL と同じ字）。作り直しの間、
-# lib の conflict を写さずに呼ぶため（docs/design/fix.md の 1.5.2）、依頼のファイルを lib に見せるだけの写しを置く
-LIB_START = "r1/start.json"
 
 # 入力の写し（lib/fixboard.py の置き場の名の定数。prep と group-start が書く）
 GROUPS_FILE = "groups.json"            # {groups: [{group_id, …}], out_dir, start_tree, …}（prep の返りと同じ）

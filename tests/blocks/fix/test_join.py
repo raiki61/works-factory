@@ -190,7 +190,7 @@ class PrepCase(Whole):
         self.assertEqual(out["count"], 2)
         self.assertEqual(out["out_dir"], str(self.place / "groups"))
         self.assertEqual(out["start_tree"], self.snapshot())
-        for name in (files.VALUES, files.LIB_START, "judgment.json", "plan-fields.json", board.PLAN_REPLY_FILE,
+        for name in (files.VALUES, "judgment.json", "plan-fields.json", board.PLAN_REPLY_FILE,
                      "fix-ignored-before.json", "groups.json", "only-items.json", "base-rev.json"):
             self.assertTrue((self.place / name).is_file(), name)
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), out)

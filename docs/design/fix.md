@@ -136,7 +136,7 @@ loop の中の会話（README 13 章の決め・今の振る舞いのまま）: 
 
 `ports.place()`（単独の run と組の子の run では `$ARTIFACTS_DIR/`、line から include された時は `$ARTIFACTS_DIR/<include の id>/`。今の `fix/fix/` と `fix/refix-run/`）の下に、今と同じ名で書く。名は `src/files.py` だけが持つ（今の `fixnames`・`fixbeside` の名の住処と、`fixboard`・`tddloop`・`consult` などの名の定数の写しを 1 つにする）。
 
-- 入口: `intake.json`（port の値）・`values.json`（今の始めの記録の写し `r1/start.json` の代わり。`{tdd_suite, test_cmd, reuse_key, reuse_dir, user_env_dir, lang, policy, request_file, answers, unattended, parallel, skip_rerun, excluded}`。`src/runvals.py` だけが読み書きする。組の子は親の物を写す）。
+- 入口: `intake.json`（port の値）・`values.json`（今の始めの記録の写し `r1/start.json` の代わり。lib の `conflict` は値で受けるので `r1/start.json` は置かない。`{tdd_suite, test_cmd, reuse_key, reuse_dir, user_env_dir, lang, policy, request_file, answers, unattended, parallel, skip_rerun, excluded}`。`src/runvals.py` だけが読み書きする。組の子は親の物を写す）。
 - 入力の写し（今のまま）: `judgment.json`・`judge-ties.json`・`judge-materials.json`・`plan-fields.json`（と凍結の印）・`fix-plan-reply.json`・`p2.plan_review.json`・`ripple.json`・`answers.json`・`only-items.json`・`baseline.json`・`base-rev.json`・`human-notes.md`・`fix-ignored-before.json`。今の `units.json`・`depth.json`・`head-depth.json`・`judge-depth-head.json`・`depth-raised.json` は書かない（読み手が無い・深さは port `skip_rerun` に替わる。13.1 の 2）。
 - 組: `groups.json`・`groups/<group_id>/group-start.json`・`groups/<group_id>/result.json`・`join.json`・`join/<group_id>.diff`・`clash.json`・`clash-brief-<gid>.json`・`clash-turns-<pass>.json`。
 - TDD の loop: `tdd-start.json`・`tdd-<k>/state.json`・`tdd-<k>/summary.md`・`tdd-<k>/suite-<n>.log`・`tdd-<k>/junit-<n>.xml`・`tdd-<k>/test-cmd-0.log`・`tdd-step-reject-<n>.md`・`tdd-prompt-<n>.md`・`tdd-new-prompt-<n>.md`（今の `tdd-<k>/next.md` と `next.delivered.json` の代わり。渡した証拠の種類の控えは `tdd-delivered.json`）。
@@ -871,7 +871,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 
 ### 13.4 作りで決めた事（実装の役。設計書が黙っていた・main の決まりと合わなかった所）
 
-1. lib の `conflict` は、依頼のファイルを値で受ける（`conflict.problems`・`problems_by_entry` の引数 `request_file`・`cite_roots(request_file, root)`。申し出の名指しの根と、裁定役の ask_human の出どころの照らしが使う。組み込みで `conflict` が始めの記録を読まなくなった: integration.md の 4.3-追加-6）。この block は `runvals.read(place)["request_file"]` を渡す。`src/runvals.py` が `values.json` と同じ時に置く `{request_file, answers}` の写し `r1/start.json`（`src/files.py` の `LIB_START`）を読む lib は無くなったが、置く所と子への写しは今の振る舞いのまま残してある（外すかは窓口に回した）。
+1. lib の `conflict` は、依頼のファイルを値で受ける（`conflict.problems`・`problems_by_entry` の引数 `request_file`・`cite_roots(request_file, root)`。申し出の名指しの根と、裁定役の ask_human の出どころの照らしが使う。組み込みで `conflict` が始めの記録を読まなくなった: integration.md の 4.3-追加-6）。この block は `runvals.read(place)["request_file"]` を渡す。始めの記録の形の写し `r1/start.json` は読み手が無くなったので置かない（`files.LIB_START` を外した）。
 2. 組の子は親の `values.json` と上の写しを写すが、`intake.json` は写さない。根拠: 子の `intake.json` は子の port（`group`・`from_tree`・`out_dir`）を持ち、親の物で上書きすると組を失う。子の script は組と `out_dir` を自分の `intake.json`（`src.intake.load`）から読む（今の script は `INPUTS_GROUP` などを node ごとに読んでいた）。
 3. port `answers`・`materials`・`request_answers`・`plan_review` の形のファイルは、.shared と ほかの block に同じ名で別の形が在るため `fix-<名>.schema.json` にした（形の名は pack の中で 1 つの決まり〔7.1 の 5〕。port `judgment` は .shared の物を `shared:` で使う）。旧: `gate-answers.schema.json` にした（1.2 の `answers.schema.json` は independent-design の block に同じ名が在り、形の名は pack の中で 1 つの決まり〔7.1 の 5〕に当たる）。
 4. 写したモジュールの中の place の名の定数（`src/tdd.py` の `STATE`・`src/consult.py` の `QUESTION_FILE`・`src/clash.py` の `BRIEF`・`src/ruling.py` の `TREE` など）は写しのまま持つ（写しの中身を変えない決まりが勝つ）。`src/files.py` は今の `fixnames`・`fixbeside` の名と `fixboard` の置き場の名の定数（1.5.3）と新しい名を持つ。

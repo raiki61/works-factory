@@ -4,9 +4,6 @@
 パス）・answers（依頼のファイルが先に持っていた問いへの答えの行。今の始めの記録の answers）・unattended・parallel・skip_rerun・
 excluded（並行 PR に回した hunk の行 {pr, file, start, end, why}。受け付けが触った返答を拒む）。
 組の子は親の物を写す（adopt。子の with: は mode・from_tree・out_dir・group だけ）。
-
-lib の conflict（写さずに呼ぶ。1.5.2）は依頼のファイルを place の始めの記録の形（files.LIB_START）から読むので、同じ時に
-{request_file, answers} だけの写しを置く。
 """
 from __future__ import annotations
 
@@ -35,7 +32,6 @@ def write(place, values: dict) -> dict:
     doc = {k: values.get(k, DEFAULTS[k]) for k in KEYS}
     place = pathlib.Path(place)
     _save(place / files.VALUES, doc)
-    _save(place / files.LIB_START, {"request_file": doc["request_file"], "answers": doc["answers"]})
     return doc
 
 

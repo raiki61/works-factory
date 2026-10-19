@@ -223,7 +223,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((out["tdd"], out["units"]), (False, 1), out)
         self.assertIn("tdd_suite", out["reason"])
         self.assertIn("/ len(xs)", stats.read_text(encoding="utf-8"), "親の姿の木を写した")
-        for name in ("values.json", "r1/start.json", "judgment.json", "baseline.json", "fix-ignored-before.json",
+        for name in ("values.json", "judgment.json", "baseline.json", "fix-ignored-before.json",
                      "tdd-start.json"):
             self.assertTrue((self.place / name).is_file(), name)
         self.assertEqual(json.loads((self.place / "values.json").read_text(encoding="utf-8"))["reuse_key"], RUN,
@@ -265,7 +265,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((self.repo / "half.py").read_text(encoding="utf-8"), "Y = 1\n")
         self.assertEqual(sorted(p.name for p in self.out_dir.iterdir()), ["g0"])
         self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
-        self.assertEqual(sorted(p.name for p in self.place.iterdir()), ["intake.json", "r1", "values.json"],
+        self.assertEqual(sorted(p.name for p in self.place.iterdir()), ["intake.json", "values.json"],
                          "intake の書いた物のほかは何も書かない")
         (self.out_dir / "g0" / "result.json").write_text("{", encoding="utf-8")
         self.assertIn("g0", self.run_script("group_start", ok=False))
@@ -779,7 +779,7 @@ class GroupChildSeamCase(unittest.TestCase):
                    "out_of_scope": []}]
         planmarks.save(parent, 1, fields)
         got = self.board.adopt_inputs(parent, self.place)
-        self.assertEqual(got, ["values.json", "r1/start.json", "judgment.json", "plan-fields.json"])
+        self.assertEqual(got, ["values.json", "judgment.json", "plan-fields.json"])
         self.assertEqual((self.place / "judgment.json").read_text(encoding="utf-8"), '{"units": []}\n')
         self.assertEqual(runvals.read(self.place), runvals.read(parent))
         self.assertEqual(conflict.frozen_fields(self.place, 1), fields, "子の trace に凍結の印が在る")
