@@ -84,7 +84,7 @@ def take(place, repo, reply) -> dict:
     if posted:
         return {"ok": False, "reason": NO_POST + ", ".join(posted)}
     try:
-        moved = materialkit.moved_since(place, repo, core_accept.TREE_KEYS)
+        moved = core_accept.moved_since(place, repo, core_accept.TREE_KEYS)
     except Reject as e:
         return {"ok": False, "reason": str(e)}
     if moved:

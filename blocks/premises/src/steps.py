@@ -133,27 +133,10 @@ def with_carried(reply: dict, carried: list) -> dict:
     return {**reply, "constraints": [*(reply.get("constraints") or []), *(c for c in carried if c.get("text") not in have)]}
 
 
-def _tree_snapshot(path):
-    """置き場に置いた作業ツリーの写し（accept.tree_state の形）。無ければ None、読めない・形が違えば Reject"""
-    path = pathlib.Path(path)
-    if not path.is_file():
-        return None
-    try:
-        snap = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
-        raise Reject(f"作業ツリーの写し {path} が読めない（{e}）") from None
-    accept.type_errors(snap, accept.TREE_SCHEMA, f"作業ツリーの写し {path} ")
-    return {k: snap[k] for k in accept.TREE_KEYS}
-
-
 def _tree_unchanged(out, repo) -> None:
     """役が作業ツリーと履歴を変えていないか。置き場の写し tree.json と今を比べる（TREE_KEYS の全部。HEAD・枝・git が無視するパスも
     見る）。写しが無い・読めない・違えば Reject"""
-    path = pathlib.Path(out) / TREE_FILE
-    snap = _tree_snapshot(path)
-    if snap is None:
-        raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置くノードが先に走る）")
-    moved = accept.tree_moved(snap, pathlib.Path(repo))
+    moved = accept.moved_since(out, repo, accept.TREE_KEYS)   # out の tree.json（TREE_FILE）と比べる。無ければ Reject
     if moved:
         raise Reject(f"役を起こした後から作業ツリーが変わった——{PREMISES_RULE}（HEAD・枝・git が無視するファイルも）。作った物"
                      "（出力のファイル・キャッシュ）は rm で消し、書き換えた追跡中のファイルは git restore -- <path> で戻してから"
