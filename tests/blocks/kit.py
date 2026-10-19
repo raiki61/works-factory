@@ -111,8 +111,8 @@ def tests_of(block: str, tests: pathlib.Path = ROOT / "tests" / "blocks") -> pat
 
 def dry_run_traces(block: str, names, included=()) -> dict:
     """筋書きの名 → blocks/<block>/fixtures/ のその筋書きの stub で block を dry-run（exec-code）した trace（ノードの id → trace の行）。
-    workflow test はノードの出力を返さないので、stub と入力をそのまま `workflow run --dry-run` に渡す（tests/e2e/test_line_scenarios.py の
-    dry_run_traces の blocks/ 版。木は archon.blocks_tree）。graph は include する block の名を included に渡す（木に一緒に置く）。
+    workflow test はノードの出力を返さないので、stub と入力をそのまま `workflow run --dry-run` に渡す（元 tests/e2e/test_line_scenarios.py の
+    dry_run_traces の移し。木は archon.blocks_tree）。graph は include する block の名を included に渡す（木に一緒に置く）。
     Archon の源か bun が無ければ archon.absent の見送り"""
     from tests import archon
     out = {}

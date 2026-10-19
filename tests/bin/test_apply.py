@@ -26,7 +26,7 @@ from tests.bin import fakelaunch, hermetic
 from tests.bin.stepnames import step_names
 from tests.archon import WORKFLOWS
 from tests.bin.gitkit import git
-from tests.workflows.test_chain import ROUND_FILES, chain, run_final, run_result, three_rounds
+from tests.blocks.chain.test_chain import ROUND_FILES, chain, run_final, run_result, three_rounds
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MERGE = WORKFLOWS / "merge" / "works-factory-merge.yaml"
@@ -607,13 +607,16 @@ class FailedAfterSealTest(TargetCase):
         self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.events()), 1, "封じた hash と合わない")
 
     def test_steps_are_the_line_seal_and_eyes_receivers_and_the_final_answer(self):
-        """SEAL_STEP は mode: seal で merge を include するノードの受け皿、EYES_STEP は merge-apply に r2 を渡すノードの受け皿で、
-        どちらも読む欄を names に宣言する。ANSWER_STEP は merge-apply に人の答えを渡すノード。どれもメイングラフの run の記録に出るノードの id"""
+        """SEAL_STEP は mode: seal で merge を include するノードの受け皿、EYES_STEP は eyes を include するノードの受け皿で、
+        どちらも読む欄を names に宣言する。merge-apply に r2 を渡すノード（最後の承認ノード）は EYES_STEP の got から r2 を引く。
+        ANSWER_STEP は merge-apply に人の答えを渡すノード。どれもメイングラフの run の記録に出るノードの id"""
         nodes = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
         by_id = {n["id"]: n for n in nodes}
         (sealer,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "seal"]
         (applier,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "apply"]
-        eyes_id = applier["with"]["r2"].removeprefix("$").removesuffix(".output.r2")
+        (eyes_id,) = [n["id"] for n in nodes if n.get("include") == "works-factory-eyes"]
+        r2_from = applier["with"]["r2"].removeprefix("$").removesuffix(".output.r2")
+        self.assertEqual(by_id[r2_from]["with"]["eyes"]["from"], f"${apply.EYES_STEP}.output.got")
         for step, source, names in ((apply.SEAL_STEP, sealer["id"], {"mode", "ok", "hash", "diff", "reason"}),
                                     (apply.EYES_STEP, eyes_id, {"r2"})):
             with self.subTest(step):

@@ -550,7 +550,7 @@ form は 4.1 の物。どの block も `lang`（`text`）を持つ物は書く�
 ### 11.4 確かめ（組み込みの後）
 
 - 指示の比べ: #764 の 2 つの commit の形を block ごとの PR で使う。1 つ目の commit は、md を日本語のまま作り、同じ値で組んだ新しい指示が古い指示と同じ字になること（空白と改行の違いは除く）を試験で確かめる。この試験は 2 つ目の commit（英語にする）で消す。2 つ目の commit では、古い指示と新しい指示を同じ値で組んで並べた物を PR に載せ、設計書の「今の指示との差」の一覧どおりかを審査が見る。英語にするだけでなく見方も変える block（例 structure。持ち主の 2026-10-19 の追加）は、3 つ目の commit を足してよい（1 つ目 日本語で同じ字・2 つ目 英語・3 つ目 新しい見方）。訳の差と見方の差を同じ commit で並べると、審査が差の一覧どおりかを分けて見られない（structure の設計書の 11 節の 3）。組み込みの前には、全部の node を通した比べをもう 1 度回す（11.3 の頭）。
-- e2e の筋書き: `tests/e2e/test_line_scenarios.py`（AI の返答を台本で差し替えて line 全体を回す）が緑。
+- e2e の筋書き: `tests/blocks/line/test_scenarios.py`・`tests/blocks/line/test_scenarios_gates.py`（AI の返答を台本で差し替えて line 全体を回す。元の `tests/e2e/test_line_scenarios.py` は組み込みで消した）が緑。
 - 本物の run を 1 回: 小さな依頼を新しい line で回し、`tests/e2e/evidence.py check` で keep-essence の印を照らし、報告と承認ノードの文が日本語で出ることを確かめる。
 
 ## 12 持ち主の決めの変更
