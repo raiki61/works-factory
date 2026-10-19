@@ -6,7 +6,7 @@ fixture:
   inputs:
     request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す", "measured": "3"}]'
   resolved-text-contains:
-    premises: 'この役は実測役。後の役が人の修正依頼を根本の単位にまとめる'
+    premises: 'You are the measuring role, started in a new conversation.'
 exec-code: true
 premises:
   constraints:
