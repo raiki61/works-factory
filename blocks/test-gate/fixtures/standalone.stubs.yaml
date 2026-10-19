@@ -7,8 +7,8 @@ fixture:
   inputs:
     mode: base
   resolved-text-contains:
-    ci: 'この役は CI の任せ先の役。'
-    suite-write: 'この役は TDD の実行器の書き手。'
+    ci: 'You are the CI delegate, started in a new conversation.'
+    suite-write: 'You are the TDD runner writer, started in a new conversation.'
 exec-code: true
 ci:
   material: {status: awaiting_human, reason: "CI の定義が実機を要る"}

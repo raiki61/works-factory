@@ -562,6 +562,9 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・L-W53・T1・T6・T18・T2
 17. 報告の行（10 節）の final の 2 は、元の `_tests_head_lines` の 1 行目だけ（修正前のテストの行は 1 で出す）。
 18. 返す node の誤り（`certify.failed`）は、lib を読めなくても返せるよう、`src/files.py`・`src/certify.py` の頭で lib を import しない（lib は関数の中で読む）。`run.json` の名は `files.RUN` に字で持ち、`declared_checks.RUN_FILE` と同じことを試験が縛る。誤りの回の `suite` は intake.json の port `tdd_suite`（読めなければ `""`）。
 
+19. 言語の既定の文は、2.3 の `the language of the person's request` でなく、土台の `prompt.lang`（共通の断片 `lang-default` の `the language of the request (the user's language)`）を使う。根拠: 土台が既定の文を 1 か所に持ち、`prompt.lang` が port の空を埋める。11 節の 7 の「この既定は役には分からない」は変わらない（line が必ず lang を渡す形が要る）。
+20. 英語の md の `{lang}`（`ci.md`・`ci-fix.md`・`suite-write.md`）の値は `prompt.lang(intake["lang"])`。`ci-fix.md` の `{lang}` は `ci-fix-prep` が intake.json の lang から入れる。出し直しの断片 `resubmit.md` は言語を持たない。
+
 ## 12 試験
 
 - standalone の fixture（`blocks/test-gate/fixtures/`。どれも script の node も差し替え、配線を見る。今の 7 本の入力から `start` を外し、port の値に替える）:

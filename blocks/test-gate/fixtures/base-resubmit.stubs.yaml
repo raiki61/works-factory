@@ -8,7 +8,7 @@ fixture:
     mode: base
     tdd_suite: /tmp/runner
   resolved-text-contains:
-    ci-fix: '前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。'
+    ci-fix: 'In this same conversation, fix only what was rejected and return it.'
 exec-code: true
 ci-prep: {prompt: "", resubmit: true, attempt: 2}
 ci-fix:

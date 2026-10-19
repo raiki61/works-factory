@@ -1520,5 +1520,89 @@ class SuiteLoopCase(ScriptCase):
         self.assertEqual((out["suite"], out["suite_note"]), (str(suite), ""))
 
 
+class PromptCase(ScriptCase):
+    """3 つの指示（prompts/*.md）に prep が入れる値と、段落の選び（docs/design/test-gate.md の 2.3・3.3・4.3）"""
+    LANG_DEFAULT = "the language of the request (the user's language)"   # blocks/.shared/prompts/lang-default.md
+    OTHER_SLOTS = {"root", "base", "copy_dir", "tmp_dir", "mode", "attempt", "decl_name", "lang"}
+
+    def test_status_slots_are_the_declared_statuses(self):
+        """ci.md の素材の語の差し込み口は declared_checks.STATUSES と同じ（受け付けの role_material_problems と同じ字）"""
+        text = (BLOCK / "prompts" / "ci.md").read_text(encoding="utf-8")
+        slots = set(re.findall(r"\{([a-z_]+)\}", text.replace("{shared:rejected}", "")))
+        self.assertEqual(slots, set(declared_checks.STATUSES) | self.OTHER_SLOTS)
+        out = self.prep_ci()
+        for status in declared_checks.STATUSES:
+            self.assertIn(f"`{status}`", out["prompt"])
+
+    def prep_ci(self, reject="", **ports):
+        self.write_start(**ports)
+        self.intake("base")
+        if reject:
+            rolekit.with_done(self.place("base"), declared_checks.CI_ROLE, {"ok": False, "reason": reject})
+        out = self.ok("ci_prep", "base")
+        self.addCleanup(shutil.rmtree, pathlib.Path(json.loads((self.place("base") / "ci-snapshot.json").read_text(encoding="utf-8"))["top"]), True)
+        return out
+
+    def test_ci_prompt_values(self):
+        out = self.prep_ci()
+        text = out["prompt"]
+        self.assertIn(f"BASE: {kit_none()}", text)
+        self.assertIn(str(self.repo.resolve()), text)
+        self.assertIn(f"`{declared_checks.DECL_NAME}`", text)
+        self.assertIn("Form: base (", text)
+        self.assertIn("Attempt: 1", text)
+        self.assertIn(self.LANG_DEFAULT, text)
+        self.assertNotIn("Undoing means", text, "拒否が無い回は戻し方の段落を入れない")
+        self.assertNotIn("Why your previous answer was rejected", text)
+
+    def test_ci_prompt_with_base_lang_and_a_rejection(self):
+        out = self.prep_ci(reject="reason with ``` fence", base=self.head, lang="Japanese")
+        text = out["prompt"]
+        self.assertIn(f"BASE: {self.head}", text)
+        self.assertIn("in Japanese.", text)
+        self.assertNotIn(self.LANG_DEFAULT, text)
+        self.assertIn("Undoing means", text)
+        self.assertIn("reason with ``` fence", text)
+        self.assertIn("Attempt: 2", text)
+
+    def test_ci_fix_prompt_fences_the_rejection_and_names_the_candidate(self):
+        self.prep_ci(reject="reason with ``` fence")
+        (self.place("base") / "candidate-ci.json").write_text('{"material": {}}', encoding="utf-8")
+        self.ok("ci_prep", "base", prev="false")
+        text = self.ok("ci_fix_prep", "base")["prompt"]
+        self.assertIn("~~~text\nreason with ``` fence\n~~~", text)
+        self.assertIn(str(self.place("base") / "candidate-ci.json"), text)
+        self.assertIn(self.LANG_DEFAULT, text)
+
+    def write_prompt(self, **ports) -> str:
+        self.write_start(**ports)
+        self.ok("run", "base")
+        return self.ok("suite_prep", "base")["prompt"]
+
+    def test_suite_write_prompt_without_test_cmd_or_declaration(self):
+        text = self.write_prompt()
+        self.assertIn(f"The target root: {self.repo.resolve()}", text)
+        self.assertIn(f"has no run declaration `{declared_checks.DECL_NAME}`", text)
+        self.assertNotIn("has the run declaration", text)
+        self.assertIn("None (the person did not give one).", text)
+        self.assertIn(f"`{baseline_red.ONLY_ENV}=1`", text)
+        self.assertEqual((self.place("base") / "suite-write-prompt-1.md").read_text(encoding="utf-8"), text)
+
+    def test_suite_write_prompt_with_a_declaration_and_a_test_cmd_that_holds_backticks(self):
+        self.decl([{"name": "suite", "argv": [PY, "-c", "pass"]}])
+        cmd = "make test ARGS='`x`' ```"
+        text = self.write_prompt(test_cmd=cmd)
+        self.assertIn(f"has the run declaration `{declared_checks.DECL_NAME}`", text)
+        self.assertIn(f"````text\n{cmd}\n````", text)
+        self.assertNotIn("None (the person did not give one).", text)
+
+    def test_suite_write_lang(self):
+        self.assertIn("in Japanese.", self.write_prompt(lang="Japanese"))
+
+
+def kit_none() -> str:
+    return kit.load("test-gate", "prompts").NO_BASE
+
+
 if __name__ == "__main__":
     unittest.main()

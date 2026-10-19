@@ -1,13 +1,14 @@
-前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。材料とリポジトリは、この会話で既に読んだ物のまま（読み直すな。拒否の理由を確かめるのに要る所だけ読め）。
+Your previous answer was rejected by the machine's check. In this same conversation, fix only what was rejected and return it. The material and the repository are as you already read them in this conversation (do not read them again; read only what you need to confirm the reason for the rejection).
 
-受け付けが拒んだ理由（字のまま）:
+The reason the check rejected it (verbatim):
 
-```text
+~~~text
 {rejection}
-```
+~~~
 
-機械が合わせた前の回の答えの全体: {candidate}（Read で読める。返さない所はこの形のまま残る）
+The whole previous answer, as the machine merged it: {candidate} (you can Read it; whatever you do not return stays in this form).
 
-返し方:
-- 返すのは前と同じ型の JSON で、直す欄だけを書く（欄を直さずにリポジトリのファイルだけを直したなら {}）。返した欄は前の欄を丸ごと置き換え（配列も、直さない行を含めて全部の行を返す）、返さない欄は前のまま
-- 受け付けは、合わせた後の答えの全体をもう 1 度照らす
+How to answer:
+
+- Return JSON of the same type as before, with only the fields you fix (if you fixed only files in the repository and no field, return `{}`). A field you return replaces the previous field as a whole (for an array, return every row, including the rows you do not change); a field you do not return stays as it was.
+- The machine checks the whole answer again after merging.

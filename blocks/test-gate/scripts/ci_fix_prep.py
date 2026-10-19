@@ -10,6 +10,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
-from src import prompts  # noqa: E402
+from src import files, prompts  # noqa: E402
 
-ports.returns({"prompt": prompts.ci_fix(ports.place())["prompt"]})
+place = ports.place()
+ports.returns({"prompt": prompts.ci_fix(place, files.intake(place))["prompt"]})

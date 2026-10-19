@@ -21,7 +21,7 @@ def compute() -> dict:
     got = suitewrite.prepare(suite.path(place), files.suite_folder(place), ports.suite_keep(), Path.cwd())
     if not got["write"]:
         return {"write": False, "prompt": ""}
-    return {"write": True, "prompt": prompts.suite_write(got["brief_file"])["prompt"]}
+    return {"write": True, "prompt": prompts.suite_write(place, files.intake(place))["prompt"]}
 
 
 ports.run(compute, lambda why: {"write": False, "prompt": ""})
