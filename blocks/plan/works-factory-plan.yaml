@@ -1,0 +1,575 @@
+name: works-factory-plan
+description: |
+  修正案の block（docs/design/plan.md）。判定が切った直す単位を、直す前に設計として固める。修正案の役が項目ごとに書いてよい範囲・受け入れテスト・
+  定石と構造の目の行への答えを書き、受け付けが機械で照らし、波及の一覧（変える名の呼び出し元と試験）を機械で出す。承認済みの案の一部の項目を直す
+  「案の直し」は、同じ block を ruling つきで回す（形 replan）。事前審査との往復の記録と止めは graph が持ち、この block は前の周を port prior で
+  受けて 1 周分の案を作る。拒まれた後の出し直しは、修正案の役の会話の続きで拒まれた所だけを返させ、受け付けが前の答えと合わせる。
+  出口 finish は落ちない（中の誤りを捕まえて status failed と、在って空でない pointer を出す）。単独の run でも、graph から include されても回る
+
+inputs:
+  judgment: {default: '', description: 'json(shared:judgment.schema.json): 受け付けた判定（欄 units・questions・framing・one_shot・one_shot_closes・precedents を読む）。pointer・パス・値のどれか。空の字は判定が無い（形 plan では役を起こさない。形 replan では処方とライブラリの文書と項目の brief だけに使う）'}
+  units: {default: '[]', description: 'json(unit-catalog.schema.json): 直しの単位の目録の配列 [{id, paths, summary}]。空の配列は目録が無い'}
+  answer_ties: {default: '', description: 'file: 依頼の答えを判定の問いと単位に結んだ行のファイル（answer-ties.json の形）。空は結びが無い（答えを字の一致だけで数える）'}
+  materials: {default: '', description: 'file: 判定の素材の状態のファイル（素材の名 → {status, …}）。空は素材の状態が無い'}
+  answers: {default: '[]', description: 'json(request-answers.schema.json): 依頼の answers の行の配列 [{question, text, …}]。空の配列は答えが無い'}
+  takes_push: {default: 'false', description: 'flag: 判定が保留にした分かれ道の問いの推しを、答えとして数えるか（無人の run の方針。直す義務の数えに効く）'}
+  verify: {default: '', description: 'file: 判定の単位の裏取りの申し送り（{units: [...], synergy: {...}}）。空は申し送りが無い'}
+  excluded: {default: '', description: 'file: 並行 PR と重なるので外した範囲のファイル。空は外した範囲が無い'}
+  depth_record: {default: '', description: 'file: run の頭の深さの控え（行ごとの未知の種類と引用）。空は控えが無い'}
+  decisions: {default: '', description: 'file: 決定記録の突合の返答（reply.settled が決着済みの論点）。空は突合が無い'}
+  world_rows: {default: '', description: 'file: 世界の解の行の JSON Lines。空は行が無い'}
+  structure: {default: '', description: 'file: 構造の目の控え（{status, reason, design_file, skipped, …}）。空は構造の目の行が無い'}
+  spec: {default: '', description: 'file: 固めた仕様（requirements・acceptance を持つ JSON。JSON でなければ字のまま貼る）。空は仕様が無い'}
+  policy: {default: '', description: 'file: 人の方針の文書の固めた写し。空は方針の文書が無い'}
+  prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い'}
+  prior: {default: '', description: 'json(plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）'}
+  ruling: {default: '[]', description: 'json(replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）'}
+  conflicts: {default: '', description: 'file: 修正の段の申し出と裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い'}
+  base: {default: '', description: 'text: 修正前の HEAD の版（受け入れテストの定義と修正前のテストの中身を引く版）。空は HEAD'}
+  review_rev: {default: '', description: 'text: 役が読む版。空は base、それも空なら HEAD'}
+  diff_base: {default: '', description: 'text: 材料の BASE（入口の差分の根）。空は base、それも空なら読む版'}
+  lang: {default: '', description: 'text: 人に見せる欄（approach・shrink_first・各 why・why_not・no_narrow・undecided_because・world・deviation・narrows の what・recommend の note と why・block_answers の how・handoff）の言語。空は依頼の言語'}
+returns: finish
+outcome_field: ok
+
+nodes:
+  # 周を開く。port を読み、周のフォルダ r<k>/ を作り、形（ruling が空でなければ replan）と役を起こすかを決める。落ちない
+  - id: intake
+    script: intake
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, mode, round, reason]
+      properties:
+        go: {type: boolean}
+        mode: {type: string, enum: [plan, replan]}
+        round: {type: integer, minimum: 1}
+        reason: {type: string}
+
+  # 修正案の役が案を書く前に読む、単位の名の波及の一覧（形 replan では作らない）
+  - id: ripple-units
+    script: ripple_units
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake]
+    when: "$intake.output.go == true && $intake.output.mode == 'plan'"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: {type: boolean}
+
+  # 修正案の輪。1 回目は修正案の役 plan-writer が全部の材料から案を書く。拒否の後は出し直しの役 plan-writer-fix が同じ会話の続きで拒まれた所だけを
+  # 返し、受け付けが前の答えの控えと合わせてから全体を照らす（振り分けは plan-prep の resubmit。会話を切らないよう、続きの役の直前の層は node 1 つ）。
+  # 拒否の回数では諦めず、受け付けの網（rolekit.NET_AFTER。輪の max_iterations と同じ数で、届けば工場の不具合）の回の拒否で受け付けが done・give_up を
+  # 出して輪を抜ける（max_iterations で落とさない）
+  - id: plan-loop
+    depends_on: [intake, ripple-units]
+    trigger_rule: none_failed_min_one_success
+    when: "$intake.output.go == true"
+    loop_group:
+      max_iterations: 20
+      fresh_context: false
+      until_bash: 'done=$plan-accept.output.done; test "$done" = true'
+      nodes:
+        - id: plan-prep
+          script: plan_prep
+          runtime: uv
+          mutates_checkout: false
+          with:
+            prev: "$LOOP_PREV.plan-accept.output.ok"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt, resubmit]
+            properties:
+              prompt: {type: string}
+              resubmit: {type: boolean}
+        # 模型・道具・設定は出し直しの役 plan-writer-fix と同じ（merge key の錨 writer_launch）
+        - id: plan-writer
+          prompt: "$plan-prep.output.prompt"
+          depends_on: [plan-prep]
+          when: "$plan-prep.output.resubmit != true"
+          <<: &writer_launch
+            model: '@wf-plan-writer'
+            allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
+          # 修正案の役の型（plan[] の項目の欄と works の欄、narrows の行の決め手の欄）。2 往復目からの答えの要る穴への答え block_answers は任意の欄
+          # （converge.ANSWER_SCHEMA の写し）。次の周の自分へ運ぶ引き継ぎのメモ handoff も任意の欄（handoff.SCHEMA の写し）。欄の型は
+          # planmarks.FIELD_SCHEMA（depends_on を含む）・FILES_SCHEMA・gatemarks.MARK_SCHEMA・NO_NARROW_SCHEMA の写しで、持ち主との一致は試験が見る
+          output_format: &plan_reply
+            type: object
+            additionalProperties: false
+            required:
+            - plan
+            properties: &plan_reply_props
+              plan:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                  - unit_keys
+                  - approach
+                  - files
+                  - shrink_first
+                  - narrows
+                  - route
+                  - tests
+                  - rewrite_tests
+                  - refactor
+                  - allowed_paths
+                  - out_of_scope
+                  properties:
+                    unit_keys:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: [integer, string]
+                        minLength: 1
+                        minimum: 1
+                    approach:
+                      type: string
+                      minLength: 20
+                    files:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - path
+                        - op
+                        - responsibility
+                        - symbols
+                        - home
+                        - considered
+                        properties:
+                          path:
+                            type: string
+                            minLength: 1
+                          op:
+                            type: string
+                            enum:
+                            - create
+                            - modify
+                            - delete
+                            - rename
+                          from:
+                            type: string
+                            minLength: 1
+                          responsibility:
+                            type: string
+                            minLength: 4
+                          symbols:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required:
+                              - name
+                              - change
+                              properties:
+                                name:
+                                  type: string
+                                  minLength: 1
+                                change:
+                                  type: string
+                                  enum:
+                                  - add
+                                  - remove
+                                why: &id001
+                                  type: string
+                                  minLength: 10
+                                replaced_by:
+                                  type: string
+                                  minLength: 1
+                          home:
+                            type: object
+                            additionalProperties: false
+                            required:
+                            - concept
+                            - why
+                            properties:
+                              concept:
+                                type: string
+                                minLength: 1
+                              why:
+                                type: string
+                                minLength: 1
+                          considered:
+                            type: array
+                            minItems: 1
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required:
+                              - path
+                              - why_not
+                              properties:
+                                path:
+                                  type: string
+                                  minLength: 1
+                                why_not: *id001
+                          why: *id001
+                          replaced_by:
+                            type: string
+                            minLength: 1
+                    shrink_first:
+                      type: string
+                      minLength: 20
+                    narrows:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - what
+                        - why
+                        - no_narrow
+                        properties:
+                          what:
+                            type: string
+                            minLength: 4
+                          why:
+                            type: string
+                            minLength: 10
+                          decided_by:
+                            type: string
+                          undecided_because:
+                            type: string
+                          fences:
+                            type: array
+                            uniqueItems: true
+                            items:
+                              type: string
+                              enum:
+                              - external_write
+                              - irreversible
+                              - policy_doc
+                              - widen_protection
+                              - web_doubt
+                          world:
+                            type: string
+                          recommend:
+                            type: object
+                            additionalProperties: false
+                            required:
+                            - answer
+                            - note
+                            - why
+                            properties:
+                              answer:
+                                type: string
+                                enum:
+                                - continue
+                                - stop
+                              note:
+                                type: string
+                                minLength: 4
+                              why:
+                                type: string
+                                minLength: 4
+                          no_narrow:
+                            type: string
+                            minLength: 20
+                    route:
+                      type: string
+                      enum:
+                      - tdd
+                      - direct
+                    route_why:
+                      type: string
+                    tests:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - id
+                        - behavior
+                        - path
+                        - red_kind
+                        - red_why
+                        properties:
+                          id:
+                            type: string
+                            pattern: '::'
+                          behavior:
+                            type: string
+                            minLength: 10
+                          path:
+                            type: string
+                            minLength: 10
+                          red_kind:
+                            type: string
+                            enum:
+                            - assertion
+                            - exception
+                          red_why:
+                            type: string
+                            minLength: 10
+                    rewrite_tests:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - id
+                        - behavior
+                        - old
+                        - new
+                        properties:
+                          id:
+                            type: string
+                            pattern: '::'
+                          behavior:
+                            type: string
+                            minLength: 10
+                          old:
+                            type: string
+                            minLength: 4
+                          new:
+                            type: string
+                            minLength: 10
+                    refactor:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - declared
+                      - why
+                      properties:
+                        declared:
+                          type: boolean
+                        why:
+                          type: string
+                    allowed_paths:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: string
+                        minLength: 1
+                    out_of_scope:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - glob
+                        - why
+                        properties:
+                          glob:
+                            type: string
+                            minLength: 1
+                          why:
+                            type: string
+                            minLength: 10
+                    structure:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                          row:
+                            type: string
+                            minLength: 1
+                          prescription:
+                            type: string
+                            minLength: 1
+                          world:
+                            type: string
+                            minLength: 1
+                          follows:
+                            type: boolean
+                          deviation:
+                            type: string
+                    depends_on:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - unit
+                        - receives
+                        properties:
+                          unit:
+                            type:
+                            - integer
+                            - string
+                            minLength: 1
+                            minimum: 1
+                          receives:
+                            type: array
+                            minItems: 1
+                            items:
+                              type: string
+                              minLength: 1
+              block_answers:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, handled, how]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    handled: {type: string, enum: [fixed, disputed]}
+                    how: {type: string, minLength: 10}
+              handoff:
+                type: object
+                additionalProperties: false
+                required: [read, kept, set_aside, open]
+                properties:
+                  read:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [path, lines, why]
+                      properties:
+                        path: {type: string, minLength: 1}
+                        lines: {type: string, minLength: 1}
+                        why: {type: string, minLength: 1}
+                  kept:
+                    type: array
+                    items: {type: string, minLength: 1}
+                  set_aside:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [option, why]
+                      properties:
+                        option: {type: string, minLength: 1}
+                        why: {type: string, minLength: 1}
+                  open:
+                    type: array
+                    items: {type: string, minLength: 1}
+        - id: plan-fix-prep
+          script: fix_prep
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [plan-prep, plan-writer]
+          trigger_rule: none_failed_min_one_success
+          when: "$plan-prep.output.resubmit == true"
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string, minLength: 1}
+        # 拒まれた後の出し直しの役（plan-writer の会話の続き）。型は plan-writer の型から required を外し、whole_plan を足した物
+        - id: plan-writer-fix
+          prompt: "$plan-fix-prep.output.prompt"
+          depends_on: [plan-prep, plan-fix-prep]
+          when: "$plan-prep.output.resubmit == true"
+          <<: *writer_launch
+          output_format:
+            <<: *plan_reply
+            required: []
+            properties:
+              <<: *plan_reply_props
+              whole_plan: {type: boolean}
+        - id: plan-accept
+          script: plan_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [plan-writer, plan-writer-fix]
+          trigger_rule: none_failed_min_one_success
+          with:
+            reply: {from: "$plan-writer.output", if_skipped: null}
+            fix_reply: {from: "$plan-writer-fix.output", if_skipped: null}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason, attempt]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+              attempt: {type: integer}
+
+  # 受け付けた案の項目ごとの波及の一覧 ripple.json。案が無い周は {items: [], error: <訳>}
+  - id: ripple-items
+    script: ripple_items
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, plan-loop]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: {type: boolean}
+
+  # 出口。落ちない（中の誤りを捕まえて status failed と、在って空でない pointer の先を返す。誤りの訳は r<k>/finish-error.txt）
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [intake, ripple-items]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, mode, round, owed, plan, fix_plan, reply, handoff, replan, ripple, rejects, gave_up, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, nothing_owed, held, gave_up, failed]
+        reason: {type: string}
+        mode: {type: string, enum: [plan, replan]}
+        round: {type: integer, minimum: 1}
+        owed:
+          type: array
+          items: {type: string}
+        plan: &pointer
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        fix_plan: &pointer_or_null
+          type: [object, 'null']
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        reply: *pointer_or_null
+        handoff: *pointer_or_null
+        replan: *pointer_or_null
+        ripple: *pointer
+        rejects:
+          type: array
+          items:
+            type: object
+            required: [at, reason]
+            properties:
+              at: {}
+              reason: {type: string}
+              kind: {type: string}
+        gave_up:
+          type: [array, 'null']
+          items:
+            type: object
+            additionalProperties: false
+            required: [item, why, ruling]
+            properties:
+              item: {type: integer}
+              why: {type: string}
+              ruling: {type: string}
+        report:
+          type: array
+          items: {type: string}
