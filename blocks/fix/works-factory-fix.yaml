@@ -12,7 +12,7 @@ inputs:
     description: 'json(plan-fields.schema.json): 承認済みの修正案の欄の控え {fields}（凍結の印を付けて置く）。空は修正案の無い run'
   fix_plan:
     default: ''
-    description: 'json(fix-plan.schema.json): 承認済みの修正案の返り（項目の並びを持つ object。項目の unit_keys が承認済みの項目の出どころ）。空は修正案の無い run'
+    description: 'json(fix-plan.schema.json): 承認済みの修正案の出力（項目の並びを持つ object。項目の unit_keys が承認済みの項目の出どころ）。空は修正案の無い run'
   answer_ties:
     default: 'null'
     description: 'json(answer-ties.schema.json): 依頼の答えを判定の問い・単位に結んだ行。null は結びが無い（字の一致だけ）'

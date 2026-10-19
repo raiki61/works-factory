@@ -104,7 +104,7 @@ def compute() -> dict:
     raw_prior, raw_unattended = os.environ.get("INPUTS_PRIOR"), os.environ.get("INPUTS_UNATTENDED")
     plan = ports.picked(raw_plan, PLAN)
     if plan is None:
-        raise ValueError("plan の返り（plan）が読めない。with: の鍵の結びを確かめる")
+        raise ValueError("plan の出力（plan）が読めない。with: の鍵の結びを確かめる")
     review = ports.picked(raw_review, REVIEW, optional=("gave_up",))
     return plan_out(plan, review, raw_prior, unattended=ports.flag(raw_unattended), place=ports.place())
 

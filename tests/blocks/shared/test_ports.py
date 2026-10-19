@@ -146,15 +146,11 @@ class HelperCase(Base):
             ports.picked('{"a": 1}', ("a", "c"))
         self.assertIsNone(ports.picked("null", ("a",)))
 
-    def test_runner_names_match_the_boundary(self):
-        """workflows/.shared/boundary.py と同じ約束の写し（組み込みで boundary.py を消すまで突き合わせる）"""
+    def test_runner_names_match_the_hermetic_runner(self):
+        """試験の殻（tests/bin/hermetic.py）が落とす Archon の変数と同じ名（boundary.py は組み込みで消え、ports が正本）"""
         runner = hermetic.runner_vars()
         self.assertEqual(ports.RUNNER_PREFIXES, tuple(runner["RUNNER_PREFIXES"]))
         self.assertEqual(ports.RUNNER_NAMES, frozenset(runner["RUNNER_NAMES"]))
-        boundary = (kit.ROOT / "workflows" / ".shared" / "boundary.py").read_text(encoding="utf-8")
-        self.assertIn(f'RUNTIME_COPY = "{ports.RUNTIME_COPY}"', boundary)
-        self.assertIn(f'SUITE_KEEP_ENV = "{ports.SUITE_KEEP_ENV}"', boundary)
-        self.assertIn(f'USER_ENV_RAN_DIR = "{ports.USER_ENV_RAN_DIR}"', boundary)
 
     def test_drop_runner_env_and_suite_keep(self):
         with mock.patch.dict(os.environ, {"INPUTS_X": "1", "LOG_DIR": "/l", ports.SUITE_KEEP_ENV: "/k"}):
@@ -172,18 +168,6 @@ class HelperCase(Base):
         with mock.patch.dict(os.environ):
             os.environ.pop(ports.SHARED_CACHE_ENV, None)
             self.assertIsNone(ports.shared_cache(), "渡されなければ控えを使わない")
-        boundary = (kit.ROOT / "workflows" / ".shared" / "boundary.py").read_text(encoding="utf-8")
-        self.assertIn(f'SHARED_CACHE_ENV = "{ports.SHARED_CACHE_ENV}"', boundary)
-        self.assertIn(f'SHARED_CACHE = "{ports.SHARED_CACHE}"', boundary)
-
-    def test_shared_cache_follows_state_dir(self):
-        boundary = (kit.ROOT / "workflows" / ".shared" / "boundary.py").read_text(encoding="utf-8")
-        self.assertIn(f'SHARED_CACHE = "{ports.SHARED_CACHE}"', boundary)
-        with mock.patch.dict(os.environ, {"STATE_DIR": "/s"}):
-            self.assertEqual(ports.shared_cache(), pathlib.Path("/s") / "works-factory")
-        with mock.patch.dict(os.environ):
-            os.environ.pop("STATE_DIR", None)
-            self.assertIsNone(ports.shared_cache())
 
     def test_polyfill_reads_the_shared_parts(self):
         self.assertIsNone(ports.polyfill("skip_value").parsed("null"))

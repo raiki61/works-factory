@@ -9,7 +9,7 @@ inputs:
   design_reason: {default: '', description: 'text: 独立設計が無い訳。空は訳が無い'}
   design_premises: {default: 'null', description: 'json(r2-design-premises.schema.json): 独立設計を作る役に渡した前提の控え {node, given, withheld, seen, claims}。seen.count は独立設計が見た人の答えの数。null は控えが無い（独立設計の後に来た答えを分けない）'}
   answers: {default: '{}', description: 'json(shared:gate-answers.schema.json): 承認ノードの人の答え {start, before_fix}（どちらも {decision, text?, asked?, pushed?} か null）。空のオブジェクトは答えが無い'}
-  request: {default: '', description: 'file: 依頼のファイル（工場の依頼の JSON。本文の名指しの節を読む）。空は依頼のファイルが無い'}
+  request: {default: '', description: 'file: 依頼のファイル（工場の依頼の JSON。本文の名指しの章を読む）。空は依頼のファイルが無い'}
   changed: {default: '{}', description: 'json(shared:fix-marks.schema.json): 修正の印（真偽の欄と前提のずれの申告の文 premise_drift_note）。空のオブジェクトは渡されていない'}
   constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 記録の制約の配列 [{text, measured_how, kind, measured_output?}]（それを constraints の欄に持つオブジェクトでもよい）。空の配列は無い'}
   test_outcomes: {default: 'null', description: 'json(r2-outcomes.schema.json): テストごとの base と最後の結末 {rows, unmeasured}。null は渡されていない'}

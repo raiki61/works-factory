@@ -136,7 +136,7 @@ def compute() -> dict:
     del raw_start   # 始めの記録は読まない（答えと無人の印は配る値から）
     fix = ports.picked(raw_fix, FIX)
     if fix is None:
-        raise ValueError("fix の返り（fix）が読めない。with: の鍵の結びを確かめる")
+        raise ValueError("fix の出力（fix）が読めない。with: の鍵の結びを確かめる")
     return raise_depth(fix, replan=ports.parsed(raw_replan) is True, units_tier=ports.parsed(raw_units) or [],
                        switches=ports.parsed(raw_switches) or {}, judgment=ports.parsed(raw_judgment),
                        tier_record=ports.parsed(raw_record), answer=ports.parsed(raw_answer), dealt=ports.parsed(raw_ports) or {},

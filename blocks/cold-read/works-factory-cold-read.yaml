@@ -1,5 +1,5 @@
 name: works-factory-cold-read
-description: '初見の読み手の block（docs/design/cold-read.md）。渡された本文のファイルを、文脈を持たず道具も持たない読み手に 1 回だけ読ませ、意味が取れずに止まった所・推測で埋めた所・本文だけで決められるかを返す。書き直させるかは決めず、呼んだ側が返りの欄で決める。単独の run でも、graph から include されても回る'
+description: '初見の読み手の block（docs/design/cold-read.md）。渡された本文のファイルを、文脈を持たず道具も持たない読み手に 1 回だけ読ませ、意味が取れずに止まった所・推測で埋めた所・本文だけで決められるかを返す。書き直させるかは決めず、呼んだ側が出力の欄で決める。単独の run でも、graph から include されても回る'
 inputs:
   text:
     required: true

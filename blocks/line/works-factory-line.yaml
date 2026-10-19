@@ -1,5 +1,5 @@
 name: works-factory-line
-description: '工場のメイングラフ（docs/design/line.md の 1〜11 節）。修正依頼か差分を受け、block を include で並べて直しを作り、承認ノード 4 つで人に見せ、差分を封じて置き、どの道でも報告を出す。判定と独立の目はそれぞれ 1 つの include（judge と eyes の graph）で呼ぶ。line が持つのは流れだけ: どの block をいつ回すか・承認ノードと無人の方針・計画の往復の記録と止め・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表と 1 回の上げ直し・始めの記録（block には port の値で配る）・報告への受け渡し。AI の node は持たない'
+description: '工場のメイングラフ（docs/design/line.md の 1〜11 章）。修正依頼か差分を受け、block を include で並べて直しを作り、承認ノード 4 つで人に見せ、差分を封じて置き、どの道でも報告を出す。判定と独立の目はそれぞれ 1 つの include（judge と eyes の graph）で呼ぶ。line が持つのは流れだけ: どの block をいつ回すか・承認ノードと無人の方針・計画の往復の記録と止め・一度だけの include（案の直し・2 度目の修正・再審・修正の後の並行 PR の確かめ直し）・深さの表と 1 回の上げ直し・始めの記録（block には port の値で配る）・報告への受け渡し。AI の node は持たない'
 inputs:
   request: {default: '', description: 'file: 修正依頼のファイル（findings の JSON の配列か {findings, pr, issue, answers, prior_failures, constraints} の形）。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る'}
   base: {default: '', description: 'text: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない'}

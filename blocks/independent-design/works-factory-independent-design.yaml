@@ -8,7 +8,7 @@ inputs:
   purpose_review: {default: '{}', description: 'json(purpose-review.schema.json): 目的の監査の受けた返答 {verdict, reason, findings}。裏取りを通った「狭めている」なら役を起こさない。空のオブジェクトは監査が無い'}
   constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 実測した制約の配列 [{text, measured_how, kind, measured_output?}]（前提の実測の constraints）か、それを constraints の欄に持つオブジェクト。空の配列は渡されていない'}
   answers: {default: '[]', description: 'json(answers.schema.json): 人が承認ノードで返した答え {decision, text} か、その配列。null と空の配列は答えが無い'}
-  request: {default: '', description: 'file: 依頼のファイル（依頼が名指した設計書の節をここから引く）。空は依頼のファイルが無い'}
+  request: {default: '', description: 'file: 依頼のファイル（依頼が名指した設計書の章をここから引く）。空は依頼のファイルが無い'}
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
   base: {default: '', description: 'text: 審査する変更の起点の版（入口の差分の根）。空は足した行の印を付けない'}
   head: {default: '', description: 'text: 審査する変更の先の版（修正前の HEAD）。空は HEAD'}

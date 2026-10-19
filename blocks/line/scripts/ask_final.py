@@ -45,7 +45,7 @@ def compute() -> dict:
     fix_in = ports.picked(raw["fix_in"], FIX_IN)
     fixed = ports.picked(raw["fixed"], FIXED)
     if fix_in is None or fixed is None:
-        raise ValueError("fix-in か fixed の返りが無い（with: の鍵の結びを確かめる）")
+        raise ValueError("fix-in か fixed の出力が無い（with: の鍵の結びを確かめる）")
     tests, eyes, seal = ports.picked(raw["tests"], TESTS), ports.picked(raw["eyes"], EYES), ports.picked(raw["seal"], SEAL)
     parallel_after = ports.picked(raw["parallel_after"], PARALLEL)
     unread = []

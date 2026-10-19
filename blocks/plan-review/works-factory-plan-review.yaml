@@ -5,10 +5,10 @@ inputs:
     required: true
     description: 'text: 審査する物。修正案の役の返答（項目の行の plan と、前の往復の穴への答え block_answers を持つ。ファイルの pointer か、そのパスか、その JSON の値）か、方針の文だけ（字）。どちらかは入口が決める'
   fields: {default: '', description: 'json(review-fields.schema.json): 修正案の項目ごとの works の欄（{round, fields, amended?}）。pointer・パス・値のどれか。proposal が修正案の時は要る。空の字は渡されていない（形 text では読まない）'}
-  judgment: {default: '', description: 'json(shared:judgment.schema.json): 判定の返り（units・questions・precedents・framing・one_shot を読む）。pointer・パス・値のどれか。形 plan と replan では要る。空の字は渡されていない（形 text では読まない）'}
+  judgment: {default: '', description: 'json(shared:judgment.schema.json): 判定の出力（units・questions・precedents・framing・one_shot を読む）。pointer・パス・値のどれか。形 plan と replan では要る。空の字は渡されていない（形 text では読まない）'}
   purpose: {default: '', description: 'text: 元の目的の 1 文。空は渡されていない'}
   design: {default: '', description: 'json(review-design.schema.json): 独立設計の返答 {question_stands, reason, premise_invalid_reason?, design, elements?}。pointer・パス・値のどれか。空の字は設計が無い'}
-  design_why: {default: '', description: 'text: 設計が無い訳の 1 行（設計を作る側が返した訳）。空で設計も無ければ「独立設計の返りが渡されていない」と読む'}
+  design_why: {default: '', description: 'text: 設計が無い訳の 1 行（設計を作る側が返した訳）。空で設計も無ければ「独立設計の出力が渡されていない」と読む'}
   world_rows: {default: '', description: 'file: 世界の解の行（world.jsonl）。空は世界の解の行が無い run（人に回しうる行の世界の軸は今どおりの決まり）'}
   means: {default: '[]', description: 'json(stated-means.schema.json): 依頼が示した解き方の文の配列（世界の解からの外れの決め手にならない物）。空の配列は示していない'}
   structure: {default: '', description: 'file: 構造の目の控え（{status, reason, design_file, …}。design_file が設計の行の jsonl を指す）。空は構造の目が走っていない（控えを failed として写す）'}

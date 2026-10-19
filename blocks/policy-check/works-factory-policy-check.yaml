@@ -1,5 +1,5 @@
 name: works-factory-policy-check
-description: '方針の文だけを入れる入口の graph（docs/design/world.md の 9 節）。方針の文（直し方の案）を世界の解と事前審査の観点（案の欠陥を探す review。plan-review の形 text）で評価し、事前審査の block の穴と定石と違う所を先に並べて返す。承認ノードは持たない'
+description: '方針の文だけを入れる入口の graph（docs/design/world.md の 9 章）。方針の文（直し方の案）を世界の解と事前審査の観点（案の欠陥を探す review。plan-review の形 text）で評価し、事前審査の block の穴と定石と違う所を先に並べて返す。承認ノードは持たない'
 inputs:
   policy:
     required: true

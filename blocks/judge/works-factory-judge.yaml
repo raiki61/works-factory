@@ -1,5 +1,5 @@
 name: works-factory-judge
-description: '判定のまとめの graph（docs/design/judge-eyes.md の 1 節）。run の頭の深さ・仕様・並行 PR・前提の実測・目的の固定・世界の解・素材の観点 10 本・根本の診断・判定の裏取りの block を今の judge と同じ順と条件で並べ、どこかの段が止めれば止めの語を返して後ろを回さない。判定の道だけを持ち、再審は持たない。line から 1 つの include で呼ばれ、単独でも依頼の行だけで回る'
+description: '判定のまとめの graph（docs/design/judge-eyes.md の 1 章）。run の頭の深さ・仕様・並行 PR・前提の実測・目的の固定・世界の解・素材の観点 10 本・根本の診断・判定の裏取りの block を今の judge と同じ順と条件で並べ、どこかの段が止めれば止めの語を返して後ろを回さない。判定の道だけを持ち、再審は持たない。line から 1 つの include で呼ばれ、単独でも依頼の行だけで回る'
 inputs:
   request: {default: '[]', description: 'json(shared:request.schema.json): 依頼の行の配列か、それを findings の欄に持つ object（工場の依頼のファイルの形）。空の配列は依頼の行が無い run'}
   pr_text: {default: '', description: 'text: 依頼が名指す PR の番号・題・本文を並べた文。空は PR の無い run'}

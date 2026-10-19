@@ -106,9 +106,9 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part
     slots = {name for text in texts.values() for name in SLOT.findall(text)}
     missing, unused = sorted(slots - set(values)), sorted(set(values) - slots)
     if missing:
-        raise PromptError(f"{node_id} の md の差し込み口 {missing} に値が無い")
+        raise PromptError(f"{node_id} の md の置き換えの印 {missing} に値が無い")
     if unused:
-        raise PromptError(f"値 {unused} の差し込み口が {node_id} の md に無い")
+        raise PromptError(f"値 {unused} の置き換えの印が {node_id} の md に無い")
     bad = sorted(k for k, v in values.items() if isinstance(v, bool) or not isinstance(v, (str, int)))
     if bad:
         raise PromptError(f"値 {bad} が字でも整数でもない（材料は prep が字に組む）")

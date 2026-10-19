@@ -1,5 +1,5 @@
 name: works-factory-eyes
-description: '独立の目のまとめの graph（docs/design/judge-eyes.md の 2 節）。修正の後に、直しを作った役と別の会話で差分を確かめる 4 つの目（r1〜r4）と、直した後の構造の実測（structure の mode after）を並べ、目の判定をまとめて変更を通してよいか（ok）を出す。目を回すか・R3 を R4 にまとめるかは呼び手が flag で渡す。line から 1 つの include で呼ばれ、単独でも差分の根と目的と単位だけで回る'
+description: '独立の目のまとめの graph（docs/design/judge-eyes.md の 2 章）。修正の後に、直しを作った役と別の会話で差分を確かめる 4 つの目（r1〜r4）と、直した後の構造の実測（structure の mode after）を並べ、目の判定をまとめて変更を通してよいか（ok）を出す。目を回すか・R3 を R4 にまとめるかは呼び手が flag で渡す。line から 1 つの include で呼ばれ、単独でも差分の根と目的と単位だけで回る'
 inputs:
   run: {default: 'true', description: 'flag: 4 つの目を回すか（偽なら目を起こさず、直した後の実測だけを回す）'}
   merge: {default: 'false', description: 'flag: R3 の観点を R4 の会話に入れるか（r3 を回さず、r4 の coherence を真にする）'}

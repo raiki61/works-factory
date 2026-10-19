@@ -29,8 +29,8 @@
   実行器の取り置きの根。起動の殻が渡す）
 - shared_cache() -> Path | None: run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下の works-factory/。渡されなければ None で、
   控えを使わない。workflows/.shared/boundary.py の shared_cache と同じ約束の写し）
-- polyfill(name): 埋め（リポジトリの根〔WORKS_FACTORY_ROOT〕の workflows/.shared/<name>.py。fence・childsweep・skip_value。組み込みの
-  入れ替えの後は pack の .shared/）を読んだモジュール。child_pointer は chain が .shared から直に import する
+- polyfill(name): 埋め（このファイルと同じ .shared/ の <name>.py。fence・childsweep・skip_value）を読んだモジュール。埋めは pack と
+  一緒に写し取られるので、run の中でもこのファイルの隣に在る。child_pointer は chain が .shared から直に import する
 
 import すると lib/ の置き場（環境変数 WORKS_FACTORY_ROOT の lib/。無ければこのファイルから辿った lib/）を sys.path の後ろに足す。
 Archon は run の始めに pack を写し取るので、run の中ではこのファイルから辿っても lib/ に届かない（起動の殻が根を渡す）。
@@ -269,7 +269,7 @@ def picked(raw, names, optional=()) -> Picked | None:
         raise ValueError(f"まるごとの入力が object でない（{type(got).__name__}）")
     absent = [name for name in names if name not in got and name not in optional]
     if absent:
-        raise KeyError(f"返りに欄 {absent} が無い（在るのは {sorted(got)}。無くてよい欄は optional に名指す）")
+        raise KeyError(f"出力に欄 {absent} が無い（在るのは {sorted(got)}。無くてよい欄は optional に名指す）")
     return Picked((name, got.get(name)) for name in (*names, *[o for o in optional if o not in names]))
 
 
@@ -299,7 +299,7 @@ def polyfill(name: str):
         raise ValueError(f"埋めの名でない: {name!r}")
     if name in sys.modules:
         return sys.modules[name]
-    path = lib_root().parent / "workflows" / ".shared" / f"{name}.py"
+    path = SHARED / f"{name}.py"
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or not path.is_file():
         raise ValueError(f"埋め {path} が無い")
