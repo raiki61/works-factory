@@ -1157,7 +1157,8 @@ nodes:
     with:
       got: "$eyes.output"
       names: "ok r1 r2 r3 r4 questions passes premise_check notes after dirty escalate after_ok report sections"
-  # 22 封じる（直す物が無い周は飛ぶ）。eyes でなく eyes-out に依る: eyes の返す node が落ちても with: が落ちた node を読まないため
+  # 22 封じる（直す物が無い周は飛ぶ）。depends_on は eyes でなく受け皿の eyes-out（eyes の返す node が落ちても封じの node を待たせ
+  # 続けない）。with: の eyes_ok・fingerprint・green_ok は eyes と test-gate-final の返りの欄を直に読む（main の線と同じ式）
   - id: merge-seal
     include: works-factory-merge
     depends_on: [eyes-out]
