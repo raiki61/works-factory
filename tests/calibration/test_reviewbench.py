@@ -15,8 +15,7 @@ from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.calibration import reviewbench
 from tests.calibration import run as runner
-from tests.calibration.run import ROOT
-from judge_accept import UNIT_FIELDS  # run が lib を sys.path に足す
+from tests.archon import WORKFLOWS
 
 HERE = pathlib.Path(__file__).resolve().parent
 FIXTURES = HERE / "fixtures"
@@ -114,7 +113,7 @@ class ConvertCase(unittest.TestCase):
         self.assertEqual((gone["source"], gone["why"], record["dropped_count"]),
                          (runner.WorksFactory.sources[0].file, reviewbench.NOT_AT_HEAD, 1))
         self.assertIn("stats.py:999-999", gone["refs"])
-        self.assertEqual((record["final_diff"], record["leak_guard"]["web"]), ("parent/merge/sealed.diff", "denied"))
+        self.assertEqual((record["final_diff"], record["leak_guard"]["web"]), (runner.SEALED, "denied"))
         self.assertEqual(record["unread"], {})
         self.assertEqual(doc["usage"], {"time_in_ms": 900000, "cost_usd": 6.05})
         self.assertEqual(doc["pr"], {"repo": TASK["repo"], "pr_number": 17, "base": TASK["base"], "head": head})
@@ -134,13 +133,27 @@ class ConvertCase(unittest.TestCase):
 
     def test_missing_final_diff_and_sources_are_named(self):
         attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
-        (attempt / "evidence" / "parent" / "merge" / "sealed.diff").unlink()
-        (attempt / "evidence" / "parent" / "eyes" / "r1.json").write_text("{", encoding="utf-8")
+        (attempt / "evidence" / runner.SEALED).unlink()
+        (attempt / "evidence" / runner.R1).write_text("{", encoding="utf-8")
         _, record = self.convert(runner.WorksFactory, attempt, head)
         self.assertEqual({f["in_final_diff"] for f in record["findings"]}, {None})
         self.assertIsNone(record["final_diff"])
         self.assertIn("sealed.diff", record["final_diff_why"])
-        self.assertEqual(record["unread"], {"parent/eyes/r1.json": "読めない（JSONDecodeError）"})
+        self.assertEqual(record["unread"], {runner.R1: "読めない（JSONDecodeError）"})
+
+    def test_all_sources_missing_stops(self):
+        """読み元が全部無い run は 0 件で採点を続けず止まる（置き場の道が記録と合わない合図。docs/design/integration.md の 4.3-15）。
+        1 つでも在れば、無い物を unread に名指して続ける"""
+        attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
+        for source in runner.WorksFactory.sources:
+            (attempt / "evidence" / source.file).unlink()
+        with self.assertRaises(reviewbench.BenchError) as caught:
+            self.convert(runner.WorksFactory, attempt, head)
+        self.assertIn(runner.JUDGMENT, str(caught.exception))
+        attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
+        (attempt / "evidence" / runner.R4).unlink()
+        _, record = self.convert(runner.WorksFactory, attempt, head)
+        self.assertEqual(record["unread"], {runner.R4: reviewbench.MISSING})
 
     def test_rejudge_replaces_first_judgment(self):
         """再審が走った run は rejudge/judgment.json の units が工場の最後の判定"""
@@ -172,7 +185,7 @@ class ConvertCase(unittest.TestCase):
         head = commit(attempt / "target", files, "nested")
         ev = attempt / "evidence"
         (ev / runner.WorksFactory.sources[0].file).write_text(json.dumps({"units": units}), encoding="utf-8")
-        (ev / "parent" / "eyes" / "r4.json").write_text(json.dumps({"surfaced": surfaced}), encoding="utf-8")
+        (ev / runner.R4).write_text(json.dumps({"surfaced": surfaced}), encoding="utf-8")
         return attempt, head
 
     def test_bare_file_names_resolve_to_repo_paths(self):
@@ -258,25 +271,24 @@ class ConvertCase(unittest.TestCase):
 
 
 class SourceShapeCase(unittest.TestCase):
-    """ランナーが読む works-factory の出力の欄は、それを書く持ち主（判定の単位の欄・目のノードの output_format）に在る。
-    名が変わるとファイルは在るので unread は空のまま、指摘が黙って減る"""
-    # 目の置き場 eyes/<目>.json は、その目のノードの返りをそのまま書いた物（lib/eyeverdict.py の _read_eye が読む）
-    EYE_NODES = {"parent/eyes/r1.json": "r1-minimality", "parent/eyes/r4.json": "r4-scope"}
+    """ランナーが読む works-factory の出力の欄は、それを書く持ち主の block（diagnose・r1・r4。pack の WORKFLOWS の下）のどれかの
+    node の output_format に在る。名が変わるとファイルは在るので unread は空のまま、指摘が黙って減る"""
+    # 読み元 → 書く block（読み元の place の include の道の最後の段）と、行に要る欄
+    OWNERS = {runner.JUDGMENT: ("diagnose", {"key", "label", "reason"}), runner.R1: ("r1", {"where", "why"}),
+              runner.R4: ("r4", {"where", "text", "mechanism"})}
 
     def test_sources_follow_their_owners(self):
-        graph = yaml.safe_load((ROOT / "workflows" / "eyes" / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
-        by = {n["id"]: n for n in [*graph["nodes"], *(b for n in graph["nodes"] for b in (n.get("loop_group") or {}).get("nodes", []))]}
         for source in runner.WorksFactory.sources:
             with self.subTest(source=source.file):
-                if source.kind == "units":
-                    self.assertLessEqual({"key", "label", "reason"}, set(UNIT_FIELDS))
-                    continue
-                shape = by[self.EYE_NODES[source.file]]["output_format"]
-                for step in source.rows:
-                    shape = shape["properties"][step]["items"]
-                self.assertLessEqual({"where", source.text}, set(shape["properties"]))
-        r4 = by["r4-scope"]["output_format"]["properties"]["surfaced"]["items"]["properties"]
-        self.assertIn("mechanism", r4)
+                block, want = self.OWNERS[source.file]
+                graph = yaml.safe_load((WORKFLOWS / block / f"works-factory-{block}.yaml").read_text(encoding="utf-8"))
+                found = []
+                for node in [*graph["nodes"], *(b for n in graph["nodes"] for b in (n.get("loop_group") or {}).get("nodes", []))]:
+                    shape = node.get("output_format") or {}
+                    for step in source.rows:
+                        shape = ((shape.get("properties") or {}).get(step) or {}).get("items") or {}
+                    found.append(set(shape.get("properties") or {}))
+                self.assertTrue(any(want <= names for names in found), f"{block} のどの node の output_format にも {sorted(want)} の行が無い")
 
 
 if __name__ == "__main__":

@@ -64,13 +64,22 @@ if str(ROOT) not in sys.path:
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))   # 頭に入れると lib/tests が根の tests を隠す（tests/AGENTS.md）
 from bin._lib import hostgh, isolate, launcher, pack, toolset  # noqa: E402
-import judge_accept  # noqa: E402
 import reads  # noqa: E402
 from report import OUTCOMES  # noqa: E402
 from tests.calibration import nodes, reviewbench  # noqa: E402
 from tests.calibration.reviewbench import Source  # noqa: E402
 from tests.e2e import evidence, make_target  # noqa: E402
 
+# 工場の run の記録から読む判定・目の返答・封じた差分の置き場（run の置き場 parent/ の下の、line の include の道の place。
+# docs/design/integration.md の 4.3-15。使い手はこの道具だけなので、道の定数はここに直に置く）。judge の graph の中の
+# diagnose の place は judge/diagnose/（judge-eyes.md の 1.6）、再審は line が include する rejudge/、目は eyes の graph の中の
+# eyes/r1/・eyes/r4/、封じは line の merge-seal/（merge.md の 1.3）。ファイルの名は作り手の block（diagnose・r1・r4）が持つ名で、
+# 組み込みで作り手と合わせる（この道具の試験 test_reviewbench の SourcesCase が作り手の output_format と縛る）
+JUDGMENT = "parent/judge/diagnose/judgment.json"
+REJUDGMENT = "parent/rejudge/judgment.json"
+R1 = "parent/eyes/r1/r1.json"
+R4 = "parent/eyes/r4/r4.json"
+SEALED = "parent/merge-seal/sealed.diff"
 SHELL_ENV = "WORKS_CALIBRATION_SHELL"
 OLD_WORKS_ENV = "WORKS_FACTORY_OLD_WORKS"
 LINE = "works-factory-line"
@@ -127,11 +136,10 @@ class WorksFactory:
     name = "works-factory"
     account = "WORKS_FACTORY_KEYCHAIN_ITEM"
     archon = True
-    # 再審が走った run は rejudge/judgment.json が 1 回目の units を置き換える（lib/judge_accept.py の rejudge_take）
-    sources = (Source(f"parent/{judge_accept.JUDGE_DIR}/{judge_accept.JUDGMENT_FILE}", ("units",), "units",
-                      prefer=f"parent/{judge_accept.REJUDGE_DIR}/{judge_accept.JUDGMENT_FILE}"),
-               Source("parent/eyes/r1.json", ("deletions",), "items", "why"),
-               Source("parent/eyes/r4.json", ("surfaced",), "items", "text"))
+    # 再審が走った run は再審の place の判定が 1 回目の units を置き換える（再審は line が diagnose を直に include する。line.md の 4.4）
+    sources = (Source(JUDGMENT, ("units",), "units", prefer=REJUDGMENT),
+               Source(R1, ("deletions",), "items", "why"),
+               Source(R4, ("surfaced",), "items", "text"))
     leak_guard = WITHHELD
 
     def __init__(self, inputs: dict | None = None):
@@ -244,8 +252,8 @@ class WorksFactory:
 
     @staticmethod
     def final_diff(ev: Path) -> tuple[Path | None, str | None]:
-        diff = ev / "parent" / "merge" / "sealed.diff"
-        return (diff, None) if diff.is_file() else (None, "封じの前で止まった run（parent/merge/sealed.diff が無い）")
+        diff = ev / SEALED
+        return (diff, None) if diff.is_file() else (None, f"封じの前で止まった run（{SEALED} が無い）")
 
     def provenance(self) -> dict:
         return {"factory_commit": make_target.git("-C", str(ROOT), "rev-parse", "HEAD"),
