@@ -174,13 +174,13 @@ class RefixPromptCase(s.Flow):
         self.assertNotIn("## Paths you may change", text)
         self.assertNotIn("write in `how` which item it conflicts with", text)
 
-    def test_the_writer_rules_carry_the_evidence_kinds_but_not_the_divergence_reports(self):
+    def test_the_writer_rules_carry_the_evidence_kinds_but_not_the_conflict_declarations(self):
         self.start()
         text = self.prompt()
-        for part in ("## How to fix", "## Evidence for a fix that cannot show red to green", "- Documents:", "- Prompts (instructions for a role):",
-                     "- Settings, YAML, workflows:", "- Comments, types:", "## What to keep", "Rules for queries to outside services"):
+        for part in ("## How to fix", "## Evidence for fixes whose red-to-green a test cannot show", "- Documents:", "- Instructions (prompts):",
+                     "- Settings, YAML, workflows:", "- Notes and types:", "## What to keep", "Rules for queries to outside services"):
             self.assertIn(part, text)
-        self.assertNotIn("## Divergence reports", text)
+        self.assertNotIn("## Conflict declarations", text)
         self.assertNotIn("put this whole block of rules, word for word, into its instructions", text, "下請けを起こさない役")
 
     def test_seat_names_the_skill_and_the_reinterpretation(self):
