@@ -587,6 +587,76 @@ class CheckCase(_Case):
         self.assertIn("照らしが落ちた", done["questions"][0])
 
 
+class PromptCase(_Case):
+    """prep が md から組む指示（決まった文は md が持ち、prep は材料と値だけを渡す）"""
+
+    RULE = "Rules for queries to outside services"
+
+    def text(self, role, **intake):
+        self.intake(**intake)
+        if role != "write":
+            self.write_tests()
+            self.assertTrue(self.take("write", write_reply())["ok"])
+        if role == "revise":
+            self.assertTrue(self.take("review", review_reply())["ok"])
+        return self.prep(role)["prompt"]
+
+    def test_first_round_prompts_have_no_rejection_and_no_open_slot(self):
+        heads = {"write": "You are the spec writer.", "review": "You are the spec reviewer.", "revise": "You are the spec reviser."}
+        for role, head in heads.items():
+            with self.subTest(role=role):
+                self.setUp()
+                text = self.text(role)
+                self.assertIn(head, text)
+                self.assertNotIn("## Why your previous answer was rejected", text)
+                self.assertNotIn("If the rejection says", text)
+                self.assertNotIn("sub-agent", text, "この block の役は下請けを起こさない（段落 spawns は入れない）")
+                self.assertEqual(text.count(self.RULE), 1, "検索の決まりは 1 度だけ")
+                self.assertNotRegex(text, r"\{[a-z0-9_]+\}")
+                self.assertIn("the language of the request (the user's language)", text, "lang が空なら既定の言語の文")
+                self.assertIn(str(self.place / "request.json"), text)
+
+    def test_language_is_the_port_value(self):
+        self.assertIn("in Japanese", self.text("write", lang="Japanese"))
+
+    def test_rejections_come_first_and_the_file_hint_is_the_writers_only(self):
+        for role in ("write", "revise"):
+            with self.subTest(role=role):
+                self.setUp()
+                self.text(role)
+                bad = write_reply("missing.txt") if role == "write" else {**revise_reply(), "handled": []}
+                self.assertFalse(self.take(role, bad)["ok"])
+                again = self.prep(role)["prompt"]
+                self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
+                self.assertIn(self.read(f"rejects-spec-{role}.json")[0]["reason"], again)
+                self.assertEqual("fix the test file in the target repository first" in again, role == "write")
+
+    def test_review_prompt_takes_the_words_the_answer_form_checks(self):
+        text = self.text("review")
+        for word in self.steps.files.FACE_KINDS:
+            self.assertIn(f"`{word}`", text)
+        self.assertIn(f"at least {self.steps.files.MIN_WHY} characters", text)
+        self.assertIn(f"at least {self.steps.files.MIN_REASON} characters", text)
+        self.assertIn(str(self.place / "spec-write.json"), text)
+        self.assertIn("You are the judge", text, "役の定義の断片")
+
+    def test_revise_prompt_takes_the_answer_words_and_both_files(self):
+        text = self.text("revise")
+        for word in self.steps.files.HANDLED:
+            self.assertIn(f"`{word}`", text)
+        self.assertIn(str(self.place / "spec-write.json"), text)
+        self.assertIn(str(self.place / "spec-review.json"), text)
+
+    def test_fix_prompt_is_the_shared_paragraph(self):
+        self.intake()
+        self.take("write", write_reply("missing.txt"))
+        text = self.fix_prep("write")["prompt"]
+        self.assertTrue(text.startswith("Your previous answer was rejected by the machine."), text[:60])
+        self.assertIn("return {}", text, "二重の波括弧は字の {} になる")
+        for role in ("review", "revise"):
+            self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n")
+
+
 class ShapeCase(unittest.TestCase):
     """YAML と block の揃い"""
 

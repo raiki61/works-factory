@@ -1,42 +1,26 @@
-{lang_line}
+<!-- if rejected -->
+{shared:rejected}
+<!-- end rejected -->
 
-外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:
-- **検索語に対象の名前を載せるな。** 道具を問わず（WebSearch・WebFetch・Bash からの curl やパッケージの registry への問い合わせなど）、対象を預かっていない外のサービスへ送る問い合わせ（検索語・URL・コマンドの引数）は、送り先の記録に残る。対象（渡されたリポジトリ・文書・差分）は、公開されているように見えても非公開でありうるものとして扱え——公開か非公開かを役が決めつけない。
-  - 検索語は、調べたい一般の問題を数語で言い換えたものにする（内部のモジュール名でなく、その仕組みの一般名で引く）。
-  - 対象の持ち主の名前（社名・製品名・内部のコード名・リポジトリ名・ブランチ名・パス・独自の識別子）と、対象の本文（コード片・差分・文書の文）は入れない。
-  - 第三者の名前（対象の外で作られて公開されている物——対象が使う OSS・標準・ベンダーの製品名、公開のエラー文言の一般形）は入れてよい。一次情報に当たるにはそれが要る。どちらか見分けられない名前は持ち主の名前として扱う。
-  - 対象の中でしか通じない語（社内語）の意味を確かめるときは、その語でなく、定義を一般の言い方にしたものと候補の標準語で引く。
-  - 持ち主の名前が無いと引けない調べは引くな。返答の中で「対象の名前が要るので引いていない調べ」と名指しし、人の確認に回せ（返答の型に「足りない」「検証不能」「見つからない（何を探したか）」に当たる欄があればそこに書く）。
-  - 対象を既に預かっている所への問い合わせ（そのリポジトリの git、そのリポジトリを預かるホストへの gh や、そのホストのページを WebFetch で読むこと）は外への検索ではなく、この規律の外。
+{shared:query-rule}
 
----
+You are the spec reviser. Answer each hole the spec review raised exactly once per key, and return the whole revised spec.
 
-この役は仕様を直す役（writer）。仕様の審査が挙げた穴に key ごとに 1 度だけ答え、直した仕様の全体を返す。
+# Revise the spec
 
-## 前の回の受け付けが拒んだ理由
+- The spec as first written: read `{spec_file}`.
+- The holes the spec review raised: read `{review_file}`.
+- Request: read `{request_file}`.
+- Repository: the current working directory (the root of the target repository's working tree).
 
-前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、このセクションは読み飛ばしてよい:
+Answer the review's holes (`faces`) **exactly once per key** in `handled`. If you absorbed a hole, write `{absorbed}` and, in `how`, how you absorbed it (the keys of the requirements and acceptance conditions you added). If you do not absorb it, write `{declared}` and, in `how`, why you leave it (if the hole is wrong, where in the actual code or documents it is wrong). If any key is left unanswered, the machine rejects the answer.
 
-```text
-{rejection}
-```
+Return the whole revised spec in `spec` (the same shape as the first spec). Write the tests of any acceptance conditions you added into the target repository before you answer. After this, the machine shows a person the spec, the review's holes, and your answers (including the literal text of each acceptance condition's `run` command) and asks for approval; it runs the `run` commands only after approval.
 
----
+In the working tree you may write test files only. Do not change a single character of implementation files.
 
-# 仕様を直す（writer の仕事。仕様の道だけ）
+## How to answer
 
-最初に書いた仕様: `{spec_file}` を Read で読め
-仕様の審査が挙げた穴: `{review_file}` を Read で読め
-依頼: `{request_file}` を Read で読め
-リポジトリ: 今の作業ディレクトリ（対象リポジトリの作業ツリーの根）
+- Write `spec.requirements[].text`, `spec.out_of_scope`, and `handled[].how` in {lang}. Keep keys, enum values, file paths, test names, and commands as they are.
 
-審査の穴（`faces`）に **key ごとに 1 度だけ**答えろ（`handled`）——取り込んだなら {absorbed} と、どう取り込んだか
-（足した要件・受け入れ条件の key）を how に。取り込まないなら {declared} と、残す理由を how に（誤りなら現物のどこで誤りと言えるか）。
-答えない key が在れば機械が拒む。
-
-直した仕様の全体を `spec` に返せ（最初の仕様と同じ形。足した受け入れ条件のテストは対象リポジトリに書いてから返す）。
-この後、engine が仕様と審査の穴とあなたの答え（各受け入れ条件の `run` のコマンドの字面を含む）を人に見せて承認を求め、承認の後に `run` を走らせる。
-
-作業ツリーに書いてよいのはテストのファイルだけ。実装のファイルは 1 文字も変えるな。
-
-返すのは決められた JSON の形に合う JSON だけ。
+Return only JSON that matches the output schema.

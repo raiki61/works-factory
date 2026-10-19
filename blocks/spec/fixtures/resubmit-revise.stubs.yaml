@@ -7,7 +7,7 @@ fixture:
   inputs:
     request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'
   resolved-text-contains:
-    spec-revise-fix: '前の回の返答は受け付けで拒まれた。この会話の続きで、拒まれた所だけを直して返せ。'
+    spec-revise-fix: 'Your previous answer was rejected by the machine.'
 exec-code: true
 spec-write:
   requirements:
