@@ -98,7 +98,7 @@
 出力（`returns: finish`、`outcome_field: ok`）:
 
 - `ok`: boolean。`status` が `ok` か（今の `ready`）。
-- `status`: `ok`（受け付けを通った案が在る）・`nothing_owed`（直す義務の単位が 0 件で役を起こさなかった。諦めでない）・`held`（役を起こさなかった: 判定・前の周・世界の解の行が読めない、行き止まりの単位が在る、直す元の案が無い、ruling の番号が案に無い）・`gave_up`（受け付けが網の回まで拒み続けた、受けた案の控えを置けなかった、拒否の控えが扱えない）・`failed`（node の中の誤り・指示が組めない・輪が回らなかった）。
+- `status`: `ok`（受け付けを通った案が在る）・`nothing_owed`（直す義務の単位が 0 件で役を起こさなかった。諦めでない）・`held`（役を起こさなかった: 判定・前の周・世界の解の行が読めない、行き止まりの単位が在る、直す元の案が無い、ruling の番号が案に無い）・`gave_up`（役が回数を使い切った: 受け付けが網の回まで拒み続けた、拒否の控えが扱えない）・`failed`（機械の故障と node の誤り: 受けた案の控えを置けなかった〔書き込みが失敗し続ける。`round.json` に `halt: true` と訳を残す〕、node の中の誤り、指示が組めない、輪が回らなかった）。`gave_up` は役の側の使い切りだけで、機械の側の書き込みの失敗は `failed`。
 - `reason`: 日本語の 1 行。`ok` でない訳（今の `why_not_ready`）。`ok` なら空。
 - `mode`: `plan` か `replan`。`round`: この周の番号。
 - `owed`: 直す義務の単位の key を判定の順に（今の `planfile.owed_order`。line が単位ごとの深さを決める）。形 replan と判定の無い周は空。
@@ -490,6 +490,7 @@ For `plan`, the rule above does not apply. Return in `plan` only the items the r
 - 形 plan（今の `take_plan` のまま）: 役が作業ツリーを動かしていれば、それだけで先に拒む（`moved`。`tree.json` が無ければ `NO_TREE`）→ 返答から `whole_plan` と `handoff` を外す → 返答の形が崩れていれば `MALFORMED_REJECT` → 往復の記録（`prior.record`。無ければ `{round: 0, passes: [], outcome: None, open: {}}`）で `converge.split` と `named` と `converge.splice`（`whole_plan` なら差し込まない。`whole_plan` の返答は閉じた項目を除く案の全部なので、返答に無い開いた項目は消す意図で、前の周の行を戻すと消せない。閉じた項目の行だけは差し込む）→ 往復の行が在れば合わせた案の全体を `candidate-plan.json` に書く → 次の 9 つの理由を全部 1 回で並べる: 答えの要る穴への答え（`converge.answer_gaps`・`fixed_unchanged`）・閉じた項目・狭めない案の欠け（`gatemarks.narrow_gaps`）・推しの形（`recommend_gaps`）・義務の無い単位（`not_allowed`。入れてよい no の並びつき）・単位の網羅（`fix_plan_covers_units`。入れてはいけない単位を外して数える）・項目の欄（`planmarks.gaps`・`home_gaps`）・依存（`depends_gaps`）・構造の目と世界の解の行への答え（`structure_gaps`）。通れば修正前の版のテスト（`base_test_texts(repo, base or "HEAD")`。読めなかった物は trace に `BASE_TESTS_UNREAD_OP`）で `planmarks.split` し、`p2.fix_plan.json` → `plan-fields.json` → `reply.json` → `handoff.json` の順に置く（往復の行が在れば `block_answers` も控えと返答に）。どれかを置けなければ置いた物を消し、`round.json` の `why` に訳を残して `{ok: false, halt: true, count: false, give_up: true}`（拒否に数えずに輪を止める）。置けたら捨てた閉じた項目の id を trace に `converge.DROPPED_OP` で残す。
 - 形 replan（今の `take_replan` のまま）: 作業ツリー → `handoff` を外す → 直す元の案が無ければ `REPLAN_REJECT` と訳 → 渡した項目の行（`replan.TRIP_KEYS`）→ `_plan_errors`（項目の数・`unit_keys` の字・項目の欄〔修正前の版の木の `exists_at`。版が引けなければその訳〕・直した番号の所に返答を差し替えた並びに当てる依存と考えの住処・構造と世界の解・狭めない案・推し）→ 通れば `new`・`new_marks`・`contract_changed`・`widened`（事実だけ）→ 修正前の版のテスト → `revised_fields`・`amended` → 案の全体を置く（`_save` の順と halt は形 plan と同じ）→ trace に `planmarks.AMEND_OP` → `replan.json`。
 - 輪は拒否の回数では諦めない。受け付けの網 `rolekit.NET_AFTER`（20。輪の `max_iterations` と同じ。届けば工場の不具合）の回の拒否で `done`・`give_up` にして輪を抜ける（`max_iterations` で落とさない）。拒否の控えが読めない・書けない時は、落ちずに `done`・`give_up` の拒否（理由「拒否の控えが扱えない」。読めない時は返答を照らさず、案のファイルを書かない）。
+- 受けた案の控えを置けない周（halt）は役の諦めでなく機械の故障なので、出口は `status: failed` と、置けなかった控えの名を含む訳を返す（`round.json` の `halt: true`）。
 - 諦めた時に出口へ書く物: `status: gave_up`・`reason` は `rolekit.given_up_reason`（網の回なら `NET_WHY` を添えた最後の理由）か `round.json` の `why`。形 replan では項目ごとの `gave_up` の行（`PLAN_GAVE_UP_WHY` と裁定の文を字のまま）。
 - 拒否を足す道: 返答の形で決まる拒否は `src/take.py` の `take_plan`・`_plan_errors` の理由の並びに 1 行足す。md には同じ変更で 1 段落を足す。理由は `rolekit.accept_round` が控えに積み、次の回の出し直しの指示（最後の理由）と、resume の回の `{shared:rejected}`（全部）に載る。試験は `tests/blocks/plan/test_take.py`。
 

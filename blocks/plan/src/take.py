@@ -141,7 +141,7 @@ def save(folder, k: int, plan: dict, fields: list, bare: dict, *, amended=None, 
             for done, _ in steps_:
                 (folder / done).unlink(missing_ok=True)
             why = f"受けた修正案の控え {name} を置けない: {e}"
-            files.write_json(folder / files.ROUND, {**files.read_round(folder), "why": why})
+            files.write_json(folder / files.ROUND, {**files.read_round(folder), "why": why, "halt": True})   # 機械の故障。出口は failed と読む
             return {"ok": False, "halt": True, "count": False, "give_up": True, "reason": why}
     return {"ok": True, "reason": ""}
 

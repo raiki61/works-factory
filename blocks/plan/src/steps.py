@@ -489,6 +489,8 @@ def status_of(folder, rnd: dict, fields) -> tuple:
     error = files.read_json(folder / files.PROMPT_ERROR)
     if isinstance(error, dict):
         return "failed", f"指示が組めない（{error.get('node')}: {error.get('why')}）"
+    if rnd.get("halt"):   # 受けた案の控えを置けない機械の故障。役が回数を使い切った gave_up ではない
+        return "failed", str(rnd["why"])
     try:
         given = rolekit.given_up_reason(folder, files.ROLE)
     except rolekit.BoardGap as e:

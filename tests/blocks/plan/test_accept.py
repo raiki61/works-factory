@@ -397,10 +397,10 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(reasons(run), [])
         self.assertIs(out["ok"], False)
         # 試験の邪魔（一時のファイルの名のディレクトリ）が残る間は、出口も plan-fields.json を置けずに落ちない道（failed）を返す。
-        # 邪魔を除いた出口は、止めた周を諦め（gave_up）と読み、置けなかった控えの名を訳に返す
+        # 邪魔を除いた出口は、止めた周を機械の故障（failed。役の諦め gave_up ではない）と読み、置けなかった控えの名を訳に返す
         (run.round_dir(1) / (planmarks.FIELDS_FILE + ".tmp")).rmdir()
         again = run.script("finish")
-        self.assertEqual((again["ok"], again["status"]), (False, "gave_up"))
+        self.assertEqual((again["ok"], again["status"]), (False, "failed"))
         self.assertIn(planmarks.FIELDS_FILE, again["reason"])
         self.assertEqual(run.json(again["plan"]), {"round": 1, "fields": []})
 
@@ -419,7 +419,8 @@ class AcceptCase(unittest.TestCase):
         self.assertIn("handoff.json", run.out["plan-accept"]["reason"])
         self.assertEqual(len(prompts), 1)
         self.assertEqual(reasons(run), [])
-        self.assertEqual((out["ok"], out["status"]), (False, "gave_up"))
+        self.assertEqual((out["ok"], out["status"]), (False, "failed"))
+        self.assertIn("handoff.json", out["reason"])
         rnd = run.round_dir(1)
         for name in (files.FIX_PLAN, files.REPLY, files.HANDOFF):
             self.assertFalse((rnd / name).exists(), name)
