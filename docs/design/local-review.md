@@ -141,7 +141,7 @@ md の本文（英語。この block の 2 つ目の commit でこのまま置�
 
 {shared:query-rule}
 
-You are the local-review role, started in a new conversation. Your only job is to start each review lens declared below on the target diff, one by one and by name, and to collect what each lens finds. Do not score the findings or settle their labels. You are given neither the request nor any other material.
+You are the local-review role. Your only job is to start each review lens declared below on the target diff, one by one and by name, and to collect what each lens finds. Do not score the findings or settle their labels. You are given neither the request nor any other material.
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill (to start a skill), and Agent (to start an agent). Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 
@@ -252,7 +252,7 @@ md の中に `$` の字は無い（今の道具の段の「`$(…)`」は `{shar
 
 {shared:query-rule の本文（spawns の段落つき）}
 
-You are the local-review role, started in a new conversation. …
+You are the local-review role. …
 
 Your tools are Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill (to start a skill), and Agent (to start an agent). …
 
@@ -447,3 +447,10 @@ bin/works-factory <読ませるフォルダを blocks/ にする引数（名は�
 - プラグインの欠けの拒みの文の入れ直しの道を `bin/_lib/toolset.py install` に直す。訳: 今の字の `dev/toolset.py` は元の works の置き場で、工場には無い（`bin/_lib/launcher.py:361-364` が `bin/_lib/toolset.py install` を打つ）。拒みの文は人に見せる文なので、在る道を名指す。
 - `lens_gap` から持ち越しの変数 `carry_ok` を外す。訳: 今もいつも偽で、1 run = 1 周では真にならない。読む人に「真になる周が在る」と誤らせない。
 - 試験のフォルダの名を `tests/blocks/local_review/` にする（materials.md の 10 節と同じ訳）。
+- 実装で決めた事（main の決まりが設計書と食い違った所）:
+  - `repo_review_md` の値は、対象の根に `REVIEW.md` が無い回も空の字で渡す。訳: 設計書の 1.5 は「空でなければ足す」と言うが、土台の `prompt.render` は選ばれない段落の中の差し込み口も数え、値が無ければ落ちる（materials.md の 2.11 と同じ決まり）。段落の真偽 `repo_review` が入る・入らないを決める。
+  - md の役の 1 段落を `You are the local-review role.` にし、「started in a new conversation」を外した。訳: この輪は `fresh_context: false` で、拒まれた後の回は同じ会話の続きになる。1 回目だけ新しい会話という文は 2 回目以降に嘘になる（調整役の指摘）。fixture の `resolved-text-contains` もこの文に合わせた。
+  - `intake` の `due` は設計書どおり `values["entry"]` が空かだけで決める（`materialkit.not_entry_due` は使わない）。訳: 設計書の 1.5 が字を決めており、差分の空きを block が測り直すと line の決めと二重になる。
+  - `covers_lenses` の「宣言したレンズが空」の文は `skills` が空の枝として残した（graph への求めだけを外した）。`LENSES` は空にならないので試験は見ない。
+  - 起こし方の照らしは、今の `tests/workflows/test_judge.py` の表を import せず、`tests/blocks/local_review/test_local_review.py` の `LAUNCH` に値を写した（今の定数が消えても残る）。
+  - 1 つ目の commit の `oldbrief.py` は、対象の根に `REVIEW.md` が無い回は「対象リポジトリ側」の節を出さない。今の `material_prep` はその回に穴が解けず落ちる（`?` を外して描く）ので、字を比べられるのは `REVIEW.md` が在る回だけ。

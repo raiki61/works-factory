@@ -1,166 +1,84 @@
-{lang_line}
+<!-- if rejected -->
+{shared:rejected}
+<!-- end rejected -->
 
-外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:
-- **検索語に対象の名前を載せるな。** 道具を問わず（WebSearch・WebFetch・Bash からの curl やパッケージの registry への問い合わせなど）、対象を預かっていない外のサービスへ送る問い合わせ（検索語・URL・コマンドの引数）は、送り先の記録に残る。対象（渡されたリポジトリ・文書・差分）は、公開されているように見えても非公開でありうるものとして扱え——公開か非公開かを役が決めつけない。
-  - 検索語は、調べたい一般の問題を数語で言い換えたものにする（内部のモジュール名でなく、その仕組みの一般名で引く）。
-  - 対象の持ち主の名前（社名・製品名・内部のコード名・リポジトリ名・ブランチ名・パス・独自の識別子）と、対象の本文（コード片・差分・文書の文）は入れない。
-  - 第三者の名前（対象の外で作られて公開されている物——対象が使う OSS・標準・ベンダーの製品名、公開のエラー文言の一般形）は入れてよい。一次情報に当たるにはそれが要る。どちらか見分けられない名前は持ち主の名前として扱う。
-  - 対象の中でしか通じない語（社内語）の意味を確かめるときは、その語でなく、定義を一般の言い方にしたものと候補の標準語で引く。
-  - 持ち主の名前が無いと引けない調べは引くな。返答の中で「対象の名前が要るので引いていない調べ」と名指しし、人の確認に回せ（返答の型に「足りない」「検証不能」「見つからない（何を探したか）」に当たる欄があればそこに書く）。
-  - 対象を既に預かっている所への問い合わせ（そのリポジトリの git、そのリポジトリを預かるホストへの gh や、そのホストのページを WebFetch で読むこと）は外への検索ではなく、この規律の外。
+{shared:query-rule}
 
----
+You are the local-review role. Your only job is to start each review lens declared below on the target diff, one by one and by name, and to collect what each lens finds. Do not score the findings or settle their labels. You are given neither the request nor any other material.
 
-## 前の回の受け付けが拒んだ理由
+Your tools are Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill (to start a skill), and Agent (to start an agent). Bash runs inside a sandbox, and its network is closed: it cannot reach any destination.
 
-前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、拒まれていない。
+{shared:works-gh}
 
-```text
-{reason}
-```
+{shared:material-readonly}
 
----
+## Materials
 
-この役は局所レビューの役（skill と agent のレンズを起こして findings を集める）。graphloops のノード p1.local_review を、下の元の graphloops の指示書のとおりに行う。
+- Target diff: {diff_file} (a copy of the diff from the base commit `{base}` to the version frozen for this run; new untracked files are included).
+- List of changed files: {changed_files_file} (one file per line; Read only what you need).
+- Review viewpoints: {review_md}. Read it. Labels and viewpoints come from here.
+<!-- if repo_review -->
+- The target repository's own review viewpoints: {repo_review_md}. Read it too.
+<!-- end repo_review -->
 
-1. まず材料 `{brief_file}` を Read で読め。下の指示書の「［材料: 〜］」は、そのファイルの同じ名のセクションの値（対象差分・変更ファイルの一覧・観点の正本のパスと、この run の値。engine と同じ描き方で機械が描いた物）。末尾の『条件に当たらない』のセクションも読め。
-2. 頭の「前の回の受け付けが拒んだ理由」のセクションの理由が空でなければ、前の返答は受け付けで拒まれている。そこに書かれた理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。
-3. 道具は Read・Grep・Glob・Bash・WebSearch・WebFetch と、skill を起こす Skill・agent を起こす Agent。Bash は sandbox の中で走り、網は閉じている（どの宛先にも出られない）。GitHub の PR とリポジトリは読むだけの口 `works-gh` を素の名で、1 つだけのコマンドとして打て（例 `works-gh pr view 12 -R OWNER/REPO`）。通るのは pr list・pr view・pr diff（-R <OWNER/REPO> 付き）と repo view <OWNER/REPO> だけで、この形だけが sandbox の外で走る。`gh` の名や変数に入れた口のパス、パイプ・`&&`・`;`・`$(…)`、前に置く変数の代入を付けると sandbox の中で走り、網に出られない。issue・検索・Web のページは WebFetch・WebSearch で読め。書く gh は包みが止める。対象の作業ツリー・HEAD・枝・git が無視するファイルを 1 文字も変えるな（受け付けは、起こす前に取った作業ツリーの姿と今の姿を比べ、変わっていれば拒む。同じ時に別の素材集めの役も走っている）。
-4. 組み込みの skill（code-review・simplify・security-review）は Skill で、pr-review-toolkit の agent のレンズは Agent で、指示書が名指す物を 1 本ずつ起こせ。simplify は修正を禁じた形でだけ呼べ（指摘だけを返させる）。
+The lenses to start (this list is the source of truth; the machine filled it from the declaration, it is not a hand-made copy):
 
----
+{skills}
 
-観点の正本: `{review_md}` を Read せよ（対象リポジトリ側: `{repo_review_md}`。空でなければそれも Read せよ）。ラベルと観点はここが正本。
+## What to do
 
----
+How to read the list: `skill` is the name, and `args` are the arguments to pass (if present, always pass them). An element whose `required` is false has `applies_cond`, and whether it applies is decided by `applies`, which the machine evaluated for this run (the reason is in `applies_why`). **If `applies` is true, you must start it. If it is false, you need not.** Start the built-in skills with Skill and the pr-review-toolkit agents with Agent.
 
-## 元の graphloops の指示書（ノード p1.local_review）
+**Return exactly one row in `findings` for each declared lens, without exception.** If you started it and it found nothing, leave `items` empty and write in `failed` that it was started and found nothing, and what it looked at. If you did not start it, or it does not apply, write why in `failed`. A lens with `required: false` also needs its row. In each row, set `invoked` to whether you started that lens. A row whose element has `applies` true and whose `invoked` is not true is rejected by the acceptance step, except when `material` is `awaiting_human` (see the section on failed calls). **Do not leave out a row**: if rows could be left out, a lens that was never started would pass in the same form as "looked and found nothing" (measured 2026-09-15: the type-design lens was not started three rounds in a row, and nothing in the record turned red). Write `findings[].skill` with exactly the spelling of `skill` above; the acceptance step counts this array one to one against the list, so a different spelling fails. **Do not add names that are not in the list**; names you add are not counted.
 
-# P1 局所レビュー（writer が main session で skill を実行）
+**Pass the target to every detector explicitly.** If you do not, each one rebuilds its own default target, and empty findings about something else enter the record in the same form as "looked and found nothing". How to pass it differs by tool; the notes per lens below are the source. Pass `{diff_file}` as it is to the agent lenses.
 
-対象差分: ［材料: loop.diff_file］（BASE `［材料: record.base］` と周に固めた版の差の写し。未追跡の新規ファイルも入る）　変更ファイルの一覧: ［材料: loop.changed_files_file］（1 行 1 ファイル。要る所だけ Read）
-観点の正本: ［材料: inputs.review_md］（対象リポジトリ側: ［材料: inputs.repo_review_md］）
+**Only collect the findings; do not score them or settle their labels.** This node does not take the verdict of `/code-review`'s own verification: an item of `findings` has five fixed keys and no place for it. Adding a key breaks the schema, and leaving it out keeps it from reaching the judgment. Do not work around this by putting the verdict into the text either. Weeding out false positives is the job of the judgment's refutation later in this run.
 
-**起こすレンズの正本はこれ**（graph の `skills`。ここは手で写した一覧ではなく、engine が正本をそのまま埋めた物）:
+**Do not put the umbrella agent `pr-review-toolkit:review-pr` in between. Start the lenses one by one, by name.** Its prose routing depends on the shape of the diff (try/except, type definitions, presence of tests), but the classes the lenses above catch (checks silently disabled, guards that became always true, designs that hold invariants in flat values, gaps in behavior coverage) appear regardless of that shape. Do not call `pr-review-toolkit:code-simplifier`: it applies fixes instead of reporting them. **This node must not change the working tree.** Call any tool that can go as far as fixing only in a form that forbids fixing.
 
-［材料: node.skills］
+In the prompt you give each skill, impose the submission criteria of the review viewpoints (the section on the criteria for submitting a finding); writing them in the viewpoints file does not make them reach the skill: the mechanism (one sentence on the cause in the code), the measurement (run what can be run; if you cannot, say "not measured" and submit it as a hypothesis), self-refutation before submitting (if it cites a rule, check whether the rule's condition applies, read the surrounding facts, and submit only what you could not refute), and the estimate of false positives (one line on when it would be wrong).
 
-読み方: `skill` が名前、`args` は付ける引数（在るなら必ず付けろ）、`note` はその 1 本の注意。`required` が false の要素は `applies_cond` を持ち、当てるかはその条件を engine がこの周に評価した `applies`（理由は `applies_why`）が決める——**`applies` が true なら必ず起こせ。false なら起こさなくてよい。**
+This run is the first round, so carrying `/simplify` over from an earlier round is not accepted: start `/simplify`, set `invoked` to true, and set `simplify_carried` to false.
 
-**宣言 1 本につき findings の行を 1 本、例外なく返せ。** 起こして所見が無いなら `items` を空にして `failed` に「起こしたが所見なし」と何を見たかを書く。起こしていない・非該当なら `failed` にその理由を書く。`required: false` の 1 本も行は要る。各行の `invoked` に起こしたかを真偽で書け——`applies` が true の要素で `invoked` が true でない行は、material が awaiting_human のとき（下の呼び出しの失敗）を除いて engine の post_check が拒む。**行を省くな**——省ける形だと、起動しなかったことが「見たが所見なし」と同じ形で通る（実測 2026-09-15: 3 周続けて型設計のレンズが起動されず、記録のどこにも赤が出なかった）。`findings[].skill` には上の `skill` の綴りをそのまま書け——engine の post_check がこの配列と 1 対 1 で数えるので、綴りが違えば落ちる。**宣言に無い名前を足すな**（増やしたいなら graph の `skills` を直す。役が増やした名前は数えられない）。
+## Notes per lens
 
-**どの検出器にも対象を明示的に渡せ。**渡さないと各々が既定で自分の対象を作り直し、別物を見た空の findings が「見たが所見なし」と同じ形で記録に入る。渡し方は道具で違う——**道具ごとの渡し方は上の `note` が正本**（ここに写さない）。agent のレンズには `［材料: loop.diff_file］` をそのまま渡す。
+- `/code-review`: built in (a plugin of the same name exists separately). Pass the target as the **file paths** listed in the list of changed files; a ref range does not include the working tree. Pass no flags other than its `args`: no flag that posts comments and no flag that applies fixes.
+- `pr-review-toolkit:code-reviewer`: the general lens that covers both compliance and bug detection. **Do not drop it.**
+- `/simplify`: **call it only in a form that forbids fixing** (the real skill rewrites the working tree by default). Start each of its four viewpoints (reuse, simplification, efficiency, altitude) and have them return findings only.
+- `pr-review-toolkit:silent-failure-hunter`: looks at checks that are silently disabled and failures that are swallowed.
+- `pr-review-toolkit:type-design-analyzer`: looks at designs that hold invariants in flat values; prose routing does not reach this class.
+- `pr-review-toolkit:pr-test-analyzer`: the lens for behavior coverage; no other node looks at it.
 
-**findings を機械的に集めるだけで、採点・ラベル確定はするな。** `/code-review` の裏取りの verdict は**このノードでは受け取らない**——findings の項目は 5 鍵で固定（`additionalProperties: false`）で置き場が無く、鍵を足せば型に合わずに落ち、足さなければ P2 に届かない。欄の新設は台帳の決着待ちなので、**verdict を本文に埋める回避もするな**。誤検出を落とす段は、この周は P2 の judge の反証が担う。
+## When a lens call fails
 
-**まとめ役の `pr-review-toolkit:review-pr` は挟むな。レンズは 1 つずつ名指しで起こせ**——散文の振り分けは差分の形（try/except・型定義・テストの有無）によるが、上のレンズが当たるクラス（黙って無力化される検査・恒真になった柵・不変条件を平坦な値で持つ設計・振る舞い網羅の穴）は差分の形に関係なく出る。`pr-review-toolkit:code-simplifier` は指摘でなく修正を当てる agent なので呼ぶな。**このノードは作業ツリーを変えてはいけない**（engine が P1 の前後で突き合わせる）——修正まで行く道具は、修正を禁じた形でだけ呼べ。
+If the call of a skill itself fails (permissions, runtime errors), do not stop: write it in that row's `failed`. **Do not turn something missing into `not_applicable`.**
 
-各 skill を呼ぶプロンプトには次を課せ（REVIEW.md に書くだけでは skill に届かない）: 指摘の提出基準（`REVIEW.md`「指摘の提出基準」）: 機構（なぜそうなるかのコード上の因果を一文）・実測（動かせるものは動かす。動かせないなら「未実測」と明記して仮説として出す）・提出前の自己反証（規則を引くならその条件節が当たるか・近傍の実態まで読み、殺せなかった指摘だけ提出する）・誤検出の見積もり（どんな場合に誤りになるかを一行）。
+- A lens with `required: false`: if its call fails, write it in `failed`, set `material.status` to `awaiting_human`, and write the reason in `material.reason` (`material` is the top-level field, separate from the rows of `findings`).
+- A lens with `required: true`: if its call fails, start it again within this answer and write `invoked: true`. If you return without having started it, write the reason in `failed` and do not set `material` to `awaiting_human`. The acceptance step rejects the answer and asks you to start it again in the same conversation; the answer goes to a person only when the rejections reach the limit, or when the lens's plugin is missing from the isolated settings. Handing it to a person is the machine's job, not yours: even when you find that the plugin is missing, do not set `material` to `awaiting_human`; write in that row's `failed` the call you made and the error it returned.
 
-skill の呼び出し自体が失敗したら（権限・実行時エラー）止めるな——その行の `failed` に書き、material を awaiting_human にして理由を書け（返答の頭の欄は `material`・`findings`・`simplify_carried` の 3 つで、`material` は findings の行とは別の欄。status を awaiting_human にし、理由はその `reason` に書く）。**無かったことを not_applicable にするな。** 直前の周から対象差分にロジック変更が無いなら /simplify の再実行は持ち越してよい（返答の頭の欄 `simplify_carried` を true にする。持ち越しの理由は /simplify の行の `failed` に書く。**持ち越しでも行は要る**）。
-素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は受け付けが使う検証器 review-record.py だが、この役が探して読む必要は無い——上の status と欄に合わせれば足りる。
+## How /code-review returns
 
----
+`/code-review` runs in a separate conversation (a fork). If it returns its findings in its text, copy them into the `items` of the `/code-review` row; drop none. If the Skill result is only "Skill execution completed" with no findings text, the fork wrote its findings to another channel and they did not reach you; the acceptance step then reports this row as "not seen". In either case, do not start `/code-review` again (it returns in the same form and only costs time). For a row whose text did not arrive, leave `items` empty, set `invoked: true`, and write in `failed` that the text did not arrive and what target you passed. Do not write "started and found nothing": that makes something not seen look like zero findings.
 
-## 必須のレンズの呼び出しの失敗（works の受け付けより。上の指示書の読み替え）
+Do not write the spelling of a flag in `args`, not even inside a sentence that says not to use it: the skill reads it as a flag (measured: in "attach neither the comment flag nor the fix flag" written with the spellings, the fix flag was taken). Forbid fixing with the sentence "do not change the working tree".
 
-上の『skill の呼び出し自体が失敗したら…material を awaiting_human にして理由を書け』は、`required` が false のレンズにだけ当てる。`required` が true のレンズの呼び出しが失敗したら、この回のうちに起こし直して `invoked: true` を書け。起こせないまま返すなら `failed` に理由を書き、material を awaiting_human にするな——受け付けが拒んで同じ会話で起こし直させ、拒みが 3 回に届いた時と、レンズのプラグインが隔離した設定に無い時だけ人に渡す。人に渡すのは受け付けと engine で、この役ではない——プラグインが設定に無いと分かった時も、この役は material を awaiting_human にせず、その行の `failed` に「隔離した設定に無い」と打った呼び出しと返った誤りを書いて返すだけ。
+{shared:material-status}
 
-上の『直前の周から対象差分にロジック変更が無いなら /simplify の再実行は持ち越してよい』は狭めて読め: `simplify_carried: true` を受けるのは、この周の頭に固めた版が前の周の頭の版と 1 ファイルも違わない周だけ。どれかのファイルが変わった周（ロジックでない変更でも）と 1 周目は `/simplify` を起こして `invoked: true` を書け。
+## Whether you may write not_applicable
 
----
+{shared:material-na}
 
-## /code-review の返し方（works の受け付けより。上の指示書の読み替え）
+## Where to point
 
-/code-review は別の会話（fork）で走る。所見を本文で返したら、それを /code-review の行の `items` に写せ（どの所見も落とさない）。Skill の結果が『Skill execution completed』だけで所見の本文が無い時は、fork が所見を別の口（返答の道具）に書いて親に届かなかった形で、works の受け付けがこの行を『見ていない』と報告に出す。どちらでも /code-review を起こし直すな（同じ形で返って、時間だけ掛かる）。本文が無かった行は `items` を空、`invoked: true` にして、`failed` に『本文が届かなかった』と渡した対象を書け（『起こしたが所見なし』と書くな——見ていない物を 0 件に見せる）。
+{shared:material-where}
 
-args に旗の綴り（`--comment`・`--fix`）を書くな——『付けない』と否定の文の中に書いても skill は旗として読む（実測: 『--comment も --fix も付けない』の --fix が旗に取られた）。修正を禁じるのは『作業ツリーを変えるな』の文で言え。
+## Reading borrowed skills
 
----
+When you read a borrowed skill (superpowers), follow the reading rules below. They are direct instructions to you and win over the skill's text. If you start a helper with Agent, include this whole section in its prompt as it is; this section does not reach the helper otherwise.
 
-## 所見の場所の書き方（works の受け付けより）
+{unattended}
 
-所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。
+Write `material.detail`, `material.checked`, `material.reason`, and, in each row of `findings`, `failed` and the `text`, `mechanism`, `measured`, and `false_positive_if` of each item in {lang}. Keep keys, enum values, identifiers, paths, commands, skill names, and quoted text as they are.
 
-返すのはノードの output_format の形に合う JSON だけ。
-
----
-
-借りたスキル（superpowers）を読む時は、下の読み替えに従え。これは役への直の指示で、スキルの文より勝つ。Agent で下請けを起こすなら、その prompt に、この下の読み替えの段をそのまま含めよ——下請けにはこの段が届かない。
-
-# 借りた superpowers のスキルを無人の役で読むときの読み替え
-
-対象は、works に写した superpowers（`lib/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 5 本（`lib/borrow/borrow.json` の `skills`。`bin/_lib/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `bin/_lib/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（セクションごとの使い道・錨・穴・出口の語）は、包むセクションの表 `lib/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`workflows/*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの `output_format` は、このファイルより勝つ。
-
-この読み替えは、役の種類ごとのセクション（`###` の見出しが種類の名を `・` で並べる）と、種類の見出しの外の全部の役に共通の文から成る。機械（`lib/seat.py` の `skill_overlay`）が、役の側が宣言した種類のセクションと共通の文だけを、借りたスキルを読める役と借りた型を骨にする役の指示書の末尾に載せる（superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載るセクションは `lib/tests/test_seat.py` と `tests/workflows/test_judge.py` が見張る。
-
-## 読み方
-
-- 下の見出しが読み替えの決まり。行の番号やスキルの文そのものには結び付けない（版を上げると文が変わりうる。決まりと写しの原文の結び付き（錨）は `seams.json` が持ち、試験が写しに当てて縛る）。当てはまる言い回しを見たら、その決まりで読む。
-- `systematic-debugging/` の `.ts` と `.sh` はコードの例で、役への指示ではない。
-
-## ASK 人に聞く・確かめてもらう・許しを得る
-
-無人の役には聞く相手が居ない。止まって答えを待たない（待っても答えは来ず、受け付けのループが上限まで回って run が落ちる）。分からない項目があるうちは実装を始めない、という原則（receiving-code-review）はそのまま効く。分からない項目は下のとおり返答に書き、分かった項目だけを直す。
-
-### 読むだけの役
-
-- 分からないまま置いた前提を、返答の型の中の理由の欄に書く。
-
-## THREE-FAILS 3 回直して効かなければ、人と構成を話す
-
-4 回目の直しを打たない。ここで数えるのは 1 つの会話の中の直しの試み。受け付けのループ（`loop_group` の `max_iterations: 3`）の出し直しとは別に数える。
-
-## POLICY 人の決めたこと・方針とぶつかる
-
-自分の判断で通さない。方針の文書は書き換えない。
-
-## COMMIT commit・push・PR・merge
-
-役は commit しない。`git add`・`git commit`・`git stash`・`git reset`・`git checkout` で作業ツリーや履歴を動かさず、差分は作業ツリーに残したまま返す。push・PR・merge は役の仕事ではない（メイングラフの後ろのサブグラフと承認ノードが持つ）。「commit の前に確かめる」は「返答を返す前に確かめる」と読む。
-
-部品の型の「Commit your work」と worktree を作る指示はメイングラフが持つ。役は差分を作業ツリーに残して返す。
-
-## SUITE 一式（project's suite・full suite）を回せと言われる
-
-役は一式を回さない。一式はメイングラフが渡す `test_cmd`（速い段）を機械が関門として回す。重い段・変異テストは CI だけが回す。役が回すのは、変えたファイルに当たる試験だけ（絞る手が無い時だけ、返答の直前に一式を 1 回だけ回す）。
-
-## SP-REF `superpowers:` の名前での参照
-
-無視する。Archon はプラグインを読まないので、`superpowers:` の付いた名前では何も読まれない。同じ名前のスキルが隔離した設定に在り、ノードが `skills:` に宣言していれば、`superpowers:` を除いた名前で Skill の道具から読める。宣言されていなければ読まない。
-
-## DISPATCH 下請けの AI を起こす・調整役として振る舞う
-
-スキルの文に従って下請けを起こさない。Agent を持つ役が起こすのは、指示書が名指す物だけ。別の目の審査は、メイングラフの別のノードが新しい会話で受け持つ。`requesting-code-review/code-reviewer.md` をテストの審査役の手引きに使うときは、`Subagent (general-purpose):` の枠と `description:` の行を読み飛ばし、`prompt: |` の中身だけを手引きとして読む。「DESCRIPTION」などの角括弧の埋め草は、engine が渡す材料で埋まる。
-
-## DELEGATE エージェントの報告を信じない
-
-役の返答は、engine（受け付けのノード）が差分と試験を自分で確かめ直す。役は「確かめた」と書くなら、走らせたコマンドとその結果を返答に書く。役がほかのエージェントに仕事を任せることは無い。
-
-## GIT-RANGE git で審査の範囲を取る・差分を出す
-
-`git worktree add` はしない。Bash を持つ役は git で読む（`git diff`・`git log`・`git show`）のはよいが、HEAD・index・枝は動かさない（決まり COMMIT）。
-
-## CRAWL 差分の外を読むな・変わったファイルを別に読むなと言われる
-
-部品の審査役の型（`task-reviewer-prompt.md`）の「Do not crawl the broader codebase」と「do not Read a changed file separately」は、役の指示書が読む義務を定める役には効かない（指示書の読む義務が勝つ）。指示書が読む義務を定めない役（下請けの審査役）は型のとおり。
-
-## GITHUB GitHub のスレッドに返信する
-
-しない。返答はノードの `output_format` の JSON だけで、外へ書き込まない。
-
-## PUSHBACK 審査の指摘に反論する
-
-相手に話しかけない。反論は返答の欄に書く。理由には確かめた事実（ファイルと行・走らせた試験）を書く。
-
-## QUOTE 人の言葉の引用・人との会話の例
-
-引用と例に込めた原則（分からない項目があれば実装を始めない・外の審査は確かめてから直す・要らない物は作らない・モックでなく本物の振る舞いを試す）はそのまま効く。会話の相手は居ないので、例の「聞き返す」は決まり ASK で読み替える。systematic-debugging の「your human partner's Signals」に当たるのは、受け付けが拒んだ理由のファイル（`reason_file`）。
-
-## OUTPUT 返答の形
-
-`code-reviewer.md` の出力の形（Strengths・Issues・Assessment の「Ready to merge?」）より、ノードの `output_format` の JSON の型が勝つ。merge してよいかは役が決めない。
-
-## SCENARIO スキルの作者の試験の台本と、作った記録
-
-`systematic-debugging/` の `test-pressure-*.md`・`test-academic.md`・`CREATION-LOG.md` は、スキルを作った人が AI の振る舞いを試した台本と作った記録で、役への指示ではない。`SKILL.md` からも指されていない。読まない。
+Return only JSON that matches the output schema.

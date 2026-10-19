@@ -64,14 +64,6 @@ class LensesCase(unittest.TestCase):
             self.lenses.applies("no_such_cond")
         self.assertEqual(self.lenses.LENS_FILE, "lenses.json")
 
-    def test_declaration_matches_the_current_constant(self):
-        """1 つ目の commit だけ: 宣言の skill・args・required・applies_cond が今の judge_accept.LOCAL_REVIEW_SKILLS と同じ"""
-        import sys
-        sys.path.append(str(kit.ROOT / "lib"))
-        import judge_accept as ja
-        keys = ("skill", "args", "required", "applies_cond")
-        self.assertEqual([{k: e[k] for k in keys if k in e} for e in ja.LOCAL_REVIEW_SKILLS], list(self.lenses.LENSES))
-
 
 if __name__ == "__main__":
     unittest.main()

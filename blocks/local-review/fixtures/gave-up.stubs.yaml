@@ -8,7 +8,7 @@ fixture:
     entry: ''
     lang: ''
   resolved-text-contains:
-    local-review: 'この役は局所レビューの役（skill と agent のレンズを起こして findings を集める）。'
+    local-review: 'You are the local-review role.'
 exec-code: true
 local-review:
   material:

@@ -87,11 +87,12 @@ class FlowCase(unittest.TestCase):
         not_applicable は名乗れない"""
         self.assertEqual(self.intake()["due"], True)
         got = self.prep()["prompt"]
-        self.assertIn("この役は局所レビューの役", got)
+        self.assertIn("You are the local-review role.", got)
+        self.assertNotIn("Why your previous answer was rejected", got)
         refused = self.accept(refused_na())
         self.assertEqual((refused["ok"], refused["done"]), (False, False))
         self.assertIn("『条件に当たらない』を名乗れない", refused["reason"])
-        self.assertIn("名乗れない", self.prep()["prompt"])
+        self.assertTrue(self.prep()["prompt"].startswith("## Why your previous answer was rejected"))
         self.assertEqual(self.accept(reply(rows(code_review=[FOUND]))), {"ok": True, "done": True, "reason": ""})
         fin = self.finish()
         self.assertEqual((fin["ok"], fin["status"], fin["reason"]), (True, "ran", ""))
@@ -236,6 +237,29 @@ class FlowCase(unittest.TestCase):
         self.assertEqual(mat["materials"], {"local_review": mk.fill_entry("人の依頼（/path/req.json）", None)})
         self.assertIn("件数は渡されていない", mat["materials"]["local_review"]["reason"])
         self.assertIsNone(mat["reply"])
+
+    def test_prompt_declares_the_lenses_without_notes(self):
+        """prep が組んだ指示の {skills} の値: /security-review は applies: true と理由を持ち、どの要素も note を持たない。
+        対象の根に REVIEW.md が無ければ repo_review の段落が入らず、在れば入る"""
+        self.intake()
+        got = self.prep()["prompt"]
+        start = got.index("[\n {\n  \"skill\": \"/code-review\"")
+        declared = json.JSONDecoder().raw_decode(got[start:])[0]
+        self.assertEqual([e["skill"] for e in declared], LENSES)
+        self.assertEqual(declared[3], {"skill": "/security-review", "required": False, "applies_cond": "security_surface_touched",
+                                       "applies": True, "applies_why": WHY})
+        self.assertFalse(any("note" in e for e in declared))
+        self.assertNotIn("The target repository's own review viewpoints", got)
+        self.assertIn("reading rules below", got)
+        self.assertIn("# 借りた superpowers のスキルを無人の役で読むときの読み替え", got)
+        self.setUp()
+        (self.run.repo / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
+        self.intake()
+        self.assertIn("The target repository's own review viewpoints:", self.prep()["prompt"])
+
+    def test_lang_reaches_the_prompt(self):
+        self.intake(lang="Japanese")
+        self.assertIn("in Japanese.", self.prep()["prompt"])
 
     def test_unreadable_base_fails_with_the_port_name(self):
         got = self.intake(base="no-such-commit")
