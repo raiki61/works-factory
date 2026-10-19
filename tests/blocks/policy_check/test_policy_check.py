@@ -86,6 +86,21 @@ class ResultCase(unittest.TestCase):
         self.assertEqual((got["ok"], got["world"]), (False, None))
         self.assertEqual(got["report"], ["- 事前審査の段が走らなかった", "- 世界の解の段が走らなかった"])
 
+    def test_skipped_world_with_review_keeps_the_holes(self):
+        """足す: world が回らず review が受けた時も、ok は偽で、holes と事前審査の行は残り、world の走らなかった行が後ろに付く"""
+        face = {"key": "fixed-wait-overloads-server", "kind": "regression", "where": "the policy", "why": "w" * 20,
+                "severity": "block", "reach": "breaks_fix"}
+        review = self.review([face])
+        got = self.run.script("result", "result", world="null", review=json.dumps(review))
+        self.assertEqual((got["ok"], got["world"], got["holes"]), (False, None, [face]))
+        self.assertEqual(got["report"], [*review["report"], "- 世界の解の段が走らなかった"])
+
+    def test_review_report_not_a_list_adds_no_lines(self):
+        """足す: review の report が配列でなければ、事前審査の行を足さない（字を 1 字ずつの行にしない）"""
+        world = {"ok": True, "status": "ok", "reason": "", "rows": None, "classes": 0, "dropped": 0, "report": ["- 世界の行"]}
+        got = self.run.script("result", "result", world=json.dumps(world), review=json.dumps({**self.review([]), "report": "一行"}))
+        self.assertEqual(got["report"], ["- 世界の行"])
+
 
 if __name__ == "__main__":
     unittest.main()
