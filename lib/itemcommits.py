@@ -8,6 +8,8 @@ changes[].files と、TDD の輪の単位の test_files）。unread は記録を
 - record(items, replies, tdd_units, root, unread=()): 1 つの修正の段の記録（files はリポジトリの根 root からの相対に揃える）
 - merged(records): 段の記録（1 回目・2 度目の修正の順。None は走らなかった段）を合わせる。項目は後の段の物（案の直しの後は直した
   案）、claims と unread は和。どの段も無ければ None
+- declared_files(rows, repo): changes の行の files を、リポジトリの根からの相対パスに揃えた集合（前は factchecks。修正の受け付けと
+  この記録が同じ規則で揃えるための 1 か所。fix の src/facts.py もここを呼ぶ。integration.md 4.3-2）
 - split(record, paths): 差分のパス paths を項目ごとの Part の並びに分ける。並びは依存の位相順（依存の無い物どうしは項目の番号の順）
   で、パスの無い項目は載せない。分けられなければ ([], 訳): 記録が無い・読めない、どの項目も申告していないパスか複数の項目が
   触ったパスが在る（1 つの commit に倒す）
@@ -15,9 +17,10 @@ changes[].files と、TDD の輪の単位の test_files）。unread は記録を
 from __future__ import annotations
 
 import graphlib
+import os
+import posixpath
 from typing import NamedTuple
 
-import factchecks
 import planmarks
 
 SHOWN = 5   # 訳に名指すパスの数（残りは件数）
@@ -40,9 +43,23 @@ def record(items, replies, tdd_units, root, unread=()) -> dict:
     return {"items": None if items is None else _item_rows(items), "claims": claims, "unread": list(unread)}
 
 
+def declared_files(rows, repo) -> set:
+    """changes の行の files を、リポジトリの根からの相対パスに揃えた集合。絶対パスは、親のフォルダと根のリンク（macOS の /var と
+    /private/var など）を解いてから比べる（ファイルそのもののリンクは解かない）"""
+    out, root = set(), os.path.realpath(repo)
+    for c in rows:
+        for f in c.get("files") or []:
+            if isinstance(f, str) and f.strip():
+                f = f.strip()
+                if os.path.isabs(f):
+                    f = os.path.relpath(os.path.join(os.path.realpath(os.path.dirname(f)), os.path.basename(f)), root)
+                out.add(posixpath.normpath(f))
+    return out
+
+
 def _files(files, root) -> list:
-    # 受け付け（factchecks.check_plan_scope）が返答の files を読んだのと同じ規則で揃える
-    return sorted(factchecks.declared_files([{"files": files if isinstance(files, list) else []}], root))
+    # 受け付け（fix の範囲の照らし）が返答の files を読んだのと同じ規則で揃える
+    return sorted(declared_files([{"files": files if isinstance(files, list) else []}], root))
 
 
 def _item_rows(items) -> list:

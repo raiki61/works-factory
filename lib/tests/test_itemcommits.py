@@ -9,6 +9,7 @@
 """
 import pathlib
 import sys
+import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -90,6 +91,24 @@ class Split(unittest.TestCase):
     def test_many_unclaimed_paths_are_counted(self):
         _, why = itemcommits.split(self.record(), [f"p{i}" for i in range(7)])
         self.assertIn("p4 ほか 2 件", why)
+
+
+class DeclaredFiles(unittest.TestCase):
+    """返答の files をリポジトリの根からの相対に揃える 1 か所（前は factchecks。元 test_fix_seams の test_declared_files。integration.md 4.3-2）"""
+
+    def test_declared_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            repo = tmp / "repo"
+            (repo / "docs").mkdir(parents=True)
+            (repo / "stats.py").write_text("x = 1\n", encoding="utf-8")
+            rows = [{"files": [str(repo / "a" / ".." / "stats.py"), " docs/x.md ", "", 3]}]
+            self.assertEqual(itemcommits.declared_files(rows, repo), {"stats.py", "docs/x.md"})
+            linked = tmp / "linked"
+            linked.symlink_to(repo)
+            (repo / "alias.py").symlink_to(repo / "stats.py")
+            rows = [{"files": [str(linked / "stats.py"), str(repo / "alias.py")]}]
+            self.assertEqual(itemcommits.declared_files(rows, repo), {"stats.py", "alias.py"}, "根のリンクは解き、ファイルのリンクは解かない")
 
 
 if __name__ == "__main__":
