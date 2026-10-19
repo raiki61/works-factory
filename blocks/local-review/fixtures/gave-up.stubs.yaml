@@ -1,0 +1,50 @@
+# 局所レビューの役の返答が受け付けを通らない道（not_applicable はこの観点では名乗れない）: run は止めず、出口が落ちずに返る。筋書きでは
+# 輪が 1 周で終わるので却下は 1 回で、3 回で諦めて出口が status: gave_up を返す数えは tests/blocks/local_review の試験が確かめる
+fixture:
+  expect: completed
+  reached: [intake, local-review-prep, local-review, local-review-accept, finish]
+  inputs:
+    base: ''
+    entry: ''
+    lang: ''
+  resolved-text-contains:
+    local-review: 'この役は局所レビューの役（skill と agent のレンズを起こして findings を集める）。'
+exec-code: true
+local-review:
+  material:
+    status: not_applicable
+    reason: not applicable
+  simplify_carried: false
+  findings:
+    - skill: /code-review
+      invoked: true
+      items:
+        - where: README.md:1
+          text: The first line of the README is a title only
+          mechanism: The README starts without a summary line
+          measured: not measured
+          false_positive_if: The title is meant to be the summary
+    - skill: pr-review-toolkit:code-reviewer
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: /simplify
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: /security-review
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: pr-review-toolkit:silent-failure-hunter
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: pr-review-toolkit:type-design-analyzer
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
+    - skill: pr-review-toolkit:pr-test-analyzer
+      invoked: true
+      items: []
+      failed: started and found nothing (looked at the diff)
