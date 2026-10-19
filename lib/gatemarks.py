@@ -32,7 +32,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 調べた改造の案を、直す前の判定・修正案・事前審査・独立設計だけに流して見る）。continue で今どおり修正へ進み、stop で報告へ進む。
 この行は決め手の濾しにも無人の濾しにも掛けない（無人の殻は関所で stop を返すので、無人の設計だけの run も止まって報告へ進む）。
 直す義務が 0 件の周は関所の節が走らず、修正もしない。設計だけの行の出どころは 2 つ（入力 design_only と、事前審査の壁打ちが
-止まった事実＝converge.stuck_reason）。行は line の src/ の 1 か所で組む（設計だけでない run の止まりは頭を STUCK_ITEM にし、
+止まった事実＝line の src/rounds.py の stuck_reason）。行は line の src/ の 1 か所で組む（設計だけでない run の止まりは頭を STUCK_ITEM にし、
 設計だけの run と名乗らない。種類の kinds は同じ design_only）。止まりの行は、事前審査の役が返答の一番上に書いた止まった時の推し
 （converge.STUCK_PUSH）の尾を持ちうる（付く条件は line の src/。持ち主 2026-10-15「人がいないときは推しの答え。」・issue #552）。
 尾の無い行は line の無人の方針の口が今どおり止める。
@@ -1264,13 +1264,6 @@ def passes_of(path) -> list:
     報告が同じ行を出す）。無い・読めなければ OSError・ValueError（読み手が訳を名指す）"""
     rows = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     return pass_lines(rows if isinstance(rows, list) else [rows])
-
-
-def converge_of(path) -> list:
-    """事前審査の出力の欄 gate の先 path の壁打ちの往復の行（converge.lines。字でない行は捨てる）。無い・読めなければ OSError・
-    ValueError（読み手が訳を名指す）"""
-    doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    return [x for x in (doc.get("converge") if isinstance(doc, dict) else None) or [] if isinstance(x, str)]
 
 
 def gate_items(got) -> list:
