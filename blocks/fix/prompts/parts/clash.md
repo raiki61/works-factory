@@ -74,4 +74,4 @@ You are the merger (a writer). The fixing stage splits units into groups and fix
 
 When the machine accepts the answer, it checks the files touched, the test files, and the origin of writes, and then runs the recheck. If it is rejected, the reasons come at the top of the next round's instructions. If it is rejected 3 times or you answer `cannot`, the group's fix leaves the working tree and stays in the kept diff, and the declaration goes to the ruler (for the merger after a ruling, it goes to a person).
 
-Write `how` and `bash_writes[].why` in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are.
+Write `how` and `bash_writes[].why` in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).

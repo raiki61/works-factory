@@ -10,8 +10,6 @@
 - Do not run the whole suite (later stages run the whole suite and test_cmd). Run only the tests the files you changed reach.
 - Do not start subagents.
 
-Rules for queries to outside services (from the works wrapper; these rules win over the template's text):
-
 {shared:query-rule}
 <!-- if ask -->
 

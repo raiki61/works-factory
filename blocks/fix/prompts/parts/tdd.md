@@ -1,11 +1,7 @@
 # The TDD loop prompt (round {iteration}, phase {phase})
 
 <!-- if briefs -->
-## The requirement (briefs)
-
-{brief_rows}
-
-Read them all first with Read. Follow "Brief rules (the source of the requirement and the background)" in the rules below.
+{part:brief-head}
 <!-- end briefs -->
 
 <!-- if rejected -->
@@ -175,4 +171,4 @@ In any phase, for a unit where you found you can only get green by bending a tes
 
 Return only the JSON of the form in "The JSON to return" above.
 
-Write the human-facing fields (`units[].why`, `direct_why`, `red_quotes.*.why`, `what`, `refactor.why`, `why_both_cannot_hold`, `bash_writes[].why`) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are.
+Write the human-facing fields (`units[].why`, `direct_why`, `red_quotes.*.why`, `what`, `refactor.why`, `why_both_cannot_hold`, `bash_writes[].why`) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).

@@ -10,6 +10,7 @@ import json
 import pathlib
 import posixpath
 import re
+import shlex
 import sys
 
 sys.dont_write_bytecode = True
@@ -20,8 +21,10 @@ from src import consult  # noqa: E402  （同じ block。範囲の相談の控�
 import jsonfile  # noqa: E402
 import libdocs  # noqa: E402
 import oneline  # noqa: E402
-import planbrief  # noqa: E402  （承認済みの修正案の項目ごとの brief の凍結）
+import planbrief  # noqa: E402  （承認済みの修正案の項目ごとの brief の凍結・単位ごとの引き）
 import planmarks  # noqa: E402  （項目の範囲: allowed_paths と受け入れのテストのファイル。並べる項目の分け方）
+import planrange  # noqa: E402  （範囲の値 fix_scope・項目の glob と tests の id。行の文は下の scope_rows・tests_rows）
+import prompt  # noqa: E402  （.shared。brief を名指す節を md から組む）
 import rulebook  # noqa: E402  （決まりの正本のフォルダの名。変更の種類の見分けが読む）
 import seat as seatkit  # noqa: E402  （借りたスキルの座。引数の名 seat と分ける）
 
@@ -43,8 +46,22 @@ CODE_SUFFIXES = frozenset({".py", ".pyi", ".js", ".jsx", ".ts", ".tsx", ".mjs", 
                            ".sh", ".bash", ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".swift", ".php", ".scala", ".lua"})
 PATH_TOKEN = re.compile(r"[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.[A-Za-z][A-Za-z0-9]*")
 G1_IMPL, G1_REVIEW = "g1-impl-{n}.md", "g1-review-{n}.md"   # 修正役が起こす下請けのファイル（置き場のファイル。n は項目の番号）
-G1_PATCH_FILE = "g1-{n}.patch"   # 下請けの審査役の差分のファイル（置き場のファイル。修正役が seat.G1_PATCH で書く）
+G1_PATCH_FILE = "g1-{n}.patch"   # 下請けの審査役の差分のファイル（置き場のファイル。修正役が G1_PATCH で書く）
 G1_REST = "修正案のどの項目にも無い直す義務の単位 {keys}（判定のファイルが要求の正本）"   # 下請けの残りの項目の実装役の型の題
+SCENE = "works の修正の段。流れ・機械の関門・commit はメイングラフが持つ。TDD のループで直した単位はループの要約に在る"   # 修正役の座の型の場面の穴（元 seat.SCENE）
+NO_REPORT_FILE = "ファイルに書かない。返答は指示書の『返答の欄』の JSON"   # 同じ型の [REPORT_FILE]（元 seat.NO_REPORT_FILE）
+G1_REPORT = "実装役の最後のメッセージを、この型の後ろに貼る"   # 審査役の型の [REPORT_FILE]（元 seat.G1_REPORT）
+# 審査役の型の [HEAD_SHA]。works は commit しないので差分は作業ツリーと base の間。型の `git diff [BASE_SHA]..[HEAD_SHA]` は
+# g1_files が `git diff <base>` に直す（commit の範囲は空になる。Head の行にだけ残る。元 seat.G1_HEAD_SHA）
+G1_HEAD_SHA = "作業ツリー（works は commit しない）"
+G1_IMPL_REPORT = "ファイルに書かない。報告の全部を最後のメッセージに書く（修正役が審査役にそのまま渡す）"   # 実装役の型の [REPORT_FILE]（元 seat.G1_IMPL_REPORT）
+# 審査の前に修正役が走らせる差分のファイルのコマンド（元 seat.G1_PATCH）。{patch} は置き場の絶対パス（shell の字で囲んだ物）で、審査役の型の
+# [DIFF_FILE] も同じパス。作業ツリーと base の差分と、未追跡の新しいファイルごとの全文の差分を書き、最後にそのパスを出す
+# （最後の git diff --no-index は差分が在ると 1 を返すので、echo で終えて 0 にする）。最初の git diff が落ちれば 1 で終える
+G1_PATCH = ('p={patch}; top="$(git rev-parse --show-toplevel)"; '
+            'git -C "$top" -c core.quotePath=false diff {base} > "$p" || exit 1; '
+            'git -C "$top" -c core.quotePath=false ls-files --others --exclude-standard | while IFS= read -r f; do '
+            'git -C "$top" -c core.quotePath=false diff --no-index /dev/null "$f" >> "$p"; done; echo "$p"')
 SEAT_BRIEFS = "seat-briefs.md"   # 修正役の座の型の [BRIEF_FILE]（置き場のファイル。直す義務の単位の brief を名指す節）
 BRIEF_BROKEN = (f"修正案の brief の控え（置き場の {planbrief.LEDGER}）か欄の控え（置き場の {planbrief.planmarks.FIELDS_FILE}）が壊れているか"
                 "凍結の後に書き換えられ、承認した要求の正本が"
@@ -162,28 +179,99 @@ def _items(items):
 
 def implementer_values(b, values: dict, repo, owed: list[str], briefs: list) -> dict[str, str]:
     """修正役の座（節 implementer の型）の 5 つの穴の値。owed は今直す単位の key、briefs は凍結した brief（briefs_or_halt）。
-    直す義務の単位の brief を名指す節（planbrief.head_text）を置き場 b の SEAT_BRIEFS に書いて [BRIEF_FILE] にする（brief の無い
+    直す義務の単位の brief を名指す節（brief_rows の行と md の brief-head）を置き場 b の SEAT_BRIEFS に書いて [BRIEF_FILE] にする（brief の無い
     run は判定のファイル）。[directory] は repo。元 works/blk-fix/lib/fixrules.py:421"""
     mine = planbrief.for_units(briefs, owed)
-    head = planbrief.head_text(mine, owed)
+    rows = brief_rows(mine, owed)
     brief_file = values.get("judgment_file") or ""
-    if head:
+    if rows:
         path = pathlib.Path(b) / SEAT_BRIEFS
-        path.write_text(head + "\n", encoding="utf-8")
+        path.write_text(prompt.render_part("brief-head", {"brief_rows": rows}), encoding="utf-8")
         brief_file = str(path)
     items = "、".join(str(r["item"]) for r in mine)
     summary = values.get("summary_file") or ""
     return {"[task name]": f"直す義務の単位 {len(owed)} 件" + (f"（修正案の項目 {items}）" if items else ""),
             "[BRIEF_FILE]": brief_file,
             "[Scene-setting: where this fits, dependencies, architectural context]":
-                seatkit.SCENE + (f"。ループの要約のファイル: {summary}" if summary else ""),
+                SCENE + (f"。ループの要約のファイル: {summary}" if summary else ""),
             "[directory]": "" if repo is None else str(repo),
-            "[REPORT_FILE]": seatkit.NO_REPORT_FILE}
+            "[REPORT_FILE]": NO_REPORT_FILE}
+
+
+NONE = "無し"   # 行の中の単位や範囲が空の時の字（元 planbrief.NONE）
+NOT_NOW = "今は直すな"   # brief の行で、項目の単位のうち今直す単位でない物の頭（元 planbrief.NOT_NOW）
+
+
+def unit_note(keys, owed=None) -> str:
+    """項目の単位の並び keys の書き方: owed（今直す単位の key）と重なる物を「、」で並べ（無ければ NONE）、ほかの単位は
+    「・今は直すな: …」と添える。owed が None なら keys を全部（元 planbrief.unit_note）"""
+    keys = list(keys or [])
+    now = keys if owed is None else [k for k in keys if k in set(owed)]
+    rest = [k for k in keys if k not in now]
+    return ("、".join(now) or NONE) + (f"・{NOT_NOW}: {'、'.join(rest)}" if rest else "")
+
+
+def brief_rows(briefs: list, owed=None) -> str:
+    """指示に入れる brief の行（項目ごとに 1 行。brief が無ければ空）。見出しと結びの文は md の brief-head（元 planbrief.head_text の行）"""
+    return "\n".join(f"- 項目 {r['item']}: {r['file']}（sha256 {r['sha256']}・単位 {unit_note(r.get('unit_keys'), owed)}）" for r in briefs)
+
+
+def _paths_line(paths) -> str:
+    return "、".join(f"`{p}`" for p in paths) or NONE
+
+
+def scope_rows(got) -> str:
+    """範囲の節の行: 項目ごとの範囲（allowed_paths の glob・tests と rewrite_tests の id のファイル）・out_of_scope・合意で外したパスと、
+    全部の項目に効く許し。got は planrange.fix_scope の値で、None なら空。見出しと頭の決まりの文は md（元 planrange.scope_text の行）"""
+    if got is None:
+        return ""
+    lines = []
+    for it in got["items"]:
+        units = "、".join(str(k) for k in it.get("unit_keys") or []) or NONE
+        oos = [f"`{r['glob']}`" + (f"（{r['why']}）" if r.get("why") else "") for r in it.get("out_of_scope") or []
+               if isinstance(r, dict) and isinstance(r.get("glob"), str) and r["glob"]]
+        lines += [f"- 項目 {it.get('item')}（単位: {units}）",
+                  f"  - allowed_paths: {_paths_line(planrange.globs(it))}",
+                  f"  - テストのファイル（tests・rewrite_tests の id）: {_paths_line(planmarks.test_paths(it))}",
+                  f"  - out_of_scope: {'、'.join(oos) or NONE}"]
+        if it.get(planrange.LIFTED):
+            lines.append(f"  - 相談で out_of_scope から外したパス: {_paths_line(it[planrange.LIFTED])}")
+    lines.append(f"- 全部の項目に効く許し（テストの変更の許し・直す裁定が足したパス。out_of_scope には勝たない）: {_paths_line(got['permits'])}")
+    return "\n".join(lines)
+
+
+def tests_rows(got, edits: dict, frozen=None) -> str:
+    """テストの節の行: 足してよい新しいテスト・本体を変えてよい既存のテストの名指しと範囲・凍ったテストのファイル。got は planrange.fix_scope の値
+    （照らさない項目なら None で、新しいテストの行を出さない）、edits は conflict.edit_permits の値、frozen は凍ったテストの値（無ければ None）。
+    見出しと頭・結びの文は md（元 planrange.tests_text の行）"""
+    verified = list((frozen or {}).get("verified") or [])
+    lines = []
+    if got is not None:
+        lines.append("- 足してよい新しいテスト（修正案の項目の tests。範囲の相談で許された物も入っている。これに無いテストを足すと拒む）:")
+        for it in got["items"]:
+            units = "、".join(str(k) for k in it.get("unit_keys") or []) or NONE
+            lines.append(f"  - 項目 {it.get('item')}（単位: {units}）: {_paths_line(planrange.test_ids(it))}")
+    # 凍結の照らしは輪が確かめた書き換えを許しから外すので、事後の関門が id で許しても全体では拒まれる
+    lines += [f"- 本体を変えてよい既存のテストの名指し（修正案の rewrite_tests と、修正案が消す名を名指すテスト）: "
+              f"{_paths_line([t for t in edits['tests'] if t not in verified])}",
+              "- 本体を変えてよい既存のテストの範囲（範囲の相談で許された範囲と、裁定 fix_test_scope の範囲。`<パス>` はそのファイルの全部、"
+              f"`<パス>:<行>` はその行を含む関数の全体、`<パス>:<行>-<行>` は書いたとおりの行）: {_paths_line(edits['limits'])}"]
+    files = (frozen or {}).get("files") or []
+    if files:
+        lines.append("- 凍ったテストのファイル（TDD のループが緑にした単位のテスト。上の名指しと範囲の外で書き換えると拒む。足しただけの"
+                     f"新しいテストの関数は凍結に数えず、上の「足してよい新しいテスト」で照らす）: {_paths_line(files)}")
+        if verified:
+            lines.append(f"  - ループが書き換えて凍らせた名指し（上の名指しに在っても、もう変えるな）: {_paths_line(verified)}")
+        unruled = frozen.get("unruled") or []
+        if unruled:
+            lines.append("  - 今の段の TDD のループが凍らせたファイル（裁定 fix_test_scope の範囲はこの周では凍結を解かない。上の名指しと"
+                         f"範囲の相談の範囲の外で書き換えると拒む）: {_paths_line(unruled)}")
+    return "\n".join(lines)
 
 
 def _g1_task(brief: dict, owed: list[str]) -> str:
     """下請けの実装役の型の [task name]: 修正案の項目の番号と、その項目のうち今直す単位（ほかの単位は『今は直すな』）"""
-    return f"修正案の項目 {brief['item']}（直す義務の単位 {planbrief.unit_note(brief.get('unit_keys'), owed)}）"
+    return f"修正案の項目 {brief['item']}（直す義務の単位 {unit_note(brief.get('unit_keys'), owed)}）"
 
 
 def dispatched(owed: list[str], green=frozenset()) -> list[str]:
@@ -274,10 +362,20 @@ def g1_items(b, values: dict, owed: list[str], briefs: list) -> list[tuple]:
     return items
 
 
+def g1_diff_cmd(base: str, patch: str) -> str:
+    """審査役に渡す差分のファイルを書くコマンド（G1_PATCH）"""
+    return G1_PATCH.format(base=base, patch=shlex.quote(patch))
+
+
+def g1_row(r: dict) -> str:
+    """修正役の指示の下請けの項目の 1 行（元 seat._g1_row）"""
+    return f"項目 {r['item']}: 実装役 {r['impl_file']}・審査役 {r['review_file']}・差分のコマンド `{g1_diff_cmd(r['base'], r['patch'])}`"
+
+
 def review_values(brief: str, values: dict, base: str, patch: str) -> dict:
     """審査役の下請けの型（task-review）の穴の値（[BASE_SHA] は base、[DIFF_FILE] は patch）"""
     return {"[BRIEF_FILE]": brief, "[GLOBAL_CONSTRAINTS]": values.get("policy_path") or seatkit.NONE,
-            "[REPORT_FILE]": seatkit.G1_REPORT, "[BASE_SHA]": base, "[HEAD_SHA]": seatkit.G1_HEAD_SHA, "[DIFF_FILE]": patch}
+            "[REPORT_FILE]": G1_REPORT, "[BASE_SHA]": base, "[HEAD_SHA]": G1_HEAD_SHA, "[DIFF_FILE]": patch}
 
 
 def resume_values(got: dict) -> dict:

@@ -11,11 +11,7 @@ The first fixer's answer (saved by the machine): {saved_reply}. Read it all firs
 <!-- end ruled_reply -->
 
 <!-- if briefs -->
-## The requirement (briefs)
-
-{brief_rows}
-
-Read them all first with Read. Follow "Brief rules (the source of the requirement and the background)" in the rules below.
+{part:brief-head}
 <!-- end briefs -->
 
 <!-- if faces -->
@@ -223,4 +219,4 @@ Return the whole JSON of the answer fields of the instructions given earlier in 
 If you need something else outside the scope, you may return `consult` again (consultation rounds left in this stage: {left}).
 <!-- end overflow_answer -->
 
-Write the human-facing fields (`changes[].what`, the text fields of `closure`, `coverage.remaining`, `root_or_symptom.why`, `bypass_tried`, the text fields of `breaks`, `precedent.problem`, `precedent.reason`, `precedent.searched`, `not_done[].why`, `interactions[].checked`, `combined_effect`, `plan_faces[].how`, `rejudge_requested`, `premise_drift_note`, `conflicts[].why_both_cannot_hold`, `consult[].why`, `bash_writes[].why`) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are.
+Write the human-facing fields (`changes[].what`, the text fields of `closure`, `coverage.remaining`, `root_or_symptom.why`, `bypass_tried`, the text fields of `breaks`, `precedent.problem`, `precedent.reason`, `precedent.searched`, `not_done[].why`, `interactions[].checked`, `combined_effect`, `plan_faces[].how`, `rejudge_requested`, `premise_drift_note`, `conflicts[].why_both_cannot_hold`, `consult[].why`, `bash_writes[].why`) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).

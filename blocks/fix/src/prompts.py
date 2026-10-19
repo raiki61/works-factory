@@ -31,8 +31,6 @@ LEDGER = {"first": files.FIXER_DELIVERED, "ruled": files.RULED_DELIVERED}
 CLASH = {"first": "clash-fix", "ruled": "clash-ruled"}
 CONSULT = {"first": "consult-answer", "ruled": "ruled-consult-answer"}
 WRITER_KINDS = {"docs": "docs", "prompts": "prompts_kind", "config": "config", "code": "code"}   # 種類 → writer-rules の段落の名
-SCOPE_HEADS = ("## ", "受け付けは")   # planrange の scope_text・tests_text の見出しと頭の文（md が持つ）
-TESTS_CLOSE = "- これ以外の既存のテストの関数の本体を変える・消すと拒む。"   # tests_text の結びの文（md が持つ）
 
 
 class Broken(ValueError):
@@ -59,17 +57,6 @@ def _starts(values: dict) -> tuple[dict, dict]:
 
 def _rejection(place, name: str) -> str:
     return rolekit.rejects_text(rolekit.rejected(place, name))
-
-
-def _brief_rows(text: str) -> str:
-    """planbrief.head_text の行（見出しと結びの文は md）"""
-    return "\n".join(line for line in text.split("\n") if line.startswith("- "))
-
-
-def _scope_rows(text: str) -> str:
-    """planrange.scope_text・tests_text の行（見出し・頭の文・結びの文は md）"""
-    lines = [line for line in text.split("\n") if not line.startswith(SCOPE_HEADS) and line != TESTS_CLOSE]
-    return "\n".join(lines).strip("\n")
 
 
 def _libdocs_rows(text: str) -> str:
@@ -144,14 +131,14 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
         when["ruled_reply"] = True
     values = rules.owed_values(place, values, owed=owed)
     owed_keys = json.loads(values["open_units"])
-    vals["brief_rows"] = _brief_rows(planbrief.head_text(planbrief.for_units(briefs, owed_keys), owed_keys))
+    vals["brief_rows"] = rules.brief_rows(planbrief.for_units(briefs, owed_keys), owed_keys)
     when["briefs"] = bool(vals["brief_rows"])
     vals["faces_rows"] = board.plan_faces_text(place, board.face_units(pass_, owed_keys))
     when["faces"] = bool(vals["faces_rows"])
     got_scope = planrange.fix_scope(place, pass_, items=items)[0]
     edits = conflict.edit_permits(place, pass_)
-    vals["scope_rows"] = _scope_rows(planrange.scope_text(got_scope))
-    vals["tests_rows"] = _scope_rows(planrange.tests_text(got_scope, edits, frozen))
+    vals["scope_rows"] = rules.scope_rows(got_scope)
+    vals["tests_rows"] = rules.tests_rows(got_scope, edits, frozen)
     when["scope"] = got_scope is not None
     vals["tests_how"] = board.tests_how_text(place)
     when["tests_how"] = bool(vals["tests_how"])
@@ -169,7 +156,7 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
     try:
         seat.pinned()   # 写しの照合を、下請けのファイルの書き込みとライブラリの文書の引きより前に
         if subs:
-            vals["g1_items"] = "\n".join(f"- {seat._g1_row(r)}" for r in g1_files(place, values, repo, subs, briefs, config))
+            vals["g1_items"] = "\n".join(f"- {rules.g1_row(r)}" for r in g1_files(place, values, repo, subs, briefs, config))
             when["g1"] = True
         else:
             sec = spseam.load_seams()[seat.SEATS["fix"]]
@@ -203,7 +190,7 @@ def fixer(place, repo, pass_: str, values: dict, **kw) -> dict:
 def g1_files(place, values: dict, repo, owed: list[str], briefs: list, config: str = "") -> list[dict]:
     """修正役が起こす下請けのファイルを、項目ごとに place に 2 つ書き（prompt.render_part。名は今のまま g1-impl-<n>.md・g1-review-<n>.md）、
     項目の順の [{item, impl_file, review_file, base, patch}] を返す（今の fixrules.g1_values）。実装役は implementer の型
-    （[BRIEF_FILE] はその項目の brief、[task name] はその項目の直す義務の単位、[REPORT_FILE] は seat.G1_IMPL_REPORT）、審査役は
+    （[BRIEF_FILE] はその項目の brief、[task name] はその項目の直す義務の単位、[REPORT_FILE] は rules.G1_IMPL_REPORT）、審査役は
     task-review の型（[BASE_SHA] は修正前の版、[DIFF_FILE] は place の g1-<n>.patch。型の <base>..<head> は <base> に直す）"""
     place = pathlib.Path(place)
     common = rules.implementer_values(place, values, repo, owed, briefs)
@@ -213,7 +200,7 @@ def g1_files(place, values: dict, repo, owed: list[str], briefs: list, config: s
         impl, review = place / rules.G1_IMPL.format(n=n), place / rules.G1_REVIEW.format(n=n)
         patch = str(place / rules.G1_PATCH_FILE.format(n=n))
         template = seat.fill("implementer", {**common, "[task name]": task, "[BRIEF_FILE]": brief,
-                                              "[REPORT_FILE]": seat.G1_IMPL_REPORT})
+                                              "[REPORT_FILE]": rules.G1_IMPL_REPORT})
         impl.write_text(prompt.render_part("g1-impl", {"template": template.rstrip("\n"), "check_cmd": _check_cmd(config)},
                                    {"spawns": False, "ask": bool(config)}), encoding="utf-8")
         rv = rules.review_values(brief, values, base, patch)
@@ -275,11 +262,11 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
         when["gate"] = True
     if phase == "route":
         vals["owed_units"] = "\n".join(f"- {k}" for k in owed)
-        brief = planbrief.head_text(planbrief.for_units(briefs, owed), owed)
+        brief = rules.brief_rows(planbrief.for_units(briefs, owed), owed)
     else:
         u = st["units"][st["queue"][st["cur"]]]
         both = tdd.together(st, u["unit_key"])
-        brief = planbrief.head_text(planbrief.for_units(briefs, [u["unit_key"]]), [u["unit_key"], *both])
+        brief = rules.brief_rows(planbrief.for_units(briefs, [u["unit_key"]]), [u["unit_key"], *both])
         vals["current_unit"] = f"- {u['unit_key']}"
         when["current"] = True
         if both:
@@ -295,7 +282,7 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
     had, rows = tdd.handoff_rows(st)
     vals["handoff_rows"] = "\n".join(rows)
     when["handoff"] = had
-    vals["brief_rows"] = _brief_rows(brief)
+    vals["brief_rows"] = brief
     when["briefs"] = bool(vals["brief_rows"])
     vals["tests_how"] = board.tests_how_text(place)
     when["tests_how"] = bool(vals["tests_how"])
