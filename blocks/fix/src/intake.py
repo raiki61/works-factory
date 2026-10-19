@@ -54,6 +54,7 @@ def read(raw: dict) -> dict:
     for name in TEXTS:
         text = ports.text(raw.get(name))
         out[name] = text if name in ("notes", "test_cmd") else text.strip()
+    out["excluded"] = _port("excluded", out["excluded"], excluded_rows)
     if mode == "whole" and out["judgment"] is None:
         raise ValueError(NEEDED.format(name="judgment", mode=mode))
     if mode == "group":
@@ -91,8 +92,12 @@ def run_values(doc: dict, run_id: str) -> dict:
 
 
 def excluded_rows(got) -> list:
-    """port excluded（並行 PR の block の pr-excluded.json {excluded: [...]} か、その行の配列。null は外した hunk が無い）の行
-    [{pr, file, start, end, why}]"""
+    """port excluded（並行 PR の確かめが外した hunk の控え {excluded: [...]} か、その行の配列。null は外した hunk が無い）の行
+    [{pr, file, start, end, why, text?, sha256?}]。形の崩れた行はスキーマが拒むので、ここでは捨てずに start <= end だけ照らし、
+    崩れていれば ValueError"""
     rows = got.get("excluded") if isinstance(got, dict) else got
-    return [r for r in rows or [] if isinstance(r, dict) and isinstance(r.get("file"), str)
-            and isinstance(r.get("start"), int) and isinstance(r.get("end"), int)]
+    rows = list(rows or [])
+    for i, r in enumerate(rows):
+        if r["start"] > r["end"]:
+            raise ValueError(f"excluded[{i}]（{r['file']}）: start {r['start']} が end {r['end']} より大きい")
+    return rows

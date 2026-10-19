@@ -391,6 +391,39 @@ class RulingSeamCase(unittest.TestCase):
         self.assertEqual(set(c.held_by_rulings(self.place)), {KEY_A, KEY_B}, "項目の単位の全部を直す義務から外す")
 
 
+class FixAcceptConflictCase(unittest.TestCase):
+    """修正役の受け付け（board.accept_reply）の申し出の照らし（take_conflicts）: 直す義務の外の単位の申し出と、申し出た単位を
+    changes にも書いた返答を拒む（lib の test_conflict_kinds.py の FixAcceptSeamCase から。place は 1 つのフォルダ）"""
+
+    def setUp(self):
+        root = hermetic.tmpdir(self)
+        self.repo, self.place = root / "repo", root / "place"
+        self.rev = committed_copy(self.repo, SEED)
+        self.place.mkdir()
+        (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": MEAN}, {"key": KEY_A}]}), encoding="utf-8")
+
+    def accept(self, conflicts, changes=()):
+        import leftovers
+        reply = {"changes": [{"unit_key": k, "what": "直した", "files": ["stats.py"]} for k in changes], "conflicts": conflicts}
+        return board.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[MEAN, KEY_A], judged=[],
+                                  head=leftovers.snapshot(self.repo), base_rev=self.rev)
+
+    def rejects(self, got) -> str:
+        return " ".join(r["text"] for r in got["rejects"] if r["check"] == "conflict")
+
+    def test_conflict_unit_also_in_changes_is_rejected(self):
+        got = self.accept([MEAN_CLAIM], changes=[MEAN, KEY_A])
+        self.assertEqual((got["ok"], got["conflicted"]), (False, False), got)
+        self.assertIn(f"申し出た単位を changes にも書いた: {MEAN}", self.rejects(got))
+        self.assertEqual(conflict.items(self.place), [], "拒んだ申し出は積まない")
+        got = self.accept([{**MEAN_CLAIM, "unit_key": "stats.py ghost: 作り話の単位"}])
+        self.assertFalse(got["ok"], got)
+        self.assertIn("今の直す義務の単位に無い", self.rejects(got))
+        self.assertEqual(conflict.items(self.place), [])
+        got = self.accept([MEAN_CLAIM])
+        self.assertEqual((got["ok"], got["conflicted"]), (True, True), got)
+
+
 class RuleScriptsCase(unittest.TestCase):
     """裁定の輪の scripts（rule_prep・rule_accept）を子のプロセスで回す。place は intake と prep が書く（全体の形）"""
 

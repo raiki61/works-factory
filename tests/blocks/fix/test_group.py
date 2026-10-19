@@ -11,6 +11,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import unittest
@@ -564,6 +565,25 @@ class GroupChildScriptsCase(unittest.TestCase):
         frozen = self.frozen_reason(out["reason"])
         self.assertTrue(all(p in frozen for p in pasted), frozen)
 
+    def test_fix_ruled_prompt_names_the_saved_first_reply_once(self):
+        """裁定の後の修正役の指示は、1 回目の修正役の返答の保存したファイルを段落 ruled_reply に 1 度だけ名指す（返答が無い run には
+        その段落を入れない）"""
+        import conflict
+        self.green_loop()
+        conflict.park(self.place, [{"unit_key": MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_code_as", "text": "分母を len(xs) にせよ", "limits": []})
+        first = self.run_script("fix_ruled_prep")["prompt"]
+        self.assertNotIn("The first fixer's answer (saved by the machine)", first)
+        reply = _write(self.tmp / "first-reply.json", {"changes": [], "not_done": [], "plan_faces": []})
+        _write(self.place / "groups.json", {"groups": [GROUP], "out_dir": str(self.out_dir)})
+        _write(self.out_dir / "g1" / "result.json", {"reply_file": str(reply)})
+        prompt = self.run_script("fix_ruled_prep")["prompt"]
+        saved = str(self.place / "fix-reply.json")
+        self.assertEqual(prompt.count("The first fixer's answer (saved by the machine): "), 1)
+        self.assertEqual(prompt.count(saved), 1)
+
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
         """fix-prep が修正の段の頭に .archon/ の下の姿を控え（board.record_skipped。除くパスの頭は ports.RUNTIME_COPY_PREFIX）、
         fix-accept がその下を変えた返答を拒む"""
@@ -699,6 +719,21 @@ class GroupChildScriptsCase(unittest.TestCase):
             self.assertEqual(json.loads((beside / b.ALLOWED_TESTS_FILE).read_text(encoding="utf-8")), [permit])
             self.assertEqual(out["allowed_test_changes"], ["test_stats.py"])
             self.assertEqual(out["mismatched"], result["mismatched"])
+
+    def test_group_end_reports_a_touched_excluded_hunk_in_mismatched(self):
+        """組の終わりは、組の始めの木から今への変更が並行 PR に回した hunk に触れていれば、その hunk を名指す行を mismatched に載せる
+        （受け付けを通らない TDD の役・合わせ役の変更も照らす）。触れていなければ載せない"""
+        row = {"pr": 4, "file": "stats.py", "start": 5, "end": 5, "why": "PR 4 が同じ行を書く"}
+        self.parent_inputs("", excluded=[row])
+        self.start()
+        _write(self.place / _src("board").FIX_REPLY_FILE, {"changes": []})
+        result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(result["mismatched"], [])
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(len(result["mismatched"]), 1, result["mismatched"])
+        self.assertIn("並行 PR #4 に回した hunk stats.py:5-5（PR 4 が同じ行を書く）", result["mismatched"][0])
 
     def test_group_child_starts_its_log_and_reports_where_join_finds_it(self):
         """並べた子は自分の作業ツリーの記録を group-start で空で作り、group-end の結果の worktree から join が同じ記録を引く"""

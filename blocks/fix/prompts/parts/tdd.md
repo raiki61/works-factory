@@ -63,7 +63,7 @@ Where it does not apply (do not follow):
 
 {seat_not_applies}
 
-When you read a borrowed skill (superpowers), follow the reading rules below. They are direct instructions to you and win over the skill's text.
+When you read a borrowed skill (superpowers), follow the reading rules below. They are direct instructions to you and win over the skill's text. If you start a subagent with Agent, write in its prompt to Read this file: {overlay_file}.
 
 {unattended}
 
@@ -175,4 +175,4 @@ In any phase, for a unit where you found you can only get green by bending a tes
 
 Return only the JSON of the form in "The JSON to return" above.
 
-Write the human-facing fields (`units[].why`, `direct_why`, `red_quotes.*.why`, `what`, `refactor.why`, `why_both_cannot_hold`, `bash_writes[].why`) in {lang}. Keep keys, enum values, paths, and commands as they are.
+Write the human-facing fields (`units[].why`, `direct_why`, `red_quotes.*.why`, `what`, `refactor.why`, `why_both_cannot_hold`, `bash_writes[].why`) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are.

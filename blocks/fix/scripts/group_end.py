@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""node group-end（組の形の終わり）: 終わりの木・単位ごとの結末・TDD の輪の結果・申し出・異議・修正役の印・許したテストの変更を
+"""node group-end（組の形の終わり）: 終わりの木・単位ごとの結末・TDD の輪の結果・申し出・異議・修正役の印・許したテストの変更と、始めの木からの変更が並行 PR に回した hunk に触れたことを（mismatched に）
 out_dir/<group_id>/result.json（out_dir が空なら place の groups/）に書く（board.group_result。今のまま）。返り {result_file}"""
 import os
 import sys
@@ -38,13 +38,14 @@ def main() -> dict:
     gdir = board.group_dir(place, doc.get("out_dir") or "", group["group_id"])
     began = board.read_json(gdir / board.GROUP_START_FILE) or {}
     reply_path = place / board.FIX_REPLY_FILE
+    start = str(began.get("start_tree") or board.start_tree(place))
     result = board.group_result(
-        group, start_tree=str(began.get("start_tree") or board.start_tree(place)), end_tree=groups.end_tree(repo),
+        group, start_tree=start, end_tree=groups.end_tree(repo),
         tdd=tdd_exit(board.read_json(place / board.TDD_START_FILE)), tdd_state=board.loop_files(place)[0],
         fix_units=board.read_json(place / board.FIX_UNITS_FILE, {}), reply=board.read_json(reply_path),
         reply_file=str(reply_path) if reply_path.is_file() else "",
         allowed_rows=board.allowed_test_rows(place), conflicts=conflict.this_pass(place),
-        worktree=os.path.realpath(repo), mismatched=board.mismatched_lines(place),
+        worktree=os.path.realpath(repo), mismatched=[*board.mismatched_lines(place), *board.check_excluded(place, repo, start)],
         accept_trace=board.accept_trace_rows(place), closure=finish.closure_rows(place), place=str(place))
     target = gdir / board.RESULT_FILE
     board.write_json(target, result)

@@ -743,6 +743,19 @@ class CleanAndChangedCase(FinishPlace):
         out = self.assert_case(["stats.py"], ["stats.py", ".archon/run.json"])
         self.assertEqual(out, {"ok": True, "reason": ""})
 
+    def test_assert_changed_names_a_touched_excluded_hunk_once_for_the_whole_tree(self):
+        """始めの木から今への変更が並行 PR に回した hunk に触れていれば、誰が書いた変更でも（受け付けを通らない TDD の役・合わせ役の
+        変更も）ok: false と hunk を名指す理由で返す。触れていなければ通す"""
+        runvals = kit.load("fix", "runvals")
+        runvals.write(self.place, {"excluded": [{"pr": 3, "file": "stats.py", "start": 5, "end": 5, "why": "PR 3 が同じ行を書く"}]})
+        out = self.assert_case(["stats.py"], ["stats.py"])
+        self.assertFalse(out["ok"])
+        self.assertIn("並行 PR #3 に回した hunk stats.py:5-5", out["reason"])
+        self.restore()
+        runvals.write(self.place, {"excluded": [{"pr": 3, "file": "stats.py", "start": 5, "end": 5}]})
+        out = self.assert_case(["other.py"], ["other.py"])
+        self.assertEqual(out, {"ok": True, "reason": ""})
+
     def test_assert_changed_does_not_count_archon_place(self):
         out = self.assert_case([".archon/run.json"], [".archon/run.json"])
         self.assertFalse(out["ok"])

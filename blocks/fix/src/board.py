@@ -5,6 +5,7 @@ fixboard から）・始めの記録の読み（values.json。src/runvals.py）�
 置き場の名の定数は src/files.py に在る。
 """
 import functools
+import hashlib
 import json
 import os
 import pathlib
@@ -23,8 +24,6 @@ from src import files as fixnames
 from src.files import (  # noqa: F401
     GROUPS_FILE, TDD_UNIT_FILE, ASSERT_FILE, RESULT_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, JUDGE_COPIES, CHECKED_COPIES, RIPPLE_FILE, ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, NOTES_FILE, BASE_REV_FILE, FIX_REPLY_FILE, VALUES, LIB_START)
 
-PREP_INPUTS = ("judgment", "answer_ties", "materials", "plan", "fix_plan", "plan_review", "ripple", "answers", "only_items",
-               "baseline", "prior", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
 ACCEPT_TRACE_FILE = fixnames.ACCEPT_TRACE_FILE   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
 
@@ -145,12 +144,8 @@ def collect_reads(place, log, *, repo) -> dict:
         index[reads.INDEX_WHY] = f"{reads.NOT_LAUNCHED}: {'・'.join(idle)}"
     out = write_json(p / reads.index_name(READS_OWNER), index)
     return {"ok": True, "missing": missing, "index_file": str(out)}
-MODES = {"whole": False, "group": True}       # 入力 mode の語 → 組の子の run か（route が振り分け、collect が出力の形を選ぶ）
-LANE_SWITCHES = ("fix_lanes", "tdd_lanes")   # 機能の切り替えの語。どちらかが off なら組を並べない（元 works/.shared/core/entry.py:421-440）
 NO_RESULT = "組の子の run が結果のファイルを書かなかった（子が落ちたか、結果が読めない）"
-CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
-                 "path_changed")
-DRIFT_NOTE = "premise_drift_note"   # 修正役の返答と返りの changed の欄: 前提のずれの申告の文（premise_drift が真の時の測り直した制約）
+from src.finish import CHANGED_MARKS, DRIFT_NOTE  # noqa: E402,F401  修正役の返答と返りの changed の欄の名（定義は finish。DRIFT_NOTE は前提のずれの申告の文）
 X_SCALARS = "x_scalars"             # 修正役の返答と返りの欄: 修正役が足した x_ の規模の数値
 NOT_CHANGED = "修正役は済んだと言ったが、申告したファイル {files} は run の始めから何も変わっていない（変わった物: {moved}）"
 NOT_DECLARED = ("修正役は済んだと言ったが、触ったファイルを 1 つも申告していない（changes[].files が空。直す義務の単位が残って"
@@ -265,7 +260,7 @@ def fix_groups(owed, items, only_items=()) -> list:
 
 
 def parallel(groups, allowed, repo) -> bool:
-    """組を並べるか: 組が 2 つ以上で、port parallel（allowed。今の始めの記録の features_cut に LANE_SWITCHES のどちらも無い）が真で、
+    """組を並べるか: 組が 2 つ以上で、port parallel（allowed）が真で、
     対象のリポジトリ repo に git の remote が在る時だけ真（子ごとの作業ツリーは remote の既定の枝から切られ、remote の無い
     リポジトリでは子を 1 つも起こせない）"""
     import leftovers
@@ -1151,28 +1146,49 @@ def record_skipped(place, repo, skip) -> pathlib.Path:
     return write_json(pathlib.Path(place) / SKIP_BEFORE_FILE, skip_digests(repo, skip))
 
 
-EXCLUDED_TOUCHED = ("並行 PR #{pr} に回した hunk {file}:{start}-{end}（{why}）を変えた——この run の範囲から外した所なので、元の姿に"
+EXCLUDED_TOUCHED = ("並行 PR{pr} に回した hunk {file}:{start}-{end}{why}を変えた——この run の範囲から外した所なので、元の姿に"
                     "戻してから出し直せ（変えた行 {lines}）")
+EXCLUDED_UNCHECKED = "並行 PR に回した hunk を照らせない（{why}）。照らせないまま通さない"
 HUNK_OLD = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
 
 
-def check_excluded(place, repo) -> list:
-    """並行 PR の block が外した hunk（values.json の excluded。行の範囲は修正前の作業ツリーの行）に、修正の段の始めの木から今の
-    作業ツリーへの変更が触れたら、hunk を名指す拒否の文（hunk ごとに 1 行）。外した hunk が無ければ照らさない。新しい
-    （docs/design/fix.md の 8.1。line の設計書の 8.2 の決め）"""
+def _located(rows, before: bytes) -> dict:
+    """外した hunk の行 rows を、木の中のファイルの中身 before の行の範囲 (始め, 終わり) に引き直す {行の添字: 範囲}。並行 PR の確かめが
+    付けた錨（行の sha256。start〜end の行のバイトの印）と同じ中身の行の並びを探し、複数在れば記録した start に近い方。錨の無い行・
+    錨が木の中に無い行は記録した行のまま（前の段の修正で行がずれていても、中身で引き直す。新しい）"""
+    lines = before.splitlines(keepends=True)
+    out = {}
+    for i, r in enumerate(rows):
+        n = r["end"] - r["start"] + 1
+        want = r.get("sha256")
+        at = [k for k in range(len(lines) - n + 1)
+              if isinstance(want, str) and want and hashlib.sha256(b"".join(lines[k:k + n])).hexdigest() == want]
+        k = min(at, key=lambda x: abs(x + 1 - r["start"])) if at else None
+        out[i] = (k + 1, k + n) if k is not None else (r["start"], r["end"])
+    return out
+
+
+def check_excluded(place, repo, tree: str = "") -> list:
+    """並行 PR の確かめが外した hunk（values.json の excluded）に、始めの木 tree（空なら修正の段の始めの木 start_tree）から今の
+    作業ツリーへの変更が触れたら、hunk を名指す拒否の文（hunk ごとに 1 行）。外した hunk の行は並行 PR の確かめが走った時の作業ツリーの
+    行なので、始めの木の中の位置は錨（_located）で引き直して比べる。外した hunk が無ければ照らさない。始めの木が無い・git が読めない
+    ファイルは、黙って通さずその訳を 1 行で返す。新しい（docs/design/fix.md の 8.1。line の設計書の 8.2 の決め）"""
     import leftovers
     from src import runvals
     rows = runvals.read(place)["excluded"]
     if not rows:
         return []
-    tree = start_tree(place)
+    tree = tree or start_tree(place)
     if not tree:
-        return []
+        return [EXCLUDED_UNCHECKED.format(why="始めの木が無い")]
     out = []
     for f in sorted({r["file"] for r in rows}):
+        mine = [r for r in rows if r["file"] == f]
         try:
-            diff = leftovers.git(repo, "diff", "-U0", "--no-color", "--no-ext-diff", tree, "--", f)
-        except leftovers.Unreadable:
+            diff = leftovers.git(repo, "--literal-pathspecs", "diff", "-U0", "--no-color", "--no-ext-diff", tree, "--", f)
+            placed = _located(mine, leftovers.git(repo, "show", f"{tree}:{f}", text=False))
+        except leftovers.Unreadable as e:
+            out.append(EXCLUDED_UNCHECKED.format(why=f"{f}: {oneline.one_line(e)[:200]}"))
             continue
         spans = []   # 変えた・消した旧い側の行の範囲（足しただけの所は足した位置の前後の行）
         for line in diff.splitlines():
@@ -1180,10 +1196,12 @@ def check_excluded(place, repo) -> list:
             if m:
                 a, n = int(m.group(1)), int(m.group(2) if m.group(2) is not None else 1)
                 spans.append((a, a + n - 1) if n else (a, a + 1))
-        for r in (r for r in rows if r["file"] == f):
-            hit = [s for s in spans if s[0] <= r["end"] and s[1] >= r["start"]]
+        for i, r in enumerate(mine):
+            lo, hi = placed[i]
+            hit = [s for s in spans if s[0] <= hi and s[1] >= lo]
             if hit:
-                out.append(EXCLUDED_TOUCHED.format(pr=r.get("pr"), file=f, start=r["start"], end=r["end"], why=r.get("why") or "",
+                out.append(EXCLUDED_TOUCHED.format(pr=f" #{r['pr']}" if r.get("pr") not in (None, "") else "", file=f, start=r["start"],
+                                                   end=r["end"], why=f"（{r['why']}）" if r.get("why") else "",
                                                    lines="・".join(f"{a}-{b}" for a, b in hit)))
     return out
 

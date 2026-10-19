@@ -219,8 +219,9 @@ def check_standalone_renders(pack: pathlib.Path, tests: pathlib.Path | None = No
                 if name == STANDALONE and said is not None and not fixed:
                     out.append(f"{at} の resolved-text-contains の {nid} が prompts/{nid}.md の決まった文の中に無い（値でなく md の文で照らす）")
                 proved |= runs and fixed
-            rendered = rendered_rows(folder, tests).get(nid)
-            proved |= isinstance(rendered, str) and any(rendered in c for c in chunks)
+            reached = any(nid in ((fx.get("fixture") or {}).get("reached") or []) for fx in fixtures.values())
+            rendered = rendered_rows(folder, tests).get(nid)   # 表の行は筋書きで届かない node だけを照らす（届く node は筋書きで照らす）
+            proved |= not reached and isinstance(rendered, str) and any(rendered in c for c in chunks)
             if not proved:
                 out.append(f"{folder.name}: AI の node {nid} の指示を md から組んだと照らす筋書きが無い（exec-code: true・prep を差し替えない・"
                            f"reached に在る・resolved-text-contains が md の決まった文。筋書きで届かない node は試験の表 RENDERED の行）")
@@ -540,6 +541,14 @@ class SeedCase(unittest.TestCase):
                 got = self.broken(check_standalone_renders, {"demo/fixtures/standalone.stubs.yaml": unreached,
                                                              "tests-of-blocks/demo/test_prompts.py": table})
                 self.assertEqual(got == [], clean, got)
+
+    def test_rendered_table_does_not_prove_a_node_the_fixtures_reach(self):
+        """筋書きで届く node は表 RENDERED の行では照らされない（筋書きの resolved-text-contains がなければ照らす筋書きが無い）"""
+        reached = yaml.safe_dump({"fixture": {"reached": ["prep", "role", "finish"], "inputs": {"text_in": "x"}}, "exec-code": True,
+                                  "role": {}})
+        got = self.broken(check_standalone_renders, {"demo/fixtures/standalone.stubs.yaml": reached,
+                                                     "tests-of-blocks/demo/test_prompts.py": 'RENDERED = {"role": "rules"}\n'})
+        self.assertTrue(any("照らす筋書きが無い" in line for line in got), got)
 
     def test_self_workflow_is_allowed_in_a_block(self):
         """block が起こしてよい workflow は自分（直しの組ごとに自分を子の run として起こす形）"""

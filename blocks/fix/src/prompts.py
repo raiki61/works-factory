@@ -23,6 +23,7 @@ from src import board, files, rules, runvals
 
 EMPTY = "(empty)"
 BLOCK = pathlib.Path(__file__).resolve().parents[1]
+OVERLAY_FILE = str(spseam.BORROW_DIR / spseam.OVERLAY_FILE)   # 下請けに Read させる無人の読み替え（今の seat.OVERLAY_HEAD の後半）
 FACTS = BLOCK / "src" / "facts.py"   # 事前の確かめのコマンド（1.5.5）
 FIXER = {"first": "fixer", "ruled": "fix-ruled"}
 ACCEPT = {"first": "fix-accept", "ruled": "fix-ruled-accept"}
@@ -83,8 +84,10 @@ def _libdocs_rows(text: str) -> str:
     return body.strip("\n")
 
 
-def _kinds_when(kinds) -> dict:
-    return {name: kind in kinds for kind, name in WRITER_KINDS.items()}
+def _kinds_when(kinds, role: str) -> dict:
+    """writer-rules の証拠の段落の真偽。続きの周は種類が全部偽で、見出しと頭の文ごと落とす。role は答えを書く場所の段落の名（この block は fixer・tdd）"""
+    got = {name: kind in kinds for kind, name in WRITER_KINDS.items()}
+    return {**got, "evidence": any(got.values()), **{f"where_{r}": r == role for r in ("fixer", "tdd", "rework")}}
 
 
 def _check_cmd(config: str) -> str:
@@ -104,15 +107,16 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
     ledger = place / LEDGER[pass_]
     slots = ("rejection rulings_file saved_reply brief_rows faces_rows scope_rows tests_rows tests_how policy_path request_file "
              "judgment_file open_units plan_file summary_file notes_file budget draft check_cmd ripple_file libdocs_rows g1_items "
-             "seat_file seat_body unattended answer_file left lang").split()
+             "seat_file seat_body unattended overlay_file first_prompt answer_file left lang").split()
     vals = {k: "" for k in slots}
-    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests_how rules ask ask_ripple libdocs g1 "
-                               "seat_one resume queued overflow_answer conflict docs prompts_kind config code").split()}
+    when = {k: False for k in ("rejected rulings_first ruled_reply briefs faces scope tests tests_how rules ask ask_ripple libdocs g1 "
+                               "seat_one resume queued overflow_answer conflict docs prompts_kind config code evidence where_fixer where_tdd where_rework").split()}
     when["conflict"] = True
     start_vals, start_when = _starts(values)
     vals.update(start_vals, lang=prompt.lang(runvals.read(place)["lang"]))
     when.update({k: False for k in start_when})
     from src import consult
+    vals["first_prompt"] = str(place / f"{FIXER[pass_]}-prompt-1.md")   # 続きの周が読み直す、1 回目に組んだ指示のファイル
     got = consult.take(place, pass_)
     if got is not None:   # 範囲の相談の答えの後の周: 答えのファイルを名指すだけ（受け付けの回は数え直さない）
         rv = rules.resume_values(got)
@@ -123,7 +127,7 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
         when["queued"] = True
         return vals, when, {"iteration": max(1, rules.iteration_next(ledger) - 1), "kinds": None, "ledger": ledger}
     n = rules.iteration_next(ledger)
-    when.update(start_when, rules=True)
+    when.update(start_when, rules=True, tests=True)   # テストの節は修正案の有無によらずいつも載る
     rejects = rolekit.rejected(place, ACCEPT[pass_])
     if pass_ == "ruled" and n == 1:
         rulings = place / conflict.RULINGS_FILE
@@ -148,8 +152,7 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
     edits = conflict.edit_permits(place, pass_)
     vals["scope_rows"] = _scope_rows(planrange.scope_text(got_scope))
     vals["tests_rows"] = _scope_rows(planrange.tests_text(got_scope, edits, frozen))
-    # 今は修正案の無い run でもテストの節（変えてよい既存のテストと凍ったテスト）が載った。それを落とさない
-    when["scope"] = got_scope is not None or bool((frozen or {}).get("files")) or bool(edits.get("tests") or edits.get("limits"))
+    when["scope"] = got_scope is not None
     vals["tests_how"] = board.tests_how_text(place)
     when["tests_how"] = bool(vals["tests_how"])
     for key in ("judgment_file", "open_units", "plan_file", "summary_file", "notes_file"):
@@ -174,12 +177,13 @@ def fixer_values(place, repo, pass_: str, values: dict, *, owed, items=None, sou
             vals["seat_body"] = seat.fill(seat.SEATS["fix"], rules.implementer_values(place, values, repo, owed_keys, briefs)).rstrip("\n")
             when["seat_one"] = True
         vals["unattended"] = seat.overlay_body(seat.OVERLAY_KINDS["fix"]).rstrip("\n")
+        vals["overlay_file"] = OVERLAY_FILE
     except ValueError as e:
         raise Broken(f"修正役の座を組めない: {e}") from None
     vals["libdocs_rows"] = _libdocs_rows(rules.lib_section(place, repo, values, shared))
     when["libdocs"] = bool(vals["libdocs_rows"])
     kinds = rules.kinds_for(ledger, values, repo)
-    when.update(_kinds_when(kinds))
+    when.update(_kinds_when(kinds, "fixer"))
     return vals, when, {"iteration": n, "kinds": kinds, "ledger": ledger}
 
 
@@ -251,10 +255,10 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
     phase = st["phase"]
     owed = tdd._owed(st)
     vals = {k: "" for k in ("iteration phase brief_rows rejection policy_path request_file judgment_file open_units plan_file "
-                            "notes_file skill seat_applies seat_not_applies unattended test_cmd owed_units current_unit "
+                            "notes_file skill seat_applies seat_not_applies unattended overlay_file test_cmd owed_units current_unit "
                             "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang").split()}
     when = {k: False for k in ("briefs rejected rules conflict docs prompts_kind config code phase_route phase_test phase_fix "
-                               "phase_refactor gate current together named handoff later tests_how").split()}
+                               "phase_refactor gate current together named handoff later tests_how evidence where_fixer where_tdd where_rework").split()}
     when.update(rules=True, conflict=True, **{f"phase_{phase}": True})
     start_vals, start_when = _starts(values)
     vals.update(start_vals)
@@ -302,11 +306,12 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
         vals["seat_applies"] = "\n".join(f"- {r}" for r in sec.get("applies") or [])
         vals["seat_not_applies"] = "\n".join(f"- {r}" for r in sec.get("not_applies") or [])
         vals["unattended"] = seat.overlay_body(seat.OVERLAY_KINDS["tdd"]).rstrip("\n")
+        vals["overlay_file"] = OVERLAY_FILE
     except (ValueError, KeyError) as e:
         raise Broken(f"TDD のループの座を組めない: {e}") from None
     ledger = place / files.TDD_DELIVERED
     kinds = rules.kinds_for(ledger, {**values, "open_units": vals["open_units"]}, repo)
-    when.update(_kinds_when(kinds))
+    when.update(_kinds_when(kinds, "tdd"))
     return vals, when, {"iteration": st["iterations"] + 1, "kinds": kinds, "ledger": ledger}
 
 

@@ -146,6 +146,62 @@ class FixerParagraphsCase(unittest.TestCase):
         self.assertNotIn("## Scope consultation and the pre-check", resumed["prompt"])
         self.assertIn("## How to fix", resumed["prompt"])   # 共通の断片の直し方は続きの周にも入る（13.2 の 1）
 
+    def test_tdd_prompt_names_the_policy_the_port_gives(self):
+        """TDD の役の指示が名指す方針の文書は port policy の値（line が固めて渡す写し）。run の途中で書き換えた生の文書の名は載らない"""
+        run = seeded(self)
+        copy = run.repo.parent / "policy-copy.md"
+        raw = run.repo.parent / "policy-raw.md"
+        copy.write_text("方針\n", encoding="utf-8")
+        raw.write_text("書き換えた方針\n", encoding="utf-8")
+        run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER), policy=str(copy))
+        run.script("group_start")
+        text = run.script("tdd_prep")["prompt"]
+        self.assertIn(str(copy), text)
+        self.assertNotIn(str(raw), text)
+
+    def test_tests_section_is_always_there_and_the_scope_section_needs_a_fix_plan(self):
+        """テストの節（変えてよい既存のテストと、それ以外の本体を変えると拒む文）は修正案の有無によらず入る。範囲の節は修正案が在る時だけ"""
+        bare = seeded(self)
+        bare.script("intake", mode="group", group=GROUP, judgment=JUDGMENT)
+        bare.script("group_start")
+        text = bare.script("fix_prep")["prompt"]
+        self.assertIn("## Tests you may add or change, and frozen tests", text)
+        self.assertIn("- Changing or removing the body of any other existing test function is rejected.", text)
+        self.assertNotIn("## Paths you may change and what you must not touch", text)
+        planned = seeded(self)
+        planned.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}),
+                       judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN)
+        planned.script("group_start")
+        text = planned.script("fix_prep")["prompt"]
+        self.assertIn("## Paths you may change and what you must not touch", text)
+        self.assertIn("## Tests you may add or change, and frozen tests", text)
+
+    def test_the_first_prompt_names_the_borrowed_reading_file_and_the_resumed_one_the_first_prompt(self):
+        """下請けを起こす時に Read させる読み替えのファイルを 1 回目の指示が名指し、続きの周は読み落とした時の逃げ道として 1 回目の
+        指示のファイルを名指す"""
+        run = seeded(self)
+        run.script("intake", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": [1]}),
+                   judgment=JUDGMENT, plan=PLAN, fix_plan=FIX_PLAN)
+        run.script("group_start")
+        first = run.script("fix_prep")
+        self.assertRegex(first["prompt"], r"write in its prompt to Read this file: \S+unattended\.md")
+        reply = {**REPLY, "consult": [{"item": 1, "paths": ["README.md"], "tests": [], "why": "直しに伴う記録を README に足す要がある"}]}
+        run.script("consult_check", reply=json.dumps(reply), **{"pass": "first"})
+        answer = {"answers": [{"ask": 1, "decision": "allow", "paths": ["README.md"], "tests": [], "spec": "",
+                               "reason": "直しの記録は範囲に入れてよい"}]}
+        run.script("consult_accept", answer=json.dumps(answer), **{"pass": "first"})
+        resumed = run.script("fix_prep")["prompt"]
+        self.assertRegex(resumed, r"Read \S+fixer-prompt-1\.md again")
+
+    def test_language_line_keeps_code_identifiers_and_error_messages(self):
+        for name in ("parts/fixer.md", "parts/tdd.md", "parts/clash.md", "ruler.md"):
+            with self.subTest(name=name):
+                text = (BLOCK / "prompts" / name).read_text(encoding="utf-8")
+                self.assertIn("Keep keys, enum values, code identifiers, paths, commands, and error messages as they are.", text)
+        fixer = (BLOCK / "prompts" / "parts" / "fixer.md").read_text(encoding="utf-8")
+        for field in ("`coverage.remaining`", "`precedent.problem`", "`precedent.searched`"):
+            self.assertIn(field, fixer.rsplit("Write the human-facing fields", 1)[1])
+
     def test_tdd_route_phase_has_only_its_phase(self):
         run = seeded(self)
         run.script("intake", mode="group", group=GROUP, judgment=JUDGMENT, tdd_suite=str(RUNNER))

@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """node assert-changed（全体の形）: 戻せた組と裁定の後の返答の changes[].files が始めの木から本当に変わったか（申告が空なら、
-直す義務が残らず外れた単位だけの run だけを通す）。比べが通らない時は ok: false と理由（落ちない）。比べの外の誤り（groups.json が
+直す義務が残らず外れた単位だけの run だけを通す）と、始めの木から今への変更が並行 PR に回した hunk に触れていないか。比べが通らない時は ok: false と理由（落ちない）。比べの外の誤り（groups.json が
 無い・git が効かない）は assert-changed.json に訳を書いて落ちる。今のまま。返り {ok, reason}"""
 import os
 import sys
@@ -43,6 +43,10 @@ def main(place: Path) -> dict:
     owed = [k for g in plan["groups"] for k in g["unit_ids"]]
     excused = board.nothing_owed_but_excused(place, set(owed)) if not declared else {}
     ok, reason = board.changed_problem(declared, touched, excused)
+    # 並行 PR に回した hunk は、始めの木から今への変更を 1 度照らす（TDD の役・合わせ役・裁定の後の修正役の変更も届く）
+    held = board.check_excluded(place, Path.cwd(), plan["start_tree"])
+    if held:
+        return {"ok": False, "reason": "\n".join([reason, *held] if reason else held)}
     return {"ok": ok, "reason": reason}
 
 

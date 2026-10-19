@@ -32,14 +32,16 @@ Answer every key below in the answer's `plan_faces`, one row per key (copy the k
 The acceptance checks the paths you changed against these values and rejects what is off. If a path you declared in `changes[].files` is explicitly allowed by one of that unit's items (allowed_paths, the test files), it is checked only against the `out_of_scope` of that unit's items (the `out_of_scope` of other items does not apply). For every other path, the `out_of_scope` of every item is stronger than the scope and also wins over the permitted paths (only a path excluded through a scope consultation does not apply for that item). The paths and test permissions allowed by scope consultations are included here too.
 
 {scope_rows}
+<!-- end scope -->
 
+<!-- if tests -->
 ## Tests you may add or change, and frozen tests
 
 The acceptance checks the tests you added, the existing tests whose bodies you changed, and the frozen test files against these names, and rejects what is off. If you need something off the list, ask in a scope consultation before you change it.
 
 {tests_rows}
 - Changing or removing the body of any other existing test function is rejected.
-<!-- end scope -->
+<!-- end tests -->
 
 <!-- if tests_how -->
 ## How the tests were run before the fix
@@ -161,7 +163,7 @@ DISPATCH (do not start subagents) and DELEGATE's "a role never hands work to oth
 <!-- if rules -->
 ## Reading borrowed skills
 
-When you read a borrowed skill (superpowers), follow the reading rules below. They are direct instructions to you and win over the skill's text.
+When you read a borrowed skill (superpowers), follow the reading rules below. They are direct instructions to you and win over the skill's text. If you start a subagent with Agent, write in its prompt to Read this file: {overlay_file}.
 
 {unattended}
 <!-- end rules -->
@@ -201,7 +203,7 @@ The acceptance checks whether every unit you owe a fix appears in `changes` (or 
 # The answer to your scope consultation (continued)
 
 An answer came to the `consult` of your previous answer (or to the consultation the machine asked about conditions a person answered beforehand). Read the answer file {answer_file} with Read, all of it (an answer the machine checked; only what was allowed entered the scope).
-Go on fixing as the answer says, and return the whole JSON of the answer fields of the instructions given earlier in this conversation (the rules are as given earlier in this conversation).
+Go on fixing as the answer says, and return the whole JSON of the answer fields of the instructions given earlier in this conversation (the rules are as given earlier in this conversation; if you did not read them in full, Read {first_prompt} again).
 If you still need something outside the scope, you may return `consult` again (consultation rounds left in this stage: {left}).
 <!-- end resume -->
 
@@ -209,7 +211,7 @@ If you still need something outside the scope, you may return `consult` again (c
 # Overflow the acceptance found (sent to consultation)
 
 In your previous answer, the acceptance found overflow outside the scope (files outside the scope, new tests not in the fix plan's `tests`, rewrites of frozen tests or of existing test functions outside the named ones) and sent it to a consultation with the fix plan's side. The answer comes in the next round.
-Without changing the working tree, return the whole JSON of the answer fields of the instructions given earlier in this conversation, with the same content as your previous answer (the rules are as given earlier in this conversation).
+Without changing the working tree, return the whole JSON of the answer fields of the instructions given earlier in this conversation, with the same content as your previous answer (the rules are as given earlier in this conversation; if you did not read them in full, Read {first_prompt} again).
 <!-- end queued -->
 
 <!-- if overflow_answer -->
@@ -217,8 +219,8 @@ Without changing the working tree, return the whole JSON of the answer fields of
 
 An answer came about the overflow the acceptance found. Read the answer file {answer_file} with Read, all of it (an answer the machine checked; only what was allowed entered the scope).
 What was allowed may stay. What was denied, deferred, or got no answer is returned to its original state by the machine at the next acceptance (do not revert it yourself; the machine also removes it from the files of changes).
-Return the whole JSON of the answer fields of the instructions given earlier in this conversation, in the same form as your previous answer (the rules are as given earlier in this conversation).
+Return the whole JSON of the answer fields of the instructions given earlier in this conversation, in the same form as your previous answer (the rules are as given earlier in this conversation; if you did not read them in full, Read {first_prompt} again).
 If you need something else outside the scope, you may return `consult` again (consultation rounds left in this stage: {left}).
 <!-- end overflow_answer -->
 
-Write the human-facing fields (`changes[].what`, the text fields of `closure`, `root_or_symptom.why`, `bypass_tried`, the text fields of `breaks`, `precedent.reason`, `not_done[].why`, `interactions[].checked`, `combined_effect`, `plan_faces[].how`, `rejudge_requested`, `premise_drift_note`, `conflicts[].why_both_cannot_hold`, `consult[].why`, `bash_writes[].why`) in {lang}. Keep keys, enum values, paths, and commands as they are.
+Write the human-facing fields (`changes[].what`, the text fields of `closure`, `coverage.remaining`, `root_or_symptom.why`, `bypass_tried`, the text fields of `breaks`, `precedent.problem`, `precedent.reason`, `precedent.searched`, `not_done[].why`, `interactions[].checked`, `combined_effect`, `plan_faces[].how`, `rejudge_requested`, `premise_drift_note`, `conflicts[].why_both_cannot_hold`, `consult[].why`, `bash_writes[].why`) in {lang}. Keep keys, enum values, code identifiers, paths, commands, and error messages as they are.

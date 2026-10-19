@@ -2,7 +2,7 @@
 今の lib/fixbeside.py のうち fix の物（閉鎖の表 CLOSURE_FILE・claimed_of・closure_rows と、受け付けの行の選び _accepted_tests）。
 
 前の node の返りを with: で束ねず、各 node が place に書いたファイルを読んで出力の欄を組む。差分の審査とレンズの欄は無い
-（delta-review と lens の block の出力）。中の誤りは script が捕まえて fallback で返す（落ちない）。
+（この block の外で作る出力）。中の誤りは script が捕まえて fallback で返す（落ちない）。
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from src import files
 
 CLOSURE_FILE = files.CLOSURE_FILE
 CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
-                 "path_changed")
+                 "path_changed")   # board.py もここから読む（lib が読めない時の約束の形が標準ライブラリだけで返せるように、定義はここ）
 DRIFT_NOTE = "premise_drift_note"
 JOIN_MISSING = "join が結果を残さなかった（落ちたか走らなかった）"
 
@@ -117,16 +117,20 @@ def _scope(place) -> pathlib.Path | None:
 
 def _tdd_refused(place) -> dict:
     """TDD の輪の状態の calls から修正役が拒まれた単位と、在るのに読めない状態の訳（今の fixbeside.tdd_refused）"""
+    import oneline
     from src import tdd
     refused, unread = [], []
     for state in tdd.states(place):
         try:
             doc = json.loads(state.read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:
-            unread.append(f"修正の控え {state} が読めない（{type(e).__name__}）")
+            unread.append(f"修正の控え {state} が読めない（{type(e).__name__}: {oneline.one_line(e)}）")
             continue
-        if not isinstance(doc, dict) or "error" in doc:
-            unread.append(f"修正の控え {state} の形が違う")
+        if isinstance(doc, dict) and "error" in doc:
+            unread.append(f"修正の控え {state} を組めなかった（{oneline.one_line(doc['error'])}）")
+            continue
+        if not isinstance(doc, dict):
+            unread.append(f"修正の控え {state} の形が違う（オブジェクトでない）")
             continue
         refused += tdd.refused_units(doc.get("calls"))
     return {"refused": refused, "unread": unread}
